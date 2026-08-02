@@ -1,0 +1,51 @@
+# Auto-detect text files, normalize to LF on commit
+* text=auto eol=lf
+# ---- Source / config: force text ----
+*.cs        text diff=csharp
+*.shader    text
+*.hlsl      text
+*.cginc     text
+*.json      text
+*.md        text
+# ---- Unity YAML (text): use UnityYAMLMerge when configured ----
+*.unity            text merge=unityyamlmerge eol=lf
+*.prefab           text merge=unityyamlmerge eol=lf
+*.mat              text merge=unityyamlmerge eol=lf
+*.anim             text merge=unityyamlmerge eol=lf
+*.controller       text merge=unityyamlmerge eol=lf
+*.asset            text merge=unityyamlmerge eol=lf
+*.meta             text merge=unityyamlmerge eol=lf
+*.terrainlayer     text merge=unityyamlmerge eol=lf
+*.physicMaterial   text merge=unityyamlmerge eol=lf
+*.playable         text merge=unityyamlmerge eol=lf
+*.mask             text merge=unityyamlmerge eol=lf
+*.renderTexture    text merge=unityyamlmerge eol=lf
+*.inputactions     text eol=lf
+# ---- Binary media: track with Git LFS ----
+*.png   filter=lfs diff=lfs merge=lfs -text
+*.jpg   filter=lfs diff=lfs merge=lfs -text
+*.jpeg  filter=lfs diff=lfs merge=lfs -text
+*.tga   filter=lfs diff=lfs merge=lfs -text
+*.bmp   filter=lfs diff=lfs merge=lfs -text
+*.tif   filter=lfs diff=lfs merge=lfs -text
+*.tiff  filter=lfs diff=lfs merge=lfs -text
+*.psd   filter=lfs diff=lfs merge=lfs -text
+*.exr   filter=lfs diff=lfs merge=lfs -text
+*.hdr   filter=lfs diff=lfs merge=lfs -text
+*.glb   filter=lfs diff=lfs merge=lfs -text
+*.gltf  filter=lfs diff=lfs merge=lfs -text
+*.fbx   filter=lfs diff=lfs merge=lfs -text
+*.obj   filter=lfs diff=lfs merge=lfs -text
+*.blend filter=lfs diff=lfs merge=lfs -text
+*.wav   filter=lfs diff=lfs merge=lfs -text
+*.mp3   filter=lfs diff=lfs merge=lfs -text
+*.ogg   filter=lfs diff=lfs merge=lfs -text
+*.mp4   filter=lfs diff=lfs merge=lfs -text
+*.dll   filter=lfs diff=lfs merge=lfs -text
+*.bundle filter=lfs diff=lfs merge=lfs -text
+# ---- Binary .asset (TerrainData heightmaps): override text rule above → LFS ----
+# TerrainData under Terrain/ is binary; must NOT get text/eol normalization.
+# NOTE: `Terrain/*.asset` only matches one level — サブフォルダの TerrainData が
+# text 扱いになって eol=lf 正規化で壊れる事故があったため `**` で再帰マッチさせる。
+Assets/Edo/Terrain/*.asset    filter=lfs diff=lfs merge=lfs -text
+Assets/Edo/Terrain/**/*.asset filter=lfs diff=lfs merge=lfs -text

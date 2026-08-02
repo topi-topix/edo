@@ -1,0 +1,70 @@
+# ---- Unity generated (do not commit) ----
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+
+# Asset meta files must be committed *unless* the asset itself is ignored
+!/[Aa]ssets/**/*.meta
+
+# ---- IDE / editor project files (regenerated) ----
+.vs/
+.vsconfig
+.idea/
+.gradle/
+ExportedObj/
+.consulo/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# ---- Unity crash / build artifacts ----
+sysinfo.txt
+*.stackdump
+mono_crash.*.blob
+mono_crash.*.json
+*.apk
+*.aab
+*.unitypackage
+*.app
+
+# ---- Editor capture output (not project assets) ----
+/[Aa]ssets/[Ss]creenshots/
+/[Aa]ssets/[Ss]creenshots.meta
+
+# ---- macOS ----
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# PLATEAU SDK tarball (799MB, do not commit)
+/LocalPackages/
+
+# ---- サードパーティ製アセットパック(再配布不可・計約6.9GB) ----
+# 各自 Asset Store / BOOTH から入手して import すること。手順は README.md を参照。
+/[Aa]ssets/NatureManufacture Assets/
+/[Aa]ssets/NatureManufacture Assets.meta
+/[Aa]ssets/Waldemarst/
+/[Aa]ssets/Waldemarst.meta
+/[Aa]ssets/Japanese Castle/
+/[Aa]ssets/Japanese Castle.meta
+/[Aa]ssets/Japanese Village Kit/
+/[Aa]ssets/Japanese Village Kit.meta
+/[Aa]ssets/edogoyomi/
+/[Aa]ssets/edogoyomi.meta

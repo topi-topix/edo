@@ -1,0 +1,27 @@
+newmtl hmonmap
+Kd 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+d 1.000000
+Ns 5
+Ka 0.000000 0.000000 0.000000
+Ni 1
+map_Kd hmon.jpg
+# -- end of hmonmap
+newmtl hmon_monmap
+Kd 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+d 1.000000
+Ns 5
+Ka 0.000000 0.000000 0.000000
+Ni 1
+map_Kd hmon_monmap.jpg
+# -- end of hmon_monmap
+newmtl hnagayamap
+Kd 1.000000 1.000000 1.000000
+Ks 0.000000 0.000000 0.000000
+d 1.000000
+Ns 5
+Ka 0.000000 0.000000 0.000000
+Ni 1
+map_Kd hnagaya.jpg
+# -- end of hnagayamap

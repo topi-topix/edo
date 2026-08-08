@@ -929,22 +929,26 @@ public static class EdoNishiTameikeBuilder
         if (bld == null) return "no buildings";
         var items = new List<Transform>();
         foreach (Transform c in bld) items.Add(c);
-        // 建物 vs 敷地境界: 実メッシュ輪郭点の符号付き距離
+        // 建物 vs 敷地境界: まず bounds で粗く、怪しい時だけ実メッシュ点
         foreach (var it in items)
         {
-            float worst = float.MaxValue;
-            foreach (var mf in it.GetComponentsInChildren<MeshFilter>())
+            var b = RB(it.gameObject);
+            float coarse = float.MaxValue;
+            for (int cx = 0; cx < 2; cx++) for (int cz = 0; cz < 2; cz++)
             {
-                var mesh = mf.sharedMesh; if (mesh == null) continue;
-                var vts = mesh.vertices;
-                for (int i = 0; i < vts.Length; i += Mathf.Max(1, vts.Length / 60))
-                {
-                    var wp = mf.transform.TransformPoint(vts[i]);
-                    var p2 = new Vector2(wp.x, wp.z);
-                    float d = DistToPolyEdge(e.poly, p2);
-                    if (!PIP(e.poly, p2)) d = -d;
-                    if (d < worst) worst = d;
-                }
+                var p2 = new Vector2(cx == 0 ? b.min.x : b.max.x, cz == 0 ? b.min.z : b.max.z);
+                float d = DistToPolyEdge(e.poly, p2);
+                if (!PIP(e.poly, p2)) d = -d;
+                if (d < coarse) coarse = d;
+            }
+            if (coarse > 1.0f) continue; // AABBは過大なのでこれで十分安全
+            float worst = float.MaxValue;
+            foreach (var p in SamplePts(it))
+            {
+                var p2 = new Vector2(p.x, p.z);
+                float d = DistToPolyEdge(e.poly, p2);
+                if (!PIP(e.poly, p2)) d = -d;
+                if (d < worst) worst = d;
             }
             if (worst < 1.0f) sb.AppendLine("⚠ " + it.name + " boundary dist=" + worst.ToString("F2"));
         }
@@ -970,11 +974,19 @@ public static class EdoNishiTameikeBuilder
     static List<Vector3> SamplePts(Transform t)
     {
         var pts = new List<Vector3>();
-        foreach (var mf in t.GetComponentsInChildren<MeshFilter>())
+        var mfs = t.GetComponentsInChildren<MeshFilter>();
+        int perFilter = Mathf.Max(4, 240 / Mathf.Max(1, mfs.Length)); // 全体~240点に制限
+        foreach (var mf in mfs)
         {
             var mesh = mf.sharedMesh; if (mesh == null) continue;
             var vts = mesh.vertices;
-            for (int i = 0; i < vts.Length; i += Mathf.Max(1, vts.Length / 40)) pts.Add(mf.transform.TransformPoint(vts[i]));
+            for (int i = 0; i < vts.Length; i += Mathf.Max(1, vts.Length / perFilter)) pts.Add(mf.transform.TransformPoint(vts[i]));
+        }
+        if (pts.Count > 300)
+        {
+            var thin = new List<Vector3>();
+            for (int i = 0; i < pts.Count; i += pts.Count / 300 + 1) thin.Add(pts[i]);
+            return thin;
         }
         return pts;
     }

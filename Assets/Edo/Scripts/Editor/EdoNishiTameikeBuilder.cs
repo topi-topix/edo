@@ -189,6 +189,84 @@ public static class EdoNishiTameikeBuilder
         return "saved " + p + " res=" + res;
     }
 
+    // ---------- 自然地形へ完全復元(造成の取り消し) ----------
+    // ユーザー方針(2026-08-08): 現地形が江戸期とほぼ変わらない場所は造成せず現地形に従う。
+    // 葵坂付近のような明治以降に改変された箇所のみ造成する。溜池南西岸は未改変とみなし自然地形へ戻す。
+    public static string RestoreNaturalTerrain()
+    {
+        var t = T(); var td = t.terrainData;
+        int res = td.heightmapResolution;
+        string bak = "Library/EdoRegrade_before_20260808_nishitameike.bin";
+        if (!File.Exists(bak)) return "ERROR: backup not found " + bak;
+        var bytes = File.ReadAllBytes(bak);
+        var full = new float[res, res];
+        Buffer.BlockCopy(bytes, 0, full, 0, bytes.Length);
+        // 造成した矩形と同じ範囲を書き戻す
+        Vector3 tp = t.transform.position, ts = td.size;
+        float cell = ts.x / (res - 1);
+        float x0 = -430, x1 = -135, z0 = 88, z1 = 425;
+        int ix0 = Mathf.Max(0, Mathf.FloorToInt((x0 - tp.x) / cell)), ix1 = Mathf.Min(res - 1, Mathf.CeilToInt((x1 - tp.x) / cell));
+        int iz0 = Mathf.Max(0, Mathf.FloorToInt((z0 - tp.z) / cell)), iz1 = Mathf.Min(res - 1, Mathf.CeilToInt((z1 - tp.z) / cell));
+        int w = ix1 - ix0 + 1, h = iz1 - iz0 + 1;
+        var H = new float[h, w];
+        for (int zz = 0; zz < h; zz++) for (int xx = 0; xx < w; xx++) H[zz, xx] = full[iz0 + zz, ix0 + xx];
+        td.SetHeights(ix0, iz0, H);
+        td.SyncHeightmap();
+        return "restored natural terrain rect=" + w + "x" + h;
+    }
+
+    // 建物・庭を自然地形へ接地し直す(XZは保持、Yのみ地面へ)。カテゴリ別のy下げ量を維持。
+    public static string RegroundGroup(string groupName)
+    {
+        var root = GameObject.Find(groupName);
+        if (root == null) return "no group";
+        int n = 0;
+        foreach (var subName in new[] { "Buildings", "Garden" })
+        {
+            var sub = root.transform.Find(subName);
+            if (sub == null) continue;
+            var targets = new List<Transform>();
+            if (subName == "Buildings") { foreach (Transform c in sub) targets.Add(c); }
+            else { foreach (Transform cat in sub) foreach (Transform c in cat) targets.Add(c); }
+            foreach (var tr in targets)
+            {
+                var nm = tr.name.ToLower();
+                float off = -0.10f;
+                if (nm.StartsWith("kura")) off = -0.15f;
+                else if (nm.StartsWith("tobi")) off = 0.02f;
+                else if (nm.StartsWith("iwa") || nm.StartsWith("rock")) off = -0.25f;
+                else if (nm.StartsWith("pine") || nm.StartsWith("sakura")) off = -0.05f;
+                else if (nm.StartsWith("shrub") || nm.StartsWith("lantern")) off = -0.04f;
+                else if (nm.StartsWith("ido") || nm.StartsWith("inari") || nm.StartsWith("umaya")) off = -0.10f;
+                var rs = tr.GetComponentsInChildren<Renderer>();
+                if (rs.Length == 0) { // 合成物(井戸/稲荷): 親位置のXZで地面へ
+                    float g0 = Ground(tr.position.x, tr.position.z);
+                    tr.position = new Vector3(tr.position.x, g0, tr.position.z);
+                    n++; continue;
+                }
+                var b = rs[0].bounds; foreach (var r in rs) b.Encapsulate(r.bounds);
+                float g = Ground(b.center.x, b.center.z);
+                tr.position += new Vector3(0, (g + off) - b.min.y, 0);
+                n++;
+            }
+        }
+        return groupName.Substring(11) + " regrounded " + n + " objects";
+    }
+
+    // 自然地形モードで全屋敷を作り直す(地形復元→囲い再構築→建物/庭を接地し直す)
+    public static string RebuildAllNatural()
+    {
+        NaturalMode = true;
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine(RestoreNaturalTerrain());
+        foreach (var e in Estates)
+        {
+            sb.AppendLine(RebuildEnclosure(e.group));
+            sb.AppendLine(RegroundGroup(e.group));
+        }
+        return sb.ToString();
+    }
+
     // ---------- Stage 1: grading ----------
     public static string Stage1_Grade()
     {
@@ -265,6 +343,7 @@ public static class EdoNishiTameikeBuilder
     public static List<GameObject> NagayaRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, float baseY,
         Vector2 gapC, float gapHalf, string prefix)
     {
+        bool followGround = NaturalMode; // 自然地形モードでは各ピースを地面に追従
         var made = new List<GameObject>();
         Vector2 dir = (B - A).normalized; float len = (B - A).magnitude;
         float psi = Mathf.Atan2(outward.x, outward.y) * Mathf.Rad2Deg; // 表+Zを外へ
@@ -300,8 +379,17 @@ public static class EdoNishiTameikeBuilder
             string path = lowEnd ? PKnagayaL : (highEnd ? PKnagayaR : PKnagayaC);
             if (lowEnd && highEnd) path = PKnagayaC; // 孤立1棟はcで(両妻は不可能、後で塀が受ける)
             var c2 = sA + rdir * tk;
-            var go = Place(path, new Vector3(c2.x, baseY, c2.y), psi, new Vector3(ES, ES, ES), parent, prefix + "_" + k);
-            SeatBottom(go, baseY - 0.10f);
+            // 自然地形モードでは、モジュール足元スパン(走り±4m)の地面最小値に据える(尻上がり回避)
+            float pieceBase = baseY;
+            if (followGround)
+            {
+                float g0 = Ground(c2.x - rdir.x * 4f, c2.y - rdir.y * 4f);
+                float g1 = Ground(c2.x + rdir.x * 4f, c2.y + rdir.y * 4f);
+                float gc = Ground(c2.x, c2.y);
+                pieceBase = Mathf.Min(g0, Mathf.Min(g1, gc));
+            }
+            var go = Place(path, new Vector3(c2.x, pieceBase, c2.y), psi, new Vector3(ES, ES, ES), parent, prefix + "_" + k);
+            SeatBottom(go, pieceBase - 0.10f);
             made.Add(go);
         }
         // namako(表)が外向きかを数値検証、逆なら180°回して面位置を復元
@@ -501,8 +589,12 @@ public static class EdoNishiTameikeBuilder
         }
         return e.pad;
     }
+    // 自然地形モード: trueなら造成せず地盤=自然地形(NatGround)。ユーザー指示2026-08-08(榎坂保全)。
+    public static bool NaturalMode = true;
+
     public static float PadAt(Estate e, Vector2 p)
     {
+        if (NaturalMode) return NatGround(p.x, p.y);
         return PadAtNat(e, p, NatGround(p.x, p.y));
     }
     // 造成前の自然地形(バックアップから)
@@ -1146,7 +1238,7 @@ public static class EdoNishiTameikeBuilder
         {
             Vector2 a = fA + runAxis * (g.Item1 - 0.15f);
             Vector2 b = fA + runAxis * (g.Item2 + 0.15f);
-            DobeiRun(kak, a, b, fout, "HeiFill_" + e.front + "_" + fills, false, basePad, Vector2.zero, -1);
+            DobeiRun(kak, a, b, fout, "HeiFill_" + e.front + "_" + fills, NaturalMode, basePad, Vector2.zero, -1);
             fills++;
             sb.AppendLine("fill gap [" + g.Item1.ToString("F1") + "," + g.Item2.ToString("F1") + "]");
         }

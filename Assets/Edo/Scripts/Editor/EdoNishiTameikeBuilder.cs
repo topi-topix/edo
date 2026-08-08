@@ -43,22 +43,23 @@ public static class EdoNishiTameikeBuilder
         public float pad;           // main pad (Yamaguchi uses terraces instead)
     }
 
+    // 区画=ユーザー下書き線 v2 (2026-08-08 現代地図基準で引き直し)
     public static Estate[] Estates = new Estate[]
     {
         new Estate{ group="Edo_Yashiki_Yokota", label="横田筑後守(9500石)",
-            poly=new[]{ new Vector2(-396.98f,410.69f), new Vector2(-415.51f,395.64f), new Vector2(-408.40f,306.54f), new Vector2(-350.09f,302.21f), new Vector2(-334.25f,361.06f)},
+            poly=new[]{ new Vector2(-366.9f,386.7f), new Vector2(-375.6f,378.5f), new Vector2(-376.4f,293.5f), new Vector2(-338.7f,290.9f), new Vector2(-320.7f,340.9f)},
             front=2, gateT=0.5f, gateType="h_mon", bansho=2,
             nagayaEdges=new[]{1}, dobeiEdges=new[]{0,3,4}, pad=9.5f },
         new Estate{ group="Edo_Yashiki_Toki", label="土岐丹波守(3500石)",
-            poly=new[]{ new Vector2(-331.76f,359.66f), new Vector2(-347.46f,301.87f), new Vector2(-222.42f,288.16f), new Vector2(-224.20f,319.12f)},
+            poly=new[]{ new Vector2(-318.1f,339.1f), new Vector2(-335.2f,290.6f), new Vector2(-223.4f,279.9f), new Vector2(-223.4f,310.8f)},
             front=1, gateT=0.45f, gateType="h_mon", bansho=1,
             nagayaEdges=new int[0], dobeiEdges=new[]{2,3}, pad=9.5f }, // W辺(0)は横田側の塀が受け持つ
         new Estate{ group="Edo_Yashiki_YamaguchiUshiku", label="山口筑前守(牛久藩上屋敷)",
-            poly=new[]{ new Vector2(-146.75f,195.03f), new Vector2(-175.70f,219.59f), new Vector2(-176.47f,252.61f), new Vector2(-191.41f,261.38f), new Vector2(-279.19f,269.85f), new Vector2(-280.35f,146.12f), new Vector2(-198.85f,98.77f)},
+            poly=new[]{ new Vector2(-140.8f,182.8f), new Vector2(-174.2f,209.8f), new Vector2(-207.3f,259.3f), new Vector2(-279.2f,264.9f), new Vector2(-289.7f,142.1f), new Vector2(-200.3f,88.2f)},
             front=0, gateT=0.5f, gateType="nagayamon", bansho=2,
-            nagayaEdges=new[]{3}, dobeiEdges=new[]{1,2,5,6}, pad=14f }, // W辺(4)は松平日向側の塀
+            nagayaEdges=new[]{2}, dobeiEdges=new[]{1,4,5}, pad=14f }, // W辺(3)は松平日向側の塀
         new Estate{ group="Edo_Yashiki_MatsudairaHyuga", label="松平日向守(糸魚川藩上屋敷)",
-            poly=new[]{ new Vector2(-283.75f,270.00f), new Vector2(-420.77f,285.91f), new Vector2(-419.22f,220.97f), new Vector2(-283.27f,148.32f)},
+            poly=new[]{ new Vector2(-283.5f,266.2f), new Vector2(-386.9f,277.0f), new Vector2(-425.3f,222.7f), new Vector2(-292.3f,144.2f)},
             front=0, gateT=0.5f, gateType="nagayamon", bansho=2,
             nagayaEdges=new[]{1}, dobeiEdges=new[]{2,3}, pad=10f },
     };
@@ -645,20 +646,20 @@ public static class EdoNishiTameikeBuilder
         var bg = Group(e.group, "Buildings");
         var sb = new System.Text.StringBuilder();
         if (e.group.Contains("Yokota"))
-        {
-            PlaceUV(e, PHouseB, -2, 34, 0, Vector3.one, bg, "Shuoku");         // 主屋(玄関正対)
-            PlaceUV(e, PSmallHouse, -20, 48, 0, Vector3.one, bg, "Daidokoro"); // 台所
-            var k1 = PlaceUV(e, PKura, -32, 58, 90, Vector3.one * ES, bg, "Kura_1");
-            var k2 = PlaceUV(e, PKura, 26, 60, -90, Vector3.one * ES, bg, "Kura_2");
-            Well(e, bg, -14, 52);
-            Umaya(e, bg, 20, 12);
+        {   // 区画v2は幅~40-55m・奥行~90m。u正=東
+            PlaceUV(e, PHouseB, 0, 32, 0, Vector3.one, bg, "Shuoku");          // 主屋(玄関正対)
+            PlaceUV(e, PSmallHouse, -12, 46, 0, Vector3.one, bg, "Daidokoro"); // 台所
+            PlaceUV(e, PKura, -14, 60, 90, Vector3.one * ES, bg, "Kura_1");
+            PlaceUV(e, PKura, 16, 56, -90, Vector3.one * ES, bg, "Kura_2");
+            Well(e, bg, -5, 50);
+            Umaya(e, bg, 15, 12);
         }
         else if (e.group.Contains("Toki"))
         {
             PlaceUV(e, PHouse, 0, 20, 0, Vector3.one, bg, "Shuoku");
-            PlaceUV(e, PSmallHouse, -14, 26, 0, Vector3.one, bg, "Daidokoro");
-            PlaceUV(e, PKura, -32, 24, 90, Vector3.one * ES, bg, "Kura_1");
-            Well(e, bg, -9, 30);
+            PlaceUV(e, PSmallHouse, -21, 30, 0, Vector3.one, bg, "Daidokoro");
+            PlaceUV(e, PKura, -34, 24, 90, Vector3.one * ES, bg, "Kura_1");
+            Well(e, bg, -8, 32);
         }
         else if (e.group.Contains("Yamaguchi"))
         {
@@ -667,17 +668,17 @@ public static class EdoNishiTameikeBuilder
             PlaceUV(e, PSmallHouse, 22, 42, 0, Vector3.one, bg, "Daidokoro");
             PlaceUV(e, PKura, -6, 74, 90, Vector3.one * ES, bg, "Kura_1");
             PlaceUV(e, PKura, 4, 82, 90, Vector3.one * ES, bg, "Kura_2");
-            Well(e, bg, 26, 48);
-            Umaya(e, bg, -22, 12);
+            Well(e, bg, 30, 52);
+            Umaya(e, bg, 26, 16);
         }
         else
-        {
+        {   // 松平日向 v2: 前辺104m・東端が山口境に近いので蔵は西側へ
             PlaceUV(e, PBigHouse, 0, 30, 0, Vector3.one, bg, "OmoteGoten");
             PlaceUV(e, PHouse, 14, 52, 0, Vector3.one, bg, "OkuGoten");
-            PlaceUV(e, PSmallHouse, -22, 42, 0, Vector3.one, bg, "Daidokoro");
-            PlaceUV(e, PKura, -44, 62, 90, Vector3.one * ES, bg, "Kura_1");
-            PlaceUV(e, PKura, -52, 54, 90, Vector3.one * ES, bg, "Kura_2");
-            Well(e, bg, -16, 48);
+            PlaceUV(e, PSmallHouse, -20, 40, 0, Vector3.one, bg, "Daidokoro");
+            PlaceUV(e, PKura, 34, 56, 90, Vector3.one * ES, bg, "Kura_1");
+            PlaceUV(e, PKura, 43, 47, 90, Vector3.one * ES, bg, "Kura_2");
+            Well(e, bg, -12, 48);
             Umaya(e, bg, 28, 12);
         }
         return "buildings done: " + e.group + " " + sb;

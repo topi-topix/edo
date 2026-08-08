@@ -124,16 +124,21 @@ public static class EdoNishiTameikeBuilder
     {
         var r = GameObject.Find(root);
         if (r == null) { r = new GameObject(root); Undo.RegisterCreatedObjectUndo(r, "grp"); }
-        if (string.IsNullOrEmpty(child)) return r.transform;
-        var c = r.transform.Find(child);
-        if (c == null)
+        var cur = r.transform;
+        if (string.IsNullOrEmpty(child)) return cur;
+        foreach (var seg in child.Split('/')) // スラッシュ区切りを1段ずつネスト(1オブジェクト名にスラッシュを入れない)
         {
-            var g = new GameObject(child);
-            Undo.RegisterCreatedObjectUndo(g, "grp");
-            g.transform.SetParent(r.transform, false);
-            c = g.transform;
+            var nx = cur.Find(seg);
+            if (nx == null)
+            {
+                var g = new GameObject(seg);
+                Undo.RegisterCreatedObjectUndo(g, "grp");
+                g.transform.SetParent(cur, false);
+                nx = g.transform;
+            }
+            cur = nx;
         }
-        return c;
+        return cur;
     }
     static bool PIP(Vector2[] poly, Vector2 p)
     {
@@ -673,7 +678,10 @@ public static class EdoNishiTameikeBuilder
     {
         var e = Estates.First(x => x.group == groupName);
         var root = GameObject.Find(e.group);
-        if (root != null && root.transform.Find("Garden") != null) return "SKIP: Garden exists";
+        // 旧Garden及び過去バグのスラッシュ名オブジェクトを一掃(やり直し用)
+        var dead = new List<GameObject>();
+        foreach (Transform ch in root.transform) if (ch.name == "Garden" || ch.name.StartsWith("Garden/")) dead.Add(ch.gameObject);
+        foreach (var d in dead) UnityEngine.Object.DestroyImmediate(d);
         var gg = Group(e.group, "Garden");
         var trees = Group(e.group, "Garden/Trees");
         var shrubs = Group(e.group, "Garden/Shrubs");
@@ -681,15 +689,29 @@ public static class EdoNishiTameikeBuilder
         var path = Group(e.group, "Garden/Path");
         var props = Group(e.group, "Garden/Props");
         var rnd = new System.Random(seed);
-        // obstacles: この屋敷の建物+囲い+門 の world AABB(XZ)
+        // obstacles: 建物と門のみ(外周長屋はAABBが膨張して内部を覆うので使わず、境界マージンで避ける)
         var obs = new List<Bounds>();
         foreach (Transform sub in root.transform)
-            if (sub.name == "Buildings" || sub.name == "Kakoi" || sub.name == "Omotemon")
-                foreach (Transform ch in sub) obs.Add(RB(ch.gameObject));
+            if (sub.name == "Buildings" || sub.name == "Omotemon")
+                foreach (Transform ch in sub) { var rb = RB(ch.gameObject); if (rb.size.sqrMagnitude > 0.01f) obs.Add(rb); }
+        // 境界マージン: 長屋辺は躯体が内側~8m、築地塀辺は~2m
+        float EdgeMargin(Vector2 p)
+        {
+            float best = float.MaxValue; float bm = 7.5f;
+            for (int i = 0; i < e.poly.Length; i++)
+            {
+                var a = e.poly[i]; var b2 = e.poly[(i + 1) % e.poly.Length];
+                var d = b2 - a; float len = d.magnitude; d /= len;
+                float t = Mathf.Clamp(Vector2.Dot(p - a, d), 0, len);
+                float dd = (p - (a + d * t)).magnitude;
+                if (dd < best) { best = dd; bm = (i == e.front || e.nagayaEdges.Contains(i)) ? 8.5f : 3.0f; }
+            }
+            return bm;
+        }
         Func<Vector2, float, bool> clear = (p, m) =>
         {
             if (!PIP(e.poly, p)) return false;
-            if (DistToPolyEdge(e.poly, p) < m + 1.5f) return false;
+            if (DistToPolyEdge(e.poly, p) < EdgeMargin(p)) return false;
             foreach (var b in obs)
                 if (p.x > b.min.x - m && p.x < b.max.x + m && p.y > b.min.z - m && p.y < b.max.z + m) return false;
             return true;

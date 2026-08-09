@@ -272,6 +272,10 @@ public static class EdoAzukarichiBuilder
     }
 
     // ---------- Stage 2: 干場5筆 ----------
+    // 【密度の典拠】広重「名所江戸百景 神田紺屋町」(安政4年)=藍染めした反物(一反=幅約37cm・長さ約12.5m)を
+    // 一反ずつ、櫓を組んだ高い物干し竿に吊し幟(のぼり)のように靡かせる、という当時有名だった光景。
+    // 初版(2026-08-09作成)は洗濯物程度の低い小型ラックを疎らに置いていたが、ユーザー指摘の通り
+    // 商いの干場としては規模も密度も過小だった。高さ5.5〜7.5mの幟状「櫓竿(Yagura)」を主体に密度を上げて修正。
     public static string Stage2_Hoshiba()
     {
         var sb = new System.Text.StringBuilder();
@@ -281,8 +285,8 @@ public static class EdoAzukarichiBuilder
         var shiro = new Material(Shader.Find("Universal Render Pipeline/Lit")); shiro.color = new Color(0.86f, 0.84f, 0.78f);
         var shibu = new Material(Shader.Find("Universal Render Pipeline/Lit")); shibu.color = new Color(0.56f, 0.36f, 0.16f);
         var ita = new Material(Shader.Find("Universal Render Pipeline/Lit")); ita.color = new Color(0.62f, 0.52f, 0.38f);
-        Material[] cloth = { kon, kon, asagi, shiro };
-        // kind: "kouya"=紺屋干場(竿干し+張り板のみ) / "kappaya"=合羽干場(渋紙平干しのみ) / "kyodo"=紺屋合羽屋共干場(混在)
+        Material[] cloth = { kon, kon, kon, asagi, shiro };
+        // kind: "kouya"=紺屋干場(幟竿+竿干し+張り板) / "kappaya"=合羽干場(渋紙のみ) / "kyodo"=紺屋合羽屋共干場(混在)
         // 対応は2026-08-09にユーザーが色分け下書きで確定(黄=合羽干場→W5 / 水色=紺屋干場→W1,W2,W3 / 赤=共→W4)
         var defs = new[] {
             new { name = "W1", poly = W1, seed = 9501, kind = "kouya" }, new { name = "W2", poly = W2, seed = 9502, kind = "kouya" },
@@ -305,23 +309,55 @@ public static class EdoAzukarichiBuilder
             Vector2 inw = new Vector2(-axis.y, axis.x);
             if (!PIP(d.poly, A + axis * (len * 0.5f) + inw * 2.5f)) inw = -inw;
             float ryRack = Mathf.Atan2(axis.x, axis.y) * Mathf.Rad2Deg;
-            int racks = 0, mats = 0, boards = 0;
-            for (float tt = 4f; tt < len - 3f; tt += 7.5f)
+            int yagura = 0, racks = 0, mats = 0, boards = 0;
+            // グリッド密度: 幟竿は間隔を要するので3.2m×3.4m、渋紙単独区画はさらに詰める
+            float stepT = d.kind == "kappaya" ? 2.6f : 3.2f;
+            float stepD = d.kind == "kappaya" ? 2.4f : 3.4f;
+            for (float tt = 2.5f; tt < len - 1.5f; tt += stepT)
             {
-                for (float dd = 3.0f; dd < 24f; dd += 6.5f)
+                for (float dd = 2.2f; dd < 40f; dd += stepD)
                 {
-                    Vector2 p = A + axis * tt + inw * dd;
-                    if (!PIP(d.poly, p) || DistToPolyEdge(d.poly, p) < 2.0f) continue;
+                    Vector2 p = A + axis * tt + inw * dd + new Vector2((float)(rnd.NextDouble() - 0.5) * 0.9f, (float)(rnd.NextDouble() - 0.5) * 0.9f);
+                    if (!PIP(d.poly, p) || DistToPolyEdge(d.poly, p) < 1.6f) continue;
                     if (Ground(p.x, p.y) < MinH) continue;
                     double roll = rnd.NextDouble();
-                    float jit = (float)rnd.NextDouble() * 10f - 5f;
-                    // kouya=竿干し/張り板のみ、kappaya=渋紙のみ、kyodo=3種混在(従来比率)
-                    bool doRack, doShibu, doHariita;
-                    if (d.kind == "kouya") { doRack = roll < 0.6; doShibu = false; doHariita = !doRack; }
-                    else if (d.kind == "kappaya") { doRack = false; doShibu = true; doHariita = false; }
-                    else { doRack = roll < 0.45; doShibu = !doRack && roll < 0.78; doHariita = !doRack && !doShibu; }
-                    if (doRack)
-                    {   // 紺屋: 竿干し(柱2+竿+反物3〜5枚)
+                    float jit = (float)rnd.NextDouble() * 14f - 7f;
+                    // kouya=幟竿主体+張り板少々、kappaya=渋紙(平干し+斜め掛け)、kyodo=5種混在
+                    string item;
+                    if (d.kind == "kouya") item = roll < 0.68 ? "yagura" : (roll < 0.85 ? "rack" : "hariita");
+                    else if (d.kind == "kappaya") item = roll < 0.6 ? "shibuflat" : "shibuslant";
+                    else item = roll < 0.40 ? "yagura" : roll < 0.55 ? "rack" : roll < 0.68 ? "hariita" : roll < 0.86 ? "shibuflat" : "shibuslant";
+
+                    if (item == "yagura")
+                    {   // 紺屋: 幟竿(反物1反を頂から吊るし靡かせる。広重「神田紺屋町」の光景)
+                        float h = 5.5f + (float)rnd.NextDouble() * 2.0f;
+                        float gy = Ground(p.x, p.y);
+                        var pg = new GameObject("Yagura_" + yagura); pg.transform.SetParent(g, false);
+                        pg.transform.position = new Vector3(p.x, gy, p.y);
+                        pg.transform.rotation = Quaternion.Euler(0, ryRack + jit, 0);
+                        Undo.RegisterCreatedObjectUndo(pg, "yagura");
+                        var pole = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                        pole.transform.SetParent(pg.transform, false);
+                        pole.transform.localScale = new Vector3(0.045f, h * 0.5f, 0.045f);
+                        pole.transform.localPosition = new Vector3(0, h * 0.5f, 0);
+                        pole.GetComponent<Renderer>().sharedMaterial = wood;
+                        var yardarm = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                        yardarm.transform.SetParent(pg.transform, false);
+                        yardarm.transform.localScale = new Vector3(0.02f, 0.24f, 0.02f);
+                        yardarm.transform.localEulerAngles = new Vector3(0, 0, 90);
+                        yardarm.transform.localPosition = new Vector3(0, h - 0.35f, 0);
+                        yardarm.GetComponent<Renderer>().sharedMaterial = wood;
+                        float clothH = h - 1.3f;
+                        var cl = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                        cl.transform.SetParent(pg.transform, false);
+                        cl.transform.localScale = new Vector3(0.37f, clothH, 0.015f);
+                        cl.transform.localPosition = new Vector3(0, h - 0.35f - clothH * 0.5f, 0.03f);
+                        cl.transform.localEulerAngles = new Vector3((float)rnd.NextDouble() * 5f - 2.5f, 0, (float)rnd.NextDouble() * 4f - 2f);
+                        cl.GetComponent<Renderer>().sharedMaterial = cloth[rnd.Next(cloth.Length)];
+                        yagura++;
+                    }
+                    else if (item == "rack")
+                    {   // 紺屋: 低い竿干し(柱2+竿+反物3〜5枚、地上作業台での仮干し)
                         var rg = new GameObject("Rack_" + racks); rg.transform.SetParent(g, false);
                         float gy = Ground(p.x, p.y);
                         rg.transform.position = new Vector3(p.x, gy, p.y);
@@ -344,29 +380,16 @@ public static class EdoAzukarichiBuilder
                         int nc = 3 + rnd.Next(3);
                         for (int c = 0; c < nc; c++)
                         {
-                            var cl = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                            cl.transform.SetParent(rg.transform, false);
-                            cl.transform.localScale = new Vector3(0.42f, 1.85f, 0.016f);
-                            cl.transform.localPosition = new Vector3(-1.5f + c * (3.0f / nc) + (float)rnd.NextDouble() * 0.2f, 1.26f, 0);
-                            cl.transform.localEulerAngles = new Vector3(0, (float)rnd.NextDouble() * 6f - 3f, 0);
-                            cl.GetComponent<Renderer>().sharedMaterial = cloth[rnd.Next(cloth.Length)];
+                            var cc = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                            cc.transform.SetParent(rg.transform, false);
+                            cc.transform.localScale = new Vector3(0.42f, 1.85f, 0.016f);
+                            cc.transform.localPosition = new Vector3(-1.5f + c * (3.0f / nc) + (float)rnd.NextDouble() * 0.2f, 1.26f, 0);
+                            cc.transform.localEulerAngles = new Vector3(0, (float)rnd.NextDouble() * 6f - 3f, 0);
+                            cc.GetComponent<Renderer>().sharedMaterial = cloth[rnd.Next(cloth.Length)];
                         }
                         racks++;
                     }
-                    else if (doShibu)
-                    {   // 合羽屋: 渋紙の平干し(筵状)
-                        int nm = 2 + rnd.Next(3);
-                        for (int m2 = 0; m2 < nm; m2++)
-                        {
-                            Vector2 mp = p + axis * ((float)rnd.NextDouble() * 3.4f - 1.7f) + inw * ((float)rnd.NextDouble() * 2.4f - 1.2f);
-                            if (!PIP(d.poly, mp) || Ground(mp.x, mp.y) < MinH) continue;
-                            Prim(PrimitiveType.Cube, g, "Shibugami_" + mats,
-                                new Vector3(mp.x, Ground(mp.x, mp.y) + 0.05f, mp.y),
-                                new Vector3(1.75f, 0.03f, 0.95f), Quaternion.Euler(0, ryRack + jit + (float)rnd.NextDouble() * 14f - 7f, 0), shibu);
-                            mats++;
-                        }
-                    }
-                    else
+                    else if (item == "hariita")
                     {   // 紺屋: 張り板(布を張った板を斜めに立てる)
                         int nb = 2 + rnd.Next(2);
                         for (int b2 = 0; b2 < nb; b2++)
@@ -377,17 +400,44 @@ public static class EdoAzukarichiBuilder
                             var bd = Prim(PrimitiveType.Cube, g, "Hariita_" + boards,
                                 new Vector3(bp.x, gy + 0.95f, bp.y),
                                 new Vector3(0.62f, 2.05f, 0.035f), Quaternion.Euler(-14f, ryRack + jit, 0), ita);
-                            var cl = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                            cl.transform.SetParent(bd.transform, false);
-                            cl.transform.localScale = new Vector3(0.85f, 0.9f, 0.6f);
-                            cl.transform.localPosition = new Vector3(0, 0.02f, -0.55f);
-                            cl.GetComponent<Renderer>().sharedMaterial = cloth[rnd.Next(cloth.Length)];
+                            var cc = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                            cc.transform.SetParent(bd.transform, false);
+                            cc.transform.localScale = new Vector3(0.85f, 0.9f, 0.6f);
+                            cc.transform.localPosition = new Vector3(0, 0.02f, -0.55f);
+                            cc.GetComponent<Renderer>().sharedMaterial = cloth[rnd.Next(cloth.Length)];
                             boards++;
+                        }
+                    }
+                    else if (item == "shibuflat")
+                    {   // 合羽屋: 渋紙の平干し(地面に広げる)
+                        int nm = 2 + rnd.Next(3);
+                        for (int m2 = 0; m2 < nm; m2++)
+                        {
+                            Vector2 mp = p + axis * ((float)rnd.NextDouble() * 3.0f - 1.5f) + inw * ((float)rnd.NextDouble() * 2.2f - 1.1f);
+                            if (!PIP(d.poly, mp) || Ground(mp.x, mp.y) < MinH) continue;
+                            Prim(PrimitiveType.Cube, g, "Shibugami_" + mats,
+                                new Vector3(mp.x, Ground(mp.x, mp.y) + 0.05f, mp.y),
+                                new Vector3(1.75f, 0.03f, 0.95f), Quaternion.Euler(0, ryRack + jit + (float)rnd.NextDouble() * 14f - 7f, 0), shibu);
+                            mats++;
+                        }
+                    }
+                    else
+                    {   // 合羽屋: 渋紙の斜め掛け干し(通気用に傾けて立て並べる)
+                        int nb = 2 + rnd.Next(2);
+                        for (int b2 = 0; b2 < nb; b2++)
+                        {
+                            Vector2 bp = p + axis * (b2 * 1.05f);
+                            if (!PIP(d.poly, bp) || Ground(bp.x, bp.y) < MinH) continue;
+                            float gy = Ground(bp.x, bp.y);
+                            Prim(PrimitiveType.Cube, g, "ShibuSlant_" + mats,
+                                new Vector3(bp.x, gy + 0.62f, bp.y),
+                                new Vector3(0.98f, 1.35f, 0.02f), Quaternion.Euler(-32f, ryRack + jit, 0), shibu);
+                            mats++;
                         }
                     }
                 }
             }
-            sb.AppendLine(d.name + " 竿干=" + racks + " 渋紙=" + mats + " 張板=" + boards);
+            sb.AppendLine(d.name + " 幟竿=" + yagura + " 竿干=" + racks + " 渋紙=" + mats + " 張板=" + boards);
         }
         AssetDatabase.SaveAssets();
         return sb.ToString();

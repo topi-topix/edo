@@ -46,14 +46,16 @@ public static class EdoNishiTameikeBuilder
     // 区画=ユーザー下書き線 v2 (2026-08-08 現代地図基準で引き直し)
     public static Estate[] Estates = new Estate[]
     {
+        // 下書きv3 (2026-08-09): 横田・土岐とも溜池岸側へ拡張。水没部は EdoDaichiBuilder.Stage1_Grade で
+        // 水面+1mの棚(7.6)へ盛土する(ユーザー指示: 溜池掘削で現況高さが不正確なため必要な造成は可)。
         new Estate{ group="Edo_Yashiki_Yokota", label="横田筑後守(9500石)",
-            poly=new[]{ new Vector2(-366.9f,386.7f), new Vector2(-375.6f,378.5f), new Vector2(-376.4f,293.5f), new Vector2(-338.7f,290.9f), new Vector2(-320.7f,340.9f)},
-            front=2, gateT=0.5f, gateType="h_mon", bansho=2,
-            nagayaEdges=new[]{1}, dobeiEdges=new[]{0,3,4}, pad=9.5f },
+            poly=new[]{ new Vector2(-371.55f,296.12f), new Vector2(-376.89f,413.82f), new Vector2(-366.08f,426.70f), new Vector2(-313.39f,365.93f), new Vector2(-338.54f,290.69f)},
+            front=4, gateT=0.5f, gateType="h_mon", bansho=2,
+            nagayaEdges=new[]{0}, dobeiEdges=new[]{1,2,3}, pad=9.5f }, // 3=土岐との共有境界(横田持ち)
         new Estate{ group="Edo_Yashiki_Toki", label="土岐丹波守(3500石)",
-            poly=new[]{ new Vector2(-318.1f,339.1f), new Vector2(-335.2f,290.6f), new Vector2(-223.4f,279.9f), new Vector2(-223.4f,310.8f)},
-            front=1, gateT=0.45f, gateType="h_mon", bansho=1,
-            nagayaEdges=new int[0], dobeiEdges=new[]{2,3}, pad=9.5f }, // W辺(0)は横田側の塀が受け持つ
+            poly=new[]{ new Vector2(-335.39f,291.47f), new Vector2(-311.41f,364.43f), new Vector2(-218.69f,321.60f), new Vector2(-223.95f,280.88f)},
+            front=3, gateT=0.55f, gateType="h_mon", bansho=1,
+            nagayaEdges=new int[0], dobeiEdges=new[]{1,2}, pad=9.5f }, // W辺(0)は横田側の塀が受け持つ
         new Estate{ group="Edo_Yashiki_YamaguchiUshiku", label="山口筑前守(牛久藩上屋敷)",
             poly=new[]{ new Vector2(-140.8f,182.8f), new Vector2(-174.2f,209.8f), new Vector2(-207.3f,259.3f), new Vector2(-279.2f,264.9f), new Vector2(-289.7f,142.1f), new Vector2(-200.3f,88.2f)},
             front=0, gateT=0.5f, gateType="nagayamon", bansho=2,
@@ -751,8 +753,8 @@ public static class EdoNishiTameikeBuilder
         "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_02.prefab",
         "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_03.prefab" };
     static string[] Sakuras = {
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Big_Spring_01.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Big_Spring_05.prefab" };
+        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Big_Summer_01.prefab",
+        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Big_Summer_05.prefab" };
     static string[] Shrubs = {
         "Assets/Japanese Castle/Prefabs/Foliage/Azalea A 01.prefab",
         "Assets/Japanese Castle/Prefabs/Foliage/Azalea A 03.prefab",
@@ -992,7 +994,7 @@ public static class EdoNishiTameikeBuilder
         int res = td.alphamapResolution;
         Vector3 tp = t.transform.position, ts = td.size;
         float cell = ts.x / res;
-        float x0 = -430, x1 = -135, z0 = 88, z1 = 425;
+        float x0 = -430, x1 = -135, z0 = 88, z1 = 435;
         int ix0 = Mathf.Max(0, Mathf.FloorToInt((x0 - tp.x) / cell)), ix1 = Mathf.Min(res - 1, Mathf.CeilToInt((x1 - tp.x) / cell));
         int iz0 = Mathf.Max(0, Mathf.FloorToInt((z0 - tp.z) / cell)), iz1 = Mathf.Min(res - 1, Mathf.CeilToInt((z1 - tp.z) / cell));
         int w = ix1 - ix0 + 1, h = iz1 - iz0 + 1;

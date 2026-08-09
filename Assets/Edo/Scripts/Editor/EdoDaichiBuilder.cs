@@ -1,9 +1,14 @@
-// 溜池端(桐畑通り)の町代地2区画 + 横田・土岐拡張部の造成 (2026-08-09)
-//   赤=芝青松寺門前町代地(約83m) / 黄=芝永井町代地(約129m)。黒田邸表門前の通りの溜池側に
-//   奥行き約10間の町屋列。区画=ユーザー下書き線。
-// 造成方針(ユーザー指示: 溜池掘削で現況高さが不正確なため必要な整地・造成は可):
-//   町代地=街路側縁の高さを通した平場(ロフト)、背後は溜池への土手。
-//   横田・土岐の拡張水没部=水面(6.6)+1.0mの棚(7.6)へ盛土。最後に溜池のsnapを現況から取り直す。
+// 溜池端(桐畑)の町代地3町 + 横田・土岐拡張部の造成 (2026-08-09)
+// 【考証確定(同日Web調査: 日本歴史地名大系/港区史通史編近世(上)/CODH翻刻9-091〜093)】
+//   ・切絵図の表記は「芝青龍寺門前町代地」(青松寺の南隣・青龍寺の門前町。ユーザー提示の「青松寺」は青龍寺の誤読)
+//   ・3町で1列: 芝御掃除町代地(177坪,19軒) → 芝永井町代地(219坪,14軒,文化8年/1811の大火で
+//     増上寺火除地に召上げ→桐畑明地へ) → 芝青龍寺門前町代地(220坪,15軒,同年同火事で移転)
+//   ・いずれも奥行わずか5間(約9m)の片側町。通りの溜池側に面し、裏は物干場拝借地→草花植付地→預地土手→水面
+//   ・小店・仕舞屋の連なり(豪商の店構えは不適)。水茶屋は天保改革(1842-43)で撤去済み=置かない。
+//     木戸・自身番は当町の史料未確認(木戸+番屋は江戸の町の一般類型として最小限を置く)
+// 区画=ユーザー下書き線。赤(83m)=青龍寺門前町代地(史料の間口44間≒86mとほぼ一致)。
+// 黄(129m)=南東43間分が永井町代地、北西残り約44mは御掃除町代地(間口35間の一部。全長は描線の外へ続く)。
+// 造成方針: 町帯=街路縁高さのロフト平場+背後は溜池への土手 / 屋敷拡張水没部=水面+1mの棚7.6
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -13,17 +18,17 @@ using UnityEngine;
 
 public static class EdoDaichiBuilder
 {
-    // ---------- 区画 (下書き線) ----------
     // SW辺(街路側)を [0]->[1] とする
-    public static Vector2[] SeishojiPoly = {
+    public static Vector2[] SeiryujiPoly = {
         new Vector2(-382.06f,417.87f), new Vector2(-446.57f,471.25f),
         new Vector2(-435.76f,486.73f), new Vector2(-370.28f,431.37f) };
     public static Vector2[] NagaichoPoly = {
         new Vector2(-451.01f,474.71f), new Vector2(-551.60f,555.83f),
         new Vector2(-539.25f,569.83f), new Vector2(-438.79f,489.76f) };
+    public const float NAGAI_LEN = 84.7f;   // 永井町=間口43間余。これより先(北西)は御掃除町代地
 
-    const float WATER_Y = 6.6f;      // 溜池
-    const float SHELF_Y = 7.6f;      // 屋敷拡張部の盛土棚 = 水面+1.0
+    const float WATER_Y = 6.6f;
+    const float SHELF_Y = 7.6f;
     const float ES = 1.818f;
 
     public static Terrain T() { return EdoTameikeKitaBuilder.T(); }
@@ -50,7 +55,6 @@ public static class EdoDaichiBuilder
         return m;
     }
 
-    // ---------- Stage 0: backup ----------
     public static string Stage0_Backup()
     {
         var t = T(); var td = t.terrainData;
@@ -63,7 +67,7 @@ public static class EdoDaichiBuilder
         return "saved " + p;
     }
 
-    // ---------- Stage 1: 造成 ----------
+    // ---------- Stage 1: 造成 (実行済み 2026-08-09。再実行は冪等でない点に注意=ロフトは現況から再サンプルされる) ----------
     public static string Stage1_Grade()
     {
         var t = T(); var td = t.terrainData;
@@ -77,8 +81,7 @@ public static class EdoDaichiBuilder
         var H = td.GetHeights(ix0, iz0, w, h);
         var changed = new bool[h, w];
 
-        // 町代地: 街路側縁のロフト(現況を先にサンプルしてから書く)
-        var strips = new[] { SeishojiPoly, NagaichoPoly };
+        var strips = new[] { SeiryujiPoly, NagaichoPoly };
         var lofts = new List<float[]>(); var axes = new List<Vector2>(); var lens = new List<float>();
         foreach (var poly in strips)
         {
@@ -86,15 +89,14 @@ public static class EdoDaichiBuilder
             Vector2 axis = (B - A).normalized; float len = (B - A).magnitude;
             int n = Mathf.CeilToInt(len / 2f) + 1;
             var hs = new float[n];
-            Vector2 inw = new Vector2(-axis.y, axis.x); // SW辺の左法線=NE(敷地内向き) ※検証: PIPで確認して反転
+            Vector2 inw = new Vector2(-axis.y, axis.x);
             var probe = A + axis * (len * 0.5f) + inw * 5f;
             if (!PIP(poly, probe)) inw = -inw;
             for (int i = 0; i < n; i++)
             {
-                var sp = A + axis * Mathf.Min(i * 2f, len) - inw * 1.5f; // 街路側1.5m外
+                var sp = A + axis * Mathf.Min(i * 2f, len) - inw * 1.5f;
                 hs[i] = Ground(sp.x, sp.y);
             }
-            // 移動平均で平滑
             var sm = new float[n];
             for (int i = 0; i < n; i++)
             {
@@ -104,8 +106,6 @@ public static class EdoDaichiBuilder
             }
             lofts.Add(sm); axes.Add(axis); lens.Add(len);
         }
-
-        // 屋敷拡張部(横田・土岐)のポリゴン
         var yok = EdoNishiTameikeBuilder.Estates.First(x => x.group == "Edo_Yashiki_Yokota").poly;
         var tok = EdoNishiTameikeBuilder.Estates.First(x => x.group == "Edo_Yashiki_Toki").poly;
 
@@ -118,7 +118,6 @@ public static class EdoDaichiBuilder
                 var p = new Vector2(wx, wz);
                 float cur = tp.y + H[zz, xx] * ts.y;
                 float target = cur;
-                // --- 町代地: 内側=ロフト平場 / 外側10m=土手(盛りのみ) ---
                 for (int si = 0; si < 2; si++)
                 {
                     var poly = strips[si];
@@ -134,13 +133,10 @@ public static class EdoDaichiBuilder
                         {
                             float s = d / 10f; s = s * s * (3 - 2 * s);
                             float bank = Mathf.Lerp(hsv, cur, s);
-                            if (bank > target) target = Mathf.Max(cur, bank) == bank ? bank : target;
-                            if (bank > cur && bank > target) target = bank;
-                            if (bank > cur) target = Mathf.Max(target, bank); // 盛りのみ(街路は既に高いので不変)
+                            if (bank > cur) target = Mathf.Max(target, bank);
                         }
                     }
                 }
-                // --- 屋敷拡張部: 水没・低地を棚7.6へ(盛りのみ)、外側8mは土手 ---
                 foreach (var ep in new[] { yok, tok })
                 {
                     if (PIP(ep, p)) { if (target < SHELF_Y && cur < SHELF_Y) target = Mathf.Max(target, SHELF_Y); }
@@ -161,7 +157,6 @@ public static class EdoDaichiBuilder
                     changed[zz, xx] = true; nChanged++;
                 }
             }
-        // 変更セルのみ 3x3 平滑 x2
         for (int pass = 0; pass < 2; pass++)
         {
             var src = (float[,])H.Clone();
@@ -176,146 +171,185 @@ public static class EdoDaichiBuilder
         }
         td.SetHeights(ix0, iz0, H);
         td.SyncHeightmap();
-        // 溜池 snap を現況から取り直し (flatten順 z*sW+x = WaterBaker と同順)
         var wbT = UnityEngine.Object.FindObjectsByType<WaterBody>(FindObjectsSortMode.None).First(x => x.gameObject.name == "Tameike");
         var snapH = td.GetHeights(wbT.sX, wbT.sZ, wbT.sW, wbT.sH);
         var snap = new float[wbT.sW * wbT.sH];
         for (int z2 = 0; z2 < wbT.sH; z2++) for (int x2 = 0; x2 < wbT.sW; x2++) snap[z2 * wbT.sW + x2] = snapH[z2, x2];
         wbT.snap = snap; wbT.hasSnap = true;
         EditorUtility.SetDirty(wbT);
-        return "graded cells=" + nChanged + " rect=" + w + "x" + h + " / Tameike snap retaken " + wbT.sW + "x" + wbT.sH;
+        return "graded cells=" + nChanged + " / Tameike snap retaken";
     }
 
-    // ---------- Stage 2: 町屋列 ----------
-    // サンプル店群(Edo_Shops_Sample/ShopGroup)の合成店をコピーして並べる。前面=ローカル+Z。
-    public class Lot { public string kind; public float width; public Lot(string k, float w) { kind = k; width = w; } }
-
-    public static string Stage2_Machiya(string groupName, Vector2[] poly, string[] pattern, int seed)
+    // ---------- 材質 ----------
+    static Material Mat(string name, string tex)
     {
-        var root = GameObject.Find(groupName);
-        if (root != null && root.transform.Find("Row") != null) return "SKIP: " + groupName + "/Row exists";
+        string mp = "Assets/Edo/Materials/" + name + ".mat";
+        var exist = AssetDatabase.LoadAssetAtPath<Material>(mp);
+        if (exist != null) return exist;
+        var m = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        var t2 = AssetDatabase.LoadAssetAtPath<Texture2D>(tex);
+        m.SetTexture("_BaseMap", t2);
+        m.SetFloat("_Smoothness", 0.1f);
+        AssetDatabase.CreateAsset(m, mp);
+        return m;
+    }
+    static void Assign(GameObject go, Material m)
+    {
+        foreach (var r in go.GetComponentsInChildren<Renderer>())
+        {
+            var mats = r.sharedMaterials;
+            for (int i = 0; i < mats.Length; i++) mats[i] = m;
+            r.sharedMaterials = mats;
+        }
+    }
+
+    // ---------- Stage 2: 町屋列 v2 (奥行5間の小店・仕舞屋) ----------
+    // kind: "SH"=Small House(家主の家) / "S2"=shop02(小店) / "S1"=shop01(床見世級の小屋)
+    public static string Stage2_Rows()
+    {
+        var sb = new System.Text.StringBuilder();
+        // 旧 Row の一掃 + 旧グループ名の改名
+        var oldSei = GameObject.Find("Edo_Daichi_Seishoji");
+        if (oldSei != null) oldSei.name = "Edo_Daichi_Seiryuji";
+        foreach (var g in new[] { "Edo_Daichi_Seiryuji", "Edo_Daichi_Nagaicho", "Edo_Daichi_Gosoji" })
+        {
+            var root = GameObject.Find(g);
+            if (root == null) continue;
+            var row = root.transform.Find("Row"); if (row != null) UnityEngine.Object.DestroyImmediate(row.gameObject);
+            var bk = root.transform.Find("Back"); if (bk != null) UnityEngine.Object.DestroyImmediate(bk.gameObject);
+        }
+        // 3町: 青龍寺(赤全体) / 永井町(黄のSE 43間) / 御掃除町(黄の残り)
+        sb.AppendLine(Row("Edo_Daichi_Seiryuji", SeiryujiPoly, 0f, -1f,
+            new[] { "S2", "S1", "SH", "S2", "S1", "S2", "S2", "S1", "S2", "S1", "S2" }, 9201));
+        sb.AppendLine(Row("Edo_Daichi_Nagaicho", NagaichoPoly, 0f, NAGAI_LEN,
+            new[] { "S1", "S2", "S2", "S1", "SH", "S1", "S2", "S1", "S2", "S2", "S1" }, 9202));
+        sb.AppendLine(Row("Edo_Daichi_Gosoji", NagaichoPoly, NAGAI_LEN + 1.5f, -1f,
+            new[] { "S1", "S1", "S2", "S1", "S1", "S1", "S2", "S1", "S1" }, 9203)); // 店借18/19軒の零細町=小屋密集
+        AssetDatabase.SaveAssets();
+        return sb.ToString();
+    }
+
+    static string Row(string groupName, Vector2[] poly, float t0, float t1, string[] pattern, int seed)
+    {
         var rowG = Group(groupName, "Row");
-        var propsG = Group(groupName, "Props");
+        var backG = Group(groupName, "Back");
         var rnd = new System.Random(seed);
         Vector2 A = poly[0], B = poly[1];
         Vector2 axis = (B - A).normalized; float len = (B - A).magnitude;
+        if (t1 < 0) t1 = len;
         Vector2 inw = new Vector2(-axis.y, axis.x);
         if (!PIP(poly, A + axis * (len * 0.5f) + inw * 5f)) inw = -inw;
-        Vector2 outw = -inw; // 街路向き
+        Vector2 outw = -inw;
         float ryFace = Mathf.Atan2(outw.x, outw.y) * Mathf.Rad2Deg;
-        var sample = GameObject.Find("Edo_Shops_Sample");
-        Transform shopSrc = sample != null ? sample.transform.Find("ShopGroup") : null;
-        var made = 0;
-        float tcur = 1.5f;
-        int pi = 0;
-        var sb = new System.Text.StringBuilder();
-        while (tcur < len - 8f)
+        var mS1 = Mat("M_Shop01", "Assets/edogoyomi/es_shop01/shop01.jpg");
+        var mS2 = Mat("M_Shop02", "Assets/edogoyomi/es_shop02/shop02.jpg");
+        var mOke = Mat("M_Oke", "Assets/edogoyomi/es_shop01/oke.jpg");
+        var mTaru = Mat("M_Komodaru", "Assets/edogoyomi/es_shop01/komodaru.jpg");
+        int made = 0; float tcur = t0 + 1.2f; int pi = 0;
+        while (true)
         {
             string kind = pattern[pi % pattern.Length]; pi++;
-            GameObject go = null; float wLot;
-            if (kind.StartsWith("Shop_") && shopSrc != null)
-            {
-                var src = shopSrc.Find(kind);
-                if (src == null) { sb.AppendLine("missing sample " + kind); break; }
-                go = UnityEngine.Object.Instantiate(src.gameObject);
-                wLot = 9.2f;
-                if (kind.Contains("大店") || kind.Contains("茶屋")) wLot = 15.0f;
-            }
-            else if (kind == "Machiya")
-            {
-                var a = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Edo/Prefabs/Machiya.prefab");
-                go = (GameObject)PrefabUtility.InstantiatePrefab(a);
-                wLot = 7.8f;
-            }
-            else { sb.AppendLine("unknown kind " + kind); break; }
-            if (tcur + wLot > len - 1.5f) { UnityEngine.Object.DestroyImmediate(go); break; }
+            float wLot; string path; float sc; Material mat = null;
+            if (kind == "SH") { path = "Assets/Japanese Village Kit/Prefabs/Small House.prefab"; wLot = 15.0f; sc = 1f; }
+            else if (kind == "S2") { path = "Assets/edogoyomi/es_shop02/shop02.obj"; wLot = 7.4f; sc = ES; mat = mS2; }
+            else { path = "Assets/edogoyomi/es_shop01/shop01.obj"; wLot = 5.2f; sc = ES; mat = mS1; }
+            if (tcur + wLot > t1 - 0.8f) break;
+            var asset = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            var go = (GameObject)PrefabUtility.InstantiatePrefab(asset);
             go.name = kind + "_" + made;
             go.transform.SetParent(rowG, true);
-            go.transform.rotation = Quaternion.Euler(0, ryFace + ((float)rnd.NextDouble() * 1.6f - 0.8f), 0);
-            // 中心を仮置き→バウンズで「前面を街路縁-1.0m内側」「走り中心=ロット中心」に合わせ
-            Vector2 lotC = A + axis * (tcur + wLot * 0.5f) + inw * 8.0f;
+            go.transform.rotation = Quaternion.Euler(0, ryFace + ((float)rnd.NextDouble() * 2f - 1f), 0);
+            go.transform.localScale = Vector3.one * sc;
+            if (mat != null) Assign(go, mat);
+            Vector2 lotC = A + axis * (tcur + wLot * 0.5f) + inw * 4.5f;
             go.transform.position = new Vector3(lotC.x, 20, lotC.y);
             var rs = go.GetComponentsInChildren<Renderer>();
             var b = rs[0].bounds; foreach (var r in rs) b.Encapsulate(r.bounds);
-            float frontProj = b.center.x * outw.x + b.center.z * outw.y + ProjHalf(b, outw);
-            Vector2 frontLine = A + inw * 1.0f;
-            float lineProj = frontLine.x * outw.x + frontLine.y * outw.y;
-            float shiftOut = lineProj - frontProj;
+            // 前面=街路縁の0.8m内側 / 走り中心=ロット中心
+            float frontProj = b.center.x * outw.x + b.center.z * outw.y + Mathf.Abs(b.extents.x * outw.x) + Mathf.Abs(b.extents.z * outw.y);
+            Vector2 fl = A + inw * 0.8f;
+            float shiftOut = (fl.x * outw.x + fl.y * outw.y) - frontProj;
             float cProj = b.center.x * axis.x + b.center.z * axis.y;
-            float targetC = Vector2.Dot(A + axis * (tcur + wLot * 0.5f), axis);
-            float shiftAlong = targetC - cProj;
+            float shiftAlong = Vector2.Dot(A + axis * (tcur + wLot * 0.5f), axis) - cProj;
             go.transform.position += new Vector3(outw.x * shiftOut + axis.x * shiftAlong, 0, outw.y * shiftOut + axis.y * shiftAlong);
-            // 接地
             var b2 = rs[0].bounds; foreach (var r in rs) b2.Encapsulate(r.bounds);
             float g = Ground(b2.center.x, b2.center.z);
-            go.transform.position += new Vector3(0, (g - 0.08f) - b2.min.y, 0);
+            go.transform.position += new Vector3(0, (g - 0.06f) - b2.min.y, 0);
+            // 店先の樽・桶(小店の脇にたまに)
+            if (kind == "S2" && rnd.NextDouble() < 0.5)
+            {
+                string pp = rnd.NextDouble() < 0.5 ? "Assets/edogoyomi/es_shop01/s01_taru.obj" : "Assets/edogoyomi/es_shop01/oke.obj";
+                var pa = AssetDatabase.LoadAssetAtPath<GameObject>(pp);
+                if (pa != null)
+                {
+                    var pr = (GameObject)PrefabUtility.InstantiatePrefab(pa);
+                    pr.name = "prop_" + made; pr.transform.SetParent(rowG, true);
+                    pr.transform.localScale = Vector3.one * ES;
+                    pr.transform.rotation = Quaternion.Euler(0, (float)rnd.NextDouble() * 360f, 0);
+                    Assign(pr, pp.Contains("taru") ? mTaru : mOke);
+                    Vector2 ppos = A + axis * (tcur + wLot - 0.6f) + inw * 1.6f;
+                    pr.transform.position = new Vector3(ppos.x, 20, ppos.y);
+                    var rr = pr.GetComponentsInChildren<Renderer>();
+                    var bb = rr[0].bounds; foreach (var r in rr) bb.Encapsulate(r.bounds);
+                    pr.transform.position += new Vector3(ppos.x - bb.center.x, 0, ppos.y - bb.center.z);
+                    var bb2 = rr[0].bounds; foreach (var r in rr) bb2.Encapsulate(r.bounds);
+                    float gg = Ground(bb2.center.x, bb2.center.z);
+                    pr.transform.position += new Vector3(0, gg - bb2.min.y, 0);
+                }
+            }
             made++;
-            tcur += wLot + 0.4f;
+            tcur += wLot + 0.35f;
         }
-        // 木戸+木戸番屋を両端に (木戸=町境)
-        PlaceKido(propsG, A, axis, inw, 0f, "Kido_S");
-        PlaceKido(propsG, A, axis, inw, len, "Kido_N");
-        // 裏手に井戸2
-        for (int i = 0; i < 2; i++)
+        // 裏手: 物干場(2本柱+竿) を ~14m 毎、その先に低木・下草(草花植付地)
+        var wood = new Material(Shader.Find("Universal Render Pipeline/Lit")); wood.color = new Color(0.42f, 0.31f, 0.20f);
+        int nMono = Mathf.Max(1, Mathf.RoundToInt((t1 - t0) / 14f));
+        for (int i = 0; i < nMono; i++)
         {
-            var e = new EdoTameikeKitaBuilder.Estate { poly = poly, front = 0, gateT = 0.5f };
-            Vector2 wp = A + axis * (len * (0.3f + 0.4f * i)) + inw * 15.5f;
-            WellAt(propsG, wp);
+            float tt = t0 + (t1 - t0) * ((i + 0.5f) / nMono) + ((float)rnd.NextDouble() * 3f - 1.5f);
+            Vector2 c = A + axis * tt + inw * (12.0f + (float)rnd.NextDouble() * 2f);
+            if (!PIP(poly, c)) continue;
+            var g = new GameObject("Monohoshi_" + i);
+            g.transform.SetParent(backG, false);
+            g.transform.position = new Vector3(c.x, Ground(c.x, c.y), c.y);
+            g.transform.rotation = Quaternion.Euler(0, ryFace + 90f + ((float)rnd.NextDouble() * 16f - 8f), 0);
+            for (int k = 0; k < 2; k++)
+            {
+                var post = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                post.name = "post" + k; post.transform.SetParent(g.transform, false);
+                post.transform.localScale = new Vector3(0.09f, 0.95f, 0.09f);
+                post.transform.localPosition = new Vector3(k == 0 ? -1.7f : 1.7f, 0.95f, 0);
+                post.GetComponent<Renderer>().sharedMaterial = wood;
+            }
+            var bar = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            bar.name = "bar"; bar.transform.SetParent(g.transform, false);
+            bar.transform.localScale = new Vector3(0.05f, 1.75f, 0.05f);
+            bar.transform.localEulerAngles = new Vector3(0, 0, 90);
+            bar.transform.localPosition = new Vector3(0, 1.78f, 0);
+            bar.GetComponent<Renderer>().sharedMaterial = wood;
+            Undo.RegisterCreatedObjectUndo(g, "monohoshi");
         }
-        return groupName + " row done: " + made + " buildings\n" + sb;
-    }
-    static float ProjHalf(Bounds b, Vector2 axis)
-    {
-        return Mathf.Abs(b.extents.x * axis.x) + Mathf.Abs(b.extents.z * axis.y);
-    }
-    static void PlaceKido(Transform parent, Vector2 A, Vector2 axis, Vector2 inw, float tpos, string name)
-    {
-        var kidoA = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/edogoyomi/es_kido/kido_open.obj");
-        var banA = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/edogoyomi/es_kidobanya/kidobanya.obj");
-        if (kidoA == null) return;
-        // 木戸は街路を走り方向に横切る向き(通行方向=axis)。街路は SW側 → 中心を縁から外へ5m
-        Vector2 kc = A + axis * Mathf.Clamp(tpos, 2f, 9999f) - inw * 5.0f;
-        float ry = Mathf.Atan2(axis.x, axis.y) * Mathf.Rad2Deg;
-        var kido = (GameObject)PrefabUtility.InstantiatePrefab(kidoA);
-        kido.name = name; kido.transform.SetParent(parent, true);
-        kido.transform.rotation = Quaternion.Euler(0, ry, 0);
-        kido.transform.localScale = Vector3.one * ES;
-        kido.transform.position = new Vector3(kc.x, 20, kc.y);
-        var rs = kido.GetComponentsInChildren<Renderer>();
-        var b = rs[0].bounds; foreach (var r in rs) b.Encapsulate(r.bounds);
-        kido.transform.position += new Vector3(kc.x - b.center.x, 0, kc.y - b.center.z);
-        var b2 = rs[0].bounds; foreach (var r in rs) b2.Encapsulate(r.bounds);
-        float g = Ground(b2.center.x, b2.center.z);
-        kido.transform.position += new Vector3(0, (g - 0.05f) - b2.min.y, 0);
-        if (banA != null)
+        // 草花植付地: 低い下草・刈込を裏縁に
+        string[] plants = {
+            "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Plant_Boxwood_Spring_01.prefab",
+            "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/PaintedFern/Plant_PaintedFern_Spring_01.prefab" };
+        int nPl = Mathf.Max(2, Mathf.RoundToInt((t1 - t0) / 7f));
+        for (int i = 0; i < nPl; i++)
         {
-            var ban = (GameObject)PrefabUtility.InstantiatePrefab(banA);
-            ban.name = name + "_banya"; ban.transform.SetParent(parent, true);
-            ban.transform.rotation = Quaternion.Euler(0, ry + 90f, 0);
-            ban.transform.localScale = Vector3.one * ES;
-            Vector2 bc = kc + inw * 4.2f;
-            ban.transform.position = new Vector3(bc.x, 20, bc.y);
-            var rb = ban.GetComponentsInChildren<Renderer>();
-            var bb = rb[0].bounds; foreach (var r in rb) bb.Encapsulate(r.bounds);
-            ban.transform.position += new Vector3(bc.x - bb.center.x, 0, bc.y - bb.center.z);
-            var bb2 = rb[0].bounds; foreach (var r in rb) bb2.Encapsulate(r.bounds);
-            float g2 = Ground(bb2.center.x, bb2.center.z);
-            ban.transform.position += new Vector3(0, (g2 - 0.05f) - bb2.min.y, 0);
+            float tt = t0 + (t1 - t0) * ((float)rnd.NextDouble());
+            Vector2 c = A + axis * tt + inw * (15.5f + (float)rnd.NextDouble() * 2.5f);
+            if (!PIP(poly, c)) continue;
+            string pp = plants[rnd.Next(plants.Length)];
+            var pa = AssetDatabase.LoadAssetAtPath<GameObject>(pp);
+            if (pa == null) continue;
+            var pl = (GameObject)PrefabUtility.InstantiatePrefab(pa);
+            pl.name = "Kusabana_" + i; pl.transform.SetParent(backG, true);
+            pl.transform.position = new Vector3(c.x, Ground(c.x, c.y) - 0.03f, c.y);
+            pl.transform.rotation = Quaternion.Euler(0, (float)rnd.NextDouble() * 360f, 0);
+            pl.transform.localScale = Vector3.one * (0.8f + 0.5f * (float)rnd.NextDouble());
         }
+        return groupName + " row rebuilt: " + made + " buildings";
     }
-    static void WellAt(Transform parent, Vector2 p)
-    {
-        var g = new GameObject("Idobata");
-        g.transform.SetParent(parent, false);
-        g.transform.position = new Vector3(p.x, Ground(p.x, p.y), p.y);
-        var curb = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        curb.name = "curb"; curb.transform.SetParent(g.transform, false);
-        curb.transform.localScale = new Vector3(1.3f, 0.35f, 1.3f);
-        curb.transform.localPosition = new Vector3(0, 0.35f, 0);
-        var stone = new Material(Shader.Find("Universal Render Pipeline/Lit")); stone.color = new Color(0.55f, 0.55f, 0.52f);
-        curb.GetComponent<Renderer>().sharedMaterial = stone;
-        Undo.RegisterCreatedObjectUndo(g, "idobata");
-    }
+
     static Transform Group(string root, string child)
     {
         var r = GameObject.Find(root);
@@ -336,7 +370,7 @@ public static class EdoDaichiBuilder
         return cur;
     }
 
-    // ---------- Stage 3: splat (町代地の地面=踏み固め土) ----------
+    // ---------- Stage 3: splat (前=踏み固め土 / 裏=草花畑の緑) ----------
     public static string Stage3_Splat()
     {
         var t = T(); var td = t.terrainData;
@@ -347,23 +381,33 @@ public static class EdoDaichiBuilder
         int ix0 = Mathf.Max(0, Mathf.FloorToInt((x0 - tp.x) / cell)), ix1 = Mathf.Min(res - 1, Mathf.CeilToInt((x1 - tp.x) / cell));
         int iz0 = Mathf.Max(0, Mathf.FloorToInt((z0 - tp.z) / cell)), iz1 = Mathf.Min(res - 1, Mathf.CeilToInt((z1 - tp.z) / cell));
         int w = ix1 - ix0 + 1, h = iz1 - iz0 + 1;
-        var A = td.GetAlphamaps(ix0, iz0, w, h);
+        var A2 = td.GetAlphamaps(ix0, iz0, w, h);
         int L = td.alphamapLayers;
         int changed = 0;
-        foreach (var poly in new[] { SeishojiPoly, NagaichoPoly })
+        foreach (var poly in new[] { SeiryujiPoly, NagaichoPoly })
+        {
+            Vector2 A = poly[0], B = poly[1];
+            Vector2 axis = (B - A).normalized;
+            Vector2 inw = new Vector2(-axis.y, axis.x);
+            if (!PIP(poly, A + axis * 20f + inw * 5f)) inw = -inw;
             for (int zz = 0; zz < h; zz++)
                 for (int xx = 0; xx < w; xx++)
                 {
                     float wx = tp.x + (ix0 + xx + 0.5f) * cell;
                     float wz = tp.z + (iz0 + zz + 0.5f) * cell;
-                    if (!PIP(poly, new Vector2(wx, wz))) continue;
+                    var p = new Vector2(wx, wz);
+                    if (!PIP(poly, p)) continue;
+                    float depth = Vector2.Dot(p - A, inw);
                     float noise = Mathf.PerlinNoise(wx * 0.13f, wz * 0.13f);
-                    float bare = Mathf.Lerp(0.45f, 0.62f, noise), grass = 0.08f, dirt = 1f - bare - grass;
-                    for (int l = 0; l < L; l++) A[zz, xx, l] = 0;
-                    A[zz, xx, 0] = dirt; A[zz, xx, 1] = grass; A[zz, xx, 2] = bare;
+                    float bare, grass, dirt;
+                    if (depth < 11f) { bare = Mathf.Lerp(0.45f, 0.62f, noise); grass = 0.08f; dirt = 1f - bare - grass; }  // 町屋・店前
+                    else { grass = Mathf.Lerp(0.45f, 0.68f, noise); bare = 0.10f; dirt = 1f - grass - bare; }              // 物干場・草花畑
+                    for (int l = 0; l < L; l++) A2[zz, xx, l] = 0;
+                    A2[zz, xx, 0] = dirt; A2[zz, xx, 1] = grass; A2[zz, xx, 2] = bare;
                     changed++;
                 }
-        td.SetAlphamaps(ix0, iz0, A);
+        }
+        td.SetAlphamaps(ix0, iz0, A2);
         return "daichi splat cells=" + changed;
     }
 }

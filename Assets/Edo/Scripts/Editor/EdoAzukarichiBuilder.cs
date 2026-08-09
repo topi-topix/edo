@@ -7,10 +7,11 @@
 //    建物を置かず大名預りとされた。切絵図の判読(ユーザー): 紫=戸田采女正 / 緑=松平大和守(川越藩
 //    =隣接の上屋敷[[matsudaira-yamato-kamiyashiki]]) / 赤=松平美濃守(隣接中屋敷)。いずれも自邸に
 //    隣接する堤明地の預りで整合。表現=刈られた草地+桐畑(広重「名所江戸百景 赤坂桐畑」)+榜示杭【一般類型】。
-//  ・干場拝借地(水色5筆): 文政町方書上=田町二丁目の紺屋・合羽屋が宝暦10年(1760)に溜池土手に
-//    拝借した物干場(既再現の物干の正典化)。種別は「合羽干場」「紺屋干場」「紺屋合羽屋共干場」の3種
-//    (ユーザー判読)だが区画対応が未指定のため、当面は紺屋(反物干し・張り板)と合羽屋(渋紙干し)の
-//    混合表現とする。区画対応が判明したら振り分け改修可。
+//  ・干場拝借地(5筆): 文政町方書上=田町二丁目の紺屋・合羽屋が宝暦10年(1760)に溜池土手に
+//    拝借した物干場(既再現の物干の正典化)。種別は「合羽干場」「紺屋干場」「紺屋合羽屋共干場」の3種。
+//    2026-08-09、ユーザーが色分け下書き(黄=合羽干場/水色=紺屋干場/赤=共干場)で区画対応を確定:
+//    W1・W2・W3=紺屋干場(竿の反物干し+張り板のみ) / W4=紺屋合羽屋共干場(3種混在) /
+//    W5=合羽干場(渋紙の平干しのみ)。
 //  ・大的稽古場(黄): 堤明地内の弓術大的稽古の矢場。構造(安土+大的+射小屋+矢来+矢除板塀)は
 //    矢場の一般類型【推定スタンドイン】。射小屋=kidobanya代用。
 // 【整地】ユーザー許可「必要に応じて整地可」: 大的稽古場のみ平場化(矢道が必要なため、7.5mレベル+外周5mブレンド)。
@@ -281,10 +282,12 @@ public static class EdoAzukarichiBuilder
         var shibu = new Material(Shader.Find("Universal Render Pipeline/Lit")); shibu.color = new Color(0.56f, 0.36f, 0.16f);
         var ita = new Material(Shader.Find("Universal Render Pipeline/Lit")); ita.color = new Color(0.62f, 0.52f, 0.38f);
         Material[] cloth = { kon, kon, asagi, shiro };
+        // kind: "kouya"=紺屋干場(竿干し+張り板のみ) / "kappaya"=合羽干場(渋紙平干しのみ) / "kyodo"=紺屋合羽屋共干場(混在)
+        // 対応は2026-08-09にユーザーが色分け下書きで確定(黄=合羽干場→W5 / 水色=紺屋干場→W1,W2,W3 / 赤=共→W4)
         var defs = new[] {
-            new { name = "W1", poly = W1, seed = 9501 }, new { name = "W2", poly = W2, seed = 9502 },
-            new { name = "W3", poly = W3, seed = 9503 }, new { name = "W4", poly = W4, seed = 9504 },
-            new { name = "W5", poly = W5, seed = 9505 } };
+            new { name = "W1", poly = W1, seed = 9501, kind = "kouya" }, new { name = "W2", poly = W2, seed = 9502, kind = "kouya" },
+            new { name = "W3", poly = W3, seed = 9503, kind = "kouya" }, new { name = "W4", poly = W4, seed = 9504, kind = "kyodo" },
+            new { name = "W5", poly = W5, seed = 9505, kind = "kappaya" } };
         foreach (var d in defs)
         {
             if (GameObject.Find("Edo_Hoshiba") != null && GameObject.Find("Edo_Hoshiba").transform.Find(d.name) != null)
@@ -312,7 +315,12 @@ public static class EdoAzukarichiBuilder
                     if (Ground(p.x, p.y) < MinH) continue;
                     double roll = rnd.NextDouble();
                     float jit = (float)rnd.NextDouble() * 10f - 5f;
-                    if (roll < 0.45)
+                    // kouya=竿干し/張り板のみ、kappaya=渋紙のみ、kyodo=3種混在(従来比率)
+                    bool doRack, doShibu, doHariita;
+                    if (d.kind == "kouya") { doRack = roll < 0.6; doShibu = false; doHariita = !doRack; }
+                    else if (d.kind == "kappaya") { doRack = false; doShibu = true; doHariita = false; }
+                    else { doRack = roll < 0.45; doShibu = !doRack && roll < 0.78; doHariita = !doRack && !doShibu; }
+                    if (doRack)
                     {   // 紺屋: 竿干し(柱2+竿+反物3〜5枚)
                         var rg = new GameObject("Rack_" + racks); rg.transform.SetParent(g, false);
                         float gy = Ground(p.x, p.y);
@@ -345,7 +353,7 @@ public static class EdoAzukarichiBuilder
                         }
                         racks++;
                     }
-                    else if (roll < 0.78)
+                    else if (doShibu)
                     {   // 合羽屋: 渋紙の平干し(筵状)
                         int nm = 2 + rnd.Next(3);
                         for (int m2 = 0; m2 < nm; m2++)

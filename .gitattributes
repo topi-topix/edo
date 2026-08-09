@@ -49,3 +49,7 @@
 # text 扱いになって eol=lf 正規化で壊れる事故があったため `**` で再帰マッチさせる。
 Assets/Edo/Terrain/*.asset    filter=lfs diff=lfs merge=lfs -text
 Assets/Edo/Terrain/**/*.asset filter=lfs diff=lfs merge=lfs -text
+# ---- Akasaka scene (20-60MB, grows every session): override text rule above → LFS ----
+# git diff での通常のテキスト差分は失われる(必要なら `git lfs diff` で内容を比較可)。
+# 過去バージョンは対象外(履歴書き換えは別途・破壊的操作のため未実施)。
+Assets/Edo/Scenes/Akasaka.unity filter=lfs diff=lfs merge=lfs -text

@@ -28,6 +28,66 @@ public static class WaterBaker
         return wb;
     }
 
+    /// <summary>
+    /// 「他の水域が掘っているセル」のマスクを wb のスナップ領域の座標系で作る。
+    /// スナップ領域は輪郭bbox+150mの矩形なので近くの水域どうしで平気で重なる。
+    /// 復元/掘り直しはスナップ全域を書き戻すため、守らないと隣の池や堀の掘り込みを埋めてしまう。
+    /// 自分の輪郭の内側は自分が掘るので対象外。該当なしなら null。
+    /// </summary>
+    static bool[,] OtherWaterMask(WaterBody self, Terrain terrain, List<Vector2> selfPoly)
+    {
+        var td = terrain.terrainData; var tt = terrain.transform;
+        float px0 = tt.position.x, pz0 = tt.position.z, sx = td.size.x, sz = td.size.z;
+        int res = td.heightmapResolution;
+        bool[,] mask = null;
+
+        foreach (var o in Object.FindObjectsByType<WaterBody>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (o == self || o.outline == null || o.outline.Count < 3) continue;
+            var op = WaterGeom.SmoothTagged(o.outline, o.sharp, 2);
+            var op2 = new List<Vector2>(op.Count);
+            float minX = 1e9f, maxX = -1e9f, minZ = 1e9f, maxZ = -1e9f;
+            foreach (var p in op)
+            {
+                op2.Add(new Vector2(p.x, p.z));
+                minX = Mathf.Min(minX, p.x); maxX = Mathf.Max(maxX, p.x);
+                minZ = Mathf.Min(minZ, p.z); maxZ = Mathf.Max(maxZ, p.z);
+            }
+            // 相手のbboxとスナップ領域の重なりだけ調べる（全域走査は重すぎる）
+            int x0 = Mathf.Max(0, Mathf.FloorToInt((minX - px0) / sx * (res - 1)) - self.sX);
+            int x1 = Mathf.Min(self.sW - 1, Mathf.CeilToInt((maxX - px0) / sx * (res - 1)) - self.sX);
+            int z0 = Mathf.Max(0, Mathf.FloorToInt((minZ - pz0) / sz * (res - 1)) - self.sZ);
+            int z1 = Mathf.Min(self.sH - 1, Mathf.CeilToInt((maxZ - pz0) / sz * (res - 1)) - self.sZ);
+            if (x1 < x0 || z1 < z0) continue;
+
+            for (int z = z0; z <= z1; z++)
+                for (int x = x0; x <= x1; x++)
+                {
+                    float wx = px0 + (float)(self.sX + x) / (res - 1) * sx;
+                    float wz = pz0 + (float)(self.sZ + z) / (res - 1) * sz;
+                    var v = new Vector2(wx, wz);
+                    if (!WaterGeom.PointInPoly(v, op2)) continue;
+                    if (selfPoly != null && WaterGeom.PointInPoly(v, selfPoly)) continue;   // 自分の水域が優先
+                    if (mask == null) mask = new bool[self.sH, self.sW];
+                    mask[z, x] = true;
+                }
+        }
+        return mask;
+    }
+
+    /// <summary>他の水域が掘っているセルを現況のまま残す（H を現在の地形高で上書き）。戻り値=守ったセル数。</summary>
+    static int PreserveOtherWater(WaterBody wb, Terrain terrain, List<Vector2> selfPoly, float[,] H)
+    {
+        var mask = OtherWaterMask(wb, terrain, selfPoly);
+        if (mask == null) return 0;
+        var cur = terrain.terrainData.GetHeights(wb.sX, wb.sZ, wb.sW, wb.sH);
+        int kept = 0;
+        for (int z = 0; z < wb.sH; z++)
+            for (int x = 0; x < wb.sW; x++)
+                if (mask[z, x] && !Mathf.Approximately(H[z, x], cur[z, x])) { H[z, x] = cur[z, x]; kept++; }
+        return kept;
+    }
+
     /// <summary>outline から水面メッシュだけ再生成（ドラッグ時の即時反映用・掘り込みは触らない）。</summary>
     public static void RebuildSurface(WaterBody wb)
     {
@@ -242,6 +302,8 @@ public static class WaterBaker
         var td = terrain.terrainData;
         var H = new float[wb.sH, wb.sW];
         for (int z = 0; z < wb.sH; z++) for (int x = 0; x < wb.sW; x++) H[z, x] = wb.snap[z * wb.sW + x];
+        int kept = PreserveOtherWater(wb, terrain, null, H);   // 隣の水域の掘り込みを埋めない
+        if (kept > 0) Debug.Log("他の水域が掘っている " + kept + " セルはそのまま残しました（埋め戻し防止）。");
         td.SetHeights(wb.sX, wb.sZ, H);
         return true;
     }
@@ -372,6 +434,8 @@ public static class WaterBaker
             for (int z = 1; z < wb.sH - 1; z++) for (int x = 1; x < wb.sW - 1; x++)
                 H[z, x] = (src[z, x] * 4 + src[z - 1, x] + src[z + 1, x] + src[z, x - 1] + src[z, x + 1]) / 8f;
         }
+        int kept = PreserveOtherWater(wb, terrain, poly2, H);   // 隣の水域の掘り込みを埋めない
+        if (kept > 0) Debug.Log("他の水域が掘っている " + kept + " セルはそのまま残しました（埋め戻し防止）。");
         td.SetHeights(wb.sX, wb.sZ, H);
         EditorUtility.SetDirty(wb);
         RebuildSurface(wb);

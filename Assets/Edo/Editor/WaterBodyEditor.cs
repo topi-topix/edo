@@ -78,6 +78,9 @@ public class WaterBodyEditor : Editor
         EditorGUILayout.LabelField("輪郭の点数", wb.outline.Count.ToString());
         addMode = GUILayout.Toggle(addMode, addMode ? "■ 点の追加/削除 中（辺付近クリック=追加 / Shift+クリック=削除）" : "＋ 点を追加/削除する", "Button");
         if (addMode) cornerMode = false;
+        if (addMode)
+            EditorGUILayout.HelpBox("削除: 消したい点にカーソルを合わせて Shift+クリック（または Delete キー）。\n" +
+                "赤くなった点が消えます。追加: 辺の上をクリック。", MessageType.None);
 
         // ---- 角のスタイル: 点ごとに スムーズ(丸) / 直角(角) を切替 ----
         EditorGUILayout.Space(2);
@@ -187,6 +190,43 @@ public class WaterBodyEditor : Editor
         var wb = (WaterBody)target;
         if (wb.outline == null || wb.outline.Count == 0) return;
         EnsureSharp(wb);
+        Event ev = Event.current;
+
+        // ★ 点の削除は「移動ハンドルを描く前」に処理する。
+        //   後回しにすると点の上に重なった FreeMoveHandle がクリックを先に掴んでしまい、
+        //   点が消えずにわずかに動くだけ＝「削除できない」になる。
+        if (addMode && !cornerMode && !ev.alt)
+        {
+            bool delClick = ev.type == EventType.MouseDown && ev.button == 0 && ev.shift;
+            bool delKey = ev.type == EventType.KeyDown && (ev.keyCode == KeyCode.Delete || ev.keyCode == KeyCode.Backspace);
+            if (delClick || delKey)
+            {
+                int hit = PointUnderCursor(wb, ev.mousePosition);
+                if (hit < 0)
+                {
+                    if (delClick) { Debug.Log("削除する点が見つかりません（消したい点の上にカーソルを合わせて Shift+クリック）。"); ev.Use(); }
+                    // Delete キーで点を掴んでいない時は、水域ごと消す既定動作へ通す（警告は Inspector に出ている）
+                }
+                else if (wb.outline.Count <= 3)
+                {
+                    Debug.LogWarning("輪郭は3点までしか減らせません（これ以上は削除できません）。");
+                    ev.Use();
+                }
+                else
+                {
+                    Undo.RecordObject(wb, "Delete Water Point");
+                    wb.outline.RemoveAt(hit);
+                    if (hit < wb.sharp.Count) wb.sharp.RemoveAt(hit);
+                    WaterBaker.RebuildSurface(wb);   // 水面プレビューのみ（地形は『掘り直す』で）
+                    EditorUtility.SetDirty(wb);
+                    Debug.Log("輪郭の点を削除しました（残り " + wb.outline.Count + " 点）。地形へ反映するには『💧 地形を掘り直す』を押してください。");
+                    ev.Use();
+                    SceneView.RepaintAll();
+                    return;
+                }
+            }
+            if (ev.type == EventType.MouseMove) HandleUtility.Repaint();   // 赤いハイライトを追従させる
+        }
 
         Handles.color = new Color(0.2f, 0.7f, 1f, 0.9f);
         for (int i = 0; i < wb.outline.Count; i++)
@@ -244,21 +284,59 @@ public class WaterBodyEditor : Editor
 
         if (addMode)
         {
-            Event e = Event.current;
-            if (e.alt) return;
-            HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive));
-            if (e.type == EventType.MouseDown && e.button == 0)
+            // 削除対象（カーソル直下の点）を赤で示す
+            int cand = PointUnderCursor(wb, ev.mousePosition);
+            if (ev.type == EventType.Repaint && cand >= 0)
             {
-                if (Raycast(e, out Vector3 hit))
+                Vector3 cp = wb.outline[cand];
+                Handles.color = new Color(1f, 0.25f, 0.2f, 0.95f);
+                float chs = HandleUtility.GetHandleSize(cp) * 0.14f;
+                Handles.SphereHandleCap(0, cp, Quaternion.identity, chs, EventType.Repaint);
+            }
+
+            // クリックがハンドルに吸われないよう、既定コントロールを毎イベント同じ順で確保する
+            HandleUtility.AddDefaultControl(GUIUtility.GetControlID(FocusType.Passive));
+            if (!ev.alt && ev.type == EventType.MouseDown && ev.button == 0 && !ev.shift)
+            {
+                if (Raycast(ev, out Vector3 hit))
                 {
-                    Undo.RecordObject(wb, "Edit Water Points");
-                    if (e.shift) RemoveNear(wb, hit); else InsertOnNearestEdge(wb, hit);
+                    Undo.RecordObject(wb, "Insert Water Point");
+                    InsertOnNearestEdge(wb, hit);
                     WaterBaker.RebuildSurface(wb);   // 水面プレビューのみ（地形は『掘り直す』で）
                     EditorUtility.SetDirty(wb);
-                    e.Use();
+                    ev.Use();
                 }
             }
+
+            Handles.BeginGUI();
+            GUI.color = new Color(1f, 1f, 1f, 0.9f);
+            GUILayout.BeginArea(new Rect(8, 8, 420, 24));
+            GUILayout.Label(cand >= 0
+                ? ("点 #" + cand + " を Shift+クリック / Delete で削除")
+                : "点編集: 辺をクリック=追加 / 点の上で Shift+クリック=削除", EditorStyles.helpBox);
+            GUILayout.EndArea();
+            GUI.color = Color.white;
+            Handles.EndGUI();
         }
+    }
+
+    /// <summary>
+    /// カーソル直下の輪郭点を返す（無ければ -1）。
+    /// ★判定は必ず画面(ピクセル)距離で行う: ワールド距離の固定半径だと、引きの画で
+    ///   半径がハンドルの掴み範囲より小さくなり「どこを押しても消えない」状態になる。
+    /// </summary>
+    static int PointUnderCursor(WaterBody wb, Vector2 mouse, float maxPx = 26f)
+    {
+        var cam = Camera.current;
+        int best = -1; float bd = maxPx;
+        for (int i = 0; i < wb.outline.Count; i++)
+        {
+            Vector3 p = wb.outline[i];
+            if (cam != null && cam.WorldToViewportPoint(p).z <= 0f) continue;   // 背面の点は拾わない
+            float d = Vector2.Distance(HandleUtility.WorldToGUIPoint(p), mouse);
+            if (d < bd) { bd = d; best = i; }
+        }
+        return best;
     }
 
     static Vector3 ProjectXZ(Vector3 p)
@@ -280,15 +358,6 @@ public class WaterBodyEditor : Editor
             if (tt > 0f) { Vector3 p = ray.origin + ray.direction * tt; p.y = t.SampleHeight(p) + t.transform.position.y; hit = p; return true; }
         }
         return false;
-    }
-
-    static void RemoveNear(WaterBody wb, Vector3 p)
-    {
-        if (wb.outline.Count <= 3) return;
-        EnsureSharp(wb);
-        int best = -1; float bd = 30f * 30f;
-        for (int i = 0; i < wb.outline.Count; i++) { float d = (wb.outline[i] - p).sqrMagnitude; if (d < bd) { bd = d; best = i; } }
-        if (best >= 0) { wb.outline.RemoveAt(best); if (best < wb.sharp.Count) wb.sharp.RemoveAt(best); }
     }
 
     static void InsertOnNearestEdge(WaterBody wb, Vector3 p)

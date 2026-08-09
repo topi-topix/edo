@@ -127,16 +127,141 @@ public static class EdoLandUse
         AssetDatabase.ImportAsset(OverridePath);
     }
 
-    // ---------- ベイク ----------
-    [MenuItem("Edo/土地利用/ベイク（自動＋上書き）")]
-    public static void Bake() { Bake(true); }
+    // ---------- ベイク範囲 ----------
+    /// <summary>ベイクを適用する範囲。null を渡すと地形全面(従来どおり)。
+    /// 範囲外のスプラット/草は一切触らないので、テレインペイントの手描きが残る。</summary>
+    public class BakeMask
+    {
+        public readonly List<Vector4> Spots = new List<Vector4>();   // x,y,z=ワールド位置 / w=半径(m)
+        public Rect? RectXZ;                                          // ワールドXZの矩形
+        public float Feather = 6f;                                    // 境界のなじませ幅(m)
 
-    public static void Bake(bool blockFill)
+        public void AddSpot(Vector3 p, float r){ Spots.Add(new Vector4(p.x,p.y,p.z,r)); }
+
+        /// <summary>この地点をどれだけ塗るか(0=触らない, 1=完全にベイク)。</summary>
+        public float Coverage(float wx, float wz)
+        {
+            float f = Mathf.Max(0.01f, Feather), k = 0f;
+            for (int i=0;i<Spots.Count && k<1f;i++){
+                var s=Spots[i]; float dx=wx-s.x, dz=wz-s.z;
+                float d=Mathf.Sqrt(dx*dx+dz*dz);
+                k = Mathf.Max(k, Mathf.Clamp01((s.w-d)/f));
+            }
+            if (RectXZ.HasValue && k<1f){
+                var r=RectXZ.Value;
+                float inX=Mathf.Min(wx-r.xMin, r.xMax-wx), inZ=Mathf.Min(wz-r.yMin, r.yMax-wz);
+                k = Mathf.Max(k, Mathf.Clamp01(Mathf.Min(inX,inZ)/f));
+            }
+            return k;
+        }
+
+        /// <summary>走査を絞るためのalphamap画素範囲(なければ全面)。</summary>
+        public bool PixelBounds(Vector3 O, Vector3 Sz, int res, out int x0,out int y0,out int x1,out int y1)
+        {
+            x0=y0=0; x1=y1=res-1;
+            if (Spots.Count==0 && !RectXZ.HasValue) return false;
+            float minX=float.MaxValue,maxX=float.MinValue,minZ=float.MaxValue,maxZ=float.MinValue;
+            foreach(var s in Spots){ minX=Mathf.Min(minX,s.x-s.w-Feather); maxX=Mathf.Max(maxX,s.x+s.w+Feather);
+                                     minZ=Mathf.Min(minZ,s.z-s.w-Feather); maxZ=Mathf.Max(maxZ,s.z+s.w+Feather); }
+            if (RectXZ.HasValue){ var r=RectXZ.Value;
+                minX=Mathf.Min(minX,r.xMin-Feather); maxX=Mathf.Max(maxX,r.xMax+Feather);
+                minZ=Mathf.Min(minZ,r.yMin-Feather); maxZ=Mathf.Max(maxZ,r.yMax+Feather); }
+            x0=Mathf.Clamp(Mathf.FloorToInt((minX-O.x)/Sz.x*(res-1)),0,res-1);
+            x1=Mathf.Clamp(Mathf.CeilToInt ((maxX-O.x)/Sz.x*(res-1)),0,res-1);
+            y0=Mathf.Clamp(Mathf.FloorToInt((minZ-O.z)/Sz.z*(res-1)),0,res-1);
+            y1=Mathf.Clamp(Mathf.CeilToInt ((maxZ-O.z)/Sz.z*(res-1)),0,res-1);
+            return true;
+        }
+    }
+
+    // ---------- ベイク前の自動バックアップ ----------
+    // Assets の外(プロジェクト直下 TerrainBackups/)に置く。Unityにimportさせないため。
+    // 8bit PNG なので厳密には量子化されるが、事故った時の復帰用としては十分。
+    const string BackupDir = "TerrainBackups";
+    const int BackupKeep = 10;
+
+    public static string SaveSplatBackup(TerrainData td, string tag)
+    {
+        if (td.alphamapLayers != 4){ Debug.LogWarning("[LandUse] 層数が4でないためバックアップを省略。"); return null; }
+        int res=td.alphamapResolution; var a=td.GetAlphamaps(0,0,res,res);
+        var tex=new Texture2D(res,res,TextureFormat.RGBA32,false);
+        var px=new Color32[res*res];
+        for(int y=0;y<res;y++)for(int x=0;x<res;x++)
+            px[y*res+x]=new Color32((byte)Mathf.RoundToInt(a[y,x,0]*255f),(byte)Mathf.RoundToInt(a[y,x,1]*255f),
+                                    (byte)Mathf.RoundToInt(a[y,x,2]*255f),(byte)Mathf.RoundToInt(a[y,x,3]*255f));
+        tex.SetPixels32(px);
+        System.IO.Directory.CreateDirectory(BackupDir);
+        string path=System.IO.Path.Combine(BackupDir, $"splat_{System.DateTime.Now:yyyyMMdd_HHmmss}_{tag}.png");
+        System.IO.File.WriteAllBytes(path, tex.EncodeToPNG());
+        Object.DestroyImmediate(tex);
+        // 古いものを間引く
+        var files=new List<string>(System.IO.Directory.GetFiles(BackupDir,"splat_*.png")); files.Sort();
+        for(int i=0;i<files.Count-BackupKeep;i++) System.IO.File.Delete(files[i]);
+        return path;
+    }
+
+    [MenuItem("Edo/土地利用/ベイク前に戻す（直前のバックアップ）")]
+    public static void RestoreLatestSplatBackup()
+    {
+        if(!System.IO.Directory.Exists(BackupDir)){ Debug.LogWarning("[LandUse] バックアップがありません。"); return; }
+        var files=new List<string>(System.IO.Directory.GetFiles(BackupDir,"splat_*.png"));
+        if(files.Count==0){ Debug.LogWarning("[LandUse] バックアップがありません。"); return; }
+        files.Sort(); string path=files[files.Count-1];
+        var go=GameObject.Find(TerrainName); if(go==null){ Debug.LogWarning("[LandUse] ModernTerrain が見つかりません。"); return; }
+        var terr=go.GetComponent<Terrain>(); var td=terr.terrainData; int res=td.alphamapResolution;
+        var tex=new Texture2D(2,2,TextureFormat.RGBA32,false); tex.LoadImage(System.IO.File.ReadAllBytes(path));
+        if(tex.width!=res||tex.height!=res){ Object.DestroyImmediate(tex); Debug.LogWarning("[LandUse] 解像度が合わないバックアップです。"); return; }
+        if(!EditorUtility.DisplayDialog("スプラットを戻す",
+            $"{System.IO.Path.GetFileName(path)} の状態に地面の塗りを戻します。\n（高さ・木は変更しません）","戻す","やめる")){ Object.DestroyImmediate(tex); return; }
+        var px=tex.GetPixels32(); Object.DestroyImmediate(tex);
+        var a=new float[res,res,4];
+        for(int y=0;y<res;y++)for(int x=0;x<res;x++){ var c=px[y*res+x];
+            float s=(c.r+c.g+c.b+c.a)/255f; if(s<1e-4f)s=1f;
+            a[y,x,0]=c.r/255f/s; a[y,x,1]=c.g/255f/s; a[y,x,2]=c.b/255f/s; a[y,x,3]=c.a/255f/s; }
+        Undo.RegisterCompleteObjectUndo(td.alphamapTextures,"Restore Splat Backup");
+        td.SetAlphamaps(0,0,a); terr.Flush(); EditorUtility.SetDirty(td); AssetDatabase.SaveAssets();
+        Debug.Log($"[LandUse] 復元しました: {path}");
+    }
+
+    // ---------- ベイク ----------
+    [MenuItem("Edo/土地利用/ベイク（全面・手描きは消えます）")]
+    public static void BakeAllWithConfirm()
+    {
+        if(!EditorUtility.DisplayDialog("全面ベイク",
+            "地形のスプラット(地面の塗り)と草を全面的に作り直します。\n"+
+            "テレインペイントで手描きした分は消えます。\n"+
+            "（残したい場合は『土地利用/ブラシ』で上書きマスクに描くか、範囲ベイクを使ってください）",
+            "全面ベイクする","やめる")) return;
+        Bake(true);
+    }
+
+    [MenuItem("Edo/土地利用/範囲ベイク（選択オブジェクトの周り）")]
+    public static void BakeAroundSelection()
+    {
+        var sel=Selection.gameObjects;
+        if(sel==null||sel.Length==0){ Debug.LogWarning("[LandUse] 範囲の基準にするオブジェクトを選択してください。"); return; }
+        bool has=false; Bounds b=new Bounds();
+        foreach(var g in sel){
+            var rs=g.GetComponentsInChildren<Renderer>();
+            if(rs.Length>0){ foreach(var r in rs){ if(!has){b=r.bounds;has=true;} else b.Encapsulate(r.bounds); } }
+            else { if(!has){b=new Bounds(g.transform.position,Vector3.zero);has=true;} else b.Encapsulate(g.transform.position); }
+        }
+        if(!has){ Debug.LogWarning("[LandUse] 範囲を決められませんでした。"); return; }
+        const float margin=15f;
+        var mask=new BakeMask{ RectXZ=new Rect(b.min.x-margin, b.min.z-margin, b.size.x+margin*2, b.size.z+margin*2), Feather=8f };
+        Bake(true, mask);
+    }
+
+    public static void Bake() { Bake(true); }
+    public static void Bake(bool blockFill) { Bake(blockFill, null); }
+
+    public static void Bake(bool blockFill, BakeMask mask)
     {
         var go=GameObject.Find(TerrainName);
         if (go==null){ Debug.LogWarning("[LandUse] ModernTerrain が見つかりません。"); return; }
         var terr=go.GetComponent<Terrain>(); var td=terr.terrainData;
         var O=terr.transform.position; var Sz=td.size; int res=td.alphamapResolution;
+        SaveSplatBackup(td, mask==null?"full":"region");
 
         int MW,MH; var mapCls=BuildMapClasses(out MW,out MH,blockFill);
         var ov=LoadOrCreateOverride(res); var ovpx=ov.GetPixels32();
@@ -156,10 +281,17 @@ public static class EdoLandUse
                 gX[gi,gj]=(float)(((lo-LON_C)*M_LON/(2*HALF)+0.5)*(MW-1));
                 gY[gi,gj]=(float)(((la-LAT_C)*M_LAT/(2*HALF)+0.5)*(MH-1)); } }
 
+        // スプラット実体は td ではなく alphamapTextures に入っているので、Undo は両方登録する
+        // (td だけだと Ctrl+Z しても地面の塗りは戻らない)。
+        Undo.RegisterCompleteObjectUndo(td.alphamapTextures,"Bake Land Use");
         Undo.RegisterCompleteObjectUndo(td,"Bake Land Use");
-        var map=new float[res,res,4];
-        for (int y=0;y<res;y++){ float ny=y/(float)(res-1); float fy=ny*(G-1); int gj=Mathf.Min((int)fy,G-2); float ty=fy-gj; float v=y/(float)(res-1);
-            for (int x=0;x<res;x++){ float nx=x/(float)(res-1); float fx=nx*(G-1); int gi=Mathf.Min((int)fx,G-2); float tx=fx-gi; float u=x/(float)(res-1);
+        var map=td.GetAlphamaps(0,0,res,res);            // 既存の塗りから開始 → 範囲外は手を触れない
+        int bx0=0,by0=0,bx1=res-1,by1=res-1;
+        if (mask!=null) mask.PixelBounds(O,Sz,res,out bx0,out by0,out bx1,out by1);
+        for (int y=by0;y<=by1;y++){ float ny=y/(float)(res-1); float fy=ny*(G-1); int gj=Mathf.Min((int)fy,G-2); float ty=fy-gj; float v=y/(float)(res-1);
+            for (int x=bx0;x<=bx1;x++){ float nx=x/(float)(res-1); float fx=nx*(G-1); int gi=Mathf.Min((int)fx,G-2); float tx=fx-gi; float u=x/(float)(res-1);
+                float cov = mask==null ? 1f : mask.Coverage(O.x+u*Sz.x, O.z+v*Sz.z);
+                if (cov<=0.001f) continue;               // 範囲外 = 既存の塗りを保持
                 float mx=Mathf.Lerp(Mathf.Lerp(gX[gi,gj],gX[gi+1,gj],tx),Mathf.Lerp(gX[gi,gj+1],gX[gi+1,gj+1],tx),ty);
                 float my=Mathf.Lerp(Mathf.Lerp(gY[gi,gj],gY[gi+1,gj],tx),Mathf.Lerp(gY[gi,gj+1],gY[gi+1,gj+1],tx),ty);
                 // 道は近傍投票で細線補強
@@ -181,13 +313,16 @@ public static class EdoLandUse
                     wD=Mathf.Lerp(wD,ngD,gc); wG=Mathf.Lerp(wG,ngG,gc); wB=Mathf.Lerp(wB,0f,gc); wR=Mathf.Lerp(wR,0f,gc);
                     float s2=wD+wG+wB+wR; if(s2<1e-4f)s2=1; wD/=s2; wG/=s2; wB/=s2; wR/=s2;
                 }
-                map[y,x,0]=wD; map[y,x,1]=wG; map[y,x,2]=wB; map[y,x,3]=wR;
+                if(cov>=0.999f){ map[y,x,0]=wD; map[y,x,1]=wG; map[y,x,2]=wB; map[y,x,3]=wR; }
+                else {           // 縁はなじませる(継ぎ目を出さない)
+                    map[y,x,0]=Mathf.Lerp(map[y,x,0],wD,cov); map[y,x,1]=Mathf.Lerp(map[y,x,1],wG,cov);
+                    map[y,x,2]=Mathf.Lerp(map[y,x,2],wB,cov); map[y,x,3]=Mathf.Lerp(map[y,x,3],wR,cov); }
             } }
         td.SetAlphamaps(0,0,map);
         Object.DestroyImmediate(ov);
-        RebuildGrass(terr,td);
+        RebuildGrass(terr,td,mask);
         terr.Flush(); EditorUtility.SetDirty(td); AssetDatabase.SaveAssets();
-        Debug.Log($"[LandUse] Bake 完了 (blockFill={blockFill}, res={res})");
+        Debug.Log($"[LandUse] Bake 完了 (blockFill={blockFill}, res={res}, 範囲={(mask==null?"全面":"限定")})");
     }
 
     static byte SampleClassVote(byte[] cls,int W,int H,float mx,float my)
@@ -245,7 +380,7 @@ public static class EdoLandUse
     // 草原(緑)の芝ウェイトから草ディテールを再生成。二値マスクを軽くぼかし、閾値を弱いノイズで揺らして
     // 直線的な境界を少しだけ崩す(道への漏れは数%に抑制)。層0=密(細葉GrassLowA)、層1=疎らな広葉(GrassLowB)。
     // 水部分は芝ウェイトが低いので自然に除外される。
-    static void RebuildGrass(Terrain terr, TerrainData td)
+    static void RebuildGrass(Terrain terr, TerrainData td, BakeMask region=null)
     {
         if (td.detailPrototypes.Length==0) return;
         Vector3 tp=terr.transform.position;
@@ -268,11 +403,20 @@ public static class EdoLandUse
             float tx=Mathf.Clamp01(fx-x0), ty=Mathf.Clamp01(fy-y0);
             return Mathf.Lerp(Mathf.Lerp(blur[y0*ares+x0],blur[y0*ares+x1],tx),Mathf.Lerp(blur[y1*ares+x0],blur[y1*ares+x1],tx),ty); };
         int dres=td.detailWidth;
-        var dA=new int[dres,dres];
-        bool hasB=td.detailPrototypes.Length>1; var dB=hasB?new int[dres,dres]:null;
+        // 範囲限定のときは既存の草から開始し、範囲内だけ作り直す(外の草はそのまま残す)
+        var dA=(region==null)? new int[dres,dres] : td.GetDetailLayer(0,0,dres,dres,0);
+        bool hasB=td.detailPrototypes.Length>1;
+        var dB=hasB ? ((region==null)? new int[dres,dres] : td.GetDetailLayer(0,0,dres,dres,1)) : null;
         float cell=td.size.x/dres;
-        for(int dy=0;dy<dres;dy++){ float wz=tp.z+(dy+0.5f)*cell; int ay=Mathf.Clamp((int)((dy+0.5f)/dres*ares),0,ares-1);
-            for(int dx=0;dx<dres;dx++){ float wx=tp.x+(dx+0.5f)*cell; int ax=Mathf.Clamp((int)((dx+0.5f)/dres*ares),0,ares-1);
+        int dx0=0,dy0=0,dx1=dres-1,dy1=dres-1;
+        if(region!=null && region.PixelBounds(tp,td.size,dres,out dx0,out dy0,out dx1,out dy1)){
+            dx0=Mathf.Max(0,dx0-2); dy0=Mathf.Max(0,dy0-2);
+            dx1=Mathf.Min(dres-1,dx1+2); dy1=Mathf.Min(dres-1,dy1+2);
+        }
+        for(int dy=dy0;dy<=dy1;dy++){ float wz=tp.z+(dy+0.5f)*cell; int ay=Mathf.Clamp((int)((dy+0.5f)/dres*ares),0,ares-1);
+            for(int dx=dx0;dx<=dx1;dx++){ float wx=tp.x+(dx+0.5f)*cell; int ax=Mathf.Clamp((int)((dx+0.5f)/dres*ares),0,ares-1);
+                if(region!=null && region.Coverage(wx,wz)<=0.001f) continue;   // 範囲外 = 既存の草を保持
+                dA[dy,dx]=0; if(hasB) dB[dy,dx]=0;                          // 範囲内は作り直すのでクリア
                 if(steepA[ay*ares+ax]>30f)continue;
                 float cover=sampleB(wx, wz);                                   // ワープなし(冗長なので廃止)
                 if(cover<Mathf.Lerp(0.50f,0.90f, GrassBig(wx,wz))) continue;   // 厳しめ閾値＋軽いノイズ(道漏れ<1%)

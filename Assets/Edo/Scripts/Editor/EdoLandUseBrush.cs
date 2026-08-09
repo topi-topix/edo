@@ -63,8 +63,24 @@ public class EdoLandUseBrush : EditorWindow
 
         EditorGUILayout.Space();
         if(GUILayout.Button("💾 上書きを保存")) { EdoLandUse.SaveOverride(ov); ShowNotification(new GUIContent("保存しました")); }
+        // 塗った所だけベイク = 他所のテレインペイント(手描き)を巻き込まない。既定はこちら。
         GUI.backgroundColor=new Color(0.7f,0.85f,1f);
-        if(GUILayout.Button("🔥 Bake で地形に反映", GUILayout.Height(30))){ EdoLandUse.SaveOverride(ov); EdoLandUse.Bake(true); marks.Clear(); hasLast=false; SceneView.RepaintAll(); }
+        using(new EditorGUI.DisabledScope(marks.Count==0))
+            if(GUILayout.Button($"🔥 塗った所だけ Bake ({marks.Count}箇所)", GUILayout.Height(30))){
+                EdoLandUse.SaveOverride(ov);
+                float feather=Mathf.Max(3f, radius*0.25f);
+                var mask=new EdoLandUse.BakeMask{ Feather=feather };
+                foreach(var m in marks) mask.AddSpot(m.p, m.r+feather);
+                EdoLandUse.Bake(true, mask);
+                marks.Clear(); hasLast=false; SceneView.RepaintAll();
+            }
+        GUI.backgroundColor=new Color(1f,0.85f,0.7f);
+        if(GUILayout.Button("全面 Bake（手描きは消えます）")){
+            if(EditorUtility.DisplayDialog("全面ベイク",
+                "地面の塗りと草を全面的に作り直します。\nテレインペイントで手描きした分は消えます。",
+                "全面ベイクする","やめる")){
+                EdoLandUse.SaveOverride(ov); EdoLandUse.Bake(true); marks.Clear(); hasLast=false; SceneView.RepaintAll(); }
+        }
         using(new EditorGUI.DisabledScope(marks.Count==0))
             if(GUILayout.Button($"塗り跡プレビューを消す ({marks.Count})")){ marks.Clear(); hasLast=false; SceneView.RepaintAll(); }
         GUI.backgroundColor=Color.white;

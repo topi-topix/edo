@@ -68,3 +68,6 @@ mono_crash.*.json
 /[Aa]ssets/Japanese Village Kit.meta
 /[Aa]ssets/edogoyomi/
 /[Aa]ssets/edogoyomi.meta
+
+# 土地利用ベイク前のスプラット自動バックアップ(ローカル用)
+/TerrainBackups/

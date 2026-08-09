@@ -109,6 +109,18 @@ public class WaterBodyEditor : Editor
         }
         EditorGUILayout.HelpBox("OFF=壁が斜めに丸まる（従来）/ ON=壁を垂直に掘る。平面の直角と併せて完全な直角の掘り込みになります。", MessageType.None);
 
+        // ---- 底ならし: 深すぎる所を埋め戻して水深を揃える ----
+        EditorGUI.BeginChangeCheck();
+        bool lf = GUILayout.Toggle(wb.levelFloor,
+            wb.levelFloor ? "■ 底を『深さ』でならす（深すぎる所は埋め戻す）" : "底を『深さ』でならす（段差・水の色ムラを消す）", "Button");
+        if (EditorGUI.EndChangeCheck())
+        {
+            Undo.RecordObject(wb, "Level Floor");
+            wb.levelFloor = lf;
+            EditorUtility.SetDirty(wb);
+        }
+        EditorGUILayout.HelpBox("OFF=掘るだけ（旧掘り込みが底に残り、段差＝上から見た水の色ムラになる）/ ON=深すぎる所も『深さ』まで埋め戻して水深を揃える。変更後は『💧 地形を掘り直す』で反映。", MessageType.None);
+
         EditorGUILayout.Space(6);
 
         // ---- 見た目（マテリアル）: 即反映。ここで完結させる ----

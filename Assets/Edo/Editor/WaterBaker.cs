@@ -396,15 +396,17 @@ public static class WaterBaker
         for (int z = 0; z < wb.sH; z++)
             for (int x = 0; x < wb.sW; x++)
             {
+                // levelFloor: 底を『深さ』の高さでならす(深すぎる所は埋め戻す)。
+                // OFF だと掘るだけなので、旧掘り込みが底に残って段差になり、水深差がそのまま水の色差になる。
                 if (wb.verticalWalls)
                 {
                     if (cover[z, x] > 0f)
                     {
                         float tgt = Mathf.Lerp(H[z, x], bottomNorm, cover[z, x]);
-                        if (tgt < H[z, x]) H[z, x] = tgt;
+                        if (wb.levelFloor || tgt < H[z, x]) H[z, x] = tgt;
                     }
                 }
-                else if (inside[z, x] && H[z, x] > bottomNorm) H[z, x] = bottomNorm;
+                else if (inside[z, x] && (wb.levelFloor || H[z, x] > bottomNorm)) H[z, x] = bottomNorm;
             }
 
         // 土手: 内部マスクを外側へ膨張させた「輪」を、水位より低ければ盛り上げる

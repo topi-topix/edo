@@ -21,6 +21,9 @@ public class WaterBody : MonoBehaviour
     [Tooltip("true=壁を垂直に掘る(断面が直角・カクッと)。false=なだらかに掘る(従来・壁が斜めに丸まる)")]
     public bool verticalWalls = false;
 
+    [Tooltip("true=底を『深さ』の高さでならす(深すぎる所は埋め戻す)。false=掘るだけ(従来。旧掘り込みが残ると底に段差ができ、上から見て水の色が変わる)")]
+    public bool levelFloor = false;
+
     [Tooltip("水域の外側の低い地面を水位まで盛り上げて土手を作り、水が浮かない/漏れないようにする")]
     public bool raiseBanks = true;
     [Tooltip("土手の幅(m)")]

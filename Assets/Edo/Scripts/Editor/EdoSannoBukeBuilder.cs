@@ -62,21 +62,25 @@ public static class EdoSannoBukeBuilder
     public static readonly Vector2[] SHANIN = {
         new Vector2(-372.8f, 661.5f), new Vector2(-373.6f, 809.5f),
         new Vector2(-343.5f, 812.0f), new Vector2(-342.7f, 675.4f) };
-    // 丹羽: L字(社人短冊を挟む)。辺: 0=W(通り) 1=(社人N) 2=(社人E) 3=SW腕S 4=京極W共有 5=京極N共有 6=E 7=N(山王坂)
+    // 2026-08-11改訂(ユーザー下書き第2版+門印=三角形):
+    //   丹羽・京極の表門=東辺(東の永田町方面の南北通りへ)、内藤の表門=北辺東寄り(x≈-106)北向き。
+    //   内藤と丹羽SW/京極は背中合わせ(間に道なし。共有塀は内藤が受け持つ)。
+    // 丹羽: 0=E腕S(京極N共有) 1=SW塊E(京極W共有) 2=SW塊S(内藤N共有=skip) 3=SW塊W 4=(z813.9のノッチ)
+    //       5=W(通り沿い長屋) 6=N(山王坂) 7=E(表門)
     public static readonly Vector2[] NIWA = {
-        new Vector2(-374.8f, 877.4f), new Vector2(-374.5f, 810.9f), new Vector2(-340.3f, 814.4f),
-        new Vector2(-340.3f, 677.8f), new Vector2(-291.5f, 681.0f), new Vector2(-300.9f, 798.5f),
-        new Vector2(-128.0f, 801.8f), new Vector2(-131.3f, 883.5f) };
-    // 京極: 0=W(丹羽共有) 1=N(丹羽共有) 2=E 3=S(通り)
+        new Vector2(-129.2f, 802.3f), new Vector2(-294.3f, 802.6f), new Vector2(-293.4f, 677.8f),
+        new Vector2(-339.6f, 677.7f), new Vector2(-339.6f, 813.9f), new Vector2(-373.2f, 813.9f),
+        new Vector2(-373.2f, 883.3f), new Vector2(-131.1f, 883.5f) };
+    // 京極: 0=W(丹羽共有=skip) 1=N(丹羽共有=skip) 2=E(表門) 3=S(内藤共有=skip)
     public static readonly Vector2[] KYOGOKU = {
-        new Vector2(-291.5f, 681.0f), new Vector2(-300.9f, 798.5f),
-        new Vector2(-128.0f, 801.8f), new Vector2(-122.4f, 683.5f) };
-    // 内藤: 0..10=SW周(堀端) 11=N(通り)
+        new Vector2(-293.4f, 677.8f), new Vector2(-293.9f, 802.6f),
+        new Vector2(-129.2f, 802.3f), new Vector2(-123.7f, 680.0f) };
+    // 内藤: 0..10=SW周(堀端) 11=N(表門, 丹羽SW/京極と背中合わせ区間を含む)
     public static readonly Vector2[] NAITO = {
-        new Vector2(-372.0f, 656.7f), new Vector2(-354.1f, 597.3f), new Vector2(-302.9f, 551.0f),
-        new Vector2(-255.8f, 530.7f), new Vector2(-202.0f, 516.8f), new Vector2(-150.4f, 514.8f),
-        new Vector2(-92.8f, 524.6f), new Vector2(-53.2f, 537.2f), new Vector2(-54.1f, 572.1f),
-        new Vector2(-87.4f, 625.8f), new Vector2(-119.9f, 678.6f), new Vector2(-340.3f, 673.7f) };
+        new Vector2(-370.9f, 656.7f), new Vector2(-355.4f, 601.7f), new Vector2(-329.4f, 575.6f),
+        new Vector2(-285.9f, 544.1f), new Vector2(-219.8f, 521.3f), new Vector2(-157.5f, 514.8f),
+        new Vector2(-93.6f, 524.3f), new Vector2(-53.5f, 538.6f), new Vector2(-54.2f, 572.2f),
+        new Vector2(-88.9f, 677.7f), new Vector2(-339.0f, 676.1f) };
     // 山王坂コリドー(splat用)
     static readonly Vector2[] SANDO_AXIS = { new Vector2(-371f, 894f), new Vector2(-131f, 899f) };
 
@@ -546,11 +550,10 @@ public static class EdoSannoBukeBuilder
         EdoNishiTameikeBuilder.NaturalMode = true;
         var kak = Group(G, "Kakoi");
         var monGrp = Group(G, "Omotemon");
-        // 表門=北辺(山王坂沿い)台地部 x≈-190。独立門+両番所(10万石外様大広間)
-        Vector2 nA = NIWA[7], nB = NIWA[0];   // 辺7: (-131.3,883.5)→(-374.8,877.4)
+        // 表門=東辺 z≈839, 東向き(門印=三角形)。独立門+両番所(10万石外様大広間)
+        Vector2 nA = NIWA[7], nB = NIWA[0];   // 辺7(E): (-131.1,883.5)→(-129.2,802.3)
         Vector2 nDir = (nB - nA).normalized;
-        float gT = Vector2.Dot(new Vector2(-190f, 0) - new Vector2(nA.x, 0), new Vector2(nDir.x, 0)) / nDir.x; // x=-190 での t
-        Vector2 gate = nA + nDir * Mathf.Abs((-190f - nA.x) / nDir.x);
+        Vector2 gate = nA + nDir * ((839f - nA.y) / nDir.y);
         Vector2 fout = -InwardNormal(NIWA, 7);
         float gateHalf = PlaceGate(PKmon, monGrp, gate, fout, 2, "Kmon", sb);
         int N = NIWA.Length;
@@ -560,33 +563,33 @@ public static class EdoSannoBukeBuilder
             Vector2 outw = -InwardNormal(NIWA, i);
             if (i == 7)
                 FrontWall(kak, a, b, outw, gate, gateHalf + 0.5f, "Hei_F");
-            else if (i == 0)
+            else if (i == 2) continue;   // 内藤北塀が受け持つ(背中合わせ)
+            else if (i == 5)
                 EdoNishiTameikeBuilder.NagayaRun(kak, a, b, outw, 0, Vector2.zero, -1, "NG_W");  // 谷側の通り沿い=盲長屋
             else
                 EdoNishiTameikeBuilder.DobeiRun(kak, a, b, outw, "Hei_" + i, true, 0, Vector2.zero, -1);
         }
-        // 御殿群(台地 h27-28): 表御殿(門正対)→奥→台所/役所、蔵は台地西縁
+        // 御殿群(台地 h27-28): 表御殿は東の表門に正対、蔵・台所は奥(西)
         var bg = Group(G, "Buildings");
-        var og = Place(PBigHouse, Vector3.zero, 180f + Mathf.Atan2(fout.x, fout.y) * Mathf.Rad2Deg, Vector3.one, bg, "OmoteGoten");
-        CenterSeat(og, -188f, 845f);
-        var ok = Place(PHouse, Vector3.zero, 180f, Vector3.one, bg, "OkuGoten");
-        CenterSeat(ok, -160f, 822f);
-        var yk = Place(PHouseB, Vector3.zero, 90f, Vector3.one, bg, "Yakusho");
-        CenterSeat(yk, -222f, 858f);
+        var og = Place(PBigHouse, Vector3.zero, 90f, Vector3.one, bg, "OmoteGoten");
+        CenterSeat(og, -168f, 839f);
+        var ok = Place(PHouse, Vector3.zero, 90f, Vector3.one, bg, "OkuGoten");
+        CenterSeat(ok, -205f, 855f);
+        var yk = Place(PHouseB, Vector3.zero, 0f, Vector3.one, bg, "Yakusho");
+        CenterSeat(yk, -160f, 866f);
         var dd = Place(PSmallHouse, Vector3.zero, 90f, Vector3.one, bg, "Daidokoro");
-        CenterSeat(dd, -215f, 830f);
+        CenterSeat(dd, -205f, 822f);
         for (int i = 0; i < 3; i++)
         {
             var kr = Place(PKura, Vector3.zero, 0f, Vector3.one * ES, bg, "Kura_" + (i + 1));
-            CenterSeat(kr, -252f - i * 8f, 838f - i * 6f);
+            CenterSeat(kr, -240f - i * 8f, 845f - i * 6f);
         }
-        // 家臣長屋(発掘の長屋地区に対応): 台地南東縁の内側に2棟
-        var um = Group(G, "Buildings");
-        var n1 = Place("Assets/edogoyomi/es_knagaya/knagaya01l.obj", Vector3.zero, 0f, Vector3.one * ES, um, "KashinNagaya_L");
-        CenterSeat(n1, -150f, 808f);
-        var n2 = Place("Assets/edogoyomi/es_knagaya/knagaya01r.obj", Vector3.zero, 0f, Vector3.one * ES, um, "KashinNagaya_R");
-        CenterSeat(n2, -142.2f, 808f);
-        Well(bg, -205f, 845f);
+        // 家臣長屋(発掘の長屋地区に対応): 表門の南、東縁内側に2棟
+        var n1 = Place("Assets/edogoyomi/es_knagaya/knagaya01l.obj", Vector3.zero, 0f, Vector3.one * ES, bg, "KashinNagaya_L");
+        CenterSeat(n1, -148f, 812f);
+        var n2 = Place("Assets/edogoyomi/es_knagaya/knagaya01r.obj", Vector3.zero, 0f, Vector3.one * ES, bg, "KashinNagaya_R");
+        CenterSeat(n2, -140.2f, 812f);
+        Well(bg, -190f, 828f);
         // 庭(池は発掘で存在確認されるが位置不明=未再現)
         var gg = Group(G, "Garden");
         var rnd = new System.Random(107);
@@ -625,31 +628,29 @@ public static class EdoSannoBukeBuilder
         EdoNishiTameikeBuilder.NaturalMode = true;
         var kak = Group(G, "Kakoi");
         var monGrp = Group(G, "Omotemon");
-        // 表門=南辺(内藤との間の通り)台地寄り x≈-155。長屋門+格子出番所1(1.1万石)
-        Vector2 sA = KYOGOKU[3], sB = KYOGOKU[0];  // 辺3: (-122.4,683.5)→(-291.5,681.0)
+        // 表門=東辺 z≈747, 東向き(門印=三角形)。長屋門+格子出番所1(1.1万石)
+        Vector2 sA = KYOGOKU[2], sB = KYOGOKU[3];  // 辺2(E): (-129.2,802.3)→(-123.7,680.0)
         Vector2 sDir = (sB - sA).normalized;
-        Vector2 gate = sA + sDir * Mathf.Abs((-155f - sA.x) / sDir.x);
-        Vector2 fout = -InwardNormal(KYOGOKU, 3);
+        Vector2 gate = sA + sDir * ((747f - sA.y) / sDir.y);
+        Vector2 fout = -InwardNormal(KYOGOKU, 2);
         float gateHalf = PlaceGate(PNmon, monGrp, gate, fout, 1, "Nagayamon", sb);
         int N = KYOGOKU.Length;
         for (int i = 0; i < N; i++)
         {
             Vector2 a = KYOGOKU[i], b = KYOGOKU[(i + 1) % N];
             Vector2 outw = -InwardNormal(KYOGOKU, i);
-            if (i == 3)
+            if (i == 2)
                 FrontWall(kak, a, b, outw, gate, gateHalf + 0.5f, "Hei_F");
-            else if (i == 0 || i == 1) continue;    // 丹羽側が受け持つ共有境界
-            else
-                EdoNishiTameikeBuilder.DobeiRun(kak, a, b, outw, "Hei_" + i, true, 0, Vector2.zero, -1);
+            else continue;    // W/N=丹羽、S=内藤の塀が受け持つ(背中合わせ)
         }
         var bg = Group(G, "Buildings");
-        var shu = Place(PHouse, Vector3.zero, 180f, Vector3.one, bg, "Goten");
-        CenterSeat(shu, -158f, 716f);
-        var dd = Place(PSmallHouse, Vector3.zero, 90f, Vector3.one * 0.85f, bg, "Daidokoro");
-        CenterSeat(dd, -142f, 740f);
+        var shu = Place(PHouse, Vector3.zero, 90f, Vector3.one, bg, "Goten");
+        CenterSeat(shu, -158f, 747f);
+        var dd = Place(PSmallHouse, Vector3.zero, 0f, Vector3.one * 0.85f, bg, "Daidokoro");
+        CenterSeat(dd, -175f, 768f);
         var kr = Place(PKura, Vector3.zero, 0f, Vector3.one * ES, bg, "Kura_1");
-        CenterSeat(kr, -175f, 752f);
-        Well(bg, -170f, 730f);
+        CenterSeat(kr, -182f, 728f);
+        Well(bg, -172f, 752f);
         var gg = Group(G, "Garden");
         var rnd = new System.Random(11144);
         for (int i = 0, gd = 0; i < 10 && gd < 500; gd++)
@@ -687,46 +688,43 @@ public static class EdoSannoBukeBuilder
         EdoNishiTameikeBuilder.NaturalMode = true;
         var kak = Group(G, "Kakoi");
         var monGrp = Group(G, "Omotemon");
-        // 表門=北辺西寄り(文字の頭=北西) x≈-320。独立門+両番所(譜代5万石・老中)
-        Vector2 nA = NAITO[11], nB = NAITO[0];  // 辺11: (-340.3,673.7)→(-372.0,656.7)?? 実際は 11→0
-        // 北辺は P10(-119.9,678.6)→P11(-340.3,673.7)
-        Vector2 a10 = NAITO[10], a11 = NAITO[11];
-        Vector2 nDir = (a11 - a10).normalized;
-        Vector2 gate = a10 + nDir * Mathf.Abs((-320f - a10.x) / Mathf.Abs(nDir.x));
-        Vector2 fout = -InwardNormal(NAITO, 10);
+        // 表門=北辺東寄り x≈-106, 北向き(門印=三角形)。独立門+両番所(譜代5万石・老中)
+        Vector2 a9 = NAITO[9], a10 = NAITO[10];   // 辺9(N): (-88.9,677.7)→(-339.0,676.1)
+        Vector2 nDir = (a10 - a9).normalized;
+        Vector2 gate = a9 + nDir * Mathf.Abs((-106f - a9.x) / Mathf.Abs(nDir.x));
+        Vector2 fout = -InwardNormal(NAITO, 9);
         float gateHalf = PlaceGate(PKmon, monGrp, gate, fout, 2, "Kmon", sb);
         int N = NAITO.Length;
         for (int i = 0; i < N; i++)
         {
             Vector2 a = NAITO[i], b = NAITO[(i + 1) % N];
             Vector2 outw = -InwardNormal(NAITO, i);
-            if (i == 10)
+            if (i == 9)
                 FrontWall(kak, a, b, outw, gate, gateHalf + 0.5f, "Hei_F");
             else
                 EdoNishiTameikeBuilder.DobeiRun(kak, a, b, outw, "Hei_" + i, true, 0, Vector2.zero, -1);
         }
         var bg = Group(G, "Buildings");
-        // 表御殿=Manor(5万石譜代・老中の上屋敷)。facadeを門正対軸へ
-        float psiIn = Mathf.Atan2(-fout.x, -fout.y) * Mathf.Rad2Deg;
-        var manor = Place(PManor, Vector3.zero, psiIn + 180f, Vector3.one, bg, "OmoteGoten");
-        CenterSeat(manor, -292f, 625f);
-        var okg = Place(PHouse, Vector3.zero, 180f, Vector3.one, bg, "OkuGoten");
-        CenterSeat(okg, -238f, 610f);
-        var yks = Place(PHouseB, Vector3.zero, 0f, Vector3.one, bg, "Yakusho");
-        CenterSeat(yks, -330f, 648f);
+        // 表御殿=Manor。facadeを北の表門に正対(facade+35.2偏心→OBB中心=facadeの31.2m奥)
+        var manor = Place(PManor, Vector3.zero, 0f, Vector3.one, bg, "OmoteGoten");
+        CenterSeat(manor, -110f, 628f);
+        var okg = Place(PHouse, Vector3.zero, 0f, Vector3.one, bg, "OkuGoten");
+        CenterSeat(okg, -160f, 612f);
+        var yks = Place(PHouseB, Vector3.zero, 90f, Vector3.one, bg, "Yakusho");
+        CenterSeat(yks, -140f, 660f);
         var dd = Place(PSmallHouse, Vector3.zero, 90f, Vector3.one, bg, "Daidokoro");
-        CenterSeat(dd, -255f, 645f);
+        CenterSeat(dd, -185f, 640f);
         for (int i = 0; i < 3; i++)
         {
             var kr = Place(PKura, Vector3.zero, 90f, Vector3.one * ES, bg, "Kura_" + (i + 1));
-            CenterSeat(kr, -180f - i * 8f, 640f - i * 5f);
+            CenterSeat(kr, -235f - i * 8f, 640f - i * 4f);
         }
         // 中間長屋(knagaya l+r)
-        var m1 = Place("Assets/edogoyomi/es_knagaya/knagaya01l.obj", Vector3.zero, 180f, Vector3.one * ES, bg, "ChugenNagaya_L");
-        CenterSeat(m1, -305f, 662f);
-        var m2 = Place("Assets/edogoyomi/es_knagaya/knagaya01r.obj", Vector3.zero, 180f, Vector3.one * ES, bg, "ChugenNagaya_R");
-        CenterSeat(m2, -297.2f, 662f);
-        Well(bg, -265f, 632f);
+        var m1 = Place("Assets/edogoyomi/es_knagaya/knagaya01l.obj", Vector3.zero, 0f, Vector3.one * ES, bg, "ChugenNagaya_L");
+        CenterSeat(m1, -290f, 655f);
+        var m2 = Place("Assets/edogoyomi/es_knagaya/knagaya01r.obj", Vector3.zero, 0f, Vector3.one * ES, bg, "ChugenNagaya_R");
+        CenterSeat(m2, -282.2f, 655f);
+        Well(bg, -170f, 630f);
         // 庭: 台地東の高台=奥庭、南の水際=溜池を望む景(池は作らない)
         var gg = Group(G, "Garden");
         var rnd = new System.Random(5090);
@@ -769,10 +767,11 @@ public static class EdoSannoBukeBuilder
         var A = td.GetAlphamaps(ix0, iz0, w, h);
         int L = td.alphamapLayers;
         int changed = 0;
-        // 道: 内藤/京極間の通り・堀端通り
-        Vector2[] midRoad = { new Vector2(-350f, 676f), new Vector2(-232f, 679.4f), new Vector2(-121f, 681.2f), new Vector2(-100f, 685f) };
-        Vector2[] shoreRoad = { new Vector2(-375f, 653f), new Vector2(-357.5f, 594f), new Vector2(-306f, 547f), new Vector2(-257f, 526.7f),
-            new Vector2(-202.7f, 512.8f), new Vector2(-150f, 510.8f), new Vector2(-91.6f, 520.7f), new Vector2(-50f, 533.9f) };
+        // 道: 東の南北通り(丹羽・京極の表門前→内藤北東縁に沿って虎ノ門方面へ)・堀端通り
+        Vector2[] midRoad = { new Vector2(-128.5f, 890f), new Vector2(-126f, 803f), new Vector2(-121.5f, 747f),
+            new Vector2(-118.5f, 683f), new Vector2(-98f, 679.5f), new Vector2(-82f, 663f), new Vector2(-62f, 600f), new Vector2(-48f, 558f) };
+        Vector2[] shoreRoad = { new Vector2(-374f, 653f), new Vector2(-358.5f, 598f), new Vector2(-332f, 571f), new Vector2(-288f, 540f),
+            new Vector2(-221f, 517f), new Vector2(-157.5f, 510.8f), new Vector2(-92f, 520.3f), new Vector2(-50f, 534.9f) };
         Func<Vector2, Vector2[], float> dPoly = (p, pts) =>
         {
             float m = float.MaxValue;
@@ -821,6 +820,11 @@ public static class EdoSannoBukeBuilder
                 else if (dm < 4.8f || ds < 4.8f) { bare = 0.30f; grass = 0.25f; dirt = 0.45f; }
                 else if (wz > 909f && wz < 950f && wx > -374f && wx < -300f)
                 { bare = 0.45f; grass = 0.18f; dirt = 0.37f; }            // 門前町の地面
+                else if (wz > 666f && wz < 694f && wx > -348f && wx < -95f)
+                {   // 旧・内藤/京極間の道の塗り戻し(現区割りでは背中合わせ)
+                    float noise = Mathf.PerlinNoise(wx * 0.09f, wz * 0.09f);
+                    grass = Mathf.Lerp(0.32f, 0.58f, noise); bare = 0.12f; dirt = 1f - grass - bare;
+                }
                 if (bare < 0) continue;
                 float sum = bare + grass + dirt;
                 for (int l = 0; l < L; l++) A[zz, xx, l] = 0;

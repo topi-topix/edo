@@ -45,27 +45,29 @@ public static class EdoSannoJuboBuilder
     // 境界共有: 各坊は自分のE辺(0)+裏辺(1)+前辺(3)を建て、W辺(2)は西隣が建てる(P9は小路側W辺も自前)
     public static Parcel[] Parcels = new Parcel[]
     {
+        // 2026-08-11 ユーザー下書き改訂版: 円成/成就/宝蔵は西へ詰め、東端は南北小路(x≈-386.5)の西縁。
+        // 小路の東(旧P1東帯)は敷地外。宝蔵院の西辺=既存の長明院東辺(長明院所有の塀)にスナップ。
         new Parcel{ group="Edo_SannoBo_Enjoin", label="円乗院(円成院/山王社社僧)", rank=0,
             poly=new[]{
-                new Vector2(-366.4f,723.9f),   // FE (東の小路の西縁)
-                new Vector2(-364.3f,637.8f),   // BE
-                new Vector2(-392.55f,638.05f), // BW (成就院と共有)
-                new Vector2(-395.55f,721.8f),  // FW (成就院と共有)
+                new Vector2(-389.8f,722.5f),   // FE (南北小路の西縁)
+                new Vector2(-389.2f,644.6f),   // BE
+                new Vector2(-414.2f,649.7f),   // BW (成就院と共有)
+                new Vector2(-415.6f,721.0f),   // FW (成就院と共有)
             },
             front=3, gateT=0.5f, noWallEdges=new[]{2} },
         new Parcel{ group="Edo_SannoBo_Jojuin", label="成就院(山王社社僧)", rank=1,
             poly=new[]{
-                new Vector2(-395.55f,721.8f),
-                new Vector2(-392.55f,638.05f),
-                new Vector2(-426.5f,650.75f),  // BW (宝蔵院と共有)
-                new Vector2(-429.2f,722.6f),   // FW
+                new Vector2(-415.6f,721.0f),
+                new Vector2(-414.2f,649.7f),
+                new Vector2(-439.65f,658.3f),  // BW (宝蔵院と共有)
+                new Vector2(-440.8f,720.8f),   // FW
             },
             front=3, gateT=0.5f, noWallEdges=new[]{2} },
         new Parcel{ group="Edo_SannoBo_Hozoin", label="宝蔵院(山王社社僧)", rank=1,
             poly=new[]{
-                new Vector2(-429.2f,722.6f),
-                new Vector2(-426.5f,650.75f),
-                new Vector2(-463.65f,670.65f), // BW (長明院と共有)
+                new Vector2(-440.8f,720.8f),
+                new Vector2(-439.65f,658.3f),
+                new Vector2(-463.65f,670.65f), // BW (長明院と共有=既存塀ライン)
                 new Vector2(-461.75f,721.8f),  // FW
             },
             front=3, gateT=0.5f, noWallEdges=new[]{2} },
@@ -344,7 +346,15 @@ public static class EdoSannoJuboBuilder
             Vector2 a = e.poly[i], b = e.poly[(i + 1) % N];
             Vector2 outw = -InwardNormal(e, i);
             if (i == e.front)
-                PanelRun(kak, a, b, outw, "Itabei_F" + i, PItabei5, gate2, gateHalf + 0.5f);
+            {
+                // 前辺は「門の左右2セグメント」(ギャップ方式は短辺で全滅するため)
+                float target = gateHalf - 0.15f;
+                Vector2 gL = gate2 - uhat * target, gR = gate2 + uhat * target;
+                if (Vector2.Distance(a, gL) > 1.2f && Vector2.Dot(gL - a, (b - a).normalized) > 0)
+                    PanelRun(kak, a, gL, outw, "Itabei_FL", PItabei5, Vector2.zero, -1);
+                if (Vector2.Distance(gR, b) > 1.2f && Vector2.Dot(b - gR, (b - a).normalized) > 0)
+                    PanelRun(kak, gR, b, outw, "Itabei_FR", PItabei5, Vector2.zero, -1);
+            }
             else if (i == e.backEdge)
                 PanelRun(kak, a, b, outw, "Hogaki_" + i, PHogaki5, Vector2.zero, -1);
             else
@@ -568,9 +578,9 @@ public static class EdoSannoJuboBuilder
             if (pi == 0) roadPts.Add(fB + outw * 3.2f);
             roadPts.Add(fA + outw * 3.2f);
         }
-        // 東の小路(円乗院東縁の南北道, 行き止まり)
-        var eastA = new Vector2(-366.4f, 723.9f) + new Vector2(3.2f, 0.6f);
-        var eastB = new Vector2(-364.3f, 637.8f) + new Vector2(3.2f, 0f);
+        // 東の南北小路(円乗院東縁, x≈-386.5): 南は溜池岸へ行き止まり
+        var eastA = new Vector2(-386.6f, 726f);
+        var eastB = new Vector2(-386.0f, 641f);
         // 道の終端部(P9/P10間の離隔)
         var laneA = new Vector2(-589.8f, 841.1f);
         var laneB = new Vector2(-612.1f, 834.7f);

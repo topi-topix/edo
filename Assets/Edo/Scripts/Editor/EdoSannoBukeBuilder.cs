@@ -1,0 +1,849 @@
+// 山王社周辺・武家地+社家ビルダー (2026-08-11)
+//   赤=樹下近江守(神主) 黄=社人八家 水=山王坂参道 緑=丹羽左京大夫長富(二本松藩10万700石)
+//   紫=京極備中守高富(峯山藩1万1144石) 白=内藤紀伊守信親(村上藩5万90石)
+// 【考証 2026-08-11 Web調査(NDL1286657 IIIF実見+CODH Map#7+溜池遺跡発掘報告ほか)】
+//   ・丹羽=上屋敷(直違紋を原画像実見, 7-081)。外様大広間詰。表門=北東の通り(山王坂)沿い(文字の頭)。
+//     跡地=衆議院議員会館+官邸の一部。溜池遺跡発掘(都埋文258)で家臣長屋・蔵・池跡・境界石垣を確認。
+//   ・京極=上屋敷(四つ目結紋実見, 7-082)。菊間詰(譜代格)。切絵図では丹羽と同じ北の通りに面するが、
+//     本シーンの区割り(ユーザー下書き)では北辺=丹羽と共有のため表門は南の通り沿いに置く【配置は下書き優先】。
+//   ・内藤=上屋敷(下がり藤紋実見, 7-083)。譜代。当主=内藤信親(紀伊守, 嘉永4〜文久2老中)。
+//     表門=北西向き(文字の頭)。南東辺は溜池水際に直接面する。跡地=山王パークタワー一帯。
+//   ・社人八家=切絵図原画像で短冊8枚を判読: 西宮頼母/千勝隼人/千勝主水/金丸靱負/小川織部/谷左近/
+//     遠藤伊賀/伯耆大学(社家6+巫女2=8戸と整合)。短冊は小路に面する。
+//   ・樹下近江守=神主(祝部氏, 代々近江守)。薬医門級の屋根付き門+式台玄関の母屋+土塀【類型】。
+//   ・山王坂=永田馬場から南西へ下り社頭へ至る表参道(現・山王坂と同経路)。切絵図に鳥居2基
+//     (一の鳥居=永田町寄り/二の鳥居=門前町・観理院手前=既設)。門前町=参道が折れる辻の北西の小さなL字。
+// 【地形】丹羽/京極境の近代掘削(ホテル/ビル基礎跡)はラプラシアン緩和で復元済(2026-08-11,
+//   backup=scratchpad/niwa_kyogoku_backup_844_889_77x41.bin)。他は現地形追従・造成ゼロ。
+// 【敷地内構成】各屋敷の指図は未発見のため一般類型(典拠: 格式論+発掘の長屋地区の存在)。
+//   丹羽の池跡は発掘で確認されるが位置・形状不明のため未再現。
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEditor;
+using UnityEngine;
+
+public static class EdoSannoBukeBuilder
+{
+    const string PHei = "Assets/edogoyomi/es_dobei/s_hei_center.obj";
+    const string PKmon = "Assets/edogoyomi/es_kmon/k_mon.obj";
+    const string PNmon = "Assets/edogoyomi/es_nmon/nagayamon.obj";
+    const string PKabuki = "Assets/edogoyomi/es_kabukimon/kabukimon.obj";
+    const string PBansho = "Assets/edogoyomi/es_dbansho/dbansho.obj";
+    const string PKura = "Assets/edogoyomi/es_kura/kura.obj";
+    const string PKido = "Assets/edogoyomi/es_kido/kido_open.obj";
+    const string PItabei5 = "Assets/edogoyomi/obj_itabei/itabei5.obj";
+    const string PHouse = "Assets/Japanese Village Kit/Prefabs/House.prefab";
+    const string PHouseB = "Assets/Japanese Village Kit/Prefabs/House B.prefab";
+    const string PSmallHouse = "Assets/Japanese Village Kit/Prefabs/Small House.prefab";
+    const string PBigHouse = "Assets/Japanese Village Kit/Prefabs/Big House.prefab";
+    const string PManor = "Assets/Japanese Village Kit/Prefabs/Manor.prefab";
+    const string PShop01 = "Assets/edogoyomi/es_shop01/shop01.obj";
+    const string PShop02 = "Assets/edogoyomi/es_shop02/shop02.obj";
+    static string[] Pines = {
+        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_01.prefab",
+        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_02.prefab",
+        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_03.prefab" };
+    static string[] Shrubs = {
+        "Assets/Japanese Castle/Prefabs/Foliage/Azalea A 01.prefab",
+        "Assets/Japanese Castle/Prefabs/Foliage/Azalea A 03.prefab",
+        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Plant_Boxwood_Spring_01.prefab" };
+    static string[] Bamboo = {
+        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Big_Green_01.prefab",
+        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Big_Green_02.prefab" };
+    const string PTobi = "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_TobiIshi_A_01.prefab";
+    const string PKasuga = "Assets/Edo/Prefabs/KasugaLantern.prefab";
+    public const float ES = 1.818f;
+
+    // ---------- 区画(下書きスナップ済) ----------
+    public static readonly Vector2[] JUGE = {
+        new Vector2(-374.2f, 912.0f), new Vector2(-426.2f, 912.4f), new Vector2(-449.0f, 928.3f),
+        new Vector2(-483.9f, 936.8f), new Vector2(-514.3f, 945.9f), new Vector2(-373.7f, 946.2f) };
+    public static readonly Vector2[] SHANIN = {
+        new Vector2(-372.8f, 661.5f), new Vector2(-373.6f, 809.5f),
+        new Vector2(-343.5f, 812.0f), new Vector2(-342.7f, 675.4f) };
+    // 丹羽: L字(社人短冊を挟む)。辺: 0=W(通り) 1=(社人N) 2=(社人E) 3=SW腕S 4=京極W共有 5=京極N共有 6=E 7=N(山王坂)
+    public static readonly Vector2[] NIWA = {
+        new Vector2(-374.8f, 877.4f), new Vector2(-374.5f, 810.9f), new Vector2(-340.3f, 814.4f),
+        new Vector2(-340.3f, 677.8f), new Vector2(-291.5f, 681.0f), new Vector2(-300.9f, 798.5f),
+        new Vector2(-128.0f, 801.8f), new Vector2(-131.3f, 883.5f) };
+    // 京極: 0=W(丹羽共有) 1=N(丹羽共有) 2=E 3=S(通り)
+    public static readonly Vector2[] KYOGOKU = {
+        new Vector2(-291.5f, 681.0f), new Vector2(-300.9f, 798.5f),
+        new Vector2(-128.0f, 801.8f), new Vector2(-122.4f, 683.5f) };
+    // 内藤: 0..10=SW周(堀端) 11=N(通り)
+    public static readonly Vector2[] NAITO = {
+        new Vector2(-372.0f, 656.7f), new Vector2(-354.1f, 597.3f), new Vector2(-302.9f, 551.0f),
+        new Vector2(-255.8f, 530.7f), new Vector2(-202.0f, 516.8f), new Vector2(-150.4f, 514.8f),
+        new Vector2(-92.8f, 524.6f), new Vector2(-53.2f, 537.2f), new Vector2(-54.1f, 572.1f),
+        new Vector2(-87.4f, 625.8f), new Vector2(-119.9f, 678.6f), new Vector2(-340.3f, 673.7f) };
+    // 山王坂コリドー(splat用)
+    static readonly Vector2[] SANDO_AXIS = { new Vector2(-371f, 894f), new Vector2(-131f, 899f) };
+
+    // ---------- helpers ----------
+    static float Ground(float x, float z) { return EdoNishiTameikeBuilder.Ground(x, z); }
+    static GameObject Place(string path, Vector3 pos, float ry, Vector3 scale, Transform parent, string name)
+    { return EdoNishiTameikeBuilder.Place(path, pos, ry, scale, parent, name); }
+    static Bounds RB(GameObject go) { return EdoNishiTameikeBuilder.RB(go); }
+    static void SeatBottom(GameObject go, float y) { EdoNishiTameikeBuilder.SeatBottom(go, y); }
+    static Transform Group(string root, string child)
+    {
+        var r = GameObject.Find(root);
+        if (r == null) { r = new GameObject(root); Undo.RegisterCreatedObjectUndo(r, "grp"); }
+        var cur = r.transform;
+        if (string.IsNullOrEmpty(child)) return cur;
+        foreach (var seg in child.Split('/'))
+        {
+            var nx = cur.Find(seg);
+            if (nx == null) { var g = new GameObject(seg); Undo.RegisterCreatedObjectUndo(g, "grp"); g.transform.SetParent(cur, false); nx = g.transform; }
+            cur = nx;
+        }
+        return cur;
+    }
+    static bool PIP(Vector2[] poly, Vector2 p)
+    {
+        bool inside = false;
+        for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
+            if (((poly[i].y > p.y) != (poly[j].y > p.y)) &&
+                (p.x < (poly[j].x - poly[i].x) * (p.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x)) inside = !inside;
+        return inside;
+    }
+    static float SignedArea(Vector2[] poly)
+    {
+        float a = 0;
+        for (int i = 0; i < poly.Length; i++) { var p = poly[i]; var q = poly[(i + 1) % poly.Length]; a += p.x * q.y - q.x * p.y; }
+        return 0.5f * a;
+    }
+    static Vector2 InwardNormal(Vector2[] poly, int i)
+    {
+        var a = poly[i]; var b = poly[(i + 1) % poly.Length];
+        var d = (b - a).normalized;
+        var n = new Vector2(-d.y, d.x);
+        if (SignedArea(poly) < 0) n = -n;
+        return n;
+    }
+    static float DistToEdge(Vector2 p, Vector2 a, Vector2 b)
+    {
+        var d = b - a; float len = d.magnitude; d /= len;
+        float t = Mathf.Clamp(Vector2.Dot(p - a, d), 0, len);
+        return (p - (a + d * t)).magnitude;
+    }
+    static float DistToPolyEdge(Vector2[] poly, Vector2 p)
+    {
+        float m = float.MaxValue;
+        for (int i = 0; i < poly.Length; i++) m = Mathf.Min(m, DistToEdge(p, poly[i], poly[(i + 1) % poly.Length]));
+        return m;
+    }
+    static Material Mat(Color c) { var m = new Material(Shader.Find("Universal Render Pipeline/Lit")); m.color = c; return m; }
+    static void CenterSeat(GameObject go, float x, float z, float sink = 0.12f)
+    {
+        var b = RB(go);
+        go.transform.position += new Vector3(x - b.center.x, 0, z - b.center.z);
+        b = RB(go);
+        float gmn = float.MaxValue;
+        for (int i = -1; i <= 1; i++) for (int j = -1; j <= 1; j++)
+            gmn = Mathf.Min(gmn, Ground(b.center.x + i * b.extents.x, b.center.z + j * b.extents.z));
+        go.transform.position += new Vector3(0, (gmn - sink) - b.min.y, 0);
+    }
+    // 独立門+番所(kagami内側検証つき)。fout=門の外向き
+    static float PlaceGate(string path, Transform monGrp, Vector2 gate, Vector2 fout, int bansho, string name, System.Text.StringBuilder sb)
+    {
+        float basePad = Ground(gate.x, gate.y);
+        Vector2 inw = -fout;
+        float psiIn = Mathf.Atan2(inw.x, inw.y) * Mathf.Rad2Deg;
+        var mon = Place(path, Vector3.zero, psiIn, Vector3.one * ES, monGrp, name);
+        CenterSeat(mon, gate.x, gate.y, 0.05f);
+        float kmn = float.MaxValue, kmx = float.MinValue;
+        foreach (var mf in mon.GetComponentsInChildren<MeshFilter>())
+        {
+            if (!mf.gameObject.name.ToLower().Contains("kagami")) continue;
+            foreach (var vtx in mf.sharedMesh.vertices)
+            { var wp = mf.transform.TransformPoint(vtx); float pr = wp.x * inw.x + wp.z * inw.y; kmn = Mathf.Min(kmn, pr); kmx = Mathf.Max(kmx, pr); }
+        }
+        if (kmn != float.MaxValue)
+        {
+            var mc = RB(mon).center;
+            if ((kmn + kmx) * 0.5f < mc.x * inw.x + mc.z * inw.y)
+            { mon.transform.rotation *= Quaternion.Euler(0, 180, 0); CenterSeat(mon, gate.x, gate.y, 0.05f); sb.AppendLine(name + " flipped"); }
+        }
+        // 実体半幅
+        float wmn = float.MaxValue, wmx = float.MinValue;
+        Vector2 uh = new Vector2(fout.y, -fout.x);
+        foreach (var mf in mon.GetComponentsInChildren<MeshFilter>())
+            foreach (var vtx in mf.sharedMesh.vertices)
+            {
+                var wp = mf.transform.TransformPoint(vtx);
+                if (wp.y < basePad + 0.5f || wp.y > basePad + 4.5f) continue;
+                float pr = (wp.x - gate.x) * uh.x + (wp.z - gate.y) * uh.y;
+                wmn = Mathf.Min(wmn, pr); wmx = Mathf.Max(wmx, pr);
+            }
+        float gateHalf = Mathf.Max(Mathf.Abs(wmn), Mathf.Abs(wmx));
+        for (int i = 0; i < bansho; i++)
+        {
+            float side = (bansho == 1) ? 1f : (i == 0 ? 1f : -1f);
+            float extrude = path == PNmon ? 1.7f : 0.5f;   // 長屋門は格子出
+            Vector2 bp = gate + uh * (side * (gateHalf + 3.4f)) + fout * extrude;
+            float bg2 = Ground(bp.x, bp.y);
+            var ban = Place(PBansho, new Vector3(bp.x, bg2, bp.y), psiIn + 180f, Vector3.one * ES, monGrp, name + "_Bansho" + i);
+            SeatBottom(ban, bg2 - 0.05f);
+            var f3 = ban.transform.forward;
+            if (f3.x * fout.x + f3.z * fout.y < 0)
+                ban.transform.rotation = Quaternion.Euler(0, Mathf.Atan2(fout.x, fout.y) * Mathf.Rad2Deg, 0);
+        }
+        sb.AppendLine(name + " halfW=" + gateHalf.ToString("F2"));
+        return gateHalf;
+    }
+    // 前辺=門の左右2セグメントの塀
+    static void FrontWall(Transform kak, Vector2 a, Vector2 b, Vector2 outw, Vector2 gate, float gateHalf, string prefix)
+    {
+        Vector2 dir = (b - a).normalized;
+        Vector2 gL = gate - dir * (gateHalf - 0.15f), gR = gate + dir * (gateHalf - 0.15f);
+        if (Vector2.Distance(a, gL) > 1.6f && Vector2.Dot(gL - a, dir) > 0)
+            EdoNishiTameikeBuilder.DobeiRun(kak, a, gL, outw, prefix + "_L", true, 0, Vector2.zero, -1);
+        if (Vector2.Distance(gR, b) > 1.6f && Vector2.Dot(b - gR, dir) > 0)
+            EdoNishiTameikeBuilder.DobeiRun(kak, gR, b, outw, prefix + "_R", true, 0, Vector2.zero, -1);
+    }
+    // OBB制約付き再配置(建物クリーンアップ)
+    public static string FixGroup(string grp, Vector2[] poly, string[] names, float[] margins, float buriedCap)
+    {
+        var sb = new System.Text.StringBuilder();
+        var root = GameObject.Find(grp); if (root == null) return "no group";
+        var bld = root.transform.Find("Buildings"); if (bld == null) return "no buildings";
+        var obsB = new List<Bounds>();
+        var mg = root.transform.Find("Omotemon");
+        if (mg != null) foreach (Transform m in mg) { var rb = RB(m.gameObject); if (rb.size.sqrMagnitude > 0.01f) obsB.Add(rb); }
+        float bxMin = poly.Min(p => p.x), bxMax = poly.Max(p => p.x), bzMin = poly.Min(p => p.y), bzMax = poly.Max(p => p.y);
+        for (int bi = 0; bi < names.Length; bi++)
+        {
+            var it = bld.Find(names[bi]); if (it == null) continue;
+            float mnx, mxx, mnz, mxz, mny;
+            EdoSannoJuboBuilder.ObbFootprint(it, out mnx, out mxx, out mnz, out mxz, out mny);
+            if (mnx == float.MaxValue) continue;
+            var pts = new List<Vector3>();
+            for (int i = 0; i <= 3; i++) for (int j = 0; j <= 3; j++)
+            { if (i > 0 && i < 3 && j > 0 && j < 3) continue; pts.Add(new Vector3(Mathf.Lerp(mnx, mxx, i / 3f), mny, Mathf.Lerp(mnz, mxz, j / 3f))); }
+            var curC = it.TransformPoint(new Vector3((mnx + mxx) / 2, mny, (mnz + mxz) / 2));
+            bool ok0 = true; float bur0 = float.MinValue;
+            foreach (var lp in pts)
+            {
+                var wp = it.TransformPoint(lp);
+                var p2 = new Vector2(wp.x, wp.z);
+                if (!PIP(poly, p2) || DistToPolyEdge(poly, p2) < margins[bi] * 0.75f) ok0 = false;
+                float g = Ground(wp.x, wp.z);
+                bur0 = Mathf.Max(bur0, g - wp.y);
+            }
+            if (ok0 && bur0 <= buriedCap) { obsB.Add(RB(it.gameObject)); continue; }
+            float bestScore = float.MaxValue; Vector2 best = Vector2.zero; bool found = false;
+            for (float cx = bxMin; cx <= bxMax; cx += 1.5f)
+                for (float cz = bzMin; cz <= bzMax; cz += 1.5f)
+                {
+                    var delta = new Vector3(cx - curC.x, 0, cz - curC.z);
+                    bool ok = true; float mn = float.MaxValue, mx = float.MinValue;
+                    foreach (var lp in pts)
+                    {
+                        var wp = it.TransformPoint(lp) + delta;
+                        var p2 = new Vector2(wp.x, wp.z);
+                        if (!PIP(poly, p2) || DistToPolyEdge(poly, p2) < margins[bi]) { ok = false; break; }
+                        float g = Ground(wp.x, wp.z);
+                        mn = Mathf.Min(mn, g); mx = Mathf.Max(mx, g);
+                    }
+                    if (!ok) continue;
+                    float hw = (mxx - mnx) * Mathf.Abs(it.localScale.x) * 0.5f, hd = (mxz - mnz) * Mathf.Abs(it.localScale.z) * 0.5f;
+                    float rad = Mathf.Max(hw, hd) + 0.8f;
+                    foreach (var ob in obsB)
+                    {
+                        if (ob.size.sqrMagnitude < 0.01f) continue;
+                        float ddx = Mathf.Max(Mathf.Abs(cx - ob.center.x) - ob.extents.x, 0);
+                        float ddz = Mathf.Max(Mathf.Abs(cz - ob.center.z) - ob.extents.z, 0);
+                        if (Mathf.Sqrt(ddx * ddx + ddz * ddz) < rad * 0.8f) { ok = false; break; }
+                    }
+                    if (!ok) continue;
+                    float score = (mx - mn) * 4f + Vector2.Distance(new Vector2(cx, cz), new Vector2(curC.x, curC.z)) * 0.10f;
+                    if (score < bestScore) { bestScore = score; best = new Vector2(cx, cz); found = true; }
+                }
+            if (!found) { sb.AppendLine("✗ " + grp + "/" + names[bi] + " 解なし"); obsB.Add(RB(it.gameObject)); continue; }
+            sb.AppendLine(grp + "/" + names[bi] + " -> " + EdoSannoJuboBuilder.MoveToObb(grp, "Buildings/" + names[bi], best.x, best.y));
+            obsB.Add(RB(it.gameObject));
+        }
+        return sb.ToString();
+    }
+    // 井戸(合成)
+    static void Well(Transform parent, float x, float z)
+    {
+        float y = Ground(x, z);
+        var g = new GameObject("Ido");
+        g.transform.SetParent(parent, false);
+        g.transform.position = new Vector3(x, y, z);
+        Undo.RegisterCreatedObjectUndo(g, "well");
+        var stone = Mat(new Color(0.55f, 0.55f, 0.52f));
+        var wood = Mat(new Color(0.38f, 0.28f, 0.18f));
+        var curb = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        curb.name = "curb"; curb.transform.SetParent(g.transform, false);
+        curb.transform.localScale = new Vector3(1.3f, 0.35f, 1.3f);
+        curb.transform.localPosition = new Vector3(0, 0.35f, 0);
+        curb.GetComponent<Renderer>().sharedMaterial = stone;
+        for (int i = 0; i < 2; i++)
+        {
+            var post = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            post.name = "post" + i; post.transform.SetParent(g.transform, false);
+            post.transform.localScale = new Vector3(0.12f, 1.1f, 0.12f);
+            post.transform.localPosition = new Vector3(i == 0 ? -0.85f : 0.85f, 1.1f, 0);
+            post.GetComponent<Renderer>().sharedMaterial = wood;
+        }
+    }
+    // 石鳥居(明神鳥居, 合成) — ShaBuilderと同型
+    static void Torii(Transform parent, string name, float x, float z, Vector2 passDir)
+    {
+        float y = Ground(x, z);
+        var g = new GameObject(name);
+        g.transform.SetParent(parent, false);
+        g.transform.position = new Vector3(x, y, z);
+        Undo.RegisterCreatedObjectUndo(g, "torii");
+        var stone = Mat(new Color(0.62f, 0.61f, 0.58f));
+        float H = 7.6f, W = 6.6f;
+        var posts = new GameObject[2];
+        for (int i = 0; i < 2; i++)
+        {
+            var p = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            p.name = "hashira" + i; p.transform.SetParent(g.transform, false);
+            p.transform.position = g.transform.position + new Vector3(0, H * 0.5f - 0.2f, (i == 0 ? -W : W) * 0.5f);
+            p.transform.localScale = new Vector3(0.64f, H * 0.5f, 0.64f);
+            p.transform.rotation = Quaternion.Euler(0, 0, i == 0 ? -3f : 3f);
+            p.GetComponent<Renderer>().sharedMaterial = stone;
+            posts[i] = p;
+            var k = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            k.name = "kamehara" + i; k.transform.SetParent(g.transform, false);
+            k.transform.position = g.transform.position + new Vector3(0, 0.25f, (i == 0 ? -W : W) * 0.5f);
+            k.transform.localScale = new Vector3(0.98f, 0.25f, 0.98f);
+            k.GetComponent<Renderer>().sharedMaterial = stone;
+        }
+        Action<string, Vector3, Vector3> box = (nm, pos, sc) =>
+        {
+            var b = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            b.name = nm; b.transform.SetParent(g.transform, false);
+            b.transform.position = g.transform.position + pos; b.transform.localScale = sc;
+            b.GetComponent<Renderer>().sharedMaterial = stone;
+        };
+        box("shimaki", new Vector3(0, H - 0.55f, 0), new Vector3(0.55f, 0.5f, W + 1.7f));
+        box("kasagi", new Vector3(0, H, 0), new Vector3(0.62f, 0.5f, W + 2.6f));
+        box("nuki", new Vector3(0, H - 1.75f, 0), new Vector3(0.4f, 0.42f, W + 1.1f));
+        box("gakuzuka", new Vector3(0, H - 1.15f, 0), new Vector3(0.35f, 0.75f, 0.5f));
+        // 柱の並び軸 ⊥ 通行方向 に合わせる
+        var sep = posts[1].transform.position - posts[0].transform.position; sep.y = 0; sep.Normalize();
+        var want = new Vector3(-passDir.y, 0, passDir.x);
+        float delta = Vector3.SignedAngle(sep, want, Vector3.up);
+        g.transform.rotation = Quaternion.AngleAxis(delta, Vector3.up) * g.transform.rotation;
+    }
+
+    // ---------- Stage 0: 旧樹下邸・旧門前町の撤去 ----------
+    public static string Stage0_Demolish()
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (var n in new string[] { "Edo_Sanno_JugeYashiki", "Edo_Sanno_Monzencho" })
+        {
+            var g = GameObject.Find(n);
+            if (g != null) { UnityEngine.Object.DestroyImmediate(g); sb.AppendLine("destroyed " + n); }
+        }
+        return sb.ToString();
+    }
+
+    // ---------- Stage 1: 樹下近江守邸(新区画) ----------
+    public static string Stage1_Juge()
+    {
+        const string G = "Edo_Sanno_JugeYashiki";
+        var exist = GameObject.Find(G);
+        if (exist != null && exist.transform.childCount > 0) return "SKIP Juge";
+        var sb = new System.Text.StringBuilder();
+        EdoNishiTameikeBuilder.NaturalMode = true;
+        var kak = Group(G, "Kakoi");
+        var monGrp = Group(G, "Omotemon");
+        Vector2 gate = new Vector2(-388f, 912.1f);   // 南辺東寄り(参道の辻へ最短)
+        Vector2 fout = new Vector2(0.008f, -1f).normalized;
+        float gateHalf = PlaceGate(PKabuki, monGrp, gate, fout, 0, "Mon", sb);
+        int N = JUGE.Length;
+        for (int i = 0; i < N; i++)
+        {
+            Vector2 a = JUGE[i], b = JUGE[(i + 1) % N];
+            Vector2 outw = -InwardNormal(JUGE, i);
+            if (i == 0)
+                FrontWall(kak, a, b, outw, gate, gateHalf + 0.5f, "Hei_F");
+            else
+                EdoNishiTameikeBuilder.DobeiRun(kak, a, b, outw, "Hei_" + i, true, 0, Vector2.zero, -1);
+        }
+        var bg = Group(G, "Buildings");
+        // 式台玄関の母屋(門正対)+台所+物置+井戸
+        var shu = Place(PHouse, Vector3.zero, 180f, Vector3.one * 0.95f, bg, "Shuoku");
+        CenterSeat(shu, -390f, 928f);
+        var dai = Place(PSmallHouse, Vector3.zero, 90f, Vector3.one * 0.7f, bg, "Daidokoro");
+        CenterSeat(dai, -378.5f, 935f);
+        var mono = Place(PKura, Vector3.zero, 90f, Vector3.one * ES * 0.8f, bg, "Monooki");
+        CenterSeat(mono, -408f, 934f);
+        Well(bg, -400f, 924f);
+        // 庭: 東半=刈込+飛石、西半=松林(山際の社叢続き)
+        var gg = Group(G, "Garden");
+        var rnd = new System.Random(3110);
+        for (int i = 0, gd = 0; i < 14 && gd < 600; gd++)
+        {
+            float px = Mathf.Lerp(-508f, -378f, (float)rnd.NextDouble());
+            float pz = Mathf.Lerp(915f, 944f, (float)rnd.NextDouble());
+            var p2 = new Vector2(px, pz);
+            if (!PIP(JUGE, p2) || DistToPolyEdge(JUGE, p2) < 2.5f) continue;
+            bool nearB = false;
+            foreach (Transform c in bg) { var rb2 = RB(c.gameObject); if (px > rb2.min.x - 2f && px < rb2.max.x + 2f && pz > rb2.min.z - 2f && pz < rb2.max.z + 2f) { nearB = true; break; } }
+            if (nearB) continue;
+            bool west = px < -430f;
+            float y = Ground(px, pz);
+            if (west || rnd.NextDouble() < 0.4)
+            {
+                var go = Place(Pines[rnd.Next(Pines.Length)], new Vector3(px, y, pz), (float)rnd.NextDouble() * 360f, Vector3.one * (1.6f * (0.9f + 0.4f * (float)rnd.NextDouble())), gg, "Pine_" + i);
+                SeatBottom(go, y - 0.05f);
+            }
+            else
+            {
+                var go = Place(Shrubs[rnd.Next(Shrubs.Length)], new Vector3(px, y, pz), (float)rnd.NextDouble() * 360f, Vector3.one * (0.9f + 0.6f * (float)rnd.NextDouble()), gg, "Karikomi_" + i);
+                SeatBottom(go, y - 0.04f);
+            }
+            i++;
+        }
+        for (float tt = 0; tt <= 1.001f; tt += 0.12f)
+        {
+            Vector2 p = Vector2.Lerp(gate + new Vector2(0, 2.5f), new Vector2(-390f, 921f), tt);
+            float y = Ground(p.x, p.y);
+            var go = Place(PTobi, new Vector3(p.x, y + 0.03f, p.y), (float)rnd.NextDouble() * 360f, Vector3.one * 1.85f, gg, "Tobi_" + tt);
+            SeatBottom(go, y + 0.02f);
+        }
+        return sb.ToString() + "juge done";
+    }
+
+    // ---------- Stage 2: 社人八家 ----------
+    static readonly string[] ShaninNames = { "Nishinomiya", "ChikatsuHayato", "ChikatsuMondo", "Kanamaru", "Ogawa", "TaniSakon", "EndoIga", "HokiDaigaku" };
+    public static string Stage2_Shanin()
+    {
+        const string G = "Edo_Sanno_Shanin8";
+        var exist = GameObject.Find(G);
+        if (exist != null && exist.transform.childCount > 0) return "SKIP Shanin";
+        var sb = new System.Text.StringBuilder();
+        EdoNishiTameikeBuilder.NaturalMode = true;
+        var root = Group(G, null);
+        // 短冊分割: 西辺(通り側) P0(-372.8,661.5)→P1(-373.6,809.5) を8等分
+        Vector2 wA = SHANIN[0], wB = SHANIN[1];
+        Vector2 eA = SHANIN[3], eB = SHANIN[2];   // 東辺(南→北)
+        var rnd = new System.Random(888);
+        for (int lot = 0; lot < 8; lot++)
+        {
+            float t0 = lot / 8f, t1 = (lot + 1) / 8f, tc = (t0 + t1) / 2;
+            Vector2 w0 = Vector2.Lerp(wA, wB, t0), w1 = Vector2.Lerp(wA, wB, t1), wc = Vector2.Lerp(wA, wB, tc);
+            Vector2 e0 = Vector2.Lerp(eA, eB, t0), e1 = Vector2.Lerp(eA, eB, t1), ec = Vector2.Lerp(eA, eB, tc);
+            var lotGrp = Group(G, ShaninNames[lot]);
+            Vector2 outW = new Vector2(-1f, 0.005f).normalized;
+            // 表(西)の板塀: 木戸開口(中央2.2m)
+            Vector2 gL = Vector2.Lerp(w0, w1, 0.5f) - (w1 - w0).normalized * 1.1f;
+            Vector2 gR = Vector2.Lerp(w0, w1, 0.5f) + (w1 - w0).normalized * 1.1f;
+            EdoSannoJuboBuilder.PanelRun(lotGrp, w0, gL, outW, "Itabei_L", PItabei5, Vector2.zero, -1);
+            EdoSannoJuboBuilder.PanelRun(lotGrp, gR, w1, outW, "Itabei_R", PItabei5, Vector2.zero, -1);
+            // 裏(東)の板塀は列全体で一度(lot0のみ)
+            if (lot == 0)
+                EdoSannoJuboBuilder.PanelRun(lotGrp, eA, eB, new Vector2(1f, 0f), "Itabei_Back", PItabei5, Vector2.zero, -1);
+            // 母屋(平屋, 西向き)
+            var house = Place(PSmallHouse, Vector3.zero, -90f, Vector3.one * 0.72f, lotGrp, "Shuoku");
+            Vector2 hc = wc + new Vector2(9.5f, 0);
+            CenterSeat(house, hc.x, hc.y);
+            // 裏の生垣・木
+            float px = wc.x + 20f + (float)rnd.NextDouble() * 4f, pz = wc.y + ((float)rnd.NextDouble() * 6f - 3f);
+            if (PIP(SHANIN, new Vector2(px, pz)))
+            {
+                float y = Ground(px, pz);
+                var tr = Place(rnd.NextDouble() < 0.4 ? Bamboo[rnd.Next(2)] : Pines[rnd.Next(Pines.Length)],
+                    new Vector3(px, y, pz), (float)rnd.NextDouble() * 360f, Vector3.one * 1.35f, lotGrp, "Tree");
+                SeatBottom(tr, y - 0.05f);
+            }
+        }
+        sb.AppendLine("shanin 8 lots done");
+        return sb.ToString();
+    }
+
+    // ---------- Stage 3: 山王坂(一の鳥居・並木・門前町L字・木戸) ----------
+    public static string Stage3_Sando()
+    {
+        const string G = "Edo_Sanno_Monzencho";
+        var exist = GameObject.Find(G);
+        if (exist != null && exist.transform.childCount > 0) return "SKIP Sando/Monzen";
+        var sb = new System.Text.StringBuilder();
+        EdoNishiTameikeBuilder.NaturalMode = true;
+        var root = Group(G, null);
+        var sando = Group("Edo_Sanno_Sha", "Sando");
+        // 一の鳥居(参道東端, 通行=参道軸)
+        Vector2 axis = (SANDO_AXIS[1] - SANDO_AXIS[0]).normalized;
+        Torii(sando, "IchinoTorii", -140f, 898.8f, axis);
+        // 参道並木(松, 両縁)
+        var nm = Group("Edo_Sanno_Sha", "Sando/Namiki");
+        var rnd = new System.Random(1211);
+        for (float t = 18f; t < 228f; t += 14f)
+        {
+            Vector2 c = SANDO_AXIS[0] + axis * t;
+            foreach (float s in new float[] { -11.5f, 11.5f })
+            {
+                Vector2 p = c + new Vector2(-axis.y, axis.x) * s + new Vector2((float)rnd.NextDouble() * 1.6f - 0.8f, (float)rnd.NextDouble() * 1.6f - 0.8f);
+                float y = Ground(p.x, p.y);
+                var go = Place(Pines[rnd.Next(Pines.Length)], new Vector3(p.x, y, p.y), (float)rnd.NextDouble() * 360f, Vector3.one * (1.7f * (0.9f + 0.35f * (float)rnd.NextDouble())), nm, "Namiki_" + t + "_" + s);
+                SeatBottom(go, y - 0.05f);
+            }
+        }
+        // 門前町: 辻の北西の小さなL字(参道北縁の南向き4戸+小路東縁の西向き3戸)
+        var mS1 = MonzenMat("M_Shop01", "Assets/edogoyomi/es_shop01/shop01.jpg");
+        var mS2 = MonzenMat("M_Shop02", "Assets/edogoyomi/es_shop02/shop02.jpg");
+        int n = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            float x = -366f + i * 7.7f;
+            float y = Ground(x, 916.5f);
+            bool big = (n % 3 == 1);
+            var go = Place(big ? PShop02 : PShop01, new Vector3(x, y, 916.5f), 180f, Vector3.one * ES, root, "Monzen_" + n);
+            SeatBottom(go, y - 0.10f);
+            foreach (var r in go.GetComponentsInChildren<Renderer>()) r.sharedMaterial = big ? mS2 : mS1;
+            n++;
+        }
+        for (int i = 0; i < 3; i++)
+        {
+            float z = 921f + i * 7.7f;
+            float y = Ground(-368.5f, z);
+            bool big = (n % 3 == 1);
+            var go = Place(big ? PShop02 : PShop01, new Vector3(-368.5f, y, z), -90f, Vector3.one * ES, root, "Monzen_" + n);
+            SeatBottom(go, y - 0.10f);
+            foreach (var r in go.GetComponentsInChildren<Renderer>()) r.sharedMaterial = big ? mS2 : mS1;
+            n++;
+        }
+        // 木戸: 参道の門前町東端と、一の鳥居先
+        foreach (var kd in new float[][] { new float[] { -334f, 896.2f }, new float[] { -152f, 898.6f } })
+        {
+            float yaw = Mathf.Atan2(axis.x, axis.y) * Mathf.Rad2Deg;
+            var kido = Place(PKido, Vector3.zero, yaw, Vector3.one * ES, root, "Kido_" + kd[0]);
+            CenterSeat(kido, kd[0], kd[1], 0.05f);
+        }
+        sb.AppendLine("monzen houses=" + n);
+        return sb.ToString();
+    }
+    static Material MonzenMat(string name, string texPath)
+    {
+        string matPath = "Assets/Edo/Materials/" + name + ".mat";
+        var m = AssetDatabase.LoadAssetAtPath<Material>(matPath);
+        if (m != null) return m;
+        m = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(texPath);
+        if (tex != null) m.mainTexture = tex;
+        System.IO.Directory.CreateDirectory("Assets/Edo/Materials");
+        AssetDatabase.CreateAsset(m, matPath);
+        return m;
+    }
+
+    // ---------- Stage 4: 丹羽左京大夫上屋敷 ----------
+    public static string Stage4_Niwa()
+    {
+        const string G = "Edo_Yashiki_NiwaSakyo";
+        var exist = GameObject.Find(G);
+        if (exist != null && exist.transform.childCount > 0) return "SKIP Niwa";
+        var sb = new System.Text.StringBuilder();
+        EdoNishiTameikeBuilder.NaturalMode = true;
+        var kak = Group(G, "Kakoi");
+        var monGrp = Group(G, "Omotemon");
+        // 表門=北辺(山王坂沿い)台地部 x≈-190。独立門+両番所(10万石外様大広間)
+        Vector2 nA = NIWA[7], nB = NIWA[0];   // 辺7: (-131.3,883.5)→(-374.8,877.4)
+        Vector2 nDir = (nB - nA).normalized;
+        float gT = Vector2.Dot(new Vector2(-190f, 0) - new Vector2(nA.x, 0), new Vector2(nDir.x, 0)) / nDir.x; // x=-190 での t
+        Vector2 gate = nA + nDir * Mathf.Abs((-190f - nA.x) / nDir.x);
+        Vector2 fout = -InwardNormal(NIWA, 7);
+        float gateHalf = PlaceGate(PKmon, monGrp, gate, fout, 2, "Kmon", sb);
+        int N = NIWA.Length;
+        for (int i = 0; i < N; i++)
+        {
+            Vector2 a = NIWA[i], b = NIWA[(i + 1) % N];
+            Vector2 outw = -InwardNormal(NIWA, i);
+            if (i == 7)
+                FrontWall(kak, a, b, outw, gate, gateHalf + 0.5f, "Hei_F");
+            else if (i == 0)
+                EdoNishiTameikeBuilder.NagayaRun(kak, a, b, outw, 0, Vector2.zero, -1, "NG_W");  // 谷側の通り沿い=盲長屋
+            else
+                EdoNishiTameikeBuilder.DobeiRun(kak, a, b, outw, "Hei_" + i, true, 0, Vector2.zero, -1);
+        }
+        // 御殿群(台地 h27-28): 表御殿(門正対)→奥→台所/役所、蔵は台地西縁
+        var bg = Group(G, "Buildings");
+        var og = Place(PBigHouse, Vector3.zero, 180f + Mathf.Atan2(fout.x, fout.y) * Mathf.Rad2Deg, Vector3.one, bg, "OmoteGoten");
+        CenterSeat(og, -188f, 845f);
+        var ok = Place(PHouse, Vector3.zero, 180f, Vector3.one, bg, "OkuGoten");
+        CenterSeat(ok, -160f, 822f);
+        var yk = Place(PHouseB, Vector3.zero, 90f, Vector3.one, bg, "Yakusho");
+        CenterSeat(yk, -222f, 858f);
+        var dd = Place(PSmallHouse, Vector3.zero, 90f, Vector3.one, bg, "Daidokoro");
+        CenterSeat(dd, -215f, 830f);
+        for (int i = 0; i < 3; i++)
+        {
+            var kr = Place(PKura, Vector3.zero, 0f, Vector3.one * ES, bg, "Kura_" + (i + 1));
+            CenterSeat(kr, -252f - i * 8f, 838f - i * 6f);
+        }
+        // 家臣長屋(発掘の長屋地区に対応): 台地南東縁の内側に2棟
+        var um = Group(G, "Buildings");
+        var n1 = Place("Assets/edogoyomi/es_knagaya/knagaya01l.obj", Vector3.zero, 0f, Vector3.one * ES, um, "KashinNagaya_L");
+        CenterSeat(n1, -150f, 808f);
+        var n2 = Place("Assets/edogoyomi/es_knagaya/knagaya01r.obj", Vector3.zero, 0f, Vector3.one * ES, um, "KashinNagaya_R");
+        CenterSeat(n2, -142.2f, 808f);
+        Well(bg, -205f, 845f);
+        // 庭(池は発掘で存在確認されるが位置不明=未再現)
+        var gg = Group(G, "Garden");
+        var rnd = new System.Random(107);
+        for (int i = 0, gd = 0; i < 22 && gd < 900; gd++)
+        {
+            float px = Mathf.Lerp(-370f, -134f, (float)rnd.NextDouble());
+            float pz = Mathf.Lerp(680f, 880f, (float)rnd.NextDouble());
+            var p2 = new Vector2(px, pz);
+            if (!PIP(NIWA, p2) || DistToPolyEdge(NIWA, p2) < 4f) continue;
+            bool nearB = false;
+            foreach (Transform c in bg) { var rb2 = RB(c.gameObject); if (px > rb2.min.x - 2.5f && px < rb2.max.x + 2.5f && pz > rb2.min.z - 2.5f && pz < rb2.max.z + 2.5f) { nearB = true; break; } }
+            if (nearB) continue;
+            float y = Ground(px, pz);
+            if (rnd.NextDouble() < 0.72)
+            {
+                var go = Place(Pines[rnd.Next(Pines.Length)], new Vector3(px, y, pz), (float)rnd.NextDouble() * 360f, Vector3.one * (1.65f * (0.9f + 0.5f * (float)rnd.NextDouble())), gg, "Pine_" + i);
+                SeatBottom(go, y - 0.05f);
+            }
+            else
+            {
+                var go = Place(Shrubs[rnd.Next(Shrubs.Length)], new Vector3(px, y, pz), (float)rnd.NextDouble() * 360f, Vector3.one * (0.9f + 0.7f * (float)rnd.NextDouble()), gg, "Shrub_" + i);
+                SeatBottom(go, y - 0.04f);
+            }
+            i++;
+        }
+        return sb.ToString() + "niwa done";
+    }
+
+    // ---------- Stage 5: 京極備中守上屋敷 ----------
+    public static string Stage5_Kyogoku()
+    {
+        const string G = "Edo_Yashiki_KyogokuBitchu";
+        var exist = GameObject.Find(G);
+        if (exist != null && exist.transform.childCount > 0) return "SKIP Kyogoku";
+        var sb = new System.Text.StringBuilder();
+        EdoNishiTameikeBuilder.NaturalMode = true;
+        var kak = Group(G, "Kakoi");
+        var monGrp = Group(G, "Omotemon");
+        // 表門=南辺(内藤との間の通り)台地寄り x≈-155。長屋門+格子出番所1(1.1万石)
+        Vector2 sA = KYOGOKU[3], sB = KYOGOKU[0];  // 辺3: (-122.4,683.5)→(-291.5,681.0)
+        Vector2 sDir = (sB - sA).normalized;
+        Vector2 gate = sA + sDir * Mathf.Abs((-155f - sA.x) / sDir.x);
+        Vector2 fout = -InwardNormal(KYOGOKU, 3);
+        float gateHalf = PlaceGate(PNmon, monGrp, gate, fout, 1, "Nagayamon", sb);
+        int N = KYOGOKU.Length;
+        for (int i = 0; i < N; i++)
+        {
+            Vector2 a = KYOGOKU[i], b = KYOGOKU[(i + 1) % N];
+            Vector2 outw = -InwardNormal(KYOGOKU, i);
+            if (i == 3)
+                FrontWall(kak, a, b, outw, gate, gateHalf + 0.5f, "Hei_F");
+            else if (i == 0 || i == 1) continue;    // 丹羽側が受け持つ共有境界
+            else
+                EdoNishiTameikeBuilder.DobeiRun(kak, a, b, outw, "Hei_" + i, true, 0, Vector2.zero, -1);
+        }
+        var bg = Group(G, "Buildings");
+        var shu = Place(PHouse, Vector3.zero, 180f, Vector3.one, bg, "Goten");
+        CenterSeat(shu, -158f, 716f);
+        var dd = Place(PSmallHouse, Vector3.zero, 90f, Vector3.one * 0.85f, bg, "Daidokoro");
+        CenterSeat(dd, -142f, 740f);
+        var kr = Place(PKura, Vector3.zero, 0f, Vector3.one * ES, bg, "Kura_1");
+        CenterSeat(kr, -175f, 752f);
+        Well(bg, -170f, 730f);
+        var gg = Group(G, "Garden");
+        var rnd = new System.Random(11144);
+        for (int i = 0, gd = 0; i < 10 && gd < 500; gd++)
+        {
+            float px = Mathf.Lerp(-292f, -126f, (float)rnd.NextDouble());
+            float pz = Mathf.Lerp(686f, 796f, (float)rnd.NextDouble());
+            var p2 = new Vector2(px, pz);
+            if (!PIP(KYOGOKU, p2) || DistToPolyEdge(KYOGOKU, p2) < 3.5f) continue;
+            bool nearB = false;
+            foreach (Transform c in bg) { var rb2 = RB(c.gameObject); if (px > rb2.min.x - 2.5f && px < rb2.max.x + 2.5f && pz > rb2.min.z - 2.5f && pz < rb2.max.z + 2.5f) { nearB = true; break; } }
+            if (nearB) continue;
+            float y = Ground(px, pz);
+            if (rnd.NextDouble() < 0.7)
+            {
+                var go = Place(Pines[rnd.Next(Pines.Length)], new Vector3(px, y, pz), (float)rnd.NextDouble() * 360f, Vector3.one * (1.6f * (0.9f + 0.4f * (float)rnd.NextDouble())), gg, "Pine_" + i);
+                SeatBottom(go, y - 0.05f);
+            }
+            else
+            {
+                var go = Place(Shrubs[rnd.Next(Shrubs.Length)], new Vector3(px, y, pz), (float)rnd.NextDouble() * 360f, Vector3.one * (0.9f + 0.6f * (float)rnd.NextDouble()), gg, "Shrub_" + i);
+                SeatBottom(go, y - 0.04f);
+            }
+            i++;
+        }
+        return sb.ToString() + "kyogoku done";
+    }
+
+    // ---------- Stage 6: 内藤紀伊守上屋敷 ----------
+    public static string Stage6_Naito()
+    {
+        const string G = "Edo_Yashiki_NaitoKii";
+        var exist = GameObject.Find(G);
+        if (exist != null && exist.transform.childCount > 0) return "SKIP Naito";
+        var sb = new System.Text.StringBuilder();
+        EdoNishiTameikeBuilder.NaturalMode = true;
+        var kak = Group(G, "Kakoi");
+        var monGrp = Group(G, "Omotemon");
+        // 表門=北辺西寄り(文字の頭=北西) x≈-320。独立門+両番所(譜代5万石・老中)
+        Vector2 nA = NAITO[11], nB = NAITO[0];  // 辺11: (-340.3,673.7)→(-372.0,656.7)?? 実際は 11→0
+        // 北辺は P10(-119.9,678.6)→P11(-340.3,673.7)
+        Vector2 a10 = NAITO[10], a11 = NAITO[11];
+        Vector2 nDir = (a11 - a10).normalized;
+        Vector2 gate = a10 + nDir * Mathf.Abs((-320f - a10.x) / Mathf.Abs(nDir.x));
+        Vector2 fout = -InwardNormal(NAITO, 10);
+        float gateHalf = PlaceGate(PKmon, monGrp, gate, fout, 2, "Kmon", sb);
+        int N = NAITO.Length;
+        for (int i = 0; i < N; i++)
+        {
+            Vector2 a = NAITO[i], b = NAITO[(i + 1) % N];
+            Vector2 outw = -InwardNormal(NAITO, i);
+            if (i == 10)
+                FrontWall(kak, a, b, outw, gate, gateHalf + 0.5f, "Hei_F");
+            else
+                EdoNishiTameikeBuilder.DobeiRun(kak, a, b, outw, "Hei_" + i, true, 0, Vector2.zero, -1);
+        }
+        var bg = Group(G, "Buildings");
+        // 表御殿=Manor(5万石譜代・老中の上屋敷)。facadeを門正対軸へ
+        float psiIn = Mathf.Atan2(-fout.x, -fout.y) * Mathf.Rad2Deg;
+        var manor = Place(PManor, Vector3.zero, psiIn + 180f, Vector3.one, bg, "OmoteGoten");
+        CenterSeat(manor, -292f, 625f);
+        var okg = Place(PHouse, Vector3.zero, 180f, Vector3.one, bg, "OkuGoten");
+        CenterSeat(okg, -238f, 610f);
+        var yks = Place(PHouseB, Vector3.zero, 0f, Vector3.one, bg, "Yakusho");
+        CenterSeat(yks, -330f, 648f);
+        var dd = Place(PSmallHouse, Vector3.zero, 90f, Vector3.one, bg, "Daidokoro");
+        CenterSeat(dd, -255f, 645f);
+        for (int i = 0; i < 3; i++)
+        {
+            var kr = Place(PKura, Vector3.zero, 90f, Vector3.one * ES, bg, "Kura_" + (i + 1));
+            CenterSeat(kr, -180f - i * 8f, 640f - i * 5f);
+        }
+        // 中間長屋(knagaya l+r)
+        var m1 = Place("Assets/edogoyomi/es_knagaya/knagaya01l.obj", Vector3.zero, 180f, Vector3.one * ES, bg, "ChugenNagaya_L");
+        CenterSeat(m1, -305f, 662f);
+        var m2 = Place("Assets/edogoyomi/es_knagaya/knagaya01r.obj", Vector3.zero, 180f, Vector3.one * ES, bg, "ChugenNagaya_R");
+        CenterSeat(m2, -297.2f, 662f);
+        Well(bg, -265f, 632f);
+        // 庭: 台地東の高台=奥庭、南の水際=溜池を望む景(池は作らない)
+        var gg = Group(G, "Garden");
+        var rnd = new System.Random(5090);
+        for (int i = 0, gd = 0; i < 30 && gd < 1200; gd++)
+        {
+            float px = Mathf.Lerp(-368f, -60f, (float)rnd.NextDouble());
+            float pz = Mathf.Lerp(520f, 670f, (float)rnd.NextDouble());
+            var p2 = new Vector2(px, pz);
+            if (!PIP(NAITO, p2) || DistToPolyEdge(NAITO, p2) < 4f) continue;
+            bool nearB = false;
+            foreach (Transform c in bg) { var rb2 = RB(c.gameObject); if (px > rb2.min.x - 2.5f && px < rb2.max.x + 2.5f && pz > rb2.min.z - 2.5f && pz < rb2.max.z + 2.5f) { nearB = true; break; } }
+            if (nearB) continue;
+            float y = Ground(px, pz);
+            if (rnd.NextDouble() < 0.7)
+            {
+                var go = Place(Pines[rnd.Next(Pines.Length)], new Vector3(px, y, pz), (float)rnd.NextDouble() * 360f, Vector3.one * (1.65f * (0.9f + 0.5f * (float)rnd.NextDouble())), gg, "Pine_" + i);
+                SeatBottom(go, y - 0.05f);
+            }
+            else
+            {
+                var go = Place(Shrubs[rnd.Next(Shrubs.Length)], new Vector3(px, y, pz), (float)rnd.NextDouble() * 360f, Vector3.one * (0.9f + 0.7f * (float)rnd.NextDouble()), gg, "Shrub_" + i);
+                SeatBottom(go, y - 0.04f);
+            }
+            i++;
+        }
+        return sb.ToString() + "naito done";
+    }
+
+    // ---------- Stage 7: スプラット ----------
+    public static string Stage7_Splat()
+    {
+        var t = Terrain.activeTerrain; var td = t.terrainData;
+        int res = td.alphamapResolution;
+        Vector3 tp = t.transform.position, ts = td.size;
+        float cell = ts.x / res;
+        float x0 = -520, x1 = -50, z0 = 505, z1 = 955;
+        int ix0 = Mathf.Max(0, Mathf.FloorToInt((x0 - tp.x) / cell)), ix1 = Mathf.Min(res - 1, Mathf.CeilToInt((x1 - tp.x) / cell));
+        int iz0 = Mathf.Max(0, Mathf.FloorToInt((z0 - tp.z) / cell)), iz1 = Mathf.Min(res - 1, Mathf.CeilToInt((z1 - tp.z) / cell));
+        int w = ix1 - ix0 + 1, h = iz1 - iz0 + 1;
+        var A = td.GetAlphamaps(ix0, iz0, w, h);
+        int L = td.alphamapLayers;
+        int changed = 0;
+        // 道: 内藤/京極間の通り・堀端通り
+        Vector2[] midRoad = { new Vector2(-350f, 676f), new Vector2(-232f, 679.4f), new Vector2(-121f, 681.2f), new Vector2(-100f, 685f) };
+        Vector2[] shoreRoad = { new Vector2(-375f, 653f), new Vector2(-357.5f, 594f), new Vector2(-306f, 547f), new Vector2(-257f, 526.7f),
+            new Vector2(-202.7f, 512.8f), new Vector2(-150f, 510.8f), new Vector2(-91.6f, 520.7f), new Vector2(-50f, 533.9f) };
+        Func<Vector2, Vector2[], float> dPoly = (p, pts) =>
+        {
+            float m = float.MaxValue;
+            for (int i = 0; i < pts.Length - 1; i++) m = Mathf.Min(m, DistToEdge(p, pts[i], pts[i + 1]));
+            return m;
+        };
+        Vector2[][] parcels = { JUGE, SHANIN, NIWA, KYOGOKU, NAITO };
+        for (int zz = 0; zz < h; zz++)
+            for (int xx = 0; xx < w; xx++)
+            {
+                float wx = tp.x + (ix0 + xx + 0.5f) * cell;
+                float wz = tp.z + (iz0 + zz + 0.5f) * cell;
+                var p = new Vector2(wx, wz);
+                float bare = -1, grass = 0, dirt = 0;
+                bool skip = false;
+                foreach (var jb in EdoSannoJuboBuilder.Parcels) if (PIP(jb.poly, p)) { skip = true; break; }
+                if (!skip)
+                {
+                    // 観理院・境内は既存のまま
+                    var KAN = new Vector2[] { new Vector2(-389.4f, 735.3f), new Vector2(-421.6f, 732.5f), new Vector2(-426.2f, 851.4f), new Vector2(-409.7f, 888.1f), new Vector2(-390.2f, 888.3f) };
+                    if (PIP(KAN, p)) skip = true;
+                    if (wx < -426f && wz < 908f) skip = true;   // 山王山・境内側は触らない
+                }
+                if (skip) continue;
+                bool inSando = (wz > 884f && wz < 909f && wx > -372f && wx < -128f);
+                float dm = dPoly(p, midRoad), ds = dPoly(p, shoreRoad);
+                Vector2[] inP = null;
+                foreach (var pp in parcels) if (PIP(pp, p)) { inP = pp; break; }
+                if (inSando)
+                {
+                    float dAxis = dPoly(p, SANDO_AXIS);
+                    if (dAxis < 4.5f) { bare = 0.66f; grass = 0.06f; dirt = 0.28f; }
+                    else { bare = 0.34f; grass = 0.24f; dirt = 0.42f; }
+                }
+                else if (inP != null)
+                {
+                    if (inP == SHANIN)
+                    { bare = 0.30f; grass = 0.25f; dirt = 0.45f; }        // 社家の庭・畑
+                    else
+                    {
+                        float noise = Mathf.PerlinNoise(wx * 0.11f, wz * 0.11f);
+                        grass = Mathf.Lerp(0.38f, 0.65f, noise); bare = 0.14f; dirt = 1f - grass - bare;
+                    }
+                }
+                else if (dm < 3.2f || ds < 3.2f) { bare = 0.55f; grass = 0.05f; dirt = 0.40f; }
+                else if (dm < 4.8f || ds < 4.8f) { bare = 0.30f; grass = 0.25f; dirt = 0.45f; }
+                else if (wz > 909f && wz < 950f && wx > -374f && wx < -300f)
+                { bare = 0.45f; grass = 0.18f; dirt = 0.37f; }            // 門前町の地面
+                if (bare < 0) continue;
+                float sum = bare + grass + dirt;
+                for (int l = 0; l < L; l++) A[zz, xx, l] = 0;
+                A[zz, xx, 0] = dirt / sum; A[zz, xx, 1] = grass / sum; A[zz, xx, 2] = bare / sum;
+                changed++;
+            }
+        td.SetAlphamaps(ix0, iz0, A);
+        return "splat cells=" + changed;
+    }
+
+    // ---------- 一括 ----------
+    public static string BuildAll()
+    {
+        EdoNishiTameikeBuilder.NaturalMode = true;
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine(Stage0_Demolish());
+        sb.AppendLine(Stage1_Juge());
+        sb.AppendLine(Stage2_Shanin());
+        sb.AppendLine(Stage3_Sando());
+        sb.AppendLine(Stage4_Niwa());
+        sb.AppendLine(Stage5_Kyogoku());
+        sb.AppendLine(Stage6_Naito());
+        sb.AppendLine(Stage7_Splat());
+        return sb.ToString();
+    }
+}

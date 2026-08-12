@@ -28,6 +28,10 @@
 //   厩(knagaya l+r)と勝手井戸(Ido_Katte)を蔵の帯へ・邸内稲荷を庭の一隅(前庭北東)へ・
 //   三べ坂盲長屋のNG_NW_2を撤去(SetActive false)し隣接2枚を妻キャップ(NG_NW_3r/NG_NW_1l)化して
 //   藩士用小門(Uramon/Koguchimon=腕木門)を挿入。Kura_3は平坦帯(-284,992)へ。
+// 【2026-08-12 密度是正(ユーザー指摘「建物が小さすぎ/少なすぎ」)】旧OmoteGoten/OkuGoten=SetActive(false)、
+//   表御殿をManor複合体(x[-302,-240] z[1047,1085])へ格上げ。北帯z[1085,1099]を24へ延長造成(旧校庭envelope内)し
+//   台所(×1.05)+長局(Nagatsubone)+井戸、南に中奥翼(NakaokuWing)+役所移設(z1035.5)、蔵4棟目、中間長屋第2対。
+//   Seienkan(静遠館・詩会堂)は北西台地に納まらず SetActive(false) で保留。建蔽率9%→18%(外周長屋除く)。
 using System;
 using System.Collections.Generic;
 using System.Linq;

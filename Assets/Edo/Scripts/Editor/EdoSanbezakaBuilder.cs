@@ -60,20 +60,20 @@ using UnityEngine;
 
 public static class EdoSanbezakaBuilder
 {
-    const string PNmon = "Assets/edogoyomi/es_nmon/nagayamon.obj";
-    const string PHmon = "Assets/edogoyomi/es_hmon/h_mon.obj";
-    const string PKabuki = "Assets/edogoyomi/es_kabukimon/kabukimon.obj";
-    const string PBansho = "Assets/edogoyomi/es_dbansho/dbansho.obj";
-    const string PKura = "Assets/edogoyomi/es_kura/kura.obj";
+    public const string PNmon = "Assets/edogoyomi/es_nmon/nagayamon.obj";
+    public const string PHmon = "Assets/edogoyomi/es_hmon/h_mon.obj";
+    public const string PKabuki = "Assets/edogoyomi/es_kabukimon/kabukimon.obj";
+    public const string PBansho = "Assets/edogoyomi/es_dbansho/dbansho.obj";
+    public const string PKura = "Assets/edogoyomi/es_kura/kura.obj";
     const string PShop01 = "Assets/edogoyomi/es_shop01/shop01.obj";
     const string PShop02 = "Assets/edogoyomi/es_shop02/shop02.obj";
     const string PItabei5 = "Assets/edogoyomi/obj_itabei/itabei5.obj";
-    const string PKnagayaL = "Assets/edogoyomi/es_knagaya/knagaya01l.obj";
-    const string PKnagayaR = "Assets/edogoyomi/es_knagaya/knagaya01r.obj";
-    const string PHouse = "Assets/Japanese Village Kit/Prefabs/House.prefab";
-    const string PHouseB = "Assets/Japanese Village Kit/Prefabs/House B.prefab";
-    const string PSmallHouse = "Assets/Japanese Village Kit/Prefabs/Small House.prefab";
-    const string PBigHouse = "Assets/Japanese Village Kit/Prefabs/Big House.prefab";
+    public const string PKnagayaL = "Assets/edogoyomi/es_knagaya/knagaya01l.obj";
+    public const string PKnagayaR = "Assets/edogoyomi/es_knagaya/knagaya01r.obj";
+    public const string PHouse = "Assets/Japanese Village Kit/Prefabs/House.prefab";
+    public const string PHouseB = "Assets/Japanese Village Kit/Prefabs/House B.prefab";
+    public const string PSmallHouse = "Assets/Japanese Village Kit/Prefabs/Small House.prefab";
+    public const string PBigHouse = "Assets/Japanese Village Kit/Prefabs/Big House.prefab";
     static string[] Pines = {
         "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_01.prefab",
         "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_02.prefab",
@@ -85,7 +85,7 @@ public static class EdoSanbezakaBuilder
     static string[] Bamboo = {
         "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Big_Green_01.prefab",
         "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Big_Green_02.prefab" };
-    const string PTobi = "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_TobiIshi_A_01.prefab";
+    public const string PTobi = "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_TobiIshi_A_01.prefab";
     public const float ES = 1.818f;
 
     // ---------- 参道(山王坂)軸: EdoSannoBukeBuilder.SANDO_AXIS と同一 ----------
@@ -143,11 +143,11 @@ public static class EdoSanbezakaBuilder
 
     // ---------- helpers ----------
     public static float Ground(float x, float z) { return EdoNishiTameikeBuilder.Ground(x, z); }
-    static GameObject Place(string path, Vector3 pos, float ry, Vector3 scale, Transform parent, string name)
+    public static GameObject Place(string path, Vector3 pos, float ry, Vector3 scale, Transform parent, string name)
     { return EdoNishiTameikeBuilder.Place(path, pos, ry, scale, parent, name); }
-    static Bounds RB(GameObject go) { return EdoNishiTameikeBuilder.RB(go); }
+    public static Bounds RB(GameObject go) { return EdoNishiTameikeBuilder.RB(go); }
     static void SeatBottom(GameObject go, float y) { EdoNishiTameikeBuilder.SeatBottom(go, y); }
-    static Transform Group(string root, string child)
+    public static Transform Group(string root, string child)
     {
         var r = GameObject.Find(root);
         if (r == null) { r = new GameObject(root); Undo.RegisterCreatedObjectUndo(r, "grp"); }
@@ -175,7 +175,7 @@ public static class EdoSanbezakaBuilder
         for (int i = 0; i < poly.Length; i++) { var p = poly[i]; var q = poly[(i + 1) % poly.Length]; a += p.x * q.y - q.x * p.y; }
         return 0.5f * a;
     }
-    static Vector2 InwardNormal(Vector2[] poly, int i)
+    public static Vector2 InwardNormal(Vector2[] poly, int i)
     {
         var a = poly[i]; var b = poly[(i + 1) % poly.Length];
         var d = (b - a).normalized;
@@ -196,7 +196,7 @@ public static class EdoSanbezakaBuilder
         return m;
     }
     static Material Mat(Color c) { var m = new Material(Shader.Find("Universal Render Pipeline/Lit")); m.color = c; return m; }
-    static void CenterSeat(GameObject go, float x, float z, float sink = 0.12f)
+    public static void CenterSeat(GameObject go, float x, float z, float sink = 0.12f)
     {
         var b = RB(go);
         go.transform.position += new Vector3(x - b.center.x, 0, z - b.center.z);
@@ -206,7 +206,7 @@ public static class EdoSanbezakaBuilder
             gmn = Mathf.Min(gmn, Ground(b.center.x + i * b.extents.x, b.center.z + j * b.extents.z));
         go.transform.position += new Vector3(0, (gmn - sink) - b.min.y, 0);
     }
-    static float PlaceGate(string path, Transform monGrp, Vector2 gate, Vector2 fout, int bansho, string name, System.Text.StringBuilder sb)
+    public static float PlaceGate(string path, Transform monGrp, Vector2 gate, Vector2 fout, int bansho, string name, System.Text.StringBuilder sb)
     {
         float basePad = Ground(gate.x, gate.y);
         Vector2 inw = -fout;
@@ -252,7 +252,7 @@ public static class EdoSanbezakaBuilder
         sb.AppendLine(name + " halfW=" + gateHalf.ToString("F2"));
         return gateHalf;
     }
-    static void FrontWall(Transform kak, Vector2 a, Vector2 b, Vector2 outw, Vector2 gate, float gateHalf, string prefix, bool itabei = false)
+    public static void FrontWall(Transform kak, Vector2 a, Vector2 b, Vector2 outw, Vector2 gate, float gateHalf, string prefix, bool itabei = false)
     {
         Vector2 dir = (b - a).normalized;
         Vector2 gL = gate - dir * (gateHalf - 0.15f), gR = gate + dir * (gateHalf - 0.15f);
@@ -267,7 +267,7 @@ public static class EdoSanbezakaBuilder
             else EdoNishiTameikeBuilder.DobeiRun(kak, gR, b, outw, prefix + "_R", true, 0, Vector2.zero, -1);
         }
     }
-    static void Well(Transform parent, float x, float z)
+    public static void Well(Transform parent, float x, float z)
     {
         float y = Ground(x, z);
         var g = new GameObject("Ido");

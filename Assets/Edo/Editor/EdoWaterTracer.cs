@@ -44,8 +44,6 @@ public class EdoWaterTracer : EditorWindow
         {
             GUI.backgroundColor = new Color(0.5f, 0.7f, 1f);
             if (GUILayout.Button("💧 水を焼く（編集可能な水域を作る）", GUILayout.Height(34))) Bake();
-            GUI.backgroundColor = new Color(0.7f, 0.65f, 0.5f);
-            if (GUILayout.Button("🏯 石垣濠を焼く（MoatWall を作る）", GUILayout.Height(34))) BakeMoat();
             GUI.backgroundColor = Color.white;
         }
         if (GUILayout.Button("点をクリア")) { pts.Clear(); SceneView.RepaintAll(); }
@@ -104,34 +102,6 @@ public class EdoWaterTracer : EditorWindow
         var wb = WaterBaker.Create(pts, depth);
         pts.Clear();
         if (wb != null) Selection.activeGameObject = wb.gameObject;   // すぐ編集できるよう選択
-        SceneView.RepaintAll(); Repaint();
-    }
-
-    /// <summary>なぞった輪郭から石垣濠(MoatWall)を作る。掘削/配置/水は MoatWall インスペクタで実行。</summary>
-    void BakeMoat()
-    {
-        var go = new GameObject("MoatWall_" + System.DateTime.Now.ToString("HHmmss"));
-        Undo.RegisterCreatedObjectUndo(go, "Create MoatWall");
-        var wall = go.AddComponent<MoatWall>();
-        wall.outline = new List<Vector3>(pts);
-        // 既定の石垣モジュールセットがあれば割当
-        var guids = AssetDatabase.FindAssets("t:MoatModuleSet");
-        if (guids.Length > 0)
-            wall.modules = AssetDatabase.LoadAssetAtPath<MoatModuleSet>(AssetDatabase.GUIDToAssetPath(guids[0]));
-        // 水位を輪郭下の地形からざっくり推定（中央値-0.3m）
-        var hs = new List<float>();
-        foreach (var p in pts)
-            foreach (var t in Terrain.activeTerrains)
-            {
-                var td = t.terrainData; var tp = t.transform.position; var s = td.size;
-                if (p.x >= tp.x && p.x <= tp.x + s.x && p.z >= tp.z && p.z <= tp.z + s.z)
-                { hs.Add(t.SampleHeight(new Vector3(p.x, 0, p.z)) + tp.y); break; }
-            }
-        if (hs.Count > 0) { hs.Sort(); wall.waterY = hs[hs.Count / 2] - 0.3f; }
-        wall.backProfile = new List<BackStep> { new BackStep { width = 6f, dHeight = 0f } };
-        pts.Clear();
-        Selection.activeGameObject = go;
-        Debug.Log($"[Moat] MoatWall を作成: waterY={wall.waterY:F1}。インスペクタで ①掘削→②石垣→③水面 を実行（保存推奨）。");
         SceneView.RepaintAll(); Repaint();
     }
 }

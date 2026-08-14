@@ -2,7 +2,7 @@
 
 `Edo ▸ アセット目録 ▸ 目録を再生成` で自動生成。全件は `asset-index.tsv`。
 
-- 総数 **2682** 点 / シーンで使用中 **149** 点 / ビルダーが参照 **69** 点
+- 総数 **2681** 点 / シーンで使用中 **149** 点 / ビルダーが参照 **69** 点
 - URP でピンクになる(BUILTIN) **4** 点
 
 ## Edo — 14 点
@@ -198,7 +198,7 @@
 | `Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Trees/VS Prefabs` | 11 | 11.61 | 18.21 | 0 |
 | `Assets/NatureManufacture Assets/NatureManufacture Wind` | 2 | 0 | 0 | 0 |
 
-## Waldemarst — 115 点
+## Waldemarst — 114 点
 
 | フォルダ | 点数 | 幅の中央値[m] | 高さの中央値[m] | 使用中 |
 |---|---:|---:|---:|---:|
@@ -213,5 +213,4 @@
 | `Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo` | 12 | 6.5 | 6.51 | 4 |
 | `Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine` | 18 | 5.57 | 4.67 | 8 |
 | `Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura` | 24 | 6.21 | 6.01 | 8 |
-| `Assets/Waldemarst/FreeJapaneseGarden/Scenes/Prefabs` | 1 | 0.5 | 1.7 | 0 |
 

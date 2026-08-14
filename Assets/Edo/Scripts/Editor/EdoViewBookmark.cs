@@ -14,7 +14,7 @@ using UnityEditor;
 ///     - コメント欄に指摘を記入(自動保存)
 ///  3. AI に「ブックマーク見て」と言えば、画角+印付きスクショ+コメントをまとめて読み取って対応する。
 ///
-/// 保存先: Assets/Screenshots/Bookmarks/
+/// 保存先: <project>/Screenshots/Bookmarks/  (Assets/ の外。Unity の import 対象にしない)
 ///   bookmarks.json = 画角・コメント・印(正規化座標)
 ///   bm_*.png       = 元スクショ / bm_*_ann.png = 印を焼き込んだ注釈版(AI が読む)
 /// </summary>
@@ -40,7 +40,8 @@ public class EdoViewBookmarkWindow : EditorWindow
     [System.Serializable]
     public class Book { public List<Entry> entries = new List<Entry>(); }
 
-    const string Dir = "Assets/Screenshots/Bookmarks";
+    // プロジェクトルート直下(Assets/ の外)。1GB のスクショを Unity に import させないため。
+    const string Dir = "Screenshots/Bookmarks";
     static string JsonPath => Dir + "/bookmarks.json";
 
     Book book;

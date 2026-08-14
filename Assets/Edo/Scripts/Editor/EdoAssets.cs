@@ -93,13 +93,24 @@ public static class EdoAssets
         public const string Ceiling     = P + "Goten_Ceiling_1ken.fbx";
         public const string Nureen      = P + "Goten_Nureen_1ken.fbx";   // 濡縁+高欄(ピボットは建物側)
 
+        // 建具・座敷飾り(キットに無いので Blender で新造 — build_goten_fittings.py)
+        public const string Fusuma      = P + "Goten_Fusuma_1ken.fbx";       // 襖 内法まで(高1.818)
+        public const string Ranma       = P + "Goten_Ranma_1ken.fbx";        // 筬欄間(高0.909)襖の上
+        public const string Amado       = P + "Goten_Amado_1ken.fbx";        // 雨戸(板戸・全高)
+        public const string JodanKamachi= P + "Goten_JodanKamachi_1ken.fbx"; // 上段框(段0.15)
+        public const string Tokonoma    = P + "Goten_Tokonoma_1ken.fbx";     // 床の間(奥行0.98)
+        public const string Chigaidana  = P + "Goten_Chigaidana_1ken.fbx";   // 違い棚
+        public const string Chodaigamae = P + "Goten_Chodaigamae_1ken.fbx";  // 帳台構(枠が左右へ0.17出る)
+
         /// <summary>入母屋屋根。棟の寸法ごとに Blender で生成する:
         /// blender --background --python Tools/Blender/build_goten_roof.py -- W D 名前</summary>
         public const string RoofDir     = "Assets/Edo/Models/Goten/Roofs/";
         public const string RoofIrimoya = RoofDir + "Goten_Roof_Irimoya.fbx"; // 8間x5間
 
         public const float Ken       = 1.818f;   // 江戸間
-        public const float DoorH     = 2.727f;   // 建具・柱の高さ
+        public const float DoorH     = 2.727f;   // 建具・柱の高さ = 内法+欄間
+        public const float Uchinori  = 1.818f;   // 内法高(6尺) — 襖・帳台構・床の間の落掛
+        public const float RanmaH    = 0.909f;   // 欄間(半間)
         public const float ColumnW   = 0.182f;
     }
 

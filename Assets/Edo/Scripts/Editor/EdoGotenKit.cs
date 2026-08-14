@@ -21,6 +21,7 @@ public static class EdoGotenKit
 {
     public const float K = EdoAssets.Goten.Ken;      // 1.818
     public const float H = EdoAssets.Goten.DoorH;    // 2.727
+    public const float JODAN = 0.15f;                // 上段の段の高さ
 
     static GameObject Load(string path)
     {
@@ -46,8 +47,16 @@ public static class EdoGotenKit
     public static GameObject Mune(string name, Transform parent, Vector3 pos, float yaw,
                                   int nx, int nzZashiki, int iri = 1,
                                   float floor = 0.62f, string roofAsset = null,
-                                  bool nureen = true, bool ceiling = true)
+                                  bool nureen = true, bool ceiling = true,
+                                  int[] openBaysWest = null, int[] openBaysEast = null,
+                                  int jodanFromIx = -1)
     {
+        // 妻壁を開ける区画(床の間・違い棚・帳台構が入る所)。塞いだままだと飾りが壁の裏に隠れる
+        System.Func<int[], int, bool> isOpen = (arr, j) => {
+            if (arr == null) return false;
+            foreach (var v in arr) if (v == j) return true;
+            return false;
+        };
         int nz = nzZashiki + 2 * iri;
         float W = nx * K, D = nz * K;
 
@@ -56,34 +65,47 @@ public static class EdoGotenKit
         g.transform.localPosition = pos;
         g.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
 
+        // 上段の間 — jodanFromIx より奥(+X)の身舎は床が一段(0.15)上がる
+        System.Func<int, bool, float> lv = (i, isIri) =>
+            (jodanFromIx >= 0 && i >= jodanFromIx && !isIri) ? floor + JODAN : floor;
+
         // 床 — 入側は板敷き、身舎は畳
         for (int i = 0; i < nx; i++)
             for (int j = 0; j < nz; j++)
             {
                 bool isIri = (j < iri || j >= nz - iri);
                 Put(isIri ? EdoAssets.Goten.FloorBoard : EdoAssets.Goten.Tatami, g.transform,
-                    new Vector3(i * K + K / 2f, floor, j * K + K / 2f), 0f);
+                    new Vector3(i * K + K / 2f, lv(i, isIri), j * K + K / 2f), 0f);
             }
+
+        // 上段框 — 段の際に通す
+        if (jodanFromIx > 0 && jodanFromIx < nx)
+            for (int j = iri; j < nz - iri; j++)
+                Put(EdoAssets.Goten.JodanKamachi, g.transform,
+                    new Vector3(jodanFromIx * K, floor, j * K + K / 2f), 270f);
 
         // 建具 — 身舎と入側の境に障子。表(+Z)を入側へ向ける
         for (int i = 0; i < nx; i++)
         {
             if (iri > 0)
             {
+                float y = lv(i, false);
                 Put(EdoAssets.Goten.Shoji1ken, g.transform,
-                    new Vector3(i * K + K / 2f, floor, iri * K), 180f);
+                    new Vector3(i * K + K / 2f, y, iri * K), 180f);
                 Put(EdoAssets.Goten.Shoji1ken, g.transform,
-                    new Vector3(i * K + K / 2f, floor, (nz - iri) * K), 0f);
+                    new Vector3(i * K + K / 2f, y, (nz - iri) * K), 0f);
             }
         }
 
         // 妻側 — 白壁(身舎の範囲)。入側の端は開けて廊下を通す
         for (int j = iri; j < nz - iri; j++)
         {
-            Put(EdoAssets.Goten.WallPlaster, g.transform,
-                new Vector3(0f, floor, j * K + K / 2f), 90f);
-            Put(EdoAssets.Goten.WallPlaster, g.transform,
-                new Vector3(W, floor, j * K + K / 2f), 270f);
+            if (!isOpen(openBaysWest, j))
+                Put(EdoAssets.Goten.WallPlaster, g.transform,
+                    new Vector3(0f, lv(0, false), j * K + K / 2f), 90f);
+            if (!isOpen(openBaysEast, j))
+                Put(EdoAssets.Goten.WallPlaster, g.transform,
+                    new Vector3(W, lv(nx - 1, false), j * K + K / 2f), 270f);
         }
 
         // 柱 — 一間ごとの格子点
@@ -132,6 +154,45 @@ public static class EdoGotenKit
         return g;
     }
 
+    /// <summary>続き間の仕切り = 襖 + 欄間の一列。棟のローカル座標で
+    /// x の柱通りに、z0..z1 間(間数)の範囲へ通す。</summary>
+    public static void Partition(Transform mune, float floor, int ix, int jz0, int jz1)
+    {
+        for (int j = jz0; j < jz1; j++)
+        {
+            var c = new Vector3(ix * K, floor, j * K + K / 2f);
+            Put(EdoAssets.Goten.Fusuma, mune, c, 90f);
+            Put(EdoAssets.Goten.Ranma, mune,
+                c + new Vector3(0f, EdoAssets.Goten.Uchinori, 0f), 90f);
+        }
+    }
+
+    /// <summary>座敷飾り — 上段の間の奥の壁に 床の間・違い棚・帳台構 を並べる。
+    /// wall = 壁面の中心が乗る柱通り、yaw は室内へ向く向き(表=+Z)。3間分を使う。</summary>
+    public static void Zashikikazari(Transform mune, Vector3 origin, float yaw,
+                                     bool tokonoma = true, bool tana = true, bool chodai = true)
+    {
+        var f = Quaternion.Euler(0f, yaw, 0f);
+        int slot = 0;
+        System.Action<string> place = (asset) =>
+        {
+            var lp = origin + f * new Vector3((slot - 1) * K, 0f, 0f);
+            Put(asset, mune, lp, yaw);
+            slot++;
+        };
+        if (tokonoma) place(EdoAssets.Goten.Tokonoma); else slot++;
+        if (tana) place(EdoAssets.Goten.Chigaidana); else slot++;
+        if (chodai) place(EdoAssets.Goten.Chodaigamae); else slot++;
+    }
+
+    /// <summary>上段の間の段(框)。x の柱通りに沿って z0..z1 間へ通す。</summary>
+    public static void Jodan(Transform mune, float floor, int ix, int jz0, int jz1, bool faceMinusX = true)
+    {
+        for (int j = jz0; j < jz1; j++)
+            Put(EdoAssets.Goten.JodanKamachi, mune,
+                new Vector3(ix * K, floor, j * K + K / 2f), faceMinusX ? 270f : 90f);
+    }
+
     [MenuItem("Edo/御殿/部材テスト棟を建てる (8間x5間)")]
     public static void BuildTestMune()
     {
@@ -140,7 +201,14 @@ public static class EdoGotenKit
         var root = new GameObject("GotenKitTest");
         root.transform.position = new Vector3(0f, 300f, 0f);   // 既存の街に干渉しない空中で確認する
         var m = Mune("Mune_Test", root.transform, Vector3.zero, 0f, 8, 3, 1,
-                     0.62f, EdoAssets.Goten.RoofIrimoya);
+                     0.62f, EdoAssets.Goten.RoofIrimoya,
+                     openBaysEast: new[] { 1, 2, 3 },      // 東の妻壁は座敷飾りに明け渡す
+                     jodanFromIx: 5);                      // 東の3間を上段の間にする
+        // 身舎を襖で割る(下段2室 + 上段)
+        Partition(m.transform, 0.62f, 3, 1, 4);
+        Partition(m.transform, 0.62f + JODAN, 5, 1, 4);
+        // 飾りのピボット = 開口面。柱通り(x=W)に置くと床框だけが室内へ出る
+        Zashikikazari(m.transform, new Vector3(8 * K, 0.62f + JODAN, 2.5f * K), 270f);
         Selection.activeGameObject = m;
         Debug.Log("[GotenKit] テスト棟を y=300 に建てた。確認したら GotenKitTest を消してよい");
     }

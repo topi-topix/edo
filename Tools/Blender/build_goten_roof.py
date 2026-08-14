@@ -162,48 +162,6 @@ def gable(x, y0, y1, zb, apex_y, apex_z, name, wall_mat, wood_mat, thick=0.14):
     return [wall] + boards
 
 
-def sample_uv(src_fbx, pick_high=True):
-    """部材のUVから代表点を1つ取る。新造ジオメトリ(棟・破風・妻壁)は
-    アトラス内の狙った領域に**一点で**貼る — 平面投影するとアトラスを跨いで柄が混ざる。
-    pick_high=True で上部の面(wall C なら漆喰、瓦なら平部)を選ぶ。"""
-    objs = V.imp(src_fbx)
-    o = objs[0]
-    me = o.data
-    uvl = me.uv_layers.active.data
-    zs = [p.center.z for p in me.polygons]
-    lo, hi = min(zs), max(zs)
-    thr = lo + (hi - lo) * (0.65 if pick_high else 0.15)
-    sel_p = [p for p in me.polygons if (p.center.z > thr if pick_high else p.center.z < thr)]
-    sel_p = sel_p or list(me.polygons)
-    # ⚠ 複数面のUVを平均するとアトラスの別領域(腰板など)に落ちる。最大面1枚だけ見る
-    sel_p = [max(sel_p, key=lambda p: p.area)]
-    us = [uvl[li].uv for p in sel_p for li in p.loop_indices]
-    uv = (sum(u[0] for u in us) / len(us), sum(u[1] for u in us) / len(us))
-    for ob in objs:
-        bpy.data.objects.remove(ob, do_unlink=True)
-    return uv
-
-
-def set_uv(obj, uv):
-    me = obj.data
-    if not me.uv_layers:
-        me.uv_layers.new(name="UVMap")
-    for d in me.uv_layers.active.data:
-        d.uv = uv
-
-
-def borrow_material(src_fbx, mat_name):
-    """部材を一度読んでマテリアルだけ取り、オブジェクトは捨てる"""
-    m = bpy.data.materials.get(mat_name)
-    if m:
-        return m
-    objs = V.imp(src_fbx)
-    m = bpy.data.materials.get(mat_name)
-    for o in objs:
-        bpy.data.objects.remove(o, do_unlink=True)
-    return m
-
-
 def make_irimoya(W, D, name="Goten_Roof", eave=0.90, gable_frac=0.45):
     """W=桁行(X) D=梁間(Y) の棟に入母屋屋根を架ける。返り値=1メッシュ"""
     Wp, Dp = W + 2 * eave, D + 2 * eave
@@ -231,13 +189,13 @@ def make_irimoya(W, D, name="Goten_Roof", eave=0.90, gable_frac=0.45):
                              P(Wp, 0), 180, 0.0, name + "_E"))
 
     # 破風・妻壁のマテリアルは Village Kit から借りる(名前を保つと Unity 側で既存 .mat に当たる)
-    m_wood = borrow_material("Walls and floors/column A.fbx", "wood")
-    m_wall = borrow_material("Walls and floors/wall C.fbx", "wall C")
+    m_wood = V.borrow_material("Walls and floors/column A.fbx", "wood")
+    m_wall = V.borrow_material("Walls and floors/wall C.fbx", "wall C")
     m_roof = {m.name: m for m in bpy.data.materials}.get('roof')
 
-    uv_roof = sample_uv(MOD, pick_high=True)
-    uv_wall = sample_uv("Walls and floors/wall C.fbx", pick_high=True)     # 漆喰
-    uv_wood = sample_uv("Walls and floors/column A.fbx", pick_high=True)
+    uv_roof = V.sample_uv(MOD, pick_high=True)
+    uv_wall = V.sample_uv("Walls and floors/wall C.fbx", pick_high=True)     # 漆喰
+    uv_wood = V.sample_uv("Walls and floors/column A.fbx", pick_high=True)
 
     new_geo = []
     # 大棟
@@ -256,7 +214,7 @@ def make_irimoya(W, D, name="Goten_Roof", eave=0.90, gable_frac=0.45):
 
     for o, uv in new_geo:
         if o:
-            set_uv(o, uv)
+            V.set_uv(o, uv)
             pieces.append(o)
 
     pieces = [p for p in pieces if p]

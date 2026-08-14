@@ -179,6 +179,103 @@ def set_origin(o, point):
     bpy.context.scene.cursor.location = (0, 0, 0)
 
 
+def borrow_material(src_fbx, mat_name):
+    """部材を一度読んでマテリアルだけ取り、オブジェクトは捨てる。
+    新規マテリアルを作らずキットのものを使い回すため(リアルさを既存建物と揃える)"""
+    m = bpy.data.materials.get(mat_name)
+    if m:
+        return m
+    objs = imp(src_fbx)
+    m = bpy.data.materials.get(mat_name)
+    for o in objs:
+        bpy.data.objects.remove(o, do_unlink=True)
+    return m
+
+
+def sample_uv(src_fbx, pick_high=True):
+    """部材のUVから代表点を1つ取る。新造ジオメトリはアトラス内の狙った領域に**一点で**貼る
+    — 平面投影するとアトラスを跨いで柄が混ざる。
+    ⚠ 複数面のUVを平均すると別領域(腰板など)に落ちる。最大面1枚だけ見る。"""
+    objs = imp(src_fbx)
+    me = objs[0].data
+    uvl = me.uv_layers.active.data
+    zs = [p.center.z for p in me.polygons]
+    lo, hi = min(zs), max(zs)
+    thr = lo + (hi - lo) * (0.65 if pick_high else 0.15)
+    cand = [p for p in me.polygons
+            if (p.center.z > thr if pick_high else p.center.z < thr)] or list(me.polygons)
+    p = max(cand, key=lambda q: q.area)
+    us = [uvl[li].uv for li in p.loop_indices]
+    uv = (sum(u[0] for u in us) / len(us), sum(u[1] for u in us) / len(us))
+    for o in objs:
+        bpy.data.objects.remove(o, do_unlink=True)
+    return uv
+
+
+def sample_uv_bright(src_fbx, mat_name=None, want='bright'):
+    """アトラスから「明るい面(紙・漆喰)」または「暗い面(漆・腰板)」の代表UVを取る。
+    ⚠ 高さで選ぶ sample_uv は当てが外れる(door wall の上部を取ったら襖が真っ黒になった)。
+       実際にアルベド画像を読んで、面の中心UVの明るさで選ぶ。"""
+    import numpy as np
+    objs = imp(src_fbx)
+    me = objs[0].data
+    uvl = me.uv_layers.active.data
+    base = (mat_name or me.materials[0].name).split('.')[0]
+    base = {"roof ornaments": "roof ornament"}.get(base, base)
+    path = os.path.join(TEX, base + "_AlbedoTransparency.png")
+    if not os.path.exists(path):
+        path = os.path.join(TEX, base + "_Albedo.png")
+    img = bpy.data.images.load(path, check_existing=True)
+    w, h = img.size
+    buf = np.empty(w * h * 4, dtype=np.float32)
+    img.pixels.foreach_get(buf)
+    buf = buf.reshape(h, w, 4)
+    best, best_score = None, None
+    for p in me.polygons:
+        us = [uvl[li].uv for li in p.loop_indices]
+        u = sum(q[0] for q in us) / len(us)
+        v = sum(q[1] for q in us) / len(us)
+        px = int(min(max(u, 0.0), 0.999) * (w - 1))
+        py = int(min(max(v, 0.0), 0.999) * (h - 1))
+        lum = float(buf[py, px, :3].mean())
+        score = (lum if want == 'bright' else (1.0 - lum)) * (p.area ** 0.25)
+        if best_score is None or score > best_score:
+            best_score, best = score, (u, v)
+    for o in objs:
+        bpy.data.objects.remove(o, do_unlink=True)
+    return best
+
+
+def set_uv(obj, uv):
+    me = obj.data
+    if not me.uv_layers:
+        me.uv_layers.new(name="UVMap")
+    for d in me.uv_layers.active.data:
+        d.uv = uv
+
+
+def box(name, size, center, mat=None, uv=None):
+    """軸平行の直方体。size/center は (x,y,z)"""
+    sx, sy, sz = (s / 2.0 for s in size)
+    cx, cy, cz = center
+    v = [(cx - sx, cy - sy, cz - sz), (cx + sx, cy - sy, cz - sz),
+         (cx + sx, cy + sy, cz - sz), (cx - sx, cy + sy, cz - sz),
+         (cx - sx, cy - sy, cz + sz), (cx + sx, cy - sy, cz + sz),
+         (cx + sx, cy + sy, cz + sz), (cx - sx, cy + sy, cz + sz)]
+    f = [[3, 2, 1, 0], [4, 5, 6, 7], [0, 1, 5, 4],
+         [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
+    me = bpy.data.meshes.new(name)
+    me.from_pydata([mathutils.Vector(x) for x in v], [], f)
+    me.update()
+    o = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(o)
+    if mat:
+        o.data.materials.append(mat)
+    if uv:
+        set_uv(o, uv)
+    return o
+
+
 def export_fbx(objs, path):
     """Unity 向け FBX 書き出し。マテリアル名は Village Kit のまま残すので
     Unity 側で既存の .mat に Search&Remap できる。"""

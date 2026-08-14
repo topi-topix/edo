@@ -59,7 +59,7 @@ Unity 6000.5 では SDK 内の `EntityId` 周りに 1ファイルのパッチが
 
 ### 3. Unity 生成物
 
-`Library/`, `Temp/`, `Logs/`, `UserSettings/`, `Assets/Screenshots/` は除外しています。
+`Library/`, `Temp/`, `Logs/`, `UserSettings/`, `Screenshots/`(Assets の外に移動)は除外しています。
 
 ## セットアップ手順
 

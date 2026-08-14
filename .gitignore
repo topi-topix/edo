@@ -45,8 +45,8 @@ mono_crash.*.json
 *.app
 
 # ---- Editor capture output (not project assets) ----
-/[Aa]ssets/[Ss]creenshots/
-/[Aa]ssets/[Ss]creenshots.meta
+# Assets/ の外に置いている(1GB のスクショを Unity に import させないため)
+/[Ss]creenshots/
 
 # ---- macOS ----
 .DS_Store

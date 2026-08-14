@@ -3,7 +3,7 @@
 **「〜を再現して」と言われたら、フォルダを掘る前にここを見る。**
 無い物を無いと即答するためのリストでもある(→ §9)。
 
-- 全 2,682 点の生データ: [`asset-index.tsv`](asset-index.tsv)(1行1アセット・タブ区切り)
+- 全 2,681 点の生データ: [`asset-index.tsv`](asset-index.tsv)(1行1アセット・タブ区切り)
 - フォルダ別の件数: [`asset-index-summary.md`](asset-index-summary.md)
 - 再生成: Unity で **Edo ▸ アセット目録 ▸ 目録を再生成**
   (`Assets/Edo/Scripts/Editor/EdoAssetCatalog.cs`)
@@ -18,6 +18,9 @@
 3. **`Meshes/` でなく `Prefabs/` を置く。** Japanese Castle / Village Kit は同じ物が
    `Meshes/*.fbx` と `Prefabs/*.prefab` に二重にある(目録の件数が倍なのはこのため)。
    マテリアルが付いているのはプレハブ側。
+
+なお **4パックのデモシーンは削除済み**(2026-08-14)。プレハブ本体は残っているので配置には影響しない。
+再 import すると戻るが、また消してよい。
 
 grep の例:
 

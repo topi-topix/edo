@@ -13,7 +13,7 @@ using UnityEngine;
 public static class EdoShiomizakaRebuild
 {
     const string GROUP = "Edo_Shiomizaka";
-    const string P_STEP = "Assets/Edo/Models/Shiomizaka/P_DanishiStep2m.prefab";
+    const string P_STEP = EdoAssets.Own.DanishiStep;
     const string MESH_PATH = "Assets/Edo/Models/Shiomizaka/ShiomizakaRoad.asset";
 
     // ---- フレーム ----

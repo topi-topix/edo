@@ -14,18 +14,18 @@ using UnityEngine;
 public static class EdoNishiTameikeBuilder
 {
     // ---------- assets ----------
-    const string PKnagayaC = "Assets/edogoyomi/es_knagaya/knagaya01c.obj";
-    const string PKnagayaL = "Assets/edogoyomi/es_knagaya/knagaya01l.obj";
-    const string PKnagayaR = "Assets/edogoyomi/es_knagaya/knagaya01r.obj";
-    const string PHei = "Assets/edogoyomi/es_dobei/s_hei_center.obj";
-    const string PHmon = "Assets/edogoyomi/es_hmon/h_mon.obj";
-    const string PNmon = "Assets/edogoyomi/es_nmon/nagayamon.obj";
-    const string PBansho = "Assets/edogoyomi/es_dbansho/dbansho.obj";
-    const string PKura = "Assets/edogoyomi/es_kura/kura.obj";
-    const string PHouse = "Assets/Japanese Village Kit/Prefabs/House.prefab";
-    const string PHouseB = "Assets/Japanese Village Kit/Prefabs/House B.prefab";
-    const string PSmallHouse = "Assets/Japanese Village Kit/Prefabs/Small House.prefab";
-    const string PBigHouse = "Assets/Japanese Village Kit/Prefabs/Big House.prefab";
+    const string PKnagayaC = EdoAssets.Eg.KnagayaC;
+    const string PKnagayaL = EdoAssets.Eg.KnagayaL;
+    const string PKnagayaR = EdoAssets.Eg.KnagayaR;
+    const string PHei = EdoAssets.Eg.DobeiCenter;
+    const string PHmon = EdoAssets.Eg.Hmon;
+    const string PNmon = EdoAssets.Eg.Nagayamon;
+    const string PBansho = EdoAssets.Eg.Bansho;
+    const string PKura = EdoAssets.Eg.Kura;
+    const string PHouse = EdoAssets.VK.House;
+    const string PHouseB = EdoAssets.VK.HouseB;
+    const string PSmallHouse = EdoAssets.VK.SmallHouse;
+    const string PBigHouse = EdoAssets.VK.BigHouse;
     const float ES = 1.818f; // edogoyomi scale
     const float PITCH = 7.81f;
 
@@ -749,24 +749,24 @@ public static class EdoNishiTameikeBuilder
 
     // ---------- Stage 4: garden ----------
     static string[] Pines = {
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_01.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_02.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_03.prefab" };
+        EdoAssets.JG.PineBig01,
+        EdoAssets.JG.PineBig02,
+        EdoAssets.JG.PineBig03 };
     static string[] Sakuras = {
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Big_Summer_01.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Big_Summer_05.prefab" };
+        EdoAssets.JG.SakuraBig01,
+        EdoAssets.JG.SakuraBig05 };
     static string[] Shrubs = {
-        "Assets/Japanese Castle/Prefabs/Foliage/Azalea A 01.prefab",
-        "Assets/Japanese Castle/Prefabs/Foliage/Azalea A 03.prefab",
-        "Assets/Japanese Castle/Prefabs/Foliage/Azalea A 04.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Plant_Boxwood_Spring_01.prefab" };
+        EdoAssets.JC.Azalea01,
+        EdoAssets.JC.Azalea03,
+        EdoAssets.JC.Azalea04,
+        EdoAssets.JG.Boxwood01 };
     static string[] Rocks = {
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_Rock_A_01.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_Rock_A_02.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_Rock_A_03.prefab" };
-    const string PTobi = "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_TobiIshi_A_01.prefab";
-    const string PKasuga = "Assets/Edo/Prefabs/KasugaLantern.prefab";
-    const string PYukimi = "Assets/Edo/Prefabs/YukimiLantern.prefab";
+        EdoAssets.JG.Rock01,
+        EdoAssets.JG.Rock02,
+        EdoAssets.JG.Rock03 };
+    const string PTobi = EdoAssets.JG.TobiIshi01;
+    const string PKasuga = EdoAssets.Own.KasugaLantern;
+    const string PYukimi = EdoAssets.Own.YukimiLantern;
 
     // ガーデンゾーン: 敷地内で建物/壁から離れた点にランダム植栽
     public static string Stage4_Garden(string groupName, int seed)
@@ -913,7 +913,7 @@ public static class EdoNishiTameikeBuilder
             if (!clear(p, 1.5f)) continue;
             float y = PadAt(e, p);
             string lp = (i % 2 == 0) ? PKasuga : PYukimi;
-            if (AssetDatabase.LoadAssetAtPath<GameObject>(lp) == null) lp = "Assets/Japanese Castle/Prefabs/Props/Stone Basket.prefab";
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(lp) == null) lp = EdoAssets.JC.StoneBasket;
             var go = Place(lp, new Vector3(p.x, y, p.y), (float)rnd.NextDouble() * 360f, Vector3.one * 1.35f, props, "Lantern_" + i);
             SeatBottom(go, y - 0.03f);
             i++;

@@ -20,10 +20,10 @@ using UnityEngine;
 public static class EdoShinmachiBuilder
 {
     const float ES = 1.818f;
-    const string PShop01 = "Assets/edogoyomi/es_shop01/shop01.obj";
-    const string PShop02 = "Assets/edogoyomi/es_shop02/shop02.obj";
-    const string PSmallHouse = "Assets/Japanese Village Kit/Prefabs/Small House.prefab";
-    const string PBanya = "Assets/edogoyomi/es_kidobanya/kidobanya.obj";
+    const string PShop01 = EdoAssets.Eg.Shop01;
+    const string PShop02 = EdoAssets.Eg.Shop02;
+    const string PSmallHouse = EdoAssets.VK.SmallHouse;
+    const string PBanya = EdoAssets.Eg.Kidobanya;
 
     // ---- 下書きポリゴン(スケッチ世界座標XZ) ----
     static readonly Vector2[] CY = { new Vector2(-885.87f,1153.45f), new Vector2(-929.56f,1124.32f), new Vector2(-892.20f,1031.23f), new Vector2(-848.51f,1048.33f) };
@@ -216,9 +216,9 @@ public static class EdoShinmachiBuilder
     public static string Stage1_Build()
     {
         var sb = new System.Text.StringBuilder();
-        var mS1 = AssetDatabase.LoadAssetAtPath<Material>("Assets/Edo/Materials/M_Shop01.mat");
-        var mS2 = AssetDatabase.LoadAssetAtPath<Material>("Assets/Edo/Materials/M_Shop02.mat");
-        var mBanya = AssetDatabase.LoadAssetAtPath<Material>("Assets/Edo/Materials/M_Kidobanya.mat");
+        var mS1 = AssetDatabase.LoadAssetAtPath<Material>(EdoAssets.Own.MShop01);
+        var mS2 = AssetDatabase.LoadAssetAtPath<Material>(EdoAssets.Own.MShop02);
+        var mBanya = AssetDatabase.LoadAssetAtPath<Material>(EdoAssets.Own.MKidobanya);
         var wood = new Material(Shader.Find("Universal Render Pipeline/Lit")); wood.color = new Color(0.42f, 0.31f, 0.20f);
         var stone = new Material(Shader.Find("Universal Render Pipeline/Lit")); stone.color = new Color(0.55f, 0.55f, 0.52f);
 

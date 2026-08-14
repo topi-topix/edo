@@ -60,32 +60,32 @@ using UnityEngine;
 
 public static class EdoSanbezakaBuilder
 {
-    public const string PNmon = "Assets/edogoyomi/es_nmon/nagayamon.obj";
-    public const string PHmon = "Assets/edogoyomi/es_hmon/h_mon.obj";
-    public const string PKabuki = "Assets/edogoyomi/es_kabukimon/kabukimon.obj";
-    public const string PBansho = "Assets/edogoyomi/es_dbansho/dbansho.obj";
-    public const string PKura = "Assets/edogoyomi/es_kura/kura.obj";
-    const string PShop01 = "Assets/edogoyomi/es_shop01/shop01.obj";
-    const string PShop02 = "Assets/edogoyomi/es_shop02/shop02.obj";
-    const string PItabei5 = "Assets/edogoyomi/obj_itabei/itabei5.obj";
-    public const string PKnagayaL = "Assets/edogoyomi/es_knagaya/knagaya01l.obj";
-    public const string PKnagayaR = "Assets/edogoyomi/es_knagaya/knagaya01r.obj";
-    public const string PHouse = "Assets/Japanese Village Kit/Prefabs/House.prefab";
-    public const string PHouseB = "Assets/Japanese Village Kit/Prefabs/House B.prefab";
-    public const string PSmallHouse = "Assets/Japanese Village Kit/Prefabs/Small House.prefab";
-    public const string PBigHouse = "Assets/Japanese Village Kit/Prefabs/Big House.prefab";
+    public const string PNmon = EdoAssets.Eg.Nagayamon;
+    public const string PHmon = EdoAssets.Eg.Hmon;
+    public const string PKabuki = EdoAssets.Eg.Kabukimon;
+    public const string PBansho = EdoAssets.Eg.Bansho;
+    public const string PKura = EdoAssets.Eg.Kura;
+    const string PShop01 = EdoAssets.Eg.Shop01;
+    const string PShop02 = EdoAssets.Eg.Shop02;
+    const string PItabei5 = EdoAssets.Eg.Itabei5;
+    public const string PKnagayaL = EdoAssets.Eg.KnagayaL;
+    public const string PKnagayaR = EdoAssets.Eg.KnagayaR;
+    public const string PHouse = EdoAssets.VK.House;
+    public const string PHouseB = EdoAssets.VK.HouseB;
+    public const string PSmallHouse = EdoAssets.VK.SmallHouse;
+    public const string PBigHouse = EdoAssets.VK.BigHouse;
     static string[] Pines = {
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_01.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_02.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_03.prefab" };
+        EdoAssets.JG.PineBig01,
+        EdoAssets.JG.PineBig02,
+        EdoAssets.JG.PineBig03 };
     static string[] Shrubs = {
-        "Assets/Japanese Castle/Prefabs/Foliage/Azalea A 01.prefab",
-        "Assets/Japanese Castle/Prefabs/Foliage/Azalea A 03.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Plant_Boxwood_Spring_01.prefab" };
+        EdoAssets.JC.Azalea01,
+        EdoAssets.JC.Azalea03,
+        EdoAssets.JG.Boxwood01 };
     static string[] Bamboo = {
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Big_Green_01.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Big_Green_02.prefab" };
-    public const string PTobi = "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_TobiIshi_A_01.prefab";
+        EdoAssets.JG.BambooBig01,
+        EdoAssets.JG.BambooBig02 };
+    public const string PTobi = EdoAssets.JG.TobiIshi01;
     public const float ES = 1.818f;
 
     // ---------- 参道(山王坂)軸: EdoSannoBukeBuilder.SANDO_AXIS と同一 ----------
@@ -410,8 +410,8 @@ public static class EdoSanbezakaBuilder
         EdoNishiTameikeBuilder.NaturalMode = true;
         var root = Group(G, "");
         if (root.Find("MonzenS_0") != null) return "SKIP Monzencho";
-        var mS1 = MonzenMat("M_Shop01", "Assets/edogoyomi/es_shop01/shop01.jpg");
-        var mS2 = MonzenMat("M_Shop02", "Assets/edogoyomi/es_shop02/shop02.jpg");
+        var mS1 = MonzenMat("M_Shop01", EdoAssets.Eg.TexShop01);
+        var mS2 = MonzenMat("M_Shop02", EdoAssets.Eg.TexShop02);
         // 支障並木を無効化: 北列は全部(五島塀/町屋帯の内側に立つ)、南列は町屋帯区間のみ
         var sha = GameObject.Find("Edo_Sanno_Sha");
         int off = 0;

@@ -24,27 +24,27 @@ using UnityEngine;
 
 public static class EdoSannoKitaBuilder
 {
-    const string PKmon = "Assets/edogoyomi/es_kmon/k_mon.obj";
-    const string PNmon = "Assets/edogoyomi/es_nmon/nagayamon.obj";
-    const string PBansho = "Assets/edogoyomi/es_dbansho/dbansho.obj";
-    const string PKura = "Assets/edogoyomi/es_kura/kura.obj";
-    const string PHouse = "Assets/Japanese Village Kit/Prefabs/House.prefab";
-    const string PHouseB = "Assets/Japanese Village Kit/Prefabs/House B.prefab";
-    const string PSmallHouse = "Assets/Japanese Village Kit/Prefabs/Small House.prefab";
-    const string PBigHouse = "Assets/Japanese Village Kit/Prefabs/Big House.prefab";
-    const string PManor = "Assets/Japanese Village Kit/Prefabs/Manor.prefab";
+    const string PKmon = EdoAssets.Eg.Kmon;
+    const string PNmon = EdoAssets.Eg.Nagayamon;
+    const string PBansho = EdoAssets.Eg.Bansho;
+    const string PKura = EdoAssets.Eg.Kura;
+    const string PHouse = EdoAssets.VK.House;
+    const string PHouseB = EdoAssets.VK.HouseB;
+    const string PSmallHouse = EdoAssets.VK.SmallHouse;
+    const string PBigHouse = EdoAssets.VK.BigHouse;
+    const string PManor = EdoAssets.VK.Manor;
     static string[] Pines = {
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_01.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_02.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_03.prefab" };
+        EdoAssets.JG.PineBig01,
+        EdoAssets.JG.PineBig02,
+        EdoAssets.JG.PineBig03 };
     static string[] Shrubs = {
-        "Assets/Japanese Castle/Prefabs/Foliage/Azalea A 01.prefab",
-        "Assets/Japanese Castle/Prefabs/Foliage/Azalea A 03.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Plant_Boxwood_Spring_01.prefab" };
+        EdoAssets.JC.Azalea01,
+        EdoAssets.JC.Azalea03,
+        EdoAssets.JG.Boxwood01 };
     static string[] Bamboo = {
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Big_Green_01.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Big_Green_02.prefab" };
-    const string PTobi = "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_TobiIshi_A_01.prefab";
+        EdoAssets.JG.BambooBig01,
+        EdoAssets.JG.BambooBig02 };
+    const string PTobi = EdoAssets.JG.TobiIshi01;
     public const float ES = 1.818f;
 
     // ---------- 区画(下書きスナップ済 2026-08-12) ----------
@@ -527,13 +527,13 @@ public static class EdoSannoKitaBuilder
             CenterSeat(kr, -560f - i * 9f, 1195f);
         }
         // 家臣長屋 2組(定府家臣)
-        var n1 = Place("Assets/edogoyomi/es_knagaya/knagaya01l.obj", Vector3.zero, 0f, Vector3.one * ES, bg, "KashinNagaya_A_L");
+        var n1 = Place(EdoAssets.Eg.KnagayaL, Vector3.zero, 0f, Vector3.one * ES, bg, "KashinNagaya_A_L");
         CenterSeat(n1, -545f, 1272f);
-        var n2 = Place("Assets/edogoyomi/es_knagaya/knagaya01r.obj", Vector3.zero, 0f, Vector3.one * ES, bg, "KashinNagaya_A_R");
+        var n2 = Place(EdoAssets.Eg.KnagayaR, Vector3.zero, 0f, Vector3.one * ES, bg, "KashinNagaya_A_R");
         CenterSeat(n2, -537.2f, 1272f);
-        var n3 = Place("Assets/edogoyomi/es_knagaya/knagaya01l.obj", Vector3.zero, 90f, Vector3.one * ES, bg, "KashinNagaya_B_L");
+        var n3 = Place(EdoAssets.Eg.KnagayaL, Vector3.zero, 90f, Vector3.one * ES, bg, "KashinNagaya_B_L");
         CenterSeat(n3, -510f, 1240f);
-        var n4 = Place("Assets/edogoyomi/es_knagaya/knagaya01r.obj", Vector3.zero, 90f, Vector3.one * ES, bg, "KashinNagaya_B_R");
+        var n4 = Place(EdoAssets.Eg.KnagayaR, Vector3.zero, 90f, Vector3.one * ES, bg, "KashinNagaya_B_R");
         CenterSeat(n4, -510f, 1232.2f);
         Well(bg, -672f, 1185f);
         // 庭: 台地=松・刈込 / 西斜面(溜池を望む)=竹林+松

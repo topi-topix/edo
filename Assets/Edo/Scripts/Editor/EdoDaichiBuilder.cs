@@ -241,18 +241,18 @@ public static class EdoDaichiBuilder
         if (!PIP(poly, A + axis * (len * 0.5f) + inw * 5f)) inw = -inw;
         Vector2 outw = -inw;
         float ryFace = Mathf.Atan2(outw.x, outw.y) * Mathf.Rad2Deg;
-        var mS1 = Mat("M_Shop01", "Assets/edogoyomi/es_shop01/shop01.jpg");
-        var mS2 = Mat("M_Shop02", "Assets/edogoyomi/es_shop02/shop02.jpg");
-        var mOke = Mat("M_Oke", "Assets/edogoyomi/es_shop01/oke.jpg");
-        var mTaru = Mat("M_Komodaru", "Assets/edogoyomi/es_shop01/komodaru.jpg");
+        var mS1 = Mat("M_Shop01", EdoAssets.Eg.TexShop01);
+        var mS2 = Mat("M_Shop02", EdoAssets.Eg.TexShop02);
+        var mOke = Mat("M_Oke", EdoAssets.Eg.TexOke);
+        var mTaru = Mat("M_Komodaru", EdoAssets.Eg.TexKomodaru);
         int made = 0; float tcur = t0 + 1.2f; int pi = 0;
         while (true)
         {
             string kind = pattern[pi % pattern.Length]; pi++;
             float wLot; string path; float sc; Material mat = null;
-            if (kind == "SH") { path = "Assets/Japanese Village Kit/Prefabs/Small House.prefab"; wLot = 15.0f; sc = 1f; }
-            else if (kind == "S2") { path = "Assets/edogoyomi/es_shop02/shop02.obj"; wLot = 7.4f; sc = ES; mat = mS2; }
-            else { path = "Assets/edogoyomi/es_shop01/shop01.obj"; wLot = 5.2f; sc = ES; mat = mS1; }
+            if (kind == "SH") { path = EdoAssets.VK.SmallHouse; wLot = 15.0f; sc = 1f; }
+            else if (kind == "S2") { path = EdoAssets.Eg.Shop02; wLot = 7.4f; sc = ES; mat = mS2; }
+            else { path = EdoAssets.Eg.Shop01; wLot = 5.2f; sc = ES; mat = mS1; }
             if (tcur + wLot > t1 - 0.8f) break;
             var asset = AssetDatabase.LoadAssetAtPath<GameObject>(path);
             var go = (GameObject)PrefabUtility.InstantiatePrefab(asset);
@@ -278,7 +278,7 @@ public static class EdoDaichiBuilder
             // 店先の樽・桶(小店の脇にたまに)
             if (kind == "S2" && rnd.NextDouble() < 0.5)
             {
-                string pp = rnd.NextDouble() < 0.5 ? "Assets/edogoyomi/es_shop01/s01_taru.obj" : "Assets/edogoyomi/es_shop01/oke.obj";
+                string pp = rnd.NextDouble() < 0.5 ? EdoAssets.Eg.Shop01Taru : EdoAssets.Eg.Shop01Oke;
                 var pa = AssetDatabase.LoadAssetAtPath<GameObject>(pp);
                 if (pa != null)
                 {
@@ -330,8 +330,8 @@ public static class EdoDaichiBuilder
         }
         // 草花植付地: 低い下草・刈込を裏縁に
         string[] plants = {
-            "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Plant_Boxwood_Spring_01.prefab",
-            "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/PaintedFern/Plant_PaintedFern_Spring_01.prefab" };
+            EdoAssets.JG.Boxwood01,
+            EdoAssets.JG.Fern01 };
         int nPl = Mathf.Max(2, Mathf.RoundToInt((t1 - t0) / 7f));
         for (int i = 0; i < nPl; i++)
         {

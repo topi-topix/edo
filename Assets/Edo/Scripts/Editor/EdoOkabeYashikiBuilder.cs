@@ -46,7 +46,7 @@ public static class EdoOkabeYashikiBuilder
     const float ES = 1.818f;
     const float CUT_MAX = 5.5f, FILL_MAX = 5.0f;
     // 表門 = 冠木門形式の k_mon(EdoSanbezakaBuilder には無い)
-    const string PKmon = "Assets/edogoyomi/es_kmon/k_mon.obj";
+    const string PKmon = EdoAssets.Eg.Kmon;
 
     // ---------- 段(平場)の定義: x範囲 / z範囲 / 高さ ----------
     public struct Terr { public float x0, x1, z0, z1, y; public string name; }
@@ -129,23 +129,23 @@ public static class EdoOkabeYashikiBuilder
 
     static string BAK = "/private/tmp/claude-501/-Users-toshio-project-edo-unity/"
         + "0481f3c6-e686-419e-90e8-8fbaf448079d/scratchpad/okabe_v3_backup.bin";
-    const string PFloor = "Assets/Japanese Village Kit/Prefabs/Walls and floors/floor interior 2x2.prefab";
-    const string PCol = "Assets/Japanese Village Kit/Prefabs/Walls and floors/column A .prefab";
-    const string PRoof = "Assets/Japanese Village Kit/Prefabs/Roofs/roof 2x8.prefab";
-    const string PRoofEnd = "Assets/Japanese Village Kit/Prefabs/Roofs/roof end 2x1.prefab";
-    const string PStep = "Assets/Edo/Models/Shiomizaka/P_DanishiStep2m.prefab";
-    const string PKnagayaC = "Assets/edogoyomi/es_knagaya/knagaya01c.obj";
+    const string PFloor = EdoAssets.VK.FloorInterior2x2;
+    const string PCol = EdoAssets.VK.ColumnA;
+    const string PRoof = EdoAssets.VK.Roof2x8;
+    const string PRoofEnd = EdoAssets.VK.RoofEnd2x1;
+    const string PStep = EdoAssets.Own.DanishiStep;
+    const string PKnagayaC = EdoAssets.Eg.KnagayaC;
     static string[] Pines = {
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_01.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_02.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_03.prefab" };
+        EdoAssets.JG.PineBig01,
+        EdoAssets.JG.PineBig02,
+        EdoAssets.JG.PineBig03 };
     static string[] Shrubs = {
-        "Assets/Japanese Castle/Prefabs/Foliage/Azalea A 01.prefab",
-        "Assets/Japanese Castle/Prefabs/Foliage/Azalea A 03.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Plant_Boxwood_Spring_01.prefab" };
+        EdoAssets.JC.Azalea01,
+        EdoAssets.JC.Azalea03,
+        EdoAssets.JG.Boxwood01 };
     static string[] Bamboo = {
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Big_Green_01.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Big_Green_02.prefab" };
+        EdoAssets.JG.BambooBig01,
+        EdoAssets.JG.BambooBig02 };
 
     static float G(float x, float z) { return B.Ground(x, z); }
     static Transform Grp(string n) { return B.Group(GN, n); }
@@ -332,7 +332,7 @@ public static class EdoOkabeYashikiBuilder
     //   unity-modular-stonewall §2/§3: ピッチ1.800(0.20重ね) / 1本の壁に position.y と scale.y は1値ずつ /
     //   coping = position.y + 4.0*scale.y / 躯体2.4mは走りの左(local -X)に出る。
     // =========================================================================
-    const string P_CW = "Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Castle Wall.prefab";
+    const string P_CW = EdoAssets.JC.CastleWall;
     public static string Stage4b_Ishigaki()
     {
         var ig = Grp("Ishigaki"); Clear(ig);

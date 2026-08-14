@@ -16,12 +16,12 @@ using UnityEngine;
 public static class EdoTamachi5EastBuilder
 {
     const float ES = 1.818f;
-    const string PShop01 = "Assets/edogoyomi/es_shop01/shop01.obj";
-    const string PShop02 = "Assets/edogoyomi/es_shop02/shop02.obj";
-    const string PSmallHouse = "Assets/Japanese Village Kit/Prefabs/Small House.prefab";
-    const string PHouse = "Assets/Japanese Village Kit/Prefabs/House.prefab";
-    const string PKura = "Assets/edogoyomi/es_kura/kura.obj";
-    const string PKabukimon = "Assets/edogoyomi/es_kabukimon/kabukimon.obj";
+    const string PShop01 = EdoAssets.Eg.Shop01;
+    const string PShop02 = EdoAssets.Eg.Shop02;
+    const string PSmallHouse = EdoAssets.VK.SmallHouse;
+    const string PHouse = EdoAssets.VK.House;
+    const string PKura = EdoAssets.Eg.Kura;
+    const string PKabukimon = EdoAssets.Eg.Kabukimon;
     const string RootName = "Edo_Tamachi5_Higashi";
 
     // ---- 下書きポリゴン(スケッチの世界座標XZをそのまま採用) ----
@@ -193,9 +193,9 @@ public static class EdoTamachi5EastBuilder
     public static string Stage1_Build()
     {
         var sb = new System.Text.StringBuilder();
-        var mS1 = AssetDatabase.LoadAssetAtPath<Material>("Assets/Edo/Materials/M_Shop01.mat");
-        var mS2 = AssetDatabase.LoadAssetAtPath<Material>("Assets/Edo/Materials/M_Shop02.mat");
-        var mKido = AssetDatabase.LoadAssetAtPath<Material>("Assets/Edo/Materials/M_Kido.mat");
+        var mS1 = AssetDatabase.LoadAssetAtPath<Material>(EdoAssets.Own.MShop01);
+        var mS2 = AssetDatabase.LoadAssetAtPath<Material>(EdoAssets.Own.MShop02);
+        var mKido = AssetDatabase.LoadAssetAtPath<Material>(EdoAssets.Own.MKido);
         var wood = new Material(Shader.Find("Universal Render Pipeline/Lit")); wood.color = new Color(0.42f, 0.31f, 0.20f);
         var stone = new Material(Shader.Find("Universal Render Pipeline/Lit")); stone.color = new Color(0.55f, 0.55f, 0.52f);
         var mushiro = new Material(Shader.Find("Universal Render Pipeline/Lit")); mushiro.color = new Color(0.72f, 0.62f, 0.42f);
@@ -318,8 +318,8 @@ public static class EdoTamachi5EastBuilder
             // 帯の内側に櫨並木(スタンドイン=Sakura_Summer)
             var tg = Group("Kaisho/Hazenoki");
             string[] trees = {
-                "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Mid_Summer_01.prefab",
-                "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Mid_Summer_05.prefab" };
+                EdoAssets.JG.SakuraMid01,
+                EdoAssets.JG.SakuraMid05 };
             Vector2 bA = KaishoPoly[6], bB = KaishoPoly[5];             // 帯の西縁に沿って南->北
             Vector2 bAxis = (bB - bA).normalized; float bLen = (bB - bA).magnitude;
             Vector2 bInw = Inward(KaishoPoly, 5) * -1f;                 // 帯の内側(東)へ
@@ -369,7 +369,7 @@ public static class EdoTamachi5EastBuilder
             Well(g, fA + fAxis * (fLen * 0.22f) + fInw * 5.5f, stone);
             // 庭木1本(スタンドイン)
             var pa = AssetDatabase.LoadAssetAtPath<GameObject>(
-                "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Mid_Summer_01.prefab");
+                EdoAssets.JG.SakuraMid01);
             if (pa != null)
             {
                 Vector2 p = fA + fAxis * (fLen * 0.82f) + fInw * 10.5f;

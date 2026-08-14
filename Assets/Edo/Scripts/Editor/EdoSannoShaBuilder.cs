@@ -25,34 +25,34 @@ public static class EdoSannoShaBuilder
     const string GROUP_J = "Edo_Sanno_JugeYashiki"; // 神主樹下邸
     const string GROUP_M = "Edo_Sanno_Monzencho";   // 山王門前町
 
-    const string PYaguramon = "Assets/Japanese Castle/Prefabs/Yaguramon A.prefab";
-    const string PKmon = "Assets/edogoyomi/es_kmon/k_mon.obj";
-    const string PKabuki = "Assets/edogoyomi/es_kabukimon/kabukimon.obj";
-    const string PKura = "Assets/edogoyomi/es_kura/kura.obj";
-    const string PKido = "Assets/edogoyomi/es_kido/kido_open.obj";
-    const string PHouse = "Assets/Japanese Village Kit/Prefabs/House.prefab";
-    const string PHouseB = "Assets/Japanese Village Kit/Prefabs/House B.prefab";
-    const string PSmallHouse = "Assets/Japanese Village Kit/Prefabs/Small House.prefab";
-    const string PShop01 = "Assets/edogoyomi/es_shop01/shop01.obj";
-    const string PShop02 = "Assets/edogoyomi/es_shop02/shop02.obj";
-    const string PItabei5 = "Assets/edogoyomi/obj_itabei/itabei5.obj";
-    const string PBasket = "Assets/Japanese Castle/Prefabs/Props/Stone Basket.prefab";
-    const string PDanishi = "Assets/Edo/Models/Shiomizaka/P_DanishiStep2m.prefab";      // 段石(汐見坂で採用済)
-    const string PMichibata = "Assets/Edo/Models/Shiomizaka/P_MichibataIshi2m.prefab";  // 道端石
-    const string PKasuga = "Assets/Edo/Prefabs/KasugaLantern.prefab";
-    const string PTobi = "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_TobiIshi_A_01.prefab";
+    const string PYaguramon = EdoAssets.JC.YaguramonA;
+    const string PKmon = EdoAssets.Eg.Kmon;
+    const string PKabuki = EdoAssets.Eg.Kabukimon;
+    const string PKura = EdoAssets.Eg.Kura;
+    const string PKido = EdoAssets.Eg.KidoOpen;
+    const string PHouse = EdoAssets.VK.House;
+    const string PHouseB = EdoAssets.VK.HouseB;
+    const string PSmallHouse = EdoAssets.VK.SmallHouse;
+    const string PShop01 = EdoAssets.Eg.Shop01;
+    const string PShop02 = EdoAssets.Eg.Shop02;
+    const string PItabei5 = EdoAssets.Eg.Itabei5;
+    const string PBasket = EdoAssets.JC.StoneBasket;
+    const string PDanishi = EdoAssets.Own.DanishiStep;      // 段石(汐見坂で採用済)
+    const string PMichibata = EdoAssets.Own.MichibataIshi;  // 道端石
+    const string PKasuga = EdoAssets.Own.KasugaLantern;
+    const string PTobi = EdoAssets.JG.TobiIshi01;
     static string[] Pines = {
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_01.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_02.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_03.prefab" };
+        EdoAssets.JG.PineBig01,
+        EdoAssets.JG.PineBig02,
+        EdoAssets.JG.PineBig03 };
     static string[] Shrubs = {
-        "Assets/Japanese Castle/Prefabs/Foliage/Azalea A 01.prefab",
-        "Assets/Japanese Castle/Prefabs/Foliage/Azalea A 03.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Plant_Boxwood_Spring_01.prefab" };
+        EdoAssets.JC.Azalea01,
+        EdoAssets.JC.Azalea03,
+        EdoAssets.JG.Boxwood01 };
     static string[] Rocks = {
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_Rock_A_01.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_Rock_A_02.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_Rock_A_03.prefab" };
+        EdoAssets.JG.Rock01,
+        EdoAssets.JG.Rock02,
+        EdoAssets.JG.Rock03 };
     public const float ES = 1.818f;
 
     // ---- 幾何定数(地形実測 2026-08-11: 山頂平坦面 h≈28 = x[-565,-485] z[800,895]) ----
@@ -655,8 +655,8 @@ public static class EdoSannoShaBuilder
         var exist = GameObject.Find(GROUP_M);
         if (exist != null && exist.transform.childCount > 0) return "SKIP: Monzencho exists";
         var root = Group(GROUP_M, null);
-        var mS1 = MonzenMat("M_Shop01", "Assets/edogoyomi/es_shop01/shop01.jpg");
-        var mS2 = MonzenMat("M_Shop02", "Assets/edogoyomi/es_shop02/shop02.jpg");
+        var mS1 = MonzenMat("M_Shop01", EdoAssets.Eg.TexShop01);
+        var mS2 = MonzenMat("M_Shop02", EdoAssets.Eg.TexShop02);
         int n = 0;
         for (int seg = 0; seg < MONZEN_ROAD.Length - 1; seg++)
         {
@@ -810,8 +810,8 @@ public static class EdoSannoShaBuilder
         var tg = Group(GROUP, "Keidairin");
         var rnd = new System.Random(777);
         string[] bam = {
-            "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Big_Green_01.prefab",
-            "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Big_Green_02.prefab" };
+            EdoAssets.JG.BambooBig01,
+            EdoAssets.JG.BambooBig02 };
         int placed = 0, guard = 0;
         while (placed < 42 && guard++ < 2500)
         {

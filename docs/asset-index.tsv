@@ -4,14 +4,6 @@
 # root_scale: ルート自身の補正スケール(1 でなければ共通ヘルパに Vector3.one を渡すと化ける)
 # shader: BUILTIN = URP でピンクになる。use: S=シーンで使用中 / B=ビルダーが参照
 path	name	pack	kind	sx	sy	sz	pivot_bottom	root_scale	tris	renderers	shader	use
-Assets/Edo/Ishigaki/b24/ishigaki_b24_des_h25.glb	ishigaki_b24_des_h25	Edo	glb	2.59	2.5	2.59	0	1	45128	1	URP	-
-Assets/Edo/Ishigaki/b24/ishigaki_b24_iri_h25.glb	ishigaki_b24_iri_h25	Edo	glb	2.46	2.53	2.46	-0.03	1	40344	1	URP	-
-Assets/Edo/Ishigaki/b24/ishigaki_b24_str_h25.glb	ishigaki_b24_str_h25	Edo	glb	2	2.53	1.69	-0.03	1	20172	1	URP	-
-Assets/Edo/Ishigaki/ishigaki_desumi.glb	ishigaki_desumi	Edo	glb	2.59	2.5	2.59	0	1	45128	1	URP	-
-Assets/Edo/Ishigaki/ishigaki_high.glb	ishigaki_high	Edo	glb	2	5.02	1.93	-0.02	1	40512	1	URP	-
-Assets/Edo/Ishigaki/ishigaki_irizumi.glb	ishigaki_irizumi	Edo	glb	2.2	2.52	2.3	-0.02	1	40344	1	URP	-
-Assets/Edo/Ishigaki/ishigaki_low.glb	ishigaki_low	Edo	glb	2	1.22	0.87	-0.02	1	10812	1	URP	-
-Assets/Edo/Ishigaki/ishigaki_mid.glb	ishigaki_mid	Edo	glb	2	2.52	1.13	-0.02	1	20172	1	URP	-
 Assets/Edo/Models/Dobei/DobeiModule2m.fbx	DobeiModule2m	Edo	fbx	30.97	35	9.91	0	2,0.35,0.5	44	1	URP	-
 Assets/Edo/Models/Dobei/DobeiModule2m_1.fbx	DobeiModule2m_1	Edo	fbx	88.5	100	28.32	0	1	44	1	URP	-
 Assets/Edo/Models/es_hmon/h_mon.obj	h_mon	Edo	obj	8.47	2.81	3.31	-0.99	1	38088	46	URP	-
@@ -20,7 +12,6 @@ Assets/Edo/Models/Shiomizaka/DanishiStep2m.fbx	DanishiStep2m	Edo	fbx	1.98	0.49	0
 Assets/Edo/Models/Shiomizaka/MichibataIshi2m.fbx	MichibataIshi2m	Edo	fbx	2.19	0.69	0.43	-0.68	1	756	1	URP	-
 Assets/Edo/Models/Shiomizaka/P_DanishiStep2m.prefab	P_DanishiStep2m	Edo	prefab	1.98	0.49	0.62	-0.5	1	432	1	URP	SB
 Assets/Edo/Models/Shiomizaka/P_MichibataIshi2m.prefab	P_MichibataIshi2m	Edo	prefab	2.19	0.69	0.43	-0.68	1	756	1	URP	SB
-Assets/Edo/Models/shop01.glb	shop01	Edo	glb	2.71	2.34	2.22	-0.01	1	13136	1	URP	-
 Assets/Edo/Prefabs/KasugaLantern.prefab	KasugaLantern	Edo	prefab	0.74	1.89	0.64	0	1	328	1	URP	SB
 Assets/Edo/Prefabs/Machiya.prefab	Machiya	Edo	prefab	0	0	0	0	1	0	1	URP	-
 Assets/Edo/Prefabs/YukimiLantern.prefab	YukimiLantern	Edo	prefab	0.93	0.87	0.93	-0.01	1	312	1	URP	SB
@@ -93,16 +84,6 @@ Assets/edogoyomi/es_shop01/kakoi.obj	kakoi	edogoyomi	obj	0.26	0.22	0.26	0	1	228	
 Assets/edogoyomi/es_shop01/oke.obj	oke	edogoyomi	obj	0.33	0.31	0.33	0	1	768	1	URP	SB
 Assets/edogoyomi/es_shop01/s01_fuda.obj	s01_fuda	edogoyomi	obj	0.26	0.29	0.01	0.27	1	36	1	URP	-
 Assets/edogoyomi/es_shop01/s01_taru.obj	s01_taru	edogoyomi	obj	0.44	0.45	0.48	0	1	3872	1	URP	SB
-Assets/edogoyomi/es_shop01/shop01-fuda-z.glb	shop01-fuda-z	edogoyomi	glb	0.26	0.01	0.29	0	1	36	1	URP	-
-Assets/edogoyomi/es_shop01/shop01-fuda.glb	shop01-fuda	edogoyomi	glb	0.26	0.29	0.01	0.27	1	36	1	URP	-
-Assets/edogoyomi/es_shop01/shop01-kakoi-z.glb	shop01-kakoi-z	edogoyomi	glb	0.26	0.26	0.22	-0.13	1	228	1	URP	-
-Assets/edogoyomi/es_shop01/shop01-kakoi.glb	shop01-kakoi	edogoyomi	glb	0.26	0.22	0.26	0	1	228	1	URP	-
-Assets/edogoyomi/es_shop01/shop01-oke-z.glb	shop01-oke-z	edogoyomi	glb	0.33	0.33	0.31	-0.17	1	768	1	URP	-
-Assets/edogoyomi/es_shop01/shop01-oke.glb	shop01-oke	edogoyomi	glb	0.33	0.31	0.33	0	1	768	1	URP	-
-Assets/edogoyomi/es_shop01/shop01-taru-z.glb	shop01-taru-z	edogoyomi	glb	0.44	0.48	0.45	-0.24	1	3872	1	URP	-
-Assets/edogoyomi/es_shop01/shop01-taru.glb	shop01-taru	edogoyomi	glb	0.44	0.45	0.48	0	1	3872	1	URP	-
-Assets/edogoyomi/es_shop01/shop01-z.glb	shop01-z	edogoyomi	glb	2.71	2.22	2.34	-1.11	1	13136	1	URP	-
-Assets/edogoyomi/es_shop01/shop01.glb	shop01	edogoyomi	glb	2.71	2.34	2.22	-0.01	1	13136	1	URP	-
 Assets/edogoyomi/es_shop01/shop01.obj	shop01	edogoyomi	obj	2.71	2.34	2.22	-0.01	1	13136	28	URP	SB
 Assets/edogoyomi/es_shop02/shop02.obj	shop02	edogoyomi	obj	3.92	2.58	3.8	0	1	27285	1	URP	SB
 Assets/edogoyomi/obj_hogaki/hogaki.obj	hogaki	edogoyomi	obj	0.83	0.78	0.04	0	1	354	3	URP	-

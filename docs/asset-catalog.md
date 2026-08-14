@@ -3,7 +3,7 @@
 **「〜を再現して」と言われたら、フォルダを掘る前にここを見る。**
 無い物を無いと即答するためのリストでもある(→ §9)。
 
-- 全 2,700 点の生データ: [`asset-index.tsv`](asset-index.tsv)(1行1アセット・タブ区切り)
+- 全 2,681 点の生データ: [`asset-index.tsv`](asset-index.tsv)(1行1アセット・タブ区切り)
 - フォルダ別の件数: [`asset-index-summary.md`](asset-index-summary.md)
 - 再生成: Unity で **Edo ▸ アセット目録 ▸ 目録を再生成**
   (`Assets/Edo/Scripts/Editor/EdoAssetCatalog.cs`)

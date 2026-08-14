@@ -96,7 +96,7 @@ public static class EdoOkabeYashikiBuilder
             S_(88,8,104,28,   25.5f, "Nagatsubone"),
             W_(9,8,25,22,     11.5f, "Katte"),       W_(9,30,25,74,  11.5f, "ShimoGoten"),
             W_(9,80,21,88,    11.5f, "Yudono"),      W_(35,30,51,58, 11.5f, "Jochu"),
-            W_(35,66,46,88,   11.5f, "Goyobeya"),    W_(62,24,74,88, 19.5f, "NagatsuboneW"),
+            W_(35,66,46,88,   11.5f, "Goyobeya"),    W_(64,24,74,88, 19.5f, "NagatsuboneW"),   // 家臣長屋との隙間を取る(bm1 23-24)
         };
     }
     // 渡廊下・外廊下(入側は身舎から自動生成)
@@ -658,7 +658,7 @@ public static class EdoOkabeYashikiBuilder
         {
             var kr = B.Place(B.PKura, Vector3.zero, 90f, Vector3.one * ES, sv, "Kura_W" + (i + 1));
             var rb = B.RB(kr);
-            float cx = -640f, cz = 1018f + i * 8.0f;
+            float cx = -614f + (i % 2) * 9f, cz = 960f + (i / 2) * 9f;   // 下御殿棟に刺さらない位置(bm1 19-22)
             kr.transform.position += new Vector3(cx - rb.center.x, 0, cz - rb.center.z);
             rb = B.RB(kr); kr.transform.position += new Vector3(0, (G(cx, cz) - 0.15f) - rb.min.y, 0);
         }

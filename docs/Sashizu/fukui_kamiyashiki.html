@@ -1,0 +1,175 @@
+<title>越前福井藩江戸上屋敷 — 要約図と読み取り</title>
+<style>
+:root{
+  --paper:#E6E2D3; --paper2:#DED9C6; --ink:#23201A; --ink-mid:#BFB9A4; --ink-lo:#D2CDBB;
+  --shu:#A8452C; --shu-lo:#E0CFC2; --niwa:#B9C4A8; --ishi:#6E7A83; --roka:#8C7F5E;
+  --grid:#C2BCA8; --dan:#E9E5D6; --text:#23201A; --dim:#5E594C; --rule:#BDB6A2; --shiro:#F0EDE2;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#1A1D21; --paper2:#20242A; --ink:#D7D2C4; --ink-mid:#3C424B; --ink-lo:#2C3138;
+  --shu:#C9674A; --shu-lo:#3A2E2B; --niwa:#37453A; --ishi:#7E8B96; --roka:#6E6446;
+  --grid:#2E333A; --dan:#23272D; --text:#D7D2C4; --dim:#8E8877; --rule:#343A42; --shiro:#2A2F35;
+}}
+:root[data-theme="dark"]{
+  --paper:#1A1D21; --paper2:#20242A; --ink:#D7D2C4; --ink-mid:#3C424B; --ink-lo:#2C3138;
+  --shu:#C9674A; --shu-lo:#3A2E2B; --niwa:#37453A; --ishi:#7E8B96; --roka:#6E6446;
+  --grid:#2E333A; --dan:#23272D; --text:#D7D2C4; --dim:#8E8877; --rule:#343A42; --shiro:#2A2F35;
+}
+:root[data-theme="light"]{
+  --paper:#E6E2D3; --paper2:#DED9C6; --ink:#23201A; --ink-mid:#BFB9A4; --ink-lo:#D2CDBB;
+  --shu:#A8452C; --shu-lo:#E0CFC2; --niwa:#B9C4A8; --ishi:#6E7A83; --roka:#8C7F5E;
+  --grid:#C2BCA8; --dan:#E9E5D6; --text:#23201A; --dim:#5E594C; --rule:#BDB6A2; --shiro:#F0EDE2;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--text);
+  font-family:"Hiragino Sans","Yu Gothic","Noto Sans JP",system-ui,sans-serif;line-height:1.75}
+.wrap{max-width:1180px;margin:0 auto;padding:48px 28px 80px}
+h1{font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+  font-weight:400;font-size:34px;letter-spacing:.06em;margin:0 0 6px;text-wrap:balance}
+.sub{color:var(--dim);font-size:14px;letter-spacing:.14em;margin:0 0 4px}
+h2{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;font-weight:400;font-size:21px;
+  letter-spacing:.05em;margin:0;padding-bottom:8px}
+.plate{margin:44px 0 0;border-top:1px solid var(--rule);padding-top:20px}
+.phead{display:flex;justify-content:space-between;align-items:baseline;gap:20px;flex-wrap:wrap}
+.scale{color:var(--dim);font-size:12.5px;letter-spacing:.1em;font-variant-numeric:tabular-nums}
+.fig{margin-top:16px;overflow-x:auto;background:var(--paper2);border:1px solid var(--rule);padding:10px}
+svg{display:block;width:100%;height:auto;min-width:600px}
+text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
+.rm{font-size:11px;fill:var(--ink);text-anchor:middle}
+.rmS{font-size:12px;fill:var(--ink);text-anchor:middle}
+.jo{font-size:9px;fill:var(--dim);text-anchor:middle;font-variant-numeric:tabular-nums}
+.zn text{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;font-size:17px;fill:var(--ink);
+  text-anchor:middle;letter-spacing:.3em}
+.an{font-size:11px;fill:var(--shu)}
+.anS{font-size:12px;fill:var(--dim)}
+.anS2{font-size:10.5px;fill:var(--dim);text-anchor:middle}
+.zn2{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;font-size:16px;fill:var(--ink);text-anchor:middle;letter-spacing:.28em}
+.an2b{font-size:11.5px;fill:var(--ink)}
+.anG{font-size:12px;fill:var(--shu)}
+.an2{font-size:11px;fill:var(--ink)}
+.wl{font-size:10.5px;fill:var(--paper2);text-anchor:middle}
+.anIR{font-size:11px;fill:var(--ink);letter-spacing:.1em}
+.rk{font-size:10.5px;fill:var(--paper2);text-anchor:middle;letter-spacing:.05em}
+.notes{margin-top:14px;color:var(--dim);font-size:13.5px;max-width:64ch}
+.legend{display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:14px;font-size:12.5px;color:var(--dim)}
+.legend span{display:flex;align-items:center;gap:7px}
+.sw{width:20px;height:11px;border:1px solid var(--rule);display:inline-block}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px 34px;margin-top:16px}
+.cols h3{font-size:13px;letter-spacing:.12em;color:var(--dim);font-weight:400;margin:0 0 6px;
+  border-bottom:1px solid var(--rule);padding-bottom:5px}
+.cols p{margin:0;font-size:13.5px}
+.warn{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;font-size:15px;
+  border-left:2px solid var(--shu);padding-left:14px;margin:20px 0 0;border-radius:0}
+.strike{opacity:.42}
+ol{margin:14px 0 0;padding-left:1.3em;font-size:14px}
+ol li{margin-bottom:7px}
+</style><div class="wrap">
+<p class="sub">参考資料</p>
+<h1>越前福井藩 江戸上屋敷</h1>
+<p class="notes">江戸の大名上屋敷の組み方を読むための基準図。他の屋敷を設計するときはまずこれに戻る。約6,600坪、江戸城至近。</p>
+
+<div class="plate">
+<div class="phead"><h2>要約図</h2><span class="scale">図面相対・方位盤なし</span></div>
+<p class="warn">原図（書籍図版・ユーザー提供）から敷地形・外周・門・室名の位置・御殿マットの外形を写した要約図。原図は数百室の細かい室割りを描くが、ここでは省略した。</p>
+<div class="fig"><svg viewBox="0 0 565 638" role="img" aria-label="越前福井藩江戸上屋敷 平面 要約図">
+<polygon points="52.0,568.8 337.6,568.8 337.6,261.4 405.6,261.4 405.6,52.0 52.0,52.0" fill="var(--paper2)" stroke="var(--ink)" stroke-width="2.2"/>
+<polygon points="52.0,568.8 337.6,568.8 337.6,261.4 405.6,261.4 405.6,52.0 52.0,52.0" fill="var(--shu)" fill-opacity="0.30" stroke="var(--shu)" stroke-width="1.2"/>
+<polygon points="62.9,557.9 326.7,557.9 326.7,272.3 394.7,272.3 394.7,62.9 62.9,62.9" fill="var(--paper2)" stroke="var(--shu)" stroke-width="1.2"/>
+<rect x="76.5" y="62.9" width="318.2" height="54.4" fill="var(--ink-mid)" stroke="var(--ink)" stroke-width="1.6"/>
+<rect x="76.5" y="117.3" width="274.7" height="201.3" fill="var(--ink-mid)" stroke="var(--ink)" stroke-width="1.6"/>
+<rect x="106.4" y="318.6" width="228.5" height="130.6" fill="var(--ink-mid)" stroke="var(--ink)" stroke-width="1.6"/>
+<rect x="133.6" y="155.4" width="27.2" height="32.6" fill="var(--niwa)" stroke="var(--ink)" stroke-width="0.9"/>
+<rect x="220.6" y="253.3" width="27.2" height="32.6" fill="var(--niwa)" stroke="var(--ink)" stroke-width="0.9"/>
+<rect x="285.9" y="182.6" width="24.5" height="27.2" fill="var(--niwa)" stroke="var(--ink)" stroke-width="0.9"/>
+<rect x="177.1" y="378.4" width="27.2" height="32.6" fill="var(--niwa)" stroke="var(--ink)" stroke-width="0.9"/>
+<rect x="313.1" y="133.6" width="21.8" height="27.2" fill="var(--niwa)" stroke="var(--ink)" stroke-width="0.9"/>
+<rect x="106.4" y="49.3" width="70.7" height="21.8" fill="var(--shu-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="141.8" y="64.2">楽屋</text>
+<rect x="181.2" y="75.1" width="24.5" height="24.5" fill="var(--shu-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="193.4" y="91.4">舞台</text>
+<rect x="133.6" y="117.3" width="59.8" height="49.0" fill="var(--shu-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="163.5" y="145.8">大広間</text>
+<rect x="307.7" y="133.6" width="38.1" height="54.4" fill="var(--shu-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="326.7" y="164.8">御成風呂</text>
+<rect x="223.4" y="207.0" width="43.5" height="32.6" fill="var(--shu-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="245.1" y="227.4">黒書院</text>
+<rect x="189.4" y="212.5" width="13.6" height="27.2" fill="var(--shu-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="196.2" y="230.1">トイレ</text>
+<rect x="203.0" y="228.8" width="19.0" height="38.1" fill="var(--shu-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="212.5" y="251.8">右筆部屋</text>
+<rect x="98.2" y="241.0" width="32.6" height="24.5" fill="var(--shu-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="114.6" y="257.3">玄関</text>
+<rect x="213.8" y="299.5" width="19.0" height="43.5" fill="var(--shu-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="223.4" y="325.3">料理間</text>
+<rect x="156.7" y="321.3" width="40.8" height="54.4" fill="var(--shu-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="177.1" y="352.5">大台所</text>
+<rect x="194.8" y="364.8" width="19.0" height="43.5" fill="var(--shu-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="204.3" y="390.6">小姓部屋</text>
+<rect x="273.7" y="396.1" width="24.5" height="29.9" fill="var(--shu-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="285.9" y="415.0">居間</text>
+<rect x="291.4" y="465.4" width="21.8" height="32.6" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.2"/>
+<text class="rmS" x="302.2" y="485.8">土蔵</text>
+<rect x="117.3" y="489.9" width="21.8" height="32.6" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.2"/>
+<text class="rmS" x="128.2" y="510.2">土蔵</text>
+<text class="anS" x="209.8" y="500.8">空地</text>
+<rect x="57.4" y="57.4" width="21.8" height="21.8" fill="var(--ishi)" stroke="var(--ink)" stroke-width="1"/>
+<text class="anS2" x="68.3" y="71.3">矢倉</text>
+<rect x="57.4" y="541.6" width="21.8" height="21.8" fill="var(--ishi)" stroke="var(--ink)" stroke-width="1"/>
+<text class="anS2" x="68.3" y="555.5">矢倉</text>
+<rect x="321.3" y="541.6" width="21.8" height="21.8" fill="var(--ishi)" stroke="var(--ink)" stroke-width="1"/>
+<text class="anS2" x="332.2" y="555.5">矢倉</text>
+<circle cx="52.0" cy="144.5" r="5" fill="var(--shu)"/>
+<text class="anG" x="43.0" y="148.5" text-anchor="end">御成門</text>
+<circle cx="52.0" cy="299.5" r="5" fill="var(--shu)"/>
+<text class="anG" x="43.0" y="303.5" text-anchor="end">台所門 (表門)</text>
+<circle cx="52.0" cy="435.5" r="5" fill="var(--shu)"/>
+<text class="anG" x="43.0" y="439.5" text-anchor="end">小門</text>
+<circle cx="136.3" cy="568.8" r="5" fill="var(--shu)"/>
+<text class="anG" x="136.3" y="586.8" text-anchor="middle">小門</text>
+<text class="anS2" x="57.4" y="245.4">長屋</text>
+<text class="anS2" x="57.4" y="490.2">長屋</text>
+<text class="anS2" x="400.2" y="365.1">長屋</text>
+<text class="anS2" x="201.6" y="566.4">長屋</text>
+<text class="anS" x="228.8" y="43.8" text-anchor="middle">約130m</text>
+<text class="anS" x="413.8" y="160.8" text-anchor="start">約77m</text>
+<text class="anS" x="345.8" y="411.0" text-anchor="start">約113m</text>
+<text class="anS" x="193.4" y="585.1" text-anchor="middle">約105m</text>
+<text class="anS" x="413.8" y="62.9">約6,600坪</text>
+<line x1="52" y1="580" x2="188" y2="580" stroke="var(--ink)" stroke-width="1.6"/>
+<text class="anS" x="196" y="584">50m</text>
+</svg></div>
+<div class="legend">
+<span><i class="sw" style="background:var(--ink-mid)"></i>御殿複合（連続するマット）</span>
+<span><i class="sw" style="background:var(--shu-lo)"></i>原図に室名のある室</span>
+<span><i class="sw" style="background:var(--niwa)"></i>中庭</span>
+<span><i class="sw" style="background:var(--ink-lo)"></i>土蔵</span>
+<span><i class="sw" style="background:var(--ishi)"></i>矢倉</span>
+<span><i class="sw" style="background:var(--shu);opacity:.4"></i>外周長屋</span>
+</div>
+</div>
+
+<div class="plate">
+<div class="phead"><h2>読み取れる組み方</h2></div>
+<ol>
+<li><b>敷地形</b> — 上辺130m・下辺105m・左辺190mの南北に長い台形（右辺は77m＋113mの段違い）。105×113＋130×77＝21,875m²＝6,617坪で、注記の「約6,600坪」と一致する。</li>
+<li><b>門は長辺に三つ</b> — 上から御成門・台所門（表門）・小門。下辺に小門をもう一つ。将軍は御成門から表を経由せず御成ゾーンへ入る。</li>
+<li><b>室の粒度</b> — 御殿は数百の小室が壁を共有して連なる一枚のマット。18〜26m級の建屋を並べる作りとは粒度が二桁違う。</li>
+<li><b>廊下は室群の外周を巡る</b> — 中央を突っ切る通路は無い。桃山〜江戸期の将軍・大名邸では畳敷きの廊下（広縁・入側）が客座敷の外側を取り囲むように配された。入側は濡縁と座敷の間の一間幅の通路。中廊下型は明治以降の型。</li>
+<li><b>雁行して繋ぐ</b> — 二条城二の丸御殿では遠侍・式台・大広間・蘇鉄の間・黒書院・白書院が接続あるいは渡廊下で結ばれて雁行し、大小の破風や屋根が重なり合う。六棟を取り囲む廊下が一周している。</li>
+<li><b>空地の置き方</b> — 空地は散らばらず下辺寄りに一枚にまとまり、そこに土蔵を置く。庭園は描かれない（城至近の上屋敷は儀礼建築で敷地を使い切る）。</li>
+<li><b>マットは外周長屋に直に接する</b> — 犬走りを大きく取らない。</li>
+</ol>
+</div>
+
+<div class="plate">
+<div class="phead"><h2>Unity で再現するときの含意</h2></div>
+<div class="cols">
+<div><h3>密着</h3><p>Village Kit の棟を躯体間0.6mで詰め、軒を重ねて屋根が一枚に繋がる塊にする。等間隔の格子に置かない。</p></div>
+<div><h3>入側で囲う</h3><p>廊下は室群の外周に回す。群と群は渡廊下で結ぶ。中央を貫く通路は作らない。</p></div>
+<div><h3>外周に寄せる</h3><p>マットを外周長屋の内面まで寄せる。犬走りに芝を残さない。</p></div>
+<div><h3>地面</h3><p>郭の内側は白洲（砂利）に塗る。芝のままだと村に見える。</p></div>
+</div>
+<p class="notes">典拠 — 原図はユーザー提供の書籍図版。入側・広縁の定義と二条城二の丸御殿の構成は下記による。</p>
+<p class="notes"><a href="https://kotobank.jp/word/%E5%85%A5%E5%81%B4-436391">コトバンク「入側」</a>　/　<a href="https://online.bunka.go.jp/heritages/detail/174942">文化遺産オンライン「二条城 二の丸御殿大広間」</a>　/　<a href="https://www.archives.go.jp/exhibition/digital/hatamotogokenin/contents/04.html">国立公文書館「江戸御殿之図」</a>　/　<a href="https://www.library.metro.tokyo.lg.jp/collection/features/digital_showcase/049/index.html">東京都立図書館 江戸城建築図面（甲良家伝来）</a></p>
+</div>
+</div>

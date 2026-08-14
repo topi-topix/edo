@@ -116,10 +116,19 @@ public static class EdoOkabeYashikiBuilder
             // 西の下郭 (levelは段ごと)
             W_(7,24,9,28,11.5f,"LW_KatteShimo"),  W_(7,76,9,78,11.5f,"LW_ShimoYudono"),
             W_(27,42,33,44,11.5f,"LW_ShimoJochu"),W_(41,60,43,64,11.5f,"LW_JochuGoyo"),
-            W_(23,88,33,90,11.5f,"LW_Kita1"),     W_(48,88,49.5,90,11.5f,"LW_Kita2"),
-            W_(56,88,58.4,90,19.5f,"LW_Kita3"),   W_(58.4,88,60,90,19.5f,"LW_Kita4"),
-            W_(76,88,77,90,19.5f,"LW_Kita5"),     W_(82,88,84.4,90,25.5f,"LW_Kita6"),
-            W_(84.4,88,92,90,25.5f,"LW_Kita7"),
+            W_(23,88,33,90,11.5f,"LW_Kita1"),     W_(48,88,49.5f,90,11.5f,"LW_Kita2"),
+            W_(56,88,58.4f,90,19.5f,"LW_Kita3"),   W_(58.4f,88,60,90,19.5f,"LW_Kita4"),
+            W_(76,88,77,90,19.5f,"LW_Kita5"),     W_(82,88,84.4f,90,25.5f,"LW_Kita6"),
+            W_(84.4f,88,92,90,25.5f,"LW_Kita7"),
+        };
+    }
+    // 庭(指図と同じ矩形)。白洲を塗るときにここは芝のまま残す
+    public static Blk[] Gardens()
+    {
+        return new[] {
+            S_(0,0,20,36,25.5f,"NiwaOmoteE"),  S_(20,0,80,12,25.5f,"NiwaOmoteS"),
+            S_(0,68,20,101,25.5f,"NiwaShoin"), S_(36,52,66,64,25.5f,"Tsubo"),
+            S_(88,70,104,96,25.5f,"NiwaOkuUchi"),
         };
     }
     // 折返し石段 (rect / 上端レベル / 下端レベル / 降りる向き)
@@ -464,44 +473,73 @@ public static class EdoOkabeYashikiBuilder
         return sb.ToString();
     }
 
-    // 矩形をシェルフ充填。行ごとに奥行を決め、その奥行の棟だけで行を埋める(穴を作らない)
+    // 矩形を充填。躯体を重ねてよい(内部を作らないので重なりは外から見えない)。
+    //   0.6m の隙間を空けると幅が埋まらず身舎の26〜45%が空く。重ねて埋め切る方が
+    //   福井図・二条城の「大小の屋根が重なり合って相ならぶ」姿に近い(2026-08-14 是正)。
     static void FillMuneya(Transform parent, Blk m, out int n, out float area)
     {
         n = 0; area = 0;
-        float W = m.x1 - m.x0, D = m.z1 - m.z0;
-        var rnd = new System.Random(m.name.GetHashCode());
+        float W = m.x1 - m.x0;
         float z = m.z0; int idx = 0;
-        while (m.z1 - z >= 8.0f)
+        while (m.z1 - z >= 7.5f)
         {
             float rest = m.z1 - z;
-            // その行で使える最大の奥行
-            var depths = new List<float>();
-            foreach (var s in Pal) if (s.d <= rest + 0.01f && !depths.Contains(s.d)) depths.Add(s.d);
-            if (depths.Count == 0) break;
-            depths.Sort(); float rowD = depths[depths.Count - 1];
-            // 奥行が残りより大きく余る場合は、残りを使い切れる奥行を優先
-            foreach (var d in depths) if (Mathf.Abs(rest - d) < 2.5f) rowD = d;
-            var row = new List<Slot>();
-            foreach (var s in Pal) if (Mathf.Abs(s.d - rowD) < 0.01f) row.Add(s);
-            float x = m.x0;
-            while (m.x1 - x >= 7.5f)
+            var row = new List<Slot>(); float cov = 0;
+            RowFill(W, rest, row, ref cov);
+            if (row.Count == 0) break;
+            // 行の左端から、重なりを均等に配って幅いっぱいに散らす
+            float sum = 0; foreach (var s2 in row) sum += s2.w;
+            float overlap = (row.Count > 1) ? (sum - W) / (row.Count - 1) : 0f;
+            float x = m.x0; float used = 0;
+            foreach (var pick in row)
             {
-                Slot pick = row[0]; bool ok = false;
-                // 幅の広いものから、残りに収まるものを選ぶ
-                var cand = new List<Slot>(row); cand.Sort((p, q) => q.w.CompareTo(p.w));
-                foreach (var s in cand) if (s.w <= (m.x1 - x) + 0.01f) { pick = s; ok = true; break; }
-                if (!ok) break;
-                float cx = x + pick.w * 0.5f, cz = z + rowD * 0.5f;
+                float cx = x + pick.w * 0.5f, cz = z + pick.d * 0.5f;
                 var go = B.Place(pick.path, Vector3.zero, pick.ry, Vector3.one, parent, m.name + "_" + (idx++));
                 var rb = B.RB(go);
                 go.transform.position += new Vector3(cx - rb.center.x, 0, cz - rb.center.z);
                 rb = B.RB(go);
                 go.transform.position += new Vector3(0, (m.y - 0.12f) - rb.min.y, 0);
                 n++; area += pick.w * pick.d;
-                x += pick.w + 0.6f;
+                used = Mathf.Max(used, pick.d);
+                x += pick.w - overlap;
             }
-            z += rowD + 0.6f;
+            z += used - Mathf.Min(1.5f, used * 0.15f);   // 行方向も少し重ねて軒を繋ぐ
         }
+    }
+    // 幅Wを覆う組み合わせ(合計幅 >= W を最小の余りで満たす)。奥行は rest 以下
+    static void RowFill(float W, float rest, List<Slot> outRow, ref float cov)
+    {
+        List<Slot> best = null; float bestScore = float.MaxValue;
+        var cur = new List<Slot>();
+        System.Action<float, int> rec = null;
+        rec = (w, depth) =>
+        {
+            if (w >= W - 0.01f)
+            {
+                // 余り(重なり)が小さく、奥行が深いものを優先
+                float dsum = 0; foreach (var s in cur) dsum += s.d;
+                float score = (w - W) * 3f - dsum / Mathf.Max(1, cur.Count);
+                if (score < bestScore) { bestScore = score; best = new List<Slot>(cur); }
+                return;
+            }
+            if (depth >= 4) return;
+            foreach (var s in Pal)
+            {
+                if (s.d > rest + 0.01f) continue;
+                if (s.w > W * 1.35f) continue;
+                cur.Add(s); rec(w + s.w, depth + 1); cur.RemoveAt(cur.Count - 1);
+            }
+        };
+        rec(0f, 0);
+        if (best == null)
+        {   // 幅を覆えない場合は入る中で最大の1棟
+            Slot pick = default; bool ok = false; float bw = -1;
+            foreach (var s in Pal) if (s.d <= rest + 0.01f && s.w <= W + 0.01f && s.w * s.d > bw) { bw = s.w * s.d; pick = s; ok = true; }
+            if (ok) outRow.Add(pick);
+            return;
+        }
+        outRow.AddRange(best);
+        foreach (var s in best) cov += s.w;
     }
 
     // =========================================================================
@@ -571,9 +609,11 @@ public static class EdoOkabeYashikiBuilder
             r.transform.localScale = new Vector3(1f, 1f, seg / 8f);
             float cxr = alongX ? (x0 + (i + 0.5f) * seg) : (x0 + (x1 - x0) * 0.5f);
             float czr = alongX ? (z0 + (z1 - z0) * 0.5f) : (z0 + (i + 0.5f) * seg);
-            // roof 2x8 は pivot が幅方向の端(local x=0)にあるので半幅ずらす
+            // roof 2x8 は pivot が幅方向の端(local x=0)にあり、local +X は
+            //   ry=0 で world +X、ry=90 で world -Z を向く。向きに合わせて端へ寄せる。
+            //   ⚠ ここを両方 -half にしていたため、東西方向の廊下だけ屋根が2mずれて床が露出した
             float half = (alongX ? D : W) * 0.5f;
-            if (alongX) czr -= half; else cxr -= half;
+            if (alongX) czr += half; else cxr -= half;
             r.transform.position = new Vector3(cxr, y + 3.0f + 1.06f, czr);
         }
     }
@@ -726,6 +766,44 @@ public static class EdoOkabeYashikiBuilder
     }
 
     // =========================================================================
+    // Stage 9: 郭の内側を白洲(砂利)に塗る。芝のままだと村に見える
+    // =========================================================================
+    public static string Stage9_Splat()
+    {
+        var t = Terrain.activeTerrain; var td = t.terrainData;
+        int res = td.alphamapResolution;
+        Vector3 tp = t.transform.position, ts = td.size;
+        float cell = ts.x / res;
+        int ix0 = Mathf.Max(0, Mathf.FloorToInt((-660f - tp.x) / cell)), ix1 = Mathf.Min(res - 1, Mathf.CeilToInt((-370f - tp.x) / cell));
+        int iz0 = Mathf.Max(0, Mathf.FloorToInt((940f - tp.z) / cell)), iz1 = Mathf.Min(res - 1, Mathf.CeilToInt((1060f - tp.z) / cell));
+        int w = ix1 - ix0 + 1, h = iz1 - iz0 + 1;
+        var A = td.GetAlphamaps(ix0, iz0, w, h);
+        int L = td.alphamapLayers;
+        var terr = Terraces(); var gard = Gardens();
+        int changed = 0;
+        for (int zz = 0; zz < h; zz++) for (int xx = 0; xx < w; xx++)
+        {
+            float wx = tp.x + (ix0 + xx + 0.5f) * cell, wz = tp.z + (iz0 + zz + 0.5f) * cell;
+            var p = new Vector2(wx, wz);
+            if (!B.PIP(SK.OKABE, p)) continue;
+            bool inTerr = false;
+            foreach (var tr in terr) if (wx > tr.x0 && wx < tr.x1 && wz > tr.z0 && wz < tr.z1) inTerr = true;
+            if (!inTerr) continue;
+            bool inG = false;
+            foreach (var g in gard) if (wx > g.x0 - 1f && wx < g.x1 + 1f && wz > g.z0 - 1f && wz < g.z1 + 1f) inG = true;
+            float bare, grass, dirt;
+            if (inG) { grass = 0.72f; dirt = 0.20f; bare = 0.08f; }
+            else { bare = 0.70f; dirt = 0.24f; grass = 0.06f; }
+            float sum = bare + grass + dirt;
+            for (int l = 0; l < L; l++) A[zz, xx, l] = 0;
+            A[zz, xx, 0] = dirt / sum; A[zz, xx, 1] = grass / sum; A[zz, xx, 2] = bare / sum;
+            changed++;
+        }
+        td.SetAlphamaps(ix0, iz0, A);
+        return "splat cells=" + changed;
+    }
+
+    // =========================================================================
     [MenuItem("Edo/岡部筑前守上屋敷を再構成 v3")]
     public static void RunAllMenu() { Debug.Log(RunAll()); }
     public static string RunAll()
@@ -749,6 +827,7 @@ public static class EdoOkabeYashikiBuilder
         sb.AppendLine(Stage6_Roka());
         sb.AppendLine(Stage7_Service());
         sb.AppendLine(Stage8_Garden());
+        sb.AppendLine(Stage9_Splat());
         sb.AppendLine(Stage2_Reseat());
         UnityEditor.SceneManagement.EditorSceneManager.MarkAllScenesDirty();
         return sb.ToString();

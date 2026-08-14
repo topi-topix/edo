@@ -54,9 +54,8 @@ public static class EdoOkabeYashikiBuilder
     {
         return new[] {
             new Terr{ name="Shukaku", x0=-566f, x1=-455f, z0=946f, z1=1058f, y=25.5f },
-            new Terr{ name="TE3",     x0=-455f, x1=-435f, z0=946f, z1=1058f, y=21.5f },
-            new Terr{ name="TE2",     x0=-435f, x1=-415f, z0=946f, z1=1058f, y=17.5f },
-            new Terr{ name="TE1",     x0=-415f, x1=-374f, z0=946f, z1=1058f, y=13.5f },
+            new Terr{ name="TE",      x0=-455f, x1=-425f, z0=946f, z1=1058f, y=19.5f },
+            new Terr{ name="Monzen",  x0=-425f, x1=-374f, z0=946f, z1=1058f, y=13.5f },
             new Terr{ name="Chudan",  x0=-592f, x1=-566f, z0=950f, z1=1052f, y=19.5f },
             new Terr{ name="TW1",     x0=-647f, x1=-592f, z0=950f, z1=1052f, y=11.5f },
         };
@@ -67,38 +66,74 @@ public static class EdoOkabeYashikiBuilder
     public static Wall[] Walls()
     {
         return new[] {
-            // 東: 主郭→TE3→TE2→門前。南→北へ走る(左=西=高い側)
-            new Wall{ name="IG_E1", a=new Vector2(-455f, 947f), b=new Vector2(-455f, 1056f), coping=25.5f, sy=1.0f, gapZ=1001f },
-            new Wall{ name="IG_E2", a=new Vector2(-435f, 947f), b=new Vector2(-435f, 1056f), coping=21.5f, sy=1.0f, gapZ=1001f },
-            new Wall{ name="IG_E3", a=new Vector2(-415f, 947f), b=new Vector2(-415f, 1056f), coping=17.5f, sy=1.0f, gapZ=1001f },
-            // 西: 主郭→中段→西低地。北→南へ走る(左=東=高い側)
-            new Wall{ name="IG_W1", a=new Vector2(-566f, 1052f), b=new Vector2(-566f, 949f), coping=25.5f, sy=1.5f, gapZ=1006f },
-            new Wall{ name="IG_W2", a=new Vector2(-592f, 1052f), b=new Vector2(-592f, 949f), coping=19.5f, sy=2.0f, gapZ=1006f },
+            // 東: 主郭25.5 → 東中段19.5 → 表門前13.5。南→北へ走る(左=西=高い側)。開口は参道 z=1001
+            new Wall{ name="IG_E1", a=new Vector2(-455f, 947f), b=new Vector2(-455f, 1056f), coping=25.5f, sy=1.5f, gapZ=1001f },
+            new Wall{ name="IG_E2", a=new Vector2(-425f, 947f), b=new Vector2(-425f, 1056f), coping=19.5f, sy=1.5f, gapZ=1001f },
+            // 西: 主郭25.5 → 中段19.5 → 西低地11.5。北→南へ走る(左=東=高い側)。開口は北縁 z=1036
+            new Wall{ name="IG_W1", a=new Vector2(-566f, 1052f), b=new Vector2(-566f, 949f), coping=25.5f, sy=1.5f, gapZ=1036f },
+            new Wall{ name="IG_W2", a=new Vector2(-592f, 1052f), b=new Vector2(-592f, 949f), coping=19.5f, sy=2.0f, gapZ=1036f },
         };
     }
-    // 建屋を置ける矩形(段の内側、外周長屋・庭園帯・法面を除いた実効ゾーン)
-    public struct Zone { public float x0, x1, z0, z1, y; public string name; }
-    public static Zone[] Zones()
+
+    // =========================================================================
+    // 指図(docs/Sashizu/okabe_sashizu.html)の座標をそのまま持つ。図面と実装をズラさない。
+    //   主郭プレート : u=0 が x=-457 で西へ増加 / v=0 が z=955 で北へ増加
+    //   西の下郭     : u=0 が x=-648 で東へ増加 / v=0 が z=948 で北へ増加
+    // =========================================================================
+    public struct Blk { public float x0, z0, x1, z1, y; public string name; }
+    static Blk S_(float u0, float v0, float u1, float v1, float y, string n)
+    { return new Blk { x0 = -457f - u1, z0 = 955f + v0, x1 = -457f - u0, z1 = 955f + v1, y = y, name = n }; }
+    static Blk W_(float u0, float v0, float u1, float v1, float y, string n)
+    { return new Blk { x0 = -648f + u0, z0 = 948f + v0, x1 = -648f + u1, z1 = 948f + v1, y = y, name = n }; }
+
+    // 身舎(棟の中身)。廊下はこの外周2mに自動で回る
+    public static Blk[] Muneya()
     {
         return new[] {
-            new Zone{ name="Shukaku", x0=-556f, x1=-456f, z0=957f, z1=1054f, y=25.5f },
-            new Zone{ name="TE3",     x0=-454f, x1=-438f, z0=957f, z1=1054f, y=21.5f },
-            new Zone{ name="TE2",     x0=-434f, x1=-418f, z0=957f, z1=1054f, y=17.5f },
-            new Zone{ name="TE1",     x0=-414f, x1=-402f, z0=957f, z1=1048f, y=13.5f },
-            new Zone{ name="Chudan",  x0=-589f, x1=-568f, z0=956f, z1=1048f, y=19.5f },
-            new Zone{ name="TW1",     x0=-645f, x1=-594f, z0=956f, z1=1048f, y=11.5f },
+            S_(4,38,18,62,    25.5f, "Genkan"),      S_(24,14,46,50, 25.5f, "Ohiroma"),
+            S_(24,66,46,96,   25.5f, "Shoin"),       S_(56,14,78,50, 25.5f, "Nakaoku"),
+            S_(56,66,78,96,   25.5f, "Daidokoro"),   S_(88,42,104,68,25.5f, "Okumuki"),
+            S_(88,8,104,28,   25.5f, "Nagatsubone"),
+            W_(9,8,25,22,     11.5f, "Katte"),       W_(9,30,25,74,  11.5f, "ShimoGoten"),
+            W_(9,80,21,88,    11.5f, "Yudono"),      W_(35,30,51,58, 11.5f, "Jochu"),
+            W_(35,66,46,88,   11.5f, "Goyobeya"),    W_(62,24,74,88, 19.5f, "NagatsuboneW"),
         };
     }
-    // 中庭(建屋を置かない矩形)
-    public static Rect[] Courts()
+    // 渡廊下・外廊下(入側は身舎から自動生成)
+    public static Blk[] RokaLinks()
     {
         return new[] {
-            new Rect(-537f, 1000f, 20f, 22f),   // 表の中庭
-            new Rect(-497f, 1030f, 22f, 20f),   // 奥の中庭
-            new Rect(-505f,  965f, 18f, 18f),   // 台所前の坪庭
-            new Rect(-634f, 1000f, 16f, 16f),   // 西低地の内庭
+            S_(20,46,22,48,25.5f,"L_GenkanOhiroma"), S_(48,50,54,52,25.5f,"L_OhiromaNakaoku"),
+            S_(48,64,54,66,25.5f,"L_ShoinDaidokoro"),S_(34,52,36,64,25.5f,"L_OhiromaShoin"),
+            S_(66,52,68,64,25.5f,"L_NakaokuDaidokoro"), S_(80,46,86,48,25.5f,"L_Jouguchi"),
+            S_(96,30,98,40,25.5f,"L_OkuNagatsubone"), S_(104,70,106,86,25.5f,"L_ShimoKuruwa"),
+            // 主郭の東縁 → 石段Bへ
+            new Blk{ x0=-459f, z0=999f, x1=-455f, z1=1003f, y=25.5f, name="L_HigashiEn" },
+            // 東中段の参道
+            new Blk{ x0=-450f, z0=1000f, x1=-425f, z1=1002f, y=19.5f, name="L_Sando19" },
+            // 表門前段の参道
+            new Blk{ x0=-420f, z0=1000f, x1=-398f, z1=1002f, y=13.5f, name="L_Sando13" },
+            // 西の下郭 (levelは段ごと)
+            W_(7,24,9,28,11.5f,"LW_KatteShimo"),  W_(7,76,9,78,11.5f,"LW_ShimoYudono"),
+            W_(27,42,33,44,11.5f,"LW_ShimoJochu"),W_(41,60,43,64,11.5f,"LW_JochuGoyo"),
+            W_(23,88,33,90,11.5f,"LW_Kita1"),     W_(48,88,49.5,90,11.5f,"LW_Kita2"),
+            W_(56,88,58.4,90,19.5f,"LW_Kita3"),   W_(58.4,88,60,90,19.5f,"LW_Kita4"),
+            W_(76,88,77,90,19.5f,"LW_Kita5"),     W_(82,88,84.4,90,25.5f,"LW_Kita6"),
+            W_(84.4,88,92,90,25.5f,"LW_Kita7"),
         };
     }
+    // 折返し石段 (rect / 上端レベル / 下端レベル / 降りる向き)
+    public struct Kai { public float x0, z0, x1, z1, yTop, yBot; public bool east; public string name; }
+    public static Kai[] Kaidans()
+    {
+        return new[] {
+            new Kai{ x0=-455f, z0=999f, x1=-450f, z1=1003f, yTop=25.5f, yBot=19.5f, east=true,  name="Kaidan_E1" },
+            new Kai{ x0=-425f, z0=999f, x1=-420f, z1=1003f, yTop=19.5f, yBot=13.5f, east=true,  name="Kaidan_E2" },
+            new Kai{ x0=-571f, z0=1034f, x1=-566f, z1=1038f, yTop=25.5f, yBot=19.5f, east=false, name="Kaidan_W1" },
+            new Kai{ x0=-598.5f, z0=1034f, x1=-592f, z1=1038f, yTop=19.5f, yBot=11.5f, east=false, name="Kaidan_W2" },
+        };
+    }
+
     // 表門(下書きの三角マーク) と その外向き
     public static readonly Vector2 GATE = new Vector2(-381.0f, 1001.0f);
     public static Vector2 GateOut() { return (-B.InwardNormal(SK.OKABE, 10)).normalized; }
@@ -173,8 +208,8 @@ public static class EdoOkabeYashikiBuilder
 
     public static string Stage1_Grade()
     {
-        var mk = GameObject.Find("OKABE_GRADED_v3");
-        if (mk != null) return "grade: SKIP (already graded v3)";
+        var mk = GameObject.Find("OKABE_GRADED_v4");
+        if (mk != null) return "grade: SKIP (already graded v4)";
         var t = Terrain.activeTerrain; var td = t.terrainData;
         int hres = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size;
         Func<float, int> IX = wx => Mathf.Clamp(Mathf.RoundToInt((wx - tp.x) / ts.x * (hres - 1)), 0, hres - 1);
@@ -222,7 +257,7 @@ public static class EdoOkabeYashikiBuilder
         td.SetHeightsDelayLOD(x0, z0, H); td.SyncHeightmap();
         // ⚠ マーカーは active のままにする。GameObject.Find は非アクティブを見つけないので
         //    SetActive(false) にするとガードが毎回すり抜けて多重造成する(2026-08-14 に実際に起きた)。
-        mk = new GameObject("OKABE_GRADED_v3");
+        mk = new GameObject("OKABE_GRADED_v4");
         var yg = GameObject.Find(GN); if (yg != null) mk.transform.SetParent(yg.transform, false);
         return "grade cells=" + n + " cutMax=" + cmax.ToString("F2") + " fillMax=" + fmax.ToString("F2");
     }
@@ -400,170 +435,174 @@ public static class EdoOkabeYashikiBuilder
     }
 
     // =========================================================================
-    // Stage 5: 連続御殿複合 — 各段をシェルフ充填で埋める
+    // Stage 5: 連続御殿複合 — 指図の身舎矩形を Village Kit の棟で埋める(躯体間0.6m)
+    //   案a: 棟を密着させて屋根を一枚の塊に見せる。等間隔の格子には置かない。
     // =========================================================================
-    // w,d は「ry を適用した後」のフットプリント。ry を幅から推測すると HouseB が90°転んで
-    //   段をまたぎ、埋4.10mになった(2026-08-14)。必ず明示する。
-    struct Slot { public string path; public float w, d, ry; public string label; }
-    static Slot S(string p, float w, float d, float ry, string l) { return new Slot { path = p, w = w, d = d, ry = ry, label = l }; }
+    struct Slot { public string path; public float w, d, ry; }
+    static Slot SL(string p, float w, float d, float ry) { return new Slot { path = p, w = w, d = d, ry = ry }; }
+    // 躯体寸法(ry適用後)。BigHouse 26.2x24.2 / House 18.2x14.3 / HouseB 8.2x17.1 / SmallHouse 12.2x8.2
+    static Slot[] Pal = {
+        SL(B.PBigHouse, 26.2f, 24.2f, 0f),
+        SL(B.PHouse,    18.2f, 14.3f, 0f),  SL(B.PHouse,    14.3f, 18.2f, 90f),
+        SL(B.PHouseB,    8.2f, 17.1f, 0f),  SL(B.PHouseB,   17.1f,  8.2f, 90f),
+        SL(B.PSmallHouse,12.2f, 8.2f, 0f),  SL(B.PSmallHouse,8.2f, 12.2f, 90f),
+    };
 
     public static string Stage5_Goten()
     {
         var sb = new System.Text.StringBuilder();
         var bg = Grp("Buildings"); Clear(bg);
-        var courts = Courts();
-        var rnd = new System.Random(53114);
-        // 躯体寸法(ry=0): BigHouse 26.2x24.2 / House 18.2x14.3 / HouseB 8.2x17.1 / SmallHouse 12.2x8.2
-        var big = new[] { S(B.PBigHouse, 26.2f, 24.2f, 0f, "OmoteGoten"), S(B.PHouse, 18.2f, 14.3f, 0f, "Goten"),
-                          S(B.PHouseB, 17.1f, 8.2f, 90f, "Tsubone"), S(B.PSmallHouse, 12.2f, 8.2f, 0f, "Koya") };
-        var narrow = new[] { S(B.PHouseB, 17.1f, 8.2f, 90f, "Tsubone"), S(B.PSmallHouse, 12.2f, 8.2f, 0f, "Koya"),
-                             S(B.PHouse, 14.3f, 18.2f, 90f, "Goten"), S(B.PHouseB, 8.2f, 17.1f, 0f, "TsuboneB") };
         int total = 0; float area = 0;
-        foreach (var zn in Zones())
+        foreach (var m in Muneya())
         {
-            var pal = (zn.x1 - zn.x0) >= 30f ? big : narrow;
-            float z = zn.z0; int idx = 0;
-            while (z < zn.z1 - 7f)
-            {
-                float rowD = 0; float x = zn.x0; var row = new List<Slot>();
-                // 行を組み立てる(行の奥行 = その行で一番深い棟)
-                while (x < zn.x1 - 7f)
-                {
-                    var cand = pal[rnd.Next(pal.Length)];
-                    if (x + cand.w > zn.x1) { var alt = pal.OrderBy(q => q.w).First(); if (x + alt.w > zn.x1) break; cand = alt; }
-                    if (z + cand.d > zn.z1) { var alt = pal.OrderBy(q => q.d).First(); if (z + alt.d > zn.z1) break; cand = alt; }
-                    row.Add(cand); x += cand.w + 0.6f; rowD = Mathf.Max(rowD, cand.d);
-                }
-                if (row.Count == 0) break;
-                x = zn.x0;
-                foreach (var c in row)
-                {
-                    float cx = x + c.w * 0.5f, cz = z + c.d * 0.5f;
-                    bool skip = false;
-                    foreach (var ct in courts)
-                        if (cx + c.w * 0.5f > ct.xMin && cx - c.w * 0.5f < ct.xMax && cz + c.d * 0.5f > ct.yMin && cz - c.d * 0.5f < ct.yMax) skip = true;
-                    // 参道(表門→玄関 z=1001付近)は東三段だけ空ける
-                    if (zn.x0 > -460f && Mathf.Abs(cz - 1001f) < 5.5f) skip = true;
-                    // 段をまたぐ棟は置かない(足元の地面のばらつきで判定)
-                    float gmn = float.MaxValue, gmx = float.MinValue;
-                    for (int a = -1; a <= 1; a++) for (int b2 = -1; b2 <= 1; b2++)
-                    { float gy = G(cx + a * c.w * 0.5f, cz + b2 * c.d * 0.5f); gmn = Mathf.Min(gmn, gy); gmx = Mathf.Max(gmx, gy); }
-                    if (gmx - gmn > 0.8f) skip = true;
-                    if (!skip)
-                    {
-                        var go = B.Place(c.path, Vector3.zero, c.ry, Vector3.one, bg, zn.name + "_" + c.label + "_" + (idx++));
-                        var rb = B.RB(go);
-                        go.transform.position += new Vector3(cx - rb.center.x, 0, cz - rb.center.z);
-                        rb = B.RB(go);
-                        go.transform.position += new Vector3(0, (zn.y - 0.12f) - rb.min.y, 0);
-                        total++; area += c.w * c.d;
-                    }
-                    x += c.w + 0.6f;
-                }
-                z += rowD + 0.6f;
-            }
+            int n; float a;
+            FillMuneya(bg, m, out n, out a);
+            total += n; area += a;
+            sb.AppendLine("  " + m.name + " " + (m.x1 - m.x0).ToString("F0") + "x" + (m.z1 - m.z0).ToString("F0") + "m  棟=" + n);
         }
         sb.AppendLine("goten units=" + total + " bodyArea=" + area.ToString("F0"));
         return sb.ToString();
     }
 
+    // 矩形をシェルフ充填。行ごとに奥行を決め、その奥行の棟だけで行を埋める(穴を作らない)
+    static void FillMuneya(Transform parent, Blk m, out int n, out float area)
+    {
+        n = 0; area = 0;
+        float W = m.x1 - m.x0, D = m.z1 - m.z0;
+        var rnd = new System.Random(m.name.GetHashCode());
+        float z = m.z0; int idx = 0;
+        while (m.z1 - z >= 8.0f)
+        {
+            float rest = m.z1 - z;
+            // その行で使える最大の奥行
+            var depths = new List<float>();
+            foreach (var s in Pal) if (s.d <= rest + 0.01f && !depths.Contains(s.d)) depths.Add(s.d);
+            if (depths.Count == 0) break;
+            depths.Sort(); float rowD = depths[depths.Count - 1];
+            // 奥行が残りより大きく余る場合は、残りを使い切れる奥行を優先
+            foreach (var d in depths) if (Mathf.Abs(rest - d) < 2.5f) rowD = d;
+            var row = new List<Slot>();
+            foreach (var s in Pal) if (Mathf.Abs(s.d - rowD) < 0.01f) row.Add(s);
+            float x = m.x0;
+            while (m.x1 - x >= 7.5f)
+            {
+                Slot pick = row[0]; bool ok = false;
+                // 幅の広いものから、残りに収まるものを選ぶ
+                var cand = new List<Slot>(row); cand.Sort((p, q) => q.w.CompareTo(p.w));
+                foreach (var s in cand) if (s.w <= (m.x1 - x) + 0.01f) { pick = s; ok = true; break; }
+                if (!ok) break;
+                float cx = x + pick.w * 0.5f, cz = z + rowD * 0.5f;
+                var go = B.Place(pick.path, Vector3.zero, pick.ry, Vector3.one, parent, m.name + "_" + (idx++));
+                var rb = B.RB(go);
+                go.transform.position += new Vector3(cx - rb.center.x, 0, cz - rb.center.z);
+                rb = B.RB(go);
+                go.transform.position += new Vector3(0, (m.y - 0.12f) - rb.min.y, 0);
+                n++; area += pick.w * pick.d;
+                x += pick.w + 0.6f;
+            }
+            z += rowD + 0.6f;
+        }
+    }
+
     // =========================================================================
-    // Stage 6: 廊下 — 棟間の渡り廊下と、段をつなぐ石段
+    // Stage 6: 廊下 — 入側(身舎の外周2m)・渡廊下・外廊下・折返し石段
+    //   入側は一間幅(約2m)。棟の外形を膨らませて廊下にしない(幅が倍になる)。
     // =========================================================================
+    const float RW = 2.0f;   // 廊下幅 ≒ 一間
     public static string Stage6_Roka()
     {
         var rk = Grp("Roka"); Clear(rk);
-        int nr = 0, nk = 0;
-        // 東: 石垣の開口を石段で降りる。主郭25.5 → TE3 21.5 → TE2 17.5 → 門前13.5
-        float[] xs = { -455f, -435f, -415f };
-        float[] ys = { 25.5f, 21.5f, 17.5f, 13.5f };
-        for (int i = 0; i < xs.Length; i++)
-        { Kaidan(rk, new Vector2(xs[i] + 2.6f, 1001f), new Vector2(xs[i] - 1.6f, 1001f), ys[i], ys[i + 1], "Kaidan_E" + i); nk++; }
-        // 各段の上を東西に通る渡り廊下(参道)
-        Roka(rk, new Vector2(-434f, 1001f), new Vector2(-417f, 1001f), 21.5f, "Roka_TE3", false); nr++;
-        Roka(rk, new Vector2(-414f, 1001f), new Vector2(-397f, 1001f), 17.5f, "Roka_TE2", false); nr++;
-        Roka(rk, new Vector2(-413f, 1001f), new Vector2(-390f, 1001f), 13.5f, "Roka_Monzen", false); nr++;
-        // 主郭の背骨(南北・東西)
-        Roka(rk, new Vector2(-505f, 962f), new Vector2(-505f, 1052f), 25.5f, "Roka_ShukakuNS", false); nr++;
-        Roka(rk, new Vector2(-553f, 1006f), new Vector2(-458f, 1006f), 25.5f, "Roka_ShukakuEW", false); nr++;
-        // 主郭 → 石垣A → 中段 → 石垣B → 西低地
-        Kaidan(rk, new Vector2(-563.4f, 1006f), new Vector2(-568f, 1006f), 25.5f, 19.5f, "Kaidan_W1"); nk++;
-        Roka(rk, new Vector2(-569f, 1006f), new Vector2(-589f, 1006f), 19.5f, "Roka_Chudan", false); nr++;
-        Kaidan(rk, new Vector2(-589.4f, 1006f), new Vector2(-594f, 1006f), 19.5f, 11.5f, "Kaidan_W2"); nk++;
-        Roka(rk, new Vector2(-595f, 1006f), new Vector2(-644f, 1006f), 11.5f, "Roka_Seiteichi", false); nr++;
-        Roka(rk, new Vector2(-620f, 960f), new Vector2(-620f, 1046f), 11.5f, "Roka_SeiteichiNS", false); nr++;
-        Roka(rk, new Vector2(-578f, 958f), new Vector2(-578f, 1046f), 19.5f, "Roka_ChudanNS", false); nr++;
-        return "roka=" + nr + " kaidan=" + nk;
+        int nr = 0;
+        foreach (var m in Muneya())
+        {
+            // 入側 = 身舎の外周に幅RWの帯を4本
+            RokaRect(rk, m.x0 - RW, m.z0 - RW, m.x1 + RW, m.z0, m.y, m.name + "_IrikawaS"); nr++;
+            RokaRect(rk, m.x0 - RW, m.z1, m.x1 + RW, m.z1 + RW, m.y, m.name + "_IrikawaN"); nr++;
+            RokaRect(rk, m.x0 - RW, m.z0, m.x0, m.z1, m.y, m.name + "_IrikawaW"); nr++;
+            RokaRect(rk, m.x1, m.z0, m.x1 + RW, m.z1, m.y, m.name + "_IrikawaE"); nr++;
+        }
+        foreach (var l in RokaLinks()) { RokaRect(rk, l.x0, l.z0, l.x1, l.z1, l.y, l.name); nr++; }
+        int nk = 0;
+        foreach (var k in Kaidans()) { Kaidan(rk, k); nk++; }
+        return "roka rects=" + nr + " kaidan=" + nk;
     }
 
-    // 幅2mの渡り廊下: 床 + 柱 + 屋根。followGround=true なら地面に沿わせる(参道用)
-    static void Roka(Transform parent, Vector2 a, Vector2 b, float level, string nm, bool followGround)
+    // 矩形の廊下: 床(2x2) + 柱 + 屋根(2x8)。長辺方向に棟を通す
+    static void RokaRect(Transform parent, float x0, float z0, float x1, float z1, float lv, string nm)
     {
         var g = new GameObject(nm); g.transform.SetParent(parent, false);
         Undo.RegisterCreatedObjectUndo(g, "roka");
-        Vector2 d = (b - a); float L = d.magnitude; d /= L;
-        float yaw = Mathf.Atan2(d.x, d.y) * Mathf.Rad2Deg;
-        var rot = Quaternion.Euler(0, yaw, 0);
+        float W = x1 - x0, D = z1 - z0;
+        bool alongX = W >= D;
         var floorPre = AssetDatabase.LoadAssetAtPath<GameObject>(PFloor);
         var colPre = AssetDatabase.LoadAssetAtPath<GameObject>(PCol);
         var roofPre = AssetDatabase.LoadAssetAtPath<GameObject>(PRoof);
-        Vector2 nrm = new Vector2(-d.y, d.x);
-        int nseg = Mathf.Max(1, Mathf.RoundToInt(L / 2f));
-        for (int i = 0; i < nseg; i++)
+        float y = lv + 0.45f;
+        int nx = Mathf.Max(1, Mathf.RoundToInt(W / 2f)), nz = Mathf.Max(1, Mathf.RoundToInt(D / 2f));
+        for (int i = 0; i < nx; i++) for (int j = 0; j < nz; j++)
         {
-            float t = (i + 0.5f) * (L / nseg);
-            var p = a + d * t;
-            float y = followGround ? G(p.x, p.y) + 0.45f : level + 0.45f;
+            float cx = x0 + (i + 0.5f) * W / nx, cz = z0 + (j + 0.5f) * D / nz;
             var f = (GameObject)PrefabUtility.InstantiatePrefab(floorPre, g.transform);
-            Undo.RegisterCreatedObjectUndo(f, "rf"); f.name = "RokaFloor_" + i;
-            f.transform.position = new Vector3(p.x, y, p.y); f.transform.rotation = rot;
-            for (int s = -1; s <= 1; s += 2)
-            {
-                var q = p + nrm * (s * 1.0f);
-                var c = (GameObject)PrefabUtility.InstantiatePrefab(colPre, g.transform);
-                Undo.RegisterCreatedObjectUndo(c, "rc"); c.name = "RokaCol_" + i + "_" + s;
-                c.transform.position = new Vector3(q.x, y, q.y); c.transform.rotation = rot;
-            }
+            Undo.RegisterCreatedObjectUndo(f, "rf"); f.name = "F_" + i + "_" + j;
+            f.transform.position = new Vector3(cx, y, cz);
+            f.transform.localScale = new Vector3((W / nx) / 2f, 1f, (D / nz) / 2f);
         }
-        int nroof = Mathf.Max(1, Mathf.RoundToInt(L / 8f));
-        for (int i = 0; i < nroof; i++)
+        // 柱: 長辺の両側に2m間隔
+        int npc = Mathf.Max(2, (alongX ? nx : nz) + 1);
+        for (int i = 0; i < npc; i++)
+            for (int s = 0; s < 2; s++)
+            {
+                float t = (float)i / (npc - 1);
+                float cx = alongX ? Mathf.Lerp(x0 + 0.15f, x1 - 0.15f, t) : (s == 0 ? x0 + 0.15f : x1 - 0.15f);
+                float cz = alongX ? (s == 0 ? z0 + 0.15f : z1 - 0.15f) : Mathf.Lerp(z0 + 0.15f, z1 - 0.15f, t);
+                var c = (GameObject)PrefabUtility.InstantiatePrefab(colPre, g.transform);
+                Undo.RegisterCreatedObjectUndo(c, "rc"); c.name = "C_" + i + "_" + s;
+                c.transform.position = new Vector3(cx, y, cz);
+            }
+        // 屋根: 長辺方向に 2x8 を並べる
+        float L = alongX ? W : D;
+        int nrf = Mathf.Max(1, Mathf.RoundToInt(L / 8f));
+        for (int i = 0; i < nrf; i++)
         {
-            float t = (i + 0.5f) * (L / nroof);
-            var p = a + d * t;
-            float y = followGround ? G(p.x, p.y) + 0.45f : level + 0.45f;
             var r = (GameObject)PrefabUtility.InstantiatePrefab(roofPre, g.transform);
-            Undo.RegisterCreatedObjectUndo(r, "rr"); r.name = "RokaRoof_" + i;
-            r.transform.rotation = rot;
-            r.transform.localScale = new Vector3(1f, 1f, (L / nroof) / 8f);
-            var lp = p + nrm * (-1.05f);
-            r.transform.position = new Vector3(lp.x, y + 3.0f + 1.06f, lp.y);
+            Undo.RegisterCreatedObjectUndo(r, "rr"); r.name = "R_" + i;
+            float seg = L / nrf;
+            r.transform.rotation = Quaternion.Euler(0, alongX ? 90f : 0f, 0);
+            r.transform.localScale = new Vector3(1f, 1f, seg / 8f);
+            float cxr = alongX ? (x0 + (i + 0.5f) * seg) : (x0 + (x1 - x0) * 0.5f);
+            float czr = alongX ? (z0 + (z1 - z0) * 0.5f) : (z0 + (i + 0.5f) * seg);
+            // roof 2x8 は pivot が幅方向の端(local x=0)にあるので半幅ずらす
+            float half = (alongX ? D : W) * 0.5f;
+            if (alongX) czr -= half; else cxr -= half;
+            r.transform.position = new Vector3(cxr, y + 3.0f + 1.06f, czr);
         }
     }
 
-    // 段差をつなぐ石段(蹴上0.30m・幅6m=3列)
-    static void Kaidan(Transform parent, Vector2 top, Vector2 bot, float yTop, float yBot, string nm)
+    // 折返し石段: 二流れ+踊り場。蹴上0.30m
+    static void Kaidan(Transform parent, Kai k)
     {
-        var g = new GameObject(nm); g.transform.SetParent(parent, false);
+        var g = new GameObject(k.name); g.transform.SetParent(parent, false);
         Undo.RegisterCreatedObjectUndo(g, "kaidan");
-        int n = Mathf.Max(1, Mathf.RoundToInt((yTop - yBot) / 0.30f));
         var pre = AssetDatabase.LoadAssetAtPath<GameObject>(PStep);
-        Vector2 d = (bot - top); float L = d.magnitude; d /= L;
-        Vector2 nrm = new Vector2(-d.y, d.x);
-        float yaw = Mathf.Atan2(nrm.x, nrm.y) * Mathf.Rad2Deg;
+        int n = Mathf.Max(2, Mathf.RoundToInt((k.yTop - k.yBot) / 0.30f));
+        int half = n / 2;
+        float runLen = (k.x1 - k.x0);
+        float wHalf = (k.z1 - k.z0) * 0.5f;
+        float dir = k.east ? 1f : -1f;
+        float xStart = k.east ? k.x0 : k.x1;
         for (int i = 0; i <= n; i++)
         {
-            float tt = (float)i / n;
-            var p = top + d * (L * tt);
-            float lvl = Mathf.Lerp(yTop, yBot, tt);
-            for (int c = -1; c <= 1; c++)
-            {
-                var q = p + nrm * (c * 2.0f);
-                var go = (GameObject)PrefabUtility.InstantiatePrefab(pre, g.transform);
-                Undo.RegisterCreatedObjectUndo(go, "st"); go.name = "Ishidan_" + i + "_" + (c + 1);
-                go.transform.rotation = Quaternion.Euler(0, yaw, 0);
-                var rb = B.RB(go);
-                go.transform.position += new Vector3(q.x - rb.center.x, lvl - rb.max.y, q.y - rb.center.z);
-            }
+            bool first = i <= half;
+            int ii = first ? i : (n - i);
+            float t = (float)ii / Mathf.Max(1, half);
+            float px = xStart + dir * (runLen * t);
+            float pz = first ? (k.z0 + wHalf * 0.5f) : (k.z1 - wHalf * 0.5f);
+            float lvl = Mathf.Lerp(k.yTop, k.yBot, (float)i / n);
+            var go = (GameObject)PrefabUtility.InstantiatePrefab(pre, g.transform);
+            Undo.RegisterCreatedObjectUndo(go, "st"); go.name = "S_" + i;
+            go.transform.rotation = Quaternion.Euler(0, 90f, 0);
+            var rb = B.RB(go);
+            go.transform.position += new Vector3(px - rb.center.x, lvl - rb.max.y, pz - rb.center.z);
         }
     }
 
@@ -661,7 +700,7 @@ public static class EdoOkabeYashikiBuilder
         foreach (var gn in new[] { "Buildings", "Service", "Kakoi", "Omotemon", "Roka" })
         { var g = GameObject.Find(GN).transform.Find(gn); if (g == null) continue;
           foreach (Transform c in g) { if (!c.gameObject.activeSelf) continue; var b = B.RB(c.gameObject); b.Expand(new Vector3(3f, 200f, 3f)); obst.Add(b); } }
-        var zones = Zones(); var courts = Courts();
+        var mus = Muneya();
         int n = 0;
         for (int i = 0, guard = 0; i < 150 && guard < 12000; guard++)
         {
@@ -669,11 +708,9 @@ public static class EdoOkabeYashikiBuilder
             float pz = Mathf.Lerp(938f, 1094f, (float)rnd.NextDouble());
             var p = new Vector2(px, pz);
             if (!B.PIP(SK.OKABE, p) || B.DistToPolyEdge(SK.OKABE, p) < 5f) continue;
-            bool inZone = false;
-            foreach (var zn in zones) if (px > zn.x0 - 2 && px < zn.x1 + 2 && pz > zn.z0 - 2 && pz < zn.z1 + 2) inZone = true;
-            bool inCourt = false;
-            foreach (var ct in courts) if (px > ct.xMin && px < ct.xMax && pz > ct.yMin && pz < ct.yMax) inCourt = true;
-            if (inZone && !inCourt) continue;
+            bool inMune = false;
+            foreach (var mu in mus) if (px > mu.x0 - 4f && px < mu.x1 + 4f && pz > mu.z0 - 4f && pz < mu.z1 + 4f) inMune = true;
+            if (inMune) continue;
             bool hit = false;
             foreach (var ob in obst) if (px > ob.min.x && px < ob.max.x && pz > ob.min.z && pz < ob.max.z) { hit = true; break; }
             if (hit) continue;

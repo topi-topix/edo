@@ -117,9 +117,6 @@ public static class EdoOkabeYashikiBuilder
                          z0 = 948f + V0 * KEN,  z1 = 948f + V1 * KEN,
                          y = y, name = n, kw = U1 - U0, kd = V1 - V0 };
     }
-    static Blk M_(float x0, float z0, float x1, float z1, float y, string n)  // 間割りに乗らない矩形
-    { return new Blk { x0 = x0, z0 = z0, x1 = x1, z1 = z1, y = y, name = n }; }
-
     // 棟の外形(身舎 + 四方の入側)。指図の身舎寸法との差は okabe_sashizu.html 其二の表に載せた
     public static Blk[] Muneya()
     {
@@ -166,19 +163,50 @@ public static class EdoOkabeYashikiBuilder
             WG(30,48, 34,49, 19.5f, "LW_Kita3"),           // 4間 石段W2の上端 → 長局棟
                                                            // ⚠ 3間だと石段の上端(x=-592)に0.36m届かず廊下が切れる
             SG(58,44, 60,45, 25.5f, "LW_Kita6"),           // 2間 石段W1の上端 → 西縁の外廊下
+            // ⚠ 長局棟の東面 → 石段W1 は廊下を架けない(v3 の LW_Kita5 を廃した)。
+            //   ・棟の外形は x=-571.644、石段の段板は x=-571.245 から。その差 0.4m は
+            //     棟が四方に回している濡縁(0.89m)が既に埋めている — 帯を足すと二重になる。
+            //   ・1間でも渡廊下を架けると屋根の大棟(床+2.503=22.62)が折返しの下り
+            //     (x=-570 付近で段裏 21.28)を突き破る。高欄だけでも 21.28 で接する。
+            //   実際に歩く道は「濡縁 → 中段の地面 → 石段W1の下端(x=-566, z=1037)」で、
+            //   5m は屋外を渡る。石段の折返しがこの取り合いを許さない(石段は手組み資産)。
         };
     }
 
-    // 間割りに乗らない外の道(白洲の参道・石段の取付き)。従来どおり RokaRect で敷く
-    public static Blk[] PathLinks()
+    // 郭をまたぐ外の道(白洲の参道・主郭東縁の取付き)。
+    // 二つの郭のグリッドが 191m 離れていて整数間にならず、間は手組みの石段が受けるので、
+    // GotenLinks のように間割りへは乗せず**一本ずつ起点と間数を書く**。
+    // v4 で Village Kit の RokaRect から EdoGotenKit.Roka(御殿と同じ部材)へ差し替えた。
+    //
+    // 【石段側の1間は屋根を伏せる(openKen)】折返し石段の踊り場は参道の床から 2.7〜3.0m 上に
+    //   あり、廊下の大棟(床+2.503)とぶつかる。石段に取り付く側の1間を落縁(床+高欄のみ)に
+    //   すると、屋根の妻(端で0.30出る)が最寄りの段から 1.27m 逃げて当たらない。
+    //   実際、廊下が石段へ開いて一段下りるのは指図どおりの納まりでもある。
+    public struct Path
+    {
+        public float x0, zC, y;     // 西端 / 中心線のz / 段のレベル
+        public int ken;             // 総間数
+        public int openS, openE;    // 西端・東端の落縁(屋根なし)の間数
+        public bool colS, colE;     // 両端の柱通り(棟に突き付ける側・宙に出る側は false)
+        public string name;
+        public float x1 { get { return x0 + ken * KEN; } }
+        public float z0 { get { return zC - KEN * 0.5f; } }
+        public float z1 { get { return zC + KEN * 0.5f; } }
+    }
+    public static Path[] PathLinks()
     {
         return new[] {
-            M_(-459f,  999f, -455f, 1003f, 25.5f, "L_HigashiEn"),   // 主郭の東縁 → 石段E1
-            M_(-450f, 1000f, -425f, 1002f, 19.5f, "L_Sando19"),     // 東中段の参道
-            M_(-420f, 1000f, -398f, 1002f, 13.5f, "L_Sando13"),     // 表門前段の参道
-            // 長局棟の入側 → 石段W1の下端。間割りに乗らない0.6mの隙間を跨ぐので、
-            // 両側に1m弱ずつ食い込ませる(端で突き合わせるだけだと廊下が切れる)
-            M_(-572.6f, 1035.3f, -570f, 1037.1f, 19.5f, "LW_Kita5"),
+            // 主郭の東縁: 玄関棟の東面(U=1)→ 石段E1の上端。床が石段E1の最上段に 0.06 かぶる
+            new Path{ name="L_HigashiEn", x0=-457f-1*KEN, zC=1001f, y=25.5f, ken=2,
+                      colS=false, colE=true },
+            // 東中段(19.5)の参道: 石段E1の footprint の東端 → 石段E2の上端。
+            // 両端とも石段に開くので落縁。東端は IG_E2 の天端から 0.45 出て最上段の上に架かる
+            new Path{ name="L_Sando19", x0=-450f, zC=1001f, y=19.5f, ken=14,
+                      openS=1, openE=1, colS=true, colE=false },
+            // 表門前段(13.5)の参道: 石段E2の footprint の東端 → 白洲を東へ。
+            // 東端は表門(x=-381)まで届かない — 供待・厩の帯の手前で切る(指図に廊下は無い)
+            new Path{ name="L_Sando13", x0=-420f, zC=1001f, y=13.5f, ken=13,
+                      openS=1, colS=true, colE=true },
         };
     }
     // 庭(指図と同じ矩形)。白洲を塗るときにここは芝のまま残す
@@ -232,11 +260,11 @@ public static class EdoOkabeYashikiBuilder
 
     static string BAK = "/private/tmp/claude-501/-Users-toshio-project-edo-unity/"
         + "0481f3c6-e686-419e-90e8-8fbaf448079d/scratchpad/okabe_v3_backup.bin";
-    const string PFloor = EdoAssets.VK.FloorInterior2x2;
-    const string PCol = EdoAssets.VK.ColumnA;
-    const string PRoof = EdoAssets.VK.Roof2x8;
-    const string PRoofEnd = EdoAssets.VK.RoofEnd2x1;
+    // 廊下・参道の部材は EdoAssets.Goten(御殿と同じキット)。Village Kit の床・柱・屋根は
+    // v4 で全廃した — 御殿と並べると質が揃わない、というユーザー裁定(2026-08-15)
     const string PStep = EdoAssets.Own.DanishiStep;
+    const float STEP_HALF = 0.245f;     // 段板(P_DanishiStep2m)の走り方向の実寸 0.49 の半分
+    const float NUREEN = 0.89f;         // 濡縁(Goten_Nureen_1ken)が棟の外形から出る寸法
     const string PKnagayaC = EdoAssets.Eg.KnagayaC;
     static string[] Pines = {
         EdoAssets.JG.PineBig01,
@@ -556,6 +584,8 @@ public static class EdoOkabeYashikiBuilder
     //     ここで帯を重ねて敷くと床と柱が二重になって z-fighting する。
     //   渡廊下は EdoGotenKit.Roka。両端は棟に突き付けるので端の柱通りは落とす
     //   (棟の柱と同じ位置に立つため)。
+    //   参道(郭をまたぐ外の道)も v4 で同じキットへ。石段に取り付く1間は屋根を伏せた
+    //   落縁にする — 折返しの踊り場が廊下の大棟の高さに来るため(PathLinks の注記)。
     // =========================================================================
     public static string Stage6_Roka()
     {
@@ -563,16 +593,20 @@ public static class EdoOkabeYashikiBuilder
         int nr = 0;
         foreach (var l in GotenLinks()) { BuildRoka(rk, l); nr++; }
         int np = 0;
-        foreach (var l in PathLinks()) { RokaRect(rk, l.x0, l.z0, l.x1, l.z1, l.y, l.name); np++; }
+        foreach (var l in PathLinks()) { BuildPath(rk, l); np++; }
         int nk = 0;
         foreach (var k in Kaidans()) { Kaidan(rk, k); nk++; }
         return "roka 渡廊下=" + nr + " 参道=" + np + " kaidan=" + nk + " / " + RokaConnectivity();
     }
 
     /// <summary>指図の不変条件「廊下は一続き」を機械で確かめる。
-    /// 通れる面 = 棟の入側の環(外形から身舎を抜く) + 渡廊下 + 参道 + 石段。
+    /// 通れる面 = 棟の入側の環(外形から身舎を抜く)+ その外を巡る濡縁 + 渡廊下 + 参道 + 石段。
     /// ラスタに落として4近傍で連結成分を数える。**1個でなければ廊下がどこかで切れている**。
-    /// 段を跨ぐ所は石段が橋渡しするので、高さは見ずXZ平面で判定してよい。</summary>
+    /// 段を跨ぐ所は石段が橋渡しするので、高さは見ずXZ平面で判定してよい。
+    ///
+    /// ⚠ これは**平面の近似**であって「歩ける」の証明ではない。折返し石段は下端が上端と
+    ///   同じ側に戻るので、矩形が重なっていても実際は段の下をくぐる — 石段W1の下端
+    ///   (x=-566, z=1037)は長局棟の濡縁の 5m 東にあり、その間は中段の地面を歩く。</summary>
     [MenuItem("Edo/岡部筑前守上屋敷/廊下の連結を検査")]
     public static void CheckRokaMenu() { Debug.Log("[Okabe] " + RokaConnectivity()); }
     public static string RokaConnectivity()
@@ -581,12 +615,16 @@ public static class EdoOkabeYashikiBuilder
         var band = new List<Rect>(); var hole = new List<Rect>();
         foreach (var m in Muneya())
         {
-            band.Add(Rect.MinMaxRect(m.x0, m.z0, m.x1, m.z1));
+            // 濡縁(0.89m)は Mune() が四方に回すので、踏める面は外形より一回り大きい
+            band.Add(Rect.MinMaxRect(m.x0 - NUREEN, m.z0 - NUREEN, m.x1 + NUREEN, m.z1 + NUREEN));
             hole.Add(Rect.MinMaxRect(m.x0 + KEN, m.z0 + KEN, m.x1 - KEN, m.z1 - KEN));
         }
         foreach (var l in GotenLinks()) band.Add(Rect.MinMaxRect(l.x0, l.z0, l.x1, l.z1));
         foreach (var l in PathLinks()) band.Add(Rect.MinMaxRect(l.x0, l.z0, l.x1, l.z1));
-        foreach (var k in Kaidans()) band.Add(Rect.MinMaxRect(k.x0, k.z0, k.x1, k.z1));
+        // 石段の矩形は**段の芯**の走り。段板は走り方向に 0.49 あるので上下端で 0.245 ずつはみ出す。
+        // 参道はその実寸へ突き付けてあるので、芯の矩形のままだと 0.18m の嘘の切れ目が出る
+        foreach (var k in Kaidans())
+            band.Add(Rect.MinMaxRect(k.x0 - STEP_HALF, k.z0, k.x1 + STEP_HALF, k.z1));
         const float minx = -660f, minz = 940f;
         int nx = 645, nz = 267;      // 290m x 120m / 0.45
         var ok = new bool[nx, nz]; int total = 0;
@@ -648,57 +686,53 @@ public static class EdoOkabeYashikiBuilder
         Undo.RegisterCreatedObjectUndo(g, "roka");
     }
 
-    // 矩形の廊下: 床(2x2) + 柱 + 屋根(2x8)。長辺方向に棟を通す
-    static void RokaRect(Transform parent, float x0, float z0, float x1, float z1, float lv, string nm)
+    /// <summary>参道を1本。石段側の openS/openE 間は屋根を伏せた落縁にし、
+    /// 残りを1本の切妻屋根の廊下(EdoGotenKit.Roka)で通す。走りは +X 固定。</summary>
+    static void BuildPath(Transform parent, Path p)
+    {
+        var g = new GameObject(p.name); g.transform.SetParent(parent, false);
+        Undo.RegisterCreatedObjectUndo(g, "path");
+        int mid = p.ken - p.openS - p.openE;
+        if (mid < 2)
+            Debug.LogWarning("[Okabe] " + p.name + ": 屋根を架ける区間が" + mid + "間 — 2間未満は成立しない");
+        if (p.openS > 0) Ochien(g.transform, "En_W", p.x0, p.zC, p.y, p.openS);
+        if (mid > 0)
+        {
+            var r = EdoGotenKit.Roka(p.name + "_Roka", g.transform,
+                                     new Vector3(p.x0 + p.openS * KEN, p.y, p.z0), 0f, mid,
+                                     GOTEN_FLOOR,
+                                     colStart: p.openS > 0 || p.colS,
+                                     colEnd: p.openE > 0 || p.colE);
+            Undo.RegisterCreatedObjectUndo(r, "roka");
+        }
+        if (p.openE > 0)
+            Ochien(g.transform, "En_E", p.x1 - p.openE * KEN, p.zC, p.y, p.openE);
+    }
+
+    /// <summary>落縁 — 屋根も桁も無い板敷きの縁。床(1間角)+ 両縁の高欄だけ。
+    /// 廊下が石段へ開く所に使う(桁だけ残すと骨組みが宙に浮いて見える)。</summary>
+    static void Ochien(Transform parent, string nm, float x0, float zC, float lv, int ken)
     {
         var g = new GameObject(nm); g.transform.SetParent(parent, false);
-        Undo.RegisterCreatedObjectUndo(g, "roka");
-        float W = x1 - x0, D = z1 - z0;
-        bool alongX = W >= D;
-        var floorPre = AssetDatabase.LoadAssetAtPath<GameObject>(PFloor);
-        var colPre = AssetDatabase.LoadAssetAtPath<GameObject>(PCol);
-        var roofPre = AssetDatabase.LoadAssetAtPath<GameObject>(PRoof);
-        float y = lv + 0.45f;
-        int nx = Mathf.Max(1, Mathf.RoundToInt(W / 2f)), nz = Mathf.Max(1, Mathf.RoundToInt(D / 2f));
-        for (int i = 0; i < nx; i++) for (int j = 0; j < nz; j++)
+        Undo.RegisterCreatedObjectUndo(g, "ochien");
+        float y = lv + GOTEN_FLOOR;
+        for (int i = 0; i < ken; i++)
         {
-            float cx = x0 + (i + 0.5f) * W / nx, cz = z0 + (j + 0.5f) * D / nz;
-            var f = (GameObject)PrefabUtility.InstantiatePrefab(floorPre, g.transform);
-            Undo.RegisterCreatedObjectUndo(f, "rf"); f.name = "F_" + i + "_" + j;
-            f.transform.position = new Vector3(cx, y, cz);
-            f.transform.localScale = new Vector3((W / nx) / 2f, 1f, (D / nz) / 2f);
+            float cx = x0 + (i + 0.5f) * KEN;
+            Put(g.transform, EdoAssets.Goten.FloorBoard, new Vector3(cx, y, zC), 0f);
+            Put(g.transform, EdoAssets.Goten.Koran, new Vector3(cx, y, zC - KEN * 0.5f), 0f);
+            Put(g.transform, EdoAssets.Goten.Koran, new Vector3(cx, y, zC + KEN * 0.5f), 180f);
         }
-        // 柱: 長辺の両側に2m間隔
-        int npc = Mathf.Max(2, (alongX ? nx : nz) + 1);
-        for (int i = 0; i < npc; i++)
-            for (int s = 0; s < 2; s++)
-            {
-                float t = (float)i / (npc - 1);
-                float cx = alongX ? Mathf.Lerp(x0 + 0.15f, x1 - 0.15f, t) : (s == 0 ? x0 + 0.15f : x1 - 0.15f);
-                float cz = alongX ? (s == 0 ? z0 + 0.15f : z1 - 0.15f) : Mathf.Lerp(z0 + 0.15f, z1 - 0.15f, t);
-                var c = (GameObject)PrefabUtility.InstantiatePrefab(colPre, g.transform);
-                Undo.RegisterCreatedObjectUndo(c, "rc"); c.name = "C_" + i + "_" + s;
-                c.transform.position = new Vector3(cx, y, cz);
-            }
-        // 屋根: 長辺方向に 2x8 を並べる
-        float L = alongX ? W : D;
-        int nrf = Mathf.Max(1, Mathf.RoundToInt(L / 8f));
-        for (int i = 0; i < nrf; i++)
-        {
-            var r = (GameObject)PrefabUtility.InstantiatePrefab(roofPre, g.transform);
-            Undo.RegisterCreatedObjectUndo(r, "rr"); r.name = "R_" + i;
-            float seg = L / nrf;
-            r.transform.rotation = Quaternion.Euler(0, alongX ? 90f : 0f, 0);
-            r.transform.localScale = new Vector3(1f, 1f, seg / 8f);
-            float cxr = alongX ? (x0 + (i + 0.5f) * seg) : (x0 + (x1 - x0) * 0.5f);
-            float czr = alongX ? (z0 + (z1 - z0) * 0.5f) : (z0 + (i + 0.5f) * seg);
-            // roof 2x8 は pivot が幅方向の端(local x=0)にあり、local +X は
-            //   ry=0 で world +X、ry=90 で world -Z を向く。向きに合わせて端へ寄せる。
-            //   ⚠ ここを両方 -half にしていたため、東西方向の廊下だけ屋根が2mずれて床が露出した
-            float half = (alongX ? D : W) * 0.5f;
-            if (alongX) czr += half; else cxr -= half;
-            r.transform.position = new Vector3(cxr, y + 3.0f + 1.06f, czr);
-        }
+    }
+
+    static void Put(Transform parent, string path, Vector3 pos, float ry)
+    {
+        var src = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        if (src == null) { Debug.LogError("[Okabe] 見つからない: " + path); return; }
+        var go = (GameObject)PrefabUtility.InstantiatePrefab(src, parent);
+        Undo.RegisterCreatedObjectUndo(go, "part");
+        go.transform.position = pos;
+        go.transform.rotation = Quaternion.Euler(0f, ry, 0f);
     }
 
     // 折返し石段: 二流れ+踊り場。蹴上0.30m

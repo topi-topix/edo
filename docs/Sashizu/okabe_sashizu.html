@@ -1,0 +1,353 @@
+<title>岡部筑前守上屋敷 設計図</title>
+<style>
+:root{
+  --paper:#E6E2D3; --paper2:#DED9C6; --ink:#23201A; --ink-mid:#BFB9A4; --ink-lo:#D2CDBB;
+  --shu:#A8452C; --shu-lo:#E0CFC2; --niwa:#B9C4A8; --ishi:#6E7A83; --roka:#8C7F5E;
+  --grid:#C2BCA8; --dan:#E9E5D6; --text:#23201A; --dim:#5E594C; --rule:#BDB6A2; --shiro:#F0EDE2;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#1A1D21; --paper2:#20242A; --ink:#D7D2C4; --ink-mid:#3C424B; --ink-lo:#2C3138;
+  --shu:#C9674A; --shu-lo:#3A2E2B; --niwa:#37453A; --ishi:#7E8B96; --roka:#6E6446;
+  --grid:#2E333A; --dan:#23272D; --text:#D7D2C4; --dim:#8E8877; --rule:#343A42; --shiro:#2A2F35;
+}}
+:root[data-theme="dark"]{
+  --paper:#1A1D21; --paper2:#20242A; --ink:#D7D2C4; --ink-mid:#3C424B; --ink-lo:#2C3138;
+  --shu:#C9674A; --shu-lo:#3A2E2B; --niwa:#37453A; --ishi:#7E8B96; --roka:#6E6446;
+  --grid:#2E333A; --dan:#23272D; --text:#D7D2C4; --dim:#8E8877; --rule:#343A42; --shiro:#2A2F35;
+}
+:root[data-theme="light"]{
+  --paper:#E6E2D3; --paper2:#DED9C6; --ink:#23201A; --ink-mid:#BFB9A4; --ink-lo:#D2CDBB;
+  --shu:#A8452C; --shu-lo:#E0CFC2; --niwa:#B9C4A8; --ishi:#6E7A83; --roka:#8C7F5E;
+  --grid:#C2BCA8; --dan:#E9E5D6; --text:#23201A; --dim:#5E594C; --rule:#BDB6A2; --shiro:#F0EDE2;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--text);
+  font-family:"Hiragino Sans","Yu Gothic","Noto Sans JP",system-ui,sans-serif;line-height:1.75}
+.wrap{max-width:1180px;margin:0 auto;padding:48px 28px 80px}
+h1{font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+  font-weight:400;font-size:34px;letter-spacing:.06em;margin:0 0 6px;text-wrap:balance}
+.sub{color:var(--dim);font-size:14px;letter-spacing:.14em;margin:0 0 4px}
+h2{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;font-weight:400;font-size:21px;
+  letter-spacing:.05em;margin:0;padding-bottom:8px}
+.plate{margin:44px 0 0;border-top:1px solid var(--rule);padding-top:20px}
+.phead{display:flex;justify-content:space-between;align-items:baseline;gap:20px;flex-wrap:wrap}
+.scale{color:var(--dim);font-size:12.5px;letter-spacing:.1em;font-variant-numeric:tabular-nums}
+.fig{margin-top:16px;overflow-x:auto;background:var(--paper2);border:1px solid var(--rule);padding:10px}
+svg{display:block;width:100%;height:auto;min-width:600px}
+text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
+.rm{font-size:11px;fill:var(--ink);text-anchor:middle}
+.rmS{font-size:12px;fill:var(--ink);text-anchor:middle}
+.jo{font-size:9px;fill:var(--dim);text-anchor:middle;font-variant-numeric:tabular-nums}
+.zn text{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;font-size:17px;fill:var(--ink);
+  text-anchor:middle;letter-spacing:.3em}
+.an{font-size:11px;fill:var(--shu)}
+.anS{font-size:12px;fill:var(--dim)}
+.anS2{font-size:10.5px;fill:var(--dim);text-anchor:middle}
+.zn2{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;font-size:16px;fill:var(--ink);text-anchor:middle;letter-spacing:.28em}
+.an2b{font-size:11.5px;fill:var(--ink)}
+.anG{font-size:12px;fill:var(--shu)}
+.an2{font-size:11px;fill:var(--ink)}
+.wl{font-size:10.5px;fill:var(--paper2);text-anchor:middle}
+.anIR{font-size:11px;fill:var(--ink);letter-spacing:.1em}
+.rk{font-size:10.5px;fill:var(--paper2);text-anchor:middle;letter-spacing:.05em}
+.notes{margin-top:14px;color:var(--dim);font-size:13.5px;max-width:64ch}
+.legend{display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:14px;font-size:12.5px;color:var(--dim)}
+.legend span{display:flex;align-items:center;gap:7px}
+.sw{width:20px;height:11px;border:1px solid var(--rule);display:inline-block}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:14px 34px;margin-top:16px}
+.cols h3{font-size:13px;letter-spacing:.12em;color:var(--dim);font-weight:400;margin:0 0 6px;
+  border-bottom:1px solid var(--rule);padding-bottom:5px}
+.cols p{margin:0;font-size:13.5px}
+.warn{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;font-size:15px;
+  border-left:2px solid var(--shu);padding-left:14px;margin:20px 0 0;border-radius:0}
+.strike{opacity:.42}
+ol{margin:14px 0 0;padding-left:1.3em;font-size:14px}
+ol li{margin-bottom:7px}
+</style><div class="wrap">
+<p class="sub">和泉岸和田藩 五万三千石 岡部筑前守 江戸上屋敷</p>
+<h1>設計図</h1>
+<p class="notes">敷地 38,055m²＝11,512坪。区割りはユーザー下書き（2026-08-14, EdoSketch）に拠る。柱間は江戸間 1間＝6尺＝1.818m。組み方は<b>越前福井藩上屋敷</b>の要約図に倣う（別紙）。</p>
+
+<div class="plate">
+<div class="phead"><h2>其一　敷地全体 配置図</h2><span class="scale">約 1/1,600</span></div>
+<div class="fig"><svg viewBox="0 0 601 365" role="img" aria-label="岡部邸 敷地全体配置図">
+<polygon points="561,282 332,282 217,288 115,298 40,148 95,116 129,76 173,95 421,56 476,40 543,108" fill="var(--paper2)" stroke="var(--ink)" stroke-width="2"/>
+<polygon points="40,148 115,298 217,288 218,264 117,264 112,112 95,116" fill="var(--niwa)"/>
+<polygon points="265,102 508,99 476,49 255,83" fill="var(--niwa)"/>
+<polygon points="109,110 129,76 173,95 239,86 239,110" fill="var(--niwa)"/>
+<rect x="117" y="118" width="89" height="149" fill="var(--ink-mid)" stroke="var(--ink)" stroke-width="1.3"/>
+<rect x="206" y="118" width="42" height="149" fill="var(--ink-mid)" stroke="var(--ink)" stroke-width="1.3"/>
+<rect x="252" y="105" width="173" height="164" fill="var(--ink-mid)" stroke="var(--ink)" stroke-width="1.3"/>
+<rect x="428" y="105" width="49" height="164" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<rect x="477" y="105" width="83" height="172" fill="var(--shiro)" stroke="var(--ink)" stroke-width="1.3"/>
+<line x1="428" y1="282" x2="428" y2="105" stroke="var(--ishi)" stroke-width="5"/>
+<text class="anS2" x="428" y="295">六尺</text>
+<line x1="477" y1="282" x2="477" y2="105" stroke="var(--ishi)" stroke-width="5"/>
+<text class="anS2" x="477" y="295">六尺</text>
+<line x1="248" y1="279" x2="248" y2="112" stroke="var(--ishi)" stroke-width="5"/>
+<text class="anS2" x="248" y="292">六尺</text>
+<line x1="206" y1="279" x2="206" y2="112" stroke="var(--ishi)" stroke-width="5"/>
+<text class="anS2" x="206" y="292">八尺</text>
+<polyline points="118,298 217,288 332,282 555,283 548,202" fill="none" stroke="var(--shu)" stroke-width="4"/>
+<polyline points="476,40 543,108 546,186" fill="none" stroke="var(--shu)" stroke-width="4"/>
+<polyline points="115,298 40,148 95,116 129,76 173,95 421,56 476,40" fill="none" stroke="var(--ink)" stroke-width="1.6" stroke-dasharray="7 3"/>
+<line x1="252" y1="121" x2="252" y2="274" stroke="var(--shu)" stroke-width="3"/>
+<line x1="210" y1="121" x2="210" y2="274" stroke="var(--shu)" stroke-width="3"/>
+<circle cx="548" cy="194" r="5.5" fill="var(--shu)"/>
+<text class="anG" x="557" y="198">表門</text>
+<line x1="548" y1="194" x2="425" y2="194" stroke="var(--shu)" stroke-width="1.8" stroke-dasharray="5 3"/>
+<text class="an2b" x="161" y="193" text-anchor="middle">西低地 11.5</text>
+<text class="an2b" x="227" y="193" text-anchor="middle">中段 19.5</text>
+<text class="an2b" x="339" y="188" text-anchor="middle">主郭 25.5m</text>
+<text class="an2b" x="453" y="147" text-anchor="middle">東中段</text>
+<text class="an2b" x="517" y="139" text-anchor="middle">白洲</text>
+<text class="an2b" x="96" y="237" text-anchor="middle">庭園</text>
+<text class="an2b" x="372" y="70" text-anchor="middle">庭園</text>
+<line x1="40" y1="321" x2="202" y2="321" stroke="var(--ink)" stroke-width="1.6"/>
+<text class="anS" x="210" y="325">100m</text>
+</svg></div>
+<div class="legend">
+<span><i class="sw" style="background:var(--ink-mid)"></i>御殿の段</span>
+<span><i class="sw" style="background:var(--ink-lo)"></i>表の下段</span>
+<span><i class="sw" style="background:var(--shiro)"></i>白洲（門前の空地）</span>
+<span><i class="sw" style="background:var(--niwa)"></i>庭園</span>
+<span><i class="sw" style="background:var(--ishi)"></i>石垣</span>
+<span><i class="sw" style="background:var(--shu)"></i>外周長屋・表門</span>
+</div>
+<p class="notes">段は西から 11.5 / 19.5 / 25.5 / 19.5 / 13.5m。段の間は石垣（八尺・六尺）で土留めし、法面を作らない。空地は福井図と同じく門前の一枚（白洲51m幅）に集約し、そこに厩・土蔵を置く。表門は東辺（三べ坂沿い）z≒1001。</p>
+</div>
+
+<div class="plate">
+<div class="phead"><h2>其二　主郭 御殿平面</h2><span class="scale">107m × 101m（約59間 × 56間）</span></div>
+<div class="fig"><svg viewBox="0 0 564 564" role="img" aria-label="岡部邸 主郭 御殿平面">
+<rect x="52.0" y="52.0" width="460.1" height="434.3" fill="var(--paper2)" stroke="var(--ink)" stroke-width="2.2"/>
+<rect x="430.4" y="340.1" width="81.7" height="68.8" fill="var(--niwa)" stroke="var(--ink)" stroke-width="1"/>
+<text class="rmS" x="471.2" y="378.5">御玄関前の庭</text>
+<rect x="301.4" y="400.3" width="111.8" height="77.4" fill="var(--niwa)" stroke="var(--ink)" stroke-width="1"/>
+<text class="rmS" x="357.3" y="443.0">表の庭</text>
+<rect x="168.1" y="400.3" width="124.7" height="77.4" fill="var(--niwa)" stroke="var(--ink)" stroke-width="1"/>
+<text class="rmS" x="230.4" y="443.0">中の庭</text>
+<rect x="430.4" y="52.0" width="81.7" height="141.9" fill="var(--niwa)" stroke="var(--ink)" stroke-width="1"/>
+<text class="rmS" x="471.2" y="127.0">書院の庭</text>
+<rect x="52.0" y="52.0" width="94.6" height="107.5" fill="var(--niwa)" stroke="var(--ink)" stroke-width="1"/>
+<text class="rmS" x="99.3" y="109.8">奥の内庭</text>
+<rect x="413.2" y="262.7" width="8.6" height="25.8" fill="var(--roka)" stroke="var(--ink)" stroke-width="1"/>
+<rect x="357.3" y="168.1" width="25.8" height="8.6" fill="var(--roka)" stroke="var(--ink)" stroke-width="1"/>
+<rect x="292.8" y="271.3" width="8.6" height="25.8" fill="var(--roka)" stroke="var(--ink)" stroke-width="1"/>
+<rect x="228.3" y="202.5" width="25.8" height="8.6" fill="var(--roka)" stroke="var(--ink)" stroke-width="1"/>
+<rect x="146.6" y="262.7" width="21.5" height="25.8" fill="var(--roka)" stroke="var(--ink)" stroke-width="1"/>
+<rect x="90.7" y="340.1" width="25.8" height="17.2" fill="var(--roka)" stroke="var(--ink)" stroke-width="1"/>
+<rect x="146.6" y="176.7" width="17.2" height="17.2" fill="var(--roka)" stroke="var(--ink)" stroke-width="1"/>
+<rect x="301.4" y="99.3" width="8.6" height="25.8" fill="var(--roka)" stroke="var(--ink)" stroke-width="1"/>
+<rect x="421.8" y="211.1" width="90.3" height="120.4" fill="var(--roka)" stroke="var(--ink)" stroke-width="1.6"/>
+<rect x="301.4" y="176.7" width="111.8" height="215.0" fill="var(--roka)" stroke="var(--ink)" stroke-width="1.6"/>
+<rect x="310.0" y="52.0" width="111.8" height="116.1" fill="var(--roka)" stroke="var(--ink)" stroke-width="1.6"/>
+<rect x="168.1" y="211.1" width="124.7" height="180.6" fill="var(--roka)" stroke="var(--ink)" stroke-width="1.6"/>
+<rect x="163.8" y="52.0" width="137.6" height="150.5" fill="var(--roka)" stroke="var(--ink)" stroke-width="1.6"/>
+<rect x="52.0" y="168.1" width="94.6" height="172.0" fill="var(--roka)" stroke="var(--ink)" stroke-width="1.6"/>
+<rect x="52.0" y="357.3" width="94.6" height="120.4" fill="var(--roka)" stroke="var(--ink)" stroke-width="1.6"/>
+<rect x="469.1" y="271.3" width="34.4" height="47.3" fill="var(--shu-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="486.3" y="298.9">御式台</text>
+<rect x="430.4" y="224.0" width="30.1" height="94.6" fill="var(--shu-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="445.4" y="275.3">御玄関</text>
+<rect x="314.3" y="344.4" width="86.0" height="34.4" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="357.3" y="365.6">三之間</text>
+<rect x="314.3" y="288.5" width="86.0" height="47.3" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="357.3" y="316.1">二之間</text>
+<rect x="314.3" y="189.6" width="86.0" height="90.3" fill="var(--ink-mid)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="357.3" y="238.8">大広間</text>
+<rect x="322.9" y="112.2" width="86.0" height="43.0" fill="var(--ink-mid)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="365.9" y="137.7">御黒書院</text>
+<rect x="322.9" y="64.9" width="86.0" height="38.7" fill="var(--ink-mid)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="365.9" y="88.2">御白書院</text>
+<rect x="219.7" y="305.7" width="60.2" height="73.1" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="249.8" y="346.2">御小姓部屋</text>
+<rect x="181.0" y="305.7" width="30.1" height="73.1" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="196.0" y="346.2">御風呂屋</text>
+<rect x="219.7" y="224.0" width="60.2" height="68.8" fill="var(--ink-mid)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="249.8" y="262.4">御座之間</text>
+<rect x="181.0" y="224.0" width="30.1" height="68.8" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="196.0" y="262.4">御休息之間</text>
+<rect x="202.5" y="90.7" width="86.0" height="86.0" fill="var(--ink-mid)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="245.5" y="137.7">大台所</text>
+<rect x="232.6" y="60.6" width="55.9" height="21.5" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="260.5" y="75.3">御料理間</text>
+<rect x="176.7" y="60.6" width="47.3" height="21.5" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="200.3" y="75.3">御膳所</text>
+<rect x="176.7" y="90.7" width="17.2" height="86.0" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="185.3" y="137.7">御納戸</text>
+<rect x="64.9" y="271.3" width="68.8" height="55.9" fill="var(--ink-mid)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="99.3" y="303.2">奥御座之間</text>
+<rect x="64.9" y="181.0" width="68.8" height="81.7" fill="var(--ink-mid)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="99.3" y="225.8">御対面所</text>
+<rect x="64.9" y="370.2" width="68.8" height="43.0" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="99.3" y="395.7">長局 一之側</text>
+<rect x="64.9" y="421.8" width="68.8" height="43.0" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="99.3" y="447.3">長局 二之側</text>
+<rect x="146.6" y="262.7" width="21.5" height="25.8" fill="var(--shu)"/>
+<text class="anG" x="157.3" y="301.4" text-anchor="middle">御錠口</text>
+<text class="anIR" x="361.6" y="181.0" text-anchor="middle">入側</text>
+<text class="anIR" x="99.3" y="174.6" text-anchor="middle">入側</text>
+<text class="anIR" x="417.5" y="275.6" text-anchor="middle">渡廊下</text>
+<path d="M 548.1 271.3 L 512.1 271.3" stroke="var(--shu)" stroke-width="2.4" stroke-dasharray="7 5" fill="none"/>
+<text class="anG" x="552.1" y="275.3">石段より</text>
+<text class="zn2" x="408.9" y="38.0">表 向</text>
+<text class="zn2" x="236.9" y="38.0">中 奥</text>
+<text class="zn2" x="99.3" y="38.0">奥 向</text>
+<text class="anS" x="284.2" y="510.3" text-anchor="middle">107m (約59間) × 101m (約56間)</text>
+<line x1="426.1" y1="520.3" x2="512.1" y2="520.3" stroke="var(--ink)" stroke-width="1.6"/>
+<text class="anS" x="518.1" y="524.3">20m</text>
+</svg></div>
+<div class="legend">
+<span><i class="sw" style="background:var(--roka)"></i>入側・渡廊下</span>
+<span><i class="sw" style="background:var(--ink-mid)"></i>主要室</span>
+<span><i class="sw" style="background:var(--ink-lo)"></i>次之間・長局</span>
+<span><i class="sw" style="background:var(--shu-lo)"></i>玄関まわり</span>
+<span><i class="sw" style="background:var(--niwa)"></i>庭</span>
+<span><i class="sw" style="background:var(--shu)"></i>御錠口・参道</span>
+</div>
+<p class="notes"><b>廊下の通り方</b> — 室群を七つに分け（玄関群・表御殿群・書院群・中奥群・台所群・奥向群・長局）、各群の<b>外周を入側が一周</b>する。群と群は<b>渡廊下</b>八本で結ぶ。中央を突っ切る通路は無い。座敷の面する側に庭を置き、入側から庭を望む（御玄関前の庭・表の庭・中の庭・書院の庭・奥の内庭）。</p>
+<div class="cols">
+<div><h3>表向</h3><p>石段を上がって御式台・御玄関。渡廊下で表御殿群へ渡り、三之間・二之間・大広間。北へ渡廊下で書院群（黒書院・白書院）。</p></div>
+<div><h3>中奥</h3><p>御座之間・御休息之間・御小姓部屋・御風呂屋。北の台所群に大台所・御料理間・御膳所・御納戸。</p></div>
+<div><h3>奥向</h3><p>御錠口を兼ねた渡廊下で切る。奥御座之間・御対面所。南に長局二列を別棟で置き、渡廊下で結ぶ。</p></div>
+</div>
+</div>
+
+<div class="plate">
+<div class="phead"><h2>其三　西の下郭 平面（西低地・中段）</h2><span class="scale">92m × 106m</span></div>
+<div class="fig"><svg viewBox="0 0 564 656" role="img" aria-label="岡部邸 西の下郭 平面">
+<rect x="57.0" y="62.0" width="275.0" height="510.0" fill="var(--paper2)" stroke="var(--ink)" stroke-width="1.6"/>
+<text class="anS" x="194.5" y="54.0" text-anchor="middle">西低地 11.5m</text>
+<rect x="344.0" y="62.0" width="118.0" height="510.0" fill="var(--paper2)" stroke="var(--ink)" stroke-width="1.6"/>
+<text class="anS" x="403.0" y="54.0" text-anchor="middle">中段 19.5m</text>
+<rect x="474.0" y="62.0" width="38.0" height="510.0" fill="var(--paper2)" stroke="var(--ink)" stroke-width="1.6"/>
+<text class="anS" x="493.0" y="54.0" text-anchor="middle">主郭 25.5m</text>
+<rect x="67.0" y="82.0" width="125.0" height="70.0" fill="var(--niwa)" stroke="var(--ink)" stroke-width="1"/>
+<text class="rmS" x="129.5" y="121.0">泉水庭</text>
+<rect x="67.0" y="312.0" width="55.0" height="170.0" fill="var(--niwa)" stroke="var(--ink)" stroke-width="1"/>
+<text class="rmS" x="94.5" y="401.0">下の庭</text>
+<rect x="122.0" y="232.0" width="10.0" height="30.0" fill="var(--roka)" stroke="var(--ink)" stroke-width="1"/>
+<rect x="212.0" y="412.0" width="30.0" height="50.0" fill="var(--roka)" stroke="var(--ink)" stroke-width="1"/>
+<rect x="312.0" y="272.0" width="20.0" height="30.0" fill="var(--roka)" stroke="var(--ink)" stroke-width="1"/>
+<rect x="344.0" y="272.0" width="8.0" height="30.0" fill="var(--roka)" stroke="var(--ink)" stroke-width="1"/>
+<rect x="452.0" y="272.0" width="10.0" height="30.0" fill="var(--roka)" stroke="var(--ink)" stroke-width="1"/>
+<rect x="474.0" y="272.0" width="38.0" height="30.0" fill="var(--roka)" stroke="var(--ink)" stroke-width="1"/>
+<rect x="392.0" y="332.0" width="30.0" height="30.0" fill="var(--roka)" stroke="var(--ink)" stroke-width="1"/>
+<rect x="132.0" y="162.0" width="180.0" height="250.0" fill="var(--roka)" stroke="var(--ink)" stroke-width="1.6"/>
+<rect x="67.0" y="202.0" width="55.0" height="90.0" fill="var(--roka)" stroke="var(--ink)" stroke-width="1.6"/>
+<rect x="352.0" y="82.0" width="100.0" height="250.0" fill="var(--roka)" stroke="var(--ink)" stroke-width="1.6"/>
+<rect x="147.0" y="332.0" width="90.0" height="65.0" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="192.0" y="368.5">次之間</text>
+<rect x="147.0" y="222.0" width="90.0" height="100.0" fill="var(--ink-mid)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="192.0" y="276.0">下御座之間</text>
+<rect x="247.0" y="332.0" width="50.0" height="65.0" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="272.0" y="368.5">御化粧之間</text>
+<rect x="247.0" y="222.0" width="50.0" height="100.0" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="272.0" y="276.0">御納戸</text>
+<rect x="147.0" y="177.0" width="90.0" height="35.0" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="192.0" y="198.5">御膳所</text>
+<rect x="247.0" y="177.0" width="50.0" height="35.0" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="272.0" y="198.5">御湯殿</text>
+<rect x="77.0" y="217.0" width="35.0" height="60.0" fill="var(--shu-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="94.5" y="251.0">御茶屋</text>
+<rect x="367.0" y="212.0" width="70.0" height="105.0" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="402.0" y="268.5">長局 三之側</text>
+<rect x="367.0" y="97.0" width="70.0" height="105.0" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="402.0" y="153.5">御末部屋</text>
+<rect x="152.0" y="462.0" width="50.0" height="70.0" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="177.0" y="501.0">土蔵</text>
+<rect x="222.0" y="462.0" width="50.0" height="70.0" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="247.0" y="501.0">土蔵</text>
+<rect x="362.0" y="362.0" width="70.0" height="90.0" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="397.0" y="411.0">物置</text>
+<rect x="362.0" y="472.0" width="50.0" height="70.0" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="387.0" y="511.0">土蔵</text>
+<rect x="332.0" y="62.0" width="12.0" height="510.0" fill="var(--ishi)" stroke="var(--ink)" stroke-width="1.2"/>
+<text class="wl" x="342.0" y="462.0" transform="rotate(-90 342.0 462.0)">石垣 八尺</text>
+<rect x="462.0" y="62.0" width="12.0" height="510.0" fill="var(--ishi)" stroke="var(--ink)" stroke-width="1.2"/>
+<text class="wl" x="472.0" y="462.0" transform="rotate(-90 472.0 462.0)">石垣 六尺</text>
+<rect x="332.0" y="272.0" width="12.0" height="30.0" fill="var(--shu)" stroke="var(--ink)" stroke-width="1"/>
+<line x1="332.0" y1="297.0" x2="344.0" y2="297.0" stroke="var(--paper2)" stroke-width="0.8"/>
+<line x1="332.0" y1="292.0" x2="344.0" y2="292.0" stroke="var(--paper2)" stroke-width="0.8"/>
+<line x1="332.0" y1="287.0" x2="344.0" y2="287.0" stroke="var(--paper2)" stroke-width="0.8"/>
+<line x1="332.0" y1="282.0" x2="344.0" y2="282.0" stroke="var(--paper2)" stroke-width="0.8"/>
+<line x1="332.0" y1="277.0" x2="344.0" y2="277.0" stroke="var(--paper2)" stroke-width="0.8"/>
+<rect x="462.0" y="272.0" width="12.0" height="30.0" fill="var(--shu)" stroke="var(--ink)" stroke-width="1"/>
+<line x1="462.0" y1="297.0" x2="474.0" y2="297.0" stroke="var(--paper2)" stroke-width="0.8"/>
+<line x1="462.0" y1="292.0" x2="474.0" y2="292.0" stroke="var(--paper2)" stroke-width="0.8"/>
+<line x1="462.0" y1="287.0" x2="474.0" y2="287.0" stroke="var(--paper2)" stroke-width="0.8"/>
+<line x1="462.0" y1="282.0" x2="474.0" y2="282.0" stroke="var(--paper2)" stroke-width="0.8"/>
+<line x1="462.0" y1="277.0" x2="474.0" y2="277.0" stroke="var(--paper2)" stroke-width="0.8"/>
+<text class="anG" x="338.0" y="252.0" text-anchor="middle">石段</text>
+<text class="anG" x="468.0" y="252.0" text-anchor="middle">石段</text>
+<text class="anIR" x="222.0" y="404.5" text-anchor="middle">入側</text>
+<line x1="343.0" y1="562.0" x2="343.0" y2="312.0" stroke="var(--shu)" stroke-width="3.5"/>
+<line x1="343.0" y1="262.0" x2="343.0" y2="72.0" stroke="var(--shu)" stroke-width="3.5"/>
+<line x1="473.0" y1="562.0" x2="473.0" y2="312.0" stroke="var(--shu)" stroke-width="3.5"/>
+<line x1="473.0" y1="262.0" x2="473.0" y2="72.0" stroke="var(--shu)" stroke-width="3.5"/>
+<text class="anG" x="344.0" y="142.0" transform="rotate(-90 344.0 142.0)">家臣長屋</text>
+<text class="anG" x="474.0" y="142.0" transform="rotate(-90 474.0 142.0)">家臣長屋</text>
+<text class="anS" x="282.0" y="604.0" text-anchor="middle">92m × 106m</text>
+</svg></div>
+<p class="notes"><b>用途の判断</b> — 西辺は溜池の汀で塀のみ、街路が無い。荷車の入れない郭に蔵・厩・作事を置くのは無理があるので、それらは表門前段（街路あり）へ回し、西低地は溜池を望む奥向の下郭とした。下御殿群も入側が一周し、御茶屋とは渡廊下で結ぶ。</p>
+</div>
+
+<div class="plate">
+<div class="phead"><h2>其四　東西断面（z=1006）</h2><span class="scale">水平 1/500 ・ 垂直は2.7倍に強調</span></div>
+<div class="fig"><svg viewBox="0 0 706 300" role="img" aria-label="岡部邸 東西断面">
+<polygon points="56.0,204.6 82.7,204.6 82.7,177.2 195.4,177.2 195.4,132.4 248.7,132.4 248.7,98.8 476.2,98.8 476.2,132.4 537.8,132.4 537.8,166.0 642.3,166.0 642.3,230.4 56.0,230.4" fill="var(--dan)" stroke="var(--ink)" stroke-width="1.6"/>
+<rect x="195.4" y="132.4" width="4.9" height="44.8" fill="var(--ishi)" stroke="var(--ink)" stroke-width="1.2"/>
+<text class="anS2" x="198.4" y="127.4">八尺</text>
+<rect x="248.7" y="98.8" width="4.9" height="33.6" fill="var(--ishi)" stroke="var(--ink)" stroke-width="1.2"/>
+<text class="anS2" x="251.7" y="93.8">六尺</text>
+<rect x="476.2" y="98.8" width="4.9" height="33.6" fill="var(--ishi)" stroke="var(--ink)" stroke-width="1.2"/>
+<text class="anS2" x="479.2" y="93.8">六尺</text>
+<rect x="537.8" y="132.4" width="4.9" height="33.6" fill="var(--ishi)" stroke="var(--ink)" stroke-width="1.2"/>
+<text class="anS2" x="540.8" y="127.4">六尺</text>
+<rect x="56.0" y="204.6" width="26.6" height="25.8" fill="var(--shu)" fill-opacity="0.18"/>
+<text class="anS" x="58.0" y="211.4">溜池 6.6m</text>
+<rect x="86.8" y="138.0" width="104.5" height="39.2" fill="var(--ink-mid)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="139.0" y="161.6">下御殿</text>
+<rect x="201.5" y="98.8" width="43.0" height="33.6" fill="var(--ink-mid)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="223.1" y="119.6">長局三之側</text>
+<rect x="258.9" y="48.4" width="213.2" height="50.4" fill="var(--ink-mid)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="365.5" y="77.6">御殿マット</text>
+<rect x="482.4" y="98.8" width="51.2" height="33.6" fill="var(--ink-mid)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="508.0" y="119.6">番所・表役所</text>
+<rect x="548.0" y="138.0" width="41.0" height="28.0" fill="var(--ink-mid)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="568.5" y="156.0">厩・供待</text>
+<rect x="593.1" y="132.4" width="41.0" height="33.6" fill="var(--ink-mid)" stroke="var(--ink)" stroke-width="1.3"/>
+<text class="rmS" x="613.6" y="153.2">表長屋</text>
+<polyline points="195.4,177.2 195.6,175.5 195.8,173.9 195.9,172.2 196.1,170.6 196.3,168.9 196.5,167.2 196.7,165.6 196.9,163.9 197.0,162.3 197.2,160.6 197.4,158.9 197.6,157.3 197.8,155.6 198.0,154.0 198.1,152.3 198.3,150.7 198.5,149.0 198.7,147.3 198.9,145.7 199.0,144.0 199.2,142.4 199.4,140.7 199.6,139.0 199.8,137.4 200.0,135.7 200.1,134.1 200.3,132.4" fill="none" stroke="var(--shu)" stroke-width="2.2"/>
+<polyline points="248.7,132.4 248.9,130.7 249.2,129.0 249.4,127.4 249.7,125.7 249.9,124.0 250.2,122.3 250.4,120.6 250.7,119.0 250.9,117.3 251.2,115.6 251.4,113.9 251.7,112.2 251.9,110.6 252.1,108.9 252.4,107.2 252.6,105.5 252.9,103.8 253.1,102.2 253.4,100.5 253.6,98.8" fill="none" stroke="var(--shu)" stroke-width="2.2"/>
+<polyline points="476.2,132.4 476.5,130.7 476.7,129.0 477.0,127.4 477.2,125.7 477.5,124.0 477.7,122.3 478.0,120.6 478.2,119.0 478.5,117.3 478.7,115.6 479.0,113.9 479.2,112.2 479.4,110.6 479.7,108.9 479.9,107.2 480.2,105.5 480.4,103.8 480.7,102.2 480.9,100.5 481.2,98.8" fill="none" stroke="var(--shu)" stroke-width="2.2"/>
+<polyline points="537.8,166.0 538.0,164.3 538.2,162.6 538.5,161.0 538.7,159.3 539.0,157.6 539.2,155.9 539.5,154.2 539.7,152.6 540.0,150.9 540.2,149.2 540.5,147.5 540.7,145.8 540.9,144.2 541.2,142.5 541.4,140.8 541.7,139.1 541.9,137.4 542.2,135.8 542.4,134.1 542.7,132.4" fill="none" stroke="var(--shu)" stroke-width="2.2"/>
+<text class="anG" x="195.4" y="121.2" text-anchor="middle">石段 27段</text>
+<text class="anG" x="248.7" y="87.6" text-anchor="middle">20段</text>
+<text class="anG" x="476.2" y="87.6" text-anchor="middle">20段</text>
+<text class="anG" x="537.8" y="121.2" text-anchor="middle">20段</text>
+<text class="anS" x="138.0" y="190.2" text-anchor="middle">11.5 m</text>
+<text class="anS" x="224.1" y="145.4" text-anchor="middle">19.5 m</text>
+<text class="anS" x="363.5" y="111.8" text-anchor="middle">25.5 m</text>
+<text class="anS" x="507.0" y="145.4" text-anchor="middle">19.5 m</text>
+<text class="anS" x="609.5" y="179.0" text-anchor="middle">13.5 m</text>
+<circle cx="634.1" cy="166.0" r="4.5" fill="var(--shu)"/>
+<text class="anG" x="634.1" y="184.0" text-anchor="middle">表門</text>
+<text class="anS" x="60.1" y="51.2">西（溜池）</text>
+<text class="anS" x="642.3" y="51.2" text-anchor="end">東（三べ坂）</text>
+<text class="anS" x="56.0" y="256.4">水平 1/500 ・ 垂直 1/180（高さ2.7倍に強調）</text>
+</svg></div>
+<p class="notes"><b>段のつなぎ方</b> — 表門(13.5m)から西へ、六尺石垣を三度、八尺石垣を一度のぼり下りして西低地(11.5m)に至る。石垣にはそれぞれ幅6mの開口を切り、蹴上0.30mの石段（20・20・20・27段）を通す。石段の上下は渡廊下で受ける。段の間に法面は作らない（石垣が土留めを兼ねる）。高低差は表門→主郭12.0m、主郭→西低地14.0m。</p>
+</div>
+
+<div class="plate">
+<div class="phead"><h2>格式の判断と典拠</h2></div>
+<div class="cols">
+<div><h3>御成セットは付けない</h3><p>御成門・能舞台・御成風呂は作らない。御成の対応は家門・大藩の装置で、福井図で御成門を持つ越前松平は家門。譜代雁間五万三千石の当家に典拠がない。</p></div>
+<div><h3>表門の位置</h3><p>東辺（三べ坂沿い）。2026-08-12の考証では切絵図の文字の頭から「北東辺」としていたが、ユーザーの区割り指定を優先した。</p></div>
+<div><h3>敷地内の構成</h3><p>一般類型。当屋敷の指図・絵画は未発見。</p></div>
+<div><h3>池</h3><p>典拠がないため掘らない。泉水庭は州浜と築山のみ。</p></div>
+</div>
+</div>
+</div>

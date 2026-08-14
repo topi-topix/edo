@@ -19,6 +19,24 @@
    `Meshes/*.fbx` と `Prefabs/*.prefab` に二重にある(目録の件数が倍なのはこのため)。
    マテリアルが付いているのはプレハブ側。
 
+### パックごとに階層が違う件
+
+Asset Store 製(Japanese Castle / Village Kit / Waldemarst / NatureManufacture)は
+**用途別フォルダ**(`Prefabs/Exterior/...`)、江戸暦は **商品1点=1フォルダ**の平置きで、
+中には Poser 由来の `Runtime/Geometries/Honey/` が挟まる。ベンダーの梱包の違いなので**揃えない**
+(揃えても gitignore されていて version 管理されず、再 import で元に戻り、パスを直書きしている
+ビルダー19本が `LoadAssetAtPath → null` で静かに壊れる)。代わりに**接頭辞で読む**:
+
+| 接頭辞 | 中身 | 例 |
+|---|---|---|
+| `es_` | 江戸 street シリーズ = **建物**。ほぼ全部使える | `es_kura`(蔵)`es_nmon`(長屋門)`es_shop01` |
+| `obj_` | 屋外の**構造物・道具**。使える | `obj_itabei`(板塀)`obj_tsujiandon`(辻行灯) |
+| `t_` | **石灯籠** | `t_kasuga` `t_yukimi` `t_oribe` |
+| `s_` | **石造物**(石仏・塔)。⚠ スケール壊れが多い | `s_jizo` `s_gorin` `s_hokyoin` |
+| `pp_` `pp2_` | Poser **props**。屋内小物・座敷・屋台。obj が深い階層にある | `pp_sobaya_yatai` `pp2_kakechaya` |
+| `cr2_` | Poser **キャラクター**の衣装・馬具。素体が無いので**使えない** | `cr2_m3shokunin` `cr2_baguset` |
+| 接頭辞なし | 髷・簪などキャラ部品。使えない | `marumage` `icho-gaeshi` |
+
 なお **4パックのデモシーンは削除済み**(2026-08-14)。プレハブ本体は残っているので配置には影響しない。
 再 import すると戻るが、また消してよい。
 

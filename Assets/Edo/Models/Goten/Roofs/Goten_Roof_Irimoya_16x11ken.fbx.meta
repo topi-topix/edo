@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 0e757516c5cee42bc95f37719dfa5363
+guid: 924bd254a78fa476787c93ebf54a494c
 ModelImporter:
   serializedVersion: 24501
   internalIDToNameTable: []
@@ -7,8 +7,18 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
-      name: door wall
-    second: {fileID: 2100000, guid: c298f5897e841d74783072254b9f6baf, type: 2}
+      name: roof
+    second: {fileID: 2100000, guid: 46aea8a32dec24843adef3ad15ec2f3e, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: wall C
+    second: {fileID: 2100000, guid: 5882125c712caf74a8e76c5ccac460ec, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: wood
+    second: {fileID: 2100000, guid: 6127939ab0b92994fa5506eed0e13a74, type: 2}
   materials:
     materialImportMode: 2
     materialName: 1

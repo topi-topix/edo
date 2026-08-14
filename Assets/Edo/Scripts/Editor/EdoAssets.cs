@@ -109,11 +109,19 @@ public static class EdoAssets
         public const string RoofIrimoya    = RoofDir + "Goten_Roof_Irimoya.fbx";     // 8間x5間
         public const string RoofIrimoya5x5 = RoofDir + "Goten_Roof_Irimoya_5x5.fbx"; // 5間x5間
 
+        /// <summary>棟の外形(身舎+入側)の間数で引く入母屋。<paramref name="wKen"/>=桁行(大棟の走る側)。
+        /// 大棟は桁行に架かるので **wKen >= dKen** で呼ぶこと(足りない向きで呼ぶと棟が短辺に架かる)。
+        /// 無い寸法は build_goten_roof.py -- &lt;W&gt; &lt;D&gt; Goten_Roof_Irimoya_&lt;w&gt;x&lt;d&gt;ken で足す。</summary>
+        public static string RoofIrimoya_(int wKen, int dKen)
+        {
+            return RoofDir + "Goten_Roof_Irimoya_" + wKen + "x" + dKen + "ken.fbx";
+        }
+
         /// <summary>渡廊下の切妻屋根。幅1間・長さ<see cref="RoofKirizumaKen"/>間の定尺で作ってある
         /// (瓦の繰り返し 1.785/2.004m は江戸間と割り切れないので1間モジュールにはできない)。
         /// 無い長さが要るときは build_goten_roof.py -- kirizuma &lt;間数&gt; で足す。
         /// ピボット = 廊下の中心・軒先レベル。大棟の天端は軒先から 0.953。</summary>
-        public static readonly int[] RoofKirizumaKen = { 2, 3, 4, 5, 6, 8 };
+        public static readonly int[] RoofKirizumaKen = { 2, 3, 4, 5, 6, 7, 8, 9 };
         public static string RoofKirizuma(int nKen)
         {
             return RoofDir + "Goten_Roof_Kirizuma_" + nKen + "ken.fbx";

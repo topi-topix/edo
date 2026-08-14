@@ -51,13 +51,7 @@ import が終わったら Unity で **Edo ▸ アセット目録 ▸ 目録を�
 3. SpeedTree ビルボードが URP で白飛びするため、Terrain の `treeBillboardDistance = treeDistance` でビルボードを無効化
    (`Assets/Edo/Scripts` の EdoTrees 側で対応済み)
 
-### 2. PLATEAU SDK for Unity
-
-`Packages/manifest.json` が `file:../LocalPackages/PLATEAU-SDK-for-Unity-v4.3.0.0.tgz` を参照していますが、
-tarball(799MB)は除外しています。PLATEAU SDK v4.3.0 を入手して `LocalPackages/` に置いてください。
-Unity 6000.5 では SDK 内の `EntityId` 周りに 1ファイルのパッチが必要です(未適用だとコンパイルが通りません)。
-
-### 3. Unity 生成物
+### 2. Unity 生成物
 
 `Library/`, `Temp/`, `Logs/`, `UserSettings/`, `Screenshots/`(Assets の外に移動)は除外しています。
 
@@ -69,6 +63,14 @@ git clone https://github.com/topi-topix/edo.git
 ```
 
 1. 上記のサードパーティ製パックを `Assets/` 直下に import
-2. `LocalPackages/` に PLATEAU SDK の tarball を配置
-3. Unity 6000.5.2f1 でプロジェクトを開く(初回は import に時間がかかります)
-4. `Assets/Edo/Scenes/Akasaka.unity` を開く
+2. Unity 6000.5.2f1 でプロジェクトを開く(初回は import に時間がかかります)
+3. `Assets/Edo/Scenes/Akasaka.unity` を開く
+
+## 過去に使っていて外したもの
+
+- **PLATEAU SDK for Unity v4.3.0**(2026-08-14 撤去)。地形は国土地理院タイルから
+  `GsiTerrainBuilder` で起こしており、PLATEAU 由来のオブジェクトはシーンに1つも無かった。
+  SDK 本体(799MB の tarball)と `LocalPackages/`、`manifest.json` の
+  `com.synesthesias.plateau-unity-sdk` を削除。Unity 6000.5 で毎回必要だった
+  `EntityId` パッチ(`Library/` を消すと失われる)からも解放される。
+  必要になったら v4.3.0 を再入手して `LocalPackages/` に戻し、manifest に1行足せば復帰できる。

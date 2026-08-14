@@ -91,10 +91,12 @@ namespace Edo.EditorTools
             foreach (var guid in AssetDatabase.FindAssets("t:Prefab", existing))
                 list.Add(AssetDatabase.GUIDToAssetPath(guid));
 
-            foreach (var guid in AssetDatabase.FindAssets("t:Model", existing))
+            // モデルは t:Model で拾えない物がある(.glb/.gltf は glTFast の ScriptedImporter 経由で
+            // GameObject として入るので t:Model にも t:Prefab にも該当しない)。拡張子で直接拾う。
+            foreach (var p in AssetDatabase.GetAllAssetPaths())
             {
-                var p = AssetDatabase.GUIDToAssetPath(guid);
-                if (ModelExt.Contains(Path.GetExtension(p).ToLowerInvariant())) list.Add(p);
+                if (!ModelExt.Contains(Path.GetExtension(p).ToLowerInvariant())) continue;
+                if (existing.Any(r => p.StartsWith(r + "/", StringComparison.Ordinal))) list.Add(p);
             }
 
             return list.Distinct().OrderBy(p => p, StringComparer.OrdinalIgnoreCase).ToList();

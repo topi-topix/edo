@@ -3,7 +3,7 @@
 **「〜を再現して」と言われたら、フォルダを掘る前にここを見る。**
 無い物を無いと即答するためのリストでもある(→ §9)。
 
-- 全 2,681 点の生データ: [`asset-index.tsv`](asset-index.tsv)(1行1アセット・タブ区切り)
+- 全 2,700 点の生データ: [`asset-index.tsv`](asset-index.tsv)(1行1アセット・タブ区切り)
 - フォルダ別の件数: [`asset-index-summary.md`](asset-index-summary.md)
 - 再生成: Unity で **Edo ▸ アセット目録 ▸ 目録を再生成**
   (`Assets/Edo/Scripts/Editor/EdoAssetCatalog.cs`)
@@ -203,7 +203,9 @@ grep -iE "gate|mon" docs/asset-index.tsv | awk -F'\t' '$5>5'   # 幅5m超の門�
 - **ルートに補正スケールを持つプレハブが 42 点**ある(`root_scale` 列が `1` でない物)。
   共通ヘルパに `Vector3.one` を渡すと化ける。`PrefabUtility.InstantiatePrefab` でネイティブスケール保持。
   例: `Edo/Models/Dobei/DobeiModule2m.fbx` はルート `(2, 0.35, 0.5)` で実寸 31×35×9.9m。
-- **`.glb` は Unity にインポートされない**(glTF importer 未導入)。
-  `edogoyomi/es_shop01/*.glb` 10点・`Edo/Models/shop01.glb` は `.obj` 版と重複。目録にも載らない。
+- **`.glb` は `com.unity.cloud.gltfast` 経由で普通に使える**(ScriptedImporter なので
+  `t:Model` 検索には掛からない — 目録は拡張子で拾っている)。ただし現存19点は全て未使用:
+  `edogoyomi/es_shop01/*.glb` 10点と `Edo/Models/shop01.glb` は `.obj` 版と重複、
+  `Edo/Ishigaki/*.glb` 8点は不採用になった手続き生成石垣の試作(2m幅・高1.2/2.5/5.0)。
 - **edogoyomi の Poser 残骸**(`.pp2` `.cr2` `.rsr` `.hr2` `.bum` 計 75MB)は Unity から使えない。
 - edogoyomi の門・長屋は **`pivot_bottom` が −1.0 前後**。地面に置くと 1m 埋まる。

@@ -23,11 +23,11 @@ using UnityEngine;
 public static class EdoSannoJuboBuilder
 {
     // ---------- assets ----------
-    const string PKabuki = "Assets/edogoyomi/es_kabukimon/kabukimon.obj";   // 腕木門
-    const string PItabei5 = "Assets/edogoyomi/obj_itabei/itabei5.obj";      // 板塀5枚スパン(7.49m@ES)
-    const string PHogaki5 = "Assets/edogoyomi/obj_hogaki/hogaki5.obj";      // 穂垣5枚スパン(水際の柵)
-    const string PKura = "Assets/edogoyomi/es_kura/kura.obj";
-    const string PSmallHouse = "Assets/Japanese Village Kit/Prefabs/Small House.prefab"; // 14.5x10.5 ≒ 8x6間
+    const string PKabuki = EdoAssets.Eg.Kabukimon;   // 腕木門
+    const string PItabei5 = EdoAssets.Eg.Itabei5;      // 板塀5枚スパン(7.49m@ES)
+    const string PHogaki5 = EdoAssets.Eg.Hogaki5;      // 穂垣5枚スパン(水際の柵)
+    const string PKura = EdoAssets.Eg.Kura;
+    const string PSmallHouse = EdoAssets.VK.SmallHouse; // 14.5x10.5 ≒ 8x6間
     public const float ES = 1.818f;
 
     public class Parcel
@@ -433,20 +433,20 @@ public static class EdoSannoJuboBuilder
 
     // ---------- Stage 3: 境内植栽(松基調+竹叢+生垣・刈込, 桜なし=図会は松杉基調) ----------
     static string[] Pines = {
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_01.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_02.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_03.prefab" };
+        EdoAssets.JG.PineBig01,
+        EdoAssets.JG.PineBig02,
+        EdoAssets.JG.PineBig03 };
     static string[] Shrubs = {
-        "Assets/Japanese Castle/Prefabs/Foliage/Azalea A 01.prefab",
-        "Assets/Japanese Castle/Prefabs/Foliage/Azalea A 03.prefab",
-        "Assets/Japanese Castle/Prefabs/Foliage/Azalea A 04.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Plant_Boxwood_Spring_01.prefab" };
+        EdoAssets.JC.Azalea01,
+        EdoAssets.JC.Azalea03,
+        EdoAssets.JC.Azalea04,
+        EdoAssets.JG.Boxwood01 };
     static string[] Bamboo = {
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Big_Green_01.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Big_Green_02.prefab" };
-    const string PTobi = "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_TobiIshi_A_01.prefab";
-    const string PKasuga = "Assets/Edo/Prefabs/KasugaLantern.prefab";
-    const string PYukimi = "Assets/Edo/Prefabs/YukimiLantern.prefab";
+        EdoAssets.JG.BambooBig01,
+        EdoAssets.JG.BambooBig02 };
+    const string PTobi = EdoAssets.JG.TobiIshi01;
+    const string PKasuga = EdoAssets.Own.KasugaLantern;
+    const string PYukimi = EdoAssets.Own.YukimiLantern;
 
     public static string Stage3_Garden(string groupName, int seed)
     {
@@ -546,7 +546,7 @@ public static class EdoSannoJuboBuilder
             if (!clear(p, 1.5f)) continue;
             float y = Ground(p.x, p.y);
             string lp = (i % 2 == 0) ? PKasuga : PYukimi;
-            if (AssetDatabase.LoadAssetAtPath<GameObject>(lp) == null) lp = "Assets/Japanese Castle/Prefabs/Props/Stone Basket.prefab";
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(lp) == null) lp = EdoAssets.JC.StoneBasket;
             var go = Place(lp, new Vector3(p.x, y, p.y), (float)rnd.NextDouble() * 360f, Vector3.one * 1.35f, props, "Lantern_" + i);
             SeatBottom(go, y - 0.03f);
             i++;

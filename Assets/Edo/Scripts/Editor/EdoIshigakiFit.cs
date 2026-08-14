@@ -102,7 +102,7 @@ public class EdoIshigakiFit : EditorWindow
             }
             if (topY < -1e8f) continue;
             minS -= 0.4f; maxS += 0.4f; // 隣ピースと重ねて切れ目を防ぐ
-            var layer0 = AssetDatabase.LoadAssetAtPath<TerrainLayer>("Assets/Edo/Terrain/layers/L_grass.terrainlayer");
+            var layer0 = AssetDatabase.LoadAssetAtPath<TerrainLayer>(EdoAssets.Own.LayerGrass);
             float tile = (layer0 != null) ? layer0.tileSize.x : 4f;
             float[] D = { 0.20f, -1.8f, -4.5f, -7.0f, -9.5f }; // 前縁(石内)→裾。長め=カクつきの影も覆う
             const int cols = 5; int rows = D.Length; int b0 = verts.Count;
@@ -140,7 +140,7 @@ public class EdoIshigakiFit : EditorWindow
         mesh.SetVertices(verts); mesh.SetUVs(0, uvs); mesh.SetTriangles(tris, 0);
         mesh.RecalculateNormals(); mesh.RecalculateBounds();
 
-        var layer = AssetDatabase.LoadAssetAtPath<TerrainLayer>("Assets/Edo/Terrain/layers/L_grass.terrainlayer");
+        var layer = AssetDatabase.LoadAssetAtPath<TerrainLayer>(EdoAssets.Own.LayerGrass);
         var mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
         if (layer != null && layer.diffuseTexture != null) mat.SetTexture("_BaseMap", layer.diffuseTexture);
         mat.SetFloat("_Smoothness", 0f); mat.SetFloat("_Metallic", 0f);
@@ -164,7 +164,7 @@ public class EdoIshigakiFit : EditorWindow
         foreach (var r in roots) if (r.name.StartsWith("igfill_")) toDel.Add(r.gameObject);
         foreach (var g in toDel) Object.DestroyImmediate(g);
         roots.RemoveAll(r => r == null);
-        var fbx = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Japanese Castle/Meshes/Exterior/Castle Wall 4x12.fbx");
+        var fbx = AssetDatabase.LoadAssetAtPath<GameObject>(EdoAssets.JC.CastleWall4x12Mesh);
         int fills = 0;
         for (int i = roots.Count - 2; i >= 0; i--)
         {

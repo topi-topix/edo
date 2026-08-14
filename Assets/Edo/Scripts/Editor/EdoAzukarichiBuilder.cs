@@ -25,9 +25,9 @@ using UnityEngine;
 public static class EdoAzukarichiBuilder
 {
     const float ES = 1.818f;
-    const string PBanya = "Assets/edogoyomi/es_kidobanya/kidobanya.obj";
-    const string PKiri = "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Big_Summer_01.prefab";
-    const string PKiri2 = "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Mid_Summer_01.prefab";
+    const string PBanya = EdoAssets.Eg.Kidobanya;
+    const string PKiri = EdoAssets.JG.SakuraBig01;
+    const string PKiri2 = EdoAssets.JG.SakuraMid01;
 
     // ---- 下書きポリゴン ----
     static readonly Vector2[] PU = { new Vector2(-355.46f,483.40f), new Vector2(-291.96f,441.54f), new Vector2(-240.33f,419.21f), new Vector2(-167.76f,406.65f), new Vector2(-93.80f,398.28f), new Vector2(-44.26f,395.48f), new Vector2(-80.54f,373.16f), new Vector2(-205.44f,325.01f), new Vector2(-308.71f,369.67f), new Vector2(-386.16f,452.00f) };
@@ -247,7 +247,7 @@ public static class EdoAzukarichiBuilder
         }
         // --- 射小屋(東端・西面): kidobanya 代用 ---
         {
-            var mBanya = AssetDatabase.LoadAssetAtPath<Material>("Assets/Edo/Materials/M_Kidobanya.mat");
+            var mBanya = AssetDatabase.LoadAssetAtPath<Material>(EdoAssets.Own.MKidobanya);
             var asset = AssetDatabase.LoadAssetAtPath<GameObject>(PBanya);
             var go = (GameObject)PrefabUtility.InstantiatePrefab(asset);
             go.name = "Shakoya"; go.transform.SetParent(root, true);

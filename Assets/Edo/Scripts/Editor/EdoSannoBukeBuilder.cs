@@ -25,34 +25,34 @@ using UnityEngine;
 
 public static class EdoSannoBukeBuilder
 {
-    const string PHei = "Assets/edogoyomi/es_dobei/s_hei_center.obj";
-    const string PKmon = "Assets/edogoyomi/es_kmon/k_mon.obj";
-    const string PNmon = "Assets/edogoyomi/es_nmon/nagayamon.obj";
-    const string PKabuki = "Assets/edogoyomi/es_kabukimon/kabukimon.obj";
-    const string PBansho = "Assets/edogoyomi/es_dbansho/dbansho.obj";
-    const string PKura = "Assets/edogoyomi/es_kura/kura.obj";
-    const string PKido = "Assets/edogoyomi/es_kido/kido_open.obj";
-    const string PItabei5 = "Assets/edogoyomi/obj_itabei/itabei5.obj";
-    const string PHouse = "Assets/Japanese Village Kit/Prefabs/House.prefab";
-    const string PHouseB = "Assets/Japanese Village Kit/Prefabs/House B.prefab";
-    const string PSmallHouse = "Assets/Japanese Village Kit/Prefabs/Small House.prefab";
-    const string PBigHouse = "Assets/Japanese Village Kit/Prefabs/Big House.prefab";
-    const string PManor = "Assets/Japanese Village Kit/Prefabs/Manor.prefab";
-    const string PShop01 = "Assets/edogoyomi/es_shop01/shop01.obj";
-    const string PShop02 = "Assets/edogoyomi/es_shop02/shop02.obj";
+    const string PHei = EdoAssets.Eg.DobeiCenter;
+    const string PKmon = EdoAssets.Eg.Kmon;
+    const string PNmon = EdoAssets.Eg.Nagayamon;
+    const string PKabuki = EdoAssets.Eg.Kabukimon;
+    const string PBansho = EdoAssets.Eg.Bansho;
+    const string PKura = EdoAssets.Eg.Kura;
+    const string PKido = EdoAssets.Eg.KidoOpen;
+    const string PItabei5 = EdoAssets.Eg.Itabei5;
+    const string PHouse = EdoAssets.VK.House;
+    const string PHouseB = EdoAssets.VK.HouseB;
+    const string PSmallHouse = EdoAssets.VK.SmallHouse;
+    const string PBigHouse = EdoAssets.VK.BigHouse;
+    const string PManor = EdoAssets.VK.Manor;
+    const string PShop01 = EdoAssets.Eg.Shop01;
+    const string PShop02 = EdoAssets.Eg.Shop02;
     static string[] Pines = {
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_01.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_02.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_03.prefab" };
+        EdoAssets.JG.PineBig01,
+        EdoAssets.JG.PineBig02,
+        EdoAssets.JG.PineBig03 };
     static string[] Shrubs = {
-        "Assets/Japanese Castle/Prefabs/Foliage/Azalea A 01.prefab",
-        "Assets/Japanese Castle/Prefabs/Foliage/Azalea A 03.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Plant_Boxwood_Spring_01.prefab" };
+        EdoAssets.JC.Azalea01,
+        EdoAssets.JC.Azalea03,
+        EdoAssets.JG.Boxwood01 };
     static string[] Bamboo = {
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Big_Green_01.prefab",
-        "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Big_Green_02.prefab" };
-    const string PTobi = "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_TobiIshi_A_01.prefab";
-    const string PKasuga = "Assets/Edo/Prefabs/KasugaLantern.prefab";
+        EdoAssets.JG.BambooBig01,
+        EdoAssets.JG.BambooBig02 };
+    const string PTobi = EdoAssets.JG.TobiIshi01;
+    const string PKasuga = EdoAssets.Own.KasugaLantern;
     public const float ES = 1.818f;
 
     // ---------- 区画(下書きスナップ済) ----------
@@ -494,8 +494,8 @@ public static class EdoSannoBukeBuilder
             }
         }
         // 門前町: 辻の北西の小さなL字(参道北縁の南向き4戸+小路東縁の西向き3戸)
-        var mS1 = MonzenMat("M_Shop01", "Assets/edogoyomi/es_shop01/shop01.jpg");
-        var mS2 = MonzenMat("M_Shop02", "Assets/edogoyomi/es_shop02/shop02.jpg");
+        var mS1 = MonzenMat("M_Shop01", EdoAssets.Eg.TexShop01);
+        var mS2 = MonzenMat("M_Shop02", EdoAssets.Eg.TexShop02);
         int n = 0;
         for (int i = 0; i < 4; i++)
         {
@@ -585,9 +585,9 @@ public static class EdoSannoBukeBuilder
             CenterSeat(kr, -240f - i * 8f, 845f - i * 6f);
         }
         // 家臣長屋(発掘の長屋地区に対応): 表門の南、東縁内側に2棟
-        var n1 = Place("Assets/edogoyomi/es_knagaya/knagaya01l.obj", Vector3.zero, 0f, Vector3.one * ES, bg, "KashinNagaya_L");
+        var n1 = Place(EdoAssets.Eg.KnagayaL, Vector3.zero, 0f, Vector3.one * ES, bg, "KashinNagaya_L");
         CenterSeat(n1, -148f, 812f);
-        var n2 = Place("Assets/edogoyomi/es_knagaya/knagaya01r.obj", Vector3.zero, 0f, Vector3.one * ES, bg, "KashinNagaya_R");
+        var n2 = Place(EdoAssets.Eg.KnagayaR, Vector3.zero, 0f, Vector3.one * ES, bg, "KashinNagaya_R");
         CenterSeat(n2, -140.2f, 812f);
         Well(bg, -190f, 828f);
         // 庭(池は発掘で存在確認されるが位置不明=未再現)
@@ -720,9 +720,9 @@ public static class EdoSannoBukeBuilder
             CenterSeat(kr, -235f - i * 8f, 640f - i * 4f);
         }
         // 中間長屋(knagaya l+r)
-        var m1 = Place("Assets/edogoyomi/es_knagaya/knagaya01l.obj", Vector3.zero, 0f, Vector3.one * ES, bg, "ChugenNagaya_L");
+        var m1 = Place(EdoAssets.Eg.KnagayaL, Vector3.zero, 0f, Vector3.one * ES, bg, "ChugenNagaya_L");
         CenterSeat(m1, -290f, 655f);
-        var m2 = Place("Assets/edogoyomi/es_knagaya/knagaya01r.obj", Vector3.zero, 0f, Vector3.one * ES, bg, "ChugenNagaya_R");
+        var m2 = Place(EdoAssets.Eg.KnagayaR, Vector3.zero, 0f, Vector3.one * ES, bg, "ChugenNagaya_R");
         CenterSeat(m2, -282.2f, 655f);
         Well(bg, -170f, 630f);
         // 庭: 台地東の高台=奥庭、南の水際=溜池を望む景(池は作らない)

@@ -10,10 +10,10 @@ using UnityEngine;
 
 public static class EdoSanyashikiRebuild
 {
-    const string P_CW = "Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Castle Wall.prefab";
-    const string P_HMON = "Assets/edogoyomi/es_hmon/h_mon.obj";
-    const string P_KMON = "Assets/edogoyomi/es_kmon/k_mon.obj";
-    const string P_BANSHO = "Assets/edogoyomi/es_dbansho/dbansho.obj";
+    const string P_CW = EdoAssets.JC.CastleWall;
+    const string P_HMON = EdoAssets.Eg.Hmon;
+    const string P_KMON = EdoAssets.Eg.Kmon;
+    const string P_BANSHO = EdoAssets.Eg.Bansho;
     const float ES = 1.818f;
 
     public class SEstate

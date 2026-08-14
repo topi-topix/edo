@@ -13,15 +13,15 @@ using UnityEngine;
 public static class EdoYamatoRebuild
 {
     const string GROUP = "Edo_Yashiki_MatsudairaYamato";
-    const string P_CW = "Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Castle Wall.prefab";
-    const string P_CWC = "Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Castle Wall Corner.prefab";
-    const string P_KMON = "Assets/edogoyomi/es_kmon/k_mon.obj";
-    const string P_BANSHO = "Assets/edogoyomi/es_dbansho/dbansho.obj";
-    const string P_MANOR = "Assets/Japanese Village Kit/Prefabs/Manor.prefab";
-    const string P_BIG = "Assets/Japanese Village Kit/Prefabs/Big House.prefab";
-    const string P_HOUSEA = "Assets/Japanese Village Kit/Prefabs/House A.prefab";
-    const string P_SMALL = "Assets/Japanese Village Kit/Prefabs/Small House.prefab";
-    const string P_KURA = "Assets/edogoyomi/es_kura/kura.obj";
+    const string P_CW = EdoAssets.JC.CastleWall;
+    const string P_CWC = EdoAssets.JC.CastleWallCorner;
+    const string P_KMON = EdoAssets.Eg.Kmon;
+    const string P_BANSHO = EdoAssets.Eg.Bansho;
+    const string P_MANOR = EdoAssets.VK.Manor;
+    const string P_BIG = EdoAssets.VK.BigHouse;
+    const string P_HOUSEA = EdoAssets.VK.HouseA;
+    const string P_SMALL = EdoAssets.VK.SmallHouse;
+    const string P_KURA = EdoAssets.Eg.Kura;
     const float ES = 1.818f;
 
     // 赤下書き線 (P14/P15の重複は除去済み)。順序=ユーザー描画順(反時計回り)。
@@ -389,8 +389,8 @@ public static class EdoYamatoRebuild
         var negRight = new Vector2(-Mathf.Cos(rad), Mathf.Sin(rad));
         var g = new GameObject(name); g.transform.SetParent(parent, false);
         Undo.RegisterCreatedObjectUndo(g, "umaya");
-        var m1 = EdoNishiTameikeBuilder.Place("Assets/edogoyomi/es_knagaya/knagaya01l.obj", Vector3.zero, psi, Vector3.one * ES, g.transform, "u0");
-        var m2 = EdoNishiTameikeBuilder.Place("Assets/edogoyomi/es_knagaya/knagaya01r.obj", Vector3.zero, psi, Vector3.one * ES, g.transform, "u1");
+        var m1 = EdoNishiTameikeBuilder.Place(EdoAssets.Eg.KnagayaL, Vector3.zero, psi, Vector3.one * ES, g.transform, "u0");
+        var m2 = EdoNishiTameikeBuilder.Place(EdoAssets.Eg.KnagayaR, Vector3.zero, psi, Vector3.one * ES, g.transform, "u1");
         var p1 = c - negRight * 3.9f; var p2 = c + negRight * 3.9f;
         m1.transform.position = new Vector3(p1.x, y, p1.y);
         m2.transform.position = new Vector3(p2.x, y, p2.y);

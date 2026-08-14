@@ -42,8 +42,8 @@ public static class EdoYashikiBuilder
 
     // ---- 土塀（edogoyomi es_dobei）----
     // ピボットは足元。走りはローカル +X、厚みは z 対称。実測で継ぎ目は 0.01m 以下に収まる。
-    const string P_HEI = "Assets/edogoyomi/es_dobei/s_hei_center.obj";
-    const string P_HEI_COR = "Assets/edogoyomi/es_dobei/s_hei_corner.obj";
+    const string P_HEI = EdoAssets.Eg.DobeiCenter;
+    const string P_HEI_COR = EdoAssets.Eg.DobeiCorner;
     const float HEI_PITCH = 1.64f * EDO_SCALE;   // 2.982m
     const float HEI_BACK = 1.30f * EDO_SCALE;    // 原点から左端までの距離 2.364m
     const float HEI_FWD = 0.34f * EDO_SCALE;     // 原点から右端までの距離 0.618m
@@ -53,9 +53,9 @@ public static class EdoYashikiBuilder
 
     // ---- 長屋（edogoyomi es_knagaya）----
     // 胴はすべて原点の -Z 側。街路に面するのは -Z の面。足元はピボットより 1.836m 下。
-    const string P_NAGAYA_C = "Assets/edogoyomi/es_knagaya/knagaya01c.obj";
-    const string P_NAGAYA_L = "Assets/edogoyomi/es_knagaya/knagaya01l.obj";
-    const string P_NAGAYA_R = "Assets/edogoyomi/es_knagaya/knagaya01r.obj";
+    const string P_NAGAYA_C = EdoAssets.Eg.KnagayaC;
+    const string P_NAGAYA_L = EdoAssets.Eg.KnagayaL;
+    const string P_NAGAYA_R = EdoAssets.Eg.KnagayaR;
     const float NG_PITCH = 4.45f * EDO_SCALE;    // 8.090m
     const float NG_LIFT = 1.01f * EDO_SCALE;     // 1.836m
     const float NG_FRONT = 4.773f;   // 原点から街路側の【壁面】まで。軒は 5.363m まで出るので軒で合わせない
@@ -65,10 +65,10 @@ public static class EdoYashikiBuilder
     // ---- 表門 ----
     // 表門は edogoyomi（HONEY「江戸街並みシリーズ」）の実物モデル。1間=1.818m でモデリングされている。
     const float EDO_SCALE = 1.818f;
-    const string G_HMON = "Assets/edogoyomi/es_hmon/h_mon.obj";        // 旗本屋敷の長屋門 15.4m
-    const string G_NMON = "Assets/edogoyomi/es_nmon/nagayamon.obj";    // 大名屋敷の長屋門 22.5m
-    const string G_KMON = "Assets/edogoyomi/es_kmon/k_mon.obj";        // 大名屋敷の表門 14.4m
-    const string G_BANSHO = "Assets/edogoyomi/es_dbansho/dbansho.obj"; // 出番所（k_mon と同じ原点で作られている）
+    const string G_HMON = EdoAssets.Eg.Hmon;        // 旗本屋敷の長屋門 15.4m
+    const string G_NMON = EdoAssets.Eg.Nagayamon;    // 大名屋敷の長屋門 22.5m
+    const string G_KMON = EdoAssets.Eg.Kmon;        // 大名屋敷の表門 14.4m
+    const string G_BANSHO = EdoAssets.Eg.Bansho; // 出番所（k_mon と同じ原点で作られている）
 
     static float _gateOpen = 6f;    // 石垣・塀を切る幅(m)。門モデルの実幅から決まる
     const float RAMP_LEN = 22.0f;   // 門の外へ刻む坂の長さ(m)
@@ -87,18 +87,18 @@ public static class EdoYashikiBuilder
     const float GRADE_INSET = 2.2f;
     const string SNAPSHOT = "EdoYashiki_terrain_before.bin";
 
-    const string P_WALL = "Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Castle Wall.prefab";
-    const string P_WALL_CORNER = "Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Castle Wall Corner.prefab";
-    const string P_HEI8 = "Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Wall Exterior Defence x 8.prefab";
-    const string P_HEI1 = "Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Wall Exterior Defence.prefab";
-    const string P_HEI_CORNER = "Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Wall Exterior Defence Corner.prefab";
-    const string P_GATE = "Assets/Japanese Castle/Prefabs/Exterior/Walls/Gate Castle Exterior.prefab";
-    const string P_GATE_L = "Assets/Japanese Castle/Prefabs/Exterior/Walls/Gate Castle Exterior End L.prefab";
-    const string P_GATE_R = "Assets/Japanese Castle/Prefabs/Exterior/Walls/Gate Castle Exterior End R.prefab";
-    const string P_NAGAYA_OUT = "Assets/Japanese Village Kit/Prefabs/Shopping Streets/Wall Shop Plaster x 8.prefab";
-    const string P_NAGAYA_IN = "Assets/Japanese Village Kit/Prefabs/Shopping Streets/Wall Shop Wood x 8.prefab";
-    const string P_ROOF_SLOPE = "Assets/Japanese Village Kit/Prefabs/Roofs/roof 2x8.prefab";
-    const string P_ROOF_TOP = "Assets/Japanese Village Kit/Prefabs/Roofs/roof top x8.prefab";
+    const string P_WALL = EdoAssets.JC.CastleWall;
+    const string P_WALL_CORNER = EdoAssets.JC.CastleWallCorner;
+    const string P_HEI8 = EdoAssets.JC.WallDefenceX8;
+    const string P_HEI1 = EdoAssets.JC.WallDefence;
+    const string P_HEI_CORNER = EdoAssets.JC.WallDefenceCorner;
+    const string P_GATE = EdoAssets.JC.GateExterior;
+    const string P_GATE_L = EdoAssets.JC.GateExteriorEndL;
+    const string P_GATE_R = EdoAssets.JC.GateExteriorEndR;
+    const string P_NAGAYA_OUT = EdoAssets.VK.WallShopPlasterX8;
+    const string P_NAGAYA_IN = EdoAssets.VK.WallShopWoodX8;
+    const string P_ROOF_SLOPE = EdoAssets.VK.Roof2x8;
+    const string P_ROOF_TOP = EdoAssets.VK.RoofTopX8;
     const string P_TREE = "Assets/Edo/Terrain/details/BroadleafTree.prefab";
 
     // ===================== 敷地定義 =====================
@@ -131,12 +131,12 @@ public static class EdoYashikiBuilder
     }
 
     // Village Kit の建物
-    const string B_MANOR = "Assets/Japanese Village Kit/Prefabs/Manor.prefab";
-    const string B_BIG = "Assets/Japanese Village Kit/Prefabs/Big House.prefab";
-    const string B_HOUSE = "Assets/Japanese Village Kit/Prefabs/House.prefab";
-    const string B_HOUSE_A = "Assets/Japanese Village Kit/Prefabs/House A.prefab";
-    const string B_HOUSE_B = "Assets/Japanese Village Kit/Prefabs/House B.prefab";
-    const string B_SMALL = "Assets/Japanese Village Kit/Prefabs/Small House.prefab";
+    const string B_MANOR = EdoAssets.VK.Manor;
+    const string B_BIG = EdoAssets.VK.BigHouse;
+    const string B_HOUSE = EdoAssets.VK.House;
+    const string B_HOUSE_A = EdoAssets.VK.HouseA;
+    const string B_HOUSE_B = EdoAssets.VK.HouseB;
+    const string B_SMALL = EdoAssets.VK.SmallHouse;
 
     // 区画はユーザーが手で組み直した太田の石垣から実測した外面ポリゴンが基準。
     // 太田の4隅を実測 → 加納・松平はその辺を共有するように取り直した（3区画が隙間なく街区を分ける）。

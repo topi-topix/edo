@@ -40,6 +40,10 @@ Asset Store 製(Japanese Castle / Village Kit / Waldemarst / NatureManufacture)�
 なお **4パックのデモシーンは削除済み**(2026-08-14)。プレハブ本体は残っているので配置には影響しない。
 再 import すると戻るが、また消してよい。
 
+**コードから使うときはパスを直書きしない。** `Assets/Edo/Scripts/Editor/EdoAssets.cs` の定数
+(`EdoAssets.Eg.Kura` / `EdoAssets.VK.BigHouse` / `EdoAssets.JG.PineBig01` …)を経由する。
+`LoadAssetAtPath` は存在しないパスでも例外を投げず `null` を返すので、直書きは静かに壊れる。
+
 grep の例:
 
 ```bash

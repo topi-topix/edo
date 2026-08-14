@@ -2,16 +2,13 @@
 
 `Edo ▸ アセット目録 ▸ 目録を再生成` で自動生成。全件は `asset-index.tsv`。
 
-- 総数 **2700** 点 / シーンで使用中 **152** 点 / ビルダーが参照 **69** 点
+- 総数 **2681** 点 / シーンで使用中 **152** 点 / ビルダーが参照 **69** 点
 - URP でピンクになる(BUILTIN) **4** 点
 
-## Edo — 23 点
+## Edo — 14 点
 
 | フォルダ | 点数 | 幅の中央値[m] | 高さの中央値[m] | 使用中 |
 |---|---:|---:|---:|---:|
-| `Assets/Edo/Ishigaki` | 5 | 2 | 2.52 | 0 |
-| `Assets/Edo/Ishigaki/b24` | 3 | 2.46 | 2.53 | 0 |
-| `Assets/Edo/Models` | 1 | 2.71 | 2.34 | 0 |
 | `Assets/Edo/Models/Dobei` | 2 | 59.73 | 67.5 | 0 |
 | `Assets/Edo/Models/es_hmon` | 1 | 8.47 | 2.81 | 0 |
 | `Assets/Edo/Models/Gogan` | 1 | 107.53 | 45.92 | 1 |
@@ -19,7 +16,7 @@
 | `Assets/Edo/Prefabs` | 3 | 0.74 | 0.87 | 2 |
 | `Assets/Edo/Terrain/details` | 3 | 0.45 | 0.11 | 1 |
 
-## edogoyomi — 250 点
+## edogoyomi — 240 点
 
 | フォルダ | 点数 | 幅の中央値[m] | 高さの中央値[m] | 使用中 |
 |---|---:|---:|---:|---:|
@@ -48,7 +45,7 @@
 | `Assets/edogoyomi/es_knagaya` | 3 | 4.67 | 3.03 | 3 |
 | `Assets/edogoyomi/es_kura` | 1 | 3.65 | 3.58 | 1 |
 | `Assets/edogoyomi/es_nmon` | 1 | 12.37 | 2.81 | 1 |
-| `Assets/edogoyomi/es_shop01` | 15 | 0.33 | 0.31 | 3 |
+| `Assets/edogoyomi/es_shop01` | 5 | 0.33 | 0.31 | 3 |
 | `Assets/edogoyomi/es_shop02` | 1 | 3.92 | 2.58 | 1 |
 | `Assets/edogoyomi/obj_hogaki` | 3 | 0.83 | 0.78 | 1 |
 | `Assets/edogoyomi/obj_itabei` | 3 | 0.84 | 0.8 | 1 |

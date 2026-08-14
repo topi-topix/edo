@@ -15,6 +15,7 @@
 |---|---|
 | `Assets/Edo/` | シーン、地形、石垣、道路、水系、シェーダ、マテリアル、古地図/現代地図オーバーレイ、エディタ拡張 |
 | `Assets/Edo/Scripts/`, `Assets/Edo/Editor/` | 地形・植生・石垣・水面の生成/編集ツール(`Edo` メニュー) |
+| `docs/` | アセット目録([用途別](docs/asset-catalog.md) / [全件TSV](docs/asset-index.tsv) / [フォルダ別](docs/asset-index-summary.md)) |
 | `Packages/`, `ProjectSettings/` | パッケージ構成とプロジェクト設定 |
 
 バイナリ(png/fbx/TerrainData 等)は **Git LFS** で管理しています。clone 前に `git lfs install` を実行してください。
@@ -34,6 +35,8 @@
 | `Assets/Japanese Castle/` | Japanese Castle Pack (Gabriel M. Guimarães) | Unity Asset Store (有償) | 城郭・石垣パーツ |
 | `Assets/Japanese Village Kit/` | Japanese Village Kit (Gabriel M. Guimarães) | Unity Asset Store (有償) | 町家・村落パーツ |
 | `Assets/edogoyomi/` | 江戸暦 Edo street series | 3Dモデル素材集(別途購入) | 門・土塀・長屋・辻番所・蔵などの江戸建築 |
+
+import が終わったら Unity で **Edo ▸ アセット目録 ▸ 目録を再生成** を実行して `docs/` の目録を更新する。
 
 #### import 後に必要なローカル改変
 

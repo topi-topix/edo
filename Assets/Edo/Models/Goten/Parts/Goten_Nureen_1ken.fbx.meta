@@ -8,11 +8,11 @@ ModelImporter:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
       name: balcony
-    second: {fileID: 2100000, guid: f5660d00c453f5c4a9755cacdb4026a8, type: 2}
+    second: {fileID: 2100000, guid: 3ee39474eaf86ac409892f7cbe0a3f78, type: 2}
   materials:
     materialImportMode: 2
-    materialName: 0
-    materialSearch: 1
+    materialName: 1
+    materialSearch: 2
     materialLocation: 1
     searchTexturesGlobally: 0
   animations:

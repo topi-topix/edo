@@ -76,59 +76,118 @@ public static class EdoOkabeYashikiBuilder
     }
 
     // =========================================================================
-    // 指図(docs/Sashizu/okabe_sashizu.html)の座標をそのまま持つ。図面と実装をズラさない。
-    //   主郭プレート : u=0 が x=-457 で西へ増加 / v=0 が z=955 で北へ増加
-    //   西の下郭     : u=0 が x=-648 で東へ増加 / v=0 が z=948 で北へ増加
+    // 指図(Docs/Sashizu/okabe_sashizu.html)を**江戸間の柱割り**に載せて持つ。図面と実装をズラさない。
+    //
+    // 【ユーザー裁定 2026-08-14】指図のメートル値でなく**間割りを正**とし、指図の方を書き換える。
+    //   ・指図の畳数は寸法の従属変数だった。面積÷1.65256(江戸間の畳1枚)で13棟中12棟が
+    //     記載畳数と±1畳以内に一致する ⇒ 畳数からは独立した拘束が出ない
+    //     (唯一の例外 NagatsuboneW の464畳は幅12m時代の残り。ブックマーク1で10mへ狭めた分が
+    //      指図に反映されていなかった)
+    //   ・指図自身が主郭を「約59間×56間」と書いており、丸めの方向と一致する
+    //   ・Mune()/Roka() は整数間しか受けない。端数を残すと柱・障子・畳・屋根のモジュールが端で崩れる
+    //   丸めで動く量は最大 ±0.91m(NagatsuboneW の幅・Shoin の奥行)。
+    //
+    //   主郭グリッド: x = -457 - U*KEN / z = 955 + V*KEN  (U は西へ・V は北へ増える) 59×56間
+    //   西の下郭     : x = -648 + U*KEN / z = 948 + V*KEN  (U は東へ・V は北へ増える)
+    //   ⚠ 二つのフレームは 191m 離れており 105.06間 と整数にならない。段が石垣で切れていて
+    //     北縁の外廊下でしか繋がらないので、グリッドは郭ごとに別に張る。
+    //
+    // 【Blk の矩形 = 入側を含む棟の外形】指図の身舎に一間の入側を**四方へ**回したもの
+    //   (ユーザー裁定: 指図が「入側が各棟の外周を巡り、隣の棟の入側と辺を共有して直に繋がる」
+    //    と書いているため。前後だけにすると妻側の白壁が廊下に面する)。
+    //   kw/kd = 外形の間数(U方向 = 世界X / V方向 = 世界Z)。身舎はそれぞれ -2 間。
     // =========================================================================
-    public struct Blk { public float x0, z0, x1, z1, y; public string name; }
-    static Blk S_(float u0, float v0, float u1, float v1, float y, string n)
-    { return new Blk { x0 = -457f - u1, z0 = 955f + v0, x1 = -457f - u0, z1 = 955f + v1, y = y, name = n }; }
-    static Blk W_(float u0, float v0, float u1, float v1, float y, string n)
-    { return new Blk { x0 = -648f + u0, z0 = 948f + v0, x1 = -648f + u1, z1 = 948f + v1, y = y, name = n }; }
+    public const float KEN = 1.818f;                    // 江戸間 1間 = 6尺
+    public struct Blk
+    {
+        public float x0, z0, x1, z1, y; public string name;
+        public int kw, kd;          // 間数(0 なら間割りに乗らない矩形 = 参道など)
+        public int MoyaW { get { return kw - 2; } }
+        public int MoyaD { get { return kd - 2; } }
+    }
+    static Blk SG(int U0, int V0, int U1, int V1, float y, string n)   // 主郭
+    {
+        return new Blk { x0 = -457f - U1 * KEN, x1 = -457f - U0 * KEN,
+                         z0 = 955f + V0 * KEN,  z1 = 955f + V1 * KEN,
+                         y = y, name = n, kw = U1 - U0, kd = V1 - V0 };
+    }
+    static Blk WG(int U0, int V0, int U1, int V1, float y, string n)   // 西の下郭
+    {
+        return new Blk { x0 = -648f + U0 * KEN, x1 = -648f + U1 * KEN,
+                         z0 = 948f + V0 * KEN,  z1 = 948f + V1 * KEN,
+                         y = y, name = n, kw = U1 - U0, kd = V1 - V0 };
+    }
+    static Blk M_(float x0, float z0, float x1, float z1, float y, string n)  // 間割りに乗らない矩形
+    { return new Blk { x0 = x0, z0 = z0, x1 = x1, z1 = z1, y = y, name = n }; }
 
-    // 身舎(棟の中身)。廊下はこの外周2mに自動で回る
+    // 棟の外形(身舎 + 四方の入側)。指図の身舎寸法との差は okabe_sashizu.html 其二の表に載せた
     public static Blk[] Muneya()
     {
         return new[] {
-            S_(4,38,18,62,    25.5f, "Genkan"),      S_(24,14,46,50, 25.5f, "Ohiroma"),
-            S_(24,66,46,96,   25.5f, "Shoin"),       S_(56,14,78,50, 25.5f, "Nakaoku"),
-            S_(56,66,78,96,   25.5f, "Daidokoro"),   S_(88,42,104,68,25.5f, "Okumuki"),
-            S_(88,8,104,28,   25.5f, "Nagatsubone"),
-            W_(9,8,25,22,     11.5f, "Katte"),       W_(9,30,25,74,  11.5f, "ShimoGoten"),
-            W_(9,80,21,88,    11.5f, "Yudono"),      W_(35,30,51,58, 11.5f, "Jochu"),
-            W_(35,66,46,88,   11.5f, "Goyobeya"),    W_(64,24,74,88, 19.5f, "NagatsuboneW"),   // 家臣長屋との隙間を取る(bm1 23-24)
+            //     U0 V0  U1 V1            身舎(間)   指図(m)      差(m)
+            SG( 1,20, 11,35, 25.5f, "Genkan"),      //  8x13  14x24  +0.54/-0.37
+            SG(13, 7, 27,29, 25.5f, "Ohiroma"),     // 12x20  22x36  -0.18/+0.36
+            SG(13,36, 27,54, 25.5f, "Shoin"),       // 12x16  22x30  -0.18/-0.91
+            SG(30, 7, 44,29, 25.5f, "Nakaoku"),     // 12x20  22x36  -0.18/+0.36
+            SG(30,36, 44,54, 25.5f, "Daidokoro"),   // 12x16  22x30  -0.18/-0.91
+            SG(47,22, 58,38, 25.5f, "Okumuki"),     //  9x14  16x26  +0.36/-0.55
+            SG(47, 3, 58,16, 25.5f, "Nagatsubone"), //  9x11  16x20  +0.36/ 0
+            WG( 4, 3, 15,13, 11.5f, "Katte"),       //  9x8   16x14  +0.36/+0.54
+            WG( 4,15, 15,41, 11.5f, "ShimoGoten"),  //  9x24  16x44  +0.36/-0.37
+            WG( 4,43, 13,49, 11.5f, "Yudono"),      //  7x4   12x8   +0.73/-0.73
+            WG(18,15, 29,32, 11.5f, "Jochu"),       //  9x15  16x28  +0.36/-0.73
+            WG(18,35, 26,49, 11.5f, "Goyobeya"),    //  6x12  11x22  -0.09/-0.18
+            WG(34,12, 42,49, 19.5f, "NagatsuboneW"),//  6x35  10x64  +0.91/-0.37  家臣長屋との隙間(bm1 23-24)
         };
     }
-    // 渡廊下・外廊下(入側は身舎から自動生成)
-    public static Blk[] RokaLinks()
+
+    // 渡廊下 — 幅1間・長さ n間。**両端は棟の壁面に突き付ける**(屋根が両端0.30長く、
+    // 棟の軒0.90と1.20重なる。離すと取り合いに隙間が出る)。EdoGotenKit.Roka で建てる。
+    //   ⚠ 1間(1.818m)のリンクは成立しない — 両端で1.20ずつ計2.40m重なり、廊下長を超える。
+    //     指図の2m隙間は2間(3.64m)へ広げた(L_GenkanOhiroma / LW_KatteShimo / LW_ShimoYudono)。
+    public static Blk[] GotenLinks()
     {
         return new[] {
-            S_(20,46,22,48,25.5f,"L_GenkanOhiroma"), S_(48,50,54,52,25.5f,"L_OhiromaNakaoku"),
-            S_(48,64,54,66,25.5f,"L_ShoinDaidokoro"),S_(34,52,36,64,25.5f,"L_OhiromaShoin"),
-            S_(66,52,68,64,25.5f,"L_NakaokuDaidokoro"), S_(80,46,86,48,25.5f,"L_Jouguchi"),
-            S_(96,30,98,40,25.5f,"L_OkuNagatsubone"), S_(104,70,106,86,25.5f,"L_ShimoKuruwa"),
-            // 主郭の東縁 → 石段Bへ
-            new Blk{ x0=-459f, z0=999f, x1=-455f, z1=1003f, y=25.5f, name="L_HigashiEn" },
-            // 東中段の参道
-            new Blk{ x0=-450f, z0=1000f, x1=-425f, z1=1002f, y=19.5f, name="L_Sando19" },
-            // 表門前段の参道
-            new Blk{ x0=-420f, z0=1000f, x1=-398f, z1=1002f, y=13.5f, name="L_Sando13" },
-            // 西の下郭 (levelは段ごと)
-            W_(7,24,9,28,11.5f,"LW_KatteShimo"),  W_(7,76,9,78,11.5f,"LW_ShimoYudono"),
-            W_(27,42,33,44,11.5f,"LW_ShimoJochu"),W_(41,60,43,64,11.5f,"LW_JochuGoyo"),
-            W_(23,88,33,90,11.5f,"LW_Kita1"),     W_(48,88,49.5f,90,11.5f,"LW_Kita2"),
-            W_(56,88,58.4f,90,19.5f,"LW_Kita3"),   W_(58.4f,88,60,90,19.5f,"LW_Kita4"),
-            W_(76,88,77,90,19.5f,"LW_Kita5"),     W_(82,88,84.4f,90,25.5f,"LW_Kita6"),
-            W_(84.4f,88,92,90,25.5f,"LW_Kita7"),
+            SG(11,25, 13,26, 25.5f, "L_GenkanOhiroma"),    // 2間
+            SG(27,28, 30,29, 25.5f, "L_OhiromaNakaoku"),   // 3間
+            SG(27,36, 30,37, 25.5f, "L_ShoinDaidokoro"),   // 3間
+            SG(20,29, 21,36, 25.5f, "L_OhiromaShoin"),     // 7間 坪庭の西縁
+            SG(37,29, 38,36, 25.5f, "L_NakaokuDaidokoro"), // 7間 坪庭の東縁
+            SG(44,25, 47,26, 25.5f, "L_Jouguchi"),         // 3間 御錠口(奥向へ入る唯一の廊下)
+            SG(52,16, 53,22, 25.5f, "L_OkuNagatsubone"),   // 6間
+            SG(57,38, 58,47, 25.5f, "L_ShimoKuruwa"),      // 9間 西縁の外廊下 → 石段W1へ
+            WG( 4,13,  5,15, 11.5f, "LW_KatteShimo"),      // 2間
+            WG( 4,41,  5,43, 11.5f, "LW_ShimoYudono"),     // 2間
+            WG(15,23, 18,24, 11.5f, "LW_ShimoJochu"),      // 3間
+            WG(23,32, 24,35, 11.5f, "LW_JochuGoyo"),       // 3間
+            // 北縁の外廊下 = 各棟の入側の続き。段を跨ぐ所は石段(手組み資産)に突き付ける
+            WG(13,48, 18,49, 11.5f, "LW_Kita1"),           // 5間 湯殿 → 御用部屋棟
+            WG(26,48, 28,49, 11.5f, "LW_Kita2"),           // 2間 御用部屋棟 → 石段W2の下端
+            WG(30,48, 34,49, 19.5f, "LW_Kita3"),           // 4間 石段W2の上端 → 長局棟
+                                                           // ⚠ 3間だと石段の上端(x=-592)に0.36m届かず廊下が切れる
+            SG(58,44, 60,45, 25.5f, "LW_Kita6"),           // 2間 石段W1の上端 → 西縁の外廊下
+        };
+    }
+
+    // 間割りに乗らない外の道(白洲の参道・石段の取付き)。従来どおり RokaRect で敷く
+    public static Blk[] PathLinks()
+    {
+        return new[] {
+            M_(-459f,  999f, -455f, 1003f, 25.5f, "L_HigashiEn"),   // 主郭の東縁 → 石段E1
+            M_(-450f, 1000f, -425f, 1002f, 19.5f, "L_Sando19"),     // 東中段の参道
+            M_(-420f, 1000f, -398f, 1002f, 13.5f, "L_Sando13"),     // 表門前段の参道
+            // 長局棟の入側 → 石段W1の下端。間割りに乗らない0.6mの隙間を跨ぐので、
+            // 両側に1m弱ずつ食い込ませる(端で突き合わせるだけだと廊下が切れる)
+            M_(-572.6f, 1035.3f, -570f, 1037.1f, 19.5f, "LW_Kita5"),
         };
     }
     // 庭(指図と同じ矩形)。白洲を塗るときにここは芝のまま残す
     public static Blk[] Gardens()
     {
         return new[] {
-            S_(0,0,20,36,25.5f,"NiwaOmoteE"),  S_(20,0,80,12,25.5f,"NiwaOmoteS"),
-            S_(0,68,20,101,25.5f,"NiwaShoin"), S_(36,52,66,64,25.5f,"Tsubo"),
-            S_(88,70,104,96,25.5f,"NiwaOkuUchi"),
+            SG( 0, 0, 11,20, 25.5f, "NiwaOmoteE"),  SG(11, 0, 44, 7, 25.5f, "NiwaOmoteS"),
+            SG( 0,36, 11,56, 25.5f, "NiwaShoin"),   SG(21,29, 37,36, 25.5f, "Tsubo"),
+            SG(47,38, 58,53, 25.5f, "NiwaOkuUchi"),
         };
     }
     // 折返し石段 (rect / 上端レベル / 下端レベル / 降りる向き)
@@ -444,125 +503,149 @@ public static class EdoOkabeYashikiBuilder
     }
 
     // =========================================================================
-    // Stage 5: 連続御殿複合 — 指図の身舎矩形を Village Kit の棟で埋める(躯体間0.6m)
-    //   案a: 棟を密着させて屋根を一枚の塊に見せる。等間隔の格子には置かない。
+    // Stage 5: 連続御殿複合 — 御殿部材キットで棟を組む(EdoGotenKit)
+    //
+    // 【v4 で作り直した理由】v3 は Village Kit の一軒家プレハブを身舎の矩形に敷き詰めていた。
+    //   プレハブは壁で閉じた箱なので、入側(廊下)から見ると障子でなく壁が見える(ユーザー裁定
+    //   2026-08-14)。Blender で起こした部材から棟を組み直す。
+    //
+    // 【屋根 = (a) の取り合い】谷や隅は作らない。各棟は独立した入母屋で、接続は低い切妻の渡廊下。
+    //   大棟は桁行に架かるので、外形の長辺が棟のローカルX(桁行)に来るよう yaw で寝かせる。
+    //   屋根FBXは寸法ごとに1本生成してある(Goten_Roof_Irimoya_<桁行>x<梁間>ken)。
     // =========================================================================
-    struct Slot { public string path; public float w, d, ry; }
-    static Slot SL(string p, float w, float d, float ry) { return new Slot { path = p, w = w, d = d, ry = ry }; }
-    // 躯体寸法(ry適用後)。BigHouse 26.2x24.2 / House 18.2x14.3 / HouseB 8.2x17.1 / SmallHouse 12.2x8.2
-    static Slot[] Pal = {
-        SL(B.PBigHouse, 26.2f, 24.2f, 0f),
-        SL(B.PHouse,    18.2f, 14.3f, 0f),  SL(B.PHouse,    14.3f, 18.2f, 90f),
-        SL(B.PHouseB,    8.2f, 17.1f, 0f),  SL(B.PHouseB,   17.1f,  8.2f, 90f),
-        SL(B.PSmallHouse,12.2f, 8.2f, 0f),  SL(B.PSmallHouse,8.2f, 12.2f, 90f),
-    };
+    const float GOTEN_FLOOR = 0.62f;    // 床高(地面から)
 
     public static string Stage5_Goten()
     {
         var sb = new System.Text.StringBuilder();
         var bg = Grp("Buildings"); Clear(bg);
-        int total = 0; float area = 0;
+        float area = 0, moya = 0;
         foreach (var m in Muneya())
         {
-            int n; float a;
-            FillMuneya(bg, m, out n, out a);
-            total += n; area += a;
-            sb.AppendLine("  " + m.name + " " + (m.x1 - m.x0).ToString("F0") + "x" + (m.z1 - m.z0).ToString("F0") + "m  棟=" + n);
+            BuildMune(bg, m);
+            area += (m.x1 - m.x0) * (m.z1 - m.z0);
+            moya += m.MoyaW * m.MoyaD * KEN * KEN;
+            sb.AppendLine(string.Format("  {0,-13} 身舎 {1,2}x{2,-2}間 + 入側 / 屋根 {3}x{4}間",
+                m.name, m.MoyaW, m.MoyaD, Mathf.Max(m.kw, m.kd), Mathf.Min(m.kw, m.kd)));
         }
-        sb.AppendLine("goten units=" + total + " bodyArea=" + area.ToString("F0"));
+        sb.AppendLine(string.Format("goten 棟={0} 外形={1:F0}m2(身舎 {2:F0}m2 = {3:F0}畳)",
+            Muneya().Length, area, moya, moya / (0.909f * KEN)));
         return sb.ToString();
     }
 
-    // 矩形を充填。躯体を重ねてよい(内部を作らないので重なりは外から見えない)。
-    //   0.6m の隙間を空けると幅が埋まらず身舎の26〜45%が空く。重ねて埋め切る方が
-    //   福井図・二条城の「大小の屋根が重なり合って相ならぶ」姿に近い(2026-08-14 是正)。
-    static void FillMuneya(Transform parent, Blk m, out int n, out float area)
+    /// <summary>棟を1つ建てる。外形の長辺が桁行(ローカルX)に来るよう寝かせ、寸法の合う屋根を載せる。</summary>
+    static void BuildMune(Transform parent, Blk m)
     {
-        n = 0; area = 0;
-        float W = m.x1 - m.x0;
-        float z = m.z0; int idx = 0;
-        while (m.z1 - z >= 7.5f)
-        {
-            float rest = m.z1 - z;
-            var row = new List<Slot>(); float cov = 0;
-            RowFill(W, rest, row, ref cov);
-            if (row.Count == 0) break;
-            // 行の左端から、重なりを均等に配って幅いっぱいに散らす
-            float sum = 0; foreach (var s2 in row) sum += s2.w;
-            float overlap = (row.Count > 1) ? (sum - W) / (row.Count - 1) : 0f;
-            float x = m.x0; float used = 0;
-            foreach (var pick in row)
-            {
-                float cx = x + pick.w * 0.5f, cz = z + pick.d * 0.5f;
-                var go = B.Place(pick.path, Vector3.zero, pick.ry, Vector3.one, parent, m.name + "_" + (idx++));
-                var rb = B.RB(go);
-                go.transform.position += new Vector3(cx - rb.center.x, 0, cz - rb.center.z);
-                rb = B.RB(go);
-                go.transform.position += new Vector3(0, (m.y - 0.12f) - rb.min.y, 0);
-                n++; area += pick.w * pick.d;
-                used = Mathf.Max(used, pick.d);
-                x += pick.w - overlap;
-            }
-            z += used - Mathf.Min(1.5f, used * 0.15f);   // 行方向も少し重ねて軒を繋ぐ
-        }
-    }
-    // 幅Wを覆う組み合わせ(合計幅 >= W を最小の余りで満たす)。奥行は rest 以下
-    static void RowFill(float W, float rest, List<Slot> outRow, ref float cov)
-    {
-        List<Slot> best = null; float bestScore = float.MaxValue;
-        var cur = new List<Slot>();
-        System.Action<float, int> rec = null;
-        rec = (w, depth) =>
-        {
-            if (w >= W - 0.01f)
-            {
-                // 余り(重なり)が小さく、奥行が深いものを優先
-                float dsum = 0; foreach (var s in cur) dsum += s.d;
-                float score = (w - W) * 3f - dsum / Mathf.Max(1, cur.Count);
-                if (score < bestScore) { bestScore = score; best = new List<Slot>(cur); }
-                return;
-            }
-            if (depth >= 4) return;
-            foreach (var s in Pal)
-            {
-                if (s.d > rest + 0.01f) continue;
-                if (s.w > W * 1.35f) continue;
-                cur.Add(s); rec(w + s.w, depth + 1); cur.RemoveAt(cur.Count - 1);
-            }
-        };
-        rec(0f, 0);
-        if (best == null)
-        {   // 幅を覆えない場合は入る中で最大の1棟
-            Slot pick = default; bool ok = false; float bw = -1;
-            foreach (var s in Pal) if (s.d <= rest + 0.01f && s.w <= W + 0.01f && s.w * s.d > bw) { bw = s.w * s.d; pick = s; ok = true; }
-            if (ok) outRow.Add(pick);
-            return;
-        }
-        outRow.AddRange(best);
-        foreach (var s in best) cov += s.w;
+        int kLong = Mathf.Max(m.kw, m.kd), kShort = Mathf.Min(m.kw, m.kd);
+        string roof = EdoAssets.Goten.RoofIrimoya_(kLong, kShort);
+        GameObject g;
+        if (m.kw >= m.kd)
+            // 桁行が世界X。原点は南西角
+            g = EdoGotenKit.Mune(m.name, parent, new Vector3(m.x0, m.y, m.z0), 0f,
+                                 m.MoyaW, m.MoyaD, 1, GOTEN_FLOOR, roof, iriX: 1);
+        else
+            // 桁行が世界Z。yaw=270 でローカルX→世界+Z / ローカルZ→世界-X。原点は南東角
+            g = EdoGotenKit.Mune(m.name, parent, new Vector3(m.x1, m.y, m.z0), 270f,
+                                 m.MoyaD, m.MoyaW, 1, GOTEN_FLOOR, roof, iriX: 1);
+        Undo.RegisterCreatedObjectUndo(g, "mune");
     }
 
     // =========================================================================
-    // Stage 6: 廊下 — 入側(身舎の外周2m)・渡廊下・外廊下・折返し石段
-    //   入側は一間幅(約2m)。棟の外形を膨らませて廊下にしない(幅が倍になる)。
+    // Stage 6: 廊下 — 渡廊下・外廊下・参道・折返し石段
+    //   ⚠ **入側はここでは作らない**。四方の入側は Mune() が棟の一部として組む(v4)。
+    //     ここで帯を重ねて敷くと床と柱が二重になって z-fighting する。
+    //   渡廊下は EdoGotenKit.Roka。両端は棟に突き付けるので端の柱通りは落とす
+    //   (棟の柱と同じ位置に立つため)。
     // =========================================================================
-    const float RW = 2.0f;   // 廊下幅 ≒ 一間
     public static string Stage6_Roka()
     {
         var rk = Grp("Roka"); Clear(rk);
         int nr = 0;
-        foreach (var m in Muneya())
-        {
-            // 入側 = 身舎の外周に幅RWの帯を4本
-            RokaRect(rk, m.x0 - RW, m.z0 - RW, m.x1 + RW, m.z0, m.y, m.name + "_IrikawaS"); nr++;
-            RokaRect(rk, m.x0 - RW, m.z1, m.x1 + RW, m.z1 + RW, m.y, m.name + "_IrikawaN"); nr++;
-            RokaRect(rk, m.x0 - RW, m.z0, m.x0, m.z1, m.y, m.name + "_IrikawaW"); nr++;
-            RokaRect(rk, m.x1, m.z0, m.x1 + RW, m.z1, m.y, m.name + "_IrikawaE"); nr++;
-        }
-        foreach (var l in RokaLinks()) { RokaRect(rk, l.x0, l.z0, l.x1, l.z1, l.y, l.name); nr++; }
+        foreach (var l in GotenLinks()) { BuildRoka(rk, l); nr++; }
+        int np = 0;
+        foreach (var l in PathLinks()) { RokaRect(rk, l.x0, l.z0, l.x1, l.z1, l.y, l.name); np++; }
         int nk = 0;
         foreach (var k in Kaidans()) { Kaidan(rk, k); nk++; }
-        return "roka rects=" + nr + " kaidan=" + nk;
+        return "roka 渡廊下=" + nr + " 参道=" + np + " kaidan=" + nk + " / " + RokaConnectivity();
+    }
+
+    /// <summary>指図の不変条件「廊下は一続き」を機械で確かめる。
+    /// 通れる面 = 棟の入側の環(外形から身舎を抜く) + 渡廊下 + 参道 + 石段。
+    /// ラスタに落として4近傍で連結成分を数える。**1個でなければ廊下がどこかで切れている**。
+    /// 段を跨ぐ所は石段が橋渡しするので、高さは見ずXZ平面で判定してよい。</summary>
+    [MenuItem("Edo/岡部筑前守上屋敷/廊下の連結を検査")]
+    public static void CheckRokaMenu() { Debug.Log("[Okabe] " + RokaConnectivity()); }
+    public static string RokaConnectivity()
+    {
+        const float cell = 0.45f;
+        var band = new List<Rect>(); var hole = new List<Rect>();
+        foreach (var m in Muneya())
+        {
+            band.Add(Rect.MinMaxRect(m.x0, m.z0, m.x1, m.z1));
+            hole.Add(Rect.MinMaxRect(m.x0 + KEN, m.z0 + KEN, m.x1 - KEN, m.z1 - KEN));
+        }
+        foreach (var l in GotenLinks()) band.Add(Rect.MinMaxRect(l.x0, l.z0, l.x1, l.z1));
+        foreach (var l in PathLinks()) band.Add(Rect.MinMaxRect(l.x0, l.z0, l.x1, l.z1));
+        foreach (var k in Kaidans()) band.Add(Rect.MinMaxRect(k.x0, k.z0, k.x1, k.z1));
+        const float minx = -660f, minz = 940f;
+        int nx = 645, nz = 267;      // 290m x 120m / 0.45
+        var ok = new bool[nx, nz]; int total = 0;
+        for (int i = 0; i < nx; i++)
+            for (int j = 0; j < nz; j++)
+            {
+                var p = new Vector2(minx + (i + 0.5f) * cell, minz + (j + 0.5f) * cell);
+                bool inB = false; foreach (var r in band) if (r.Contains(p)) { inB = true; break; }
+                if (!inB) continue;
+                bool inH = false; foreach (var r in hole) if (r.Contains(p)) { inH = true; break; }
+                if (inH) continue;
+                ok[i, j] = true; total++;
+            }
+        var seen = new bool[nx, nz]; var comps = new List<int>();
+        var st = new Stack<Vector2Int>();
+        for (int i = 0; i < nx; i++)
+            for (int j = 0; j < nz; j++)
+            {
+                if (!ok[i, j] || seen[i, j]) continue;
+                int n = 0; st.Push(new Vector2Int(i, j)); seen[i, j] = true;
+                while (st.Count > 0)
+                {
+                    var c = st.Pop(); n++;
+                    for (int d = 0; d < 4; d++)
+                    {
+                        int a = c.x + (d == 0 ? 1 : d == 1 ? -1 : 0), b = c.y + (d == 2 ? 1 : d == 3 ? -1 : 0);
+                        if (a < 0 || b < 0 || a >= nx || b >= nz || !ok[a, b] || seen[a, b]) continue;
+                        seen[a, b] = true; st.Push(new Vector2Int(a, b));
+                    }
+                }
+                comps.Add(n);
+            }
+        comps.Sort(); comps.Reverse();
+        var sb = new System.Text.StringBuilder();
+        sb.Append("廊下 " + (total * cell * cell).ToString("F0") + "m2 連結成分=" + comps.Count);
+        if (comps.Count != 1)
+        {
+            for (int i = 0; i < comps.Count; i++) sb.Append(i == 0 ? " [" : " / ").Append((comps[i] * cell * cell).ToString("F0") + "m2");
+            sb.Append("]  ⚠ 廊下が切れている");
+            Debug.LogWarning("[Okabe] 廊下が" + comps.Count + "つに割れている。段の取付きの重なりを確かめる");
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>渡廊下を1本。長辺が桁行(ローカルX)、短辺(1間)が幅。</summary>
+    static void BuildRoka(Transform parent, Blk l)
+    {
+        bool alongX = l.kw >= l.kd;
+        int n = alongX ? l.kw : l.kd;
+        if ((alongX ? l.kd : l.kw) != 1)
+            Debug.LogWarning("[Okabe] " + l.name + ": 渡廊下の幅が1間でない");
+        if (n < 2)
+            Debug.LogWarning("[Okabe] " + l.name + ": 1間の渡廊下は成立しない(屋根が両端1.20ずつ重なる)");
+        var g = alongX
+            ? EdoGotenKit.Roka(l.name, parent, new Vector3(l.x0, l.y, l.z0), 0f, n,
+                               GOTEN_FLOOR, colStart: false, colEnd: false)
+            : EdoGotenKit.Roka(l.name, parent, new Vector3(l.x1, l.y, l.z0), 270f, n,
+                               GOTEN_FLOOR, colStart: false, colEnd: false);
+        Undo.RegisterCreatedObjectUndo(g, "roka");
     }
 
     // 矩形の廊下: 床(2x2) + 柱 + 屋根(2x8)。長辺方向に棟を通す
@@ -662,7 +745,7 @@ public static class EdoOkabeYashikiBuilder
             kr.transform.position += new Vector3(cx - rb.center.x, 0, cz - rb.center.z);
             rb = B.RB(kr); kr.transform.position += new Vector3(0, (G(cx, cz) - 0.15f) - rb.min.y, 0);
         }
-        B.Well(sv, -632f, 1010f);
+        B.Well(sv, -609f, 955f);   // 土蔵群の南。v3 の -632,1010 は下御殿棟の中だった(v4 で棟が実体になった)
         foreach (Transform c in sv) if (c.name == "Ido") { c.name = "Ido_Kura"; break; }
         // 表門前(13.5m段) = 厩 + 供待 [西川1959: 厩は表門まわりの帯]
         Umaya(sv, new Vector2(-393f, 1026f), 90f, "Umaya");
@@ -671,7 +754,7 @@ public static class EdoOkabeYashikiBuilder
           rb = B.RB(tm); tm.transform.position += new Vector3(0, (G(-393f, 976f) - 0.12f) - rb.min.y, 0); }
         // 邸内稲荷 = 鬼門(北東)。主郭の北東寄り
         Inari(sv, new Vector2(-461f, 1050f));
-        B.Well(sv, -523f, 985f);
+        B.Well(sv, -539.5f, 1015f);   // 台所棟と奥向棟の間の空地。v3 の -523,985 は中奥棟の中だった
         foreach (Transform c in sv) if (c.name == "Ido") { c.name = "Ido_Katte"; break; }
         return "service ok";
     }

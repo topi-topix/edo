@@ -54,24 +54,35 @@ public static class EdoGotenKit
     }
 
     /// <summary>棟を1つ組む。
-    /// nx = 桁行の間数(X) / nzZashiki = 身舎の間数(Z) / iri = 前後の入側の間数(0で無し)。
-    /// 原点は棟の南西角(床レベル)。yaw は親側で与える。
-    /// roofAsset に寸法の合う屋根FBXのパスを渡すと載せる(null なら骨組みのみ)。</summary>
+    /// nx = 身舎の桁行の間数(X) / nzZashiki = 身舎の間数(Z) / iri = 梁間(Z)方向の入側の間数。
+    /// iriX = 桁行(X)方向の入側の間数。**1 にすると入側が四方に回る**(既定 0 = 前後だけ)。
+    /// 原点は棟の南西角(入側を含めた外形の角・床レベル)。yaw は親側で与える。
+    /// roofAsset に寸法の合う屋根FBXのパスを渡すと載せる(null なら骨組みのみ)。
+    ///
+    /// ⚠ 四方に回すのはユーザー裁定(2026-08-14)。指図が「入側が各棟の外周を巡り、隣の棟の
+    /// 入側と辺を共有して直に繋がる/二条城で六棟を取り囲む廊下が一周」と書いているため。
+    /// 前後だけにすると妻側が白壁のまま廊下に面し、Village Kit のプレハブを捨てた理由
+    /// (廊下から壁が見える)がそのまま再現される。</summary>
     public static GameObject Mune(string name, Transform parent, Vector3 pos, float yaw,
                                   int nx, int nzZashiki, int iri = 1,
                                   float floor = 0.62f, string roofAsset = null,
                                   bool nureen = true, bool ceiling = true,
                                   int[] openBaysWest = null, int[] openBaysEast = null,
-                                  int jodanFromIx = -1)
+                                  int jodanFromIx = -1, int iriX = 0)
     {
-        // 妻壁を開ける区画(床の間・違い棚・帳台構が入る所)。塞いだままだと飾りが壁の裏に隠れる
+        // 妻側の建具を省く区画(床の間・違い棚・帳台構が入る所)。塞いだままだと飾りが壁の裏に隠れる
         System.Func<int[], int, bool> isOpen = (arr, j) => {
             if (arr == null) return false;
             foreach (var v in arr) if (v == j) return true;
             return false;
         };
+        int nxZashiki = nx;
+        nx = nxZashiki + 2 * iriX;
         int nz = nzZashiki + 2 * iri;
         float W = nx * K, D = nz * K;
+        // 入側の升目(床は板敷き・畳を敷かない)
+        System.Func<int, int, bool> isIrikawa = (i, j) =>
+            j < iri || j >= nz - iri || i < iriX || i >= nx - iriX;
 
         var g = new GameObject(name);
         g.transform.SetParent(parent, false);
@@ -86,21 +97,21 @@ public static class EdoGotenKit
         for (int i = 0; i < nx; i++)
             for (int j = 0; j < nz; j++)
             {
-                bool isIri = (j < iri || j >= nz - iri);
+                bool isIri = isIrikawa(i, j);
                 Put(isIri ? EdoAssets.Goten.FloorBoard : EdoAssets.Goten.Tatami, g.transform,
                     new Vector3(i * K + K / 2f, lv(i, isIri), j * K + K / 2f), 0f);
             }
 
         // 上段框 — 段の際に通す
-        if (jodanFromIx > 0 && jodanFromIx < nx)
+        if (jodanFromIx > iriX && jodanFromIx < nx - iriX)
             for (int j = iri; j < nz - iri; j++)
                 Put(EdoAssets.Goten.JodanKamachi, g.transform,
                     new Vector3(jodanFromIx * K, floor, j * K + K / 2f), 270f);
 
-        // 建具 — 身舎と入側の境に障子。表(+Z)を入側へ向ける
-        for (int i = 0; i < nx; i++)
-        {
-            if (iri > 0)
+        // 建具 — 身舎と入側の境に障子。表(+Z)を入側へ向ける。
+        // 隅の升目(入側どうしが交わる所)には建具を立てない — 廊下が角を回れなくなる
+        if (iri > 0)
+            for (int i = iriX; i < nx - iriX; i++)
             {
                 float y = lv(i, false);
                 Put(EdoAssets.Goten.Shoji1ken, g.transform,
@@ -108,17 +119,30 @@ public static class EdoGotenKit
                 Put(EdoAssets.Goten.Shoji1ken, g.transform,
                     new Vector3(i * K + K / 2f, y, (nz - iri) * K), 0f);
             }
-        }
 
-        // 妻側 — 白壁(身舎の範囲)。入側の端は開けて廊下を通す
+        // 妻側 — 入側が回っていれば障子、回っていなければ白壁。
+        // どちらも openBays* の区画だけは空けて座敷飾りに明け渡す
         for (int j = iri; j < nz - iri; j++)
         {
+            float c = j * K + K / 2f;
             if (!isOpen(openBaysWest, j))
-                Put(EdoAssets.Goten.WallPlaster, g.transform,
-                    new Vector3(0f, lv(0, false), j * K + K / 2f), 90f);
+            {
+                if (iriX > 0)
+                    Put(EdoAssets.Goten.Shoji1ken, g.transform,
+                        new Vector3(iriX * K, lv(iriX, false), c), 270f);
+                else
+                    Put(EdoAssets.Goten.WallPlaster, g.transform,
+                        new Vector3(0f, lv(0, false), c), 90f);
+            }
             if (!isOpen(openBaysEast, j))
-                Put(EdoAssets.Goten.WallPlaster, g.transform,
-                    new Vector3(W, lv(nx - 1, false), j * K + K / 2f), 270f);
+            {
+                if (iriX > 0)
+                    Put(EdoAssets.Goten.Shoji1ken, g.transform,
+                        new Vector3((nx - iriX) * K, lv(nx - iriX - 1, false), c), 90f);
+                else
+                    Put(EdoAssets.Goten.WallPlaster, g.transform,
+                        new Vector3(W, lv(nx - 1, false), c), 270f);
+            }
         }
 
         // 柱 — 一間ごとの格子点
@@ -139,6 +163,15 @@ public static class EdoGotenKit
                     new Vector3(i * K + K / 2f, floor - 0.28f, 0f), 0f);
                 Put(EdoAssets.Goten.Nureen, g.transform,
                     new Vector3(i * K + K / 2f, floor - 0.28f, D), 180f);
+            }
+        // 妻側の濡縁 — 入側が四方に回るときだけ。隅の升目は両者が突き合うので空けておく
+        if (nureen && iriX > 0)
+            for (int j = 0; j < nz; j++)
+            {
+                Put(EdoAssets.Goten.Nureen, g.transform,
+                    new Vector3(0f, floor - 0.28f, j * K + K / 2f), 90f);
+                Put(EdoAssets.Goten.Nureen, g.transform,
+                    new Vector3(W, floor - 0.28f, j * K + K / 2f), 270f);
             }
 
         if (!string.IsNullOrEmpty(roofAsset))

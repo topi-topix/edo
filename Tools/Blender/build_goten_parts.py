@@ -1,6 +1,8 @@
 """御殿の躯体部材を Village Kit から江戸間で起こして FBX へ書き出す。
 
     blender --background --python Tools/Blender/build_goten_parts.py
+    # 一部だけ作り直す(既存 FBX を無用に触らない)
+    GOTEN_ONLY=Koran blender --background --python Tools/Blender/build_goten_parts.py
 
 規約(Unity 側の座標で言う):
   幅 = X / 高さ = Y / 厚み = Z、**表(入側から見える面) = +Z**(Village Kit の facade 規約と同じ)
@@ -16,12 +18,19 @@ import vklib as V
 K = V.KEN
 OUT = "/Users/toshio/project/edo-unity/Assets/Edo/Models/Goten/Parts"
 PREVIEW = os.environ.get("GOTEN_PREVIEW", "")
+ONLY = os.environ.get("GOTEN_ONLY", "")     # 部分文字列で絞る
 
 # 部材名 -> (組み立て関数, 説明)
 BUILT = []
 
 
+def skip(name):
+    return bool(ONLY) and ONLY not in name
+
+
 def finish(objs, name, pivot):
+    if skip(name):
+        return None
     V.dedup_materials()
     o = V.join(objs, name)
     if o is None:
@@ -90,6 +99,13 @@ def build_all():
     objs = V.place("Balcony/balcony A.fbx", 0, 0, 0)
     mn, mx = V.bbox(objs)
     made.append(finish(objs, "Goten_Nureen_1ken", ((mn.x + mx.x) / 2, mn.y, 0.0)))
+
+    # --- 高欄 単体(渡廊下の両縁に立てる)---
+    # balcony rail は 0.075 x 1.818 x 1.158 でちょうど一間。回して幅を X へ出す
+    V.reset()
+    objs = V.place("Walls and floors/balcony rail.fbx", 0, 0, 0, rot=90)
+    mn, mx = V.bbox(objs)
+    made.append(finish(objs, "Goten_Koran_1ken", ((mn.x + mx.x) / 2, (mn.y + mx.y) / 2, 0.0)))
 
     return [m for m in made if m]
 

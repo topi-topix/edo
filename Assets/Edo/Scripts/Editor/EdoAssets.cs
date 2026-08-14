@@ -75,6 +75,34 @@ public static class EdoAssets
         public const string WallShopPlasterX8 = "Assets/Japanese Village Kit/Prefabs/Shopping Streets/Wall Shop Plaster x 8.prefab";
     }
 
+    /// <summary>御殿の部材(Blender で Village Kit から江戸間に起こしたもの)
+    /// 生成は Tools/Blender/。規約: 幅X・高さY・厚みZ、表=+Z、ピボット=一間の中心・床レベル。
+    /// 1間=1.818m / 建具高=2.727m / 柱=0.182角。</summary>
+    public static class Goten
+    {
+        const string P = "Assets/Edo/Models/Goten/Parts/";
+
+        public const string Shoji1ken   = P + "Goten_Shoji_1ken.fbx";    // 障子 一間2枚建て
+        public const string ShojiHalf   = P + "Goten_ShojiHalf.fbx";     // 障子 半間1枚
+        public const string WallPlaster = P + "Goten_WallPlaster_1ken.fbx"; // 白壁(外周)
+        public const string WallRenji   = P + "Goten_WallRenji_1ken.fbx";   // 連子窓
+        public const string Column      = P + "Goten_Column.fbx";
+        public const string Beam        = P + "Goten_Beam_1ken.fbx";
+        public const string Tatami      = P + "Goten_Tatami_1ken.fbx";   // 一間角=江戸間2畳
+        public const string FloorBoard  = P + "Goten_FloorBoard_1ken.fbx"; // 入側の板敷き
+        public const string Ceiling     = P + "Goten_Ceiling_1ken.fbx";
+        public const string Nureen      = P + "Goten_Nureen_1ken.fbx";   // 濡縁+高欄(ピボットは建物側)
+
+        /// <summary>入母屋屋根。棟の寸法ごとに Blender で生成する:
+        /// blender --background --python Tools/Blender/build_goten_roof.py -- W D 名前</summary>
+        public const string RoofDir     = "Assets/Edo/Models/Goten/Roofs/";
+        public const string RoofIrimoya = RoofDir + "Goten_Roof_Irimoya.fbx"; // 8間x5間
+
+        public const float Ken       = 1.818f;   // 江戸間
+        public const float DoorH     = 2.727f;   // 建具・柱の高さ
+        public const float ColumnW   = 0.182f;
+    }
+
     /// <summary>Japanese Castle</summary>
     public static class JC
     {

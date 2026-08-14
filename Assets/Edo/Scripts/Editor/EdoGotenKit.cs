@@ -23,6 +23,17 @@ public static class EdoGotenKit
     public const float H = EdoAssets.Goten.DoorH;    // 2.727
     public const float JODAN = 0.15f;                // 上段の段の高さ
 
+    // --- 雁行する棟どうしの屋根の取り合い ------------------------------------
+    // ユーザー裁定(2026-08-14): **(a) 渡廊下の低い切妻で処理する**。谷や隅は作らず、
+    // 各棟は独立した入母屋のまま置いて、その軒下を渡廊下の屋根がくぐる(福井図・二条城も同形)。
+    // → 渡廊下の大棟の天端が棟の軒先より低い、が成立条件。数値は Roka が持つ。
+    public const float MUNE_EAVE  = H - 0.15f;   // 棟の軒先(床から) = 2.577。Mune が屋根を置く高さ
+    public const float ROKA_EAVE  = 1.55f;       // 渡廊下の軒先(床から)
+    public const float ROKA_RIDGE = 0.953f;      // 軒先→大棟の天端(build_goten_roof の make_kirizuma)
+    public const float ROKA_KETA  = 0.28f;       // 軒先→桁の天端。廊下の縁での屋根裏(0.60x0.5456)の直下
+    // static readonly にしておく — const 同士だと畳み込まれて下のガードが「到達しないコード」になる
+    static readonly float RokaRidgeTop = ROKA_EAVE + ROKA_RIDGE;   // 渡廊下の大棟の天端(床から)= 2.503
+
     static GameObject Load(string path)
     {
         var go = AssetDatabase.LoadAssetAtPath<GameObject>(path);
@@ -30,13 +41,15 @@ public static class EdoGotenKit
         return go;
     }
 
-    static GameObject Put(string path, Transform parent, Vector3 lp, float ry)
+    static GameObject Put(string path, Transform parent, Vector3 lp, float ry, float scaleY = 1f)
     {
         var src = Load(path);
         if (src == null) return null;
         var go = (GameObject)PrefabUtility.InstantiatePrefab(src, parent);
         go.transform.localPosition = lp;
         go.transform.localRotation = Quaternion.Euler(0f, ry, 0f);
+        if (!Mathf.Approximately(scaleY, 1f))
+            go.transform.localScale = new Vector3(1f, scaleY, 1f);
         return go;
     }
 
@@ -154,6 +167,74 @@ public static class EdoGotenKit
         return g;
     }
 
+    /// <summary>渡廊下で棟をつなぐ。板敷きの床 + 柱 + 桁 + 高欄 + 低い切妻屋根。
+    /// 原点は廊下の南西角(床レベル)、桁行は +X に nx 間、幅は +Z へ 1間。yaw は親側で与える。
+    ///
+    /// 屋根は棟の軒下(床から 2.577)をくぐる高さに納めてある — 雁行の取り合いは
+    /// 谷を作らずこれで処理する、というユーザー裁定(2026-08-14)に従う。
+    /// 屋根FBXは両端が 0.30 ずつ長い。棟の軒の出 0.90 と合わせて 1.20 重なるので、
+    /// **廊下の両端は必ず棟の壁面に突き付ける**(離すと取り合いに隙間が出る)。
+    ///
+    /// koranS/koranN = 桁行に沿う両縁の高欄(z=0 側 / z=K 側)。棟に接する側は false にする。
+    /// colStart/colEnd = 両端の柱通り。**棟の柱と重なるので、棟に突き付ける側は false にする**
+    /// (同じ柱を二重に置くと面が z-fighting する)。</summary>
+    public static GameObject Roka(string name, Transform parent, Vector3 pos, float yaw, int nx,
+                                  float floor = 0.62f, bool koranS = true, bool koranN = true,
+                                  bool roof = true, bool colStart = true, bool colEnd = true)
+    {
+        if (RokaRidgeTop > MUNE_EAVE)
+            Debug.LogWarning(string.Format(
+                "[GotenKit] 渡廊下の大棟 {0:F3} が棟の軒先 {1:F3} より高い — (a)の取り合いが成立しない",
+                RokaRidgeTop, MUNE_EAVE));
+
+        var g = new GameObject(name);
+        g.transform.SetParent(parent, false);
+        g.transform.localPosition = pos;
+        g.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+
+        float colH = ROKA_EAVE + ROKA_KETA;                 // 柱・桁の天端(床から)
+        float colS = colH / H;                              // 柱は建具丈のものを詰めて使う
+
+        for (int i = 0; i < nx; i++)
+        {
+            Put(EdoAssets.Goten.FloorBoard, g.transform,
+                new Vector3(i * K + K / 2f, floor, K / 2f), 0f);
+            // 桁 — 柱の天端に渡す。屋根の裏に隠れる高さ
+            Put(EdoAssets.Goten.Beam, g.transform,
+                new Vector3(i * K + K / 2f, floor + colH - EdoAssets.Goten.BeamH, 0f), 0f);
+            Put(EdoAssets.Goten.Beam, g.transform,
+                new Vector3(i * K + K / 2f, floor + colH - EdoAssets.Goten.BeamH, K), 180f);
+            if (koranS)
+                Put(EdoAssets.Goten.Koran, g.transform,
+                    new Vector3(i * K + K / 2f, floor, 0f), 0f);
+            if (koranN)
+                Put(EdoAssets.Goten.Koran, g.transform,
+                    new Vector3(i * K + K / 2f, floor, K), 180f);
+        }
+
+        for (int i = 0; i <= nx; i++)
+        {
+            if (i == 0 && !colStart) continue;
+            if (i == nx && !colEnd) continue;
+            for (int j = 0; j < 2; j++)
+                Put(EdoAssets.Goten.Column, g.transform,
+                    new Vector3(i * K, floor, j * K), 0f, colS);
+        }
+
+        if (roof)
+        {
+            string asset = EdoAssets.Goten.RoofKirizuma(nx);
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(asset) == null)
+                Debug.LogWarning(string.Format(
+                    "[GotenKit] {0}: {1}間の切妻屋根が無い。" +
+                    "blender --background --python Tools/Blender/build_goten_roof.py -- kirizuma {1}",
+                    name, nx));
+            else
+                Put(asset, g.transform, new Vector3(nx * K / 2f, floor + ROKA_EAVE, K / 2f), 0f);
+        }
+        return g;
+    }
+
     /// <summary>続き間の仕切り = 襖 + 欄間の一列。棟のローカル座標で
     /// x の柱通りに、z0..z1 間(間数)の範囲へ通す。</summary>
     public static void Partition(Transform mune, float floor, int ix, int jz0, int jz1)
@@ -193,6 +274,37 @@ public static class EdoGotenKit
                 new Vector3(ix * K, floor, j * K + K / 2f), faceMinusX ? 270f : 90f);
     }
 
+    /// <summary>Blender が書き出した御殿FBXのマテリアルを Village Kit の既存 .mat へ当てる。
+    /// FBX にはマテリアル名しか入っていないので、Unity 側で remap しないと白い模型になる。
+    /// 新しい屋根・部材を生成するたびに走らせる(既に当たっているものは触らない)。</summary>
+    [MenuItem("Edo/御殿/新しい御殿FBXのマテリアルをremap")]
+    public static void RemapGotenMaterials()
+    {
+        int done = 0, still = 0;
+        foreach (var guid in AssetDatabase.FindAssets("t:Model", new[] { "Assets/Edo/Models/Goten" }))
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            var imp = AssetImporter.GetAtPath(path) as ModelImporter;
+            if (imp == null) continue;
+            imp.materialImportMode = ModelImporterMaterialImportMode.ImportViaMaterialDescription;
+            // Inspector の「Search and Remap」と同じ。BasedOnMaterialName + Everywhere で
+            // Village Kit の Materials/ にある同名 .mat を拾う(同名の .mat は他に無いことを確認済み)
+            imp.SearchAndRemapMaterials(ModelImporterMaterialName.BasedOnMaterialName,
+                                        ModelImporterMaterialSearch.Everywhere);
+            AssetDatabase.WriteImportSettingsIfDirty(path);
+            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+            int n = imp.GetExternalObjectMap().Count;
+            if (n > 0) done++;
+            else
+            {
+                still++;
+                Debug.LogWarning("[GotenKit] マテリアルが当たらなかった: " + path);
+            }
+        }
+        AssetDatabase.SaveAssets();
+        Debug.Log(string.Format("[GotenKit] マテリアル remap: {0}件が解決 / 未解決 {1}", done, still));
+    }
+
     [MenuItem("Edo/御殿/部材テスト棟を建てる (8間x5間)")]
     public static void BuildTestMune()
     {
@@ -211,5 +323,33 @@ public static class EdoGotenKit
         Zashikikazari(m.transform, new Vector3(8 * K, 0.62f + JODAN, 2.5f * K), 270f);
         Selection.activeGameObject = m;
         Debug.Log("[GotenKit] テスト棟を y=300 に建てた。確認したら GotenKitTest を消してよい");
+    }
+
+    [MenuItem("Edo/御殿/雁行テスト — 棟2つを渡廊下でつなぐ")]
+    public static void BuildTestGankou()
+    {
+        var old = GameObject.Find("GotenGankouTest");
+        if (old != null) Undo.DestroyObjectImmediate(old);
+        var root = new GameObject("GotenGankouTest");
+        root.transform.position = new Vector3(60f, 300f, 0f);   // 空中で確認する
+
+        // 主棟 8間x(身舎3+入側2)。z=4K..5K の帯が北側の入側
+        float wA = 8 * K;
+        Mune("Mune_A", root.transform, Vector3.zero, 0f, 8, 3, 1,
+             0.62f, EdoAssets.Goten.RoofIrimoya);
+        // 渡廊下 3間。廊下は**入側の帯をそのまま東へ延ばす**形で取り付く
+        // (入側の妻側の端は Mune が最初から開けてある。妻壁に穴を開けるのではない)。
+        // 屋根は両端 0.30 だけ長く、棟の軒の出 0.90 と合わせて 1.20 重なるので、
+        // 廊下の端は棟の柱通りにぴたりと突き付ける。両端の柱は棟のものと重なるので置かない
+        Roka("Roka_AB", root.transform, new Vector3(wA, 0f, 4 * K), 0f, 3,
+             colStart: false, colEnd: false);
+        // 副棟 5間角。北へ4間ずらして雁行させる。廊下は副棟の入側の西端に取り付く
+        Mune("Mune_B", root.transform, new Vector3(wA + 3 * K, 0f, 4 * K), 0f, 5, 3, 1,
+             0.62f, EdoAssets.Goten.RoofIrimoya5x5);
+
+        Selection.activeGameObject = root;
+        Debug.Log(string.Format(
+            "[GotenKit] 雁行テストを y=300 に建てた。渡廊下の大棟 {0:F2} < 棟の軒先 {1:F2}(床から)",
+            ROKA_EAVE + ROKA_RIDGE, MUNE_EAVE));
     }
 }

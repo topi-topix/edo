@@ -5,10 +5,15 @@ Blender は GUI を開かずヘッドレスで回す — 指図の寸法が変�
 
 ```bash
 blender --background --python Tools/Blender/build_goten_parts.py
+GOTEN_ONLY=Koran blender --background --python Tools/Blender/build_goten_parts.py  # 一部だけ作り直す
 blender --background --python Tools/Blender/build_goten_roof.py -- <桁行W> <梁間D> <名前>
+blender --background --python Tools/Blender/build_goten_roof.py -- kirizuma        # 渡廊下の屋根を定尺で一括
 # 確認レンダを出す場合
 GOTEN_PREVIEW=/path/out.png blender --background --python Tools/Blender/build_goten_roof.py -- 14.5 9.1 Test
 ```
+
+書き出したら Unity で **Edo ▸ 御殿 ▸ 新しい御殿FBXのマテリアルをremap** を走らせる。
+FBX にはマテリアル名しか入っていないので、remap しないと白い模型になる。
 
 ## なぜプレハブでなく部材から起こすのか
 
@@ -47,6 +52,30 @@ Village Kit は **2.0m/間**。江戸間は 1間 = 6尺 = **1.818m**。
 - 勾配比 0.5456(≒5.5寸)は `roof 2x2` の実測から来る。変えるとモジュールが使えない
 - 入母屋の作図は `build_goten_roof.make_irimoya` の docstring 参照
 
+### 雁行する棟の取り合い = 渡廊下の低い切妻(`make_kirizuma`)
+
+**ユーザー裁定(2026-08-14): (a) でやる。** 谷や隅は生成せず、各棟は独立した入母屋のまま置いて、
+その**軒下を渡廊下の低い切妻がくぐる**。福井図・二条城も同じ形。
+
+高さの予算(棟の床を 0 として。`EdoGotenKit` が同じ数値を定数で持つ):
+
+| | 値 | 出どころ |
+|---|---|---|
+| 棟の軒先 | **2.577** | `Mune` が屋根を置く高さ = 建具丈2.727 − 0.15 |
+| 渡廊下の軒先 | 1.55 | `ROKA_EAVE` |
+| 渡廊下 軒先→大棟天端 | **0.953** | 軒の出0.60 → (0.909+0.60)×0.5456 + 棟の座0.13 |
+| → 渡廊下の大棟天端 | **2.503** | 棟の軒先より 0.074 低い。ここが成立条件 |
+
+- 屋根FBXは**両端が 0.30 長い**(`ROKA_END`)。棟の軒の出0.90と合わせて1.20重なるので、
+  **廊下の端は棟の壁面に突き付ける**。離すと取り合いに隙間が出る
+- 瓦の繰り返し(流れ1.785 / 桁行2.004)は江戸間と割り切れない。だから**1間モジュールを並べる
+  ことはできず**、長さごとに1本ずつ作る(`ROKA_KEN_SET` = 2/3/4/5/6/8間)
+- **妻壁は既定オフ** — 端は棟に突き付いて見えない。片端が外に出る廊下だけ `tsuma=True`
+- **破風板は入母屋の寸法(幅0.60・厚0.22)のままだと渡廊下では巨大**に見える。
+  `gable(bw=, bt=, drop=)` で小振り(0.22/0.06)にし、大半を屋根面より下へ垂らす
+- 大棟の座は瓦の頂点から **0.13 下げて食い込ませる**。棟幅0.36の端では屋根面が0.098下がるので、
+  頂点に載せると棟の脇に隙間が抜けて見える
+
 ## 踏んだ落とし穴(再発防止)
 
 - **FBX のマテリアルは Alpha=0 で読まれる**(Unity の TransparencyFactor)。直さないと
@@ -62,6 +91,14 @@ Village Kit は **2.0m/間**。江戸間は 1間 = 6尺 = **1.818m**。
   `vklib.imp()` が親を外して焼き込む
 - 同じ FBX を何度も読むと `floor.001` のような複製マテリアルができる。
   join の前に `vklib.dedup_materials()`
+- **書き出した FBX を読み直して並べる確認スクリプトの落とし穴**(組み上がりのプレビューで踏む):
+  - `bpy.ops.object.transform_apply()` は **location の既定が True**。回転だけ焼くつもりで
+    呼ぶと位置まで焼かれ、そのあと `o.location = 目標` を入れると二重にずれる。
+    `transform_apply(location=False, rotation=True, scale=True)` と明示する
+  - 読み込み直後のメッシュには Y-up→Z-up の回転と親スケールが object 変換に残っている。
+    先に焼かないと **`o.scale.z` が世界のZに効かない**(柱を縮めたら横に伸びた)
+  - ピボットは FBX ノードの平行移動として入っている。`parent_clear` 後の `o.location` が
+    それ。**加算でなく代入**しないとピボットが効かない
 
 ## 建具・座敷飾り(build_goten_fittings.py)
 
@@ -79,4 +116,4 @@ Village Kit は **2.0m/間**。江戸間は 1間 = 6尺 = **1.818m**。
 ## まだ無いもの(次にやる)
 
 付書院 / 戸袋 / 折上格天井 / 御式台の唐破風 / 軒の垂木・軒瓦の作り込み /
-**雁行して接続する棟どうしの屋根の取り合い(谷・隅)**
+L字・T字に**本当に取り付く**棟の谷・隅((b)の方針。(a)で足りなくなったら)

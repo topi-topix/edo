@@ -92,6 +92,7 @@ public static class EdoAssets
         public const string FloorBoard  = P + "Goten_FloorBoard_1ken.fbx"; // 入側の板敷き
         public const string Ceiling     = P + "Goten_Ceiling_1ken.fbx";
         public const string Nureen      = P + "Goten_Nureen_1ken.fbx";   // 濡縁+高欄(ピボットは建物側)
+        public const string Koran       = P + "Goten_Koran_1ken.fbx";    // 高欄 単体(高1.158)渡廊下の縁
 
         // 建具・座敷飾り(キットに無いので Blender で新造 — build_goten_fittings.py)
         public const string Fusuma      = P + "Goten_Fusuma_1ken.fbx";       // 襖 内法まで(高1.818)
@@ -105,13 +106,26 @@ public static class EdoAssets
         /// <summary>入母屋屋根。棟の寸法ごとに Blender で生成する:
         /// blender --background --python Tools/Blender/build_goten_roof.py -- W D 名前</summary>
         public const string RoofDir     = "Assets/Edo/Models/Goten/Roofs/";
-        public const string RoofIrimoya = RoofDir + "Goten_Roof_Irimoya.fbx"; // 8間x5間
+        public const string RoofIrimoya    = RoofDir + "Goten_Roof_Irimoya.fbx";     // 8間x5間
+        public const string RoofIrimoya5x5 = RoofDir + "Goten_Roof_Irimoya_5x5.fbx"; // 5間x5間
+
+        /// <summary>渡廊下の切妻屋根。幅1間・長さ<see cref="RoofKirizumaKen"/>間の定尺で作ってある
+        /// (瓦の繰り返し 1.785/2.004m は江戸間と割り切れないので1間モジュールにはできない)。
+        /// 無い長さが要るときは build_goten_roof.py -- kirizuma &lt;間数&gt; で足す。
+        /// ピボット = 廊下の中心・軒先レベル。大棟の天端は軒先から 0.953。</summary>
+        public static readonly int[] RoofKirizumaKen = { 2, 3, 4, 5, 6, 8 };
+        public static string RoofKirizuma(int nKen)
+        {
+            return RoofDir + "Goten_Roof_Kirizuma_" + nKen + "ken.fbx";
+        }
 
         public const float Ken       = 1.818f;   // 江戸間
         public const float DoorH     = 2.727f;   // 建具・柱の高さ = 内法+欄間
         public const float Uchinori  = 1.818f;   // 内法高(6尺) — 襖・帳台構・床の間の落掛
         public const float RanmaH    = 0.909f;   // 欄間(半間)
         public const float ColumnW   = 0.182f;
+        public const float KoranH    = 1.158f;   // 高欄の高さ
+        public const float BeamH     = 0.182f;   // 梁・桁の成
     }
 
     /// <summary>Japanese Castle</summary>

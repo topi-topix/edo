@@ -3,7 +3,12 @@ guid: a34cc4c3f37014fd9a47720acf6754c6
 ModelImporter:
   serializedVersion: 24501
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: tatami
+    second: {fileID: 2100000, guid: c31c33b2adcda6841a45888a451da9e9, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0

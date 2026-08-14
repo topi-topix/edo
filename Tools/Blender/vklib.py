@@ -74,6 +74,9 @@ def imp(relpath):
 
 
 def bbox(objs):
+    # ⚠ o.location を書いただけでは matrix_world は古いまま(depsgraph 未更新)。
+    #    これで畳のピボットが半畳ずれた。測る前に必ず更新する。
+    bpy.context.view_layer.update()
     mn = mathutils.Vector((1e9,) * 3); mx = mathutils.Vector((-1e9,) * 3)
     for o in objs:
         for c in o.bound_box:

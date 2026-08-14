@@ -402,8 +402,10 @@ public static class EdoOkabeYashikiBuilder
     // =========================================================================
     // Stage 5: 連続御殿複合 — 各段をシェルフ充填で埋める
     // =========================================================================
-    struct Slot { public string path; public float w, d; public string label; }
-    static Slot S(string p, float w, float d, string l) { return new Slot { path = p, w = w, d = d, label = l }; }
+    // w,d は「ry を適用した後」のフットプリント。ry を幅から推測すると HouseB が90°転んで
+    //   段をまたぎ、埋4.10mになった(2026-08-14)。必ず明示する。
+    struct Slot { public string path; public float w, d, ry; public string label; }
+    static Slot S(string p, float w, float d, float ry, string l) { return new Slot { path = p, w = w, d = d, ry = ry, label = l }; }
 
     public static string Stage5_Goten()
     {
@@ -412,10 +414,10 @@ public static class EdoOkabeYashikiBuilder
         var courts = Courts();
         var rnd = new System.Random(53114);
         // 躯体寸法(ry=0): BigHouse 26.2x24.2 / House 18.2x14.3 / HouseB 8.2x17.1 / SmallHouse 12.2x8.2
-        var big = new[] { S(B.PBigHouse, 26.2f, 24.2f, "OmoteGoten"), S(B.PHouse, 18.2f, 14.3f, "Goten"),
-                          S(B.PHouseB, 17.1f, 8.2f, "Tsubone"), S(B.PSmallHouse, 12.2f, 8.2f, "Koya") };
-        var narrow = new[] { S(B.PHouseB, 17.1f, 8.2f, "Tsubone"), S(B.PSmallHouse, 12.2f, 8.2f, "Koya"),
-                             S(B.PHouse, 14.3f, 18.2f, "Goten"), S(B.PHouseB, 8.2f, 17.1f, "TsuboneB") };
+        var big = new[] { S(B.PBigHouse, 26.2f, 24.2f, 0f, "OmoteGoten"), S(B.PHouse, 18.2f, 14.3f, 0f, "Goten"),
+                          S(B.PHouseB, 17.1f, 8.2f, 90f, "Tsubone"), S(B.PSmallHouse, 12.2f, 8.2f, 0f, "Koya") };
+        var narrow = new[] { S(B.PHouseB, 17.1f, 8.2f, 90f, "Tsubone"), S(B.PSmallHouse, 12.2f, 8.2f, 0f, "Koya"),
+                             S(B.PHouse, 14.3f, 18.2f, 90f, "Goten"), S(B.PHouseB, 8.2f, 17.1f, 0f, "TsuboneB") };
         int total = 0; float area = 0;
         foreach (var zn in Zones())
         {
@@ -442,10 +444,14 @@ public static class EdoOkabeYashikiBuilder
                         if (cx + c.w * 0.5f > ct.xMin && cx - c.w * 0.5f < ct.xMax && cz + c.d * 0.5f > ct.yMin && cz - c.d * 0.5f < ct.yMax) skip = true;
                     // 参道(表門→玄関 z=1001付近)は東三段だけ空ける
                     if (zn.x0 > -460f && Mathf.Abs(cz - 1001f) < 5.5f) skip = true;
+                    // 段をまたぐ棟は置かない(足元の地面のばらつきで判定)
+                    float gmn = float.MaxValue, gmx = float.MinValue;
+                    for (int a = -1; a <= 1; a++) for (int b2 = -1; b2 <= 1; b2++)
+                    { float gy = G(cx + a * c.w * 0.5f, cz + b2 * c.d * 0.5f); gmn = Mathf.Min(gmn, gy); gmx = Mathf.Max(gmx, gy); }
+                    if (gmx - gmn > 0.8f) skip = true;
                     if (!skip)
                     {
-                        float ry = (Mathf.Abs(c.w - 17.1f) < 0.05f || Mathf.Abs(c.w - 12.2f) < 0.05f || Mathf.Abs(c.w - 26.2f) < 0.05f || Mathf.Abs(c.w - 18.2f) < 0.05f) ? 0f : 90f;
-                        var go = B.Place(c.path, Vector3.zero, ry, Vector3.one, bg, zn.name + "_" + c.label + "_" + (idx++));
+                        var go = B.Place(c.path, Vector3.zero, c.ry, Vector3.one, bg, zn.name + "_" + c.label + "_" + (idx++));
                         var rb = B.RB(go);
                         go.transform.position += new Vector3(cx - rb.center.x, 0, cz - rb.center.z);
                         rb = B.RB(go);

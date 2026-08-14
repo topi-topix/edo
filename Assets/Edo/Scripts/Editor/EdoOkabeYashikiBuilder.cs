@@ -192,7 +192,16 @@ public static class EdoOkabeYashikiBuilder
     // 勾配は蹴上0.30 / 踏面0.45 = 1:1.5 で統一。走りは世界X、xTop が上端。
     // 幅4mに段板(1.98m)を2枚並べる。
     public const float KERI = 0.30f, FUMI = 0.45f;   // 蹴上 / 踏面
-    public const float NORI_FEATHER = 3.0f;          // 法面の側方フェザー(石垣の開口±5m に収まる)
+    // 法面は**両脇を石垣で留める**(v6)。段の芯から NORI_HALF までが平場、その外に石垣が立ち、
+    // 石垣の背後だけ NORI_FEATHER で下段へ落とす。合わせて 2*(3.5+1.5)=10m ＝ 石垣の開口±5.0m。
+    // ⚠ ハイトマップは約2m刻みなので、フェザーを 0 にしても地形は 2m かけて落ちる。
+    //   石垣を平場の縁(段の芯±3.5m)へ置くのは、その甘い縁を隠して稜線を立てるため。
+    public const float NORI_HALF = 2.2f;             // 法面の平場の半幅。段板(±1.98)のすぐ脇に石垣が立つ
+    public const float NORI_FEATHER = 1.5f;          // 石垣の背後で下段へ落とす幅
+    // 坂の土留めは郭の石垣より**薄い**。Castle Wall の素の断面は 躯体2.40m・天端1.40m あり、
+    // 段の脇の土留めには過大。X(奥行)を 0.40 に潰して 躯体0.96m・天端0.56m にする
+    // (ユーザー指摘 2026-08-15「階段脇の土留の石垣はもっと厚みが薄くて良い/石段と土留の間が空きすぎ」)
+    public const float NORI_WALL_THICK = 0.40f;
     public struct Kai
     {
         public float xTop, xBot, z0, z1, yTop, yBot; public string name;
@@ -224,7 +233,8 @@ public static class EdoOkabeYashikiBuilder
         {
             float u = k.U(wx);
             if (u < 0f || u > 1f) continue;
-            float dz = wz < k.z0 ? k.z0 - wz : (wz > k.z1 ? wz - k.z1 : 0f);
+            float zc = (k.z0 + k.z1) * 0.5f;
+            float dz = Mathf.Max(0f, Mathf.Abs(wz - zc) - NORI_HALF);
             float w = Mathf.SmoothStep(0f, 1f, 1f - Mathf.Clamp01(dz / NORI_FEATHER));
             if (w <= best) continue;
             // 段の芯線(蹴上の中ほど)を地面にすると、踏面が 0.15 出て蹴上が見える
@@ -232,6 +242,45 @@ public static class EdoOkabeYashikiBuilder
             best = w; h = k.Level(u) - 0.15f * ends;
         }
         return best;
+    }
+
+    /// <summary>法面の両脇を留める石垣の一枚。走りに沿って天端が段と一緒に下がる。
+    /// 基礎は下段の地面(yBot)に揃うので **posY は1本を通して一定** で、変わるのは scale.y だけ。
+    /// (unity-modular-stonewall「1本の壁に position.y と scale.y は1値ずつ」からの逸脱は
+    ///  ここだけ — 坂を留める石垣は天端が坂と平行に下がるのが本来の形。)</summary>
+    public struct NoriPiece { public Vector3 pos; public float yaw, sy; public string name; }
+    public static List<NoriPiece> NoriWalls()
+    {
+        var outp = new List<NoriPiece>();
+        foreach (var k in Kaidans())
+        {
+            float zc = (k.z0 + k.z1) * 0.5f;
+            float xLo = Mathf.Min(k.xTop, k.xBot), xHi = Mathf.Max(k.xTop, k.xBot);
+            int n = Mathf.Max(2, Mathf.RoundToInt(k.Run / 1.8f) + 1);
+            for (int side = 0; side < 2; side++)
+            {
+                // 芯線 = 外面。躯体は走りの左(local -X)に出るので、**高い側(法面の土)が左**に
+                // 来るよう走りを取る。北側の土留めは走り -X(yaw 270)、南側は +X(yaw 90)。
+                // ⚠ ここを逆にすると躯体が下段側へ張り出し、留めるべき土が裏に残る
+                bool north = side == 1;
+                float zw = zc + (north ? NORI_HALF : -NORI_HALF);
+                float yaw = north ? 270f : 90f;
+                for (int i = 0; i < n; i++)
+                {
+                    float px = north ? xHi - i * 1.8f : xLo + i * 1.8f;
+                    if (px < xLo - 0.4f || px > xHi + 0.4f) continue;
+                    // 天端は一枚(1.8m)の**坂上側の端**の高さに合わせる。中心に合わせると
+                    // 坂上の半分で法面が天端を越えて土がこぼれる
+                    float up = px + (k.xBot > k.xTop ? -0.9f : 0.9f);
+                    float lv = k.Level(k.U(Mathf.Clamp(up, xLo, xHi)));
+                    float sy = (lv - k.yBot) / 4f;
+                    if (sy < 0.16f) continue;              // 0.64m 未満は据えない(段の下端)
+                    outp.Add(new NoriPiece{ pos = new Vector3(px, k.yBot, zw), yaw = yaw, sy = sy,
+                                            name = k.name + (north ? "_N_" : "_S_") + i });
+                }
+            }
+        }
+        return outp;
     }
 
     // 表門(下書きの三角マーク) と その外向き
@@ -314,10 +363,10 @@ public static class EdoOkabeYashikiBuilder
 
     public static string Stage1_Grade()
     {
-        var mk = GameObject.Find("OKABE_GRADED_v5");
-        if (mk != null) return "grade: SKIP (already graded v5)";
-        var old4 = GameObject.Find("OKABE_GRADED_v4");
-        if (old4 != null) UnityEngine.Object.DestroyImmediate(old4);
+        var mk = GameObject.Find("OKABE_GRADED_v6");
+        if (mk != null) return "grade: SKIP (already graded v6)";
+        foreach (var nm in new[] { "OKABE_GRADED_v4", "OKABE_GRADED_v5" })
+        { var o = GameObject.Find(nm); if (o != null) UnityEngine.Object.DestroyImmediate(o); }
         var t = Terrain.activeTerrain; var td = t.terrainData;
         int hres = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size;
         Func<float, int> IX = wx => Mathf.Clamp(Mathf.RoundToInt((wx - tp.x) / ts.x * (hres - 1)), 0, hres - 1);
@@ -510,6 +559,19 @@ public static class EdoOkabeYashikiBuilder
             }
             sb.AppendLine(w.name + " pieces=" + made + " posY=" + posY.ToString("F2") + " sy=" + w.sy.ToString("F2") + " coping=" + w.coping.ToString("F2"));
         }
+        // 石段の法面の両脇(v6) — 坂を留める石垣。天端は坂と一緒に下がる
+        int nn = 0;
+        foreach (var q in NoriWalls())
+        {
+            var go = (GameObject)PrefabUtility.InstantiatePrefab(pre, ig);
+            Undo.RegisterCreatedObjectUndo(go, "cw"); go.name = "IG_" + q.name;
+            go.transform.position = q.pos;
+            go.transform.rotation = Quaternion.Euler(0, q.yaw, 0);
+            go.transform.localScale = new Vector3(NORI_WALL_THICK, q.sy, 1f);
+            nn++;
+        }
+        sb.AppendLine("法面の石垣 pieces=" + nn);
+
         // 家臣長屋2列 — 西の石垣A/Bの天端に載せる(下書きの赤線2本)
         // perimeter.md: なまこ壁の外面を天端の外面と面一(0.00〜0.20m)、土台底 = 天端 − 1.59m
         bool nm0 = NT.NaturalMode; NT.NaturalMode = false;
@@ -567,7 +629,8 @@ public static class EdoOkabeYashikiBuilder
         float area = 0, moya = 0;
         foreach (var m in Muneya())
         {
-            BuildMune(bg, m);
+            var mune = BuildMune(bg, m);
+            if (m.name == "Genkan") Kurumayose(mune.transform, m);
             area += (m.x1 - m.x0) * (m.z1 - m.z0);
             moya += m.MoyaW * m.MoyaD * KEN * KEN;
             sb.AppendLine(string.Format("  {0,-13} 身舎 {1,2}x{2,-2}間 + 入側 / 屋根 {3}x{4}間",
@@ -578,8 +641,87 @@ public static class EdoOkabeYashikiBuilder
         return sb.ToString();
     }
 
+    // =========================================================================
+    // 車寄せ(式台) — 表門からの参道が着く唯一の「屋根の架かる」場所。
+    //
+    // v5 で前庭の屋根付き参道を撤去した(武家屋敷の前庭は開けた白洲)。書院造で屋根が
+    // 架かるのは玄関側の**式台・車寄せ**までなので、それをここで作る。
+    //
+    // 【形】3間×1間の向拝。大棟は壁と平行(南北)に通し、渡廊下と同じ低い切妻を使う —
+    //   妻入り(棟が東西)にすると屋根が玄関棟の軒を越えて谷が要る。谷は作らない
+    //   (ユーザー裁定 2026-08-14「雁行の取り合いは (a) 渡廊下の低い切妻で処理する」)。
+    //   大棟の天端 = 床+2.503 で、玄関棟の軒先(床+2.577)の下をくぐる。
+    // 【床】式台は玄関の床から一段(0.30)下がる。地面からは 0.32 で、沓脱の段板を前に置く。
+    // 【濡縁】入口の3間は濡縁(高欄つき)を外す — 残すと高欄が式台を塞ぐ。
+    // =========================================================================
+    const float SHIKIDAI_DROP = 0.30f;      // 玄関の床からの下がり
+    const int KURUMA_BAY = 4, KURUMA_KEN = 3;  // 玄関棟のローカル間(南から)/ 間口
+
+    static void Kurumayose(Transform mune, Blk m)
+    {
+        float lv = m.y, fl = GOTEN_FLOOR - SHIKIDAI_DROP;
+        float xw = m.x1;                                    // 玄関棟の東面
+        float z0 = m.z0 + KURUMA_BAY * KEN;
+        float colH = EdoGotenKit.ROKA_EAVE + EdoGotenKit.ROKA_KETA;
+        var g = new GameObject("Kurumayose"); g.transform.SetParent(mune, true);
+        g.transform.position = Vector3.zero; g.transform.rotation = Quaternion.identity;
+        Undo.RegisterCreatedObjectUndo(g, "kurumayose");
+
+        // 入口の3間の濡縁を外す(高欄が式台を塞ぐ)
+        int cut = 0;
+        var kill = new List<GameObject>();
+        foreach (Transform c in mune)
+        {
+            if (!c.name.Contains("Nureen")) continue;
+            var p = c.position;
+            if (Mathf.Abs(p.x - xw) > 0.10f) continue;
+            if (p.z < z0 - 0.05f || p.z > z0 + KURUMA_KEN * KEN + 0.05f) continue;
+            kill.Add(c.gameObject);
+        }
+        foreach (var o in kill) { Undo.DestroyObjectImmediate(o); cut++; }
+        if (cut != KURUMA_KEN)
+            Debug.LogWarning("[Okabe] 車寄せ: 外した濡縁が" + cut + "枚(期待 " + KURUMA_KEN + ")");
+
+        for (int j = 0; j < KURUMA_KEN; j++)
+        {
+            float zc = z0 + (j + 0.5f) * KEN;
+            Put(g.transform, EdoAssets.Goten.FloorBoard, new Vector3(xw + KEN * 0.5f, lv + fl, zc), 0f, 1f);
+            Put(g.transform, EdoAssets.Goten.Beam,
+                new Vector3(xw + KEN, lv + fl + colH - EdoAssets.Goten.BeamH, zc), 0f, 1f);
+        }
+        for (int j = 0; j <= KURUMA_KEN; j++)
+            Put(g.transform, EdoAssets.Goten.Column, new Vector3(xw + KEN, lv + fl, z0 + j * KEN),
+                0f, colH / EdoAssets.Goten.DoorH);
+        // 大棟を南北へ。ピボット=向拝の中心・軒先レベル
+        Put(g.transform, EdoAssets.Goten.RoofKirizuma(KURUMA_KEN),
+            new Vector3(xw + KEN * 0.5f, lv + fl + EdoGotenKit.ROKA_EAVE, z0 + KURUMA_KEN * KEN * 0.5f), 90f, 1f);
+        // 沓脱 — 式台の前に段板2枚
+        var pre = AssetDatabase.LoadAssetAtPath<GameObject>(PStep);
+        for (int j = 0; j < 2; j++)
+        {
+            var go = (GameObject)PrefabUtility.InstantiatePrefab(pre, g.transform);
+            Undo.RegisterCreatedObjectUndo(go, "kutsunugi"); go.name = "Kutsunugi_" + j;
+            go.transform.rotation = Quaternion.Euler(0, 90f, 0);
+            var rb = B.RB(go);
+            float pz = z0 + KURUMA_KEN * KEN * 0.5f + (j == 0 ? -1.0f : 1.0f);
+            go.transform.position += new Vector3((xw + KEN + 0.45f) - rb.center.x,
+                                                 (lv + 0.16f) - rb.max.y, pz - rb.center.z);
+        }
+    }
+
+    static void Put(Transform parent, string path, Vector3 pos, float ry, float sy)
+    {
+        var src = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        if (src == null) { Debug.LogError("[Okabe] 見つからない: " + path); return; }
+        var go = (GameObject)PrefabUtility.InstantiatePrefab(src, parent);
+        Undo.RegisterCreatedObjectUndo(go, "part");
+        go.transform.position = pos;
+        go.transform.rotation = Quaternion.Euler(0f, ry, 0f);
+        if (!Mathf.Approximately(sy, 1f)) go.transform.localScale = new Vector3(1f, sy, 1f);
+    }
+
     /// <summary>棟を1つ建てる。外形の長辺が桁行(ローカルX)に来るよう寝かせ、寸法の合う屋根を載せる。</summary>
-    static void BuildMune(Transform parent, Blk m)
+    static GameObject BuildMune(Transform parent, Blk m)
     {
         int kLong = Mathf.Max(m.kw, m.kd), kShort = Mathf.Min(m.kw, m.kd);
         string roof = EdoAssets.Goten.RoofIrimoya_(kLong, kShort);
@@ -593,6 +735,7 @@ public static class EdoOkabeYashikiBuilder
             g = EdoGotenKit.Mune(m.name, parent, new Vector3(m.x1, m.y, m.z0), 270f,
                                  m.MoyaD, m.MoyaW, 1, GOTEN_FLOOR, roof, iriX: 1);
         Undo.RegisterCreatedObjectUndo(g, "mune");
+        return g;
     }
 
     // =========================================================================

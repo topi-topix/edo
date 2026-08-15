@@ -61,6 +61,7 @@ public static class EdoShinmachiBuilder
     {
         var r = GameObject.Find(root);
         if (r == null) { r = new GameObject(root); Undo.RegisterCreatedObjectUndo(r, "grp"); }
+        EdoYashikiPrefab.EnsureEditable(r);   // ★ プレハブ化済みなら解く(でないと組み替えが黙って失敗する)
         var cur = r.transform;
         if (!string.IsNullOrEmpty(child))
             foreach (var seg in child.Split('/'))

@@ -669,25 +669,36 @@ public static class EdoOkabeYashikiBuilder
     }
 
     // =========================================================================
-    // Stage 3: v1/v2 の撤去(削除しない)
+    // Stage 3: 旧版の撤去(削除する)
+    //
+    // ⚠ 2026-08-16 に方針変更。以前はここで `<名前>_v2_retired` へ退避し
+    //   SetActive(false) で残していたが、**非表示のままシーンに残り続けて
+    //   毎コミット LFS に積まれる**。実際に v1/v2 の2世代が溜まり、
+    //   103,615オブジェクト＝シーンの35%・PrefabInstanceブロックの68.5%を占めて
+    //   シーンを 246MB まで肥大させていた(2026-08-15 実測、同日ユーザー判断で削除)。
+    //
+    //   **旧版の保管庫は git の履歴**。見比べたければ当該コミットのシーンから取り出す。
+    //   シーンに置き続けるのは保管ではなく、ただの重しだった。
+    //   方針は memory:handbuilt-assets-are-canon / docs/maintenance/scene-size.md
     // =========================================================================
     public static string Stage3_Retire()
     {
-        int n = 0;
+        int n = 0, old = 0;
         var yg = GameObject.Find(GN);
+
+        // 過去の方式で溜まった *_retired があれば、まとめて消す
+        var stale = new List<GameObject>();
+        foreach (Transform c in yg.transform) if (c.name.EndsWith("_retired")) stale.Add(c.gameObject);
+        foreach (var s in stale) { old += s.GetComponentsInChildren<Transform>(true).Length; UnityEngine.Object.DestroyImmediate(s); }
+
         foreach (var gname in new[] { "Buildings", "Garden", "Service", "Kakoi", "Omotemon" })
         {
             var g = yg.transform.Find(gname);
             if (g == null || g.childCount == 0) continue;
-            string rn = gname + "_v2_retired";
-            var keep = yg.transform.Find(rn);
-            if (keep == null)
-            { var go = new GameObject(rn); Undo.RegisterCreatedObjectUndo(go, "retire"); go.transform.SetParent(yg.transform, false); keep = go.transform; }
             var kids = new List<Transform>(); foreach (Transform c in g) kids.Add(c);
-            foreach (var c in kids) { c.SetParent(keep, true); c.gameObject.SetActive(false); n++; }
-            keep.gameObject.SetActive(false);
+            foreach (var c in kids) { UnityEngine.Object.DestroyImmediate(c.gameObject); n++; }
         }
-        return "retired " + n;
+        return $"removed {n}" + (old > 0 ? $" (旧 *_retired {old} も掃除)" : "");
     }
 
     // =========================================================================

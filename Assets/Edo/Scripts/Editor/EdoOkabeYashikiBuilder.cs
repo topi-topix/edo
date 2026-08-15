@@ -412,25 +412,66 @@ public static class EdoOkabeYashikiBuilder
     public static float YawGate() { var o = GateOut(); return Mathf.Atan2(o.x, o.y) * Mathf.Rad2Deg; }
 
     // 外周長屋・塀・内部長屋の芯線(下書きを垂直水平に正規化)
-    public struct Run { public Vector2 a, b, outw; public string name; public bool nagaya; }
+    // =========================================================================
+    // 外周(指図 其六) — run は「郭ごとに割って一本一天端」。地形追従で置かない。
+    //
+    // 【天端 top】その run が面する郭の高さ。段の外(北辺・西辺)は生地形の中央値を
+    //   0.5m 刻みに丸めたもの。run の中では**一定**で、段差は run の継ぎ目で落とす。
+    //   ⚠ 地面に一枚ずつ落とすと、一本の run の中で天端が最大 17.7m 振れる(2026-08-15 実測)。
+    //
+    // 【種別 kind】格式の要る面ほど築地塀、裏手ほど長屋
+    //   [追川2017→宮崎1994]「築地塀こそが正式…表長屋は略式で薄礼」→「表門に連なる塀に
+    //   長屋塀を構築することを避けた」。加賀藩本郷邸(確度A)も表門の通り側に長屋が無い。
+    //   ・東辺(三べ坂・表門)   = 築地塀            確度A
+    //   ・南辺(山王社の境内)   = 築地塀            確度B ← 神社へ生活の場を向けるのは薄礼
+    //   ・北辺(隣地)           = 長屋塀            確度B ← ここが長屋の置き場所
+    //   ・西辺(溜池・庭園帯)   = 竹垣              確度? ← 塀で閉じると外廊下から望む景を塞ぐ
+    //     典拠: 広重「赤坂桐畑」に対岸の木の柵。ただし寺群の囲いの可能性が高く類推にとどまる
+    //   【典拠: 一般類型 / 当屋敷の一次史料は未確認】
+    // =========================================================================
+    public enum Kakoi { Tsuiji = 0, Nagaya = 1, Takegaki = 2 }
+    public struct Run
+    {
+        public Vector2 a, b, outw; public string name;
+        public Kakoi kind; public float top;      // top = 天端(この run を通して一定)
+        public bool nagaya { get { return kind == Kakoi.Nagaya; } }
+    }
+    /// <summary>外周の run。指図 其六 の表と同じ順・同じ値。</summary>
     public static Run[] Runs()
     {
         var P = SK.OKABE;
         Func<int, Vector2> eo = i => -B.InwardNormal(P, i);
         var d10 = (P[0] - P[10]).normalized;              // 東辺の走り(北→南)
+        // 南辺は郭の境(x=-592/-566/-455/-425)で割る。辺 P3→P2→P1→P0 の上の点を x から求める
+        Func<Vector2, Vector2, float, Vector2> px = (u, v, X) =>
+            Vector2.Lerp(u, v, Mathf.Clamp01((X - u.x) / (v.x - u.x)));
+        var s3_2 = new Func<float, Vector2>(X => px(P[3], P[2], X));
+        var s2_1 = new Func<float, Vector2>(X => px(P[2], P[1], X));
+        var s1_0 = new Func<float, Vector2>(X => px(P[1], P[0], X));
         return new[] {
-            new Run{ name="NG_S0", a=P[3], b=P[2], outw=eo(2), nagaya=true },   // 南辺(西)
-            new Run{ name="NG_S1", a=P[2], b=P[1], outw=eo(1), nagaya=true },   // 南辺(中)
-            new Run{ name="NG_S2", a=P[1], b=P[0], outw=eo(0), nagaya=true },   // 南辺(東)
-            new Run{ name="NG_E_S", a=P[0], b=GATE + d10 * 6.5f, outw=eo(10), nagaya=true },  // 東辺 南半
-            new Run{ name="NG_E_N", a=GATE - d10 * 6.5f, b=P[10], outw=eo(10), nagaya=true }, // 東辺 北半
-            new Run{ name="NG_NE",  a=P[10], b=P[9], outw=eo(9), nagaya=true },  // 北東の隅切り辺
-            new Run{ name="Hei_N1", a=P[9], b=P[8], outw=eo(8), nagaya=false },
-            new Run{ name="Hei_N2", a=P[8], b=P[7], outw=eo(7), nagaya=false },
-            new Run{ name="Hei_N3", a=P[7], b=P[6], outw=eo(6), nagaya=false },
-            new Run{ name="Hei_W1", a=P[6], b=P[5], outw=eo(5), nagaya=false },
-            new Run{ name="Hei_W2", a=P[5], b=P[4], outw=eo(4), nagaya=false },
-            new Run{ name="Hei_W3", a=P[4], b=P[3], outw=eo(3), nagaya=false },
+            // ---- 南辺(山王社) 築地塀。郭ごとに割る ----
+            new Run{ name="Hei_S_W",  a=P[3],          b=s3_2(-592f), outw=eo(2), kind=Kakoi.Tsuiji, top=11.5f },
+            new Run{ name="Hei_S_Cd", a=s3_2(-592f),   b=s2_1(-566f), outw=eo(2), kind=Kakoi.Tsuiji, top=19.5f },
+            new Run{ name="Hei_S_Sk", a=s2_1(-566f),   b=s1_0(-455f), outw=eo(1), kind=Kakoi.Tsuiji, top=25.5f },
+            new Run{ name="Hei_S_Te", a=s1_0(-455f),   b=s1_0(-425f), outw=eo(0), kind=Kakoi.Tsuiji, top=19.5f },
+            new Run{ name="Hei_S_Mz", a=s1_0(-425f),   b=P[0],        outw=eo(0), kind=Kakoi.Tsuiji, top=13.5f },
+            // ---- 東辺(三べ坂・表門) 築地塀。門の左右で切る ----
+            new Run{ name="Hei_E_S",  a=P[0], b=GATE + d10 * 6.5f, outw=eo(10), kind=Kakoi.Tsuiji, top=13.5f },
+            new Run{ name="Hei_E_N",  a=GATE - d10 * 6.5f, b=P[10], outw=eo(10), kind=Kakoi.Tsuiji, top=13.5f },
+            // ---- 北東の隅切り〜北辺(隣地) 長屋塀。40m 以下に割る ----
+            new Run{ name="NG_NE",    a=P[10], b=P[9], outw=eo(9), kind=Kakoi.Nagaya, top=13.5f },
+            new Run{ name="NG_N1",    a=P[9],  b=P[8], outw=eo(8), kind=Kakoi.Nagaya, top=15.5f },
+            new Run{ name="NG_N2a", a=P[8], b=Vector2.Lerp(P[8],P[7],0.25f), outw=eo(7), kind=Kakoi.Nagaya, top=21.5f },
+            new Run{ name="NG_N2b", a=Vector2.Lerp(P[8],P[7],0.25f), b=Vector2.Lerp(P[8],P[7],0.50f), outw=eo(7), kind=Kakoi.Nagaya, top=26.0f },
+            new Run{ name="NG_N2c", a=Vector2.Lerp(P[8],P[7],0.50f), b=Vector2.Lerp(P[8],P[7],0.75f), outw=eo(7), kind=Kakoi.Nagaya, top=25.5f },
+            new Run{ name="NG_N2d", a=Vector2.Lerp(P[8],P[7],0.75f), b=Vector2.Lerp(P[8],P[7],0.88f), outw=eo(7), kind=Kakoi.Nagaya, top=21.0f },
+            new Run{ name="NG_N2e", a=Vector2.Lerp(P[8],P[7],0.88f), b=P[7], outw=eo(7), kind=Kakoi.Nagaya, top=15.5f },
+            new Run{ name="NG_N3a", a=P[7], b=Vector2.Lerp(P[7],P[6],0.5f), outw=eo(6), kind=Kakoi.Nagaya, top=12.5f },
+            new Run{ name="NG_N3b", a=Vector2.Lerp(P[7],P[6],0.5f), b=P[6], outw=eo(6), kind=Kakoi.Nagaya, top=9.0f },
+            // ---- 西辺(溜池・庭園帯) 竹垣 ----
+            new Run{ name="Take_W1", a=P[6], b=P[5], outw=eo(5), kind=Kakoi.Takegaki, top=8.7f },
+            new Run{ name="Take_W2", a=P[5], b=P[4], outw=eo(4), kind=Kakoi.Takegaki, top=8.5f },
+            new Run{ name="Take_W3", a=P[4], b=P[3], outw=eo(3), kind=Kakoi.Takegaki, top=8.0f },
         };
     }
 
@@ -486,9 +527,9 @@ public static class EdoOkabeYashikiBuilder
 
     public static string Stage1_Grade()
     {
-        var mk = GameObject.Find("OKABE_GRADED_v8");
-        if (mk != null) return "grade: SKIP (already graded v8)";
-        foreach (var nm in new[] { "OKABE_GRADED_v4", "OKABE_GRADED_v5", "OKABE_GRADED_v6", "OKABE_GRADED_v7" })
+        var mk = GameObject.Find("OKABE_GRADED_v9");
+        if (mk != null) return "grade: SKIP (already graded v9)";
+        foreach (var nm in new[] { "OKABE_GRADED_v4", "OKABE_GRADED_v5", "OKABE_GRADED_v6", "OKABE_GRADED_v7", "OKABE_GRADED_v8" })
         { var o = GameObject.Find(nm); if (o != null) UnityEngine.Object.DestroyImmediate(o); }
         var t = Terrain.activeTerrain; var td = t.terrainData;
         int hres = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size;
@@ -508,10 +549,14 @@ public static class EdoOkabeYashikiBuilder
             float wx = WX(x0 + x), wz = WZ(z0 + z);
             var p = new Vector2(wx, wz);
             if (!B.PIP(SK.OKABE, p)) continue;
-            // 隣地の囲い(土井/松平所有)がある辺 4..7 は 9m、他は 1.4m あける
+            // 隣地の囲い(土井/松平所有)がある辺 4..7 は 9m あける。
+            // ⚠ 他の辺は **0m** — 境界の足元まで均す(指図 其六 ①)。
+            //   1.4m 残していたため外周の囲いだけが生地形に載り、一本の run で天端が
+            //   最大 17.7m 振れていた(2026-08-15)。塀・長屋は郭の高さに据えるので、
+            //   その足元まで郭の高さで均さないと浮くか埋まる
             float em = float.MaxValue;
             for (int i = 0; i < SK.OKABE.Length; i++)
-                em = Mathf.Min(em, DistSeg(p, SK.OKABE[i], SK.OKABE[(i + 1) % SK.OKABE.Length]) - ((i >= 4 && i <= 7) ? 9f : 1.4f));
+                em = Mathf.Min(em, DistSeg(p, SK.OKABE[i], SK.OKABE[(i + 1) % SK.OKABE.Length]) - ((i >= 4 && i <= 7) ? 9f : 0f));
             if (em < 0f) continue;
             // どの段に属するか + 段の内側への距離
             float best = -1f, bestD = -1f;
@@ -544,7 +589,7 @@ public static class EdoOkabeYashikiBuilder
         // ⚠ ここの版数は上のガード(GameObject.Find)と**必ず揃える**。
         //   v5〜v8 の間、ガードだけ上げて生成側が v4 のままになっており、
         //   造成が毎回走っていた(結果は冪等なので実害は無かったが、遅い)
-        mk = new GameObject("OKABE_GRADED_v8");
+        mk = new GameObject("OKABE_GRADED_v9");
         var yg = GameObject.Find(GN); if (yg != null) mk.transform.SetParent(yg.transform, false);
         return "grade cells=" + n + " cutMax=" + cmax.ToString("F2") + " fillMax=" + fmax.ToString("F2");
     }
@@ -565,8 +610,12 @@ public static class EdoOkabeYashikiBuilder
         var yg = GameObject.Find(GN);
         var roots = new List<Transform>();
         foreach (Transform g in yg.transform)
+            // ⚠ 設計レベルで据えるものは全部除外する。**Kakoi/Omotemon も外周の天端で据える**
+            //   ようになった(指図 其六)ので、再接地すると run ごとの一定天端が壊れる
+            //   — 2026-08-15、棟でやったのと同じ罠を外周でも踏んだ
             if (g.name != "Roka" && g.name != "Ishidan" && g.name != "Buildings"
-                && g.name != "Garden" && g.name != "Ishigaki"
+                && g.name != "Garden" && g.name != "Ishigaki" && g.name != "Kakoi"
+                && g.name != "Omotemon"
                 && g.name != "KachuNagaya" && !g.name.EndsWith("_retired")) roots.Add(g);
         var sha = GameObject.Find("Edo_Sanno_Sha"); if (sha != null) roots.Add(sha.transform);
         foreach (var grp in roots)
@@ -633,13 +682,22 @@ public static class EdoOkabeYashikiBuilder
         var kak = Grp("Kakoi"); Clear(kak);
         var mon = Grp("Omotemon"); Clear(mon);
         int nm = 0;
+        // ⚠ **地形追従で置かない**(指図 其六)。run ごとに一つの天端で据える。
+        //   追従させると一本の run の中で天端が最大 17.7m 振れて、棟が段々になる
+        NT.NaturalMode = false;
         foreach (var r in Runs())
         {
             if ((r.b - r.a).magnitude < 6f) continue;
-            if (r.nagaya) { var l = NT.NagayaRun(kak, r.a, r.b, r.outw, 0f, Vector2.zero, -1, r.name); nm += l.Count; }
-            else NT.DobeiRun(kak, r.a, r.b, r.outw, r.name, true, 0, Vector2.zero, -1);
+            if (r.kind == Kakoi.Nagaya)
+            { var l = NT.NagayaRun(kak, r.a, r.b, r.outw, r.top, Vector2.zero, -1, r.name); nm += l.Count; }
+            else if (r.kind == Kakoi.Tsuiji)
+                NT.DobeiRun(kak, r.a, r.b, r.outw, r.name, false, r.top, Vector2.zero, -1);
+            else
+                TakegakiRun(kak, r);
         }
+        NT.NaturalMode = true;
         sb.AppendLine("nagaya modules=" + nm);
+        sb.Append(PerimeterQA());
         // 表門(k_mon + 両番所) — 東辺、下書きの三角マーク位置
         float gh = B.PlaceGate(PKmon, mon, GATE, GateOut(), 2, "Kmon", sb);
         // 隅櫓 [福井図: 上屋敷格の外周装置] — 敷地の南東隅・南西隅
@@ -647,6 +705,68 @@ public static class EdoOkabeYashikiBuilder
         Yagura(kak, new Vector2(-643.5f, 940.5f), new Vector2(-0.72f, -0.69f), "Sumiyagura_SW");
         return sb.ToString();
     }
+    /// <summary>竹垣の run — 水際・庭園帯の囲い。1.05m のモジュールを走りに沿って並べる。
+    /// 塀と違って**低く抜けている**のが要点(外廊下から溜池を望む景を塞がない)。</summary>
+    static void TakegakiRun(Transform parent, Run r)
+    {
+        var src = AssetDatabase.LoadAssetAtPath<GameObject>(EdoAssets.Eg.TakeGaki);
+        if (src == null) { Debug.LogError("[Okabe] 竹垣が無い: " + EdoAssets.Eg.TakeGaki); return; }
+        var g = new GameObject(r.name); g.transform.SetParent(parent, false);
+        Undo.RegisterCreatedObjectUndo(g, "takegaki");
+        Vector2 d = (r.b - r.a); float len = d.magnitude; d /= len;
+        float yaw = Mathf.Atan2(r.outw.x, r.outw.y) * Mathf.Rad2Deg;   // 表(+Z)を外へ
+        const float MOD = 1.05f, SC = 1.65f;                            // 高0.9 → 1.49m へ起こす
+        int n = Mathf.Max(1, Mathf.RoundToInt(len / (MOD * SC)));
+        for (int i = 0; i < n; i++)
+        {
+            var p = r.a + d * (len * (i + 0.5f) / n);
+            var go = (GameObject)PrefabUtility.InstantiatePrefab(src, g.transform);
+            Undo.RegisterCreatedObjectUndo(go, "tk"); go.name = "TK_" + i;
+            go.transform.position = new Vector3(p.x, r.top, p.y);
+            go.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+            go.transform.localScale = new Vector3(len / n / MOD, SC, SC);
+        }
+    }
+
+    /// <summary>外周のQA — run ごとに「据えた部材の天端の最大−最小」を出す。
+    /// 指図 其六の不変条件「一本の run は一つの天端」を機械で確かめる。
+    /// 目視では棟の段々を見落とす(実際に 17.7m 振れていたのを見落としていた)。</summary>
+    [MenuItem("Edo/岡部筑前守上屋敷/外周の天端を検査")]
+    public static void PerimeterQAMenu() { Debug.Log("[Okabe] " + PerimeterQA()); }
+    public static string PerimeterQA()
+    {
+        // 0.10 は部材の作り由来の差(長屋は棟キャップと本体で 0.06 ずれる)。
+        // 据え方の誤りはこれよりずっと大きく出る(直す前は 17.7m)
+        const float TOL = 0.10f;
+        var yg = GameObject.Find(GN); if (yg == null) return "外周QA: グループが無い";
+        var kak = yg.transform.Find("Kakoi"); if (kak == null) return "外周QA: Kakoi が無い";
+        var runNames = new List<string>(); foreach (var r in Runs()) runNames.Add(r.name);
+        var top = new Dictionary<string, Vector2>();   // run -> (min,max)
+        foreach (Transform c in kak)
+        {
+            // run 名は Runs() と突き合わせる(文字列を切るとサフィックスまで削れる)
+            string nm = null;
+            foreach (var rn in runNames)
+                if (c.name.StartsWith(rn) && (nm == null || rn.Length > nm.Length)) nm = rn;
+            if (nm == null) continue;                  // 隅櫓など run でないものは対象外
+            var b = B.RB(c.gameObject); if (b.size == Vector3.zero) continue;
+            if (!top.ContainsKey(nm)) top[nm] = new Vector2(b.max.y, b.max.y);
+            else top[nm] = new Vector2(Mathf.Min(top[nm].x, b.max.y), Mathf.Max(top[nm].y, b.max.y));
+        }
+        var sb = new System.Text.StringBuilder("外周QA run=" + top.Count);
+        int bad = 0; float worst = 0; string worstName = "";
+        foreach (var kv in top)
+        {
+            float d = kv.Value.y - kv.Value.x;
+            if (d > worst) { worst = d; worstName = kv.Key; }
+            if (d > TOL) { bad++; Debug.LogWarning(string.Format(
+                "[Okabe] 外周 {0}: 天端が {1:F2}m 振れている(許容 {2:F2})", kv.Key, d, TOL)); }
+        }
+        sb.Append(" 振れ超過=" + bad + " 最大=" + worst.ToString("F2") + "m(" + worstName + ")");
+        if (bad > 0) sb.Append(" ⚠");
+        return sb.ToString();
+    }
+
     static void Yagura(Transform parent, Vector2 p, Vector2 bis, string nm)
     {
         var ex = parent.Find(nm); if (ex != null) UnityEngine.Object.DestroyImmediate(ex.gameObject);

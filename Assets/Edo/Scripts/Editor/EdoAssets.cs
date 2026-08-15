@@ -42,6 +42,9 @@ public static class EdoAssets
         public const string DobeiCorner = "Assets/edogoyomi/es_dobei/s_hei_corner.obj";
         public const string Itabei5     = "Assets/edogoyomi/obj_itabei/itabei5.obj";
         public const string Hogaki5     = "Assets/edogoyomi/obj_hogaki/hogaki5.obj";
+        /// <summary>竹垣(0.9高 x 1.05長)。水際・庭園帯の囲いに。
+        /// 典拠は広重「赤坂桐畑」の対岸の柵 — ただし寺群の囲いの可能性が高く類推</summary>
+        public const string TakeGaki    = "Assets/Japanese Village Kit/Prefabs/Fences/bamboo garden fence B.prefab";
 
         // 店先の小物
         public const string Shop01Taru  = "Assets/edogoyomi/es_shop01/s01_taru.obj";

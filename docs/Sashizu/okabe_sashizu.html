@@ -478,11 +478,11 @@ ol li{margin-bottom:7px}
 <rect x="110.0" y="89.8" width="198.0" height="15.8" fill="var(--ishi)" stroke="var(--ink)" stroke-width="1"/>
 <rect x="110.0" y="202.4" width="198.0" height="15.8" fill="var(--ishi)" stroke="var(--ink)" stroke-width="1"/>
 <text class="anS2" x="118.8" y="228.8">坂の土留め 厚0.72</text>
-<rect x="110.0" y="106.9" width="198.0" height="43.6" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.2"/>
-<text class="anS2" x="209.0" y="132.0" text-anchor="middle">屋外の石段 幅1.98（20段）</text>
-<rect x="110.0" y="161.5" width="198.0" height="40.0" fill="var(--roka)" stroke="var(--ink)" stroke-width="1.2"/>
-<text class="rk" x="209.0" y="187.0">階段廊下 幅一間（20段）</text>
-<rect x="103.4" y="148.3" width="211.2" height="66.4" fill="none" stroke="var(--shu)" stroke-width="1.2" stroke-dasharray="6 4"/>
+<rect x="110.0" y="116.8" width="198.0" height="43.6" fill="var(--ink-lo)" stroke="var(--ink)" stroke-width="1.2"/>
+<text class="anS2" x="209.0" y="142.0" text-anchor="middle">屋外の石段 幅1.98（20段）</text>
+<rect x="110.0" y="164.2" width="198.0" height="40.0" fill="var(--roka)" stroke="var(--ink)" stroke-width="1.2"/>
+<text class="rk" x="209.0" y="189.0">階段廊下 幅一間（20段）</text>
+<rect x="103.4" y="151.0" width="211.2" height="66.4" fill="none" stroke="var(--shu)" stroke-width="1.2" stroke-dasharray="6 4"/>
 <text class="anG" x="316.0" y="228.0">屋根（軒の出0.6）</text>
 <rect x="306.2" y="170.2" width="80.0" height="40.0" fill="var(--roka)" stroke="var(--ink)" stroke-width="1.2"/>
 <text class="rk" x="346.2" y="195.8">LW_Kita6</text>
@@ -519,7 +519,7 @@ ol li{margin-bottom:7px}
 <div class="legend"><span><i class="sw" style="background:var(--roka)"></i>階段廊下・取り付きの廊下</span><span><i class="sw" style="background:var(--ink-lo)"></i>屋外の石段</span><span><i class="sw" style="background:var(--ishi)"></i>石垣・坂の土留め</span><span><i class="sw" style="background:var(--shu-lo)"></i>盛土の法面</span><span><i class="sw" style="background:var(--ink-mid)"></i>棟</span></div>
 <p class="notes"><b>この図で決めること</b> — 郭と郭は 6〜8m の段差で、そこを<b>屋内で</b>渡す。v5〜v6 では屋外の石段の上に屋根を架けて登廊にしたが、<b>石段の幅4mと廊下の幅一間が合わず</b>、廊下なのに石を踏むことになる（ユーザー指摘 2026-08-15）。そこで法面の平場（幅4.4m）を二つに割り、<b>南半を幅一間の木の階段廊下、北半を屋外用の石段</b>とする。屋根は階段廊下の上だけに架け、他の渡廊下とまったく同じ断面（軒 床+1.55／大棟 床+2.503）にする。</p>
 <div class="tblwrap"><table><caption>階段廊下の諸元（走り・落差は法面と共通）</caption><thead><tr><th>箇所</th><th>落差</th><th>走り</th><th>段数</th><th>蹴上</th><th>踏面</th><th>幅</th></tr></thead><tbody><tr><td>W1（主郭→中段）</td><td>6.0</td><td>9.0</td><td>20</td><td>0.300</td><td>0.450</td><td>1.818</td></tr><tr><td>W2（中段→西低地）</td><td>8.0</td><td>12.0</td><td>27</td><td>0.296</td><td>0.444</td><td>1.818</td></tr></tbody></table></div>
-<p class="notes"><b>取り合い</b> — 階段廊下の上端は<b>上段の廊下の床と同じ高さ</b>、下端は下段の床と同じ高さで、段を降りきったところで平らな廊下に継ぐ。中心線は段の芯から南へ1.25m にとり、取り付きの廊下（LW_Kita6／LW_Kita7、W2は LW_Kita8/9／LW_Kita10）の z 帯をここに合わせる。床下は法面（段板の0.15下）まで束で受ける。<br><b>石段は残す</b> — 屋外を歩く動線として、平場の北半に幅1.98mで据える（段板1枚）。廊下とは干渉しない。</p>
+<p class="notes"><b>取り合い</b> — 階段廊下の上端は<b>上段の廊下の床と同じ高さ</b>、下端は下段の床と同じ高さで、段を降りきったところで平らな廊下に継ぐ。中心線は段の芯から南へ<b>1.373m</b>にとる — <b>下郭のマス目（z 1040.718〜1042.536）にスナップ</b>させて、取り付きの廊下（LW_Kita6／7、W2は8／9／10）の z 帯と一致させるため。<br><b>取り合いは階段の「端」へ正面から継ぐ。</b>階段の走りに横から掛けると側面に付き当たり、そこには高欄が回っているので通れない（実際にそうなっていた）。取り付きの <b>x はマス目でなく階段の端の座標から取る</b> — 階段の端は石垣の面（メートル）で決まるので、マス目に取ると床に 0.2〜0.4m の隙間が残る。継ぐ面の高欄は落とす。床下は法面（段板の0.15下）まで柱で受ける。<br><b>石段は残す</b> — 屋外を歩く動線として、平場の北半（段の芯から北へ0.70m）に幅1.98mで据える（段板1枚）。廊下とは干渉しない。</p>
 <p class="notes"><b>撤回した記述</b> — 「登廊＝屋外の石段の上に屋根を架けたもの（幅4.4m）」は撤回した。登廊の床は木の階段廊下とし、石段は屋外用に分ける。</p>
 </div>
 

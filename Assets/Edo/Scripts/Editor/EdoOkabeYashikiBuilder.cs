@@ -104,6 +104,9 @@ public static class EdoOkabeYashikiBuilder
     {
         public float x0, z0, x1, z1, y; public string name;
         public int kw, kd;          // 間数(0 なら間割りに乗らない矩形 = 参道など)
+        /// <summary>落とす高欄。0=両側とも立てる / 1=東(南北の廊下では x1 側) / 2=西(x0 側)。
+        /// 階段廊下の端へ正面から継ぐ廊下は、継ぐ面の高欄を落とさないと通れない</summary>
+        public int koranOff;
         public int MoyaW { get { return kw - 2; } }
         public int MoyaD { get { return kd - 2; } }
     }
@@ -119,6 +122,17 @@ public static class EdoOkabeYashikiBuilder
                          z0 = 948f + V0 * KEN,  z1 = 948f + V1 * KEN,
                          y = y, name = n, kw = U1 - U0, kd = V1 - V0 };
     }
+    static Blk KO(Blk b, int off) { b.koranOff = off; return b; }
+    /// <summary>x だけマス目から外す下郭の廊下。**階段廊下の端は石垣の面(メートル)で決まる**ので、
+    /// 取り付きの x をマス目に取ると 0.2〜0.4m の隙間が床に残る。z はマス目のまま。</summary>
+    static Blk WGz(float x0, float x1, int V0, int V1, float y, string n)
+    {
+        return new Blk { x0 = x0, x1 = x1,
+                         z0 = 948f + V0 * KEN, z1 = 948f + V1 * KEN,
+                         y = y, name = n,
+                         kw = Mathf.RoundToInt((x1 - x0) / KEN), kd = V1 - V0 };
+    }
+
     // 棟の外形(身舎 + 四方の入側)。指図の身舎寸法との差は okabe_sashizu.html 其二の表に載せた
     public static Blk[] Muneya()
     {
@@ -163,11 +177,12 @@ public static class EdoOkabeYashikiBuilder
             // 登廊の取り付き(2026-08-15) — 登廊は石段の上に屋根を架けただけなので、
             // その**両端から棟・外廊下までの数m**は別に廊下を通さないと屋外が残る。
             // 段の芯(z=1043)へ向けて北へ振り、そこで東西の廊下に継ぐ。
-            SG(58,47, 60,48, 25.5f, "LW_Kita6"),           // 2間 西縁の外廊下 → 登廊W1の上端
-            WG(40,49, 41,51, 19.5f, "LW_Kita7"),           // 2間 登廊W1の下端 → 長局棟の北面
-            WG(34,49, 35,52, 19.5f, "LW_Kita8"),           // 3間 長局棟の北西 → 北へ振る
-            WG(31,51, 34,52, 19.5f, "LW_Kita9"),           // 3間 そこから西へ → 登廊W2の上端
-            WG(24,49, 25,51, 11.5f, "LW_Kita10"),          // 2間 登廊W2の下端 → 御用部屋棟の北面
+            SG(58,47, 60,48, 25.5f, "LW_Kita6"),           // 2間 西縁の外廊下 → 登廊W1の上端(正面から)
+            // 下端側は階段の**西の端**へ回り込ませる。階段の走りに掛けると側面に付き当たる
+            KO(WGz(-576.818f, -575.0f, 49, 52, 19.5f, "LW_Kita7"), 1),   // 3間 長局棟 → 登廊W1の下端
+            KO(WGz(-586.546f, -584.728f, 49, 52, 19.5f, "LW_Kita8"), 2), // 3間 長局棟の北西 → 北へ振る
+            WGz(-592.0f, -586.546f, 51, 52, 19.5f, "LW_Kita9"),          // 3間 西へ → 登廊W2の上端
+            KO(WGz(-605.818f, -604.0f, 49, 52, 11.5f, "LW_Kita10"), 1),  // 3間 御用部屋棟 → 登廊W2の下端
             // ⚠ v5: 石段に取り付いていた LW_Kita2/3/6(と v4 の LW_Kita5)は全部廃した。
             //   **郭をまたぐ石段は廊下ではなく屋外の通路**へ改めたため(指図 v5)。
             //   直階段は法面ごと棟の北へ寄せてあり、旧リンクの位置は今は法面の中にある。
@@ -256,8 +271,12 @@ public static class EdoOkabeYashikiBuilder
     // 法面の平場(幅4.4m)の中で、屋外の石段と階段廊下を**並べて**置く。
     //   北側 +1.15 … 屋外用の石段(段板1枚 1.98m)
     //   南側 -1.25 … 階段廊下(幅一間 1.818m)。取り付きの廊下(LW_Kita6/9)の z 帯もここ
-    const float NOBORI_Z = -1.25f;     // 段の芯から階段廊下の中心まで
-    const float ISHIDAN_Z = 1.15f;     // 段の芯から屋外の石段の中心まで(登廊のある段だけ)
+    // 階段廊下の帯は**下郭のマス目(WG V51..52 = z 1040.718..1042.536)にスナップ**する。
+    // ⚠ 端数の位置に置くと取り付きの廊下がマス目に乗らず、階段の**側面**に付き当たる。
+    //   側面には高欄が回っているので、寄せても通れない(ユーザー指摘 2026-08-15)。
+    //   取り付きは必ず階段の**端**へ、同じ帯で、正面から継ぐこと。
+    const float NOBORI_Z = -1.373f;    // 段の芯(z=1043)から階段廊下の中心 1041.627 まで
+    const float ISHIDAN_Z = 0.70f;     // 段の芯から屋外の石段の中心まで(登廊のある段だけ)
 
     static void Noboriro(Transform parent, Kai k)
     {
@@ -964,11 +983,13 @@ public static class EdoOkabeYashikiBuilder
             Debug.LogWarning("[Okabe] " + l.name + ": 渡廊下の幅が1間でない");
         if (n < 2)
             Debug.LogWarning("[Okabe] " + l.name + ": 1間の渡廊下は成立しない(屋根が両端1.20ずつ重なる)");
+        // yaw270(南北の廊下)では local z=0 が世界の x1 側(東)、z=K が x0 側(西)
+        bool kS = !(l.koranOff == 1), kN = !(l.koranOff == 2);
         var g = alongX
             ? EdoGotenKit.Roka(l.name, parent, new Vector3(l.x0, l.y, l.z0), 0f, n,
-                               GOTEN_FLOOR, colStart: false, colEnd: false)
+                               GOTEN_FLOOR, koranS: kS, koranN: kN, colStart: false, colEnd: false)
             : EdoGotenKit.Roka(l.name, parent, new Vector3(l.x1, l.y, l.z0), 270f, n,
-                               GOTEN_FLOOR, colStart: false, colEnd: false);
+                               GOTEN_FLOOR, koranS: kS, koranN: kN, colStart: false, colEnd: false);
         Tsuka(g.transform, l.x0, l.z0, alongX, n, l.y);
         Undo.RegisterCreatedObjectUndo(g, "roka");
     }

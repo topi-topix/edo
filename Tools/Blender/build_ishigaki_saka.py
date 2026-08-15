@@ -87,15 +87,41 @@ class Mesh(object):
         return o
 
 
-def prism(m, half_at, zbot, ztop, y0g, y1g, ncol, band=None):
+def prism(m, half_at, zbot, ztop, y0g, y1g, ncol, band=None, kinks=None):
     """走り Y に沿った角柱。半厚 half_at(z)・下端 zbot(y)・上端 ztop(y) はすべて関数。
 
     band=None のとき側面は**石積み1枚(COURSE)の格子**に割って貼る。
     band=(v0, 高さ) を渡すと格子に載せず、その帯の中で相対的に貼る —
     ⚠ 笠石のような薄い帯を格子に割ると、段の境をまたぐ列で片端が潰れ、
       その1列だけ v が 0→0.79 に走って**テクスチャが引き伸ばされる**
-      (ユーザー指摘 2026-08-15「一部テクスチャが引き伸ばされてる」)。"""
-    ys = [y0g + (y1g - y0g) * i / ncol for i in range(ncol + 1)]
+      (ユーザー指摘 2026-08-15「一部テクスチャが引き伸ばされてる」)。
+
+    ⚠⚠ 列は「u の割り(2.0m)」だけでなく **上端が段の境をまたぐ y** でも割る。
+      割らずに段ごとに上端を丸めると、丸めた折れ線が本来の直線の下を通り、
+      その間が**穴**になる(地面が透けて見え、引き伸ばされた面に見えた)。
+      kink(勾配の折れ点)も同じ理由で割る。"""
+    ys = set(y0g + (y1g - y0g) * i / ncol for i in range(ncol + 1))
+    for yk in (kinks or []):
+        if y0g < yk < y1g:
+            ys.add(yk)
+    if band is None:                                   # 上端が段の境をまたぐ y を足す
+        N = 400
+        for i in range(N):
+            ya = y0g + (y1g - y0g) * i / N
+            yb = y0g + (y1g - y0g) * (i + 1) / N
+            ka, kb2 = int(ztop(ya) / COURSE), int(ztop(yb) / COURSE)
+            if ka == kb2:
+                continue
+            lo, hi = ya, yb                            # 二分法で境界の y を詰める
+            for _ in range(30):
+                mid = (lo + hi) / 2.0
+                if int(ztop(mid) / COURSE) == ka:
+                    lo = mid
+                else:
+                    hi = mid
+            ys.add((lo + hi) / 2.0)
+    ys = sorted(ys)
+    ncol = len(ys) - 1
 
     def vv(z, y):
         if band is None:
@@ -172,12 +198,13 @@ def build(L, H, name):
     m = Mesh()
     # 躯体 — 上へ行くほど BATTER だけ内へ入る(反り)
     body_h = lambda z, frac: max(0.10, T / 2.0 - BATTER * z)
-    prism(m, body_h, lambda y: 0.0, lambda y: crest(y) + KASA - KASA_H, -EMBED, L, ncol)
+    prism(m, body_h, lambda y: 0.0, lambda y: crest(y) + KASA - KASA_H, -EMBED, L, ncol,
+          kinks=[0.0])
     # 笠石 — 天端へ向かって KASA_BEVEL だけ細める(面取り)。角が立ちすぎるのを殺す。
     # v は自分の帯で貼る(段の格子に載せると境をまたぐ列で引き伸ばされる)
     kasa_h = lambda z, frac: T / 2.0 + KASA_OUT - BATTER * z - KASA_BEVEL * frac
     prism(m, kasa_h, lambda y: crest(y) + KASA - KASA_H, lambda y: crest(y) + KASA,
-          -EMBED, L, ncol, band=(V_KASA, KASA_H))
+          -EMBED, L, ncol, band=(V_KASA, KASA_H), kinks=[0.0])
     o = m.build(name, mat)
     V.set_origin(o, (0.0, 0.0, 0.0))                 # 原点 = 坂上の端・下段の地面
     mn, mx = V.bbox([o])

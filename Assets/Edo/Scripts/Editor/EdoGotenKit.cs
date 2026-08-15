@@ -56,6 +56,8 @@ public static class EdoGotenKit
     /// <summary>棟を1つ組む。
     /// nx = 身舎の桁行の間数(X) / nzZashiki = 身舎の間数(Z) / iri = 梁間(Z)方向の入側の間数。
     /// iriX = 桁行(X)方向の入側の間数。**1 にすると入側が四方に回る**(既定 0 = 前後だけ)。
+    /// moyaBay = 身舎の部屋割り(間)。身舎の中の柱はこの通りの交点にしか立てず、
+    /// partition=true(既定)なら同じ通りに襖+欄間を通して 3x3間=18畳の続き間にする。
     /// 原点は棟の南西角(入側を含めた外形の角・床レベル)。yaw は親側で与える。
     /// roofAsset に寸法の合う屋根FBXのパスを渡すと載せる(null なら骨組みのみ)。
     ///
@@ -68,8 +70,10 @@ public static class EdoGotenKit
                                   float floor = 0.62f, string roofAsset = null,
                                   bool nureen = true, bool ceiling = true,
                                   int[] openBaysWest = null, int[] openBaysEast = null,
-                                  int jodanFromIx = -1, int iriX = 0)
+                                  int jodanFromIx = -1, int iriX = 0, int moyaBay = 3,
+                                  bool partition = true)
     {
+        if (moyaBay < 1) moyaBay = 1;
         // 妻側の建具を省く区画(床の間・違い棚・帳台構が入る所)。塞いだままだと飾りが壁の裏に隠れる
         System.Func<int[], int, bool> isOpen = (arr, j) => {
             if (arr == null) return false;
@@ -145,10 +149,52 @@ public static class EdoGotenKit
             }
         }
 
-        // 柱 — 一間ごとの格子点
+        // 続き間の間仕切り — 身舎を部屋割りの通り(moyaBay)で襖+欄間に切る。
+        // ⚠ 柱を柱通りだけに減らした(bookmark 2026-08-15 #2)ので、これが無いと身舎が
+        //   仕切りのない畳の平原になる。大広間の身舎は 20x12間 = 36.4x21.8m あり、
+        //   一室では御殿にならない(実際の大広間も上段・二の間・三の間…の続き間)。
+        //   3間ごとに通すと 3x3間 = 18畳の部屋が並ぶ。
+        //   端数の帯(moyaBay で割り切れない残り)には通さない — 半端な小部屋を作らないため。
+        if (partition)
+        {
+            // 桁行(X)の柱通り = 梁間方向へ通る襖(表は ±X)
+            for (int ix = iriX + moyaBay; ix < nx - iriX; ix += moyaBay)
+                for (int j = iri; j < nz - iri; j++)
+                {
+                    var c = new Vector3(ix * K, lv(ix, false), j * K + K / 2f);
+                    Put(EdoAssets.Goten.Fusuma, g.transform, c, 90f);
+                    Put(EdoAssets.Goten.Ranma, g.transform,
+                        c + new Vector3(0f, EdoAssets.Goten.Uchinori, 0f), 90f);
+                }
+            // 梁間(Z)の柱通り = 桁行方向へ通る襖(表は ±Z)
+            for (int jz = iri + moyaBay; jz < nz - iri; jz += moyaBay)
+                for (int i = iriX; i < nx - iriX; i++)
+                {
+                    var c = new Vector3(i * K + K / 2f, lv(i, false), jz * K);
+                    Put(EdoAssets.Goten.Fusuma, g.transform, c, 0f);
+                    Put(EdoAssets.Goten.Ranma, g.transform,
+                        c + new Vector3(0f, EdoAssets.Goten.Uchinori, 0f), 0f);
+                }
+        }
+
+        // 柱 — **柱通りにだけ立てる**。
+        // ⚠ 以前は一間ごとの格子点すべてに立てていた。広間の畳の上に 1.818m ピッチで柱が
+        //   林立して「広間の中にこんなに柱が立っているのはおかしい」とユーザー指摘
+        //   (bookmark 2026-08-15 #2)。書院造の身舎は大梁で飛ばすので、室内に立つのは
+        //   部屋の隅(=間仕切りの通りの交点)だけ。
+        //   立てる所: ①外周 ②入側と身舎の境(建具が載るので一間ごと) ③身舎の中は
+        //   部屋割りの通り(moyaBay 間ごと)の交点だけ。
         for (int i = 0; i <= nx; i++)
             for (int j = 0; j <= nz; j++)
-                Put(EdoAssets.Goten.Column, g.transform, new Vector3(i * K, floor, j * K), 0f);
+            {
+                bool perim = i == 0 || i == nx || j == 0 || j == nz;
+                bool iriLine = (iriX > 0 && (i == iriX || i == nx - iriX))
+                            || (iri > 0 && (j == iri || j == nz - iri));
+                bool roomLine = ((i - iriX) % moyaBay == 0 || i == nx - iriX)
+                             && ((j - iri) % moyaBay == 0 || j == nz - iri);
+                if (perim || iriLine || roomLine)
+                    Put(EdoAssets.Goten.Column, g.transform, new Vector3(i * K, floor, j * K), 0f);
+            }
 
         if (ceiling)
             for (int i = 0; i < nx; i++)
@@ -164,8 +210,9 @@ public static class EdoGotenKit
                 Put(EdoAssets.Goten.Nureen, g.transform,
                     new Vector3(i * K + K / 2f, floor - 0.28f, D), 180f);
             }
-        // 妻側の濡縁 — 入側が四方に回るときだけ。隅の升目は両者が突き合うので空けておく
+        // 妻側の濡縁 — 入側が四方に回るときだけ
         if (nureen && iriX > 0)
+        {
             for (int j = 0; j < nz; j++)
             {
                 Put(EdoAssets.Goten.Nureen, g.transform,
@@ -173,6 +220,17 @@ public static class EdoGotenKit
                 Put(EdoAssets.Goten.Nureen, g.transform,
                     new Vector3(W, floor - 0.28f, j * K + K / 2f), 270f);
             }
+            // 四隅の升目(0.891角)。ここを空けると床が抜け、外縁に回した高欄が隅で切れる。
+            // ⚠ 部材の**体積はピボットの (-X,-Z) 側**にある(高欄が +X 面と -Z 面、という
+            //   説明とは逆の象限)。yaw は「体積が隅の外向きの象限へ回る」向きで取ること —
+            //   90度ずれていて、四隅とも内側を埋めて外の升目が空いていた
+            //   (ユーザー指摘 2026-08-15「よく見たら濡れ縁が切れてます」)。
+            //   yaw 0 → 体積(-X,-Z) / 90 → (-X,+Z) / 180 → (+X,+Z) / 270 → (+X,-Z)
+            Put(EdoAssets.Goten.NureenCorner, g.transform, new Vector3(W, floor - 0.28f, 0f), 270f);
+            Put(EdoAssets.Goten.NureenCorner, g.transform, new Vector3(0f, floor - 0.28f, 0f), 0f);
+            Put(EdoAssets.Goten.NureenCorner, g.transform, new Vector3(0f, floor - 0.28f, D), 90f);
+            Put(EdoAssets.Goten.NureenCorner, g.transform, new Vector3(W, floor - 0.28f, D), 180f);
+        }
 
         if (!string.IsNullOrEmpty(roofAsset))
         {
@@ -183,8 +241,10 @@ public static class EdoGotenKit
                 var mf = r.GetComponentInChildren<MeshFilter>();
                 if (mf != null)
                 {
+                    // 許容 0.45 — 隅棟が軒先の角で棟幅の半分(0.20)だけ外へ出るため、
+                    // 外形は「軒の出×2」よりいつも 0.35 ほど大きく出る
                     var s = mf.sharedMesh.bounds.size;
-                    if (Mathf.Abs(s.x - (W + 1.8f)) > 0.35f || Mathf.Abs(s.z - (D + 1.8f)) > 0.35f)
+                    if (Mathf.Abs(s.x - (W + 1.8f)) > 0.45f || Mathf.Abs(s.z - (D + 1.8f)) > 0.45f)
                         Debug.LogWarning(string.Format(
                             "[GotenKit] {0}: 屋根が棟に合っていない。屋根 {1:F2}x{2:F2} / 棟 {3:F2}x{4:F2}。" +
                             "build_goten_roof.py -- {3:F3} {4:F3} で作り直す", name, s.x, s.z, W, D));

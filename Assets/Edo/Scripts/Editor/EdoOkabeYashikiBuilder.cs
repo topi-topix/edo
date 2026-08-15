@@ -725,6 +725,7 @@ public static class EdoOkabeYashikiBuilder
             var rb = B.RB(c.gameObject); if (rb.size == Vector3.zero) continue;
             c.position += new Vector3(0f, 13.5f - rb.min.y, 0f);
         }
+        TightenToGate(kak, mon, sb);
         // 隅櫓 [福井図: 上屋敷格の外周装置] — 敷地の南東隅・南西隅
         Yagura(kak, new Vector2(-378.5f, 950.5f), new Vector2(0.83f, -0.56f), "Sumiyagura_SE", 13.5f);
         Yagura(kak, new Vector2(-643.5f, 940.5f), new Vector2(-0.72f, -0.69f), "Sumiyagura_SW", 11.5f);
@@ -786,6 +787,102 @@ public static class EdoOkabeYashikiBuilder
                                     -moved, n1.name, n2.name, tgt - FacePerp(g.gameObject, nout, WY0, WY1)));
     }
 
+    /// <summary>頂点ベースで、帯[y0,y1]における走り方向 dir の [min,max]。</summary>
+    static Vector2 RunExtent(GameObject go, Vector2 origin, Vector2 dir, float y0, float y1)
+    {
+        float mn = 1e9f, mx = -1e9f;
+        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+        {
+            var ms = mf.sharedMesh; if (ms == null) continue;
+            foreach (var v in ms.vertices)
+            {
+                var wp = mf.transform.TransformPoint(v);
+                if (wp.y < y0 || wp.y > y1) continue;
+                float s = (wp.x - origin.x) * dir.x + (wp.z - origin.y) * dir.y;
+                if (s < mn) mn = s; if (s > mx) mx = s;
+            }
+        }
+        return new Vector2(mn, mx);
+    }
+
+    /// <summary>長屋の run を**両端いっぱいに詰める**(ユーザー指摘 2026-08-15「長屋門と長屋の間に隙間」)。
+    /// NagayaRun は run 長にモジュールの整数個を割り付けるので、端数がそのまま端の隙間になる。
+    /// 実測すると**長屋の run 全部**が同じ癖で、a 端に 0.54m の隙間・b 端に 0.16m の重なり
+    /// → run どうしの継ぎ目が **0.38m 開く**。門との継ぎ目(南0.34/北1.04)はその一例にすぎず、
+    /// 北辺の 9 箇所も同じだった。築地塀・竹垣は元から 0.00(端数を自前で吸っている)。
+    /// 直し方は**棟の間隔だけを伸縮**して端を合わせる。棟自体は拡縮しない(格子が歪む)。
+    /// 棟どうしは 1.2m 重なっているので、間隔を 0.2m 広げても継ぎ目は開かない。
+    /// 表門に接する端だけは run の端でなく**門の壁面**に合わせる(門は run より 0.18m 外に出る)。</summary>
+    static void TightenToGate(Transform kak, Transform mon, System.Text.StringBuilder sb)
+    {
+        var g = mon.Find("Nagayamon");
+        var P = SK.OKABE; Vector2 eOrg = P[0], eDir = (P[10] - P[0]).normalized;
+        var gx = g == null ? Vector2.zero : RunExtent(g.gameObject, eOrg, eDir, 14.0f, 16.0f);
+        float worst = 0f; string worstName = "";
+        foreach (var r in Runs())
+        {
+            if (r.kind != Kakoi.Nagaya) continue;
+            Vector2 dir = (r.b - r.a).normalized; float len = (r.b - r.a).magnitude;
+            float y0 = r.top + 0.5f, y1 = r.top + 2.5f;            // 帯は run の天端から取る
+            var mods = new List<Transform>();
+            foreach (Transform t in kak) if (t.name.StartsWith(r.name + "_")) mods.Add(t);
+            if (mods.Count < 2) continue;
+            // 目標: run の両端いっぱい。ただし表門に接する端は**門の壁面**に合わせる
+            float T0 = 0f, T1 = len;
+            if (g != null && r.name == "NG_E_S") T1 = Vector2.Dot(eOrg + eDir * gx.x - r.a, dir);
+            if (g != null && r.name == "NG_E_N") T0 = Vector2.Dot(eOrg + eDir * gx.y - r.a, dir);
+            var sp = new List<float>();                            // 各棟のピボットの走り位置
+            foreach (var t in mods) sp.Add(Vector2.Dot(new Vector2(t.position.x, t.position.z) - r.a, dir));
+            float c0 = 1e9f, c1 = -1e9f;
+            foreach (var t in mods)
+            { var e = RunExtent(t.gameObject, r.a, dir, y0, y1); c0 = Mathf.Min(c0, e.x); c1 = Mathf.Max(c1, e.y); }
+            if (c0 > 1e8f) continue;
+            float pLo = Mathf.Min(sp[0], sp[sp.Count - 1]), pHi = Mathf.Max(sp[0], sp[sp.Count - 1]);
+            if (pHi - pLo < 0.5f) continue;
+            float e0 = pLo - c0, e1 = c1 - pHi;                     // ピボットから棟の端までの出
+            float scale = ((T1 - e1) - (T0 + e0)) / (pHi - pLo);
+            for (int i = 0; i < mods.Count; i++)
+            {
+                float ns = (T0 + e0) + (sp[i] - pLo) * scale;
+                var p = r.a + dir * ns;
+                mods[i].position = new Vector3(p.x, mods[i].position.y, p.y);
+            }
+            float gap = Mathf.Max(c0 - T0, T1 - c1);
+            if (gap > worst) { worst = gap; worstName = r.name; }
+        }
+        sb.AppendLine(string.Format("長屋の継ぎ目を詰めた: 直前の最大隙間 {0:F2}m ({1})", worst, worstName));
+    }
+
+    /// <summary>外周の**継ぎ目**の QA — run ごとに、部材が run の両端をどこまで覆っているか。
+    /// 天端(PerimeterQA)・面(GateQA)が合っていても、走り方向の端数は別に残る。
+    /// 正の値 = 隙間、負の値 = 重なり(重なりは可)。</summary>
+    public static string JointQA()
+    {
+        var yg = GameObject.Find(GN); if (yg == null) return "継ぎ目QA: グループが無い";
+        var kak = yg.transform.Find("Kakoi"); if (kak == null) return "継ぎ目QA: Kakoi が無い";
+        const float TOL = 0.10f;
+        float worst = 0f; string wn = ""; int over = 0; var lines = new List<string>();
+        foreach (var r in Runs())
+        {
+            Vector2 dir = (r.b - r.a).normalized; float len = (r.b - r.a).magnitude;
+            float mn = 1e9f, mx = -1e9f;
+            foreach (Transform t in kak)
+            {
+                if (t.name != r.name && !t.name.StartsWith(r.name + "_")) continue;
+                var e = RunExtent(t.gameObject, r.a, dir, -1000f, 1000f);
+                if (e.x > 1e8f) continue;
+                mn = Mathf.Min(mn, e.x); mx = Mathf.Max(mx, e.y);
+            }
+            if (mn > 1e8f) { lines.Add(r.name + " 部材なし"); continue; }
+            float ga = mn, gb = len - mx, g = Mathf.Max(ga, gb);
+            if (g > TOL) { over++; lines.Add(string.Format("{0} a={1:F2} b={2:F2}", r.name, ga, gb)); }
+            if (g > worst) { worst = g; wn = r.name; }
+        }
+        return string.Format("継ぎ目QA run={0} 隙間超過={1} 最大={2:F2}m({3}){4}",
+                             Runs().Length, over, worst, wn,
+                             over > 0 ? "\n  " + string.Join(" / ", lines.ToArray()) : "");
+    }
+
     /// <summary>東辺の QA — 街路面の振れ(鋸歯)と、門と長屋の面差・棟差。
     /// 天端の PerimeterQA では鋸歯も面差も出ない(どちらも高さは合っている)。</summary>
     public static string GateQA()
@@ -806,8 +903,17 @@ public static class EdoOkabeYashikiBuilder
         var g = mon.Find("Nagayamon");
         float gf = g == null ? 0f : FacePerp(g.gameObject, nout, WY0, WY1);
         float gr = g == null ? 0f : B.RB(g.gameObject).max.y;
-        return string.Format("東辺QA 長屋{0}棟 街路面の振れ={1:F2}m(許容0.10) 門の面差={2:+0.00;-0.00}m 棟 門{3:F2}/長屋{4:F2} 差{5:+0.00;-0.00}m",
-                             n, mx - mn, gf - mx, gr, ridge, gr - ridge);
+        // 門と長屋の**継ぎ目**(走り方向の隙間)。面と棟が合っていても、ここは別に開く
+        var P = SK.OKABE; Vector2 org = P[0], dir = (P[10] - P[0]).normalized;
+        var gx = g == null ? Vector2.zero : RunExtent(g.gameObject, org, dir, WY0, WY1);
+        float sHi = -1e9f, nLo = 1e9f;
+        foreach (Transform t in kak)
+        {
+            if (t.name.StartsWith("NG_E_S_")) sHi = Mathf.Max(sHi, RunExtent(t.gameObject, org, dir, WY0, WY1).y);
+            else if (t.name.StartsWith("NG_E_N_")) nLo = Mathf.Min(nLo, RunExtent(t.gameObject, org, dir, WY0, WY1).x);
+        }
+        return string.Format("東辺QA 長屋{0}棟 街路面の振れ={1:F2}m(許容0.10) 門の面差={2:+0.00;-0.00}m 棟 門{3:F2}/長屋{4:F2} 差{5:+0.00;-0.00}m 門との継ぎ目 南{6:+0.00;-0.00}m 北{7:+0.00;-0.00}m",
+                             n, mx - mn, gf - mx, gr, ridge, gr - ridge, gx.x - sHi, nLo - gx.y);
     }
 
     /// <summary>竹垣の run — 水際・庭園帯の囲い。1.05m のモジュールを走りに沿って並べる。

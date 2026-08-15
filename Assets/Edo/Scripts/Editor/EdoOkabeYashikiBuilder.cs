@@ -447,7 +447,14 @@ public static class EdoOkabeYashikiBuilder
     }
 
     // =========================================================================
-    // Stage 2: 全再接地(石段・飛石・廊下は除外 — 設計レベルで据えてある)
+    // Stage 2: 全再接地(設計レベルで据えてあるものは除外)
+    //
+    // ⚠ **Buildings(御殿の棟)を再接地してはいけない**(2026-08-15 に発覚)。
+    //   棟は「床が地面から 0.62 上がり、濡縁がその 0.28 下に回る」高床で、いちばん低い
+    //   ジオメトリは地面ではなく濡縁である。再接地はその濡縁を地面へ沈めるので、
+    //   **棟だけが 0.44m 下がって廊下との間に段差ができていた**(ユーザー指摘)。
+    //   棟・渡廊下・石段はすべて段のレベルに対して設計値で据える。地面に合わせるのは
+    //   Village Kit の土蔵・厩・門など、床の高さを持たない物だけ。
     // =========================================================================
     public static string Stage2_Reseat()
     {
@@ -455,7 +462,8 @@ public static class EdoOkabeYashikiBuilder
         var yg = GameObject.Find(GN);
         var roots = new List<Transform>();
         foreach (Transform g in yg.transform)
-            if (g.name != "Roka" && g.name != "Ishidan" && g.name != "Garden" && g.name != "Ishigaki"
+            if (g.name != "Roka" && g.name != "Ishidan" && g.name != "Buildings"
+                && g.name != "Garden" && g.name != "Ishigaki"
                 && g.name != "KachuNagaya" && !g.name.EndsWith("_retired")) roots.Add(g);
         var sha = GameObject.Find("Edo_Sanno_Sha"); if (sha != null) roots.Add(sha.transform);
         foreach (var grp in roots)
@@ -876,7 +884,24 @@ public static class EdoOkabeYashikiBuilder
                                GOTEN_FLOOR, colStart: false, colEnd: false)
             : EdoGotenKit.Roka(l.name, parent, new Vector3(l.x1, l.y, l.z0), 270f, n,
                                GOTEN_FLOOR, colStart: false, colEnd: false);
+        Tsuka(g.transform, l.x0, l.z0, alongX, n, l.y);
         Undo.RegisterCreatedObjectUndo(g, "roka");
+    }
+
+    /// <summary>床束 — 高床の下を地面まで受ける 短い柱。
+    /// ⚠ EdoGotenKit の柱は**床レベルから上**にしか立たない。棟は濡縁が縁を隠すので目立たないが、
+    ///   渡廊下は縁が無いので、床が 0.62 の高さで**宙に浮いて見える**(ユーザー指摘 2026-08-15、
+    ///   西低地の廊下)。上の柱と同じ通りに、地面から床までの束を入れる。</summary>
+    static void Tsuka(Transform parent, float x0, float z0, bool alongX, int n, float lv)
+    {
+        float sy = GOTEN_FLOOR / EdoAssets.Goten.DoorH;
+        for (int i = 0; i <= n; i++)
+            for (int j = 0; j < 2; j++)
+            {
+                float cx = alongX ? x0 + i * KEN : x0 + j * KEN;
+                float cz = alongX ? z0 + j * KEN : z0 + i * KEN;
+                Put(parent, EdoAssets.Goten.Column, new Vector3(cx, lv, cz), 0f, sy);
+            }
     }
 
     // 石段を1本。直階段 — 蹴上0.30/踏面0.45 の段板を法面の上に据える。

@@ -39,6 +39,10 @@ T = 0.60          # 躯体の厚み(郭の土留め 2.40m より薄い — 段�
 KASA = 0.45       # 笠石の天端が平場から出る高さ。段板は平場の 0.15 上なので段から 0.30
 KASA_H = 0.28     # 笠石の見付
 KASA_OUT = 0.06   # 笠石が躯体から左右へ出る量
+KASA_BEVEL = 0.05 # 笠石の面取り(天端を左右 0.05 ずつ細くする)。角が立ちすぎるのを殺す
+BATTER = 0.015    # 反り。1m 上がるごとに片側 0.015 内へ入る
+EMBED = 2.0       # 坂上の端を上段の地中へ差し込む長さ。端面を露出させない
+V_KASA = 0.30     # 笠石はこの v から自分の帯を使う(段の格子に載せない)
 SET = ((9.0, 6.0), (12.0, 8.0))   # 定尺 (走り, 落差)
 
 # Castle Wall(2.0m x 4.0m)の実測UV: u 0.25..0.75 / v 0..0.97。
@@ -83,49 +87,73 @@ class Mesh(object):
         return o
 
 
-def prism(m, half, zbot, ztop, L, ncol):
-    """走り Y に沿った角柱を、走り 2.0m × 石積み1枚(COURSE)の格子で貼る。
-    zbot/ztop は y の関数(上端は勾配なので y で変わる)。"""
-    ys = [L * i / ncol for i in range(ncol + 1)]
-    zmax = max(ztop(0.0), ztop(L))
-    ncourse = max(1, int(zmax / COURSE) + 1)
+def prism(m, half_at, zbot, ztop, y0g, y1g, ncol, band=None):
+    """走り Y に沿った角柱。半厚 half_at(z)・下端 zbot(y)・上端 ztop(y) はすべて関数。
+
+    band=None のとき側面は**石積み1枚(COURSE)の格子**に割って貼る。
+    band=(v0, 高さ) を渡すと格子に載せず、その帯の中で相対的に貼る —
+    ⚠ 笠石のような薄い帯を格子に割ると、段の境をまたぐ列で片端が潰れ、
+      その1列だけ v が 0→0.79 に走って**テクスチャが引き伸ばされる**
+      (ユーザー指摘 2026-08-15「一部テクスチャが引き伸ばされてる」)。"""
+    ys = [y0g + (y1g - y0g) * i / ncol for i in range(ncol + 1)]
+
+    def vv(z, y):
+        if band is None:
+            return None
+        return band[0] + ((z - zbot(y)) / COURSE) * V_STONE
+
+    def hf(z, y):
+        """その点の半厚。frac = 部材の中での高さ比(0=下端 1=上端)を面取りに渡す"""
+        span = ztop(y) - zbot(y)
+        frac = 0.0 if span < 1e-6 else min(1.0, max(0.0, (z - zbot(y)) / span))
+        return half_at(z, frac)
 
     for j in range(ncol):
         y0, y1 = ys[j], ys[j + 1]
-        for k in range(ncourse):
-            c0, c1 = k * COURSE, (k + 1) * COURSE
-            # 段の中でのこの列の上下端。**必ず [c0,c1] に丸める** —
-            # 丸めないと笠石(zbot が段より上)で v が 0.79 を越えて無地の帯を踏む
-            a0, a1 = min(max(zbot(y0), c0), c1), min(max(zbot(y1), c0), c1)
-            b0, b1 = min(max(ztop(y0), c0), c1), min(max(ztop(y1), c0), c1)
+        if band is not None:
+            spans = [(zbot(y0), ztop(y0), zbot(y1), ztop(y1), None)]
+        else:
+            zmax = max(ztop(y0), ztop(y1))
+            spans = []
+            k = 0
+            while k * COURSE < zmax:
+                c0, c1 = k * COURSE, (k + 1) * COURSE
+                spans.append((min(max(zbot(y0), c0), c1), min(max(ztop(y0), c0), c1),
+                              min(max(zbot(y1), c0), c1), min(max(ztop(y1), c0), c1), c0))
+                k += 1
+        for a0, b0, a1, b1, c0 in spans:
             if b0 - a0 < 1e-4 and b1 - a1 < 1e-4:
                 continue
-            for sx in (-1, 1):                     # 長手の両側面
-                x = sx * half
-                pts = [(x, y0, a0), (x, y1, a1), (x, y1, b1), (x, y0, b0)]
-                uvs = [(u_of(y0), v_of(a0 - c0)), (u_of(y1), v_of(a1 - c0)),
-                       (u_of(y1), v_of(b1 - c0)), (u_of(y0), v_of(b0 - c0))]
+            V = (lambda z, y: vv(z, y)) if band is not None else (lambda z, y: v_of(z - c0))
+            for sx in (-1, 1):                     # 長手の両側面(反りで x が z で変わる)
+                pts = [(sx * hf(a0, y0), y0, a0), (sx * hf(a1, y1), y1, a1),
+                       (sx * hf(b1, y1), y1, b1), (sx * hf(b0, y0), y0, b0)]
+                uvs = [(u_of(y0), V(a0, y0)), (u_of(y1), V(a1, y1)),
+                       (u_of(y1), V(b1, y1)), (u_of(y0), V(b0, y0))]
                 m.quad(pts if sx > 0 else pts[::-1], uvs if sx > 0 else uvs[::-1])
-        # 天端(勾配なり)と底 — 幅0.72mなので1枚で足りる。v は厚みから引く
+        # 天端(勾配なり)と底。v は厚みから引く
         for z_at, flip in ((ztop, False), (zbot, True)):
-            pts = [(-half, y0, z_at(y0)), (half, y0, z_at(y0)),
-                   (half, y1, z_at(y1)), (-half, y1, z_at(y1))]
-            uvs = [(u_of(y0), v_of(0.0)), (u_of(y0), v_of(2 * half)),
-                   (u_of(y1), v_of(2 * half)), (u_of(y1), v_of(0.0))]
+            h0, h1 = hf(z_at(y0), y0), hf(z_at(y1), y1)
+            pts = [(-h0, y0, z_at(y0)), (h0, y0, z_at(y0)),
+                   (h1, y1, z_at(y1)), (-h1, y1, z_at(y1))]
+            uvs = [(u_of(y0), v_of(0.0)), (u_of(y0), v_of(2 * h0)),
+                   (u_of(y1), v_of(2 * h1)), (u_of(y1), v_of(0.0))]
             m.quad(pts[::-1] if flip else pts, uvs[::-1] if flip else uvs)
-    # 妻(両端)。こちらも石積み1枚ごとに割る
-    for y, flip in ((0.0, True), (L, False)):
-        zb, zt = zbot(y), ztop(y)
-        k = int(zb / COURSE)
-        while k * COURSE < zt:
-            c0, c1 = k * COURSE, (k + 1) * COURSE
-            a = min(max(zb, c0), c1); b = min(max(zt, c0), c1)
-            if b - a > 1e-4:
-                pts = [(-half, y, a), (half, y, a), (half, y, b), (-half, y, b)]
-                uvs = [(u_of(0.0), v_of(a - k * COURSE)), (u_of(2 * half), v_of(a - k * COURSE)),
-                       (u_of(2 * half), v_of(b - k * COURSE)), (u_of(0.0), v_of(b - k * COURSE))]
-                m.quad(pts[::-1] if flip else pts, uvs[::-1] if flip else uvs)
-            k += 1
+    # 妻(下端のみ。上端は EMBED で上段の地中へ差し込むので面を作らない)
+    y = y1g
+    zb, zt = zbot(y), ztop(y)
+    k = int(zb / COURSE)
+    while k * COURSE < zt:
+        c0, c1 = k * COURSE, (k + 1) * COURSE
+        a = min(max(zb, c0), c1); b = min(max(zt, c0), c1)
+        if b - a > 1e-4:
+            ha, hb = hf(a, y), hf(b, y)
+            va = vv(a, y) if band is not None else v_of(a - c0)
+            vb = vv(b, y) if band is not None else v_of(b - c0)
+            pts = [(-ha, y, a), (ha, y, a), (hb, y, b), (-hb, y, b)]
+            uvs = [(u_of(0.0), va), (u_of(2 * ha), va), (u_of(2 * hb), vb), (u_of(0.0), vb)]
+            m.quad(pts, uvs)
+        k += 1
 
 
 def build(L, H, name):
@@ -137,12 +165,19 @@ def build(L, H, name):
         raise SystemExit("マテリアル '%s' が %s に無い" % (MAT, SRC))
     V.hook_textures()
 
-    crest = lambda y: H * (1.0 - y / L)              # 法面(平場)の高さ
-    ncol = max(1, int(round(L / U_PER)))
+    # 坂上の端は EMBED だけ上段の地中へ差し込む。y は -EMBED から L まで。
+    # 差し込んだ区間は平場と同じ高さのまま(上端は水平)なので、端面が地表に出ない
+    crest = lambda y: H * (1.0 - max(y, 0.0) / L)    # 法面(平場)の高さ
+    ncol = max(1, int(round((L + EMBED) / U_PER)))
     m = Mesh()
-    prism(m, T / 2.0, lambda y: 0.0, lambda y: crest(y) + KASA - KASA_H, L, ncol)
-    prism(m, T / 2.0 + KASA_OUT,
-          lambda y: crest(y) + KASA - KASA_H, lambda y: crest(y) + KASA, L, ncol)
+    # 躯体 — 上へ行くほど BATTER だけ内へ入る(反り)
+    body_h = lambda z, frac: max(0.10, T / 2.0 - BATTER * z)
+    prism(m, body_h, lambda y: 0.0, lambda y: crest(y) + KASA - KASA_H, -EMBED, L, ncol)
+    # 笠石 — 天端へ向かって KASA_BEVEL だけ細める(面取り)。角が立ちすぎるのを殺す。
+    # v は自分の帯で貼る(段の格子に載せると境をまたぐ列で引き伸ばされる)
+    kasa_h = lambda z, frac: T / 2.0 + KASA_OUT - BATTER * z - KASA_BEVEL * frac
+    prism(m, kasa_h, lambda y: crest(y) + KASA - KASA_H, lambda y: crest(y) + KASA,
+          -EMBED, L, ncol, band=(V_KASA, KASA_H))
     o = m.build(name, mat)
     V.set_origin(o, (0.0, 0.0, 0.0))                 # 原点 = 坂上の端・下段の地面
     mn, mx = V.bbox([o])

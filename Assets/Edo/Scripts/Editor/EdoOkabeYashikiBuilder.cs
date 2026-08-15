@@ -427,7 +427,7 @@ public static class EdoOkabeYashikiBuilder
     // 【種別 kind】格式の要る面ほど築地塀、裏手ほど長屋
     //   [追川2017→宮崎1994]「築地塀こそが正式…表長屋は略式で薄礼」→「表門に連なる塀に
     //   長屋塀を構築することを避けた」。加賀藩本郷邸(確度A)も表門の通り側に長屋が無い。
-    //   ・東辺(三べ坂・表門)   = 築地塀            確度A
+    //   ・東辺(三べ坂・表門)   = **長屋塀**        確度B ← 表門が長屋門(格式表)なので連続させる
     //   ・南辺(山王社の境内)   = 築地塀            確度B ← 神社へ生活の場を向けるのは薄礼
     //   ・北辺(隣地)           = 長屋塀            確度B ← ここが長屋の置き場所
     //   ・西辺(溜池・庭園帯)   = 竹垣              確度? ← 塀で閉じると外廊下から望む景を塞ぐ
@@ -461,9 +461,15 @@ public static class EdoOkabeYashikiBuilder
             new Run{ name="Hei_S_Te", a=s1_0(-455f),   b=s1_0(-425f), outw=eo(0), kind=Kakoi.Tsuiji, top=19.5f },
             new Run{ name="Hei_S_Mz", a=s1_0(-425f),   b=P[0],        outw=eo(0), kind=Kakoi.Tsuiji, top=13.5f },
             // ---- 東辺(三べ坂・表門) 築地塀。門の左右で切る ----
-            // 塀の切り位置は**門の実寸から**出す。±6.5 の決め打ちだと門の躯体(幅22.48m)を貫通した
-            new Run{ name="Hei_E_S",  a=P[0], b=GATE + d10 * MON_HALF, outw=eo(10), kind=Kakoi.Tsuiji, top=13.5f },
-            new Run{ name="Hei_E_N",  a=GATE - d10 * MON_HALF, b=P[10], outw=eo(10), kind=Kakoi.Tsuiji, top=13.5f },
+            // ---- 東辺(三べ坂・表門) **長屋塀**。表門が長屋門なので門から長屋が連続する ----
+            // ⚠ 一度ここを築地塀にしたが誤り(2026-08-15、ユーザー指摘)。
+            //   根拠にした [追川2017→宮崎1994]「表門に連なる塀に長屋塀を避けた」と加賀藩本郷邸は
+            //   **102万石の国持大名=放れ門**の話で、そもそも長屋門ではない。
+            //   格式表が5万石以上に長屋門を定める以上、門から長屋が連続するのが筋。
+            //   **門の形式と辺の囲いの種別は必ず整合させる。**
+            // 塀の切り位置は**門の実寸から**出す。±6.5 の決め打ちだと門の躯体(幅22.5m)を貫通した
+            new Run{ name="NG_E_S",  a=P[0], b=GATE + d10 * MON_HALF, outw=eo(10), kind=Kakoi.Nagaya, top=13.5f },
+            new Run{ name="NG_E_N",  a=GATE - d10 * MON_HALF, b=P[10], outw=eo(10), kind=Kakoi.Nagaya, top=13.5f },
             // ---- 北東の隅切り〜北辺(隣地) 長屋塀。40m 以下に割る ----
             new Run{ name="NG_NE",    a=P[10], b=P[9], outw=eo(9), kind=Kakoi.Nagaya, top=13.5f },
             new Run{ name="NG_N1",    a=P[9],  b=P[8], outw=eo(8), kind=Kakoi.Nagaya, top=15.5f },

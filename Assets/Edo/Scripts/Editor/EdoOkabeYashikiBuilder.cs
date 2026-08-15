@@ -460,7 +460,6 @@ public static class EdoOkabeYashikiBuilder
             new Run{ name="Hei_S_Sk", a=s2_1(-566f),   b=s1_0(-455f), outw=eo(1), kind=Kakoi.Tsuiji, top=25.5f },
             new Run{ name="Hei_S_Te", a=s1_0(-455f),   b=s1_0(-425f), outw=eo(0), kind=Kakoi.Tsuiji, top=19.5f },
             new Run{ name="Hei_S_Mz", a=s1_0(-425f),   b=P[0],        outw=eo(0), kind=Kakoi.Tsuiji, top=13.5f },
-            // ---- 東辺(三べ坂・表門) 築地塀。門の左右で切る ----
             // ---- 東辺(三べ坂・表門) **長屋塀**。表門が長屋門なので門から長屋が連続する ----
             // ⚠ 一度ここを築地塀にしたが誤り(2026-08-15、ユーザー指摘)。
             //   根拠にした [追川2017→宮崎1994]「表門に連なる塀に長屋塀を避けた」と加賀藩本郷邸は

@@ -210,6 +210,10 @@ public static class EdoOkabeYashikiBuilder
     public struct Kai
     {
         public float xTop, xBot, z0, z1, yTop, yBot; public string name;
+        /// <summary>登廊(屋根付きの階段廊下)にする段は、屋根FBXのタグを入れる。
+        /// 表門からの参道(E1/E2)は**公的動線なので屋根を架けない** — 前庭は開けた白洲。
+        /// 屋根を架けるのは郭と郭を結ぶ内部動線(W1/W2)だけ。</summary>
+        public string noboriro;
         public float Run { get { return Mathf.Abs(xBot - xTop); } }
         public float Drop { get { return yTop - yBot; } }
         /// <summary>走り方向の正規化位置(0=上端 1=下端)。範囲外は clamp しない</summary>
@@ -224,10 +228,64 @@ public static class EdoOkabeYashikiBuilder
             new Kai{ name="Ishidan_E2", xTop=-425f,   xBot=-416f,   z0=999f,  z1=1003f, yTop=19.5f, yBot=13.5f },
             // 西: 郭の北縁。**長局棟・御用部屋棟の北面(z=1037.08)より北**へ寄せてある —
             //     直階段は 9m/12m あり、旧位置(z 1034..1038)では棟に刺さる
-            new Kai{ name="Ishidan_W1", xTop=-566f,   xBot=-575f,   z0=1041f, z1=1045f, yTop=25.5f, yBot=19.5f },
-            new Kai{ name="Ishidan_W2", xTop=-592f,   xBot=-604f,   z0=1041f, z1=1045f, yTop=19.5f, yBot=11.5f },
+            new Kai{ name="Ishidan_W1", xTop=-566f,   xBot=-575f,   z0=1041f, z1=1045f, yTop=25.5f, yBot=19.5f, noboriro="W1" },
+            new Kai{ name="Ishidan_W2", xTop=-592f,   xBot=-604f,   z0=1041f, z1=1045f, yTop=19.5f, yBot=11.5f, noboriro="W2" },
         };
     }
+
+    // =========================================================================
+    // 登廊(のぼりろう) — 屋根付きの階段廊下
+    //
+    // 【なぜ】郭と郭は 6〜8m の段差で、そこを渡るのに一度屋外へ出て石段を降りるのは
+    //   屋敷の内部動線として不自然(ユーザー指摘 2026-08-15)。西の2本(主郭→中段→西低地)を
+    //   屋根で覆い、御殿から出ずに降りられるようにする。**表門からの参道(E1/E2)は覆わない** —
+    //   前庭は開けた白洲、というのが指図 v5 の結論なので、公的動線に屋根は架けない。
+    //
+    // 【作り】石段と坂の土留めはそのまま床・欄干として使い、上に柱と屋根を架けるだけ。
+    //   屋根は平らな切妻を斜長ぶん作り(build_goten_roof.py -- noboriro)、据えるときに
+    //   勾配ぶん傾ける。傾けるので軒も棟も坂と平行に走る = 頭上の高さが一定になる。
+    // =========================================================================
+    const float NOBORI_EAVE = 2.20f;   // 段板の面から軒桁までの高さ(頭上)
+    const float NOBORI_HALF = 2.00f;   // 段の芯から柱通りまで(土留めの内面 2.2 の少し内)
+    const float ROOF_EAVE_OUT = 0.60f; // 屋根の軒の出(make_kirizuma の ROKA_EAVE と同値)
+
+    static void Noboriro(Transform parent, Kai k)
+    {
+        if (string.IsNullOrEmpty(k.noboriro)) return;
+        var g = new GameObject(k.name + "_Noboriro"); g.transform.SetParent(parent, false);
+        Undo.RegisterCreatedObjectUndo(g, "noboriro");
+        float zc = (k.z0 + k.z1) * 0.5f;
+        float pitch = Mathf.Atan2(k.Drop, k.Run) * Mathf.Rad2Deg;
+        float yaw = k.xBot > k.xTop ? 0f : 180f;      // ローカル+X(大棟)を坂下へ
+        // 柱 — 段の芯の左右、水平の走りで1間ごと。屋根は坂と平行なので丈は一定
+        int n = Mathf.Max(2, Mathf.RoundToInt(k.Run / KEN));
+        float roofUnder = NOBORI_EAVE + (((k.z1 - k.z0) * 0.5f + ROOF_EAVE_OUT) - NOBORI_HALF) * ROOF_RATIO;
+        float colH = 0.15f + roofUnder;               // 法面(段板の0.15下)から屋根裏まで
+        for (int i = 0; i <= n; i++)
+        {
+            float u = (float)i / n;
+            float px = Mathf.Lerp(k.xTop, k.xBot, u), lv = k.Level(u);
+            for (int s2 = 0; s2 < 2; s2++)
+                Put(g.transform, EdoAssets.Goten.Column,
+                    new Vector3(px, lv - 0.15f, zc + (s2 == 0 ? -NOBORI_HALF : NOBORI_HALF)),
+                    0f, colH / EdoAssets.Goten.DoorH);
+        }
+        // 屋根 — ピボットは廊下の中心・軒桁の高さ。斜長の中点へ据えて勾配ぶん倒す
+        var roof = AssetDatabase.LoadAssetAtPath<GameObject>(EdoAssets.Goten.RoofNoboriro(k.noboriro));
+        if (roof == null)
+        {
+            Debug.LogError("[Okabe] 登廊の屋根が無い: " + EdoAssets.Goten.RoofNoboriro(k.noboriro)
+                + " — blender ... build_goten_roof.py -- noboriro <斜長> <幅> <名前>");
+            return;
+        }
+        var go = (GameObject)PrefabUtility.InstantiatePrefab(roof, g.transform);
+        Undo.RegisterCreatedObjectUndo(go, "roof"); go.name = "Roof";
+        go.transform.position = new Vector3((k.xTop + k.xBot) * 0.5f,
+                                            (k.yTop + k.yBot) * 0.5f + NOBORI_EAVE, zc);
+        // Euler(0,yaw,roll) = Ry(yaw)*Rz(roll)。Rz が先に大棟を倒し、Ry が坂下へ向ける
+        go.transform.rotation = Quaternion.Euler(0f, yaw, -pitch);
+    }
+    const float ROOF_RATIO = 0.5456f;   // 屋根の勾配比(build_goten_roof の RATIO)
 
     /// <summary>石段の法面の高さ。段の下に地面を作るための盛土の楔。
     /// 戻り値 = その点での重み(0 なら法面の外)。段板は法面より 0.15 上に出る。</summary>
@@ -789,8 +847,9 @@ public static class EdoOkabeYashikiBuilder
         // 石段は v5 から**廊下ではない**(郭をまたぐ屋外の通路)。別グループに出す
         var id = Grp("Ishidan"); Clear(id);
         int nk = 0;
-        foreach (var k in Kaidans()) { Kaidan(id, k); nk++; }
-        return "roka 渡廊下=" + nr + " 石段=" + nk + " / " + RokaConnectivity();
+        int nb = 0;
+        foreach (var k in Kaidans()) { Kaidan(id, k); nk++; if (!string.IsNullOrEmpty(k.noboriro)) { Noboriro(id, k); nb++; } }
+        return "roka 渡廊下=" + nr + " 石段=" + nk + " 登廊=" + nb + " / " + RokaConnectivity();
     }
 
     /// <summary>指図の不変条件「廊下は**郭ごとに**一続き」を機械で確かめる。

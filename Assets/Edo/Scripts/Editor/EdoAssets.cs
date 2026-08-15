@@ -128,6 +128,14 @@ public static class EdoAssets
             return RoofDir + "Goten_Roof_Kirizuma_" + nKen + "ken.fbx";
         }
 
+        /// <summary>登廊(階段廊下)の屋根。切妻を斜長ぶん通し、幅は石段の平場ぶん取ったもの。
+        /// **据えるときに勾配ぶん傾ける**ので、屋根そのものは平らに作ってある。
+        /// 生成: build_goten_roof.py -- noboriro &lt;斜長&gt; &lt;幅&gt; &lt;名前&gt;</summary>
+        public static string RoofNoboriro(string tag)
+        {
+            return RoofDir + "Goten_Roof_Noboriro_" + tag + ".fbx";
+        }
+
         public const float Ken       = 1.818f;   // 江戸間
         public const float DoorH     = 2.727f;   // 建具・柱の高さ = 内法+欄間
         public const float Uchinori  = 1.818f;   // 内法高(6尺) — 襖・帳台構・床の間の落掛

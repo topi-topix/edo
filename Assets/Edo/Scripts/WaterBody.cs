@@ -30,7 +30,42 @@ public class WaterBody : MonoBehaviour
     public float bankWidth = 10f;
 
     // 掘り込み復元用スナップショット（初回の掘り込み前に固定領域を保存）
-    [HideInInspector] public float[] snap;
     [HideInInspector] public int sX, sZ, sW, sH;
     [HideInInspector] public bool hasSnap;
+
+    // ---- スナップショットの実体は外部のバイナリファイルに置く -------------------
+    // 2026-08-15 まではこの配列がシーンに直接埋まっており、池5個で **9.4 MB**
+    // (シーンファイルの9%)を占めていた。float 1個が YAML では約13バイトの文字列に
+    // なるため。バイナリ(4バイト/個)の .bytes へ移して 2.5 MB に落とした。
+    // 書き出しは Editor 側の WaterSnapStore が行う。**snap を書き換えたら必ず
+    // WaterSnapStore.Save(wb) を呼ぶこと** — 呼ばないとドメインリロードで消える。
+    [HideInInspector] public TextAsset snapFile;
+
+    // 旧データの受け皿。移行後は空。FormerlySerializedAs でシーン内の既存 "snap" を拾う
+    [HideInInspector, UnityEngine.Serialization.FormerlySerializedAs("snap")]
+    public float[] snapLegacy;
+
+    [System.NonSerialized] float[] _cache;
+    [System.NonSerialized] bool _loaded;
+
+    /// <summary>掘る前の地形高。外部ファイル→旧フィールドの順に解決する。</summary>
+    public float[] snap
+    {
+        get
+        {
+            if (!_loaded)
+            {
+                _loaded = true;
+                if (snapFile != null && snapFile.bytes != null && snapFile.bytes.Length >= 4)
+                {
+                    var b = snapFile.bytes;
+                    _cache = new float[b.Length / 4];
+                    System.Buffer.BlockCopy(b, 0, _cache, 0, _cache.Length * 4);
+                }
+                else _cache = (snapLegacy != null && snapLegacy.Length > 0) ? snapLegacy : null;
+            }
+            return _cache;
+        }
+        set { _cache = value; _loaded = true; }
+    }
 }

@@ -134,9 +134,11 @@ public static class WaterBaker
         {
             wb.sX = needX0; wb.sZ = needZ0; wb.sW = needX1 - needX0 + 1; wb.sH = needZ1 - needZ0 + 1;
             var region0 = td.GetHeights(wb.sX, wb.sZ, wb.sW, wb.sH);
-            wb.snap = new float[wb.sW * wb.sH];
-            for (int z = 0; z < wb.sH; z++) for (int x = 0; x < wb.sW; x++) wb.snap[z * wb.sW + x] = region0[z, x];
+            var s0 = new float[wb.sW * wb.sH];
+            for (int z = 0; z < wb.sH; z++) for (int x = 0; x < wb.sW; x++) s0[z * wb.sW + x] = region0[z, x];
+            wb.snap = s0;
             wb.hasSnap = true;
+            WaterSnapStore.Save(wb);      // ★ snap は非シリアライズ。書いたら必ず保存する
             return;
         }
 
@@ -151,13 +153,15 @@ public static class WaterBaker
         var newSnap = new float[newW * newH];
         for (int z = 0; z < newH; z++) for (int x = 0; x < newW; x++) newSnap[z * newW + x] = full[z, x];
         // 既にスナップ済みの領域は、保存していた値(掘る前の高さ)で上書きして保持
+        var old = wb.snap;
         for (int z = 0; z < wb.sH; z++)
             for (int x = 0; x < wb.sW; x++)
             {
                 int gx = wb.sX + x - newX0, gz = wb.sZ + z - newZ0;
-                newSnap[gz * newW + gx] = wb.snap[z * wb.sW + x];
+                newSnap[gz * newW + gx] = old[z * wb.sW + x];
             }
         wb.sX = newX0; wb.sZ = newZ0; wb.sW = newW; wb.sH = newH; wb.snap = newSnap;
+        WaterSnapStore.Save(wb);          // ★ snap は非シリアライズ。書いたら必ず保存する
     }
 
     /// <summary>

@@ -72,7 +72,7 @@ public static class EdoTerrainSnapshot
             {
                 string nm = br.ReadString(); int sX = br.ReadInt32(), sZ = br.ReadInt32(), sW = br.ReadInt32(), sH = br.ReadInt32();
                 int slen = br.ReadInt32(); var sb = br.ReadBytes(slen * 4); var snap = new float[slen]; System.Buffer.BlockCopy(sb, 0, snap, 0, sb.Length);
-                if (byName.TryGetValue(nm, out var wb)) { Undo.RecordObject(wb, "Restore Water Snap"); wb.sX = sX; wb.sZ = sZ; wb.sW = sW; wb.sH = sH; wb.snap = snap; wb.hasSnap = true; EditorUtility.SetDirty(wb); }
+                if (byName.TryGetValue(nm, out var wb)) { Undo.RecordObject(wb, "Restore Water Snap"); wb.sX = sX; wb.sZ = sZ; wb.sW = sW; wb.sH = sH; wb.snap = snap; wb.hasSnap = true; WaterSnapStore.Save(wb); }
             }
         }
         terr.Flush(); SceneView.RepaintAll();
@@ -98,7 +98,7 @@ public static class EdoTerrainSnapshot
                     if (gx < minX || gx > maxX || gz < minZ || gz > maxZ) continue;
                     wb.snap[z * wb.sW + x] = full[gz, gx]; any = true;
                 }
-            if (any) EditorUtility.SetDirty(wb);
+            if (any) WaterSnapStore.Save(wb);   // ★ snap は非シリアライズ。書いたら必ず保存する
         }
     }
 }

@@ -1,6 +1,7 @@
 # LFS 履歴の掃除（作業計画・引き継ぎ用）
 
-作成 2026-08-15。**未実施**。この文書だけで別セッションが着手できるように書いてある。
+作成 2026-08-15。**2026-08-15 に実施完了**（結果は §6）。
+手順は次回のためにそのまま残してある。踏んだ罠は Step 0 / Step 2 の ⚠ に追記済み。
 関連メモリ: `akasaka-scene-bloat` / `edo-github-repo`
 
 ---
@@ -75,10 +76,14 @@ git bundle verify ~/edo-history-backup-$(date +%Y%m%d).bundle
 `main` 側の LFS 実体は GitHub にも `.git/lfs/objects` にもあるので、
 `.git/lfs/objects` を消さない限り復元できる。
 
-現在のシーンと地形も退避しておく（書き換えで作業ツリーが reset されるため）:
+現在のシーンと地形も退避しておく（書き換えで作業ツリーが reset されるため）。
+⚠ **シェルの `*` はサブディレクトリを拾わない。** 落とすパスと退避するパスを取り違えると
+`details/` 配下が退避漏れになる（2026-08-15 に実際に踏んだ。下の Step 2 の警告も読むこと）:
 
 ```bash
-mkdir -p ~/edo-keep && cp Assets/Edo/Scenes/Akasaka.unity Assets/Edo/Terrain/*.asset ~/edo-keep/
+mkdir -p ~/edo-keep
+cp Assets/Edo/Scenes/Akasaka.unity ~/edo-keep/
+rsync -R Assets/Edo/Terrain/**/*.asset Assets/Edo/Terrain/*.asset ~/edo-keep/   # zsh。パス構造ごと保存
 ```
 
 ### Step 1 — 道具を入れる
@@ -95,10 +100,31 @@ brew install git-filter-repo
 ```bash
 cd /Users/toshio/project/edo-unity
 git branch -D feat/goten-watariroka          # マージ済み
-git filter-repo --force --refs main \
+git filter-repo --force --refs main --prune-empty=never \
   --path Assets/Edo/Scenes/Akasaka.unity \
   --path-glob 'Assets/Edo/Terrain/*.asset' \
   --invert-paths
+```
+
+⚠ **踏んだ罠が2つある（2026-08-15）。両方とも上のコマンドには反映済み。**
+
+1. **`--prune-empty=never` は必須。** 付けないと「バイナリだけを変更していたコミット」が
+   空コミット扱いで自動削除され、**14コミット（139→125）が消えた**。
+   消えたのは「三屋敷の敷地を新区割りに合わせ整地」等、指図→実装の経緯そのもの。
+   気づいたら `git reset --hard <旧tip>`（reflog に残っている）で戻してやり直す。
+2. **`--path-glob` の `*` はスラッシュを跨ぐ**（Python の fnmatch。シェルの glob とは違う）。
+   `Assets/Edo/Terrain/*.asset` は `Assets/Edo/Terrain/details/BroadleafTree.asset` **にも当たる**。
+   意図がトップレベルだけなら `--path-regex '^Assets/Edo/Terrain/[^/]+\.asset$'` を使う。
+   今回は details/ も落として構わなかったので、**落とした3本を後から復元**して決着させた
+   （`.git/lfs/objects` に実体が残っていたので sha256 一致で戻せた）。
+
+**書き換え後は必ず旧 HEAD と全ツリーを突き合わせる**（ファイル数と blob ハッシュ）:
+
+```bash
+git clone ~/edo-history-backup-YYYYMMDD.bundle /tmp/edo-old   # checkout は失敗してよい
+cd /tmp/edo-old && git ls-tree -r <旧tip> | awk '{print $3" "$4}' | sort > /tmp/old.txt
+cd - && git ls-tree -r main | awk '{print $3" "$4}' | sort > /tmp/new.txt
+diff /tmp/old.txt /tmp/new.txt      # 何も出なければ作業ツリーの中身は完全同一
 ```
 
 ⚠ `git filter-repo` は安全策として **`origin` リモートを削除する**。あとで付け直す:
@@ -134,12 +160,26 @@ star / fork / issue / Wiki が付いていないかを先に確認する。
 - (a) リポジトリを削除して作り直す → `git push -u origin main` で入れ直す
 - (b) サポートに purge を依頼して `git push --force origin main`
 
+⚠ **`gh` の既定トークンには `delete_repo` スコープが無い**ので、(a) の削除は
+`gh auth refresh -h github.com -s delete_repo` かブラウザでユーザー自身がやることになる。
+再作成と push は `repo` スコープで足りる。
+
+**「新しい方を先に作ってから旧を消す」順序は勧めない。** LFS クォータは**アカウント単位**なので、
+超過中に別リポジトリへ push すると弾かれうる。同名も同時に作れず、リネームの手間が増える。
+削除先行でも、バンドル＋`.git/lfs/objects` が揃っていれば復元できる（Step 0 の検証を通すこと）。
+
 ### Step 5 — ローカルの後始末
 
 ```bash
-git lfs prune            # main から参照されなくなった LFS 実体を消す
-du -sh .git .git/lfs     # archive ブランチ分（約7 GB）は残る。これは正常
+git lfs prune --dry-run --verbose   # ⚠ 必ず dry-run から。消す前に何が消えるか見る
+du -sh .git .git/lfs
 ```
+
+⚠ **`git lfs prune` はほとんど効かないし、効かせてはいけない。**
+`archive/local-history-2026-08-02`（ローカルのみ・復元不可）と、書き換えていない
+worktree ブランチ（`claude/*`）が旧履歴を保持しているため、それらの LFS 実体は retain される。
+2026-08-15 の実測では **2864本中2662本が retain、消えるのは17 MB だけ**だった。
+ローカルの `.git/lfs` が 18 GB のままなのは**正常**で、remote の使用量とは無関係。
 
 ### Step 6 — 検算スクリプト（`docs/maintenance/measure_lfs.py` として置いてある）
 
@@ -151,3 +191,25 @@ du -sh .git .git/lfs     # archive ブランチ分（約7 GB）は残る。こ�
 
 - メモリ `edo-github-repo` と `akasaka-scene-bloat` の数値を更新する
 - **本命の A（シーン分割）に着手する。** これをやらないと約28セッションで元に戻る
+
+---
+
+## 6. 実施結果（2026-08-15）
+
+| | 実施前 | 実施後 |
+|---|---|---|
+| LFS 実体（`main` の履歴） | 7.57 GB / 279本 | **0.54 GB / 174本** |
+| うち `Akasaka.unity` | 6.46 GB / 55本 | 0.24 GB / **1本** |
+| うち `Terrain` | 1.00 GB / 94本 | 0.17 GB / 34本 |
+| コミット数（`main`） | 139 | 141（139保持 + 入れ直し1 + 復元1） |
+| 作業ツリーの中身 | — | 676ファイル全部が blob ハッシュまで旧 HEAD と一致 |
+
+- GitHub 側は **リポジトリを削除して同名で再作成**し、`git push -u origin main` で入れ直した
+  （star / fork / issue いずれも 0、Wiki も空だったことを確認済み）。
+- 新 `main` の tip は `d49a8b1`。LFS 174本 = 575 MB をアップロード。
+- `archive/local-history-2026-08-02`（137コミット, `da65b5f`）は無傷。
+- バックアップ `~/edo-history-backup-20260815.bundle`（112 MB, 全7ref, verify 済み）と
+  `~/edo-keep/` は当面消さないこと。
+
+**これは止血にすぎない。** シーンが 246 MB のままなので、
+**約4コミットで再び 1 GiB を超え、約28セッションで 7 GB に戻る。** 次は A（シーン分割）。

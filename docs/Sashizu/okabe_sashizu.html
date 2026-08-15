@@ -803,9 +803,7 @@ ol li{margin-bottom:7px}
 ・番所は門の躯体に組み込む（左右対称・<b>石仕上げの腰＋片庇</b>＝5万石以上の格）<br>
 ・門の左右は<b>築地塀へ直に連続</b>させる。塀の切り位置は門の実寸から出す（±6.5m の決め打ちを廃す）<br>
 ・天端は 門 ＞ 番所（片庇） ＞ 築地塀 の順で、<b>門の躯体の中で</b>段が付く<br>
-・在庫に <code>edogoyomi/es_nmon/nagayamon.obj</code> があるが、<b>片庇の番所を備えるか未確認</b>。
-備えていなければ Blender で番所まわりを起こす（<code>build_edo_nagayamon.py</code>）。
-意匠は既存の門・土塀から素材を借り、新規マテリアルは作らない。</p>
+・在庫の <code>edogoyomi/es_nmon/nagayamon.obj</code> を実測した（2026-08-15）。<b>全体 22.48 × 6.02m・高 5.10m</b>（ES=1.818 倍）、部材53点。<code>monomi / monomi_roof / monomi_side / monomi_floor</code>（<b>物見＝番所が組み込み済み</b>）、<code>koshi</code>（格子）、<code>namako / n_namako</code>（なまこ壁）、<code>n_mune / n_oni / n_noki / n_taruki</code>（瓦屋根一式）を備える。<br>→ <b>基本形は在庫でまかなえる。Blender の新造は不要</b>。番所は門と一体なので、離れて建つ小屋（現状）は<b>撤去</b>する。<br>・ただし格式表の「5万石以上＝<b>石仕上げの腰＋片庇</b>」に対し、在庫の番所は<b>格子窓（＝1万石以上の格）</b>に見える。腰を石積みにし片庇を足すなら、そこだけ Blender で起こす（<code>build_edo_bansho_katabisashi.py</code>）。意匠は既存の門・土塀から素材を借り、新規マテリアルは作らない。</p>
 
 <p class="notes"><b>典拠の限界</b> — 格式表は二次情報で、<b>原典（武家諸法度・普請奉行の達など）に
 あたっていない</b>。岡部邸そのものの表門を描いた絵図も未入手。確度Bとして扱い、

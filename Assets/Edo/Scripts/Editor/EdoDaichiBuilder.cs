@@ -176,7 +176,7 @@ public static class EdoDaichiBuilder
         var snap = new float[wbT.sW * wbT.sH];
         for (int z2 = 0; z2 < wbT.sH; z2++) for (int x2 = 0; x2 < wbT.sW; x2++) snap[z2 * wbT.sW + x2] = snapH[z2, x2];
         wbT.snap = snap; wbT.hasSnap = true;
-        EditorUtility.SetDirty(wbT);
+        WaterSnapStore.Save(wbT);          // ★ snap は非シリアライズ。書いたら必ず保存する
         return "graded cells=" + nChanged + " / Tameike snap retaken";
     }
 

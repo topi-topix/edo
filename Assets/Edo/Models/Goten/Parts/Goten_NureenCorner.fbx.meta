@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: bfa97811fd91845d4b217256a61706fb
+guid: 5617696dbee064c3caf0488b927c5085
 ModelImporter:
   serializedVersion: 24501
   internalIDToNameTable: []
@@ -7,18 +7,8 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
-      name: roof
-    second: {fileID: 2100000, guid: 46aea8a32dec24843adef3ad15ec2f3e, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: roof ornaments
-    second: {fileID: 2100000, guid: 2dba1ffbff60ed84194cd5d6c406b790, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: wood
-    second: {fileID: 2100000, guid: 6127939ab0b92994fa5506eed0e13a74, type: 2}
+      name: balcony
+    second: {fileID: 2100000, guid: 3ee39474eaf86ac409892f7cbe0a3f78, type: 2}
   materials:
     materialImportMode: 2
     materialName: 1

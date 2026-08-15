@@ -50,7 +50,10 @@ public static class EdoOkabeYashikiBuilder
     // 大名の上屋敷の表門にはならない。番所は長屋門の躯体に組み込まれているので別に建てない。
     // 【典拠: 格式表(二次) / 当屋敷の一次史料は未確認】
     const string PKmon = EdoAssets.Eg.Nagayamon;
-    const float MON_HALF = 11.24f;      // 長屋門の半幅(実測 22.48m)。塀の切り位置はここから出す
+    // 門は 1.08 倍に起こす(指図 其八ノ二 ③)。素の全高 5.10 は東辺の長屋(5.51)より低く、
+    // 表門の棟が長屋の棟に負けていた(18.60 < 18.91)。1.08 倍で棟 19.01 となり門が勝つ。
+    const float MON_SCALE = 1.08f;
+    const float MON_HALF = 12.14f;      // 長屋門の半幅(22.48 × 1.08 ÷ 2)。塀の切り位置はここから出す
 
     // ---------- 段(平場)の定義: x範囲 / z範囲 / 高さ ----------
     public struct Terr { public float x0, x1, z0, z1, y; public string name; }
@@ -412,7 +415,11 @@ public static class EdoOkabeYashikiBuilder
     }
 
     // 表門(下書きの三角マーク) と その外向き    // 表門(下書きの三角マーク) と その外向き
-    public static readonly Vector2 GATE = new Vector2(-381.0f, 1001.0f);
+    // ⚠ 下書きの三角マークは外周線 P[0]→P[10] から **2.25m 内へ外れて**いた(実測 2026-08-15)。
+    //   その点で run を切ると芯が 1.2°傾き、棟は外周線の方位で置くので長屋の街路面が
+    //   **棟ごとに 0.37m の鋸歯**になり、門へ向かって 1.83m 内へ流れた(指図 其八ノ二 ①)。
+    //   GATE は**外周線の上**に取る。門の直交位置は下の SeatGate で長屋の面へ揃える。
+    public static readonly Vector2 GATE = new Vector2(-378.76f, 1001.24f);
     public static Vector2 GateOut() { return (-B.InwardNormal(SK.OKABE, 10)).normalized; }
     public static float YawGate() { var o = GateOut(); return Mathf.Atan2(o.x, o.y) * Mathf.Rad2Deg; }
 
@@ -711,6 +718,7 @@ public static class EdoOkabeYashikiBuilder
         sb.Append(PerimeterQA());
         // 表門(k_mon + 両番所) — 東辺、下書きの三角マーク位置
         float gh = B.PlaceGate(PKmon, mon, GATE, GateOut(), 0, "Nagayamon", sb);   // 番所は門に組み込み済み
+        SeatGate(mon, kak, sb);
         // 表門も段の高さへ。地面に置くと 0.56m 沈んで両袖の塀とずれる(指図 其六 ④)
         foreach (Transform c in mon)
         {
@@ -722,6 +730,86 @@ public static class EdoOkabeYashikiBuilder
         Yagura(kak, new Vector2(-643.5f, 940.5f), new Vector2(-0.72f, -0.69f), "Sumiyagura_SW", 11.5f);
         return sb.ToString();
     }
+    /// <summary>y の帯[y0,y1]にある頂点の、外向き nout への射影の最大 = **街路側の面**。
+    /// 帯を軒より下に取るのが要点。全体の bbox で測ると軒の出が混ざり、AABB の角で測ると
+    /// 棟が方位から数度ずれているだけで 1.2m も過大に出る(2026-08-15 実測)。</summary>
+    static float FacePerp(GameObject go, Vector2 nout, float y0, float y1)
+    {
+        float mx = float.MinValue;
+        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+        {
+            var ms = mf.sharedMesh; if (ms == null) continue;
+            foreach (var v in ms.vertices)
+            {
+                var wp = mf.transform.TransformPoint(v);
+                if (wp.y < y0 || wp.y > y1) continue;
+                float pr = wp.x * nout.x + wp.z * nout.y;
+                if (pr > mx) mx = pr;
+            }
+        }
+        return mx;
+    }
+
+    /// <summary>表門の据え直し(指図 其八ノ二)。**長屋門は門の左右がそのまま長屋になる形式**なので、
+    /// 門だけが街路へ出ていたら形式として誤り。① 走りは GATE(外周線上)、
+    /// ② 街路側の**壁面**を左右の長屋の壁面へ揃える(面一)、③ 1.08 倍で棟を長屋の上に出す。
+    /// ⚠ 面差は目で見て分からない(3.7m 出ていたのを何度も見落として指摘された)。数値で合わせる。</summary>
+    static void SeatGate(Transform mon, Transform kak, System.Text.StringBuilder sb)
+    {
+        var g = mon.Find("Nagayamon"); if (g == null) { sb.AppendLine("表門が無い"); return; }
+        g.localScale *= MON_SCALE;                                                    // ③
+        var rb = B.RB(g.gameObject);
+        g.position += new Vector3(GATE.x - rb.center.x, 13.5f - rb.min.y, GATE.y - rb.center.z);  // ①
+        // ↑ 面を測る前に段の高さへ上げておく。y がずれていると壁の帯が腰石や軒に掛かって 6cm 狂う
+        Vector2 nout = GateOut();
+        const float WY0 = 14.0f, WY1 = 16.0f;                     // 軒より下・腰より上の帯
+        var d10 = (SK.OKABE[0] - SK.OKABE[10]).normalized;
+        Transform n1 = null, n2 = null; float d1 = 1e9f, d2 = 1e9f;
+        foreach (Transform t in kak)                              // 門の左右に来る長屋を拾う
+        {
+            if (!t.name.StartsWith("NG_E_")) continue;
+            var c = B.RB(t.gameObject).center; var c2 = new Vector2(c.x, c.z);
+            float dd = Vector2.Distance(c2, GATE);
+            if (Vector2.Dot(c2 - GATE, d10) > 0f) { if (dd < d1) { d1 = dd; n1 = t; } }
+            else { if (dd < d2) { d2 = dd; n2 = t; } }
+        }
+        if (n1 == null || n2 == null) { sb.AppendLine("表門の隣の長屋が拾えない"); return; }
+        float tgt = 0.5f * (FacePerp(n1.gameObject, nout, WY0, WY1) + FacePerp(n2.gameObject, nout, WY0, WY1));
+        float now = FacePerp(g.gameObject, nout, WY0, WY1), moved = 0f;
+        // 測る → 動かす を 2 回。1 回だと 0.06m 残る(帯に入る頂点の行が動いた分だけ変わるため)
+        for (int i = 0; i < 2; i++)
+        {
+            float dz = tgt - FacePerp(g.gameObject, nout, WY0, WY1);
+            g.position += new Vector3(nout.x, 0f, nout.y) * dz; moved += dz;
+        }
+        sb.AppendLine(string.Format("表門を据え直し: 壁面を {0:F2}m 内へ({1}/{2} と面一・残差{3:F3}m)",
+                                    -moved, n1.name, n2.name, tgt - FacePerp(g.gameObject, nout, WY0, WY1)));
+    }
+
+    /// <summary>東辺の QA — 街路面の振れ(鋸歯)と、門と長屋の面差・棟差。
+    /// 天端の PerimeterQA では鋸歯も面差も出ない(どちらも高さは合っている)。</summary>
+    public static string GateQA()
+    {
+        var yg = GameObject.Find(GN); if (yg == null) return "東辺QA: グループが無い";
+        var kak = yg.transform.Find("Kakoi"); var mon = yg.transform.Find("Omotemon");
+        if (kak == null || mon == null) return "東辺QA: 外周が無い";
+        Vector2 nout = GateOut();
+        const float WY0 = 14.0f, WY1 = 16.0f;
+        float mn = 1e9f, mx = -1e9f, ridge = -1e9f; int n = 0;
+        foreach (Transform t in kak)
+        {
+            if (!t.name.StartsWith("NG_E_")) continue;
+            float f = FacePerp(t.gameObject, nout, WY0, WY1);
+            mn = Mathf.Min(mn, f); mx = Mathf.Max(mx, f);
+            ridge = Mathf.Max(ridge, B.RB(t.gameObject).max.y); n++;
+        }
+        var g = mon.Find("Nagayamon");
+        float gf = g == null ? 0f : FacePerp(g.gameObject, nout, WY0, WY1);
+        float gr = g == null ? 0f : B.RB(g.gameObject).max.y;
+        return string.Format("東辺QA 長屋{0}棟 街路面の振れ={1:F2}m(許容0.10) 門の面差={2:+0.00;-0.00}m 棟 門{3:F2}/長屋{4:F2} 差{5:+0.00;-0.00}m",
+                             n, mx - mn, gf - mx, gr, ridge, gr - ridge);
+    }
+
     /// <summary>竹垣の run — 水際・庭園帯の囲い。1.05m のモジュールを走りに沿って並べる。
     /// 塀と違って**低く抜けている**のが要点(外廊下から溜池を望む景を塞がない)。</summary>
     static void TakegakiRun(Transform parent, Run r)

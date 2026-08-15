@@ -219,7 +219,8 @@ public static class EdoOkabeYashikiBuilder
     // 石垣の背後だけ NORI_FEATHER で下段へ落とす。合わせて 2*(3.5+1.5)=10m ＝ 石垣の開口±5.0m。
     // ⚠ ハイトマップは約2m刻みなので、フェザーを 0 にしても地形は 2m かけて落ちる。
     //   石垣を平場の縁(段の芯±3.5m)へ置くのは、その甘い縁を隠して稜線を立てるため。
-    public const float NORI_HALF = 2.2f;             // 段の芯から**土留めの内面**まで。段板(±1.98)のすぐ脇
+    public const float NORI_HALF = 3.1f;             // 段の芯から**土留めの内面**まで(指図 其七で 2.2→3.1)
+    // 4.4m では屋根の軒(片側1.509)と石段(1.98)が並ばず 0.48m かぶっていた
     public const float SAKA_T = 0.72f;               // 坂の土留め部材の厚み(笠石を含む)
     public const float NORI_FEATHER = 1.5f;          // 土留めの内面から下段へ落とす幅
     // ⚠ 平場は土留めの**内面**(NORI_HALF)で止める。ハイトマップは約2m刻みで垂直な縁を
@@ -276,7 +277,7 @@ public static class EdoOkabeYashikiBuilder
     //   側面には高欄が回っているので、寄せても通れない(ユーザー指摘 2026-08-15)。
     //   取り付きは必ず階段の**端**へ、同じ帯で、正面から継ぐこと。
     const float NOBORI_Z = -1.373f;    // 段の芯(z=1043)から階段廊下の中心 1041.627 まで
-    const float ISHIDAN_Z = 0.70f;     // 段の芯から屋外の石段の中心まで(登廊のある段だけ)
+    const float ISHIDAN_Z = 1.60f;     // 段の芯から屋外の石段の中心まで(指図 其七で 0.70→1.60)
 
     static void Noboriro(Transform parent, Kai k)
     {
@@ -527,9 +528,9 @@ public static class EdoOkabeYashikiBuilder
 
     public static string Stage1_Grade()
     {
-        var mk = GameObject.Find("OKABE_GRADED_v9");
-        if (mk != null) return "grade: SKIP (already graded v9)";
-        foreach (var nm in new[] { "OKABE_GRADED_v4", "OKABE_GRADED_v5", "OKABE_GRADED_v6", "OKABE_GRADED_v7", "OKABE_GRADED_v8" })
+        var mk = GameObject.Find("OKABE_GRADED_v10");
+        if (mk != null) return "grade: SKIP (already graded v10)";
+        foreach (var nm in new[] { "OKABE_GRADED_v4", "OKABE_GRADED_v5", "OKABE_GRADED_v6", "OKABE_GRADED_v7", "OKABE_GRADED_v8", "OKABE_GRADED_v9" })
         { var o = GameObject.Find(nm); if (o != null) UnityEngine.Object.DestroyImmediate(o); }
         var t = Terrain.activeTerrain; var td = t.terrainData;
         int hres = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size;
@@ -589,7 +590,7 @@ public static class EdoOkabeYashikiBuilder
         // ⚠ ここの版数は上のガード(GameObject.Find)と**必ず揃える**。
         //   v5〜v8 の間、ガードだけ上げて生成側が v4 のままになっており、
         //   造成が毎回走っていた(結果は冪等なので実害は無かったが、遅い)
-        mk = new GameObject("OKABE_GRADED_v9");
+        mk = new GameObject("OKABE_GRADED_v10");
         var yg = GameObject.Find(GN); if (yg != null) mk.transform.SetParent(yg.transform, false);
         return "grade cells=" + n + " cutMax=" + cmax.ToString("F2") + " fillMax=" + fmax.ToString("F2");
     }
@@ -814,8 +815,10 @@ public static class EdoOkabeYashikiBuilder
             {
                 float t = 2f + 1.8f * i;
                 if (t > L + 0.4f) break;
-                if (Mathf.Abs(t - gapT) < 5.0f) continue;          // 石段の開口(§4: 1本のrunから切り取る)
-                                                                   // v5: 法面(幅4m+フェザー3m×2)が抜ける幅へ広げた
+                // 石段の開口 — **法面の外面ちょうどで切る**(指図 其七 ②)。
+                // 広く取りすぎると主石垣の端と坂の土留めの間が開き、郭の土の面が露わになる
+                // (±5.0 で切っていて 1.18m ずつ開いていた)
+                if (Mathf.Abs(t - gapT) < NORI_HALF + SAKA_T) continue;
                 var p = w.a + d * t;
                 var go = (GameObject)PrefabUtility.InstantiatePrefab(pre, ig);
                 Undo.RegisterCreatedObjectUndo(go, "cw"); go.name = w.name + "_" + i;

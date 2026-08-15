@@ -45,8 +45,12 @@ public static class EdoOkabeYashikiBuilder
     public const string GN = "Edo_Yashiki_OkabeChikuzen";
     const float ES = 1.818f;
     const float CUT_MAX = 5.5f, FILL_MAX = 5.0f;
-    // 表門 = 冠木門形式の k_mon(EdoSanbezakaBuilder には無い)
-    const string PKmon = EdoAssets.Eg.Kmon;
+    // 表門 = **長屋門**(指図 其八)。大名屋敷の表門は石高と家格で形式が決まり、
+    // 5万石以上は長屋門[表門格式表]。冠木門は焼失後の再建など簡素な場合の形式で、
+    // 大名の上屋敷の表門にはならない。番所は長屋門の躯体に組み込まれているので別に建てない。
+    // 【典拠: 格式表(二次) / 当屋敷の一次史料は未確認】
+    const string PKmon = EdoAssets.Eg.Nagayamon;
+    const float MON_HALF = 11.24f;      // 長屋門の半幅(実測 22.48m)。塀の切り位置はここから出す
 
     // ---------- 段(平場)の定義: x範囲 / z範囲 / 高さ ----------
     public struct Terr { public float x0, x1, z0, z1, y; public string name; }
@@ -457,8 +461,9 @@ public static class EdoOkabeYashikiBuilder
             new Run{ name="Hei_S_Te", a=s1_0(-455f),   b=s1_0(-425f), outw=eo(0), kind=Kakoi.Tsuiji, top=19.5f },
             new Run{ name="Hei_S_Mz", a=s1_0(-425f),   b=P[0],        outw=eo(0), kind=Kakoi.Tsuiji, top=13.5f },
             // ---- 東辺(三べ坂・表門) 築地塀。門の左右で切る ----
-            new Run{ name="Hei_E_S",  a=P[0], b=GATE + d10 * 6.5f, outw=eo(10), kind=Kakoi.Tsuiji, top=13.5f },
-            new Run{ name="Hei_E_N",  a=GATE - d10 * 6.5f, b=P[10], outw=eo(10), kind=Kakoi.Tsuiji, top=13.5f },
+            // 塀の切り位置は**門の実寸から**出す。±6.5 の決め打ちだと門の躯体(幅22.48m)を貫通した
+            new Run{ name="Hei_E_S",  a=P[0], b=GATE + d10 * MON_HALF, outw=eo(10), kind=Kakoi.Tsuiji, top=13.5f },
+            new Run{ name="Hei_E_N",  a=GATE - d10 * MON_HALF, b=P[10], outw=eo(10), kind=Kakoi.Tsuiji, top=13.5f },
             // ---- 北東の隅切り〜北辺(隣地) 長屋塀。40m 以下に割る ----
             new Run{ name="NG_NE",    a=P[10], b=P[9], outw=eo(9), kind=Kakoi.Nagaya, top=13.5f },
             new Run{ name="NG_N1",    a=P[9],  b=P[8], outw=eo(8), kind=Kakoi.Nagaya, top=15.5f },
@@ -700,7 +705,7 @@ public static class EdoOkabeYashikiBuilder
         sb.AppendLine("nagaya modules=" + nm);
         sb.Append(PerimeterQA());
         // 表門(k_mon + 両番所) — 東辺、下書きの三角マーク位置
-        float gh = B.PlaceGate(PKmon, mon, GATE, GateOut(), 2, "Kmon", sb);
+        float gh = B.PlaceGate(PKmon, mon, GATE, GateOut(), 0, "Nagayamon", sb);   // 番所は門に組み込み済み
         // 表門も段の高さへ。地面に置くと 0.56m 沈んで両袖の塀とずれる(指図 其六 ④)
         foreach (Transform c in mon)
         {

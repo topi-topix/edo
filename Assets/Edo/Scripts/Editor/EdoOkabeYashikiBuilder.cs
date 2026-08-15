@@ -700,9 +700,15 @@ public static class EdoOkabeYashikiBuilder
         sb.Append(PerimeterQA());
         // 表門(k_mon + 両番所) — 東辺、下書きの三角マーク位置
         float gh = B.PlaceGate(PKmon, mon, GATE, GateOut(), 2, "Kmon", sb);
+        // 表門も段の高さへ。地面に置くと 0.56m 沈んで両袖の塀とずれる(指図 其六 ④)
+        foreach (Transform c in mon)
+        {
+            var rb = B.RB(c.gameObject); if (rb.size == Vector3.zero) continue;
+            c.position += new Vector3(0f, 13.5f - rb.min.y, 0f);
+        }
         // 隅櫓 [福井図: 上屋敷格の外周装置] — 敷地の南東隅・南西隅
-        Yagura(kak, new Vector2(-378.5f, 950.5f), new Vector2(0.83f, -0.56f), "Sumiyagura_SE");
-        Yagura(kak, new Vector2(-643.5f, 940.5f), new Vector2(-0.72f, -0.69f), "Sumiyagura_SW");
+        Yagura(kak, new Vector2(-378.5f, 950.5f), new Vector2(0.83f, -0.56f), "Sumiyagura_SE", 13.5f);
+        Yagura(kak, new Vector2(-643.5f, 940.5f), new Vector2(-0.72f, -0.69f), "Sumiyagura_SW", 11.5f);
         return sb.ToString();
     }
     /// <summary>竹垣の run — 水際・庭園帯の囲い。1.05m のモジュールを走りに沿って並べる。
@@ -767,11 +773,13 @@ public static class EdoOkabeYashikiBuilder
         return sb.ToString();
     }
 
-    static void Yagura(Transform parent, Vector2 p, Vector2 bis, string nm)
+    /// <summary>隅櫓。**隣の run の天端に合わせる**(地面に置かない) — 指図 其六 ④。
+    /// 地面に置くと、直した塀と 1〜2m ずれて隅だけ沈む/浮く。</summary>
+    static void Yagura(Transform parent, Vector2 p, Vector2 bis, string nm, float baseY)
     {
         var ex = parent.Find(nm); if (ex != null) UnityEngine.Object.DestroyImmediate(ex.gameObject);
         float psi = Mathf.Atan2(bis.x, bis.y) * Mathf.Rad2Deg;
-        float y = G(p.x, p.y);
+        float y = baseY;
         var go = B.Place(PKnagayaC, new Vector3(p.x, y, p.y), psi, new Vector3(ES * 0.55f, ES, ES), parent, nm);
         var rb = B.RB(go); go.transform.position += new Vector3(p.x - rb.center.x, 0, p.y - rb.center.z);
         rb = B.RB(go); go.transform.position += new Vector3(0, (y + 0.85f) - rb.min.y, 0);

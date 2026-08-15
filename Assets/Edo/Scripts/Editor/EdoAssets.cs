@@ -91,7 +91,8 @@ public static class EdoAssets
         public const string Tatami      = P + "Goten_Tatami_1ken.fbx";   // 一間角=江戸間2畳
         public const string FloorBoard  = P + "Goten_FloorBoard_1ken.fbx"; // 入側の板敷き
         public const string Ceiling     = P + "Goten_Ceiling_1ken.fbx";
-        public const string Nureen      = P + "Goten_Nureen_1ken.fbx";   // 濡縁+高欄(ピボットは建物側)
+        public const string Nureen      = P + "Goten_Nureen_1ken.fbx";   // 濡縁+高欄(ピボットは建物側・高欄は外縁)
+        public const string NureenCorner= P + "Goten_NureenCorner.fbx";  // 濡縁の入隅(0.891角・高欄が+X面と-Z面)
         public const string Koran       = P + "Goten_Koran_1ken.fbx";    // 高欄 単体(高1.158)渡廊下の縁
 
         // 建具・座敷飾り(キットに無いので Blender で新造 — build_goten_fittings.py)
@@ -190,6 +191,16 @@ public static class EdoAssets
         public const string YukimiLantern = "Assets/Edo/Prefabs/YukimiLantern.prefab";
         public const string DanishiStep   = "Assets/Edo/Models/Shiomizaka/P_DanishiStep2m.prefab";
         public const string MichibataIshi = "Assets/Edo/Models/Shiomizaka/P_MichibataIshi2m.prefab";
+
+        /// <summary>石段の法面を留める「坂の土留め」。天端が勾配どおりに**一直線で斜め**に下がる
+        /// 一枚物(段々に下がるモジュールでは実物の石段の袖にならない)。生成は
+        /// Tools/Blender/build_ishigaki_saka.py。無い寸法は -- &lt;走り&gt; &lt;落差&gt; で足す。
+        /// ローカル: +Z が坂下・Y=0 が下段の地面・X は芯線を挟んで±0.36(左右対称)。</summary>
+        public static string IshigakiSaka(float run, float drop)
+        {
+            return "Assets/Edo/Models/Ishigaki/Ishigaki_Saka_"
+                 + run.ToString("0.##") + "x" + drop.ToString("0.##") + ".fbx";
+        }
 
         public const string MShop01     = "Assets/Edo/Materials/M_Shop01.mat";
         public const string MShop02     = "Assets/Edo/Materials/M_Shop02.mat";

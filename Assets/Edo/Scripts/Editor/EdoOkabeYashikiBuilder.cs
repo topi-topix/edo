@@ -196,12 +196,17 @@ public static class EdoOkabeYashikiBuilder
     // 石垣の背後だけ NORI_FEATHER で下段へ落とす。合わせて 2*(3.5+1.5)=10m ＝ 石垣の開口±5.0m。
     // ⚠ ハイトマップは約2m刻みなので、フェザーを 0 にしても地形は 2m かけて落ちる。
     //   石垣を平場の縁(段の芯±3.5m)へ置くのは、その甘い縁を隠して稜線を立てるため。
-    public const float NORI_HALF = 2.2f;             // 法面の平場の半幅。段板(±1.98)のすぐ脇に石垣が立つ
-    public const float NORI_FEATHER = 1.5f;          // 石垣の背後で下段へ落とす幅
-    // 坂の土留めは郭の石垣より**薄い**。Castle Wall の素の断面は 躯体2.40m・天端1.40m あり、
-    // 段の脇の土留めには過大。X(奥行)を 0.40 に潰して 躯体0.96m・天端0.56m にする
-    // (ユーザー指摘 2026-08-15「階段脇の土留の石垣はもっと厚みが薄くて良い/石段と土留の間が空きすぎ」)
-    public const float NORI_WALL_THICK = 0.40f;
+    public const float NORI_HALF = 2.2f;             // 段の芯から**土留めの内面**まで。段板(±1.98)のすぐ脇
+    public const float SAKA_T = 0.72f;               // 坂の土留め部材の厚み(笠石を含む)
+    public const float NORI_FEATHER = 1.5f;          // 土留めの内面から下段へ落とす幅
+    // ⚠ 平場は土留めの**内面**(NORI_HALF)で止める。ハイトマップは約2m刻みで垂直な縁を
+    //   作れないので、外面まで満たすと 2〜4m の土手が石垣の外へ回り込んで面を埋める
+    //   (v7 で外面まで満たして実際にそうなった)。内面止めでも足元に土手の裾は残るが、
+    //   石垣の大半は出る — これはハイトマップの分解能の限界で、部材側では直せない。
+    // 坂の土留めは郭の石垣(躯体2.40m・天端1.40m)より薄く、天端は**斜めに一直線**で下がる。
+    // Castle Wall の段々では実物の石段の袖にならないので専用の部材を起こした
+    // (ユーザー指摘 2026-08-15。EdoAssets.Own.IshigakiSaka / build_ishigaki_saka.py)。
+    // 部材の厚みは 0.72m(笠石を含む)。
     public struct Kai
     {
         public float xTop, xBot, z0, z1, yTop, yBot; public string name;
@@ -244,46 +249,61 @@ public static class EdoOkabeYashikiBuilder
         return best;
     }
 
-    /// <summary>法面の両脇を留める石垣の一枚。走りに沿って天端が段と一緒に下がる。
-    /// 基礎は下段の地面(yBot)に揃うので **posY は1本を通して一定** で、変わるのは scale.y だけ。
-    /// (unity-modular-stonewall「1本の壁に position.y と scale.y は1値ずつ」からの逸脱は
-    ///  ここだけ — 坂を留める石垣は天端が坂と平行に下がるのが本来の形。)</summary>
-    public struct NoriPiece { public Vector3 pos; public float yaw, sy; public string name; }
-    public static List<NoriPiece> NoriWalls()
+    /// <summary>法面の両脇を留める「坂の土留め」の据え付け。
+    /// **一枚物で天端が勾配どおりに斜めに下がる部材**を左右に1本ずつ置く
+    /// (Tools/Blender/build_ishigaki_saka.py で生成。EdoAssets.Own.IshigakiSaka)。
+    ///
+    /// ⚠ v6 は Castle Wall を1.8m刻みで据えて天端を段々に下げていた。実物の石段の袖は
+    ///   一直線の斜めで、段々では左右で段の位置がずれてちらつく
+    ///   (ユーザー指摘 2026-08-15 + 妙義神社本殿の石段の写真)。
+    ///
+    /// 部材は芯線を挟んで左右対称(±0.36)なので、芯線を平場の縁から半分だけ外へ出す。
+    /// 原点 = 坂上の端・下段の地面。ローカル **-Z** が坂下を向くよう yaw を決める。</summary>
+    public struct SakaWall { public Vector3 pos; public float yaw; public string asset, name; }
+    public static List<SakaWall> NoriWalls()
     {
-        var outp = new List<NoriPiece>();
+        const float HALF_T = SAKA_T * 0.5f;             // 部材の半厚(笠石を含む)
+        var outp = new List<SakaWall>();
         foreach (var k in Kaidans())
         {
             float zc = (k.z0 + k.z1) * 0.5f;
-            float xLo = Mathf.Min(k.xTop, k.xBot), xHi = Mathf.Max(k.xTop, k.xBot);
-            int n = Mathf.Max(2, Mathf.RoundToInt(k.Run / 1.8f) + 1);
+            // ⚠ 走りは部材のローカル **-Z**。Blender の +Y は Unity の -Z へ落ちる
+            //   (export_fbx の axis_forward='-Z' / axis_up='Y')。+Z のつもりで yaw を
+            //   決めると坂が逆へ伸びる(実際にやった)
+            float yaw = k.xBot > k.xTop ? 270f : 90f;
+            string a = EdoAssets.Own.IshigakiSaka(k.Run, k.Drop);
             for (int side = 0; side < 2; side++)
             {
-                // 芯線 = 外面。躯体は走りの左(local -X)に出るので、**高い側(法面の土)が左**に
-                // 来るよう走りを取る。北側の土留めは走り -X(yaw 270)、南側は +X(yaw 90)。
-                // ⚠ ここを逆にすると躯体が下段側へ張り出し、留めるべき土が裏に残る
-                bool north = side == 1;
-                float zw = zc + (north ? NORI_HALF : -NORI_HALF);
-                float yaw = north ? 270f : 90f;
-                for (int i = 0; i < n; i++)
-                {
-                    float px = north ? xHi - i * 1.8f : xLo + i * 1.8f;
-                    if (px < xLo - 0.4f || px > xHi + 0.4f) continue;
-                    // 天端は一枚(1.8m)の**坂上側の端**の高さに合わせる。中心に合わせると
-                    // 坂上の半分で法面が天端を越えて土がこぼれる
-                    float up = px + (k.xBot > k.xTop ? -0.9f : 0.9f);
-                    float lv = k.Level(k.U(Mathf.Clamp(up, xLo, xHi)));
-                    float sy = (lv - k.yBot) / 4f;
-                    if (sy < 0.16f) continue;              // 0.64m 未満は据えない(段の下端)
-                    outp.Add(new NoriPiece{ pos = new Vector3(px, k.yBot, zw), yaw = yaw, sy = sy,
-                                            name = k.name + (north ? "_N_" : "_S_") + i });
-                }
+                float zw = zc + (side == 1 ? 1f : -1f) * (NORI_HALF + HALF_T);
+                outp.Add(new SakaWall{ pos = new Vector3(k.xTop, k.yBot, zw), yaw = yaw,
+                                       asset = a, name = k.name + (side == 1 ? "_N" : "_S") });
             }
         }
         return outp;
     }
 
-    // 表門(下書きの三角マーク) と その外向き
+    [MenuItem("Edo/岡部筑前守上屋敷/坂の土留めのマテリアルをremap")]
+    public static void RemapSakaMaterials()
+    {
+        int n = 0;
+        foreach (var guid in AssetDatabase.FindAssets("t:Model", new[] { "Assets/Edo/Models/Ishigaki" }))
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            var imp = AssetImporter.GetAtPath(path) as ModelImporter;
+            if (imp == null) continue;
+            imp.materialImportMode = ModelImporterMaterialImportMode.ImportViaMaterialDescription;
+            imp.SearchAndRemapMaterials(ModelImporterMaterialName.BasedOnMaterialName,
+                                        ModelImporterMaterialSearch.Everywhere);
+            AssetDatabase.WriteImportSettingsIfDirty(path);
+            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+            if (imp.GetExternalObjectMap().Count > 0) n++;
+            else Debug.LogWarning("[Okabe] マテリアルが当たらなかった: " + path);
+        }
+        AssetDatabase.SaveAssets();
+        Debug.Log("[Okabe] 坂の土留めのマテリアル remap: " + n + "件");
+    }
+
+    // 表門(下書きの三角マーク) と その外向き    // 表門(下書きの三角マーク) と その外向き
     public static readonly Vector2 GATE = new Vector2(-381.0f, 1001.0f);
     public static Vector2 GateOut() { return (-B.InwardNormal(SK.OKABE, 10)).normalized; }
     public static float YawGate() { var o = GateOut(); return Mathf.Atan2(o.x, o.y) * Mathf.Rad2Deg; }
@@ -363,9 +383,9 @@ public static class EdoOkabeYashikiBuilder
 
     public static string Stage1_Grade()
     {
-        var mk = GameObject.Find("OKABE_GRADED_v6");
-        if (mk != null) return "grade: SKIP (already graded v6)";
-        foreach (var nm in new[] { "OKABE_GRADED_v4", "OKABE_GRADED_v5" })
+        var mk = GameObject.Find("OKABE_GRADED_v8");
+        if (mk != null) return "grade: SKIP (already graded v8)";
+        foreach (var nm in new[] { "OKABE_GRADED_v4", "OKABE_GRADED_v5", "OKABE_GRADED_v6", "OKABE_GRADED_v7" })
         { var o = GameObject.Find(nm); if (o != null) UnityEngine.Object.DestroyImmediate(o); }
         var t = Terrain.activeTerrain; var td = t.terrainData;
         int hres = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size;
@@ -418,7 +438,10 @@ public static class EdoOkabeYashikiBuilder
         td.SetHeightsDelayLOD(x0, z0, H); td.SyncHeightmap();
         // ⚠ マーカーは active のままにする。GameObject.Find は非アクティブを見つけないので
         //    SetActive(false) にするとガードが毎回すり抜けて多重造成する(2026-08-14 に実際に起きた)。
-        mk = new GameObject("OKABE_GRADED_v4");
+        // ⚠ ここの版数は上のガード(GameObject.Find)と**必ず揃える**。
+        //   v5〜v8 の間、ガードだけ上げて生成側が v4 のままになっており、
+        //   造成が毎回走っていた(結果は冪等なので実害は無かったが、遅い)
+        mk = new GameObject("OKABE_GRADED_v8");
         var yg = GameObject.Find(GN); if (yg != null) mk.transform.SetParent(yg.transform, false);
         return "grade cells=" + n + " cutMax=" + cmax.ToString("F2") + " fillMax=" + fmax.ToString("F2");
     }
@@ -559,18 +582,20 @@ public static class EdoOkabeYashikiBuilder
             }
             sb.AppendLine(w.name + " pieces=" + made + " posY=" + posY.ToString("F2") + " sy=" + w.sy.ToString("F2") + " coping=" + w.coping.ToString("F2"));
         }
-        // 石段の法面の両脇(v6) — 坂を留める石垣。天端は坂と一緒に下がる
+        // 石段の法面の両脇(v7) — 天端が斜めに通る一枚物。左右に1本ずつ
         int nn = 0;
         foreach (var q in NoriWalls())
         {
-            var go = (GameObject)PrefabUtility.InstantiatePrefab(pre, ig);
-            Undo.RegisterCreatedObjectUndo(go, "cw"); go.name = "IG_" + q.name;
+            var src = AssetDatabase.LoadAssetAtPath<GameObject>(q.asset);
+            if (src == null) { Debug.LogError("[Okabe] 坂の土留めが無い: " + q.asset
+                + " — blender --background --python Tools/Blender/build_ishigaki_saka.py で生成する"); continue; }
+            var go = (GameObject)PrefabUtility.InstantiatePrefab(src, ig);
+            Undo.RegisterCreatedObjectUndo(go, "saka"); go.name = "IG_" + q.name;
             go.transform.position = q.pos;
             go.transform.rotation = Quaternion.Euler(0, q.yaw, 0);
-            go.transform.localScale = new Vector3(NORI_WALL_THICK, q.sy, 1f);
             nn++;
         }
-        sb.AppendLine("法面の石垣 pieces=" + nn);
+        sb.AppendLine("坂の土留め pieces=" + nn);
 
         // 家臣長屋2列 — 西の石垣A/Bの天端に載せる(下書きの赤線2本)
         // perimeter.md: なまこ壁の外面を天端の外面と面一(0.00〜0.20m)、土台底 = 天端 − 1.59m

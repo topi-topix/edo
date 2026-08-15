@@ -24,6 +24,8 @@ RANMA_H = K / 2           # 欄間 = 半間
 FULL = UCHINORI + RANMA_H # 2.727 = 障子・柱の高さ
 OUT = "/Users/toshio/project/edo-unity/Assets/Edo/Models/Goten/Parts"
 BUILT = []
+# wall A アトラスの左側にある無地の紙面(縦の継ぎ目 u≈0.30 の手前まで)。襖紙に使う
+PAPER_UV = (0.045, 0.08, 0.275, 0.92)
 
 
 class Pal:
@@ -31,9 +33,11 @@ class Pal:
     def __init__(self):
         self.wood = V.borrow_material("Walls and floors/column A.fbx", "wood")
         self.wall = V.borrow_material("Walls and floors/wall C.fbx", "wall C")
-        # 襖の紙は障子と同じ紙にする(door wall アトラスの紙面を一点で拾う。
-        # 一点なので障子の組子の柄は乗らず、無地の紙面になる)
-        self.paper = V.borrow_material("Walls and floors/door wall.fbx", "door wall")
+        # 襖の紙は **wall A** の無地の紙面を矩形で貼る。
+        # ⚠ door wall(障子)を一点で拾うやり方はベタ塗りの灰色になり、襖が板に見えた
+        #   (ユーザー指摘 2026-08-15「襖のパーツもリアルさを欠いている」)。
+        #   wall A はキットに .mat があるがメッシュが誰も使っていないので名前だけ用意する。
+        self.paper = V.named_material("wall A")
         self.uv_wood = V.sample_uv("Walls and floors/column A.fbx", pick_high=True)
         self.uv_paper = V.sample_uv_bright("Walls and floors/door wall.fbx", "door wall")
         self.uv_wall = V.sample_uv_bright("Walls and floors/wall C.fbx", "wall C")          # 漆喰
@@ -54,30 +58,50 @@ def finish(objs, name, pivot):
     return o
 
 
-def leaf(tag, cx, w, h, p, z0=0.0, th=0.032, hikite=True):
-    """建具1枚(框+紙面+引手)。表は −Y。"""
-    fr = 0.045                                    # 框の見付
+def leaf(tag, cx, w, h, p, z0=0.0, th=0.030, y=0.0, hikite=0):
+    """建具1枚(襖縁+紙面+引手)。表は −Y。y = 敷居の溝(前後どちらの溝に入るか)。
+    hikite: 0=付けない / -1=左端寄り / +1=右端寄り。
+
+    ユーザー指摘(2026-08-15「襖のパーツもリアルさを欠いている」)を受けた作り:
+      ・**襖縁は框でなく縁**。見付 0.026(=8分)まで細くし、黒漆(uv_dark)で締める。
+        0.045 の明るい框だと障子や板戸に見える
+      ・紙面は縁より 0.008 奥へ落とす。縁が影を落として面が平板に見えなくなる
+      ・引手は座(金具の板)+ 摘みの二枚で作る。一枚の箱では引手に見えない
+      ・引違いの2枚は **前後の溝に分けて置く**(y をずらす)。同じ面に置くと
+        重なり代 0.04 が z-fighting でちらつく"""
+    fr = 0.026                                    # 襖縁の見付
     o = []
-    o.append(V.box(tag + "_paper", (w - 2 * fr, th * 0.6, h - 2 * fr),
-                   (cx, 0, z0 + h / 2), p.paper, p.uv_paper))
-    o.append(V.box(tag + "_fL", (fr, th, h), (cx - w / 2 + fr / 2, 0, z0 + h / 2), p.wood, p.uv_wood))
-    o.append(V.box(tag + "_fR", (fr, th, h), (cx + w / 2 - fr / 2, 0, z0 + h / 2), p.wood, p.uv_wood))
-    o.append(V.box(tag + "_fB", (w, th, fr), (cx, 0, z0 + fr / 2), p.wood, p.uv_wood))
-    o.append(V.box(tag + "_fT", (w, th, fr), (cx, 0, z0 + h - fr / 2), p.wood, p.uv_wood))
+    pa = V.box(tag + "_paper", (w - 2 * fr, th * 0.45, h - 2 * fr),
+               (cx, y, z0 + h / 2), p.paper)
+    V.set_uv_rect(pa, PAPER_UV)                   # 一点貼りでなく矩形で紙の地を出す
+    o.append(pa)
+    o.append(V.box(tag + "_eL", (fr, th, h), (cx - w / 2 + fr / 2, y, z0 + h / 2), p.wood, p.uv_dark))
+    o.append(V.box(tag + "_eR", (fr, th, h), (cx + w / 2 - fr / 2, y, z0 + h / 2), p.wood, p.uv_dark))
+    o.append(V.box(tag + "_eB", (w, th, fr), (cx, y, z0 + fr / 2), p.wood, p.uv_dark))
+    o.append(V.box(tag + "_eT", (w, th, fr), (cx, y, z0 + h - fr / 2), p.wood, p.uv_dark))
     if hikite:
-        o.append(V.box(tag + "_hikite", (0.085, 0.014, 0.045),
-                       (cx + w / 2 - 0.13, -th / 2, z0 + 0.95), p.wood, p.uv_dark))
+        hx = cx + hikite * (w / 2.0 - 0.115)
+        hy = y - th / 2.0                          # 表面
+        o.append(V.box(tag + "_hikiteza", (0.112, 0.012, 0.070),
+                       (hx, hy - 0.003, z0 + 0.92), p.wood, p.uv_wood))
+        o.append(V.box(tag + "_hikite", (0.068, 0.014, 0.034),
+                       (hx, hy - 0.005, z0 + 0.92), p.wood, p.uv_dark))
     return o
 
 
 def build_fusuma(p):
-    """襖 一間 = 2枚建て(内法まで)"""
+    """襖 一間 = 2枚建て(内法まで)。引違いなので前後の溝に1枚ずつ入れる"""
     V.reset(); p = Pal()
     o = []
     lw = K / 2 + 0.02                      # 2枚は中央で少し重なる
+    th = 0.030
     for i in (0, 1):
         cx = (-0.5 + i) * (K - lw)
-        o += leaf("F%d" % i, cx, lw, UCHINORI, p)
+        # i=0(左)は手前の溝・i=1(右)は奥の溝。引手は突き合う側(中央寄り)に付く
+        o += leaf("F%d" % i, cx, lw, UCHINORI, p, th=th,
+                  y=(-1 if i == 0 else 1) * (th * 0.52), hikite=(1 if i == 0 else -1))
+    # 敷居・鴨居は足さない — 鴨居は欄間(Goten_Ranma_1ken)が持っている。
+    # 敷居を足すと畳(ピボットが下端)に食い込む
     return finish(o, "Goten_Fusuma_1ken", (0, 0, 0)), p
 
 
@@ -166,8 +190,10 @@ def build_chodaigamae(p):
          V.box("cd_kokabe", (K + 2 * fw, 0.06, FULL - UCHINORI - 0.22),
                (0, 0, (FULL + UCHINORI + 0.22) / 2), p.wall, p.uv_wall)]
     lw = K / 2 + 0.02
+    th = 0.030
     for i in (0, 1):
-        o += leaf("CD%d" % i, (-0.5 + i) * (K - lw), lw, UCHINORI - sill, p, z0=sill)
+        o += leaf("CD%d" % i, (-0.5 + i) * (K - lw), lw, UCHINORI - sill, p, z0=sill, th=th,
+                  y=(-1 if i == 0 else 1) * (th * 0.52), hikite=(1 if i == 0 else -1))
     return finish(o, "Goten_Chodaigamae_1ken", (0, 0, 0)), p
 
 

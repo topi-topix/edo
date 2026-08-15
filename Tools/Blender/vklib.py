@@ -246,6 +246,37 @@ def sample_uv_bright(src_fbx, mat_name=None, want='bright'):
     return best
 
 
+def set_uv_rect(obj, rect, axes=('x', 'z')):
+    """オブジェクトのバウンズ(axes の2軸)を UV矩形 rect=(u0,v0,u1,v1)へ線形に写す。
+
+    ⚠ `set_uv` の一点貼りはアトラスの1画素を全面に伸ばすので **完全な無地**になる。
+       面積のある面(襖の紙・大きな壁)はそれだと平板に見えるので、こちらで
+       アトラスの狙った矩形を貼って地のテクスチャを出す。"""
+    ax = {'x': 0, 'y': 1, 'z': 2}
+    i, j = ax[axes[0]], ax[axes[1]]
+    me = obj.data
+    lo = [min(v.co[k] for v in me.vertices) for k in (i, j)]
+    hi = [max(v.co[k] for v in me.vertices) for k in (i, j)]
+    sp = [max(hi[0] - lo[0], 1e-6), max(hi[1] - lo[1], 1e-6)]
+    if not me.uv_layers:
+        me.uv_layers.new(name="UVMap")
+    uvl = me.uv_layers.active.data
+    for p in me.polygons:
+        for li in p.loop_indices:
+            co = me.vertices[me.loops[li].vertex_index].co
+            fu = (co[i] - lo[0]) / sp[0]
+            fv = (co[j] - lo[1]) / sp[1]
+            uvl[li].uv = (rect[0] + (rect[2] - rect[0]) * fu,
+                          rect[1] + (rect[3] - rect[1]) * fv)
+
+
+def named_material(name):
+    """キットに .mat はあるがメッシュが誰も使っていないマテリアルを名前だけで用意する。
+    FBX にはマテリアル名しか入らないので、Unity 側の Search&Remap が同名の .mat を拾う。"""
+    m = bpy.data.materials.get(name)
+    return m if m else bpy.data.materials.new(name)
+
+
 def set_uv(obj, uv):
     me = obj.data
     if not me.uv_layers:

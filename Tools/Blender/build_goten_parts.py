@@ -95,10 +95,38 @@ def build_all():
     made.append(finish(objs, "Goten_Ceiling_1ken", ((mn.x + mx.x) / 2, (mn.y + mx.y) / 2, mx.z)))
 
     # --- 濡縁(高欄つき) ---
+    # ⚠ balcony A は 高欄が y≈0.045(bbox の最小側)・床板が y=0..0.891 に付いている。
+    #   素直に置くと **高欄が建物側に立ち、床板 0.89m が高欄の外へ張り出す**。
+    #   ユーザー指摘(bookmark 2026-08-15 #1「手すりの外の部分はなんでしょうか。不要に思えます」)。
+    #   rot=180 で向きを反転し、高欄が濡縁の外縁に立つようにする(ピボットは建物側のまま)。
     V.reset()
-    objs = V.place("Balcony/balcony A.fbx", 0, 0, 0)
+    objs = V.place("Balcony/balcony A.fbx", 0, 0, 0, rot=180)
     mn, mx = V.bbox(objs)
     made.append(finish(objs, "Goten_Nureen_1ken", ((mn.x + mx.x) / 2, mn.y, 0.0)))
+
+    # --- 濡縁の入隅(半間角・高欄が二面に回る) ---
+    # 桁行の帯(z=0/D)と妻側の帯(x=0/W)は隅に 0.891 角の升目を残す。埋めないと
+    # 高欄が隅で切れる(濡縁を反転して高欄を外縁へ出した副作用)。
+    # ローカル: x 0..0.891 / 奥行 0.891、高欄は **+X 面と -Z 面**(Unity)の二辺。
+    # ピボットは建物側の隅 = (0,0,0)。Unity 側は yaw 0/90/180/270 で四隅へ回す。
+    V.reset()
+    objs = V.place("Balcony/balcony A.fbx", 0, 0, 0, rot=180)
+    mn, mx = V.bbox(objs)
+    d = mx.y - mn.y                                   # 濡縁の出 = 0.891
+    V.sel(objs)
+    bpy.ops.transform.resize(value=(d / (mx.x - mn.x), 1.0, 1.0), center_override=(0, 0, 0))
+    bpy.ops.object.transform_apply(scale=True)
+    rails = [o for o in objs if V.bbox([o])[0].z > 0.1]   # 床板でない方 = 高欄
+    c = mathutils.Vector((d / 2.0, d / 2.0, 0.0))
+    R = (mathutils.Matrix.Translation(c)
+         @ mathutils.Matrix.Rotation(math.radians(-90), 4, 'Z')
+         @ mathutils.Matrix.Translation(-c))
+    for o in list(rails):
+        q = o.copy(); q.data = o.data.copy()
+        bpy.context.scene.collection.objects.link(q)
+        q.matrix_world = R @ o.matrix_world
+        objs.append(q)
+    made.append(finish(objs, "Goten_NureenCorner", (0.0, 0.0, 0.0)))
 
     # --- 高欄 単体(渡廊下の両縁に立てる)---
     # balcony rail は 0.075 x 1.818 x 1.158 でちょうど一間。回して幅を X へ出す

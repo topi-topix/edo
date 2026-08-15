@@ -253,46 +253,64 @@ public static class EdoOkabeYashikiBuilder
     //   屋根は平らな切妻を斜長ぶん作り(build_goten_roof.py -- noboriro)、据えるときに
     //   勾配ぶん傾ける。傾けるので軒も棟も坂と平行に走る = 頭上の高さが一定になる。
     // =========================================================================
-    const float NOBORI_EAVE = 2.20f;   // 段板の面から軒桁までの高さ(頭上)
-    const float NOBORI_HALF = 2.00f;   // 段の芯から柱通りまで(土留めの内面 2.2 の少し内)
-    const float ROOF_EAVE_OUT = 0.60f; // 屋根の軒の出(make_kirizuma の ROKA_EAVE と同値)
+    // 法面の平場(幅4.4m)の中で、屋外の石段と階段廊下を**並べて**置く。
+    //   北側 +1.15 … 屋外用の石段(段板1枚 1.98m)
+    //   南側 -1.25 … 階段廊下(幅一間 1.818m)。取り付きの廊下(LW_Kita6/9)の z 帯もここ
+    const float NOBORI_Z = -1.25f;     // 段の芯から階段廊下の中心まで
+    const float ISHIDAN_Z = 1.15f;     // 段の芯から屋外の石段の中心まで(登廊のある段だけ)
 
     static void Noboriro(Transform parent, Kai k)
     {
         if (string.IsNullOrEmpty(k.noboriro)) return;
         var g = new GameObject(k.name + "_Noboriro"); g.transform.SetParent(parent, false);
         Undo.RegisterCreatedObjectUndo(g, "noboriro");
-        float zc = (k.z0 + k.z1) * 0.5f;
+        float zc = (k.z0 + k.z1) * 0.5f + NOBORI_Z;
         float pitch = Mathf.Atan2(k.Drop, k.Run) * Mathf.Rad2Deg;
-        float yaw = k.xBot > k.xTop ? 0f : 180f;      // ローカル+X(大棟)を坂下へ
-        // 柱 — 段の芯の左右、水平の走りで1間ごと。屋根は坂と平行なので丈は一定
+        bool east = k.xBot > k.xTop;
+
+        // 階段廊下(木の段)。原点は坂上・上段の廊下の床。走りはローカル -Z
+        var kr = AssetDatabase.LoadAssetAtPath<GameObject>(EdoAssets.Goten.KaidanRoka(k.Run, k.Drop));
+        if (kr == null)
+        {
+            Debug.LogError("[Okabe] 階段廊下が無い: " + EdoAssets.Goten.KaidanRoka(k.Run, k.Drop)
+                + " — blender ... build_goten_kaidan.py -- <走り> <落差>");
+        }
+        else
+        {
+            var go2 = (GameObject)PrefabUtility.InstantiatePrefab(kr, g.transform);
+            Undo.RegisterCreatedObjectUndo(go2, "kaidanroka"); go2.name = "KaidanRoka";
+            go2.transform.position = new Vector3(k.xTop, k.yTop + GOTEN_FLOOR, zc);
+            go2.transform.rotation = Quaternion.Euler(0f, east ? 270f : 90f, 0f);
+        }
+        // 柱 — 廊下の両縁。**法面から屋根裏まで一本**で通す(床下の束を兼ねる。
+        // 別に束を入れると柱の中に入って z-fighting する)。高欄は部材側が持っている
         int n = Mathf.Max(2, Mathf.RoundToInt(k.Run / KEN));
-        float roofUnder = NOBORI_EAVE + (((k.z1 - k.z0) * 0.5f + ROOF_EAVE_OUT) - NOBORI_HALF) * ROOF_RATIO;
-        float colH = 0.15f + roofUnder;               // 法面(段板の0.15下)から屋根裏まで
+        float colH = 0.15f + GOTEN_FLOOR + EdoGotenKit.ROKA_EAVE + EdoGotenKit.ROKA_KETA;
         for (int i = 0; i <= n; i++)
         {
             float u = (float)i / n;
             float px = Mathf.Lerp(k.xTop, k.xBot, u), lv = k.Level(u);
             for (int s2 = 0; s2 < 2; s2++)
                 Put(g.transform, EdoAssets.Goten.Column,
-                    new Vector3(px, lv - 0.15f, zc + (s2 == 0 ? -NOBORI_HALF : NOBORI_HALF)),
+                    new Vector3(px, lv - 0.15f, zc + (s2 == 0 ? -KEN * 0.5f : KEN * 0.5f)),
                     0f, colH / EdoAssets.Goten.DoorH);
         }
-        // 屋根 — ピボットは廊下の中心・軒桁の高さ。斜長の中点へ据えて勾配ぶん倒す
+        // 屋根 — 平らな切妻(幅一間)を斜長ぶん作ってあるので、勾配ぶん倒して据える。
+        // ピボットは廊下の中心・軒桁の高さ。倒すので軒も棟も坂と平行に走る
         var roof = AssetDatabase.LoadAssetAtPath<GameObject>(EdoAssets.Goten.RoofNoboriro(k.noboriro));
         if (roof == null)
         {
-            Debug.LogError("[Okabe] 登廊の屋根が無い: " + EdoAssets.Goten.RoofNoboriro(k.noboriro)
-                + " — blender ... build_goten_roof.py -- noboriro <斜長> <幅> <名前>");
+            Debug.LogError("[Okabe] 登廊の屋根が無い: " + EdoAssets.Goten.RoofNoboriro(k.noboriro));
             return;
         }
         var go = (GameObject)PrefabUtility.InstantiatePrefab(roof, g.transform);
         Undo.RegisterCreatedObjectUndo(go, "roof"); go.name = "Roof";
         go.transform.position = new Vector3((k.xTop + k.xBot) * 0.5f,
-                                            (k.yTop + k.yBot) * 0.5f + NOBORI_EAVE, zc);
+            (k.yTop + k.yBot) * 0.5f + GOTEN_FLOOR + EdoGotenKit.ROKA_EAVE, zc);
         // Euler(0,yaw,roll) = Ry(yaw)*Rz(roll)。Rz が先に大棟を倒し、Ry が坂下へ向ける
-        go.transform.rotation = Quaternion.Euler(0f, yaw, -pitch);
+        go.transform.rotation = Quaternion.Euler(0f, east ? 0f : 180f, -pitch);
     }
+
     const float ROOF_RATIO = 0.5456f;   // 屋根の勾配比(build_goten_roof の RATIO)
 
     /// <summary>石段の法面の高さ。段の下に地面を作るための盛土の楔。
@@ -982,17 +1000,19 @@ public static class EdoOkabeYashikiBuilder
         float dir = Mathf.Sign(k.xBot - k.xTop);
         float tread = k.Run / n;
         float zc = (k.z0 + k.z1) * 0.5f, halfW = (k.z1 - k.z0) * 0.25f;   // 段板2枚の中心
+        // 登廊のある段は、平場の北半分を階段廊下に譲るので**石段は1枚(屋外用)**にする
+        bool solo = !string.IsNullOrEmpty(k.noboriro);
         for (int i = 1; i <= n; i++)
         {
             float lvl = k.yTop - k.Drop * i / n;
             float px = k.xTop + dir * (i - 0.5f) * tread;
-            for (int sdup = 0; sdup < 2; sdup++)
+            for (int sdup = 0; sdup < (solo ? 1 : 2); sdup++)
             {
                 var go = (GameObject)PrefabUtility.InstantiatePrefab(pre, g.transform);
                 Undo.RegisterCreatedObjectUndo(go, "st"); go.name = "S_" + i + "_" + sdup;
                 go.transform.rotation = Quaternion.Euler(0, 90f, 0);   // 長手(1.98)を Z へ
                 var rb = B.RB(go);
-                float pz = zc + (sdup == 0 ? -halfW : halfW);
+                float pz = solo ? zc + ISHIDAN_Z : zc + (sdup == 0 ? -halfW : halfW);
                 go.transform.position += new Vector3(px - rb.center.x, lvl - rb.max.y, pz - rb.center.z);
             }
         }

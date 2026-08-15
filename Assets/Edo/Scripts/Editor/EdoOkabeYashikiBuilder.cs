@@ -720,17 +720,21 @@ public static class EdoOkabeYashikiBuilder
         var g = new GameObject(r.name); g.transform.SetParent(parent, false);
         Undo.RegisterCreatedObjectUndo(g, "takegaki");
         Vector2 d = (r.b - r.a); float len = d.magnitude; d /= len;
-        float yaw = Mathf.Atan2(r.outw.x, r.outw.y) * Mathf.Rad2Deg;   // 表(+Z)を外へ
-        const float MOD = 1.05f, SC = 1.65f;                            // 高0.9 → 1.49m へ起こす
+        // ⚠ この部材は **長手が local Z(1.039)・厚みが local X(0.053)・高さ Y(0.900)**。
+        //   塀や長屋の流儀で「表(+Z)を外へ」向けると、パネルが壁に対して**直角**に並ぶ
+        //   (2026-08-15 実際にそうなった)。+Z を**走りの向き**へ合わせること。
+        float yaw = Mathf.Atan2(d.x, d.y) * Mathf.Rad2Deg;
+        const float MOD = 1.039f, SC = 1.65f;      // 高0.9 → 1.49m へ起こす
         int n = Mathf.Max(1, Mathf.RoundToInt(len / (MOD * SC)));
+        float kz = len / (n * MOD);                // 走り方向にちょうど len を埋める
         for (int i = 0; i < n; i++)
         {
-            var p = r.a + d * (len * (i + 0.5f) / n);
+            var p = r.a + d * (len * i / n);       // ピボットはパネルの端(mesh z 0..1.039)
             var go = (GameObject)PrefabUtility.InstantiatePrefab(src, g.transform);
             Undo.RegisterCreatedObjectUndo(go, "tk"); go.name = "TK_" + i;
             go.transform.position = new Vector3(p.x, r.top, p.y);
             go.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
-            go.transform.localScale = new Vector3(len / n / MOD, SC, SC);
+            go.transform.localScale = new Vector3(1f, SC, kz);
         }
     }
 
@@ -782,7 +786,8 @@ public static class EdoOkabeYashikiBuilder
         float y = baseY;
         var go = B.Place(PKnagayaC, new Vector3(p.x, y, p.y), psi, new Vector3(ES * 0.55f, ES, ES), parent, nm);
         var rb = B.RB(go); go.transform.position += new Vector3(p.x - rb.center.x, 0, p.y - rb.center.z);
-        rb = B.RB(go); go.transform.position += new Vector3(0, (y + 0.85f) - rb.min.y, 0);
+        // 天端に据えるので土台の底を baseY に合わせる(地面に置くときの +0.85 の沈め込みは要らない)
+        rb = B.RB(go); go.transform.position += new Vector3(0, y - rb.min.y, 0);
     }
 
     // =========================================================================
@@ -1309,8 +1314,13 @@ public static class EdoOkabeYashikiBuilder
             float wx = tp.x + (ix0 + xx + 0.5f) * cell, wz = tp.z + (iz0 + zz + 0.5f) * cell;
             var p = new Vector2(wx, wz);
             if (!B.PIP(SK.OKABE, p)) continue;
+            // 段の矩形を 3m 広げる — 外周の囲いの足元まで白洲を塗る(指図 其六 ⑤)。
+            // 敷地ポリゴンの内側だけが対象なので、外へはみ出さない
+            const float SPLAT_PAD = 3f;
             bool inTerr = false;
-            foreach (var tr in terr) if (wx > tr.x0 && wx < tr.x1 && wz > tr.z0 && wz < tr.z1) inTerr = true;
+            foreach (var tr in terr)
+                if (wx > tr.x0 - SPLAT_PAD && wx < tr.x1 + SPLAT_PAD
+                 && wz > tr.z0 - SPLAT_PAD && wz < tr.z1 + SPLAT_PAD) inTerr = true;
             if (!inTerr) continue;
             bool inG = false;
             foreach (var g in gard) if (wx > g.x0 - 1f && wx < g.x1 + 1f && wz > g.z0 - 1f && wz < g.z1 + 1f) inG = true;

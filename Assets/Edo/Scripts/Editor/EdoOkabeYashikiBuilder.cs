@@ -262,7 +262,7 @@ public static class EdoOkabeYashikiBuilder
             // 方針B(指図 其十 ②) — 登廊に踊り場が付いて下端が西へ出たぶんを継ぐ。
             // 既存の LW_Kita7/10 は棟に取り付いているので動かさず、**東西の継ぎ足し**で延ばす。
             // 帯は登廊と同じ V51..52(= 階段廊下の一間)。長さは踊り場の間数と同じ。
-            WGz(-578.636f, -575.0f, 51, 52, 19.5f, "LW_Kita7b"),         // 2間 登廊W1の下端 → LW_Kita7
+            WGz(-580.454f, -575.0f, 51, 52, 19.5f, "LW_Kita7b"),         // 3間 登廊W1の下端 → LW_Kita7
             WGz(-609.454f, -604.0f, 51, 52, 11.5f, "LW_Kita10b"),        // 3間 登廊W2の下端 → LW_Kita10
             // ⚠ v5: 石段に取り付いていた LW_Kita2/3/6(と v4 の LW_Kita5)は全部廃した。
             //   **郭をまたぐ石段は廊下ではなく屋外の通路**へ改めたため(指図 v5)。
@@ -352,7 +352,9 @@ public static class EdoOkabeYashikiBuilder
             new Kai{ name="Ishidan_E1", xTop=-455f, xBot=-446f, z0=999f,    z1=1003f,   yTop=25.5f, yBot=19.5f, noriHalf=2.58f },
             new Kai{ name="Ishidan_E2", xTop=-425f, xBot=-416f, z0=999f,    z1=1003f,   yTop=19.5f, yBot=13.5f, noriHalf=2.58f },
             // 西: 郭の北縁。法面の芯 z=1045.80(旧 1043.00)。登廊は土止めの外(南)で柱に載る
-            new Kai{ name="Ishidan_W1", xTop=-566f, xBot=-575f, z0=1043.8f, z1=1047.8f, yTop=25.5f, yBot=19.5f, noriHalf=1.60f, noboriro="W1", odoriKen=2 },
+            // ⚠ 踊り場は 2 間(3.636m)だと石垣の法尻(x −569.6)まで 0.04m しか余らず、
+            //   階段廊下と一番上の柱が石垣の裾に 0.05m 触れた(実測)。3 間で 1.85m 逃がす
+            new Kai{ name="Ishidan_W1", xTop=-566f, xBot=-575f, z0=1043.8f, z1=1047.8f, yTop=25.5f, yBot=19.5f, noriHalf=1.60f, noboriro="W1", odoriKen=3 },
             new Kai{ name="Ishidan_W2", xTop=-592f, xBot=-604f, z0=1043.8f, z1=1047.8f, yTop=19.5f, yBot=11.5f, noriHalf=1.60f, noboriro="W2", odoriKen=3 },
         };
     }

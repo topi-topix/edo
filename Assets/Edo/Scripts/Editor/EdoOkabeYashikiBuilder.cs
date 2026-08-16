@@ -69,19 +69,88 @@ public static class EdoOkabeYashikiBuilder
     }
     // 石垣(土留め)の芯線 = 外面。天端は上段のレベル、scale.y は 4.0m/1.0 の丸数字。
     // 走り方向の左(local -X)に躯体2.4mが出るので、高い側が左になるよう a→b を取る。
-    public struct Wall { public Vector2 a, b; public float coping, sy; public string name; public float gapZ; }
+    /// <summary>na/nb は天端に載せる家臣長屋の範囲。石垣は境界まで延ばすが、長屋は
+    /// 其六 で決めた長さのまま据える(石垣を延ばした分だけ長屋が伸びると別物になる)。</summary>
+    public struct Wall { public Vector2 a, b, na, nb; public float coping, sy; public string name;
+        /// <summary>石段の開口の芯 z ＝ 法面の芯(Kai.NoriZ)。</summary>
+        public float gapZ;
+        /// <summary>開口の半幅 ＝ 芯 → 坂の土留めの**外面**(Kai.GapHalf)。
+        /// 主石垣の端面がここにぴったり突き付く(指図 其十 ②)。</summary>
+        public float gapHalf; }
     public static Wall[] Walls()
     {
         return new[] {
-            // 東: 主郭25.5 → 東中段19.5 → 表門前13.5。南→北へ走る(左=西=高い側)。開口は参道 z=1001
-            new Wall{ name="IG_E1", a=new Vector2(-455f, 947f), b=new Vector2(-455f, 1056f), coping=25.5f, sy=1.5f, gapZ=1001f },
-            new Wall{ name="IG_E2", a=new Vector2(-425f, 947f), b=new Vector2(-425f, 1056f), coping=19.5f, sy=1.5f, gapZ=1001f },
-            // 西: 主郭25.5 → 中段19.5 → 西低地11.5。北→南へ走る(左=東=高い側)。開口は北縁 z=1043
+            // ⚠ 2026-08-16、**4本とも走りを反転した**(指図 其九「勾配は外向き」)。
+            //   駒のローカル箱は X[-2.40,0]・勾配は X=-2.40(底)→ -1.40(天端) の面に付く。
+            //   つまり**傾いた法は躯体の側**にあり、芯線(X=0)の面は鉛直。
+            //   旧向きは躯体を高い側の盛土に埋めていたので、露出していたのは鉛直面だけで、
+            //   石垣が「板」に見えていた。躯体が低い側=進行方向の左に来るよう反転する。
+            //   反転後: 芯線が高い側の縁、法肩 = 芯線 + 1.4×s(低い側へ)、法尻 = 芯線 + 2.4×s。
+            // 東: 主郭25.5 → 東中段19.5 → 表門前13.5。北→南へ走る(左=東=低い側)。開口は参道 z=1001
+            // ⚠ 走りは**敷地の境界まで**伸ばす(指図 其九)。旧値 z 947〜1056 は北で 30〜40m 足りず、
+            //   段の縁が北縁で土のまま露出していた。境界の z は多角形と x=const の交点から取る。
+            new Wall{ name="IG_E1", a=new Vector2(-455f, 1087.9f), b=new Vector2(-455f, 947f), coping=25.5f, sy=1.5f, gapZ=1001f, gapHalf=3.30f,
+                      na=new Vector2(-455f, 1056f), nb=new Vector2(-455f, 947f) },
+            new Wall{ name="IG_E2", a=new Vector2(-425f, 1095.9f), b=new Vector2(-425f, 947f), coping=19.5f, sy=1.5f, gapZ=1001f, gapHalf=3.30f,
+                      na=new Vector2(-425f, 1056f), nb=new Vector2(-425f, 947f) },
+            // 西: 主郭25.5 → 中段19.5 → 西低地11.5。南→北へ走る(左=西=低い側)。開口は北縁 z=1043
             // ⚠ 開口は v5 で 1036 → 1043 へ北へ寄せた。直階段(9〜12m)が長局棟・御用部屋棟に
             //   ぶつからないよう、石段を棟の北面(z=1037.08)より北へ移したため
-            new Wall{ name="IG_W1", a=new Vector2(-566f, 1052f), b=new Vector2(-566f, 949f), coping=25.5f, sy=1.5f, gapZ=1043f },
-            new Wall{ name="IG_W2", a=new Vector2(-592f, 1052f), b=new Vector2(-592f, 949f), coping=19.5f, sy=2.0f, gapZ=1043f },
+            new Wall{ name="IG_W1", a=new Vector2(-566f, 944.3f), b=new Vector2(-566f, 1069.8f), coping=25.5f, sy=1.5f, gapZ=1045.8f, gapHalf=2.32f,
+                      na=new Vector2(-566f, 949f), nb=new Vector2(-566f, 1052f) },
+            new Wall{ name="IG_W2", a=new Vector2(-592f, 942.6f), b=new Vector2(-592f, 1065.7f), coping=19.5f, sy=2.0f, gapZ=1045.8f, gapHalf=2.32f,
+                      na=new Vector2(-592f, 949f), nb=new Vector2(-592f, 1052f) },
         };
+    }
+
+    // =========================================================================
+    // 外周の土留め石垣(指図 其九 ①)
+    //
+    // 【相似スケール】localScale は **(s, s, s)**。(1, sy, 1) は石のテクスチャを縦に伸ばし、
+    //   勾配角を高さごとに変えてしまう(実測 7.1°〜26.6°)。相似なら勾配は一定 **14.04°**。
+    //     壁高 = 4.0×s ／ 底の厚み = 2.4×s ／ 天端の幅 = 1.4×s ／ coping = position.y + 4.0×s
+    //     ピッチ = 1.800×s(継ぎ目ごとに 0.20×s 重なる)
+    //
+    // 【据えは法肩から逆算する】其六 で確定した外周線(長屋の外壁面・土塀の面)は動かせない。
+    //     法肩 = 外周線 → 芯線 = 法肩 − 1.4×s(author する多角形) → 法尻 = 法肩 + 1.0×s
+    //   石垣の裾は外周線より 1.0×s だけ外へ出る。実際の縄張りも境界杭は法尻で取る。
+    //
+    // 【勾配は外向き】芯線側の面は鉛直で、勾配は躯体側=進行方向の左に付く。
+    //   よって **outw が走りの左に来るよう a→b の向きを決める**(必要なら run を反転)。
+    // =========================================================================
+    /// <summary>run のピボット線 → 外周線(法肩) の符号付きオフセット(外向きが ＋)。
+    /// **実測値**(2026-08-16、部材の頂点を run 線へ射影して測った):
+    ///   長屋   外面 −1.044 ／ 内面 −5.396（躯体は run 線の内側に丸ごと収まる）
+    ///   築地塀 外面 +0.575 ／ 内面 −0.775（在庫の2枚重ね。幅 1.35）
+    ///   竹垣   ±0.026
+    /// ⚠ 以前 1.632 を「run 線から外周線まで」と書いていたが、あれは**長屋の面と塀の面の差**
+    ///   (1.044 + 0.575 = 1.619)で、run 線からの距離ではなかった。
+    /// 長屋は外壁面を法肩と面一に、塀は外面を法肩から 0.30(犬走り)控える。</summary>
+    public static float FaceOff(Kakoi k)
+    {
+        if (k == Kakoi.Nagaya) return -1.044f;          // 面一
+        if (k == Kakoi.Tsuiji) return 0.575f + 0.30f;   // 外面 + 犬走り
+        if (k == Kakoi.None) return 0f;                 // 囲い無し。外周線 = 敷地境そのもの
+        return 0.30f;                                   // 竹垣
+    }
+    public struct PWall { public string run, name; public float s; }
+    public static PWall[] PerimeterWalls()
+    {
+        // s は「天端 − 外6m の自然地盤」を 0.25 刻みで切り上げたもの(指図 其九 表①)
+        return new[] {
+            new PWall{ run="Hei_S_Cd", name="IG_S_Cd", s=0.75f },   // 必要 2.25 → 壁高 3.0
+            new PWall{ run="Hei_S_Sk", name="IG_S_Sk", s=1.50f },   //      5.57 →      6.0
+            new PWall{ run="Hei_S_Te", name="IG_S_Te", s=0.50f },   //      1.81 →      2.0
+            new PWall{ run="Hei_S_Mz", name="IG_S_Mz", s=0.50f },   //      1.42 →      2.0
+            new PWall{ run="NG_E_S",   name="IG_E_S",  s=0.50f },   //      1.54 →      2.0
+            new PWall{ run="Take_W3",  name="IG_W3",   s=0.75f },   //      2.42 →      3.0
+        };
+    }
+    /// <summary>その run に付く外周石垣の s。付かない run は 0(芯線 = 外周線)。</summary>
+    public static float WallScaleFor(string runName)
+    {
+        foreach (var q in PerimeterWalls()) if (q.run == runName) return q.s;
+        return 0f;
     }
 
     // =========================================================================
@@ -190,6 +259,11 @@ public static class EdoOkabeYashikiBuilder
             KO(WGz(-586.546f, -584.728f, 49, 52, 19.5f, "LW_Kita8"), 2), // 3間 長局棟の北西 → 北へ振る
             WGz(-592.0f, -586.546f, 51, 52, 19.5f, "LW_Kita9"),          // 3間 西へ → 登廊W2の上端
             KO(WGz(-605.818f, -604.0f, 49, 52, 11.5f, "LW_Kita10"), 1),  // 3間 御用部屋棟 → 登廊W2の下端
+            // 方針B(指図 其十 ②) — 登廊に踊り場が付いて下端が西へ出たぶんを継ぐ。
+            // 既存の LW_Kita7/10 は棟に取り付いているので動かさず、**東西の継ぎ足し**で延ばす。
+            // 帯は登廊と同じ V51..52(= 階段廊下の一間)。長さは踊り場の間数と同じ。
+            WGz(-578.636f, -575.0f, 51, 52, 19.5f, "LW_Kita7b"),         // 2間 登廊W1の下端 → LW_Kita7
+            WGz(-609.454f, -604.0f, 51, 52, 11.5f, "LW_Kita10b"),        // 3間 登廊W2の下端 → LW_Kita10
             // ⚠ v5: 石段に取り付いていた LW_Kita2/3/6(と v4 の LW_Kita5)は全部廃した。
             //   **郭をまたぐ石段は廊下ではなく屋外の通路**へ改めたため(指図 v5)。
             //   直階段は法面ごと棟の北へ寄せてあり、旧リンクの位置は今は法面の中にある。
@@ -226,8 +300,9 @@ public static class EdoOkabeYashikiBuilder
     // 石垣の背後だけ NORI_FEATHER で下段へ落とす。合わせて 2*(3.5+1.5)=10m ＝ 石垣の開口±5.0m。
     // ⚠ ハイトマップは約2m刻みなので、フェザーを 0 にしても地形は 2m かけて落ちる。
     //   石垣を平場の縁(段の芯±3.5m)へ置くのは、その甘い縁を隠して稜線を立てるため。
-    public const float NORI_HALF = 3.1f;             // 段の芯から**土留めの内面**まで(指図 其七で 2.2→3.1)
-    // 4.4m では屋根の軒(片側1.509)と石段(1.98)が並ばず 0.48m かぶっていた
+    // ⚠ NORI_HALF はグローバル定数をやめ **Kai.noriHalf** へ移した(指図 其十 ②)。
+    //   其七 の 3.1 は「幅6.2mの法面に石階段と木階段を並べて入れる」という前提の値だったが、
+    //   その前提自体がユーザー裁定で撤回された(法面は石階段だけのもの)。東 2.58 / 西 1.60。
     public const float SAKA_T = 0.72f;               // 坂の土留め部材の厚み(笠石を含む)
     public const float NORI_FEATHER = 1.5f;          // 土留めの内面から下段へ落とす幅
     // ⚠ 平場は土留めの**内面**(NORI_HALF)で止める。ハイトマップは約2m刻みで垂直な縁を
@@ -241,6 +316,12 @@ public static class EdoOkabeYashikiBuilder
     public struct Kai
     {
         public float xTop, xBot, z0, z1, yTop, yBot; public string name;
+        /// <summary>法面の芯から**土留めの内面**まで(指図 其十 ②)。東西で値が違うのでグローバル定数をやめた。
+        /// 石段の幅の半分 + 肩 0.60。東 = 1.98 + 0.60 = 2.58 / 西 = 0.99 + 0.60 = 1.59 → 1.60。</summary>
+        public float noriHalf;
+        /// <summary>登廊の踊り場の間数(方針B)。石垣の**法尻まで水平に渡ってから**降り始める。
+        /// 床は坂上で天端 +0.62 しかないので、そのまま降りると天端より下へ潜って跨げない。</summary>
+        public int odoriKen;
         /// <summary>登廊(屋根付きの階段廊下)にする段は、屋根FBXのタグを入れる。
         /// 表門からの参道(E1/E2)は**公的動線なので屋根を架けない** — 前庭は開けた白洲。
         /// 屋根を架けるのは郭と郭を結ぶ内部動線(W1/W2)だけ。</summary>
@@ -250,17 +331,29 @@ public static class EdoOkabeYashikiBuilder
         /// <summary>走り方向の正規化位置(0=上端 1=下端)。範囲外は clamp しない</summary>
         public float U(float x) { return (x - xTop) / (xBot - xTop); }
         public float Level(float u) { return Mathf.Lerp(yTop, yBot, Mathf.Clamp01(u)); }
+        /// <summary>法面(盛土)の芯。石段の芯と同じ。</summary>
+        public float NoriZ { get { return (z0 + z1) * 0.5f; } }
+        /// <summary>石垣の開口の半幅 = 芯 → 坂の土留めの**外面**。</summary>
+        public float GapHalf { get { return noriHalf + SAKA_T; } }
+        // ---- 登廊(方針B) ----
+        /// <summary>踊り場の外端 = 降り始める x。石垣の法尻より外。</summary>
+        public float NbTop { get { return xTop + Mathf.Sign(xBot - xTop) * odoriKen * KEN; } }
+        /// <summary>登廊の下端。踊り場のぶんだけ石段より外へ出る。</summary>
+        public float NbBot { get { return NbTop + (xBot - xTop); } }
     }
+    // 石段は**東=段板2枚(3.96m)の参道 / 西=1枚(1.98m)** で、肩は左右 0.60m(指図 其十 ②)。
+    // 西は登廊の帯(下郭のマス目 V51..52)を動かせないので、**法面のほうを北へ 2.80m 移した**。
+    //   屋根の北軒 1043.19 → 南の土止めの外面 1043.48(犬走り 0.29)→ 内面 1044.20
+    //   → 石段 1044.81〜1046.79(芯 1045.80) → 北の土止め 内面 1047.40 / 外面 1048.12
     public static Kai[] Kaidans()
     {
         return new[] {
-            // 東: 表門からの参道。石垣の開口(z=1001)を出て下段へ 9m で降りる
-            new Kai{ name="Ishidan_E1", xTop=-455f,   xBot=-446f,   z0=999f,  z1=1003f, yTop=25.5f, yBot=19.5f },
-            new Kai{ name="Ishidan_E2", xTop=-425f,   xBot=-416f,   z0=999f,  z1=1003f, yTop=19.5f, yBot=13.5f },
-            // 西: 郭の北縁。**長局棟・御用部屋棟の北面(z=1037.08)より北**へ寄せてある —
-            //     直階段は 9m/12m あり、旧位置(z 1034..1038)では棟に刺さる
-            new Kai{ name="Ishidan_W1", xTop=-566f,   xBot=-575f,   z0=1041f, z1=1045f, yTop=25.5f, yBot=19.5f, noboriro="W1" },
-            new Kai{ name="Ishidan_W2", xTop=-592f,   xBot=-604f,   z0=1041f, z1=1045f, yTop=19.5f, yBot=11.5f, noboriro="W2" },
+            // 東: 表門からの参道。石垣の開口(芯 z=1001)を出て下段へ 9m で降りる。登廊は架けない
+            new Kai{ name="Ishidan_E1", xTop=-455f, xBot=-446f, z0=999f,    z1=1003f,   yTop=25.5f, yBot=19.5f, noriHalf=2.58f },
+            new Kai{ name="Ishidan_E2", xTop=-425f, xBot=-416f, z0=999f,    z1=1003f,   yTop=19.5f, yBot=13.5f, noriHalf=2.58f },
+            // 西: 郭の北縁。法面の芯 z=1045.80(旧 1043.00)。登廊は土止めの外(南)で柱に載る
+            new Kai{ name="Ishidan_W1", xTop=-566f, xBot=-575f, z0=1043.8f, z1=1047.8f, yTop=25.5f, yBot=19.5f, noriHalf=1.60f, noboriro="W1", odoriKen=2 },
+            new Kai{ name="Ishidan_W2", xTop=-592f, xBot=-604f, z0=1043.8f, z1=1047.8f, yTop=19.5f, yBot=11.5f, noriHalf=1.60f, noboriro="W2", odoriKen=3 },
         };
     }
 
@@ -283,19 +376,51 @@ public static class EdoOkabeYashikiBuilder
     // ⚠ 端数の位置に置くと取り付きの廊下がマス目に乗らず、階段の**側面**に付き当たる。
     //   側面には高欄が回っているので、寄せても通れない(ユーザー指摘 2026-08-15)。
     //   取り付きは必ず階段の**端**へ、同じ帯で、正面から継ぐこと。
-    const float NOBORI_Z = -1.373f;    // 段の芯(z=1043)から階段廊下の中心 1041.627 まで
-    const float ISHIDAN_Z = 1.60f;     // 段の芯から屋外の石段の中心まで(指図 其七で 0.70→1.60)
+    /// <summary>階段廊下の中心 z。**絶対値**で持つ(指図 其十 ②)。
+    /// 下郭のマス目 WG V51..52 = z 1040.718〜1042.536 の芯。法面の芯を動かしても、ここは動かさない —
+    /// 動かすと取り付きの廊下を全部引き直すことになる。屋根はここ ±1.565 = 1040.06〜1043.19。</summary>
+    const float NOBORI_ZC = 1041.627f;
+    // ⚠ ISHIDAN_Z は撤廃した(指図 其十 ②)。石段は**法面の芯そのもの**に置く。
+    //   其七 の +1.60 は「同じ法面に木階段を同居させる」前提のオフセットだった。
 
+    /// <summary>登廊(方針B・指図 其十 ②)。
+    ///
+    /// 【方針B】木階段は<b>盛土の坂に載せない</b>。石段の法面(両側を土留めで留めた盛土)は
+    ///   石階段だけのもので、木階段はその南を<b>柱で宙に浮いて</b>降りる(懸造り)。
+    ///   石垣には木階段のための開口を<b>開けない</b> — 天端を跨いで外へ出る。
+    ///
+    /// 【なぜ踊り場が要るか】床は坂上で 天端 +0.62 しかないので、そのまま 33.7° で降りると
+    ///   0.93m 進んだところで床が天端より下に潜り、跨げない。<b>石垣の法尻まで水平に渡ってから</b>
+    ///   降り始める。踊り場の柱は天端に、坂の柱は下郭の地面に立つ。</summary>
     static void Noboriro(Transform parent, Kai k)
     {
         if (string.IsNullOrEmpty(k.noboriro)) return;
         var g = new GameObject(k.name + "_Noboriro"); g.transform.SetParent(parent, false);
         Undo.RegisterCreatedObjectUndo(g, "noboriro");
-        float zc = (k.z0 + k.z1) * 0.5f + NOBORI_Z;
+        float zc = NOBORI_ZC;                                  // 帯は絶対値。法面の芯とは別物
         float pitch = Mathf.Atan2(k.Drop, k.Run) * Mathf.Rad2Deg;
         bool east = k.xBot > k.xTop;
+        float dir = Mathf.Sign(k.xBot - k.xTop);
+        float xNb = k.NbTop, xNbBot = k.NbBot;                 // 降り始め / 下端
+        float floorTop = k.yTop + GOTEN_FLOOR;
 
-        // 階段廊下(木の段)。原点は坂上・上段の廊下の床。走りはローカル -Z
+        // ---- 踊り場(水平) — 郭の縁から石垣の法尻まで。屋根つき一間の渡廊下 ----
+        if (k.odoriKen > 0)
+        {
+            float ox0 = Mathf.Min(k.xTop, xNb), oz0 = zc - KEN * 0.5f;
+            var od = EdoGotenKit.Roka(k.name + "_Odoriba", g.transform,
+                new Vector3(ox0, k.yTop, oz0), 0f, k.odoriKen, GOTEN_FLOOR,
+                koranS: true, koranN: true, colStart: false, colEnd: false);
+            Undo.RegisterCreatedObjectUndo(od, "odoriba");
+            // 束は入れない — 下は石垣の躯体なので、地面まで落とすと壁を貫く。
+            // 郭の縁の一対だけ天端に立てる
+            float sy0 = GOTEN_FLOOR / EdoAssets.Goten.DoorH;
+            for (int s0 = 0; s0 < 2; s0++)
+                Put(g.transform, EdoAssets.Goten.Column,
+                    new Vector3(k.xTop, k.yTop, zc + (s0 == 0 ? -KEN * 0.5f : KEN * 0.5f)), 0f, sy0);
+        }
+
+        // ---- 階段廊下(木の段) — 原点は坂上・上段の廊下の床。走りはローカル -Z ----
         var kr = AssetDatabase.LoadAssetAtPath<GameObject>(EdoAssets.Goten.KaidanRoka(k.Run, k.Drop));
         if (kr == null)
         {
@@ -306,24 +431,29 @@ public static class EdoOkabeYashikiBuilder
         {
             var go2 = (GameObject)PrefabUtility.InstantiatePrefab(kr, g.transform);
             Undo.RegisterCreatedObjectUndo(go2, "kaidanroka"); go2.name = "KaidanRoka";
-            go2.transform.position = new Vector3(k.xTop, k.yTop + GOTEN_FLOOR, zc);
+            go2.transform.position = new Vector3(xNb, floorTop, zc);
             go2.transform.rotation = Quaternion.Euler(0f, east ? 270f : 90f, 0f);
         }
-        // 柱 — 廊下の両縁。**法面から屋根裏まで一本**で通す(床下の束を兼ねる。
-        // 別に束を入れると柱の中に入って z-fighting する)。高欄は部材側が持っている
+        // ---- 柱 — 廊下の両縁。**地面から屋根裏まで一本**で通す(懸造り) ----
+        // ⚠ 旧版は法面(盛土)の上に 0.9m の束を立てていた。方針B では下に盛土が無いので、
+        //   下郭の地面まで通す。W1 で最長 6.6m、W2 で 8.6m になる。
         int n = Mathf.Max(2, Mathf.RoundToInt(k.Run / KEN));
-        float colH = 0.15f + GOTEN_FLOOR + EdoGotenKit.ROKA_EAVE + EdoGotenKit.ROKA_KETA;
+        float above = EdoGotenKit.ROKA_EAVE + EdoGotenKit.ROKA_KETA;   // 床から屋根裏まで
         for (int i = 0; i <= n; i++)
         {
             float u = (float)i / n;
-            float px = Mathf.Lerp(k.xTop, k.xBot, u), lv = k.Level(u);
+            float px = Mathf.Lerp(xNb, xNbBot, u), lv = k.Level(u) + GOTEN_FLOOR;
             for (int s2 = 0; s2 < 2; s2++)
-                Put(g.transform, EdoAssets.Goten.Column,
-                    new Vector3(px, lv - 0.15f, zc + (s2 == 0 ? -KEN * 0.5f : KEN * 0.5f)),
-                    0f, colH / EdoAssets.Goten.DoorH);
+            {
+                float pz = zc + (s2 == 0 ? -KEN * 0.5f : KEN * 0.5f);
+                float gy = G(px, pz);                       // 実際の地盤
+                float h = (lv + above) - gy;
+                if (h < 0.3f) continue;
+                Put(g.transform, EdoAssets.Goten.Column, new Vector3(px, gy, pz),
+                    0f, h / EdoAssets.Goten.DoorH);
+            }
         }
-        // 屋根 — 平らな切妻(幅一間)を斜長ぶん作ってあるので、勾配ぶん倒して据える。
-        // ピボットは廊下の中心・軒桁の高さ。倒すので軒も棟も坂と平行に走る
+        // ---- 屋根 — 平らな切妻(幅一間)を斜長ぶん作ってあるので、勾配ぶん倒して据える ----
         var roof = AssetDatabase.LoadAssetAtPath<GameObject>(EdoAssets.Goten.RoofNoboriro(k.noboriro));
         if (roof == null)
         {
@@ -332,10 +462,11 @@ public static class EdoOkabeYashikiBuilder
         }
         var go = (GameObject)PrefabUtility.InstantiatePrefab(roof, g.transform);
         Undo.RegisterCreatedObjectUndo(go, "roof"); go.name = "Roof";
-        go.transform.position = new Vector3((k.xTop + k.xBot) * 0.5f,
+        go.transform.position = new Vector3((xNb + xNbBot) * 0.5f,
             (k.yTop + k.yBot) * 0.5f + GOTEN_FLOOR + EdoGotenKit.ROKA_EAVE, zc);
         // Euler(0,yaw,roll) = Ry(yaw)*Rz(roll)。Rz が先に大棟を倒し、Ry が坂下へ向ける
         go.transform.rotation = Quaternion.Euler(0f, east ? 0f : 180f, -pitch);
+        if (dir == 0f) Debug.LogError("[Okabe] 登廊の走りが 0: " + k.name);
     }
 
     const float ROOF_RATIO = 0.5456f;   // 屋根の勾配比(build_goten_roof の RATIO)
@@ -349,8 +480,8 @@ public static class EdoOkabeYashikiBuilder
         {
             float u = k.U(wx);
             if (u < 0f || u > 1f) continue;
-            float zc = (k.z0 + k.z1) * 0.5f;
-            float dz = Mathf.Max(0f, Mathf.Abs(wz - zc) - NORI_HALF);
+            float zc = k.NoriZ;
+            float dz = Mathf.Max(0f, Mathf.Abs(wz - zc) - k.noriHalf);
             float w = Mathf.SmoothStep(0f, 1f, 1f - Mathf.Clamp01(dz / NORI_FEATHER));
             if (w <= best) continue;
             // 段の芯線(蹴上の中ほど)を地面にすると、踏面が 0.15 出て蹴上が見える
@@ -377,7 +508,7 @@ public static class EdoOkabeYashikiBuilder
         var outp = new List<SakaWall>();
         foreach (var k in Kaidans())
         {
-            float zc = (k.z0 + k.z1) * 0.5f;
+            float zc = k.NoriZ;
             // ⚠ 走りは部材のローカル **-Z**。Blender の +Y は Unity の -Z へ落ちる
             //   (export_fbx の axis_forward='-Z' / axis_up='Y')。+Z のつもりで yaw を
             //   決めると坂が逆へ伸びる(実際にやった)
@@ -385,7 +516,7 @@ public static class EdoOkabeYashikiBuilder
             string a = EdoAssets.Own.IshigakiSaka(k.Run, k.Drop);
             for (int side = 0; side < 2; side++)
             {
-                float zw = zc + (side == 1 ? 1f : -1f) * (NORI_HALF + HALF_T);
+                float zw = zc + (side == 1 ? 1f : -1f) * (k.noriHalf + HALF_T);
                 outp.Add(new SakaWall{ pos = new Vector3(k.xTop, k.yBot, zw), yaw = yaw,
                                        asset = a, name = k.name + (side == 1 ? "_N" : "_S") });
             }
@@ -441,7 +572,9 @@ public static class EdoOkabeYashikiBuilder
     //     典拠: 広重「赤坂桐畑」に対岸の木の柵。ただし寺群の囲いの可能性が高く類推にとどまる
     //   【典拠: 一般類型 / 当屋敷の一次史料は未確認】
     // =========================================================================
-    public enum Kakoi { Tsuiji = 0, Nagaya = 1, Takegaki = 2 }
+    /// <summary>None = **囲いを建てない辺**(指図 其十 ③)。土井邸との共有境界がこれ。
+    /// run そのものは残す — 造成が「境界の高さ」としてこの top を使うので、消すと法面の行き先が無くなる。</summary>
+    public enum Kakoi { Tsuiji = 0, Nagaya = 1, Takegaki = 2, None = 3 }
     public struct Run
     {
         public Vector2 a, b, outw; public string name;
@@ -479,13 +612,21 @@ public static class EdoOkabeYashikiBuilder
             // ---- 北東の隅切り〜北辺(隣地) 長屋塀。40m 以下に割る ----
             new Run{ name="NG_NE",    a=P[10], b=P[9], outw=eo(9), kind=Kakoi.Nagaya, top=13.5f },
             new Run{ name="NG_N1",    a=P[9],  b=P[8], outw=eo(8), kind=Kakoi.Nagaya, top=15.5f },
-            new Run{ name="NG_N2a", a=P[8], b=Vector2.Lerp(P[8],P[7],0.25f), outw=eo(7), kind=Kakoi.Nagaya, top=21.5f },
-            new Run{ name="NG_N2b", a=Vector2.Lerp(P[8],P[7],0.25f), b=Vector2.Lerp(P[8],P[7],0.50f), outw=eo(7), kind=Kakoi.Nagaya, top=26.0f },
-            new Run{ name="NG_N2c", a=Vector2.Lerp(P[8],P[7],0.50f), b=Vector2.Lerp(P[8],P[7],0.75f), outw=eo(7), kind=Kakoi.Nagaya, top=25.5f },
-            new Run{ name="NG_N2d", a=Vector2.Lerp(P[8],P[7],0.75f), b=Vector2.Lerp(P[8],P[7],0.88f), outw=eo(7), kind=Kakoi.Nagaya, top=21.0f },
-            new Run{ name="NG_N2e", a=Vector2.Lerp(P[8],P[7],0.88f), b=P[7], outw=eo(7), kind=Kakoi.Nagaya, top=15.5f },
-            new Run{ name="NG_N3a", a=P[7], b=Vector2.Lerp(P[7],P[6],0.5f), outw=eo(6), kind=Kakoi.Nagaya, top=12.5f },
-            new Run{ name="NG_N3b", a=Vector2.Lerp(P[7],P[6],0.5f), b=P[6], outw=eo(6), kind=Kakoi.Nagaya, top=9.0f },
+            // ---- 北辺 P[8]→P[7]→P[6] = **土井大隅守邸との共有境界。囲いを建てない** ----
+            // ⚠ 2026-08-16、ユーザー裁定で長屋を撤去した(指図 其十 ③)。
+            //   この3点は土井の区画 DOI[2]→[1]→[0] と**同一座標**で、土井側の Kakoi が
+            //   既にこの線の上に 1,330 部材を持っている(実測)。同じ境界に二重の塀が立っていた。
+            //   境界の塀は土井の所有 — 2026-08-12 の考証「土井S/岡部N境の塀=土井所有」に揃う。
+            // ⚠ **run は消さない**。造成(法面層)がこの top を「境界の高さ」として使う。
+            //   消すと敷地の北帯が行き先を失って素地形に戻る。名前も Sakai_ に改めて、
+            //   NG_(長屋)と取り違えて塀を建て直さないようにする。
+            new Run{ name="Sakai_N2a", a=P[8], b=Vector2.Lerp(P[8],P[7],0.25f), outw=eo(7), kind=Kakoi.None, top=21.5f },
+            new Run{ name="Sakai_N2b", a=Vector2.Lerp(P[8],P[7],0.25f), b=Vector2.Lerp(P[8],P[7],0.50f), outw=eo(7), kind=Kakoi.None, top=26.0f },
+            new Run{ name="Sakai_N2c", a=Vector2.Lerp(P[8],P[7],0.50f), b=Vector2.Lerp(P[8],P[7],0.75f), outw=eo(7), kind=Kakoi.None, top=25.5f },
+            new Run{ name="Sakai_N2d", a=Vector2.Lerp(P[8],P[7],0.75f), b=Vector2.Lerp(P[8],P[7],0.88f), outw=eo(7), kind=Kakoi.None, top=21.0f },
+            new Run{ name="Sakai_N2e", a=Vector2.Lerp(P[8],P[7],0.88f), b=P[7], outw=eo(7), kind=Kakoi.None, top=15.5f },
+            new Run{ name="Sakai_N3a", a=P[7], b=Vector2.Lerp(P[7],P[6],0.5f), outw=eo(6), kind=Kakoi.None, top=12.5f },
+            new Run{ name="Sakai_N3b", a=Vector2.Lerp(P[7],P[6],0.5f), b=P[6], outw=eo(6), kind=Kakoi.None, top=9.0f },
             // ---- 西辺(溜池・庭園帯) 竹垣 ----
             new Run{ name="Take_W1", a=P[6], b=P[5], outw=eo(5), kind=Kakoi.Takegaki, top=8.7f },
             new Run{ name="Take_W2", a=P[5], b=P[4], outw=eo(4), kind=Kakoi.Takegaki, top=8.5f },
@@ -493,8 +634,10 @@ public static class EdoOkabeYashikiBuilder
         };
     }
 
+    // 着工前の地形。**無ければ書き、あれば触らない**(Stage0_Backup)。
+    // v12 = 指図 其十 の造成やり直しの直前(2026-08-16 20:0x)に取ったもの。
     static string BAK = "/private/tmp/claude-501/-Users-toshio-project-edo-unity/"
-        + "6f211ef3-6621-4f4a-ae6a-1157788d871a/scratchpad/okabe_v5_backup.bin";
+        + "76eabbdb-8a14-44cf-9da1-c2e82fcacb00/scratchpad/okabe_before_v12.bin";
     // 廊下・参道の部材は EdoAssets.Goten(御殿と同じキット)。Village Kit の床・柱・屋根は
     // v4 で全廃した — 御殿と並べると質が揃わない、というユーザー裁定(2026-08-15)
     const string PStep = EdoAssets.Own.DanishiStep;
@@ -528,26 +671,113 @@ public static class EdoOkabeYashikiBuilder
     // =========================================================================
     // Stage 0/1: バックアップと段の造成
     // =========================================================================
+    /// <summary>着工前の地形を .bin へ。**無いときだけ書く**(指図 其十 ①)。
+    /// ⚠ 旧版は走るたび上書きしていたので、造成済みの(壊れた)地形がバックアップに化けていた
+    ///   — 実際 2026-08-16 16:48 の版は既に造成後の地形だった。バックアップは一度きり。</summary>
     public static string Stage0_Backup()
     {
+        if (System.IO.File.Exists(BAK)) return "backup: 既にある(上書きしない) " + BAK;
         var t = Terrain.activeTerrain; var td = t.terrainData;
         int hres = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size;
         Func<float, int> IX = wx => Mathf.Clamp(Mathf.RoundToInt((wx - tp.x) / ts.x * (hres - 1)), 0, hres - 1);
         Func<float, int> IZ = wz => Mathf.Clamp(Mathf.RoundToInt((wz - tp.z) / ts.z * (hres - 1)), 0, hres - 1);
-        int bx0 = IX(-700f), bx1 = IX(-370f), bz0 = IZ(930f), bz1 = IZ(1100f);
+        // 窓は Stage1_Grade と揃える(揃えないと造成した外側を戻せない)
+        int bx0 = IX(-700f), bx1 = IX(-366f), bz0 = IZ(930f), bz1 = IZ(1102f);
         int bw = bx1 - bx0 + 1, bh = bz1 - bz0 + 1;
         var bak = td.GetHeights(bx0, bz0, bw, bh);
+        var dir = System.IO.Path.GetDirectoryName(BAK);
+        if (!System.IO.Directory.Exists(dir)) System.IO.Directory.CreateDirectory(dir);
         using (var w = new System.IO.BinaryWriter(System.IO.File.Open(BAK, System.IO.FileMode.Create)))
         { w.Write(bx0); w.Write(bz0); w.Write(bw); w.Write(bh);
           for (int z = 0; z < bh; z++) for (int x = 0; x < bw; x++) w.Write(bak[z, x]); }
         return "backup " + bw + "x" + bh;
     }
 
+    // =========================================================================
+    // 設計面(指図 其十 ①) — 敷地の**内側 100%** に高さを与える三層。
+    //
+    //   ① 段(Terraces)      … 矩形の中は設計値そのまま
+    //   ② 外周帯(BAND_FLAT) … 石垣の芯線から内へ 9m は run の天端で平ら
+    //   ③ **法面**(新設)    … ①にも②にも属さない所は、
+    //                          「最寄りの段の高さ」と「最寄りの run の天端」を距離で内挿する
+    //
+    // 【なぜ③が要るか】旧版は①②の外を `continue` で**一度も触らなかった**。段の矩形は
+    //   z 946〜1058 / x −647〜−374 しかないのに敷地は z 936.8〜1096.3 / x −694.7〜−373 で、
+    //   北で最大 38m・西で最大 43m が素地形のまま残り、段の縁と生地形が垂直にぶつかっていた。
+    //   これが「地形の変な隆起や窪み」(下書き赤)と「西低地から溜池への段差」(同 白)の正体。
+    //
+    // 【帯は線分から測る】旧版の帯の判定は run の**直線**からの符号付き距離 din だけで、
+    //   線分の範囲を見ていなかった。din は run の走り方向へ無限に伸びるので、ボロノイ胞が
+    //   郭の中央まで届く北辺の斜めの run が、その天端(12.5 / 15.5)を主郭の中まで引き込み、
+    //   主郭を斜めに 8m 掘っていた(溝A・溝B)。**max(din, bd)** で測れば線分から離れた時点で
+    //   帯を外れる。
+    // =========================================================================
+    public const float BAND_FLAT = 9f;      // 芯線から内へ、run の天端で平らにする幅
+
+    /// <summary>隣地と地続きの辺(Kakoi.None)の境界高さ。**相手の地面に合わせる**。
+    ///
+    /// 塀が無い以上、こちらと向こうの地面は連続していなければならない。run ごとに一定の天端を
+    /// 使うと、隣り合う run の継ぎ目に段差が立つ(実測: <c>Sakai_N2a</c> 21.5 と <c>N2b</c> 26.0 の
+    /// 継ぎ目に 4.5m)。境界の最寄り点から**外へ 6m** の実地形を拾えば、土井側の地面
+    /// (18.7 → 26.6 → 14.1 → 9.5)へなめらかに擦り付く。
+    ///
+    /// ⚠ 造成の窓は敷地多角形の内側だけなので、外 6m の地形は**こちらの造成で動かない**。
+    ///   よって DesignY は依然として冪等。</summary>
+    static float BoundaryY(Run r, Vector2 p)
+    {
+        var d = r.b - r.a; float L = d.magnitude; if (L < 1e-4f) return r.top;
+        d /= L;
+        float u = Mathf.Clamp(Vector2.Dot(p - r.a, d), 0f, L);
+        var q = r.a + d * u + r.outw * 6f;
+        return G(q.x, q.y);
+    }
+
+    /// <summary>敷地内の一点の設計高さ。**現況の地形に一切依存しない絶対値**
+    /// (隣地と地続きの辺だけは相手の地面を読むが、そこは造成の窓の外なので動かない)。
+    /// これが冪等性の根拠 — 何度造成しても同じ結果になる。</summary>
+    public static float DesignY(Vector2 p)
+    {
+        var runs = Runs(); var terr = Terraces();
+        // ---- 最寄りの run(ボロノイ)と、その芯線から内への距離 ----
+        int bi = 0; float bd = float.MaxValue;
+        for (int i = 0; i < runs.Length; i++)
+        { float dd = DistSeg(p, runs[i].a, runs[i].b); if (dd < bd) { bd = dd; bi = i; } }
+        float rcore = FaceOff(runs[bi].kind) - 1.4f * WallScaleFor(runs[bi].name);
+        float din = rcore - Vector2.Dot(p - runs[bi].a, runs[bi].outw);
+        // 帯の内縁からの距離。**max(din, bd)** が肝 — bd を噛ませることで
+        // 「直線の帯だが線分からは遠い」セルを弾く
+        float dInner = Mathf.Max(0f, Mathf.Max(din, bd) - BAND_FLAT);
+        float yR = runs[bi].kind == Kakoi.None ? BoundaryY(runs[bi], p) : runs[bi].top;
+        // ---- 最寄りの段(矩形)と、そこまでの距離(中にいれば 0) ----
+        float yT = 0f, dT = float.MaxValue;
+        foreach (var tr in terr)
+        {
+            float dx = Mathf.Max(Mathf.Max(tr.x0 - p.x, p.x - tr.x1), 0f);
+            float dz = Mathf.Max(Mathf.Max(tr.z0 - p.y, p.y - tr.z1), 0f);
+            float d = Mathf.Sqrt(dx * dx + dz * dz);
+            if (d < dT) { dT = d; yT = tr.y; }
+        }
+        // ---- 三層の合成 ----
+        // dT=0 かつ dInner>0 → 段の中     / dInner=0 かつ dT>0 → 帯の中
+        // どちらも >0 → 法面(距離で内挿) / どちらも 0 → 帯と段が重なる所(天端は一致させてある)
+        float y = (dT + dInner < 1e-4f) ? yT : Mathf.Lerp(yT, yR, dT / (dT + dInner));
+        // ---- 石段の法面(盛土の楔) — 段の上に重ねる ----
+        float nori; float wn = NoriHeight(p.x, p.y, out nori);
+        if (wn > 0f) y = Mathf.Lerp(y, nori, wn);
+        return y;
+    }
+
+    /// <summary>造成。**設計面へ一発で持っていく**(指図 其十 ①)。
+    ///
+    /// ⚠ 旧版には二つの履歴依存があり、一度壊れた地形が自己修復しなかった:
+    ///   ・<c>Clamp(best, cur−5.5, cur+5.0)</c> … 現況からの差分で頭打ち。8m の溝は 5m しか埋まらない
+    ///   ・<c>OKABE_GRADED_vNN</c> マーカー   … 二回目以降は SKIP。実質一回きり
+    ///   設計面が絶対値になった以上どちらも不要。**切盛の量は報告するだけ**にする。</summary>
     public static string Stage1_Grade()
     {
-        var mk = GameObject.Find("OKABE_GRADED_v10");
-        if (mk != null) return "grade: SKIP (already graded v10)";
-        foreach (var nm in new[] { "OKABE_GRADED_v4", "OKABE_GRADED_v5", "OKABE_GRADED_v6", "OKABE_GRADED_v7", "OKABE_GRADED_v8", "OKABE_GRADED_v9" })
+        // 旧マーカーは掃除する(もう使わない)
+        foreach (var nm in new[] { "OKABE_GRADED_v4", "OKABE_GRADED_v5", "OKABE_GRADED_v6", "OKABE_GRADED_v7",
+                                   "OKABE_GRADED_v8", "OKABE_GRADED_v9", "OKABE_GRADED_v10", "OKABE_GRADED_v11" })
         { var o = GameObject.Find(nm); if (o != null) UnityEngine.Object.DestroyImmediate(o); }
         var t = Terrain.activeTerrain; var td = t.terrainData;
         int hres = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size;
@@ -555,61 +785,56 @@ public static class EdoOkabeYashikiBuilder
         Func<float, int> IZ = wz => Mathf.Clamp(Mathf.RoundToInt((wz - tp.z) / ts.z * (hres - 1)), 0, hres - 1);
         Func<int, float> WX = ix => tp.x + ix * ts.x / (hres - 1);
         Func<int, float> WZ = iz => tp.z + iz * ts.z / (hres - 1);
-        Func<float, float> HtoW = hn => hn * ts.y + tp.y;
-        Func<float, float> WtoH = wy => (wy - tp.y) / ts.y;
-        var terr = Terraces();
-        int x0 = IX(-660f), x1 = IX(-368f), z0 = IZ(938f), z1 = IZ(1070f);
+        // 窓は敷地の外接矩形を丸ごと覆う
+        int x0 = IX(-700f), x1 = IX(-366f), z0 = IZ(930f), z1 = IZ(1102f);
         int w = x1 - x0 + 1, h = z1 - z0 + 1;
         var H = td.GetHeights(x0, z0, w, h);
         int n = 0; float cmax = 0, fmax = 0;
         for (int z = 0; z < h; z++) for (int x = 0; x < w; x++)
         {
-            float wx = WX(x0 + x), wz = WZ(z0 + z);
-            var p = new Vector2(wx, wz);
-            if (!B.PIP(SK.OKABE, p)) continue;
-            // 隣地の囲い(土井/松平所有)がある辺 4..7 は 9m あける。
-            // ⚠ 他の辺は **0m** — 境界の足元まで均す(指図 其六 ①)。
-            //   1.4m 残していたため外周の囲いだけが生地形に載り、一本の run で天端が
-            //   最大 17.7m 振れていた(2026-08-15)。塀・長屋は郭の高さに据えるので、
-            //   その足元まで郭の高さで均さないと浮くか埋まる
-            float em = float.MaxValue;
-            for (int i = 0; i < SK.OKABE.Length; i++)
-                em = Mathf.Min(em, DistSeg(p, SK.OKABE[i], SK.OKABE[(i + 1) % SK.OKABE.Length]) - ((i >= 4 && i <= 7) ? 9f : 0f));
-            if (em < 0f) continue;
-            // どの段に属するか + 段の内側への距離
-            float best = -1f, bestD = -1f;
-            foreach (var tr in terr)
-            {
-                if (wx < tr.x0 || wx > tr.x1 || wz < tr.z0 || wz > tr.z1) continue;
-                float d = Mathf.Min(Mathf.Min(wx - tr.x0, tr.x1 - wx), Mathf.Min(wz - tr.z0, tr.z1 - wz));
-                if (d > bestD) { bestD = d; best = tr.y; }
-            }
-            if (best < 0f) continue;
-            // 段の境目では隣の段と噛み合うので、フェザーは段の縁3m + 敷地際4m だけ
-            float k = Mathf.SmoothStep(0f, 1f, Mathf.Min(Mathf.Clamp01(bestD / 3f + 0.34f), Mathf.Clamp01(em / 4f)));
-            // 石段の法面(v5) — 下段の上に盛土の楔を作る。段が宙に浮かないための地面なので
-            // 段の縁フェザーも切盛の上限も効かせない(ここは最大8mの盛土になる)
-            float nori; float wn = NoriHeight(wx, wz, out nori);
-            if (wn > 0f) { best = Mathf.Lerp(best, nori, wn); k = Mathf.Max(k, wn); }
-            if (k <= 0.001f) continue;
-            float cur = HtoW(H[z, x]);
-            // 石垣の近傍は clamp しない — 地面を壁に合わせる(unity-modular-stonewall §3)
-            bool nearWall = wn > 0f;
-            if (!nearWall) foreach (var wl in Walls()) if (DistSeg(p, wl.a, wl.b) < 7f) { nearWall = true; break; }
-            float tgt = nearWall ? best : Mathf.Clamp(best, cur - CUT_MAX, cur + FILL_MAX);
-            float nw = Mathf.Lerp(cur, tgt, k);
-            if (nw < cur) cmax = Mathf.Max(cmax, cur - nw); else fmax = Mathf.Max(fmax, nw - cur);
-            H[z, x] = WtoH(nw); n++;
+            var p = new Vector2(WX(x0 + x), WZ(z0 + z));
+            if (!B.PIP(SK.OKABE, p)) continue;          // 敷地の外は一切触らない
+            float cur = H[z, x] * ts.y + tp.y;
+            float y = DesignY(p);
+            if (y < cur) cmax = Mathf.Max(cmax, cur - y); else fmax = Mathf.Max(fmax, y - cur);
+            H[z, x] = (y - tp.y) / ts.y; n++;
         }
         td.SetHeightsDelayLOD(x0, z0, H); td.SyncHeightmap();
-        // ⚠ マーカーは active のままにする。GameObject.Find は非アクティブを見つけないので
-        //    SetActive(false) にするとガードが毎回すり抜けて多重造成する(2026-08-14 に実際に起きた)。
-        // ⚠ ここの版数は上のガード(GameObject.Find)と**必ず揃える**。
-        //   v5〜v8 の間、ガードだけ上げて生成側が v4 のままになっており、
-        //   造成が毎回走っていた(結果は冪等なので実害は無かったが、遅い)
-        mk = new GameObject("OKABE_GRADED_v10");
-        var yg = GameObject.Find(GN); if (yg != null) mk.transform.SetParent(yg.transform, false);
-        return "grade cells=" + n + " cutMax=" + cmax.ToString("F2") + " fillMax=" + fmax.ToString("F2");
+        // ⚠ ここで出るのは「**いまの地形からの移動量**」であって切盛量ではない。壊れた地形を
+        //   直す回は大きく出るのが正しい。設計の妥当性(切盛が 1〜4m に収まるか)は
+        //   **設計面 vs 素地形**で見ること — 指図 其十 ①の表がそれ。
+        return "grade cells=" + n + " 今回の移動量: 下げ最大=" + cmax.ToString("F2") + " 上げ最大=" + fmax.ToString("F2");
+    }
+
+    /// <summary>造成の検査(指図 其十 ①)。敷地内の全セルで |地形 − 設計面| を測る。
+    /// PerimeterQA(天端)・GroundQA(足元)・GateQA・JointQA に次ぐ **5 本目の軸**。
+    /// これが無いと「直したはずが直っていない」を目視で見逃す。</summary>
+    [MenuItem("Edo/岡部筑前守上屋敷/造成を検査 GradeQA")]
+    public static void GradeQAMenu() { Debug.Log("[Okabe] " + GradeQA()); }
+    public static string GradeQA()
+    {
+        const float TOL = 0.30f;
+        var t = Terrain.activeTerrain; var td = t.terrainData;
+        int hres = td.heightmapResolution; Vector3 tp = t.transform.position, ts = td.size;
+        // ⚠ **ハイトマップの格子の上で測る**。SampleHeight を任意の座標で呼ぶと双一次補間が
+        //   入り、石垣の線や石段の法面のような急な段で 0.1m のズレが 2m の差に化ける
+        //   (実測: 格子から 0.12m ずらして測っただけで 228 セルが「超過」に見えた)。
+        Func<float, int> IX = wx => Mathf.Clamp(Mathf.RoundToInt((wx - tp.x) / ts.x * (hres - 1)), 0, hres - 1);
+        Func<float, int> IZ = wz => Mathf.Clamp(Mathf.RoundToInt((wz - tp.z) / ts.z * (hres - 1)), 0, hres - 1);
+        int x0 = IX(-700f), x1 = IX(-366f), z0 = IZ(930f), z1 = IZ(1102f);
+        var H = td.GetHeights(x0, z0, x1 - x0 + 1, z1 - z0 + 1);
+        int bad = 0, all = 0; float mx = 0f; Vector2 worst = Vector2.zero;
+        for (int z = 0; z <= z1 - z0; z++) for (int x = 0; x <= x1 - x0; x++)
+        {
+            var p = new Vector2(tp.x + (x0 + x) * ts.x / (hres - 1), tp.z + (z0 + z) * ts.z / (hres - 1));
+            if (!B.PIP(SK.OKABE, p)) continue;
+            all++;
+            float d = Mathf.Abs((H[z, x] * ts.y + tp.y) - DesignY(p));
+            if (d > TOL) bad++;
+            if (d > mx) { mx = d; worst = p; }
+        }
+        return string.Format("造成QA 敷地内 {0} セル / 許容 {1:F2}m ｜ 超過 {2} ({3:F1}%) 最大 {4:F2}m @({5:F0},{6:F0}) {7}",
+            all, TOL, bad, bad * 100f / Mathf.Max(1, all), mx, worst.x, worst.y, bad > 0 ? "✗" : "✔");
     }
 
     // =========================================================================
@@ -717,6 +942,7 @@ public static class EdoOkabeYashikiBuilder
         foreach (var r in Runs())
         {
             if ((r.b - r.a).magnitude < 6f) continue;
+            if (r.kind == Kakoi.None) continue;         // 隣地との共有境界。囲いは相手の所有(指図 其十 ③)
             if (r.kind == Kakoi.Nagaya)
             { var l = NT.NagayaRun(kak, r.a, r.b, r.outw, r.top, Vector2.zero, -1, r.name); nm += l.Count; }
             else if (r.kind == Kakoi.Tsuiji)
@@ -993,6 +1219,78 @@ public static class EdoOkabeYashikiBuilder
         return sb.ToString();
     }
 
+    /// <summary>足元の検査(指図 其九)。PerimeterQA(天端の振れ)・GateQA・JointQA に次ぐ **4本目の軸**。
+    /// 天端QA が通ったまま 19 run 中 17 run が地面から外れていた — 天端だけ見ても足元は分からない。
+    ///   ・囲いの部材: 底面 Y − 地形(外+2.5m / 内−2.5m)。許容 0.30m
+    ///   ・外周石垣  : 露出高 = 天端 − 法尻位置の地形。壁高の 25% 以上、かつ 1.0m 以上
+    /// </summary>
+    [MenuItem("Edo/岡部筑前守上屋敷/足元を検査 GroundQA")]
+    public static void GroundQAMenu() { Debug.Log("[Okabe] " + GroundQA()); }
+    public static string GroundQA()
+    {
+        const float TOL = 0.30f, PROBE = 2.5f;
+        var yg = GameObject.Find(GN); if (yg == null) return "足元QA: グループが無い";
+        var kak = yg.transform.Find("Kakoi"); if (kak == null) return "足元QA: Kakoi が無い";
+        var runs = Runs();
+        var worst = new Dictionary<string, float>(); var wname = new Dictionary<string, string>();
+        foreach (Transform c in kak)
+        {
+            if (!c.gameObject.activeInHierarchy) continue;
+            string nm = null;
+            foreach (var r in runs)
+                if (c.name.StartsWith(r.name) && (nm == null || r.name.Length > nm.Length)) nm = r.name;
+            if (nm == null) continue;
+            Vector2 outw = Vector2.zero, ra = Vector2.zero; float core = 0f;
+            foreach (var r in runs) if (r.name == nm)
+            { outw = r.outw; ra = r.a; core = FaceOff(r.kind) - 1.4f * WallScaleFor(r.name); break; }
+            var bb = B.RB(c.gameObject); if (bb.size == Vector3.zero) continue;
+            var ctr = new Vector2(bb.center.x, bb.center.z);
+            // ⚠ **芯線から内へ 2.5m** を測る。部材の中心から内へ 2.5m ではない。
+            //   外向きは測らない — 芯線より外は石垣の躯体か素の地形で、部材の底と揃って
+            //   いないのが当たり前(揃っていたら石垣が要らない)。外側は下の「露出」が受け持つ。
+            //   部材中心から測ると、石垣の天端の下(= 石垣が覆い隠す素地)を拾って誤判定する。
+            float sdc = Vector2.Dot(ctr - ra, outw);
+            var s0 = ctr + outw * ((core - PROBE) - sdc);
+            float dmax = bb.min.y - G(s0.x, s0.y);
+            if (!worst.ContainsKey(nm) || Mathf.Abs(dmax) > Mathf.Abs(worst[nm]))
+            { worst[nm] = dmax; wname[nm] = c.name; }
+        }
+        var sb = new System.Text.StringBuilder("足元QA 囲い run=" + worst.Count + " 許容" + TOL.ToString("F2") + "m\n");
+        int bad = 0;
+        foreach (var r in runs)
+        {
+            if (!worst.ContainsKey(r.name)) continue;
+            float d = worst[r.name]; bool ng = Mathf.Abs(d) > TOL; if (ng) bad++;
+            sb.AppendLine(string.Format("  {0,-9} {1,6:F2}m {2} {3} ({4})",
+                r.name, d, d > 0 ? "浮き" : "埋没", ng ? "✗" : "✔", wname[r.name]));
+        }
+        sb.AppendLine("  → 超過 " + bad + " / " + worst.Count);
+        // ---- 外周石垣の露出 ----
+        var byName = new Dictionary<string, Run>(); foreach (var r in runs) byName[r.name] = r;
+        sb.AppendLine("外周石垣の露出(壁高の25%以上 かつ 1.0m 以上)");
+        int badw = 0;
+        foreach (var q in PerimeterWalls())
+        {
+            Run r; if (!byName.TryGetValue(q.run, out r)) continue;
+            Vector2 d0 = (r.b - r.a); float L = d0.magnitude; d0 /= L;
+            Vector2 core = r.a + r.outw * (FaceOff(r.kind) - 1.4f * q.s);
+            float lo = float.MaxValue, hi = float.MinValue;
+            for (int i = 0; i <= 20; i++)
+            {
+                var p = core + d0 * (L * i / 20f) + r.outw * (2.4f * q.s);   // 法尻
+                float e = r.top - G(p.x, p.y);
+                lo = Mathf.Min(lo, e); hi = Mathf.Max(hi, e);
+            }
+            float need = Mathf.Max(1.0f, 4f * q.s * 0.25f);
+            bool ng = lo < need; if (ng) badw++;
+            sb.AppendLine(string.Format("  {0,-9} s={1:F2} 壁高{2,4:F1} 露出 {3,5:F2}〜{4,5:F2}m 要{5:F2} {6}",
+                q.name, q.s, 4f * q.s, lo, hi, need, ng ? "✗" : "✔"));
+        }
+        sb.Append("  → 露出不足 " + badw + " / " + PerimeterWalls().Length);
+        if (bad > 0 || badw > 0) sb.Append("  ⚠");
+        return sb.ToString();
+    }
+
     /// <summary>隅櫓。**隣の run の天端に合わせる**(地面に置かない) — 指図 其六 ④。
     /// 地面に置くと、直した塀と 1〜2m ずれて隅だけ沈む/浮く。</summary>
     static void Yagura(Transform parent, Vector2 p, Vector2 bis, string nm, float baseY)
@@ -1012,6 +1310,61 @@ public static class EdoOkabeYashikiBuilder
     //   coping = position.y + 4.0*scale.y / 躯体2.4mは走りの左(local -X)に出る。
     // =========================================================================
     const string P_CW = EdoAssets.JC.CastleWall;
+
+    /// <summary>外周の土留め石垣(指図 其九 ①)。据えは**法肩から逆算する**。
+    /// 法肩 = 外周線(run 線から外へ FaceOff(kind)) → 芯線 = 法肩 − 1.4×s → 法尻 = 法肩 + 1.0×s。
+    /// 勾配は外向きなので、**outw が走りの左に来るよう** a→b の向きを取る(躯体は左に出る)。</summary>
+    static string BuildPerimeterWalls(Transform ig, GameObject pre)
+    {
+        var sb = new System.Text.StringBuilder();
+        var byName = new Dictionary<string, Run>();
+        foreach (var r in Runs()) byName[r.name] = r;
+        foreach (var q in PerimeterWalls())
+        {
+            Run r;
+            if (!byName.TryGetValue(q.run, out r)) { Debug.LogError("[Okabe] run が無い: " + q.run); continue; }
+            Vector2 a = r.a, b = r.b;
+            Vector2 d = b - a; float L = d.magnitude; d /= L;
+            // 走りの左 = (-d.y, d.x)。躯体はここに出る。outw と逆なら a↔b を入れ替える
+            if (Vector2.Dot(new Vector2(-d.y, d.x), r.outw) < 0f) { var t0 = a; a = b; b = t0; d = -d; }
+            float yaw = Mathf.Atan2(d.x, d.y) * Mathf.Rad2Deg;
+            Vector2 core = a + r.outw * (FaceOff(r.kind) - 1.4f * q.s);   // 芯線 = 法肩 − 1.4×s
+            float posY = r.top - 4f * q.s;
+            int idx = 0;
+            int made = PlaceCW(ig, pre, q.name, core, d, 0f, L, posY, q.s, yaw, ref idx);
+            sb.AppendLine(string.Format("{0}({1}) pieces={2} s={3:F2} posY={4:F2} coping={5:F2} 壁高={6:F2} 天端={7:F2} 底={8:F2}",
+                q.name, q.run, made, q.s, posY, r.top, 4f * q.s, 1.4f * q.s, 2.4f * q.s));
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>石垣の駒を走り座標 <b>[t0, t1] にぴったり</b>敷き詰める(指図 其十 ②)。
+    ///
+    /// 駒のローカル箱は走り方向に <b>[pos − 2.0×s, pos]</b> — ピボットが走りの手前端にある
+    /// (実測 2026-08-16: <c>IG_W1_37</c> は pos z=1047.20 で箱 Z[1044.20, 1047.20])。
+    /// したがって pos = t0 + 2.0×s から並べれば最初の駒の端面が t0 に乗り、
+    /// 最後に pos = t1 の駒を足せば端面が t1 に乗る。**開口の縁はこれで狙える**。
+    /// スキップ方式では縁がピッチの格子にしか来られない。</summary>
+    static int PlaceCW(Transform ig, GameObject pre, string nm, Vector2 a, Vector2 d,
+                       float t0, float t1, float posY, float s, float yaw, ref int idx)
+    {
+        float pit = 1.8f * s, len0 = 2f * s;
+        if (t1 - t0 < len0 - 0.01f) return 0;          // 駒1個も入らない
+        var ts = new List<float>();
+        for (float t = t0 + len0; t <= t1 - 0.25f * pit; t += pit) ts.Add(t);
+        ts.Add(t1);                                     // 端面を t1 に合わせる仕舞いの駒
+        foreach (var t in ts)
+        {
+            var p = a + d * t;
+            var go = (GameObject)PrefabUtility.InstantiatePrefab(pre, ig);
+            Undo.RegisterCreatedObjectUndo(go, "cw"); go.name = nm + "_" + (idx++);
+            go.transform.position = new Vector3(p.x, posY, p.y);
+            go.transform.rotation = Quaternion.Euler(0, yaw, 0);
+            go.transform.localScale = new Vector3(s, s, s);   // 相似。(1,sy,1) にしない
+        }
+        return ts.Count;
+    }
+
     public static string Stage4b_Ishigaki()
     {
         var ig = Grp("Ishigaki"); Clear(ig);
@@ -1024,26 +1377,28 @@ public static class EdoOkabeYashikiBuilder
             float yaw = Mathf.Atan2(d.x, d.y) * Mathf.Rad2Deg;
             float posY = w.coping - 4f * w.sy;
             float gapT = Vector2.Dot(new Vector2(w.a.x, w.gapZ) - w.a, d);   // 階段開口の走り座標
-            int n = Mathf.Max(2, Mathf.RoundToInt((L - 2f) / 1.8f) + 1);
-            int made = 0;
-            for (int i = 0; i < n; i++)
+            // ⚠ **開口はスキップで開けない**(指図 其十 ②)。駒のローカル箱は走り方向に
+            //   [pos − 2.0×s, pos] で、ピボットが走りの手前端にある。旧版は pos を駒の中心と
+            //   みなして |t − gapT| < 半幅 の駒を飛ばしていたので、開口が 1.0×s ずれ、
+            //   縁がピッチ 1.8×s に量子化されていた(実測: W1 は幅 5.10・芯が 1.35m ずれ、
+            //   石段の上9段が駒に 1.39m 食い込んでいた)。
+            //   **開口の縁を起点に、外へ向かって並べる**。端の駒の端面が縁にぴったり乗る。
+            int idx = 0, made = 0;
+            float tA = gapT - w.gapHalf, tB = gapT + w.gapHalf;
+            if (tA <= 0f && tB >= L)              // 開口がこの run を丸ごと食う
+                { }
+            else if (tA <= 0f || tB >= L)         // 開口が端にかかる = 片側だけ
+                made += PlaceCW(ig, pre, w.name, w.a, d, Mathf.Max(0f, tB), Mathf.Min(L, tA <= 0f ? L : tA),
+                                posY, w.sy, yaw, ref idx);
+            else
             {
-                float t = 2f + 1.8f * i;
-                if (t > L + 0.4f) break;
-                // 石段の開口 — **法面の外面ちょうどで切る**(指図 其七 ②)。
-                // 広く取りすぎると主石垣の端と坂の土留めの間が開き、郭の土の面が露わになる
-                // (±5.0 で切っていて 1.18m ずつ開いていた)
-                if (Mathf.Abs(t - gapT) < NORI_HALF + SAKA_T) continue;
-                var p = w.a + d * t;
-                var go = (GameObject)PrefabUtility.InstantiatePrefab(pre, ig);
-                Undo.RegisterCreatedObjectUndo(go, "cw"); go.name = w.name + "_" + i;
-                go.transform.position = new Vector3(p.x, posY, p.y);
-                go.transform.rotation = Quaternion.Euler(0, yaw, 0);
-                go.transform.localScale = new Vector3(1f, w.sy, 1f);
-                made++;
+                made += PlaceCW(ig, pre, w.name, w.a, d, 0f, tA, posY, w.sy, yaw, ref idx);
+                made += PlaceCW(ig, pre, w.name, w.a, d, tB, L,  posY, w.sy, yaw, ref idx);
             }
-            sb.AppendLine(w.name + " pieces=" + made + " posY=" + posY.ToString("F2") + " sy=" + w.sy.ToString("F2") + " coping=" + w.coping.ToString("F2"));
+            sb.AppendLine(string.Format("{0} pieces={1} s={2:F2} posY={3:F2} coping={4:F2} 開口 z {5:F2}〜{6:F2}(幅{7:F2})",
+                w.name, made, w.sy, posY, w.coping, w.gapZ - w.gapHalf, w.gapZ + w.gapHalf, w.gapHalf * 2f));
         }
+        sb.Append(BuildPerimeterWalls(ig, pre));
         // 石段の法面の両脇(v7) — 天端が斜めに通る一枚物。左右に1本ずつ
         int nn = 0;
         foreach (var q in NoriWalls())
@@ -1066,7 +1421,8 @@ public static class EdoOkabeYashikiBuilder
         {
             if (!w.name.StartsWith("IG_W")) continue;
             Vector2 outw = new Vector2(-1f, 0f);                    // 西向き
-            var mods = NT.NagayaRun(kn, w.a + new Vector2(2.2f, 0), w.b + new Vector2(2.2f, 0), outw,
+            // 石垣は境界まで延ばしたが、長屋は其六 の長さ(na/nb)のまま据える
+            var mods = NT.NagayaRun(kn, w.na + new Vector2(2.2f, 0), w.nb + new Vector2(2.2f, 0), outw,
                 w.coping - 1.49f, new Vector2(w.a.x, w.gapZ), 4.5f, "KN_" + w.name);
             // なまこ外面を天端外面(= 壁の芯線 x = w.a.x)へ面一に寄せる
             if (mods.Count > 0)
@@ -1085,7 +1441,8 @@ public static class EdoOkabeYashikiBuilder
                 }
                 if (c > 0)
                 {
-                    float crestOuter = w.a.x * outw.x;
+                    // 法肩 = 芯線 + 1.4×s（露出側 = outw 方向）。相似スケールにしたので芯線ではなく法肩に面一
+                    float crestOuter = w.a.x * outw.x + 1.4f * w.sy;
                     float shift = 0.02f - (crestOuter - sum / c);
                     foreach (var m in mods) m.transform.position += new Vector3(-outw.x * shift, 0, -outw.y * shift);
                     sb.AppendLine("KN_" + w.name + " modules=" + mods.Count + " flushShift=" + shift.ToString("F3"));
@@ -1371,8 +1728,9 @@ public static class EdoOkabeYashikiBuilder
         int n = Mathf.Max(2, Mathf.RoundToInt(k.Drop / KERI));
         float dir = Mathf.Sign(k.xBot - k.xTop);
         float tread = k.Run / n;
-        float zc = (k.z0 + k.z1) * 0.5f, halfW = (k.z1 - k.z0) * 0.25f;   // 段板2枚の中心
-        // 登廊のある段は、平場の北半分を階段廊下に譲るので**石段は1枚(屋外用)**にする
+        float zc = k.NoriZ, halfW = (k.z1 - k.z0) * 0.25f;   // 段板2枚の中心
+        // 西(登廊のある段)は段板1枚 1.98m。東の参道は2枚並べて 3.96m。
+        // ⚠ どちらも**法面の芯そのもの**に置く(指図 其十 ②で ISHIDAN_Z を撤廃)
         bool solo = !string.IsNullOrEmpty(k.noboriro);
         for (int i = 1; i <= n; i++)
         {
@@ -1384,7 +1742,7 @@ public static class EdoOkabeYashikiBuilder
                 Undo.RegisterCreatedObjectUndo(go, "st"); go.name = "S_" + i + "_" + sdup;
                 go.transform.rotation = Quaternion.Euler(0, 90f, 0);   // 長手(1.98)を Z へ
                 var rb = B.RB(go);
-                float pz = solo ? zc + ISHIDAN_Z : zc + (sdup == 0 ? -halfW : halfW);
+                float pz = solo ? zc : zc + (sdup == 0 ? -halfW : halfW);
                 go.transform.position += new Vector3(px - rb.center.x, lvl - rb.max.y, pz - rb.center.z);
             }
         }

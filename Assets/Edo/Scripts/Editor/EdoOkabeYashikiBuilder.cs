@@ -60,11 +60,16 @@ public static class EdoOkabeYashikiBuilder
     public static Terr[] Terraces()
     {
         return new[] {
-            new Terr{ name="Shukaku", x0=-566f, x1=-455f, z0=946f, z1=1058f, y=25.5f },
+            // ⚠ 2026-08-16、**北辺に面する3段の z1 を境界の外まで延ばした**(指図 其十二)。
+            //   北辺の囲いを岡部が持つことにした際、北辺の段を郭とは別に割ってしまい
+            //   (21.0/27.0/21.0/14.5)、段の境も郭の石垣の線に乗らなかったため、
+            //   敷地の内部が凸凹になった(ユーザー指摘)。**郭の段をそのまま北へ延ばす**のが正しい。
+            //   矩形は境界の外まで出してよい — 造成は多角形で切るので余りは効かない。
+            new Terr{ name="Shukaku", x0=-566f, x1=-455f, z0=946f, z1=1090f, y=25.5f },
             new Terr{ name="TE",      x0=-455f, x1=-425f, z0=946f, z1=1058f, y=19.5f },
             new Terr{ name="Monzen",  x0=-425f, x1=-374f, z0=946f, z1=1058f, y=13.5f },
-            new Terr{ name="Chudan",  x0=-592f, x1=-566f, z0=950f, z1=1052f, y=19.5f },
-            new Terr{ name="TW1",     x0=-647f, x1=-592f, z0=950f, z1=1052f, y=11.5f },
+            new Terr{ name="Chudan",  x0=-592f, x1=-566f, z0=950f, z1=1072f, y=19.5f },
+            new Terr{ name="TW1",     x0=-647f, x1=-592f, z0=950f, z1=1078f, y=11.5f },
         };
     }
     // 石垣(土留め)の芯線 = 外面。天端は上段のレベル、scale.y は 4.0m/1.0 の丸数字。
@@ -144,49 +149,27 @@ public static class EdoOkabeYashikiBuilder
             new PWall{ run="Hei_S_Mz", name="IG_S_Mz", s=0.50f },   //      1.42 →      2.0
             new PWall{ run="NG_E_S",   name="IG_E_S",  s=0.50f },   //      1.54 →      2.0
             new PWall{ run="Take_W3",  name="IG_W3",   s=0.75f },   //      2.42 →      3.0
-            // 北辺(指図 其十一) — 段に造成したぶんを土留めする。s は「天端 − 外6m の土井側の地盤」
-            new PWall{ run="Hei_N1",   name="IG_N1",   s=0.75f },   //      2.18 →      3.0
-            new PWall{ run="Hei_N2",   name="IG_N2",   s=1.75f },   //      6.22 →      7.0
-            new PWall{ run="Hei_N3",   name="IG_N3",   s=1.75f },   //      6.85 →      7.0
-            new PWall{ run="Hei_N4",   name="IG_N4",   s=1.00f },   //      3.87 →      4.0
+            // 北辺(指図 其十二) — 郭の段をそのまま北へ延ばした。s は「天端 − 外6m の土井側の地盤」。
+            // N3 は土井側の地盤が天端(11.5)より高いので土留めが要らない(向こうの法がこちらへ落ちる)
+            new PWall{ run="Hei_N1",   name="IG_N1",   s=1.75f },   //      6.68 →      7.0
+            new PWall{ run="Hei_N2",   name="IG_N2",   s=0.50f },   //      0.44 →      2.0
+            new PWall{ run="Hei_N4",   name="IG_N4",   s=0.50f },   //      0.87 →      2.0
         };
     }
 
-    /// <summary>北辺の段の**継ぎ目を受ける返しの石垣**(指図 其十一)。
-    ///
-    /// 段の天端が run の継ぎ目で 6m 落ちるので、そこに境界と直交する土留めが要る。
-    /// 南辺では郭の石垣(IG_W2 など)が境界まで伸びていて自然に返しを兼ねていたが、
-    /// 北辺には郭の石垣が来ていないので、専用に立てる。
-    /// 継ぎ目から**内へ 15m**、天端は高い側の run に合わせる。</summary>
-    /// <summary>rA と rB の継ぎ目に立てる。**両端の隅も対象**にする(2026-08-16 追加) —
-    /// 北辺の両端は隣の辺と天端が 5.5〜5.8m 違うので、内側の継ぎ目と同じ扱いが要る。
-    /// 入れ忘れて <c>Hei_N4</c> の端が 5.42m 浮いた(GroundQA が検出)。</summary>
-    public struct NRet { public string name, rA, rB; public float coping, s; }
-    public static NRet[] NorthReturns()
-    {
-        return new[] {
-            new NRet{ name="IG_NR0", rA="NG_N1",  rB="Hei_N1", coping=21.0f, s=1.50f },  // P[8] の隅 15.5|21.0 段差5.5
-            new NRet{ name="IG_NR1", rA="Hei_N1", rB="Hei_N2", coping=27.0f, s=1.50f },  // 21.0|27.0 段差 6.0
-            new NRet{ name="IG_NR2", rA="Hei_N2", rB="Hei_N3", coping=27.0f, s=1.50f },  // 27.0|21.0 段差 6.0
-            new NRet{ name="IG_NR3", rA="Hei_N3", rB="Hei_N4", coping=21.0f, s=1.75f },  // 21.0|14.5 段差 6.5(P[7] の折れ)
-            new NRet{ name="IG_NR4", rA="Hei_N4", rB="Take_W1",coping=14.5f, s=1.50f },  // P[6] の隅 14.5|8.7 段差5.8
-        };
-    }
-    /// <summary>返しの石垣の据え位置 — 継ぎ目の点から、両 run の外向きの**二等分線の逆**(＝内向き)へ。</summary>
-    public static void NorthReturnLine(NRet q, out Vector2 a, out Vector2 b, out Run rA, out Run rB)
-    {
-        rA = default(Run); rB = default(Run);
-        foreach (var r in Runs()) { if (r.name == q.rA) rA = r; if (r.name == q.rB) rB = r; }
-        a = rA.b;                                   // 継ぎ目の点(rA の終点 = rB の始点)
-        var inw = -(rA.outw + rB.outw).normalized;  // 内向き
-        b = a + inw * 15f;
-    }
     /// <summary>その run に付く外周石垣の s。付かない run は 0(芯線 = 外周線)。</summary>
     public static float WallScaleFor(string runName)
     {
         foreach (var q in PerimeterWalls()) if (q.run == runName) return q.s;
         return 0f;
     }
+
+    // ⚠ **返しの石垣(NorthReturns / IG_NR0〜4)は撤去した**(指図 其十二、2026-08-16)。
+    //   北辺の段を郭とは別に割ったせいで段の境が郭の石垣の線から外れ、
+    //   継ぎ目を受ける土留めを別に立てる必要が生じていた。**段を郭に合わせた今は要らない** —
+    //   x=-566 の IG_W1 と x=-592 の IG_W2 が、そのまま北辺の段の境を受ける(南辺と同じ)。
+    //   ★ 教訓: 敷地の一部だけを独自に割ると、その継ぎ目を受ける構造が芋づる式に増える。
+    //     **段は敷地全体で一つの系にする。**
 
     // =========================================================================
     // 指図(Docs/Sashizu/okabe_sashizu.html)を**江戸間の柱割り**に載せて持つ。図面と実装をズラさない。
@@ -648,23 +631,34 @@ public static class EdoOkabeYashikiBuilder
             new Run{ name="NG_E_N",  a=GATE - d10 * MON_HALF, b=P[10], outw=eo(10), kind=Kakoi.Nagaya, top=13.5f },
             // ---- 北東の隅切り〜北辺(隣地) 長屋塀。40m 以下に割る ----
             new Run{ name="NG_NE",    a=P[10], b=P[9], outw=eo(9), kind=Kakoi.Nagaya, top=13.5f },
-            new Run{ name="NG_N1",    a=P[9],  b=P[8], outw=eo(8), kind=Kakoi.Nagaya, top=15.5f },
+            // ⚠ NG_N1 は **x=-455 で割る**(指図 其十二)。主郭を北へ延ばしたので、この辺は
+            //   x=-455(郭の石垣 IG_E1 の線)を境に西が主郭 25.5・東が 15.5 になる。
+            //   割らずにいたら長屋の西端が主郭の盛土に 4.00m 埋まった(GroundQA が検出)。
+            //   x=-455 と境界 P[9]→P[8] の交点は z=1087.85 で、IG_E1 の北端 1087.9 とほぼ一致する。
+            new Run{ name="NG_N1",    a=P[9],  b=px(P[9],P[8],-455f), outw=eo(8), kind=Kakoi.Nagaya, top=15.5f },
+            new Run{ name="Hei_NE",   a=px(P[9],P[8],-455f), b=P[8], outw=eo(8), kind=Kakoi.Tsuiji, top=25.5f },
             // ---- 北辺 P[8]→P[7]→P[6] = 土井大隅守邸との共有境界。**築地塀・4段**(指図 其十一) ----
             // 【誰が持つか】ユーザー裁定 2026-08-16(確度U)。**史料では決まらなかった** —
             //   屋敷境の囲いを「どちらが担うか」の規則は公開範囲で確認できていない
             //   (`sources.md` の未解決項)。裏づけがあるのは**囲いは1条**という所見だけ
             //   ([丸の内三丁目] 確度A: 隣り合う2家の屋敷境に引かれたのは1条の区画溝)。
             //   → **岡部が持ち、土井側のこの辺の囲いは削除**して1条にする。
-            // 【なぜ4本しかないか】築地塀は**版築**(水平の層を積む)なので一枚の壁面は水平にしかならない。
-            //   地形なりに上下させない(ユーザー指摘 2026-08-16)。境界は延長 184.7m・高低差 17.8m の
-            //   尾根越えなので、**石垣で段に造成し、その天端に塀を水平に載せる**。
-            //   段の割りは「最大の石垣を最小化」して解いた結果(最大 6.9m)。s は境界に沿った距離。
-            //     R1 s   0〜 20  天端 21.0   R2 s  20〜130  天端 27.0
-            //     R3 s 130〜155  天端 21.0   R4 s 155〜185  天端 14.5(P[7] で折れるので必ずここで割る)
-            new Run{ name="Hei_N1", a=P[8], b=Vector2.Lerp(P[8],P[7],0.12897f), outw=eo(7), kind=Kakoi.Tsuiji, top=21.0f },
-            new Run{ name="Hei_N2", a=Vector2.Lerp(P[8],P[7],0.12897f), b=Vector2.Lerp(P[8],P[7],0.83829f), outw=eo(7), kind=Kakoi.Tsuiji, top=27.0f },
-            new Run{ name="Hei_N3", a=Vector2.Lerp(P[8],P[7],0.83829f), b=P[7], outw=eo(7), kind=Kakoi.Tsuiji, top=21.0f },
-            new Run{ name="Hei_N4", a=P[7], b=P[6], outw=eo(6), kind=Kakoi.Tsuiji, top=14.5f },
+            // 【なぜ水平なのか】築地塀は**版築**(水平の層を積む)なので一枚の壁面は水平にしかならない。
+            //   地形なりに上下させない(ユーザー指摘 2026-08-16)。
+            // 【段の割り】⚠ 2026-08-16 に**やり直した**(指図 其十二)。初版は北辺だけで最適化して
+            //   21.0/27.0/21.0/14.5 と独自の段を作ったが、郭の段とも郭の石垣の線とも合わず、
+            //   敷地の内部が凸凹になった(ユーザー指摘「棟の段々に北辺の段々を合わせて」)。
+            //   **郭の段をそのまま北へ延ばし、段の境は既存の郭の石垣の線に乗せる**:
+            //     x=-566 → IG_W1(北端 z1069.8)  /  x=-592 → IG_W2(北端 z1065.7)
+            //   境界がその x と交わる z は 1069.83 / 1065.74 で、**石垣の北端と一致する**
+            //   (指図 其九 で既に境界まで延ばしてあった)。よって**返しの石垣は要らない** —
+            //   郭の石垣がそのまま段の境を受ける。南辺と同じ作りになる。
+            //     N1 主郭 25.5 (P[8]〜x-566)  N2 中段 19.5 (x-566〜-592)
+            //     N3 西低地 11.5 (x-592〜P[7])  N4 西低地 11.5 (P[7]〜P[6]、折れるので run を割る)
+            new Run{ name="Hei_N1", a=P[8], b=Vector2.Lerp(P[8],P[7],0.695822f), outw=eo(7), kind=Kakoi.Tsuiji, top=25.5f },
+            new Run{ name="Hei_N2", a=Vector2.Lerp(P[8],P[7],0.695822f), b=Vector2.Lerp(P[8],P[7],0.865535f), outw=eo(7), kind=Kakoi.Tsuiji, top=19.5f },
+            new Run{ name="Hei_N3", a=Vector2.Lerp(P[8],P[7],0.865535f), b=P[7], outw=eo(7), kind=Kakoi.Tsuiji, top=11.5f },
+            new Run{ name="Hei_N4", a=P[7], b=P[6], outw=eo(6), kind=Kakoi.Tsuiji, top=11.5f },
             // ---- 西辺(溜池・庭園帯) 竹垣 ----
             new Run{ name="Take_W1", a=P[6], b=P[5], outw=eo(5), kind=Kakoi.Takegaki, top=8.7f },
             new Run{ name="Take_W2", a=P[5], b=P[4], outw=eo(4), kind=Kakoi.Takegaki, top=8.5f },
@@ -979,7 +973,9 @@ public static class EdoOkabeYashikiBuilder
         NT.NaturalMode = false;
         foreach (var r in Runs())
         {
-            if ((r.b - r.a).magnitude < 6f) continue;
+            // ⚠ 6m → 4m(指図 其十二)。郭の石垣の線で割ると 4.6m の短い run が出る(Hei_NE)。
+            //   6m のままだと**そこだけ囲いが抜けて隅が開く**
+            if ((r.b - r.a).magnitude < 4f) continue;
             if (r.kind == Kakoi.None) continue;         // 隣地との共有境界。囲いは相手の所有(指図 其十 ③)
             if (r.kind == Kakoi.Nagaya)
             { var l = NT.NagayaRun(kak, r.a, r.b, r.outw, r.top, Vector2.zero, -1, r.name); nm += l.Count; }
@@ -1278,9 +1274,9 @@ public static class EdoOkabeYashikiBuilder
             foreach (var r in runs)
                 if (c.name.StartsWith(r.name) && (nm == null || r.name.Length > nm.Length)) nm = r.name;
             if (nm == null) continue;
-            Vector2 outw = Vector2.zero, ra = Vector2.zero; float core = 0f;
+            Vector2 outw = Vector2.zero, ra = Vector2.zero, rb2 = Vector2.zero; float core = 0f;
             foreach (var r in runs) if (r.name == nm)
-            { outw = r.outw; ra = r.a; core = FaceOff(r.kind) - 1.4f * WallScaleFor(r.name); break; }
+            { outw = r.outw; ra = r.a; rb2 = r.b; core = FaceOff(r.kind) - 1.4f * WallScaleFor(r.name); break; }
             var bb = B.RB(c.gameObject); if (bb.size == Vector3.zero) continue;
             var ctr = new Vector2(bb.center.x, bb.center.z);
             // ⚠ **芯線から内へ 2.5m** を測る。部材の中心から内へ 2.5m ではない。
@@ -1289,6 +1285,16 @@ public static class EdoOkabeYashikiBuilder
             //   部材中心から測ると、石垣の天端の下(= 石垣が覆い隠す素地)を拾って誤判定する。
             float sdc = Vector2.Dot(ctr - ra, outw);
             var s0 = ctr + outw * ((core - PROBE) - sdc);
+            // ⚠ **走り方向にも run の端から 3m 逃がす**(2026-08-16 追加)。
+            //   run の**先頭の駒**は段の境の上に載るので、直角に 2.5m 入れたプローブが
+            //   隣の段へ抜けてしまう。実際 Hei_N2/N3/NE/Hei_S_W の**先頭1組だけ**が
+            //   −2.5〜+2.2m で落ち、残り(16/18・12/14)は合格していた。段の境は
+            //   郭の石垣(IG_W1/IG_W2/IG_E1)が受けているので、これは検査の当たりで不具合ではない。
+            {
+                var rd = (rb2 - ra); float rl = rd.magnitude; rd /= rl;
+                float u = Vector2.Dot(s0 - ra, rd);
+                s0 += rd * (Mathf.Clamp(u, 3f, Mathf.Max(3f, rl - 3f)) - u);
+            }
             float dmax = bb.min.y - G(s0.x, s0.y);
             if (!worst.ContainsKey(nm) || Mathf.Abs(dmax) > Mathf.Abs(worst[nm]))
             { worst[nm] = dmax; wname[nm] = c.name; }
@@ -1442,22 +1448,6 @@ public static class EdoOkabeYashikiBuilder
                 w.name, made, w.sy, posY, w.coping, w.gapZ - w.gapHalf, w.gapZ + w.gapHalf, w.gapHalf * 2f));
         }
         sb.Append(BuildPerimeterWalls(ig, pre));
-        // 北辺の段の継ぎ目を受ける返しの石垣(指図 其十一)
-        foreach (var q in NorthReturns())
-        {
-            Vector2 ra, rb; Run rA, rB; NorthReturnLine(q, out ra, out rb, out rA, out rB);
-            Vector2 rd = (rb - ra); float rL = rd.magnitude; rd /= rL;
-            // 躯体は走りの左に出る。低い段の側へ倒したいので、必要なら反転する
-            var left = new Vector2(-rd.y, rd.x);
-            var lowOut = (rA.top < rB.top ? rA : rB);
-            var toLow = (lowOut.a + lowOut.b) * 0.5f - ra;
-            if (Vector2.Dot(left, toLow) < 0f) { var t0 = ra; ra = rb; rb = t0; rd = -rd; }
-            int ri = 0;
-            int rn = PlaceCW(ig, pre, q.name, ra, rd, 0f, rL, q.coping - 4f * q.s, q.s,
-                             Mathf.Atan2(rd.x, rd.y) * Mathf.Rad2Deg, ref ri);
-            sb.AppendLine(string.Format("{0} pieces={1} s={2:F2} coping={3:F1} 壁高={4:F1} 長さ={5:F1}",
-                q.name, rn, q.s, q.coping, 4f * q.s, rL));
-        }
         // 石段の法面の両脇(v7) — 天端が斜めに通る一枚物。左右に1本ずつ
         int nn = 0;
         foreach (var q in NoriWalls())

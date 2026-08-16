@@ -158,23 +158,27 @@ public static class EdoOkabeYashikiBuilder
     /// 南辺では郭の石垣(IG_W2 など)が境界まで伸びていて自然に返しを兼ねていたが、
     /// 北辺には郭の石垣が来ていないので、専用に立てる。
     /// 継ぎ目から**内へ 15m**、天端は高い側の run に合わせる。</summary>
-    public struct NRet { public string name; public int joint; public float coping, s; }
+    /// <summary>rA と rB の継ぎ目に立てる。**両端の隅も対象**にする(2026-08-16 追加) —
+    /// 北辺の両端は隣の辺と天端が 5.5〜5.8m 違うので、内側の継ぎ目と同じ扱いが要る。
+    /// 入れ忘れて <c>Hei_N4</c> の端が 5.42m 浮いた(GroundQA が検出)。</summary>
+    public struct NRet { public string name, rA, rB; public float coping, s; }
     public static NRet[] NorthReturns()
     {
         return new[] {
-            new NRet{ name="IG_NR1", joint=0, coping=27.0f, s=1.50f },  // R1(21.0)|R2(27.0) 段差 6.0
-            new NRet{ name="IG_NR2", joint=1, coping=27.0f, s=1.50f },  // R2(27.0)|R3(21.0) 段差 6.0
-            new NRet{ name="IG_NR3", joint=2, coping=21.0f, s=1.75f },  // R3(21.0)|R4(14.5) 段差 6.5(P[7] の折れ)
+            new NRet{ name="IG_NR0", rA="NG_N1",  rB="Hei_N1", coping=21.0f, s=1.50f },  // P[8] の隅 15.5|21.0 段差5.5
+            new NRet{ name="IG_NR1", rA="Hei_N1", rB="Hei_N2", coping=27.0f, s=1.50f },  // 21.0|27.0 段差 6.0
+            new NRet{ name="IG_NR2", rA="Hei_N2", rB="Hei_N3", coping=27.0f, s=1.50f },  // 27.0|21.0 段差 6.0
+            new NRet{ name="IG_NR3", rA="Hei_N3", rB="Hei_N4", coping=21.0f, s=1.75f },  // 21.0|14.5 段差 6.5(P[7] の折れ)
+            new NRet{ name="IG_NR4", rA="Hei_N4", rB="Take_W1",coping=14.5f, s=1.50f },  // P[6] の隅 14.5|8.7 段差5.8
         };
     }
     /// <summary>返しの石垣の据え位置 — 継ぎ目の点から、両 run の外向きの**二等分線の逆**(＝内向き)へ。</summary>
-    public static void NorthReturnLine(int joint, out Vector2 a, out Vector2 b)
+    public static void NorthReturnLine(NRet q, out Vector2 a, out Vector2 b, out Run rA, out Run rB)
     {
-        var rs = new List<Run>();
-        foreach (var r in Runs()) if (r.name.StartsWith("Hei_N")) rs.Add(r);
-        var lo = rs[joint]; var hi = rs[joint + 1];
-        a = lo.b;                                   // 継ぎ目の点
-        var inw = -(lo.outw + hi.outw).normalized;  // 内向き
+        rA = default(Run); rB = default(Run);
+        foreach (var r in Runs()) { if (r.name == q.rA) rA = r; if (r.name == q.rB) rB = r; }
+        a = rA.b;                                   // 継ぎ目の点(rA の終点 = rB の始点)
+        var inw = -(rA.outw + rB.outw).normalized;  // 内向き
         b = a + inw * 15f;
     }
     /// <summary>その run に付く外周石垣の s。付かない run は 0(芯線 = 外周線)。</summary>
@@ -1315,10 +1319,15 @@ public static class EdoOkabeYashikiBuilder
                 float e = r.top - G(p.x, p.y);
                 lo = Mathf.Min(lo, e); hi = Mathf.Max(hi, e);
             }
+            // ⚠ 判定は **最大露出** で行う(2026-08-16 改)。旧版は最小で見ていたが、
+            //   段の土留めは「平場が自然地盤と出会う所で露出が 0 になる」のが正しい姿で、
+            //   最小で判定すると**設計どおりの石垣を全部落とす**(北辺4本が一斉に✗になった)。
+            //   この検査の趣旨は「裾が土に飲まれて石垣に見えない」を捕まえることなので、
+            //   **どこにも出ていない = 最大が閾値未満**を不合格とする。最小は情報として残す。
             float need = Mathf.Max(1.0f, 4f * q.s * 0.25f);
-            bool ng = lo < need; if (ng) badw++;
-            sb.AppendLine(string.Format("  {0,-9} s={1:F2} 壁高{2,4:F1} 露出 {3,5:F2}〜{4,5:F2}m 要{5:F2} {6}",
-                q.name, q.s, 4f * q.s, lo, hi, need, ng ? "✗" : "✔"));
+            bool ng = hi < need; if (ng) badw++;
+            sb.AppendLine(string.Format("  {0,-9} s={1:F2} 壁高{2,4:F1} 露出 {3,5:F2}〜{4,5:F2}m 要{5:F2}(最大で判定) {6}",
+                q.name, q.s, 4f * q.s, lo, hi, need, ng ? "✗ どこにも出ていない" : "✔"));
         }
         sb.Append("  → 露出不足 " + badw + " / " + PerimeterWalls().Length);
         if (bad > 0 || badw > 0) sb.Append("  ⚠");
@@ -1436,12 +1445,11 @@ public static class EdoOkabeYashikiBuilder
         // 北辺の段の継ぎ目を受ける返しの石垣(指図 其十一)
         foreach (var q in NorthReturns())
         {
-            Vector2 ra, rb; NorthReturnLine(q.joint, out ra, out rb);
+            Vector2 ra, rb; Run rA, rB; NorthReturnLine(q, out ra, out rb, out rA, out rB);
             Vector2 rd = (rb - ra); float rL = rd.magnitude; rd /= rL;
             // 躯体は走りの左に出る。低い段の側へ倒したいので、必要なら反転する
             var left = new Vector2(-rd.y, rd.x);
-            var rs = new List<Run>(); foreach (var r in Runs()) if (r.name.StartsWith("Hei_N")) rs.Add(r);
-            var lowOut = (rs[q.joint].top < rs[q.joint + 1].top ? rs[q.joint] : rs[q.joint + 1]);
+            var lowOut = (rA.top < rB.top ? rA : rB);
             var toLow = (lowOut.a + lowOut.b) * 0.5f - ra;
             if (Vector2.Dot(left, toLow) < 0f) { var t0 = ra; ra = rb; rb = t0; rd = -rd; }
             int ri = 0;

@@ -66,8 +66,8 @@ public static class EdoOkabeYashikiBuilder
             //   敷地の内部が凸凹になった(ユーザー指摘)。**郭の段をそのまま北へ延ばす**のが正しい。
             //   矩形は境界の外まで出してよい — 造成は多角形で切るので余りは効かない。
             new Terr{ name="Shukaku", x0=-566f, x1=-455f, z0=946f, z1=1090f, y=25.5f },
-            new Terr{ name="TE",      x0=-455f, x1=-425f, z0=946f, z1=1058f, y=19.5f },
-            new Terr{ name="Monzen",  x0=-425f, x1=-374f, z0=946f, z1=1058f, y=13.5f },
+            new Terr{ name="TE",      x0=-455f, x1=-425f, z0=946f, z1=1098f, y=19.5f },
+            new Terr{ name="Monzen",  x0=-425f, x1=-374f, z0=946f, z1=1098f, y=13.5f },
             new Terr{ name="Chudan",  x0=-592f, x1=-566f, z0=950f, z1=1072f, y=19.5f },
             new Terr{ name="TW1",     x0=-647f, x1=-592f, z0=950f, z1=1078f, y=11.5f },
         };
@@ -151,9 +151,12 @@ public static class EdoOkabeYashikiBuilder
             new PWall{ run="Take_W3",  name="IG_W3",   s=0.75f },   //      2.42 →      3.0
             // 北辺(指図 其十二) — 郭の段をそのまま北へ延ばした。s は「天端 − 外6m の土井側の地盤」。
             // N3 は土井側の地盤が天端(11.5)より高いので土留めが要らない(向こうの法がこちらへ落ちる)
-            new PWall{ run="Hei_N1",   name="IG_N1",   s=1.75f },   //      6.68 →      7.0
-            new PWall{ run="Hei_N2",   name="IG_N2",   s=0.50f },   //      0.44 →      2.0
-            new PWall{ run="Hei_N4",   name="IG_N4",   s=0.50f },   //      0.87 →      2.0
+            // 北辺は **seat − top**(隣の土を留める高さ)を賄う。切り上げ 0.25 刻み
+            new PWall{ run="Hei_N1",   name="IG_N1",   s=0.75f },   // 28.0-25.5= 2.5 →      3.0
+            new PWall{ run="Hei_N2",   name="IG_N2",   s=2.00f },   // 27.5-19.5= 8.0 →      8.0
+            new PWall{ run="Hei_N3",   name="IG_N3",   s=2.25f },   // 20.0-11.5= 8.5 →      9.0
+            new PWall{ run="Hei_N4",   name="IG_N4",   s=1.00f },   // 15.5-11.5= 4.0 →      4.0
+            new PWall{ run="NG_N1",    name="IG_NN1",  s=1.50f },   // 19.5-14.59=4.9 →      6.0
         };
     }
 
@@ -598,7 +601,17 @@ public static class EdoOkabeYashikiBuilder
     public struct Run
     {
         public Vector2 a, b, outw; public string name;
-        public Kakoi kind; public float top;      // top = 天端(この run を通して一定)
+        public Kakoi kind; public float top;      // top = **敷地側の地盤**(この run を通して一定)
+        /// <summary>囲い(塀・長屋)と外周石垣の**天端**。0 なら top と同じ(指図 其十三)。
+        ///
+        /// ⚠ **地盤(top)と天端(seat)は別物**。隣地の地盤がこちらの段より高い辺では、
+        ///   石垣は「隣の土を留める擁壁」になり、塀はその**天端＝隣地の地盤の高さ**に載る。
+        ///   top に合わせて据えると塀が隣地の土に丸ごと埋まる
+        ///   (実測 2026-08-16: 北辺 Hei_N2 は土井側の地盤が塀の頂部より 4.37m 上だった)。
+        ///   [perimeter.md]「隣の高い屋敷の地盤が共有壁の天端より上にあるのは正常。
+        ///   塀は高い側で~1m、低い側で全高を見せる」。</summary>
+        public float seat;
+        public float Seat { get { return seat > 0f ? seat : top; } }
         public bool nagaya { get { return kind == Kakoi.Nagaya; } }
     }
     /// <summary>外周の run。指図 其六 の表と同じ順・同じ値。</summary>
@@ -635,7 +648,12 @@ public static class EdoOkabeYashikiBuilder
             //   x=-455(郭の石垣 IG_E1 の線)を境に西が主郭 25.5・東が 15.5 になる。
             //   割らずにいたら長屋の西端が主郭の盛土に 4.00m 埋まった(GroundQA が検出)。
             //   x=-455 と境界 P[9]→P[8] の交点は z=1087.85 で、IG_E1 の北端 1087.9 とほぼ一致する。
-            new Run{ name="NG_N1",    a=P[9],  b=px(P[9],P[8],-455f), outw=eo(8), kind=Kakoi.Nagaya, top=15.5f },
+            // ⚠ 天端を 15.5 → **19.5(東中段の段)** へ(指図 其十三)。ユーザー指摘
+            //   「北辺の長屋の部分も辺部分の高さが下がってしまっており、石垣で高くしている意味が
+            //    なくなっています。土地を持ち上げてその上に長屋を置く形に」。
+            //   東中段(TE)を境界まで延ばし、長屋はその段に載せる。段の境 x=-425 は IG_E2 が受ける
+            //   (IG_E2 は北端 z1095.9 まで伸びており、境界の角 P[9] z1096.3 とほぼ一致)。
+            new Run{ name="NG_N1",    a=P[9],  b=px(P[9],P[8],-455f), outw=eo(8), kind=Kakoi.Nagaya, top=19.5f },
             new Run{ name="Hei_NE",   a=px(P[9],P[8],-455f), b=P[8], outw=eo(8), kind=Kakoi.Tsuiji, top=25.5f },
             // ---- 北辺 P[8]→P[7]→P[6] = 土井大隅守邸との共有境界。**築地塀・4段**(指図 其十一) ----
             // 【誰が持つか】ユーザー裁定 2026-08-16(確度U)。**史料では決まらなかった** —
@@ -655,10 +673,13 @@ public static class EdoOkabeYashikiBuilder
             //   郭の石垣がそのまま段の境を受ける。南辺と同じ作りになる。
             //     N1 主郭 25.5 (P[8]〜x-566)  N2 中段 19.5 (x-566〜-592)
             //     N3 西低地 11.5 (x-592〜P[7])  N4 西低地 11.5 (P[7]〜P[6]、折れるので run を割る)
-            new Run{ name="Hei_N1", a=P[8], b=Vector2.Lerp(P[8],P[7],0.695822f), outw=eo(7), kind=Kakoi.Tsuiji, top=25.5f },
-            new Run{ name="Hei_N2", a=Vector2.Lerp(P[8],P[7],0.695822f), b=Vector2.Lerp(P[8],P[7],0.865535f), outw=eo(7), kind=Kakoi.Tsuiji, top=19.5f },
-            new Run{ name="Hei_N3", a=Vector2.Lerp(P[8],P[7],0.865535f), b=P[7], outw=eo(7), kind=Kakoi.Tsuiji, top=11.5f },
-            new Run{ name="Hei_N4", a=P[7], b=P[6], outw=eo(6), kind=Kakoi.Tsuiji, top=11.5f },
+            // seat = 石垣の天端 = 塀を据える高さ。**土井側の地盤の最大 + 1.0m** を 0.5 刻みに切り上げ。
+            // top(＝こちら側の地盤)は郭の段のまま。差は石垣が受ける(＝隣の土を留める擁壁になる)。
+            //   実測の土井側の地盤(外6m): N1 18.74〜26.64 / N2 18.67〜26.42 / N3 14.05〜18.67 / N4 9.53〜14.18
+            new Run{ name="Hei_N1", a=P[8], b=Vector2.Lerp(P[8],P[7],0.695822f), outw=eo(7), kind=Kakoi.Tsuiji, top=25.5f, seat=28.0f },
+            new Run{ name="Hei_N2", a=Vector2.Lerp(P[8],P[7],0.695822f), b=Vector2.Lerp(P[8],P[7],0.865535f), outw=eo(7), kind=Kakoi.Tsuiji, top=19.5f, seat=27.5f },
+            new Run{ name="Hei_N3", a=Vector2.Lerp(P[8],P[7],0.865535f), b=P[7], outw=eo(7), kind=Kakoi.Tsuiji, top=11.5f, seat=20.0f },
+            new Run{ name="Hei_N4", a=P[7], b=P[6], outw=eo(6), kind=Kakoi.Tsuiji, top=11.5f, seat=15.5f },
             // ---- 西辺(溜池・庭園帯) 竹垣 ----
             new Run{ name="Take_W1", a=P[6], b=P[5], outw=eo(5), kind=Kakoi.Takegaki, top=8.7f },
             new Run{ name="Take_W2", a=P[5], b=P[4], outw=eo(4), kind=Kakoi.Takegaki, top=8.5f },
@@ -978,9 +999,9 @@ public static class EdoOkabeYashikiBuilder
             if ((r.b - r.a).magnitude < 4f) continue;
             if (r.kind == Kakoi.None) continue;         // 隣地との共有境界。囲いは相手の所有(指図 其十 ③)
             if (r.kind == Kakoi.Nagaya)
-            { var l = NT.NagayaRun(kak, r.a, r.b, r.outw, r.top, Vector2.zero, -1, r.name); nm += l.Count; }
+            { var l = NT.NagayaRun(kak, r.a, r.b, r.outw, r.Seat, Vector2.zero, -1, r.name); nm += l.Count; }
             else if (r.kind == Kakoi.Tsuiji)
-                NT.DobeiRun(kak, r.a, r.b, r.outw, r.name, false, r.top, Vector2.zero, -1);
+                NT.DobeiRun(kak, r.a, r.b, r.outw, r.name, false, r.Seat, Vector2.zero, -1);
             else
                 TakegakiRun(kak, r);
         }
@@ -1208,7 +1229,7 @@ public static class EdoOkabeYashikiBuilder
             var p = r.a + d * (len * i / n);       // ピボットはパネルの端(mesh z 0..1.039)
             var go = (GameObject)PrefabUtility.InstantiatePrefab(src, g.transform);
             Undo.RegisterCreatedObjectUndo(go, "tk"); go.name = "TK_" + i;
-            go.transform.position = new Vector3(p.x, r.top, p.y);
+            go.transform.position = new Vector3(p.x, r.Seat, p.y);
             go.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
             go.transform.localScale = new Vector3(1f, SC, kz);
         }
@@ -1295,7 +1316,20 @@ public static class EdoOkabeYashikiBuilder
                 float u = Vector2.Dot(s0 - ra, rd);
                 s0 += rd * (Mathf.Clamp(u, 3f, Mathf.Max(3f, rl - 3f)) - u);
             }
-            float dmax = bb.min.y - G(s0.x, s0.y);
+            // ⚠ **石垣に載る run は、地形でなく石垣の天端(Seat)と比べる**(指図 其十三)。
+            //   隣地の地盤がこちらの段より高い辺では、石垣は「隣の土を留める擁壁」になり、
+            //   塀はその天端に載る。地形(＝こちらの段)と比べると石垣の高さぶん丸ごと
+            //   「浮き」と出る(実測: 北辺4本が 2.4〜8.4m の偽陽性)。
+            //   石垣が実際に足元を支えているかは、下の「露出」の検査が受け持つ。
+            float seatY = float.NaN;
+            foreach (var q in PerimeterWalls()) if (q.run == nm) { seatY = 0f; break; }
+            float dmax;
+            if (!float.IsNaN(seatY))
+            {
+                float sy2 = 0f; foreach (var r in runs) if (r.name == nm) { sy2 = r.Seat; break; }
+                dmax = bb.min.y - sy2;
+            }
+            else dmax = bb.min.y - G(s0.x, s0.y);
             if (!worst.ContainsKey(nm) || Mathf.Abs(dmax) > Mathf.Abs(worst[nm]))
             { worst[nm] = dmax; wname[nm] = c.name; }
         }
@@ -1322,7 +1356,7 @@ public static class EdoOkabeYashikiBuilder
             for (int i = 0; i <= 20; i++)
             {
                 var p = core + d0 * (L * i / 20f) + r.outw * (2.4f * q.s);   // 法尻
-                float e = r.top - G(p.x, p.y);
+                float e = r.Seat - G(p.x, p.y);
                 lo = Mathf.Min(lo, e); hi = Mathf.Max(hi, e);
             }
             // ⚠ 判定は **最大露出** で行う(2026-08-16 改)。旧版は最小で見ていたが、
@@ -1378,11 +1412,11 @@ public static class EdoOkabeYashikiBuilder
             if (Vector2.Dot(new Vector2(-d.y, d.x), r.outw) < 0f) { var t0 = a; a = b; b = t0; d = -d; }
             float yaw = Mathf.Atan2(d.x, d.y) * Mathf.Rad2Deg;
             Vector2 core = a + r.outw * (FaceOff(r.kind) - 1.4f * q.s);   // 芯線 = 法肩 − 1.4×s
-            float posY = r.top - 4f * q.s;
+            float posY = r.Seat - 4f * q.s;
             int idx = 0;
             int made = PlaceCW(ig, pre, q.name, core, d, 0f, L, posY, q.s, yaw, ref idx);
             sb.AppendLine(string.Format("{0}({1}) pieces={2} s={3:F2} posY={4:F2} coping={5:F2} 壁高={6:F2} 天端={7:F2} 底={8:F2}",
-                q.name, q.run, made, q.s, posY, r.top, 4f * q.s, 1.4f * q.s, 2.4f * q.s));
+                q.name, q.run, made, q.s, posY, r.Seat, 4f * q.s, 1.4f * q.s, 2.4f * q.s));
         }
         return sb.ToString();
     }

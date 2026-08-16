@@ -141,21 +141,24 @@ public static class EdoOkabeYashikiBuilder
     public struct PWall { public string run, name; public float s; }
     public static PWall[] PerimeterWalls()
     {
-        // s は「天端 − 外6m の自然地盤」を 0.25 刻みで切り上げたもの(指図 其九 表①)
+        // ⚠ s は **「天端(Seat) − 法尻の地形の最小」** を 0.25 刻みで切り上げる(指図 其十四)。
+        //   壁高 = 4.0×s。相似スケールなので**厚み(2.4×s)は高さに連動する** — 高い石垣ほど厚い。
+        //   ★ 2026-08-16 の誤り: 北辺で「Seat − **こちら側**の地盤」から s を出していた。
+        //     石垣が受けるのは**外(隣地)の地面から天端まで**なので、それでは足りない。
+        //     実測 IG_N1 は壁高 3.0m しか無く、法尻の地形(最小 18.56)に対し **6.44m 宙に浮いていた**
+        //     — ユーザー指摘「北辺の石垣の厚みが敷地内の石垣と違って見える」の正体。
+        //     露出の検査は「天端 − 地形」しか見ないので浮いていても通る → GroundQA に**接地**を足した。
         return new[] {
             new PWall{ run="Hei_S_Cd", name="IG_S_Cd", s=0.75f },   // 必要 2.25 → 壁高 3.0
-            new PWall{ run="Hei_S_Sk", name="IG_S_Sk", s=1.50f },   //      5.57 →      6.0
-            new PWall{ run="Hei_S_Te", name="IG_S_Te", s=0.50f },   //      1.81 →      2.0
+            new PWall{ run="Hei_S_Sk", name="IG_S_Sk", s=2.00f },   //      7.20 →      8.0
+            new PWall{ run="Hei_S_Te", name="IG_S_Te", s=1.25f },   //      4.29 →      5.0
             new PWall{ run="Hei_S_Mz", name="IG_S_Mz", s=0.50f },   //      1.42 →      2.0
             new PWall{ run="NG_E_S",   name="IG_E_S",  s=0.50f },   //      1.54 →      2.0
             new PWall{ run="Take_W3",  name="IG_W3",   s=0.75f },   //      2.42 →      3.0
-            // 北辺(指図 其十二) — 郭の段をそのまま北へ延ばした。s は「天端 − 外6m の土井側の地盤」。
-            // N3 は土井側の地盤が天端(11.5)より高いので土留めが要らない(向こうの法がこちらへ落ちる)
-            // 北辺は **seat − top**(隣の土を留める高さ)を賄う。切り上げ 0.25 刻み
-            new PWall{ run="Hei_N1",   name="IG_N1",   s=0.75f },   // 28.0-25.5= 2.5 →      3.0
-            new PWall{ run="Hei_N2",   name="IG_N2",   s=2.00f },   // 27.5-19.5= 8.0 →      8.0
-            new PWall{ run="Hei_N3",   name="IG_N3",   s=2.25f },   // 20.0-11.5= 8.5 →      9.0
-            new PWall{ run="Hei_N4",   name="IG_N4",   s=1.00f },   // 15.5-11.5= 4.0 →      4.0
+            new PWall{ run="Hei_N1",   name="IG_N1",   s=2.50f },   // 28.0-18.56= 9.44 →   10.0
+            new PWall{ run="Hei_N2",   name="IG_N2",   s=2.50f },   // 27.5-18.19= 9.31 →   10.0
+            new PWall{ run="Hei_N3",   name="IG_N3",   s=1.75f },   // 20.0-13.94= 6.06 →    7.0
+            new PWall{ run="Hei_N4",   name="IG_N4",   s=1.75f },   // 15.5- 8.82= 6.68 →    7.0
             new PWall{ run="NG_N1",    name="IG_NN1",  s=1.50f },   // 19.5-14.59=4.9 →      6.0
         };
     }
@@ -1353,11 +1356,22 @@ public static class EdoOkabeYashikiBuilder
             Vector2 d0 = (r.b - r.a); float L = d0.magnitude; d0 /= L;
             Vector2 core = r.a + r.outw * (FaceOff(r.kind) - 1.4f * q.s);
             float lo = float.MaxValue, hi = float.MinValue;
-            for (int i = 0; i <= 20; i++)
+            // ---- 接地: 駒の底が法尻の地形に届いているか(2026-08-16 追加) ----
+            // ⚠ 露出(天端 − 地形)だけでは**宙に浮いた石垣**を見逃す。
+            //   実際 IG_N1 は壁高 3.0m しか無く 6.44m 浮いていたのに、露出の検査は通っていた。
+            float botY = r.Seat - 4f * q.s, air = -999f;
+            for (int i = 0; i <= 25; i++)
             {
-                var p = core + d0 * (L * i / 20f) + r.outw * (2.4f * q.s);   // 法尻
+                var p = core + d0 * (L * i / 25f) + r.outw * (2.4f * q.s);   // 法尻
                 float e = r.Seat - G(p.x, p.y);
                 lo = Mathf.Min(lo, e); hi = Mathf.Max(hi, e);
+                air = Mathf.Max(air, botY - G(p.x, p.y));
+            }
+            if (air > 0.30f)
+            {
+                badw++;
+                sb.AppendLine(string.Format("  {0,-9} ✗ **{1:F2}m 宙に浮いている** 底{2:F2} — s を {3:F2} 以上へ",
+                    q.name, air, botY, Mathf.Ceil((air + 4f * q.s) / 4f / 0.25f) * 0.25f));
             }
             // ⚠ 判定は **最大露出** で行う(2026-08-16 改)。旧版は最小で見ていたが、
             //   段の土留めは「平場が自然地盤と出会う所で露出が 0 になる」のが正しい姿で、

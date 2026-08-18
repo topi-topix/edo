@@ -127,7 +127,10 @@ public static class EdoSannoJuboBuilder
                 new Vector2(-584.9f,942.8f),   // 3 NE (山腹)
                 new Vector2(-600.7f,884.8f),   // 4 東中間(山裾の折れ)
             },
-            front=0, gateT=0.4f, backEdge=1, noWallEdges=new int[0] },
+            // 辺2 = poly[2]→[3](-645.5,936.2)→(-584.9,942.8) 61.0m は**岡部筑前守邸との共有境界**。
+            // ⚠ **岡部が持つ**(ユーザー裁定 2026-08-19、確度U)。岡部 Hei_S_W / Hei_S_Cd と
+            //   二重になっていた(間隔 0.56〜3.06m)。囲いは1条([丸の内三丁目] 確度A)。
+            front=0, gateT=0.4f, backEdge=1, noWallEdges=new[]{2} },
     };
 
     // ---------- helpers ----------

@@ -1,0 +1,111 @@
+# edo-unity
+
+嘉永期(1850年前後)の江戸・赤坂／溜池を Unity で再現するプロジェクト。
+
+- Unity **6000.5.2f1** / URP **17.5.0**、シーンは1枚 `Assets/Edo/Scenes/Akasaka.unity`
+- 手で書いたアセットは `Assets/Edo/` のみ。`edogoyomi` / `Japanese Castle` /
+  `Japanese Village Kit` / `NatureManufacture` / `Waldemarst` は**再配布不可・gitignore**(計約6.9GB)。
+  手元に無ければ README.md の手順で import する
+- エディタ拡張の入口はすべて Unity メニューの **`Edo/`** の下
+
+**このファイルには不変則とルーティングだけを書く。手順は書かない。**
+手順はスキル、シーン固有の状態はメモリに置く(後述の棲み分け表)。
+
+---
+
+## 座標系と寸法(疑わない・変えない)
+
+| | 値 |
+|---|---|
+| **Y = 0** | **海抜0m**。Unity の Y がそのまま標高(m)。2026-08-01 に移行済で、それ以前の Y 値は +25 して読む |
+| **X, Z の原点** | 江戸見坂 |
+| **柱間** | 江戸間 1間 = 6尺 = **1.818m**。部屋は畳数(1間² = 2畳) |
+| **edogoyomi** | 素で置かず **ES = 1.818** を掛ける(`EdoAssets.Eg`) |
+| **Japanese Village Kit** | 2.0m/間 なので **`vklib.S = 0.909`** で江戸間に落とす |
+| **石垣モジュール** | ピッチ 1.80m / 重ね 0.20m。天端は丸い数字で一直線 |
+| **蹴上 / 踏面** | 0.30m / 0.45m(石段の水平距離はここから出す) |
+
+---
+
+## 絶対規則
+
+1. **手組み資産は正典。** ユーザーが手で組んだ石垣・長屋・門(`Ishigaki` / `Nagaya` / `Omotemon` ほか)は
+   **再生成も削除もしない**。撤去は `SetActive(false)`。
+2. **指図を先に起こす。** 屋敷・街区の寸法を動かす前に `docs/Sashizu/` に設計図を描き、
+   ユーザーのレビューを受ける。飛ばして2度全面差し戻された。図なら数分、建ててからだと数時間。
+3. **建蔽率は敷地全体ベースでのみ出す。** 分母を可建地に替えて数字を作らない。
+4. **推定には典拠と確度を付ける**(S/A/B/P/U)。一般類型で埋めた物を既成事実にしない。
+5. **自分の成果物を基準に norm を作らない。** 史料値は `estate-types.md` から取る。
+6. **地形は現地形に従う** — 街路・坂・水系は現地形、敷地内は拝領時造成の再現。
+7. **開花木(Spring 桜)を置かない。** 季節は春ではない。Summer variant を使う。
+8. **パスの literal を新規に書かない。** すべて `Assets/Edo/Scripts/Editor/EdoAssets.cs` に置く
+   (`LoadAssetAtPath` は例外を投げず null を返すので、直書きは静かに壊れる)。
+
+---
+
+## 制作パイプライン
+
+```
+① 下書き      Scene ビューで EdoSketch(Edo/下書き, %#d)→ UserData/Sketches/*.json。色が意味を持つ
+② 考証 + 指図  切絵図・史料 → docs/Sashizu/<屋敷>.html(世界座標から SVG を直生成)→ ユーザーのレビュー
+   └─ 出す前に  edo-kosho(史実)と edo-kenzu(図の成立)を並列で通す
+③ 部材        在庫を先に引く(docs/asset-catalog.md)→ 無ければ Tools/Blender/*.py で新造
+④ 登録        EdoAssets.cs にパスを追加(寸法パラメタ化パスは関数で)
+⑤ 実装        屋敷のプレハブを解く → ビルダーの Stage を順に実行 → プレハブへ書き戻す
+   └─ 出す前に  edo-fushin-qa で数値QAと検証レンダ
+```
+
+---
+
+## 触ると壊れるもの
+
+- **屋敷は1軒1プレハブ**(シーンを 245.9MB → 3.06MB にした構造)。ビルダーを走らせる前に
+  `Edo/屋敷/編集のためにプレハブを解く(選択中)`、終わったら `Edo/屋敷/プレハブへ書き戻す(全部)`。
+  **Revert All を押さない。** プレハブインスタンスの中では再親子付けが黙って無視される。
+- **地形の編集は Undo の外。** 触る前に heightmap を `.bin` でスナップショット。
+  `Scene.isDirty` は当てにならない。`TerrainData.asset` と `.unity` も退避する。
+- **コンパイルが止まっていることがある。** `Library/ScriptAssemblies/Assembly-CSharp-Editor.dll` の
+  mtime がソースより古ければ実行しない。古いアセンブリで走ると「直したのに反映されない」と誤診する。
+- **MCP タイムアウト後の再送で多重実行が起きる。** 冪等でないステージ(特に造成)は
+  実行済みかを必ず先に確認する。ガードのマーカーは **active** にする
+  (`GameObject.Find` は非アクティブを見つけない)。
+- **Blender の FBX を入れたらマテリアルを remap する**(`Edo/御殿/…マテリアルをremap`)。
+  やらないと全部真っ白になる。
+
+---
+
+## ルーティング
+
+### 知識の置き場所(同じ事実を二重に書かない)
+
+| 置き場所 | 何を置くか | 判定 |
+|---|---|---|
+| **メモリ** `~/.claude/projects/-Users-toshio-project-edo-unity/memory/` | このシーン固有の状態と決定 | 「別のシーンでも同じか」→ **No** |
+| **スキル** `~/.claude/skills/` | 再利用できるやり方・手順 | 同 → **Yes** |
+| **エージェント** `.claude/agents/` | 役割と文脈の隔離。手順は書かず `Skill` で正典を読む | 独立文脈で完結し、小さな結論だけ返せるか |
+| **CLAUDE.md**(ここ) | 不変則とルーティングのみ | 毎回必ず効いていてほしい1行か |
+
+### 話題 → 読むもの
+
+| 話題 | まず読む |
+|---|---|
+| 屋敷の中(建物・庭・整地・建蔽率) | スキル `unity-buke-yashiki` |
+| 石垣・城壁・護岸・屋敷囲い | スキル `unity-modular-stonewall`(屋敷より先に) |
+| 地表・スプラット・植栽・`execute_code`・検証レンダ | スキル `unity-surface-authoring` |
+| Blender で部材を起こす | `Tools/Blender/README.md` + `vklib.py` |
+| Unity MCP の作法 | スキル `unity-mcp-skill` |
+| 在庫に何があるか | `docs/asset-catalog.md` → `docs/asset-index.tsv` |
+| 指図の描き方 | `docs/Sashizu/README.md` + `unity-buke-yashiki` の `references/sashizu.md` |
+
+### 作業 → 呼ぶエージェント(`.claude/agents/`)
+
+| 作業 | エージェント |
+|---|---|
+| 指図の史実・典拠を検める | **`edo-kosho`**(考証方・read-only) |
+| 指図が図として成立しているか検める(断面・造成・重なり) | **`edo-kenzu`**(検図方・read-only) |
+| 建てた後の数値QAと検証レンダ | **`edo-fushin-qa`**(普請検査・計測のみ) |
+| Blender で部材を新造する | **`edo-buzai`**(部材方) |
+| 在庫に使える物があるか引く | **`edo-zaiko`**(在庫方) |
+
+**指図の起案そのものは本文脈でやる**(ユーザーと対話しながら詰める成果物のため)。
+エージェントは検める側と、隔離して回す側だけ。

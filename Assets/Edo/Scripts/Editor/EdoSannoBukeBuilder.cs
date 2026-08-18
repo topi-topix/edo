@@ -366,8 +366,16 @@ public static class EdoSannoBukeBuilder
         Vector2 fout = new Vector2(0.008f, -1f).normalized;
         float gateHalf = PlaceGate(PKabuki, monGrp, gate, fout, 0, "Mon", sb);
         int N = JUGE.Length;
+        // 辺4 = JUGE[4]→[5](-514.3,945.9)→(-373.7,946.2) 140.6m は**岡部筑前守邸との共有境界**。
+        // ⚠ **岡部が持つ**(ユーザー裁定 2026-08-19、確度U)。北辺 = 土井との境(指図 其十一)と同じ規則。
+        //   裏づけは「囲いは1条」の所見のみ([丸の内三丁目] 確度A) — どちらが担うかの規則は史料未確認。
+        //   ここを建てていたので岡部の Hei_S_Sk/Te/Mz と**二重**になっていた(間隔 1.06〜1.12m)。
+        //   しかも岡部側は主郭が 1.4〜7.2m 高く IG_S_Sk(壁高 8.0m)が立つ。その法尻は
+        //   境界線を 2.8m 越えて樹下側へ出る(法尻 z≈944.1 < 境界 z≈946.0)ので、
+        //   この塀は石垣の裾に**干渉**してもいた。塀は擁壁の天端に載るもので、法尻には立たない。
         for (int i = 0; i < N; i++)
         {
+            if (i == 4) continue;                       // 岡部共有 = 岡部所有 skip
             Vector2 a = JUGE[i], b = JUGE[(i + 1) % N];
             Vector2 outw = -InwardNormal(JUGE, i);
             if (i == 0)

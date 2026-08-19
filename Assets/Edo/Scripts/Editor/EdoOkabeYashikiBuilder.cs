@@ -65,10 +65,16 @@ public static class EdoOkabeYashikiBuilder
             //   (21.0/27.0/21.0/14.5)、段の境も郭の石垣の線に乗らなかったため、
             //   敷地の内部が凸凹になった(ユーザー指摘)。**郭の段をそのまま北へ延ばす**のが正しい。
             //   矩形は境界の外まで出してよい — 造成は多角形で切るので余りは効かない。
-            new Terr{ name="Shukaku", x0=-566f, x1=-455f, z0=946f, z1=1090f, y=25.5f },
-            new Terr{ name="TE",      x0=-455f, x1=-425f, z0=946f, z1=1098f, y=19.5f },
+            // ⚠ 2026-08-18(指図 其十五 ③): **高い側の辺を石垣の体内へ 1.4m 延ばした。**
+            //   段の設計面が土留めの内面(x=-455 / -566 / -592 / -425)と**ちょうど同じ**位置で
+            //   終わっていたので、2m 格子の端数がそのまま「地面と天端の間の髪の毛のような割れ目」
+            //   になっていた(ユーザー指摘 ブックマーク #3/#4「1,2の間に微妙な隙間」)。
+            //   天端幅は 1.4×s(1.5 のとき 2.1m)あるので、延ばした 1.4m は石の下に隠れる。
+            //   低い側の辺は触らない — そちらは石垣の躯体が段の中に立っていて既に隠れている。
+            new Terr{ name="Shukaku", x0=-567.4f, x1=-453.6f, z0=946f, z1=1090f, y=25.5f },
+            new Terr{ name="TE",      x0=-455f, x1=-423.6f, z0=946f, z1=1098f, y=19.5f },
             new Terr{ name="Monzen",  x0=-425f, x1=-374f, z0=946f, z1=1098f, y=13.5f },
-            new Terr{ name="Chudan",  x0=-592f, x1=-566f, z0=950f, z1=1072f, y=19.5f },
+            new Terr{ name="Chudan",  x0=-593.4f, x1=-566f, z0=950f, z1=1072f, y=19.5f },
             new Terr{ name="TW1",     x0=-647f, x1=-592f, z0=950f, z1=1078f, y=11.5f },
         };
     }
@@ -130,11 +136,19 @@ public static class EdoOkabeYashikiBuilder
     ///   竹垣   ±0.026
     /// ⚠ 以前 1.632 を「run 線から外周線まで」と書いていたが、あれは**長屋の面と塀の面の差**
     ///   (1.044 + 0.575 = 1.619)で、run 線からの距離ではなかった。
-    /// 長屋は外壁面を法肩と面一に、塀は外面を法肩から 0.30(犬走り)控える。</summary>
+    /// ★ 2026-08-18 ユーザー裁定: **長屋も塀も犬走りを取る。面一にしない。**
+    ///   石垣の天端の縁ぎりぎりに躯体を建てると、(a) 軒からの雨落ちが天端の目地を直に洗い、
+    ///   (b) 笠石が縁で欠ける、(c) そもそも据え付けの余地が無い。実物の武家地の石垣＋塀は
+    ///   必ず**狭い犬走り**を残す。旧版の「長屋は面一」は
+    ///   `historical-layout.md`「犬走りを**大きく**取らない」を「取らない」と読み違えたもの。
+    ///   幅は **0.30m ≒ 1尺**。塀と長屋で同じ値にして、辺が変わっても見え方を揃える。
+    ///   → 法肩 = 囲いの外面 + 0.30。長屋の外面は run 線の内 1.044 なので 法肩 = −0.744。
+    /// 【典拠: 二次文献＋ユーザー裁定。確度 U/B】</summary>
+    public const float INUBASHIRI = 0.30f;              // 犬走り ≒ 1尺
     public static float FaceOff(Kakoi k)
     {
-        if (k == Kakoi.Nagaya) return -1.044f;          // 面一
-        if (k == Kakoi.Tsuiji) return 0.575f + 0.30f;   // 外面 + 犬走り
+        if (k == Kakoi.Nagaya) return -1.044f + INUBASHIRI;   // なまこ壁の外面 + 犬走り
+        if (k == Kakoi.Tsuiji) return 0.575f + INUBASHIRI;    // 塀の外面 + 犬走り
         if (k == Kakoi.None) return 0f;                 // 囲い無し。外周線 = 敷地境そのもの
         return 0.30f;                                   // 竹垣
     }
@@ -149,16 +163,37 @@ public static class EdoOkabeYashikiBuilder
         //     — ユーザー指摘「北辺の石垣の厚みが敷地内の石垣と違って見える」の正体。
         //     露出の検査は「天端 − 地形」しか見ないので浮いていても通る → GroundQA に**接地**を足した。
         return new[] {
+            // ★ 2026-08-19(指図 其十六 ①): **Hei_S_W の石垣が丸ごと抜けていた。**
+            //   常明院境界 56.8m。天端 11.5 に対し法肩直下の地形が 7.98〜11.2 で、
+            //   **浮き最大 3.52m・浮き>0.30m の長さ 31.1m(55%)** を素の土羽が受けていた
+            //   (fushin-qa 実測 2026-08-19)。其十五 ② の Hei_NE と**同じ指紋** —
+            //   run はあるのにこの表に行が無い。JointQA は継ぎ目しか見ないので不在を拾えない。
+            //   常明院の板塀(Itabei_2 16基)がこの土羽の目隠しになっていたため露見が遅れた。
+            new PWall{ run="Hei_S_W",  name="IG_S_W",  s=1.00f },   // 11.5- 7.90= 3.60 →    4.0
             new PWall{ run="Hei_S_Cd", name="IG_S_Cd", s=0.75f },   // 必要 2.25 → 壁高 3.0
-            new PWall{ run="Hei_S_Sk", name="IG_S_Sk", s=2.00f },   //      7.20 →      8.0
+            new PWall{ run="Hei_S_CdE",name="IG_S_CdE",s=0.75f },   // P[2] で割った東半。s を Cd と揃える
+            new PWall{ run="Hei_S_Sk", name="IG_S_Sk", s=2.00f },   // 25.5-18.27= 7.23 →    8.0
+            // P[1] で割った東半。単独なら 1.50 で足りる(必要 5.92)が、天端が 25.5 で
+            // 連続する隅なので **s を Sk と揃える**(其十五 ④。揃えないと底の張り出しが 0.6m ずれる)
+            new PWall{ run="Hei_S_SkE",name="IG_S_SkE",s=2.00f },   // 25.5-19.58= 5.92 →    8.0(Skと揃える)
             new PWall{ run="Hei_S_Te", name="IG_S_Te", s=1.25f },   //      4.29 →      5.0
             new PWall{ run="Hei_S_Mz", name="IG_S_Mz", s=0.50f },   //      1.42 →      2.0
             new PWall{ run="NG_E_S",   name="IG_E_S",  s=0.50f },   //      1.54 →      2.0
             new PWall{ run="Take_W3",  name="IG_W3",   s=0.75f },   //      2.42 →      3.0
             new PWall{ run="Hei_N1",   name="IG_N1",   s=2.50f },   // 28.0-18.56= 9.44 →   10.0
-            new PWall{ run="Hei_N2",   name="IG_N2",   s=2.50f },   // 27.5-18.19= 9.31 →   10.0
-            new PWall{ run="Hei_N3",   name="IG_N3",   s=1.75f },   // 20.0-13.94= 6.06 →    7.0
-            new PWall{ run="Hei_N4",   name="IG_N4",   s=1.75f },   // 15.5- 8.82= 6.68 →    7.0
+            new PWall{ run="Hei_N2",   name="IG_N2",   s=2.50f },   // 28.0-18.17= 9.83 →   10.0
+            // ★ 2026-08-18(指図 其十五 ②): **Hei_NE の石垣が丸ごと抜けていた。**
+            //   run は seat 25.5 で存在するのに、この表に行が無かったので石垣が一枚も建たず、
+            //   土塀が x -459.0〜-455.1 の **3.9m を空中で跨いで**いた
+            //   (ユーザー指摘 ブックマーク #2「石垣に微妙な隙間があります」)。
+            //   → run を足したら**必ずこの表にも足す。**JointQA では拾えない(継ぎ目でなく不在)。
+            new PWall{ run="Hei_NE",   name="IG_NE",   s=2.00f },   // 25.5-17.89= 7.61 →    8.0
+            // ⚠ N3 の s を 1.75 → 2.00 へ。N4a と**同じ厚みにする**ため(指図 其十五 ④)。
+            //   相似スケールなので s が違うと底の張り出しが 0.6m ずれ、段を無くした折れ目に
+            //   かえって段が立つ。**天端を通す隅は、両側の s も揃える。**
+            new PWall{ run="Hei_N3",   name="IG_N3",   s=2.00f },   // 20.0-13.90= 6.10 →    8.0(N4aと揃える)
+            new PWall{ run="Hei_N4a",  name="IG_N4a",  s=2.00f },   // 20.0-12.20= 7.80 →    8.0
+            new PWall{ run="Hei_N4b",  name="IG_N4b",  s=1.75f },   // 15.5- 8.84= 6.66 →    7.0
             new PWall{ run="NG_N1",    name="IG_NN1",  s=1.50f },   // 19.5-14.59=4.9 →      6.0
         };
     }
@@ -168,6 +203,80 @@ public static class EdoOkabeYashikiBuilder
     {
         foreach (var q in PerimeterWalls()) if (q.run == runName) return q.s;
         return 0f;
+    }
+
+    // =========================================================================
+    // 折れ角のある隅(指図 其十五 ⑥) — **留め継ぎの隅部材**で納める
+    //
+    // 在庫の出隅ブロック `Castle Wall Corner`(2.4m 角)が成立するのは Δ≳60°。
+    // Δ が浅いと片面を合わせても apex が反対側の壁面から 2.4·cosΔ はみ出す
+    // (`unity-modular-stonewall/references/case-studies.md` §14)。
+    // 長屋には隅部材がそもそも無く、現行の作法「突き合わせて食い込ませる」は
+    // Δ=38.3° の P[10] で屋根が互いを貫通していた(ユーザー指摘 ブックマーク #5/#7)。
+    // → Tools/Blender/build_kado.py が**折れ角を引数に**部材を起こす。
+    //
+    // 【折れ角の符号】yaw(入り) → yaw(出) の**増分**。+ なら素の部材、− なら鏡像(名前末尾 M)。
+    // 【腕の長さ】片側 1 モジュール。よって入りの run を 1 モジュール短く、
+    //   出の run を 1 モジュール遅く始める(下の TrimForKado)。
+    // =========================================================================
+    public struct Kado { public string runIn, runOut, part; public Vector2 v; }
+    public static Kado[] Kados()
+    {
+        var P = SK.OKABE;
+        return new[] {
+            // 北辺 P[7] — 西低地の折れ。天端は N3/N4a とも 20.0 で通っているので段は無い
+            new Kado{ runIn="Hei_N3",  runOut="Hei_N4a", part="Ishigaki", v=P[7] },
+            // ⏸ 2026-08-18 保留 — **塀と長屋の隅部材はまだ据えられない。**
+            //   部材そのもの(Dobei_Kado_31 / Nagaya_Kado_38M)は出来ていて、留めの継ぎ目も
+            //   通っている。据えが合わない理由は次の2点で、石垣とは別に解く必要がある:
+            //   ① ピボットが躯体の中に無い。`s_hei_center` は走りの端から 0.3445×sx、
+            //      `knagaya01c` は奥行が −2.95〜−0.59 と**片側に寄っている**。
+            //      石垣のように「頂点＝原点」で置くと、長屋は 3m 内側へ落ちる(実測)。
+            //      → 部材の**なまこ壁の外面 / 塀の壁面**を基準に据え直す(perimeter.md の収束処理)。
+            //   ② 鏡像の作り方。負の折れ角で法線の x 符号を変えるだけでは**入隅になる**。
+            //      本当の鏡像は躯体ごと X で反転して巻きを直す必要がある。
+            //   石垣は①②とも当てはまらない(ピボットが内面・走りの端／出隅で成立)ので先に据えた。
+            // new Kado{ runIn="Hei_N3",  runOut="Hei_N4a", part="Dobei",    v=P[7] },
+            // new Kado{ runIn="NG_E_N",  runOut="NG_NE",   part="Nagaya",   v=P[10] },
+        };
+    }
+
+    /// <summary>石垣の走り(＝躯体が進行方向の左に来る向き)。
+    /// ⚠ <c>BuildPerimeterWalls</c> は run の a→b を必要なら**反転**して置く。
+    ///   隅部材も `Castle Wall` と同じ規約なので、**反転後の走り**で yaw と折れ角を出さないと
+    ///   躯体が敷地の内側を向く(2026-08-18 に実際にやった)。</summary>
+    static Vector2 StoneDir(Run r)
+    {
+        var d = (r.b - r.a).normalized;
+        return (Vector2.Dot(new Vector2(-d.y, d.x), r.outw) < 0f) ? -d : d;
+    }
+
+    /// <summary>隅に**入ってくる走り**と**出ていく走り**を、石垣の巻き方向で決める。
+    /// 折れ角は yaw(入り)→yaw(出) の増分[-180,180]。</summary>
+    public static void KadoDirs(Kado k, out Vector2 dIn, out Vector2 dOut, out float deg)
+    {
+        Run ri = default(Run), ro = default(Run);
+        foreach (var r in Runs()) { if (r.name == k.runIn) ri = r; if (r.name == k.runOut) ro = r; }
+        var da = StoneDir(ri); var db = StoneDir(ro);
+        // 頂点へ「向かう」ほうが入り。run の中点から頂点への向きと走りが同じなら向かっている
+        bool aIn = Vector2.Dot(k.v - (ri.a + ri.b) * 0.5f, da) > 0f;
+        bool bIn = Vector2.Dot(k.v - (ro.a + ro.b) * 0.5f, db) > 0f;
+        dIn = aIn ? da : db; dOut = aIn ? db : da;
+        if (aIn == bIn) { dIn = da; dOut = db; }    // 念のため(両方 in/out は起こらないはず)
+        float yi = Mathf.Atan2(dIn.x, dIn.y) * Mathf.Rad2Deg;
+        float yo = Mathf.Atan2(dOut.x, dOut.y) * Mathf.Rad2Deg;
+        deg = Mathf.DeltaAngle(yi, yo);
+    }
+
+    /// <summary>塀・長屋の走りは反転しない(DobeiRun/NagayaRun は a→b のまま置く)。</summary>
+    public static float KadoDeg(Kado k)
+    {
+        Run ri = default(Run), ro = default(Run);
+        foreach (var r in Runs()) { if (r.name == k.runIn) ri = r; if (r.name == k.runOut) ro = r; }
+        var di = (ri.b - ri.a).normalized; var dou = (ro.b - ro.a).normalized;
+        float yi = Mathf.Atan2(di.x, di.y) * Mathf.Rad2Deg;
+        float yo = Mathf.Atan2(dou.x, dou.y) * Mathf.Rad2Deg;
+        return Mathf.DeltaAngle(yi, yo);
     }
 
     // ⚠ **返しの石垣(NorthReturns / IG_NR0〜4)は撤去した**(指図 其十二、2026-08-16)。
@@ -550,11 +659,20 @@ public static class EdoOkabeYashikiBuilder
         return outp;
     }
 
+    /// <summary>隅部材(留め継ぎ)のマテリアルを既存の .mat へ remap。
+    /// ⚠ FBX にはマテリアル**名**しか入っていない。remap しないと真っ白な模型になる
+    ///   (2026-08-18、土塀の隅が白い板で出た)。素が .obj の部材は名前が
+    ///   `s_hei_center` 等なので、その .mat が Assets のどこかにあれば当たる。</summary>
+    [MenuItem("Edo/岡部筑前守上屋敷/隅部材のマテリアルをremap")]
+    public static void RemapKadoMaterials() { Debug.Log("[Okabe] 隅 remap: " + RemapDir("Assets/Edo/Models/Kado") + "件"); }
+
     [MenuItem("Edo/岡部筑前守上屋敷/坂の土留めのマテリアルをremap")]
-    public static void RemapSakaMaterials()
+    public static void RemapSakaMaterials() { Debug.Log("[Okabe] 坂の土留めのマテリアル remap: " + RemapDir("Assets/Edo/Models/Ishigaki") + "件"); }
+
+    static int RemapDir(string dir)
     {
         int n = 0;
-        foreach (var guid in AssetDatabase.FindAssets("t:Model", new[] { "Assets/Edo/Models/Ishigaki" }))
+        foreach (var guid in AssetDatabase.FindAssets("t:Model", new[] { dir }))
         {
             string path = AssetDatabase.GUIDToAssetPath(guid);
             var imp = AssetImporter.GetAtPath(path) as ModelImporter;
@@ -568,7 +686,7 @@ public static class EdoOkabeYashikiBuilder
             else Debug.LogWarning("[Okabe] マテリアルが当たらなかった: " + path);
         }
         AssetDatabase.SaveAssets();
-        Debug.Log("[Okabe] 坂の土留めのマテリアル remap: " + n + "件");
+        return n;
     }
 
     // 表門(下書きの三角マーク) と その外向き    // 表門(下書きの三角マーク) と その外向き
@@ -607,6 +725,9 @@ public static class EdoOkabeYashikiBuilder
     /// <summary>None = **囲いを建てない辺**(指図 其十 ③)。土井邸との共有境界がこれ。
     /// run そのものは残す — 造成が「境界の高さ」としてこの top を使うので、消すと法面の行き先が無くなる。</summary>
     public enum Kakoi { Tsuiji = 0, Nagaya = 1, Takegaki = 2, None = 3 }
+    /// <summary>北辺 N4 の段の位置。折れ目 P[7] からの距離(指図 其十五 ④)。
+    /// **段は角に置かない** — 角の前後で隣地の地盤が変わらないなら、そこに段を置く理由が無い。</summary>
+    public const float N4_CUT = 12.0f;
     public struct Run
     {
         public Vector2 a, b, outw; public string name;
@@ -641,9 +762,38 @@ public static class EdoOkabeYashikiBuilder
             // ⚠ run の切り目は**郭の段**(x −592/−566/−455/−425)で取っており、境界の切り替わり
             //   (x −585.5 / −514.5)とは一致しない。Hei_S_Cd と Hei_S_Sk は相手を跨ぐ。
             //   囲いの種別は三区間とも築地塀なので、割り直す必要は無い(天端は段で決まる)。
-            new Run{ name="Hei_S_W",  a=P[3],          b=s3_2(-592f), outw=eo(2), kind=Kakoi.Tsuiji, top=11.5f },
-            new Run{ name="Hei_S_Cd", a=s3_2(-592f),   b=s2_1(-566f), outw=eo(2), kind=Kakoi.Tsuiji, top=19.5f },
-            new Run{ name="Hei_S_Sk", a=s2_1(-566f),   b=s1_0(-455f), outw=eo(1), kind=Kakoi.Tsuiji, top=25.5f },
+            // ⏸ 2026-08-19 保留(指図 其十六 ②) — **南西隅 P[3] の 3.5m の段は未解決。**
+            //   P[3] は Take_W3(溜池際・天端 8.0)と南辺(11.5)が出会う隅。TW1 の 11.5 は z≥950 からで、
+            //   z 936.8〜950 は段の矩形の外=法面層。**地形は隅で「段」でなく「勾配」**になっている:
+            //     走り t=0→6 で 外側(隣地) 7.98→9.30 / 内側 8.00→11.50。両側とも 3.5m 昇る。
+            //   築地塀は版築なので一枚の壁面は**水平にしかならない**(其十一)。よって隅の 6m は
+            //   どの一定天端でも合わない。実測で3案とも不良が出た(2026-08-19):
+            //     ・11.5 のまま P[3] から起こす  → 内側が 3.50m 浮く(現状。これを採る)
+            //     ・手前 6m で止める(其十五 ⑦)  → 浮きは消えるが竹垣(8.0)と隅櫓(11.5)の間に
+            //                                     **垂直の隙間 2.01m**。段が隅そのものにあるので跨げない
+            //     ・隅の 6m だけ天端 8.0 に割る  → 内側は合うが t≥2 で**外側の隣地の地盤に埋まる**
+            //                                     (t=6 で 1.30m。隣地の地形は当方の造成で動かせない)
+            //   → **正解は「返しの石垣」**(P[3] で石垣を折り返し、coping 8.0→11.5 の段を受ける)か
+            //     隅の造成やり直しだが、いずれも寸法を動かすので**指図を起こしてユーザーのレビューを受ける**
+            //     (CLAUDE.md 絶対規則2)。其十二 で北辺の返しを撤去したのは段を郭に揃えられたからで、
+            //     此処は 8.0 と 11.5 が本質的に揃わない。**この run は旧のまま据え置く。**
+            new Run{ name="Hei_S_W",  a=P[3], b=s3_2(-592f), outw=eo(2), kind=Kakoi.Tsuiji, top=11.5f },
+            // ⚠ 2026-08-19(指図 其十六 ⑤): **Hei_S_Cd も P[2] で割る。**③ で P[1] を割ったのに
+            //   P[2] を見落としていた(fushin-qa 再検で検出)。弦長 26.1m で折れ 2.91°を吸うため
+            //   塀が 0.85m(設計 0.575 → +0.28)、石垣法尻が 1.87m(設計 1.625 → +0.24)区画外へ出ていた。
+            //   量は ③(2.04 / 4.31)より小さいが同種。**run は郭の段だけでなく区画の折れでも割る。**
+            //   天端は両側とも 19.5 で連続するので s も 0.75 で揃える(其十五 ④)。
+            new Run{ name="Hei_S_Cd", a=s3_2(-592f),   b=P[2],        outw=eo(2), kind=Kakoi.Tsuiji, top=19.5f },
+            new Run{ name="Hei_S_CdE",a=P[2],          b=s2_1(-566f), outw=eo(1), kind=Kakoi.Tsuiji, top=19.5f },
+            // ⚠ 2026-08-19(指図 其十六 ③): **Hei_S_Sk を P[1] で2本に割る。**
+            //   旧版は s2_1(-566) → s1_0(-455) と **P[1] の折れを跨いで1本**だった。111m の弦で
+            //   2.98°の折れを吸うため run 線が区画外へ最大 1.44m ずれ、部材の頂点実測で
+            //   **塀 2.04m / 石垣法尻 4.31m** が隣地へ出ていた(設計値 0.58 / 2.88 を +1.46 / +1.43 超過)。
+            //   南辺が全長 岡部持ちになった以上、この越境は隣地の上に単独で残る。
+            //   **天端は両側とも 25.5 で連続する**ので、石垣の s も 2.00 で揃える(其十五 ④)。
+            //   折れ 2.98°は留め継ぎ部材の要らない範囲なので Kados() は増やさない。
+            new Run{ name="Hei_S_Sk", a=s2_1(-566f),   b=P[1],        outw=eo(1), kind=Kakoi.Tsuiji, top=25.5f },
+            new Run{ name="Hei_S_SkE",a=P[1],          b=s1_0(-455f), outw=eo(0), kind=Kakoi.Tsuiji, top=25.5f },
             new Run{ name="Hei_S_Te", a=s1_0(-455f),   b=s1_0(-425f), outw=eo(0), kind=Kakoi.Tsuiji, top=19.5f },
             new Run{ name="Hei_S_Mz", a=s1_0(-425f),   b=P[0],        outw=eo(0), kind=Kakoi.Tsuiji, top=13.5f },
             // ---- 東辺(三べ坂・表門) **長屋塀**。表門が長屋門なので門から長屋が連続する ----
@@ -656,7 +806,12 @@ public static class EdoOkabeYashikiBuilder
             new Run{ name="NG_E_S",  a=P[0], b=GATE + d10 * MON_HALF, outw=eo(10), kind=Kakoi.Nagaya, top=13.5f },
             new Run{ name="NG_E_N",  a=GATE - d10 * MON_HALF, b=P[10], outw=eo(10), kind=Kakoi.Nagaya, top=13.5f },
             // ---- 北東の隅切り〜北辺(隣地) 長屋塀。40m 以下に割る ----
-            new Run{ name="NG_NE",    a=P[10], b=P[9], outw=eo(9), kind=Kakoi.Nagaya, top=13.5f },
+            // ⚠ 2026-08-18(指図 其十五 ⑦): **P[9] の手前 6m で止める。**
+            //   この隅切りの天端は 13.5、隣の北辺 NG_N1 は 19.5。頂点まで伸ばすと最後の1棟が
+            //   6.10m 隣の盛土に埋まる(GroundQA が検出。ユーザー指摘 ブックマーク #6 の 5
+            //   「長屋が壁にめり込んでいて不自然」)。段は**隅櫓**が受ける。
+            new Run{ name="NG_NE",    a=P[10], b=P[9] - (P[9]-P[10]).normalized * 6.0f,
+                     outw=eo(9), kind=Kakoi.Nagaya, top=13.5f },
             // ⚠ NG_N1 は **x=-455 で割る**(指図 其十二)。主郭を北へ延ばしたので、この辺は
             //   x=-455(郭の石垣 IG_E1 の線)を境に西が主郭 25.5・東が 15.5 になる。
             //   割らずにいたら長屋の西端が主郭の盛土に 4.00m 埋まった(GroundQA が検出)。
@@ -689,10 +844,22 @@ public static class EdoOkabeYashikiBuilder
             // seat = 石垣の天端 = 塀を据える高さ。**土井側の地盤の最大 + 1.0m** を 0.5 刻みに切り上げ。
             // top(＝こちら側の地盤)は郭の段のまま。差は石垣が受ける(＝隣の土を留める擁壁になる)。
             //   実測の土井側の地盤(外6m): N1 18.74〜26.64 / N2 18.67〜26.42 / N3 14.05〜18.67 / N4 9.53〜14.18
+            // ⚠ 2026-08-18(指図 其十五 ①): N1 と N2 の seat を **28.0 に揃えた**。
+            //   土井側の地盤 26.68 / 26.51 を別々に 0.5 刻みで切り上げたせいで、x=-566 に
+            //   **0.50m の段**が立っていた(ユーザー指摘 ブックマーク #1「微妙な段差」)。
+            //   こちら側の地盤(top)は 25.5 / 19.5 で本当に段になるが、それを受けるのは
+            //   郭の石垣 IG_W1 であって、境界の壁の天端まで割る理由が無い。**134m を一天端で通す。**
             new Run{ name="Hei_N1", a=P[8], b=Vector2.Lerp(P[8],P[7],0.695822f), outw=eo(7), kind=Kakoi.Tsuiji, top=25.5f, seat=28.0f },
-            new Run{ name="Hei_N2", a=Vector2.Lerp(P[8],P[7],0.695822f), b=Vector2.Lerp(P[8],P[7],0.865535f), outw=eo(7), kind=Kakoi.Tsuiji, top=19.5f, seat=27.5f },
+            new Run{ name="Hei_N2", a=Vector2.Lerp(P[8],P[7],0.695822f), b=Vector2.Lerp(P[8],P[7],0.865535f), outw=eo(7), kind=Kakoi.Tsuiji, top=19.5f, seat=28.0f },
             new Run{ name="Hei_N3", a=Vector2.Lerp(P[8],P[7],0.865535f), b=P[7], outw=eo(7), kind=Kakoi.Tsuiji, top=11.5f, seat=20.0f },
-            new Run{ name="Hei_N4", a=P[7], b=P[6], outw=eo(6), kind=Kakoi.Tsuiji, top=11.5f, seat=15.5f },
+            // ⚠ 2026-08-18(指図 其十五 ④): N4 を **折れ目 P[7] から西 12m で割った**。
+            //   旧版は 20.0 → 15.5 の 4.5m の段を**折れ目そのもの**に置いていたが、
+            //   P[7] の前後で土井側の地盤は 13.9 → 14.0 と**変わらない** — 段を付ける理由が
+            //   その場に無い(ユーザー指摘 ブックマーク #5「1と2で段差をつける意味ないです」)。
+            //   角を挟む 12m を N3 と同じ 20.0 で通し、**段は土井側が実際に落ちる西 12m の位置へ移す**。
+            //   → 折れ目には段が無くなるので、そこは天端の通った隅部材だけで納まる。
+            new Run{ name="Hei_N4a", a=P[7], b=P[7] + (P[6]-P[7]).normalized * N4_CUT, outw=eo(6), kind=Kakoi.Tsuiji, top=11.5f, seat=20.0f },
+            new Run{ name="Hei_N4b", a=P[7] + (P[6]-P[7]).normalized * N4_CUT, b=P[6], outw=eo(6), kind=Kakoi.Tsuiji, top=11.5f, seat=15.5f },
             // ---- 西辺(溜池・庭園帯) 竹垣 ----
             new Run{ name="Take_W1", a=P[6], b=P[5], outw=eo(5), kind=Kakoi.Takegaki, top=8.7f },
             new Run{ name="Take_W2", a=P[5], b=P[4], outw=eo(4), kind=Kakoi.Takegaki, top=8.5f },
@@ -830,6 +997,27 @@ public static class EdoOkabeYashikiBuilder
         // ---- 石段の法面(盛土の楔) — 段の上に重ねる ----
         float nori; float wn = NoriHeight(p.x, p.y, out nori);
         if (wn > 0f) y = Mathf.Lerp(y, nori, wn);
+        // ---- 外側の切り戻し(指図 其十五 ⑤) ----
+        // **法肩より外は石垣の前**。そこに段の土を残すと、2m 格子の端数(±1m)がそのまま
+        // 石垣の化粧面の前に立つ土の楔になり、壁が三角形にしか見えなくなる
+        // (ユーザー指摘 2026-08-18 ブックマーク #6「ほとんど石垣が隠れてしまっています」)。
+        //
+        // 特に**長屋塀**が悪い: なまこ壁の外面を法肩と面一にする規約のせいで
+        // FaceOff(Nagaya) = -1.044、つまり法肩は run 線(＝敷地境＝造成の窓の縁)より
+        // **1.044m 内側**にある。造成は敷地の内側 100% を段の高さで張るので、
+        // 法肩と run 線の間に必ず土が載った。築地塀は FaceOff = +0.875(法肩が run 線の外)
+        // なので同じ問題が出ていない — 実際 N3/N4 の石垣は露出していた。
+        //
+        // 落としの位置は**石の体内**に取る(法肩から内へ 0.7×s、ただし最大 1.0m)。
+        // 躯体は法肩から内へ 1.4×s あるので、格子の端数が振れても石の中に収まる。
+        // 高さは「段の高さ」と「隣地の地盤」の**低いほう** — 隣が高い辺(N1/N2)では何も起きない。
+        float sWall = WallScaleFor(runs[bi].name);
+        if (sWall >= 1.0f)
+        {
+            float oCut = FaceOff(runs[bi].kind) - Mathf.Min(1.0f, 0.7f * sWall);
+            if (Vector2.Dot(p - runs[bi].a, runs[bi].outw) > oCut)
+                y = Mathf.Min(y, BoundaryY(runs[bi], p));
+        }
         return y;
     }
 
@@ -1020,6 +1208,8 @@ public static class EdoOkabeYashikiBuilder
         }
         NT.NaturalMode = true;
         sb.AppendLine("nagaya modules=" + nm);
+        sb.Append(PlaceKado(kak, "Dobei"));
+        sb.Append(PlaceKado(kak, "Nagaya"));
         sb.Append(PerimeterQA());
         // 表門(k_mon + 両番所) — 東辺、下書きの三角マーク位置
         float gh = B.PlaceGate(PKmon, mon, GATE, GateOut(), 0, "Nagayamon", sb);   // 番所は門に組み込み済み
@@ -1034,6 +1224,20 @@ public static class EdoOkabeYashikiBuilder
         // 隅櫓 [福井図: 上屋敷格の外周装置] — 敷地の南東隅・南西隅
         Yagura(kak, new Vector2(-378.5f, 950.5f), new Vector2(0.83f, -0.56f), "Sumiyagura_SE", 13.5f);
         Yagura(kak, new Vector2(-643.5f, 940.5f), new Vector2(-0.72f, -0.69f), "Sumiyagura_SW", 11.5f);
+        // ★ 北東隅 P[9](指図 其十五 ⑦)。ここは**折れるだけでなく天端が 6.0m 上がる**
+        //   (隅切りの NG_NE が 13.5、北辺の NG_N1 が 19.5)。留め継ぎでは段を吸えないので
+        //   ミトルでなく**櫓で納める**。ユーザー指摘 2026-08-18 ブックマーク #6 の 5:
+        //   「長屋が壁にめり込んでいて不自然。こうゆう角の部分は大きめの櫓のようなものが
+        //    立っているのではないでしょうか？」
+        //   据えは高い側(19.5)。低い側の長屋は櫓の足元に取り付いて 6m の段が隠れる。
+        {
+            var P9 = SK.OKABE[9];
+            Vector2 o8 = Vector2.zero, o9 = Vector2.zero;
+            foreach (var r in Runs())
+            { if (r.name == "NG_N1") o8 = r.outw; if (r.name == "NG_NE") o9 = r.outw; }
+            var bis = (o8 + o9).normalized;
+            Yagura(kak, P9 - bis * 2.4f, bis, "Sumiyagura_NE", 19.5f);
+        }
         return sb.ToString();
     }
     /// <summary>y の帯[y0,y1]にある頂点の、外向き nout への射影の最大 = **街路側の面**。
@@ -1394,7 +1598,50 @@ public static class EdoOkabeYashikiBuilder
                 q.name, q.s, 4f * q.s, lo, hi, need, ng ? "✗ どこにも出ていない" : "✔"));
         }
         sb.Append("  → 露出不足 " + badw + " / " + PerimeterWalls().Length);
-        if (bad > 0 || badw > 0) sb.Append("  ⚠");
+
+        // ---- 隅櫓(2026-08-19 追加、指図 其十六 ⑥) ----
+        // ⚠ **隅櫓はこれまで一度も測られていなかった。** 上のループは `c.name.StartsWith(r.name)` で
+        //   run 名に前方一致する部材しか拾わないが、`Sumiyagura_*` はどの run 名にも一致しない。
+        //   fushin-qa の再検で SW 3.50m / NE 5.24m / SE 0.64m の浮きが見つかった(2026-08-19)。
+        // 隅櫓は「隣の run の天端に据える」設計(其六 ④)なので、**地形ではなく最寄り run の Seat**
+        //   と比べる。地形と比べると石垣の高さぶん丸ごと偽陽性になる(塀と同じ理由)。
+        int badY = 0;
+        sb.AppendLine();
+        sb.AppendLine("隅櫓の据え(最寄り run の Seat と比べる。地形とは比べない)");
+        foreach (Transform c in kak)
+        {
+            if (!c.gameObject.activeInHierarchy || !c.name.StartsWith("Sumiyagura")) continue;
+            var bb = B.RB(c.gameObject); if (bb.size == Vector3.zero) continue;
+            var ctr = new Vector2(bb.center.x, bb.center.z);
+            float best = float.MaxValue; string bn = "?"; float seat = 0f;
+            foreach (var r in runs)
+            {
+                float d = DistSeg(ctr, r.a, r.b);
+                if (d < best) { best = d; bn = r.name; seat = r.Seat; }
+            }
+            float dy = bb.min.y - seat;                    // ＋なら浮き、−なら埋没
+            bool ng = Mathf.Abs(dy) > TOL; if (ng) badY++;
+            // ⚠ **据えの合否とは別に、足元の地形も必ず出す。**
+            //   櫓が Seat どおりでも、その下の地形が落ちていれば見た目には宙に浮く
+            //   (実測 2026-08-19: Sumiyagura_SW は Seat 差 0.00 なのに地形は 3.5m 下)。
+            //   Seat だけ見ると「合格」と出てしまい、**土留めの不在を見逃す**。
+            //   地形との差が大きい = そこに石垣が要る、というサインとして読む。
+            float gmin = float.MaxValue;
+            for (int gi = 0; gi < 9; gi++)
+            {
+                float gx = Mathf.Lerp(bb.min.x, bb.max.x, (gi % 3) * 0.5f);
+                float gz = Mathf.Lerp(bb.min.z, bb.max.z, (gi / 3) * 0.5f);
+                gmin = Mathf.Min(gmin, G(gx, gz));
+            }
+            float air = bb.min.y - gmin;
+            if (air > 0.70f) badY++;
+            sb.AppendLine(string.Format("  {0,-14} 底{1,6:F2} 最寄り {2} Seat{3,6:F2} 差{4,6:F2}m {5} ｜ 地形{6,6:F2} 差{7,6:F2}m {8}",
+                c.name, bb.min.y, bn, seat, dy, ng ? (dy > 0 ? "✗浮き" : "✗埋没") : "✔",
+                gmin, air, air > 0.70f ? "✗ 足元に土留めが無い" : "✔"));
+        }
+        sb.Append("  → 隅櫓 超過 " + badY);
+
+        if (bad > 0 || badw > 0 || badY > 0) sb.Append("  ⚠");
         return sb.ToString();
     }
 
@@ -1437,8 +1684,18 @@ public static class EdoOkabeYashikiBuilder
             float yaw = Mathf.Atan2(d.x, d.y) * Mathf.Rad2Deg;
             Vector2 core = a + r.outw * (FaceOff(r.kind) - 1.4f * q.s);   // 芯線 = 法肩 − 1.4×s
             float posY = r.Seat - 4f * q.s;
+            // 隅部材が入る端は 1 モジュール空ける(指図 其十五 ⑥)。
+            // ⚠ 走りは躯体が左に来るよう上で反転していることがあるので、**頂点の t で判定する**。
+            float ta = 0f, tb = L;
+            foreach (var k in Kados())
+            {
+                if (k.part != "Ishigaki") continue;
+                if (k.runIn != q.run && k.runOut != q.run) continue;
+                float tv = Vector2.Dot(k.v - a, d);
+                if (tv < L * 0.5f) ta = Mathf.Max(ta, 2f * q.s); else tb = Mathf.Min(tb, L - 2f * q.s);
+            }
             int idx = 0;
-            int made = PlaceCW(ig, pre, q.name, core, d, 0f, L, posY, q.s, yaw, ref idx);
+            int made = PlaceCW(ig, pre, q.name, core, d, ta, tb, posY, q.s, yaw, ref idx);
             sb.AppendLine(string.Format("{0}({1}) pieces={2} s={3:F2} posY={4:F2} coping={5:F2} 壁高={6:F2} 天端={7:F2} 底={8:F2}",
                 q.name, q.run, made, q.s, posY, r.Seat, 4f * q.s, 1.4f * q.s, 2.4f * q.s));
         }
@@ -1459,7 +1716,16 @@ public static class EdoOkabeYashikiBuilder
         if (t1 - t0 < len0 - 0.01f) return 0;          // 駒1個も入らない
         var ts = new List<float>();
         for (float t = t0 + len0; t <= t1 - 0.25f * pit; t += pit) ts.Add(t);
-        ts.Add(t1);                                     // 端面を t1 に合わせる仕舞いの駒
+        // ★ 2026-08-18(指図 其十五): **仕舞いの駒の手前に隙間が開くことがあった。**
+        //   仕舞いの駒は [t1-len0, t1] を覆うが、上のループは「t1 に近すぎる駒」を
+        //   0.25×pitch の余裕で捨てるので、端数が 1 モジュール(len0)を超えると
+        //   最後のループ駒と仕舞いの駒の間が空く。
+        //   実測 2026-08-18: IG_N4a(L=12.0, s=2.00) は 7.6 と 8.0 の間に **0.40m**、
+        //   IG_NE(L=4.58, s=2.00) は t0 側に **0.58m** の素通しが残った。
+        //   → 覆えるまで駒を足す。**継ぎ目は重なりより常に悪い**(unity-modular-stonewall R4)。
+        if (ts.Count == 0) ts.Add(Mathf.Min(t0 + len0, t1));
+        while (t1 - ts[ts.Count - 1] > len0 - 0.01f) ts.Add(ts[ts.Count - 1] + pit);
+        if (Mathf.Abs(ts[ts.Count - 1] - t1) > 0.01f) ts.Add(t1);   // 端面を t1 に合わせる仕舞いの駒
         foreach (var t in ts)
         {
             var p = a + d * t;
@@ -1470,6 +1736,70 @@ public static class EdoOkabeYashikiBuilder
             go.transform.localScale = new Vector3(s, s, s);   // 相似。(1,sy,1) にしない
         }
         return ts.Count;
+    }
+
+    /// <summary>留め継ぎの隅部材を据える(指図 其十五 ⑥)。
+    ///
+    /// 部材のローカルは `Castle Wall` と同じ規約(走り = +Z / 躯体 = −X / 原点 = 折れ点・足元・内面)
+    /// なので、**入りの run の方位で yaw を与え、頂点に置く**だけで両腕が両方の run に乗る。
+    /// 石垣は run と同じ相似倍率 s、塀・長屋は 1.818(江戸間)。
+    ///
+    /// ⚠ 高さは run の **Seat**(石垣の天端)から出す。地形に合わせない。
+    /// ⚠ 頂点は多角形の頂点そのもの。石垣の芯線は法肩から 1.4×s 内なので、
+    ///   **部材も同じだけ内へ寄せる** — 寄せないと隅だけ壁の外へ飛び出す。</summary>
+    /// <summary>2直線の交点。平行に近ければ fallback を返す。</summary>
+    static Vector2 LineX(Vector2 p1, Vector2 d1, Vector2 p2, Vector2 d2, Vector2 fallback)
+    {
+        float den = d1.x * d2.y - d1.y * d2.x;
+        if (Mathf.Abs(den) < 1e-4f) return fallback;
+        var w = p2 - p1;
+        float t = (w.x * d2.y - w.y * d2.x) / den;
+        return p1 + d1 * t;
+    }
+
+    static string PlaceKado(Transform parent, string only)
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (var k in Kados())
+        {
+            if (only != null && k.part != only) continue;
+            Run ri = default(Run); bool ok = false;
+            foreach (var r in Runs()) if (r.name == k.runIn) { ri = r; ok = true; break; }
+            if (!ok) { Debug.LogError("[Okabe] 隅の入り run が無い: " + k.runIn); continue; }
+            float deg; Vector2 dIn, dOut;
+            if (k.part == "Ishigaki") KadoDirs(k, out dIn, out dOut, out deg);
+            else { deg = KadoDeg(k); dIn = (ri.b - ri.a).normalized; }
+            string path = EdoAssets.Own.Kado(k.part, deg);
+            var src = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (src == null)
+            { Debug.LogError("[Okabe] 隅部材が無い: " + path
+                + " — blender --background --python Tools/Blender/build_kado.py -- --part "
+                + k.part.ToLower() + " --deg " + deg.ToString("F1") + " で生成する"); continue; }
+            float yaw = Mathf.Atan2(dIn.x, dIn.y) * Mathf.Rad2Deg;
+            float s = WallScaleFor(k.runIn);
+            float scale = k.part == "Ishigaki" ? s : ES;
+            // ★ 芯線は run 線から outw 方向へ (FaceOff − 1.4×s) ずれている。両 run の outw は
+            //   折れ角ぶん違うので、**頂点を片方の法線で寄せただけでは合わない**
+            //   (2026-08-18 実測: R1 のずれが 1.67 / 1.96m)。
+            //   `unity-modular-stonewall`「オフセットピボット線同士の出隅は
+            //   **2本のピボット線の交点**に置く」。
+            Run ro = default(Run);
+            foreach (var r in Runs()) if (r.name == k.runOut) { ro = r; break; }
+            float offIn  = k.part == "Ishigaki" ? FaceOff(ri.kind) - 1.4f * s : 0f;
+            float offOut = k.part == "Ishigaki" ? FaceOff(ro.kind) - 1.4f * WallScaleFor(k.runOut) : 0f;
+            var p = LineX(ri.a + ri.outw * offIn, (ri.b - ri.a).normalized,
+                          ro.a + ro.outw * offOut, (ro.b - ro.a).normalized, k.v);
+            float y = k.part == "Ishigaki" ? ri.Seat - 4f * s : ri.Seat;
+            var go = (GameObject)PrefabUtility.InstantiatePrefab(src, parent);
+            Undo.RegisterCreatedObjectUndo(go, "kado");
+            go.name = "Kado_" + k.part + "_" + k.runIn + "_" + k.runOut;
+            go.transform.position = new Vector3(p.x, y, p.y);
+            go.transform.rotation = Quaternion.Euler(0, yaw, 0);
+            go.transform.localScale = Vector3.one * scale;
+            sb.AppendLine(string.Format("隅 {0} {1}→{2} Δ={3:F1}° yaw={4:F1} scale={5:F2} 頂点=({6:F1},{7:F1}) 芯線交点=({8:F2},{9:F2})",
+                k.part, k.runIn, k.runOut, deg, yaw, scale, k.v.x, k.v.y, p.x, p.y));
+        }
+        return sb.ToString();
     }
 
     public static string Stage4b_Ishigaki()
@@ -1520,9 +1850,11 @@ public static class EdoOkabeYashikiBuilder
             nn++;
         }
         sb.AppendLine("坂の土留め pieces=" + nn);
+        sb.Append(PlaceKado(ig, "Ishigaki"));
 
         // 家臣長屋2列 — 西の石垣A/Bの天端に載せる(下書きの赤線2本)
-        // perimeter.md: なまこ壁の外面を天端の外面と面一(0.00〜0.20m)、土台底 = 天端 − 1.59m
+        // perimeter.md: なまこ壁の外面を天端の外面から **犬走り 0.30m** 控える / 土台底 = 天端 − 1.59m
+        // ★ 2026-08-18 ユーザー裁定で「面一(0.02)」から改めた(FaceOff の注を見よ)
         bool nm0 = NT.NaturalMode; NT.NaturalMode = false;
         foreach (var w in Walls())
         {
@@ -1531,7 +1863,7 @@ public static class EdoOkabeYashikiBuilder
             // 石垣は境界まで延ばしたが、長屋は其六 の長さ(na/nb)のまま据える
             var mods = NT.NagayaRun(kn, w.na + new Vector2(2.2f, 0), w.nb + new Vector2(2.2f, 0), outw,
                 w.coping - 1.49f, new Vector2(w.a.x, w.gapZ), 4.5f, "KN_" + w.name);
-            // なまこ外面を天端外面(= 壁の芯線 x = w.a.x)へ面一に寄せる
+            // なまこ外面を天端外面から 犬走り(0.30) 控えた位置へ寄せる
             if (mods.Count > 0)
             {
                 float sum = 0; int c = 0;
@@ -1548,11 +1880,11 @@ public static class EdoOkabeYashikiBuilder
                 }
                 if (c > 0)
                 {
-                    // 法肩 = 芯線 + 1.4×s（露出側 = outw 方向）。相似スケールにしたので芯線ではなく法肩に面一
+                    // 法肩 = 芯線 + 1.4×s（露出側 = outw 方向）。相似スケールにしたので芯線ではなく法肩基準
                     float crestOuter = w.a.x * outw.x + 1.4f * w.sy;
-                    float shift = 0.02f - (crestOuter - sum / c);
+                    float shift = INUBASHIRI - (crestOuter - sum / c);
                     foreach (var m in mods) m.transform.position += new Vector3(-outw.x * shift, 0, -outw.y * shift);
-                    sb.AppendLine("KN_" + w.name + " modules=" + mods.Count + " flushShift=" + shift.ToString("F3"));
+                    sb.AppendLine("KN_" + w.name + " modules=" + mods.Count + " 犬走りへの寄せ=" + shift.ToString("F3"));
                 }
             }
         }

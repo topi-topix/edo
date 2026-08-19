@@ -1506,4 +1506,85 @@ ol li{margin-bottom:7px}
 <div><h3>池</h3><p>典拠がないため掘らない。泉水庭は州浜と築山のみ。</p></div>
 </div>
 </div>
+<div class="plate">
+<div class="phead"><h2>其十六　南辺の土留めの補い（石垣の欠落・P1 の越境・南西隅）</h2><span class="scale">展開 水平 1/1,200 ・ 横断 1/200（垂直は等倍）</span></div>
+
+<p class="notes"><b>なぜ描くか</b>　其六 の訂正（南辺は全長 岡部が持つ）を実装し、常明院の板塀 <code>Itabei_2</code> 16基を落とした。その後 <code>fushin-qa</code> を通したところ、<b>二重の解消そのものは合格</b>だったが、<b>常明院の板塀が目隠しになっていた既存の欠落が3件露出</b>した。①③は直した。②は<b>3案とも実測で別の不良が出た</b>ので、ここに図として残して裁定を仰ぐ。</p>
+
+<div class="tblwrap"><table><caption>是正の結果（2026-08-19 実測）</caption>
+<thead><tr><th>#</th><th>不良</th><th>是正前</th><th>是正後</th><th>状態</th></tr></thead><tbody>
+<tr><td>①</td><td><code>Hei_S_W</code> に外周石垣が無い（常明院境界 56.8m）</td><td>浮き最大 <b>3.52m</b>／&gt;0.30m が 31.1m（55%）</td><td><code>IG_S_W</code> s=1.00・32基・壁高 4.0・coping 11.5<br>接地 ✔／露出 ✔</td><td><b>直した</b></td></tr>
+<tr><td>③</td><td><code>Hei_S_Sk</code> が P1 の折れを直線で跨ぐ</td><td>塀 <b>2.04m</b>／石垣法尻 <b>4.31m</b> 越境</td><td>P[1] で2本に割り <code>Hei_S_SkE</code> 新設<br>塀 <b>0.58m</b>／法尻 <b>2.88m</b>＝設計値</td><td><b>直した</b></td></tr>
+<tr><td>④</td><td>常明院 NW 隅の口</td><td><b>1.83m</b></td><td><b>0.00m</b>（①の副次効果で閉じた）</td><td><b>直した</b></td></tr>
+<tr><td>②</td><td>南西隅 P[3] の 3.5m の段</td><td>内側の浮き 3.50m／竹垣⇔隅櫓 2.77m</td><td>—</td><td class="hold"><b>保留・要裁定</b></td></tr>
+</tbody></table></div>
+
+<p class="notes"><b>① なぜ抜けていたか</b>　<code>Runs()</code> に run はあるのに <code>PerimeterWalls()</code> の表に行が無かった。<b>其十五 ② の <code>Hei_NE</code> と同じ指紋</b>である。<code>JointQA</code> は継ぎ目しか見ないので「不在」を拾えず、<code>GroundQA</code> の足元は芯線の内側しか測らないので通ってしまう。<b>run を足したら必ずこの表にも足す</b>という 其十五 ② の教訓が、南辺には適用されていなかった。<br>
+<b>③ なぜ越境したか</b>　111m の弦で 2.98°の折れを吸うと 1.44m ずれる。天端は両側とも 25.5 で連続するので、<b>石垣の s も 2.00 で揃えた</b>（其十五 ④。揃えないと底の張り出しが 0.6m ずれ、段の無い折れ目にかえって段が立つ）。東半は単独なら s=1.50 で足りる（必要 5.92）が、揃えを優先した。折れ 2.98°は留め継ぎ部材の要らない範囲なので <code>Kados()</code> は増やしていない。</p>
+
+<div class="fig"><svg viewBox="0 0 700 300" role="img" aria-label="南西隅 P3 の横断図と四案">
+<text class="anS" x="8" y="18">② 南西隅 P[3] の横断（走り方向。垂直 1m ＝ 16px）</text>
+<line x1="92" y1="171.6" x2="92" y2="258" stroke="var(--rule)" stroke-width="1"/>
+<text class="jo" x="86" y="181.0" text-anchor="end">11.5</text>
+<text class="jo" x="86" y="221.0" text-anchor="end">9.0</text>
+<text class="jo" x="86" y="253.0" text-anchor="end">7.0</text>
+<line x1="89" y1="218.0" x2="95" y2="218.0" stroke="var(--rule)"/>
+<line x1="89" y1="250.0" x2="95" y2="250.0" stroke="var(--rule)"/>
+<line x1="96" y1="178.0" x2="392" y2="178.0" stroke="var(--grid)" stroke-width="0.8" stroke-dasharray="2 3"/>
+<rect x="100" y="173.0" width="288" height="5" fill="var(--shu)" opacity="0.8"/>
+<text class="anG" x="396" y="177.0">築地塀 11.5</text>
+<text class="jo" x="430" y="188.0" text-anchor="start">版築＝水平のみ</text>
+<polyline points="100,234.0 136,234.0 172,234.0 208,234.0 244,213.2 280,185.4 316,178.0 352,178.0 388,178.0" fill="none" stroke="#7C6A3E" stroke-width="2.6"/>
+<text class="an2" x="396" y="204.0" fill="#7C6A3E">内側 ＋3.50m</text>
+<text class="an2" x="106" y="227.0" fill="#7C6A3E">内側 8.00</text>
+<polyline points="100,235.6 136,232.7 172,230.3 208,228.2 244,226.6 280,225.2 316,224.1 352,223.0 388,222.2" fill="none" stroke="var(--ishi)" stroke-width="2.6" stroke-dasharray="6 3"/>
+<text class="an2" x="396" y="226.2" fill="var(--ishi)">外側 ＋0.84m</text>
+<text class="an2" x="106" y="250.6" fill="var(--ishi)">外側（法尻）7.90</text>
+<line x1="100" y1="178.0" x2="100" y2="234.0" stroke="var(--shu)" stroke-width="1.3" stroke-dasharray="3 2"/>
+<text class="an" x="107" y="206.0">浮き 3.50m</text>
+<text class="jo" x="100" y="272">t=0（P3）</text>
+<text class="jo" x="244" y="272">t=4</text>
+<text class="jo" x="388" y="272">t=8</text>
+<text class="anS2" x="244" y="290">昇るのは内側だけ ＝「勾配」ではなく<tspan font-weight="bold">片側だけの段</tspan></text>
+<line x1="420" y1="26" x2="420" y2="292" stroke="var(--rule)" stroke-width="1"/>
+<text class="anS" x="434" y="44">試した三案（いずれも実測で不良）</text>
+<text class="an2b" x="434" y="68">案A　11.5 のまま P[3] から起こす</text>
+<text class="an" x="446" y="83">→ 内側が 3.50m 浮く（現状・据え置き）</text>
+<text class="an2b" x="434" y="108">案B　手前 6m で止め隅櫓に受けさせる</text>
+<text class="an" x="446" y="123">→ 竹垣(8.0)と隅櫓(11.5)の間に</text>
+<text class="an" x="446" y="137">　 垂直の隙間 2.01m</text>
+<text class="an2b" x="434" y="162">案C　隅の 6m だけ天端 8.0 に割る</text>
+<text class="an" x="446" y="177">→ t≥2 で外側の隣地の地盤に埋まる</text>
+<text class="an2b" x="434" y="206" fill="var(--shu)">案D　返しの石垣 IG_W0（推奨・未実装）</text>
+<text class="an2" x="446" y="221">x=−646.0 / z 936.5→961.0 / 24.5m</text>
+<text class="an2" x="446" y="235">天端 11.5・s=1.00（壁高 4.0）・盛土 158m³</text>
+<text class="an" x="446" y="252">※ 崖は z 938〜980 に続く。24.5m は南端を塞ぐだけ</text>
+<text class="an" x="446" y="266">　 TW1 西縁の全長へ延ばすかも要裁定</text>
+</svg></div>
+
+<p class="notes"><b>② 何が起きているか</b>　P[3] は <code>Take_W3</code>（溜池際・天端 8.0）と南辺（11.5）が出会う隅である。<code>Terraces()</code> の西低地 TW1 は <b>x −647〜−592 ／ z≥950</b> なので、z 936.8〜950 の隅は段の矩形の外＝法面層になる。そこへ溜池際の 8.0 が回り込む。<br>
+<b>⚠ 初版の「両側が揃って昇る＝勾配」という読みは誤りだった</b>（<code>fushin-qa</code> の再検で反証、2026-08-19）。法尻で測り直すと<b>外側は t=0→6 で 7.90→8.62（+0.72m）しか昇らない</b>。昇っているのは<b>内側だけ</b>（8.00→11.50、+3.50m）。つまり<b>勾配ではなく片側だけの段</b>である。<br>
+そしてこれは隅の局所現象ではない。<b>TW1 の西縁（x≈−647）に土留めが無く</b>、8.0 と 11.5 の落差 3.5m を素の土羽が受けている。z ごとに 8.5→11.0 の水平距離を測ると <b>z 944 / 952 で 1.50m（約 67°）</b>、急斜（水平 3.5m 以下）の帯は <b>z 938〜980 に及ぶ</b>。上図の案A/B/C が全部だめだったのは、<b>隅の 6m を工夫しても、その北へ続く数十mの崖はそのまま残る</b>からである。</p>
+
+<div class="tblwrap"><table><caption>案D　返しの石垣 <code>IG_W0</code>（<code>Walls()</code> へ。<code>PerimeterWalls()</code> ではない）</caption>
+<thead><tr><th>項目</th><th>値</th><th>根拠</th></tr></thead><tbody>
+<tr><td>走り</td><td>a (−646.0, 936.5) → b (−646.0, 961.0)　<b>24.5m</b></td><td>南→北（躯体＝西＝低い側が走りの左）。役どころは <code>IG_W1</code>(x−566) / <code>IG_W2</code>(x−592) と同じ「段の境を受ける」壁</td></tr>
+<tr><td>天端</td><td>coping <b>11.5</b>（<code>Hei_S_W</code> の Seat と同一）</td><td>TW1 の段に合わせる</td></tr>
+<tr><td>s</td><td><b>1.00</b>（壁高 4.0／躯体 2.4／天端 1.4／position.y 7.50）</td><td>必要 = 11.5 − 7.52（法尻の最低地形）= <b>3.98m</b> → 0.25 刻みで 1.00（其十四の切り上げ規則）</td></tr>
+<tr><td>造成</td><td><code>TW1</code> を <code>{x0=−647.4, z0=936.5}</code> へ。盛土 <b>158 m³</b>／最大盛 <b>3.50m</b></td><td>x0 は芯線 −646.0 から 1.4×s を石の体内へ（其十五 ③ の作法）。<code>FILL_MAX</code> 5.0 内</td></tr>
+</tbody></table></div>
+<p class="notes"><b>案D で消える数値</b>（すべて実測済）　<code>Hei_S_W</code> 内側の浮き <b>3.53 → 0</b>／<code>Sumiyagura_SW</code> の浮き <b>3.50 → 0</b>／40〜62°の崖が石垣に置き換わる／<code>Take_W3</code>(8.0) ⇔ <code>Sumiyagura_SW</code>(11.5) の<b>垂直 2.01m をこの石垣の小口が受ける</b>。<br>
+<b>波及（3点・実測）</b>　① <code>IG_W3_0/1</code>（天端 8.0）の背面と新石垣の躯体西面（x=−648.4）が z ≤ 941 で<b>接する</b> → 最南 4〜6m だけ芯線を東へ 1.0m 振るか、隅櫓の陰として許容するか。② <code>Garden/Take_22</code>・<code>Take_24</code> が盛土域に掛かり再接地が要る。③ 隣地の地形は動かない（造成は区画多角形で切られ <code>GradeQA</code> 超過 0）。<br>
+<b>「TW1 を南へ伸ばすだけ」では足りない。</b>盛土量は同じでも 8.0→11.5 を受ける構造が無く、いまの 62° の崖が z=936 まで延びるだけである。<b>石垣が要る</b>というのが実測の結論。</p>
+<p class="notes" style="border-left:3px solid var(--shu);padding-left:10px"><b>⚠ 裁定をお願いしたい点</b>　案D を採るか。<b>寸法と造成を動かすので、実装の前に此処で決めたい</b>（CLAUDE.md 絶対規則2）。あわせて、<b>この壁を南辺の 24.5m で止めるか、TW1 の西縁全長（z 980 付近まで）へ延ばすか</b>も決めたい — 崖は z 938〜980 に続いており、24.5m は南端を塞ぐだけである。なお <code>Take_W3</code> ⇔ <code>Sumiyagura_SW</code> の <b>2.77m は是正前から在った</b>（二重解消の副作用ではない）。</p>
+
+<p class="notes"><b>典拠</b>　寸法・干渉量はすべて 2026-08-19 のシーン実測（確度 P）。<b>南辺を全長 岡部が持つのはユーザーの裁定</b>（2026-08-19、確度 U）。石垣の s の決め方は 其十四、隅で s を揃えるのは 其十五 ④ に従う。岡部邸の外周石垣を描いた絵図は未入手で、高さ・積み方に一次史料の裏付けは無い。【典拠: 一般類型／当屋敷の一次史料は未確認】</p>
+
+<div class="tblwrap"><table><caption>この改訂で<b>撤回した</b>もの</caption>
+<thead><tr><th>撤回する記述</th><th>出所</th><th>差し替え</th></tr></thead><tbody>
+<tr><td>南辺の相手は全長「山王社の境内」</td><td>其六 ②</td><td><b>三分割</b>（常明院 63.3／境内 71.1／樹下 141.5m）。「薄礼」論拠が効くのは境内区間だけ</td></tr>
+<tr><td>南辺 0-1 / 2-3 の囲いは隣が持つ（skip）</td><td>区画正典 <code>EdoSannoKitaBuilder</code> の辺注記</td><td><b>全長 岡部が持つ</b>。skip するのは隣の側（樹下 <code>JUGE</code> 辺4／常明院 <code>poly</code> 辺2）</td></tr>
+<tr><td><code>Hei_S_Sk</code> は P1 を跨いで1本でよい</td><td>其六 ①「run は郭ごとに割る」の適用漏れ</td><td><b>P[1] で割る</b>。郭の段だけでなく<b>区画の折れでも割る</b></td></tr>
+</tbody></table></div>
+</div>
 </div>

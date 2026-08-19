@@ -222,6 +222,19 @@ public static class EdoAssets
                  + run.ToString("0.##") + "x" + drop.ToString("0.##") + ".fbx";
         }
 
+        /// <summary>折れ角のある隅の部材(留め継ぎ)。生成は Tools/Blender/build_kado.py。
+        /// 在庫の出隅ブロックは折れ角 Δ≳60° でしか成立しないので、浅い折れはこれで納める。
+        /// ローカル: 走り(進行方向) = +Z ／ 躯体 = −X ／ 原点 = 折れ点・足元・内面。
+        /// 据えは `position = 折れ点 / yaw = 入りの走りの方位 / scale = (s,s,s)`。
+        /// deg が負(名前の末尾 M)は鏡像 = yaw が**減る**向きの折れ。
+        /// 腕は片側 1 モジュールなので、入りの run は 1 モジュール短く、出の run は
+        /// 1 モジュール遅く始める。</summary>
+        public static string Kado(string part, float deg)
+        {
+            return "Assets/Edo/Models/Kado/" + part + "_Kado_"
+                 + UnityEngine.Mathf.RoundToInt(UnityEngine.Mathf.Abs(deg)).ToString("00") + (deg < 0f ? "M" : "") + ".fbx";
+        }
+
         public const string MShop01     = "Assets/Edo/Materials/M_Shop01.mat";
         public const string MShop02     = "Assets/Edo/Materials/M_Shop02.mat";
         public const string MKido       = "Assets/Edo/Materials/M_Kido.mat";

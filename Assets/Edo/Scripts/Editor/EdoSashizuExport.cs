@@ -152,6 +152,32 @@ public static class EdoSashizuExport
             if (!found) { sb.Append("  ✗ corner ").Append(part).Append(" ").Append(ri).Append(" が実装に無い\n"); bad++; n++; }
         }
 
+        // ---- 郭の縁の柵 ----
+        var rails = EdoOkabeYashikiBuilder.TerraceRails();
+        var drObj = doc.ContainsKey("terraceRails") ? doc["terraceRails"] as Dictionary<string, object> : null;
+        if (drObj != null)
+        {
+            bad += Cmp(sb, ref n, "rail.height", Num(drObj, "height"), EdoOkabeYashikiBuilder.RAIL_H);
+            bad += Cmp(sb, ref n, "rail.insetFromCrest", Num(drObj, "insetFromCrest"), EdoOkabeYashikiBuilder.RAIL_INSET);
+            var dl = drObj.ContainsKey("runs") ? drObj["runs"] as List<object> : null;
+            bad += CmpCount(sb, ref n, "terraceRails", dl == null ? 0 : dl.Count, rails.Length);
+            if (dl != null)
+                foreach (var o in dl)
+                {
+                    var e = o as Dictionary<string, object>; if (e == null) continue;
+                    string nm = Str(e, "wall"); bool found = false;
+                    foreach (var r in rails)
+                    {
+                        if (r.wall != nm) continue; found = true;
+                        bad += Cmp(sb, ref n, "rail " + nm + ".z0", Num(e, "z0"), r.z0, 0.05f);
+                        bad += Cmp(sb, ref n, "rail " + nm + ".z1", Num(e, "z1"), r.z1, 0.05f);
+                    }
+                    if (!found) { sb.Append("  ✗ rail ").Append(nm).Append(" が実装に無い\n"); bad++; n++; }
+                }
+        }
+        else if (rails.Length > 0)
+        { sb.Append("  ✗ terraceRails が**指図に無い**(実装だけにある)\n"); bad++; n++; }
+
         // ---- 隅櫓(据えた実測と比べる) ----
         foreach (var o in List(doc, "yagura"))
         {

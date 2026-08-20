@@ -1929,12 +1929,15 @@ public static class EdoOkabeYashikiBuilder
                     if (isIn) far = Mathf.Min(far, Vector2.Dot(q, din));
                     else far = Mathf.Max(far, Vector2.Dot(q, dout));
                 }
-            // ⚠ 届きの中に**留めの先端**(斜めに尖った部分)が入っているので、届きそのもので
-            //   切ると壁の実体が無い所まで食べる(2026-08-19、塀の隅で 2 間ぶん穴が開いた)。
-            //   **実体で覆えている分だけ**を退ける — 6割を安全代に取る。
-            //   足りない分は重ねて済ませる。**継ぎ目は重なりより常に悪い**(R4)。
-            if (isIn && far >= reachIn * 0.6f) doomed.Add(c.gameObject);
-            if (isOut && far <= reachOut * 0.6f) doomed.Add(c.gameObject);
+            // **隅部材に丸ごと飲まれる直線材は退ける。** はみ出す物は残して重ねる
+            //   (継ぎ目は重なりより常に悪い — unity-modular-stonewall R4)。
+            // ⚠ 一時 0.6 の安全代を掛けていたが、腕を1モジュールに伸ばした後は**退けなさすぎ**て
+            //   直線材の端(長屋は妻壁と破風を持つ l/r 材)が隅の屋根を突き抜けた
+            //   (ユーザー指摘 2026-08-20 ブックマーク #1「飛び出してます」)。
+            //   実測 P[10]: 隅の届き ±11.51m に対し NG_E_N_5 は u[-8.17,0.32] で丸ごと内側だった。
+            //   安全代は要らない — 覆えているかどうかは**実メッシュの届き**が正しく答える。
+            if (isIn && far >= reachIn) doomed.Add(c.gameObject);
+            if (isOut && far <= reachOut) doomed.Add(c.gameObject);
         }
         foreach (var d in doomed) UnityEngine.Object.DestroyImmediate(d);
         return doomed.Count;
@@ -1982,8 +1985,14 @@ public static class EdoOkabeYashikiBuilder
             go.transform.position = new Vector3(p.x, y, p.y);
             go.transform.rotation = Quaternion.Euler(0, yaw, 0);
             go.transform.localScale = Vector3.one * scale;
+            // ★ 直線材を退けるのは**長屋だけ**(2026-08-20)。
+            //   長屋の端材(l/r)は妻壁と破風を持つので、隅に重なると屋根を突き抜けて見える
+            //   (ユーザー指摘 ブックマーク #1「飛び出してます」)。→ 丸ごと覆える物は退ける。
+            //   土塀は退けない。表裏2枚を走りへ 0.956m ずらして組む作りなので端が不揃いで、
+            //   「届き」の数字ほど実体が無い。退けると穴が開く(4枚でも8枚でも開いた)。
+            //   パネルは一様なので重ねても見えない — **重なりは継ぎ目より常に良い**(R4)。
             int ate = 0;
-            if (k.part != "Ishigaki") ate = EatStraights(parent, k, ri, ro, go);
+            if (k.part == "Nagaya") ate = EatStraights(parent, k, ri, ro, go);
             sb.AppendLine(string.Format("隅 {0} {1}→{2} Δ={3:F1}° yaw={4:F1} scale={5:F2} 頂点=({6:F1},{7:F1}) 芯線交点=({8:F2},{9:F2}) 直線材を退けた={10}",
                 k.part, k.runIn, k.runOut, deg, yaw, scale, k.v.x, k.v.y, p.x, p.y, ate));
         }

@@ -33,12 +33,17 @@
    **再生成も削除もしない**。撤去は `SetActive(false)`。
 2. **指図を先に起こす。** 屋敷・街区の寸法を動かす前に `docs/Sashizu/` に設計図を描き、
    ユーザーのレビューを受ける。飛ばして2度全面差し戻された。図なら数分、建ててからだと数時間。
-3. **建蔽率は敷地全体ベースでのみ出す。** 分母を可建地に替えて数字を作らない。
-4. **推定には典拠と確度を付ける**(S/A/B/P/U)。一般類型で埋めた物を既成事実にしない。
-5. **自分の成果物を基準に norm を作らない。** 史料値は `estate-types.md` から取る。
-6. **地形は現地形に従う** — 街路・坂・水系は現地形、敷地内は拝領時造成の再現。
-7. **開花木(Spring 桜)を置かない。** 季節は春ではない。Summer variant を使う。
-8. **パスの literal を新規に書かない。** すべて `Assets/Edo/Scripts/Editor/EdoAssets.cs` に置く
+   **順序は 設計(指図) → レビュー → 実装 → 指図を更新 → 突き合わせ。**
+   実装から指図を生成しない — 先に図を描く関門が消える。
+3. **指図は現況だけを載せる。** 過去の案・撤回した説を本文に残さない。経緯は `git log` で追う。
+   数値は設計値ファイル(`docs/Sashizu/*.json`)にのみ置き、文章にも図にも**写さない**。
+   実装を変えたら指図を更新し、`Edo/<屋敷>/指図と実装を突き合わせる` が 0 件になるまで直す。
+4. **建蔽率は敷地全体ベースでのみ出す。** 分母を可建地に替えて数字を作らない。
+5. **推定には典拠と確度を付ける**(S/A/B/P/U)。一般類型で埋めた物を既成事実にしない。
+6. **自分の成果物を基準に norm を作らない。** 史料値は `estate-types.md` から取る。
+7. **地形は現地形に従う** — 街路・坂・水系は現地形、敷地内は拝領時造成の再現。
+8. **開花木(Spring 桜)を置かない。** 季節は春ではない。Summer variant を使う。
+9. **パスの literal を新規に書かない。** すべて `Assets/Edo/Scripts/Editor/EdoAssets.cs` に置く
    (`LoadAssetAtPath` は例外を投げず null を返すので、直書きは静かに壊れる)。
 
 ---
@@ -95,7 +100,7 @@
 | Blender で部材を起こす | `Tools/Blender/README.md` + `vklib.py` |
 | Unity MCP の作法 | スキル `unity-mcp-skill` |
 | 在庫に何があるか | `docs/asset-catalog.md` → `docs/asset-index.tsv` |
-| 指図の描き方 | `docs/Sashizu/README.md` + `unity-buke-yashiki` の `references/sashizu.md` |
+| 指図の描き方・組み方 | `docs/Sashizu/README.md` + `unity-buke-yashiki` の `references/sashizu.md` |
 
 ### 作業 → 呼ぶエージェント(`.claude/agents/`)
 

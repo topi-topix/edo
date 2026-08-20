@@ -180,8 +180,11 @@ public static class EdoOkabeYashikiBuilder
             new PWall{ run="Hei_S_Mz", name="IG_S_Mz", s=0.50f },   //      1.42 →      2.0
             new PWall{ run="NG_E_S",   name="IG_E_S",  s=0.50f },   //      1.54 →      2.0
             new PWall{ run="Take_W3",  name="IG_W3",   s=0.75f },   //      2.42 →      3.0
-            new PWall{ run="Hei_N1",   name="IG_N1",   s=2.50f },   // 28.0-18.56= 9.44 →   10.0
-            new PWall{ run="Hei_N2",   name="IG_N2",   s=2.50f },   // 28.0-18.17= 9.83 →   10.0
+            // ★ 2026-08-20: 天端を 28.0 → 25.5 に下げたので s も引き直す(其十四の規則)。
+            //   NE / N1 / N2 は**一天端 25.5 で連続する**ので、s も 2.00 で揃える
+            //   (揃えないと底の張り出しが段になる — 其十五 ④)。
+            new PWall{ run="Hei_N1",   name="IG_N1",   s=2.00f },   // 25.5-18.57= 6.93 →    8.0(NEと揃える)
+            new PWall{ run="Hei_N2",   name="IG_N2",   s=2.00f },   // 25.5-18.17= 7.33 →    8.0
             // ★ 2026-08-18(指図 其十五 ②): **Hei_NE の石垣が丸ごと抜けていた。**
             //   run は seat 25.5 で存在するのに、この表に行が無かったので石垣が一枚も建たず、
             //   土塀が x -459.0〜-455.1 の **3.9m を空中で跨いで**いた
@@ -226,18 +229,20 @@ public static class EdoOkabeYashikiBuilder
         return new[] {
             // 北辺 P[7] — 西低地の折れ。天端は N3/N4a とも 20.0 で通っているので段は無い
             new Kado{ runIn="Hei_N3",  runOut="Hei_N4a", part="Ishigaki", v=P[7] },
-            // ⏸ 2026-08-18 保留 — **塀と長屋の隅部材はまだ据えられない。**
-            //   部材そのもの(Dobei_Kado_31 / Nagaya_Kado_38M)は出来ていて、留めの継ぎ目も
-            //   通っている。据えが合わない理由は次の2点で、石垣とは別に解く必要がある:
-            //   ① ピボットが躯体の中に無い。`s_hei_center` は走りの端から 0.3445×sx、
-            //      `knagaya01c` は奥行が −2.95〜−0.59 と**片側に寄っている**。
-            //      石垣のように「頂点＝原点」で置くと、長屋は 3m 内側へ落ちる(実測)。
-            //      → 部材の**なまこ壁の外面 / 塀の壁面**を基準に据え直す(perimeter.md の収束処理)。
-            //   ② 鏡像の作り方。負の折れ角で法線の x 符号を変えるだけでは**入隅になる**。
-            //      本当の鏡像は躯体ごと X で反転して巻きを直す必要がある。
-            //   石垣は①②とも当てはまらない(ピボットが内面・走りの端／出隅で成立)ので先に据えた。
-            // new Kado{ runIn="Hei_N3",  runOut="Hei_N4a", part="Dobei",    v=P[7] },
-            // new Kado{ runIn="NG_E_N",  runOut="NG_NE",   part="Nagaya",   v=P[10] },
+            // ★ 2026-08-19 解決 — 保留していた塀と長屋の隅部材を据えた。原因は**二つの設定の取り違え**で、
+            //   部材の作り自体は正しかった:
+            //   ① `build_kado.py` の折れ点が常に bbox の端(`origin="end"`)だった。
+            //      塀と長屋は**ピボットが躯体の中に無い**(`s_hei_center` は走りの端から 0.3445×sx、
+            //      `knagaya01c` は奥行 −2.95〜−0.59)ので、端で寄せると格子から半モジュールずれる。
+            //      → `origin="pivot"`。
+            //   ② 厚みの鏡像。**躯体がどちら側に出るかは部材で違う** — Castle Wall は勾配面が
+            //      Blender +X、edogoyomi の2点は −X。揃えないと出隅と入隅が入れ替わる。
+            //      → `flip=True`。
+            //   どちらも理屈でなく**据えて数値で当たりを取った**(隣接直線材の外面との差):
+            //      土塀 in 0.06 / out −0.26m ／ 長屋 in 0.00 / out 0.00m。
+            //   ⚠ 隅部材は直線材 1 枚ぶんを**兼ねる**ので、覆う直線材は下の EatStraights で退ける。
+            new Kado{ runIn="Hei_N3",  runOut="Hei_N4a", part="Dobei",    v=P[7] },
+            new Kado{ runIn="NG_E_N",  runOut="NG_NE",   part="Nagaya",   v=P[10] },
         };
     }
 
@@ -664,7 +669,45 @@ public static class EdoOkabeYashikiBuilder
     ///   (2026-08-18、土塀の隅が白い板で出た)。素が .obj の部材は名前が
     ///   `s_hei_center` 等なので、その .mat が Assets のどこかにあれば当たる。</summary>
     [MenuItem("Edo/岡部筑前守上屋敷/隅部材のマテリアルをremap")]
-    public static void RemapKadoMaterials() { Debug.Log("[Okabe] 隅 remap: " + RemapDir("Assets/Edo/Models/Kado") + "件"); }
+    public static void RemapKadoMaterials()
+    { Debug.Log("[Okabe] 隅 remap: " + RemapDir("Assets/Edo/Models/Kado") + "件 / " + BindDonorMaterials()); }
+
+    /// <summary>素材の**提供元**からマテリアルを直接結ぶ。
+    ///
+    /// ⚠ `SearchAndRemapMaterials` は**独立した .mat しか探さない**。edogoyomi の直線材
+    /// (`knagaya01c.obj` / `s_hei_center.obj`)はマテリアルを .obj の中に**サブアセットとして
+    /// 抱えている**ので、名前が一致していても当たらず真っ白のまま出る
+    /// (2026-08-19、隅の長屋と土塀で実際に出た)。
+    /// → 提供元の .obj を丸ごと読み、同名のマテリアルを `AddRemap` で明示的に結ぶ。</summary>
+    static string BindDonorMaterials()
+    {
+        var donors = new[] { EdoAssets.Eg.KnagayaC, EdoAssets.Eg.KnagayaL, EdoAssets.Eg.DobeiCenter };
+        var byName = new Dictionary<string, Material>();
+        foreach (var d in donors)
+            foreach (var o in AssetDatabase.LoadAllAssetsAtPath(d))
+            { var m = o as Material; if (m != null && !byName.ContainsKey(m.name)) byName[m.name] = m; }
+        int n = 0;
+        foreach (var guid in AssetDatabase.FindAssets("t:Model", new[] { "Assets/Edo/Models/Kado" }))
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            var imp = AssetImporter.GetAtPath(path) as ModelImporter; if (imp == null) continue;
+            var go = AssetDatabase.LoadAssetAtPath<GameObject>(path); if (go == null) continue;
+            bool touched = false;
+            foreach (var r in go.GetComponentsInChildren<MeshRenderer>())
+                foreach (var m in r.sharedMaterials)
+                {
+                    if (m == null) continue;
+                    Material donor;
+                    if (!byName.TryGetValue(m.name, out donor)) continue;
+                    if (donor == m) continue;
+                    imp.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), m.name), donor);
+                    touched = true;
+                }
+            if (touched) { AssetDatabase.WriteImportSettingsIfDirty(path); AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate); n++; }
+        }
+        AssetDatabase.SaveAssets();
+        return "提供元から結んだ " + n + "件";
+    }
 
     [MenuItem("Edo/岡部筑前守上屋敷/坂の土留めのマテリアルをremap")]
     public static void RemapSakaMaterials() { Debug.Log("[Okabe] 坂の土留めのマテリアル remap: " + RemapDir("Assets/Edo/Models/Ishigaki") + "件"); }
@@ -844,13 +887,19 @@ public static class EdoOkabeYashikiBuilder
             // seat = 石垣の天端 = 塀を据える高さ。**土井側の地盤の最大 + 1.0m** を 0.5 刻みに切り上げ。
             // top(＝こちら側の地盤)は郭の段のまま。差は石垣が受ける(＝隣の土を留める擁壁になる)。
             //   実測の土井側の地盤(外6m): N1 18.74〜26.64 / N2 18.67〜26.42 / N3 14.05〜18.67 / N4 9.53〜14.18
-            // ⚠ 2026-08-18(指図 其十五 ①): N1 と N2 の seat を **28.0 に揃えた**。
-            //   土井側の地盤 26.68 / 26.51 を別々に 0.5 刻みで切り上げたせいで、x=-566 に
-            //   **0.50m の段**が立っていた(ユーザー指摘 ブックマーク #1「微妙な段差」)。
-            //   こちら側の地盤(top)は 25.5 / 19.5 で本当に段になるが、それを受けるのは
-            //   郭の石垣 IG_W1 であって、境界の壁の天端まで割る理由が無い。**134m を一天端で通す。**
-            new Run{ name="Hei_N1", a=P[8], b=Vector2.Lerp(P[8],P[7],0.695822f), outw=eo(7), kind=Kakoi.Tsuiji, top=25.5f, seat=28.0f },
-            new Run{ name="Hei_N2", a=Vector2.Lerp(P[8],P[7],0.695822f), b=Vector2.Lerp(P[8],P[7],0.865535f), outw=eo(7), kind=Kakoi.Tsuiji, top=19.5f, seat=28.0f },
+            // ★ 2026-08-20 ユーザー裁定: **天端は 25.5 — 主郭の地盤に合わせる。**
+            //   経緯: 其十五 ① で N1/N2 を 28.0 に揃えて x=-566 の 0.5m の段は消えたが、
+            //   今度は **P[8] で Hei_NE(25.5) との間に 2.5m の段**が残った(ユーザー指摘・画像)。
+            //   「低い側のほうが主郭の土地の高さになっているので、その高さに合わせたほうがよい。
+            //     土塀自体は石垣の天端の上にあっていい」
+            //   → **28.0 は土井側の地盤(最大 26.7)から出した値**で、こちらの地盤とは無関係だった。
+            //     南辺は最初から seat=top(郭の地盤)で通っている。北辺だけが例外だったのを揃える。
+            //   結果: x=-455(Hei_NE)から x=-592 まで **138m を一天端 25.5 で通す**。段は無い。
+            //   ⚠ 土井側は最大 26.7 なので、西寄りで塀が **最大 1.2m 隣地の土に埋まる**。
+            //     [perimeter.md]「隣の高い屋敷の地盤が共有壁の天端より上にあるのは正常。
+            //     塀は高い側で~1m」— 許容の範囲内。埋まるのを嫌って天端を上げると段が戻る。
+            new Run{ name="Hei_N1", a=P[8], b=Vector2.Lerp(P[8],P[7],0.695822f), outw=eo(7), kind=Kakoi.Tsuiji, top=25.5f, seat=25.5f },
+            new Run{ name="Hei_N2", a=Vector2.Lerp(P[8],P[7],0.695822f), b=Vector2.Lerp(P[8],P[7],0.865535f), outw=eo(7), kind=Kakoi.Tsuiji, top=19.5f, seat=25.5f },
             new Run{ name="Hei_N3", a=Vector2.Lerp(P[8],P[7],0.865535f), b=P[7], outw=eo(7), kind=Kakoi.Tsuiji, top=11.5f, seat=20.0f },
             // ⚠ 2026-08-18(指図 其十五 ④): N4 を **折れ目 P[7] から西 12m で割った**。
             //   旧版は 20.0 → 15.5 の 4.5m の段を**折れ目そのもの**に置いていたが、
@@ -1208,8 +1257,6 @@ public static class EdoOkabeYashikiBuilder
         }
         NT.NaturalMode = true;
         sb.AppendLine("nagaya modules=" + nm);
-        sb.Append(PlaceKado(kak, "Dobei"));
-        sb.Append(PlaceKado(kak, "Nagaya"));
         sb.Append(PerimeterQA());
         // 表門(k_mon + 両番所) — 東辺、下書きの三角マーク位置
         float gh = B.PlaceGate(PKmon, mon, GATE, GateOut(), 0, "Nagayamon", sb);   // 番所は門に組み込み済み
@@ -1221,6 +1268,12 @@ public static class EdoOkabeYashikiBuilder
             c.position += new Vector3(0f, 13.5f - rb.min.y, 0f);
         }
         TightenToGate(kak, mon, sb);
+        // ★ 隅部材は **TightenToGate の後**に据える(2026-08-19)。
+        //   先に据えて直線材を退けると、TightenToGate が**生き残りを run 全長へ再配分**して
+        //   棟の間隔が広がる(実測: 隅切り NG_NE のピッチが 7.43 → 9.09 になり、
+        //   継ぎ目が 0.99m ずつ開いた)。詰め終わってから隅を差し込む。
+        sb.Append(PlaceKado(kak, "Dobei"));
+        sb.Append(PlaceKado(kak, "Nagaya"));
         // 隅櫓 [福井図: 上屋敷格の外周装置] — 敷地の南東隅・南西隅
         Yagura(kak, new Vector2(-378.5f, 950.5f), new Vector2(0.83f, -0.56f), "Sumiyagura_SE", 13.5f);
         Yagura(kak, new Vector2(-643.5f, 940.5f), new Vector2(-0.72f, -0.69f), "Sumiyagura_SW", 11.5f);
@@ -1757,6 +1810,53 @@ public static class EdoOkabeYashikiBuilder
         return p1 + d1 * t;
     }
 
+    /// <summary>隅部材が覆う直線材を退ける。**隅部材は直線材 1 枚ぶんを兼ねている**ので、
+    /// そのまま残すと屋根と壁が二重になり z-fighting する(石垣は PlaceCW の t0/t1 で先に
+    /// 空けているのでここへは来ない)。
+    ///
+    /// 判定は**頂点からの走り座標**。DobeiRun / NagayaRun はピッチを run 長から割り出すので、
+    /// 部材数でなく距離で切る。腕の長さ(1モジュール)＝ 土塀 1.645×ES ／ 長屋 4.296×ES。</summary>
+    static int EatStraights(Transform parent, Kado k, Run ri, Run ro, GameObject kado)
+    {
+        var din = (ri.b - ri.a).normalized; var dout = (ro.b - ro.a).normalized;
+        // ⚠ **公称の腕の長さで切ってはならない。** 留めは折れ角ぶん斜めに落とすので、
+        //   実際に届く距離はモジュール長より短い(実測 長屋 3.70m / 塀 4.10m に対し
+        //   公称は 7.81m / 2.99m)。公称で切ると隅の両脇が丸ごと空いた(2026-08-19)。
+        //   → **隅部材の実メッシュの届き**を測り、それに**丸ごと飲まれる**直線材だけ退ける。
+        //   はみ出す物は残す — 重なりは継ぎ目より常に良い(unity-modular-stonewall R4)。
+        float reachIn = 0f, reachOut = 0f;
+        foreach (var mf in kado.GetComponentsInChildren<MeshFilter>())
+            foreach (var v in mf.sharedMesh.vertices)
+            {
+                var w = mf.transform.TransformPoint(v); var q = new Vector2(w.x, w.z) - k.v;
+                reachIn = Mathf.Min(reachIn, Vector2.Dot(q, din));
+                reachOut = Mathf.Max(reachOut, Vector2.Dot(q, dout));
+            }
+        var doomed = new List<GameObject>();
+        foreach (Transform c in parent)
+        {
+            if (c.name.StartsWith("Kado_")) continue;
+            bool isIn = c.name.StartsWith(k.runIn + "_"), isOut = c.name.StartsWith(k.runOut + "_");
+            if (!isIn && !isOut) continue;
+            float far = isIn ? 9999f : -9999f;
+            foreach (var mf in c.GetComponentsInChildren<MeshFilter>())
+                foreach (var v in mf.sharedMesh.vertices)
+                {
+                    var w = mf.transform.TransformPoint(v); var q = new Vector2(w.x, w.z) - k.v;
+                    if (isIn) far = Mathf.Min(far, Vector2.Dot(q, din));
+                    else far = Mathf.Max(far, Vector2.Dot(q, dout));
+                }
+            // ⚠ 届きの中に**留めの先端**(斜めに尖った部分)が入っているので、届きそのもので
+            //   切ると壁の実体が無い所まで食べる(2026-08-19、塀の隅で 2 間ぶん穴が開いた)。
+            //   **実体で覆えている分だけ**を退ける — 6割を安全代に取る。
+            //   足りない分は重ねて済ませる。**継ぎ目は重なりより常に悪い**(R4)。
+            if (isIn && far >= reachIn * 0.6f) doomed.Add(c.gameObject);
+            if (isOut && far <= reachOut * 0.6f) doomed.Add(c.gameObject);
+        }
+        foreach (var d in doomed) UnityEngine.Object.DestroyImmediate(d);
+        return doomed.Count;
+    }
+
     static string PlaceKado(Transform parent, string only)
     {
         var sb = new System.Text.StringBuilder();
@@ -1789,15 +1889,20 @@ public static class EdoOkabeYashikiBuilder
             float offOut = k.part == "Ishigaki" ? FaceOff(ro.kind) - 1.4f * WallScaleFor(k.runOut) : 0f;
             var p = LineX(ri.a + ri.outw * offIn, (ri.b - ri.a).normalized,
                           ro.a + ro.outw * offOut, (ro.b - ro.a).normalized, k.v);
-            float y = k.part == "Ishigaki" ? ri.Seat - 4f * s : ri.Seat;
+            // ⚠ 塀・長屋の直線材は `SeatBottom(baseY − 0.10)` で**天端へ 0.10m 沈めて**据えてある
+            //   (DobeiRun / NagayaRun)。隅部材だけ Seat ちょうどに置くと 0.10m 浮いて、
+            //   軒の線が隅で段になる(2026-08-19 実測 隅 20.00 / 直線材 19.90)。同じだけ沈める。
+            float y = k.part == "Ishigaki" ? ri.Seat - 4f * s : ri.Seat - 0.10f;
             var go = (GameObject)PrefabUtility.InstantiatePrefab(src, parent);
             Undo.RegisterCreatedObjectUndo(go, "kado");
             go.name = "Kado_" + k.part + "_" + k.runIn + "_" + k.runOut;
             go.transform.position = new Vector3(p.x, y, p.y);
             go.transform.rotation = Quaternion.Euler(0, yaw, 0);
             go.transform.localScale = Vector3.one * scale;
-            sb.AppendLine(string.Format("隅 {0} {1}→{2} Δ={3:F1}° yaw={4:F1} scale={5:F2} 頂点=({6:F1},{7:F1}) 芯線交点=({8:F2},{9:F2})",
-                k.part, k.runIn, k.runOut, deg, yaw, scale, k.v.x, k.v.y, p.x, p.y));
+            int ate = 0;
+            if (k.part != "Ishigaki") ate = EatStraights(parent, k, ri, ro, go);
+            sb.AppendLine(string.Format("隅 {0} {1}→{2} Δ={3:F1}° yaw={4:F1} scale={5:F2} 頂点=({6:F1},{7:F1}) 芯線交点=({8:F2},{9:F2}) 直線材を退けた={10}",
+                k.part, k.runIn, k.runOut, deg, yaw, scale, k.v.x, k.v.y, p.x, p.y, ate));
         }
         return sb.ToString();
     }

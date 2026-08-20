@@ -1,7 +1,30 @@
 # 指図（設計図）
 
 **屋敷は Unity で建てる前にここへ設計図を起こし、ユーザーのレビューを受けてから実装する。**
-手順は `unity-buke-yashiki` スキル §C。
+手順は `unity-buke-yashiki` スキル `references/sashizu.md`。
+
+## 三つの決めごと
+
+1. **指図は現況だけを載せる。** 過去の案・撤回した説を本文に残さない。
+   経緯は `git log docs/Sashizu/` で追う。積み増すと必ず「何が正か分からない」状態になる（2026-08-20）。
+2. **数値は設計値ファイル（`<屋敷>.json`）にだけ置く。** HTML も文章もそこから組む。
+   表へ書き写した瞬間に二重管理が始まり、片方だけ直る。
+3. **順序を守る。**
+   `設計(json/md) → 組む → 検図 → レビュー → 実装 → 指図を更新 → 突き合わせて0件 → コミット`
+   **実装から指図を生成しない。** 先に図を描く関門が消える。道具が担ってよいのは突き合わせだけ。
+
+## 岡部邸の作り（他の屋敷もこの形に寄せる）
+
+| ファイル | 役 | 誰が書くか |
+|---|---|---|
+| `okabe_sashizu.json` | 設計値の正典 | 人 |
+| `okabe_kosho.md` | 文章の部（典拠・決めごと・未解決） | 人 |
+| `okabe_sashizu.html` | 上の二つから組んだ図面 | `Tools/Sashizu/build_okabe_sashizu.py` |
+| — | 指図と実装の突き合わせ | Unity `Edo ▸ 岡部筑前守上屋敷 ▸ 指図と実装を突き合わせる` |
+
+```bash
+python3 Tools/Sashizu/build_okabe_sashizu.py
+```
 
 ## 基準図
 
@@ -13,7 +36,7 @@
 
 | 屋敷 | 地区 | 状態 | 図面 | Artifact |
 |---|---|---|---|---|
-| 岡部筑前守 上屋敷（和泉岸和田藩5万3千石） | 山王社北 | 設計済・実装待ち | [okabe_sashizu.html](okabe_sashizu.html) | https://claude.ai/code/artifact/b5740d23-0e54-4447-8ea2-792dc63dba18 |
+| 岡部筑前守 上屋敷（和泉岸和田藩5万3千石） | 山王社北 | **実装済・指図と一致(180項目)** | [okabe_sashizu.html](okabe_sashizu.html) | https://claude.ai/code/artifact/ce6d353b-33ea-4355-aeb4-c5097da69e53 |
 
 ## 図面に入れるもの
 

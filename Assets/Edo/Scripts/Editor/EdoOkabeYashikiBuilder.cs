@@ -201,6 +201,89 @@ public static class EdoOkabeYashikiBuilder
         };
     }
 
+    // =========================================================================
+    // 郭の縁の柵(指図「郭の縁の柵」) — 郭の土留めの天端に低い竹垣を回す
+    //
+    // 四本の土留めは落差 6〜8m で、天端は御殿と廊下のすぐ脇を歩く**生活面**。
+    // 城の石垣の天端は武者走りなので柵を立てないが、ここに同じ作法は持ち込まない
+    // (ユーザー指摘 2026-08-20「落ちると危ないので石垣の上に竹柵みたいなのを設置していたのでは」)。
+    //
+    // 【据え】法肩(＝天端の低い側の縁)から内へ RAIL_INSET。柵の外に犬走りが残るので、
+    //   雨落ちが天端の目地に直に当たらない。高さは部材の素寸 0.9m(西辺の竹垣は 1.49m に
+    //   起こしているが、こちらは**跨げない程度の低い柵**なので素寸のまま)。
+    // 【切る所】石段の開口(Wall の gapZ ± gapHalf)。動線を塞がない。
+    // 【立てない所】家臣長屋が天端に載る区間(W1/W2 の z 949〜1037)。躯体が縁を塞いでいる。
+    // 【典拠: 落差のある生活面を素の縁にしないのは機能上の要請 — 確度B。
+    //   当屋敷で竹垣だったという史料は無い — 柵の種別は確度?】
+    // =========================================================================
+    public const float RAIL_INSET = 0.45f;   // 法肩から内へ
+    public const float RAIL_H = 0.9f;        // 部材の素寸
+    public struct Rail { public string wall; public float z0, z1; }
+    public static Rail[] TerraceRails()
+    {
+        return new[] {
+            new Rail{ wall="IG_E1", z0=947.0f,  z1=1087.9f },   // 主郭の東縁
+            new Rail{ wall="IG_E2", z0=947.0f,  z1=1095.9f },   // 東中段の東縁
+            new Rail{ wall="IG_W1", z0=1037.0f, z1=1069.8f },   // 主郭の西縁(南半分は家臣長屋)
+            new Rail{ wall="IG_W2", z0=1037.0f, z1=1065.7f },   // 中段の西縁(同上)
+        };
+    }
+
+    /// <summary>郭の縁の柵を据える。
+    /// ⚠ 部材は**長手が local Z**(TakegakiRun の注)。+Z を走りへ向ける。
+    /// ⚠ 法肩は「芯線 + 1.4×s を**低い側へ**」。低い側は走りの左(躯体の出る側)。</summary>
+    static string PlaceTerraceRails(Transform parent)
+    {
+        var src = AssetDatabase.LoadAssetAtPath<GameObject>(EdoAssets.Eg.TakeGaki);
+        if (src == null) return "柵の部材が無い: " + EdoAssets.Eg.TakeGaki + "\n";
+        var byName = new Dictionary<string, Wall>();
+        foreach (var w in Walls()) byName[w.name] = w;
+        var sb = new System.Text.StringBuilder();
+        int total = 0;
+        foreach (var q in TerraceRails())
+        {
+            Wall w;
+            if (!byName.TryGetValue(q.wall, out w)) { Debug.LogError("[Okabe] 柵の相手の石垣が無い: " + q.wall); continue; }
+            Vector2 d = (w.b - w.a); float L = d.magnitude; d /= L;
+            var low = new Vector2(-d.y, d.x);                       // 躯体(低い側)
+            Vector2 line = w.a + low * (1.4f * w.sy - RAIL_INSET);  // 柵の芯
+            float yaw = Mathf.Atan2(d.x, d.y) * Mathf.Rad2Deg;
+            var g = new GameObject("Rail_" + q.wall); g.transform.SetParent(parent, false);
+            Undo.RegisterCreatedObjectUndo(g, "rail");
+            // 走り座標へ直す(この4本は x=const なので z がそのまま走り)
+            float t0 = Vector2.Dot(new Vector2(w.a.x, q.z0) - w.a, d);
+            float t1 = Vector2.Dot(new Vector2(w.a.x, q.z1) - w.a, d);
+            if (t1 < t0) { var tt = t0; t0 = t1; t1 = tt; }
+            t0 = Mathf.Max(t0, 0f); t1 = Mathf.Min(t1, L);
+            float gLo = Vector2.Dot(new Vector2(w.a.x, w.gapZ - w.gapHalf) - w.a, d);
+            float gHi = Vector2.Dot(new Vector2(w.a.x, w.gapZ + w.gapHalf) - w.a, d);
+            if (gHi < gLo) { var tt = gLo; gLo = gHi; gHi = tt; }
+            const float MOD = 1.039f;
+            int n = 0;
+            foreach (var seg in new[] { new Vector2(t0, Mathf.Min(t1, gLo)), new Vector2(Mathf.Max(t0, gHi), t1) })
+            {
+                float a = seg.x, b = seg.y; if (b - a < MOD) continue;
+                int k = Mathf.Max(1, Mathf.RoundToInt((b - a) / MOD));
+                float kz = (b - a) / (k * MOD);                      // 走りをちょうど埋める
+                for (int i = 0; i < k; i++)
+                {
+                    var p = line + d * (a + (b - a) * i / k);
+                    var go = (GameObject)PrefabUtility.InstantiatePrefab(src, g.transform);
+                    Undo.RegisterCreatedObjectUndo(go, "rl"); go.name = "RL_" + (n++);
+                    go.transform.position = new Vector3(p.x, w.coping, p.y);
+                    go.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+                    go.transform.localScale = new Vector3(1f, 1f, kz);
+                }
+            }
+            total += n;
+            sb.AppendLine(string.Format("柵 {0} 天端{1:F1} 芯 {2:F2} 枚={3} (z {4:F0}〜{5:F0} / 石段で切る {6:F1}〜{7:F1})",
+                q.wall, w.coping, w.name.StartsWith("IG_E") ? line.x : line.x, n,
+                q.z0, q.z1, w.gapZ - w.gapHalf, w.gapZ + w.gapHalf));
+        }
+        sb.AppendLine("柵 合計 " + total + " 枚 / 高さ " + RAIL_H.ToString("F1") + "m / 法肩から内へ " + RAIL_INSET.ToString("F2") + "m");
+        return sb.ToString();
+    }
+
     /// <summary>その run に付く外周石垣の s。付かない run は 0(芯線 = 外周線)。</summary>
     public static float WallScaleFor(string runName)
     {
@@ -1956,6 +2039,7 @@ public static class EdoOkabeYashikiBuilder
         }
         sb.AppendLine("坂の土留め pieces=" + nn);
         sb.Append(PlaceKado(ig, "Ishigaki"));
+        { var rg = Grp("Saku"); Clear(rg); sb.Append(PlaceTerraceRails(rg)); }
 
         // 家臣長屋2列 — 西の石垣A/Bの天端に載せる(下書きの赤線2本)
         // perimeter.md: なまこ壁の外面を天端の外面から **犬走り 0.30m** 控える / 土台底 = 天端 − 1.59m

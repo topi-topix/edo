@@ -41,9 +41,10 @@ public static class EdoSannoKitaBuilder
         EdoAssets.JC.Azalea01,
         EdoAssets.JC.Azalea03,
         EdoAssets.JG.Boxwood01 };
-    static string[] Bamboo = {
-        EdoAssets.JG.BambooBig01,
-        EdoAssets.JG.BambooBig02 };
+    // ⚠ **斜面の植栽に竹を使わない**(2026-08-22 是正)。BambooBig は孟宗竹型の太稈で、
+    //   嘉永期の江戸の孟宗竹は吹上御苑と近郊農村の筍畑にしか無い。斜面は Pines + Shrubs の
+    //   3帯(指図 matsudaira_sashizu.json の slopeBands)。竹垣は垣の材なので別物。
+    //   復活させる前に docs/Sashizu/matsudaira_kosho.md「斜面の植生」を読むこと。
     const string PTobi = EdoAssets.JG.TobiIshi01;
     public const float ES = 1.818f;
 
@@ -547,7 +548,11 @@ public static class EdoSannoKitaBuilder
         var n4 = Place(EdoAssets.Eg.KnagayaR, Vector3.zero, 90f, Vector3.one * ES, bg, "KashinNagaya_B_R");
         CenterSeat(n4, -510f, 1232.2f);
         Well(bg, -672f, 1185f);
-        // 庭: 台地=松・刈込 / 西斜面(溜池を望む)=竹林+松
+        // 庭: 台地=松・刈込 / 西斜面(溜池を望む)=**指図 slopeBands の3帯**(2026-08-22 是正)
+        //   下部〜裾(<10.5)=草地・高木なし / 中部(10.5〜14)=低木・下草 / 上部(≥14)=黒松(疎)+雑木。
+        //   竹林ではない — [橋本・堀1998](査読) 溜池の水辺の樹木は2例とも松/竹薮は江戸の水辺79事例中1例。
+        //   『江戸名所図会』溜池・広重「赤坂桐畑」もこの崖線を松+広葉樹で描き竹は無い。
+        //   ⚠ 竹垣(rails R_West/R_South)は垣の材で別物。
         var gg = Group(G, "Garden");
         var rnd = new System.Random(186000);
         for (int i = 0, gd = 0; i < 46 && gd < 2000; gd++)
@@ -563,10 +568,11 @@ public static class EdoSannoKitaBuilder
             float u = Mathf.Abs(Vector2.Dot(p2 - GATE_MATSU, new Vector2(-InwardNormal(MATSU, 10).y, InwardNormal(MATSU, 10).x)));
             if (v > -3f && v < 26f && u < 18f) continue;    // 門前白洲
             float y = Ground(px, pz);
-            if (y < 20f)
+            if (y < 10.5f) continue;                       // 下部〜裾=草地。高木を置かない
+            if (y < 14f)
             {
-                var go = Place(Bamboo[rnd.Next(2)], new Vector3(px, y, pz), (float)rnd.NextDouble() * 360f, Vector3.one * (1.5f * (0.9f + 0.4f * (float)rnd.NextDouble())), gg, "Take_" + i);
-                SeatBottom(go, y - 0.05f);
+                var go = Place(Shrubs[rnd.Next(Shrubs.Length)], new Vector3(px, y, pz), (float)rnd.NextDouble() * 360f, Vector3.one * (0.9f + 0.6f * (float)rnd.NextDouble()), gg, "Shrub_" + i);
+                SeatBottom(go, y - 0.04f);
             }
             else if (rnd.NextDouble() < 0.7)
             {

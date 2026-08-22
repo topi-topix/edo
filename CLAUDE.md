@@ -43,7 +43,10 @@
 6. **自分の成果物を基準に norm を作らない。** 史料値は `estate-types.md` から取る。
 7. **地形は現地形に従う** — 街路・坂・水系は現地形、敷地内は拝領時造成の再現。
 8. **開花木(Spring 桜)を置かない。** 季節は春ではない。Summer variant を使う。
-9. **パスの literal を新規に書かない。** すべて `Assets/Edo/Scripts/Editor/EdoAssets.cs` に置く
+9. **区画の座標を C# に書かない。** 町割は `docs/Sashizu/parcels.json` が正典で、ビルダーは
+   `EdoParcels.Get("<id>")` で引く。ソースへ数値を戻すと敷地割ツールと実装が別々に動く。
+   まだ配列を持っているビルダーは `Edo/敷地割/ビルダーと突き合わせる` が差分を見張っている。
+10. **パスの literal を新規に書かない。** すべて `Assets/Edo/Scripts/Editor/EdoAssets.cs` に置く
    (`LoadAssetAtPath` は例外を投げず null を返すので、直書きは静かに壊れる)。
 
 ---
@@ -102,6 +105,7 @@
 | 地表・スプラット・植栽・`execute_code`・検証レンダ | スキル `unity-surface-authoring` |
 | Blender で部材を起こす | `Tools/Blender/README.md` + `vklib.py` |
 | Unity MCP の作法 | スキル `unity-mcp-skill` |
+| 屋敷・町屋・寺社の**区画そのもの**(敷地割) | `docs/Sashizu/parcels.json` が正典。編集は Unity の `Edo/敷地割`(⌘⇧K) |
 | 在庫に何があるか | `docs/asset-catalog.md` → `docs/asset-index.tsv` |
 | 指図の描き方・組み方 | `docs/Sashizu/README.md` + `unity-buke-yashiki` の `references/sashizu.md` |
 | 地形の座標・造成の初期化・戻し方 | `docs/terrain-georef-fix.md`(2026-08-22 に地形を作り直した) |

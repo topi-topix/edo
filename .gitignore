@@ -56,7 +56,7 @@ mono_crash.*.json
 # PLATEAU SDK tarball (799MB, do not commit)
 /LocalPackages/
 
-# ---- サードパーティ製アセットパック(再配布不可・計約6.9GB) ----
+# ---- サードパーティ製アセットパック(再配布不可・計約7.8GB) ----
 # 各自 Asset Store / BOOTH から入手して import すること。手順は README.md を参照。
 /[Aa]ssets/NatureManufacture Assets/
 /[Aa]ssets/NatureManufacture Assets.meta
@@ -68,6 +68,10 @@ mono_crash.*.json
 /[Aa]ssets/Japanese Village Kit.meta
 /[Aa]ssets/edogoyomi/
 /[Aa]ssets/edogoyomi.meta
+/[Aa]ssets/Japanese Shrine and Temples/
+/[Aa]ssets/Japanese Shrine and Temples.meta
+/[Aa]ssets/Standard Assets/
+/[Aa]ssets/Standard Assets.meta
 
 # 土地利用ベイク前のスプラット自動バックアップ(ローカル用)
 /TerrainBackups/

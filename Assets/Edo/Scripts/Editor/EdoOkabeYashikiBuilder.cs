@@ -1466,6 +1466,24 @@ public static class EdoOkabeYashikiBuilder
         // ---- 繋塀は作らない ----
         //   築地塀が Runs() の 3 区間でそのまま門の小壁へ突き当たる(指図 其九 wallRuns)。
         //   別部材にしていたのを 2026-08-22 に廃止した。
+        // ---- 袖塀の折り返し（乙: 門を 1m 引いたので、塀の線から門柱へ直角に返して閉じる） ----
+        var sg = EdoSashizuExport.D(plan, "sodegaeshi");
+        if (sg != null)
+        {
+            float sgLen = EdoSashizuExport.F(sg, "len");
+            foreach (var side in new[] { "south", "north" })
+            {
+                var sd = EdoSashizuExport.D(sg, side); if (sd == null) continue;
+                float st2 = EdoSashizuExport.F(sd, "t");
+                var oo = EdoSashizuExport.A(sd, "o");
+                // 走りは o 方向（内向き）。外向きは ±dir
+                NT.DobeiRun(kak, W(st2, oo[0]), W(st2, oo[1]),
+                            (side == "south" ? -dir : dir), "Hei_Sode" + (side == "south" ? "S" : "N"),
+                            false, 13.5f, Vector2.zero, -1);
+            }
+            sb.AppendLine("袖塀の折り返し 2 本 (len=" + sgLen.ToString("F2") + ")");
+        }
+
         // ---- 番所 ----
         var bt = EdoSashizuExport.A(pb, "t");
         var bo = EdoSashizuExport.A(pb, "o");

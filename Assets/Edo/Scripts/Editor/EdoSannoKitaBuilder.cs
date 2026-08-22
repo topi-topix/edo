@@ -70,8 +70,11 @@ public static class EdoSannoKitaBuilder
         new Vector2(-640.0f, 1073.8f), new Vector2(-612.6f, 1062.5f), new Vector2(-459.4f, 1086.6f),
         new Vector2(-460.9f, 1094.9f), new Vector2(-431.8f, 1105.9f), new Vector2(-458.5f, 1177.8f),
         new Vector2(-530.9f, 1155.8f), new Vector2(-606.9f, 1156.9f), new Vector2(-609.0f, 1107.5f) };
-    // 松平: 0-3=S(土井共有・所有) 3-4,4-5=SE(岡部共有・所有) 5-8=W(堀端=溜池東岸)
-    //       8-9=N西(表門手前) 9-10=N東 10-0=E
+    // 松平(13頂点): 0-1,1-2,2-3,3-4=S(土井共有・松平所有。3-4は土井辺8-0と共有)
+    //   4-5,5-6=SE(岡部共有=岡部辺5-6/4-5・松平所有) 6-7,7-8,8-9=W(堀端=溜池東岸)
+    //   9-10=NW 10-11=N(表門・大通り) 11-12=NE 12-0=E(三べ坂前身道)
+    //   ⚠ 旧注記は11頂点時代のもので辺番号が1〜2ズレていた(検図 2026-08-22 で是正)。
+    //   正典は docs/Sashizu/matsudaira_sashizu.json の _edges。
     public static readonly Vector2[] MATSU = {
         new Vector2(-458.5f, 1177.8f), new Vector2(-530.9f, 1155.8f), new Vector2(-606.9f, 1156.9f),
         new Vector2(-609.0f, 1107.5f), new Vector2(-640.0f, 1073.8f), new Vector2(-660.8f, 1049.2f),

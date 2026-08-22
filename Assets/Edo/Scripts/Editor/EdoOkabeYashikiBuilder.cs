@@ -49,11 +49,10 @@ public static class EdoOkabeYashikiBuilder
     // 5万石以上は長屋門[表門格式表]。冠木門は焼失後の再建など簡素な場合の形式で、
     // 大名の上屋敷の表門にはならない。番所は長屋門の躯体に組み込まれているので別に建てない。
     // 【典拠: 格式表(二次) / 当屋敷の一次史料は未確認】
-    const string PKmon = EdoAssets.Eg.Nagayamon;
+    const string PKmon = EdoAssets.Eg.Kmon;
     // 門は 1.08 倍に起こす(指図 其八ノ二 ③)。素の全高 5.10 は東辺の長屋(5.51)より低く、
     // 表門の棟が長屋の棟に負けていた(18.60 < 18.91)。1.08 倍で棟 19.01 となり門が勝つ。
-    const float MON_SCALE = 1.08f;
-    const float MON_HALF = 12.14f;      // 長屋門の半幅(22.48 × 1.08 ÷ 2)。塀の切り位置はここから出す
+    // 開口の切り位置は **指図 其九 の gate.plan.wallEnds** が唯一の正典。定数に写さない。
 
     // ---------- 段(平場)の定義: x範囲 / z範囲 / 高さ ----------
     public struct Terr { public float x0, x1, z0, z1, y; public string name; }
@@ -178,7 +177,12 @@ public static class EdoOkabeYashikiBuilder
             new PWall{ run="Hei_S_SkE",name="IG_S_SkE",s=2.00f },   // 25.5-19.58= 5.92 →    8.0(Skと揃える)
             new PWall{ run="Hei_S_Te", name="IG_S_Te", s=1.25f },   //      4.29 →      5.0
             new PWall{ run="Hei_S_Mz", name="IG_S_Mz", s=0.50f },   //      1.42 →      2.0
-            new PWall{ run="NG_E_S",   name="IG_E_S",  s=0.50f },   //      1.54 →      2.0
+            // ★ 2026-08-22 東辺は **指図 其七 の runs[].wall から読む**(定数に写さない)。
+            //   総築地塀化で塀の断面が変わり法尻が 1.619m 外へ動いたので、s を実測から引き直した:
+            //   Hei_E_S 法尻11.22→必要2.28→s=0.75 ／ Hei_E_S2 12.99→0.51→0.25 ／ Hei_E_N 13.24→0.26→0.25
+            new PWall{ run="Hei_E_S",  name="IG_E_S",  s=0.75f },
+            new PWall{ run="Hei_E_S2", name="IG_E_S2", s=0.25f },
+            new PWall{ run="Hei_E_N",  name="IG_E_N",  s=0.25f },   //      1.54 →      2.0
             new PWall{ run="Take_W3",  name="IG_W3",   s=0.75f },   //      2.42 →      3.0
             // ★ 2026-08-20: 天端を 28.0 → 25.5 に下げたので s も引き直す(其十四の規則)。
             //   NE / N1 / N2 は**一天端 25.5 で連続する**ので、s も 2.00 で揃える
@@ -197,7 +201,7 @@ public static class EdoOkabeYashikiBuilder
             new PWall{ run="Hei_N3",   name="IG_N3",   s=2.00f },   // 20.0-13.90= 6.10 →    8.0(N4aと揃える)
             new PWall{ run="Hei_N4a",  name="IG_N4a",  s=2.00f },   // 20.0-12.20= 7.80 →    8.0
             new PWall{ run="Hei_N4b",  name="IG_N4b",  s=1.75f },   // 15.5- 8.84= 6.66 →    7.0
-            new PWall{ run="NG_N1",    name="IG_NN1",  s=1.50f },   // 19.5-14.59=4.9 →      6.0
+            new PWall{ run="Hei_N0",   name="IG_NN1",  s=1.50f },   // 19.5-14.59=4.9 →      6.0
         };
     }
 
@@ -325,7 +329,11 @@ public static class EdoOkabeYashikiBuilder
             //      土塀 in 0.06 / out −0.26m ／ 長屋 in 0.00 / out 0.00m。
             //   ⚠ 隅部材は直線材 1 枚ぶんを**兼ねる**ので、覆う直線材は下の EatStraights で退ける。
             new Kado{ runIn="Hei_N3",  runOut="Hei_N4a", part="Dobei",    v=P[7] },
-            new Kado{ runIn="NG_E_N",  runOut="NG_NE",   part="Nagaya",   v=P[10] },
+            // ★ 2026-08-21 総築地塀化。P[10] の隅は長屋の留め継ぎ → **土塀の留め継ぎ**へ。
+            new Kado{ runIn="Hei_E_N", runOut="Hei_SK",  part="Dobei",    v=P[10] },
+            // ⚠ P[9](Hei_SK 13.5 → Hei_N0 19.5)の隅は**まだ据えない**。留め継ぎは
+            //   同じ天端の二材を斜めに継ぐ仕掛けなので 6m の段は吸えない。
+            //   指図の未解決「段は折れ目に置かない」が決まってから据える。
         };
     }
 
@@ -819,7 +827,7 @@ public static class EdoOkabeYashikiBuilder
     // ⚠ 下書きの三角マークは外周線 P[0]→P[10] から **2.25m 内へ外れて**いた(実測 2026-08-15)。
     //   その点で run を切ると芯が 1.2°傾き、棟は外周線の方位で置くので長屋の街路面が
     //   **棟ごとに 0.37m の鋸歯**になり、門へ向かって 1.83m 内へ流れた(指図 其八ノ二 ①)。
-    //   GATE は**外周線の上**に取る。門の直交位置は下の SeatGate で長屋の面へ揃える。
+    //   GATE は**外周線の上**に取る。門の直交位置は指図 其九 の gate.plan.mon.pivotO で決める。
     public static readonly Vector2 GATE = new Vector2(-378.76f, 1001.24f);
     public static Vector2 GateOut() { return (-B.InwardNormal(SK.OKABE, 10)).normalized; }
     public static float YawGate() { var o = GateOut(); return Mathf.Atan2(o.x, o.y) * Mathf.Rad2Deg; }
@@ -922,22 +930,40 @@ public static class EdoOkabeYashikiBuilder
             new Run{ name="Hei_S_SkE",a=P[1],          b=s1_0(-455f), outw=eo(0), kind=Kakoi.Tsuiji, top=25.5f },
             new Run{ name="Hei_S_Te", a=s1_0(-455f),   b=s1_0(-425f), outw=eo(0), kind=Kakoi.Tsuiji, top=19.5f },
             new Run{ name="Hei_S_Mz", a=s1_0(-425f),   b=P[0],        outw=eo(0), kind=Kakoi.Tsuiji, top=13.5f },
-            // ---- 東辺(三べ坂・表門) **長屋塀**。表門が長屋門なので門から長屋が連続する ----
+            // ---- 東辺(三べ坂・表門) **築地塀** ----
+            // ★ 2026-08-21 ユーザー裁定: **外周の長屋塀を全廃し総築地塀にする**(確度U)。
+            //   これに伴い表門も長屋門 → 放れ門(k_mon)+片番所へ。
+            //   ⚠ 従前ここに書いていた「格式表が5万石以上に長屋門を定める」の根拠 [表門格式表] は、
+            //     出典本文に**その表が存在しない**ことが判明した(出典URLは404、Wayback で本文を復元
+            //     しても石高別の表は無く、「五万石以下の**旗本**屋敷」という破綻した記述を含む)。
+            //     確度は B → **?** へ降格。門の形式は典拠からは決まらない。
+            //   ⚠ 「長屋門を建てたらその辺は長屋塀」も**実装作法であって史実の規則ではない**。
+            //     両袖が築地塀に連続する単独の長屋門(門長屋)は形式として成立する。
             // ⚠ 一度ここを築地塀にしたが誤り(2026-08-15、ユーザー指摘)。
             //   根拠にした [追川2017→宮崎1994]「表門に連なる塀に長屋塀を避けた」と加賀藩本郷邸は
             //   **102万石の国持大名=放れ門**の話で、そもそも長屋門ではない。
             //   格式表が5万石以上に長屋門を定める以上、門から長屋が連続するのが筋。
             //   **門の形式と辺の囲いの種別は必ず整合させる。**
             // 塀の切り位置は**門の実寸から**出す。±6.5 の決め打ちだと門の躯体(幅22.5m)を貫通した
-            new Run{ name="NG_E_S",  a=P[0], b=GATE + d10 * MON_HALF, outw=eo(10), kind=Kakoi.Nagaya, top=13.5f },
-            new Run{ name="NG_E_N",  a=GATE - d10 * MON_HALF, b=P[10], outw=eo(10), kind=Kakoi.Nagaya, top=13.5f },
-            // ---- 北東の隅切り〜北辺(隣地) 長屋塀。40m 以下に割る ----
+            // ⚠ 切り位置は**指図 其九 から読む**(定数に写さない)。
+            //   d10 は P[10]→P[0] 向きなので、指図の +t(北) は -d10 側。
+            //   東辺は **3 区間**: P[0]→番所 ／ 番所→門の小壁 ／ 門の小壁→P[10]。
+            //   「繋塀」という別部材は作らない — 断面も天端も築地塀と同じで分ける理由が無い
+            //   (2026-08-22 ユーザー指摘)。番所で run が割れるだけ。
+            new Run{ name="Hei_E_S",  a=P[0], b=GATE - d10 * GateT("bansho", "t", 0), outw=eo(10), kind=Kakoi.Tsuiji, top=13.5f },
+            new Run{ name="Hei_E_S2", a=GATE - d10 * GateT("bansho", "t", 1),
+                                      b=GATE - d10 * (-GateWallEnd("northT")), outw=eo(10), kind=Kakoi.Tsuiji, top=13.5f },
+            new Run{ name="Hei_E_N",  a=GATE - d10 * GateWallEnd("northT"), b=P[10], outw=eo(10), kind=Kakoi.Tsuiji, top=13.5f },
+            // ---- 北東の隅切り〜北辺(隣地) **築地塀**(2026-08-21) ----
             // ⚠ 2026-08-18(指図 其十五 ⑦): **P[9] の手前 6m で止める。**
             //   この隅切りの天端は 13.5、隣の北辺 NG_N1 は 19.5。頂点まで伸ばすと最後の1棟が
             //   6.10m 隣の盛土に埋まる(GroundQA が検出。ユーザー指摘 ブックマーク #6 の 5
             //   「長屋が壁にめり込んでいて不自然」)。段は**隅櫓**が受ける。
-            new Run{ name="NG_NE",    a=P[10], b=P[9] - (P[9]-P[10]).normalized * 6.0f,
-                     outw=eo(9), kind=Kakoi.Nagaya, top=13.5f },
+            // ⚠ **P[9] の手前 6m で止めるのは据え置き**(2026-08-21)。塀は薄いので長屋ほど埋まらないが、
+            //   P[9] の地盤は既に 19.5(段の縁 x=-425 が P[9] x=-425.4 のすぐ東に来る)。
+            //   指図の未解決「段は折れ目に置かない → 段を P[9] から西へずらす」が決まるまで動かさない。
+            new Run{ name="Hei_SK",   a=P[10], b=P[9] - (P[9]-P[10]).normalized * 6.0f,
+                     outw=eo(9), kind=Kakoi.Tsuiji, top=13.5f },
             // ⚠ NG_N1 は **x=-455 で割る**(指図 其十二)。主郭を北へ延ばしたので、この辺は
             //   x=-455(郭の石垣 IG_E1 の線)を境に西が主郭 25.5・東が 15.5 になる。
             //   割らずにいたら長屋の西端が主郭の盛土に 4.00m 埋まった(GroundQA が検出)。
@@ -947,7 +973,7 @@ public static class EdoOkabeYashikiBuilder
             //    なくなっています。土地を持ち上げてその上に長屋を置く形に」。
             //   東中段(TE)を境界まで延ばし、長屋はその段に載せる。段の境 x=-425 は IG_E2 が受ける
             //   (IG_E2 は北端 z1095.9 まで伸びており、境界の角 P[9] z1096.3 とほぼ一致)。
-            new Run{ name="NG_N1",    a=P[9],  b=px(P[9],P[8],-455f), outw=eo(8), kind=Kakoi.Nagaya, top=19.5f },
+            new Run{ name="Hei_N0",   a=P[9],  b=px(P[9],P[8],-455f), outw=eo(8), kind=Kakoi.Tsuiji, top=19.5f },
             new Run{ name="Hei_NE",   a=px(P[9],P[8],-455f), b=P[8], outw=eo(8), kind=Kakoi.Tsuiji, top=25.5f },
             // ---- 北辺 P[8]→P[7]→P[6] = 土井大隅守邸との共有境界。**築地塀・4段**(指図 其十一) ----
             // 【誰が持つか】ユーザー裁定 2026-08-16(確度U)。**史料では決まらなかった** —
@@ -1342,40 +1368,235 @@ public static class EdoOkabeYashikiBuilder
         sb.AppendLine("nagaya modules=" + nm);
         sb.Append(PerimeterQA());
         // 表門(k_mon + 両番所) — 東辺、下書きの三角マーク位置
-        float gh = B.PlaceGate(PKmon, mon, GATE, GateOut(), 0, "Nagayamon", sb);   // 番所は門に組み込み済み
-        SeatGate(mon, kak, sb);
-        // 表門も段の高さへ。地面に置くと 0.56m 沈んで両袖の塀とずれる(指図 其六 ④)
-        foreach (Transform c in mon)
-        {
-            var rb = B.RB(c.gameObject); if (rb.size == Vector3.zero) continue;
-            c.position += new Vector3(0f, 13.5f - rb.min.y, 0f);
-        }
-        TightenToGate(kak, mon, sb);
-        // ★ 隅部材は **TightenToGate の後**に据える(2026-08-19)。
-        //   先に据えて直線材を退けると、TightenToGate が**生き残りを run 全長へ再配分**して
+        // ★ 2026-08-21 表門は **指図 其九 の gate.plan を読んで据える**。
+        //   長屋門用の PlaceGate/SeatGate/TightenToGate は使わない —
+        //   鏡柱の面を測って寄せる仕掛けで、ピボットが躯体の外にある k_mon に当てると
+        //   門ごと街路へ 6.5m 押し出す(事故の直接原因)。寸法は一つも定数に写さない。
+        //   ⚠ 繋塀の取り付き先は **小壁 kabe の側面 t=±5.492**。鏡柱(±4.145)ではない —
+        //     そこへ寄せると繋塀の天端が木鼻 orna_head の底 15.934 に 0.111 当たる(検図 2026-08-21)。
+        sb.Append(PlaceOmotemonFromSashizu(mon, kak));
+        // ★ 隅部材は **直線材を並べ終えてから**据える(2026-08-19)。
+        //   先に据えて直線材を退けると、詰め直しが**生き残りを run 全長へ再配分**して
         //   棟の間隔が広がる(実測: 隅切り NG_NE のピッチが 7.43 → 9.09 になり、
         //   継ぎ目が 0.99m ずつ開いた)。詰め終わってから隅を差し込む。
         sb.Append(PlaceKado(kak, "Dobei"));
-        sb.Append(PlaceKado(kak, "Nagaya"));
-        // 隅櫓 [福井図: 上屋敷格の外周装置] — 敷地の南東隅・南西隅
-        Yagura(kak, new Vector2(-378.5f, 950.5f), new Vector2(0.83f, -0.56f), "Sumiyagura_SE", 13.5f);
+        // ★ 2026-08-21 **隅櫓は据えない**(ユーザー裁定の帰結)。
+        //   [福井図] の隅矢倉は「全周長屋の帯の隅の節」で、長屋を全廃すると典拠の指す文脈が消える。
+        //   実装も knagaya01c を 0.55倍に縮めた転用なので、長屋が一棟も無い屋敷に残ると意匠的に浮く。
+        //   構造上も不要 — この屋敷は既に築地塀で 6m の段を二つ櫓なしで納めている
+        //   (Hei_N1 25.5 → Hei_N2 19.5 → Hei_N3 11.5)。
+        //   既にシーンにある物は消さず **SetActive(false)**(手組み資産の作法に倣う)。
+        foreach (Transform c in kak)
+            if (c.name.StartsWith("Sumiyagura")) c.gameObject.SetActive(false);
+        // ⚠ ただし **SW だけは戻す**(検図 2026-08-21)。南西 P[3] で
+        //   竹垣の天端 8.0 + 竹垣の実高 1.485 = 9.485 と 築地塀の底 11.500 のあいだに
+        //   **2.015m の垂直の穴**が空いており、それを塞いでいる唯一の物がこれ。
+        //   P[3] の納まり(返しの石垣／隅の造成／竹垣の天端を上げる)が決まるまで残す。
         Yagura(kak, new Vector2(-643.5f, 940.5f), new Vector2(-0.72f, -0.69f), "Sumiyagura_SW", 11.5f);
-        // ★ 北東隅 P[9](指図 其十五 ⑦)。ここは**折れるだけでなく天端が 6.0m 上がる**
-        //   (隅切りの NG_NE が 13.5、北辺の NG_N1 が 19.5)。留め継ぎでは段を吸えないので
-        //   ミトルでなく**櫓で納める**。ユーザー指摘 2026-08-18 ブックマーク #6 の 5:
-        //   「長屋が壁にめり込んでいて不自然。こうゆう角の部分は大きめの櫓のようなものが
-        //    立っているのではないでしょうか？」
-        //   据えは高い側(19.5)。低い側の長屋は櫓の足元に取り付いて 6m の段が隠れる。
-        {
-            var P9 = SK.OKABE[9];
-            Vector2 o8 = Vector2.zero, o9 = Vector2.zero;
-            foreach (var r in Runs())
-            { if (r.name == "NG_N1") o8 = r.outw; if (r.name == "NG_NE") o9 = r.outw; }
-            var bis = (o8 + o9).normalized;
-            Yagura(kak, P9 - bis * 2.4f, bis, "Sumiyagura_NE", 19.5f);
-        }
+        sb.Append(GateQA(mon, kak));
         return sb.ToString();
     }
+    /// <summary>指図 其九 の `gate.plan.&lt;grp&gt;.&lt;key&gt;[i]` を引く。定数に写さない。</summary>
+    static float GateT(string grp, string key, int i)
+    {
+        var plan = EdoSashizuExport.GatePlan(); if (plan == null) return 0f;
+        var a = EdoSashizuExport.A(EdoSashizuExport.D(plan, grp), key);
+        return a == null || a.Length <= i ? 0f : a[i];
+    }
+
+    /// <summary>指図 其九 の `gate.plan.wallEnds` を引く。定数に写さない。</summary>
+    static float GateWallEnd(string key)
+    {
+        var plan = EdoSashizuExport.GatePlan(); if (plan == null) return 0f;
+        var we = EdoSashizuExport.D(plan, "wallEnds");
+        return EdoSashizuExport.F(we, key);
+    }
+
+    // ================= 表門 — 指図 其九 の gate.plan をそのまま据える =================
+    /// <summary>放れ門＋片番所＋繋塀。**寸法は一つも定数に写さず、指図から読む。**
+    /// 長屋門用の SeatGate / TightenToGate は使わない — あれは鏡柱の面を測って寄せる仕掛けで、
+    /// ピボットが躯体の外にある k_mon に当てると門ごと街路へ押し出す(2026-08-21 の事故)。
+    /// 据えは指図の `pivotO` を run 座標で直に置く。</summary>
+    static string PlaceOmotemonFromSashizu(Transform mon, Transform kak)
+    {
+        var sb = new System.Text.StringBuilder();
+        var plan = EdoSashizuExport.GatePlan();
+        if (plan == null) return "表門: 指図が読めないので据えない\n";
+        var pm = EdoSashizuExport.D(plan, "mon");
+        var pt = EdoSashizuExport.D(plan, "tsunagibei");
+        var pb = EdoSashizuExport.D(plan, "bansho");
+        var pk = EdoSashizuExport.D(plan, "tataki");
+        var P = SK.OKABE;
+        Vector2 dir = (P[10] - P[0]).normalized;                  // +t = 北
+        Vector2 outw = new Vector2(dir.y, -dir.x);                // +o = 街路(東)
+        System.Func<float, float, Vector2> W = (t, o) => GATE + dir * t + outw * o;
+        float psi = Mathf.Atan2(-outw.x, -outw.y) * Mathf.Rad2Deg;   // 屋敷の内を向く
+
+        // ---- 門 ----
+        // ⚠ **ピボットの位置は推測しない。** 仮置き → 鏡柱の面を実測 → 差だけ動かす。
+        //   k_mon のピボットは躯体の外の空中にあり、部材の向き・flip で符号が変わる。
+        //   「pivotO を計算して直置き」は 2 度外した(2026-08-22)。
+        var gp = W(0f, 0f);
+        var g = B.Place(PKmon, new Vector3(gp.x, 0f, gp.y), psi, Vector3.one * ES, mon, "Kmon");
+        var rb = B.RB(g);
+        g.transform.position += new Vector3(0f, 13.5f - rb.min.y, 0f);
+        float want = EdoSashizuExport.F(pm, "doorBoardO");
+        float got = KagamiFaceO(g, outw);
+        g.transform.position -= new Vector3(outw.x, 0f, outw.y) * (got - want);
+        sb.AppendLine(string.Format("表門 Kmon: 鏡柱の面 仮置き o={0:F3} → 指図 {1:F3} へ {2:+0.000;-0.000} 動かした",
+                                    got, want, want - got));
+        float face = KagamiFaceO(g, outw);
+        sb.AppendLine(string.Format("  検算: 鏡柱の面 o={0:F3} (指図 {1:F3} / 差 {2:+0.000;-0.000})", face, want, face - want));
+        if (Mathf.Abs(face - want) > 0.05f)
+            sb.AppendLine("  ⚠ 扉面が指図と 0.05 を超えてずれた。ピボットの向きか flip を疑う");
+
+        // ---- 繋塀は作らない ----
+        //   築地塀が Runs() の 3 区間でそのまま門の小壁へ突き当たる(指図 其九 wallRuns)。
+        //   別部材にしていたのを 2026-08-22 に廃止した。
+        // ---- 番所 ----
+        var bt = EdoSashizuExport.A(pb, "t");
+        var bo = EdoSashizuExport.A(pb, "o");
+        var bc = W((bt[0] + bt[1]) * 0.5f, (bo[0] + bo[1]) * 0.5f);
+        var ban = B.Place(B.PBansho, new Vector3(bc.x, 0f, bc.y), psi + 180f, Vector3.one * ES, mon, "Kmon_Bansho");
+        var bb = B.RB(ban);
+        // 部材のピボットは躯体の外にあるので、実測 bbox の中心を目標へ寄せる
+        ban.transform.position += new Vector3(bc.x - bb.center.x, 13.5f - bb.min.y, bc.y - bb.center.z);
+        bb = B.RB(ban);
+        // ⚠ 番所の外面は **躯体(wall)の面**。FacePerp は帯の中の最外を取るので屋根(kera)を拾い、
+        //   0.45m 内側に据えてしまう(2026-08-22 実測: wall o[-1.198,+0.122] / kera +0.731)。
+        // ⚠ 合わせ込みは **収束するまで反復**する。1 回動かして終わりにすると、
+        //   ピボットと面の関係が非線形な部材(回転が絡む)で残差が残る(2026-08-22 実測 -0.219)。
+        float bFace = PartFaceO(ban, outw, "wall");
+        for (int it = 0; it < 6 && Mathf.Abs(bFace - bo[1]) > 0.005f; it++)
+        {
+            ban.transform.position -= new Vector3(outw.x, 0f, outw.y) * (bFace - bo[1]);
+            bFace = PartFaceO(ban, outw, "wall");
+        }
+        // t も同じく躯体で合わせる
+        float bt0 = PartFaceO(ban, -dir, "wall");        // 南端(-t 側)の面
+        for (int it = 0; it < 6 && Mathf.Abs(-bt0 - bt[0]) > 0.005f; it++)
+        {
+            ban.transform.position += new Vector3(dir.x, 0f, dir.y) * (-bt0 - bt[0]);
+            bt0 = PartFaceO(ban, -dir, "wall");
+        }
+        sb.AppendLine(string.Format("番所: 外面 o={0:F3} (指図 {1:F3} / 差 {2:+0.000;-0.000}) ／ 南端 t={3:F3} (指図 {4:F3})",
+                                    bFace, bo[1], bFace - bo[1], -bt0, bt[0]));
+
+        // ---- 叩き（前端の段は t の帯ごとに段数が変わる） ----
+        var kt = EdoSashizuExport.A(pk, "t");
+        var ko = EdoSashizuExport.A(pk, "o");
+        float ky = EdoSashizuExport.F(pk, "y");
+        var c0 = W((kt[0] + kt[1]) * 0.5f, (ko[0] + ko[1]) * 0.5f);
+        var mTat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Edo/Materials/GateStone.mat");
+        var tat = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        tat.name = "Tataki"; tat.transform.SetParent(mon, false);
+        if (mTat != null) tat.GetComponent<Renderer>().sharedMaterial = mTat;
+        tat.transform.position = new Vector3(c0.x, ky - 0.06f, c0.y);
+        // ⚠ localScale.x はローカル X。rotation を dir(=+t) 方向にすると **ローカル X が t** になる。
+        //   Atan2(dir.x, dir.y) は +Z を dir へ向ける回転なので、t は **ローカル Z**。入れ替える。
+        tat.transform.rotation = Quaternion.Euler(0f, Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg, 0f);
+        tat.transform.localScale = new Vector3(ko[1] - ko[0], 0.12f, kt[1] - kt[0]);
+        var fr = EdoSashizuExport.D(pk, "front");
+        float riser = EdoSashizuExport.F(fr, "riser"), fumi = EdoSashizuExport.F(fr, "fumi");
+        var bands = EdoSashizuExport.Get2(fr, "bands");
+        int nb = 0;
+        foreach (var bandObj in bands)
+        {
+            var bd = bandObj as System.Collections.Generic.Dictionary<string, object>; if (bd == null) continue;
+            var bt2 = EdoSashizuExport.A(bd, "t");
+            int nstep = Mathf.RoundToInt(EdoSashizuExport.F(bd, "n"));
+            for (int k = 1; k <= nstep; k++)
+            {
+                var sc = W((bt2[0] + bt2[1]) * 0.5f, ko[1] + fumi * (k - 0.5f));
+                var st = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                st.name = "Tataki_Step" + nb + "_" + k; st.transform.SetParent(mon, false);
+                if (mTat != null) st.GetComponent<Renderer>().sharedMaterial = mTat;
+                st.transform.position = new Vector3(sc.x, ky - riser * k - 0.06f, sc.y);
+                st.transform.rotation = tat.transform.rotation;
+                st.transform.localScale = new Vector3(fumi, 0.12f, bt2[1] - bt2[0]);
+            }
+            nb++;
+        }
+        sb.AppendLine(string.Format("叩き: t[{0:F2},{1:F2}] o[{2:F2},{3:F2}] y={4:F1} ／ 前端の段 {5} 帯",
+                                    kt[0], kt[1], ko[0], ko[1], ky, nb));
+        return sb.ToString();
+    }
+
+    /// <summary>部材名で絞って街路側の面の o を取る。**屋根の輪郭で躯体を代用しない。**</summary>
+    static float PartFaceO(GameObject g, Vector2 outw, string part)
+    {
+        float mx = float.MinValue;
+        foreach (var mf in g.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.gameObject.name != part) continue;
+            foreach (var v in mf.sharedMesh.vertices)
+            {
+                var w = mf.transform.TransformPoint(v);
+                float pr = Vector2.Dot(new Vector2(w.x, w.z) - GATE, outw);
+                if (pr > mx) mx = pr;
+            }
+        }
+        return mx;
+    }
+
+    /// <summary>門の**鏡柱(kagami)の街路側の面**の o。据えの基準はこの面であって
+    /// 屋根の輪郭でも AABB でもない(指図 其九 datum)。</summary>
+    static float KagamiFaceO(GameObject g, Vector2 outw)
+    {
+        float mx = float.MinValue;
+        foreach (var mf in g.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.gameObject.name != "kagami") continue;
+            foreach (var v in mf.sharedMesh.vertices)
+            {
+                var w = mf.transform.TransformPoint(v);
+                float pr = Vector2.Dot(new Vector2(w.x, w.z) - GATE, outw);
+                if (pr > mx) mx = pr;
+            }
+        }
+        return mx;
+    }
+
+    /// <summary>其九の QA。接触の一覧が実際に接しているかを数値で見る。</summary>
+    static string GateQA(Transform mon, Transform kak)
+    {
+        var plan = EdoSashizuExport.GatePlan(); if (plan == null) return "門QA: 指図が読めない\n";
+        var P = SK.OKABE;
+        Vector2 dir = (P[10] - P[0]).normalized, outw = new Vector2(dir.y, -dir.x);
+        // ⚠ 帯は **接触面の高さ**で取る。塀の躯体は 13.4〜16.145、門が塀と接するのは
+        //   小壁 kabe(16.056〜16.433) — 帯を 15.6 で切ると門が t=±4.418 にしか見えず、
+        //   実際には接している所を「隙間」と誤検出する(2026-08-22 実測)。
+        System.Func<GameObject, Vector2> span = go => {
+            float a = 1e9f, b = -1e9f;
+            foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+                foreach (var v in mf.sharedMesh.vertices) {
+                    var w = mf.transform.TransformPoint(v);
+                    if (w.y < 13.6f || w.y > 16.4f) continue;
+                    float t = Vector2.Dot(new Vector2(w.x, w.z) - GATE, dir);
+                    if (t < a) a = t; if (t > b) b = t; }
+            return new Vector2(a, b); };
+        var seg = new List<KeyValuePair<string, Vector2>>();
+        foreach (Transform c in mon) if (c.name.StartsWith("Kmon")) seg.Add(new KeyValuePair<string, Vector2>(c.name, span(c.gameObject)));
+        foreach (Transform c in kak) {
+            // ⚠ 前方一致は **区間を増やすと漏れる**。Hei_E_S2 を足したとき QA が拾わず、
+            //   建っているのに「隙間 5.535m」と誤検出した(2026-08-22)。東辺は接頭辞でまとめて取る。
+            if (!c.name.StartsWith("Hei_E_")) continue;
+            var s2 = span(c.gameObject); if (s2.x > 1e8f) continue;
+            if (s2.x > -16f && s2.y < 16f) seg.Add(new KeyValuePair<string, Vector2>(c.name, s2)); }
+        seg.Sort((x, y2) => x.Value.x.CompareTo(y2.Value.x));
+        var sb = new System.Text.StringBuilder("門QA 外周の連なり(t 座標・帯 y13.6〜15.6)\n");
+        float prev = -1e9f; string pn = null; float worst = 0f;
+        foreach (var kv in seg) {
+            if (pn != null) {
+                float gap = kv.Value.x - prev;
+                if (gap > 0.05f) { sb.AppendLine(string.Format("  ✗ 隙間 {0:F3}m  {1} → {2}", gap, pn, kv.Key)); worst = Mathf.Max(worst, gap); }
+            }
+            if (kv.Value.y > prev) { prev = kv.Value.y; pn = kv.Key; }
+        }
+        sb.AppendLine(worst <= 0.05f ? "  ✔ 隙間なし" : string.Format("  → 最大 {0:F3}m", worst));
+        return sb.ToString();
+    }
+
     /// <summary>y の帯[y0,y1]にある頂点の、外向き nout への射影の最大 = **街路側の面**。
     /// 帯を軒より下に取るのが要点。全体の bbox で測ると軒の出が混ざり、AABB の角で測ると
     /// 棟が方位から数度ずれているだけで 1.2m も過大に出る(2026-08-15 実測)。</summary>
@@ -1396,41 +1617,6 @@ public static class EdoOkabeYashikiBuilder
         return mx;
     }
 
-    /// <summary>表門の据え直し(指図 其八ノ二)。**長屋門は門の左右がそのまま長屋になる形式**なので、
-    /// 門だけが街路へ出ていたら形式として誤り。① 走りは GATE(外周線上)、
-    /// ② 街路側の**壁面**を左右の長屋の壁面へ揃える(面一)、③ 1.08 倍で棟を長屋の上に出す。
-    /// ⚠ 面差は目で見て分からない(3.7m 出ていたのを何度も見落として指摘された)。数値で合わせる。</summary>
-    static void SeatGate(Transform mon, Transform kak, System.Text.StringBuilder sb)
-    {
-        var g = mon.Find("Nagayamon"); if (g == null) { sb.AppendLine("表門が無い"); return; }
-        g.localScale *= MON_SCALE;                                                    // ③
-        var rb = B.RB(g.gameObject);
-        g.position += new Vector3(GATE.x - rb.center.x, 13.5f - rb.min.y, GATE.y - rb.center.z);  // ①
-        // ↑ 面を測る前に段の高さへ上げておく。y がずれていると壁の帯が腰石や軒に掛かって 6cm 狂う
-        Vector2 nout = GateOut();
-        const float WY0 = 14.0f, WY1 = 16.0f;                     // 軒より下・腰より上の帯
-        var d10 = (SK.OKABE[0] - SK.OKABE[10]).normalized;
-        Transform n1 = null, n2 = null; float d1 = 1e9f, d2 = 1e9f;
-        foreach (Transform t in kak)                              // 門の左右に来る長屋を拾う
-        {
-            if (!t.name.StartsWith("NG_E_")) continue;
-            var c = B.RB(t.gameObject).center; var c2 = new Vector2(c.x, c.z);
-            float dd = Vector2.Distance(c2, GATE);
-            if (Vector2.Dot(c2 - GATE, d10) > 0f) { if (dd < d1) { d1 = dd; n1 = t; } }
-            else { if (dd < d2) { d2 = dd; n2 = t; } }
-        }
-        if (n1 == null || n2 == null) { sb.AppendLine("表門の隣の長屋が拾えない"); return; }
-        float tgt = 0.5f * (FacePerp(n1.gameObject, nout, WY0, WY1) + FacePerp(n2.gameObject, nout, WY0, WY1));
-        float now = FacePerp(g.gameObject, nout, WY0, WY1), moved = 0f;
-        // 測る → 動かす を 2 回。1 回だと 0.06m 残る(帯に入る頂点の行が動いた分だけ変わるため)
-        for (int i = 0; i < 2; i++)
-        {
-            float dz = tgt - FacePerp(g.gameObject, nout, WY0, WY1);
-            g.position += new Vector3(nout.x, 0f, nout.y) * dz; moved += dz;
-        }
-        sb.AppendLine(string.Format("表門を据え直し: 壁面を {0:F2}m 内へ({1}/{2} と面一・残差{3:F3}m)",
-                                    -moved, n1.name, n2.name, tgt - FacePerp(g.gameObject, nout, WY0, WY1)));
-    }
 
     /// <summary>頂点ベースで、帯[y0,y1]における走り方向 dir の [min,max]。</summary>
     static Vector2 RunExtent(GameObject go, Vector2 origin, Vector2 dir, float y0, float y1)
@@ -1450,53 +1636,6 @@ public static class EdoOkabeYashikiBuilder
         return new Vector2(mn, mx);
     }
 
-    /// <summary>長屋の run を**両端いっぱいに詰める**(ユーザー指摘 2026-08-15「長屋門と長屋の間に隙間」)。
-    /// NagayaRun は run 長にモジュールの整数個を割り付けるので、端数がそのまま端の隙間になる。
-    /// 実測すると**長屋の run 全部**が同じ癖で、a 端に 0.54m の隙間・b 端に 0.16m の重なり
-    /// → run どうしの継ぎ目が **0.38m 開く**。門との継ぎ目(南0.34/北1.04)はその一例にすぎず、
-    /// 北辺の 9 箇所も同じだった。築地塀・竹垣は元から 0.00(端数を自前で吸っている)。
-    /// 直し方は**棟の間隔だけを伸縮**して端を合わせる。棟自体は拡縮しない(格子が歪む)。
-    /// 棟どうしは 1.2m 重なっているので、間隔を 0.2m 広げても継ぎ目は開かない。
-    /// 表門に接する端だけは run の端でなく**門の壁面**に合わせる(門は run より 0.18m 外に出る)。</summary>
-    static void TightenToGate(Transform kak, Transform mon, System.Text.StringBuilder sb)
-    {
-        var g = mon.Find("Nagayamon");
-        var P = SK.OKABE; Vector2 eOrg = P[0], eDir = (P[10] - P[0]).normalized;
-        var gx = g == null ? Vector2.zero : RunExtent(g.gameObject, eOrg, eDir, 14.0f, 16.0f);
-        float worst = 0f; string worstName = "";
-        foreach (var r in Runs())
-        {
-            if (r.kind != Kakoi.Nagaya) continue;
-            Vector2 dir = (r.b - r.a).normalized; float len = (r.b - r.a).magnitude;
-            float y0 = r.top + 0.5f, y1 = r.top + 2.5f;            // 帯は run の天端から取る
-            var mods = new List<Transform>();
-            foreach (Transform t in kak) if (t.name.StartsWith(r.name + "_")) mods.Add(t);
-            if (mods.Count < 2) continue;
-            // 目標: run の両端いっぱい。ただし表門に接する端は**門の壁面**に合わせる
-            float T0 = 0f, T1 = len;
-            if (g != null && r.name == "NG_E_S") T1 = Vector2.Dot(eOrg + eDir * gx.x - r.a, dir);
-            if (g != null && r.name == "NG_E_N") T0 = Vector2.Dot(eOrg + eDir * gx.y - r.a, dir);
-            var sp = new List<float>();                            // 各棟のピボットの走り位置
-            foreach (var t in mods) sp.Add(Vector2.Dot(new Vector2(t.position.x, t.position.z) - r.a, dir));
-            float c0 = 1e9f, c1 = -1e9f;
-            foreach (var t in mods)
-            { var e = RunExtent(t.gameObject, r.a, dir, y0, y1); c0 = Mathf.Min(c0, e.x); c1 = Mathf.Max(c1, e.y); }
-            if (c0 > 1e8f) continue;
-            float pLo = Mathf.Min(sp[0], sp[sp.Count - 1]), pHi = Mathf.Max(sp[0], sp[sp.Count - 1]);
-            if (pHi - pLo < 0.5f) continue;
-            float e0 = pLo - c0, e1 = c1 - pHi;                     // ピボットから棟の端までの出
-            float scale = ((T1 - e1) - (T0 + e0)) / (pHi - pLo);
-            for (int i = 0; i < mods.Count; i++)
-            {
-                float ns = (T0 + e0) + (sp[i] - pLo) * scale;
-                var p = r.a + dir * ns;
-                mods[i].position = new Vector3(p.x, mods[i].position.y, p.y);
-            }
-            float gap = Mathf.Max(c0 - T0, T1 - c1);
-            if (gap > worst) { worst = gap; worstName = r.name; }
-        }
-        sb.AppendLine(string.Format("長屋の継ぎ目を詰めた: 直前の最大隙間 {0:F2}m ({1})", worst, worstName));
-    }
 
     /// <summary>外周の**継ぎ目**の QA — run ごとに、部材が run の両端をどこまで覆っているか。
     /// 天端(PerimeterQA)・面(GateQA)が合っていても、走り方向の端数は別に残る。
@@ -1540,12 +1679,12 @@ public static class EdoOkabeYashikiBuilder
         float mn = 1e9f, mx = -1e9f, ridge = -1e9f; int n = 0;
         foreach (Transform t in kak)
         {
-            if (!t.name.StartsWith("NG_E_")) continue;
+            if (!t.name.StartsWith("Hei_E_")) continue;
             float f = FacePerp(t.gameObject, nout, WY0, WY1);
             mn = Mathf.Min(mn, f); mx = Mathf.Max(mx, f);
             ridge = Mathf.Max(ridge, B.RB(t.gameObject).max.y); n++;
         }
-        var g = mon.Find("Nagayamon");
+        var g = mon.Find("Kmon");
         float gf = g == null ? 0f : FacePerp(g.gameObject, nout, WY0, WY1);
         float gr = g == null ? 0f : B.RB(g.gameObject).max.y;
         // 門と長屋の**継ぎ目**(走り方向の隙間)。面と棟が合っていても、ここは別に開く
@@ -1554,8 +1693,8 @@ public static class EdoOkabeYashikiBuilder
         float sHi = -1e9f, nLo = 1e9f;
         foreach (Transform t in kak)
         {
-            if (t.name.StartsWith("NG_E_S_")) sHi = Mathf.Max(sHi, RunExtent(t.gameObject, org, dir, WY0, WY1).y);
-            else if (t.name.StartsWith("NG_E_N_")) nLo = Mathf.Min(nLo, RunExtent(t.gameObject, org, dir, WY0, WY1).x);
+            if (t.name.StartsWith("Hei_E_S_")) sHi = Mathf.Max(sHi, RunExtent(t.gameObject, org, dir, WY0, WY1).y);
+            else if (t.name.StartsWith("Hei_E_N_")) nLo = Mathf.Min(nLo, RunExtent(t.gameObject, org, dir, WY0, WY1).x);
         }
         return string.Format("東辺QA 長屋{0}棟 街路面の振れ={1:F2}m(許容0.10) 門の面差={2:+0.00;-0.00}m 棟 門{3:F2}/長屋{4:F2} 差{5:+0.00;-0.00}m 門との継ぎ目 南{6:+0.00;-0.00}m 北{7:+0.00;-0.00}m",
                              n, mx - mn, gf - mx, gr, ridge, gr - ridge, gx.x - sHi, nLo - gx.y);

@@ -58,15 +58,19 @@ public static class EdoSannoKitaBuilder
     //   決め手は樹下辺: 岡部の主郭が 1.4〜7.2m 高く IG_S_Sk(壁高 8.0m)が岡部所有で立つ。
     //   塀は擁壁の天端に載るので、法尻側の樹下が持つ形は成立しない。
     // 岡部: 0-1=S(樹下共有=岡部所有) 1-2=S(社叢斜面=境内) 2-3=S(常明院共有=岡部所有) 3-4=W(堀端通り)
-    //       4-5,5-6=NW(松平共有=松平所有skip) 6-7,7-8=N(土井共有=土井所有skip)
+    //       4-5,5-6=NW(松平共有=松平所有skip) 6-7,7-8=N(土井共有=**岡部所有** — 実体は
+    //       EdoOkabeYashikiBuilder の Hei_N1〜N4b が建てるのでここでは skip)
     //       8-9=楔スタブ 9-10=NE(表門) 10-0=E(三べ坂沿い盲長屋)
     public static readonly Vector2[] OKABE = {
         new Vector2(-373.0f, 947.0f), new Vector2(-514.5f, 947.0f), new Vector2(-585.5f, 943.3f),
         new Vector2(-648.5f, 936.8f), new Vector2(-694.7f, 1029.5f), new Vector2(-660.8f, 1049.2f),
         new Vector2(-640.0f, 1073.8f), new Vector2(-612.6f, 1062.5f), new Vector2(-459.4f, 1086.6f),
         new Vector2(-425.4f, 1096.3f), new Vector2(-384.4f, 1054.3f) };
-    // 土井: 0=T 0-1,1-2=S(岡部共有=土井所有) 2-3=ジョグ 3-4=楔N 4-5=E(表門)
-    //       5-6,6-7,7-8,8-0=N/W(松平共有=松平所有skip)
+    // 土井: 0-1,1-2=S(岡部共有=**岡部所有 skip** — 岡部側 Hei_N1〜N4b が建てる。
+    //       旧注記「土井所有」は撤回済みの裁定(2026-08-16)の取り残しで、辺0-1を建てると
+    //       185m が二重になる。検図 2026-08-22 で是正)
+    //       2-3=ジョグ 3-4=楔N 4-5=E(表門) 5-6,6-7,7-8,8-0=N/W(松平共有=松平所有skip)
+    //       正典は docs/Sashizu/doi_sashizu.json の _edges。
     public static readonly Vector2[] DOI = {
         new Vector2(-640.0f, 1073.8f), new Vector2(-612.6f, 1062.5f), new Vector2(-459.4f, 1086.6f),
         new Vector2(-460.9f, 1094.9f), new Vector2(-431.8f, 1105.9f), new Vector2(-458.5f, 1177.8f),
@@ -372,7 +376,7 @@ public static class EdoSannoKitaBuilder
             Vector2 outw = -InwardNormal(OKABE, i);
             if (i == 0 || i == 2) continue;                 // 樹下・常明院と背中合わせ
             else if (i == 4 || i == 5) continue;            // 松平所有
-            else if (i == 6 || i == 7) continue;            // 土井所有
+            else if (i == 6 || i == 7) continue;            // 岡部所有(EdoOkabeYashikiBuilder の Hei_N1〜N4b が実体。二重に建てない)
             else if (i == 9)
                 FrontWall(kak, a, b, outw, GATE_OKABE, gateHalf + 0.5f, "Hei_F");
             else if (i == 10)
@@ -455,7 +459,7 @@ public static class EdoSannoKitaBuilder
         {
             Vector2 a = DOI[i], b = DOI[(i + 1) % N];
             Vector2 outw = -InwardNormal(DOI, i);
-            if (i >= 5) continue;                            // 北・西=松平所有
+            if (i >= 5 || i <= 1) continue;                  // 北・西=松平所有 / 南(0-1,1-2)=岡部所有
             else if (i == 4)
                 FrontWall(kak, a, b, outw, GATE_DOI, gateHalf + 0.5f, "Hei_F");
             else

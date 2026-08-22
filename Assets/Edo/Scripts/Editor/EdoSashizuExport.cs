@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text;
 using UnityEngine;
 using UnityEditor;
+using SK = EdoSannoKitaBuilder;
 
 /// <summary>指図(設計図)と実装を**突き合わせる**。
 ///
@@ -44,6 +45,33 @@ public static class EdoSashizuExport
         Debug.Log("[Okabe] 現況を書き出した: " + DUMP + "\n  ⚠ これは**指図ではない**。指図は " + DOC);
     }
 
+    /// <summary>指図(json)の `gate.plan` を読んで返す。**実装は寸法を写さずここから引く。**
+    /// 定数へ写すと指図と実装が別々に動いてドリフトする(2026-08-21 に表門で実際に起きた)。</summary>
+    public static Dictionary<string, object> GatePlan()
+    {
+        var path = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), DOC);
+        if (!System.IO.File.Exists(path)) { Debug.LogError("[Okabe] 指図が無い: " + DOC); return null; }
+        var doc = MiniJson.Parse(System.IO.File.ReadAllText(path)) as Dictionary<string, object>;
+        if (doc == null) { Debug.LogError("[Okabe] 指図が読めない"); return null; }
+        var g = Get(doc, "gate") as Dictionary<string, object>;
+        return g == null ? null : Get(g, "plan") as Dictionary<string, object>;
+    }
+    static object Get(Dictionary<string, object> d, string k)
+    { object v; return d != null && d.TryGetValue(k, out v) ? v : null; }
+    public static float F(Dictionary<string, object> d, string k)
+    { var v = Get(d, k); return v == null ? 0f : System.Convert.ToSingle(v, IC); }
+    public static Dictionary<string, object> D(Dictionary<string, object> d, string k)
+    { return Get(d, k) as Dictionary<string, object>; }
+    public static List<object> Get2(Dictionary<string, object> d, string k)
+    { return Get(d, k) as List<object> ?? new List<object>(); }
+    public static float[] A(Dictionary<string, object> d, string k)
+    {
+        var l = Get(d, k) as List<object>; if (l == null) return null;
+        var r = new float[l.Count];
+        for (int i = 0; i < l.Count; i++) r[i] = System.Convert.ToSingle(l[i], IC);
+        return r;
+    }
+
     // =====================================================================
     // 突き合わせ — 指図(json)の値 と 実装の値 を項目ごとに比べる
     // =====================================================================
@@ -80,6 +108,8 @@ public static class EdoSashizuExport
                 if (t.name != nm) continue; found = true;
                 bad += Cmp(sb, ref n, "terrace " + nm + ".x0", Num(e, "x0"), t.x0);
                 bad += Cmp(sb, ref n, "terrace " + nm + ".x1", Num(e, "x1"), t.x1);
+                bad += Cmp(sb, ref n, "terrace " + nm + ".z0", Num(e, "z0"), t.z0);
+                bad += Cmp(sb, ref n, "terrace " + nm + ".z1", Num(e, "z1"), t.z1);
                 bad += Cmp(sb, ref n, "terrace " + nm + ".y", Num(e, "y"), t.y);
             }
             if (!found) { sb.Append("  ✗ terrace ").Append(nm).Append(" が実装に無い\n"); bad++; n++; }
@@ -128,6 +158,9 @@ public static class EdoSashizuExport
                 bad += Cmp(sb, ref n, "wall " + nm + ".coping", Num(e, "coping"), w.coping);
                 bad += Cmp(sb, ref n, "wall " + nm + ".s", Num(e, "s"), w.sy);
                 bad += Cmp(sb, ref n, "wall " + nm + ".gapZ", Num(e, "gapZ"), w.gapZ, 0.05f);
+                bad += Cmp(sb, ref n, "wall " + nm + ".gapHalf", Num(e, "gapHalf"), w.gapHalf, 0.02f);
+                bad += CmpV2(sb, ref n, "wall " + nm + ".a", e, "a", w.a);
+                bad += CmpV2(sb, ref n, "wall " + nm + ".b", e, "b", w.b);
             }
             if (!found) { sb.Append("  ✗ wall ").Append(nm).Append(" が実装に無い\n"); bad++; n++; }
         }
@@ -148,6 +181,7 @@ public static class EdoSashizuExport
                 if (k.part == "Ishigaki") EdoOkabeYashikiBuilder.KadoDirs(k, out di, out dou, out deg);
                 else deg = EdoOkabeYashikiBuilder.KadoDeg(k);
                 bad += Cmp(sb, ref n, "corner " + part + " " + ri + ".deg", Num(e, "deg"), deg, 0.15f);
+                bad += CmpV2(sb, ref n, "corner " + part + " " + ri + ".v", e, "v", k.v);
             }
             if (!found) { sb.Append("  ✗ corner ").Append(part).Append(" ").Append(ri).Append(" が実装に無い\n"); bad++; n++; }
         }
@@ -188,6 +222,12 @@ public static class EdoSashizuExport
             bad += Cmp(sb, ref n, "yagura " + nm + ".base", Num(e, "base"), Bounds(t).min.y, 0.02f);
         }
 
+        // ---- 間グリッドの原点 ----
+        // 棟・廊下・庭は指図では間の指数で持つので、原点がズレると全部が黙って動く。
+        // 指数から世界座標を組み立てて実装の矩形と比べれば、原点も指数も同時に押さえられる。
+        var gs = Grids(doc);
+        bad += CmpCount(sb, ref n, "grid", gs.Count, 2);
+
         // ---- 棟 ----
         var mu = EdoOkabeYashikiBuilder.Muneya();
         var dm = List(doc, "munes");
@@ -202,14 +242,166 @@ public static class EdoSashizuExport
                 bad += Cmp(sb, ref n, "mune " + nm + ".kw", Num(e, "kw"), m.kw);
                 bad += Cmp(sb, ref n, "mune " + nm + ".kd", Num(e, "kd"), m.kd);
                 bad += Cmp(sb, ref n, "mune " + nm + ".y", Num(e, "y"), m.y);
+                bad += CmpBox(sb, ref n, "mune " + nm, e, gs, m.x0, m.x1, m.z0, m.z1);
+                // yaw は BuildMune が kw>=kd から導くので、指図の側が規則から外れていないかを見る
+                bad += Cmp(sb, ref n, "mune " + nm + ".yaw", Num(e, "yaw"), m.kw >= m.kd ? 0f : 270f);
             }
             if (!found) { sb.Append("  ✗ mune ").Append(nm).Append(" が実装に無い\n"); bad++; n++; }
         }
+
+        // ---- 廊下(渡廊下・御錠口・外廊下・登廊の取り付き) ----
+        // **双方向**に見る。実装だけにある廊下は「奥へ入る道が二本ある」を意味しうるので、
+        // 数が合っているだけでは足りない。
+        var lk = EdoOkabeYashikiBuilder.GotenLinks();
+        var dlk = List(doc, "links");
+        bad += CmpCount(sb, ref n, "links", dlk.Count, lk.Length);
+        var seenLink = new HashSet<string>();
+        foreach (var o in dlk)
+        {
+            var e = o as Dictionary<string, object>; if (e == null) continue;
+            string nm = Str(e, "name"); bool found = false;
+            foreach (var l in lk)
+            {
+                if (l.name != nm) continue; found = true; seenLink.Add(nm);
+                bad += Cmp(sb, ref n, "link " + nm + ".y", Num(e, "y"), l.y);
+                bad += CmpBox(sb, ref n, "link " + nm, e, gs, l.x0, l.x1, l.z0, l.z1);
+            }
+            if (!found) { sb.Append("  ✗ link ").Append(nm).Append(" が実装に無い\n"); bad++; n++; }
+        }
+        foreach (var l in lk)
+            if (!seenLink.Contains(l.name))
+            { sb.Append("  ✗ link ").Append(l.name).Append(" が**指図に無い**(実装だけにある)\n"); bad++; n++; }
+
+        // ---- 庭 ----
+        var gd = EdoOkabeYashikiBuilder.Gardens();
+        var dgd = List(doc, "gardens");
+        bad += CmpCount(sb, ref n, "gardens", dgd.Count, gd.Length);
+        foreach (var o in dgd)
+        {
+            var e = o as Dictionary<string, object>; if (e == null) continue;
+            string nm = Str(e, "name"); bool found = false;
+            foreach (var q in gd)
+            {
+                if (q.name != nm) continue; found = true;
+                bad += CmpBox(sb, ref n, "garden " + nm, e, gs, q.x0, q.x1, q.z0, q.z1);
+            }
+            if (!found) { sb.Append("  ✗ garden ").Append(nm).Append(" が実装に無い\n"); bad++; n++; }
+        }
+
+        // ---- 石段・登廊 ----
+        // 段数と踏面は実装が Drop/KERI から**再計算**するので、指図に書いた値と必ず突き合わせる。
+        var kd2 = EdoOkabeYashikiBuilder.Kaidans();
+        var dkd = List(doc, "kaidans");
+        bad += CmpCount(sb, ref n, "kaidans", dkd.Count, kd2.Length);
+        foreach (var o in dkd)
+        {
+            var e = o as Dictionary<string, object>; if (e == null) continue;
+            string nm = Str(e, "name"); bool found = false;
+            foreach (var k in kd2)
+            {
+                if (k.name != nm) continue; found = true;
+                bad += Cmp(sb, ref n, "kaidan " + nm + ".xTop", Num(e, "xTop"), k.xTop);
+                bad += Cmp(sb, ref n, "kaidan " + nm + ".xBot", Num(e, "xBot"), k.xBot);
+                bad += Cmp(sb, ref n, "kaidan " + nm + ".z0", Num(e, "z0"), k.z0);
+                bad += Cmp(sb, ref n, "kaidan " + nm + ".z1", Num(e, "z1"), k.z1);
+                bad += Cmp(sb, ref n, "kaidan " + nm + ".yTop", Num(e, "yTop"), k.yTop);
+                bad += Cmp(sb, ref n, "kaidan " + nm + ".yBot", Num(e, "yBot"), k.yBot);
+                bad += Cmp(sb, ref n, "kaidan " + nm + ".noriHalf", Num(e, "noriHalf"), k.noriHalf);
+                bad += Cmp(sb, ref n, "kaidan " + nm + ".odoriKen", Num(e, "odoriKen"), k.odoriKen);
+                int steps = Mathf.RoundToInt(k.Drop / EdoOkabeYashikiBuilder.KERI);
+                bad += Cmp(sb, ref n, "kaidan " + nm + ".steps", Num(e, "steps"), steps);
+                bad += Cmp(sb, ref n, "kaidan " + nm + ".tread", Num(e, "tread"), k.Run / steps, 0.001f);
+                bad += CmpStr(sb, ref n, "kaidan " + nm + ".noboriro", Str(e, "noboriro"), k.noboriro);
+            }
+            if (!found) { sb.Append("  ✗ kaidan ").Append(nm).Append(" が実装に無い\n"); bad++; n++; }
+        }
+
+        // ---- 表門・区画線 ----
+        var gt = doc.ContainsKey("gate") ? doc["gate"] as Dictionary<string, object> : null;
+        if (gt != null)
+        {
+            bad += CmpV2(sb, ref n, "gate.pos", gt, "pos", EdoOkabeYashikiBuilder.GATE);
+            bad += Cmp(sb, ref n, "gate.yaw", Num(gt, "yaw"), EdoOkabeYashikiBuilder.YawGate(), 0.05f);
+        }
+        var poly = List(doc, "polygon");
+        bad += CmpCount(sb, ref n, "polygon", poly.Count, SK.OKABE.Length);
+        for (int i = 0; i < poly.Count && i < SK.OKABE.Length; i++)
+        {
+            var p = poly[i] as List<object>; if (p == null || p.Count < 2) continue;
+            n++;
+            var w = new Vector2(F(p[0]), F(p[1]));
+            if ((w - SK.OKABE[i]).magnitude > 0.02f)
+            {
+                sb.Append("  ✗ polygon[").Append(i).Append("]  指図 ").Append(w).Append(" / 実装 ")
+                  .Append(SK.OKABE[i]).Append("\n"); bad++;
+            }
+        }
+        // ⚠ munes[].rooms は**突き合わせない**。実装は棟単位で襖割りを作らないので
+        //   対応する物が無い。図面だけの設計情報であることは json の "_" にも書いてある。
 
         sb.Append(bad == 0
             ? "→ " + n + " 項目すべて一致 ✔  指図は実態と合っている"
             : "→ **" + bad + " / " + n + " 項目がズレている**。指図か実装のどちらかを直すこと");
         return sb.ToString();
+    }
+
+    /// <summary>間グリッドの原点と向き。指図側だけが持つ(実装は SG()/WG() の式に埋まっている)。</summary>
+    struct GridDef { public float x0, z0; public int du, dv; }
+
+    static Dictionary<string, GridDef> Grids(Dictionary<string, object> doc)
+    {
+        var m = new Dictionary<string, GridDef>();
+        var g = doc.ContainsKey("grid") ? doc["grid"] as Dictionary<string, object> : null;
+        if (g == null) return m;
+        foreach (var kv in g)
+        {
+            var e = kv.Value as Dictionary<string, object>; if (e == null) continue;
+            if (!e.ContainsKey("x0")) continue;
+            m[kv.Key] = new GridDef { x0 = Num(e, "x0") ?? 0f, z0 = Num(e, "z0") ?? 0f,
+                                      du = Mathf.RoundToInt(Num(e, "du") ?? 1f),
+                                      dv = Mathf.RoundToInt(Num(e, "dv") ?? 1f) };
+        }
+        return m;
+    }
+
+    /// <summary>指図の (u,v) 指数 → 世界座標の矩形。x だけメートル直指定の廊下にも対応する。</summary>
+    static int CmpBox(StringBuilder sb, ref int n, string label, Dictionary<string, object> e,
+                      Dictionary<string, GridDef> gs, float x0, float x1, float z0, float z1)
+    {
+        GridDef g;
+        if (!gs.TryGetValue(Str(e, "grid") ?? "", out g))
+        { n++; sb.Append("  ✗ ").Append(label).Append(" の grid が指図に無い\n"); return 1; }
+        float K = EdoOkabeYashikiBuilder.KEN;
+        float za = g.z0 + g.dv * (Num(e, "v0") ?? 0f) * K, zb = g.z0 + g.dv * (Num(e, "v1") ?? 0f) * K;
+        float xa, xb;
+        if (e.ContainsKey("x0")) { xa = Num(e, "x0") ?? 0f; xb = Num(e, "x1") ?? 0f; }
+        else { xa = g.x0 + g.du * (Num(e, "u0") ?? 0f) * K; xb = g.x0 + g.du * (Num(e, "u1") ?? 0f) * K; }
+        int bad = 0;
+        bad += Cmp(sb, ref n, label + ".x0", Mathf.Min(xa, xb), Mathf.Min(x0, x1));
+        bad += Cmp(sb, ref n, label + ".x1", Mathf.Max(xa, xb), Mathf.Max(x0, x1));
+        bad += Cmp(sb, ref n, label + ".z0", Mathf.Min(za, zb), Mathf.Min(z0, z1));
+        bad += Cmp(sb, ref n, label + ".z1", Mathf.Max(za, zb), Mathf.Max(z0, z1));
+        return bad;
+    }
+
+    static int CmpV2(StringBuilder sb, ref int n, string label, Dictionary<string, object> e,
+                     string key, Vector2 have)
+    {
+        n++;
+        object o; List<object> l;
+        if (!e.TryGetValue(key, out o) || (l = o as List<object>) == null || l.Count < 2)
+        { sb.Append("  ✗ ").Append(label).Append(" が指図に無い\n"); return 1; }
+        var want = new Vector2(F(l[0]), F(l[1]));
+        if ((want - have).magnitude <= 0.02f) return 0;
+        sb.Append("  ✗ ").Append(label).Append("  指図 ").Append(want).Append(" / 実装 ").Append(have).Append("\n");
+        return 1;
+    }
+
+    static float F(object o)
+    {
+        if (o is double) return (float)(double)o;
+        if (o is long) return (float)(long)o;
+        float f; return float.TryParse(o == null ? "" : o.ToString(), NumberStyles.Any, IC, out f) ? f : 0f;
     }
 
     static int Cmp(StringBuilder sb, ref int n, string label, float? want, float have, float tol = TOL)

@@ -37,6 +37,7 @@ python3 Tools/Sashizu/build_okabe_sashizu.py
 | 屋敷 | 地区 | 状態 | 図面 | Artifact |
 |---|---|---|---|---|
 | 岡部筑前守 上屋敷（和泉岸和田藩5万3千石） | 山王社北 | **実装済・指図と一致(180項目)** | [okabe_sashizu.html](okabe_sashizu.html) | https://claude.ai/code/artifact/ce6d353b-33ea-4355-aeb4-c5097da69e53 |
+| 松平出羽守 上屋敷（出雲松江藩18万6千石・親藩国主） | 山王社北 | **起案・検図中（レビュー待ち）** | [matsudaira_sashizu.html](matsudaira_sashizu.html) | https://claude.ai/code/artifact/eaba651e-982d-4451-8bb5-d17ba95b8093 |
 
 ## 図面に入れるもの
 
@@ -56,5 +57,13 @@ python3 Tools/Sashizu/build_okabe_sashizu.py
 
 ## 生成
 
-各 html は `scratchpad/gen*.py` が SVG を吐き、それを埋め込んで作っている。
-座標は世界座標（Unity のシーン座標）から直に変換しているので、図面と実装がズレない。
+`Tools/Sashizu/build_okabe_sashizu.py` が `<屋敷>.json` と `<屋敷>_kosho.md` から一枚に組む。
+**生成器は実装を読まない。** 座標は世界座標（Unity のシーン座標）から `Proj` / `Grid` で
+直に変換しているので、図面と実装がズレない。
+
+- `Proj` … 世界座標 → SVG px（z は北が上なので Y だけ反転）
+- `Grid` … 間グリッドの指数 (u,v) → 世界座標。原点と向きは json の `grid` が持つ
+
+⚠ SVG の `<text>` に markdown は効かない（`**` が literal で出る）。
+⚠ `text-anchor` は **style で出す**。クラス側の `text-anchor:middle` は CSS 規則なので
+presentation attribute より強く、属性で書くと効かない（左端の注記が中央寄せされて切れる）。

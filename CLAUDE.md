@@ -69,6 +69,9 @@
   **Revert All を押さない。** プレハブインスタンスの中では再親子付けが黙って無視される。
 - **地形の編集は Undo の外。** 触る前に heightmap を `.bin` でスナップショット。
   `Scene.isDirty` は当てにならない。`TerrainData.asset` と `.unity` も退避する。
+- **⚠ 2026-08-22 に地形を作り直した。造成は消えている。** ジオリファレンスの 8m ズレを補正し、
+  水色の囲いの外の造成を自然地形へ戻した。**屋敷を建てる前に必ず造成ステージを流し直す。**
+  面の高さは指図のまま使える(動いたのは面の縁だけ)。→ `docs/terrain-georef-fix.md`
 - **コンパイルが止まっていることがある。** `Library/ScriptAssemblies/Assembly-CSharp-Editor.dll` の
   mtime がソースより古ければ実行しない。古いアセンブリで走ると「直したのに反映されない」と誤診する。
 - **MCP タイムアウト後の再送で多重実行が起きる。** 冪等でないステージ(特に造成)は
@@ -101,6 +104,7 @@
 | Unity MCP の作法 | スキル `unity-mcp-skill` |
 | 在庫に何があるか | `docs/asset-catalog.md` → `docs/asset-index.tsv` |
 | 指図の描き方・組み方 | `docs/Sashizu/README.md` + `unity-buke-yashiki` の `references/sashizu.md` |
+| 地形の座標・造成の初期化・戻し方 | `docs/terrain-georef-fix.md`(2026-08-22 に地形を作り直した) |
 
 ### 作業 → 呼ぶエージェント(`.claude/agents/`)
 

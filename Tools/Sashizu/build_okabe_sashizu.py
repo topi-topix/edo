@@ -1272,6 +1272,22 @@ def main():
              '御殿と廊下のすぐ脇を歩く<b>生活面</b>なので、素の縁にはしない。'
              '高さ %.2fm・法肩から内へ %.2fm。石段の開口では切る。</p>'
              % (d["terraceRails"]["height"], d["terraceRails"]["insetFromCrest"]))
+    if "slopeBands" in d:
+        h.append("<h3>西斜面の植生（3帯）</h3>")
+        h.append("<div class='tw'><table><thead><tr><th>帯</th><th>標高</th>"
+                 "<th class='note'>植生</th><th class='note'>部材</th></tr></thead><tbody>"
+                 + "".join("<tr><td>%s</td><td>%.1f〜%s</td><td class='note'>%s</td>"
+                           "<td class='note'><code>%s</code></td></tr>"
+                           % (b["name"], b["yMin"],
+                              ("%.1f m" % b["yMax"]) if b["yMax"] < 90 else "郭の天端",
+                              b["veg"], b["asset"])
+                           for b in d["slopeBands"]) + "</tbody></table></div>")
+        h.append('<p class="cap"><b>竹林ではない。</b>『江戸名所図会』「溜池」（実見）はこの崖線を'
+                 '<b>稜線＝松＋広葉樹の樹林／崖面＝ハッチング（草地・裸地）</b>で描き、'
+                 '樹は稜線と法面上部に集まる — 法面全体を樹林で埋めない。'
+                 '[橋本・堀1998]（査読）では溜池の水辺の樹木は 2 例とも松、'
+                 '<b>竹薮は江戸の水辺 79 事例中 1 例</b>の例外。'
+                 '<b>竹垣（四つ目垣）は垣の材なので別物</b>で、こちらは残す。</p>')
     h.append("</div>")
 
     plate(h, "其九", "表門まわり", "放れ門（独立門）＋片番所")

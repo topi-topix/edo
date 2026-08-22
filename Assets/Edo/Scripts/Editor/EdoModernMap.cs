@@ -26,10 +26,21 @@ public static class EdoModernMap
     const string MatPath  = "Assets/Edo/ModernMap/ModernMapOverlay.mat";
     const float  HeightOffset = 2f;                                            // 古地図(Y=48)より 2m 上
 
+    /// <summary>
+    /// 既存のオーバーレイを探す。⚠ <c>GameObject.Find</c> は**非アクティブを見つけない**ので使わない。
+    /// 非表示のときにトグルすると「無い」と判定して重複を作る(2026-08-22 に実際に2個できていた)。
+    /// </summary>
+    static GameObject FindOverlay()
+    {
+        foreach (var go in Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            if (go.name == ObjName && go.transform.parent == null) return go;
+        return null;
+    }
+
     [MenuItem("Edo/地図オーバーレイ/現代地図 表示切替 %#n")]      // Ctrl/Cmd + Shift + N（古地図トグルの %#m と衝突しないよう N）
     static void ToggleOverlay()
     {
-        var go = GameObject.Find(ObjName) ?? CreateOverlay();
+        var go = FindOverlay() ?? CreateOverlay();
         if (go == null) return;
         Undo.RecordObject(go, "Toggle Modern Map Overlay");
         bool now = !go.activeSelf;
@@ -43,7 +54,7 @@ public static class EdoModernMap
     static bool ToggleOverlayValidate()
     {
         Menu.SetChecked("Edo/地図オーバーレイ/現代地図 表示切替 %#n",
-            GameObject.Find(ObjName) is GameObject g && g.activeSelf);
+            FindOverlay() is GameObject g && g.activeSelf);
         return true;
     }
 

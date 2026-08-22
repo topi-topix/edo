@@ -3,6 +3,10 @@
 **屋敷は Unity で建てる前にここへ設計図を起こし、ユーザーのレビューを受けてから実装する。**
 手順は `unity-buke-yashiki` スキル `references/sashizu.md`。
 
+> ⚠ **2026-08-22 に地形を作り直した。造成は消えている。**
+> 実装するときは**造成ステージを先に流す**こと。指図の面の高さはそのまま使える(動いたのは面の縁だけ)。
+> 山王社だけは山が8m西へ動いたので**座標の引き直し**が要る。→ [`docs/terrain-georef-fix.md`](../terrain-georef-fix.md)
+
 ## 三つの決めごと
 
 1. **指図は現況だけを載せる。** 過去の案・撤回した説を本文に残さない。
@@ -32,12 +36,18 @@ python3 Tools/Sashizu/build_okabe_sashizu.py
 |---|---|---|
 | [越前福井藩江戸上屋敷](fukui_kamiyashiki.html) | 原図の要約図と、そこから読み取れる組み方。**新しい屋敷を設計するときはまずこれに戻る** | https://claude.ai/code/artifact/77d7df6e-4f21-44f8-b391-68ae1c65e1e5 |
 
-## 屋敷ごとの設計図
+## 屋敷・社ごとの設計図
 
-| 屋敷 | 地区 | 状態 | 図面 | Artifact |
+| 屋敷・社 | 地区 | 状態 | 図面 | Artifact |
 |---|---|---|---|---|
 | 岡部筑前守 上屋敷（和泉岸和田藩5万3千石） | 山王社北 | **実装済・指図と一致(180項目)** | [okabe_sashizu.html](okabe_sashizu.html) | https://claude.ai/code/artifact/ce6d353b-33ea-4355-aeb4-c5097da69e53 |
 | 松平出羽守 上屋敷（出雲松江藩18万6千石・親藩国主） | 山王社北 | **起案・検図中（レビュー待ち）** | [matsudaira_sashizu.html](matsudaira_sashizu.html) | https://claude.ai/code/artifact/eaba651e-982d-4451-8bb5-d17ba95b8093 |
+| 土井大隅守 上屋敷（三河刈谷藩2万3千石・譜代雁間） | 山王社北 | **起案・検図済（レビュー待ち）** | [doi_sashizu.html](doi_sashizu.html) | https://claude.ai/code/artifact/539c4b6b-0937-458f-8287-e3200e94f3cf |
+| 山王権現社（日枝神社・江戸城の産土神・社領600石） | 永田馬場 星野山 | **起案・検図済（レビュー待ち）** | [sanno_sashizu.html](sanno_sashizu.html) | https://claude.ai/code/artifact/b6b4e5cd-8878-4162-be90-4dd4ed706beb |
+
+**寺社は武家屋敷と作りが違う。** `estate-types.md` の建蔽率・拝領坪数・門の格式は適用せず、
+「連続御殿複合＋外周長屋帯」も当てはまらない。図版は 社地／境内平面／社殿平面／断面／
+参道の割付／囲いの展開／門／山麓の付属（別当・神主・門前町）で組む。
 
 ## 図面に入れるもの
 

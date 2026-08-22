@@ -72,8 +72,9 @@ mono_crash.*.json
 # 土地利用ベイク前のスプラット自動バックアップ(ローカル用)
 /TerrainBackups/
 
-# Blender スクリプトのキャッシュ
-Tools/Blender/__pycache__/
+# Python のキャッシュ(Tools/ 配下すべて)
+__pycache__/
+*.pyc
 
 # 検証用スクリーンショット(ローカル用)
 /Assets/Screenshots/

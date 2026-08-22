@@ -48,7 +48,7 @@ public static class EdoSannoKitaBuilder
     const string PTobi = EdoAssets.JG.TobiIshi01;
     public const float ES = 1.818f;
 
-    // ---------- 区画(下書きスナップ済 2026-08-12) ----------
+    // ---------- 区画(正典 = docs/Sashizu/parcels.json / 編集は Edo▸敷地割) ----------
     // 共有点: T=三分岐点(岡部NW/土井SW/松平E線上), R4=岸の岡部/松平境
     // ⚠ 岡部の南辺 0-1 / 2-3 は 2026-08-19 まで「隣が持つ(skip)」と書いていたが**誤り**。
     //   実装(EdoOkabeYashikiBuilder.Runs)は南辺を全長 築地塀で囲っており、樹下(140.6m)・
@@ -61,31 +61,12 @@ public static class EdoSannoKitaBuilder
     //       4-5,5-6=NW(松平共有=松平所有skip) 6-7,7-8=N(土井共有=**岡部所有** — 実体は
     //       EdoOkabeYashikiBuilder の Hei_N1〜N4b が建てるのでここでは skip)
     //       8-9=楔スタブ 9-10=NE(表門) 10-0=E(三べ坂沿い盲長屋)
-    public static readonly Vector2[] OKABE = {
-        new Vector2(-373.0f, 947.0f), new Vector2(-514.5f, 947.0f), new Vector2(-585.5f, 943.3f),
-        new Vector2(-648.5f, 936.8f), new Vector2(-694.7f, 1029.5f), new Vector2(-660.8f, 1049.2f),
-        new Vector2(-640.0f, 1073.8f), new Vector2(-612.6f, 1062.5f), new Vector2(-459.4f, 1086.6f),
-        new Vector2(-425.4f, 1096.3f), new Vector2(-384.4f, 1054.3f) };
-    // 土井: 0-1,1-2=S(岡部共有=**岡部所有 skip** — 岡部側 Hei_N1〜N4b が建てる。
-    //       旧注記「土井所有」は撤回済みの裁定(2026-08-16)の取り残しで、辺0-1を建てると
-    //       185m が二重になる。検図 2026-08-22 で是正)
-    //       2-3=ジョグ 3-4=楔N 4-5=E(表門) 5-6,6-7,7-8,8-0=N/W(松平共有=松平所有skip)
-    //       正典は docs/Sashizu/doi_sashizu.json の _edges。
-    public static readonly Vector2[] DOI = {
-        new Vector2(-640.0f, 1073.8f), new Vector2(-612.6f, 1062.5f), new Vector2(-459.4f, 1086.6f),
-        new Vector2(-460.9f, 1094.9f), new Vector2(-431.8f, 1105.9f), new Vector2(-458.5f, 1177.8f),
-        new Vector2(-530.9f, 1155.8f), new Vector2(-606.9f, 1156.9f), new Vector2(-609.0f, 1107.5f) };
-    // 松平(13頂点): 0-1,1-2,2-3,3-4=S(土井共有・松平所有。3-4は土井辺8-0と共有)
-    //   4-5,5-6=SE(岡部共有=岡部辺5-6/4-5・松平所有) 6-7,7-8,8-9=W(堀端=溜池東岸)
-    //   9-10=NW 10-11=N(表門・大通り) 11-12=NE 12-0=E(三べ坂前身道)
-    //   ⚠ 旧注記は11頂点時代のもので辺番号が1〜2ズレていた(検図 2026-08-22 で是正)。
-    //   正典は docs/Sashizu/matsudaira_sashizu.json の _edges。
-    public static readonly Vector2[] MATSU = {
-        new Vector2(-458.5f, 1177.8f), new Vector2(-530.9f, 1155.8f), new Vector2(-606.9f, 1156.9f),
-        new Vector2(-609.0f, 1107.5f), new Vector2(-640.0f, 1073.8f), new Vector2(-660.8f, 1049.2f),
-        new Vector2(-694.7f, 1029.5f), new Vector2(-723.4f, 1070.8f), new Vector2(-746.9f, 1123.8f),
-        new Vector2(-755.2f, 1180.6f), new Vector2(-737.0f, 1224.5f), new Vector2(-569.3f, 1300.9f),
-        new Vector2(-500.6f, 1307.0f) };
+    // ⚠ 区画のポリゴンは **docs/Sashizu/parcels.json が正典**(2026-08-22 移行)。
+    //   ここに数値を書き戻さないこと — 敷地割ツール(Edo/敷地割)で引き直した図と
+    //   ビルダーが別々に動き出す。辺の所有と表門は下の注記のとおり。
+    public static Vector2[] OKABE { get { return EdoParcels.Get("okabe"); } }
+    public static Vector2[] DOI { get { return EdoParcels.Get("doi"); } }
+    public static Vector2[] MATSU { get { return EdoParcels.Get("matsudaira_dewa"); } }
 
     // 表門
     static readonly Vector2 GATE_OKABE = new Vector2(-410.0f, 1081.5f);   // NE辺(9-10)

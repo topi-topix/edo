@@ -1042,9 +1042,10 @@ public static class EdoOkabeYashikiBuilder
         EdoAssets.JC.Azalea01,
         EdoAssets.JC.Azalea03,
         EdoAssets.JG.Boxwood01 };
-    static string[] Bamboo = {
-        EdoAssets.JG.BambooBig01,
-        EdoAssets.JG.BambooBig02 };
+    // ⚠ **斜面の植栽に竹を使わない**(2026-08-22 是正)。BambooBig は孟宗竹型の太稈で、
+    //   嘉永期の江戸の孟宗竹は吹上御苑と近郊農村の筍畑にしか無い。斜面は Pines + Shrubs の
+    //   3帯(指図 slopeBands)。竹垣(Kakoi の Take_W*)は垣の材なので別物・そのまま。
+    //   復活させる前に docs/Sashizu/okabe_kosho.md「西斜面の植生」を読むこと。
 
     /// <summary>表門 → 玄関の参道の帯(v5)。中心線 z=1001・幅6m、表門(-381)から玄関棟の東面(-458.8)まで。
     /// 屋根付き廊下を廃した代わりに、ここを開けておく(白洲の踏み分け)。植栽もここには置かない。</summary>
@@ -1440,6 +1441,18 @@ public static class EdoOkabeYashikiBuilder
         var g = B.Place(PKmon, new Vector3(gp.x, 0f, gp.y), psi, Vector3.one * ES, mon, "Kmon");
         var rb = B.RB(g);
         g.transform.position += new Vector3(0f, 13.5f - rb.min.y, 0f);
+        // ⚠ **躯体が伸びる向きを検査する。** 扉の面だけ合わせても、門が 180° 逆を向いていると
+        //   躯体(奥行 8.66m)が丸ごと街路へ出る(2026-08-22: 路上へ 5.99m 突き出した)。
+        //   指図の層別実測では 躯体 tai は o[-5.92,+1.71] = **屋敷の内へ伸びる**。
+        {
+            float bodyIn = PartFaceO(g, -outw, "soseki");        // 躯体の内側(-o)への出
+            float bodyOut = PartFaceO(g, outw, "soseki");        // 街路(+o)への出
+            if (bodyIn < bodyOut)                                 // 内へより外へ出ている = 逆向き
+            {
+                g.transform.RotateAround(new Vector3(gp.x, g.transform.position.y, gp.y), Vector3.up, 180f);
+                sb.AppendLine("表門 Kmon: 躯体が街路を向いていたので 180° 反転した");
+            }
+        }
         float want = EdoSashizuExport.F(pm, "doorBoardO");
         float got = KagamiFaceO(g, outw);
         g.transform.position -= new Vector3(outw.x, 0f, outw.y) * (got - want);
@@ -1594,6 +1607,22 @@ public static class EdoOkabeYashikiBuilder
             if (kv.Value.y > prev) { prev = kv.Value.y; pn = kv.Key; }
         }
         sb.AppendLine(worst <= 0.05f ? "  ✔ 隙間なし" : string.Format("  → 最大 {0:F3}m", worst));
+        // 街路へ何が出ているか（地上帯 13.5〜17.0）。屋根の軒は出てよいが躯体は出てはならない
+        foreach (Transform c in mon)
+        {
+            float o1 = -1e9f;
+            foreach (var mf in c.GetComponentsInChildren<MeshFilter>())
+                foreach (var v in mf.sharedMesh.vertices)
+                {
+                    var w = mf.transform.TransformPoint(v);
+                    if (w.y < 13.5f || w.y > 17.0f) continue;
+                    float o = Vector2.Dot(new Vector2(w.x, w.z) - GATE, outw);
+                    if (o > o1) o1 = o;
+                }
+            if (o1 < -1e8f) continue;
+            bool ok = o1 <= 1.65f;                                // 叩きの前端まで
+            sb.AppendLine(string.Format("  {0} {1} 街路側の出 o={2:F2}", ok ? "✔" : "✗", c.name.PadRight(16), o1));
+        }
         return sb.ToString();
     }
 
@@ -2636,7 +2665,14 @@ public static class EdoOkabeYashikiBuilder
             if (hit) continue;
             float y = G(px, pz);
             GameObject go;
-            if (y < 14f) go = B.Place(Bamboo[rnd.Next(2)], new Vector3(px, y, pz), (float)rnd.NextDouble() * 360f, Vector3.one * (1.5f * (0.9f + 0.4f * (float)rnd.NextDouble())), gg, "Take_" + i);
+            // 西斜面は**指図 slopeBands の3帯**(2026-08-22 是正)。竹林ではない —
+            //   [橋本・堀1998](査読) 溜池の水辺の樹木は2例とも松/武家地の斜面は「樹林」型/
+            //   竹薮は江戸の水辺79事例中1例の例外。『江戸名所図会』溜池・広重「赤坂桐畑」も
+            //   この崖線を松+広葉樹で描き竹は無い。孟宗竹は吹上御苑と近郊農村の筍畑にしか無く、
+            //   BambooBig(太稈)は当てられない。⚠ 竹垣(Kakoi の Take_W1..W3)は別物で残す。
+            if (y < 10.5f) continue;                              // 下部〜裾=草地。高木を置かない
+            if (y < 14f)                                          // 中部=低木・下草
+                go = B.Place(Shrubs[rnd.Next(Shrubs.Length)], new Vector3(px, y, pz), (float)rnd.NextDouble() * 360f, Vector3.one * (0.9f + 0.6f * (float)rnd.NextDouble()), gg, "Shrub_" + i);
             else if (rnd.NextDouble() < 0.66) go = B.Place(Pines[rnd.Next(Pines.Length)], new Vector3(px, y, pz), (float)rnd.NextDouble() * 360f, Vector3.one * (1.65f * (0.9f + 0.5f * (float)rnd.NextDouble())), gg, "Pine_" + i);
             else go = B.Place(Shrubs[rnd.Next(Shrubs.Length)], new Vector3(px, y, pz), (float)rnd.NextDouble() * 360f, Vector3.one * (0.9f + 0.7f * (float)rnd.NextDouble()), gg, "Shrub_" + i);
             var rb = B.RB(go); go.transform.position += new Vector3(0, (y - 0.05f) - rb.min.y, 0);

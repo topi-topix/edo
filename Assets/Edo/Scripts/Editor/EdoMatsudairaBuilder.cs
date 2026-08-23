@@ -778,6 +778,90 @@ public static class EdoMatsudairaBuilder
         return sb.ToString();
     }
 
+    // ---------------------------------------------------------------- Stage 4: 御殿複合
+    /// <summary>床高(地面から)。EdoGotenKit.Mune / Roka の既定と同じ値を明示で渡す。</summary>
+    public const float GOTEN_FLOOR = 0.62f;
+
+    /// <summary>棟・渡廊下をこの回転グリッドへ据えるときの yaw と原点。
+    ///
+    /// ⚠ **(u,v) は世界(x,z)に対して左手系**(det = ux·vz − uz·vx = −1)。
+    /// 一方 Unity の local(+X,+Z) は yaw をどう振っても右手系(det=+1)なので、
+    /// local +X=+u / local +Z=+v とは**置けない** — そう置くと棟が鏡像になる
+    /// (入側・妻・座敷飾りが左右反転し、屋根の大棟だけ正しく見えるので気づきにくい)。
+    ///
+    /// 桁行が u に沿う棟・廊下: local +X=+u / local +Z=**−v**。原点 local(0,0) = (u0, **v1**)
+    /// 桁行が v に沿う廊下:     local +X=+v / local +Z=**+u**。原点 local(0,0) = (u0, v0)</summary>
+    static float YawAlongU() { var f = Grid; return Mathf.Atan2(-f.vx, -f.vz) * Mathf.Rad2Deg; }
+    static float YawAlongV() { var f = Grid; return Mathf.Atan2(-f.vz, f.vx) * Mathf.Rad2Deg; }
+
+    [MenuItem("Edo/松平出羽守上屋敷/4 御殿複合")]
+    public static void Stage4Menu() { Debug.Log("[Matsudaira] " + Stage4_Goten()); }
+    public static string Stage4_Goten()
+    {
+        var grp = Group("Buildings"); Clear(grp);
+        var f = Grid;
+        float yawU = YawAlongU(), yawV = YawAlongV();
+        var sb = new System.Text.StringBuilder();
+        int nm = 0, nl = 0;
+
+        foreach (var o in A(D["munes"]))
+        {
+            var m = O(o);
+            string name = (string)m["name"];
+            int u0 = Mathf.RoundToInt(F(m["u0"])), v0 = Mathf.RoundToInt(F(m["v0"]));
+            int u1 = Mathf.RoundToInt(F(m["u1"])), v1 = Mathf.RoundToInt(F(m["v1"]));
+            int kw = u1 - u0, kd = v1 - v0;              // 外形(四方の入側一間を含む)の間数
+            if (kw < kd)
+            {
+                // 大棟は桁行に架かる。u より v が長い棟が出たら、ここで yawV 側へ振る実装が要る
+                sb.AppendLine("⚠ " + name + ": 桁行が u 方向でない(" + kw + "x" + kd + ") — 未対応");
+                continue;
+            }
+            if (kw < 3 || kd < 3)
+            {
+                sb.AppendLine("⚠ " + name + ": 入側一間を四方に回すと身舎が残らない(" + kw + "x" + kd + ")");
+                continue;
+            }
+            float y = F(m["y"]);
+            var w = f.W(u0, v1);                          // local(0,0) の角
+            string roof = EdoAssets.Goten.RoofIrimoya_(kw, kd);
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(roof) == null)
+            {
+                sb.AppendLine("⚠ " + name + ": 屋根が無い " + kw + "x" + kd +
+                              "ken — build_goten_roof.py -- " + (kw * f.ken) + " " + (kd * f.ken) +
+                              " Goten_Roof_Irimoya_" + kw + "x" + kd + "ken");
+                roof = null;
+            }
+            var g = EdoGotenKit.Mune(name, grp, new Vector3(w.x, y, w.y), yawU,
+                                     kw - 2, kd - 2, 1, GOTEN_FLOOR, roof, iriX: 1);
+            Undo.RegisterCreatedObjectUndo(g, "mune");
+            nm++;
+        }
+
+        // 渡廊下・御錠口 — 両端は棟の壁面へ突き付けるので端の柱通りは落とす(柱の二重置き=z-fighting)
+        foreach (var o in A(D["links"]))
+        {
+            var l = O(o);
+            string name = (string)l["name"];
+            int u0 = Mathf.RoundToInt(F(l["u0"])), v0 = Mathf.RoundToInt(F(l["v0"]));
+            int u1 = Mathf.RoundToInt(F(l["u1"])), v1 = Mathf.RoundToInt(F(l["v1"]));
+            int kw = u1 - u0, kd = v1 - v0;
+            bool alongU = kw >= kd;
+            int n = alongU ? kw : kd;
+            if ((alongU ? kd : kw) != 1)
+                sb.AppendLine("⚠ " + name + ": 廊下の幅が一間でない(" + kw + "x" + kd + ")");
+            float y = F(l["y"]);
+            var w = alongU ? f.W(u0, v1) : f.W(u0, v0);
+            var g = EdoGotenKit.Roka(name, grp, new Vector3(w.x, y, w.y), alongU ? yawU : yawV, n,
+                                     GOTEN_FLOOR, colStart: false, colEnd: false);
+            Undo.RegisterCreatedObjectUndo(g, "roka");
+            nl++;
+        }
+
+        sb.Append("棟 " + nm + "/" + A(D["munes"]).Count + " 棟、廊下 " + nl + "/" + A(D["links"]).Count + " 本");
+        return sb.ToString();
+    }
+
     // ---------------------------------------------------------------- 指図と実装の突き合わせ
     [MenuItem("Edo/松平出羽守上屋敷/指図と実装を突き合わせる")]
     public static void CompareMenu() { Debug.Log("[Matsudaira] " + Compare()); }

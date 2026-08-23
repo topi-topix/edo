@@ -134,7 +134,7 @@ public static class EdoAssets
         /// (瓦の繰り返し 1.785/2.004m は江戸間と割り切れないので1間モジュールにはできない)。
         /// 無い長さが要るときは build_goten_roof.py -- kirizuma &lt;間数&gt; で足す。
         /// ピボット = 廊下の中心・軒先レベル。大棟の天端は軒先から 0.953。</summary>
-        public static readonly int[] RoofKirizumaKen = { 2, 3, 4, 5, 6, 7, 8, 9, 10, 12 };
+        public static readonly int[] RoofKirizumaKen = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12 };
         public static string RoofKirizuma(int nKen)
         {
             return RoofDir + "Goten_Roof_Kirizuma_" + nKen + "ken.fbx";

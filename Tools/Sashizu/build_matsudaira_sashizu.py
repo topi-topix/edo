@@ -400,36 +400,6 @@ def goten_plan(d, u0, u1, v0, v1, label, note):
                        (pr.Y(max(n["v0"], v0)) + pr.Y(min(n["v1"], v1))) / 2 + 4,
                        n["label"], "rmS", "middle", fit(n["label"], pr.L(n["u1"] - n["u0"]), 12.0)))
 
-    # 池(汀線ポリゴン + 護岸の区間 + 中島・橋・水尻)
-    pd = d.get("pond")
-    if pd and vis(min(q[1] for q in pd["outline"]), max(q[1] for q in pd["outline"]),
-                  min(q[0] for q in pd["outline"]), max(q[0] for q in pd["outline"])):
-        O = pd["outline"]
-        g.append('<polygon points="%s" fill="var(--ike)" stroke="var(--ink)" stroke-width="1.0"/>'
-                 % " ".join("%.1f,%.1f" % (pr.X(u), pr.Y(v)) for u, v in O))
-        RCOL = {"石組護岸": "#6B6252", "州浜": "#C9BE9E", "乱杭": "#8A7A5C"}
-        for seg in pd["revetment"]:
-            a, b = seg["from"] - 1, seg["to"] - 1
-            i, pts = a, []
-            while True:
-                pts.append(O[i])
-                if i == b:
-                    break
-                i = (i + 1) % len(O)
-            g.append('<polyline points="%s" fill="none" stroke="%s" stroke-width="2.6" '
-                     'stroke-linecap="round" opacity="0.95"/>'
-                     % (" ".join("%.1f,%.1f" % (pr.X(u), pr.Y(v)) for u, v in pts),
-                        RCOL.get(seg["kind"], "#6B6252")))
-        for il in pd["islands"]:
-            g.append('<circle cx="%.1f" cy="%.1f" r="%.1f" fill="var(--niwa)" '
-                     'stroke="var(--ink)" stroke-width="0.8"/>'
-                     % (pr.X(il["u"]), pr.Y(il["v"]), pr.L(il["rBase"])))
-        br = pd["bridge"]
-        g.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="var(--ink)" stroke-width="2.4"/>'
-                 % (pr.X(br["a"][0]), pr.Y(br["a"][1]), pr.X(br["b"][0]), pr.Y(br["b"][1])))
-        g.append('<polyline points="%s" fill="none" stroke="var(--ike)" stroke-width="2.0" '
-                 'stroke-dasharray="4 3"/>'
-                 % " ".join("%.1f,%.1f" % (pr.X(u), pr.Y(v)) for u, v in pd["outlet"]["pts"]))
 
 
     # 郭の土留め・石段・竹垣
@@ -1321,8 +1291,9 @@ def plane_check(d):
             bad.append("%s(井戸) が段の外: (%.2f, %.2f)" % (w["name"], pt[0], pt[1]))
     bad += run_seat_check(d)
     bad += route_pierce_check(d)
-    bad += pond_check(d)
     bad += room_containment_check(d)
+    bad += barrier_check(d)
+    bad += kaidan_ground_check(d)
     return bad
 
 
@@ -1469,66 +1440,84 @@ def room_containment_check(d):
     return bad
 
 
-def pond_check(d):
-    """池が掘れるかの機械検査。WaterBaker に渡す前提が揃っているかを見る。"""
-    pd = d.get("pond")
-    if not pd:
+def section_crossings(d, sec):
+    """断面が実際に切るものを算出する。**手で書いた交差リストは持たない** —
+    棟を動かすたびに腐り、2026-08-23 に8本中6本が旧配置のままだった。"""
+    ax, at = sec["axis"], sec["at"]
+    hit = []
+    def add(nm, a, b, c, e):
+        if ax == "u":
+            if a <= at <= c:
+                hit.append((b, e, nm))
+        else:
+            if b <= at <= e:
+                hit.append((a, c, nm))
+    for m in d["munes"]:
+        add(MUNE_JA.get(m["name"], m["name"]), m["u0"], m["v0"], m["u1"], m["v1"])
+    for x in d["service"]:
+        add(x.get("label", x["name"]), x["u0"], x["v0"], x["u1"], x["v1"])
+    for x in d["gardens"]:
+        add(x.get("label", x["name"]), x["u0"], x["v0"], x["u1"], x["v1"])
+    hit.sort()
+    return [h[2] for h in hit]
+
+
+def barrier_check(d):
+    """御錠口の結界。ゾーンを跨ぐ廊下のうち「口」でないものが在れば錠が無効になる。"""
+    zone = {m["name"]: m["zone"] for m in d["munes"]}
+    bad = []
+    for l in d["links"]:
+        z = set()
+        for m in d["munes"]:
+            if (m["u0"] - 1 <= l["u1"] and l["u0"] <= m["u1"] + 1
+                    and m["v0"] - 1 <= l["v1"] and l["v0"] <= m["v1"] + 1):
+                z.add(zone.get(m["name"], "?"))
+        if "奥向" in z and len(z) > 1 and "口" not in l["kind"]:
+            bad.append("%s(%s)が %s を跨ぐのに口でない — 御錠口の結界が無効"
+                       % (l["name"], l["kind"], "/".join(sorted(z))))
+    return bad
+
+
+def kaidan_ground_check(d):
+    """石段の落差が、その位置の造成前地盤と面の差に合っているか。
+    2026-08-23: 御蔵門の石段が『存在しない帯』の上に置かれ、降りた先が窪地になっていた。"""
+    try:
+        terr = json.load(open(os.path.join(DOC, "matsudaira_terrain.json"), encoding="utf-8"))
+    except Exception:
         return []
-    bad, O = [], pd["outline"]
-    KEN = d["const"]["ken"]
-    def inside(q):
-        x, y = q
-        c = False
-        for i in range(len(O)):
-            a, b = O[i], O[(i - 1) % len(O)]
-            if (a[1] > y) != (b[1] > y) and x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]:
-                c = not c
-        return c
-    # ① 汀線が庭の中に収まる
-    gz = [g for g in d["gardens"] if g.get("kind") == "chisen"]
-    for i, (u, v) in enumerate(O, 1):
-        if not any(g["u0"] <= u <= g["u1"] and g["v0"] <= v <= g["v1"] for g in gz):
-            bad.append("汀線%d点目 (%.1f,%.1f) が池泉庭の外" % (i, u, v))
-    # ② 汀線が棟・服務に掛からない
-    for box in [(m["name"], m["u0"], m["v0"], m["u1"], m["v1"]) for m in d["munes"]] + \
-               [(x["name"], x["u0"], x["v0"], x["u1"], x["v1"]) for x in d["service"]]:
-        n, a, b, c, e = box
-        for i, (u, v) in enumerate(O, 1):
-            if a <= u <= c and b <= v <= e:
-                bad.append("汀線%d点目が %s に掛かる" % (i, n))
-    # ③ 動線が水面を横切らない
-    for r in d["routes"]:
-        for i, q in enumerate(r["pts"]):
-            if inside(q):
-                bad.append("動線 %s の%d点目 (%.1f,%.1f) が水面の中" % (r["name"], i + 1, q[0], q[1]))
-    # ④ 島は水面の中、橋は片端が島・片端が岸の外
-    for il in pd["islands"]:
-        if not inside((il["u"], il["v"])):
-            bad.append("%s が水面の外" % il["name"])
-    br, isl = pd["bridge"], pd["islands"][0]
-    import math as _m
-    da = _m.hypot(br["a"][0] - isl["u"], br["a"][1] - isl["v"])
-    db = _m.hypot(br["b"][0] - isl["u"], br["b"][1] - isl["v"])
-    if not (min(da, db) <= isl["rBase"] + 0.3 <= max(da, db)):
-        bad.append("石橋の両端が「島の上」と「島の外」に分かれていない (%.1f / %.1f 間、島 r=%.1f)"
-                   % (da, db, isl["rBase"]))
-    # ⑤ 水尻は池から出て主平面の西縁へ届く
-    o = pd["outlet"]["pts"]
-    if not inside(o[0]):
-        bad.append("水尻の起点が水面の外")
-    west = min(t["u0"] for t in d["terraces"] if t["name"] == "Shukaku")
-    if o[-1][0] > west + 2.0:
-        bad.append("水尻が主平面の西縁(u=%.0f)まで届かない(終点 u=%.1f)" % (west, o[-1][0]))
-    # ⑥ 土量 — 掘削と築山の釣り合い
-    A = abs(sum(O[i][0] * O[(i + 1) % len(O)][1] - O[(i + 1) % len(O)][0] * O[i][1]
-                for i in range(len(O)))) / 2.0 * KEN * KEN
-    cut = A * (pd["depth"] - pd["shelf"] * 0.35)
-    fill = sum((g["u1"] - g["u0"]) * (g["v1"] - g["v0"]) * KEN * KEN * g["h"] * 0.4
-               for g in d["gardens"] if g.get("kind") == "tsukiyama")
-    rest = sum((g["u1"] - g["u0"]) * (g["v1"] - g["v0"]) for g in gz) * KEN * KEN - A
-    rise = (cut - fill) / rest if rest > 0 else 9.9
-    if abs(rise) > 0.5:
-        bad.append("池の掘削土が庭に納まらない(差引を均すと %+.2fm、許容±0.5m)" % rise)
+    bad = []
+    for k in d["kaidans"]:
+        if "pos" not in k:
+            continue
+        ku, kv = k["pos"]
+        nat = _nat_uv(terr, ku, kv)
+        if nat is None:
+            continue
+        pl = None
+        for t in d["terraces"]:
+            if t["u0"] <= ku <= t["u1"] and t["v0"] <= kv <= t["v1"]:
+                pl = t["y"]
+                break
+        if pl is None:
+            bad.append("石段 %s (%g,%g) がどの段の上にも無い" % (k["name"], ku, kv))
+            continue
+        want = abs(nat - pl)
+        if abs(want - k["drop"]) > 0.6:
+            bad.append("石段 %s: 設計の落差 %.2fm に対し、その位置の地盤 %.2f と面 %.2f の差は %.2fm"
+                       % (k["name"], k["drop"], nat, pl, want))
+    return bad
+
+
+def hardcode_check():
+    """生成器の legend/caption に数値が直書きされていないか(正典は json)。"""
+    import io, re as _re
+    src = io.open(__file__, encoding="utf-8").read()
+    bad = []
+    for m in _re.finditer(r'"[^"\n]*(?:■|caption|面|坪|m²)[^"\n]*?(\d+\.\d)[^"\n]*"', src):
+        frag = m.group(0)
+        if "%" in frag or "確度" in frag:
+            continue
+        bad.append("生成器に直書きの数値: %s" % frag[:70])
     return bad
 
 
@@ -2106,12 +2095,14 @@ def gpoly_pr(gr, pr, u0, v0, u1, v1, fill, op):
 
 
 def garden_svg(d):
-    """庭園図 — 庭域だけを大縮尺で。敷地図の縮尺では汀線も護岸も読めない。
+    """庭園図 — 庭域だけを大縮尺で。敷地図の縮尺では飛石も植栽も読めない。
     §3d の動線図とは別物: こちらは「庭として何がどこにあるか」を示す。"""
-    gr = RGrid(d); K = d["const"]["ken"]
-    gz = [g for g in d["gardens"] if g.get("kind") == "chisen"]
-    u0 = min(g["u0"] for g in gz) - 4; u1 = max(g["u1"] for g in gz) + 16
-    v0 = min(g["v0"] for g in gz) - 4; v1 = max(g["v1"] for g in gz) + 8
+    gr = RGrid(d)
+    gz = [g for g in d["gardens"] if g["name"] in ("G_NishiNiwa",)]
+    if not gz:
+        return ""
+    u0 = min(g["u0"] for g in gz) - 4; u1 = max(g["u1"] for g in gz) + 18
+    v0 = min(g["v0"] for g in gz) - 6; v1 = max(g["v1"] for g in gz) + 10
     corners = [gr.W(a, b) for a in (u0, u1) for b in (v0, v1)]
     pr = Proj(min(q[0] for q in corners) - 6, max(q[0] for q in corners) + 6,
               min(q[1] for q in corners) - 6, max(q[1] for q in corners) + 6,
@@ -2127,66 +2118,21 @@ def garden_svg(d):
 
     for t in d["terraces"]:
         g.append(gp(t["u0"], t["v0"], t["u1"], t["v1"], "var(--pl-main)", 0.5))
-    for n in gz:
-        g.append(gp(n["u0"], n["v0"], n["u1"], n["v1"], "var(--niwa)", 0.9,
-                    "var(--ink-lo)", 1.0))
-    # 築山 — 等高線状の入れ子で立体を示す
-    for n in [x for x in d["gardens"] if x.get("kind") == "tsukiyama"]:
-        cu, cv = (n["u0"] + n["u1"]) / 2.0, (n["v0"] + n["v1"]) / 2.0
-        for k, f in enumerate((1.0, 0.68, 0.36)):
-            g.append(gp(cu + (n["u0"] - cu) * f, cv + (n["v0"] - cv) * f,
-                        cu + (n["u1"] - cu) * f, cv + (n["v1"] - cv) * f,
-                        "var(--tsuki)", 0.55 + 0.16 * k, "var(--ink-lo)", 0.8))
-        x, y = gpt(cu, cv)
-        g.append(T(x, y - 2, n["label"], "rmS", "middle"))
-        g.append(T(x, y + 12, "+%.1fm" % n["h"], "anS2", "middle"))
-    # 棟・付属屋(庭に面する側を濃く)
+    for n in d["gardens"]:
+        if n["u1"] < u0 or n["u0"] > u1 or n["v1"] < v0 or n["v0"] > v1:
+            continue
+        col = "var(--shirasu)" if n.get("kind") == "shirasu" else "var(--niwa)"
+        g.append(gp(n["u0"], n["v0"], n["u1"], n["v1"], col, 0.9, "var(--ink-lo)", 1.0))
+        x, y = gpt((n["u0"] + n["u1"]) / 2.0, (n["v0"] + n["v1"]) / 2.0)
+        g.append(T(x, y + 4, n["label"], "rmS", "middle",
+                   fit(n["label"], pr.L(n["u1"] - n["u0"]), 12.0)))
     for m in d["munes"] + d["service"]:
         if m["u1"] < u0 or m["u0"] > u1 or m["v1"] < v0 or m["v0"] > v1:
             continue
-        g.append(gp(m["u0"], m["v0"], m["u1"], m["v1"], "var(--ink-mid)", 0.85,
-                    "var(--ink)", 0.7))
+        g.append(gp(m["u0"], m["v0"], m["u1"], m["v1"], "var(--ink-mid)", 0.85, "var(--ink)", 0.7))
         x, y = gpt((m["u0"] + m["u1"]) / 2.0, (m["v0"] + m["v1"]) / 2.0)
         lb = MUNE_JA.get(m["name"], m.get("label", m["name"]))
         g.append(T(x, y + 4, lb, "rmS", "middle", fit(lb, pr.L(m["u1"] - m["u0"]), 11.0)))
-
-    pd = d["pond"]; O = pd["outline"]
-    g.append('<polygon points="%s" fill="var(--ike)" stroke="none"/>'
-             % " ".join("%.1f,%.1f" % gpt(u, v) for u, v in O))
-    RC = {"石組護岸": "#5E564A", "州浜": "#CBB98F", "乱杭": "#8A7A5C"}
-    for seg in pd["revetment"]:
-        a, b = seg["from"] - 1, seg["to"] - 1
-        i, pts = a, []
-        while True:
-            pts.append(O[i])
-            if i == b:
-                break
-            i = (i + 1) % len(O)
-        g.append('<polyline points="%s" fill="none" stroke="%s" stroke-width="5.0" '
-                 'stroke-linecap="round" stroke-linejoin="round"/>'
-                 % (" ".join("%.1f,%.1f" % gpt(u, v) for u, v in pts), RC[seg["kind"]]))
-        mu, mv = pts[len(pts) // 2]
-        x, y = gpt(mu, mv)
-        g.append(T(x, y - 9, seg["kind"], "anS2", "middle"))
-    for i, (u, v) in enumerate(O, 1):
-        x, y = gpt(u, v)
-        g.append('<circle cx="%.1f" cy="%.1f" r="2.0" fill="var(--ink)"/>' % (x, y))
-        g.append(T(x + 3.5, y - 3.5, str(i), "jo"))
-    for il in pd["islands"]:
-        x, y = gpt(il["u"], il["v"])
-        g.append('<circle cx="%.1f" cy="%.1f" r="%.1f" fill="var(--niwa)" stroke="var(--ink)" '
-                 'stroke-width="1.0"/>' % (x, y, pr.L(il["rBase"])))
-        g.append(T(x, y + 4, il["name"], "anS2", "middle"))
-    br = pd["bridge"]
-    ax, ay = gpt(br["a"][0], br["a"][1]); bx, by = gpt(br["b"][0], br["b"][1])
-    g.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="var(--ink)" '
-             'stroke-width="4.0" stroke-linecap="round"/>' % (ax, ay, bx, by))
-    g.append(T((ax + bx) / 2 + 8, (ay + by) / 2 - 5, br["name"], "anS"))
-    ot = pd["outlet"]["pts"]
-    g.append('<polyline points="%s" fill="none" stroke="var(--ike)" stroke-width="3.0" '
-             'stroke-dasharray="6 4"/>' % " ".join("%.1f,%.1f" % gpt(u, v) for u, v in ot))
-    x, y = gpt(ot[-1][0], ot[-1][1])
-    g.append(T(x - 6, y + 4, "水尻(余水吐)→ 崖を落として溜池へ", "anS", "end"))
     for w in d.get("wells", []):
         if not (u0 <= w["u"] <= u1 and v0 <= w["v"] <= v1):
             continue
@@ -2195,51 +2141,16 @@ def garden_svg(d):
                  'stroke-width="1.4"/>' % (x, y))
         g.append(T(x + 6, y + 4, "井戸", "jo"))
     for r in d["routes"]:
-        if r["name"] != "R_Chisen":
+        pts = [gpt(q[0], q[1]) for q in r["pts"]]
+        if not any(u0 <= q[0] <= u1 and v0 <= q[1] <= v1 for q in r["pts"]):
             continue
-        g.append('<polyline points="%s" fill="none" stroke="var(--michi)" stroke-width="3.0" '
-                 'stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="10 5"/>'
-                 % " ".join("%.1f,%.1f" % gpt(q[0], q[1]) for q in r["pts"]))
-    g.append(T(4, 16, "汀線の番号は json の pond.outline と同じ。護岸は視線で使い分ける", "anS", "start"))
+        g.append('<polyline points="%s" fill="none" stroke="%s" stroke-width="2.6" '
+                 'stroke-linejoin="round" stroke-linecap="round" opacity="0.85"/>'
+                 % (" ".join("%.1f,%.1f" % q for q in pts), ROUTE_COL.get(r["kind"], "var(--ink)")))
+    g.append(T(4, 16, "西の帯は露地と芝野。**池は置かない**(裁定の理由は其廿二)", "anS", "start"))
     g.append(T(pr.W - 4, 16, "北 ↑　左=西(溜池・崖)", "anS", "end"))
     g.append("</svg>")
     return "\n".join(g)
-
-
-def garden_table(d):
-    pd = d["pond"]; K = d["const"]["ken"]; O = pd["outline"]
-    A = abs(sum(O[i][0] * O[(i + 1) % len(O)][1] - O[(i + 1) % len(O)][0] * O[i][1]
-                for i in range(len(O)))) / 2.0
-    rows = ""
-    for seg in pd["revetment"]:
-        a, b = seg["from"] - 1, seg["to"] - 1
-        i, L = a, 0.0
-        while i != b:
-            j = (i + 1) % len(O)
-            L += math.hypot(O[j][0] - O[i][0], O[j][1] - O[i][1]) * K
-            i = j
-        rows += ("<tr><td>%s</td><td>%d→%d</td><td>%.0f m</td><td class='note'>%s</td></tr>"
-                 % (seg["kind"], seg["from"], seg["to"], L, seg["_"]))
-    t1 = ("<div class='tw'><table><thead><tr><th>護岸</th><th>汀線</th><th>延長</th>"
-          "<th class='note'>使い分け</th></tr></thead><tbody>%s</tbody></table></div>" % rows)
-    cut = A * K * K * (pd["depth"] - pd["shelf"] * 0.35)
-    fill = sum((x["u1"] - x["u0"]) * (x["v1"] - x["v0"]) * K * K * x["h"] * 0.4
-               for x in d["gardens"] if x.get("kind") == "tsukiyama")
-    gz = [x for x in d["gardens"] if x.get("kind") == "chisen"]
-    rest = sum((x["u1"] - x["u0"]) * (x["v1"] - x["v0"]) for x in gz) * K * K - A * K * K
-    t2 = ("<div class='tw'><table><thead><tr><th class='note'>項</th><th>値</th></tr></thead><tbody>"
-          "<tr><td class='note'>庭の面積(池泉庭+東入り)</td><td>%.0f 坪</td></tr>"
-          "<tr><td class='note'>水面</td><td>%.0f 坪 / %.0f m²</td></tr>"
-          "<tr><td class='note'>水面 / 底</td><td>%.2f / %.2f m(深さ %.1f・汀の棚 %.1f)</td></tr>"
-          "<tr><td class='note'>掘削</td><td>%.0f m³</td></tr>"
-          "<tr><td class='note'>築山への盛土</td><td>%.0f m³</td></tr>"
-          "<tr><td class='note'>差引を庭に均した上げ幅</td><td>%+.2f m(許容 ±0.5)</td></tr>"
-          "<tr><td class='note'>見所</td><td>%s</td></tr>"
-          "</tbody></table></div>"
-          % (sum((x["u1"] - x["u0"]) * (x["v1"] - x["v0"]) for x in gz), A, A * K * K,
-             pd["waterY"], pd["waterY"] - pd["depth"], pd["depth"], pd["shelf"],
-             cut, fill, (cut - fill) / rest, " / ".join(pd["views"])))
-    return t1 + t2
 
 
 def routes_table(d):
@@ -2366,7 +2277,7 @@ def main():
     plate(h, nx(), "敷地", "%.0f m²(%.0f坪)/拝領11,942坪(出所未確定=?)/江戸間 1間=%.3fm/主郭グリッドは北辺沿いに%.2f°回転"
           % (area, area / TSUBO, d["const"]["ken"], grid_deg))
     fig(h, plan_svg(d),
-        legend='<span style="color:var(--pl-omote)">■ 表郭 25.8</span>'
+        legend='<span style="color:var(--pl-omote)">■ 表郭 %.1f</span>' % d["planes"][0]["y"] + ''
                '<span style="color:var(--pl-main)">■ 主平面 27.0</span>'
                ''
                '<span style="color:var(--pl-slope)">■ 斜面(造成しない・松+雑木の樹林)</span>'
@@ -2376,7 +2287,7 @@ def main():
                '<span style="color:var(--ishi)">┄ 郭の土留め</span>'
                '<span>▪ 御殿の棟 ／ ▫ 付属屋</span>'
                '<span style="color:var(--shu)">● 表門 ／ ■ 隅櫓 ／ ┄ 断面</span>',
-        cap="<b>敷地は4つの水平面+2つの斜面。</b>造成も囲いもまず面から決め、"
+        cap="<b>敷地は2つの水平面+1つの斜面。</b>造成も囲いもまず面から決め、"
             "囲いの天端=面の高さ、段は面の境にだけ立つ。"
             "<b>西斜面(溜池東岸)と南西の谷(岡部境)は造成しない</b> — 庭のまま、面の縁に竹垣。"
             "斜面は<b>黒松を疎に交えた雑木の樹林</b>(法肩=樹林／中部=低木／下部=草地の3帯)"
@@ -2429,7 +2340,7 @@ def main():
                '<span style="color:var(--shirasu)">■ 白洲</span>'
                '<span>┄ 襖線(続き間の境)</span>',
         cap="<b>表門 → 白洲 → 石段(4段) → 御式台・御玄関</b>。西へ大広間・黒書院・表役所(藩庁)、"
-            "東は東肩の帯を経て東上段(御蔵)。"
+            "東は東肩の帯を経て蔵の帯(主平面と同高)。"
             "御成セット(御成門・御成書院・能舞台)は 2026-08-23 撤去 — 御成の記録なし・"
             "御成を受けた加賀本郷邸の幕末プランにも御成門は無い(其九)。")
     h.append("</div>")
@@ -2467,7 +2378,9 @@ def main():
     h.append("</div>")
 
     for s in d["sections"]:
-        plate(h, nx(), s["name"], "%s = %g ／ 垂直%.1f倍" % (s["axis"], s["at"], s["vExag"]))
+        plate(h, nx(), s["name"], "%s = %g ／ 垂直%.1f倍 ／ 切るもの: %s"
+              % (s["axis"], s["at"], s["vExag"],
+                 " → ".join(section_crossings(d, s)) or "(無し)"))
         fig(h, section_svg(d, s),
             legend='<span style="color:var(--shu)">▨ 切土 — 削り取ってなくなる土</span>'
                    '<span style="color:var(--nagaya)">▨ 盛土 — 足す土</span>'

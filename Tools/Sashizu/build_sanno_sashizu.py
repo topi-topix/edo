@@ -556,7 +556,7 @@ def slope_lands(d, near, nx, nz, top, edge_dv):
     k = (round(near[0], 1), round(near[1], 1))
     if k in _LAND: return _LAND[k]
     bf = d["const"]["batterFill"]
-    reach = min(edge_dv * bf, d["const"].get("featherCap", 12.0))
+    reach = d["const"].get("featherCap", 12.0)
     ok = False
     t = 0.2
     while t <= reach + 1e-9:
@@ -608,19 +608,17 @@ def design_y(d, g, x, z):
         if edge_dv > 0.05:
             # 盛土の法面 ── **一定勾配 1:batterFill**。⚠ 旧式は reach で線形補間していたので
             #   外の地形が緩いと法尻に垂直の段差が残った(2026-08-23 検図 高-3)。
-            #   広がりは**縁の落差が決める**(reach = 落差 × batterFill)。崖の縁で盛土が
-            #   宙を延びていくのを防ぐ — 天端から落差ぶん降りたらそこが法尻。
+            #   広がりは **現地形に当たるまで**(featherCap で頭打ち)。当たらない縁は
+            #   slope_lands が先に弾いて土留めへ回す。
             bf = d["const"]["batterFill"]
-            reach = min(edge_dv * bf, cap)
-            if dmin > reach: continue
+            if dmin > cap: continue
             y = te["y"] - dmin / bf
             if y <= nat + 0.05: continue                  # 現地形に着地した
             if best is None or y > best: best = y
         elif edge_dv < -0.05:
             # 切土の縁 ── **一定勾配 1:batterCut** で地山を切り上げる(const.batterCut を使う)
             bc = d["const"].get("batterCut", 1.0)
-            reach = min(-edge_dv * bc, cap)
-            if dmin > reach: continue
+            if dmin > cap: continue
             y = te["y"] + dmin / bc
             if y >= nat - 0.05: continue                  # 地山に届いた
             best = y if best is None else min(best, y)
@@ -1625,6 +1623,129 @@ def kidan_svg(d, kan="其十"):
     return "\n".join(o)
 
 
+# ---------------------------------------------------------------- 縁の始末
+def fuchi_tally(d, g):
+    """平場の縁を2m刻みで歩き、①法面で着地 / ②着地せず土留めが要る に分ける。"""
+    cap = d["const"].get("featherCap", 12.0); bf = d["const"]["batterFill"]
+    POLY = [(q[0], q[1]) for q in d["polygon"]]
+    land, need = [], []
+    for te in d["terraces"]:
+        P = terrace_poly(te, g)
+        for i in range(len(P)):
+            a, c = P[i], P[(i + 1) % len(P)]
+            L = math.hypot(c[0] - a[0], c[1] - a[1])
+            if L < 1e-6: continue
+            n = max(1, int(L / 2))
+            dx, dz = (c[0] - a[0]) / L, (c[1] - a[1]) / L
+            nx, nz = -dz, dx
+            mid = ((a[0] + c[0]) / 2, (a[1] + c[1]) / 2)
+            if in_poly((mid[0] + nx * 0.6, mid[1] + nz * 0.6), P): nx, nz = -nx, -nz
+            for k in range(n + 1):
+                q = (a[0] + dx * L * k / n, a[1] + dz * L * k / n)
+                en = dem_h(*q)
+                if en is None or on_wall(d, g, *q): continue
+                dv = te["y"] - en
+                if dv <= 0.05: continue
+                t, hit = 0.2, None
+                while t <= cap:
+                    hh = dem_h(q[0] + nx * t, q[1] + nz * t)
+                    if hh is None: break
+                    if te["y"] - t / bf <= hh + 0.05: hit = t; break
+                    t += 0.2
+                if hit is None:
+                    back, sft = None, 0.5
+                    while sft <= 25.0:
+                        hh = dem_h(q[0] - nx * sft, q[1] - nz * sft)
+                        if hh is None: break
+                        if hh >= te["y"] - 0.05: back = sft; break
+                        sft += 0.5
+                    need.append((dv, back))
+                else:
+                    land.append((hit, in_poly((q[0] + nx * hit, q[1] + nz * hit), POLY)))
+    return land, need
+
+
+def fuchi_svg(d, kan="其十"):
+    """縁の始末の三型。①法面 ②土留め ③引き戻し を同じ縮尺で並べる。"""
+    g = G(d)
+    land, need = fuchi_tally(d, g)
+    W, H = 900.0, 268.0
+    o = _sv(W, H, "縁の始末")
+    o.append(R(0, 0, W, H, fill="var(--paper2)"))
+    CW, CH, TOP, SC = 276.0, 148.0, 58.0, 15.0        # 枠 / 上端 / 15px = 1m
+    TOPY, NAT = 6.8, 6.0                              # 平場の天端 / 縁の自然地盤(局所)
+
+    def cell(idx, title, sub, drop, kind, note):
+        ox = 12.0 + idx * 296.0
+        X = lambda m: ox + 62.0 + m * SC
+        Y = lambda m: TOP + CH - m * SC
+        o.append(R(ox, TOP, CW, CH, fill="var(--paper)", stroke="var(--grid)", sw=0.8))
+        o.append(T(ox + CW / 2, TOP - 26, title, fs=13, anchor="middle", fill="var(--shu)"))
+        o.append(T(ox + CW / 2, TOP - 10, sub, fs=10.5, anchor="middle", fill="var(--dim)"))
+        # 現地形(枠を出たら止める)
+        gp = [(X(-4.0), Y(NAT)), (X(0.0), Y(NAT))]
+        m = 0.0
+        while m < 14.0:
+            m += 0.25
+            y = NAT - drop * m
+            if Y(y) > TOP + CH: break
+            gp.append((X(m), Y(y)))
+        o.append(PL(gp, stroke="var(--dim)", sw=1.3, dash="5 3"))
+        if kind == "slope":
+            t = 0.8 / (1.0 / 1.5 - drop)
+            dp = [(X(-4.0), Y(TOPY)), (X(0.0), Y(TOPY)), (X(t), Y(TOPY - t / 1.5))]
+            o.append(PL(dp + [(X(t), Y(NAT - drop * t)), (X(-4.0), Y(NAT))],
+                        fill=_fill(), stroke="none", close=True))
+            o.append(PL(dp, stroke="var(--ink)", sw=2.2))
+            o.append(T(X(t + 0.4), Y(TOPY - t / 3.0), "1:1.5 の法面", fs=10.5, fill="var(--take)"))
+            o.append(T(X(t), Y(TOPY - t / 1.5) + 15, "法尻", fs=10, anchor="middle", fill="var(--dim)"))
+            o.append(T(X(-3.6), Y(TOPY) - 7, "平場", fs=10.5, fill="var(--ink)"))
+        elif kind == "wall":
+            o.append(PL([(X(-4.0), Y(TOPY)), (X(0.0), Y(TOPY))], stroke="var(--ink)", sw=2.2))
+            o.append(PL([(X(0.0), Y(TOPY)), (X(0.16), Y(NAT)), (X(-0.74), Y(NAT)),
+                         (X(-0.9), Y(TOPY))], fill=_pat(), stroke="var(--ishi)", sw=1.3, close=True))
+            o.append(LN(X(1.1), Y(TOPY), X(1.1), Y(NAT), stroke="var(--ishi)", sw=1.2))
+            o.append(T(X(1.4), Y((TOPY + NAT) / 2) + 4, "土留めの露出", fs=10.5, fill="var(--ishi)"))
+            o.append(T(X(1.4), Y(NAT - 1.6), "外が 1:1.5 より急なので", fs=10, fill="var(--dim)"))
+            o.append(T(X(1.4), Y(NAT - 2.3), "法面が当たる先が無い", fs=10, fill="var(--dim)"))
+            o.append(T(X(-3.6), Y(TOPY) - 7, "平場", fs=10.5, fill="var(--ink)"))
+        else:
+            # ③ 引き戻し ─ 肩(自然地盤が天端と同じになる点)まで縁を縮める
+            gp = [(X(-4.0), Y(TOPY)), (X(-1.6), Y(TOPY))]
+            m = 0.0
+            while m < 14.0:
+                m += 0.25
+                y = TOPY - drop * m
+                if Y(y) > TOP + CH: break
+                gp.append((X(-1.6 + m), Y(y)))
+            o.append(PL(gp, stroke="var(--dim)", sw=1.3, dash="5 3"))
+            o.append(PL([(X(-4.0), Y(TOPY)), (X(-1.6), Y(TOPY))], stroke="var(--ink)", sw=2.4))
+            o.append(LN(X(-1.6), Y(TOPY) - 30, X(-1.6), Y(TOPY) + 10,
+                        stroke="var(--shu)", sw=1.0, dash="3 3"))
+            o.append(T(X(-1.6), Y(TOPY) - 36, "肩", fs=12, anchor="middle", fill="var(--shu)"))
+            o.append(PL([(X(-1.6), Y(TOPY)), (X(1.2), Y(TOPY))],
+                        stroke="var(--shu)", sw=1.6, dash="5 3", op=0.9))
+            o.append(LN(X(1.2), Y(TOPY), X(1.2), Y(TOPY - drop * 2.8), stroke="var(--shu)", sw=1.2))
+            o.append(T(X(1.5), Y(TOPY) - 6, "旧い縁", fs=10.5, fill="var(--shu)"))
+            o.append(T(X(1.5), Y(TOPY - drop * 1.7), "落差", fs=10, fill="var(--shu)"))
+            o.append(T(X(-3.6), Y(TOPY) - 7, "平場(縮めた)", fs=10.5, fill="var(--ink)"))
+        o.append(T(ox + 4, TOP + CH + 20, note, fs=10.5, fill="var(--ink)"))
+
+    bk = sorted(q[1] for q in need if q[1])
+    cell(0, "① 法面で摺り付ける", "外の斜面が 1:1.5 より緩い", 0.35, "slope",
+         "縁の標本 %d ／ 法尻が社地の外へ出るもの %d" % (len(land), sum(1 for q in land if not q[1])))
+    cell(1, "② 土留めで受ける", "外の斜面が 1:1.5 より急(崖の上)", 1.10, "wall",
+         "縁の標本 %d ／ 落差 最大 %.2f m" % (len(need), max([q[0] for q in need]) if need else 0))
+    cell(2, "③ 縁を肩まで引き戻す", "落差そのものを消す", 0.90, "back",
+         "②を消すのに要る引き戻し 中央 %.1f m ／ 最大 %.1f m" % (
+             (bk[len(bk) // 2] if bk else 0), (bk[-1] if bk else 0)))
+    o.append(T(6, 15, kan + "　縁の始末 ─ 平場の輪郭をどう地面に着けるか", fs=12.5, fill="var(--dim)"))
+    o.append(T(W - 6, 15, "破線 = 現地形 ／ 実線 = 設計地盤 ／ 縦横同率(1 m = %.0f px)" % SC,
+               fs=10.5, anchor="end", fill="var(--dim)"))
+    o.append(ENDSVG)
+    return "\n".join(o)
+
+
 # ---------------------------------------------------------------- 其十一 山麓
 def sanroku_svg(d, kan="其十一"):
     g = G(d)
@@ -1969,8 +2090,28 @@ def main():
         cap="<b>造成のすべての出発点。</b>面の高さは設計者が決めたのではなく、"
             "<b>この地形を走査して自然の平場から採った</b>(境内=山頂平坦面 h≥27.5 / 前庭=男坂下の棚)。"
             "赤の破線は隣地(別当觀理院・神主樹下邸)の区画 — <b>境の地形は隣と一続き</b>なので重ねてある。"
-            "一点鎖線は断面の切り位置。")
+            "一点鎖線は断面の切り位置。"
+            "<br>⚠ <b>この「現況」は今日の地面である。</b>シーンの `ModernTerrain` を"
+            "`Terrain.SampleHeight` で吐いたもので、国土地理院の DEM と突き合わせて 8m のズレを補正してある"
+            "(中央値 0.127m 一致)。<b>建物は入っていない</b> — 地形のハイトマップだけを読むので、"
+            "社殿もホテルも道路の高架も高さには含まれない。"
+            "⛔ <b>ただし「自然地形」ではない。</b>山王山の頂は上知のあと官有地になり、社殿は昭和二十年に焼けて"
+            "再建されている。斜面にはホテルと道路が切り込んでいる。"
+            "<b>今日の山頂が平らなのは、今日の神社の平場だから</b>で、嘉永期の地面そのものではない"
+            "(実測: 当図の平場の中は 59 パーセントが 28.0〜28.6 に収まる)。"
+            "当図は<b>「今日の地面に嘉永期の境内を載せ直す」</b>という立場を取る【確度P】。")
     h.append(planes_table(d))
+    h.append("</div>")
+
+    plate(h, nx(), "縁の始末", "法面で摺り付ける ／ 土留めで受ける ／ 縁を肩まで引き戻す")
+    fig(h, fuchi_svg(d, KAN[n[0] - 1]),
+        cap="<b>平場の縁は宙に浮かせられない。</b>採れる手は三つしかなく、どれを採るかで"
+            "切盛図の塗りも断面の描き方も変わる。<b>当図は①を既定にし、①が成り立たない所だけを</b>"
+            "<b>裁定に回す</b>(其二十七 未解決)。"
+            "<b>肩</b>とは、台地の平らな面が斜面に変わる折れ目のこと。"
+            "<b>引き戻す</b>とは、平場の輪郭をその折れ目まで縮めて落差そのものを消すこと — "
+            "壁も盛土も要らなくなる代わりに<b>境内が狭くなる</b>。"
+            "南西の張り出しは実際にこの手で直した(2026-08-23)。")
     h.append("</div>")
 
     plate(h, nx(), "切盛図", "Δ = 設計地盤 − 現況 ／ 暖色 = 盛土 ／ 寒色 = 切土 ／ 無彩 = ±0.3 m")

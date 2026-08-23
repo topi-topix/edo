@@ -232,12 +232,9 @@ KC = {"Nagaya": "var(--nagaya)", "Dobei": "var(--hei)"}
 MUNE_JA = {
     "Kurumayose": "車寄", "Genkan": "玄関棟", "Shoin": "書院棟", "Nakaoku": "中奥棟",
     "Daidokoro": "台所棟", "Okumuki": "奥向棟", "Nagatsubone": "長局",
-    "Oku": "奥棟", "Daidokoro": "台所棟", "Umaya": "厩棟",
+    "Oku": "奥棟", "Umaya": "厩棟",
 }
-TERR_JA = {"Monzen": "門前面", "Geshita": "東南の下郭", "NEKuruwa": "北東のランプ", "Shumen": "主面", "ShumenN": "主面(北)",
-           "MonzenN": "門内北", "MaeNiwa": "前庭",
-           "KitaSumi": "中段(北隅)", "Naka": "中段",
-           "ShuMain": "主面", "ShuKita": "主面(北)", "ShuMae": "主面(南舌)", "ShuMinami": "主面(南)"}
+TERR_JA = {"Monzen": "門前面", "Geshita": "東南の下郭", "Shumen": "主面"}
 
 
 # ---------------------------------------------------------------- 其一 敷地
@@ -535,9 +532,21 @@ def goten_plan(d, u0, u1, v0, v1, label, note):
         if ax == "v":
             g.append(pr.rect(at2 - hw, ka, at2 + hw, kb,
                              fill="var(--shu-lo)", stroke="var(--shu)", sw=1.0))
-            for i in range(k["steps"] + 1):            # 段のギザギザ(踏面ごとの筋)
-                vv = ka + (kb - ka) * i / float(k["steps"])
+            sgn2 = 1.0 if kb >= ka else -1.0           # 踏面(0.45)と踊り場を分けて筋を引く
+            odn = set()
+            if k.get("odori"):
+                for j2 in range(1, k["odori"] + 1):
+                    odn.add(int(round(k["steps"] * j2 / float(k["odori"] + 1))))
+            vv = ka
+            for i in range(k["steps"]):
                 g.append(LN(pr.X(at2 - hw), pr.Y(vv), pr.X(at2 + hw), pr.Y(vv), "var(--shu)", 0.4))
+                vv += sgn2 * k["fumi"] / 1.818
+                if (i + 1) in odn:                     # 踊り場(幅の広い帯)
+                    g.append(R(pr.X(at2 - hw), pr.Y(vv + sgn2 * k["odoriKen"]),
+                               pr.X(at2 + hw) - pr.X(at2 - hw),
+                               abs(pr.Y(vv) - pr.Y(vv + sgn2 * k["odoriKen"])),
+                               fill="var(--shirasu)", stroke="var(--shu)", sw=0.5))
+                    vv += sgn2 * k["odoriKen"]
         else:
             g.append(pr.rect(ka, at2 - hw, kb, at2 + hw,
                              fill="var(--shu-lo)", stroke="var(--shu)", sw=1.0))
@@ -2492,9 +2501,8 @@ def main():
                  '北東(u19〜29)は起伏4.1mでベンチが取れず面にしないので、石段でなく'
                  '<b>斜面なりの坂 %s(全長 %.0fm・最急 %.1f%%)</b>で主面へ登る — '
                  '米俵・薪を担いで通れるよう段を刻まない。'
-                 '⚠ <b>この通用口を岡部・土井のどちらが開くかは未裁定</b>'
-                 '(<code>_pending.open</code>)。袋小路は両家に挟まれた行き止まりで、'
-                 '辻番所の管轄も決まっていない。</p>'
+                 '袋小路の通用口は<b>両家とも開く</b>(2026-08-23 ユーザー裁定) — '
+                 '口に辻番を置く行き止まりの小路が存在する理由は、両家の勝手口を兼ねる形がよく説明する。</p>'
                  % (rp0.get("name", "R_Ramp"), rp0.get("len", 0), rp0.get("gradMax", 0)))
         h.append("</div>")
 
@@ -2518,7 +2526,7 @@ def main():
              '大名上屋敷の建蔽率の史料値は [福井図] の <b>5〜6割</b> と [鈴木1985] の旗本8例 '
              '<b>22〜55%%</b> の二つで、当図の %.1f%% はどちらの下端も下回る'
              '(広い拝領地・門前と前庭の白洲・奥庭・<b>造成しない斜面が敷地の %.0f%%</b>・'
-             '外周長屋帯が0のため)。'
+             '塀の内側に平場がある区間が短く外周の長屋帯が伸びないため)。'
              '[追川2017] の 15%% / 28.6%% / 47.7%% は<b>表長屋の規模比であって建蔽率ではない</b>ので'
              '混ぜない(分母の定義も原典未確認 — sources.md の⚠)。'
              '外周は全周 <b>%.0fm</b> のうち当家が建てるのが <b>%.0fm(%.0f%%)</b> で、'
@@ -2558,7 +2566,7 @@ def main():
                  '屋根は図示のための概略で、実装の高さは部材が決める(突き合わせの対象外)。</p>')
         h.append("</div>")
 
-    plate(h, nx(), "外周の展開", "天端は辺ごとに一本。段は門・頂点・郭境の延長線でのみ落とす")
+    plate(h, nx(), "外周の展開", "天端は run ごとに一直線(面の縁=水平／斜面=一定勾配)。段は継ぎ目と隅でのみ落とす")
     fig(h, perimeter_dev_svg(d))
     h.append(runs_table(d))
     blankE = sorted(set(range(len(P))) - set(r["edge"] for r in d["runs"])
@@ -2571,12 +2579,15 @@ def main():
              '堀端(辺5)だけ木柵。<b>種別が塀(練塀)であることは確度S(暫定)</b>、'
              '<b>帰属と全周は確度U(当方の裁定)</b>。'
              '<b>天端は run ごとに一直線</b> — 面の縁は水平、斜面は一定勾配。'
-             '段は run の継ぎ目でだけ落ち、最大 %.2fm。犬走り %.2fm。</p>'
+             '段は run の継ぎ目と隅でだけ落ち、最大 %.2fm(隅を含む)。犬走り %.2fm。</p>'
              % (len(set(r["edge"] for r in d["runs"])),
                 "・辺".join(str(e) for e in blankE),
                 max([0.0] + [abs(rseat(b, b["s0"]) - rseat(a, a["s1"]))
-                             for a in d["runs"] for b in d["runs"]
-                             if a["edge"] == b["edge"] and abs(a["s1"] - b["s0"]) < 0.2]),
+                             for a in d["runs"] for b in d["runs"] if a is not b
+                             and ((a["edge"] == b["edge"] and abs(a["s1"] - b["s0"]) < 3.0)
+                                  or (b["s0"] < 0.3 and abs(a["s1"] - math.hypot(
+                                      P[(a["edge"] + 1) % len(P)][0] - P[a["edge"]][0],
+                                      P[(a["edge"] + 1) % len(P)][1] - P[a["edge"]][1])) < 0.3))]),
                 d["const"]["inubashiri"]))
     h.append("</div>")
 

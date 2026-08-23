@@ -53,13 +53,16 @@ def md2html(text):
             tag = {1: "h1", 2: "h2", 3: "h3", 4: "h4"}[len(m.group(1))]
             out.append("<%s>%s</%s>" % (tag, inline(m.group(2)), tag)); i += 1; continue
         if ln.startswith("- "):
-            items = []
+            # ⚠ 行ごとに inline() を呼ぶと**行をまたぐ `**…**` が壊れる**(2026-08-24 検図 低-1)。
+            #   まず素のまま連結してから、項目ごとに一度だけ inline() を通す。
+            raw = []
             while i < len(lines) and (lines[i].startswith("- ") or lines[i].startswith("  ")):
                 if lines[i].startswith("- "):
-                    items.append(inline(lines[i][2:]))
-                elif items:
-                    items[-1] += " " + inline(lines[i].strip())
+                    raw.append(lines[i][2:])
+                elif raw:
+                    raw[-1] += " " + lines[i].strip()
                 i += 1
+            items = [inline(x) for x in raw]
             out.append("<ul>" + "".join("<li>%s</li>" % t for t in items) + "</ul>"); continue
         if ln.strip() == "---":
             out.append('<hr class="rule">'); i += 1; continue
@@ -84,6 +87,7 @@ def inline(s):
     s = html.escape(s, quote=False)
     s = re.sub(r"`([^`]+)`", r"<code>\1</code>", s)
     s = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", s)
+    s = re.sub(r"~~([^~]+)~~", r"<s>\1</s>", s)
     s = re.sub(r"【([^】]*確度 ?[SABPU?][^】]*)】", r'<span class="cert">【\1】</span>', s)
     s = re.sub(r"【(写真=A[^】]*)】", r'<span class="cert">【\1】</span>', s)
     return s
@@ -577,13 +581,59 @@ def load_terrain(path):
     return t
 
 
+_PGRID = {}
+
+
+def in_parcel(d, u, v):
+    """(u, v) が区画の中か。**段も法面も区画線で切る** — 隣地へ土を出さないため。
+
+    ⚠ 2026-08-24 の検図: `doi_terrain.json` は区画外が null なので、
+    それで「区画外へこぼれる量」を測ると**構造的に 0 しか出ない**。
+    実際は dem で測ると 387.9m² / 247m³ が隣地へ出ていた。**測れないデータで検証しない。**
+    """
+    key = id(d)
+    P = _PGRID.get(key)
+    if P is None:
+        gr = RGrid(d)
+        P = [gr.L(x, z) for x, z in d["polygon"]]
+        _PGRID[key] = P
+    c = False
+    n = len(P)
+    for i in range(n):
+        (au, av), (bu, bv) = P[i], P[(i + 1) % n]
+        if (av > v) != (bv > v) and u < au + (bu - au) * (v - av) / (bv - av):
+            c = not c
+    return c
+
+
 def design_y(d, u, v):
     """その (u,v) を覆う段の高さ。無ければ None(=造成しない斜面)。"""
+    if not in_parcel(d, u, v):
+        return None                                    # 区画の外に段は無い
     best = None
     for t in d["terraces"]:
         if in_obb(t, u, v, 1e-9):
             best = t["y"] if best is None else max(best, t["y"])
     return best
+
+
+def run_edges(d):
+    """外周 run(表長屋・練塀)が載っている辺の、グリッドでの区間。
+
+    基壇石垣が地形を受けるので、その辺から法面を出してはいけない
+    (2026-08-23 検図 M-6: 街路辺で盛土のすそが区画線を最大1.93m越える計算になっていた)。
+    表門の辺(v=0)だけを扱う — 他の辺の囲いは隣家の持ち物。
+    """
+    ken = d["const"]["ken"]
+    sg = d["gate"]["s"]
+    out = []
+    for r in d["runs"]:
+        if r["edge"] != d["gate"]["edge"]:
+            continue
+        out.append(((r["s0"] - sg) / ken, (r["s1"] - sg) / ken))
+    gp = d["gate"]["plan"]
+    out.append((-gp["monW"] / 2 / ken, gp["monW"] / 2 / ken))
+    return out
 
 
 def walled_edges(d, t):
@@ -656,6 +706,8 @@ def graded_y(d, u, v, nat, walled=None):
     現地形へ摺り付ける — 段の縁に垂直の段差を残さないため(2026-08-23 ユーザー指摘)。
     土留めが載っている辺からは法面を出さない(そこは壁が垂直に受ける)。
     どこも触らない点では nat と同じ値を返すので、差がゼロ=無造成。"""
+    if not in_parcel(d, u, v):
+        return nat                                     # 区画の外は現地形のまま(造成しない)
     ins = design_y(d, u, v)
     if ins is not None:
         return ins
@@ -692,6 +744,8 @@ def graded_y(d, u, v, nat, walled=None):
         qu = min(max(u, t["u0"]), t["u1"])
         if _walled(we, eu, qv) or _walled(we, ev, qu):
             continue                                   # 壁が受ける区間 — 法面を出さない
+        if ev == "v0" and abs(t["v0"]) < 1e-9 and any(a9 <= qu <= b9 for a9, b9 in run_edges(d)):
+            continue                                   # 外周 run の基壇石垣が受ける(法面を出さない)
         dm = math.hypot(du, dv) * K
         if dm > cap:
             continue
@@ -833,7 +887,7 @@ def cutfill_table(d, ter):
             while iu < ter["nu"]:
                 u = ter["u0"] + iu * st
                 iu += 1
-                if not (t["u0"] - 1e-9 <= u <= t["u1"] + 1e-9 and t["v0"] - 1e-9 <= v <= t["v1"] + 1e-9):
+                if not in_obb(t, u, v, 1e-9):     # 回転物は外接矩形で走査しない(二重計上になる)
                     continue
                 nat = ter["h"][iv][iu - 1]
                 if nat is None or design_y(d, u, v) != t["y"]:
@@ -898,13 +952,62 @@ def _iso(dem, lv):
     return segs
 
 
+def snap_openings(d):
+    """土留めの**開口の縁を石垣モジュールのピッチ格子へ丸める**。
+
+    `unity-modular-stonewall`: 石垣は 1.8×s のピッチで並ぶので、開口の縁はその格子にしか来られない。
+    設計値が端数のままだと実装で駒が割れる(2026-08-24 検図 中-6: 開口を持つ8本すべてで不成立)。
+    壁の起点から n×1.8s になるよう、開口の**中心**を丸める。
+    """
+    K = d["const"]["ken"]
+    for w in d["terraceWalls"]:
+        gk = "gapU" if abs(w["a"][0] - w["b"][0]) > 1e-9 else "gapV"
+        if gk not in w:
+            continue
+        pitch = 1.8 * w["s"] / K                       # 間
+        a0 = w["a"][0] if gk == "gapU" else w["a"][1]
+        b0 = w["b"][0] if gk == "gapU" else w["b"][1]
+        lo, hi = min(a0, b0), max(a0, b0)
+        half = w.get("gapHalf", 1.0)
+        # 開口の下端が格子に乗るよう中心をずらす
+        start = (w[gk] - half) - lo
+        n = round(start / pitch)
+        newlo = lo + max(0, n) * pitch
+        # 開口幅も格子の整数倍へ(最低1枚)
+        m = max(1, round(2 * half / pitch))
+        neww = m * pitch
+        if newlo + neww > hi:
+            newlo = max(lo, hi - neww)
+        w[gk] = round(newlo + neww / 2.0, 3)
+        w["gapHalf"] = round(neww / 2.0, 3)
+        w["_pitch"] = round(pitch, 3)
+    # 石段・斜路は**開口の中へ収める**だけ。芯を開口の芯へ寄せると廊下の上に乗る
+    #   (2026-08-24 検図で実際に K_Shu と L_GenkanIma が重なった)。
+    for k in d["kaidans"] + d.get("ramps", []):
+        w = [x for x in d["terraceWalls"] if x["name"] == k["atWall"]][0]
+        for gk in ("gapU", "gapV"):
+            if gk in k and gk in w:
+                hw = k["w"] / 2.0 / K
+                lo = w[gk] - w["gapHalf"] + hw
+                hi = w[gk] + w["gapHalf"] - hw
+                if lo <= hi:
+                    k[gk] = round(min(max(k[gk], lo), hi), 3)
+    return d
+
+
 def fix_kaidans(d):
     """石段の段数と水平距離を drop と const.keri/fumi から算出して設計値へ書き戻す。
     手で書くと drop を直したときに段数が置き去りになる(2026-08-23 の _pending.dansu)。
     蹴上は keri を上限として段数で割り直すので、実際の蹴上は keri 以下になる。"""
     keri, fumi = d["const"]["keri"], d["const"]["fumi"]
+    for l in d.get("links", []):                       # 階段廊下の蹴上も上限を割らせない(2026-08-24 検図 低-5)
+        if "drop" in l and l.get("steps"):
+            l["steps"] = max(1, int(math.ceil(l["drop"] / (keri * 0.95) - 1e-9)))
+            l["keriActual"] = round(l["drop"] / l["steps"], 3)
     for k in d["kaidans"]:
-        n = max(1, int(math.ceil(k["drop"] / keri - 1e-9)))
+        # ⚠ 蹴上が上限ちょうど(0.300)に張り付くと、丸めが1段ずれた瞬間に違反する。
+        #   余裕を見て 1 段多く取る(2026-08-23 検図 L-8)。
+        n = max(1, int(math.ceil(k["drop"] / (keri * 0.95) - 1e-9)))
         k["steps"] = n
         k["run"] = round(n * fumi, 2)
         k["keriActual"] = round(k["drop"] / n, 3)
@@ -1038,6 +1141,21 @@ def write_back(d):
     new = dump(d) + "\n"
     if new != cur:
         open(JSON, "w", encoding="utf-8").write(new)
+
+
+def retracted_check(d, texts):
+    """**撤回した説の語が、設計値・生成器・図のどこかに生き残っていないか**を機械で照合する。
+
+    3巡続けて「文章だけ直って図と正典に撤回済みの説が残る」再発をした(2026-08-24 考証第5巡)。
+    禁句は設計値の `retracted` に置く。撤回の記録そのもの(「〜は反証された」の文脈)は
+    別の語で書くこと。
+    """
+    bad = []
+    for w in d.get("retracted", []):
+        for label, t in texts:
+            if w in t:
+                bad.append("撤回済みの語「%s」が %s に残っている" % (w, label))
+    return bad
 
 
 def declutter(items, dy=13.0, dx=90.0):
@@ -1542,7 +1660,9 @@ def section_svg(d, sec):
         if rp.get("along"):
             # 壁に沿う斜路: 切り線が帯を横切っていれば、その位置の高さで踏面を描く
             lo9, hi9 = (rp["v0"], rp["v1"]) if sec["axis"] == "v" else (rp["u0"], rp["u1"])
-            cross = (rp["u0"] <= at <= rp["u1"]) if sec["axis"] == "v" else (rp["v0"] <= at <= rp["v1"])
+            # ⚠ axis=="u" のとき at は u。ここを取り違えると斜路が別の断面に描かれる
+            #   (2026-08-24 検図: 厩の斜路が断面④に地中3.9mで浮き、正しい断面⑥から抜けていた)
+            cross = (rp["u0"] <= at <= rp["u1"]) if sec["axis"] == "u" else (rp["v0"] <= at <= rp["v1"])
             if not cross:
                 continue
             a9, b9 = (rp["v0"], rp["v1"]) if sec["axis"] == "u" else (rp["u0"], rp["u1"])
@@ -1575,7 +1695,7 @@ def section_svg(d, sec):
         tread = runk / k["steps"]
         pts3 = [(wp + lo3 * runk, w["coping"] - k["drop"])]
         for i3 in range(k["steps"]):
-            y3 = w["coping"] - k["drop"] + (i3 + 1) * 0.3
+            y3 = w["coping"] - k["drop"] + (i3 + 1) * k["keriActual"]   # 蹴上は算出値(0.30固定にしない)
             pts3.append((pts3[-1][0], y3))
             pts3.append((wp + lo3 * (runk - (i3 + 1) * tread), y3))
         g.append('<polyline points="%s" fill="none" stroke="var(--shu)" stroke-width="1.6"/>'
@@ -1813,7 +1933,7 @@ def perimeter_dev_svg(d):
         g.append(T(X(t), Y(y["seat"] + 7.5) - 4, "隅櫓", "jo", "middle"))
     # 隣家所有の辺(当家は建てない)のラベル
     for (ea, eb, txt) in ((6, 9, "北・西(P6〜P0)=松平出羽守所有の**練塀+石垣基壇**(全区間)。当家は建てない"),
-                          (0, 2, "南(P0〜P3)=岡部内膳正所有の築地塀 — 当家は建てない")):
+                          (0, 2, "南(P0〜P3)=岡部内膳正所有の練塀 — 当家は建てない")):
         ta2 = (tv[ea] - t0) % total; tb2 = (tv[eb + 1] - t0) % total
         if tb2 <= ta2:
             tb2 += total
@@ -1871,7 +1991,7 @@ def gate_svg(d):
     g.append(T(X(wing + monW * 0.22), Y(2.8), "出格子番所(片)", "anS2", "middle"))
     g.append(LN(0, GY, W, GY, "var(--ink)", 1.6))
     g.append(T(4, GY + 16, "三べ坂前身の南北道。敷居=門前面の地盤=道なり", "anS2", "start"))
-    g.append(T(4, 15, "正面見付(概略・等倍)。型式=[下丸子武家屋敷門]A の官製構造形式「一重、入母屋造、桟瓦葺、片番所格子付、片潜門」/実在と被災=安政地震の記録(S)", "anS"))
+    g.append(T(4, 15, "正面見付(概略・等倍)。型式=長屋門【B】/屋根=切妻【B】/番所と潜戸=[下丸子]A の官製「片番所格子付、片潜門」【B/U・型式をまたぐ移植】/石高帯=A/実在と被災=S", "anS"))
     g.append("</svg>")
 
     # 平面
@@ -1887,7 +2007,7 @@ def gate_svg(d):
     g2.append(R(X2(wing + monW / 2 - 1.8), wy - 10, X2(3.6), 20, fill="var(--paper2)", stroke="var(--ink)", sw=1.0))
     g2.append(T(X2(wing + monW * 0.22), wy + 2, "番所(片)", "anS2", "middle"))
     g2.append(T(X2(wing + monW / 2), wy - 16, "門口 3.6m", "anS2", "middle"))
-    g2.append(T(4, H2 - 8, "長屋門の躯体(桁行%.1fm×梁間%.1fm)に**片番所**が入る。**張り出すのは格子窓だけで、番所の室は躯体内**。袖塀は無く両袖が表長屋へ連続する【⚠ この「連続」には典拠が無い — 独立門案と並記して裁定待ち】" % (monW, monD), "anS2", "start"))
+    g2.append(T(4, H2 - 8, "長屋門の躯体(桁行%.1fm×梁間%.1fm)に**片番所**が入る。**張り出すのは格子窓だけで、番所の室は躯体内**。袖塀は無く両袖が表長屋へ連続する【B — [西澄寺]A(門長屋・一棟で完結)と [山脇]A(長屋門)による。現物照合はしていない】" % (monW, monD), "anS2", "start"))
     g2.append("</svg>")
     return "\n".join(g) + "\n" + "\n".join(g2)
 
@@ -1929,7 +2049,31 @@ def planes_table(d):
             "<th class='note'>注記</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>")
 
 
-def munes_table(d):
+def mune_fit(d, ter, o):
+    """棟の下の |設計面 − 自然地形| を実測して (最大Δ, 超過率%) を返す。§B-1 の合否そのもの。"""
+    if ter is None:
+        return None
+    ds = []
+    for i in range(41):
+        for j in range(21):
+            if "yaw" in o:
+                r = math.radians(o["yaw"])
+                lu, lv = math.sin(r), math.cos(r); du, dv = math.cos(r), -math.sin(r)
+                a = -o["L"] / 2 + o["L"] * i / 40.0; b = -o["D"] / 2 + o["D"] * j / 20.0
+                u = o["uc"] + lu * a + du * b; v = o["vc"] + lv * a + dv * b
+            else:
+                u = o["u0"] + (o["u1"] - o["u0"]) * i / 40.0
+                v = o["v0"] + (o["v1"] - o["v0"]) * j / 20.0
+            n = ter["at"](u, v)
+            if n is not None:
+                ds.append(o["y"] - n)
+    if not ds:
+        return None
+    mx = max(ds, key=abs)
+    return mx, 100.0 * sum(1 for x in ds if abs(x) > 0.5) / len(ds)
+
+
+def munes_table(d, ter=None):
     rows = []
     K = d["const"]["ken"]
     for m in d["munes"]:
@@ -1938,12 +2082,14 @@ def munes_table(d):
         # 土間・板敷は畳を敷かないので畳数に混ぜない(2026-08-23 検図)。間²で別立てにする。
         tat = sum(r["tatami"] for r in m["rooms"] if not r.get("ita"))
         ita = sum(r["tatami"] // 2 for r in m["rooms"] if r.get("ita"))
+        ft = mune_fit(d, ter, m)
+        fitc = "—" if ft is None else ("%+.2f m / %.0f%%" % ft if ft[1] > 0 else "%+.2f m / 0%%" % ft[0])
         rows.append("<tr><td>%s</td><td><code>%s</code></td><td>%s</td><td>%d×%d間</td>"
-                    "<td>%.0f m²</td><td>%d</td><td>%d</td><td>%s</td></tr>"
+                    "<td>%.0f m²</td><td>%d</td><td>%d</td><td>%s</td><td>%s</td></tr>"
                     % (MUNE_JA.get(m["name"], m["name"]), m["name"], m["zone"], kw, kd,
-                       area, len(m["rooms"]), tat, ("%d 間²" % ita) if ita else "—"))
+                       area, len(m["rooms"]), tat, ("%d 間²" % ita) if ita else "—", fitc))
     return ('<div class="tw"><table><thead><tr><th>棟</th><th>名</th><th>ゾーン</th><th>外形</th>'
-            "<th>面積</th><th>室数</th><th>畳数計(座敷)</th><th>土間・板敷</th></tr></thead><tbody>"
+            "<th>面積</th><th>室数</th><th>畳数計(座敷)</th><th>土間・板敷</th><th>切盛の最大Δ / ±0.5m超の割合</th></tr></thead><tbody>"
             + "".join(rows) + "</tbody></table></div>")
 
 
@@ -2009,6 +2155,41 @@ def kenpei(d, area):
             % (gm, gm / TSUBO, gl, gl / TSUBO, gs, gs / TSUBO, d["const"]["nagayaD"],
                nag, nag / TSUBO, ban + yag + mon, (ban + yag + mon) / TSUBO,
                tot, tot / TSUBO, area, area / TSUBO, 100.0 * tot / area)), 100.0 * tot / area
+
+
+def outside_check(d, dem):
+    """**区画の外へ造成がこぼれていないか**を、世界座標 DEM(区画外も値を持つ)で検める。
+
+    ⚠ `doi_terrain.json` は区画外が null なので、それで測ると構造的に 0 件になる。
+    測れないデータで検証しない — 2026-08-24 の検図で 387.9m²/247m³ の波及が見つかった。
+    """
+    if dem is None:
+        return ["⚠ doi_dem.json が無いので区画外の検査ができない"]
+    gr = RGrid(d)
+    we = {t["name"]: walled_edges(d, t) for t in d["terraces"]}
+    x0, z0, stp = dem["x0"], dem["z0"], dem["step"]
+    worst = 0.0; area = 0.0; vol = 0.0; spot = None
+    for iz in range(dem["nz"]):
+        for ix in range(dem["nx"]):
+            n = dem["h"][iz][ix]
+            if n is None:
+                continue
+            x, z = x0 + ix * stp, z0 + iz * stp
+            u, v = gr.L(x, z)
+            if in_parcel(d, u, v):
+                continue
+            g = graded_y(d, u, v, n, we)
+            if g is None:
+                continue
+            dz = abs(g - n)
+            if dz > 0.05:
+                area += stp * stp; vol += dz * stp * stp
+                if dz > worst:
+                    worst = dz; spot = (u, v)
+    if worst <= 0.05:
+        return []
+    return ["区画の外へ造成が出ている: %.0f m² / %.0f m³ / 最大 %.2fm (グリッド %.1f, %.1f)"
+            % (area, vol, worst, spot[0], spot[1])]
 
 
 def plane_check(d):
@@ -2584,6 +2765,7 @@ def fig(h, svg, cap=None, legend=None):
 def main():
     d = fix_kaidans(json.load(open(JSON, encoding="utf-8")))
     d = fix_walls(d, load_terrain(os.path.join(DOC, "doi_terrain.json")))
+    d = snap_openings(d)                # 開口の縁を石垣のピッチ格子へ
     write_back(d)                       # 算出した値は**正典へ戻す**(図だけが新しい状態を作らない)
     prose = md2html(open(MD, encoding="utf-8").read())
     P = d["polygon"]
@@ -2607,7 +2789,7 @@ def main():
         print("⚠ 矩形の重なり %d 件:" % len(bad))
         for b in bad:
             print("   ", b)
-    pbad = plane_check(d)
+    pbad = plane_check(d) + outside_check(d, load_terrain(os.path.join(DOC, "doi_dem.json")))
     if pbad:
         print("⚠ 面のはみ出し %d 件:" % len(pbad))
         for b in pbad:
@@ -2824,7 +3006,7 @@ def main():
     h.append("</div>")
 
     plate(h, nx(), "棟と室", "1間²=2畳 ／ 室名・畳数は【確度 ?】(土間・板敷は間²)")
-    h.append(munes_table(d))
+    h.append(munes_table(d, load_terrain(os.path.join(DOC, "doi_terrain.json"))))
     h.append(links_table(d))
     kp_html, kp = kenpei(d, area)
     nagL = sum(r["s1"] - r["s0"] for r in d["runs"] if r["kind"] == "Nagaya")
@@ -2842,7 +3024,12 @@ def main():
              '<b>分母の定義が原典未確認のため直接比較しない</b>(sources.md の⚠)。参考値として、'
              '当家所有の囲い %.0fm に占める表長屋は %.1f%%、外周全長 %.0fm に対しては %.1f%%'
              '(外周の約8割が隣家所有の塀のため、後者は構造的に低く出る)。'
-             '<b>建蔽率は結果であって目標ではない</b> — 数字のために空地へ棟を足さない。</p>'
+             '<b>建蔽率は結果であって目標ではない</b> — 数字のために空地へ棟を足さない。<br>'
+             '⚠ <b>御殿の床面積が石高の差に出ていない</b> — 御殿の棟(入側とも)は隣の岡部'
+             '(5万3千石)より広い。検算の条件([高知2000]A「24万2千石の上屋敷でも表御殿614坪」)は'
+             '表向3棟で満たすが、<b>中奥・奥向まで含めた総量を石高で絞る根拠は台帳に無い</b>。'
+             '縮めていないのは設計判断で、<b>判断したことをここに書いておく</b>【確度U】。'
+             '(岡部の値は自作なので norm にしない。)</p>'
              % (ownL, 100.0 * nagL / ownL, perim, 100.0 * nagL / perim))
     h.append("</div>")
 
@@ -2879,10 +3066,10 @@ def main():
              % d["const"]["inubashiri"])
     h.append("</div>")
 
-    plate(h, nx(), "表門まわり", "長屋門・切妻造(片番所・格子付・片潜門)。型式=表長屋の実在S+[山脇]A/番所と潜戸=[下丸子]A/石高帯=[下丸子]A の都教委掲示/実在と被災=安政地震の記録(S)")
+    plate(h, nx(), "表門まわり", "長屋門・切妻造(片番所・格子付・片潜門)。型式=B(表長屋の実在S+[山脇]A)/屋根=B(型式からの帰結)/番所と潜戸=B/U(型式をまたぐ移植)/石高帯=A([下丸子]の都教委掲示)/実在と被災=S")
     fig(h, gate_svg(d),
-        cap="<b>型式は [下丸子武家屋敷門](A)の官製構造形式「一重、入母屋造、桟瓦葺、"
-            "<b>片番所格子付、片潜門</b>」による。</b>東京都教育委員会の掲示が"
+        cap="<b>番所と潜戸の形式</b>は [下丸子武家屋敷門](A)の官製構造形式"
+            "「<b>片番所格子付、片潜門</b>」による【B/U — 型式をまたぐ移植。下記】。東京都教育委員会の掲示が"
             "「遺存例の少ない<b>1〜5万石の小大名格</b>の形式」と明記しており、二万三千石はこの帯に入る。"
             "<b>⚠ 番所は張り出さない</b> — 官製は「格子付」で、現物でも壁面から出るのは庇付きの格子窓だけ、"
             "番所の室は躯体内に納まる。室ごと一間張り出すのは山脇門(5万石・「片流<b>面出</b>番所附属」)の姿で、"
@@ -2894,8 +3081,12 @@ def main():
             "一つの記事の中で対比されておらず、長屋門でも門と長屋は別の名で呼ばれる。"
             "<b>型式は長屋門を採る</b>【B】 — 当家の表長屋の実在(S)と、最も格の近い官製現物"
             "[山脇武家屋敷門](A・<b>5万石・譜代・上屋敷</b>)の「長屋門…<b>切妻造</b>」による。"
-            "⚠ <b>下丸子門の入母屋造は採らない</b> — 二度の移築で端部を納め直した可能性が高く、"
-            "指定は現状の建物に対するもの。同門から採るのは<b>番所と潜戸の形式</b>であって屋根ではない。"
+            "⚠ <b>下丸子門の入母屋造は採らない</b> — 同門が長屋門か独立門かが官製文言から定まらず、"
+            "<b>その屋根をどう説明するかは留保する【確度?】</b>。台帳から言えるのは"
+            "「<b>長屋門の官製現物2件([山脇]A・[西澄寺]A)はいずれも切妻</b>」までで、当家は長屋門を"
+            "採るのでその線に従う。⛔ <b>「独立門=入母屋」という一般化は採らない</b> — "
+            "[赤門]A(独立の三間薬医門)が<b>切妻造</b>で反証になる。同門から採るのは"
+            "<b>番所と潜戸の形式</b>だけで、それも<b>型式をまたぐ移植なので確度 B/U</b>。"
             "桁行・梁間・門戸部の間数は<b>いまも確度U</b>(下丸子門の実測は Web に無く館内閲覧が要る)。"
             "長屋門は在庫に無いので新造(部材表参照)。石垣畳出は使わない(設計判断)。")
     h.append("</div>")
@@ -2937,7 +3128,23 @@ def main():
              '文章 <code>doi_kosho.md</code>。Y は海抜 m(Unity の Y がそのまま標高)。</div>'
              % subprocess.check_output(["date", "+%Y-%m-%d %H:%M"]).decode().strip())
     h.append("</div>")
-    open(OUT, "w", encoding="utf-8").write("\n".join(h))
+    body = "\n".join(h)
+    # ⚠ 生の `**…**` を図に出さない。設計値の `_`/`note` は table のセルへ素で入る所があり、
+    #   キャプションにも手書きの `**` が混じる(2026-08-23 検図 L-1 で19箇所)。
+    #   <style> の中は触らない(CSS のコメントに `**` が入る)。
+    i0 = body.find("<style>"); i1 = body.find("</style>")
+    head, css, rest = body[:i0], body[i0:i1], body[i1:]
+    rest = re.sub(r"\*\*(.{1,200}?)\*\*", r"<b>\1</b>", rest, flags=re.S)
+    rest = re.sub(r"~~(.{1,200}?)~~", r"<s>\1</s>", rest, flags=re.S)
+    open(OUT, "w", encoding="utf-8").write(head + css + rest)
+    d2 = {k: v for k, v in d.items() if k not in ("retracted", "_retracted")}
+    rbad = retracted_check(d, [("設計値", json.dumps(d2, ensure_ascii=False)),
+                               ("生成器", open(__file__, encoding="utf-8").read().split("retracted_check")[0]),
+                               ("図", rest)])
+    if rbad:
+        print("⚠ 撤回済みの説が残っている %d 件:" % len(rbad))
+        for b in rbad:
+            print("   ", b)
     print("wrote %s (%.0f KB) — 図版 %d 面 — 建蔽率 %.1f%%" % (OUT, os.path.getsize(OUT) / 1024, _SVN[0], kp))
     if bad:
         print("⚠ 重なり %d 件 — 検図の前に直すこと" % len(bad))

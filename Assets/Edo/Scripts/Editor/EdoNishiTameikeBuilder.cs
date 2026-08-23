@@ -344,6 +344,14 @@ public static class EdoNishiTameikeBuilder
 
     // ---------- nagaya run ----------
     // A->B: 走り。outward: 敷地外向き法線。baseY: 土台レベル。gapC/gapHalf: 開口(世界座標中心/半幅) 無ければ gapHalf<=0
+    /// <summary>⚠ **このピッチ(PITCH=7.81)は屋根幅から採った値で、壁の実寸と合っていない。**
+    /// knagaya01c の壁(n_wall/namako/n_dodai/n_taruki)は走り方向に **8.065m** あるので、
+    /// 7.81 で並べると**全継ぎ目が 0.252m 重なる** — なまこ紋が二重・瓦がずれ・窓の割りが崩れる。
+    /// さらに pitchRun = span/(n-1) で run ごとにピッチを変えるので、重なり量が run ごとに違う。
+    /// 直した実装は `EdoMatsudairaBuilder.NagayaChain`(部材を実行時に測り、実寸を積み上げる
+    /// カーソルで置く)。**他屋敷の長屋にも同じ崩れが出ているはず** — 作り直すときに寄せること。
+    /// 作法は スキル unity-buke-yashiki の references/perimeter.md「ピッチは壁の実寸」。
+    /// ここを直すと既存の屋敷すべての長屋が動くので、単独では変更していない(2026-08-23)。</summary>
     public static List<GameObject> NagayaRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, float baseY,
         Vector2 gapC, float gapHalf, string prefix)
     {

@@ -496,36 +496,48 @@ public static class EdoMatsudairaBuilder
     static int NagayaChain(Transform parent, int e, float s0, float s1, Func<float, float> seatAt, string prefix)
     {
         var mc = Measure(EdoAssets.Eg.KnagayaC);
-        float R = mc.hi - mc.lo;                       // 真の繰り返し長(実測 8.062m)
+        var ml = Measure(EdoAssets.Eg.KnagayaL);
+        var mr = Measure(EdoAssets.Eg.KnagayaR);
+        float Wc = mc.hi - mc.lo;                      // 実測 8.065m
         float L = s1 - s0;
-        int n = Mathf.Max(1, Mathf.RoundToInt(L / R));
-        float start = s0 + (L - n * R) * 0.5f;         // 鎖を run の中央に置く(端の端数は隅・開口が受ける)
+        int n = Mathf.Max(1, Mathf.RoundToInt(L / Wc));
         Vector2 outw = OutNormal(e);
         float psi = Mathf.Atan2(outw.x, outw.y) * Mathf.Rad2Deg;
-        // 走り方向がローカル -X なので、辺の向きと合うように基準を取る
+        // 走り方向はローカル -X。辺の向きが逆なら flip。
         Vector2 a = EdgePt(e, 0f), b = EdgePt(e, 1f);
         Vector2 rdir = (b - a).normalized;
         float rad = psi * Mathf.Deg2Rad;
         Vector2 negRight = new Vector2(-Mathf.Cos(rad), Mathf.Sin(rad));
         bool flip = Vector2.Dot(rdir, negRight) < 0;
+        // 端の妻部材は壁幅が 0.155m 狭い(l/r = 7.910 / c = 8.065)。**一律ピッチだと妻の隣に
+        // 隙間があく**ので、部材ごとの実寸を積み上げるカーソルで置く。
+        Func<int, string> pathAt = k =>
+        {
+            if (n > 1 && k == 0) return flip ? EdoAssets.Eg.KnagayaR : EdoAssets.Eg.KnagayaL;
+            if (n > 1 && k == n - 1) return flip ? EdoAssets.Eg.KnagayaL : EdoAssets.Eg.KnagayaR;
+            return EdoAssets.Eg.KnagayaC;
+        };
+        Func<string, NagModule> modOf = p2 =>
+            p2 == EdoAssets.Eg.KnagayaL ? ml : (p2 == EdoAssets.Eg.KnagayaR ? mr : mc);
+        float total = 0f;
+        for (int k = 0; k < n; k++) { var m2 = modOf(pathAt(k)); total += m2.hi - m2.lo; }
+        float cursor = s0 + (L - total) * 0.5f;        // 鎖を run の中央に置く(端数は隅・開口が受ける)
         int made = 0;
         for (int k = 0; k < n; k++)
         {
-            float lo = start + k * R;                  // この部材が占める走り区間 [lo, lo+R]
-            float mid = lo + R * 0.5f;
-            string path = EdoAssets.Eg.KnagayaC;
-            if (n > 1 && k == 0) path = flip ? EdoAssets.Eg.KnagayaR : EdoAssets.Eg.KnagayaL;
-            else if (n > 1 && k == n - 1) path = flip ? EdoAssets.Eg.KnagayaL : EdoAssets.Eg.KnagayaR;
-            var m = (path == EdoAssets.Eg.KnagayaC) ? mc : Measure(path);
-            // ピボット = 実体の低い側の端が lo に来る位置
-            float sPiv = flip ? (lo + R + m.hi) : (lo - m.lo);
+            string path = pathAt(k);
+            var m = modOf(path);
+            float w = m.hi - m.lo;
+            // 壁の低い側の端がちょうど cursor に来るピボット位置
+            //   flip=false … ローカル+X が s の増える向き → s = pivot + x
+            //   flip=true  … ローカル+X が s の減る向き → s = pivot - x
+            float sPiv = flip ? (cursor + m.hi) : (cursor - m.lo);
             Vector2 p = EdgePt(e, sPiv);
-            float seat = seatAt(mid);
+            float seat = seatAt(cursor + w * 0.5f);
             var go = EdoNishiTameikeBuilder.Place(path, new Vector3(p.x, seat, p.y), psi,
                                                   Vector3.one * EdoSannoKitaBuilder.ES, parent, prefix + "_" + k);
-            if (go == null) continue;
-            EdoNishiTameikeBuilder.SeatBottom(go, seat - 0.10f);
-            made++;
+            if (go != null) { EdoNishiTameikeBuilder.SeatBottom(go, seat - 0.10f); made++; }
+            cursor += w;                               // 継ぎ目は必ず面一
         }
         return made;
     }

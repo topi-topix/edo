@@ -411,7 +411,10 @@ def goten_plan(d, u0, u1, v0, v1, label, note):
                              fill=_pat(), stroke="var(--ishi)", sw=1.0))
         g.append(T(pr.X(min(a_u, b_u) + 1), pr.Y(max(min(a_v, b_v), v0) + 1.6), w["name"], "jo"))
     for k in d["kaidans"]:
-        w = [x for x in d["terraceWalls"] if x["name"] == k["atWall"]][0]
+        _ws = [x for x in d["terraceWalls"] if x["name"] == k.get("atWall")]
+        if not _ws:
+            continue          # 土留めの無い段(0.3m など)は石段だけ
+        w = _ws[0]
         if w["a"][0] == w["b"][0]:
             cu, cv = w["a"][0], k["gapV"]
             g.append(pr.rect(cu - 0.9, cv - k["w"] / 2 / 1.818, cu + 0.9, cv + k["w"] / 2 / 1.818,
@@ -551,7 +554,8 @@ def section_svg(d, sec):
     #   土留め(terraceWalls)のある縁 … 垂直。石垣が段差を受けるので地面は現況のまま
     #   土留めの無い縁               … 1:const.feather の土の法面で現況へ着地
     K = d["const"]["ken"]
-    FEATHER = d["const"].get("feather", 2.0)
+    BFILL = d["const"].get("batterFill", 1.5)
+    BCUT = d["const"].get("batterCut", 1.0)
     WALLNEAR = d["const"].get("wallNear", 0.6)
     CAP = d["const"].get("featherCap", 12.0)
 
@@ -592,9 +596,9 @@ def section_svg(d, sec):
         cpn = nat_at(cp[1] if sec["axis"] == "u" else cp[0])
         if cpn is None or yT - cpn <= 0.05:
             return nz
-        if dT > CAP or not _daylights(cp, g, yT, nat_at, FEATHER, CAP, K):
+        if dT > CAP or not _daylights(cp, g, yT, nat_at, BFILL, CAP, K):
             return nz
-        slack = dT / max(0.5, FEATHER)
+        slack = dT / max(0.5, BFILL if yT > nz else BCUT)
         return max(yT - slack, min(nz, yT + slack))
 
     ws = [w0 + (w1 - w0) * i / 600.0 for i in range(601)]
@@ -1370,7 +1374,10 @@ def civil_table(d):
                     "<td>(%.1f, %.1f) → (%.1f, %.1f)</td><td>天端 %.1f・壁高 %.1f</td></tr>"
                     % (w["name"], w["s"], wa[0], wa[1], wb[0], wb[1], w["coping"], 4.0 * w["s"]))
     for k in d["kaidans"]:
-        w = [x for x in d["terraceWalls"] if x["name"] == k["atWall"]][0]
+        _ws = [x for x in d["terraceWalls"] if x["name"] == k.get("atWall")]
+        if not _ws:
+            continue          # 土留めの無い段(0.3m など)は石段だけ
+        w = _ws[0]
         if w["a"][0] == w["b"][0]:
             c = gr.W(w["a"][0], k["gapV"])
         else:
@@ -1558,7 +1565,8 @@ def cutfill_table(d, sec):
                 return ya if b <= a else ya + (yb - ya) * (w - a) / (b - a)
         return nat[-1][1]
 
-    FEATHER = d["const"].get("feather", 2.0)
+    BFILL = d["const"].get("batterFill", 1.5)
+    BCUT = d["const"].get("batterCut", 1.0)
     WALLNEAR = d["const"].get("wallNear", 0.6)
     CAP = d["const"].get("featherCap", 12.0)
 
@@ -1593,9 +1601,9 @@ def cutfill_table(d, sec):
         cpn = nat_at(cp[1] if sec["axis"] == "u" else cp[0])
         if cpn is None or yT - cpn <= 0.05:
             return nz
-        if dT > CAP or not _daylights(cp, g, yT, nat_at, FEATHER, CAP, K):
+        if dT > CAP or not _daylights(cp, g, yT, nat_at, BFILL, CAP, K):
             return nz
-        slack = dT / max(0.5, FEATHER)
+        slack = dT / max(0.5, BFILL if yT > nz else BCUT)
         return max(yT - slack, min(nz, yT + slack))
 
     N = 2000

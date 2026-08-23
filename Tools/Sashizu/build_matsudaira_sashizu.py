@@ -695,6 +695,50 @@ def section_svg(d, sec):
         g.append(T(X(nat[0][0]) + 3, Y(nat[0][1]) - 6,
                    "現況地盤(暫定)" if sec.get("naturalProvisional") else "現況地盤(実測)", "jo"))
 
+    # 石段(踏面/蹴上のギザギザ)。§3c「垂直な壁が並ぶだけの図は §1f を満たさない」
+    for k in d["kaidans"]:
+        if "pos" not in k:
+            continue
+        kp = k["pos"][1] if sec["axis"] == "u" else k["pos"][0]
+        other = k["pos"][0] if sec["axis"] == "u" else k["pos"][1]
+        if abs(other - at) > 4 or not (w0 <= kp <= w1):
+            continue
+        top = design_at(kp)
+        if top is None:
+            continue
+        n_st = max(1, int(k["steps"]))
+        rise = k["drop"] / n_st
+        tread = k["run"] / n_st
+        pts = []
+        for i in range(n_st + 1):
+            pts.append((X(kp + tread * i), Y(top - rise * i)))
+            pts.append((X(kp + tread * (i + 1)), Y(top - rise * i)))
+        g.append('<polyline points="%s" fill="none" stroke="var(--shu)" stroke-width="1.8"/>'
+                 % " ".join("%.1f,%.1f" % q for q in pts))
+        g.append(T(X(kp), Y(top) - 8, "%s %d段" % (k["name"], n_st), "sr", "middle"))
+
+    # 石段(踏面/蹴上のギザギザ)。§3c「垂直な壁が並ぶだけの図は §1f を満たさない」
+    for k in d["kaidans"]:
+        if "pos" not in k:
+            continue
+        kp = k["pos"][1] if sec["axis"] == "u" else k["pos"][0]
+        other = k["pos"][0] if sec["axis"] == "u" else k["pos"][1]
+        if abs(other - at) > 4 or not (w0 <= kp <= w1):
+            continue
+        top = design_at(kp)
+        if top is None:
+            continue
+        n_st = max(1, int(k["steps"]))
+        rise = k["drop"] / n_st
+        tread = k["run"] / n_st
+        pts = []
+        for i in range(n_st + 1):
+            pts.append((X(kp + tread * i), Y(top - rise * i)))
+            pts.append((X(kp + tread * (i + 1)), Y(top - rise * i)))
+        g.append('<polyline points="%s" fill="none" stroke="var(--shu)" stroke-width="1.8"/>'
+                 % " ".join("%.1f,%.1f" % q for q in pts))
+        g.append(T(X(kp), Y(top) - 8, "%s %d段" % (k["name"], n_st), "sr", "middle"))
+
     # 郭の土留め
     for w in d["terraceWalls"]:
         (au, av), (bu, bv) = w["a"], w["b"]
@@ -1241,7 +1285,57 @@ def plane_check(d):
         pt = covered(w["u"] - 0.5, w["v"] - 0.5, w["u"] + 0.5, w["v"] + 0.5, None)
         if pt:
             bad.append("%s(井戸) が段の外: (%.2f, %.2f)" % (w["name"], pt[0], pt[1]))
+    bad += run_seat_check(d)
     return bad
+
+
+def run_seat_check(d, tol=0.6):
+    """**run の天端と背後の地盤の照合。**これが無いと「塀が埋まる/浮く」を図で見逃す
+    (2026-08-23 検図: 北東で 2.26m 埋没・南東で 3.74m 浮きを見逃していた)。
+    地盤は matsudaira_terrain.json(造成前)から読む。埋没(地盤>天端)は即不可、
+    浮きは石垣基壇 4.0×s で受けられる範囲まで許す。"""
+    try:
+        terr = json.load(open(os.path.join(DOC, "matsudaira_terrain.json"), encoding="utf-8"))
+    except Exception:
+        return []
+    gr = RGrid(d)
+    P = d["polygon"]
+    n = len(P)
+    out = []
+    for r in d["runs"]:
+        e = r["edge"]
+        a, b = P[e % n], P[(e + 1) % n]
+        dx, dz = b[0] - a[0], b[1] - a[1]
+        L = math.hypot(dx, dz)
+        ux, uz = dx / L, dz / L
+        nx, nz = -uz, ux
+        cx = sum(q[0] for q in P) / n
+        cz = sum(q[1] for q in P) / n
+        mx, mz = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+        if (cx - mx) * nx + (cz - mz) * nz < 0:
+            nx, nz = -nx, -nz                       # 内向き
+        worstB = worstF = 0.0
+        steps = max(2, int((r["s1"] - r["s0"]) / 3))
+        for i in range(steps + 1):
+            sv = r["s0"] + (r["s1"] - r["s0"]) * i / steps
+            for off in (1.5, 3.0, 4.5):
+                wx = a[0] + ux * sv + nx * off
+                wz = a[1] + uz * sv + nz * off
+                g = gr.L(wx, wz)
+                h = _nat_uv(terr, round(g[0]), round(g[1]))
+                if h is None:
+                    continue
+                worstB = max(worstB, h - r["seat"])   # 埋まる
+                worstF = max(worstF, r["seat"] - h)   # 浮く
+        cap = 4.0 * r.get("s", 0.0) + 0.3
+        if worstB > tol:
+            out.append("%s(天端%.1f) の背後の地盤が %.2fm 高い = 塀が埋まる" % (r["name"], r["seat"], worstB))
+        elif r.get("base") == "Ishigaki" and worstF > cap:
+            out.append("%s(天端%.1f) が %.2fm 浮くが石垣基壇は %.2fm しか無い(s=%.2f)"
+                       % (r["name"], r["seat"], worstF, cap, r.get("s", 0.0)))
+        elif r.get("base") != "Ishigaki" and worstF > tol:
+            out.append("%s(天端%.1f) が %.2fm 浮くのに石垣基壇が無い" % (r["name"], r["seat"], worstF))
+    return out
 
 
 def overlap_check(d):
@@ -1739,8 +1833,9 @@ def cutfill_map_svg(d, terr):
     pr = Proj(min(q[0] for q in P) - 14, max(q[0] for q in P) + 14,
               min(q[1] for q in P) - 14, max(q[1] for q in P) + 14, W=940.0, top=26.0, bottom=58.0)
     g = _sv(pr.W, pr.H, "松平出羽守上屋敷 切盛図")
-    def col(dz):
+    def col(dz, outside=False):
         a = abs(dz)
+        if outside and a <= 0.05: return "#6f7a63"     # 地の色=造成しない(§3b の4区分目)
         if a <= 0.3: return "#b9b5a8"
         if dz > 0:   return "#f0d9a0" if a<1 else ("#e0a95e" if a<2 else ("#c9762f" if a<3 else "#9c4a14"))
         return "#c8dcea" if a<1 else ("#8fb6d4" if a<2 else ("#5286b2" if a<3 else "#2b5a83"))
@@ -1756,8 +1851,9 @@ def cutfill_map_svg(d, terr):
             dz = des - nz
             wx, wz = gr.W(u, v)
             g.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s" opacity="0.95"/>'
-                     % (pr.X(wx) - 2.4, pr.Y(wz) - 2.4, 4.8, 4.8, col(dz)))
-            key = _terr_at(d, u, v) or "(造成しない)"
+                     % (pr.X(wx) - 2.4, pr.Y(wz) - 2.4, 4.8, 4.8,
+                        col(dz, _terr_at(d, u, v) is None)))
+            key = _terr_at(d, u, v) or ("段の外(法面・帯)" if abs(dz) > 0.05 else "造成しない(現地形のまま)")
             s = stats.setdefault(key, [0.0, 0.0, 0.0, 0.0, 0])
             if dz > 0: s[0] += dz * cell; s[1] = max(s[1], dz)
             else:      s[2] += -dz * cell; s[3] = max(s[3], -dz)
@@ -1828,8 +1924,13 @@ def routes_svg(d):
              % " ".join("%.1f,%.1f" % (pr.X(q[0]), pr.Y(q[1])) for q in P))
     for m in d["munes"] + d["service"]:
         g.append(gpoly_pr(gr, pr, m["u0"], m["v0"], m["u1"], m["v1"], "var(--ink-mid)", 0.7))
-    for k in d["kaidans"]:
-        pass
+    for k in d["kaidans"]:                     # 石段を重ねる(§3d「どこで段を越えるか」)
+        if "pos" not in k:
+            continue
+        q = gr.W(k["pos"][0], k["pos"][1])
+        g.append('<rect x="%.1f" y="%.1f" width="9" height="9" fill="var(--shu-lo)" '
+                 'stroke="var(--shu)" stroke-width="1.4"/>' % (pr.X(q[0]) - 4.5, pr.Y(q[1]) - 4.5))
+        g.append(T(pr.X(q[0]) + 7, pr.Y(q[1]) + 4, "%s %d段" % (k["name"], k["steps"]), "jo"))
     for r in d["routes"]:
         pts = [gr.W(p[0], p[1]) for p in r["pts"]]
         c = ROUTE_COL.get(r["kind"], "var(--ink)")
@@ -1959,7 +2060,8 @@ def main():
 
     KAN = ["其一", "其二", "其三", "其四", "其五", "其六", "其七", "其八", "其九", "其十",
            "其十一", "其十二", "其十三", "其十四", "其十五",
-           "其十六", "其十七", "其十八", "其十九", "其二十"]
+           "其十六", "其十七", "其十八", "其十九", "其二十",
+           "其廿一", "其廿二", "其廿三", "其廿四", "其廿五"]
     _kn = [0]
 
     def nx():
@@ -1973,7 +2075,7 @@ def main():
     fig(h, plan_svg(d),
         legend='<span style="color:var(--pl-omote)">■ 表郭 25.8</span>'
                '<span style="color:var(--pl-main)">■ 主平面 27.0</span>'
-               '<span style="color:var(--pl-higashi)">■ 東上段 28.8</span>'
+               ''
                '<span style="color:var(--pl-slope)">■ 斜面(造成しない・松+雑木の樹林)</span>'
                '<span style="color:var(--nagaya)">━ 表長屋</span>'
                '<span style="color:var(--hei)">━ 練塀(面の縁のみ)</span>'
@@ -2050,12 +2152,6 @@ def main():
             "現存する実物</b>【存在=A/奥庭という位置=?】— 家康が駿府で使った物を直政が拝領して移した伝承。")
     h.append("</div>")
 
-    plate(h, nx(), "東上段 平面", "御蔵・御蔵門。主郭+1.8m")
-    fig(h, goten_plan(d, 15, 70, -2, 30, "東上段 平面",
-                      "土蔵に入側も廊下も付けない(延焼を切る独立建物)。搬入は御蔵門から"),
-        cap="東上段は主郭より石段6段(蹴上0.30)高い蔵前の平場。<b>土留め TW_HigashiW/S</b> が主郭側の縁で、"
-            "石段 K_Higashi が唯一の内部動線。御作事小屋は石段下の主郭側に置き、蔵とは離す。")
-    h.append("</div>")
 
     plate(h, nx(), "棟と室", "1間²=2畳 ／ 室名・畳数は【確度 ?】(土間・板敷は間²)")
     h.append(munes_table(d))

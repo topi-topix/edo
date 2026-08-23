@@ -137,7 +137,8 @@ public static class EdoMatsudairaBuilder
             return _walls;
         }
     }
-    public static float Feather { get { return F(O(D["const"])["feather"]); } }
+    public static float BatterFill { get { return F(O(D["const"])["batterFill"]); } }
+    public static float BatterCut { get { return F(O(D["const"])["batterCut"]); } }
     public static float WallNear { get { return F(O(D["const"])["wallNear"]); } }
     public static float FeatherCap { get { return F(O(D["const"])["featherCap"]); } }
 
@@ -287,7 +288,8 @@ public static class EdoMatsudairaBuilder
         if (dT > FeatherCap) return yN;                       // (b)
         if (!Daylights(cp, g, yT)) return yN;                 // (c)
 
-        float slack = dT / Mathf.Max(0.5f, Feather);
+        // 盛土は 1:batterFill(1.5)、切土は 1:batterCut(1.0)。指図 §3b の既定値。
+        float slack = dT / Mathf.Max(0.5f, yT > yN ? BatterFill : BatterCut);
         return Mathf.Clamp(yN, yT - slack, yT + slack);
     }
 
@@ -302,7 +304,7 @@ public static class EdoMatsudairaBuilder
         float cap = FeatherCap;
         Vector2 probeG = cp + dir * (cap / f.ken);
         Vector2 probeW = f.W(probeG.x, probeG.y);
-        return yT - cap / Mathf.Max(0.5f, Feather) <= NaturalY(probeW.x, probeW.y);
+        return yT - cap / Mathf.Max(0.5f, BatterFill) <= NaturalY(probeW.x, probeW.y);
     }
 
     /// <summary>グリッド座標(間)での点と線分の距離。</summary>

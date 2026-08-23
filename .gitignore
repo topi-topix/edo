@@ -66,6 +66,15 @@ mono_crash.*.json
 /[Aa]ssets/Japanese Castle.meta
 /[Aa]ssets/Japanese Village Kit/
 /[Aa]ssets/Japanese Village Kit.meta
+# 再配布不可パッケージの**複製**を追跡しないための保険。
+# edogoyomi(HONEY)の readme は "just don't sell or redistribute it" と定める。
+# /Assets/edogoyomi/ は下で除外しているが、他所へコピーすると素通りする —
+# 実際に Assets/Edo/Models/es_hmon/ が公開リポジトリへ入っていた(2026-08-23 に除去)。
+/[Aa]ssets/**/es_hmon/
+/[Aa]ssets/**/es_nmon/
+/[Aa]ssets/**/es_kmon/
+/[Aa]ssets/**/es_knagaya/
+
 /[Aa]ssets/edogoyomi/
 /[Aa]ssets/edogoyomi.meta
 /[Aa]ssets/Japanese Shrine and Temples/

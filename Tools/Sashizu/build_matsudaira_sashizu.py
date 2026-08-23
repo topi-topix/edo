@@ -547,12 +547,55 @@ def section_svg(d, sec):
                 return ya if b <= a else ya + (yb - ya) * (w - a) / (b - a)
         return nat[-1][1]
 
+    # 段の縁の始末は**実装(EdoMatsudairaBuilder.DesignY)と同じ規則**で描く。
+    #   土留め(terraceWalls)のある縁 … 垂直。石垣が段差を受けるので地面は現況のまま
+    #   土留めの無い縁               … 1:const.feather の土の法面で現況へ着地
+    K = d["const"]["ken"]
+    FEATHER = d["const"].get("feather", 2.0)
+    WALLNEAR = d["const"].get("wallNear", 0.6)
+    CAP = d["const"].get("featherCap", 12.0)
+
+    def _dseg(p, a, b):
+        (px, py), (ax, ay), (bx, by) = p, a, b
+        dx, dy = bx - ax, by - ay
+        L2 = dx * dx + dy * dy
+        t = 0.0 if L2 < 1e-9 else max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / L2))
+        return math.hypot(px - (ax + dx * t), py - (ay + dy * t))
+
+    def _grid_pt(w):
+        """断面上の位置 w → グリッド座標 (u,v)。"""
+        return (at, w) if sec["axis"] == "u" else (w, at)
+
     def design_at(w):
-        """施工後の地盤。段が覆えばその面、覆わなければ現況のまま。"""
+        """施工後の地盤。実装の DesignY と同じ三層。"""
         for a, b, y in segs:
             if a - 1e-6 <= w <= b + 1e-6:
                 return y
-        return nat_at(w)
+        nz = nat_at(w)
+        if nz is None:
+            return None
+        g = _grid_pt(w)
+        # 最寄りの段と、その縁の最寄り点
+        dT, yT, cp = 1e9, None, None
+        for t in d["terraces"]:
+            cu = max(t["u0"], min(g[0], t["u1"]))
+            cv = max(t["v0"], min(g[1], t["v1"]))
+            dd = math.hypot(g[0] - cu, g[1] - cv) * K
+            if dd < dT:
+                dT, yT, cp = dd, t["y"], (cu, cv)
+        if yT is None:
+            return nz
+        for wl in d["terraceWalls"]:              # 縁に土留めがあれば垂直=現況のまま
+            if _dseg(cp, tuple(wl["a"]), tuple(wl["b"])) <= WALLNEAR:
+                return nz
+        # 法面は盛土を支えるためだけに張る: 縁が盛土/cap以内/着地する の三つ
+        cpn = nat_at(cp[1] if sec["axis"] == "u" else cp[0])
+        if cpn is None or yT - cpn <= 0.05:
+            return nz
+        if dT > CAP or not _daylights(cp, g, yT, nat_at, FEATHER, CAP, K):
+            return nz
+        slack = dT / max(0.5, FEATHER)
+        return max(yT - slack, min(nz, yT + slack))
 
     ws = [w0 + (w1 - w0) * i / 600.0 for i in range(601)]
     for a, b, _y in segs:                          # 段の縁を標本に含める(鋸歯を出さない)
@@ -1470,6 +1513,26 @@ def plate(h, num, title, meta=""):
              % (num, title, ('<span class="meta">%s</span>' % meta) if meta else ""))
 
 
+def _daylights(cp, g, yT, nat_at, feather=2.0, cap=12.0, ken=1.818):
+    """段の縁 cp から g の向きへ 1:feather の法面を cap[m] 延ばして現地形に着地するか。
+    着地しない縁は崖(石垣で受けるべき所)— 無理に法面を張ると宙に土手が伸びる。
+    断面では現況が断面線上しか分からないので、着地の判定も断面線上で行う。"""
+    du, dv = g[0] - cp[0], g[1] - cp[1]
+    L = math.hypot(du, dv)
+    if L < 1e-9:
+        return True
+    # 断面線に沿った位置に読み替えて現況を引く
+    probe = None
+    if abs(dv) >= abs(du):
+        probe = cp[1] + (cap / ken) * (1 if dv > 0 else -1)
+    else:
+        probe = cp[0] + (cap / ken) * (1 if du > 0 else -1)
+    nz = nat_at(probe)
+    if nz is None:
+        return True
+    return yT - cap / max(0.5, feather) <= nz
+
+
 def cutfill_table(d, sec):
     """断面線に沿った 切土/盛土/造成しない/未実測 の内訳。section_svg と同じ判定を使う。"""
     K = d["const"]["ken"]
@@ -1495,11 +1558,45 @@ def cutfill_table(d, sec):
                 return ya if b <= a else ya + (yb - ya) * (w - a) / (b - a)
         return nat[-1][1]
 
+    FEATHER = d["const"].get("feather", 2.0)
+    WALLNEAR = d["const"].get("wallNear", 0.6)
+    CAP = d["const"].get("featherCap", 12.0)
+
+    def _dseg(p, a, b):
+        (px, py), (ax, ay), (bx, by) = p, a, b
+        dx, dy = bx - ax, by - ay
+        L2 = dx * dx + dy * dy
+        t = 0.0 if L2 < 1e-9 else max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / L2))
+        return math.hypot(px - (ax + dx * t), py - (ay + dy * t))
+
     def design_at(w):
+        """section_svg / 実装の DesignY と同じ規則(段 → 土留めの有無 → 法面)。"""
         for a, b, y in segs:
             if a - 1e-6 <= w <= b + 1e-6:
                 return y
-        return nat_at(w)
+        nz = nat_at(w)
+        if nz is None:
+            return None
+        g = (at, w) if sec["axis"] == "u" else (w, at)
+        dT, yT, cp = 1e9, None, None
+        for t in d["terraces"]:
+            cu = max(t["u0"], min(g[0], t["u1"]))
+            cv = max(t["v0"], min(g[1], t["v1"]))
+            dd = math.hypot(g[0] - cu, g[1] - cv) * K
+            if dd < dT:
+                dT, yT, cp = dd, t["y"], (cu, cv)
+        if yT is None:
+            return nz
+        for wl in d["terraceWalls"]:
+            if _dseg(cp, tuple(wl["a"]), tuple(wl["b"])) <= WALLNEAR:
+                return nz
+        cpn = nat_at(cp[1] if sec["axis"] == "u" else cp[0])
+        if cpn is None or yT - cpn <= 0.05:
+            return nz
+        if dT > CAP or not _daylights(cp, g, yT, nat_at, FEATHER, CAP, K):
+            return nz
+        slack = dT / max(0.5, FEATHER)
+        return max(yT - slack, min(nz, yT + slack))
 
     N = 2000
     step = (w1 - w0) / float(N)

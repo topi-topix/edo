@@ -27,10 +27,6 @@ public static class EdoMatsudairaBuilder
     public const string ParcelId = "matsudaira_dewa";
     public const string Grp = "Edo_Yashiki_MatsudairaDewa";
 
-    /// <summary>段の縁から現地形へ擦り付ける幅[m]。指図では石垣土留めが受ける所なので、
-    /// 土留めの底厚(2.4×s ≒ 1.8〜2.4m)と同じ桁に取る。ここを広く取ると
-    /// 「造成しない」と宣言した斜面を勝手に削り始める。</summary>
-    public const float TRANS = 2.5f;
     /// <summary>bench=true の run の内側を天端で平らにする幅[m]。指図 _runs の「外周帯(内側幅3m)」。</summary>
     public const float BAND = 3.0f;
 
@@ -40,7 +36,7 @@ public static class EdoMatsudairaBuilder
     {
         get { return Path.Combine(Directory.GetParent(Application.dataPath).FullName, SashizuRel); }
     }
-    public static void Reload() { _d = null; _frame = null; _terr = null; _runs = null; _nat = null; _natRes = 0; }
+    public static void Reload() { _d = null; _frame = null; _terr = null; _runs = null; _walls = null; _nat = null; _natRes = 0; }
     static Dictionary<string, object> D
     {
         get
@@ -115,6 +111,35 @@ public static class EdoMatsudairaBuilder
             return _terr;
         }
     }
+
+    /// <summary>郭内の土留め(グリッド座標の線分)。**ここに線がある縁だけが垂直**。</summary>
+    public struct TWall { public string name; public Vector2 a, b; public float coping, s; }
+    static TWall[] _walls;
+    public static TWall[] Walls
+    {
+        get
+        {
+            if (_walls == null)
+            {
+                var list = new List<TWall>();
+                foreach (var o in A(D["terraceWalls"]))
+                {
+                    var w = O(o); var a = A(w["a"]); var b = A(w["b"]);
+                    list.Add(new TWall
+                    {
+                        name = (string)w["name"],
+                        a = new Vector2(F(a[0]), F(a[1])), b = new Vector2(F(b[0]), F(b[1])),
+                        coping = F(w["coping"]), s = F(w["s"])
+                    });
+                }
+                _walls = list.ToArray();
+            }
+            return _walls;
+        }
+    }
+    public static float Feather { get { return F(O(D["const"])["feather"]); } }
+    public static float WallNear { get { return F(O(D["const"])["wallNear"]); } }
+    public static float FeatherCap { get { return F(O(D["const"])["featherCap"]); } }
 
     public struct Run
     {
@@ -221,14 +246,13 @@ public static class EdoMatsudairaBuilder
     {
         var f = Grid;
         Vector2 g = f.L(p);
-        // ① 段(矩形・グリッド座標)。中なら距離0。
-        float dT = float.MaxValue, yT = 0f;
+        // ① 段(矩形・グリッド座標)。中なら距離0。あわせて縁の最寄り点も出す(土留めの判定に使う)。
+        float dT = float.MaxValue, yT = 0f; Vector2 cp = g;
         foreach (var t in Terraces)
         {
-            float du = Mathf.Max(Mathf.Max(t.u0 - g.x, g.x - t.u1), 0f);
-            float dv = Mathf.Max(Mathf.Max(t.v0 - g.y, g.y - t.v1), 0f);
-            float d = Mathf.Sqrt(du * du + dv * dv) * f.ken;      // 間 → m
-            if (d < dT) { dT = d; yT = t.y; }
+            float cu = Mathf.Clamp(g.x, t.u0, t.u1), cv = Mathf.Clamp(g.y, t.v0, t.v1);
+            float d = new Vector2(g.x - cu, g.y - cv).magnitude * f.ken;   // 間 → m
+            if (d < dT) { dT = d; yT = t.y; cp = new Vector2(cu, cv); }
         }
         if (dT < 1e-4f) return yT;                                // 段の中
 
@@ -242,10 +266,52 @@ public static class EdoMatsudairaBuilder
         }
         if (dR <= BAND) return yR;
 
-        // ③ それ以外は現地形のまま。段の縁からは TRANS で擦り付ける(土留めの体内に納まる)。
         float yN = NaturalY(p.x, p.y);
-        if (dT >= TRANS) return yN;
-        return Mathf.Lerp(yT, yN, dT / TRANS);
+
+        // ③ 段の外。**その縁に土留めがあるなら垂直**(石垣が段差を受ける)ので現地形のまま。
+        //    土留めが無いなら 1:feather の土の法面で現地形へ着地させる。
+        //    一律の幅で擦り付けると、段差の小さい縁では要らぬ土をいじり、
+        //    大きい縁では崖が残る(2026-08-23 ユーザー指摘。断面D の南縁で 60°になっていた)。
+        foreach (var w in Walls)
+            if (DistSegG(cp, w.a, w.b) <= WallNear) return yN;
+
+        // ⚠ 法面は「盛土を支えるため」にだけ張る。三つとも満たさないと張らない:
+        //   (a) 縁そのものが盛土になっている(地山と同高の縁には支える土手が無い)
+        //   (b) 縁から featherCap 以内(それ以上は土手でなく崖・石垣の領分)
+        //   (c) 1:feather を cap まで延ばして現地形に着地する
+        //   (a) を落としていたせいで、西斜面の「縁は地山と同高だが外は崖」という所に
+        //   最大9mの土手が伸びた(2026-08-23 実装で発覚)。
+        var cpW = f.W(cp.x, cp.y);
+        float dEdge = yT - NaturalY(cpW.x, cpW.y);
+        if (dEdge <= 0.05f) return yN;                        // (a)
+        if (dT > FeatherCap) return yN;                       // (b)
+        if (!Daylights(cp, g, yT)) return yN;                 // (c)
+
+        float slack = dT / Mathf.Max(0.5f, Feather);
+        return Mathf.Clamp(yN, yT - slack, yT + slack);
+    }
+
+    /// <summary>段の縁 cp から点 g の向きへ 1:feather の法面を featherCap[m] 延ばしたとき、
+    /// 現地形に着地するか。着地しない縁は崖(石垣で受けるべき所)。</summary>
+    static bool Daylights(Vector2 cp, Vector2 g, float yT)
+    {
+        var f = Grid;
+        Vector2 dir = g - cp;
+        if (dir.sqrMagnitude < 1e-9f) return true;
+        dir.Normalize();
+        float cap = FeatherCap;
+        Vector2 probeG = cp + dir * (cap / f.ken);
+        Vector2 probeW = f.W(probeG.x, probeG.y);
+        return yT - cap / Mathf.Max(0.5f, Feather) <= NaturalY(probeW.x, probeW.y);
+    }
+
+    /// <summary>グリッド座標(間)での点と線分の距離。</summary>
+    static float DistSegG(Vector2 p, Vector2 a, Vector2 b)
+    {
+        Vector2 d = b - a; float L2 = d.sqrMagnitude;
+        if (L2 < 1e-9f) return (p - a).magnitude;
+        float t = Mathf.Clamp01(Vector2.Dot(p - a, d) / L2);
+        return (p - (a + d * t)).magnitude;
     }
 
     // ---------------------------------------------------------------- Stage0 退避

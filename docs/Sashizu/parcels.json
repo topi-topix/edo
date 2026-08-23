@@ -1,810 +1,2890 @@
 {
-  "_": [
-    "町割の正典。Scene ビューの Edo/敷地割/編集モード (Cmd+Shift+K) で編集する。",
-    "pts は世界座標 [x, z] の並び。閉多角形なので最後と最初は重ねない。単位は m。",
-    "1坪 = 3.305785 m² / 江戸間 1間 = 1.818 m。",
-    "source はビルダーからの取り込み元。Edo/敷地割/ビルダーと突き合わせる で差分を見る。"
-  ],
-  "parcels": [
-    {
-      "id": "doi", "label": "土井大隅守 上屋敷",
-      "category": "buke", "color": 2,
-      "source": "",
-      "note": "三河刈谷藩2万3千石・譜代。跡地=駐日メキシコ大使館。表門=東辺北寄り / json が正典(ビルダーは EdoParcels.Get で引く)",
-      "pts": [
-        [-640, 1073.8], [-612.6, 1062.5], [-459.4, 1086.6], [-460.9, 1094.9], 
-        [-431.8, 1105.9], [-458.5, 1177.8], [-530.9, 1155.8], [-606.9, 1156.9], 
-        [-609, 1107.5]
-      ]
-    },
-    {
-      "id": "matsudaira_dewa", "label": "松平出羽守 上屋敷",
-      "category": "buke", "color": 2,
-      "source": "",
-      "note": "出雲松江藩18万6千石・親藩大広間。拝領11,942坪(確度?)。跡地=衆参両院議長公邸 / json が正典(ビルダーは EdoParcels.Get で引く)",
-      "pts": [
-        [-458.5, 1177.8], [-530.9, 1155.8], [-606.9, 1156.9], [-609, 1107.5], 
-        [-640, 1073.8], [-660.8, 1049.2], [-694.7, 1029.5], [-723.4, 1070.8], 
-        [-746.9, 1123.8], [-755.2, 1180.6], [-737, 1224.5], [-569.3, 1300.9], 
-        [-500.6, 1307]
-      ]
-    },
-    {
-      "id": "nishitameike_estates_0", "label": "Edo_Yashiki_Yokota",
-      "category": "buke", "color": 2,
-      "source": "EdoNishiTameikeBuilder.Estates[0]",
-      "note": "",
-      "pts": [
-        [-371.55, 296.12], [-376.89, 413.82], [-366.08, 426.7], [-313.39, 365.93], 
-        [-338.54, 290.69]
-      ]
-    },
-    {
-      "id": "nishitameike_estates_1", "label": "Edo_Yashiki_Toki",
-      "category": "buke", "color": 2,
-      "source": "EdoNishiTameikeBuilder.Estates[1]",
-      "note": "",
-      "pts": [
-        [-335.39, 291.47], [-311.41, 364.43], [-218.69, 321.6], [-223.95, 280.88]
-      ]
-    },
-    {
-      "id": "nishitameike_estates_2", "label": "Edo_Yashiki_YamaguchiUshiku",
-      "category": "buke", "color": 2,
-      "source": "EdoNishiTameikeBuilder.Estates[2]",
-      "note": "",
-      "pts": [
-        [-140.8, 182.8], [-174.2, 209.8], [-207.3, 259.3], [-279.2, 264.9], 
-        [-289.7, 142.1], [-200.3, 88.2]
-      ]
-    },
-    {
-      "id": "nishitameike_estates_3", "label": "Edo_Yashiki_MatsudairaHyuga",
-      "category": "buke", "color": 2,
-      "source": "EdoNishiTameikeBuilder.Estates[3]",
-      "note": "",
-      "pts": [
-        [-283.5, 266.2], [-386.9, 277], [-425.3, 222.7], [-292.3, 144.2]
-      ]
-    },
-    {
-      "id": "okabe", "label": "岡部筑前守 上屋敷",
-      "category": "buke", "color": 2,
-      "source": "",
-      "note": "和泉岸和田藩5万3千石・譜代雁間。跡地=都立日比谷高校。表門=北東辺 / json が正典(ビルダーは EdoParcels.Get で引く)",
-      "pts": [
-        [-373, 947], [-514.5, 947], [-585.5, 943.3], [-648.5, 936.8], 
-        [-694.7, 1029.5], [-660.8, 1049.2], [-640, 1073.8], [-612.6, 1062.5], 
-        [-459.4, 1086.6], [-425.4, 1096.3], [-384.4, 1054.3]
-      ]
-    },
-    {
-      "id": "sanbezaka_abe", "label": "安部信宝 上屋敷",
-      "category": "buke", "color": 2,
-      "source": "EdoSanbezakaBuilder.ABE",
-      "note": "",
-      "pts": [
-        [-365.5, 962.3], [-377.5, 1060.5], [-295, 1126.5], [-258.6, 1104.6], 
-        [-222, 1102.8], [-213.7, 1070.5], [-222.8, 1070.5], [-222.8, 1062.5], 
-        [-216, 1062.5], [-216, 982.5], [-328.6, 982.5], [-338.6, 962]
-      ]
-    },
-    {
-      "id": "sanbezaka_goto", "label": "sanbezaka_goto",
-      "category": "buke", "color": 2,
-      "source": "EdoSanbezakaBuilder.GOTO",
-      "note": "",
-      "pts": [
-        [-135.5, 911.4], [-238.5, 909.3], [-238.5, 901.8], [-331.5, 899.9], 
-        [-342.4, 950.6], [-332.1, 951], [-332.1, 962], [-338.6, 962], 
-        [-328.6, 982.5], [-139.3, 982.5]
-      ]
-    },
-    {
-      "id": "sanbezaka_katsuta", "label": "sanbezaka_katsuta",
-      "category": "buke", "color": 2,
-      "source": "EdoSanbezakaBuilder.KATSUTA",
-      "note": "",
-      "pts": [
-        [-139.3, 982.5], [-216, 982.5], [-216, 1062.5], [-141.8, 1062.5]
-      ]
-    },
-    {
-      "id": "sanbezaka_ooka", "label": "sanbezaka_ooka",
-      "category": "buke", "color": 2,
-      "source": "EdoSanbezakaBuilder.OOKA",
-      "note": "",
-      "pts": [
-        [-141.8, 1070.5], [-213.7, 1070.5], [-224, 1122.7], [-144.3, 1121.3]
-      ]
-    },
-    {
-      "id": "sanbezaka_w1", "label": "sanbezaka_w1",
-      "category": "buke", "color": 2,
-      "source": "EdoSanbezakaBuilder.W1",
-      "note": "",
-      "pts": [
-        [-222, 1102.8], [-224.6, 1121.5], [-246.9, 1130.9], [-258.6, 1104.6]
-      ]
-    },
-    {
-      "id": "sanbezaka_w2", "label": "sanbezaka_w2",
-      "category": "buke", "color": 2,
-      "source": "EdoSanbezakaBuilder.W2",
-      "note": "",
-      "pts": [
-        [-259.9, 1106.7], [-294, 1126.5], [-291.2, 1179.2], [-277.6, 1178.5], 
-        [-281, 1137.2], [-256.7, 1136.3], [-248.2, 1132.4]
-      ]
-    },
-    {
-      "id": "sanbezaka_w3", "label": "sanbezaka_w3",
-      "category": "buke", "color": 2,
-      "source": "EdoSanbezakaBuilder.W3",
-      "note": "",
-      "pts": [
-        [-257.4, 1138.6], [-279, 1139.1], [-276.3, 1177.9], [-257.1, 1176.5]
-      ]
-    },
-    {
-      "id": "sanbezaka_w4", "label": "sanbezaka_w4",
-      "category": "buke", "color": 2,
-      "source": "EdoSanbezakaBuilder.W4",
-      "note": "",
-      "pts": [
-        [-229.4, 1127], [-257, 1139.2], [-254.6, 1174.4], [-229.4, 1173.7]
-      ]
-    },
-    {
-      "id": "sanbezaka_w5", "label": "sanbezaka_w5",
-      "category": "buke", "color": 2,
-      "source": "EdoSanbezakaBuilder.W5",
-      "note": "",
-      "pts": [
-        [-224, 1124.4], [-224, 1173.1], [-183.8, 1172.3], [-184.4, 1123]
-      ]
-    },
-    {
-      "id": "sanbezaka_w6", "label": "sanbezaka_w6",
-      "category": "buke", "color": 2,
-      "source": "EdoSanbezakaBuilder.W6",
-      "note": "",
-      "pts": [
-        [-182, 1123.6], [-181.5, 1170.4], [-146.2, 1170.3], [-145.7, 1121.8]
-      ]
-    },
-    {
-      "id": "sanbezakanishi_matsu", "label": "松平主水正 上屋敷",
-      "category": "buke", "color": 2,
-      "source": "EdoSanbezakaNishiBuilder.MATSU",
-      "note": "",
-      "pts": [
-        [-332.1, 1186.5], [-213.8, 1185.9], [-212.6, 1270.2], [-298.6, 1257]
-      ]
-    },
-    {
-      "id": "sanbezakanishi_torii", "label": "鳥居丹波守 上屋敷",
-      "category": "buke", "color": 2,
-      "source": "EdoSanbezakaNishiBuilder.TORII",
-      "note": "",
-      "pts": [
-        [-475.6, 1272.5], [-445.7, 1185.9], [-333.3, 1186.5], [-301, 1255.8], 
-        [-382.3, 1245.7], [-410.4, 1292.9]
-      ]
-    },
-    {
-      "id": "sanbezakanishi_watanabe", "label": "渡辺備中守 上屋敷",
-      "category": "buke", "color": 2,
-      "source": "EdoSanbezakaNishiBuilder.WATANABE",
-      "note": "",
-      "pts": [
-        [-377.5, 1060.4], [-416.3, 1103.1], [-442.7, 1178.1], [-293.2, 1178.4], 
-        [-293.9, 1123.7]
-      ]
-    },
-    {
-      "id": "sannobuke_juge", "label": "樹下邸(山王社社家)",
-      "category": "buke", "color": 2,
-      "source": "EdoSannoBukeBuilder.JUGE",
-      "note": "⚠ sannosha_juge と二重定義。どちらが正か要判断",
-      "pts": [
-        [-374.2, 912], [-426.2, 912.4], [-449, 928.3], [-483.9, 936.8], 
-        [-514.3, 945.9], [-373.7, 946.2]
-      ]
-    },
-    {
-      "id": "sannobuke_kyogoku", "label": "京極 上屋敷",
-      "category": "buke", "color": 2,
-      "source": "EdoSannoBukeBuilder.KYOGOKU",
-      "note": "",
-      "pts": [
-        [-293.4, 677.8], [-293.9, 802.6], [-129.2, 802.3], [-123.7, 680]
-      ]
-    },
-    {
-      "id": "sannobuke_naito", "label": "内藤 上屋敷",
-      "category": "buke", "color": 2,
-      "source": "EdoSannoBukeBuilder.NAITO",
-      "note": "",
-      "pts": [
-        [-370.9, 656.7], [-355.4, 601.7], [-329.4, 575.6], [-285.9, 544.1], 
-        [-219.8, 521.3], [-157.5, 514.8], [-93.6, 524.3], [-53.5, 538.6], 
-        [-54.2, 572.2], [-88.9, 677.7], [-339, 676.1]
-      ]
-    },
-    {
-      "id": "sannobuke_niwa", "label": "丹羽 上屋敷",
-      "category": "buke", "color": 2,
-      "source": "EdoSannoBukeBuilder.NIWA",
-      "note": "跡地=議員会館",
-      "pts": [
-        [-129.2, 802.3], [-294.3, 802.6], [-293.4, 677.8], [-339.6, 677.7], 
-        [-339.6, 813.9], [-373.2, 813.9], [-373.2, 883.3], [-131.1, 883.5]
-      ]
-    },
-    {
-      "id": "sannobuke_shanin", "label": "山王社 社人八家",
-      "category": "buke", "color": 2,
-      "source": "EdoSannoBukeBuilder.SHANIN",
-      "note": "",
-      "pts": [
-        [-372.8, 661.5], [-373.6, 809.5], [-343.5, 812], [-342.7, 675.4]
-      ]
-    },
-    {
-      "id": "sanyashiki_estates_0", "label": "Edo_Yashiki_Ota",
-      "category": "buke", "color": 2,
-      "source": "EdoSanyashikiRebuild.Estates[0]",
-      "note": "",
-      "pts": [
-        [89.8, 309.7], [60.8, 253.1], [109.5, 227.9], [157.5, 275.6]
-      ]
-    },
-    {
-      "id": "sanyashiki_estates_1", "label": "Edo_Yashiki_Kano",
-      "category": "buke", "color": 2,
-      "source": "EdoSanyashikiRebuild.Estates[1]",
-      "note": "",
-      "pts": [
-        [23.3, 343.9], [-28.5, 298.6], [58.7, 253.8], [88.4, 311.5]
-      ]
-    },
-    {
-      "id": "sanyashiki_estates_2", "label": "Edo_Yashiki_Matsudaira",
-      "category": "buke", "color": 2,
-      "source": "EdoSanyashikiRebuild.Estates[2]",
-      "note": "",
-      "pts": [
-        [-30.9, 296.6], [-124.1, 223], [-120.6, 204.9], [-127.3, 197.7], 
-        [-21.1, 100.2], [107.9, 226.8]
-      ]
-    },
-    {
-      "id": "tameikekita_estates_0", "label": "Edo_Yashiki_MatsudairaMino",
-      "category": "buke", "color": 2,
-      "source": "EdoTameikeKitaBuilder.Estates[0]",
-      "note": "",
-      "pts": [
-        [-559.2, 97.1], [-463.3, 228.6], [-425.4, 249.7], [-394.2, 291.7], 
-        [-398, 406.5], [-553.1, 532], [-583.7, 546.8], [-619.4, 536.3], 
-        [-555.8, 303.6], [-758, 245.2], [-716.1, 191.2]
-      ]
-    },
-    {
-      "id": "tameikekita_estates_1", "label": "Edo_Yashiki_MizunoHyuga",
-      "category": "buke", "color": 2,
-      "source": "EdoTameikeKitaBuilder.Estates[1]",
-      "note": "",
-      "pts": [
-        [-677, 271.5], [-703.6, 377.2], [-587.1, 406.7], [-559.8, 306]
-      ]
-    },
-    {
-      "id": "tameikekita_estates_2", "label": "Edo_Yashiki_SagaraEchizen",
-      "category": "buke", "color": 2,
-      "source": "EdoTameikeKitaBuilder.Estates[2]",
-      "note": "",
-      "pts": [
-        [-704.8, 377.2], [-739.7, 475.9], [-710.6, 511.8], [-624.8, 533.9], 
-        [-589.9, 409.7]
-      ]
-    },
-    {
-      "id": "todablock_parcels_0", "label": "Edo_Yashiki_TodaUneme",
-      "category": "buke", "color": 2,
-      "source": "EdoTodaBlockBuilder.Parcels[0]",
-      "note": "",
-      "pts": [
-        [-324.2, 158.7], [-425.5, 219.5], [-530.6, 68], [-589.3, 105.5], 
-        [-619.4, 60.5], [-511.5, -9], [-469.6, 28], [-472.9, 55.75], 
-        [-453.7, 83.7], [-373.4, 31.7], [-354.5, 50.6], [-329.8, 91.8], 
-        [-357.9, 108.75]
-      ]
-    },
-    {
-      "id": "todablock_parcels_2", "label": "Edo_Yashiki_Inoue",
-      "category": "buke", "color": 2,
-      "source": "EdoTodaBlockBuilder.Parcels[2]",
-      "note": "",
-      "pts": [
-        [-373.4, 31.7], [-453.7, 83.7], [-472.9, 55.75], [-469.6, 28], 
-        [-400.6, -13.25]
-      ]
-    },
-    {
-      "id": "toranomonuchi_parcels_0", "label": "Edo_Yashiki_NaitoNoto",
-      "category": "buke", "color": 2,
-      "source": "EdoToranomonUchiBuilder.Parcels[0]",
-      "note": "",
-      "pts": [
-        [289, 543], [281, 509], [315, 490], [182, 359], 
-        [69, 417], [95, 556], [66, 611], [73.5, 630.5], 
-        [111.5, 615], [163.5, 598], [167, 592]
-      ]
-    },
-    {
-      "id": "toranomonuchi_parcels_1", "label": "Edo_Yashiki_Murase",
-      "category": "buke", "color": 2,
-      "source": "EdoToranomonUchiBuilder.Parcels[1]",
-      "note": "",
-      "pts": [
-        [291, 542], [339, 522], [330, 504], [317, 492], 
-        [281, 509]
-      ]
-    },
-    {
-      "id": "toranomonuchi_parcels_2", "label": "Edo_Yashiki_Ogura",
-      "category": "buke", "color": 2,
-      "source": "EdoToranomonUchiBuilder.Parcels[2]",
-      "note": "",
-      "pts": [
-        [163.5, 598], [176.5, 636], [126, 655], [111.5, 615]
-      ]
-    },
-    {
-      "id": "toranomonuchi_parcels_3", "label": "Edo_Yashiki_HayashiZusho",
-      "category": "buke", "color": 2,
-      "source": "EdoToranomonUchiBuilder.Parcels[3]",
-      "note": "",
-      "pts": [
-        [73.5, 630.5], [84.6, 667.6], [126, 655], [111.5, 615]
-      ]
-    },
-    {
-      "id": "sannojubo_parcels_0", "label": "Edo_SannoBo_Enjoin",
-      "category": "jisha", "color": 3,
-      "source": "EdoSannoJuboBuilder.Parcels[0]",
-      "note": "",
-      "pts": [
-        [-389.8, 722.5], [-389.2, 644.6], [-414.2, 649.7], [-415.6, 721]
-      ]
-    },
-    {
-      "id": "sannojubo_parcels_1", "label": "Edo_SannoBo_Jojuin",
-      "category": "jisha", "color": 3,
-      "source": "EdoSannoJuboBuilder.Parcels[1]",
-      "note": "",
-      "pts": [
-        [-415.6, 721], [-414.2, 649.7], [-439.65, 658.3], [-440.8, 720.8]
-      ]
-    },
-    {
-      "id": "sannojubo_parcels_2", "label": "Edo_SannoBo_Hozoin",
-      "category": "jisha", "color": 3,
-      "source": "EdoSannoJuboBuilder.Parcels[2]",
-      "note": "",
-      "pts": [
-        [-440.8, 720.8], [-439.65, 658.3], [-463.65, 670.65], [-461.75, 721.8]
-      ]
-    },
-    {
-      "id": "sannojubo_parcels_3", "label": "Edo_SannoBo_Chomyoin",
-      "category": "jisha", "color": 3,
-      "source": "EdoSannoJuboBuilder.Parcels[3]",
-      "note": "",
-      "pts": [
-        [-461.75, 721.8], [-463.65, 670.65], [-493, 687.9], [-486.5, 725.05]
-      ]
-    },
-    {
-      "id": "sannojubo_parcels_4", "label": "Edo_SannoBo_Fukujuin",
-      "category": "jisha", "color": 3,
-      "source": "EdoSannoJuboBuilder.Parcels[4]",
-      "note": "",
-      "pts": [
-        [-486.5, 725.05], [-493, 687.9], [-518.3, 702.4], [-507, 733.95]
-      ]
-    },
-    {
-      "id": "sannojubo_parcels_5", "label": "Edo_SannoBo_Chikoin",
-      "category": "jisha", "color": 3,
-      "source": "EdoSannoJuboBuilder.Parcels[5]",
-      "note": "",
-      "pts": [
-        [-507, 733.95], [-518.3, 702.4], [-541.35, 717.95], [-521.3, 745.2]
-      ]
-    },
-    {
-      "id": "sannojubo_parcels_6", "label": "Edo_SannoBo_Hosenin",
-      "category": "jisha", "color": 3,
-      "source": "EdoSannoJuboBuilder.Parcels[6]",
-      "note": "",
-      "pts": [
-        [-521.3, 745.2], [-541.35, 717.95], [-554.05, 733.7], [-533.45, 757.6]
-      ]
-    },
-    {
-      "id": "sannojubo_parcels_7", "label": "Edo_SannoBo_Muryoin",
-      "category": "jisha", "color": 3,
-      "source": "EdoSannoJuboBuilder.Parcels[7]",
-      "note": "",
-      "pts": [
-        [-533.45, 757.6], [-554.05, 733.7], [-574.85, 762.2], [-552.1, 775.3]
-      ]
-    },
-    {
-      "id": "sannojubo_parcels_8", "label": "Edo_SannoBo_Chijoin",
-      "category": "jisha", "color": 3,
-      "source": "EdoSannoJuboBuilder.Parcels[8]",
-      "note": "",
-      "pts": [
-        [-552.1, 775.3], [-574.85, 762.2], [-610.4, 830.3], [-587.9, 836.5]
-      ]
-    },
-    {
-      "id": "sannojubo_parcels_9", "label": "Edo_SannoBo_Jomyoin",
-      "category": "jisha", "color": 3,
-      "source": "EdoSannoJuboBuilder.Parcels[9]",
-      "note": "",
-      "pts": [
-        [-591.7, 845.7], [-613.8, 839.1], [-645.5, 936.2], [-584.9, 942.8], 
-        [-600.7, 884.8]
-      ]
-    },
-    {
-      "id": "sannosha_juge", "label": "樹下邸(社ビルダー側)",
-      "category": "jisha", "color": 3,
-      "source": "EdoSannoShaBuilder.JUGE",
-      "note": "⚠ sannobuke_juge と二重定義。どちらが正か要判断",
-      "pts": [
-        [-470, 900], [-428, 900], [-428, 936], [-470, 936]
-      ]
-    },
-    {
-      "id": "sannosha_kanri", "label": "観理院(山王社別当)",
-      "category": "jisha", "color": 3,
-      "source": "EdoSannoShaBuilder.KANRI",
-      "note": "",
-      "pts": [
-        [-389.4, 735.3], [-421.6, 732.5], [-426.2, 851.4], [-409.7, 888.1], 
-        [-390.2, 888.3]
-      ]
-    },
-    {
-      "id": "sannosha_prec", "label": "山王社 境内(透塀)",
-      "category": "jisha", "color": 3,
-      "source": "EdoSannoShaBuilder.PREC",
-      "note": "",
-      "pts": [
-        [-566, 818], [-490, 818], [-490, 896], [-566, 896]
-      ]
-    },
-    {
-      "id": "todablock_parcels_3", "label": "Edo_Temple_Chosenji",
-      "category": "jisha", "color": 3,
-      "source": "EdoTodaBlockBuilder.Parcels[3]",
-      "note": "",
-      "pts": [
-        [-324.2, 158.7], [-247.4, 106.9], [-266.9, 71], [-299.5, 91.4], 
-        [-308.65, 80.4], [-357.9, 108.75]
-      ]
-    },
-    {
-      "id": "todablock_parcels_4", "label": "Edo_Temple_Yosenji",
-      "category": "jisha", "color": 3,
-      "source": "EdoTodaBlockBuilder.Parcels[4]",
-      "note": "",
-      "pts": [
-        [-329.8, 91.8], [-308.65, 80.4], [-299.5, 91.4], [-275.1, 76.9], 
-        [-301.5, 28.5], [-298.7, 19.2], [-354.5, 50.6]
-      ]
-    },
-    {
-      "id": "azukarichi_gr", "label": "azukarichi_gr",
-      "category": "kouyuu", "color": 6,
-      "source": "EdoAzukarichiBuilder.GR",
-      "note": "",
-      "pts": [
-        [-646.79, 694.92], [-606.47, 715.77], [-360.39, 486.38], [-392.37, 451.62], 
-        [-553.64, 575.36]
-      ]
-    },
-    {
-      "id": "azukarichi_pu", "label": "azukarichi_pu",
-      "category": "kouyuu", "color": 6,
-      "source": "EdoAzukarichiBuilder.PU",
-      "note": "",
-      "pts": [
-        [-355.46, 483.4], [-291.96, 441.54], [-240.33, 419.21], [-167.76, 406.65], 
-        [-93.8, 398.28], [-44.26, 395.48], [-80.54, 373.16], [-205.44, 325.01], 
-        [-308.71, 369.67], [-386.16, 452]
-      ]
-    },
-    {
-      "id": "azukarichi_w1", "label": "azukarichi_w1",
-      "category": "kouyuu", "color": 6,
-      "source": "EdoAzukarichiBuilder.W1",
-      "note": "",
-      "pts": [
-        [-547.24, 595.91], [-601.74, 660.89], [-585.81, 671.37], [-528.8, 607.23]
-      ]
-    },
-    {
-      "id": "azukarichi_w2", "label": "azukarichi_w2",
-      "category": "kouyuu", "color": 6,
-      "source": "EdoAzukarichiBuilder.W2",
-      "note": "",
-      "pts": [
-        [-643.37, 738.04], [-664.37, 790.74], [-653.36, 795.24], [-632.2, 742.49]
-      ]
-    },
-    {
-      "id": "azukarichi_w3", "label": "azukarichi_w3",
-      "category": "kouyuu", "color": 6,
-      "source": "EdoAzukarichiBuilder.W3",
-      "note": "",
-      "pts": [
-        [-675.09, 818.44], [-684.03, 839.88], [-672.41, 844.35], [-663.48, 820.22]
-      ]
-    },
-    {
-      "id": "azukarichi_w5", "label": "azukarichi_w5",
-      "category": "kouyuu", "color": 6,
-      "source": "EdoAzukarichiBuilder.W5",
-      "note": "",
-      "pts": [
-        [-826.52, 1156.51], [-807.51, 1162.76], [-801.79, 1146.61], [-820.53, 1139.59]
-      ]
-    },
-    {
-      "id": "azukarichi_yl", "label": "azukarichi_yl",
-      "category": "kouyuu", "color": 6,
-      "source": "EdoAzukarichiBuilder.YL",
-      "note": "",
-      "pts": [
-        [-285.95, 390.25], [-232.08, 368.55], [-227.42, 381.34], [-281.3, 401.88]
-      ]
-    },
-    {
-      "id": "todablock_parcels_1", "label": "Edo_Hikeshi_Koide",
-      "category": "kouyuu", "color": 6,
-      "source": "EdoTodaBlockBuilder.Parcels[1]",
-      "note": "",
-      "pts": [
-        [-203.1, 80.4], [-245.4, -6.7], [-290, 15.9], [-242.1, 104]
-      ]
-    },
-    {
-      "id": "daichi_nagaichopoly", "label": "daichi_nagaichopoly",
-      "category": "machiya", "color": 4,
-      "source": "EdoDaichiBuilder.NagaichoPoly",
-      "note": "",
-      "pts": [
-        [-451.01, 474.71], [-551.6, 555.83], [-539.25, 569.83], [-438.79, 489.76]
-      ]
-    },
-    {
-      "id": "daichi_seiryujipoly", "label": "daichi_seiryujipoly",
-      "category": "machiya", "color": 4,
-      "source": "EdoDaichiBuilder.SeiryujiPoly",
-      "note": "",
-      "pts": [
-        [-382.06, 417.87], [-446.57, 471.25], [-435.76, 486.73], [-370.28, 431.37]
-      ]
-    },
-    {
-      "id": "daichikita_jm", "label": "daichikita_jm",
-      "category": "machiya", "color": 4,
-      "source": "EdoDaichiKitaBuilder.JM",
-      "note": "",
-      "pts": [
-        [-825.19, 1019.95], [-816.59, 996.54], [-786.97, 1008], [-797, 1033.32]
-      ]
-    },
-    {
-      "id": "daichikita_r1", "label": "daichikita_r1",
-      "category": "machiya", "color": 4,
-      "source": "EdoDaichiKitaBuilder.R1",
-      "note": "",
-      "pts": [
-        [-664.93, 721.86], [-691.56, 792.63], [-678.59, 797.53], [-651.27, 725.71]
-      ]
-    },
-    {
-      "id": "daichikita_r2", "label": "daichikita_r2",
-      "category": "machiya", "color": 4,
-      "source": "EdoDaichiKitaBuilder.R2",
-      "note": "",
-      "pts": [
-        [-696.49, 802.52], [-709.43, 839.37], [-693.91, 843.9], [-681.62, 807.05]
-      ]
-    },
-    {
-      "id": "daichikita_y1", "label": "daichikita_y1",
-      "category": "machiya", "color": 4,
-      "source": "EdoDaichiKitaBuilder.Y1",
-      "note": "",
-      "pts": [
-        [-712.66, 849.07], [-739.81, 918.9], [-723.65, 924.07], [-697.14, 852.31]
-      ]
-    },
-    {
-      "id": "daichikita_y2", "label": "daichikita_y2",
-      "category": "machiya", "color": 4,
-      "source": "EdoDaichiKitaBuilder.Y2",
-      "note": "",
-      "pts": [
-        [-743.02, 930.13], [-778.85, 1021.86], [-767.38, 1025.68], [-730.59, 932.04]
-      ]
-    },
-    {
-      "id": "shinmachi_cy", "label": "shinmachi_cy",
-      "category": "machiya", "color": 4,
-      "source": "EdoShinmachiBuilder.CY",
-      "note": "",
-      "pts": [
-        [-885.87, 1153.45], [-929.56, 1124.32], [-892.2, 1031.23], [-848.51, 1048.33]
-      ]
-    },
-    {
-      "id": "shinmachi_gr", "label": "shinmachi_gr",
-      "category": "machiya", "color": 4,
-      "source": "EdoShinmachiBuilder.GR",
-      "note": "",
-      "pts": [
-        [-879.5, 996.86], [-856.11, 908.38], [-799.75, 921.04], [-832.44, 1005.66]
-      ]
-    },
-    {
-      "id": "shinmachi_pu", "label": "shinmachi_pu",
-      "category": "machiya", "color": 4,
-      "source": "EdoShinmachiBuilder.PU",
-      "note": "",
-      "pts": [
-        [-856.11, 907.11], [-838.38, 834.29], [-772.52, 848.22], [-798.77, 919.57]
-      ]
-    },
-    {
-      "id": "shinmachi_ra", "label": "shinmachi_ra",
-      "category": "machiya", "color": 4,
-      "source": "EdoShinmachiBuilder.RA",
-      "note": "",
-      "pts": [
-        [-834.95, 827.52], [-769.82, 840.71], [-754.89, 798.88], [-768.79, 794.04]
-      ]
-    },
-    {
-      "id": "shinmachi_rb", "label": "shinmachi_rb",
-      "category": "machiya", "color": 4,
-      "source": "EdoShinmachiBuilder.RB",
-      "note": "",
-      "pts": [
-        [-751.74, 792.02], [-767.41, 787.17], [-785.16, 761.83], [-777.62, 729.49], 
-        [-731.26, 740.27], [-749.59, 790.94]
-      ]
-    },
-    {
-      "id": "shinmachi_rc", "label": "shinmachi_rc",
-      "category": "machiya", "color": 4,
-      "source": "EdoShinmachiBuilder.RC",
-      "note": "",
-      "pts": [
-        [-777.03, 787.86], [-819.29, 810.2], [-830.61, 798.16], [-823.05, 776.18], 
-        [-816.87, 751.45], [-796.95, 757.63]
-      ]
-    },
-    {
-      "id": "shinmachi_ye", "label": "shinmachi_ye",
-      "category": "machiya", "color": 4,
-      "source": "EdoShinmachiBuilder.YE",
-      "note": "",
-      "pts": [
-        [-848.13, 1047.37], [-891.75, 1030.53], [-882.7, 1004], [-835.21, 1014.13]
-      ]
-    },
-    {
-      "id": "tamachi5east_azukaripoly", "label": "tamachi5east_azukaripoly",
-      "category": "machiya", "color": 4,
-      "source": "EdoTamachi5EastBuilder.AzukariPoly",
-      "note": "",
-      "pts": [
-        [-603.71, 604.75], [-580.71, 571.84], [-573.68, 577.27], [-597.32, 608.27]
-      ]
-    },
-    {
-      "id": "tamachi5east_horiguchipoly", "label": "tamachi5east_horiguchipoly",
-      "category": "machiya", "color": 4,
-      "source": "EdoTamachi5EastBuilder.HoriguchiPoly",
-      "note": "",
-      "pts": [
-        [-623.32, 625.57], [-611.62, 602.32], [-597.64, 610.19], [-613.94, 631.92]
-      ]
-    },
-    {
-      "id": "tamachi5east_kaishopoly", "label": "tamachi5east_kaishopoly",
-      "category": "machiya", "color": 4,
-      "source": "EdoTamachi5EastBuilder.KaishoPoly",
-      "note": "",
-      "pts": [
-        [-571.12, 577.91], [-563.13, 585.26], [-621.93, 656.52], [-635.03, 649.17], 
-        [-624.43, 627], [-613.3, 633.19], [-571.76, 578.23]
-      ]
-    },
-    {
-      "id": "tamachi5east_machiyapoly", "label": "tamachi5east_machiyapoly",
-      "category": "machiya", "color": 4,
-      "source": "EdoTamachi5EastBuilder.MachiyaPoly",
-      "note": "",
-      "pts": [
-        [-591.62, 564.82], [-610.68, 600.44], [-605.31, 603.8], [-582.62, 570.24]
-      ]
-    },
-    {
-      "id": "tamachi_chos_0", "label": "Edo_Tamachi_5",
-      "category": "machiya", "color": 4,
-      "source": "EdoTamachiBuilder.Chos[0]",
-      "note": "",
-      "pts": [
-        [-665.72, 688.27], [-692.16, 678.86], [-646.92, 543.71], [-603.43, 556.05]
-      ]
-    },
-    {
-      "id": "tamachi_chos_1", "label": "Edo_Tamachi_4",
-      "category": "machiya", "color": 4,
-      "source": "EdoTamachiBuilder.Chos[1]",
-      "note": "",
-      "pts": [
-        [-697.45, 688.85], [-668.66, 700.02], [-708.85, 807.15], [-738.59, 796.39]
-      ]
-    },
-    {
-      "id": "tamachi_chos_2", "label": "Edo_Tamachi_3",
-      "category": "machiya", "color": 4,
-      "source": "EdoTamachiBuilder.Chos[2]",
-      "note": "",
-      "pts": [
-        [-742.92, 810.05], [-712.66, 821.89], [-753.45, 924.53], [-782.39, 915.32]
-      ]
-    },
-    {
-      "id": "tamachi_chos_3", "label": "Edo_Tamachi_2",
-      "category": "machiya", "color": 4,
-      "source": "EdoTamachiBuilder.Chos[3]",
-      "note": "",
-      "pts": [
-        [-802.13, 1053.47], [-831.64, 1039.75], [-788.05, 927.02], [-756.08, 939]
-      ]
-    },
-    {
-      "id": "tamachi_chos_4", "label": "Edo_Tamachi_1",
-      "category": "machiya", "color": 4,
-      "source": "EdoTamachiBuilder.Chos[4]",
-      "note": "",
-      "pts": [
-        [-836.15, 1053.27], [-873.72, 1159.98], [-849.67, 1173.51], [-809.09, 1065.3]
-      ]
-    },
-    {
-      "id": "matsudaira_yamato", "label": "松平大和守 上屋敷",
-      "category": "other", "color": 5,
-      "source": "EdoYamatoRebuild.Poly",
-      "note": "川越藩。汐見坂南9,661坪。跡地=ホテルオークラ",
-      "pts": [
-        [-131, 168.9], [-156, 130], [-180.7, 91.8], [-201, 54.9], 
-        [-220.1, 16.4], [-238, -21.4], [-195, -45.7], [-153.8, -62.1], 
-        [-116.6, -71.1], [-85.5, -61.1], [-48.5, -33.8], [-21.7, -11.1], 
-        [-4.4, 8.8], [14, 36]
-      ]
-    }
-  ]
+ "_": [
+  "町割の正典。Scene ビューの Edo/敷地割/編集モード (Cmd+Shift+K) で編集する。",
+  "pts は世界座標 [x, z] の並び。閉多角形なので最後と最初は重ねない。単位は m。",
+  "1坪 = 3.305785 m² / 江戸間 1間 = 1.818 m。",
+  "source はビルダーからの取り込み元。Edo/敷地割/ビルダーと突き合わせる で差分を見る。"
+ ],
+ "parcels": [
+  {
+   "id": "doi",
+   "label": "土井大隅守 上屋敷",
+   "category": "buke",
+   "color": 2,
+   "source": "",
+   "note": "三河刈谷藩2万3千石・譜代。跡地=駐日メキシコ大使館。表門=東辺北寄り / json が正典(ビルダーは EdoParcels.Get で引く)",
+   "pts": [
+    [
+     -642.795,
+     1069.584
+    ],
+    [
+     -603.268,
+     1067.331
+    ],
+    [
+     -528.015,
+     1077.41
+    ],
+    [
+     -459.4,
+     1086.6
+    ],
+    [
+     -461.361,
+     1096.868
+    ],
+    [
+     -431.311,
+     1105.481
+    ],
+    [
+     -458.5,
+     1177.8
+    ],
+    [
+     -530.9,
+     1155.8
+    ],
+    [
+     -609.79,
+     1158.054
+    ],
+    [
+     -613.827,
+     1098.437
+    ]
+   ]
+  },
+  {
+   "id": "matsudaira_dewa",
+   "label": "松平出羽守 上屋敷",
+   "category": "buke",
+   "color": 2,
+   "source": "",
+   "note": "出雲松江藩18万6千石・親藩大広間。拝領11,942坪(確度?)。跡地=衆参両院議長公邸 / json が正典(ビルダーは EdoParcels.Get で引く)",
+   "pts": [
+    [
+     -458.5,
+     1177.8
+    ],
+    [
+     -530.9,
+     1155.8
+    ],
+    [
+     -609.79,
+     1158.054
+    ],
+    [
+     -613.827,
+     1098.437
+    ],
+    [
+     -642.795,
+     1069.584
+    ],
+    [
+     -665.028,
+     1051.838
+    ],
+    [
+     -694.907,
+     1033.329
+    ],
+    [
+     -722.133,
+     1082.475
+    ],
+    [
+     -735.303,
+     1116.414
+    ],
+    [
+     -740.875,
+     1140.728
+    ],
+    [
+     -745.434,
+     1168.587
+    ],
+    [
+     -748.473,
+     1205.058
+    ],
+    [
+     -734.796,
+     1233.931
+    ],
+    [
+     -569.53,
+     1295.187
+    ],
+    [
+     -497.043,
+     1297.488
+    ]
+   ]
+  },
+  {
+   "id": "nishitameike_estates_0",
+   "label": "Edo_Yashiki_Yokota",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoNishiTameikeBuilder.Estates[0]",
+   "note": "",
+   "pts": [
+    [
+     -371.55,
+     296.12
+    ],
+    [
+     -376.89,
+     413.82
+    ],
+    [
+     -365.981,
+     427.131
+    ],
+    [
+     -313.39,
+     365.93
+    ],
+    [
+     -338.54,
+     290.69
+    ]
+   ]
+  },
+  {
+   "id": "nishitameike_estates_1",
+   "label": "Edo_Yashiki_Toki",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoNishiTameikeBuilder.Estates[1]",
+   "note": "",
+   "pts": [
+    [
+     -335.39,
+     291.47
+    ],
+    [
+     -311.41,
+     364.43
+    ],
+    [
+     -218.69,
+     321.6
+    ],
+    [
+     -223.95,
+     280.88
+    ]
+   ]
+  },
+  {
+   "id": "nishitameike_estates_2",
+   "label": "Edo_Yashiki_YamaguchiUshiku",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoNishiTameikeBuilder.Estates[2]",
+   "note": "",
+   "pts": [
+    [
+     -140.8,
+     182.8
+    ],
+    [
+     -174.2,
+     209.8
+    ],
+    [
+     -207.3,
+     259.3
+    ],
+    [
+     -279.2,
+     264.9
+    ],
+    [
+     -292.3,
+     144.2
+    ],
+    [
+     -200.3,
+     88.2
+    ]
+   ]
+  },
+  {
+   "id": "nishitameike_estates_3",
+   "label": "Edo_Yashiki_MatsudairaHyuga",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoNishiTameikeBuilder.Estates[3]",
+   "note": "",
+   "pts": [
+    [
+     -279.2,
+     264.9
+    ],
+    [
+     -386.9,
+     277
+    ],
+    [
+     -425.3,
+     222.7
+    ],
+    [
+     -320.94,
+     161.104
+    ],
+    [
+     -292.3,
+     144.2
+    ]
+   ]
+  },
+  {
+   "id": "okabe",
+   "label": "岡部内膳正 上屋敷",
+   "category": "buke",
+   "color": 2,
+   "source": "ユーザーのブックマークの角マーク+敷地割ツール(確度P/U)",
+   "note": "和泉岸和田藩5万3千石・譜代雁間。跡地=都立日比谷高校。**表門=東辺(三べ坂沿い)の北端寄り**([NDL1286657 岡部区画]A=辺 / ユーザー裁定U=辺の中の位置)。⚠ 旧記述『表門=北東辺』は反証済み / json が正典(ビルダーは EdoParcels.Get で引く)",
+   "pts": [
+    [
+     -374.806,
+     958.352
+    ],
+    [
+     -389.028,
+     958.203
+    ],
+    [
+     -528.876,
+     956.736
+    ],
+    [
+     -577.678,
+     957.169
+    ],
+    [
+     -609.578,
+     966.663
+    ],
+    [
+     -653.64,
+     964.108
+    ],
+    [
+     -694.907,
+     1033.329
+    ],
+    [
+     -665.028,
+     1051.838
+    ],
+    [
+     -642.795,
+     1069.584
+    ],
+    [
+     -603.268,
+     1067.331
+    ],
+    [
+     -459.4,
+     1086.6
+    ],
+    [
+     -425.4,
+     1096.3
+    ],
+    [
+     -384.4,
+     1054.3
+    ]
+   ]
+  },
+  {
+   "id": "sanbezaka_abe",
+   "label": "安部信宝 上屋敷",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoSanbezakaBuilder.ABE",
+   "note": "",
+   "pts": [
+    [
+     -365.44,
+     973.385
+    ],
+    [
+     -374.381,
+     1061.652
+    ],
+    [
+     -294.5,
+     1126.5
+    ],
+    [
+     -258.6,
+     1104.6
+    ],
+    [
+     -221.86,
+     1102.912
+    ],
+    [
+     -217.156,
+     1070.686
+    ],
+    [
+     -222.8,
+     1070.5
+    ],
+    [
+     -222.8,
+     1062.5
+    ],
+    [
+     -216,
+     1062.5
+    ],
+    [
+     -216,
+     982.5
+    ],
+    [
+     -336.288,
+     982.051
+    ],
+    [
+     -340.567,
+     973.723
+    ]
+   ]
+  },
+  {
+   "id": "sanbezaka_goto",
+   "label": "sanbezaka_goto",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoSanbezakaBuilder.GOTO",
+   "note": "",
+   "pts": [
+    [
+     -132.126,
+     904.257
+    ],
+    [
+     -234.186,
+     904.457
+    ],
+    [
+     -234.186,
+     901.467
+    ],
+    [
+     -334.455,
+     901.655
+    ],
+    [
+     -345.195,
+     963.382
+    ],
+    [
+     -334.671,
+     963.723
+    ],
+    [
+     -336.738,
+     973.747
+    ],
+    [
+     -340.567,
+     973.723
+    ],
+    [
+     -336.288,
+     982.051
+    ],
+    [
+     -139.3,
+     982.5
+    ]
+   ]
+  },
+  {
+   "id": "sanbezaka_katsuta",
+   "label": "sanbezaka_katsuta",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoSanbezakaBuilder.KATSUTA",
+   "note": "",
+   "pts": [
+    [
+     -139.3,
+     982.5
+    ],
+    [
+     -216,
+     982.5
+    ],
+    [
+     -216,
+     1062.5
+    ],
+    [
+     -141.8,
+     1062.5
+    ]
+   ]
+  },
+  {
+   "id": "sanbezaka_ooka",
+   "label": "sanbezaka_ooka",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoSanbezakaBuilder.OOKA",
+   "note": "",
+   "pts": [
+    [
+     -141.8,
+     1070.5
+    ],
+    [
+     -217.156,
+     1070.686
+    ],
+    [
+     -221.86,
+     1102.912
+    ],
+    [
+     -224.3,
+     1122.1
+    ],
+    [
+     -145,
+     1121.55
+    ]
+   ]
+  },
+  {
+   "id": "sanbezaka_w1",
+   "label": "sanbezaka_w1",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoSanbezakaBuilder.W1",
+   "note": "",
+   "pts": [
+    [
+     -221.86,
+     1102.912
+    ],
+    [
+     -224.3,
+     1122.1
+    ],
+    [
+     -230.346,
+     1125.481
+    ],
+    [
+     -244.374,
+     1133.042
+    ],
+    [
+     -258.6,
+     1104.6
+    ]
+   ]
+  },
+  {
+   "id": "sanbezaka_w2",
+   "label": "sanbezaka_w2",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoSanbezakaBuilder.W2",
+   "note": "",
+   "pts": [
+    [
+     -258.6,
+     1104.6
+    ],
+    [
+     -294.5,
+     1126.5
+    ],
+    [
+     -293.2,
+     1178.4
+    ],
+    [
+     -283.33,
+     1177.782
+    ],
+    [
+     -282.149,
+     1141.641
+    ],
+    [
+     -256.288,
+     1139.522
+    ],
+    [
+     -244.374,
+     1133.042
+    ]
+   ]
+  },
+  {
+   "id": "sanbezaka_w3",
+   "label": "sanbezaka_w3",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoSanbezakaBuilder.W3",
+   "note": "",
+   "pts": [
+    [
+     -256.288,
+     1139.522
+    ],
+    [
+     -282.149,
+     1141.641
+    ],
+    [
+     -283.33,
+     1177.782
+    ],
+    [
+     -255.924,
+     1174.614
+    ]
+   ]
+  },
+  {
+   "id": "sanbezaka_w4",
+   "label": "sanbezaka_w4",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoSanbezakaBuilder.W4",
+   "note": "",
+   "pts": [
+    [
+     -230.346,
+     1125.481
+    ],
+    [
+     -244.374,
+     1133.042
+    ],
+    [
+     -256.288,
+     1139.522
+    ],
+    [
+     -255.924,
+     1174.614
+    ],
+    [
+     -229.4,
+     1173.7
+    ]
+   ]
+  },
+  {
+   "id": "sanbezaka_w5",
+   "label": "sanbezaka_w5",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoSanbezakaBuilder.W5",
+   "note": "",
+   "pts": [
+    [
+     -224.3,
+     1122.1
+    ],
+    [
+     -224,
+     1173.1
+    ],
+    [
+     -183.8,
+     1172.3
+    ],
+    [
+     -181.949,
+     1121.806
+    ]
+   ]
+  },
+  {
+   "id": "sanbezaka_w6",
+   "label": "sanbezaka_w6",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoSanbezakaBuilder.W6",
+   "note": "",
+   "pts": [
+    [
+     -181.949,
+     1121.806
+    ],
+    [
+     -183.8,
+     1172.3
+    ],
+    [
+     -146.643,
+     1172.137
+    ],
+    [
+     -145,
+     1121.55
+    ]
+   ]
+  },
+  {
+   "id": "sanbezakanishi_matsu",
+   "label": "松平主水正 上屋敷",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoSanbezakaNishiBuilder.MATSU",
+   "note": "",
+   "pts": [
+    [
+     -332.7,
+     1186.5
+    ],
+    [
+     -213.8,
+     1185.9
+    ],
+    [
+     -212.6,
+     1270.2
+    ],
+    [
+     -298.6,
+     1257
+    ]
+   ]
+  },
+  {
+   "id": "sanbezakanishi_torii",
+   "label": "鳥居丹波守 上屋敷",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoSanbezakaNishiBuilder.TORII",
+   "note": "",
+   "pts": [
+    [
+     -475.6,
+     1272.5
+    ],
+    [
+     -445.7,
+     1185.9
+    ],
+    [
+     -332.7,
+     1186.5
+    ],
+    [
+     -298.6,
+     1257
+    ],
+    [
+     -382.3,
+     1245.7
+    ],
+    [
+     -410.4,
+     1292.9
+    ]
+   ]
+  },
+  {
+   "id": "sanbezakanishi_watanabe",
+   "label": "渡辺備中守 上屋敷",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoSanbezakaNishiBuilder.WATANABE",
+   "note": "",
+   "pts": [
+    [
+     -374.381,
+     1061.652
+    ],
+    [
+     -416.3,
+     1103.1
+    ],
+    [
+     -442.7,
+     1178.1
+    ],
+    [
+     -293.2,
+     1178.4
+    ],
+    [
+     -294.5,
+     1126.5
+    ]
+   ]
+  },
+  {
+   "id": "sannobuke_juge",
+   "label": "樹下邸(山王社社家)",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoSannoBukeBuilder.JUGE",
+   "note": "⚠ sannosha_juge と二重定義。どちらが正か要判断",
+   "pts": [
+    [
+     -367.338,
+     912.469
+    ],
+    [
+     -426.2,
+     912.4
+    ],
+    [
+     -449,
+     928.3
+    ],
+    [
+     -483.9,
+     936.8
+    ],
+    [
+     -528.876,
+     956.736
+    ],
+    [
+     -389.028,
+     958.203
+    ],
+    [
+     -388.905,
+     948.245
+    ],
+    [
+     -369.257,
+     948.313
+    ]
+   ]
+  },
+  {
+   "id": "sannobuke_kyogoku",
+   "label": "京極 上屋敷",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoSannoBukeBuilder.KYOGOKU",
+   "note": "",
+   "pts": [
+    [
+     -293.4,
+     677.8
+    ],
+    [
+     -294.1,
+     802.6
+    ],
+    [
+     -129.2,
+     802.3
+    ],
+    [
+     -126.791,
+     677.7
+    ]
+   ]
+  },
+  {
+   "id": "sannobuke_naito",
+   "label": "内藤 上屋敷",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoSannoBukeBuilder.NAITO",
+   "note": "",
+   "pts": [
+    [
+     -373.155,
+     656.793
+    ],
+    [
+     -355.4,
+     601.7
+    ],
+    [
+     -329.4,
+     575.6
+    ],
+    [
+     -285.9,
+     544.1
+    ],
+    [
+     -219.8,
+     521.3
+    ],
+    [
+     -157.5,
+     514.8
+    ],
+    [
+     -93.6,
+     524.3
+    ],
+    [
+     -53.5,
+     538.6
+    ],
+    [
+     -54.2,
+     572.2
+    ],
+    [
+     -88.9,
+     677.7
+    ],
+    [
+     -126.791,
+     677.7
+    ],
+    [
+     -339.6,
+     677.7
+    ]
+   ]
+  },
+  {
+   "id": "sannobuke_niwa",
+   "label": "丹羽 上屋敷",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoSannoBukeBuilder.NIWA",
+   "note": "跡地=議員会館",
+   "pts": [
+    [
+     -129.2,
+     802.3
+    ],
+    [
+     -294.1,
+     802.6
+    ],
+    [
+     -293.4,
+     677.8
+    ],
+    [
+     -339.6,
+     677.7
+    ],
+    [
+     -339.6,
+     813.9
+    ],
+    [
+     -373.2,
+     813.9
+    ],
+    [
+     -373.2,
+     883.3
+    ],
+    [
+     -131.1,
+     883.5
+    ]
+   ]
+  },
+  {
+   "id": "sannobuke_shanin",
+   "label": "山王社 社人八家",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoSannoBukeBuilder.SHANIN",
+   "note": "",
+   "pts": [
+    [
+     -373.155,
+     656.793
+    ],
+    [
+     -373.2,
+     813.9
+    ],
+    [
+     -339.6,
+     813.9
+    ],
+    [
+     -339.6,
+     677.7
+    ]
+   ]
+  },
+  {
+   "id": "sanyashiki_estates_0",
+   "label": "Edo_Yashiki_Ota",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoSanyashikiRebuild.Estates[0]",
+   "note": "",
+   "pts": [
+    [
+     91.133,
+     309.677
+    ],
+    [
+     60.718,
+     255.694
+    ],
+    [
+     109.858,
+     229.361
+    ],
+    [
+     157.5,
+     275.6
+    ]
+   ]
+  },
+  {
+   "id": "sanyashiki_estates_1",
+   "label": "Edo_Yashiki_Kano",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoSanyashikiRebuild.Estates[1]",
+   "note": "",
+   "pts": [
+    [
+     23.3,
+     343.9
+    ],
+    [
+     -25.672,
+     300.987
+    ],
+    [
+     60.718,
+     255.694
+    ],
+    [
+     91.133,
+     309.677
+    ]
+   ]
+  },
+  {
+   "id": "sanyashiki_estates_2",
+   "label": "Edo_Yashiki_Matsudaira",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoSanyashikiRebuild.Estates[2]",
+   "note": "",
+   "pts": [
+    [
+     -25.672,
+     300.987
+    ],
+    [
+     -121.842,
+     224.98
+    ],
+    [
+     -117.075,
+     209.089
+    ],
+    [
+     -119.458,
+     201.541
+    ],
+    [
+     -16.961,
+     107.784
+    ],
+    [
+     109.858,
+     229.361
+    ],
+    [
+     60.718,
+     255.694
+    ]
+   ]
+  },
+  {
+   "id": "tameikekita_estates_0",
+   "label": "Edo_Yashiki_MatsudairaMino",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoTameikeKitaBuilder.Estates[0]",
+   "note": "",
+   "pts": [
+    [
+     -559.2,
+     97.1
+    ],
+    [
+     -463.3,
+     228.6
+    ],
+    [
+     -425.4,
+     249.7
+    ],
+    [
+     -394.2,
+     291.7
+    ],
+    [
+     -398,
+     406.5
+    ],
+    [
+     -553.1,
+     532
+    ],
+    [
+     -583.7,
+     546.8
+    ],
+    [
+     -619.4,
+     536.3
+    ],
+    [
+     -584.902,
+     410.081
+    ],
+    [
+     -555.8,
+     303.6
+    ],
+    [
+     -758,
+     245.2
+    ],
+    [
+     -716.1,
+     191.2
+    ]
+   ]
+  },
+  {
+   "id": "tameikekita_estates_1",
+   "label": "Edo_Yashiki_MizunoHyuga",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoTameikeKitaBuilder.Estates[1]",
+   "note": "",
+   "pts": [
+    [
+     -676.515,
+     268.735
+    ],
+    [
+     -704.2,
+     377.2
+    ],
+    [
+     -584.902,
+     410.081
+    ],
+    [
+     -555.8,
+     303.6
+    ]
+   ]
+  },
+  {
+   "id": "tameikekita_estates_2",
+   "label": "Edo_Yashiki_SagaraEchizen",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoTameikeKitaBuilder.Estates[2]",
+   "note": "",
+   "pts": [
+    [
+     -704.2,
+     377.2
+    ],
+    [
+     -739.7,
+     475.9
+    ],
+    [
+     -710.6,
+     511.8
+    ],
+    [
+     -619.4,
+     536.3
+    ],
+    [
+     -584.902,
+     410.081
+    ]
+   ]
+  },
+  {
+   "id": "todablock_parcels_0",
+   "label": "Edo_Yashiki_TodaUneme",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoTodaBlockBuilder.Parcels[0]",
+   "note": "",
+   "pts": [
+    [
+     -320.94,
+     161.104
+    ],
+    [
+     -425.3,
+     222.7
+    ],
+    [
+     -530.6,
+     68
+    ],
+    [
+     -589.3,
+     105.5
+    ],
+    [
+     -619.4,
+     60.5
+    ],
+    [
+     -511.5,
+     -9
+    ],
+    [
+     -469.6,
+     28
+    ],
+    [
+     -472.9,
+     55.75
+    ],
+    [
+     -453.7,
+     83.7
+    ],
+    [
+     -373.4,
+     31.7
+    ],
+    [
+     -354.5,
+     50.6
+    ],
+    [
+     -329.8,
+     91.8
+    ],
+    [
+     -354.646,
+     106.877
+    ]
+   ]
+  },
+  {
+   "id": "todablock_parcels_2",
+   "label": "Edo_Yashiki_Inoue",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoTodaBlockBuilder.Parcels[2]",
+   "note": "",
+   "pts": [
+    [
+     -373.4,
+     31.7
+    ],
+    [
+     -453.7,
+     83.7
+    ],
+    [
+     -472.9,
+     55.75
+    ],
+    [
+     -469.6,
+     28
+    ],
+    [
+     -400.6,
+     -13.25
+    ]
+   ]
+  },
+  {
+   "id": "toranomonuchi_parcels_0",
+   "label": "Edo_Yashiki_NaitoNoto",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoToranomonUchiBuilder.Parcels[0]",
+   "note": "",
+   "pts": [
+    [
+     289,
+     543
+    ],
+    [
+     281,
+     509
+    ],
+    [
+     315,
+     490
+    ],
+    [
+     182,
+     359
+    ],
+    [
+     69,
+     417
+    ],
+    [
+     95,
+     556
+    ],
+    [
+     66,
+     611
+    ],
+    [
+     73.5,
+     630.5
+    ],
+    [
+     111.5,
+     615
+    ],
+    [
+     163.5,
+     598
+    ],
+    [
+     167,
+     592
+    ]
+   ]
+  },
+  {
+   "id": "toranomonuchi_parcels_1",
+   "label": "Edo_Yashiki_Murase",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoToranomonUchiBuilder.Parcels[1]",
+   "note": "",
+   "pts": [
+    [
+     289,
+     543
+    ],
+    [
+     339,
+     522
+    ],
+    [
+     330,
+     504
+    ],
+    [
+     315,
+     490
+    ],
+    [
+     281,
+     509
+    ]
+   ]
+  },
+  {
+   "id": "toranomonuchi_parcels_2",
+   "label": "Edo_Yashiki_Ogura",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoToranomonUchiBuilder.Parcels[2]",
+   "note": "",
+   "pts": [
+    [
+     163.5,
+     598
+    ],
+    [
+     176.5,
+     636
+    ],
+    [
+     126,
+     655
+    ],
+    [
+     111.5,
+     615
+    ]
+   ]
+  },
+  {
+   "id": "toranomonuchi_parcels_3",
+   "label": "Edo_Yashiki_HayashiZusho",
+   "category": "buke",
+   "color": 2,
+   "source": "EdoToranomonUchiBuilder.Parcels[3]",
+   "note": "",
+   "pts": [
+    [
+     73.5,
+     630.5
+    ],
+    [
+     86.498,
+     669.259
+    ],
+    [
+     126,
+     655
+    ],
+    [
+     111.5,
+     615
+    ]
+   ]
+  },
+  {
+   "id": "sannojubo_parcels_0",
+   "label": "Edo_SannoBo_Enjoin",
+   "category": "jisha",
+   "color": 3,
+   "source": "EdoSannoJuboBuilder.Parcels[0]",
+   "note": "",
+   "pts": [
+    [
+     -389.8,
+     722.5
+    ],
+    [
+     -389.2,
+     644.6
+    ],
+    [
+     -414.2,
+     649.7
+    ],
+    [
+     -415.6,
+     721
+    ]
+   ]
+  },
+  {
+   "id": "sannojubo_parcels_1",
+   "label": "Edo_SannoBo_Jojuin",
+   "category": "jisha",
+   "color": 3,
+   "source": "EdoSannoJuboBuilder.Parcels[1]",
+   "note": "",
+   "pts": [
+    [
+     -415.6,
+     721
+    ],
+    [
+     -414.2,
+     649.7
+    ],
+    [
+     -439.65,
+     658.3
+    ],
+    [
+     -440.8,
+     720.8
+    ]
+   ]
+  },
+  {
+   "id": "sannojubo_parcels_2",
+   "label": "Edo_SannoBo_Hozoin",
+   "category": "jisha",
+   "color": 3,
+   "source": "EdoSannoJuboBuilder.Parcels[2]",
+   "note": "",
+   "pts": [
+    [
+     -440.8,
+     720.8
+    ],
+    [
+     -439.65,
+     658.3
+    ],
+    [
+     -463.65,
+     670.65
+    ],
+    [
+     -461.75,
+     721.8
+    ]
+   ]
+  },
+  {
+   "id": "sannojubo_parcels_3",
+   "label": "Edo_SannoBo_Chomyoin",
+   "category": "jisha",
+   "color": 3,
+   "source": "EdoSannoJuboBuilder.Parcels[3]",
+   "note": "",
+   "pts": [
+    [
+     -461.75,
+     721.8
+    ],
+    [
+     -463.65,
+     670.65
+    ],
+    [
+     -493,
+     687.9
+    ],
+    [
+     -486.5,
+     725.05
+    ]
+   ]
+  },
+  {
+   "id": "sannojubo_parcels_4",
+   "label": "Edo_SannoBo_Fukujuin",
+   "category": "jisha",
+   "color": 3,
+   "source": "EdoSannoJuboBuilder.Parcels[4]",
+   "note": "",
+   "pts": [
+    [
+     -486.5,
+     725.05
+    ],
+    [
+     -493,
+     687.9
+    ],
+    [
+     -518.3,
+     702.4
+    ],
+    [
+     -507,
+     733.95
+    ]
+   ]
+  },
+  {
+   "id": "sannojubo_parcels_5",
+   "label": "Edo_SannoBo_Chikoin",
+   "category": "jisha",
+   "color": 3,
+   "source": "EdoSannoJuboBuilder.Parcels[5]",
+   "note": "",
+   "pts": [
+    [
+     -507,
+     733.95
+    ],
+    [
+     -518.3,
+     702.4
+    ],
+    [
+     -541.35,
+     717.95
+    ],
+    [
+     -521.3,
+     745.2
+    ]
+   ]
+  },
+  {
+   "id": "sannojubo_parcels_6",
+   "label": "Edo_SannoBo_Hosenin",
+   "category": "jisha",
+   "color": 3,
+   "source": "EdoSannoJuboBuilder.Parcels[6]",
+   "note": "",
+   "pts": [
+    [
+     -521.3,
+     745.2
+    ],
+    [
+     -541.35,
+     717.95
+    ],
+    [
+     -554.05,
+     733.7
+    ],
+    [
+     -533.45,
+     757.6
+    ]
+   ]
+  },
+  {
+   "id": "sannojubo_parcels_7",
+   "label": "Edo_SannoBo_Muryoin",
+   "category": "jisha",
+   "color": 3,
+   "source": "EdoSannoJuboBuilder.Parcels[7]",
+   "note": "",
+   "pts": [
+    [
+     -533.45,
+     757.6
+    ],
+    [
+     -554.05,
+     733.7
+    ],
+    [
+     -574.85,
+     762.2
+    ],
+    [
+     -552.1,
+     775.3
+    ]
+   ]
+  },
+  {
+   "id": "sannojubo_parcels_8",
+   "label": "Edo_SannoBo_Chijoin",
+   "category": "jisha",
+   "color": 3,
+   "source": "EdoSannoJuboBuilder.Parcels[8]",
+   "note": "",
+   "pts": [
+    [
+     -552.1,
+     775.3
+    ],
+    [
+     -574.85,
+     762.2
+    ],
+    [
+     -610.4,
+     830.3
+    ],
+    [
+     -587.9,
+     836.5
+    ]
+   ]
+  },
+  {
+   "id": "sannojubo_parcels_9",
+   "label": "Edo_SannoBo_Jomyoin",
+   "category": "jisha",
+   "color": 3,
+   "source": "EdoSannoJuboBuilder.Parcels[9]",
+   "note": "",
+   "pts": [
+    [
+     -606.16,
+     852.354
+    ],
+    [
+     -622.49,
+     847.797
+    ],
+    [
+     -634.642,
+     894.128
+    ],
+    [
+     -637.576,
+     926.585
+    ],
+    [
+     -653.64,
+     964.108
+    ],
+    [
+     -609.578,
+     966.663
+    ],
+    [
+     -577.678,
+     957.169
+    ],
+    [
+     -605.78,
+     938.561
+    ],
+    [
+     -614.894,
+     923.37
+    ],
+    [
+     -616.413,
+     898.685
+    ]
+   ]
+  },
+  {
+   "id": "sannosha_juge",
+   "label": "樹下邸(社ビルダー側)",
+   "category": "jisha",
+   "color": 3,
+   "source": "EdoSannoShaBuilder.JUGE",
+   "note": "⚠ sannobuke_juge と二重定義。どちらが正か要判断",
+   "pts": [
+    [
+     -470,
+     900
+    ],
+    [
+     -428,
+     900
+    ],
+    [
+     -428,
+     936
+    ],
+    [
+     -470,
+     936
+    ]
+   ]
+  },
+  {
+   "id": "sannosha_kanri",
+   "label": "観理院(山王社別当)",
+   "category": "jisha",
+   "color": 3,
+   "source": "EdoSannoShaBuilder.KANRI",
+   "note": "",
+   "pts": [
+    [
+     -389.4,
+     735.3
+    ],
+    [
+     -419.145,
+     733.306
+    ],
+    [
+     -426.2,
+     851.4
+    ],
+    [
+     -409.7,
+     888.1
+    ],
+    [
+     -390.2,
+     888.3
+    ]
+   ]
+  },
+  {
+   "id": "sannosha_prec",
+   "label": "山王社 境内(透塀)",
+   "category": "jisha",
+   "color": 3,
+   "source": "EdoSannoShaBuilder.PREC",
+   "note": "",
+   "pts": [
+    [
+     -566,
+     818
+    ],
+    [
+     -490,
+     818
+    ],
+    [
+     -490,
+     896
+    ],
+    [
+     -566,
+     896
+    ]
+   ]
+  },
+  {
+   "id": "todablock_parcels_3",
+   "label": "Edo_Temple_Chosenji",
+   "category": "jisha",
+   "color": 3,
+   "source": "EdoTodaBlockBuilder.Parcels[3]",
+   "note": "",
+   "pts": [
+    [
+     -320.94,
+     161.104
+    ],
+    [
+     -238.635,
+     111.312
+    ],
+    [
+     -262.206,
+     67.529
+    ],
+    [
+     -269.646,
+     71.508
+    ],
+    [
+     -301.12,
+     89.452
+    ],
+    [
+     -308.65,
+     80.4
+    ],
+    [
+     -354.646,
+     106.877
+    ]
+   ]
+  },
+  {
+   "id": "todablock_parcels_4",
+   "label": "Edo_Temple_Yosenji",
+   "category": "jisha",
+   "color": 3,
+   "source": "EdoTodaBlockBuilder.Parcels[4]",
+   "note": "",
+   "pts": [
+    [
+     -329.8,
+     91.8
+    ],
+    [
+     -308.65,
+     80.4
+    ],
+    [
+     -301.12,
+     89.452
+    ],
+    [
+     -269.646,
+     71.508
+    ],
+    [
+     -298.7,
+     19.2
+    ],
+    [
+     -354.5,
+     50.6
+    ]
+   ]
+  },
+  {
+   "id": "azukarichi_gr",
+   "label": "azukarichi_gr",
+   "category": "kouyuu",
+   "color": 6,
+   "source": "EdoAzukarichiBuilder.GR",
+   "note": "",
+   "pts": [
+    [
+     -646.79,
+     694.92
+    ],
+    [
+     -606.47,
+     715.77
+    ],
+    [
+     -360.39,
+     486.38
+    ],
+    [
+     -390.232,
+     454.436
+    ],
+    [
+     -544.659,
+     567.095
+    ],
+    [
+     -553.64,
+     575.36
+    ]
+   ]
+  },
+  {
+   "id": "azukarichi_pu",
+   "label": "azukarichi_pu",
+   "category": "kouyuu",
+   "color": 6,
+   "source": "EdoAzukarichiBuilder.PU",
+   "note": "",
+   "pts": [
+    [
+     -355.46,
+     483.4
+    ],
+    [
+     -291.96,
+     441.54
+    ],
+    [
+     -240.33,
+     419.21
+    ],
+    [
+     -167.76,
+     406.65
+    ],
+    [
+     -93.8,
+     398.28
+    ],
+    [
+     -44.26,
+     395.48
+    ],
+    [
+     -80.54,
+     373.16
+    ],
+    [
+     -205.44,
+     325.01
+    ],
+    [
+     -308.71,
+     369.67
+    ],
+    [
+     -387.432,
+     448.654
+    ]
+   ]
+  },
+  {
+   "id": "azukarichi_w1",
+   "label": "azukarichi_w1",
+   "category": "kouyuu",
+   "color": 6,
+   "source": "EdoAzukarichiBuilder.W1",
+   "note": "",
+   "pts": [
+    [
+     -547.24,
+     595.91
+    ],
+    [
+     -601.74,
+     660.89
+    ],
+    [
+     -585.81,
+     671.37
+    ],
+    [
+     -528.8,
+     607.23
+    ]
+   ]
+  },
+  {
+   "id": "azukarichi_w2",
+   "label": "azukarichi_w2",
+   "category": "kouyuu",
+   "color": 6,
+   "source": "EdoAzukarichiBuilder.W2",
+   "note": "",
+   "pts": [
+    [
+     -643.37,
+     738.04
+    ],
+    [
+     -664.37,
+     790.74
+    ],
+    [
+     -653.36,
+     795.24
+    ],
+    [
+     -632.2,
+     742.49
+    ]
+   ]
+  },
+  {
+   "id": "azukarichi_w3",
+   "label": "azukarichi_w3",
+   "category": "kouyuu",
+   "color": 6,
+   "source": "EdoAzukarichiBuilder.W3",
+   "note": "",
+   "pts": [
+    [
+     -675.09,
+     818.44
+    ],
+    [
+     -684.03,
+     839.88
+    ],
+    [
+     -672.41,
+     844.35
+    ],
+    [
+     -663.48,
+     820.22
+    ]
+   ]
+  },
+  {
+   "id": "azukarichi_w5",
+   "label": "azukarichi_w5",
+   "category": "kouyuu",
+   "color": 6,
+   "source": "EdoAzukarichiBuilder.W5",
+   "note": "",
+   "pts": [
+    [
+     -826.52,
+     1156.51
+    ],
+    [
+     -807.51,
+     1162.76
+    ],
+    [
+     -801.79,
+     1146.61
+    ],
+    [
+     -820.53,
+     1139.59
+    ]
+   ]
+  },
+  {
+   "id": "azukarichi_yl",
+   "label": "azukarichi_yl",
+   "category": "kouyuu",
+   "color": 6,
+   "source": "EdoAzukarichiBuilder.YL",
+   "note": "",
+   "pts": [
+    [
+     -285.95,
+     390.25
+    ],
+    [
+     -232.08,
+     368.55
+    ],
+    [
+     -227.42,
+     381.34
+    ],
+    [
+     -281.3,
+     401.88
+    ]
+   ]
+  },
+  {
+   "id": "todablock_parcels_1",
+   "label": "Edo_Hikeshi_Koide",
+   "category": "kouyuu",
+   "color": 6,
+   "source": "EdoTodaBlockBuilder.Parcels[1]",
+   "note": "",
+   "pts": [
+    [
+     -200.3,
+     88.2
+    ],
+    [
+     -245.4,
+     -6.7
+    ],
+    [
+     -290,
+     15.9
+    ],
+    [
+     -238.635,
+     111.312
+    ]
+   ]
+  },
+  {
+   "id": "daichi_nagaichopoly",
+   "label": "daichi_nagaichopoly",
+   "category": "machiya",
+   "color": 4,
+   "source": "EdoDaichiBuilder.NagaichoPoly",
+   "note": "",
+   "pts": [
+    [
+     -451.01,
+     474.71
+    ],
+    [
+     -554.709,
+     552.612
+    ],
+    [
+     -544.659,
+     567.095
+    ],
+    [
+     -441.067,
+     486.99
+    ]
+   ]
+  },
+  {
+   "id": "daichi_seiryujipoly",
+   "label": "daichi_seiryujipoly",
+   "category": "machiya",
+   "color": 4,
+   "source": "EdoDaichiBuilder.SeiryujiPoly",
+   "note": "",
+   "pts": [
+    [
+     -382.06,
+     417.87
+    ],
+    [
+     -446.57,
+     471.25
+    ],
+    [
+     -437.381,
+     484.14
+    ],
+    [
+     -372.345,
+     431.662
+    ]
+   ]
+  },
+  {
+   "id": "daichikita_jm",
+   "label": "daichikita_jm",
+   "category": "machiya",
+   "color": 4,
+   "source": "EdoDaichiKitaBuilder.JM",
+   "note": "",
+   "pts": [
+    [
+     -825.19,
+     1019.95
+    ],
+    [
+     -816.59,
+     996.54
+    ],
+    [
+     -786.97,
+     1008
+    ],
+    [
+     -797,
+     1033.32
+    ]
+   ]
+  },
+  {
+   "id": "daichikita_r1",
+   "label": "daichikita_r1",
+   "category": "machiya",
+   "color": 4,
+   "source": "EdoDaichiKitaBuilder.R1",
+   "note": "",
+   "pts": [
+    [
+     -664.93,
+     721.86
+    ],
+    [
+     -691.56,
+     792.63
+    ],
+    [
+     -678.59,
+     797.53
+    ],
+    [
+     -651.27,
+     725.71
+    ]
+   ]
+  },
+  {
+   "id": "daichikita_r2",
+   "label": "daichikita_r2",
+   "category": "machiya",
+   "color": 4,
+   "source": "EdoDaichiKitaBuilder.R2",
+   "note": "",
+   "pts": [
+    [
+     -696.49,
+     802.52
+    ],
+    [
+     -709.43,
+     839.37
+    ],
+    [
+     -693.91,
+     843.9
+    ],
+    [
+     -681.62,
+     807.05
+    ]
+   ]
+  },
+  {
+   "id": "daichikita_y1",
+   "label": "daichikita_y1",
+   "category": "machiya",
+   "color": 4,
+   "source": "EdoDaichiKitaBuilder.Y1",
+   "note": "",
+   "pts": [
+    [
+     -712.66,
+     849.07
+    ],
+    [
+     -739.81,
+     918.9
+    ],
+    [
+     -723.65,
+     924.07
+    ],
+    [
+     -697.14,
+     852.31
+    ]
+   ]
+  },
+  {
+   "id": "daichikita_y2",
+   "label": "daichikita_y2",
+   "category": "machiya",
+   "color": 4,
+   "source": "EdoDaichiKitaBuilder.Y2",
+   "note": "",
+   "pts": [
+    [
+     -743.02,
+     930.13
+    ],
+    [
+     -778.85,
+     1021.86
+    ],
+    [
+     -767.38,
+     1025.68
+    ],
+    [
+     -730.59,
+     932.04
+    ]
+   ]
+  },
+  {
+   "id": "sanno_monzen_1",
+   "label": "山王_門前1",
+   "category": "machiya",
+   "color": 5,
+   "source": "",
+   "note": "",
+   "pts": [
+    [
+     -362.542,
+     958.226
+    ],
+    [
+     -374.806,
+     958.352
+    ],
+    [
+     -389.028,
+     958.203
+    ],
+    [
+     -389.028,
+     958.203
+    ],
+    [
+     -388.905,
+     948.245
+    ],
+    [
+     -369.257,
+     948.313
+    ],
+    [
+     -367.338,
+     912.469
+    ],
+    [
+     -366.971,
+     901.874
+    ],
+    [
+     -354.373,
+     901.874
+    ]
+   ]
+  },
+  {
+   "id": "sanno_monzen_2",
+   "label": "山王_門前2",
+   "category": "machiya",
+   "color": 5,
+   "source": "",
+   "note": "",
+   "pts": [
+    [
+     -365.44,
+     973.385
+    ],
+    [
+     -364.866,
+     967.98
+    ],
+    [
+     -354.178,
+     968.306
+    ],
+    [
+     -343.836,
+     901.874
+    ],
+    [
+     -334.455,
+     901.655
+    ],
+    [
+     -345.195,
+     963.382
+    ],
+    [
+     -334.671,
+     963.723
+    ],
+    [
+     -336.738,
+     973.747
+    ],
+    [
+     -340.567,
+     973.723
+    ]
+   ]
+  },
+  {
+   "id": "sanno_monzen_3",
+   "label": "山王_門前3",
+   "category": "machiya",
+   "color": 5,
+   "source": "",
+   "note": "",
+   "pts": [
+    [
+     -234.186,
+     897.679
+    ],
+    [
+     -132.126,
+     897.48
+    ],
+    [
+     -132.126,
+     904.257
+    ],
+    [
+     -234.186,
+     904.457
+    ]
+   ]
+  },
+  {
+   "id": "sanno_monzen_4",
+   "label": "山王_門前4",
+   "category": "machiya",
+   "color": 5,
+   "source": "",
+   "note": "",
+   "pts": [
+    [
+     -130.877,
+     889.213
+    ],
+    [
+     -234.288,
+     889.213
+    ],
+    [
+     -234.234,
+     883.415
+    ],
+    [
+     -131.1,
+     883.5
+    ]
+   ]
+  },
+  {
+   "id": "shinmachi_cy",
+   "label": "shinmachi_cy",
+   "category": "machiya",
+   "color": 4,
+   "source": "EdoShinmachiBuilder.CY",
+   "note": "",
+   "pts": [
+    [
+     -885.87,
+     1153.45
+    ],
+    [
+     -929.56,
+     1124.32
+    ],
+    [
+     -891.975,
+     1030.88
+    ],
+    [
+     -848.32,
+     1047.85
+    ]
+   ]
+  },
+  {
+   "id": "shinmachi_gr",
+   "label": "shinmachi_gr",
+   "category": "machiya",
+   "color": 4,
+   "source": "EdoShinmachiBuilder.GR",
+   "note": "",
+   "pts": [
+    [
+     -879.5,
+     996.86
+    ],
+    [
+     -856.11,
+     907.745
+    ],
+    [
+     -799.75,
+     921.04
+    ],
+    [
+     -832.44,
+     1005.66
+    ]
+   ]
+  },
+  {
+   "id": "shinmachi_pu",
+   "label": "shinmachi_pu",
+   "category": "machiya",
+   "color": 4,
+   "source": "EdoShinmachiBuilder.PU",
+   "note": "",
+   "pts": [
+    [
+     -856.11,
+     907.745
+    ],
+    [
+     -838.38,
+     834.29
+    ],
+    [
+     -772.52,
+     848.22
+    ],
+    [
+     -798.77,
+     919.57
+    ]
+   ]
+  },
+  {
+   "id": "shinmachi_ra",
+   "label": "shinmachi_ra",
+   "category": "machiya",
+   "color": 4,
+   "source": "EdoShinmachiBuilder.RA",
+   "note": "",
+   "pts": [
+    [
+     -834.95,
+     827.52
+    ],
+    [
+     -769.82,
+     840.71
+    ],
+    [
+     -754.89,
+     798.88
+    ],
+    [
+     -768.79,
+     794.04
+    ]
+   ]
+  },
+  {
+   "id": "shinmachi_rb",
+   "label": "shinmachi_rb",
+   "category": "machiya",
+   "color": 4,
+   "source": "EdoShinmachiBuilder.RB",
+   "note": "",
+   "pts": [
+    [
+     -751.74,
+     792.02
+    ],
+    [
+     -767.41,
+     787.17
+    ],
+    [
+     -785.16,
+     761.83
+    ],
+    [
+     -777.62,
+     729.49
+    ],
+    [
+     -731.26,
+     740.27
+    ],
+    [
+     -749.59,
+     790.94
+    ]
+   ]
+  },
+  {
+   "id": "shinmachi_rc",
+   "label": "shinmachi_rc",
+   "category": "machiya",
+   "color": 4,
+   "source": "EdoShinmachiBuilder.RC",
+   "note": "",
+   "pts": [
+    [
+     -777.03,
+     787.86
+    ],
+    [
+     -819.29,
+     810.2
+    ],
+    [
+     -830.61,
+     798.16
+    ],
+    [
+     -823.05,
+     776.18
+    ],
+    [
+     -816.87,
+     751.45
+    ],
+    [
+     -796.95,
+     757.63
+    ]
+   ]
+  },
+  {
+   "id": "shinmachi_ye",
+   "label": "shinmachi_ye",
+   "category": "machiya",
+   "color": 4,
+   "source": "EdoShinmachiBuilder.YE",
+   "note": "",
+   "pts": [
+    [
+     -848.32,
+     1047.85
+    ],
+    [
+     -891.975,
+     1030.88
+    ],
+    [
+     -882.7,
+     1004
+    ],
+    [
+     -835.21,
+     1014.13
+    ]
+   ]
+  },
+  {
+   "id": "tamachi5east_azukaripoly",
+   "label": "tamachi5east_azukaripoly",
+   "category": "machiya",
+   "color": 4,
+   "source": "EdoTamachi5EastBuilder.AzukariPoly",
+   "note": "",
+   "pts": [
+    [
+     -605.276,
+     605.891
+    ],
+    [
+     -582.62,
+     570.24
+    ],
+    [
+     -573.441,
+     576.342
+    ],
+    [
+     -598.526,
+     610.029
+    ]
+   ]
+  },
+  {
+   "id": "tamachi5east_horiguchipoly",
+   "label": "tamachi5east_horiguchipoly",
+   "category": "machiya",
+   "color": 4,
+   "source": "EdoTamachi5EastBuilder.HoriguchiPoly",
+   "note": "",
+   "pts": [
+    [
+     -624.43,
+     627
+    ],
+    [
+     -611.62,
+     602.32
+    ],
+    [
+     -605.276,
+     605.891
+    ],
+    [
+     -598.526,
+     610.029
+    ],
+    [
+     -613.62,
+     632.555
+    ]
+   ]
+  },
+  {
+   "id": "tamachi5east_kaishopoly",
+   "label": "tamachi5east_kaishopoly",
+   "category": "machiya",
+   "color": 4,
+   "source": "EdoTamachi5EastBuilder.KaishoPoly",
+   "note": "",
+   "pts": [
+    [
+     -573.441,
+     576.342
+    ],
+    [
+     -563.319,
+     583.543
+    ],
+    [
+     -621.93,
+     656.52
+    ],
+    [
+     -635.03,
+     649.17
+    ],
+    [
+     -624.43,
+     627
+    ],
+    [
+     -613.62,
+     632.555
+    ],
+    [
+     -598.526,
+     610.029
+    ],
+    [
+     -573.441,
+     576.342
+    ]
+   ]
+  },
+  {
+   "id": "tamachi5east_machiyapoly",
+   "label": "tamachi5east_machiyapoly",
+   "category": "machiya",
+   "color": 4,
+   "source": "EdoTamachi5EastBuilder.MachiyaPoly",
+   "note": "",
+   "pts": [
+    [
+     -591.62,
+     564.82
+    ],
+    [
+     -611.62,
+     602.32
+    ],
+    [
+     -605.276,
+     605.891
+    ],
+    [
+     -582.62,
+     570.24
+    ]
+   ]
+  },
+  {
+   "id": "tamachi_chos_0",
+   "label": "Edo_Tamachi_5",
+   "category": "machiya",
+   "color": 4,
+   "source": "EdoTamachiBuilder.Chos[0]",
+   "note": "",
+   "pts": [
+    [
+     -665.72,
+     688.27
+    ],
+    [
+     -692.16,
+     678.86
+    ],
+    [
+     -646.92,
+     543.71
+    ],
+    [
+     -603.43,
+     556.05
+    ]
+   ]
+  },
+  {
+   "id": "tamachi_chos_1",
+   "label": "Edo_Tamachi_4",
+   "category": "machiya",
+   "color": 4,
+   "source": "EdoTamachiBuilder.Chos[1]",
+   "note": "",
+   "pts": [
+    [
+     -697.45,
+     688.85
+    ],
+    [
+     -668.66,
+     700.02
+    ],
+    [
+     -708.85,
+     807.15
+    ],
+    [
+     -738.59,
+     796.39
+    ]
+   ]
+  },
+  {
+   "id": "tamachi_chos_2",
+   "label": "Edo_Tamachi_3",
+   "category": "machiya",
+   "color": 4,
+   "source": "EdoTamachiBuilder.Chos[2]",
+   "note": "",
+   "pts": [
+    [
+     -742.92,
+     810.05
+    ],
+    [
+     -712.66,
+     821.89
+    ],
+    [
+     -753.45,
+     924.53
+    ],
+    [
+     -782.39,
+     915.32
+    ]
+   ]
+  },
+  {
+   "id": "tamachi_chos_3",
+   "label": "Edo_Tamachi_2",
+   "category": "machiya",
+   "color": 4,
+   "source": "EdoTamachiBuilder.Chos[3]",
+   "note": "",
+   "pts": [
+    [
+     -802.13,
+     1053.47
+    ],
+    [
+     -831.64,
+     1039.75
+    ],
+    [
+     -788.05,
+     927.02
+    ],
+    [
+     -756.08,
+     939
+    ]
+   ]
+  },
+  {
+   "id": "tamachi_chos_4",
+   "label": "Edo_Tamachi_1",
+   "category": "machiya",
+   "color": 4,
+   "source": "EdoTamachiBuilder.Chos[4]",
+   "note": "",
+   "pts": [
+    [
+     -836.15,
+     1053.27
+    ],
+    [
+     -873.72,
+     1159.98
+    ],
+    [
+     -849.67,
+     1173.51
+    ],
+    [
+     -809.09,
+     1065.3
+    ]
+   ]
+  },
+  {
+   "id": "matsudaira_yamato",
+   "label": "松平大和守 上屋敷",
+   "category": "other",
+   "color": 5,
+   "source": "EdoYamatoRebuild.Poly",
+   "note": "川越藩。汐見坂南9,661坪。跡地=ホテルオークラ",
+   "pts": [
+    [
+     -131,
+     168.9
+    ],
+    [
+     -156,
+     130
+    ],
+    [
+     -180.7,
+     91.8
+    ],
+    [
+     -201,
+     54.9
+    ],
+    [
+     -220.1,
+     16.4
+    ],
+    [
+     -238,
+     -21.4
+    ],
+    [
+     -195,
+     -45.7
+    ],
+    [
+     -153.8,
+     -62.1
+    ],
+    [
+     -116.6,
+     -71.1
+    ],
+    [
+     -85.5,
+     -61.1
+    ],
+    [
+     -48.5,
+     -33.8
+    ],
+    [
+     -21.7,
+     -11.1
+    ],
+    [
+     -4.4,
+     8.8
+    ],
+    [
+     14,
+     36
+    ]
+   ]
+  }
+ ]
 }

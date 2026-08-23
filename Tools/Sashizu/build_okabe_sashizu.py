@@ -2304,7 +2304,7 @@ def main():
              '「倒れる前の姿」として遡って使う。<br>'
              '<b>当主=岡部内膳正 長和</b>(10代。⚠ 嘉永3年9月24日に没し弟の長発が継ぐので、'
              '「当主=長和」と言えるのは同年9月まで【確度B — Web二次】)。'
-             '「岡部筑前守」は12代 長寛(安政2年家督)以降の受領名で、家の通称として表題に用いる。<br>'
+             '「岡部筑前守」は12代 長寛(安政2年家督)以降の受領名。<b>基準年次が嘉永3年なので表題は「内膳正」を採る</b>。<br>'
              '<b>外構が「塀」であったことは当屋敷を含む一次記録から言える</b> — 安政江戸地震の被害書上が'
              '3邸一括で「右外構練塀潰其外所々大破」と記す記事に当屋敷が含まれる【<b>種別=確度S(暫定)</b>】。'
              '⚠ ただし<b>どの辺か・誰が所有した塀かは書かれていない</b>ので、'
@@ -2332,9 +2332,13 @@ def main():
         _kn[0] += 1
         return KAN[_kn[0] - 1]
 
-    plate(h, nx(), "敷地", "%.0f m²(%.0f坪)/[元文3年]の %s 級の規定(5,000〜5,100坪)の約 %.1f 倍"
-          "/江戸間 1間=%.3fm/グリッドは東辺(表門の辺)沿いの回転フレーム"
-          % (area, area / TSUBO, hn.get("kokuJa", ""), (area / TSUBO) / 5050.0, d["const"]["ken"]))
+    plate(h, nx(), "敷地",
+          "**拝領 %s坪余 ＋ 永預 %d坪余**([大江戸今昔めぐり 岡部区画]B)／"
+          "当図の polygon %.0f m²(%.0f坪) = 拝領の %+.1f%%／江戸間 1間=%.3fm／"
+          "グリッドは東辺(表門の辺)沿いの回転フレーム"
+          % ("{:,}".format(int(hn.get("tsubo", 0))), hn.get("tsuboAzukari", 0),
+             area, area / TSUBO,
+             100.0 * ((area / TSUBO) / hn.get("tsubo", 1) - 1.0), d["const"]["ken"]))
     plane_legend = "".join(
         '<span style="color:%s">■ %s%s</span>'
         % (PLANE_COL.get(p["name"], "var(--dan4)"), p["name"],
@@ -2519,13 +2523,17 @@ def main():
              '混ぜない(分母の定義も原典未確認 — sources.md の⚠)。'
              '外周は全周 <b>%.0fm</b> のうち当家が建てるのが <b>%.0fm(%.0f%%)</b> で、'
              'その内訳は練塀 %.0fm・木柵 %.0fm・長屋門 %.1fm。<b>表長屋は0本</b>。'
+             '⚠ <b>面積が二つ併存する</b> — 記録の拝領坪数 %s坪余で割れば <b>%.1f%%</b>。'
+             '分母は図の実体である polygon のままにするが、読者に隠さない。'
              '<b>建蔽率は結果であって目標ではない</b> — 数字のために空地へ棟を足さない。</p>'
              % (kp, 100.0 * hika,
                 perim, ownL + d["gate"]["plan"]["monW"],
                 100.0 * (ownL + d["gate"]["plan"]["monW"]) / perim,
                 sum(r["s1"] - r["s0"] for r in d["runs"]),
                 sum(f["s1"] - f["s0"] for f in d.get("fences", [])),
-                d["gate"]["plan"]["monW"]))
+                d["gate"]["plan"]["monW"],
+                "{:,}".format(int(d.get("han", {}).get("tsubo", 0))),
+                kp * (area / TSUBO) / max(d.get("han", {}).get("tsubo", 1), 1)))
     h.append("</div>")
 
     for axis, ttl, lead in (

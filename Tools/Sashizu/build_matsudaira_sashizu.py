@@ -1286,7 +1286,41 @@ def plane_check(d):
         if pt:
             bad.append("%s(井戸) が段の外: (%.2f, %.2f)" % (w["name"], pt[0], pt[1]))
     bad += run_seat_check(d)
+    bad += route_pierce_check(d)
     return bad
+
+
+def route_pierce_check(d, tol=1.0):
+    """**動線が室の中を通っていないかの検査。**入側(外形から一間の帯)・渡廊下・棟間は通路なので許す。
+    起終点の棟と、座敷の順路(供之間→次之間→上段のように室を継いで進む所)は allow に列挙する。
+    2026-08-23 検図: 勝手が御土蔵一を10.3m貫通し、奥向が長局を室の中で22.7m縦断していた。"""
+    allow = {("R_Omote", "Ohiroma"), ("R_Yaku", "Yakusho"),
+             ("R_Katte", "Daidokoro"), ("R_Oku", "Nakaoku")}
+    K = d["const"]["ken"]
+    agg = {}
+    for r in d.get("routes", []):
+        for i in range(len(r["pts"]) - 1):
+            a, b = r["pts"][i], r["pts"][i + 1]
+            seg = math.hypot(b[0] - a[0], b[1] - a[1]) * K
+            if seg < 1e-6:
+                continue
+            for m in d["munes"] + d["service"]:
+                iu0, iv0 = m["u0"] + 1, m["v0"] + 1
+                iu1, iv1 = m["u1"] - 1, m["v1"] - 1
+                if iu1 <= iu0 or iv1 <= iv0:
+                    continue
+                N, L = 200, 0.0
+                for k in range(N):
+                    t = (k + 0.5) / N
+                    mx = a[0] + (b[0] - a[0]) * t
+                    my = a[1] + (b[1] - a[1]) * t
+                    if iu0 <= mx <= iu1 and iv0 <= my <= iv1:
+                        L += seg / N
+                if L > 0:
+                    agg[(r["name"], m["name"])] = agg.get((r["name"], m["name"]), 0.0) + L
+    return ["%s が %s の室内を %.1fm 通る(入側・渡廊下に載せ直す)" % (rn, mn, L)
+            for (rn, mn), L in sorted(agg.items(), key=lambda x: -x[1])
+            if L > tol and (rn, mn) not in allow]
 
 
 def run_seat_check(d, tol=0.6):

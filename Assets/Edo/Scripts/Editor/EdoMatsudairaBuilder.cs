@@ -655,6 +655,129 @@ public static class EdoMatsudairaBuilder
         return sb.ToString();
     }
 
+    // ---------------------------------------------------------------- Stage3 石垣基壇
+    // 作法は unity-modular-stonewall。要点:
+    //   ・ピッチ 1.800×s(2.0×s モジュール)→ 継ぎ目ごとに 0.20×s 重なる
+    //   ・**駒のピボットは走り方向の端**。ローカル箱は [pos − 2.0×s, pos]。
+    //     だから開口は「縁を起点に外へ並べる」— skip では縁を狙えない(スキル §4)
+    //   ・天端は run ごとに**一つの丸い数字**。position.y = seat − 4.0×s / scale.y = s
+    //   ・地形を壁に合わせる。壁を地形に合わせない(ピースごとの scale.y は生成壁の兆候)
+    [MenuItem("Edo/松平出羽守上屋敷/3 石垣基壇")]
+    public static void Stage3Menu() { Debug.Log("[Matsudaira] " + Stage3_Ishigaki()); }
+    public static string Stage3_Ishigaki()
+    {
+        var grp = Group("Ishigaki"); Clear(grp);
+        var sb = new System.Text.StringBuilder();
+        var gate = O(D["gate"]);
+        var gsp = O(O(gate["plan"])["sPos"]);
+        float gA = F(A(gsp["banshoW"])[0]), gB = F(A(gsp["banshoE"])[1]);
+        int gEdge = (int)F(gate["edge"]);
+        var komon = new List<float[]>();
+        foreach (var o in A(D["komon"]))
+        {
+            var k = O(o); float s = F(k["s"]), w = F(k["w"]);
+            komon.Add(new float[] { F(k["edge"]), s - w / 2f, s + w / 2f });
+        }
+        int made = 0, runs = 0;
+        foreach (var r in Runs)
+        {
+            if (r.ishi <= 0f) continue;                       // base=Ishigaki のみ
+            // 開口で割る(縁を起点に並べるため、区間の端を正確に持つ)
+            var cuts = new List<float[]>();
+            if (r.edge == gEdge) cuts.Add(new float[] { gA, gB });
+            foreach (var k in komon) if ((int)k[0] == r.edge) cuts.Add(new float[] { k[1], k[2] });
+            cuts.Sort((x, y) => x[0].CompareTo(y[0]));
+            var segs = new List<float[]>();
+            float cur = r.s0;
+            foreach (var c in cuts)
+            {
+                if (c[1] <= r.s0 || c[0] >= r.s1) continue;
+                if (c[0] > cur) segs.Add(new float[] { cur, Mathf.Min(c[0], r.s1) });
+                cur = Mathf.Max(cur, c[1]);
+            }
+            if (cur < r.s1) segs.Add(new float[] { cur, r.s1 });
+
+            Vector2 n = OutNormal(r.edge);
+            // ローカル +X を外向きに、+Z を s の増える向きに合わせる
+            float psi = Mathf.Atan2(-n.y, n.x) * Mathf.Rad2Deg;
+            float baseY = r.seat - 4.0f * r.ishi;             // 天端 = seat
+            foreach (var sg in segs)
+            {
+                float t0 = sg[0], t1 = sg[1];
+                float len0 = 2.0f * r.ishi, pit = 1.8f * r.ishi;
+                if (t1 - t0 < len0 - 0.01f) continue;
+                var ts = new List<float>();
+                for (float t = t0 + len0; t <= t1 - 0.25f * pit; t += pit) ts.Add(t);
+                ts.Add(t1);                                   // 端面を t1 に合わせる仕舞い
+                foreach (float t in ts)
+                {
+                    Vector2 p = EdgePt(r.edge, t);
+                    var go = EdoNishiTameikeBuilder.Place(EdoAssets.JC.CastleWall,
+                        new Vector3(p.x, baseY, p.y), psi,
+                        new Vector3(r.ishi, r.ishi, r.ishi), grp,
+                        "IG_" + r.name + "_" + made);
+                    if (go != null) made++;
+                }
+                runs++;
+            }
+        }
+        sb.AppendLine("石垣基壇: " + made + "駒 / " + runs + "区間");
+        return sb.ToString();
+    }
+
+    /// <summary>石垣のQA(スキル §5)。天端のばらつき・distinct な position.y / scale.y・横ばらつき。</summary>
+    [MenuItem("Edo/松平出羽守上屋敷/石垣を検査")]
+    public static void IshigakiQAMenu() { Debug.Log("[Matsudaira] " + IshigakiQA()); }
+    public static string IshigakiQA()
+    {
+        var grp = GameObject.Find(Grp);
+        if (grp == null) return "群が無い";
+        var t = grp.transform.Find("Ishigaki");
+        if (t == null) return "Ishigaki が無い";
+        var byRun = new Dictionary<string, List<Transform>>();
+        foreach (Transform c in t)
+        {
+            var parts = c.name.Split('_');
+            string key = parts.Length > 2 ? string.Join("_", parts, 1, parts.Length - 2) : c.name;
+            if (!byRun.ContainsKey(key)) byRun[key] = new List<Transform>();
+            byRun[key].Add(c);
+        }
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("run              駒  天端min..max  ばらつき  distinct posY/scaleY  横ばらつき");
+        int bad = 0;
+        foreach (var kv in byRun)
+        {
+            float tmn = float.MaxValue, tmx = float.MinValue;
+            var py = new HashSet<float>(); var sy = new HashSet<float>();
+            var pts = new List<Vector2>();
+            foreach (var c in kv.Value)
+            {
+                var rs = c.GetComponentsInChildren<Renderer>();
+                if (rs.Length == 0) continue;
+                var b = rs[0].bounds; foreach (var rr in rs) b.Encapsulate(rr.bounds);
+                tmn = Mathf.Min(tmn, b.max.y); tmx = Mathf.Max(tmx, b.max.y);
+                py.Add(Mathf.Round(c.position.y * 1000f) / 1000f);
+                sy.Add(Mathf.Round(c.localScale.y * 1000f) / 1000f);
+                pts.Add(new Vector2(c.position.x, c.position.z));
+            }
+            // 横ばらつき: 最初と最後を結ぶ直線からの距離
+            float lat = 0f;
+            if (pts.Count > 2)
+            {
+                Vector2 a = pts[0], b2 = pts[pts.Count - 1];
+                Vector2 d = (b2 - a).normalized;
+                foreach (var q in pts) lat = Mathf.Max(lat, Mathf.Abs((q - a).x * d.y - (q - a).y * d.x));
+            }
+            bool ng = (tmx - tmn) > 0.005f || py.Count > 1 || sy.Count > 1 || lat > 0.10f;
+            if (ng) bad++;
+            sb.AppendLine(kv.Key.PadRight(16) + kv.Value.Count.ToString().PadLeft(3) + "  "
+                + tmn.ToString("F2") + ".." + tmx.ToString("F2") + "  " + (tmx - tmn).ToString("F3")
+                + "  " + py.Count + "/" + sy.Count + "  " + lat.ToString("F3") + (ng ? "  <<" : ""));
+        }
+        sb.AppendLine("不合格 run: " + bad + " / " + byRun.Count);
+        return sb.ToString();
+    }
+
     // ---------------------------------------------------------------- 指図と実装の突き合わせ
     [MenuItem("Edo/松平出羽守上屋敷/指図と実装を突き合わせる")]
     public static void CompareMenu() { Debug.Log("[Matsudaira] " + Compare()); }

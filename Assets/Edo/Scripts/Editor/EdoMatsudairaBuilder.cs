@@ -463,6 +463,73 @@ public static class EdoMatsudairaBuilder
         return nn;
     }
 
+    // ---------------------------------------------------------------- 表長屋の並べ方
+    // ⚠ 共有の EdoNishiTameikeBuilder.NagayaRun は使わない。あれは
+    //     ・PITCH=7.81m 決め打ち。**部材の実体は 8.062m** なので全継ぎ目が 0.252m 重なる
+    //       → 海鼠紋が二重・瓦が二重・窓の割りが継ぎ目でずれる
+    //     ・さらに pitchRun = span/(n-1) で run ごとにピッチを変えるので重なり量が run ごとに違う
+    //     ・run ごとに 4.4/3.7 内側へ寄せるので、段違いの run の間に 8m の隙間があく
+    //   ここでは **部材の実寸ピッチで、辺の上で連続する長屋 run を1本の鎖として通す**。
+    //   段(seat)は部材の中心が入っている run のものを使う → 雛壇の段は部材の境目で起きる。
+    struct NagModule { public float lo, hi, pivot; }   // ピボット基準の走り方向の実体範囲[m]
+    static NagModule Measure(string path)
+    {
+        var pf = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        var go = (GameObject)PrefabUtility.InstantiatePrefab(pf);
+        go.transform.position = Vector3.zero;
+        go.transform.rotation = Quaternion.identity;
+        go.transform.localScale = Vector3.one * EdoSannoKitaBuilder.ES;
+        var rs = go.GetComponentsInChildren<Renderer>();
+        // 壁(namako/wall/dodai)の範囲が繰り返し長。屋根の反り・鬼は端で出るので使わない。
+        float mn = float.MaxValue, mx = float.MinValue;
+        foreach (var r in rs)
+        {
+            string n = r.gameObject.name.ToLower();
+            if (!(n.Contains("wall") || n.Contains("namako") || n.Contains("dodai"))) continue;
+            mn = Mathf.Min(mn, r.bounds.min.x); mx = Mathf.Max(mx, r.bounds.max.x);
+        }
+        UnityEngine.Object.DestroyImmediate(go);
+        return new NagModule { lo = mn, hi = mx, pivot = 0f };
+    }
+
+    /// <summary>辺 e の [s0,s1] に表長屋を実寸ピッチで通す。seatAt(s) がその位置の天端を返す。</summary>
+    static int NagayaChain(Transform parent, int e, float s0, float s1, Func<float, float> seatAt, string prefix)
+    {
+        var mc = Measure(EdoAssets.Eg.KnagayaC);
+        float R = mc.hi - mc.lo;                       // 真の繰り返し長(実測 8.062m)
+        float L = s1 - s0;
+        int n = Mathf.Max(1, Mathf.RoundToInt(L / R));
+        float start = s0 + (L - n * R) * 0.5f;         // 鎖を run の中央に置く(端の端数は隅・開口が受ける)
+        Vector2 outw = OutNormal(e);
+        float psi = Mathf.Atan2(outw.x, outw.y) * Mathf.Rad2Deg;
+        // 走り方向がローカル -X なので、辺の向きと合うように基準を取る
+        Vector2 a = EdgePt(e, 0f), b = EdgePt(e, 1f);
+        Vector2 rdir = (b - a).normalized;
+        float rad = psi * Mathf.Deg2Rad;
+        Vector2 negRight = new Vector2(-Mathf.Cos(rad), Mathf.Sin(rad));
+        bool flip = Vector2.Dot(rdir, negRight) < 0;
+        int made = 0;
+        for (int k = 0; k < n; k++)
+        {
+            float lo = start + k * R;                  // この部材が占める走り区間 [lo, lo+R]
+            float mid = lo + R * 0.5f;
+            string path = EdoAssets.Eg.KnagayaC;
+            if (n > 1 && k == 0) path = flip ? EdoAssets.Eg.KnagayaR : EdoAssets.Eg.KnagayaL;
+            else if (n > 1 && k == n - 1) path = flip ? EdoAssets.Eg.KnagayaL : EdoAssets.Eg.KnagayaR;
+            var m = (path == EdoAssets.Eg.KnagayaC) ? mc : Measure(path);
+            // ピボット = 実体の低い側の端が lo に来る位置
+            float sPiv = flip ? (lo + R + m.hi) : (lo - m.lo);
+            Vector2 p = EdgePt(e, sPiv);
+            float seat = seatAt(mid);
+            var go = EdoNishiTameikeBuilder.Place(path, new Vector3(p.x, seat, p.y), psi,
+                                                  Vector3.one * EdoSannoKitaBuilder.ES, parent, prefix + "_" + k);
+            if (go == null) continue;
+            EdoNishiTameikeBuilder.SeatBottom(go, seat - 0.10f);
+            made++;
+        }
+        return made;
+    }
+
     [MenuItem("Edo/松平出羽守上屋敷/2 外周(塀・長屋・木柵)")]
     public static void Stage2Menu() { Debug.Log("[Matsudaira] " + Stage2_Perimeter()); }
     public static string Stage2_Perimeter()
@@ -503,25 +570,50 @@ public static class EdoMatsudairaBuilder
             return outp;
         };
 
+        // 練塀は run ごとに(段が違うので繋げない)
         foreach (var r in Runs)
         {
+            if (r.nagaya) continue;
             Vector2 outw = OutNormal(r.edge);
             foreach (var seg in split(r.edge, r.s0, r.s1))
             {
                 if ((seg[1] - seg[0]).magnitude < 1.2f) continue;
-                if (r.nagaya)
-                {
-                    EdoNishiTameikeBuilder.NagayaRun(kak, seg[0], seg[1], outw, r.seat, Vector2.zero, -1, r.name);
-                    nag++;
-                }
-                else
-                {
-                    EdoNishiTameikeBuilder.DobeiRun(kak, seg[0], seg[1], outw, r.name, false, r.seat, Vector2.zero, -1);
-                    hei++;
-                }
+                EdoNishiTameikeBuilder.DobeiRun(kak, seg[0], seg[1], outw, r.name, false, r.seat, Vector2.zero, -1);
+                hei++;
             }
         }
-        sb.AppendLine("塀・長屋: 長屋run " + nag + " / 練塀run " + hei);
+        // 表長屋は**辺の上で連続する run を1本の鎖**にして実寸ピッチで通す。
+        // こうしないと段違いの run の継ぎ目に 8m の隙間があく(E1/E2/E3 の雛壇)。
+        foreach (int e in new SortedSet<int>(new List<int>(Array.ConvertAll(
+                     Array.FindAll(Runs, r => r.nagaya), r => r.edge))))
+        {
+            var onEdge = new List<Run>(Array.FindAll(Runs, r => r.nagaya && r.edge == e));
+            onEdge.Sort((x, y) => x.s0.CompareTo(y.s0));
+            // 連続する run をまとめる
+            int i = 0;
+            while (i < onEdge.Count)
+            {
+                float cs0 = onEdge[i].s0, cs1 = onEdge[i].s1;
+                int j = i;
+                while (j + 1 < onEdge.Count && Mathf.Abs(onEdge[j + 1].s0 - cs1) < 0.05f)
+                { j++; cs1 = onEdge[j].s1; }
+                var chain = onEdge.GetRange(i, j - i + 1);
+                Func<float, float> seatAt = s =>
+                {
+                    foreach (var r in chain) if (s >= r.s0 - 0.01f && s <= r.s1 + 0.01f) return r.seat;
+                    return chain[0].seat;
+                };
+                foreach (var seg in split(e, cs0, cs1))
+                {
+                    float a0 = Vector2.Dot(seg[0] - EdgePt(e, 0f), (EdgePt(e, 1f) - EdgePt(e, 0f)).normalized);
+                    float a1 = Vector2.Dot(seg[1] - EdgePt(e, 0f), (EdgePt(e, 1f) - EdgePt(e, 0f)).normalized);
+                    if (a1 - a0 < 4f) continue;
+                    nag += NagayaChain(kak, e, a0, a1, seatAt, "NG_e" + e + "_" + Mathf.RoundToInt(a0));
+                }
+                i = j + 1;
+            }
+        }
+        sb.AppendLine("塀・長屋: 長屋 " + nag + "棟 / 練塀run " + hei);
 
         // 木柵(地形なり)。在庫の矢来を等間隔に立てる。
         var fen = Group("Fences"); Clear(fen);

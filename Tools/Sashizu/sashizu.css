@@ -1,27 +1,22 @@
+/* ライトは「白い紙に刷った図」。地色は明るく、図の記号(段彩・切盛)は彩度を保って読ませる。
+   2026-08-23 にユーザー指摘で地色を古紙色(#E6E2D3)から持ち上げた。 */
 :root{
-  --paper:#E6E2D3; --paper2:#DED9C6; --ink:#23201A; --rule:#BDB6A2; --dim:#5E594C;
+  --paper:#FBFAF6; --paper2:#F3F1E9; --ink:#23201A; --rule:#D3CEBF; --dim:#615C4E;
   --shu:#A8452C; --ishi:#6E7A83; --hei:#3E4A55; --nagaya:#7A5C3A; --take:#5F7A4E;
-  --dan1:#D8D3BE; --dan2:#CFCAB2; --dan3:#C6C0A6; --dan4:#BDB69A;
-  --ink-mid:#BFB9A4; --ink-lo:#D2CDBB; --niwa:#B9C4A8; --roka:#8C7F5E;
-  --shu-lo:#E0CFC2; --grid:#C2BCA8; --dan:#E9E5D6; --shirasu:#E2DCC4;
-  --pl-omote:#E3D3A6; --pl-main:#C9D8B9; --pl-higashi:#E2C4A0; --pl-suso:#BFD0DA; --pl-slope:#CCC9A9;
+  --dan1:#EDEADD; --dan2:#E5E1D0; --dan3:#DCD7C3; --dan4:#D2CCB5;
+  --ink-mid:#CDC7B2; --ink-lo:#E5E1D1; --niwa:#CBD6BB; --ike:#A9C2CE; --tsuki:#BFC4A4; --roka:#8C7F5E;
+  --shu-lo:#F0E2D7; --grid:#DBD5C4; --dan:#F6F4EC; --shirasu:#F0ECDD;
+  --pl-umaya:#E3D3A8; --pl-omote:#EDE1BC; --pl-main:#D8E4CB; --pl-higashi:#EED8BC; --pl-suso:#D3E0E8; --pl-slope:#DCDABF;
+  --fill1:#F7E5D8; --fill2:#E9C3A9; --fill3:#D89A78; --fill4:#BB6E48;
+  --cut1:#E2EAF1; --cut2:#BCCEDC; --cut3:#8FADC3; --cut4:#6486A2;
+  --nomove:#F6F4EC; --pl-kita:#D8D2E2; --michi:#C9A24B;
 }
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --paper:#17191C; --paper2:#1E2126; --ink:#D9D4C6; --rule:#343A42; --dim:#918B7A;
-  --shu:#CF6E4F; --ishi:#8896A2; --hei:#8AA0B4; --nagaya:#C0996B; --take:#8FB077;
-  --dan1:#2A2E34; --dan2:#24282D; --dan3:#1F2328; --dan4:#1B1E23;
-  --ink-mid:#3C424B; --ink-lo:#2C3138; --niwa:#37453A; --roka:#6E6446;
-  --shu-lo:#3A2E2B; --grid:#2E333A; --dan:#23272D; --shirasu:#2B2E2A;
-  --pl-omote:#4A4028; --pl-main:#32402E; --pl-higashi:#493826; --pl-suso:#2A3944; --pl-slope:#2F2E22;
-}}
-:root[data-theme="dark"]{
-  --paper:#17191C; --paper2:#1E2126; --ink:#D9D4C6; --rule:#343A42; --dim:#918B7A;
-  --shu:#CF6E4F; --ishi:#8896A2; --hei:#8AA0B4; --nagaya:#C0996B; --take:#8FB077;
-  --dan1:#2A2E34; --dan2:#24282D; --dan3:#1F2328; --dan4:#1B1E23;
-  --ink-mid:#3C424B; --ink-lo:#2C3138; --niwa:#37453A; --roka:#6E6446;
-  --shu-lo:#3A2E2B; --grid:#2E333A; --dan:#23272D; --shirasu:#2B2E2A;
-  --pl-omote:#4A4028; --pl-main:#32402E; --pl-higashi:#493826; --pl-suso:#2A3944; --pl-slope:#2F2E22;
-}
+/* ⚠ **指図は常時ライト(紙に刷った図)。暗色テーマを持たない。**
+   2026-08-23 にユーザー指摘で暗色を撤去した。理由は二つ:
+   ① 端末が夜間モードだと `prefers-color-scheme: dark` が効いて、ビューアの設定に関わらず暗くなる
+   ② `sashizu.md` §3a「**段彩の色は地図の記号なので明暗テーマに関わらず固定にする**
+      (紙の地形図と同じ読み方をさせる)」— 段彩・切盛・面の色に暗色版を持つこと自体が規約違反だった。
+   単一テーマなので、地色も線色もすべて :root のトークンで明示する(body に background を必ず置く)。 */
 *{box-sizing:border-box}
 body{margin:0;background:var(--paper);color:var(--ink);
   font-family:"Hiragino Sans","Yu Gothic","Noto Sans JP",system-ui,sans-serif;line-height:1.8;font-size:15px}

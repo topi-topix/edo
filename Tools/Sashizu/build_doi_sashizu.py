@@ -247,6 +247,12 @@ def plan_svg(d):
 
     def gpoly(u0, v0, u1, v1, **kw):
         pts = [gr.W(u0, v0), gr.W(u1, v0), gr.W(u1, v1), gr.W(u0, v1)]
+        return _poly(pts, **kw)
+
+    def gobj(o, **kw):                                  # 回転を持つ物はそのまま四隅で描く
+        return _poly([gr.W(u, v) for u, v in obb_pts(o)], **kw)
+
+    def _poly(pts, **kw):
         a = '<polygon points="%s"' % " ".join("%.1f,%.1f" % (pr.X(x), pr.Y(z)) for x, z in pts)
         if "fill" in kw:
             a += ' fill="%s"' % kw["fill"]
@@ -261,8 +267,7 @@ def plan_svg(d):
              % " ".join("%.1f,%.1f" % (pr.X(p2[0]), pr.Y(p2[1])) for p2 in P))
     # 段(回転矩形) — 面ごとの色分け
     for t in d["terraces"]:
-        g.append(gpoly(t["u0"], t["v0"], t["u1"], t["v1"],
-                       fill=DAN.get(t["y"], "var(--dan4)"), op=1.0))
+        g.append(gobj(t, fill=DAN.get(t["y"], "var(--dan4)"), op=1.0))
     # 庭(白洲・奥庭・勝手庭) — 面色の上・マスクの前に重ねる(区画線で切られる)
     for n2 in d["gardens"]:
         col = "var(--shirasu)" if n2.get("kind") == "shirasu" else "var(--niwa)"
@@ -303,8 +308,7 @@ def plan_svg(d):
         g.append(gpoly(m["u0"], m["v0"], m["u1"], m["v1"],
                        fill="var(--ink-mid)", stroke="var(--ink)", sw=0.5, op=0.85))
     for s in d["service"]:
-        g.append(gpoly(s["u0"], s["v0"], s["u1"], s["v1"],
-                       fill="var(--ink-lo)", stroke="var(--ink)", sw=0.6, op=0.9))
+        g.append(gobj(s, fill="var(--ink-lo)", stroke="var(--ink)", sw=0.6, op=0.9))
     # 段ラベル(面ごと・重ね順の最後)
     labs = []
     for t in d["terraces"]:
@@ -566,7 +570,7 @@ def design_y(d, u, v):
     """その (u,v) を覆う段の高さ。無ければ None(=造成しない斜面)。"""
     best = None
     for t in d["terraces"]:
-        if t["u0"] - 1e-9 <= u <= t["u1"] + 1e-9 and t["v0"] - 1e-9 <= v <= t["v1"] + 1e-9:
+        if in_obb(t, u, v, 1e-9):
             best = t["y"] if best is None else max(best, t["y"])
     return best
 
@@ -907,6 +911,50 @@ def fix_walls(d, ter):
         w["drop"] = [round(min(ds), 2), round(max(ds), 2)]
         w["s"] = round(math.ceil(max(max(ds), 0.2) / 4.0 / 0.05) * 0.05, 2)
     return d
+
+
+def obb_pts(o):
+    """物の四隅を (u, v) で返す。`yaw` を持つ物は**回転矩形**、持たない物は素の矩形。
+
+    境界が斜めに走る辺では、棟を回転間グリッドに載せたままだと「沿わせ」られない
+    (2026-08-23 検図: 家中長屋が松平境と22.2°・岡部境と13.0°開いていた)。
+    `uc,vc,L,D,yaw` が正典で、`u0..v1` はその外接矩形。
+    """
+    if "yaw" not in o:
+        return [(o["u0"], o["v0"]), (o["u1"], o["v0"]), (o["u1"], o["v1"]), (o["u0"], o["v1"])]
+    r = math.radians(o["yaw"])
+    lu, lv = math.sin(r), math.cos(r)          # 長手(桁行)の向き
+    du, dv = math.cos(r), -math.sin(r)         # 梁間の向き
+    L2, D2 = o["L"] / 2.0, o["D"] / 2.0
+    return [(o["uc"] + lu * L2 * a + du * D2 * b,
+             o["vc"] + lv * L2 * a + dv * D2 * b) for a, b in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+
+
+def in_obb(o, u, v, pad=0.0):
+    """(u, v) がその物の中(回転を考慮)にあるか。"""
+    if "yaw" not in o:
+        return (o["u0"] - pad <= u <= o["u1"] + pad) and (o["v0"] - pad <= v <= o["v1"] + pad)
+    r = math.radians(o["yaw"])
+    lu, lv = math.sin(r), math.cos(r)
+    du, dv = math.cos(r), -math.sin(r)
+    su, sv = u - o["uc"], v - o["vc"]
+    return (abs(su * lu + sv * lv) <= o["L"] / 2.0 + pad and
+            abs(su * du + sv * dv) <= o["D"] / 2.0 + pad)
+
+
+def obb_overlap(a, b):
+    """二つの矩形(回転可)が重なるか — 分離軸で判定。触れるだけは可。"""
+    pa, pb = obb_pts(a), obb_pts(b)
+    for poly in (pa, pb):
+        for i in range(4):
+            ax = poly[(i + 1) % 4][0] - poly[i][0]
+            az = poly[(i + 1) % 4][1] - poly[i][1]
+            nx_, nz_ = -az, ax
+            la = [p[0] * nx_ + p[1] * nz_ for p in pa]
+            lb = [p[0] * nx_ + p[1] * nz_ for p in pb]
+            if min(la) >= max(lb) - 1e-9 or min(lb) >= max(la) - 1e-9:
+                return False
+    return True
 
 
 def declutter(items, dy=13.0, dx=90.0):
@@ -1657,7 +1705,7 @@ def perimeter_dev_svg(d):
         g.append(R(X(t) - 5, Y(y["seat"] + 7.5), 10, 7.5 * sx * ex, fill="var(--shu)", op=0.85))
         g.append(T(X(t), Y(y["seat"] + 7.5) - 4, "隅櫓", "jo", "middle"))
     # 隣家所有の辺(当家は建てない)のラベル
-    for (ea, eb, txt) in ((6, 9, "北・西(P6〜P0)=松平出羽守所有 — 台地の肩までは練塀、以西は**木柵**【松平側のU裁定】。当家は建てない"),
+    for (ea, eb, txt) in ((6, 9, "北・西(P6〜P0)=松平出羽守所有の**練塀+石垣基壇**(全区間)。当家は建てない"),
                           (0, 2, "南(P0〜P3)=岡部内膳正所有の築地塀 — 当家は建てない")):
         ta2 = (tv[ea] - t0) % total; tb2 = (tv[eb + 1] - t0) % total
         if tb2 <= ta2:
@@ -1830,7 +1878,8 @@ def kenpei(d, area):
     K = d["const"]["ken"]
     gm = sum(abs(m["u1"] - m["u0"]) * abs(m["v1"] - m["v0"]) for m in d["munes"]) * K * K
     gl = sum(abs(l["u1"] - l["u0"]) * abs(l["v1"] - l["v0"]) for l in d["links"]) * K * K
-    gs = sum(abs(s["u1"] - s["u0"]) * abs(s["v1"] - s["v0"]) for s in d["service"]) * K * K
+    gs = sum((s["L"] * s["D"]) if "yaw" in s else abs(s["u1"] - s["u0"]) * abs(s["v1"] - s["v0"])
+             for s in d["service"]) * K * K
     nag = sum((r["s1"] - r["s0"]) * d["const"]["nagayaD"] for r in d["runs"] if r["kind"] == "Nagaya")
     bs = d["gate"]["plan"]["bansho"]
     ban = bs["count"] * bs.get("w", 0) * bs.get("d", 0)   # 長屋門は番所が躯体内=別計上なし
@@ -1891,15 +1940,17 @@ def plane_check(d):
                 return (cu, cv)
         return None
 
-    def covered(u0, v0, u1, v1, y):
+    def covered(u0, v0, u1, v1, y, o=None):
         uu = u0 + 0.25
         while uu < u1:
             vv = v0 + 0.25
             while vv < v1:
+                if o is not None and not in_obb(o, uu, vv):
+                    vv += 0.5
+                    continue                       # 回転矩形の外接部分は対象外
                 if not inside(uu, vv):
                     return (uu, vv)
-                ok = any(t["u0"] - eps <= uu <= t["u1"] + eps and
-                         t["v0"] - eps <= vv <= t["v1"] + eps and
+                ok = any(in_obb(t, uu, vv, eps) and
                          (y is None or abs(t["y"] - y) < 0.01) for t in ters)
                 if not ok:
                     return (uu, vv)
@@ -1907,14 +1958,24 @@ def plane_check(d):
             uu += 0.5
         return None
 
+    def obj_out(o):                                # 回転を考えた四隅で区画の外を見る
+        e2 = 0.05
+        cu0, cv0 = (o["uc"], o["vc"]) if "yaw" in o else ((o["u0"] + o["u1"]) / 2, (o["v0"] + o["v1"]) / 2)
+        for (cu, cv) in obb_pts(o):
+            qu = cu + (cu0 - cu) * e2
+            qv = cv + (cv0 - cv) * e2
+            if not inside(qu, qv):
+                return (qu, qv)
+        return None
+
     bad = []
     for m in d["munes"] + d["service"]:
         nm = m.get("name", m.get("label"))
-        pt = rect_out(m["u0"], m["v0"], m["u1"], m["v1"])
+        pt = obj_out(m)
         if pt:
             bad.append("%s が区画の外: グリッド(%.2f, %.2f)" % (nm, pt[0], pt[1]))
             continue
-        pt = covered(m["u0"], m["v0"], m["u1"], m["v1"], m["y"])
+        pt = covered(m["u0"], m["v0"], m["u1"], m["v1"], m["y"], m)
         if pt:
             bad.append("%s (y=%.1f) が面の外: グリッド(%.2f, %.2f)"
                        % (nm, m["y"], pt[0], pt[1]))
@@ -2025,13 +2086,13 @@ def overlap_check(d):
     ただし渡廊下が棟の外形(入側帯)に一間だけ乗り込むのは取り付きなので許す。"""
     boxes = []
     for m in d["munes"]:
-        boxes.append(("mune", m["name"], m["u0"], m["v0"], m["u1"], m["v1"]))
+        boxes.append(("mune", m["name"], m["u0"], m["v0"], m["u1"], m["v1"], None))
     for l in d["links"]:
-        boxes.append(("link", l["name"], l["u0"], l["v0"], l["u1"], l["v1"]))
+        boxes.append(("link", l["name"], l["u0"], l["v0"], l["u1"], l["v1"], None))
     for n in d["gardens"]:
-        boxes.append(("niwa", n["name"], n["u0"], n["v0"], n["u1"], n["v1"]))
+        boxes.append(("niwa", n["name"], n["u0"], n["v0"], n["u1"], n["v1"], None))
     for s in d["service"]:
-        boxes.append(("svc", s["name"], s["u0"], s["v0"], s["u1"], s["v1"]))
+        boxes.append(("svc", s["name"], s["u0"], s["v0"], s["u1"], s["v1"], s))
     # 外周 run と長屋門の躯体帯(表門の辺=グリッドの v=0 帯)。検図 H-3 で追加 —
     # 入れないと表長屋の奥行(4.5m)に厩などが食い込んでも素通しになる。
     ken2 = d["const"]["ken"]
@@ -2040,17 +2101,18 @@ def overlap_check(d):
         if r["edge"] != d["gate"]["edge"]:
             continue
         depth = d["const"]["nagayaD"] if r["kind"] == "Nagaya" else d["const"]["dobeiT"]
-        boxes.append(("run", r["name"], (r["s0"] - sg) / ken2, 0.0, (r["s1"] - sg) / ken2, depth / ken2))
+        boxes.append(("run", r["name"], (r["s0"] - sg) / ken2, 0.0,
+                      (r["s1"] - sg) / ken2, depth / ken2, None))
     gp2 = d["gate"]["plan"]
     boxes.append(("run", "Nagayamon", -gp2["monW"] / 2 / ken2, 0.0,
-                  gp2["monW"] / 2 / ken2, gp2["monD"] / ken2))
+                  gp2["monW"] / 2 / ken2, gp2["monD"] / ken2, None))
     # 斜路と井戸。検図 2026-08-23 第3巡 — 箱に入れていなかったので、
     # 斜路が厩棟を貫き、井戸2基が棟の中に立っていても素通しだった。
     for rp in d.get("ramps", []):
         if "u0" in rp:
-            boxes.append(("ramp", rp["name"], rp["u0"], rp["v0"], rp["u1"], rp["v1"]))
+            boxes.append(("ramp", rp["name"], rp["u0"], rp["v0"], rp["u1"], rp["v1"], None))
     for wl in d.get("wells", []):
-        boxes.append(("ido", wl["name"], wl["u"] - 0.5, wl["v"] - 0.5, wl["u"] + 0.5, wl["v"] + 0.5))
+        boxes.append(("ido", wl["name"], wl["u"] - 0.5, wl["v"] - 0.5, wl["u"] + 0.5, wl["v"] + 0.5, None))
     bad = []
     # 段どうしが重なっていないか。design_y は最大値を採るので、低い方の段は図上にしか
     # 存在しなくなり、そこに建つ棟が地盤に埋まる(2026-08-23 検図で家中長屋(南)2棟が全部
@@ -2059,9 +2121,11 @@ def overlap_check(d):
     for i8 in range(len(TT)):
         for j8 in range(i8 + 1, len(TT)):
             a8, b8 = TT[i8], TT[j8]
+            if abs(a8["y"] - b8["y"]) < 0.05:
+                continue                          # 同じ高さなら同一の面 — 重なっても消えない
             iu = min(a8["u1"], b8["u1"]) - max(a8["u0"], b8["u0"])
             iv = min(a8["v1"], b8["v1"]) - max(a8["v0"], b8["v0"])
-            if iu > 1e-9 and iv > 1e-9:
+            if iu > 1e-9 and iv > 1e-9 and obb_overlap(a8, b8):
                 bad.append("段 %s(%.1f) と %s(%.1f) が %.1f×%.1f間 重なる — 低い方は地盤として存在しない"
                            % (a8["name"], a8["y"], b8["name"], b8["y"], iu, iv))
     # 石段と屋内の階段廊下が同じ場所を占めていないか
@@ -2096,7 +2160,7 @@ def overlap_check(d):
     for w in d.get("terraceWalls", []):
         (wa, wb) = w["a"], w["b"]
         gu = w.get("gapU"); gv = w.get("gapV"); gh = w.get("gapHalf", 0.0)
-        for (k1, n1, a0, b0, a1, b1) in boxes:
+        for (k1, n1, a0, b0, a1, b1, _o1) in boxes:
             if k1 not in ("mune", "link"):
                 continue
             hit = 0
@@ -2139,7 +2203,7 @@ def overlap_check(d):
     # 竹垣(線分)が建屋を貫通していないか — 箱どうしの総当たりでは拾えない
     for rl in d.get("rails", []):
         for (a, b) in zip(rl["pts"], rl["pts"][1:]):
-            for (k1, n1, a0, b0, a1, b1) in boxes:
+            for (k1, n1, a0, b0, a1, b1, _o1) in boxes:
                 if k1 == "run":
                     continue
                 hit = 0.0
@@ -2154,10 +2218,16 @@ def overlap_check(d):
                                % (rl["name"], k1, n1, 100.0 * hit / 41))
     for i in range(len(boxes)):
         for j in range(i + 1, len(boxes)):
-            k1, n1, a0, b0, a1, b1 = boxes[i]
-            k2, n2, c0, d0, c1, d1 = boxes[j]
+            k1, n1, a0, b0, a1, b1, o1 = boxes[i]
+            k2, n2, c0, d0, c1, d1, o2 = boxes[j]
             iu = min(a1, c1) - max(a0, c0)
             iv = min(b1, d1) - max(b0, d0)
+            # 回転を持つ物は外接矩形でなく**分離軸**で見る(斜めに並ぶ家中長屋で誤検出する)
+            if iu > 1e-9 and iv > 1e-9 and (o1 is not None or o2 is not None):
+                q1 = o1 if o1 is not None else {"u0": a0, "v0": b0, "u1": a1, "v1": b1}
+                q2 = o2 if o2 is not None else {"u0": c0, "v0": d0, "u1": c1, "v1": d1}
+                if not obb_overlap(q1, q2):
+                    continue
             if iu > 1e-9 and iv > 1e-9:
                 if {"link"} & {k1, k2}:
                     # 取り付き: 渡廊下は**長手方向に一間だけ**棟の外形(入側帯)へ乗り込める。
@@ -2169,7 +2239,7 @@ def overlap_check(d):
                         continue
                 if {k1, k2} == {"niwa", "svc"}:
                     # 庭の中に立つ亭・祠は庭に**完全に包含**されていれば可(庭は地面)
-                    (nk, na, n0, n1_, n2_, n3), (sk, sa, s0, s1_, s2_, s3) = \
+                    (nk, na, n0, n1_, n2_, n3, _n), (sk, sa, s0, s1_, s2_, s3, _s) = \
                         (boxes[i], boxes[j]) if k1 == "niwa" else (boxes[j], boxes[i])
                     if n0 <= s0 and n1_ <= s1_ and s2_ <= n2_ and s3 <= n3:
                         continue
@@ -2619,10 +2689,14 @@ def main():
             "御式台前の白洲を通らない。")
     fig(h, goten_plan(d, 16, 33, 48, 82, "家中長屋の帯(北・松平境沿い)",
                       "帯は棟ごとに自然の高さを採る。境界が斜めなので棟を継いで沿わせる"),
-        cap="<b>松平出羽守との境に沿う家中長屋。</b>境界線が斜めに走るので、"
-            "一棟の長い建屋では沿わせられない — <b>棟を三つに継いで折れに追随させ、"
-            "棟ごとにその位置の自然の高さを面にした</b>。段が階段状に上がって見えるのが正しい"
-            "(断面⑭で確かめられる)。帯の内側は主面の北東肩で、造成しない。")
+        cap="<b>松平出羽守との境に沿う家中長屋。</b>境界が回転間グリッドに対して斜めなので、"
+            "<b>棟の長軸を境界に平行にして回転グリッドの外に置いた</b>(2026-08-23 の是正。"
+            "差は 0.00°)。棟ごとにその位置の自然の高さを面にしてあり、切盛は6棟とも"
+            "±0.5m 以内に全域が収まる。段が階段状に上がって見えるのが正しい。"
+            "帯の内側は主面の北東肩で、造成しない。"
+            "<b>⚠ 家中長屋の規模は未検算</b> — 必要床面積の典拠が無い(石高→軍役→江戸詰人数の"
+            "比率に典拠がなく、当家の江戸詰人数の史料も無い)。<b>延長は外周に回した結果</b>であって、"
+            "収容力から逆算した数字ではない【確度U】。")
     fig(h, goten_plan(d, -6, 20, 24, 48, "玄関の郭と書院の郭",
                       "窪みをそのまま面にした玄関の郭(25.0)と、その東の帯(26.0)。1.0mの差は階段廊下"),
         cap="<b>御殿の表向が二つの標高に分かれる所。</b>玄関棟は窪みに素で載り、書院棟は"
@@ -2631,7 +2705,8 @@ def main():
             "両側とも段なので法面が入らず、壁の無い区間は垂直段差のまま残る。")
     fig(h, goten_plan(d, -21, -11, 54, 78, "家中長屋の帯(南・岡部境沿い)",
                       "岡部境沿いの二棟。土蔵・南庭との取り合い"),
-        cap="<b>岡部内膳正との境に沿う家中長屋。</b>北の帯と同じく棟ごとに自然の高さを採る。"
+        cap="<b>岡部内膳正との境に沿う家中長屋。</b>北の帯と同じく<b>長軸を境界に平行</b>にし、"
+            "棟ごとに自然の高さを採る。高さは主面と同じなので段差は無い。"
             "東は台所棟の勝手裏で、土蔵二棟がこの間に入る。"
             "⚠ この辺の塀 <code>Hei_N3/N4a/N4b</code> は<b>更新後の共有境界に載っていない</b> — "
             "岡部の指図側の宿題として残っている。")
@@ -2687,9 +2762,9 @@ def main():
     h.append('<p class="cap">表長屋は<b>表(東辺)だけ</b> — 表=表長屋+長屋門、ジョグ・楔=練塀'
              '(当家所有の囲いはこの三辺のみ)。東辺南端は南東の低み(非造成)の前で内側に面が無いため、'
              '表長屋でなく<b>道なりの練塀</b>とする。北・西の囲いは松平所有、南は岡部所有'
-             '(屋敷境の囲いは1条・隣家持ちの裁定)。<b>⚠ 西辺は大半が木柵</b> — 松平の指図で'
-             '「斜面・谷・水際の辺には塀を立てず木柵で標示する」と裁定された(確度U)ものを'
-             'そのまま引き継ぐ。犬走り %.2fm。</p>'
+             '(屋敷境の囲いは1条・隣家持ちの裁定)。<b>西辺は全区間が練塀+石垣基壇</b> — '
+             '松平の指図で「相手のある屋敷境は斜面でも練塀で通す」と改められた(2026-08-23)。'
+             '犬走り %.2fm。</p>'
              % d["const"]["inubashiri"])
     h.append("</div>")
 

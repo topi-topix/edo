@@ -878,6 +878,64 @@ public static class EdoMatsudairaBuilder
         sb.AppendLine("グリッド原点=(" + f.x0 + "," + f.z0 + ") 表門芯との差=" +
                       (new Vector2(f.x0, f.z0) - jsonPos).magnitude.ToString("F3") + "m");
         sb.AppendLine("段 " + Terraces.Length + "枚 / run " + Runs.Length + "本 / 区画 " + Poly.Length + "頂点");
+
+        // ---- 据わっている現物を指図と照合する ★これが無いと 106m ずれた棟が「0件」で通る
+        // (2026-08-23 検図: 本数と GradeQA しか見ておらず、突き合わせが空手形になっていた)
+        int ng = 0;
+        var root = GameObject.Find(Grp);
+        if (root == null) { sb.AppendLine("★ ルートが無い"); ng++; }
+        else
+        {
+            float yawU = YawAlongU(), yawV = YawAlongV();
+            var seen = new HashSet<string>();
+            Action<Transform, string, Vector2, string> chk = (grp, name, want, kind) =>
+            {
+                seen.Add(name);
+                var t = grp == null ? null : grp.Find(name);
+                if (t == null) { sb.AppendLine("★ " + kind + " " + name + " が実装に無い"); ng++; return; }
+                float dd = Vector2.Distance(new Vector2(t.position.x, t.position.z), want);
+                if (dd > 0.02f)
+                { sb.AppendLine("★ " + kind + " " + name + " が " + dd.ToString("F2") + "m ずれている"); ng++; }
+            };
+            var bld = root.transform.Find("Buildings");
+            foreach (var o in A(D["munes"]))
+            {
+                var m = O(o);
+                var w = Grid.W(F(m["u0"]), F(m["v1"]));
+                chk(bld, (string)m["name"], w, "棟");
+            }
+            foreach (var o in A(D["links"]))
+            {
+                var l = O(o);
+                float u0 = F(l["u0"]), v0 = F(l["v0"]), u1 = F(l["u1"]), v1 = F(l["v1"]);
+                bool alongU = (u1 - u0) >= (v1 - v0);
+                var w = alongU ? Grid.W(u0, v1) : Grid.W(u0, v0);
+                chk(bld, (string)l["name"], w, "廊下");
+            }
+            if (bld != null)
+                for (int i = 0; i < bld.childCount; i++)
+                {
+                    string n = bld.GetChild(i).name;
+                    if (!seen.Contains(n)) { sb.AppendLine("★ 孤児(指図に無い): " + n); ng++; }
+                }
+            // 囲い — 指図の run/fence の名前が実装のグループ名に現れるか
+            var kak = root.transform.Find("Kakoi");
+            if (kak != null)
+            {
+                var have = new HashSet<string>();
+                for (int i = 0; i < kak.childCount; i++) have.Add(kak.GetChild(i).name);
+                foreach (var r in Runs) if (!have.Contains(r.name)) { sb.AppendLine("★ 囲い " + r.name + " が実装に無い"); ng++; }
+                foreach (var nm in have)
+                {
+                    bool known = false;
+                    foreach (var r in Runs) if (r.name == nm) { known = true; break; }
+                    if (!known)
+                        foreach (var o in A(D["fences"])) if ((string)O(o)["name"] == nm) { known = true; break; }
+                    if (!known) { sb.AppendLine("★ 孤児の囲い: " + nm); ng++; }
+                }
+            }
+        }
+        sb.AppendLine(ng == 0 ? "指図と実装の突き合わせ: 0 件" : "★ 指図と実装の不一致 " + ng + " 件");
         sb.Append(GradeQA());
         return sb.ToString();
     }

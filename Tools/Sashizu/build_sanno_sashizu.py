@@ -472,33 +472,46 @@ def _stair_y(d, g, x, z):
     return None
 
 
+def terrace_poly_uv(te):
+    """平場の輪郭を uv で返す。`uv`(境内)/`poly`(前庭)/矩形 の三形に対応。"""
+    if te.get("uv"): return te["uv"]
+    if te.get("poly"): return te["poly"]
+    return [[te["u0"], te["v0"]], [te["u1"], te["v0"]],
+            [te["u1"], te["v1"]], [te["u0"], te["v1"]]]
+
+
+def terrace_poly(te, g):
+    """段の平面。`poly`(uv)があればそれ、無ければ u0/v0/u1/v1 の矩形。2026-08-23 に前庭が多角形になった。"""
+    if te.get("poly"):
+        return [g.W(u, v) for u, v in te["poly"]]
+    if te["kind"] == "rect":
+        return [g.W(te["u0"], te["v0"]), g.W(te["u1"], te["v0"]),
+                g.W(te["u1"], te["v1"]), g.W(te["u0"], te["v1"])]
+    return [g.W(u, v) for u, v in te["uv"]]
+
+
+def in_poly(pt, P):
+    x, z = pt; c = False; j = len(P) - 1
+    for i in range(len(P)):
+        if (P[i][1] > z) != (P[j][1] > z) and \
+           x < (P[j][0] - P[i][0]) * (z - P[i][1]) / (P[j][1] - P[i][1]) + P[i][0]:
+            c = not c
+        j = i
+    return c
+
+
 def design_y(d, g, x, z):
     """設計地盤。段(平場)・石段の通路の中なら面の高さ、縁の外は法面、届かなければ None。"""
     sy = _stair_y(d, g, x, z)
     if sy is not None: return sy
     for te in d["terraces"]:
-        if te["kind"] == "rect":
-            u, v = g.U(x), g.V(z)
-            if te["u0"] <= u <= te["u1"] and te["v0"] <= v <= te["v1"]: return te["y"]
-        else:
-            P = [g.W(u, v) for u, v in te["uv"]]
-            c = False; j = len(P) - 1
-            for i in range(len(P)):
-                if (P[i][1] > z) != (P[j][1] > z) and \
-                   x < (P[j][0] - P[i][0]) * (z - P[i][1]) / (P[j][1] - P[i][1]) + P[i][0]:
-                    c = not c
-                j = i
-            if c: return te["y"]
+        if in_poly((x, z), terrace_poly(te, g)): return te["y"]
     # 法面(バッター)— 土留めの無い縁は 盛土1:1.5 / 切土1:1 で現地形へ摺り付ける(§3b)
     nat = dem_h(x, z)
     if nat is None: return None
     best = None
     for te in d["terraces"]:
-        if te["kind"] == "rect":
-            P_ = [g.W(te["u0"], te["v0"]), g.W(te["u1"], te["v0"]),
-                  g.W(te["u1"], te["v1"]), g.W(te["u0"], te["v1"])]
-        else:
-            P_ = [g.W(u, v) for u, v in te["uv"]]
+        P_ = terrace_poly(te, g)
         dv = te["y"] - nat
         if abs(dv) < 0.05: continue
         # ⚠ reach を「検査点の高さ」から出すと斜面で永久に着地しない(2026-08-23 検図)。
@@ -519,6 +532,8 @@ def design_y(d, g, x, z):
         if edge_nat is None: continue
         edge_dv = te["y"] - edge_nat
         if edge_dv <= 0.05: continue                      # 縁が切土なら法面を出さない
+        # ⚠ 土留めが受けている縁は法面を出さない(壁で立つ)。断面 §3c と同じ仕分け
+        if on_wall(d, g, near[0], near[1]): continue
         reach = min(edge_dv * d["const"]["batterFill"], d["const"].get("featherCap", 12.0))
         if dmin > reach: continue
         y = te["y"] - edge_dv * (dmin / reach)            # 縁から現地形へ摺り付ける
@@ -586,9 +601,8 @@ def dousen_svg(d, kan, W=900.0):
     o.append(PL([(pr.X(x), pr.Y(z)) for x, z in kp], fill="var(--pl-main)", op=0.7,
                 stroke="var(--ink)", sw=1.0, close=True))
     zt = d["terraces"][1]
-    a = g.W(zt["u0"], zt["v0"]); b = g.W(zt["u1"], zt["v1"])
-    o.append(R(pr.X(a[0]), pr.Y(b[1]), pr.X(b[0]) - pr.X(a[0]), pr.Y(a[1]) - pr.Y(b[1]),
-               fill="var(--pl-suso)", op=0.8, stroke="var(--ink)", sw=0.9))
+    o.append(PL([(pr.X(x), pr.Y(z)) for x, z in terrace_poly(zt, g)],
+                fill="var(--pl-suso)", op=0.8, stroke="var(--ink)", sw=0.9, close=True))
     rows = []
     for rt in d.get("routes", []):
         pts = [(q[0], q[1]) if rt.get("world") else g.W(q[0], q[1]) for q in rt["pts"]]
@@ -642,9 +656,8 @@ def shachi_svg(d, kan="其一"):
                 fill="var(--pl-main)", op=0.85, close=True))
     # 前庭
     zt = d["terraces"][1]
-    a = g.W(zt["u0"], zt["v0"]); b = g.W(zt["u1"], zt["v1"])
-    o.append(R(pr.X(a[0]), pr.Y(b[1]), pr.X(b[0]) - pr.X(a[0]), pr.Y(a[1]) - pr.Y(b[1]),
-               fill="var(--pl-suso)", stroke="var(--ink)", sw=1.0, op=0.9))
+    o.append(PL([(pr.X(x), pr.Y(z)) for x, z in terrace_poly(zt, g)],
+                fill="var(--pl-suso)", stroke="var(--ink)", sw=1.0, op=0.9, close=True))
 
     # 透塀・回廊・社殿
     for r in d["runs"]:
@@ -755,7 +768,9 @@ def keidai_svg(d, u0, u1, v0, v1, title, W=900.0):
                 stroke="var(--ink)", sw=1.3, fill="var(--pl-main)", op=0.55, close=True))
     # 前庭
     zt = d["terraces"][1]
-    o.append(lp.rect(zt["u0"], zt["v0"], zt["u1"], zt["v1"], fill="var(--pl-suso)",
+    o.append(PL([(lp.X(u), lp.Y(v)) for u, v in (zt.get("poly") or [
+        [zt["u0"], zt["v0"]], [zt["u1"], zt["v0"]], [zt["u1"], zt["v1"]], [zt["u0"], zt["v1"]]])],
+        fill="var(--pl-suso)", close=True,
                      stroke="var(--ink)", sw=1.0, op=0.75))
     # 白洲・中庭
     for gd in d["gardens"]:
@@ -947,10 +962,119 @@ def design_line(prof, flats, stairs=()):
     return out
 
 
-def section_svg(d, key, design, marks, title, flip=False, viewtxt=""):
+BATTER_ISHI = 0.20      # 石垣の勾配(垂直1に対する水平)。土の法面 batterFill/Cut とは別物
+WALL_T = 0.9            # 断面に描く土留めの見かけの厚み[m]
+_WSEG = [None]
+
+
+def wall_segs_world(d, g):
+    """土留め(terraceWalls)を開口で割って世界座標の線分にしたもの。"""
+    if _WSEG[0] is None:
+        out = []
+        for w in d["terraceWalls"]:
+            for a, b in run_segs(w):
+                out.append((g.W(a[0], a[1]), g.W(b[0], b[1])))
+        _WSEG[0] = out
+    return _WSEG[0]
+
+
+def on_wall(d, g, x, z, tol=1.5):
+    """その位置の平場の縁を土留めが受けているか。受けていなければ法面で摺り付ける。"""
+    for (ax, az), (bx, bz) in wall_segs_world(d, g):
+        ddx, ddz = bx - ax, bz - az
+        L2 = ddx * ddx + ddz * ddz or 1.0
+        t = max(0.0, min(1.0, ((x - ax) * ddx + (z - az) * ddz) / L2))
+        if math.hypot(x - (ax + ddx * t), z - (az + ddz * t)) <= tol:
+            return True
+    return False
+
+
+def prof_pos(d, key):
+    """断面の座標 c → 世界座標 (x,z)。"""
+    p = d["profiles"][key]
+    if p["axis"] == "EW": return lambda c: (c, p["at"])
+    if p["axis"] == "NS": return lambda c: (p["at"], c)
+    pts = p.get("pts")
+    a, b = p["a"], p["b"]
+    L = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
+    if not pts:
+        return lambda c: (a[0] + (b[0] - a[0]) * c / L, a[1] + (b[1] - a[1]) * c / L)
+
+    def f(c):
+        t = max(0.0, min(1.0, c / L))
+        segl = [math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1])
+                for i in range(len(pts) - 1)]
+        tot = sum(segl) or 1.0
+        want = t * tot
+        for i, sl in enumerate(segl):
+            if want <= sl or i == len(segl) - 1:
+                r = want / (sl or 1.0)
+                return (pts[i][0] + (pts[i + 1][0] - pts[i][0]) * r,
+                        pts[i][1] + (pts[i + 1][1] - pts[i][1]) * r)
+            want -= sl
+        return pts[-1]
+    return f
+
+
+def series_at(series, c):
+    for i in range(len(series) - 1):
+        a, b = series[i], series[i + 1]
+        if a[0] - 1e-9 <= c <= b[0] + 1e-9:
+            if abs(b[0] - a[0]) < 1e-9: return a[1]
+            return a[1] + (b[1] - a[1]) * (c - a[0]) / (b[0] - a[0])
+    return series[-1][1]
+
+
+def edge_works(d, g, key, prof, design, flats, stairs):
+    """平場の縁の始末を仕分ける(スキル §3c)。
+
+    土留めのある縁は **その位置の地盤まで**立ち上げ、無い縁は **1:1.5 の盛土法面**で
+    現地形へ摺り付ける(§3b の design_y と同じ規則)。設計高さの矩形で描かない。
+    返り: (法面を差し込んだ design, [(縁,外向き,天端,露出,法尻,切/盛)])
+    """
+    c0, c1 = prof[0][0], prof[-1][0]
+    wpos = prof_pos(d, key)
+    ends = [c for st in stairs for c in (st[0], st[1])]
+    nat = lambda c: series_at(prof, max(c0, min(c1, c)))
+    walls, feath = [], []
+    for a, b, yy in flats:
+        for e, sgn in ((a, -1.0), (b, +1.0)):
+            if e <= c0 + 0.6 or e >= c1 - 0.6: continue
+            if any(abs(e - q) < 0.6 for q in ends): continue
+            hn = nat(e)
+            if abs(yy - hn) < 0.30: continue
+            if on_wall(d, g, *wpos(e)):
+                up = yy < hn                 # 切土(地山を受ける)/ 盛土(土を止める)
+                t, lo, hi = 0.0, 0.0, abs(yy - hn) + 14.0
+                for _ in range(40):
+                    t = (lo + hi) / 2.0
+                    h = nat(e + sgn * BATTER_ISHI * t)
+                    if (yy + t > h) if up else (yy - t < h): hi = t
+                    else: lo = t
+                walls.append((e, sgn, yy, t, e + sgn * BATTER_ISHI * t, "切" if up else "盛"))
+            elif yy > hn + 0.05:
+                # 土留めの無い盛土の縁 — 1:1.5 の法面(featherCap で頭打ち)
+                reach = min((yy - hn) * d["const"]["batterFill"],
+                            d["const"].get("featherCap", 12.0))
+                feath.append((e, sgn, yy, reach))
+    for e, sgn, yy, reach in feath:
+        lo_, hi_ = (e, e + reach) if sgn > 0 else (e - reach, e)
+        design = [(c, y) for c, y in design if not (lo_ - 1e-6 < c < hi_ + 1e-6)]
+        for i in range(0, 13):
+            c = e + sgn * reach * i / 12.0
+            y = yy - (yy - nat(e)) * (i / 12.0)
+            design.append((c, max(y, nat(c)) if False else y))
+        design.sort(key=lambda p: p[0])
+    return design, walls
+
+
+def section_svg(d, key, design, marks, title, flip=False, viewtxt="", flats=(), stairs=()):
     """design = [(coord, y), ...] 設計地盤 / marks = [(coord0, coord1, y, ラベル, 種別)]"""
     g = G(d)
     prof = _profile(d, key)
+    walls = []
+    if flats:
+        design, walls = edge_works(d, g, key, prof, design, flats, stairs)
     c0, c1 = prof[0][0], prof[-1][0]
     ys = [h for _, h in prof] + [y for _, y in design]
     y0, y1 = min(ys) - 2.0, max(ys) + 6.0
@@ -973,14 +1097,7 @@ def section_svg(d, key, design, marks, title, flip=False, viewtxt=""):
     # 切土(設計 < 現地形)と盛土(設計 > 現地形)を塗り分ける
     cs = sorted(set([c for c, _ in prof] + [c for c, _ in design]))
     cs = [c for c in cs if prof[0][0] - 1e-6 <= c <= prof[-1][0] + 1e-6]
-
-    def at(series, c):
-        for i in range(len(series) - 1):
-            a, b = series[i], series[i + 1]
-            if a[0] - 1e-9 <= c <= b[0] + 1e-9:
-                if abs(b[0] - a[0]) < 1e-9: return a[1]
-                return a[1] + (b[1] - a[1]) * (c - a[0]) / (b[0] - a[0])
-        return series[-1][1]
+    at = series_at
 
     for i in range(len(cs) - 1):
         ca, cb = cs[i], cs[i + 1]
@@ -993,7 +1110,39 @@ def section_svg(d, key, design, marks, title, flip=False, viewtxt=""):
                     stroke="none", fill=_cut() if cut else _fill(), close=True))
 
     o.append(PL(npts, stroke="var(--dim)", sw=1.1, dash="5 3"))
+
+    # 無造成の区間に太い帯(§3c)。色が無いのが「触っていない」のか
+    # 「反映漏れ」なのかを図の上で区別できるようにする
+    run, nomu = [], []
+    for c in cs:
+        if abs(at(prof, c) - at(design, c)) < 0.05:
+            run.append(c)
+        else:
+            if len(run) > 1: nomu.append((run[0], run[-1]))
+            run = []
+    if len(run) > 1: nomu.append((run[0], run[-1]))
+    for ca, cb in nomu:
+        if cb - ca < 1.5: continue
+        seg = [(X(c), Y(at(prof, c))) for c in cs if ca - 1e-6 <= c <= cb + 1e-6]
+        o.append(PL(seg, stroke="var(--take)", sw=6.0, op=0.8))
     o.append(PL(dpts, stroke="var(--ink)", sw=2.0))
+
+    # 土留め ─ 天端は面の高さで一定でも法尻は地形なり(§3c)
+    for e, sgn, yy, t, ctoe, kind in walls:
+        if kind == "盛":
+            face = [(e, yy), (ctoe, yy - t)]
+            back = [(ctoe - sgn * WALL_T, yy - t), (e - sgn * WALL_T, yy)]
+        else:
+            face = [(e, yy), (ctoe, yy + t)]
+            back = [(ctoe + sgn * WALL_T, yy + t), (e + sgn * WALL_T, yy)]
+        o.append(PL([(X(c), Y(y)) for c, y in face + back], fill=_pat(), op=0.95,
+                    stroke="var(--ishi)", sw=1.2, close=True))
+        ym = (face[0][1] + face[1][1]) / 2.0
+        xl = X(e + sgn * (BATTER_ISHI * t + WALL_T + 1.2))
+        anc = "start" if (sgn > 0) != flip else "end"
+        if xl > W - 150: xl, anc = X(e) - 6, "end"     # 図の端で切れないよう内側へ返す
+        if xl < 150: xl, anc = X(e) + 6, "start"
+        o.append(T(xl, Y(ym) + 4, "土留 露出 %.2f m" % t, fs=10, fill="var(--ishi)", anchor=anc))
     # 高さの罫(塗りの上に載せる)
     for y in range(int(math.ceil(y0 / 5.0) * 5), int(y1) + 1, 5):
         o.append(LN(0, Y(y), W, Y(y), stroke="var(--grid)", sw=0.5, op=0.55))
@@ -1011,7 +1160,8 @@ def section_svg(d, key, design, marks, title, flip=False, viewtxt=""):
     o.append(T(6, 15, title, fs=12.5, fill="var(--dim)"))
     o.append(T(W - 6, 15, "垂直 %.1f 倍" % (vs / s), fs=11, anchor="end", fill="var(--dim)"))
     o.append(T(W - 6, 30, viewtxt, fs=10.5, anchor="end", fill="var(--shu)"))
-    o.append(T(W - 6, H - 8, "破線 = 現地形(Unity Terrain 実測) ／ 実線 = 設計地盤 ／ ╲ 切土 ／ ╱ 盛土", fs=10.5,
+    o.append(T(W - 6, H - 8, "破線 = 現地形(Unity Terrain 実測) ／ 実線 = 設計地盤 ／ ╲ 切土 ／ ╱ 盛土"
+               " ／ 太い緑帯 = 無造成 ／ 網掛 = 土留め(法尻は地盤なり)", fs=10.5,
                anchor="end", fill="var(--dim)"))
     o.append(ENDSVG)
     return "\n".join(o)
@@ -1166,6 +1316,163 @@ def kakoi_svg(d, kan="其九"):
     return "\n".join(o)
 
 
+def face_toe(d, g, px, pz, nx, nz):
+    """壁の外の法尻。返り (法尻の高さ, 犬走りの高さ or None)。
+
+    ⚠ **回廊の東面は境内の平坦面の東の縁そのもの**(犬走りは 0.4間しかない)。
+    壁から1.2m の点で測ると犬走りの上を拾って露出0.7mに見えてしまうので、
+    **平場の縁の外に出るまで進んで、そこの地盤を法尻に採る**。縁が2mより遠ければ
+    純粋に平場の中に立つ壁なので、平場の高さをそのまま法尻にする。
+    """
+    inside = lambda q: any(in_poly(q, terrace_poly(te, g)) for te in d["terraces"])
+    bench = None
+    t = 0.2
+    while t <= 6.0:
+        q = (px + nx * t, pz + nz * t)
+        if not inside(q):
+            if t > 2.0: break
+            nat = dem_h(px + nx * (t + 0.3), pz + nz * (t + 0.3))
+            dy = design_y(d, g, q[0], q[1])
+            if nat is None: nat = dy
+            return (min(nat, dy) if dy is not None else nat), bench
+        for te in d["terraces"]:
+            if in_poly(q, terrace_poly(te, g)): bench = te["y"]
+        t += 0.2
+    return (bench if bench is not None else d["planes"][0]["y"]), None
+
+
+# ---------------------------------------------------------------- 回廊の基壇の展開
+def kidan_svg(d, kan="其十"):
+    """回廊の基壇の石垣を四面ぶん展開する(スキル §3c の土留めの続き)。
+
+    平面では露出高が読めない — 天端は 29.0 で一定でも、法尻は境内面(28.3)から
+    平場の縁が退く北で深くなる。**南妻 → 東面 → 北妻 → 西面**の順に一周を伸ばす。
+    """
+    g = G(d)
+    ken = d["const"]["ken"]
+    order = ["TW_Kairo_S", "TW_Kairo_E", "TW_Kairo_N", "TW_Kairo_W"]
+    ws = {w["name"]: w for w in d["terraceWalls"]}
+    faces = []                                   # (名, 世界a, 世界b, 開口[(s0,s1)])
+    for nm in order:
+        w = ws[nm]
+        a, b = w["a"], w["b"]
+        if nm == "TW_Kairo_N": a, b = b, a       # 東→西へ回る
+        if nm == "TW_Kairo_W": a, b = b, a       # 北→南へ回る
+        faces.append((nm, g.W(a[0], a[1]), g.W(b[0], b[1]), w))
+    # 一周の長さと、各面の始まりの位置
+    segl = [math.hypot(b[0] - a[0], b[1] - a[1]) for _, a, b, _ in faces]
+    tot = sum(segl)
+    W = 900.0
+    ML, MR, TOP = 74.0, 26.0, 46.0
+    s = (W - ML - MR) / tot
+    VEXK = 3.2
+    vs = s * VEXK
+    STEP = 0.5
+    cop = ws["TW_Kairo_E"]["coping"]
+    kei = d["planes"][0]["y"]
+
+    rows, acc = [], 0.0
+    for (nm, a, b, w), L in zip(faces, segl):
+        dx, dz = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+        nx, nz = -dz, dx                          # 左手法線
+        # 外向きに直す(回廊の芯 u0,v0 から遠ざかる向き)
+        cx, cz = g.W(0.0, 0.0)
+        mx, mz = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+        if (mx - cx) * nx + (mz - cz) * nz < 0: nx, nz = -nx, -nz
+        n = int(round(L / STEP))
+        for i in range(n + 1):
+            t = i * L / n
+            px, pz = a[0] + dx * t, a[1] + dz * t
+            dy, ben = face_toe(d, g, px, pz, nx, nz)
+            nat = dem_h(px + nx * 1.2, pz + nz * 1.2)
+            rows.append((acc + t, dy, nat if nat is not None else dy, nm, ben))
+        acc += L
+
+    ymin = min(r[1] for r in rows)
+    y0 = min(ymin, min(r[2] for r in rows)) - 0.8
+    y1 = cop + 1.6
+    Hh = (y1 - y0) * vs
+    H = Hh + TOP + 42.0
+    X = lambda c: ML + c * s
+    Y = lambda y: TOP + Hh - (y - y0) * vs
+    o = _sv(W, H, "回廊の基壇の展開")
+    o.append(R(0, 0, W, H, fill="var(--paper2)"))
+
+    # 石垣の胴(天端から法尻まで)
+    body = [(X(c), Y(cop)) for c, _, _, _, _ in rows] + \
+           [(X(c), Y(dy)) for c, dy, _, _, _ in reversed(rows)]
+    o.append(PL(body, fill=_pat(), op=0.95, stroke="var(--ishi)", sw=1.2, close=True))
+    # 石の目地 — ピッチ 1.80m / 段は 0.45m(CLAUDE.md の石垣モジュール)
+    for j in range(1, 40):
+        yy = cop - 0.45 * j
+        seg = [(X(c), Y(yy)) for c, dy, _, _, _ in rows if dy <= yy]
+        if len(seg) > 1:
+            for k in range(len(seg) - 1):
+                if seg[k + 1][0] - seg[k][0] < s * STEP * 1.6:
+                    o.append(LN(seg[k][0], seg[k][1], seg[k + 1][0], seg[k + 1][1],
+                                stroke="var(--ishi)", sw=0.5, op=0.5))
+    ncol = int(tot / 1.80)
+    for j in range(1, ncol + 1):
+        c = j * 1.80
+        dy = min(r[1] for r in rows if abs(r[0] - c) <= STEP) if any(abs(r[0] - c) <= STEP for r in rows) else None
+        if dy is None or cop - dy < 0.5: continue
+        yb = cop - 0.45 * int((cop - dy) / 0.45)
+        o.append(LN(X(c), Y(cop), X(c), Y(max(dy, yb)), stroke="var(--ishi)", sw=0.4, op=0.35))
+    # 天端・地盤
+    o.append(PL([(X(c), Y(cop)) for c, _, _, _, _ in rows], stroke="var(--ink)", sw=2.0))
+    o.append(PL([(X(c), Y(dy)) for c, dy, _, _, _ in rows], stroke="var(--ink)", sw=1.6))
+    # 犬走り(壁の外の平場)がある区間だけ、その高さを細い線で重ねる
+    bn = [(X(c), Y(bb)) for c, _, _, _, bb in rows if bb is not None]
+    if len(bn) > 1:
+        o.append(PL(bn, stroke="var(--take)", sw=1.4, op=0.9, dash="3 3"))
+    o.append(PL([(X(c), Y(nt)) for c, _, nt, _, _ in rows], stroke="var(--dim)", sw=1.1, dash="5 3"))
+    # 境内面の罫
+    o.append(LN(ML, Y(kei), W - MR, Y(kei), stroke="var(--take)", sw=1.0, dash="8 5", op=0.8))
+    o.append(T(ML - 6, Y(kei) + 4, "境内面 %.1f" % kei, fs=10, anchor="end", fill="var(--take)"))
+    o.append(T(ML - 6, Y(cop) + 4, "天端 %.1f" % cop, fs=10, anchor="end", fill="var(--ink)"))
+
+    # 面の境と名
+    acc = 0.0
+    LAB = {"TW_Kairo_S": "南妻", "TW_Kairo_E": "東面(表)", "TW_Kairo_N": "北妻", "TW_Kairo_W": "西面(裏)"}
+    for (nm, a, b, w), L in zip(faces, segl):
+        o.append(LN(X(acc), TOP - 6, X(acc), Y(y0), stroke="var(--shu)", sw=0.8, dash="4 4", op=0.7))
+        o.append(T(X(acc + L / 2), TOP - 10, "%s %.1f 間" % (LAB[nm], L / ken), fs=11,
+                   anchor="middle", fill="var(--shu)"))
+        # 開口(楼門の門口)
+        hw = w.get("gapHalf")
+        if hw:
+            cc = w.get("gapV") if abs(w["a"][0] - w["b"][0]) < abs(w["a"][1] - w["b"][1]) else w.get("gapU")
+            if cc is not None:
+                aa = w["a"] if nm != "TW_Kairo_N" else w["b"]
+                i = 1 if abs(w["a"][0] - w["b"][0]) < abs(w["a"][1] - w["b"][1]) else 0
+                g0 = acc + abs(cc - hw - aa[i]) * ken
+                o.append(R(X(g0), Y(cop), abs(2 * hw * ken) * s, (Y(y0) - Y(cop)),
+                           fill="var(--paper2)", op=0.95, stroke="var(--shu)", sw=1.0, dash="4 3"))
+                o.append(T(X(g0 + hw * ken), Y(cop) - 5, "楼門の門口", fs=10,
+                           anchor="middle", fill="var(--shu)"))
+        acc += L
+    o.append(LN(X(tot), TOP - 6, X(tot), Y(y0), stroke="var(--shu)", sw=0.8, dash="4 4", op=0.7))
+
+    # 露出の最大と、面ごとの範囲
+    mx = max(rows, key=lambda r: cop - r[1])
+    o.append(LN(X(mx[0]), Y(cop), X(mx[0]), Y(mx[1]), stroke="var(--shu)", sw=1.6))
+    o.append(T(X(mx[0]) + 5, Y((cop + mx[1]) / 2) + 4, "最大 %.2f m" % (cop - mx[1]),
+               fs=11, fill="var(--shu)"))
+    txt = []
+    for nm in order:
+        rr = [cop - r[1] for r in rows if r[3] == nm]
+        txt.append("%s %.2f〜%.2f" % (LAB[nm], min(rr), max(rr)))
+    o.append(T(6, 15, kan + "　回廊の基壇の展開 ─ 南妻 → 東面 → 北妻 → 西面(石垣の露出高)",
+               fs=12.5, fill="var(--dim)"))
+    o.append(T(W - 6, 15, "垂直 %.1f 倍 ／ 一周 %.1f 間 = %.1f m" % (VEXK, tot / ken, tot),
+               fs=11, anchor="end", fill="var(--dim)"))
+    o.append(T(6, H - 24, "露出高 ── " + " ／ ".join(txt), fs=10.5, fill="var(--ishi)"))
+    o.append(T(W - 6, H - 8, "破線 = 現地形 ／ 細実線 = 法尻(平坦面の縁の外の地盤) ／ 点線 = 犬走り"
+               " ／ 目地 = 石垣モジュール ピッチ 1.80 m・段 0.45 m", fs=10.5, anchor="end", fill="var(--dim)"))
+    o.append(ENDSVG)
+    return "\n".join(o)
+
+
 # ---------------------------------------------------------------- 其十一 山麓
 def sanroku_svg(d, kan="其十一"):
     g = G(d)
@@ -1177,9 +1484,8 @@ def sanroku_svg(d, kan="其十一"):
                 fill="var(--pl-slope)", op=0.4, close=True))
     # 前庭
     zt = d["terraces"][1]
-    a = g.W(zt["u0"], zt["v0"]); b = g.W(zt["u1"], zt["v1"])
-    o.append(R(pr.X(a[0]), pr.Y(b[1]), pr.X(b[0]) - pr.X(a[0]), pr.Y(a[1]) - pr.Y(b[1]),
-               fill="var(--pl-suso)", stroke="var(--ink)", sw=1.0, op=0.9))
+    o.append(PL([(pr.X(x), pr.Y(z)) for x, z in terrace_poly(zt, g)],
+                fill="var(--pl-suso)", stroke="var(--ink)", sw=1.0, op=0.9, close=True))
     o.append(T(pr.X(-443), pr.Y(858), "前庭", fs=11.5, anchor="middle"))
     # 隣地
     for nb in d["neighbors"]:
@@ -1347,7 +1653,7 @@ def kaidan_table(d):
                     "<td>%.1f%%</td><td>%s</td></tr>"
                     % (k["name"], k["steps"], rise / k["steps"], L / k["steps"], rise, L,
                        rise / L * 100, k["acc"]))
-    return ('<div class="tw"><table><thead><tr><th>石段</th><th>段数</th><th>蹴上</th><th>踏面</th>'
+    return ('<div class="tw"><table><thead><tr><th>石段</th><th>段数</th><th>蹴上</th><th>段の間隔</th>'
             "<th>比高</th><th>平面長</th><th>勾配</th><th>確度</th></tr></thead><tbody>"
             + "".join(rows) + "</tbody></table></div>")
 
@@ -1446,7 +1752,8 @@ def fig(h, svg, cap=None, legend=None):
 
 KAN = ["其一", "其二", "其三", "其四", "其五", "其六", "其七", "其八", "其九", "其十",
        "其十一", "其十二", "其十三", "其十四", "其十五", "其十六", "其十七", "其十八",
-       "其十九", "其二十", "其二十一", "其二十二", "其二十三", "其二十四", "其二十五"]
+       "其十九", "其二十", "其二十一", "其二十二", "其二十三", "其二十四", "其二十五",
+       "其二十六", "其二十七", "其二十八"]
 
 
 def main():
@@ -1553,9 +1860,9 @@ def main():
 
     # 断面
     # ---- 断面(json の sections を順に) ----
-    def poly_zrange(x, at=None):
-        """境内の平場が x で覆う z の範囲(at を与えれば z=at での x の範囲)。"""
-        P = [g.W(u, v) for u, v in d["terraces"][0]["uv"]]
+    def poly_zrange(x, at=None, te=0):
+        """平場が x で覆う z の範囲(at を与えれば z=at での x の範囲)。te=1 は前庭。"""
+        P = [g.W(u, v) for u, v in terrace_poly_uv(d["terraces"][te])]
         vals = []
         for i in range(len(P)):
             (x1, z1), (x2, z2) = P[i], P[(i + 1) % len(P)]
@@ -1599,7 +1906,7 @@ def main():
                 "第1脚の踏面1.8mは駕籠が通る緩い上りで、御成の道として理に適う。"),
       "NS4827": ("<b>回廊は直線で通るが、平坦面の東縁は北へ退く。</b>差は石垣の基壇(天端29.0)で受ける。"
                 "名所図会は<b>両翼とも</b>石垣基壇の上に描く【S 実見 2026-08-23】。"
-                "⚠ 回廊を明治16年実測図の<b>29間(東面総長54m)</b>へ伸ばした結果、<b>北端の基壇の露出が約7mになる</b> — "
+                "⚠ 回廊を明治16年実測図の<b>29間(東面総長54m)</b>へ伸ばした結果、<b>北端の基壇の露出は図で読む(数値を文章に写さない)。"
                 "この深さは未決(_pending)。"),
       "OTOKO_X": ("<b>男坂の横断(通路幅 7.0 m)。</b>⚠ 2026-08-23 改訂 — 石段が現地形の自然勾配に乗ったので"
                 "<b>切通しではなくなり</b>、路肩の土留めだけになった。旧図はここに3m級のU字を掘っていた。"
@@ -1664,7 +1971,9 @@ def main():
                 z = g.W(0, v)[1]
                 marks.append((z - 0.4, z + 0.4, y_ox, "側壁", "塀"))
         elif key == "ZENTEI_NS":
-            flats = [(g.W(0, zt["v0"])[1], g.W(0, zt["v1"])[1], yz)]
+            # 南縁が女坂の口で段違いになったので、矩形ではなく多角形から z 範囲を取る
+            za, zb = poly_zrange(sec["at"], te=1)
+            flats = [(za, zb, yz)]
         elif key in ("EW817", "EW905"):
             za, zb = poly_zrange(None, at=sec["at"])
             if za is not None: flats = [(za, zb, yk)]
@@ -1679,7 +1988,8 @@ def main():
               ("%s = %g ／ %s" % (sec["axis"], sec["at"], sec["viewText"]))
               if "at" in sec else "%s ／ %s" % (sec["axis"], sec["viewText"]))
         fig(h, section_svg(d, key, design, marks, "%s　%s" % (KAN[n[0] - 1], sec["name"]),
-                           flip=False, viewtxt="矢視 " + sec["kana"] + " ／ " + sec["viewText"]),
+                           flip=False, viewtxt="矢視 " + sec["kana"] + " ／ " + sec["viewText"],
+                           flats=flats, stairs=stairs),
             cap=CAP.get(key, ""))
         h.append("</div>")
 
@@ -1712,6 +2022,16 @@ def main():
             "これはちょうど八十一間で、設計の矩形はこの周長に合わせてある。")
     h.append(runs_table(d))
     h.append(walls_table(d))
+    h.append("</div>")
+
+    plate(h, nx(), "回廊の基壇の展開", "天端は一定・法尻は地形なり ── 平面では読めない露出高")
+    fig(h, kidan_svg(d, KAN[n[0] - 1]),
+        cap="<b>名所図会は回廊を両翼とも石垣の基壇の上に描く</b>【S 実見 2026-08-23】。"
+            "基壇の天端は境内面より高く一定だが、<b>平坦面の東縁が北で退く</b>ので"
+            "北へ行くほど石垣が深くなる。<b>どこまで深くなるかは図で読む</b>(数値は設計値ファイルにのみ置く)。"
+            "⚠ 回廊の長さを明治16年実測図の29間に採ったことの帰結で、"
+            "<b>基壇を深く積むか・平場を北へ補うか・回廊を短くするかは未決</b>(其二十四 未解決)。"
+            "石の割付は CLAUDE.md の石垣モジュール(ピッチ1.80m・重ね0.20m)に合わせた目安。")
     h.append("</div>")
 
     plate(h, nx(), "門", "山上は楼門一基。もう一基は男坂の下")

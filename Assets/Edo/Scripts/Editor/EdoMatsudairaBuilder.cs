@@ -421,6 +421,134 @@ public static class EdoMatsudairaBuilder
                              n, TOL, bad, n == 0 ? 0f : (float)bad / n, worst, wp.x, wp.y);
     }
 
+    // ---------------------------------------------------------------- Stage2 外周
+    static Transform Group(string child)
+    {
+        var r = GameObject.Find(Grp);
+        if (r == null) { r = new GameObject(Grp); Undo.RegisterCreatedObjectUndo(r, "grp"); }
+        EdoYashikiPrefab.EnsureEditable(r);      // プレハブ化済みなら解く(でないと組み替えが黙って失敗する)
+        var cur = r.transform;
+        if (string.IsNullOrEmpty(child)) return cur;
+        foreach (var seg in child.Split('/'))
+        {
+            var nx = cur.Find(seg);
+            if (nx == null)
+            {
+                var go = new GameObject(seg);
+                Undo.RegisterCreatedObjectUndo(go, "grp");
+                go.transform.SetParent(cur, false);
+                nx = go.transform;
+            }
+            cur = nx;
+        }
+        return cur;
+    }
+    static void Clear(Transform t)
+    {
+        for (int i = t.childCount - 1; i >= 0; i--) UnityEngine.Object.DestroyImmediate(t.GetChild(i).gameObject);
+    }
+    /// <summary>辺 e の外向き法線(区画の外側)。</summary>
+    public static Vector2 OutNormal(int e)
+    {
+        var P = Poly; int n = P.Length;
+        Vector2 d = (P[(e + 1) % n] - P[e % n]).normalized;
+        Vector2 nn = new Vector2(-d.y, d.x);
+        float area = 0f;
+        for (int i = 0; i < n; i++) { var a = P[i]; var b = P[(i + 1) % n]; area += a.x * b.y - b.x * a.y; }
+        if (area > 0) nn = -nn;                  // 内向きになったら反転
+        // 重心が内側に来る向きに揃える
+        Vector2 c = Vector2.zero; foreach (var q in P) c += q; c /= n;
+        Vector2 mid = (P[e % n] + P[(e + 1) % n]) * 0.5f;
+        if (Vector2.Dot(c - mid, nn) > 0) nn = -nn;
+        return nn;
+    }
+
+    [MenuItem("Edo/松平出羽守上屋敷/2 外周(塀・長屋・木柵)")]
+    public static void Stage2Menu() { Debug.Log("[Matsudaira] " + Stage2_Perimeter()); }
+    public static string Stage2_Perimeter()
+    {
+        EdoNishiTameikeBuilder.NaturalMode = false;     // 天端は run の seat で通す
+        var kak = Group("Kakoi"); Clear(kak);
+        var sb = new System.Text.StringBuilder();
+        int nag = 0, hei = 0;
+
+        // 門の開口(表門は組立全幅、小門は w)
+        var gate = O(D["gate"]);
+        var gplan = O(gate["plan"]);
+        var gsp = O(gplan["sPos"]);
+        float gA = F(A(gsp["banshoW"])[0]), gB = F(A(gsp["banshoE"])[1]);
+        int gEdge = (int)F(gate["edge"]);
+        var komon = new List<float[]>();               // {edge, s0, s1}
+        foreach (var o in A(D["komon"]))
+        {
+            var k = O(o); float s = F(k["s"]), w = F(k["w"]);
+            komon.Add(new float[] { F(k["edge"]), s - w / 2f, s + w / 2f });
+        }
+        Func<int, float, float, List<Vector2[]>> split = (edge, s0, s1) =>
+        {
+            // 開口で run を割る
+            var cuts = new List<float[]>();
+            if (edge == gEdge) cuts.Add(new float[] { gA, gB });
+            foreach (var k in komon) if ((int)k[0] == edge) cuts.Add(new float[] { k[1], k[2] });
+            cuts.Sort((x, y) => x[0].CompareTo(y[0]));
+            var outp = new List<Vector2[]>();
+            float cur = s0;
+            foreach (var c in cuts)
+            {
+                if (c[1] <= s0 || c[0] >= s1) continue;
+                if (c[0] > cur) outp.Add(new Vector2[] { EdgePt(edge, cur), EdgePt(edge, Mathf.Min(c[0], s1)) });
+                cur = Mathf.Max(cur, c[1]);
+            }
+            if (cur < s1) outp.Add(new Vector2[] { EdgePt(edge, cur), EdgePt(edge, s1) });
+            return outp;
+        };
+
+        foreach (var r in Runs)
+        {
+            Vector2 outw = OutNormal(r.edge);
+            foreach (var seg in split(r.edge, r.s0, r.s1))
+            {
+                if ((seg[1] - seg[0]).magnitude < 1.2f) continue;
+                if (r.nagaya)
+                {
+                    EdoNishiTameikeBuilder.NagayaRun(kak, seg[0], seg[1], outw, r.seat, Vector2.zero, -1, r.name);
+                    nag++;
+                }
+                else
+                {
+                    EdoNishiTameikeBuilder.DobeiRun(kak, seg[0], seg[1], outw, r.name, false, r.seat, Vector2.zero, -1);
+                    hei++;
+                }
+            }
+        }
+        sb.AppendLine("塀・長屋: 長屋run " + nag + " / 練塀run " + hei);
+
+        // 木柵(地形なり)。在庫の矢来を等間隔に立てる。
+        var fen = Group("Fences"); Clear(fen);
+        int posts = 0;
+        foreach (var o in A(D["fences"]))
+        {
+            var fdef = O(o);
+            int e = (int)F(fdef["edge"]);
+            float s0 = F(fdef["s0"]), s1 = F(fdef["s1"]);
+            Vector2 outw = OutNormal(e);
+            float psi = Mathf.Atan2(outw.x, outw.y) * Mathf.Rad2Deg;
+            // 穂垣(hogaki5=5枚スパン)を地形なりに並べる。基礎も整地も無い境界の標示。
+            const float SPAN = 4.6f;              // 実寸に合わせた並べピッチ[m]
+            for (float s = s0 + SPAN * 0.5f; s < s1; s += SPAN)
+            {
+                Vector2 p = EdgePt(e, s);
+                var go = EdoNishiTameikeBuilder.Place(EdoAssets.Eg.Hogaki5, new Vector3(p.x, 0, p.y),
+                                                     psi, Vector3.one, fen, (string)fdef["name"] + "_" + posts);
+                if (go == null) continue;
+                EdoNishiTameikeBuilder.SeatBottom(go, G(p.x, p.y) - 0.05f);
+                posts++;
+            }
+        }
+        sb.AppendLine("木柵: " + posts + "枚(" + A(D["fences"]).Count + " run)");
+        return sb.ToString();
+    }
+
     // ---------------------------------------------------------------- 指図と実装の突き合わせ
     [MenuItem("Edo/松平出羽守上屋敷/指図と実装を突き合わせる")]
     public static void CompareMenu() { Debug.Log("[Matsudaira] " + Compare()); }

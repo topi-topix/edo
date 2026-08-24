@@ -107,7 +107,7 @@ def neighbour_block(d, ter, dem):
                 if t > 1.0:
                     break
                 x, z = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
-                px, pz = x + nx_ * 0.3 * sg, z + nz_ * 0.3 * sg
+                px, pz = x + nx_ * _PROBE(d) * sg, z + nz_ * _PROBE(d) * sg
                 u, v = gr.L(px, pz)
                 nat = dem_bilinear(dem, px, pz)
                 if nat is None:
@@ -687,6 +687,12 @@ def load_terrain(path):
     return t
 
 
+def _PROBE(d):
+    """境界から当家側へ測点を退げる距離(m)。**定数を読む** —
+    3箇所でベタ書きしており、定数を変えると黙って取り残された(2026-08-25 検図10巡 低-2)。"""
+    return d["const"].get("neighbourProbe", 0.3)
+
+
 def dem_bilinear(dem, x, z):
     """世界座標2m格子の DEM を**双一次**で引く。
 
@@ -696,7 +702,8 @@ def dem_bilinear(dem, x, z):
     松平の造成を写しており、2m格子の双一次が境界から 0.3m の点で向こう側のセルを混ぜて、
     当家側の「自然地盤」を 2.5m 押し上げていた(松平の指摘で発覚)。
     一時、区画内のセルだけに平面を当てる回避を入れたが、**正本へ差し替わって不要になった**
-    (正本では両家が同じ面を読むのが要件で、素の双一次が正しい。回避は最大 0.63m ずれる)。
+    (正本では両家が同じ面を読むのが要件で、素の双一次が正しい。回避は全辺で最大 0.99m ずれ、
+    しかも各家が自分の区画でマスクするので**同じ点を両家が別の値で読む**)。
 
     ⚠ `ter["at"]` は 1m 格子の**最近傍**なので、境界を挟んだ ±0.3m が同じセルに落ちる。
     塀の足元の埋没を測るのに使うと、急斜面では ±1.7m の誤差が出た(2026-08-24 第8巡:
@@ -1244,6 +1251,119 @@ def snap_openings(d):
     return d
 
 
+def fix_run_s(d, dem):
+    """外周 run の**基壇石垣の丁場 `s`** を、街路側の地盤からの露出で算出して正典へ戻す。
+
+    ⚠ `terraceWalls`(15本)と `boundaryPlinth` は全部 `s` を持ち `wall_check` も掛かるのに、
+    **屋敷でいちばん高い石垣(外周 run の基壇・最大 3.35m)だけ無検査**だった
+    (2026-08-25 検図10巡 中-6)。図にも表にも部材表にも寸法が無かった。
+    """
+    if dem is None:
+        return d
+    P = d["polygon"]
+    for r in d["runs"]:
+        if r.get("base") != "Ishigaki":
+            r.pop("s", None); r.pop("expose", None)
+            continue
+        e = r["edge"]
+        a, b = P[e], P[(e + 1) % len(P)]
+        L = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
+        ex, ez = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+        nx_, nz_ = -ez, ex
+        gr = RGrid(d)
+        mu, mv = gr.L((a[0] + b[0]) / 2 + nx_ * 3, (a[1] + b[1]) / 2 + nz_ * 3)
+        sg = -1.0 if in_parcel(d, mu, mv) else 1.0      # 街路側(区画の外)へ出す
+        seat = r.get("seat", r.get("seat0"))
+        n = max(4, int((r["s1"] - r["s0"]) / 0.5))
+        hi = 0.0
+        for i in range(n + 1):
+            sq = r["s0"] + (r["s1"] - r["s0"]) * i / float(n)
+            x = a[0] + (b[0] - a[0]) * sq / L; z = a[1] + (b[1] - a[1]) * sq / L
+            g = dem_bilinear(dem, x + nx_ * 1.0 * sg, z + nz_ * 1.0 * sg)
+            if g is None:
+                continue
+            s0v = r.get("seat0", seat); s1v = r.get("seat1", seat)
+            t = 0.0 if r["s1"] <= r["s0"] else (sq - r["s0"]) / (r["s1"] - r["s0"])
+            hi = max(hi, (s0v + (s1v - s0v) * t) - g)
+        r["expose"] = round(max(0.0, hi), 2)
+        smax = d["const"].get("plinthSMax", 0.75)
+        # ⚠ **丁場の上限を超える露出は段築にする。** 一段で受けようとすると
+        #   石垣キットに無い丁場を要求する図になる(2026-08-25 検図10巡 中-6)。
+        #   段のあいだには犬走りを取る。
+        r["tiers"] = max(1, int(math.ceil(hi / (4.0 * smax) - 1e-9)))
+        need = hi / r["tiers"]
+        r["s"] = round(min(smax, max(0.20, math.ceil(need / 4.0 / 0.05 - 1e-9) * 0.05)), 2)
+    return d
+
+
+def terrain_canon_check(d, ter, dem):
+    """回転間格子 `doi_terrain.json` が**地盤の正本から外れていないか**。
+
+    切盛の土量・断面の地形線・`mune_fit_check`・`fix_walls` の落差は**すべてこの格子**から出るが、
+    これは `build_base_dem.py --check` の対象外で、別途採った実測のまま。
+    正本 `base_dem.json` を改訂しても誰も気づかない(2026-08-25 検図10巡 中-2)。
+    """
+    if ter is None or dem is None:
+        return []
+    gr = RGrid(d)
+    bad = []
+    worst = 0.0; n = 0
+    for iv in range(ter["nv"]):
+        v = ter["v0"] + iv * ter["step"]
+        for iu in range(ter["nu"]):
+            u = ter["u0"] + iu * ter["step"]
+            h = ter["h"][iv][iu]
+            if h is None:
+                continue
+            x, z = gr.W(u, v)
+            b = dem_bilinear(dem, x, z)
+            if b is None:
+                continue
+            n += 1
+            worst = max(worst, abs(h - b))
+            if abs(h - b) > 0.5:
+                bad.append("回転間格子が正本から %.2fm 外れる(グリッド %.0f, %.0f)" % (h - b, u, v))
+    if n == 0:
+        bad.append("回転間格子と正本の重なりが無い — 種地を確かめること")
+    return bad[:8]
+
+
+def fix_sections(d, ter, dem):
+    """断面の `natural`(現地形の線)を**地盤から毎回生成する**。
+
+    手で持っていたため、地盤を差し替えても断面だけが古いまま残る型
+    (2026-08-25 検図10巡 中-7 と同じ二重管理)。1間刻みで引き直す。
+    """
+    gr = RGrid(d)
+    for sec in d.get("sections", []):
+        a0, a1 = int(math.floor(sec["from"])), int(math.ceil(sec["to"]))
+        out = []
+        for q in range(a0, a1 + 1):
+            u, v = (sec["at"], q) if sec["axis"] == "u" else (q, sec["at"])
+            x, z = gr.W(u, v)
+            h = dem_bilinear(dem, x, z)
+            if h is None and ter is not None:
+                h = ter["at"](u, v)
+            if h is not None:
+                out.append([q, round(h, 2)])
+        if out:
+            sec["natural"] = out
+    return d
+
+
+def run_s_check(d):
+    """外周 run の基壇石垣が露出を受けきれるか(壁高 4s ≧ 露出)。"""
+    bad = []
+    for r in d["runs"]:
+        if r.get("base") != "Ishigaki" or "s" not in r:
+            continue
+        if 4.0 * r["s"] * r.get("tiers", 1) + 1e-6 < r.get("expose", 0.0):
+            bad.append("外周 %s の基壇の壁高 %.2fm(丁場%.2f×%d段築)が露出 %.2fm を受けきれない"
+                       % (r["name"], 4.0 * r["s"] * r.get("tiers", 1), r["s"],
+                          r.get("tiers", 1), r["expose"]))
+    return bad
+
+
 def fix_sode(d):
     """開口の**袖石垣**を算出して正典へ戻す。
 
@@ -1352,7 +1472,7 @@ def fix_boundary_plinth(d, dem):
         for k in range(n + 1):
             sq = L * k / float(n)
             x, z = a[0] + (b[0] - a[0]) * sq / L, a[1] + (b[1] - a[1]) * sq / L
-            px, pz = x + nx_ * 0.3 * sg, z + nz_ * 0.3 * sg
+            px, pz = x + nx_ * _PROBE(d) * sg, z + nz_ * _PROBE(d) * sg
             u, v = gr.L(px, pz)
             nat = dem_bilinear(dem, px, pz)
             if nat is None:
@@ -1376,7 +1496,11 @@ def fix_boundary_plinth(d, dem):
                 # ⚠ **丁場は落差から算出する。** 0.25 に固定していたので、段をいくら
                 #   持ち上げても壁高 1.00m のままで、検査が恒真だった
                 #   (2026-08-24 検図9巡 高-1)。壁高は 4s。
-                sq_s = max(0.20, math.ceil(dmax / 4.0 / 0.05 - 1e-9) * 0.05)
+                # ⚠ 丁場に**上限**を置く。上限が無いと、段をいくら持ち上げても
+                #   `4s >= dmax` が構造的に成り立ち、「壁高が足りるか」の分岐が
+                #   **到達不能**になる(2026-08-25 検図10巡 中-1)。
+                sq_s = min(d["const"].get("plinthSMax", 0.75),
+                           max(0.20, math.ceil(dmax / 4.0 / 0.05 - 1e-9) * 0.05))
                 d["boundaryPlinth"].append(
                     {"edge": i, "s0": round(max(0.0, s0), 2), "s1": round(min(L, s1), 2),
                      "coping": round(top, 2), "drop": round(dmax, 2), "s": round(sq_s, 2),
@@ -1414,7 +1538,7 @@ def boundary_fill_check(d, dem):
         for k in range(n + 1):
             sq = L * k / float(n)
             x, z = a[0] + (b[0] - a[0]) * sq / L, a[1] + (b[1] - a[1]) * sq / L
-            px, pz = x + nx_ * 0.3 * sg, z + nz_ * 0.3 * sg
+            px, pz = x + nx_ * _PROBE(d) * sg, z + nz_ * _PROBE(d) * sg
             u, v = gr.L(px, pz)
             nat = dem_bilinear(dem, px, pz)
             if nat is None:
@@ -2086,18 +2210,28 @@ def routes_table(d):
         #   (2026-08-24 検図9巡 中-2)。⚠ 石段・斜路を含む区間はその勾配が支配するので、
         #   石段を持つ動線では「(石段を含む)」と断る。歩きの勾配として読めるのは
         #   石段0の動線(役人)だけ。
-        steepest = None
+        # ⚠ **折れ点だけで測らない。** 端点間の勾配は途中の急な所を平均で薄める
+        #   (2026-08-25 検図10巡 中-3: 表に 1:6.2 と出るが 3m 窓では 1:4.3)。
+        WIN = 3.0
+        prof = []; acc = 0.0
         for a, b in zip(r["pts"], r["pts"][1:]):
-            seg = math.hypot(b[0] - a[0], b[1] - a[1]) * K
-            if seg < 0.5:
+            seg = math.hypot(b[0] - a[0], b[1] - a[1])
+            n_w = max(2, int(seg / 0.05))
+            for i in range(1, n_w + 1):
+                u = a[0] + (b[0] - a[0]) * i / n_w
+                v = a[1] + (b[1] - a[1]) * i / n_w
+                acc += seg / n_w * K
+                y = _ry(u, v)
+                if y is not None:
+                    prof.append((acc, y))
+        steepest = None; j = 0
+        for i in range(len(prof)):
+            while prof[i][0] - prof[j][0] > WIN:
+                j += 1
+            dl = prof[i][0] - prof[j][0]; dh = abs(prof[i][1] - prof[j][1])
+            if dl < WIN * 0.9 or dh < 0.05:
                 continue
-            ya, yb = _ry(a[0], a[1]), _ry(b[0], b[1])
-            if ya is None or yb is None:
-                continue
-            dh = abs(yb - ya)
-            if dh < 0.02:
-                continue
-            gsl = seg / dh
+            gsl = dl / dh
             if steepest is None or gsl < steepest:
                 steepest = gsl
         updn = "昇 %.1f / 降 %.1f" % (up, dn)
@@ -2118,7 +2252,7 @@ def routes_table(d):
                     hitk.add(k["name"])
         steps = sum(k["steps"] for k in d["kaidans"] if k["name"] in hitk)
         if steepest:
-            updn += " ／ 区間の最急 1:%.1f%s" % (steepest, "(石段を含む)" if steps else "")
+            updn += " ／ 3m窓の最急 1:%.1f%s" % (steepest, "(石段を含む)" if steps else "")
         rows.append("<tr><td><span style='color:%s'>━</span> %s</td><td>%s</td><td>%.0f m</td>"
                     "<td>%+.1f m</td><td>%d 段</td><td class='note'>%s</td></tr>"
                     % (RK.get(r["kind"], ("var(--dim)", ""))[0], r["label"],
@@ -3884,6 +4018,8 @@ GEN_FIELDS = {
     "terraceWalls": ("drop", "s", "sode", "_sodeRoom", "gapHalf", "_pitch"),
     "kaidans": ("steps", "run", "keriActual"),
     "links": ("keriActual",),
+    "runs": ("s", "expose", "tiers"),
+    "sections": ("natural",),
 }
 
 
@@ -3942,6 +4078,9 @@ def main():
         x = fix_walls(x, load_terrain(os.path.join(DOC, "doi_terrain.json")))
         x = snap_openings(x)            # 開口の縁を石垣のピッチ格子へ・芯は通る物から
         x = fix_sode(x)                 # 開口の両端の袖石垣
+        x = fix_run_s(x, load_terrain(os.path.join(DOC, "doi_dem.json")))  # 外周の基壇の丁場
+        x = fix_sections(x, load_terrain(os.path.join(DOC, "doi_terrain.json")),
+                         load_terrain(os.path.join(DOC, "doi_dem.json")))  # 断面の現地形線
         x = fix_boundary_plinth(x, load_terrain(os.path.join(DOC, "doi_dem.json")))
         return x
 
@@ -3984,6 +4123,9 @@ def main():
             print("   ", b)
     pbad = (plane_check(d) + inubashiri_check(d) + opening_fit_check(d) + refs_check(d)
             + norms_check(d) + perimeter_check(d) + clearance_check(d) + rails_check(d)
+            + run_s_check(d)
+            + terrain_canon_check(d, load_terrain(os.path.join(DOC, "doi_terrain.json")),
+                                  load_terrain(os.path.join(DOC, "doi_dem.json")))
             + boundary_fill_check(d, load_terrain(os.path.join(DOC, "doi_dem.json")))
             + mune_fit_check(d, load_terrain(os.path.join(DOC, "doi_terrain.json")))
             + edge_step_check(d, load_terrain(os.path.join(DOC, "doi_dem.json")))
@@ -4268,9 +4410,22 @@ def main():
              '表長屋でなく<b>道なりの練塀</b>とする。北・西の囲いは松平所有、南は岡部所有'
              '(屋敷境の囲いは1条・隣家持ちの裁定)。<b>西辺は全区間が練塀+石垣基壇</b> — '
              '松平の指図で「相手のある屋敷境は斜面でも練塀で通す」と改められた(2026-08-23)。'
-             '犬走り %.2fm。</p>'
-             % d["const"]["inubashiri"])
+             '石垣の天端の犬走り %.2fm(=%.1f間)。</p>'
+             % (d["const"]["inubashiri"] * d["const"]["ken"], d["const"]["inubashiri"]))
     h.append("</div>")
+
+    _mf = [(m["name"], mune_fit(d, load_terrain(os.path.join(DOC, "doi_terrain.json")), m))
+           for m in d["munes"] + d["service"]]
+    _mf = [(n_, r) for n_, r in _mf if r]
+    _over = [(n_, r) for n_, r in _mf if abs(r[0]) > 0.5]
+    h.append('<p class="cap">⚠ <b>§B-1 の運用</b> — 「棟が載る所で |設計面 − 自然地形| ≤ 0.5m」は'
+             '<b>面積比 5%% で判定する</b>(0%% を求めると地形の粒度に負ける)。'
+             '全 %d 棟が 5%% のゲート内(超過率の最大 %.1f%%)。'
+             'ただし<b>局所の最大では %d 棟が 0.5m を超える</b>: %s。'
+             '残りは全域 ±%.2fm 以内。</p>'
+             % (len(_mf), max(r[1] for _, r in _mf), len(_over),
+                "・".join("%s %.2fm" % (n_, abs(r[0])) for n_, r in _over) or "無し",
+                max((abs(r[0]) for n_, r in _mf if (n_, r) not in _over), default=0.0)))
 
     plate(h, nx(), "表門まわり", "長屋門・切妻造(片番所・格子付・片潜門)。型式=B(表長屋の実在S+[山脇武家屋敷門]A)/屋根=B(型式からの帰結)/番所と潜戸=B/U(型式をまたぐ移植)/石高帯=A([下丸子武家屋敷門]の都教委掲示)/実在と被災=S")
     fig(h, gate_svg(d),

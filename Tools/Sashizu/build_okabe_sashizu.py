@@ -715,8 +715,8 @@ def _fit_note(d):
         while u < o["u1"]:
             v = o["v0"] + 0.25
             while v < o["v1"]:
-                g = at(E, round(u), round(v))
-                if g is not None:
+                g = _dem_at(d, u, v)          # ⚠ 双一次。round() で最寄りセルを拾うと
+                if g is not None:            #    他の検査(法面・断面)と違う値になる(2026-08-25)
                     ds.append(abs(o["y"] - g)); tt += 1
                     c = at(cur, round(u), round(v)) if cur else None
                     if c is not None and abs(c - g) > 0.3:
@@ -727,7 +727,7 @@ def _fit_note(d):
             continue
         n += 1; mx = max(mx, max(ds))
         over.append((MUNE_JA.get(o["name"], o.get("label", o["name"])), max(ds), o["y"],
-                     bool(o.get("fillOK"))))
+                     bool(o.get("levelOK"))))
         if tt and rr / float(tt) > 0.5:
             rec.append(MUNE_JA.get(o["name"], o.get("label", o["name"])))
         else:
@@ -740,6 +740,12 @@ def _fit_note(d):
         cur = json.load(open(os.path.join(DOC, "okabe_terrain.json"), encoding="utf-8"))
     except Exception:
         pass
+    try:
+        _cp = json.load(open(os.path.join(DOC, "okabe_edo_world.json"), encoding="utf-8"))["_computed"]
+        modelpct = " / ".join("%s %.0f%%" % (TERR_JA.get(k, k), v)
+                              for k, v in _cp["modelPct"].items())
+    except Exception:
+        modelpct = "—"
     mode = []; selfref = []; band = {}
     for t in d["terraces"]:
         cnt = {}; tot = 0; ex = 0; tot2 = 0
@@ -776,18 +782,25 @@ def _fit_note(d):
         head = ("<b>棟が載る所の |設計面 − 江戸期地盤| は、裁定で受け入れた %d物件を除いて"
                 "全%d物件が 0.5m 以内</b>(規則3)。" % (len(okf), n))
     if okf:
-        head += ("<b>裁定で受け入れた盛土</b>(門前面は1883年図の内挿どおり通り沿いに傾くので、"
-                 "水平な面で通せば南で盛る。[菊地2003]『1〜4m』の中・確度U): "
+        head += ("<b>裁定で受け入れた均し</b>(門前面を<b>一枚の水平面で通す</b>という設計判断を採った結果。"
+                 "1883年図の内挿では帯が通り沿いに傾くので、傾いた前庭という代替案もあり得たが、"
+                 "白洲と石段の据わり・表門からの動線を理由に退けた【確度U】。"
+                 "生じる改変量は [菊地2003]A『土地改変は高さ1〜4m程』の中で拝領時の<b>均し</b>として"
+                 "類型から外れないが、⚠ <b>同論文の 1〜4m は屋敷単位の改変高であって"
+                 "『棟の下の許容差』ではないので、規則3 を外す根拠にはならない</b>): "
                  + " / ".join("%s +%.2fm" % (a, b) for a, b, c, f in
                               sorted(okf, key=lambda q: -q[1])) + "。")
-    tail = ("⚠ <b>この検査が独立に効いているのは %d物件だけ</b>(%s)。残る %d物件は"
+    tail = ("⚠ <b>この検査が独立に効いているのは %d物件だけ</b>(%s。判定は「棟の下のセルの半分以上で"
+            "復元値と現況が 0.3m 以内=復元が値をほとんど動かしていない」)。残る %d物件は"
             "<b>復元した地盤の上</b>にあり、そこでは「自分が置いた値を測り返している」"
             "にすぎない(§A-6)。"
-            "復元地盤が面の高さとちょうど一致するセルの割合 — <b>復元の自己参照性の指標</b> — は %s。"
+            "<b>復元が値を作ったセルの割合</b> — 復元への依存度 — は %s。"
+            "(⚠ 従前ここに出していた『復元地盤が面の高さとちょうど一致するセルの割合』は、"
+            "帯を傾け平滑化すれば構成上ゼロに近づく量で、依存度の指標にならない。2026-08-25 に差し替えた。)"
             "現況の実測DEMで見た段の中の最頻値は %s。"
             "⚠ <b>この二つは別の物差しなので、足したり比べたりしない。</b>"
             % (len(keep), "・".join(keep) or "—", len(rec),
-               " / ".join(selfref), " / ".join(mode)))
+               modelpct, " / ".join(mode)))
     if ng:
         tail += ("<b>不合格の物件:</b> "
                  + " / ".join("%s(面%.2f・最大 %+.2fm)" % (a, c, b)
@@ -3250,10 +3263,16 @@ def main():
         fig(h, dem_svg(d, dem, others), legend=dem_legend(),
             cap="<b>拝領時造成の出発点＝江戸期の復元地盤。</b>いまの地形ではない — "
                 "<b>日比谷高校の近代造成(校庭の盛土と校舎の盛土)を戻したもの</b>で、"
-                "確度は<b>U/B</b>(実測ではない)。作り方: 盛土を免れた台地の実測セル563個の中央値24.76から"
-                "台地を24.8とし、校庭に埋もれた東の低い帯と崖は [五千分一東京図31](明治16・確度A)の"
-                "三帯(台地24〜26／崖／低地12〜14)から起こして、3回平滑化した。"
-                "<b>縁の位置はこの図に見える法肩から決めている(面の高さの根拠は其一の表の確度の列)</b>。"
+                "確度は<b>U/B</b>(実測ではない)。作り方は仕様 <code>okabe_edo_recon.json</code> が持ち、"
+                "生成器 <code>build_okabe_edo_dem.py</code> が正本に対して毎回実行する — "
+                "校庭に埋もれた東の低い帯と崖は [五千分一東京図31](明治16)の"
+                "三帯(台地24〜26／崖／低地12〜14)から起こし、台地は同図の帯の上端を超える所を落とし、"
+                "近代の切土平場は周囲の実測から補間して埋め、変えた所を3回平滑化した。"
+                "<b>台地の自然面は正本から毎回算出する</b>(盛土を免れた実測セルの中央値。セル数も値も <code>build_okabe_edo_dem.py</code> が刷る — 図に写さない)。"
+                "⚠ <b>段の縁は、この図の崖の法肩に合わせてある。その崖は復元モデルが作ったもの(確度U)なので、"
+                "『図に見える法肩と段の縁が一致する』ことは外部からの裏づけにならない</b>(自己整合)。"
+                "法尻だけは 1883年図の ○13.x(区画内)に錨を取っている(確度A)。"
+                "面の高さの根拠は其一の表の確度の列。"
                 "切盛図はこの地形と設計の差。"
                 "<b>種地は正本 <code>base_dem.json</code></b>(地理院DEM由来・近代造成を含む現代の地面)で、"
                 "<b>復元は岡部区画でクリップしてある</b> — 区画の外は正本そのもの。"

@@ -149,6 +149,19 @@ def flats(grid, poly, tol, minCells):
     return cells, comps
 
 
+def _tin(t, u, v):
+    """(u,v) が段の中か(指図の tin と同じ。多角形なら crossing number)。"""
+    p = t.get("poly")
+    if not p:
+        return t["u0"] - 1e-9 <= u <= t["u1"] + 1e-9 and t["v0"] - 1e-9 <= v <= t["v1"] + 1e-9
+    n = len(p); c = False
+    for i in range(n):
+        (au, av), (bu, bv) = p[i], p[(i + 1) % n]
+        if (av > v) != (bv > v) and u < au + (bu - au) * (v - av) / (bv - av):
+            c = not c
+    return c
+
+
 def reconstruct(seed, poly, gr, spec):
     """**近代造成を戻して江戸期の地盤を起こす。** 仕様 `okabe_edo_recon.json` の手順を
     正本(seed)に対して実行する。返すのは (h, ログ)。⛔ 岡部区画の中だけを触る。"""
@@ -191,6 +204,9 @@ def reconstruct(seed, poly, gr, spec):
     mk0 = spec["mask"]
 
     mk, lb, cl, sf = spec["mask"], spec["lowband"], spec["cliff"], spec["schoolFill"]
+    if abs(lb["vToe"] - cl["v0"]) > 1e-9:      # 帯の上端 = 崖の法尻。二重管理を機械で止める
+        raise SystemExit("⛔ lowband.vToe(%.2f) ≠ cliff.v0(%.2f) — 帯と崖の間に段ができる"
+                         % (lb["vToe"], cl["v0"]))
     changed = set()
 
     # ②③ 低地の帯と崖 — マスクの中の、**近代造成が現に及んでいる所だけ**を
@@ -211,12 +227,11 @@ def reconstruct(seed, poly, gr, spec):
                 q = (ix + dx, iz + dz)
                 if w > wmap.get(q, 0.0):
                     wmap[q] = w
-    # ○ 二点の位置を区画の u 範囲と「外へ何 m」から出す(考証の文章どおり)
-    gsp = spec.get("_grid", {})
-    uLo = min(q[0] for q in uv.values()); uHi = max(q[0] for q in uv.values())
-    ken = gr.ken
-    uN = uHi + lb["spotN"]["outM"] / ken
-    uS = uLo - lb["spotS"]["outM"] / ken
+    # ○ 二点は **sources.md の実座標**からフレームへ落とす。
+    # ⛔ 散文の「区画の外へ約20m」から再導出しない(2026-08-25 考証: 基線が 187.0m → 213.3m に伸び、
+    #    勾配が 1.069% → 0.938% と12%寝ていた)。
+    uN = gr.L(*lb["spotN"]["xz"])[0]
+    uS = gr.L(*lb["spotS"]["xz"])[0]
     n2 = n3 = 0
     for (ix, iz), (u, v) in uv.items():
         w = wmap.get((ix, iz), 0.0)
@@ -246,11 +261,13 @@ def reconstruct(seed, poly, gr, spec):
         if v <= mk["vMax"]:
             continue
         y = h[iz][ix]
-        if y is not None and y > sf["above"]:
-            h[iz][ix] = py
-            changed.add((ix, iz))
-            n4 += 1
-    log.append("④ 校舎の盛土 %d セルを %.2f へ落とした" % (n4, py))
+        if y is None or y <= sf["above"]:
+            continue
+        h[iz][ix] = py
+        changed.add((ix, iz))
+        n4 += 1
+    log.append("④ 1883年図の帯の上端 %.1f を超える %d セル(=明治16年以後の盛土)を %.2f へ落とした"
+               % (sf["above"], n4, py))
 
     # ⑤ 台地の中の近代の切土平場を、周囲の実測台地セルからの逆距離加重補間で埋める
     holes = [(ix, iz) for (ix, iz), (u, v) in uv.items()
@@ -297,7 +314,7 @@ def reconstruct(seed, poly, gr, spec):
                 h[iz][ix] = sum(acc) / len(acc)
     log.append("⑦ 変えた %d セル + 周り = %d セルを %d 回平滑化"
                % (len(changed), len(soft), spec["smooth"]["passes"]))
-    return h, log, py
+    return h, log, py, changed | soft, len(sel)
 
 
 def build(check=False):
@@ -326,7 +343,7 @@ def build(check=False):
     seed["h"] = [[base["h"][iz + iz0][ix + ix0] for ix in range(WIN["nx"])]
                  for iz in range(WIN["nz"])]
     gr = RGrid(sz)
-    hw, log, py = reconstruct(seed, poly, gr, spec)
+    hw, log, py, touched, ncell = reconstruct(seed, poly, gr, spec)
     for line in log:
         print("   " + line.replace("**", ""))
     inside = 0
@@ -340,6 +357,24 @@ def build(check=False):
                 hw[iz][ix] = seed["h"][iz][ix]   # ⛔ 区画の外は正本そのもの
             if hw[iz][ix] is not None:
                 hw[iz][ix] = round(hw[iz][ix], 2)
+    # **復元がどれだけ値を作ったか**を段ごとに数えて書き出す。
+    # ⚠ 「復元地盤が面の高さとちょうど一致するセルの割合」は、帯を傾け平滑化すれば
+    #    構成上ゼロに近づく量で、依存度の指標にならない(2026-08-25 考証)。
+    frac = {}
+    for t in sz["terraces"]:
+        tot = hit = 0
+        for iz in range(WIN["nz"]):
+            for ix in range(WIN["nx"]):
+                x = WIN["x0"] + WIN["step"] * ix
+                z = WIN["z0"] + WIN["step"] * iz
+                u, v = gr.L(x, z)
+                if not (in_poly(poly, x, z) and _tin(t, u, v)):
+                    continue
+                tot += 1
+                if (ix, iz) in touched:
+                    hit += 1
+        if tot:
+            frac[t["name"]] = round(100.0 * hit / tot, 1)
     spec["plateau"]["y"] = py                    # 算出値を仕様へ書き戻す(手で持たない)
     if not check:
         json.dump(spec, open(RECON, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
@@ -351,6 +386,11 @@ def build(check=False):
         "(近代造成を戻す判断は岡部の敷地内でのみ行う)。"
         "⛔ 手で編集しない・Unity の live terrain から採り直さない(CLAUDE.md 規則12)。"
         "生成器 `Tools/Sashizu/build_okabe_edo_dem.py`。")
+    world["_computed"] = {"plateauY": py, "plateauCells": ncell, "modelPct": frac,
+                          "_": "生成器が書く算出値。**手で持たない**。plateauY=台地の自然面"
+                               "(盛土を免れた実測 plateauCells セルの中央値)/ "
+                               "modelPct=段ごとに**復元が値を作ったセルの割合[%]** — "
+                               "これが復元への依存度の指標(『面の高さとちょうど一致する割合』ではない)"}
     world["h"] = hw
 
     # ── ② 復元地盤の回転間グリッド版(world の再標本。復元の正典は world 一枚)

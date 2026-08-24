@@ -2379,8 +2379,10 @@ def main():
 
     _gr = d["grid"]["shukaku"]
     grid_deg = math.degrees(math.atan2(_gr["uz"], _gr["ux"]))
-    plate(h, nx(), "敷地", "%.0f m²(%.0f坪)/拝領11,942坪(出所未確定=?)/江戸間 1間=%.3fm/主郭グリッドは北辺沿いに%.2f°回転"
-          % (area, area / TSUBO, d["const"]["ken"], grid_deg))
+    plate(h, nx(), "敷地", "%.0f m²(%.0f坪)/拝領%s坪%s【%s】/江戸間 1間=%.3fm/主郭グリッドは北辺沿いに%.2f°回転"
+          % (area, area / TSUBO, format(d["hairyo"]["tsubo"], ","),
+             "余" if d["hairyo"].get("approx") else "", d["hairyo"]["cert"],
+             d["const"]["ken"], grid_deg))
     fig(h, plan_svg(d),
         legend=('<span style="color:var(--pl-omote)">■ 表郭 %.1f</span>'
                 '<span style="color:var(--pl-main)">■ 主平面 %.1f</span>'
@@ -2471,7 +2473,7 @@ def main():
                 for i in range(len(P)))
     h.append("<h3>建蔽率</h3>")
     h.append(kp_html)
-    h.append('<p class="cap"><b>分母は敷地全体=図上実測 %.0f坪</b>(拝領11,942坪【?】との差+7.6%%。'
+    h.append('<p class="cap"><b>分母は敷地全体=図上実測 %.0f坪</b>(拝領%s坪【%s】との差+%.1f%%。'
              '拝領値を分母にすると%.1f%%)。可建地に替えて数字を作らない。'
              '<b>大名上屋敷の建蔽率の史料値は [福井図] の5〜6割の一点しかなく</b>、当図はそれより'
              '大きく低い(広い拝領地・表門前の白洲・奥庭・明地・造成しない斜面の帰結)。'
@@ -2479,7 +2481,9 @@ def main():
              'は<b>分母が原典未確認のため帯(加賀本郷15%%・小浜28.6%%・尾張市谷47.7%%)との数値比較は'
              'しない</b>(sources.md の警告)。'
              '<b>建蔽率は結果であって目標ではない</b> — 数字のために空地へ棟を足さない。</p>'
-             % (area / TSUBO, kp * (area / TSUBO) / 11942.0, 100.0 * nagL / perim, nagL, perim))
+             % (area / TSUBO, format(d["hairyo"]["tsubo"], ","), d["hairyo"]["cert"],
+                100.0 * (area / TSUBO - d["hairyo"]["tsubo"]) / d["hairyo"]["tsubo"],
+                kp * (area / TSUBO) / d["hairyo"]["tsubo"], 100.0 * nagL / perim, nagL, perim))
     h.append("</div>")
 
     for s in d["sections"]:

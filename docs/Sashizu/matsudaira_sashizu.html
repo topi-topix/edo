@@ -75,7 +75,7 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <div class="box" style="border-color:var(--shu);margin-top:14px"><h3>基準年次と確度</h3><p><b>「松平出羽守」は斉貴(〜嘉永6年9月)と定安(嘉永6年9月〜)のどちらも指す。</b>シーンの基準は嘉永期。嘉永前半は斉貴がほぼ連続在府していた。<br><b>当屋敷の指図・絵図は散逸</b>(藩主家の史料自体が散逸)。表門まわりの部材・意匠は明治初期の実写真(江戸東京博物館 温古写真集11)から起こした<b>確度A</b>(表門=屋根なし冠木門+両唐破風番所【写真A+日本案内記A/嘉永期への外挿はB】、位置=明治16年実測図【A寄りB】)。御殿の構成は<b>類型(確度B)</b>、室名・畳数は<b>想定(確度?)</b>。区画の多角形は<b>ユーザーのブックマーク角(確度U)</b>。石井戸枠は存在A・奥庭という位置は?。</p></div>
 <p class="lede"><b>この文書は現況だけを載せる。</b>過去の案・撤回した説は書かない — 経緯は <code>git log docs/Sashizu/</code> で追う。寸法の正典は <code>matsudaira_sashizu.json</code>、文章は <code>matsudaira_kosho.md</code>、この HTML は <code>Tools/Sashizu/build_matsudaira_sashizu.py</code> が組む。<b>数値をこの文書に書き足さないこと。</b></p>
 <div class="box"><h3>作る順序</h3><p>① 設計=<code>json</code>/<code>md</code> を直す → ② 組む → ③ 検図(edo-kosho / edo-kenzu)→ ユーザーのレビュー → ④ 実装 → ⑤ 指図と実装を突き合わせて 0 件 → ⑥ 経緯はコミットへ。</p></div>
-<div class="plate"><div class="phead"><h2>其一　敷地</h2><span class="meta">42460 m²(12844坪)/拝領11,942坪(出所未確定=?)/江戸間 1間=1.818m/主郭グリッドは北辺沿いに20.34°回転</span></div>
+<div class="plate"><div class="phead"><h2>其一　敷地</h2><span class="meta">42460 m²(12844坪)/拝領10,225坪余【B】/江戸間 1間=1.818m/主郭グリッドは北辺沿いに20.34°回転</span></div>
 <div class="fig"><svg viewBox="0 0 900 827" role="img" aria-label="松平出羽守上屋敷 敷地全体">
 <defs><pattern id="pi1" width="9" height="9" patternUnits="userSpaceOnUse"><path d="M0,4.5 h9 M4.5,0 v9" stroke="var(--ishi)" stroke-width="0.8" opacity="0.65"/></pattern></defs>
 <polygon points="860.4,378.4 655.5,440.7 432.2,434.3 420.7,603.0 338.7,684.7 275.8,734.9 191.2,787.3 114.2,648.2 76.9,552.1 61.1,483.3 48.2,404.5 39.6,301.2 78.3,219.5 546.1,46.1 751.3,39.6" fill="var(--pl-slope)" opacity="0.85"/>
@@ -42243,7 +42243,7 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <div class="tw"><table><thead><tr><th>廊下</th><th>種別</th><th>グリッド</th></tr></thead><tbody><tr><td><code>L_OhiromaNakaoku</code></td><td>渡廊下</td><td>(-15,29)-(-14,33)</td></tr><tr><td><code>L_KuroshoinNakaoku</code></td><td>渡廊下</td><td>(-27,27)-(-26,33)</td></tr><tr><td><code>L_GenkanDaidokoro</code></td><td>渡廊下</td><td>(1,27)-(2,31)</td></tr><tr><td><code>L_Gojoguchi</code></td><td>御錠口</td><td>(-28,47)-(-27,48)</td></tr><tr><td><code>L_Nagatsubone</code></td><td>渡廊下</td><td>(-14,54)-(-13,56)</td></tr><tr><td><code>L_OkuDaidokoro</code></td><td>御膳所口</td><td>(0,47)-(1,48)</td></tr></tbody></table></div>
 <h3>建蔽率</h3>
 <div class="tw"><table><thead><tr><th></th><th>m²</th><th>坪</th></tr></thead><tbody><tr><td>御殿の棟(入側とも)</td><td>6438</td><td>1948</td></tr><tr><td>渡廊下・御錠口</td><td>59</td><td>18</td></tr><tr><td>付属屋(蔵・作事・茶屋・稲荷)</td><td>444</td><td>134</td></tr><tr><td>表長屋(奥行4.5m)</td><td>1172</td><td>355</td></tr><tr><td>番所・隅櫓・門の躯体</td><td>85</td><td>26</td></tr><tr><td><b>計</b></td><td><b>8199</b></td><td><b>2480</b></td></tr><tr><td><b>敷地(分母)</b></td><td><b>42460</b></td><td><b>12844</b></td></tr><tr><td><b>建蔽率</b></td><td colspan="2"><b>19.3%</b></td></tr></tbody></table></div>
-<p class="cap"><b>分母は敷地全体=図上実測 12844坪</b>(拝領11,942坪【?】との差+7.6%。拝領値を分母にすると20.8%)。可建地に替えて数字を作らない。<b>大名上屋敷の建蔽率の史料値は [福井図] の5〜6割の一点しかなく</b>、当図はそれより大きく低い(広い拝領地・表門前の白洲・奥庭・明地・造成しない斜面の帰結)。参考: 表長屋の外周比 28.7%(表長屋 260m / 外周 908m)— [追川2017] の「表長屋の規模比」は<b>分母が原典未確認のため帯(加賀本郷15%・小浜28.6%・尾張市谷47.7%)との数値比較はしない</b>(sources.md の警告)。<b>建蔽率は結果であって目標ではない</b> — 数字のために空地へ棟を足さない。</p>
+<p class="cap"><b>分母は敷地全体=図上実測 12844坪</b>(拝領10,225坪【B】との差+25.6%。拝領値を分母にすると24.3%)。可建地に替えて数字を作らない。<b>大名上屋敷の建蔽率の史料値は [福井図] の5〜6割の一点しかなく</b>、当図はそれより大きく低い(広い拝領地・表門前の白洲・奥庭・明地・造成しない斜面の帰結)。参考: 表長屋の外周比 28.7%(表長屋 260m / 外周 908m)— [追川2017] の「表長屋の規模比」は<b>分母が原典未確認のため帯(加賀本郷15%・小浜28.6%・尾張市谷47.7%)との数値比較はしない</b>(sources.md の警告)。<b>建蔽率は結果であって目標ではない</b> — 数字のために空地へ棟を足さない。</p>
 </div>
 <div class="plate"><div class="phead"><h2>其七　断面A 南北(表門の軸)</h2><span class="meta">u = 0 ／ 垂直3.0倍 ／ 切るもの: 白洲(表門前) → 玄関棟 → 中庭(勝手) → 大台所棟 → 奥台所棟</span></div>
 <div class="fig"><svg viewBox="0 0 1000 573" role="img" aria-label="松平出羽守上屋敷 断面A 南北(表門の軸)">
@@ -42711,97 +42711,97 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <circle cx="233.2" cy="453.5" r="3.4" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.4"/>
 <text class="jo" x="239.2" y="457.5">井戸</text>
 <polyline points="988.6,-158.6 1043.8,-9.5 1050.8,9.1 976.2,36.8 802.2,101.2 653.1,156.5 553.7,193.4 574.4,249.3" fill="none" stroke="#3d6ea8" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round" opacity="0.85"/>
-<circle cx="417.5" cy="621.2" r="5.2" fill="#3E5A3A" opacity="0.75"/>
-<circle cx="482.6" cy="476.8" r="5.2" fill="#3E5A3A" opacity="0.75"/>
-<circle cx="372.2" cy="467.4" r="5.2" fill="#3E5A3A" opacity="0.75"/>
-<circle cx="313.5" cy="453.1" r="5.2" fill="#3E5A3A" opacity="0.75"/>
-<circle cx="366.3" cy="487.5" r="5.2" fill="#3E5A3A" opacity="0.75"/>
-<circle cx="347.7" cy="505.7" r="5.2" fill="#3E5A3A" opacity="0.75"/>
-<circle cx="487.3" cy="543.1" r="5.2" fill="#3E5A3A" opacity="0.75"/>
-<circle cx="363.6" cy="536.8" r="5.2" fill="#3E5A3A" opacity="0.75"/>
-<circle cx="509.0" cy="424.0" r="5.2" fill="#3E5A3A" opacity="0.75"/>
-<circle cx="297.3" cy="534.1" r="5.2" fill="#3E5A3A" opacity="0.75"/>
-<circle cx="463.9" cy="438.1" r="5.2" fill="#3E5A3A" opacity="0.75"/>
-<circle cx="437.9" cy="548.2" r="5.2" fill="#3E5A3A" opacity="0.75"/>
-<circle cx="502.9" cy="610.3" r="5.2" fill="#3E5A3A" opacity="0.75"/>
-<circle cx="431.4" cy="520.7" r="5.2" fill="#3E5A3A" opacity="0.75"/>
-<circle cx="518.1" cy="608.2" r="3.6" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="402.8" cy="309.8" r="3.6" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="354.4" cy="573.3" r="3.6" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="517.2" cy="610.9" r="3.6" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="317.5" cy="581.1" r="3.6" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="453.4" cy="602.9" r="3.6" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="412.3" cy="311.6" r="3.6" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="329.3" cy="374.7" r="3.6" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="313.6" cy="566.0" r="3.6" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="538.0" cy="533.4" r="3.6" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="477.9" cy="328.5" r="3.6" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="320.7" cy="587.8" r="3.6" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="463.1" cy="355.0" r="3.6" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="537.7" cy="589.0" r="3.6" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="425.0" cy="581.8" r="3.6" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="303.8" cy="332.6" r="3.6" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="261.7" cy="542.7" r="3.6" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="266.6" cy="415.9" r="3.6" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="327.4" cy="603.4" r="3.6" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="318.8" cy="328.5" r="3.6" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="268.7" cy="494.9" r="3.6" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="282.7" cy="665.4" r="3.6" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="281.4" cy="664.5" r="3.6" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="470.3" cy="256.8" r="3.6" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="314.0" cy="394.5" r="4.4" fill="#8FA36B" opacity="0.75"/>
-<circle cx="429.8" cy="314.1" r="4.4" fill="#8FA36B" opacity="0.75"/>
-<circle cx="498.8" cy="630.0" r="4.4" fill="#8FA36B" opacity="0.75"/>
-<circle cx="543.5" cy="727.2" r="5.2" fill="#3E5A3A" opacity="0.75"/>
-<circle cx="491.0" cy="844.3" r="5.2" fill="#3E5A3A" opacity="0.75"/>
-<circle cx="351.0" cy="879.6" r="5.2" fill="#3E5A3A" opacity="0.75"/>
-<circle cx="568.7" cy="766.8" r="5.2" fill="#3E5A3A" opacity="0.75"/>
-<circle cx="412.4" cy="728.5" r="5.2" fill="#3E5A3A" opacity="0.75"/>
-<circle cx="601.6" cy="715.6" r="5.2" fill="#3E5A3A" opacity="0.75"/>
-<circle cx="602.6" cy="665.3" r="5.2" fill="#3E5A3A" opacity="0.75"/>
-<circle cx="384.7" cy="811.2" r="5.2" fill="#3E5A3A" opacity="0.75"/>
-<circle cx="405.2" cy="930.8" r="3.4" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="439.1" cy="898.7" r="3.4" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="498.1" cy="723.4" r="3.4" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="663.5" cy="808.1" r="3.4" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="455.8" cy="787.2" r="3.4" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="560.9" cy="818.1" r="3.4" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="384.9" cy="745.4" r="3.4" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="685.7" cy="836.9" r="3.4" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="519.2" cy="716.4" r="3.4" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="516.5" cy="870.4" r="3.4" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="655.2" cy="833.8" r="3.4" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="459.9" cy="862.4" r="3.4" fill="#5E7A4E" opacity="0.75"/>
-<circle cx="1681.8" cy="524.5" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1831.3" cy="495.9" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1724.1" cy="518.1" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1629.5" cy="547.2" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1822.4" cy="474.9" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1519.8" cy="594.3" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1519.6" cy="586.1" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1805.7" cy="489.5" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1700.4" cy="520.7" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1557.7" cy="597.7" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1659.4" cy="554.1" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1788.3" cy="493.3" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1786.0" cy="488.1" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1758.7" cy="504.4" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1568.1" cy="577.1" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1822.3" cy="476.5" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1725.5" cy="517.9" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1720.6" cy="529.1" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1773.1" cy="491.4" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1689.7" cy="529.2" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1737.0" cy="525.8" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1702.3" cy="524.3" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1733.8" cy="510.2" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1588.0" cy="577.4" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1737.3" cy="515.5" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1535.4" cy="598.1" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1728.4" cy="518.8" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1791.3" cy="506.1" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1629.4" cy="564.0" r="3.0" fill="#8A6B7A" opacity="0.75"/>
-<circle cx="1765.9" cy="509.5" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="368.2" cy="629.4" r="5.2" fill="#3E5A3A" opacity="0.75"/>
+<circle cx="270.7" cy="681.4" r="5.2" fill="#3E5A3A" opacity="0.75"/>
+<circle cx="330.7" cy="650.2" r="5.2" fill="#3E5A3A" opacity="0.75"/>
+<circle cx="382.5" cy="388.6" r="5.2" fill="#3E5A3A" opacity="0.75"/>
+<circle cx="499.5" cy="478.8" r="5.2" fill="#3E5A3A" opacity="0.75"/>
+<circle cx="441.8" cy="316.8" r="5.2" fill="#3E5A3A" opacity="0.75"/>
+<circle cx="308.5" cy="563.1" r="5.2" fill="#3E5A3A" opacity="0.75"/>
+<circle cx="247.7" cy="475.6" r="5.2" fill="#3E5A3A" opacity="0.75"/>
+<circle cx="392.6" cy="415.4" r="5.2" fill="#3E5A3A" opacity="0.75"/>
+<circle cx="273.1" cy="337.1" r="5.2" fill="#3E5A3A" opacity="0.75"/>
+<circle cx="443.2" cy="543.2" r="5.2" fill="#3E5A3A" opacity="0.75"/>
+<circle cx="428.7" cy="613.1" r="5.2" fill="#3E5A3A" opacity="0.75"/>
+<circle cx="250.0" cy="610.3" r="5.2" fill="#3E5A3A" opacity="0.75"/>
+<circle cx="346.1" cy="337.4" r="5.2" fill="#3E5A3A" opacity="0.75"/>
+<circle cx="371.1" cy="685.5" r="3.6" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="316.0" cy="381.2" r="3.6" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="325.4" cy="661.6" r="3.6" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="345.2" cy="497.9" r="3.6" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="285.5" cy="422.7" r="3.6" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="299.8" cy="528.4" r="3.6" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="441.6" cy="335.3" r="3.6" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="280.2" cy="414.0" r="3.6" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="383.8" cy="319.8" r="3.6" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="439.1" cy="642.7" r="3.6" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="395.0" cy="522.0" r="3.6" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="289.3" cy="469.1" r="3.6" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="150.9" cy="372.9" r="3.6" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="234.8" cy="343.6" r="3.6" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="260.3" cy="507.2" r="3.6" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="348.8" cy="615.5" r="3.6" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="267.2" cy="493.1" r="3.6" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="259.9" cy="375.8" r="3.6" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="280.5" cy="453.8" r="3.6" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="591.0" cy="582.3" r="3.6" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="439.3" cy="282.6" r="3.6" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="314.2" cy="641.0" r="3.6" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="383.4" cy="513.3" r="3.6" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="295.2" cy="542.6" r="3.6" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="407.1" cy="278.7" r="4.4" fill="#8FA36B" opacity="0.75"/>
+<circle cx="415.7" cy="648.1" r="4.4" fill="#8FA36B" opacity="0.75"/>
+<circle cx="350.8" cy="664.4" r="4.4" fill="#8FA36B" opacity="0.75"/>
+<circle cx="446.7" cy="778.1" r="5.2" fill="#3E5A3A" opacity="0.75"/>
+<circle cx="655.2" cy="786.7" r="5.2" fill="#3E5A3A" opacity="0.75"/>
+<circle cx="570.3" cy="871.8" r="5.2" fill="#3E5A3A" opacity="0.75"/>
+<circle cx="574.9" cy="827.8" r="5.2" fill="#3E5A3A" opacity="0.75"/>
+<circle cx="593.9" cy="712.0" r="5.2" fill="#3E5A3A" opacity="0.75"/>
+<circle cx="383.7" cy="874.5" r="5.2" fill="#3E5A3A" opacity="0.75"/>
+<circle cx="384.9" cy="833.1" r="5.2" fill="#3E5A3A" opacity="0.75"/>
+<circle cx="468.9" cy="722.7" r="5.2" fill="#3E5A3A" opacity="0.75"/>
+<circle cx="351.0" cy="863.6" r="3.4" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="521.6" cy="728.7" r="3.4" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="574.8" cy="790.4" r="3.4" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="581.8" cy="803.9" r="3.4" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="388.9" cy="927.5" r="3.4" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="364.2" cy="810.7" r="3.4" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="591.4" cy="755.1" r="3.4" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="610.7" cy="647.7" r="3.4" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="611.1" cy="652.5" r="3.4" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="618.6" cy="835.0" r="3.4" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="491.8" cy="790.3" r="3.4" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="514.5" cy="834.3" r="3.4" fill="#5E7A4E" opacity="0.75"/>
+<circle cx="1599.9" cy="573.2" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1729.3" cy="508.8" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1617.2" cy="569.4" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1586.3" cy="579.6" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1569.5" cy="583.0" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1827.6" cy="494.9" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1524.9" cy="610.1" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1716.8" cy="537.6" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1733.8" cy="528.0" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1554.5" cy="589.5" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1666.9" cy="531.3" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1605.1" cy="572.2" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1749.6" cy="522.8" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1578.2" cy="570.6" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1672.7" cy="536.4" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1771.7" cy="504.2" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1810.9" cy="495.1" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1558.9" cy="578.5" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1792.4" cy="496.0" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1772.2" cy="518.2" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1762.9" cy="509.5" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1565.7" cy="595.0" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1572.6" cy="573.2" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1608.8" cy="566.9" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1638.0" cy="545.0" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1542.0" cy="601.4" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1827.5" cy="486.8" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1823.4" cy="492.6" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1807.4" cy="491.2" r="3.0" fill="#8A6B7A" opacity="0.75"/>
+<circle cx="1805.7" cy="495.0" r="3.0" fill="#8A6B7A" opacity="0.75"/>
 <polyline points="487.4,281.5 429.9,317.0 374.7,358.6 317.2,394.1 272.1,424.9 239.4,451.2" fill="none" stroke="var(--michi)" stroke-width="2.4" stroke-dasharray="3 4" stroke-linecap="round"/>
 <circle cx="363.2" cy="365.7" r="2.6" fill="var(--shu)"/>
 <text class="jo" x="368.2" y="369.7">中門(枝折戸)</text>
@@ -43162,7 +43162,7 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <hr class="rule">
 <h2>屋敷の性格</h2>
 <p>出雲松江藩 十八万六千石。<b>親藩(結城秀康系の御家門)・出雲国主・大広間詰</b>の上屋敷。 外桜田永田町 — 赤坂御門から永田馬場へ抜ける大通りの南側、山王社の北。 西は溜池の東岸へ落ちる大斜面、南は土井大隅守邸と背中合わせ、南東の谷は岡部内膳正邸 (嘉永期の表記。安政2年以降の「筑前守」はプロジェクト内通称)に接する。 跡地は閑院宮邸を経て現在の衆参両院議長公邸。</p>
-<ul><li><b>基図と読図</b>: NDL 外桜田永田町絵図(嘉永版・pid 1286657)を IIIF で実見(2026-08-12)。 家紋(葵紋系=雲州松平)+「松平出羽守」表記=<b>上屋敷</b><span class="cert">【確度 A — 原画像実見】</span>。 江戸マップβ [7-061](1850)/[14-460](1852)でも同区画を確認。</li><li><b>表門=北辺は<span class="cert">【確度 A】</span></b> — [五千分一東京図31](明治16年官製実測図・0.32m/px)が北辺の <b>開口1箇所とその両脇の長大建物(表長屋)を直接描く</b>。門は空襲まで現存した ([泥絵と大名屋敷]の現存5件の一つ)ので、明治16年の開口位置は嘉永期へ外挿できる (門の位置=A寄りのB/長屋の有無・長さの外挿=B)。 切絵図(NDL1286657)の 2026-08-12 の読みは補正前の方位のままで<b>読みとしては ?</b>だが、 結論の典拠はもう切絵図に依らない。再実見は「切絵図の読み方の検証」として残すのみ。</li><li><b>表門の s(辺沿い位置)は五千分一図の開口が正</b>(json の gate に反映済み)。 近代実測図の系列(五千分一→地籍図→火保図→空中写真)を史料ルートとして正式に立てる。 次の裏取りは火保図(_pending.kaho)と地理院 mapps の戦前空中写真。</li><li><b>区画の多角形はユーザーのブックマーク角(確度 U)。</b> 切絵図からの起こしではない。 拝領11,942坪はWeb調査の二次値で<b>出所の書誌が未確定(確度 ?)</b> — 実測12,844坪との差+7.6%は 下書き優先の方針による。**2026-08-22 の区画修正は隣地との共有点一致のためで、拝領坪数へ 寄せる操作はしていない**(U と ? はどちらも寄せる先にならない)。なお拝領・実測とも [元文3年] 規定(10〜15万石=7,000〜7,200坪)の1.7〜1.8倍で、規定超過としては通例の範囲。</li><li><b>当主</b>: 嘉永6年(1853)9月5日までは斉貴(鷹書の大収集家・蘭癖。家老の諫死と近習のクーデター露見を 経て強制隠居)、以降は定安(19歳で家督)。切絵図の表記はどちらも「松平出羽守」。 嘉永前半の斉貴は参勤の義務を果たさず<b>ほぼ連続在府</b> — この屋敷が生活の場だった。 <span class="cert">【確度 A — 西島太郎「松江藩主の居所と行動」】</span></li><li>**<b>藩主家伝来の</b>絵図は散逸(西島2013)。ただし文化年間頃『江戸上屋敷絵図』が私蔵で現存し上水樋と池泉が読める([内藤2024] 経由・未実見)。** 同論文が「藩主松平家の史料も散逸している」と明言し、 国文学研究資料館の松江松平家文書(全110点)にも屋敷絵図は確認できない。 <b>敷地と表門まわり以外の内部構成はすべて類型からの想定</b>で、確度を付して残す。<span class="cert">【確度 B】</span></li><li>宝永元年(1704)の記録に、家中が上屋敷を「赤坂館」と呼んだ形跡がある(綱近の隠居で 「赤坂館から青山館へ移る」)。翻刻の書誌未確認・当該期の屋敷が当地かも未確認のため <b>呼称は採らない</b>。<span class="cert">【確度 B】</span></li></ul>
+<ul><li><b>基図と読図</b>: NDL 外桜田永田町絵図(嘉永版・pid 1286657)を IIIF で実見(2026-08-12)。 家紋(葵紋系=雲州松平)+「松平出羽守」表記=<b>上屋敷</b><span class="cert">【確度 A — 原画像実見】</span>。 江戸マップβ [7-061](1850)/[14-460](1852)でも同区画を確認。</li><li><b>表門=北辺は<span class="cert">【確度 A】</span></b> — [五千分一東京図31](明治16年官製実測図・0.32m/px)が北辺の <b>開口1箇所とその両脇の長大建物(表長屋)を直接描く</b>。門は空襲まで現存した ([泥絵と大名屋敷]の現存5件の一つ)ので、明治16年の開口位置は嘉永期へ外挿できる (門の位置=A寄りのB/長屋の有無・長さの外挿=B)。 切絵図(NDL1286657)の 2026-08-12 の読みは補正前の方位のままで<b>読みとしては ?</b>だが、 結論の典拠はもう切絵図に依らない。再実見は「切絵図の読み方の検証」として残すのみ。</li><li><b>表門の s(辺沿い位置)は五千分一図の開口が正</b>(json の gate に反映済み)。 近代実測図の系列(五千分一→地籍図→火保図→空中写真)を史料ルートとして正式に立てる。 次の裏取りは火保図(_pending.kaho)と地理院 mapps の戦前空中写真。</li><li><b>区画の多角形はユーザーのブックマーク角(確度 U)。</b> 切絵図からの起こしではない。 ⚠ <b>2026-08-24 是正: 拝領坪数は 10,225坪余</b>([大江戸今昔めぐり 岡部区画]B。 岡部邸の考証で隣家の記載として実見)。従前の <b>11,942坪はWeb調査の二次値(確度?)</b> で、 同一史料系の 10,225坪余 と 1,717坪 食い違うので<b>採らない</b>。実測12,844坪との差は <b>+25.6%</b>。 (旧記述: 実測12,844坪との差+7.6%は) 下書き優先の方針による。**2026-08-22 の区画修正は隣地との共有点一致のためで、拝領坪数へ 寄せる操作はしていない**(U と ? はどちらも寄せる先にならない)。なお拝領・実測とも 規定超過は <b>1.46倍</b>([西川1959]A が引く『青標紙』格坪覚 10〜15万石=7,000坪。18.6万石は表の範囲外) ／ 1.42〜1.46倍([元文3年]B 7,000〜7,200坪)。⚠ 目安は原典未確認なので超過率を設計の根拠に使わない。</li><li><b>当主</b>: 嘉永6年(1853)9月5日までは斉貴(鷹書の大収集家・蘭癖。家老の諫死と近習のクーデター露見を 経て強制隠居)、以降は定安(19歳で家督)。切絵図の表記はどちらも「松平出羽守」。 嘉永前半の斉貴は参勤の義務を果たさず<b>ほぼ連続在府</b> — この屋敷が生活の場だった。 <span class="cert">【確度 A — 西島太郎「松江藩主の居所と行動」】</span></li><li>**<b>藩主家伝来の</b>絵図は散逸(西島2013)。ただし文化年間頃『江戸上屋敷絵図』が私蔵で現存し上水樋と池泉が読める([内藤2024] 経由・未実見)。** 同論文が「藩主松平家の史料も散逸している」と明言し、 国文学研究資料館の松江松平家文書(全110点)にも屋敷絵図は確認できない。 <b>敷地と表門まわり以外の内部構成はすべて類型からの想定</b>で、確度を付して残す。<span class="cert">【確度 B】</span></li><li>宝永元年(1704)の記録に、家中が上屋敷を「赤坂館」と呼んだ形跡がある(綱近の隠居で 「赤坂館から青山館へ移る」)。翻刻の書誌未確認・当該期の屋敷が当地かも未確認のため <b>呼称は採らない</b>。<span class="cert">【確度 B】</span></li></ul>
 <h2>表門 — 屋根なし冠木門+両唐破風番所</h2>
 <p><b>明治初期撮影の実写真が現存する</b>(江戸東京博物館 温古写真集11「旧雲州松江藩松平候上屋敷門」 資料番号 88005761)。大熊喜邦の昭和14年調査で現存していた大名屋敷表門5件の一つ (書誌確定: [泥絵と大名屋敷] 大熊喜邦・昭和14。現物未見)で、東京大空襲で焼失した。</p>
 <p><b>位置は [五千分一東京図31](明治16年官製実測図・0.32m/px)で確定</b> — 北辺の開口はただ1箇所 (北東の折れ点から辺沿い西へ、値は json の gate.s)、両脇に長大建物(表長屋の両翼)、西側は 建物のない垣が続く。門は空襲まで現存したので明治16年の開口位置は嘉永期へ強く外挿できる 【位置=A寄りB/長屋の有無・長さの外挿=B】。当初の位置(道の高みからの設計判断【U】)は この実測と食い違ったため撤回した(2026-08-23)。<b>確度の順位: 実測A &gt; プロジェクト規則U。</b></p>
@@ -43196,13 +43196,13 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <p>分母は敷地全体。数字は生成器が json から算出する(この文書に写さない)。</p>
 <ul><li><b>大名上屋敷の建蔽率の史料値は [福井図] の5〜6割の一点しかない。</b> 当図はそれより大きく低い (広い拝領地・表門前の白洲・西の池泉庭・造成しない斜面の帰結)。数字を上げるために空地へ棟を足さない。</li><li><b>表長屋の規模比</b>(表長屋延長/外周長。数値は生成器が算出)は [追川2017] の実測3例 (加賀本郷15%・小浜28.6%・尾張市谷47.7%)の帯の中位に収まる — 原典に忠実な比較指標はこちら。 3例は必ず揃えて引く(下端を落とすと帯が狭く見える)。国主・広大地の類例としては加賀本郷が最も近い。</li><li><b>収容力</b>: 類例(庄内・彦根)の人数が江戸の全屋敷(上中下)合計か上屋敷単独か確認できておらず、 <b>上屋敷単独の収容力は類例と比較できない<span class="cert">【確度 ?】</span></b> — 下限主張はしない。 建蔽率の妥当性を収容力で補強しない。</li></ul>
 <h2>未解決</h2>
-<ul><li><b>当門の焼失・改築の年次</b> — 屋根なし冠木門の論拠に使った焼失規定は「焼失後は冠木門しか 再建できない」なので、<b>その焼失が嘉永より後(例: 安政の地震火災)なら嘉永期は屋根付き</b>に 反転する。松江藩邸の類焼記録(『江戸火災年表』・藩日記)が決め手。焼失規定の原典裏取り (『青標紙』・普請奉行の達)と ToMuCo 原板の高精細確認も同件(_pending.yakeatoKitei)。</li><li><b>表長屋の二階の範囲</b> — 写真の画角は門周りだけ。全周が二階建てだった可能性は残る。</li><li><b>拝領11,942坪の出所</b> — Web調査の二次値。書誌未確定。</li><li><b>島根県立図書館(古絵図192点)・都立中央図書館特別文庫室(木子文庫・甲良家)への照会未実施。</b> 出れば室割り全体が想定(?)から一次(S/A)へ跳ねる。岡山池田家文庫(国主級の江戸屋敷図)との 面積比校正も未実施。</li><li><b>基準年次</b> — シーンの基準は嘉永期。嘉永6年9月を境に斉貴(在府)/定安(初入部は安政元年)。 屋敷の姿はどちらでも変わらないが、人の設定(鷹・時計の間の主)は斉貴期のもの。</li></ul>
+<ul><li><b>当門の焼失・改築の年次</b> — 屋根なし冠木門の論拠に使った焼失規定は「焼失後は冠木門しか 再建できない」なので、<b>その焼失が嘉永より後(例: 安政の地震火災)なら嘉永期は屋根付き</b>に 反転する。松江藩邸の類焼記録(『江戸火災年表』・藩日記)が決め手。焼失規定の原典裏取り (『青標紙』・普請奉行の達)と ToMuCo 原板の高精細確認も同件(_pending.yakeatoKitei)。</li><li><b>表長屋の二階の範囲</b> — 写真の画角は門周りだけ。全周が二階建てだった可能性は残る。</li><li>~~拝領11,942坪の出所~~ — <b>2026-08-24 に [大江戸今昔めぐり]B で 10,225坪余 が取れたので差し替えた。</b> ⚠ polygon 12,844坪 は記録より <b>+25.6%</b> で、同街区の 土井 −18.4% / 岡部 +13.7% と<b>符号が揃わない</b>。 当街区の区割りに未解決がある(岡部邸の考証で発覚)。原典＝『江戸城下変遷絵図集』永田町・山王の丁。</li><li><b>島根県立図書館(古絵図192点)・都立中央図書館特別文庫室(木子文庫・甲良家)への照会未実施。</b> 出れば室割り全体が想定(?)から一次(S/A)へ跳ねる。岡山池田家文庫(国主級の江戸屋敷図)との 面積比校正も未実施。</li><li><b>基準年次</b> — シーンの基準は嘉永期。嘉永6年9月を境に斉貴(在府)/定安(初入部は安政元年)。 屋敷の姿はどちらでも変わらないが、人の設定(鷹・時計の間の主)は斉貴期のもの。</li></ul>
 <h2>典拠の確度</h2>
 <p><code>sources.md</code> の正典に従う: <b>S</b> 当屋敷の一次史料(差図・絵図・発掘)/<b>A</b> 学術的裏づけ・一次資料の実見(写真・現存遺物・翻刻)/ <b>B</b> 一般類型・二次文献/<b>P</b> プロジェクト内実測(実装上の事実)/<b>U</b> ユーザー裁定/<b>?</b> 未確認</p>
 <p>主な典拠: [松江上屋敷門写真](温古写真集11・A)/西島太郎「松江藩主の居所と行動」(A)/ 松江歴史館「NARITAKE 松平斉貴」展(B)/[石井戸枠](存在A・位置?)/[黒門](A)/ [福井図]・[西川1959]・[追川2017] は <code>~/.claude/skills/unity-buke-yashiki/references/sources.md</code>。</p></div>
 </div>
 <div class="plate"><div class="phead"><h2>改訂　</h2><span class="meta">経緯はここに書かず git で追う</span></div>
-<div class='tw'><table><thead><tr><th>commit</th><th>日付</th><th class='note'>件名</th></tr></thead><tbody><tr><td><code>0f4b9fc</code></td><td>2026-08-24</td><td class='note'>fix: 隅の天端差の対の取り方を直し、其一の切盛の文言を算出値へ</td></tr><tr><td><code>e780d31</code></td><td>2026-08-23</td><td class='note'>fix: 拝領坪数を図の本体へ入れ、比較の枠組みを撤回する</td></tr><tr><td><code>683cbe1</code></td><td>2026-08-23</td><td class='note'>fix: 西の帯の造成をやめ、奥に庭を起こし、的場を落とす</td></tr><tr><td><code>c768162</code></td><td>2026-08-23</td><td class='note'>fix: 三方の再検分を反映 — 結界を閉じ、境を練塀へ一本化し、検査の空手形を潰す</td></tr><tr><td><code>eceec39</code></td><td>2026-08-23</td><td class='note'>fix: 区画の西端を明治16年図で裏づけ、坪数の仮説を却下する</td></tr><tr><td><code>6fff9a0</code></td><td>2026-08-23</td><td class='note'>fix: 松平邸の池を撤回し、岡部境を塀へ寄せ、断面と検査を立て直す</td></tr><tr><td><code>e9eb160</code></td><td>2026-08-23</td><td class='note'>fix: 関門2巡目の指摘44件を落とす(検図21件・考証23件)</td></tr><tr><td><code>73100a7</code></td><td>2026-08-23</td><td class='note'>fix: 動線を入側に載せ直し、貫通検査を足して実装を追従させる</td></tr><tr><td><code>f795093</code></td><td>2026-08-23</td><td class='note'>fix: 面から外した所の始末を設計値に書く(検図の高指摘7件)</td></tr><tr><td><code>75e2fd1</code></td><td>2026-08-23</td><td class='note'>feat: 指図に現況図・切盛図・動線図を足し、奥向を掘削跡から降ろす</td></tr><tr><td><code>77ee4e0</code></td><td>2026-08-23</td><td class='note'>fix: 面の高さを地形の走査に決めさせる(スキル §B-1 改定への追従)</td></tr><tr><td><code>c45f552</code></td><td>2026-08-23</td><td class='note'>fix: 段の縁の始末を勾配で決める(TW_OmoteW を落とし、法面で現地形に着地させる)</td></tr><tr><td><code>59ef9dd</code></td><td>2026-08-23</td><td class='note'>feat: 松江松平邸の造成を指図どおりに流す(指図を読むビルダー)</td></tr><tr><td><code>53d5bd7</code></td><td>2026-08-23</td><td class='note'>docs: 松江松平邸の指図を改め、表門を明治16年実測図の開口へ据える</td></tr><tr><td><code>4a6f2b1</code></td><td>2026-08-22</td><td class='note'>fix: 松平邸も竹林を実装から外す — 指図だけ直して実装が取り残されていた</td></tr><tr><td><code>5dd5c6a</code></td><td>2026-08-22</td><td class='note'>feat: 松平出羽守上屋敷(出雲松江藩)の指図を起こす — 面から決める造成</td></tr></tbody></table></div>
+<div class='tw'><table><thead><tr><th>commit</th><th>日付</th><th class='note'>件名</th></tr></thead><tbody><tr><td><code>e3a29a0</code></td><td>2026-08-24</td><td class='note'>fix: 分母をA級の直接値へ戻し、街区の区割りとの突き合わせを入れる</td></tr><tr><td><code>b16b487</code></td><td>2026-08-24</td><td class='note'>feat: 松平邸を指図どおりに建て直す(突き合わせ0件)+ 西庭に植栽と露地を起こす</td></tr><tr><td><code>0f4b9fc</code></td><td>2026-08-24</td><td class='note'>fix: 隅の天端差の対の取り方を直し、其一の切盛の文言を算出値へ</td></tr><tr><td><code>e780d31</code></td><td>2026-08-23</td><td class='note'>fix: 拝領坪数を図の本体へ入れ、比較の枠組みを撤回する</td></tr><tr><td><code>683cbe1</code></td><td>2026-08-23</td><td class='note'>fix: 西の帯の造成をやめ、奥に庭を起こし、的場を落とす</td></tr><tr><td><code>c768162</code></td><td>2026-08-23</td><td class='note'>fix: 三方の再検分を反映 — 結界を閉じ、境を練塀へ一本化し、検査の空手形を潰す</td></tr><tr><td><code>eceec39</code></td><td>2026-08-23</td><td class='note'>fix: 区画の西端を明治16年図で裏づけ、坪数の仮説を却下する</td></tr><tr><td><code>6fff9a0</code></td><td>2026-08-23</td><td class='note'>fix: 松平邸の池を撤回し、岡部境を塀へ寄せ、断面と検査を立て直す</td></tr><tr><td><code>e9eb160</code></td><td>2026-08-23</td><td class='note'>fix: 関門2巡目の指摘44件を落とす(検図21件・考証23件)</td></tr><tr><td><code>73100a7</code></td><td>2026-08-23</td><td class='note'>fix: 動線を入側に載せ直し、貫通検査を足して実装を追従させる</td></tr><tr><td><code>f795093</code></td><td>2026-08-23</td><td class='note'>fix: 面から外した所の始末を設計値に書く(検図の高指摘7件)</td></tr><tr><td><code>75e2fd1</code></td><td>2026-08-23</td><td class='note'>feat: 指図に現況図・切盛図・動線図を足し、奥向を掘削跡から降ろす</td></tr><tr><td><code>77ee4e0</code></td><td>2026-08-23</td><td class='note'>fix: 面の高さを地形の走査に決めさせる(スキル §B-1 改定への追従)</td></tr><tr><td><code>c45f552</code></td><td>2026-08-23</td><td class='note'>fix: 段の縁の始末を勾配で決める(TW_OmoteW を落とし、法面で現地形に着地させる)</td></tr><tr><td><code>59ef9dd</code></td><td>2026-08-23</td><td class='note'>feat: 松江松平邸の造成を指図どおりに流す(指図を読むビルダー)</td></tr><tr><td><code>53d5bd7</code></td><td>2026-08-23</td><td class='note'>docs: 松江松平邸の指図を改め、表門を明治16年実測図の開口へ据える</td></tr><tr><td><code>4a6f2b1</code></td><td>2026-08-22</td><td class='note'>fix: 松平邸も竹林を実装から外す — 指図だけ直して実装が取り残されていた</td></tr><tr><td><code>5dd5c6a</code></td><td>2026-08-22</td><td class='note'>feat: 松平出羽守上屋敷(出雲松江藩)の指図を起こす — 面から決める造成</td></tr></tbody></table></div>
 </div>
-<div class="foot">組んだ日 2026-08-24 12:32 ／ 設計値 <code>matsudaira_sashizu.json</code> ／ 文章 <code>matsudaira_kosho.md</code>。Y は海抜 m(Unity の Y がそのまま標高)。</div>
+<div class="foot">組んだ日 2026-08-24 13:06 ／ 設計値 <code>matsudaira_sashizu.json</code> ／ 文章 <code>matsudaira_kosho.md</code>。Y は海抜 m(Unity の Y がそのまま標高)。</div>
 </div>

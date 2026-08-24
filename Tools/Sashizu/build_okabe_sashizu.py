@@ -311,6 +311,47 @@ def run_base(d, r):
     return _BASE[key]
 
 
+def _fit_note(d):
+    """規則3の合格宣言を**算出**して返す。件数も最大Δも復元セル率も設計値から出す。"""
+    E = _DEM.get(id(d))
+    if E is None:
+        _dem_at(d, 0, 0); E = _DEM.get(id(d))
+    cur = None
+    try:
+        cur = json.load(open(os.path.join(DOC, "okabe_terrain.json"), encoding="utf-8"))
+    except Exception:
+        pass
+
+    def at(S, u, v):
+        iu = int(round(u - S["u0"])); iv = int(round(v - S["v0"]))
+        if 0 <= iv < S["nv"] and 0 <= iu < S["nu"]:
+            return S["h"][iv][iu]
+        return None
+    n = 0; mx = 0.0; rec = 0
+    for o in d["munes"] + d["service"] + d["links"]:
+        ds = []; rr = 0; tt = 0
+        u = o["u0"] + 0.25
+        while u < o["u1"]:
+            v = o["v0"] + 0.25
+            while v < o["v1"]:
+                g = at(E, round(u), round(v))
+                if g is not None:
+                    ds.append(abs(o["y"] - g)); tt += 1
+                    c = at(cur, round(u), round(v)) if cur else None
+                    if c is not None and abs(c - g) > 0.3:
+                        rr += 1
+                v += 0.5
+            u += 0.5
+        if not ds:
+            continue
+        n += 1; mx = max(mx, max(ds))
+        if tt and rr / float(tt) > 0.5:
+            rec += 1
+    return ("<b>棟が載る所の |設計面 − 江戸期地盤| は全%d物件で 0.5m 以内</b>(最大 %.2fm・規則3)。"
+            "⚠ ただし<b>%d物件は復元した地盤の上</b>にあり、そこではこの検査は"
+            "「自分が置いた値を測り返している」にすぎない(§A-6)。" % (n, mx, rec))
+
+
 def _joints(d):
     """天端が隣り合う run の対。(1)同じ辺の中の継ぎ目 (2)頂点をまたぐ隅
     — 隅は『辺の終点で終わる run』と『次に当家が建てる辺の始点から始まる run』を結ぶ。"""
@@ -759,6 +800,58 @@ def walled_edges(d, t):
     return out
 
 
+EDGE_DEAD = 0.30     # 縁が地山と同高とみなす不感帯。切盛図の「無彩=±0.3m」と揃える
+
+
+_EDGEFILL = {}
+
+
+def edge_is_fill(d, t, u, v, ter=None):
+    """段 t の縁のうち (u,v) に最も近い点が**盛土の縁か**を返す(法面の関門①)。
+    縁が地山と同高なら、その外へ盛土の法面を出してはならない — 出すと法尻が着地せず、
+    cap で切れて垂直の段差が生える(2026-08-23 検図で 55 箇所・最大1.58m を検出)。"""
+    key = (id(d), t["name"])
+    if key not in _EDGEFILL:
+        pts = []
+        poly = tpoly(t)
+        n = len(poly)
+        for i in range(n):
+            a, b = poly[i], poly[(i + 1) % n]
+            L = max(int(math.hypot(b[0] - a[0], b[1] - a[1])), 1)
+            for k in range(L):
+                q = (a[0] + (b[0] - a[0]) * k / L, a[1] + (b[1] - a[1]) * k / L)
+                g = _dem_at(d, q[0], q[1])
+                pts.append((q[0], q[1], None if g is None else (t["y"] - g)))
+        _EDGEFILL[key] = pts
+    pts = _EDGEFILL[key]
+    best, bd = None, 1e18
+    for (a, b, f) in pts:
+        dd = (a - u) ** 2 + (b - v) ** 2
+        if dd < bd:
+            bd, best = dd, f
+    return best
+
+
+_DEM = {}
+
+
+def _dem_at(d, u, v):
+    """江戸期の復元地盤(回転間グリッド)の値。graded_y の関門で縁の地山を見るために使う。"""
+    key = id(d)
+    if key not in _DEM:
+        try:
+            _DEM[key] = json.load(open(os.path.join(DOC, "okabe_edo_dem.json"), encoding="utf-8"))
+        except Exception:
+            _DEM[key] = None
+    E = _DEM[key]
+    if not E:
+        return None
+    iu = int(round(u - E["u0"])); iv = int(round(v - E["v0"]))
+    if 0 <= iv < E["nv"] and 0 <= iu < E["nu"]:
+        return E["h"][iv][iu]
+    return None
+
+
 def graded_y(d, u, v, nat, walled=None):
     """**造成後の地盤**。段の中は段の高さ。段の外は法面(盛土 1:1.5 / 切土 1:1)で現地形へ摺り付ける。
     **段の縁は等高線に沿った多角形**なので、距離は縁からの最短距離で測る。
@@ -779,12 +872,19 @@ def graded_y(d, u, v, nat, walled=None):
         dm = tdist(t, u, v) * K
         if dm > cap:
             continue
-        g = max(g, t["y"] - dm / bf)
-    for t in d["terraces"]:
-        dm = tdist(t, u, v) * K
-        if dm > cap:
+        ef = edge_is_fill(d, t, u, v)      # 段の縁での盛土(+)/切土(−)の厚み
+        if ef is None:
             continue
-        g = min(g, t["y"] + dm / bc)
+        # **法面は「縁の土の厚みが 0 へ逓減する」形で出す。**
+        #   盛土: 縁で ef、そこから 1:bf の勾配で薄くなり、距離 ef*bf で地山に着く。
+        #   切土: 同じく 1:bc。
+        # 縁から一定勾配の平面を伸ばす旧式は、地山のほうが急なとき永久に着地せず、
+        # cap で切れて法尻に垂直の段差を生んだ(2026-08-23 検図で55箇所・最大1.58m)。
+        # この形なら **定義上かならず着地し、段差が生じない**(sashizu.md §3b の関門③)。
+        if ef > 0.0:
+            g = max(g, nat + max(0.0, ef - dm / bf))
+        elif ef < 0.0:
+            g = min(g, nat - max(0.0, -ef - dm / bc))
     return g
 
 
@@ -1221,6 +1321,24 @@ def key_plan(d, axis, W=760.0):
 
 
 # ---------------------------------------------------------------- 断面
+def section_crossings(d, sec):
+    """切り線が実際に横切る物の名。**見出しに手で書かない**(§3c)。"""
+    out = []
+    for o in d["munes"] + d["service"] + d["gardens"]:
+        if sec["axis"] == "u":
+            hit = o["u0"] <= sec["at"] <= o["u1"]
+        else:
+            hit = o["v0"] <= sec["at"] <= o["v1"]
+        if hit:
+            out.append(MUNE_JA.get(o.get("name"), o.get("label", o.get("name", ""))))
+    for k in d["kaidans"]:
+        ax, at2, a, b, cu, cv = kgeom(k)
+        if (sec["axis"] == "u" and abs(sec["at"] - at2) <= k["w"] / 2 / 1.818) or \
+           (sec["axis"] == "v" and a <= sec["at"] <= b):
+            out.append(k["name"])
+    return [x for x in dict.fromkeys(out) if x]
+
+
 def section_svg(d, sec):
     gr = RGrid(d)
     K = d["const"]["ken"]
@@ -1867,6 +1985,39 @@ def kenpei(d, area):
                tot, tot / TSUBO, area, area / TSUBO, 100.0 * tot / area)), 100.0 * tot / area
 
 
+def batter_check(d, ter):
+    """法面の検査 — **造成が自然勾配より急にした所で、切土 1:bc を超えていないか**。
+    旧式(縁から一定勾配の平面)は地山が急なとき着地せず、cap で切れて法尻に垂直の段差を生んだ。
+    2026-08-23 の検図で55箇所・最大1.58m。逓減形へ改めたので、これが再発しないことを見張る。"""
+    K = d["const"]["ken"]; bc = d["const"]["batterCut"]
+    we = dict((t["name"], walled_edges(d, t)) for t in d["terraces"])
+    Z = {}
+    for iv in range(ter["nv"]):
+        for iu in range(ter["nu"]):
+            n = ter["h"][iv][iu]
+            if n is None:
+                continue
+            u, v = ter["u0"] + iu, ter["v0"] + iv
+            Z[(u, v)] = (graded_y(d, u, v, n, we), n)
+    bad = []
+    for (u, v), (a, b) in Z.items():
+        if design_y(d, u, v) is not None:
+            continue
+        for du, dv in ((1, 0), (0, 1)):
+            q = (u + du, v + dv)
+            if q not in Z:
+                continue
+            a2, b2 = Z[q]
+            dg = abs(a2 - a) / K; dn = abs(b2 - b) / K
+            if dg > dn + 1e-9 and dg > 1.0 / bc + 1e-9:
+                # 区画線に接するセルは**石垣基壇が受ける**ので法面の対象外(囲いのある辺のみ)
+                if not (in_parcel(d, u, v) and in_parcel(d, q[0], q[1])):
+                    continue
+                bad.append("グリッド(%g, %g) 造成 %.0f%% > 切土の法面 %.0f%%(自然 %.0f%%)"
+                           % (u, v, 100 * dg, 100.0 / bc, 100 * dn))
+    return bad
+
+
 def plane_check(d):
     """面のはみ出し検査。①棟・付属屋・廊下が「自分の y の面の段」の中に完全に載っているか
     (0.5間刻みの被覆)、②棟・付属屋・廊下・庭・井戸・土留め・竹垣が**敷地ポリゴンの中**に
@@ -2372,6 +2523,11 @@ def main():
              '寸法の正典は <code>okabe_sashizu.json</code>、文章は <code>okabe_kosho.md</code>、'
              'この HTML は <code>Tools/Sashizu/build_okabe_sashizu.py</code> が組む。'
              '<b>数値をこの文書に書き足さないこと。</b></p>')
+    h.append('<div class="box" style="border-color:var(--shu)"><h3>⚠ この指図はまだ実装されていない</h3><p>'
+             '<b>Unity のシーンにあるのは 2026-08-23 のゼロベース改稿より前の設計</b>で、この図とは'
+             '座標系ごと別物。実装の <code>EdoOkabeYashikiBuilder.cs</code> は存在しない章'
+             '(其十五・其十六)を参照し、run 名・面の高さ・郭の土留めのいずれも一致しない。'
+             '<b>図を現物と照合しないこと。</b>順序は <code>_pending.junjo ③</code>(実装の全面書き直し)。</p></div>')
     h.append('<div class="box"><h3>作る順序</h3><p>'
              '① 設計=<code>json</code>/<code>md</code> を直す → ② 組む → ③ 検図(edo-kosho / edo-kenzu)'
              '→ ユーザーのレビュー → ④ 実装 → ⑤ 指図と実装を突き合わせて 0 件 → ⑥ 経緯はコミットへ。</p></div>')
@@ -2405,13 +2561,14 @@ def main():
                '<span style="color:var(--shu)">● 表門 ／ ▪ 通用口 ／ ▨ 石段 ／ ┄ 断面</span>',
         cap="<b>敷地は水平な面3枚(%s)+造成しない斜面。</b>"
             "<b>面の高さと縁の位置は江戸期の復元地盤のベンチと法肩から決めた</b> — 全面が"
-            "[菊地2003] の 1〜4m に収まる。**棟が載る所の |設計面 − 江戸期地盤| は全24物件で 0.5m 以内**(規則3)。"
+            "[菊地2003] の 1〜4m に収まる。%s"
             "<b>東の崖・北東のランプ・南西の谷・西斜面は造成しない</b> — "
             "樹林と庭のまま、生活面の縁に竹垣。斜面の植生は松+雑木(竹林にしない=[橋本・堀1998])。"
             "<b>囲いの天端は run ごとに一直線</b> — 面の縁になる区間は水平に面の高さで通し、"
             "造成しない斜面の区間は一定勾配で地形を追う(石垣基壇の露出を %.1fm 以内に抑える)。"
             "<b>街路・隣地への影響はゼロ</b> — 段も法面も区画線で切っている(<code>in_parcel</code> で機械的に)。"
             % (" / ".join("%.1f" % t["y"] for t in d["terraces"]),
+               _fit_note(d),
                max(run_base(d, r)[1] for r in d["runs"])))
     h.append(planes_table(d))
     h.append('<p class="cap"><b>面のはみ出し検査(0.5間刻みの被覆): %s。</b>'
@@ -2483,6 +2640,13 @@ def main():
                 "<b>面の高さを自然のベンチに載せてあるので、郭の大半は無彩か薄い色になる</b> — "
                 "濃く出るのは門前の道なりへの摺り付け・北隅の高み・門の軸の窪みを埋める区間だけ。")
         h.append(cutfill_table(d, ter))
+        bb = batter_check(d, ter)
+        h.append('<p class="cap"><b>法面の検査: %s。</b>'
+                 '段の外は「縁の土の厚みが 0 へ逓減する」形で法面を出すので、'
+                 '<b>定義上かならず地山に着地し、法尻に垂直の段差が生じない</b>。'
+                 '造成が自然勾配より急になった所で切土の法面 1:%.1f を超えていないかを機械検査している。</p>'
+                 % ("<b>0 件</b>" if not bb else "⚠ %d 件 — %s" % (len(bb), " / ".join(bb[:4])),
+                    d["const"]["batterCut"]))
         h.append('<p class="cap">⚠ <b>上の段別表は段の中だけ</b>で、段の外へこぼれる法面を含まないので、'
                  '章のプレートの総量(盛 %d / 切 %d m³)とは一致しない。'
                  '<b>量の正典は json <code>grading.haryoJi</code></b> — この図が算出して書き戻す。</p>'
@@ -2604,7 +2768,9 @@ def main():
         h.append('<p class="cap">%s。</p>' % (lead % len(ss)))
         fig(h, key_plan(d, axis), cap="<b>切り位置</b>。朱の実線がこの節の断面、細い破線がもう一方の節の断面。")
         for s in ss:
-            h.append('<h3>%s</h3>' % s["name"])
+            cs = section_crossings(d, s)
+            h.append('<h3>%s%s</h3>' % (s["name"].split("(")[0],
+                                        ("(" + "・".join(cs) + ")") if cs else ""))
             fig(h, section_svg(d, s), cap=inline(s["_"].replace("→", " → ")))
         h.append('<p class="cap"><b>段のつなぎ方は平面だけでは読めない。</b>地表下の色帯=面(其一と同じ色分け)で、'
                  '<b>段の多角形が切り線を切る区間だけ</b>に出る(外接矩形では描かない)。'

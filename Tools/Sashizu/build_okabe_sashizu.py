@@ -708,7 +708,7 @@ def _fit_note(d):
         if 0 <= iv < S["nv"] and 0 <= iu < S["nu"]:
             return S["h"][iv][iu]
         return None
-    n = 0; mx = 0.0; rec = []; keep = []
+    n = 0; mx = 0.0; rec = []; keep = []; over = []
     for o in d["munes"] + d["service"] + d["links"]:
         ds = []; rr = 0; tt = 0
         u = o["u0"] + 0.25
@@ -726,6 +726,7 @@ def _fit_note(d):
         if not ds:
             continue
         n += 1; mx = max(mx, max(ds))
+        over.append((MUNE_JA.get(o["name"], o.get("label", o["name"])), max(ds), o["y"]))
         if tt and rr / float(tt) > 0.5:
             rec.append(MUNE_JA.get(o["name"], o.get("label", o["name"])))
         else:
@@ -765,17 +766,26 @@ def _fit_note(d):
             band[nm] = 100.0 * b / tot
         if tot2:
             selfref.append("%s %.0f%%" % (nm, 100.0 * ex / tot2))
-    return ("<b>棟が載る所の |設計面 − 江戸期地盤| は全%d物件で 0.5m 以内</b>(最大 %.2fm・規則3)。"
-            "⚠ <b>この検査が独立に効いているのは %d物件だけ</b>(%s)。残る %d物件は"
+    ng = [x for x in over if x[1] > 0.5]
+    head = ("<b>棟が載る所の |設計面 − 江戸期地盤| は全%d物件で 0.5m 以内</b>(最大 %.2fm・規則3)。"
+            if not ng else
+            "⛔ <b>規則3 の不合格が %d物件</b>(全%d物件中・最大 %.2fm)。"
+            "内訳は下の表。<b>面の高さか棟の位置を見直す必要がある</b>。")
+    head = head % ((len(ng), n, mx) if ng else (n, mx))
+    tail = ("⚠ <b>この検査が独立に効いているのは %d物件だけ</b>(%s)。残る %d物件は"
             "<b>復元した地盤の上</b>にあり、そこでは「自分が置いた値を測り返している」"
             "にすぎない(§A-6)。"
             "復元地盤が面の高さとちょうど一致するセルの割合 — <b>復元の自己参照性の指標</b> — は %s。"
             "現況の実測DEMで見た段の中の最頻値は %s。"
             "⚠ <b>この二つは別の物差しなので、足したり比べたりしない。</b>"
-            "旧『東南の下郭 22.7』を廃止した判定の根拠(当該域332セル中214セルが正確に22.70 ほか)は"
-            "<code>okabe_kosho.md</code> の 2026-08-24 の章にあり、ここの数字とは別物。"
-            % (n, mx, len(keep), "・".join(keep) or "—", len(rec),
+            % (len(keep), "・".join(keep) or "—", len(rec),
                " / ".join(selfref), " / ".join(mode)))
+    if ng:
+        tail += ("<b>不合格の物件:</b> "
+                 + " / ".join("%s(面%.2f・最大 %+.2fm)" % (a, c, b)
+                              for a, b, c in sorted(ng, key=lambda q: -q[1]))
+                 + "。")
+    return head + tail
 
 
 def _joints(d):

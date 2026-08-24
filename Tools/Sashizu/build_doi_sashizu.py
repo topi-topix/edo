@@ -2118,6 +2118,23 @@ IMPL = os.path.join(os.path.dirname(os.path.dirname(DOC)),
                     "Assets", "Edo", "Scripts", "Editor", "EdoSannoKitaBuilder.cs")
 
 
+MEMO = os.path.expanduser("~/.claude/projects/-Users-toshio-project-edo-unity/memory")
+MEMO_FILES = ("doi-sashizu-structure.md", "sannokita-3yashiki.md")
+
+
+def _ledger_text():
+    return open(SRC_MD, encoding="utf-8").read() if os.path.exists(SRC_MD) else ""
+
+
+def _memo_text():
+    out = []
+    for f in MEMO_FILES:
+        q = os.path.join(MEMO, f)
+        if os.path.exists(q):
+            out.append(open(q, encoding="utf-8").read())
+    return "\n\n".join(out)
+
+
 def _impl_text():
     """実装(ビルダー)の本文。撤回の照合に掛ける。無ければ空。"""
     return open(IMPL, encoding="utf-8").read() if os.path.exists(IMPL) else ""
@@ -2130,12 +2147,26 @@ def retracted_check(d, texts):
     禁句は設計値の `retracted` に置く。撤回の記録そのもの(「〜は反証された」の文脈)は
     別の語で書くこと。
     """
+    # ⚠ **除外リストを作らない。判定そのものを極性で見る。**
+    #   「語が在るか」だと、**撤回の記録そのもの**(「⛔ 旧記〜は誤り。撤回する」)が
+    #   偽陽性になり、台帳とメモリを網に入れられなかった(2026-08-25 考証第11巡)。
+    #   **段落**(空行区切り)を単位に、同じ段落に**撤回の印**があれば見逃す。
+    #   実測: 段落単位なら台帳・メモリ・実装とも偽陽性 0、印の無い素の禁句には発火する。
+    MARK = ("⛔", "撤回", "誤り", "反証", "旧記", "採らない", "採用しない", "禁句")
     bad = []
-    for w in d.get("retracted", []):
-        for label, t in texts:
-            if w in t:
-                bad.append("撤回済みの語「%s」が %s に残っている" % (w, label))
-    return bad
+    marked = 0
+    for label, t in texts:
+        for para in re.split(r"\n\s*\n", t):
+            hit = [w for w in d.get("retracted", []) if w in para]
+            if not hit:
+                continue
+            if any(m in para for m in MARK):
+                marked += len(hit)                  # 撤回の記録として許す
+                continue
+            for w in hit:
+                bad.append("撤回済みの語「%s」が %s に残っている(撤回の印が無い段落)" % (w, label))
+    d["_retractedMarked"] = marked                  # 印つき出現の数。増減だけ見張る
+    return sorted(set(bad))
 
 
 def declutter(items, dy=13.0, dx=90.0):
@@ -3073,7 +3104,7 @@ def gate_svg(d):
     g.append(T(X(wing + monW * 0.22), Y(2.8), "出格子番所(片)", "anS2", "middle"))
     g.append(LN(0, GY, W, GY, "var(--ink)", 1.6))
     g.append(T(4, GY + 16, "三べ坂前身の南北道。敷居=門前面の地盤=道なり", "anS2", "start"))
-    g.append(T(4, 15, "正面見付(概略・等倍)。型式=長屋門【B】/屋根=切妻【B】/番所と潜戸=[下丸子武家屋敷門]A の官製「片番所格子付、片潜門」【B/U・型式をまたぐ移植】/石高帯=A/実在と被災=S", "anS"))
+    g.append(T(4, 15, "正面見付(概略・等倍)。型式=長屋門【B】/屋根=切妻【B】/番所と潜戸=[下丸子武家屋敷門]A の官製「片番所格子付、片潜門」【B/U・型式をまたぐ移植】/石高帯: 掲示の記載=A / 当てはめ=B / 採用=U/実在と被災=S", "anS"))
     g.append("</svg>")
 
     # 平面
@@ -4314,6 +4345,20 @@ def main():
             print("   ", b)                       # 算出した値は**正典へ戻す**(図だけが新しい状態を作らない)
     raw = open(MD, encoding="utf-8").read()
     blk, miss = sources_block(raw)
+    _ka = d["kaidans"]
+    _axis = [k for k in _ka if abs(k.get("gapU", 9e9)) < 2.0 and k["atWall"] in
+             ("TW_Monzen", "TW_GenkanE")]
+    raw = raw.replace("{{郭の数}}", str(len([p for p in d.get("planes", []) if p.get("bench")])))
+    raw = raw.replace("{{棟数}}", str(len(d["munes"])))
+    raw = raw.replace("{{家中長屋の棟数}}", str(len([x for x in d["service"] if x["name"].startswith("Kachu")])))
+    raw = raw.replace("{{土蔵数}}", str(len([x for x in d["service"] if x["name"].startswith("Kura")])))
+    raw = raw.replace("{{記事数}}", str(d.get("jishinArticles", 8)))
+    raw = raw.replace("{{石段の数}}", str(len(_ka)))
+    raw = raw.replace("{{門の軸の石段}}", str(len(_axis)))
+    raw = raw.replace("{{石段の一覧}}", " / ".join(
+        "`%s`(落差%.1fm・%d段)" % (k["name"], k["drop"], k["steps"]) for k in _ka)
+        + " / 斜路 " + " / ".join("`%s`(落差%.1fm・1:%.1f)" % (r["name"], r["drop"], 1.0 / r["grade"])
+                                  for r in d.get("ramps", [])))
     for _k, _v in (("{{記録数}}", "jishinRecords"), ("{{条数}}", "jishinConditions"),
                    ("{{一括以外の記録数}}", "jishinNonBundled"),
                    ("{{門の記録数}}", "jishinGateRecords")):
@@ -4558,8 +4603,8 @@ def main():
                       "帯は棟ごとに自然の高さを採る。境界が斜めなので棟を継いで沿わせる"),
         cap="<b>松平出羽守との境に沿う家中長屋。</b>境界が回転間グリッドに対して斜めなので、"
             "<b>棟の長軸を境界に平行にして回転グリッドの外に置いた</b>(2026-08-23 の是正。"
-            "差は 0.00°)。棟ごとにその位置の自然の高さを面にしてあり、切盛は6棟とも"
-            "±0.5m 以内に全域が収まる。段が階段状に上がって見えるのが正しい。"
+            "差は生成器が測る)。棟ごとにその位置の自然の高さを面にしてある"
+            "(切盛の実測は棟の表)。段が階段状に上がって見えるのが正しい。"
             "帯の内側は主面の北東肩で、造成しない。"
             "<b>⚠ 家中長屋の規模は未検算</b> — 必要床面積の典拠が無い(石高→軍役→江戸詰人数の"
             "比率に典拠がなく、当家の江戸詰人数の史料も無い)。<b>延長は外周に回した結果</b>であって、"
@@ -4653,7 +4698,7 @@ def main():
                 "・".join("%s %.2fm" % (n_, abs(r[0])) for n_, r in _over) or "無し",
                 max((abs(r[0]) for n_, r in _mf if (n_, r) not in _over), default=0.0)))
 
-    plate(h, nx(), "表門まわり", "長屋門・切妻造(片番所・格子付・片潜門)。型式=B(表長屋の実在S+[山脇武家屋敷門]A)/屋根=B(型式からの帰結)/番所と潜戸=B/U(型式をまたぐ移植)/石高帯=A([下丸子武家屋敷門]の都教委掲示)/実在と被災=S")
+    plate(h, nx(), "表門まわり", "長屋門・切妻造(片番所・格子付・片潜門)。型式=B(表長屋の実在S+[山脇武家屋敷門]A)/屋根=B(型式からの帰結)/番所と潜戸=B/U(型式をまたぐ移植)/石高帯: 掲示の記載=A / 当てはめ=B / 採用=U([下丸子武家屋敷門]の都教委掲示)/実在と被災=S")
     fig(h, gate_svg(d),
         cap="<b>番所と潜戸の形式</b>は [下丸子武家屋敷門](A)の官製構造形式"
             "「<b>片番所格子付、片潜門</b>」による【B/U — 型式をまたぐ移植。下記】。東京都教育委員会の掲示が"
@@ -4745,6 +4790,11 @@ def main():
         #   各屋敷の指図が撤回した説を現役の根拠として保持していた
         #   (2026-08-25 考証第10巡 高①)。**「四面」という枠の取り方が狭かった。**
         ("実装", re.sub(r"[*~`]", "", _impl_text())),
+        # ⚠ **台帳とメモリも面に入れる。** 撤回済みの説が現役の記述として生きていた
+        #   (2026-08-25 考証第11巡 高①: メモリが撤回済みの番所の数を保持していた)。
+        #   極性検査にしたので、撤回の記録そのものは偽陽性にならない。
+        ("台帳", re.sub(r"[*~`]", "", _ledger_text())),
+        ("メモリ", re.sub(r"[*~`]", "", _memo_text())),
     ])
     if rbad:
         print("⚠ 撤回済みの説が残っている %d 件 — **図は書き出したが要修正**:" % len(rbad))
@@ -4774,7 +4824,13 @@ def main():
         elif isinstance(o, str):
             _sv.append(o)
     _collect(d)
-    txt_ = re.sub(r"<[^>]+>", " ", body) + "\n" + "\n".join(_sv)
+    # ⚠ **実装も ID・確度の照合に入れる。** 禁句表の網には足したが ID の網には入れておらず、
+    #   片肺だった(2026-08-25 考証第11巡 中)。実装ヘッダは `[ID]確度` の対を持つ。
+    # ⚠ ソース全体を見ると配列の添字 `[i + 1]` を ID と誤認するので、**コメントだけ**を取る
+    #   (json で配列リテラルを拾ったのと同じ型)。
+    _impl_cmt = "\n".join(m.group(1) for m in re.finditer(r"//(.*)", _impl_text()))
+    txt_ = (re.sub(r"<[^>]+>", " ", body) + "\n" + "\n".join(_sv)
+            + "\n" + _impl_cmt)
     # 典拠 ID に「,」は入らない(図中の軸ラベル `[s(m), 標高]` を拾わないため)
     ids_ = set(i for i in re.findall(r"\[([^\]\n]{2,24})\]", txt_) if "," not in i)
     miss2 = sorted(i for i in ids_ if i not in head_ and i not in tbl_)

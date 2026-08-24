@@ -9,9 +9,9 @@
 //   家紋から屋敷の別を読む説(別は武鑑で取る)、紋の桶を6個とする説(実見では8回対称。
 //   言えるのは「水車紋」まで)、内閣府報告書を塀の種別の典拠にする説
 //   (⛔3邸の構成に同報告書を引かない。典拠は [安政地震被害書上]S)。
-//   ⛔ **考証をこのファイルへ写さない。** 指図の機械照合(禁句表・典拠IDの照合)は
-//   設計値・文章・生成器・図を見るが、**実装のコメントは網の外**にある。
-//   写した瞬間に、撤回が届かない場所ができる(2026-08-25 考証第10巡)。
+//   ⛔ **考証をこのファイルへ写さない。** 2026-08-25 に、指図の機械照合(禁句表・典拠IDの照合)
+//   の対象を**設計値・文章・生成器・図・実装・台帳・メモリの7面**へ広げたので、
+//   ここに書いた考証も照合される。⚠ それでも**写さない** — 正典が二つになれば必ず片方が古びる。
 // 【地形】地盤の正本は docs/Sashizu/base_dem.json(CLAUDE.md 規則12)。
 //   ⛔ Unity の live terrain から採らない。造成の手順は各屋敷の指図の切盛図に従う。
 using System;
@@ -446,7 +446,7 @@ public static class EdoSannoKitaBuilder
             else if (i == 5)
                 FrontWall(kak, a, b, outw, GATE_DOI, gateHalf + 0.5f, "Hei_F");
             else
-                EdoNishiTameikeBuilder.DobeiRun(kak, a, b, outw, "Hei_" + i, true, 0, Vector2.zero, -1);   // 練塀(記録: 安政地震で大破)
+                EdoNishiTameikeBuilder.DobeiRun(kak, a, b, outw, "Hei_" + i, true, 0, Vector2.zero, -1);   // 練塀(種別の典拠は指図 doi_kosho.md「外周」。考証はここに写さない)
         }
         var bg = Group(G, "Buildings");
         float yawGate = Mathf.Atan2(fout.x, fout.y) * Mathf.Rad2Deg;

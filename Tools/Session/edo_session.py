@@ -259,13 +259,31 @@ def cmd_check_write(a):
     r = rel(p).replace(os.sep, "/")
     if r.startswith(".claude/locks"):
         return 0
+    # ── ① 本物の競合(誰かが既にこのパス/ドメインを持っている)を**先に**見る。
+    #    ここを後回しにすると、third が「山王は solo がメインで書いている最中」なのに
+    #    「worktree を用意したのでどうぞ」と案内してしまい、**同じ論理ファイルを
+    #    別の場所で同時編集する**という司令塔が防ぎたい事故そのものになる(2026-08-24)。
+    hs = holders(p, me, a.ttl)
+    if hs:
+        c, g = hs[0]
+        return _deny(
+            "⛔ 司令塔: `%s` は**別のセッション %s** が押さえている(claim `%s`／心拍 %.0f 分前)。\n"
+            "   %s\n"
+            "   同じファイルを同時に書くと片方の編集が消える。\n"
+            "   → 待つか、そのセッションに `Tools/Session/edo_session.py release %s` を頼むこと。\n"
+            "   → 引き継ぐと決めたなら `Tools/Session/edo_session.py steal %s` で奪える(理由を残す)。"
+            % (r, c["session"], g, (now() - c["heartbeat"]) / 60.0, c.get("note", ""), g, g))
+
+    # ── ② 競合はしていないが、他のセッションが存在する。**このセッションにとって
+    #    新しいドメイン**なら worktree へ回して隔離する。既に自分が持っているドメイン
+    #    (作業を続けているだけ)は回さない — 無関係なセッションの起動で追い出されない。
     d = domain(p)
     if d and in_main_checkout() and not a.no_route:
         others = [c for c in load_all(a.ttl) if c["session"] != me]
         mineC, _ = mine(me)
-        # ⚠ **回すのは競合しているときだけ。** 一人で作業しているのにメインから
-        #    追い出すのは邪魔でしかない。Unity を握っている(=計測・実装)セッションも回さない。
-        if others and "unity" not in mineC.get("resources", []) and "main" not in mineC.get("resources", []):
+        if (others and d not in mineC.get("paths", [])
+                and "unity" not in mineC.get("resources", [])
+                and "main" not in mineC.get("resources", [])):
             wt = ensure_wt(d)
             if wt and os.path.realpath(wt) != os.path.realpath(ROOT):
                 touch(me, paths=[d])
@@ -281,16 +299,6 @@ def cmd_check_write(a):
                     "(その場合はメインのままで通す)。\n"
                     "   ⚠ どうしてもメインで書くなら `edo_session.py claim --resources main`。"
                     % (len(others), d, wt, os.path.join(wt, rel(p)), wt))
-    hs = holders(p, me, a.ttl)
-    if hs:
-        c, g = hs[0]
-        return _deny(
-            "⛔ 司令塔: `%s` は**別のセッション %s** が押さえている(claim `%s`／心拍 %.0f 分前)。\n"
-            "   %s\n"
-            "   同じファイルを同時に書くと片方の編集が消える。\n"
-            "   → 待つか、そのセッションに `Tools/Session/edo_session.py release %s` を頼むこと。\n"
-            "   → 引き継ぐと決めたなら `Tools/Session/edo_session.py steal %s` で奪える(理由を残す)。"
-            % (r, c["session"], g, (now() - c["heartbeat"]) / 60.0, c.get("note", ""), g, g))
     touch(me, paths=[p])
     return 0
 

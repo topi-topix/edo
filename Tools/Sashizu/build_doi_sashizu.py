@@ -581,6 +581,28 @@ def load_terrain(path):
     return t
 
 
+def dem_bilinear(dem, x, z):
+    """世界座標2m格子の DEM を**双一次**で引く。
+
+    ⚠ `ter["at"]` は 1m 格子の**最近傍**なので、境界を挟んだ ±0.3m が同じセルに落ちる。
+    塀の足元の埋没を測るのに使うと、急斜面では ±1.7m の誤差が出た(2026-08-24 第8巡:
+    松平 S_Hei_E1 は当家側 +1m で 3.35m 落ちる崖で、判定が立たなかった)。
+    **境界際の判定は、内挿した回転格子でなく原資料の DEM を連続に引く。**
+    """
+    if dem is None:
+        return None
+    fx = (x - dem["x0"]) / dem["step"]
+    fz = (z - dem["z0"]) / dem["step"]
+    ix, iz = int(math.floor(fx)), int(math.floor(fz))
+    if ix < 0 or iz < 0 or ix + 1 >= dem["nx"] or iz + 1 >= dem["nz"]:
+        return None
+    tx, tz = fx - ix, fz - iz
+    q = [dem["h"][iz][ix], dem["h"][iz][ix + 1], dem["h"][iz + 1][ix], dem["h"][iz + 1][ix + 1]]
+    if any(w is None for w in q):
+        return None
+    return (q[0] * (1 - tx) + q[1] * tx) * (1 - tz) + (q[2] * (1 - tx) + q[3] * tx) * tz
+
+
 _PGRID = {}
 
 
@@ -2338,7 +2360,7 @@ def wall_needed_check(d, dem):
     return bad
 
 
-def neighbour_wall_check(d, ter):
+def neighbour_wall_check(d, ter, dem=None):
     """**隣家が持つ辺で、隣家の塀が当家側の地盤に埋まっていないか**を毎回測る。
 
     `edgeOwner` を設計値に置いただけでは死値だった(2026-08-24 検図第7巡: どこからも参照されず)。
@@ -2365,7 +2387,7 @@ def neighbour_wall_check(d, ter):
             nx_, nz_ = -ez, ex
             mu, mv = gr.L((a[0] + b[0]) / 2 + nx_ * 3, (a[1] + b[1]) / 2 + nz_ * 3)
             sg = 1.0 if in_parcel(d, mu, mv) else -1.0
-            worst = -9e9; at_s = None
+            worst = -9e9; at_s = None; at_off = None
             n = max(4, int((r["s1"] - r["s0"]) / 0.5))
             for i in range(n + 1):
                 sq = r["s0"] + (r["s1"] - r["s0"]) * i / float(n)
@@ -2373,22 +2395,42 @@ def neighbour_wall_check(d, ter):
                 if t > 1.0:
                     break
                 x, z = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
-                u, v = gr.L(x + nx_ * 1.4 * sg, z + nz_ * 1.4 * sg)
-                nn = ter["at"](u, v)
-                if nn is None:
-                    continue
-                g = design_y(d, u, v)
+                # ⚠ **塀の足元で測る。** かつて 1.4m 内側で測っており、境界が上り斜面だと
+                #   その勾配ぶんが丸ごと「埋没」に化けた(2026-08-24 第8巡: 6件中1件が
+                #   偽陽性で、残る5件も過大。松平 S_Hei_Doi_W3 は境界線上では ±0.01m で
+                #   合っていたのに 0.89m 埋没と報告していた)。
+                #   1.4m 内側は犬走りの位置であって、塀の足元ではない。
+                #   地形が欠ける所だけ、値の取れる最寄りの内側へ寄せて、寄せた距離を報告する。
+                g = None; off = None
+                oq = 0.3
+                while oq <= 1.5001:
+                    px, pz = x + nx_ * oq * sg, z + nz_ * oq * sg
+                    u, v = gr.L(px, pz)
+                    nn = dem_bilinear(dem, px, pz)
+                    if nn is None:
+                        nn = ter["at"](u, v)
+                    if nn is not None:
+                        g = design_y(d, u, v)
+                        if g is None:
+                            g = graded_y(d, u, v, nn, we)
+                        if g is not None:
+                            off = oq
+                            break
+                    oq += 0.1
                 if g is None:
-                    g = graded_y(d, u, v, nn, we)
-                if g is None:
                     continue
+                # ⚠ **天端は run の中で按分する**(相手の生成器の `rseat` が正典)。
+                #   辺の全長 L で按分していたため、s0>0 の run や辺より短い run で
+                #   まるで違う天端と比べていた(2026-08-24 第8巡)。
+                #   岡部 N_Hei1 は 5.82m 埋没と報告していたが、run 内按分では合格する。
                 s0 = r.get("seat0", r["seat"]); s1 = r.get("seat1", r["seat"])
-                seat = s0 + (s1 - s0) * t
+                tr = 0.0 if r["s1"] <= r["s0"] else (sq - r["s0"]) / (r["s1"] - r["s0"])
+                seat = s0 + (s1 - s0) * max(0.0, min(1.0, tr))
                 if g - seat > worst:
-                    worst = g - seat; at_s = sq
+                    worst = g - seat; at_s = sq; at_off = off
             if at_s is not None and worst > 0.05:
-                bad.append("%s の %s が当家側の地盤に %.2fm 埋まる(相手の s=%.1f)"
-                           % (who, r["name"], worst, at_s))
+                bad.append("%s の %s が当家側の地盤に %.2fm 埋まる(相手の s=%.1f・境界から %.1fm 内側で実測)"
+                           % (who, r["name"], worst, at_s, at_off))
     return bad
 
 
@@ -3038,7 +3080,8 @@ def main():
             + mune_fit_check(d, load_terrain(os.path.join(DOC, "doi_terrain.json")))
             + edge_step_check(d, load_terrain(os.path.join(DOC, "doi_dem.json")))
             + wall_needed_check(d, load_terrain(os.path.join(DOC, "doi_dem.json"))))
-    nbad = neighbour_wall_check(d, load_terrain(os.path.join(DOC, "doi_terrain.json")))
+    nbad = neighbour_wall_check(d, load_terrain(os.path.join(DOC, "doi_terrain.json")),
+                                load_terrain(os.path.join(DOC, "doi_dem.json")))
     if nbad:
         print("── 隣家の宿題(当家では直せない)%d 件:" % len(nbad))
         for b in nbad:

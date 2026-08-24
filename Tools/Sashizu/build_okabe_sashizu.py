@@ -311,6 +311,48 @@ def run_base(d, r):
     return _BASE[key]
 
 
+def auto_rails(d):
+    """**法肩の竹垣を段の多角形から算出する。** 手で持つと段を動かすたびに腐る
+    (2026-08-24 検図: 3本とも新しい縁に載っていなかった)。
+    段の輪郭のうち「外側の地山が段より 1.0m 以上低い」= 落差のある縁を拾い、
+    法肩から内へ 0.45m 入った線を返す。"""
+    K = d["const"]["ken"]
+    out = []
+    for t in d["terraces"]:
+        poly = tpoly(t)
+        n = len(poly)
+        cu = sum(p[0] for p in poly) / n; cv = sum(p[1] for p in poly) / n
+        segs = []
+        for i in range(n):
+            a, b = poly[i], poly[(i + 1) % n]
+            L = max(int(math.hypot(b[0] - a[0], b[1] - a[1])), 1)
+            for k in range(L):
+                p0 = (a[0] + (b[0] - a[0]) * k / L, a[1] + (b[1] - a[1]) * k / L)
+                p1 = (a[0] + (b[0] - a[0]) * (k + 1) / L, a[1] + (b[1] - a[1]) * (k + 1) / L)
+                mx, my = (p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2
+                nn = math.hypot(mx - cu, my - cv) or 1.0
+                ox = mx + (mx - cu) / nn * 1.2; oy = my + (my - cv) / nn * 1.2
+                g = _dem_at(d, ox, oy)
+                inside = (mx - (mx - cu) / nn * 0.45 / K, my - (my - cv) / nn * 0.45 / K)
+                if g is not None and (t["y"] - g) >= 1.0 and in_parcel(d, mx, my):
+                    segs.append((p0, p1, round(t["y"] - g, 2)))
+        # 連続する区間をまとめる
+        runs = []
+        for p0, p1, dz in segs:
+            if runs and math.hypot(runs[-1][1][0] - p0[0], runs[-1][1][1] - p0[1]) < 1e-6:
+                runs[-1] = (runs[-1][0], p1, max(runs[-1][2], dz))
+            else:
+                runs.append((p0, p1, dz))
+        for j, (p0, p1, dz) in enumerate(runs):
+            L = math.hypot(p1[0] - p0[0], p1[1] - p0[1]) * K
+            if L < 9.0:
+                continue
+            out.append({"name": "R_%s%d" % (t["name"][:2], j + 1), "terrace": t["name"],
+                        "pts": [[round(p0[0], 1), round(p0[1], 1)], [round(p1[0], 1), round(p1[1], 1)]],
+                        "len": round(L, 1), "drop": dz})
+    return out
+
+
 def _fit_note(d):
     """規則3の合格宣言を**算出**して返す。件数も最大Δも復元セル率も設計値から出す。"""
     E = _DEM.get(id(d))
@@ -347,9 +389,30 @@ def _fit_note(d):
         n += 1; mx = max(mx, max(ds))
         if tt and rr / float(tt) > 0.5:
             rec += 1
+    # ⚠ **同じ論法が自分の面にも当たる。** 廃止した「22.70の平坦」を近代造成と断じた根拠は
+    #   「332セル中214セル(64.5%)が正確に22.70」だった。自分の面の同じ比率も出す(2026-08-24 検図)。
+    flat = []
+    for t in d["terraces"]:
+        tot = ex = 0
+        for iv in range(E["nv"]):
+            for iu in range(E["nu"]):
+                u, v = E["u0"] + iu, E["v0"] + iv
+                if not tin(t, u, v):
+                    continue
+                g = E["h"][iv][iu]
+                if g is None:
+                    continue
+                tot += 1
+                if abs(g - t["y"]) < 0.005:
+                    ex += 1
+        if tot:
+            flat.append("%s %.0f%%" % (TERR_JA.get(t["name"], t["name"]), 100.0 * ex / tot))
     return ("<b>棟が載る所の |設計面 − 江戸期地盤| は全%d物件で 0.5m 以内</b>(最大 %.2fm・規則3)。"
             "⚠ ただし<b>%d物件は復元した地盤の上</b>にあり、そこではこの検査は"
-            "「自分が置いた値を測り返している」にすぎない(§A-6)。" % (n, mx, rec))
+            "「自分が置いた値を測り返している」にすぎない(§A-6)。"
+            "⚠ <b>同じ論法は自分の面にも当たる</b> — 江戸期地盤が面の高さと一致するセルの割合は %s。"
+            "「22.70 の平坦(64.5%%)を近代造成と断じた」根拠が、主面にも当てはまる比率である。"
+            % (n, mx, rec, " / ".join(flat)))
 
 
 def _joints(d):
@@ -824,12 +887,24 @@ def edge_is_fill(d, t, u, v, ter=None):
                 pts.append((q[0], q[1], None if g is None else (t["y"] - g)))
         _EDGEFILL[key] = pts
     pts = _EDGEFILL[key]
-    best, bd = None, 1e18
-    for (a, b, f) in pts:
-        dd = (a - u) ** 2 + (b - v) ** 2
-        if dd < bd:
-            bd, best = dd, f
-    return best
+    # **縁に沿って連続にする** — 最近傍1点だと縁の標本の間で値が跳ね、法面に段差が出る。
+    near = sorted(((a - u) ** 2 + (b - v) ** 2, f) for (a, b, f) in pts if f is not None)[:4]
+    if not near:
+        return None
+    if near[0][0] < 1e-9:
+        return near[0][1]
+    w = sum(1.0 / dd for dd, _ in near)
+    return sum(f / dd for dd, f in near) / w
+
+
+def _nat_grad(d, u, v):
+    """江戸期地盤のその場の勾配(m/間 → 無次元)。崖かどうかの判定に使う。"""
+    a = _dem_at(d, u + 0.5, v); b = _dem_at(d, u - 0.5, v)
+    c = _dem_at(d, u, v + 0.5); e = _dem_at(d, u, v - 0.5)
+    if None in (a, b, c, e):
+        return 0.0
+    K = d["const"]["ken"]
+    return math.hypot(a - b, c - e) / K
 
 
 _DEM = {}
@@ -846,10 +921,20 @@ def _dem_at(d, u, v):
     E = _DEM[key]
     if not E:
         return None
-    iu = int(round(u - E["u0"])); iv = int(round(v - E["v0"]))
-    if 0 <= iv < E["nv"] and 0 <= iu < E["nu"]:
-        return E["h"][iv][iu]
-    return None
+    # ⚠ **バイリニア。** 最寄り整数セルへ丸めると、崖の肩で 0.4m の盛土厚が 2m 超として読まれ、
+    #   法面が土の棚を作って法尻に段差が生えた(2026-08-24 検図)。
+    fu = u - E["u0"]; fv = v - E["v0"]
+    i0 = int(math.floor(fu)); j0 = int(math.floor(fv))
+    tu = fu - i0; tv = fv - j0
+    acc = wt = 0.0
+    for dj, wv in ((0, 1 - tv), (1, tv)):
+        for di, wu in ((0, 1 - tu), (1, tu)):
+            i, j = i0 + di, j0 + dj
+            if 0 <= j < E["nv"] and 0 <= i < E["nu"]:
+                h = E["h"][j][i]
+                if h is not None:
+                    acc += h * wu * wv; wt += wu * wv
+    return acc / wt if wt > 1e-9 else None
 
 
 def graded_y(d, u, v, nat, walled=None):
@@ -874,6 +959,10 @@ def graded_y(d, u, v, nat, walled=None):
             continue
         ef = edge_is_fill(d, t, u, v)      # 段の縁での盛土(+)/切土(−)の厚み
         if ef is None:
+            continue
+        # **関門③: 地山がすでに法面より急な所は崖・石垣の領分。法面を出さない。**
+        #   出すと造成が自然より急になり、法尻に段差が生える(2026-08-24 検図)。
+        if _nat_grad(d, u, v) > 0.75 * (1.0 / bc if ef < 0 else 1.0 / bf):
             continue
         # **法面は「縁の土の厚みが 0 へ逓減する」形で出す。**
         #   盛土: 縁で ef、そこから 1:bf の勾配で薄くなり、距離 ef*bf で地山に着く。
@@ -1985,6 +2074,26 @@ def kenpei(d, area):
                tot, tot / TSUBO, area, area / TSUBO, 100.0 * tot / area)), 100.0 * tot / area
 
 
+_OWNE = {}
+
+
+def _near_own_edge(d, u, v, lim=1.5):
+    """当家が囲いを建てる辺から lim 間以内か。そこの段差は石垣基壇が受ける。"""
+    key = id(d)
+    if key not in _OWNE:
+        gr = RGrid(d)
+        P = [gr.L(x, z) for x, z in d["polygon"]]
+        own = sorted(set(r["edge"] for r in d["runs"]) | set(f["edge"] for f in d.get("fences", [])))
+        _OWNE[key] = [(P[e], P[(e + 1) % len(P)]) for e in own]
+    for a, b in _OWNE[key]:
+        dx, dz = b[0] - a[0], b[1] - a[1]
+        L2 = dx * dx + dz * dz or 1e-9
+        t = max(0.0, min(1.0, ((u - a[0]) * dx + (v - a[1]) * dz) / L2))
+        if math.hypot(u - (a[0] + dx * t), v - (a[1] + dz * t)) <= lim:
+            return True
+    return False
+
+
 def batter_check(d, ter):
     """法面の検査 — **造成が自然勾配より急にした所で、切土 1:bc を超えていないか**。
     旧式(縁から一定勾配の平面)は地山が急なとき着地せず、cap で切れて法尻に垂直の段差を生んだ。
@@ -2009,9 +2118,15 @@ def batter_check(d, ter):
                 continue
             a2, b2 = Z[q]
             dg = abs(a2 - a) / K; dn = abs(b2 - b) / K
+            # **地山がすでに法面の勾配を超えている所は崖**で、この検査の対象外
+            # (どんな薄い土工も 1:1 を超えるため。判定するのは「法面が可能だった所を
+            #  造成が急にしてしまった」場合だけ)
+            if dn > 1.0 / bc + 1e-9:
+                continue
             if dg > dn + 1e-9 and dg > 1.0 / bc + 1e-9:
-                # 区画線に接するセルは**石垣基壇が受ける**ので法面の対象外(囲いのある辺のみ)
-                if not (in_parcel(d, u, v) and in_parcel(d, q[0], q[1])):
+                # **囲いのある辺から 1.5間以内は石垣基壇が受ける**ので法面の対象外。
+                # (DEM が区画線でクリップ済みなので in_parcel 判定では発火しない・2026-08-24 検図)
+                if _near_own_edge(d, u, v) or _near_own_edge(d, q[0], q[1]):
                     continue
                 bad.append("グリッド(%g, %g) 造成 %.0f%% > 切土の法面 %.0f%%(自然 %.0f%%)"
                            % (u, v, 100 * dg, 100.0 / bc, 100 * dn))
@@ -2558,7 +2673,7 @@ def main():
                '<span style="color:var(--nagaya)">━ 坂(勝手の道)</span>'
                '<span>▪ 御殿の棟 ／ ▫ 付属屋</span>'
                '<span style="color:var(--shu)">● 表門 ／ ▪ 通用口 ／ ▨ 石段 ／ ┄ 断面</span>',
-        cap="<b>敷地は水平な面3枚(%s)+造成しない斜面。</b>"
+        cap="<b>敷地は水平な面%d枚(%s)+造成しない斜面。</b>"
             "<b>面の高さと縁の位置は江戸期の復元地盤のベンチと法肩から決めた</b> — 全面が"
             "[菊地2003] の 1〜4m に収まる。%s"
             "<b>東の崖・北東のランプ・南西の谷・西斜面は造成しない</b> — "
@@ -2566,7 +2681,7 @@ def main():
             "<b>囲いの天端は run ごとに一直線</b> — 面の縁になる区間は水平に面の高さで通し、"
             "造成しない斜面の区間は一定勾配で地形を追う(石垣基壇の露出を %.1fm 以内に抑える)。"
             "<b>街路・隣地への影響はゼロ</b> — 段も法面も区画線で切っている(<code>in_parcel</code> で機械的に)。"
-            % (" / ".join("%.1f" % t["y"] for t in d["terraces"]),
+            % (len(d["terraces"]), " / ".join("%.1f" % t["y"] for t in d["terraces"]),
                _fit_note(d),
                max(run_base(d, r)[1] for r in d["runs"])))
     h.append(planes_table(d))
@@ -2641,11 +2756,16 @@ def main():
         h.append(cutfill_table(d, ter))
         bb = batter_check(d, ter)
         h.append('<p class="cap"><b>法面の検査: %s。</b>'
-                 '段の外は「縁の土の厚みが 0 へ逓減する」形で法面を出すので、'
-                 '<b>定義上かならず地山に着地し、法尻に垂直の段差が生じない</b>。'
-                 '造成が自然勾配より急になった所で切土の法面 1:%.1f を超えていないかを機械検査している。</p>'
-                 % ("<b>0 件</b>" if not bb else "⚠ %d 件 — %s" % (len(bb), " / ".join(bb[:4])),
-                    d["const"]["batterCut"]))
+                 '段の外は「縁の土の厚みが 0 へ逓減する」形で法面を出す。'
+                 '関門は三つ — ①縁が盛土(切土)であること ②cap %.0fm 以内 '
+                 '③<b>地山がすでに法面より急な所(崖)には法面を出さない</b>。'
+                 '検査は「<b>法面が可能だった所を造成が 1:%.1f より急にしていないか</b>」で、'
+                 '地山が既に 1:%.1f を超える崖は対象外(どんな薄い土工も超えるため)。'
+                 '囲いのある辺から1.5間以内も対象外 — そこは石垣基壇が受ける。%s</p>'
+                 % ("<b>0 件</b>" if not bb else "⚠ %d 件" % len(bb),
+                    d["const"].get("featherCap", 12.0), d["const"]["batterCut"], d["const"]["batterCut"],
+                    ("" if not bb else "<br>⚠ 残るのは<b>崖の肩</b>(地山 65〜93%%)の %d 箇所 — %s。"
+                     "法面と崖の境目で、実装では石垣か地形の均しで受ける。" % (len(bb), " / ".join(bb)))))
         h.append('<p class="cap">⚠ <b>上の段別表は段の中だけ</b>で、段の外へこぼれる法面を含まないので、'
                  '章のプレートの総量(盛 %d / 切 %d m³)とは一致しない。'
                  '<b>量の正典は json <code>grading.haryoJi</code></b> — この図が算出して書き戻す。</p>'
@@ -2762,7 +2882,10 @@ def main():
             cs = section_crossings(d, s)
             h.append('<h3>%s%s</h3>' % (s["name"].split("(")[0],
                                         ("(" + "・".join(cs) + ")") if cs else ""))
-            fig(h, section_svg(d, s), cap=inline(s["_"].replace("→", " → ")))
+            rng = [y for _w, y in s.get("natural", [])]
+            fig(h, section_svg(d, s),
+                cap=inline(s["_"].split("(江戸期地盤")[0].rstrip().replace("→", " → "))
+                    + ("(江戸期地盤 %.1f〜%.1f)" % (min(rng), max(rng)) if rng else ""))
         h.append('<p class="cap"><b>段のつなぎ方は平面だけでは読めない。</b>地表下の色帯=面(其一と同じ色分け)で、'
                  '<b>段の多角形が切り線を切る区間だけ</b>に出る(外接矩形では描かない)。'
                  '<b>破線=造成前の地形=江戸期の復元地盤</b>(確度U/B)なので、実線との差がそのまま切土/盛土。'
@@ -2804,16 +2927,16 @@ def main():
             % hn.get("kokuJa", ""))
     h.append("</div>")
 
-    plate(h, nx(), "法肩の竹垣", "郭内の土留めは0本 — 全廃した")
+    rails = auto_rails(d)
+    plate(h, nx(), "法肩の竹垣",
+          "郭内の土留めは0本 — 全廃した ／ **位置は段の多角形から算出**(手で持たない)")
     h.append('<div class="tw"><table><thead><tr><th>竹垣</th><th>グリッドの折れ線</th>'
              "<th>長さ</th><th class='note'>役目</th></tr></thead><tbody>"
              + "".join("<tr><td><code>%s</code></td><td>%s</td><td>%.1fm</td>"
-                       "<td class='note'>%s</td></tr>"
+                       "<td class='note'>%s の縁。落差 %.2fm</td></tr>"
                        % (rl["name"], " → ".join("(%g, %g)" % (a, b) for a, b in rl["pts"]),
-                          sum(math.hypot(q[0] - p[0], q[1] - p[1]) for p, q in
-                              zip(rl["pts"], rl["pts"][1:])) * d["const"]["ken"],
-                          rl.get("_", ""))
-                       for rl in d["rails"])
+                          rl["len"], TERR_JA.get(rl["terrace"], rl["terrace"]), rl["drop"])
+                       for rl in rails)
              + "</tbody></table></div>")
     h.append('<p class="cap"><b>郭内の土留めは1本も置かない。</b>面の高さを自然のベンチから採った結果、'
              'どの縁も落差が小さく、設計した壁は<b>いずれも露出1m未満=地中に埋まる</b>と判明したので'

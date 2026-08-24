@@ -32,6 +32,106 @@ TSUBO = 3.305785
 
 
 # ---------------------------------------------------------------- markdown(岡部と同じ最小変換)
+SRC_MD = os.path.expanduser(
+    "~/.claude/skills/unity-buke-yashiki/references/sources.md")
+
+
+def sources_index():
+    """`sources.md` の登録 ID → 確度。見出し(### [ID] 確度X)と表の行(| [ID] |)の両方。"""
+    if not os.path.exists(SRC_MD):
+        return {}, set()
+    t = open(SRC_MD, encoding="utf-8").read()
+    head = dict((m.group(1), m.group(2))
+                for m in re.finditer(r"^### \[([^\]]+)\]\s*確度([SABPU?])", t, re.M))
+    tbl = set(re.findall(r"^\|\s*\[([^\]]+)\]\s*\|", t, re.M))
+    return head, tbl
+
+
+def sources_block(md):
+    """文章が実際に引いている `[ID]` を集め、確度つきで並べる。
+
+    ⚠ **手で並べない。** 2026-08-24 の考証で、手書きの一覧に撤回済みの根拠が残り、
+    翻刻に S が振られ、7件が落ちていた(高④)。
+    台帳に無い ID は**そうと明示して出す** — 書誌の無い引用が確度を名乗るのを止める。
+    """
+    head, tbl = sources_index()
+    used = sorted(set(re.findall(r"\[([^\]\n]{2,24})\]", md)))
+    rows, miss = [], []
+    for u in used:
+        if u in head:
+            rows.append("| `[%s]` | %s |" % (u, head[u]))
+        elif u in tbl:
+            rows.append("| `[%s]` | 親エントリに従う |" % u)
+        else:
+            miss.append(u)
+    out = ["| 典拠 | 確度 |", "|---|---|"] + rows
+    if miss:
+        out.append("")
+        out.append("⚠ **台帳に無い ID**: " + " / ".join("`[%s]`" % m for m in miss))
+    return "\n".join(out), miss
+
+
+def neighbour_block(d, ter, dem):
+    """隣家の埋没を**毎回測って**表にする。手で書いた表は測り方を変えた瞬間に嘘になる。"""
+    rows = ["| 隣家の塀 | 埋没 | 当家側の地盤 |", "|---|---|---|"]
+    gr = RGrid(d)
+    we = dict((t["name"], walled_edges(d, t)) for t in d["terraces"])
+    n = 0
+    for who, (fn_, edges) in NEIGHBOUR.items():
+        path = os.path.join(DOC, fn_)
+        if not os.path.exists(path):
+            continue
+        nb = json.load(open(path, encoding="utf-8"))
+        P = nb["polygon"]
+        for r in nb.get("runs", []):
+            if r.get("edge") not in edges:
+                continue
+            a, b = P[r["edge"]], P[(r["edge"] + 1) % len(P)]
+            L = math.hypot(b[0] - a[0], b[1] - a[1])
+            ex, ez = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+            nx_, nz_ = -ez, ex
+            mu, mv = gr.L((a[0] + b[0]) / 2 + nx_ * 3, (a[1] + b[1]) / 2 + nz_ * 3)
+            sg = 1.0 if in_parcel(d, mu, mv) else -1.0
+            s0v = r.get("seat0", r["seat"]); s1v = r.get("seat1", r["seat"])
+            worst = None
+            m = max(4, int((r["s1"] - r["s0"]) / 0.5))
+            for i in range(m + 1):
+                sq = r["s0"] + (r["s1"] - r["s0"]) * i / float(m)
+                t = sq / L
+                if t > 1.0:
+                    break
+                x, z = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
+                px, pz = x + nx_ * 0.3 * sg, z + nz_ * 0.3 * sg
+                u, v = gr.L(px, pz)
+                nat = dem_bilinear(dem, px, pz)
+                if nat is None:
+                    nat = ter["at"](u, v)
+                if nat is None:
+                    continue
+                g = design_y(d, u, v)
+                if g is None:
+                    g = graded_y(d, u, v, nat, we)
+                if g is None:
+                    continue
+                tr = 0.0 if r["s1"] <= r["s0"] else (sq - r["s0"]) / (r["s1"] - r["s0"])
+                seat = s0v + (s1v - s0v) * max(0.0, min(1.0, tr))
+                if worst is None or g - seat > worst[0]:
+                    worst = (g - seat, sq, g, nat)
+            if worst is None or worst[0] <= 0.05:
+                continue
+            n += 1
+            kind = ("盛土 +%.2fm" % (worst[2] - worst[3])) if worst[2] - worst[3] > 0.05 else "素地"
+            rows.append("| %s `%s`(相手の s=%.1f) | **%.2fm** | %.2f(%s) |"
+                        % (who, r["name"], worst[1], worst[0], worst[2], kind))
+    if n == 0:
+        return "**埋まる箇所は無い。**"
+    rows.append("")
+    rows.append("測り方: 境界から**土井側へ 0.3m**(塀の足元)、`doi_dem.json` を**双一次**で引く。"
+                "天端は **run の中**で `seat0→seat1` を按分(相手の生成器の `rseat` が正典)。"
+                "判定は 0.05m 超。**是正は隣家側**(据え付け面を当家の地盤より下げない)。")
+    return "\n".join(rows)
+
+
 def md2html(text):
     out, i, lines = [], 0, text.split("\n")
     while i < len(lines):
@@ -3501,7 +3601,15 @@ def main():
     d = fix_sode(d)                     # 開口の両端の袖石垣
     d = fix_boundary_plinth(d, load_terrain(os.path.join(DOC, "doi_dem.json")))   # 隣家の辺に沿う基壇石垣
     write_back(d)                       # 算出した値は**正典へ戻す**(図だけが新しい状態を作らない)
-    prose = md2html(open(MD, encoding="utf-8").read())
+    raw = open(MD, encoding="utf-8").read()
+    blk, miss = sources_block(raw)
+    raw = raw.replace("{{典拠一覧}}", blk)
+    raw = raw.replace("{{隣家の表}}", neighbour_block(
+        d, load_terrain(os.path.join(DOC, "doi_terrain.json")),
+        load_terrain(os.path.join(DOC, "doi_dem.json"))))
+    prose = md2html(raw)
+    if miss:
+        print("⚠ 台帳に無い典拠 ID %d 件: %s" % (len(miss), " / ".join(miss)))
     P = d["polygon"]
     area = abs(sum(P[i][0] * P[(i + 1) % len(P)][1] - P[(i + 1) % len(P)][0] * P[i][1]
                    for i in range(len(P)))) / 2

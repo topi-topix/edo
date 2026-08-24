@@ -94,7 +94,11 @@ def neighbour_block(d, ter, dem):
             nx_, nz_ = -ez, ex
             mu, mv = gr.L((a[0] + b[0]) / 2 + nx_ * 3, (a[1] + b[1]) / 2 + nz_ * 3)
             sg = 1.0 if in_parcel(d, mu, mv) else -1.0
-            s0v = r.get("seat0", r["seat"]); s1v = r.get("seat1", r["seat"])
+            # ⚠ 隣家の run は `seat` を持たず `seat0`/`seat1` だけのことがある
+            #   (2026-08-24 に岡部が N_Hei3 を分割した形)。**片方が無い前提で読む。**
+            s0v = r.get("seat0", r.get("seat")); s1v = r.get("seat1", r.get("seat"))
+            if s0v is None or s1v is None:
+                continue
             worst = None
             m = max(4, int((r["s1"] - r["s0"]) / 0.5))
             for i in range(m + 1):
@@ -105,8 +109,6 @@ def neighbour_block(d, ter, dem):
                 x, z = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
                 px, pz = x + nx_ * 0.3 * sg, z + nz_ * 0.3 * sg
                 u, v = gr.L(px, pz)
-                nat = dem_in_parcel(dem, d, px, pz)
-            if nat is None:
                 nat = dem_bilinear(dem, px, pz)
                 if nat is None:
                     nat = ter["at"](u, v)
@@ -688,6 +690,14 @@ def load_terrain(path):
 def dem_bilinear(dem, x, z):
     """世界座標2m格子の DEM を**双一次**で引く。
 
+    ⚠ **造成前の地盤は `docs/Sashizu/base_dem.json` が正本**(CLAUDE.md 規則12)。
+    Unity の live terrain から採ると、採った時刻までに誰かが流した造成が乗る。
+    2026-08-24、当方の旧 `doi_dem.json` は松平区画の 574セル(最大 +6.91m)に
+    松平の造成を写しており、2m格子の双一次が境界から 0.3m の点で向こう側のセルを混ぜて、
+    当家側の「自然地盤」を 2.5m 押し上げていた(松平の指摘で発覚)。
+    一時、区画内のセルだけに平面を当てる回避を入れたが、**正本へ差し替わって不要になった**
+    (正本では両家が同じ面を読むのが要件で、素の双一次が正しい。回避は最大 0.63m ずれる)。
+
     ⚠ `ter["at"]` は 1m 格子の**最近傍**なので、境界を挟んだ ±0.3m が同じセルに落ちる。
     塀の足元の埋没を測るのに使うと、急斜面では ±1.7m の誤差が出た(2026-08-24 第8巡:
     松平 S_Hei_E1 は当家側 +1m で 3.35m 落ちる崖で、判定が立たなかった)。
@@ -706,69 +716,6 @@ def dem_bilinear(dem, x, z):
         return None
     return (q[0] * (1 - tx) + q[1] * tx) * (1 - tz) + (q[2] * (1 - tx) + q[3] * tx) * tz
 
-
-def dem_in_parcel(dem, d, x, z):
-    """DEM を**当家の区画に入るセルだけ**で引く。
-
-    ⚠ **2m 格子の双一次は、境界から 0.3m の点で向こう側のセルを混ぜる。**
-    隣家の区画の中が**造成後の面**になっている DEM でこれをやると、当家側の
-    「自然地盤」がその面に引きずられる(2026-08-24 松平の指摘:
-    辺6 s=14.0 で当方 26.02 / 実地形 24.36。区画の 2m 内側では両者一致していた)。
-    区画の外に落ちる隅は捨て、残った隅の重みを正規化して引く。
-    """
-    if dem is None:
-        return None
-    fx = (x - dem["x0"]) / dem["step"]
-    fz = (z - dem["z0"]) / dem["step"]
-    ix, iz = int(math.floor(fx)), int(math.floor(fz))
-    if ix < 0 or iz < 0 or ix + 1 >= dem["nx"] or iz + 1 >= dem["nz"]:
-        return None
-    # ⚠ **マスクして重みを正規化するだけでは足りない。** 0.3m の点で区画内に残るのは
-    #   最大 2m 離れたセルなので、値がそのセルへ寄る(斜面では 1m 級の偏り)。
-    #   **区画内のセルに平面を当てて、その点で評価する。**
-    gr = RGrid(d)
-    R = 3 * dem["step"]
-    pts = []
-    rr = int(math.ceil(R / dem["step"]))
-    for jz in range(iz - rr, iz + rr + 2):
-        if jz < 0 or jz >= dem["nz"]:
-            continue
-        for jx in range(ix - rr, ix + rr + 2):
-            if jx < 0 or jx >= dem["nx"]:
-                continue
-            h = dem["h"][jz][jx]
-            if h is None:
-                continue
-            cx = dem["x0"] + jx * dem["step"]
-            cz = dem["z0"] + jz * dem["step"]
-            if (cx - x) ** 2 + (cz - z) ** 2 > R * R:
-                continue
-            cu, cv = gr.L(cx, cz)
-            if not in_parcel(d, cu, cv):
-                continue                            # 区画の外のセルは使わない
-            pts.append((cx - x, cz - z, h))
-    if len(pts) < 3:
-        return None
-    # 最小二乗の平面 h = a*dx + b*dz + c
-    sxx = sxz = szz = sx = sz = sn = 0.0
-    shx = shz = sh = 0.0
-    for dx, dz, h in pts:
-        sxx += dx * dx; sxz += dx * dz; szz += dz * dz
-        sx += dx; sz += dz; sn += 1.0
-        shx += h * dx; shz += h * dz; sh += h
-    M = [[sxx, sxz, sx], [sxz, szz, sz], [sx, sz, sn]]
-    V = [shx, shz, sh]
-    det = (M[0][0] * (M[1][1] * M[2][2] - M[1][2] * M[2][1])
-           - M[0][1] * (M[1][0] * M[2][2] - M[1][2] * M[2][0])
-           + M[0][2] * (M[1][0] * M[2][1] - M[1][1] * M[2][0]))
-    if abs(det) < 1e-9:
-        return sh / sn
-    # c(=その点の値)だけ要るのでクラメル
-    M2 = [[M[0][0], M[0][1], V[0]], [M[1][0], M[1][1], V[1]], [M[2][0], M[2][1], V[2]]]
-    d2 = (M2[0][0] * (M2[1][1] * M2[2][2] - M2[1][2] * M2[2][1])
-          - M2[0][1] * (M2[1][0] * M2[2][2] - M2[1][2] * M2[2][0])
-          + M2[0][2] * (M2[1][0] * M2[2][1] - M2[1][1] * M2[2][0]))
-    return d2 / det
 
 
 _PGRID = {}
@@ -1401,9 +1348,7 @@ def fix_boundary_plinth(d, dem):
             x, z = a[0] + (b[0] - a[0]) * sq / L, a[1] + (b[1] - a[1]) * sq / L
             px, pz = x + nx_ * 0.3 * sg, z + nz_ * 0.3 * sg
             u, v = gr.L(px, pz)
-            nat = dem_in_parcel(dem, d, px, pz)
-            if nat is None:
-                nat = dem_bilinear(dem, px, pz)
+            nat = dem_bilinear(dem, px, pz)
             if nat is None:
                 prof.append((sq, None, None)); continue
             g = design_y(d, u, v)
@@ -1465,9 +1410,7 @@ def boundary_fill_check(d, dem):
             x, z = a[0] + (b[0] - a[0]) * sq / L, a[1] + (b[1] - a[1]) * sq / L
             px, pz = x + nx_ * 0.3 * sg, z + nz_ * 0.3 * sg
             u, v = gr.L(px, pz)
-            nat = dem_in_parcel(dem, d, px, pz)
-            if nat is None:
-                nat = dem_bilinear(dem, px, pz)
+            nat = dem_bilinear(dem, px, pz)
             if nat is None:
                 continue
             g = design_y(d, u, v)
@@ -3197,9 +3140,7 @@ def neighbour_wall_check(d, ter, dem=None):
                 while oq <= _omax:
                     px, pz = x + nx_ * oq * sg, z + nz_ * oq * sg
                     u, v = gr.L(px, pz)
-                    nn = dem_in_parcel(dem, d, px, pz)
-                    if nn is None:
-                        nn = dem_bilinear(dem, px, pz)
+                    nn = dem_bilinear(dem, px, pz)
                     if nn is None:
                         nn = ter["at"](u, v)
                     if nn is not None:
@@ -3216,7 +3157,10 @@ def neighbour_wall_check(d, ter, dem=None):
                 #   辺の全長 L で按分していたため、s0>0 の run や辺より短い run で
                 #   まるで違う天端と比べていた(2026-08-24 第8巡)。
                 #   岡部 N_Hei1 は 5.82m 埋没と報告していたが、run 内按分では合格する。
-                s0 = r.get("seat0", r["seat"]); s1 = r.get("seat1", r["seat"])
+                # ⚠ 隣家の run は `seat` を持たず `seat0`/`seat1` だけのことがある
+                s0 = r.get("seat0", r.get("seat")); s1 = r.get("seat1", r.get("seat"))
+                if s0 is None or s1 is None:
+                    continue
                 tr = 0.0 if r["s1"] <= r["s0"] else (sq - r["s0"]) / (r["s1"] - r["s0"])
                 seat = s0 + (s1 - s0) * max(0.0, min(1.0, tr))
                 if g - seat > worst:

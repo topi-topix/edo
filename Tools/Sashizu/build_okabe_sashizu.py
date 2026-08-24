@@ -332,16 +332,99 @@ def _ptrunc(seq, f="(%.1f, %.1f)"):
         f % tuple(seq[-2]), f % tuple(seq[-1]))
 
 
+def _par_near(d, u, v):
+    """区画線までの最短距離と、その最寄りの辺番号・辺上の走り s を返す。"""
+    key = id(d)
+    if key not in _PIN:
+        in_parcel(d, 0, 0)
+    Pg = _PIN[key]
+    best = None
+    for i in range(len(Pg)):
+        a, b = Pg[i], Pg[(i + 1) % len(Pg)]
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        L2 = dx * dx + dy * dy or 1e-9
+        t = max(0.0, min(1.0, ((u - a[0]) * dx + (v - a[1]) * dy) / L2))
+        dd = math.hypot(u - (a[0] + dx * t), v - (a[1] + dy * t))
+        if best is None or dd < best[0]:
+            best = (dd, i, t * math.sqrt(L2) * d["const"]["ken"])
+    return best
+
+
+def _on_walled_edge(d, u, v, lim):
+    """(u,v) が『当家が囲いを建てている辺』の lim[m] 以内か。
+    2026-08-24 検図: 三べ坂の練塀(基壇の露出3.0m)が受けている落差を竹垣がもう一本なぞり、
+    5.65m の練塀の裏に高さ0.9m の四つ目垣が二重に回っていた。"""
+    dd, e, sv = _par_near(d, u, v)
+    if dd * d["const"]["ken"] > lim:
+        return False
+    for r in d["runs"]:
+        if r["edge"] == e and r["s0"] - 1.0 <= sv <= r["s1"] + 1.0:
+            return True
+    for f in d.get("fences", []):
+        if f["edge"] == e and f["s0"] - 1.0 <= sv <= f["s1"] + 1.0:
+            return True
+    return False
+
+
+def _in_opening(d, u, v):
+    """昇り降りの動線の開口の中か。**竹垣はここで切る**(参道・石段・坂を塞がない)。
+    2026-08-24 検図: 折れ線に戻した結果、R_Sh2 が参道帯をほぼ全幅(5.42m)塞いでいた。"""
+    K = d["const"]["ken"]
+    sd = d["sando"]
+    if abs(u - sd["u"]) <= sd["width"] / 2.0 + 0.3 and sd["v0"] - 0.5 <= v <= sd["v1"] + 0.5:
+        return True
+    for k in d["kaidans"]:                                # 石段の開口
+        ax, at2, ka, kb, cu9, cv9 = kgeom(k)
+        w = k["w"] / 2.0 / K + 0.3
+        if ax == "v":
+            if abs(u - at2) <= w and min(ka, kb) - 0.5 <= v <= max(ka, kb) + 0.5:
+                return True
+        else:
+            if abs(v - at2) <= w and min(ka, kb) - 0.5 <= u <= max(ka, kb) + 0.5:
+                return True
+    for rp in d.get("ramps", []):                          # 坂の路盤
+        w = rp["w"] / 2.0 / K + 0.5
+        for a, b in zip(rp["pts"], rp["pts"][1:]):
+            dx, dy = b[0] - a[0], b[1] - a[1]
+            L2 = dx * dx + dy * dy or 1e-9
+            t = max(0.0, min(1.0, ((u - a[0]) * dx + (v - a[1]) * dy) / L2))
+            if math.hypot(u - (a[0] + dx * t), v - (a[1] + dy * t)) <= w:
+                return True
+    return False
+
+
+def _rail_offset(d, rl):
+    """竹垣の各点から法肩(段の輪郭)までの垂直距離の範囲[m]。
+    隅では法線が交わるぶん詰まるので、一律「0.45m」と書かず実距離を出す。"""
+    t = next(x for x in d["terraces"] if x["name"] == rl["terrace"])
+    poly = tpoly(t)
+    ds = []
+    for u, v in rl["pts"]:
+        best = 1e9
+        for a, b in zip(poly, poly[1:] + [poly[0]]):
+            dx, dy = b[0] - a[0], b[1] - a[1]
+            L2 = dx * dx + dy * dy or 1e-9
+            tt = max(0.0, min(1.0, ((u - a[0]) * dx + (v - a[1]) * dy) / L2))
+            best = min(best, math.hypot(u - (a[0] + dx * tt), v - (a[1] + dy * tt)))
+        ds.append(best * d["const"]["ken"])
+    return (min(ds), max(ds)) if ds else (0.0, 0.0)
+
+
 def auto_rails(d):
-    """**法肩の竹垣を段の多角形から算出する。** 手で持つと段を動かすたびに腐る
-    (2026-08-24 検図: 3本とも新しい縁に載っていなかった)。
+    """**法肩の竹垣を段の多角形から算出する。** 手で持つと段を動かすたびに腐る。
     段の輪郭のうち「外側の地山が段より 1.0m 以上低い」= 落差のある縁を拾い、
-    法肩から内へ 0.45m 入った**折れ線**を返す。
-    ⚠ 2026-08-24 の2巡目検図: これを始点と終点だけの**弦**にしていたため、
-    R_Sh2 が法肩から 29.4m 離れて御玄関を貫通していた。折れ点をすべて残す。"""
+    法肩から内へ `const.inubashiri` + 0.15m 入った**折れ線**を返す。
+
+    ⚠ 2026-08-24 の検図で三度直している。
+    ① 始点と終点だけの**弦**にしていた → 折れ点をすべて残す。
+    ② **外周の囲いが載っている辺**をなぞって二重に回っていた → `_on_walled_edge` で外す。
+    ③ 参道・石段・坂を塞いでいた → `_in_opening` で切る(「動線を塞がない」は図の宣言)。
+    ④ オフセットを重心からの放射方向で取っていたため垂直距離が 0.45m にならなかった
+       → **各線分の外向き法線**で取る。"""
     if id(d) in _RAILS:
         return _RAILS[id(d)]
     K = d["const"]["ken"]
+    off = (d["const"]["inubashiri"] + 0.15) / K
     out = []
     for t in d["terraces"]:
         poly = tpoly(t)
@@ -351,32 +434,51 @@ def auto_rails(d):
         for i in range(n):
             a, b = poly[i], poly[(i + 1) % n]
             L = max(int(math.hypot(b[0] - a[0], b[1] - a[1])), 1)
+            ex, ey = b[0] - a[0], b[1] - a[1]
+            en = math.hypot(ex, ey) or 1.0
+            nx, ny = ey / en, -ex / en                 # 線分の法線
+            mid = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+            if (mid[0] + nx - cu) ** 2 + (mid[1] + ny - cv) ** 2 < \
+               (mid[0] - nx - cu) ** 2 + (mid[1] - ny - cv) ** 2:
+                nx, ny = -nx, -ny                      # 外向きに揃える
             for k in range(L):
-                p0 = (a[0] + (b[0] - a[0]) * k / L, a[1] + (b[1] - a[1]) * k / L)
-                p1 = (a[0] + (b[0] - a[0]) * (k + 1) / L, a[1] + (b[1] - a[1]) * (k + 1) / L)
+                p0 = (a[0] + ex * k / L, a[1] + ey * k / L)
+                p1 = (a[0] + ex * (k + 1) / L, a[1] + ey * (k + 1) / L)
                 mx, my = (p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2
-                nn = math.hypot(mx - cu, my - cv) or 1.0
-                dx, dy = (mx - cu) / nn, (my - cv) / nn
-                ox = mx + dx * 1.2; oy = my + dy * 1.2
-                g = _dem_at(d, ox, oy)
-                if g is not None and (t["y"] - g) >= 1.0 and in_parcel(d, mx, my):
-                    off = 0.45 / K                       # 法肩から内へ 0.45m
-                    segs.append(((p0[0] - dx * off, p0[1] - dy * off),
-                                 (p1[0] - dx * off, p1[1] - dy * off),
+                g = _dem_at(d, mx + nx * 1.2, my + ny * 1.2)
+                ok = (g is not None and (t["y"] - g) >= 1.0 and in_parcel(d, mx, my)
+                      and not _on_walled_edge(d, mx, my, 3.0)
+                      and not _in_opening(d, mx, my))
+                if ok:
+                    segs.append(((p0[0] - nx * off, p0[1] - ny * off),
+                                 (p1[0] - nx * off, p1[1] - ny * off),
                                  round(t["y"] - g, 2)))
+                else:
+                    segs.append(None)                  # 切れ目(開口・囲いのある辺)
         # 連続する区間を**折れ線**としてまとめる(弦に潰さない)
         runs = []
-        for p0, p1, dz in segs:
-            if runs and math.hypot(runs[-1][0][-1][0] - p0[0], runs[-1][0][-1][1] - p0[1]) < 0.05:
+        for it in segs:
+            if it is None:
+                runs.append(None)
+                continue
+            p0, p1, dz = it
+            if runs and runs[-1] is not None and \
+               math.hypot(runs[-1][0][-1][0] - p0[0], runs[-1][0][-1][1] - p0[1]) < 0.30:
                 runs[-1][0].append(p1)
                 runs[-1][1] = max(runs[-1][1], dz)
             else:
                 runs.append([[p0, p1], dz])
-        for j, (pts, dz) in enumerate(runs):
+        for r9 in runs:
+            if r9 is None:
+                continue
+            pts, dz = r9
             L = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(pts, pts[1:])) * K
             if L < 9.0:
                 continue
-            out.append({"name": "R_%s%d" % (t["name"][:2], j + 1), "terrace": t["name"],
+            # ⚠ 名は**始点の座標**から作る。算出順(j+1)だと、短くて落ちた run の分だけ
+            #    以降の名が全部ずれ、実装との突き合わせが総崩れになる(2026-08-24 検図)。
+            out.append({"name": "R_%s_u%+d_v%d" % (t["name"][:2], round(pts[0][0]), round(pts[0][1])),
+                        "terrace": t["name"],
                         "pts": [[round(x, 2), round(y, 2)] for x, y in pts],
                         "len": round(L, 1), "drop": dz})
     _RAILS[id(d)] = out
@@ -417,12 +519,108 @@ def base_check(d):
             continue
         lo, hi = run_base(d, r)
         cap = d["const"]["baseUnit"] * r["s"]
-        if lo < lo0 - 1e-9:
-            bad.append("%s の露出の最小 %.2fm < 下限 %.2fm(石が一段も見えない)"
-                       % (r["name"], lo, lo0))
+        if lo < -0.02:
+            bad.append("%s の天端が地盤の下 %.2fm(塀が土に埋まる)" % (r["name"], -lo))
         if hi > cap + 1e-9:
             bad.append("%s の露出の最大 %.2fm > 石垣の丈 %.2fm(s=%.2f)" % (r["name"], hi, cap, r["s"]))
     return bad
+
+
+def seat_fill_check(d):
+    """**面の縁と宣言した run の内側が、据面より落ち込んでいないか。**
+    2026-08-24 検図: 段の多角形が区画線から最大4.5m離れており、その帯は段の外なので盛土されず、
+    三べ坂の正面 96m にわたって据面より最大 2.91m 低い溝が残っていた。
+    段の頂点だけを見る検査では捕まらないので、run に沿って 1m 刻みで内側 1.2m の地盤を測る。"""
+    K = d["const"]["ken"]
+    in_parcel(d, 0, 0)
+    Pg = _PIN[id(d)]
+    cu = sum(p[0] for p in Pg) / len(Pg); cv = sum(p[1] for p in Pg) / len(Pg)
+    we = dict((t["name"], walled_edges(d, t)) for t in d["terraces"])
+    out = []
+    for r in d["runs"]:
+        if not str(r.get("on", "")).startswith("面の縁"):
+            continue
+        e = r["edge"]; a, b = Pg[e], Pg[(e + 1) % len(Pg)]
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        L = math.hypot(dx, dy) or 1e-9
+        nx, ny = -dy / L, dx / L
+        if (a[0] + nx - cu) ** 2 + (a[1] + ny - cv) ** 2 > \
+           (a[0] - nx - cu) ** 2 + (a[1] - ny - cv) ** 2:
+            nx, ny = -nx, -ny
+        n = 0; bad = 0; mx = 0.0
+        sv = r["s0"]
+        while sv <= r["s1"]:
+            t = sv / K / L
+            u = a[0] + dx * t + nx * (1.2 / K); v = a[1] + dy * t + ny * (1.2 / K)
+            nat = _dem_at(d, u, v)
+            if nat is not None:
+                g = graded_y(d, u, v, nat, we)
+                g = nat if g is None else g
+                n += 1
+                if rseat(r, sv) - g > 0.5:
+                    bad += 1; mx = max(mx, rseat(r, sv) - g)
+            sv += 1.0
+        if bad:
+            out.append((r["name"], bad, n, round(mx, 2)))
+    return out
+
+
+def plinth_check(d):
+    """**隣家が自分の側に建てている基壇の天端を、当家の塀の据面が下回っていないか。**
+    下回ると隣家の土が当家の塀の足元より高くなる(2026-08-24 検図)。"""
+    bad = []
+    for pl in d.get("neighborPlinth", []):
+        n = max(2, int((pl["s1"] - pl["s0"]) / 0.5))
+        worst = None
+        for i in range(n + 1):
+            sv = pl["s0"] + (pl["s1"] - pl["s0"]) * i / n
+            r = next((x for x in d["runs"]
+                      if x["edge"] == pl["edge"] and x["s0"] - 1e-6 <= sv <= x["s1"] + 1e-6), None)
+            if r is None:
+                continue
+            gap = pl["coping"] - rseat(r, sv)
+            if gap > 0.02 and (worst is None or gap > worst[1]):
+                worst = (r["name"], gap, sv)
+        if worst:
+            bad.append("辺%d s=%.1f で %s の据面が隣家の基壇天端 %.2f を %.2fm 下回る"
+                       % (pl["edge"], worst[2], worst[0], pl["coping"], worst[1]))
+    return bad
+
+
+def base_thin(d):
+    """基壇の露出が `const.baseMin` を下回る = **そこは基壇を置かず塀が犬走りに直に載る**。
+    ⚠ これは欠陥ではない(2026-08-24 検図で規則を整理した) — 面の縁を面の高さで通す以上、
+    外の地盤が面の高さに迫る区間では基壇が消えるのが正しい。長さだけ図に出す。"""
+    lo0 = d["const"]["baseMin"]
+    out = []
+    for r in d["runs"]:
+        if not r.get("base"):
+            continue
+        n = max(2, int((r["s1"] - r["s0"]) / 0.5))
+        g = 0
+        for i in range(n + 1):
+            sv = r["s0"] + (r["s1"] - r["s0"]) * i / n
+            if _run_exposure(d, r, sv) < lo0:
+                g += 1
+        if g:
+            out.append((r["name"], (r["s1"] - r["s0"]) * g / float(n + 1)))
+    return out
+
+
+def _run_exposure(d, r, sv):
+    """run の走り sv における基壇の露出(天端 − その位置の地盤)。"""
+    prof = d.get("edgeProfile", {}).get(str(r["edge"]))
+    if not prof:
+        return 0.0
+    if sv <= prof[0][0]:
+        gy = prof[0][1]
+    else:
+        gy = prof[-1][1]
+        for (a1, y1), (b1, y2) in zip(prof, prof[1:]):
+            if a1 <= sv <= b1:
+                gy = y1 + (y2 - y1) * (sv - a1) / (b1 - a1)
+                break
+    return rseat(r, sv) - gy
 
 
 def keri_check(d):
@@ -451,6 +649,30 @@ def crossing_check(d):
             if not in_parcel(d, mx, my):
                 bad.append("%s(竹垣) が区画の外: (%.1f, %.1f)" % (rl["name"], mx, my))
                 break
+        # 竹垣は昇り降りの動線を塞がない(参道・石段・坂)。図が自分で宣言した規則。
+        for a, b in zip(rl["pts"], rl["pts"][1:]):
+            mx, my = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+            if _in_opening(d, mx, my):
+                bad.append("%s(竹垣) が参道・石段・坂の開口を塞ぐ: (%.1f, %.1f)"
+                           % (rl["name"], mx, my))
+                break
+        # 外周の囲いが載っている辺を二重になぞらない
+        for a, b in zip(rl["pts"], rl["pts"][1:]):
+            mx, my = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+            if _on_walled_edge(d, mx, my, 3.0):
+                bad.append("%s(竹垣) が外周の囲いの内側 3m を二重に回る: (%.1f, %.1f)"
+                           % (rl["name"], mx, my))
+                break
+        # 動線(4系統)と平面で交わらない
+        for r9 in d["routes"]:
+            for a, b in zip(rl["pts"], rl["pts"][1:]):
+                if any(_seg_x(tuple(a), tuple(b), tuple(c), tuple(e))
+                       for c, e in zip(r9["pts"], r9["pts"][1:])):
+                    bad.append("%s(竹垣) が動線 %s と交わる" % (rl["name"], r9["name"]))
+                    break
+            else:
+                continue
+            break
     # 勝手動線は白洲・棟・庭を横切らない。参道は**直交して1回だけ**渡る
     sd = d["sando"]
     band = (sd["u"] - sd["width"] / 2.0, sd["v0"], sd["u"] + sd["width"] / 2.0, sd["v1"])
@@ -1270,8 +1492,23 @@ def cutfill_table(d, ter):
     tf += f; tc += c
     rows.append("<tr><td>段の外(法面の摺り付け)</td><td>—</td><td>—</td><td>%.0f m³</td>"
                 "<td>%.1f m</td><td>%.0f m³</td><td>%.1f m</td></tr>" % (f, mf, c, mc))
-    rows.append("<tr><td><b>計</b></td><td></td><td></td><td><b>%.0f m³</b></td><td></td>"
-                "<td><b>%.0f m³</b></td><td></td></tr>" % (tf, tc))
+    rows.append("<tr><td><b>拝領時造成の計</b>(段+法面)</td><td></td><td></td><td><b>%.0f m³</b></td>"
+                "<td></td><td><b>%.0f m³</b></td><td></td></tr>" % (tf, tc))
+    # 坂の路盤 — 「造成しない斜面」の中なので段別の走査には出ないが、土工は現に生じる。
+    # ⚠ 2026-08-24 検図: 図のどこからも読めない土工が 47m³ あった。**拝領時造成には足さない**。
+    rf = rc = 0.0
+    for rp in d.get("ramps", []):
+        ea = rp.get("earth", {})
+        if not ea:
+            continue
+        rf += ea.get("moridoM3", 0.0); rc += ea.get("kiridoM3", 0.0)
+        rows.append("<tr><td>坂の路盤 <code>%s</code>(斜面の中・<b>別勘定</b>)</td><td>—</td><td>—</td>"
+                    "<td>%.0f m³</td><td>%.1f m</td><td>%.0f m³</td><td>%.1f m</td></tr>"
+                    % (rp["name"], ea.get("moridoM3", 0.0), ea.get("moridoMax", 0.0),
+                       ea.get("kiridoM3", 0.0), ea.get("kiridoMax", 0.0)))
+    if rf or rc:
+        rows.append("<tr><td><b>総計</b></td><td></td><td></td><td><b>%.0f m³</b></td><td></td>"
+                    "<td><b>%.0f m³</b></td><td></td></tr>" % (tf + rf, tc + rc))
     return ('<div class="tw"><table><thead><tr><th>段</th><th>面の高さ</th><th>面積</th>'
             "<th>盛土量</th><th>最大盛土</th><th>切土量</th><th>最大切土</th>"
             "</tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>", tf, tc)
@@ -2535,6 +2772,9 @@ def overlap_check(d):
         boxes.append(("niwa", n["name"], n["u0"], n["v0"], n["u1"], n["v1"]))
     for s in d["service"]:
         boxes.append(("svc", s["name"], s["u0"], s["v0"], s["u1"], s["v1"]))
+    # 井戸(半径0.5間)。⚠ 2026-08-24 検図: 対象外だったため W_Monzen が供待の躯体の中で素通りした
+    for w in d.get("wells", []):
+        boxes.append(("well", w["name"], w["u"] - 0.5, w["v"] - 0.5, w["u"] + 0.5, w["v"] + 0.5))
     # 外周 run と長屋門の躯体帯(表門の辺=グリッドの v=0 帯)。検図 H-3 で追加 —
     # 入れないと表長屋の奥行(4.5m)に厩などが食い込んでも素通しになる。
     ken2 = d["const"]["ken"]
@@ -2684,9 +2924,10 @@ def civil_table(d):
                        rp["len"], rp["rise"], rp["gradMax"]))
     for rl in auto_rails(d):
         pts = [gr.W(u, v) for u, v in rl["pts"]]
+        lo9, hi9 = _rail_offset(d, rl)
         rows.append("<tr><td><code>%s</code></td><td>竹垣(四つ目垣 h0.9)</td>"
-                    "<td class='note'>%s</td><td>折れ線 %.1fm(法肩から内へ 0.45m)</td></tr>"
-                    % (rl["name"], _ptrunc(pts), rl["len"]))
+                    "<td class='note'>%s</td><td>折れ線 %.1fm(法肩からの実距離 %.2f〜%.2fm)</td></tr>"
+                    % (rl["name"], _ptrunc(pts), rl["len"], lo9, hi9))
     return ("<h3>郭内の土木の端点</h3><div class='tw'><table><thead><tr><th>名</th><th>種別</th>"
             "<th>世界座標</th><th>寸法</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>")
 
@@ -2824,6 +3065,22 @@ def main():
         print("⚠ gate.yaw %.2f ≠ 辺法線からの期待値 %.2f — 松平 42d4210 と同種の向き事故"
               % (d["gate"]["yaw"], yaw_exp))
 
+    # ⚠ 2026-08-24 検図: 断面の `natural`(json 静的)と生成器の江戸期DEM が別々の値を持ち、
+    #   崖の肩(断面⑧ v=40)で 0.72m 食い違っていた。**毎回 DEM から組み直して書き戻す**
+    #   (切盛量と同じ扱い — 同じ地形の二系統を残さない)。
+    _dem_at(d, 0, 0)
+    for sec9 in d["sections"]:
+        nat9 = []
+        w9 = sec9["from"]
+        while w9 <= sec9["to"] + 1e-9:
+            u9, v9 = (sec9["at"], w9) if sec9["axis"] == "u" else (w9, sec9["at"])
+            y9 = _dem_at(d, u9, v9)
+            if y9 is not None:
+                nat9.append([round(w9, 2), round(y9, 2)])
+            w9 += 1.5
+        if nat9:
+            sec9["natural"] = nat9
+
     bad = overlap_check(d)
     if bad:
         print("⚠ 矩形の重なり %d 件:" % len(bad))
@@ -2848,6 +3105,16 @@ def main():
     if bbad:
         print("⚠ 基壇の露出 %d 件:" % len(bbad))
         for b in bbad:
+            print("   ", b)
+    lbad = plinth_check(d)
+    if lbad:
+        print("⚠ 隣家の基壇との逆転 %d 件:" % len(lbad))
+        for b in lbad:
+            print("   ", b)
+    sbad = seat_fill_check(d)
+    if sbad:
+        print("⚠ 据面の内側の落ち込み %d 件:" % len(sbad))
+        for b in sbad:
             print("   ", b)
     xbad = crossing_check(d)
     if xbad:
@@ -2968,9 +3235,15 @@ def main():
                 "確度は<b>U/B</b>(実測ではない)。作り方: 盛土を免れた台地の実測セル563個の中央値24.76から"
                 "台地を24.8とし、校庭に埋もれた東の低い帯と崖は [五千分一東京図31](明治16・確度A)の"
                 "三帯(台地24〜26／崖／低地12〜14)から起こして、3回平滑化した。"
-                "<b>区画内セルの約75%が復元値</b>で、実測が残るのは台地の南半と北東の帯。"
                 "<b>縁の位置はこの図に見える法肩から決めている(面の高さの根拠は其一の表の確度の列)</b>。"
-                "切盛図はこの地形と設計の差。いまの地形(近代造成込み)は okabe_dem.json に別に持つ。"
+                "切盛図はこの地形と設計の差。"
+                "<b>種地は正本 <code>base_dem.json</code></b>(地理院DEM由来・近代造成を含む現代の地面)で、"
+                "<b>復元は岡部区画でクリップしてある</b> — 区画の外は正本そのもの。"
+                "⛔ Unity の live terrain からは採らない(CLAUDE.md 規則12。2026-08-24 に4邸で"
+                "『造成前の地形』が採った時刻によって食い違う事故が出た)。"
+                "⚠ <b>当図だけ基準面がこの復元地盤で、土井・松平・山王は正本(現代の地面)で設計している</b> — "
+                "台地で約 −3.3m 低い。<b>共有辺の上では差 0.00m</b> なので境の塀の天端は一致するが、"
+                "辺の地盤や天端を動かすときは両家へ通知する。"
                 "細い破線は断面の切り位置。座標は Unity の世界座標(m)。")
         h.append("</div>")
 
@@ -3145,6 +3418,13 @@ def main():
     plate(h, nx(), "外周の展開", "天端は run ごとに一直線(面の縁=水平／斜面=一定勾配)。段は継ぎ目と隅でのみ落とす")
     fig(h, perimeter_dev_svg(d))
     h.append(runs_table(d))
+    sf = seat_fill_check(d)
+    bt = base_thin(d)
+    h.append('<p class="cap"><b>据面の内側の検査(面の縁の run・1m 刻み):</b> %s。'
+             '<b>基壇を置かない区間</b>(露出が <code>const.baseMin</code> を下回り、塀が犬走りに直に載る): %s。</p>'
+             % ("<b>0 件</b>" if not sf else
+                " / ".join("%s %d/%d 点(最大 %.2fm)" % x for x in sf),
+                "—" if not bt else " / ".join("%s %.1fm" % (a, b) for a, b in bt)))
     h.append(edges_table(d))
     blankE = sorted(set(range(len(P))) - set(r["edge"] for r in d["runs"])
                     - set(f["edge"] for f in d.get("fences", [])))

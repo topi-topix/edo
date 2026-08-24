@@ -873,7 +873,9 @@ def cutfill_svg(d, ter):
                 continue
             for iu in range(ter["nu"]):
                 u = ter["u0"] + iu * st
-                if t["u0"] - 1e-9 <= u <= t["u1"] + 1e-9 and ter["h"][iv - 1][iu] is not None:
+                if (t["u0"] - 1e-9 <= u <= t["u1"] + 1e-9
+                        and ter["h"][iv - 1][iu] is not None
+                        and in_parcel(d, u, v)):        # 格子の被覆でラベルが動かないように
                     su += u; sv += v; n += 1
         if not n:
             continue
@@ -994,6 +996,38 @@ def _iso(dem, lv):
     return segs
 
 
+def pass_span(d, w):
+    """土留め w の開口を**通る物**(石段・斜路・廊下)の、壁に沿った向きの span。
+
+    ⚠ 算出結果を設計値へ置くと**偽装できる** — 感度試験で `_pass` を手で広げると
+    「20間の物が通っている」ことになり、開口を辺の全長にしても検査が反応しなかった
+    (2026-08-24)。**毎回、実在する物から数え直す。**
+    """
+    K = d["const"]["ken"]
+    vert = abs(w["a"][0] - w["b"][0]) < 1e-9
+    gk = "gapV" if vert else "gapU"
+    line = w["a"][0] if vert else w["a"][1]
+    lo, hi = (min(w["a"][1], w["b"][1]), max(w["a"][1], w["b"][1])) if vert else \
+             (min(w["a"][0], w["b"][0]), max(w["a"][0], w["b"][0]))
+    spans = []
+    for k in d["kaidans"] + d.get("ramps", []):
+        if k.get("atWall") != w["name"]:
+            continue
+        c = k.get(gk)
+        c = (lo + hi) / 2.0 if c is None else c
+        hw = k["w"] / K / 2.0
+        spans.append((c - hw, c + hw))
+    for l in d.get("links", []):
+        lu0, lu1, lv0, lv1 = l["u0"], l["u1"], l["v0"], l["v1"]
+        if vert:
+            if lu0 <= line <= lu1 and lv1 > lo and lv0 < hi:
+                spans.append((lv0, lv1))
+        else:
+            if lv0 <= line <= lv1 and lu1 > lo and lu0 < hi:
+                spans.append((lu0, lu1))
+    return spans, gk, lo, hi, line, vert
+
+
 def snap_openings(d):
     """土留めの**開口の幅**を「通る物の幅+袖」から算出し、石垣のピッチ(1.8×s)の整数倍へ丸める。
 
@@ -1015,28 +1049,259 @@ def snap_openings(d):
         line = w["a"][0] if vert else w["a"][1]
         lo, hi = (min(w["a"][1], w["b"][1]), max(w["a"][1], w["b"][1])) if vert else \
                  (min(w["a"][0], w["b"][0]), max(w["a"][0], w["b"][0]))
-        need = 0.0
+        # ⚠ **幅だけでなく「芯」も通る物から取る。** 幅しか算出せず芯を手書きのまま
+        #   残していたため、石段 K_Shu を u=0 → +2.0 へ寄せた是正(2026-08-23)のときに
+        #   TW_ShuG の gapU が 0 に取り残され、**石段が開口の外に立った**。
+        #   断面⑰に土留めの露出と石段が同じ場所へ同時に描かれていた(2026-08-24 検図 高-3)。
+        spans = []
         for k in d["kaidans"] + d.get("ramps", []):
-            if k.get("atWall") == w["name"]:
-                need = max(need, k["w"] / K)
+            if k.get("atWall") != w["name"]:
+                continue
+            c = k.get(gk)
+            if c is None:                               # 芯を持たない物は壁の中央に置く
+                c = (lo + hi) / 2.0
+            hw = k["w"] / K / 2.0
+            # **両袖を確保できる位置へ寄せる。** 壁の端に張り付くと片袖が取れず、
+            # 開口が壁の外へ出る(2026-08-24: K_ShuS が TW_ShuS の始点を 0.045間 越えていた)。
+            if hi - lo >= 2 * (hw + SODE):
+                c = max(lo + hw + SODE, min(c, hi - hw - SODE))
+            k[gk] = round(c, 3)                         # 算出値を正典へ戻す
+            spans.append((c - hw, c + hw))
         for l in d.get("links", []):                    # 壁線を跨ぐ廊下だけ
             lu0, lu1, lv0, lv1 = l["u0"], l["u1"], l["v0"], l["v1"]
             if vert:
                 if not (lu0 <= line <= lu1 and lv1 > lo and lv0 < hi):
                     continue
-                need = max(need, lv1 - lv0)             # 壁を横切る向き=v
+                spans.append((lv0, lv1))                # 壁を横切る向き=v
             else:
                 if not (lv0 <= line <= lv1 and lu1 > lo and lu0 < hi):
                     continue
-                need = max(need, lu1 - lu0)             # 同=u
+                spans.append((lu0, lu1))                # 同=u
+        if spans:
+            a0 = min(q[0] for q in spans); a1 = max(q[1] for q in spans)
+        else:
+            a0 = a1 = (lo + hi) / 2.0
+        need = a1 - a0
+        ctr = (a0 + a1) / 2.0
         want = max(need + 2 * SODE, pitch)              # 既存値は参照しない
         m = max(1, int(math.ceil(want / pitch - 1e-9)))
         wid = m * pitch
         if wid > (hi - lo) - 2 * SODE:                  # 壁より広い開口を作らない
             wid = max(pitch, math.floor(max(0.0, (hi - lo) - 2 * SODE) / pitch) * pitch)
+        # 開口の縁は石垣の**目地**に落とす(積みは開口から外へ向かって並べる)
+        g0 = lo + round((ctr - wid / 2.0 - lo) / pitch) * pitch
+        for _ in range(64):                             # 通る物を必ず包む
+            if g0 > a0 - 1e-9:
+                g0 -= pitch
+            elif g0 + wid < a1 - 1e-9:
+                wid += pitch
+            else:
+                break
+        g0 = max(lo, min(g0, hi - wid))                 # 壁の中に収める
+        w[gk] = round(g0 + wid / 2.0, 3)
         w["gapHalf"] = round(wid / 2.0, 3)
         w["_pitch"] = round(pitch, 3)
     return d
+
+
+def fix_sode(d):
+    """開口の**袖石垣**を算出して正典へ戻す。
+
+    開口は「塞ぐ物」ではない — 石段や廊下が通るために**開いているのが正しい**。
+    高い側の土は、開口の両端で**直角に振れる袖石垣**が受ける。
+    2026-08-24 の検図 高-2 まで `adjacency_check` は開口を壁として数えており、
+    辺の全長を開口にしても0件だった。開口を正しく「壁が無い」と数えるようにした以上、
+    **袖が設計値に無い開口は不適合**として出す必要がある。
+
+    袖の長さは落差ぶん法内へ振る(切土 1:1 なので落差と同じ長さで法尻に達する)。
+    最低でも石垣1ピッチ。
+    """
+    K = d["const"]["ken"]
+    for w in d["terraceWalls"]:
+        gk = "gapU" if "gapU" in w else ("gapV" if "gapV" in w else None)
+        if gk is None:
+            w.pop("sode", None)
+            continue
+        drop = w.get("drop")
+        dm = max(drop) if isinstance(drop, list) else (drop or 0.0)
+        pitch = 1.8 * w["s"] / K
+        ln = max(pitch, dm / K)
+        w["sode"] = {"len": round(ln, 3), "drop": round(dm, 2),
+                     "_": "開口の両端で直角に振れる袖石垣。長さは落差ぶん(切土1:1で法尻に達する)"}
+    return d
+
+
+def perimeter_check(d):
+    """**当家が持つ辺**が、塀・長屋と申告した門口で閉じているか。
+
+    2026-08-24 の検図: 表長屋 `E_Nagaya_S`(19.5m)を消しても全検査が無反応だった。
+    外周の閉じは「隙間>めり込み」で、**穴は作らない**のが正典の規則。
+    ⚠ 長屋の中の潜り(通用門)は run に含まれるので**開きではない** — 開きと数えるのは
+    run が載っていない区間だけ。
+    """
+    P = d["polygon"]
+    own = d.get("edgeOwner", {})
+    tol = 0.05
+    bad = []
+    for i in range(len(P)):
+        if own.get(str(i)) != "土井":
+            continue
+        a, b = P[i], P[(i + 1) % len(P)]
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        segs = [(r["s0"], r["s1"]) for r in d["runs"] if r["edge"] == i]
+        g = d["gate"]
+        if g["edge"] == i:
+            w = g["plan"]["monW"] / 2.0
+            segs.append((g["s"] - w, g["s"] + w))
+        for k in d.get("komon") or []:
+            if k["edge"] == i:
+                segs.append((k["s"] - k["w"] / 2.0, k["s"] + k["w"] / 2.0))
+        segs = sorted((max(0.0, x), min(L, y)) for x, y in segs)
+        cur = 0.0
+        for x, y in segs:
+            if x > cur + tol:
+                bad.append("辺%d(当家)の s=%.1f..%.1f(%.1fm)に塀も長屋も門口も無い"
+                           % (i, cur, x, x - cur))
+            cur = max(cur, y)
+        if cur < L - tol:
+            bad.append("辺%d(当家)の s=%.1f..%.1f(%.1fm)に塀も長屋も門口も無い"
+                       % (i, cur, L, L - cur))
+    return bad
+
+
+def norms_check(d):
+    """**廊下の規範**(§1)と**柱割り**(§4)を機械検査に落とす。
+
+    2026-08-24 の検図で、故意に壊しても反応しない検査が10通り見つかった。うち4通り
+    — 御錠口を二つにする / 同じ二棟間に渡廊下を二本引く / 土蔵に渡廊下を付ける /
+    棟を 0.37間 ずらす — は**検査が一つも無かった**。設計は適合していたが、
+    ラチェットが無いので次に棟を動かせば黙って壊れる。
+    """
+    GRID = 0.5                                   # 江戸間の半間。部屋は畳数なのでこれが下限
+    bad = []
+
+    def off(x):
+        return abs(x / GRID - round(x / GRID)) > 1e-6
+
+    for o in d["munes"] + d.get("service", []):
+        if abs(o.get("yaw", 0.0)) > 1e-9:        # 回転棟は寸法だけ見る(位置は現地形都合)
+            for k in ("L", "D"):
+                if k in o and off(o[k]):
+                    bad.append("%s の %s=%.3f間 が半間の格子に載らない" % (o["name"], k, o[k]))
+            continue
+        for k in ("u0", "u1", "v0", "v1"):
+            if k in o and off(o[k]):
+                bad.append("%s の %s=%.3f間 が半間の格子に載らない" % (o["name"], k, o[k]))
+    for l in d.get("links", []):
+        for k in ("u0", "u1", "v0", "v1"):
+            if off(l[k]):
+                bad.append("%s の %s=%.3f間 が半間の格子に載らない" % (l["name"], k, l[k]))
+
+    # 御錠口は表向・中奥と奥を分かつ**結界**なので一つだけ
+    goj = [l for l in d.get("links", []) if l.get("kind") == "御錠口"]
+    if len(goj) != 1:
+        bad.append("御錠口が %d 本ある — 奥との結界は一つでなければ意味を持たない" % len(goj))
+
+    # 廊下が触れる棟(矩形が接するか重なる)
+    def touches(l, m):
+        if abs(m.get("yaw", 0.0)) > 1e-9:
+            return False
+        gu = max(l["u0"], m["u0"]) - min(l["u1"], m["u1"])
+        gv = max(l["v0"], m["v0"]) - min(l["v1"], m["v1"])
+        return gu <= 0.01 and gv <= 0.01
+
+    KURA = ("Kura", "Komegura")
+    pairs = {}
+    for l in d.get("links", []):
+        hit = [m["name"] for m in d["munes"] + d.get("service", []) if touches(l, m)]
+        for h in hit:
+            if h.startswith(KURA):
+                bad.append("%s が %s に取り付く — 土蔵・米蔵に廊下は付けない(火を分ける)"
+                           % (l["name"], h))
+        if len(hit) >= 2:
+            for i in range(len(hit)):
+                for j in range(i + 1, len(hit)):
+                    key = tuple(sorted((hit[i], hit[j])))
+                    pairs.setdefault(key, []).append(l["name"])
+    for key, ls in pairs.items():
+        if len(ls) > 1:
+            bad.append("%s と %s のあいだに廊下が %d 本(%s)— 二重に引かない"
+                       % (key[0], key[1], len(ls), "・".join(sorted(ls))))
+    return bad
+
+
+def refs_check(d):
+    """設計値どうしの**参照が切れていないか**。切れた参照は生成を止めるか、黙って検査を素通りさせる。"""
+    names = set(w["name"] for w in d["terraceWalls"])
+    tn = set(t["name"] for t in d["terraces"])
+    bad = []
+    for k in d["kaidans"] + d.get("ramps", []):
+        w = k.get("atWall")
+        if w is None:
+            bad.append("%s に atWall が無い" % k["name"])
+        elif w not in names:
+            bad.append("%s の atWall=%s が土留めに無い" % (k["name"], w))
+    for w in d["terraceWalls"]:
+        for side in ("hi", "lo", "above", "below"):
+            v = w.get(side)
+            if isinstance(v, str) and v not in tn:
+                bad.append("%s の %s=%s が段に無い" % (w["name"], side, v))
+    for m in d["munes"] + d.get("service", []):
+        pl = m.get("plane") or m.get("terrace")
+        if isinstance(pl, str) and pl not in tn:
+            bad.append("%s の面 %s が段に無い" % (m["name"], pl))
+    return bad
+
+
+def opening_fit_check(d):
+    """開口に**物が通っているか**と、**通る物が開口に完全に含まれるか**を検める。
+
+    幅だけ算出して芯を手書きで残していたため、石段 K_Shu が開口の外に立ち、
+    断面⑰に土留めの露出と石段が同時に描かれていた(2026-08-24 検図 高-3)。
+    """
+    K = d["const"]["ken"]
+    bad = []
+    for w in d["terraceWalls"]:
+        gk = "gapU" if "gapU" in w else ("gapV" if "gapV" in w else None)
+        if gk is None:
+            continue
+        g0, g1 = w[gk] - w["gapHalf"], w[gk] + w["gapHalf"]
+        vert = abs(w["a"][0] - w["b"][0]) < 1e-9
+        line = w["a"][0] if vert else w["a"][1]
+        lo, hi = (min(w["a"][1], w["b"][1]), max(w["a"][1], w["b"][1])) if vert else \
+                 (min(w["a"][0], w["b"][0]), max(w["a"][0], w["b"][0]))
+        n = 0
+        for o in d["kaidans"] + d.get("ramps", []):
+            if o.get("atWall") != w["name"]:
+                continue
+            n += 1
+            c = o.get(gk)
+            if c is None:
+                bad.append("%s に通る %s が芯(%s)を持たない" % (w["name"], o["name"], gk))
+                continue
+            hw = o["w"] / K / 2.0
+            if c - hw < g0 - 1e-6 or c + hw > g1 + 1e-6:
+                bad.append("%s の開口 [%.3f, %.3f] から %s [%.3f, %.3f] がはみ出す"
+                           % (w["name"], g0, g1, o["name"], c - hw, c + hw))
+        for l in d.get("links", []):
+            lu0, lu1, lv0, lv1 = l["u0"], l["u1"], l["v0"], l["v1"]
+            if vert:
+                if not (lu0 <= line <= lu1 and lv1 > lo and lv0 < hi):
+                    continue
+                a0, a1 = lv0, lv1
+            else:
+                if not (lv0 <= line <= lv1 and lu1 > lo and lu0 < hi):
+                    continue
+                a0, a1 = lu0, lu1
+            n += 1
+            if a0 < g0 - 1e-6 or a1 > g1 + 1e-6:
+                bad.append("%s の開口 [%.3f, %.3f] から廊下 %s [%.3f, %.3f] がはみ出す"
+                           % (w["name"], g0, g1, l["name"], a0, a1))
+        if n == 0:
+            bad.append("%s に開口があるのに通る物が無い" % w["name"])
+        if "sode" not in w:
+            bad.append("%s の開口に袖石垣が無い" % w["name"])
+    return bad
 
 
 def fix_kaidans(d):
@@ -2205,17 +2470,6 @@ def kenpei(d, area):
                tot, tot / TSUBO, area, area / TSUBO, 100.0 * tot / area)), 100.0 * tot / area
 
 
-def _dem_at(dem, x, z):
-    """世界座標の DEM を双一次で読む。"""
-    fx = (x - dem["x0"]) / dem["step"]; fz = (z - dem["z0"]) / dem["step"]
-    ix, iz = int(math.floor(fx)), int(math.floor(fz))
-    if ix < 0 or iz < 0 or ix + 1 >= dem["nx"] or iz + 1 >= dem["nz"]:
-        return None
-    q = [dem["h"][iz][ix], dem["h"][iz][ix + 1], dem["h"][iz + 1][ix], dem["h"][iz + 1][ix + 1]]
-    if any(v is None for v in q):
-        return None
-    tx, tz = fx - ix, fz - iz
-    return (q[0] * (1 - tx) + q[1] * tx) * (1 - tz) + (q[2] * (1 - tx) + q[3] * tx) * tz
 
 
 def edge_step_check(d, dem):
@@ -2256,7 +2510,7 @@ def edge_step_check(d, dem):
                 if design_y(d, uo, vo) is not None:
                     continue                        # 隣が段 — adjacency_check の担当
                 wx, wz = gr.W(uo, vo)
-                no = _dem_at(dem, wx, wz)
+                no = dem_bilinear(dem, wx, wz)
                 if no is None or not in_parcel(d, uo, vo):
                     continue                        # 区画の外 — 隣家の塀が受ける
                 go = graded_y(d, uo, vo, no, we)
@@ -2335,7 +2589,7 @@ def wall_needed_check(d, dem):
                 if not in_parcel(d, uo, vo) or design_y(d, uo, vo) is not None:
                     continue
                 wx, wz = gr.W(uo, vo)
-                no = _dem_at(dem, wx, wz)
+                no = dem_bilinear(dem, wx, wz)
                 if no is None:
                     continue
                 need = (t["y"] - no) * bf                 # 法面が着地するのに要る水平距離(m)
@@ -2586,6 +2840,23 @@ def plane_check(d):
     return bad
 
 
+def _union_len(segs):
+    """区間の並びの**合併**の長さ。重なりを二重に数えない。"""
+    ss = sorted((min(x, y), max(x, y)) for x, y in segs if abs(x - y) > 1e-9)
+    out = 0.0
+    cur_a = cur_b = None
+    for a, b in ss:
+        if cur_b is None or a > cur_b:
+            if cur_b is not None:
+                out += cur_b - cur_a
+            cur_a, cur_b = a, b
+        elif b > cur_b:
+            cur_b = b
+    if cur_b is not None:
+        out += cur_b - cur_a
+    return out
+
+
 def adjacency_check(d):
     """高さの違う段どうしが接する辺に、土留めが載っているか総当たりで検める。
     2026-08-23 に KitaSumi↔ShuKita の 2.1m の段が受け無しで残っていたのを見落とした。"""
@@ -2613,7 +2884,11 @@ def adjacency_check(d):
                 if hi - lo < 0.5:
                     continue
                 hi_y = max(a["y"], b["y"])
-                held = 0.0
+                # ⚠ **開口は壁が無い。** `walled_edges` は開口で割るのに、こちらは割って
+                #   いなかった(2026-08-24 検図 高-2: 土留めの開口を**辺の全長**へ広げても
+                #   0件のままで、同じ形状を walled_edges は「壁が無い」・こちらは「壁がある」と
+                #   判定して矛盾していた)。**受けの長さは開口を抜いた合併で数える。**
+                segs = []
                 for w in W:
                     (wa_u, wa_v), (wb_u, wb_v) = w["a"], w["b"]
                     wp = (wa_u, wb_u) if p == "u" else (wa_v, wb_v)
@@ -2622,7 +2897,35 @@ def adjacency_check(d):
                         continue
                     if abs(w["coping"] - hi_y) > 0.05:
                         continue
-                    held = max(held, min(hi, max(wq)) - max(lo, min(wq)))
+                    s_lo = max(lo, min(wq)); s_hi = min(hi, max(wq))
+                    if s_hi - s_lo <= 1e-9:
+                        continue
+                    gk = "gapU" if q == "u" else "gapV"
+                    if gk in w:
+                        gh = w.get("gapHalf", 1.0)
+                        g0, g1 = w[gk] - gh, w[gk] + gh
+                        if g0 > s_lo:
+                            segs.append((s_lo, min(s_hi, g0)))
+                        if g1 < s_hi:
+                            segs.append((max(s_lo, g1), s_hi))
+                        # 開口そのものは**開いているのが正しい** — 石段や廊下が通るため。
+                        # 高い側の土は両端で直角に振れる**袖石垣**が受ける。
+                        # 袖が設計値にある開口だけを「受けた」と数える
+                        # (袖を消すと件数が増えることを感度試験で確かめてある)。
+                        _sp = pass_span(d, w)[0]
+                        pa = ([min(x[0] for x in _sp), max(x[1] for x in _sp)]
+                              if _sp else None)
+                        if "sode" in w and pa:
+                            # **通る物+両袖ぶんだけ**を受けと数える。開口の丸めで
+                            # 広がったぶんは受けでない(2026-08-24: 袖さえ在れば
+                            # 開口が何m でも通ってしまう抜け穴を塞いだ)
+                            c0 = max(s_lo, g0, pa[0] - 0.3)
+                            c1 = min(s_hi, g1, pa[1] + 0.3)
+                            if c1 > c0:
+                                segs.append((c0, c1))
+                    else:
+                        segs.append((s_lo, s_hi))
+                held = _union_len(segs)
                 # ⚠ 両側とも「段」なので、ここには法面が入らない(design_y は最大値を採る)。
                 #    摺り付けで済むのは蹴上1段ぶん(const.stepAbsorbMax)まで。
                 #    2026-08-23 の検図で、Δ=1.00 ちょうどが厳密不等号を抜けて
@@ -2705,7 +3008,12 @@ def overlap_check(d):
                            % (a8["name"], a8["y"], b8["name"], b8["y"], iu, iv))
     # 石段と屋内の階段廊下が同じ場所を占めていないか
     for k8 in d["kaidans"]:
-        w8 = [x for x in d["terraceWalls"] if x["name"] == k8["atWall"]][0]
+        # ⚠ 参照が切れていても**落ちない**。以前は KeyError/IndexError で生成ごと止まり、
+        #   検査を感度試験に掛けること自体ができなかった(2026-08-24 検図 低-6)。
+        #   切れた参照は refs_check が指摘する。
+        w8 = next((x for x in d["terraceWalls"] if x["name"] == k8.get("atWall")), None)
+        if w8 is None:
+            continue
         hw = k8["w"] / 2 / ken2
         rn = k8["run"] / ken2
         if abs(w8["a"][0] - w8["b"][0]) < 1e-9:
@@ -3052,7 +3360,8 @@ def fig(h, svg, cap=None, legend=None):
 def main():
     d = fix_kaidans(json.load(open(JSON, encoding="utf-8")))
     d = fix_walls(d, load_terrain(os.path.join(DOC, "doi_terrain.json")))
-    d = snap_openings(d)                # 開口の縁を石垣のピッチ格子へ
+    d = snap_openings(d)                # 開口の縁を石垣のピッチ格子へ・芯は通る物から
+    d = fix_sode(d)                     # 開口の両端の袖石垣
     write_back(d)                       # 算出した値は**正典へ戻す**(図だけが新しい状態を作らない)
     prose = md2html(open(MD, encoding="utf-8").read())
     P = d["polygon"]
@@ -3076,7 +3385,8 @@ def main():
         print("⚠ 矩形の重なり %d 件:" % len(bad))
         for b in bad:
             print("   ", b)
-    pbad = (plane_check(d) + inubashiri_check(d)
+    pbad = (plane_check(d) + inubashiri_check(d) + opening_fit_check(d) + refs_check(d)
+            + norms_check(d) + perimeter_check(d)
             + mune_fit_check(d, load_terrain(os.path.join(DOC, "doi_terrain.json")))
             + edge_step_check(d, load_terrain(os.path.join(DOC, "doi_dem.json")))
             + wall_needed_check(d, load_terrain(os.path.join(DOC, "doi_dem.json"))))

@@ -1133,8 +1133,19 @@ def routes_table(d):
     rows = []
     for r in d["routes"]:
         ln = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(r["pts"], r["pts"][1:])) * K
+        # 高さは「段の面」だけでなく、始点が門・通用口ならその敷居から測る(検図 L-2)
         ys = [design_y(d, u, v) for u, v in r["pts"]]
         ys = [y for y in ys if y is not None]
+        u0, v0 = r["pts"][0]
+        if abs(u0) < 3 and abs(v0) < 3:
+            ys.append(d["gate"]["sill"])                    # 表門の敷居
+        for ko in d.get("komon", []):
+            gp2 = ko.get("_gridPos")
+            if gp2 and math.hypot(u0 - gp2[0], v0 - gp2[1]) < 4:
+                ys.append(ko["sill"])
+        for rp2 in d.get("ramps", []):
+            if math.hypot(u0 - rp2["pts"][0][0], v0 - rp2["pts"][0][1]) < 4:
+                ys.append(rp2["prof"][0][2])
         rise = (max(ys) - min(ys)) if ys else 0.0
         steps = 0
         counted = set()
@@ -2162,7 +2173,8 @@ def civil_table(d):
         ax, at2, ka, kb, cu, cv = kgeom(k)
         ca, cb = (gr.W(at2, ka), gr.W(at2, kb)) if ax == "v" else (gr.W(ka, at2), gr.W(kb, at2))
         rows.append("<tr><td><code>%s</code></td><td>石段 %d段(幅 %.2fm)</td>"
-                    "<td>(%.1f, %.1f) → (%.1f, %.1f)</td><td>落差 %.2f・走り %.2fm(蹴上 %.3f)</td></tr>"
+                    "<td>(%.1f, %.1f) → (%.1f, %.1f)</td>"
+                    "<td>落差 %.2f・走り %.2fm(蹴上 %.3f ≦ 規約0.30)</td></tr>"
                     % (k["name"], k["steps"], k["w"], ca[0], ca[1], cb[0], cb[1],
                        k["drop"], k["run"], k["keri"]))
     for rp in d.get("ramps", []):

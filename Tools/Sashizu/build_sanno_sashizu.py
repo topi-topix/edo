@@ -514,8 +514,8 @@ def stair_spans(k):
     ⚠ 二つの式で別々に割ると蹴上1段ぶん(0.30m)ずれる(2026-08-24 検図 高-4)。
     """
     keri = k.get("keri", 0.30); fumi = k.get("fumi", 0.45); od = k.get("odoriba", 0.0)
-    fl = k.get("flights")
-    if not fl: return None, None          # 斜路(女坂)は段割りを持たない — 一様勾配
+    fl = k.get("flights") or ([k["steps"]] if k.get("steps") else None)
+    if not fl: return None, None
     y0 = k["yBot"]
     out, sacc, n = [], 0.0, 0
     for fi, fn in enumerate(fl):
@@ -1587,9 +1587,8 @@ def saka_svg(d, kan="其八"):
             sub = "段の連 %s ＋ 踊り場 %.2f m ×%d" % ("+".join(str(x) for x in k["flights"]),
                                                      k["odoriba"], len(k["flights"]) - 1)
         elif k.get("rMin") and not k.get("legs"):
-            sub = "緩いカーブ ／ 最小曲率半径 %.0f m ／ 取付け %.2f m + 段の区間 %.2f m(間隔 %.2f m)" % (
-                k["rMin"], k.get("stepStart", 0.0), k.get("stepRun", k["planeLen"]),
-                k.get("stepRun", k["planeLen"]) / k["steps"])
+            sub = "緩いカーブ ／ 最小曲率半径 %.0f m ／ 段の間隔 %.2f m" % (
+                k["rMin"], k["planeLen"] / k["steps"])
         elif k.get("legs"):
             sub = " ／ ".join("%s %.1f m・%d段・%.1f%%(間隔 %.2f m)" % (lg["name"].split("(")[0], lg["len"],
                               lg["steps"], lg["grade"], lg["pitch"]) for lg in k["legs"])
@@ -1597,8 +1596,11 @@ def saka_svg(d, kan="其八"):
                    "全体の勾配 %.1f%%  (%.1f°)" % (k["grade"], k["deg"]), fs=11, fill="var(--shu)"))
         if sub:
             o.append(T(bx + L * hs + 10, by + rise * vs * 0.42 + 31, sub, fs=10, fill="var(--dim)"))
-        o.append(T(bx - 8, by + 4, "%.1f m" % k["yTop"], fs=10, anchor="end", fill="var(--dim)"))
-        o.append(T(bx - 8, by + rise * vs + 4, "%.1f m" % k["yBot"], fs=10, anchor="end", fill="var(--dim)"))
+        _up = bool(k.get("rMin")) and not k.get("legs")     # 左→右が上りに描かれる坂
+        o.append(T(bx - 8, by + 4, "%.1f m" % (k["yBot"] if _up else k["yTop"]),
+                   fs=10, anchor="end", fill="var(--dim)"))
+        o.append(T(bx - 8, by + rise * vs + 4, "%.1f m" % (k["yTop"] if _up else k["yBot"]),
+                   fs=10, anchor="end", fill="var(--dim)"))
         o.append(T(bx + L * hs / 2, by + rise * vs + 20, "平面長 %.2f m" % L, fs=10.5,
                    anchor="middle", fill="var(--dim)"))
     o.append(T(6, 15, kan + "　男坂と女坂の割付 ─ 同じ比高を、違う道のりで降ろす", fs=12.5, fill="var(--dim)"))
@@ -2513,7 +2515,7 @@ def main():
     h.append("</div>")
 
     plate(h, nx(), "男坂と女坂の割付",
-          "蹴上 0.30 ／ 踏面 0.45(CLAUDE.md の規定)── 余る水平は男坂=踊り場・女坂=斜路で吸収する")
+          "踊り場の無い連続階段 ── 蹴上と踏面は段数と平面長からの従属値(2026-08-24 ユーザーの裁定)")
     fig(h, saka_svg(d, KAN[n[0] - 1]),
         cap="<b>現状の男坂は五十三段だが、江戸期の段数の記録は無い</b>【?】。当図の段数は現地形の比高と"
             "規定の蹴上から出した設計値【U】。⚠ <b>現行実装は男坂として成立していない</b> — "

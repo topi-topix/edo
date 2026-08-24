@@ -2215,6 +2215,41 @@ def garden_svg(d):
         g.append('<polyline points="%s" fill="none" stroke="%s" stroke-width="2.6" '
                  'stroke-linejoin="round" stroke-linecap="round" opacity="0.85"/>'
                  % (" ".join("%.1f,%.1f" % q for q in pts), ROUTE_COL.get(r["kind"], "var(--ink)")))
+    # 植栽 — 層ごとに記号を散らす(位置は設計値でなく、層と本数から決めた見当)
+    import random as _rnd
+    PLC = {"主木": ("#3E5A3A", 5.2), "中木": ("#5E7A4E", 3.6),
+           "低木・刈込": ("#8FA36B", 4.4), "中木・下草": ("#5E7A4E", 3.4),
+           "花木": ("#8A6B7A", 3.0)}
+    for pl in d.get("planting", []):
+        z = next((x for x in d["gardens"] if x["name"] == pl["zone"]), None)
+        if z is None or not pl.get("n"):
+            continue
+        col, rr = PLC.get(pl["layer"], ("#5E7A4E", 3.2))
+        rg = _rnd.Random(hash(pl["zone"] + pl["layer"]) & 0xffff)
+        for _ in range(int(pl["n"])):
+            uu = rg.uniform(z["u0"] + 1.5, z["u1"] - 1.5)
+            vv = rg.uniform(z["v0"] + 1.5, z["v1"] - 1.5)
+            x, y = gpt(uu, vv)
+            g.append('<circle cx="%.1f" cy="%.1f" r="%.1f" fill="%s" opacity="0.75"/>'
+                     % (x, y, rr, col))
+
+    # 点景(露地の飛石道・中門・蹲踞・灯籠・石組・垣)
+    TK = {"露地(飛石道)": "var(--michi)", "建仁寺垣": "var(--take)"}
+    for t in d.get("tenkei", []):
+        if "pts" in t:
+            g.append('<polyline points="%s" fill="none" stroke="%s" stroke-width="2.4" '
+                     'stroke-dasharray="3 4" stroke-linecap="round"/>'
+                     % (" ".join("%.1f,%.1f" % gpt(q[0], q[1]) for q in t["pts"]),
+                        TK.get(t["kind"], "var(--michi)")))
+        elif "a" in t:
+            xa, ya = gpt(t["a"][0], t["a"][1]); xb, yb = gpt(t["b"][0], t["b"][1])
+            g.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="%s" '
+                     'stroke-width="2.2" stroke-dasharray="6 3"/>'
+                     % (xa, ya, xb, yb, TK.get(t["kind"], "var(--take)")))
+        else:
+            x, y = gpt(t["u"], t["v"])
+            g.append('<circle cx="%.1f" cy="%.1f" r="2.6" fill="var(--shu)"/>' % (x, y))
+            g.append(T(x + 5, y + 4, t["kind"], "jo"))
     g.append(T(4, 16, "西の帯は露地と芝野。**池は置かない**(裁定の理由は其廿二)", "anS", "start"))
     g.append(T(pr.W - 4, 16, "北 ↑　左=西(溜池・崖)", "anS", "end"))
     g.append("</svg>")
@@ -2486,7 +2521,30 @@ def main():
         fig(h, garden_svg(d),
             cap="<b>敷地図の縮尺では飛石も植栽も読めないので庭だけを大縮尺で出す。</b>"
                 "西の帯は御殿複合と崖の間に残る面で、<b>造成しない</b>(西縁 v15..36 だけ土留め TW_Nishi が受ける)。"
-                "役所・奥御殿の西面がここに向き、竹垣の先は崖と溜池。")
+                "役所・奥御殿の西面がここに向き、竹垣の先は崖と溜池。"
+                "⚠ <b>図中の樹の位置は層と本数から散らした目安で、設計値ではない</b> — "
+                "実装では<b>3・5・7 の奇数の塊で不等辺三角</b>に組む(等間隔に並べない)。"
+                "設計値は下の植栽表と点景表が正典。")
+        if d.get("planting"):
+            rows = "".join("<tr><td>%s</td><td>%s</td><td class='note'>%s</td><td>%s</td>"
+                           "<td class='note'>%s</td></tr>"
+                           % (pl["zone"], pl["layer"], pl["species"],
+                              pl["n"] or "—", pl["_"])
+                           for pl in d["planting"])
+            h.append("<h3>植栽【すべて確度B=類型。当屋敷の一次史料は無い】</h3>"
+                     "<div class='tw'><table><thead><tr><th>庭</th><th>層</th>"
+                     "<th class='note'>樹種</th><th>本</th><th class='note'>置き方</th>"
+                     "</tr></thead><tbody>%s</tbody></table></div>" % rows)
+            h.append("<p class='cap'>⛔ <b>ソメイヨシノを植えない</b>(命名 明治33年。"
+                     "そもそも季節が春でないので開花木は置かない)／⛔ <b>孟宗竹の竹叢を広げない</b>"
+                     "(江戸の水辺79事例中1例。竹垣の材としての竹は別)／⛔ 幕末以降の外来種は不可。"
+                     "<b>石材は庭全体で一系統</b>(伊豆石)。</p>")
+        if d.get("tenkei"):
+            rows2 = "".join("<tr><td>%s</td><td>%s</td><td class='note'>%s</td></tr>"
+                            % (t["name"], t["kind"], t["_"]) for t in d["tenkei"])
+            h.append("<h3>点景(露地・灯籠・石組・垣)</h3><div class='tw'><table><thead><tr>"
+                     "<th>名</th><th>種別</th><th class='note'>注記</th></tr></thead>"
+                     "<tbody>%s</tbody></table></div>" % rows2)
         h.append("</div>")
 
     plate(h, nx(), "外周の展開", "天端は辺ごとに一本。段は門・頂点・郭境の延長線でのみ落とす")

@@ -145,6 +145,17 @@ public static class EdoMatsudairaBuilder
     public struct Run
     {
         public string name; public int edge; public float s0, s1, seat; public bool bench, nagaya; public float ishi;
+        /// <summary>斜面の run は天端が一直線に下る。seat は**中点**にすぎないので、
+        /// 位置を持つ処理は必ず SeatAt(s) を使うこと。
+        /// (2026-08-23 土井邸から「一本の run で −3.35m 埋没と +4.35m 露出が同時に起きる」と
+        ///  指摘され発覚 — 指摘の数値は seat を平坦に読んだ実装の姿そのものだった)</summary>
+        public float seat0, seat1;
+        public float SeatAt(float s)
+        {
+            if (s1 - s0 < 1e-6f) return seat0;
+            float t = Mathf.Clamp01((s - s0) / (s1 - s0));
+            return seat0 + (seat1 - seat0) * t;
+        }
     }
     static Run[] _runs;
     public static Run[] Runs
@@ -162,6 +173,8 @@ public static class EdoMatsudairaBuilder
                         name = (string)r["name"],
                         edge = (int)F(r["edge"]),
                         s0 = F(r["s0"]), s1 = F(r["s1"]), seat = F(r["seat"]),
+                        seat0 = Has(r, "seat0") ? F(r["seat0"]) : F(r["seat"]),
+                        seat1 = Has(r, "seat1") ? F(r["seat1"]) : F(r["seat"]),
                         bench = Has(r, "bench") && (bool)r["bench"],
                         nagaya = (string)r["kind"] == "Nagaya",
                         ishi = Has(r, "s") ? F(r["s"]) : 0f
@@ -495,7 +508,7 @@ public static class EdoMatsudairaBuilder
     }
 
     /// <summary>辺 e の [s0,s1] に表長屋を実寸ピッチで通す。seatAt(s) がその位置の天端を返す。</summary>
-    static int NagayaChain(Transform parent, int e, float s0, float s1, Func<float, float> seatAt, string prefix)
+    static int NagayaChain(Transform parent, int e, float s0, float s1, Func<float, float> seatAt, Func<float, string> nameAt)
     {
         var mc = Measure(EdoAssets.Eg.KnagayaC);
         var ml = Measure(EdoAssets.Eg.KnagayaL);
@@ -537,7 +550,11 @@ public static class EdoMatsudairaBuilder
             Vector2 p = EdgePt(e, sPiv);
             float seat = seatAt(cursor + w * 0.5f);
             var go = EdoNishiTameikeBuilder.Place(path, new Vector3(p.x, seat, p.y), psi,
-                                                  Vector3.one * EdoSannoKitaBuilder.ES, parent, prefix + "_" + k);
+                                                  Vector3.one * EdoSannoKitaBuilder.ES, parent,
+                                                  // ⚠ 名前は**部材の中心**で引く。ピボットは flip で
+                                                  //   部材1つ分先へずれるので、短い run に駒が一つも
+                                                  //   割り当たらなくなる(2026-08-24 に N_Nagaya_E1 で発覚)
+                                                  nameAt(cursor + w * 0.5f) + "_" + k);
             if (go != null) { EdoNishiTameikeBuilder.SeatBottom(go, seat - 0.10f); made++; }
             cursor += w;                               // 継ぎ目は必ず面一
         }
@@ -592,7 +609,22 @@ public static class EdoMatsudairaBuilder
             foreach (var seg in split(r.edge, r.s0, r.s1))
             {
                 if ((seg[1] - seg[0]).magnitude < 1.2f) continue;
-                EdoNishiTameikeBuilder.DobeiRun(kak, seg[0], seg[1], outw, r.name, false, r.seat, Vector2.zero, -1);
+                // 斜面の run は天端が一直線に下るので、2m 刻みに割ってその位置の天端で据える
+                if (Mathf.Abs(r.seat1 - r.seat0) < 0.01f)
+                    EdoNishiTameikeBuilder.DobeiRun(kak, seg[0], seg[1], outw, r.name, false, r.seat0, Vector2.zero, -1);
+                else
+                {
+                    float segLen = Vector2.Distance(seg[0], seg[1]);
+                    int nSeg = Mathf.Max(1, Mathf.RoundToInt(segLen / 2.0f));
+                    for (int q = 0; q < nSeg; q++)
+                    {
+                        Vector2 pa = Vector2.Lerp(seg[0], seg[1], q / (float)nSeg);
+                        Vector2 pb = Vector2.Lerp(seg[0], seg[1], (q + 1) / (float)nSeg);
+                        float sMid = r.s0 + (r.s1 - r.s0) * ((q + 0.5f) / nSeg);
+                        EdoNishiTameikeBuilder.DobeiRun(kak, pa, pb, outw, r.name + "_" + q, false,
+                                                        r.SeatAt(sMid), Vector2.zero, -1);
+                    }
+                }
                 hei++;
             }
         }
@@ -614,7 +646,7 @@ public static class EdoMatsudairaBuilder
                 var chain = onEdge.GetRange(i, j - i + 1);
                 Func<float, float> seatAt = s =>
                 {
-                    foreach (var r in chain) if (s >= r.s0 - 0.01f && s <= r.s1 + 0.01f) return r.seat;
+                    foreach (var r in chain) if (s >= r.s0 - 0.01f && s <= r.s1 + 0.01f) return r.SeatAt(s);
                     return chain[0].seat;
                 };
                 foreach (var seg in split(e, cs0, cs1))
@@ -622,7 +654,20 @@ public static class EdoMatsudairaBuilder
                     float a0 = Vector2.Dot(seg[0] - EdgePt(e, 0f), (EdgePt(e, 1f) - EdgePt(e, 0f)).normalized);
                     float a1 = Vector2.Dot(seg[1] - EdgePt(e, 0f), (EdgePt(e, 1f) - EdgePt(e, 0f)).normalized);
                     if (a1 - a0 < 4f) continue;
-                    nag += NagayaChain(kak, e, a0, a1, seatAt, "NG_e" + e + "_" + Mathf.RoundToInt(a0));
+                    // 部材名は**その位置の run 名**にする。辺+s の名前だと指図と突き合わせられない
+                    // ピボットは部材の端にあるので、短い run では境界の外へ出る。
+                    // **最も近い run** で引く(名前は突き合わせのためのものなので中心で決めてよい)
+                    Func<float, string> nameAt = s2 =>
+                    {
+                        string best = chain[0].name; float bd = float.MaxValue;
+                        foreach (var r in chain)
+                        {
+                            float dd = Mathf.Max(0f, Mathf.Max(r.s0 - s2, s2 - r.s1));
+                            if (dd < bd) { bd = dd; best = r.name; }
+                        }
+                        return best;
+                    };
+                    nag += NagayaChain(kak, e, a0, a1, seatAt, nameAt);
                 }
                 i = j + 1;
             }
@@ -700,7 +745,10 @@ public static class EdoMatsudairaBuilder
             Vector2 n = OutNormal(r.edge);
             // ローカル +X を外向きに、+Z を s の増える向きに合わせる
             float psi = Mathf.Atan2(-n.y, n.x) * Mathf.Rad2Deg;
-            float baseY = r.seat - 4.0f * r.ishi;             // 天端 = seat
+            // ⚠ 天端は駒ごとに r.SeatAt(t) から取る。r.seat は斜面 run の**中点**で、
+            //   これで平らに据えると一本の run の中で埋没と過大露出が同時に起きる(2026-08-23)。
+            //   石垣そのものは水平が正典(unity-modular-stonewall §3)なので、**斜面では
+            //   run が2m刻みに割られた単位ごとに水平**にし、run 全体では階段状に下る。
             foreach (var sg in segs)
             {
                 float t0 = sg[0], t1 = sg[1];
@@ -712,6 +760,7 @@ public static class EdoMatsudairaBuilder
                 foreach (float t in ts)
                 {
                     Vector2 p = EdgePt(r.edge, t);
+                    float baseY = r.SeatAt(t) - 4.0f * r.ishi;
                     var go = EdoNishiTameikeBuilder.Place(EdoAssets.JC.CastleWall,
                         new Vector3(p.x, baseY, p.y), psi,
                         new Vector3(r.ishi, r.ishi, r.ishi), grp,
@@ -919,19 +968,28 @@ public static class EdoMatsudairaBuilder
                     if (!seen.Contains(n)) { sb.AppendLine("★ 孤児(指図に無い): " + n); ng++; }
                 }
             // 囲い — 指図の run/fence の名前が実装のグループ名に現れるか
-            var kak = root.transform.Find("Kakoi");
-            if (kak != null)
+            // 囲いは run/fence ごとに複数の部材(`S_Hei_C_0f` など)に分かれるので**前方一致**で数える
+            var have = new List<string>();
+            foreach (var gname in new[] { "Kakoi", "Fences" })
             {
-                var have = new HashSet<string>();
-                for (int i = 0; i < kak.childCount; i++) have.Add(kak.GetChild(i).name);
-                foreach (var r in Runs) if (!have.Contains(r.name)) { sb.AppendLine("★ 囲い " + r.name + " が実装に無い"); ng++; }
-                foreach (var nm in have)
+                var gg = root.transform.Find(gname);
+                if (gg != null) for (int i = 0; i < gg.childCount; i++) have.Add(gg.GetChild(i).name);
+            }
+            {
+                var names = new List<string>();
+                foreach (var r in Runs) names.Add(r.name);
+                foreach (var o in A(D["fences"])) names.Add((string)O(o)["name"]);
+                foreach (var nm in names)
+                {
+                    int c = 0;
+                    foreach (var h in have) if (h == nm || h.StartsWith(nm + "_")) c++;
+                    if (c == 0) { sb.AppendLine("★ 囲い " + nm + " の部材が実装に一つも無い"); ng++; }
+                }
+                foreach (var h in have)
                 {
                     bool known = false;
-                    foreach (var r in Runs) if (r.name == nm) { known = true; break; }
-                    if (!known)
-                        foreach (var o in A(D["fences"])) if ((string)O(o)["name"] == nm) { known = true; break; }
-                    if (!known) { sb.AppendLine("★ 孤児の囲い: " + nm); ng++; }
+                    foreach (var nm in names) if (h == nm || h.StartsWith(nm + "_")) { known = true; break; }
+                    if (!known) { sb.AppendLine("★ 孤児の囲い: " + h); ng++; }
                 }
             }
         }

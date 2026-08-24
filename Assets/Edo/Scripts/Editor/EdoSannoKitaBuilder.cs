@@ -69,9 +69,9 @@ public static class EdoSannoKitaBuilder
     public static Vector2[] MATSU { get { return EdoParcels.Get("matsudaira_dewa"); } }
 
     // 表門
-    static readonly Vector2 GATE_OKABE = new Vector2(-410.0f, 1081.5f);   // NE辺(9-10)
-    static readonly Vector2 GATE_DOI = new Vector2(-448.2f, 1150.0f);     // E辺(4-5)
-    static readonly Vector2 GATE_MATSU = new Vector2(-680.0f, 1250.4f);   // N辺(10-11)
+    static readonly Vector2 GATE_OKABE = new Vector2(-410.0f, 1081.5f);   // NE辺(11-12)
+    static readonly Vector2 GATE_DOI = new Vector2(-447.85f, 1149.47f);   // E辺(5-6)。指図 gate.pos と同値(2026-08-23 区画10点化+道なり19.2へ改訂)
+    static readonly Vector2 GATE_MATSU = new Vector2(-618.71f, 1276.96f); // N辺(12-13) s=123.8。指図v3 gate.pos と同値(2026-08-23 明治16年実測図[五千分一東京図31]の開口へ移設)
 
     // ---------- helpers (EdoSannoBukeBuilder と同型) ----------
     static float Ground(float x, float z) { return EdoNishiTameikeBuilder.Ground(x, z); }
@@ -315,8 +315,8 @@ public static class EdoSannoKitaBuilder
         // --- 4) 門前apron ×3 (r13平場 → r13-21 smoothstep, §19の作法) ---
         var aprons = new[] {
             new { g = GATE_OKABE, H0 = 15.0f },
-            new { g = GATE_DOI, H0 = 22.0f },
-            new { g = GATE_MATSU, H0 = 26.0f } };
+            new { g = GATE_DOI, H0 = 19.2f },   // 指図 gate.sill=道なり19.2(自然地形化後の実測 19.0+0.2)
+            new { g = GATE_MATSU, H0 = 25.8f } };   // 指図v3 gate.sill=道なり25.8(edgeProfile s123.8=25.84)。摺り付けは±0.1
         foreach (var ap in aprons)
         {
             int x0 = IX(ap.g.x - 22f), x1 = IX(ap.g.x + 22f), z0 = IZ(ap.g.y - 22f), z1 = IZ(ap.g.y + 22f);
@@ -348,19 +348,19 @@ public static class EdoSannoKitaBuilder
         EdoNishiTameikeBuilder.NaturalMode = true;
         var kak = Group(G, "Kakoi");
         var monGrp = Group(G, "Omotemon");
-        Vector2 fout = -InwardNormal(OKABE, 9);   // 辺9(NE)
+        Vector2 fout = -InwardNormal(OKABE, 11);   // 辺11(NE)
         float gateHalf = PlaceGate(PKmon, monGrp, GATE_OKABE, fout, 2, "Kmon", sb);
         int N = OKABE.Length;
         for (int i = 0; i < N; i++)
         {
             Vector2 a = OKABE[i], b = OKABE[(i + 1) % N];
             Vector2 outw = -InwardNormal(OKABE, i);
-            if (i == 0 || i == 2) continue;                 // 樹下・常明院と背中合わせ
-            else if (i == 4 || i == 5) continue;            // 松平所有
-            else if (i == 6 || i == 7) continue;            // 岡部所有(EdoOkabeYashikiBuilder の Hei_N1〜N4b が実体。二重に建てない)
-            else if (i == 9)
+            if (i == 0 || i == 1 || i == 3 || i == 4) continue; // 山王門前・樹下・常明院と背中合わせ(2026-08-22 敷地割修正で辺番号更新。共有辺は parcels.json から機械照合)
+            else if (i == 6 || i == 7) continue;            // 松平所有(松平 辺5-6/4-5 = SE_Hei_3/SW_Hei_1)
+            else if (i == 8 || i == 9) continue;            // 岡部所有(EdoOkabeYashikiBuilder の Hei_N1〜N4b が実体。二重に建てない)
+            else if (i == 11)
                 FrontWall(kak, a, b, outw, GATE_OKABE, gateHalf + 0.5f, "Hei_F");
-            else if (i == 10)
+            else if (i == 12)
                 EdoNishiTameikeBuilder.NagayaRun(kak, a, b, outw, 0, Vector2.zero, -1, "NG_E");  // 三べ坂沿い=盲長屋
             else
                 EdoNishiTameikeBuilder.DobeiRun(kak, a, b, outw, "Hei_" + i, true, 0, Vector2.zero, -1);
@@ -395,9 +395,9 @@ public static class EdoSannoKitaBuilder
             foreach (Transform c in bg) { var rb2 = RB(c.gameObject); if (px > rb2.min.x - 2.5f && px < rb2.max.x + 2.5f && pz > rb2.min.z - 2.5f && pz < rb2.max.z + 2.5f) { nearB = true; break; } }
             if (nearB) continue;
             // 表門・段丘の白洲は空けておく
-            Vector2 inw = -(-InwardNormal(OKABE, 9));
-            float v = Vector2.Dot(p2 - GATE_OKABE, InwardNormal(OKABE, 9));
-            float u = Mathf.Abs(Vector2.Dot(p2 - GATE_OKABE, new Vector2(-InwardNormal(OKABE, 9).y, InwardNormal(OKABE, 9).x)));
+            Vector2 inw = -(-InwardNormal(OKABE, 11));
+            float v = Vector2.Dot(p2 - GATE_OKABE, InwardNormal(OKABE, 11));
+            float u = Mathf.Abs(Vector2.Dot(p2 - GATE_OKABE, new Vector2(-InwardNormal(OKABE, 11).y, InwardNormal(OKABE, 11).x)));
             if (v > -3f && v < 34f && u < 24f) continue;
             float y = Ground(px, pz);
             if (rnd.NextDouble() < 0.72)
@@ -415,7 +415,7 @@ public static class EdoSannoKitaBuilder
         // 門→表御殿の飛石
         for (float tt = 0; tt <= 1.001f; tt += 0.09f)
         {
-            Vector2 p = Vector2.Lerp(GATE_OKABE + InwardNormal(OKABE, 9) * 4f, new Vector2(-431f, 1057f), tt);
+            Vector2 p = Vector2.Lerp(GATE_OKABE + InwardNormal(OKABE, 11) * 4f, new Vector2(-431f, 1057f), tt);
             float y = Ground(p.x, p.y);
             var go = Place(PTobi, new Vector3(p.x, y + 0.03f, p.y), (float)rnd.NextDouble() * 360f, Vector3.one * 1.85f, gg, "Tobi_" + tt);
             SeatBottom(go, y + 0.02f);
@@ -433,15 +433,15 @@ public static class EdoSannoKitaBuilder
         EdoNishiTameikeBuilder.NaturalMode = true;
         var kak = Group(G, "Kakoi");
         var monGrp = Group(G, "Omotemon");
-        Vector2 fout = -InwardNormal(DOI, 4);   // 辺4(E)
+        Vector2 fout = -InwardNormal(DOI, 5);   // 辺5(E)
         float gateHalf = PlaceGate(PNmon, monGrp, GATE_DOI, fout, 2, "Nagayamon", sb);
         int N = DOI.Length;
         for (int i = 0; i < N; i++)
         {
             Vector2 a = DOI[i], b = DOI[(i + 1) % N];
             Vector2 outw = -InwardNormal(DOI, i);
-            if (i >= 5 || i <= 1) continue;                  // 北・西=松平所有 / 南(0-1,1-2)=岡部所有
-            else if (i == 4)
+            if (i >= 6 || i <= 2) continue;                  // 北・西(6..9)=松平所有 / 南(0..2)=岡部所有(2026-08-22 敷地割修正で辺番号更新)
+            else if (i == 5)
                 FrontWall(kak, a, b, outw, GATE_DOI, gateHalf + 0.5f, "Hei_F");
             else
                 EdoNishiTameikeBuilder.DobeiRun(kak, a, b, outw, "Hei_" + i, true, 0, Vector2.zero, -1);   // 練塀(記録: 安政地震で大破)
@@ -495,14 +495,14 @@ public static class EdoSannoKitaBuilder
         EdoNishiTameikeBuilder.NaturalMode = true;
         var kak = Group(G, "Kakoi");
         var monGrp = Group(G, "Omotemon");
-        Vector2 fout = -InwardNormal(MATSU, 10);   // 辺10(N西)
+        Vector2 fout = -InwardNormal(MATSU, 12);   // 辺12(N=大通り)
         float gateHalf = PlaceGate(PKmon, monGrp, GATE_MATSU, fout, 2, "Kmon", sb);
         int N = MATSU.Length;
         for (int i = 0; i < N; i++)
         {
             Vector2 a = MATSU[i], b = MATSU[(i + 1) % N];
             Vector2 outw = -InwardNormal(MATSU, i);
-            if (i == 10)
+            if (i == 12)
                 FrontWall(kak, a, b, outw, GATE_MATSU, gateHalf + 0.5f, "Hei_F");
             else
                 EdoNishiTameikeBuilder.DobeiRun(kak, a, b, outw, "Hei_" + i, true, 0, Vector2.zero, -1);
@@ -549,8 +549,8 @@ public static class EdoSannoKitaBuilder
             bool nearB = false;
             foreach (Transform c in bg) { var rb2 = RB(c.gameObject); if (px > rb2.min.x - 2.5f && px < rb2.max.x + 2.5f && pz > rb2.min.z - 2.5f && pz < rb2.max.z + 2.5f) { nearB = true; break; } }
             if (nearB) continue;
-            float v = Vector2.Dot(p2 - GATE_MATSU, InwardNormal(MATSU, 10));
-            float u = Mathf.Abs(Vector2.Dot(p2 - GATE_MATSU, new Vector2(-InwardNormal(MATSU, 10).y, InwardNormal(MATSU, 10).x)));
+            float v = Vector2.Dot(p2 - GATE_MATSU, InwardNormal(MATSU, 12));
+            float u = Mathf.Abs(Vector2.Dot(p2 - GATE_MATSU, new Vector2(-InwardNormal(MATSU, 12).y, InwardNormal(MATSU, 12).x)));
             if (v > -3f && v < 26f && u < 18f) continue;    // 門前白洲
             float y = Ground(px, pz);
             if (y < 10.5f) continue;                       // 下部〜裾=草地。高木を置かない
@@ -604,9 +604,9 @@ public static class EdoSannoKitaBuilder
             return m;
         };
         Vector2[][] parcels = { OKABE, DOI, MATSU };
-        Vector2 inw9 = InwardNormal(OKABE, 9);
+        Vector2 inw9 = InwardNormal(OKABE, 11);
         Vector2 uh9 = new Vector2(-inw9.y, inw9.x);
-        Vector2 inwM = InwardNormal(MATSU, 10);
+        Vector2 inwM = InwardNormal(MATSU, 12);
         Vector2 uhM = new Vector2(-inwM.y, inwM.x);
         for (int zz = 0; zz < h; zz++)
             for (int xx = 0; xx < w; xx++)

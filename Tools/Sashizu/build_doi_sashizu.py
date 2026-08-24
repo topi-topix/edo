@@ -591,7 +591,7 @@ def in_parcel(d, u, v):
     それで「区画外へこぼれる量」を測ると**構造的に 0 しか出ない**。
     実際は dem で測ると 387.9m² / 247m³ が隣地へ出ていた。**測れないデータで検証しない。**
     """
-    key = id(d)
+    key = repr(d["polygon"])
     P = _PGRID.get(key)
     if P is None:
         gr = RGrid(d)
@@ -894,6 +894,10 @@ def cutfill_table(d, ter):
                 iu += 1
                 if not in_obb(t, u, v, 1e-9):     # 回転物は外接矩形で走査しない(二重計上になる)
                     continue
+                # 同じ高さの段が重なる所は**先に挙がった1枚だけ**が数える(2026-08-24 検図 低-4)
+                if next((x for x in d["terraces"]
+                         if abs(x["y"] - t["y"]) < 0.01 and in_obb(x, u, v, 1e-9)), None) is not t:
+                    continue
                 nat = ter["h"][iv][iu - 1]
                 if nat is None or design_y(d, u, v) != t["y"]:
                     continue
@@ -958,11 +962,15 @@ def _iso(dem, lv):
 
 
 def snap_openings(d):
-    """土留めの**開口の縁を石垣モジュールのピッチ格子へ丸める**。
+    """土留めの**開口の幅**を石垣モジュールのピッチ(1.8×s)の整数倍に丸める。
 
-    `unity-modular-stonewall`: 石垣は 1.8×s のピッチで並ぶので、開口の縁はその格子にしか来られない。
-    設計値が端数のままだと実装で駒が割れる(2026-08-24 検図 中-6: 開口を持つ8本すべてで不成立)。
-    壁の起点から n×1.8s になるよう、開口の**中心**を丸める。
+    ⚠ **開口の芯は動かさない。** 石は開口の縁から外へ向かって積むので、端数は壁の端で吸う。
+    芯を壁の起点からの格子へ丸めた版は、(a) 門の軸から石段が最大0.43mずれ、
+    (b) 石段の芯を開口の芯へ寄せる処理が `write_back` で正典に焼き付き、
+    人が直した値が次のビルドで消える不動点を作った(2026-08-24 検図第6巡)。
+    **石段・斜路には一切触れない。**
+
+    幅は「その開口を通る物(石段・斜路・階段廊下)の合計幅」を**下限**にして丸める(切り捨てない)。
     """
     K = d["const"]["ken"]
     for w in d["terraceWalls"]:
@@ -970,33 +978,18 @@ def snap_openings(d):
         if gk not in w:
             continue
         pitch = 1.8 * w["s"] / K                       # 間
-        a0 = w["a"][0] if gk == "gapU" else w["a"][1]
-        b0 = w["b"][0] if gk == "gapU" else w["b"][1]
-        lo, hi = min(a0, b0), max(a0, b0)
-        half = w.get("gapHalf", 1.0)
-        # 開口の下端が格子に乗るよう中心をずらす
-        start = (w[gk] - half) - lo
-        n = round(start / pitch)
-        newlo = lo + max(0, n) * pitch
-        # 開口幅も格子の整数倍へ(最低1枚)
-        m = max(1, round(2 * half / pitch))
-        neww = m * pitch
-        if newlo + neww > hi:
-            newlo = max(lo, hi - neww)
-        w[gk] = round(newlo + neww / 2.0, 3)
-        w["gapHalf"] = round(neww / 2.0, 3)
+        need = 0.0
+        for k in d["kaidans"] + d.get("ramps", []):
+            if k.get("atWall") == w["name"]:
+                need = max(need, k["w"] / K)
+        for l in d.get("links", []):                   # 開口を通る階段廊下
+            lo, hi = (l["u0"], l["u1"]) if gk == "gapU" else (l["v0"], l["v1"])
+            if lo - 0.5 <= w[gk] <= hi + 0.5:
+                need = max(need, hi - lo)
+        want = max(2.0 * w.get("gapHalf", 1.0), need + 0.3)
+        m = max(1, int(math.ceil(want / pitch - 1e-9)))
+        w["gapHalf"] = round(m * pitch / 2.0, 3)
         w["_pitch"] = round(pitch, 3)
-    # 石段・斜路は**開口の中へ収める**だけ。芯を開口の芯へ寄せると廊下の上に乗る
-    #   (2026-08-24 検図で実際に K_Shu と L_GenkanIma が重なった)。
-    for k in d["kaidans"] + d.get("ramps", []):
-        w = [x for x in d["terraceWalls"] if x["name"] == k["atWall"]][0]
-        for gk in ("gapU", "gapV"):
-            if gk in k and gk in w:
-                hw = k["w"] / 2.0 / K
-                lo = w[gk] - w["gapHalf"] + hw
-                hi = w[gk] + w["gapHalf"] - hw
-                if lo <= hi:
-                    k[gk] = round(min(max(k[gk], lo), hi), 3)
     return d
 
 
@@ -1658,28 +1651,32 @@ def section_svg(d, sec):
                    fill=_pat(), stroke="var(--ishi)", sw=1.2))
         g.append(T(X(wp), Y(w["coping"]) - 5, "%s 露出%.1f" % (w["name"], exp), "jo", "middle"))
 
-    # 土の斜路(開口が切り線に掛かるもの)— 直線で描く
+    # 土の斜路 — 断面の向きで描き分ける
     for rp in d.get("ramps", []):
+        if "u0" not in rp:
+            continue
         w = [x for x in d["terraceWalls"] if x["name"] == rp["atWall"]][0]
-        (au, av), (bu, bv) = w["a"], w["b"]
-        if rp.get("along"):
-            # 壁に沿う斜路: 切り線が帯を横切っていれば、その位置の高さで踏面を描く
-            lo9, hi9 = (rp["v0"], rp["v1"]) if sec["axis"] == "v" else (rp["u0"], rp["u1"])
-            # ⚠ axis=="u" のとき at は u。ここを取り違えると斜路が別の断面に描かれる
-            #   (2026-08-24 検図: 厩の斜路が断面④に地中3.9mで浮き、正しい断面⑥から抜けていた)
-            cross = (rp["u0"] <= at <= rp["u1"]) if sec["axis"] == "u" else (rp["v0"] <= at <= rp["v1"])
-            if not cross:
+        top = w["coping"]
+        lo_l, hi_l = (rp["v0"], rp["v1"])              # 長手(下る向き)は v
+        lo_w, hi_w = (rp["u0"], rp["u1"])              # 幅は u
+        if sec["axis"] == "v":
+            # 幅を横切る断面 — その位置の**水平な踏面**を描く(勾配は見えない)
+            if not (lo_l <= at <= hi_l) or not (w0 <= lo_w and hi_w <= w1):
                 continue
-            a9, b9 = (rp["v0"], rp["v1"]) if sec["axis"] == "u" else (rp["u0"], rp["u1"])
-            if not (w0 <= min(a9, b9) and max(a9, b9) <= w1):
+            t = (hi_l - at) / (hi_l - lo_l)            # 上端からの割合
+            y = top - rp["drop"] * t
+            g.append(LN(X(lo_w), Y(y), X(hi_w), Y(y), "var(--shu)", 2.2, dash="6 3"))
+            g.append(T(X((lo_w + hi_w) / 2), Y(y) - 6,
+                       "%s 斜路の踏面 %.2f" % (rp["name"], y), "jo", "middle"))
+        else:
+            # 長手を切る断面 — 勾配そのものが見える
+            if not (lo_w <= at <= hi_w) or not (w0 <= lo_l and hi_l <= w1):
                 continue
-            top = w["coping"]
             g.append('<path d="M%.1f %.1f L%.1f %.1f" fill="none" stroke="var(--shu)"'
                      ' stroke-width="2.2" stroke-dasharray="6 3"/>'
-                     % (X(max(a9, b9)), Y(top), X(min(a9, b9)), Y(top - rp["drop"])))
-            g.append(T(X((a9 + b9) / 2), Y(top) - 6,
+                     % (X(hi_l), Y(top), X(lo_l), Y(top - rp["drop"])))
+            g.append(T(X((lo_l + hi_l) / 2), Y(top - rp["drop"] / 2) - 6,
                        "%s 斜路 1:%.0f" % (rp["name"], 1.0 / rp["grade"]), "jo", "middle"))
-        continue
 
     # 石段(開口が切り線に掛かるもの)— 蹴上0.30×踏面0.45のギザギザ(検図 H-6)
     for k in d["kaidans"]:
@@ -2048,7 +2045,7 @@ def planes_table(d):
                     % (chip, p["name"], ("%.1f m" % p["y"]) if p["y"] is not None else "地形なり",
                        "・".join(TERR_JA.get(t, t) for t in p["terraces"]) or "—",
                        "・".join("<code>%s</code>" % r for r in p["runs"]),
-                       p.get("note", "")))
+                       inline(p.get("note", ""))))
     return ("<h3>面と縁の対応</h3><div class='tw'><table><thead><tr><th>面</th><th>高さ</th>"
             "<th class='note'>段(造成)</th><th class='note'>縁の囲い(天端=面の高さ)</th>"
             "<th class='note'>注記</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>")
@@ -2237,6 +2234,57 @@ def _walled_at(d, we, u, v):
             if lo - 0.6 <= q <= hi + 0.6:
                 return True
     return False
+
+
+def mune_fit_check(d, ter):
+    """**棟の下の |設計面 − 自然地形| ≤ 0.5m**(§B-1 の合否)を検査にする。
+
+    表に出しただけでは、棟を動かしたときに悪化しても誰も気づかない
+    (2026-08-24 の感度試験で、居間棟を1間ずらしても検査が反応しなかった)。
+    超過の**割合**が 5% を超えたら止める(0% を求めると地形の粒度に負ける)。
+    """
+    bad = []
+    for m in d["munes"] + d["service"]:
+        r = mune_fit(d, ter, m)
+        if r and r[1] > 5.0:
+            bad.append("棟の下の切盛が %.0f%% で ±0.5m を超える(最大 %+.2fm): %s" % (r[1], r[0], m["name"]))
+    return bad
+
+
+def inubashiri_check(d):
+    """**棟の縁と、それが載る段の縁の離れ(犬走り)**を検める。
+
+    ⚠ 犬走りは**長辺(軒側)に1間**。桁行の端は隣の段と接して帯になるので 0.5間 でよい
+    (2026-08-24 検図: 長屋の帯で端も1間にすると段どうしが重なる)。
+    宣言した不変条件には必ず検査を付ける — 以前は宣言だけで8棟が満たしていなかった。
+    """
+    LONG, END = 1.0, 0.5
+    bad = []
+    for m in d["munes"] + d["service"]:
+        host = None
+        for t in d["terraces"]:
+            if abs(t["y"] - m["y"]) > 0.01:
+                continue
+            if all(in_obb(t, u, v, 1e-9) for u, v in obb_pts(m)):
+                host = t
+                break
+        if host is None:
+            continue
+        if "yaw" in m and "yaw" in host:
+            side = (host["D"] - m["D"]) / 2.0        # 長辺側(梁間方向)
+            end = (host["L"] - m["L"]) / 2.0         # 桁行の端
+        else:
+            du0, du1 = m["u0"] - host["u0"], host["u1"] - m["u1"]
+            dv0, dv1 = m["v0"] - host["v0"], host["v1"] - m["v1"]
+            if (m["v1"] - m["v0"]) >= (m["u1"] - m["u0"]):    # 長手は v
+                side, end = min(du0, du1), min(dv0, dv1)
+            else:
+                side, end = min(dv0, dv1), min(du0, du1)
+        if side < LONG - 1e-9:
+            bad.append("犬走り(長辺側)が %.2f間 しかない: %s(1間引く)" % (side, m["name"]))
+        elif end < END - 1e-9:
+            bad.append("犬走り(桁行の端)が %.2f間 しかない: %s(0.5間引く)" % (end, m["name"]))
+    return bad
 
 
 def plane_check(d):
@@ -2836,7 +2884,9 @@ def main():
         print("⚠ 矩形の重なり %d 件:" % len(bad))
         for b in bad:
             print("   ", b)
-    pbad = plane_check(d) + edge_step_check(d, load_terrain(os.path.join(DOC, "doi_dem.json")))
+    pbad = (plane_check(d) + inubashiri_check(d)
+            + mune_fit_check(d, load_terrain(os.path.join(DOC, "doi_terrain.json")))
+            + edge_step_check(d, load_terrain(os.path.join(DOC, "doi_dem.json")))
     if pbad:
         print("⚠ 面のはみ出し %d 件:" % len(pbad))
         for b in pbad:

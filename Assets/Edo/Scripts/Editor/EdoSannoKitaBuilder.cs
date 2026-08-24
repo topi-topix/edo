@@ -69,6 +69,10 @@ public static class EdoSannoKitaBuilder
     public static Vector2[] MATSU { get { return EdoParcels.Get("matsudaira_dewa"); } }
 
     // 表門
+    // ⛔ 失効。指図 docs/Sashizu/okabe_sashizu.json の gate.pos は (-382.97, 1040.0)(辺12=三べ坂・
+    //    s=14.37)で、この値は**撤回した旧位置**(NE辺11-12)。定数だけ差し替えても周りの据え付けが
+    //    旧位置に紐づいているので、_pending③ の Stage1_Okabe **全面書き直し**で gate.pos から
+    //    直読みする形にすること。それまで Stage1_Okabe を単独で走らせない(旧門が復活する)。
     static readonly Vector2 GATE_OKABE = new Vector2(-410.0f, 1081.5f);   // NE辺(11-12)
     static readonly Vector2 GATE_DOI = new Vector2(-447.85f, 1149.47f);   // E辺(5-6)。指図 gate.pos と同値(2026-08-23 区画10点化+道なり19.2へ改訂)
     static readonly Vector2 GATE_MATSU = new Vector2(-618.71f, 1276.96f); // N辺(12-13) s=123.8。指図v3 gate.pos と同値(2026-08-23 明治16年実測図[五千分一東京図31]の開口へ移設)

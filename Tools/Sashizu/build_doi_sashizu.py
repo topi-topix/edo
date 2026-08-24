@@ -105,6 +105,8 @@ def neighbour_block(d, ter, dem):
                 x, z = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
                 px, pz = x + nx_ * 0.3 * sg, z + nz_ * 0.3 * sg
                 u, v = gr.L(px, pz)
+                nat = dem_in_parcel(dem, d, px, pz)
+            if nat is None:
                 nat = dem_bilinear(dem, px, pz)
                 if nat is None:
                     nat = ter["at"](u, v)
@@ -703,6 +705,70 @@ def dem_bilinear(dem, x, z):
     if any(w is None for w in q):
         return None
     return (q[0] * (1 - tx) + q[1] * tx) * (1 - tz) + (q[2] * (1 - tx) + q[3] * tx) * tz
+
+
+def dem_in_parcel(dem, d, x, z):
+    """DEM を**当家の区画に入るセルだけ**で引く。
+
+    ⚠ **2m 格子の双一次は、境界から 0.3m の点で向こう側のセルを混ぜる。**
+    隣家の区画の中が**造成後の面**になっている DEM でこれをやると、当家側の
+    「自然地盤」がその面に引きずられる(2026-08-24 松平の指摘:
+    辺6 s=14.0 で当方 26.02 / 実地形 24.36。区画の 2m 内側では両者一致していた)。
+    区画の外に落ちる隅は捨て、残った隅の重みを正規化して引く。
+    """
+    if dem is None:
+        return None
+    fx = (x - dem["x0"]) / dem["step"]
+    fz = (z - dem["z0"]) / dem["step"]
+    ix, iz = int(math.floor(fx)), int(math.floor(fz))
+    if ix < 0 or iz < 0 or ix + 1 >= dem["nx"] or iz + 1 >= dem["nz"]:
+        return None
+    # ⚠ **マスクして重みを正規化するだけでは足りない。** 0.3m の点で区画内に残るのは
+    #   最大 2m 離れたセルなので、値がそのセルへ寄る(斜面では 1m 級の偏り)。
+    #   **区画内のセルに平面を当てて、その点で評価する。**
+    gr = RGrid(d)
+    R = 3 * dem["step"]
+    pts = []
+    rr = int(math.ceil(R / dem["step"]))
+    for jz in range(iz - rr, iz + rr + 2):
+        if jz < 0 or jz >= dem["nz"]:
+            continue
+        for jx in range(ix - rr, ix + rr + 2):
+            if jx < 0 or jx >= dem["nx"]:
+                continue
+            h = dem["h"][jz][jx]
+            if h is None:
+                continue
+            cx = dem["x0"] + jx * dem["step"]
+            cz = dem["z0"] + jz * dem["step"]
+            if (cx - x) ** 2 + (cz - z) ** 2 > R * R:
+                continue
+            cu, cv = gr.L(cx, cz)
+            if not in_parcel(d, cu, cv):
+                continue                            # 区画の外のセルは使わない
+            pts.append((cx - x, cz - z, h))
+    if len(pts) < 3:
+        return None
+    # 最小二乗の平面 h = a*dx + b*dz + c
+    sxx = sxz = szz = sx = sz = sn = 0.0
+    shx = shz = sh = 0.0
+    for dx, dz, h in pts:
+        sxx += dx * dx; sxz += dx * dz; szz += dz * dz
+        sx += dx; sz += dz; sn += 1.0
+        shx += h * dx; shz += h * dz; sh += h
+    M = [[sxx, sxz, sx], [sxz, szz, sz], [sx, sz, sn]]
+    V = [shx, shz, sh]
+    det = (M[0][0] * (M[1][1] * M[2][2] - M[1][2] * M[2][1])
+           - M[0][1] * (M[1][0] * M[2][2] - M[1][2] * M[2][0])
+           + M[0][2] * (M[1][0] * M[2][1] - M[1][1] * M[2][0]))
+    if abs(det) < 1e-9:
+        return sh / sn
+    # c(=その点の値)だけ要るのでクラメル
+    M2 = [[M[0][0], M[0][1], V[0]], [M[1][0], M[1][1], V[1]], [M[2][0], M[2][1], V[2]]]
+    d2 = (M2[0][0] * (M2[1][1] * M2[2][2] - M2[1][2] * M2[2][1])
+          - M2[0][1] * (M2[1][0] * M2[2][2] - M2[1][2] * M2[2][0])
+          + M2[0][2] * (M2[1][0] * M2[2][1] - M2[1][1] * M2[2][0]))
+    return d2 / det
 
 
 _PGRID = {}
@@ -1335,7 +1401,9 @@ def fix_boundary_plinth(d, dem):
             x, z = a[0] + (b[0] - a[0]) * sq / L, a[1] + (b[1] - a[1]) * sq / L
             px, pz = x + nx_ * 0.3 * sg, z + nz_ * 0.3 * sg
             u, v = gr.L(px, pz)
-            nat = dem_bilinear(dem, px, pz)
+            nat = dem_in_parcel(dem, d, px, pz)
+            if nat is None:
+                nat = dem_bilinear(dem, px, pz)
             if nat is None:
                 prof.append((sq, None, None)); continue
             g = design_y(d, u, v)
@@ -1397,7 +1465,9 @@ def boundary_fill_check(d, dem):
             x, z = a[0] + (b[0] - a[0]) * sq / L, a[1] + (b[1] - a[1]) * sq / L
             px, pz = x + nx_ * 0.3 * sg, z + nz_ * 0.3 * sg
             u, v = gr.L(px, pz)
-            nat = dem_bilinear(dem, px, pz)
+            nat = dem_in_parcel(dem, d, px, pz)
+            if nat is None:
+                nat = dem_bilinear(dem, px, pz)
             if nat is None:
                 continue
             g = design_y(d, u, v)
@@ -3127,7 +3197,9 @@ def neighbour_wall_check(d, ter, dem=None):
                 while oq <= _omax:
                     px, pz = x + nx_ * oq * sg, z + nz_ * oq * sg
                     u, v = gr.L(px, pz)
-                    nn = dem_bilinear(dem, px, pz)
+                    nn = dem_in_parcel(dem, d, px, pz)
+                    if nn is None:
+                        nn = dem_bilinear(dem, px, pz)
                     if nn is None:
                         nn = ter["at"](u, v)
                     if nn is not None:

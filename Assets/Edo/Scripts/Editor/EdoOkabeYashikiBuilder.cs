@@ -1061,6 +1061,28 @@ public static class EdoOkabeYashikiBuilder
     { var d = b - a; float L = d.magnitude; if (L < 1e-4f) return (p - a).magnitude; d /= L; float t = Mathf.Clamp(Vector2.Dot(p - a, d), 0, L); return (p - (a + d * t)).magnitude; }
 
     // =========================================================================
+    // ⚠ 2026-08-22 に敷地割(parcels.json id=okabe)が引き直され、11頂点 → 13頂点になった
+    //   (南辺が北へ約11〜27m 移動。実測 11,511坪 → 10,313坪)。本ビルダー v3 の Run・Terr・
+    //   Wall・隅・Lerp 比率は**旧11頂点**の番号と座標に張り付いており、新区画に対して走らせると
+    //   全て誤った位置に造成・築造する。旧→新の番号対応と引き直しの順序(表門位置の裁定
+    //   → planes → 郭 → runs)は docs/Sashizu/okabe_sashizu.json の _polygon 注記と _pending.junjo。
+    //   座標まで不変なのは旧P8〜P10(=新P10〜P12)の3点だけで、旧P5・P6 も約5m、旧P7 は約10m動いた
+    //   — 単純な番号の付け替えでは直らない。指図の引き直しとレビューが済むまで実行を止める。
+    static void ParcelGuard()
+    {
+        var P = SK.OKABE;
+        float a2 = 0f; int n = P.Length;
+        for (int i = 0; i < n; i++) { Vector2 a = P[i], b = P[(i + 1) % n]; a2 += a.x * b.y - b.x * a.y; }
+        float area = Mathf.Abs(a2) * 0.5f;
+        if (n == 11 && Mathf.Abs(area - 38054.7f) < 40f) return;   // v3 設計時の区画
+        throw new InvalidOperationException(
+            "[Okabe] 区画が v3 設計時(11頂点・38,055m²)から変わっている(現在 " + n + "頂点・" +
+            Mathf.RoundToInt(area) + "m²)。本ビルダーは旧区画の値のままなので実行しない。" +
+            "引き直しは docs/Sashizu/okabe_sashizu.json の _pending.junjo の順で(②表門位置はユーザーのレビュー待ち)。" +
+            "造成も 2026-08-22 の地形リセットで消えている → docs/terrain-georef-fix.md");
+    }
+
+    // =========================================================================
     // Stage 0/1: バックアップと段の造成
     // =========================================================================
     /// <summary>着工前の地形を .bin へ。**無いときだけ書く**(指図 其十 ①)。
@@ -1188,6 +1210,7 @@ public static class EdoOkabeYashikiBuilder
     ///   設計面が絶対値になった以上どちらも不要。**切盛の量は報告するだけ**にする。</summary>
     public static string Stage1_Grade()
     {
+        ParcelGuard();
         // 旧マーカーは掃除する(もう使わない)
         foreach (var nm in new[] { "OKABE_GRADED_v4", "OKABE_GRADED_v5", "OKABE_GRADED_v6", "OKABE_GRADED_v7",
                                    "OKABE_GRADED_v8", "OKABE_GRADED_v9", "OKABE_GRADED_v10", "OKABE_GRADED_v11" })
@@ -1262,6 +1285,7 @@ public static class EdoOkabeYashikiBuilder
     // =========================================================================
     public static string Stage2_Reseat()
     {
+        ParcelGuard();
         int n = 0;
         var yg = GameObject.Find(GN);
         var roots = new List<Transform>();
@@ -1321,6 +1345,7 @@ public static class EdoOkabeYashikiBuilder
     // =========================================================================
     public static string Stage3_Retire()
     {
+        ParcelGuard();
         int n = 0, old = 0;
         var yg = GameObject.Find(GN);
 
@@ -1344,6 +1369,7 @@ public static class EdoOkabeYashikiBuilder
     // =========================================================================
     public static string Stage4_Perimeter()
     {
+        ParcelGuard();
         NT.NaturalMode = true;
         var sb = new System.Text.StringBuilder();
         var kak = Grp("Kakoi"); Clear(kak);
@@ -2187,6 +2213,7 @@ public static class EdoOkabeYashikiBuilder
 
     public static string Stage4b_Ishigaki()
     {
+        ParcelGuard();
         var ig = Grp("Ishigaki"); Clear(ig);
         var kn = Grp("KachuNagaya"); Clear(kn);
         var sb = new System.Text.StringBuilder();
@@ -2291,6 +2318,7 @@ public static class EdoOkabeYashikiBuilder
 
     public static string Stage5_Goten()
     {
+        ParcelGuard();
         var sb = new System.Text.StringBuilder();
         var bg = Grp("Buildings"); Clear(bg);
         float area = 0, moya = 0;
@@ -2417,6 +2445,7 @@ public static class EdoOkabeYashikiBuilder
     // =========================================================================
     public static string Stage6_Roka()
     {
+        ParcelGuard();
         var rk = Grp("Roka"); Clear(rk);
         int nr = 0;
         foreach (var l in GotenLinks()) { BuildRoka(rk, l); nr++; }
@@ -2576,6 +2605,7 @@ public static class EdoOkabeYashikiBuilder
     // =========================================================================
     public static string Stage7_Service()
     {
+        ParcelGuard();
         var sv = Grp("Service"); Clear(sv);
         float yaw = YawGate();
         // 土蔵群 = 西低地(勝手向きの下段) [福井図: 土蔵は御殿から離した下側の空地]
@@ -2659,6 +2689,7 @@ public static class EdoOkabeYashikiBuilder
     // =========================================================================
     public static string Stage8_Garden()
     {
+        ParcelGuard();
         var gg = Grp("Garden"); Clear(gg);
         var rnd = new System.Random(53115);
         var obst = new List<Bounds>();
@@ -2704,6 +2735,7 @@ public static class EdoOkabeYashikiBuilder
     // =========================================================================
     public static string Stage9_Splat()
     {
+        ParcelGuard();
         var t = Terrain.activeTerrain; var td = t.terrainData;
         int res = td.alphamapResolution;
         Vector3 tp = t.transform.position, ts = td.size;

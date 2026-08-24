@@ -726,7 +726,8 @@ def _fit_note(d):
         if not ds:
             continue
         n += 1; mx = max(mx, max(ds))
-        over.append((MUNE_JA.get(o["name"], o.get("label", o["name"])), max(ds), o["y"]))
+        over.append((MUNE_JA.get(o["name"], o.get("label", o["name"])), max(ds), o["y"],
+                     bool(o.get("fillOK"))))
         if tt and rr / float(tt) > 0.5:
             rec.append(MUNE_JA.get(o["name"], o.get("label", o["name"])))
         else:
@@ -766,12 +767,19 @@ def _fit_note(d):
             band[nm] = 100.0 * b / tot
         if tot2:
             selfref.append("%s %.0f%%" % (nm, 100.0 * ex / tot2))
-    ng = [x for x in over if x[1] > 0.5]
-    head = ("<b>棟が載る所の |設計面 − 江戸期地盤| は全%d物件で 0.5m 以内</b>(最大 %.2fm・規則3)。"
-            if not ng else
-            "⛔ <b>規則3 の不合格が %d物件</b>(全%d物件中・最大 %.2fm)。"
-            "内訳は下の表。<b>面の高さか棟の位置を見直す必要がある</b>。")
-    head = head % ((len(ng), n, mx) if ng else (n, mx))
+    ng = [x for x in over if x[1] > 0.5 and not x[3]]
+    okf = [x for x in over if x[1] > 0.5 and x[3]]
+    if ng:
+        head = ("⛔ <b>規則3 の不合格が %d物件</b>(全%d物件中・最大 %.2fm)。"
+                "<b>面の高さか棟の位置を見直す必要がある</b>。" % (len(ng), n, mx))
+    else:
+        head = ("<b>棟が載る所の |設計面 − 江戸期地盤| は、裁定で受け入れた %d物件を除いて"
+                "全%d物件が 0.5m 以内</b>(規則3)。" % (len(okf), n))
+    if okf:
+        head += ("<b>裁定で受け入れた盛土</b>(門前面は1883年図の内挿どおり通り沿いに傾くので、"
+                 "水平な面で通せば南で盛る。[菊地2003]『1〜4m』の中・確度U): "
+                 + " / ".join("%s +%.2fm" % (a, b) for a, b, c, f in
+                              sorted(okf, key=lambda q: -q[1])) + "。")
     tail = ("⚠ <b>この検査が独立に効いているのは %d物件だけ</b>(%s)。残る %d物件は"
             "<b>復元した地盤の上</b>にあり、そこでは「自分が置いた値を測り返している」"
             "にすぎない(§A-6)。"
@@ -783,7 +791,7 @@ def _fit_note(d):
     if ng:
         tail += ("<b>不合格の物件:</b> "
                  + " / ".join("%s(面%.2f・最大 %+.2fm)" % (a, c, b)
-                              for a, b, c in sorted(ng, key=lambda q: -q[1]))
+                              for a, b, c, f in sorted(ng, key=lambda q: -q[1]))
                  + "。")
     return head + tail
 

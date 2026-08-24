@@ -48,30 +48,105 @@ CANON_DOC = (
 SLICES = [
     dict(
         name="okabe_dem.json", x0=-720, z0=930, step=2, nx=186, nz=100, nd=1, style="rows",
+        parcels=["okabe"],
         doc="造成前の地形【確度P】。**世界座標**の格子。h[iz][ix]=標高m。指図の現況図(段彩+等高線)に使う。"
             "⚠ 岡部の敷地内は日比谷高校の近代造成(校庭の盛土16.0・校舎の盛土27〜28.8)を含む — "
             "江戸期の復元地盤は okabe_edo_dem.json / okabe_edo_world.json。",
     ),
     dict(
         name="doi_dem.json", x0=-700, z0=1030, step=2, nx=146, nz=90, nd=1, style="rows",
+        parcels=["doi"],
         doc="造成前の地形【確度P】。**世界座標**の格子。h[iz][ix]=標高m。指図の現況図(段彩+等高線)に使う。",
     ),
     dict(
         name="matsudaira_dem.json", x0=-770, z0=1020, step=2, nx=170, nz=150, nd=2, style="compact",
+        parcels=["matsudaira_dewa"],
         doc="松平・土井・岡部まわりの造成前の地形【確度P】。世界座標 2m 刻み(x0,z0 から)。"
             "現況図(段彩+等高線)はこれを読む。標高は海抜m。",
     ),
     dict(
         name="sanno_dem.json", x0=-660, z0=636, step=2, nx=146, nz=171, nd=1, style="compact",
+        parcels=["sannosha_prec", "sannosha_kanri", "sannosha_juge"]
+                + [f"sannojubo_parcels_{i}" for i in range(10)],
         doc="山王権現社まわりの造成前の地形【確度P】。世界座標の格子。h[iz][ix]=標高m。"
             "生成器 build_sanno_sashizu.py が §3a 現況図・§3b 切盛図でこれを読む。",
     ),
 ]
 
+FIT_MARGIN = 40   # --fit で区画のまわりに確保する余白[m]
+WARN_MARGIN = 20  # これを下回ったら「区画を動かすと溢れる」と知らせる[m]
+
 SLICE_DOC = (
     " **正本 docs/Sashizu/base_dem.json からの切り出し**(生成器 Tools/Sashizu/build_base_dem.py)。"
     "⛔ 手で編集しない・Unity の live terrain から採り直さない。"
 )
+
+
+def load_parcels():
+    """町割の正典 parcels.json を読む(区画の正典は敷地割ツール。ここは読むだけ)。"""
+    j = json.load(open(os.path.join(SASHIZU, "parcels.json"), encoding="utf-8"))
+    return {p["id"]: p["pts"] for p in j["parcels"] if p.get("pts")}
+
+
+def parcel_bbox(pids, parcels):
+    """担当区画をまとめた外接矩形。区画が1つも無ければ None。"""
+    pts = [pt for pid in pids for pt in parcels.get(pid, [])]
+    if not pts:
+        return None
+    xs = [p[0] for p in pts]
+    zs = [p[1] for p in pts]
+    return min(xs), max(xs), min(zs), max(zs)
+
+
+def snap_out(x0, x1, z0, z1, step):
+    """格子の外側へ丸める。"""
+    return (math.floor(x0 / step) * step, math.ceil(x1 / step) * step,
+            math.floor(z0 / step) * step, math.ceil(z1 / step) * step)
+
+
+def extent(spec):
+    return (spec["x0"], spec["x0"] + spec["step"] * (spec["nx"] - 1),
+            spec["z0"], spec["z0"] + spec["step"] * (spec["nz"] - 1))
+
+
+def fit_extent(spec, parcels, margin):
+    """担当区画 + 余白を覆うところまで extent を**広げる**(縮めない)。"""
+    bb = parcel_bbox(spec["parcels"], parcels)
+    if bb is None:
+        return spec, 0
+    need = snap_out(bb[0] - margin, bb[1] + margin, bb[2] - margin, bb[3] + margin, spec["step"])
+    cur = extent(spec)
+    x0, x1 = min(cur[0], need[0]), max(cur[1], need[1])
+    z0, z1 = min(cur[2], need[2]), max(cur[3], need[3])
+    grown = (x0, x1, z0, z1) != cur
+    out = dict(spec)
+    out["x0"], out["z0"] = x0, z0
+    out["nx"] = (x1 - x0) // spec["step"] + 1
+    out["nz"] = (z1 - z0) // spec["step"] + 1
+    return out, grown
+
+
+def report_margins(spec, parcels):
+    """区画のまわりに何mの余白があるかを出し、足りなければ知らせる。戻り値=覆えていない件数。"""
+    bb = parcel_bbox(spec["parcels"], parcels)
+    if bb is None:
+        print(f"   ⚠ {spec['name']}: 担当区画 {spec['parcels']} が parcels.json に無い")
+        return 1
+    x0, x1, z0, z1 = extent(spec)
+    m = (bb[0] - x0, x1 - bb[1], bb[2] - z0, z1 - bb[3])   # 西 東 南 北
+    tag = "   "
+    bad = 0
+    if min(m) < 0:
+        tag, bad = " ⛔", 1
+    elif min(m) < WARN_MARGIN:
+        tag = " ⚠ "
+    print(f"{tag}{spec['name']:20s} 区画の余白 西{m[0]:+5.0f} 東{m[1]:+5.0f} 南{m[2]:+5.0f} 北{m[3]:+5.0f} m")
+    if bad:
+        need, _ = fit_extent(spec, parcels, FIT_MARGIN)
+        nx0, nx1, nz0, nz1 = extent(need)
+        print(f"      → 区画が切り出しの外へ出ている。x[{nx0},{nx1}] z[{nz0},{nz1}] "
+              f"(nx={need['nx']} nz={need['nz']}) へ広げること — `--fit` で自動的に広げられる")
+    return bad
 
 
 def load_ref():
@@ -154,11 +229,33 @@ def write_json(path, obj, style, nd):
         f.write(body)
 
 
-def build_slices(check_only=False):
+def build_slices(check_only=False, fit=False):
     canon = json.load(open(CANON, encoding="utf-8"))
     ch, cnx, cnz = canon["h"], canon["nx"], canon["nz"]
     cx0, cz0, cstep = canon["x0"], canon["z0"], canon["step"]
-    for s in SLICES:
+    parcels = load_parcels()
+    print("区画との突き合わせ(町割 parcels.json が正典):")
+    specs = []
+    bad = 0
+    for spec in SLICES:
+        if fit:
+            spec, grown = fit_extent(spec, parcels, FIT_MARGIN)
+            if grown:
+                x0, x1, z0, z1 = extent(spec)
+                print(f"   ↔ {spec['name']:20s} 区画に合わせて x[{x0},{x1}] z[{z0},{z1}] へ広げた")
+        bad += report_margins(spec, parcels)
+        cx1 = cx0 + cstep * (cnx - 1)
+        cz1 = cz0 + cstep * (cnz - 1)
+        ex = extent(spec)
+        if ex[0] < cx0 or ex[1] > cx1 or ex[2] < cz0 or ex[3] > cz1:
+            print(f"   ⛔ {spec['name']}: 正本の範囲 x[{cx0},{cx1}] z[{cz0},{cz1}] の外へ出る。"
+                  f"CANON_SPEC を広げて `--canon` から作り直すこと")
+            bad += 1
+        specs.append(spec)
+    if bad:
+        raise SystemExit(f"⛔ 覆えていない切り出しが {bad} 件ある。上の指示に従って直すこと(何も書いていない)")
+    print()
+    for s in specs:
         path = os.path.join(SASHIZU, s["name"])
         old = json.load(open(path, encoding="utf-8")) if os.path.exists(path) else None
         h = []
@@ -172,16 +269,33 @@ def build_slices(check_only=False):
                     raise SystemExit(f"{s['name']}: 正本の範囲の外 world({x},{z})")
                 row.append(round(v, s["nd"]))
             h.append(row)
-        # 差分の報告
+        # 差分の報告(範囲が変わっていることがあるので世界座標で引き当てる)
         if old:
-            diffs = [(s["x0"] + ix * s["step"], s["z0"] + jz * s["step"], old["h"][jz][ix], h[jz][ix])
-                     for jz in range(s["nz"]) for ix in range(s["nx"])
-                     if old["h"][jz][ix] is not None
-                     and abs(old["h"][jz][ix] - h[jz][ix]) > 10 ** (-s["nd"]) / 2]
+            def old_at(x, z):
+                if (x - old["x0"]) % old["step"] or (z - old["z0"]) % old["step"]:
+                    return None
+                oi = (x - old["x0"]) // old["step"]
+                oj = (z - old["z0"]) // old["step"]
+                if not (0 <= oi < old["nx"] and 0 <= oj < old["nz"]):
+                    return None
+                return old["h"][oj][oi]
+
+            diffs = []
+            added = 0
+            for jz in range(s["nz"]):
+                z = s["z0"] + jz * s["step"]
+                for ix in range(s["nx"]):
+                    x = s["x0"] + ix * s["step"]
+                    ov = old_at(x, z)
+                    if ov is None:
+                        added += 1
+                        continue
+                    if abs(ov - h[jz][ix]) > 10 ** (-s["nd"]) / 2:
+                        diffs.append((x, z, ov, h[jz][ix]))
             big = [d for d in diffs if abs(d[2] - d[3]) > 0.5]
             worst = max(diffs, key=lambda d: abs(d[2] - d[3]), default=None)
             msg = (f"{s['name']:20s} {s['nx'] * s['nz']:6,}セル 変わる {len(diffs):5d} "
-                   f"(うち>0.5m {len(big):4d})")
+                   f"(うち>0.5m {len(big):4d})" + (f" / 新しく増える {added:,}セル" if added else ""))
             if worst:
                 msg += f" 最大 {worst[2]}→{worst[3]} ({worst[3] - worst[2]:+.2f}m) @({worst[0]},{worst[1]})"
             print(msg)
@@ -200,12 +314,14 @@ def main():
     ap.add_argument("--canon", action="store_true",
                     help="ref_height.npy から正本 base_dem.json を作り直す(メインの作業ツリーのみ)")
     ap.add_argument("--check", action="store_true", help="書かずに差分だけ報告する")
+    ap.add_argument("--fit", action="store_true",
+                    help="担当区画+余白を覆うところまで切り出しの範囲を広げる(縮めはしない)")
     a = ap.parse_args()
     if a.canon:
         build_canon()
     if not os.path.exists(CANON):
         raise SystemExit(f"正本が無い: {os.path.relpath(CANON, ROOT)} — 先に --canon で起こすこと")
-    build_slices(check_only=a.check)
+    build_slices(check_only=a.check, fit=a.fit)
 
 
 if __name__ == "__main__":

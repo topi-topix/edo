@@ -3037,15 +3037,25 @@ def links_table(d):
 def runs_table(d):
     rows = []
     for r in d["runs"]:
+        if r.get("base") == "Ishigaki" and "s" in r:
+            base = ("石垣 丁場%.2f×%d段築(壁高%.2fm)" % (r["s"], r["tiers"], 4 * r["s"] * r["tiers"])
+                    if r.get("tiers", 1) > 1 else
+                    "石垣 丁場%.2f(壁高%.2fm)" % (r["s"], 4 * r["s"]))
+            base += " / 露出 %.2fm" % r.get("expose", 0.0)
+        else:
+            base = "石垣" if r.get("base") else "—"
         rows.append("<tr><td><code>%s</code></td><td>辺%d</td><td>%.0f–%.0f</td><td>%.1fm</td>"
                     "<td>%s</td><td>%.1f</td><td>%s</td><td>%s</td></tr>"
                     % (r["name"], r["edge"], r["s0"], r["s1"], r["s1"] - r["s0"],
-                       "表長屋" if r["kind"] == "Nagaya" else "練塀", r["seat"],
-                       "石垣" if r.get("base") else "—",
+                       "表長屋" if r["kind"] == "Nagaya" else "練塀", r["seat"], base,
                        "整地" if r.get("bench") else "—"))
     return ('<div class="tw"><table><thead><tr><th>run</th><th>辺</th><th>走り s</th><th>長さ</th>'
-            "<th>種別</th><th>天端 seat</th><th>基壇</th><th>外周帯</th></tr></thead><tbody>"
-            + "".join(rows) + "</tbody></table></div>")
+            "<th>種別</th><th>天端 seat</th><th>基壇石垣</th><th>外周帯</th></tr></thead><tbody>"
+            + "".join(rows) + "</tbody></table>"
+            "<p class='cap'>⚠ <b>基壇石垣の丁場と段数は生成器が算出する</b> — 街路側の地盤から"
+            "露出を測り、丁場の上限(<code>const.plinthSMax</code>)を超える露出は<b>段築</b>にする。"
+            "<b>段数は部材の丁場上限からの従属値【U】で、段築を支える史料は台帳に無い</b>"
+            "(露出高は地形実測=P)。</p></div>")
 
 
 def walls_table(d):
@@ -4156,13 +4166,14 @@ def main():
              '「倒れる前の姿」として遡って使う。所在と屋敷の別は [寛政武鑑 刈谷]A の上屋敷の欄'
              '(寛政元年。嘉永3年への外挿は B)。<br>'
              '<b>当主=土井利善</b>(弘化4年家督・大隅守/嘉永5-6年は大坂加番で江戸不在/安政5年奏者番)。<br>'
-             '<b>外周の構成は当屋敷の一次記録から直接言える(確度S)</b> — 安政江戸地震の被害書上5点が'
-             '「表門倒・玄関大破」「表長屋潰」「外構練塀潰」を記す。<b>ただし3邸一括の記事で、'
+             '<b>外周の構成は当屋敷の一次記録から直接言える(確度S)</b> — 安政江戸地震の被害書上'
+             '%d記録が「表門倒・玄関大破」「表御長屋瓦落」「外構練塀潰」を記す。<b>ただし3邸一括の記事で、'
              'どの辺の塀か・誰の所有かは書かれていない</b> — 確定するのは<b>種別だけ</b>。<br>'
              '屋敷指図(建物平面)は現存未確認 — 御殿の構成は類型(B)、室名・畳数は想定(?)。'
              '書院は<b>雁間詰の城主</b>で作り、帝鑑間格へ上げない'
              '(殿席=雁間は [安政地震被害書上]S・岡本家文書が雁間の部に列挙)。'
-             '区画多角形はユーザーのブックマーク角(U)。</p></div>')
+             '区画多角形はユーザーのブックマーク角(U)。</p></div>'
+             % d.get("jishinRecords", 6))
     h.append('<p class="lede"><b>この文書は現況だけを載せる。</b>過去の案・撤回した説は書かない — '
              '経緯は <code>git log docs/Sashizu/</code> で追う。'
              '寸法の正典は <code>doi_sashizu.json</code>、文章は <code>doi_kosho.md</code>、'
@@ -4438,7 +4449,7 @@ def main():
             "⛔ ただし「1〜5万石」は所有者から出た数字ではなく<b>都教委が形式から下した判定</b>で、"
             "元の屋敷の伝承は三説あって互いに矛盾する — <b>独立検証ではない</b>。"
             "安政二年の被害書上は「表門倒」— 嘉永期の姿として<b>倒れる前の門</b>を建てる。"
-            "⚠ <b>「表門倒」と「表長屋潰」を独立門の証拠に使わない</b> — 二語は別々の文書に現れるもので"
+            "⚠ <b>「表門倒」と「表御長屋の被災」を独立門の証拠に使わない</b> — 二語は別々の文書に現れるもので"
             "一つの記事の中で対比されておらず、長屋門でも門と長屋は別の名で呼ばれる。"
             "<b>型式は長屋門を採る</b>【B】 — 当家の表長屋の実在(S)と、最も格の近い官製現物"
             "[山脇武家屋敷門](A・<b>5万石・譜代・上屋敷</b>)の「長屋門…<b>切妻造</b>」による。"
@@ -4519,8 +4530,27 @@ def main():
     #   生き残っていた(2026-08-25 考証第8巡 高⑤)。**機械照合の死角を残さない。**
     #   ソースを直接走査すると Python の添字 `d["name"]` を拾うので、**出力を見る。**
     head_, tbl_ = sources_index()
-    txt_ = re.sub(r"<[^>]+>", " ", body)
-    ids_ = set(re.findall(r"\[([^\]\n]{2,24})\]", txt_))
+    # ⚠ **正典 json も照合の対象にする。** 図と文章だけを見ていたため、
+    #   json に略記(`[下丸子]` ほか)が残っていた(2026-08-25 考証第9巡 中)。
+    #   ⚠ シリアライズ全体を見ると**配列リテラル `[-13, 80]` を ID と誤認する** —
+    #   **文字列の値だけ**を集める。
+    _sv = []
+
+    def _collect(o):
+        if isinstance(o, dict):
+            for k, v in o.items():
+                if k == "retracted":
+                    continue
+                _collect(v)
+        elif isinstance(o, list):
+            for v in o:
+                _collect(v)
+        elif isinstance(o, str):
+            _sv.append(o)
+    _collect(d)
+    txt_ = re.sub(r"<[^>]+>", " ", body) + "\n" + "\n".join(_sv)
+    # 典拠 ID に「,」は入らない(図中の軸ラベル `[s(m), 標高]` を拾わないため)
+    ids_ = set(i for i in re.findall(r"\[([^\]\n]{2,24})\]", txt_) if "," not in i)
     miss2 = sorted(i for i in ids_ if i not in head_ and i not in tbl_)
     if miss2:
         print("⚠ 台帳に無い典拠 ID(図)%d 件: %s" % (len(miss2), " / ".join(miss2)))

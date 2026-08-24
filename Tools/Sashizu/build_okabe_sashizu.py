@@ -24,12 +24,14 @@ def md2html(text):
     out, i, lines = [], 0, text.split("\n")
     while i < len(lines):
         ln = lines[i]
-        if ln.startswith("|") and i + 1 < len(lines) and set(lines[i + 1].replace("|", "").strip()) <= set("-: "):
-            head = [c.strip() for c in ln.strip("|").split("|")]
+        # ⚠ 表とリストは**字下げされていても拾う**(箇条書きの中の表が生で出ていた・2026-08-24 考証)
+        if ln.lstrip().startswith("|") and i + 1 < len(lines) \
+                and lines[i + 1].strip() and set(lines[i + 1].replace("|", "").strip()) <= set("-: "):
+            head = [c.strip() for c in ln.strip().strip("|").split("|")]
             i += 2
             rows = []
-            while i < len(lines) and lines[i].startswith("|"):
-                rows.append([c.strip() for c in lines[i].strip("|").split("|")]); i += 1
+            while i < len(lines) and lines[i].lstrip().startswith("|"):
+                rows.append([c.strip() for c in lines[i].strip().strip("|").split("|")]); i += 1
             out.append('<div class="tw"><table><thead><tr>'
                        + "".join("<th>%s</th>" % inline(h) for h in head)
                        + "</tr></thead><tbody>"
@@ -54,7 +56,8 @@ def md2html(text):
         if ln.strip() == "":
             i += 1; continue
         buf = []
-        while i < len(lines) and lines[i].strip() and not lines[i].startswith(("#", "-", "|")) and lines[i].strip() != "---":
+        while i < len(lines) and lines[i].strip() \
+                and not lines[i].lstrip().startswith(("#", "- ", "|")) and lines[i].strip() != "---":
             buf.append(lines[i].strip()); i += 1
         out.append("<p>%s</p>" % inline(" ".join(buf)))
     return "\n".join(out)
@@ -2293,6 +2296,7 @@ def history():
 
 # ---------------------------------------------------------------- 組み立て
 def plate(h, num, title, meta=""):
+    meta = inline(meta) if meta else meta
     h.append('<div class="plate"><div class="phead"><h2>%s　%s</h2>%s</div>'
              % (num, title, ('<span class="meta">%s</span>' % meta) if meta else ""))
 
@@ -2490,7 +2494,7 @@ def main():
                  '<b>差引が正=土が足りない</b>ので、切土で出た土を盛土へ回してなお不足する量。</p>'
                  % (d["const"]["batterFill"], d["const"]["batterCut"], mf, mc))
         h.append("</div>")
-    plate(h, nx(), "御殿平面", "室名・畳数は【確度 ?】— 当屋敷の指図は現存未確認・類型からの想定")
+    plate(h, nx(), "御殿平面", "室名=[西川1959]A の型 ／ **畳数と室の配り=確度U(推定)** — 当屋敷の指図は現存未確認")
     fig(h, goten_plan(d, -34, 20, -3, 112, "御殿平面",
                       "廊下は入側・渡廊下とも幅一間。奥向へ入る廊下は御錠口の一本だけ"),
         legend='<span style="color:var(--roka)">■ 入側・渡廊下(幅一間)</span>'
@@ -2545,7 +2549,9 @@ def main():
                  % (rp0.get("name", "R_Ramp"), rp0.get("len", 0), rp0.get("gradMax", 0)))
         h.append("</div>")
 
-    plate(h, nx(), "棟と室", "1間²=2畳 ／ 室名・畳数は【確度 ?】(土間・板敷は間²)")
+    plate(h, nx(), "棟と室",
+          "1間²=2畳(土間・板敷は間²) ／ **室名=[西川1959]A の型(一部B)／畳数と室の配り=確度U(推定)** — "
+          "当屋敷の指図は現存未確認。2026-08-24 に確度を明示して閉じた")
     h.append(munes_table(d))
     h.append(links_table(d))
     kp_html, kp = kenpei(d, area)
@@ -2572,7 +2578,10 @@ def main():
              'その内訳は練塀 %.0fm・木柵 %.0fm・長屋門 %.1fm。<b>表長屋は0本</b>。'
              '⚠ <b>面積が二つ併存する</b> — 記録の拝領坪数 %s坪余で割れば <b>%.1f%%</b>。'
              '分母は図の実体である polygon のままにするが、読者に隠さない。'
-             '<b>建蔽率は結果であって目標ではない</b> — 数字のために空地へ棟を足さない。</p>'
+             '<b>建蔽率は結果であって目標ではない</b> — 数字のために空地へ棟を足さない。'
+             '⚠ <b>この %.1f%% は史料値の帯の外にある。</b>総練塀(表長屋0本・確度U)という当図固有の裁定と、'
+             '造成しない斜面が半分という地形の実体の合成であって、'
+             '<b>5万石級上屋敷の類型を代表する数字ではない</b>(§A-3)。</p>'
              % (kp, 100.0 * hika,
                 perim, ownL + d["gate"]["plan"]["monW"],
                 100.0 * (ownL + d["gate"]["plan"]["monW"]) / perim,
@@ -2580,7 +2589,7 @@ def main():
                 sum(f["s1"] - f["s0"] for f in d.get("fences", [])),
                 d["gate"]["plan"]["monW"],
                 "{:,}".format(int(d.get("han", {}).get("tsubo", 0))),
-                kp * (area / TSUBO) / max(d.get("han", {}).get("tsubo", 1), 1)))
+                kp * (area / TSUBO) / max(d.get("han", {}).get("tsubo", 1), 1), kp))
     h.append("</div>")
 
     for axis, ttl, lead in (

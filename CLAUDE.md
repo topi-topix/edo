@@ -73,11 +73,10 @@
 ## 触ると壊れるもの
 
 - **⚠ このリポジトリは複数の Claude Code セッションが同時に動く。** 2026-08-24 に、広い staging で**他セッションが編集中の指図を巻き込んでコミット**する事故が起きた。
-  ⚠ **worktree は自動では分かれない。** 作業の型で分ける:
-  **指図だけ(Unity 不要)** → `python3 Tools/Session/edo_session.py worktree <屋敷>` で
-  sparse worktree(12MB)を切り、そこでセッションを始める。共有ファイルの巻き込みが構造的に消える。
-  **Unity を触る(実装・計測)** → メインのチェックアウトで
-  `python3 Tools/Session/edo_session.py claim sashizu:<屋敷> --resources unity --note '何をするか'`。
+  **作業は `python3 Tools/Session/edo_session.py start <屋敷>` で始める。**
+  指図だけなら sparse worktree(12MB)を探して無ければ作って回す。
+  Unity を触るなら `start <屋敷> --unity` でメインに留まり Unity を確保する。
+  ⚠ **打ち忘れても、他セッションが居る状態で指図に触れば司令塔がその場で回す**(cd は不要・絶対パスで開く)。
   ⛔ **Unity は排他**(実体が1つで地形の編集は Undo の外)。⛔ **worktree からは Unity を開けない**。
   ⛔ **`git add -A` / `git commit -a` は司令塔が止める**(パスを明示すること)。
   → `docs/session-coordination.md`

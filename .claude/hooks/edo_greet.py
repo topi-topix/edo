@@ -18,6 +18,6 @@ if os.path.exists(CLI):
     if out and "生きている claim は無し" not in out:
         print("⚠ このリポジトリでは**他の Claude Code セッションが同時に動いている**。"
               "他人が押さえているファイルと Unity には触らないこと。\n" + out)
-        print("自分の領分を名乗るには: "
-              "`python3 Tools/Session/edo_session.py claim <パス|sashizu:岡部> "
-              "--resources unity --note '何をするか'`")
+        print("作業を始めるには **`python3 Tools/Session/edo_session.py start <屋敷>`**。"
+              "指図だけなら worktree を探して(無ければ作って)そこへ回す。"
+              "Unity を使うなら `start <屋敷> --unity` でメインに留まり Unity を確保する。")

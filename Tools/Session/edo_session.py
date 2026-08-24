@@ -16,7 +16,7 @@
 登録簿は `.claude/locks/*.json`(machine-local・gitignore)。
 プロセスが消えたか、`--ttl` 分だけ心拍が途絶えた claim は死んだものとして無視する。
 """
-import argparse, fnmatch, json, os, re, subprocess, sys, time
+import argparse, fnmatch, io, json, os, re, subprocess, sys, time
 
 ROOT = os.environ.get("CLAUDE_PROJECT_DIR") or subprocess.run(
     ["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True,
@@ -259,6 +259,28 @@ def cmd_check_write(a):
     r = rel(p).replace(os.sep, "/")
     if r.startswith(".claude/locks"):
         return 0
+    d = domain(p)
+    if d and in_main_checkout() and not a.no_route:
+        others = [c for c in load_all(a.ttl) if c["session"] != me]
+        mineC, _ = mine(me)
+        # ⚠ **回すのは競合しているときだけ。** 一人で作業しているのにメインから
+        #    追い出すのは邪魔でしかない。Unity を握っている(=計測・実装)セッションも回さない。
+        if others and "unity" not in mineC.get("resources", []) and "main" not in mineC.get("resources", []):
+            wt = ensure_wt(d)
+            if wt and os.path.realpath(wt) != os.path.realpath(ROOT):
+                touch(me, paths=[d])
+                return _deny(
+                    "⛔ 司令塔: いま**他のセッションが %d 本動いている**。指図の作業は worktree でやること。\n"
+                    "   `%s` の worktree を用意した:\n"
+                    "     %s\n"
+                    "   → **そこの同じパスを絶対パスで開けばよい**(cd は要らない):\n"
+                    "     %s\n"
+                    "   → ビルダーもその worktree のものを走らせること:\n"
+                    "     python3 %s/Tools/Sashizu/...\n"
+                    "   ⚠ Unity の計測が要るなら `edo_session.py claim --resources unity` を先に取る"
+                    "(その場合はメインのままで通す)。\n"
+                    "   ⚠ どうしてもメインで書くなら `edo_session.py claim --resources main`。"
+                    % (len(others), d, wt, os.path.join(wt, rel(p)), wt))
     hs = holders(p, me, a.ttl)
     if hs:
         c, g = hs[0]
@@ -362,6 +384,76 @@ def _wt_root():
     return os.path.join(os.path.dirname(_common_git_dir()), ".claude", "worktrees")
 
 
+def wt_for(dom):
+    """屋敷 `sashizu:<名>` に対応する worktree のパス(在れば)。"""
+    name = dom.split(":", 1)[-1]
+    path = os.path.join(_wt_root(), name)
+    if os.path.isdir(os.path.join(path, ".git")) or os.path.isfile(os.path.join(path, ".git")):
+        return path
+    r = subprocess.run(["git", "-C", ROOT, "worktree", "list", "--porcelain"],
+                       capture_output=True, text=True).stdout
+    for blk in r.split("\n\n"):
+        wp = br = None
+        for ln in blk.split("\n"):
+            if ln.startswith("worktree "): wp = ln[9:]
+            if ln.startswith("branch "): br = ln[7:]
+        if wp and br and br.endswith("/" + name):
+            return wp
+    return None
+
+
+def ensure_wt(dom, quiet=True):
+    """屋敷の worktree を用意して返す。⚠ 無ければ黙って作る。"""
+    got = wt_for(dom)
+    if got:
+        return got
+    name = dom.split(":", 1)[-1]
+    class _A:  # cmd_worktree の引数の器
+        pass
+    a = _A(); a.name = name; a.branch = None; a.base = None; a.full = False
+    buf = io.StringIO() if quiet else None
+    if quiet:
+        old = sys.stdout; sys.stdout = buf
+    try:
+        cmd_worktree(a)
+    finally:
+        if quiet:
+            sys.stdout = old
+    return wt_for(dom)
+
+
+def in_main_checkout():
+    return os.path.realpath(ROOT) == os.path.realpath(os.path.dirname(_common_git_dir()))
+
+
+def cmd_start(a):
+    """屋敷の作業を始める。**worktree を探し、無ければ作って**、claim まで済ませる。"""
+    me = sid(a.session)
+    dom = "sashizu:" + re.sub(r"[^A-Za-z0-9_-]", "-", a.name)
+    c, fp = mine(me)
+    if dom not in c["paths"]:
+        c["paths"].append(dom)
+    if a.note:
+        c["note"] = a.note
+    if a.unity:
+        h = [x for x in load_all(a.ttl) if x["session"] != me and "unity" in x.get("resources", [])]
+        if h:
+            print("⛔ Unity は %s が使用中(%s)。終わるのを待つこと" % (h[0]["session"], h[0].get("note", "")),
+                  file=sys.stderr)
+            return 2
+        for r in ("unity", "main"):
+            if r not in c["resources"]:
+                c["resources"].append(r)
+        save(c, fp)
+        print("start: %s ／ Unity を確保。**メインのチェックアウトで作業する**\n  %s" % (dom, ROOT))
+        return 0
+    save(c, fp)
+    wt = ensure_wt(dom, quiet=False)
+    print("start: %s\n  作業ディレクトリ: %s" % (dom, wt))
+    print("  ⚠ Unity はここでは開けない。計測が要るなら別途 `claim --resources unity`")
+    return 0
+
+
 def cmd_worktree(a):
     """指図作業用の **sparse worktree** を切る。
 
@@ -434,11 +526,15 @@ def main():
     p.set_defaults(fn=cmd_claim)
     p = sub.add_parser("release"); p.add_argument("paths", nargs="*")
     p.add_argument("--resources", nargs="*", default=[]); p.set_defaults(fn=cmd_release)
-    p = sub.add_parser("check-write"); p.add_argument("path"); p.set_defaults(fn=cmd_check_write)
+    p = sub.add_parser("check-write"); p.add_argument("path")
+    p.add_argument("--no-route", action="store_true"); p.set_defaults(fn=cmd_check_write)
     p = sub.add_parser("check-bash"); p.add_argument("command"); p.set_defaults(fn=cmd_check_bash)
     sub.add_parser("check-unity").set_defaults(fn=cmd_check_unity)
     p = sub.add_parser("steal"); p.add_argument("what", nargs="+")
     p.add_argument("--reason", default=""); p.set_defaults(fn=cmd_steal)
+    p = sub.add_parser("start"); p.add_argument("name")
+    p.add_argument("--unity", action="store_true", help="Unity を使う(メインに留まる)")
+    p.add_argument("--note", default=""); p.set_defaults(fn=cmd_start)
     p = sub.add_parser("worktree"); p.add_argument("name")
     p.add_argument("--branch"); p.add_argument("--base")
     p.add_argument("--full", action="store_true", help="Assets も含める(Unity を開くなら)")

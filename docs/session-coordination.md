@@ -10,14 +10,32 @@
 
 ---
 
-## 作業の型は2つ。始める前にどちらか決める
-
-### ① 指図を書く(Unity を使わない) → **worktree を切る**
+## 始め方 — 打つのは1行
 
 ```bash
-python3 Tools/Session/edo_session.py worktree sanno
-cd .claude/worktrees/sanno          # ここで新しいセッションを始める
+python3 Tools/Session/edo_session.py start sanno            # 指図を書く
+python3 Tools/Session/edo_session.py start matsudaira --unity  # Unity を触る
 ```
+
+**司令塔が型を判断して振り分ける。**
+
+- **指図(Unity 不要)** → その屋敷の worktree を**探し、無ければ作って**、作業ディレクトリを返す
+- **`--unity`** → メインのチェックアウトに留まり、`unity` 資源を確保する(取れなければ待ち)
+
+⚠ **打ち忘れても効く。** 他のセッションが動いている状態で指図のファイルに触ると、
+司令塔が**その場で worktree を用意して回す**。⛔ **cd は要らない** — 返ってきた
+worktree の**絶対パス**でファイルを開き、ビルダーもその worktree のものを走らせればよい。
+
+```
+/Users/…/.claude/worktrees/sanno/docs/Sashizu/sanno_kosho.md
+python3 /Users/…/.claude/worktrees/sanno/Tools/Sashizu/build_sanno_sashizu.py
+```
+
+⚠ **一人で作業しているときは回さない。** 競合していないのにメインから追い出すのは邪魔なだけ。
+⚠ **Unity を握っているセッションも回さない**(計測・実装のためメインに居るのが正しい)。
+⛔ どうしてもメインで書きたいなら `claim --resources main`。
+
+### 指図用の worktree の中身
 
 `docs` / `Tools` / `.claude` だけの **sparse worktree**(**12MB・64ファイル**。
 Assets の 249MB・825ファイルは来ない)。ブランチも分かれるので、
@@ -27,10 +45,18 @@ Assets の 249MB・825ファイルは来ない)。ブランチも分かれるの
 
 ⛔ **ここでは Unity は開けない**(パックが gitignore なので Assets が揃わない)。
 
-### ② Unity を触る(実装・計測) → **メインのチェックアウトで、資源を取る**
+`docs` / `Tools` / `.claude` だけの **sparse worktree**(**12MB・64ファイル**。
+Assets の 249MB・825ファイルは来ない)。ブランチも分かれるので、
+
+- 共有ファイル(CLAUDE.md ほか)を巻き込む事故が**構造的に起きない**
+- 同じブランチに他人のコミットが載ることも**無い**
+
+⛔ **ここでは Unity は開けない**(パックが gitignore なので Assets が揃わない)。
+
+### Unity を触るとき
 
 ```bash
-python3 Tools/Session/edo_session.py claim sashizu:matsudaira --resources unity --note "松江松平の実装"
+python3 Tools/Session/edo_session.py start matsudaira --unity --note "松江松平の実装"
 ```
 
 ⚠ **Unity は実体が1つ**。シーン・プレハブ・地形を共有し、**地形の編集は Undo の外**にある。

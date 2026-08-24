@@ -1288,6 +1288,7 @@ def plane_check(d):
     bad += barrier_check(d)
     bad += kaidan_ground_check(d)
     bad += hardcode_check()
+    bad += gate_overlap_check(d)
     return bad
 
 
@@ -1521,6 +1522,29 @@ def barrier_check(d):
         bad.append("奥向の結界線 v=%.1f が %d 箇所で開いている(最大 %.1f 間) — "
                    "面として閉じていないと錠は効かない"
                    % (line, len(big), max(gp[1] - gp[0] for gp in big)))
+    return bad
+
+
+def gate_overlap_check(d):
+    """run が門の組立(番所・袖塀・門柱)と重なっていないか。
+    2026-08-24: N_Nagaya_E1 が東番所と 5.5m 重なり、実装は開口で割るので
+    **run に部材が一つも入らない**状態だった。矩形の重なり検査は門の組立を持たないので気づけない。"""
+    bad = []
+    spans = []
+    g = d.get("gate")
+    if g and "plan" in g and "sPos" in g["plan"]:
+        for k, v in g["plan"]["sPos"].items():
+            spans.append((int(g["edge"]), float(v[0]), float(v[1]), "表門の" + k))
+    for k in d.get("komon", []):
+        spans.append((int(k["edge"]), k["s"] - k["w"] / 2.0, k["s"] + k["w"] / 2.0, k.get("name", "小門")))
+    for r in d["runs"]:
+        for e, a, b, nm in spans:
+            if r["edge"] != e:
+                continue
+            ov = min(r["s1"], b) - max(r["s0"], a)
+            if ov > 0.05:
+                bad.append("%s が %s(s%.1f〜%.1f)と %.1fm 重なる — 実装は開口で割るので部材が入らない"
+                           % (r["name"], nm, a, b, ov))
     return bad
 
 

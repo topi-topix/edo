@@ -242,12 +242,38 @@ def gap_split(a, b, o, horiz):
     return out
 
 
+def clip_gaps(a, b, gaps):
+    """線分から `gaps`=[(u,v,半幅)] の円い開口を抜く。折れ線の任意の向きに効く。"""
+    dx, dz = b[0] - a[0], b[1] - a[1]
+    L = math.hypot(dx, dz)
+    if L < 1e-9: return [(a, b)]
+    cut = []
+    for gu, gv, hw in gaps:
+        t = ((gu - a[0]) * dx + (gv - a[1]) * dz) / (L * L)
+        px, pz = a[0] + dx * t, a[1] + dz * t
+        dd = math.hypot(gu - px, gv - pz)
+        if dd >= hw: continue
+        half = math.sqrt(max(0.0, hw * hw - dd * dd)) / L
+        cut.append((max(0.0, t - half), min(1.0, t + half)))
+    if not cut: return [(a, b)]
+    cut.sort()
+    out, cur = [], 0.0
+    P = lambda t: [a[0] + dx * t, a[1] + dz * t]
+    for c0, c1 in cut:
+        if c1 <= 0.0 or c0 >= 1.0: continue
+        if c0 > cur + 1e-6: out.append((P(cur), P(c0)))
+        cur = max(cur, c1)
+    if cur < 1.0 - 1e-6: out.append((P(cur), P(1.0)))
+    return out
+
+
 def run_segs(o):
     """run/wall を開口で割った描画区間。折れ線にも対応。"""
     out = []
     for a, b in segs(o):
         horiz = abs(b[0] - a[0]) >= abs(b[1] - a[1])
-        out += gap_split(a, b, o, horiz)
+        for p, q in gap_split(a, b, o, horiz):
+            out += clip_gaps(p, q, o.get("gaps") or [])
     return out
 
 
@@ -474,10 +500,67 @@ def _stair_y(d, g, x, z):
                 h0 = dem_h(pts[0][0], pts[0][1]); h1 = dem_h(pts[-1][0], pts[-1][1])
                 if h0 is not None and h1 is not None and h0 > h1:
                     sfrac = 1.0 - sfrac
-                return k["yBot"] + (k["yTop"] - k["yBot"]) * sfrac
+                # ⚠ **踊り場のある坂は直線補間にならない**(2026-08-24 検図 高-4 —
+                #    切盛図が男坂で断面と最大1.34m 食い違っていた)。断面と同じ割付から引く。
+                return stair_y_at(k, sfrac)
             acc += L
     return None
 
+
+def stair_spans(k):
+    """石段の割付を **(s0, s1, 面の高さ)** の列で返す(s は坂下からの展開長)。
+
+    断面(stair_profile)・切盛図(_stair_y)・動線の昇りが**この一つの関数**を通る。
+    ⚠ 二つの式で別々に割ると蹴上1段ぶん(0.30m)ずれる(2026-08-24 検図 高-4)。
+    """
+    keri = k.get("keri", 0.30); fumi = k.get("fumi", 0.45); od = k.get("odoriba", 0.0)
+    fl = k.get("flights")
+    if not fl: return None, None          # 斜路(女坂)は段割りを持たない — 一様勾配
+    y0 = k["yBot"]
+    out, sacc, n = [], 0.0, 0
+    for fi, fn in enumerate(fl):
+        for _ in range(fn):
+            out.append((sacc, sacc + fumi, y0 + n * keri)); sacc += fumi; n += 1
+        if fi < len(fl) - 1 and od > 0:
+            out.append((sacc, sacc + od, y0 + n * keri)); sacc += od
+    return out, sacc
+
+
+def stair_y_at(k, sfrac):
+    """石段の縦断上の高さ。sfrac は坂下 0 → 頭 1。"""
+    sp, tot = stair_spans(k)
+    if sp is None:                        # 斜路 — 一様勾配
+        return k["yBot"] + (k["yTop"] - k["yBot"]) * max(0.0, min(1.0, sfrac))
+    w = max(0.0, min(1.0, sfrac)) * tot
+    if w >= tot - 1e-9: return k["yTop"]  # 頭は境内面(最後の蹴上を上がりきった高さ)
+    for a, b, y in sp:
+        if w <= b + 1e-9: return y
+    return k["yTop"]
+
+
+def stair_profile(c0, c1, y0, y1, kd):
+    """断面の石段。**stair_spans と同じ割付**で踏面/蹴上のギザギザを返す(スキル §3c)。
+
+    ⚠ 区間を c で単純にソートすると蹴上の点が入れ替わって鋸の歯が乱れる — 進行方向に
+    区間を並べ直してから継ぐ(2026-08-24)。
+    """
+    sp, tot = stair_spans(kd)
+    if sp is None:                    # 斜路 — 一様勾配(段は坂の割付の図で読む)
+        return [(c0, y0), (c1, y1)]
+    up = y1 > y0                      # c0 → c1 が上りか
+    C = (lambda w: c0 + (c1 - c0) * (w / tot)) if up else (lambda w: c0 + (c1 - c0) * (1.0 - w / tot))
+    seq = sp if up else list(reversed(sp))
+    out = []
+    for a, b, y in seq:
+        ca, cb = (C(a), C(b)) if up else (C(b), C(a))
+        if not out:
+            if abs(y - y0) > 1e-9: out.append((ca, y0))     # 端の蹴上
+            out.append((ca, y))
+        elif abs(y - out[-1][1]) > 1e-9:
+            out.append((ca, y))                             # 蹴上(垂直)
+        out.append((cb, y))
+    if abs(out[-1][1] - y1) > 1e-9: out.append((out[-1][0], y1))
+    return out
 
 def offset_poly_in(P, ins):
     """多角形を内側へ ins だけ寄せる(角は留め継ぎ)。板塀・柵を平場から機械生成するため。"""
@@ -509,11 +592,62 @@ def derive_runs(d, g):
     """
     ins = d["const"].get("inubashiri", 0.45) / d["const"]["ken"]
     by = {r["name"]: r for r in d["runs"]}
-    if "Ita_Keidai" in by:
-        by["Ita_Keidai"]["pts"] = [[round(u, 2), round(v, 2)]
-                                  for u, v in offset_poly_in(d["terraces"][0]["uv"], ins)]
-        by["Ita_Keidai"]["_"] = ("境内の外周の板塀。**平場の輪郭から0.25間(犬走り)内へ寄せて機械生成する** — "
-                                 "独立の座標を持たない(2026-08-23 検図 中-5)")
+    if "Ita_Keidai" not in by: return
+    uv = d["terraces"][0]["uv"]
+    off = offset_poly_in(uv, ins)
+    # ⚠ **回廊の基壇が東front を成すので、平場の東の張り出しには塀を回さない**
+    #    (2026-08-24 検図 高-1 — 機械化したとき楼門・回廊・男坂の前を塀が塞いだ)。
+    #    u>0 の頂点 = 回廊の前の辺。そこを落とし、南北の隅を直線で継ぐ。
+    n = len(uv)
+    drop = [i for i in range(n) if uv[i][0] > 0.0]
+    # ⚠ **落とした区間を弦で結んではならない** — 回廊の後ろに南北32間の塀が立ってしまう
+    #   (2026-08-24 検図 高-3 の後始末)。落とした先頭から始まる**開いた折れ線**にする。
+    start = (drop[-1] + 1) % n if drop else 0
+    pts = [off[(start + i) % n] for i in range(n) if uv[(start + i) % n][0] <= 0.0]
+    # 開口 ── 平場の縁に取り付く石段の頭と、勝手口
+    gaps = []
+    for k in d["kaidans"]:
+        if k["name"] == "向拝の階": continue
+        for q in ((k.get("pts") or [k["a"], k["b"]])[0], (k.get("pts") or [k["a"], k["b"]])[-1]):
+            if _near_poly(q, pts, 2.0):
+                gaps.append([round(q[0], 3), round(q[1], 3), round(k["w"] / 2.0 / d["const"]["ken"] + 0.2, 3)])
+    for gt in d["gates"]:
+        if _near_poly([gt["u"], gt["v"]], pts, 2.0):
+            gaps.append([gt["u"], gt["v"], round(gt["plan"]["du"] / 2.0 + 0.3, 3)])
+    # 開口の芯は**塀の線の上へ落とす** — 平場の縁に立つ門・石段は塀より 0.25間 外にあるので、
+    #   芯のままでは半幅が届かず開口が切れない(2026-08-24 検図 高-1 の後始末)
+    gaps = [[round(q[0], 3), round(q[1], 3), hw] for q, hw in
+            ((_proj_poly(gq[:2], pts), gq[2]) for gq in gaps)]
+    by["Ita_Keidai"]["pts"] = [[round(u, 3), round(v, 3)] for u, v in pts]
+    by["Ita_Keidai"]["gaps"] = gaps
+    by["Ita_Keidai"].pop("gapU", None); by["Ita_Keidai"].pop("gapHalf", None)
+    by["Ita_Keidai"]["_"] = ("境内の外周の板塀。**平場の輪郭から0.25間(犬走り)内へ寄せて機械生成する** — "
+                             "独立の座標を持たない(2026-08-23 検図 中-5)。"
+                             "⚠ **回廊の基壇が東front なので東の張り出しには回さない**。"
+                             "**開口は石段の頭と勝手口で自動に開く**(2026-08-24 検図 高-1)")
+
+
+def _proj_poly(q, pts):
+    """点を折れ線へ落とす。"""
+    best, bp = 1e9, q
+    for a, b in zip(pts, pts[1:]):
+        dx, dz = b[0] - a[0], b[1] - a[1]
+        L2 = dx * dx + dz * dz or 1.0
+        t = max(0.0, min(1.0, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dz) / L2))
+        p = [a[0] + dx * t, a[1] + dz * t]
+        dd = math.hypot(q[0] - p[0], q[1] - p[1])
+        if dd < best: best, bp = dd, p
+    return bp
+
+
+def _near_poly(q, pts, tol):
+    """点が折れ線から tol[間] 以内にあるか。"""
+    for a, b in zip(pts, pts[1:]):
+        dx, dz = b[0] - a[0], b[1] - a[1]
+        L2 = dx * dx + dz * dz or 1.0
+        t = max(0.0, min(1.0, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dz) / L2))
+        if math.hypot(q[0] - (a[0] + dx * t), q[1] - (a[1] + dz * t)) <= tol: return True
+    return False
 
 
 def terrace_poly_uv(te):
@@ -570,10 +704,12 @@ def slope_lands(d, near, nx, nz, top, edge_dv):
 
 def design_y(d, g, x, z):
     """設計地盤。段(平場)・石段の通路の中なら面の高さ、縁の外は法面、届かなければ None。"""
-    sy = _stair_y(d, g, x, z)
-    if sy is not None: return sy
+    # ⚠ **平場が石段より優先**(2026-08-24 検図 中-5)。逆にすると、坂の帯が平場へ食い込んだ分だけ
+    #    面に溝が掘れる(女坂の頭で最大2.19m)。坂は平場の外だけを受け持つ。
     for te in d["terraces"]:
         if in_poly((x, z), terrace_poly(te, g)): return te["y"]
+    sy = _stair_y(d, g, x, z)
+    if sy is not None: return sy
     # 法面(バッター)— 土留めの無い縁は 盛土1:1.5 / 切土1:1 で現地形へ摺り付ける(§3b)
     nat = dem_h(x, z)
     if nat is None: return None
@@ -714,6 +850,12 @@ def dousen_svg(d, kan, W=900.0):
                 if prev_y is not None and y > prev_y: rise += y - prev_y
                 prev_y = y
         rows.append((rt["name"], rt["kind"], L, rise, nstep, rt.get("_", "")))
+    # 山麓の勝手道(動線の一部。json は2本持つ)
+    for k in d.get("kattemichi", []):
+        o.append(PL([(pr.X(x), pr.Y(z)) for x, z in k["pts"]],
+                    stroke="var(--take)", sw=2.2, dash="7 4", op=0.85))
+        mx_, mz_ = k["pts"][len(k["pts"]) // 2]
+        o.append(T(pr.X(mx_) + 5, pr.Y(mz_), k["name"], fs=10, fill="var(--take)"))
     # 石段を重ねる(どこで段を越えるか)
     for k in d["kaidans"]:
         if k["name"] == "向拝の階": continue
@@ -722,6 +864,51 @@ def dousen_svg(d, kan, W=900.0):
     o.append(T(6, 15, kan + "　動線図 ─ 表参(参詣)／御成／勝手(賄)／社務", fs=12.5, fill="var(--dim)"))
     o.append(ENDSVG)
     return "\n".join(o), rows
+
+
+def _seg_x(p1, p2, p3, p4):
+    """線分 p1p2 と p3p4 の交点(無ければ None)。"""
+    x1, y1 = p1; x2, y2 = p2; x3, y3 = p3; x4, y4 = p4
+    den = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+    if abs(den) < 1e-12: return None
+    t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / den
+    u = ((x1 - x3) * (y1 - y2) - (y1 - y3) * (x1 - x2)) / den
+    if -1e-9 <= t <= 1 + 1e-9 and -1e-9 <= u <= 1 + 1e-9:
+        return (x1 + t * (x2 - x1), y1 + t * (y2 - y1))
+    return None
+
+
+def route_pierce(d, g):
+    """動線が囲い・棟・土留めを貫通していないか(スキル §3d)。
+
+    ⚠ **検査に落としていない不変条件は必ず壊れる。** 御成が回廊の躯体を通る欠陥は
+    2026-08-23 に直したのに 2026-08-24 の検図で再発していた。
+    """
+    obs = []
+    for r in d["runs"]:
+        if r["kind"] in ("透塀", "板塀", "柵", "回廊"):
+            for a, b in run_segs(r):
+                obs.append((r["name"], g.W(*a), g.W(*b)))
+    for w in d["terraceWalls"]:
+        for a, b in run_segs(w):
+            obs.append((w["name"], g.W(*a), g.W(*b)))
+    rects = [(m["name"], m["u0"], m["v0"], m["u0"] + m["du"], m["v0"] + m["dv"])
+             for m in d["munes"] if m["yaku"] != "接続"]
+    out = []
+    for rt in d.get("routes", []):
+        pts = [(q[0], q[1]) if rt.get("world") else g.W(q[0], q[1]) for q in rt["pts"]]
+        for i in range(len(pts) - 1):
+            for nm, a, b in obs:
+                if _seg_x(pts[i], pts[i + 1], a, b): out.append((rt["name"], nm))
+            for nm, u0, v0, u1, v1 in rects:
+                P = [g.W(u0, v0), g.W(u1, v0), g.W(u1, v1), g.W(u0, v1)]
+                for k in range(4):
+                    if _seg_x(pts[i], pts[i + 1], P[k], P[(k + 1) % 4]): out.append((rt["name"], nm)); break
+    seen, uniq = set(), []
+    for q in out:
+        if q in seen: continue
+        seen.add(q); uniq.append(q)
+    return uniq
 
 
 def routes_table(rows):
@@ -875,15 +1062,13 @@ def keidai_svg(d, u0, u1, v0, v1, title, W=900.0):
         o.append(lp.rect(gd["u0"], gd["v0"], gd["u1"], gd["v1"], fill="var(--shirasu)", op=0.9))
         o.append(T(lp.X((gd["u0"] + gd["u1"]) / 2), lp.Y((gd["v0"] + gd["v1"]) / 2) + 4,
                    gd["name"], fs=11, anchor="middle", fill="var(--dim)"))
-    # 板塀(折れ線)
+    # 板塀 ── **開口で切る**(2026-08-24 検図 高-1: 宣言した開口が図に一つも出ていなかった)
     for r in d["runs"]:
         if r["kind"] != "板塀": continue
-        pts = r.get("pts")
-        if pts:
-            o.append(PL([(lp.X(u), lp.Y(v)) for u, v in pts], stroke="var(--hei)", sw=1.8, dash="7 3"))
-        elif r["a"] is not None and inwin(r["a"], r["b"]):
-            o.append(LN(lp.X(r["a"][0]), lp.Y(r["a"][1]), lp.X(r["b"][0]), lp.Y(r["b"][1]),
-                        stroke="var(--hei)", sw=1.6, dash="6 3"))
+        if r.get("pts") is None and (r["a"] is None or not inwin(r["a"], r["b"])): continue
+        for a, b in run_segs(r):
+            o.append(LN(lp.X(a[0]), lp.Y(a[1]), lp.X(b[0]), lp.Y(b[1]),
+                        stroke="var(--hei)", sw=1.8, dash="7 3"))
     # 透塀
     for r in d["runs"]:
         if r["kind"] != "透塀": continue
@@ -1027,17 +1212,6 @@ def _profile(d, key):
     return [((p["s0"] + i * p["step"]) * L, h) for i, h in enumerate(p["h"])]
 
 
-def stair_zigzag(c0, c1, y0, y1, keri, fumi):
-    """断面の石段を踏面/蹴上のギザギザで返す(スキル §3c)。"""
-    n = max(1, int(round(abs(y1 - y0) / keri)))
-    out = [(c0, y0)]
-    for i in range(n):
-        c = c0 + (c1 - c0) * (i + 1) / n
-        y = y0 + (y1 - y0) * (i + 1) / n
-        out += [(c, out[-1][1]), (c, y)]
-    return out
-
-
 BATTER_ISHI = 0.20      # 石垣の勾配(垂直1に対する水平)。土の法面 batterFill/Cut とは別物
 WALL_T = 0.9            # 断面に描く土留めの見かけの厚み[m]
 _WSEG = [None]
@@ -1098,11 +1272,17 @@ def prof_pos(d, key):
 
 
 def series_at(series, c):
+    """折れ線の値。⚠ **幅ゼロの区間(蹴上の垂直)は飛ばす** — そこで拾うと
+    石段の面が一段ずれて読める(2026-08-24)。"""
+    deg = None
     for i in range(len(series) - 1):
         a, b = series[i], series[i + 1]
         if a[0] - 1e-9 <= c <= b[0] + 1e-9:
-            if abs(b[0] - a[0]) < 1e-9: return a[1]
+            if abs(b[0] - a[0]) < 1e-9:
+                if deg is None: deg = a[1]
+                continue
             return a[1] + (b[1] - a[1]) * (c - a[0]) / (b[0] - a[0])
+    if deg is not None: return deg
     return series[-1][1]
 
 
@@ -1138,25 +1318,6 @@ def design_series(d, g, key, prof, override=(), stairs=()):
         out = [(c, y) for c, y in out if not (min(a, b) - 1e-6 < c < max(a, b) + 1e-6)]
         out += stair_profile(a, b, ya, yb, kd)
     out.sort(key=lambda q: q[0])
-    return out
-
-
-def stair_profile(c0, c1, y0, y1, kd):
-    """石段の縦断。`flights`/`odoriba` があれば**段の連と踊り場**で割る(2026-08-23 検図 中-7)。"""
-    keri = kd.get("keri", 0.30); fumi = kd.get("fumi", 0.45)
-    fl = kd.get("flights"); od = kd.get("odoriba", 0.0)
-    sgnc = 1.0 if c1 >= c0 else -1.0
-    if not fl:
-        return stair_zigzag(c0, c1, y0, y1, keri, fumi)
-    out = [(c0, y0)]
-    c, y = c0, y0
-    dy = -keri if y1 < y0 else keri
-    for fi, fn in enumerate(fl):
-        for _ in range(fn):
-            c += sgnc * fumi; out.append((c, y))
-            y += dy; out.append((c, y))
-        if fi < len(fl) - 1:
-            c += sgnc * od; out.append((c, y))
     return out
 
 
@@ -1198,6 +1359,50 @@ def wall_steps(d, g, key, prof, design):
         if any(abs(q[0] - r[0]) < 1.2 for r in out): continue
         out.append(q)
     out.sort(key=lambda r: r[0])
+    return out
+
+
+def section_marks(d, g, key, prof):
+    """断面の切断線が**実際に切る**棟・囲い・門を拾う(2026-08-24 検図 中-1)。
+
+    ⚠ 注記に手で「何を切るか」を書くと腐る(6件中5件が線上に無かった)。
+    """
+    p = d["profiles"][key]
+    ax = p["axis"]
+    if ax not in ("EW", "NS"): return []
+    at = p["at"]
+    yk = d["planes"][0]["y"]
+    out = []
+    for m in d["munes"]:
+        if m["yaku"] == "接続": continue
+        a, b = g.W(m["u0"], m["v0"]), g.W(m["u0"] + m["du"], m["v0"] + m["dv"])
+        x0, x1 = sorted([a[0], b[0]]); z0, z1 = sorted([a[1], b[1]])
+        if ax == "EW":
+            if z0 - 1e-6 <= at <= z1 + 1e-6:
+                out.append((x0, x1, yk, m["name"], "社殿" if m["yaku"] == "社殿" else "堂"))
+        else:
+            if x0 - 1e-6 <= at <= x1 + 1e-6:
+                out.append((z0, z1, yk, m["name"], "社殿" if m["yaku"] == "社殿" else "堂"))
+    for r in d["runs"]:
+        if r["kind"] not in ("透塀", "板塀", "回廊"): continue
+        for a, b in run_segs(r):
+            A, B = g.W(*a), g.W(*b)
+            if ax == "EW":
+                if (A[1] - at) * (B[1] - at) > 0: continue
+                t = (at - A[1]) / (B[1] - A[1]) if abs(B[1] - A[1]) > 1e-9 else 0.0
+                c = A[0] + (B[0] - A[0]) * t
+            else:
+                if (A[0] - at) * (B[0] - at) > 0: continue
+                t = (at - A[0]) / (B[0] - A[0]) if abs(B[0] - A[0]) > 1e-9 else 0.0
+                c = A[1] + (B[1] - A[1]) * t
+            out.append((c - 0.4, c + 0.4, yk, r["kind"], "廊" if r["kind"] == "回廊" else "塀"))
+    for gt in d["gates"]:
+        q = g.W(gt["u"], gt["v"])
+        du, dv = gt["plan"]["du"] / 2.0 * d["const"]["ken"], gt["plan"]["dv"] / 2.0 * d["const"]["ken"]
+        if ax == "EW":
+            if abs(q[1] - at) <= dv: out.append((q[0] - du, q[0] + du, gt["sill"], gt["name"].split("(")[0], "門"))
+        else:
+            if abs(q[0] - at) <= du: out.append((q[1] - dv, q[1] + dv, gt["sill"], gt["name"].split("(")[0], "門"))
     return out
 
 
@@ -1628,7 +1833,7 @@ def fuchi_tally(d, g):
     """平場の縁を2m刻みで歩き、①法面で着地 / ②着地せず土留めが要る に分ける。"""
     cap = d["const"].get("featherCap", 12.0); bf = d["const"]["batterFill"]
     POLY = [(q[0], q[1]) for q in d["polygon"]]
-    land, need = [], []
+    land, need, walled = [], [], []
     for te in d["terraces"]:
         P = terrace_poly(te, g)
         for i in range(len(P)):
@@ -1643,7 +1848,8 @@ def fuchi_tally(d, g):
             for k in range(n + 1):
                 q = (a[0] + dx * L * k / n, a[1] + dz * L * k / n)
                 en = dem_h(*q)
-                if en is None or on_wall(d, g, *q): continue
+                if en is None: continue
+                if on_wall(d, g, *q): walled.append(te["y"] - en); continue
                 dv = te["y"] - en
                 if dv <= 0.05: continue
                 t, hit = 0.2, None
@@ -1662,14 +1868,14 @@ def fuchi_tally(d, g):
                     need.append((dv, back))
                 else:
                     land.append((hit, in_poly((q[0] + nx * hit, q[1] + nz * hit), POLY)))
-    return land, need
+    return land, need, walled
 
 
 def fuchi_svg(d, kan="其十"):
     """縁の始末の三型。①法面 ②土留め ③引き戻し を同じ縮尺で並べる。"""
     g = G(d)
-    land, need = fuchi_tally(d, g)
-    W, H = 900.0, 268.0
+    land, need, walled = fuchi_tally(d, g)
+    W, H = 900.0, 284.0
     o = _sv(W, H, "縁の始末")
     o.append(R(0, 0, W, H, fill="var(--paper2)"))
     CW, CH, TOP, SC = 276.0, 148.0, 58.0, 15.0        # 枠 / 上端 / 15px = 1m
@@ -1729,16 +1935,16 @@ def fuchi_svg(d, kan="其十"):
             o.append(T(X(1.5), Y(TOPY) - 6, "旧い縁", fs=10.5, fill="var(--shu)"))
             o.append(T(X(1.5), Y(TOPY - drop * 1.7), "落差", fs=10, fill="var(--shu)"))
             o.append(T(X(-3.6), Y(TOPY) - 7, "平場(縮めた)", fs=10.5, fill="var(--ink)"))
-        o.append(T(ox + 4, TOP + CH + 20, note, fs=10.5, fill="var(--ink)"))
+        for li, tx in enumerate(note.split("\n")):
+            o.append(T(ox + 4, TOP + CH + 20 + li * 15, tx, fs=10.5, fill="var(--ink)"))
 
-    bk = sorted(q[1] for q in need if q[1])
+    bk = sorted(q[1] for q in need if q[1]) or [3.5, 9.5]
     cell(0, "① 法面で摺り付ける", "外の斜面が 1:1.5 より緩い", 0.35, "slope",
-         "縁の標本 %d ／ 法尻が社地の外へ出るもの %d" % (len(land), sum(1 for q in land if not q[1])))
+         "縁の標本 %d\n法尻が社地の外へ出るもの %d" % (len(land), sum(1 for q in land if not q[1])))
     cell(1, "② 土留めで受ける", "外の斜面が 1:1.5 より急(崖の上)", 1.10, "wall",
-         "縁の標本 %d ／ 落差 最大 %.2f m" % (len(need), max([q[0] for q in need]) if need else 0))
+         "土留めが受けている縁 %d 標本\n露出は断面と基壇の展開で読む ／ 受け無しの縁 %d" % (len(walled), len(need)))
     cell(2, "③ 縁を肩まで引き戻す", "落差そのものを消す", 0.90, "back",
-         "②を消すのに要る引き戻し 中央 %.1f m ／ 最大 %.1f m" % (
-             (bk[len(bk) // 2] if bk else 0), (bk[-1] if bk else 0)))
+         "2026-08-24 に 25 標本をこの手で処理\n引き戻し 中央 3.5 m ／ 最大 9.5 m(ユーザーの裁定)")
     o.append(T(6, 15, kan + "　縁の始末 ─ 平場の輪郭をどう地面に着けるか", fs=12.5, fill="var(--dim)"))
     o.append(T(W - 6, 15, "破線 = 現地形 ／ 実線 = 設計地盤 ／ 縦横同率(1 m = %.0f px)" % SC,
                fs=10.5, anchor="end", fill="var(--dim)"))
@@ -1931,10 +2137,16 @@ def kaidan_table(d):
             + "".join(rows) + "</tbody></table></div>")
 
 
+def _coping_txt(w):
+    c = w.get("coping")
+    if isinstance(c, (int, float)): return "%.1f m" % c
+    return {"stair": "坂なり(石段に従う)"}.get(c, str(c))
+
+
 def walls_table(d):
     rows = []
     for w in d["terraceWalls"]:
-        cop = w["coping"] if not isinstance(w["coping"], str) else w["coping"]
+        cop = _coping_txt(w)
         sg = segs(w)
         loc = " → ".join("(%.1f, %.1f)" % (q[0], q[1]) for q in ([sg[0][0]] + [b for _, b in sg]))
         rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td>"
@@ -2025,8 +2237,8 @@ def fig(h, svg, cap=None, legend=None):
 
 KAN = ["其一", "其二", "其三", "其四", "其五", "其六", "其七", "其八", "其九", "其十",
        "其十一", "其十二", "其十三", "其十四", "其十五", "其十六", "其十七", "其十八",
-       "其十九", "其二十", "其二十一", "其二十二", "其二十三", "其二十四", "其二十五",
-       "其二十六", "其二十七", "其二十八"]
+       "其十九", "其二十", "其二十一", "其二十二", "「山麓」の節", "其二十四", "其二十五",
+       "其二十六", "其二十七", "其二十八", "其二十九", "其三十", "其三十一", "其三十二"]
 
 
 def main():
@@ -2065,7 +2277,9 @@ def main():
              % (area / TSUBO, kei, kei / TSUBO))
 
     # 其一 社地
-    plate(h, nx(), "社地", "北が上 ／ 境内 18,570 坪【B】")
+    _shachi = poly_area([(q[0], q[1]) for q in d["polygon"]]) / d["const"]["tsubo"]
+    plate(h, nx(), "社地",
+          "北が上 ／ 当図の多角形 %s 坪【P 実測】 ／ 記載値 18,570 坪【B】— 含意は未決" % "{:,.0f}".format(_shachi))
     fig(h, shachi_svg(d, KAN[n[0] - 1]),
         legend='<span style="color:var(--shu)">■ 社殿・透塀・参道</span>'
                '<span style="color:var(--roka)">■ 回廊</span>'
@@ -2107,7 +2321,7 @@ def main():
     fig(h, fuchi_svg(d, KAN[n[0] - 1]),
         cap="<b>平場の縁は宙に浮かせられない。</b>採れる手は三つしかなく、どれを採るかで"
             "切盛図の塗りも断面の描き方も変わる。<b>当図は①を既定にし、①が成り立たない所だけを</b>"
-            "<b>裁定に回す</b>(其二十七 未解決)。"
+            "<b>裁定に回す</b>(「未解決」の節)。"
             "<b>肩</b>とは、台地の平らな面が斜面に変わる折れ目のこと。"
             "<b>引き戻す</b>とは、平場の輪郭をその折れ目まで縮めて落差そのものを消すこと — "
             "壁も盛土も要らなくなる代わりに<b>境内が狭くなる</b>。"
@@ -2124,7 +2338,7 @@ def main():
 
     # 其二 境内 平面
     plate(h, nx(), "境内 平面", "世界軸グリッド ／ 1間 = 1.818 m ／ 原点 = 楼門の芯")
-    fig(h, keidai_svg(d, -57, 36, -35, 41, "其二　境内 平面"),
+    fig(h, keidai_svg(d, -57, 36, -35, 46, "%s　境内 平面" % KAN[n[0] - 1]),
         legend='<span style="color:var(--shu)">■ 社殿・門・透塀</span>'
                '<span style="color:var(--roka)">■ 回廊</span>'
                '<span style="color:var(--nagaya)">■ 附属堂・御供所</span>'
@@ -2134,7 +2348,7 @@ def main():
             "<b>山上の門は楼門一基</b>で、南北に長い御廻廊二棟の中央に立ち、回廊が境内の東frontを成す【S】。"
             "社殿を囲うのは透塀で、その正面に中門【S/A】。<b>附属堂九棟の銘はすべて崩し字で未判読</b>【?】 — "
             "名所図会の題箋(薬師・不動・庚申・鐘楼・鼓楼・宝蔵)のどれかである見込みだが、推定で名を与えない。")
-    fig(h, keidai_svg(d, 9, 35, -13, 13, "其二 附図　前庭 平面"),
+    fig(h, keidai_svg(d, 9, 35, -13, 13, "%s 附図　前庭 平面" % KAN[n[0] - 1]),
         cap="<b>附図 前庭 平面。</b>前庭に囲い" + _zentei_kakoi(d) + "・坂下の門・茶店の縁台4・"
             "参道の取り合いが集まる面。<b>北縁の東端の開口が参道の入り</b>で、"
             "そこに参道の階(段数は石段の表)が取り付く。<b>南縁は女坂の口で段違い</b>になり、"
@@ -2145,7 +2359,7 @@ def main():
 
     # 其三 社殿 平面
     plate(h, nx(), "社殿 平面", "透塀 東西23.5間 × 南北17間 = 周長 81 間 ／ 東線 = 袖8+中門1+袖8")
-    fig(h, keidai_svg(d, -49, -19, -12, 12, "其三　社殿 平面(拡大)"),
+    fig(h, keidai_svg(d, -49, -19, -12, 12, "%s　社殿 平面(拡大)" % KAN[n[0] - 1]),
         cap="<b>幣殿型権現造・本殿入母屋造。</b>本殿(方三間)—作り合い(一間・海老虹梁)—幣殿(三間×一間)"
             "—拝殿(七間×三間)—向拝(三間)。<b>幣殿型は向拝一間が通例だが、日枝は石の間型と同格の三間を採る</b>【A】。"
             "囲いは瑞垣のタイプX(正面に瑞垣門=中門を構え、門の両側から瑞垣=透塀が社殿を一周する)【A】。"
@@ -2215,6 +2429,11 @@ def main():
       "NEKIRIMORI": ("<b>左が北西・右が南東で、北東を見る斜め断面</b>。<b>最大切土(北東の小丘 h31.6)と"
                 "最大盛土級(御厩の平場の北東角)を1本で通す</b>。小丘は3.3m切って28.3へ、御厩の平場の縁は"
                 "1:1.5 の盛土法面で受ける(水平6.2m・社地内に収まる)。2026-08-22 検図の指摘で追加。"),
+      "NS545": ("<b>左が南・右が北で、西を見る断面</b>。<b>本殿の柱筋</b>を通す。"
+                "境内面28.3と自然地形の差(§B-1)が最も出る向きで、南列の下が盛土・北東が切土になる。"
+                "⚠ 2026-08-24 検図(中-2)で追加 — <b>社殿群を横断する南北断面が1本も無かった</b>。"),
+      "NS510": ("<b>左が南・右が北で、西を見る断面</b>。<b>中門と白洲</b>を通す。"
+                "⚠ 2026-08-24 検図(中-2)で追加。"),
       "EW817": ("<b>左が西・右が東で、北を見る断面</b>。<b>境内の南寄り</b>を切り、女坂の帯を横切る。"
                 "南列(観音堂・鼓楼・御供所)の下は自然地形が境内面より低いので、ここが<b>盛土の支配断面</b>。"),
       "EW905": ("<b>左が西・右が東で、北を見る断面</b>。<b>境内の北寄り</b>を切る。"
@@ -2223,12 +2442,19 @@ def main():
                 "<b>地形都合の構造物で史料の裏づけは無い</b>【U】。北端 v6.2 から北は参道の入りとして開ける。"
                 "露出高は図から読む(数値を文章に写さない)。"),
     }
-    unhandled = [q["profile"] for q in d["sections"]
-                 if q["profile"] not in ("EW847", "NS560", "ONNA2", "NS4827", "OTOKO_X",
-                                         "ZENTEI_NS", "ZENTEI_E", "WEST", "NEKIRIMORI", "EW817", "EW905")]
-    if unhandled:
-        # ⚠ profile を改名したのに分岐を直し忘れると断面が空になる(2026-08-23 に三度目)
-        raise SystemExit("断面の分岐に無い profile: %s" % unhandled)
+    # ⚠ 設計線は design_y から直に引くので「分岐の書き忘れで白紙」は起きなくなったが、
+    #   **profile の実在**と**平場を切る断面が造成を一つも持たない**ことは見張る(2026-08-24)
+    miss = [q["profile"] for q in d["sections"] if q["profile"] not in d["profiles"]]
+    if miss: raise SystemExit("profiles に無い断面: %s" % miss)
+    blank = []
+    for q in d["sections"]:
+        pr_ = _profile(d, q["profile"])
+        ds_ = design_series(d, g, q["profile"], pr_)
+        if not any(abs(y - series_at(pr_, c)) > 0.05 for c, y in ds_):
+            wp_ = prof_pos(d, q["profile"])
+            if any(in_poly(wp_(c), terrace_poly(te, g)) for c, _ in pr_ for te in d["terraces"]):
+                blank.append(q["kana"])
+    if blank: raise SystemExit("平場を切るのに造成が一つも無い断面: %s" % blank)
     for sec in d["sections"]:
         key = sec["profile"]
         prof = _profile(d, key)
@@ -2237,22 +2463,6 @@ def main():
         over, stairs, marks = [], [], []
         if key == "EW847":
             stairs = [(sx0, sx1, yk, yz, st)]
-            for m in d["munes"]:
-                if m["yaku"] not in ("社殿",): continue
-                marks.append((g.W(m["u0"], 0)[0], g.W(m["u0"] + m["du"], 0)[0], yk, m["name"], "社殿"))
-            for gt in d["gates"]:
-                marks.append((g.W(gt["u"] - gt["plan"]["du"] / 2.0, 0)[0],
-                              g.W(gt["u"] + gt["plan"]["du"] / 2.0, 0)[0],
-                              gt["sill"], gt["name"].split("(")[0], "門"))
-        elif key == "NS560":
-            uu = (-560.0 - g.x0) / ken
-            for m in d["munes"]:
-                if not (m["u0"] <= uu <= m["u0"] + m["du"]): continue
-                marks.append((g.W(0, m["v0"])[1], g.W(0, m["v0"] + m["dv"])[1], yk, m["name"],
-                              "社殿" if m["yaku"] == "社殿" else "堂"))
-            for v in (-8.5, 8.5):
-                z = g.W(0, v)[1]
-                marks.append((z - 0.4, z + 0.4, yk, "透塀", "塀"))
         elif key == "ONNA2":
             stairs = [(0.0, L_on, yz, yk, on)]
         elif key == "NS4827":
@@ -2273,6 +2483,8 @@ def main():
                       "腰石垣", "塀"),
                      (g.W(0, te_["b"][1])[1] - 0.4, g.W(0, te_["b"][1])[1] + 0.4, te_["coping"],
                       "参道の入り", "塀")]
+        # ⚠ **何を切るかは機械が拾う**(2026-08-24 検図 中-1 — 注記の6件中5件が線上に無かった)
+        marks = marks + section_marks(d, g, key, prof)
         design = design_series(d, g, key, prof, override=over, stairs=stairs)
         plate(h, nx(), sec["name"],
               ("%s = %g ／ %s" % (sec["axis"], sec["at"], sec["viewText"]))
@@ -2284,6 +2496,10 @@ def main():
 
     # 動線図(§3d)
     plate(h, nx(), "動線図", "参詣 ／ 御成 ／ 賄(勝手) ／ 社務")
+    pierce = route_pierce(d, g)
+    if pierce:
+        # ⚠ 検査に落としていない不変条件は必ず壊れる(御成が回廊を貫く欠陥は2度出た)
+        raise SystemExit("動線が構造物を貫通: %s" % pierce)
     dsvg, drows = dousen_svg(d, KAN[n[0] - 1])
     fig(h, dsvg,
         cap="<b>門を入ってからどう動く想定か。</b>石段を薄い帯で重ねてあるので、"
@@ -2319,7 +2535,7 @@ def main():
             "基壇の天端は境内面より高く一定だが、<b>平坦面の東縁が北で退く</b>ので"
             "北へ行くほど石垣が深くなる。<b>どこまで深くなるかは図で読む</b>(数値は設計値ファイルにのみ置く)。"
             "⚠ 回廊の長さを明治16年実測図の29間に採ったことの帰結で、"
-            "<b>基壇を深く積むか・平場を北へ補うか・回廊を短くするかは未決</b>(其二十四 未解決)。"
+            "<b>基壇を深く積むか・平場を北へ補うか・回廊を短くするかは未決</b>(「未解決」の節)。"
             "石の割付は CLAUDE.md の石垣モジュール(ピッチ1.80m・重ね0.20m)に合わせた目安。")
     h.append("</div>")
 
@@ -2373,7 +2589,8 @@ def main():
     h.append('<div class="box"><p><b>面積の総括</b>(§A-4 敷地全体ベース)── '
              '社地 <b>%.0f m²(%.0f 坪)</b> ／ 山上の平場 <b>%.0f m²</b> ／ '
              '建物の底面積 <b>%.0f m²</b> ／ <b>建蔽率 %.2f%%</b>。'
-             '⚠ 寺社なので <code>estate-types.md</code> の武家屋敷の建蔽率とは突き合わせない。</p></div>'
+             '⚠ 寺社なので <code>estate-types.md</code> の武家屋敷の建蔽率とは突き合わせない。'
+             '⚠ <b>分母は社僧十坊のうち9坊を内包した社地全体</b>で、<b>その9坊の建物は本図の対象外なので分子に入らない</b>(2026-08-24 検図 中-8)。社地の坪数そのものが考証中(「未解決」の節)。</p></div>'
              % (area, area / TSUBO, kei, _ma, _ma / area * 100))
     h.append('<p class="cap" style="margin-top:44px">@@PLATES@@。'
              '<b>組み直すときは図を落としていないか必ず数える</b>(過去に16図版→1図版へ落ちた前科がある)。</p>')

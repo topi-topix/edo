@@ -721,6 +721,7 @@ def graded_y(d, u, v, nat, walled=None):
     bc = d["const"].get("batterCut", 1.0)
     cap = d["const"].get("featherCap", 12.0)
     g = nat
+    floor = -1e9
     for t in d["terraces"]:
         if in_obb(t, u, v):
             continue                                   # 回転物の内側は段そのもの
@@ -753,6 +754,7 @@ def graded_y(d, u, v, nat, walled=None):
         if t["y"] - cap / bf > nat:
             continue                                   # cap の内で現地形に着地しない = 法面を出さない
         g = max(g, y2)                                 # 盛土の裾がこぼれる
+        floor = max(floor, y2)                         # 盛土が要求する下限
     for t in d["terraces"]:
         if in_obb(t, u, v):
             continue                                   # 回転物の内側は段そのもの
@@ -779,7 +781,10 @@ def graded_y(d, u, v, nat, walled=None):
         if t["y"] + cap / bc < nat:
             continue                                   # cap の内で現地形に着かない
         g = min(g, t["y"] + dm / bc)                   # 切土の法が日の目を見る
-    return g
+    # ⚠ 切土の法面が**盛土の要求する下限を割らない**ようにする。
+    #   低い段の切土が高い段の縁の下を掘り、縁に受けの無い段差を作っていた
+    #   (2026-08-24 検図: 書院の郭の南縁で 0.89m)。
+    return max(g, floor)
 
 
 def cutfill_svg(d, ter):
@@ -2157,39 +2162,81 @@ def kenpei(d, area):
                tot, tot / TSUBO, area, area / TSUBO, 100.0 * tot / area)), 100.0 * tot / area
 
 
-def outside_check(d, dem):
-    """**区画の外へ造成がこぼれていないか**を、世界座標 DEM(区画外も値を持つ)で検める。
+def _dem_at(dem, x, z):
+    """世界座標の DEM を双一次で読む。"""
+    fx = (x - dem["x0"]) / dem["step"]; fz = (z - dem["z0"]) / dem["step"]
+    ix, iz = int(math.floor(fx)), int(math.floor(fz))
+    if ix < 0 or iz < 0 or ix + 1 >= dem["nx"] or iz + 1 >= dem["nz"]:
+        return None
+    q = [dem["h"][iz][ix], dem["h"][iz][ix + 1], dem["h"][iz + 1][ix], dem["h"][iz + 1][ix + 1]]
+    if any(v is None for v in q):
+        return None
+    tx, tz = fx - ix, fz - iz
+    return (q[0] * (1 - tx) + q[1] * tx) * (1 - tz) + (q[2] * (1 - tx) + q[3] * tx) * tz
 
-    ⚠ `doi_terrain.json` は区画外が null なので、それで測ると構造的に 0 件になる。
-    測れないデータで検証しない — 2026-08-24 の検図で 387.9m²/247m³ の波及が見つかった。
+
+def edge_step_check(d, dem):
+    """**段の縁に受けの無い垂直段差が残っていないか**を測る。`_batter` の宣言そのものの検査。
+
+    ⚠ 検査を書いたら**感度試験で必ず確かめる**。この関数の前身2つはどちらも恒真だった —
+    ①区画外で `graded_y` が現地形を返すので差が定義上ゼロ、
+    ②区画の辺は全て run か隣家の塀が載るので除外で空になる(2026-08-24 検図第6巡)。
+    いまは**区画の内側の、段の縁**を測る。土留めが載る区間と、隣家が持つ区画の辺は除く
+    (そこは構造が受ける)。
     """
     if dem is None:
-        return ["⚠ doi_dem.json が無いので区画外の検査ができない"]
+        return ["⚠ doi_dem.json が無いので段の縁を測れない"]
     gr = RGrid(d)
     we = {t["name"]: walled_edges(d, t) for t in d["terraces"]}
-    x0, z0, stp = dem["x0"], dem["z0"], dem["step"]
-    worst = 0.0; area = 0.0; vol = 0.0; spot = None
-    for iz in range(dem["nz"]):
-        for ix in range(dem["nx"]):
-            n = dem["h"][iz][ix]
-            if n is None:
-                continue
-            x, z = x0 + ix * stp, z0 + iz * stp
-            u, v = gr.L(x, z)
-            if in_parcel(d, u, v):
-                continue
-            g = graded_y(d, u, v, n, we)
-            if g is None:
-                continue
-            dz = abs(g - n)
-            if dz > 0.05:
-                area += stp * stp; vol += dz * stp * stp
-                if dz > worst:
-                    worst = dz; spot = (u, v)
-    if worst <= 0.05:
-        return []
-    return ["区画の外へ造成が出ている: %.0f m² / %.0f m³ / 最大 %.2fm (グリッド %.1f, %.1f)"
-            % (area, vol, worst, spot[0], spot[1])]
+    lim = d["const"]["stepAbsorbMax"]
+    bad = []
+    for t in d["terraces"]:
+        for edge in ("u0", "u1", "v0", "v1"):
+            lo, hi = (t["v0"], t["v1"]) if edge in ("u0", "u1") else (t["u0"], t["u1"])
+            line = t[edge]
+            sgn = -1.0 if edge in ("u0", "v0") else 1.0
+            worst = 0.0; spot = None
+            n = max(6, int(hi - lo))
+            for i in range(n + 1):
+                q = lo + (hi - lo) * i / float(n)
+                if _walled(we[t["name"]], edge, q):
+                    continue
+                if edge in ("u0", "u1"):
+                    ui, vi = line - sgn * 0.06, q
+                    uo, vo = line + sgn * 0.06, q
+                else:
+                    ui, vi = q, line - sgn * 0.06
+                    uo, vo = q, line + sgn * 0.06
+                gi = design_y(d, ui, vi)
+                if gi is None or abs(gi - t["y"]) > 0.01:
+                    continue
+                if design_y(d, uo, vo) is not None:
+                    continue                        # 隣が段 — adjacency_check の担当
+                wx, wz = gr.W(uo, vo)
+                no = _dem_at(dem, wx, wz)
+                if no is None or not in_parcel(d, uo, vo):
+                    continue                        # 区画の外 — 隣家の塀が受ける
+                go = graded_y(d, uo, vo, no, we)
+                if go is None:
+                    continue
+                if abs(gi - go) > abs(worst):
+                    worst = gi - go; spot = (uo, vo)
+            if abs(worst) > lim and spot:
+                bad.append("段の縁に受けの無い段差 %s の %s: %+.2fm (グリッド %.1f, %.1f)"
+                           % (t["name"], edge, worst, spot[0], spot[1]))
+    return bad
+
+
+def _walled_at(d, we, u, v):
+    """(u, v) の最寄りの段の縁に土留めが載っているか(粗い判定)。"""
+    for t in d["terraces"]:
+        if not in_obb(t, u, v, 0.6):
+            continue
+        for (edge, lo, hi) in we[t["name"]]:
+            q = v if edge in ("u0", "u1") else u
+            if lo - 0.6 <= q <= hi + 0.6:
+                return True
+    return False
 
 
 def plane_check(d):
@@ -2789,7 +2836,7 @@ def main():
         print("⚠ 矩形の重なり %d 件:" % len(bad))
         for b in bad:
             print("   ", b)
-    pbad = plane_check(d) + outside_check(d, load_terrain(os.path.join(DOC, "doi_dem.json")))
+    pbad = plane_check(d) + edge_step_check(d, load_terrain(os.path.join(DOC, "doi_dem.json")))
     if pbad:
         print("⚠ 面のはみ出し %d 件:" % len(pbad))
         for b in pbad:

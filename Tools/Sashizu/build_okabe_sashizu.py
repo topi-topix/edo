@@ -308,6 +308,33 @@ def run_base(d, r):
     return _BASE[key]
 
 
+def _joints(d):
+    """天端が隣り合う run の対。(1)同じ辺の中の継ぎ目 (2)頂点をまたぐ隅
+    — 隅は『辺の終点で終わる run』と『次に当家が建てる辺の始点から始まる run』を結ぶ。"""
+    P = d["polygon"]; n = len(P)
+
+    def el(i):
+        return math.hypot(P[(i + 1) % n][0] - P[i][0], P[(i + 1) % n][1] - P[i][1])
+    out = []
+    for a in d["runs"]:
+        for b in d["runs"]:
+            if a is b:
+                continue
+            if a["edge"] == b["edge"] and 0 <= b["s0"] - a["s1"] < 3.0:
+                out.append((a, b))
+    own = sorted(set(r["edge"] for r in d["runs"]))
+    for a in d["runs"]:
+        if abs(a["s1"] - el(a["edge"])) > 0.3:
+            continue
+        nxt = own[(own.index(a["edge"]) + 1) % len(own)]
+        if (nxt - a["edge"]) % n != 1:
+            continue                       # 間に当家が建てない辺が挟まる隅は結ばない
+        for b in d["runs"]:
+            if b["edge"] == nxt and b["s0"] < 0.3:
+                out.append((a, b))
+    return out
+
+
 def rseat(r, s):
     """run の天端。seat0→seat1 の一直線(水平のときは両端が同値)。"""
     a = r.get("seat0", r["seat"]); b = r.get("seat1", r["seat"])
@@ -2362,7 +2389,7 @@ def main():
                '<span style="color:var(--shu)">● 表門 ／ ▪ 通用口 ／ ▨ 石段 ／ ┄ 断面</span>',
         cap="<b>敷地は水平な面3枚(%s)+造成しない斜面。</b>"
             "<b>面の高さと縁の位置は江戸期の復元地盤のベンチと法肩から決めた</b> — 全面が"
-            "[菊地2003] の 1〜4m に収まる。門前面は自然面にほぼ素で載る(切盛0.5m以下)。"
+            "[菊地2003] の 1〜4m に収まる。**棟が載る所の |設計面 − 江戸期地盤| は全24物件で 0.5m 以内**(規則3)。"
             "<b>東の崖・北東のランプ・南西の谷・西斜面は造成しない</b> — "
             "樹林と庭のまま、生活面の縁に竹垣。斜面の植生は松+雑木(竹林にしない=[橋本・堀1998])。"
             "<b>囲いの天端は run ごとに一直線</b> — 面の縁になる区間は水平に面の高さで通し、"
@@ -2470,7 +2497,7 @@ def main():
     fig(h, goten_plan(d, -44, 26, -2, 26, "門前面 平面",
                       "土蔵は門まわり([高知2000]A の火消道具蔵・御駕籠蔵)。"
                       "家臣長屋は練塀の内側の帯([西川1959]A)"),
-        cap="<b>自然のベンチ13.3にそのまま載る面</b>(切盛0.5m以下)。"
+        cap="<b>自然のベンチ13.3に載る面</b>(段別の切盛量は其三の段別表)。"
             "門の敷居は道なり+0.2 の 12.25 で面より1.05m低い。"
             "<b>門口(u −5〜+5)は面から切り欠いてあり</b>、そこが門を入った叩き — "
             "石段 K_Mon 4段+踊り場1.5間(走り4.53m)で 13.3 へ受ける。")
@@ -2582,12 +2609,8 @@ def main():
              '段は run の継ぎ目と隅でだけ落ち、最大 %.2fm(隅を含む)。犬走り %.2fm。</p>'
              % (len(set(r["edge"] for r in d["runs"])),
                 "・辺".join(str(e) for e in blankE),
-                max([0.0] + [abs(rseat(b, b["s0"]) - rseat(a, a["s1"]))
-                             for a in d["runs"] for b in d["runs"] if a is not b
-                             and ((a["edge"] == b["edge"] and abs(a["s1"] - b["s0"]) < 3.0)
-                                  or (b["s0"] < 0.3 and abs(a["s1"] - math.hypot(
-                                      P[(a["edge"] + 1) % len(P)][0] - P[a["edge"]][0],
-                                      P[(a["edge"] + 1) % len(P)][1] - P[a["edge"]][1])) < 0.3))]),
+                max([0.0] + [abs(rseat(y, y["s0"]) - rseat(x, x["s1"]))
+                             for x, y in _joints(d)]),
                 d["const"]["inubashiri"]))
     h.append("</div>")
 

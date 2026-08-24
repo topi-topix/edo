@@ -59,6 +59,25 @@ Assets の 249MB・825ファイルは来ない)。ブランチも分かれるの
 python3 Tools/Session/edo_session.py start matsudaira --unity --note "松江松平の実装"
 ```
 
+### Blender で部材を作るとき
+
+```bash
+python3 Tools/Session/edo_session.py start goten --blender --note "御殿の屋根"
+```
+
+⚠ **Blender 同士は競合しない。** `blender --background` の使い捨てプロセスなので、
+Unity のような「実体が1つ」という制約は無い。それでもメインに留まる理由は2つ。
+
+- ⛔ **sparse worktree では成立しない。** `vklib.py` が在庫キットを**メインの絶対パスで
+  直書き**しており、そのキット(Japanese Village Kit / Japanese Castle / edogoyomi)は
+  **再配布不可で gitignore** なので worktree に来ない。出力先 `Assets/Edo/Models/` も無い
+- ⚠ **出力が共有資産。** 同じ部材を2セッションが同時に焼くと**後勝ちで上書き**される。
+  `build_goten_roof.py -- rebuild` は `Roofs/` の全数を焼き直すので特に危ない
+  → `assets` 資源で直列化する
+
+⚠ 焼いたら Unity で **Edo ▸ 御殿 ▸ …マテリアルをremap** を走らせること
+(FBX は材質名しか運ばないので、やらないと白い模型になる)。
+
 ⚠ **Unity は実体が1つ**。シーン・プレハブ・地形を共有し、**地形の編集は Undo の外**にある。
 `unity` を取れるのは1セッションだけで、取れなければ待つ。
 

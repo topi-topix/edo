@@ -21,7 +21,18 @@ import argparse, fnmatch, json, os, re, subprocess, sys, time
 ROOT = os.environ.get("CLAUDE_PROJECT_DIR") or subprocess.run(
     ["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True,
     cwd=os.path.dirname(os.path.abspath(__file__))).stdout.strip() or os.getcwd()
-LOCKS = os.path.join(ROOT, ".claude", "locks")
+
+
+def _common_git_dir():
+    """全 worktree が共有する .git のパス。⚠ 登録簿はここに置く —
+    worktree ごとに `.claude/locks` を持つと、隣の worktree の claim が見えない。"""
+    r = subprocess.run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+                       capture_output=True, text=True, cwd=ROOT)
+    d = r.stdout.strip()
+    return d if d else os.path.join(ROOT, ".git")
+
+
+LOCKS = os.path.join(_common_git_dir(), "edo-locks")
 TTL_MIN = 45.0
 RESOURCES = ("unity", "terrain", "git-index")
 
@@ -324,6 +335,70 @@ def cmd_commit(a):
     return r.returncode
 
 
+SPARSE = ["docs", "Tools", ".claude"]
+
+
+def _wt_root():
+    return os.path.join(os.path.dirname(_common_git_dir()), ".claude", "worktrees")
+
+
+def cmd_worktree(a):
+    """指図作業用の **sparse worktree** を切る。
+
+    Assets(249MB・825ファイル)を落として docs/Tools だけを置く。
+    ⚠ **Unity は開けない**(パックが gitignore で来ない)。計測が要るなら
+    メインのチェックアウトで `unity` 資源を取ってから測ること。
+    """
+    name = re.sub(r"[^A-Za-z0-9_-]", "-", a.name)
+    branch = a.branch or ("sashizu/%s" % name)
+    path = os.path.join(_wt_root(), name)
+    if os.path.exists(path):
+        print("既にある: %s" % path)
+    else:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        base = a.base or subprocess.run(["git", "-C", ROOT, "rev-parse", "--abbrev-ref", "HEAD"],
+                                        capture_output=True, text=True).stdout.strip()
+        cmd = ["git", "-C", ROOT, "worktree", "add", "--no-checkout", path]
+        ex = subprocess.run(["git", "-C", ROOT, "rev-parse", "--verify", "-q", branch],
+                            capture_output=True, text=True).returncode == 0
+        cmd += ([branch] if ex else ["-b", branch, base])
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        if r.returncode:
+            print(r.stderr, file=sys.stderr)
+            return 1
+        if not a.full:
+            subprocess.run(["git", "-C", path, "sparse-checkout", "init", "--cone"], check=True)
+            subprocess.run(["git", "-C", path, "sparse-checkout", "set"] + SPARSE, check=True)
+        subprocess.run(["git", "-C", path, "checkout"], check=False)
+    n = len(subprocess.run(["git", "-C", path, "ls-files"], capture_output=True,
+                           text=True).stdout.split())
+    print("worktree: %s\n  ブランチ %s ／ ファイル %d 件%s" % (
+        path, branch, n, "" if a.full else "(sparse: %s)" % " ".join(SPARSE)))
+    print("  ⚠ ここでは Unity は開けない。計測はメインのチェックアウトで `claim --resources unity`")
+    print("  この worktree でセッションを始めるには:")
+    print("    cd %s" % path)
+    return 0
+
+
+def cmd_worktrees(a):
+    r = subprocess.run(["git", "-C", ROOT, "worktree", "list", "--porcelain"],
+                       capture_output=True, text=True).stdout
+    cur, rows = {}, []
+    for ln in r.split("\n"):
+        if not ln.strip():
+            if cur: rows.append(cur); cur = {}
+            continue
+        k, _, v = ln.partition(" ")
+        cur[k] = v
+    if cur: rows.append(cur)
+    main_wt = os.path.dirname(_common_git_dir())
+    for w in rows:
+        wp = w.get("worktree", "")
+        tag = "メイン(Unity はここ)" if os.path.realpath(wp) == os.path.realpath(main_wt) else "sparse"
+        print("  %-58s %-22s %s" % (wp, w.get("branch", "(detached)").replace("refs/heads/", ""), tag))
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description="司令塔 — 並行セッションの調停")
     ap.add_argument("--session"); ap.add_argument("--ttl", type=float, default=TTL_MIN)
@@ -339,6 +414,11 @@ def main():
     sub.add_parser("check-unity").set_defaults(fn=cmd_check_unity)
     p = sub.add_parser("steal"); p.add_argument("what", nargs="+")
     p.add_argument("--reason", default=""); p.set_defaults(fn=cmd_steal)
+    p = sub.add_parser("worktree"); p.add_argument("name")
+    p.add_argument("--branch"); p.add_argument("--base")
+    p.add_argument("--full", action="store_true", help="Assets も含める(Unity を開くなら)")
+    p.set_defaults(fn=cmd_worktree)
+    sub.add_parser("worktrees").set_defaults(fn=cmd_worktrees)
     p = sub.add_parser("commit"); p.add_argument("paths", nargs="+")
     p.add_argument("-m", "--message", required=True); p.set_defaults(fn=cmd_commit)
     a = ap.parse_args()

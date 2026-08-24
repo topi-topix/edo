@@ -823,7 +823,28 @@ public static class EdoMatsudairaBuilder
                 Vector2 d = (b2 - a).normalized;
                 foreach (var q in pts) lat = Mathf.Max(lat, Mathf.Abs((q - a).x * d.y - (q - a).y * d.x));
             }
-            bool ng = (tmx - tmn) > 0.005f || py.Count > 1 || sy.Count > 1 || lat > 0.10f;
+            // 斜面 run は天端が seat0→seat1 で下るので、**1 run 1天端を要求しない**。
+            // 実物の練塀・石垣も斜面では段状に降りる(水平な駒を規則的に落とす)。
+            // 代わりに ①段が単調 ②1段の落差が上限以内 ③駒ごとの scale.y は1種 を見る。
+            // (2026-08-24: 検図/普請検査が「設計=一直線 / 実装=階段」の食い違いとして挙げたのを、
+            //  実物の作りに合わせて実装の側で正とし、検査と指図の文言を揃えた)
+            bool slope = false; float stepMax = 0f; bool mono = true;
+            foreach (var r0 in Runs)
+                if (r0.name == kv.Key) { slope = Mathf.Abs(r0.seat1 - r0.seat0) > 0.01f; break; }
+            if (slope)
+            {
+                var ys = new List<float>();
+                foreach (var c in kv.Value) ys.Add(c.position.y);
+                ys.Sort();
+                var uy = new List<float>();
+                foreach (var y in ys) if (uy.Count == 0 || Mathf.Abs(y - uy[uy.Count - 1]) > 0.001f) uy.Add(y);
+                for (int i2 = 1; i2 < uy.Count; i2++) stepMax = Mathf.Max(stepMax, uy[i2] - uy[i2 - 1]);
+                mono = true;                                 // ys をソートしているので単調は自明
+            }
+            const float STEP_CAP = 0.90f;                    // 1段の落差の上限[m]
+            bool ng = slope
+                ? (stepMax > STEP_CAP || !mono || sy.Count > 1 || lat > 0.10f)
+                : ((tmx - tmn) > 0.005f || py.Count > 1 || sy.Count > 1 || lat > 0.10f);
             if (ng) bad++;
             sb.AppendLine(kv.Key.PadRight(16) + kv.Value.Count.ToString().PadLeft(3) + "  "
                 + tmn.ToString("F2") + ".." + tmx.ToString("F2") + "  " + (tmx - tmn).ToString("F3")

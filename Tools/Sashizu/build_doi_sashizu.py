@@ -1275,8 +1275,10 @@ def fix_sode(d):
         gk = "gapV" if vert else "gapU"
         line = w["a"][0] if vert else w["a"][1]
         g0, g1 = w[gk] - w["gapHalf"], w[gk] + w["gapHalf"]
-        hi_t = max((t for t in d["terraces"]
-                    if abs(t["y"] - w["coping"]) < 0.01), key=lambda t: t["y"], default=None)
+        # ⚠ **同高の段は複数ある。** `max(...)` は同値のとき**先頭を返す**ので、
+        #   8開口のうち6開口で誤った段を選び、袖が「振れる先が無い」と誤判定されていた
+        #   (2026-08-25 検図10巡 高-1)。**同高の段の集合にして、どれかが振れ先を含めば可**。
+        hi_ts = [t for t in d["terraces"] if abs(t["y"] - w["coping"]) < 0.01]
         room = None
         for gg in (g0, g1):
             for sgn in (1.0, -1.0):
@@ -1286,7 +1288,7 @@ def fix_sode(d):
                     pu, pv = gg, line + sgn * ln
                 if not in_parcel(d, pu, pv):
                     continue
-                if hi_t is not None and not in_obb(hi_t, pu, pv, 1e-9):
+                if hi_ts and not any(in_obb(t, pu, pv, 1e-9) for t in hi_ts):
                     continue
                 if any(in_obb(m, pu, pv, 1e-9) for m in d["munes"] + d.get("service", [])):
                     continue                       # 棟の中へは振れない
@@ -1297,6 +1299,10 @@ def fix_sode(d):
                 break
         if room is None or room < 0:
             w["_sodeRoom"] = [round(ln, 3)]
+            # ⚠ **算出値は毎回作り直す。** 判定が不成立でも古い `sode` を消していなかったため、
+            #   前の版が書いた `sode` が正典に残り、`opening_fit_check` を素通りさせていた。
+            #   **「全検査0件」が古い値に支えられていた**(2026-08-25 検図10巡 高-1)。
+            w.pop("sode", None)
             continue
         w.pop("_sodeRoom", None)
         w["sode"] = {"len": round(ln, 3), "drop": round(dm, 2),
@@ -3870,13 +3876,82 @@ def fig(h, svg, cap=None, legend=None):
         h.append('<p class="cap">%s</p>' % cap)
 
 
+# 生成器が正典へ書き戻す欄。**往復試験**はここを全消去して組み直す。
+# ⚠ **「その物が在ること」は入力、「その寸法」が出力。** 両方消すと生成器が処理を飛ばし、
+#   偽陽性になる(開口の有無 `gapU`/`gapV`、階段廊下であること `links.steps` は入力側)。
+#   芯や幅は毎回上書きされるので、消さなくても古い値は検出できる。
+GEN_FIELDS = {
+    "terraceWalls": ("drop", "s", "sode", "_sodeRoom", "gapHalf", "_pitch"),
+    "kaidans": ("steps", "run", "keriActual"),
+    "links": ("keriActual",),
+}
+
+
+def roundtrip_check(raw, pipeline):
+    """**生成器が書く欄を全消去 → 再生成 → 正典と一致するか。**
+
+    ⚠ 入力側を動かす感度試験では、**生成器が消さない出力欄は どの変異でも生き延びる**。
+    2026-08-25 の検図10巡で、前の版が書いた `sode` が2本の壁に残り続け、
+    `opening_fit_check` と `adjacency_check` を黙らせていた
+    — 「機械検査すべて0件」が**古い値に支えられていた**。
+    入力を動かす試験は10通りすべてこれを素通りした。**要るのはこの往復試験。**
+    """
+    import copy
+    stripped = copy.deepcopy(raw)
+    for coll, keys in GEN_FIELDS.items():
+        for o in stripped.get(coll, []):
+            for k in keys:
+                o.pop(k, None)
+    stripped.pop("boundaryPlinth", None)
+    rebuilt = pipeline(stripped)
+    bad = []
+    for coll, keys in GEN_FIELDS.items():
+        by = dict((o["name"], o) for o in rebuilt.get(coll, []))
+        for o in raw.get(coll, []):
+            r = by.get(o["name"])
+            if r is None:
+                bad.append("%s %s が組み直しで消える" % (coll, o["name"]))
+                continue
+            for k in keys:
+                a, b = o.get(k), r.get(k)
+
+                def _num(q):            # int と float を同じ物として比べる
+                    return [_num(x) for x in q] if isinstance(q, list) else (
+                        float(q) if isinstance(q, (int, float)) and not isinstance(q, bool) else q)
+                a, b = _num(a), _num(b)
+                if isinstance(a, float) and isinstance(b, float):
+                    if abs(a - b) > 1e-6:
+                        bad.append("%s %s.%s 正典=%.4f 組み直し=%.4f" % (coll, o["name"], k, a, b))
+                elif json.dumps(a, sort_keys=True, ensure_ascii=False) != \
+                        json.dumps(b, sort_keys=True, ensure_ascii=False):
+                    bad.append("%s %s.%s 正典=%s 組み直し=%s"
+                               % (coll, o["name"], k,
+                                  json.dumps(a, ensure_ascii=False)[:60],
+                                  json.dumps(b, ensure_ascii=False)[:60]))
+    na, nb = len(raw.get("boundaryPlinth", [])), len(rebuilt.get("boundaryPlinth", []))
+    if na != nb:
+        bad.append("boundaryPlinth の本数 正典=%d 組み直し=%d" % (na, nb))
+    return bad
+
+
 def main():
-    d = fix_kaidans(json.load(open(JSON, encoding="utf-8")))
-    d = fix_walls(d, load_terrain(os.path.join(DOC, "doi_terrain.json")))
-    d = snap_openings(d)                # 開口の縁を石垣のピッチ格子へ・芯は通る物から
-    d = fix_sode(d)                     # 開口の両端の袖石垣
-    d = fix_boundary_plinth(d, load_terrain(os.path.join(DOC, "doi_dem.json")))   # 隣家の辺に沿う基壇石垣
-    write_back(d)                       # 算出した値は**正典へ戻す**(図だけが新しい状態を作らない)
+    _raw = json.load(open(JSON, encoding="utf-8"))
+
+    def _pipeline(x):
+        x = fix_kaidans(x)
+        x = fix_walls(x, load_terrain(os.path.join(DOC, "doi_terrain.json")))
+        x = snap_openings(x)            # 開口の縁を石垣のピッチ格子へ・芯は通る物から
+        x = fix_sode(x)                 # 開口の両端の袖石垣
+        x = fix_boundary_plinth(x, load_terrain(os.path.join(DOC, "doi_dem.json")))
+        return x
+
+    rtbad = roundtrip_check(_raw, _pipeline)
+    d = _pipeline(json.load(open(JSON, encoding="utf-8")))
+    write_back(d)
+    if rtbad:
+        print("⚠ 往復試験の不一致 %d 件 — **正典に生成器が再現できない値が残っている**:" % len(rtbad))
+        for b in rtbad:
+            print("   ", b)                       # 算出した値は**正典へ戻す**(図だけが新しい状態を作らない)
     raw = open(MD, encoding="utf-8").read()
     blk, miss = sources_block(raw)
     raw = raw.replace("{{典拠一覧}}", blk)

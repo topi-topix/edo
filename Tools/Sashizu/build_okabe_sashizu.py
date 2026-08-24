@@ -67,7 +67,7 @@ def inline(s):
     s = re.sub(r'</?span[^>]*>', "", s)
     s = html.escape(s, quote=False)
     s = re.sub(r"`([^`]+)`", r"<code>\1</code>", s)
-    s = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", s)
+    s = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", s, flags=re.S)
     s = re.sub(r"【([^】]*確度 ?[SABPU?][^】]*)】", r'<span class="cert">【\1】</span>', s)
     s = re.sub(r"【(写真=A[^】]*)】", r'<span class="cert">【\1】</span>', s)
     return s
@@ -2110,7 +2110,9 @@ def perimeter_dev_svg(d):
 
 # ---------------------------------------------------------------- 其七 表門まわり
 def gate_svg(d):
-    """長屋門の正面見付(概略)。躯体の中央に門口、両側に出格子番所、両袖は練塀へ突き付ける。"""
+    """長屋門の正面見付(概略)。躯体の中央に門口、両側に番所(呼称は json `gate.plan.bansho.kind`
+    から引く — 2026-08-24 考証: 図だけ「出格子番所」= 1〜5万石の小大名格の呼称になっていた)、
+    両袖は練塀へ突き付ける。"""
     gp = d["gate"]["plan"]
     monW, monH, monD = gp["monW"], gp["monH"], gp["monD"]
     wing = 12.0
@@ -2143,8 +2145,9 @@ def gate_svg(d):
         for i in range(8):
             xx = X(cx - 1.4 + i * 0.36)
             g.append(LN(xx, Y(2.3), xx, Y(0.7), "var(--ink)", 0.8, op=0.75))
-    g.append(T(X(wing + monW * 0.22), Y(2.8), "出格子番所", "anS2", "middle"))
-    g.append(T(X(wing + monW * 0.78), Y(2.8), "出格子番所", "anS2", "middle"))
+    bnm = d["gate"]["plan"].get("bansho", {}).get("kind", "番所")
+    g.append(T(X(wing + monW * 0.22), Y(2.8), bnm, "anS2", "middle"))
+    g.append(T(X(wing + monW * 0.78), Y(2.8), bnm, "anS2", "middle"))
     g.append(LN(0, GY, W, GY, "var(--ink)", 1.6))
     g.append(T(4, GY + 16, "三べ坂前身の南北道。敷居=門前面の地盤=道なり", "anS2", "start"))
     g.append(T(4, 15, "正面見付(概略・等倍)。型式=現存実例2件[山脇]A・[西澄寺]A ＋ 格式階梯B/実在と被災=安政地震の記録(S)", "anS"))
@@ -2202,7 +2205,7 @@ def planes_table(d):
                     % (chip, p["name"], ("%.1f m" % p["y"]) if p["y"] is not None else "地形なり",
                        "・".join(TERR_JA.get(t, t) for t in p["terraces"]) or "—",
                        "・".join("<code>%s</code>" % r for r in p["runs"]),
-                       inline(p.get("cert", "")), p.get("note", "")))
+                       inline(p.get("cert", "")), inline(p.get("note", ""))))
     return ("<h3>面と縁の対応</h3><div class='tw'><table><thead><tr><th>面</th><th>高さ</th>"
             "<th class='note'>段(造成)</th><th class='note'>縁の囲い(天端=面の高さ)</th>"
             "<th class='note'>確度(高さの根拠)</th><th class='note'>注記</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>")
@@ -2244,7 +2247,7 @@ def runs_table(d):
                        ("%.2f" % y0r) if abs(y0r - y1r) < 0.02 else ("%.2f → %.2f" % (y0r, y1r)),
                        ("%.2f–%.2f" % run_base(d, r))
                        if r.get("base") else "—",
-                       r.get("on", "—"), r.get("cert", "")))
+                       r.get("on", "—"), inline(r.get("cert", ""))))
     return ('<div class="tw"><table><thead><tr><th>run</th><th>辺</th><th>走り s</th><th>長さ</th>'
             "<th>種別</th><th>天端 seat</th><th>基壇の露出</th><th>何の縁か</th>"
             "<th class='note'>確度</th></tr></thead><tbody>"
@@ -2750,7 +2753,7 @@ def gate_parts_table(d):
                     % (x, z, k["sill"], kyaw))
     return ("<h3>門構えの部材位置</h3><div class='tw'><table><thead><tr><th>部材</th><th>芯の世界座標 (x,z)</th>"
             "<th>敷居</th><th>yaw</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>"
-            "<p class='cap'>長屋門の両袖は**練塀へ直に突き付ける**(番所は躯体内・出格子)。表長屋は0本。</p>")
+            "<p class='cap'>長屋門の両袖は<b>練塀へ直に突き付ける</b>(番所は躯体内。呼称は json <code>gate.plan.bansho.kind</code>)。表長屋は0本。</p>")
 
 
 def bom_table(d):
@@ -2761,7 +2764,7 @@ def bom_table(d):
         stock = b.get("asset", "")
         rows.append("<tr><td>%s</td><td>%s</td><td class='note'>%s</td><td class='note'>%s</td></tr>"
                     % (b["item"], "<b>新造(Blender)</b>" if b.get("build") else "在庫",
-                       ("<code>%s</code>" % stock) if stock else "—", b.get("note", "")))
+                       ("<code>%s</code>" % stock) if stock else "—", inline(b.get("note", ""))))
     return ('<div class="tw"><table><thead><tr><th>部材</th><th>調達</th><th class="note">在庫パス/新造名</th>'
             "<th class='note'>備考</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>")
 
@@ -2872,9 +2875,10 @@ def main():
              '<b>帰属と全周であることは確度U(当方の裁定)</b>。三層に分けて読むこと。'
              
              '屋敷指図(建物平面)は現存未確認 — 御殿の構成は類型(B)、室名・畳数は想定(U)。'
-             '書院は<b>%s城主格</b>で作り、帝鑑間格へ上げない(<b>確度B</b> — [岡部家歴代]Web二次。'
-             '『寛政重修諸家譜』での確認は未了)。'
-             '区画多角形はユーザーのブックマーク角(U)。</p></div>' % hn.get("tono", ""))
+             '書院は<b>%s(%s)の格</b>で作り、帝鑑間格へ上げない(<b>確度B</b> — [岡部家歴代]Web二次。'
+             '『寛政重修諸家譜』での確認は未了。⚠ 居城の行は『大成武鑑』嘉永3 コマ314–316 が未読)。'
+             '区画多角形はユーザーのブックマーク角(U)。</p></div>'
+             % (hn.get("tono", ""), hn.get("kaku", "")))
     h.append('<p class="lede"><b>この文書は現況だけを載せる。</b>過去の案・撤回した説は書かない — '
              '経緯は <code>git log docs/Sashizu/</code> で追う。'
              '寸法の正典は <code>okabe_sashizu.json</code>、文章は <code>okabe_kosho.md</code>、'
@@ -2917,15 +2921,15 @@ def main():
                '<span>▪ 御殿の棟 ／ ▫ 付属屋</span>'
                '<span style="color:var(--shu)">● 表門 ／ ▪ 通用口 ／ ▨ 石段 ／ ┄ 断面</span>',
         cap="<b>敷地は水平な面%d枚(%s)+造成しない斜面。</b>"
-            "<b>面の高さは**主面=盛土を免れた実測セルの中央値(P)+[五千分一東京図31]で24&lt;h&lt;26に拘束(B)**、**門前面=同図で12〜14の帯に拘束(A)された中の設計値(U)**</b> — 全面が"
+            "面の高さは<b>主面=盛土を免れた実測セルの中央値(P)+[五千分一東京図31]で24&lt;h&lt;26に拘束(B)</b>、<b>門前面=同図で12〜14の帯に拘束(A)／嘉永への遡及(B)／帯の中で値を採ること(U)</b> — 全面が"
             "[菊地2003] の 1〜4m に収まる。%s"
             "<b>東の崖・北東のランプ・南西の谷・西斜面は造成しない</b> — "
             "樹林と庭のまま、生活面の縁に竹垣。斜面の植生は松+雑木(竹林にしない=[橋本・堀1998])。"
             "<b>囲いの天端は run ごとに一直線</b> — 面の縁になる区間は水平に面の高さで通し、"
-            "造成しない斜面の区間は一定勾配で地形を追う(石垣基壇の露出を %.1fm 以内に抑える)。"
+            "造成しない斜面の区間は一定勾配で地形を追う(規約は下限 %.2fm・上限は石垣の丈 4.0×s。<b>実測の最大は %.1fm</b>)。"
             "<b>街路・隣地への影響はゼロ</b> — 段も法面も区画線で切っている(<code>in_parcel</code> で機械的に)。"
             % (len(d["terraces"]), " / ".join("%.1f" % t["y"] for t in d["terraces"]),
-               _fit_note(d),
+               _fit_note(d), d["const"]["baseMin"],
                max(run_base(d, r)[1] for r in d["runs"])))
     h.append(planes_table(d))
     h.append('<p class="cap"><b>面のはみ出し検査(0.5間刻みの被覆): %s。</b>'
@@ -3117,7 +3121,7 @@ def main():
          "台地・西の低みがどう入れ替わるかを読む"),
         ("v", "断面(南北・樹下境から土井境へ)",
          "南(樹下近江守境)から北(土井大隅守境)へ %d 本。道側から奥の順に並べる — "
-         "**東の崖(v22〜42)と北東のランプ**がこの向きで見える")):
+         "<b>東の崖(v22〜42)と北東のランプ</b>がこの向きで見える")):
         ss = [s for s in d["sections"] if s["axis"] == axis]
         plate(h, nx(), ttl, "%d 面 ／ 垂直はいずれも %.1f 倍" % (len(ss), ss[0]["vExag"]))
         h.append('<p class="cap">%s。</p>' % (lead % len(ss)))
@@ -3164,13 +3168,16 @@ def main():
     plate(h, nx(), "表門まわり",
           "長屋門(両番所は躯体内・出格子)。型式=現存する武家屋敷門の実例2件(確度A)＋格式階梯(B)/実在と被災=安政地震の記録(S)")
     fig(h, gate_svg(d),
-        cap="<b>主たる根拠は現物である</b> — [山脇武家屋敷門]A は<b>5万石・譜代・江戸上屋敷の表門</b>で、"
-            "当家(%s・譜代)と<b>石高も格も屋敷の別も同じ</b>。それが長屋門で両番所を持つ。"
-            "同型は [西澄寺武家屋敷門]A でも確かめられる。"
-            "[武家屋敷門の格式階梯]B が言う「5〜10万石=長屋門+片流れの張出し両番所」は"
-            "<b>この現物と独立に一致する傍証</b>として添えるだけで、単独の根拠にはしない。"
-            "⚠ 階梯は<b>境界(5万石ちょうど)が曖昧</b>と原典自身が明記しており、当家は帯の下端に接する"
-            "— <b>階梯だけに寄りかかると当家は帯の内とも外とも言える</b>。現物を主にする理由がここにある。"
+        cap="<b>根拠は三段に割れる。</b> ①<b>長屋門であること・片流面出番所であること</b> = "
+            "[山脇武家屋敷門]<b>A</b>(官製の構造形式)。同門は<b>5万石・譜代・江戸上屋敷の表門</b>で、"
+            "当家(%s・譜代)と石高・格・屋敷の別が揃う。"
+            "②<b>番所を両端に持つこと</b> = [西澄寺武家屋敷門]A(番所を両端に持つ長屋門の実寸例)"
+            "＋学園側の記述(B) — ⚠ <b>山脇門の官製記録は番所の数を書いていない</b>。"
+            "③<b>その両者を束ねた「5〜10万石=長屋門+片流れの張出し両番所」</b> = "
+            "[武家屋敷門の格式階梯]<b>B</b>。⚠ 階梯は<b>境界(5万石ちょうど)が曖昧</b>と原典自身が明記し、"
+            "当家は帯の下端に接する。"
+            "⛔ したがって<b>採用形『9間・二階建・片流れ張出し両番所』は2件のどちらの現物にも無い合成で、"
+            "当家への採用そのものは確度U(外挿)</b>。①だけがAで、②はB、③もB。"
             "⛔ [山脇]は<b>門長屋の証拠には使わない</b>(袖が塀に載る現状は移築後の姿)。"
             "安政二年の被害書上は「表門倒」— 嘉永期の姿として<b>倒れる前の門</b>を建てる。"
             "在庫部材の実寸が門口に合わない場合は縮小流用か新造(部材表参照)。石垣畳出は使わない(設計判断)。"

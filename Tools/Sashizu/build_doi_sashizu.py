@@ -1131,6 +1131,143 @@ def fix_sode(d):
     return d
 
 
+def _seg_dist(px, pz, a, b):
+    """点から線分までの距離。"""
+    dx, dz = b[0] - a[0], b[1] - a[1]
+    L2 = dx * dx + dz * dz
+    t = 0.0 if L2 == 0 else max(0.0, min(1.0, ((px - a[0]) * dx + (pz - a[1]) * dz) / L2))
+    return math.hypot(px - (a[0] + dx * t), pz - (a[1] + dz * t))
+
+
+def fix_boundary_plinth(d, dem):
+    """**隣家が持つ辺**に沿って、当家の盛土を受ける基壇石垣を算出して正典へ戻す。
+
+    外周長屋の帯(家中長屋)と主面は、設計として区画線まで届く。届く以上、
+    当家の土は**当家で受ける** — 隣家の練塀に受けさせない(2026-08-24 検図 高-4)。
+    辺5(当家の持ち物)では表長屋の run が基壇石垣を持って同じことをしている。
+    隣家の持ち物の辺には run を置けないので、**境界線の内側 0.3m に基壇だけを回す**
+    (塀は建てない — 囲いは隣家の持ち物のままで、二重塀にはしない)。
+
+    区間は石垣のピッチ(1.8×s)へ丸め、天端は区間内の設計地盤の最大値。
+    """
+    d["boundaryPlinth"] = []
+    if dem is None:
+        return d
+    P = d["polygon"]
+    own = d.get("edgeOwner", {})
+    gr = RGrid(d)
+    we = dict((t["name"], walled_edges(d, t)) for t in d["terraces"])
+    S = 0.25                                        # 石の丁場(基壇は小ぶり)
+    pitch = 1.8 * S
+    for i in range(len(P)):
+        if own.get(str(i)) in (None, "土井"):
+            continue
+        a, b = P[i], P[(i + 1) % len(P)]
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        ex, ez = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+        nx_, nz_ = -ez, ex
+        mu, mv = gr.L((a[0] + b[0]) / 2 + nx_ * 3, (a[1] + b[1]) / 2 + nz_ * 3)
+        sg = 1.0 if in_parcel(d, mu, mv) else -1.0
+        n = max(4, int(L / 0.5))
+        prof = []
+        for k in range(n + 1):
+            sq = L * k / float(n)
+            x, z = a[0] + (b[0] - a[0]) * sq / L, a[1] + (b[1] - a[1]) * sq / L
+            px, pz = x + nx_ * 0.3 * sg, z + nz_ * 0.3 * sg
+            u, v = gr.L(px, pz)
+            nat = dem_bilinear(dem, px, pz)
+            if nat is None:
+                prof.append((sq, None, None)); continue
+            g = design_y(d, u, v)
+            if g is None:
+                g = graded_y(d, u, v, nat, we)
+            prof.append((sq, g, nat))
+        lo = None; top = -9e9; dmax = 0.0
+        for sq, g, nat in prof + [(L + 1.0, None, None)]:
+            fill = (g - nat) if (g is not None and nat is not None) else -1.0
+            if fill > 0.05:
+                lo = sq if lo is None else lo
+                top = max(top, g)
+                # ⚠ 落差は**同じ点での** g−nat の最大。天端の最大と地盤の最小を
+                #   別の場所から取ると、区間が長いほど嘘が大きくなる(2026-08-24)。
+                dmax = max(dmax, fill)
+            elif lo is not None:
+                s0 = math.floor(lo / pitch) * pitch
+                s1 = math.ceil(min(sq, L) / pitch) * pitch
+                d["boundaryPlinth"].append(
+                    {"edge": i, "s0": round(max(0.0, s0), 2), "s1": round(min(L, s1), 2),
+                     "coping": round(top, 2), "drop": round(dmax, 2), "s": S,
+                     "_": "隣家が持つ辺に沿う基壇石垣。塀は隣家の持ち物なので石垣だけを回す"})
+                lo = None; top = -9e9; dmax = 0.0
+    return d
+
+
+def boundary_fill_check(d, dem):
+    """**隣家が持つ辺**へ、当家の造成が垂直面のまま届いていないか。
+
+    段は `in_parcel` で切られるので、区画線まで盛ると**切り口の垂直面が境界に残る**。
+    その辺の囲いは隣家の持ち物なので、当家の土を隣家の練塀が受ける形になる
+    (2026-08-24 検図 高-4: 岡部境 13.5m・松平境 39.0m で最大 +0.94m)。
+    法面を出す余地(盛土 1:1.5)が当家側に無ければ、段を退げるしかない。
+    """
+    if dem is None:
+        return []
+    P = d["polygon"]
+    own = d.get("edgeOwner", {})
+    gr = RGrid(d)
+    we = dict((t["name"], walled_edges(d, t)) for t in d["terraces"])
+    bad = []
+    for i in range(len(P)):
+        if own.get(str(i)) in (None, "土井"):
+            continue
+        a, b = P[i], P[(i + 1) % len(P)]
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        ex, ez = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+        nx_, nz_ = -ez, ex
+        mu, mv = gr.L((a[0] + b[0]) / 2 + nx_ * 3, (a[1] + b[1]) / 2 + nz_ * 3)
+        sg = 1.0 if in_parcel(d, mu, mv) else -1.0
+        run_lo = None; worst = 0.0; hit = 0.0
+        n = max(4, int(L / 0.5))
+        for k in range(n + 1):
+            sq = L * k / float(n)
+            x, z = a[0] + (b[0] - a[0]) * sq / L, a[1] + (b[1] - a[1]) * sq / L
+            px, pz = x + nx_ * 0.3 * sg, z + nz_ * 0.3 * sg
+            u, v = gr.L(px, pz)
+            nat = dem_bilinear(dem, px, pz)
+            if nat is None:
+                continue
+            g = design_y(d, u, v)
+            if g is None:
+                g = graded_y(d, u, v, nat, we)
+            dz = (g - nat) if g is not None else 0.0
+            if dz > 0.05:
+                # **基壇石垣が受けている所は不適合ではない。**
+                held = any(q["edge"] == i and q["s0"] - 1e-6 <= sq <= q["s1"] + 1e-6
+                           and q["coping"] >= g - 0.01
+                           for q in d.get("boundaryPlinth", []))
+                if held:
+                    if run_lo is not None:
+                        bad.append("辺%d(%s の持ち物)の s=%.1f..%.1f(%.1fm)で当家の盛土が"
+                                   "区画線に達している — 最大 %.2fm"
+                                   % (i, own.get(str(i)), run_lo, hit, hit - run_lo, worst))
+                        run_lo = None; worst = 0.0
+                    continue
+                if run_lo is None:
+                    run_lo = sq
+                worst = max(worst, dz)
+                hit = sq
+            elif run_lo is not None:
+                bad.append("辺%d(%s の持ち物)の s=%.1f..%.1f(%.1fm)で当家の盛土が"
+                           "区画線に達している — 最大 %.2fm"
+                           % (i, own.get(str(i)), run_lo, hit, hit - run_lo, worst))
+                run_lo = None; worst = 0.0
+        if run_lo is not None:
+            bad.append("辺%d(%s の持ち物)の s=%.1f..%.1f(%.1fm)で当家の盛土が"
+                       "区画線に達している — 最大 %.2fm"
+                       % (i, own.get(str(i)), run_lo, hit, hit - run_lo, worst))
+    return bad
+
+
 def perimeter_check(d):
     """**当家が持つ辺**が、塀・長屋と申告した門口で閉じているか。
 
@@ -3362,6 +3499,7 @@ def main():
     d = fix_walls(d, load_terrain(os.path.join(DOC, "doi_terrain.json")))
     d = snap_openings(d)                # 開口の縁を石垣のピッチ格子へ・芯は通る物から
     d = fix_sode(d)                     # 開口の両端の袖石垣
+    d = fix_boundary_plinth(d, load_terrain(os.path.join(DOC, "doi_dem.json")))   # 隣家の辺に沿う基壇石垣
     write_back(d)                       # 算出した値は**正典へ戻す**(図だけが新しい状態を作らない)
     prose = md2html(open(MD, encoding="utf-8").read())
     P = d["polygon"]
@@ -3387,6 +3525,7 @@ def main():
             print("   ", b)
     pbad = (plane_check(d) + inubashiri_check(d) + opening_fit_check(d) + refs_check(d)
             + norms_check(d) + perimeter_check(d)
+            + boundary_fill_check(d, load_terrain(os.path.join(DOC, "doi_dem.json")))
             + mune_fit_check(d, load_terrain(os.path.join(DOC, "doi_terrain.json")))
             + edge_step_check(d, load_terrain(os.path.join(DOC, "doi_dem.json")))
             + wall_needed_check(d, load_terrain(os.path.join(DOC, "doi_dem.json"))))

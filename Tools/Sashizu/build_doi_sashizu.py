@@ -2886,7 +2886,7 @@ def main():
             print("   ", b)
     pbad = (plane_check(d) + inubashiri_check(d)
             + mune_fit_check(d, load_terrain(os.path.join(DOC, "doi_terrain.json")))
-            + edge_step_check(d, load_terrain(os.path.join(DOC, "doi_dem.json")))
+            + edge_step_check(d, load_terrain(os.path.join(DOC, "doi_dem.json"))))
     if pbad:
         print("⚠ 面のはみ出し %d 件:" % len(pbad))
         for b in pbad:

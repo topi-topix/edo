@@ -2465,6 +2465,31 @@ def main():
 
 
     plate(h, nx(), "棟と室", "1間²=2畳 ／ 室名・畳数は【確度 ?】(土間・板敷は間²)")
+    if d.get("kenzan"):
+        K2 = d["const"]["ken"]
+        om = [m for m in d["munes"] if m.get("zone") == "表向" and m["name"] != "Umaya"]
+        al = [m for m in d["munes"] if m["name"] != "Umaya"]
+        f = lambda ms: sum((m["u1"] - m["u0"]) * (m["v1"] - m["v0"]) for m in ms)
+        area2 = abs(sum(d["polygon"][i][0] * d["polygon"][(i + 1) % len(d["polygon"])][1]
+                        - d["polygon"][(i + 1) % len(d["polygon"])][0] * d["polygon"][i][1]
+                        for i in range(len(d["polygon"])))) / 2.0 / TSUBO
+        rows = ("<tr><td>当図 表向(玄関・大広間・黒書院・表役所)</td><td>%.0f 坪</td>"
+                "<td>%.0f 坪</td><td>%.1f %%</td><td class='note'>—</td></tr>"
+                "<tr><td>当図 御殿計(厩を除く)</td><td>%.0f 坪 / %.0f 畳</td><td>%.0f 坪</td>"
+                "<td>%.1f %%</td><td class='note'>—</td></tr>"
+                % (f(om), area2, 100.0 * f(om) / area2,
+                   f(al), f(al) * 2, area2, 100.0 * f(al) / area2))
+        for r in d["kenzan"]["refs"]:
+            rows += ("<tr><td>%s</td><td>%s 坪</td><td>%s</td><td>%s</td>"
+                     "<td class='note'>%s</td></tr>"
+                     % (r["name"], format(r["hyo"], ","),
+                        (format(r["shikichi"], ",") + " 坪") if r["shikichi"] else "—",
+                        ("%.1f %%" % (100.0 * r["hyo"] / r["shikichi"])) if r["shikichi"] else "—",
+                        r["_"]))
+        h.append("<h3>御殿の総量 — 格の検算</h3><div class='tw'><table><thead><tr>"
+                 "<th>対象</th><th>御殿</th><th>敷地</th><th>比</th><th class='note'>注記</th>"
+                 "</tr></thead><tbody>%s</tbody></table></div>" % rows)
+        h.append("<p class='cap'>%s</p>" % d["kenzan"]["note"])
     h.append(munes_table(d))
     h.append(links_table(d))
     kp_html, kp = kenpei(d, area)

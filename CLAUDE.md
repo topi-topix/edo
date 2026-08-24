@@ -75,7 +75,9 @@
 - **⚠ このリポジトリは複数の Claude Code セッションが同時に動く。** 2026-08-24 に、広い staging で**他セッションが編集中の指図を巻き込んでコミット**する事故が起きた。
   **作業は `python3 Tools/Session/edo_session.py start <屋敷>` で始める。**
   指図だけなら sparse worktree(12MB)を探して無ければ作って回す。
-  Unity を触るなら `start <屋敷> --unity` でメインに留まり Unity を確保する。
+  Unity を触るなら `start <屋敷> --unity`、Blender で部材を作るなら `start <屋敷> --blender`
+  でメインに留まり資源を確保する(⛔ **Blender は worktree では回せない** — 在庫キットが
+  再配布不可で gitignore なので来ない)。
   ⚠ **打ち忘れても、他セッションが居る状態で指図に触れば司令塔がその場で回す**(cd は不要・絶対パスで開く)。
   ⛔ **Unity は排他**(実体が1つで地形の編集は Undo の外)。⛔ **worktree からは Unity を開けない**。
   ⛔ **`git add -A` / `git commit -a` は司令塔が止める**(パスを明示すること)。

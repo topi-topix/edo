@@ -10,15 +10,17 @@
 
 の二つだけ。実装から指図を作ると CLAUDE.md 絶対規則2 の関門が消える。
 
-【この屋敷ならではの作り】北辺の大通りが世界軸から 24.49° 振れているため、
-主郭は**回転間グリッド**(u=北辺沿い東+ / v=敷地の奥+)で持つ。
-    ・世界図版(其一)は Proj(世界→px)
-    ・御殿平面(其二・其三)は LProj(グリッド間→px)— 棟・室・庭はすべて軸平行になる
-    ・外周(其六)は辺番号+辺沿い走り s で持つ run を展開する
+【この屋敷ならではの作り】表門が載る**東辺(辺5)**が世界軸から振れているため、
+主郭は**回転間グリッド**(u=東辺沿い北+ / v=敷地の奥=西+)で持つ。
+回転角は `gate.yaw` と多角形から導き、ここには書かない(数値は設計値が正典)。
+⚠ 2026-08-24 の検図 低-2 まで、ここに「北辺の大通り」「24.49°」「其一〜其九」と
+**他屋敷からの写し**が残っていた。**章立てと角度をこの docstring に書かない** —
+落款の類は必ず古びる。
+    ・世界図版は Proj(世界→px)
+    ・御殿平面は LProj(グリッド間→px)— 棟・室・庭はすべて軸平行になる
+    ・外周は辺番号+辺沿い走り s で持つ run を展開する
 
-【図版】其一 敷地/其二 表向・御成 平面/其三 中奥・奥向 平面/其四 棟と室(表)/
-        其五 断面(南北・東西)/其六 外周の展開/其七 表門まわり(写真A)/
-        其八 郭の土留めと竹垣/其九 考証/改訂。
+【図版】章立ては本文(`doi_kosho.md`)の見出しが正典。
         組んだら「図版 N 面」を数えること(図版が黙って落ちた前科がある)。
 """
 import json, math, os, re, subprocess, html, sys
@@ -1886,9 +1888,53 @@ def routes_table(d):
     rows = []
     for r in d["routes"]:
         ln = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(r["pts"], r["pts"][1:])) * K
-        ys = [design_y(d, u, v) for u, v in r["pts"]]
-        ys = [y for y in ys if y is not None]
-        rise = (max(ys) - min(ys)) if ys else 0.0
+        # ⚠ **累積の昇り降りを密に取る。** 折れ点だけの max−min では、降りが表現できず、
+        #   `design_y` が None を返す点(段の外=法面や街路)を黙って捨てるので、
+        #   同じ行の「石段◯段」と数字が合わなくなる(2026-08-24 検図 中-5:
+        #   表向は +3.1m と出ていたが 21段×蹴上0.27〜0.282 = 5.7〜5.9m で、実際は +5.8m)。
+        #   段の外は掘割(石段)→ 現地形 の順に落とす。
+        ter_r = load_terrain(os.path.join(DOC, "doi_terrain.json"))
+        dem_r = load_terrain(os.path.join(DOC, "doi_dem.json"))
+        we_r = dict((t["name"], walled_edges(d, t)) for t in d["terraces"])
+        gr_r = RGrid(d)
+
+        def _ry(u, v):
+            y = design_y(d, u, v)
+            if y is not None:
+                return y
+            y = stair_y(d, u, v)
+            if y is not None:
+                return y
+            x, z = gr_r.W(u, v)
+            nat = dem_bilinear(dem_r, x, z)
+            if nat is None and ter_r is not None:
+                nat = ter_r["at"](u, v)
+            if nat is None:
+                return None
+            g2 = graded_y(d, u, v, nat, we_r)
+            return g2 if g2 is not None else nat
+
+        up = dn = 0.0; prev = None; lost = 0
+        for a, b in zip(r["pts"], r["pts"][1:]):
+            seg = math.hypot(b[0] - a[0], b[1] - a[1])
+            n_r = max(2, int(seg / 0.25))
+            for i in range(n_r + 1):
+                u = a[0] + (b[0] - a[0]) * i / n_r
+                v = a[1] + (b[1] - a[1]) * i / n_r
+                y = _ry(u, v)
+                if y is None:
+                    lost += 1
+                    continue
+                if prev is not None:
+                    if y > prev:
+                        up += y - prev
+                    else:
+                        dn += prev - y
+                prev = y
+        rise = up - dn
+        updn = "昇 %.1f / 降 %.1f" % (up, dn)
+        if lost:
+            updn += "(地盤の取れない標本 %d)" % lost
         # ⚠ 石段は**線分ごとでなく石段ごと**に数える。線分の箱に芯が入るたび足すと、
         #   一つの石段が2本の線分に拾われて二重に計上される(2026-08-23 検図で 29/20/38段)。
         hitk = set()
@@ -1906,7 +1952,8 @@ def routes_table(d):
         rows.append("<tr><td><span style='color:%s'>━</span> %s</td><td>%s</td><td>%.0f m</td>"
                     "<td>%+.1f m</td><td>%d 段</td><td class='note'>%s</td></tr>"
                     % (RK.get(r["kind"], ("var(--dim)", ""))[0], r["label"],
-                       RK.get(r["kind"], ("", "—"))[1], ln, rise, steps, inline(r.get("_", ""))))
+                       RK.get(r["kind"], ("", "—"))[1], ln, rise, steps,
+                       updn + " ／ " + inline(r.get("_", ""))))
     return ('<div class="tw"><table><thead><tr><th>動線</th><th>系統</th><th>延長</th>'
             "<th>昇り</th><th>石段</th><th class='note'>通る順</th></tr></thead><tbody>"
             + "".join(rows) + "</tbody></table></div>")
@@ -2556,7 +2603,10 @@ def gate_svg(d):
     g2.append(R(X2(wing), wy - 10, X2(monW), 20, fill="var(--nagaya)", stroke="var(--ink)", sw=1.2))
     g2.append(R(X2(wing + monW / 2 - 1.8), wy - 10, X2(3.6), 20, fill="var(--paper2)", stroke="var(--ink)", sw=1.0))
     g2.append(T(X2(wing + monW * 0.22), wy + 2, "番所(片)", "anS2", "middle"))
-    g2.append(T(X2(wing + monW / 2), wy - 16, "門口 3.6m", "anS2", "middle"))
+    # ⚠ 数値を直書きしない(2026-08-24 検図 低-4: 「門口 3.6m」は正典の門扉2間=3.636m と別値)
+    g2.append(T(X2(wing + monW / 2), wy - 16,
+                "門口 %.2fm" % (d["gate"]["plan"].get("doorKen", 2.0) * d["const"]["ken"]),
+                "anS2", "middle"))
     g2.append(T(4, H2 - 8, "長屋門の躯体(桁行%.1fm×梁間%.1fm)に**片番所**が入る。**張り出すのは格子窓だけで、番所の室は躯体内**。袖塀は無く両袖が表長屋へ連続する【B — [西澄寺]A(門長屋・一棟で完結)と [山脇]A(長屋門)による。現物照合はしていない】" % (monW, monD), "anS2", "start"))
     g2.append("</svg>")
     return "\n".join(g) + "\n" + "\n".join(g2)
@@ -2599,10 +2649,19 @@ def planes_table(d):
             "<th class='note'>注記</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>")
 
 
-def mune_fit(d, ter, o):
-    """棟の下の |設計面 − 自然地形| を実測して (最大Δ, 超過率%) を返す。§B-1 の合否そのもの。"""
-    if ter is None:
+def mune_fit(d, ter, o, dem=None):
+    """棟の下の |設計面 − 自然地形| を実測して (最大Δ, 超過率%) を返す。§B-1 の合否そのもの。
+
+    ⚠ **地形は原資料の DEM を双一次で引く。** `ter["at"]` は 1間(1.818m)格子の**最近傍**で、
+    実効解像度がそれに縛られる。同じ棟を双一次で読み直すと厩の超過率が 2.8% → 6.1% と
+    **ゲート(5%)をまたいで反転した**(2026-08-24 検図 中-4)。
+    **合否が補間法だけで決まる状態を残さない。**
+    """
+    if ter is None and dem is None:
         return None
+    if dem is None:
+        dem = load_terrain(os.path.join(DOC, "doi_dem.json"))
+    gr = RGrid(d)
     ds = []
     for i in range(41):
         for j in range(21):
@@ -2614,7 +2673,10 @@ def mune_fit(d, ter, o):
             else:
                 u = o["u0"] + (o["u1"] - o["u0"]) * i / 40.0
                 v = o["v0"] + (o["v1"] - o["v0"]) * j / 20.0
-            n = ter["at"](u, v)
+            x, z = gr.W(u, v)
+            n = dem_bilinear(dem, x, z)
+            if n is None and ter is not None:
+                n = ter["at"](u, v)
             if n is not None:
                 ds.append(o["y"] - n)
     if not ds:
@@ -2893,8 +2955,9 @@ def neighbour_wall_check(d, ter, dem=None):
                 #   1.4m 内側は犬走りの位置であって、塀の足元ではない。
                 #   地形が欠ける所だけ、値の取れる最寄りの内側へ寄せて、寄せた距離を報告する。
                 g = None; off = None
-                oq = 0.3
-                while oq <= 1.5001:
+                oq = d["const"].get("neighbourProbe", 0.3)
+                _omax = d["const"].get("neighbourProbeMax", 1.5) + 0.0001
+                while oq <= _omax:
                     px, pz = x + nx_ * oq * sg, z + nz_ * oq * sg
                     u, v = gr.L(px, pz)
                     nn = dem_bilinear(dem, px, pz)
@@ -3475,8 +3538,9 @@ def civil_table(d):
     for rl in d["rails"]:
         pts = [gr.W(u, v) for u, v in rl["pts"]]
         rows.append("<tr><td><code>%s</code></td><td>竹垣(四つ目垣 h0.9)</td>"
-                    "<td class='note'>%s</td><td>法肩から内へ 0.45m</td></tr>"
-                    % (rl["name"], " → ".join("(%.1f, %.1f)" % p for p in pts)))
+                    "<td class='note'>%s</td><td>法肩から内へ %.2fm</td></tr>"
+                    % (rl["name"], " → ".join("(%.1f, %.1f)" % p for p in pts),
+                       d["const"]["inubashiri"] * d["const"]["ken"]))
     return ("<h3>郭内の土木の端点</h3><div class='tw'><table><thead><tr><th>名</th><th>種別</th>"
             "<th>世界座標</th><th>寸法</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>")
 

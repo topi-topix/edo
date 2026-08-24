@@ -92,3 +92,6 @@ __pycache__/
 # 検証用スクリーンショット(ローカル用)
 /Assets/Screenshots/
 /Assets/Screenshots.meta
+
+# 司令塔の登録簿(machine-local。docs/session-coordination.md)
+.claude/locks/

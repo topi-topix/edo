@@ -1048,8 +1048,33 @@ def cutfill_table(d, ter):
         rows.append("<tr><td>%s</td><td>%.1f</td><td>%.0f 坪</td><td>%.0f m³</td><td>%.1f m</td>"
                     "<td>%.0f m³</td><td>%.1f m</td></tr>"
                     % (TERR_JA.get(t["name"], t["name"]), t["y"], n * a / TSUBO, f, mf, c, mc))
+    # ⚠ **法面(段の外)を別行で足して、見出しの土量と合わせる。**
+    #   段の中だけを合計しており、図版見出し(全セル)と 盛 +52 / 切 +145 m³ 食い違って
+    #   いた。キャプションは「段の外へこぼれる法面も含む」と書いており表については偽だった
+    #   (2026-08-24 検図9巡 中-1)。閾値(|dz|<0.05 は触らない)も見出しに揃える。
+    we_t = dict((x["name"], walled_edges(d, x)) for x in d["terraces"])
+    sf = sc = 0.0; sn = 0
+    for iv in range(ter["nv"]):
+        v = ter["v0"] + iv * st
+        for iu in range(ter["nu"]):
+            u = ter["u0"] + iu * st
+            nat = ter["h"][iv][iu]
+            if nat is None or design_y(d, u, v) is not None:
+                continue                          # 段の中は上で数えた
+            dz = graded_y(d, u, v, nat, we_t) - nat
+            if abs(dz) < 0.05:
+                continue
+            sn += 1
+            if dz > 0:
+                sf += dz * a
+            else:
+                sc += -dz * a
+    if sn:
+        rows.append("<tr><td>法面(段の外)</td><td>—</td><td>%.0f 坪</td><td>%.0f m³</td>"
+                    "<td>—</td><td>%.0f m³</td><td>—</td></tr>"
+                    % (sn * a / TSUBO, sf, sc))
     rows.append("<tr><td><b>計</b></td><td></td><td></td><td><b>%.0f m³</b></td><td></td>"
-                "<td><b>%.0f m³</b></td><td></td></tr>" % (tf, tc))
+                "<td><b>%.0f m³</b></td><td></td></tr>" % (tf + sf, tc + sc))
     return ('<div class="tw"><table><thead><tr><th>段</th><th>面の高さ</th><th>面積</th>'
             "<th>盛土量</th><th>最大盛土</th><th>切土量</th><th>最大切土</th>"
             "</tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>")
@@ -1228,6 +1253,39 @@ def fix_sode(d):
         dm = max(drop) if isinstance(drop, list) else (drop or 0.0)
         pitch = 1.8 * w["s"] / K
         ln = max(pitch, dm / K)
+        # ⚠ **余地が無ければ袖を立てない。** かつて開口を持つ壁すべてに無条件で
+        #   書き込んでおり、直後の `opening_fit_check` の「袖が無い」分岐が
+        #   **到達不能**だった(2026-08-24 検図9巡 中-3)。
+        #   ⚠ 袖は壁に**直角**に、高い側の段の中へ振れる。余地は壁沿いではなく
+        #   **直角方向**で測る(最初この方向を取り違えた)。
+        vert = abs(w["a"][0] - w["b"][0]) < 1e-9
+        gk = "gapV" if vert else "gapU"
+        line = w["a"][0] if vert else w["a"][1]
+        g0, g1 = w[gk] - w["gapHalf"], w[gk] + w["gapHalf"]
+        hi_t = max((t for t in d["terraces"]
+                    if abs(t["y"] - w["coping"]) < 0.01), key=lambda t: t["y"], default=None)
+        room = None
+        for gg in (g0, g1):
+            for sgn in (1.0, -1.0):
+                if vert:
+                    pu, pv = line + sgn * ln, gg
+                else:
+                    pu, pv = gg, line + sgn * ln
+                if not in_parcel(d, pu, pv):
+                    continue
+                if hi_t is not None and not in_obb(hi_t, pu, pv, 1e-9):
+                    continue
+                if any(in_obb(m, pu, pv, 1e-9) for m in d["munes"] + d.get("service", [])):
+                    continue                       # 棟の中へは振れない
+                room = ln if room is None else room
+                break
+            else:
+                room = -1.0                        # この端は振れる先が無い
+                break
+        if room is None or room < 0:
+            w["_sodeRoom"] = [round(ln, 3)]
+            continue
+        w.pop("_sodeRoom", None)
         w["sode"] = {"len": round(ln, 3), "drop": round(dm, 2),
                      "_": "開口の両端で直角に振れる袖石垣。長さは落差ぶん(切土1:1で法尻に達する)"}
     return d
@@ -1259,8 +1317,8 @@ def fix_boundary_plinth(d, dem):
     own = d.get("edgeOwner", {})
     gr = RGrid(d)
     we = dict((t["name"], walled_edges(d, t)) for t in d["terraces"])
-    S = 0.25                                        # 石の丁場(基壇は小ぶり)
-    pitch = 1.8 * S
+    FEATHER = d["const"].get("boundaryFeather", 0.20)   # これ以下の盛りは 0.3m の退がりで摺り付く
+    pitch = 1.8 * 0.25
     for i in range(len(P)):
         if own.get(str(i)) in (None, "土井"):
             continue
@@ -1287,7 +1345,7 @@ def fix_boundary_plinth(d, dem):
         lo = None; top = -9e9; dmax = 0.0
         for sq, g, nat in prof + [(L + 1.0, None, None)]:
             fill = (g - nat) if (g is not None and nat is not None) else -1.0
-            if fill > 0.05:
+            if fill > FEATHER:
                 lo = sq if lo is None else lo
                 top = max(top, g)
                 # ⚠ 落差は**同じ点での** g−nat の最大。天端の最大と地盤の最小を
@@ -1296,9 +1354,13 @@ def fix_boundary_plinth(d, dem):
             elif lo is not None:
                 s0 = math.floor(lo / pitch) * pitch
                 s1 = math.ceil(min(sq, L) / pitch) * pitch
+                # ⚠ **丁場は落差から算出する。** 0.25 に固定していたので、段をいくら
+                #   持ち上げても壁高 1.00m のままで、検査が恒真だった
+                #   (2026-08-24 検図9巡 高-1)。壁高は 4s。
+                sq_s = max(0.20, math.ceil(dmax / 4.0 / 0.05 - 1e-9) * 0.05)
                 d["boundaryPlinth"].append(
                     {"edge": i, "s0": round(max(0.0, s0), 2), "s1": round(min(L, s1), 2),
-                     "coping": round(top, 2), "drop": round(dmax, 2), "s": S,
+                     "coping": round(top, 2), "drop": round(dmax, 2), "s": round(sq_s, 2),
                      "_": "隣家が持つ辺に沿う基壇石垣。塀は隣家の持ち物なので石垣だけを回す"})
                 lo = None; top = -9e9; dmax = 0.0
     return d
@@ -1342,11 +1404,27 @@ def boundary_fill_check(d, dem):
             if g is None:
                 g = graded_y(d, u, v, nat, we)
             dz = (g - nat) if g is not None else 0.0
-            if dz > 0.05:
-                # **基壇石垣が受けている所は不適合ではない。**
-                held = any(q["edge"] == i and q["s0"] - 1e-6 <= sq <= q["s1"] + 1e-6
-                           and q["coping"] >= g - 0.01
-                           for q in d.get("boundaryPlinth", []))
+            if dz > d["const"].get("boundaryFeather", 0.20):
+                # **基壇石垣が受けきれている所は不適合ではない。**
+                # ⚠ かつて「天端 ≥ 設計地盤」で控除していたが、天端は生成の定義上
+                #   つねに設計地盤以上なので**どんな設計でも0件を返す恒真**だった
+                #   (2026-08-24 検図9巡 高-1: 段を +3m 持ち上げても0件)。
+                #   **壁高 4s が落差を受けきれるか**と、**基壇で受ける高さの上限**を見る。
+                held = False
+                for q in d.get("boundaryPlinth", []):
+                    if q["edge"] != i or not (q["s0"] - 1e-6 <= sq <= q["s1"] + 1e-6):
+                        continue
+                    if 4.0 * q["s"] + 1e-6 < dz:
+                        bad.append("辺%d(%s の持ち物)s=%.1f: 基壇の壁高 %.2fm が"
+                                   "盛土 %.2fm を受けきれない"
+                                   % (i, own.get(str(i)), sq, 4.0 * q["s"], dz))
+                    elif dz > d["const"].get("boundaryPlinthMax", 2.0):
+                        bad.append("辺%d(%s の持ち物)s=%.1f: 盛土 %.2fm は基壇で受ける高さの"
+                                   "上限 %.2fm を超える — 段を退げること"
+                                   % (i, own.get(str(i)), sq, dz,
+                                      d["const"].get("boundaryPlinthMax", 2.0)))
+                    held = True
+                    break
                 if held:
                     if run_lo is not None:
                         bad.append("辺%d(%s の持ち物)の s=%.1f..%.1f(%.1fm)で当家の盛土が"
@@ -1406,6 +1484,54 @@ def perimeter_check(d):
             bad.append("辺%d(当家)の s=%.1f..%.1f(%.1fm)に塀も長屋も門口も無い"
                        % (i, cur, L, L - cur))
     return bad
+
+
+def clearance_check(d):
+    """棟・付属屋から**区画線まで**の離れ。犬走り+基壇厚を確保する。
+
+    `inubashiri_check` は「棟↔**段**」しか測らないので、区画線までの離れは
+    どの検査も見ていなかった。段を半間の格子へ寄せた是正で、米蔵と松平境の離れが
+    1.68m → 1.32m に縮んでいたのを見落とした(2026-08-24 検図9巡 中-5)。
+    """
+    K = d["const"]["ken"]
+    need = d["const"]["inubashiri"] * K + 0.3      # 犬走り + 基壇の厚み(境界内側 0.3m)
+    P = d["polygon"]
+    gr = RGrid(d)
+    bad = []
+    for m in d["munes"] + d.get("service", []):
+        best = 1e9
+        for u, v in obb_pts(m):
+            x, z = gr.W(u, v)
+            for i in range(len(P)):
+                best = min(best, _seg_dist(x, z, P[i], P[(i + 1) % len(P)]))
+        if best + 1e-6 < need:
+            bad.append("%s から区画線までが %.2fm — 犬走り+基壇の %.2fm に足りない"
+                       % (m["name"], best, need))
+    return bad
+
+
+def rails_check(d):
+    """竹垣の不変条件。設計値 `_rails` が自分で宣言している条件を検査に落とす。
+
+    ⚠ かつて「竹垣は意匠なので不変条件を持たない」と書いたが、`_rails` 自身が
+    「**土を受けず動線も止めない**」と宣言しており、後者は検査できる
+    (2026-08-24 検図9巡 低-3)。**宣言した不変条件には検査を付ける。**
+    土を受けない側は、法肩に沿う垣が自然の崖と重なるため今回は立てない。
+    """
+    bad = []
+    for rl in d.get("rails", []):
+        pts = rl["pts"]
+        for a, b in zip(pts, pts[1:]):
+            for r in d.get("routes", []):
+                for c, e in zip(r["pts"], r["pts"][1:]):
+                    d1 = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+                    d2 = (b[0] - a[0]) * (e[1] - a[1]) - (b[1] - a[1]) * (e[0] - a[0])
+                    d3 = (e[0] - c[0]) * (a[1] - c[1]) - (e[1] - c[1]) * (a[0] - c[0])
+                    d4 = (e[0] - c[0]) * (b[1] - c[1]) - (e[1] - c[1]) * (b[0] - c[0])
+                    if d1 * d2 < -1e-12 and d3 * d4 < -1e-12:
+                        bad.append("竹垣 %s が動線 %s を横切る — 垣は動線を止めない"
+                                   % (rl["name"], r.get("label", r["name"])))
+    return sorted(set(bad))
 
 
 def norms_check(d):
@@ -1539,7 +1665,11 @@ def opening_fit_check(d):
         if n == 0:
             bad.append("%s に開口があるのに通る物が無い" % w["name"])
         if "sode" not in w:
-            bad.append("%s の開口に袖石垣が無い" % w["name"])
+            rr = w.get("_sodeRoom")
+            bad.append("%s の開口に袖石垣が無い%s"
+                       % (w["name"],
+                          "(直角に %.2f間 振れる先が段の中に無い)" % rr[0]
+                          if rr else ""))
     return bad
 
 
@@ -1932,6 +2062,25 @@ def routes_table(d):
                         dn += prev - y
                 prev = y
         rise = up - dn
+        # ⚠ **縦断の最急も算出する。** `_` に手で書いた「1:8.7」が実算 1:6.2 と食い違い、
+        #   「石段を切るまでもなく歩ける」という裁定の前提が崩れていた
+        #   (2026-08-24 検図9巡 中-2)。⚠ 石段・斜路を含む区間はその勾配が支配するので、
+        #   石段を持つ動線では「(石段を含む)」と断る。歩きの勾配として読めるのは
+        #   石段0の動線(役人)だけ。
+        steepest = None
+        for a, b in zip(r["pts"], r["pts"][1:]):
+            seg = math.hypot(b[0] - a[0], b[1] - a[1]) * K
+            if seg < 0.5:
+                continue
+            ya, yb = _ry(a[0], a[1]), _ry(b[0], b[1])
+            if ya is None or yb is None:
+                continue
+            dh = abs(yb - ya)
+            if dh < 0.02:
+                continue
+            gsl = seg / dh
+            if steepest is None or gsl < steepest:
+                steepest = gsl
         updn = "昇 %.1f / 降 %.1f" % (up, dn)
         if lost:
             updn += "(地盤の取れない標本 %d)" % lost
@@ -1949,6 +2098,8 @@ def routes_table(d):
                    min(a[1], b[1]) - 1.2 <= cv <= max(a[1], b[1]) + 1.2:
                     hitk.add(k["name"])
         steps = sum(k["steps"] for k in d["kaidans"] if k["name"] in hitk)
+        if steepest:
+            updn += " ／ 区間の最急 1:%.1f%s" % (steepest, "(石段を含む)" if steps else "")
         rows.append("<tr><td><span style='color:%s'>━</span> %s</td><td>%s</td><td>%.0f m</td>"
                     "<td>%+.1f m</td><td>%d 段</td><td class='note'>%s</td></tr>"
                     % (RK.get(r["kind"], ("var(--dim)", ""))[0], r["label"],
@@ -2392,7 +2543,23 @@ def section_svg(d, sec):
                 best, be, bs = dd, i, tt2 * math.sqrt(L2)
         run = next((r for r in d["runs"] if r["edge"] == be and r["s0"] - 0.5 <= bs <= r["s1"] + 0.5), None)
         if run is None:
-            continue                                  # 門の開口
+            # ⚠ **隣家が持つ辺には当家の run が無い。** ここで一律 continue していたため、
+            #   95.7m の境界の基壇石垣が断面に一度も描かれなかった
+            #   (2026-08-24 検図9巡 高-3)。門の開口と隣家辺を区別する。
+            pl = next((q for q in d.get("boundaryPlinth", [])
+                       if q["edge"] == be and q["s0"] - 0.5 <= bs <= q["s1"] + 0.5), None)
+            if pl is None:
+                continue                              # 門の開口
+            gy = ground_at(w)
+            if pl["coping"] > gy + 0.05:
+                g.append(R(X(w) - sx * 0.9, Y(pl["coping"]), sx * 1.8,
+                           (pl["coping"] - gy) * sx * ex,
+                           fill=_pat(), stroke="var(--ishi)", sw=1.0))
+            g.append(T(X(w), Y(pl["coping"]) - 5,
+                       "境界の基壇 %.2f(囲いは%sの持ち物)"
+                       % (pl["coping"], d.get("edgeOwner", {}).get(str(be), "隣家")),
+                       "jo", "middle"))
+            continue
         hh = 5.3 if run["kind"] == "Nagaya" else d["const"]["dobeiH"]
         gy = ground_at(w)
         if run["seat"] > gy + 0.05:                   # 基壇石垣
@@ -2653,8 +2820,8 @@ def mune_fit(d, ter, o, dem=None):
     """棟の下の |設計面 − 自然地形| を実測して (最大Δ, 超過率%) を返す。§B-1 の合否そのもの。
 
     ⚠ **地形は原資料の DEM を双一次で引く。** `ter["at"]` は 1間(1.818m)格子の**最近傍**で、
-    実効解像度がそれに縛られる。同じ棟を双一次で読み直すと厩の超過率が 2.8% → 6.1% と
-    **ゲート(5%)をまたいで反転した**(2026-08-24 検図 中-4)。
+    実効解像度がそれに縛られる。補間法で超過率が動くため、**合否が補間法だけで決まる状態を残さない**
+    (2026-08-24 検図 中-4。実測値は図の棟の表が持つ)。
     **合否が補間法だけで決まる状態を残さない。**
     """
     if ter is None and dem is None:
@@ -3213,16 +3380,19 @@ def adjacency_check(d):
                         # 袖が設計値にある開口だけを「受けた」と数える
                         # (袖を消すと件数が増えることを感度試験で確かめてある)。
                         _sp = pass_span(d, w)[0]
-                        pa = ([min(x[0] for x in _sp), max(x[1] for x in _sp)]
-                              if _sp else None)
-                        if "sode" in w and pa:
+                        if "sode" in w and _sp:
                             # **通る物+両袖ぶんだけ**を受けと数える。開口の丸めで
-                            # 広がったぶんは受けでない(2026-08-24: 袖さえ在れば
-                            # 開口が何m でも通ってしまう抜け穴を塞いだ)
-                            c0 = max(s_lo, g0, pa[0] - 0.3)
-                            c1 = min(s_hi, g1, pa[1] + 0.3)
-                            if c1 > c0:
-                                segs.append((c0, c1))
+                            # 広がったぶんは受けでない。
+                            # ⚠ **hull(min..max)で取らない。** 一つの開口を二つ以上の物が
+                            #   通ると、その**間の何も無い区間**まで受けと数えてしまう
+                            #   (2026-08-24 検図9巡 高-2: TW_ShuG で 1.18m の
+                            #   1.60m 垂直面が素で残り、断面③と⑰の間に落ちて
+                            #   どの図にも現れなかった)。**物ごとに袖を足して合併する。**
+                            for _a, _b in _sp:
+                                c0 = max(s_lo, g0, _a - 0.3)
+                                c1 = min(s_hi, g1, _b + 0.3)
+                                if c1 > c0:
+                                    segs.append((c0, c1))
                     else:
                         segs.append((s_lo, s_hi))
                 held = _union_len(segs)
@@ -3541,6 +3711,32 @@ def civil_table(d):
                     "<td class='note'>%s</td><td>法肩から内へ %.2fm</td></tr>"
                     % (rl["name"], " → ".join("(%.1f, %.1f)" % p for p in pts),
                        d["const"]["inubashiri"] * d["const"]["ken"]))
+    # ⚠ **隣家が持つ辺の基壇石垣を表に出す。** 95.7m あるのに、どの図・表・部材表にも
+    #   出ていなかった(2026-08-24 検図9巡 高-3)。当家が建てる囲い(東辺+ジョグ+楔=93.0m)
+    #   より長い土木構造物が無図だった。
+    P = d["polygon"]
+    own = d.get("edgeOwner", {})
+    for q in d.get("boundaryPlinth", []):
+        a, b = P[q["edge"]], P[(q["edge"] + 1) % len(P)]
+        L = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
+        p0 = (a[0] + (b[0] - a[0]) * q["s0"] / L, a[1] + (b[1] - a[1]) * q["s0"] / L)
+        p1 = (a[0] + (b[0] - a[0]) * q["s1"] / L, a[1] + (b[1] - a[1]) * q["s1"] / L)
+        rows.append("<tr><td><code>基壇 辺%d</code></td>"
+                    "<td>境界の基壇石垣(丁場 %.2f・壁高 %.2fm)</td>"
+                    "<td class='note'>(%.1f, %.1f) → (%.1f, %.1f)</td>"
+                    "<td>延長 %.1fm・受ける盛土 %.2fm・天端 %.2f</td></tr>"
+                    % (q["edge"], q["s"], 4 * q["s"], p0[0], p0[1], p1[0], p1[1],
+                       q["s1"] - q["s0"], q["drop"], q["coping"]))
+    if d.get("boundaryPlinth"):
+        rows.append("<tr><td colspan='4' class='note'>"
+                    "隣家(%s)が持つ辺の内側 %.2fm に回す石垣。**塀は建てない**(二重塀にしない)。"
+                    "盛りが %.2fm 以下の区間は退がりで摺り付くので基壇を置かない。計 %.1fm。"
+                    "</td></tr>"
+                    % ("・".join(sorted(set(own.get(str(q["edge"]), "?")
+                                            for q in d["boundaryPlinth"]))),
+                       d["const"].get("neighbourProbe", 0.3),
+                       d["const"].get("boundaryFeather", 0.20),
+                       sum(q["s1"] - q["s0"] for q in d["boundaryPlinth"])))
     return ("<h3>郭内の土木の端点</h3><div class='tw'><table><thead><tr><th>名</th><th>種別</th>"
             "<th>世界座標</th><th>寸法</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>")
 
@@ -3696,7 +3892,7 @@ def main():
         for b in bad:
             print("   ", b)
     pbad = (plane_check(d) + inubashiri_check(d) + opening_fit_check(d) + refs_check(d)
-            + norms_check(d) + perimeter_check(d)
+            + norms_check(d) + perimeter_check(d) + clearance_check(d) + rails_check(d)
             + boundary_fill_check(d, load_terrain(os.path.join(DOC, "doi_dem.json")))
             + mune_fit_check(d, load_terrain(os.path.join(DOC, "doi_terrain.json")))
             + edge_step_check(d, load_terrain(os.path.join(DOC, "doi_dem.json")))

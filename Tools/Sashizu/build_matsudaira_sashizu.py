@@ -255,7 +255,7 @@ def plan_svg(d):
         g.append(gpoly(t["u0"], t["v0"], t["u1"], t["v1"],
                        fill=DAN.get(t["y"], "var(--dan4)"), op=1.0))
     # 堀端の裾(9.2)の帯 — 縁の run に沿う内側幅3mの整地帯
-    suso = [r for r in d["runs"] if abs(r["seat"] - 9.2) < 0.01]
+    suso = []   # 旧「堀端の裾の整地帯」。天端9.2 の run は現存しない(2026-08-24 削除)
     for r in suso:
         a2 = edge_pt(P, r["edge"], r["s0"]); b2 = edge_pt(P, r["edge"], r["s1"])
         dx, dz, _L = _edge_dir(P, r["edge"])
@@ -392,6 +392,13 @@ def goten_plan(d, u0, u1, v0, v1, label, note):
              % (pr.W + 20, pr.H + 20, ring))
     g.append('<polygon points="%s" fill="none" stroke="var(--ink)" stroke-width="1.8"/>'
              % " ".join("%.1f,%.1f" % (pr.X(u), pr.Y(v)) for u, v in P))
+
+    # 中仕切塀(奥郭の結界)
+    for w in d.get("nakajikiri", []):
+        a2, b2 = w["a"], w["b"]
+        g.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="var(--hei)" '
+                 'stroke-width="2.0" stroke-dasharray="9 3" opacity="0.9"/>'
+                 % (pr.X(a2[0]), pr.Y(a2[1]), pr.X(b2[0]), pr.Y(b2[1])))
 
     # 庭
     for n in d["gardens"]:
@@ -844,12 +851,13 @@ def section_svg(d, sec):
             continue                                  # 門の開口 or 柵の区間
         hh = 5.3 if run["kind"] == "Nagaya" else d["const"]["dobeiH"]
         gy = ground_at(w)
-        if run["seat"] > gy + 0.05:                   # 基壇石垣
-            g.append(R(X(w) - sx * 0.9, Y(run["seat"]), sx * 1.8, (run["seat"] - gy) * sx * ex,
+        _rs = seat_at(run, run.get("_sHit", run["s0"]))
+        if _rs > gy + 0.05:                   # 基壇石垣
+            g.append(R(X(w) - sx * 0.9, Y(_rs), sx * 1.8, (_rs - gy) * sx * ex,
                        fill=_pat(), stroke="var(--ishi)", sw=1.0))
-        g.append(R(X(w) - sx * 0.7, Y(run["seat"] + hh), sx * 1.4, hh * sx * ex,
+        g.append(R(X(w) - sx * 0.7, Y(_rs + hh), sx * 1.4, hh * sx * ex,
                    fill=KC.get(run["kind"], "var(--dim)"), op=0.95))
-        g.append(T(X(w), Y(run["seat"] + hh) - 5, "%s %.1f" % (run["name"], run["seat"]), "jo", "middle"))
+        g.append(T(X(w), Y(_rs + hh) - 5, "%s %.1f" % (run["name"], _rs), "jo", "middle"))
 
     # 表門(断面Aのみ)
     if sec["axis"] == "u" and abs(sec["at"]) < 2:
@@ -928,19 +936,23 @@ def perimeter_dev_svg(d):
                 t_ = tt(r["edge"], s_)
                 if t_ < ta - 1e-6:
                     t_ += total
-                base.append((X(t_), Y(min(gy, r["seat"])) if gy is not None else Y(r["seat"])))
-            pts = "%.1f,%.1f " % (xa, Y(r["seat"])) + \
+                base.append((X(t_), Y(min(gy, seat_at(r, t_))) if gy is not None else Y(seat_at(r, t_))))
+            pts = "%.1f,%.1f " % (xa, Y(r["seat0"] if "seat0" in r else r["seat"])) + \
                   " ".join("%.1f,%.1f" % p for p in base) + \
-                  " %.1f,%.1f" % (xb, Y(r["seat"]))
+                  " %.1f,%.1f" % (xb, Y(r["seat1"] if "seat1" in r else r["seat"]))
             g.append('<polygon points="%s" fill="var(--ishi)" opacity="0.45"/>' % pts)
-        g.append(R(xa, Y(r["seat"] + h), xb - xa, h * sx * ex, fill=KC.get(r["kind"], "var(--dim)"), op=0.9))
+        _ym = max(r.get("seat0", r["seat"]), r.get("seat1", r["seat"]))
+        g.append(R(xa, Y(_ym + h), xb - xa, h * sx * ex, fill=KC.get(r["kind"], "var(--dim)"), op=0.9))
         if r.get("nijukai"):
             w2 = min(20 * 1.818, r["s1"] - r["s0"]) * sx
             x2 = xa if ta < total / 2 else xb - w2      # 二階は門寄り(展開の起点=表門)
             g.append(R(x2, Y(r["seat"] + nagH + 2.6), w2, 2.6 * sx * ex,
                        fill=KC["Nagaya"], op=0.65))
             lab.append((x2, "門翼二階(海鼠壁)"))
-        g.append(T((xa + xb) / 2, Y(r["seat"]) + 11, "%.1f" % r["seat"], "jo", "middle"))
+        _s0 = r.get("seat0", r["seat"]); _s1 = r.get("seat1", r["seat"])
+        g.append(T((xa + xb) / 2, Y((_s0 + _s1) / 2) + 11,
+                   ("%.1f" % _s0) if abs(_s1 - _s0) < 0.01 else ("%.1f→%.1f" % (_s0, _s1)),
+                   "jo", "middle"))
         g.append(T((xa + xb) / 2, Y(r["seat"] + h) - 3, r["name"], "jo", "middle",
                    fit(r["name"], xb - xa, 9.0)))
     # 境界の木柵(地形なりの帯)
@@ -1436,6 +1448,17 @@ def room_containment_check(d):
                     or r["v0"] < m["v0"] + 1 or r["v1"] > m["v1"] - 1):
                 bad.append("室 %s(%s)が入側の帯に食い込む" % (r["name"], m["name"]))
     return bad
+
+
+def seat_at(r, s_):
+    """run の天端。**斜面 run は seat0→seat1 で一直線に下るので、seat(中点)を平らに読まない。**
+    2026-08-24 検図: 展開図・断面・取り合い表が seat 単独読みで、
+    存在しない段差を計 13.4m 実装用の表に指示していた。"""
+    y0 = r.get("seat0", r["seat"]); y1 = r.get("seat1", r["seat"])
+    if abs(r["s1"] - r["s0"]) < 1e-9:
+        return y0
+    t = max(0.0, min(1.0, (s_ - r["s0"]) / (r["s1"] - r["s0"])))
+    return y0 + (y1 - y0) * t
 
 
 def section_crossings(d, sec):

@@ -543,10 +543,16 @@ public static class EdoMatsudairaBuilder
             string path = pathAt(k);
             var m = modOf(path);
             float w = m.hi - m.lo;
-            // 壁の低い側の端がちょうど cursor に来るピボット位置
-            //   flip=false … ローカル+X が s の増える向き → s = pivot + x
-            //   flip=true  … ローカル+X が s の減る向き → s = pivot - x
-            float sPiv = flip ? (cursor + m.hi) : (cursor - m.lo);
+            // 壁の低い側の端がちょうど cursor に来るピボット位置。
+            // psi の定義から local +X = (outw.y, -outw.x)、negRight = -localX。
+            //   flip=false(rdir ∥ -localX) … local +X は s の**減る**向き → s = pivot - x
+            //                                 壁は [pivot-m.hi, pivot-m.lo] → pivot = cursor + m.hi
+            //   flip=true (rdir ∥ +localX) … local +X は s の**増える**向き → s = pivot + x
+            //                                 壁は [pivot+m.lo, pivot+m.hi] → pivot = cursor - m.lo
+            // ⚠ 2026-08-24 是正: この2枝が逆だった。**中部材は左右対称(m.lo=-m.hi)なので誤差が
+            //   相殺され、妻部材(l/r)との継ぎ目でだけ -1.49m の重なりとして出ていた**
+            //   (普請検査が窓の二重描画として検出)。
+            float sPiv = flip ? (cursor - m.lo) : (cursor + m.hi);
             Vector2 p = EdgePt(e, sPiv);
             float seat = seatAt(cursor + w * 0.5f);
             var go = EdoNishiTameikeBuilder.Place(path, new Vector3(p.x, seat, p.y), psi,

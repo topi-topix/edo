@@ -65,8 +65,26 @@ def now():
 
 
 def sid(default=None):
-    return (os.environ.get("EDO_SESSION_ID") or default
-            or ("pid-%s" % os.getppid()))
+    """このセッションの識別子。
+
+    ⚠ **フック経由と Bash 直叩きで別人になってはならない。** フックは session_id を
+    EDO_SESSION_ID で渡すが、Bash から直接叩くとそれが無い。無いときは
+    **同じ作業ディレクトリの生きた claim を引き継ぐ**(指図は worktree ごとに cwd が
+    分かれ、Unity はメインに1つなので実用上は一意)。
+    """
+    e = os.environ.get("EDO_SESSION_ID") or default
+    if e:
+        return e
+    here = os.path.realpath(os.getcwd())
+    best = None
+    for c in load_all():
+        if os.path.realpath(c.get("cwd", "")) != here:
+            continue
+        if best is None or c.get("heartbeat", 0) > best.get("heartbeat", 0):
+            best = c
+    if best:
+        return best["session"]
+    return "pid-%s" % os.getppid()
 
 
 def load_all(ttl=TTL_MIN):
@@ -103,13 +121,15 @@ def mine(s):
             return json.load(open(fp, encoding="utf-8")), fp
         except Exception:
             pass
-    return {"session": s, "pid": os.getppid(), "started": now(), "heartbeat": now(),
+    return {"session": s, "pid": os.getppid(), "cwd": os.getcwd(),
+            "started": now(), "heartbeat": now(),
             "paths": [], "resources": [], "note": ""}, fp
 
 
 def save(c, fp):
     os.makedirs(LOCKS, exist_ok=True)
     c["heartbeat"] = now()
+    c.setdefault("cwd", os.getcwd())
     json.dump(c, open(fp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
 
@@ -394,7 +414,12 @@ def cmd_worktrees(a):
     main_wt = os.path.dirname(_common_git_dir())
     for w in rows:
         wp = w.get("worktree", "")
-        tag = "メイン(Unity はここ)" if os.path.realpath(wp) == os.path.realpath(main_wt) else "sparse"
+        if os.path.realpath(wp) == os.path.realpath(main_wt):
+            tag = "メイン ─ Unity はここ"
+        elif os.path.isdir(os.path.join(wp, "Assets")):
+            tag = "全部入り(Unity 可)"
+        else:
+            tag = "指図用(sparse・Unity 不可)"
         print("  %-58s %-22s %s" % (wp, w.get("branch", "(detached)").replace("refs/heads/", ""), tag))
     return 0
 

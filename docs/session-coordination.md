@@ -5,35 +5,60 @@
 山王の改訂が `0f4b9fc` `b16b487` `0891530` という無関係な件名の下に埋まり、
 **履歴から追えなくなった**(CLAUDE.md 規則4「経緯は `git log` で追う」の前提が崩れた)。
 
-このリポジトリで同時作業が危ないのは3つ。
-
-| 共有物 | なぜ危ないか |
-|---|---|
-| **ワークツリー** | セッションは1つのチェックアウトを共有する。広い staging は他人の編集を巻き込む |
-| **Unity の実体** | エディタは1つ。シーン・プレハブ・地形を共有する。⛔ **地形の編集は Undo の外** |
-| **屋敷ごとの指図** | `docs/Sashizu/<屋敷>_*` と `Tools/Sashizu/build_<屋敷>_sashizu.py` は対で動く |
+⚠ **worktree は自動では分かれない。** `.claude/worktrees/` にあるのはサブエージェントが
+使った残骸で、通常のセッションは**全部メインのチェックアウトを共有している**。
 
 ---
 
-## 使い方 — 覚えることは1つだけ
+## 作業の型は2つ。始める前にどちらか決める
 
-作業を始めるとき、**自分の領分を名乗る**。
+### ① 指図を書く(Unity を使わない) → **worktree を切る**
 
 ```bash
-python3 Tools/Session/edo_session.py claim sashizu:sanno --resources unity --note "山王の指図と実装"
+python3 Tools/Session/edo_session.py worktree sanno
+cd .claude/worktrees/sanno          # ここで新しいセッションを始める
+```
+
+`docs` / `Tools` / `.claude` だけの **sparse worktree**(**12MB・64ファイル**。
+Assets の 249MB・825ファイルは来ない)。ブランチも分かれるので、
+
+- 共有ファイル(CLAUDE.md ほか)を巻き込む事故が**構造的に起きない**
+- 同じブランチに他人のコミットが載ることも**無い**
+
+⛔ **ここでは Unity は開けない**(パックが gitignore なので Assets が揃わない)。
+
+### ② Unity を触る(実装・計測) → **メインのチェックアウトで、資源を取る**
+
+```bash
+python3 Tools/Session/edo_session.py claim sashizu:matsudaira --resources unity --note "松江松平の実装"
+```
+
+⚠ **Unity は実体が1つ**。シーン・プレハブ・地形を共有し、**地形の編集は Undo の外**にある。
+`unity` を取れるのは1セッションだけで、取れなければ待つ。
+
+**指図作業の途中で計測が要るとき**も同じ。⚠ **worktree からは Unity を触れない**ので、
+メインのチェックアウトのセッションで `--resources unity` を取って測り、**終わったら release する**。
+計測は短いので、長時間握らないこと。
+
+```bash
+python3 Tools/Session/edo_session.py claim --resources unity --note "山王の地形を測るだけ"
+# … 測る …
+python3 Tools/Session/edo_session.py release --resources unity
+```
+
+---
+
+## 日々の操作
+
+```bash
+python3 Tools/Session/edo_session.py status      # 誰が何を押さえているか
+python3 Tools/Session/edo_session.py worktrees   # どのワークツリーがどのブランチか
+python3 Tools/Session/edo_session.py release     # 自分の claim を全部解く
 ```
 
 - 屋敷は **`sashizu:<名>`** で名乗る(`docs` と `Tools` の両方を一度に押さえる)
-- Unity を使うなら **`--resources unity`**。⚠ 先に誰かが取っていたら**取れない**
-- 終わったら `release`。⚠ 忘れても **45分 心拍が途絶えれば自動で失効**する
-
-```bash
-python3 Tools/Session/edo_session.py status     # 誰が何を押さえているか
-python3 Tools/Session/edo_session.py release    # 自分の claim を全部解く
-```
-
-**名乗り忘れても効く。** ファイルを書いた時点で、そのパスを自動で claim する。
-`claim` を明示するのは「これから Unity を長く使う」「この屋敷は自分がやる」と**先に宣言したい**とき。
+- **名乗り忘れても効く。** ファイルを書いた時点で、そのパスを自動で claim する
+- **45分 心拍が途絶えれば自動で失効**する。release を忘れても詰まらない
 
 ---
 
@@ -44,42 +69,37 @@ python3 Tools/Session/edo_session.py release    # 自分の claim を全部解�
 
 | 状況 | 挙動 |
 |---|---|
-| 他のセッションが押さえたファイルを Edit / Write | ⛔ 止める。誰が押さえているか・何をしているかを出す |
-| 他のセッションが Unity を使用中に Unity MCP を叩く | ⛔ 止める。⚠ 読むだけのもの(`read_console` ほか)は通す |
+| 他のセッションが押さえたファイルを Edit / Write | ⛔ 止める。誰が・何をしているかを出す |
+| 他のセッションが Unity 使用中に Unity MCP を叩く | ⛔ 止める。⚠ 読むだけのもの(`read_console` ほか)は通す |
 | `git add -A` / `git add .` / `git commit -a` | ⛔ 常に止める。**パスを明示すること** |
-| `git reset --hard` / `git clean -f` / `git stash` / `git rebase` / 強制 push | ⛔ 常に止める。他人の作業を消す |
-| staging に他人の押さえたファイルが入った状態での `git commit` | ⛔ 止める。**巻き込む直前で気づける**(事故の再現テスト済み) |
-| 自分の領分の作業・パスを明示した `git add` / `git commit` | 素通り |
+| `git reset --hard` / `git clean -f` / `git stash` / `git rebase` / 強制 push | ⛔ 常に止める |
+| staging に他人の押さえたファイルが入った状態での `git commit` | ⛔ 止める(事故の再現で検証済み) |
+| 自分の領分の作業・パスを明示した git | 素通り |
 
 ⚠ **止めるのはコマンド位置に現れたものだけ。** 文字列の中の例示や説明文は拾わない
 (そうしないと、この文書を書くだけで作業が止まる — 実際に踏んだ)。
 
----
-
 ## 引き継ぐとき
-
-相手が止まっている・終わっているのに claim が残っているなら、**理由を残して奪える**。
 
 ```bash
 python3 Tools/Session/edo_session.py steal sashizu:sanno --reason "前のセッションが落ちたため"
 ```
 
-⚠ **奪う前に `status` で心拍を見ること。** 心拍が数分以内なら**まだ動いている**。
+⚠ **奪う前に `status` で心拍を見ること。** 数分以内なら**まだ動いている**。
 
 ---
 
 ## 設計の約束
 
-- **フックが落ちても作業は止めない。** 例外は握りつぶして素通りさせる(司令塔の不調で仕事が止まる方が高くつく)
+- **フックが落ちても作業は止めない。** 例外は握りつぶして素通りさせる
 - **生存判定は心拍だけ。** ⛔ pid を見てはならない — フックから呼ばれるスクリプトの親は
-  その都度のシェルで、セッションの寿命と無関係(これで claim が即死し、事故の再現テストが素通りした)
-- **登録簿は machine-local。** `.claude/locks/` は gitignore。コミットに混ぜない
-
----
+  その都度のシェルで、セッションの寿命と無関係(これで claim が即死し、再現テストが素通りした)
+- **登録簿は `.git/edo-locks`。** ⛔ worktree ごとに置くと隣の claim が見えず司令塔が死ぬ
 
 ## 手が届かないもの(既知の限界)
 
-- **別マシン・別チェックアウトのセッションは見えない。** 登録簿はこのマシンのファイルシステム上にある
+- **同じワークツリーを共有したままなら、共有ファイルは守れない。** claim はパス単位なので、
+  CLAUDE.md のように**全員が編集するファイル**には効かない。→ worktree を分けること
 - **人間が直接打つ git は素通りする。** フックは Claude Code のツール呼び出しにしか掛からない
-- **claim の粒度は屋敷とパス。** 同じファイルの別の行を同時に直したい、には答えられない
+- **別マシンのセッションは見えない。** 登録簿はこのマシンのファイルシステム上にある
 - **Unity の排他は申告制。** Unity 側から「誰が触っているか」は見ていない

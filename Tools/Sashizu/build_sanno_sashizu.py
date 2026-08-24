@@ -398,7 +398,14 @@ DEM = None
 
 
 def dem():
-    """現況地形(造成前)。docs/Sashizu/sanno_dem.json = Unity Terrain の実測・確度P。"""
+    """造成前の地形【確度P】。`docs/Sashizu/sanno_dem.json`。
+
+    ⚠ **実体は正本 `docs/Sashizu/base_dem.json` からの切り出し**(生成器 `Tools/Sashizu/build_base_dem.py`)。
+    ⛔ **Unity の live terrain から採り直さない**(CLAUDE.md 規則12)— live は自他の造成が
+    乗る作業面で、**採った時刻で値が変わる**。2026-08-23 に岡部・土井が松平の造成を
+    「造成前の地形」として吸い込む事故が起きた(山王は範囲が届かず無傷)。
+    ⛔ `sanno_dem.json` を手で編集しない。区画を動かしたら `build_base_dem.py` を回す。
+    """
     global DEM
     if DEM is None:
         DEM = json.load(open(os.path.join(DOC, "sanno_dem.json"), encoding="utf-8"))
@@ -463,7 +470,7 @@ def genkyo_svg(d, kan, x0, x1, z0, z1, W=900.0):
         cz = sum(q[1] for q in nb["polygon"]) / len(nb["polygon"])
         o.append(T(pr.X(cx), pr.Y(cz), nb["name"], fs=10.5, anchor="middle", fill="var(--shu)"))
     o += cut_lines(d, pr.X, pr.Y, pr.L)
-    o.append(T(6, 15, kan + "　現況図 ─ 造成前の地形(Unity Terrain 実測・確度P)", fs=12.5, fill="var(--dim)"))
+    o.append(T(6, 15, kan + "　現況図 ─ 造成前の地形(正本 base_dem.json からの切り出し・確度P)", fs=12.5, fill="var(--dim)"))
     o.append(T(pr.W - 6, 15, "段彩 2 m ／ 等高線 2 m(10 m 太線) ／ 北が上", fs=10.5,
                anchor="end", fill="var(--dim)"))
     y = pr.H - 14
@@ -1496,7 +1503,7 @@ def section_svg(d, key, design, marks, title, flip=False, viewtxt="", flats=(), 
     o.append(T(6, 15, title, fs=12.5, fill="var(--dim)"))
     o.append(T(W - 6, 15, "垂直 %.1f 倍" % (vs / s), fs=11, anchor="end", fill="var(--dim)"))
     o.append(T(W - 6, 30, viewtxt, fs=10.5, anchor="end", fill="var(--shu)"))
-    o.append(T(W - 6, H - 8, "破線 = 現地形(Unity Terrain 実測) ／ 実線 = 設計地盤 ／ ╲ 切土 ／ ╱ 盛土"
+    o.append(T(W - 6, H - 8, "破線 = 造成前の地形(正本 base_dem.json) ／ 実線 = 設計地盤 ／ ╲ 切土 ／ ╱ 盛土"
                " ／ 太い緑帯 = 無造成 ／ 網掛 = 土留め(法尻は地盤なり)", fs=10.5,
                anchor="end", fill="var(--dim)"))
     o.append(ENDSVG)
@@ -2301,14 +2308,14 @@ def main():
     P_ = d["polygon"]
     gx0, gx1 = min(q[0] for q in P_) - 20, max(q[0] for q in P_) + 20
     gz0, gz1 = min(q[1] for q in P_) - 20, max(q[1] for q in P_) + 20
-    plate(h, nx(), "現況図(造成前の地形)", "段彩 2 m ／ 等高線 2 m(10 m 太線) ／ Unity Terrain 実測・確度P")
+    plate(h, nx(), "現況図(造成前の地形)", "段彩 2 m ／ 等高線 2 m(10 m 太線) ／ 正本 base_dem.json からの切り出し・確度P")
     fig(h, genkyo_svg(d, KAN[n[0] - 1], gx0, gx1, gz0, gz1),
         cap="<b>造成のすべての出発点。</b>面の高さは設計者が決めたのではなく、"
             "<b>この地形を走査して自然の平場から採った</b>(境内=山頂平坦面 h≥27.5 / 前庭=男坂下の棚)。"
             "赤の破線は隣地(別当觀理院・神主樹下邸)の区画 — <b>境の地形は隣と一続き</b>なので重ねてある。"
             "一点鎖線は断面の切り位置。"
-            "<br>⚠ <b>この「現況」は今日の地面である。</b>シーンの `ModernTerrain` を"
-            "`Terrain.SampleHeight` で吐いたもので、国土地理院の DEM と突き合わせて 8m のズレを補正してある"
+            "<br>⚠ <b>この「現況」は今日の地面である。</b>正本 `base_dem.json` を"
+            "実体は<b>正本 <code>docs/Sashizu/base_dem.json</code> からの切り出し</b>で、2026-08-22 の参照ハイトマップ(国土地理院 DEM5A/10B 由来・8m のズレを補正済)を焼いたものである"
             "(中央値 0.127m 一致)。<b>建物は入っていない</b> — 地形のハイトマップだけを読むので、"
             "社殿もホテルも道路の高架も高さには含まれない。"
             "⛔ <b>ただし「自然地形」ではない。</b>山王山の頂は上知のあと官有地になり、社殿は昭和二十年に焼けて"

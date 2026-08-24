@@ -34,7 +34,7 @@ def _common_git_dir():
 
 LOCKS = os.path.join(_common_git_dir(), "edo-locks")
 TTL_MIN = 45.0
-RESOURCES = ("unity", "terrain", "git-index")
+RESOURCES = ("unity", "terrain", "git-index", "assets")
 
 # ── 常に止める git の打ち方(他人の作業を巻き込む/破壊する)
 # ⚠ **コマンド位置に現れたものだけを見る。**
@@ -303,9 +303,35 @@ def cmd_check_write(a):
     return 0
 
 
+BLENDER = re.compile(r"(?:^|[;&|(\n]\s*)(?:\S*/)?blender\b")
+
+
 def cmd_check_bash(a):
     me = sid(a.session)
     cmd = a.command or ""
+    # ── Blender(部材作り)
+    #    ⚠ Blender 同士は競合しない(--background の使い捨て)。効くのは
+    #    「worktree では在庫キットも出力先も無い」ことと、出力が共有資産であること。
+    if BLENDER.search(cmd):
+        if not in_main_checkout():
+            return _deny(
+                "⛔ 司令塔: **Blender は worktree では回せない**。\n"
+                "   在庫キット(Japanese Village Kit ほか)は再配布不可で gitignore されているので\n"
+                "   sparse worktree に**来ない**。`vklib.py` はメインの絶対パスを直書きしており、\n"
+                "   出力先 `Assets/Edo/Models/` も worktree には無い。\n"
+                "   → **メインのチェックアウトのセッション**で回すこと:\n"
+                "     %s" % os.path.dirname(_common_git_dir()))
+        cs = load_all(a.ttl)
+        h = [c for c in cs if c["session"] != me and "assets" in c.get("resources", [])]
+        if h:
+            return _deny(
+                "⛔ 司令塔: 部材の書き出しは**セッション %s** が使用中(心拍 %.0f 分前)。\n"
+                "   %s\n"
+                "   出力先 `Assets/Edo/Models/` は共有で、同じ部材を同時に焼くと**後勝ちで上書き**される\n"
+                "   (`build_goten_roof.py -- rebuild` は Roofs/ の全数を焼き直す)。\n"
+                "   → 終わるのを待つこと。"
+                % (h[0]["session"], (now() - h[0]["heartbeat"]) / 60.0, h[0].get("note", "")))
+        touch(me, resources=["assets"])
     for pat, why in BANNED:
         if re.search(pat, cmd):
             return _deny("⛔ 司令塔: この git の打ち方は共有ワークツリーでは禁止。\n   %s" % why)
@@ -443,17 +469,23 @@ def cmd_start(a):
         c["paths"].append(dom)
     if a.note:
         c["note"] = a.note
-    if a.unity:
-        h = [x for x in load_all(a.ttl) if x["session"] != me and "unity" in x.get("resources", [])]
-        if h:
-            print("⛔ Unity は %s が使用中(%s)。終わるのを待つこと" % (h[0]["session"], h[0].get("note", "")),
-                  file=sys.stderr)
-            return 2
-        for r in ("unity", "main"):
+    if a.unity or a.blender:
+        want = ["unity"] if a.unity else ["assets"]
+        for w in want:
+            h = [x for x in load_all(a.ttl) if x["session"] != me and w in x.get("resources", [])]
+            if h:
+                print("⛔ %s は %s が使用中(%s)。終わるのを待つこと"
+                      % (w, h[0]["session"], h[0].get("note", "")), file=sys.stderr)
+                return 2
+        for r in want + ["main"]:
             if r not in c["resources"]:
                 c["resources"].append(r)
         save(c, fp)
-        print("start: %s ／ Unity を確保。**メインのチェックアウトで作業する**\n  %s" % (dom, ROOT))
+        print("start: %s ／ %s を確保。**メインのチェックアウトで作業する**\n  %s"
+              % (dom, "／".join(want), ROOT))
+        if a.blender:
+            print("  ⚠ 焼いたら Unity で **Edo ▸ 御殿 ▸ …マテリアルをremap** を走らせること"
+                  "(FBX は材質名しか運ばないので、やらないと白い模型になる)")
         return 0
     save(c, fp)
     wt = ensure_wt(dom, quiet=False)
@@ -542,6 +574,7 @@ def main():
     p.add_argument("--reason", default=""); p.set_defaults(fn=cmd_steal)
     p = sub.add_parser("start"); p.add_argument("name")
     p.add_argument("--unity", action="store_true", help="Unity を使う(メインに留まる)")
+    p.add_argument("--blender", action="store_true", help="Blender で部材を作る(メインに留まる)")
     p.add_argument("--note", default=""); p.set_defaults(fn=cmd_start)
     p = sub.add_parser("worktree"); p.add_argument("name")
     p.add_argument("--branch"); p.add_argument("--base")

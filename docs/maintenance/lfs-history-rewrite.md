@@ -3,6 +3,54 @@
 作成 2026-08-15。**2026-08-15 に実施完了**（結果は §6）。
 手順は次回のためにそのまま残してある。踏んだ罠は Step 0 / Step 2 の ⚠ に追記済み。
 関連メモリ: `akasaka-scene-bloat` / `edo-github-repo`
+**⚠ 次回の宿題が下にある。作り直す前に必ず読むこと。**
+
+---
+
+---
+
+## ⚠ 次回リポジトリを作り直すときの宿題(2026-08-23 追記。片付いたらこの節を消す)
+
+**① 退避ブランチの削除** — 2026-08-23 の履歴書き換えの保険。中身に問題が無いと確認できたら消す。
+
+```
+git branch -D backup/pre-lfs-rewrite chore/remove-redistributable-asset
+```
+
+**② 再配布不可アセットの LFS 実体を purge する**
+
+2026-08-23、`Assets/Edo/Models/es_hmon/`(edogoyomi の `h_mon` の複製・obj1点+テクスチャ3点、
+md5 一致)が**公開リポジトリに追跡されていた**のを見つけた。初回コミット
+`chore: GitHub公開用にリポジトリを初期化` から入っていた。`.gitignore` は `/Assets/edogoyomi/` しか
+見ないので、他所への複製は素通りする。
+
+`git filter-repo` で**履歴から除去して force-push 済み**(198コミット保持・HEAD の tree 同一・
+該当 blob 0件・リモートのブランチは `main` のみ)。
+
+⚠ **ただし履歴から参照が消えても GitHub は LFS 実体を自動削除しない。**
+実体を消すには**リポジトリの削除→再作成**が要る(§4 と同じ手順。`gh` に `delete_repo` スコープが
+無いのでユーザー操作)。**次に作り直すとき、この分も一緒に消えることを確認する。**
+
+なお**使用そのものは許諾されている** — edogoyomi(HONEY)の readme は
+"You can do what you want with this object, just don't sell or redistribute it."
+禁じられているのは販売と再配布だけ。
+
+**再発防止**: `.gitignore` に同名フォルダのパターンを保険として追加済み。
+点検は「追跡下の全バイナリの md5 を、除外パッケージの md5 集合と突き合わせる」のが確実で速い。
+
+```bash
+for d in "Assets/edogoyomi" "Assets/Japanese Castle" "Assets/Japanese Village Kit"; do
+  find "$d" -type f \( -name "*.obj" -o -name "*.fbx" -o -name "*.jpg" -o -name "*.png" -o -name "*.mtl" \) \
+    -exec md5 -q {} \; 2>/dev/null
+done | sort -u > /tmp/ign.md5
+git ls-files | grep -iE '\.(obj|fbx|jpg|jpeg|png|mtl|tga|psd)$' | while read -r f; do
+  [ -f "$f" ] && grep -qx "$(md5 -q "$f")" /tmp/ign.md5 && echo "⚠ 混入: $f"
+done
+```
+
+**⚠ 履歴の書き換えは作業ツリーでやらない。** 未コミットがあると `filter-repo` も `rebase` も巻き込む。
+ミラークローンを取って別の場所で書き換え → force-push。手元は `git fetch` のあと `commit-tree` で
+親だけ差し替えて載せ替えれば、**作業ツリーに一切触れずに**新履歴へ移れる(2026-08-23 に実施)。
 
 ---
 

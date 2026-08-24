@@ -95,3 +95,8 @@ __pycache__/
 
 # 司令塔の登録簿(machine-local。docs/session-coordination.md)
 .claude/locks/
+
+# 検証レンダ・スクリーンショットはリポジトリに入れない
+# (LFS 剥がしで 7.57GB→0.54GB に絞った経緯。共有は Artifact で行う)
+/*.png
+/*.jpg

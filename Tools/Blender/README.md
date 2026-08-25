@@ -1,7 +1,30 @@
-# 御殿アセットの Blender パイプライン
+# Blender 部材パイプライン
 
-御殿(武家屋敷の主屋)の部材と屋根を **Village Kit の部材から江戸間で起こして** FBX に書き出す。
+在庫キットに無い建築部材を **Village Kit / Japanese Castle の部材から江戸間で起こして** FBX に書き出す。
 Blender は GUI を開かずヘッドレスで回す — 指図の寸法が変わったら作り直せるようにするため。
+各スクリプト冒頭の docstring に「なぜ新造するか」の典拠と使い方がある。
+
+## スクリプト一覧
+
+| スクリプト | 何を起こすか |
+|---|---|
+| `vklib.py` | **共通ライブラリ**(全スクリプトが import)。キットのパス(`REPO`/`ROOT`)・縮尺 `S=0.909`・FBX 読み書き・UV・マテリアルの道具 |
+| `build_goten_parts.py` | 御殿の躯体部材(柱・畳・障子・縁など425点のキット部材から) |
+| `build_goten_roof.py` | 御殿の屋根(入母屋・渡廊下の切妻。寸法ごとに1本) |
+| `build_goten_fittings.py` | 建具・座敷飾り(襖・欄間・床の間・違い棚・帳台構) |
+| `build_goten_kaidan.py` | 階段廊下(郭をまたぐ幅一間の木の段) |
+| `build_dobei.py` | 武家屋敷の土塀(腰石・下見板・漆喰・本瓦の一体物) |
+| `build_tsuijibei.py` | 築地塀(城塀から軒を詰めて小口を塞いだ派生) |
+| `build_kado.py` | 折れ角の隅部材(石垣・塀・長屋の留め継ぎ) |
+| `build_ishigaki_saka.py` | 石段の袖の土留め(勾配に沿った一枚物) |
+| `build_matsudaira_bansho.py` | 松江松平邸専用: 表門の番所(向唐破風・出格子) |
+| `build_matsudaira_omotemon.py` | 松江松平邸専用: 表門(屋根なしの冠木門) |
+| `build_matsudaira_fuzokuya.py` | 松江松平邸専用: 附属屋(土蔵・数寄屋・稲荷社・井戸・隅櫓ほか) |
+
+パスは `vklib.REPO`(このファイルの位置から導出)起点。**sparse worktree では Assets が来ないので回らない** —
+メインのチェックアウトで `edo_session.py start <屋敷> --blender` を打ってから回すこと。
+
+以下は御殿系(`build_goten_*`)の詳細。
 
 ```bash
 blender --background --python Tools/Blender/build_goten_parts.py

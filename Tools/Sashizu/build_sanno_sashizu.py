@@ -21,6 +21,8 @@
 """
 import json, math, os, re, subprocess, html
 
+from sashizu_lib import R, _pat, _SVN  # バイト同一を実証済みの共通部(_SVN は共有カウンタ)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DOC = os.path.join(ROOT, "docs/Sashizu")
 JSON = os.path.join(DOC, "sanno_sashizu.json")
@@ -81,9 +83,6 @@ def inline(s):
 
 
 # ---------------------------------------------------------------- 作図の土台
-_SVN = [0]
-
-
 def _sv(W, H, label):
     _SVN[0] += 1
     return ['<svg viewBox="0 0 %.0f %.0f" role="img" aria-label="%s">' % (W, H, label),
@@ -101,7 +100,6 @@ def _sv(W, H, label):
 ENDSVG = "</g></svg>"
 
 
-def _pat(): return "url(#pi%d)" % _SVN[0]
 def _cut(): return "url(#kr%d)" % _SVN[0]      # 切土
 def _fill(): return "url(#mr%d)" % _SVN[0]     # 盛土
 
@@ -146,17 +144,6 @@ class LProj(object):
     def rect(self, u0, v0, u1, v1, **kw):
         return R(self.X(min(u0, u1)), self.Y(max(v0, v1)),
                  abs(self.X(u1) - self.X(u0)), abs(self.Y(v1) - self.Y(v0)), **kw)
-
-
-def R(x, y, w, h, fill="none", stroke="none", sw=1.0, dash=None, op=None):
-    a = '<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s"' % (x, y, w, h, fill)
-    if stroke != "none":
-        a += ' stroke="%s" stroke-width="%.2f"' % (stroke, sw)
-    if dash:
-        a += ' stroke-dasharray="%s"' % dash
-    if op is not None:
-        a += ' opacity="%.2f"' % op
-    return a + "/>"
 
 
 def T(x, y, s, cls="sl", anchor=None, fs=None, fill=None):

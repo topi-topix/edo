@@ -38,13 +38,12 @@ TSUBO = 3.305785
 
 # ---------------------------------------------------------------- markdown(正典は sashizu_lib)
 def inline(s):
-    """当邸の方言: bold_ml=False(`**` の対応が行単位で取れている前提の md で、
-    行を跨ぐ対応へ変えると対が動いて崩れる — 2026-08-26 統一時に実測)/ strike=False。"""
-    return sashizu_lib.inline(s, bold_ml=False, strike=False)
+    """方言なし(2026-08-26 に md 側の行跨ぎ・不対応の ** を直し、厳しい既定へ寄せた)。"""
+    return sashizu_lib.inline(s)
 
 
 def md2html(text):
-    return sashizu_lib.md2html(text, inline=inline, indent_tables=False, join_list=False)
+    return sashizu_lib.md2html(text, inline=inline)
 
 
 # ---------------------------------------------------------------- 作図の土台

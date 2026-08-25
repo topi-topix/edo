@@ -3438,7 +3438,7 @@ def planes_table(d):
             "<th class='note'>注記</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>")
 
 
-def mune_fit(d, ter, o, dem=None):
+def mune_fit(d, o, dem=None):
     """棟の下の |設計面 − 自然地形| を実測して (最大Δ, 超過率%) を返す。§B-1 の合否そのもの。
 
     ⚠ **地形は原資料の DEM を双一次で引く。** `ter["at"]` は 1間(1.818m)格子の**最近傍**で、
@@ -3446,8 +3446,9 @@ def mune_fit(d, ter, o, dem=None):
     (2026-08-24 検図 中-4。実測値は図の棟の表が持つ)。
     **合否が補間法だけで決まる状態を残さない。**
     """
-    if ter is None and dem is None:
-        return None
+    # ⚠ かつて `ter`(回転間格子)を受けていたが、**null 判定にしか使っておらず**
+    #   実際に引くのは常に世界2m格子の復元地盤だった(2026-08-25 検図13巡 低-5)。
+    #   引数に在ると「回転格子を見ている」と読めてしまうので落とした。
     if dem is None:
         # ⚠ 棟の切盛は**江戸期の復元地盤**に対して測る(2026-08-25)。
         #   現代の地面(正本)で測ると、近代の掘削跡を「自然地形」として合否を出すことになる。
@@ -3485,7 +3486,7 @@ def munes_table(d, ter=None):
         # 土間・板敷は畳を敷かないので畳数に混ぜない(2026-08-23 検図)。間²で別立てにする。
         tat = sum(r["tatami"] for r in m["rooms"] if not r.get("ita"))
         ita = sum(r["tatami"] // 2 for r in m["rooms"] if r.get("ita"))
-        ft = mune_fit(d, ter, m)
+        ft = mune_fit(d, m)
         fitc = "—" if ft is None else ("%+.2f m / %.0f%%" % ft if ft[1] > 0 else "%+.2f m / 0%%" % ft[0])
         rows.append("<tr><td>%s</td><td><code>%s</code></td><td>%s</td><td>%d×%d間</td>"
                     "<td>%.0f m²</td><td>%d</td><td>%d</td><td>%s</td><td>%s</td></tr>"
@@ -3813,7 +3814,7 @@ def _walled_at(d, we, u, v):
     return False
 
 
-def mune_fit_check(d, ter):
+def mune_fit_check(d):
     """**棟の下の |設計面 − 自然地形| ≤ 0.5m**(§B-1 の合否)を検査にする。
 
     表に出しただけでは、棟を動かしたときに悪化しても誰も気づかない
@@ -3822,7 +3823,7 @@ def mune_fit_check(d, ter):
     """
     bad = []
     for m in d["munes"] + d["service"]:
-        r = mune_fit(d, ter, m)
+        r = mune_fit(d, m)
         if r and r[1] > 5.0:
             bad.append("棟の下の切盛が %.0f%% で ±0.5m を超える(最大 %+.2fm): %s" % (r[1], r[0], m["name"]))
     return bad
@@ -4892,7 +4893,7 @@ def main():
             + terrain_canon_check(d, load_terrain(os.path.join(DOC, "doi_edo_dem.json")),
                                   load_terrain(os.path.join(DOC, "doi_dem.json")))
             + boundary_fill_check(d, load_terrain(os.path.join(DOC, "doi_dem.json")))
-            + mune_fit_check(d, load_terrain(os.path.join(DOC, "doi_edo_dem.json")))
+            + mune_fit_check(d)
             + edge_step_check(d, load_terrain(os.path.join(DOC, "doi_dem.json")))
             + wall_end_check(d, load_terrain(os.path.join(DOC, "doi_edo_world.json")))
             + wall_needed_check(d, load_terrain(os.path.join(DOC, "doi_dem.json"))))
@@ -5206,7 +5207,7 @@ def main():
              % (d["const"]["inubashiri"] * d["const"]["ken"], d["const"]["inubashiri"]))
     h.append("</div>")
 
-    _mf = [(m["name"], mune_fit(d, load_terrain(os.path.join(DOC, "doi_edo_dem.json")), m))
+    _mf = [(m["name"], mune_fit(d, m))
            for m in d["munes"] + d["service"]]
     _mf = [(n_, r) for n_, r in _mf if r]
     _over = [(n_, r) for n_, r in _mf if abs(r[0]) > 0.5]
@@ -5323,7 +5324,13 @@ def main():
         # ⚠ **図はタグ単位で段落に割る。** HTML は空行を持たないので、
         #   段落単位の極性検査に掛けると**全体が1段落**になり、その中に ⛔ が必ず在るため
         #   **図の禁句が全部見逃されていた**(2026-08-25 検図13巡 高-3。設計値と同じ恒真)。
-        ("図", re.sub(r"[*~`]", "", re.sub(r"</(p|td|li|h[1-6]|div|tr)>", "\n\n", body))),
+        # ⚠ **閉じタグだけで切らない。** 最初の ⛔ を含む要素の閉じが遠いと段落が長く延び、
+        #   その手前に差した禁句が**撤回の印で赦されて**しまう(2026-08-25 検図13巡 低-6:
+        #   ⛔ の直前へ差した禁句が 0 件、印の無い所へ差すと 1 件だった)。
+        #   **開きタグでも切る** — 印の効き目をその要素の中だけに閉じ込める。
+        ("図", re.sub(r"[*~`]", "",
+                      re.sub(r"</?(p|td|th|li|h[1-6]|div|tr|table|ul|ol|section|"
+                             r"figcaption|caption|svg|g|text|tspan)\b[^>]*>", "\n\n", body))),
         # ⚠ **実装も照合の面に入れる。** 四面(設計値・文章・生成器・図)だけを見ていたため、
         #   実装のヘッダに 2026-08-12 の考証ブロックが4か月ぶん古びたまま残り、
         #   各屋敷の指図が撤回した説を現役の根拠として保持していた

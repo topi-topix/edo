@@ -382,9 +382,14 @@ public static class EdoSannoKitaBuilder
         return sb.ToString();
     }
 
+    // 失効した Stage の実行時ガード。const にすると後続が CS0162(到達不能)になるので readonly
+    static readonly bool StageRetired = true;
+
     // ---------- Stage 1: 岡部筑前守上屋敷 ----------
+    // ⛔ 失効。EdoOkabeYashikiBuilder(v3)に置換済み。本体は _pending③ の書き直しの参照資料として残す
     public static string Stage1_Okabe()
     {
+        if (StageRetired) return "⛔ 失効: Stage1_Okabe は EdoOkabeYashikiBuilder v3 に置換済み(走らせると旧門が復活する)";
         const string G = "Edo_Yashiki_OkabeChikuzen";
         var exist = GameObject.Find(G);
         if (exist != null && exist.transform.childCount > 0) return "SKIP Okabe";
@@ -530,8 +535,10 @@ public static class EdoSannoKitaBuilder
     }
 
     // ---------- Stage 3: 松平出羽守上屋敷 ----------
+    // ⛔ 失効。EdoMatsudairaBuilder(Stage0-6)に置換済み
     public static string Stage3_Matsudaira()
     {
+        if (StageRetired) return "⛔ 失効: Stage3_Matsudaira は EdoMatsudairaBuilder に置換済み";
         const string G = "Edo_Yashiki_MatsudairaDewa";
         var exist = GameObject.Find(G);
         if (exist != null && exist.transform.childCount > 0) return "SKIP Matsudaira";
@@ -699,14 +706,14 @@ public static class EdoSannoKitaBuilder
     }
 
     // ---------- 一括 ----------
+    // ⚠ 岡部・松平は専用ビルダー(EdoOkabeYashikiBuilder / EdoMatsudairaBuilder)で建てる。
+    //   ここで現役なのは Stage0/2/4 のみ
     public static string BuildAll()
     {
         EdoNishiTameikeBuilder.NaturalMode = true;
         var sb = new System.Text.StringBuilder();
         sb.AppendLine(Stage0_Terrain());
-        sb.AppendLine(Stage1_Okabe());
         sb.AppendLine(Stage2_Doi());
-        sb.AppendLine(Stage3_Matsudaira());
         sb.AppendLine(Stage4_Splat());
         return sb.ToString();
     }

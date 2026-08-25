@@ -563,7 +563,7 @@ public static class EdoTodaBlockBuilder
     }
     static Material MonzenMat(string name, string texPath)
     {
-        string matPath = "Assets/Edo/Materials/" + name + ".mat";
+        string matPath = EdoAssets.Own.Mat(name);
         var m = AssetDatabase.LoadAssetAtPath<Material>(matPath);
         if (m != null) return m;
         m = new Material(Shader.Find("Universal Render Pipeline/Lit"));
@@ -934,11 +934,15 @@ public static class EdoTodaBlockBuilder
         return sb.ToString();
     }
 
+    // 一度きりの再配置のガード。現配置が正 — 再実行すると最良点探索がそこから再度動かす(const だと CS0162)
+    static readonly bool RepositionApplied = true;
+
     // ---------- Stage 2b: 建物の制約付き再配置 (§16 総当たり探索) ----------
     // 各建物を「敷地内・境界マージン・相互クリアランス・高低差最小」を満たす最良点へ動かす。
     // 主要建物は門正対軸上のアンカーへ引き寄せる。移動はバウンズ中心差分(合成コンテナ安全)。
     public static string Stage2b_Reposition(string groupName)
     {
+        if (RepositionApplied) return "⛔ 適用済み(" + groupName + ")。再実行すると現配置から再度動く — 走らせない";
         var e = Parcels.First(x => x.group == groupName);
         var root = GameObject.Find(e.group);
         if (root == null) return "no group";

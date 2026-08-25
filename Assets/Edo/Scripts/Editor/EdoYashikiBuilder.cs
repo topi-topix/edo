@@ -241,9 +241,12 @@ public static class EdoYashikiBuilder
     [MenuItem("Edo/建造/武家屋敷/松平備前守（上屋敷）")]
     static void BuildMatsu() { SnapshotTerrain(); Build(Sites()[2]); Flush(); }
 
-    [MenuItem("Edo/建造/武家屋敷/石垣も作り直す（手直しは失われます）")]
+    // ⛔ メニューから外した(2026-08-25)。絶対規則1: 太田/加納/松平備前の手組み石垣は正典 —
+    //    再生成も削除もしない。どうしても要る事態になったらユーザー裁定の上でガードを外す
+    static readonly bool IshigakiIsCanon = true;
     static void RebuildWithIshigaki()
     {
+        if (IshigakiIsCanon) { Debug.LogError("⛔ 手組み石垣は正典(規則1)。再生成しない"); return; }
         int n = 0;
         foreach (var s in Sites())
         {

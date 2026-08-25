@@ -511,9 +511,13 @@ public static class EdoTamachi5EastBuilder
         return null;
     }
 
+    // 一度きりの修正 Stage のガード。効果はシーンに反映済みで、再実行は非冪等(const だと CS0162)
+    static readonly bool FixApplied = true;
+
     // ---------- Stage 1b: 初回ビルドの修正 ----------
     public static string Stage1b_Fix()
     {
+        if (FixApplied) return "⛔ 適用済み。一度きりの修正で非冪等 — 再実行しない";
         var sb = new System.Text.StringBuilder();
         var root = GameObject.Find(RootName);
         if (root == null) return "no root";
@@ -601,6 +605,7 @@ public static class EdoTamachi5EastBuilder
     // ---------- Stage 1c: 母屋の再試行(縮小+位置候補)と筵の置き直し ----------
     public static string Stage1c_Fix2()
     {
+        if (FixApplied) return "⛔ 適用済み。一度きりの修正で非冪等 — 再実行しない";
         var sb = new System.Text.StringBuilder();
         var root = GameObject.Find(RootName);
         if (root == null) return "no root";

@@ -293,7 +293,7 @@ public static class EdoSanbezakaBuilder
     }
     static Material MonzenMat(string name, string texPath)
     {
-        string mp = "Assets/Edo/Materials/" + name + ".mat";
+        string mp = EdoAssets.Own.Mat(name);
         var m = AssetDatabase.LoadAssetAtPath<Material>(mp);
         if (m != null) return m;
         m = new Material(Shader.Find("Universal Render Pipeline/Lit"));
@@ -552,8 +552,11 @@ public static class EdoSanbezakaBuilder
     }
 
     // ---------- Stage 3: 安部摂津守上屋敷 (地形パッド込み) ----------
+    // ⛔ 2026-08-12 のシーン内直接改修(ファイル冒頭の注記)で座標が旧配置のまま。再実行すると改修が消える
+    static readonly bool AbeRetired = true;
     public static string Stage3_Abe()
     {
+        if (AbeRetired) return "⛔ 失効: 2026-08-12 のシーン内改修で座標が旧配置のまま。再実行すると改修が消える";
         const string G = "Edo_Yashiki_AbeSettsu";
         var exist = GameObject.Find(G);
         if (exist != null && exist.transform.childCount > 0) return "SKIP Abe";

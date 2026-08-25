@@ -48,6 +48,24 @@ TYPES_MD = os.path.expanduser(
     "~/.claude/skills/unity-buke-yashiki/references/estate-types.md")
 
 
+def estate_zone_norm():
+    """`estate-types.md` の「**別の区画に属す役割**」行 → 役割名の集合。
+
+    ⚠ 台帳の**存在**しか錨にしないと、「区画を減らす」道が残る(2026-08-26 松平:
+    zones から区画を消し・棟を別区画へ移し・裁定も辻褄を合わせれば、当家では**距離だけ**が
+    拾っていた=幾何が偶々効いただけ)。**台帳の役割の名前から要求を組み立てる**と、
+    自邸の json をどう書き換えても**台帳から役割を落とさない限り要求が消えない**。
+    落とすほうは `program_check` が塞ぐので、そこで連鎖が止まる。
+    """
+    if not os.path.exists(TYPES_MD):
+        return set()
+    t = open(TYPES_MD, encoding="utf-8").read()
+    m = re.search(r"\*\*別の区画に属す役割\*\*\s*[::]\s*(.+)", t)
+    if not m:
+        return set()
+    return set(x.strip() for x in m.group(1).split("/") if x.strip())
+
+
 def estate_program_norm():
     """`estate-types.md` の「上屋敷が備える役割」表 → {役割: 要否}。"""
     if not os.path.exists(TYPES_MD):
@@ -1986,6 +2004,32 @@ def setchin_check(d):
     #   している限り、裁定は空にできない。ここで止める(台帳は他邸と共有で、当邸だけでは変えられない)。
     rulings = d.get("zoneRulings", [])
     norm = estate_program_norm()
+    # ⛔ **台帳の役割の「名前」から区画の別を組み立てる。** 台帳が在ることだけを錨にすると
+    #   「区画を減らす」道が残る(2026-08-26 松平)。⚠ 書院と局は集合に入れない —
+    #   **人の別ではなく場の別**を分ける集合でないと正しい構成まで落ちる。
+    sep = estate_zone_norm()
+    if sep:
+        zone_of = {}
+        for zn, ns in zones.items():
+            for n in ns:
+                zone_of[n] = zn
+        seen_zone = {}
+        for pg in d.get("program", []):
+            if pg["role"] not in sep:
+                continue
+            zs = set(zone_of.get(n) for n in pg["by"] if n in zone_of)
+            zs.discard(None)
+            if not zs:
+                bad.append("役割「%s」を満たす棟(%s)がどの雪隠の区画にも属していない — "
+                           "台帳は別の区画に属す役割としている"
+                           % (pg["role"], "・".join(pg["by"])))
+                continue
+            for z in zs:
+                if z in seen_zone and seen_zone[z] != pg["role"]:
+                    bad.append("役割「%s」と「%s」が同じ区画「%s」に居る — "
+                               "台帳は別の区画に属す役割としている(`estate-types.md`)"
+                               % (seen_zone[z], pg["role"], z))
+                seen_zone[z] = pg["role"]
     if any(k.startswith("湯殿") or "雪隠" in k for k, v in norm.items() if v.startswith("必須")):
         ruled = set()
         for rl in rulings:

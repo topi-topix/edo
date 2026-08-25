@@ -2268,6 +2268,7 @@ def program_check(d):
     have |= set(r["name"] for r in d.get("runs", []))       # 外周(表長屋・練塀)も役割を負う
     have |= set(g["name"] for g in d.get("gardens", []))    # 庭・白洲
     have |= set(l["name"] for l in d.get("links", []))      # 御錠口・廊下
+    have |= set(r["name"] for r in d.get("rails", []))      # 竹垣
     if d.get("gate"):
         have.add("gate")
     head, tbl = sources_index()
@@ -2444,6 +2445,31 @@ def refs_check(d):
             v = k.get(side)
             if isinstance(v, str) and v not in tn:
                 bad.append("%s の %s=%s が段に無い" % (k["name"], side, v))
+    # ⚠ **区画の正典は `parcels.json`(CLAUDE.md 規則10)。** 指図が持つ `polygon` は写しなので、
+    #   突き合わせが無いと**建蔽率の分母が黙って写しのほうから出る**
+    #   (2026-08-25 検図14巡 低-4: 頂点の最大差 0.004m・面積差 0.064 m² で照合は無かった)。
+    pj = os.path.join(DOC, "parcels.json")
+    if os.path.exists(pj):
+        try:
+            pl = json.load(open(pj, encoding="utf-8"))
+            src = None
+            for q in (pl.get("parcels") if isinstance(pl, dict) else pl) or []:
+                if q.get("id") == "doi" or "土井" in str(q.get("name", "")):
+                    src = q.get("poly") or q.get("polygon") or q.get("pts")
+                    break
+            if src is None:
+                bad.append("`parcels.json` に土井の区画が見つからない — 分母の照合ができない")
+            elif len(src) != len(d["polygon"]):
+                bad.append("区画の頂点数が `parcels.json` と違う(%d ≠ %d)"
+                           % (len(src), len(d["polygon"])))
+            else:
+                w = max(math.hypot(a[0] - b[0], a[1] - b[1])
+                        for a, b in zip(src, d["polygon"]))
+                if w > 0.05:
+                    bad.append("区画の頂点が `parcels.json` と最大 %.3fm ずれる — "
+                               "正典は `parcels.json`(規則10)" % w)
+        except Exception as e:
+            bad.append("`parcels.json` を読めない(%s)" % e)
     return bad
 
 
@@ -4040,6 +4066,24 @@ def fix_wall_exposure(d, ter):
             return round(n * L * K / max(1, len(seq) - 1), 2)
         w["_endLow"] = [_tail(ds), _tail(ds[::-1])]
     return d
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ⚠ **地盤の面は2つある。読み分けの理由をここに1箇所で書く**(2026-08-25 検図14巡 低-3)。
+#
+#   `doi_edo_world.json` / `doi_edo_dem.json` = **江戸期の復元地盤**
+#     → 棟の接地(§B-1)・石段の帯・土留めの端と露出・断面の地盤線・切盛
+#       理由: 江戸の屋敷は江戸の地面の上に建つ。近代の掘削跡を「自然地形」として
+#             合否を出さないため。
+#
+#   `doi_dem.json`(= `base_dem.json` の切り出し)= **現代の地面(正本)**
+#     → 段の縁・土留めの要否・**境界の埋没と基壇**・辺の地盤線・外周の基壇の丁場
+#       理由: **境界は両家が同じ面を読むことが要件**(司令塔 08-24 通達)。
+#             隣家がどう復元するかに当家の境界設計を依存させない。
+#
+#   ⚠ 復元の箱は TW_GenkanS / TW_GenkanE / TW_ShuG に掛かっている。
+#     **箱が広がれば黙って食い違う**ので、広げたらこの読み分けを見直すこと。
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 def wall_profile_check(d):

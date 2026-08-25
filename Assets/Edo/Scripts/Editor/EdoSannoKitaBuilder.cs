@@ -295,7 +295,7 @@ public static class EdoSannoKitaBuilder
                 int x0 = IX(rx0 - 4f), x1 = IX(rx1 + 4f), z0 = IZ(rz0 - 4f), z1 = IZ(rz1 + 4f);
                 int w = x1 - x0 + 1, h = z1 - z0 + 1;
                 var H = td.GetHeights(x0, z0, w, h);
-                int nm = 0;
+                int nm = 0, nnull = 0;
                 for (int z = 0; z < h; z++) for (int x = 0; x < w; x++)
                 {
                     // 世界座標 → 復元格子の双一次
@@ -304,14 +304,24 @@ public static class EdoSannoKitaBuilder
                     if (ix < 0 || iz < 0 || iz + 1 >= rows.Count) continue;
                     var r0 = rows[iz] as List<object>; var r1 = rows[iz + 1] as List<object>;
                     if (ix + 1 >= r0.Count) continue;
+                    // ⛔ **欠測を 0 として読まない。** python 側の bilinear は 1点でも null なら
+                    //    null を返すが、Convert.ToDouble(null) は 0.0 になる。正本に欠測が入った日に
+                    //    **海抜0mのクレーター**を掘る(2026-08-25 検図14巡 低-2)。
+                    if (r0[ix] == null || r0[ix + 1] == null || r1[ix] == null || r1[ix + 1] == null)
+                    { nnull++; continue; }
                     double tx = fx - ix, tz = fz - iz;
                     double a = Convert.ToDouble(r0[ix]) * (1 - tx) + Convert.ToDouble(r0[ix + 1]) * tx;
                     double b = Convert.ToDouble(r1[ix]) * (1 - tx) + Convert.ToDouble(r1[ix + 1]) * tx;
                     H[z, x] = WtoH((float)(a * (1 - tz) + b * tz)); nm++;
                 }
                 td.SetHeightsDelayLOD(x0, z0, H);
-                sb.AppendLine("doi edo dem cells=" + nm + " box x" + rx0 + ".." + rx1
-                              + " z" + rz0 + ".." + rz1);
+                sb.AppendLine("doi edo dem cells=" + nm + " skipped(null)=" + nnull
+                              + " box x" + rx0 + ".." + rx1 + " z" + rz0 + ".." + rz1);
+                // ⚠ **「箱の外は live == 正本」を仮定しない。** それは規則12 が禁じている前提そのもので、
+                //    指図の検査は区画全体が復元地盤である前提で書かれている。実装が保証するのは
+                //    箱±4m だけなので、そのことをログに残す(2026-08-25 検図14巡 低-2)。
+                sb.AppendLine("  ⚠ 書き戻したのは _reconBox ±4m のみ。区画の残りは live のまま — "
+                              + "指図の検査は区画全体が復元地盤である前提で書かれている");
             }
         }
         // --- 3) 岡部の段丘 T1=15.0(門前〜表庭) / T2=19.0(表御殿) — 近代改変域(x>=-472)内のみ ---

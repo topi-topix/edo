@@ -1165,7 +1165,14 @@ def plan_frame(d, tname, pad=3.0):
     pts = tpoly(t)
     us = [p[0] for p in pts]; vs = [p[1] for p in pts]
     for o in d["munes"] + d["service"] + d["gardens"] + d["links"]:
-        if abs(o.get("y", t["y"]) - t["y"]) > 0.6:
+        # ⚠ `y` を持たない物(庭)は**段の多角形に入るかで判定する**。
+        #    既定値をその段の高さにしていたため、6つの庭が両方の枠に入り、
+        #    門前面の平面図が敷地全域=御殿平面の重複になっていた(2026-08-25 検図)。
+        cu9 = (o["u0"] + o["u1"]) / 2.0; cv9 = (o["v0"] + o["v1"]) / 2.0
+        if "y" in o:
+            if abs(o["y"] - t["y"]) > 0.6:
+                continue
+        elif not tin(t, cu9, cv9):
             continue
         us += [o["u0"], o["u1"]]; vs += [o["v0"], o["v1"]]
     return (math.floor(min(us) - pad), math.ceil(max(us) + pad),
@@ -3758,21 +3765,31 @@ def main():
 
     # ⚠ **裁定を仰ぐ項目を図に出す。** 2026-08-25 検図: `_pending` が html に一切出ておらず、
     #    ユーザー裁定待ちの3件のうち2件が図の上に無かった。図に無い項目はレビューで決まらない。
-    yo = [x for x in d["_pending"]["open"] if x.startswith("【要判断")]
-    ji = [x for x in d["_pending"]["open"] if x.startswith("【実装で納める")]
-    ch = [x for x in d["_pending"]["open"] if x.startswith(("【要調査", "【要通達"))]
+    # ⚠ **残余バケツを必ず置く。** 2026-08-25 検図: 接頭辞の完全一致で分類していたため
+    #    34件中15件が黙って落ち、その中に「郭内の土留めの要否」という最重要の要判断があった。
+    op9 = list(d["_pending"]["open"])
+    yo = [x for x in op9 if "要判断" in x[:14]]
+    ji = [x for x in op9 if "実装" in x[:12]]
+    ch = [x for x in op9 if ("要調査" in x[:14] or "要通達" in x[:14])]
+    cl = [x for x in op9 if x.startswith(("【解決済", "【裁定済"))]
+    et = [x for x in op9 if x not in yo + ji + ch + cl]
     plate(h, nx(), "裁定と宿題", "⭐ **この章の【要判断】はユーザーの裁定を待っている**")
     for ttl, xs, mk in (("⭐ ユーザーの裁定を仰ぐ", yo, "yo"),
                         ("実装で納める(図では閉じない)", ji, "ji"),
-                        ("調査・通達の宿題", ch, "ch")):
+                        ("調査・通達の宿題", ch, "ch"),
+                        ("⚠ その他(上のどれにも入らない)", et, "et"),
+                        ("決着済み(記録として残す)", cl, "cl")):
         if not xs:
             continue
         h.append("<h3>%s(%d件)</h3><ol class='note'>%s</ol>"
                  % (ttl, len(xs), "".join("<li>%s</li>" % inline(x) for x in xs)))
-    h.append('<p class="cap">⚠ <b>ここに出ていない宿題は無い</b> — 正典は json '
-             '<code>_pending.open</code> で、この章はその全件を分類して刷る。'
-             '⭐ <b>【要判断】は当方では閉じられない</b>(規則3 の免除など、'
-             '不変則に関わるものを当方が自分に出すことはできない)。</p>')
+    h.append('<p class="cap"><b>open %d件をすべて刷った</b>(裁定%d / 実装%d / 調査%d / その他%d / 決着済み%d)。'
+             '正典は json <code>_pending.open</code>。'
+             % (len(op9), len(yo), len(ji), len(ch), len(et), len(cl))
+             + '⭐ <b>【要判断】は当方では閉じられない</b>(規則3 の免除など、'
+               '不変則に関わるものを当方が自分に出すことはできない)。'
+               '⛔ <b>分類は残余バケツ付き</b> — どれにも入らない件は「その他」に出る'
+               '(2026-08-25 検図: 接頭辞の完全一致で 34件中15件が黙って落ちていた)。</p>')
     h.append("</div>")
 
     plate(h, nx(), "考証と決めごと")

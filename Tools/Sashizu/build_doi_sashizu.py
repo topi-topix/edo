@@ -3999,6 +3999,7 @@ def neighbour_wall_check(d, ter, dem=None):
             mu, mv = gr.L((a[0] + b[0]) / 2 + nx_ * 3, (a[1] + b[1]) / 2 + nz_ * 3)
             sg = 1.0 if in_parcel(d, mu, mv) else -1.0
             worst = -9e9; at_s = None; at_off = None
+            float_worst = -9e9; f_s = None
             n = max(4, int((r["s1"] - r["s0"]) / 0.5))
             for i in range(n + 1):
                 sq = r["s0"] + (r["s1"] - r["s0"]) * i / float(n)
@@ -4043,9 +4044,20 @@ def neighbour_wall_check(d, ter, dem=None):
                 seat = s0 + (s1 - s0) * max(0.0, min(1.0, tr))
                 if g - seat > worst:
                     worst = g - seat; at_s = sq; at_off = off
+                # ⚠ **符号を片方しか見ていなかった。** 埋没(g > seat)だけを測っており、
+                #   **塀が当家側の地盤の上に浮く**(seat > g)ほうは構造的に見えなかった
+                #   (2026-08-26 松平 EDO-0025: S_Hei_C が 1.53m 浮いていたのを
+                #   当家の検査は 0件と報告していた)。⛔ **境界に立つ物は両方の符号で測る。**
+                #   ただし基壇(`base`)を持つ run は、基壇が足元まで下ろすので浮きではない。
+                if seat - g > float_worst:
+                    float_worst = seat - g; f_s = sq
             if at_s is not None and worst > 0.05:
                 bad.append("%s の %s が当家側の地盤に %.2fm 埋まる(相手の s=%.1f・境界から %.1fm 内側で実測)"
                            % (who, r["name"], worst, at_s, at_off))
+            if f_s is not None and float_worst > 0.30 and not r.get("base"):
+                bad.append("%s の %s が当家側の地盤から %.2fm 浮く(相手の s=%.1f)— "
+                           "基壇 `base` を持たない run。境界に足元の無い塀が立つ"
+                           % (who, r["name"], float_worst, f_s))
     return bad
 
 
@@ -4683,6 +4695,31 @@ def roundtrip_check(raw, pipeline):
         stripped["edgeProfile"] = dict((k, []) for k in stripped["edgeProfile"])
     rebuilt = pipeline(stripped)
     bad = []
+    # ⚠ **剥がすだけで突き合わせていない欄があった。** `boundaryPlinth` と `edgeProfile` は
+    #   丸ごと剥がしていたのに、比較は `GEN_FIELDS` の欄しか回っておらず**片道**だった
+    #   (2026-08-26 岡部 EDO-0026 の警告「地盤から引いた派生値を静的に持つな」を当家に当てて発覚。
+    #   当家の値は毎回取り直されていて腐ってはいなかったが、生成器が将来「無ければ埋める」形に
+    #   変われば**黙って静的化する**)。**剥がした物は必ず突き合わせる。**
+    ra, rb = raw.get("boundaryPlinth", []), rebuilt.get("boundaryPlinth", [])
+    if len(ra) != len(rb):
+        bad.append("boundaryPlinth の本数が組み直しで %d → %d に変わる" % (len(ra), len(rb)))
+    else:
+        for i, (a0, b0) in enumerate(zip(ra, rb)):
+            for k in ("edge", "s0", "s1", "coping", "drop", "s", "tiers"):
+                if k in a0 and abs(float(a0[k]) - float(b0.get(k, -9e9))) > 1e-6:
+                    bad.append("boundaryPlinth[%d].%s 正典=%s 組み直し=%s"
+                               % (i, k, a0[k], b0.get(k)))
+    ea, eb = raw.get("edgeProfile") or {}, rebuilt.get("edgeProfile") or {}
+    for k in ea:
+        if k not in eb:
+            bad.append("edgeProfile[%s] が組み直しで消える" % k)
+            continue
+        if len(ea[k]) != len(eb[k]):
+            bad.append("edgeProfile[%s] の点数が %d → %d" % (k, len(ea[k]), len(eb[k])))
+            continue
+        w = max((abs(p0[1] - q0[1]) for p0, q0 in zip(ea[k], eb[k])), default=0.0)
+        if w > 1e-6:
+            bad.append("edgeProfile[%s] が組み直しと最大 %.3fm 違う" % (k, w))
     checks = list(GEN_FIELDS.items()) + [(c, k) for c, (p, k) in GEN_FIELDS_IF.items()]
     for coll, keys in checks:
         by = dict((o["name"], o) for o in rebuilt.get(coll, []))

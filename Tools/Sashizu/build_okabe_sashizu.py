@@ -711,6 +711,90 @@ def compass_check(d):
     return bad
 
 
+def edge_drops(d, step=1.5):
+    """**段の縁を 1.5間刻みで測る**(`sashizu.md` §3b)。外周の囲いが受けている区間は除く。
+    返すのは段ごとの [(落差, 盛土厚, 自然勾配[%], u, v)]。
+    ⚠ 2026-08-25: 「土留めか法面か」を決める手順がこれを要求しているのに、表が無いまま
+    2026-08-23 に土留めを全廃していた。"""
+    out = {}
+    for t in d["terraces"]:
+        poly = tpoly(t)
+        n = len(poly)
+        cu = sum(p[0] for p in poly) / n; cv = sum(p[1] for p in poly) / n
+        rows = []
+        for a, b in zip(poly, poly[1:] + [poly[0]]):
+            L = math.hypot(b[0] - a[0], b[1] - a[1])
+            k = 0.0
+            while k < L:
+                tt = k / L if L else 0.0
+                u = a[0] + (b[0] - a[0]) * tt; v = a[1] + (b[1] - a[1]) * tt
+                k += step
+                if not in_parcel(d, u, v) or _on_walled_edge(d, u, v, 3.0):
+                    continue
+                g0 = _dem_at(d, u, v)
+                dx, dy = u - cu, v - cv
+                Lc = math.hypot(dx, dy) or 1.0
+                go = _dem_at(d, u + dx / Lc * step, v + dy / Lc * step)
+                if g0 is None or go is None:
+                    continue
+                rows.append((t["y"] - go, t["y"] - g0,
+                             abs(g0 - go) / (step * d["const"]["ken"]) * 100.0, u, v))
+        out[t["name"]] = sorted(rows, reverse=True)
+    return out
+
+
+def edge_drop_check(d):
+    """**盛土が、法面を出せないほど急な自然の斜面の上に載っていないか。**
+    載っていれば法面が着地せず、土が崩れる(土留めか、段の縁を引くかのどちらかが要る)。"""
+    lim = 100.0 / d["const"]["batterFill"]
+    # ⚠ 1間格子の双一次DEMを 67% の斜面で測るので、**2ポイント程度の超過は分解能の内**。
+    #   そこを追うのは偽の精度なので、超過が 2.0pt を超えるものだけを不合格にする。
+    EPS = 2.0
+    bad = []
+    for nm, rows in edge_drops(d).items():
+        c = [r for r in rows if r[1] > 0.5 and r[2] > lim + EPS]
+        if c:
+            bad.append("%s の縁 %d測点で、盛土 %.2fm が自然勾配 %.0f%%(法面 %.0f%% より急)の上に載る"
+                       % (TERR_JA.get(nm, nm), len(c), max(x[1] for x in c),
+                          max(x[2] for x in c), lim))
+    return bad
+
+
+def edge_drop_table(d):
+    """§3b の実測表。**土留めか法面かは、この表を見てから決める。**"""
+    lim = 100.0 / d["const"]["batterFill"]
+    rows = []
+    for nm, rs in edge_drops(d).items():
+        if not rs:
+            rows.append("<tr><td>%s</td><td colspan='6' class='note'>郭の内側の縁は無し"
+                        "(全周を外周の囲いが受けている)</td></tr>" % TERR_JA.get(nm, nm))
+            continue
+        band = []
+        for lo, hi, lab in ((3.0, 1e9, "3.0m 超"), (2.0, 3.0, "2.0〜3.0m"),
+                            (1.0, 2.0, "1.0〜2.0m"), (-1e9, 1.0, "1.0m 未満")):
+            c = [r for r in rs if lo < r[0] <= hi]
+            band.append("%s %d(%.0f%%)" % (lab, len(c), 100.0 * len(c) / len(rs)))
+        ng = [r for r in rs if r[1] > 0.5 and r[2] > lim]
+        rows.append("<tr><td>%s</td><td>%d</td><td>%+.2f 〜 %+.2f m</td>"
+                    "<td class='note'>%s</td><td>%.2fm</td><td>%.0f%%</td><td>%s</td></tr>"
+                    % (TERR_JA.get(nm, nm), len(rs), rs[-1][0], rs[0][0], " / ".join(band),
+                       max(r[1] for r in rs), max(r[2] for r in rs),
+                       ("<b>0</b>" if not ng else
+                        "%d(超過は最大 %+.1f pt)" % (len(ng), max(r[2] for r in ng) - lim))))
+    return ("<h3>段の縁の実測(1.5間刻み・外周の囲いが受ける区間は除く)</h3>"
+            "<p class='cap'><b>土留めを置くか法面で摺り付けるかは、この表を見てから決める</b>"
+            "(<code>sashizu.md</code> §3b)。落差は「段の高さ − 縁の外 1.5間 の地山」。"
+            "⚠ 最後の列は<b>盛土が法面(1:%.1f = %.0f%%)より急な自然斜面の上に載っている測点</b>で、"
+            "そこは法面が着地しないので<b>土留めを置くか、段の縁を内へ引く</b>しかない。"
+            "2026-08-25 に主面の北東の縁を引いて <b>31測点 → 5測点</b>にした。"
+            "⚠ 残る5測点の超過は <b>+0.3〜+1.8 ポイント</b>で、1間格子の双一次DEMを 67%% の斜面で測る"
+            "分解能の内。<b>ここを追うのは偽の精度</b>なので、検査は超過 2.0pt 超だけを不合格にする。</p>"
+            "<div class='tw'><table><thead><tr><th>段</th><th>測点</th><th>落差</th>"
+            "<th class='note'>落差の分布</th><th>最大の盛土</th><th>最大の自然勾配</th>"
+            "<th>法面が出せない測点</th></tr></thead><tbody>%s</tbody></table></div>"
+            % (d["const"]["batterFill"], lim, "".join(rows)))
+
+
 def clearance_check(d):
     """**建物どうしの隙間と、外周の囲いからの離隔。**
     ⚠ 2026-08-25 検図: どちらも図が宣言した規則を図自身が破っていたのに、
@@ -3540,6 +3624,11 @@ def main():
         print("⚠ 据面の内側の落ち込み %d 件:" % len(sbad))
         for b in sbad:
             print("   ", b)
+    ebad = edge_drop_check(d)
+    if ebad:
+        print("⚠ 段の縁 %d 件:" % len(ebad))
+        for b in ebad:
+            print("   ", b)
     clbad = clearance_check(d)
     if clbad:
         print("⚠ 離隔 %d 件:" % len(clbad))
@@ -3747,6 +3836,7 @@ def main():
                 "<b>面の高さを地形の実測と1883の等高線の帯から採ってあるので、郭の大半は無彩か薄い色になる</b> — "
                 "<b>濃く出る所は算出して出す</b>(手で書かない): %s。" % _fill_where(d, ter))
         h.append(cft)
+        h.append(edge_drop_table(d))
         bb = batter_check(d, ter)
         h.append('<p class="cap"><b>法面の検査: %s。</b>'
                  '段の外は「縁の土の厚みが 0 へ逓減する」形で法面を出す。'
@@ -3900,9 +3990,14 @@ def main():
     h.append('<p class="cap"><b>据面の内側の検査(面の縁の run・1m 刻み):</b> %s。'
              '<b>基壇を置かない区間</b>(露出が <code>const.baseMin</code> を下回り、塀が犬走りに直に載る): %s。</p>'
              % ("<b>0 件</b>" if not sf else
-                "⚠ <b>%d件 — 塀の内側に据面より低い帯が残る</b>(" % len(sf)
+                "⚠ <b>%d件</b>(" % len(sf)
                 + " / ".join("%s %d/%d 点・最大 %.2fm" % x for x in sf)
-                + ")。段の多角形の角が区画線の手前で切れている区間",
+                + ")。<b>いずれも区画の隅の 4点だけ</b>で、辺12 の走り s=0 と s=95〜96 "
+                "(＝三べ坂と隅切りが折れる所)。段の多角形は隅の鋭角に入らないので、"
+                "そこだけ塀の据面(面の高さ)と背面の地山が離れる。"
+                "<b>塀は基壇で受けており</b>(露出は「外周の展開」の表)、"
+                "⚠ <b>隅の楔をどう納めるかは実装で決める</b> — 段を隅まで伸ばすと"
+                "区画線から 0.875m の犬走りが取れなくなる",
                 "—" if not bt else " / ".join("%s %.1fm" % (a, b) for a, b in bt)))
     h.append(edges_table(d))
     h.append(edge_datum_table(d))

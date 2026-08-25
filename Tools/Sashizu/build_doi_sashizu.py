@@ -1615,31 +1615,35 @@ def _shared_edges(d, who):
     return out
 
 
-def shared_edge_check(d, base):
-    """**共有境界の地盤は、どの家も正本のまま読むこと。**
+def _shared_edge_stats(d, base):
+    """共有辺検査の実測。返すのは (rows, missing) —
+    rows = [(who, 当家の辺e, 正本との差の最大)] / missing = [(who, ファイル名, 未検査の辺)]。
 
-    各家が江戸期の復元を持つと、**同じ境界線を別の面の上で設計する**ことになる
-    (2026-08-25 検図13巡 高-7: 岡部の復元が辺1で最大 **0.63m** 動かしていた。
-    当家の復元は全辺 0.00m)。司令塔の通達も「隣家との境の地盤は (a) 正本 —
-    **両家が同じ面を読むことが要件**」としている。
+    ⛔ **復元地盤ファイルが無い相手を `continue` で黙って飛ばさない。**
+    2026-08-26 まで `matsudaira_edo_world.json` が存在せず、当家の辺8・9(松平に面する、
+    **一番検査したい辺**)が一度も検査されないまま「指摘 0 件」を名乗っていた。
+    採らなかった辺は `missing` として必ず表に出す(沈黙は情報を持たない)。
+    ファイルが**在るのに読めない**場合はここでは受けない — `load_terrain` の `json.load` が
+    例外で落ちるのが正しい(壊れた正本の上で検査を続けない)。
     """
-    if base is None:
-        return []
     P = d["polygon"]
-    bad = []
+    rows, missing = [], []
     for who, fn_ in (("岡部", "okabe_edo_world.json"), ("松平", "matsudaira_edo_world.json"),
                      ("土井", "doi_edo_world.json")):
-        path = os.path.join(DOC, fn_)
-        if not os.path.exists(path):
-            continue
-        w = load_terrain(path)
         # ⚠ **共有辺は幾何で決める。** `NEIGHBOUR` が持つ辺番号は**相手の多角形の番号**で、
         #   当家の番号ではない(岡部の辺8・9は当家の辺0・1・2にあたり、当家の辺8・9は
         #   **松平**に面する)。番号をそのまま当家の多角形に当てて2度間違えた
         #   — 1度目は全辺を回して隣家の敷地内の復元を指摘に化けさせ、
         #   2度目は相手の番号を当家の辺として使い、**本当の共有辺を見逃した**
         #   (2026-08-25 検図14巡 中-8)。当家(土井)は自分の全辺を見る。
-        edges = range(len(P)) if who == "土井" else _shared_edges(d, who)
+        edges = list(range(len(P))) if who == "土井" else _shared_edges(d, who)
+        if not edges:
+            continue                     # 幾何的に接していない相手は検査対象ではない
+        path = os.path.join(DOC, fn_)
+        if not os.path.exists(path):
+            missing.append((who, fn_, edges))
+            continue
+        w = load_terrain(path)
         for e in edges:
             a, b = P[e], P[(e + 1) % len(P)]
             L = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
@@ -1651,10 +1655,49 @@ def shared_edge_check(d, base):
                 vv = dem_bilinear(w, x, z)
                 if bb is not None and vv is not None:
                     worst = max(worst, abs(vv - bb))
-            if worst > 0.05:
-                bad.append("%s の復元が共有辺%d の地盤を正本から %.2fm 動かしている — "
-                           "**境界は両家が正本を読む**" % (who, e, worst))
+            rows.append((who, e, worst))
+    return rows, missing
+
+
+def shared_edge_check(d, base):
+    """**共有境界の地盤は、どの家も正本のまま読むこと。**
+
+    各家が江戸期の復元を持つと、**同じ境界線を別の面の上で設計する**ことになる
+    (2026-08-25 検図13巡 高-7: 岡部の復元が辺1で最大 **0.63m** 動かしていた。
+    当家の復元は全辺 0.00m)。司令塔の通達も「隣家との境の地盤は (a) 正本 —
+    **両家が同じ面を読むことが要件**」としている。
+    """
+    if base is None:
+        return []
+    rows, missing = _shared_edge_stats(d, base)
+    bad = []
+    for who, fn_, edges in missing:
+        bad.append("⛔ %s の復元地盤 %s が無い — 当家の共有辺%s が**未検査のまま**になる。"
+                   "生成器(Tools/Sashizu/build_*_edo_dem.py)を回してから当図を組み直すこと"
+                   % (who, fn_, "・".join(str(e) for e in edges)))
+    for who, e, worst in rows:
+        if worst > 0.05:
+            bad.append("%s の復元が共有辺%d の地盤を正本から %.2fm 動かしている — "
+                       "**境界は両家が正本を読む**" % (who, e, worst))
     return bad
+
+
+def shared_edge_html(d, base):
+    """共有辺検査の**合否と数値**を図に出す。0件でも沈黙しない —
+    何を測って合格したのかまで載せる(採らなかった辺は ⛔ で出す)。"""
+    if base is None:
+        return "⛔ 正本 <code>base_dem.json</code> が無い — 共有辺検査が走っていない。"
+    rows, missing = _shared_edge_stats(d, base)
+    parts = []
+    for who, e, worst in rows:
+        parts.append("%s×辺%d <b>%.2fm</b>%s"
+                     % (who if who != "土井" else "当家の復元", e, worst,
+                        " ✔" if worst <= 0.05 else " ⛔"))
+    for who, fn_, edges in missing:
+        parts.append("⛔ <b>%s の復元地盤 <code>%s</code> が無く、共有辺%s は未検査</b>"
+                     % (who, fn_, "・".join(str(e) for e in edges)))
+    return ("<b>共有辺の地盤検査</b>(各復元地盤と正本の差の最大。0.05m 超と未検査が不適合。"
+            "当家の全辺は自家の復元に対して検る): " + " / ".join(parts) + "。")
 
 
 def ramp_check(d):
@@ -5579,6 +5622,10 @@ def main():
              '松平の指図で「相手のある屋敷境は斜面でも練塀で通す」と改められた(2026-08-23)。'
              '石垣の天端の犬走り %.2fm(=%.1f間)。</p>'
              % (d["const"]["inubashiri"] * d["const"]["ken"], d["const"]["inubashiri"]))
+    # 共有辺の地盤検査は**合否を問わずここに載せる** — 2026-08-26 まで、松平の復元地盤が
+    # 無いために当家の辺8・9が未検査のまま図が「0件」の顔をしていた(shared_edge_check の docstring)。
+    h.append('<p class="cap">%s</p>'
+             % shared_edge_html(d, load_terrain(os.path.join(DOC, "base_dem.json"))))
     h.append("</div>")
 
     _mf = [(m["name"], mune_fit(d, m))

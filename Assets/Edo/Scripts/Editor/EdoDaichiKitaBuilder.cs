@@ -42,7 +42,7 @@ public static class EdoDaichiKitaBuilder
     // 成満寺: C2->C3(東辺)が田町通りに平行=山門側
     static readonly Vector2[] JM = { new Vector2(-825.19f,1019.95f), new Vector2(-816.59f,996.54f), new Vector2(-786.97f,1008.00f), new Vector2(-797.00f,1033.32f) };
 
-    static float Ground(float x, float z) { return EdoTamachiBuilder.Ground(x, z); }
+    static float Ground(float x, float z) { return EdoBuild.Ground(x, z); }
 
     // EdoGeom.DistToPolyEdge と実装差あり — 統一は裁定待ち
     static float DistToPolyEdge(Vector2[] poly, Vector2 p)

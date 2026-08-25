@@ -34,7 +34,7 @@ public static class EdoShinmachiBuilder
     static readonly Vector2[] RB = { new Vector2(-751.74f,792.02f), new Vector2(-767.41f,787.17f), new Vector2(-785.16f,761.83f), new Vector2(-777.62f,729.49f), new Vector2(-731.26f,740.27f), new Vector2(-749.59f,790.94f) };
     static readonly Vector2[] RC = { new Vector2(-777.03f,787.86f), new Vector2(-819.29f,810.20f), new Vector2(-830.61f,798.16f), new Vector2(-823.05f,776.18f), new Vector2(-816.87f,751.45f), new Vector2(-796.95f,757.63f) };
 
-    static float Ground(float x, float z) { return EdoTamachiBuilder.Ground(x, z); }
+    static float Ground(float x, float z) { return EdoBuild.Ground(x, z); }
     static Vector2 Inward(Vector2[] poly, int i)
     {
         Vector2 a = poly[i], b = poly[(i + 1) % poly.Length];

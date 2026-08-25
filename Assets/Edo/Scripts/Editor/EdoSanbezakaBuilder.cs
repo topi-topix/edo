@@ -142,7 +142,7 @@ public static class EdoSanbezakaBuilder
     static readonly Vector2 GATE_W6 = new Vector2(-146.0f, 1146.0f);      // 馬場向き(E)
 
     // ---------- helpers ----------
-    public static float Ground(float x, float z) { return EdoNishiTameikeBuilder.Ground(x, z); }
+    public static float Ground(float x, float z) { return EdoBuild.Ground(x, z); }
     public static GameObject Place(string path, Vector3 pos, float ry, Vector3 scale, Transform parent, string name)
     { return EdoNishiTameikeBuilder.Place(path, pos, ry, scale, parent, name); }
     public static Bounds RB(GameObject go) { return EdoNishiTameikeBuilder.RB(go); }

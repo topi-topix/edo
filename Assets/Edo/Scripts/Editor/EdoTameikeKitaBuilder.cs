@@ -81,7 +81,7 @@ public static class EdoTameikeKitaBuilder
             if (t.gameObject.activeInHierarchy) return t;
         throw new Exception("no active terrain");
     }
-    public static float Ground(float x, float z) { var t = T(); return t.SampleHeight(new Vector3(x, 0, z)) + t.transform.position.y; }
+    public static float Ground(float x, float z) => EdoBuild.Ground(x, z);
     public static float PadAt(Estate e, Vector2 p) { return Ground(p.x, p.y); } // 造成ゼロ=地形追従
 
     static GameObject Load(string path)

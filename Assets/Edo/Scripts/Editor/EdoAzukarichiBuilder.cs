@@ -42,7 +42,7 @@ public static class EdoAzukarichiBuilder
     const float PadY = 7.5f;   // 大的稽古場の平場レベル
     const float MinH = 7.0f;   // 設置物の最低地盤高(水面6.6+0.4)
 
-    static float Ground(float x, float z) { return EdoTamachiBuilder.Ground(x, z); }
+    static float Ground(float x, float z) { return EdoBuild.Ground(x, z); }
     // EdoGeom.DistToPolyEdge と実装差あり — 統一は裁定待ち
     static float DistToPolyEdge(Vector2[] poly, Vector2 p)
     {

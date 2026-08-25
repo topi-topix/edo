@@ -66,45 +66,12 @@ public static class EdoNishiTameikeBuilder
             nagayaEdges=new[]{1}, dobeiEdges=new[]{2,3}, pad=10f },
     };
 
-    // ---------- shared helpers ----------
-    public static Terrain T()
-    {
-        foreach (var t in UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None))
-            if (t.gameObject.activeInHierarchy) return t;
-        throw new Exception("no active terrain");
-    }
-    public static float Ground(float x, float z) { var t = T(); return t.SampleHeight(new Vector3(x, 0, z)) + t.transform.position.y; }
-
-    static GameObject Load(string path)
-    {
-        var a = AssetDatabase.LoadAssetAtPath<GameObject>(path);
-        if (a == null) throw new Exception("asset not found: " + path);
-        return a;
-    }
-    public static GameObject Place(string path, Vector3 pos, float ry, Vector3 scale, Transform parent, string name)
-    {
-        var go = (GameObject)PrefabUtility.InstantiatePrefab(Load(path));
-        go.name = name;
-        go.transform.SetParent(parent, true);
-        go.transform.position = pos;
-        go.transform.rotation = Quaternion.Euler(0, ry, 0);
-        go.transform.localScale = scale;
-        Undo.RegisterCreatedObjectUndo(go, "place " + name);
-        return go;
-    }
-    public static Bounds RB(GameObject go)
-    {
-        var rs = go.GetComponentsInChildren<Renderer>();
-        if (rs.Length == 0) return new Bounds(go.transform.position, Vector3.zero);
-        var b = rs[0].bounds;
-        foreach (var r in rs) b.Encapsulate(r.bounds);
-        return b;
-    }
-    public static void SeatBottom(GameObject go, float y)
-    {
-        var b = RB(go);
-        go.transform.position += new Vector3(0, y - b.min.y, 0);
-    }
+    // ---------- shared helpers (本体は EdoBuild へ移設。ここは署名温存の委譲) ----------
+    public static Terrain T() => EdoBuild.T();
+    public static float Ground(float x, float z) => EdoBuild.Ground(x, z);
+    public static GameObject Place(string path, Vector3 pos, float ry, Vector3 scale, Transform parent, string name) => EdoBuild.Place(path, pos, ry, scale, parent, name);
+    public static Bounds RB(GameObject go) => EdoBuild.RB(go);
+    public static void SeatBottom(GameObject go, float y) => EdoBuild.SeatBottom(go, y);
     // 頂点を軸に射影した min/max (worldY帯でフィルタ可, 名前フィルタ可)
     static void ProjExtent(GameObject go, Vector2 axis, float yMin, float yMax, Func<string, bool> nameOk, out float mn, out float mx)
     {

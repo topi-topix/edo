@@ -40,7 +40,7 @@ public static class EdoTamachi5EastBuilder
         new Vector2(-623.32f,625.57f), new Vector2(-611.62f,602.32f),
         new Vector2(-597.64f,610.19f), new Vector2(-613.94f,631.92f) };
 
-    static float Ground(float x, float z) { return EdoTamachiBuilder.Ground(x, z); }
+    static float Ground(float x, float z) { return EdoBuild.Ground(x, z); }
     static Transform Group(string child)
     {
         var r = GameObject.Find(RootName);

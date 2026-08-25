@@ -80,7 +80,7 @@ public static class EdoSannoKitaBuilder
     static readonly Vector2 GATE_MATSU = new Vector2(-618.71f, 1276.96f); // N辺(12-13) s=123.8。指図v3 gate.pos と同値(2026-08-23 明治16年実測図[五千分一東京図31]の開口へ移設)
 
     // ---------- helpers (EdoSannoBukeBuilder と同型) ----------
-    static float Ground(float x, float z) { return EdoNishiTameikeBuilder.Ground(x, z); }
+    static float Ground(float x, float z) { return EdoBuild.Ground(x, z); }
     static GameObject Place(string path, Vector3 pos, float ry, Vector3 scale, Transform parent, string name)
     { return EdoNishiTameikeBuilder.Place(path, pos, ry, scale, parent, name); }
     static Bounds RB(GameObject go) { return EdoNishiTameikeBuilder.RB(go); }

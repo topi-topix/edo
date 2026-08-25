@@ -86,7 +86,7 @@ public static class EdoSannoShaBuilder
         new Vector2(-386.0f, 641f), new Vector2(-386.6f, 726f), new Vector2(-387.2f, 780f),
         new Vector2(-387.8f, 845f), new Vector2(-387.8f, 890f), new Vector2(-389f, 908f), new Vector2(-390f, 926f) };
 
-    static float Ground(float x, float z) { return EdoNishiTameikeBuilder.Ground(x, z); }
+    static float Ground(float x, float z) { return EdoBuild.Ground(x, z); }
     static GameObject Place(string path, Vector3 pos, float ry, Vector3 scale, Transform parent, string name)
     { return EdoNishiTameikeBuilder.Place(path, pos, ry, scale, parent, name); }
     static Bounds RB(GameObject go) { return EdoNishiTameikeBuilder.RB(go); }

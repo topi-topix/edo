@@ -65,7 +65,7 @@ public static class EdoTamachiBuilder
     };
 
     public static Terrain T() { return EdoTameikeKitaBuilder.T(); }
-    public static float Ground(float x, float z) { return EdoTameikeKitaBuilder.Ground(x, z); }
+    public static float Ground(float x, float z) { return EdoBuild.Ground(x, z); }
     static Transform Group(string root, string child)
     {
         var r = GameObject.Find(root);

@@ -137,20 +137,32 @@ def reconstruct(seed, poly, spec):
     def masked(x, z):
         return z < mk["zMin"] or x > mk["xMax"] or x < mk["xMin"]
 
+    # ③ 近代の平坦を形で検出 — **①②より先に回す。** 検出した平坦は「自然の台地」の
+    #    母集団からも補間の種からも外す。⛔ §A-6「平らだから自然地形」は循環論法であり、
+    #    平らな板を種にすれば**近代の造成面を江戸期の地盤として塗り広げる**ことになる
+    #    (2026-08-25 検図13巡 中-3)。
+    fd = spec["flatDetect"]
+    comps = flats(seed, poly, fd["tol"], fd["minCells"])
+    flatcells = set()
+    for c in comps:
+        flatcells |= c["cells"]
+    log.append("③ 広い平坦 %d 面(上位: %s)— **②以外は自動では触らない**"
+               % (len(comps), " / ".join("%.2f×%d" % (c["y"], c["n"]) for c in comps[:5])))
+
     # ① 台地の自然面 = 正本の実測セルの中央値(値は仕様に持たない)
     pl = spec["plateau"]
-    sel = [seed["h"][iz][ix] for (ix, iz), (x, z) in inside.items()
-           if seed["h"][iz][ix] is not None and z >= pl["zMin"] and not masked(x, z)
-           and pl["cellMin"] <= seed["h"][iz][ix] <= pl["cellMax"]]
+    def _plateau_pop(drop_flat):
+        return [seed["h"][iz][ix] for (ix, iz), (x, z) in inside.items()
+                if seed["h"][iz][ix] is not None and z >= pl["zMin"] and not masked(x, z)
+                and pl["cellMin"] <= seed["h"][iz][ix] <= pl["cellMax"]
+                and not (drop_flat and (ix, iz) in flatcells)]
+    sel_all = _plateau_pop(False)
+    sel = _plateau_pop(True)
     py = round(median(sel), 2) if sel else None
     log.append("① 台地の自然面 = 実測 %d セルの中央値 **%.2f**(振れ %.2f〜%.2f)"
                % (len(sel), py, min(sel), max(sel)))
-
-    # ③ 近代の平坦を形で検出(報告だけ)
-    fd = spec["flatDetect"]
-    comps = flats(seed, poly, fd["tol"], fd["minCells"])
-    log.append("③ 広い平坦 %d 面(上位: %s)— **②以外は自動では触らない**"
-               % (len(comps), " / ".join("%.2f×%d" % (c["y"], c["n"]) for c in comps[:5])))
+    log.append("   ③の平坦 %d セルを母集団から外した(外さなければ %d セル・中央値 %.2f)"
+               % (len(sel_all) - len(sel), len(sel_all), median(sel_all)))
 
     # ② 玄関の郭の掘削跡を、周囲の台地セルから逆距離加重で埋め戻す
     cf = spec["cutFlat"]
@@ -178,6 +190,8 @@ def reconstruct(seed, poly, spec):
             continue
         if kl[0] <= x <= kl[1] and kl[2] <= z <= kl[3]:
             continue                       # ④ 南東の谷は種に使わない(低いので窪みが残る)
+        if (ix, iz) in flatcells:
+            continue                       # ③ 近代の平坦は種にしない(§A-6 の循環論法を断つ)
         if pl["cellMin"] <= y <= pl["cellMax"]:
             src[(ix, iz)] = y
     n3 = 0
@@ -208,6 +222,12 @@ def reconstruct(seed, poly, spec):
                 q = (ix + dx, iz + dz)
                 if q in inside and not masked(*inside[q]):
                     zone.add(q)
+    # ⛔ **平滑化は掘削跡の外を作り直す道具ではない。** `zone` は target ±1 なので
+    #   掘削跡でないセルを必ず含む。そこは**継ぎ目を撫でるぶんだけ**動かしてよく、
+    #   `haloMax` を超えて動かすなら、それは平滑化ではなく無宣言の造成である
+    #   (2026-08-25 検図13巡 中-5: 非対象 66 セルが最大 +1.03m 動いていた)。
+    hal = sm.get("haloMax", 0.30)
+    before = {(ix, iz): h[iz][ix] for (ix, iz) in zone}
     for _ in range(sm["passes"]):
         h2 = [row[:] for row in h]
         for (ix, iz) in zone:
@@ -216,7 +236,19 @@ def reconstruct(seed, poly, spec):
             if n:
                 h2[iz][ix] = round(sum(n) / len(n), 2)
         h = h2
-    log.append("⑥ 境目を %d 回平滑化(対象 %d セル)" % (sm["passes"], len(zone)))
+    clip = 0
+    worst = 0.0
+    for (ix, iz) in zone:
+        if (ix, iz) in target or before[(ix, iz)] is None or h[iz][ix] is None:
+            continue
+        dv = h[iz][ix] - before[(ix, iz)]
+        worst = max(worst, abs(dv))
+        if abs(dv) > hal:
+            h[iz][ix] = round(before[(ix, iz)] + math.copysign(hal, dv), 2)
+            clip += 1
+    log.append("⑥ 境目を %d 回平滑化(対象 %d セル)— 掘削跡でない %d セルを "
+               "上限 %.2fm で頭打ちにした(素の最大 %.2fm)"
+               % (sm["passes"], len(zone), clip, hal, worst))
     return h, log
 
 

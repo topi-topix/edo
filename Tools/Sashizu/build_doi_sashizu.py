@@ -1547,11 +1547,28 @@ def completeness_check(d):
                 v = a[1] + (b[1] - a[1]) * i / n_o
                 if not in_parcel(d, u, v):
                     continue
-                if stair_y(d, u, v) is not None or design_y(d, u, v) is not None:
+                # ⛔ **`design_y` で免じない。** それは「段の上か」でしかなく、
+                #   段は敷地のほぼ全部にある。ここで免じていたので、**庭を全部消しても
+                #   0件**だった(2026-08-25 検図13巡・削除の感度試験)。註が言う
+                #   「白洲か石段で通す」を字義どおり測る — 通ってよいのは
+                #   **石段・白洲(surfaced な庭)・棟の中**だけ。
+                if stair_y(d, u, v) is not None:
                     continue
                 if any(g["u0"] - 1e-9 <= u <= g["u1"] + 1e-9
                        and g["v0"] - 1e-9 <= v <= g["v1"] + 1e-9
-                       for g in d.get("gardens", [])):
+                       for g in d.get("gardens", []) if g.get("kind") == "shirasu"):
+                    continue
+                if any(in_obb(m, u, v, 1e-9) for m in d["munes"] + d.get("service", [])):
+                    continue                      # 棟に入った先は屋内
+                # 長屋門の躯体帯(門を潜る区間)も屋内。表門の辺の run と門の躯体を見る
+                gp3, sg3 = d["gate"]["plan"], d["gate"]["s"]
+                if (-gp3["monW"] / 2 / K <= u <= gp3["monW"] / 2 / K
+                        and -1e-9 <= v <= gp3["monD"] / K + 1e-9):
+                    continue
+                if any((r3["s0"] - sg3) / K <= u <= (r3["s1"] - sg3) / K
+                       and -1e-9 <= v <= (d["const"]["nagayaD"] if r3["kind"] == "Nagaya"
+                                          else d["const"]["dobeiT"]) / K + 1e-9
+                       for r3 in d["runs"] if r3["edge"] == d["gate"]["edge"]):
                     continue
                 bare += seg / n_o * K
         if bare > 1.0:
@@ -2007,6 +2024,35 @@ def rails_check(d):
     return sorted(set(bad))
 
 
+def program_check(d):
+    """**在るべき棟が在るか。** 正典 `program` の役割ごとに、それを満たす物の名を突き合わせる。
+
+    ⚠ これが無いあいだ、**棟を消しても検査が一つも鳴らなかった**
+    (2026-08-25 検図13巡・削除の感度試験: Yakusho / Komegura / Kura1 / Kura2 / Inari)。
+    `norms_check` は柱割りと廊下の作法しか見ないので、「何が在るべきか」を持つ物が要る。
+    """
+    have = set(o["name"] for o in d["munes"] + d.get("service", []))
+    have |= set(w["name"] for w in d.get("wells", []))
+    bad = []
+    for pg in d.get("program", []):
+        miss = [n for n in pg["by"] if n not in have]
+        if len(miss) == len(pg["by"]):
+            bad.append("役割「%s」を満たす物が一つも無い(%s)" % (pg["role"], "・".join(pg["by"])))
+        elif miss:
+            bad.append("役割「%s」の %s が指図に無い" % (pg["role"], "・".join(miss)))
+        if pg.get("cert") not in ("S", "A", "B", "P", "U"):
+            bad.append("役割「%s」に確度が無い(規則6)" % pg["role"])
+    # 逆向き — `program` のどの役割にも現れない棟は、消しても誰も気づかない
+    named = set()
+    for pg in d.get("program", []):
+        named |= set(pg["by"])
+    for o in d["munes"] + d.get("service", []):
+        if o["name"] not in named:
+            bad.append("棟 %s が `program` のどの役割にも現れない — 消しても検査が鳴らない"
+                       % o["name"])
+    return bad
+
+
 def norms_check(d):
     """**廊下の規範**(§1)と**柱割り**(§4)を機械検査に落とす。
 
@@ -2088,6 +2134,28 @@ def refs_check(d):
         pl = m.get("plane") or m.get("terrace")
         if isinstance(pl, str) and pl not in tn:
             bad.append("%s の面 %s が段に無い" % (m["name"], pl))
+    # ⚠ **面が並べる段と外周の名前**。ここが切れると建蔽率の分母が黙って縮む —
+    #   面積は `planes[].terraces` から積むので、名前が消えてもその段のぶんが
+    #   落ちるだけで、どの検査も鳴らなかった(2026-08-25 検図13巡・削除の感度試験)。
+    rn = set(r["name"] for r in d.get("runs", []))
+    used = set()
+    for pl in d.get("planes", []):
+        for t in pl.get("terraces", []):
+            if t not in tn:
+                bad.append("面「%s」が並べる段 %s が段に無い" % (pl["name"], t))
+            used.add(t)
+        for r in pl.get("runs", []):
+            if r not in rn:
+                bad.append("面「%s」が並べる外周 %s が外周に無い" % (pl["name"], r))
+    # 逆向き — どの面にも属さない段は、面積にも図にも出ないまま canon に残る
+    for t in d["terraces"]:
+        if t["name"] not in used:
+            bad.append("段 %s がどの面にも属していない" % t["name"])
+    for k in d["kaidans"] + d.get("ramps", []):
+        for side in ("hi", "lo"):
+            v = k.get(side)
+            if isinstance(v, str) and v not in tn:
+                bad.append("%s の %s=%s が段に無い" % (k["name"], side, v))
     return bad
 
 
@@ -4818,7 +4886,7 @@ def main():
             print("   ", b)
     pbad = (plane_check(d) + inubashiri_check(d) + opening_fit_check(d) + refs_check(d)
             + norms_check(d) + perimeter_check(d) + clearance_check(d) + rails_check(d)
-            + ramp_check(d) + completeness_check(d)
+            + ramp_check(d) + completeness_check(d) + program_check(d)
             + stair_bank_check(d, load_terrain(os.path.join(DOC, "doi_edo_world.json")))
 
             + terrain_canon_check(d, load_terrain(os.path.join(DOC, "doi_edo_dem.json")),

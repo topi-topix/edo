@@ -1178,6 +1178,8 @@ def plane_check(d):
     bad += yagura_opening_check(d)
     bad += program_check(d)
     bad += setchin_check(d)
+    bad += edge_treatment_check(d)
+    bad += outside_bury_check(d)
     return bad
 
 
@@ -1532,6 +1534,147 @@ def anchor_separate():
                     raise RuntimeError("『別の区画に属す役割』の行が読めない: %r" % ln)
                 return got
     raise RuntimeError("『別の区画に属す役割』の行が estate-types.md に無い")
+
+
+BURY_MAX = 0.30         # 外側の地盤が座より高くてよい量[m]
+
+
+def outside_bury_check(d):
+    """**外側の地盤**が外周の座より高くないか(塀・長屋が外から埋まらないか)。
+
+    ⚠ `_pending.seihoDoro` に「東辺は道の肩が塀の面より最大 1.7m 高く、長屋の基壇が
+    道側へ埋まる。見え方は実装後の検証レンダで確認する」と**宣言だけ**が置かれていた。
+    2026-08-26 に正本 DEM で測り直すと**最大 +0.30m・超過 0 本**で、
+    その心配は既に解消していた。⛔ **宣言は直っても消えない。**
+    実測を要求に組み替えて、戻ったときに鳴る形にする(土井 EDO-0029)。
+
+    ⚠ 造成前の地盤(`<屋敷>_dem.json` = 正本の切り出し)で測る。live terrain は使わない(規則12)。
+    """
+    try:
+        dem = json.load(open(os.path.join(DOC, "matsudaira_dem.json"), encoding="utf-8"))
+    except Exception:
+        return ["matsudaira_dem.json が読めない — 外側の埋没を測れない(測れないものは0件になる)"]
+    x0, z0 = dem["x0"], dem["z0"]
+    step = dem.get("step", dem.get("res", 2.0))
+    H = dem["h"] if "h" in dem else dem["height"]
+    nz, nx = len(H), len(H[0])
+
+    def nat(x, z):
+        fx, fz = (x - x0) / step, (z - z0) / step
+        i, j = int(math.floor(fx)), int(math.floor(fz))
+        if not (0 <= i < nx - 1 and 0 <= j < nz - 1):
+            return None
+        tx, tz = fx - i, fz - j
+        return ((H[j][i] * (1 - tx) + H[j][i + 1] * tx) * (1 - tz)
+                + (H[j + 1][i] * (1 - tx) + H[j + 1][i + 1] * tx) * tz)
+
+    P = d["polygon"]
+    n = len(P)
+    g = (sum(p[0] for p in P) / n, sum(p[1] for p in P) / n)
+    bad = []
+    for r in d["runs"]:
+        e = r["edge"] % n
+        a, b = P[e], P[(e + 1) % n]
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        u = ((b[0] - a[0]) / L, (b[1] - a[1]) / L)
+        nn = (-u[1], u[0])
+        mid = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+        if (g[0] - mid[0]) * nn[0] + (g[1] - mid[1]) * nn[1] > 0:
+            nn = (-nn[0], -nn[1])
+        s0, s1 = r["s0"], r["s1"]
+        hi, hs, seen = -9.0, s0, 0
+        s = s0
+        while s <= s1:
+            px = a[0] + u[0] * s + nn[0] * 2.0
+            pz = a[1] + u[1] * s + nn[1] * 2.0
+            y = nat(px, pz)
+            if y is not None:
+                seat = seat_at(r, s)
+                seen += 1
+                if y - seat > hi:
+                    hi, hs = y - seat, s
+            s += 1.0
+        if seen and hi > BURY_MAX:
+            bad.append("外周 %s(辺%d)が外側の地盤に %.2fm 埋まる(s=%.0f・上限 %.2fm)— "
+                       "座を上げるか、外側を削るか、基壇を足すかを設計値で決めること"
+                       % (r["name"], r["edge"], hi, hs, BURY_MAX))
+    return bad
+
+
+def edge_treatment_check(d):
+    """段どうしが接する線が、**全長にわたって**何かで納まっているか。
+
+    ⚠ 0.30m の段差は土留めが要らないので図から抜け落ちる。松平では白洲と主郭の縁 22間 のうち
+    石段が 2間 を占めるだけで、残り 20間 が**何も決まっていない**まま
+    `_pending` に「縁石か緩い法面か未定」と**宣言だけ**が置かれていた。
+    宣言は直さなくても消えないので、要求に組み替える(土井 EDO-0029)。
+    """
+    ken = d["const"]["ken"]
+    segs = []          # (軸, 位置, a, b, 段差)
+    T = d["terraces"]
+    for i in range(len(T)):
+        for j in range(len(T)):
+            if i == j:
+                continue
+            p, q = T[i], T[j]
+            dy = abs(p["y"] - q["y"])
+            if dy < 1e-6:
+                continue
+            if abs(p["v1"] - q["v0"]) < 1e-6:
+                lo, hi = max(p["u0"], q["u0"]), min(p["u1"], q["u1"])
+                if hi - lo > 0.05:
+                    segs.append(("v", p["v1"], lo, hi, dy))
+            if abs(p["u1"] - q["u0"]) < 1e-6:
+                lo, hi = max(p["v0"], q["v0"]), min(p["v1"], q["v1"])
+                if hi - lo > 0.05:
+                    segs.append(("u", p["u1"], lo, hi, dy))
+    def covers(axis, at, a, b):
+        """その区間を覆う [a,b) の一覧を石段・縁石・土留めから集める"""
+        out = []
+        for k in d["kaidans"]:
+            if "pos" not in k:
+                continue
+            ku, kv = k["pos"]
+            half = k["w"] / 2.0 / ken
+            if axis == "v" and abs(kv - at) <= max(0.5, k["run"] / ken):
+                out.append((ku - half, ku + half))
+            if axis == "u" and abs(ku - at) <= max(0.5, k["run"] / ken):
+                out.append((kv - half, kv + half))
+        for f in d.get("fuchi", []):
+            if f["line"] == axis and abs(f["at"] - at) < 1e-6:
+                out.append((min(f["a"], f["b"]), max(f["a"], f["b"])))
+        for w in d.get("terraceWalls", []):
+            (wa, wb) = w["a"], w["b"]
+            if axis == "v" and abs(wa[1] - at) < 1e-6 and abs(wa[1] - wb[1]) < 1e-6:
+                out.append((min(wa[0], wb[0]), max(wa[0], wb[0])))
+            if axis == "u" and abs(wa[0] - at) < 1e-6 and abs(wa[0] - wb[0]) < 1e-6:
+                out.append((min(wa[1], wb[1]), max(wa[1], wb[1])))
+        return out
+    bad = []
+    seen = set()
+    for axis, at, a, b, dy in segs:
+        key = (axis, round(at, 4), round(a, 4), round(b, 4))
+        if key in seen:
+            continue
+        seen.add(key)
+        gaps = [(a, b)]
+        for (c0, c1) in covers(axis, at, a, b):
+            nxt = []
+            for (g0, g1) in gaps:
+                if c1 <= g0 or c0 >= g1:
+                    nxt.append((g0, g1)); continue
+                if c0 > g0:
+                    nxt.append((g0, min(c0, g1)))
+                if c1 < g1:
+                    nxt.append((max(c1, g0), g1))
+            gaps = [g for g in nxt if g[1] - g[0] > 0.05]
+        if gaps:
+            tot = sum(g[1] - g[0] for g in gaps)
+            bad.append("段の縁 %s=%g の %.1f間(%.1fm・段差%.2fm)が納まっていない — "
+                       "石段・縁石・土留めのどれで受けるか設計値に書くこと(区間 %s)"
+                       % (axis, at, tot, tot * ken, dy,
+                          "・".join("%g..%g" % g for g in gaps[:3])))
+    return bad
 
 
 def zone_separation_check(d):

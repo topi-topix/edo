@@ -480,7 +480,7 @@ def plinth_check(d):
     """**隣家が自分の側に建てている基壇の天端を、当家の塀の据面が下回っていないか。**
     下回ると隣家の土が当家の塀の足元より高くなる(2026-08-24 検図)。"""
     bad = []
-    for pl in d.get("neighborPlinth", []):
+    for pl in neighbor_plinth(d):
         n = max(2, int((pl["s1"] - pl["s0"]) / 0.5))
         worst = None
         for i in range(n + 1):
@@ -717,6 +717,105 @@ def edge_drop_table(d):
             "<th>法面が出せない測点</th></tr></thead><tbody>%(rows)s</tbody></table></div>"
             % {"batter": d["const"]["batterFill"], "lim": lim, "eps": 2.0,
                "rows": "".join(rows)})
+
+
+def neighbor_plinth(d):
+    """**隣家が自分の側に建てている基壇石垣を、隣家の指図から幾何で引く。**
+    ⛔ **値を写さない・辺番号で引かない**(2026-08-26 土井 EDO-0012)。
+    隣家の識別子(辺番号・run名・s)は**相手の座標系の番号**なので、写すと
+    ①相手が値を直したときに追随せず ②辺番号の対応を取り違える。
+    当家の辺の上の点が相手のどの辺の s に当たるかを**座標で**求めて引き直す。"""
+    out = []
+    for src, label in (("doi_sashizu.json", "土井"), ("matsudaira_sashizu.json", "松平"),
+                       ("sanno_sashizu.json", "山王")):
+        try:
+            nb = json.load(open(os.path.join(DOC, src), encoding="utf-8"))
+        except Exception:
+            continue
+        NP = nb.get("polygon")
+        pl = nb.get("boundaryPlinth") or nb.get("neighborPlinth") or []
+        if not NP or not pl:
+            continue
+        P = d["polygon"]
+        n = len(P)
+        for i in range(n):
+            a, b = P[i], P[(i + 1) % n]
+            L = math.hypot(b[0] - a[0], b[1] - a[1])
+            if L < 1e-9:
+                continue
+            k = 0.0
+            runlen = {}
+            while k <= L:
+                t = k / L
+                x = a[0] + (b[0] - a[0]) * t; z = a[1] + (b[1] - a[1]) * t
+                # 相手の辺の上か
+                best = None
+                for j in range(len(NP)):
+                    c, e = NP[j], NP[(j + 1) % len(NP)]
+                    dx, dz = e[0] - c[0], e[1] - c[1]
+                    L2 = dx * dx + dz * dz or 1e-9
+                    tt = max(0.0, min(1.0, ((x - c[0]) * dx + (z - c[1]) * dz) / L2))
+                    dd = math.hypot(x - (c[0] + dx * tt), z - (c[1] + dz * tt))
+                    if best is None or dd < best[0]:
+                        best = (dd, j, tt * math.sqrt(L2))
+                if best[0] > 1.5:
+                    k += 0.5
+                    continue
+                for q in pl:
+                    if q["edge"] == best[1] and q["s0"] - 0.3 <= best[2] <= q["s1"] + 0.3:
+                        key = (q["coping"], round(4.0 * q.get("s", 0.2), 2))
+                        runlen.setdefault(key, []).append(k)
+                        break
+                k += 0.5
+            for (cop, h9), ks in runlen.items():
+                out.append({"edge": i, "s0": round(min(ks), 2), "s1": round(max(ks), 2),
+                            "coping": cop, "h": h9, "src": label,
+                            "_": "%s の指図から**幾何で引いた**(値も区間も写さない)" % label})
+    return out
+
+
+PROGRAM_MD = os.path.expanduser(
+    "~/.claude/skills/unity-buke-yashiki/references/estate-types.md")
+
+
+def program_check(d):
+    """**在るべき役割の一覧を、スキルの表(外の錨)から読んで照合する。**
+    ⚠ 2026-08-26 土井 EDO-0013: 錨が無いと**役割と棟を同時に消せば検査が通る**。
+    当家の `program`(json)ではなく `estate-types.md` の表を毎回読む。"""
+    rows = []
+    try:
+        md = open(PROGRAM_MD, encoding="utf-8").read()
+    except Exception:
+        return []
+    i = md.find("上屋敷が備える役割")
+    if i < 0:
+        return []
+    seg = md[i:]
+    j = seg.find("\n#", 1)          # ⚠ 次の見出しで切る。切らないと同じ file の別の表を拾う
+    for line in (seg[:j] if j > 0 else seg).split("\n"):
+        c = [x.strip() for x in line.strip().strip("|").split("|")]
+        if len(c) == 3 and c[1] and c[0] not in ("役割", "---") and "-" not in c[1][:3]:
+            rows.append(tuple(c))
+    have = set()
+    txt = json.dumps(d, ensure_ascii=False)
+    KEY = {"表門": ["gate"], "表長屋": ['"kind": "Nagaya"'], "練塀(外構)": ["Dobei"],
+           "表役所": ["表役所", "役所"], "玄関・式台": ["御玄関", "御式台"],
+           "書院": ["書院"], "居間・中奥": ["中奥", "御座之間"], "奥向": ["奥向"],
+           "台所・勝手": ["御台所"], "湯殿・雪隠": ["御湯殿"], "局(女中部屋)": ["長局", "上陣"],
+           "御錠口": ["御錠口"], "庭(座敷の前面)": ["gardens"], "井戸": ["wells"],
+           "厩": ["Umaya", "厩"], "土蔵": ["Dozo"], "稲荷社": ["稲荷"],
+           "家中長屋": ["家臣長屋"], "米蔵": ["米蔵"], "隅櫓": ["yagura"],
+           "馬場・作事小屋": ["馬場"], "中門": ["中門"],
+           "火消道具蔵・御駕籠蔵": ["HikeshiDogugura", "Kagogura"]}
+    out = []
+    for role, need, src in rows:
+        ks = KEY.get(role, [role])
+        ok9 = any(k in txt for k in ks)
+        # 雪隠だけは湯殿と別に見る(表が「湯殿・雪隠」で1行なので個別に)
+        if role == "湯殿・雪隠":
+            ok9 = ("御湯殿" in txt) and ("雪隠" in txt)
+        out.append((role, need, src, ok9))
+    return out
 
 
 def coping_check(d):
@@ -2563,7 +2662,7 @@ def perimeter_dev_svg(d):
         return p[-1][1]
 
     # 隣家が自分の側に建てている基壇石垣(土井)を破線で重ねる — 天端の突き合わせのため
-    for pl in d.get("neighborPlinth", []):
+    for pl in neighbor_plinth(d):
         ta = tt(pl["edge"], pl["s0"]); tb = tt(pl["edge"], pl["s1"])
         if tb < ta:
             tb += total
@@ -3773,6 +3872,26 @@ def main():
     ch = [x for x in op9 if ("要調査" in x[:14] or "要通達" in x[:14])]
     cl = [x for x in op9 if x.startswith(("【解決済", "【裁定済"))]
     et = [x for x in op9 if x not in yo + ji + ch + cl]
+    pr9 = program_check(d)
+    if pr9:
+        ng9 = [x for x in pr9 if not x[3] and "任意" not in x[1]]
+        plate(h, nx(), "在るべき役割との照合",
+              "⭐ **外の錨** — `estate-types.md`「上屋敷が備える役割」の表を毎回読んで照合する"
+              "(2026-08-26 土井 EDO-0013)")
+        h.append('<p class="cap">⚠ <b>錨が無いと、役割と棟を同時に消せば検査が通る。</b>'
+                 '当図の <code>program</code> ではなく<b>スキルの表</b>を読む。'
+                 '%s</p>'
+                 % ("<b>必須・望ましい はすべて満たしている。</b>" if not ng9 else
+                    "⛔ <b>満たしていない必須・望ましいが %d件</b>: " % len(ng9)
+                    + " / ".join("<b>%s</b>(%s・%s)" % (a, b, c) for a, b, c, _ in ng9)))
+        h.append("<div class='tw'><table><thead><tr><th>役割</th><th>要否</th>"
+                 "<th class='note'>典拠</th><th>当図</th></tr></thead><tbody>"
+                 + "".join("<tr><td>%s</td><td>%s</td><td class='note'>%s</td><td>%s</td></tr>"
+                           % (a, b, c, "○" if ok else ("⛔" if "任意" not in b else "—"))
+                           for a, b, c, ok in pr9)
+                 + "</tbody></table></div>")
+        h.append("</div>")
+
     plate(h, nx(), "裁定と宿題", "⭐ **この章の【要判断】はユーザーの裁定を待っている**")
     for ttl, xs, mk in (("⭐ ユーザーの裁定を仰ぐ", yo, "yo"),
                         ("実装で納める(図では閉じない)", ji, "ji"),

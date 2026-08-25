@@ -70,8 +70,9 @@ public static class EdoSannoShaBuilder
     // 観理院: 山麓の通り(南北小路)の西・石段下の南に接する縦長大区画(2026-08-11ユーザー下書き)
     // 辺: 0=S(前面道路) 1=W(山裾) 2=NW(参道コリドー沿い=表門) 3=N 4=E(南北小路沿い)
     static Vector2[] KANRI { get { return EdoParcels.Get("sannosha_kanri"); } }
-    // 樹下邸: 北東麓(⚠ sannobuke_juge と二重定義のまま — 解消は未決・両方残す)
-    static Vector2[] JUGE { get { return EdoParcels.Get("sannosha_juge"); } }
+    // 樹下邸: 北東麓。2026-08-26 二重定義を解消 — 正典は sannobuke_juge(旧 sannosha_juge 矩形は削除)。
+    // ここでは Stage6 のスプラット判定にのみ使う(建てるのは EdoSannoBukeBuilder.Stage1_Juge)。
+    static Vector2[] JUGE { get { return EdoParcels.Get("sannobuke_juge"); } }
     // 門前町の道: 山麓の通りの北端から北東へ
     static readonly Vector2[] MONZEN_ROAD = {
         new Vector2(-390f, 926f), new Vector2(-352f, 940f), new Vector2(-306f, 950f) };
@@ -572,76 +573,13 @@ public static class EdoSannoShaBuilder
             Cyl(g.transform, "post" + i, g.transform.position + new Vector3(i == 0 ? -0.85f : 0.85f, 1.1f, 0), new Vector3(0.12f, 1.1f, 0.12f), wood, Vector3.zero);
     }
 
-    // ---------- Stage 4: 樹下家邸 ----------
+    // ---------- Stage 4: 樹下家邸(引退) ----------
+    // 2026-08-26 引退: 樹下邸は EdoSannoBukeBuilder.Stage0_Demolish(旧の撤去)+ Stage1_Juge
+    // (sannobuke_juge・同じグループ名 Edo_Sanno_JugeYashiki に建てる)が受け持つ。
+    // 旧実装(sannosha_juge の4点矩形前提)は git log で追う。
     public static string Stage4_Juge()
     {
-        var root = GameObject.Find(GROUP_J);
-        if (root != null && root.transform.childCount > 0) return "SKIP: Juge exists";
-        var sb = new System.Text.StringBuilder();
-        EdoNishiTameikeBuilder.NaturalMode = true;
-        var kak = Group(GROUP_J, "Kakoi");
-        var monGrp = Group(GROUP_J, "Omotemon");
-        Vector2 gate = new Vector2(-446f, 900f);   // 南辺(参道広場向き)
-        for (int i = 0; i < 4; i++)
-        {
-            Vector2 a = JUGE[i], b = JUGE[(i + 1) % 4];
-            Vector2 mid = (a + b) * 0.5f;
-            Vector2 cen = (JUGE[0] + JUGE[2]) * 0.5f;
-            Vector2 outw = (mid - cen); outw.Normalize();
-            if (i == 0)
-                EdoSannoJuboBuilder.PanelRun(kak, a, new Vector2(gate.x + 3.9f, 900f), outw, "Itabei_0a", PItabei5, Vector2.zero, -1);
-            else
-                EdoSannoJuboBuilder.PanelRun(kak, a, b, outw, "Itabei_" + i, PItabei5, Vector2.zero, -1);
-        }
-        EdoSannoJuboBuilder.PanelRun(kak, new Vector2(gate.x - 3.9f, 900f), JUGE[3], new Vector2(0, -1), "Itabei_0b", PItabei5, Vector2.zero, -1);
-        // 屋根付き門(腕木門)
-        var mon = Place(PKabuki, Vector3.zero, 0f, Vector3.one * ES, monGrp, "Mon");
-        CenterSeat(mon, gate.x, gate.y, 0.05f);
-        float kmnz = float.MaxValue, kmxz = float.MinValue;
-        foreach (var mf in mon.GetComponentsInChildren<MeshFilter>())
-        {
-            if (!mf.gameObject.name.ToLower().Contains("kagami")) continue;
-            foreach (var vtx in mf.sharedMesh.vertices) { var wp = mf.transform.TransformPoint(vtx); kmnz = Mathf.Min(kmnz, wp.z); kmxz = Mathf.Max(kmxz, wp.z); }
-        }
-        if (kmnz != float.MaxValue && (kmnz + kmxz) * 0.5f < RB(mon).center.z)
-        { mon.transform.rotation *= Quaternion.Euler(0, 180, 0); CenterSeat(mon, gate.x, gate.y, 0.05f); sb.AppendLine("juge mon flipped"); }
-        // 主屋(玄関付き武家屋敷風)+台所+物置+井戸+刈込
-        var bg = Group(GROUP_J, "Buildings");
-        var shu = Place(PHouse, Vector3.zero, 180f, Vector3.one * 0.92f, bg, "Shuoku");
-        CenterSeat(shu, -449f, 918f);
-        var dai = Place(PSmallHouse, Vector3.zero, 90f, Vector3.one * 0.7f, bg, "Daidokoro");
-        CenterSeat(dai, -434f, 926f);
-        var mono = Place(PKura, Vector3.zero, 90f, Vector3.one * ES * 0.8f, bg, "Monooki");
-        CenterSeat(mono, -464f, 928f);
-        // 井戸(つつ井と同型の簡素版)
-        var g = new GameObject("Ido");
-        g.transform.SetParent(bg, false);
-        float wy = Ground(-462f, 908f);
-        g.transform.position = new Vector3(-462f, wy, 908f);
-        var stone = Mat(new Color(0.55f, 0.55f, 0.52f));
-        Cyl(g.transform, "curb", g.transform.position + new Vector3(0, 0.35f, 0), new Vector3(1.3f, 0.35f, 1.3f), stone, Vector3.zero);
-        var gg = Group(GROUP_J, "Garden");
-        var rnd = new System.Random(1210);
-        for (int i = 0; i < 5; i++)
-        {
-            float px = Mathf.Lerp(-467f, -431f, (float)rnd.NextDouble());
-            float pz = Mathf.Lerp(903f, 933f, (float)rnd.NextDouble());
-            bool nearB = false;
-            foreach (Transform c in bg) { var rb2 = RB(c.gameObject); if (px > rb2.min.x - 2f && px < rb2.max.x + 2f && pz > rb2.min.z - 2f && pz < rb2.max.z + 2f) { nearB = true; break; } }
-            if (nearB) { i--; continue; }
-            float y = Ground(px, pz);
-            var go = Place(Pines[rnd.Next(Pines.Length)], new Vector3(px, y, pz), (float)rnd.NextDouble() * 360f, Vector3.one * (1.5f * (0.9f + 0.4f * (float)rnd.NextDouble())), gg, "Pine_" + i);
-            SeatBottom(go, y - 0.05f);
-        }
-        for (int i = 0; i < 6; i++)
-        {
-            float px = Mathf.Lerp(-468f, -430f, (float)rnd.NextDouble());
-            float pz = Mathf.Lerp(902f, 934f, (float)rnd.NextDouble());
-            float y = Ground(px, pz);
-            var go = Place(Shrubs[rnd.Next(Shrubs.Length)], new Vector3(px, y, pz), (float)rnd.NextDouble() * 360f, Vector3.one * (0.9f + 0.6f * (float)rnd.NextDouble()), gg, "Karikomi_" + i);
-            SeatBottom(go, y - 0.04f);
-        }
-        return sb.ToString() + "juge done";
+        return "SKIP: superseded by EdoSannoBukeBuilder.Stage1_Juge(2026-08-26 樹下二重定義解消)";
     }
 
     // ---------- Stage 5: 山王門前町 ----------

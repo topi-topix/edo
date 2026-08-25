@@ -29,16 +29,17 @@ public static class EdoAzukarichiBuilder
     const string PKiri = EdoAssets.JG.SakuraBig01;
     const string PKiri2 = EdoAssets.JG.SakuraMid01;
 
-    // ---- 下書きポリゴン ----
-    static readonly Vector2[] PU = { new Vector2(-355.46f,483.40f), new Vector2(-291.96f,441.54f), new Vector2(-240.33f,419.21f), new Vector2(-167.76f,406.65f), new Vector2(-93.80f,398.28f), new Vector2(-44.26f,395.48f), new Vector2(-80.54f,373.16f), new Vector2(-205.44f,325.01f), new Vector2(-308.71f,369.67f), new Vector2(-386.16f,452.00f) };
-    static readonly Vector2[] GR = { new Vector2(-646.79f,694.92f), new Vector2(-606.47f,715.77f), new Vector2(-360.39f,486.38f), new Vector2(-392.37f,451.62f), new Vector2(-553.64f,575.36f) };
+    // ---- 区画(正典 = docs/Sashizu/parcels.json / CLAUDE.md 規則10) ----
+    //   RD(道帯)と W4(細長帯)は区画ではないので json に無く、literal のまま残す。
+    static Vector2[] PU { get { return EdoParcels.Get("azukarichi_pu"); } }
+    static Vector2[] GR { get { return EdoParcels.Get("azukarichi_gr"); } }
     static readonly Vector2[] RD = { new Vector2(-798.68f,1191.73f), new Vector2(-837.55f,1179.46f), new Vector2(-777.20f,1016.80f), new Vector2(-763.90f,1019.87f), new Vector2(-647.28f,722.18f), new Vector2(-660.57f,715.02f), new Vector2(-652.39f,700.70f), new Vector2(-609.42f,721.16f), new Vector2(-709.68f,961.56f), new Vector2(-791.85f,1133.01f) };
-    static readonly Vector2[] W1 = { new Vector2(-547.24f,595.91f), new Vector2(-601.74f,660.89f), new Vector2(-585.81f,671.37f), new Vector2(-528.80f,607.23f) };
-    static readonly Vector2[] W2 = { new Vector2(-643.37f,738.04f), new Vector2(-664.37f,790.74f), new Vector2(-653.36f,795.24f), new Vector2(-632.20f,742.49f) };
-    static readonly Vector2[] W3 = { new Vector2(-675.09f,818.44f), new Vector2(-684.03f,839.88f), new Vector2(-672.41f,844.35f), new Vector2(-663.48f,820.22f) };
+    static Vector2[] W1 { get { return EdoParcels.Get("azukarichi_w1"); } }
+    static Vector2[] W2 { get { return EdoParcels.Get("azukarichi_w2"); } }
+    static Vector2[] W3 { get { return EdoParcels.Get("azukarichi_w3"); } }
     static readonly Vector2[] W4 = { new Vector2(-755.50f,1018.57f), new Vector2(-695.64f,867.58f), new Vector2(-678.66f,872.94f), new Vector2(-701.89f,928.33f), new Vector2(-748.35f,1020.36f) };
-    static readonly Vector2[] W5 = { new Vector2(-826.52f,1156.51f), new Vector2(-807.51f,1162.76f), new Vector2(-801.79f,1146.61f), new Vector2(-820.53f,1139.59f) };
-    static readonly Vector2[] YL = { new Vector2(-285.95f,390.25f), new Vector2(-232.08f,368.55f), new Vector2(-227.42f,381.34f), new Vector2(-281.30f,401.88f) };
+    static Vector2[] W5 { get { return EdoParcels.Get("azukarichi_w5"); } }
+    static Vector2[] YL { get { return EdoParcels.Get("azukarichi_yl"); } }
     const float PadY = 7.5f;   // 大的稽古場の平場レベル
     const float MinH = 7.0f;   // 設置物の最低地盤高(水面6.6+0.4)
 

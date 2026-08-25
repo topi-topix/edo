@@ -18,13 +18,9 @@ using UnityEngine;
 
 public static class EdoDaichiBuilder
 {
-    // SW辺(街路側)を [0]->[1] とする
-    public static Vector2[] SeiryujiPoly = {
-        new Vector2(-382.06f,417.87f), new Vector2(-446.57f,471.25f),
-        new Vector2(-435.76f,486.73f), new Vector2(-370.28f,431.37f) };
-    public static Vector2[] NagaichoPoly = {
-        new Vector2(-451.01f,474.71f), new Vector2(-551.60f,555.83f),
-        new Vector2(-539.25f,569.83f), new Vector2(-438.79f,489.76f) };
+    // SW辺(街路側)を [0]->[1] とする(正典 = docs/Sashizu/parcels.json / CLAUDE.md 規則10)
+    public static Vector2[] SeiryujiPoly { get { return EdoParcels.Get("daichi_seiryujipoly"); } }
+    public static Vector2[] NagaichoPoly { get { return EdoParcels.Get("daichi_nagaichopoly"); } }
     public const float NAGAI_LEN = 84.7f;   // 永井町=間口43間余。これより先(北西)は御掃除町代地
 
     const float WATER_Y = 6.6f;

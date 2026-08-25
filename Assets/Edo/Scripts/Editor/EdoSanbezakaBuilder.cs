@@ -91,43 +91,21 @@ public static class EdoSanbezakaBuilder
     // ---------- 参道(山王坂)軸: EdoSannoBukeBuilder.SANDO_AXIS と同一 ----------
     public static float AxisZ(float x) { return 894f + (x + 371f) * (5f / 240f); }
 
-    // ---------- 区画(下書きスナップ済) ----------
-    public static readonly Vector2[] GOTO = {
-        new Vector2(-135.5f, 911.4f), new Vector2(-238.5f, 909.3f), new Vector2(-238.5f, 901.8f),
-        new Vector2(-331.5f, 899.9f), new Vector2(-342.4f, 950.6f), new Vector2(-332.1f, 951.0f),
-        new Vector2(-332.1f, 962.0f), new Vector2(-338.6f, 962.0f), new Vector2(-328.6f, 982.5f),
-        new Vector2(-139.3f, 982.5f) };
-    public static readonly Vector2[] ABE = {
-        new Vector2(-365.5f, 962.3f), new Vector2(-377.5f, 1060.5f), new Vector2(-295.0f, 1126.5f),
-        new Vector2(-258.6f, 1104.6f), new Vector2(-222.0f, 1102.8f), new Vector2(-213.7f, 1070.5f),
-        new Vector2(-222.8f, 1070.5f), new Vector2(-222.8f, 1062.5f), new Vector2(-216.0f, 1062.5f),
-        new Vector2(-216.0f, 982.5f), new Vector2(-328.6f, 982.5f), new Vector2(-338.6f, 962.0f) };
-    public static readonly Vector2[] KATSUTA = {
-        new Vector2(-139.3f, 982.5f), new Vector2(-216.0f, 982.5f), new Vector2(-216.0f, 1062.5f),
-        new Vector2(-141.8f, 1062.5f) };
-    public static readonly Vector2[] OOKA = {
-        new Vector2(-141.8f, 1070.5f), new Vector2(-213.7f, 1070.5f), new Vector2(-224.0f, 1122.7f),
-        new Vector2(-144.3f, 1121.3f) };
+    // ---------- 区画(正典 = docs/Sashizu/parcels.json / CLAUDE.md 規則10) ----------
+    // 2026-08-26 json採用(ユーザー裁定)。OOKA は頂点+1(W辺=安部境に index2 挿入)、
+    // W1 は頂点+1(旧辺1上に index2 挿入)、W4 は頂点+1(旧辺0上に index1 挿入)。
+    // ⚠ json では W1 の辺2 と W4 の辺0 が同一線分(袋小路西枝の隙間が閉じた)。
+    public static Vector2[] GOTO { get { return EdoParcels.Get("sanbezaka_goto"); } }
+    public static Vector2[] ABE { get { return EdoParcels.Get("sanbezaka_abe"); } }
+    public static Vector2[] KATSUTA { get { return EdoParcels.Get("sanbezaka_katsuta"); } }
+    public static Vector2[] OOKA { get { return EdoParcels.Get("sanbezaka_ooka"); } }
     // 小旗本6筆: W1=満田? W2=浅井? W3=石井? W4=佐藤? W5=奥村? W6=稲垣安太郎(馬場角)
-    public static readonly Vector2[] W1 = {
-        new Vector2(-222.0f, 1102.8f), new Vector2(-224.6f, 1121.5f), new Vector2(-246.9f, 1130.9f),
-        new Vector2(-258.6f, 1104.6f) };
-    public static readonly Vector2[] W2 = {
-        new Vector2(-259.9f, 1106.7f), new Vector2(-294.0f, 1126.5f), new Vector2(-291.2f, 1179.2f),
-        new Vector2(-277.6f, 1178.5f), new Vector2(-281.0f, 1137.2f), new Vector2(-256.7f, 1136.3f),
-        new Vector2(-248.2f, 1132.4f) };
-    public static readonly Vector2[] W3 = {
-        new Vector2(-257.4f, 1138.6f), new Vector2(-279.0f, 1139.1f), new Vector2(-276.3f, 1177.9f),
-        new Vector2(-257.1f, 1176.5f) };
-    public static readonly Vector2[] W4 = {
-        new Vector2(-229.4f, 1127.0f), new Vector2(-257.0f, 1139.2f), new Vector2(-254.6f, 1174.4f),
-        new Vector2(-229.4f, 1173.7f) };
-    public static readonly Vector2[] W5 = {
-        new Vector2(-224.0f, 1124.4f), new Vector2(-224.0f, 1173.1f), new Vector2(-183.8f, 1172.3f),
-        new Vector2(-184.4f, 1123.0f) };
-    public static readonly Vector2[] W6 = {
-        new Vector2(-182.0f, 1123.6f), new Vector2(-181.5f, 1170.4f), new Vector2(-146.2f, 1170.3f),
-        new Vector2(-145.7f, 1121.8f) };
+    public static Vector2[] W1 { get { return EdoParcels.Get("sanbezaka_w1"); } }
+    public static Vector2[] W2 { get { return EdoParcels.Get("sanbezaka_w2"); } }
+    public static Vector2[] W3 { get { return EdoParcels.Get("sanbezaka_w3"); } }
+    public static Vector2[] W4 { get { return EdoParcels.Get("sanbezaka_w4"); } }
+    public static Vector2[] W5 { get { return EdoParcels.Get("sanbezaka_w5"); } }
+    public static Vector2[] W6 { get { return EdoParcels.Get("sanbezaka_w6"); } }
 
     // 表門 (全て切絵図の文字の頭に基づく)
     static readonly Vector2 GATE_GOTO = new Vector2(-137.6f, 950.0f);     // 馬場向き(E)
@@ -715,12 +693,13 @@ public static class EdoSanbezakaBuilder
         EdoNishiTameikeBuilder.NaturalMode = true;
         var kak = Group(G, "Kakoi");
         var monGrp = Group(G, "Omotemon");
-        Vector2 fout = -InwardNormal(OOKA, 3);   // 辺3(E=馬場)
+        // 2026-08-26 json採用で頂点+1(W辺=旧辺1上に index2 挿入)、辺indexを再採番: 旧辺2(N)→辺3 / 旧辺3(E)→辺4
+        Vector2 fout = -InwardNormal(OOKA, 4);   // 辺4(E=馬場)
         float gateHalf = PlaceGate(PHmon, monGrp, GATE_OOKA, fout, 0, "Hmon", sb);
-        // 辺0(S=小路)=own 辺1(W)=安部所有skip 辺2(N=W5/W6境)=own 辺3(E)=FrontWall
+        // 辺0(S=小路)=own 辺1,2(W)=安部所有skip 辺3(N=W5/W6境)=own 辺4(E)=FrontWall
         EdoNishiTameikeBuilder.DobeiRun(kak, OOKA[0], OOKA[1], -InwardNormal(OOKA, 0), "Hei_0", true, 0, Vector2.zero, -1);
-        EdoNishiTameikeBuilder.DobeiRun(kak, OOKA[2], OOKA[3], -InwardNormal(OOKA, 2), "Hei_2", true, 0, Vector2.zero, -1);
-        FrontWall(kak, OOKA[3], OOKA[0], -InwardNormal(OOKA, 3), GATE_OOKA, gateHalf + 0.5f, "Hei_F");
+        EdoNishiTameikeBuilder.DobeiRun(kak, OOKA[3], OOKA[4], -InwardNormal(OOKA, 3), "Hei_2", true, 0, Vector2.zero, -1);
+        FrontWall(kak, OOKA[4], OOKA[0], -InwardNormal(OOKA, 4), GATE_OOKA, gateHalf + 0.5f, "Hei_F");
         var bg = Group(G, "Buildings");
         float yawGate = Mathf.Atan2(fout.x, fout.y) * Mathf.Rad2Deg;
         var shu = Place(PHouse, Vector3.zero, yawGate, Vector3.one * 0.85f, bg, "Shuoku");
@@ -763,19 +742,23 @@ public static class EdoSanbezakaBuilder
     {
         var sb = new System.Text.StringBuilder();
         EdoNishiTameikeBuilder.NaturalMode = true;
+        // 2026-08-26 json採用で W1/W4 とも頂点+1、辺indexを再採番:
+        //   W1: 旧辺1(NW)が辺1+辺2 に割れ、GATE_W1 は辺2 側 → gateEdge 1→2 / own {0,1}→{0,1,2}
+        //   W4: 旧辺0(SW)が辺0+辺1 に割れ、辺0 は W1 の辺2(表塀)と同一線分になった → W1 側所有で
+        //       own から外す。旧辺2(N)→辺3 / 旧辺3→辺4 → gateEdge 2→3 / own {0,2,3}→{1,3,4}
         var defs = new[] {
-            new { G = "Edo_Yashiki_MitsudaW1", poly = W1, gate = GATE_W1, gateEdge = 1, scale = 0.82f, kura = 0, houseV = 13f },
+            new { G = "Edo_Yashiki_MitsudaW1", poly = W1, gate = GATE_W1, gateEdge = 2, scale = 0.82f, kura = 0, houseV = 13f },
             new { G = "Edo_Yashiki_AsaiW2",    poly = W2, gate = GATE_W2, gateEdge = 2, scale = 0.9f,  kura = 1, houseV = 16f },
             new { G = "Edo_Yashiki_IshiiW3",   poly = W3, gate = GATE_W3, gateEdge = 2, scale = 0.85f, kura = 0, houseV = 16f },
-            new { G = "Edo_Yashiki_SatoW4",    poly = W4, gate = GATE_W4, gateEdge = 2, scale = 0.85f, kura = 0, houseV = 16f },
+            new { G = "Edo_Yashiki_SatoW4",    poly = W4, gate = GATE_W4, gateEdge = 3, scale = 0.85f, kura = 0, houseV = 16f },
             new { G = "Edo_Yashiki_OkumuraW5", poly = W5, gate = GATE_W5, gateEdge = 1, scale = 0.9f,  kura = 1, houseV = 16f },
             new { G = "Edo_Yashiki_InagakiW6", poly = W6, gate = GATE_W6, gateEdge = 2, scale = 0.95f, kura = 1, houseV = 15f } };
         // 塀の所有(重複防止): 安部境/大岡境は上位側所有=skip。W2-W3/W3-W4/W5-W6 の間は一方のみ建てる
         var own = new Dictionary<string, int[]> {
-            { "Edo_Yashiki_MitsudaW1", new[] { 0, 1 } },
+            { "Edo_Yashiki_MitsudaW1", new[] { 0, 1, 2 } },
             { "Edo_Yashiki_AsaiW2",    new[] { 1, 2, 3, 4, 5, 6 } },
             { "Edo_Yashiki_IshiiW3",   new[] { 2, 3 } },
-            { "Edo_Yashiki_SatoW4",    new[] { 0, 2, 3 } },
+            { "Edo_Yashiki_SatoW4",    new[] { 1, 3, 4 } },
             { "Edo_Yashiki_OkumuraW5", new[] { 0, 1, 2 } },
             { "Edo_Yashiki_InagakiW6", new[] { 1, 2 } } };
         foreach (var d in defs)

@@ -25,14 +25,14 @@ public static class EdoShinmachiBuilder
     const string PSmallHouse = EdoAssets.VK.SmallHouse;
     const string PBanya = EdoAssets.Eg.Kidobanya;
 
-    // ---- 下書きポリゴン(スケッチ世界座標XZ) ----
-    static readonly Vector2[] CY = { new Vector2(-885.87f,1153.45f), new Vector2(-929.56f,1124.32f), new Vector2(-892.20f,1031.23f), new Vector2(-848.51f,1048.33f) };
-    static readonly Vector2[] YE = { new Vector2(-848.13f,1047.37f), new Vector2(-891.75f,1030.53f), new Vector2(-882.70f,1004.00f), new Vector2(-835.21f,1014.13f) };
-    static readonly Vector2[] GR = { new Vector2(-879.50f,996.86f), new Vector2(-856.11f,908.38f), new Vector2(-799.75f,921.04f), new Vector2(-832.44f,1005.66f) };
-    static readonly Vector2[] PU = { new Vector2(-856.11f,907.11f), new Vector2(-838.38f,834.29f), new Vector2(-772.52f,848.22f), new Vector2(-798.77f,919.57f) };
-    static readonly Vector2[] RA = { new Vector2(-834.95f,827.52f), new Vector2(-769.82f,840.71f), new Vector2(-754.89f,798.88f), new Vector2(-768.79f,794.04f) };
-    static readonly Vector2[] RB = { new Vector2(-751.74f,792.02f), new Vector2(-767.41f,787.17f), new Vector2(-785.16f,761.83f), new Vector2(-777.62f,729.49f), new Vector2(-731.26f,740.27f), new Vector2(-749.59f,790.94f) };
-    static readonly Vector2[] RC = { new Vector2(-777.03f,787.86f), new Vector2(-819.29f,810.20f), new Vector2(-830.61f,798.16f), new Vector2(-823.05f,776.18f), new Vector2(-816.87f,751.45f), new Vector2(-796.95f,757.63f) };
+    // ---- 区画(正典 = docs/Sashizu/parcels.json / CLAUDE.md 規則10) ----
+    static Vector2[] CY { get { return EdoParcels.Get("shinmachi_cy"); } }
+    static Vector2[] YE { get { return EdoParcels.Get("shinmachi_ye"); } }
+    static Vector2[] GR { get { return EdoParcels.Get("shinmachi_gr"); } }
+    static Vector2[] PU { get { return EdoParcels.Get("shinmachi_pu"); } }
+    static Vector2[] RA { get { return EdoParcels.Get("shinmachi_ra"); } }
+    static Vector2[] RB { get { return EdoParcels.Get("shinmachi_rb"); } }
+    static Vector2[] RC { get { return EdoParcels.Get("shinmachi_rc"); } }
 
     static float Ground(float x, float z) { return EdoBuild.Ground(x, z); }
     static Vector2 Inward(Vector2[] poly, int i)

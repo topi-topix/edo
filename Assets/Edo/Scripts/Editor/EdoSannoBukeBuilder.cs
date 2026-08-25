@@ -55,32 +55,22 @@ public static class EdoSannoBukeBuilder
     const string PKasuga = EdoAssets.Own.KasugaLantern;
     public const float ES = 1.818f;
 
-    // ---------- 区画(下書きスナップ済) ----------
-    public static readonly Vector2[] JUGE = {
-        new Vector2(-374.2f, 912.0f), new Vector2(-426.2f, 912.4f), new Vector2(-449.0f, 928.3f),
-        new Vector2(-483.9f, 936.8f), new Vector2(-514.3f, 945.9f), new Vector2(-373.7f, 946.2f) };
-    public static readonly Vector2[] SHANIN = {
-        new Vector2(-372.8f, 661.5f), new Vector2(-373.6f, 809.5f),
-        new Vector2(-343.5f, 812.0f), new Vector2(-342.7f, 675.4f) };
+    // ---------- 区画(正典 = docs/Sashizu/parcels.json / CLAUDE.md 規則10) ----------
+    // 2026-08-26 json採用(ユーザー裁定)。JUGE は 6→8点(NE角に z948 のノッチ=辺5,6 が増えた。
+    // 岡部共有の北辺は旧辺4→新辺4 のまま 1:1 対応)。⚠ sannosha_juge と二重定義のまま(未決)。
+    public static Vector2[] JUGE { get { return EdoParcels.Get("sannobuke_juge"); } }
+    public static Vector2[] SHANIN { get { return EdoParcels.Get("sannobuke_shanin"); } }
     // 2026-08-11改訂(ユーザー下書き第2版+門印=三角形):
     //   丹羽・京極の表門=東辺(東の永田町方面の南北通りへ)、内藤の表門=北辺東寄り(x≈-106)北向き。
     //   内藤と丹羽SW/京極は背中合わせ(間に道なし。共有塀は内藤が受け持つ)。
     // 丹羽: 0=E腕S(京極N共有) 1=SW塊E(京極W共有) 2=SW塊S(内藤N共有=skip) 3=SW塊W 4=(z813.9のノッチ)
     //       5=W(通り沿い長屋) 6=N(山王坂) 7=E(表門)
-    public static readonly Vector2[] NIWA = {
-        new Vector2(-129.2f, 802.3f), new Vector2(-294.3f, 802.6f), new Vector2(-293.4f, 677.8f),
-        new Vector2(-339.6f, 677.7f), new Vector2(-339.6f, 813.9f), new Vector2(-373.2f, 813.9f),
-        new Vector2(-373.2f, 883.3f), new Vector2(-131.1f, 883.5f) };
+    public static Vector2[] NIWA { get { return EdoParcels.Get("sannobuke_niwa"); } }
     // 京極: 0=W(丹羽共有=skip) 1=N(丹羽共有=skip) 2=E(表門) 3=S(内藤共有=skip)
-    public static readonly Vector2[] KYOGOKU = {
-        new Vector2(-293.4f, 677.8f), new Vector2(-293.9f, 802.6f),
-        new Vector2(-129.2f, 802.3f), new Vector2(-123.7f, 680.0f) };
-    // 内藤: 0..10=SW周(堀端) 11=N(表門, 丹羽SW/京極と背中合わせ区間を含む)
-    public static readonly Vector2[] NAITO = {
-        new Vector2(-370.9f, 656.7f), new Vector2(-355.4f, 601.7f), new Vector2(-329.4f, 575.6f),
-        new Vector2(-285.9f, 544.1f), new Vector2(-219.8f, 521.3f), new Vector2(-157.5f, 514.8f),
-        new Vector2(-93.6f, 524.3f), new Vector2(-53.5f, 538.6f), new Vector2(-54.2f, 572.2f),
-        new Vector2(-88.9f, 677.7f), new Vector2(-339.0f, 676.1f) };
+    public static Vector2[] KYOGOKU { get { return EdoParcels.Get("sannobuke_kyogoku"); } }
+    // 内藤: 0..8=SW周(堀端)。2026-08-26 json採用で 11→12点 — 北辺(z≈677.7)が
+    //   x=-126.79 で辺9+辺10 に割れた(表門 x≈-106 は辺9 側のまま)。旧辺10(W)→辺11。
+    public static Vector2[] NAITO { get { return EdoParcels.Get("sannobuke_naito"); } }
     // 山王坂コリドー(splat用)
     static readonly Vector2[] SANDO_AXIS = { new Vector2(-371f, 894f), new Vector2(-131f, 899f) };
 
@@ -332,7 +322,9 @@ public static class EdoSannoBukeBuilder
         Vector2 fout = new Vector2(0.008f, -1f).normalized;
         float gateHalf = PlaceGate(PKabuki, monGrp, gate, fout, 0, "Mon", sb);
         int N = JUGE.Length;
-        // 辺4 = JUGE[4]→[5](-514.3,945.9)→(-373.7,946.2) 140.6m は**岡部筑前守邸との共有境界**。
+        // 辺4 = JUGE[4]→[5](-528.9,956.7)→(-389.0,958.2) 139.9m は**岡部筑前守邸との共有境界**。
+        // (2026-08-26 json採用。旧辺4 140.6m と 1:1 対応 — skip は辺4 のまま。json で増えた
+        //  NE角のノッチ辺5,6 は樹下側の塀として建てる)
         // ⚠ **岡部が持つ**(ユーザー裁定 2026-08-19、確度U)。北辺 = 土井との境(指図 其十一)と同じ規則。
         //   裏づけは「囲いは1条」の所見のみ([丸の内三丁目] 確度A) — どちらが担うかの規則は史料未確認。
         //   ここを建てていたので岡部の Hei_S_Sk/Te/Mz と**二重**になっていた(間隔 1.06〜1.12m)。
@@ -664,7 +656,7 @@ public static class EdoSannoBukeBuilder
         var kak = Group(G, "Kakoi");
         var monGrp = Group(G, "Omotemon");
         // 表門=北辺東寄り x≈-106, 北向き(門印=三角形)。独立門+両番所(譜代5万石・老中)
-        Vector2 a9 = NAITO[9], a10 = NAITO[10];   // 辺9(N): (-88.9,677.7)→(-339.0,676.1)
+        Vector2 a9 = NAITO[9], a10 = NAITO[10];   // 辺9(N): (-88.9,677.7)→(-126.79,677.7)。表門 x≈-106 はこの辺上(2026-08-26 json採用で北辺が辺9+10に割れた)
         Vector2 nDir = (a10 - a9).normalized;
         Vector2 gate = a9 + nDir * Mathf.Abs((-106f - a9.x) / Mathf.Abs(nDir.x));
         Vector2 fout = -EdoGeom.InwardNormal(NAITO, 9);

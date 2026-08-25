@@ -24,21 +24,14 @@ public static class EdoTamachi5EastBuilder
     const string PKabukimon = EdoAssets.Eg.Kabukimon;
     const string RootName = "Edo_Tamachi5_Higashi";
 
-    // ---- 下書きポリゴン(スケッチの世界座標XZをそのまま採用) ----
-    static readonly Vector2[] MachiyaPoly = {   // 水色
-        new Vector2(-591.62f,564.82f), new Vector2(-610.68f,600.44f),
-        new Vector2(-605.31f,603.80f), new Vector2(-582.62f,570.24f) };
-    static readonly Vector2[] AzukariPoly = {   // 黄
-        new Vector2(-603.71f,604.75f), new Vector2(-580.71f,571.84f),
-        new Vector2(-573.68f,577.27f), new Vector2(-597.32f,608.27f) };
-    static readonly Vector2[] KaishoPoly = {    // 緑(凹多角形: 紫区画を切り欠く)
-        new Vector2(-571.12f,577.91f), new Vector2(-563.13f,585.26f),
-        new Vector2(-621.93f,656.52f), new Vector2(-635.03f,649.17f),
-        new Vector2(-624.43f,627.00f), new Vector2(-613.30f,633.19f),
-        new Vector2(-571.76f,578.23f) };
-    static readonly Vector2[] HoriguchiPoly = { // 紫
-        new Vector2(-623.32f,625.57f), new Vector2(-611.62f,602.32f),
-        new Vector2(-597.64f,610.19f), new Vector2(-613.94f,631.92f) };
+    // ---- 区画(正典 = docs/Sashizu/parcels.json / CLAUDE.md 規則10) ----
+    // 2026-08-26 json採用(ユーザー裁定)。KaishoPoly は 7→8点(西縁=旧辺5 上に堀口角
+    //   (-598.5,610.0) が index6 として挿入。json では pts[7]==pts[0] の重複点で辺7 は長さ0)。
+    // HoriguchiPoly は 4→5点(旧辺1 上に index2 挿入。辺0=街路側の参照は不変)。
+    static Vector2[] MachiyaPoly { get { return EdoParcels.Get("tamachi5east_machiyapoly"); } }   // 水色
+    static Vector2[] AzukariPoly { get { return EdoParcels.Get("tamachi5east_azukaripoly"); } }   // 黄
+    static Vector2[] KaishoPoly { get { return EdoParcels.Get("tamachi5east_kaishopoly"); } }     // 緑(凹多角形: 紫区画を切り欠く)
+    static Vector2[] HoriguchiPoly { get { return EdoParcels.Get("tamachi5east_horiguchipoly"); } } // 紫
 
     static float Ground(float x, float z) { return EdoBuild.Ground(x, z); }
     static Transform Group(string child)
@@ -268,8 +261,10 @@ public static class EdoTamachi5EastBuilder
             EdoNishiTameikeBuilder.DobeiRun(kak, gA, gB, -gInw, "HeiW", true, 0, gate2, 2.6f);
             EdoNishiTameikeBuilder.DobeiRun(kak, KaishoPoly[2], KaishoPoly[3], -Inward(KaishoPoly, 2), "HeiN", true, 0, Vector2.zero, -1);
             EdoNishiTameikeBuilder.DobeiRun(kak, KaishoPoly[4], KaishoPoly[5], -Inward(KaishoPoly, 4), "HeiS", true, 0, Vector2.zero, -1);
-            StakeFence(kak, KaishoPoly[5], KaishoPoly[6], "FenceW", wood);   // 帯の西縁(黄との境)
-            StakeFence(kak, KaishoPoly[6], KaishoPoly[0], "FenceS", wood);   // 南端
+            // 2026-08-26 json採用で頂点+1(旧辺5上に index6 挿入)、辺indexを再採番:
+            //   旧辺5(西縁)→辺5+辺6 の2本 / 旧辺6(南端 0.7m)→辺7 は json で長さ0(pts[7]==pts[0])のため省く
+            StakeFence(kak, KaishoPoly[5], KaishoPoly[6], "FenceW", wood);   // 帯の西縁(黄との境)上半
+            StakeFence(kak, KaishoPoly[6], KaishoPoly[7], "FenceW2", wood);  // 帯の西縁 下半
             StakeFence(kak, KaishoPoly[0], KaishoPoly[1], "FenceSE", wood);
             StakeFence(kak, KaishoPoly[1], KaishoPoly[2], "FenceE", wood);   // 汀側(土手法肩なり)
             // 会所母屋: 門の正面奥(推定スタンドイン=Village Kit House)
@@ -312,7 +307,7 @@ public static class EdoTamachi5EastBuilder
             string[] trees = {
                 EdoAssets.JG.SakuraMid01,
                 EdoAssets.JG.SakuraMid05 };
-            Vector2 bA = KaishoPoly[6], bB = KaishoPoly[5];             // 帯の西縁に沿って南->北
+            Vector2 bA = KaishoPoly[7], bB = KaishoPoly[5];             // 帯の西縁に沿って南->北(辺6+5 をまたぐ弦。折れは2.9°でほぼ直線)
             Vector2 bAxis = (bB - bA).normalized; float bLen = (bB - bA).magnitude;
             Vector2 bInw = Inward(KaishoPoly, 5) * -1f;                 // 帯の内側(東)へ
             int planted = 0;

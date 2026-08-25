@@ -34,13 +34,13 @@ public static class EdoDaichiKitaBuilder
     const string PPineMid = EdoAssets.JG.PineMid01;
     const string PPineBig = EdoAssets.JG.PineBig02;
 
-    // ---- 下書きポリゴン(スケッチ世界座標XZ)。各strip: [0]->[1]=西長辺(堀端通側=表) ----
-    static readonly Vector2[] R1 = { new Vector2(-664.93f,721.86f), new Vector2(-691.56f,792.63f), new Vector2(-678.59f,797.53f), new Vector2(-651.27f,725.71f) };
-    static readonly Vector2[] R2 = { new Vector2(-696.49f,802.52f), new Vector2(-709.43f,839.37f), new Vector2(-693.91f,843.90f), new Vector2(-681.62f,807.05f) };
-    static readonly Vector2[] Y1 = { new Vector2(-712.66f,849.07f), new Vector2(-739.81f,918.90f), new Vector2(-723.65f,924.07f), new Vector2(-697.14f,852.31f) };
-    static readonly Vector2[] Y2 = { new Vector2(-743.02f,930.13f), new Vector2(-778.85f,1021.86f), new Vector2(-767.38f,1025.68f), new Vector2(-730.59f,932.04f) };
+    // ---- 区画(正典 = docs/Sashizu/parcels.json / CLAUDE.md 規則10)。各strip: [0]->[1]=西長辺(堀端通側=表) ----
+    static Vector2[] R1 { get { return EdoParcels.Get("daichikita_r1"); } }
+    static Vector2[] R2 { get { return EdoParcels.Get("daichikita_r2"); } }
+    static Vector2[] Y1 { get { return EdoParcels.Get("daichikita_y1"); } }
+    static Vector2[] Y2 { get { return EdoParcels.Get("daichikita_y2"); } }
     // 成満寺: C2->C3(東辺)が田町通りに平行=山門側
-    static readonly Vector2[] JM = { new Vector2(-825.19f,1019.95f), new Vector2(-816.59f,996.54f), new Vector2(-786.97f,1008.00f), new Vector2(-797.00f,1033.32f) };
+    static Vector2[] JM { get { return EdoParcels.Get("daichikita_jm"); } }
 
     static float Ground(float x, float z) { return EdoBuild.Ground(x, z); }
 

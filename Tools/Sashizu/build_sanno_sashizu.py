@@ -398,7 +398,14 @@ DEM = None
 
 
 def dem():
-    """現況地形(造成前)。docs/Sashizu/sanno_dem.json = Unity Terrain の実測・確度P。"""
+    """造成前の地形【確度P】。`docs/Sashizu/sanno_dem.json`。
+
+    ⚠ **実体は正本 `docs/Sashizu/base_dem.json` からの切り出し**(生成器 `Tools/Sashizu/build_base_dem.py`)。
+    ⛔ **Unity の live terrain から採り直さない**(CLAUDE.md 規則12)— live は自他の造成が
+    乗る作業面で、**採った時刻で値が変わる**。2026-08-23 に岡部・土井が松平の造成を
+    「造成前の地形」として吸い込む事故が起きた(山王は範囲が届かず無傷)。
+    ⛔ `sanno_dem.json` を手で編集しない。区画を動かしたら `build_base_dem.py` を回す。
+    """
     global DEM
     if DEM is None:
         DEM = json.load(open(os.path.join(DOC, "sanno_dem.json"), encoding="utf-8"))
@@ -463,7 +470,7 @@ def genkyo_svg(d, kan, x0, x1, z0, z1, W=900.0):
         cz = sum(q[1] for q in nb["polygon"]) / len(nb["polygon"])
         o.append(T(pr.X(cx), pr.Y(cz), nb["name"], fs=10.5, anchor="middle", fill="var(--shu)"))
     o += cut_lines(d, pr.X, pr.Y, pr.L)
-    o.append(T(6, 15, kan + "　現況図 ─ 造成前の地形(Unity Terrain 実測・確度P)", fs=12.5, fill="var(--dim)"))
+    o.append(T(6, 15, kan + "　現況図 ─ 造成前の地形(正本 base_dem.json からの切り出し・確度P)", fs=12.5, fill="var(--dim)"))
     o.append(T(pr.W - 6, 15, "段彩 2 m ／ 等高線 2 m(10 m 太線) ／ 北が上", fs=10.5,
                anchor="end", fill="var(--dim)"))
     y = pr.H - 14
@@ -1496,7 +1503,7 @@ def section_svg(d, key, design, marks, title, flip=False, viewtxt="", flats=(), 
     o.append(T(6, 15, title, fs=12.5, fill="var(--dim)"))
     o.append(T(W - 6, 15, "垂直 %.1f 倍" % (vs / s), fs=11, anchor="end", fill="var(--dim)"))
     o.append(T(W - 6, 30, viewtxt, fs=10.5, anchor="end", fill="var(--shu)"))
-    o.append(T(W - 6, H - 8, "破線 = 現地形(Unity Terrain 実測) ／ 実線 = 設計地盤 ／ ╲ 切土 ／ ╱ 盛土"
+    o.append(T(W - 6, H - 8, "破線 = 造成前の地形(正本 base_dem.json) ／ 実線 = 設計地盤 ／ ╲ 切土 ／ ╱ 盛土"
                " ／ 太い緑帯 = 無造成 ／ 網掛 = 土留め(法尻は地盤なり)", fs=10.5,
                anchor="end", fill="var(--dim)"))
     o.append(ENDSVG)
@@ -2301,14 +2308,14 @@ def main():
     P_ = d["polygon"]
     gx0, gx1 = min(q[0] for q in P_) - 20, max(q[0] for q in P_) + 20
     gz0, gz1 = min(q[1] for q in P_) - 20, max(q[1] for q in P_) + 20
-    plate(h, nx(), "現況図(造成前の地形)", "段彩 2 m ／ 等高線 2 m(10 m 太線) ／ Unity Terrain 実測・確度P")
+    plate(h, nx(), "現況図(造成前の地形)", "段彩 2 m ／ 等高線 2 m(10 m 太線) ／ 正本 base_dem.json からの切り出し・確度P")
     fig(h, genkyo_svg(d, KAN[n[0] - 1], gx0, gx1, gz0, gz1),
         cap="<b>造成のすべての出発点。</b>面の高さは設計者が決めたのではなく、"
             "<b>この地形を走査して自然の平場から採った</b>(境内=山頂平坦面 h≥27.5 / 前庭=男坂下の棚)。"
             "赤の破線は隣地(別当觀理院・神主樹下邸)の区画 — <b>境の地形は隣と一続き</b>なので重ねてある。"
             "一点鎖線は断面の切り位置。"
-            "<br>⚠ <b>この「現況」は今日の地面である。</b>シーンの `ModernTerrain` を"
-            "`Terrain.SampleHeight` で吐いたもので、国土地理院の DEM と突き合わせて 8m のズレを補正してある"
+            "<br>⚠ <b>この「現況」は今日の地面である。</b>正本 `base_dem.json` を"
+            "実体は<b>正本 <code>docs/Sashizu/base_dem.json</code> からの切り出し</b>で、2026-08-22 の参照ハイトマップ(国土地理院 DEM5A/10B 由来・8m のズレを補正済)を焼いたものである"
             "(中央値 0.127m 一致)。<b>建物は入っていない</b> — 地形のハイトマップだけを読むので、"
             "社殿もホテルも道路の高架も高さには含まれない。"
             "⛔ <b>ただし「自然地形」ではない。</b>山王山の頂は上知のあと官有地になり、社殿は昭和二十年に焼けて"
@@ -2335,7 +2342,14 @@ def main():
         cap="<b>どこを盛り、どこを切るか。</b>地の色のままの所は<b>造成しない</b>(社叢・山麓の通り・坂の外)。"
             "<b>坂の通路も造成の対象に入れてある</b>(2026-08-23 の検図で落ちているのが分かった) — "
             "旧図が掘っていた5mの切通しは廃したが、<b>代わりに男坂の全長に1.0〜1.5mの盛土が乗る</b>。"
-            "段の縁のうち土留めの無い辺は法面(盛土 1:1.5 / 切土 1:1)で現地形へ摺り付ける。")
+            "段の縁のうち土留めの無い辺は法面(盛土 1:1.5 / 切土 1:1)で現地形へ摺り付ける。"
+            "<br>⛔ <b>透塀の南西の隅の盛土は、江戸の普請ではなく近代の掘削跡の埋め戻しである</b>【U】(2026-08-25 裁定)。"
+            "そこの地形は <b>14.5×9.1m が ±0.30m にそろった平坦な底</b>に東端で <b>+22%</b> の急な立ち上がりで、"
+            "⚠ <b>自然の窪みならV字かU字になる</b> — 人工の切り取りの形をしている。"
+            "⚠ <b>図では通常の盛土と同じ色で出る</b>ので、量を江戸期の土工事として読まないこと。"
+            "⛔ 復元レイヤを起こさないのは、[五千分一東京図31] の標高点が"
+            "<b>高さは0.5m以内で一致するのに水平距離が約2倍ずれる</b>(明治16年 約35m ↔ 正本 72m)ためで、"
+            "<b>値は使えても位置を写せない</b>から等高線を基準面にできない。")
     h.append("</div>")
 
     # 其二 境内 平面
@@ -2432,6 +2446,7 @@ def main():
                 "最大盛土級(御厩の平場の北東角)を1本で通す</b>。小丘は3.3m切って28.3へ、御厩の平場の縁は"
                 "1:1.5 の盛土法面で受ける(水平6.2m・社地内に収まる)。2026-08-22 検図の指摘で追加。"),
       "NS545": ("<b>左が南・右が北で、西を見る断面</b>。<b>本殿の柱筋</b>を通す。"
+                "⛔ <b>南端の盛土は近代の掘削跡の埋め戻し</b>【U】。"
                 "境内面28.3と自然地形の差(§B-1)が最も出る向きで、南列の下が盛土・北東が切土になる。"
                 "⚠ 2026-08-24 検図(中-2)で追加 — <b>社殿群を横断する南北断面が1本も無かった</b>。"),
       "NS510": ("<b>左が南・右が北で、西を見る断面</b>。<b>中門と白洲</b>を通す。"

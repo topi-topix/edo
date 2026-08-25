@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
@@ -28,8 +29,27 @@ using SK = EdoSannoKitaBuilder;
 /// 現況だけを書き出したいとき(指図を新しく起こす種にするなど)は「現況を書き出す」を使う。</summary>
 public static class EdoSashizuExport
 {
-    const string DOC = "docs/Sashizu/okabe_sashizu.json";
-    const string DUMP = "docs/Sashizu/okabe_current.json";
+    /// <summary>屋敷テーブル — 指図(json)のパスとシーンの対象。**屋敷を足すときはここに1行足す**
+    /// (突き合わせの器そのものは屋敷を知らない)。
+    ///   doc    … 指図の json(正典)
+    ///   dump   … 現況の書き出し先(岡部のみ。他家は書き出しを持たない)
+    ///   root   … シーンのルート GameObject 名
+    ///   parcel … EdoParcels の区画 id(回転間グリッド式=matsudaira/doi のみ。岡部は SK.OKABE)</summary>
+    public class Yashiki { public string label, doc, dump, root, parcel; }
+    public static readonly Dictionary<string, Yashiki> Houses = new Dictionary<string, Yashiki>
+    {
+        { "okabe", new Yashiki { label = "Okabe", doc = "docs/Sashizu/okabe_sashizu.json",
+                                 dump = "docs/Sashizu/okabe_current.json",
+                                 root = EdoOkabeYashikiBuilder.GN, parcel = null } },
+        { "matsudaira", new Yashiki { label = "Matsudaira", doc = EdoMatsudairaBuilder.SashizuRel,
+                                      root = EdoMatsudairaBuilder.Grp,
+                                      parcel = EdoMatsudairaBuilder.ParcelId } },
+        // 土井のルート名は EdoSannoKitaBuilder.Stage2_Doi が建てた実物(2026-08-26 実機確認)
+        { "doi", new Yashiki { label = "Doi", doc = "docs/Sashizu/doi_sashizu.json",
+                               root = "Edo_Yashiki_DoiOsumi", parcel = "doi" } },
+    };
+    static string DOC { get { return Houses["okabe"].doc; } }
+    static string DUMP { get { return Houses["okabe"].dump; } }
     static readonly CultureInfo IC = CultureInfo.InvariantCulture;
     const float TOL = 0.005f;
 
@@ -43,6 +63,177 @@ public static class EdoSashizuExport
         System.IO.File.WriteAllText(path, Build());
         AssetDatabase.Refresh();
         Debug.Log("[Okabe] 現況を書き出した: " + DUMP + "\n  ⚠ これは**指図ではない**。指図は " + DOC);
+    }
+
+    [MenuItem("Edo/土井大隅守上屋敷/指図と実装を突き合わせる")]
+    public static void CheckDoiMenu() { Debug.Log("[Doi] " + CheckScene("doi")); }
+
+    // =====================================================================
+    // 汎用の突き合わせ — 回転間グリッド式(grid.shukaku)の指図と、据わっている現物を照合する
+    // =====================================================================
+
+    /// <summary>回転間グリッド式の指図(matsudaira / doi)の、指図と実装の突き合わせ。
+    /// 検査項目は松平のインライン実装(2026-08-23 の是正 — 「本数と GradeQA しか見ておらず
+    /// 106m ずれた棟が 0 件で通る」対策)を**そのまま一般化した物**:
+    ///   表門の位置(json pos と 辺+s の整合)/棟・廊下の位置と存在/孤児(指図に無い現物)/
+    ///   囲い run・fence の部材の存在/郭内の造作(Fuzoku 下の各群)。
+    /// ⚠ 棟の照合点は Grid.W(u0, v1)(松平ビルダーの据え付けピボット)。指図に無い群
+    /// (fences・nakajikiri など)は空として扱うので、屋敷ごとに項目を持ち替えなくてよい。</summary>
+    public static string CheckScene(string id)
+    {
+        var hs = Houses[id];
+        var path = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), hs.doc);
+        if (!System.IO.File.Exists(path)) return "指図が無い: " + hs.doc;
+        var doc = MiniJson.Parse(System.IO.File.ReadAllText(path)) as Dictionary<string, object>;
+        if (doc == null) return "指図が読めない: " + hs.doc;
+
+        var sb = new StringBuilder();
+        // ---- 回転間グリッド(EdoMatsudairaBuilder.Frame と同じ式)----
+        var g = D(D(doc, "grid"), "shukaku");
+        float ken = F(D(doc, "const"), "ken");
+        float gx0 = F(g, "x0"), gz0 = F(g, "z0");
+        float gux = F(g, "ux"), guz = F(g, "uz"), gvx = F(g, "vx"), gvz = F(g, "vz");
+        Func<float, float, Vector2> W = (u, v) =>
+            new Vector2(gx0 + (gux * u + gvx * v) * ken, gz0 + (guz * u + gvz * v) * ken);
+        var P = EdoParcels.Get(hs.parcel);
+
+        var gate = D(doc, "gate");
+        var gp = A(gate, "pos");
+        Vector2 jsonPos = new Vector2(gp[0], gp[1]);
+        Vector2 fromEdge = EdgePtOf(P, (int)F(gate, "edge"), F(gate, "s"));
+        sb.AppendLine("表門: json pos=" + jsonPos + " / 辺+s から=" + fromEdge +
+                      " 差=" + (jsonPos - fromEdge).magnitude.ToString("F3") + "m");
+        sb.AppendLine("グリッド原点=(" + gx0 + "," + gz0 + ") 表門芯との差=" +
+                      (new Vector2(gx0, gz0) - jsonPos).magnitude.ToString("F3") + "m");
+        sb.AppendLine("段 " + Get2(doc, "terraces").Count + "枚 / run " + Get2(doc, "runs").Count +
+                      "本 / 区画 " + P.Length + "頂点");
+
+        // ---- 据わっている現物を指図と照合する ★これが無いと 106m ずれた棟が「0件」で通る
+        int ng = 0;
+        var root = GameObject.Find(hs.root);
+        if (root == null) { sb.AppendLine("★ ルートが無い"); ng++; }
+        else
+        {
+            var seen = new HashSet<string>();
+            Action<Transform, string, Vector2, string> chk = (grp, name, want, kind) =>
+            {
+                seen.Add(name);
+                var t = grp == null ? null : grp.Find(name);
+                if (t == null) { sb.AppendLine("★ " + kind + " " + name + " が実装に無い"); ng++; return; }
+                float dd = Vector2.Distance(new Vector2(t.position.x, t.position.z), want);
+                if (dd > 0.02f)
+                { sb.AppendLine("★ " + kind + " " + name + " が " + dd.ToString("F2") + "m ずれている"); ng++; }
+            };
+            var bld = root.transform.Find("Buildings");
+            foreach (var o in Get2(doc, "munes"))
+            {
+                var m = o as Dictionary<string, object>; if (m == null) continue;
+                var w = W(F(m, "u0"), F(m, "v1"));
+                chk(bld, Str(m, "name"), w, "棟");
+            }
+            foreach (var o in Get2(doc, "links"))
+            {
+                var l = o as Dictionary<string, object>; if (l == null) continue;
+                float u0 = F(l, "u0"), v0 = F(l, "v0"), u1 = F(l, "u1"), v1 = F(l, "v1");
+                bool alongU = (u1 - u0) >= (v1 - v0);
+                var w = alongU ? W(u0, v1) : W(u0, v0);
+                chk(bld, Str(l, "name"), w, "廊下");
+            }
+            if (bld != null)
+                for (int i = 0; i < bld.childCount; i++)
+                {
+                    string nm = bld.GetChild(i).name;
+                    if (!seen.Contains(nm)) { sb.AppendLine("★ 孤児(指図に無い): " + nm); ng++; }
+                }
+            // 囲い — 指図の run/fence の名前が実装のグループ名に現れるか
+            // 囲いは run/fence ごとに複数の部材(`S_Hei_C_0f` など)に分かれるので**前方一致**で数える
+            var have = new List<string>();
+            foreach (var gname in new[] { "Kakoi", "Fences" })
+            {
+                var gg = root.transform.Find(gname);
+                if (gg != null) for (int i = 0; i < gg.childCount; i++) have.Add(gg.GetChild(i).name);
+            }
+            {
+                var names = new List<string>();
+                foreach (var o in Get2(doc, "runs")) names.Add(Str(o as Dictionary<string, object>, "name"));
+                foreach (var o in Get2(doc, "fences")) names.Add(Str(o as Dictionary<string, object>, "name"));
+                foreach (var nm in names)
+                {
+                    int c = 0;
+                    foreach (var h in have) if (h == nm || h.StartsWith(nm + "_")) c++;
+                    if (c == 0) { sb.AppendLine("★ 囲い " + nm + " の部材が実装に一つも無い"); ng++; }
+                }
+                foreach (var h in have)
+                {
+                    bool known = false;
+                    foreach (var nm in names) if (h == nm || h.StartsWith(nm + "_")) { known = true; break; }
+                    if (!known) { sb.AppendLine("★ 孤児の囲い: " + h); ng++; }
+                }
+            }
+            // ---- 郭内の造作(Stage6)。名前の前方一致で「1本も置かれていない」を捕まえる
+            {
+                var fz = root.transform.Find("Fuzoku");
+                Func<string, List<string>> kids = sub =>
+                {
+                    var outp = new List<string>();
+                    var g2 = fz == null ? null : fz.Find(sub);
+                    if (g2 != null) for (int i = 0; i < g2.childCount; i++) outp.Add(g2.GetChild(i).name);
+                    return outp;
+                };
+                Action<string, List<string>, string> want = (sub, names, kind) =>
+                {
+                    var h = kids(sub);
+                    foreach (var nm in names)
+                    {
+                        int c = 0;
+                        foreach (var q in h) if (q == nm || q.StartsWith(nm + "_")) c++;
+                        if (c == 0) { sb.AppendLine("★ " + kind + " " + nm + " の部材が実装に一つも無い"); ng++; }
+                    }
+                    foreach (var q in h)
+                    {
+                        bool known = false;
+                        foreach (var nm in names) if (q == nm || q.StartsWith(nm + "_")) { known = true; break; }
+                        if (!known) { sb.AppendLine("★ 孤児の" + kind + ": " + q); ng++; }
+                    }
+                };
+                Func<string, List<string>> jn = key =>
+                {
+                    var outp = new List<string>();
+                    foreach (var o in Get2(doc, key)) outp.Add(Str(o as Dictionary<string, object>, "name"));
+                    return outp;
+                };
+                want("Nakajikiri", jn("nakajikiri"), "中仕切");
+                want("Takegaki", jn("rails"), "竹垣");
+                want("Kaidan", jn("kaidans"), "石段");
+                want("Ido", jn("wells"), "井戸");
+                want("Yagura", jn("yagura"), "隅櫓");
+                want("Service", jn("service"), "附属屋");
+                // 井戸・附属屋・隅櫓は1個ものなので位置も見る
+                foreach (var o in Get2(doc, "wells"))
+                {
+                    var w2 = o as Dictionary<string, object>; if (w2 == null) continue;
+                    chk(fz == null ? null : fz.Find("Ido"), Str(w2, "name"),
+                        W(F(w2, "u"), F(w2, "v")), "井戸");
+                }
+                foreach (var o in Get2(doc, "service"))
+                {
+                    var s2 = o as Dictionary<string, object>; if (s2 == null) continue;
+                    chk(fz == null ? null : fz.Find("Service"), Str(s2, "name"),
+                        W((F(s2, "u0") + F(s2, "u1")) * 0.5f, (F(s2, "v0") + F(s2, "v1")) * 0.5f), "附属屋");
+                }
+            }
+        }
+        sb.AppendLine(ng == 0 ? "指図と実装の突き合わせ: 0 件" : "★ 指図と実装の不一致 " + ng + " 件");
+        return sb.ToString();
+    }
+
+    /// <summary>辺 edge の走り s[m] の世界座標(EdoMatsudairaBuilder.EdgePt と同じ式)。</summary>
+    static Vector2 EdgePtOf(Vector2[] P, int edge, float s)
+    {
+        int n = P.Length;
+        Vector2 a = P[edge % n], b = P[(edge + 1) % n];
+        Vector2 d = b - a; float L = d.magnitude;
+        return a + d / Mathf.Max(1e-5f, L) * s;
     }
 
     /// <summary>指図(json)の `gate.plan` を読んで返す。**実装は寸法を写さずここから引く。**

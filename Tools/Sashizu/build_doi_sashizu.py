@@ -1955,6 +1955,43 @@ def route_check(d, dem):
     return bad
 
 
+def setchin_check(d):
+    """**区画ごとに雪隠が在るか。**
+
+    ⚠ 2026-08-26 まで当家は中奥と奥向にしか雪隠が無く、**客が用を足すのに中奥へ入る**図に
+    なっていた(表向の到達に結界を効かせたのと同じ理屈で成り立たない)。
+    ⛔ **松平・岡部も同じ欠落で、3邸とも雪隠が抜けていた** — 外の錨(`estate-types.md` の
+    役割表)が無ければ**自己検図では構造的に見えない**穴である。
+    """
+    KEY = ("雪隠", "後架", "厠", "閑所")
+    zones = d["const"].get("setchinZones") or {}
+    by = dict((m["name"], m) for m in d["munes"] + d.get("service", []))
+    bad = []
+    # ⛔ **宣言を消せば通る、をやらない。** 区画の宣言そのものが無ければ検査は自己免除になる。
+    #   人が居続ける棟(御殿の棟+表役所)は必ずどれかの区画に属していること。
+    need = set(m["name"] for m in d["munes"] if m.get("goten")) | {"Yakusho"}
+    covered = set()
+    for names in zones.values():
+        covered |= set(names)
+    for n in sorted(need - covered):
+        bad.append("棟 %s が雪隠の区画(`setchinZones`)のどれにも属していない — "
+                   "人が居続ける棟は必ず区画に入れること" % n)
+    for zone, names in zones.items():
+        got = []
+        for n in names:
+            m = by.get(n)
+            if m is None:
+                bad.append("雪隠の区画「%s」が挙げる棟 %s が指図に無い" % (zone, n))
+                continue
+            got += [r["name"] for r in m.get("rooms", [])
+                    if any(k in r["name"] for k in KEY)]
+        if not got:
+            bad.append("区画「%s」(%s)に雪隠が一室も無い — "
+                       "用を足すのに区画をまたぐ図は成り立たない"
+                       % (zone, "・".join(names)))
+    return bad
+
+
 def program_check(d):
     """**在るべき役割が在るか。側面ごとに確度と典拠が付いているか。**
 
@@ -4827,7 +4864,7 @@ def main():
             print("   ", b)
     pbad = (plane_check(d) + inubashiri_check(d) + opening_fit_check(d) + refs_check(d)
             + norms_check(d) + perimeter_check(d) + clearance_check(d) + rails_check(d)
-            + ramp_check(d) + completeness_check(d) + program_check(d)
+            + ramp_check(d) + completeness_check(d) + program_check(d) + setchin_check(d)
             + route_check(d, load_terrain(os.path.join(DOC, "doi_edo_world.json")))
             + stair_bank_check(d, load_terrain(os.path.join(DOC, "doi_edo_world.json")))
 

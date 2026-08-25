@@ -1,6 +1,7 @@
 // 敷地割の一覧 — Edo ▸ 敷地割 ▸ 一覧を開く
 //   区画の名前・種別・色・覚書、頂点の数値、面積(坪)と辺長(間)を見て直す。
-//   ビルダーからの取り込みと突き合わせ、C# 配列の書き出しもここ。
+//   ビルダーからの取り込みと突き合わせもここ。
+//   (「C# 配列をコピー」は 2026-08-26 に廃止 — 規則10「区画の座標を C# に書かない」への逆流装置だった)
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -214,8 +215,6 @@ public class EdoParcelWindow : EditorWindow
 
         EditorGUILayout.Space(8);
         EditorGUILayout.BeginHorizontal();
-        if (GUILayout.Button("C# 配列をコピー"))
-        { EditorGUIUtility.systemCopyBuffer = ToCSharp(p); ShowNotification(new GUIContent("クリップボードへ")); }
         if (GUILayout.Button("向きを揃える(CCW)"))
         { if (p.SignedArea < 0) p.pts.Reverse(); EdoParcelTool.Invalidate(p); EdoParcels.MarkDirty(); }
         var bg2 = GUI.backgroundColor;
@@ -232,22 +231,6 @@ public class EdoParcelWindow : EditorWindow
 
         EditorGUILayout.EndScrollView();
         EditorGUILayout.EndVertical();
-    }
-
-    static string ToCSharp(P p)
-    {
-        var ic = CultureInfo.InvariantCulture;
-        var sb = new StringBuilder();
-        sb.AppendLine("    // " + p.label + "  " + p.Tsubo.ToString("N0") + " 坪");
-        sb.AppendLine("    public static readonly Vector2[] " + p.id.ToUpperInvariant() + " = {");
-        for (int i = 0; i < p.pts.Count; i++)
-        {
-            if (i % 3 == 0) sb.Append("        ");
-            sb.AppendFormat(ic, "new Vector2({0}f, {1}f)", p.pts[i].x.ToString("0.###", ic), p.pts[i].y.ToString("0.###", ic));
-            sb.Append(i < p.pts.Count - 1 ? ", " : " };");
-            if (i % 3 == 2 || i == p.pts.Count - 1) sb.AppendLine();
-        }
-        return sb.ToString();
     }
 
     // ---- 取り込み --------------------------------------------------------

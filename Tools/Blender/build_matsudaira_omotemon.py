@@ -30,7 +30,7 @@ from mathutils import Vector
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import vklib as V
 
-PROJ = "/Users/toshio/project/edo-unity"
+PROJ = V.REPO
 JC = os.path.join(PROJ, "Assets", "Japanese Castle")
 
 WOOD_SRC = "Fences/Fence_B_01_x2.fbx"

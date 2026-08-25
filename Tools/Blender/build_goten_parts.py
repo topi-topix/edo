@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import vklib as V
 
 K = V.KEN
-OUT = "/Users/toshio/project/edo-unity/Assets/Edo/Models/Goten/Parts"
+OUT = os.path.join(V.REPO, "Assets", "Edo", "Models", "Goten", "Parts")
 PREVIEW = os.environ.get("GOTEN_PREVIEW", "")
 ONLY = os.environ.get("GOTEN_ONLY", "")     # 部分文字列で絞る
 

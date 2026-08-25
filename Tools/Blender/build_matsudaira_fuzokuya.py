@@ -41,7 +41,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import vklib as V
 import build_goten_roof as R
 
-PROJ = "/Users/toshio/project/edo-unity"
+PROJ = V.REPO
 JC = os.path.join(PROJ, "Assets", "Japanese Castle")
 OUT = os.path.join(PROJ, "Assets", "Edo", "Models", "Fuzokuya")
 KEN = 1.818

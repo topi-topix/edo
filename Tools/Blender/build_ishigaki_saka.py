@@ -30,10 +30,10 @@ from mathutils import Vector
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import vklib as V
 
-JC = "/Users/toshio/project/edo-unity/Assets/Japanese Castle"
+JC = os.path.join(V.REPO, "Assets", "Japanese Castle")
 SRC = "Exterior/Castle Wall.fbx"
 MAT = "stone wall"
-OUT = "/Users/toshio/project/edo-unity/Assets/Edo/Models/Ishigaki"
+OUT = os.path.join(V.REPO, "Assets", "Edo", "Models", "Ishigaki")
 
 T = 0.60          # 躯体の厚み(郭の土留め 2.40m より薄い — 段脇の袖なので)
 KASA = 0.45       # 笠石の天端が平場から出る高さ。段板は平場の 0.15 上なので段から 0.30

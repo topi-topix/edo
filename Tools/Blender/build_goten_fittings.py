@@ -22,7 +22,7 @@ K = V.KEN                 # 1.818
 UCHINORI = K              # 内法高 = 6尺
 RANMA_H = K / 2           # 欄間 = 半間
 FULL = UCHINORI + RANMA_H # 2.727 = 障子・柱の高さ
-OUT = "/Users/toshio/project/edo-unity/Assets/Edo/Models/Goten/Parts"
+OUT = os.path.join(V.REPO, "Assets", "Edo", "Models", "Goten", "Parts")
 BUILT = []
 # wall A アトラスの左側にある無地の紙面(縦の継ぎ目 u≈0.30 の手前まで)。襖紙に使う
 PAPER_UV = (0.045, 0.08, 0.275, 0.92)

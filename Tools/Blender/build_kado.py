@@ -52,7 +52,7 @@ import vklib as V
 
 FLIP_THK = False        # --flipthk で立てる。書き出し名に T が付く
 
-ROOT = "/Users/toshio/project/edo-unity"
+ROOT = V.REPO
 JC   = os.path.join(ROOT, "Assets/Japanese Castle")
 VK   = os.path.join(ROOT, "Assets/Japanese Village Kit")
 OUT  = os.path.join(ROOT, "Assets/Edo/Models/Kado")

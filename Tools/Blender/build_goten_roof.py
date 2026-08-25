@@ -32,7 +32,7 @@ RATIO = MOD_RISE / MOD_RUN          # 0.5456 ≒ 5.5寸勾配
 COURSE = 0.357                      # 瓦の段ピッチ(流れ方向)
 STEP_RUN = COURSE * 5               # 1.785 = 5段。1段分重ねて葺くと段が通る
 STEP_RISE = STEP_RUN * RATIO
-OUT = "/Users/toshio/project/edo-unity/Assets/Edo/Models/Goten/Roofs"
+OUT = os.path.join(V.REPO, "Assets", "Edo", "Models", "Goten", "Roofs")
 
 KEN = 1.818                         # 江戸間。渡廊下は幅1間
 ROKA_EAVE = 0.60                    # 渡廊下の軒の出(棟の 0.90 より浅い)

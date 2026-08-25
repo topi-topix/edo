@@ -1379,6 +1379,41 @@ def _shared_edge_stats(d, base):
     return rows, missing
 
 
+def recon_reach_check(d, margin=None):
+    """**当家の復元が区画線に近づいていないか。**
+
+    ⚠ 境界と外周の設計は**正本 `base_dem.json`** から測る(両家が同じ面を読むことが要件)。
+    その前提は「当家の復元が境界に届いていない」ことで**たまたま**成り立っている。
+    箱を広げた瞬間、`fix_boundary_plinth` は正本を読み続けるので**基壇が黙って追随しなくなる**
+    (2026-08-26 岡部の指摘: 当家の基壇の丁場 0.80m は現代の地面では足りるが、
+    近代の盛土を戻した面では足りない)。**前提が崩れたらここで止める。**
+    """
+    path = os.path.join(DOC, "doi_edo_world.json")
+    if not os.path.exists(path):
+        return []
+    try:
+        bx = json.load(open(path, encoding="utf-8"))["_reconBox"]
+    except Exception:
+        return ["`doi_edo_world.json` に `_reconBox` が無い — 復元の届く先を測れない"]
+    lim = margin if margin is not None else d["const"].get("reconEdgeMargin", 5.0)
+    P = d["polygon"]
+    best, spot = 1e9, None
+    for e in range(len(P)):
+        a, b = P[e], P[(e + 1) % len(P)]
+        L = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
+        for i in range(int(L) + 1):
+            t = i / max(1, int(L))
+            x, z = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
+            dd = math.hypot(max(bx[0] - x, 0, x - bx[1]), max(bx[2] - z, 0, z - bx[3]))
+            if dd < best:
+                best, spot = dd, (e, x, z)
+    if best < lim:
+        return ["当家の復元が区画線から %.1fm(辺%d の %.1f, %.1f)まで迫っている — "
+                "境界と外周は正本で測る前提が崩れる。基壇の丁場を復元面で測り直すか、"
+                "復元を境界から離すかの**裁定が要る**" % (best, spot[0], spot[1], spot[2])]
+    return []
+
+
 def shared_edge_check(d, base):
     """**共有境界の地盤は、どの家も正本のまま読むこと。**
 
@@ -4766,6 +4801,7 @@ def main():
             + edge_step_check(d, load_terrain(os.path.join(DOC, "doi_dem.json")))
             + wall_end_check(d, load_terrain(os.path.join(DOC, "doi_edo_world.json")))
             + wall_profile_check(d)
+            + recon_reach_check(d)
             + wall_needed_check(d, load_terrain(os.path.join(DOC, "doi_dem.json"))))
     nbad = (neighbour_wall_check(d, load_terrain(os.path.join(DOC, "doi_edo_dem.json")),
                                  load_terrain(os.path.join(DOC, "doi_dem.json")))

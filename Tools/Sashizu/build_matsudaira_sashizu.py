@@ -1516,6 +1516,47 @@ def program_check(d):
     return bad
 
 
+# 役割表のうち、**互いに別の区画に属さねばならない**もの。
+# ⚠ この集合は**共有台帳の役割の名前**でできている。当邸の json をどう書き換えても、
+#   台帳から役割を落とさない限り分離の要求は消えない(`program_check` が落とすのを止める)。
+#   書院・局を入れないのは、玄関と同じ表向・奥向に属してよいから(人の別ではなく場の別)。
+ZONE_SEPARATE = ("表役所", "玄関・式台", "居間・中奥", "奥向", "台所・勝手", "厩")
+
+
+def zone_separation_check(d):
+    """役割表の別の役割どうしが、同じ区画に同居していないか。
+
+    ⚠ **これが最外の錨。** 「区画ごとに雪隠が在るか」→「区画の宣言を消す」→
+    「区画を統合する」→「裁定を消す」と、免除は一段ずつ外へ逃げる。
+    止まるのは錨が**自分では書き換えられない場所**へ出たときだけ
+    (土井 EDO-0029 / `qa-and-pitfalls.md`「錨の連鎖」)。
+    ここでは分離の要求を**共有台帳の役割の名前**から組み立てる。
+    """
+    zone_of = {m["name"]: m.get("zone") for m in d["munes"]}
+    anchor = dict(anchor_roles())
+    role_zone = {}
+    for pg in d.get("program", []):
+        if pg["role"] not in ZONE_SEPARATE or pg["role"] not in anchor:
+            continue
+        if pg["state"].strip("*") != "有":
+            continue
+        zs = set(zone_of.get(n) for n in pg.get("by", []) if n in zone_of)
+        zs.discard(None)
+        if zs:
+            role_zone[pg["role"]] = zs
+    bad = []
+    names = sorted(role_zone)
+    for i in range(len(names)):
+        for j in range(i + 1, len(names)):
+            a, b = names[i], names[j]
+            share = role_zone[a] & role_zone[b]
+            if share:
+                bad.append("役割「%s」と「%s」が同じ区画「%s」に同居している — "
+                           "雪隠を共用する図になる(役割表がこの二つを別に立てている)"
+                           % (a, b, "・".join(sorted(share))))
+    return bad
+
+
 SETCHIN_MAX = 40.0      # 同じ区画の最寄りの雪隠までの上限[m]
 
 
@@ -1534,13 +1575,15 @@ def setchin_check(d):
     """
     ken = d["const"]["ken"]
     bad = []
-    # 段⓪ — **区画の粗さそのものを裁定で止める。**
-    # ⚠ 感度試験6経路のうち、区画を統合して逃げる道だけが鳴らなかった(2026-08-26)。
-    #   宣言された区画に棟が一つも無ければ「溶かした」ということ。
+    # 段⓪ — **区画の粗さそのものを止める。**
+    # ⚠ 感度試験で「区画を統合して逃げる」道が鳴らなかったので `zones` を裁定にしたが、
+    #   土井の指摘どおり**それも `zones` を書き換えれば逃げられる**(免除が一段外へ逃げるだけ)。
+    #   → 錨を**共有台帳 estate-types.md** の役割表へ出す。台帳は他邸と共有で当邸だけでは
+    #   変えられないので、ここで連鎖が止まる(`qa-and-pitfalls.md` の4段の表)。
     declared = d.get("zones")
     if not declared:
         bad.append("zones(区画の裁定)が無い — 区画を統合して雪隠の検査を逃げられる")
-    bad_zone = []
+    bad += zone_separation_check(d)
     zones = {}
     for m in d["munes"]:
         z = m.get("zone")

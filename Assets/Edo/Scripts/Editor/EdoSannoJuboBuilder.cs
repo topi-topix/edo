@@ -611,21 +611,7 @@ public static class EdoSannoJuboBuilder
 
     // ---------- OBB QA ----------
     public static void ObbFootprint(Transform it, out float mnx, out float mxx, out float mnz, out float mxz, out float mny)
-    {
-        mnx = float.MaxValue; mxx = float.MinValue; mnz = float.MaxValue; mxz = float.MinValue; mny = float.MaxValue;
-        foreach (var mf in it.GetComponentsInChildren<MeshFilter>())
-        {
-            var mesh = mf.sharedMesh; if (mesh == null) continue;
-            var vts = mesh.vertices;
-            for (int i = 0; i < vts.Length; i++)
-            {
-                var lp = it.InverseTransformPoint(mf.transform.TransformPoint(vts[i]));
-                mnx = Mathf.Min(mnx, lp.x); mxx = Mathf.Max(mxx, lp.x);
-                mnz = Mathf.Min(mnz, lp.z); mxz = Mathf.Max(mxz, lp.z);
-                mny = Mathf.Min(mny, lp.y);
-            }
-        }
-    }
+        => EdoBuild.ObbFootprint(it, out mnx, out mxx, out mnz, out mxz, out mny);
     public static string QA_Obb(string groupName)
     {
         var e = Parcels.First(x => x.group == groupName);

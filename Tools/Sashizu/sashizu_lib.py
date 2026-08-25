@@ -949,8 +949,10 @@ def overlap_check(d):
                     if (a0 <= c0 and b0 <= d0 and c1 <= a1 and d1 <= b1) or \
                        (c0 <= a0 and d0 <= b0 and a1 <= c1 and b1 <= d1):
                         continue
-                if {k1, k2} == {"niwa", "svc"}:
-                    # 庭の中に立つ亭・祠は庭に**完全に包含**されていれば可(庭は地面)
+                if {k1, k2} == {"niwa", "svc"} or {k1, k2} == {"niwa", "ido"}:
+                    # 庭の中に立つ亭・祠・井戸は庭に**完全に包含**されていれば可(庭は地面)。
+                    # ido の免除は EDO-0023(2026-08-26): 統一時に土井・岡部に niwa×ido の
+                    # 事例が無く落としていた — 庭の井戸は松平で5件、svc と同型の免除で受ける
                     (nk, na, n0, n1_, n2_, n3, _n), (sk, sa, s0, s1_, s2_, s3, _s) = \
                         (boxes[i], boxes[j]) if k1 == "niwa" else (boxes[j], boxes[i])
                     if n0 <= s0 and n1_ <= s1_ and s2_ <= n2_ and s3 <= n3:

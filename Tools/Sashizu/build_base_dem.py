@@ -66,7 +66,7 @@ SLICES = [
     ),
     dict(
         name="sanno_dem.json", x0=-660, z0=636, step=2, nx=146, nz=171, nd=1, style="compact",
-        parcels=["sannosha_prec", "sannosha_kanri", "sannosha_juge"]
+        parcels=["sannosha_prec", "sannosha_kanri", "sannobuke_juge"]
                 + [f"sannojubo_parcels_{i}" for i in range(10)],
         doc="山王権現社まわりの造成前の地形【確度P】。世界座標の格子。h[iz][ix]=標高m。"
             "生成器 build_sanno_sashizu.py が §3a 現況図・§3b 切盛図でこれを読む。",

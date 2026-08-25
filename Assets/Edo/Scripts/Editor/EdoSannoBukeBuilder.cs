@@ -57,7 +57,9 @@ public static class EdoSannoBukeBuilder
 
     // ---------- 区画(正典 = docs/Sashizu/parcels.json / CLAUDE.md 規則10) ----------
     // 2026-08-26 json採用(ユーザー裁定)。JUGE は 6→8点(NE角に z948 のノッチ=辺5,6 が増えた。
-    // 岡部共有の北辺は旧辺4→新辺4 のまま 1:1 対応)。⚠ sannosha_juge と二重定義のまま(未決)。
+    // 岡部共有の北辺は旧辺4→新辺4 のまま 1:1 対応)。二重定義は 2026-08-26 解消 —
+    // 旧代用の sannosha_juge 矩形を削除し sannobuke_juge に一本化(category=jisha。
+    // シーンの実体はこの区画=当ビルダー Stage1 の建て方に沿っていた)。
     public static Vector2[] JUGE { get { return EdoParcels.Get("sannobuke_juge"); } }
     public static Vector2[] SHANIN { get { return EdoParcels.Get("sannobuke_shanin"); } }
     // 2026-08-11改訂(ユーザー下書き第2版+門印=三角形):

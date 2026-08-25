@@ -449,8 +449,11 @@ def seat_fill_check(d):
     we = dict((t["name"], walled_edges(d, t)) for t in d["terraces"])
     out = []
     for r in d["runs"]:
-        if not str(r.get("on", "")).startswith("面の縁"):
-            continue
+        # ⚠ **両符号を測る。** 2026-08-26 松平 EDO-0025 / 土井: 埋没だけを測って
+        #   逆(塀が浮く/内から埋まる)を構造的に見逃す検査の形。当家も「据面より低い」しか
+        #   見ておらず、**塀が内側の地盤に最大1.94m 埋まっている2本**を見逃していた。
+        #   溝(+)は面の縁の run だけの問題だが、**埋没(−)は全 run に効く**。
+        onedge = str(r.get("on", "")).startswith("面の縁")
         e = r["edge"]; a, b = Pg[e], Pg[(e + 1) % len(Pg)]
         dx, dy = b[0] - a[0], b[1] - a[1]
         L = math.hypot(dx, dy) or 1e-9
@@ -458,7 +461,7 @@ def seat_fill_check(d):
         if (a[0] + nx - cu) ** 2 + (a[1] + ny - cv) ** 2 > \
            (a[0] - nx - cu) ** 2 + (a[1] - ny - cv) ** 2:
             nx, ny = -nx, -ny
-        n = 0; bad = 0; mx = 0.0
+        n = 0; bad = 0; mx = 0.0; bur = 0; bmx = 0.0
         sv = r["s0"]
         while sv <= r["s1"]:
             t = sv / K / L
@@ -468,11 +471,16 @@ def seat_fill_check(d):
                 g = graded_y(d, u, v, nat, we)
                 g = nat if g is None else g
                 n += 1
-                if rseat(r, sv) - g > 0.5:
-                    bad += 1; mx = max(mx, rseat(r, sv) - g)
+                dz9 = rseat(r, sv) - g
+                if onedge and dz9 > 0.5:
+                    bad += 1; mx = max(mx, dz9)
+                if dz9 < -0.5:
+                    bur += 1; bmx = max(bmx, -dz9)
             sv += 1.0
         if bad:
             out.append((r["name"], bad, n, round(mx, 2)))
+        if bur:
+            out.append(("%s ⛔内から埋まる" % r["name"], bur, n, round(bmx, 2)))
     return out
 
 

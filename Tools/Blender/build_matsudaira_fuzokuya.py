@@ -118,23 +118,38 @@ class Mesh(object):
         self.box(x1 - t, x1, y0, y1, z0 + t, z1 - t, uv, mat)
 
     def to_object(self, name, mats):
+        """Blender へ落とす。
+
+        ⚠ **厚みの向きを反転してから出す。** `export_fbx` の
+        `axis_forward='-Z', axis_up='Y'` は Blender +Y を Unity の **−Z** へ写すので、
+        論理座標のまま出すと「表」が Unity のローカル −Z に出る
+        (README の規約は 表=+Z)。2026-08-25 に番所が街路へ背を向け、
+        出格子と唐破風が敷地の内側を向いていたのがこれ。
+        面の巻き順と UV も一緒に反転して、法線を外向きに保つ。
+        """
+        vs = [Vector((p.x, -p.y, p.z)) for p in self.v]
+        faces, uvs, mi = [], [], []
+        k = 0
+        for fi, f in enumerate(self.f):
+            n = len(f)
+            faces.append(list(reversed(f)))
+            uvs += list(reversed(self.uv[k:k + n]))
+            mi.append(self.mi[fi])
+            k += n
         me = bpy.data.meshes.new(name)
-        me.from_pydata([v for v in self.v], [], self.f)
+        me.from_pydata(vs, [], faces)
         me.update()
         for m in mats:
             me.materials.append(m)
         uvl = me.uv_layers.new(name="UVMap")
-        for k, pg in enumerate(me.polygons):
-            pg.material_index = self.mi[k]
-        k = 0
-        for pg in me.polygons:
-            for _ in pg.loop_indices:
-                pass
-        for k, d in enumerate(uvl.data):
-            d.uv = self.uv[k]
+        for j, pg in enumerate(me.polygons):
+            pg.material_index = mi[j]
+        for j, dd in enumerate(uvl.data):
+            dd.uv = uvs[j]
         o = bpy.data.objects.new(name, me)
         bpy.context.collection.objects.link(o)
         return o
+
 
 
 # ---------------------------------------------------------------- マテリアルの借用
@@ -187,7 +202,21 @@ def palette():
     return (wood, wuv), (stone, suv), (plas, puv)
 
 
-WOOD, STONE, PLAS = 0, 1, 2       # マテリアルスロットの番号
+WOOD, STONE, PLAS, SHU = 0, 1, 2, 3   # マテリアルスロットの番号
+
+
+def shu_mat():
+    """鳥居の朱。**キットに朱が無い**ので名前だけのスロットを立て、Unity 側の
+    `Assets/Edo/Materials/Shu_Torii.mat` を Search&Remap で当てる
+    (自作の .mat をプロジェクトに置くのは既存の GateWood/M_Kido と同じ扱い。
+     ⛔ 禁じられているのは **Blender 側でキットの材を複製すること**であって、
+     キットに無い材を自前の .mat として持つことではない)。"""
+    m = V.named_material("Shu_Torii")
+    try:
+        m.diffuse_color = (0.62, 0.11, 0.06, 1.0)     # Blender のプレビュー用
+    except Exception:
+        pass
+    return m
 
 
 def _sub(uv, u0, v0, u1, v1):
@@ -371,9 +400,11 @@ def sukiya(ken=2.5, name="Matsudaira_Sukiya"):
 # ================================================================ 稲荷社
 def inari(name="Matsudaira_Inari"):
     """邸内稲荷。**明神鳥居 + 一間社流造の小祠 + 台石**を2間角に納める。
-    ⚠ 朱塗りのマテリアルはキットに無い。新規に作らない規約なので**素木のまま**とする
-      (経年した邸内社として読める)。【確度B=邸内稲荷は常だが当家の社殿形式は未確認】"""
+    鳥居は朱塗り(スロット `Shu_Torii` → Unity の Assets/Edo/Materials/Shu_Torii.mat)、
+    祠は素木。【確度B=邸内稲荷は常だが、当家の祭神・社殿形式は未確認】"""
     (wm, wuv), (sm, suv), (pm, puv) = palette()
+    shu = shu_mat()
+    SUV = (0.15, 0.15, 0.85, 0.85)   # 無地の材なので UV は中央の一枚で足りる
     m = Mesh()
     # ---- 鳥居(明神系)。**祠の正面(+Z)側に立てる**
     #      ⚠ 2026-08-25 是正: 旧版は鳥居を -Z、祠の扉も +Z に置いたので、
@@ -383,11 +414,10 @@ def inari(name="Matsudaira_Inari"):
     pr = 0.085                          # 柱の見付の半分(0.17角 ≒ 内法の 1/10)
     for s in (-1, 1):
         x = s * tw / 2
-        m.box(x - pr, x + pr, 0.0, th, TZ - pr, TZ + pr, _sub(wuv, .2, 0, .35, 1), WOOD)
+        m.box(x - pr, x + pr, 0.0, th, TZ - pr, TZ + pr, SUV, SHU)
         m.box(x - 0.16, x + 0.16, 0.0, 0.16, TZ - 0.16, TZ + 0.16, _sub(suv, 0, 0, .4, .4), STONE)
     # 貫(柱の外へ出る)
-    m.box(-tw / 2 - 0.26, tw / 2 + 0.26, th - 0.62, th - 0.48, TZ - 0.07, TZ + 0.07,
-          _sub(wuv, .4, .2, .9, .4), WOOD)
+    m.box(-tw / 2 - 0.26, tw / 2 + 0.26, th - 0.62, th - 0.48, TZ - 0.07, TZ + 0.07, SUV, SHU)
     # 島木 + 笠木 — **2本まとめて同じ反りに乗せる**。
     # ⚠ 2026-08-25 是正: 旧版は島木を水平の箱、笠木だけを反らせたので、
     #   両者の間が端へ行くほど楔形に開いていた。反りは島木から始まる。
@@ -403,21 +433,21 @@ def inari(name="Matsudaira_Inari"):
         for zz, sgn in ((TZ + 0.13, 1), (TZ - 0.13, -1)):
             m.quad([(x0, th + r0, zz), (x1, th + r1, zz),
                     (x1, th + 0.15 + r1, zz), (x0, th + 0.15 + r0, zz)][::sgn],
-                   _sub(wuv, .4, .4, .9, .6), WOOD)
+                   SUV, SHU)
         # 笠木(上段・幅広)
         for zz, sgn in ((TZ + 0.17, 1), (TZ - 0.17, -1)):
             m.quad([(x0, th + 0.15 + r0, zz), (x1, th + 0.15 + r1, zz),
                     (x1, th + 0.31 + r1, zz), (x0, th + 0.31 + r0, zz)][::sgn],
-                   _sub(wuv, .4, .6, .9, .8), WOOD)
+                   SUV, SHU)
         # 天端と小口の底
         m.quad([(x0, th + 0.31 + r0, TZ - 0.17), (x1, th + 0.31 + r1, TZ - 0.17),
                 (x1, th + 0.31 + r1, TZ + 0.17), (x0, th + 0.31 + r0, TZ + 0.17)],
-               _sub(wuv, .5, .6, .8, .8), WOOD)
+               SUV, SHU)
         m.quad([(x1, th + r1, TZ - 0.13), (x0, th + r0, TZ - 0.13),
                 (x0, th + r0, TZ + 0.13), (x1, th + r1, TZ + 0.13)],
-               _sub(wuv, .5, .4, .8, .6), WOOD)
+               SUV, SHU)
     # 額束
-    m.box(-0.11, 0.11, th - 0.48, th, TZ - 0.09, TZ + 0.09, _sub(wuv, .6, .3, .7, .5), WOOD)
+    m.box(-0.11, 0.11, th - 0.48, th, TZ - 0.09, TZ + 0.09, SUV, SHU)
     # ---- 台石(基壇)。祠は鳥居の奥(-Z)に据え、扉を +Z = 鳥居側へ向ける
     SZ = -0.62
     m.box(-0.95, 0.95, 0.0, 0.42, SZ - 0.80, SZ + 0.80, _sub(suv, 0, 0, 1, .5), STONE)
@@ -462,7 +492,7 @@ def inari(name="Matsudaira_Inari"):
     for sx in (-1, 1):
         m.box(sx * (bw / 2 + 0.24), sx * (bw / 2 + 0.30), ridge_y - 0.10, ridge_y + 0.46,
               zr - 0.06, zr + 0.06, _sub(wuv, .6, .2, .7, .5), WOOD)
-    return _finish(name, m, [wm, sm, pm], [])
+    return _finish(name, m, [wm, sm, pm, shu], [])
 
 
 # ================================================================ 石井戸枠
@@ -577,8 +607,9 @@ def main():
             bpy.ops.mesh.primitive_plane_add(size=200, location=(0, 0, -0.02))
             # 画角は実寸から出す(部材ごとに手で決めると必ずどれかが枠から溢れる)
             r = max(mx.x - mn.x, mx.y - mn.y, mx.z - mn.z)
-            # 表(+Z)が見える側から。**Blender の +Y = Unity の +Z = 部材の表**
-            V.studio((-r * 1.35, r * 1.85, r * 1.05), (0.0, 0.0, (mx.z - mn.z) * 0.45),
+            # 表が見える側から。⚠ to_object で厚みを反転したので、
+            # **部材の表は Blender の −Y**(= Unity のローカル +Z)にある
+            V.studio((-r * 1.35, -r * 1.85, r * 1.05), (0.0, 0.0, (mx.z - mn.z) * 0.45),
                      res=(1400, 950))
             V.render("/tmp/fuzokuya_%s.png" % key)
 

@@ -14,6 +14,11 @@ ModelImporter:
       assembly: UnityEngine.CoreModule
       name: Foundation_A_01
     second: {fileID: 2100000, guid: 3ce4a815bce2cce4ba40d7156c957e2f, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Shu_Torii
+    second: {fileID: 2100000, guid: 9921ec1901513424bb783ab28355f04f, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0

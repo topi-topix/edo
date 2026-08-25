@@ -1301,6 +1301,8 @@ def plane_check(d):
     bad += kaidan_ground_check(d)
     bad += hardcode_check()
     bad += gate_overlap_check(d)
+    bad += fuzoku_overlap_check(d)
+    bad += yagura_opening_check(d)
     return bad
 
 
@@ -1481,6 +1483,124 @@ def section_crossings(d, sec):
         add(x.get("label", x["name"]), x["u0"], x["v0"], x["u1"], x["v1"])
     hit.sort()
     return [h[2] for h in hit]
+
+
+# 附属屋・井戸・隅櫓・中仕切塀の実寸(m)。**軒の出を含む外形**。
+# 部材を作り直して寸法が変わったら、ここも直す(build_matsudaira_fuzokuya.py の報告値)。
+FUZOKU_SIZE = {
+    "Kura1": (13.76, 8.89), "Kura2": (13.76, 8.89), "Kura3": (13.76, 8.89),
+    "Sakuji": (19.32, 8.99), "Chatei": (6.55, 6.55), "Inari": (3.34, 2.50),
+}
+IDO_SIZE = (1.90, 1.90)
+YAGURA_OUTER = 7.394        # 隅櫓の軒の出を含む外形(build_matsudaira_fuzokuya.py の報告値)
+NJ_THICK = 0.25
+
+
+def fuzoku_overlap_check(d):
+    """郭内の造作(附属屋・井戸・中仕切塀)が互いに、また棟・廊下と食い込んでいないか。
+
+    ⚠ **(u,v) グリッドの上で測る。** Unity の world AABB で測ってはいけない —
+    回転間グリッドは斜めなので、13.8×8.9m の箱の AABB が 16.0×13.1m に膨らみ、
+    実際には 4.7m 離れている蔵と厩が「食い込み」と出る(2026-08-25 に偽陽性5件)。
+    """
+    ken = d["const"]["ken"]
+    boxes = []
+    for s in d["service"]:
+        ku, kv = s["u1"] - s["u0"], s["v1"] - s["v0"]
+        cu, cv = (s["u0"] + s["u1"]) / 2.0, (s["v0"] + s["v1"]) / 2.0
+        L, S = FUZOKU_SIZE.get(s["name"], (ku * ken, kv * ken))
+        au, av = (S, L) if kv >= ku else (L, S)
+        boxes.append((s["name"], "附属屋", cu - au / 2 / ken, cv - av / 2 / ken,
+                      cu + au / 2 / ken, cv + av / 2 / ken))
+    for w in d["wells"]:
+        hu = IDO_SIZE[0] / 2 / ken
+        boxes.append((w["name"], "井戸", w["u"] - hu, w["v"] - hu, w["u"] + hu, w["v"] + hu))
+    for m in d["munes"]:
+        boxes.append((m["name"], "棟", m["u0"], m["v0"], m["u1"], m["v1"]))
+    for l in d["links"]:
+        boxes.append((l["name"], "廊下", l["u0"], l["v0"], l["u1"], l["v1"]))
+    for w in d["nakajikiri"]:
+        a, b = w["a"], w["b"]
+        t = NJ_THICK / ken / 2.0
+        if abs(a[0] - b[0]) < 1e-9:
+            boxes.append((w["name"], "中仕切", a[0] - t, min(a[1], b[1]), a[0] + t, max(a[1], b[1])))
+        else:
+            boxes.append((w["name"], "中仕切", min(a[0], b[0]), a[1] - t, max(a[0], b[0]), a[1] + t))
+    bad = []
+    for i in range(len(boxes)):
+        for j in range(i + 1, len(boxes)):
+            n1, k1, a0, b0, a1, b1 = boxes[i]
+            n2, k2, c0, e0, c1, e1 = boxes[j]
+            ou = min(a1, c1) - max(a0, c0)
+            ov = min(b1, e1) - max(b0, e0)
+            if ou <= 0.06 or ov <= 0.06:
+                continue
+            # 御殿どうしは overlap_check の担当。中仕切の隅の突き合わせ(≤0.2間)は継ぎ手
+            if k1 in ("棟", "廊下") and k2 in ("棟", "廊下"):
+                continue
+            if k1 == k2 == "中仕切" and max(ou, ov) < 0.2:
+                continue
+            if "Kido" in n1 or "Kido" in n2:      # 庭木戸は塀の線の上に乗るのが正
+                continue
+            bad.append("%s(%s) と %s(%s) が %.2f×%.2f 間(%.2f×%.2f m)食い込む"
+                       % (n1, k1, n2, k2, ou, ov, ou * ken, ov * ken))
+    return bad
+
+
+def yagura_opening_check(d):
+    """隅櫓の footprint を両側の辺へ射影し、外周の run がそこを塞いでいないか。
+
+    ⚠ 「頂点から一定距離を空ける」では足りない。隅が直角でないと、櫓の四角は
+    片方の辺と斜めに交わるので**左右で必要な開口が違う**(当邸は内角106°で 7.0 と 6.0)。
+    2026-08-25: 開口ゼロで 6.7×5.4×5.7m 食い込み、3.5m ずつ空けてもまだ足りなかった。
+    """
+    P = d["polygon"]
+    n = len(P)
+    ken = d["const"]["ken"]
+    bad = []
+    for y in d.get("yagura", []):
+        vi = y["vertex"]
+        gA, gB = y.get("gapA"), y.get("gapB")
+        if gA is None or gB is None:
+            bad.append("隅櫓 %s に gapA/gapB(外周の開口)が無い" % y["name"])
+            continue
+        p = P[vi % n]
+        a, b = P[(vi - 1) % n], P[(vi + 1) % n]
+
+        def unit(v):
+            m = math.hypot(v[0], v[1])
+            return (v[0] / m, v[1] / m)
+
+        da = unit((a[0] - p[0], a[1] - p[1]))
+        db = unit((b[0] - p[0], b[1] - p[1]))
+        bis = unit((da[0] + db[0], da[1] + db[1]))
+        half = math.acos(max(-1.0, min(1.0, da[0] * bis[0] + da[1] * bis[1])))
+        body = y["ken"] * ken
+        inset = (body / 2 + 0.30) / max(0.35, math.sin(half))
+        c = (p[0] + bis[0] * inset, p[1] + bis[1] * inset)
+        outer = YAGURA_OUTER / 2.0                  # 軒の出を含む半幅
+        ax, ay = db, (-db[1], db[0])                # 櫓の軸は辺 vi に沿う
+        cor = [(c[0] + sx * outer * ax[0] + sy * outer * ay[0],
+                c[1] + sx * outer * ax[1] + sy * outer * ay[1])
+               for sx in (-1, 1) for sy in (-1, 1)]
+        L13 = math.hypot(a[0] - p[0], a[1] - p[1])
+        s_in = [L13 - ((q[0] - p[0]) * da[0] + (q[1] - p[1]) * da[1]) for q in cor]
+        s_out = [(q[0] - p[0]) * db[0] + (q[1] - p[1]) * db[1] for q in cor]
+        needA, needB = L13 - min(s_in), max(s_out)
+        if gA + 1e-6 < needA:
+            bad.append("隅櫓 %s: 辺%d の開口 %.1fm では足りない(櫓は %.2fm 要る)"
+                       % (y["name"], (vi - 1) % n, gA, needA))
+        if gB + 1e-6 < needB:
+            bad.append("隅櫓 %s: 辺%d の開口 %.1fm では足りない(櫓は %.2fm 要る)"
+                       % (y["name"], vi, gB, needB))
+        for r in d["runs"]:
+            if r["edge"] == (vi - 1) % n and r["s1"] > L13 - gA + 0.01:
+                bad.append("隅櫓 %s: run %s が辺%d の開口を塞いでいる(s1=%.1f > %.1f)"
+                           % (y["name"], r["name"], r["edge"], r["s1"], L13 - gA))
+            if r["edge"] == vi and r["s0"] < gB - 0.01:
+                bad.append("隅櫓 %s: run %s が辺%d の開口を塞いでいる(s0=%.1f < %.1f)"
+                           % (y["name"], r["name"], r["edge"], r["s0"], gB))
+    return bad
 
 
 def barrier_check(d):

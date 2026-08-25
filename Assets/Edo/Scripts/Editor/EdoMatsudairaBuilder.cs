@@ -998,18 +998,16 @@ public static class EdoMatsudairaBuilder
                 Vector3.one * EdoSannoKitaBuilder.ES, grp, (string)k["name"]);
             if (go != null)
             {
-                // 開口幅へ合わせる(在庫の冠木門は間口が狭い)
-                var rs = go.GetComponentsInChildren<Renderer>();
-                if (rs.Length > 0)
+                // 開口幅へ合わせる(在庫の冠木門は間口が狭い)。
+                // ⚠ world の AABB で測らない — 斜めに回した門の AABB は実幅より大きく出るので、
+                //   縮め過ぎる。2026-08-25 に幅 3.0m の小門が **1.7m** へ潰れていた。
+                var ps = PartSize(go);
+                float have = ps.x;
+                if (have > 0.1f)
                 {
-                    var b = rs[0].bounds; foreach (var rr in rs) b.Encapsulate(rr.bounds);
-                    float have = Mathf.Max(b.size.x, b.size.z);
-                    if (have > 0.1f)
-                    {
-                        float f2 = w2 / have;
-                        var ls = go.transform.localScale;
-                        go.transform.localScale = new Vector3(ls.x * f2, ls.y, ls.z);
-                    }
+                    float f2 = w2 / have;
+                    var ls = go.transform.localScale;
+                    go.transform.localScale = new Vector3(ls.x * f2, ls.y, ls.z);
                 }
                 n++; sb.AppendLine("小門 " + (string)k["name"] + " 辺" + e2 + " s=" + s2.ToString("F1") + " 幅" + w2.ToString("F1"));
             }
@@ -1203,7 +1201,24 @@ public static class EdoMatsudairaBuilder
             var go = EdoNishiTameikeBuilder.Place(EdoAssets.Own.Matsudaira.Yagura,
                 new Vector3(c.x, seat, c.y), Mathf.Atan2(e.y, -e.x) * Mathf.Rad2Deg,
                 Vector3.one, ygGrp, (string)y["name"]);
-            if (go != null) nYag++;
+            if (go == null) continue;
+            nYag++;
+            // ⚠ 隅櫓は外周の長屋と**同じ隅**を取り合う。指図の run に開口が無いと必ず食い込む。
+            //   ⚠ world の AABB で測らない — 斜めに回った 7.4m 角の箱は AABB が 10.4m 角に
+            //   膨らみ、離れている駒まで「食い込み」に出る(2026-08-25 に偽陽性5件)。
+            //   **水平の OBB を分離軸で測る。**
+            {
+                var kak2 = Group("").Find("Kakoi");
+                float worst = 0f; string wn = null;
+                if (kak2 != null) foreach (Transform c2 in kak2)
+                {
+                    float ov = ObbOverlap2D(go.transform, c2);
+                    if (ov > worst) { worst = ov; wn = c2.name; }
+                }
+                if (worst > 0.25f)
+                    sb.AppendLine("★ 隅櫓 " + (string)y["name"] + " が " + wn + " と水平で " +
+                                  worst.ToString("F2") + "m 食い込む — **指図の開口(gapA/gapB)が足りない**");
+            }
         }
 
         // ---------------- 附属屋
@@ -1256,14 +1271,58 @@ public static class EdoMatsudairaBuilder
         }
     }
 
-    /// <summary>部材そのものの寸法(回転を含まない)。world の AABB は斜めグリッドで膨らむ。</summary>
+    /// <summary>水平面の OBB どうしの食い込み量[m](分離軸法)。0 なら離れている。</summary>
+    static float ObbOverlap2D(Transform a, Transform b)
+    {
+        Vector3 sa = PartSize(a.gameObject), sbz = PartSize(b.gameObject);
+        if (sa == Vector3.zero || sbz == Vector3.zero) return 0f;
+        Vector2 ca = new Vector2(a.position.x, a.position.z), cb = new Vector2(b.position.x, b.position.z);
+        float ra = a.eulerAngles.y * Mathf.Deg2Rad, rb = b.eulerAngles.y * Mathf.Deg2Rad;
+        Vector2 ax = new Vector2(Mathf.Cos(ra), -Mathf.Sin(ra)), az = new Vector2(Mathf.Sin(ra), Mathf.Cos(ra));
+        Vector2 bx = new Vector2(Mathf.Cos(rb), -Mathf.Sin(rb)), bz = new Vector2(Mathf.Sin(rb), Mathf.Cos(rb));
+        float hax = sa.x * 0.5f, haz = sa.z * 0.5f, hbx = sbz.x * 0.5f, hbz = sbz.z * 0.5f;
+        Vector2 dd = cb - ca;
+        float best = float.MaxValue;
+        Vector2[] axes = { ax, az, bx, bz };
+        foreach (var n2 in axes)
+        {
+            float pa = hax * Mathf.Abs(Vector2.Dot(n2, ax)) + haz * Mathf.Abs(Vector2.Dot(n2, az));
+            float pb = hbx * Mathf.Abs(Vector2.Dot(n2, bx)) + hbz * Mathf.Abs(Vector2.Dot(n2, bz));
+            float gap = pa + pb - Mathf.Abs(Vector2.Dot(n2, dd));
+            if (gap <= 0f) return 0f;               // 分離軸が見つかった
+            best = Mathf.Min(best, gap);
+        }
+        return best;
+    }
+
+    /// <summary>部材そのものの寸法(回転を含まない)。
+    /// ⚠ world の AABB を使わない — 斜めグリッドでは 13.8×8.9 の箱が 16.0×13.1 に膨らむ。
+    /// ⚠ 先頭の MeshFilter だけ見ない — obj の部材は 30 以上のサブメッシュに分かれていることがあり、
+    ///   1枚だけ測ると 4.65m の門が 1.24m に見える(2026-08-25 に小門が 0.37 倍へ潰れた原因)。
+    /// **全部の子メッシュを root のローカル系へ写して合成する。**</summary>
     static Vector3 PartSize(GameObject go)
     {
-        var mf = go.GetComponentInChildren<MeshFilter>();
-        if (mf == null || mf.sharedMesh == null) return Vector3.zero;
-        var sz = mf.sharedMesh.bounds.size;
-        var ls = mf.transform.lossyScale;
-        return new Vector3(Mathf.Abs(sz.x * ls.x), Mathf.Abs(sz.y * ls.y), Mathf.Abs(sz.z * ls.z));
+        var w2l = go.transform.worldToLocalMatrix;
+        bool any = false; Vector3 mn = Vector3.zero, mx = Vector3.zero;
+        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var b = mf.sharedMesh.bounds;
+            var m = w2l * mf.transform.localToWorldMatrix;
+            for (int i = 0; i < 8; i++)
+            {
+                var c = new Vector3(((i & 1) == 0 ? b.min : b.max).x,
+                                    ((i & 2) == 0 ? b.min : b.max).y,
+                                    ((i & 4) == 0 ? b.min : b.max).z);
+                var q = m.MultiplyPoint3x4(c);
+                if (!any) { mn = mx = q; any = true; }
+                else { mn = Vector3.Min(mn, q); mx = Vector3.Max(mx, q); }
+            }
+        }
+        if (!any) return Vector3.zero;
+        var ls2 = go.transform.localScale;
+        var sz = mx - mn;
+        return new Vector3(Mathf.Abs(sz.x * ls2.x), Mathf.Abs(sz.y * ls2.y), Mathf.Abs(sz.z * ls2.z));
     }
 
     static float RunWidth(Bounds b, float yaw)
@@ -1353,6 +1412,7 @@ public static class EdoMatsudairaBuilder
         string[] donorDirs = {
             "Assets/Japanese Village Kit/Materials",
             "Assets/Japanese Castle/Meshes/Exterior/Materials",
+            "Assets/Edo/Materials",              // キットに無い材(鳥居の朱 Shu_Torii など)
         };
         var byName = new Dictionary<string, Material>();
         foreach (var dir in donorDirs)

@@ -28,7 +28,8 @@ import json, math, os, re, subprocess, html, sys
 import sashizu_lib
 from sashizu_lib import (R, _pat, _SVN, Proj, RGrid, cf_color, cutfill_legend,
                          dem_color, _iso, dem_legend, slope_table, links_table,
-                         _edge_dir, mune_contacts_table)  # バイト同一を実証済みの共通部
+                         _edge_dir, mune_contacts_table,  # バイト同一を実証済みの共通部
+                         obb_pts, in_obb, obb_overlap, overlap_check)  # 検査の正典(2026-08-26 統一)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DOC = os.path.join(ROOT, "docs/Sashizu")
@@ -157,65 +158,12 @@ def neighbour_block(d, ter, dem):
     return "\n".join(rows)
 
 
+# markdown の正典は sashizu_lib(2026-08-26 統一。既定=厳しい側がそのまま当邸の方言)。
+inline = sashizu_lib.inline
+
+
 def md2html(text):
-    out, i, lines = [], 0, text.split("\n")
-    while i < len(lines):
-        ln = lines[i]
-        if ln.startswith("|") and i + 1 < len(lines) and set(lines[i + 1].replace("|", "").strip()) <= set("-: "):
-            head = [c.strip() for c in ln.strip("|").split("|")]
-            i += 2
-            rows = []
-            while i < len(lines) and lines[i].startswith("|"):
-                rows.append([c.strip() for c in lines[i].strip("|").split("|")]); i += 1
-            out.append('<div class="tw"><table><thead><tr>'
-                       + "".join("<th>%s</th>" % inline(h) for h in head)
-                       + "</tr></thead><tbody>"
-                       + "".join("<tr>" + "".join('<td class="note">%s</td>' % inline(c) for c in r) + "</tr>" for r in rows)
-                       + "</tbody></table></div>")
-            continue
-        m = re.match(r"^(#{1,4})\s+(.*)$", ln)
-        if m:
-            tag = {1: "h1", 2: "h2", 3: "h3", 4: "h4"}[len(m.group(1))]
-            out.append("<%s>%s</%s>" % (tag, inline(m.group(2)), tag)); i += 1; continue
-        if ln.startswith("- "):
-            # ⚠ 行ごとに inline() を呼ぶと**行をまたぐ `**…**` が壊れる**(2026-08-24 検図 低-1)。
-            #   まず素のまま連結してから、項目ごとに一度だけ inline() を通す。
-            raw = []
-            while i < len(lines) and (lines[i].startswith("- ") or lines[i].startswith("  ")):
-                if lines[i].startswith("- "):
-                    raw.append(lines[i][2:])
-                elif raw:
-                    raw[-1] += " " + lines[i].strip()
-                i += 1
-            items = [inline(x) for x in raw]
-            out.append("<ul>" + "".join("<li>%s</li>" % t for t in items) + "</ul>"); continue
-        if ln.strip() == "---":
-            out.append('<hr class="rule">'); i += 1; continue
-        if ln.strip() == "":
-            i += 1; continue
-        buf = []
-        while i < len(lines) and lines[i].strip() and not lines[i].startswith(("#", "-", "|")) and lines[i].strip() != "---":
-            buf.append(lines[i].strip()); i += 1
-        if not buf:
-            # ⚠ 1行も消費できないと i が進まず**無限ループ**する。
-            #   表の途中に別の行が挟まると、後続の `|` 行が「表の始まり」と判定されず
-            #   ここへ落ちて固まる(2026-08-23、HTML コメントを1行入れて実際に固まった)。
-            #   前進を必ず保証し、拾えなかった行はそのまま段落として出す。
-            out.append("<p>%s</p>" % inline(lines[i].strip())); i += 1
-            continue
-        out.append("<p>%s</p>" % inline(" ".join(buf)))
-    return "\n".join(out)
-
-
-def inline(s):
-    s = re.sub(r'</?span[^>]*>', "", s)
-    s = html.escape(s, quote=False)
-    s = re.sub(r"`([^`]+)`", r"<code>\1</code>", s)
-    s = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", s)
-    s = re.sub(r"~~([^~]+)~~", r"<s>\1</s>", s)
-    s = re.sub(r"【([^】]*確度 ?[SABPU?][^】]*)】", r'<span class="cert">【\1】</span>', s)
-    s = re.sub(r"【(写真=A[^】]*)】", r'<span class="cert">【\1】</span>', s)
-    return s
+    return sashizu_lib.md2html(text)
 
 
 # ---------------------------------------------------------------- 作図の土台
@@ -735,14 +683,8 @@ def in_parcel(d, u, v):
 
 
 def design_y(d, u, v):
-    """その (u,v) を覆う段の高さ。無ければ None(=造成しない斜面)。"""
-    if not in_parcel(d, u, v):
-        return None                                    # 区画の外に段は無い
-    best = None
-    for t in d["terraces"]:
-        if in_obb(t, u, v, 1e-9):
-            best = t["y"] if best is None else max(best, t["y"])
-    return best
+    """その (u,v) を覆う段の高さ。正典は sashizu_lib.design_y(poly/yaw/矩形の包含を全部見る)。"""
+    return sashizu_lib.design_y(d, u, v, in_parcel)
 
 
 def run_edges(d):
@@ -2572,48 +2514,7 @@ def fix_walls(d, ter):
     return d
 
 
-def obb_pts(o):
-    """物の四隅を (u, v) で返す。`yaw` を持つ物は**回転矩形**、持たない物は素の矩形。
-
-    境界が斜めに走る辺では、棟を回転間グリッドに載せたままだと「沿わせ」られない
-    (2026-08-23 検図: 家中長屋が松平境と22.2°・岡部境と13.0°開いていた)。
-    `uc,vc,L,D,yaw` が正典で、`u0..v1` はその外接矩形。
-    """
-    if "yaw" not in o:
-        return [(o["u0"], o["v0"]), (o["u1"], o["v0"]), (o["u1"], o["v1"]), (o["u0"], o["v1"])]
-    r = math.radians(o["yaw"])
-    lu, lv = math.sin(r), math.cos(r)          # 長手(桁行)の向き
-    du, dv = math.cos(r), -math.sin(r)         # 梁間の向き
-    L2, D2 = o["L"] / 2.0, o["D"] / 2.0
-    return [(o["uc"] + lu * L2 * a + du * D2 * b,
-             o["vc"] + lv * L2 * a + dv * D2 * b) for a, b in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
-
-
-def in_obb(o, u, v, pad=0.0):
-    """(u, v) がその物の中(回転を考慮)にあるか。"""
-    if "yaw" not in o:
-        return (o["u0"] - pad <= u <= o["u1"] + pad) and (o["v0"] - pad <= v <= o["v1"] + pad)
-    r = math.radians(o["yaw"])
-    lu, lv = math.sin(r), math.cos(r)
-    du, dv = math.cos(r), -math.sin(r)
-    su, sv = u - o["uc"], v - o["vc"]
-    return (abs(su * lu + sv * lv) <= o["L"] / 2.0 + pad and
-            abs(su * du + sv * dv) <= o["D"] / 2.0 + pad)
-
-
-def obb_overlap(a, b):
-    """二つの矩形(回転可)が重なるか — 分離軸で判定。触れるだけは可。"""
-    pa, pb = obb_pts(a), obb_pts(b)
-    for poly in (pa, pb):
-        for i in range(4):
-            ax = poly[(i + 1) % 4][0] - poly[i][0]
-            az = poly[(i + 1) % 4][1] - poly[i][1]
-            nx_, nz_ = -az, ax
-            la = [p[0] * nx_ + p[1] * nz_ for p in pa]
-            lb = [p[0] * nx_ + p[1] * nz_ for p in pb]
-            if min(la) >= max(lb) - 1e-9 or min(lb) >= max(la) - 1e-9:
-                return False
-    return True
+# obb_pts / in_obb / obb_overlap の正典は sashizu_lib(2026-08-26 統一で移設)。
 
 
 def _obj_poly(pr, gr, o, **kw):
@@ -3805,48 +3706,12 @@ def walls_table(d):
 
 
 def kenpei(d, area):
-    K = d["const"]["ken"]
-    gm = sum(abs(m["u1"] - m["u0"]) * abs(m["v1"] - m["v0"]) for m in d["munes"]) * K * K
-    # ⚠ 渡廊下が棟へ一間乗り込む取り合いの分を**二重に数えない**
-    #   (2026-08-25 検図12巡 低-6。影響は +0.02pt だが数え方は正しくする)。
-    gl = 0.0
-    for l in d["links"]:
-        ov = 0.0
-        for m in d["munes"] + d.get("service", []):
-            if "yaw" in m:
-                continue
-            iu = min(l["u1"], m["u1"]) - max(l["u0"], m["u0"])
-            iv = min(l["v1"], m["v1"]) - max(l["v0"], m["v0"])
-            if iu > 1e-9 and iv > 1e-9:
-                ov += iu * iv
-        gl += max(0.0, abs(l["u1"] - l["u0"]) * abs(l["v1"] - l["v0"]) - ov)
-    gl *= K * K
-    gs = sum((s["L"] * s["D"]) if "yaw" in s else abs(s["u1"] - s["u0"]) * abs(s["v1"] - s["v0"])
-             for s in d["service"]) * K * K
-    nag = sum((r["s1"] - r["s0"]) * d["const"]["nagayaD"] for r in d["runs"] if r["kind"] == "Nagaya")
-    bs = d["gate"]["plan"]["bansho"]
-    ban = bs["count"] * bs.get("w", 0) * bs.get("d", 0)   # 長屋門は番所が躯体内=別計上なし
-    yag = sum((y["ken"] * K) ** 2 for y in d["yagura"])
-    gp = d["gate"]["plan"]
-    mon = gp["monW"] * gp.get("monD", 1.2) + 2 * gp.get("sode", 0) * 0.4 \
-        + (d["onarimon"]["w"] * 1.5 if d.get("onarimon") else 0) \
-        + sum(k["w"] * 1.2 for k in d["komon"])
-    tot = gm + gl + gs + nag + ban + yag + mon
-    return ('<div class="tw"><table><thead><tr><th></th><th>m²</th><th>坪</th></tr></thead><tbody>'
-            "<tr><td>御殿の棟(入側とも)</td><td>%.0f</td><td>%.0f</td></tr>"
-            "<tr><td>渡廊下・御錠口</td><td>%.0f</td><td>%.0f</td></tr>"
-            "<tr><td>付属屋(家中長屋・米蔵・土蔵・稲荷)</td><td>%.0f</td><td>%.0f</td></tr>"
-            "<tr><td>表長屋(奥行%.1fm)</td><td>%.0f</td><td>%.0f</td></tr>"
-            "<tr><td>門の躯体(番所を含む)+木戸</td><td>%.0f</td><td>%.0f</td></tr>"
-            "<tr><td><b>計</b></td><td><b>%.0f</b></td><td><b>%.0f</b></td></tr>"
-            "<tr><td><b>敷地(分母)</b></td><td><b>%.0f</b></td><td><b>%.0f</b></td></tr>"
-            '<tr><td><b>建蔽率</b></td><td colspan="2"><b>%.1f%%</b></td></tr>'
-            "</tbody></table></div>"
-            % (gm, gm / TSUBO, gl, gl / TSUBO, gs, gs / TSUBO, d["const"]["nagayaD"],
-               nag, nag / TSUBO, ban + yag + mon, (ban + yag + mon) / TSUBO,
-               tot, tot / TSUBO, area, area / TSUBO, 100.0 * tot / area)), 100.0 * tot / area
-
-
+    """正典は sashizu_lib.kenpei(当邸の実装をそのまま基準にした)。行ラベルだけが当邸の値。"""
+    return sashizu_lib.kenpei(
+        d, area, TSUBO,
+        svc_label="付属屋(家中長屋・米蔵・土蔵・稲荷)",
+        nagaya_label="表長屋(奥行%.1fm)" % d["const"]["nagayaD"],
+        ban_label="門の躯体(番所を含む)+木戸")
 
 
 def stair_bank_check(d, dem):
@@ -4647,197 +4512,7 @@ def wall_check(d):
     return bad
 
 
-def overlap_check(d):
-    """矩形の総当たり重なり検査(棟・廊下・庭・付属屋)。接するは可、重なるは不可。
-    ただし渡廊下が棟の外形(入側帯)に一間だけ乗り込むのは取り付きなので許す。"""
-    boxes = []
-    for m in d["munes"]:
-        boxes.append(("mune", m["name"], m["u0"], m["v0"], m["u1"], m["v1"], None))
-    for l in d["links"]:
-        boxes.append(("link", l["name"], l["u0"], l["v0"], l["u1"], l["v1"], None))
-    for n in d["gardens"]:
-        boxes.append(("niwa", n["name"], n["u0"], n["v0"], n["u1"], n["v1"], None))
-    for s in d["service"]:
-        boxes.append(("svc", s["name"], s["u0"], s["v0"], s["u1"], s["v1"], s))
-    # 外周 run と長屋門の躯体帯(表門の辺=グリッドの v=0 帯)。検図 H-3 で追加 —
-    # 入れないと表長屋の奥行(4.5m)に厩などが食い込んでも素通しになる。
-    ken2 = d["const"]["ken"]
-    sg = d["gate"]["s"]
-    for r in d["runs"]:
-        if r["edge"] != d["gate"]["edge"]:
-            continue
-        depth = d["const"]["nagayaD"] if r["kind"] == "Nagaya" else d["const"]["dobeiT"]
-        boxes.append(("run", r["name"], (r["s0"] - sg) / ken2, 0.0,
-                      (r["s1"] - sg) / ken2, depth / ken2, None))
-    gp2 = d["gate"]["plan"]
-    boxes.append(("run", "Nagayamon", -gp2["monW"] / 2 / ken2, 0.0,
-                  gp2["monW"] / 2 / ken2, gp2["monD"] / ken2, None))
-    # 斜路と井戸。検図 2026-08-23 第3巡 — 箱に入れていなかったので、
-    # 斜路が厩棟を貫き、井戸2基が棟の中に立っていても素通しだった。
-    for rp in d.get("ramps", []):
-        if "u0" in rp:
-            boxes.append(("ramp", rp["name"], rp["u0"], rp["v0"], rp["u1"], rp["v1"], None))
-    for wl in d.get("wells", []):
-        boxes.append(("ido", wl["name"], wl["u"] - 0.5, wl["v"] - 0.5, wl["u"] + 0.5, wl["v"] + 0.5, None))
-    bad = []
-    # 段どうしが重なっていないか。design_y は最大値を採るので、低い方の段は図上にしか
-    # 存在しなくなり、そこに建つ棟が地盤に埋まる(2026-08-23 検図で家中長屋(南)2棟が全部
-    # 主面に食われ、0.2m 埋まって建っていた)。
-    TT = d["terraces"]
-    for i8 in range(len(TT)):
-        for j8 in range(i8 + 1, len(TT)):
-            a8, b8 = TT[i8], TT[j8]
-            if abs(a8["y"] - b8["y"]) < 0.05:
-                continue                          # 同じ高さなら同一の面 — 重なっても消えない
-            iu = min(a8["u1"], b8["u1"]) - max(a8["u0"], b8["u0"])
-            iv = min(a8["v1"], b8["v1"]) - max(a8["v0"], b8["v0"])
-            if iu > 1e-9 and iv > 1e-9 and obb_overlap(a8, b8):
-                bad.append("段 %s(%.1f) と %s(%.1f) が %.1f×%.1f間 重なる — 低い方は地盤として存在しない"
-                           % (a8["name"], a8["y"], b8["name"], b8["y"], iu, iv))
-    # ⚠ 石段の箱を総当たりに入れる(ramps と wells は入っていたのに kaidans だけ抜けていた。
-    #   2026-08-25 検図13巡 中-6)。石段×白洲・石段×段は除外規約で落とす。
-    for k9 in d["kaidans"]:
-        w9 = next((x for x in d["terraceWalls"] if x["name"] == k9.get("atWall")), None)
-        if w9 is None:
-            continue
-        hw9 = k9["w"] / 2 / ken2
-        rn9 = k9["run"] / ken2
-        if abs(w9["a"][0] - w9["b"][0]) < 1e-9:
-            kb9 = {"name": k9["name"], "u0": w9["a"][0] - rn9, "u1": w9["a"][0],
-                   "v0": k9.get("gapV", 0) - hw9, "v1": k9.get("gapV", 0) + hw9}
-        else:
-            kb9 = {"name": k9["name"], "u0": k9.get("gapU", 0) - hw9, "u1": k9.get("gapU", 0) + hw9,
-                   "v0": w9["a"][1] - rn9, "v1": w9["a"][1]}
-        for m9 in d["munes"] + d.get("service", []):
-            if "yaw" in m9:
-                continue
-            iu = min(kb9["u1"], m9["u1"]) - max(kb9["u0"], m9["u0"])
-            iv = min(kb9["v1"], m9["v1"]) - max(kb9["v0"], m9["v0"])
-            if iu > 0.05 and iv > 0.05:
-                bad.append("石段 %s と %s が %.1f×%.1f間 重なる" % (k9["name"], m9["name"], iu, iv))
-
-    # 石段と屋内の階段廊下が同じ場所を占めていないか
-    for k8 in d["kaidans"]:
-        # ⚠ 参照が切れていても**落ちない**。以前は KeyError/IndexError で生成ごと止まり、
-        #   検査を感度試験に掛けること自体ができなかった(2026-08-24 検図 低-6)。
-        #   切れた参照は refs_check が指摘する。
-        w8 = next((x for x in d["terraceWalls"] if x["name"] == k8.get("atWall")), None)
-        if w8 is None:
-            continue
-        hw = k8["w"] / 2 / ken2
-        rn = k8["run"] / ken2
-        if abs(w8["a"][0] - w8["b"][0]) < 1e-9:
-            kb = (w8["a"][0] - rn, k8["gapV"] - hw, w8["a"][0] + rn, k8["gapV"] + hw)
-        else:
-            kb = (k8["gapU"] - hw, w8["a"][1] - rn, k8["gapU"] + hw, w8["a"][1] + rn)
-        for l8 in d["links"]:
-            iu = min(kb[2], l8["u1"]) - max(kb[0], l8["u0"])
-            iv = min(kb[3], l8["v1"]) - max(kb[1], l8["v0"])
-            if iu > 0.2 and iv > 0.2:
-                bad.append("石段 %s と階段廊下 %s が %.1f×%.1f間 重なる — 同じ落差を二つの構造物で登っている"
-                           % (k8["name"], l8["name"], iu, iv))
-    # 段が外周 run の躯体帯へ食い込んでいないか(座が食い違うと建屋の中に石垣が立つ)
-    for r in d["runs"]:
-        if r["edge"] != d["gate"]["edge"]:
-            continue
-        depth = d["const"]["nagayaD"] if r["kind"] == "Nagaya" else d["const"]["dobeiT"]
-        r0, r1 = (r["s0"] - sg) / ken2, (r["s1"] - sg) / ken2
-        for t in d["terraces"]:
-            iu = min(r1, t["u1"]) - max(r0, t["u0"])
-            iv = min(depth / ken2, t["v1"]) - max(0.0, t["v0"])
-            if iu > 1e-9 and iv > 1e-9 and abs(t["y"] - r["seat"]) > 0.05:
-                bad.append("段 %s(%.1f) が外周 %s(座 %.1f)の躯体帯へ %.1f×%.2f間 食い込む"
-                           % (t["name"], t["y"], r["name"], r["seat"], iu, iv))
-    # 土留め(線分)が棟・廊下に開口なしで刺さっていないか。
-    # 竹垣にだけ同種の検査があり土留めに無かったため、廊下3本が壁を貫いていた(検図 2026-08-23 H-6)。
-    for w in d.get("terraceWalls", []):
-        (wa, wb) = w["a"], w["b"]
-        gu = w.get("gapU"); gv = w.get("gapV"); gh = w.get("gapHalf", 0.0)
-        for (k1, n1, a0, b0, a1, b1, _o1) in boxes:
-            if k1 not in ("mune", "link"):
-                continue
-            hit = 0
-            for i9 in range(81):
-                t9 = i9 / 80.0
-                pu = wa[0] + (wb[0] - wa[0]) * t9
-                pv = wa[1] + (wb[1] - wa[1]) * t9
-                if not (a0 + 1e-9 < pu < a1 - 1e-9 and b0 + 1e-9 < pv < b1 - 1e-9):
-                    continue
-                if gu is not None and abs(pu - gu) <= gh + 1e-9:
-                    continue                      # 開口の中は可
-                if gv is not None and abs(pv - gv) <= gh + 1e-9:
-                    continue
-                hit += 1
-            if hit > 1:
-                bad.append("土留め %s が %s %s に開口なしで刺さる(%.0f%%の区間)"
-                           % (w["name"], k1, n1, 100.0 * hit / 81))
-    # 動線が土留めを開口の外で横切っていないか(検図 2026-08-23)
-    for r in d.get("routes", []):
-        for (a, b) in zip(r["pts"], r["pts"][1:]):
-            for w in d.get("terraceWalls", []):
-                (wa, wb) = w["a"], w["b"]
-                gu = w.get("gapU"); gv = w.get("gapV"); gh = w.get("gapHalf", 0.0)
-                vert = abs(wa[0] - wb[0]) < 1e-9
-                p0, p1 = (a[0], b[0]) if vert else (a[1], b[1])
-                line = wa[0] if vert else wa[1]
-                if (p0 - line) * (p1 - line) > 0 or abs(p1 - p0) < 1e-9:
-                    continue
-                t9 = (line - p0) / (p1 - p0)
-                q = a[1] + (b[1] - a[1]) * t9 if vert else a[0] + (b[0] - a[0]) * t9
-                lo, hi = (min(wa[1], wb[1]), max(wa[1], wb[1])) if vert else \
-                         (min(wa[0], wb[0]), max(wa[0], wb[0]))
-                if not (lo - 1e-9 <= q <= hi + 1e-9):
-                    continue
-                g9 = gv if vert else gu
-                if g9 is not None and abs(q - g9) <= gh + 1e-9:
-                    continue
-                bad.append("動線 %s が土留め %s を開口の外で横切る(%s=%.2f)"
-                           % (r["label"], w["name"], "v" if vert else "u", q))
-    # 竹垣(線分)が建屋を貫通していないか — 箱どうしの総当たりでは拾えない
-    for rl in d.get("rails", []):
-        for (a, b) in zip(rl["pts"], rl["pts"][1:]):
-            for (k1, n1, a0, b0, a1, b1, _o1) in boxes:
-                if k1 == "run":
-                    continue
-                hit = 0.0
-                for i9 in range(41):
-                    t9 = i9 / 40.0
-                    pu = a[0] + (b[0] - a[0]) * t9
-                    pv = a[1] + (b[1] - a[1]) * t9
-                    if a0 + 1e-9 < pu < a1 - 1e-9 and b0 + 1e-9 < pv < b1 - 1e-9:
-                        hit += 1
-                if hit > 1:
-                    bad.append("竹垣 %s が %s %s を貫通(%.0f%%の区間)"
-                               % (rl["name"], k1, n1, 100.0 * hit / 41))
-    for i in range(len(boxes)):
-        for j in range(i + 1, len(boxes)):
-            k1, n1, a0, b0, a1, b1, o1 = boxes[i]
-            k2, n2, c0, d0, c1, d1, o2 = boxes[j]
-            iu = min(a1, c1) - max(a0, c0)
-            iv = min(b1, d1) - max(b0, d0)
-            # 回転を持つ物は外接矩形でなく**分離軸**で見る(斜めに並ぶ家中長屋で誤検出する)
-            if iu > 1e-9 and iv > 1e-9 and (o1 is not None or o2 is not None):
-                q1 = o1 if o1 is not None else {"u0": a0, "v0": b0, "u1": a1, "v1": b1}
-                q2 = o2 if o2 is not None else {"u0": c0, "v0": d0, "u1": c1, "v1": d1}
-                if not obb_overlap(q1, q2):
-                    continue
-            if iu > 1e-9 and iv > 1e-9:
-                if {"link"} & {k1, k2}:
-                    # 取り付き: 渡廊下は**長手方向に一間だけ**棟の外形(入側帯)へ乗り込める。
-                    # 幅方向の一間重なりを盾に長手で何間も乗り込むのは不可(検図指摘)。
-                    lk = boxes[i] if k1 == "link" else boxes[j]
-                    llong = "u" if (lk[4] - lk[2]) >= (lk[5] - lk[3]) else "v"
-                    along = iu if llong == "u" else iv
-                    if along <= 1.0 + 1e-9:
-                        continue
-                if {k1, k2} == {"niwa", "svc"}:
-                    # 庭の中に立つ亭・祠は庭に**完全に包含**されていれば可(庭は地面)
-                    (nk, na, n0, n1_, n2_, n3, _n), (sk, sa, s0, s1_, s2_, s3, _s) = \
-                        (boxes[i], boxes[j]) if k1 == "niwa" else (boxes[j], boxes[i])
-                    if n0 <= s0 and n1_ <= s1_ and s2_ <= n2_ and s3 <= n3:
-                        continue
-                bad.append("%s %s × %s %s (%.1f×%.1f間)" % (k1, n1, k2, n2, iu, iv))
-    return bad
+# overlap_check の正典は sashizu_lib(2026-08-26 統一 — 当邸の実装をそのまま基準にした)。
 
 
 # ---------------------------------------------------------------- 取り合い(実装用・自動算出)

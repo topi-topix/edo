@@ -25,7 +25,8 @@ import zlib as _zlib
 
 import sashizu_lib
 from sashizu_lib import (R, _pat, _SVN, Proj, RGrid, slope_table, links_table,
-                         _edge_dir, mune_contacts_table)  # バイト同一を実証済みの共通部
+                         _edge_dir, mune_contacts_table,  # バイト同一を実証済みの共通部
+                         overlap_check)  # 検査の正典(2026-08-26 統一)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DOC = os.path.join(ROOT, "docs/Sashizu")
@@ -35,55 +36,15 @@ OUT = os.path.join(DOC, "matsudaira_sashizu.html")
 TSUBO = 3.305785
 
 
-# ---------------------------------------------------------------- markdown(岡部と同じ最小変換)
-def md2html(text):
-    out, i, lines = [], 0, text.split("\n")
-    while i < len(lines):
-        ln = lines[i]
-        if ln.startswith("|") and i + 1 < len(lines) and set(lines[i + 1].replace("|", "").strip()) <= set("-: "):
-            head = [c.strip() for c in ln.strip("|").split("|")]
-            i += 2
-            rows = []
-            while i < len(lines) and lines[i].startswith("|"):
-                rows.append([c.strip() for c in lines[i].strip("|").split("|")]); i += 1
-            out.append('<div class="tw"><table><thead><tr>'
-                       + "".join("<th>%s</th>" % inline(h) for h in head)
-                       + "</tr></thead><tbody>"
-                       + "".join("<tr>" + "".join('<td class="note">%s</td>' % inline(c) for c in r) + "</tr>" for r in rows)
-                       + "</tbody></table></div>")
-            continue
-        m = re.match(r"^(#{1,4})\s+(.*)$", ln)
-        if m:
-            tag = {1: "h1", 2: "h2", 3: "h3", 4: "h4"}[len(m.group(1))]
-            out.append("<%s>%s</%s>" % (tag, inline(m.group(2)), tag)); i += 1; continue
-        if ln.startswith("- "):
-            items = []
-            while i < len(lines) and (lines[i].startswith("- ") or lines[i].startswith("  ")):
-                if lines[i].startswith("- "):
-                    items.append(inline(lines[i][2:]))
-                elif items:
-                    items[-1] += " " + inline(lines[i].strip())
-                i += 1
-            out.append("<ul>" + "".join("<li>%s</li>" % t for t in items) + "</ul>"); continue
-        if ln.strip() == "---":
-            out.append('<hr class="rule">'); i += 1; continue
-        if ln.strip() == "":
-            i += 1; continue
-        buf = []
-        while i < len(lines) and lines[i].strip() and not lines[i].startswith(("#", "-", "|")) and lines[i].strip() != "---":
-            buf.append(lines[i].strip()); i += 1
-        out.append("<p>%s</p>" % inline(" ".join(buf)))
-    return "\n".join(out)
-
-
+# ---------------------------------------------------------------- markdown(正典は sashizu_lib)
 def inline(s):
-    s = re.sub(r'</?span[^>]*>', "", s)
-    s = html.escape(s, quote=False)
-    s = re.sub(r"`([^`]+)`", r"<code>\1</code>", s)
-    s = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", s)
-    s = re.sub(r"【([^】]*確度 ?[SABPU?][^】]*)】", r'<span class="cert">【\1】</span>', s)
-    s = re.sub(r"【(写真=A[^】]*)】", r'<span class="cert">【\1】</span>', s)
-    return s
+    """当邸の方言: bold_ml=False(`**` の対応が行単位で取れている前提の md で、
+    行を跨ぐ対応へ変えると対が動いて崩れる — 2026-08-26 統一時に実測)/ strike=False。"""
+    return sashizu_lib.inline(s, bold_ml=False, strike=False)
+
+
+def md2html(text):
+    return sashizu_lib.md2html(text, inline=inline, indent_tables=False, join_list=False)
 
 
 # ---------------------------------------------------------------- 作図の土台
@@ -1144,30 +1105,13 @@ def walls_table(d):
 
 
 def kenpei(d, area):
-    K = d["const"]["ken"]
-    gm = sum(abs(m["u1"] - m["u0"]) * abs(m["v1"] - m["v0"]) for m in d["munes"]) * K * K
-    gl = sum(abs(l["u1"] - l["u0"]) * abs(l["v1"] - l["v0"]) for l in d["links"]) * K * K
-    gs = sum(abs(s["u1"] - s["u0"]) * abs(s["v1"] - s["v0"]) for s in d["service"]) * K * K
-    nag = sum((r["s1"] - r["s0"]) * d["const"]["nagayaD"] for r in d["runs"] if r["kind"] == "Nagaya")
-    ban = 2 * d["gate"]["plan"]["bansho"]["w"] * d["gate"]["plan"]["bansho"]["d"]
-    yag = sum((y["ken"] * K) ** 2 for y in d["yagura"])
-    gp = d["gate"]["plan"]
-    mon = gp["monW"] * gp["monD"] + 2 * gp["sode"] * 0.4 \
-        + (d["onarimon"]["w"] * 1.5 if d.get("onarimon") else 0) + sum(k["w"] * 1.2 for k in d["komon"])
-    tot = gm + gl + gs + nag + ban + yag + mon
-    return ('<div class="tw"><table><thead><tr><th></th><th>m²</th><th>坪</th></tr></thead><tbody>'
-            "<tr><td>御殿の棟(入側とも)</td><td>%.0f</td><td>%.0f</td></tr>"
-            "<tr><td>渡廊下・御錠口</td><td>%.0f</td><td>%.0f</td></tr>"
-            "<tr><td>付属屋(蔵・作事・茶屋・稲荷)</td><td>%.0f</td><td>%.0f</td></tr>"
-            "<tr><td>表長屋(奥行%.1fm)</td><td>%.0f</td><td>%.0f</td></tr>"
-            "<tr><td>番所・隅櫓・門の躯体</td><td>%.0f</td><td>%.0f</td></tr>"
-            "<tr><td><b>計</b></td><td><b>%.0f</b></td><td><b>%.0f</b></td></tr>"
-            "<tr><td><b>敷地(分母)</b></td><td><b>%.0f</b></td><td><b>%.0f</b></td></tr>"
-            '<tr><td><b>建蔽率</b></td><td colspan="2"><b>%.1f%%</b></td></tr>'
-            "</tbody></table></div>"
-            % (gm, gm / TSUBO, gl, gl / TSUBO, gs, gs / TSUBO, d["const"]["nagayaD"],
-               nag, nag / TSUBO, ban + yag + mon, (ban + yag + mon) / TSUBO,
-               tot, tot / TSUBO, area, area / TSUBO, 100.0 * tot / area)), 100.0 * tot / area
+    """正典は sashizu_lib.kenpei。行ラベル(付属屋の顔ぶれ)だけが当邸の値。
+    番所は count×w×d(json の count=2 が正典 — 旧実装の直書き 2 と同値)。"""
+    return sashizu_lib.kenpei(
+        d, area, TSUBO,
+        svc_label="付属屋(蔵・作事・茶屋・稲荷)",
+        nagaya_label="表長屋(奥行%.1fm)" % d["const"]["nagayaD"],
+        ban_label="番所・隅櫓・門の躯体")
 
 
 def plane_check(d):
@@ -1320,47 +1264,8 @@ def run_seat_check(d, tol=0.6):
     return out
 
 
-def overlap_check(d):
-    """矩形の総当たり重なり検査(棟・廊下・庭・付属屋)。接するは可、重なるは不可。
-    ただし渡廊下が棟の外形(入側帯)に一間だけ乗り込むのは取り付きなので許す。"""
-    boxes = []
-    for m in d["munes"]:
-        boxes.append(("mune", m["name"], m["u0"], m["v0"], m["u1"], m["v1"]))
-    for l in d["links"]:
-        boxes.append(("link", l["name"], l["u0"], l["v0"], l["u1"], l["v1"]))
-    for n in d["gardens"]:
-        boxes.append(("niwa", n["name"], n["u0"], n["v0"], n["u1"], n["v1"]))
-    for s in d["service"]:
-        boxes.append(("svc", s["name"], s["u0"], s["v0"], s["u1"], s["v1"]))
-    bad = []
-    for i in range(len(boxes)):
-        for j in range(i + 1, len(boxes)):
-            k1, n1, a0, b0, a1, b1 = boxes[i]
-            k2, n2, c0, d0, c1, d1 = boxes[j]
-            iu = min(a1, c1) - max(a0, c0)
-            iv = min(b1, d1) - max(b0, d0)
-            if iu > 1e-9 and iv > 1e-9:
-                if {"link"} & {k1, k2}:
-                    # 取り付き: 渡廊下は**長手方向に一間だけ**棟の外形(入側帯)へ乗り込める。
-                    # 幅方向の一間重なりを盾に長手で何間も乗り込むのは不可(検図指摘)。
-                    lk = boxes[i] if k1 == "link" else boxes[j]
-                    llong = "u" if (lk[4] - lk[2]) >= (lk[5] - lk[3]) else "v"
-                    along = iu if llong == "u" else iv
-                    if along <= 1.0 + 1e-9:
-                        continue
-                if k1 == "niwa" and k2 == "niwa":
-                    # 庭の中の池・中島・築山は、親の庭に**完全に包含**されていれば可
-                    if (a0 <= c0 and b0 <= d0 and c1 <= a1 and d1 <= b1) or \
-                       (c0 <= a0 and d0 <= b0 and a1 <= c1 and b1 <= d1):
-                        continue
-                if {k1, k2} == {"niwa", "svc"}:
-                    # 庭の中に立つ亭・祠は庭に**完全に包含**されていれば可(庭は地面)
-                    (nk, na, n0, n1_, n2_, n3), (sk, sa, s0, s1_, s2_, s3) = \
-                        (boxes[i], boxes[j]) if k1 == "niwa" else (boxes[j], boxes[i])
-                    if n0 <= s0 and n1_ <= s1_ and s2_ <= n2_ and s3 <= n3:
-                        continue
-                bad.append("%s %s × %s %s (%.1f×%.1f間)" % (k1, n1, k2, n2, iu, iv))
-    return bad
+# overlap_check の正典は sashizu_lib(2026-08-26 統一。井戸・表門辺の run 帯・段どうし・
+# 竹垣の貫通なども見る土井基準の版。当邸の「庭⊃庭の包含は可」もそこに取り込んだ)。
 
 
 def room_containment_check(d):

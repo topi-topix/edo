@@ -21,6 +21,7 @@
 """
 import json, math, os, re, subprocess, html
 
+import sashizu_lib
 from sashizu_lib import R, _pat, _SVN, Proj  # バイト同一を実証済みの共通部(_SVN は共有カウンタ)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -32,54 +33,18 @@ TSUBO = 3.305785
 VEX = 2.0     # 断面の垂直倍率
 
 
-# ---------------------------------------------------------------- markdown(岡部・土井と同じ最小変換)
-def md2html(text):
-    out, i, lines = [], 0, text.split("\n")
-    while i < len(lines):
-        ln = lines[i]
-        if ln.startswith("|") and i + 1 < len(lines) and set(lines[i + 1].replace("|", "").strip()) <= set("-: "):
-            head = [c.strip() for c in ln.strip("|").split("|")]
-            i += 2
-            rows = []
-            while i < len(lines) and lines[i].startswith("|"):
-                rows.append([c.strip() for c in lines[i].strip("|").split("|")]); i += 1
-            out.append('<div class="tw"><table><thead><tr>'
-                       + "".join("<th>%s</th>" % inline(x) for x in head)
-                       + "</tr></thead><tbody>"
-                       + "".join("<tr>" + "".join('<td class="note">%s</td>' % inline(c) for c in r) + "</tr>" for r in rows)
-                       + "</tbody></table></div>")
-            continue
-        m = re.match(r"^(#{1,4})\s+(.*)$", ln)
-        if m:
-            tag = {1: "h1", 2: "h2", 3: "h3", 4: "h4"}[len(m.group(1))]
-            out.append("<%s>%s</%s>" % (tag, inline(m.group(2)), tag)); i += 1; continue
-        if ln.startswith("- "):
-            items = []
-            while i < len(lines) and (lines[i].startswith("- ") or lines[i].startswith("  ")):
-                if lines[i].startswith("- "):
-                    items.append(inline(lines[i][2:]))
-                elif items:
-                    items[-1] += " " + inline(lines[i].strip())
-                i += 1
-            out.append("<ul>" + "".join("<li>%s</li>" % t for t in items) + "</ul>"); continue
-        if ln.strip() == "---":
-            out.append('<hr class="rule">'); i += 1; continue
-        if ln.strip() == "":
-            i += 1; continue
-        buf = []
-        while i < len(lines) and lines[i].strip() and not lines[i].startswith(("#", "-", "|")) and lines[i].strip() != "---":
-            buf.append(lines[i].strip()); i += 1
-        out.append("<p>%s</p>" % inline(" ".join(buf)))
-    return "\n".join(out)
-
-
+# ---------------------------------------------------------------- markdown(正典は sashizu_lib)
 def inline(s):
-    s = html.escape(s, quote=False)
-    s = re.sub(r"`([^`]+)`", r"<code>\1</code>", s)
-    s = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", s)
-    s = re.sub(r"【([SABPU?][^】]*)】", r'<span class="cert">【\1】</span>', s)
-    s = re.sub(r"【(確度[^】]*)】", r'<span class="cert">【\1】</span>', s)
-    return s
+    """当社の方言: 確度の刻印を【S …】/【確度…】と**先頭**に置く(CERT_LEADING)。
+    bold_ml/strike/strip_spans は旧変換の描画を保存する側に倒す(2026-08-26 統一)。"""
+    return sashizu_lib.inline(s, cert=sashizu_lib.CERT_LEADING,
+                              bold_ml=False, strike=False, strip_spans=False)
+
+
+def md2html(text):
+    # indent_tables は既定(=拾う)。sanno_kosho.md「拝領坪数」の字下げ表が
+    # 旧変換では素の | の段落で出ていたのを、統一で表として描くようになった(実測1箇所)。
+    return sashizu_lib.md2html(text, inline=inline, join_list=False)
 
 
 # ---------------------------------------------------------------- 作図の土台

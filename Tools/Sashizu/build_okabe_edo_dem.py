@@ -149,6 +149,20 @@ def flats(grid, poly, tol, minCells):
     return cells, comps
 
 
+def _poly_dist(P, x, z):
+    """多角形の辺までの最短距離。"""
+    best = None
+    n = len(P)
+    for i in range(n):
+        a, b = P[i], P[(i + 1) % n]
+        dx, dz = b[0] - a[0], b[1] - a[1]
+        L2 = dx * dx + dz * dz or 1e-9
+        t = max(0.0, min(1.0, ((x - a[0]) * dx + (z - a[1]) * dz) / L2))
+        dd = math.hypot(x - (a[0] + dx * t), z - (a[1] + dz * t))
+        best = dd if best is None else min(best, dd)
+    return best
+
+
 def _tin(t, u, v):
     """(u,v) が段の中か(指図の tin と同じ。多角形なら crossing number)。"""
     p = t.get("poly")
@@ -314,6 +328,29 @@ def reconstruct(seed, poly, gr, spec):
                 h[iz][ix] = sum(acc) / len(acc)
     log.append("⑦ 変えた %d セル + 周り = %d セルを %d 回平滑化"
                % (len(changed), len(soft), spec["smooth"]["passes"]))
+
+    # ⑧ **区画線の上は正本と一致させる**(2026-08-25 土井の申し入れ / 08-24 通達)。
+    #    境から edgeClip[m] かけて復元へ摺り付ける。⛔ 境の線そのものは seed(=正本)。
+    ec = spec.get("edgeClip", {}).get("m", 0.0)
+    if ec > 0:
+        n8 = 0
+        for (ix, iz), (u, v) in uv.items():
+            if h[iz][ix] is None or seed["h"][iz][ix] is None:
+                continue
+            x = seed["x0"] + st * ix
+            z = seed["z0"] + st * iz
+            dd = _poly_dist(poly, x, z)
+            if dd >= 2.0 * ec:
+                continue
+            # 区画線から ec までは**まるごと正本**(双一次で線の上を拾っても正本になるように)、
+            # そこから ec かけて復元へ摺り付ける。
+            w = max(0.0, min(1.0, (dd - ec) / ec))
+            before = h[iz][ix]
+            h[iz][ix] = seed["h"][iz][ix] * (1.0 - w) + h[iz][ix] * w
+            if abs(before - h[iz][ix]) > 0.005:
+                n8 += 1
+        log.append("⑧ 区画線から %.1fm はまるごと正本・そこから %.1fm で復元へ摺り付け(%d セル)"
+               " — 境の線は正本と一致" % (ec, ec, n8))
     return h, log, py, changed | soft, len(sel)
 
 

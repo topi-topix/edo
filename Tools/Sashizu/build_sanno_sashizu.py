@@ -35,16 +35,15 @@ VEX = 2.0     # 断面の垂直倍率
 
 # ---------------------------------------------------------------- markdown(正典は sashizu_lib)
 def inline(s):
-    """当社の方言: 確度の刻印を【S …】/【確度…】と**先頭**に置く(CERT_LEADING)。
-    bold_ml/strike/strip_spans は旧変換の描画を保存する側に倒す(2026-08-26 統一)。"""
-    return sashizu_lib.inline(s, cert=sashizu_lib.CERT_LEADING,
-                              bold_ml=False, strike=False, strip_spans=False)
+    """当社の方言は確度の刻印だけ — 【S …】/【確度…】と**先頭**に置く(CERT_LEADING)。
+    記法フラグは 2026-08-26 に md 側の行跨ぎ ** を直したうえで厳しい既定へ寄せた。"""
+    return sashizu_lib.inline(s, cert=sashizu_lib.CERT_LEADING)
 
 
 def md2html(text):
     # indent_tables は既定(=拾う)。sanno_kosho.md「拝領坪数」の字下げ表が
     # 旧変換では素の | の段落で出ていたのを、統一で表として描くようになった(実測1箇所)。
-    return sashizu_lib.md2html(text, inline=inline, join_list=False)
+    return sashizu_lib.md2html(text, inline=inline)
 
 
 # ---------------------------------------------------------------- 作図の土台

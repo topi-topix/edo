@@ -27,9 +27,8 @@ TSUBO = 3.305785
 
 # ---------------------------------------------------------------- markdown(正典は sashizu_lib)
 def inline(s):
-    """当邸の方言は strike=False のみ — okabe_kosho.md は `~~…~~` を素の文字で
-    出す前提で書かれている(2026-08-26 統一。有効化は描画が変わるので別途裁定)。"""
-    return sashizu_lib.inline(s, strike=False)
+    """方言なし(2026-08-26 に厳しい既定へ寄せた — 決着済み4項の ~~…~~ が取り消し線で描かれる)。"""
+    return sashizu_lib.inline(s)
 
 
 def md2html(text):

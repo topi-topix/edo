@@ -1412,7 +1412,11 @@ def fix_run_s(d, dem):
 
 
 def terrain_canon_check(d, ter, dem):
-    """回転間格子 `doi_terrain.json` が**地盤の正本から外れていないか**。
+    """回転間格子が**地盤の正本から外れていないか**。
+
+    ⚠ 2026-08-25 以降、指図の内側は**江戸期の復元地盤** `doi_edo_dem.json` を読む。
+    復元は正本 `base_dem.json` に対して毎回実行される派生物なので、正本との差は
+    **復元した範囲(玄関の郭の掘削跡)だけ**に出る。それ以外で差が出たら種地がずれている。
 
     切盛の土量・断面の地形線・`mune_fit_check`・`fix_walls` の落差は**すべてこの格子**から出るが、
     これは `build_base_dem.py --check` の対象外で、別途採った実測のまま。
@@ -2496,7 +2500,7 @@ def routes_table(d):
         #   同じ行の「石段◯段」と数字が合わなくなる(2026-08-24 検図 中-5:
         #   表向は +3.1m と出ていたが 21段×蹴上0.27〜0.282 = 5.7〜5.9m で、実際は +5.8m)。
         #   段の外は掘割(石段)→ 現地形 の順に落とす。
-        ter_r = load_terrain(os.path.join(DOC, "doi_terrain.json"))
+        ter_r = load_terrain(os.path.join(DOC, "doi_edo_dem.json"))
         dem_r = load_terrain(os.path.join(DOC, "doi_dem.json"))
         we_r = dict((t["name"], walled_edges(d, t)) for t in d["terraces"])
         gr_r = RGrid(d)
@@ -3322,7 +3326,9 @@ def mune_fit(d, ter, o, dem=None):
     if ter is None and dem is None:
         return None
     if dem is None:
-        dem = load_terrain(os.path.join(DOC, "doi_dem.json"))
+        # ⚠ 棟の切盛は**江戸期の復元地盤**に対して測る(2026-08-25)。
+        #   現代の地面(正本)で測ると、近代の掘削跡を「自然地形」として合否を出すことになる。
+        dem = load_terrain(os.path.join(DOC, "doi_edo_world.json"))
     gr = RGrid(d)
     ds = []
     for i in range(41):
@@ -3953,9 +3959,11 @@ def wall_check(d):
         if not dr:
             bad.append("%s に drop(実測落差)が無い — 断面で高さを検算できない" % w["name"])
             continue
-        h = 4.0 * w["s"]
+        # ⚠ 段築を勘定に入れる(丁場に上限を入れた 2026-08-25 以降、高い壁は段築になる)
+        h = 4.0 * w["s"] * w.get("tiers", 1)
         if h < dr[1] - 0.05:
-            bad.append("%s 壁高 %.2f < 最大落差 %.2f — 足りない" % (w["name"], h, dr[1]))
+            bad.append("%s 壁高 %.2f(丁場%.2f×%d段築)< 最大落差 %.2f — 足りない"
+                       % (w["name"], h, w["s"], w.get("tiers", 1), dr[1]))
         elif h > dr[1] + 0.8:
             bad.append("%s 壁高 %.2f ≫ 最大落差 %.2f — 過大(埋まる)" % (w["name"], h, dr[1]))
         if dr[0] < 0.3:
@@ -4492,12 +4500,12 @@ def main():
     def _pipeline(x):
         x = fix_obb_aabb(x)
         x = fix_kaidans(x)
-        x = fix_walls(x, load_terrain(os.path.join(DOC, "doi_terrain.json")))
+        x = fix_walls(x, load_terrain(os.path.join(DOC, "doi_edo_dem.json")))
         x = snap_openings(x)            # 開口の縁を石垣のピッチ格子へ・芯は通る物から
         x = fix_sode(x)                 # 開口の両端の袖石垣
         x = fix_edge_profile(x, load_terrain(os.path.join(DOC, "doi_dem.json")))  # 辺の地盤線
         x = fix_run_s(x, load_terrain(os.path.join(DOC, "doi_dem.json")))  # 外周の基壇の丁場
-        x = fix_sections(x, load_terrain(os.path.join(DOC, "doi_terrain.json")),
+        x = fix_sections(x, load_terrain(os.path.join(DOC, "doi_edo_dem.json")),
                          load_terrain(os.path.join(DOC, "doi_dem.json")))  # 断面の現地形線
         x = fix_boundary_plinth(x, load_terrain(os.path.join(DOC, "doi_dem.json")))
         return x
@@ -4531,7 +4539,7 @@ def main():
         raw = raw.replace(_k, str(d.get(_v, "?")))
     raw = raw.replace("{{典拠一覧}}", blk)
     raw = raw.replace("{{隣家の表}}", neighbour_block(
-        d, load_terrain(os.path.join(DOC, "doi_terrain.json")),
+        d, load_terrain(os.path.join(DOC, "doi_edo_dem.json")),
         load_terrain(os.path.join(DOC, "doi_dem.json"))))
     prose = md2html(raw)
     if miss:
@@ -4560,13 +4568,13 @@ def main():
     pbad = (plane_check(d) + inubashiri_check(d) + opening_fit_check(d) + refs_check(d)
             + norms_check(d) + perimeter_check(d) + clearance_check(d) + rails_check(d)
             + ramp_check(d) + completeness_check(d)
-            + terrain_canon_check(d, load_terrain(os.path.join(DOC, "doi_terrain.json")),
-                                  load_terrain(os.path.join(DOC, "doi_dem.json")))
+            + terrain_canon_check(d, load_terrain(os.path.join(DOC, "doi_edo_dem.json")),
+                                  load_terrain(os.path.join(DOC, "doi_edo_world.json")))
             + boundary_fill_check(d, load_terrain(os.path.join(DOC, "doi_dem.json")))
-            + mune_fit_check(d, load_terrain(os.path.join(DOC, "doi_terrain.json")))
+            + mune_fit_check(d, load_terrain(os.path.join(DOC, "doi_edo_dem.json")))
             + edge_step_check(d, load_terrain(os.path.join(DOC, "doi_dem.json")))
             + wall_needed_check(d, load_terrain(os.path.join(DOC, "doi_dem.json"))))
-    nbad = neighbour_wall_check(d, load_terrain(os.path.join(DOC, "doi_terrain.json")),
+    nbad = neighbour_wall_check(d, load_terrain(os.path.join(DOC, "doi_edo_dem.json")),
                                 load_terrain(os.path.join(DOC, "doi_dem.json")))
     if nbad:
         print("── 隣家の宿題(当家では直せない)%d 件:" % len(nbad))
@@ -4687,7 +4695,7 @@ def main():
                 "細い破線は断面の切り位置。座標は Unity の世界座標(m)。")
         h.append("</div>")
 
-    ter = load_terrain(os.path.join(DOC, "doi_terrain.json"))
+    ter = load_terrain(os.path.join(DOC, "doi_edo_dem.json"))
     if ter:
         cf, vf, vc = cutfill_svg(d, ter)
         we0 = dict((t["name"], walled_edges(d, t)) for t in d["terraces"])
@@ -4725,7 +4733,7 @@ def main():
                '<span style="color:var(--niwa)">■ 庭</span>'
                '<span style="color:var(--shirasu)">■ 白洲</span>'
                '<span>┄ 襖線(続き間の境)</span>',
-        cap="<b>長屋門 → 白洲 → 石段 → 前庭の白洲 → 石段 → 玄関の郭(窪み) → 御式台。</b>"
+        cap="<b>長屋門 → 白洲 → 石段 → 前庭の白洲 → 石段 → 玄関の郭 → 御式台。</b>"
             "**外の石段は二つだけ** — 玄関を窪みの高さに置いたので三つ目が要らなくなった。"
             "<b>表役所は門を入って南、下段の郭に建つ</b>(自然のベンチにほぼ素で載る面)。"
             "北へ書院(上段12畳=雁間詰の城主)、南へ台所と土蔵(勝手裏)、奥に居間・奥棟。"
@@ -4776,7 +4784,7 @@ def main():
             "比率に典拠がなく、当家の江戸詰人数の史料も無い)。<b>延長は外周に回した結果</b>であって、"
             "収容力から逆算した数字ではない【確度U】。")
     fig(h, goten_plan(d, -6, 20, 24, 48, "玄関の郭と書院の郭",
-                      "窪みをそのまま面にした玄関の郭(25.0)と、その東の帯(26.0)。1.0mの差は階段廊下"),
+                      "玄関の郭と、その東の帯。**同高(26.0)でひとつの面**"),
         cap="<b>御殿の表向が二つの標高に分かれる所。</b>玄関棟は窪みに素で載り、書院棟は"
             "北東の横長の帯に載る。1.0m の差は屋内の階段廊下で越えるので、"
             "**外の石段は使わない**。境の <code>TW_Shoin</code> は<b>辺の全長に回す</b> — "
@@ -4791,7 +4799,7 @@ def main():
     h.append("</div>")
 
     plate(h, nx(), "棟と室", "1間²=2畳 ／ 室名・畳数は【確度 ?】(土間・板敷は間²)")
-    h.append(munes_table(d, load_terrain(os.path.join(DOC, "doi_terrain.json"))))
+    h.append(munes_table(d, load_terrain(os.path.join(DOC, "doi_edo_dem.json"))))
     h.append(links_table(d))
     kp_html, kp = kenpei(d, area)
     nagL = sum(r["s1"] - r["s0"] for r in d["runs"] if r["kind"] == "Nagaya")
@@ -4851,7 +4859,7 @@ def main():
              % (d["const"]["inubashiri"] * d["const"]["ken"], d["const"]["inubashiri"]))
     h.append("</div>")
 
-    _mf = [(m["name"], mune_fit(d, load_terrain(os.path.join(DOC, "doi_terrain.json")), m))
+    _mf = [(m["name"], mune_fit(d, load_terrain(os.path.join(DOC, "doi_edo_dem.json")), m))
            for m in d["munes"] + d["service"]]
     _mf = [(n_, r) for n_, r in _mf if r]
     _over = [(n_, r) for n_, r in _mf if abs(r[0]) > 0.5]

@@ -1489,11 +1489,20 @@
     },
     {
      "name": "供待",
-     "tatami": 24,
+     "tatami": 18,
      "u0": 1,
      "v0": 19,
-     "u1": 5,
+     "u1": 4,
      "v1": 22
+    },
+    {
+     "name": "御雪隠",
+     "tatami": 6,
+     "u0": 4,
+     "v0": 19,
+     "u1": 5,
+     "v1": 22,
+     "_": "表向の雪隠。供待の東端を割った。玄関に詰める供廻り・使者が使う。【確度B=[西川1959]の類型。当家の位置の典拠は無い】"
     },
     {
      "name": "遠侍",
@@ -1613,11 +1622,20 @@
     },
     {
      "name": "御刀部屋",
-     "tatami": 36,
+     "tatami": 30,
      "u0": -17,
      "v0": 43,
-     "u1": -11,
+     "u1": -12,
      "v1": 46
+    },
+    {
+     "name": "御雪隠",
+     "tatami": 6,
+     "u0": -12,
+     "v0": 43,
+     "u1": -11,
+     "v1": 46,
+     "_": "中奥の雪隠。御刀部屋の東端を割った。御座之間・御寝所から入側伝いに行ける。【確度B=[西川1959]の類型。当家の位置の典拠は無い】"
     }
    ]
   },
@@ -1811,11 +1829,20 @@
     },
     {
      "name": "御上リ場",
-     "tatami": 16,
+     "tatami": 12,
      "u0": -25,
      "v0": 51,
-     "u1": -21,
+     "u1": -22,
      "v1": 53
+    },
+    {
+     "name": "御雪隠",
+     "tatami": 4,
+     "u0": -22,
+     "v0": 51,
+     "u1": -21,
+     "v1": 53,
+     "_": "奥向の雪隠。**湯殿と一棟に納める**([西川1959]が湯殿・雪隠を対で挙げるのはこの作りのため)。【確度B=[西川1959]の類型。当家の位置の典拠は無い】"
     }
    ],
    "_": "**庭に背を向ける**。奥御殿の東面に付き、西の池泉庭からは奥御殿20間の躯体で遮られる(2026-08-23 移設)"
@@ -1982,11 +2009,20 @@
     },
     {
      "name": "局",
-     "tatami": 16,
+     "tatami": 8,
      "u0": -5,
      "v0": 57,
-     "u1": -3,
+     "u1": -4,
      "v1": 61
+    },
+    {
+     "name": "御雪隠",
+     "tatami": 8,
+     "u0": -4,
+     "v0": 57,
+     "u1": -3,
+     "v1": 61,
+     "_": "長局の雪隠。東端の局を割った。奥女中の共用。【確度B=[西川1959]の類型。当家の位置の典拠は無い】"
     }
    ],
    "_": "長局(南列)。**2026-08-23 移設**: 旧位置(u-70..-48×v57..63)は掘削跡の真上で**最大6.90m・34%が不合格**だった。6.9mの新しい盛土に棟は置かない。ここは実測 不合格2%"
@@ -4644,5 +4680,314 @@
    }
   ],
   "note": "当図の表向は上の土佐614坪を**絶対値で上回る**。上回る理由を図に明示すること — 敷地が高知邸の1.82倍で、表御殿/敷地比では下回る。差の内訳は国主・大広間詰・表役所(藩庁)を含むこと【B】"
- }
+ },
+ "program": [
+  {
+   "role": "表門",
+   "need": "必須",
+   "state": "有",
+   "where": "gate",
+   "by": [
+    "gate"
+   ],
+   "note": "冠木門(屋根なし)。温古写真集11 の実見",
+   "cert": "A"
+  },
+  {
+   "role": "表長屋",
+   "need": "上屋敷は必須",
+   "state": "有",
+   "where": "runs.kind=Nagaya ×10",
+   "by": [
+    "N_Nagaya_W",
+    "N_Nagaya_E1",
+    "N_Nagaya_E2",
+    "NE_Nagaya_1",
+    "NE_Nagaya_2",
+    "E_Nagaya_N1",
+    "E_Nagaya_N2",
+    "E_Nagaya_M",
+    "E_Nagaya_S1",
+    "E_Nagaya_S2"
+   ],
+   "note": "北辺・北東・東辺の三方に連続",
+   "cert": "B"
+  },
+  {
+   "role": "練塀(外構)",
+   "need": "必須",
+   "state": "有",
+   "where": "runs.kind=Dobei ×17",
+   "by": [
+    "S_Hei_E1",
+    "S_Hei_E2",
+    "S_Hei_E3",
+    "S_Hei_C",
+    "S_Hei_W0",
+    "N_Hei_E",
+    "S_Hei_Okabe4",
+    "S_Hei_Okabe5",
+    "S_Hei_Doi_W1",
+    "S_Hei_Doi_W2",
+    "S_Hei_Doi_W3",
+    "S_Hei_Doi_S1",
+    "S_Hei_Doi_S2",
+    "S_Hei_Doi_S3",
+    "N_Hei_W1",
+    "N_Hei_W2",
+    "N_Hei_W3"
+   ],
+   "note": "面の縁と大通り沿い。斜面・水際は木柵",
+   "cert": "B"
+  },
+  {
+   "role": "表役所",
+   "need": "必須",
+   "state": "有",
+   "where": "munes.Yakusho",
+   "by": [
+    "Yakusho"
+   ],
+   "note": "御用部屋・御目付部屋・御勘定所ほか",
+   "cert": "B"
+  },
+  {
+   "role": "玄関・式台",
+   "need": "必須",
+   "state": "有",
+   "where": "munes.Genkan",
+   "by": [
+    "Genkan"
+   ],
+   "note": "御式台・御玄関・遠侍・御番之間",
+   "cert": "B"
+  },
+  {
+   "role": "書院",
+   "need": "必須",
+   "state": "有",
+   "where": "munes.Ohiroma / munes.Kuroshoin",
+   "by": [
+    "Ohiroma",
+    "Kuroshoin"
+   ],
+   "note": "大広間(上段付)と黒書院",
+   "cert": "B"
+  },
+  {
+   "role": "居間・中奥",
+   "need": "必須",
+   "state": "有",
+   "where": "munes.Nakaoku",
+   "by": [
+    "Nakaoku"
+   ],
+   "note": "御座之間上段・御休息之間・御寝所",
+   "cert": "B"
+  },
+  {
+   "role": "奥向",
+   "need": "必須",
+   "state": "有",
+   "where": "munes.Okugoten",
+   "by": [
+    "Okugoten"
+   ],
+   "note": "御対面所・奥御座之間・御化粧之間",
+   "cert": "B"
+  },
+  {
+   "role": "台所・勝手",
+   "need": "必須",
+   "state": "有",
+   "where": "munes.Daidokoro / munes.OkuDaidokoro",
+   "by": [
+    "Daidokoro",
+    "OkuDaidokoro"
+   ],
+   "note": "大台所と奥台所の二系統",
+   "cert": "B"
+  },
+  {
+   "role": "湯殿・雪隠",
+   "need": "必須(室として)",
+   "state": "有",
+   "where": "munes.OkuYudono / 各棟の御雪隠 ×4",
+   "by": [
+    "OkuYudono",
+    "Genkan",
+    "Nakaoku",
+    "NagatsuboneS"
+   ],
+   "note": "⚠ 2026-08-26 まで**雪隠が一つも無かった**(湯殿だけ)。土井 EDO-0013 の役割表を錨に当てて発覚。表向・中奥・奥向・長局の4箇所に入れた",
+   "cert": "B"
+  },
+  {
+   "role": "局(女中部屋)",
+   "need": "必須",
+   "state": "有",
+   "where": "munes.NagatsuboneN / NagatsuboneS",
+   "by": [
+    "NagatsuboneN",
+    "NagatsuboneS"
+   ],
+   "note": "18局",
+   "cert": "B"
+  },
+  {
+   "role": "御錠口",
+   "need": "奥向があれば必須",
+   "state": "有",
+   "where": "links.L_Gojoguchi / Okugoten.御錠口番之間",
+   "by": [
+    "L_Gojoguchi"
+   ],
+   "note": "中奥と奥向の結界。中仕切塀 NJ_Oku_* と対",
+   "cert": "B"
+  },
+  {
+   "role": "庭(座敷の前面)",
+   "need": "必須",
+   "state": "有",
+   "where": "gardens ×19",
+   "by": [
+    "G_Nakaniwa1a",
+    "G_Nakaniwa2a",
+    "G_OkuNiwaC"
+   ],
+   "note": "中庭2組・奥庭・西庭ほか",
+   "cert": "B"
+  },
+  {
+   "role": "井戸",
+   "need": "必須",
+   "state": "有",
+   "where": "wells ×5",
+   "by": [
+    "Ido_Katte",
+    "Ido_Umaya",
+    "Ido_Oku",
+    "Ido_Niwa",
+    "Ido_Oku2"
+   ],
+   "note": "勝手中庭・厩脇・奥庭・茶屋の水屋・勝手庭(奥)",
+   "cert": "B"
+  },
+  {
+   "role": "厩",
+   "need": "望ましい",
+   "state": "有",
+   "where": "munes.Umaya",
+   "by": [
+    "Umaya"
+   ],
+   "note": "14×6間。馬立と馬役部屋",
+   "cert": "B"
+  },
+  {
+   "role": "土蔵",
+   "need": "望ましい",
+   "state": "有",
+   "where": "service.Kura3",
+   "by": [
+    "Kura3"
+   ],
+   "note": "御土蔵",
+   "cert": "B"
+  },
+  {
+   "role": "稲荷社",
+   "need": "望ましい",
+   "state": "有",
+   "where": "service.Inari",
+   "by": [
+    "Inari"
+   ],
+   "note": "邸内稲荷。明神鳥居+一間社流造",
+   "cert": "B"
+  },
+  {
+   "role": "家中長屋",
+   "need": "望ましい",
+   "state": "**外周長屋が兼ねる**",
+   "where": "runs.kind=Nagaya",
+   "by": [
+    "N_Nagaya_W",
+    "N_Nagaya_E1",
+    "N_Nagaya_E2",
+    "NE_Nagaya_1",
+    "NE_Nagaya_2",
+    "E_Nagaya_N1",
+    "E_Nagaya_N2",
+    "E_Nagaya_M",
+    "E_Nagaya_S1",
+    "E_Nagaya_S2"
+   ],
+   "note": "敷地内に独立した家中長屋列は置かない。skill §B-3 が『敷地中央に浮いた長屋列』を禁じており、外周の表長屋が家中の居住を兼ねる作りにしている",
+   "cert": "U"
+  },
+  {
+   "role": "米蔵",
+   "need": "任意",
+   "state": "**無**",
+   "where": "—",
+   "by": [],
+   "note": "松江藩の廻米は蔵屋敷(大坂・江戸浅草)で扱う建前で、上屋敷に米蔵を置く典拠が無い。⛔ 落としたのであって忘れたのではない",
+   "cert": "?"
+  },
+  {
+   "role": "隅櫓",
+   "need": "任意",
+   "state": "有",
+   "where": "yagura.Y_NE",
+   "by": [
+    "Y_NE"
+   ],
+   "note": "北東隅。⚠ **当家に櫓があった典拠は無い**。置くかどうかは EDO-0022 で裁定待ち",
+   "cert": "?"
+  },
+  {
+   "role": "馬場・作事小屋",
+   "need": "任意",
+   "state": "有",
+   "where": "gardens.G_Baba / service.Sakuji",
+   "by": [
+    "G_Baba",
+    "Sakuji"
+   ],
+   "note": "東翼の馬場と御作事小屋",
+   "cert": "B"
+  },
+  {
+   "role": "中門",
+   "need": "任意",
+   "state": "**無**",
+   "where": "—",
+   "by": [],
+   "note": "表門から玄関までを開けた白洲とする作りを採ったため([[yashiki-maeniwa-no-roof]])、中門を置くと白洲が割れる。⛔ 落としたのであって忘れたのではない",
+   "cert": "U"
+  },
+  {
+   "role": "火消道具蔵・御駕籠蔵",
+   "need": "任意",
+   "state": "有",
+   "where": "service.Kura1 / Kura2",
+   "by": [
+    "Kura1",
+    "Kura2"
+   ],
+   "note": "御駕籠蔵と火消道具蔵。[高知2000]A の配置に倣う",
+   "cert": "B"
+  },
+  {
+   "role": "能舞台・御成門",
+   "need": "任意",
+   "state": "**無**",
+   "where": "—",
+   "by": [],
+   "note": "御成セット(御成門・能舞台・御成書院・御成湯殿)は福井図の類型で確度P。**当家への御成の記録が無い**ので採らない。⛔ 落としたのであって忘れたのではない",
+   "cert": "P"
+  }
+ ],
+ "_program": "**在るべき役割の照合表。外の錨は skill `unity-buke-yashiki/references/estate-types.md` §『上屋敷が備える役割』(土井 EDO-0013)。** 錨が無いと役割と棟を同時に消せば検査が通る。⛔ 『無』にするときは必ず理由を書く — 沈黙は「落とした」のか「捨てた」のかを区別しない。"
 }

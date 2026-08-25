@@ -20,6 +20,7 @@
         外周の展開/表門まわり/郭の土留め/考証/改訂)。
         組んだら「図版 N 面」を数えること(図版が黙って落ちた前科がある)。
 """
+import io
 import json, math, os, re, subprocess, html
 import zlib as _zlib
 
@@ -1175,6 +1176,7 @@ def plane_check(d):
     bad += gate_overlap_check(d)
     bad += fuzoku_overlap_check(d)
     bad += yagura_opening_check(d)
+    bad += program_check(d)
     return bad
 
 
@@ -1433,6 +1435,83 @@ def yagura_opening_check(d):
             if r["edge"] == vi and r["s0"] < gB - 0.01:
                 bad.append("隅櫓 %s: run %s が辺%d の開口を塞いでいる(s0=%.1f < %.1f)"
                            % (y["name"], r["name"], r["edge"], r["s0"], gB))
+    return bad
+
+
+ANCHOR_MD = os.path.expanduser(
+    "~/.claude/skills/unity-buke-yashiki/references/estate-types.md")
+
+
+def anchor_roles():
+    """`estate-types.md` の「上屋敷が備える役割」表 → [(役割, 要否)]。
+
+    ⚠ **外の錨。** 各邸の json だけを見ていると、役割と棟を**同時に消せば検査が通る**
+    (土井 EDO-0013 / 検図14巡 中-6: 表役所・米蔵・土蔵・稲荷が同時削除で無音だった)。
+    行の書式は `| 役割 | 要否 | 典拠 |`。崩れたら空を返すのではなく**落とす**。
+    """
+    with io.open(ANCHOR_MD, encoding="utf-8") as f:
+        txt = f.read()
+    i = txt.find("上屋敷が備える役割")
+    if i < 0:
+        raise RuntimeError("錨の節が estate-types.md に無い: 上屋敷が備える役割")
+    rows = []
+    for ln in txt[i:].splitlines():
+        c = [x.strip() for x in ln.strip().strip("|").split("|")] if ln.strip().startswith("|") else None
+        if c is None:
+            if rows and not ln.strip():
+                continue
+            if rows and ln.startswith("#"):
+                break
+            continue
+        if len(c) != 3 or c[0] in ("役割",) or set(c[0]) <= set("-: "):
+            continue
+        rows.append((c[0], c[1]))
+    if len(rows) < 10:
+        raise RuntimeError("錨の表が読めない(%d 行)。行の書式 | 役割 | 要否 | 典拠 | を崩さないこと" % len(rows))
+    return rows
+
+
+def program_check(d):
+    """在るべき役割が在るか。**外の錨(estate-types.md)と突き合わせる。**
+
+    2026-08-26: この検査を入れて初めて **雪隠が一室も無い**ことが出た(湯殿だけ在った)。
+    土井も同じ穴を14巡目まで抱えており、錨の無い自己検図では構造的に見えない。
+    """
+    CERT = ("S", "A", "B", "P", "U", "?")
+    prog = d.get("program")
+    if not prog:
+        return ["program(在るべき役割の照合表)が無い — 外の錨と突き合わせられない"]
+    have = set(o["name"] for o in d["munes"] + d.get("service", []))
+    have |= set(w["name"] for w in d.get("wells", []))
+    have |= set(r["name"] for r in d.get("runs", []))
+    have |= set(g["name"] for g in d.get("gardens", []))
+    have |= set(l["name"] for l in d.get("links", []))
+    have |= set(r["name"] for r in d.get("rails", []))
+    have |= set(y["name"] for y in d.get("yagura", []))
+    if d.get("gate"):
+        have.add("gate")
+    bad = []
+    mine = {p["role"]: p for p in prog}
+    for role, need in anchor_roles():
+        pg = mine.get(role)
+        if pg is None:
+            bad.append("役割「%s」(%s)が program に無い — 錨の行を落としている" % (role, need))
+            continue
+        if need.startswith("必須") or need.startswith("上屋敷は必須") or need.startswith("奥向"):
+            if pg["state"].strip("*") == "無":
+                bad.append("役割「%s」は %s だが指図に無い" % (role, need))
+        if pg["state"].strip("*") == "無" and len(pg.get("note", "")) < 20:
+            bad.append("役割「%s」を落としているのに理由が書かれていない" % role)
+        if pg.get("cert") not in CERT:
+            bad.append("役割「%s」に確度が無い(規則6)" % role)
+        miss = [n for n in pg.get("by", []) if n not in have]
+        if miss:
+            bad.append("役割「%s」が挙げる %s が指図に無い" % (role, "・".join(miss[:4])))
+        if pg["state"].strip("*") == "有" and not pg.get("by"):
+            bad.append("役割「%s」が『有』なのに満たす物(by)が空" % role)
+    extra = set(mine) - set(r for r, _ in anchor_roles())
+    for e in sorted(extra):
+        bad.append("役割「%s」は錨の表に無い — 自作の役割で数を水増ししていないか" % e)
     return bad
 
 

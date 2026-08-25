@@ -1177,6 +1177,7 @@ def plane_check(d):
     bad += fuzoku_overlap_check(d)
     bad += yagura_opening_check(d)
     bad += program_check(d)
+    bad += setchin_check(d)
     return bad
 
 
@@ -1512,6 +1513,66 @@ def program_check(d):
     extra = set(mine) - set(r for r, _ in anchor_roles())
     for e in sorted(extra):
         bad.append("役割「%s」は錨の表に無い — 自作の役割で数を水増ししていないか" % e)
+    return bad
+
+
+SETCHIN_MAX = 40.0      # 同じ区画の最寄りの雪隠までの上限[m]
+
+
+def setchin_check(d):
+    """雪隠が**区画ごとに**行き渡っているか。土井 EDO-0029 の二段検査に倣う。
+
+    ⚠ **段①だけでは自己免除ができる。** 「区画ごとに雪隠が在るか」だけを見ると、
+    区画の宣言を消せば通ってしまう(土井で実際に0件になった)。段②で
+    **人の居る棟が必ずどれかの区画に属すこと**を要求してラチェットにする。
+
+    ⚠ 役割の有無(program_check)だけでは足りない。松平は雪隠を4室入れた直後の状態で
+    program_check が 0 件だったが、**区画で見ると更に4室足りなかった** —
+    表役所の役人の最寄りが 63m 先の**奥向の湯殿**(御錠口の向こう)、
+    黒書院の客と賄いの者が**藩主の中奥**、馬役が 47m 先の玄関、という図だった。
+    「在るか」ではなく「**区画をまたいで使う図になっていないか**」まで見ること。
+    """
+    ken = d["const"]["ken"]
+    bad = []
+    # 段⓪ — **区画の粗さそのものを裁定で止める。**
+    # ⚠ 感度試験6経路のうち、区画を統合して逃げる道だけが鳴らなかった(2026-08-26)。
+    #   宣言された区画に棟が一つも無ければ「溶かした」ということ。
+    declared = d.get("zones")
+    if not declared:
+        bad.append("zones(区画の裁定)が無い — 区画を統合して雪隠の検査を逃げられる")
+    bad_zone = []
+    zones = {}
+    for m in d["munes"]:
+        z = m.get("zone")
+        # 段② — 人の居る棟は必ず区画に属す(これが無いと区画を消して逃げられる)
+        if not z:
+            bad.append("棟 %s に区画(zone)が無い — 区画を消せば雪隠の検査を逃げられる" % m["name"])
+            continue
+        zones.setdefault(z, {"munes": [], "sek": []})
+        zones[z]["munes"].append(m)
+        for r in (m.get("rooms") or []):
+            if r["name"] == "御雪隠":
+                zones[z]["sek"].append(((r["u0"] + r["u1"]) / 2.0, (r["v0"] + r["v1"]) / 2.0))
+    if declared:
+        for z in declared:
+            if z not in zones:
+                bad.append("区画「%s」が zones に宣言されているのに棟が一つも属していない — "
+                           "区画を溶かしていないか(溶かすなら zones と _zones を直して理由を残す)" % z)
+        for z in zones:
+            if z not in declared:
+                bad.append("区画「%s」が zones に宣言されていない" % z)
+    for z, v in sorted(zones.items()):
+        # 段① — 区画ごとに雪隠が在るか
+        if not v["sek"]:
+            bad.append("区画「%s」に雪隠が無い(棟 %s)— 使う者が区画をまたぐ"
+                       % (z, "・".join(m["name"] for m in v["munes"])))
+            continue
+        for m in v["munes"]:
+            c = ((m["u0"] + m["u1"]) / 2.0, (m["v0"] + m["v1"]) / 2.0)
+            near = min(math.hypot(c[0] - q[0], c[1] - q[1]) * ken for q in v["sek"])
+            if near > SETCHIN_MAX:
+                bad.append("棟 %s(区画 %s)から同じ区画の雪隠まで %.1fm — 上限 %.0fm"
+                           % (m["name"], z, near, SETCHIN_MAX))
     return bad
 
 

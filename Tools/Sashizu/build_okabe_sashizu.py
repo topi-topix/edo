@@ -1419,69 +1419,9 @@ def design_y(d, u, v):
 
 
 def walled_edges(d, t):
-    """段 t の四辺のうち、土留めが載っている辺。法面でなく垂直に納まる。"""
-    out = set()
-    for w in d["terraceWalls"]:
-        if abs(w["coping"] - t["y"]) > 0.05:
-            continue
-        (au, av), (bu, bv) = w["a"], w["b"]
-        if abs(au - bu) < 1e-9:                       # u=const の壁
-            if min(av, bv) < t["v1"] - 0.4 and max(av, bv) > t["v0"] + 0.4:
-                if abs(au - t["u0"]) < 1e-6:
-                    out.add("u0")
-                if abs(au - t["u1"]) < 1e-6:
-                    out.add("u1")
-        else:                                          # v=const の壁
-            if min(au, bu) < t["u1"] - 0.4 and max(au, bu) > t["u0"] + 0.4:
-                if abs(av - t["v0"]) < 1e-6:
-                    out.add("v0")
-                if abs(av - t["v1"]) < 1e-6:
-                    out.add("v1")
-    return out
-
-
-EDGE_DEAD = 0.30     # 縁が地山と同高とみなす不感帯。切盛図の「無彩=±0.3m」と揃える
-
-
-_EDGEFILL = {}
-
-
-def edge_is_fill(d, t, u, v, ter=None):
-    """段 t の縁のうち (u,v) に最も近い点が**盛土の縁か**を返す(法面の関門①)。
-    縁が地山と同高なら、その外へ盛土の法面を出してはならない — 出すと法尻が着地せず、
-    cap で切れて垂直の段差が生える(2026-08-23 検図で 55 箇所・最大1.58m を検出)。"""
-    key = (id(d), t["name"])
-    if key not in _EDGEFILL:
-        pts = []
-        poly = tpoly(t)
-        n = len(poly)
-        for i in range(n):
-            a, b = poly[i], poly[(i + 1) % n]
-            L = max(int(math.hypot(b[0] - a[0], b[1] - a[1])), 1)
-            for k in range(L):
-                q = (a[0] + (b[0] - a[0]) * k / L, a[1] + (b[1] - a[1]) * k / L)
-                g = _dem_at(d, q[0], q[1])
-                pts.append((q[0], q[1], None if g is None else (t["y"] - g)))
-        _EDGEFILL[key] = pts
-    pts = _EDGEFILL[key]
-    # **縁に沿って連続にする** — 最近傍1点だと縁の標本の間で値が跳ね、法面に段差が出る。
-    near = sorted(((a - u) ** 2 + (b - v) ** 2, f) for (a, b, f) in pts if f is not None)[:4]
-    if not near:
-        return None
-    if near[0][0] < 1e-9:
-        return near[0][1]
-    w = sum(1.0 / dd for dd, _ in near)
-    return sum(f / dd for dd, f in near) / w
-
-
-def _nat_grad(d, u, v):
-    """江戸期地盤のその場の勾配(m/間 → 無次元)。崖かどうかの判定に使う。"""
-    a = _dem_at(d, u + 0.5, v); b = _dem_at(d, u - 0.5, v)
-    c = _dem_at(d, u, v + 0.5); e = _dem_at(d, u, v - 0.5)
-    if None in (a, b, c, e):
-        return 0.0
-    K = d["const"]["ken"]
-    return math.hypot(a - b, c - e) / K
+    """正典は sashizu_lib.walled_edges(区間つき・2026-08-26 造成モデル統一)。
+    当邸は `terraceWalls` が空なので常に空を返す。"""
+    return sashizu_lib.walled_edges(d, t)
 
 
 _DEM = {}
@@ -1551,43 +1491,16 @@ def _world_at(d, u, v):
 
 
 def graded_y(d, u, v, nat, walled=None):
-    """**造成後の地盤**。段の中は段の高さ。段の外は法面(盛土 1:1.5 / 切土 1:1)で現地形へ摺り付ける。
-    **段の縁は等高線に沿った多角形**なので、距離は縁からの最短距離で測る。
-    どこも触らない点では nat と同じ値を返すので、差がゼロ=無造成。"""
-    ins = design_y(d, u, v)
-    if ins is not None:
-        return ins
-    if nat is None:
-        return None
-    if not in_parcel(d, u, v):
-        return nat                      # **区画の外は一切動かさない**(街路・隣地)
-    K = d["const"]["ken"]
-    bf = d["const"].get("batterFill", 1.5)
-    bc = d["const"].get("batterCut", 1.0)
-    cap = d["const"].get("featherCap", 12.0)
-    g = nat
-    for t in d["terraces"]:
-        dm = tdist(t, u, v) * K
-        if dm > cap:
-            continue
-        ef = edge_is_fill(d, t, u, v)      # 段の縁での盛土(+)/切土(−)の厚み
-        if ef is None:
-            continue
-        # **関門③: 地山がすでに法面より急な所は崖・石垣の領分。法面を出さない。**
-        #   出すと造成が自然より急になり、法尻に段差が生える(2026-08-24 検図)。
-        if _nat_grad(d, u, v) > 0.75 * (1.0 / bc if ef < 0 else 1.0 / bf):
-            continue
-        # **法面は「縁の土の厚みが 0 へ逓減する」形で出す。**
-        #   盛土: 縁で ef、そこから 1:bf の勾配で薄くなり、距離 ef*bf で地山に着く。
-        #   切土: 同じく 1:bc。
-        # 縁から一定勾配の平面を伸ばす旧式は、地山のほうが急なとき永久に着地せず、
-        # cap で切れて法尻に垂直の段差を生んだ(2026-08-23 検図で55箇所・最大1.58m)。
-        # この形なら **定義上かならず着地し、段差が生じない**(sashizu.md §3b の関門③)。
-        if ef > 0.0:
-            g = max(g, nat + max(0.0, ef - dm / bf))
-        elif ef < 0.0:
-            g = min(g, nat - max(0.0, -ef - dm / bc))
-    return g
+    """**造成後の地盤**。正典は sashizu_lib.graded_y —
+    一定勾配の法面(盛土 1:batterFill / 切土 1:batterCut)+着地判定(cap の内で
+    現地形に着地しない法面は出さない)+斜路・石段の先読み+盛土floor の土井式。
+    2026-08-26 のユーザー指示「岡部式と土井式の2パターンがあってよいのか?統一すべきでは?」
+    で、旧岡部式(縁の盛土厚の逓減形 cbee45a)を廃してこれへ統一した。
+    段の縁が等高線なりの多角形(`poly`)である点は lib が poly 分岐で受ける。
+    土井式が要する法面パラメタ(batterFill/batterCut/featherCap)は当邸の設計値に
+    すべて有るので、土井の既定値に頼る項目は無い。
+    ⚠ 当邸の石段(atWall なし)と坂(折れ線 `pts`)は従前どおり地盤に出ない(別勘定)。"""
+    return sashizu_lib.graded_y(d, u, v, nat, in_parcel, walled)
 
 
 def cutfill_svg(d, ter):
@@ -2896,8 +2809,9 @@ def _near_own_edge(d, u, v, lim=1.5):
 
 def batter_check(d, ter):
     """法面の検査 — **造成が自然勾配より急にした所で、切土 1:bc を超えていないか**。
-    旧式(縁から一定勾配の平面)は地山が急なとき着地せず、cap で切れて法尻に垂直の段差を生んだ。
-    2026-08-23 の検図で55箇所・最大1.58m。逓減形へ改めたので、これが再発しないことを見張る。"""
+    2026-08-23 の旧式(着地判定なし)は地山が急なとき着地せず、cap で切れて法尻に
+    垂直の段差を生んだ(55箇所・最大1.58m)。造成モデルは 2026-08-26 に土井式
+    (一定勾配+着地判定)へ統一 — この検査はモデルに依らず造成面そのものを見張る。"""
     K = d["const"]["ken"]; bc = d["const"]["batterCut"]
     we = dict((t["name"], walled_edges(d, t)) for t in d["terraces"])
     Z = {}
@@ -3585,13 +3499,17 @@ def main():
         h.append(edge_drop_table(d))
         bb = batter_check(d, ter)
         h.append('<p class="cap"><b>法面の検査: %s。</b>'
-                 '段の外は「縁の土の厚みが 0 へ逓減する」形で法面を出す。'
-                 '関門は三つ — ①縁が盛土(切土)であること ②cap %.0fm 以内 '
-                 '③<b>地山がすでに法面より急な所(崖)には法面を出さない</b>。'
+                 '<b>造成モデルは 2026-08-26 に土井式へ統一した</b>(ユーザー指示。'
+                 '旧岡部式=縁の盛土厚の逓減形は廃止): 段の外は<b>一定勾配の法面'
+                 '(盛土 1:%.1f/切土 1:%.1f)で現地形へ摺り付け</b>、'
+                 'cap %.0fm の内で現地形に着地しない法面は出さない(崖の縁は土留め・石垣の領分)。'
+                 '土井式が要する法面パラメタ(batterFill/batterCut/featherCap)は'
+                 '当邸の設計値にすべて有り、土井の既定値で補った項目は無い。'
                  '検査は「<b>法面が可能だった所を造成が 1:%.1f より急にしていないか</b>」で、'
                  '地山が既に 1:%.1f を超える崖は対象外(どんな薄い土工も超えるため)。'
                  '囲いのある辺から1.5間以内も対象外 — そこは石垣基壇が受ける。%s</p>'
                  % ("<b>0 件</b>" if not bb else "⚠ %d 件" % len(bb),
+                    d["const"]["batterFill"], d["const"]["batterCut"],
                     d["const"].get("featherCap", 12.0), d["const"]["batterCut"], d["const"]["batterCut"],
                     ("" if not bb else "<br>⚠ 残るのは<b>崖の肩</b>(地山 %s)の %d 箇所 — %s。"
                      "法面と崖の境目で、実装では石垣か地形の均しで受ける。"

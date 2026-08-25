@@ -2600,6 +2600,9 @@ def main():
              % (area, area / TSUBO, kei, _ma, _ma / area * 100))
     h.append('<p class="cap" style="margin-top:44px">@@PLATES@@。'
              '<b>組み直すときは図を落としていないか必ず数える</b>(過去に16図版→1図版へ落ちた前科がある)。</p>')
+    h.append('<div class="foot">組んだ日 %s ／ 設計値 <code>sanno_sashizu.json</code> ／ '
+             '文章 <code>sanno_kosho.md</code>。Y は海抜 m(Unity の Y がそのまま標高)。</div>'
+             % subprocess.check_output(["date", "+%Y-%m-%d %H:%M"]).decode().strip())
     h.append("</div>")
     html_out = "\n".join(h)
     nsvg = html_out.count("<svg")

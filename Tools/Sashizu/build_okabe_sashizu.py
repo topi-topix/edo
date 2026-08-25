@@ -3336,6 +3336,31 @@ def main():
     #   崖の肩(断面⑧ v=40)で 0.72m 食い違っていた。**毎回 DEM から組み直して書き戻す**
     #   (切盛量と同じ扱い — 同じ地形の二系統を残さない)。
     _dem_at(d, 0, 0)
+    # ⚠ **外周の地盤も毎回取り直して書き戻す。** 2026-08-26 土井 EDO-0024 の警告
+    #   (「境界は正本で測る」が復元の箱の位置でたまたま成り立っているだけだと、箱が動いた瞬間に
+    #    黙って追随しなくなる)を当家に当てたら、`edgeProfile` が json に静的で
+    #   **いまの復元地盤と最大 5.86m ずれていた**(2026-08-23 の値のまま12巡通っていた)。
+    #   run の天端・基壇の露出・展開図の地盤線・断面の足元がすべてこれを読む。
+    P9 = d["polygon"]
+    ep = {}
+    for i9 in range(len(P9)):
+        a9, b9 = P9[i9], P9[(i9 + 1) % len(P9)]
+        L9 = math.hypot(b9[0] - a9[0], b9[1] - a9[1])
+        pr9 = []
+        s9 = 0.0
+        while s9 <= L9 + 1e-9:
+            t9 = (s9 / L9) if L9 else 0.0
+            x9 = a9[0] + (b9[0] - a9[0]) * t9
+            z9 = a9[1] + (b9[1] - a9[1]) * t9
+            y9 = _world_at(d, *RGrid(d).L(x9, z9))
+            if y9 is not None:
+                pr9.append([round(s9, 1), round(y9, 2)])
+            s9 += 4.0
+        if pr9:
+            ep[str(i9)] = pr9
+    if ep:
+        d["edgeProfile"] = ep
+
     for sec9 in d["sections"]:
         nat9 = []
         f9, t9 = _sec_span(d, sec9)

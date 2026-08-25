@@ -2030,28 +2030,101 @@ def rails_check(d):
     return sorted(set(bad))
 
 
+def program_table(d):
+    """在るべき役割の表。**確度は側面ごと**に出す(役割ごとに一つへ潰さない)。"""
+    # 確度の色。⚠ sashizu.css に在る変数だけを使う — 無い変数は黙って既定色になり、
+    #   S と U が同じ見た目になる(2026-08-25: --cert-* を書いて全部同色だった)
+    CC = {"S": "var(--cut1)", "A": "var(--shu)", "B": "var(--ink-mid)",
+          "P": "var(--take)", "U": "var(--fill1)", "?": "var(--ink-lo)"}
+    rows = ["<table><thead><tr><th>役割</th><th>満たす物</th><th>側面</th>"
+            "<th>確度</th><th>典拠</th><th class='note'>断り</th></tr></thead><tbody>"]
+    for pg in d.get("program", []):
+        asp = pg.get("aspects", [])
+        for i, a in enumerate(asp):
+            head = ("<td rowspan='%d'><b>%s</b></td><td rowspan='%d'><code>%s</code></td>"
+                    % (len(asp), pg["role"], len(asp),
+                       "</code> <code>".join(pg["by"]))) if i == 0 else ""
+            rows.append("<tr>%s<td>%s</td>"
+                        "<td style='color:%s'><b>%s</b></td><td><code>%s</code></td>"
+                        "<td class='note'>%s</td></tr>"
+                        % (head, a.get("what", ""), CC.get(a.get("cert"), "var(--note)"),
+                           a.get("cert", "—"),
+                           "</code> <code>".join(a.get("src") or []) or "—",
+                           a.get("_", "")))
+    rows.append("</tbody></table>")
+    nt = d.get("_採らなかった役割") or {}
+    if nt:
+        rows.append("<h3>採らなかった役割</h3><table><thead><tr><th>役割</th>"
+                    "<th class='note'>採らない理由</th></tr></thead><tbody>")
+        for k, v in nt.items():
+            rows.append("<tr><td><b>%s</b></td><td class='note'>%s</td></tr>" % (k, v))
+        rows.append("</tbody></table>")
+        rows.append("<p class='cap'>⛔ <b>沈黙は情報を持たない。</b> 採らなかったものは"
+                    "「落とした」のか「捨てた」のかが区別できるよう、ここに理由を書く。</p>")
+    return "".join(rows)
+
+
 def program_check(d):
-    """**在るべき棟が在るか。** 正典 `program` の役割ごとに、それを満たす物の名を突き合わせる。
+    """**在るべき役割が在るか。側面ごとに確度と典拠が付いているか。**
 
     ⚠ これが無いあいだ、**棟を消しても検査が一つも鳴らなかった**
     (2026-08-25 検図13巡・削除の感度試験: Yakusho / Komegura / Kura1 / Kura2 / Inari)。
-    `norms_check` は柱割りと廊下の作法しか見ないので、「何が在るべきか」を持つ物が要る。
+    ⚠ 初版は役割ごとに確度を**一つ**しか持てず、「存在は S だが位置は U」を潰していた。
+    さらに台帳が U と裁定済みの米蔵を [高知2000]A へ戻していた(2026-08-25 考証13巡 高-1)。
+    **側面ごとに確度と典拠IDを持ち、ID は台帳と突き合わせる。**
     """
+    CERT = ("S", "A", "B", "P", "U", "?")
     have = set(o["name"] for o in d["munes"] + d.get("service", []))
     have |= set(w["name"] for w in d.get("wells", []))
+    have |= set(r["name"] for r in d.get("runs", []))       # 外周(表長屋・練塀)も役割を負う
+    have |= set(g["name"] for g in d.get("gardens", []))    # 庭・白洲
+    have |= set(l["name"] for l in d.get("links", []))      # 御錠口・廊下
+    if d.get("gate"):
+        have.add("gate")
+    head, tbl = sources_index()
+    known = set(head) | set(tbl)
     bad = []
+    named = set()
     for pg in d.get("program", []):
+        named |= set(pg["by"])
         miss = [n for n in pg["by"] if n not in have]
         if len(miss) == len(pg["by"]):
             bad.append("役割「%s」を満たす物が一つも無い(%s)" % (pg["role"], "・".join(pg["by"])))
         elif miss:
             bad.append("役割「%s」の %s が指図に無い" % (pg["role"], "・".join(miss)))
-        if pg.get("cert") not in ("S", "A", "B", "P", "U"):
-            bad.append("役割「%s」に確度が無い(規則6)" % pg["role"])
-    # 逆向き — `program` のどの役割にも現れない棟は、消しても誰も気づかない
-    named = set()
+        asp = pg.get("aspects")
+        if not asp:
+            bad.append("役割「%s」に側面(`aspects`)が無い — 確度を一つに潰さない" % pg["role"])
+            continue
+        for a in asp:
+            if a.get("cert") not in CERT:
+                bad.append("役割「%s」の側面「%s」に確度が無い(規則6)" % (pg["role"], a.get("what")))
+            for sid in a.get("src", []):
+                if sid not in known:
+                    bad.append("役割「%s」の側面「%s」が引く `[%s]` が台帳に無い"
+                               % (pg["role"], a.get("what"), sid))
+            # ⛔ **典拠を引きながら S/A を名乗るのは、その典拠が当屋敷を直接指すときだけ**
+            if a.get("cert") in ("S", "A") and not a.get("src"):
+                bad.append("役割「%s」の側面「%s」が確度 %s なのに典拠IDが無い"
+                           % (pg["role"], a.get("what"), a.get("cert")))
+    # ⛔ **過去の裁定を黙って巻き戻さない。** 確度が妥当かは機械では測れないが、
+    #   一度下した裁定と食い違っていることは測れる(2026-08-25 考証13巡 高-1:
+    #   台帳が U と裁定済みの米蔵の存在を [高知2000]A へ戻していた)。
+    idx = {}
     for pg in d.get("program", []):
-        named |= set(pg["by"])
+        for a in pg.get("aspects", []):
+            idx[(pg["role"], a.get("what"))] = a.get("cert")
+    for rl in d.get("certRulings", []):
+        key = (rl["role"], rl["what"])
+        if key not in idx:
+            bad.append("裁定「%s / %s」に対応する側面が `program` に無い(%s の裁定)"
+                       % (rl["role"], rl["what"], rl["when"]))
+        elif idx[key] != rl["cert"]:
+            bad.append("役割「%s」の側面「%s」が確度 %s だが、%s の裁定は %s — "
+                       "巻き戻すなら `certRulings` を書き換えること"
+                       % (rl["role"], rl["what"], idx[key], rl["when"], rl["cert"]))
+
+    # 逆向き — `program` のどの役割にも現れない棟は、消しても誰も気づかない
     for o in d["munes"] + d.get("service", []):
         if o["name"] not in named:
             bad.append("棟 %s が `program` のどの役割にも現れない — 消しても検査が鳴らない"
@@ -4711,11 +4784,25 @@ def plate(h, num, title, meta=""):
 
 
 def KANOF(sub):
-    """章の題の一部から「其N」を引く。無ければ題そのものを返す(黙って番号を捏造しない)。"""
-    for t, n in _PLATES.items():
-        if sub in t:
-            return n
-    return "「%s」の章" % sub
+    """章の題の一部から「其N」を引く。
+
+    ⚠ **その場では引かない。** 章は本文より**後で**登録されるので、その場で引くと
+    まだ登録されていない章が全部フォールバックになる(2026-08-25 考証13巡の下ごしらえで
+    「表門まわり」が既にそうなっていた)。**印を置いて最後にまとめて解決する。**
+    """
+    return "@@KAN:%s@@" % sub
+
+
+def resolve_kan(html):
+    """全章を登録し終えてから `@@KAN:…@@` を解決する。引けないものは⚠つきで残す
+    (黙って番号を捏造しない)。"""
+    def rep(m):
+        sub = m.group(1)
+        for t, n in _PLATES.items():
+            if sub in t:
+                return n
+        return "⚠「%s」の章(未登録)" % sub
+    return re.sub(r"@@KAN:([^@]+)@@", rep, html)
 
 
 def fig(h, svg, cap=None, legend=None):
@@ -4854,6 +4941,8 @@ def main():
     raw = raw.replace("{{土蔵数}}", str(len([x for x in d["service"] if x["name"].startswith("Kura")])))
     raw = raw.replace("{{記事数}}", str(d.get("jishinArticles", 8)))
     raw = raw.replace("{{石段の数}}", str(len(_ka)))
+    # 章の参照は題から引く(番号を写さない)
+    raw = raw.replace("{{在るべき役割の章}}", KANOF("在るべき役割"))
     raw = raw.replace("{{門の軸の石段}}", str(len(_axis)))
     raw = raw.replace("{{石段の一覧}}", " / ".join(
         "`%s`(落差%.1fm・%d段)" % (k["name"], k["drop"], k["steps"]) for k in _ka)
@@ -5282,6 +5371,14 @@ def main():
         h.append(bom_table(d))
         h.append("</div>")
 
+    # ⚠ **在るべき役割と確度を図に出す。** 正典に持つだけでは
+    #   **ユーザーがレビューする図に確度ラベルが一つも出ない**(2026-08-25 考証13巡 中-4)。
+    #   台帳が U と裁定済みの米蔵を A へ戻していた食い違いも、人の目に触れずに残っていた。
+    plate(h, nx(), "在るべき役割と確度",
+          "役割 → それを満たす物 → **側面ごと**の確度と典拠。確度を役割ごとに一つへ潰さない")
+    h.append(program_table(d))
+    h.append("</div>")
+
     plate(h, nx(), "考証と決めごと")
     h.append('<div class="prose">%s</div>' % prose)
     h.append("</div>")
@@ -5294,7 +5391,7 @@ def main():
              '文章 <code>doi_kosho.md</code>。Y は海抜 m(Unity の Y がそのまま標高)。</div>'
              % subprocess.check_output(["date", "+%Y-%m-%d %H:%M"]).decode().strip())
     h.append("</div>")
-    body = "\n".join(h)
+    body = resolve_kan("\n".join(h))   # 全章を登録し終えてから章番号を解決する
     # ⚠ 生の `**…**` を図に出さない。設計値の `_`/`note` は table のセルへ素で入る所があり、
     #   キャプションにも手書きの `**` が混じる(2026-08-23 検図 L-1 で19箇所)。
     #   <style> の中は触らない(CSS のコメントに `**` が入る)。

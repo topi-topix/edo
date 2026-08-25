@@ -1704,17 +1704,23 @@ def civil_table(d):
                     "<td>(%.1f, %.1f) → (%.1f, %.1f)</td><td>天端 %.1f・壁高 %.1f</td></tr>"
                     % (w["name"], w["s"], wa[0], wa[1], wb[0], wb[1], w["coping"], 4.0 * w["s"]))
     for k in d["kaidans"]:
+        # ⚠ 土留めに付く段だけを出していたので、terraceWalls が空になった時点で
+        #   この表から石段が1本も消えていた(2026-08-25 是正)。**pos から出す**。
         _ws = [x for x in d["terraceWalls"] if x["name"] == k.get("atWall")]
-        if not _ws:
-            continue          # 土留めの無い段(0.3m など)は石段だけ
-        w = _ws[0]
-        if w["a"][0] == w["b"][0]:
-            c = gr.W(w["a"][0], k["gapV"])
+        if _ws:
+            w = _ws[0]
+            c = gr.W(w["a"][0], k["gapV"]) if w["a"][0] == w["b"][0] else gr.W(k["gapU"], w["a"][1])
+            at = "土留め <code>%s</code> に付く" % w["name"]
+        elif "pos" in k:
+            c = gr.W(*k["pos"])
+            at = "独立(土留めなし)"
         else:
-            c = gr.W(k["gapU"], w["a"][1])
+            continue
         rows.append("<tr><td><code>%s</code></td><td>石段 %d段(幅 %.2fm)</td>"
-                    "<td>芯 (%.1f, %.1f)</td><td>落差 %.1f・走り %.2fm</td></tr>"
-                    % (k["name"], k["steps"], k["w"], c[0], c[1], k["drop"], k["run"]))
+                    "<td>芯 (%.1f, %.1f)</td>"
+                    "<td>落差 %.2f・走り %.2fm・蹴上 %.3f／昇り <b>%s</b>・%s</td></tr>"
+                    % (k["name"], k["steps"], k["w"], c[0], c[1], k["drop"], k["run"],
+                       k["drop"] / max(1, k["steps"]), k.get("dir", "?"), at))
     for rl in d["rails"]:
         pts = [gr.W(u, v) for u, v in rl["pts"]]
         rows.append("<tr><td><code>%s</code></td><td>竹垣(四つ目垣 h0.9)</td>"

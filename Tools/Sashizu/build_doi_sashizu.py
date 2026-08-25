@@ -48,6 +48,16 @@ TYPES_MD = os.path.expanduser(
     "~/.claude/skills/unity-buke-yashiki/references/estate-types.md")
 
 
+class AnchorMissing(Exception):
+    """**外の錨が読めない。** ⛔ 空を返して素通りさせない。
+
+    `qa-and-pitfalls.md`「測れないものは 0 件になる」がここに効く。錨を読みに行って読めなかった
+    ときに空集合を返すと、**連鎖を自邸の外へ出した意味がまるごと消える**
+    (2026-08-26 松平の指摘。当家は `estate_zone_norm` が `set()` を返しており、
+    台帳を隠すと⑤が丸ごと素通りして「表役所と玄関が同じ区画」が**完全に隠れた**)。
+    """
+
+
 def estate_zone_norm():
     """`estate-types.md` の「**別の区画に属す役割**」行 → 役割名の集合。
 
@@ -58,22 +68,30 @@ def estate_zone_norm():
     落とすほうは `program_check` が塞ぐので、そこで連鎖が止まる。
     """
     if not os.path.exists(TYPES_MD):
-        return set()
+        raise AnchorMissing("共有台帳 `estate-types.md` が読めない(%s)" % TYPES_MD)
     t = open(TYPES_MD, encoding="utf-8").read()
     m = re.search(r"\*\*別の区画に属す役割\*\*\s*[::]\s*(.+)", t)
     if not m:
-        return set()
-    return set(x.strip() for x in m.group(1).split("/") if x.strip())
+        raise AnchorMissing("共有台帳に「別の区画に属す役割」の行が無い")
+    out = set(x.strip() for x in m.group(1).split("/") if x.strip())
+    if len(out) < 4:
+        raise AnchorMissing("「別の区画に属す役割」が %d 個しか読めない — 行が壊れている"
+                            % len(out))
+    return out
 
 
 def estate_program_norm():
     """`estate-types.md` の「上屋敷が備える役割」表 → {役割: 要否}。"""
     if not os.path.exists(TYPES_MD):
-        return {}
+        raise AnchorMissing("共有台帳 `estate-types.md` が読めない(%s)" % TYPES_MD)
     t = open(TYPES_MD, encoding="utf-8").read()
-    return dict((m.group(1).strip(), m.group(2))
-                for m in re.finditer(r"^\|\s*([^|]+?)\s*\|\s*(必須[^|]*|望ましい|任意)\s*\|",
-                                     t, re.M))
+    out = dict((m.group(1).strip(), m.group(2))
+               for m in re.finditer(r"^\|\s*([^|]+?)\s*\|\s*(必須[^|]*|望ましい|任意)\s*\|",
+                                    t, re.M))
+    if len(out) < 10:
+        raise AnchorMissing("「上屋敷が備える役割」表が %d 行しか読めない — 表が壊れている"
+                            % len(out))
+    return out
 
 
 def sources_index():
@@ -2003,11 +2021,16 @@ def setchin_check(d):
     #   ⇒ **最外の錨は共有台帳**(`estate-types.md`)に置く。役割表が「湯殿・雪隠」を必須と
     #   している限り、裁定は空にできない。ここで止める(台帳は他邸と共有で、当邸だけでは変えられない)。
     rulings = d.get("zoneRulings", [])
-    norm = estate_program_norm()
+    try:
+        norm = estate_program_norm()
+        sep0 = estate_zone_norm()
+    except AnchorMissing as e:
+        # ⛔ **錨が読めないなら、錨に依る検査は「合格」ではなく「回っていない」。**
+        return bad + ["⛔ %s — **区画の裁定と区画の別の検査が回っていない**(合格ではない)" % e]
     # ⛔ **台帳の役割の「名前」から区画の別を組み立てる。** 台帳が在ることだけを錨にすると
     #   「区画を減らす」道が残る(2026-08-26 松平)。⚠ 書院と局は集合に入れない —
     #   **人の別ではなく場の別**を分ける集合でないと正しい構成まで落ちる。
-    sep = estate_zone_norm()
+    sep = sep0
     if sep:
         zone_of = {}
         for zn, ns in zones.items():
@@ -2145,9 +2168,10 @@ def program_check(d):
 
     # ⛔ **共有台帳を外の錨にする。** `program` だけを見ていると、役割と棟を
     #   **同時に消せば通る**(2026-08-25 検図14巡 中-6)。
-    norm = estate_program_norm()
-    if not norm:
-        bad.append("`estate-types.md` の「上屋敷が備える役割」表が読めない — 錨が無い")
+    try:
+        norm = estate_program_norm()
+    except AnchorMissing as e:
+        return bad + ["⛔ %s — **在るべき役割の照合が回っていない**(合格ではない)" % e]
     have_roles = set(pg["role"] for pg in d.get("program", []))
     waived = set(d.get("_採らなかった役割") or {})
     for role, need in norm.items():

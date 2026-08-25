@@ -55,53 +55,30 @@ public static class EdoToranomonUchiBuilder
     // 境界の定義:
     //   内藤SE辺=外堀NW護岸(Ishigaki_Ext_3, 天端8.48)の天端線から10-15m内側=堀端通りの内縁。
     //   内藤NE辺=枡形前街路のSW縁(村瀬N辺と同一直線)。小倉・林S辺=内藤N境界(共有・壁は内藤持ち)。
+    // ⚠ poly の正典 = docs/Sashizu/parcels.json(CLAUDE.md 規則10 / 2026-08-26 ユーザー裁定で json採用)
     public static Parcel[] Parcels = new Parcel[]
     {
+        // 内藤 11角形: 0=NE角(村瀬NW角と共有) 2→3=堀端通り内縁(表) 4=S角(溜池端) 7=NW角(林SW角と共有)
         new Parcel{ group="Edo_Yashiki_NaitoNoto", label="内藤能登守(延岡藩7万石)上屋敷",
-            poly=new[]{
-                new Vector2(289f,543f),      // 0 NE角(村瀬NW角と共有・枡形前街路の南縁)
-                new Vector2(281f,509f),      // 1 村瀬SW角と共有
-                new Vector2(315f,490f),      // 2 村瀬S角と共有=堀端通り内縁の北端
-                new Vector2(182f,359f),      // 3 堀端通り内縁の南西端
-                new Vector2(69f,417f),       // 4 S角(溜池端の道との角・辻番所北)
-                new Vector2(95f,556f),       // 5 西辺の折れ
-                new Vector2(66f,611f),       // 6 西街路との角
-                new Vector2(73.5f,630.5f),   // 7 NW角(林SW角と共有)
-                new Vector2(111.5f,615f),    // 8 林/小倉境の背割り点
-                new Vector2(163.5f,598f),    // 9 小倉SE角と共有
-                new Vector2(167f,592f),      // 10 枡形前街路 南縁の西端
-            },
+            poly=EdoParcels.Get("toranomonuchi_parcels_0"),
             front=2, gateT=0.18f, gateType="k_mon", bansho=2,   // 表門=堀端通り北寄り(文字の頭=北東・虎御門側)
             nagayaEdges=new[]{3,4,10},                          // 南(溜池端)・西下・枡形前街路=表長屋
             dobeiEdges=new[]{0,1,5,6,7,8,9} },
+        // 村瀬 5角形: 0=NW角 1=NE角(虎御門への道沿い) 3=S角 4=SW角
         new Parcel{ group="Edo_Yashiki_Murase", label="村瀬平四郎(2500石)",
-            poly=new[]{
-                new Vector2(291f,542f),      // 0 NW角
-                new Vector2(339f,522f),      // 1 NE角(虎御門への道沿い)
-                new Vector2(330f,504f),      // 2
-                new Vector2(317f,492f),      // 3 S角
-                new Vector2(281f,509f),      // 4 SW角
-            },
+            poly=EdoParcels.Get("toranomonuchi_parcels_1"),
             front=0, gateT=0.5f, gateType="h_mon", bansho=0,    // 表門=北西の枡形前街路(文字の頭=北西)
             dobeiEdges=new[]{1,2},
             noWallEdges=new[]{3,4} },                           // 南西は内藤持ち
+        // 小倉 4角形: 0=SE角 1=NE角 2=NW角(林NE角と共有) 3=SW角(林SE角と共有)
         new Parcel{ group="Edo_Yashiki_Ogura", label="御小姓組 小倉鈴之進",
-            poly=new[]{
-                new Vector2(163.5f,598f),    // 0 SE角
-                new Vector2(176.5f,636f),    // 1 NE角
-                new Vector2(126f,655f),      // 2 NW角(林NE角と共有)
-                new Vector2(111.5f,615f),    // 3 SW角(林SE角と共有)
-            },
+            poly=EdoParcels.Get("toranomonuchi_parcels_2"),
             front=1, gateT=0.65f, gateType="kabukimon", bansho=0, // 表門=北の湾曲街路(文字の頭=北)
             dobeiEdges=new[]{0,2},
             noWallEdges=new[]{3} },                             // 南は内藤持ち
+        // 林 4角形: 0=SW角 1=NW角 2=NE角 3=SE角
         new Parcel{ group="Edo_Yashiki_HayashiZusho", label="林図書助(二ノ丸御留守居500石)",
-            poly=new[]{
-                new Vector2(73.5f,630.5f),   // 0 SW角
-                new Vector2(84.6f,667.6f),   // 1 NW角
-                new Vector2(126f,655f),      // 2 NE角
-                new Vector2(111.5f,615f),    // 3 SE角
-            },
+            poly=EdoParcels.Get("toranomonuchi_parcels_3"),
             front=1, gateT=0.5f, gateType="kabukimon", bansho=1, // 表門=北の湾曲街路(布衣役の体面で番所1)
             dobeiEdges=new[]{0},
             noWallEdges=new[]{2,3} },                           // 東は小倉持ち/南は内藤持ち

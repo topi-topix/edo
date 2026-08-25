@@ -58,74 +58,44 @@ public static class EdoTodaBlockBuilder
     //  L1: 松平日向守 南壁ライン(-425.3,222.7)->(-292.3,144.2) の 2.2m 内側
     //  L2: 山口(牛久)南西壁ライン(-289.7,142.1)->(-200.3,88.2) の 8.2m 内側(壁2.2+街路6)
     //  小出西辺=寺地との小路(幅6m)の東縁。陽泉寺東辺=小路から10m(ねぶと町奥行)。
+    // ⚠ poly の正典 = docs/Sashizu/parcels.json(CLAUDE.md 規則10 / 2026-08-26 ユーザー裁定で json採用)
     public static Parcel[] Parcels = new Parcel[]
     {
+        // 戸田 13角形: 0起点=澄泉寺NW角共有。辺2,4=街路沿い長屋 / 辺1=表(NE)
         new Parcel{ group="Edo_Yashiki_TodaUneme", label="戸田采女正(大垣藩10万石)上屋敷",
-            poly=new[]{
-                new Vector2(-324.2f,158.7f),   // 0 澄泉寺NW角と共有
-                new Vector2(-425.5f,219.5f),   // 1 NE角(日向守SW角の2.2m内側)
-                new Vector2(-530.6f,68.0f),    // 2 北西の通り沿い南端
-                new Vector2(-589.3f,105.5f),   // 3 腕部NW角
-                new Vector2(-619.4f,60.5f),    // 4 腕部W角
-                new Vector2(-511.5f,-9.0f),    // 5 腕部S角
-                new Vector2(-469.6f,28.0f),    // 6 井上SW角
-                new Vector2(-472.9f,55.75f),   // 7 井上NW角
-                new Vector2(-453.7f,83.7f),    // 8 井上N角
-                new Vector2(-373.4f,31.7f),    // 9 井上E角
-                new Vector2(-354.5f,50.6f),    // 10 陽泉寺SW角
-                new Vector2(-329.8f,91.8f),    // 11 陽泉寺NW角
-                new Vector2(-357.9f,108.75f),  // 12 澄泉寺SW角
-            },
+            poly=EdoParcels.Get("todablock_parcels_0"),
             front=1, gateT=0.13f, gateType="k_mon", bansho=2,          // 表門=北西の通り北寄り(文字の頭=西北西/谷筋平坦帯に玄関正対)
             nagayaEdges=new[]{2,4},                                    // 街路沿いの家臣長屋
             dobeiEdges=new[]{0,3,5,6,7,8,9,10,11,12} },
+        // 小出 4角形: 0=NE角(L2街路南縁∩大通り) 1=S角 2=SW角 3=NW角
         new Parcel{ group="Edo_Hikeshi_Koide", label="定火消御役屋敷 小出伊織(5000石)",
-            poly=new[]{
-                new Vector2(-203.1f,80.4f),    // 0 NE角(L2街路南縁∩大通り)
-                new Vector2(-245.4f,-6.7f),    // 1 S角(大通り∩南の小路)
-                new Vector2(-290.0f,15.9f),    // 2 SW角(南の小路∩寺小路)
-                new Vector2(-242.1f,104.0f),   // 3 NW角(寺小路∩L2街路)
-            },
+            poly=EdoParcels.Get("todablock_parcels_1"),
             front=1, gateT=0.45f, gateType="h_mon", bansho=1,          // 表門=南西の小路(文字倒立)
             nagayaEdges=new[]{0,3},                                    // 臥煙部屋・与力同心長屋(大通り沿い+北)
             dobeiEdges=new[]{2} },
+        // 井上 5角形: 0=E角 1=N角 2=NW角 3=SW角 4=S角
         new Parcel{ group="Edo_Yashiki_Inoue", label="寄合 井上寿一郎(4000石)",
-            poly=new[]{
-                new Vector2(-373.4f,31.7f),    // 0 E角
-                new Vector2(-453.7f,83.7f),    // 1 N角
-                new Vector2(-472.9f,55.75f),   // 2 NW角
-                new Vector2(-469.6f,28.0f),    // 3 SW角
-                new Vector2(-400.6f,-13.25f),  // 4 S角
-            },
+            poly=EdoParcels.Get("todablock_parcels_2"),
             front=4, gateT=0.5f, gateType="h_mon", bansho=1,           // 表門=南東の道(文字の頭=東南東)
             nagayaEdges=new[]{3},                                      // 南の道沿い
             dobeiEdges=new int[0],                                     // 0,1,2 は戸田側が受け持つ
             noWallEdges=new[]{0,1,2} },
+        // 澄泉寺: 2026-08-26 json採用で 6→7点(SE小路沿い=旧辺1上に (-262.21,67.53) が index2 挿入)、
+        //   辺indexを再採番: 旧辺1→辺1+辺2 / 旧辺2→3 / 旧辺3→4 / 旧辺4→5 / 旧辺5→6
+        //   → dobei {0,1,2}→{0,1,2,3} / noWall {3,4,5}→{4,5,6}
         new Parcel{ group="Edo_Temple_Chosenji", label="澄泉寺(真宗高田派触頭)",
-            poly=new[]{
-                new Vector2(-324.2f,158.7f),   // 0 NW角
-                new Vector2(-247.4f,106.9f),   // 1 NE角(参道側)
-                new Vector2(-266.9f,71.0f),    // 2 SE角(小路沿い)
-                new Vector2(-299.5f,91.4f),    // 3 陽泉寺との折れ
-                new Vector2(-308.65f,80.4f),   // 4 陽泉寺との折れ
-                new Vector2(-357.9f,108.75f),  // 5 SW角
-            },
+            poly=EdoParcels.Get("todablock_parcels_3"),
             front=0, gateT=0.62f, gateType="sanmon", bansho=0,         // 山門=北東辺(溜池端方面, 文字正立)
-            dobeiEdges=new[]{0,1,2},
-            noWallEdges=new[]{3,4,5} },                                // 西は戸田塀/南は陽泉寺塀
+            dobeiEdges=new[]{0,1,2,3},
+            noWallEdges=new[]{4,5,6} },                                // 西は戸田塀/南は陽泉寺塀
+        // 陽泉寺: 2026-08-26 json採用で 7→6点(旧4 SE角と旧5 S角が1点に併合=旧辺3+旧辺4が新辺3に)、
+        //   辺indexを再採番: 旧辺0,1,2→0,1,2 / 旧辺3,4→3 / 旧辺5→4 / 旧辺6→5
+        //   → front 3のまま(併合後の東辺) / dobei {1,2,3,4,5}→{1,2,3,4} / noWall {0,6}→{0,5}
         new Parcel{ group="Edo_Temple_Yosenji", label="陽泉寺(曹洞宗)",
-            poly=new[]{
-                new Vector2(-329.8f,91.8f),    // 0 NW角
-                new Vector2(-308.65f,80.4f),   // 1 澄泉寺との折れ
-                new Vector2(-299.5f,91.4f),    // 2 澄泉寺との折れ
-                new Vector2(-275.1f,76.9f),    // 3 NE角(ねぶと町北端)
-                new Vector2(-301.5f,28.5f),    // 4 SE角(ねぶと町南端)
-                new Vector2(-298.7f,19.2f),    // 5 S角(小路との辻)
-                new Vector2(-354.5f,50.6f),    // 6 SW角
-            },
+            poly=EdoParcels.Get("todablock_parcels_4"),
             front=3, gateT=0.45f, gateType="sanmon", bansho=0,         // 山門=東辺(門前町の通りへ)
-            dobeiEdges=new[]{1,2,3,4,5},
-            noWallEdges=new[]{0,6} },                                  // 西/北西は戸田塀
+            dobeiEdges=new[]{1,2,3,4},
+            noWallEdges=new[]{0,5} },                                  // 西/北西は戸田塀
     };
 
     // ---------- helpers (EdoNishiTameikeBuilder の公開ヘルパを利用) ----------

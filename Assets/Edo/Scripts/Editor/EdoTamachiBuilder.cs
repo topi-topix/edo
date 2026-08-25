@@ -40,26 +40,27 @@ public static class EdoTamachiBuilder
         public string[] pattern;    // 表店の並び
     }
 
+    // ⚠ poly の正典 = docs/Sashizu/parcels.json(CLAUDE.md 規則10 / 2026-08-26 ユーザー裁定で json採用)
     public static Cho[] Chos = new Cho[]
     {
         new Cho{ group="Edo_Tamachi_5", label="赤坂田町五丁目(両面町屋・71間)",
-            poly=new[]{ new Vector2(-665.72f,688.27f), new Vector2(-692.16f,678.86f), new Vector2(-646.92f,543.71f), new Vector2(-603.43f,556.05f)},
+            poly=EdoParcels.Get("tamachi_chos_0"),
             front=3, twoSided=true, jishinban=false, kamiyui=false, inari=false, nUra=8,
             pattern=new[]{"S2","S1","S2","SH","S2","S1","S2","S2","S1"} },
         new Cho{ group="Edo_Tamachi_4", label="赤坂田町四丁目(店借82/109=裏店密集)",
-            poly=new[]{ new Vector2(-697.45f,688.85f), new Vector2(-668.66f,700.02f), new Vector2(-708.85f,807.15f), new Vector2(-738.59f,796.39f)},
+            poly=EdoParcels.Get("tamachi_chos_1"),
             front=1, twoSided=false, jishinban=true, kamiyui=true, inari=true, nUra=14, // inari=西行稲荷(自身番裏)
             pattern=new[]{"S1","S2","S1","S2","S1","S1","S2","S1","S2","S1"} },
         new Cho{ group="Edo_Tamachi_3", label="赤坂田町三丁目(72軒・三丁目稲荷)",
-            poly=new[]{ new Vector2(-742.92f,810.05f), new Vector2(-712.66f,821.89f), new Vector2(-753.45f,924.53f), new Vector2(-782.39f,915.32f)},
+            poly=EdoParcels.Get("tamachi_chos_2"),
             front=1, twoSided=false, jishinban=false, kamiyui=false, inari=true, nUra=10,
             pattern=new[]{"S2","S1","S2","S2","S1","SH","S2","S1"} },
         new Cho{ group="Edo_Tamachi_2", label="赤坂田町二丁目(47軒・自身番・成満寺)",
-            poly=new[]{ new Vector2(-802.13f,1053.47f), new Vector2(-831.64f,1039.75f), new Vector2(-788.05f,927.02f), new Vector2(-756.08f,939.00f)},
+            poly=EdoParcels.Get("tamachi_chos_3"),
             front=3, twoSided=false, jishinban=true, kamiyui=true, inari=false, nUra=6,
             pattern=new[]{"SH","S2","S2","S1","S2","SH","S2"} },
         new Cho{ group="Edo_Tamachi_1", label="赤坂田町一丁目(赤坂御門寄り・地主家持の堅い町並)",
-            poly=new[]{ new Vector2(-836.15f,1053.27f), new Vector2(-873.72f,1159.98f), new Vector2(-849.67f,1173.51f), new Vector2(-809.09f,1065.30f)},
+            poly=EdoParcels.Get("tamachi_chos_4"),
             front=2, twoSided=false, jishinban=false, kamiyui=false, inari=false, nUra=5,
             pattern=new[]{"SH","S2","S2","SH","S2","S1","S2"} },
     };

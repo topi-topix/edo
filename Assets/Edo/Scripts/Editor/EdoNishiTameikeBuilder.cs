@@ -44,26 +44,29 @@ public static class EdoNishiTameikeBuilder
     }
 
     // 区画=ユーザー下書き線 v2 (2026-08-08 現代地図基準で引き直し)
+    // ⚠ poly の正典 = docs/Sashizu/parcels.json(CLAUDE.md 規則10 / 2026-08-26 ユーザー裁定で json採用)
     public static Estate[] Estates = new Estate[]
     {
         // 下書きv3 (2026-08-09): 横田・土岐とも溜池岸側へ拡張。水没部は EdoDaichiBuilder.Stage1_Grade で
         // 水面+1mの棚(7.6)へ盛土する(ユーザー指示: 溜池掘削で現況高さが不正確なため必要な造成は可)。
         new Estate{ group="Edo_Yashiki_Yokota", label="横田筑後守(9500石)",
-            poly=new[]{ new Vector2(-371.55f,296.12f), new Vector2(-376.89f,413.82f), new Vector2(-366.08f,426.70f), new Vector2(-313.39f,365.93f), new Vector2(-338.54f,290.69f)},
+            poly=EdoParcels.Get("nishitameike_estates_0"),
             front=4, gateT=0.5f, gateType="h_mon", bansho=2,
             nagayaEdges=new[]{0}, dobeiEdges=new[]{1,2,3}, pad=9.5f }, // 3=土岐との共有境界(横田持ち)
         new Estate{ group="Edo_Yashiki_Toki", label="土岐丹波守(3500石)",
-            poly=new[]{ new Vector2(-335.39f,291.47f), new Vector2(-311.41f,364.43f), new Vector2(-218.69f,321.60f), new Vector2(-223.95f,280.88f)},
+            poly=EdoParcels.Get("nishitameike_estates_1"),
             front=3, gateT=0.55f, gateType="h_mon", bansho=1,
             nagayaEdges=new int[0], dobeiEdges=new[]{1,2}, pad=9.5f }, // W辺(0)は横田側の塀が受け持つ
         new Estate{ group="Edo_Yashiki_YamaguchiUshiku", label="山口筑前守(牛久藩上屋敷)",
-            poly=new[]{ new Vector2(-140.8f,182.8f), new Vector2(-174.2f,209.8f), new Vector2(-207.3f,259.3f), new Vector2(-279.2f,264.9f), new Vector2(-289.7f,142.1f), new Vector2(-200.3f,88.2f)},
+            poly=EdoParcels.Get("nishitameike_estates_2"),
             front=0, gateT=0.5f, gateType="nagayamon", bansho=2,
             nagayaEdges=new[]{2}, dobeiEdges=new[]{1,4,5}, pad=14f }, // W辺(3)は松平日向側の塀
+        // 2026-08-26 json採用で頂点+1(S辺=旧辺2上に (-320.94,161.10) が index3 挿入)、辺indexを再採番:
+        //   旧辺2(SW)→辺2+辺3 / 旧辺3(E=山口境)→辺4 → dobei {2,3}→{2,3,4}
         new Estate{ group="Edo_Yashiki_MatsudairaHyuga", label="松平日向守(糸魚川藩上屋敷)",
-            poly=new[]{ new Vector2(-283.5f,266.2f), new Vector2(-386.9f,277.0f), new Vector2(-425.3f,222.7f), new Vector2(-292.3f,144.2f)},
+            poly=EdoParcels.Get("nishitameike_estates_3"),
             front=0, gateT=0.5f, gateType="nagayamon", bansho=2,
-            nagayaEdges=new[]{1}, dobeiEdges=new[]{2,3}, pad=10f },
+            nagayaEdges=new[]{1}, dobeiEdges=new[]{2,3,4}, pad=10f },
     };
 
     // ---------- shared helpers (本体は EdoBuild へ移設。ここは署名温存の委譲) ----------

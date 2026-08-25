@@ -25,22 +25,25 @@ public static class EdoSanyashikiRebuild
         public int[] nagayaEdges;                                // 前辺以外で長屋にする辺
     }
 
+    // ⚠ poly の正典 = docs/Sashizu/parcels.json(CLAUDE.md 規則10 / 2026-08-26 ユーザー裁定で json採用)
     public static SEstate[] Estates = new SEstate[]
     {
         new SEstate{ group="Edo_Yashiki_Ota",
-            poly=new[]{ new Vector2(89.8f,309.7f), new Vector2(60.8f,253.1f), new Vector2(109.5f,227.9f), new Vector2(157.5f,275.6f)},
+            poly=EdoParcels.Get("sanyashiki_estates_0"),
             front=3, gateT=0.5f, gateType="h_mon", bansho=0,
             skipEdge=new[]{0,1}, skipT0=new float[]{0,0}, skipT1=new float[]{999,999}, // W=加納/S=鍋島が受け持つ
             nagayaEdges=new int[0] },
         new SEstate{ group="Edo_Yashiki_Kano",
-            poly=new[]{ new Vector2(23.3f,343.9f), new Vector2(-28.5f,298.6f), new Vector2(58.7f,253.8f), new Vector2(88.4f,311.5f)},
+            poly=EdoParcels.Get("sanyashiki_estates_1"),
             front=3, gateT=0.5f, gateType="h_mon", bansho=1,
             skipEdge=new int[0], skipT0=new float[0], skipT1=new float[0],
             nagayaEdges=new int[0] },
+        // 2026-08-26 json採用で頂点+1(NE辺=旧辺5上に加納角 (60.72,255.69) が index6 挿入)、辺indexを再採番:
+        //   旧辺5 の加納区間(t=55m〜端)がそのまま新辺6 の全長になった → skipEdge {5}→{6}, skipT0 55→0
         new SEstate{ group="Edo_Yashiki_Matsudaira",
-            poly=new[]{ new Vector2(-30.9f,296.6f), new Vector2(-124.1f,223.0f), new Vector2(-120.6f,204.9f), new Vector2(-127.3f,197.7f), new Vector2(-21.1f,100.2f), new Vector2(107.9f,226.8f)},
+            poly=EdoParcels.Get("sanyashiki_estates_2"),
             front=4, gateT=0.5f, gateType="k_mon", bansho=1,
-            skipEdge=new[]{5}, skipT0=new float[]{55f}, skipT1=new float[]{999f}, // NE辺の加納区間は加納の壁
+            skipEdge=new[]{6}, skipT0=new float[]{0f}, skipT1=new float[]{999f}, // NE辺の加納区間(辺6全長)は加納の壁
             nagayaEdges=new int[0] },
     };
 

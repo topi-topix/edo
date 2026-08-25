@@ -48,89 +48,43 @@ public static class EdoSannoJuboBuilder
         // 2026-08-11 ユーザー下書き改訂版: 円成/成就/宝蔵は西へ詰め、東端は南北小路(x≈-386.5)の西縁。
         // 小路の東(旧P1東帯)は敷地外。宝蔵院の西辺=既存の長明院東辺(長明院所有の塀)にスナップ。
         new Parcel{ group="Edo_SannoBo_Enjoin", label="円乗院(円成院/山王社社僧)", rank=0,
-            poly=new[]{
-                new Vector2(-389.8f,722.5f),   // FE (南北小路の西縁)
-                new Vector2(-389.2f,644.6f),   // BE
-                new Vector2(-414.2f,649.7f),   // BW (成就院と共有)
-                new Vector2(-415.6f,721.0f),   // FW (成就院と共有)
-            },
+            poly=EdoParcels.Get("sannojubo_parcels_0"),
             front=3, gateT=0.5f, noWallEdges=new[]{2} },
         new Parcel{ group="Edo_SannoBo_Jojuin", label="成就院(山王社社僧)", rank=1,
-            poly=new[]{
-                new Vector2(-415.6f,721.0f),
-                new Vector2(-414.2f,649.7f),
-                new Vector2(-439.65f,658.3f),  // BW (宝蔵院と共有)
-                new Vector2(-440.8f,720.8f),   // FW
-            },
+            poly=EdoParcels.Get("sannojubo_parcels_1"),
             front=3, gateT=0.5f, noWallEdges=new[]{2} },
         new Parcel{ group="Edo_SannoBo_Hozoin", label="宝蔵院(山王社社僧)", rank=1,
-            poly=new[]{
-                new Vector2(-440.8f,720.8f),
-                new Vector2(-439.65f,658.3f),
-                new Vector2(-463.65f,670.65f), // BW (長明院と共有=既存塀ライン)
-                new Vector2(-461.75f,721.8f),  // FW
-            },
+            poly=EdoParcels.Get("sannojubo_parcels_2"),
             front=3, gateT=0.5f, noWallEdges=new[]{2} },
         new Parcel{ group="Edo_SannoBo_Chomyoin", label="長明院(長命院/山王社社僧)", rank=1,
-            poly=new[]{
-                new Vector2(-461.75f,721.8f),
-                new Vector2(-463.65f,670.65f),
-                new Vector2(-493.0f,687.9f),   // BW (福寿院と共有)
-                new Vector2(-486.5f,725.05f),  // FW
-            },
+            poly=EdoParcels.Get("sannojubo_parcels_3"),
             front=3, gateT=0.5f, noWallEdges=new[]{2} },
         new Parcel{ group="Edo_SannoBo_Fukujuin", label="福寿院(福聚院/山王社社僧)", rank=1,
-            poly=new[]{
-                new Vector2(-486.5f,725.05f),
-                new Vector2(-493.0f,687.9f),
-                new Vector2(-518.3f,702.4f),   // BW (智光院と共有)
-                new Vector2(-507.0f,733.95f),  // FW
-            },
+            poly=EdoParcels.Get("sannojubo_parcels_4"),
             front=3, gateT=0.5f, noWallEdges=new[]{2} },
         new Parcel{ group="Edo_SannoBo_Chikoin", label="智光院(山王社社僧)", rank=1,
-            poly=new[]{
-                new Vector2(-507.0f,733.95f),
-                new Vector2(-518.3f,702.4f),
-                new Vector2(-541.35f,717.95f), // BW (宝仙院と共有)
-                new Vector2(-521.3f,745.2f),   // FW
-            },
+            poly=EdoParcels.Get("sannojubo_parcels_5"),
             front=3, gateT=0.5f, noWallEdges=new[]{2} },
         new Parcel{ group="Edo_SannoBo_Hosenin", label="宝仙院(宝泉院/山王社社僧)", rank=2,
-            poly=new[]{
-                new Vector2(-521.3f,745.2f),
-                new Vector2(-541.35f,717.95f),
-                new Vector2(-554.05f,733.7f),  // BW (無量院と共有)
-                new Vector2(-533.45f,757.6f),  // FW
-            },
+            poly=EdoParcels.Get("sannojubo_parcels_6"),
             front=3, gateT=0.5f, noWallEdges=new[]{2} },
         new Parcel{ group="Edo_SannoBo_Muryoin", label="無量院(山王社社僧)", rank=1,
-            poly=new[]{
-                new Vector2(-533.45f,757.6f),
-                new Vector2(-554.05f,733.7f),
-                new Vector2(-574.85f,762.2f),  // BW (智乗院と共有)
-                new Vector2(-552.1f,775.3f),   // FW
-            },
+            poly=EdoParcels.Get("sannojubo_parcels_7"),
             front=3, gateT=0.5f, noWallEdges=new[]{2} },
         new Parcel{ group="Edo_SannoBo_Chijoin", label="智乗院(山王社社僧)", rank=1,
-            poly=new[]{
-                new Vector2(-552.1f,775.3f),   // FE (無量院と共有)
-                new Vector2(-574.85f,762.2f),  // BE
-                new Vector2(-610.4f,830.3f),   // BW (小路の南東縁)
-                new Vector2(-587.9f,836.5f),   // FW (山腹寄り)
-            },
+            poly=EdoParcels.Get("sannojubo_parcels_8"),
             front=3, gateT=0.8f, noWallEdges=new int[0] },   // 門は低平帯(FE寄り)
         new Parcel{ group="Edo_SannoBo_Jomyoin", label="常明院(山王社社僧)", rank=0,
-            poly=new[]{
-                new Vector2(-591.7f,845.7f),   // 0 SE (小路=道の終端の北西縁)
-                new Vector2(-613.8f,839.1f),   // 1 SW
-                new Vector2(-645.5f,936.2f),   // 2 NW
-                new Vector2(-584.9f,942.8f),   // 3 NE (山腹)
-                new Vector2(-600.7f,884.8f),   // 4 東中間(山裾の折れ)
-            },
-            // 辺2 = poly[2]→[3](-645.5,936.2)→(-584.9,942.8) 61.0m は**岡部筑前守邸との共有境界**。
+            poly=EdoParcels.Get("sannojubo_parcels_9"),
+            // 2026-08-26 json採用で 5→10点、辺indexを再採番(旧→新の頂点対応 0→0/1→1/2→3/3→6/4→9):
+            //   旧辺0(SE小路=表)→辺0 / 旧辺1(W水際=backEdge)→辺1+辺2 / 旧辺2(岡部共有)→辺3,4,5 /
+            //   旧辺3(NE山腹)→辺6,7,8 / 旧辺4(E山裾)→辺9。
+            // 辺3〜5 = poly[3]→[6] は**岡部筑前守邸との共有境界**。
             // ⚠ **岡部が持つ**(ユーザー裁定 2026-08-19、確度U)。岡部 Hei_S_W / Hei_S_Cd と
             //   二重になっていた(間隔 0.56〜3.06m)。囲いは1条([丸の内三丁目] 確度A)。
-            front=0, gateT=0.4f, backEdge=1, noWallEdges=new[]{2} },
+            // ⚠ backEdge は単一辺のため旧辺1 の下半(辺1)のみ穂垣。上半(辺2)は板塀になる —
+            //   水際の続きなら次の再建時に検図で裁定する(壊すより残す)。
+            front=0, gateT=0.4f, backEdge=1, noWallEdges=new[]{3,4,5} },
     };
 
     // ---------- helpers ----------

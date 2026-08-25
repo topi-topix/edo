@@ -684,6 +684,75 @@ def compass_check(d):
                         bad.append("%s の注記『%sの%s』は算出では **%s**"
                                    % (o.get("name"), ja, w, fc))
                     break
+    # 動線(折れ線)の進行方向と終点の面も見る。
+    # ⚠ 2026-08-25 検図: routes は走査対象に入っておらず、「路地を北へ」(実際は西)・
+    #    「台所棟の南面」(実際は西面)が素通りしていた。
+    for r in d.get("routes", []):
+        t = r.get("_")
+        if not isinstance(t, str) or len(r.get("pts", [])) < 2:
+            continue
+        a, b = r["pts"][-2], r["pts"][-1]
+        end = {"u0": b[0] - 0.5, "u1": b[0] + 0.5, "v0": b[1] - 0.5, "v1": b[1] + 0.5}
+        for nm, ob in boxes.items():
+            ja = MUNE_JA.get(nm, ob.get("label", nm))
+            if ja not in t:
+                continue
+            near = (ob["u0"] - 2.0 <= b[0] <= ob["u1"] + 2.0
+                    and ob["v0"] - 2.0 <= b[1] <= ob["v1"] + 2.0)
+            if not near:
+                continue
+            fc = ("南面" if b[0] < ob["u0"] else "北面" if b[0] > ob["u1"] else
+                  "東面" if b[1] < ob["v0"] else "西面" if b[1] > ob["v1"] else None)
+            for w in ("北面", "南面", "東面", "西面"):
+                if ja + "の" + w in t or ja + "棟の" + w in t:
+                    if fc and w != fc:
+                        bad.append("%s の注記『%sの%s』は算出では **%s**" % (r["name"], ja, w, fc))
+                    break
+    return bad
+
+
+def clearance_check(d):
+    """**建物どうしの隙間と、外周の囲いからの離隔。**
+    ⚠ 2026-08-25 検図: どちらも図が宣言した規則を図自身が破っていたのに、
+    検査が無かった(`overlap_check` は重なり0しか見ない)。
+    ① 土蔵は延焼を切る独立建物なので、木造の棟とは 1間(1.818m)以上あける。
+    ② 家臣長屋は練塀の躯体と基壇の底から `heiT/2 + 犬走り + 0.5s` をあける
+       (必要離隔は run の `s` に比例する — 1.50m の定数ではない)。"""
+    K = d["const"]["ken"]
+    bad = []
+    boxes = [(o["name"], o) for o in d["munes"] + d["service"]]
+    for i in range(len(boxes)):
+        for j in range(i + 1, len(boxes)):
+            n1, a = boxes[i]; n2, b = boxes[j]
+            if not (n1.startswith("Dozo") or n2.startswith("Dozo")):
+                continue
+            gu = max(a["u0"] - b["u1"], b["u0"] - a["u1"], 0.0)
+            gv = max(a["v0"] - b["v1"], b["v0"] - a["v1"], 0.0)
+            if gu > 0 and gv > 0:
+                continue                              # 斜めに離れている
+            gap = max(gu, gv) * K
+            if 0.0 < gap < 1.818 - 1e-6:
+                bad.append("%s ↔ %s の隙間 %.2fm < 1間(土蔵は延焼を切る独立建物)" % (n1, n2, gap))
+    in_parcel(d, 0, 0)
+    for o in d["service"]:
+        if not o["name"].startswith("KN_"):
+            continue
+        best = None
+        for r in d["runs"]:
+            for (uu, vv) in ((o["u0"], o["v0"]), (o["u1"], o["v0"]),
+                             (o["u0"], o["v1"]), (o["u1"], o["v1"])):
+                dd, e, sv = _par_near(d, uu, vv)
+                if r["edge"] != e or not (r["s0"] - 1.0 <= sv <= r["s1"] + 1.0):
+                    continue
+                if best is None or dd < best[0]:
+                    best = (dd, r)
+        if best is None:
+            continue
+        need = (d["const"]["dobeiT"] / 2.0 + d["const"]["inubashiri"] + 0.5 * best[1]["s"])
+        got = best[0] * K
+        if got < need - 1e-6:
+            bad.append("%s の離隔 %.2fm < 必要 %.2fm(%s・s=%.2f)"
+                       % (o["name"], got, need, best[1]["name"], best[1]["s"]))
     return bad
 
 
@@ -1411,6 +1480,42 @@ def _dem_at(d, u, v):
                 h = E["h"][j][i]
                 if h is not None:
                     acc += h * wu * wv; wt += wu * wv
+    if wt > 1e-9:
+        return acc / wt
+    # ⛔ **区画の外は捏造しない。** okabe_edo_dem は区画でクリップされているので、外は null。
+    #    ここで端点値へクランプすると、断面の余白に平坦な棚が生えて隣地と街路の高さが嘘になる
+    #    (2026-08-25 検図: 16本すべてで最大 5.88m ずれていた)。
+    #    区画の外は **okabe_edo_world.json**(区画外=正本そのもの)から双一次で拾う。
+    return _world_at(d, u, v)
+
+
+_WLD = {}
+
+
+def _world_at(d, u, v):
+    """区画の外の地盤。`okabe_edo_world.json`(区画の中=復元 / 外=正本)から双一次で拾う。"""
+    key = id(d)
+    if key not in _WLD:
+        try:
+            _WLD[key] = (json.load(open(os.path.join(DOC, "okabe_edo_world.json"), encoding="utf-8")),
+                         RGrid(d))
+        except Exception:
+            _WLD[key] = None
+    if not _WLD[key]:
+        return None
+    W, gr = _WLD[key]
+    x, z = gr.W(u, v)
+    fx = (x - W["x0"]) / float(W["step"]); fz = (z - W["z0"]) / float(W["step"])
+    i0, j0 = int(math.floor(fx)), int(math.floor(fz))
+    tx, tz = fx - i0, fz - j0
+    acc = wt = 0.0
+    for dj, wv in ((0, 1 - tz), (1, tz)):
+        for di, wu in ((0, 1 - tx), (1, tx)):
+            i, j = i0 + di, j0 + dj
+            if 0 <= j < W["nz"] and 0 <= i < W["nx"]:
+                h = W["h"][j][i]
+                if h is not None:
+                    acc += h * wu * wv; wt += wu * wv
     return acc / wt if wt > 1e-9 else None
 
 
@@ -2023,6 +2128,30 @@ def key_plan(d, axis, W=760.0):
 
 
 # ---------------------------------------------------------------- 断面
+def _sec_ends(d, sec):
+    """断面の両端が区画のどの辺に当たるかを算出して、隣は誰かで返す。"""
+    gr = RGrid(d)
+    P = d["polygon"]
+    n = len(P)
+    lo, hi = _sec_span(d, sec)
+    out = []
+    for w in (lo + 3.0, hi - 3.0):
+        u, v = (sec["at"], w) if sec["axis"] == "u" else (w, sec["at"])
+        x, z = gr.W(u, v)
+        best = None
+        for i in range(n):
+            a, b = P[i], P[(i + 1) % n]
+            dx, dz = b[0] - a[0], b[1] - a[1]
+            L2 = dx * dx + dz * dz or 1e-9
+            t = max(0.0, min(1.0, ((x - a[0]) * dx + (z - a[1]) * dz) / L2))
+            dd = math.hypot(x - (a[0] + dx * t), z - (a[1] + dz * t))
+            if best is None or dd < best[0]:
+                best = (dd, i)
+        e = d["edges"][best[1]] if best[1] < len(d["edges"]) else {}
+        out.append("辺%d %s" % (best[1], e.get("neighbor", "")))
+    return out[0], out[1]
+
+
 def _sec_span(d, sec):
     """断面の描画範囲を**区画から算出する**(±2間の余白)。
     ⚠ 2026-08-25 検図: 追加した2本とも from/to を既存の断面からコピーしており、
@@ -2365,14 +2494,18 @@ def section_svg(d, sec):
         if run is None:
             continue                                  # 門の開口
         hh = 5.3 if run["kind"] == "Nagaya" else d["const"]["dobeiH"]
-        gy = ground_at(w)
         seat = rseat(run, bs)                         # 天端は一直線(水平 or 一定勾配)
+        # ⛔ **基壇の足元は `edgeProfile` から取る**(断面の地盤線からではない)。
+        #    同じ壁の露出が「断面の地盤」と「外周の展開」の二つの基準面から出ていて、
+        #    27箇所中16箇所が 0.30m 超ずれ、2本は断面上で壁が土に埋もれていた(2026-08-25 検図)。
+        gy = seat - _run_exposure(d, run, bs)
         if seat > gy + 0.05:                          # 基壇石垣
             g.append(R(X(w) - sx * 0.9, Y(seat), sx * 1.8, (seat - gy) * sx * ex,
                        fill=_pat(), stroke="var(--ishi)", sw=1.0))
         g.append(R(X(w) - sx * 0.7, Y(seat + hh), sx * 1.4, hh * sx * ex,
                    fill=KC.get(run["kind"], "var(--dim)"), op=0.95))
-        g.append(T(X(w), Y(seat + hh) - 5, "%s %.2f" % (run["name"], seat), "jo", "middle"))
+        g.append(T(X(w), Y(seat + hh) - 5, "%s 天端%.2f 露出%.2f"
+                   % (run["name"], seat, seat - gy), "jo", "middle"))
 
     # 表門(断面Aのみ)
     if sec["axis"] == "u" and abs(sec["at"]) < 2:
@@ -2383,8 +2516,11 @@ def section_svg(d, sec):
         g.append(T(X(0), Y(d["gate"]["sill"] + gpn["monH"]) - 5, "表門", "anG", "middle"))
 
     # 端の囲い(polygon との交点に立つ run)
-    g.append(T(4, 15, sec["_"].split("→")[0].split("。")[0] + " →", "anS"))
-    g.append(T(W - 4, 15, "→ " + sec["_"].split("→")[-1].split("。")[0], "anS", "end"))
+    # 端のラベルは**算出**する。⚠ 2026-08-25 検図: 注記の「→」の連鎖から作っていたので、
+    #   連鎖の無い断面では左右に同じ文字列が出ていた。
+    e0, e1 = _sec_ends(d, sec)
+    g.append(T(4, 15, e0 + " →", "anS"))
+    g.append(T(W - 4, 15, "→ " + e1, "anS", "end"))
     # 江戸期地盤のレンジは**この断面の natural から算出**する(注記に書き写さない)
     if nat:
         g.append(T(W - 4, 30, "江戸期地盤 %.2f〜%.2f" % (min(y for _x, y in nat),
@@ -3404,6 +3540,11 @@ def main():
         print("⚠ 据面の内側の落ち込み %d 件:" % len(sbad))
         for b in sbad:
             print("   ", b)
+    clbad = clearance_check(d)
+    if clbad:
+        print("⚠ 離隔 %d 件:" % len(clbad))
+        for b in clbad:
+            print("   ", b)
     cbad = compass_check(d)
     if cbad:
         print("⚠ 方位語 %d 件:" % len(cbad))
@@ -3446,8 +3587,9 @@ def main():
              '<b>数値をこの文書に書き足さないこと。</b></p>')
     h.append('<div class="box" style="border-color:var(--shu)"><h3>⚠ この指図はまだ実装されていない</h3><p>'
              '<b>Unity のシーンにあるのは 2026-08-23 のゼロベース改稿より前の設計</b>で、この図とは'
-             '座標系ごと別物。実装の <code>EdoOkabeYashikiBuilder.cs</code> は存在しない章'
-             '(**存在しない章 其十六 5件、および番号がずれて別章を指す参照 84件**)を参照し、run 名・面の高さ・郭の土留めのいずれも一致しない。'
+             '座標系ごと別物。実装の <code>EdoOkabeYashikiBuilder.cs</code> は'
+             '<b>存在しない章と、番号がずれて別章を指す参照</b>を持ち、'
+             'run 名・面の高さ・郭の土留めのいずれも一致しない。'
              '<b>図を現物と照合しないこと。</b>順序は <code>_pending.junjo ③</code>(実装の全面書き直し)。</p></div>')
     h.append('<div class="box"><h3>作る順序</h3><p>'
              '① 設計=<code>json</code>/<code>md</code> を直す → ② 組む → ③ 検図(edo-kosho / edo-kenzu)'

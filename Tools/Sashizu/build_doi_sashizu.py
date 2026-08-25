@@ -1644,7 +1644,13 @@ def shared_edge_check(d, base):
         if not os.path.exists(path):
             continue
         w = load_terrain(path)
-        for e in range(len(P)):
+        # ⚠ **共有辺だけを見る。** かつて全辺を回しており、隣家の復元ファイルが
+        #   たまたま当家の**共有でない辺**に届いていると、隣家が自分の敷地の中で
+        #   正当に復元した値を「境界を動かした」と report していた
+        #   (2026-08-25 検図14巡の下ごしらえで自分の検査の誤りとして見つけた)。
+        #   当家(土井)は自分の全辺を見る — どの境界も動かしてはならないため。
+        edges = range(len(P)) if who == "土井" else NEIGHBOUR.get(who, (None, ()))[1]
+        for e in edges:
             a, b = P[e], P[(e + 1) % len(P)]
             L = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
             worst = 0.0

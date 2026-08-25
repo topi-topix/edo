@@ -13,11 +13,10 @@
 //   の対象を**設計値・文章・生成器・図・実装・台帳・メモリの7面**へ広げたので、
 //   ここに書いた考証も照合される。⚠ それでも**写さない** — 正典が二つになれば必ず片方が古びる。
 // 【地形】地盤の正本は docs/Sashizu/base_dem.json(CLAUDE.md 規則12)。
-//   ⛔ **土井区画の Stage0_Terrain() の平滑化(x -537..-462 / z 1106..1172 の <25.9m)は箱が広すぎる。**
-//   この箱は (a) 玄関の郭の掘削跡(近代・埋め戻してよい)と
-//   (b) 南東の谷(1883年図に○19.5があり**江戸期の地形**)を**まとめて潰している**。
-//   2026-08-25 に土井は江戸期の復元地盤 docs/Sashizu/doi_edo_world.json を起こしたので、
-//   **平滑化をやめてそれを読む**か、箱を掘削跡(x -530..-492 / z 1118..1140)まで絞ること。
+//   土井区画の Stage0_Terrain() は**江戸期の復元地盤 docs/Sashizu/doi_edo_world.json を読む**
+//   (2026-08-25)。かつての平滑化は箱が広すぎ、玄関の郭の掘削跡(近代)と
+//   南東の谷(江戸期の地形)をまとめて潰していた。考証は指図側の生成器が持ち、
+//   ⛔ **C# では作り直さない** — 正典が二つになれば必ず片方が古びる。
 //   ⛔ Unity の live terrain から採らない。造成の手順は各屋敷の指図の切盛図に従う。
 using System;
 using System.Collections.Generic;
@@ -269,23 +268,51 @@ public static class EdoSannoKitaBuilder
             td.SetHeightsDelayLOD(x0, z0, H);
             sb.AppendLine("bench relax cells=" + nm);
         }
-        // --- 2) 土井区画内の浅い掘り込み(メキシコ大使館)を軽く緩和 ---
+        // --- 2) 土井区画 = 江戸期の復元地盤 docs/Sashizu/doi_edo_world.json を**読んで載せる** ---
+        //     ⛔ ここで平滑化しない。かつては x -537..-462 / z 1106..1172 の <25.9m を
+        //     400回ラプラシアンで均していたが、その箱は
+        //       (a) 玄関の郭の掘削跡(近代・埋め戻してよい)と
+        //       (b) 南東の谷(1883年図に○19.5があり**江戸期の地形**)
+        //     を**まとめて潰していた**。2026-08-25、土井は復元地盤を正典として起こしたので、
+        //     実装は**それを読むだけ**にする(考証を C# 側で二重に実装しない)。
+        //     復元は自区画でクリップ済み・触ったセルは `_reconBox` に実測で入っている。
         {
-            int x0 = IX(-537f), x1 = IX(-462f), z0 = IZ(1106f), z1 = IZ(1172f);
-            int w = x1 - x0 + 1, h = z1 - z0 + 1;
-            var H = td.GetHeights(x0, z0, w, h);
-            var mov = new bool[h, w]; int nm = 0;
-            for (int z = 1; z < h - 1; z++) for (int x = 1; x < w - 1; x++)
-                if (HtoW(H[z, x]) < 25.9f) { mov[z, x] = true; nm++; }
-            for (int it = 0; it < 400; it++)
+            string rel = "docs/Sashizu/doi_edo_world.json";
+            string full = System.IO.Path.Combine(
+                System.IO.Directory.GetParent(Application.dataPath).FullName, rel);
+            if (!System.IO.File.Exists(full)) { sb.AppendLine("doi edo dem NOT FOUND: " + rel); }
+            else
             {
-                var H2 = (float[,])H.Clone();
-                for (int z = 1; z < h - 1; z++) for (int x = 1; x < w - 1; x++)
-                    if (mov[z, x]) H2[z, x] = (H[z - 1, x] + H[z + 1, x] + H[z, x - 1] + H[z, x + 1]) * 0.25f;
-                H = H2;
+                var root = EdoMiniJson.Parse(System.IO.File.ReadAllText(full)) as Dictionary<string, object>;
+                double dx0 = Convert.ToDouble(root["x0"]), dz0 = Convert.ToDouble(root["z0"]);
+                double dstep = Convert.ToDouble(root["step"]);
+                var rows = root["h"] as List<object>;
+                // 復元が触った範囲だけを載せる(箱の外は正本と同値なので書いても同じだが、
+                // 触る範囲を最小にするのが地形編集の作法 — Undo が効かない)
+                var bx = root["_reconBox"] as List<object>;
+                float rx0 = (float)Convert.ToDouble(bx[0]), rx1 = (float)Convert.ToDouble(bx[1]);
+                float rz0 = (float)Convert.ToDouble(bx[2]), rz1 = (float)Convert.ToDouble(bx[3]);
+                int x0 = IX(rx0 - 4f), x1 = IX(rx1 + 4f), z0 = IZ(rz0 - 4f), z1 = IZ(rz1 + 4f);
+                int w = x1 - x0 + 1, h = z1 - z0 + 1;
+                var H = td.GetHeights(x0, z0, w, h);
+                int nm = 0;
+                for (int z = 0; z < h; z++) for (int x = 0; x < w; x++)
+                {
+                    // 世界座標 → 復元格子の双一次
+                    double fx = (WX(x0 + x) - dx0) / dstep, fz = (WZ(z0 + z) - dz0) / dstep;
+                    int ix = (int)Math.Floor(fx), iz = (int)Math.Floor(fz);
+                    if (ix < 0 || iz < 0 || iz + 1 >= rows.Count) continue;
+                    var r0 = rows[iz] as List<object>; var r1 = rows[iz + 1] as List<object>;
+                    if (ix + 1 >= r0.Count) continue;
+                    double tx = fx - ix, tz = fz - iz;
+                    double a = Convert.ToDouble(r0[ix]) * (1 - tx) + Convert.ToDouble(r0[ix + 1]) * tx;
+                    double b = Convert.ToDouble(r1[ix]) * (1 - tx) + Convert.ToDouble(r1[ix + 1]) * tx;
+                    H[z, x] = WtoH((float)(a * (1 - tz) + b * tz)); nm++;
+                }
+                td.SetHeightsDelayLOD(x0, z0, H);
+                sb.AppendLine("doi edo dem cells=" + nm + " box x" + rx0 + ".." + rx1
+                              + " z" + rz0 + ".." + rz1);
             }
-            td.SetHeightsDelayLOD(x0, z0, H);
-            sb.AppendLine("doi relax cells=" + nm);
         }
         // --- 3) 岡部の段丘 T1=15.0(門前〜表庭) / T2=19.0(表御殿) — 近代改変域(x>=-472)内のみ ---
         {

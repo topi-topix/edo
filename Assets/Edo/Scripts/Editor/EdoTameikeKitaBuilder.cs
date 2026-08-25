@@ -31,7 +31,6 @@ public static class EdoTameikeKitaBuilder
     const string PBigHouse = EdoAssets.VK.BigHouse;
     const string PManor = EdoAssets.VK.Manor;
     const float ES = 1.818f;
-    const float PITCH = 7.81f;
 
     public class Estate
     {
@@ -182,68 +181,15 @@ public static class EdoTameikeKitaBuilder
     }
 
     // ---------- nagaya run (地形追従) ----------
+    /// <summary>2026-08-26 Phase 4a 統一: 旧 fork(PITCH=7.81 の span 均等割り・全継ぎ目 0.25m 食い込み)を廃し、
+    /// 実寸カーソル方式の EdoNishiTameikeBuilder.NagayaRun へ委譲する。
+    /// この fork は常に地形追従だったので NaturalMode を立てて呼ぶ(baseY=0 は接地に使われない)。</summary>
     public static List<GameObject> NagayaRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, Vector2 gapC, float gapHalf, string prefix)
     {
-        var made = new List<GameObject>();
-        Vector2 dir = (B - A).normalized; float len = (B - A).magnitude;
-        float psi = Mathf.Atan2(outward.x, outward.y) * Mathf.Rad2Deg;
-        float rad = psi * Mathf.Deg2Rad;
-        Vector2 negRight = new Vector2(-Mathf.Cos(rad), Mathf.Sin(rad));
-        Vector2 sA = A, sB = B; Vector2 rdir = dir;
-        if (Vector2.Dot(dir, negRight) < 0) { sA = B; sB = A; rdir = -dir; }
-        float span = len - 4.4f - 3.7f;
-        int n = Mathf.Max(2, Mathf.CeilToInt(span / PITCH) + 1);
-        float pitchRun = span / (n - 1);
-        float t0 = 4.4f;
-        var kept = new List<float>();
-        for (int k = 0; k < n; k++)
-        {
-            float tk = t0 + pitchRun * k;
-            if (gapHalf > 0)
-            {
-                float gT = Vector2.Dot(gapC - sA, rdir);
-                float skipLo = gT - gapHalf - 3.9f, skipHi = gT + gapHalf + 3.9f;
-                if (tk + 3.6f > skipLo && tk - 4.3f < skipHi) continue;
-            }
-            kept.Add(tk);
-        }
-        for (int k = 0; k < kept.Count; k++)
-        {
-            float tk = kept[k];
-            bool lowEnd = (k == 0) || (kept[k] - kept[k - 1] > pitchRun * 1.5f);
-            bool highEnd = (k == kept.Count - 1) || (kept[k + 1] - kept[k] > pitchRun * 1.5f);
-            string path = lowEnd ? PKnagayaL : (highEnd ? PKnagayaR : PKnagayaC);
-            if (lowEnd && highEnd) path = PKnagayaC;
-            var c2 = sA + rdir * tk;
-            float g0 = Ground(c2.x - rdir.x * 4f, c2.y - rdir.y * 4f);
-            float g1 = Ground(c2.x + rdir.x * 4f, c2.y + rdir.y * 4f);
-            float gc = Ground(c2.x, c2.y);
-            float pieceBase = Mathf.Min(g0, Mathf.Min(g1, gc));
-            var go = Place(path, new Vector3(c2.x, pieceBase, c2.y), psi, new Vector3(ES, ES, ES), parent, prefix + "_" + k);
-            SeatBottom(go, pieceBase - 0.10f);
-            made.Add(go);
-        }
-        if (made.Count > 0) VerifyFlipOutward(made, outward, prefix);
-        return made;
-    }
-    static void VerifyFlipOutward(List<GameObject> mods, Vector2 outward, string prefix)
-    {
-        var probe = mods[Mathf.Min(1, mods.Count - 1)];
-        float mn, mx;
-        ProjExtent(probe, outward, -100, 1000, nm => nm.ToLower().Contains("namako"), out mn, out mx);
-        if (mn == float.MaxValue) return;
-        var c = RB(probe).center; float cp = c.x * outward.x + c.z * outward.y;
-        if (mx < cp)
-        {
-            foreach (var go in mods)
-            {
-                var b0 = RB(go);
-                go.transform.rotation *= Quaternion.Euler(0, 180, 0);
-                var b1 = RB(go);
-                go.transform.position += b0.center - b1.center;
-            }
-            Debug.LogWarning(prefix + ": namako was inward -> flipped 180");
-        }
+        bool nm0 = EdoNishiTameikeBuilder.NaturalMode;
+        EdoNishiTameikeBuilder.NaturalMode = true;
+        try { return EdoNishiTameikeBuilder.NagayaRun(parent, A, B, outward, 0f, gapC, gapHalf, prefix); }
+        finally { EdoNishiTameikeBuilder.NaturalMode = nm0; }
     }
 
     // ---------- dobei run (表裏ペア・地形追従) ----------
@@ -468,8 +414,12 @@ public static class EdoTameikeKitaBuilder
         Undo.RegisterCreatedObjectUndo(g, "umaya");
         var m1 = Place(PKnagayaL, Vector3.zero, psi, Vector3.one * ES, g.transform, "u0");
         var m2 = Place(PKnagayaR, Vector3.zero, psi, Vector3.one * ES, g.transform, "u1");
-        Vector2 p1 = c - negRight * (PITCH * 0.5f);
-        Vector2 p2 = c + negRight * (PITCH * 0.5f);
+        // 実寸突き付け(2026-08-26): 壁実寸 l/r=7.910m を測り、ペアの壁中心を c に合わせる
+        var ml = EdoNishiTameikeBuilder.NagayaMeasure(PKnagayaL);
+        var mr = EdoNishiTameikeBuilder.NagayaMeasure(PKnagayaR);
+        float half = (ml.W + mr.W) * 0.5f;
+        Vector2 p1 = c + negRight * (-half + ml.hi);
+        Vector2 p2 = c + negRight * (-half + ml.W + mr.hi);
         m1.transform.position = new Vector3(p1.x, y, p1.y);
         m2.transform.position = new Vector3(p2.x, y, p2.y);
         SeatBottom(m1, y - 0.10f); SeatBottom(m2, y - 0.10f);

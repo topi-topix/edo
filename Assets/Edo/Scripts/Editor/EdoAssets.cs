@@ -241,6 +241,24 @@ public static class EdoAssets
         public const string MKidobanya  = "Assets/Edo/Materials/M_Kidobanya.mat";
         public const string MJishinban  = "Assets/Edo/Materials/M_Jishinban.mat";
 
+        /// <summary>松江松平邸の表門 — **屋根なしの冠木門**(角柱・冠木・内開き扉・潜り戸・袖塀の一体物)。
+        /// 姿は温古写真集11(88005761・明治初撮影)の実見【A】+『日本案内記 関東篇』昭和5年【A】。
+        /// ⚠ 切妻小屋根を載せる前案は 2026-08-23 に撤回済み。**屋根なしが正**。
+        /// 在庫の es_kmon は薬医門(小屋根あり)、es_kabukimon は柱高3.74mで指図の5.2mに足りない。
+        /// 実寸 W13.12 × D0.52 × H5.30(開口13.0m=五千分一図の実測)。
+        /// **ピボット = 門の芯・敷居レベル**なので gate.pos と gate.sill をそのまま使える。
+        /// 生成: blender --background --python Tools/Blender/build_matsudaira_omotemon.py -- [--render]</summary>
+        public const string MatsudairaOmotemon = "Assets/Edo/Models/Mon/Matsudaira_Omotemon.fbx";
+
+        /// <summary>松江松平邸の表門の番所 — **向唐破風・出格子・切石畳出の基壇**。左右に2棟。
+        /// 姿は温古写真集11【A】+『日本案内記 関東篇』昭和5年「両側に唐破風造の番所」【A】。
+        /// 在庫の es_dbansho(3.6×2.1m)は規模も意匠も不足。指図 gate.plan.bansho は 5.5×3.6m・張出2.0m。
+        /// ⚠ 唐破風は**中央が起り・両端が照りで反り上がる S 字**。単純な sin にすると樽屋根になる。
+        /// ⚠ 出格子は**細い竪子を密に**。太い方立を疎に並べると牢格子に見える。
+        /// **ピボット = 走り方向の芯・基壇の下端**。
+        /// 生成: blender --background --python Tools/Blender/build_matsudaira_bansho.py -- [--render]</summary>
+        public const string MatsudairaBansho = "Assets/Edo/Models/Mon/Matsudaira_Bansho.fbx";
+
         public const string LayerGrass  = "Assets/Edo/Terrain/layers/L_grass.terrainlayer";
     }
 }

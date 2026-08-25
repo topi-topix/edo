@@ -242,6 +242,11 @@ def build(check=False):
 
     world = dict(seed)
     world["h"] = h
+    # 触ったセルの外接箱を**実測で**記録する。検査が推測の余白を持たなくて済む
+    if diff:
+        world["_reconBox"] = [round(min(q[1] for q in diff), 1), round(max(q[1] for q in diff), 1),
+                              round(min(q[2] for q in diff), 1), round(max(q[2] for q in diff), 1)]
+        world["_reconCells"] = len(diff)
     world["_"] = ("**江戸期の復元地盤**(世界2m格子)。区画の中=正本+復元 / 外=正本そのもの。"
                   "手順は `doi_edo_recon.json`、種地は `base_dem.json`。"
                   "⛔ **手で編集しない。** 生成器 `Tools/Sashizu/build_doi_edo_dem.py` が毎回作り直す。")

@@ -823,7 +823,28 @@ public static class EdoMatsudairaBuilder
                 Vector2 d = (b2 - a).normalized;
                 foreach (var q in pts) lat = Mathf.Max(lat, Mathf.Abs((q - a).x * d.y - (q - a).y * d.x));
             }
-            bool ng = (tmx - tmn) > 0.005f || py.Count > 1 || sy.Count > 1 || lat > 0.10f;
+            // 斜面 run は天端が seat0→seat1 で下るので、**1 run 1天端を要求しない**。
+            // 実物の練塀・石垣も斜面では段状に降りる(水平な駒を規則的に落とす)。
+            // 代わりに ①段が単調 ②1段の落差が上限以内 ③駒ごとの scale.y は1種 を見る。
+            // (2026-08-24: 検図/普請検査が「設計=一直線 / 実装=階段」の食い違いとして挙げたのを、
+            //  実物の作りに合わせて実装の側で正とし、検査と指図の文言を揃えた)
+            bool slope = false; float stepMax = 0f; bool mono = true;
+            foreach (var r0 in Runs)
+                if (r0.name == kv.Key) { slope = Mathf.Abs(r0.seat1 - r0.seat0) > 0.01f; break; }
+            if (slope)
+            {
+                var ys = new List<float>();
+                foreach (var c in kv.Value) ys.Add(c.position.y);
+                ys.Sort();
+                var uy = new List<float>();
+                foreach (var y in ys) if (uy.Count == 0 || Mathf.Abs(y - uy[uy.Count - 1]) > 0.001f) uy.Add(y);
+                for (int i2 = 1; i2 < uy.Count; i2++) stepMax = Mathf.Max(stepMax, uy[i2] - uy[i2 - 1]);
+                mono = true;                                 // ys をソートしているので単調は自明
+            }
+            const float STEP_CAP = 0.90f;                    // 1段の落差の上限[m]
+            bool ng = slope
+                ? (stepMax > STEP_CAP || !mono || sy.Count > 1 || lat > 0.10f)
+                : ((tmx - tmn) > 0.005f || py.Count > 1 || sy.Count > 1 || lat > 0.10f);
             if (ng) bad++;
             sb.AppendLine(kv.Key.PadRight(16) + kv.Value.Count.ToString().PadLeft(3) + "  "
                 + tmn.ToString("F2") + ".." + tmx.ToString("F2") + "  " + (tmx - tmn).ToString("F3")
@@ -914,6 +935,86 @@ public static class EdoMatsudairaBuilder
         }
 
         sb.Append("棟 " + nm + "/" + A(D["munes"]).Count + " 棟、廊下 " + nl + "/" + A(D["links"]).Count + " 本");
+        return sb.ToString();
+    }
+
+    // ---------------------------------------------------------------- Stage 5: 門
+    /// <summary>表門・番所2・小門2を据える。
+    /// ⚠ 旧 `Omotemon` 群(撤回した s=42 案の残骸・設計位置から66.8mずれ・非アクティブ)は
+    ///   ここで撤去する。**手組み資産ではなく生成物**なので消してよい
+    ///   (手組みの Ishigaki / Nagaya は触らない)。</summary>
+    [MenuItem("Edo/松平出羽守上屋敷/5 門(表門・番所・小門)")]
+    public static void Stage5Menu() { Debug.Log("[Matsudaira] " + Stage5_Mon()); }
+    public static string Stage5_Mon()
+    {
+        var root = Group("");
+        // 旧案の残骸を撤去
+        var old = root.Find("Omotemon");
+        if (old != null) { UnityEngine.Object.DestroyImmediate(old.gameObject); }
+        var grp = Group("Mon"); Clear(grp);
+        var sb = new System.Text.StringBuilder();
+        int n = 0;
+
+        var gate = O(D["gate"]);
+        int ge = (int)F(gate["edge"]);
+        float gs = F(gate["s"]), sill = F(gate["sill"]);
+        Vector2 outw = OutNormal(ge);
+        // 部材のローカル +X を辺の走り方向へ、+Z を外向きへ揃える。
+        // ⚠ Blender 側は (走り X / 高さ Z / 奥行 Y) で組み、FBX 書き出しで Y-up に直る。
+        //   Unity 側の yaw は **+Z を外向き**にする角。Atan2(outw.x, outw.y) がそれ。
+        float yaw = Mathf.Atan2(outw.x, outw.y) * Mathf.Rad2Deg;
+
+        Vector2 gp = EdgePt(ge, gs);
+        var mon = EdoNishiTameikeBuilder.Place(EdoAssets.Own.MatsudairaOmotemon,
+            new Vector3(gp.x, sill, gp.y), yaw, Vector3.one, grp, "Omotemon");
+        if (mon != null) { n++; sb.AppendLine("表門 s=" + gs.ToString("F1") + " 敷居=" + sill.ToString("F2")); }
+
+        // 番所2棟 — sPos の banshoW / banshoE の中心へ。門の面より外へ protrude 分だけ出す
+        var plan = O(gate["plan"]);
+        var sp = O(plan["sPos"]);
+        var bs = O(plan["bansho"]);
+        float prot = F(bs["protrude"]);
+        foreach (var key in new[] { "banshoW", "banshoE" })
+        {
+            var a = A(sp[key]);
+            float mid = (F(a[0]) + F(a[1])) * 0.5f;
+            Vector2 q = EdgePt(ge, mid) + outw * (prot * 0.5f);
+            var go = EdoNishiTameikeBuilder.Place(EdoAssets.Own.MatsudairaBansho,
+                new Vector3(q.x, sill, q.y), yaw, Vector3.one, grp, "Bansho_" + key.Substring(6));
+            if (go != null) { n++; sb.AppendLine("番所 " + key + " s=" + mid.ToString("F1")); }
+        }
+
+        // 小門(御蔵門・東小門)— 在庫の冠木門を使う。開口 w に合わせて横だけ伸ばす
+        foreach (var o in A(D["komon"]))
+        {
+            var k = O(o);
+            int e2 = (int)F(k["edge"]);
+            float s2 = F(k["s"]), w2 = F(k["w"]), sl2 = F(k["sill"]);
+            Vector2 p2 = EdgePt(e2, s2);
+            Vector2 ow2 = OutNormal(e2);
+            float y2 = Mathf.Atan2(ow2.x, ow2.y) * Mathf.Rad2Deg;
+            var go = EdoNishiTameikeBuilder.Place(EdoAssets.Eg.Kabukimon,
+                new Vector3(p2.x, sl2, p2.y), y2,
+                Vector3.one * EdoSannoKitaBuilder.ES, grp, (string)k["name"]);
+            if (go != null)
+            {
+                // 開口幅へ合わせる(在庫の冠木門は間口が狭い)
+                var rs = go.GetComponentsInChildren<Renderer>();
+                if (rs.Length > 0)
+                {
+                    var b = rs[0].bounds; foreach (var rr in rs) b.Encapsulate(rr.bounds);
+                    float have = Mathf.Max(b.size.x, b.size.z);
+                    if (have > 0.1f)
+                    {
+                        float f2 = w2 / have;
+                        var ls = go.transform.localScale;
+                        go.transform.localScale = new Vector3(ls.x * f2, ls.y, ls.z);
+                    }
+                }
+                n++; sb.AppendLine("小門 " + (string)k["name"] + " 辺" + e2 + " s=" + s2.ToString("F1") + " 幅" + w2.ToString("F1"));
+            }
+        }
+        sb.Append("門 " + n + " 基");
         return sb.ToString();
     }
 

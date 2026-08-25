@@ -55,60 +55,37 @@ public static class EdoToranomonUchiBuilder
     // 境界の定義:
     //   内藤SE辺=外堀NW護岸(Ishigaki_Ext_3, 天端8.48)の天端線から10-15m内側=堀端通りの内縁。
     //   内藤NE辺=枡形前街路のSW縁(村瀬N辺と同一直線)。小倉・林S辺=内藤N境界(共有・壁は内藤持ち)。
+    // ⚠ poly の正典 = docs/Sashizu/parcels.json(CLAUDE.md 規則10 / 2026-08-26 ユーザー裁定で json採用)
     public static Parcel[] Parcels = new Parcel[]
     {
+        // 内藤 11角形: 0=NE角(村瀬NW角と共有) 2→3=堀端通り内縁(表) 4=S角(溜池端) 7=NW角(林SW角と共有)
         new Parcel{ group="Edo_Yashiki_NaitoNoto", label="内藤能登守(延岡藩7万石)上屋敷",
-            poly=new[]{
-                new Vector2(289f,543f),      // 0 NE角(村瀬NW角と共有・枡形前街路の南縁)
-                new Vector2(281f,509f),      // 1 村瀬SW角と共有
-                new Vector2(315f,490f),      // 2 村瀬S角と共有=堀端通り内縁の北端
-                new Vector2(182f,359f),      // 3 堀端通り内縁の南西端
-                new Vector2(69f,417f),       // 4 S角(溜池端の道との角・辻番所北)
-                new Vector2(95f,556f),       // 5 西辺の折れ
-                new Vector2(66f,611f),       // 6 西街路との角
-                new Vector2(73.5f,630.5f),   // 7 NW角(林SW角と共有)
-                new Vector2(111.5f,615f),    // 8 林/小倉境の背割り点
-                new Vector2(163.5f,598f),    // 9 小倉SE角と共有
-                new Vector2(167f,592f),      // 10 枡形前街路 南縁の西端
-            },
+            poly=EdoParcels.Get("toranomonuchi_parcels_0"),
             front=2, gateT=0.18f, gateType="k_mon", bansho=2,   // 表門=堀端通り北寄り(文字の頭=北東・虎御門側)
             nagayaEdges=new[]{3,4,10},                          // 南(溜池端)・西下・枡形前街路=表長屋
             dobeiEdges=new[]{0,1,5,6,7,8,9} },
+        // 村瀬 5角形: 0=NW角 1=NE角(虎御門への道沿い) 3=S角 4=SW角
         new Parcel{ group="Edo_Yashiki_Murase", label="村瀬平四郎(2500石)",
-            poly=new[]{
-                new Vector2(291f,542f),      // 0 NW角
-                new Vector2(339f,522f),      // 1 NE角(虎御門への道沿い)
-                new Vector2(330f,504f),      // 2
-                new Vector2(317f,492f),      // 3 S角
-                new Vector2(281f,509f),      // 4 SW角
-            },
+            poly=EdoParcels.Get("toranomonuchi_parcels_1"),
             front=0, gateT=0.5f, gateType="h_mon", bansho=0,    // 表門=北西の枡形前街路(文字の頭=北西)
             dobeiEdges=new[]{1,2},
             noWallEdges=new[]{3,4} },                           // 南西は内藤持ち
+        // 小倉 4角形: 0=SE角 1=NE角 2=NW角(林NE角と共有) 3=SW角(林SE角と共有)
         new Parcel{ group="Edo_Yashiki_Ogura", label="御小姓組 小倉鈴之進",
-            poly=new[]{
-                new Vector2(163.5f,598f),    // 0 SE角
-                new Vector2(176.5f,636f),    // 1 NE角
-                new Vector2(126f,655f),      // 2 NW角(林NE角と共有)
-                new Vector2(111.5f,615f),    // 3 SW角(林SE角と共有)
-            },
+            poly=EdoParcels.Get("toranomonuchi_parcels_2"),
             front=1, gateT=0.65f, gateType="kabukimon", bansho=0, // 表門=北の湾曲街路(文字の頭=北)
             dobeiEdges=new[]{0,2},
             noWallEdges=new[]{3} },                             // 南は内藤持ち
+        // 林 4角形: 0=SW角 1=NW角 2=NE角 3=SE角
         new Parcel{ group="Edo_Yashiki_HayashiZusho", label="林図書助(二ノ丸御留守居500石)",
-            poly=new[]{
-                new Vector2(73.5f,630.5f),   // 0 SW角
-                new Vector2(84.6f,667.6f),   // 1 NW角
-                new Vector2(126f,655f),      // 2 NE角
-                new Vector2(111.5f,615f),    // 3 SE角
-            },
+            poly=EdoParcels.Get("toranomonuchi_parcels_3"),
             front=1, gateT=0.5f, gateType="kabukimon", bansho=1, // 表門=北の湾曲街路(布衣役の体面で番所1)
             dobeiEdges=new[]{0},
             noWallEdges=new[]{2,3} },                           // 東は小倉持ち/南は内藤持ち
     };
 
     // ---------- helpers ----------
-    static float Ground(float x, float z) { return EdoNishiTameikeBuilder.Ground(x, z); }
+    static float Ground(float x, float z) { return EdoBuild.Ground(x, z); }
     static GameObject Place(string path, Vector3 pos, float ry, Vector3 scale, Transform parent, string name)
     { return EdoNishiTameikeBuilder.Place(path, pos, ry, scale, parent, name); }
     static Bounds RB(GameObject go) { return EdoNishiTameikeBuilder.RB(go); }
@@ -135,40 +112,16 @@ public static class EdoToranomonUchiBuilder
         }
         return cur;
     }
-    static bool PIP(Vector2[] poly, Vector2 p)
-    {
-        bool inside = false;
-        for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
-            if (((poly[i].y > p.y) != (poly[j].y > p.y)) &&
-                (p.x < (poly[j].x - poly[i].x) * (p.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x)) inside = !inside;
-        return inside;
-    }
-    static float SignedArea(Vector2[] poly)
-    {
-        float a = 0;
-        for (int i = 0; i < poly.Length; i++) { var p = poly[i]; var q = poly[(i + 1) % poly.Length]; a += p.x * q.y - q.x * p.y; }
-        return 0.5f * a;
-    }
+    // EdoGeom.InwardNormal と実装差あり — 統一は裁定待ち
     public static Vector2 InwardNormal(Parcel e, int i)
     {
         var a = e.poly[i]; var b = e.poly[(i + 1) % e.poly.Length];
         var d = (b - a).normalized;
         var n = new Vector2(-d.y, d.x);
-        if (SignedArea(e.poly) < 0) n = -n;
+        if (EdoGeom.SignedArea(e.poly) < 0) n = -n;
         return n;
     }
-    static float DistToEdge(Vector2 p, Vector2 a, Vector2 b)
-    {
-        var d = b - a; float len = d.magnitude; d /= len;
-        float t = Mathf.Clamp(Vector2.Dot(p - a, d), 0, len);
-        return (p - (a + d * t)).magnitude;
-    }
-    public static float DistToPolyEdge(Vector2[] poly, Vector2 p)
-    {
-        float m = float.MaxValue;
-        for (int i = 0; i < poly.Length; i++) m = Mathf.Min(m, DistToEdge(p, poly[i], poly[(i + 1) % poly.Length]));
-        return m;
-    }
+    public static float DistToPolyEdge(Vector2[] poly, Vector2 p) => EdoGeom.DistToPolyEdge(poly, p);
     public static void Frame(Parcel e, out Vector2 gate2, out Vector2 uhat, out Vector2 vhat)
     {
         int N = e.poly.Length;
@@ -186,7 +139,7 @@ public static class EdoToranomonUchiBuilder
             for (float dz = -searchR; dz <= searchR; dz += 1.5f)
             {
                 var c = anchor + new Vector2(dx, dz);
-                if (!PIP(e.poly, c) || DistToPolyEdge(e.poly, c) < edgeMargin) continue;
+                if (!EdoGeom.PIP(e.poly, c) || DistToPolyEdge(e.poly, c) < edgeMargin) continue;
                 float mn = float.MaxValue, mx = float.MinValue;
                 for (int i = -1; i <= 1; i++)
                     for (int j = -1; j <= 1; j++)
@@ -451,12 +404,12 @@ public static class EdoToranomonUchiBuilder
                 foreach (Transform ch in sub) { var rb = RB(ch.gameObject); if (rb.size.sqrMagnitude > 0.01f) obs.Add(rb); }
         Func<Vector2, float, bool> clear = (p, m) =>
         {
-            if (!PIP(e.poly, p)) return false;
+            if (!EdoGeom.PIP(e.poly, p)) return false;
             float best = float.MaxValue; float bm = 7.5f;
             for (int i = 0; i < e.poly.Length; i++)
             {
                 var a = e.poly[i]; var b2 = e.poly[(i + 1) % e.poly.Length];
-                float dd2 = DistToEdge(p, a, b2);
+                float dd2 = EdoGeom.DistToEdge(p, a, b2);
                 if (dd2 < best) { best = dd2; bm = (i == e.front || e.nagayaEdges.Contains(i)) ? 8.5f : 3.0f; }
             }
             if (best < bm) return false;
@@ -586,7 +539,7 @@ public static class EdoToranomonUchiBuilder
         for (int i = 0; i < 400; i++)
         {
             var p2 = new Vector2(Mathf.Lerp(bbMin.x, bbMax.x, (float)rnd.NextDouble()), Mathf.Lerp(bbMin.y, bbMax.y, (float)rnd.NextDouble()));
-            if (!PIP(e.poly, p2) || DistToPolyEdge(e.poly, p2) < 4f) continue;
+            if (!EdoGeom.PIP(e.poly, p2) || DistToPolyEdge(e.poly, p2) < 4f) continue;
             float score = p2.x + p2.y;
             if (score > bestScore) { bestScore = score; best = p2; }
         }
@@ -640,21 +593,7 @@ public static class EdoToranomonUchiBuilder
 
     // ---------- OBB ユーティリティ ----------
     public static void ObbFootprint(Transform it, out float mnx, out float mxx, out float mnz, out float mxz, out float mny)
-    {
-        mnx = float.MaxValue; mxx = float.MinValue; mnz = float.MaxValue; mxz = float.MinValue; mny = float.MaxValue;
-        foreach (var mf in it.GetComponentsInChildren<MeshFilter>())
-        {
-            var mesh = mf.sharedMesh; if (mesh == null) continue;
-            var vts = mesh.vertices;
-            for (int i = 0; i < vts.Length; i++)
-            {
-                var lp = it.InverseTransformPoint(mf.transform.TransformPoint(vts[i]));
-                mnx = Mathf.Min(mnx, lp.x); mxx = Mathf.Max(mxx, lp.x);
-                mnz = Mathf.Min(mnz, lp.z); mxz = Mathf.Max(mxz, lp.z);
-                mny = Mathf.Min(mny, lp.y);
-            }
-        }
-    }
+        => EdoBuild.ObbFootprint(it, out mnx, out mxx, out mnz, out mxz, out mny);
     public static string MoveToObb(string groupName, string childPath, float x, float z)
     {
         var root = GameObject.Find(groupName);
@@ -710,7 +649,7 @@ public static class EdoToranomonUchiBuilder
                     buried = Mathf.Max(buried, g - wp.y); floating = Mathf.Max(floating, wp.y - g);
                     var p2 = new Vector2(wp.x, wp.z);
                     float d = DistToPolyEdge(e.poly, p2);
-                    if (!PIP(e.poly, p2)) d = -d;
+                    if (!EdoGeom.PIP(e.poly, p2)) d = -d;
                     edge = Mathf.Min(edge, d);
                 }
             sb.AppendLine(it.name + " OBB" + (mxx - mnx).ToString("F0") + "x" + (mxz - mnz).ToString("F0")
@@ -744,7 +683,7 @@ public static class EdoToranomonUchiBuilder
                     float wx = tp.x + (ix0 + xx + 0.5f) * cell;
                     float wz = tp.z + (iz0 + zz + 0.5f) * cell;
                     var p = new Vector2(wx, wz);
-                    if (!PIP(e.poly, p)) continue;
+                    if (!EdoGeom.PIP(e.poly, p)) continue;
                     float v = Vector2.Dot(p - gate2, vhat);
                     float uAbs = Mathf.Abs(Vector2.Dot(p - gate2, uhat));
                     float bare, grass, dirt;
@@ -773,13 +712,13 @@ public static class EdoToranomonUchiBuilder
                 bool road = false;
                 // 堀端通り: front辺(2->3)の外側 かつ 天端線の内側(NW)
                 var fA = na.poly[2]; var fB = na.poly[3];
-                float dF = DistToEdge(p, fA, fB);
-                float dC = DistToEdge(p, crestA, crestB);
-                if (!PIP(na.poly, p) && dF < 16f && dC < 16f && dF + dC < 20f) road = true;
+                float dF = EdoGeom.DistToEdge(p, fA, fB);
+                float dC = EdoGeom.DistToEdge(p, crestA, crestB);
+                if (!EdoGeom.PIP(na.poly, p) && dF < 16f && dC < 16f && dF + dC < 20f) road = true;
                 // 枡形前街路: 辺10->0の外側8m帯
                 var sA = na.poly[10]; var sB = na.poly[0];
-                float dS = DistToEdge(p, sA, sB);
-                if (!PIP(na.poly, p) && dS < 8.5f && !PIP(Parcels[2].poly, p) && !PIP(Parcels[1].poly, p)) road = true;
+                float dS = EdoGeom.DistToEdge(p, sA, sB);
+                if (!EdoGeom.PIP(na.poly, p) && dS < 8.5f && !EdoGeom.PIP(Parcels[2].poly, p) && !EdoGeom.PIP(Parcels[1].poly, p)) road = true;
                 if (!road) continue;
                 for (int l = 0; l < L; l++) A[zz, xx, l] = 0;
                 A[zz, xx, 0] = 0.30f; A[zz, xx, 1] = 0.05f; A[zz, xx, 2] = 0.65f;

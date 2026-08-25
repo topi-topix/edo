@@ -44,67 +44,37 @@ public static class EdoNishiTameikeBuilder
     }
 
     // 区画=ユーザー下書き線 v2 (2026-08-08 現代地図基準で引き直し)
+    // ⚠ poly の正典 = docs/Sashizu/parcels.json(CLAUDE.md 規則10 / 2026-08-26 ユーザー裁定で json採用)
     public static Estate[] Estates = new Estate[]
     {
         // 下書きv3 (2026-08-09): 横田・土岐とも溜池岸側へ拡張。水没部は EdoDaichiBuilder.Stage1_Grade で
         // 水面+1mの棚(7.6)へ盛土する(ユーザー指示: 溜池掘削で現況高さが不正確なため必要な造成は可)。
         new Estate{ group="Edo_Yashiki_Yokota", label="横田筑後守(9500石)",
-            poly=new[]{ new Vector2(-371.55f,296.12f), new Vector2(-376.89f,413.82f), new Vector2(-366.08f,426.70f), new Vector2(-313.39f,365.93f), new Vector2(-338.54f,290.69f)},
+            poly=EdoParcels.Get("nishitameike_estates_0"),
             front=4, gateT=0.5f, gateType="h_mon", bansho=2,
             nagayaEdges=new[]{0}, dobeiEdges=new[]{1,2,3}, pad=9.5f }, // 3=土岐との共有境界(横田持ち)
         new Estate{ group="Edo_Yashiki_Toki", label="土岐丹波守(3500石)",
-            poly=new[]{ new Vector2(-335.39f,291.47f), new Vector2(-311.41f,364.43f), new Vector2(-218.69f,321.60f), new Vector2(-223.95f,280.88f)},
+            poly=EdoParcels.Get("nishitameike_estates_1"),
             front=3, gateT=0.55f, gateType="h_mon", bansho=1,
             nagayaEdges=new int[0], dobeiEdges=new[]{1,2}, pad=9.5f }, // W辺(0)は横田側の塀が受け持つ
         new Estate{ group="Edo_Yashiki_YamaguchiUshiku", label="山口筑前守(牛久藩上屋敷)",
-            poly=new[]{ new Vector2(-140.8f,182.8f), new Vector2(-174.2f,209.8f), new Vector2(-207.3f,259.3f), new Vector2(-279.2f,264.9f), new Vector2(-289.7f,142.1f), new Vector2(-200.3f,88.2f)},
+            poly=EdoParcels.Get("nishitameike_estates_2"),
             front=0, gateT=0.5f, gateType="nagayamon", bansho=2,
             nagayaEdges=new[]{2}, dobeiEdges=new[]{1,4,5}, pad=14f }, // W辺(3)は松平日向側の塀
+        // 2026-08-26 json採用で頂点+1(S辺=旧辺2上に (-320.94,161.10) が index3 挿入)、辺indexを再採番:
+        //   旧辺2(SW)→辺2+辺3 / 旧辺3(E=山口境)→辺4 → dobei {2,3}→{2,3,4}
         new Estate{ group="Edo_Yashiki_MatsudairaHyuga", label="松平日向守(糸魚川藩上屋敷)",
-            poly=new[]{ new Vector2(-283.5f,266.2f), new Vector2(-386.9f,277.0f), new Vector2(-425.3f,222.7f), new Vector2(-292.3f,144.2f)},
+            poly=EdoParcels.Get("nishitameike_estates_3"),
             front=0, gateT=0.5f, gateType="nagayamon", bansho=2,
-            nagayaEdges=new[]{1}, dobeiEdges=new[]{2,3}, pad=10f },
+            nagayaEdges=new[]{1}, dobeiEdges=new[]{2,3,4}, pad=10f },
     };
 
-    // ---------- shared helpers ----------
-    public static Terrain T()
-    {
-        foreach (var t in UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None))
-            if (t.gameObject.activeInHierarchy) return t;
-        throw new Exception("no active terrain");
-    }
-    public static float Ground(float x, float z) { var t = T(); return t.SampleHeight(new Vector3(x, 0, z)) + t.transform.position.y; }
-
-    static GameObject Load(string path)
-    {
-        var a = AssetDatabase.LoadAssetAtPath<GameObject>(path);
-        if (a == null) throw new Exception("asset not found: " + path);
-        return a;
-    }
-    public static GameObject Place(string path, Vector3 pos, float ry, Vector3 scale, Transform parent, string name)
-    {
-        var go = (GameObject)PrefabUtility.InstantiatePrefab(Load(path));
-        go.name = name;
-        go.transform.SetParent(parent, true);
-        go.transform.position = pos;
-        go.transform.rotation = Quaternion.Euler(0, ry, 0);
-        go.transform.localScale = scale;
-        Undo.RegisterCreatedObjectUndo(go, "place " + name);
-        return go;
-    }
-    public static Bounds RB(GameObject go)
-    {
-        var rs = go.GetComponentsInChildren<Renderer>();
-        if (rs.Length == 0) return new Bounds(go.transform.position, Vector3.zero);
-        var b = rs[0].bounds;
-        foreach (var r in rs) b.Encapsulate(r.bounds);
-        return b;
-    }
-    public static void SeatBottom(GameObject go, float y)
-    {
-        var b = RB(go);
-        go.transform.position += new Vector3(0, y - b.min.y, 0);
-    }
+    // ---------- shared helpers (本体は EdoBuild へ移設。ここは署名温存の委譲) ----------
+    public static Terrain T() => EdoBuild.T();
+    public static float Ground(float x, float z) => EdoBuild.Ground(x, z);
+    public static GameObject Place(string path, Vector3 pos, float ry, Vector3 scale, Transform parent, string name) => EdoBuild.Place(path, pos, ry, scale, parent, name);
+    public static Bounds RB(GameObject go) => EdoBuild.RB(go);
+    public static void SeatBottom(GameObject go, float y) => EdoBuild.SeatBottom(go, y);
     // 頂点を軸に射影した min/max (worldY帯でフィルタ可, 名前フィルタ可)
     static void ProjExtent(GameObject go, Vector2 axis, float yMin, float yMax, Func<string, bool> nameOk, out float mn, out float mx)
     {
@@ -144,41 +114,17 @@ public static class EdoNishiTameikeBuilder
         }
         return cur;
     }
-    static bool PIP(Vector2[] poly, Vector2 p)
-    {
-        bool inside = false;
-        for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
-            if (((poly[i].y > p.y) != (poly[j].y > p.y)) &&
-                (p.x < (poly[j].x - poly[i].x) * (p.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x)) inside = !inside;
-        return inside;
-    }
-    static float SignedArea(Vector2[] poly)
-    {
-        float a = 0;
-        for (int i = 0; i < poly.Length; i++) { var p = poly[i]; var q = poly[(i + 1) % poly.Length]; a += p.x * q.y - q.x * p.y; }
-        return 0.5f * a;
-    }
     // 辺 i の内向き法線
+    // EdoGeom.InwardNormal と実装差あり — 統一は裁定待ち
     public static Vector2 InwardNormal(Estate e, int i)
     {
         var a = e.poly[i]; var b = e.poly[(i + 1) % e.poly.Length];
         var d = (b - a).normalized;
         var n = new Vector2(-d.y, d.x); // left normal
-        if (SignedArea(e.poly) < 0) n = -n; // CW polygon -> left normal points outward
+        if (EdoGeom.SignedArea(e.poly) < 0) n = -n; // CW polygon -> left normal points outward
         return n;
     }
-    static float DistToEdge(Vector2 p, Vector2 a, Vector2 b)
-    {
-        var d = b - a; float len = d.magnitude; d /= len;
-        float t = Mathf.Clamp(Vector2.Dot(p - a, d), 0, len);
-        return (p - (a + d * t)).magnitude;
-    }
-    public static float DistToPolyEdge(Vector2[] poly, Vector2 p)
-    {
-        float m = float.MaxValue;
-        for (int i = 0; i < poly.Length; i++) m = Mathf.Min(m, DistToEdge(p, poly[i], poly[(i + 1) % poly.Length]));
-        return m;
-    }
+    public static float DistToPolyEdge(Vector2[] poly, Vector2 p) => EdoGeom.DistToPolyEdge(poly, p);
 
     // ---------- Stage 0: backup ----------
     public static string Stage0_Backup()
@@ -304,7 +250,7 @@ public static class EdoNishiTameikeBuilder
                 float target = float.MinValue;
                 foreach (var e in Estates)
                 {
-                    bool inside = PIP(e.poly, p);
+                    bool inside = EdoGeom.PIP(e.poly, p);
                     float d = DistToPolyEdge(e.poly, p);
                     float padHere = PadAtNat(e, p, nat);
                     float cand;
@@ -814,7 +760,7 @@ public static class EdoNishiTameikeBuilder
         }
         Func<Vector2, float, bool> clear = (p, m) =>
         {
-            if (!PIP(e.poly, p)) return false;
+            if (!EdoGeom.PIP(e.poly, p)) return false;
             if (DistToPolyEdge(e.poly, p) < EdgeMargin(p)) return false;
             foreach (var b in obs)
                 if (p.x > b.min.x - m && p.x < b.max.x + m && p.y > b.min.z - m && p.y < b.max.z + m) return false;
@@ -942,7 +888,7 @@ public static class EdoNishiTameikeBuilder
             var bbMin = new Vector2(e.poly.Min(p => p.x), e.poly.Min(p => p.y));
             var bbMax = new Vector2(e.poly.Max(p => p.x), e.poly.Max(p => p.y));
             var p2 = new Vector2(Mathf.Lerp(bbMin.x, bbMax.x, (float)rnd.NextDouble()), Mathf.Lerp(bbMin.y, bbMax.y, (float)rnd.NextDouble()));
-            if (!PIP(e.poly, p2) || DistToPolyEdge(e.poly, p2) < 4f) continue;
+            if (!EdoGeom.PIP(e.poly, p2) || DistToPolyEdge(e.poly, p2) < 4f) continue;
             float score = p2.x + p2.y; // 北東(x大z大)
             if (score > bestScore) { bestScore = score; best = p2; }
         }
@@ -1024,7 +970,7 @@ public static class EdoNishiTameikeBuilder
                     float wx = tp.x + (ix0 + xx + 0.5f) * cell;
                     float wz = tp.z + (iz0 + zz + 0.5f) * cell;
                     var p = new Vector2(wx, wz);
-                    if (!PIP(e.poly, p)) continue;
+                    if (!EdoGeom.PIP(e.poly, p)) continue;
                     float v = Vector2.Dot(p - gate2, vhat);
                     float uAbs = Mathf.Abs(Vector2.Dot(p - gate2, (fB - fA).normalized));
                     float bare, grass, dirt;
@@ -1064,7 +1010,7 @@ public static class EdoNishiTameikeBuilder
             {
                 var p2 = new Vector2(cx == 0 ? b.min.x : b.max.x, cz == 0 ? b.min.z : b.max.z);
                 float d = DistToPolyEdge(e.poly, p2);
-                if (!PIP(e.poly, p2)) d = -d;
+                if (!EdoGeom.PIP(e.poly, p2)) d = -d;
                 if (d < coarse) coarse = d;
             }
             if (coarse > 1.0f) continue; // AABBは過大なのでこれで十分安全
@@ -1073,7 +1019,7 @@ public static class EdoNishiTameikeBuilder
             {
                 var p2 = new Vector2(p.x, p.z);
                 float d = DistToPolyEdge(e.poly, p2);
-                if (!PIP(e.poly, p2)) d = -d;
+                if (!EdoGeom.PIP(e.poly, p2)) d = -d;
                 if (d < worst) worst = d;
             }
             if (worst < 1.0f) sb.AppendLine("⚠ " + it.name + " boundary dist=" + worst.ToString("F2"));

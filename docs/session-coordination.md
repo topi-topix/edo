@@ -45,14 +45,6 @@ Assets の 249MB・825ファイルは来ない)。ブランチも分かれるの
 
 ⛔ **ここでは Unity は開けない**(パックが gitignore なので Assets が揃わない)。
 
-`docs` / `Tools` / `.claude` だけの **sparse worktree**(**12MB・64ファイル**。
-Assets の 249MB・825ファイルは来ない)。ブランチも分かれるので、
-
-- 共有ファイル(CLAUDE.md ほか)を巻き込む事故が**構造的に起きない**
-- 同じブランチに他人のコミットが載ることも**無い**
-
-⛔ **ここでは Unity は開けない**(パックが gitignore なので Assets が揃わない)。
-
 ### Unity を触るとき
 
 ```bash

@@ -21,6 +21,8 @@
 """
 import json, math, os, re, subprocess, html
 
+from sashizu_lib import R, _pat, _SVN, Proj  # バイト同一を実証済みの共通部(_SVN は共有カウンタ)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DOC = os.path.join(ROOT, "docs/Sashizu")
 JSON = os.path.join(DOC, "sanno_sashizu.json")
@@ -81,9 +83,6 @@ def inline(s):
 
 
 # ---------------------------------------------------------------- 作図の土台
-_SVN = [0]
-
-
 def _sv(W, H, label):
     _SVN[0] += 1
     return ['<svg viewBox="0 0 %.0f %.0f" role="img" aria-label="%s">' % (W, H, label),
@@ -101,24 +100,8 @@ def _sv(W, H, label):
 ENDSVG = "</g></svg>"
 
 
-def _pat(): return "url(#pi%d)" % _SVN[0]
 def _cut(): return "url(#kr%d)" % _SVN[0]      # 切土
 def _fill(): return "url(#mr%d)" % _SVN[0]     # 盛土
-
-
-class Proj(object):
-    """世界座標 → SVG px。z は北が上なので Y だけ反転。"""
-    def __init__(self, x0, x1, z0, z1, W=900.0, pad=0.0, top=0.0, bottom=0.0):
-        self.wx0, self.wx1 = x0 - pad, x1 + pad
-        self.wz0, self.wz1 = z0 - pad, z1 + pad
-        self.s = W / (self.wx1 - self.wx0)
-        self.W, self.top = W, top
-        self.zh = (self.wz1 - self.wz0) * self.s
-        self.H = self.zh + top + bottom
-
-    def X(self, x): return (x - self.wx0) * self.s
-    def Y(self, z): return self.top + self.zh - (z - self.wz0) * self.s
-    def L(self, m): return m * self.s
 
 
 class LProj(object):
@@ -146,17 +129,6 @@ class LProj(object):
     def rect(self, u0, v0, u1, v1, **kw):
         return R(self.X(min(u0, u1)), self.Y(max(v0, v1)),
                  abs(self.X(u1) - self.X(u0)), abs(self.Y(v1) - self.Y(v0)), **kw)
-
-
-def R(x, y, w, h, fill="none", stroke="none", sw=1.0, dash=None, op=None):
-    a = '<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s"' % (x, y, w, h, fill)
-    if stroke != "none":
-        a += ' stroke="%s" stroke-width="%.2f"' % (stroke, sw)
-    if dash:
-        a += ' stroke-dasharray="%s"' % dash
-    if op is not None:
-        a += ' opacity="%.2f"' % op
-    return a + "/>"
 
 
 def T(x, y, s, cls="sl", anchor=None, fs=None, fill=None):
@@ -2613,6 +2585,9 @@ def main():
              % (area, area / TSUBO, kei, _ma, _ma / area * 100))
     h.append('<p class="cap" style="margin-top:44px">@@PLATES@@。'
              '<b>組み直すときは図を落としていないか必ず数える</b>(過去に16図版→1図版へ落ちた前科がある)。</p>')
+    h.append('<div class="foot">組んだ日 %s ／ 設計値 <code>sanno_sashizu.json</code> ／ '
+             '文章 <code>sanno_kosho.md</code>。Y は海抜 m(Unity の Y がそのまま標高)。</div>'
+             % subprocess.check_output(["date", "+%Y-%m-%d %H:%M"]).decode().strip())
     h.append("</div>")
     html_out = "\n".join(h)
     nsvg = html_out.count("<svg")

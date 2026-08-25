@@ -3,7 +3,10 @@ FBX には Unity 側のマテリアル設定が入っていないので、マテ
 textures/ の PNG を引いて手で結線する。"""
 import bpy, os, mathutils
 
-ROOT = "/Users/toshio/project/edo-unity/Assets/Japanese Village Kit"
+# リポジトリ直上(このファイルの2つ上)。sparse worktree には Assets が来ないので
+# Blender スクリプトはメインのチェックアウトでしか回らない — worktree では ROOT が無くて止まる
+REPO = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+ROOT = os.path.join(REPO, "Assets", "Japanese Village Kit")
 MESH = os.path.join(ROOT, "Meshes")
 TEX  = os.path.join(ROOT, "textures")
 KEN  = 1.818          # 江戸間 1間

@@ -1544,7 +1544,7 @@ public static class EdoOkabeYashikiBuilder
         var ko = EdoSashizuExport.A(pk, "o");
         float ky = EdoSashizuExport.F(pk, "y");
         var c0 = W((kt[0] + kt[1]) * 0.5f, (ko[0] + ko[1]) * 0.5f);
-        var mTat = AssetDatabase.LoadAssetAtPath<Material>("Assets/Edo/Materials/GateStone.mat");
+        var mTat = AssetDatabase.LoadAssetAtPath<Material>(EdoAssets.Own.MGateStone);
         var tat = GameObject.CreatePrimitive(PrimitiveType.Cube);
         tat.name = "Tataki"; tat.transform.SetParent(mon, false);
         if (mTat != null) tat.GetComponent<Renderer>().sharedMaterial = mTat;

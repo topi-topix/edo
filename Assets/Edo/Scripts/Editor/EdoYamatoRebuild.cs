@@ -25,12 +25,8 @@ public static class EdoYamatoRebuild
     const float ES = 1.818f;
 
     // 赤下書き線 (P14/P15の重複は除去済み)。順序=ユーザー描画順(反時計回り)。
-    public static readonly Vector2[] Poly = {
-        new Vector2(-131.0f,168.9f), new Vector2(-156.0f,130.0f), new Vector2(-180.7f,91.8f),
-        new Vector2(-201.0f,54.9f), new Vector2(-220.1f,16.4f), new Vector2(-238.0f,-21.4f),
-        new Vector2(-195.0f,-45.7f), new Vector2(-153.8f,-62.1f), new Vector2(-116.6f,-71.1f),
-        new Vector2(-85.5f,-61.1f), new Vector2(-48.5f,-33.8f), new Vector2(-21.7f,-11.1f),
-        new Vector2(-4.4f,8.8f), new Vector2(14.0f,36.0f) };
+    // 正典 = docs/Sashizu/parcels.json(CLAUDE.md 規則10)
+    public static Vector2[] Poly { get { return EdoParcels.Get("matsudaira_yamato"); } }
     const int FRONT = 13; // 辺 P13->P0 = 汐見坂
     const float GATE_T = 0.40f;
 
@@ -49,6 +45,7 @@ public static class EdoYamatoRebuild
         new Pad(4, 136, 22, 10, 20.0f),   // 蔵前サービス帯
     };
 
+    // EdoGeom.PIP と実装差あり — 統一は裁定待ち
     static bool PIP(Vector2[] poly, Vector2 p)
     {
         bool ins = false;

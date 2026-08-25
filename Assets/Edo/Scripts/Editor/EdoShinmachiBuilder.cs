@@ -25,24 +25,16 @@ public static class EdoShinmachiBuilder
     const string PSmallHouse = EdoAssets.VK.SmallHouse;
     const string PBanya = EdoAssets.Eg.Kidobanya;
 
-    // ---- 下書きポリゴン(スケッチ世界座標XZ) ----
-    static readonly Vector2[] CY = { new Vector2(-885.87f,1153.45f), new Vector2(-929.56f,1124.32f), new Vector2(-892.20f,1031.23f), new Vector2(-848.51f,1048.33f) };
-    static readonly Vector2[] YE = { new Vector2(-848.13f,1047.37f), new Vector2(-891.75f,1030.53f), new Vector2(-882.70f,1004.00f), new Vector2(-835.21f,1014.13f) };
-    static readonly Vector2[] GR = { new Vector2(-879.50f,996.86f), new Vector2(-856.11f,908.38f), new Vector2(-799.75f,921.04f), new Vector2(-832.44f,1005.66f) };
-    static readonly Vector2[] PU = { new Vector2(-856.11f,907.11f), new Vector2(-838.38f,834.29f), new Vector2(-772.52f,848.22f), new Vector2(-798.77f,919.57f) };
-    static readonly Vector2[] RA = { new Vector2(-834.95f,827.52f), new Vector2(-769.82f,840.71f), new Vector2(-754.89f,798.88f), new Vector2(-768.79f,794.04f) };
-    static readonly Vector2[] RB = { new Vector2(-751.74f,792.02f), new Vector2(-767.41f,787.17f), new Vector2(-785.16f,761.83f), new Vector2(-777.62f,729.49f), new Vector2(-731.26f,740.27f), new Vector2(-749.59f,790.94f) };
-    static readonly Vector2[] RC = { new Vector2(-777.03f,787.86f), new Vector2(-819.29f,810.20f), new Vector2(-830.61f,798.16f), new Vector2(-823.05f,776.18f), new Vector2(-816.87f,751.45f), new Vector2(-796.95f,757.63f) };
+    // ---- 区画(正典 = docs/Sashizu/parcels.json / CLAUDE.md 規則10) ----
+    static Vector2[] CY { get { return EdoParcels.Get("shinmachi_cy"); } }
+    static Vector2[] YE { get { return EdoParcels.Get("shinmachi_ye"); } }
+    static Vector2[] GR { get { return EdoParcels.Get("shinmachi_gr"); } }
+    static Vector2[] PU { get { return EdoParcels.Get("shinmachi_pu"); } }
+    static Vector2[] RA { get { return EdoParcels.Get("shinmachi_ra"); } }
+    static Vector2[] RB { get { return EdoParcels.Get("shinmachi_rb"); } }
+    static Vector2[] RC { get { return EdoParcels.Get("shinmachi_rc"); } }
 
-    static float Ground(float x, float z) { return EdoTamachiBuilder.Ground(x, z); }
-    static bool PIP(Vector2[] poly, Vector2 p)
-    {
-        bool inside = false;
-        for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
-            if (((poly[i].y > p.y) != (poly[j].y > p.y)) &&
-                (p.x < (poly[j].x - poly[i].x) * (p.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x)) inside = !inside;
-        return inside;
-    }
+    static float Ground(float x, float z) { return EdoBuild.Ground(x, z); }
     static Vector2 Inward(Vector2[] poly, int i)
     {
         Vector2 a = poly[i], b = poly[(i + 1) % poly.Length];
@@ -51,8 +43,8 @@ public static class EdoShinmachiBuilder
         Vector2 mid = (a + b) * 0.5f;
         for (float off = 0.6f; off <= 2.4f; off += 0.6f)
         {
-            if (PIP(poly, mid + n * off)) return n;
-            if (PIP(poly, mid - n * off)) return -n;
+            if (EdoGeom.PIP(poly, mid + n * off)) return n;
+            if (EdoGeom.PIP(poly, mid - n * off)) return -n;
         }
         Vector2 c = Vector2.zero; foreach (var p in poly) c += p; c /= poly.Length;
         return Vector2.Dot(c - mid, n) < 0 ? -n : n;
@@ -173,7 +165,7 @@ public static class EdoShinmachiBuilder
         Vector2 axis = (B - A).normalized; float len = (B - A).magnitude;
         if (t1 < 0) t1 = len + t1; // 負値は末尾からのオフセット
         Vector2 inw = new Vector2(-axis.y, axis.x);
-        if (!PIP(poly, A + axis * (len * 0.5f) + inw * 2.5f)) inw = -inw;
+        if (!EdoGeom.PIP(poly, A + axis * (len * 0.5f) + inw * 2.5f)) inw = -inw;
         float ryFace = Mathf.Atan2(-inw.x, -inw.y) * Mathf.Rad2Deg;
         float t = t0; int made = 0; int pi = 0;
         while (true)
@@ -198,14 +190,14 @@ public static class EdoShinmachiBuilder
         Vector2 axis = (B - A).normalized; float len = (B - A).magnitude;
         if (t1 < 0) t1 = len + t1;
         Vector2 inw = new Vector2(-axis.y, axis.x);
-        if (!PIP(poly, A + axis * (len * 0.5f) + inw * 2.5f)) inw = -inw;
+        if (!EdoGeom.PIP(poly, A + axis * (len * 0.5f) + inw * 2.5f)) inw = -inw;
         Vector2 A2 = A + inw * depth;
         float ryFace = Mathf.Atan2(-inw.x, -inw.y) * Mathf.Rad2Deg; // 前面=表(基準辺)向き
         float hut = 5.0f; int made = 0;
         for (float t = t0; t + hut <= t1; t += hut)
         {
             Vector2 c = A2 + axis * (t + hut * 0.5f);
-            if (!PIP(poly, c) || !PIP(poly, c + inw * 3.5f)) continue; // 奥行き分も区画内に
+            if (!EdoGeom.PIP(poly, c) || !EdoGeom.PIP(poly, c + inw * 3.5f)) continue; // 奥行き分も区画内に
             PlaceFrontV(PBanya, ES, mBanya, parent, prefix + "_" + made, A2, axis, inw, t + hut * 0.5f, 0f,
                 ryFace + ((float)rnd.NextDouble() * 1.2f - 0.6f));
             made++;
@@ -360,11 +352,11 @@ public static class EdoShinmachiBuilder
                 float wx = tp.x + (ix0 + xx + 0.5f) * cell;
                 float wz = tp.z + (iz0 + zz + 0.5f) * cell;
                 var p = new Vector2(wx, wz);
-                if (PIP(JMx, p)) continue;
+                if (EdoGeom.PIP(JMx, p)) continue;
                 float noise = Mathf.PerlinNoise(wx * 0.13f, wz * 0.13f);
                 float bare, grass, dirt;
                 bool inParcel = false;
-                foreach (var s in parcels) if (PIP(s, p)) { inParcel = true; break; }
+                foreach (var s in parcels) if (EdoGeom.PIP(s, p)) { inParcel = true; break; }
                 bool onRoad = false;
                 if (!inParcel)
                     foreach (var rd in Roads) if (DistToPolyline(rd, p) < 3.5f) { onRoad = true; break; }

@@ -18,13 +18,9 @@ using UnityEngine;
 
 public static class EdoDaichiBuilder
 {
-    // SW辺(街路側)を [0]->[1] とする
-    public static Vector2[] SeiryujiPoly = {
-        new Vector2(-382.06f,417.87f), new Vector2(-446.57f,471.25f),
-        new Vector2(-435.76f,486.73f), new Vector2(-370.28f,431.37f) };
-    public static Vector2[] NagaichoPoly = {
-        new Vector2(-451.01f,474.71f), new Vector2(-551.60f,555.83f),
-        new Vector2(-539.25f,569.83f), new Vector2(-438.79f,489.76f) };
+    // SW辺(街路側)を [0]->[1] とする(正典 = docs/Sashizu/parcels.json / CLAUDE.md 規則10)
+    public static Vector2[] SeiryujiPoly { get { return EdoParcels.Get("daichi_seiryujipoly"); } }
+    public static Vector2[] NagaichoPoly { get { return EdoParcels.Get("daichi_nagaichopoly"); } }
     public const float NAGAI_LEN = 84.7f;   // 永井町=間口43間余。これより先(北西)は御掃除町代地
 
     const float WATER_Y = 6.6f;
@@ -32,16 +28,8 @@ public static class EdoDaichiBuilder
     const float ES = 1.818f;
 
     public static Terrain T() { return EdoTameikeKitaBuilder.T(); }
-    public static float Ground(float x, float z) { return EdoTameikeKitaBuilder.Ground(x, z); }
+    public static float Ground(float x, float z) { return EdoBuild.Ground(x, z); }
 
-    static bool PIP(Vector2[] poly, Vector2 p)
-    {
-        bool inside = false;
-        for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
-            if (((poly[i].y > p.y) != (poly[j].y > p.y)) &&
-                (p.x < (poly[j].x - poly[i].x) * (p.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x)) inside = !inside;
-        return inside;
-    }
     static float DistToPoly(Vector2[] poly, Vector2 p)
     {
         float m = float.MaxValue;
@@ -91,7 +79,7 @@ public static class EdoDaichiBuilder
             var hs = new float[n];
             Vector2 inw = new Vector2(-axis.y, axis.x);
             var probe = A + axis * (len * 0.5f) + inw * 5f;
-            if (!PIP(poly, probe)) inw = -inw;
+            if (!EdoGeom.PIP(poly, probe)) inw = -inw;
             for (int i = 0; i < n; i++)
             {
                 var sp = A + axis * Mathf.Min(i * 2f, len) - inw * 1.5f;
@@ -125,7 +113,7 @@ public static class EdoDaichiBuilder
                     float tpar = Mathf.Clamp(Vector2.Dot(p - A, axis), 0, len);
                     int li = Mathf.Clamp(Mathf.RoundToInt(tpar / 2f), 0, loft.Length - 1);
                     float hsv = loft[li] - 0.10f;
-                    if (PIP(poly, p)) { target = hsv; }
+                    if (EdoGeom.PIP(poly, p)) { target = hsv; }
                     else
                     {
                         float d = DistToPoly(poly, p);
@@ -139,7 +127,7 @@ public static class EdoDaichiBuilder
                 }
                 foreach (var ep in new[] { yok, tok })
                 {
-                    if (PIP(ep, p)) { if (target < SHELF_Y && cur < SHELF_Y) target = Mathf.Max(target, SHELF_Y); }
+                    if (EdoGeom.PIP(ep, p)) { if (target < SHELF_Y && cur < SHELF_Y) target = Mathf.Max(target, SHELF_Y); }
                     else
                     {
                         float d = DistToPoly(ep, p);
@@ -183,7 +171,7 @@ public static class EdoDaichiBuilder
     // ---------- 材質 ----------
     static Material Mat(string name, string tex)
     {
-        string mp = "Assets/Edo/Materials/" + name + ".mat";
+        string mp = EdoAssets.Own.Mat(name);
         var exist = AssetDatabase.LoadAssetAtPath<Material>(mp);
         if (exist != null) return exist;
         var m = new Material(Shader.Find("Universal Render Pipeline/Lit"));
@@ -238,7 +226,7 @@ public static class EdoDaichiBuilder
         Vector2 axis = (B - A).normalized; float len = (B - A).magnitude;
         if (t1 < 0) t1 = len;
         Vector2 inw = new Vector2(-axis.y, axis.x);
-        if (!PIP(poly, A + axis * (len * 0.5f) + inw * 5f)) inw = -inw;
+        if (!EdoGeom.PIP(poly, A + axis * (len * 0.5f) + inw * 5f)) inw = -inw;
         Vector2 outw = -inw;
         float ryFace = Mathf.Atan2(outw.x, outw.y) * Mathf.Rad2Deg;
         var mS1 = Mat("M_Shop01", EdoAssets.Eg.TexShop01);
@@ -307,7 +295,7 @@ public static class EdoDaichiBuilder
         {
             float tt = t0 + (t1 - t0) * ((i + 0.5f) / nMono) + ((float)rnd.NextDouble() * 3f - 1.5f);
             Vector2 c = A + axis * tt + inw * (12.0f + (float)rnd.NextDouble() * 2f);
-            if (!PIP(poly, c)) continue;
+            if (!EdoGeom.PIP(poly, c)) continue;
             var g = new GameObject("Monohoshi_" + i);
             g.transform.SetParent(backG, false);
             g.transform.position = new Vector3(c.x, Ground(c.x, c.y), c.y);
@@ -337,7 +325,7 @@ public static class EdoDaichiBuilder
         {
             float tt = t0 + (t1 - t0) * ((float)rnd.NextDouble());
             Vector2 c = A + axis * tt + inw * (15.5f + (float)rnd.NextDouble() * 2.5f);
-            if (!PIP(poly, c)) continue;
+            if (!EdoGeom.PIP(poly, c)) continue;
             string pp = plants[rnd.Next(plants.Length)];
             var pa = AssetDatabase.LoadAssetAtPath<GameObject>(pp);
             if (pa == null) continue;
@@ -390,14 +378,14 @@ public static class EdoDaichiBuilder
             Vector2 A = poly[0], B = poly[1];
             Vector2 axis = (B - A).normalized;
             Vector2 inw = new Vector2(-axis.y, axis.x);
-            if (!PIP(poly, A + axis * 20f + inw * 5f)) inw = -inw;
+            if (!EdoGeom.PIP(poly, A + axis * 20f + inw * 5f)) inw = -inw;
             for (int zz = 0; zz < h; zz++)
                 for (int xx = 0; xx < w; xx++)
                 {
                     float wx = tp.x + (ix0 + xx + 0.5f) * cell;
                     float wz = tp.z + (iz0 + zz + 0.5f) * cell;
                     var p = new Vector2(wx, wz);
-                    if (!PIP(poly, p)) continue;
+                    if (!EdoGeom.PIP(poly, p)) continue;
                     float depth = Vector2.Dot(p - A, inw);
                     float noise = Mathf.PerlinNoise(wx * 0.13f, wz * 0.13f);
                     float bare, grass, dirt;

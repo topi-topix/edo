@@ -671,6 +671,7 @@ public static class EdoParcelTool
         return best;
     }
 
+    // EdoGeom.PIP と実装差あり — 統一は裁定待ち
     static bool PIP(P p, Vector2 q)
     {
         bool ins = false; int n = p.pts.Count;

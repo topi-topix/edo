@@ -49,27 +49,25 @@ public static class EdoTameikeKitaBuilder
     //   黒田=北東38.7°≈辺4(Y4Y5, 溜池・桐畑通り) / 水野・相良=南西≈西側の通り(氷川・南部坂側)
     // 門格式=『青標紙』: 上屋敷5万石以下=長屋門+出片番所。中屋敷の明文規定は未確認→長屋門類型。
     //   黒田(国持格)のみ両番所、水野(上屋敷1.8万)・相良(中屋敷2.2万)=片番所。
+    // ⚠ poly の正典 = docs/Sashizu/parcels.json(CLAUDE.md 規則10 / 2026-08-26 ユーザー裁定で json採用)
     public static Estate[] Estates = new Estate[]
     {
-        // 黄: 11角形。辺: 0:Y0Y1(SE) 1:Y1Y2 2:Y2Y3(E) 3:Y3Y4(E=溜池道) 4:Y4Y5(NE=表) 5:Y5Y6 6:Y6Y7(N)
-        //     7:Y7Y8(内部境界:赤・水色の東) 8:Y8Y9(内部境界:水色の南) 9:Y9Y10(SW) 10:Y10Y0(S)
+        // 黄: 12角形。辺: 0:Y0Y1(SE) 1:Y1Y2 2:Y2Y3(E) 3:Y3Y4(E=溜池道) 4:Y4Y5(NE=表) 5:Y5Y6 6:Y6Y7(N)
+        //     7:Y7Y8+8:Y8Y9(内部境界:赤・水色の東) 9:Y9Y10(内部境界:水色の南) 10:Y10Y11(SW) 11:Y11Y0(S)
+        // 2026-08-26 json採用で頂点+1(index8 に (-584.90,410.08) 挿入 — 旧辺7 (-619.4,536.3)→(-555.8,303.6)
+        //   上の点=同一直線)、辺indexを再採番: 旧辺7→辺7+辺8 / 旧辺8→9 / 旧辺9→10 / 旧辺10→11
         new Estate{ group="Edo_Yashiki_MatsudairaMino", label="松平美濃守=黒田斉溥(福岡藩47.3万石)中屋敷",
-            poly=new[]{ new Vector2(-559.2f,97.1f), new Vector2(-463.3f,228.6f), new Vector2(-425.4f,249.7f),
-                        new Vector2(-394.2f,291.7f), new Vector2(-398.0f,406.5f), new Vector2(-553.1f,532.0f),
-                        new Vector2(-583.7f,546.8f), new Vector2(-619.4f,536.3f), new Vector2(-555.8f,303.6f),
-                        new Vector2(-758.0f,245.2f), new Vector2(-716.1f,191.2f)},
+            poly=EdoParcels.Get("tameikekita_estates_0"),
             front=4, gateT=0.45f, gateType="nagayamon", bansho=2,
-            nagayaEdges=new[]{3,5}, dobeiEdges=new[]{0,1,2,6,7,8,9,10} },
+            nagayaEdges=new[]{3,5}, dobeiEdges=new[]{0,1,2,6,7,8,9,10,11} },
         // 水色: 4角形。辺: 0:C0C1(W=表・街路) 1:C1C2(N 内部境界:相良側→水野が受け持つ) 2:C2C3(E:黄が受け持つ) 3:C3C0(S:黄が受け持つ)
         new Estate{ group="Edo_Yashiki_MizunoHyuga", label="水野日向守=水野勝進(結城藩1.8万石)上屋敷",
-            poly=new[]{ new Vector2(-677.0f,271.5f), new Vector2(-703.6f,377.2f),
-                        new Vector2(-587.1f,406.7f), new Vector2(-559.8f,306.0f)},
+            poly=EdoParcels.Get("tameikekita_estates_1"),
             front=0, gateT=0.5f, gateType="nagayamon", bansho=1,
             nagayaEdges=new int[0], dobeiEdges=new[]{1} },
         // 赤: 5角形。辺: 0:R0R1(W=表) 1:R1R2(NW) 2:R2R3(N) 3:R3R4(E:黄が受け持つ) 4:R4R0(S:水野が受け持つ)
         new Estate{ group="Edo_Yashiki_SagaraEchizen", label="相良越前守=相良頼基(人吉藩2.21万石)中屋敷",
-            poly=new[]{ new Vector2(-704.8f,377.2f), new Vector2(-739.7f,475.9f), new Vector2(-710.6f,511.8f),
-                        new Vector2(-624.8f,533.9f), new Vector2(-589.9f,409.7f)},
+            poly=EdoParcels.Get("tameikekita_estates_2"),
             front=0, gateT=0.5f, gateType="nagayamon", bansho=1,
             nagayaEdges=new[]{1,2}, dobeiEdges=new int[0] },
     };
@@ -81,7 +79,7 @@ public static class EdoTameikeKitaBuilder
             if (t.gameObject.activeInHierarchy) return t;
         throw new Exception("no active terrain");
     }
-    public static float Ground(float x, float z) { var t = T(); return t.SampleHeight(new Vector3(x, 0, z)) + t.transform.position.y; }
+    public static float Ground(float x, float z) => EdoBuild.Ground(x, z);
     public static float PadAt(Estate e, Vector2 p) { return Ground(p.x, p.y); } // 造成ゼロ=地形追従
 
     static GameObject Load(string path)
@@ -152,40 +150,16 @@ public static class EdoTameikeKitaBuilder
         }
         return cur;
     }
-    static bool PIP(Vector2[] poly, Vector2 p)
-    {
-        bool inside = false;
-        for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
-            if (((poly[i].y > p.y) != (poly[j].y > p.y)) &&
-                (p.x < (poly[j].x - poly[i].x) * (p.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x)) inside = !inside;
-        return inside;
-    }
-    static float SignedArea(Vector2[] poly)
-    {
-        float a = 0;
-        for (int i = 0; i < poly.Length; i++) { var p = poly[i]; var q = poly[(i + 1) % poly.Length]; a += p.x * q.y - q.x * p.y; }
-        return 0.5f * a;
-    }
+    // EdoGeom.InwardNormal と実装差あり — 統一は裁定待ち
     public static Vector2 InwardNormal(Estate e, int i)
     {
         var a = e.poly[i]; var b = e.poly[(i + 1) % e.poly.Length];
         var d = (b - a).normalized;
         var n = new Vector2(-d.y, d.x);
-        if (SignedArea(e.poly) < 0) n = -n;
+        if (EdoGeom.SignedArea(e.poly) < 0) n = -n;
         return n;
     }
-    static float DistToEdge(Vector2 p, Vector2 a, Vector2 b)
-    {
-        var d = b - a; float len = d.magnitude; d /= len;
-        float t = Mathf.Clamp(Vector2.Dot(p - a, d), 0, len);
-        return (p - (a + d * t)).magnitude;
-    }
-    public static float DistToPolyEdge(Vector2[] poly, Vector2 p)
-    {
-        float m = float.MaxValue;
-        for (int i = 0; i < poly.Length; i++) m = Mathf.Min(m, DistToEdge(p, poly[i], poly[(i + 1) % poly.Length]));
-        return m;
-    }
+    public static float DistToPolyEdge(Vector2[] poly, Vector2 p) => EdoGeom.DistToPolyEdge(poly, p);
 
     // ---------- Stage 0: backup ----------
     public static string Stage0_Backup()
@@ -556,7 +530,7 @@ public static class EdoTameikeKitaBuilder
         };
         Func<Vector2, float, bool> clear = (p, m) =>
         {
-            if (!PIP(e.poly, p)) return false;
+            if (!EdoGeom.PIP(e.poly, p)) return false;
             if (DistToPolyEdge(e.poly, p) < edgeMargin(p)) return false;
             if (InPond(e, p, 4f)) return false;
             foreach (var b in obs)
@@ -714,7 +688,7 @@ public static class EdoTameikeKitaBuilder
             }
         }
         if (MinoPondOutline == null) return false;
-        if (PIP(MinoPondOutline, p)) return true;
+        if (EdoGeom.PIP(MinoPondOutline, p)) return true;
         return DistToPolyEdge(MinoPondOutline, p) < margin;
     }
 
@@ -732,7 +706,7 @@ public static class EdoTameikeKitaBuilder
             for (float dv = -14; dv <= 14; dv += 4)
             {
                 var p = c0 + new Vector2(du, dv);
-                if (!PIP(e.poly, p) || DistToPolyEdge(e.poly, p) < 38f) continue;
+                if (!EdoGeom.PIP(e.poly, p) || DistToPolyEdge(e.poly, p) < 38f) continue;
                 float g = Ground(p.x, p.y);
                 if (g < bestG) { bestG = g; best = p; }
             }
@@ -763,7 +737,7 @@ public static class EdoTameikeKitaBuilder
         for (int i = 0; i < 400; i++)
         {
             var p2 = new Vector2(Mathf.Lerp(bbMin.x, bbMax.x, (float)rnd.NextDouble()), Mathf.Lerp(bbMin.y, bbMax.y, (float)rnd.NextDouble()));
-            if (!PIP(e.poly, p2) || DistToPolyEdge(e.poly, p2) < 5f) continue;
+            if (!EdoGeom.PIP(e.poly, p2) || DistToPolyEdge(e.poly, p2) < 5f) continue;
             if (InPond(e, p2, 5f)) continue;
             float score = p2.x + p2.y;
             if (score > bestScore) { bestScore = score; best = p2; }
@@ -844,7 +818,7 @@ public static class EdoTameikeKitaBuilder
                     float wx = tp.x + (ix0 + xx + 0.5f) * cell;
                     float wz = tp.z + (iz0 + zz + 0.5f) * cell;
                     var p = new Vector2(wx, wz);
-                    if (!PIP(e.poly, p)) continue;
+                    if (!EdoGeom.PIP(e.poly, p)) continue;
                     float v = Vector2.Dot(p - gate2, vhat);
                     float uAbs = Mathf.Abs(Vector2.Dot(p - gate2, (fB - fA).normalized));
                     float bare, grass, dirt;
@@ -886,7 +860,7 @@ public static class EdoTameikeKitaBuilder
             {
                 var p2 = new Vector2(cx == 0 ? b.min.x : b.max.x, cz == 0 ? b.min.z : b.max.z);
                 float d = DistToPolyEdge(e.poly, p2);
-                if (!PIP(e.poly, p2)) d = -d;
+                if (!EdoGeom.PIP(e.poly, p2)) d = -d;
                 if (d < coarse) coarse = d;
             }
             if (coarse > 1.0f) continue;
@@ -895,7 +869,7 @@ public static class EdoTameikeKitaBuilder
             {
                 var p2 = new Vector2(p.x, p.z);
                 float d = DistToPolyEdge(e.poly, p2);
-                if (!PIP(e.poly, p2)) d = -d;
+                if (!EdoGeom.PIP(e.poly, p2)) d = -d;
                 if (d < worst) worst = d;
             }
             if (worst < 1.0f) sb.AppendLine("⚠ " + it.name + " boundary dist=" + worst.ToString("F2"));

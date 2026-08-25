@@ -1,7 +1,30 @@
-# 御殿アセットの Blender パイプライン
+# Blender 部材パイプライン
 
-御殿(武家屋敷の主屋)の部材と屋根を **Village Kit の部材から江戸間で起こして** FBX に書き出す。
+在庫キットに無い建築部材を **Village Kit / Japanese Castle の部材から江戸間で起こして** FBX に書き出す。
 Blender は GUI を開かずヘッドレスで回す — 指図の寸法が変わったら作り直せるようにするため。
+各スクリプト冒頭の docstring に「なぜ新造するか」の典拠と使い方がある。
+
+## スクリプト一覧
+
+| スクリプト | 何を起こすか |
+|---|---|
+| `vklib.py` | **共通ライブラリ**(全スクリプトが import)。キットのパス(`REPO`/`ROOT`)・縮尺 `S=0.909`・FBX 読み書き・UV・マテリアルの道具 |
+| `build_goten_parts.py` | 御殿の躯体部材(柱・畳・障子・縁など425点のキット部材から) |
+| `build_goten_roof.py` | 御殿の屋根(入母屋・渡廊下の切妻。寸法ごとに1本) |
+| `build_goten_fittings.py` | 建具・座敷飾り(襖・欄間・床の間・違い棚・帳台構) |
+| `build_goten_kaidan.py` | 階段廊下(郭をまたぐ幅一間の木の段) |
+| `build_dobei.py` | 武家屋敷の土塀(腰石・下見板・漆喰・本瓦の一体物) |
+| `build_tsuijibei.py` | 築地塀(城塀から軒を詰めて小口を塞いだ派生) |
+| `build_kado.py` | 折れ角の隅部材(石垣・塀・長屋の留め継ぎ) |
+| `build_ishigaki_saka.py` | 石段の袖の土留め(勾配に沿った一枚物) |
+| `build_matsudaira_bansho.py` | 松江松平邸専用: 表門の番所(向唐破風・出格子) |
+| `build_matsudaira_omotemon.py` | 松江松平邸専用: 表門(屋根なしの冠木門) |
+| `build_matsudaira_fuzokuya.py` | 松江松平邸専用: 附属屋(土蔵・数寄屋・稲荷社・井戸・隅櫓ほか) |
+
+パスは `vklib.REPO`(このファイルの位置から導出)起点。**sparse worktree では Assets が来ないので回らない** —
+メインのチェックアウトで `edo_session.py start <屋敷> --blender` を打ってから回すこと。
+
+以下は御殿系(`build_goten_*`)の詳細。
 
 ```bash
 blender --background --python Tools/Blender/build_goten_parts.py
@@ -41,6 +64,16 @@ Village Kit は **2.0m/間**。江戸間は 1間 = 6尺 = **1.818m**。
 ## 書き出しの規約(Unity 座標で言う)
 
 - 幅 = X / 高さ = Y / 厚み = Z、**表(入側から見える面) = +Z**(Village Kit の facade 規約と同じ)
+- ⚠ **`export_fbx` は Blender +Y を Unity の −Z へ写す。**
+  `axis_forward='-Z', axis_up='Y'` の帰結で、**論理座標のまま組むと「表」が反対側に出る。**
+  自前でメッシュを起こすとき(`build_matsudaira_*.py` の `Mesh` クラス系)は、
+  書き出す直前に**厚みを反転し、面の巻き順と UV も一緒に反転**すること
+  (`Mesh.to_object` にその実装がある。巻き順を戻さないと法線が内向きになり、
+  外から見ると箱の内側が見える)。
+  ⚠ **前後対称な部材では絶対に気づけない。** 表門(冠木門)は対称なので3日ぶん見逃し、
+  番所を据えて初めて「出格子と唐破風が敷地の内側を向いている」と分かった(2026-08-25)。
+  非対称な部材を1つ作ったら、**Unity で据えてから正面を1枚撮る**。
+  `V.imp()` でキットの部材を読んで並べる作り方(`build_goten_parts.py` など)はこの影響を受けない。
 - ピボット = **一間の中心・床レベル**(濡縁だけは Y 最小 = 建物側)
 - マテリアル名は Village Kit のまま(`wall C` `door wall` `wood` `roof` …)。
   Unity 側の `Materials/*.mat` と同名なので **Search & Remap で既存マテリアルが当たる**。

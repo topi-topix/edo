@@ -55,37 +55,27 @@ public static class EdoSannoBukeBuilder
     const string PKasuga = EdoAssets.Own.KasugaLantern;
     public const float ES = 1.818f;
 
-    // ---------- 区画(下書きスナップ済) ----------
-    public static readonly Vector2[] JUGE = {
-        new Vector2(-374.2f, 912.0f), new Vector2(-426.2f, 912.4f), new Vector2(-449.0f, 928.3f),
-        new Vector2(-483.9f, 936.8f), new Vector2(-514.3f, 945.9f), new Vector2(-373.7f, 946.2f) };
-    public static readonly Vector2[] SHANIN = {
-        new Vector2(-372.8f, 661.5f), new Vector2(-373.6f, 809.5f),
-        new Vector2(-343.5f, 812.0f), new Vector2(-342.7f, 675.4f) };
+    // ---------- 区画(正典 = docs/Sashizu/parcels.json / CLAUDE.md 規則10) ----------
+    // 2026-08-26 json採用(ユーザー裁定)。JUGE は 6→8点(NE角に z948 のノッチ=辺5,6 が増えた。
+    // 岡部共有の北辺は旧辺4→新辺4 のまま 1:1 対応)。⚠ sannosha_juge と二重定義のまま(未決)。
+    public static Vector2[] JUGE { get { return EdoParcels.Get("sannobuke_juge"); } }
+    public static Vector2[] SHANIN { get { return EdoParcels.Get("sannobuke_shanin"); } }
     // 2026-08-11改訂(ユーザー下書き第2版+門印=三角形):
     //   丹羽・京極の表門=東辺(東の永田町方面の南北通りへ)、内藤の表門=北辺東寄り(x≈-106)北向き。
     //   内藤と丹羽SW/京極は背中合わせ(間に道なし。共有塀は内藤が受け持つ)。
     // 丹羽: 0=E腕S(京極N共有) 1=SW塊E(京極W共有) 2=SW塊S(内藤N共有=skip) 3=SW塊W 4=(z813.9のノッチ)
     //       5=W(通り沿い長屋) 6=N(山王坂) 7=E(表門)
-    public static readonly Vector2[] NIWA = {
-        new Vector2(-129.2f, 802.3f), new Vector2(-294.3f, 802.6f), new Vector2(-293.4f, 677.8f),
-        new Vector2(-339.6f, 677.7f), new Vector2(-339.6f, 813.9f), new Vector2(-373.2f, 813.9f),
-        new Vector2(-373.2f, 883.3f), new Vector2(-131.1f, 883.5f) };
+    public static Vector2[] NIWA { get { return EdoParcels.Get("sannobuke_niwa"); } }
     // 京極: 0=W(丹羽共有=skip) 1=N(丹羽共有=skip) 2=E(表門) 3=S(内藤共有=skip)
-    public static readonly Vector2[] KYOGOKU = {
-        new Vector2(-293.4f, 677.8f), new Vector2(-293.9f, 802.6f),
-        new Vector2(-129.2f, 802.3f), new Vector2(-123.7f, 680.0f) };
-    // 内藤: 0..10=SW周(堀端) 11=N(表門, 丹羽SW/京極と背中合わせ区間を含む)
-    public static readonly Vector2[] NAITO = {
-        new Vector2(-370.9f, 656.7f), new Vector2(-355.4f, 601.7f), new Vector2(-329.4f, 575.6f),
-        new Vector2(-285.9f, 544.1f), new Vector2(-219.8f, 521.3f), new Vector2(-157.5f, 514.8f),
-        new Vector2(-93.6f, 524.3f), new Vector2(-53.5f, 538.6f), new Vector2(-54.2f, 572.2f),
-        new Vector2(-88.9f, 677.7f), new Vector2(-339.0f, 676.1f) };
+    public static Vector2[] KYOGOKU { get { return EdoParcels.Get("sannobuke_kyogoku"); } }
+    // 内藤: 0..8=SW周(堀端)。2026-08-26 json採用で 11→12点 — 北辺(z≈677.7)が
+    //   x=-126.79 で辺9+辺10 に割れた(表門 x≈-106 は辺9 側のまま)。旧辺10(W)→辺11。
+    public static Vector2[] NAITO { get { return EdoParcels.Get("sannobuke_naito"); } }
     // 山王坂コリドー(splat用)
     static readonly Vector2[] SANDO_AXIS = { new Vector2(-371f, 894f), new Vector2(-131f, 899f) };
 
     // ---------- helpers ----------
-    static float Ground(float x, float z) { return EdoNishiTameikeBuilder.Ground(x, z); }
+    static float Ground(float x, float z) { return EdoBuild.Ground(x, z); }
     static GameObject Place(string path, Vector3 pos, float ry, Vector3 scale, Transform parent, string name)
     { return EdoNishiTameikeBuilder.Place(path, pos, ry, scale, parent, name); }
     static Bounds RB(GameObject go) { return EdoNishiTameikeBuilder.RB(go); }
@@ -104,40 +94,6 @@ public static class EdoSannoBukeBuilder
             cur = nx;
         }
         return cur;
-    }
-    static bool PIP(Vector2[] poly, Vector2 p)
-    {
-        bool inside = false;
-        for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
-            if (((poly[i].y > p.y) != (poly[j].y > p.y)) &&
-                (p.x < (poly[j].x - poly[i].x) * (p.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x)) inside = !inside;
-        return inside;
-    }
-    static float SignedArea(Vector2[] poly)
-    {
-        float a = 0;
-        for (int i = 0; i < poly.Length; i++) { var p = poly[i]; var q = poly[(i + 1) % poly.Length]; a += p.x * q.y - q.x * p.y; }
-        return 0.5f * a;
-    }
-    static Vector2 InwardNormal(Vector2[] poly, int i)
-    {
-        var a = poly[i]; var b = poly[(i + 1) % poly.Length];
-        var d = (b - a).normalized;
-        var n = new Vector2(-d.y, d.x);
-        if (SignedArea(poly) < 0) n = -n;
-        return n;
-    }
-    static float DistToEdge(Vector2 p, Vector2 a, Vector2 b)
-    {
-        var d = b - a; float len = d.magnitude; d /= len;
-        float t = Mathf.Clamp(Vector2.Dot(p - a, d), 0, len);
-        return (p - (a + d * t)).magnitude;
-    }
-    static float DistToPolyEdge(Vector2[] poly, Vector2 p)
-    {
-        float m = float.MaxValue;
-        for (int i = 0; i < poly.Length; i++) m = Mathf.Min(m, DistToEdge(p, poly[i], poly[(i + 1) % poly.Length]));
-        return m;
     }
     static Material Mat(Color c) { var m = new Material(Shader.Find("Universal Render Pipeline/Lit")); m.color = c; return m; }
     static void CenterSeat(GameObject go, float x, float z, float sink = 0.12f)
@@ -233,7 +189,7 @@ public static class EdoSannoBukeBuilder
             {
                 var wp = it.TransformPoint(lp);
                 var p2 = new Vector2(wp.x, wp.z);
-                if (!PIP(poly, p2) || DistToPolyEdge(poly, p2) < margins[bi] * 0.75f) ok0 = false;
+                if (!EdoGeom.PIP(poly, p2) || EdoGeom.DistToPolyEdge(poly, p2) < margins[bi] * 0.75f) ok0 = false;
                 float g = Ground(wp.x, wp.z);
                 bur0 = Mathf.Max(bur0, g - wp.y);
             }
@@ -248,7 +204,7 @@ public static class EdoSannoBukeBuilder
                     {
                         var wp = it.TransformPoint(lp) + delta;
                         var p2 = new Vector2(wp.x, wp.z);
-                        if (!PIP(poly, p2) || DistToPolyEdge(poly, p2) < margins[bi]) { ok = false; break; }
+                        if (!EdoGeom.PIP(poly, p2) || EdoGeom.DistToPolyEdge(poly, p2) < margins[bi]) { ok = false; break; }
                         float g = Ground(wp.x, wp.z);
                         mn = Mathf.Min(mn, g); mx = Mathf.Max(mx, g);
                     }
@@ -366,7 +322,9 @@ public static class EdoSannoBukeBuilder
         Vector2 fout = new Vector2(0.008f, -1f).normalized;
         float gateHalf = PlaceGate(PKabuki, monGrp, gate, fout, 0, "Mon", sb);
         int N = JUGE.Length;
-        // 辺4 = JUGE[4]→[5](-514.3,945.9)→(-373.7,946.2) 140.6m は**岡部筑前守邸との共有境界**。
+        // 辺4 = JUGE[4]→[5](-528.9,956.7)→(-389.0,958.2) 139.9m は**岡部筑前守邸との共有境界**。
+        // (2026-08-26 json採用。旧辺4 140.6m と 1:1 対応 — skip は辺4 のまま。json で増えた
+        //  NE角のノッチ辺5,6 は樹下側の塀として建てる)
         // ⚠ **岡部が持つ**(ユーザー裁定 2026-08-19、確度U)。北辺 = 土井との境(指図 其十一)と同じ規則。
         //   裏づけは「囲いは1条」の所見のみ([丸の内三丁目] 確度A) — どちらが担うかの規則は史料未確認。
         //   ここを建てていたので岡部の Hei_S_Sk/Te/Mz と**二重**になっていた(間隔 1.06〜1.12m)。
@@ -377,7 +335,7 @@ public static class EdoSannoBukeBuilder
         {
             if (i == 4) continue;                       // 岡部共有 = 岡部所有 skip
             Vector2 a = JUGE[i], b = JUGE[(i + 1) % N];
-            Vector2 outw = -InwardNormal(JUGE, i);
+            Vector2 outw = -EdoGeom.InwardNormal(JUGE, i);
             if (i == 0)
                 FrontWall(kak, a, b, outw, gate, gateHalf + 0.5f, "Hei_F");
             else
@@ -400,7 +358,7 @@ public static class EdoSannoBukeBuilder
             float px = Mathf.Lerp(-508f, -378f, (float)rnd.NextDouble());
             float pz = Mathf.Lerp(915f, 944f, (float)rnd.NextDouble());
             var p2 = new Vector2(px, pz);
-            if (!PIP(JUGE, p2) || DistToPolyEdge(JUGE, p2) < 2.5f) continue;
+            if (!EdoGeom.PIP(JUGE, p2) || EdoGeom.DistToPolyEdge(JUGE, p2) < 2.5f) continue;
             bool nearB = false;
             foreach (Transform c in bg) { var rb2 = RB(c.gameObject); if (px > rb2.min.x - 2f && px < rb2.max.x + 2f && pz > rb2.min.z - 2f && pz < rb2.max.z + 2f) { nearB = true; break; } }
             if (nearB) continue;
@@ -463,7 +421,7 @@ public static class EdoSannoBukeBuilder
             CenterSeat(house, hc.x, hc.y);
             // 裏の生垣・木
             float px = wc.x + 20f + (float)rnd.NextDouble() * 4f, pz = wc.y + ((float)rnd.NextDouble() * 6f - 3f);
-            if (PIP(SHANIN, new Vector2(px, pz)))
+            if (EdoGeom.PIP(SHANIN, new Vector2(px, pz)))
             {
                 float y = Ground(px, pz);
                 var tr = Place(rnd.NextDouble() < 0.4 ? Bamboo[rnd.Next(2)] : Pines[rnd.Next(Pines.Length)],
@@ -538,7 +496,7 @@ public static class EdoSannoBukeBuilder
     }
     static Material MonzenMat(string name, string texPath)
     {
-        string matPath = "Assets/Edo/Materials/" + name + ".mat";
+        string matPath = EdoAssets.Own.Mat(name);
         var m = AssetDatabase.LoadAssetAtPath<Material>(matPath);
         if (m != null) return m;
         m = new Material(Shader.Find("Universal Render Pipeline/Lit"));
@@ -563,13 +521,13 @@ public static class EdoSannoBukeBuilder
         Vector2 nA = NIWA[7], nB = NIWA[0];   // 辺7(E): (-131.1,883.5)→(-129.2,802.3)
         Vector2 nDir = (nB - nA).normalized;
         Vector2 gate = nA + nDir * ((839f - nA.y) / nDir.y);
-        Vector2 fout = -InwardNormal(NIWA, 7);
+        Vector2 fout = -EdoGeom.InwardNormal(NIWA, 7);
         float gateHalf = PlaceGate(PKmon, monGrp, gate, fout, 2, "Kmon", sb);
         int N = NIWA.Length;
         for (int i = 0; i < N; i++)
         {
             Vector2 a = NIWA[i], b = NIWA[(i + 1) % N];
-            Vector2 outw = -InwardNormal(NIWA, i);
+            Vector2 outw = -EdoGeom.InwardNormal(NIWA, i);
             if (i == 7)
                 FrontWall(kak, a, b, outw, gate, gateHalf + 0.5f, "Hei_F");
             else if (i == 2) continue;   // 内藤北塀が受け持つ(背中合わせ)
@@ -607,7 +565,7 @@ public static class EdoSannoBukeBuilder
             float px = Mathf.Lerp(-370f, -134f, (float)rnd.NextDouble());
             float pz = Mathf.Lerp(680f, 880f, (float)rnd.NextDouble());
             var p2 = new Vector2(px, pz);
-            if (!PIP(NIWA, p2) || DistToPolyEdge(NIWA, p2) < 4f) continue;
+            if (!EdoGeom.PIP(NIWA, p2) || EdoGeom.DistToPolyEdge(NIWA, p2) < 4f) continue;
             bool nearB = false;
             foreach (Transform c in bg) { var rb2 = RB(c.gameObject); if (px > rb2.min.x - 2.5f && px < rb2.max.x + 2.5f && pz > rb2.min.z - 2.5f && pz < rb2.max.z + 2.5f) { nearB = true; break; } }
             if (nearB) continue;
@@ -641,13 +599,13 @@ public static class EdoSannoBukeBuilder
         Vector2 sA = KYOGOKU[2], sB = KYOGOKU[3];  // 辺2(E): (-129.2,802.3)→(-123.7,680.0)
         Vector2 sDir = (sB - sA).normalized;
         Vector2 gate = sA + sDir * ((747f - sA.y) / sDir.y);
-        Vector2 fout = -InwardNormal(KYOGOKU, 2);
+        Vector2 fout = -EdoGeom.InwardNormal(KYOGOKU, 2);
         float gateHalf = PlaceGate(PNmon, monGrp, gate, fout, 1, "Nagayamon", sb);
         int N = KYOGOKU.Length;
         for (int i = 0; i < N; i++)
         {
             Vector2 a = KYOGOKU[i], b = KYOGOKU[(i + 1) % N];
-            Vector2 outw = -InwardNormal(KYOGOKU, i);
+            Vector2 outw = -EdoGeom.InwardNormal(KYOGOKU, i);
             if (i == 2)
                 FrontWall(kak, a, b, outw, gate, gateHalf + 0.5f, "Hei_F");
             else continue;    // W/N=丹羽、S=内藤の塀が受け持つ(背中合わせ)
@@ -667,7 +625,7 @@ public static class EdoSannoBukeBuilder
             float px = Mathf.Lerp(-292f, -126f, (float)rnd.NextDouble());
             float pz = Mathf.Lerp(686f, 796f, (float)rnd.NextDouble());
             var p2 = new Vector2(px, pz);
-            if (!PIP(KYOGOKU, p2) || DistToPolyEdge(KYOGOKU, p2) < 3.5f) continue;
+            if (!EdoGeom.PIP(KYOGOKU, p2) || EdoGeom.DistToPolyEdge(KYOGOKU, p2) < 3.5f) continue;
             bool nearB = false;
             foreach (Transform c in bg) { var rb2 = RB(c.gameObject); if (px > rb2.min.x - 2.5f && px < rb2.max.x + 2.5f && pz > rb2.min.z - 2.5f && pz < rb2.max.z + 2.5f) { nearB = true; break; } }
             if (nearB) continue;
@@ -698,16 +656,16 @@ public static class EdoSannoBukeBuilder
         var kak = Group(G, "Kakoi");
         var monGrp = Group(G, "Omotemon");
         // 表門=北辺東寄り x≈-106, 北向き(門印=三角形)。独立門+両番所(譜代5万石・老中)
-        Vector2 a9 = NAITO[9], a10 = NAITO[10];   // 辺9(N): (-88.9,677.7)→(-339.0,676.1)
+        Vector2 a9 = NAITO[9], a10 = NAITO[10];   // 辺9(N): (-88.9,677.7)→(-126.79,677.7)。表門 x≈-106 はこの辺上(2026-08-26 json採用で北辺が辺9+10に割れた)
         Vector2 nDir = (a10 - a9).normalized;
         Vector2 gate = a9 + nDir * Mathf.Abs((-106f - a9.x) / Mathf.Abs(nDir.x));
-        Vector2 fout = -InwardNormal(NAITO, 9);
+        Vector2 fout = -EdoGeom.InwardNormal(NAITO, 9);
         float gateHalf = PlaceGate(PKmon, monGrp, gate, fout, 2, "Kmon", sb);
         int N = NAITO.Length;
         for (int i = 0; i < N; i++)
         {
             Vector2 a = NAITO[i], b = NAITO[(i + 1) % N];
-            Vector2 outw = -InwardNormal(NAITO, i);
+            Vector2 outw = -EdoGeom.InwardNormal(NAITO, i);
             if (i == 9)
                 FrontWall(kak, a, b, outw, gate, gateHalf + 0.5f, "Hei_F");
             else
@@ -742,7 +700,7 @@ public static class EdoSannoBukeBuilder
             float px = Mathf.Lerp(-368f, -60f, (float)rnd.NextDouble());
             float pz = Mathf.Lerp(520f, 670f, (float)rnd.NextDouble());
             var p2 = new Vector2(px, pz);
-            if (!PIP(NAITO, p2) || DistToPolyEdge(NAITO, p2) < 4f) continue;
+            if (!EdoGeom.PIP(NAITO, p2) || EdoGeom.DistToPolyEdge(NAITO, p2) < 4f) continue;
             bool nearB = false;
             foreach (Transform c in bg) { var rb2 = RB(c.gameObject); if (px > rb2.min.x - 2.5f && px < rb2.max.x + 2.5f && pz > rb2.min.z - 2.5f && pz < rb2.max.z + 2.5f) { nearB = true; break; } }
             if (nearB) continue;
@@ -784,7 +742,7 @@ public static class EdoSannoBukeBuilder
         Func<Vector2, Vector2[], float> dPoly = (p, pts) =>
         {
             float m = float.MaxValue;
-            for (int i = 0; i < pts.Length - 1; i++) m = Mathf.Min(m, DistToEdge(p, pts[i], pts[i + 1]));
+            for (int i = 0; i < pts.Length - 1; i++) m = Mathf.Min(m, EdoGeom.DistToEdge(p, pts[i], pts[i + 1]));
             return m;
         };
         Vector2[][] parcels = { JUGE, SHANIN, NIWA, KYOGOKU, NAITO };
@@ -796,19 +754,19 @@ public static class EdoSannoBukeBuilder
                 var p = new Vector2(wx, wz);
                 float bare = -1, grass = 0, dirt = 0;
                 bool skip = false;
-                foreach (var jb in EdoSannoJuboBuilder.Parcels) if (PIP(jb.poly, p)) { skip = true; break; }
+                foreach (var jb in EdoSannoJuboBuilder.Parcels) if (EdoGeom.PIP(jb.poly, p)) { skip = true; break; }
                 if (!skip)
                 {
                     // 観理院・境内は既存のまま
                     var KAN = new Vector2[] { new Vector2(-389.4f, 735.3f), new Vector2(-421.6f, 732.5f), new Vector2(-426.2f, 851.4f), new Vector2(-409.7f, 888.1f), new Vector2(-390.2f, 888.3f) };
-                    if (PIP(KAN, p)) skip = true;
+                    if (EdoGeom.PIP(KAN, p)) skip = true;
                     if (wx < -426f && wz < 908f) skip = true;   // 山王山・境内側は触らない
                 }
                 if (skip) continue;
                 bool inSando = (wz > 884f && wz < 909f && wx > -372f && wx < -128f);
                 float dm = dPoly(p, midRoad), ds = dPoly(p, shoreRoad);
                 Vector2[] inP = null;
-                foreach (var pp in parcels) if (PIP(pp, p)) { inP = pp; break; }
+                foreach (var pp in parcels) if (EdoGeom.PIP(pp, p)) { inP = pp; break; }
                 if (inSando)
                 {
                     float dAxis = dPoly(p, SANDO_AXIS);

@@ -240,6 +240,9 @@ public static class EdoAssets
         public const string MKido       = "Assets/Edo/Materials/M_Kido.mat";
         public const string MKidobanya  = "Assets/Edo/Materials/M_Kidobanya.mat";
         public const string MJishinban  = "Assets/Edo/Materials/M_Jishinban.mat";
+        public const string MGateStone  = "Assets/Edo/Materials/GateStone.mat";
+        // 自作マテリアルの名前引き(規則11: パスの literal はここ以外に書かない)
+        public static string Mat(string name) { return "Assets/Edo/Materials/" + name + ".mat"; }
 
         /// <summary>松江松平邸の表門 — **屋根なしの冠木門**(角柱・冠木・内開き扉・潜り戸・袖塀の一体物)。
         /// 姿は温古写真集11(88005761・明治初撮影)の実見【A】+『日本案内記 関東篇』昭和5年【A】。
@@ -258,6 +261,30 @@ public static class EdoAssets
         /// **ピボット = 走り方向の芯・基壇の下端**。
         /// 生成: blender --background --python Tools/Blender/build_matsudaira_bansho.py -- [--render]</summary>
         public const string MatsudairaBansho = "Assets/Edo/Models/Mon/Matsudaira_Bansho.fbx";
+
+        /// <summary>松江松平邸の附属屋・工作物。すべて `Tools/Blender/build_matsudaira_fuzokuya.py`
+        /// で起こす(在庫照会 `docs/asset-catalog.md` §10「無い物」の結果 — 井戸・鳥居・祠・二層櫓は
+        /// 目録に無く、土蔵・数寄屋・作事小屋は在庫の寸法が指図に合わない)。
+        /// **ピボットは footprint の中心・地盤レベル**。ローカル +X = 桁行、+Z = 表。
+        /// 作り直し: `blender --background --python Tools/Blender/build_matsudaira_fuzokuya.py -- &lt;名&gt; [--render]`
+        /// (名 = dozo / koya / sukiya / inari / ido / yagura。省くと全部)</summary>
+        public static class Matsudaira
+        {
+            /// <summary>土蔵 4×7間。実寸 13.76(X) × 7.12(Y) × 8.89(Z)</summary>
+            public const string Dozo   = FuzokuyaDir + "Matsudaira_Dozo.fbx";
+            /// <summary>御作事小屋 10×4間(片側の長手が開いた小屋)。実寸 19.32 × 5.50 × 8.99</summary>
+            public const string Koya   = FuzokuyaDir + "Matsudaira_Koya.fbx";
+            /// <summary>御茶屋(数寄屋)2.5間角・宝形の柿葺。実寸 6.55 × 4.44 × 6.55</summary>
+            public const string Sukiya = FuzokuyaDir + "Matsudaira_Sukiya.fbx";
+            /// <summary>稲荷社(明神鳥居+一間社流造の小祠)。実寸 2.50 × 2.76 × 3.34。
+            /// 鳥居は +Z 側 = 祠の正面。据えるときは参道を +Z へ向ける</summary>
+            public const string Inari  = FuzokuyaDir + "Matsudaira_Inari.fbx";
+            /// <summary>石井戸枠+釣瓶の桁。実寸 1.90 × 2.21 × 1.90。**枠の天端は地盤+0.72**</summary>
+            public const string Ido    = FuzokuyaDir + "Matsudaira_Ido.fbx";
+            /// <summary>二重の隅櫓 3間角。実寸 7.39 × 8.64 × 7.39。据えは石垣の天端</summary>
+            public const string Yagura = FuzokuyaDir + "Matsudaira_SumiYagura.fbx";
+        }
+        const string FuzokuyaDir = "Assets/Edo/Models/Fuzokuya/";
 
         public const string LayerGrass  = "Assets/Edo/Terrain/layers/L_grass.terrainlayer";
     }

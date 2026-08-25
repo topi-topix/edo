@@ -58,78 +58,48 @@ public static class EdoTodaBlockBuilder
     //  L1: 松平日向守 南壁ライン(-425.3,222.7)->(-292.3,144.2) の 2.2m 内側
     //  L2: 山口(牛久)南西壁ライン(-289.7,142.1)->(-200.3,88.2) の 8.2m 内側(壁2.2+街路6)
     //  小出西辺=寺地との小路(幅6m)の東縁。陽泉寺東辺=小路から10m(ねぶと町奥行)。
+    // ⚠ poly の正典 = docs/Sashizu/parcels.json(CLAUDE.md 規則10 / 2026-08-26 ユーザー裁定で json採用)
     public static Parcel[] Parcels = new Parcel[]
     {
+        // 戸田 13角形: 0起点=澄泉寺NW角共有。辺2,4=街路沿い長屋 / 辺1=表(NE)
         new Parcel{ group="Edo_Yashiki_TodaUneme", label="戸田采女正(大垣藩10万石)上屋敷",
-            poly=new[]{
-                new Vector2(-324.2f,158.7f),   // 0 澄泉寺NW角と共有
-                new Vector2(-425.5f,219.5f),   // 1 NE角(日向守SW角の2.2m内側)
-                new Vector2(-530.6f,68.0f),    // 2 北西の通り沿い南端
-                new Vector2(-589.3f,105.5f),   // 3 腕部NW角
-                new Vector2(-619.4f,60.5f),    // 4 腕部W角
-                new Vector2(-511.5f,-9.0f),    // 5 腕部S角
-                new Vector2(-469.6f,28.0f),    // 6 井上SW角
-                new Vector2(-472.9f,55.75f),   // 7 井上NW角
-                new Vector2(-453.7f,83.7f),    // 8 井上N角
-                new Vector2(-373.4f,31.7f),    // 9 井上E角
-                new Vector2(-354.5f,50.6f),    // 10 陽泉寺SW角
-                new Vector2(-329.8f,91.8f),    // 11 陽泉寺NW角
-                new Vector2(-357.9f,108.75f),  // 12 澄泉寺SW角
-            },
+            poly=EdoParcels.Get("todablock_parcels_0"),
             front=1, gateT=0.13f, gateType="k_mon", bansho=2,          // 表門=北西の通り北寄り(文字の頭=西北西/谷筋平坦帯に玄関正対)
             nagayaEdges=new[]{2,4},                                    // 街路沿いの家臣長屋
             dobeiEdges=new[]{0,3,5,6,7,8,9,10,11,12} },
+        // 小出 4角形: 0=NE角(L2街路南縁∩大通り) 1=S角 2=SW角 3=NW角
         new Parcel{ group="Edo_Hikeshi_Koide", label="定火消御役屋敷 小出伊織(5000石)",
-            poly=new[]{
-                new Vector2(-203.1f,80.4f),    // 0 NE角(L2街路南縁∩大通り)
-                new Vector2(-245.4f,-6.7f),    // 1 S角(大通り∩南の小路)
-                new Vector2(-290.0f,15.9f),    // 2 SW角(南の小路∩寺小路)
-                new Vector2(-242.1f,104.0f),   // 3 NW角(寺小路∩L2街路)
-            },
+            poly=EdoParcels.Get("todablock_parcels_1"),
             front=1, gateT=0.45f, gateType="h_mon", bansho=1,          // 表門=南西の小路(文字倒立)
             nagayaEdges=new[]{0,3},                                    // 臥煙部屋・与力同心長屋(大通り沿い+北)
             dobeiEdges=new[]{2} },
+        // 井上 5角形: 0=E角 1=N角 2=NW角 3=SW角 4=S角
         new Parcel{ group="Edo_Yashiki_Inoue", label="寄合 井上寿一郎(4000石)",
-            poly=new[]{
-                new Vector2(-373.4f,31.7f),    // 0 E角
-                new Vector2(-453.7f,83.7f),    // 1 N角
-                new Vector2(-472.9f,55.75f),   // 2 NW角
-                new Vector2(-469.6f,28.0f),    // 3 SW角
-                new Vector2(-400.6f,-13.25f),  // 4 S角
-            },
+            poly=EdoParcels.Get("todablock_parcels_2"),
             front=4, gateT=0.5f, gateType="h_mon", bansho=1,           // 表門=南東の道(文字の頭=東南東)
             nagayaEdges=new[]{3},                                      // 南の道沿い
             dobeiEdges=new int[0],                                     // 0,1,2 は戸田側が受け持つ
             noWallEdges=new[]{0,1,2} },
+        // 澄泉寺: 2026-08-26 json採用で 6→7点(SE小路沿い=旧辺1上に (-262.21,67.53) が index2 挿入)、
+        //   辺indexを再採番: 旧辺1→辺1+辺2 / 旧辺2→3 / 旧辺3→4 / 旧辺4→5 / 旧辺5→6
+        //   → dobei {0,1,2}→{0,1,2,3} / noWall {3,4,5}→{4,5,6}
         new Parcel{ group="Edo_Temple_Chosenji", label="澄泉寺(真宗高田派触頭)",
-            poly=new[]{
-                new Vector2(-324.2f,158.7f),   // 0 NW角
-                new Vector2(-247.4f,106.9f),   // 1 NE角(参道側)
-                new Vector2(-266.9f,71.0f),    // 2 SE角(小路沿い)
-                new Vector2(-299.5f,91.4f),    // 3 陽泉寺との折れ
-                new Vector2(-308.65f,80.4f),   // 4 陽泉寺との折れ
-                new Vector2(-357.9f,108.75f),  // 5 SW角
-            },
+            poly=EdoParcels.Get("todablock_parcels_3"),
             front=0, gateT=0.62f, gateType="sanmon", bansho=0,         // 山門=北東辺(溜池端方面, 文字正立)
-            dobeiEdges=new[]{0,1,2},
-            noWallEdges=new[]{3,4,5} },                                // 西は戸田塀/南は陽泉寺塀
+            dobeiEdges=new[]{0,1,2,3},
+            noWallEdges=new[]{4,5,6} },                                // 西は戸田塀/南は陽泉寺塀
+        // 陽泉寺: 2026-08-26 json採用で 7→6点(旧4 SE角と旧5 S角が1点に併合=旧辺3+旧辺4が新辺3に)、
+        //   辺indexを再採番: 旧辺0,1,2→0,1,2 / 旧辺3,4→3 / 旧辺5→4 / 旧辺6→5
+        //   → front 3のまま(併合後の東辺) / dobei {1,2,3,4,5}→{1,2,3,4} / noWall {0,6}→{0,5}
         new Parcel{ group="Edo_Temple_Yosenji", label="陽泉寺(曹洞宗)",
-            poly=new[]{
-                new Vector2(-329.8f,91.8f),    // 0 NW角
-                new Vector2(-308.65f,80.4f),   // 1 澄泉寺との折れ
-                new Vector2(-299.5f,91.4f),    // 2 澄泉寺との折れ
-                new Vector2(-275.1f,76.9f),    // 3 NE角(ねぶと町北端)
-                new Vector2(-301.5f,28.5f),    // 4 SE角(ねぶと町南端)
-                new Vector2(-298.7f,19.2f),    // 5 S角(小路との辻)
-                new Vector2(-354.5f,50.6f),    // 6 SW角
-            },
+            poly=EdoParcels.Get("todablock_parcels_4"),
             front=3, gateT=0.45f, gateType="sanmon", bansho=0,         // 山門=東辺(門前町の通りへ)
-            dobeiEdges=new[]{1,2,3,4,5},
-            noWallEdges=new[]{0,6} },                                  // 西/北西は戸田塀
+            dobeiEdges=new[]{1,2,3,4},
+            noWallEdges=new[]{0,5} },                                  // 西/北西は戸田塀
     };
 
     // ---------- helpers (EdoNishiTameikeBuilder の公開ヘルパを利用) ----------
-    static float Ground(float x, float z) { return EdoNishiTameikeBuilder.Ground(x, z); }
+    static float Ground(float x, float z) { return EdoBuild.Ground(x, z); }
     static GameObject Place(string path, Vector3 pos, float ry, Vector3 scale, Transform parent, string name)
     { return EdoNishiTameikeBuilder.Place(path, pos, ry, scale, parent, name); }
     static Bounds RB(GameObject go) { return EdoNishiTameikeBuilder.RB(go); }
@@ -156,40 +126,16 @@ public static class EdoTodaBlockBuilder
         }
         return cur;
     }
-    static bool PIP(Vector2[] poly, Vector2 p)
-    {
-        bool inside = false;
-        for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
-            if (((poly[i].y > p.y) != (poly[j].y > p.y)) &&
-                (p.x < (poly[j].x - poly[i].x) * (p.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x)) inside = !inside;
-        return inside;
-    }
-    static float SignedArea(Vector2[] poly)
-    {
-        float a = 0;
-        for (int i = 0; i < poly.Length; i++) { var p = poly[i]; var q = poly[(i + 1) % poly.Length]; a += p.x * q.y - q.x * p.y; }
-        return 0.5f * a;
-    }
+    // EdoGeom.InwardNormal と実装差あり — 統一は裁定待ち
     public static Vector2 InwardNormal(Parcel e, int i)
     {
         var a = e.poly[i]; var b = e.poly[(i + 1) % e.poly.Length];
         var d = (b - a).normalized;
         var n = new Vector2(-d.y, d.x);
-        if (SignedArea(e.poly) < 0) n = -n;
+        if (EdoGeom.SignedArea(e.poly) < 0) n = -n;
         return n;
     }
-    static float DistToEdge(Vector2 p, Vector2 a, Vector2 b)
-    {
-        var d = b - a; float len = d.magnitude; d /= len;
-        float t = Mathf.Clamp(Vector2.Dot(p - a, d), 0, len);
-        return (p - (a + d * t)).magnitude;
-    }
-    public static float DistToPolyEdge(Vector2[] poly, Vector2 p)
-    {
-        float m = float.MaxValue;
-        for (int i = 0; i < poly.Length; i++) m = Mathf.Min(m, DistToEdge(p, poly[i], poly[(i + 1) % poly.Length]));
-        return m;
-    }
+    public static float DistToPolyEdge(Vector2[] poly, Vector2 p) => EdoGeom.DistToPolyEdge(poly, p);
     public static Vector2 GatePos(Parcel e)
     {
         int N = e.poly.Length;
@@ -224,7 +170,7 @@ public static class EdoTodaBlockBuilder
             for (float dz = -searchR; dz <= searchR; dz += 1.5f)
             {
                 var c = anchor + new Vector2(dx, dz);
-                if (!PIP(e.poly, c) || DistToPolyEdge(e.poly, c) < edgeMargin) continue;
+                if (!EdoGeom.PIP(e.poly, c) || DistToPolyEdge(e.poly, c) < edgeMargin) continue;
                 float mn = float.MaxValue, mx = float.MinValue;
                 for (int i = -1; i <= 1; i++)
                     for (int j = -1; j <= 1; j++)
@@ -563,7 +509,7 @@ public static class EdoTodaBlockBuilder
     }
     static Material MonzenMat(string name, string texPath)
     {
-        string matPath = "Assets/Edo/Materials/" + name + ".mat";
+        string matPath = EdoAssets.Own.Mat(name);
         var m = AssetDatabase.LoadAssetAtPath<Material>(matPath);
         if (m != null) return m;
         m = new Material(Shader.Find("Universal Render Pipeline/Lit"));
@@ -615,13 +561,13 @@ public static class EdoTodaBlockBuilder
                 foreach (Transform ch in sub) { var rb = RB(ch.gameObject); if (rb.size.sqrMagnitude > 0.01f) obs.Add(rb); }
         Func<Vector2, float, bool> clear = (p, m) =>
         {
-            if (!PIP(e.poly, p)) return false;
+            if (!EdoGeom.PIP(e.poly, p)) return false;
             // 最寄り辺の種別でマージン: 長屋/表辺=8.5, その他=3.0
             float best = float.MaxValue; float bm = 7.5f;
             for (int i = 0; i < e.poly.Length; i++)
             {
                 var a = e.poly[i]; var b2 = e.poly[(i + 1) % e.poly.Length];
-                float dd2 = DistToEdge(p, a, b2);
+                float dd2 = EdoGeom.DistToEdge(p, a, b2);
                 if (dd2 < best) { best = dd2; bm = (i == e.front || e.nagayaEdges.Contains(i)) ? 8.5f : 3.0f; }
             }
             if (best < bm) return false;
@@ -764,7 +710,7 @@ public static class EdoTodaBlockBuilder
                 float u = -34f + col * 3.0f + (float)rnd.NextDouble() * 0.5f;
                 float v = 52f + row * 3.0f + (float)rnd.NextDouble() * 0.5f;
                 Vector2 p = gate2 + uhat * u + vhat * v;
-                if (!PIP(e.poly, p) || DistToPolyEdge(e.poly, p) < 2.5f) continue;
+                if (!EdoGeom.PIP(e.poly, p) || DistToPolyEdge(e.poly, p) < 2.5f) continue;
                 float y = Ground(p.x, p.y);
                 var t = new GameObject("Haka_" + row + "_" + col);
                 t.transform.SetParent(g.transform, false);
@@ -795,7 +741,7 @@ public static class EdoTodaBlockBuilder
         for (int i = 0; i < 400; i++)
         {
             var p2 = new Vector2(Mathf.Lerp(bbMin.x, bbMax.x, (float)rnd.NextDouble()), Mathf.Lerp(bbMin.y, bbMax.y, (float)rnd.NextDouble()));
-            if (!PIP(e.poly, p2) || DistToPolyEdge(e.poly, p2) < 4f) continue;
+            if (!EdoGeom.PIP(e.poly, p2) || DistToPolyEdge(e.poly, p2) < 4f) continue;
             float score = p2.x + p2.y;
             if (score > bestScore) { bestScore = score; best = p2; }
         }
@@ -850,21 +796,7 @@ public static class EdoTodaBlockBuilder
     // ---------- OBB ユーティリティ ----------
     // ローカル footprint (メッシュ頂点) を測る
     public static void ObbFootprint(Transform it, out float mnx, out float mxx, out float mnz, out float mxz, out float mny)
-    {
-        mnx = float.MaxValue; mxx = float.MinValue; mnz = float.MaxValue; mxz = float.MinValue; mny = float.MaxValue;
-        foreach (var mf in it.GetComponentsInChildren<MeshFilter>())
-        {
-            var mesh = mf.sharedMesh; if (mesh == null) continue;
-            var vts = mesh.vertices;
-            for (int i = 0; i < vts.Length; i++)
-            {
-                var lp = it.InverseTransformPoint(mf.transform.TransformPoint(vts[i]));
-                mnx = Mathf.Min(mnx, lp.x); mxx = Mathf.Max(mxx, lp.x);
-                mnz = Mathf.Min(mnz, lp.z); mxz = Mathf.Max(mxz, lp.z);
-                mny = Mathf.Min(mny, lp.y);
-            }
-        }
-    }
+        => EdoBuild.ObbFootprint(it, out mnx, out mxx, out mnz, out mxz, out mny);
     // OBB中心を(x,z)へ移動し、OBB輪郭点の最小地盤へ接地。埋/浮を返す。
     public static string MoveToObb(string groupName, string childPath, float x, float z)
     {
@@ -925,7 +857,7 @@ public static class EdoTodaBlockBuilder
                     buried = Mathf.Max(buried, g - wp.y); floating = Mathf.Max(floating, wp.y - g);
                     var p2 = new Vector2(wp.x, wp.z);
                     float d = DistToPolyEdge(e.poly, p2);
-                    if (!PIP(e.poly, p2)) d = -d;
+                    if (!EdoGeom.PIP(e.poly, p2)) d = -d;
                     edge = Mathf.Min(edge, d);
                 }
             sb.AppendLine(it.name + " OBB" + (mxx - mnx).ToString("F0") + "x" + (mxz - mnz).ToString("F0")
@@ -934,11 +866,15 @@ public static class EdoTodaBlockBuilder
         return sb.ToString();
     }
 
+    // 一度きりの再配置のガード。現配置が正 — 再実行すると最良点探索がそこから再度動かす(const だと CS0162)
+    static readonly bool RepositionApplied = true;
+
     // ---------- Stage 2b: 建物の制約付き再配置 (§16 総当たり探索) ----------
     // 各建物を「敷地内・境界マージン・相互クリアランス・高低差最小」を満たす最良点へ動かす。
     // 主要建物は門正対軸上のアンカーへ引き寄せる。移動はバウンズ中心差分(合成コンテナ安全)。
     public static string Stage2b_Reposition(string groupName)
     {
+        if (RepositionApplied) return "⛔ 適用済み(" + groupName + ")。再実行すると現配置から再度動く — 走らせない";
         var e = Parcels.First(x => x.group == groupName);
         var root = GameObject.Find(e.group);
         if (root == null) return "no group";
@@ -989,7 +925,7 @@ public static class EdoTodaBlockBuilder
                         {
                             if (i == 0 && j == 0) continue;
                             var q = c + new Vector2(i * hw, j * hd);
-                            if (!PIP(e.poly, q) || DistToPolyEdge(e.poly, q) < margin) ok = false;
+                            if (!EdoGeom.PIP(e.poly, q) || DistToPolyEdge(e.poly, q) < margin) ok = false;
                         }
                     if (!ok) continue;
                     // 相互クリアランス(AABB+1.5m)
@@ -1052,7 +988,7 @@ public static class EdoTodaBlockBuilder
                     float wx = tp.x + (ix0 + xx + 0.5f) * cell;
                     float wz = tp.z + (iz0 + zz + 0.5f) * cell;
                     var p = new Vector2(wx, wz);
-                    if (!PIP(e.poly, p)) continue;
+                    if (!EdoGeom.PIP(e.poly, p)) continue;
                     float v = Vector2.Dot(p - gate2, vhat);
                     float uAbs = Mathf.Abs(Vector2.Dot(p - gate2, uhat));
                     float bare, grass, dirt;
@@ -1093,7 +1029,7 @@ public static class EdoTodaBlockBuilder
             {
                 var p2 = new Vector2(cx == 0 ? b.min.x : b.max.x, cz == 0 ? b.min.z : b.max.z);
                 float d = DistToPolyEdge(e.poly, p2);
-                if (!PIP(e.poly, p2)) d = -d;
+                if (!EdoGeom.PIP(e.poly, p2)) d = -d;
                 if (d < worst) worst = d;
             }
             // 埋没/浮き

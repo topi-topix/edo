@@ -48,93 +48,47 @@ public static class EdoSannoJuboBuilder
         // 2026-08-11 ユーザー下書き改訂版: 円成/成就/宝蔵は西へ詰め、東端は南北小路(x≈-386.5)の西縁。
         // 小路の東(旧P1東帯)は敷地外。宝蔵院の西辺=既存の長明院東辺(長明院所有の塀)にスナップ。
         new Parcel{ group="Edo_SannoBo_Enjoin", label="円乗院(円成院/山王社社僧)", rank=0,
-            poly=new[]{
-                new Vector2(-389.8f,722.5f),   // FE (南北小路の西縁)
-                new Vector2(-389.2f,644.6f),   // BE
-                new Vector2(-414.2f,649.7f),   // BW (成就院と共有)
-                new Vector2(-415.6f,721.0f),   // FW (成就院と共有)
-            },
+            poly=EdoParcels.Get("sannojubo_parcels_0"),
             front=3, gateT=0.5f, noWallEdges=new[]{2} },
         new Parcel{ group="Edo_SannoBo_Jojuin", label="成就院(山王社社僧)", rank=1,
-            poly=new[]{
-                new Vector2(-415.6f,721.0f),
-                new Vector2(-414.2f,649.7f),
-                new Vector2(-439.65f,658.3f),  // BW (宝蔵院と共有)
-                new Vector2(-440.8f,720.8f),   // FW
-            },
+            poly=EdoParcels.Get("sannojubo_parcels_1"),
             front=3, gateT=0.5f, noWallEdges=new[]{2} },
         new Parcel{ group="Edo_SannoBo_Hozoin", label="宝蔵院(山王社社僧)", rank=1,
-            poly=new[]{
-                new Vector2(-440.8f,720.8f),
-                new Vector2(-439.65f,658.3f),
-                new Vector2(-463.65f,670.65f), // BW (長明院と共有=既存塀ライン)
-                new Vector2(-461.75f,721.8f),  // FW
-            },
+            poly=EdoParcels.Get("sannojubo_parcels_2"),
             front=3, gateT=0.5f, noWallEdges=new[]{2} },
         new Parcel{ group="Edo_SannoBo_Chomyoin", label="長明院(長命院/山王社社僧)", rank=1,
-            poly=new[]{
-                new Vector2(-461.75f,721.8f),
-                new Vector2(-463.65f,670.65f),
-                new Vector2(-493.0f,687.9f),   // BW (福寿院と共有)
-                new Vector2(-486.5f,725.05f),  // FW
-            },
+            poly=EdoParcels.Get("sannojubo_parcels_3"),
             front=3, gateT=0.5f, noWallEdges=new[]{2} },
         new Parcel{ group="Edo_SannoBo_Fukujuin", label="福寿院(福聚院/山王社社僧)", rank=1,
-            poly=new[]{
-                new Vector2(-486.5f,725.05f),
-                new Vector2(-493.0f,687.9f),
-                new Vector2(-518.3f,702.4f),   // BW (智光院と共有)
-                new Vector2(-507.0f,733.95f),  // FW
-            },
+            poly=EdoParcels.Get("sannojubo_parcels_4"),
             front=3, gateT=0.5f, noWallEdges=new[]{2} },
         new Parcel{ group="Edo_SannoBo_Chikoin", label="智光院(山王社社僧)", rank=1,
-            poly=new[]{
-                new Vector2(-507.0f,733.95f),
-                new Vector2(-518.3f,702.4f),
-                new Vector2(-541.35f,717.95f), // BW (宝仙院と共有)
-                new Vector2(-521.3f,745.2f),   // FW
-            },
+            poly=EdoParcels.Get("sannojubo_parcels_5"),
             front=3, gateT=0.5f, noWallEdges=new[]{2} },
         new Parcel{ group="Edo_SannoBo_Hosenin", label="宝仙院(宝泉院/山王社社僧)", rank=2,
-            poly=new[]{
-                new Vector2(-521.3f,745.2f),
-                new Vector2(-541.35f,717.95f),
-                new Vector2(-554.05f,733.7f),  // BW (無量院と共有)
-                new Vector2(-533.45f,757.6f),  // FW
-            },
+            poly=EdoParcels.Get("sannojubo_parcels_6"),
             front=3, gateT=0.5f, noWallEdges=new[]{2} },
         new Parcel{ group="Edo_SannoBo_Muryoin", label="無量院(山王社社僧)", rank=1,
-            poly=new[]{
-                new Vector2(-533.45f,757.6f),
-                new Vector2(-554.05f,733.7f),
-                new Vector2(-574.85f,762.2f),  // BW (智乗院と共有)
-                new Vector2(-552.1f,775.3f),   // FW
-            },
+            poly=EdoParcels.Get("sannojubo_parcels_7"),
             front=3, gateT=0.5f, noWallEdges=new[]{2} },
         new Parcel{ group="Edo_SannoBo_Chijoin", label="智乗院(山王社社僧)", rank=1,
-            poly=new[]{
-                new Vector2(-552.1f,775.3f),   // FE (無量院と共有)
-                new Vector2(-574.85f,762.2f),  // BE
-                new Vector2(-610.4f,830.3f),   // BW (小路の南東縁)
-                new Vector2(-587.9f,836.5f),   // FW (山腹寄り)
-            },
+            poly=EdoParcels.Get("sannojubo_parcels_8"),
             front=3, gateT=0.8f, noWallEdges=new int[0] },   // 門は低平帯(FE寄り)
         new Parcel{ group="Edo_SannoBo_Jomyoin", label="常明院(山王社社僧)", rank=0,
-            poly=new[]{
-                new Vector2(-591.7f,845.7f),   // 0 SE (小路=道の終端の北西縁)
-                new Vector2(-613.8f,839.1f),   // 1 SW
-                new Vector2(-645.5f,936.2f),   // 2 NW
-                new Vector2(-584.9f,942.8f),   // 3 NE (山腹)
-                new Vector2(-600.7f,884.8f),   // 4 東中間(山裾の折れ)
-            },
-            // 辺2 = poly[2]→[3](-645.5,936.2)→(-584.9,942.8) 61.0m は**岡部筑前守邸との共有境界**。
+            poly=EdoParcels.Get("sannojubo_parcels_9"),
+            // 2026-08-26 json採用で 5→10点、辺indexを再採番(旧→新の頂点対応 0→0/1→1/2→3/3→6/4→9):
+            //   旧辺0(SE小路=表)→辺0 / 旧辺1(W水際=backEdge)→辺1+辺2 / 旧辺2(岡部共有)→辺3,4,5 /
+            //   旧辺3(NE山腹)→辺6,7,8 / 旧辺4(E山裾)→辺9。
+            // 辺3〜5 = poly[3]→[6] は**岡部筑前守邸との共有境界**。
             // ⚠ **岡部が持つ**(ユーザー裁定 2026-08-19、確度U)。岡部 Hei_S_W / Hei_S_Cd と
             //   二重になっていた(間隔 0.56〜3.06m)。囲いは1条([丸の内三丁目] 確度A)。
-            front=0, gateT=0.4f, backEdge=1, noWallEdges=new[]{2} },
+            // ⚠ backEdge は単一辺のため旧辺1 の下半(辺1)のみ穂垣。上半(辺2)は板塀になる —
+            //   水際の続きなら次の再建時に検図で裁定する(壊すより残す)。
+            front=0, gateT=0.4f, backEdge=1, noWallEdges=new[]{3,4,5} },
     };
 
     // ---------- helpers ----------
-    static float Ground(float x, float z) { return EdoNishiTameikeBuilder.Ground(x, z); }
+    static float Ground(float x, float z) { return EdoBuild.Ground(x, z); }
     static GameObject Place(string path, Vector3 pos, float ry, Vector3 scale, Transform parent, string name)
     { return EdoNishiTameikeBuilder.Place(path, pos, ry, scale, parent, name); }
     static Bounds RB(GameObject go) { return EdoNishiTameikeBuilder.RB(go); }
@@ -161,40 +115,16 @@ public static class EdoSannoJuboBuilder
         }
         return cur;
     }
-    static bool PIP(Vector2[] poly, Vector2 p)
-    {
-        bool inside = false;
-        for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
-            if (((poly[i].y > p.y) != (poly[j].y > p.y)) &&
-                (p.x < (poly[j].x - poly[i].x) * (p.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x)) inside = !inside;
-        return inside;
-    }
-    static float SignedArea(Vector2[] poly)
-    {
-        float a = 0;
-        for (int i = 0; i < poly.Length; i++) { var p = poly[i]; var q = poly[(i + 1) % poly.Length]; a += p.x * q.y - q.x * p.y; }
-        return 0.5f * a;
-    }
+    // EdoGeom.InwardNormal と実装差あり — 統一は裁定待ち
     public static Vector2 InwardNormal(Parcel e, int i)
     {
         var a = e.poly[i]; var b = e.poly[(i + 1) % e.poly.Length];
         var d = (b - a).normalized;
         var n = new Vector2(-d.y, d.x);
-        if (SignedArea(e.poly) < 0) n = -n;
+        if (EdoGeom.SignedArea(e.poly) < 0) n = -n;
         return n;
     }
-    static float DistToEdge(Vector2 p, Vector2 a, Vector2 b)
-    {
-        var d = b - a; float len = d.magnitude; d /= len;
-        float t = Mathf.Clamp(Vector2.Dot(p - a, d), 0, len);
-        return (p - (a + d * t)).magnitude;
-    }
-    public static float DistToPolyEdge(Vector2[] poly, Vector2 p)
-    {
-        float m = float.MaxValue;
-        for (int i = 0; i < poly.Length; i++) m = Mathf.Min(m, DistToEdge(p, poly[i], poly[(i + 1) % poly.Length]));
-        return m;
-    }
+    public static float DistToPolyEdge(Vector2[] poly, Vector2 p) => EdoGeom.DistToPolyEdge(poly, p);
     public static void Frame(Parcel e, out Vector2 gate2, out Vector2 uhat, out Vector2 vhat)
     {
         int N = e.poly.Length;
@@ -212,7 +142,7 @@ public static class EdoSannoJuboBuilder
             for (float dz = -searchR; dz <= searchR; dz += 1.5f)
             {
                 var c = anchor + new Vector2(dx, dz);
-                if (!PIP(e.poly, c) || DistToPolyEdge(e.poly, c) < edgeMargin) continue;
+                if (!EdoGeom.PIP(e.poly, c) || DistToPolyEdge(e.poly, c) < edgeMargin) continue;
                 float mn = float.MaxValue, mx = float.MinValue;
                 for (int i = -1; i <= 1; i++)
                     for (int j = -1; j <= 1; j++)
@@ -406,7 +336,7 @@ public static class EdoSannoJuboBuilder
     {
         Vector2 gate2, uhat, vhat; Frame(e, out gate2, out uhat, out vhat);
         Vector2 p = gate2 + uhat * u + vhat * v;
-        if (!PIP(e.poly, p) || DistToPolyEdge(e.poly, p) < 2.0f) p = FlatNear(e, u, v, 3, 3, 8, 2.0f);
+        if (!EdoGeom.PIP(e.poly, p) || DistToPolyEdge(e.poly, p) < 2.0f) p = FlatNear(e, u, v, 3, 3, 8, 2.0f);
         float y = Ground(p.x, p.y);
         var g = new GameObject("Ido");
         g.transform.SetParent(parent, false);
@@ -471,7 +401,7 @@ public static class EdoSannoJuboBuilder
                 foreach (Transform ch in sub) { var rb = RB(ch.gameObject); if (rb.size.sqrMagnitude > 0.01f) obs.Add(rb); }
         Func<Vector2, float, bool> clear = (p, m) =>
         {
-            if (!PIP(e.poly, p)) return false;
+            if (!EdoGeom.PIP(e.poly, p)) return false;
             if (DistToPolyEdge(e.poly, p) < 2.2f) return false;
             foreach (var b in obs)
                 if (p.x > b.min.x - m && p.x < b.max.x + m && p.y > b.min.z - m && p.y < b.max.z + m) return false;
@@ -591,9 +521,9 @@ public static class EdoSannoJuboBuilder
         Func<Vector2, float> distRoad = p =>
         {
             float m = float.MaxValue;
-            for (int i = 0; i < roadPts.Count - 1; i++) m = Mathf.Min(m, DistToEdge(p, roadPts[i], roadPts[i + 1]));
-            m = Mathf.Min(m, DistToEdge(p, laneA, laneB));
-            m = Mathf.Min(m, DistToEdge(p, eastA, eastB));
+            for (int i = 0; i < roadPts.Count - 1; i++) m = Mathf.Min(m, EdoGeom.DistToEdge(p, roadPts[i], roadPts[i + 1]));
+            m = Mathf.Min(m, EdoGeom.DistToEdge(p, laneA, laneB));
+            m = Mathf.Min(m, EdoGeom.DistToEdge(p, eastA, eastB));
             return m;
         };
         for (int zz = 0; zz < h; zz++)
@@ -605,14 +535,14 @@ public static class EdoSannoJuboBuilder
                 float bare = -1, grass = 0, dirt = 0;
                 float dR = distRoad(p);
                 bool inParcel = false; Parcel pe = null;
-                foreach (var e in Parcels) if (PIP(e.poly, p)) { inParcel = true; pe = e; break; }
+                foreach (var e in Parcels) if (EdoGeom.PIP(e.poly, p)) { inParcel = true; pe = e; break; }
                 if (inParcel)
                 {
                     Vector2 gate2, uhat, vhat; Frame(pe, out gate2, out uhat, out vhat);
                     float v = Vector2.Dot(p - gate2, vhat);
                     float uAbs = Mathf.Abs(Vector2.Dot(p - gate2, uhat));
                     var bA = pe.poly[pe.backEdge]; var bB = pe.poly[(pe.backEdge + 1) % pe.poly.Length];
-                    float dBack = DistToEdge(p, bA, bB);
+                    float dBack = EdoGeom.DistToEdge(p, bA, bB);
                     if (v < 11 && uAbs < 8) { bare = 0.78f; grass = 0.08f; dirt = 0.14f; }     // 門内前庭
                     else if (dBack < 10) { bare = 0.22f; grass = 0.18f; dirt = 0.60f; }         // 裏の畑・物干場
                     else
@@ -635,21 +565,7 @@ public static class EdoSannoJuboBuilder
 
     // ---------- OBB QA ----------
     public static void ObbFootprint(Transform it, out float mnx, out float mxx, out float mnz, out float mxz, out float mny)
-    {
-        mnx = float.MaxValue; mxx = float.MinValue; mnz = float.MaxValue; mxz = float.MinValue; mny = float.MaxValue;
-        foreach (var mf in it.GetComponentsInChildren<MeshFilter>())
-        {
-            var mesh = mf.sharedMesh; if (mesh == null) continue;
-            var vts = mesh.vertices;
-            for (int i = 0; i < vts.Length; i++)
-            {
-                var lp = it.InverseTransformPoint(mf.transform.TransformPoint(vts[i]));
-                mnx = Mathf.Min(mnx, lp.x); mxx = Mathf.Max(mxx, lp.x);
-                mnz = Mathf.Min(mnz, lp.z); mxz = Mathf.Max(mxz, lp.z);
-                mny = Mathf.Min(mny, lp.y);
-            }
-        }
-    }
+        => EdoBuild.ObbFootprint(it, out mnx, out mxx, out mnz, out mxz, out mny);
     public static string QA_Obb(string groupName)
     {
         var e = Parcels.First(x => x.group == groupName);
@@ -672,7 +588,7 @@ public static class EdoSannoJuboBuilder
                     buried = Mathf.Max(buried, g - wp.y); floating = Mathf.Max(floating, wp.y - g);
                     var p2 = new Vector2(wp.x, wp.z);
                     float d = DistToPolyEdge(e.poly, p2);
-                    if (!PIP(e.poly, p2)) d = -d;
+                    if (!EdoGeom.PIP(e.poly, p2)) d = -d;
                     edge = Mathf.Min(edge, d);
                 }
             sb.AppendLine(it.name + " OBB" + (mxx - mnx).ToString("F0") + "x" + (mxz - mnz).ToString("F0")

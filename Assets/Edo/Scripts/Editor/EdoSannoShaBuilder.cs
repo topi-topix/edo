@@ -65,19 +65,13 @@ public static class EdoSannoShaBuilder
     static readonly Vector2 APPROACH_MID = new Vector2(-412.9f, 889.5f); // 観理院北角の外側で折れる
     static readonly Vector2 APPROACH_END = new Vector2(-424.5f, 857.5f); // 男坂下(観理院練塀の外に平行)
     static readonly float StairX0 = -424f, StairX1 = -482f;      // 石段の下端/上端
-    static readonly Vector2[] PREC = {                            // 境内(透塀)矩形
-        new Vector2(-566f, 818f), new Vector2(-490f, 818f),
-        new Vector2(-490f, 896f), new Vector2(-566f, 896f) };
+    // 境内(透塀)矩形(正典 = docs/Sashizu/parcels.json / CLAUDE.md 規則10)
+    static Vector2[] PREC { get { return EdoParcels.Get("sannosha_prec"); } }
     // 観理院: 山麓の通り(南北小路)の西・石段下の南に接する縦長大区画(2026-08-11ユーザー下書き)
     // 辺: 0=S(前面道路) 1=W(山裾) 2=NW(参道コリドー沿い=表門) 3=N 4=E(南北小路沿い)
-    static readonly Vector2[] KANRI = {
-        new Vector2(-389.4f, 735.3f), new Vector2(-421.6f, 732.5f),
-        new Vector2(-426.2f, 851.4f), new Vector2(-409.7f, 888.1f),
-        new Vector2(-390.2f, 888.3f) };
-    // 樹下邸: 北東麓
-    static readonly Vector2[] JUGE = {
-        new Vector2(-470f, 900f), new Vector2(-428f, 900f),
-        new Vector2(-428f, 936f), new Vector2(-470f, 936f) };
+    static Vector2[] KANRI { get { return EdoParcels.Get("sannosha_kanri"); } }
+    // 樹下邸: 北東麓(⚠ sannobuke_juge と二重定義のまま — 解消は未決・両方残す)
+    static Vector2[] JUGE { get { return EdoParcels.Get("sannosha_juge"); } }
     // 門前町の道: 山麓の通りの北端から北東へ
     static readonly Vector2[] MONZEN_ROAD = {
         new Vector2(-390f, 926f), new Vector2(-352f, 940f), new Vector2(-306f, 950f) };
@@ -86,7 +80,7 @@ public static class EdoSannoShaBuilder
         new Vector2(-386.0f, 641f), new Vector2(-386.6f, 726f), new Vector2(-387.2f, 780f),
         new Vector2(-387.8f, 845f), new Vector2(-387.8f, 890f), new Vector2(-389f, 908f), new Vector2(-390f, 926f) };
 
-    static float Ground(float x, float z) { return EdoNishiTameikeBuilder.Ground(x, z); }
+    static float Ground(float x, float z) { return EdoBuild.Ground(x, z); }
     static GameObject Place(string path, Vector3 pos, float ry, Vector3 scale, Transform parent, string name)
     { return EdoNishiTameikeBuilder.Place(path, pos, ry, scale, parent, name); }
     static Bounds RB(GameObject go) { return EdoNishiTameikeBuilder.RB(go); }
@@ -697,7 +691,7 @@ public static class EdoSannoShaBuilder
     }
     static Material MonzenMat(string name, string texPath)
     {
-        string matPath = "Assets/Edo/Materials/" + name + ".mat";
+        string matPath = EdoAssets.Own.Mat(name);
         var m = AssetDatabase.LoadAssetAtPath<Material>(matPath);
         if (m != null) return m;
         m = new Material(Shader.Find("Universal Render Pipeline/Lit"));

@@ -22,7 +22,7 @@ import bpy, sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import vklib as V
 
-OUT = "/Users/toshio/project/edo-unity/Assets/Edo/Models/Goten/Parts"
+OUT = os.path.join(V.REPO, "Assets", "Edo", "Models", "Goten", "Parts")
 KEN = 1.818
 KERI_MAX = 0.30          # 蹴上の上限。これを超えないよう段数を決める
 TREAD_T = 0.064          # 踏板の厚み(Goten_FloorBoard と同じ)

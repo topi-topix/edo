@@ -30,7 +30,7 @@ from mathutils import Vector
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import vklib as V
 
-PROJ = "/Users/toshio/project/edo-unity"
+PROJ = V.REPO
 JC = os.path.join(PROJ, "Assets", "Japanese Castle")
 
 WOOD_SRC = "Fences/Fence_B_01_x2.fbx"
@@ -77,19 +77,38 @@ class Mesh(object):
         self.quad([(x0, y0, z0), (x1, y0, z0), (x1, y0, z1), (x0, y0, z1)], uv, mat)  # 下
 
     def to_object(self, name, mats):
+        """Blender へ落とす。
+
+        ⚠ **厚みの向きを反転してから出す。** `export_fbx` の
+        `axis_forward='-Z', axis_up='Y'` は Blender +Y を Unity の **−Z** へ写すので、
+        論理座標のまま出すと「表」が Unity のローカル −Z に出る
+        (README の規約は 表=+Z)。2026-08-25 に番所が街路へ背を向け、
+        出格子と唐破風が敷地の内側を向いていたのがこれ。
+        面の巻き順と UV も一緒に反転して、法線を外向きに保つ。
+        """
+        vs = [Vector((p.x, -p.y, p.z)) for p in self.v]
+        faces, uvs, mi = [], [], []
+        k = 0
+        for fi, f in enumerate(self.f):
+            n = len(f)
+            faces.append(list(reversed(f)))
+            uvs += list(reversed(self.uv[k:k + n]))
+            mi.append(self.mi[fi])
+            k += n
         me = bpy.data.meshes.new(name)
-        me.from_pydata([v for v in self.v], [], self.f)
+        me.from_pydata(vs, [], faces)
         me.update()
         for m in mats:
             me.materials.append(m)
         uvl = me.uv_layers.new(name="UVMap")
-        for k, pg in enumerate(me.polygons):
-            pg.material_index = self.mi[k]
-        for k, d in enumerate(uvl.data):
-            d.uv = self.uv[k]
+        for j, pg in enumerate(me.polygons):
+            pg.material_index = mi[j]
+        for j, dd in enumerate(uvl.data):
+            dd.uv = uvs[j]
         o = bpy.data.objects.new(name, me)
         bpy.context.collection.objects.link(o)
         return o
+
 
 
 def vk_mat(src, mat_name, tag):

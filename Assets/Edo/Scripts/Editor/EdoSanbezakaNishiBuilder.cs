@@ -30,15 +30,10 @@ using NT = EdoNishiTameikeBuilder;
 
 public static class EdoSanbezakaNishiBuilder
 {
-    public static readonly Vector2[] WATANABE = {
-        new Vector2(-377.5f, 1060.4f), new Vector2(-416.3f, 1103.1f), new Vector2(-442.7f, 1178.1f),
-        new Vector2(-293.2f, 1178.4f), new Vector2(-293.9f, 1123.7f) };
-    public static readonly Vector2[] TORII = {
-        new Vector2(-475.6f, 1272.5f), new Vector2(-445.7f, 1185.9f), new Vector2(-333.3f, 1186.5f),
-        new Vector2(-301.0f, 1255.8f), new Vector2(-382.3f, 1245.7f), new Vector2(-410.4f, 1292.9f) };
-    public static readonly Vector2[] MATSU = {
-        new Vector2(-332.1f, 1186.5f), new Vector2(-213.8f, 1185.9f), new Vector2(-212.6f, 1270.2f),
-        new Vector2(-298.6f, 1257.0f) };
+    // 区画(正典 = docs/Sashizu/parcels.json / CLAUDE.md 規則10)
+    public static Vector2[] WATANABE { get { return EdoParcels.Get("sanbezakanishi_watanabe"); } }
+    public static Vector2[] TORII { get { return EdoParcels.Get("sanbezakanishi_torii"); } }
+    public static Vector2[] MATSU { get { return EdoParcels.Get("sanbezakanishi_matsu"); } }
 
     static readonly Vector2 GATE_WATANABE = new Vector2(-320f, 1178.25f); // 北の道向き(推定)
     static readonly Vector2 GATE_TORII = new Vector2(-360f, 1186.15f);    // 北の道(南辺)向き(推定)

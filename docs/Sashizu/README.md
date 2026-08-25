@@ -11,7 +11,7 @@
 
 1. **指図は現況だけを載せる。** 過去の案・撤回した説を本文に残さない。
    経緯は `git log docs/Sashizu/` で追う。積み増すと必ず「何が正か分からない」状態になる（2026-08-20）。
-2. **数値は設計値ファイル（`<屋敷>.json`）にだけ置く。** HTML も文章もそこから組む。
+2. **数値は設計値ファイル（`<屋敷>_sashizu.json`）にだけ置く。** HTML も文章もそこから組む。
    表へ書き写した瞬間に二重管理が始まり、片方だけ直る。
 3. **面の高さは地形が決める。** 先に高さを決めて地形を合わせない。地形を測り、
    **自然の平場(ベンチ)の高さをそのまま面に採る**。窪みは埋めず一段低い郭にして階段廊下でつなぐ。
@@ -32,6 +32,9 @@
 6. **順序を守る。**
    `設計(json/md) → 組む → 検図 → レビュー → 実装 → 指図を更新 → 突き合わせて0件 → コミット`
    **実装から指図を生成しない。** 先に図を描く関門が消える。道具が担ってよいのは突き合わせだけ。
+   但し書き: 生成器が実装ソース(C#)を読むのは**突き合わせの表を組む目的に限る** —
+   設計値を実装から導いてはならない。生成器から `<屋敷>_sashizu.json` への書き戻しも
+   **検査結果の記録と正規化に限り**、設計値そのものは常に人が決める。
 
 ## 岡部邸の作り（他の屋敷もこの形に寄せる）
 
@@ -40,6 +43,11 @@
 | `okabe_sashizu.json` | 設計値の正典 | 人 |
 | `okabe_kosho.md` | 文章の部（典拠・決めごと・未解決） | 人 |
 | `okabe_sashizu.html` | 上の二つから組んだ図面 | `Tools/Sashizu/build_okabe_sashizu.py` |
+| `okabe_dem.json` | 造成前地盤(現代・正典 `base_dem.json` の区画切り出し) | `Tools/Sashizu/build_base_dem.py` |
+| `okabe_terrain.json` | 現況地盤の回転間格子標本 | `Tools/Sashizu/build_okabe_edo_dem.py` |
+| `okabe_edo_recon.json` | 江戸期復元レイヤの仕様(近代造成を戻す指示) | `Tools/Sashizu/build_okabe_edo_dem.py` |
+| `okabe_edo_dem.json` | 江戸期復元地盤の回転間格子 | `Tools/Sashizu/build_okabe_edo_dem.py` |
+| `okabe_edo_world.json` | 江戸期復元地盤(世界座標・区画でクリップ)。**隣家の共有辺検査が読む** | `Tools/Sashizu/build_okabe_edo_dem.py` |
 | — | 指図と実装の突き合わせ | Unity `Edo ▸ 岡部筑前守上屋敷 ▸ 指図と実装を突き合わせる` |
 
 ```bash
@@ -83,7 +91,9 @@ python3 Tools/Sashizu/build_okabe_sashizu.py
 
 ## 生成
 
-`Tools/Sashizu/build_okabe_sashizu.py` が `<屋敷>.json` と `<屋敷>_kosho.md` から一枚に組む。
+`Tools/Sashizu/build_<屋敷>_sashizu.py` が `<屋敷>_sashizu.json` と `<屋敷>_kosho.md` から一枚に組む
+(4邸: okabe / matsudaira / doi / sanno)。地盤側は `Tools/Sashizu/build_base_dem.py`(切り出し)と
+`Tools/Sashizu/build_<屋敷>_edo_dem.py`(復元レイヤ・回転間格子。現状 okabe / doi のみ)が書く。
 **生成器は実装を読まない。** 座標は世界座標（Unity のシーン座標）から `Proj` / `Grid` で
 直に変換しているので、図面と実装がズレない。
 

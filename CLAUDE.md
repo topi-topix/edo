@@ -65,7 +65,7 @@
 
 ```
 ① 下書き      Scene ビューで EdoSketch(Edo/下書き, %#d)→ UserData/Sketches/*.json。色が意味を持つ
-② 考証 + 指図  切絵図・史料 → docs/Sashizu/<屋敷>.html(世界座標から SVG を直生成)→ ユーザーのレビュー
+② 考証 + 指図  切絵図・史料 → docs/Sashizu/<屋敷>_sashizu.html(世界座標から SVG を直生成)→ ユーザーのレビュー
    └─ 出す前に  edo-kosho(史実)と edo-kenzu(図の成立)を並列で通す
 ③ 部材        在庫を先に引く(docs/asset-catalog.md)→ 無ければ Tools/Blender/*.py で新造
 ④ 登録        EdoAssets.cs にパスを追加(寸法パラメタ化パスは関数で)

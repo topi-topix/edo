@@ -1516,11 +1516,22 @@ def program_check(d):
     return bad
 
 
-# 役割表のうち、**互いに別の区画に属さねばならない**もの。
-# ⚠ この集合は**共有台帳の役割の名前**でできている。当邸の json をどう書き換えても、
-#   台帳から役割を落とさない限り分離の要求は消えない(`program_check` が落とすのを止める)。
-#   書院・局を入れないのは、玄関と同じ表向・奥向に属してよいから(人の別ではなく場の別)。
-ZONE_SEPARATE = ("表役所", "玄関・式台", "居間・中奥", "奥向", "台所・勝手", "厩")
+def anchor_separate():
+    """`estate-types.md` の「**別の区画に属す役割**: A / B / …」の行を読む。
+
+    ⚠ **集合そのものを自邸の生成器に持たない。** 初版はここに tuple を直書きしていたが、
+    それでは錨が**自分で書き換えられる場所**に残り、連鎖が一段しか外へ出ていない
+    (土井 EDO-0029 の5段の表 ⑤)。台帳は他邸と共有で当邸だけでは変えられない。
+    """
+    with io.open(ANCHOR_MD, encoding="utf-8") as f:
+        for ln in f:
+            if ln.startswith("**別の区画に属す役割**"):
+                body = ln.split(":", 1)[1] if ":" in ln else ln.split("**", 2)[-1]
+                got = tuple(x.strip() for x in body.replace("／", "/").split("/") if x.strip())
+                if len(got) < 3:
+                    raise RuntimeError("『別の区画に属す役割』の行が読めない: %r" % ln)
+                return got
+    raise RuntimeError("『別の区画に属す役割』の行が estate-types.md に無い")
 
 
 def zone_separation_check(d):
@@ -1532,11 +1543,12 @@ def zone_separation_check(d):
     (土井 EDO-0029 / `qa-and-pitfalls.md`「錨の連鎖」)。
     ここでは分離の要求を**共有台帳の役割の名前**から組み立てる。
     """
+    sep = anchor_separate()
     zone_of = {m["name"]: m.get("zone") for m in d["munes"]}
     anchor = dict(anchor_roles())
     role_zone = {}
     for pg in d.get("program", []):
-        if pg["role"] not in ZONE_SEPARATE or pg["role"] not in anchor:
+        if pg["role"] not in sep or pg["role"] not in anchor:
             continue
         if pg["state"].strip("*") != "有":
             continue

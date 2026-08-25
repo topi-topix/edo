@@ -21,6 +21,7 @@
         組んだら「図版 N 面」を数えること(図版が黙って落ちた前科がある)。
 """
 import json, math, os, re, subprocess, html
+import zlib as _zlib
 
 import sashizu_lib
 from sashizu_lib import (R, _pat, _SVN, Proj, RGrid, slope_table, links_table,
@@ -2256,7 +2257,8 @@ def garden_svg(d):
         if z is None or not pl.get("n"):
             continue
         col, rr = PLC.get(pl["layer"], ("#5E7A4E", 3.2))
-        rg = _rnd.Random(hash(pl["zone"] + pl["layer"]) & 0xffff)
+        # ⚠ str の hash() はプロセスごとに塩が変わり散布が毎回動く — crc32 で決定的に
+        rg = _rnd.Random(_zlib.crc32((pl["zone"] + pl["layer"]).encode("utf-8")) & 0xffff)
         for _ in range(int(pl["n"])):
             uu = rg.uniform(z["u0"] + 1.5, z["u1"] - 1.5)
             vv = rg.uniform(z["v0"] + 1.5, z["v1"] - 1.5)

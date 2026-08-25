@@ -1671,6 +1671,22 @@ def completeness_check(d):
         for k in nodes:
             if k not in seen:
                 bad.append("棟 %s へ玄関から廊下でたどれない" % k)
+        # ⚠ **客が奥を通って書院へ行けてはならない。** 到達可能なだけでは足りない —
+        #   `L_GenkanShoin` を消しても「居間(中奥)経由で書院に着ける」ので無音だった
+        #   (2026-08-25 検図14巡・削除の感度試験)。御錠口は表向と奥を分かつ結界であり、
+        #   表向の棟は**中奥・奥向を通らずに**玄関から着けること。
+        omote = set(d["const"].get("omoteMune", ["Genkan", "Shoin"]))
+        inner = set(nodes) - omote
+        seen2 = {"Genkan"}; st2 = ["Genkan"]
+        while st2:
+            for nx3 in adj[st2.pop()]:
+                if nx3 in seen2 or nx3 in inner:
+                    continue
+                seen2.add(nx3); st2.append(nx3)
+        for k in omote & set(nodes):
+            if k not in seen2:
+                bad.append("表向の棟 %s へ、中奥・奥向を通らずに玄関から着けない — "
+                           "御錠口の結界が意味を持たない" % k)
     return bad
 
 
@@ -5284,6 +5300,28 @@ GEN_FIELDS_IF = {
 }
 
 
+def pipeline(x):
+    """算出値を正典へ書き戻す一連のパス。**ここが唯一の定義**。
+
+    ⚠ 感度試験の台本が**自前の写し**を持っていたため、生成器に `fix_wall_exposure` を
+    足したときに往復試験の台本だけが古いまま「素の状態で28件」を出した
+    (2026-08-25 検図14巡)。**同じ手順を二箇所に書かない** — 台本はこれを import する。
+    """
+    x = fix_obb_aabb(x)
+    x = fix_kaidans(x)
+    x = fix_walls(x, load_terrain(os.path.join(DOC, "doi_edo_dem.json")))
+    x = snap_openings(x)            # 開口の縁を石垣のピッチ格子へ・芯は通る物から
+    x = fix_sode(x)                 # 開口の両端の袖石垣
+    x = fix_edge_profile(x, load_terrain(os.path.join(DOC, "doi_dem.json")))  # 辺の地盤線
+    x = fix_run_s(x, load_terrain(os.path.join(DOC, "doi_dem.json")))  # 外周の基壇の丁場
+    x = fix_sections(x, load_terrain(os.path.join(DOC, "doi_edo_dem.json")),
+                     load_terrain(os.path.join(DOC, "doi_dem.json")))  # 断面の現地形線
+    x = fix_boundary_plinth(x, load_terrain(os.path.join(DOC, "doi_dem.json")))
+    # ⚠ 露出の分布は**開口が確定した後**に測る(gapHalf が同じパスで決まるため)
+    x = fix_wall_exposure(x, load_terrain(os.path.join(DOC, "doi_edo_dem.json")))
+    return x
+
+
 def roundtrip_check(raw, pipeline):
     """**生成器が書く欄を全消去 → 再生成 → 正典と一致するか。**
 
@@ -5357,23 +5395,8 @@ def roundtrip_check(raw, pipeline):
 def main():
     _raw = json.load(open(JSON, encoding="utf-8"))
 
-    def _pipeline(x):
-        x = fix_obb_aabb(x)
-        x = fix_kaidans(x)
-        x = fix_walls(x, load_terrain(os.path.join(DOC, "doi_edo_dem.json")))
-        x = snap_openings(x)            # 開口の縁を石垣のピッチ格子へ・芯は通る物から
-        x = fix_sode(x)                 # 開口の両端の袖石垣
-        x = fix_edge_profile(x, load_terrain(os.path.join(DOC, "doi_dem.json")))  # 辺の地盤線
-        x = fix_run_s(x, load_terrain(os.path.join(DOC, "doi_dem.json")))  # 外周の基壇の丁場
-        x = fix_sections(x, load_terrain(os.path.join(DOC, "doi_edo_dem.json")),
-                         load_terrain(os.path.join(DOC, "doi_dem.json")))  # 断面の現地形線
-        x = fix_boundary_plinth(x, load_terrain(os.path.join(DOC, "doi_dem.json")))
-        # ⚠ 露出の分布は**開口が確定した後**に測る(gapHalf が同じパスで決まるため)
-        x = fix_wall_exposure(x, load_terrain(os.path.join(DOC, "doi_edo_dem.json")))
-        return x
-
-    rtbad = roundtrip_check(_raw, _pipeline)
-    d = _pipeline(json.load(open(JSON, encoding="utf-8")))
+    rtbad = roundtrip_check(_raw, pipeline)
+    d = pipeline(json.load(open(JSON, encoding="utf-8")))
     write_back(d)
     if rtbad:
         print("⚠ 往復試験の不一致 %d 件 — **正典に生成器が再現できない値が残っている**:" % len(rtbad))

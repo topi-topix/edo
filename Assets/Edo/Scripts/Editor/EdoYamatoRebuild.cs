@@ -49,6 +49,7 @@ public static class EdoYamatoRebuild
         new Pad(4, 136, 22, 10, 20.0f),   // 蔵前サービス帯
     };
 
+    // EdoGeom.PIP と実装差あり — 統一は裁定待ち
     static bool PIP(Vector2[] poly, Vector2 p)
     {
         bool ins = false;

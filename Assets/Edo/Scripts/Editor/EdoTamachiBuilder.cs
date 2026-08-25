@@ -66,14 +66,6 @@ public static class EdoTamachiBuilder
 
     public static Terrain T() { return EdoTameikeKitaBuilder.T(); }
     public static float Ground(float x, float z) { return EdoTameikeKitaBuilder.Ground(x, z); }
-    static bool PIP(Vector2[] poly, Vector2 p)
-    {
-        bool inside = false;
-        for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
-            if (((poly[i].y > p.y) != (poly[j].y > p.y)) &&
-                (p.x < (poly[j].x - poly[i].x) * (p.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x)) inside = !inside;
-        return inside;
-    }
     static Transform Group(string root, string child)
     {
         var r = GameObject.Find(root);
@@ -162,7 +154,7 @@ public static class EdoTamachiBuilder
             Vector2 A = c.poly[c.front], B = c.poly[(c.front + 1) % N];
             Vector2 axis = (B - A).normalized; float len = (B - A).magnitude;
             Vector2 inw = new Vector2(-axis.y, axis.x);
-            if (!PIP(c.poly, A + axis * (len * 0.5f) + inw * 6f)) inw = -inw;
+            if (!EdoGeom.PIP(c.poly, A + axis * (len * 0.5f) + inw * 6f)) inw = -inw;
             float ryFace = Mathf.Atan2(-inw.x, -inw.y) * Mathf.Rad2Deg;
             // --- 表店列 (東=堀端通向き) ---
             int made = 0; float tcur = 1.0f; int pi = 0;
@@ -190,7 +182,7 @@ public static class EdoTamachiBuilder
                 Vector2 A2 = c.poly[wf], B2 = c.poly[(wf + 1) % N];
                 Vector2 axis2 = (B2 - A2).normalized; float len2 = (B2 - A2).magnitude;
                 Vector2 inw2 = new Vector2(-axis2.y, axis2.x);
-                if (!PIP(c.poly, A2 + axis2 * (len2 * 0.5f) + inw2 * 6f)) inw2 = -inw2;
+                if (!EdoGeom.PIP(c.poly, A2 + axis2 * (len2 * 0.5f) + inw2 * 6f)) inw2 = -inw2;
                 float ry2 = Mathf.Atan2(-inw2.x, -inw2.y) * Mathf.Rad2Deg;
                 float t2 = 1.0f; int m2 = 0; pi = 0;
                 while (true)
@@ -221,7 +213,7 @@ public static class EdoTamachiBuilder
                     {
                         float tt = tStart + 5.15f * (k + 0.5f);
                         Vector2 p = A + axis * tt + inw * (uraDepth + r * 7.5f);
-                        if (!PIP(c.poly, p)) continue;
+                        if (!EdoGeom.PIP(c.poly, p)) continue;
                         var hut = PlaceFront(PBanya, ES, mBanya, uraG, "Ura_" + r + "_" + k,
                             A, axis, inw, tt, uraDepth + r * 7.5f - 2.5f, ryFace);
                         // PlaceFront は前面基準なので位置はこのままで良い(路地=東向き)
@@ -247,12 +239,12 @@ public static class EdoTamachiBuilder
             if (c.inari && c.group.EndsWith("_3"))
             {   // 三丁目稲荷: 裏手
                 Vector2 ip = A + axis * (len * 0.72f) + inw * 24f;
-                if (PIP(c.poly, ip)) Inari(propG, ip, ryFace);
+                if (EdoGeom.PIP(c.poly, ip)) Inari(propG, ip, ryFace);
             }
             // 井戸(裏路地)
             {
                 Vector2 wp = A + axis * (len * 0.35f) + inw * 15f;
-                if (PIP(c.poly, wp)) Idobata(propG, wp);
+                if (EdoGeom.PIP(c.poly, wp)) Idobata(propG, wp);
             }
         }
         // --- 成満寺(二丁目・推定スタンドイン: 冠木門+本堂) ---
@@ -263,7 +255,7 @@ public static class EdoTamachiBuilder
             Vector2 A = c.poly[c.front], B = c.poly[(c.front + 1) % N];
             Vector2 axis = (B - A).normalized; float len = (B - A).magnitude;
             Vector2 inw = new Vector2(-axis.y, axis.x);
-            if (!PIP(c.poly, A + axis * (len * 0.5f) + inw * 6f)) inw = -inw;
+            if (!EdoGeom.PIP(c.poly, A + axis * (len * 0.5f) + inw * 6f)) inw = -inw;
             float ryFace = Mathf.Atan2(-inw.x, -inw.y) * Mathf.Rad2Deg;
             float tt = len * 0.52f;
             var mon = PlaceFront(PKabukimon, ES, null, propG, "JoumanjiMon", A, axis, inw, tt, 0.5f, ryFace);
@@ -280,7 +272,7 @@ public static class EdoTamachiBuilder
             Vector2 A = c4.poly[c4.front], B = c4.poly[(c4.front + 1) % N];
             Vector2 axis = (B - A).normalized; float len = (B - A).magnitude;
             Vector2 inw = new Vector2(-axis.y, axis.x);
-            if (!PIP(c4.poly, A + axis * (len * 0.5f) + inw * 6f)) inw = -inw;
+            if (!EdoGeom.PIP(c4.poly, A + axis * (len * 0.5f) + inw * 6f)) inw = -inw;
             float ryFace = Mathf.Atan2(-inw.x, -inw.y) * Mathf.Rad2Deg;
             for (int k = 0; k < 5; k++)
             {   // 四丁目北端の先(三丁目との間)に沿って小さな床店
@@ -384,7 +376,7 @@ public static class EdoTamachiBuilder
             Vector2 A = c.poly[c.front], B = c.poly[(c.front + 1) % N];
             Vector2 axis = (B - A).normalized; float len = (B - A).magnitude;
             Vector2 inw = new Vector2(-axis.y, axis.x);
-            if (!PIP(c.poly, A + axis * (len * 0.5f) + inw * 6f)) inw = -inw;
+            if (!EdoGeom.PIP(c.poly, A + axis * (len * 0.5f) + inw * 6f)) inw = -inw;
             Vector2 outw = -inw; // 東=通り・土手側
             float ryRack = Mathf.Atan2(axis.x, axis.y) * Mathf.Rad2Deg;
             for (float tt = 6f; tt < len - 4f; tt += 16f)
@@ -456,7 +448,7 @@ public static class EdoTamachiBuilder
             Vector2 A = c.poly[c.front], B = c.poly[(c.front + 1) % N];
             Vector2 axis = (B - A).normalized; float len = (B - A).magnitude;
             Vector2 inw = new Vector2(-axis.y, axis.x);
-            if (!PIP(c.poly, A + axis * (len * 0.5f) + inw * 6f)) inw = -inw;
+            if (!EdoGeom.PIP(c.poly, A + axis * (len * 0.5f) + inw * 6f)) inw = -inw;
             Vector2 outw = -inw;
             for (int zz = 0; zz < h; zz++)
                 for (int xx = 0; xx < w; xx++)
@@ -468,7 +460,7 @@ public static class EdoTamachiBuilder
                     float dOut = Vector2.Dot(p - A, outw);
                     float bare, grass, dirt;
                     float noise = Mathf.PerlinNoise(wx * 0.13f, wz * 0.13f);
-                    if (PIP(c.poly, p))
+                    if (EdoGeom.PIP(c.poly, p))
                     {   // 町地: 踏み固め土
                         bare = Mathf.Lerp(0.42f, 0.60f, noise); grass = 0.08f; dirt = 1f - bare - grass;
                     }

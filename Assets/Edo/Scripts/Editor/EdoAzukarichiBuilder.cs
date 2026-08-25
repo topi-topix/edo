@@ -43,14 +43,7 @@ public static class EdoAzukarichiBuilder
     const float MinH = 7.0f;   // 設置物の最低地盤高(水面6.6+0.4)
 
     static float Ground(float x, float z) { return EdoTamachiBuilder.Ground(x, z); }
-    static bool PIP(Vector2[] poly, Vector2 p)
-    {
-        bool inside = false;
-        for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
-            if (((poly[i].y > p.y) != (poly[j].y > p.y)) &&
-                (p.x < (poly[j].x - poly[i].x) * (p.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x)) inside = !inside;
-        return inside;
-    }
+    // EdoGeom.DistToPolyEdge と実装差あり — 統一は裁定待ち
     static float DistToPolyEdge(Vector2[] poly, Vector2 p)
     {
         float m = float.MaxValue;
@@ -131,7 +124,7 @@ public static class EdoAzukarichiBuilder
                 {
                     var p = new Vector2(c.position.x, c.position.z);
                     foreach (var poly in parcels)
-                        if (PIP(poly, p) || DistToPolyEdge(poly, p) < 1.5f) { kill.Add(c.gameObject); break; }
+                        if (EdoGeom.PIP(poly, p) || DistToPolyEdge(poly, p) < 1.5f) { kill.Add(c.gameObject); break; }
                 }
         }
         foreach (var k in kill) Undo.DestroyObjectImmediate(k);
@@ -168,7 +161,7 @@ public static class EdoAzukarichiBuilder
                 float wz = tp.z + (iz0 + z) * cellW;
                 var p = new Vector2(wx, wz);
                 float cur = H[z, x];
-                if (PIP(YL, p)) { H[z, x] = targetN; changed++; }
+                if (EdoGeom.PIP(YL, p)) { H[z, x] = targetN; changed++; }
                 else
                 {
                     float d = DistToPolyEdge(YL, p);
@@ -308,7 +301,7 @@ public static class EdoAzukarichiBuilder
             Vector2 A = d.poly[longest], B = d.poly[(longest + 1) % N];
             Vector2 axis = (B - A).normalized; float len = best;
             Vector2 inw = new Vector2(-axis.y, axis.x);
-            if (!PIP(d.poly, A + axis * (len * 0.5f) + inw * 2.5f)) inw = -inw;
+            if (!EdoGeom.PIP(d.poly, A + axis * (len * 0.5f) + inw * 2.5f)) inw = -inw;
             float ryRack = Mathf.Atan2(axis.x, axis.y) * Mathf.Rad2Deg;
             int yagura = 0, racks = 0, mats = 0, boards = 0;
             // グリッド密度: 幟竿は間隔を要するので3.2m×3.4m、渋紙単独区画はさらに詰める
@@ -319,7 +312,7 @@ public static class EdoAzukarichiBuilder
                 for (float dd = 2.2f; dd < 40f; dd += stepD)
                 {
                     Vector2 p = A + axis * tt + inw * dd + new Vector2((float)(rnd.NextDouble() - 0.5) * 0.9f, (float)(rnd.NextDouble() - 0.5) * 0.9f);
-                    if (!PIP(d.poly, p) || DistToPolyEdge(d.poly, p) < 1.6f) continue;
+                    if (!EdoGeom.PIP(d.poly, p) || DistToPolyEdge(d.poly, p) < 1.6f) continue;
                     if (Ground(p.x, p.y) < MinH) continue;
                     double roll = rnd.NextDouble();
                     float jit = (float)rnd.NextDouble() * 14f - 7f;
@@ -396,7 +389,7 @@ public static class EdoAzukarichiBuilder
                         for (int b2 = 0; b2 < nb; b2++)
                         {
                             Vector2 bp = p + axis * (b2 * 0.9f);
-                            if (!PIP(d.poly, bp) || Ground(bp.x, bp.y) < MinH) continue;
+                            if (!EdoGeom.PIP(d.poly, bp) || Ground(bp.x, bp.y) < MinH) continue;
                             float gy = Ground(bp.x, bp.y);
                             var bd = Prim(PrimitiveType.Cube, g, "Hariita_" + boards,
                                 new Vector3(bp.x, gy + 0.95f, bp.y),
@@ -415,7 +408,7 @@ public static class EdoAzukarichiBuilder
                         for (int m2 = 0; m2 < nm; m2++)
                         {
                             Vector2 mp = p + axis * ((float)rnd.NextDouble() * 3.0f - 1.5f) + inw * ((float)rnd.NextDouble() * 2.2f - 1.1f);
-                            if (!PIP(d.poly, mp) || Ground(mp.x, mp.y) < MinH) continue;
+                            if (!EdoGeom.PIP(d.poly, mp) || Ground(mp.x, mp.y) < MinH) continue;
                             Prim(PrimitiveType.Cube, g, "Shibugami_" + mats,
                                 new Vector3(mp.x, Ground(mp.x, mp.y) + 0.05f, mp.y),
                                 new Vector3(1.75f, 0.03f, 0.95f), Quaternion.Euler(0, ryRack + jit + (float)rnd.NextDouble() * 14f - 7f, 0), shibu);
@@ -428,7 +421,7 @@ public static class EdoAzukarichiBuilder
                         for (int b2 = 0; b2 < nb; b2++)
                         {
                             Vector2 bp = p + axis * (b2 * 1.05f);
-                            if (!PIP(d.poly, bp) || Ground(bp.x, bp.y) < MinH) continue;
+                            if (!EdoGeom.PIP(d.poly, bp) || Ground(bp.x, bp.y) < MinH) continue;
                             float gy = Ground(bp.x, bp.y);
                             Prim(PrimitiveType.Cube, g, "ShibuSlant_" + mats,
                                 new Vector3(bp.x, gy + 0.62f, bp.y),
@@ -502,10 +495,10 @@ public static class EdoAzukarichiBuilder
             {
                 tries++;
                 var p = new Vector2(Mathf.Lerp(minx, maxx, (float)rnd.NextDouble()), Mathf.Lerp(minz, maxz, (float)rnd.NextDouble()));
-                if (!PIP(d.poly, p)) continue;
+                if (!EdoGeom.PIP(d.poly, p)) continue;
                 if (Ground(p.x, p.y) < 7.15f) continue;
-                if (PIP(YL, p) || DistToPolyEdge(YL, p) < 6f) continue;
-                bool inW = false; foreach (var wp in hoshiba) if (PIP(wp, p) || DistToPolyEdge(wp, p) < 3f) { inW = true; break; }
+                if (EdoGeom.PIP(YL, p) || DistToPolyEdge(YL, p) < 6f) continue;
+                bool inW = false; foreach (var wp in hoshiba) if (EdoGeom.PIP(wp, p) || DistToPolyEdge(wp, p) < 3f) { inW = true; break; }
                 if (inW) continue;
                 if (nearOcc(p, 5.5f)) continue;
                 bool close = false; foreach (var q in placed) if ((q - p).sqrMagnitude < 64f) { close = true; break; }
@@ -557,22 +550,22 @@ public static class EdoAzukarichiBuilder
                     var p = new Vector2(wx, wz);
                     float gh = EdoTamachiBuilder.Ground(wx, wz);
                     if (gh < 6.65f) continue;                       // 水面下は触らない
-                    bool keep = false; foreach (var k in keepout) if (PIP(k, p)) { keep = true; break; }
+                    bool keep = false; foreach (var k in keepout) if (EdoGeom.PIP(k, p)) { keep = true; break; }
                     if (keep) continue;
                     float noise = Mathf.PerlinNoise(wx * 0.11f, wz * 0.11f);
                     float bare, grass, dirt;
-                    bool inH = false; foreach (var s in hoshiba) if (PIP(s, p)) { inH = true; break; }
+                    bool inH = false; foreach (var s in hoshiba) if (EdoGeom.PIP(s, p)) { inH = true; break; }
                     if (inH)
                     {   // 干場: 踏み固め土
                         bare = Mathf.Lerp(0.42f, 0.60f, noise); grass = 0.10f; dirt = 1f - bare - grass;
                     }
-                    else if (PIP(YL, p))
+                    else if (EdoGeom.PIP(YL, p))
                     {   // 稽古場: 露地
                         bare = Mathf.Lerp(0.58f, 0.74f, noise); grass = 0.04f; dirt = 1f - bare - grass;
                     }
                     else
                     {
-                        bool inB = false; foreach (var b in bands) if (PIP(b, p)) { inB = true; break; }
+                        bool inB = false; foreach (var b in bands) if (EdoGeom.PIP(b, p)) { inB = true; break; }
                         if (!inB) continue;
                         // 預地: 刈られた草地(草優勢)
                         grass = Mathf.Lerp(0.48f, 0.68f, noise); bare = 0.10f; dirt = 1f - grass - bare;

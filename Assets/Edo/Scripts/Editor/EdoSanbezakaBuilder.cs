@@ -162,40 +162,9 @@ public static class EdoSanbezakaBuilder
         }
         return cur;
     }
-    public static bool PIP(Vector2[] poly, Vector2 p)
-    {
-        bool inside = false;
-        for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
-            if (((poly[i].y > p.y) != (poly[j].y > p.y)) &&
-                (p.x < (poly[j].x - poly[i].x) * (p.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x)) inside = !inside;
-        return inside;
-    }
-    static float SignedArea(Vector2[] poly)
-    {
-        float a = 0;
-        for (int i = 0; i < poly.Length; i++) { var p = poly[i]; var q = poly[(i + 1) % poly.Length]; a += p.x * q.y - q.x * p.y; }
-        return 0.5f * a;
-    }
-    public static Vector2 InwardNormal(Vector2[] poly, int i)
-    {
-        var a = poly[i]; var b = poly[(i + 1) % poly.Length];
-        var d = (b - a).normalized;
-        var n = new Vector2(-d.y, d.x);
-        if (SignedArea(poly) < 0) n = -n;
-        return n;
-    }
-    static float DistToEdge(Vector2 p, Vector2 a, Vector2 b)
-    {
-        var d = b - a; float len = d.magnitude; d /= len;
-        float t = Mathf.Clamp(Vector2.Dot(p - a, d), 0, len);
-        return (p - (a + d * t)).magnitude;
-    }
-    public static float DistToPolyEdge(Vector2[] poly, Vector2 p)
-    {
-        float m = float.MaxValue;
-        for (int i = 0; i < poly.Length; i++) m = Mathf.Min(m, DistToEdge(p, poly[i], poly[(i + 1) % poly.Length]));
-        return m;
-    }
+    public static bool PIP(Vector2[] poly, Vector2 p) => EdoGeom.PIP(poly, p);
+    public static Vector2 InwardNormal(Vector2[] poly, int i) => EdoGeom.InwardNormal(poly, i);
+    public static float DistToPolyEdge(Vector2[] poly, Vector2 p) => EdoGeom.DistToPolyEdge(poly, p);
     static Material Mat(Color c) { var m = new Material(Shader.Find("Universal Render Pipeline/Lit")); m.color = c; return m; }
     public static void CenterSeat(GameObject go, float x, float z, float sink = 0.12f)
     {
@@ -855,7 +824,7 @@ public static class EdoSanbezakaBuilder
         Func<Vector2, Vector2[], float> dPoly = (p, pts) =>
         {
             float m = float.MaxValue;
-            for (int i = 0; i < pts.Length - 1; i++) m = Mathf.Min(m, DistToEdge(p, pts[i], pts[i + 1]));
+            for (int i = 0; i < pts.Length - 1; i++) m = Mathf.Min(m, EdoGeom.DistToEdge(p, pts[i], pts[i + 1]));
             return m;
         };
         Vector2[][] parcels = { GOTO, ABE, KATSUTA, OOKA, W1, W2, W3, W4, W5, W6 };

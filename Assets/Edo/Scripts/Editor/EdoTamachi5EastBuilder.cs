@@ -41,14 +41,6 @@ public static class EdoTamachi5EastBuilder
         new Vector2(-597.64f,610.19f), new Vector2(-613.94f,631.92f) };
 
     static float Ground(float x, float z) { return EdoTamachiBuilder.Ground(x, z); }
-    static bool PIP(Vector2[] poly, Vector2 p)
-    {
-        bool inside = false;
-        for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
-            if (((poly[i].y > p.y) != (poly[j].y > p.y)) &&
-                (p.x < (poly[j].x - poly[i].x) * (p.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x)) inside = !inside;
-        return inside;
-    }
     static Transform Group(string child)
     {
         var r = GameObject.Find(RootName);
@@ -119,8 +111,8 @@ public static class EdoTamachi5EastBuilder
         Vector2 mid = (a + b) * 0.5f;
         for (float off = 0.6f; off <= 2.4f; off += 0.6f)
         {
-            if (PIP(poly, mid + n * off)) return n;
-            if (PIP(poly, mid - n * off)) return -n;
+            if (EdoGeom.PIP(poly, mid + n * off)) return n;
+            if (EdoGeom.PIP(poly, mid - n * off)) return -n;
         }
         Vector2 c = Vector2.zero; foreach (var p in poly) c += p; c /= poly.Length;
         return Vector2.Dot(c - mid, n) < 0 ? -n : n;
@@ -225,7 +217,7 @@ public static class EdoTamachi5EastBuilder
             }
             // 裏手の井戸1基
             Vector2 wp = A + axis * (len * 0.5f) + inw * 7.5f;
-            if (PIP(MachiyaPoly, wp)) Well(g, wp, stone);
+            if (EdoGeom.PIP(MachiyaPoly, wp)) Well(g, wp, stone);
             sb.AppendLine("Machiya 表店=" + made);
         }
 
@@ -250,7 +242,7 @@ public static class EdoTamachi5EastBuilder
             for (float tt = 6f; tt < lonLen - 4f; tt += 9f)
             {
                 Vector2 p = AzukariPoly[0] + lonAxis * tt + inw * (3.0f + 2.5f * (float)rnd.NextDouble());
-                if (!PIP(AzukariPoly, p)) continue;
+                if (!EdoGeom.PIP(AzukariPoly, p)) continue;
                 Rack(g, p, ryRack + ((float)rnd.NextDouble() * 12f - 6f), wood, "Rack_" + racks);
                 racks++;
             }
@@ -303,7 +295,7 @@ public static class EdoTamachi5EastBuilder
                 for (float tt = 2.5f; tt < sLen - 1.5f; tt += 2.4f)
                 {
                     Vector2 p = sA + sAxis * tt + sInw * (3.2f + row * 2.0f);
-                    if (!PIP(KaishoPoly, p)) continue;
+                    if (!EdoGeom.PIP(KaishoPoly, p)) continue;
                     var m = GameObject.CreatePrimitive(PrimitiveType.Cube);
                     m.name = "Mushiro_" + mats; m.transform.SetParent(dg, false);
                     m.transform.localScale = new Vector3(1.75f, 0.05f, 0.92f);
@@ -327,7 +319,7 @@ public static class EdoTamachi5EastBuilder
             for (float tt = 6f; tt < bLen - 4f; tt += 11f)
             {
                 Vector2 p = bA + bAxis * tt + bInw * (4.0f + 2.0f * (float)rnd.NextDouble());
-                if (!PIP(KaishoPoly, p)) continue;
+                if (!EdoGeom.PIP(KaishoPoly, p)) continue;
                 float gy = Ground(p.x, p.y);
                 if (gy < 7.2f) continue;
                 var pa = AssetDatabase.LoadAssetAtPath<GameObject>(trees[rnd.Next(trees.Length)]);
@@ -373,7 +365,7 @@ public static class EdoTamachi5EastBuilder
             if (pa != null)
             {
                 Vector2 p = fA + fAxis * (fLen * 0.82f) + fInw * 10.5f;
-                if (PIP(HoriguchiPoly, p))
+                if (EdoGeom.PIP(HoriguchiPoly, p))
                 {
                     var tr = (GameObject)PrefabUtility.InstantiatePrefab(pa);
                     tr.name = "Niwaki"; tr.transform.SetParent(g, true);
@@ -389,6 +381,7 @@ public static class EdoTamachi5EastBuilder
         return "built\n" + sb;
     }
 
+    // EdoGeom.DistToPolyEdge と実装差あり — 統一は裁定待ち
     static float DistToPolyEdge(Vector2[] poly, Vector2 p)
     {
         float m = float.MaxValue;
@@ -499,7 +492,7 @@ public static class EdoTamachi5EastBuilder
             foreach (var c in FootprintCorners(go))
             {
                 float dd = DistToPolyEdge(poly, c);
-                if (!PIP(poly, c)) { ok = false; worst = Mathf.Min(worst, -dd); continue; }
+                if (!EdoGeom.PIP(poly, c)) { ok = false; worst = Mathf.Min(worst, -dd); continue; }
                 if (dd < worst) worst = dd;
                 if (dd < margin) ok = false;
             }
@@ -578,7 +571,7 @@ public static class EdoTamachi5EastBuilder
             for (float tt = 2.5f; tt < 19f; tt += 2.4f)
             {
                 Vector2 p = e5A + e5Axis * tt + e5Inw * (2.5f + row * 2.0f);
-                if (!PIP(KaishoPoly, p)) continue;
+                if (!EdoGeom.PIP(KaishoPoly, p)) continue;
                 if (Ground(p.x, p.y) < 9.2f) continue;
                 var m = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 m.name = "Mushiro_" + mats; m.transform.SetParent(dg, false);
@@ -694,7 +687,7 @@ public static class EdoTamachi5EastBuilder
                 for (float tt = 2.5f; tt < 19f; tt += 2.4f)
                 {
                     Vector2 p = e5A + e5Axis * tt + e5Inw * (2.5f + row * 2.0f);
-                    if (!PIP(KaishoPoly, p)) continue;
+                    if (!EdoGeom.PIP(KaishoPoly, p)) continue;
                     if (Ground(p.x, p.y) < 9.2f) continue;
                     var m = GameObject.CreatePrimitive(PrimitiveType.Cube);
                     m.name = "Mushiro_" + mats; m.transform.SetParent(dg, false);
@@ -733,15 +726,15 @@ public static class EdoTamachi5EastBuilder
                 var p = new Vector2(wx, wz);
                 float noise = Mathf.PerlinNoise(wx * 0.13f, wz * 0.13f);
                 float bare, grass, dirt;
-                if (PIP(MachiyaPoly, p) || PIP(HoriguchiPoly, p))
+                if (EdoGeom.PIP(MachiyaPoly, p) || EdoGeom.PIP(HoriguchiPoly, p))
                 {   // 町屋・屋敷: 踏み固め土
                     bare = Mathf.Lerp(0.42f, 0.60f, noise); grass = 0.08f; dirt = 1f - bare - grass;
                 }
-                else if (PIP(AzukariPoly, p))
+                else if (EdoGeom.PIP(AzukariPoly, p))
                 {   // 預り明地: 草
                     grass = Mathf.Lerp(0.45f, 0.65f, noise); bare = 0.10f; dirt = 1f - grass - bare;
                 }
-                else if (PIP(KaishoPoly, p))
+                else if (EdoGeom.PIP(KaishoPoly, p))
                 {   // 会所: 北の庭は土、南の帯は草混じり
                     if (wz > 626f) { bare = Mathf.Lerp(0.40f, 0.55f, noise); grass = 0.10f; dirt = 1f - bare - grass; }
                     else { grass = Mathf.Lerp(0.30f, 0.50f, noise); bare = 0.22f; dirt = 1f - grass - bare; }

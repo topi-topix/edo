@@ -156,40 +156,16 @@ public static class EdoTodaBlockBuilder
         }
         return cur;
     }
-    static bool PIP(Vector2[] poly, Vector2 p)
-    {
-        bool inside = false;
-        for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
-            if (((poly[i].y > p.y) != (poly[j].y > p.y)) &&
-                (p.x < (poly[j].x - poly[i].x) * (p.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x)) inside = !inside;
-        return inside;
-    }
-    static float SignedArea(Vector2[] poly)
-    {
-        float a = 0;
-        for (int i = 0; i < poly.Length; i++) { var p = poly[i]; var q = poly[(i + 1) % poly.Length]; a += p.x * q.y - q.x * p.y; }
-        return 0.5f * a;
-    }
+    // EdoGeom.InwardNormal と実装差あり — 統一は裁定待ち
     public static Vector2 InwardNormal(Parcel e, int i)
     {
         var a = e.poly[i]; var b = e.poly[(i + 1) % e.poly.Length];
         var d = (b - a).normalized;
         var n = new Vector2(-d.y, d.x);
-        if (SignedArea(e.poly) < 0) n = -n;
+        if (EdoGeom.SignedArea(e.poly) < 0) n = -n;
         return n;
     }
-    static float DistToEdge(Vector2 p, Vector2 a, Vector2 b)
-    {
-        var d = b - a; float len = d.magnitude; d /= len;
-        float t = Mathf.Clamp(Vector2.Dot(p - a, d), 0, len);
-        return (p - (a + d * t)).magnitude;
-    }
-    public static float DistToPolyEdge(Vector2[] poly, Vector2 p)
-    {
-        float m = float.MaxValue;
-        for (int i = 0; i < poly.Length; i++) m = Mathf.Min(m, DistToEdge(p, poly[i], poly[(i + 1) % poly.Length]));
-        return m;
-    }
+    public static float DistToPolyEdge(Vector2[] poly, Vector2 p) => EdoGeom.DistToPolyEdge(poly, p);
     public static Vector2 GatePos(Parcel e)
     {
         int N = e.poly.Length;
@@ -224,7 +200,7 @@ public static class EdoTodaBlockBuilder
             for (float dz = -searchR; dz <= searchR; dz += 1.5f)
             {
                 var c = anchor + new Vector2(dx, dz);
-                if (!PIP(e.poly, c) || DistToPolyEdge(e.poly, c) < edgeMargin) continue;
+                if (!EdoGeom.PIP(e.poly, c) || DistToPolyEdge(e.poly, c) < edgeMargin) continue;
                 float mn = float.MaxValue, mx = float.MinValue;
                 for (int i = -1; i <= 1; i++)
                     for (int j = -1; j <= 1; j++)
@@ -615,13 +591,13 @@ public static class EdoTodaBlockBuilder
                 foreach (Transform ch in sub) { var rb = RB(ch.gameObject); if (rb.size.sqrMagnitude > 0.01f) obs.Add(rb); }
         Func<Vector2, float, bool> clear = (p, m) =>
         {
-            if (!PIP(e.poly, p)) return false;
+            if (!EdoGeom.PIP(e.poly, p)) return false;
             // 最寄り辺の種別でマージン: 長屋/表辺=8.5, その他=3.0
             float best = float.MaxValue; float bm = 7.5f;
             for (int i = 0; i < e.poly.Length; i++)
             {
                 var a = e.poly[i]; var b2 = e.poly[(i + 1) % e.poly.Length];
-                float dd2 = DistToEdge(p, a, b2);
+                float dd2 = EdoGeom.DistToEdge(p, a, b2);
                 if (dd2 < best) { best = dd2; bm = (i == e.front || e.nagayaEdges.Contains(i)) ? 8.5f : 3.0f; }
             }
             if (best < bm) return false;
@@ -764,7 +740,7 @@ public static class EdoTodaBlockBuilder
                 float u = -34f + col * 3.0f + (float)rnd.NextDouble() * 0.5f;
                 float v = 52f + row * 3.0f + (float)rnd.NextDouble() * 0.5f;
                 Vector2 p = gate2 + uhat * u + vhat * v;
-                if (!PIP(e.poly, p) || DistToPolyEdge(e.poly, p) < 2.5f) continue;
+                if (!EdoGeom.PIP(e.poly, p) || DistToPolyEdge(e.poly, p) < 2.5f) continue;
                 float y = Ground(p.x, p.y);
                 var t = new GameObject("Haka_" + row + "_" + col);
                 t.transform.SetParent(g.transform, false);
@@ -795,7 +771,7 @@ public static class EdoTodaBlockBuilder
         for (int i = 0; i < 400; i++)
         {
             var p2 = new Vector2(Mathf.Lerp(bbMin.x, bbMax.x, (float)rnd.NextDouble()), Mathf.Lerp(bbMin.y, bbMax.y, (float)rnd.NextDouble()));
-            if (!PIP(e.poly, p2) || DistToPolyEdge(e.poly, p2) < 4f) continue;
+            if (!EdoGeom.PIP(e.poly, p2) || DistToPolyEdge(e.poly, p2) < 4f) continue;
             float score = p2.x + p2.y;
             if (score > bestScore) { bestScore = score; best = p2; }
         }
@@ -925,7 +901,7 @@ public static class EdoTodaBlockBuilder
                     buried = Mathf.Max(buried, g - wp.y); floating = Mathf.Max(floating, wp.y - g);
                     var p2 = new Vector2(wp.x, wp.z);
                     float d = DistToPolyEdge(e.poly, p2);
-                    if (!PIP(e.poly, p2)) d = -d;
+                    if (!EdoGeom.PIP(e.poly, p2)) d = -d;
                     edge = Mathf.Min(edge, d);
                 }
             sb.AppendLine(it.name + " OBB" + (mxx - mnx).ToString("F0") + "x" + (mxz - mnz).ToString("F0")
@@ -993,7 +969,7 @@ public static class EdoTodaBlockBuilder
                         {
                             if (i == 0 && j == 0) continue;
                             var q = c + new Vector2(i * hw, j * hd);
-                            if (!PIP(e.poly, q) || DistToPolyEdge(e.poly, q) < margin) ok = false;
+                            if (!EdoGeom.PIP(e.poly, q) || DistToPolyEdge(e.poly, q) < margin) ok = false;
                         }
                     if (!ok) continue;
                     // 相互クリアランス(AABB+1.5m)
@@ -1056,7 +1032,7 @@ public static class EdoTodaBlockBuilder
                     float wx = tp.x + (ix0 + xx + 0.5f) * cell;
                     float wz = tp.z + (iz0 + zz + 0.5f) * cell;
                     var p = new Vector2(wx, wz);
-                    if (!PIP(e.poly, p)) continue;
+                    if (!EdoGeom.PIP(e.poly, p)) continue;
                     float v = Vector2.Dot(p - gate2, vhat);
                     float uAbs = Mathf.Abs(Vector2.Dot(p - gate2, uhat));
                     float bare, grass, dirt;
@@ -1097,7 +1073,7 @@ public static class EdoTodaBlockBuilder
             {
                 var p2 = new Vector2(cx == 0 ? b.min.x : b.max.x, cz == 0 ? b.min.z : b.max.z);
                 float d = DistToPolyEdge(e.poly, p2);
-                if (!PIP(e.poly, p2)) d = -d;
+                if (!EdoGeom.PIP(e.poly, p2)) d = -d;
                 if (d < worst) worst = d;
             }
             // 埋没/浮き

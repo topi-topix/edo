@@ -144,41 +144,17 @@ public static class EdoNishiTameikeBuilder
         }
         return cur;
     }
-    static bool PIP(Vector2[] poly, Vector2 p)
-    {
-        bool inside = false;
-        for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
-            if (((poly[i].y > p.y) != (poly[j].y > p.y)) &&
-                (p.x < (poly[j].x - poly[i].x) * (p.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x)) inside = !inside;
-        return inside;
-    }
-    static float SignedArea(Vector2[] poly)
-    {
-        float a = 0;
-        for (int i = 0; i < poly.Length; i++) { var p = poly[i]; var q = poly[(i + 1) % poly.Length]; a += p.x * q.y - q.x * p.y; }
-        return 0.5f * a;
-    }
     // 辺 i の内向き法線
+    // EdoGeom.InwardNormal と実装差あり — 統一は裁定待ち
     public static Vector2 InwardNormal(Estate e, int i)
     {
         var a = e.poly[i]; var b = e.poly[(i + 1) % e.poly.Length];
         var d = (b - a).normalized;
         var n = new Vector2(-d.y, d.x); // left normal
-        if (SignedArea(e.poly) < 0) n = -n; // CW polygon -> left normal points outward
+        if (EdoGeom.SignedArea(e.poly) < 0) n = -n; // CW polygon -> left normal points outward
         return n;
     }
-    static float DistToEdge(Vector2 p, Vector2 a, Vector2 b)
-    {
-        var d = b - a; float len = d.magnitude; d /= len;
-        float t = Mathf.Clamp(Vector2.Dot(p - a, d), 0, len);
-        return (p - (a + d * t)).magnitude;
-    }
-    public static float DistToPolyEdge(Vector2[] poly, Vector2 p)
-    {
-        float m = float.MaxValue;
-        for (int i = 0; i < poly.Length; i++) m = Mathf.Min(m, DistToEdge(p, poly[i], poly[(i + 1) % poly.Length]));
-        return m;
-    }
+    public static float DistToPolyEdge(Vector2[] poly, Vector2 p) => EdoGeom.DistToPolyEdge(poly, p);
 
     // ---------- Stage 0: backup ----------
     public static string Stage0_Backup()
@@ -304,7 +280,7 @@ public static class EdoNishiTameikeBuilder
                 float target = float.MinValue;
                 foreach (var e in Estates)
                 {
-                    bool inside = PIP(e.poly, p);
+                    bool inside = EdoGeom.PIP(e.poly, p);
                     float d = DistToPolyEdge(e.poly, p);
                     float padHere = PadAtNat(e, p, nat);
                     float cand;
@@ -814,7 +790,7 @@ public static class EdoNishiTameikeBuilder
         }
         Func<Vector2, float, bool> clear = (p, m) =>
         {
-            if (!PIP(e.poly, p)) return false;
+            if (!EdoGeom.PIP(e.poly, p)) return false;
             if (DistToPolyEdge(e.poly, p) < EdgeMargin(p)) return false;
             foreach (var b in obs)
                 if (p.x > b.min.x - m && p.x < b.max.x + m && p.y > b.min.z - m && p.y < b.max.z + m) return false;
@@ -942,7 +918,7 @@ public static class EdoNishiTameikeBuilder
             var bbMin = new Vector2(e.poly.Min(p => p.x), e.poly.Min(p => p.y));
             var bbMax = new Vector2(e.poly.Max(p => p.x), e.poly.Max(p => p.y));
             var p2 = new Vector2(Mathf.Lerp(bbMin.x, bbMax.x, (float)rnd.NextDouble()), Mathf.Lerp(bbMin.y, bbMax.y, (float)rnd.NextDouble()));
-            if (!PIP(e.poly, p2) || DistToPolyEdge(e.poly, p2) < 4f) continue;
+            if (!EdoGeom.PIP(e.poly, p2) || DistToPolyEdge(e.poly, p2) < 4f) continue;
             float score = p2.x + p2.y; // 北東(x大z大)
             if (score > bestScore) { bestScore = score; best = p2; }
         }
@@ -1024,7 +1000,7 @@ public static class EdoNishiTameikeBuilder
                     float wx = tp.x + (ix0 + xx + 0.5f) * cell;
                     float wz = tp.z + (iz0 + zz + 0.5f) * cell;
                     var p = new Vector2(wx, wz);
-                    if (!PIP(e.poly, p)) continue;
+                    if (!EdoGeom.PIP(e.poly, p)) continue;
                     float v = Vector2.Dot(p - gate2, vhat);
                     float uAbs = Mathf.Abs(Vector2.Dot(p - gate2, (fB - fA).normalized));
                     float bare, grass, dirt;
@@ -1064,7 +1040,7 @@ public static class EdoNishiTameikeBuilder
             {
                 var p2 = new Vector2(cx == 0 ? b.min.x : b.max.x, cz == 0 ? b.min.z : b.max.z);
                 float d = DistToPolyEdge(e.poly, p2);
-                if (!PIP(e.poly, p2)) d = -d;
+                if (!EdoGeom.PIP(e.poly, p2)) d = -d;
                 if (d < coarse) coarse = d;
             }
             if (coarse > 1.0f) continue; // AABBは過大なのでこれで十分安全
@@ -1073,7 +1049,7 @@ public static class EdoNishiTameikeBuilder
             {
                 var p2 = new Vector2(p.x, p.z);
                 float d = DistToPolyEdge(e.poly, p2);
-                if (!PIP(e.poly, p2)) d = -d;
+                if (!EdoGeom.PIP(e.poly, p2)) d = -d;
                 if (d < worst) worst = d;
             }
             if (worst < 1.0f) sb.AppendLine("⚠ " + it.name + " boundary dist=" + worst.ToString("F2"));

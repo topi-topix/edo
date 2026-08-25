@@ -44,6 +44,7 @@ public static class EdoSanyashikiRebuild
             nagayaEdges=new int[0] },
     };
 
+    // EdoGeom.PIP と実装差あり — 統一は裁定待ち
     static bool PIP(Vector2[] poly, Vector2 p)
     {
         bool ins = false;

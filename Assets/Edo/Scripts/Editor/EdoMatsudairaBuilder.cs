@@ -236,15 +236,6 @@ public static class EdoMatsudairaBuilder
                              Mathf.Lerp(_nat[iz + 1, ix], _nat[iz + 1, ix + 1], tx), tz);
         return h * ts.y + tp.y;
     }
-    static bool PIP(Vector2[] poly, Vector2 p)
-    {
-        bool inside = false;
-        for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
-            if (((poly[i].y > p.y) != (poly[j].y > p.y)) &&
-                (p.x < (poly[j].x - poly[i].x) * (p.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x))
-                inside = !inside;
-        return inside;
-    }
     static float DistSeg(Vector2 p, Vector2 a, Vector2 b)
     {
         Vector2 d = b - a; float L2 = d.sqrMagnitude;
@@ -385,7 +376,7 @@ public static class EdoMatsudairaBuilder
         for (int z = 0; z < h; z++) for (int x = 0; x < w; x++)
         {
             var p = new Vector2(WX(x0 + x), WZ(z0 + z));
-            if (!PIP(P, p)) continue;                             // 敷地の外は一切触らない
+            if (!EdoGeom.PIP(P, p)) continue;                             // 敷地の外は一切触らない
             float cur = H[z, x] * ts.y + tp.y;
             float y = DesignY(p);
             if (y < cur) { cmax = Mathf.Max(cmax, cur - y); cutSum += cur - y; }
@@ -426,7 +417,7 @@ public static class EdoMatsudairaBuilder
         for (int z = 0; z < h; z++) for (int x = 0; x < w; x++)
         {
             var p = new Vector2(WX(x0 + x), WZ(z0 + z));
-            if (!PIP(P, p)) continue;
+            if (!EdoGeom.PIP(P, p)) continue;
             float cur = H[z, x] * ts.y + tp.y;
             float dif = Mathf.Abs(cur - DesignY(p));
             n++;

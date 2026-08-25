@@ -161,40 +161,16 @@ public static class EdoSannoJuboBuilder
         }
         return cur;
     }
-    static bool PIP(Vector2[] poly, Vector2 p)
-    {
-        bool inside = false;
-        for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
-            if (((poly[i].y > p.y) != (poly[j].y > p.y)) &&
-                (p.x < (poly[j].x - poly[i].x) * (p.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x)) inside = !inside;
-        return inside;
-    }
-    static float SignedArea(Vector2[] poly)
-    {
-        float a = 0;
-        for (int i = 0; i < poly.Length; i++) { var p = poly[i]; var q = poly[(i + 1) % poly.Length]; a += p.x * q.y - q.x * p.y; }
-        return 0.5f * a;
-    }
+    // EdoGeom.InwardNormal と実装差あり — 統一は裁定待ち
     public static Vector2 InwardNormal(Parcel e, int i)
     {
         var a = e.poly[i]; var b = e.poly[(i + 1) % e.poly.Length];
         var d = (b - a).normalized;
         var n = new Vector2(-d.y, d.x);
-        if (SignedArea(e.poly) < 0) n = -n;
+        if (EdoGeom.SignedArea(e.poly) < 0) n = -n;
         return n;
     }
-    static float DistToEdge(Vector2 p, Vector2 a, Vector2 b)
-    {
-        var d = b - a; float len = d.magnitude; d /= len;
-        float t = Mathf.Clamp(Vector2.Dot(p - a, d), 0, len);
-        return (p - (a + d * t)).magnitude;
-    }
-    public static float DistToPolyEdge(Vector2[] poly, Vector2 p)
-    {
-        float m = float.MaxValue;
-        for (int i = 0; i < poly.Length; i++) m = Mathf.Min(m, DistToEdge(p, poly[i], poly[(i + 1) % poly.Length]));
-        return m;
-    }
+    public static float DistToPolyEdge(Vector2[] poly, Vector2 p) => EdoGeom.DistToPolyEdge(poly, p);
     public static void Frame(Parcel e, out Vector2 gate2, out Vector2 uhat, out Vector2 vhat)
     {
         int N = e.poly.Length;
@@ -212,7 +188,7 @@ public static class EdoSannoJuboBuilder
             for (float dz = -searchR; dz <= searchR; dz += 1.5f)
             {
                 var c = anchor + new Vector2(dx, dz);
-                if (!PIP(e.poly, c) || DistToPolyEdge(e.poly, c) < edgeMargin) continue;
+                if (!EdoGeom.PIP(e.poly, c) || DistToPolyEdge(e.poly, c) < edgeMargin) continue;
                 float mn = float.MaxValue, mx = float.MinValue;
                 for (int i = -1; i <= 1; i++)
                     for (int j = -1; j <= 1; j++)
@@ -406,7 +382,7 @@ public static class EdoSannoJuboBuilder
     {
         Vector2 gate2, uhat, vhat; Frame(e, out gate2, out uhat, out vhat);
         Vector2 p = gate2 + uhat * u + vhat * v;
-        if (!PIP(e.poly, p) || DistToPolyEdge(e.poly, p) < 2.0f) p = FlatNear(e, u, v, 3, 3, 8, 2.0f);
+        if (!EdoGeom.PIP(e.poly, p) || DistToPolyEdge(e.poly, p) < 2.0f) p = FlatNear(e, u, v, 3, 3, 8, 2.0f);
         float y = Ground(p.x, p.y);
         var g = new GameObject("Ido");
         g.transform.SetParent(parent, false);
@@ -471,7 +447,7 @@ public static class EdoSannoJuboBuilder
                 foreach (Transform ch in sub) { var rb = RB(ch.gameObject); if (rb.size.sqrMagnitude > 0.01f) obs.Add(rb); }
         Func<Vector2, float, bool> clear = (p, m) =>
         {
-            if (!PIP(e.poly, p)) return false;
+            if (!EdoGeom.PIP(e.poly, p)) return false;
             if (DistToPolyEdge(e.poly, p) < 2.2f) return false;
             foreach (var b in obs)
                 if (p.x > b.min.x - m && p.x < b.max.x + m && p.y > b.min.z - m && p.y < b.max.z + m) return false;
@@ -591,9 +567,9 @@ public static class EdoSannoJuboBuilder
         Func<Vector2, float> distRoad = p =>
         {
             float m = float.MaxValue;
-            for (int i = 0; i < roadPts.Count - 1; i++) m = Mathf.Min(m, DistToEdge(p, roadPts[i], roadPts[i + 1]));
-            m = Mathf.Min(m, DistToEdge(p, laneA, laneB));
-            m = Mathf.Min(m, DistToEdge(p, eastA, eastB));
+            for (int i = 0; i < roadPts.Count - 1; i++) m = Mathf.Min(m, EdoGeom.DistToEdge(p, roadPts[i], roadPts[i + 1]));
+            m = Mathf.Min(m, EdoGeom.DistToEdge(p, laneA, laneB));
+            m = Mathf.Min(m, EdoGeom.DistToEdge(p, eastA, eastB));
             return m;
         };
         for (int zz = 0; zz < h; zz++)
@@ -605,14 +581,14 @@ public static class EdoSannoJuboBuilder
                 float bare = -1, grass = 0, dirt = 0;
                 float dR = distRoad(p);
                 bool inParcel = false; Parcel pe = null;
-                foreach (var e in Parcels) if (PIP(e.poly, p)) { inParcel = true; pe = e; break; }
+                foreach (var e in Parcels) if (EdoGeom.PIP(e.poly, p)) { inParcel = true; pe = e; break; }
                 if (inParcel)
                 {
                     Vector2 gate2, uhat, vhat; Frame(pe, out gate2, out uhat, out vhat);
                     float v = Vector2.Dot(p - gate2, vhat);
                     float uAbs = Mathf.Abs(Vector2.Dot(p - gate2, uhat));
                     var bA = pe.poly[pe.backEdge]; var bB = pe.poly[(pe.backEdge + 1) % pe.poly.Length];
-                    float dBack = DistToEdge(p, bA, bB);
+                    float dBack = EdoGeom.DistToEdge(p, bA, bB);
                     if (v < 11 && uAbs < 8) { bare = 0.78f; grass = 0.08f; dirt = 0.14f; }     // 門内前庭
                     else if (dBack < 10) { bare = 0.22f; grass = 0.18f; dirt = 0.60f; }         // 裏の畑・物干場
                     else
@@ -672,7 +648,7 @@ public static class EdoSannoJuboBuilder
                     buried = Mathf.Max(buried, g - wp.y); floating = Mathf.Max(floating, wp.y - g);
                     var p2 = new Vector2(wp.x, wp.z);
                     float d = DistToPolyEdge(e.poly, p2);
-                    if (!PIP(e.poly, p2)) d = -d;
+                    if (!EdoGeom.PIP(e.poly, p2)) d = -d;
                     edge = Mathf.Min(edge, d);
                 }
             sb.AppendLine(it.name + " OBB" + (mxx - mnx).ToString("F0") + "x" + (mxz - mnz).ToString("F0")

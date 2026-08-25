@@ -1102,6 +1102,7 @@ public static class EdoYashikiBuilder
         return s;
     }
 
+    // EdoGeom.SignedArea と実装差あり — 統一は裁定待ち
     static float SignedArea(Vector2[] p)
     {
         float s = 0f;

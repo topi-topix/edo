@@ -100,40 +100,6 @@ public static class EdoSannoKitaBuilder
         }
         return cur;
     }
-    static bool PIP(Vector2[] poly, Vector2 p)
-    {
-        bool inside = false;
-        for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
-            if (((poly[i].y > p.y) != (poly[j].y > p.y)) &&
-                (p.x < (poly[j].x - poly[i].x) * (p.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x)) inside = !inside;
-        return inside;
-    }
-    static float SignedArea(Vector2[] poly)
-    {
-        float a = 0;
-        for (int i = 0; i < poly.Length; i++) { var p = poly[i]; var q = poly[(i + 1) % poly.Length]; a += p.x * q.y - q.x * p.y; }
-        return 0.5f * a;
-    }
-    static Vector2 InwardNormal(Vector2[] poly, int i)
-    {
-        var a = poly[i]; var b = poly[(i + 1) % poly.Length];
-        var d = (b - a).normalized;
-        var n = new Vector2(-d.y, d.x);
-        if (SignedArea(poly) < 0) n = -n;
-        return n;
-    }
-    static float DistToEdge(Vector2 p, Vector2 a, Vector2 b)
-    {
-        var d = b - a; float len = d.magnitude; d /= len;
-        float t = Mathf.Clamp(Vector2.Dot(p - a, d), 0, len);
-        return (p - (a + d * t)).magnitude;
-    }
-    static float DistToPolyEdge(Vector2[] poly, Vector2 p)
-    {
-        float m = float.MaxValue;
-        for (int i = 0; i < poly.Length; i++) m = Mathf.Min(m, DistToEdge(p, poly[i], poly[(i + 1) % poly.Length]));
-        return m;
-    }
     static Material Mat(Color c) { var m = new Material(Shader.Find("Universal Render Pipeline/Lit")); m.color = c; return m; }
     static void CenterSeat(GameObject go, float x, float z, float sink = 0.12f)
     {
@@ -338,7 +304,7 @@ public static class EdoSannoKitaBuilder
                 float wx = WX(x0 + x), wz = WZ(z0 + z);
                 if (wx < -472f) continue;
                 var p = new Vector2(wx, wz);
-                if (!PIP(OKABE, p) || DistToPolyEdge(OKABE, p) < 1.2f) continue;
+                if (!EdoGeom.PIP(OKABE, p) || EdoGeom.DistToPolyEdge(OKABE, p) < 1.2f) continue;
                 float u = Vector2.Dot(p - g, uh), v = Vector2.Dot(p - g, inw);
                 float target;
                 if (v < -2f || v > 68f || Mathf.Abs(u) > 30f) continue;
@@ -397,13 +363,13 @@ public static class EdoSannoKitaBuilder
         EdoNishiTameikeBuilder.NaturalMode = true;
         var kak = Group(G, "Kakoi");
         var monGrp = Group(G, "Omotemon");
-        Vector2 fout = -InwardNormal(OKABE, 11);   // 辺11(NE)
+        Vector2 fout = -EdoGeom.InwardNormal(OKABE, 11);   // 辺11(NE)
         float gateHalf = PlaceGate(PKmon, monGrp, GATE_OKABE, fout, 2, "Kmon", sb);
         int N = OKABE.Length;
         for (int i = 0; i < N; i++)
         {
             Vector2 a = OKABE[i], b = OKABE[(i + 1) % N];
-            Vector2 outw = -InwardNormal(OKABE, i);
+            Vector2 outw = -EdoGeom.InwardNormal(OKABE, i);
             if (i == 0 || i == 1 || i == 3 || i == 4) continue; // 山王門前・樹下・常明院と背中合わせ(2026-08-22 敷地割修正で辺番号更新。共有辺は parcels.json から機械照合)
             else if (i == 6 || i == 7) continue;            // 松平所有(松平 辺5-6/4-5 = SE_Hei_3/SW_Hei_1)
             else if (i == 8 || i == 9) continue;            // 岡部所有(EdoOkabeYashikiBuilder の Hei_N1〜N4b が実体。二重に建てない)
@@ -439,14 +405,14 @@ public static class EdoSannoKitaBuilder
             float px = Mathf.Lerp(-690f, -380f, (float)rnd.NextDouble());
             float pz = Mathf.Lerp(940f, 1090f, (float)rnd.NextDouble());
             var p2 = new Vector2(px, pz);
-            if (!PIP(OKABE, p2) || DistToPolyEdge(OKABE, p2) < 4f) continue;
+            if (!EdoGeom.PIP(OKABE, p2) || EdoGeom.DistToPolyEdge(OKABE, p2) < 4f) continue;
             bool nearB = false;
             foreach (Transform c in bg) { var rb2 = RB(c.gameObject); if (px > rb2.min.x - 2.5f && px < rb2.max.x + 2.5f && pz > rb2.min.z - 2.5f && pz < rb2.max.z + 2.5f) { nearB = true; break; } }
             if (nearB) continue;
             // 表門・段丘の白洲は空けておく
-            Vector2 inw = -(-InwardNormal(OKABE, 11));
-            float v = Vector2.Dot(p2 - GATE_OKABE, InwardNormal(OKABE, 11));
-            float u = Mathf.Abs(Vector2.Dot(p2 - GATE_OKABE, new Vector2(-InwardNormal(OKABE, 11).y, InwardNormal(OKABE, 11).x)));
+            Vector2 inw = -(-EdoGeom.InwardNormal(OKABE, 11));
+            float v = Vector2.Dot(p2 - GATE_OKABE, EdoGeom.InwardNormal(OKABE, 11));
+            float u = Mathf.Abs(Vector2.Dot(p2 - GATE_OKABE, new Vector2(-EdoGeom.InwardNormal(OKABE, 11).y, EdoGeom.InwardNormal(OKABE, 11).x)));
             if (v > -3f && v < 34f && u < 24f) continue;
             float y = Ground(px, pz);
             if (rnd.NextDouble() < 0.72)
@@ -464,7 +430,7 @@ public static class EdoSannoKitaBuilder
         // 門→表御殿の飛石
         for (float tt = 0; tt <= 1.001f; tt += 0.09f)
         {
-            Vector2 p = Vector2.Lerp(GATE_OKABE + InwardNormal(OKABE, 11) * 4f, new Vector2(-431f, 1057f), tt);
+            Vector2 p = Vector2.Lerp(GATE_OKABE + EdoGeom.InwardNormal(OKABE, 11) * 4f, new Vector2(-431f, 1057f), tt);
             float y = Ground(p.x, p.y);
             var go = Place(PTobi, new Vector3(p.x, y + 0.03f, p.y), (float)rnd.NextDouble() * 360f, Vector3.one * 1.85f, gg, "Tobi_" + tt);
             SeatBottom(go, y + 0.02f);
@@ -482,13 +448,13 @@ public static class EdoSannoKitaBuilder
         EdoNishiTameikeBuilder.NaturalMode = true;
         var kak = Group(G, "Kakoi");
         var monGrp = Group(G, "Omotemon");
-        Vector2 fout = -InwardNormal(DOI, 5);   // 辺5(E)
+        Vector2 fout = -EdoGeom.InwardNormal(DOI, 5);   // 辺5(E)
         float gateHalf = PlaceGate(PNmon, monGrp, GATE_DOI, fout, 2, "Nagayamon", sb);
         int N = DOI.Length;
         for (int i = 0; i < N; i++)
         {
             Vector2 a = DOI[i], b = DOI[(i + 1) % N];
-            Vector2 outw = -InwardNormal(DOI, i);
+            Vector2 outw = -EdoGeom.InwardNormal(DOI, i);
             if (i >= 6 || i <= 2) continue;                  // 北・西(6..9)=松平所有 / 南(0..2)=岡部所有(2026-08-22 敷地割修正で辺番号更新)
             else if (i == 5)
                 FrontWall(kak, a, b, outw, GATE_DOI, gateHalf + 0.5f, "Hei_F");
@@ -514,7 +480,7 @@ public static class EdoSannoKitaBuilder
             float px = Mathf.Lerp(-635f, -440f, (float)rnd.NextDouble());
             float pz = Mathf.Lerp(1070f, 1174f, (float)rnd.NextDouble());
             var p2 = new Vector2(px, pz);
-            if (!PIP(DOI, p2) || DistToPolyEdge(DOI, p2) < 3.5f) continue;
+            if (!EdoGeom.PIP(DOI, p2) || EdoGeom.DistToPolyEdge(DOI, p2) < 3.5f) continue;
             bool nearB = false;
             foreach (Transform c in bg) { var rb2 = RB(c.gameObject); if (px > rb2.min.x - 2.5f && px < rb2.max.x + 2.5f && pz > rb2.min.z - 2.5f && pz < rb2.max.z + 2.5f) { nearB = true; break; } }
             if (nearB) continue;
@@ -546,13 +512,13 @@ public static class EdoSannoKitaBuilder
         EdoNishiTameikeBuilder.NaturalMode = true;
         var kak = Group(G, "Kakoi");
         var monGrp = Group(G, "Omotemon");
-        Vector2 fout = -InwardNormal(MATSU, 12);   // 辺12(N=大通り)
+        Vector2 fout = -EdoGeom.InwardNormal(MATSU, 12);   // 辺12(N=大通り)
         float gateHalf = PlaceGate(PKmon, monGrp, GATE_MATSU, fout, 2, "Kmon", sb);
         int N = MATSU.Length;
         for (int i = 0; i < N; i++)
         {
             Vector2 a = MATSU[i], b = MATSU[(i + 1) % N];
-            Vector2 outw = -InwardNormal(MATSU, i);
+            Vector2 outw = -EdoGeom.InwardNormal(MATSU, i);
             if (i == 12)
                 FrontWall(kak, a, b, outw, GATE_MATSU, gateHalf + 0.5f, "Hei_F");
             else
@@ -596,12 +562,12 @@ public static class EdoSannoKitaBuilder
             float px = Mathf.Lerp(-750f, -470f, (float)rnd.NextDouble());
             float pz = Mathf.Lerp(1035f, 1300f, (float)rnd.NextDouble());
             var p2 = new Vector2(px, pz);
-            if (!PIP(MATSU, p2) || DistToPolyEdge(MATSU, p2) < 4f) continue;
+            if (!EdoGeom.PIP(MATSU, p2) || EdoGeom.DistToPolyEdge(MATSU, p2) < 4f) continue;
             bool nearB = false;
             foreach (Transform c in bg) { var rb2 = RB(c.gameObject); if (px > rb2.min.x - 2.5f && px < rb2.max.x + 2.5f && pz > rb2.min.z - 2.5f && pz < rb2.max.z + 2.5f) { nearB = true; break; } }
             if (nearB) continue;
-            float v = Vector2.Dot(p2 - GATE_MATSU, InwardNormal(MATSU, 12));
-            float u = Mathf.Abs(Vector2.Dot(p2 - GATE_MATSU, new Vector2(-InwardNormal(MATSU, 12).y, InwardNormal(MATSU, 12).x)));
+            float v = Vector2.Dot(p2 - GATE_MATSU, EdoGeom.InwardNormal(MATSU, 12));
+            float u = Mathf.Abs(Vector2.Dot(p2 - GATE_MATSU, new Vector2(-EdoGeom.InwardNormal(MATSU, 12).y, EdoGeom.InwardNormal(MATSU, 12).x)));
             if (v > -3f && v < 26f && u < 18f) continue;    // 門前白洲
             float y = Ground(px, pz);
             if (y < 10.5f) continue;                       // 下部〜裾=草地。高木を置かない
@@ -651,13 +617,13 @@ public static class EdoSannoKitaBuilder
         Func<Vector2, Vector2[], float> dPoly = (p, pts) =>
         {
             float m = float.MaxValue;
-            for (int i = 0; i < pts.Length - 1; i++) m = Mathf.Min(m, DistToEdge(p, pts[i], pts[i + 1]));
+            for (int i = 0; i < pts.Length - 1; i++) m = Mathf.Min(m, EdoGeom.DistToEdge(p, pts[i], pts[i + 1]));
             return m;
         };
         Vector2[][] parcels = { OKABE, DOI, MATSU };
-        Vector2 inw9 = InwardNormal(OKABE, 11);
+        Vector2 inw9 = EdoGeom.InwardNormal(OKABE, 11);
         Vector2 uh9 = new Vector2(-inw9.y, inw9.x);
-        Vector2 inwM = InwardNormal(MATSU, 12);
+        Vector2 inwM = EdoGeom.InwardNormal(MATSU, 12);
         Vector2 uhM = new Vector2(-inwM.y, inwM.x);
         for (int zz = 0; zz < h; zz++)
             for (int xx = 0; xx < w; xx++)
@@ -670,7 +636,7 @@ public static class EdoSannoKitaBuilder
                 if (wz < 948f && wx > -585f) continue;       // 樹下・常明院・境内側は触らない
                 float bare = -1, grass = 0, dirt = 0;
                 Vector2[] inP = null;
-                foreach (var pp in parcels) if (PIP(pp, p)) { inP = pp; break; }
+                foreach (var pp in parcels) if (EdoGeom.PIP(pp, p)) { inP = pp; break; }
                 float de = dPoly(p, eastRoad), dn = dPoly(p, northRoad), ds = dPoly(p, shoreRoad), dw = dPoly(p, wedge);
                 if (inP != null)
                 {

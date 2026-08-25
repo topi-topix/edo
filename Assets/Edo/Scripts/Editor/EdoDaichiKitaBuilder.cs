@@ -44,14 +44,7 @@ public static class EdoDaichiKitaBuilder
 
     static float Ground(float x, float z) { return EdoTamachiBuilder.Ground(x, z); }
 
-    static bool PIP(Vector2[] poly, Vector2 p)
-    {
-        bool inside = false;
-        for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
-            if (((poly[i].y > p.y) != (poly[j].y > p.y)) &&
-                (p.x < (poly[j].x - poly[i].x) * (p.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x)) inside = !inside;
-        return inside;
-    }
+    // EdoGeom.DistToPolyEdge と実装差あり — 統一は裁定待ち
     static float DistToPolyEdge(Vector2[] poly, Vector2 p)
     {
         float m = float.MaxValue;
@@ -73,8 +66,8 @@ public static class EdoDaichiKitaBuilder
         Vector2 mid = (a + b) * 0.5f;
         for (float off = 0.6f; off <= 2.4f; off += 0.6f)
         {
-            if (PIP(poly, mid + n * off)) return n;
-            if (PIP(poly, mid - n * off)) return -n;
+            if (EdoGeom.PIP(poly, mid + n * off)) return n;
+            if (EdoGeom.PIP(poly, mid - n * off)) return -n;
         }
         Vector2 c = Vector2.zero; foreach (var p in poly) c += p; c /= poly.Length;
         return Vector2.Dot(c - mid, n) < 0 ? -n : n;
@@ -185,7 +178,7 @@ public static class EdoDaichiKitaBuilder
             foreach (var c in FootprintCorners(go))
             {
                 float dd = DistToPolyEdge(poly, c);
-                if (!PIP(poly, c)) { ok = false; worst = Mathf.Min(worst, -dd); continue; }
+                if (!EdoGeom.PIP(poly, c)) { ok = false; worst = Mathf.Min(worst, -dd); continue; }
                 if (dd < worst) worst = dd;
                 if (dd < margin) ok = false;
             }
@@ -277,7 +270,7 @@ public static class EdoDaichiKitaBuilder
                     var b = rs[0].bounds; foreach (var r in rs) b.Encapsulate(r.bounds);
                     var p = new Vector2(b.center.x, b.center.z);
                     foreach (var poly in strips)
-                        if (PIP(poly, p) || DistToPolyEdge(poly, p) < 1.2f) { kill.Add(c.gameObject); break; }
+                        if (EdoGeom.PIP(poly, p) || DistToPolyEdge(poly, p) < 1.2f) { kill.Add(c.gameObject); break; }
                 }
             }
         int nBank = kill.Count;
@@ -293,8 +286,8 @@ public static class EdoDaichiKitaBuilder
                     var rs = c.GetComponentsInChildren<Renderer>();
                     if (rs.Length == 0) continue;
                     var b = rs[0].bounds; foreach (var r in rs) b.Encapsulate(r.bounds);
-                    if (PIP(JM, new Vector2(b.center.x, b.center.z))) hit = true;
-                    if (!hit) foreach (var q in FootprintCorners(c.gameObject)) if (PIP(JM, q)) { hit = true; break; }
+                    if (EdoGeom.PIP(JM, new Vector2(b.center.x, b.center.z))) hit = true;
+                    if (!hit) foreach (var q in FootprintCorners(c.gameObject)) if (EdoGeom.PIP(JM, q)) { hit = true; break; }
                     if (hit) kill.Add(c.gameObject);
                 }
             // 3) 旧成満寺スタンドイン
@@ -359,13 +352,13 @@ public static class EdoDaichiKitaBuilder
             for (float tt = 5f; tt < len - 4f; tt += 10f)
             {
                 Vector2 p = A + axis * tt + inw * (9.0f + 2.0f * (float)rnd.NextDouble());
-                if (!PIP(d.poly, p)) continue;
+                if (!EdoGeom.PIP(d.poly, p)) continue;
                 if (Ground(p.x, p.y) < 7.2f) continue;
                 Rack(g, p, ryFace + 90f + ((float)rnd.NextDouble() * 12f - 6f), wood, "Rack_" + racks);
                 racks++;
             }
             Vector2 wp = A + axis * (len * 0.45f) + inw * 7.0f;
-            if (PIP(d.poly, wp)) Well(g, wp, stone);
+            if (EdoGeom.PIP(d.poly, wp)) Well(g, wp, stone);
             sb.AppendLine(d.root + "/" + d.sub + " 表店=" + made + " 物干=" + racks);
         }
         // 町境(R2北端とY1南端の間)の番小屋【推定】: 麻布網代町代地側の北端に寄せる
@@ -438,7 +431,7 @@ public static class EdoDaichiKitaBuilder
         // 鐘楼(時の鐘): プロシージャル(石壇+四本柱+宝形屋根+梵鐘)。山門の南脇
         var shoro = Group("Edo_Jomanji", "Shoro");
         Vector2 sp = gA + gAxis * (gLen * 0.18f) + gInw * 5.2f;
-        if (!PIP(JM, sp)) sp = gateC + gInw * 5.2f - gAxis * 4.5f;
+        if (!EdoGeom.PIP(JM, sp)) sp = gateC + gInw * 5.2f - gAxis * 4.5f;
         float sg = Ground(sp.x, sp.y);
         float shoroRy = gRy;
         var srot = Quaternion.Euler(0, shoroRy, 0);
@@ -537,7 +530,7 @@ public static class EdoDaichiKitaBuilder
         for (float tt = 2.2f; tt < 11f; tt += 1.9f)
         {
             Vector2 p = gateC + gInw * tt;
-            if (!PIP(JM, p)) break;
+            if (!EdoGeom.PIP(JM, p)) break;
             var slab = GameObject.CreatePrimitive(PrimitiveType.Cube);
             slab.name = "Sando_" + tt.ToString("F0"); slab.transform.SetParent(niwa, false);
             slab.transform.localScale = new Vector3(1.7f, 0.07f, 1.05f);
@@ -556,7 +549,7 @@ public static class EdoDaichiKitaBuilder
         int planted = 0;
         for (int k = 0; k < pinePos.Length; k++)
         {
-            if (!PIP(JM, pinePos[k])) continue;
+            if (!EdoGeom.PIP(JM, pinePos[k])) continue;
             var pa = AssetDatabase.LoadAssetAtPath<GameObject>(pines[k]);
             if (pa == null) continue;
             var tr = (GameObject)PrefabUtility.InstantiatePrefab(pa);
@@ -597,12 +590,12 @@ public static class EdoDaichiKitaBuilder
                 float noise = Mathf.PerlinNoise(wx * 0.13f, wz * 0.13f);
                 float bare, grass, dirt;
                 bool inStrip = false;
-                foreach (var s in strips) if (PIP(s, p)) { inStrip = true; break; }
+                foreach (var s in strips) if (EdoGeom.PIP(s, p)) { inStrip = true; break; }
                 if (inStrip)
                 {   // 町屋: 表〜中は踏み固め土、裏へ行くほど草
                     bare = Mathf.Lerp(0.40f, 0.58f, noise); grass = 0.10f; dirt = 1f - bare - grass;
                 }
-                else if (PIP(JM, p))
+                else if (EdoGeom.PIP(JM, p))
                 {   // 境内: 掃き清めた土
                     bare = Mathf.Lerp(0.48f, 0.64f, noise); grass = 0.05f; dirt = 1f - bare - grass;
                 }

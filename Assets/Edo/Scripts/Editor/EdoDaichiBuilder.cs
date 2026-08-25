@@ -34,14 +34,6 @@ public static class EdoDaichiBuilder
     public static Terrain T() { return EdoTameikeKitaBuilder.T(); }
     public static float Ground(float x, float z) { return EdoTameikeKitaBuilder.Ground(x, z); }
 
-    static bool PIP(Vector2[] poly, Vector2 p)
-    {
-        bool inside = false;
-        for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
-            if (((poly[i].y > p.y) != (poly[j].y > p.y)) &&
-                (p.x < (poly[j].x - poly[i].x) * (p.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x)) inside = !inside;
-        return inside;
-    }
     static float DistToPoly(Vector2[] poly, Vector2 p)
     {
         float m = float.MaxValue;
@@ -91,7 +83,7 @@ public static class EdoDaichiBuilder
             var hs = new float[n];
             Vector2 inw = new Vector2(-axis.y, axis.x);
             var probe = A + axis * (len * 0.5f) + inw * 5f;
-            if (!PIP(poly, probe)) inw = -inw;
+            if (!EdoGeom.PIP(poly, probe)) inw = -inw;
             for (int i = 0; i < n; i++)
             {
                 var sp = A + axis * Mathf.Min(i * 2f, len) - inw * 1.5f;
@@ -125,7 +117,7 @@ public static class EdoDaichiBuilder
                     float tpar = Mathf.Clamp(Vector2.Dot(p - A, axis), 0, len);
                     int li = Mathf.Clamp(Mathf.RoundToInt(tpar / 2f), 0, loft.Length - 1);
                     float hsv = loft[li] - 0.10f;
-                    if (PIP(poly, p)) { target = hsv; }
+                    if (EdoGeom.PIP(poly, p)) { target = hsv; }
                     else
                     {
                         float d = DistToPoly(poly, p);
@@ -139,7 +131,7 @@ public static class EdoDaichiBuilder
                 }
                 foreach (var ep in new[] { yok, tok })
                 {
-                    if (PIP(ep, p)) { if (target < SHELF_Y && cur < SHELF_Y) target = Mathf.Max(target, SHELF_Y); }
+                    if (EdoGeom.PIP(ep, p)) { if (target < SHELF_Y && cur < SHELF_Y) target = Mathf.Max(target, SHELF_Y); }
                     else
                     {
                         float d = DistToPoly(ep, p);
@@ -238,7 +230,7 @@ public static class EdoDaichiBuilder
         Vector2 axis = (B - A).normalized; float len = (B - A).magnitude;
         if (t1 < 0) t1 = len;
         Vector2 inw = new Vector2(-axis.y, axis.x);
-        if (!PIP(poly, A + axis * (len * 0.5f) + inw * 5f)) inw = -inw;
+        if (!EdoGeom.PIP(poly, A + axis * (len * 0.5f) + inw * 5f)) inw = -inw;
         Vector2 outw = -inw;
         float ryFace = Mathf.Atan2(outw.x, outw.y) * Mathf.Rad2Deg;
         var mS1 = Mat("M_Shop01", EdoAssets.Eg.TexShop01);
@@ -307,7 +299,7 @@ public static class EdoDaichiBuilder
         {
             float tt = t0 + (t1 - t0) * ((i + 0.5f) / nMono) + ((float)rnd.NextDouble() * 3f - 1.5f);
             Vector2 c = A + axis * tt + inw * (12.0f + (float)rnd.NextDouble() * 2f);
-            if (!PIP(poly, c)) continue;
+            if (!EdoGeom.PIP(poly, c)) continue;
             var g = new GameObject("Monohoshi_" + i);
             g.transform.SetParent(backG, false);
             g.transform.position = new Vector3(c.x, Ground(c.x, c.y), c.y);
@@ -337,7 +329,7 @@ public static class EdoDaichiBuilder
         {
             float tt = t0 + (t1 - t0) * ((float)rnd.NextDouble());
             Vector2 c = A + axis * tt + inw * (15.5f + (float)rnd.NextDouble() * 2.5f);
-            if (!PIP(poly, c)) continue;
+            if (!EdoGeom.PIP(poly, c)) continue;
             string pp = plants[rnd.Next(plants.Length)];
             var pa = AssetDatabase.LoadAssetAtPath<GameObject>(pp);
             if (pa == null) continue;
@@ -390,14 +382,14 @@ public static class EdoDaichiBuilder
             Vector2 A = poly[0], B = poly[1];
             Vector2 axis = (B - A).normalized;
             Vector2 inw = new Vector2(-axis.y, axis.x);
-            if (!PIP(poly, A + axis * 20f + inw * 5f)) inw = -inw;
+            if (!EdoGeom.PIP(poly, A + axis * 20f + inw * 5f)) inw = -inw;
             for (int zz = 0; zz < h; zz++)
                 for (int xx = 0; xx < w; xx++)
                 {
                     float wx = tp.x + (ix0 + xx + 0.5f) * cell;
                     float wz = tp.z + (iz0 + zz + 0.5f) * cell;
                     var p = new Vector2(wx, wz);
-                    if (!PIP(poly, p)) continue;
+                    if (!EdoGeom.PIP(poly, p)) continue;
                     float depth = Vector2.Dot(p - A, inw);
                     float noise = Mathf.PerlinNoise(wx * 0.13f, wz * 0.13f);
                     float bare, grass, dirt;

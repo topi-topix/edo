@@ -130,6 +130,7 @@
 | 在庫に何があるか | `docs/asset-catalog.md` → `docs/asset-index.tsv` |
 | 指図の描き方・組み方 | `docs/Sashizu/README.md` + `unity-buke-yashiki` の `references/sashizu.md` |
 | 地形の座標・造成の初期化・戻し方 | `docs/terrain-georef-fix.md`(2026-08-22 に地形を作り直した) |
+| セッション間の報告・裁定要請・情報共有 | `docs/session-board.md` — 節目・ブロッカー・裁定要請は `edo_board.py post`。他邸に効く変更は起票+相手セッションへ直接メッセージ。**自己検図・自己考証はユーザー入力なしに3巡まで** |
 
 ### 作業 → 呼ぶエージェント(`.claude/agents/`)
 

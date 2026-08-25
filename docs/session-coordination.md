@@ -160,3 +160,9 @@ python3 Tools/Session/edo_session.py steal sashizu:sanno --reason "前のセッ�
 - **人間が直接打つ git は素通りする。** フックは Claude Code のツール呼び出しにしか掛からない
 - **別マシンのセッションは見えない。** 登録簿はこのマシンのファイルシステム上にある
 - **Unity の排他は申告制。** Unity 側から「誰が触っているか」は見ていない
+
+## 報告・裁定・セッション間の情報共有
+
+→ **[session-board.md](session-board.md)** — 掲示板(`edo_board.py`)と司令塔。
+節目・ブロッカー・裁定要請だけ post、他邸に効く変更は起票+相手セッションへ直接メッセージ、
+自己検図はユーザー入力なしに3巡まで。

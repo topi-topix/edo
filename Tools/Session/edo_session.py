@@ -460,6 +460,21 @@ def in_main_checkout():
     return os.path.realpath(ROOT) == os.path.realpath(os.path.dirname(_common_git_dir()))
 
 
+def _board_open(name):
+    """掲示板のその邸+横断の open issue を出す。CLI は**メインの checkout の物**を使う
+    (worktree のブランチには main を取り込むまで無いことがある)。"""
+    bcli = os.path.join(os.path.dirname(_common_git_dir()), "Tools", "Session", "edo_board.py")
+    if not os.path.exists(bcli):
+        return
+    r = subprocess.run([sys.executable, bcli, "list", "--estate", name],
+                       capture_output=True, text=True)
+    o = r.stdout.strip()
+    if r.returncode == 0 and o and "該当 issue なし" not in o:
+        print("  掲示板(この邸+横断の open。作法: docs/session-board.md):")
+        for ln in o.split("\n"):
+            print("    " + ln)
+
+
 def cmd_start(a):
     """屋敷の作業を始める。**worktree を探し、無ければ作って**、claim まで済ませる。"""
     me = sid(a.session)
@@ -486,11 +501,13 @@ def cmd_start(a):
         if a.blender:
             print("  ⚠ 焼いたら Unity で **Edo ▸ 御殿 ▸ …マテリアルをremap** を走らせること"
                   "(FBX は材質名しか運ばないので、やらないと白い模型になる)")
+        _board_open(dom.split(":", 1)[-1])
         return 0
     save(c, fp)
     wt = ensure_wt(dom, quiet=False)
     print("start: %s\n  作業ディレクトリ: %s" % (dom, wt))
     print("  ⚠ Unity はここでは開けない。計測が要るなら別途 `claim --resources unity`")
+    _board_open(dom.split(":", 1)[-1])
     return 0
 
 

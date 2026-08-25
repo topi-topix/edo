@@ -21,3 +21,14 @@ if os.path.exists(CLI):
         print("作業を始めるには **`python3 Tools/Session/edo_session.py start <屋敷>`**。"
               "指図だけなら worktree を探して(無ければ作って)そこへ回す。"
               "Unity を使うなら `start <屋敷> --unity` でメインに留まり Unity を確保する。")
+    # 掲示板の digest(裁定待ち・ブロッカー・open)。CLI は**メインの checkout の物**を使う
+    # (worktree のブランチには main を取り込むまで無いことがある)
+    gc = subprocess.run(["git", "-C", ROOT, "rev-parse", "--path-format=absolute",
+                         "--git-common-dir"], capture_output=True, text=True).stdout.strip()
+    bcli = os.path.join(os.path.dirname(gc), "Tools", "Session", "edo_board.py")
+    if os.path.exists(bcli):
+        b = subprocess.run([sys.executable, bcli, "digest"], capture_output=True, text=True, env=env)
+        if b.stdout.strip():
+            print(b.stdout.strip())
+            print("報告・裁定要請の作法は **docs/session-board.md**(節目・ブロッカー・裁定要請だけ"
+                  " post。自己検図・自己考証は**ユーザー入力なしに3巡まで**)。")

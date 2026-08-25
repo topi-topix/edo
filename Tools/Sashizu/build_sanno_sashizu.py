@@ -21,7 +21,7 @@
 """
 import json, math, os, re, subprocess, html
 
-from sashizu_lib import R, _pat, _SVN  # バイト同一を実証済みの共通部(_SVN は共有カウンタ)
+from sashizu_lib import R, _pat, _SVN, Proj  # バイト同一を実証済みの共通部(_SVN は共有カウンタ)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DOC = os.path.join(ROOT, "docs/Sashizu")
@@ -102,21 +102,6 @@ ENDSVG = "</g></svg>"
 
 def _cut(): return "url(#kr%d)" % _SVN[0]      # 切土
 def _fill(): return "url(#mr%d)" % _SVN[0]     # 盛土
-
-
-class Proj(object):
-    """世界座標 → SVG px。z は北が上なので Y だけ反転。"""
-    def __init__(self, x0, x1, z0, z1, W=900.0, pad=0.0, top=0.0, bottom=0.0):
-        self.wx0, self.wx1 = x0 - pad, x1 + pad
-        self.wz0, self.wz1 = z0 - pad, z1 + pad
-        self.s = W / (self.wx1 - self.wx0)
-        self.W, self.top = W, top
-        self.zh = (self.wz1 - self.wz0) * self.s
-        self.H = self.zh + top + bottom
-
-    def X(self, x): return (x - self.wx0) * self.s
-    def Y(self, z): return self.top + self.zh - (z - self.wz0) * self.s
-    def L(self, m): return m * self.s
 
 
 class LProj(object):

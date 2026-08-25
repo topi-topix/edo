@@ -36,6 +36,20 @@ TSUBO = 3.305785
 # ---------------------------------------------------------------- markdown(岡部と同じ最小変換)
 SRC_MD = os.path.expanduser(
     "~/.claude/skills/unity-buke-yashiki/references/sources.md")
+# 上屋敷が備える役割の**最小の一覧**。⚠ 各邸の json だけを見ていると、役割と棟を
+# **同時に消せば検査が通る**(2026-08-25 検図14巡 中-6)。外の錨として共有台帳を読む。
+TYPES_MD = os.path.expanduser(
+    "~/.claude/skills/unity-buke-yashiki/references/estate-types.md")
+
+
+def estate_program_norm():
+    """`estate-types.md` の「上屋敷が備える役割」表 → {役割: 要否}。"""
+    if not os.path.exists(TYPES_MD):
+        return {}
+    t = open(TYPES_MD, encoding="utf-8").read()
+    return dict((m.group(1).strip(), m.group(2))
+                for m in re.finditer(r"^\|\s*([^|]+?)\s*\|\s*(必須[^|]*|望ましい|任意)\s*\|",
+                                     t, re.M))
 
 
 def sources_index():
@@ -1660,6 +1674,43 @@ def completeness_check(d):
     return bad
 
 
+def _shared_edges(d, who):
+    """当家の多角形のうち、`who` の多角形と**実際に重なっている**辺の番号。
+
+    ⛔ 番号で照合しない。`NEIGHBOUR` の辺番号は相手の多角形の番号である。
+    当家の辺の両端が相手のどれかの辺の上に載っていれば共有辺と見なす。
+    """
+    fn_ = NEIGHBOUR.get(who, (None, ()))[0]
+    if not fn_:
+        return []
+    path = os.path.join(DOC, fn_)
+    if not os.path.exists(path):
+        return []
+    Q = json.load(open(path, encoding="utf-8"))["polygon"]
+    P = d["polygon"]
+
+    def on_seg(pt, a, b, tol=1.5):
+        dx, dz = b[0] - a[0], b[1] - a[1]
+        L2 = dx * dx + dz * dz
+        if L2 < 1e-9:
+            return False
+        t = ((pt[0] - a[0]) * dx + (pt[1] - a[1]) * dz) / L2
+        if t < -0.01 or t > 1.01:
+            return False
+        return math.hypot(a[0] + dx * t - pt[0], a[1] + dz * t - pt[1]) <= tol
+
+    out = []
+    for e in range(len(P)):
+        a, b = P[e], P[(e + 1) % len(P)]
+        mid = ((a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0)
+        for f in range(len(Q)):
+            qa, qb = Q[f], Q[(f + 1) % len(Q)]
+            if on_seg(a, qa, qb) and on_seg(b, qa, qb) and on_seg(mid, qa, qb):
+                out.append(e)
+                break
+    return out
+
+
 def shared_edge_check(d, base):
     """**共有境界の地盤は、どの家も正本のまま読むこと。**
 
@@ -1678,12 +1729,13 @@ def shared_edge_check(d, base):
         if not os.path.exists(path):
             continue
         w = load_terrain(path)
-        # ⚠ **共有辺だけを見る。** かつて全辺を回しており、隣家の復元ファイルが
-        #   たまたま当家の**共有でない辺**に届いていると、隣家が自分の敷地の中で
-        #   正当に復元した値を「境界を動かした」と report していた
-        #   (2026-08-25 検図14巡の下ごしらえで自分の検査の誤りとして見つけた)。
-        #   当家(土井)は自分の全辺を見る — どの境界も動かしてはならないため。
-        edges = range(len(P)) if who == "土井" else NEIGHBOUR.get(who, (None, ()))[1]
+        # ⚠ **共有辺は幾何で決める。** `NEIGHBOUR` が持つ辺番号は**相手の多角形の番号**で、
+        #   当家の番号ではない(岡部の辺8・9は当家の辺0・1・2にあたり、当家の辺8・9は
+        #   **松平**に面する)。番号をそのまま当家の多角形に当てて2度間違えた
+        #   — 1度目は全辺を回して隣家の敷地内の復元を指摘に化けさせ、
+        #   2度目は相手の番号を当家の辺として使い、**本当の共有辺を見逃した**
+        #   (2026-08-25 検図14巡 中-8)。当家(土井)は自分の全辺を見る。
+        edges = range(len(P)) if who == "土井" else _shared_edges(d, who)
         for e in edges:
             a, b = P[e], P[(e + 1) % len(P)]
             L = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
@@ -2261,6 +2313,26 @@ def program_check(d):
                        "巻き戻すなら `certRulings` を書き換えること"
                        % (rl["role"], rl["what"], idx[key], rl["when"], rl["cert"]))
 
+    # ⛔ **共有台帳を外の錨にする。** `program` だけを見ていると、役割と棟を
+    #   **同時に消せば通る**(2026-08-25 検図14巡 中-6)。
+    norm = estate_program_norm()
+    if not norm:
+        bad.append("`estate-types.md` の「上屋敷が備える役割」表が読めない — 錨が無い")
+    have_roles = set(pg["role"] for pg in d.get("program", []))
+    waived = set(d.get("_採らなかった役割") or {})
+    for role, need in norm.items():
+        if role in have_roles or role in waived:
+            continue
+        base = role.split("(")[0]
+        if any(base and base in h for h in have_roles) or any(base and base in w for w in waived):
+            continue
+        if need.startswith("必須"):
+            bad.append("上屋敷に**必須**の役割「%s」が `program` にも `_採らなかった役割` にも無い"
+                       " — 落としたなら理由を書くこと(`estate-types.md`)" % role)
+        else:
+            bad.append("役割「%s」(%s)が `program` にも `_採らなかった役割` にも無い — "
+                       "採らないなら理由を書くこと" % (role, need))
+
     # 逆向き — `program` のどの役割にも現れない棟は、消しても誰も気づかない
     for o in d["munes"] + d.get("service", []):
         if o["name"] not in named:
@@ -2681,7 +2753,7 @@ def dem_svg(d, dem, others, W=900.0):
     x1, z1 = x0 + (dem["nx"] - 1) * st, z0 + (dem["nz"] - 1) * st
     pr = Proj(x0, x1, z0, z1, W, pad=0.0)
     gr = RGrid(d)
-    g = _sv(pr.W, pr.H, "土井大隅守上屋敷 現況図(造成前の地形)")
+    g = _sv(pr.W, pr.H, "土井大隅守上屋敷 現況図(現代の地面=地盤の正本)")
     g.append('<defs><clipPath id="dc%d"><rect x="0" y="0" width="%.1f" height="%.1f"/></clipPath></defs>'
              % (_SVN[0], pr.W, pr.H))
     g.append('<g clip-path="url(#dc%d)">' % _SVN[0])
@@ -3455,7 +3527,7 @@ def section_svg(d, sec):
     g.append(T(4, H - 34, "水平は間グリッド沿い/垂直は %.1f 倍に強調。屋根は図示のための概略。"
                "視線は %s" % (ex, "南を向く(左=東の道／右=西の奥)" if sec["axis"] == "u"
                               else "西を向く(左=南の岡部境／右=北の松平境)"), "anS2", "start"))
-    g.append(T(4, H - 20, "── 実線=造成後の地盤　┄┄ 破線=造成前の現地形(実測・確度P)。"
+    g.append(T(4, H - 20, "── 実線=造成後の地盤　┄┄ 破線=<b>江戸期の復元地盤</b>(手順U / 根拠A+B)。"
                "その間の**暖色=盛土／寒色=切土**(濃いほど厚い)。"
                "段の外は法面(盛土1:%.1f/切土1:%.1f)で現地形へ摺り付ける"
                % (d["const"].get("batterFill", 1.5), d["const"].get("batterCut", 1.0)),
@@ -3914,6 +3986,88 @@ def stair_bank_check(d, dem):
             bad.append("石段 %s の側石垣の走り %.2fm が石段の走り %.2fm と違う — "
                        "註は走りの全長に返すと言っている(上限超えは %.2fm まで)"
                        % (k["name"], f["run"], k["run"], need))
+    return bad
+
+
+def fix_wall_exposure(d, ter):
+    """走りに沿った**露出の分布**を土留めへ書き戻す。
+
+    ⚠ `fix_walls` の中でやると、開口の幅 `gapHalf` が**同じパスで後から決まる**ため、
+    往復試験で平均が 0.03m 揺れて収束しなかった(2026-08-25)。**開口が確定した後**に回す。
+    """
+    if ter is None:
+        return d
+    OFF = 0.45
+    K = d["const"]["ken"]
+    lim = d["const"].get("wallEndFillMax", 0.5)
+    for w in d["terraceWalls"]:
+        (au, av), (bu, bv) = w["a"], w["b"]
+        L = math.hypot(bu - au, bv - av) or 1.0
+        nu_, nv_ = (bv - av) / L, -(bu - au) / L
+        gk = "gapU" if abs(au - bu) > 1e-9 else "gapV"
+        inset = min(0.45, 0.4 * L) / L
+        ds = []
+        for i in range(41):
+            t = inset + (1.0 - 2.0 * inset) * i / 40.0
+            u, v = au + (bu - au) * t, av + (bv - av) * t
+            if gk in w:
+                pos = u if gk == "gapU" else v
+                if abs(pos - w[gk]) <= w.get("gapHalf", 1.0):
+                    continue
+            best = None
+            for sg in (1.0, -1.0):
+                pu, pv = u + nu_ * OFF * sg, v + nv_ * OFF * sg
+                g = design_y(d, pu, pv)
+                if g is None:
+                    g = ter["at"](pu, pv)
+                if g is not None:
+                    best = g if best is None else min(best, g)
+            if best is not None:
+                ds.append(w["coping"] - best)
+        if not ds:
+            w.pop("_exposure", None)
+            w.pop("_endLow", None)
+            continue
+        w["_exposure"] = [round(min(ds), 2), round(sum(ds) / len(ds), 2), round(max(ds), 2)]
+
+        def _tail(seq):
+            n = 0
+            for e in seq:
+                if e <= lim:
+                    n += 1
+                else:
+                    break
+            return round(n * L * K / max(1, len(seq) - 1), 2)
+        w["_endLow"] = [_tail(ds), _tail(ds[::-1])]
+    return d
+
+
+def wall_profile_check(d):
+    """**走りに沿った露出**で土留めを検める。`wall_check` は最大落差**一点**しか見ない。
+
+    ⚠ `sashizu.md` §3c(ユーザー指摘)——「設計高さで描くと壁が土に埋もれ、
+    **要らない壁が図に残る**」。⇒ (a) 端が長く低いまま続くなら切り詰める、
+    (b) 壁高が最大露出より1ピッチ以上大きいなら過大。
+    """
+    K = d["const"]["ken"]
+    lim = d["const"].get("wallEndFillMax", 0.5)
+    trim = d["const"].get("wallTrimMin", 2.0)          # m。これ以上続く低い端は切る
+    bad = []
+    for w in d["terraceWalls"]:
+        ex = w.get("_exposure")
+        if not ex:
+            continue
+        h = 4.0 * w["s"] * w.get("tiers", 1)
+        pitch = 1.8 * w["s"]
+        if h > ex[2] + pitch + 1e-6:
+            bad.append("土留め %s の壁高 %.2fm が最大露出 %.2fm より1ピッチ(%.2fm)以上大きい"
+                       " — 丁場が過大" % (w["name"], h, ex[2], pitch))
+        for k, ek in enumerate(("a", "b")):
+            t = (w.get("_endLow") or [0, 0])[k]
+            if t >= trim - 1e-6 and ek not in (w.get("endOpen") or {}):
+                bad.append("土留め %s の %s 端は %.1fm にわたり露出 %.2fm 以下 — "
+                           "その区間は法面で足りる。切り詰めるか `endOpen` に理由を書くこと"
+                           % (w["name"], ek, t, lim))
     return bad
 
 
@@ -4819,9 +4973,13 @@ def civil_table(d):
     rows = []
     for w in d["terraceWalls"]:
         wa, wb = gr.W(*w["a"]), gr.W(*w["b"])
-        rows.append("<tr><td><code>%s</code></td><td>土留め(s=%.2f)</td>"
-                    "<td>(%.1f, %.1f) → (%.1f, %.1f)</td><td>天端 %.1f・壁高 %.1f</td></tr>"
-                    % (w["name"], w["s"], wa[0], wa[1], wb[0], wb[1], w["coping"], 4.0 * w["s"]))
+        ex = w.get("_exposure")
+        rows.append("<tr><td><code>%s</code></td><td>土留め(s=%.2f×%d段)</td>"
+                    "<td>(%.1f, %.1f) → (%.1f, %.1f)</td>"
+                    "<td>天端 %.1f・壁高 %.1f・<b>露出 %s</b></td></tr>"
+                    % (w["name"], w["s"], w.get("tiers", 1), wa[0], wa[1], wb[0], wb[1],
+                       w["coping"], 4.0 * w["s"] * w.get("tiers", 1),
+                       ("%.2f〜%.2f(平均 %.2f)" % (ex[0], ex[2], ex[1])) if ex else "—"))
     for k in d["kaidans"]:
         w = next((x for x in d["terraceWalls"] if x["name"] == k["atWall"]), None)
         if w is None:
@@ -5060,7 +5218,8 @@ def fig(h, svg, cap=None, legend=None):
 #   偽陽性になる(開口の有無 `gapU`/`gapV`、階段廊下であること `links.steps` は入力側)。
 #   芯や幅は毎回上書きされるので、消さなくても古い値は検出できる。
 GEN_FIELDS = {
-    "terraceWalls": ("drop", "s", "tiers", "sode", "_sodeRoom", "gapHalf", "_pitch"),
+    "terraceWalls": ("drop", "s", "tiers", "sode", "_sodeRoom", "gapHalf", "_pitch",
+                     "_exposure", "_endLow"),
     # `drop` は 2026-08-25 から**結ぶ二つの面から算出**する(検図14巡 中-3)。
     # 手で書いた落差が正典に残っていたら往復試験が拾う。
     "kaidans": ("steps", "run", "keriActual", "drop"),
@@ -5165,6 +5324,8 @@ def main():
         x = fix_sections(x, load_terrain(os.path.join(DOC, "doi_edo_dem.json")),
                          load_terrain(os.path.join(DOC, "doi_dem.json")))  # 断面の現地形線
         x = fix_boundary_plinth(x, load_terrain(os.path.join(DOC, "doi_dem.json")))
+        # ⚠ 露出の分布は**開口が確定した後**に測る(gapHalf が同じパスで決まるため)
+        x = fix_wall_exposure(x, load_terrain(os.path.join(DOC, "doi_edo_dem.json")))
         return x
 
     rtbad = roundtrip_check(_raw, _pipeline)
@@ -5236,6 +5397,7 @@ def main():
             + mune_fit_check(d)
             + edge_step_check(d, load_terrain(os.path.join(DOC, "doi_dem.json")))
             + wall_end_check(d, load_terrain(os.path.join(DOC, "doi_edo_world.json")))
+            + wall_profile_check(d)
             + wall_needed_check(d, load_terrain(os.path.join(DOC, "doi_dem.json"))))
     nbad = (neighbour_wall_check(d, load_terrain(os.path.join(DOC, "doi_edo_dem.json")),
                                  load_terrain(os.path.join(DOC, "doi_dem.json")))
@@ -5400,7 +5562,7 @@ def main():
               "盛土 %.0f m³(最大 %.1fm) ／ 切土 %.0f m³(最大 %.1fm) ／ 差引 %+.0f m³"
               % (vf, mf, vc, mc, vf - vc))
         fig(h, cf, legend=cutfill_legend(),
-            cap="<b>造成前の地形(2026-08-23 実測・確度P)と造成後の地盤の差</b>を1間の格子で塗った。"
+            cap="<b>" + '<b>江戸期の復元地盤</b>(正本 base_dem.json=確度P に、近代造成を戻す復元を重ねた面。**手順=U / 根拠=1883年図の観測A + 不存在からの推論B**)' + "と造成後の地盤の差</b>を1間の格子で塗った。"
                 "暖色=盛土/寒色=切土/無彩=±0.3m以内(実質さわらない)/"
                 "地の色(薄い緑)のまま=<b>造成しない</b>。破線の枠は段、細い実線は御殿の棟。"
                 "<b>面の高さを自然のベンチに載せてあるので、郭の大半は無彩か薄い色になる</b> — "
@@ -5529,7 +5691,7 @@ def main():
             h.append('<h3>%s</h3>' % s["name"])
             fig(h, section_svg(d, s), cap=section_note(d, s))
         h.append('<p class="cap"><b>段のつなぎ方は平面だけでは読めない。</b>地表下の色帯=面('+KANOF('敷地')+' と同じ色分け)。'
-                 '<b>破線=造成前の現地形</b>(2026-08-23 実測・確度P)なので、実線との差がそのまま切土/盛土。'
+                 '<b>破線=江戸期の復元地盤</b>(手順U / 根拠A+B)なので、実線との差がそのまま切土/盛土。'
                  '区画線上には当家所有の囲い(表長屋/練塀)だけを天端と基壇石垣つきで示す — '
                  '南北の境は隣家所有のため空けてある。基壇は境界線上に垂直に立ち、道・隣地の地形には触れない。'
                  '屋根は図示のための概略で、実装の高さは部材が決める(突き合わせの対象外)。</p>')

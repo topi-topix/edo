@@ -96,7 +96,7 @@ public static class EdoTamachiBuilder
     }
     static Material Mat(string name, string tex)
     {
-        string mp = "Assets/Edo/Materials/" + name + ".mat";
+        string mp = EdoAssets.Own.Mat(name);
         var exist = AssetDatabase.LoadAssetAtPath<Material>(mp);
         if (exist != null) return exist;
         var m = new Material(Shader.Find("Universal Render Pipeline/Lit"));

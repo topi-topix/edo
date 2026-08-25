@@ -240,6 +240,9 @@ public static class EdoAssets
         public const string MKido       = "Assets/Edo/Materials/M_Kido.mat";
         public const string MKidobanya  = "Assets/Edo/Materials/M_Kidobanya.mat";
         public const string MJishinban  = "Assets/Edo/Materials/M_Jishinban.mat";
+        public const string MGateStone  = "Assets/Edo/Materials/GateStone.mat";
+        // 自作マテリアルの名前引き(規則11: パスの literal はここ以外に書かない)
+        public static string Mat(string name) { return "Assets/Edo/Materials/" + name + ".mat"; }
 
         /// <summary>松江松平邸の表門 — **屋根なしの冠木門**(角柱・冠木・内開き扉・潜り戸・袖塀の一体物)。
         /// 姿は温古写真集11(88005761・明治初撮影)の実見【A】+『日本案内記 関東篇』昭和5年【A】。

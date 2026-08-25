@@ -697,7 +697,7 @@ public static class EdoSannoShaBuilder
     }
     static Material MonzenMat(string name, string texPath)
     {
-        string matPath = "Assets/Edo/Materials/" + name + ".mat";
+        string matPath = EdoAssets.Own.Mat(name);
         var m = AssetDatabase.LoadAssetAtPath<Material>(matPath);
         if (m != null) return m;
         m = new Material(Shader.Find("Universal Render Pipeline/Lit"));

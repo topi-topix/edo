@@ -48,6 +48,16 @@ TYPES_MD = os.path.expanduser(
     "~/.claude/skills/unity-buke-yashiki/references/estate-types.md")
 
 
+def _unmeasured(fn, what):
+    """⛔ **地盤が読めないときに 0 件を返さない。**
+
+    `qa-and-pitfalls.md`「測れないものは 0 件になる」。地形を引く検査が `return []` で
+    素通りすると、**合格と区別が付かない**(2026-08-26 松平の指摘 ⑩ の地形版)。
+    「回っていない」と明示して非0で返す。
+    """
+    return ["⛔ %s が %s を読めない — **この検査は回っていない**(合格ではない)" % (fn, what)]
+
+
 class AnchorMissing(Exception):
     """**外の錨が読めない。** ⛔ 空を返して素通りさせない。
 
@@ -1426,7 +1436,7 @@ def recon_reach_check(d, margin=None):
     """
     path = os.path.join(DOC, "doi_edo_world.json")
     if not os.path.exists(path):
-        return []
+        return _unmeasured("recon_reach_check", "doi_edo_world.json")
     try:
         bx = json.load(open(path, encoding="utf-8"))["_reconBox"]
     except Exception:
@@ -1459,7 +1469,7 @@ def shared_edge_check(d, base):
     **両家が同じ面を読むことが要件**」としている。
     """
     if base is None:
-        return []
+        return _unmeasured("shared_edge_check", "base_dem.json")
     rows, missing = _shared_edge_stats(d, base)
     bad = []
     for who, fn_, edges in missing:
@@ -1673,7 +1683,7 @@ def boundary_fill_check(d, dem):
     法面を出す余地(盛土 1:1.5)が当家側に無ければ、段を退げるしかない。
     """
     if dem is None:
-        return []
+        return _unmeasured("boundary_fill_check", "doi_dem.json")
     P = d["polygon"]
     own = d.get("edgeOwner", {})
     gr = RGrid(d)
@@ -1898,7 +1908,7 @@ def route_check(d, dem):
     **段の縁を石段・斜路・廊下以外で越えることを止める検査が一つも無かった。**
     """
     if dem is None:
-        return []
+        return _unmeasured("route_check", "doi_edo_world.json")
     K = d["const"]["ken"]
     gr = RGrid(d)
     we = dict((t["name"], walled_edges(d, t)) for t in d["terraces"])
@@ -3669,6 +3679,55 @@ def walls_table(d):
             "袖が立たない開口は <code>opening_fit_check</code> が不適合として出す。</p></div>")
 
 
+def gate_area_note(d):
+    """建蔽率の「門の躯体+木戸」の**出所**を算出して出す(`_pending.kenpei` の残作業)。
+
+    ⚠ 門の躯体と表長屋の run が**同じ辺の同じ帯**にあるので、二重に数えていないことを
+    数字で示さないと読者が検算できない。手で書かず毎回測る。
+    """
+    gp = d["gate"]["plan"]
+    bs = gp["bansho"]
+    mon = gp["monW"] * gp.get("monD", 1.2)
+    sode = 2 * gp.get("sode", 0) * 0.4
+    komon = sum(k["w"] * 1.2 for k in d["komon"])
+    ban = bs["count"] * bs.get("w", 0) * bs.get("d", 0)
+    g0, g1 = d["gate"]["s"] - gp["monW"] / 2, d["gate"]["s"] + gp["monW"] / 2
+    ov = 0.0
+    for r in d["runs"]:
+        if r["kind"] != "Nagaya":
+            continue
+        ov += max(0.0, min(g1, r["s1"]) - max(g0, r["s0"]))
+    return ("<p class='cap'><b>「門の躯体+木戸」の出所</b>: 躯体 %.2f×%.2f=<b>%.1f m²</b>"
+            " ／ 袖塀 %.1f m² ／ 木戸・通用門 %s = %.1f m² ／ 番所 %.1f m²"
+            "(<b>長屋門は番所が躯体内</b>なので別計上しない)= 計 <b>%.1f m²</b>。<br>"
+            "⚠ <b>表長屋の行と二重に数えていない</b> — 門の桁行は辺の s%.2f〜%.2f を占め、"
+            "表長屋の run はその手前 s%.2f で切れ、その先 s%.2f から再開する"
+            "(重なり <b>%.2f m</b>)。数値は毎回測る。</p>"
+            % (gp["monW"], gp.get("monD", 1.2), mon, sode,
+               " + ".join("%.2f×1.2" % k["w"] for k in d["komon"]), komon, ban,
+               mon + sode + komon + ban, g0, g1,
+               max((r["s1"] for r in d["runs"] if r["kind"] == "Nagaya" and r["s1"] <= g0 + 1e-6),
+                   default=0.0),
+               min((r["s0"] for r in d["runs"] if r["kind"] == "Nagaya" and r["s0"] >= g1 - 1e-6),
+                   default=0.0),
+               ov))
+
+
+def gate_overlap_check(d):
+    """門の躯体と表長屋の run が**重なっていないか**。重なれば建蔽率が二重に数える。"""
+    gp = d["gate"]["plan"]
+    g0, g1 = d["gate"]["s"] - gp["monW"] / 2, d["gate"]["s"] + gp["monW"] / 2
+    bad = []
+    for r in d["runs"]:
+        if r["kind"] != "Nagaya":
+            continue
+        ov = min(g1, r["s1"]) - max(g0, r["s0"])
+        if ov > 1e-6:
+            bad.append("門の躯体(s%.2f〜%.2f)と表長屋 %s(s%.2f〜%.2f)が %.2fm 重なる — "
+                       "建蔽率が二重に数える" % (g0, g1, r["name"], r["s0"], r["s1"], ov))
+    return bad
+
+
 def kenpei(d, area):
     """正典は sashizu_lib.kenpei(当邸の実装をそのまま基準にした)。行ラベルだけが当邸の値。"""
     return sashizu_lib.kenpei(
@@ -3685,7 +3744,7 @@ def stair_bank_check(d, dem):
     (2026-08-25 検図13巡 中-1: K_Genkan の掘割の外 0.10間で 踏面−地盤 が最大 2.68m)。
     """
     if dem is None:
-        return []
+        return _unmeasured("stair_bank_check", "doi_edo_world.json")
     K = d["const"]["ken"]
     gr = RGrid(d)
     we = dict((t["name"], walled_edges(d, t)) for t in d["terraces"])
@@ -3866,7 +3925,7 @@ def wall_end_check(d, dem):
     法が付いている限り差はほぼ 0 になる。**壁の端そのもの**を測るのはこの関数の仕事。
     """
     if dem is None:
-        return []
+        return _unmeasured("wall_end_check", "doi_edo_world.json")
     gr = RGrid(d)
     K = d["const"]["ken"]
     lim = d["const"].get("wallEndFillMax", 0.5)
@@ -4072,7 +4131,7 @@ def wall_needed_check(d, dem):
     開口の中も同じ理屈で見る(開口幅から通る物を引いた分に受けが無ければ段差が残る)。
     """
     if dem is None:
-        return []
+        return _unmeasured("wall_needed_check", "doi_dem.json")
     gr = RGrid(d)
     we = {t["name"]: walled_edges(d, t) for t in d["terraces"]}
     bf = d["const"].get("batterFill", 1.5)
@@ -4130,7 +4189,7 @@ def neighbour_wall_check(d, ter, dem=None):
     0.5m 刻みで測ると **5.80m** 埋まっていた。**継ぎ目を含む細かい刻みで、run ごとの最大を出す。**
     """
     if ter is None:
-        return []
+        return _unmeasured("neighbour_wall_check", "doi_edo_dem.json")
     gr = RGrid(d)
     we = {t["name"]: walled_edges(d, t) for t in d["terraces"]}
     bad = []
@@ -4978,7 +5037,7 @@ def main():
             print("   ", b)
     pbad = (plane_check(d) + inubashiri_check(d) + opening_fit_check(d) + refs_check(d)
             + norms_check(d) + perimeter_check(d) + clearance_check(d) + rails_check(d)
-            + ramp_check(d) + completeness_check(d) + program_check(d) + setchin_check(d)
+            + ramp_check(d) + completeness_check(d) + program_check(d) + gate_overlap_check(d) + setchin_check(d)
             + route_check(d, load_terrain(os.path.join(DOC, "doi_edo_world.json")))
             + stair_bank_check(d, load_terrain(os.path.join(DOC, "doi_edo_world.json")))
 
@@ -5244,6 +5303,7 @@ def main():
     h.append(munes_table(d, load_terrain(os.path.join(DOC, "doi_edo_dem.json"))))
     h.append(links_table(d))
     kp_html, kp = kenpei(d, area)
+    kp_html += gate_area_note(d)          # `_pending.kenpei` の残作業(出所を注に出す)
     nagL = sum(r["s1"] - r["s0"] for r in d["runs"] if r["kind"] == "Nagaya")
     perim = sum(math.hypot(P[(i + 1) % len(P)][0] - P[i][0], P[(i + 1) % len(P)][1] - P[i][1])
                 for i in range(len(P)))

@@ -720,21 +720,31 @@ def edge_drops(d, step=1.5):
     for t in d["terraces"]:
         poly = tpoly(t)
         n = len(poly)
-        cu = sum(p[0] for p in poly) / n; cv = sum(p[1] for p in poly) / n
+        # ⛔ **外向きは重心からの放射方向で取らない。** 段は凹多角形(門口の切り欠きなど)なので、
+        #    凹部では重心方向が段の**内側**を向く。2026-08-25 検図: 門前面の80測点中40が真の外法線と
+        #    60°超ずれ、15測点は「外側1.5間」が段の中に落ちて、何も測っていなかった。
+        #    **辺の向きと多角形の巻き方向(符号付き面積)から法線を出す。**
+        area2 = sum(poly[i][0] * poly[(i + 1) % n][1] - poly[(i + 1) % n][0] * poly[i][1]
+                    for i in range(n))
+        sgn = 1.0 if area2 > 0 else -1.0       # 反時計回りなら +
         rows = []
         for a, b in zip(poly, poly[1:] + [poly[0]]):
             L = math.hypot(b[0] - a[0], b[1] - a[1])
+            if L < 1e-9:
+                continue
+            nx, ny = sgn * (b[1] - a[1]) / L, -sgn * (b[0] - a[0]) / L   # 外向き法線
             k = 0.0
             while k < L:
-                tt = k / L if L else 0.0
+                tt = k / L
                 u = a[0] + (b[0] - a[0]) * tt; v = a[1] + (b[1] - a[1]) * tt
                 k += step
                 if not in_parcel(d, u, v) or _on_walled_edge(d, u, v, 3.0):
                     continue
+                ou, ov = u + nx * step, v + ny * step
+                if tin(t, ou, ov):
+                    continue                   # 外側の標本が段の中に落ちる = 測れない
                 g0 = _dem_at(d, u, v)
-                dx, dy = u - cu, v - cv
-                Lc = math.hypot(dx, dy) or 1.0
-                go = _dem_at(d, u + dx / Lc * step, v + dy / Lc * step)
+                go = _dem_at(d, ou, ov)
                 if g0 is None or go is None:
                     continue
                 rows.append((t["y"] - go, t["y"] - g0,
@@ -798,6 +808,23 @@ def edge_drop_table(d):
                "rows": "".join(rows)})
 
 
+def coping_check(d):
+    """**基壇の天端に、犬走りと塀の掛かりが乗るか。**
+    練塀は基壇の天端と背後の盛土にまたがって載る(石垣は擁壁であって基礎ではない)ので、
+    天端に要るのは「塀の全厚」ではなく **犬走り + 塀の掛かり**。"""
+    need = d["const"]["inubashiri"] + d["const"]["copingBear"]
+    bad = []
+    for r in d["runs"]:
+        if not r.get("base"):
+            continue
+        top = 1.4 * r["s"]
+        if top < need - 1e-9:
+            bad.append("%s の基壇の天端 %.2fm < 犬走り%.2f+塀の掛かり%.2f = %.2fm(s=%.2f)"
+                       % (r["name"], top, d["const"]["inubashiri"],
+                          d["const"]["copingBear"], need, r["s"]))
+    return bad
+
+
 def clearance_check(d):
     """**建物どうしの隙間と、外周の囲いからの離隔。**
     ⚠ 2026-08-25 検図: どちらも図が宣言した規則を図自身が破っていたのに、
@@ -834,8 +861,13 @@ def clearance_check(d):
                 if best is None or dd < best[0]:
                     best = (dd, r)
         if best is None:
+            bad.append("%s の最寄りの辺に run が無い(木柵か相手所有の辺)— **離隔の検査の対象外**"
+                       % o["name"])
             continue
-        need = (d["const"]["dobeiT"] / 2.0 + d["const"]["inubashiri"] + 0.5 * best[1]["s"])
+        # 法尻の内縁は基壇の芯から 1.2s。塀の半分に足すのではなく **max** を取る
+        # (2026-08-25 検図: s=1.0 で 0.12m 過小、s=0.5 で 0.22m 過大だった)。
+        need = (max(d["const"]["dobeiT"] / 2.0, 1.2 * best[1]["s"])
+                + d["const"]["inubashiri"])
         got = best[0] * K
         if got < need - 1e-6:
             bad.append("%s の離隔 %.2fm < 必要 %.2fm(%s・s=%.2f)"
@@ -1214,6 +1246,21 @@ def plan_svg(d):
 
 
 # ---------------------------------------------------------------- 其二・其三 御殿平面(グリッド座標)
+def plan_frame(d, tname, pad=3.0):
+    """平面図の枠を**段の外接矩形から算出**する(手で持つと棟を動かすたびに腐る)。
+    ⚠ 2026-08-25 検図: 手書きの枠が主面の 7.2% を切り落とし、`KN_Sh1 家臣長屋(主面1)` が
+    どの平面図にも載らなくなっていた(断面の見出しには出るので図の中で矛盾していた)。"""
+    t = next(x for x in d["terraces"] if x["name"] == tname)
+    pts = tpoly(t)
+    us = [p[0] for p in pts]; vs = [p[1] for p in pts]
+    for o in d["munes"] + d["service"] + d["gardens"] + d["links"]:
+        if abs(o.get("y", t["y"]) - t["y"]) > 0.6:
+            continue
+        us += [o["u0"], o["u1"]]; vs += [o["v0"], o["v1"]]
+    return (math.floor(min(us) - pad), math.ceil(max(us) + pad),
+            math.floor(min(vs) - pad), math.ceil(max(vs) + pad))
+
+
 def goten_plan(d, u0, u1, v0, v1, label, note):
     """段の平面。**枠外の要素は clipPath で切る**(2026-08-23 検図: 枠の外にテキストが残っていた)。"""
     pr = LProj(u0, u1, v0, v1, 900.0)
@@ -2587,14 +2634,16 @@ def section_svg(d, sec):
         #    27箇所中16箇所が 0.30m 超ずれ、2本は断面上で壁が土に埋もれていた(2026-08-25 検図)。
         gy = seat - _run_exposure(d, run, bs)
         if seat > gy + 0.05:                          # 基壇石垣
-            g.append(R(X(w) - sx * 0.9, Y(seat), sx * 1.8, (seat - gy) * sx * ex,
+            bt9 = 2.4 * run["s"]          # 基壇の底厚(設計値)。固定1.8mで描いていた
+            g.append(R(X(w) - sx * bt9 / 2, Y(seat), sx * bt9, (seat - gy) * sx * ex,
                        fill=_pat(), stroke="var(--ishi)", sw=1.0))
-        g.append(R(X(w) - sx * 0.7, Y(seat + hh), sx * 1.4, hh * sx * ex,
+        wt9 = d["const"]["dobeiT"]        # 練塀の厚さ(設計値)。固定1.4mで描いていた
+        g.append(R(X(w) - sx * wt9 / 2, Y(seat + hh), sx * wt9, hh * sx * ex,
                    fill=KC.get(run["kind"], "var(--dim)"), op=0.95))
         g.append(T(X(w), Y(seat + hh) - 5, "%s 天端%.2f 露出%.2f"
                    % (run["name"], seat, seat - gy), "jo", "middle"))
 
-    # 表門(断面Aのみ)
+    # 表門(門の軸の断面のみ)
     if sec["axis"] == "u" and abs(sec["at"]) < 2:
         gpn = d["gate"]["plan"]
         g.append(R(X(0) - sx * gpn["monD"] / 2 / K, Y(d["gate"]["sill"] + gpn["monH"]),
@@ -3632,6 +3681,11 @@ def main():
         print("⚠ 段の縁 %d 件:" % len(ebad))
         for b in ebad:
             print("   ", b)
+    cpbad = coping_check(d)
+    if cpbad:
+        print("⚠ 基壇の天端 %d 件:" % len(cpbad))
+        for b in cpbad:
+            print("   ", b)
     clbad = clearance_check(d)
     if clbad:
         print("⚠ 離隔 %d 件:" % len(clbad))
@@ -3868,7 +3922,7 @@ def main():
                  % (d["const"]["batterFill"], d["const"]["batterCut"], mf, mc))
         h.append("</div>")
     plate(h, nx(), "御殿平面", "室名=[西川1959]A の型 ／ **畳数と室の配り=確度U(推定)** — 当屋敷の指図は現存未確認")
-    fig(h, goten_plan(d, -34, 20, -3, 112, "御殿平面",
+    fig(h, goten_plan(d, *plan_frame(d, "Shumen"), label="御殿平面", note=
                       "廊下は入側・渡廊下とも幅一間。奥向へ入る廊下は御錠口の一本だけ"),
         legend='<span style="color:var(--roka)">■ 入側・渡廊下(幅一間)</span>'
                '<span style="color:var(--shu)">■ 御錠口</span>'
@@ -3876,7 +3930,10 @@ def main():
                '<span style="color:var(--shirasu)">■ 白洲</span>'
                '<span>┄ 襖線(続き間の境)</span>',
         cap="<b>長屋門 → 叩きの石段4段 → 門前面 → 参道の石段39段 → 主面の白洲 → 車寄・御式台・御玄関。</b>"
-            "門の軸に石段を三つ重ねて主面へ登る(道→玄関の登りは断面Aのとおり)。"
+            "門の軸に石段を%d本重ねて主面へ登る(道→玄関の登りは%sのとおり)。"
+            % (len(d["kaidans"]),
+               next((x["name"] for x in d["sections"]
+                     if x["axis"] == "u" and abs(x["at"]) < 1), "門の軸の断面")) +
             "西へ書院棟(上段之間18畳)、その西に中奥棟・奥向棟、南に台所棟、北に長局。"
             "<b>奥向へ入る口は御錠口の一本だけ</b>([西川1959]A)。"
             "室名は [西川1959](正徳期 津軽藩4万7千石 柳原屋敷図)の型で、<b>畳数と配りは確度U</b>。")
@@ -3884,13 +3941,15 @@ def main():
 
     # ⚠ 之二の親番号は**直前に振った番号から引く**(章を足すと手書きの「其四之二」が腐る)
     plate(h, KAN[_kn[0] - 1] + "之二", "門前面 平面", "長屋門・白洲・厩・供待・蔵・家臣長屋")
-    fig(h, goten_plan(d, -44, 26, -2, 26, "門前面 平面",
+    fig(h, goten_plan(d, *plan_frame(d, "Monzen"), label="門前面 平面", note=
                       "土蔵は門まわり([高知2000]A の火消道具蔵・御駕籠蔵)。"
                       "家臣長屋は練塀の内側の帯([西川1959]A)"),
-        cap="<b>拝領時に均した面 13.3</b>(自然のベンチではない — 1883の実地形は北へ約1.07%上がる)(段別の切盛量は「切盛」の段別表)。"
-            "門の敷居は道なり+0.2 の 12.25 で面より1.05m低い。"
-            "<b>門口(u −5〜+5)は面から切り欠いてあり</b>、そこが門を入った叩き — "
-            "石段 K_Mon 4段+踊り場1.5間(走り4.53m)で 13.3 へ受ける。")
+        cap=("<b>拝領時に均した面(高さは「敷地」の表)</b> — 自然のベンチではない。"
+             "1883の実地形は北へ約1.07%上がる(段別の切盛量は「切盛」の段別表)。"
+             "門の敷居は道なりから採るので面より低い(差は断面の章)。"
+             "<b>門口は面から切り欠いてあり</b>、そこが門を入った叩き — "
+             "石段 " + d["kaidans"][0]["name"] + " %d段(走りは「取り合い」の表)で面へ受ける。"
+             % d["kaidans"][0]["steps"]))
     h.append("</div>")
 
     if d.get("routes"):
@@ -4091,11 +4150,30 @@ def main():
         h.append(bom_table(d))
         h.append("</div>")
 
+    # ⚠ **裁定を仰ぐ項目を図に出す。** 2026-08-25 検図: `_pending` が html に一切出ておらず、
+    #    ユーザー裁定待ちの3件のうち2件が図の上に無かった。図に無い項目はレビューで決まらない。
+    yo = [x for x in d["_pending"]["open"] if x.startswith("【要判断")]
+    ji = [x for x in d["_pending"]["open"] if x.startswith("【実装で納める")]
+    ch = [x for x in d["_pending"]["open"] if x.startswith(("【要調査", "【要通達"))]
+    plate(h, nx(), "裁定と宿題", "⭐ **この章の【要判断】はユーザーの裁定を待っている**")
+    for ttl, xs, mk in (("⭐ ユーザーの裁定を仰ぐ", yo, "yo"),
+                        ("実装で納める(図では閉じない)", ji, "ji"),
+                        ("調査・通達の宿題", ch, "ch")):
+        if not xs:
+            continue
+        h.append("<h3>%s(%d件)</h3><ol class='note'>%s</ol>"
+                 % (ttl, len(xs), "".join("<li>%s</li>" % inline(x) for x in xs)))
+    h.append('<p class="cap">⚠ <b>ここに出ていない宿題は無い</b> — 正典は json '
+             '<code>_pending.open</code> で、この章はその全件を分類して刷る。'
+             '⭐ <b>【要判断】は当方では閉じられない</b>(規則3 の免除など、'
+             '不変則に関わるものを当方が自分に出すことはできない)。</p>')
+    h.append("</div>")
+
     plate(h, nx(), "考証と決めごと")
     h.append('<div class="prose">%s</div>' % prose)
     h.append("</div>")
 
-    plate(h, "改訂", "", "経緯はここに書かず git で追う")
+    plate(h, "改訂", "", "経緯はここに書かず git で追う ／ ⚠ **この図を作ったコミット自身は表に出ない**(構造上)")
     h.append(history())
     h.append("</div>")
 

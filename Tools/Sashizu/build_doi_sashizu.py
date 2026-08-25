@@ -1976,19 +1976,65 @@ def setchin_check(d):
     for n in sorted(need - covered):
         bad.append("棟 %s が雪隠の区画(`setchinZones`)のどれにも属していない — "
                    "人が居続ける棟は必ず区画に入れること" % n)
+    # ⛔ **区画を粗くする道を塞ぐ。** 段①②だけでは「表役所を表向へ統合してその雪隠を消す」が
+    #   通った(2026-08-26 松平の指摘)。当家で試すと**全部を1区画にまとめて雪隠を3室消しても
+    #   0件**だった。宣言を消すのではなく**宣言を薄める**ほうの自己免除である。
+    #   ⇒ 区画そのものを**裁定 `zoneRulings` として持つ**(`certRulings` と同じ考え)。
+    #   溶かすなら裁定を書き換えることになり、その差分がレビューに乗る。
+    # ⛔ **錨にも錨が要る。** 裁定を丸ごと消せば通る、では自己免除が一段外へ逃げるだけ。
+    #   ⇒ **最外の錨は共有台帳**(`estate-types.md`)に置く。役割表が「湯殿・雪隠」を必須と
+    #   している限り、裁定は空にできない。ここで止める(台帳は他邸と共有で、当邸だけでは変えられない)。
+    rulings = d.get("zoneRulings", [])
+    norm = estate_program_norm()
+    if any(k.startswith("湯殿") or "雪隠" in k for k, v in norm.items() if v.startswith("必須")):
+        ruled = set()
+        for rl in rulings:
+            ruled |= set(rl.get("must", []))
+        for n in sorted(need - ruled):
+            bad.append("棟 %s が雪隠の区画の**裁定** `zoneRulings` に現れない — "
+                       "共有台帳 `estate-types.md` は雪隠を必須としている" % n)
+    for rl in rulings:
+        nm = rl["zone"]
+        if nm not in zones:
+            bad.append("雪隠の区画「%s」が `setchinZones` から消えている(%s の裁定)— "
+                       "区画を溶かすなら `zoneRulings` を書き換えること" % (nm, rl["when"]))
+        elif not zones[nm]:
+            bad.append("雪隠の区画「%s」に棟が一つも属していない(%s の裁定)" % (nm, rl["when"]))
+        else:
+            miss = [n for n in rl.get("must", []) if n not in zones[nm]]
+            if miss:
+                bad.append("区画「%s」から %s が外れている(%s の裁定)"
+                           % (nm, "・".join(miss), rl["when"]))
+    gr = RGrid(d)
+    K = d["const"]["ken"]
+    lim = d["const"].get("setchinReach", 40.0)
     for zone, names in zones.items():
         got = []
+        pts = []
         for n in names:
             m = by.get(n)
             if m is None:
                 bad.append("雪隠の区画「%s」が挙げる棟 %s が指図に無い" % (zone, n))
                 continue
-            got += [r["name"] for r in m.get("rooms", [])
-                    if any(k in r["name"] for k in KEY)]
+            for r in m.get("rooms", []):
+                if any(k in r["name"] for k in KEY):
+                    got.append(r["name"])
+                    pts.append(((r["u0"] + r["u1"]) / 2.0, (r["v0"] + r["v1"]) / 2.0))
         if not got:
             bad.append("区画「%s」(%s)に雪隠が一室も無い — "
                        "用を足すのに区画をまたぐ図は成り立たない"
                        % (zone, "・".join(names)))
+            continue
+        # ⚠ **区画を粗くしても距離では逃げられない。** 区画が正しくても遠すぎれば同じこと。
+        for n in names:
+            m = by.get(n)
+            if m is None or "yaw" in m:
+                continue
+            cu, cv = (m["u0"] + m["u1"]) / 2.0, (m["v0"] + m["v1"]) / 2.0
+            dmin = min(math.hypot(cu - p[0], cv - p[1]) * K for p in pts)
+            if dmin > lim:
+                bad.append("棟 %s から同じ区画「%s」の雪隠まで %.1fm(上限 %.1fm)— "
+                           "遠すぎる" % (n, zone, dmin, lim))
     return bad
 
 

@@ -1182,6 +1182,7 @@ def plane_check(d):
     bad += outside_bury_check(d)
     bad += terrain_provenance_check(d)
     bad += parcel_containment_check(d)
+    bad += vocab_check(d)
     return bad
 
 
@@ -1480,6 +1481,57 @@ def anchor_roles():
         raise RuntimeError("錨の表が %d 行しか読めない(床20・表は24行)。"
                            "行の書式 | 役割 | 要否 | 典拠 | を崩さないこと" % len(rows))
     return rows
+
+
+# 語彙で振り分ける欄。**(欄の名, 許す値, 欄が要るか)**。
+# ⚠ 「無い」と「知らない値」を分ける(土井 2026-08-26)。`base` や `gardens.kind` のように
+#   正当に欄が無い行があるので、不在まで鳴らすと偽陽性の山になる。
+VOCAB = [
+    ("runs",       "kind",  {"Nagaya", "Dobei"},                       True),
+    ("runs",       "base",  {"Ishigaki", ""},                          False),
+    ("links",      "kind",  {"渡廊下", "御錠口", "御膳所口"},              True),
+    ("nakajikiri", "kind",  {"板塀", "庭木戸"},                          True),
+    ("kaidans",    "dir",   {"+u", "-u", "+v", "-v"},                  True),
+    ("fuchi",      "kind",  {"切石縁石"},                               True),
+    ("fuchi",      "line",  {"u", "v"},                                True),
+    ("program",    "state", {"有", "無", "兼用"},                        True),
+    ("gardens",    "kind",  {"shirasu"},                               False),
+]
+
+
+def vocab_check(d):
+    """語彙で振り分ける欄に**知らない値**が入っていないか。
+
+    ⚠ 誰も鳴らないまま数字が変わる。実測(2026-08-26):
+    `runs[].kind` を `"Nagaya "`(末尾に空白)にすると表長屋10本が計算から消え、
+    **建蔽率が 19.2% → 16.5%** に落ちて指摘が 0 件のまま図が出た。
+    分岐が `== "Nagaya"` や `KC.get(kind, 既定)` の形をしているので、
+    知らない値は**静かに「その他」へ倒れる**(土井 EDO-0033)。
+
+    ⛔ 「欄が無い」と「知らない値が入っている」を分ける。前者は正当なことがある。
+    """
+    bad = []
+    for key, field, allow, need in VOCAB:
+        for i, o in enumerate(d.get(key, [])):
+            nm = o.get("name", "#%d" % i)
+            if field not in o:
+                if need:
+                    bad.append("%s の %s に `%s` が無い" % (key, nm, field))
+                continue
+            v = o[field]
+            if v not in allow:
+                bad.append("%s の %s の `%s` が知らない値 %r — 許すのは %s"
+                           "(語彙の欄は分岐が既定値へ静かに倒れる)"
+                           % (key, nm, field, v, "/".join(sorted(x for x in allow if x))))
+    # 区画は `zones` の裁定と突き合わせる(setchin_check と同じ集合を二重に持たない)
+    dz = set(d.get("zones", []))
+    for m in d["munes"]:
+        if "zone" not in m:
+            bad.append("棟 %s に `zone` が無い" % m["name"])
+        elif dz and m["zone"] not in dz:
+            bad.append("棟 %s の `zone` が知らない値 %r — zones の裁定は %s"
+                       % (m["name"], m["zone"], "/".join(sorted(dz))))
+    return bad
 
 
 def need_level(need):

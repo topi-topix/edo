@@ -1678,7 +1678,8 @@ def terrain_provenance_check(d):
     return []
 
 
-BURY_MAX = 0.30         # 外側の地盤が座より高くてよい量[m]
+BURY_MAX = 0.30         # 外側の地盤が座より高くてよい量[m](埋没)
+FLOAT_MAX = 0.35        # 基壇を持たない run の足元が地盤から浮いてよい量[m]
 
 
 def outside_bury_check(d):
@@ -1740,6 +1741,29 @@ def outside_bury_check(d):
             bad.append("外周 %s(辺%d)が外側の地盤に %.2fm 埋まる(s=%.0f・上限 %.2fm)— "
                        "座を上げるか、外側を削るか、基壇を足すかを設計値で決めること"
                        % (r["name"], r["edge"], hi, hs, BURY_MAX))
+        # ⚠ **両方の符号で測る**(土井 EDO-0027)。埋没だけを見る検査は「浮き」を構造的に見逃す。
+        #   2026-08-26: 当方も土井も埋没しか測っておらず、S_Hei_C が 1.56m 浮いたまま
+        #   両家の検査が 0 件と報告していた。
+        #   基壇(`base`)を持つ run は足元まで石で下ろすので浮きではない ⇒ 除外。
+        #   ⚠ 基壇が無くても **根石 `ishi`** を持つ run はそのぶん受けられる — 数えないと
+        #   誤検出する(2026-08-26: S_Hei_Okabe5 の浮き 0.40m は根石 0.30m でほぼ受かる)。
+        if seen and not r.get("base"):
+            ishi = float(r.get("ishi", 0.0) or 0.0)
+            hf, fs = -9e9, s0
+            s = s0
+            while s <= s1:
+                px = a[0] + u[0] * s + nn[0] * 2.0
+                pz = a[1] + u[1] * s + nn[1] * 2.0
+                y = nat(px, pz)
+                if y is not None:
+                    dv = seat_at(r, s) - y
+                    if dv > hf:
+                        hf, fs = dv, s
+                s += 1.0
+            if hf - ishi > FLOAT_MAX:
+                bad.append("外周 %s(辺%d)の足元が %.2fm 浮く(s=%.0f・根石 %.2fm を引いても "
+                           "%.2fm・上限 %.2fm)— `base:Ishigaki` を与えるか、座を地盤なりに割ること"
+                           % (r["name"], r["edge"], hf, fs, ishi, hf - ishi, FLOAT_MAX))
     return bad
 
 

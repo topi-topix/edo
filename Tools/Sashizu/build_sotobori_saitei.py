@@ -401,8 +401,10 @@ def sect_svg(d, it, samp, W=1180.0, dsamp=None):
                 h.append('<path d="M%.1f,%.1f V%.1f" stroke="%s" stroke-width="2.4" '
                          'stroke-dasharray="7 4"/>' % (X(t), Y(lo), Y(hi), c))
                 h.append('<text class="anS2" x="%.1f" y="%.1f" fill="%s">'
-                         '案%s の新しい汀線(%+.1fm)</text>'
-                         % (X(t), Y(hi) + 24, c, "・".join(same), o["waterlineShift"]))
+                         '案%s の新しい汀線(%s %.1fm)</text>'
+                         % (X(t), Y(hi) + 24, c, "・".join(same),
+                            "郭内へ" if o["waterlineShift"] > 0 else "郭外へ",
+                            abs(o["waterlineShift"])))
             drawn = True
         if o.get("fillTo"):
             h.append('<path d="M%.1f,%.1f H%.1f" stroke="%s" stroke-width="2.6" '
@@ -447,11 +449,14 @@ def sect_svg(d, it, samp, W=1180.0, dsamp=None):
 def opt_table(it):
     rows = []
     for o in it["options"]:
-        rows.append("<tr><td style='color:%s'><b>案%s</b></td><td>%s</td>"
+        rec = "推奨" in o["name"]
+        rows.append("<tr%s><td style='color:%s'><b>案%s</b>%s</td><td>%s</td>"
                     "<td class='note' style='text-align:left'>%s</td>"
                     "<td class='note' style='text-align:left'>%s</td>"
                     "<td class='note' style='text-align:left'>%s</td><td>%s</td></tr>"
-                    % (COL[o["key"]], o["key"], html.escape(o["name"]),
+                    % (" style='background:var(--shu-lo)'" if rec else "",
+                       COL[o["key"]], o["key"], "<br><span class='cert'>◀ 推奨</span>" if rec else "",
+                       html.escape(o["name"].replace("(推奨)", "").replace("・推奨)", ")")),
                        sashizu_lib.inline(html.escape(o["detail"])),
                        sashizu_lib.inline(html.escape("⭕ " + o["pro"])),
                        sashizu_lib.inline(html.escape(o["con"])), o["cert"]))
@@ -482,6 +487,9 @@ def main():
     h.append('<p class="eyebrow">%s</p>' % html.escape(sj["subtitle"]))
     h.append("<h1>%s</h1>" % html.escape(sj["title"]))
     h.append('<p class="lede">%s</p>' % sashizu_lib.inline(html.escape(sj["lede"])))
+    if sj.get("pending"):
+        h.append('<div class="box" style="border-color:var(--shu)"><p>%s</p></div>'
+                 % sashizu_lib.inline(html.escape(sj["pending"])))
     h.append('<div class="box"><p><b>読み方</b> ── 件ごとに <b>①どこか(全体の中の位置)</b>／'
              '<b>②拡大平面</b>／<b>③断面に案を重ねた図</b>／<b>④案の表</b> の順に並べた。'
              '断面の<span style="color:%s">朱の縦棒</span>がいまの石垣、'

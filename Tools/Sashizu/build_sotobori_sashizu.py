@@ -277,12 +277,12 @@ def plan_svg(d, dem, ter, mode):
             h.append('<text class="sr" x="%.1f" y="%.1f">%s</text>'
                      % (p.X(a[0]) - 12, p.Y(a[1]) + 4, s["mark"]))
     if mode == "cf":
-        for q in d["works"].get("patches", []):
+        for q in d["works"].get("keepOut", {}).get("rects", []):
             r = q["rect"]
             h.append(R(p.X(r[0]), p.Y(r[3]), p.L(r[1] - r[0]), p.L(r[3] - r[2]),
-                       fill="none", stroke="var(--shu)", sw=1.2, dash="4 3"))
-            h.append('<text class="anG" x="%.1f" y="%.1f">%s</text>'
-                     % (p.X(r[1]) + 5, p.Y(r[3]) - 4, q["id"]))
+                       fill="var(--paper2)", stroke="var(--shu)", sw=1.4, dash="5 3", op=0.55))
+            h.append('<text class="anG" x="%.1f" y="%.1f">%s 凍結</text>'
+                     % (p.X(r[0]) + 4, p.Y(r[3]) - 5, q["id"]))
     h.append(ENDSVG)
     return "\n".join(h)
 
@@ -561,6 +561,10 @@ def spec_table(d, ter):
     add("盛土", "%s m³(最大 %.2f m)" % ("{:,}".format(v["fill_m3"]), v["maxFill_m"]))
     add("差引(場外へ出る土)", "%s m³" % "{:,}".format(v["net_m3"]))
     add("工区の外へ出た変更セル", "%d" % v["spillCells"])
+    add("凍結域(帯から外した所)", "%.2f ha ／ 動いたセル %d" % (v["keepOutHa"], v["keepOutCells"]))
+    for g in ter.get("gaps", []):
+        add("距離程の隙間 — %s" % html.escape(g["name"]),
+            "%.1f m(距離程 %.1f–%.1f)" % (g["length"], g["from"], g["to"]))
     return tbl(["諸元", "値"], rows)
 
 
@@ -574,9 +578,12 @@ def survey_table(ter):
         else:
             after = "%.1f%%" % r["curSubmergedPct"]
             fl = "%.2f — 床±0.2m に %.1f%%" % (r["floor"], r["curOnFloorPct"])
-            note = ("調査のみ ── 乾き %.3f ha(その %.0f%% は汀線から4m以内の縁)／"
-                    "08-22 リセット直前と一致 %.1f%%"
-                    % (r["dryHa"], r["dryWithin4mOfEdgePct"], r["curVsPreSamePct"]))
+            zs = "／".join("%s %d m²(水面+1m超 %d)" % (z["name"], z["m2"], z["over1m_m2"])
+                           for z in r.get("dryZoneRows", []))
+            note = ("調査のみ ── 08-22 リセット直前と一致 %.1f%%。水面より上 %.3f ha "
+                    "(最大 +%.2f m・汀線から最大 %.1f m 内側)： %s"
+                    % (r["curVsPreSamePct"], r["dryHa"], r["dryMaxOver_m"],
+                       r["dryMaxInsideFromEdge_m"], zs))
         rows.append("<tr><td>%s</td><td>%.2f ha</td><td>%.2f</td><td>%s</td><td>%s</td>"
                     "<td class='note' style='text-align:left'>%s</td></tr>"
                     % (r["id"], r["areaHa"], r["waterY"], fl, after, note))
@@ -600,13 +607,14 @@ def back_table(ter):
     rows = []
     for b in ter["ishigakiBack"]:
         flag = "" if (abs(b["median"]) <= 1.0 or not b["works"]) else " ⚠"
-        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%d</td><td>%+.2f%s</td>"
-                    "<td>%+.2f</td><td>%+.2f</td></tr>"
+        o = b["byOffset"]
+        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%d</td>"
+                    "<td>%+.2f</td><td>%+.2f%s</td><td>%+.2f</td><td>%+.2f</td></tr>"
                     % (b["line"], b["body"].replace("Sotobori_", ""),
-                       "掘る" if b["works"] else "調査", b["n"], b["median"], flag,
-                       b["min"], b["max"]))
+                       "掘る" if b["works"] else "調査", b["n"],
+                       o["2"], o["4"], flag, o["6"], o["8"]))
     return tbl(["石垣の run", "水面", "扱い", "評価点",
-                "天端 − 背面の設計地盤(中央)", "最小", "最大"], rows)
+                "天端 − 背面の設計地盤(中央) +2m", "+4m", "+6m", "+8m"], rows)
 
 
 def stage_table(d):
@@ -616,11 +624,13 @@ def stage_table(d):
 
 
 def check_table(d):
-    rows = ["<tr><td><code>%s</code></td><td class='note' style='text-align:left'>%s</td>"
+    rows = ["<tr><td><code>%s</code></td><td>%s</td>"
+            "<td class='note' style='text-align:left'>%s</td>"
             "<td class='note' style='text-align:left'>%s</td></tr>"
-            % (c["id"], inline(html.escape(c["what"])), inline(html.escape(c["pass"])))
+            % (c["id"], html.escape(c.get("on", "—")), inline(html.escape(c["what"])),
+               inline(html.escape(c["pass"] + ("　" + c["note"] if c.get("note") else ""))))
             for c in d["checks"]]
-    return tbl(["id", "何を測るか", "合格"], rows)
+    return tbl(["id", "どの面で測るか", "何を測るか", "合格"], rows)
 
 
 def pending_table(d):
@@ -693,16 +703,17 @@ def main():
              '<b>数値の正典は <code>sotobori_sashizu.json</code>、文章の正典は <code>sotobori_kosho.md</code>、'
              '実測は <code>sotobori_terrain.json</code>。</b>この頁はその三つから組んだもので、実装は読んでいない。</p>')
     sv = {r["id"]: r for r in ter["survey"]}
+    nishi = sum(r["n"] for r in d["ishigaki"]["runs"] if byid_works(d, r))
     h.append('<div class="box"><p><b>三つの水面で扱いが違う</b> ── 08-22 のリセットが'
              '「水色の囲い」の内か外かで生死が分かれた。'
              '<b>00001</b>(堰〜虎ノ門)は囲いの中で無傷 ── 水面より下 <b>%.1f%%</b>・'
              'リセット直前と一致 <b>%.1f%%</b> なので<b>調査のみ</b>。'
              '囲いの外の <b>00002 / 00003</b>(土橋の東)は掘削が丸ごと戻り、水面より下は'
-             'それぞれ <b>%.1f%% / %.1f%%</b> しか残っていない ── こちらが<b>掘り直しの対象</b>。'
-             '%s</p></div>'
+             'それぞれ <b>%.1f%% / %.1f%%</b> しか残っていない ── こちらが<b>掘り直しの対象</b>で、'
+             '両岸の石垣 <b>%d 個</b>が土に埋まっている。%s</p></div>'
              % (sv["Sotobori_00001"]["curSubmergedPct"], sv["Sotobori_00001"]["curVsPreSamePct"],
                 sv["Sotobori_00002"]["curSubmergedPct"], sv["Sotobori_00003"]["curSubmergedPct"],
-                html.escape(d["why"]["note"])))
+                nishi, html.escape(d["why"]["note"])))
 
     plate(h, nx(), "位置と水系", "溜池 → 堰 → 虎ノ門 → 幸橋")
     fig(h, system_svg(d),
@@ -731,10 +742,11 @@ def main():
 
     plate(h, nx(), "掘削平面図", "切盛 ── 寒色=掘る / 暖色=盛る")
     fig(h, plan_svg(d, dem, ter, "cf"), legend=cutfill_legend(),
-        cap="工区(汀線 + %.0f m)の中だけを塗った。<b>その外は1セルも触らない。</b>"
-            "朱の小さな矩形は附則の局所の盛り(<code>works.patches</code>)で、"
-            "入隅の楔が床まで削られている所を天端の直下まで戻す。"
-            % d["works"]["outerWidth"])
+        cap="工区(掘る水面の汀線 + %.0f m)の中だけを塗った。<b>その外は1セルも触らない。</b>"
+            "朱の破線の矩形は<b>凍結域 K1</b>(虎ノ門枡形と土橋の足元)で、"
+            "帯がここを覆うと生き残っている造成を最大 %.2f m 掘り落とすため、帯から外してある。"
+            "⛔ <b>掘り直しの西端は土橋の東面。</b>"
+            % (d["works"]["outerWidth"], ter["provenance"]["survMaxPreCurDiff"]))
     h.append(spec_table(d, ter))
 
     plate(h, nx(), "縦断面", "距離程 %.0f m ── 水位は一定・地盤は東へ下る" % ter["reachLength"])
@@ -761,13 +773,18 @@ def main():
     fig(h, rule_svg(d))
     h.append("<ul class='prose'>%s</ul>"
              % "".join("<li>%s</li>" % inline(html.escape(r)) for r in d["works"]["rule"]))
+    pv = ter["provenance"]
     h.append('<div class="box"><p><b>種地の出所の検算</b> ── 工区の中で現況が自然地形と 0.3m 超'
-             'ちがうセルは <b>%d 個</b>(%s)だけで、そこは種地と現況が一致している。'
-             'つまり<b>工区の中にはこの堀自身の普請しか無い</b>。'
+             'ちがう(=08-22 のリセットを生き延びた造成の)セルは <b>%d 個</b>。そのうち種地と現況が'
+             '一致するのは <b>%.1f%%</b>(最大差 %.2f m)にすぎない。'
+             '⛔ <b>初版はここを「一致する」と書いていたが、通っていなかった</b> ── 種地をそのまま'
+             '戻すと生き残っている枡形・土橋を最大 %.2f m 掘り落とすところだった。'
+             'そこで土橋の足元を<b>凍結域 K1</b> として帯から外した結果、'
+             '<b>不一致のまま帯で動くセルは %d 個</b>まで落ちた'
+             '(水面の内側で動く %d 個は、土橋を貫く水路を床まで掘るもので設計どおり)。'
              '⚠ この検算は工区を広げれば成り立たなくなるので、広げるときは必ず取り直すこと。</p></div>'
-             % (ter["provenance"]["survivingGradingCells"],
-                ("x %d–%d / z %d–%d(虎ノ門土橋の足元)" % tuple(ter["provenance"]["survivingGradingBox"])
-                 if ter["provenance"]["survivingGradingBox"] else "—")))
+             % (pv["survivingGradingCells"], pv["survSamePreCurPct"], pv["survMaxPreCurDiff"],
+                pv["survMaxPreCurDiff"], pv["survMovedInBandCells"], pv["survMovedInWaterCells"]))
     h.append("<h4>やってはならないこと</h4>")
     h.append("<ul class='prose'>%s</ul>"
              % "".join("<li>⛔ %s</li>" % inline(html.escape(r)) for r in d["works"]["forbid"]))
@@ -782,7 +799,7 @@ def main():
              '中央値だけで合否を決めず<b>実装後に目視で確かめる</b>。'
              '⚠ <b>最大の外れ値は 00002 と 00003 の継ぎ目に集まる</b>(SW3b・NE3g) — '
              '二つの汀線が入隅で交わり、「汀線からの距離」で岸を測る規則が素直に効かない所で、'
-             '附則 P1 で戻しきれない床が数十m² 残る見込み(未解決 U7)。'
+             '附則 bankFill は入隅では効かず、NE3f の直背後(+2m)は天端より 4.29m 低いまま残る(未解決 U7)。'
              '⚠ SW2 の最小が負なのは西端の虎ノ門寄りで<b>現況の地面がもともと天端より高い</b>ため。'
              '⚠ 00001 の run(CW1s・CW1n・R1・R3)は<b>合否の対象ではない</b> — 掘らないので'
              '設計地盤 = 現況で、断面の形も 00002・00003 と違う(次の表を見ること)。</p>'

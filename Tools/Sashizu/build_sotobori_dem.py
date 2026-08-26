@@ -170,22 +170,21 @@ def load_terrain(backups):
                 nat=np.load(os.path.join(gf, "ref_height.npy")).astype(float))
 
 
-def design_surface(np, d, cur, pre, ins, dist, floor, step, PX, PZ):
+def design_surface(np, d, cur, pre, ins, dist, floor, keep_out, coping, step, PX, PZ):
     """指図 works.rule ①〜④ をそのまま実装した設計面。
 
     `ins` / `dist` / `floor` は **works=true の水面だけ**から作ること。
     00001 は disposition=調査のみなので、ここへ渡さなければ1セルも動かない(規則⑤)。
     """
     w = d["works"]
-    band = (~ins) & (dist <= w["outerWidth"])
+    band = (~ins) & (dist <= w["outerWidth"]) & (~keep_out)
     t = np.clip((dist - w["featherFrom"]) / (w["outerWidth"] - w["featherFrom"]), 0, 1)
     des = np.where(band, pre * (1 - t) + cur * t, cur)     # ②③
     des = np.where(ins, floor, des)                         # ①
-    for q in w.get("patches", []):                          # ②' 附則(局所の盛り)
-        r = q["rect"]
-        sel = (band & (PX >= r[0]) & (PX <= r[1]) & (PZ >= r[2]) & (PZ <= r[3])
-               & (dist >= q["minDist"]) & (pre < q["srcBelow"]))
-        des = np.where(sel, q["to"], des)
+    bf = w.get("bankFill")
+    if bf:                                                  # ②' 附則(石垣のすぐ背後の土居の天端を保つ)
+        sel = band & (dist >= bf["beyond"]) & (pre <= bf["srcAtOrBelow"])
+        des = np.where(sel, coping - bf["belowCoping"], des)
     fea = band & (dist > w["featherFrom"])                  # ④ 摺り付け帯だけ 45°
     for _ in range(80):
         lim = np.minimum(np.minimum(np.roll(des, 1, 0), np.roll(des, -1, 0)),
@@ -225,6 +224,7 @@ def main():
     bodies = d["water"]
     polys = [w["outline"] for w in bodies]                       # 全水面(図と調査)
     wpolys = [w["outline"] for w in bodies if w.get("works")]    # 掘り直す水面だけ
+    byid = {w["id"]: w for w in bodies}
     T = load_terrain(args.backups)
     meta = T["meta"]
     px, pz, sp = meta["posX"], meta["posZ"], meta["spacing"]
@@ -256,7 +256,34 @@ def main():
         ins |= m1
         floor = np.where(m1, w["floor"], floor)
         dist = np.minimum(dist, seg_dist(np, PX, PZ, w["outline"]))
-    des, band = design_surface(np, d, CUR, PRE, ins, dist, floor, sp, PX, PZ)
+    # 岸の帯から外す領域(規則⑤の実装。⚠ 掘る水面の内側は外さない — 土橋の水路は掘る)
+    ko = np.zeros(PX.shape, bool)
+    kw = d["works"].get("keepOut", {})
+    for b in bodies:
+        if b.get("works"):
+            continue
+        ko |= in_poly(np, PX, PZ, b["outline"])
+        ko |= seg_dist(np, PX, PZ, b["outline"]) <= kw.get("otherWaterBank", 0.0)
+    for q in kw.get("rects", []):
+        r = q["rect"]
+        ko |= (PX >= r[0]) & (PX <= r[1]) & (PZ >= r[2]) & (PZ <= r[3])
+    ko &= ~ins
+    # 最寄りの石垣の天端の場(掘る水面の run だけ。附則 bankFill が読む)
+    COP = np.full(PX.shape, 0.0)
+    bdd = np.full(PX.shape, 1e9)
+    for r in d["ishigaki"]["runs"]:
+        if not byid[r["body"]].get("works"):
+            continue
+        a, b2 = r["p0"], r["p1"]
+        dx, dz2 = b2[0] - a[0], b2[1] - a[1]
+        l2 = dx * dx + dz2 * dz2
+        t = np.clip(((PX - a[0]) * dx + (PZ - a[1]) * dz2) / l2, 0, 1)
+        dd = np.hypot(PX - (a[0] + t * dx), PZ - (a[1] + t * dz2))
+        cp = r["copingFrom"] + (r["copingTo"] - r["copingFrom"]) * t
+        sel = dd < bdd
+        bdd = np.where(sel, dd, bdd)
+        COP = np.where(sel, cp, COP)
+    des, band = design_surface(np, d, CUR, PRE, ins, dist, floor, ko, COP, sp, PX, PZ)
     work = ins | band
     dz = des - CUR
     cell = sp * sp
@@ -276,9 +303,18 @@ def main():
             "maxCut_m": round(float(np.clip(-dz, 0, None).max()), 2),
             "maxFill_m": round(float(np.clip(dz, 0, None).max()), 2),
             "spillCells": int(((~work) & (np.abs(dz) > 0.01)).sum()),
+            "keepOutCells": int((ko & (np.abs(dz) > 0.01)).sum()),
+            "keepOutHa": round(float(ko.sum() * cell / 1e4), 2),
         },
         "provenance": {
             "survivingGradingCells": int(surv.sum()),
+            "survSamePreCurPct": (round(float(100 * (np.abs(PRE - CUR)[surv] <= 0.05).mean()), 1)
+                                  if surv.sum() else 100.0),
+            "survMaxPreCurDiff": (round(float(np.abs(PRE - CUR)[surv].max()), 2) if surv.sum() else 0.0),
+            "survMovedInBandCells": int((surv & (np.abs(PRE - CUR) > 0.05) & band
+                                         & (np.abs(dz) > 0.01)).sum()),
+            "survMovedInWaterCells": int((surv & (np.abs(PRE - CUR) > 0.05) & ins
+                                          & (np.abs(dz) > 0.01)).sum()),
             "survivingGradingBox": ([round(float(PX[surv].min())), round(float(PX[surv].max())),
                                      round(float(PZ[surv].min())), round(float(PZ[surv].max()))]
                                     if surv.sum() else []),
@@ -302,18 +338,23 @@ def main():
             row["designFloorMin"] = round(float(des[m1].min()), 2)
             row["designFloorMax"] = round(float(des[m1].max()), 2)
         else:
-            # 調査のみ — 水面より上に出ている所の内訳(堰・土橋・汀の縁を切り分ける)
+            # 調査のみ — 水面より上に出ている所を「水面より何m高いか」で測る。
+            # ⚠ 初版は「汀線から4m以内か」で測っていたが、汀線が岸へ乗っていると
+            #    縁に見えて実は 3m 以上の土手になる(2026-08-26 検図)。物差しを高さへ替えた。
             hi = m1 & (CUR > wy)
             row["dryCells"] = int(hi.sum())
             row["dryHa"] = round(float(hi.sum() * cell / 1e4), 3)
+            row["dryOver1mCells"] = int((hi & (CUR > wy + 1.0)).sum())
+            row["dryMaxOver_m"] = round(float((CUR[hi] - wy).max()), 2) if hi.sum() else 0.0
             dd = seg_dist(np, PX, PZ, w["outline"])
-            row["dryWithin4mOfEdgePct"] = (round(float(100 * (dd[hi] <= 4).mean()), 1)
-                                           if hi.sum() else 0.0)
-            zones = w.get("dryZones", [])
-            for zn in zones:
-                sel = hi & (PX >= zn["x"][0]) & (PX <= zn["x"][1])
-                row.setdefault("dryZones", []).append(
-                    {"name": zn["name"], "cells": int(sel.sum())})
+            row["dryMaxInsideFromEdge_m"] = round(float(dd[hi].max()), 1) if hi.sum() else 0.0
+            for zn in w.get("dryZones", []):
+                sel = hi & (PX >= zn["x"][0]) & (PX < zn["x"][1])
+                row.setdefault("dryZoneRows", []).append(
+                    {"name": zn["name"], "cells": int(sel.sum()),
+                     "m2": int(sel.sum() * cell),
+                     "over1m_m2": int((sel & (CUR > wy + 1.0)).sum() * cell),
+                     "maxOver_m": round(float((CUR[sel] - wy).max()), 2) if sel.sum() else 0.0})
         survey.append(row)
     ter["survey"] = survey
 
@@ -325,14 +366,25 @@ def main():
         return float(A[j, i] * (1 - tx) * (1 - tz) + A[j, i + 1] * tx * (1 - tz)
                      + A[j + 1, i] * (1 - tx) * tz + A[j + 1, i + 1] * tx * tz)
 
-    byid = {w["id"]: w for w in bodies}
+
 
     # ---- 縦断(堰の直下 = 0.0m)
     prof, ch = [], 0.0
-    frames = []
-    for seg in d["reach"]["segments"]:
+    frames, gaps = [], []
+    prev_end = None
+    for gi, seg in enumerate(d["reach"]["segments"]):
         b = byid[seg["body"]]
         sw, ne = seg["sw"], seg["ne"]
+        if prev_end is not None:
+            # 区間と区間の隙間(土橋・継ぎ目の岸)。距離程を欠かさないよう実長を足す
+            gl = math.hypot(sw[0][0] - prev_end[0], sw[0][1] - prev_end[1])
+            gspec = next((g for g in d["reach"].get("gaps", [])
+                          if g["after"] == d["reach"]["segments"][gi - 1]["body"]), {})
+            gaps.append({"name": gspec.get("name", "—"), "from": round(ch, 1),
+                         "to": round(ch + gl, 1), "length": round(gl, 1),
+                         "note": gspec.get("note", "")})
+            ch += gl
+        prev_end = sw[1]
         ln = math.hypot(sw[1][0] - sw[0][0], sw[1][1] - sw[0][1])
         u = ((sw[1][0] - sw[0][0]) / ln, (sw[1][1] - sw[0][1]) / ln)
         n = (-u[1], u[0])
@@ -359,6 +411,7 @@ def main():
             s += STATION
         ch += ln
     ter["reachLength"] = round(ch, 1)
+    ter["gaps"] = gaps
     ter["profileCols"] = ["body", "chainage", "swX", "swZ", "width", "curSW", "curNE",
                           "copingSW", "copingNE", "waterY", "floor"]
     ter["profile"] = prof
@@ -405,17 +458,25 @@ def main():
         if signed_dist((mid[0] + 6 * n[0], mid[1] + 6 * n[1]), polys) \
                 < signed_dist((mid[0] - 6 * n[0], mid[1] - 6 * n[1]), polys):
             n = (-n[0], -n[1])
-        g, c = [], []
+        # ⚠ 陸側1点だけでは土居の天端の**幅**が出ない(2026-08-26 検図)。2/4/6/8m で採る。
+        offs = [2.0, 4.0, 6.0, 8.0]
+        acc = {o: [] for o in offs}
+        c = []
         s = 0.0
         while s <= ln + 1e-6:
             p = (a[0] + s * u[0], a[1] + s * u[1])
-            g.append(samp(des, p[0] + 4 * n[0], p[1] + 4 * n[1]))
+            for o in offs:
+                acc[o].append(samp(des, p[0] + o * n[0], p[1] + o * n[1]))
             c.append(r["copingFrom"] + (r["copingTo"] - r["copingFrom"]) * (s / ln))
             s += 4.0
-        gap = sorted(ci - gi for ci, gi in zip(c, g))
-        back.append({"line": r["line"], "body": r.get("body"), "works": bool(byid[r["body"]].get("works")),
+        med = lambda v: sorted(v)[len(v) // 2]
+        gap = sorted(ci - gi for ci, gi in zip(c, acc[4.0]))
+        back.append({"line": r["line"], "body": r.get("body"),
+                     "works": bool(byid[r["body"]].get("works")),
                      "n": len(gap), "median": round(gap[len(gap) // 2], 2),
-                     "min": round(gap[0], 2), "max": round(gap[-1], 2)})
+                     "min": round(gap[0], 2), "max": round(gap[-1], 2),
+                     "byOffset": {("%.0f" % o): round(med([ci - gi for ci, gi in zip(c, acc[o])]), 2)
+                                  for o in offs}})
     ter["ishigakiBack"] = back
 
     # ---- 石垣が土に埋まっていないか(run 線そのもので現況/設計の地盤と天端を比べる)
@@ -454,7 +515,13 @@ def main():
           % (ter["reachLength"], v["workAreaHa"], v["waterAreaHa"], v["bankAreaHa"]))
     print("掘削 %s m3(最大 %.2f m) / 盛土 %s m3(最大 %.2f m) / 差引 %s m3"
           % (f"{v['cut_m3']:,}", v["maxCut_m"], f"{v['fill_m3']:,}", v["maxFill_m"], f"{v['net_m3']:,}"))
-    print("工区の外へ出た変更セル %d" % v["spillCells"])
+    print("工区の外へ出た変更セル %d ／ 凍結域で動いたセル %d(凍結 %.2f ha)"
+          % (v["spillCells"], v["keepOutCells"], v["keepOutHa"]))
+    pv = ter["provenance"]
+    print("種地の検算: 生き残った造成 %d セル / 種地=現況 %.1f%%(最大差 %.2f m) / "
+          "不一致で動くのは 帯 %d・水面の中 %d"
+          % (pv["survivingGradingCells"], pv["survSamePreCurPct"], pv["survMaxPreCurDiff"],
+             pv["survMovedInBandCells"], pv["survMovedInWaterCells"]))
     for r in survey:
         if r["works"]:
             print("  %-15s 掘る  %.2f ha  水没率 %.1f%% → %.1f%%  床 %.2f–%.2f"
@@ -462,9 +529,13 @@ def main():
                      r["designFloorMin"], r["designFloorMax"]))
         else:
             print("  %-15s 調査  %.2f ha  水没率 %.1f%%  床±0.2m %.1f%%  リセット直前と一致 %.1f%%  "
-                  "乾き %.3f ha(うち汀線4m以内 %.1f%%)"
+                  "乾き %.3f ha(水面+1m超 %d セル・最大 +%.2f m・汀線から最大 %.1f m 内側)"
                   % (r["id"], r["areaHa"], r["curSubmergedPct"], r["curOnFloorPct"],
-                     r["curVsPreSamePct"], r["dryHa"], r["dryWithin4mOfEdgePct"]))
+                     r["curVsPreSamePct"], r["dryHa"], r["dryOver1mCells"],
+                     r["dryMaxOver_m"], r["dryMaxInsideFromEdge_m"]))
+            for z in r.get("dryZoneRows", []):
+                print("      %-22s %5d m2(水面+1m超 %5d m2・最大 +%.2f m)"
+                      % (z["name"], z["m2"], z["over1m_m2"], z["maxOver_m"]))
     print("石垣の背面(天端−地盤)の中央値: " + " ".join("%s %+.2f" % (b["line"], b["median"]) for b in back))
     bad = [b for b in bur if b["buriedPct"] > 20]
     print("⚠ 天端が設計地盤に埋まる run: " + (" ".join(

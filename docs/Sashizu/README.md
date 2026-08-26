@@ -69,6 +69,32 @@ python3 Tools/Sashizu/build_okabe_sashizu.py
 | 土井大隅守 上屋敷（三河刈谷藩2万3千石・譜代雁間） | 山王社北 | **起案・検図済（レビュー待ち）** | [doi_sashizu.html](doi_sashizu.html) | https://claude.ai/code/artifact/539c4b6b-0937-458f-8287-e3200e94f3cf |
 | 山王権現社（日枝神社・江戸城の産土神・社領600石） | 永田馬場 星野山 | **起案・検図済（レビュー待ち）** | [sanno_sashizu.html](sanno_sashizu.html) | https://claude.ai/code/artifact/b6b4e5cd-8878-4162-be90-4dd4ed706beb |
 
+## 土木の指図(屋敷ではない)
+
+| 普請 | 地区 | 状態 | 図面 | Artifact |
+|---|---|---|---|---|
+| 外堀下流 掘り直し(Sotobori_00002・00003) | 虎ノ門〜幸橋方向 | **起案(レビュー待ち)** | [sotobori_sashizu.html](sotobori_sashizu.html) | — |
+
+**土木は武家屋敷と作りが違う。** 回転間グリッド・室割り・建蔽率は無い。基準は**距離程**で、
+図版は 位置と水系／現況／切盛／縦断／横断／取り合い／工区と摺り付け で組む。
+段彩のランプも別に持つ(低地の 0〜8m 用。屋敷の 10m 起点のランプでは全部同じ色になる)。
+
+| ファイル | 役 | 誰が書くか |
+|---|---|---|
+| `sotobori_sashizu.json` | 設計値の正典 | 人 |
+| `sotobori_kosho.md` | 文章の部 | 人 |
+| `sotobori_dem.json` | 現況地盤と復元の種地(段彩・等高線・切盛の格子) | `Tools/Sashizu/build_sotobori_dem.py` |
+| `sotobori_terrain.json` | 縦断・横断・土量・検査の実測 | 同上 |
+| `sotobori_sashizu.html` | 上の四つから組んだ図面 | `Tools/Sashizu/build_sotobori_sashizu.py` |
+
+```bash
+python3 Tools/Sashizu/build_sotobori_dem.py      # ⚠ TerrainBackups を読むのでメインの作業ツリーで
+python3 Tools/Sashizu/build_sotobori_sashizu.py
+```
+
+⚠ `base_dem.json` の範囲(x −800..−330 / z 600..1340)は**外堀を覆っていない**。当面 `build_sotobori_dem.py`
+は正本と同じ出自(`ref_height.npy`)から直に切り出す。正本の拡張は `EDO-0014` と併せて起票する。
+
 **寺社は武家屋敷と作りが違う。** `estate-types.md` の建蔽率・拝領坪数・門の格式は適用せず、
 「連続御殿複合＋外周長屋帯」も当てはまらない。図版は 社地／境内平面／社殿平面／断面／
 参道の割付／囲いの展開／門／山麓の付属（別当・神主・門前町）で組む。

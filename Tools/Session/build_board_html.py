@@ -14,6 +14,7 @@
   - .git/edo-board/_pm/summary.json   … 司令塔の巡回用の機械可読サマリ(巡数・最終活動など)
 """
 import html, json, os, re, subprocess, sys, time
+from urllib.parse import quote
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from edo_session import _common_git_dir, load_all as load_claims
@@ -102,14 +103,17 @@ def load_junsu_baseline():
 
 
 def load_readme_states():
+    """README の表から邸ごとの状態と、公開済み指図 Artifact の URL を拾う。
+    URL は表の5列目(素の https://claude.ai/code/artifact/... 行末)。"""
     out = {}
     fp = os.path.join(ROOT, "docs", "Sashizu", "README.md")
     try:
         for ln in open(fp, encoding="utf-8"):
-            m = re.match(r"\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*\[(\w+)_sashizu\.html\]", ln)
+            m = re.match(r"\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*\[(\w+)_sashizu\.html\]"
+                        r"[^|]*\|\s*(https://\S+)?\s*\|", ln)
             if m and m.group(4) in ESTATES:
                 out[m.group(4)] = {"name": m.group(1), "area": m.group(2),
-                                   "state": m.group(3).strip("* ")}
+                                   "state": m.group(3).strip("* "), "url": m.group(5)}
     except Exception:
         pass
     return out
@@ -290,6 +294,11 @@ h2{font-family:'Shippori Mincho',serif;font-weight:600;font-size:17px;
 .iss li.blocker{border-left-color:var(--shu)}
 .iss li.awaiting-user{border-left-color:var(--oud)}
 .iss .id{font-family:var(--mono);font-size:11px;color:var(--muted)}
+.reflinks{margin-top:4px;display:flex;flex-wrap:wrap;gap:10px}
+.reflinks a,.openlink{font-size:11.5px;color:var(--ai);text-decoration:none;border-bottom:1px dotted var(--ai)}
+.reflinks a:hover,.openlink:hover{border-bottom-style:solid}
+.lane h3{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px}
+.openlink{font-family:'Noto Sans JP',system-ui,sans-serif;font-size:11px;font-weight:400;letter-spacing:0}
 .netwrap{background:var(--card);border:1px solid var(--line);border-radius:6px;
   padding:14px 18px 8px;display:flex;flex-wrap:wrap;gap:20px;align-items:center}
 .netcap{font-size:11.5px;color:var(--muted);max-width:280px}
@@ -305,10 +314,56 @@ footer{margin-top:40px;color:var(--muted);font-size:11.5px}
 """
 
 
-def issue_li(i):
-    return ('<li class="%s"><span class="id">%s</span> %s <span class="id">[%s/%s]</span></li>'
+REF_RE = re.compile(r"^docs/Sashizu/([a-z0-9]+)_sashizu\.json(?:#(.+))?$")
+# 部材・runの識別子(S_Hei_C, TW_Kairo_E 等)は本文の表に literal で出るのでテキスト
+# フラグメントの当たりが良い。単なる json のセクション名(munes, open 等)は
+# 本文には出ないので当てにいかない。
+IDENT_RE = re.compile(r"^[A-Z][A-Za-z0-9]*(_[A-Za-z0-9]+){1,}$")
+
+
+def resolve_ref(ref, states):
+    """refを指図Artifactへのリンクに解決する。
+
+    邸単位のリンクは常に張れる(README の Artifact URL)。ピンポイントの行送りは
+    ブラウザのテキストフラグメント(#:~:text=)で試みるが、本文と一致する見込みが
+    薄いキー(json のセクション名など)は諦めて邸単位のリンクへ落とす — 外れた
+    フラグメントを付けるとリンクは開くが黙って無視されるだけなので実害はないが、
+    最初から当たらないと分かっているものは付けない。
+    GitHub は origin/main がローカルより進んでいないため意図的にリンクしない
+    (押していない変更を指すと古い内容を指図として見せてしまう)。
+    """
+    m = REF_RE.match(ref)
+    if not m:
+        return None
+    estate, key = m.group(1), (m.group(2) or "")
+    url = (states.get(estate) or {}).get("url")
+    if not url:
+        return None
+    cand = key.rsplit(".", 1)[-1]  # 例: "runs.S_Hei_C" → "S_Hei_C" / "_pending.○○" → "○○"
+    good = bool(re.search(r"[^\x00-\x7f]", cand)) or bool(IDENT_RE.match(cand))
+    frag = "#:~:text=%s" % quote(cand) if good else ""
+    return {"label": "指図(%s)" % ESTATES.get(estate, estate), "href": url + frag}
+
+
+def refs_html(i, states):
+    links = [resolve_ref(r, states) for r in i.get("refs", [])]
+    links = [l for l in links if l]
+    if not links:
+        return ""
+    seen, uniq = set(), []
+    for l in links:
+        if l["href"] not in seen:
+            seen.add(l["href"]); uniq.append(l)
+    return '<div class="reflinks">%s</div>' % "".join(
+        '<a href="%s" target="_blank" rel="noopener">%s ↗</a>' % (esc(l["href"]), esc(l["label"]))
+        for l in uniq)
+
+
+def issue_li(i, states):
+    return ('<li class="%s"><span class="id">%s</span> %s <span class="id">[%s/%s]</span>%s</li>'
             % (esc(i["type"] if i["type"] == "blocker" else i["status"]),
-               esc(i["id"]), esc(i["title"]), esc(i["type"]), esc(i["status"])))
+               esc(i["id"]), esc(i["title"]), esc(i["type"]), esc(i["status"]),
+               refs_html(i, states)))
 
 
 # ── 小さな図表(すべてトークン色を参照するので明暗テーマに追随する)
@@ -460,6 +515,7 @@ def build_html(issues, pending, commits, claims, states, summary):
             p.append('<dt>推奨</dt><dd class="rec">%s</dd>' % esc(d.get("recommend", "")))
             p.append("<dt>影響</dt><dd>%s</dd>" % esc(d.get("impact", "")))
             p.append("</dl>")
+        p.append(refs_html(i, states))
         p.append("</div>")
 
     # ── 邸別レーン(スパークライン+三巡則ゲージ)
@@ -468,8 +524,11 @@ def build_html(issues, pending, commits, claims, states, summary):
         s = summary["estates"][e]
         st = states.get(e, {})
         cl = [c for c in claims if any(g == "sashizu:%s" % e for g in c.get("paths", []))]
-        p.append('<div class="lane"><h3>%s</h3><div class="area">%s</div>' % (
-            esc(name), esc(st.get("area", ""))))
+        p.append('<div class="lane"><h3>%s%s</h3><div class="area">%s</div>' % (
+            esc(name),
+            ' <a class="openlink" href="%s" target="_blank" rel="noopener">指図を開く ↗</a>'
+            % esc(st["url"]) if st.get("url") else "",
+            esc(st.get("area", ""))))
         if st.get("state"):
             p.append('<span class="state">%s</span>' % esc(st["state"]))
         if cl:
@@ -496,7 +555,7 @@ def build_html(issues, pending, commits, claims, states, summary):
         p.append('<div class="kv">_pending <b class="n">%d</b>件</div>' % s["pending_count"])
         lane_iss = [i for i in live if i["estate"] == e]
         if lane_iss:
-            p.append('<ul class="iss">%s</ul>' % "".join(issue_li(i) for i in lane_iss))
+            p.append('<ul class="iss">%s</ul>' % "".join(issue_li(i, states) for i in lane_iss))
         p.append("</div>")
     p.append("</div>")
 
@@ -513,7 +572,7 @@ def build_html(issues, pending, commits, claims, states, summary):
     # ── 横断・基盤(一覧)
     cross = [i for i in live if i["estate"] in ("cross", "infra")]
     p.append("<h2>横断・基盤 一覧</h2>")
-    p.append('<ul class="iss">%s</ul>' % "".join(issue_li(i) for i in cross)
+    p.append('<ul class="iss">%s</ul>' % "".join(issue_li(i, states) for i in cross)
              if cross else '<div class="quiet">横断の open issue はありません。</div>')
 
     # ── 最近の動き

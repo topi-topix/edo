@@ -95,10 +95,26 @@ def estate_program_norm():
     if not os.path.exists(TYPES_MD):
         raise AnchorMissing("共有台帳 `estate-types.md` が読めない(%s)" % TYPES_MD)
     t = open(TYPES_MD, encoding="utf-8").read()
-    out = dict((m.group(1).strip(), m.group(2))
-               for m in re.finditer(r"^\|\s*([^|]+?)\s*\|\s*(必須[^|]*|望ましい|任意)\s*\|",
-                                    t, re.M))
-    if len(out) < 10:
+    # ⚠ **要否の欄は自然文で書かれる**(「上屋敷は必須」「奥向があれば必須」「必須(室として)」)。
+    #   かつて `(必須[^|]*|望ましい|任意)` で**先頭一致**を要求しており、
+    #   **「上屋敷は必須」= 表長屋 と「奥向があれば必須」= 御錠口 の2行を行ごと読み飛ばして**いた
+    #   (2026-08-26。22行のうち20行しか見ておらず、床10行も素通り)。
+    #   ⇒ **欄をそのまま取り、分類できない欄は黙って落とさず止める。**
+    sec = t.split("上屋敷が備える役割")[-1].split("### 建蔽率")[0]
+    out = {}
+    unknown = []
+    for m in re.finditer(r"^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|", sec, re.M):
+        role, need = m.group(1).strip(), m.group(2).strip()
+        if role in ("役割", "---") or set(role) <= set("-: "):
+            continue
+        if "必須" in need or "望ましい" in need or "任意" in need:
+            out[role] = need
+        else:
+            unknown.append("%s=%s" % (role, need))
+    if unknown:
+        raise AnchorMissing("「上屋敷が備える役割」表に要否を判じられない行がある: %s"
+                            % " / ".join(unknown[:4]))
+    if len(out) < 20:
         raise AnchorMissing("「上屋敷が備える役割」表が %d 行しか読めない — 表が壊れている"
                             % len(out))
     return out
@@ -2172,7 +2188,7 @@ def setchin_check(d):
                                "台帳は別の区画に属す役割としている(`estate-types.md`)"
                                % (seen_zone[z], pg["role"], z))
                 seen_zone[z] = pg["role"]
-    if any(k.startswith("湯殿") or "雪隠" in k for k, v in norm.items() if v.startswith("必須")):
+    if any(k.startswith("湯殿") or "雪隠" in k for k, v in norm.items() if "必須" in v):
         ruled = set()
         for rl in rulings:
             ruled |= set(rl.get("must", []))
@@ -2294,12 +2310,21 @@ def program_check(d):
     have_roles = set(pg["role"] for pg in d.get("program", []))
     waived = set(d.get("_採らなかった役割") or {})
     for role, need in norm.items():
+        # ⛔ **免除にも上限を置く。** 「採らなかった」へ移せば通る形だと、
+        #   **必須の役割を5つ移すだけで 0件**になった(2026-08-26。松平が同じ形を3度踏んで
+        #   「例外を許す仕組みを足したら、その例外の上限も同時に決める」と書いてきた4例目)。
+        #   ⇒ **台帳が必須としている役割は「採らなかった」で免除できない。**
+        #   外すなら共有台帳の要否を変えることになり、他邸と共有なので当邸だけでは動かせない。
+        if role in waived and "必須" in need:
+            bad.append("役割「%s」は台帳が**必須**としている — `_採らなかった役割` では"
+                       "免除できない(外すなら `estate-types.md` の要否を変えること)" % role)
+            continue
         if role in have_roles or role in waived:
             continue
         base = role.split("(")[0]
         if any(base and base in h for h in have_roles) or any(base and base in w for w in waived):
             continue
-        if need.startswith("必須"):
+        if "必須" in need:
             bad.append("上屋敷に**必須**の役割「%s」が `program` にも `_採らなかった役割` にも無い"
                        " — 落としたなら理由を書くこと(`estate-types.md`)" % role)
         else:

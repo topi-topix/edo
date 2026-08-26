@@ -4373,10 +4373,23 @@ def neighbour_wall_check(d, ter, dem=None):
             if at_s is not None and worst > 0.05:
                 bad.append("%s の %s が当家側の地盤に %.2fm 埋まる(相手の s=%.1f・境界から %.1fm 内側で実測)"
                            % (who, r["name"], worst, at_s, at_off))
-            if f_s is not None and float_worst > 0.30 and not r.get("base"):
-                bad.append("%s の %s が当家側の地盤から %.2fm 浮く(相手の s=%.1f)— "
-                           "基壇 `base` を持たない run。境界に足元の無い塀が立つ"
-                           % (who, r["name"], float_worst, f_s))
+            # ⚠ **根石を数える。** 基壇だけを免除条件にすると、**根石で受けている run が
+            #   全部鳴る**(2026-08-26 松平: `S_Hei_Okabe5` が 0.40m の浮きで鳴ったが、
+            #   `ishi` 0.30m を引けば 0.10m で許容内だった=検査が根石を見ていなかっただけ)。
+            #   ⛔ ただし根石が背丈を超えたらそれは基壇である。`base` を持たせること。
+            if f_s is not None and not r.get("base"):
+                ishi = float(r.get("ishi") or 0.0)
+                cap = d["const"].get("neighbourIshiMax", 1.0)
+                if ishi > cap:
+                    bad.append("%s の %s の根石 `ishi`=%.2fm が上限 %.2fm を超える — "
+                               "それは基壇なので `base` を持たせること"
+                               % (who, r["name"], ishi, cap))
+                elif float_worst - ishi > 0.30:
+                    bad.append("%s の %s が当家側の地盤から %.2fm 浮く"
+                               "(根石 %.2fm を引いて %.2fm・相手の s=%.1f)— "
+                               "基壇 `base` も根石も足りない。境界に足元の無い塀が立つ"
+                               % (who, r["name"], float_worst, ishi,
+                                  float_worst - ishi, f_s))
     return bad
 
 

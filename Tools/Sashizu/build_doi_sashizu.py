@@ -2240,6 +2240,42 @@ def setchin_check(d):
     return bad
 
 
+# ⛔ **分類の網から落ちたものを既定値へ倒さない。** 語彙で振り分ける欄は、知らない値が来たら
+#   黙って「その他」に落ちる。2026-08-26 に実測した当家の被害:
+#     `runs[].kind` を誤字にすると表長屋が数から消え、**建蔽率が 23.6% → 22.3%**(誰も鳴らない)
+#     `bom[].measure` を誤字にすると延長が「—」になる(同上)
+#   松平が同日、要否の判定を接頭辞の白名簿で書いていて同じ形を踏んだ
+#   ——「取りこぼしを黙って安全側でない側へ倒している」。**「分からない」と言わせる。**
+#   (欄そのものが無くてよい所は opt=True。**「無い」と「知らない値」を分ける** —
+#    無いのは設計、知らない値は誤字。)
+VOCAB = [
+    # coll,       fld,        許される値,                                       opt,  名前の欄
+    ("runs",      "kind",     ("Nagaya", "Dobei"),                              False, "name"),
+    ("bom",       "measure",  ("terraceWalls", "boundaryPlinth", "runBase",
+                               "flank", "kaidan"),                              True,  "item"),
+    ("links",     "kind",     ("渡廊下", "階段廊下", "御錠口"),                  False, "name"),
+    ("gardens",   "kind",     ("shirasu", "niwa"),                              True,  "name"),
+    ("routes",    "kind",     ("omote", "yaku", "katte", "oku"),                False, "name"),
+]
+
+
+def vocab_check(d):
+    """**語彙で振り分ける欄に、知らない値が入っていないか。**"""
+    bad = []
+    for coll, fld, ok, opt, nm in VOCAB:
+        for o in d.get(coll, []):
+            if fld not in o or o.get(fld) is None:
+                if opt:
+                    continue
+                bad.append("%s %s に `%s` が無い" % (coll, o.get(nm, "?"), fld))
+                continue
+            if o[fld] not in ok:
+                bad.append("%s %s の `%s` が知らない値 %r — "
+                           "語彙に無い値は黙って既定へ倒れる(建蔽率・延長が静かに狂う)"
+                           % (coll, o.get(nm, "?"), fld, o[fld]))
+    return bad
+
+
 def program_check(d):
     """**在るべき役割が在るか。側面ごとに確度と典拠が付いているか。**
 
@@ -5184,7 +5220,7 @@ def main():
             print("   ", b)
     pbad = (plane_check(d) + inubashiri_check(d) + opening_fit_check(d) + refs_check(d)
             + norms_check(d) + perimeter_check(d) + clearance_check(d) + rails_check(d)
-            + ramp_check(d) + completeness_check(d) + program_check(d) + gate_overlap_check(d)
+            + ramp_check(d) + completeness_check(d) + program_check(d) + gate_overlap_check(d) + vocab_check(d)
             + terrace_overhang_check(d) + setchin_check(d)
             + route_check(d, load_terrain(os.path.join(DOC, "doi_edo_world.json")))
             + stair_bank_check(d, load_terrain(os.path.join(DOC, "doi_edo_world.json")))

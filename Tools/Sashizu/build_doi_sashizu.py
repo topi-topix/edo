@@ -1113,6 +1113,40 @@ def fix_run_s(d, dem):
     return d
 
 
+def terrace_overhang_check(d):
+    """**段の矩形が区画からはみ出していないか。**
+
+    註は「段は `in_parcel` で切られる」と言うので**実効は無い**が、矩形の宣言としては誤りで、
+    地盤を引く検査すべての**標本を黙って減らす**(2026-08-26: 主面 Shu が 16 セル=52.9m²
+    はみ出しており、`terrain_provenance_check` を書くまで誰も見ていなかった)。
+    ⛔ はみ出しに**物が載っていたら**それは実効のある誤りなので別に出す。
+    """
+    K = d["const"]["ken"]
+    lim = d["const"].get("terraceOverhangMax", 60.0)      # m²
+    occ = d["munes"] + d.get("service", []) + d.get("gardens", [])
+    bad = []
+    for t in d["terraces"]:
+        pts = [(iu, iv)
+               for iu in range(int(t["u0"]) - 1, int(t["u1"]) + 2)
+               for iv in range(int(t["v0"]) - 1, int(t["v1"]) + 2)
+               if in_obb(t, iu, iv, 1e-9) and not in_parcel(d, iu, iv)]
+        if not pts:
+            continue
+        a = len(pts) * K * K
+        for o in occ:
+            for (pu, pv) in pts:
+                inside = (in_obb(o, pu, pv, 1e-9) if "yaw" in o else
+                          (o["u0"] <= pu <= o["u1"] and o["v0"] <= pv <= o["v1"]))
+                if inside:
+                    bad.append("⛔ 段 %s の**区画外**に %s が載る(グリッド %d, %d)"
+                               % (t["name"], o["name"], pu, pv))
+                    break
+        if a > lim:
+            bad.append("段 %s が区画から %.1f m² はみ出す(上限 %.1f m²)— "
+                       "矩形の宣言を区画に合わせること" % (t["name"], a, lim))
+    return bad
+
+
 def terrain_provenance_check(d, base):
     """**回転間格子 `doi_terrain.json` の種地が、地盤の正本から出ているか。**
 
@@ -1132,6 +1166,7 @@ def terrain_provenance_check(d, base):
     gr = RGrid(d)
     lim = d["const"].get("terrainProvenanceTol", 0.30)
     n = 0
+    skipped = 0
     worst = 0.0
     spot = None
     over = 0
@@ -1148,6 +1183,7 @@ def terrain_provenance_check(d, base):
             x, z = gr.W(u, v)
             b = dem_bilinear(base, x, z)
             if b is None:
+                skipped += 1
                 continue
             n += 1
             dd = abs(h - b)
@@ -1156,8 +1192,27 @@ def terrain_provenance_check(d, base):
             if dd > lim:
                 over += 1
     bad = []
+    # ⛔ **この検査自身が「測れないものを黙って飛ばす」形だった。**
+    #   `dem_bilinear` が None を返す点を `continue` していたので、区画が正本の切り出しから
+    #   はみ出しても「差が小さい」に化けて見えない(2026-08-26 松平の指摘 ②:
+    #   **「測れないものは0件になる」を直すために書いた検査の中に、同じ形があった**)。
+    #   ⇒ 余白を先に見て、飛ばした点を数える。
+    P = d["polygon"]
+    xs = [q[0] for q in P]
+    zs = [q[1] for q in P]
+    bx1 = base["x0"] + (base["nx"] - 1) * base["step"]
+    bz1 = base["z0"] + (base["nz"] - 1) * base["step"]
+    for lbl, mgn in (("西", min(xs) - base["x0"]), ("東", bx1 - max(xs)),
+                     ("南", min(zs) - base["z0"]), ("北", bz1 - max(zs))):
+        if mgn < 0:
+            bad.append("区画が正本の切り出しから %s へ %.1fm はみ出している — "
+                       "地盤を引けない範囲がある" % (lbl, -mgn))
     if n == 0:
         return _unmeasured("terrain_provenance_check", "重なる格子点")
+    if skipped > max(2, n * 0.02):
+        bad.append("回転間格子の %d/%d 点(%.1f%%)で正本が引けない — "
+                   "照合の標本が黙って減っている" % (skipped, n + skipped,
+                                          100.0 * skipped / (n + skipped)))
     if over:
         bad.append("回転間格子の種地が正本から外れる — %d/%d 点が %.2fm 超"
                    "(最大 %.2fm・グリッド %.0f, %.0f)"
@@ -5091,7 +5146,8 @@ def main():
             print("   ", b)
     pbad = (plane_check(d) + inubashiri_check(d) + opening_fit_check(d) + refs_check(d)
             + norms_check(d) + perimeter_check(d) + clearance_check(d) + rails_check(d)
-            + ramp_check(d) + completeness_check(d) + program_check(d) + gate_overlap_check(d) + setchin_check(d)
+            + ramp_check(d) + completeness_check(d) + program_check(d) + gate_overlap_check(d)
+            + terrace_overhang_check(d) + setchin_check(d)
             + route_check(d, load_terrain(os.path.join(DOC, "doi_edo_world.json")))
             + stair_bank_check(d, load_terrain(os.path.join(DOC, "doi_edo_world.json")))
 

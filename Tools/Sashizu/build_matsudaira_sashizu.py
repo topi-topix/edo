@@ -1181,6 +1181,7 @@ def plane_check(d):
     bad += edge_treatment_check(d)
     bad += outside_bury_check(d)
     bad += terrain_provenance_check(d)
+    bad += parcel_containment_check(d)
     return bad
 
 
@@ -1549,6 +1550,58 @@ def anchor_separate():
 
 
 TERRAIN_TOL = 0.30      # 回転間格子の地形と正本DEMの許容差[m](格子の刻みの違いによる補間差)
+
+
+def parcel_containment_check(d):
+    """段・庭・棟・附属屋が**区画の中に収まっているか**。
+
+    ⚠ はみ出しは `design_y` が区画でクリップされるので**実害が出ない**。
+    そのぶん**気づけない** — 実際に松平では `ShukakuE` が宣言 u[19,112] に対し
+    区画が u≈64 までしかなく、**東半分 6,295m²(面の50.3%)が敷地の外**だった。
+    はみ出した面の上では地盤が引けないので、**地盤を読む検査すべての標本が黙って減る**
+    (土井が同型を自邸で発見、2026-08-26)。
+
+    棟・附属屋は 1 セルでも外に出たら不可(建物が隣地に建つ)。
+    段・庭は区画線が斜めに切るぶんを許すが、面の 1% を超えたら宣言が実体と合っていない。
+    """
+    G = RGrid(d)
+    P = d["polygon"]
+    n = len(P)
+
+    def pip(x, z):
+        c = False
+        for i in range(n):
+            x1, z1 = P[i]
+            x2, z2 = P[i - 1]
+            if (z1 > z) != (z2 > z) and x < (x2 - x1) * (z - z1) / (z2 - z1) + x1:
+                c = not c
+        return c
+
+    ken = d["const"]["ken"]
+    STEP = 0.5
+    bad = []
+    groups = [("段", d["terraces"], 0.01), ("庭", d["gardens"], 0.01),
+              ("棟", d["munes"], 0.0), ("附属屋", d["service"], 0.0)]
+    for kind, items, tol in groups:
+        for b in items:
+            inn = out = 0
+            v = b["v0"]
+            while v <= b["v1"] + 1e-9:
+                u = b["u0"]
+                while u <= b["u1"] + 1e-9:
+                    x, z = G.W(u, v)
+                    if pip(x, z):
+                        inn += 1
+                    else:
+                        out += 1
+                    u += STEP
+                v += STEP
+            if out and out > (inn + out) * tol:
+                area = out * (STEP * ken) ** 2
+                bad.append("%s %s が区画から %.0f m²(%.1f%%)はみ出す — "
+                           "宣言の矩形が実体と合っていない(地盤を読む検査の標本が黙って減る)"
+                           % (kind, b["name"], area, 100.0 * out / (inn + out)))
+    return bad
 
 
 def terrain_provenance_check(d):

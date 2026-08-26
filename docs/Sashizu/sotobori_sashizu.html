@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>外堀下流 掘り直し指図</title>
+<title>溜池堰下流 外堀 掘り直し指図</title>
 <style>/* ライトは「白い紙に刷った図」。地色は明るく、図の記号(段彩・切盛)は彩度を保って読ませる。
    2026-08-23 にユーザー指摘で地色を古紙色(#E6E2D3)から持ち上げた。 */
 :root{
@@ -32329,10 +32329,10 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <text class="sl" x="20" y="61.0">7 m</text>
 <path d="M60.0,193.2 H600.0" stroke="#3F6F86" stroke-width="1.8"/>
 <text class="an2b" x="66.0" y="187.2">水面 1.80</text>
-<polyline points="60.0,232.2 600.0,232.2 623.8,232.2 677.8,68.4 758.8,65.8 822.4,78.8 1140.0,84.0" fill="none" stroke="var(--ink)" stroke-width="2.2"/>
+<polyline points="60.0,232.2 600.0,232.2 623.8,232.2 678.0,68.4 758.8,65.8 822.4,78.8 1140.0,84.0" fill="none" stroke="var(--ink)" stroke-width="2.2"/>
 <polyline points="60.0,81.4 600.0,81.4 758.8,84.0 822.4,78.8 1140.0,84.0" fill="none" stroke="var(--dim)" stroke-width="1.1" stroke-dasharray="4 3"/>
 <path d="M676.4,68.4 V232.2" stroke="var(--ishi)" stroke-width="3" opacity="0.9"/>
-<text class="anS2" x="682.4" y="60.4">石垣(汀線の外 4.81 m)</text>
+<text class="anS2" x="682.4" y="60.4">石垣(汀線の外 4.81 m・天端 6.60)</text>
 <path d="M600.0,240.0 V42.4" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="6 4"/>
 <path d="M822.4,240.0 V42.4" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="6 4"/>
 <text class="big" x="60.0" y="20">工区と摺り付けの規則(模式・郭外側の片側だけ)</text>
@@ -32405,8 +32405,8 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <div class="tw"><table><thead><tr><th></th><th>事項</th><th>中身</th><th>確度</th></tr></thead><tbody><tr><td>U1</td><td class='note' style='text-align:left'>石垣の高さが史料と合わない</td><td class='note' style='text-align:left'>『史跡江戸城外堀跡保存管理計画書』の設計高は郭内側で 4間2尺6寸(約8.6m)。当実装は天端 6.80 / 水面 1.80 で 5.0m。既存実装の値をこの掘り直しでは動かさないが、是正するなら別件で立てる。</td><td>B</td></tr><tr><td>U2</td><td class='note' style='text-align:left'>工区の地盤の正本が無い</td><td class='note' style='text-align:left'>docs/Sashizu/base_dem.json の範囲(x −800..−330 / z 600..1340)は外堀を覆っていない。当面は正本と同じ出自(ref_height.npy)から直に切り出す(build_sotobori_dem.py)。正本の拡張は EDO-0014 と併せて起票する。</td><td>S</td></tr><tr><td>U3</td><td class='note' style='text-align:left'>00003 の東端の先(幸橋御門・汐留川)が未再現</td><td class='note' style='text-align:left'>00003 の東端 (1097,137)-(1114,174) で締め切っている。幸橋御門を作るときに水面を延ばす。</td><td>S</td></tr><tr><td>U7</td><td class='note' style='text-align:left'>継ぎ目の入隅で岸の規則がうまく働かない</td><td class='note' style='text-align:left'>00002 と 00003 の継ぎ目(おおむね x578–590 / z374–384)は二つの汀線が入隅で交わるため、『汀線からの距離』で岸を測る規則が素直に効かない。附則 P1 で主要部は戻すが、NE3f・NE3g・SW3b の背面には床のまま残る所が数十m² ある見込み。実装後に Unity で目視し、必要なら手当てする。</td><td>P</td></tr><tr><td>U8</td><td class='note' style='text-align:left'>溜池の掘り直しが堰の頭に及んでいないか未確認</td><td class='note' style='text-align:left'>2026-08-26 の溜池の掘り直しは池の内側と汀から20mの帯を触っている。00001 の西の裾(x102–185)がその帯に掛かっていないかは live terrain でしか測れず、Unity が押さえられていないため未確認。当図の 00001 の数値はすべて掘り直し直前のスナップショットによる。</td><td>P</td></tr><tr><td>U9</td><td class='note' style='text-align:left'>00001 の郭外の石垣が土に埋まっている</td><td class='note' style='text-align:left'>Ishigaki_Ext_4(CW1s・87個・206m)は天端 4.42→5.02 に対し背後の地盤が 6.6–6.9 で、<b>全長にわたり天端が 2m ほど地中にある</b>。土橋の取付の R1(62%)・R3(78%)も同様。⚠ <b>08-22 のリセットのせいではない</b> — 現況と 08-22 リセット直前が完全に一致しており、2026-08-10 に建てたときからこの姿。00001 は本指図では調査のみなので直さない。是正するなら、石垣を上げるのか岸を下げるのか(郭外の岸は愛宕下へ続く現地形)をユーザーの裁定に掛けてから別件で立てる。</td><td>P</td></tr><tr><td>U4</td><td class='note' style='text-align:left'>堀底の遺構</td><td class='note' style='text-align:left'>堀底を平らな一律とするのは実装上の既定で、浚渫の跡・杭・石垣の根石まわりの堆積は再現していない。</td><td>U</td></tr><tr><td>U5</td><td class='note' style='text-align:left'>典拠の書誌が sources.md に無い</td><td class='note' style='text-align:left'>『史跡江戸城外堀跡保存管理計画書』は 2026-08-10 に読んだきりで台帳の項が起きていない。台帳を起こすまで史実の4点は確度B に据え置く。</td><td>—</td></tr><tr><td>U6</td><td class='note' style='text-align:left'>囲いの外の他の水域を総ざらいしていない</td><td class='note' style='text-align:left'>EDO-0039 が名指しした水域は外堀の2本だが、水色の囲いの外の他の水域を総点検した記録は無い。</td><td>—</td></tr></tbody></table></div>
 </div>
 <div class="plate"><div class="phead"><h2>其十八　改訂</h2><span class="meta">経緯は git log docs/Sashizu/</span></div>
-<div class="tw"><table><thead><tr><th>commit</th><th>日付</th><th>件名</th></tr></thead><tbody><tr><td><code>dd08078</code></td><td>2026-08-26</td><td class='note' style='text-align:left'>feat: 外堀下流の掘り直しの指図を起こす(EDO-0039 の残件)</td></tr></tbody></table></div>
+<div class="tw"><table><thead><tr><th>commit</th><th>日付</th><th>件名</th></tr></thead><tbody><tr><td><code>041d5d4</code></td><td>2026-08-26</td><td class='note' style='text-align:left'>feat: 指図の対象を溜池の堰から下流ひと続きへ広げる(ユーザー指示)</td></tr><tr><td><code>dd08078</code></td><td>2026-08-26</td><td class='note' style='text-align:left'>feat: 外堀下流の掘り直しの指図を起こす(EDO-0039 の残件)</td></tr></tbody></table></div>
 <p class="cap" style="margin-top:44px">章 18 ／ 図版(SVG) 12 面。<b>組み直すときは図を落としていないか必ず数える。</b></p>
-<div class="foot">組んだ日 2026-08-26 21:51 ／ 設計値 <code>sotobori_sashizu.json</code> ／ 文章 <code>sotobori_kosho.md</code> ／ 実測 <code>sotobori_terrain.json</code>。Y は海抜 m(Unity の Y がそのまま標高)。</div>
+<div class="foot">組んだ日 2026-08-26 22:01 ／ 設計値 <code>sotobori_sashizu.json</code> ／ 文章 <code>sotobori_kosho.md</code> ／ 実測 <code>sotobori_terrain.json</code>。Y は海抜 m(Unity の Y がそのまま標高)。</div>
 </div>
 </div>

@@ -377,9 +377,12 @@ def profile_svg(d, ter, W=1180.0):
             sx = (runs[i - 1][2] + runs[i][1]) / 2
             h.append('<path d="M%.1f,%.1f V%.1f" stroke="var(--shu)" stroke-width="2.4"/>'
                      % (X(sx), Y(runs[i - 1][3]), Y(runs[i][3])))
-            h.append('<text class="anG" x="%.1f" y="%.1f" style="text-anchor:middle">'
-                     '虎ノ門土橋の堰 天端 3.30 ／ 落差 %.2f m</text>'
-                     % (X(sx), Y(runs[i - 1][3]) - 9, runs[i - 1][3] - runs[i][3]))
+            crest = next((st.get("crest") for st in d["system"]["steps"]
+                          if st.get("crest") and runs[i][3] < st["crest"] < runs[i - 1][3]), None)
+            h.append('<text class="anG" x="%.1f" y="%.1f" style="text-anchor:middle">%s落差 %.2f m</text>'
+                     % (X(sx), Y(runs[i - 1][3]) - 9,
+                        ("虎ノ門土橋の堰 天端 %.2f ／ " % crest) if crest else "",
+                        runs[i - 1][3] - runs[i][3]))
     for key, col, dash, lab in ((5, "var(--dim)", "3 3", "現況 郭外"),
                                 (6, "var(--dim)", None, "現況 郭内"),
                                 (7, "var(--ishi)", "6 3", "石垣天端 郭外"),
@@ -480,6 +483,11 @@ def section_svg(d, s, W=1180.0):
     return "\n".join(h)
 
 
+def byid_works(d, r):
+    """その run が『掘る水面』に属するか。"""
+    return any(b["id"] == r.get("body") and b.get("works") for b in d["water"])
+
+
 def rule_svg(d, W=1180.0):
     """工区と摺り付けの規則(模式)。"""
     H = 300.0
@@ -508,18 +516,22 @@ def rule_svg(d, W=1180.0):
     h.append('<path d="M%.1f,%.1f H%.1f" stroke="#3F6F86" stroke-width="1.8"/>'
              % (X(-span), Y(wy), X(0)))
     h.append('<text class="an2b" x="%.1f" y="%.1f">水面 %.2f</text>' % (X(-span) + 6, Y(wy) - 6, wy))
-    seg = [(-span, fl), (0, fl), (1.5, fl), (4.9, 6.6), (10, 6.7),
-           (14, 6.2), (span, 6.0)]
+    r0 = max((r for r in d["ishigaki"]["runs"]
+              if byid_works(d, r) and "郭外" in r["side"]), key=lambda r: r["n"])
+    cop, ofs = r0["copingFrom"], r0["offset"]
+    seg = [(-span, fl), (0, fl), (1.5, fl), (ofs + 0.1, cop), (10, cop + 0.1),
+           (14, cop - 0.4), (span, cop - 0.6)]
     h.append('<polyline points="%s" fill="none" stroke="var(--ink)" stroke-width="2.2"/>'
              % " ".join("%.1f,%.1f" % (X(t), Y(v)) for t, v in seg))
     h.append('<polyline points="%s" fill="none" stroke="var(--dim)" stroke-width="1.1" '
              'stroke-dasharray="4 3"/>'
              % " ".join("%.1f,%.1f" % (X(t), Y(v)) for t, v in
-                        [(-span, 6.1), (0, 6.1), (10, 6.0), (14, 6.2), (span, 6.0)]))
+                        [(-span, cop - 0.5), (0, cop - 0.5), (10, cop - 0.6),
+                         (14, cop - 0.4), (span, cop - 0.6)]))
     h.append('<path d="M%.1f,%.1f V%.1f" stroke="var(--ishi)" stroke-width="3" opacity="0.9"/>'
-             % (X(4.81), Y(6.6), Y(fl)))
-    h.append('<text class="anS2" x="%.1f" y="%.1f">石垣(汀線の外 4.81 m)</text>'
-             % (X(4.81) + 6, Y(6.6) - 8))
+             % (X(ofs), Y(cop), Y(fl)))
+    h.append('<text class="anS2" x="%.1f" y="%.1f">石垣(汀線の外 %.2f m・天端 %.2f)</text>'
+             % (X(ofs) + 6, Y(cop) - 8, ofs, cop))
     for t in (0, w["outerWidth"]):
         h.append('<path d="M%.1f,%.1f V%.1f" stroke="#7A2E1E" stroke-width="1" '
                  'stroke-dasharray="6 4"/>' % (X(t), Y(0), Y(7.6)))
@@ -668,7 +680,7 @@ def main():
         n[0] += 1
         return KAN[n[0] - 1]
 
-    h = ['<meta charset="utf-8">', "<title>外堀下流 掘り直し指図</title>",
+    h = ['<meta charset="utf-8">', "<title>%s</title>" % html.escape(d["title"]),
          "<style>%s</style>" % css, '<div class="wrap">']
     h.append('<p class="eyebrow">%s ／ %s</p>' % (html.escape(d["subtitle"]), html.escape(d["board"])))
     h.append("<h1>%s</h1>" % html.escape(d["title"]))

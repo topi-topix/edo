@@ -195,6 +195,16 @@ public static class EdoSketch
     [MenuItem(MenuClear, true)]
     static bool ClearAllValidate() => _data != null && _data.strokes.Count > 0;
 
+    // 下書きはシーンを開いた時にしか読まれないため、外部(別セッション・スクリプト)が
+    // json へ追記しても画面に出ず、次の Save() で黙って上書きされる。EdoParcels の
+    // 再読込と同じ逃げ道をこちらにも用意する。
+    [MenuItem("Edo/下書き/再読込(json を読み直す)")]
+    static void ReloadFromDisk()
+    {
+        ReloadForActiveScene();
+        Debug.Log($"[EdoSketch] 下書きを読み直した: {_data.strokes.Count} 本 ({_sceneKey})");
+    }
+
     // ---- Scene GUI --------------------------------------------------------
 
     static void OnSceneGui(SceneView sv)

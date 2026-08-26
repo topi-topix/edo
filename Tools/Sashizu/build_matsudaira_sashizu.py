@@ -1180,6 +1180,7 @@ def plane_check(d):
     bad += setchin_check(d)
     bad += edge_treatment_check(d)
     bad += outside_bury_check(d)
+    bad += terrain_provenance_check(d)
     return bad
 
 
@@ -1223,8 +1224,11 @@ def run_seat_check(d, tol=0.6):
     浮きは石垣基壇 4.0×s で受けられる範囲まで許す。"""
     try:
         terr = json.load(open(os.path.join(DOC, "matsudaira_terrain.json"), encoding="utf-8"))
-    except Exception:
-        return []
+    except Exception as ex:
+        # ⛔ **`return []` にしない。** 地盤が読めないのは「合格」ではなく「**回っていない**」。
+        #   土井が同じ形を自邸で8本見つけた(2026-08-26 EDO-0029)。当方も2本あった。
+        #   `qa-and-pitfalls.md`「測れないものは 0 件になる」。
+        return ["matsudaira_terrain.json が読めず **この検査は回っていない**(合格ではない): %s" % ex]
     gr = RGrid(d)
     P = d["polygon"]
     n = len(P)
@@ -1530,10 +1534,76 @@ def anchor_separate():
             if ln.startswith("**別の区画に属す役割**"):
                 body = ln.split(":", 1)[1] if ":" in ln else ln.split("**", 2)[-1]
                 got = tuple(x.strip() for x in body.replace("／", "/").split("/") if x.strip())
-                if len(got) < 3:
-                    raise RuntimeError("『別の区画に属す役割』の行が読めない: %r" % ln)
+                # 床は **4個**(台帳の集合は6個。3個だと 6→3 に削って通ってしまう)。
+                # ⚠ 床は「行が崩れた」を拾う煙感知器であって、意図的に削られる道を塞ぐものではない。
+                #   削るほうは**名前が役割表の行に在ること**で押さえる。
+                if len(got) < 4:
+                    raise RuntimeError("『別の区画に属す役割』が %d 個しかない(床4): %r" % (len(got), ln))
+                roles = set(r for r, _ in anchor_roles())
+                unknown = [x for x in got if x not in roles]
+                if unknown:
+                    raise RuntimeError("『別の区画に属す役割』の %s が役割表に無い — "
+                                       "台帳の中で名前が食い違っている" % "・".join(unknown))
                 return got
     raise RuntimeError("『別の区画に属す役割』の行が estate-types.md に無い")
+
+
+TERRAIN_TOL = 0.30      # 回転間格子の地形と正本DEMの許容差[m](格子の刻みの違いによる補間差)
+
+
+def terrain_provenance_check(d):
+    """回転間格子の地形が **正本 DEM から来ているか**を実測で確かめる(CLAUDE.md 規則12)。
+
+    ⚠ 司令塔の通達(2026-08-24)は「`<屋敷>_terrain.json` は各邸の生成器が作る。
+    **種地を正本へ揃えるのは各自の手当て**」と書いている。**手当てを宣言で持たない。**
+    `run_seat_check` と `kaidan_ground_check` はこの地形を読むので、種地がずれていれば
+    両方の「0件」が意味を失う(2026-08-23 に4邸が live terrain を『造成前』として吸い込んだ事故と同型)。
+    """
+    try:
+        tj = json.load(open(os.path.join(DOC, "matsudaira_terrain.json"), encoding="utf-8"))
+        dem = json.load(open(os.path.join(DOC, "matsudaira_dem.json"), encoding="utf-8"))
+    except Exception as ex:
+        return ["地形の出所を照合できない — **この検査は回っていない**(合格ではない): %s" % ex]
+    g = d["grid"]["shukaku"]
+    ken = d["const"]["ken"]
+    x0, z0 = dem["x0"], dem["z0"]
+    st = dem.get("step", dem.get("res", 2.0))
+    H = dem["h"] if "h" in dem else dem["height"]
+    nz, nx = len(H), len(H[0])
+
+    def nat(x, z):
+        fx, fz = (x - x0) / st, (z - z0) / st
+        i, j = int(math.floor(fx)), int(math.floor(fz))
+        if not (0 <= i < nx - 1 and 0 <= j < nz - 1):
+            return None
+        tx, tz = fx - i, fz - j
+        return ((H[j][i] * (1 - tx) + H[j][i + 1] * tx) * (1 - tz)
+                + (H[j + 1][i] * (1 - tx) + H[j + 1][i + 1] * tx) * tz)
+
+    T = tj["h"]
+    u0, v0, du = tj["u0"], tj["v0"], tj["step"]
+    worst, wu, wv, wa, wb, seen = 0.0, 0, 0, 0.0, 0.0, 0
+    for j in range(0, len(T), 3):
+        for i in range(0, len(T[0]), 3):
+            t = T[j][i]
+            if t is None:
+                continue
+            u, v = u0 + i * du, v0 + j * du
+            x = g["x0"] + (g["ux"] * u + g["vx"] * v) * ken
+            z = g["z0"] + (g["uz"] * u + g["vz"] * v) * ken
+            y = nat(x, z)
+            if y is None:
+                continue
+            seen += 1
+            if abs(t - y) > worst:
+                worst, wu, wv, wa, wb = abs(t - y), u, v, t, y
+    if seen < 200:
+        return ["地形の照合の標本が %d 点しか取れない — 格子の範囲か正本の切り出しがおかしい" % seen]
+    if worst > TERRAIN_TOL:
+        return ["回転間格子の地形が正本 DEM と %.2fm 食い違う(u=%.0f v=%.0f: 格子 %.2f / 正本 %.2f)— "
+                "**種地が正本から来ていない**。live terrain を吸っていないか(規則12)"
+                % (worst, wu, wv, wa, wb)]
+    return []
 
 
 BURY_MAX = 0.30         # 外側の地盤が座より高くてよい量[m]
@@ -1867,8 +1937,11 @@ def kaidan_ground_check(d):
     2026-08-23: 御蔵門の石段が『存在しない帯』の上に置かれ、降りた先が窪地になっていた。"""
     try:
         terr = json.load(open(os.path.join(DOC, "matsudaira_terrain.json"), encoding="utf-8"))
-    except Exception:
-        return []
+    except Exception as ex:
+        # ⛔ **`return []` にしない。** 地盤が読めないのは「合格」ではなく「**回っていない**」。
+        #   土井が同じ形を自邸で8本見つけた(2026-08-26 EDO-0029)。当方も2本あった。
+        #   `qa-and-pitfalls.md`「測れないものは 0 件になる」。
+        return ["matsudaira_terrain.json が読めず **この検査は回っていない**(合格ではない): %s" % ex]
     bad = []
     for k in d["kaidans"]:
         if "pos" not in k:

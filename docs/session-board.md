@@ -66,7 +66,21 @@ board に無い伝達は「無かったこと」になる(司令塔も追えな�
 メッセージは短く: 「EDO-0012: 松平S辺の据え付け面を+0.4m動かした。土井の共有辺検査を
 流し直してほしい」程度。長い経緯は issue の note へ。
 
-### 5. セッション開始時
+### 5. 指図の Artifact を再公開するときは URL を渡す
+
+⛔ **`url=` を渡さずに publish すると、更新ではなく新しい Artifact が生える。**
+README がリンクしている方は古いまま取り残され、ユーザーには「デグレした」ように見える
+(2026-08-26 に山王で実際に起きた — 正典は正常なのに、公開版が4日前の女坂=直線のままだった)。
+
+```bash
+# 指図を再公開するときは必ず docs/Sashizu/README.md の Artifact 列の URL を渡す
+Artifact(file_path="docs/Sashizu/<屋敷>_sashizu.html",
+         url="<README の Artifact 列の URL>")
+```
+
+指図を直したら**その場で再公開する**。直して公開しないと、ユーザーが見る図と正典がずれる。
+
+### 6. セッション開始時
 
 greet フックが board の digest(裁定待ち・ブロッカー・open)を自動表示する。
 `edo_session.py start <屋敷>` もその邸+横断の open issue を出す。

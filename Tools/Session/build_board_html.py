@@ -360,8 +360,12 @@ def refs_html(i, states):
 
 
 def issue_li(i, states):
-    return ('<li class="%s"><span class="id">%s</span> %s <span class="id">[%s/%s]</span>%s</li>'
-            % (esc(i["type"] if i["type"] == "blocker" else i["status"]),
+    # id を振るのは見た目でなく、ダッシュボードのコメント機能が要素を CSS セレクタで
+    # 位置(nth-of-type)アンカーするため — issue が close/並び替わるたびに別の
+    # カードを指してしまう(実際に2件連続で起きた)。id があれば #EDO-0025 のように
+    # セレクタが安定し、後から順序が変わっても指す相手がずれない。
+    return ('<li id="%s" class="%s"><span class="id">%s</span> %s <span class="id">[%s/%s]</span>%s</li>'
+            % (esc(i["id"]), esc(i["type"] if i["type"] == "blocker" else i["status"]),
                esc(i["id"]), esc(i["title"]), esc(i["type"]), esc(i["status"]),
                refs_html(i, states)))
 
@@ -505,8 +509,9 @@ def build_html(issues, pending, commits, claims, states, summary):
         p.append('<div class="quiet">裁定待ちはありません。</div>')
     for i in waits:
         d = i.get("decision") or {}
-        p.append('<div class="dcard"><h3><span class="id">%s</span>[%s] %s</h3>'
-                 % (esc(i["id"]), esc(ESTATES.get(i["estate"], i["estate"])), esc(i["title"])))
+        # id 付与の理由は issue_li と同じ — コメントのアンカーを issue 単位で固定する
+        p.append('<div id="%s" class="dcard"><h3><span class="id">%s</span>[%s] %s</h3>'
+                 % (esc(i["id"]), esc(i["id"]), esc(ESTATES.get(i["estate"], i["estate"])), esc(i["title"])))
         if d:
             p.append('<dl class="dl">')
             p.append("<dt>背景</dt><dd>%s</dd>" % esc(d.get("background", "")))
@@ -524,8 +529,8 @@ def build_html(issues, pending, commits, claims, states, summary):
         s = summary["estates"][e]
         st = states.get(e, {})
         cl = [c for c in claims if any(g == "sashizu:%s" % e for g in c.get("paths", []))]
-        p.append('<div class="lane"><h3>%s%s</h3><div class="area">%s</div>' % (
-            esc(name),
+        p.append('<div id="lane-%s" class="lane"><h3>%s%s</h3><div class="area">%s</div>' % (
+            esc(e), esc(name),
             ' <a class="openlink" href="%s" target="_blank" rel="noopener">指図を開く ↗</a>'
             % esc(st["url"]) if st.get("url") else "",
             esc(st.get("area", ""))))

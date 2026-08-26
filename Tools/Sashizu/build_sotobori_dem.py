@@ -50,6 +50,7 @@ DEM_DOC = (
     "外堀下流の掘り直しの現況地盤と復元の種地【確度P】。世界座標 %dm 刻み(x0,z0 から)。"
     "h[iz][ix]=標高m。`cur`=現況(2026-08-26 溜池の掘り直し直前のハイトマップ。外堀の工区は無傷)。"
     "`pre`=2026-08-22 の造成リセット直前(この堀を 2026-08-10 に掘った形)。"
+    "`nat`=造成を一切含まない現代の地面(base_dem.json の正本と同じ出自)。"
     "⛔ 手で編集しない・Unity の live terrain から採り直さない。生成器 Tools/Sashizu/build_sotobori_dem.py"
 )
 TER_DOC = (
@@ -508,7 +509,11 @@ def main():
     head = {"_": DEM_DOC % DEM_STEP, "x0": x0, "z0": z0, "step": DEM_STEP,
             "nx": len(X[::kx]), "nz": len(Z[::kx])}
     layers = {"cur": (sub(CUR), "現況(2026-08-26 溜池の掘り直し直前)。外堀の工区はこの掘り直しの手が入っていない"),
-              "pre": (sub(PRE), "2026-08-22 の造成リセット直前 = 復元の種地(2026-08-10 に掘った形)")}
+              "pre": (sub(PRE), "2026-08-22 の造成リセット直前 = 復元の種地(2026-08-10 に掘った形)"),
+              "nat": (sub(NAT), "造成を一切含まない現代の地面。base_dem.json の正本と**同じ出自**"
+                                "(ref_height.npy)で、種地の出所の検算(provenance)はこの層と cur の差で判定する。"
+                                "⭐ これがあるので、TerrainBackups(gitignore・メインの作業ツリーのみ)が無い"
+                                "worktree でも検算を再現できる")}
 
     v = ter["volumes"]
     print("距離程 %.1f m(堰の直下から)／ 工区 %.2f ha(掘る水面 %.2f / 岸の帯 %.2f)"

@@ -2037,8 +2037,13 @@ def barrier_check(d):
     for l in d["links"]:
         z = set()
         for m in d["munes"]:
-            if (m["u0"] - 1 <= l["u1"] and l["u0"] <= m["u1"] + 1
-                    and m["v0"] - 1 <= l["v1"] and l["v0"] <= m["v1"] + 1):
+            # ⚠ **接する(重なる/突き付く)ことを要求する。**旧版は ±1間 の緩みを持っており、
+            #   結界(v=47.5)の南に立つ奥向どうしの渡廊下が、1間 北の中奥の棟に「触れた」と
+            #   判定されて『中奥/奥向を跨ぐ』と鳴っていた(2026-08-26 裁定Aの試作で発覚)。
+            #   ⛔ 緩みを残すと、離れている棟まで拾って偽陽性を出す。突き付きは 0 で拾える。
+            TOL = 0.05
+            if (m["u0"] - TOL <= l["u1"] and l["u0"] <= m["u1"] + TOL
+                    and m["v0"] - TOL <= l["v1"] and l["v0"] <= m["v1"] + TOL):
                 z.add(zone.get(m["name"], "?"))
         if "奥向" in z and len(z) > 1 and "口" not in l["kind"]:
             bad.append("%s(%s)が %s を跨ぐのに口でない — 御錠口の結界が無効"

@@ -87,7 +87,7 @@ python3 Tools/Sashizu/build_okabe_sashizu.py
 | `sotobori_terrain.json` | 縦断・横断・土量・検査の実測 | 同上 |
 | `sotobori_sashizu.html` | 上の四つから組んだ図面 | `Tools/Sashizu/build_sotobori_sashizu.py` |
 | `sotobori_saitei.json` | **裁定図**の案の定義 | 人 |
-| `sotobori_saitei.html` | 裁定図(どこが・どう変わるか) | `Tools/Sashizu/build_sotobori_saitei.py` |
+| `sotobori_saitei.html` | 裁定図(どこが・どう変わるか)。Artifact https://claude.ai/code/artifact/d3c33b29-b81c-49a4-bb98-f799aa557a4f | `Tools/Sashizu/build_sotobori_saitei.py` |
 
 ```bash
 python3 Tools/Sashizu/build_sotobori_dem.py      # ⚠ TerrainBackups を読むのでメインの作業ツリーで

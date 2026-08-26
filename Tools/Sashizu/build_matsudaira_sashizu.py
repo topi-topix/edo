@@ -2844,6 +2844,156 @@ def cutfill_stats_table(d, stats):
             "<th>切土量</th><th>最大切土</th></tr></thead><tbody>%s</tbody></table></div>" % rows)
 
 
+# ---------------------------------------------------------------- 屋根伏図と谷
+GABLE_FRAC = 0.45          # 破風の立上り比(Tools/Blender/build_goten_roof.py の make_irimoya)
+
+
+def _roof_geom(d, m):
+    """棟の屋根の平面。谷になる辺には軒を出さない。→ (ru0, ru1, rv0, rv1, a, h)"""
+    E = d["const"]["nokiE"] / d["const"]["ken"]                 # 軒の出[間]
+    V = [t for t in d.get("valleys", []) if t.get("axis", "v") == "v"]   # 妻谷だけが軒を落とす
+    noW = set(t["east"] for t in V)                             # 西辺が谷になる棟
+    noE = set(t["west"] for t in V)                             # 東辺が谷になる棟
+    ru0 = m["u0"] - (0.0 if m["name"] in noW else E)
+    ru1 = m["u1"] + (0.0 if m["name"] in noE else E)
+    rv0, rv1 = m["v0"] - E, m["v1"] + E
+    a = GABLE_FRAC * (rv1 - rv0) / 2.0                          # 破風の入り込み[間]
+    h = (rv1 - rv0) / 2.0 * d["const"]["ken"] * d["const"]["roofRatio"]   # 軒先→大棟[m]
+    return ru0, ru1, rv0, rv1, a, h
+
+
+def roof_plan_svg(d):
+    """屋根伏図 — 大棟・隅棟・破風・谷。棟の間数は動かさず、谷の辺の軒だけ落とす。"""
+    u0, u1, v0, v1 = -52, 16, 12, 66
+    pr = LProj(u0, u1, v0, v1, 900.0)
+    g = _sv(pr.W, pr.H, "松平出羽守上屋敷 屋根伏図")
+    g.append(R(0, 0, pr.W, pr.H, fill="var(--paper2)"))
+
+    for m in d["munes"]:
+        if m["v1"] < v0 or m["v0"] > v1 or m["u1"] < u0 or m["u0"] > u1:
+            continue
+        ru0, ru1, rv0, rv1, a, h = _roof_geom(d, m)
+        vc = (rv0 + rv1) / 2.0
+        X, Y = pr.X, pr.Y
+        g.append(pr.rect(ru0, rv0, ru1, rv1, fill="var(--paper)", stroke="var(--ink)", sw=1.1))
+        # 隅棟(45°) → 破風の端
+        for (cx, cy, gx, gy) in ((ru0, rv0, ru0 + a, rv0 + a), (ru0, rv1, ru0 + a, rv1 - a),
+                                 (ru1, rv0, ru1 - a, rv0 + a), (ru1, rv1, ru1 - a, rv1 - a)):
+            g.append(LN(X(cx), Y(cy), X(gx), Y(gy), "var(--ink)", 0.8, op=0.75))
+        # 破風(妻)
+        for gx in (ru0 + a, ru1 - a):
+            if ru0 + a < ru1 - a:
+                g.append(LN(X(gx), Y(rv0 + a), X(gx), Y(rv1 - a), "var(--ink)", 1.4, op=0.9))
+        # 大棟
+        if ru0 + a < ru1 - a:
+            g.append(LN(X(ru0 + a), Y(vc), X(ru1 - a), Y(vc), "var(--ink)", 2.6, cap="round"))
+        nm = MUNE_JA.get(m["name"], m["name"])
+        g.append(T((X(ru0) + X(ru1)) / 2, Y(vc) - 5, nm, "rmS", "middle",
+                   fit(nm, pr.L(ru1 - ru0), 11.0)))
+        g.append(T((X(ru0) + X(ru1)) / 2, Y(vc) + 10, "大棟 +%.2f" % h, "anS", "middle", 8.5))
+
+    # 谷 — 妻谷は v 方向、軒谷は u 方向へ走る
+    E = d["const"]["nokiE"] / d["const"]["ken"]
+    _labelled = set()
+    for t in d.get("valleys", []):
+        if t.get("axis", "v") == "v":
+            a = (pr.X(t["u"]), pr.Y(t["v0"] - E)), (pr.X(t["u"]), pr.Y(t["v1"] + E))
+        else:
+            a = (pr.X(t["u0"]), pr.Y(t["v"])), (pr.X(t["u1"]), pr.Y(t["v"]))
+        (x0, y0), (x1, y1) = a
+        g.append(LN(x0, y0, x1, y1, "var(--shu)", 3.4, cap="round"))
+        xm, ym = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+        for (ex, ey) in ((x0, y0), (x1, y1)):                    # 中央から両端へ落とす
+            dx, dy = (ex - xm), (ey - ym)
+            L = max(1e-6, (dx * dx + dy * dy) ** 0.5)
+            ux, uy = dx / L, dy / L
+            nx2, ny2 = -uy * 4.5, ux * 4.5                       # 谷から少しずらす
+            g.append(LN(xm + ux * 7 + nx2, ym + uy * 7 + ny2,
+                        ex - ux * 5 + nx2, ey - uy * 5 + ny2, "var(--shu)", 0.9))
+            tipx, tipy = ex - ux * 1 + nx2, ey - uy * 1 + ny2
+            g.append('<polygon points="%.1f,%.1f %.1f,%.1f %.1f,%.1f" fill="var(--shu)"/>'
+                     % (tipx, tipy,
+                        ex - ux * 5 + nx2 - ny2 * 0.45, ey - uy * 5 + ny2 + nx2 * 0.45,
+                        ex - ux * 5 + nx2 + ny2 * 0.45, ey - uy * 5 + ny2 - nx2 * 0.45))
+        if t.get("axis", "v") == "v":
+            g.append(T(x0, y0 - 5, t["name"].replace("V_", "谷 "), "anS", "middle", 8.5,
+                       "var(--shu)"))
+        elif t["v"] not in _labelled:                            # 一続きの軒谷は一度だけ名を出す
+            _labelled.add(t["v"])
+            g.append(T(x0 - 4, y0 + 3, "軒谷(結界の帯)", "anS", "end", 8.5, "var(--shu)"))
+    g.append("</svg>")
+    return "".join(g)
+
+
+def roof_section_svg(d):
+    """屋根の縦断面(桁行) — 各棟の大棟通りで切って一列に展開。谷は軒先の高さで出会う。"""
+    KEN = d["const"]["ken"]
+    EAVE = d["const"]["gotenFloor"] + d["const"]["muneEave"]      # 面から軒先[m]
+    ROWS = [("表向", [m for m in d["munes"]
+                     if m.get("zone") in ("表向", "表役所") and m["name"] != "Umaya"]),
+            ("奥向", [m for m in d["munes"] if m.get("zone") == "奥向" and m["name"] != "NagatsuboneS"])]
+    su0, su1 = -48, 14
+    s = 900.0 / (su1 - su0)                                      # px/間(水平・垂直とも実寸)
+    mpx = s / KEN                                                # px/m
+    rowH = 13.0 * mpx + 34
+    g = _sv(900.0, rowH * len(ROWS) + 10, "松平出羽守上屋敷 屋根の縦断面")
+    g.append(R(0, 0, 900.0, rowH * len(ROWS) + 10, fill="var(--paper2)"))
+    X = lambda u: (u - su0) * s
+    for ri, (label, ms) in enumerate(ROWS):
+        base = rowH * (ri + 1) - 12                              # 面(y=27.0)の線
+        Y = lambda z: base - z * mpx
+        g.append(LN(0, base, 900.0, base, "var(--ink)", 1.0, op=0.5))
+        g.append(T(4, base + 10, "%s — 面 27.0" % label, "anS", "start", 9.0))
+        for m in sorted(ms, key=lambda q: q["u0"]):
+            ru0, ru1, rv0, rv1, a, h = _roof_geom(d, m)
+            hb = GABLE_FRAC * h
+            pts = [(ru0, EAVE), (ru0 + a, EAVE + hb), (ru0 + a, EAVE + h),
+                   (ru1 - a, EAVE + h), (ru1 - a, EAVE + hb), (ru1, EAVE)]
+            g.append('<polygon points="%s" fill="var(--paper)" stroke="var(--ink)" '
+                     'stroke-width="1.2"/>' % " ".join("%.1f,%.1f" % (X(u), Y(z)) for u, z in pts))
+            # 軒下(壁と入側)
+            g.append(R(X(m["u0"]), Y(EAVE), X(m["u1"]) - X(m["u0"]), EAVE * mpx,
+                       fill="var(--paper)", stroke="var(--ink)", sw=0.7, op=0.9))
+            g.append(T((X(ru0) + X(ru1)) / 2, Y(EAVE + h) - 4,
+                       "%.2f" % (EAVE + h), "anS", "middle", 8.5))
+            nm = MUNE_JA.get(m["name"], m["name"])
+            g.append(T((X(m["u0"]) + X(m["u1"])) / 2, Y(EAVE) + 13, nm, "rmS", "middle",
+                       fit(nm, (X(m["u1"]) - X(m["u0"])), 10.0)))
+        for t in d.get("valleys", []):
+            if t.get("axis", "v") != "v" or t["west"] not in [q["name"] for q in ms]:
+                continue
+            g.append(LN(X(t["u"]), Y(EAVE) - 3, X(t["u"]), Y(EAVE) + 6, "var(--shu)", 2.4))
+            g.append(T(X(t["u"]), Y(EAVE) - 7, "谷", "anS", "middle", 9.0, "var(--shu)"))
+    g.append("</svg>")
+    return "".join(g)
+
+
+def valleys_table(d):
+    if not d.get("valleys"):
+        return ""
+    E = d["const"]["nokiE"] / d["const"]["ken"]
+    KEN = d["const"]["ken"]
+    r = ""
+    for t in d["valleys"]:
+        if t.get("axis", "v") == "v":
+            L = ((t["v1"] - t["v0"]) + 2 * E) * KEN
+            rng = "u %g ／ v %g 〜 %g" % (t["u"], t["v0"], t["v1"])
+            side = "%s +%.2f ／ %s +%.2f" % (MUNE_JA.get(t["west"], t["west"]), t["hW"],
+                                             MUNE_JA.get(t["east"], t["east"]), t["hE"])
+        else:
+            L = (t["u1"] - t["u0"]) * KEN
+            rng = "v %g ／ u %.1f 〜 %.1f" % (t["v"], t["u0"], t["u1"])
+            side = "%s +%.2f ／ %s +%.2f" % (MUNE_JA.get(t["north"], t["north"]), t["hN"],
+                                             MUNE_JA.get(t["south"], t["south"]), t["hS"])
+        r += ("<tr><td>%s</td><td>%s</td><td>%s</td><td>%.1f m</td><td>%s</td>"
+              "<td class='note'>%s</td></tr>"
+              % (t["name"], t["kind"], rng, L, side, t["fall"]))
+    return ("<h3>谷</h3><div class='tw'><table><thead><tr><th>谷</th><th>種</th><th>位置</th>"
+            "<th>樋の長さ</th><th>両側の大棟(軒先から)</th><th class='note'>水の落とし方</th>"
+            "</tr></thead><tbody>%s</tbody></table></div>" % r)
+
+
+
 def fig(h, svg, cap=None, legend=None):
     h.append('<div class="fig">%s</div>' % svg)
     if legend:
@@ -3046,6 +3196,36 @@ def main():
              % (area / TSUBO, format(d["hairyo"]["tsubo"], ","), d["hairyo"]["cert"],
                 100.0 * (area / TSUBO - d["hairyo"]["tsubo"]) / d["hairyo"]["tsubo"],
                 kp * (area / TSUBO) / d["hairyo"]["tsubo"], 100.0 * nagL / perim, nagL, perim))
+    h.append("</div>")
+
+    plate(h, nx(), "屋根伏図と谷", "大棟は桁行(u)に架かる ／ 軒の出 0.90m ／ 5.5寸勾配(0.5456)")
+    fig(h, roof_plan_svg(d),
+        legend='<span>━ 大棟</span><span>─ 隅棟・破風</span>'
+               '<span style="color:var(--shu)">━ 妻谷(列の中) ／ ━ 軒谷(行と行の間) ／ ↓ 水の流れ</span>',
+        cap="<b>棟は入側の外縁で接していて、壁は共有しない。</b>各棟の大棟は桁行=u に架かるので、"
+            "接合部では<b>両棟の妻側の屋根面が向かい合い、谷になる</b>。"
+            "<b>谷の辺には軒を出さない</b>(両棟とも外形の縁で切る) — こうすると屋根面は軒先の高さのまま"
+            "突き合い、そこに谷樋が走る。<b>棟の間数は一つも動かない。</b>"
+            "⛔ <b>棟を離して渡廊下を挟む案(2026-08-26 の暫定裁定A)は撤回した</b>【ユーザー裁定U 2026-08-27】 — "
+            "離すと入側1間＋渡廊下＋入側1間で廊下の帯が4間(7.3m)になり廊下として広すぎる。"
+            "一間の隙間では渡廊下の屋根が両隣の軒に完全に隠れる"
+            "(<code>buildings.md</code>「渡廊下は1間では成立しない」)。"
+            "渡廊下は<b>離れた棟をつなぐ部材</b>であって、連なる棟の継ぎ目に使うものではない。<br>"
+            "<b>谷は二種。</b>①<b>妻谷</b>=列の中で妻側の屋根面が向かい合う所(表向3・奥向3)。"
+            "軒を出さずに突き合わせる。②<b>軒谷</b>=中奥と奥向が<b>結界の帯(1間)</b>を挟んで"
+            "平行な長辺の軒で向かい合う所(5区間・計69m)。ここは軒の出 0.90×2 が帯をほぼ埋めて"
+            "<b>18mm で出会う</b>ので、軒はそのままにして合わせ目の下へ樋を寄せて吊る。"
+            "帯の下を通るのは御錠口と御膳所口だけで、渡廊下は架けない。")
+    fig(h, roof_section_svg(d),
+        cap="<b>屋根の縦断面(桁行)。</b>棟ごとに大棟通りで切って一列に展開した"
+            "(棟の奥行が違うので大棟の通りも 1間 ずれる)。"
+            "谷は<b>軒先の高さ</b>で出会い、そこから両側の屋根が登る。"
+            "大棟の高さは梁間で決まるので、奥行 14間 と 12間 が交互に並ぶ表向は"
+            "<b>大棟が約 1m 上下する</b>。")
+    h.append(valleys_table(d))
+    h.append("<p class='cap'><b>谷樋は縦樋を立てず、両端の軒先へ落とす</b>【確度P=一般類型】。"
+             "勾配は中央から両端へ 1/100。屋根部材は<b>辺ごとに軒の出を落とせる版</b>が要る"
+             "(現行の <code>build_goten_roof.py</code> は W'=W+2E の対称生成) — 部材表を参照。</p>")
     h.append("</div>")
 
     for s in d["sections"]:

@@ -1474,9 +1474,28 @@ def anchor_roles():
         if len(c) != 3 or c[0] in ("役割",) or set(c[0]) <= set("-: "):
             continue
         rows.append((c[0], c[1]))
-    if len(rows) < 10:
-        raise RuntimeError("錨の表が読めない(%d 行)。行の書式 | 役割 | 要否 | 典拠 | を崩さないこと" % len(rows))
+    # 床は **20行**。⚠ 表は 24 行あり、床10 では 22 行しか読めていなくても素通りする
+    #   (土井の実例。行を落とす壊れ方は「ファイルも表も行も在る」ので最も静かに壊れる)。
+    if len(rows) < 20:
+        raise RuntimeError("錨の表が %d 行しか読めない(床20・表は24行)。"
+                           "行の書式 | 役割 | 要否 | 典拠 | を崩さないこと" % len(rows))
     return rows
+
+
+def need_level(need):
+    """要否の欄(自然文)を 必須 / 望ましい / 任意 のどれかに分類する。分からなければ None。
+
+    ⚠ **接頭辞の白名簿にしない。**「上屋敷は必須」「奥向があれば必須」のように条件が前に付く。
+    ⛔ 分類できないものを黙って「任意」に落とすと、台帳の言い回しが増えた日に静かに免除される。
+    """
+    t = need.replace(" ", "").replace("　", "")
+    if "必須" in t:
+        return "必須"
+    if "望ましい" in t:
+        return "望ましい"
+    if "任意" in t:
+        return "任意"
+    return None
 
 
 def program_check(d):
@@ -1505,7 +1524,15 @@ def program_check(d):
         if pg is None:
             bad.append("役割「%s」(%s)が program に無い — 錨の行を落としている" % (role, need))
             continue
-        if need.startswith("必須") or need.startswith("上屋敷は必須") or need.startswith("奥向"):
+        lv = need_level(need)
+        if lv is None:
+            # ⛔ **黙って任意に落とさない。**要否の欄は自然文で書かれるので、
+            #   接頭辞の白名簿にすると台帳の言い回しが増えた日に静かに免除される
+            #   (土井 2026-08-26: 正規表現の先頭一致で『上屋敷は必須』『奥向があれば必須』の
+            #   2行を読み飛ばし、24役割のうち22しか見ていなかった)。
+            bad.append("役割「%s」の要否『%s』を分類できない — "
+                       "台帳の言い回しが増えたか書式が崩れている(黙って任意に落とさない)" % (role, need))
+        elif lv == "必須":
             if pg["state"].strip("*") == "無":
                 bad.append("役割「%s」は %s だが指図に無い" % (role, need))
         if pg["state"].strip("*") == "無" and len(pg.get("note", "")) < 20:

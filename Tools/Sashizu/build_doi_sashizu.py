@@ -1113,6 +1113,60 @@ def fix_run_s(d, dem):
     return d
 
 
+def terrain_provenance_check(d, base):
+    """**回転間格子 `doi_terrain.json` の種地が、地盤の正本から出ているか。**
+
+    司令塔の通達(2026-08-24)は「回転間格子の terrain は各邸の生成器が作る。
+    **種地を正本へ揃えるのは各自の手当て**」。⚠ 当家はそれを `_pending` に
+    「今すぐの実害は無い」と書いて**測っていなかった** — 宣言のままの手当てだった
+    (2026-08-26 松平の指摘)。
+
+    ⛔ これが無いと、**2026-08-23 の live terrain 吸い込み事故が同じ形で再発しても
+    誰も気づかない**。当家の図はこの格子の**形と null マスク**しか使っていないが、
+    ファイル自身が「種地は正本」と名乗っている以上、名乗りは検めること。
+    """
+    path = os.path.join(DOC, "doi_terrain.json")
+    if base is None or not os.path.exists(path):
+        return _unmeasured("terrain_provenance_check", "base_dem.json / doi_terrain.json")
+    t = json.load(open(path, encoding="utf-8"))
+    gr = RGrid(d)
+    lim = d["const"].get("terrainProvenanceTol", 0.30)
+    n = 0
+    worst = 0.0
+    spot = None
+    over = 0
+    hole = 0
+    for iv in range(t["nv"]):
+        v = t["v0"] + iv * t["step"]
+        for iu in range(t["nu"]):
+            u = t["u0"] + iu * t["step"]
+            h = t["h"][iv][iu]
+            if h is None:
+                if in_parcel(d, u, v):
+                    hole += 1
+                continue
+            x, z = gr.W(u, v)
+            b = dem_bilinear(base, x, z)
+            if b is None:
+                continue
+            n += 1
+            dd = abs(h - b)
+            if dd > worst:
+                worst, spot = dd, (u, v)
+            if dd > lim:
+                over += 1
+    bad = []
+    if n == 0:
+        return _unmeasured("terrain_provenance_check", "重なる格子点")
+    if over:
+        bad.append("回転間格子の種地が正本から外れる — %d/%d 点が %.2fm 超"
+                   "(最大 %.2fm・グリッド %.0f, %.0f)"
+                   % (over, n, lim, worst, spot[0], spot[1]))
+    if hole:
+        bad.append("回転間格子に区画の中の欠測が %d セル — 復元の null マスクが狂う" % hole)
+    return bad
+
+
 def terrain_canon_check(d, ter, dem):
     """**種地が動いていないか**を二段で検める。
 
@@ -5041,6 +5095,7 @@ def main():
             + route_check(d, load_terrain(os.path.join(DOC, "doi_edo_world.json")))
             + stair_bank_check(d, load_terrain(os.path.join(DOC, "doi_edo_world.json")))
 
+            + terrain_provenance_check(d, load_terrain(os.path.join(DOC, "base_dem.json")))
             + terrain_canon_check(d, load_terrain(os.path.join(DOC, "doi_edo_dem.json")),
                                   load_terrain(os.path.join(DOC, "doi_dem.json")))
             + boundary_fill_check(d, load_terrain(os.path.join(DOC, "doi_dem.json")))

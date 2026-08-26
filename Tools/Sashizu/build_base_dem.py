@@ -236,24 +236,31 @@ def build_slices(check_only=False, fit=False):
     parcels = load_parcels()
     print("区画との突き合わせ(町割 parcels.json が正典):")
     specs = []
-    bad = 0
+    skipped = []
     for spec in SLICES:
+        ok = True
         if fit:
             spec, grown = fit_extent(spec, parcels, FIT_MARGIN)
             if grown:
                 x0, x1, z0, z1 = extent(spec)
                 print(f"   ↔ {spec['name']:20s} 区画に合わせて x[{x0},{x1}] z[{z0},{z1}] へ広げた")
-        bad += report_margins(spec, parcels)
+        if report_margins(spec, parcels):
+            ok = False
         cx1 = cx0 + cstep * (cnx - 1)
         cz1 = cz0 + cstep * (cnz - 1)
         ex = extent(spec)
         if ex[0] < cx0 or ex[1] > cx1 or ex[2] < cz0 or ex[3] > cz1:
             print(f"   ⛔ {spec['name']}: 正本の範囲 x[{cx0},{cx1}] z[{cz0},{cz1}] の外へ出る。"
                   f"CANON_SPEC を広げて `--canon` から作り直すこと")
-            bad += 1
-        specs.append(spec)
-    if bad:
-        raise SystemExit(f"⛔ 覆えていない切り出しが {bad} 件ある。上の指示に従って直すこと(何も書いていない)")
+            ok = False
+        if ok:
+            specs.append(spec)
+        else:
+            skipped.append(spec["name"])
+    if skipped:
+        print(f"\n⛔ 覆えていない切り出しは書かない(据え置き): {', '.join(skipped)}")
+        print("   ⚠ 据え置いた邸の DEM は**担当区画の一部を欠いたまま**である。上の指示に従って範囲を直すこと。")
+        print("   他の邸は下で書き直す — 1邸の不足で全邸を止めない(EDO-0014)。")
     print()
     for s in specs:
         path = os.path.join(SASHIZU, s["name"])
@@ -306,7 +313,9 @@ def build_slices(check_only=False, fit=False):
                "nx": s["nx"], "nz": s["nz"], "h": h}
         write_json(path, out, style=s["style"], nd=s["nd"])
     if not check_only:
-        print("各邸の DEM を正本からの切り出しで書き直した。")
+        print(f"{len(specs)}邸の DEM を正本からの切り出しで書き直した。")
+    if skipped:
+        raise SystemExit(f"⛔ 据え置いた切り出しが {len(skipped)} 件ある: {', '.join(skipped)}")
 
 
 def main():

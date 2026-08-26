@@ -34,7 +34,8 @@ TER = os.path.join(DOC, "sotobori_terrain.json")
 OUT = os.path.join(DOC, "sotobori_sashizu.html")
 VEX = 3.0          # 断面の垂直倍率
 KAN = ["其一", "其二", "其三", "其四", "其五", "其六", "其七", "其八", "其九", "其十",
-       "其十一", "其十二", "其十三", "其十四", "其十五", "其十六"]
+       "其十一", "其十二", "其十三", "其十四", "其十五", "其十六", "其十七", "其十八",
+       "其十九", "其二十", "其二十一", "其二十二"]
 
 # 低地の堀用の段彩(0〜8m)。sashizu_lib の DEM_RAMP は 10m からで使えない
 LOW_RAMP = [(1.0, "#2E6E8E"), (2.0, "#3A8398"), (3.0, "#4E9A9B"), (4.0, "#6BAC90"),
@@ -173,10 +174,11 @@ def base_plan(d, dem, W=1180.0, layer=None, cf=False, ter=None):
                     continue
                 cur = dem["cur"][iz][ix]
                 if cf:
-                    dd = dist_to_outlines(x, z, polys)
-                    ins = any(in_poly(x, z, w) for w in polys)
-                    if ins:
-                        des = d["works"]["floor"]
+                    wp = [b for b in d["water"] if b.get("works")]
+                    dd = dist_to_outlines(x, z, [b["outline"] for b in wp])
+                    hit = [b for b in wp if in_poly(x, z, b["outline"])]
+                    if hit:
+                        des = hit[0]["floor"]
                     elif dd <= d["works"]["outerWidth"]:
                         t = min(1.0, max(0.0, (dd - d["works"]["featherFrom"])
                                          / (d["works"]["outerWidth"] - d["works"]["featherFrom"])))
@@ -202,7 +204,7 @@ def base_plan(d, dem, W=1180.0, layer=None, cf=False, ter=None):
 def draw_frame(d, p, h, polys, water=True, ishigaki=True, works=True, labels=True):
     if works:
         w = d["works"]["outerWidth"]
-        for q in polys:
+        for q in [b["outline"] for b in d["water"] if b.get("works")]:
             n = len(q)
             off = []
             for i in range(n):
@@ -218,9 +220,11 @@ def draw_frame(d, p, h, polys, water=True, ishigaki=True, works=True, labels=Tru
             h.append('<path d="%s" stroke="#7A2E1E" stroke-width="1" fill="none" '
                      'stroke-dasharray="6 4" opacity="0.65"/>' % poly_path(p, off))
     if water:
-        for q in polys:
-            h.append('<path d="%s" fill="%s" stroke="#3F6F86" stroke-width="1.3" opacity="0.95"/>'
-                     % (poly_path(p, q), _wave()))
+        for w in d["water"]:
+            h.append('<path d="%s" fill="%s" stroke="#3F6F86" stroke-width="%.1f" opacity="0.95"%s/>'
+                     % (poly_path(p, w["outline"]), _wave(),
+                        1.3 if w.get("works") else 1.0,
+                        "" if w.get("works") else ' stroke-dasharray="7 4"'))
     if ishigaki:
         for r in d["ishigaki"]["runs"]:
             a, b = r["p0"], r["p1"]
@@ -328,14 +332,14 @@ def system_svg(d, W=1180.0):
 
 
 def profile_svg(d, ter, W=1180.0):
-    """縦断面。距離程 × 標高。"""
+    """縦断面。距離程 × 標高。水位は虎ノ門土橋で 3.50 → 1.80 に落ちる。"""
     pr = ter["profile"]
     L = ter["reachLength"]
-    H = 330.0
+    H = 340.0
     h = _sv(W, H, "縦断面")
     h.append(R(0, 0, W, H, fill="var(--paper)"))
     x0, xw = 52.0, W - 76.0
-    y0, ys = H - 52, 30.0
+    y0, ys = H - 56, 30.0
     X = lambda s: x0 + s / L * xw
     Y = lambda v: y0 - v * ys
     for v in range(0, 8):
@@ -348,42 +352,64 @@ def profile_svg(d, ter, W=1180.0):
         h.append('<text class="sl" x="%.1f" y="%.1f" style="text-anchor:middle">%d</text>'
                  % (X(s), y0 + 15, s))
     h.append('<text class="sl" x="%.1f" y="%.1f" style="text-anchor:middle">距離程 [m] ── '
-             '0 = 00002 の西端(虎ノ門土橋の東)</text>' % (x0 + xw / 2, y0 + 32))
-    wy = d["water"][0]["waterY"]
-    fl = d["works"]["floor"]
-    h.append(R(X(0), Y(wy), xw, Y(fl) - Y(wy), fill="#BBD3DF", op=0.8))
-    h.append('<path d="M%.1f,%.1f H%.1f" stroke="#3F6F86" stroke-width="1.8"/>' % (X(0), Y(wy), X(L)))
-    h.append('<path d="M%.1f,%.1f H%.1f" stroke="var(--ink)" stroke-width="1.4" '
-             'stroke-dasharray="5 3"/>' % (X(0), Y(fl), X(L)))
-    h.append('<text class="an2b" x="%.1f" y="%.1f">水面 %.2f</text>' % (X(0) + 6, Y(wy) - 6, wy))
-    h.append('<text class="anS" x="%.1f" y="%.1f">床 %.2f(一律)</text>' % (X(0) + 6, Y(fl) + 13, fl))
-    for key, col, dash, lab in ((5, "var(--dim)", "3 3", "現況 郭外(SW)"),
-                                (6, "var(--dim)", None, "現況 郭内(NE)"),
+             '0 = 堰の直下(00001 の西端)</text>' % (x0 + xw / 2, y0 + 32))
+    # 水位と床は水面ごとに帯で描く(距離程の連続する塊にまとめる)
+    runs = []
+    for r in pr:
+        if runs and runs[-1][0] == r[0]:
+            runs[-1][2] = r[1]
+        else:
+            runs.append([r[0], r[1], r[1], r[9], r[10]])
+    for i, (body, s0, s1, wy, fl) in enumerate(runs):
+        s1 = runs[i + 1][1] if i + 1 < len(runs) else s1   # 次の水面まで帯を継ぐ(測点の隙間を埋める)
+        h.append(R(X(s0), Y(wy), X(s1) - X(s0), Y(fl) - Y(wy), fill="#BBD3DF", op=0.8))
+        h.append('<path d="M%.1f,%.1f H%.1f" stroke="#3F6F86" stroke-width="1.8"/>'
+                 % (X(s0), Y(wy), X(s1)))
+        h.append('<path d="M%.1f,%.1f H%.1f" stroke="var(--ink)" stroke-width="1.3" '
+                 'stroke-dasharray="5 3"/>' % (X(s0), Y(fl), X(s1)))
+        h.append('<text class="an2b" x="%.1f" y="%.1f">水面 %.2f</text>' % (X(s0) + 6, Y(wy) - 6, wy))
+        h.append('<text class="sl" x="%.1f" y="%.1f">床 %.2f</text>' % (X(s0) + 6, Y(fl) + 13, fl))
+        h.append('<text class="jo" x="%.1f" y="%.1f" style="text-anchor:middle">%s</text>'
+                 % ((X(s0) + X(s1)) / 2, Y(7.4) - 20, body.replace("Sotobori_", "")))
+    # 虎ノ門土橋(堰堤)の段差
+    for i in range(1, len(runs)):
+        if runs[i][3] != runs[i - 1][3]:
+            sx = (runs[i - 1][2] + runs[i][1]) / 2
+            h.append('<path d="M%.1f,%.1f V%.1f" stroke="var(--shu)" stroke-width="2.4"/>'
+                     % (X(sx), Y(runs[i - 1][3]), Y(runs[i][3])))
+            h.append('<text class="anG" x="%.1f" y="%.1f" style="text-anchor:middle">'
+                     '虎ノ門土橋の堰 天端 3.30 ／ 落差 %.2f m</text>'
+                     % (X(sx), Y(runs[i - 1][3]) - 9, runs[i - 1][3] - runs[i][3]))
+    for key, col, dash, lab in ((5, "var(--dim)", "3 3", "現況 郭外"),
+                                (6, "var(--dim)", None, "現況 郭内"),
                                 (7, "var(--ishi)", "6 3", "石垣天端 郭外"),
                                 (8, "var(--ishi)", None, "石垣天端 郭内")):
-        pts = " ".join("%.1f,%.1f" % (X(r[1]), Y(r[key])) for r in pr)
-        h.append('<polyline points="%s" fill="none" stroke="%s" stroke-width="%.1f"%s/>'
-                 % (pts, col, 1.9 if key > 6 else 1.3,
-                    (' stroke-dasharray="%s"' % dash) if dash else ""))
-    lg = [("現況 郭外(SW)", "var(--dim)", "3 3"), ("現況 郭内(NE)", "var(--dim)", None),
+        seg, cur = [], []
+        for r in pr:
+            if r[key] is None:
+                if len(cur) > 1:
+                    seg.append(cur)
+                cur = []
+            else:
+                cur.append((X(r[1]), Y(r[key])))
+        if len(cur) > 1:
+            seg.append(cur)
+        for q in seg:
+            h.append('<polyline points="%s" fill="none" stroke="%s" stroke-width="%.1f"%s/>'
+                     % (" ".join("%.1f,%.1f" % t for t in q), col, 1.9 if key > 6 else 1.3,
+                        (' stroke-dasharray="%s"' % dash) if dash else ""))
+    lg = [("現況 郭外", "var(--dim)", "3 3"), ("現況 郭内", "var(--dim)", None),
           ("石垣天端 郭外", "var(--ishi)", "6 3"), ("石垣天端 郭内", "var(--ishi)", None)]
     for i, (t, c, ds) in enumerate(lg):
         yy = 20 + i * 15
         h.append('<path d="M%.1f,%.1f h22" stroke="%s" stroke-width="1.8"%s/>'
-                 % (W - 190, yy, c, (' stroke-dasharray="%s"' % ds) if ds else ""))
-        h.append('<text class="sl" x="%.1f" y="%.1f">%s</text>' % (W - 164, yy + 3, t))
-    for s in ter["sections"]:
+                 % (W - 178, yy, c, (' stroke-dasharray="%s"' % ds) if ds else ""))
+        h.append('<text class="sl" x="%.1f" y="%.1f">%s</text>' % (W - 152, yy + 3, t))
+    for sc in ter["sections"]:
         h.append('<path d="M%.1f,%.1f V%.1f" stroke="#7A2E1E" stroke-width="1" '
-                 'stroke-dasharray="4 3"/>' % (X(s["chainage"]), Y(0), Y(7.4)))
+                 'stroke-dasharray="4 3"/>' % (X(sc["chainage"]), Y(0), Y(7.4)))
         h.append('<text class="sr" x="%.1f" y="%.1f" style="text-anchor:middle">%s</text>'
-                 % (X(s["chainage"]), Y(7.4) - 5, s["mark"]))
-    # 水面の境
-    b = [r for r in pr if r[0] == "Sotobori_00003"]
-    if b:
-        h.append('<path d="M%.1f,%.1f V%.1f" stroke="var(--dim)" stroke-width="0.8" '
-                 'stroke-dasharray="2 3"/>' % (X(b[0][1]), Y(0), Y(7.4)))
-        h.append('<text class="jo" x="%.1f" y="%.1f" style="text-anchor:middle">00002 │ 00003</text>'
-                 % (X(b[0][1]), Y(7.4) - 18))
+                 % (X(sc["chainage"]), Y(7.4) - 5, sc["mark"]))
     h.append(ENDSVG)
     return "\n".join(h)
 
@@ -411,40 +437,43 @@ def section_svg(d, s, W=1180.0):
         if t % 10 == 0:
             h.append('<text class="sl" x="%.1f" y="%.1f" style="text-anchor:middle">%+d</text>'
                      % (X(t), y0 + 15, t))
-    wy = d["water"][0]["waterY"]
+    wy, fl = s["waterY"], s["floor"]
     des = [(X(r[0]), Y(r[2])) for r in row]
     cur = [(X(r[0]), Y(r[1])) for r in row]
-    # 掘る量(現況→設計)を塗る
-    h.append('<path d="%s L%s Z" fill="var(--cut2)" opacity="0.55"/>'
-             % ("M" + " L".join("%.1f,%.1f" % q for q in cur),
-                " L".join("%.1f,%.1f" % q for q in reversed(des))))
-    # 水
-    h.append(R(X(0), Y(wy), X(s["width"]) - X(0), Y(d["works"]["floor"]) - Y(wy),
-               fill="#BBD3DF", op=0.85))
+    if s["works"]:
+        h.append('<path d="%s L%s Z" fill="var(--cut2)" opacity="0.55"/>'
+                 % ("M" + " L".join("%.1f,%.1f" % q for q in cur),
+                    " L".join("%.1f,%.1f" % q for q in reversed(des))))
+    h.append(R(X(0), Y(wy), X(s["width"]) - X(0), Y(fl) - Y(wy), fill="#BBD3DF", op=0.85))
     h.append('<path d="M%.1f,%.1f H%.1f" stroke="#3F6F86" stroke-width="1.6"/>'
              % (X(0), Y(wy), X(s["width"])))
     h.append('<polyline points="%s" fill="none" stroke="var(--dim)" stroke-width="1.1" '
              'stroke-dasharray="4 3"/>' % " ".join("%.1f,%.1f" % q for q in cur))
     h.append('<polyline points="%s" fill="none" stroke="var(--ink)" stroke-width="1.9"/>'
              % " ".join("%.1f,%.1f" % q for q in des))
-    off = d["ishigaki"]["offsetFromWaterline"]
-    for t, cp, lab in ((-off, s["copingSW"], "郭外 石垣"), (s["width"] + off, s["copingNE"], "郭内 石垣")):
+    for t, cp, lab in ((-s["offsetSW"], s["copingSW"], "郭外 石垣"),
+                       (s["width"] + s["offsetNE"], s["copingNE"], "郭内 石垣")):
+        if cp is None:
+            continue
         h.append('<path d="M%.1f,%.1f V%.1f" stroke="var(--ishi)" stroke-width="2.6" opacity="0.85"/>'
-                 % (X(t), Y(cp), Y(d["works"]["floor"])))
+                 % (X(t), Y(cp), Y(fl)))
         h.append('<text class="anS2" x="%.1f" y="%.1f">%s 天端 %.2f</text>' % (X(t), Y(cp) - 7, lab, cp))
     for t, lab in ((0, "汀線"), (s["width"], "汀線")):
         h.append('<path d="M%.1f,%.1f V%.1f" stroke="#3F6F86" stroke-width="0.8" '
                  'stroke-dasharray="2 3"/>' % (X(t), Y(lo), Y(hi)))
-    ww = d["works"]["outerWidth"]
-    for t in (-ww, s["width"] + ww):
+    ww = d["works"]["outerWidth"] if s["works"] else None
+    for t in ((-ww, s["width"] + ww) if ww else ()):
         h.append('<path d="M%.1f,%.1f V%.1f" stroke="#7A2E1E" stroke-width="1" '
                  'stroke-dasharray="6 4"/>' % (X(t), Y(lo), Y(hi)))
-    h.append('<text class="sl" x="%.1f" y="%.1f">工区の境</text> ' % (X(-ww) + 4, Y(hi) + 12))
-    h.append('<text class="sl" x="%.1f" y="%.1f" style="text-anchor:end">工区の境</text>'
-             % (X(s["width"] + ww) - 4, Y(hi) + 12))
+    if ww:
+        h.append('<text class="sl" x="%.1f" y="%.1f">工区の境</text>' % (X(-ww) + 4, Y(hi) + 12))
+        h.append('<text class="sl" x="%.1f" y="%.1f" style="text-anchor:end">工区の境</text>'
+                 % (X(s["width"] + ww) - 4, Y(hi) + 12))
     vex = (yh / (hi - lo)) / (xw / (t1 - t0))
     h.append('<text class="big" x="%.1f" y="20">断面 %s ── 距離程 %.0f m ／ 水面幅 %.2f m ／ '
-             '垂直倍率 %.1f 倍</text>' % (x0, s["mark"], s["chainage"], s["width"], vex))
+             '垂直倍率 %.1f 倍%s</text>'
+             % (x0, s["mark"], s["chainage"], s["width"], vex,
+                "" if s["works"] else " ／ 調査(掘らない)"))
     h.append('<text class="sl" x="%.1f" y="%.1f" style="text-anchor:middle">汀線からの距離 [m] '
              '(左=郭外 / 右=郭内)</text>' % (x0 + xw / 2, y0 + 32))
     h.append(ENDSVG)
@@ -462,7 +491,8 @@ def rule_svg(d, W=1180.0):
     span = w["outerWidth"] + 20
     X = lambda t: x0 + (t + span) / (2 * span) * xw
     Y = lambda v: y0 - v * ys
-    zones = [(-span, 0, "① 汀線の内側(堀) ── 床 %.2f 一律" % w["floor"], "#BBD3DF"),
+    fl = [b["floor"] for b in d["water"] if b.get("works")][0]
+    zones = [(-span, 0, "① 汀線の内側(堀) ── 床 %.2f 一律" % fl, "#BBD3DF"),
              (0, w["featherFrom"], "② 0–%.0fm ── 種地をそのまま戻す" % w["featherFrom"], "var(--cut1)"),
              (w["featherFrom"], w["outerWidth"], "③ %.0f–%.0fm ── 摺り付け(④で45°頭打ち)"
               % (w["featherFrom"], w["outerWidth"]), "var(--fill1)"),
@@ -474,11 +504,11 @@ def rule_svg(d, W=1180.0):
     h.append('<path d="M%.1f,%.1f H%.1f" stroke="var(--rule)" stroke-width="1"/>' % (x0, Y(0), x0 + xw))
     for v in range(0, 8):
         h.append('<text class="sl" x="20" y="%.1f">%d m</text>' % (Y(v) + 3, v))
-    wy = d["water"][0]["waterY"]
+    wy = [b["waterY"] for b in d["water"] if b.get("works")][0]
     h.append('<path d="M%.1f,%.1f H%.1f" stroke="#3F6F86" stroke-width="1.8"/>'
              % (X(-span), Y(wy), X(0)))
     h.append('<text class="an2b" x="%.1f" y="%.1f">水面 %.2f</text>' % (X(-span) + 6, Y(wy) - 6, wy))
-    seg = [(-span, w["floor"]), (0, w["floor"]), (1.5, w["floor"]), (4.9, 6.6), (10, 6.7),
+    seg = [(-span, fl), (0, fl), (1.5, fl), (4.9, 6.6), (10, 6.7),
            (14, 6.2), (span, 6.0)]
     h.append('<polyline points="%s" fill="none" stroke="var(--ink)" stroke-width="2.2"/>'
              % " ".join("%.1f,%.1f" % (X(t), Y(v)) for t, v in seg))
@@ -487,10 +517,9 @@ def rule_svg(d, W=1180.0):
              % " ".join("%.1f,%.1f" % (X(t), Y(v)) for t, v in
                         [(-span, 6.1), (0, 6.1), (10, 6.0), (14, 6.2), (span, 6.0)]))
     h.append('<path d="M%.1f,%.1f V%.1f" stroke="var(--ishi)" stroke-width="3" opacity="0.9"/>'
-             % (X(d["ishigaki"]["offsetFromWaterline"]), Y(6.6), Y(w["floor"])))
-    h.append('<text class="anS2" x="%.1f" y="%.1f">石垣(汀線の外 %.2f m)</text>'
-             % (X(d["ishigaki"]["offsetFromWaterline"]) + 6, Y(6.6) - 8,
-                d["ishigaki"]["offsetFromWaterline"]))
+             % (X(4.81), Y(6.6), Y(fl)))
+    h.append('<text class="anS2" x="%.1f" y="%.1f">石垣(汀線の外 4.81 m)</text>'
+             % (X(4.81) + 6, Y(6.6) - 8))
     for t in (0, w["outerWidth"]):
         h.append('<path d="M%.1f,%.1f V%.1f" stroke="#7A2E1E" stroke-width="1" '
                  'stroke-dasharray="6 4"/>' % (X(t), Y(0), Y(7.6)))
@@ -510,33 +539,62 @@ def tbl(head, rows, cls="tw"):
 
 def spec_table(d, ter):
     v = ter["volumes"]
-    s = ter["submerged"]
     rows = []
-    add = lambda a, b: rows.append("<tr><td class='note' style='text-align:left'>%s</td><td>%s</td></tr>" % (a, b))
-    add("距離程(SW 汀線に沿う)", "%.1f m" % ter["reachLength"])
-    add("水面(汀線の内側)", "%.2f ha" % v["waterAreaHa"])
-    add("工区(汀線 + %.0f m)" % d["works"]["outerWidth"], "%.2f ha" % v["workAreaHa"])
-    add("設計水位 / 深さ / 床", "%.2f / %.2f / %.2f m" % (d["water"][0]["waterY"],
-                                                    d["water"][0]["depth"], d["works"]["floor"]))
-    add("石垣の天端(郭外 → 東)", "%.2f → %.2f m" % (d["ishigaki"]["runs"][0]["copingFrom"],
-                                            d["ishigaki"]["runs"][4]["copingTo"]))
-    add("石垣の天端(郭内 → 東)", "%.2f → %.2f m" % (d["ishigaki"]["runs"][1]["copingFrom"],
-                                            d["ishigaki"]["runs"][7]["copingTo"]))
+    add = lambda a, b: rows.append(
+        "<tr><td class='note' style='text-align:left'>%s</td><td>%s</td></tr>" % (a, b))
+    add("距離程(郭外の汀線に沿う。0 = 堰の直下)", "%.1f m" % ter["reachLength"])
+    add("掘り直す水面(00002 + 00003)", "%.2f ha" % v["waterAreaHa"])
+    add("工区(その汀線 + %.0f m)" % d["works"]["outerWidth"], "%.2f ha" % v["workAreaHa"])
     add("掘削", "%s m³(最大 %.2f m)" % ("{:,}".format(v["cut_m3"]), v["maxCut_m"]))
     add("盛土", "%s m³(最大 %.2f m)" % ("{:,}".format(v["fill_m3"]), v["maxFill_m"]))
     add("差引(場外へ出る土)", "%s m³" % "{:,}".format(v["net_m3"]))
-    add("水没率(汀線の内側)", "%.1f%% → %.1f%%" % (s["beforePct"], s["afterPct"]))
     add("工区の外へ出た変更セル", "%d" % v["spillCells"])
     return tbl(["諸元", "値"], rows)
+
+
+def survey_table(ter):
+    rows = []
+    for r in ter["survey"]:
+        if r["works"]:
+            after = "%.1f%% → <b>%.1f%%</b>" % (r["curSubmergedPct"], r["designSubmergedPct"])
+            fl = "%.2f(設計)" % r["floor"]
+            note = "全面 掘り直し"
+        else:
+            after = "%.1f%%" % r["curSubmergedPct"]
+            fl = "%.2f — 床±0.2m に %.1f%%" % (r["floor"], r["curOnFloorPct"])
+            note = ("調査のみ ── 乾き %.3f ha(その %.0f%% は汀線から4m以内の縁)／"
+                    "08-22 リセット直前と一致 %.1f%%"
+                    % (r["dryHa"], r["dryWithin4mOfEdgePct"], r["curVsPreSamePct"]))
+        rows.append("<tr><td>%s</td><td>%.2f ha</td><td>%.2f</td><td>%s</td><td>%s</td>"
+                    "<td class='note' style='text-align:left'>%s</td></tr>"
+                    % (r["id"], r["areaHa"], r["waterY"], fl, after, note))
+    return tbl(["水面", "面積", "水位", "床", "水面より下", "扱い"], rows)
+
+
+def buried_table(ter):
+    rows = []
+    for b in ter["ishigakiBuried"]:
+        flag = " ⚠" if b["buriedPct"] > 20 else ""
+        rows.append("<tr><td>%s</td><td>%s</td><td>%d</td><td>%+.2f</td><td>%+.2f</td>"
+                    "<td>%.0f%%%s</td></tr>"
+                    % (b["line"], b["body"].replace("Sotobori_", ""), b["n"],
+                       b["curOverCopingMedian"], b["designOverCopingMedian"],
+                       b["buriedPct"], flag))
+    return tbl(["石垣の run", "水面", "評価点", "現況地盤 − 天端(中央)",
+                "設計地盤 − 天端(中央)", "天端が埋まる割合"], rows)
 
 
 def back_table(ter):
     rows = []
     for b in ter["ishigakiBack"]:
-        flag = "" if abs(b["median"]) <= 1.0 else " ⚠"
-        rows.append("<tr><td>%s</td><td>%d</td><td>%+.2f%s</td><td>%+.2f</td><td>%+.2f</td></tr>"
-                    % (b["line"], b["n"], b["median"], flag, b["min"], b["max"]))
-    return tbl(["石垣の run", "評価点", "天端 − 背面の設計地盤(中央)", "最小", "最大"], rows)
+        flag = "" if (abs(b["median"]) <= 1.0 or not b["works"]) else " ⚠"
+        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%d</td><td>%+.2f%s</td>"
+                    "<td>%+.2f</td><td>%+.2f</td></tr>"
+                    % (b["line"], b["body"].replace("Sotobori_", ""),
+                       "掘る" if b["works"] else "調査", b["n"], b["median"], flag,
+                       b["min"], b["max"]))
+    return tbl(["石垣の run", "水面", "扱い", "評価点",
+                "天端 − 背面の設計地盤(中央)", "最小", "最大"], rows)
 
 
 def stage_table(d):
@@ -617,19 +675,22 @@ def main():
     h.append('<p class="lede">2026-08-22 の造成リセットが、虎ノ門土橋の東の外堀を'
              '<b>掘削もろとも現代の地面へ戻していた</b>。水面のメッシュは張られたままなので、'
              'いまは乾いた地面の中に水の板が沈み、両岸の総石垣も土に埋まっている。'
-             'これはその掘り直しの指図である。<b>新設ではなく復旧</b>で、'
-             '堀の形・水位・石垣・橋はすでに考証を通って実装されており、この指図はそれを動かさない。'
+             'これは<b>溜池の堰(どんどん)から下流ひと続き</b>を対象とした掘り直しの指図である。'
+             '<b>新設ではなく復旧</b>で、堀の形・水位・石垣・橋はすでに考証を通って実装されており、'
+             'この指図はそれを動かさない。'
              '<b>数値の正典は <code>sotobori_sashizu.json</code>、文章の正典は <code>sotobori_kosho.md</code>、'
              '実測は <code>sotobori_terrain.json</code>。</b>この頁はその三つから組んだもので、実装は読んでいない。</p>')
-    w = d["why"]
-    h.append('<div class="box"><p><b>いま何が起きているか</b> ── 汀線の内側で水面より下にある面積は '
-             '<b>%s / %s</b>(00002 / 00003)。掘り直すと <b>%s / %s</b> になる。'
+    sv = {r["id"]: r for r in ter["survey"]}
+    h.append('<div class="box"><p><b>三つの水面で扱いが違う</b> ── 08-22 のリセットが'
+             '「水色の囲い」の内か外かで生死が分かれた。'
+             '<b>00001</b>(堰〜虎ノ門)は囲いの中で無傷 ── 水面より下 <b>%.1f%%</b>・'
+             'リセット直前と一致 <b>%.1f%%</b> なので<b>調査のみ</b>。'
+             '囲いの外の <b>00002 / 00003</b>(土橋の東)は掘削が丸ごと戻り、水面より下は'
+             'それぞれ <b>%.1f%% / %.1f%%</b> しか残っていない ── こちらが<b>掘り直しの対象</b>。'
              '%s</p></div>'
-             % ("%.1f%%" % w["beforeSubmergedPct"]["Sotobori_00002"],
-                "%.1f%%" % w["beforeSubmergedPct"]["Sotobori_00003"],
-                "%.1f%%" % w["afterSubmergedPct"]["Sotobori_00002"],
-                "%.1f%%" % w["afterSubmergedPct"]["Sotobori_00003"],
-                html.escape(w["note"])))
+             % (sv["Sotobori_00001"]["curSubmergedPct"], sv["Sotobori_00001"]["curVsPreSamePct"],
+                sv["Sotobori_00002"]["curSubmergedPct"], sv["Sotobori_00003"]["curSubmergedPct"],
+                html.escape(d["why"]["note"])))
 
     plate(h, nx(), "位置と水系", "溜池 → 堰 → 虎ノ門 → 幸橋")
     fig(h, system_svg(d),
@@ -640,12 +701,21 @@ def main():
         cap="平面。<b>青=水面 / 灰=石垣の run / 赤の破線=工区の境</b>。"
             "堀は虎ノ門土橋の東から東南東へ下り、幸橋方向で切れる。")
 
+    plate(h, nx(), "現況調査", "三つの水面を同じ物差しで測る")
+    h.append(survey_table(ter))
+    h.append('<p class="cap">⛔ <b>00001 は1セルも触らない。</b>現況が 08-22 リセット直前と'
+             '完全に一致しており、水面より上に出ている所も<b>その9割が汀線から4m以内の縁</b>で、'
+             '残りは堰の頭と虎ノ門土橋 ── どちらも構造物であって掘り残しではない。'
+             '⚠ ただし数値は<b>溜池の掘り直し(2026-08-26)の直前</b>のスナップショットによる。'
+             '堰の頭がその工事の帯に掛かっていないかは live terrain でしか測れない(未解決 U8)。</p>')
+
     plate(h, nx(), "現況図", "段彩 + 等高線 1m ── 造成リセット後の地面")
     fig(h, plan_svg(d, dem, ter, "cur"), legend=low_legend(),
-        cap="<b>汀線の内側がほぼ全面、水面 %.2f より上の陸になっている</b>のが読み取れる。"
+        cap="<b>土橋の東(00002・00003)は汀線の内側がほぼ全面、水面 %.2f より上の陸になっている</b>のが"
+            "読み取れる。上流の 00001(破線の汀線)は掘れたままで、段彩がそこだけ寒色に沈む。"
             "段彩のランプはこの低地用に 0〜8m で別に持つ(屋敷の指図の 10m 起点のランプでは全部同じ色になる)。"
             "赤の一点鎖線は横断の切り位置。"
-            % d["water"][0]["waterY"])
+            % [b["waterY"] for b in d["water"] if b.get("works")][0])
 
     plate(h, nx(), "掘削平面図", "切盛 ── 寒色=掘る / 暖色=盛る")
     fig(h, plan_svg(d, dem, ter, "cf"), legend=cutfill_legend(),
@@ -664,10 +734,16 @@ def main():
     for s in ter["sections"]:
         note = [x["note"] for x in d["sections"]["list"] if x["mark"] == s["mark"]][0]
         plate(h, nx(), "横断面 %s" % s["mark"], "距離程 %.0f m ／ %s" % (s["chainage"], s["body"]))
-        fig(h, section_svg(d, s),
-            cap="<b>┄ 現況 / ── 設計 / 寒色の塗り = 掘る量</b>。%s。"
-                "⛔ <b>堀の壁は垂直のまま残す</b> — 溜池の掘り直しのように 45°で均すと"
-                "石垣の面が土に埋まり、堀が皿になる。" % html.escape(note))
+        if s["works"]:
+            cap = ("<b>┄ 現況 / ── 設計 / 寒色の塗り = 掘る量</b>。%s。"
+                   "⛔ <b>堀の壁は垂直のまま残す</b> — 溜池の掘り直しのように 45°で均すと"
+                   "石垣の面が土に埋まり、堀が皿になる。" % html.escape(note))
+        else:
+            cap = ("<b>調査断面 — 掘らないので設計 = 現況で、線は重なる。</b>%s。"
+                   "この一枚が<b>無傷の堀の姿</b>で、土橋の東はこれが失われた状態にある。"
+                   "⚠ 郭外の石垣の天端が地面のずっと下にあるのが読み取れる(未解決 U9)。"
+                   % html.escape(note))
+        fig(h, section_svg(d, s), cap=cap)
 
     plate(h, nx(), "工区と摺り付け", "規則 ①〜⑤")
     fig(h, rule_svg(d))
@@ -695,8 +771,18 @@ def main():
              '⚠ <b>最大の外れ値は 00002 と 00003 の継ぎ目に集まる</b>(SW3b・NE3g) — '
              '二つの汀線が入隅で交わり、「汀線からの距離」で岸を測る規則が素直に効かない所で、'
              '附則 P1 で戻しきれない床が数十m² 残る見込み(未解決 U7)。'
-             '⚠ SW2 の最小が負なのは西端の虎ノ門寄りで<b>現況の地面がもともと天端より高い</b>ため。</p>'
-             % d["works"]["floor"])
+             '⚠ SW2 の最小が負なのは西端の虎ノ門寄りで<b>現況の地面がもともと天端より高い</b>ため。'
+             '⚠ 00001 の run(CW1s・CW1n・R1・R3)は<b>合否の対象ではない</b> — 掘らないので'
+             '設計地盤 = 現況で、断面の形も 00002・00003 と違う(次の表を見ること)。</p>'
+             % [b["floor"] for b in d["water"] if b.get("works")][0])
+
+    h.append("<h4>石垣が土に埋まっていないか(run 線そのもので測る)</h4>")
+    h.append(buried_table(ter))
+    h.append('<p class="cap">⚠ <b>00001 の郭外の CW1s(Ishigaki_Ext_4・87個)は全長にわたり'
+             '天端が地面より 2m 下にある。</b>土橋の取付の R1・R3 も同様に埋まる。'
+             'これは 08-22 のリセットのせいではない ── <b>現況と 08-22 リセット直前が一致</b>しており、'
+             '2026-08-10 に建てたときからこの姿である。'
+             '<b>この指図では直さない</b>(00001 は調査のみ)。是正は未解決 U9 として別に立てる。</p>')
 
     plate(h, nx(), "施工の段階", "地形の編集は Undo の外")
     h.append(stage_table(d))

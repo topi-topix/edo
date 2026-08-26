@@ -73,7 +73,7 @@ python3 Tools/Sashizu/build_okabe_sashizu.py
 
 | 普請 | 地区 | 状態 | 図面 | Artifact |
 |---|---|---|---|---|
-| 外堀下流 掘り直し(Sotobori_00002・00003) | 虎ノ門〜幸橋方向 | **起案(レビュー待ち)** | [sotobori_sashizu.html](sotobori_sashizu.html) | https://claude.ai/code/artifact/87dd7a78-0238-47c6-917b-107fe4e92dd3 |
+| 溜池堰下流 外堀 掘り直し(Sotobori_00001・00002・00003) | 堰(どんどん)〜幸橋方向 | **起案(レビュー待ち)** | [sotobori_sashizu.html](sotobori_sashizu.html) | https://claude.ai/code/artifact/87dd7a78-0238-47c6-917b-107fe4e92dd3 |
 
 **土木は武家屋敷と作りが違う。** 回転間グリッド・室割り・建蔽率は無い。基準は**距離程**で、
 図版は 位置と水系／現況／切盛／縦断／横断／取り合い／工区と摺り付け で組む。

@@ -1680,6 +1680,7 @@ def terrain_provenance_check(d):
 
 BURY_MAX = 0.30         # 外側の地盤が座より高くてよい量[m](埋没)
 FLOAT_MAX = 0.35        # 基壇を持たない run の足元が地盤から浮いてよい量[m]
+ISHI_MAX = 1.00         # 「根石」と呼んでよい高さの上限[m]。超えたら基壇
 
 
 def outside_bury_check(d):
@@ -1749,6 +1750,14 @@ def outside_bury_check(d):
         #   誤検出する(2026-08-26: S_Hei_Okabe5 の浮き 0.40m は根石 0.30m でほぼ受かる)。
         if seen and not r.get("base"):
             ishi = float(r.get("ishi", 0.0) or 0.0)
+            # ⛔ **免除の名前を替えただけの抜け道を塞ぐ**(土井の指摘 2026-08-26)。
+            #   `base` を外して `ishi` を大きく書けば浮きの判定を素通りできてしまう。
+            #   根石が背丈を超えたらそれは根石ではなく基壇である。
+            if ishi > ISHI_MAX:
+                bad.append("外周 %s(辺%d)の根石が %.2fm ある — 背丈(%.2fm)を超える石積みは"
+                           "根石でなく**基壇**。`base:Ishigaki` を持たせること"
+                           % (r["name"], r["edge"], ishi, ISHI_MAX))
+                ishi = ISHI_MAX
             hf, fs = -9e9, s0
             s = s0
             while s <= s1:

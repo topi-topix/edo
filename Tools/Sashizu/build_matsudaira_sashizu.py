@@ -1580,9 +1580,23 @@ def terrain_provenance_check(d):
         return ((H[j][i] * (1 - tx) + H[j][i + 1] * tx) * (1 - tz)
                 + (H[j + 1][i] * (1 - tx) + H[j + 1][i + 1] * tx) * tz)
 
+    # ⚠ **区画が正本の切り出しに収まっているか**(司令塔の通達 2026-08-24 項6:
+    #   「切り出しの余白が南13m・北21m と最も薄い。区画を動かすとはみ出す」)。
+    #   ⛔ 下の照合ループは `nat()` が None の点を**黙って飛ばす**ので、
+    #   はみ出しは「差が小さい」に化けて見えない — 検査の中に同じ穴を作らない。
+    P = d["polygon"]
+    xs = [q[0] for q in P]
+    zs = [q[1] for q in P]
+    X1, Z1 = x0 + (nx - 1) * st, z0 + (nz - 1) * st
+    margins = [("西", min(xs) - x0), ("東", X1 - max(xs)), ("南", min(zs) - z0), ("北", Z1 - max(zs))]
+    short = [(k, m) for k, m in margins if m < 0]
+    if short:
+        return ["区画が正本 DEM の切り出しからはみ出している(%s)— "
+                "`python3 Tools/Sashizu/build_base_dem.py --fit` で切り出しを広げること(規則12)"
+                % "・".join("%s %.1fm" % (k, m) for k, m in short)]
     T = tj["h"]
     u0, v0, du = tj["u0"], tj["v0"], tj["step"]
-    worst, wu, wv, wa, wb, seen = 0.0, 0, 0, 0.0, 0.0, 0
+    worst, wu, wv, wa, wb, seen, gap = 0.0, 0, 0, 0.0, 0.0, 0, 0
     for j in range(0, len(T), 3):
         for i in range(0, len(T[0]), 3):
             t = T[j][i]
@@ -1593,12 +1607,17 @@ def terrain_provenance_check(d):
             z = g["z0"] + (g["uz"] * u + g["vz"] * v) * ken
             y = nat(x, z)
             if y is None:
+                gap += 1        # ⛔ 黙って飛ばさない。下で数える
                 continue
             seen += 1
             if abs(t - y) > worst:
                 worst, wu, wv, wa, wb = abs(t - y), u, v, t, y
     if seen < 200:
         return ["地形の照合の標本が %d 点しか取れない — 格子の範囲か正本の切り出しがおかしい" % seen]
+    if gap > seen * 0.02:
+        return ["回転間格子の %d/%d 点(%.1f%%)が正本 DEM の外に出ている — "
+                "切り出しを広げるか格子の範囲を絞ること(規則12)"
+                % (gap, gap + seen, 100.0 * gap / (gap + seen))]
     if worst > TERRAIN_TOL:
         return ["回転間格子の地形が正本 DEM と %.2fm 食い違う(u=%.0f v=%.0f: 格子 %.2f / 正本 %.2f)— "
                 "**種地が正本から来ていない**。live terrain を吸っていないか(規則12)"

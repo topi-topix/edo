@@ -86,11 +86,19 @@ python3 Tools/Sashizu/build_okabe_sashizu.py
 | `sotobori_dem.json` | 現況地盤と復元の種地(段彩・等高線・切盛の格子) | `Tools/Sashizu/build_sotobori_dem.py` |
 | `sotobori_terrain.json` | 縦断・横断・土量・検査の実測 | 同上 |
 | `sotobori_sashizu.html` | 上の四つから組んだ図面 | `Tools/Sashizu/build_sotobori_sashizu.py` |
+| `sotobori_saitei.json` | **裁定図**の案の定義 | 人 |
+| `sotobori_saitei.html` | 裁定図(どこが・どう変わるか) | `Tools/Sashizu/build_sotobori_saitei.py` |
 
 ```bash
 python3 Tools/Sashizu/build_sotobori_dem.py      # ⚠ TerrainBackups を読むのでメインの作業ツリーで
 python3 Tools/Sashizu/build_sotobori_sashizu.py
+python3 Tools/Sashizu/build_sotobori_saitei.py   # ⚠ 同じく TerrainBackups を読む
 ```
+
+⭐ **裁定が要る所は「裁定図」を別に起こす。** 指図の未解決の欄に文章で書くだけでは
+「どこの話か分からない」(2026-08-27 ユーザー指摘)。件ごとに **①全体の中の位置／②拡大平面／
+③断面に案を重ねた図／④案の表** の4点セットで出す。⛔ 案の採否が決まったら、決まった案だけを
+`sotobori_sashizu.json` へ書き移し、裁定図は畳む。
 
 ⚠ `base_dem.json` の範囲(x −800..−330 / z 600..1340)は**外堀を覆っていない**。当面 `build_sotobori_dem.py`
 は正本と同じ出自(`ref_height.npy`)から直に切り出す。正本の拡張は `EDO-0014` と併せて起票する。

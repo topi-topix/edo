@@ -240,40 +240,44 @@ def zoom_svg(d, it, samp, W=1180.0):
                  % (p.X(it["notch"][1][0]), p.Y(it["notch"][1][1]), COL["A"]))
         h.append('<text class="anS" x="%.1f" y="%.1f" fill="%s">入隅の頂点</text>'
                  % (p.X(it["notch"][1][0]) + 8, p.Y(it["notch"][1][1]) + 14, COL["A"]))
+    sec = None
     if it.get("sectionAt"):
         sa = it["sectionAt"]
         aa = math.radians(sa["yaw"])
         nn = (math.cos(aa + math.pi / 2), math.sin(aa + math.pi / 2))
-        p0 = (sa["p"][0] + sa["tFrom"] * nn[0], sa["p"][1] + sa["tFrom"] * nn[1])
-        p1 = (sa["p"][0] + sa["tTo"] * nn[0], sa["p"][1] + sa["tTo"] * nn[1])
-        h.append('<path d="M%.1f,%.1f L%.1f,%.1f" stroke="#7A2E1E" stroke-width="1.4" '
-                 'stroke-dasharray="6 4"/>' % (p.X(p0[0]), p.Y(p0[1]), p.X(p1[0]), p.Y(p1[1])))
-        h.append('<circle cx="%.1f" cy="%.1f" r="7" fill="var(--paper)" stroke="#7A2E1E" '
-                 'stroke-width="1.4"/><text class="rmS" x="%.1f" y="%.1f" fill="#7A2E1E">左</text>'
-                 % (p.X(p0[0]), p.Y(p0[1]), p.X(p0[0]), p.Y(p0[1]) + 4))
-        h.append('<circle cx="%.1f" cy="%.1f" r="7" fill="var(--paper)" stroke="#7A2E1E" '
-                 'stroke-width="1.4"/><text class="rmS" x="%.1f" y="%.1f" fill="#7A2E1E">右</text>'
-                 % (p.X(p1[0]), p.Y(p1[1]), p.X(p1[0]), p.Y(p1[1]) + 4))
-        h.append('<text class="sr" x="%.1f" y="%.1f">この線で切った断面が下の図。'
-                 '丸の「左」が断面の左端、「右」が右端</text>'
-                 % (p.X(p0[0]) + 12, p.Y(p0[1]) - 10))
+        sec = ((sa["p"][0] + sa["tFrom"] * nn[0], sa["p"][1] + sa["tFrom"] * nn[1]),
+               (sa["p"][0] + sa["tTo"] * nn[0], sa["p"][1] + sa["tTo"] * nn[1]), nn)
     elif it.get("section"):
-        sw, ne, u, n, ln = frame(d, it["body"])
+        sw, ne, u, nn, ln = frame(d, it["body"])
         c = it["section"]["chainage"]
-        q = (sw[0][0] + c * u[0], sw[0][1] + c * u[1])
-        a = (q[0] + it["section"]["tFrom"] * n[0], q[1] + it["section"]["tFrom"] * n[1])
-        b = (q[0] + it["section"]["tTo"] * n[0], q[1] + it["section"]["tTo"] * n[1])
-        h.append('<path d="M%.1f,%.1f L%.1f,%.1f" stroke="#7A2E1E" stroke-width="1.4" '
-                 'stroke-dasharray="6 4"/>' % (p.X(a[0]), p.Y(a[1]), p.X(b[0]), p.Y(b[1])))
-        h.append('<circle cx="%.1f" cy="%.1f" r="7" fill="var(--paper)" stroke="#7A2E1E" '
-                 'stroke-width="1.4"/><text class="rmS" x="%.1f" y="%.1f" fill="#7A2E1E">左</text>'
-                 % (p.X(a[0]), p.Y(a[1]), p.X(a[0]), p.Y(a[1]) + 4))
-        h.append('<circle cx="%.1f" cy="%.1f" r="7" fill="var(--paper)" stroke="#7A2E1E" '
-                 'stroke-width="1.4"/><text class="rmS" x="%.1f" y="%.1f" fill="#7A2E1E">右</text>'
-                 % (p.X(b[0]), p.Y(b[1]), p.X(b[0]), p.Y(b[1]) + 4))
-        h.append('<text class="sr" x="%.1f" y="%.1f">この線で切った断面が下の図。'
-                 '丸の「左」が断面の左端、「右」が右端</text>'
-                 % (p.X(a[0]) + 12, p.Y(a[1]) - 10))
+        qq = (sw[0][0] + c * u[0], sw[0][1] + c * u[1])
+        sec = ((qq[0] + it["section"]["tFrom"] * nn[0], qq[1] + it["section"]["tFrom"] * nn[1]),
+               (qq[0] + it["section"]["tTo"] * nn[0], qq[1] + it["section"]["tTo"] * nn[1]), nn)
+    if sec:
+        aP, bP, nn = sec
+        h.append('<path d="M%.1f,%.1f L%.1f,%.1f" stroke="#7A2E1E" stroke-width="1.6" '
+                 'stroke-dasharray="9 5"/>' % (p.X(aP[0]), p.Y(aP[1]), p.X(bP[0]), p.Y(bP[1])))
+        # 矢視 — 断面の「右」が nn の向きなので、見ている向きは nn を+90°回した向き
+        vx, vz = -nn[1], nn[0]
+        for pt, lab in ((aP, "左"), (bP, "右")):
+            sx, sy = p.X(pt[0]), p.Y(pt[1])
+            ex, ey = p.X(pt[0] + 26 * vx), p.Y(pt[1] + 26 * vz)
+            dxp, dyp = ex - sx, ey - sy
+            ln2 = math.hypot(dxp, dyp) or 1
+            ux2, uy2 = dxp / ln2, dyp / ln2
+            h.append('<path d="M%.1f,%.1f L%.1f,%.1f" stroke="#7A2E1E" stroke-width="2.4"/>'
+                     % (sx, sy, ex, ey))
+            h.append('<path d="M%.1f,%.1f l%.1f,%.1f l%.1f,%.1f z" fill="#7A2E1E"/>'
+                     % (ex, ey, -8 * ux2 - 4 * uy2, -8 * uy2 + 4 * ux2,
+                        8 * uy2, -8 * ux2))
+            h.append('<circle cx="%.1f" cy="%.1f" r="8" fill="var(--paper)" stroke="#7A2E1E" '
+                     'stroke-width="1.6"/><text class="rmS" x="%.1f" y="%.1f" fill="#7A2E1E">%s</text>'
+                     % (sx, sy, sx, sy + 4, lab))
+        mx = (p.X(aP[0]) + p.X(bP[0])) / 2 + 44 * vx
+        my = (p.Y(aP[1]) + p.Y(bP[1])) / 2 - 44 * vz
+        h.append(R(mx - 96, my - 13, 192, 20, fill="var(--paper)", op=0.85))
+        h.append('<text class="anG" x="%.1f" y="%.1f" style="text-anchor:middle">'
+                 '▶ 矢印の向きに見た図が下の断面</text>' % (mx, my + 2))
     h.append('<path d="M%.1f,%.1f l0,-26 m-5,7 l5,-7 l5,7" stroke="var(--dim)" '
              'stroke-width="1.2" fill="none"/>'
              '<text class="anS2" x="%.1f" y="%.1f">北</text>'
@@ -285,52 +289,64 @@ def zoom_svg(d, it, samp, W=1180.0):
     return "\n".join(h)
 
 
-def sect_svg(d, it, samp, W=1180.0, dsamp=None):
-    """断面 — 現況に各案を重ねる。
-
-    通常は水面の縦断の基準(郭外汀線)に直角に切るが、入隅のように基準線が意味を持たない
-    所は `sectionAt`(点と向きを直に指定)で切る。
-    """
+def sect_frame(d, it):
+    """断面の切り位置(点 q・法線 n・水面幅 wd・範囲 sc)を決める。"""
     if it.get("sectionAt"):
         sa = it["sectionAt"]
         q = tuple(sa["p"])
-        a = math.radians(sa["yaw"])
-        n = (math.cos(a + math.pi / 2), math.sin(a + math.pi / 2))
-        sc = {"chainage": 0.0, "tFrom": sa["tFrom"], "tTo": sa["tTo"]}
-        wd = 0.0
-    else:
-        sw, ne, u, n, ln = frame(d, it["body"])
-        sc = it["section"]
-        q = (sw[0][0] + sc["chainage"] * u[0], sw[0][1] + sc["chainage"] * u[1])
-        wd = width_at(q, n, ne)
+        ang = math.radians(sa["yaw"])
+        n = (math.cos(ang + math.pi / 2), math.sin(ang + math.pi / 2))
+        return q, n, 0.0, {"chainage": 0.0, "tFrom": sa["tFrom"], "tTo": sa["tTo"]}, sa["label"]
+    sw, ne, u, n, ln = frame(d, it["body"])
+    sc = it["section"]
+    q = (sw[0][0] + sc["chainage"] * u[0], sw[0][1] + sc["chainage"] * u[1])
+    return q, n, width_at(q, n, ne), sc, "距離程 %.0f m" % sc["chainage"]
+
+
+def _axes(h, sc, lo, hi, W, H, x0, xw, y0, yh, X, Y):
+    for v in range(int(math.floor(lo)), int(math.ceil(hi)) + 1):
+        h.append('<path d="M%.1f,%.1f H%.1f" stroke="var(--rule)" stroke-width="0.5" '
+                 'opacity="0.8"/>' % (x0 - 6, Y(v), x0 + xw))
+        h.append('<text class="sl" x="16" y="%.1f">%d m</text>' % (Y(v) + 3, v))
+    for t in range(int(sc["tFrom"]), int(sc["tTo"]) + 1, 5):
+        h.append('<path d="M%.1f,%.1f V%.1f" stroke="var(--rule)" stroke-width="0.4" '
+                 'opacity="0.6"/>' % (X(t), Y(lo), Y(hi)))
+        if t % 10 == 0:
+            h.append('<text class="sl" x="%.1f" y="%.1f" style="text-anchor:middle">%+d</text>'
+                     % (X(t), y0 + 15, t))
+
+
+def sect_svg(d, it, samp, mode="before", dsamp=None, W=1180.0):
+    """断面を**1枚に1状態だけ**描く。mode="before" は現況、それ以外は案のキー。
+
+    ⚠ before と after を重ねない(2026-08-27 ユーザー指示)。読み比べは図を並べて行う。
+    """
+    q, n, wd, sc, sub = sect_frame(d, it)
     body = [w for w in d["water"] if w["id"] == it["body"]][0]
     wy, fl = body["waterY"], body["floor"]
     ts = [sc["tFrom"] + i * 0.5 for i in range(int((sc["tTo"] - sc["tFrom"]) / 0.5) + 1)]
-    g = [(t, samp(q[0] + t * n[0], q[1] + t * n[1])) for t in ts]
-    gd = ([(t, dsamp(q[0] + t * n[0], q[1] + t * n[1])) for t in ts]
-          if (dsamp and it.get("showDesign")) else None)
+    cur = [(t, samp(q[0] + t * n[0], q[1] + t * n[1])) for t in ts]
+    if it.get("showDesign") and dsamp:
+        cur = [(t, dsamp(q[0] + t * n[0], q[1] + t * n[1])) for t in ts]
+    o = None
+    prof, tw, cp = None, None, None
+    if mode != "before":
+        o = [x for x in it["options"] if x["key"] == mode][0]
+        prof, tw, cp = after_profile(d, it, o, wd, q, n, samp, sc)
+    g = prof if prof else cur
     lo = min(min(v for _, v in g), fl) - 1.0
-    hi = max(max(v for _, v in g), 11.0) + 0.6
-    H = 380.0
+    hi = max(max(v for _, v in g), (cp or 0) + 0.5, 10.5) + 0.6
+    H = 340.0
     h = _sv(W, H, "断面")
     h.append(R(0, 0, W, H, fill="var(--paper)"))
     x0, xw, y0, yh = 58.0, W - 92.0, H - 54, H - 96
     X = lambda t: x0 + (t - sc["tFrom"]) / (sc["tTo"] - sc["tFrom"]) * xw
     Y = lambda v: y0 - (v - lo) / (hi - lo) * yh
-    for v in range(int(math.floor(lo)), int(math.ceil(hi)) + 1):
-        h.append('<path d="M%.1f,%.1f H%.1f" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>'
-                 % (x0 - 6, Y(v), x0 + xw))
-        h.append('<text class="sl" x="16" y="%.1f">%d m</text>' % (Y(v) + 3, v))
-    for t in range(int(sc["tFrom"]), int(sc["tTo"]) + 1, 5):
-        h.append('<path d="M%.1f,%.1f V%.1f" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>'
-                 % (X(t), Y(lo), Y(hi)))
-        if t % 10 == 0:
-            h.append('<text class="sl" x="%.1f" y="%.1f" style="text-anchor:middle">%+d</text>'
-                     % (X(t), y0 + 15, t))
-    # 水 — sectionAt のときは「地盤が水面より下の所」を塗る
+    _axes(h, sc, lo, hi, W, H, x0, xw, y0, yh, X, Y)
+    # --- 水面
     if it.get("sectionAt"):
         run = []
-        for t, v in (gd or g):
+        for t, v in g:
             if v < wy:
                 run.append(t)
             elif run:
@@ -340,161 +356,77 @@ def sect_svg(d, it, samp, W=1180.0, dsamp=None):
         if run:
             h.append(R(X(run[0]), Y(wy), X(run[-1]) - X(run[0]), Y(fl) - Y(wy),
                        fill="#BBD3DF", op=0.85))
-        a0, a1 = sc["tFrom"], sc["tTo"]
-        h.append('<path d="M%.1f,%.1f H%.1f" stroke="#3F6F86" stroke-width="1.8" '
-                 'stroke-dasharray="6 3"/>' % (X(a0), Y(wy), X(a1)))
+        w0 = w1 = None
     else:
-        a0, a1 = max(0.0, sc["tFrom"]), min(wd, sc["tTo"])
-        h.append(R(X(a0), Y(wy), X(a1) - X(a0), Y(fl) - Y(wy), fill="#BBD3DF", op=0.85))
+        w0, w1 = 0.0, wd
+        if o and o.get("waterlineShift"):
+            if outward_of(it) < 0:
+                w0 = tw
+            else:
+                w1 = tw
+        a0, a1 = max(sc["tFrom"], w0), min(sc["tTo"], w1)
+        h.append(R(X(a0), Y(wy), X(a1) - X(a0), Y(fl) - Y(wy), fill="#BBD3DF", op=0.9))
         h.append('<path d="M%.1f,%.1f H%.1f" stroke="#3F6F86" stroke-width="1.8"/>'
                  % (X(a0), Y(wy), X(a1)))
-    h.append('<text class="an2b" x="%.1f" y="%.1f">水面 %.2f</text>' % (X(a0) + 5, Y(wy) - 6, wy))
-    h.append('<text class="sl" x="%.1f" y="%.1f">床 %.2f</text>' % (X(a0) + 5, Y(fl) + 13, fl))
-    for t, lab in (() if it.get("sectionAt") else ((0.0, "いまの汀線"), (wd, "いまの汀線"))):
-        if sc["tFrom"] <= t <= sc["tTo"]:
-            h.append('<path d="M%.1f,%.1f V%.1f" stroke="#3F6F86" stroke-width="1" '
-                     'stroke-dasharray="3 3"/>' % (X(t), Y(lo), Y(hi)))
-            h.append('<text class="jo" x="%.1f" y="%.1f" style="text-anchor:middle">%s</text>'
-                     % (X(t), Y(hi) + 11, lab))
-    # 地盤 — showDesign のときは「掘った後」を主線、現況を破線にする
-    if gd:
-        h.append('<polyline points="%s" fill="none" stroke="var(--dim)" stroke-width="1.2" '
-                 'stroke-dasharray="5 3"/>' % " ".join("%.1f,%.1f" % (X(t), Y(v)) for t, v in g))
-        h.append('<polyline points="%s" fill="none" stroke="var(--ink)" stroke-width="2.4"/>'
-                 % " ".join("%.1f,%.1f" % (X(t), Y(v)) for t, v in gd))
-    else:
-        h.append('<polyline points="%s" fill="none" stroke="var(--ink)" stroke-width="2.2"/>'
-                 % " ".join("%.1f,%.1f" % (X(t), Y(v)) for t, v in g))
-    # 石垣(いまの位置)
-    nlab = [0]
-    for r in d["ishigaki"]["runs"]:
-        if r["body"] != it["body"] or it.get("side", "") not in r["side"]:
-            continue
-        # ⚠ その測点に**掛かっている** run だけ描く(掛かっていない折れを描くと嘘になる)
+        h.append('<text class="an2b" x="%.1f" y="%.1f">水面 %.2f</text>'
+                 % (X(a0) + 5, Y(wy) - 6, wy))
+        h.append('<text class="sl" x="%.1f" y="%.1f">床 %.2f</text>' % (X(a0) + 5, Y(fl) + 13, fl))
+        yy = Y(wy) - 26
+        cw = COL[mode] if o else "#3F6F86"
+        h.append('<path d="M%.1f,%.1f H%.1f M%.1f,%.1f l7,-4 v8 z M%.1f,%.1f l-7,-4 v8 z" '
+                 'stroke="%s" stroke-width="1.1" fill="%s"/>'
+                 % (X(a0), yy, X(a1), X(a0), yy, X(a1), yy, cw, cw))
+        h.append('<text class="anS2" x="%.1f" y="%.1f" fill="%s">水面の幅 %.0f m</text>'
+                 % ((X(a0) + X(a1)) / 2, yy - 6, cw, a1 - a0))
+    # --- 地盤
+    h.append('<polyline points="%s" fill="none" stroke="%s" stroke-width="2.6"/>'
+             % (" ".join("%.1f,%.1f" % (X(t), Y(v)) for t, v in g),
+                COL[mode] if o else "var(--ink)"))
+    # --- 石垣
+    runs = [r for r in d["ishigaki"]["runs"]
+            if r["body"] == it["body"] and it.get("side", "") in r["side"]]
+    for r in runs:
         a2, b2 = r["p0"], r["p1"]
         dx2, dz2 = b2[0] - a2[0], b2[1] - a2[1]
         l2 = dx2 * dx2 + dz2 * dz2
-        tt = max(0.0, min(1.0, ((q[0] - a2[0]) * dx2 + (q[1] - a2[1]) * dz2) / l2))
-        if math.hypot(q[0] - (a2[0] + tt * dx2), q[1] - (a2[1] + tt * dz2)) > 40:
-            continue
+        u2 = max(0.0, min(1.0, ((q[0] - a2[0]) * dx2 + (q[1] - a2[1]) * dz2) / l2))
+        pj = (a2[0] + u2 * dx2, a2[1] + u2 * dz2)
         if it.get("sectionAt"):
-            a3, b3 = r["p0"], r["p1"]
-            dx3, dz3 = b3[0] - a3[0], b3[1] - a3[1]
-            l3 = dx3 * dx3 + dz3 * dz3
-            u3 = max(0.0, min(1.0, ((q[0] - a3[0]) * dx3 + (q[1] - a3[1]) * dz3) / l3))
-            pj = (a3[0] + u3 * dx3, a3[1] + u3 * dz3)
             t = (pj[0] - q[0]) * n[0] + (pj[1] - q[1]) * n[1]
             if math.hypot(pj[0] - q[0] - t * n[0], pj[1] - q[1] - t * n[1]) > 6:
                 continue
         else:
+            if math.hypot(q[0] - pj[0], q[1] - pj[1]) > 40:
+                continue
             off = r.get("offset", 4.81)
             t = -off if "郭外" in r["side"] else wd + off
+        c0_ = r["copingFrom"] + (r["copingTo"] - r["copingFrom"]) * u2
+        base = r.get("base", 0.0)
+        if o and tw is not None and r["line"] == o.get("after", {}).get("run"):
+            t, c0_ = tw, cp                       # 案で動く/上がる石垣
+            col_ = COL[mode]
+        else:
+            col_ = "var(--shu)"
         if not (sc["tFrom"] <= t <= sc["tTo"]):
             continue
-        cp = (r["copingFrom"] + r["copingTo"]) / 2
-        h.append('<path d="M%.1f,%.1f V%.1f" stroke="var(--shu)" stroke-width="5" opacity="0.9"/>'
-                 % (X(t), Y(cp), Y(r.get("base", 0.0))))
-        h.append('<text class="anG" x="%.1f" y="%.1f" style="text-anchor:middle">'
-                 'いまの %s 天端 %.2f</text>' % (X(t), Y(cp) - 8 - 13 * nlab[0], r["line"], cp))
-        gh = (dsamp or samp)(q[0] + t * n[0], q[1] + t * n[1]) if it.get("showDesign") \
-            else samp(q[0] + t * n[0], q[1] + t * n[1])
-        if gh - cp > 0.3:
+        h.append('<path d="M%.1f,%.1f V%.1f" stroke="%s" stroke-width="5.5" opacity="0.95"/>'
+                 % (X(t), Y(c0_), Y(base), col_))
+        h.append('<text class="anS2" x="%.1f" y="%.1f" fill="%s">%s 天端 %.2f</text>'
+                 % (X(t), Y(c0_) - 8, col_, r["line"], c0_))
+        gh = dict((round(a3, 1), b3) for a3, b3 in g).get(round(t, 1))
+        if gh is None:
+            gh = samp(q[0] + t * n[0], q[1] + t * n[1])
+        if gh - c0_ > 0.3:
             h.append('<text class="anG" x="%.1f" y="%.1f" style="text-anchor:middle">'
-                     '(地盤 %.2f = %.2fm 埋没)</text>' % (X(t), Y(cp) + 14, gh, gh - cp))
-        elif cp - gh > 0.6:
-            h.append('<text class="anG" x="%.1f" y="%.1f" style="text-anchor:middle">'
-                     '%s の背後 %.2f = 天端より %.2fm 低い</text>'
-                     % (X(t), Y(lo) + 24 + 14 * nlab[0], r["line"], gh, cp - gh))
-        nlab[0] += 1
-    # 案の「掘った後」— before/after
-    for o in it["options"]:
-        prof, tw, cp = after_profile(d, it, o, wd, q, n, samp, sc)
-        if not prof:
-            continue
-        c = COL[o["key"]]
-        poly = [(t, v, samp(q[0] + t * n[0], q[1] + t * n[1])) for t, v in prof]
-        cut = [(X(t), Y(v), Y(gv)) for t, v, gv in poly if gv - v > 0.05]   # 削る
-        fil = [(X(t), Y(v), Y(gv)) for t, v, gv in poly if v - gv > 0.05]   # 盛る
-        for seq, col_ in ((cut, "var(--cut2)"), (fil, "var(--fill2)")):
-            if len(seq) < 2:
-                continue
-            h.append('<path d="M%s L%s Z" fill="%s" opacity="0.5"/>'
-                     % (" L".join("%.1f,%.1f" % (x, yg) for x, yv, yg in seq),
-                        " L".join("%.1f,%.1f" % (x, yv) for x, yv, yg in reversed(seq)), col_))
-        h.append('<polyline points="%s" fill="none" stroke="%s" stroke-width="2.6"/>'
-                 % (" ".join("%.1f,%.1f" % (X(t), Y(v)) for t, v, _ in poly), c))
-        h.append('<text class="anS2" x="%.1f" y="%.1f" fill="%s" '
-                 'style="text-anchor:start">案%s の地盤</text>'
-                 % (X(tw) + 8, Y(cp) + 26, c, o["key"]))
-        # 案を採ったときの水面(汀線が動くなら、その分だけ堀が広がる)
-        if o.get("waterlineShift"):
-            # 幅は「石垣の面 → 対岸の汀線」で定義する(断面の端まで拾わない)
-            w0, w1 = (tw, wd) if outward_of(it) < 0 else (0.0, tw)
-            h.append(R(X(w0), Y(wy), X(w1) - X(w0), 5, fill=c, op=0.35))
-            h.append('<path d="M%.1f,%.1f H%.1f" stroke="%s" stroke-width="2.2" '
-                     'stroke-dasharray="9 4"/>' % (X(w0), Y(wy), X(w1), c))
-            yy = Y(wy) - 22
-            h.append('<path d="M%.1f,%.1f H%.1f M%.1f,%.1f l6,-4 v8 z M%.1f,%.1f l-6,-4 v8 z" '
-                     'stroke="%s" stroke-width="1.1" fill="%s"/>'
-                     % (X(w0), yy, X(w1), X(w0), yy, X(w1), yy, c, c))
-            h.append('<text class="anS2" x="%.1f" y="%.1f" fill="%s">'
-                     '案%s の水面 幅 %.0f m(いま %.0f m)</text>'
-                     % ((X(w0) + X(w1)) / 2, Y(wy) - 27, c, o["key"], abs(w1 - w0), wd))
-    # 案(汀線・天端の位置)
-    ly = 22
-    for o in it["options"]:
-        c = COL[o["key"]]
-        drawn = False
-        if o.get("waterlineShift"):
-            t = o["waterlineShift"] if "郭外" in it.get("side", "") else wd - o["waterlineShift"]
-            same = [q2["key"] for q2 in it["options"]
-                    if q2.get("waterlineShift") == o["waterlineShift"]]
-            if o["key"] == same[0]:            # 同じ位置の案はまとめて1本
-                h.append('<path d="M%.1f,%.1f V%.1f" stroke="%s" stroke-width="2.4" '
-                         'stroke-dasharray="7 4"/>' % (X(t), Y(lo), Y(hi), c))
-                h.append('<text class="anS2" x="%.1f" y="%.1f" fill="%s">'
-                         '案%s の新しい汀線(%s %.1fm)</text>'
-                         % (X(t), Y(hi) + 24, c, "・".join(same),
-                            "郭内へ" if o["waterlineShift"] > 0 else "郭外へ",
-                            abs(o["waterlineShift"])))
-            drawn = True
-        if o.get("fillTo"):
-            h.append('<path d="M%.1f,%.1f H%.1f" stroke="%s" stroke-width="2.6" '
-                     'stroke-dasharray="8 4"/>'
-                     % (X(sc["tFrom"]), Y(o["fillTo"]), X(sc["tTo"]), c))
-            h.append('<text class="anS2" x="%.1f" y="%.1f" fill="%s">案%s 楔をここまで盛る %.2f</text>'
-                     % (X(sc["tFrom"]) + 70, Y(o["fillTo"]) - 6, c, o["key"], o["fillTo"]))
-            drawn = True
-        if o.get("newCoping"):
-            base = 2.0
-            t = 4.5 if o.get("wallToCrest") else (
-                -[r for r in d["ishigaki"]["runs"]
-                  if r["body"] == it["body"] and it["side"] in r["side"]][0].get("offset", 4.81)
-                if "郭外" in it.get("side", "") else
-                wd + [r for r in d["ishigaki"]["runs"]
-                      if r["body"] == it["body"] and it["side"] in r["side"]][0].get("offset", 4.81))
-            h.append('<path d="M%.1f,%.1f V%.1f" stroke="%s" stroke-width="3.4" opacity="0.95"/>'
-                     % (X(t), Y(o["newCoping"]), Y(base), c))
-            h.append('<text class="anS2" x="%.1f" y="%.1f" fill="%s">案%s 天端 %.2f</text>'
-                     % (X(t), Y(o["newCoping"]) - 7, c, o["key"], o["newCoping"]))
-            drawn = True
-        if drawn:
-            h.append('<path d="M%.1f,%.1f h20" stroke="%s" stroke-width="3"/>' % (W - 196, ly, c))
-            h.append('<text class="sl" x="%.1f" y="%.1f">案%s %s</text>'
-                     % (W - 172, ly + 4, o["key"], html.escape(o["name"])))
-            ly += 15
+                     '⛔ 地盤 %.2f = 天端が %.2fm 土の中</text>' % (X(t), Y(c0_) + 15, gh, gh - c0_))
+    ttl = ("いまの姿(before)" if mode == "before"
+           else "案%s を採った後(after) ── %s" % (mode, html.escape(o["name"])))
+    h.append('<text class="big" x="%.1f" y="20">%s ── %s ／ %s</text>'
+             % (x0, it["id"], html.escape(sub), ttl))
     vex = (yh / (hi - lo)) / (xw / (sc["tTo"] - sc["tFrom"]))
-    ttl = (html.escape(it["sectionAt"]["label"]) if it.get("sectionAt")
-           else "距離程 %.0f m" % sc["chainage"])
-    h.append('<text class="big" x="%.1f" y="20">%s ── %s ／ 垂直倍率 %.1f 倍</text>'
-             % (x0, it["id"], ttl, vex))
     h.append('<text class="sl" x="%.1f" y="%.1f" style="text-anchor:middle">'
-             '%s</text>'
-             % (x0 + xw / 2, y0 + 34,
-                ("壁からの距離 [m]　── 掘り直した後の設計面　┄ いまの地盤　■ いまの石垣"
-                 if gd else
-                 "汀線からの距離 [m]　◀ 左=郭外(南西・愛宕下がわ) ／ 右=郭内(北東・城がわ) ▶"
-                 "　┄ いまの地盤　── 案の地盤　■ いまの石垣")))
+             '◀ 左=郭外(南西・愛宕下がわ) ／ 右=郭内(北東・城がわ) ▶　'
+             '汀線からの距離 [m]　垂直倍率 %.1f 倍</text>' % (x0 + xw / 2, y0 + 34, vex))
     h.append(ENDSVG)
     return "\n".join(h)
 
@@ -628,15 +560,21 @@ def main():
         h.append("<h4>② 拡大平面</h4>")
         h.append('<div class="fig">%s</div>' % zoom_svg(d, it, samp))
         if it.get("section") or it.get("sectionAt"):
-            h.append("<h4>③ 断面 ── いまの姿(before)に案(after)を重ねる</h4>")
-            h.append('<p class="cap">'
-                     '<b>┄ 細い破線＝いまの地盤(before)／── 太い実線＝案を採った後の地盤(after)。</b>'
-                     '寒色の塗りが<b>削る土</b>、暖色が<b>盛る土</b>。'
-                     '⚠ <b>案で汀線が動くのは、水が土を押すからではない</b> — '
-                     '石垣の手前に余っている土を削るので、その分だけ<b>堀の水面が広がる</b>。'
-                     '断面の左右は下の軸に書いた方位のとおりで、平面図の朱の丸「左」「右」に対応する。</p>')
-            h.append('<div class="fig">%s</div>' % sect_svg(d, it, samp, dsamp=dsamp))
-        h.append("<h4>④ 案</h4>")
+            h.append("<h4>③ 断面 ── いまの姿</h4>")
+            h.append('<div class="fig">%s</div>' % sect_svg(d, it, samp, "before", dsamp))
+            nn = 4
+            for o in it["options"]:
+                if not o.get("after"):
+                    continue
+                h.append("<h4>%s 断面 ── 案%s を採った後</h4>"
+                         % ("④⑤⑥⑦"[nn - 4], o["key"]))
+                h.append('<div class="fig">%s</div>' % sect_svg(d, it, samp, o["key"], dsamp))
+                if o.get("waterlineShift"):
+                    h.append('<p class="cap">⚠ <b>汀線が動くのは、水が土を押すからではない</b> — '
+                             '石垣の手前に余っている土を削るので、その分だけ<b>堀の水面が広がる</b>。'
+                             'ひとつ上の「いまの姿」と見比べること。</p>')
+                nn += 1
+        h.append("<h4>案</h4>")
         h.append(opt_table(it))
         h.append("</div>")
     h.append('<div class="plate"><div class="phead"><h2>%s　決め方</h2></div>' % KAN[n])

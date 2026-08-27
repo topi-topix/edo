@@ -364,19 +364,12 @@ def sect_svg(d, it, samp, mode="before", dsamp=None, W=1180.0):
         if prof:
             pd_ = dict((round(t, 2), v) for t, v in prof)
             full = [(t, pd_.get(round(t, 2), v)) for t, v in full]
-        b0, b1 = bed_span(full, fl)
+        b0, b1 = waterline_span(full, wy)
         w0, w1 = 0.0, wd
-        fit = bool(o and (o.get("after", {}).get("kind") == "fitBed" or o.get("assumeFitBed")))
+        kind = (o or {}).get("after", {}).get("kind")
+        fit = bool(o and (kind in ("fitBed", "fitWaterline") or o.get("assumeFitBed")))
         if fit and b0 is not None:
-            w0, w1 = b0, b1                            # 板を堀底に合わせ、
-            for r in [x for x in d["ishigaki"]["runs"] if x["body"] == it["body"]]:
-                off = r.get("offset", 4.81)
-                twr = -off if "郭外" in r["side"] else wd + off
-                if b0 < twr < b1:                      # 範囲の中にある石垣の面でクリップ
-                    if "郭内" in r["side"]:
-                        w1 = min(w1, twr)
-                    else:
-                        w0 = max(w0, twr)
+            w0, w1 = b0, b1                            # 板を**本当の汀線**へ載せる
         elif o and o.get("waterlineShift") and tw is not None:
             if outward_of(it) < 0:
                 w0 = tw
@@ -407,12 +400,11 @@ def sect_svg(d, it, samp, mode="before", dsamp=None, W=1180.0):
                        fill="var(--paper)", op=0.9))
             bx0, bx1 = X(max(b0, sc["tFrom"])), X(min(b1, sc["tTo"]))
             h.append('<text class="anS2" x="%.1f" y="%.1f" style="text-anchor:middle">'
-                     '実際の堀底の幅 %.1f m%s</text>'
+                     '地形が水位を切る幅(本当の汀線) %.1f m%s</text>'
                      % ((bx0 + bx1) / 2, yb + 14, b1 - b0,
                         "" if (b0 >= sc["tFrom"] and b1 <= sc["tTo"]) else "(図は一部)"))
-            back = "石垣の裏(水は回さない)"
-            for tt, dd, lab in ((b0, b0 - w0, back if fit else "板が岸へ乗る"),
-                                (b1, b1 - w1, back if fit else "板が届かない")):
+            for tt, dd, lab in ((b0, b0 - w0, "板が地形にめり込む"),
+                                (b1, b1 - w1, "板が地形に届かない")):
                 if dd > 0.4:
                     x1_, x2_ = sorted([X(tt), X(tt - dd if tt == b0 else tt - dd)])
                     h.append(R(x1_, Y(wy), x2_ - x1_, Y(fl) - Y(wy),
@@ -443,7 +435,10 @@ def sect_svg(d, it, samp, mode="before", dsamp=None, W=1180.0):
             t = -off if "郭外" in r["side"] else wd + off
         c0_ = r["copingFrom"] + (r["copingTo"] - r["copingFrom"]) * u2
         base = r.get("base", 0.0)
-        if o and tw is not None and r["line"] == o.get("after", {}).get("run"):
+        if o and o.get("after", {}).get("snapWalls") and b0 is not None:
+            t = b0 if "郭外" in r["side"] else b1   # 案で汀線へ据え直す石垣
+            col_ = COL[mode]
+        elif o and tw is not None and r["line"] == o.get("after", {}).get("run"):
             t, c0_ = tw, cp                       # 案で動く/上がる石垣
             col_ = COL[mode]
         else:
@@ -473,8 +468,17 @@ def sect_svg(d, it, samp, mode="before", dsamp=None, W=1180.0):
 
 
 def bed_span(g, fl, tol=0.25):
-    """断面の中で「床」になっている範囲(t の下端・上端)。水面の板と突き合わせる相手。"""
+    """断面の中で「床」になっている範囲。"""
     ts = [t for t, v in g if abs(v - fl) < tol]
+    return (min(ts), max(ts)) if ts else (None, None)
+
+
+def waterline_span(g, wy):
+    """**本当の汀線** — 地形が水位を横切る所。水面の板の縁はここに来るのが正しい。
+
+    ⚠ 床(堀底)の縁ではない。床の縁は法尻で、水位を切る線はその 0.5〜1.3m 外側にある。
+    """
+    ts = [t for t, v in g if v < wy]
     return (min(ts), max(ts)) if ts else (None, None)
 
 
@@ -500,7 +504,7 @@ def after_profile(d, it, o, wd, q, n, samp, sc):
     outward = outward_of(it)                           # 陸へ向かう t の向き
     off = run.get("offset", 4.81)
     tw = -off if outward < 0 else wd + off             # 石垣の面の t
-    if a["kind"] == "fitBed":                          # 地形は動かさない(板だけ直す)
+    if a["kind"] in ("fitBed", "fitWaterline"):        # 地形は動かさない
         return None, None, None
     gnd = gnd0 = lambda t: samp(q[0] + t * n[0], q[1] + t * n[1])
     fl = [w for w in d["water"] if w["id"] == it["body"]][0]["floor"]
@@ -546,6 +550,103 @@ def after_profile(d, it, o, wd, q, n, samp, sc):
         t -= outward * 0.25
     prof = sorted(land + moat, key=lambda z: z[0])
     return prof, tw, cp
+
+
+def in_poly(x, z, w):
+    ins = False
+    j = len(w) - 1
+    for i in range(len(w)):
+        xi, zi = w[i]
+        xj, zj = w[j]
+        if ((zi > z) != (zj > z)) and (x < (xj - xi) * (z - zi) / ((zj - zi) + 1e-12) + xi):
+            ins = not ins
+        j = i
+    return ins
+
+
+def notch_svg(d, it, W=1180.0):
+    """U7 専用 — 水面の形だけを大きく描いて、出っ張りの before / after を左右に並べる。
+
+    ⚠ 段彩や等高線は載せない。**形の話**なので、線だけにしたほうが伝わる。
+    """
+    nt = it["notch"]                       # [手前, 出っ張りの頂点, 先]
+    new = it["options"][0]["newOutline"]   # 出っ張りを落とした線
+    xs = [p2[0] for p2 in nt] + [p2[0] for p2 in new]
+    zs = [p2[1] for p2 in nt] + [p2[1] for p2 in new]
+    pad = 26.0
+    H = 470.0
+    half = W / 2 - 12
+    sc = min(half / (max(xs) - min(xs) + 2 * pad), (H - 96) / (max(zs) - min(zs) + 2 * pad))
+    cx, cz = (min(xs) + max(xs)) / 2, (min(zs) + max(zs)) / 2
+    h = _sv(W, H, "入隅の before/after")
+    h.append(R(0, 0, W, H, fill="var(--paper)"))
+    body = [w for w in d["water"] if w["id"] == it["body"]][0]
+
+    # 水の側(00003 の内側)へ向かう法線
+    ax_, az_ = nt[0]
+    cx_, cz_ = nt[2]
+    dxv, dzv = cx_ - ax_, cz_ - az_
+    ln_ = math.hypot(dxv, dzv)
+    nrm = (-dzv / ln_, dxv / ln_)
+    mid = ((ax_ + cx_) / 2, (az_ + cz_) / 2)
+    if not in_poly(mid[0] + 5 * nrm[0], mid[1] + 5 * nrm[1], body["outline"]):
+        nrm = (-nrm[0], -nrm[1])
+
+    def panel(ox, pts, title, col_, note):
+        X = lambda x: ox + half / 2 + (x - cx) * sc
+        Y = lambda z: 62 + (H - 118) / 2 - (z - cz) * sc
+        h.append(R(ox + 6, 46, half - 12, H - 76, fill="var(--paper2)", stroke="var(--rule)", sw=1))
+        h.append('<text class="big" x="%.1f" y="34">%s</text>' % (ox + 16, title))
+        poly = [(X(a[0]), Y(a[1])) for a in pts]
+        deep = [(X(a[0] + 70 * nrm[0]), Y(a[1] + 70 * nrm[1])) for a in pts]
+        h.append('<path d="M%s L%s Z" fill="#BBD3DF" opacity="0.6"/>'
+                 % (" L".join("%.1f,%.1f" % q for q in poly),
+                    " L".join("%.1f,%.1f" % q for q in reversed(deep))))
+        h.append('<polyline points="%s" fill="none" stroke="%s" stroke-width="3.4"/>'
+                 % (" ".join("%.1f,%.1f" % q for q in poly), col_))
+        h.append('<text class="anS2" x="%.1f" y="%.1f">水面(堀)</text>'
+                 % (X(mid[0] + 34 * nrm[0]), Y(mid[1] + 34 * nrm[1])))
+        h.append('<text class="anS2" x="%.1f" y="%.1f">陸(郭内・城がわ)</text>'
+                 % (X(mid[0] - 22 * nrm[0]), Y(mid[1] - 22 * nrm[1])))
+        h.append('<text class="cap" x="%.1f" y="%.1f" style="font-size:12.5px;fill:var(--dim)">'
+                 '%s</text>' % (ox + 16, H - 16, note))
+        return X, Y
+
+    X1, Y1 = panel(0, nt, "いま ── 岸が水の中へ三角に張り出している",
+                   "#2C5D74", "この三角形は実際の堀には無い(明治17年の実測図で確認)")
+    v = nt[1]
+    a2, c2 = nt[0], nt[2]
+    # 張り出しの深さを寸法で
+    mx = (X1(a2[0]) + X1(c2[0])) / 2
+    my = (Y1(a2[1]) + Y1(c2[1])) / 2
+    h.append('<path d="M%.1f,%.1f L%.1f,%.1f" stroke="var(--dim)" stroke-width="1" '
+             'stroke-dasharray="5 3"/>' % (X1(a2[0]), Y1(a2[1]), X1(c2[0]), Y1(c2[1])))
+    h.append('<path d="M%.1f,%.1f L%.1f,%.1f" stroke="var(--shu)" stroke-width="1.6"/>'
+             % (mx, my, X1(v[0]), Y1(v[1])))
+    h.append('<circle cx="%.1f" cy="%.1f" r="5" fill="none" stroke="var(--shu)" stroke-width="2"/>'
+             % (X1(v[0]), Y1(v[1])))
+    h.append('<text class="anG" x="%.1f" y="%.1f">張り出しの深さ 7.9 m</text>'
+             % (X1(v[0]) + 10, Y1(v[1]) + 4))
+    X2, Y2 = panel(W / 2 + 12, new, "案A ── 岸を一直線にする",
+                   COL["A"], "明治17年の実測図では、この区間の岸は新橋を過ぎても一直線")
+    for r in d["ishigaki"]["runs"]:
+        if r["line"] not in ("NE3f", "NE3g"):
+            continue
+        for X_, Y_, cc in ((X1, Y1, "var(--shu)"), (X2, Y2, COL["A"])):
+            h.append('<path d="M%.1f,%.1f L%.1f,%.1f" stroke="%s" stroke-width="4" '
+                     'stroke-linecap="round" opacity="0.9"/>'
+                     % (X_(r["p0"][0]), Y_(r["p0"][1]), X_(r["p1"][0]), Y_(r["p1"][1]), cc))
+        h.append('<text class="anS2" x="%.1f" y="%.1f">%s(%d個)</text>'
+                 % (X1((r["p0"][0] + r["p1"][0]) / 2), Y1((r["p0"][1] + r["p1"][1]) / 2) - 10,
+                    r["line"], r["n"]))
+        h.append('<text class="anG" x="%.1f" y="%.1f">%s は水の中に入る</text>'
+                 % (X2((r["p0"][0] + r["p1"][0]) / 2), Y2((r["p0"][1] + r["p1"][1]) / 2) + 16,
+                    r["line"]))
+    h.append('<text class="sl" x="%.1f" y="%.1f">← 虎ノ門・新シ橋がわ</text>' % (14, H - 34))
+    h.append('<text class="sl" x="%.1f" y="%.1f" style="text-anchor:end">幸橋がわ →</text>'
+             % (W - 14, H - 34))
+    h.append(ENDSVG)
+    return "\n".join(h)
 
 
 def opt_table(it):
@@ -610,7 +711,15 @@ def main():
         h.append('<p class="cap">%s</p>' % sashizu_lib.inline(html.escape(it["cause"])))
         h.append("<h4>① どこか</h4>")
         h.append('<div class="fig">%s</div>' % keymap_svg(d, it))
-        h.append("<h4>② 拡大平面</h4>")
+        if it.get("notch"):
+            h.append("<h4>② 何が問題なのか ── 水面の形だけを見る</h4>")
+            h.append('<div class="fig">%s</div>' % notch_svg(d, it))
+            for para in it["plain"].split("\n\n"):
+                h.append('<p class="cap" style="max-width:80ch">%s</p>'
+                         % sashizu_lib.inline(html.escape(para.strip())))
+            h.append("<h4>③ 同じ場所の地形</h4>")
+        else:
+            h.append("<h4>② 拡大平面</h4>")
         h.append('<div class="fig">%s</div>' % zoom_svg(d, it, samp))
         if it.get("section") or it.get("sectionAt"):
             h.append("<h4>③ 断面 ── いまの姿</h4>")

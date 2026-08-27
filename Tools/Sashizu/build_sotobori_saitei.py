@@ -333,7 +333,7 @@ def sect_svg(d, it, samp, mode="before", dsamp=None, W=1180.0):
     if mode != "before":
         o = [x for x in it["options"] if x["key"] == mode][0]
         prof, tw, cp = after_profile(d, it, o, wd, q, n, samp, sc)
-    g = prof if prof else cur
+    g = prof if prof else cur          # fitBed は地形を動かさないので現況のまま
     lo = min(min(v for _, v in g), fl) - 1.0
     hi = max(max(v for _, v in g), (cp or 0) + 0.5, 10.5) + 0.6
     H = 340.0
@@ -358,8 +358,11 @@ def sect_svg(d, it, samp, mode="before", dsamp=None, W=1180.0):
                        fill="#BBD3DF", op=0.85))
         w0 = w1 = None
     else:
+        b0, b1 = bed_span(g, fl)
         w0, w1 = 0.0, wd
-        if o and o.get("waterlineShift"):
+        if o and o.get("after", {}).get("kind") == "fitBed" and b0 is not None:
+            w0, w1 = b0, b1                            # 板を堀底に合わせる
+        elif o and o.get("waterlineShift") and tw is not None:
             if outward_of(it) < 0:
                 w0 = tw
             else:
@@ -376,8 +379,22 @@ def sect_svg(d, it, samp, mode="before", dsamp=None, W=1180.0):
         h.append('<path d="M%.1f,%.1f H%.1f M%.1f,%.1f l7,-4 v8 z M%.1f,%.1f l-7,-4 v8 z" '
                  'stroke="%s" stroke-width="1.1" fill="%s"/>'
                  % (X(a0), yy, X(a1), X(a0), yy, X(a1), yy, cw, cw))
-        h.append('<text class="anS2" x="%.1f" y="%.1f" fill="%s">水面の幅 %.0f m</text>'
+        h.append('<text class="anS2" x="%.1f" y="%.1f" fill="%s">水面の板の幅 %.1f m</text>'
                  % ((X(a0) + X(a1)) / 2, yy - 6, cw, a1 - a0))
+        if b0 is not None:                             # 堀底の範囲と、板とのズレ
+            yb = Y(fl) + 26
+            h.append('<path d="M%.1f,%.1f H%.1f M%.1f,%.1f l7,-4 v8 z M%.1f,%.1f l-7,-4 v8 z" '
+                     'stroke="var(--ink)" stroke-width="1.1" fill="var(--ink)"/>'
+                     % (X(b0), yb, X(b1), X(b0), yb, X(b1), yb))
+            h.append(R((X(b0) + X(b1)) / 2 - 78, yb + 2, 156, 16, fill="var(--paper)", op=0.9))
+            h.append('<text class="anS2" x="%.1f" y="%.1f" style="text-anchor:middle">'
+                     '実際の堀底の幅 %.1f m</text>' % ((X(b0) + X(b1)) / 2, yb + 14, b1 - b0))
+            for tt, dd, lab in ((b0, b0 - w0, "板が岸へ乗る"), (b1, b1 - w1, "板が届かない")):
+                if dd > 0.4:
+                    x1_, x2_ = sorted([X(tt), X(tt - dd if tt == b0 else tt - dd)])
+                    h.append(R(x1_, Y(wy), x2_ - x1_, Y(fl) - Y(wy), fill="var(--shu)", op=0.30))
+                    h.append('<text class="anG" x="%.1f" y="%.1f" style="text-anchor:middle">'
+                             '%s %.1fm</text>' % ((x1_ + x2_) / 2, Y(fl) + 13, lab, dd))
     # --- 地盤
     h.append('<polyline points="%s" fill="none" stroke="%s" stroke-width="2.6"/>'
              % (" ".join("%.1f,%.1f" % (X(t), Y(v)) for t, v in g),
@@ -431,6 +448,12 @@ def sect_svg(d, it, samp, mode="before", dsamp=None, W=1180.0):
     return "\n".join(h)
 
 
+def bed_span(g, fl, tol=0.25):
+    """断面の中で「床」になっている範囲(t の下端・上端)。水面の板と突き合わせる相手。"""
+    ts = [t for t, v in g if abs(v - fl) < tol]
+    return (min(ts), max(ts)) if ts else (None, None)
+
+
 def outward_of(it):
     """陸へ向かう t の向き。郭外の岸なら左(−)、郭内なら右(+)。"""
     return -1 if "郭外" in it.get("side", "") else 1
@@ -453,12 +476,18 @@ def after_profile(d, it, o, wd, q, n, samp, sc):
     outward = outward_of(it)                           # 陸へ向かう t の向き
     off = run.get("offset", 4.81)
     tw = -off if outward < 0 else wd + off             # 石垣の面の t
-    if a["kind"] == "moveWall":                        # 法肩へ寄せる = 水面幅を変えない
-        tw = 0.0 if outward < 0 else wd
+    if a["kind"] == "fitBed":                          # 地形は動かさない(板だけ直す)
+        return None, None, None
+    gnd = gnd0 = lambda t: samp(q[0] + t * n[0], q[1] + t * n[1])
     fl = [w for w in d["water"] if w["id"] == it["body"]][0]["floor"]
+    if a["kind"] == "moveWall":                        # 法肩/法尻へ寄せる
+        gg = [(t, gnd0(t)) for t in [sc["tFrom"] + i * 0.5
+                                     for i in range(int((sc["tTo"] - sc["tFrom"]) / 0.5) + 1)]]
+        b0, b1 = bed_span(gg, fl)
+        if b0 is not None:
+            tw = b0 if outward < 0 else b1
     cp = o.get("newCoping") or (run["copingFrom"] + run["copingTo"]) / 2
     berm, bat = a.get("berm", 0.3), a.get("batter", 2.0)
-    gnd = lambda t: samp(q[0] + t * n[0], q[1] + t * n[1])
     ts = [sc["tFrom"] + i * 0.25 for i in range(int((sc["tTo"] - sc["tFrom"]) / 0.25) + 1)]
 
     land, moat = [], []
@@ -569,10 +598,13 @@ def main():
                 h.append("<h4>%s 断面 ── 案%s を採った後</h4>"
                          % ("④⑤⑥⑦"[nn - 4], o["key"]))
                 h.append('<div class="fig">%s</div>' % sect_svg(d, it, samp, o["key"], dsamp))
-                if o.get("waterlineShift"):
-                    h.append('<p class="cap">⚠ <b>汀線が動くのは、水が土を押すからではない</b> — '
-                             '石垣の手前に余っている土を削るので、その分だけ<b>堀の水面が広がる</b>。'
-                             'ひとつ上の「いまの姿」と見比べること。</p>')
+                if o.get("after", {}).get("kind") == "fitBed":
+                    h.append('<p class="cap">⭐ <b>地形は1セルも触っていない。</b>動かしたのは'
+                             '<b>水面のポリゴンだけ</b>で、堀底(黒の寸法線)にぴたりと載せた。'
+                             'ひとつ上の「いまの姿」で朱に塗った<b>「板が届かない」帯が消える</b>のが'
+                             'この案の中身。</p>')
+                elif o.get("waterlineShift"):
+                    h.append('<p class="cap">ひとつ上の「いまの姿」と見比べること。</p>')
                 nn += 1
         h.append("<h4>案</h4>")
         h.append(opt_table(it))

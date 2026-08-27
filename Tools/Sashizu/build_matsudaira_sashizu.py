@@ -387,7 +387,13 @@ def goten_plan(d, u0, u1, v0, v1, label, note):
         if m.get("ita"):
             mu0, mv0, mu1, mv1 = m["u0"], m["v0"], m["u1"], m["v1"]
         else:
-            mu0, mv0, mu1, mv1 = m["u0"] + 1, m["v0"] + 1, m["u1"] - 1, m["v1"] - 1
+            # 身舎 = 外形から**入側のある辺だけ**一間を除く。
+            # ⚠ 四方決め打ちだと、妻に入側の無い棟(表向)で入側の帯が嘘の場所に描かれる。
+            iri = m.get("iri", ["u0", "u1", "v0", "v1"])
+            mu0 = m["u0"] + (1 if "u0" in iri else 0)
+            mu1 = m["u1"] - (1 if "u1" in iri else 0)
+            mv0 = m["v0"] + (1 if "v0" in iri else 0)
+            mv1 = m["v1"] - (1 if "v1" in iri else 0)
         g.append(pr.rect(mu0, mv0, mu1, mv1, fill="var(--ink-mid)", stroke="var(--ink)", sw=1.6))
         seen = set()
         for r in m["rooms"]:
@@ -1288,10 +1294,16 @@ def room_containment_check(d):
                     and m["v0"] <= r["v0"] and r["v1"] <= m["v1"]):
                 bad.append("室 %s(%s)が棟の外形の外 u[%g,%g] v[%g,%g]"
                            % (r["name"], m["name"], r["u0"], r["u1"], r["v0"], r["v1"]))
-        # 身舎(外形から入側一間を除いた内側)に収まるか
+        # 身舎(外形から**入側のある辺だけ**一間を除いた内側)に収まるか。
+        # ⚠ 入側の辺は棟ごとに違う(2026-08-27 — 表向は南北の二辺のみ。妻には回さない)。
+        #   四方決め打ちで測ると、妻に入側の無い棟が全室「食い込む」と鳴る。
+        iri = m.get("iri", ["u0", "u1", "v0", "v1"])
+        lo_u = m["u0"] + (1 if "u0" in iri else 0)
+        hi_u = m["u1"] - (1 if "u1" in iri else 0)
+        lo_v = m["v0"] + (1 if "v0" in iri else 0)
+        hi_v = m["v1"] - (1 if "v1" in iri else 0)
         for r in m.get("rooms", []):
-            if (r["u0"] < m["u0"] + 1 or r["u1"] > m["u1"] - 1
-                    or r["v0"] < m["v0"] + 1 or r["v1"] > m["v1"] - 1):
+            if (r["u0"] < lo_u or r["u1"] > hi_u or r["v0"] < lo_v or r["v1"] > hi_v):
                 bad.append("室 %s(%s)が入側の帯に食い込む" % (r["name"], m["name"]))
     return bad
 

@@ -358,10 +358,25 @@ def sect_svg(d, it, samp, mode="before", dsamp=None, W=1180.0):
                        fill="#BBD3DF", op=0.85))
         w0 = w1 = None
     else:
-        b0, b1 = bed_span(g, fl)
+        # ⚠ 幅は断面の描画範囲でなく**堀の全幅**で測る(範囲外へ出ていても数字は全幅)
+        full = [(t, samp(q[0] + t * n[0], q[1] + t * n[1]))
+                for t in [-24 + i * 0.25 for i in range(int((wd + 48) / 0.25) + 1)]]
+        if prof:
+            pd_ = dict((round(t, 2), v) for t, v in prof)
+            full = [(t, pd_.get(round(t, 2), v)) for t, v in full]
+        b0, b1 = bed_span(full, fl)
         w0, w1 = 0.0, wd
-        if o and o.get("after", {}).get("kind") == "fitBed" and b0 is not None:
-            w0, w1 = b0, b1                            # 板を堀底に合わせる
+        fit = bool(o and (o.get("after", {}).get("kind") == "fitBed" or o.get("assumeFitBed")))
+        if fit and b0 is not None:
+            w0, w1 = b0, b1                            # 板を堀底に合わせ、
+            for r in [x for x in d["ishigaki"]["runs"] if x["body"] == it["body"]]:
+                off = r.get("offset", 4.81)
+                twr = -off if "郭外" in r["side"] else wd + off
+                if b0 < twr < b1:                      # 範囲の中にある石垣の面でクリップ
+                    if "郭内" in r["side"]:
+                        w1 = min(w1, twr)
+                    else:
+                        w0 = max(w0, twr)
         elif o and o.get("waterlineShift") and tw is not None:
             if outward_of(it) < 0:
                 w0 = tw
@@ -379,20 +394,29 @@ def sect_svg(d, it, samp, mode="before", dsamp=None, W=1180.0):
         h.append('<path d="M%.1f,%.1f H%.1f M%.1f,%.1f l7,-4 v8 z M%.1f,%.1f l-7,-4 v8 z" '
                  'stroke="%s" stroke-width="1.1" fill="%s"/>'
                  % (X(a0), yy, X(a1), X(a0), yy, X(a1), yy, cw, cw))
-        h.append('<text class="anS2" x="%.1f" y="%.1f" fill="%s">水面の板の幅 %.1f m</text>'
-                 % ((X(a0) + X(a1)) / 2, yy - 6, cw, a1 - a0))
+        h.append('<text class="anS2" x="%.1f" y="%.1f" fill="%s">水面の板の幅 %.1f m%s</text>'
+                 % ((X(a0) + X(a1)) / 2, yy - 6, cw, w1 - w0,
+                    "" if (a0 <= w0 + 0.01 and a1 >= w1 - 0.01) else "(図は一部)"))
         if b0 is not None:                             # 堀底の範囲と、板とのズレ
             yb = Y(fl) + 26
+            q0, q1 = max(b0, sc["tFrom"]), min(b1, sc["tTo"])
             h.append('<path d="M%.1f,%.1f H%.1f M%.1f,%.1f l7,-4 v8 z M%.1f,%.1f l-7,-4 v8 z" '
                      'stroke="var(--ink)" stroke-width="1.1" fill="var(--ink)"/>'
-                     % (X(b0), yb, X(b1), X(b0), yb, X(b1), yb))
-            h.append(R((X(b0) + X(b1)) / 2 - 78, yb + 2, 156, 16, fill="var(--paper)", op=0.9))
+                     % (X(q0), yb, X(q1), X(q0), yb, X(q1), yb))
+            h.append(R((X(max(b0, sc["tFrom"])) + X(min(b1, sc["tTo"]))) / 2 - 88, yb + 2, 176, 16,
+                       fill="var(--paper)", op=0.9))
+            bx0, bx1 = X(max(b0, sc["tFrom"])), X(min(b1, sc["tTo"]))
             h.append('<text class="anS2" x="%.1f" y="%.1f" style="text-anchor:middle">'
-                     '実際の堀底の幅 %.1f m</text>' % ((X(b0) + X(b1)) / 2, yb + 14, b1 - b0))
-            for tt, dd, lab in ((b0, b0 - w0, "板が岸へ乗る"), (b1, b1 - w1, "板が届かない")):
+                     '実際の堀底の幅 %.1f m%s</text>'
+                     % ((bx0 + bx1) / 2, yb + 14, b1 - b0,
+                        "" if (b0 >= sc["tFrom"] and b1 <= sc["tTo"]) else "(図は一部)"))
+            back = "石垣の裏(水は回さない)"
+            for tt, dd, lab in ((b0, b0 - w0, back if fit else "板が岸へ乗る"),
+                                (b1, b1 - w1, back if fit else "板が届かない")):
                 if dd > 0.4:
                     x1_, x2_ = sorted([X(tt), X(tt - dd if tt == b0 else tt - dd)])
-                    h.append(R(x1_, Y(wy), x2_ - x1_, Y(fl) - Y(wy), fill="var(--shu)", op=0.30))
+                    h.append(R(x1_, Y(wy), x2_ - x1_, Y(fl) - Y(wy),
+                               fill="var(--ishi)" if fit else "var(--shu)", op=0.30))
                     h.append('<text class="anG" x="%.1f" y="%.1f" style="text-anchor:middle">'
                              '%s %.1fm</text>' % ((x1_ + x2_) / 2, Y(fl) + 13, lab, dd))
     # --- 地盤

@@ -1284,6 +1284,40 @@ def run_seat_check(d, tol=0.6):
 # 竹垣の貫通なども見る土井基準の版。当邸の「庭⊃庭の包含は可」もそこに取り込んだ)。
 
 
+def nakajikiri_containment_check(d, n=200):
+    """中仕切塀が**区画の外へ出ていない**か。線分の端点だけでなく途中も測る。
+
+    ⚠ 2026-08-27 にユーザーが図を見て見つけた(奥郭の南の板塀が 15.5m はみ出していた)。
+      区画の南辺は u-18 付近で内側(v63.03)へ切れ込むので、v=66 の一本では途中だけが外へ出る。
+      **端点は両方とも区画の中にあった** — だから端点検査では捕まらない。"""
+    gr = RGrid(d)
+    P = d["polygon"]
+
+    def pip(x, y):
+        c, m = False, len(P)
+        for i in range(m):
+            (x1, y1), (x2, y2) = P[i], P[(i + 1) % m]
+            if ((y1 > y) != (y2 > y)) and (x < (x2 - x1) * (y - y1) / (y2 - y1) + x1):
+                c = not c
+        return c
+
+    bad = []
+    for w in d.get("nakajikiri", []):
+        a, b = w["a"], w["b"]
+        outs = []
+        for i in range(n + 1):
+            t = i / float(n)
+            u, v = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
+            W = gr.W(u, v)
+            if not pip(W[0], W[1]):
+                outs.append((u, v))
+        if outs:
+            L = math.hypot(b[0] - a[0], b[1] - a[1]) * len(outs) / float(n + 1) * d["const"]["ken"]
+            bad.append("中仕切 %s が区画の外を %.1fm 通る(u %.2f〜%.2f)"
+                       % (w["name"], L, outs[0][0], outs[-1][0]))
+    return bad
+
+
 def room_containment_check(d):
     """室は棟の外形の中にある。棟を動かして室を置き去りにすると、
     室名だけが旧位置(=庭の中など)に残る。2026-08-23 にユーザー指摘で発覚し追加。"""
@@ -3038,6 +3072,11 @@ def main():
         print("⚠ 矩形の重なり %d 件:" % len(bad))
         for b in bad:
             print("   ", b)
+    nbad = nakajikiri_containment_check(d)
+    if nbad:
+        print("⚠ 中仕切塀の区画はみ出し %d 件:" % len(nbad))
+        for b in nbad:
+            print("   ", b)
     pbad = plane_check(d)
     if pbad:
         print("⚠ 面のはみ出し %d 件:" % len(pbad))
@@ -3108,9 +3147,11 @@ def main():
              '棟・付属屋・廊下は自分の y と同じ高さの段の中に、庭・井戸はいずれかの段の中に'
              '完全に載っていること+**区画多角形の内側にあること**を機械検査している'
              '(造成しない斜面に載る庭=西庭の斜面部だけ除外)。'
-             '<b>矩形の総当たり重なり: %s。</b></p>'
+             '<b>矩形の総当たり重なり: %s。</b>'
+             '<b>中仕切塀の区画はみ出し(線分の途中も0.5%%刻みで測る): %s。</b></p>'
              % ("<b>0 件</b>" if not pbad else "⚠ %d 件 — %s" % (len(pbad), " / ".join(pbad)),
-                "<b>0 件</b>" if not bad else "⚠ %d 件" % len(bad)))
+                "<b>0 件</b>" if not bad else "⚠ %d 件" % len(bad),
+                "<b>0 件</b>" if not nbad else "⚠ %d 件 — %s" % (len(nbad), " / ".join(nbad))))
     h.append("</div>")
 
     plate(h, nx(), "現況図(造成前の地形)", "段彩2m・等高線2m(10mを太線)/【確度P】2026-08-23 実測")

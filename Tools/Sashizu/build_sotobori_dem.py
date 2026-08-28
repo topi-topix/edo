@@ -291,6 +291,10 @@ def main():
     vol_cut = float(np.clip(-dz, 0, None).sum() * cell)
     vol_fill = float(np.clip(dz, 0, None).sum() * cell)
 
+    # ⚠ 規則②は汀線の外へ種地を戻すので、**掘る水面でも汀線の外に水面下の床が残る**。
+    #    checks.overshoot が「面積を記録する」と宣言していたのに測っていなかった(2026-08-28 検図 高-7)。
+    wy0 = [b["waterY"] for b in bodies if b.get("works")][0]
+    ovs = band & (des < wy0 - 0.1)
     surv = work & (np.abs(CUR - NAT) > 0.3)
     ter = {
         "_": TER_DOC,
@@ -305,6 +309,9 @@ def main():
             "maxFill_m": round(float(np.clip(dz, 0, None).max()), 2),
             "spillCells": int(((~work) & (np.abs(dz) > 0.01)).sum()),
             "keepOutCells": int((ko & (np.abs(dz) > 0.01)).sum()),
+            "overshoot_m2": int(ovs.sum() * cell),
+            "overshootMaxOutside_m": (round(float(dist[ovs].max()), 1) if ovs.sum() else 0.0),
+            "overshootMedianOutside_m": (round(float(np.median(dist[ovs])), 1) if ovs.sum() else 0.0),
             "keepOutHa": round(float(ko.sum() * cell / 1e4), 2),
         },
         "provenance": {
@@ -435,7 +442,11 @@ def main():
         ow, oe = side_offset(d, s["body"], "郭外"), side_offset(d, s["body"], "郭内")
         cs, _ = coping_at(d, p[0] - ow * n[0], p[1] - ow * n[1], "郭外", s["body"])
         cn, _ = coping_at(d, p[0] + (wd + oe) * n[0], p[1] + (wd + oe) * n[1], "郭内", s["body"])
+        wl = [r[0] for r in row if r[2] < b["waterY"] - 0.05]
         secs.append({"mark": s["mark"], "body": s["body"], "chainage": s["chainage"],
+                     "trueWaterlineFrom": round(min(wl), 2) if wl else None,
+                     "trueWaterlineTo": round(max(wl), 2) if wl else None,
+                     "trueWaterlineWidth": round(max(wl) - min(wl), 2) if wl else None,
                      "works": bool(b.get("works")),
                      "waterY": b["waterY"], "floor": b["floor"],
                      "p": [round(p[0], 2), round(p[1], 2)], "nrm": [round(n[0], 5), round(n[1], 5)],
@@ -520,6 +531,9 @@ def main():
           % (ter["reachLength"], v["workAreaHa"], v["waterAreaHa"], v["bankAreaHa"]))
     print("掘削 %s m3(最大 %.2f m) / 盛土 %s m3(最大 %.2f m) / 差引 %s m3"
           % (f"{v['cut_m3']:,}", v["maxCut_m"], f"{v['fill_m3']:,}", v["maxFill_m"], f"{v['net_m3']:,}"))
+    print("⚠ 汀線の外に残る水面下の床 %s m2(汀線から中央 %.1fm・最大 %.1fm 外)"
+          % (f"{ter['volumes']['overshoot_m2']:,}", ter["volumes"]["overshootMedianOutside_m"],
+             ter["volumes"]["overshootMaxOutside_m"]))
     print("工区の外へ出た変更セル %d ／ 凍結域で動いたセル %d(凍結 %.2f ha)"
           % (v["spillCells"], v["keepOutCells"], v["keepOutHa"]))
     pv = ter["provenance"]

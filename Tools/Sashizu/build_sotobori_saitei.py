@@ -209,7 +209,8 @@ def zoom_svg(d, it, samp, W=1180.0):
     p = Proj(k[0], k[1], k[2], k[3], W=W, top=14, bottom=30)
     h = _sv(p.W, p.H, "拡大平面")
     h.append(R(0, 0, p.W, p.H, fill="var(--paper)"))
-    st = 2.0
+    # ⚠ 窓が広いとセルが爆発する(U11 で 6.5MB まで膨らんだ)。1辺 160m を超えたら粗くする
+    st = 2.0 if max(k[1] - k[0], k[3] - k[2]) <= 160 else 4.0
     s = p.L(st) + 0.5
     z = k[2]
     while z <= k[3]:
@@ -244,7 +245,7 @@ def zoom_svg(d, it, samp, W=1180.0):
     if it.get("sectionAt"):
         sa = it["sectionAt"]
         aa = math.radians(sa["yaw"])
-        nn = (math.cos(aa + math.pi / 2), math.sin(aa + math.pi / 2))
+        nn = (math.cos(aa), -math.sin(aa))
         sec = ((sa["p"][0] + sa["tFrom"] * nn[0], sa["p"][1] + sa["tFrom"] * nn[1]),
                (sa["p"][0] + sa["tTo"] * nn[0], sa["p"][1] + sa["tTo"] * nn[1]), nn)
     elif it.get("section"):
@@ -294,8 +295,10 @@ def sect_frame(d, it):
     if it.get("sectionAt"):
         sa = it["sectionAt"]
         q = tuple(sa["p"])
+        # ⚠ yaw は Unity 規約(+Z から +X へ)。方向ベクトルは (sin,cos)、その直角は (cos,-sin)。
+        #    数学角の回転(cos(θ+90),sin(θ+90)) を当てると 19°ずれる(2026-08-28 検図 高-2)。
         ang = math.radians(sa["yaw"])
-        n = (math.cos(ang + math.pi / 2), math.sin(ang + math.pi / 2))
+        n = (math.cos(ang), -math.sin(ang))
         return q, n, 0.0, {"chainage": 0.0, "tFrom": sa["tFrom"], "tTo": sa["tTo"]}, sa["label"]
     sw, ne, u, n, ln = frame(d, it["body"])
     sc = it["section"]
@@ -362,8 +365,12 @@ def sect_svg(d, it, samp, mode="before", dsamp=None, W=1180.0):
         full = [(t, samp(q[0] + t * n[0], q[1] + t * n[1]))
                 for t in [-24 + i * 0.25 for i in range(int((wd + 48) / 0.25) + 1)]]
         if prof:
-            pd_ = dict((round(t, 2), v) for t, v in prof)
-            full = [(t, pd_.get(round(t, 2), v)) for t, v in full]
+            # ⚠ prof の t は tw 起点の累積で格子に乗らない。**線形補間で合成する**
+            #    (dict 引きは 0/91 ヒットの死にコードだった。2026-08-28 検図 中-3)
+            px_ = [t for t, _ in prof]
+            pv_ = [v for _, v in prof]
+            lo_, hi_ = px_[0], px_[-1]
+            full = [(t, (np_interp(t, px_, pv_) if lo_ <= t <= hi_ else v)) for t, v in full]
         b0, b1 = waterline_span(full, wy)
         w0, w1 = 0.0, wd
         kind = (o or {}).get("after", {}).get("kind")
@@ -416,8 +423,7 @@ def sect_svg(d, it, samp, mode="before", dsamp=None, W=1180.0):
              % (" ".join("%.1f,%.1f" % (X(t), Y(v)) for t, v in g),
                 COL[mode] if o else "var(--ink)"))
     # --- 石垣
-    runs = [r for r in d["ishigaki"]["runs"]
-            if r["body"] == it["body"] and it.get("side", "") in r["side"]]
+    runs = [r for r in d["ishigaki"]["runs"] if r["body"] == it["body"]]   # 両岸を描く
     for r in runs:
         a2, b2 = r["p0"], r["p1"]
         dx2, dz2 = b2[0] - a2[0], b2[1] - a2[1]
@@ -435,7 +441,7 @@ def sect_svg(d, it, samp, mode="before", dsamp=None, W=1180.0):
             t = -off if "郭外" in r["side"] else wd + off
         c0_ = r["copingFrom"] + (r["copingTo"] - r["copingFrom"]) * u2
         base = r.get("base", 0.0)
-        if o and o.get("after", {}).get("snapWalls") and b0 is not None:
+        if o and (o.get("after", {}).get("snapWalls") or o.get("assumeFitBed")) and b0 is not None:
             t = b0 if "郭外" in r["side"] else b1   # 案で汀線へ据え直す石垣
             col_ = COL[mode]
         elif o and tw is not None and r["line"] == o.get("after", {}).get("run"):
@@ -455,14 +461,21 @@ def sect_svg(d, it, samp, mode="before", dsamp=None, W=1180.0):
         if gh - c0_ > 0.3:
             h.append('<text class="anG" x="%.1f" y="%.1f" style="text-anchor:middle">'
                      '⛔ 地盤 %.2f = 天端が %.2fm 土の中</text>' % (X(t), Y(c0_) + 15, gh, gh - c0_))
-    ttl = ("いまの姿(before)" if mode == "before"
+    face = "掘り直し後の設計面" if it.get("showDesign") else "いまの姿(before)"
+    ttl = (face if mode == "before"
            else "案%s を採った後(after) ── %s" % (mode, html.escape(o["name"])))
     h.append('<text class="big" x="%.1f" y="20">%s ── %s ／ %s</text>'
              % (x0, it["id"], html.escape(sub), ttl))
     vex = (yh / (hi - lo)) / (xw / (sc["tTo"] - sc["tFrom"]))
+    # ⚠ 左右は**その断面の法線**から出す。literal に刷ると sectionAt の断面で逆になる(検図 高-1)
+    seg0 = [w for w in d["reach"]["segments"] if w["body"] == it["body"]][0]
+    inw = (seg0["ne"][0][0] - seg0["sw"][0][0], seg0["ne"][0][1] - seg0["sw"][0][1])
+    toward_kakunai = n[0] * inw[0] + n[1] * inw[1] > 0     # +t が郭内を向くか
+    lab_l, lab_r = ("郭外(南西・愛宕下がわ)", "郭内(北東・城がわ)") if toward_kakunai \
+        else ("郭内(北東・城がわ)", "郭外(南西・愛宕下がわ)")
     h.append('<text class="sl" x="%.1f" y="%.1f" style="text-anchor:middle">'
-             '◀ 左=郭外(南西・愛宕下がわ) ／ 右=郭内(北東・城がわ) ▶　'
-             '汀線からの距離 [m]　垂直倍率 %.1f 倍</text>' % (x0 + xw / 2, y0 + 34, vex))
+             '◀ 左=%s ／ 右=%s ▶　汀線からの距離 [m]　垂直倍率 %.1f 倍</text>'
+             % (x0 + xw / 2, y0 + 34, lab_l, lab_r, vex))
     h.append(ENDSVG)
     return "\n".join(h)
 
@@ -477,7 +490,12 @@ def waterline_span(g, wy):
     """**本当の汀線** — 地形が水位を横切る所。水面の板の縁はここに来るのが正しい。
 
     ⚠ 床(堀底)の縁ではない。床の縁は法尻で、水位を切る線はその 0.5〜1.3m 外側にある。
+    ⛔ **事前条件: 窓の両端が水位より高いこと。** 満たさないと堀の外の低地を平然と拾う
+       (2026-08-28 検図 中-4。00001 の距離程10 で窓を広げると 49m→85m と発散した)。
+       満たさないときは (None, None) を返し、図には「判定不能」を出す。
     """
+    if not g or g[0][1] < wy or g[-1][1] < wy:
+        return None, None
     ts = [t for t, v in g if v < wy]
     return (min(ts), max(ts)) if ts else (None, None)
 
@@ -496,8 +514,7 @@ def after_profile(d, it, o, wd, q, n, samp, sc):
     a = o.get("after")
     if not a:
         return None, None, None
-    runs = [r for r in d["ishigaki"]["runs"]
-            if r["body"] == it["body"] and it.get("side", "") in r["side"]]
+    runs = [r for r in d["ishigaki"]["runs"] if r["body"] == it["body"]]   # 両岸を描く
     run = next((r for r in runs if r["line"] == a.get("run")), runs[0] if runs else None)
     if run is None:
         return None, None, None
@@ -527,8 +544,11 @@ def after_profile(d, it, o, wd, q, n, samp, sc):
     while sc["tFrom"] <= t <= sc["tTo"]:
         t += outward * 0.25
         if a["kind"] == "raise":
-            if gnd(t) >= cp:                           # 現況が天端を越えたら、そこから現況なり
+            v -= 0.25 / bat                            # 天端から 1:bat で**降ろして**現況へ当てる
+            if gnd(t) >= v:
+                land.append((t, gnd(t)))
                 break
+            land.append((t, v))
         else:
             v += 0.25 / bat                            # 郭外は陸が高いので**上げて**摺り付ける
             if gnd(t) <= v:
@@ -548,8 +568,26 @@ def after_profile(d, it, o, wd, q, n, samp, sc):
     while sc["tFrom"] <= t <= sc["tTo"]:
         moat.append((t, gnd(t)))
         t -= outward * 0.25
-    prof = sorted(land + moat, key=lambda z: z[0])
+    # ⚠ t=tw で3点が同値になる。水側(床)→天端→犬走り の順に固定しないと犬走りが斜路になる
+    tag = [(t, v, 1) for t, v in land] + [(t, v, 0) for t, v in moat]
+    tag.sort(key=lambda z: (z[0], z[2] if z[0] >= tw else -z[2]))
+    prof = [(t, v) for t, v, _ in tag]
     return prof, tw, cp
+
+
+def np_interp(x, xs, ys):
+    """xs は昇順。線形補間(numpy を使わない小さな実装)。"""
+    lo, hi = 0, len(xs) - 1
+    while hi - lo > 1:
+        mid = (lo + hi) // 2
+        if xs[mid] <= x:
+            lo = mid
+        else:
+            hi = mid
+    if xs[hi] == xs[lo]:
+        return ys[lo]
+    r = (x - xs[lo]) / (xs[hi] - xs[lo])
+    return ys[lo] * (1 - r) + ys[hi] * r
 
 
 def in_poly(x, z, w):
@@ -598,7 +636,7 @@ def notch_svg(d, it, W=1180.0):
         h.append(R(ox + 6, 46, half - 12, H - 76, fill="var(--paper2)", stroke="var(--rule)", sw=1))
         h.append('<text class="big" x="%.1f" y="34">%s</text>' % (ox + 16, title))
         poly = [(X(a[0]), Y(a[1])) for a in pts]
-        deep = [(X(a[0] + 70 * nrm[0]), Y(a[1] + 70 * nrm[1])) for a in pts]
+        deep = [(X(a[0] + 32 * nrm[0]), Y(a[1] + 32 * nrm[1])) for a in pts]   # 堀の実幅 ≈32m
         h.append('<path d="M%s L%s Z" fill="#BBD3DF" opacity="0.6"/>'
                  % (" L".join("%.1f,%.1f" % q for q in poly),
                     " L".join("%.1f,%.1f" % q for q in reversed(deep))))
@@ -625,8 +663,10 @@ def notch_svg(d, it, W=1180.0):
              % (mx, my, X1(v[0]), Y1(v[1])))
     h.append('<circle cx="%.1f" cy="%.1f" r="5" fill="none" stroke="var(--shu)" stroke-width="2"/>'
              % (X1(v[0]), Y1(v[1])))
-    h.append('<text class="anG" x="%.1f" y="%.1f">張り出しの深さ 7.9 m</text>'
-             % (X1(v[0]) + 10, Y1(v[1]) + 4))
+    dxc, dzc = c2[0] - a2[0], c2[1] - a2[1]
+    depth = abs((v[0] - a2[0]) * dzc - (v[1] - a2[1]) * dxc) / math.hypot(dxc, dzc)
+    h.append('<text class="anG" x="%.1f" y="%.1f">張り出しの深さ %.1f m</text>'
+             % (X1(v[0]) + 10, Y1(v[1]) + 4, depth))
     X2, Y2 = panel(W / 2 + 12, new, "案A ── 岸を一直線にする",
                    COL["A"], "明治17年の実測図では、この区間の岸は新橋を過ぎても一直線")
     for r in d["ishigaki"]["runs"]:
@@ -639,9 +679,18 @@ def notch_svg(d, it, W=1180.0):
         h.append('<text class="anS2" x="%.1f" y="%.1f">%s(%d個)</text>'
                  % (X1((r["p0"][0] + r["p1"][0]) / 2), Y1((r["p0"][1] + r["p1"][1]) / 2) - 10,
                     r["line"], r["n"]))
-        h.append('<text class="anG" x="%.1f" y="%.1f">%s は水の中に入る</text>'
-                 % (X2((r["p0"][0] + r["p1"][0]) / 2), Y2((r["p0"][1] + r["p1"][1]) / 2) + 16,
-                    r["line"]))
+        a3, c3 = new[0], new[1]
+        dxn, dzn = c3[0] - a3[0], c3[1] - a3[1]
+        lnn = math.hypot(dxn, dzn)
+        sd_ = lambda pt: ((pt[0] - a3[0]) * dzn - (pt[1] - a3[1]) * dxn) / lnn
+        s0, s1 = sd_(r["p0"]), sd_(r["p1"])
+        if s0 * s1 < 0:                                   # 新しい汀線をまたぐ
+            frac = abs(s1) / (abs(s0) + abs(s1)) if s0 < 0 else abs(s0) / (abs(s0) + abs(s1))
+            msg = "%s は新しい汀線をまたぐ(約%d個が水中)" % (r["line"], round(r["n"] * frac))
+        else:
+            msg = "%s は%s" % (r["line"], "全部が水中" if max(s0, s1) > 0 else "全部が陸側")
+        h.append('<text class="anG" x="%.1f" y="%.1f">%s</text>'
+                 % (X2((r["p0"][0] + r["p1"][0]) / 2), Y2((r["p0"][1] + r["p1"][1]) / 2) + 16, msg))
     h.append('<text class="sl" x="%.1f" y="%.1f">← 虎ノ門・新シ橋がわ</text>' % (14, H - 34))
     h.append('<text class="sl" x="%.1f" y="%.1f" style="text-anchor:end">幸橋がわ →</text>'
              % (W - 14, H - 34))
@@ -717,19 +766,22 @@ def main():
             for para in it["plain"].split("\n\n"):
                 h.append('<p class="cap" style="max-width:80ch">%s</p>'
                          % sashizu_lib.inline(html.escape(para.strip())))
-            h.append("<h4>③ 同じ場所の地形</h4>")
+            h.append("<h4>③ 同じ場所の地形(段彩は<b>現況</b>)</h4>")
         else:
             h.append("<h4>② 拡大平面</h4>")
         h.append('<div class="fig">%s</div>' % zoom_svg(d, it, samp))
         if it.get("section") or it.get("sectionAt"):
-            h.append("<h4>③ 断面 ── いまの姿</h4>")
+            h.append("<h4>%s 断面 ── %s</h4>"
+                     % ("④" if it.get("notch") else "③",
+                        "掘り直し後の設計面(この件は掘った後の姿で見る)"
+                        if it.get("showDesign") else "いまの姿"))
             h.append('<div class="fig">%s</div>' % sect_svg(d, it, samp, "before", dsamp))
             nn = 4
             for o in it["options"]:
                 if not o.get("after"):
                     continue
                 h.append("<h4>%s 断面 ── 案%s を採った後</h4>"
-                         % ("④⑤⑥⑦"[nn - 4], o["key"]))
+                         % ("④⑤⑥⑦⑧"[nn - 4 + (1 if it.get("notch") else 0)], o["key"]))
                 h.append('<div class="fig">%s</div>' % sect_svg(d, it, samp, o["key"], dsamp))
                 if o.get("after", {}).get("kind") == "fitBed":
                     h.append('<p class="cap">⭐ <b>地形は1セルも触っていない。</b>動かしたのは'

@@ -71,7 +71,15 @@ def design_grid(d, b, box):
     T = dem.load_terrain(b)
     meta = T["meta"]
     px, pz, sp = meta["posX"], meta["posZ"], meta["spacing"]
-    x0, x1, z0, z1 = box
+    # ⚠ 45°頭打ちは np.roll でラップするので、**箱の広さが変わると設計面が変わる**。
+    #    指図の生成器と同じ外接矩形で回す(2026-08-28 検図。一致 51.8%・最大 4.65m ずれていた)
+    xs_ = [p2[0] for w in d["water"] for p2 in w["outline"]]
+    zs_ = [p2[1] for w in d["water"] for p2 in w["outline"]]
+    mg_ = d["works"]["outerWidth"] + 30
+    x0 = math.floor((min(xs_) - mg_) / 4) * 4
+    x1 = math.ceil((max(xs_) + mg_) / 4) * 4
+    z0 = math.floor((min(zs_) - mg_) / 4) * 4
+    z1 = math.ceil((max(zs_) + mg_) / 4) * 4
     c0, r0 = int(round((x0 - px) / sp)), int(round((z0 - pz) / sp))
     nx = int((x1 - x0) / sp) + 1
     nz = int((z1 - z0) / sp) + 1
@@ -210,7 +218,7 @@ def zoom_svg(d, it, samp, W=1180.0):
     h = _sv(p.W, p.H, "拡大平面")
     h.append(R(0, 0, p.W, p.H, fill="var(--paper)"))
     # ⚠ 窓が広いとセルが爆発する(U11 で 6.5MB まで膨らんだ)。1辺 160m を超えたら粗くする
-    st = 2.0 if max(k[1] - k[0], k[3] - k[2]) <= 160 else 4.0
+    st = 2.0 if max(k[1] - k[0], k[3] - k[2]) <= 240 else 4.0
     s = p.L(st) + 0.5
     z = k[2]
     while z <= k[3]:
@@ -302,7 +310,20 @@ def sect_frame(d, it):
         return q, n, 0.0, {"chainage": 0.0, "tFrom": sa["tFrom"], "tTo": sa["tTo"]}, sa["label"]
     sw, ne, u, n, ln = frame(d, it["body"])
     sc = it["section"]
-    q = (sw[0][0] + sc["chainage"] * u[0], sw[0][1] + sc["chainage"] * u[1])
+    # ⚠ 距離程は**堰の直下からの通し**。区間の基点(base)を引かないと別の場所を切る
+    #    (2026-08-28 検図。U11=00002 は base 252.16m で 252m ずれていた)
+    base = 0.0
+    for seg in d["reach"]["segments"]:
+        if seg["body"] == it["body"]:
+            break
+        a2, b2 = seg["sw"]
+        base += math.hypot(b2[0] - a2[0], b2[1] - a2[1])
+        g = next((g for g in d["reach"].get("gaps", []) if g["after"] == seg["body"]), None)
+        if g:
+            nxt = d["reach"]["segments"][d["reach"]["segments"].index(seg) + 1]["sw"][0]
+            base += math.hypot(nxt[0] - b2[0], nxt[1] - b2[1])
+    loc = sc["chainage"] - base
+    q = (sw[0][0] + loc * u[0], sw[0][1] + loc * u[1])
     return q, n, width_at(q, n, ne), sc, "距離程 %.0f m" % sc["chainage"]
 
 
@@ -471,8 +492,11 @@ def sect_svg(d, it, samp, mode="before", dsamp=None, W=1180.0):
     seg0 = [w for w in d["reach"]["segments"] if w["body"] == it["body"]][0]
     inw = (seg0["ne"][0][0] - seg0["sw"][0][0], seg0["ne"][0][1] - seg0["sw"][0][1])
     toward_kakunai = n[0] * inw[0] + n[1] * inw[1] > 0     # +t が郭内を向くか
-    lab_l, lab_r = ("郭外(南西・愛宕下がわ)", "郭内(北東・城がわ)") if toward_kakunai \
-        else ("郭内(北東・城がわ)", "郭外(南西・愛宕下がわ)")
+    if it.get("sectionAt"):        # 壁に直角な断面。汀線の内外でなく「堀の中/陸」で言う
+        lab_l, lab_r = ("堀の中", "陸(郭内がわ)") if toward_kakunai else ("陸(郭内がわ)", "堀の中")
+    else:
+        lab_l, lab_r = ("郭外(南西・愛宕下がわ)", "郭内(北東・城がわ)") if toward_kakunai \
+            else ("郭内(北東・城がわ)", "郭外(南西・愛宕下がわ)")
     h.append('<text class="sl" x="%.1f" y="%.1f" style="text-anchor:middle">'
              '◀ 左=%s ／ 右=%s ▶　汀線からの距離 [m]　垂直倍率 %.1f 倍</text>'
              % (x0 + xw / 2, y0 + 34, lab_l, lab_r, vex))
@@ -685,10 +709,11 @@ def notch_svg(d, it, W=1180.0):
         sd_ = lambda pt: ((pt[0] - a3[0]) * dzn - (pt[1] - a3[1]) * dxn) / lnn
         s0, s1 = sd_(r["p0"]), sd_(r["p1"])
         if s0 * s1 < 0:                                   # 新しい汀線をまたぐ
-            frac = abs(s1) / (abs(s0) + abs(s1)) if s0 < 0 else abs(s0) / (abs(s0) + abs(s1))
+            # ⚠ 水側は sd<0。水中の割合は**負側の端点の長さ比**(2026-08-28 検図 中-1)
+            frac = (abs(s0) if s0 < 0 else abs(s1)) / (abs(s0) + abs(s1))
             msg = "%s は新しい汀線をまたぐ(約%d個が水中)" % (r["line"], round(r["n"] * frac))
         else:
-            msg = "%s は%s" % (r["line"], "全部が水中" if max(s0, s1) > 0 else "全部が陸側")
+            msg = "%s は%s" % (r["line"], "全部が水中" if max(s0, s1) < 0 else "全部が陸側")
         h.append('<text class="anG" x="%.1f" y="%.1f">%s</text>'
                  % (X2((r["p0"][0] + r["p1"][0]) / 2), Y2((r["p0"][1] + r["p1"][1]) / 2) + 16, msg))
     h.append('<text class="sl" x="%.1f" y="%.1f">← 虎ノ門・新シ橋がわ</text>' % (14, H - 34))
@@ -793,6 +818,15 @@ def main():
                 nn += 1
         h.append("<h4>案</h4>")
         h.append(opt_table(it))
+        h.append("</div>")
+    if sj.get("resolved"):
+        n += 1
+        h.append('<div class="plate"><div class="phead"><h2>%s　裁定から降ろした件</h2>'
+                 '<span class="meta">検図・考証で「裁定不要」と分かったもの</span></div>' % KAN[n - 1])
+        for r in sj["resolved"]:
+            h.append("<h4>%s %s</h4>" % (r["id"], html.escape(r["title"])))
+            h.append('<p class="cap" style="max-width:80ch">%s</p>'
+                     % sashizu_lib.inline(html.escape(r["why"])))
         h.append("</div>")
     h.append('<div class="plate"><div class="phead"><h2>%s　決め方</h2></div>' % KAN[n])
     h.append('<p class="cap">案を選んでいただければ、選ばれた案だけを '

@@ -368,8 +368,37 @@ h2{font-family:'Shippori Mincho',serif;font-weight:600;font-size:17px;
 .tasks thead th .ar{opacity:0;font-size:9px;margin-left:3px}
 .tasks thead th[data-dir] .ar{opacity:1}
 .tasks tbody td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
-.tasks tbody tr:hover{background:var(--card)}
+.tasks tbody tr.trow{cursor:pointer}
+.tasks tbody tr.trow:hover{background:var(--card)}
+.tasks tbody tr.trow:focus-visible{outline:2px solid var(--ai);outline-offset:-2px}
 .tasks tbody tr.done-row td{opacity:.5}
+.tasks .tw{display:flex;gap:7px;align-items:baseline}
+.tasks .caret{color:var(--muted);font-size:10px;flex:none;transition:transform .12s;
+  display:inline-block;line-height:1.6}
+.tasks tr[aria-expanded="true"] .caret{transform:rotate(90deg)}
+.tasks tr[aria-expanded="true"]{background:var(--card)}
+.tasks tr[aria-expanded="true"] td{border-bottom-color:transparent}
+
+/* ── 押して開く詳細。経過ログはここにしか出ない */
+.drow > td{background:var(--card);padding:0 10px 14px}
+.dbox{border-left:2px solid var(--ai);padding:2px 0 2px 14px;margin-left:2px;
+  display:flex;flex-direction:column;gap:9px}
+.dmeta{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12px;color:var(--muted)}
+.dmeta b{color:var(--ink);font-weight:500}
+.dref{font-size:11.5px;color:var(--muted)}
+.dref code{font-family:var(--mono);font-size:11px;background:var(--bg);
+  padding:1px 5px;border-radius:2px}
+.dlog-h{font-size:11px;letter-spacing:.08em;color:var(--muted);
+  border-bottom:1px solid var(--line);padding-bottom:3px;margin-bottom:5px}
+.dlog-e{display:grid;grid-template-columns:auto auto 1fr;gap:4px 10px;
+  font-size:12.5px;padding:4px 0;align-items:baseline}
+.dlog-e + .dlog-e{border-top:1px dotted var(--line)}
+.dlog-e .t{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap}
+.dlog-e .by{font-family:var(--mono);font-size:10.5px;color:var(--faint,var(--muted));
+  white-space:nowrap;opacity:.8}
+.dlog-e .m{white-space:pre-wrap;word-break:break-word;line-height:1.7}
+.badge.st-info{opacity:.75}
+.badge.st-open{background:var(--bg)}
 .tasks .c-id{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap}
 .tasks .c-site{white-space:nowrap;font-size:12.5px}
 .tasks .c-site i{display:inline-block;width:7px;height:7px;border-radius:50%;
@@ -464,6 +493,10 @@ JS = """
     return new Set(btns.filter(function(b){ return b.classList.contains('active'); })
                         .map(function(b){ return b.getAttribute(attr); }));
   }
+  function detailOf(row){
+    var id = row.id.replace(/^row-/, '');
+    return document.getElementById('det-' + id);
+  }
   function apply(){
     var sites = activeVals(siteBtns, 'data-site');
     var types = activeVals(typeBtns, 'data-type');
@@ -471,11 +504,19 @@ JS = """
     var shownRows = 0;
     items.forEach(function(el){
       var st = el.getAttribute('data-status');
+      var det = el.classList.contains('trow') ? detailOf(el) : null;
+      /* 検索は詳細(経過ログ)の中身も対象にする — 行の題だけでは当たらない語が多い */
+      var hay = el.textContent + (det ? det.textContent : '');
       var vis = sites.has(el.getAttribute('data-site'))
              && types.has(el.getAttribute('data-type'))
              && (showDone.checked || (st !== 'done' && st !== 'dropped'))
-             && (!q || el.textContent.toLowerCase().indexOf(q) !== -1);
+             && (!q || hay.toLowerCase().indexOf(q) !== -1);
       el.style.display = vis ? '' : 'none';
+      /* 親が消えたら詳細も畳む(開いたまま親だけ消えると宙に浮く) */
+      if (det && !vis){
+        det.hidden = true;
+        el.setAttribute('aria-expanded', 'false');
+      }
       if (vis && el.classList.contains('trow')) shownRows++;
     });
     lanes.forEach(function(l){
@@ -495,8 +536,28 @@ JS = """
     showDone.checked = false; search.value = ''; apply();
   });
 
-  /* ── タスク一覧の並べ替え。既定は優先度(要裁定→ブロッカー→進行中→open→完了)。 */
+  /* ── 行を押したら詳細(経過ログ・裁定の中身・正典の参照)を開く */
   var tbody = document.getElementById('taskBody');
+  function toggleRow(row){
+    var det = detailOf(row);
+    if (!det) return;
+    var open = det.hidden;
+    det.hidden = !open;
+    row.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  $all('#taskBody tr.trow').forEach(function(row){
+    row.addEventListener('click', function(e){
+      /* 詳細の中のリンクを踏んだときは開閉しない */
+      if (e.target.closest('a')) return;
+      toggleRow(row);
+    });
+    row.addEventListener('keydown', function(e){
+      if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toggleRow(row); }
+    });
+  });
+
+  /* ── 並べ替え。既定は優先度(要裁定→ブロッカー→進行中→未着手→完了)。
+        詳細行は必ず親のすぐ後ろへ連れて動かす。 */
   if (tbody){
     $all('.tasks thead th.sortable').forEach(function(th){
       th.addEventListener('click', function(){
@@ -508,14 +569,18 @@ JS = """
         });
         th.setAttribute('data-dir', dir);
         var ar = th.querySelector('.ar'); if (ar) ar.textContent = dir === 'asc' ? '▲' : '▼';
-        var rows = $all('#taskBody tr');
+        var rows = $all('#taskBody tr.trow');
         rows.sort(function(a, b){
           var av = a.getAttribute('data-' + key), bv = b.getAttribute('data-' + key);
           var an = parseFloat(av), bn = parseFloat(bv);
           var c = (!isNaN(an) && !isNaN(bn)) ? an - bn : String(av).localeCompare(String(bv), 'ja');
           return dir === 'asc' ? c : -c;
         });
-        rows.forEach(function(r){ tbody.appendChild(r); });
+        rows.forEach(function(r){
+          tbody.appendChild(r);
+          var det = detailOf(r);
+          if (det) tbody.appendChild(det);
+        });
       });
     });
   }
@@ -701,42 +766,102 @@ def task_prio(i):
     return PRIO.get(i["status"], 5)
 
 
+# 種別(task/info/blocker/decision)と状態(open/awaiting-user/…)を**1列に畳む**。
+# 2026-08-29 ユーザー指摘「種別と状態の違いがよくわからない。状態だけでよい」——
+# 実際 種別「裁定」と状態「要裁定」が紛らわしく、並べても読み分けられなかった。
+# 畳むときは**手を打つべき緊急度の高い方**を出す(生きているブロッカーは状態より種別が効く)。
+# 種別そのものは詳細と絞り込みには残す(info を畳んで静かにする、が効くため)。
+def task_state(i):
+    """(表示ラベル, バッジのCSSクラス)。"""
+    if i["status"] == "awaiting-user":
+        return "要裁定", "st-awaiting-user"
+    if i["status"] in ("done", "dropped"):
+        return ("完了", "st-done") if i["status"] == "done" else ("見送り", "st-dropped")
+    if i["type"] == "blocker":
+        return "ブロッカー", "type-blocker"
+    if i["status"] == "in-progress":
+        return "進行中", "st-in-progress"
+    if i["type"] == "info":
+        return "記録", "st-info"
+    return "未着手", "st-open"
+
+
+def detail_html(i, states):
+    """行を押したときに開く詳細。経過ログはここにしか出ない(表には出さない)。"""
+    b = []
+    b.append('<div class="dmeta">'
+             '<span>敷地 <b>%s</b></span><span>種別 <b>%s</b></span>'
+             '<span>状態 <b>%s</b></span>%s</div>'
+             % (esc(SITES.get(i["estate"], CROSS_LABEL)),
+                esc(TYPE_LABEL.get(i["type"], i["type"])),
+                esc(STATUS_LABEL.get(i["status"], i["status"])),
+                ('<span>担当 <b>%s</b></span>' % esc(i["owner"])) if i.get("owner") else ""))
+    d = i.get("decision") or {}
+    if d:
+        b.append('<dl class="dl">')
+        b.append("<dt>背景</dt><dd>%s</dd>" % esc(d.get("background", "")))
+        b.append("<dt>選択肢</dt><dd>%s</dd>"
+                 % "<br>".join(esc(o) for o in d.get("options", [])))
+        b.append('<dt>推奨</dt><dd class="rec">%s</dd>' % esc(d.get("recommend", "")))
+        b.append("<dt>影響</dt><dd>%s</dd>" % esc(d.get("impact", "")))
+        b.append("</dl>")
+    for r in i.get("refs", []):
+        b.append('<div class="dref">正典 <code>%s</code></div>' % esc(r))
+    b.append(refs_html(i, states))
+    log = i.get("log") or []
+    if log:
+        b.append('<div class="dlog"><div class="dlog-h">経過 %d件</div>' % len(log))
+        for e in log:
+            b.append('<div class="dlog-e"><span class="t">%s</span>'
+                     '<span class="by">%s</span><span class="m">%s</span></div>'
+                     % (esc(time.strftime("%m-%d %H:%M", time.localtime(e.get("t", 0)))),
+                        esc((e.get("by") or "")[:12]), esc(e.get("msg", ""))))
+        b.append("</div>")
+    return "".join(b)
+
+
 def task_row(i, states):
-    """タスク一覧(全敷地を1枚)の1行。data-* はフィルタと並べ替えが読む。"""
+    """タスク一覧(全敷地を1枚)の1行 + 押したら開く詳細行。
+    data-* はフィルタと並べ替えが読む。詳細行は同じ data-* を持たないと
+    フィルタで親だけ消えて詳細が浮くので、JS 側で親と対で扱う。"""
     site = display_site(i)
     cls = "fitem trow"
     if i["status"] in ("done", "dropped"):
         cls += " done-row"
-    return (
+    label, badge_cls = task_state(i)
+    row = (
         '<tr id="row-%s" class="%s" data-site="%s" data-type="%s" data-status="%s"'
-        ' data-prio="%d" data-when="%d" data-sitename="%s" data-title="%s">'
+        ' data-prio="%d" data-when="%d" data-sitename="%s" data-title="%s"'
+        ' data-state="%s" tabindex="0" role="button" aria-expanded="false"'
+        ' aria-controls="det-%s">'
         '<td class="c-id">%s</td>'
         '<td class="c-site"><i style="--dot:%s"></i>%s</td>'
-        '<td class="c-badge"><span class="badge type-%s">%s</span></td>'
-        '<td class="c-badge"><span class="badge st-%s">%s</span></td>'
-        '<td class="c-ttl">%s%s</td>'
+        '<td class="c-badge"><span class="badge %s">%s</span></td>'
+        '<td class="c-ttl"><span class="tw"><span class="caret">▸</span>%s</span></td>'
         '<td class="c-when">%s</td></tr>'
         % (esc(i["id"]), esc(cls), esc(site), esc(i["type"]), esc(i["status"]),
            task_prio(i), int(i.get("updated") or 0),
            esc(SITES.get(i["estate"], CROSS_LABEL)), esc(i["title"]),
+           esc(label), esc(i["id"]),
            esc(i["id"]),
            esc(SITE_DOT.get(site, "var(--line-firm)")), esc(SITES.get(i["estate"], CROSS_LABEL)),
-           esc(i["type"]), esc(TYPE_LABEL.get(i["type"], i["type"])),
-           esc(i["status"]), esc(STATUS_LABEL.get(i["status"], i["status"])),
-           esc(i["title"]), refs_html(i, states),
+           esc(badge_cls), esc(label),
+           esc(i["title"]),
            esc(ago(i.get("updated") or 0))))
+    det = ('<tr id="det-%s" class="drow" data-for="%s" hidden>'
+           '<td colspan="5"><div class="dbox">%s</div></td></tr>'
+           % (esc(i["id"]), esc(i["id"]), detail_html(i, states)))
+    return row + det
 
 
 def tasks_table_html(issues, states):
     rows = sorted(issues, key=lambda i: (task_prio(i), -(i.get("updated") or 0)))
-    head = [("prio", "優先", "sortable"), ("sitename", "敷地", "sortable"),
-            ("type", "種別", ""), ("status", "状態", "sortable"),
+    head = [("prio", "ID", "sortable"), ("sitename", "敷地", "sortable"),
+            ("state", "状態", "sortable"),
             ("title", "タスク", "sortable"), ("when", "更新", "sortable")]
     th = "".join(
         '<th %sdata-key="%s">%s<span class="ar"></span></th>'
         % (('class="%s" ' % c) if c else "", esc(k), esc(lbl)) for k, lbl, c in head)
-    # 1列目の見出しは「優先」だが中身は ID(既定の並びが優先度なので、列としては ID を見せる)
-    th = th.replace(">優先<", ">ID<", 1)
     return ('<div class="mwrap"><table class="tasks"><thead><tr>%s</tr></thead>'
             '<tbody id="taskBody">%s</tbody></table></div>'
             '<div class="empty" id="tasksEmpty" hidden>'

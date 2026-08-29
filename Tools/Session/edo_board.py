@@ -82,13 +82,21 @@ def fmt_line(c):
 def cmd_post(a):
     me = sid(a.session)
     if a.type == "decision":
-        missing = [k for k in ("background", "options", "recommend", "impact")
+        missing = [k for k in ("background", "options", "recommend", "impact", "where")
                    if not getattr(a, k)]
         if missing:
             print("⛔ decision は裁定のテンプレが必須: --%s が無い。\n"
-                  "   ユーザーが判断できる形(背景/選択肢/推奨/影響)でしか裁定は仰げない。"
+                  "   ユーザーが判断できる形(背景/選択肢/推奨/影響/どこ)でしか裁定は仰げない。"
                   % " --".join(missing), file=sys.stderr)
             return 1
+    # ⛔ **どこの話か分からない裁定・ブロッカーは立てられない。**
+    #   2026-08-29 にユーザーから「どこのことを指してるのか分からない」と差し戻された。
+    #   図版番号・辺と s・グリッド・世界座標・隣接物のうち、図の上で指させるものを最低1つ。
+    if a.type == "blocker" and not a.where:
+        print("⛔ blocker には --where が要る(どこの話か)。\n"
+              "   例: --where '其廿三の左図 / 辺14 s6.8〜12.3(東辺の北端・隅櫓のすぐ南)'",
+              file=sys.stderr)
+        return 1
     os.makedirs(BOARD, exist_ok=True)
     nums = [int(re.search(r"\d+", c["id"]).group()) for c in load_all()]
     n = max(nums or [0]) + 1
@@ -102,7 +110,7 @@ def cmd_post(a):
     issue = {
         "id": iid, "title": a.title, "estate": a.estate, "type": a.type,
         "status": "awaiting-user" if a.type == "decision" else "open",
-        "owner": a.owner or "", "refs": a.ref or [],
+        "owner": a.owner or "", "refs": a.ref or [], "where": a.where,
         "decision": ({"background": a.background, "options": a.options,
                       "recommend": a.recommend, "impact": a.impact}
                      if a.type == "decision" else None),
@@ -166,6 +174,8 @@ def cmd_show(a):
     if not c:
         return 1
     print(fmt_line(c))
+    if c.get("where"):
+        print("  どこ: %s" % c["where"])
     for r in c.get("refs", []):
         print("  ref: %s" % r)
     d = c.get("decision")
@@ -215,6 +225,9 @@ def main():
     p.add_argument("--options", nargs="*", default=[], help="decision: 選択肢")
     p.add_argument("--recommend", default="", help="decision: 推奨と理由")
     p.add_argument("--impact", default="", help="decision: 採ったときの影響(他邸への波及を含む)")
+    p.add_argument("--where", default="",
+                   help="decision/blocker 必須: **どこ**の話か。図版番号(其◯)・辺と s・"
+                        "グリッド(u,v)・世界座標・隣接物のうち、相手が図の上で指させるものを最低1つ")
     p.set_defaults(fn=cmd_post)
     p = sub.add_parser("note", help="log へ1行追記(--status で状態遷移も)")
     p.add_argument("id"); p.add_argument("msg")

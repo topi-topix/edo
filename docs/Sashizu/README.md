@@ -64,7 +64,7 @@ python3 Tools/Sashizu/build_okabe_sashizu.py
 
 | 屋敷・社 | 地区 | 状態 | 図面 | Artifact |
 |---|---|---|---|---|
-| 岡部筑前守 上屋敷（和泉岸和田藩5万3千石） | 山王社北 | **実装済・指図と一致(180項目)** | [okabe_sashizu.html](okabe_sashizu.html) | https://claude.ai/code/artifact/ce6d353b-33ea-4355-aeb4-c5097da69e53 |
+| 岡部内膳正 上屋敷（和泉岸和田藩5万3千石） | 山王社北 | **実装済・指図と一致(180項目)** | [okabe_sashizu.html](okabe_sashizu.html) | https://claude.ai/code/artifact/ce6d353b-33ea-4355-aeb4-c5097da69e53 |
 | 松平出羽守 上屋敷（出雲松江藩18万6千石・親藩国主） | 山王社北 | **起案・検図中（レビュー待ち）** | [matsudaira_sashizu.html](matsudaira_sashizu.html) | https://claude.ai/code/artifact/eaba651e-982d-4451-8bb5-d17ba95b8093 |
 | 土井大隅守 上屋敷（三河刈谷藩2万3千石・譜代雁間） | 山王社北 | **起案・検図済（レビュー待ち）** | [doi_sashizu.html](doi_sashizu.html) | https://claude.ai/code/artifact/539c4b6b-0937-458f-8287-e3200e94f3cf |
 | 山王権現社（日枝神社・江戸城の産土神・社領600石） | 永田馬場 星野山 | **起案・検図済（レビュー待ち）** | [sanno_sashizu.html](sanno_sashizu.html) | https://claude.ai/code/artifact/b6b4e5cd-8878-4162-be90-4dd4ed706beb |

@@ -385,9 +385,9 @@ h2{font-family:'Shippori Mincho',serif;font-weight:600;font-size:17px;
   display:flex;flex-direction:column;gap:9px}
 .dmeta{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12px;color:var(--muted)}
 .dmeta b{color:var(--ink);font-weight:500}
-.dref{font-size:11.5px;color:var(--muted)}
+.dref{font-size:11.5px;color:var(--muted);word-break:break-all}
 .dref code{font-family:var(--mono);font-size:11px;background:var(--bg);
-  padding:1px 5px;border-radius:2px}
+  padding:1px 5px;border-radius:2px;word-break:break-all}
 .dlog-h{font-size:11px;letter-spacing:.08em;color:var(--muted);
   border-bottom:1px solid var(--line);padding-bottom:3px;margin-bottom:5px}
 .dlog-e{display:grid;grid-template-columns:auto auto 1fr;gap:4px 10px;
@@ -399,6 +399,55 @@ h2{font-family:'Shippori Mincho',serif;font-weight:600;font-size:17px;
 .dlog-e .m{white-space:pre-wrap;word-break:break-word;line-height:1.7}
 .badge.st-info{opacity:.75}
 .badge.st-open{background:var(--bg)}
+
+/* ── 狭い画面: タスク一覧は表を畳んでカードに積み替える。
+      列を横に並べたままだと5列は入らず横スクロールになるので、
+      1行=1カード(状態・敷地・更新の帯 + 題 + ID)へ組み替える。 */
+@media (max-width:680px){
+  .wrap{padding:20px 14px 56px}
+  .mwrap{overflow-x:visible}
+  .tasks{display:block}
+  .tasks thead{display:none}          /* 積み替えると見出しの列が対応しなくなる */
+  .tasks tbody{display:block}
+  .tasks tbody tr.trow{
+    display:grid;grid-template-columns:auto 1fr auto;
+    grid-template-areas:"state site when" "title title title" "id id id";
+    gap:5px 9px;padding:12px 2px;border-bottom:1px solid var(--line);align-items:baseline}
+  .tasks tbody tr.trow > td{display:block;border:0;padding:0}
+  .tasks .c-badge{grid-area:state}
+  .tasks .c-site{grid-area:site;font-size:12px}
+  .tasks .c-when{grid-area:when;text-align:right}
+  .tasks .c-ttl{grid-area:title;font-size:14px;line-height:1.6}
+  .tasks .c-id{grid-area:id;font-size:10.5px}
+  .tasks tbody tr[aria-expanded="true"] > td{border-bottom-color:transparent}
+  .tasks tbody tr.drow{display:block}
+  .tasks tbody tr.drow > td{display:block;padding:0 0 14px}
+  .dbox{padding-left:11px}
+  .dlog-e{grid-template-columns:1fr;gap:2px}      /* 時刻・主体・本文を縦に積む */
+  .dlog-e .by{grid-row:1;justify-self:end;margin-top:-17px}
+  .dl{grid-template-columns:1fr;gap:1px 0}
+  .dl dt{font-size:11px;letter-spacing:.06em;margin-top:6px}
+  .filterbar{position:static;gap:8px 12px}         /* 狭い画面で貼り付くと場所を食う */
+  .fsearch{min-width:0;flex:1 1 100%}
+  .fresetbtn{margin-left:0}
+  .netwrap{padding:12px 12px 6px}
+  .netcap{max-width:none}
+  /* タブ4つが 375px に収まるまで詰める(帯だけ横スクロールするのも避ける) */
+  .tabs{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tab{padding:9px 7px;white-space:nowrap;font-size:13px;letter-spacing:.02em}
+  .tab .n{margin-left:4px;font-size:10.5px}
+  /* 最近の動きも同じ理由で積み替える(4列は入らない) */
+  .scroll{overflow-x:visible}
+  .feed,.feed tbody{display:block}
+  .feed tr{display:grid;grid-template-columns:auto auto 1fr;gap:2px 8px;
+    padding:9px 0;border-bottom:1px solid var(--line);align-items:baseline}
+  .feed td{display:block;border:0;padding:0}
+  .feed td:last-child{grid-column:1/-1;line-height:1.6}
+  /* 敷地別のカードも1列に */
+  .lanes{grid-template-columns:1fr}
+}
+/* 相関図は固定幅の SVG なので、狭い画面では必ず縮める */
+.netwrap svg{max-width:100%;height:auto}
 .tasks .c-id{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap}
 .tasks .c-site{white-space:nowrap;font-size:12.5px}
 .tasks .c-site i{display:inline-block;width:7px;height:7px;border-radius:50%;

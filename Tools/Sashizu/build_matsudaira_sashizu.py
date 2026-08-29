@@ -820,7 +820,12 @@ def perimeter_dev_svg(d):
     prof = d.get("edgeProfiles") or {}
     gmin = min([y for arr in prof.values() for _, y in arr] or seats)
     y1 = max(seats) + nagH + 1.0
-    y0 = min(min(seats), gmin) - 2.0
+    # ⭐ **駒は伸縮しない**(裁定U 2026-08-29)。基壇は天端から丈 piece[1] の箱で、
+    #   地盤より下は地中。図の下端はその底まで取る — 埋まり具合が見えないと裁定が図に映らない。
+    IGH = d["ishigaki"]["piece"][1]
+    _btm = [min(r.get("seat0", r["seat"]), r.get("seat1", r["seat"])) - IGH
+            for r in d["runs"] if r.get("base") == "Ishigaki"]
+    y0 = min([min(seats), gmin] + _btm) - 1.0
     H = (y1 - y0) * sx * ex + HEAD + FOOT
 
     def X(t): return t * sx
@@ -847,7 +852,15 @@ def perimeter_dev_svg(d):
             tb += total
         xa, xb = X(ta), X(tb)
         h = nagH if r["kind"] == "Nagaya" else dob
-        # 石垣基壇: seat から地盤まで(地盤が seat より上=埋まりは描かない)
+        # 石垣の駒(丈 IGH で一定・伸縮しない)。天端から下ろした箱の全体を薄く描き、
+        # そのうち地盤から上に出ている分だけを濃く塗る = 露出は「埋まり具合」の帰結。
+        if r.get("base") == "Ishigaki":
+            _a = seat_at(r, r["s0"]); _b = seat_at(r, r["s1"])
+            g.append('<polygon points="%.1f,%.1f %.1f,%.1f %.1f,%.1f %.1f,%.1f" '
+                     'fill="var(--ishi)" opacity="0.13" stroke="var(--ishi)" '
+                     'stroke-width="0.7" stroke-dasharray="3 3"/>'
+                     % (xa, Y(_a), xb, Y(_b), xb, Y(_b - IGH), xa, Y(_a - IGH)))
+        # 石垣基壇の見え掛かり: seat から地盤まで(地盤が seat より上=埋まりは描かない)
         if prof:
             nsm = 8
             base = []
@@ -928,9 +941,97 @@ def perimeter_dev_svg(d):
         g.append(T(X(t), Y(y0) + 15, "P%d" % i, "jo", "middle"))
     g.append(T(4, H - 22, "展開の起点=表門。天端は run ごとに一定、段は継ぎ目で落とす。"
                "表長屋 桁高 %.1fm/練塀 %.2fm。細線=区画線上の現地形(実測【P】)、"
-               "薄塗り=石垣基壇(天端と地盤の間)" % (nagH, dob), "anS2", "start"))
-    g.append(T(4, H - 8, "北辺中央の鞍部(道23.4m)では表長屋の石垣基壇が道へ露出する。"
-               "練塀の浅い折れは留め継ぎの隅部材で納める(角度は現地が決める)", "anS2", "start"))
+               "濃い塗り=石垣の見え掛かり(天端と地盤の間)、破線の薄い箱=地中に埋まる分" % (nagH, dob),
+               "anS2", "start"))
+    g.append(T(4, H - 8, "石垣の駒は伸縮させない(丈 %.2fm で一定)。天端は面が決め、駒は天端から"
+               "丈のぶん下ろすだけ — 露出の高低は埋まり具合の差であって石の大きさの差ではない。"
+               "北辺中央の鞍部でその露出が最大になる。練塀の浅い折れは留め継ぎの隅部材で納める"
+               "(角度は現地が決める)" % IGH, "anS2", "start"))
+    g.append("</svg>")
+    return "\n".join(g)
+
+
+def ishigaki_detail_svg(d, edge, s0, s1, label):
+    """石垣の割り付けの詳細図(実寸)。**駒は伸縮させない**【裁定U 2026-08-29】
+
+    ⛔ 展開図(全長 600m)では駒の継ぎ目が 3px 間隔になって読めない。詳細設計は
+      詳細の縮尺でしか描けないので、継ぎ目が問題になった区間を実寸で切り出す。
+    """
+    ig = d["ishigaki"]
+    W, IGH = ig["piece"][2], ig["piece"][1]
+    prof = (d.get("edgeProfiles") or {}).get(str(edge), [])
+    rs = [r for r in d["runs"] if r["edge"] == edge and r["s1"] > s0 and r["s0"] < s1]
+    rs.sort(key=lambda r: r["s0"])
+    Wpx, HEAD, FOOT = 900.0, 30.0, 76.0
+    sx = Wpx / (s1 - s0)
+    tops = [seat_at(r, max(r["s0"], s0)) for r in rs] + [seat_at(r, min(r["s1"], s1)) for r in rs]
+    yt = max(tops) + 0.8
+    yb = min(t - IGH for t in tops) - 0.8
+    H = (yt - yb) * sx + HEAD + FOOT
+
+    def X(s): return (s - s0) * sx
+    def Y(y): return HEAD + (yt - y) * sx
+
+    def gy(s):
+        if not prof:
+            return None
+        if s <= prof[0][0]:
+            return prof[0][1]
+        for i in range(len(prof) - 1):
+            (sa, ya), (sb, yb_) = prof[i], prof[i + 1]
+            if sa <= s <= sb:
+                return ya + (yb_ - ya) * (s - sa) / max(1e-6, sb - sa)
+        return prof[-1][1]
+
+    g = _sv(Wpx, H, "石垣基壇の割り付け(%s)" % label)
+    for r in rs:
+        N, pitch, ov, end, over = ishigaki_layout(d, r)
+        for i in range(N):
+            ps = r["s0"] + i * pitch
+            if ps + W < s0 or ps > s1:
+                continue
+            g.append(R(X(ps), Y(seat_at(r, min(max(ps, r["s0"]), r["s1"]))), W * sx, IGH * sx,
+                       fill="var(--ishi)", stroke="var(--ink)", sw=0.7,
+                       op=0.16 if i % 2 else 0.26))
+        # 天端(座)
+        g.append(LN(X(max(r["s0"], s0)), Y(seat_at(r, max(r["s0"], s0))),
+                    X(min(r["s1"], s1)), Y(seat_at(r, min(r["s1"], s1))),
+                    "var(--shu)", 2.0))
+        xa_, xb_ = X(max(r["s0"], s0)), X(min(r["s1"], s1))
+        if xb_ - xa_ >= 70.0:            # 窓の端で切れた run に札を重ねない
+            _t = "%s ／ 駒%d枚・重なり%.2fm" % (r["name"], N, ov)
+            g.append(T((xa_ + xb_) / 2, Y(seat_at(r, (r["s0"] + r["s1"]) / 2)) - 6,
+                       _t, "jo", "middle", fit(_t, xb_ - xa_, 10.0)))
+        # run の境(= 隣の run の駒とここで重なる)
+        for sx_ in (r["s0"], r["s1"]):
+            if s0 - 1e-6 <= sx_ <= s1 + 1e-6:
+                g.append(LN(X(sx_), Y(yt), X(sx_), Y(yb), "var(--shu)", 0.9, dash="4 3", op=0.7))
+    # 地盤(区画線上の現地形【P】)
+    if prof:
+        pts = []
+        k = 0
+        while True:
+            s_ = s0 + 0.5 * k
+            if s_ > s1:
+                s_ = s1
+            pts.append((X(s_), Y(gy(s_))))
+            if s_ >= s1:
+                break
+            k += 1
+        g.append('<polyline points="%s" fill="none" stroke="var(--ink)" stroke-width="1.4"/>'
+                 % " ".join("%.1f,%.1f" % p for p in pts))
+    # 目盛(辺沿い走り s)
+    k = int(math.ceil(s0 / 5.0)) * 5
+    while k <= s1:
+        g.append(LN(X(k), Y(yb), X(k), Y(yb) - 5, "var(--dim)", 0.8))
+        g.append(T(X(k), Y(yb) + 12, "s%d" % k, "jo", "middle"))
+        k += 5
+    g.append(T(4, H - 40, "%s ／ 辺%d の s%.1f〜%.1f を実寸で。駒 = %.2f(厚)×%.2f(丈)×%.2f(走り)m・"
+               "scale=1 で固定。" % (label, edge, s0, s1, ig["piece"][0], IGH, W), "anS2", "start"))
+    g.append(T(4, H - 26, "濃淡は駒の交互。重なりは run ごとに pitch=(L−W)/(N−1) で割り付けるので"
+               "常に %.2fm 以上あり、隙間は出ない。破線=run の境。" % ig["overlapMin"], "anS2", "start"))
+    g.append(T(4, H - 12, "太線=天端(座)、細線=区画線上の現地形【P】。"
+               "駒の底は天端−%.2fm で一定 — 地面より下は地中に埋まる。" % IGH, "anS2", "start"))
     g.append("</svg>")
     return "\n".join(g)
 
@@ -1086,17 +1187,30 @@ def munes_table(d):
 
 
 def runs_table(d):
+    """⭐ 基壇の欄は**割り付けの結果**(枚数・重なり・露出)を出す。設計値は持たない —
+    駒の作法は `ishigaki` の一箇所だけで、run 側に規模の欄は無い【裁定U 2026-08-29】。"""
     rows = []
+    tot = 0
     for r in d["runs"]:
+        if r.get("base") == "Ishigaki":
+            N, pitch, ov, end, over = ishigaki_layout(d, r)
+            lo, hi = ishigaki_exposure(d, r)
+            tot += N
+            base = "駒 %d枚・重なり %.2f" % (N, ov)
+            expo = ("%.2f〜%.2f" % (lo, hi)) if lo is not None else "—"
+        else:
+            base, expo = "—", "—"
         rows.append("<tr><td><code>%s</code></td><td>辺%d</td><td>%.0f–%.0f</td><td>%.1fm</td>"
-                    "<td>%s</td><td>%.1f</td><td>%s</td><td>%s</td></tr>"
+                    "<td>%s</td><td>%.1f</td><td>%s</td><td>%s</td><td>%s</td></tr>"
                     % (r["name"], r["edge"], r["s0"], r["s1"], r["s1"] - r["s0"],
                        "表長屋" if r["kind"] == "Nagaya" else "練塀", r["seat"],
-                       "石垣" if r.get("base") else "—",
-                       "整地" if r.get("bench") else "—"))
+                       base, expo, "整地" if r.get("bench") else "—"))
     return ('<div class="tw"><table><thead><tr><th>run</th><th>辺</th><th>走り s</th><th>長さ</th>'
-            "<th>種別</th><th>天端 seat</th><th>基壇</th><th>外周帯</th></tr></thead><tbody>"
-            + "".join(rows) + "</tbody></table></div>")
+            "<th>種別</th><th>天端 seat</th><th>石垣基壇の割り付け</th><th>露出 m</th>"
+            "<th>外周帯</th></tr></thead><tbody>"
+            + "".join(rows) + "</tbody></table>"
+            "<p class='cap'>基壇の欄は割り付けの<b>結果</b>(生成器が <code>ishigaki</code> の作法から算出)。"
+            "駒は全周で同じ大きさ・同じ丈で、run ごとに拡大縮小しない。石垣の駒は計 %d 枚。</p></div>" % tot)
 
 
 def walls_table(d):
@@ -1195,6 +1309,7 @@ def plane_check(d):
     bad += mune_wall_clearance_check(d)
     bad += joints_check(d)
     bad += kado_stock_check(d)
+    bad += ishigaki_layout_check(d)
     return bad
 
 
@@ -1275,12 +1390,14 @@ def run_seat_check(d, tol=0.6):
                     continue
                 worstB = max(worstB, h - top)   # 埋まる
                 worstF = max(worstF, top - h)   # 浮く
-        cap = 4.0 * r.get("s", 0.0) + 0.3
+        # 基壇が受けられる高さ = **駒の丈そのもの**(駒は伸縮させない裁定U 2026-08-29)。
+        # ⛔ run ごとの縮尺から導かない — その欄はもう無い。数値は json の `ishigaki` が正典。
+        cap = d["ishigaki"]["piece"][1]
         if worstB > tol:
             out.append("%s(天端%.1f→%.1f) の背後の地盤が %.2fm 高い = 塀が埋まる" % (r["name"], y0, y1, worstB))
         elif r.get("base") == "Ishigaki" and worstF > cap:
-            out.append("%s(天端%.1f→%.1f) が %.2fm 浮くが石垣基壇は %.2fm しか無い(s=%.2f)"
-                       % (r["name"], y0, y1, worstF, cap, r.get("s", 0.0)))
+            out.append("%s(天端%.1f→%.1f) が %.2fm 浮くが石垣の駒は丈 %.2fm しか無い"
+                       % (r["name"], y0, y1, worstF, cap))
         elif r.get("base") != "Ishigaki" and worstF > tol:
             out.append("%s(天端%.1f) が %.2fm 浮くのに石垣基壇が無い" % (r["name"], r["seat"], worstF))
     return out
@@ -1357,6 +1474,192 @@ def seat_at(r, s_):
         return y0
     t = max(0.0, min(1.0, (s_ - r["s0"]) / (r["s1"] - r["s0"])))
     return y0 + (y1 - y0) * t
+
+
+# ------------------------------------------------ 石垣基壇 — 駒は伸縮させない【U 2026-08-29】
+
+
+def ishigaki_layout(d, r):
+    """run を石垣の駒で覆う割り付け。**駒は伸縮させない**(scale=1)。
+
+    ⛔ ここに数値を書かない。作法の正典は json の `ishigaki`。
+    戻り値 (N, pitch, overlap, end, over):
+      N=枚数 / pitch=ピボット間隔 / overlap=継ぎ目の重なり / end=最後の駒の端 / over=s1 からのはみ出し
+    """
+    ig = d["ishigaki"]
+    W, PM = ig["piece"][2], ig["pitchMax"]
+    L = r["s1"] - r["s0"]
+    if L <= W + 1e-9:                                   # 駒1枚がはみ出して覆う(重なりは可)
+        return 1, 0.0, 0.0, r["s0"] + W, r["s0"] + W - r["s1"]
+    N = int(math.ceil((L - W) / PM - 1e-9)) + 1
+    pitch = (L - W) / (N - 1)
+    return N, pitch, W - pitch, r["s0"] + (N - 1) * pitch + W, 0.0
+
+
+def ishigaki_exposure(d, r, nsm=40):
+    """run の石垣の露出高さ(座 − 区画線上の地盤)の最小・最大。地盤は edgeProfiles【P】。"""
+    prof = d.get("edgeProfiles") or {}
+    arr = prof.get(str(r["edge"]))
+    if not arr:
+        return None, None
+    def gy(s):
+        if s <= arr[0][0]:
+            return arr[0][1]
+        for i in range(len(arr) - 1):
+            (sa, ya), (sb, yb) = arr[i], arr[i + 1]
+            if sa <= s <= sb:
+                return ya + (yb - ya) * (s - sa) / max(1e-6, sb - sa)
+        return arr[-1][1]
+    ex = [seat_at(r, r["s0"] + (r["s1"] - r["s0"]) * k / float(nsm)) -
+          gy(r["s0"] + (r["s1"] - r["s0"]) * k / float(nsm)) for k in range(nsm + 1)]
+    return min(ex), max(ex)
+
+
+def ishigaki_layout_check(d, tol=0.001):
+    """**駒の割り付けが run をちょうど覆うか。**【ユーザー裁定U 2026-08-29】
+
+    裁定は三つ — ①駒の XYZ の長さは変えない ②run の長さは**重なり**で合わせる
+    ③高さは**地面への埋まり具合**で合わせる。それぞれに対応して:
+
+    (a) 覆い   — 最後の駒の端が s1 に乗るか(誤差 1mm)。N=1 の run は s1 を越えてはみ出すのが正で、
+                 **届かない**(端が s1 に足りない)のだけを鳴らす。
+                 ⭐ あわせて **run の全長を 5cm 刻みで走査し、どの点も駒の箱の中にあるか**を見る。
+                 これは割り付けの式とは別口の確かめで、式が壊れれば必ず穴が出る
+                 (式の値を式で検算すると恒真になる — 感度試験の probe③ がここを鳴らす)。
+    (b) 継ぎ目 — 重なりが overlapMin 以上・overlapMax 以下か。かつ**枚数が最小**か
+                 (1枚減らすと届かない)。⚠ run が 2W−overlapMax より短いと overlapMax は
+                 幾何的に達成できないので、そこは「重なり = 2W−L ちょうど・枚数は2」を求める
+                 (**これは割り付けの式から従う不変条件の言明**で、データを壊しても鳴らない。
+                 短小 run が現に何本あるかを図と表に出すのが役目)。
+                 ⛔ 上限を一律に緩めない — 緩めると駒を無駄に重ねる割り付けが素通りする
+                 (感度試験の probe⑧ がこの分岐を鳴らす)。
+    (c) 露出   — 座 − 地盤が 0 から piece[1](駒の丈)の間か。丈を超えると駒が地面に届かず
+                 塀の足元が浮く。exposeSplit を超えるものは図自身の『露出が◯m を超える手前で
+                 run を割る』に反する。**run 全体が地中**(最大露出 ≤ 0)なら基壇そのものが無用。
+
+    ⛔ さらに、run が駒の規模(`s` / `ishi` / `tiers`)を持ち直していないかを見る —
+       持たせた瞬間に「run ごとに石の大きさが変わる」旧作法へ戻るため。
+
+    ⚠ **実装は run を開口(門・小門)で割ってから同じ式で並べる。**だから run が開口をまたいで
+      いると図の枚数と実装の枚数が食い違う。そこは `gate_overlap_check` が別に見張っている
+      ので、ここでは二重に測らない(同じ事実を二つの検査に持たせない)。
+    """
+    ig = d["ishigaki"]
+    W, H = ig["piece"][2], ig["piece"][1]
+    PM, OMIN, OMAX = ig["pitchMax"], ig["overlapMin"], ig["overlapMax"]
+    SPL = ig["exposeSplit"]
+    bad = []
+    if abs(ig.get("scale", 1.0) - 1.0) > 1e-9:
+        bad.append("`ishigaki.scale` が %.3f — 駒は伸縮させない裁定なので 1.0 以外は不可"
+                   % ig.get("scale", 1.0))
+    if W - PM < OMIN - tol:
+        bad.append("pitchMax %.2f では重なりが %.2fm しか出ない(overlapMin %.2fm)"
+                   % (PM, W - PM, OMIN))
+    for r in d["runs"]:
+        nm, e = r["name"], r["edge"]
+        for k in ("s", "ishi", "tiers"):
+            if k in r and r.get("base") == "Ishigaki":
+                bad.append("%s(辺%d)が駒の規模 `%s` を持っている — 駒は伸縮させない裁定"
+                           "(作法は `ishigaki` に一箇所だけ置く)" % (nm, e, k))
+        if r.get("base") != "Ishigaki":
+            continue
+        L = r["s1"] - r["s0"]
+        N, pitch, ov, end, over = ishigaki_layout(d, r)
+        # (a) 覆い
+        if N == 1:
+            if end < r["s1"] - tol:
+                bad.append("%s(辺%d s%.2f〜%.2f)が駒1枚で届かない(端 %.2f)"
+                           % (nm, e, r["s0"], r["s1"], end))
+        elif abs(end - r["s1"]) > tol:
+            bad.append("%s(辺%d s%.2f〜%.2f)の最後の駒の端が %.3f で s1 に乗らない(差 %.3fm)"
+                       % (nm, e, r["s0"], r["s1"], end, end - r["s1"]))
+        # (a') 据えた駒の箱を並べ、全長を走査して穴が無いかを**式と別口で**確かめる
+        boxes = [(r["s0"] + i * pitch, r["s0"] + i * pitch + W) for i in range(N)]
+        holes = []
+        k, s_ = 0, r["s0"]
+        while s_ <= r["s1"] + 1e-9:
+            if not any(b0 - tol <= s_ <= b1 + tol for b0, b1 in boxes):
+                holes.append(s_)
+            k += 1
+            s_ = r["s0"] + 0.05 * k
+        if holes:
+            bad.append("%s(辺%d)の割り付けに穴が %d 点(s=%.2f〜%.2f)— 駒が届いていない"
+                       % (nm, e, len(holes), holes[0], holes[-1]))
+        # (b) 継ぎ目
+        if N >= 2:
+            if pitch > PM + tol:
+                bad.append("%s(辺%d)のピッチ %.3fm が上限 %.2fm を超える = 隙間が空く"
+                           % (nm, e, pitch, PM))
+            if ov < OMIN - tol:
+                bad.append("%s(辺%d)の重なり %.3fm が %.2fm を下回る" % (nm, e, ov, OMIN))
+            if (N - 2) * PM + W >= L - tol:
+                bad.append("%s(辺%d L=%.2f)の駒が %d 枚 — %d 枚で届くので1枚多い"
+                           % (nm, e, L, N, N - 1))
+            if L >= 2 * W - OMAX - tol:
+                if ov > OMAX + tol:
+                    bad.append("%s(辺%d)の重なり %.3fm が上限 %.2fm を超える"
+                               % (nm, e, ov, OMAX))
+            elif abs(ov - (2 * W - L)) > tol or N != 2:
+                bad.append("%s(辺%d L=%.2f)は短小 run(2W−overlapMax=%.2f 未満)なので "
+                           "駒2枚・重なり %.2fm ちょうどで納めること(いま %d枚・%.3fm)"
+                           % (nm, e, L, 2 * W - OMAX, 2 * W - L, N, ov))
+        # (c) 露出
+        lo, hi = ishigaki_exposure(d, r)
+        if lo is None:
+            bad.append("%s(辺%d)の地盤が edgeProfiles に無く**露出を測れていない**"
+                       "(合格ではない)" % (nm, e))
+            continue
+        if hi > H + tol:
+            bad.append("%s(辺%d)の露出 %.2fm が駒の丈 %.2fm を超える = 足元が地面に届かない"
+                       % (nm, e, hi, H))
+        elif hi > SPL + tol:
+            bad.append("%s(辺%d)の露出 %.2fm が %.2fm を超える — 手前で run を割ること"
+                       % (nm, e, hi, SPL))
+        if hi <= tol:
+            bad.append("%s(辺%d)は全長が地中(最大露出 %.2fm)— 基壇 `base` は要らない"
+                       % (nm, e, hi))
+    return bad
+
+
+def ishigaki_layout_sensitivity(d):
+    """**感度試験** — わざと壊して `ishigaki_layout_check` が鳴るか。
+
+    ⚠ 検査を足したら必ずこれを通す。恒真の検査は 0 件を出し続けるので、
+    「0 件」が「回っている」ことの証明にならない(qa-and-pitfalls「測れないものは 0 件になる」)。
+    """
+    import copy
+    base = len(ishigaki_layout_check(d))
+    out = []
+
+    def probe(label, mutate):
+        m = copy.deepcopy(d)
+        mutate(m)
+        n = len(ishigaki_layout_check(m))
+        out.append((label, n - base))
+
+    def _first(m):
+        return next(r for r in m["runs"] if r.get("base") == "Ishigaki" and
+                    r["s1"] - r["s0"] > 6.0)
+
+    probe("① 駒を伸縮させる(scale 1.0→1.4)",
+          lambda m: m["ishigaki"].__setitem__("scale", 1.4))
+    probe("② run に駒の規模 `s` を持たせる(旧作法への逆戻り)",
+          lambda m: _first(m).__setitem__("s", 0.4))
+    probe("③ ピッチ上限を駒の走りより長くする(継ぎ目に隙間が空く)",
+          lambda m: m["ishigaki"].__setitem__("pitchMax", 2.4))
+    probe("④ 重なりの下限を駒が出せる値より上げる",
+          lambda m: m["ishigaki"].__setitem__("overlapMin", 0.25))
+    probe("⑤ 座を 3.0m 持ち上げて露出を駒の丈より高くする",
+          lambda m: [r.update(seat=r["seat"] + 3.0, seat0=r.get("seat0", r["seat"]) + 3.0,
+                              seat1=r.get("seat1", r["seat"]) + 3.0) for r in [_first(m)]])
+    probe("⑥ 座を 5.0m 下げて run を丸ごと地中に沈める",
+          lambda m: [r.update(seat=r["seat"] - 5.0, seat0=r.get("seat0", r["seat"]) - 5.0,
+                              seat1=r.get("seat1", r["seat"]) - 5.0) for r in [_first(m)]])
+    probe("⑦ 地盤(edgeProfiles)を消して露出を測れなくする",
+          lambda m: m.__setitem__("edgeProfiles", {}))
+    probe("⑧ 重なりの上限を下げる(駒を無駄に重ねる割り付けを許さない)",
+          lambda m: m["ishigaki"].__setitem__("overlapMax", 0.20))
+    return base, out
 
 
 def section_crossings(d, sec):
@@ -1893,8 +2196,10 @@ def outside_bury_check(d):
         #   2026-08-26: 当方も土井も埋没しか測っておらず、S_Hei_C が 1.56m 浮いたまま
         #   両家の検査が 0 件と報告していた。
         #   基壇(`base`)を持つ run は足元まで石で下ろすので浮きではない ⇒ 除外。
-        #   ⚠ 基壇が無くても **根石 `ishi`** を持つ run はそのぶん受けられる — 数えないと
+        #   ⚠ 基壇が無くても **根石 `ishi`(高さ[m])** を持つ run はそのぶん受けられる — 数えないと
         #   誤検出する(2026-08-26: S_Hei_Okabe5 の浮き 0.40m は根石 0.30m でほぼ受かる)。
+        #   ⛔ `ishi` は**基壇を持たない run だけ**の欄。`base:Ishigaki` の run が持っていたら
+        #   それは駒の規模の書き戻しなので `ishigaki_layout_check` が鳴らす。
         if seen and not r.get("base"):
             ishi = float(r.get("ishi", 0.0) or 0.0)
             # ⛔ **免除の名前を替えただけの抜け道を塞ぐ**(土井の指摘 2026-08-26)。
@@ -4457,6 +4762,18 @@ def main():
     print("外周の閉じ: 面の当たり %d 件 / 帳簿(頂点・辺・宣言) %d 件" % (len(cbad), len(lbad)))
     for b in cbad + lbad:
         print("   ⚠", b)
+    # 石垣の割り付けも**件数を無条件に出す**。0 件を黙って通さない(qa-and-pitfalls)。
+    ibad = ishigaki_layout_check(d)
+    nrun = len([r for r in d["runs"] if r.get("base") == "Ishigaki"])
+    print("石垣基壇の割り付け(基壇つき %d run): %d 件" % (nrun, len(ibad)))
+    for b in ibad:
+        print("   ⚠", b)
+    ibase, iprobe = ishigaki_layout_sensitivity(d)
+    print("  感度試験(素の件数 %d):" % ibase)
+    for label, delta in iprobe:
+        print("    %s %s → %+d 件" % ("○" if delta > 0 else "⛔鳴らない", label, delta))
+    if any(delta <= 0 for _, delta in iprobe):
+        print("    ⛔ 鳴らない probe がある = その壊れ方は検査で捕まらない。検査を直すこと")
 
     css = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "sashizu.css"), encoding="utf-8").read()
     h = ['<meta charset="utf-8">', "<title>松平出羽守上屋敷 指図</title>",
@@ -4729,6 +5046,27 @@ def main():
              '<b>斜面・谷・水際は塀を立てず地形なりの木柵</b>(囲いの実体は崖と樹林+法肩の竹垣)。'
              '土井境の囲いは1条・松平が持つ(区画トポロジの裁定)。犬走り %.2fm。</p>'
              % d["const"]["inubashiri"])
+    _ig = d["ishigaki"]
+    h.append('<div class="box" style="border-color:var(--shu)"><h3>石垣基壇 — 駒は伸縮させない'
+             '【ユーザー裁定U 2026-08-29】</h3><p>'
+             '①1つの石垣オブジェクトの XYZ の長さは<b>変えない</b>(<code>scale</code> は全周で固定)／'
+             '②run の長さは駒の<b>重なり</b>で合わせる／③石垣の高さは地面への<b>埋まり具合</b>で合わせる。<br>'
+             '<code>runs[].base:"Ishigaki"</code> は「この run に基壇が付く」という宣言だけで、'
+             '<b>駒の規模を run が持たない</b>。作法と実寸は設計値の <code>ishigaki</code> に一箇所だけ置き、'
+             'ここにも図にも<b>数値を写さない</b>。割り付けの検算は生成器の '
+             '<code>ishigaki_layout_check</code>(覆い・継ぎ目・露出の三本立て+感度試験)。<br>'
+             '⛔ run ごとに駒を拡大縮小すると、隣り合う run で石の大きさが変わり、'
+             '<b>ずれ量が駒の大きさに比例する</b>ので継ぎ目に隙間と食い込みが同時に出る。'
+             '<code>runs</code> に <code>s</code> / <code>ishi</code> / <code>tiers</code> を'
+             '書き戻したら検査が鳴る。</p></div>')
+    fig(h, ishigaki_detail_svg(d, 12, 56.0, 112.0, "北辺 表門の西"),
+        cap="<b>北辺(辺12)の s56〜112 — 練塀 <code>N_Hei_W3</code> と表長屋 <code>N_Nagaya_W</code> の継ぎ目(s75.8)。</b>"
+            "旧作法ではこの一点で石の大きさが 2.1 倍変わり、実装に 0.66m の隙間が出ていた。"
+            "駒を伸縮させないので、いまは両側とも同じ大きさの石が並び、継ぎ目は重なりで閉じる。")
+    fig(h, ishigaki_detail_svg(d, 0, 24.0, 75.7, "土井境の東(段で登る区間)"),
+        cap="<b>辺0 の s24〜75.7 — <code>S_Hei_E2</code> から <code>S_Hei_E3d</code> まで、"
+            "水平な run を段で継いで登る区間。</b>座が段ごとに上がっても駒の大きさは変わらず、"
+            "地面への埋まり具合だけが変わる。段の落差は石垣の小口で納める。")
     h.append("</div>")
 
     # ------------------------------------------------------------ 土井境の納まり

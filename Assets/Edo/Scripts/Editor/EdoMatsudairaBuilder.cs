@@ -144,7 +144,12 @@ public static class EdoMatsudairaBuilder
 
     public struct Run
     {
-        public string name; public int edge; public float s0, s1, seat; public bool bench, nagaya, nijukai; public float ishi;
+        public string name; public int edge; public float s0, s1, seat; public bool bench, nagaya, nijukai;
+        /// <summary>この run に石垣基壇が付くか。**指図の `base` が正典**。
+        /// ⚠ 2026-08-29 まで指図の `s`(駒のモジュール規模)を 0 かどうかで代用していたが、
+        /// ユーザー裁定で駒を実寸固定にしたため `s` は廃止された。規模の値を有無の旗に
+        /// 兼ねさせると、規模を消した瞬間に石垣が全部消える。</summary>
+        public bool ishigaki;
         /// <summary>斜面の run は天端が一直線に下る。seat は**中点**にすぎないので、
         /// 位置を持つ処理は必ず SeatAt(s) を使うこと。
         /// (2026-08-23 土井邸から「一本の run で −3.35m 埋没と +4.35m 露出が同時に起きる」と
@@ -178,7 +183,7 @@ public static class EdoMatsudairaBuilder
                         bench = Has(r, "bench") && (bool)r["bench"],
                         nagaya = (string)r["kind"] == "Nagaya",
                         nijukai = Has(r, "nijukai") && (bool)r["nijukai"],
-                        ishi = Has(r, "s") ? F(r["s"]) : 0f
+                        ishigaki = Has(r, "base") && (string)r["base"] == "Ishigaki"
                     });
                 }
                 _runs = list.ToArray();
@@ -488,20 +493,34 @@ public static class EdoMatsudairaBuilder
     {
         for (int i = t.childCount - 1; i >= 0; i--) UnityEngine.Object.DestroyImmediate(t.GetChild(i).gameObject);
     }
-    /// <summary>辺 e の外向き法線(区画の外側)。</summary>
+    /// <summary>辺 e の外向き法線(区画の外側)。
+    /// ⛔ **重心で向きを決めてはいけない。** 2026-08-29 まで「頂点の平均が内側に来る向き」で
+    ///   揃えていたが、当区画は西へ張り出した凸凹の 15 角形で、**頂点平均 z=1152.3 が
+    ///   辺1 の中点 z=1157.0 より南**にある。そのため辺1 だけ判定が反転し、土井境の中央
+    ///   78.9m(S_Hei_C・石垣113駒)が**区画線の外へ 0.95m 出て**建っていた。
+    ///   凸多角形でしか成り立たない近似を、凹みのある区画へ当てていたのが原因。
+    /// → **多角形そのものへ当てて決める**(法線方向へ少し出た点が区画の外かを内外判定で見る)。
+    ///   全15辺で幾何の外向きと一致することを実測で確認済み。</summary>
     public static Vector2 OutNormal(int e)
     {
         var P = Poly; int n = P.Length;
         Vector2 d = (P[(e + 1) % n] - P[e % n]).normalized;
         Vector2 nn = new Vector2(-d.y, d.x);
-        float area = 0f;
-        for (int i = 0; i < n; i++) { var a = P[i]; var b = P[(i + 1) % n]; area += a.x * b.y - b.x * a.y; }
-        if (area > 0) nn = -nn;                  // 内向きになったら反転
-        // 重心が内側に来る向きに揃える
-        Vector2 c = Vector2.zero; foreach (var q in P) c += q; c /= n;
         Vector2 mid = (P[e % n] + P[(e + 1) % n]) * 0.5f;
-        if (Vector2.Dot(c - mid, nn) > 0) nn = -nn;
+        // 辺の長さに対して十分小さく、かつ数値誤差より十分大きい距離で試す
+        float probe = Mathf.Min(2f, Vector2.Distance(P[e % n], P[(e + 1) % n]) * 0.2f);
+        if (PointInPoly(mid + nn * probe)) nn = -nn;
         return nn;
+    }
+
+    /// <summary>区画の内側か(交差数法)。OutNormal の向きはこれで決める。</summary>
+    static bool PointInPoly(Vector2 p)
+    {
+        var P = Poly; int n = P.Length; bool c = false;
+        for (int i = 0, j = n - 1; i < n; j = i++)
+            if ((P[i].y > p.y) != (P[j].y > p.y) &&
+                p.x < (P[j].x - P[i].x) * (p.y - P[i].y) / (P[j].y - P[i].y) + P[i].x) c = !c;
+        return c;
     }
 
     // ---------------------------------------------------------------- 表長屋の並べ方
@@ -611,7 +630,12 @@ public static class EdoMatsudairaBuilder
         foreach (var r in Runs)
         {
             if (!r.nagaya) continue;
-            float len = r.s1 - r.s0;
+            // ⛔ **run の長さをそのまま部材の呼び寸法にしてはいけない。**
+            //   `Nagaya_Omote_<L>` の L は**破風の外端どうし(屋根の全長)**で、壁の実体は
+            //   両端 TSUMA_OVER だけ内側にある。run 長で頼むと隣り合う run の**壁が 0.64m 空き、
+            //   軒だけが渡る**(2026-08-29 ユーザーのブックマーク #1・#2・#3・#4〜#12 の光の筋。
+            //   辺12 s=152.00 で実測 151.68 / 152.32)。**壁の実体が run を覆う長さ**で頼む。
+            float len = r.s1 - r.s0 + 2f * NAGAYA_TSUMA_OVER;
             string path = r.nijukai ? EdoAssets.Own.NagayaOmote2F(len) : EdoAssets.Own.NagayaOmote(len);
             Vector2 outw2 = OutNormal(r.edge);
             float psi2 = Mathf.Atan2(outw2.x, outw2.y) * Mathf.Rad2Deg;   // 見え面 +Z を外へ
@@ -786,12 +810,41 @@ public static class EdoMatsudairaBuilder
     }
 
     // ---------------------------------------------------------------- Stage3 石垣基壇
-    // 作法は unity-modular-stonewall。要点:
-    //   ・ピッチ 1.800×s(2.0×s モジュール)→ 継ぎ目ごとに 0.20×s 重なる
-    //   ・**駒のピボットは走り方向の端**。ローカル箱は [pos − 2.0×s, pos]。
-    //     だから開口は「縁を起点に外へ並べる」— skip では縁を狙えない(スキル §4)
-    //   ・天端は run ごとに**一つの丸い数字**。position.y = seat − 4.0×s / scale.y = s
-    //   ・地形を壁に合わせる。壁を地形に合わせない(ピースごとの scale.y は生成壁の兆候)
+    //
+    // ★ 2026-08-29 ユーザー裁定で作り方を入れ替えた。
+    //   「1つの石垣オブジェクト自体のXYZ方向の長さは変えない / run の長さは石垣の重なり具合で
+    //     調整する / 石垣の高さは地面への埋まり具合で調整する」
+    //
+    // ⛔ **run ごとに駒を等倍で拡大縮小してはいけない。** 2026-08-29 まで run の高さに合わせて
+    //   `scale = (s,s,s)` を掛けていたため、隣り合う run で石の大きさが 0.26〜1.90m(**7.3倍**)
+    //   違い、テクスチャの目が段ごとに変わって見えていた(辺3 S1e→S2 で 2.3倍、辺12 W3→
+    //   N_Nagaya_W で 2.1倍)。さらに**ずれ量が駒の大きさに比例する**ので、隣の run との間に
+    //   隙間(辺2 で 0.68m)や重なり(辺2 で 0.70m)が必ず出た。ユーザーのブックマーク#14/#15。
+    //   石の寸法は実物で決まっている。低い所は**駒を地中へ沈めて**高さを合わせる。
+    //
+    // ⛔ **駒の箱の向きを文書で決めない。実測した値がこれ**(scale=1・Castle Wall):
+    //   ローカル X −2.40〜0 / Y 0〜4.00 / Z −2.00〜0、ピボットは (0, 0(底), 0) の角。
+    //   据えると **外向きの面がピボット**(厚み 2.40m は内側へ)、走り方向は **[pos, pos+2.00]**。
+    //   スキル §4 は「箱は [pos − 2.0×s, pos]」と書いており**向きが逆**。それを信じて
+    //   `t0 + 2.0×s` から並べていたので、石垣が run ごと丸ごと 1 駒ぶん s の増える向きへずれ、
+    //   s0 側が裸・s1 側がはみ出していた(「石垣と塀の端があってません」の正体)。
+    //
+    // 割り付け: L = s1 − s0 を N 枚で覆う。N = ceil((L − 2.00) / 1.80) + 1、
+    //   pitch = (L − 2.00) / (N − 1)。pitch ≤ 1.80 が保証されるので**重なりは常に 0.20m 以上**で
+    //   隙間は原理的に出ない。i 枚目のピボットは s0 + i·pitch、最後の駒の端が s1 にちょうど乗る。
+    // 高さ: position.y = 天端 − 4.00(駒の天端が座に来る)。露出は最大 2.49m(N_Nagaya_W)なので
+    //   4.00m の駒で全 run 足りる。露出が 0 以下の区間は完全に地中でよい。
+    /// <summary>表長屋の妻で、破風・鬼が**壁の実体より外へ出る量**[m](片側)。
+    /// `Nagaya_Omote_36.fbx` を実測: 全長 36.000 に対し壁は 35.360(両端 0.320 内側)。
+    /// 妻部材は長さによらず同じなので定数。⛔ 呼び寸法をそのまま run 長に使わない理由がこれ。</summary>
+    const float NAGAYA_TSUMA_OVER = 0.32f;
+
+    /// <summary>駒の走り方向の実長[m](scale=1 の実測値)。</summary>
+    const float IG_RUN = 2.00f;
+    /// <summary>駒の高さ[m](scale=1 の実測値)。天端を座に置き、余りは地中へ埋める。</summary>
+    const float IG_H = 4.00f;
+    /// <summary>継ぎ目の最大ピッチ[m]。これ以下にすることで重なり 0.20m 以上を保証する。</summary>
+    const float IG_PITCH_MAX = 1.80f;
     [MenuItem("Edo/松平出羽守上屋敷/3 石垣基壇")]
     public static void Stage3Menu() { Debug.Log("[Matsudaira] " + Stage3_Ishigaki()); }
     public static string Stage3_Ishigaki()
@@ -811,7 +864,7 @@ public static class EdoMatsudairaBuilder
         int made = 0, runs = 0;
         foreach (var r in Runs)
         {
-            if (r.ishi <= 0f) continue;                       // base=Ishigaki のみ
+            if (!r.ishigaki) continue;                        // base=Ishigaki のみ
             // 開口で割る(縁を起点に並べるため、区間の端を正確に持つ)
             var cuts = new List<float[]>();
             if (r.edge == gEdge) cuts.Add(new float[] { gA, gB });
@@ -836,20 +889,19 @@ public static class EdoMatsudairaBuilder
             //   run が2m刻みに割られた単位ごとに水平**にし、run 全体では階段状に下る。
             foreach (var sg in segs)
             {
-                float t0 = sg[0], t1 = sg[1];
-                float len0 = 2.0f * r.ishi, pit = 1.8f * r.ishi;
-                if (t1 - t0 < len0 - 0.01f) continue;
-                var ts = new List<float>();
-                for (float t = t0 + len0; t <= t1 - 0.25f * pit; t += pit) ts.Add(t);
-                ts.Add(t1);                                   // 端面を t1 に合わせる仕舞い
-                foreach (float t in ts)
+                float t0 = sg[0], t1 = sg[1], L = t1 - t0;
+                // 何枚で覆うか。pitch は必ず IG_PITCH_MAX 以下になるので**重なりは 0.20m 以上**、
+                // つまり隙間は原理的に出ない(閉じは「隙間 > めり込み」)。
+                int N = (L <= IG_RUN) ? 1 : Mathf.CeilToInt((L - IG_RUN) / IG_PITCH_MAX) + 1;
+                float pitch = (N > 1) ? (L - IG_RUN) / (N - 1) : 0f;
+                for (int i = 0; i < N; i++)
                 {
+                    float t = t0 + pitch * i;                 // 駒の箱は [t, t + IG_RUN]
+                    float mid = Mathf.Min(t + IG_RUN * 0.5f, t1);
                     Vector2 p = EdgePt(r.edge, t);
-                    float baseY = r.SeatAt(t) - 4.0f * r.ishi;
                     var go = EdoNishiTameikeBuilder.Place(EdoAssets.JC.CastleWall,
-                        new Vector3(p.x, baseY, p.y), psi,
-                        new Vector3(r.ishi, r.ishi, r.ishi), grp,
-                        "IG_" + r.name + "_" + made);
+                        new Vector3(p.x, r.SeatAt(mid) - IG_H, p.y), psi,
+                        Vector3.one, grp, "IG_" + r.name + "_" + made);
                     if (go != null) made++;
                 }
                 runs++;
@@ -1874,6 +1926,148 @@ public static class EdoMatsudairaBuilder
         return "犬走りQA: ★ " + bad.Count + "/" + n + " 駒が外れている。例 " + string.Join(" / ", bad.GetRange(0, Mathf.Min(3, bad.Count)));
     }
 
+    /// <summary>**走り方向の端の検査。**`InubashiriQA` の対。
+    ///
+    /// ⚠ 2026-08-29 にユーザーがブックマーク15枚で指摘した不具合は、**全部これが無かったせい**。
+    /// 犬走りQA は外向き d しか見ておらず、**辺に沿う s の端を測る検査が一つも無かった**ので、
+    /// 次の4つがどれも 0 件で通っていた:
+    ///   ① 長屋の壁が継ぎ目で 0.64m 空く(部材長が「屋根の全長」で、壁は両端 0.32m 内側)
+    ///   ② 石垣が run ごと丸ごと 1 駒ぶんずれる(駒の箱の向きを文書で決めていた)
+    ///   ③ 隣り合う run で石の大きさが 7.3 倍違う(run ごとに駒を等倍拡大縮小していた)
+    ///   ④ 辺1 だけ外向き法線が反転(重心で向きを決めていた)
+    ///
+    /// 層ごと(石垣 / 囲い)に**据えた実メッシュから端面を測り**、指図の s0/s1 と、
+    /// 隣り合う run の端面どうしを突き合わせる。⛔ 部材の呼び寸法や指図の値で代用しない。</summary>
+    [MenuItem("Edo/松平出羽守上屋敷/走り方向の端を検査 RunEndQA")]
+    public static void RunEndQAMenu() { Debug.Log("[Matsudaira] " + RunEndQA()); }
+    public static string RunEndQA()
+    {
+        var kak = Group("Kakoi"); var ig = Group("Ishigaki");
+        var sb = new System.Text.StringBuilder();
+        var bad = new List<string>();
+        // 層ごとに run 名 → 辺沿い s の [最小, 最大]
+        var kakSpan = new Dictionary<string, float[]>();
+        var igSpan = new Dictionary<string, float[]>();
+        System.Action<Transform, Dictionary<string, float[]>, bool> gather = (grp, dst, wallOnly) =>
+        {
+            for (int i = 0; i < grp.childCount; i++)
+            {
+                var c = grp.GetChild(i);
+                int ri = -1;
+                for (int k = 0; k < Runs.Length; k++)
+                {
+                    string pre = (grp == ig ? "IG_" : "") + Runs[k].name;
+                    if ((c.name == pre || c.name.StartsWith(pre + "_")) &&
+                        (ri < 0 || Runs[k].name.Length > Runs[ri].name.Length)) ri = k;
+                }
+                if (ri < 0) continue;
+                var r = Runs[ri];
+                var a = Poly[r.edge % Poly.Length];
+                var b = Poly[(r.edge + 1) % Poly.Length];
+                Vector2 u = (b - a).normalized;
+                float lo = float.MaxValue, hi = float.MinValue;
+                foreach (var mf in c.GetComponentsInChildren<MeshFilter>())
+                {
+                    if (mf.sharedMesh == null) continue;
+                    var m = mf.transform.localToWorldMatrix;
+                    foreach (var v in mf.sharedMesh.vertices)
+                    {
+                        var w = m.MultiplyPoint3x4(v);
+                        float s = (w.x - a.x) * u.x + (w.z - a.y) * u.y;
+                        // 囲いは**壁の実体**で測る。屋根の軒・反り・鬼は端ではない(①の再発防止)。
+                        // ⛔ **部材名で壁を選ってはいけない** — Blender で起こした表長屋は
+                        //   単一メッシュ(`Nagaya_Omote_36` 1枚)なので WallFace の名前に一つも当たらず、
+                        //   **長屋10本が丸ごと検査から抜け落ちていた**(2026-08-29 に自分で踏んだ)。
+                        //   代わりに**座から 0.6〜1.4m の水平な薄切り**で取る。この高さは練塀でも
+                        //   長屋(一階・二階)でも壁の実体しか通らない。
+                        // ⚠ 帯は**その s の座**で取る。run の中点の座で取ると斜面の run で両端が
+                        //   帯から外れ「壁が届いていない」と誤報する(辺2 で 6m 誤報した)
+                        if (wallOnly)
+                        {
+                            float seat = r.SeatAt(s);
+                            if (w.y < seat + 0.6f || w.y > seat + 1.4f) continue;
+                        }
+                        if (s < lo) lo = s; if (s > hi) hi = s;
+                    }
+                }
+                if (lo == float.MaxValue) continue;
+                float[] cur;
+                if (dst.TryGetValue(r.name, out cur)) { cur[0] = Mathf.Min(cur[0], lo); cur[1] = Mathf.Max(cur[1], hi); }
+                else dst[r.name] = new float[] { lo, hi };
+            }
+        };
+        gather(kak, kakSpan, true);
+        gather(ig, igSpan, false);
+
+        // (1) 各層の端が指図の s0/s1 に乗っているか
+        int nk = 0, ni = 0;
+        foreach (var r in Runs)
+        {
+            float[] v;
+            if (kakSpan.TryGetValue(r.name, out v))
+            {
+                nk++;
+                if (Mathf.Abs(v[0] - r.s0) > 0.10f || Mathf.Abs(v[1] - r.s1) > 0.10f)
+                    bad.Add("囲い " + r.name + " 辺" + r.edge + " 壁 " + v[0].ToString("F2") + "〜" + v[1].ToString("F2")
+                            + "(指図 " + r.s0.ToString("F2") + "〜" + r.s1.ToString("F2") + ")");
+            }
+            if (igSpan.TryGetValue(r.name, out v))
+            {
+                ni++;
+                // 駒は切れないので、run が駒1枚より短い区間は**はみ出す側で納める**
+                // (裁定「run の長さは石垣の重なり具合で調整する」。隙間は不可・重なりは可)
+                float tolHi = (r.s1 - r.s0 < IG_RUN) ? (IG_RUN - (r.s1 - r.s0)) + 0.10f : 0.10f;
+                if (v[0] - r.s0 < -0.10f || v[0] - r.s0 > 0.10f || v[1] - r.s1 < -0.10f || v[1] - r.s1 > tolHi)
+                    bad.Add("石垣 " + r.name + " 辺" + r.edge + " " + v[0].ToString("F2") + "〜" + v[1].ToString("F2")
+                            + "(指図 " + r.s0.ToString("F2") + "〜" + r.s1.ToString("F2") + ")");
+            }
+        }
+        // (2) 同じ辺で隣り合う run の端面どうし。隙間は不可・めり込みは 1.0m まで可
+        for (int e = 0; e < Poly.Length; e++)
+        {
+            var line = new List<Run>();
+            foreach (var r in Runs) if (r.edge == e) line.Add(r);
+            line.Sort((x, y) => x.s0.CompareTo(y.s0));
+            for (int i = 0; i + 1 < line.Count; i++)
+            {
+                if (Mathf.Abs(line[i + 1].s0 - line[i].s1) > 0.01f) continue;   // 指図で連続する対のみ
+                foreach (var pair in new[] { new object[] { "囲い", kakSpan }, new object[] { "石垣", igSpan } })
+                {
+                    var dst = (Dictionary<string, float[]>)pair[1];
+                    float[] p, q;
+                    if (!dst.TryGetValue(line[i].name, out p) || !dst.TryGetValue(line[i + 1].name, out q)) continue;
+                    float gap = q[0] - p[1];
+                    if (gap > 0.02f)
+                        bad.Add((string)pair[0] + " 辺" + e + " s=" + line[i].s1.ToString("F2") + " "
+                                + line[i].name + "→" + line[i + 1].name + " に隙間 " + gap.ToString("F2") + "m");
+                    else if (gap < -1.0f)
+                        bad.Add((string)pair[0] + " 辺" + e + " s=" + line[i].s1.ToString("F2") + " "
+                                + line[i].name + "→" + line[i + 1].name + " が " + (-gap).ToString("F2") + "m めり込み");
+                }
+            }
+        }
+        // (3) 石垣の駒が実寸のままか(run ごとに拡大縮小していないか)
+        var scales = new List<float>();
+        for (int i = 0; i < ig.childCount; i++)
+        {
+            var sc = ig.GetChild(i).lossyScale;
+            if (Mathf.Abs(sc.x - 1f) > 0.01f || Mathf.Abs(sc.y - 1f) > 0.01f || Mathf.Abs(sc.z - 1f) > 0.01f)
+                if (scales.Count < 3) scales.Add(sc.x);
+        }
+        if (scales.Count > 0)
+            bad.Add("石垣の駒が実寸でない(scale≠1)。例 " + string.Join(", ", scales.ConvertAll(x => x.ToString("F2")).ToArray()));
+
+        sb.Append("走り方向の端QA: 囲い " + nk + " run / 石垣 " + ni + " run — ");
+        if (bad.Count == 0) sb.Append("0 件");
+        else
+        {
+            sb.Append("★ " + bad.Count + " 件");
+            for (int i = 0; i < Mathf.Min(8, bad.Count); i++) sb.Append("\n    " + bad[i]);
+            if (bad.Count > 8) sb.Append("\n    ほか " + (bad.Count - 8) + " 件");
+        }
+        return sb.ToString();
+    }
+
     // ---------------------------------------------------------------- 指図と実装の突き合わせ
     [MenuItem("Edo/松平出羽守上屋敷/指図と実装を突き合わせる")]
     public static void CompareMenu() { Debug.Log("[Matsudaira] " + Compare()); }
@@ -1883,6 +2077,7 @@ public static class EdoMatsudairaBuilder
         // ★を出すインライン実装は 2026-08-26 に共通側へ移した — 検査項目・判定・出力とも同一
         //   (移設の前後で出力の byte 一致を実機確認)。ここに残るのは造成の GradeQA だけ
         //   (指図の設計面と live terrain の照合はこのビルダー固有の Stage0 退避を使うため)。
-        return EdoSashizuExport.CheckScene("matsudaira") + GradeQA() + "\n" + InubashiriQA();
+        return EdoSashizuExport.CheckScene("matsudaira") + GradeQA() + "\n" + InubashiriQA()
+             + "\n" + RunEndQA();
     }
 }

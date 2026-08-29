@@ -16,6 +16,8 @@ tools: Read, Grep, Glob, Bash, Skill
    中島・築山)。併せて `references/sashizu.md` §3(図に入れるもの)、
    `references/estate-types.md`(**庭園4例の実測プラン** — 自分の成果物を基準にしない)、
    `references/sources.md`(典拠と確度の区分。**§0b 作庭の手引書**=[築山庭造伝][作庭記][大名庭園研究])
+   ⛔ **`sources.md` は丸読みしない** — 103件・約87,000トークン。冒頭の索引で [ID] を引き、
+   `grep -n '^### \[<ID>\]'` で該当項だけ読む。確度は節でなく**各項の `確度X`** から読む
 2. `Skill(unity-modular-stonewall)` — `references/shoreline-walls.md`
    (護岸は輪郭ポリゴンでなく**汀線**に合わせる)
 3. `Skill(unity-surface-authoring)` — 州浜のスプラット・植栽の作法

@@ -317,7 +317,6 @@ h1{font-family:'Shippori Mincho',serif;font-weight:600;font-size:26px;margin:0;l
 .fchip.active{background:var(--ai-soft);border-color:var(--ai);color:var(--ai);font-weight:600}
 .fchip[data-type="blocker"].active{background:var(--shu-soft);border-color:var(--shu);color:var(--shu)}
 .fchip[data-type="decision"].active{background:var(--oud-soft);border-color:var(--oud);color:var(--oud)}
-.fcheck{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:5px;cursor:pointer}
 .fsearch{font:inherit;font-size:12.5px;padding:5px 10px;border:1px solid var(--line);
   border-radius:6px;background:var(--card);color:var(--ink);min-width:220px}
 .fsearch:focus{outline:2px solid var(--ai);outline-offset:-1px}
@@ -327,10 +326,6 @@ h1{font-family:'Shippori Mincho',serif;font-weight:600;font-size:26px;margin:0;l
 h2{font-family:'Shippori Mincho',serif;font-weight:600;font-size:17px;
   border-bottom:2px solid var(--ink);padding-bottom:5px;margin:34px 0 14px;letter-spacing:.06em}
 .h2note{font-size:11.5px;color:var(--muted);font-weight:400;letter-spacing:0;margin-left:8px}
-.dcard{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--oud);
-  border-radius:6px;padding:14px 18px;margin-bottom:12px}
-.dcard h3{margin:0 0 8px;font-size:15px}
-.dcard .id{font-family:var(--mono);color:var(--muted);font-size:12px;margin-right:8px}
 .dl{display:grid;grid-template-columns:4.5em 1fr;gap:3px 12px;font-size:13.5px}
 .dl dt{color:var(--muted)}.dl dd{margin:0}
 .dl .rec{color:var(--ai);font-weight:600}
@@ -543,12 +538,12 @@ JS = """
   selectTab(tabs.some(function(t){ return t.getAttribute('data-tab') === saved; })
             ? saved : 'tasks');
 
-  /* ── フィルタ */
-  var siteBtns = $all('#siteFilter .fchip');
-  var typeBtns = $all('#typeFilter .fchip');
-  var showDone = document.getElementById('showDone');
-  var search   = document.getElementById('fsearch');
-  var resetBtn = document.getElementById('fReset');
+  /* ── フィルタ。**1つも選ばれていない群は絞り込まない**(= 全選択と同じ)。
+        既定は全群とも未選択なので、開いた直後は全件が出る。 */
+  var siteBtns  = $all('#siteFilter .fchip');
+  var stateBtns = $all('#stateFilter .fchip');
+  var search    = document.getElementById('fsearch');
+  var resetBtn  = document.getElementById('fReset');
   var items = $all('.fitem');
   var lanes = $all('.lane[data-site]');
   var countEl = document.getElementById('fcount');
@@ -557,23 +552,22 @@ JS = """
     return new Set(btns.filter(function(b){ return b.classList.contains('active'); })
                         .map(function(b){ return b.getAttribute(attr); }));
   }
+  function passes(set, val){ return set.size === 0 || set.has(val); }
   function detailOf(row){
     var id = row.id.replace(/^row-/, '');
     return document.getElementById('det-' + id);
   }
   function apply(){
-    var sites = activeVals(siteBtns, 'data-site');
-    var types = activeVals(typeBtns, 'data-type');
+    var sites  = activeVals(siteBtns, 'data-site');
+    var states = activeVals(stateBtns, 'data-state');
     var q = search.value.trim().toLowerCase();
     var shownRows = 0;
     items.forEach(function(el){
-      var st = el.getAttribute('data-status');
       var det = el.classList.contains('trow') ? detailOf(el) : null;
       /* 検索は詳細(経過ログ)の中身も対象にする — 行の題だけでは当たらない語が多い */
       var hay = el.textContent + (det ? det.textContent : '');
-      var vis = sites.has(el.getAttribute('data-site'))
-             && types.has(el.getAttribute('data-type'))
-             && (showDone.checked || (st !== 'done' && st !== 'dropped'))
+      var vis = passes(sites,  el.getAttribute('data-site'))
+             && passes(states, el.getAttribute('data-state'))
              && (!q || hay.toLowerCase().indexOf(q) !== -1);
       el.style.display = vis ? '' : 'none';
       /* 親が消えたら詳細も畳む(開いたまま親だけ消えると宙に浮く) */
@@ -584,20 +578,20 @@ JS = """
       if (vis && el.classList.contains('trow')) shownRows++;
     });
     lanes.forEach(function(l){
-      l.style.display = sites.has(l.getAttribute('data-site')) ? '' : 'none';
+      l.style.display = passes(sites, l.getAttribute('data-site')) ? '' : 'none';
     });
     if (countEl) countEl.textContent = shownRows + ' 件表示中';
     var none = document.getElementById('tasksEmpty');
     if (none) none.hidden = shownRows !== 0;
   }
-  siteBtns.concat(typeBtns).forEach(function(b){
+  siteBtns.concat(stateBtns).forEach(function(b){
     b.addEventListener('click', function(){ b.classList.toggle('active'); apply(); });
   });
-  if (showDone) showDone.addEventListener('change', apply);
   if (search)   search.addEventListener('input', apply);
   if (resetBtn) resetBtn.addEventListener('click', function(){
-    siteBtns.concat(typeBtns).forEach(function(b){ b.classList.add('active'); });
-    showDone.checked = false; search.value = ''; apply();
+    /* リセット = 全解除(= 全件表示)。既定の状態へ戻す */
+    siteBtns.concat(stateBtns).forEach(function(b){ b.classList.remove('active'); });
+    search.value = ''; apply();
   });
 
   /* ── 行を押したら詳細(経過ログ・裁定の中身・正典の参照)を開く */
@@ -934,21 +928,28 @@ def tasks_table_html(issues, states):
             % (th, "".join(task_row(i, states) for i in rows)))
 
 
+# 状態の絞り込みに出す並び(task_state が返すラベルと一致させる)。
+# 2026-08-29 ユーザー指示で「種別」の絞り込みを廃してこちらへ置き換えた —
+# 種別「裁定」と状態「要裁定」が読み分けられない、という同じ指摘の続き。
+STATE_CHIPS = ["要裁定", "ブロッカー", "進行中", "未着手", "記録", "完了", "見送り"]
+
+
 def filterbar_html():
+    # ⚠ 既定は**すべて未選択**。JS 側で「1つも選ばれていない群は絞り込まない」と
+    #    扱うので、未選択 = 全件表示 になる(ユーザー指示 2026-08-29)。
     p = ['<div class="filterbar">']
     p.append('<div class="fgroup" id="siteFilter"><span class="flabel">敷地</span>')
     for e, name in SITES.items():
-        p.append('<button type="button" class="fchip active" data-site="%s">%s</button>'
+        p.append('<button type="button" class="fchip" data-site="%s">%s</button>'
                  % (esc(e), esc(name)))
-    p.append('<button type="button" class="fchip active" data-site="%s">%s</button>'
+    p.append('<button type="button" class="fchip" data-site="%s">%s</button>'
              % (esc(CROSS_KEY), esc(CROSS_LABEL)))
     p.append("</div>")
-    p.append('<div class="fgroup" id="typeFilter"><span class="flabel">種別</span>')
-    for t in ("blocker", "decision", "task", "info"):
-        p.append('<button type="button" class="fchip active" data-type="%s">%s</button>'
-                 % (esc(t), esc(TYPE_LABEL[t])))
+    p.append('<div class="fgroup" id="stateFilter"><span class="flabel">状態</span>')
+    for s in STATE_CHIPS:
+        p.append('<button type="button" class="fchip" data-state="%s">%s</button>'
+                 % (esc(s), esc(s)))
     p.append("</div>")
-    p.append('<label class="fcheck"><input type="checkbox" id="showDone"> 完了・見送りも表示</label>')
     p.append('<input type="search" id="fsearch" class="fsearch" placeholder="IDやキーワードで絞り込み…">')
     p.append('<button type="button" id="fReset" class="fchip fresetbtn">リセット</button>')
     p.append("</div>")
@@ -996,12 +997,11 @@ def build_html(issues, pending, commits, claims, states, summary):
 
     # ── タブ。主=タスク一覧(全敷地を1枚)。要裁定・敷地別・動きは
     #    「その見方をしたいとき用」の従タブ(2026-08-29 ユーザー指示で要裁定もトップから外した)。
-    live_n = len(live)
+    # タブの数字は**一覧に出る件数**(既定は絞り込み無しなので完了・見送りも含む全件)。
+    # open だけの数を出すと、既定表示の件数と食い違って読めない。
     p.append('<div class="tabs" role="tablist">')
     p.append('<button class="tab" role="tab" data-tab="tasks" aria-selected="true">'
-             'タスク一覧<span class="n">%d</span></button>' % live_n)
-    p.append('<button class="tab" role="tab" data-tab="decide" aria-selected="false">'
-             '要裁定<span class="n">%d</span></button>' % len(waits))
+             'タスク一覧<span class="n">%d</span></button>' % len(issues))
     p.append('<button class="tab" role="tab" data-tab="sites" aria-selected="false">'
              '敷地別<span class="n">%d</span></button>' % (len(SITES) + 1))
     p.append('<button class="tab" role="tab" data-tab="feed" aria-selected="false">'
@@ -1014,31 +1014,9 @@ def build_html(issues, pending, commits, claims, states, summary):
     p.append(tasks_table_html(issues, states))
     p.append("</div>")
 
-    # ── 従タブ: 要裁定(背景/選択肢/推奨/影響。判断に要るので残すが、トップには置かない)
-    p.append('<div class="panel" data-panel="decide" hidden>')
-    p.append('<p class="sub" style="color:var(--muted);font-size:12.5px;margin:14px 0 10px">'
-             'ユーザーの判断待ちだけを、裁定に要る形(背景・選択肢・推奨・影響)で並べる。'
-             'タスク一覧では状態「要裁定」の行として先頭に出る。</p>')
-    if not waits:
-        p.append('<div class="quiet">裁定待ちはありません。</div>')
-    for i in waits:
-        d = i.get("decision") or {}
-        # id 付与の理由は issue_li と同じ — コメントのアンカーを issue 単位で固定する
-        p.append('<div id="%s" class="dcard fitem" data-site="%s" data-type="%s" data-status="%s">'
-                 '<h3><span class="id">%s</span>[%s] %s</h3>'
-                 % (esc(i["id"]), esc(display_site(i)), esc(i["type"]), esc(i["status"]),
-                    esc(i["id"]), esc(SITES.get(i["estate"], i["estate"])), esc(i["title"])))
-        if d:
-            p.append('<dl class="dl">')
-            p.append("<dt>背景</dt><dd>%s</dd>" % esc(d.get("background", "")))
-            p.append("<dt>選択肢</dt><dd>%s</dd>"
-                     % "<br>".join(esc(o) for o in d.get("options", [])))
-            p.append('<dt>推奨</dt><dd class="rec">%s</dd>' % esc(d.get("recommend", "")))
-            p.append("<dt>影響</dt><dd>%s</dd>" % esc(d.get("impact", "")))
-            p.append("</dl>")
-        p.append(refs_html(i, states))
-        p.append("</div>")
-    p.append("</div>")
+    # ⚠ 要裁定タブは 2026-08-29 に廃止(ユーザー指示)。裁定の中身(背景/選択肢/推奨/影響)は
+    #    タスク一覧の行を開けば出るので、専用タブは重複だった。
+    #    状態フィルタの「要裁定」で絞れば同じ一覧になる。
 
     # ── 従タブ: 敷地別(邸はスパークライン+三巡則ゲージつき。邸を持たない敷地は
     #    issue 一覧だけ。「全体・基盤」は cross/infra をまとめた専用レーン)

@@ -740,6 +740,117 @@ public static class EdoMatsudairaBuilder
             }
         }
         sb.AppendLine("木柵: " + posts + "枚(" + A(D["fences"]).Count + " run)");
+        // 石垣の法肩から犬走りを残して据え直す(石垣は Stage3 だが法肩＝区画線なので順序に依らない)
+        sb.AppendLine(AlignInubashiri());
+        return sb.ToString();
+    }
+
+    /// <summary>犬走り ≒ 1尺。石垣の法肩と囲いの外面の距離(スキル `perimeter.md` ★★・裁定U/B)。</summary>
+    public const float INUBASHIRI = 0.30f;
+
+    /// <summary>囲いの「外面」を成す部材の名前。屋根・軒・垂木は**外面ではない**(庇は出てよい)。</summary>
+    static readonly HashSet<string> WallFace = new HashSet<string> {
+        "hei", "shitami", "koshi", "namako", "namako2", "n_namako", "dodai", "n_dodai", "hashira2"
+    };
+
+    /// <summary>**石垣の法肩から犬走りを残して囲いを据え直す。**
+    ///
+    /// ⚠ 2026-08-29(EDO-0053)にユーザーが「長屋と石垣の間にスペースがある」と指摘して発覚。
+    ///   実測すると全 39 run が外れていた — **長屋は 1.63m 引っ込み、練塀は 0.08m せり出して**いた
+    ///   (規定はどちらも 0.30m 控える)。長屋の 1.63m は石垣の天端がまるごと露出する幅で、
+    ///   「石垣の上に空地があってその奥に長屋が建っている」ようにしか見えない。
+    ///
+    /// 石垣は `EdgePt` の上に法肩を置いて据えている(Castle Wall のメッシュは局所 X が −2.4〜0 で、
+    /// +X を外向きにしているので**法肩＝区画線**)。よって囲いの外面の目標は **線から内へ 0.30m**。
+    /// ⛔ 部材の見かけ幅を決め打ちしない — **置いた駒の実メッシュから外面を測って**寄せる。
+    ///   部材を差し替えた瞬間に決め打ちは壊れる(スキルの警告「lat 値で置くのは不可」)。</summary>
+    public static string AlignInubashiri()
+    {
+        var kak = Group("Kakoi");
+        var sb = new System.Text.StringBuilder();
+        var byRun = new Dictionary<string, List<float>>();
+        int moved = 0;
+        for (int i = 0; i < kak.childCount; i++)
+        {
+            var c = kak.GetChild(i);
+            int ri = -1;                                     // Run は struct なので添字で持つ
+            for (int k = 0; k < Runs.Length; k++)
+                if (c.name.StartsWith(Runs[k].name) && (ri < 0 || Runs[k].name.Length > Runs[ri].name.Length)) ri = k;
+            if (ri < 0) continue;
+            var r = Runs[ri];
+            Vector2 n2 = OutNormal(r.edge);
+            var a = Poly[r.edge % Poly.Length];
+            // 外面 = 壁面の部材の頂点を外向き法線へ射影した最大値
+            float best = float.MinValue;
+            foreach (var mf in c.GetComponentsInChildren<MeshFilter>())
+            {
+                if (mf.sharedMesh == null) continue;
+                if (!WallFace.Contains(mf.gameObject.name)) continue;
+                var m = mf.transform.localToWorldMatrix;
+                foreach (var v in mf.sharedMesh.vertices)
+                {
+                    var w = m.MultiplyPoint3x4(v);
+                    best = Mathf.Max(best, (w.x - a.x) * n2.x + (w.z - a.y) * n2.y);
+                }
+            }
+            if (best == float.MinValue) continue;
+            float shift = (-INUBASHIRI) - best;                  // 目標 = 線から内へ 0.30m
+            if (Mathf.Abs(shift) > 0.02f)
+            {
+                c.position += new Vector3(n2.x * shift, 0f, n2.y * shift);
+                moved++;
+            }
+            if (!byRun.ContainsKey(r.name)) byRun[r.name] = new List<float>();
+            byRun[r.name].Add(best + shift);
+        }
+        sb.Append("犬走りを揃えた: " + moved + "駒 / " + byRun.Count + " run");
+        return sb.ToString();
+    }
+
+    /// <summary>**門と扉の面を囲いの面へ揃える。**
+    /// ⚠ 2026-08-29(EDO-0053)にユーザーが「門と長屋が面一になっていないので門や塀の意味を成さない」
+    ///   と指摘して発覚。実測では小門が +0.59m・表門が +0.26m せり出し、囲いは −0.30m だった。
+    ///   門が塀の面から飛び出していると、門が壁の一部でなく前に置いた飾りに見える。
+    /// ⛔ 番所は除く — `gate.plan.bansho.protrude`(石垣畳出)で**張り出すのが指図の意図**。</summary>
+    public static string AlignGateFace()
+    {
+        var grp = Group("Mon");
+        var gateEdge = new Dictionary<string, int>();
+        var g0 = O(D["gate"]);
+        gateEdge["Omotemon"] = (int)F(g0["edge"]);
+        foreach (var o in A(D["komon"])) { var k = O(o); gateEdge[(string)k["name"]] = (int)F(k["edge"]); }
+        int moved = 0;
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < grp.childCount; i++)
+        {
+            var c = grp.GetChild(i);
+            if (c.name.StartsWith("Bansho")) continue;              // 張り出すのが正
+            string bas = c.name.Split(new[] { "_Tobira" }, System.StringSplitOptions.None)[0];
+            if (!gateEdge.ContainsKey(bas)) continue;
+            int e = gateEdge[bas];
+            Vector2 n2 = OutNormal(e);
+            var a = Poly[e % Poly.Length];
+            float best = float.MinValue;
+            foreach (var mf in c.GetComponentsInChildren<MeshFilter>())
+            {
+                if (mf.sharedMesh == null) continue;
+                var m = mf.transform.localToWorldMatrix;
+                foreach (var v in mf.sharedMesh.vertices)
+                {
+                    var w = m.MultiplyPoint3x4(v);
+                    best = Mathf.Max(best, (w.x - a.x) * n2.x + (w.z - a.y) * n2.y);
+                }
+            }
+            if (best == float.MinValue) continue;
+            float shift = (-INUBASHIRI) - best;
+            if (Mathf.Abs(shift) > 0.02f)
+            {
+                c.position += new Vector3(n2.x * shift, 0f, n2.y * shift);
+                moved++;
+                sb.AppendLine("　" + c.name + " 外面 " + best.ToString("+0.00;-0.00") + " → -0.30");
+            }
+        }
+        sb.Append("門の面を揃えた: " + moved + " 基");
         return sb.ToString();
     }
 
@@ -1075,6 +1186,7 @@ public static class EdoMatsudairaBuilder
                              4.0f, 0f, gp, yaw, F(lf["w"]), sill);
             if (nl3 > 0) sb.AppendLine("表門の扉 " + (string)lf["kind"] + " 幅" + F(lf["w"]).ToString("F1"));
         }
+        sb.AppendLine(AlignGateFace());
         sb.Append("門 " + n + " 基");
         return sb.ToString();
     }
@@ -1766,6 +1878,44 @@ public static class EdoMatsudairaBuilder
         return go;
     }
 
+    /// <summary>**犬走りと門の面の検査。**囲いの外面が石垣の法肩から 0.30m 控えているか、
+    /// 門の面が囲いと揃っているか。⚠ これが無かったので、長屋が 1.63m 引っ込み・練塀が 0.08m
+    /// せり出した状態のままユーザーに見せてしまった(2026-08-29 EDO-0053)。</summary>
+    public static string InubashiriQA()
+    {
+        var kak = Group("Kakoi");
+        var bad = new List<string>();
+        int n = 0;
+        for (int i = 0; i < kak.childCount; i++)
+        {
+            var c = kak.GetChild(i);
+            int ri = -1;
+            for (int k = 0; k < Runs.Length; k++)
+                if (c.name.StartsWith(Runs[k].name) && (ri < 0 || Runs[k].name.Length > Runs[ri].name.Length)) ri = k;
+            if (ri < 0) continue;
+            var r = Runs[ri];
+            Vector2 n2 = OutNormal(r.edge);
+            var a = Poly[r.edge % Poly.Length];
+            float best = float.MinValue;
+            foreach (var mf in c.GetComponentsInChildren<MeshFilter>())
+            {
+                if (mf.sharedMesh == null || !WallFace.Contains(mf.gameObject.name)) continue;
+                var m = mf.transform.localToWorldMatrix;
+                foreach (var v in mf.sharedMesh.vertices)
+                {
+                    var w = m.MultiplyPoint3x4(v);
+                    best = Mathf.Max(best, (w.x - a.x) * n2.x + (w.z - a.y) * n2.y);
+                }
+            }
+            if (best == float.MinValue) continue;
+            n++;
+            if (Mathf.Abs(best + INUBASHIRI) > 0.05f)
+                bad.Add(c.name + " の外面が " + best.ToString("+0.00;-0.00") + "(規定 -0.30)");
+        }
+        if (bad.Count == 0) return "犬走りQA: " + n + "駒すべて 0.30±0.05m";
+        return "犬走りQA: ★ " + bad.Count + "/" + n + " 駒が外れている。例 " + string.Join(" / ", bad.GetRange(0, Mathf.Min(3, bad.Count)));
+    }
+
     // ---------------------------------------------------------------- 指図と実装の突き合わせ
     [MenuItem("Edo/松平出羽守上屋敷/指図と実装を突き合わせる")]
     public static void CompareMenu() { Debug.Log("[Matsudaira] " + Compare()); }
@@ -1775,6 +1925,6 @@ public static class EdoMatsudairaBuilder
         // ★を出すインライン実装は 2026-08-26 に共通側へ移した — 検査項目・判定・出力とも同一
         //   (移設の前後で出力の byte 一致を実機確認)。ここに残るのは造成の GradeQA だけ
         //   (指図の設計面と live terrain の照合はこのビルダー固有の Stage0 退避を使うため)。
-        return EdoSashizuExport.CheckScene("matsudaira") + GradeQA();
+        return EdoSashizuExport.CheckScene("matsudaira") + GradeQA() + "\n" + InubashiriQA();
     }
 }

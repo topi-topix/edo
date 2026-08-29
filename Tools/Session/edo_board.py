@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from edo_session import sid, _common_git_dir
 
 BOARD = os.path.join(_common_git_dir(), "edo-board")
-ESTATES = ("matsudaira", "sanno", "okabe", "doi", "cross", "infra")
+ESTATES = ("matsudaira", "sanno", "okabe", "doi", "sotobori", "cross", "infra")
 TYPES = ("task", "decision", "blocker", "info")
 STATUSES = ("open", "awaiting-user", "in-progress", "done", "dropped")
 LIVE = ("open", "awaiting-user", "in-progress")

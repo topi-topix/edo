@@ -259,6 +259,32 @@ public static class EdoAssets
                  + run.ToString("0.##") + "x" + drop.ToString("0.##") + ".fbx";
         }
 
+        /// <summary>**長さ可変の表長屋**。在庫の `knagaya01c/l/r` を窓割り(bay=2.6874m)で切って
+        /// 並べ、両端に妻(破風・鬼・妻壁)を継いだ一体物。門と隅のあいだを**1本で**埋めるための部材。
+        /// 在庫の中部材 8.065m / 妻部材 7.910m の固定寸法では端数が必ず残る
+        /// (御蔵門の西に 1.66m の食い込み・東に 0.96m の隙間。2026-08-29 実測)。
+        ///
+        /// ⚠ **FBX は実寸(m)で出ている。`scale = Vector3.one` で置く**(edogoyomi の .obj と違い ES 不要)。
+        /// ローカル: 幅=X(=len) / 高さ=Y / 厚み=Z、**見え面(街路側)= +Z**。
+        /// ピボット = **走りの中心・土台の底・壁の外面**。外周線の上に
+        /// `position = 区間の中点 / yaw = 外向き法線の方位 / scale = Vector3.one` で置ける。
+        /// 軒は +Z へ 0.63m 出て、躯体は −Z へ 3.73m 入る。高さ 5.51m(妻の鬼まで)。
+        /// 直線材と同じく **`SeatBottom(seat − 0.10)`** で沈めること(隅部材と段差が出る)。
+        ///
+        /// len は m。**任意の長さを 1cm 単位でそのまま作れる**(窓割りの本数 k と無地の壁の
+        /// 詰め ε で吸うので、瓦・海鼠・格子の形は一切伸びない)。L≥12m で ε は ±0.21m 以内。
+        /// 無い長さは:
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- &lt;長さm&gt; [--render]
+        /// 隣へ突き付ける(妻を出さない)版が要るときは `-- &lt;長さm&gt; --ends none`
+        /// → `Nagaya_Omote_&lt;len&gt;_none.fbx`。</summary>
+        public static string NagayaOmote(float len) { return NagayaOmote(len, true); }
+        /// <summary>tsuma=false は両端を突き付けにした版(`--ends none`)。鎖の途中の一本に使う。</summary>
+        public static string NagayaOmote(float len, bool tsuma)
+        {
+            return "Assets/Edo/Models/Nagaya/Nagaya_Omote_" + len.ToString("0.##")
+                 + (tsuma ? "" : "_none") + ".fbx";
+        }
+
         /// <summary>折れ角のある隅の部材(留め継ぎ)。生成は Tools/Blender/build_kado.py。
         /// 在庫の出隅ブロックは折れ角 Δ≳60° でしか成立しないので、浅い折れはこれで納める。
         /// ローカル: 走り(進行方向) = +Z ／ 躯体 = −X ／ 原点 = 折れ点・足元・内面。

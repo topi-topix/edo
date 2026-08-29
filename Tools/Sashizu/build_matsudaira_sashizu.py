@@ -1189,6 +1189,7 @@ def plane_check(d):
     bad += terrain_provenance_check(d)
     bad += parcel_containment_check(d)
     bad += vocab_check(d)
+    bad += schema_check(d)
     bad += perimeter_closure_check(d)
     bad += mune_wall_clearance_check(d)
     return bad
@@ -2549,6 +2550,40 @@ def _perimeter_footprints(d):
         c = (P[v][0] + bis[0] * off, P[v][1] + bis[1] * off)
         out.append((y["name"], _quad(c[0], c[1], u[0], u[1], half, half)))
     return out
+
+
+def schema_check(d):
+    """**同じ配列の要素が同じキーを持っているか。**欠けたキーは実装を黙って落とす。
+
+    ⚠ 2026-08-29(EDO-0053): 中仕切を区画で割ったとき(7985cd7)、新しい2本に `h`(塀の丈)と
+      `grid` を付け忘れていた。ビルダーの Stage6 が `KeyNotFoundException` で落ち、
+      **中仕切がシーンに一度も建たず、旧い1本が区画外へ 2.63m 出たまま残った**。
+      指図の側は「直った」ことになっていて、実装が落ちたことに誰も気づかなかった。
+      → 図の検査で捕まえる。実装の例外は人が見ていないと消える。
+    ⛔ 「大半の要素が持つキー」を必須とみなす。全要素が欠けているキーは任意扱いにする。
+    """
+    bad = []
+    for arr in ("runs", "fences", "nakajikiri", "munes", "links", "komon", "yagura",
+                "terraces", "kaidans", "rails", "wells", "gardens", "service"):
+        items = [x for x in d.get(arr, []) if isinstance(x, dict)]
+        if len(items) < 2:
+            continue
+        cnt = {}
+        for it in items:
+            for k in it:
+                cnt[k] = cnt.get(k, 0) + 1
+        # 註記の類(実装が引かないキー)は必須にしない
+        DOC = ("_", "cert", "ruling", "src", "note", "on")
+        need = [k for k, c in cnt.items()
+                if k not in DOC and c >= len(items) * 0.75 and c < len(items)]
+        for it in items:
+            miss = [k for k in need if k not in it]
+            if miss:
+                bad.append("%s の %s に %s が無い(他の %d/%d 件は持っている)— "
+                           "実装がキーを引いて落ちる"
+                           % (arr, it.get("name", "?"), "/".join(sorted(miss)),
+                              max(cnt[k] for k in miss), len(items)))
+    return bad
 
 
 def perimeter_closure_check(d, tol=0.4, step=0.2):

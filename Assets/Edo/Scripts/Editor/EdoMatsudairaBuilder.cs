@@ -428,6 +428,40 @@ public static class EdoMatsudairaBuilder
     }
 
     // ---------------------------------------------------------------- Stage2 外周
+    /// <summary>木柵の駒の継ぎ目の重ね[m]。地形なりに折れるので、突き付けだと折れ角で口が開く。</summary>
+    const float FENCE_OVER = 0.15f;
+
+    /// <summary>穂垣の**実寸**(走り方向の幅)。プレハブを1枚置いて測り、すぐ捨てる。
+    /// ⛔ 決め打ちの定数に戻さない — 部材を差し替えた瞬間に穴が開く。</summary>
+    static float FenceWidth(Transform parent, float psi)
+    {
+        var probe = EdoNishiTameikeBuilder.Place(EdoAssets.Eg.Hogaki5, new Vector3(0, -9999f, 0),
+                                                 psi, Vector3.one, parent, "__probe");
+        if (probe == null) return 4.0f;
+        float w = 0f;
+        bool first = true;
+        Bounds lb = new Bounds();
+        foreach (var mf in probe.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var m = probe.transform.worldToLocalMatrix * mf.transform.localToWorldMatrix;
+            var b = mf.sharedMesh.bounds;
+            for (int sx = 0; sx < 2; sx++)
+                for (int sy = 0; sy < 2; sy++)
+                    for (int sz = 0; sz < 2; sz++)
+                    {
+                        var pt = m.MultiplyPoint3x4(new Vector3(sx == 0 ? b.min.x : b.max.x,
+                                                                sy == 0 ? b.min.y : b.max.y,
+                                                                sz == 0 ? b.min.z : b.max.z));
+                        if (first) { lb = new Bounds(pt, Vector3.zero); first = false; }
+                        else lb.Encapsulate(pt);
+                    }
+        }
+        w = Mathf.Max(lb.size.x, lb.size.z);
+        UnityEngine.Object.DestroyImmediate(probe);
+        return w > 0.5f ? w : 4.0f;
+    }
+
     static Transform Group(string child)
     {
         var r = GameObject.Find(Grp);
@@ -682,9 +716,21 @@ public static class EdoMatsudairaBuilder
             Vector2 outw = OutNormal(e);
             float psi = Mathf.Atan2(outw.x, outw.y) * Mathf.Rad2Deg;
             // 穂垣(hogaki5=5枚スパン)を地形なりに並べる。基礎も整地も無い境界の標示。
-            const float SPAN = 4.6f;              // 実寸に合わせた並べピッチ[m]
-            for (float s = s0 + SPAN * 0.5f; s < s1; s += SPAN)
+            // ⚠ **ピッチを決め打ちしない。** 2026-08-29(EDO-0053): SPAN=4.6 の決め打ちに対して
+            //   穂垣の実寸は 4.111m しかなく、**駒ごとに 0.49m の穴**が開いていた。加えて
+            //   run の端に端数が残り、西〜南西で **合計 21.4m が素通し**になっていた
+            //   (ユーザーは北東しか見ていないが、こちらのほうが深刻だった)。
+            //   長屋の PITCH 決め打ちと同じ欠陥 — **部材を1枚置いて実寸を測り、端から端まで敷き詰める**。
+            float w = FenceWidth(fen, psi);
+            // 端は run をわずかに**越えて**敷く。隣の run(角)や練塀と突き付けで終わると、
+            // 折れ角のぶんだけ角に口が開く(2026-08-29 実測で P11 に 1.27m・P12 に 1.70m)。
+            float a0 = s0 - FENCE_OVER, a1 = s1 + FENCE_OVER;
+            float L = a1 - a0;
+            int nF = Mathf.Max(1, Mathf.CeilToInt((L - w) / Mathf.Max(0.1f, w - FENCE_OVER)) + 1);
+            float pitch = nF > 1 ? (L - w) / (nF - 1) : 0f;
+            for (int q = 0; q < nF; q++)
             {
+                float s = a0 + w * 0.5f + pitch * q;
                 Vector2 p = EdgePt(e, s);
                 var go = EdoNishiTameikeBuilder.Place(EdoAssets.Eg.Hogaki5, new Vector3(p.x, 0, p.y),
                                                      psi, Vector3.one, fen, (string)fdef["name"] + "_" + posts);
@@ -1002,11 +1048,55 @@ public static class EdoMatsudairaBuilder
                 }
                 n++; sb.AppendLine("小門 " + (string)k["name"] + " 辺" + e2 + " s=" + s2.ToString("F1") + " 幅" + w2.ToString("F1"));
             }
+            // ⚠ **冠木門のピボットは本体の芯にない。** 丈の中心にあるので敷居の高さへ
+            //   そのまま置くと門が半分埋まり(2026-08-29 実測で 1.75m 埋没)、平面でも
+            //   区画線から 2.26m ずれる(ユーザーの #5 で門が小さく・扉と離れて見えた原因)。
+            //   **置いてから実測して据え直す** — 足元を敷居へ、平面の芯を区画線へ。
+            if (go != null)
+            {
+                EdoNishiTameikeBuilder.SeatBottom(go, sl2);
+                var gb = EdoNishiTameikeBuilder.RB(go);
+                var off = new Vector3(p2.x - gb.center.x, 0f, p2.y - gb.center.z);
+                go.transform.position += off;
+            }
+            if (Has(k, "leaf"))
+            {
+                var lf = O(k["leaf"]);
+                int nl2 = Leaves(grp, (string)k["name"], EdoAssets.JC.GateDoorCastleL, EdoAssets.JC.GateDoorCastleR,
+                                 3.0f, EdoAssets.JC.GateDoorCastleFoot, p2, y2, F(lf["w"]), sl2);
+                if (nl2 > 0) sb.AppendLine("　└ 扉 " + (string)lf["kind"] + " 幅" + F(lf["w"]).ToString("F1"));
+            }
+        }
+        // 表門の扉
+        if (Has(plan, "leaf"))
+        {
+            var lf = O(plan["leaf"]);
+            int nl3 = Leaves(grp, "Omotemon", EdoAssets.JC.GateDoorYaguraL, EdoAssets.JC.GateDoorYaguraR,
+                             4.0f, 0f, gp, yaw, F(lf["w"]), sill);
+            if (nl3 > 0) sb.AppendLine("表門の扉 " + (string)lf["kind"] + " 幅" + F(lf["w"]).ToString("F1"));
         }
         sb.Append("門 " + n + " 基");
         return sb.ToString();
     }
 
+
+    /// <summary>門扉(両開き)を開口の芯へ据える。L/R とも突き合わせ側にピボットがあるので、
+    /// 同じ点に両方置けば閉じる。開口幅 <paramref name="want"/> へは**横だけ**伸ばす。
+    /// ⚠ 扉を書いても建てなければ開口は素通しのまま — 2026-08-29(EDO-0053)に
+    ///   御蔵門・東小門が 2.7〜2.9m 開いていた。指図に leaf があるのに実装が無い状態を作らない。</summary>
+    static int Leaves(Transform grp, string name, string pathL, string pathR,
+                      float pairW, float footOff, Vector2 p, float yaw, float want, float sill)
+    {
+        int n = 0;
+        float fx = (pairW > 0.1f && want > 0.1f) ? want / pairW : 1f;
+        foreach (var pr in new[] { new[] { pathL, "L" }, new[] { pathR, "R" } })
+        {
+            var go = EdoNishiTameikeBuilder.Place(pr[0], new Vector3(p.x, sill - footOff, p.y), yaw,
+                                                  new Vector3(fx, 1f, 1f), grp, name + "_Tobira" + pr[1]);
+            if (go != null) n++;
+        }
+        return n;
+    }
 
     // ---------------------------------------------------------------- Stage 6: 郭内の造作
     /// <summary>中仕切塀・竹垣・石段・井戸・隅櫓・附属屋を据える。
@@ -1115,7 +1205,9 @@ public static class EdoMatsudairaBuilder
             float pu = F(pos[0]), pv = F(pos[1]);
             string dir = Has(k, "dir") ? (string)k["dir"] : null;
             if (dir == null) { sb.AppendLine("⚠ 石段 " + nm + ": 指図に dir が無い"); continue; }
-            Vector2 up = GridDir(dir);                       // 昇る向き(world・単位)
+            Vector2 up;
+            if (!TryGridDir(dir, out up))
+            { sb.AppendLine("★ 石段 " + nm + ": dir が知らない値 \"" + dir + "\" — +u/-u/+v/-v のどれか"); continue; }
             float drop = F(k["drop"]), run = F(k["run"]), wid = F(k["w"]);
             int steps = Mathf.Max(1, (int)F(k["steps"]));
             Vector2 c0 = f.W(pu, pv);
@@ -1249,17 +1341,21 @@ public static class EdoMatsudairaBuilder
         return sb.ToString();
     }
 
-    /// <summary>グリッドの向き("+u"/"-u"/"+v"/"-v")を world の単位ベクトルにする。</summary>
-    static Vector2 GridDir(string d)
+    /// <summary>グリッドの向き("+u"/"-u"/"+v"/"-v")を world の単位ベクトルにする。
+    /// ⛔ **知らない値を既定値へ倒さない。**旧版は `default: return -v` で、
+    /// `dir` の誤字が黙って「-v」の石段になっていた(2026-08-26。指図側は vocab_check が拾うが、
+    /// 実装側でも倒さない — 語彙の欄は分岐が静かに「その他」へ落ちるのが常)。</summary>
+    static bool TryGridDir(string d, out Vector2 dir)
     {
         var f = Grid;
         switch (d)
         {
-            case "+u": return new Vector2(f.ux, f.uz).normalized;
-            case "-u": return -new Vector2(f.ux, f.uz).normalized;
-            case "+v": return new Vector2(f.vx, f.vz).normalized;
-            default:   return -new Vector2(f.vx, f.vz).normalized;
+            case "+u": dir = new Vector2(f.ux, f.uz).normalized; return true;
+            case "-u": dir = -new Vector2(f.ux, f.uz).normalized; return true;
+            case "+v": dir = new Vector2(f.vx, f.vz).normalized; return true;
+            case "-v": dir = -new Vector2(f.vx, f.vz).normalized; return true;
         }
+        dir = Vector2.zero; return false;
     }
 
     /// <summary>水平面の OBB どうしの食い込み量[m](分離軸法)。0 なら離れている。</summary>
@@ -1441,6 +1537,233 @@ public static class EdoMatsudairaBuilder
         }
         AssetDatabase.SaveAssets();
         return "remap " + n + " 本" + (miss.Count > 0 ? " / 借り先が見つからない材: " + string.Join(", ", miss.ToArray()) : "");
+    }
+
+
+    // ---------------------------------------------------------------- Stage 7: 庭の植栽
+    /// <summary>指図の `gardens` と `planting` を読んで木を植える。
+    ///
+    /// 【作法】`unity-buke-yashiki/references/gardens-ponds.md`「植栽 — 庭師の技術と年代」:
+    ///   ・主木は **3・5・7 の奇数の塊**で不等辺三角に置く(等間隔に散らさない)
+    ///   ・常緑:落葉 ≒ 7:3(全部落葉だと冬に骨組みが消える)
+    ///   ・刈込は**塊で**(点在させない)/ 下草は**樹下**に散らして裸地を残さない
+    /// 【季節】⛔ **開花木を置かない。**桜は Summer variant のみ(メモリ scene-season-not-spring)。
+    /// 【代用】常緑広葉樹と梅は在庫に無いので `Own.Broadleaf` で代用する(確度は樹種でなく**層**に付く)。
+    ///
+    /// ⚠ 置く位置は**決定論**(zone 名から種を作る)。流し直しで木が動くと検証レンダが比較できない。</summary>
+    [MenuItem("Edo/松平出羽守上屋敷/7 庭の植栽")]
+    public static void Stage7Menu() { Debug.Log("[Matsudaira] " + Stage7_Niwa()); }
+    public static string Stage7_Niwa()
+    {
+        var root = Group("");
+        // 撤回した池の案の残骸(非アクティブ)。生成物なので消してよい
+        var stale = root.Find("Garden");
+        if (stale != null) UnityEngine.Object.DestroyImmediate(stale.gameObject);
+
+        var grp = Group("Niwa"); Clear(grp);
+        var f = Grid;
+        var sb = new System.Text.StringBuilder();
+
+        // ---- 木を置いてはいけない矩形(棟・附属屋・廊下・井戸・石段)
+        var block = new List<Vector4>();
+        foreach (var o in A(D["munes"]))   { var m = O(o); block.Add(new Vector4(F(m["u0"]) - 1f, F(m["v0"]) - 1f, F(m["u1"]) + 1f, F(m["v1"]) + 1f)); }
+        foreach (var o in A(D["links"]))   { var l = O(o); block.Add(new Vector4(F(l["u0"]) - 1f, F(l["v0"]) - 1f, F(l["u1"]) + 1f, F(l["v1"]) + 1f)); }
+        foreach (var o in A(D["service"])) { var s = O(o); block.Add(new Vector4(F(s["u0"]) - 1.5f, F(s["v0"]) - 1.5f, F(s["u1"]) + 1.5f, F(s["v1"]) + 1.5f)); }
+        foreach (var o in A(D["wells"]))   { var w = O(o); block.Add(new Vector4(F(w["u"]) - 1.5f, F(w["v"]) - 1.5f, F(w["u"]) + 1.5f, F(w["v"]) + 1.5f)); }
+        foreach (var o in A(D["kaidans"])) { var k = O(o); var p = A(k["pos"]); block.Add(new Vector4(F(p[0]) - 2f, F(p[1]) - 2f, F(p[0]) + 2f, F(p[1]) + 2f)); }
+        foreach (var o in A(D["nakajikiri"]))
+        {
+            var w = O(o); var a = A(w["a"]); var b = A(w["b"]);
+            block.Add(new Vector4(Mathf.Min(F(a[0]), F(b[0])) - 0.8f, Mathf.Min(F(a[1]), F(b[1])) - 0.8f,
+                                  Mathf.Max(F(a[0]), F(b[0])) + 0.8f, Mathf.Max(F(a[1]), F(b[1])) + 0.8f));
+        }
+        Func<float, float, float, bool> free = (u, v, r) =>
+        {
+            foreach (var b in block)
+                if (u > b.x - r && u < b.z + r && v > b.y - r && v < b.w + r) return false;
+            var w2 = f.W(u, v);
+            return EdoGeom.PIP(Poly, w2) && DistSeg(w2, Poly[0], Poly[1]) > 0.0f;   // 区画の外へ出さない
+        };
+
+        var zones = new Dictionary<string, Vector4>();
+        foreach (var o in A(D["gardens"]))
+        {
+            var g = O(o);
+            zones[(string)g["name"]] = new Vector4(F(g["u0"]), F(g["v0"]), F(g["u1"]), F(g["v1"]));
+        }
+
+        int nTree = 0, nShrub = 0, nGround = 0, nRock = 0;
+        var report = new List<string>();
+
+        foreach (var o in A(D["planting"]))
+        {
+            var pl = O(o);
+            string zone = (string)pl["zone"], layer = (string)pl["layer"];
+            int want = (int)F(pl["n"]);
+            if (!zones.ContainsKey(zone)) { sb.AppendLine("★ 植栽の zone " + zone + " が gardens に無い"); continue; }
+            var z = zones[zone];
+            var sub = Group("Niwa/" + zone);
+            // 決定論: zone+layer から種を作る(流し直しで動かない)
+            var rnd = new System.Random((zone + "/" + layer).GetHashCode());
+            int made = 0;
+
+            if (layer == "主木")
+            {
+                // **奇数の塊**で置く。1本ずつ散らさない
+                int[] clump = { 7, 5, 3, 3, 5 };
+                int ci = 0;
+                while (made < want && ci < 40)
+                {
+                    int cn = Mathf.Min(clump[ci % clump.Length], want - made);
+                    Vector2 c;
+                    if (!Spot(z, rnd, free, 3.5f, out c)) break;
+                    for (int i = 0; i < cn; i++)
+                    {
+                        // 不等辺三角に散らす(等間隔にしない)
+                        float ang = (float)rnd.NextDouble() * 6.283f;
+                        float rad = 1.2f + (float)rnd.NextDouble() * 2.6f;
+                        float u = c.x + Mathf.Cos(ang) * rad, v = c.y + Mathf.Sin(ang) * rad;
+                        if (!free(u, v, 2.0f)) continue;
+                        string path = EdoAssets.JG.Pine(i == 0 ? "Big" : (rnd.Next(3) == 0 ? "Small" : "Mid"), 1 + rnd.Next(3));
+                        // ⚠ 池が無いので「幹を水へ傾ける」は使えない。**崖(西)へ傾ける**=海風の見立て
+                        var go = Plant(path, u, v, sub, zone + "_Pine_" + made, 1.65f, rnd, tiltU: -1f);
+                        if (go != null) { made++; nTree++; }
+                    }
+                    ci++;
+                }
+            }
+            else if (layer.StartsWith("中木"))
+            {
+                // 常緑:落葉 ≒ 7:3。落葉は桜の Summer で代用(⛔ 花は咲かせない)
+                for (int i = 0; i < want; i++)
+                {
+                    Vector2 c;
+                    if (!Spot(z, rnd, free, 2.2f, out c)) break;
+                    bool evergreen = (i % 10) < 7;
+                    string path = evergreen ? EdoAssets.Own.Broadleaf
+                                            : EdoAssets.JG.SakuraSummer(rnd.Next(3) == 0 ? "Big" : "Mid", rnd.Next(2) == 0 ? 1 : 5);
+                    var go = Plant(path, c.x, c.y, sub, zone + "_Naka_" + i, evergreen ? 1.0f : 1.4f, rnd, 0f);
+                    if (go != null) { made++; nTree++; }
+                }
+            }
+            else if (layer.StartsWith("低木"))
+            {
+                // **塊で n 群**(点在させない)。1群 = 皐月/柘植 5〜9株
+                for (int gi = 0; gi < want; gi++)
+                {
+                    Vector2 c;
+                    if (!Spot(z, rnd, free, 2.5f, out c)) break;
+                    int cn = 5 + rnd.Next(5);
+                    for (int i = 0; i < cn; i++)
+                    {
+                        float u = c.x + ((float)rnd.NextDouble() - 0.5f) * 3.2f;
+                        float v = c.y + ((float)rnd.NextDouble() - 0.5f) * 2.2f;
+                        if (!free(u, v, 0.8f)) continue;
+                        string path = rnd.Next(4) == 0 ? EdoAssets.JG.Boxwood(1 + rnd.Next(3))
+                                                       : EdoAssets.JG.Azalea(new[] { 1, 3, 4 }[rnd.Next(3)]);
+                        var go = Plant(path, u, v, sub, zone + "_Karikomi_" + gi + "_" + i, 1.0f, rnd, 0f);
+                        if (go != null) nShrub++;
+                    }
+                    made++;
+                }
+            }
+            else if (layer.StartsWith("下草"))
+            {
+                // **樹下に散らす。裸地を残さない。**want=0 なので木の数から決める
+                var trees = new List<Transform>();
+                foreach (Transform t in sub) if (t.name.Contains("_Pine_") || t.name.Contains("_Naka_")) trees.Add(t);
+                foreach (var t in trees)
+                {
+                    var lp = f.L(new Vector2(t.position.x, t.position.z));
+                    for (int i = 0; i < 3; i++)
+                    {
+                        float u = lp.x + ((float)rnd.NextDouble() - 0.5f) * 2.4f;
+                        float v = lp.y + ((float)rnd.NextDouble() - 0.5f) * 2.4f;
+                        if (!free(u, v, 0.4f)) continue;
+                        var go = Plant(EdoAssets.JG.Fern(1 + rnd.Next(2)), u, v, sub, zone + "_Shita_" + nGround, 1.0f, rnd, 0f);
+                        if (go != null) nGround++;
+                    }
+                }
+                made = nGround;
+            }
+            else if (layer.StartsWith("花木"))
+            {
+                // 梅林 — **等間隔の並木にしない**。塊で植え、間を空ける
+                for (int i = 0; i < want; i++)
+                {
+                    Vector2 c;
+                    if (!Spot(z, rnd, free, 1.8f, out c)) break;
+                    var go = Plant(EdoAssets.Own.Broadleaf, c.x, c.y, sub, zone + "_Ume_" + i, 0.8f, rnd, 0f);
+                    if (go != null) { made++; nTree++; }
+                }
+            }
+            report.Add(string.Format("{0} {1} {2}/{3}", zone, layer, made, want));
+            if (made < want)
+                sb.AppendLine("⚠ " + zone + " の " + layer + " が " + made + "/" + want +
+                              " しか置けない — 庭が狭いか、避ける矩形が多い");
+        }
+
+        // ---- 景石。主木の塊の際に据える(三石・1/3 埋め)
+        foreach (var zn in new[] { "G_NishiNiwa", "G_OkuNishiNiwa" })
+        {
+            if (!zones.ContainsKey(zn)) continue;
+            var z = zones[zn];
+            var sub = Group("Niwa/" + zn);
+            var rnd = new System.Random((zn + "/rock").GetHashCode());
+            for (int g2 = 0; g2 < 3; g2++)
+            {
+                Vector2 c;
+                if (!Spot(z, rnd, free, 2.0f, out c)) break;
+                for (int i = 0; i < 3; i++)          // **三石**(奇数)
+                {
+                    float u = c.x + ((float)rnd.NextDouble() - 0.5f) * 2.0f;
+                    float v = c.y + ((float)rnd.NextDouble() - 0.5f) * 2.0f;
+                    if (!free(u, v, 0.6f)) continue;
+                    var go = Plant(EdoAssets.JG.Rock(1 + rnd.Next(3)), u, v, sub, zn + "_Ishi_" + g2 + "_" + i,
+                                   1.5f + (float)rnd.NextDouble() * 1.4f, rnd, 0f, sink: 0.34f);
+                    if (go != null) nRock++;
+                }
+            }
+        }
+
+        sb.Append("木 " + nTree + " / 刈込 " + nShrub + " 株 / 下草 " + nGround +
+                  " / 景石 " + nRock + "  [" + string.Join(" | ", report.ToArray()) + "]");
+        return sb.ToString();
+    }
+
+    /// <summary>庭の矩形の中で、空いている点を決定論的に探す。見つからなければ false。</summary>
+    static bool Spot(Vector4 z, System.Random rnd, Func<float, float, float, bool> free, float clr, out Vector2 c)
+    {
+        for (int t = 0; t < 240; t++)
+        {
+            float u = Mathf.Lerp(z.x + clr, z.z - clr, (float)rnd.NextDouble());
+            float v = Mathf.Lerp(z.y + clr, z.w - clr, (float)rnd.NextDouble());
+            if (z.z - z.x < clr * 2 || z.w - z.y < clr * 2) break;
+            if (free(u, v, clr)) { c = new Vector2(u, v); return true; }
+        }
+        c = Vector2.zero; return false;
+    }
+
+    /// <summary>1本植える。設計面に据え、向きと大きさを散らす。tiltU!=0 なら u 方向へ傾ける。</summary>
+    static GameObject Plant(string path, float u, float v, Transform parent, string name,
+                            float scale, System.Random rnd, float tiltU, float sink = 0f)
+    {
+        var f = Grid;
+        Vector2 w = f.W(u, v);
+        float y = DesignY(w);
+        float s = scale * (0.82f + (float)rnd.NextDouble() * 0.36f);   // 同じ大きさで並べない
+        var go = EdoNishiTameikeBuilder.Place(path, new Vector3(w.x, y - sink * s, w.y),
+            (float)rnd.NextDouble() * 360f, Vector3.one * s, parent, name);
+        if (go != null && Mathf.Abs(tiltU) > 1e-3f)
+        {
+            // 崖(西=−u)へ傾ける。海風に振られた黒松の見立て
+            float yawU = YawAlongU();
+            go.transform.rotation = Quaternion.Euler(0, go.transform.eulerAngles.y, 0);
+            go.transform.RotateAround(go.transform.position,
+                Quaternion.Euler(0, yawU, 0) * Vector3.forward,
+                tiltU * (5f + (float)rnd.NextDouble() * 7f));
+        }
+        return go;
     }
 
     // ---------------------------------------------------------------- 指図と実装の突き合わせ

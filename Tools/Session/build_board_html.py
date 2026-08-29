@@ -409,18 +409,33 @@ h2{font-family:'Shippori Mincho',serif;font-weight:600;font-size:17px;
   .tasks{display:block}
   .tasks thead{display:none}          /* 積み替えると見出しの列が対応しなくなる */
   .tasks tbody{display:block}
+  /* 畳んだカード(既定)= 1行。状態 + 題だけ出し、題は1行で省略する。
+     40件が3行ずつ積まれると一覧として読めないので、既定は最小の1行にする。 */
   .tasks tbody tr.trow{
-    display:grid;grid-template-columns:auto 1fr auto;
-    grid-template-areas:"state site when" "title title title" "id id id";
-    gap:5px 9px;padding:12px 2px;border-bottom:1px solid var(--line);align-items:baseline}
-  .tasks tbody tr.trow > td{display:block;border:0;padding:0}
+    display:grid;grid-template-columns:auto 1fr;
+    grid-template-areas:"state title";
+    gap:5px 9px;padding:11px 2px;border-bottom:1px solid var(--line);align-items:baseline}
+  .tasks tbody tr.trow > td{display:block;border:0;padding:0;min-width:0}
   .tasks .c-badge{grid-area:state}
+  .tasks .c-ttl{grid-area:title;font-size:13.5px;line-height:1.55;min-width:0}
+  .tasks .tw{min-width:0}
+  .tasks tr[aria-expanded="false"] .ttx{
+    display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* 畳んでいる間は 敷地・更新・ID を隠す(押せば出る) */
+  .tasks tr[aria-expanded="false"] > .c-site,
+  .tasks tr[aria-expanded="false"] > .c-when,
+  .tasks tr[aria-expanded="false"] > .c-id{display:none}
+  /* 開いたカード = 帯(状態・敷地・更新) + 題 + ID */
+  .tasks tbody tr.trow[aria-expanded="true"]{
+    grid-template-columns:auto 1fr auto;
+    grid-template-areas:"state site when" "title title title" "id id id"}
   .tasks .c-site{grid-area:site;font-size:12px}
   .tasks .c-when{grid-area:when;text-align:right}
-  .tasks .c-ttl{grid-area:title;font-size:14px;line-height:1.6}
   .tasks .c-id{grid-area:id;font-size:10.5px}
   .tasks tbody tr[aria-expanded="true"] > td{border-bottom-color:transparent}
-  .tasks tbody tr.drow{display:block}
+  /* ⚠ :not([hidden]) は必須。素の display:block は UA の [hidden]{display:none} に
+     勝ってしまい、畳んでいるはずの詳細が全件描画される(実際に起こした)。 */
+  .tasks tbody tr.drow:not([hidden]){display:block}
   .tasks tbody tr.drow > td{display:block;padding:0 0 14px}
   .dbox{padding-left:11px}
   .dlog-e{grid-template-columns:1fr;gap:2px}      /* 時刻・主体・本文を縦に積む */
@@ -886,7 +901,8 @@ def task_row(i, states):
         '<td class="c-id">%s</td>'
         '<td class="c-site"><i style="--dot:%s"></i>%s</td>'
         '<td class="c-badge"><span class="badge %s">%s</span></td>'
-        '<td class="c-ttl"><span class="tw"><span class="caret">▸</span>%s</span></td>'
+        '<td class="c-ttl"><span class="tw"><span class="caret">▸</span>'
+        '<span class="ttx">%s</span></span></td>'
         '<td class="c-when">%s</td></tr>'
         % (esc(i["id"]), esc(cls), esc(site), esc(i["type"]), esc(i["status"]),
            task_prio(i), int(i.get("updated") or 0),

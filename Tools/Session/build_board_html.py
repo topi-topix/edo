@@ -804,8 +804,31 @@ def build_html(issues, pending, commits, claims, states, summary):
              '<span><span class="dot" style="background:var(--line)"></span>その他(task/info) %d</span>'
              "</div>" % (len(waits), len(blks), len(others)))
 
-    # ── 要裁定(タブの外。ユーザーの手が要る唯一のものなので常に見えるところに置く)
-    p.append("<h2>要裁定 — ユーザーの判断待ち</h2>")
+    # ── タブ。主=タスク一覧(全敷地を1枚)。要裁定・敷地別・動きは
+    #    「その見方をしたいとき用」の従タブ(2026-08-29 ユーザー指示で要裁定もトップから外した)。
+    live_n = len(live)
+    p.append('<div class="tabs" role="tablist">')
+    p.append('<button class="tab" role="tab" data-tab="tasks" aria-selected="true">'
+             'タスク一覧<span class="n">%d</span></button>' % live_n)
+    p.append('<button class="tab" role="tab" data-tab="decide" aria-selected="false">'
+             '要裁定<span class="n">%d</span></button>' % len(waits))
+    p.append('<button class="tab" role="tab" data-tab="sites" aria-selected="false">'
+             '敷地別<span class="n">%d</span></button>' % (len(SITES) + 1))
+    p.append('<button class="tab" role="tab" data-tab="feed" aria-selected="false">'
+             '最近の動き</button>')
+    p.append("</div>")
+
+    # ── 主タブ: 全敷地のタスクを1枚の表で。フィルタで絞る。
+    p.append('<div class="panel" data-panel="tasks">')
+    p.append(filterbar_html())
+    p.append(tasks_table_html(issues, states))
+    p.append("</div>")
+
+    # ── 従タブ: 要裁定(背景/選択肢/推奨/影響。判断に要るので残すが、トップには置かない)
+    p.append('<div class="panel" data-panel="decide" hidden>')
+    p.append('<p class="sub" style="color:var(--muted);font-size:12.5px;margin:14px 0 10px">'
+             'ユーザーの判断待ちだけを、裁定に要る形(背景・選択肢・推奨・影響)で並べる。'
+             'タスク一覧では状態「要裁定」の行として先頭に出る。</p>')
     if not waits:
         p.append('<div class="quiet">裁定待ちはありません。</div>')
     for i in waits:
@@ -825,22 +848,6 @@ def build_html(issues, pending, commits, claims, states, summary):
             p.append("</dl>")
         p.append(refs_html(i, states))
         p.append("</div>")
-
-    # ── タブ。主=タスク一覧(全敷地を1枚)。敷地別・動きは「その見方をしたいとき用」の従タブ。
-    live_n = len(live)
-    p.append('<div class="tabs" role="tablist">')
-    p.append('<button class="tab" role="tab" data-tab="tasks" aria-selected="true">'
-             'タスク一覧<span class="n">%d</span></button>' % live_n)
-    p.append('<button class="tab" role="tab" data-tab="sites" aria-selected="false">'
-             '敷地別<span class="n">%d</span></button>' % (len(SITES) + 1))
-    p.append('<button class="tab" role="tab" data-tab="feed" aria-selected="false">'
-             '最近の動き</button>')
-    p.append("</div>")
-
-    # ── 主タブ: 全敷地のタスクを1枚の表で。フィルタで絞る。
-    p.append('<div class="panel" data-panel="tasks">')
-    p.append(filterbar_html())
-    p.append(tasks_table_html(issues, states))
     p.append("</div>")
 
     # ── 従タブ: 敷地別(邸はスパークライン+三巡則ゲージつき。邸を持たない敷地は
@@ -930,7 +937,7 @@ def build_html(issues, pending, commits, claims, states, summary):
     p.append("<footer>Tools/Session/build_board_html.py が生成。正典: "
              ".git/edo-board(issue)/ docs/Sashizu/*_sashizu.json(_pending)/ "
              "docs/Sashizu/README.md(状態)。作法: docs/session-board.md<br>"
-             "タスク一覧は全敷地を1枚に出し、フィルタで絞る。敷地別は「その見方をしたいとき」の別タブ。<br>"
+             "タスク一覧は全敷地を1枚に出し、フィルタで絞る。要裁定・敷地別・最近の動きは別タブ。<br>"
              "フィルタと並べ替えはこのページ内だけで完結する(サーバも保存も無い)。"
              "開いていたタブだけは次に開いたときも復元する。</footer>")
     p.append("</div>")

@@ -91,5 +91,5 @@ GUI は使わない。スクリプトが正典で、git で差分が追える形
 
 - **在庫にあるか先に引く** → `edo-zaiko`。**無いと確認してから**私を呼ぶ
 - **部材の新造(Blender → FBX → EdoAssets 登録)** → 私(edo-buzai)
-- **Unity への配置と据え付け** → 呼び出し元(本文脈)
+- **Unity への配置と据え付け** → `edo-toryo`
 - **据えた後の実測QA** → `edo-fushin-qa`

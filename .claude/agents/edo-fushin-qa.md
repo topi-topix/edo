@@ -103,6 +103,7 @@ tools: Read, Grep, Glob, Bash, Skill, ToolSearch, mcp__unityMCP__execute_code, m
 ## 役割分担
 
 - **建てた後の実測QAと検証レンダ** → 私(edo-fushin-qa)
-- **建てる前の図の検査** → `edo-kenzu`
+- **建てる前の図の検査** → `edo-kenzu` / **大方針を書き起こす(図を書く側)** → `edo-sashizukata`
 - **史実・典拠** → `edo-kosho`
-- **不具合の修正** → 呼び出し元(本文脈)
+- **指図どおりに Unity へ実装する** → `edo-toryo`
+- **指摘した不具合の再実装** → `edo-toryo`(設計変更が要るものは呼び出し元 → ユーザー裁定)

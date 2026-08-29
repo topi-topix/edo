@@ -53,4 +53,4 @@ tools: Read, Grep, Glob, Bash, Skill
 
 - **在庫照会** → 私(edo-zaiko)
 - **在庫に無いものの新造** → `edo-buzai`
-- **置くこと** → 呼び出し元(本文脈)
+- **置くこと(指図どおりの実装)** → `edo-toryo`

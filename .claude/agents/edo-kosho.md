@@ -106,5 +106,7 @@ tools: Read, Grep, Glob, Bash, WebSearch, WebFetch, Skill
 
 - **史実・典拠・同定・格式** → 私(edo-kosho)
 - **図として成立しているか(重なり・廊下の連結・断面・造成・柱割り)** → `edo-kenzu`
+- **大方針を実装できる数値へ書き起こす(私が検める指図を書く側)** → `edo-sashizukata`
 - **建てた後の実測QA** → `edo-fushin-qa`
-- **修正の実施** → 呼び出し元(本文脈)
+- **指図どおりに Unity へ実装する** → `edo-toryo`
+- **修正の実施(設計判断が要るもの)** → 呼び出し元(本文脈)

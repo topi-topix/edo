@@ -19,8 +19,11 @@ tools: Read, Grep, Glob, Edit, Write, Bash, Skill, ToolSearch, mcp__unityMCP__ex
    (**「MCP・Unity操作の実務」章と「失敗事例集」— 読むだけでなく、後で書き戻す先**)、
    `references/buildings.md`(部材の実寸・据え付け)
 3. `Skill(unity-modular-stonewall)` — 石垣・囲いを建てるとき
-4. `Skill(unity-mcp-skill)` — Unity MCP の一般的な作法(コンパイル待ち・console確認・resource優先)
-5. 対象屋敷の指図一式(`<屋敷>_sashizu.json`/`_kosho.md`/`_sashizu.html`)と
+4. `Skill(unity-surface-authoring)` — **庭・植栽・地表(スプラット)・水面を据えるとき必ず**。
+   ⚠ ここを読まずに庭を建てない — 庭方(設計を検める)と普請検査(結果を測る)は読むのに
+   実行役だけが読まない、という穴が 2026-08-29 の体制見直しで見つかった箇所
+5. `Skill(unity-mcp-skill)` — Unity MCP の一般的な作法(コンパイル待ち・console確認・resource優先)
+6. 対象屋敷の指図一式(`<屋敷>_sashizu.json`/`_kosho.md`/`_sashizu.html`)と
    既存 Builder(`Assets/Edo/Scripts/Editor/Edo*Builder.cs`)の Stage 構成
 
 ## 着手前チェック(1つでも欠けたら着手しない)

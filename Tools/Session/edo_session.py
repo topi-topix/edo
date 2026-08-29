@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""司令塔 — 同じリポジトリで複数の Claude Code セッションが同時に動くための調停役。
+"""門番 — 同じリポジトリで複数の Claude Code セッションが同時に動くための調停役。
 
 **なぜ要るか**: 2026-08-24 に、松平・岡部を作業していたセッションが `git add` を広く打ち、
 **別のセッションが編集中だった山王の指図を巻き込んでコミットした**。作業自体は失われなかったが、
@@ -183,10 +183,10 @@ def touch(me, paths=(), resources=()):
 def cmd_status(a):
     cs = load_all(a.ttl)
     if not cs:
-        print("司令塔: 生きている claim は無し")
+        print("門番: 生きている claim は無し")
         return 0
     me = sid(a.session)
-    print("司令塔 — 生きている claim %d 件(TTL %.0f 分)" % (len(cs), a.ttl))
+    print("門番 — 生きている claim %d 件(TTL %.0f 分)" % (len(cs), a.ttl))
     for c in cs:
         age = (now() - c["heartbeat"]) / 60.0
         print("  %s %-22s pid%-7s 心拍%4.1f分前" % (
@@ -262,12 +262,12 @@ def cmd_check_write(a):
     # ── ① 本物の競合(誰かが既にこのパス/ドメインを持っている)を**先に**見る。
     #    ここを後回しにすると、third が「山王は solo がメインで書いている最中」なのに
     #    「worktree を用意したのでどうぞ」と案内してしまい、**同じ論理ファイルを
-    #    別の場所で同時編集する**という司令塔が防ぎたい事故そのものになる(2026-08-24)。
+    #    別の場所で同時編集する**という門番が防ぎたい事故そのものになる(2026-08-24)。
     hs = holders(p, me, a.ttl)
     if hs:
         c, g = hs[0]
         return _deny(
-            "⛔ 司令塔: `%s` は**別のセッション %s** が押さえている(claim `%s`／心拍 %.0f 分前)。\n"
+            "⛔ 門番: `%s` は**別のセッション %s** が押さえている(claim `%s`／心拍 %.0f 分前)。\n"
             "   %s\n"
             "   同じファイルを同時に書くと片方の編集が消える。\n"
             "   → 待つか、そのセッションに `Tools/Session/edo_session.py release %s` を頼むこと。\n"
@@ -288,7 +288,7 @@ def cmd_check_write(a):
             if wt and os.path.realpath(wt) != os.path.realpath(ROOT):
                 touch(me, paths=[d])
                 return _deny(
-                    "⛔ 司令塔: いま**他のセッションが %d 本動いている**。指図の作業は worktree でやること。\n"
+                    "⛔ 門番: いま**他のセッションが %d 本動いている**。指図の作業は worktree でやること。\n"
                     "   `%s` の worktree を用意した:\n"
                     "     %s\n"
                     "   → **そこの同じパスを絶対パスで開けばよい**(cd は要らない):\n"
@@ -315,7 +315,7 @@ def cmd_check_bash(a):
     if BLENDER.search(cmd):
         if not in_main_checkout():
             return _deny(
-                "⛔ 司令塔: **Blender は worktree では回せない**。\n"
+                "⛔ 門番: **Blender は worktree では回せない**。\n"
                 "   在庫キット(Japanese Village Kit ほか)は再配布不可で gitignore されているので\n"
                 "   sparse worktree に**来ない**。`vklib.py` はメインの絶対パスを直書きしており、\n"
                 "   出力先 `Assets/Edo/Models/` も worktree には無い。\n"
@@ -325,7 +325,7 @@ def cmd_check_bash(a):
         h = [c for c in cs if c["session"] != me and "assets" in c.get("resources", [])]
         if h:
             return _deny(
-                "⛔ 司令塔: 部材の書き出しは**セッション %s** が使用中(心拍 %.0f 分前)。\n"
+                "⛔ 門番: 部材の書き出しは**セッション %s** が使用中(心拍 %.0f 分前)。\n"
                 "   %s\n"
                 "   出力先 `Assets/Edo/Models/` は共有で、同じ部材を同時に焼くと**後勝ちで上書き**される\n"
                 "   (`build_goten_roof.py -- rebuild` は Roofs/ の全数を焼き直す)。\n"
@@ -334,7 +334,7 @@ def cmd_check_bash(a):
         touch(me, resources=["assets"])
     for pat, why in BANNED:
         if re.search(pat, cmd):
-            return _deny("⛔ 司令塔: この git の打ち方は共有ワークツリーでは禁止。\n   %s" % why)
+            return _deny("⛔ 門番: この git の打ち方は共有ワークツリーでは禁止。\n   %s" % why)
     m = re.search(CMDPOS + r"git\s+commit\b", cmd)
     if m and not re.search(CMDPOS + r"git\s+commit\b[^|;&]*(--amend|-C\b|--continue)", cmd):
         staged = subprocess.run(["git", "-C", ROOT, "diff", "--cached", "--name-only"],
@@ -346,7 +346,7 @@ def cmd_check_bash(a):
                 bad.append((f, hs[0][0]["session"]))
         if bad:
             return _deny(
-                "⛔ 司令塔: staging に**別のセッションが押さえているファイル**が入っている。\n"
+                "⛔ 門番: staging に**別のセッションが押さえているファイル**が入っている。\n"
                 + "".join("   %s ← %s\n" % (f, s) for f, s in bad[:8])
                 + "   このままコミットすると相手の作業を巻き込む(2026-08-24 の事故と同じ)。\n"
                   "   → `git restore --staged <パス>` で外してからコミットすること。")
@@ -365,7 +365,7 @@ def cmd_check_unity(a):
         touch(me)
         return 0
     return _deny(
-        "⛔ 司令塔: Unity は**セッション %s** が使用中(心拍 %.0f 分前)。\n   %s\n"
+        "⛔ 門番: Unity は**セッション %s** が使用中(心拍 %.0f 分前)。\n   %s\n"
         "   Unity の実体は1つで、シーン・プレハブ・地形を共有している。"
         "**地形の編集は Undo の外**なので、同時に触ると復旧できない。\n"
         "   → 終わるのを待つか、`Tools/Session/edo_session.py status` で状況を見ること。"
@@ -574,7 +574,7 @@ def cmd_worktrees(a):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="司令塔 — 並行セッションの調停")
+    ap = argparse.ArgumentParser(description="門番 — 並行セッションの調停")
     ap.add_argument("--session"); ap.add_argument("--ttl", type=float, default=TTL_MIN)
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("status").set_defaults(fn=cmd_status)

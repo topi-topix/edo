@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""司令塔ダッシュボードの生成器 — 掲示板・_pending・git log・claim を1枚の HTML に焼く。
+"""作事奉行ダッシュボードの生成器 — 掲示板・_pending・git log・claim を1枚の HTML に焼く。
 
 指図の html が json から決定的に組まれるのと同じ思想。手で書かない。
 入力(すべて読み取りのみ):
@@ -11,7 +11,7 @@
   - docs/Sashizu/README.md         … 状態列(正典は README のまま。パースして表示するだけ)
 出力:
   - .git/edo-board/_pm/dashboard.html … Artifact に公開する1枚
-  - .git/edo-board/_pm/summary.json   … 司令塔の巡回用の機械可読サマリ(巡数・最終活動など)
+  - .git/edo-board/_pm/summary.json   … 作事奉行の巡回用の機械可読サマリ(巡数・最終活動など)
 
 2026-08-29 改訂: 「邸」だけでなく溜池・外堀のような邸に属さない敷地も同格の
 グループとして扱えるよう SITES を導入(ユーザー指摘)。あわせてクライアント側の
@@ -129,7 +129,7 @@ def load_pending():
 
 
 def load_junsu_baseline():
-    """前回ユーザー裁定時点の巡数(司令塔の巡回状態から)。無ければ空。"""
+    """前回ユーザー裁定時点の巡数(作事奉行の巡回状態から)。無ければ空。"""
     fp = os.path.join(OUT, "state.json")
     try:
         return json.load(open(fp, encoding="utf-8")).get("junsu_baseline", {})
@@ -632,13 +632,13 @@ def build_html(issues, pending, commits, claims, states, summary):
     junsu_base = load_junsu_baseline()
 
     p = []
-    p.append("<title>赤坂普請 司令塔</title>")
+    p.append("<title>赤坂普請 作事奉行</title>")
     p.append('<link rel="stylesheet" href="https://fonts.googleapis.com/css2?'
              'family=Shippori+Mincho:wght@600&family=Noto+Sans+JP:wght@400;500;700&'
              'family=IBM+Plex+Mono:wght@400;500&display=swap">')
     p.append("<style>%s</style>" % CSS)
     p.append('<div class="wrap">')
-    p.append('<header><h1>赤坂普請 司令塔</h1><span class="gen">巡回 %s</span></header>'
+    p.append('<header><h1>赤坂普請 作事奉行</h1><span class="gen">巡回 %s</span></header>'
              % esc(time.strftime("%m-%d %H:%M")))
     p.append('<div class="chips">')
     p.append('<span class="chip %s">要裁定 <b>%d</b></span>' % ("wait" if waits else "ok", len(waits)))

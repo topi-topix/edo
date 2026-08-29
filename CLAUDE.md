@@ -86,9 +86,9 @@
   Unity を触るなら `start <屋敷> --unity`、Blender で部材を作るなら `start <屋敷> --blender`
   でメインに留まり資源を確保する(⛔ **Blender は worktree では回せない** — 在庫キットが
   再配布不可で gitignore なので来ない)。
-  ⚠ **打ち忘れても、他セッションが居る状態で指図に触れば司令塔がその場で回す**(cd は不要・絶対パスで開く)。
+  ⚠ **打ち忘れても、他セッションが居る状態で指図に触れば門番がその場で回す**(cd は不要・絶対パスで開く)。
   ⛔ **Unity は排他**(実体が1つで地形の編集は Undo の外)。⛔ **worktree からは Unity を開けない**。
-  ⛔ **`git add -A` / `git commit -a` は司令塔が止める**(パスを明示すること)。
+  ⛔ **`git add -A` / `git commit -a` は門番が止める**(パスを明示すること)。
   → `docs/session-coordination.md`
 
 - **屋敷は1軒1プレハブ**(シーンを 245.9MB → 3.06MB にした構造)。ビルダーを走らせる前に
@@ -127,7 +127,7 @@
 | 屋敷の中(建物・庭・整地・建蔽率) | スキル `unity-buke-yashiki` |
 | 石垣・城壁・護岸・屋敷囲い | スキル `unity-modular-stonewall`(屋敷より先に) |
 | 地表・スプラット・植栽・`execute_code`・検証レンダ | スキル `unity-surface-authoring` |
-| Blender で部材を起こす | `Tools/Blender/README.md` + `vklib.py` |
+| Blender で部材を起こす | `Tools/Blender/README.md` + `vklib.py`。⛔ **スキル `blender-modeling` は読まない** — BlenderMCP で live を動かす前提の汎用スキルで、当プロジェクトの「CLI スクリプトが正典」と食い違う |
 | Unity MCP の作法 | スキル `unity-mcp-skill` |
 | 屋敷・町屋・寺社の**区画そのもの**(敷地割) | `docs/Sashizu/parcels.json` が正典。編集は Unity の `Edo/敷地割`(⌘⇧K) |
 | 在庫に何があるか | `docs/asset-catalog.md` → `docs/asset-index.tsv` |
@@ -147,12 +147,18 @@
 | Blender で部材を新造する | **`edo-buzai`**(部材方) |
 | **指図どおりに Unity へ実装する**(プレハブ解く→Stage実行→書き戻す) | **`edo-toryo`**(棟梁) |
 | 建てた後の数値QAと検証レンダ | **`edo-fushin-qa`**(普請検査・計測のみ) |
+| 普請場の巡回・ダッシュボード更新・ユーザーへの翻訳・異常検知 | **`edo-sakuji-bugyo`**(作事奉行・差配役) |
 
 **指図の"大方針"(配置・史料解釈・意匠)を決めるのは本文脈**(ユーザーと対話しながら詰める判断のため)。
 それを実装できる数値へ**書くのは `edo-sashizukata`**(⚠ 2026-08-29 に「作事方」を名乗ったが、
 史実の作事方は工事を管理する行政組織であって図面を引く個人ではなかったため「指図方」に訂正した)。
 エージェントは**書く側**(sashizukata)・**検める側**(kosho/kenzu/niwashi)・**実行する側**
-(toryo/buzai)・**照会する側**(zaiko)・**検査する側**(fushin-qa)に分かれる。
+(toryo/buzai)・**照会する側**(zaiko)・**検査する側**(fushin-qa)・**差配する側**(sakuji-bugyo)に分かれる。
+
+⚠ **「作事奉行」と「門番」は別物。** 2026-08-29 まで両方が「司令塔」を名乗っていて紛らわしかった。
+**作事奉行**は巡回する人(`.claude/agents/edo-sakuji-bugyo.md`・呼ばれたときだけ動く)、
+**門番**は claim の衝突を自動で止める機構(`Tools/Session/edo_session.py` + `.claude/hooks/`)。
+古い board の記録・過去のコミットには「司令塔」の名で残る(履歴なので書き換えない)。
 ⚠ **`edo-toryo` は指図に無い値を発明しない** — 足りなければ `edo-sashizukata` の書き起こし漏れ
 として差し戻すか、設計判断が要るなら本文脈(ユーザー裁定)へ回す。実装中に踏んだ非自明な罠は
 `unity-buke-yashiki/references/qa-and-pitfalls.md` へ必ず書き戻す(エージェントは毎回記憶ゼロで

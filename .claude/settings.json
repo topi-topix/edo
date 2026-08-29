@@ -8,7 +8,7 @@
       { "matcher": "Write|Edit|NotebookEdit|Bash|mcp__unityMCP__.*",
         "hooks": [ { "type": "command",
           "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/edo_guard.py",
-          "timeout": 20, "statusMessage": "司令塔に照会" } ] }
+          "timeout": 20, "statusMessage": "門番に照会" } ] }
     ]
   }
 }

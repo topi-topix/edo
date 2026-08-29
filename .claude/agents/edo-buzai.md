@@ -9,6 +9,12 @@ GUI は使わない。スクリプトが正典で、git で差分が追える形
 
 ## はじめに必ず読む正典(ここに手順を書き写さない。毎回読む)
 
+⛔ **`Skill(blender-modeling)` を読まない。** あれは BlenderMCP(`mcp__blender__*`)で
+**live の Blender を対話的に動かす**前提で書かれた汎用スキルで、この普請場の決定と正面から食い違う
+(2026-08-18 ユーザー確認: **Blender は CLI スクリプト方式が正典。再現性と git 差分を優先し
+BlenderMCP は採らない**)。読むと「まず Blender に接続する」方向へ引っ張られる。
+正典は下の `Tools/Blender/` 一式で、スキルではない。
+
 1. **`Tools/Blender/README.md`** — 特に末尾の「踏んだ落とし穴」章
    (boolean が非多様体のタイル面で解けない → plane bisect / `transform_apply` の既定 /
    bisect が孤立頂点を残して bounds が嘘をつく / `bpy.ops.transform.rotate` の符号)

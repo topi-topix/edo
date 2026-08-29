@@ -1,4 +1,4 @@
-# 司令塔 — 複数の Claude Code セッションを同時に走らせる
+# 門番 — 複数の Claude Code セッションを同時に走らせる
 
 **2026-08-24 に事故が起きた。** 松平・岡部を作業していたセッションが `git add` を広く打ち、
 **別のセッションが編集中だった山王の指図を巻き込んでコミットした**。作業自体は失われなかったが、
@@ -17,13 +17,13 @@ python3 Tools/Session/edo_session.py start sanno            # 指図を書く
 python3 Tools/Session/edo_session.py start matsudaira --unity  # Unity を触る
 ```
 
-**司令塔が型を判断して振り分ける。**
+**門番が型を判断して振り分ける。**
 
 - **指図(Unity 不要)** → その屋敷の worktree を**探し、無ければ作って**、作業ディレクトリを返す
 - **`--unity`** → メインのチェックアウトに留まり、`unity` 資源を確保する(取れなければ待ち)
 
 ⚠ **打ち忘れても効く。** 他のセッションが動いている状態で指図のファイルに触ると、
-司令塔が**その場で worktree を用意して回す**。⛔ **cd は要らない** — 返ってきた
+門番が**その場で worktree を用意して回す**。⛔ **cd は要らない** — 返ってきた
 worktree の**絶対パス**でファイルを開き、ビルダーもその worktree のものを走らせればよい。
 
 ```
@@ -101,7 +101,7 @@ python3 Tools/Session/edo_session.py release     # 自分の claim を全部解�
 
 ## 何が自動で止まるか
 
-`.claude/settings.json` の `PreToolUse` フックが、ツール呼び出しの前に司令塔へ照会する。
+`.claude/settings.json` の `PreToolUse` フックが、ツール呼び出しの前に門番へ照会する。
 止まるのは**他人の領分に踏み込むときだけ**で、自分の claim なら素通りする。
 
 | 状況 | 挙動 |
@@ -131,7 +131,7 @@ python3 Tools/Session/edo_session.py steal sashizu:sanno --reason "前のセッ�
 - **フックが落ちても作業は止めない。** 例外は握りつぶして素通りさせる
 - **生存判定は心拍だけ。** ⛔ pid を見てはならない — フックから呼ばれるスクリプトの親は
   その都度のシェルで、セッションの寿命と無関係(これで claim が即死し、再現テストが素通りした)
-- **登録簿は `.git/edo-locks`。** ⛔ worktree ごとに置くと隣の claim が見えず司令塔が死ぬ
+- **登録簿は `.git/edo-locks`。** ⛔ worktree ごとに置くと隣の claim が見えず門番が死ぬ
 
 ## ⚠ 古いワークツリーの写しを読まない・再生成しない
 
@@ -148,7 +148,7 @@ python3 Tools/Session/edo_session.py steal sashizu:sanno --reason "前のセッ�
 
 ## 手が届かないもの(既知の限界)
 
-- ⛔ **claim では「シーンの状態」を守れない。** 司令塔が守るのは**ファイル**であって、
+- ⛔ **claim では「シーンの状態」を守れない。** 門番が守るのは**ファイル**であって、
   Unity の地形・シーンという**全員が共有する1個の実体**ではない。
   2026-08-24 に実害が出た: 松平が朝に造成を live terrain へ流し、5時間後に岡部・土井が
   同じ地形を「造成前の現地形」として標本にしたため、**他家の造成が自然地形として指図へ焼き込まれた**
@@ -163,6 +163,6 @@ python3 Tools/Session/edo_session.py steal sashizu:sanno --reason "前のセッ�
 
 ## 報告・裁定・セッション間の情報共有
 
-→ **[session-board.md](session-board.md)** — 掲示板(`edo_board.py`)と司令塔。
+→ **[session-board.md](session-board.md)** — 掲示板(`edo_board.py`)と作事奉行(差配役)。
 節目・ブロッカー・裁定要請だけ post、他邸に効く変更は起票+相手セッションへ直接メッセージ、
 自己検図はユーザー入力なしに3巡まで。

@@ -135,6 +135,74 @@ def dup(o, name):
     return c
 
 
+def zspan(o):
+    zs = [v.co.z for v in o.data.vertices]
+    return min(zs), max(zs)
+
+
+def bisect_z(o, z, keep_ge):
+    """z = z の平面で切り、keep_ge なら z ≥ 側を残す。切り口は塞がない。"""
+    me = o.data
+    bm = bmesh.new(); bm.from_mesh(me)
+    geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
+    bmesh.ops.bisect_plane(bm, geom=geom, dist=1e-5,
+                           plane_co=Vector((0, 0, z)), plane_no=Vector((0, 0, 1)),
+                           clear_outer=not keep_ge, clear_inner=keep_ge)
+    bmesh.ops.delete(bm, geom=[e for e in bm.edges if not e.link_faces], context='EDGES')
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+    bm.to_mesh(me); bm.free(); me.update()
+    return o
+
+
+def shift_z(o, dz):
+    for v in o.data.vertices:
+        v.co.z += dz
+    o.data.update()
+
+
+def fill_seam(o, z, tol=2e-4):
+    """z の高さに残った境界の穴だけを塞ぐ(2階の窓の下端 = 窓台になる)。
+    ⛔ 全部の境界を塞がない — 素の .obj は軒裏などが元から開いている。"""
+    me = o.data
+    bm = bmesh.new(); bm.from_mesh(me)
+    edges = [e for e in bm.edges
+             if len(e.link_faces) == 1
+             and abs(e.verts[0].co.z - z) < tol and abs(e.verts[1].co.z - z) < tol]
+    if edges:
+        bmesh.ops.holes_fill(bm, edges=edges, sides=64)
+    bm.to_mesh(me); bm.free(); me.update()
+    return len(edges)
+
+
+def add_floor(o, z_namako_top, z_cut, floors):
+    """**二階を積む(案A・ユーザー裁定 2026-08-29)。**
+    海鼠壁は腰壁のまま動かさず、白壁の帯 [海鼠の天端 → 壁の天端] を上へ積み増して階を作る。
+    屋根と妻の破風・鬼はそのぶん持ち上げる。
+    ⛔ 海鼠を二階の腰まで立ち上げない(案B)— 平屋の区間との継ぎ目で帯が段になる。"""
+    if floors < 2:
+        return o
+    dz = z_cut - z_namako_top               # 積む帯の高さ(海鼠の天端 → 屋根の下端)
+    for _ in range(floors - 1):
+        upper = dup(o, "upper")             # 壁の天端から上(屋根・破風・鬼)
+        bisect_z(upper, z_cut, True)
+        shift_z(upper, dz)
+        band = dup(o, "band")               # 白壁の帯(窓の上半分を含む)
+        bisect_z(band, z_namako_top, True)
+        bisect_z(band, z_cut, False)
+        shift_z(band, dz)
+        bisect_z(o, z_cut, False)           # 元は屋根の下端までにする
+        o = V.join([o, band, upper], o.name)
+        me = o.data
+        bm = bmesh.new(); bm.from_mesh(me)
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=2e-4)
+        bm.to_mesh(me); bm.free(); me.update()
+        n = fill_seam(o, z_cut)             # 2階の窓の下端に窓台を張る
+        print("[nagaya] 二階を積んだ: 帯 %.4f (%.3fm) / 窓台を張った辺 %d"
+              % (dz, dz * ES, n))
+        z_cut += dz
+    return o
+
+
 # ---------------------------------------------------------------- 割付を解く
 def solve(Lm, cap_w, bay, ncap):
     """L[m] から (bay 本数 k, pier の詰め ε) を出す。ε は obj 単位。
@@ -159,7 +227,7 @@ def solve(Lm, cap_w, bay, ncap):
 
 
 # ---------------------------------------------------------------- 組む
-def build(Lm, ends="both", name=None):
+def build(Lm, ends="both", name=None, floors=1):
     V.reset()
     gc, mc = read_groups("knagaya01c")
     gl, ml = read_groups("knagaya01l")
@@ -177,6 +245,13 @@ def build(Lm, ends="both", name=None):
     lwin = max(win_centers(gl["koshi"]))   # 妻に一番近い窓
     rwin = min(win_centers(gr["koshi"]))
     cap_w = (l_gab - lwin) + bay / 2.0     # 妻の外端から継ぎ目までの長さ(ε=0のとき)
+    # ⚠ **帯の高さは join の前に測る。** V.join は素のオブジェクトを消費するので、
+    #   後から gc["namako"] を触ると ReferenceError になる(2026-08-29 に踏んだ)。
+    z_namako_top = zspan(gc["namako"])[1]
+    # ⚠ 積む帯の天端は**屋根の下端**にする。壁の天端(n_wall)で切ると軒瓦・垂木まで
+    #   複製されて、中途半端な庇と、妻で行き場を失った瓦の破片が出る(2026-08-29 に実見)。
+    z_roof_bot = min(zspan(gc[k])[0] for k in ("n_taruki", "n_noki", "n_hira", "n_maru")
+                     if k in gc)
     print("[nagaya] 素の実測: 棟 %.5f (%.4fm) / bay %.5f (%.4fm) / 妻 %.5f (%.4fm)"
           % (W, W * ES, bay, bay * ES, cap_w, cap_w * ES))
 
@@ -226,6 +301,12 @@ def build(Lm, ends="both", name=None):
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=2e-4)
     bm.to_mesh(me); bm.free(); me.update()
 
+    # --- 階を積む(案A)。帯の高さは**素の実測**から取る
+    if floors > 1:
+        print("[nagaya] 素の帯: 海鼠の天端 %.4f (%.3fm) / 屋根の下端 %.4f (%.3fm)"
+              % (z_namako_top, z_namako_top * ES, z_roof_bot, z_roof_bot * ES))
+        o = add_floor(o, z_namako_top, z_roof_bot, floors)
+
     # --- 向き: 表(素では +Y)を Blender −Y へ。**回転**で行う(鏡映は巻きが裏返る)
     o.data.transform(Matrix.Rotation(math.pi, 4, 'Z'))
     # --- 江戸間の実寸(m)へ
@@ -249,7 +330,9 @@ def build(Lm, ends="both", name=None):
           % (L_real, max(zs) - min(zs), max(ys) - min(ys), -min(ys), max(ys)))
     print("[nagaya] 目標 %.3fm との差 %+.4fm  面=%d" % (Lm, L_real - Lm, len(me.polygons)))
 
-    nm = name or ("Nagaya_Omote_" + fmt(Lm) + ("" if ends == "both" else "_" + ends))
+    nm = name or ("Nagaya_Omote_" + fmt(Lm)
+                  + ("" if floors < 2 else "_%df" % floors)
+                  + ("" if ends == "both" else "_" + ends))
     o.name = nm; o.data.name = nm
     path = os.path.join(OUT, nm + ".fbx")
     V.export_fbx([o], path)
@@ -328,17 +411,19 @@ def main():
         ends = argv[argv.index("--ends") + 1]
     name = argv[argv.index("--name") + 1] if "--name" in argv else None
     skip = set()
-    for f in ("--ends", "--name"):
+    for f in ("--ends", "--name", "--floors"):
         if f in argv:
             skip.add(argv.index(f)); skip.add(argv.index(f) + 1)
     lens = [float(a) for i, a in enumerate(argv)
             if i not in skip and not a.startswith("--")]
     if not lens:
         lens = [28.5]
+    floors = int(argv[argv.index("--floors") + 1]) if "--floors" in argv else 1
     for Lm in lens:
-        o, path, L_real = build(Lm, ends=ends, name=name)
+        o, path, L_real = build(Lm, ends=ends, name=name, floors=floors)
         if do_render:
-            shots(o, fmt(Lm) + ("" if ends == "both" else "_" + ends))
+            shots(o, fmt(Lm) + ("" if floors < 2 else "_%df" % floors)
+                  + ("" if ends == "both" else "_" + ends))
 
 
 main()

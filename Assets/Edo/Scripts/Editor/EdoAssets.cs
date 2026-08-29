@@ -278,6 +278,15 @@ public static class EdoAssets
         /// 隣へ突き付ける(妻を出さない)版が要るときは `-- &lt;長さm&gt; --ends none`
         /// → `Nagaya_Omote_&lt;len&gt;_none.fbx`。</summary>
         public static string NagayaOmote(float len) { return NagayaOmote(len, true); }
+        /// <summary>二階建ての表長屋(案A・**ユーザー裁定 2026-08-29**)。
+        /// 海鼠壁は腰壁のまま動かさず、白壁の帯を 1.673m 積んで階を作る(H 5.509 → 7.183m)。
+        /// ⛔ 海鼠を二階の腰まで立ち上げない — 平屋の区間との継ぎ目で帯が 2.1m 段になる。
+        /// ⚠ 上階の窓の位置は**典拠が無い【確度P】**(温古写真は画角外)。一次史料が出たら覆せる。
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- &lt;長さm&gt; --floors 2</summary>
+        public static string NagayaOmote2F(float len)
+        {
+            return "Assets/Edo/Models/Nagaya/Nagaya_Omote_" + len.ToString("0.##") + "_2f.fbx";
+        }
         /// <summary>tsuma=false は両端を突き付けにした版(`--ends none`)。鎖の途中の一本に使う。</summary>
         public static string NagayaOmote(float len, bool tsuma)
         {

@@ -1189,6 +1189,8 @@ def plane_check(d):
     bad += terrain_provenance_check(d)
     bad += parcel_containment_check(d)
     bad += vocab_check(d)
+    bad += perimeter_closure_check(d)
+    bad += mune_wall_clearance_check(d)
     return bad
 
 
@@ -1483,13 +1485,29 @@ def yagura_opening_check(d):
         if gB + 1e-6 < needB:
             bad.append("隅櫓 %s: 辺%d の開口 %.1fm では足りない(櫓は %.2fm 要る)"
                        % (y["name"], vi, gB, needB))
+        # ⚠ 2026-08-29(EDO-0053)に**測るものを直した**。旧版は「開口の中に run が
+        #   一本でも入っていたら不可」で、開口を空のまま保つことを求めていた。
+        #   だが必要なのは「櫓と**ぶつからない**こと」であって、開口を空けることではない。
+        #   その取り違えのせいで、隅の左右に 1.4m と 1.6m の穴が空いたまま合格していた
+        #   (ユーザーが #6/#7 で発見)。躯体が深い長屋は入らないが、厚 1.15m の練塀は入る。
+        #   → 実際の平面形どうしの重なりで測る。`qa-and-pitfalls.md`「検査の文言と実装の集合」。
+        def _yq(hw):
+            return [(c[0] + sx * hw * ax[0] + sy * hw * ay[0],
+                     c[1] + sx * hw * ax[1] + sy * hw * ay[1])
+                    for sx, sy in ((-1, -1), (-1, 1), (1, 1), (1, -1))]
+        # 長屋(躯体が深く背も高い)は**軒を含む外形**と、練塀(丈 2.65m)は**躯体**と
+        # 当たり判定する。塀は櫓の軒の下へ入ってよい(取り付く)。
+        yq_out, yq_body = _yq(outer), _yq(body / 2.0)
         for r in d["runs"]:
-            if r["edge"] == (vi - 1) % n and r["s1"] > L13 - gA + 0.01:
-                bad.append("隅櫓 %s: run %s が辺%d の開口を塞いでいる(s1=%.1f > %.1f)"
-                           % (y["name"], r["name"], r["edge"], r["s1"], L13 - gA))
-            if r["edge"] == vi and r["s0"] < gB - 0.01:
-                bad.append("隅櫓 %s: run %s が辺%d の開口を塞いでいる(s0=%.1f < %.1f)"
-                           % (y["name"], r["name"], r["edge"], r["s0"], gB))
+            if r["edge"] not in ((vi - 1) % n, vi):
+                continue
+            rq = _run_quad(d, r)
+            tgt = yq_out if r["kind"] == "Nagaya" else yq_body
+            if _convex_overlap(yq_out if r["kind"] == "Nagaya" else tgt, rq):
+                bad.append("隅櫓 %s: run %s(%s)が櫓の%sと当たる — 辺%d s%.1f〜%.1f"
+                           % (y["name"], r["name"], r["kind"],
+                              "外形(軒共)" if r["kind"] == "Nagaya" else "躯体",
+                              r["edge"], r["s0"], r["s1"]))
     return bad
 
 
@@ -2403,6 +2421,572 @@ def history():
             "</tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>")
 
 
+# ---------------------------------------------------------------- 外周の閉じ
+def _seg_d(p, a, b):
+    ex, ez = b[0] - a[0], b[1] - a[1]
+    L2 = ex * ex + ez * ez
+    if L2 < 1e-12:
+        return math.hypot(p[0] - a[0], p[1] - a[1])
+    t = max(0.0, min(1.0, ((p[0] - a[0]) * ex + (p[1] - a[1]) * ez) / L2))
+    return math.hypot(p[0] - (a[0] + ex * t), p[1] - (a[1] + ez * t))
+
+
+def _quad(cx, cz, ux, uz, half_l, half_t):
+    """中心 (cx,cz)・長手方向 (ux,uz)・長さ 2*half_l・厚み 2*half_t の矩形の四隅。"""
+    nx, nz = -uz, ux
+    return [(cx + ux * half_l + nx * half_t, cz + uz * half_l + nz * half_t),
+            (cx + ux * half_l - nx * half_t, cz + uz * half_l - nz * half_t),
+            (cx - ux * half_l - nx * half_t, cz - uz * half_l - nz * half_t),
+            (cx - ux * half_l + nx * half_t, cz - uz * half_l + nz * half_t)]
+
+
+def _run_quad(d, r):
+    """run の平面形。**長屋は区画線から内側へ nagayaD、練塀は線をまたいで dobeiT。**
+    ⚠ 帯を線の上に中心を置いて組むと、長屋が外へ 2.25m はみ出した形で測ってしまい、
+      隅櫓との当たり判定が偽陽性になる(2026-08-29)。"""
+    P = d["polygon"]
+    n = len(P)
+    C = d["const"]
+    a, b = P[r["edge"] % n], P[(r["edge"] + 1) % n]
+    L = math.hypot(b[0] - a[0], b[1] - a[1])
+    ux, uz = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+    nx, nz = -uz, ux
+    cx = sum(q[0] for q in P) / n
+    cz = sum(q[1] for q in P) / n
+    mx, mz = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+    if (cx - mx) * nx + (cz - mz) * nz < 0:
+        nx, nz = -nx, -nz                              # 内向き
+    if r["kind"] == "Nagaya":
+        half_t = C["nagayaD"] / 2.0
+        off = half_t                                   # 外面を線に置く
+    else:
+        half_t = C["dobeiT"] / 2.0
+        off = 0.0                                      # 線をまたぐ
+    mid = (r["s0"] + r["s1"]) / 2.0
+    c = (a[0] + ux * mid + nx * off, a[1] + uz * mid + nz * off)
+    return _quad(c[0], c[1], ux, uz, (r["s1"] - r["s0"]) / 2.0, half_t)
+
+
+def _convex_overlap(A, B, gap=0.0):
+    """凸多角形どうしが(隙間 gap 未満まで詰めて)重なるか。分離軸法。"""
+    for poly in (A, B):
+        k = len(poly)
+        for i in range(k):
+            ex = poly[(i + 1) % k][0] - poly[i][0]
+            ez = poly[(i + 1) % k][1] - poly[i][1]
+            L = math.hypot(ex, ez)
+            if L < 1e-12:
+                continue
+            nx, nz = -ez / L, ex / L
+            a0 = min(q[0] * nx + q[1] * nz for q in A)
+            a1 = max(q[0] * nx + q[1] * nz for q in A)
+            b0 = min(q[0] * nx + q[1] * nz for q in B)
+            b1 = max(q[0] * nx + q[1] * nz for q in B)
+            if a1 + gap <= b0 or b1 + gap <= a0:
+                return False
+    return True
+
+
+def _seg_x(p1, p2, p3, p4):
+    d = (p2[0] - p1[0]) * (p4[1] - p3[1]) - (p2[1] - p1[1]) * (p4[0] - p3[0])
+    if abs(d) < 1e-12:
+        return False
+    t = ((p3[0] - p1[0]) * (p4[1] - p3[1]) - (p3[1] - p1[1]) * (p4[0] - p3[0])) / d
+    u = ((p3[0] - p1[0]) * (p2[1] - p1[1]) - (p3[1] - p1[1]) * (p2[0] - p1[0])) / d
+    return 0.0 <= t <= 1.0 and 0.0 <= u <= 1.0
+
+
+def _perimeter_footprints(d):
+    """外周を塞ぐ物の平面形(世界座標の四角形)を、**指図の設計値だけ**から組む。
+    ここに入らない物は「塞いでいない」— 門の開口は扉を申告するまで穴として数える。"""
+    P = d["polygon"]
+    C = d["const"]
+    n = len(P)
+    out = []
+
+    def edge(e):
+        a, b = P[e % n], P[(e + 1) % n]
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        return a, ((b[0] - a[0]) / L, (b[1] - a[1]) / L), L
+
+    for r in d["runs"]:
+        out.append((r["name"], _run_quad(d, r)))
+    for f in d.get("fences", []):
+        a, u, L = edge(f["edge"])
+        s0, s1 = f["s0"], f["s1"]
+        c = ((a[0] + u[0] * (s0 + s1) / 2), (a[1] + u[1] * (s0 + s1) / 2))
+        out.append((f["name"], _quad(c[0], c[1], u[0], u[1], (s1 - s0) / 2.0, 0.10)))
+    g = d.get("gate")
+    if g:
+        a, u, L = edge(g["edge"])
+        for nm, (s0, s1) in g["plan"].get("sPos", {}).items():
+            c = ((a[0] + u[0] * (s0 + s1) / 2), (a[1] + u[1] * (s0 + s1) / 2))
+            t = g["plan"]["bansho"]["d"] / 2.0 if "bansho" in nm else C["dobeiT"] / 2.0
+            # 門の開口そのもの(mon)は、扉 leaf を申告した時だけ塞いだと数える
+            if nm == "mon" and not g["plan"].get("leaf"):
+                continue
+            out.append(("表門/" + nm, _quad(c[0], c[1], u[0], u[1], (s1 - s0) / 2.0, t)))
+    for k in d.get("komon", []):
+        if not k.get("leaf"):
+            continue                                  # 扉が無い門は穴
+        a, u, L = edge(k["edge"])
+        c = (a[0] + u[0] * k["s"], a[1] + u[1] * k["s"])
+        out.append((k["name"], _quad(c[0], c[1], u[0], u[1], k["w"] / 2.0, C["dobeiT"] / 2.0)))
+    for y in d.get("yagura", []):
+        v = y["vertex"] % n
+        a, u, L = edge(v)                             # 頂点から出る辺(=辺14)に軸を沿わせる
+        pa = P[(v - 1) % n]
+        ua = (P[v][0] - pa[0], P[v][1] - pa[1])
+        La = math.hypot(*ua)
+        ua = (ua[0] / La, ua[1] / La)
+        bis = (u[0] - ua[0], u[1] - ua[1])            # 内角の二等分線(内向き)
+        Lb = math.hypot(*bis)
+        if Lb < 1e-9:
+            continue
+        bis = (bis[0] / Lb, bis[1] / Lb)
+        half = y["ken"] * C["ken"] / 2.0
+        off = (half + C["inubashiri"]) / math.sin(math.radians(53.0))
+        c = (P[v][0] + bis[0] * off, P[v][1] + bis[1] * off)
+        out.append((y["name"], _quad(c[0], c[1], u[0], u[1], half, half)))
+    return out
+
+
+def perimeter_closure_check(d, tol=0.4, step=0.2):
+    """**外周が閉じているか** — 区画線をまたぐ線が、どこかで外周の物に当たるかを全長で測る。
+
+    ⚠ 2026-08-29(EDO-0053)にユーザーが4箇所の穴を見つけて追加した。それまで外周の
+      「閉じ」を測る検査は**一つも無かった** — barrier_check が見ていたのは内側の
+      御錠口の結界だけで、その 0 件を外周の閉じの保証と読んでいた。
+      `qa-and-pitfalls.md`「検査の文言と実装の集合を突き合わせる」。
+    ⛔ **門の開口は、扉(`leaf`)を申告するまで穴として数える。**開口幅と敷居しか
+      書いていない門は、建てれば素通しになる(御蔵門・東小門が実際そうだった)。
+    ⛔ 隅櫓は**実際の平面形**で数える。「隅を置き換える」と書いても、辺と斜めに
+      交わる矩形は辺の開口を端まで塞がない(北東隅で 1.41m と 0.34m 残っていた)。
+    """
+    P = d["polygon"]
+    n = len(P)
+    fps = _perimeter_footprints(d)
+    cx = sum(q[0] for q in P) / n
+    cz = sum(q[1] for q in P) / n
+    bad = []
+    for e in range(n):
+        a, b = P[e], P[(e + 1) % n]
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        ux, uz = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+        nx, nz = -uz, ux
+        mx, mz = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+        if (cx - mx) * nx + (cz - mz) * nz < 0:
+            nx, nz = -nx, -nz                         # 内向き
+        holes, cur, s = [], None, 0.0
+        while s <= L + 1e-9:
+            p1 = (a[0] + ux * s - nx * 2.0, a[1] + uz * s - nz * 2.0)
+            p2 = (a[0] + ux * s + nx * 5.0, a[1] + uz * s + nz * 5.0)
+            hit = False
+            for _, q in fps:
+                for i in range(4):
+                    if _seg_x(p1, p2, q[i], q[(i + 1) % 4]):
+                        hit = True
+                        break
+                if hit:
+                    break
+            if hit:
+                if cur is not None:
+                    holes.append(tuple(cur))
+                    cur = None
+            else:
+                cur = [s, s] if cur is None else [cur[0], s]
+            s += step
+        if cur is not None:
+            holes.append(tuple(cur))
+        for s0, s1 in holes:
+            if s1 - s0 + step >= tol:
+                bad.append("辺%d の s%.1f〜%.1f(%.2fm)が外周として閉じていない — "
+                           "塞ぐ物を指図に書く(門なら扉 leaf、隅なら隅部材)"
+                           % (e, s0, s1, s1 - s0 + step))
+    return bad
+
+
+def mune_wall_clearance_check(d):
+    """**棟の軒先と外周の塀の内面の離れ**が const wallNear 以上か。
+    ⚠ wallNear は前からあったのに、それを測る検査が無く飾りになっていた。
+      2026-08-29 に長局(南)の屋根が土井境の土塀と 0.28m しか離れていないのを
+      ユーザーが見つけた(EDO-0053)。"""
+    C = d["const"]
+    gr = RGrid(d)
+    P = d["polygon"]
+    n = len(P)
+    lim = C["wallNear"]
+    bad = []
+    for m in d["munes"]:
+        worst, at = 1e9, None
+        u = m["u0"]
+        while u <= m["u1"] + 1e-9:
+            for v in (m["v0"], m["v1"]):
+                w = gr.W(u, v)
+                dd = min(_seg_d(w, P[i], P[(i + 1) % n]) for i in range(n))
+                if dd < worst:
+                    worst, at = dd, (u, v)
+            u += 0.5
+        v = m["v0"]
+        while v <= m["v1"] + 1e-9:
+            for u2 in (m["u0"], m["u1"]):
+                w = gr.W(u2, v)
+                dd = min(_seg_d(w, P[i], P[(i + 1) % n]) for i in range(n))
+                if dd < worst:
+                    worst, at = dd, (u2, v)
+            v += 0.5
+        clear = worst - C["nokiE"] - C["dobeiT"] / 2.0
+        if clear < lim:
+            bad.append("棟 %s の軒先と外周の塀の内面が %.2fm(規定 wallNear %.2fm)— u%.1f v%.1f"
+                       % (m["name"], clear, lim, at[0], at[1]))
+    return bad
+
+
+# ---------------------------------------------------------------- 外周の閉じ(検査)
+def _corner_path(d, ea, back, eb, fwd):
+    """隅をまたぐ展開の道筋。辺 ea の終端から back[m] 手前 → 隅 → 辺 eb の fwd[m] 先。"""
+    P = d["polygon"]
+    n = len(P)
+    La = math.hypot(P[(ea + 1) % n][0] - P[ea][0], P[(ea + 1) % n][1] - P[ea][1])
+    return [(ea, La - back, La), (eb, 0.0, fwd)], back
+
+
+def _dem_at(dem, x, z):
+    """正本DEMの切り出し(世界2m格子)から造成前の地盤を双一次で拾う(規則12)。"""
+    fx = (x - dem["x0"]) / dem["step"]
+    fz = (z - dem["z0"]) / dem["step"]
+    i, j = int(math.floor(fx)), int(math.floor(fz))
+    if i < 0 or j < 0 or i + 1 >= dem["nx"] or j + 1 >= dem["nz"]:
+        return None
+    tx, tz = fx - i, fz - j
+    q = [dem["h"][j][i], dem["h"][j][i + 1], dem["h"][j + 1][i], dem["h"][j + 1][i + 1]]
+    if any(v is None for v in q):
+        return None
+    return (q[0] * (1 - tx) + q[1] * tx) * (1 - tz) + (q[2] * (1 - tx) + q[3] * tx) * tz
+
+
+def _ground_along(d, dem, path, off=1.5, step=0.5):
+    """道筋に沿って、内側 off[m] の造成前の地盤を拾う。x は展開の通し距離[m]。
+    ⚠ 地盤は **正本DEMの切り出し** から採る。matsudaira_terrain.json は穴があり、
+      辺1 の内側 1.5m では null しか返らなかった(2026-08-29)。"""
+    P = d["polygon"]
+    n = len(P)
+    out = []
+    x = 0.0
+    for e, s0, s1 in path:
+        a, b = P[e % n], P[(e + 1) % n]
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        ux, uz = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+        nx, nz = -uz, ux
+        cx = sum(q[0] for q in P) / n
+        cz = sum(q[1] for q in P) / n
+        mx, mz = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+        if (cx - mx) * nx + (cz - mz) * nz < 0:
+            nx, nz = -nx, -nz
+        sv = s0
+        while sv <= s1 + 1e-9:
+            wx, wz = a[0] + ux * sv + nx * off, a[1] + uz * sv + nz * off
+            h = _dem_at(dem, wx, wz)
+            if h is not None:
+                out.append((x + (sv - s0), h))
+            sv += step
+        x += (s1 - s0)
+    return out
+
+
+def corner_elev_svg(d, dem, ea, back, eb, fwd, title):
+    """隅をまたぐ塀の展開立面。**設計値どおりに描く**(案は描かない)。
+    2026-08-29 の裁定で辺0/辺1/辺2 の天端は隅で揃った — その通りを図で確かめられるようにする。"""
+    C = d["const"]
+    path, xc = _corner_path(d, ea, back, eb, fwd)
+    W_ = back + fwd
+    g = _ground_along(d, dem, path)
+    g3 = _ground_along(d, dem, path, off=4.5)
+    ys = [h for _, h in g] + [h for _, h in g3]
+    tops = []
+    P = d["polygon"]
+    n = len(P)
+    for r in d["runs"]:
+        if r["edge"] not in (ea % n, eb % n):
+            continue
+        tops += [r.get("seat0", r["seat"]) + C["dobeiH"], r.get("seat1", r["seat"]) + C["dobeiH"]]
+    y0 = min(ys) - 0.6
+    y1 = max(tops) + 0.6 if tops else max(ys) + 3
+    S = 30.0
+    LEFT, TOP, BOT = 46.0, 20.0, 26.0
+    Wpx = LEFT + W_ * S + 14
+    Hpx = TOP + (y1 - y0) * S + BOT
+    X = lambda m_: LEFT + m_ * S
+    Y = lambda h_: TOP + (y1 - h_) * S
+    o = _sv(Wpx, Hpx, title)
+    h_ = math.ceil(y0)
+    while h_ <= y1:
+        o.append(LN(LEFT - 4, Y(h_), Wpx - 8, Y(h_), "var(--rule)", 0.6, None, 0.55))
+        o.append(T(LEFT - 7, Y(h_) + 3.4, "%g" % h_, "sl", "end", 9.0))
+        h_ += 1.0
+    for pts, sw, dash, op in ((g, 1.2, "4 3", 1.0), (g3, 0.9, "2 3", 0.6)):
+        o.append('<polyline points="%s" fill="none" stroke="var(--dim)" stroke-width="%.1f" '
+                 'stroke-dasharray="%s" opacity="%.1f"/>'
+                 % (" ".join("%.1f,%.1f" % (X(x_), Y(h_)) for x_, h_ in pts), sw, dash, op))
+    o.append(T(X(0.6), Y(g[0][1]) + 13, "地面(塀の内側 1.5m ─ / 4.5m ┈)", "sl", "start", 9.0))
+
+    for r in d["runs"]:
+        if r["edge"] == ea % n:
+            La = math.hypot(P[(ea + 1) % n][0] - P[ea % n][0], P[(ea + 1) % n][1] - P[ea % n][1])
+            xa, xb = r["s0"] - (La - back), r["s1"] - (La - back)
+        elif r["edge"] == eb % n:
+            xa, xb = xc + r["s0"], xc + r["s1"]
+        else:
+            continue
+        xa, xb = max(0.0, xa), min(W_, xb)
+        if xb - xa < 0.2:
+            continue
+        t0 = r.get("seat0", r["seat"])
+        t1 = r.get("seat1", r["seat"])
+        # run 内の一次補間で天端を引く
+        def seat_at(xx):
+            if r["edge"] == ea % n:
+                sv = xx + (La - back)
+            else:
+                sv = xx - xc
+            f = (sv - r["s0"]) / max(1e-9, r["s1"] - r["s0"])
+            return t0 + (t1 - t0) * max(0.0, min(1.0, f))
+        sa, sb = seat_at(xa), seat_at(xb)
+        o.append('<polygon points="%.1f,%.1f %.1f,%.1f %.1f,%.1f %.1f,%.1f" fill="var(--hei)" '
+                 'stroke="var(--ink)" stroke-width="0.8" opacity="0.30"/>'
+                 % (X(xa), Y(sa + C["dobeiH"]), X(xb), Y(sb + C["dobeiH"]),
+                    X(xb), Y(sb), X(xa), Y(sa)))
+        gs = [(x_, h_) for x_, h_ in (g + g3) if xa - 0.6 <= x_ <= xb + 0.6]
+        if gs:
+            lo = min(h_ for _, h_ in gs)
+            o.append('<polygon points="%.1f,%.1f %.1f,%.1f %.1f,%.1f %.1f,%.1f" fill="url(#pi%d)" '
+                     'stroke="var(--ishi)" stroke-width="0.8"/>'
+                     % (X(xa), Y(sa), X(xb), Y(sb), X(xb), Y(lo), X(xa), Y(lo), _SVN[0]))
+        if (xb - xa) >= 3.0:                          # 窓の端で切れた run に札は付けない
+            lbl = "%s　足元 %.2f→%.2f" % (r["name"], t0, t1) if abs(t1 - t0) > 0.005 \
+                else "%s　足元 %.2f" % (r["name"], t0)
+            o.append(T((X(xa) + X(xb)) / 2, Y(max(sa, sb) + C["dobeiH"]) - 6, lbl, "sl", "middle",
+                       max(8.0, min(10.5, (xb - xa) * S / (len(lbl) * 0.62)))))
+    o.append(LN(X(xc), TOP + 2, X(xc), Hpx - BOT + 4, "var(--shu)", 1.0, "3 3", 0.8))
+    o.append(T(X(xc), Hpx - 8, "▲ 敷地の角", "sl", "middle", 9.5, "var(--shu)"))
+    o.append(T(LEFT, Hpx - 8, "角で塀のてっぺんが揃っている(段差なし)", "sl", "start", 9.5))
+    o.append("</svg>")
+    return "\n".join(o)
+
+
+def nagatsubone_svg(d):
+    """長局(南)と土井境の離れ。**設計値どおりに描く**(案は描かない)。"""
+    C = d["const"]
+    gr = RGrid(d)
+    P = d["polygon"]
+    m = [x for x in d["munes"] if x["name"] == "NagatsuboneS"][0]
+    mn = [x for x in d["munes"] if x["name"] == "NagatsuboneN"][0]
+    u0, u1, v0, v1 = m["u0"], m["u1"], m["v0"], m["v1"]
+    pr = LProj(-28, 2, 46, 66, W=430.0)
+    o = _sv(pr.W + 54, pr.H + 16, "長局(南)と土井境")
+    OX = 46.0
+    PX = lambda u: OX + pr.X(u)
+    PY = lambda v: pr.Y(v)
+    gpts = [gr.L(*q) for q in P]
+    seg = []
+    for i2 in range(len(gpts)):
+        a, b = gpts[i2], gpts[(i2 + 1) % len(gpts)]
+        if max(a[1], b[1]) < 44 or min(a[1], b[1]) > 70:
+            continue
+        seg.append((a, b))
+    for a, b in seg:
+        dx, dv = b[0] - a[0], b[1] - a[1]
+        L = math.hypot(dx, dv)
+        if L < 1e-6:
+            continue
+        t = (C["dobeiT"] / 2.0) / C["ken"]
+        nx_, nv_ = -dv / L * t, dx / L * t
+        o.append('<polygon points="%.1f,%.1f %.1f,%.1f %.1f,%.1f %.1f,%.1f" fill="var(--hei)" opacity="0.28"/>'
+                 % (PX(a[0] + nx_), PY(a[1] + nv_), PX(b[0] + nx_), PY(b[1] + nv_),
+                    PX(b[0] - nx_), PY(b[1] - nv_), PX(a[0] - nx_), PY(a[1] - nv_)))
+        o.append(LN(PX(a[0]), PY(a[1]), PX(b[0]), PY(b[1]), "var(--ink)", 1.6))
+    o.append(R(PX(mn["u0"]), PY(mn["v0"]), (mn["u1"] - mn["u0"]) * pr.s,
+               (mn["v1"] - mn["v0"]) * pr.s, fill="var(--ink-lo)", stroke="var(--dim)", sw=0.8))
+    o.append(T(PX((mn["u0"] + mn["u1"]) / 2.0), PY((mn["v0"] + mn["v1"]) / 2.0) + 4,
+               "長局(北)", "sl", "middle", 10.0))
+    o.append(R(PX(u0), PY(v0), (u1 - u0) * pr.s, (v1 - v0) * pr.s,
+               fill="var(--nagaya)", stroke="var(--ink)", sw=1.2, op=0.30))
+    e = C["nokiE"] / C["ken"]
+    o.append(R(PX(u0 - e), PY(v0 - e), (u1 - u0 + 2 * e) * pr.s, (v1 - v0 + 2 * e) * pr.s,
+               fill="none", stroke="var(--shu)", sw=0.9, dash="3 2"))
+    o.append(T(PX((u0 + u1) / 2.0), PY((v0 + v1) / 2.0) + 4,
+               "長局(南) %d間×%d間　局 %d室 %d畳" % (u1 - u0, v1 - v0, len(m.get("rooms", [])),
+                                              sum(r["tatami"] for r in m.get("rooms", []))),
+               "sl", "middle", 10.5))
+    # 中仕切の板塀
+    for w in d.get("nakajikiri", []):
+        a, b = w["a"], w["b"]
+        if max(a[1], b[1]) < 44 or min(a[1], b[1]) > 70:
+            continue
+        o.append(LN(PX(a[0]), PY(a[1]), PX(b[0]), PY(b[1]), "var(--nagaya)", 2.0))
+    o.append(T(PX(-26), PY(66) - 5, "中仕切の板塀", "sl", "start", 9.0, "var(--nagaya)"))
+    # 一番詰まる所の離れ
+    def _dl(w):
+        return min(_seg_d(w, P[i2], P[(i2 + 1) % len(P)]) for i2 in range(len(P)))
+    worst, at = 1e9, None
+    uu = u0
+    while uu <= u1 + 1e-9:
+        dd = _dl(gr.W(uu, v1))
+        if dd < worst:
+            worst, at = dd, uu
+        uu += 0.25
+    clear = worst - C["nokiE"] - C["dobeiT"] / 2.0
+    col = "var(--shu)" if clear < C["wallNear"] else "var(--take)"
+    o.append(LN(PX(at), PY(v1), PX(at), PY(v1 + worst / C["ken"]), col, 1.6))
+    o.append(T(PX(at) + 5, PY(v1 + worst / C["ken"] * 0.5) + 3.5,
+               "屋根の先から塀まで %.2fm(空けたい %.2fm)" % (clear, C["wallNear"]),
+               "sl", "start", 10.0, col))
+    gap = (v0 - mn["v1"]) * C["ken"] - 2 * C["nokiE"]
+    gcol = "var(--shu)" if gap < 0.30 else "var(--take)"
+    xg = PX(max(u0, mn["u0"]) + 2.0)
+    o.append(LN(xg, PY(mn["v1"]), xg, PY(v0), gcol, 1.6))
+    o.append(T(xg + 5, (PY(mn["v1"]) + PY(v0)) / 2 + 3.5,
+               "北隣の建物と屋根の先どうしの空き %.2fm" % gap, "sl", "start", 10.0, gcol))
+    for v in range(46, 67, 2):
+        o.append(T(OX - 6, PY(v) + 3.4, "v%d" % v, "sl", "end", 8.5))
+    o.append("</svg>")
+    return "\n".join(o)
+
+
+# ---------------------------------------------------------------- 裁定図(EDO-0053)
+# ⚠ **この節は裁定が出たら丸ごと差し替える。**規則4「指図は現況だけを載せる」に対する
+#   例外は「まだ決まっていない選択肢を並べて見せる図」だけで、決まった後に残すと両論併記になる。
+def _corner_path(d, ea, back, eb, fwd):
+    """隅をまたぐ展開の道筋。辺 ea の終端から back[m] 手前 → 隅 → 辺 eb の fwd[m] 先。"""
+    P = d["polygon"]
+    n = len(P)
+    La = math.hypot(P[(ea + 1) % n][0] - P[ea][0], P[(ea + 1) % n][1] - P[ea][1])
+    return [(ea, La - back, La), (eb, 0.0, fwd)], back
+
+
+def _dem_at(dem, x, z):
+    """正本DEMの切り出し(世界2m格子)から造成前の地盤を双一次で拾う(規則12)。"""
+    fx = (x - dem["x0"]) / dem["step"]
+    fz = (z - dem["z0"]) / dem["step"]
+    i, j = int(math.floor(fx)), int(math.floor(fz))
+    if i < 0 or j < 0 or i + 1 >= dem["nx"] or j + 1 >= dem["nz"]:
+        return None
+    tx, tz = fx - i, fz - j
+    q = [dem["h"][j][i], dem["h"][j][i + 1], dem["h"][j + 1][i], dem["h"][j + 1][i + 1]]
+    if any(v is None for v in q):
+        return None
+    return (q[0] * (1 - tx) + q[1] * tx) * (1 - tz) + (q[2] * (1 - tx) + q[3] * tx) * tz
+
+
+def _ground_along(d, dem, path, off=1.5, step=0.5):
+    """道筋に沿って、内側 off[m] の造成前の地盤を拾う。x は展開の通し距離[m]。
+    ⚠ 地盤は **正本DEMの切り出し** から採る。matsudaira_terrain.json は穴があり、
+      辺1 の内側 1.5m では null しか返らなかった(2026-08-29)。"""
+    P = d["polygon"]
+    n = len(P)
+    out = []
+    x = 0.0
+    for e, s0, s1 in path:
+        a, b = P[e % n], P[(e + 1) % n]
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        ux, uz = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+        nx, nz = -uz, ux
+        cx = sum(q[0] for q in P) / n
+        cz = sum(q[1] for q in P) / n
+        mx, mz = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+        if (cx - mx) * nx + (cz - mz) * nz < 0:
+            nx, nz = -nx, -nz
+        sv = s0
+        while sv <= s1 + 1e-9:
+            wx, wz = a[0] + ux * sv + nx * off, a[1] + uz * sv + nz * off
+            h = _dem_at(dem, wx, wz)
+            if h is not None:
+                out.append((x + (sv - s0), h))
+            sv += step
+        x += (s1 - s0)
+    return out
+
+
+def corner_elev_svg(d, dem, ea, back, eb, fwd, title):
+    """隅をまたぐ塀の展開立面。**設計値どおりに描く**(案は描かない)。
+    2026-08-29 の裁定で辺0/辺1/辺2 の天端は隅で揃った — その通りを図で確かめられるようにする。"""
+    C = d["const"]
+    path, xc = _corner_path(d, ea, back, eb, fwd)
+    W_ = back + fwd
+    g = _ground_along(d, dem, path)
+    g3 = _ground_along(d, dem, path, off=4.5)
+    ys = [h for _, h in g] + [h for _, h in g3]
+    tops = []
+    P = d["polygon"]
+    n = len(P)
+    for r in d["runs"]:
+        if r["edge"] not in (ea % n, eb % n):
+            continue
+        tops += [r.get("seat0", r["seat"]) + C["dobeiH"], r.get("seat1", r["seat"]) + C["dobeiH"]]
+    y0 = min(ys) - 0.6
+    y1 = max(tops) + 0.6 if tops else max(ys) + 3
+    S = 30.0
+    LEFT, TOP, BOT = 46.0, 20.0, 26.0
+    Wpx = LEFT + W_ * S + 14
+    Hpx = TOP + (y1 - y0) * S + BOT
+    X = lambda m_: LEFT + m_ * S
+    Y = lambda h_: TOP + (y1 - h_) * S
+    o = _sv(Wpx, Hpx, title)
+    h_ = math.ceil(y0)
+    while h_ <= y1:
+        o.append(LN(LEFT - 4, Y(h_), Wpx - 8, Y(h_), "var(--rule)", 0.6, None, 0.55))
+        o.append(T(LEFT - 7, Y(h_) + 3.4, "%g" % h_, "sl", "end", 9.0))
+        h_ += 1.0
+    for pts, sw, dash, op in ((g, 1.2, "4 3", 1.0), (g3, 0.9, "2 3", 0.6)):
+        o.append('<polyline points="%s" fill="none" stroke="var(--dim)" stroke-width="%.1f" '
+                 'stroke-dasharray="%s" opacity="%.1f"/>'
+                 % (" ".join("%.1f,%.1f" % (X(x_), Y(h_)) for x_, h_ in pts), sw, dash, op))
+    o.append(T(X(0.6), Y(g[0][1]) + 13, "地面(塀の内側 1.5m ─ / 4.5m ┈)", "sl", "start", 9.0))
+
+    for r in d["runs"]:
+        if r["edge"] == ea % n:
+            La = math.hypot(P[(ea + 1) % n][0] - P[ea % n][0], P[(ea + 1) % n][1] - P[ea % n][1])
+            xa, xb = r["s0"] - (La - back), r["s1"] - (La - back)
+        elif r["edge"] == eb % n:
+            xa, xb = xc + r["s0"], xc + r["s1"]
+        else:
+            continue
+        xa, xb = max(0.0, xa), min(W_, xb)
+        if xb - xa < 0.2:
+            continue
+        t0 = r.get("seat0", r["seat"])
+        t1 = r.get("seat1", r["seat"])
+        # run 内の一次補間で天端を引く
+        def seat_at(xx):
+            if r["edge"] == ea % n:
+                sv = xx + (La - back)
+            else:
+                sv = xx - xc
+            f = (sv - r["s0"]) / max(1e-9, r["s1"] - r["s0"])
+            return t0 + (t1 - t0) * max(0.0, min(1.0, f))
+        sa, sb = seat_at(xa), seat_at(xb)
+        o.append('<polygon points="%.1f,%.1f %.1f,%.1f %.1f,%.1f %.1f,%.1f" fill="var(--hei)" '
+                 'stroke="var(--ink)" stroke-width="0.8" opacity="0.30"/>'
+                 % (X(xa), Y(sa + C["dobeiH"]), X(xb), Y(sb + C["dobeiH"]),
+                    X(xb), Y(sb), X(xa), Y(sa)))
+        gs = [(x_, h_) for x_, h_ in (g + g3) if xa - 0.6 <= x_ <= xb + 0.6]
+        if gs:
+            lo = min(h_ for _, h_ in gs)
+            o.append('<polygon points="%.1f,%.1f %.1f,%.1f %.1f,%.1f %.1f,%.1f" fill="url(#pi%d)" '
+                     'stroke="var(--ishi)" stroke-width="0.8"/>'
+                     % (X(xa), Y(sa), X(xb), Y(sb), X(xb), Y(lo), X(xa), Y(lo), _SVN[0]))
+        lbl = "%s　足元 %.2f→%.2f" % (r["name"], t0, t1) if abs(t1 - t0) > 0.005 \
+            else "%s　足元 %.2f" % (r["name"], t0)
+        o.append(T((X(xa) + X(xb)) / 2, Y(max(sa, sb) + C["dobeiH"]) - 6,
+                   fit(lbl, (xb - xa) * S) and lbl, "sl", "middle",
+                   max(8.0, min(10.5, (xb - xa) * S / (len(lbl) * 0.62)))))
+    o.append(LN(X(xc), TOP + 2, X(xc), Hpx - BOT + 4, "var(--shu)", 1.0, "3 3", 0.8))
+    o.append(T(X(xc), Hpx - 8, "▲ 敷地の角", "sl", "middle", 9.5, "var(--shu)"))
+    o.append(T(LEFT, Hpx - 8, "角で塀のてっぺんが揃っている(段差なし)", "sl", "start", 9.5))
+    o.append("</svg>")
+    return "\n".join(o)
+
+
 # ---------------------------------------------------------------- 組み立て
 def plate(h, num, title, meta=""):
     h.append('<div class="plate"><div class="phead"><h2>%s　%s</h2>%s</div>'
@@ -3108,7 +3692,8 @@ def main():
     KAN = ["其一", "其二", "其三", "其四", "其五", "其六", "其七", "其八", "其九", "其十",
            "其十一", "其十二", "其十三", "其十四", "其十五",
            "其十六", "其十七", "其十八", "其十九", "其二十",
-           "其廿一", "其廿二", "其廿三", "其廿四", "其廿五"]
+           "其廿一", "其廿二", "其廿三", "其廿四", "其廿五",
+           "其廿六", "其廿七", "其廿八", "其廿九", "其三十"]
     _kn = [0]
 
     def nx():
@@ -3353,6 +3938,30 @@ def main():
              '<b>斜面・谷・水際は塀を立てず地形なりの木柵</b>(囲いの実体は崖と樹林+法肩の竹垣)。'
              '土井境の囲いは1条・松平が持つ(区画トポロジの裁定)。犬走り %.2fm。</p>'
              % d["const"]["inubashiri"])
+    h.append("</div>")
+
+    # ------------------------------------------------------------ 土井境の納まり
+    _dem_s = json.load(open(os.path.join(DOC, "matsudaira_dem.json"), encoding="utf-8"))
+    plate(h, nx(), "土井境の納まり", "隅は塀のてっぺんを揃える(2026-08-29 ユーザー裁定・EDO-0053)")
+    h.append('<p class="cap">土井家との境の塀は、内側の自然地盤が高いので足元を 27.93m に置いている'
+             '(2026-08-24。土井側と突き合わせて決めた高さで動かせない — EDO-0025)。'
+             'その両隣の塀は 27.00m なので、<b>隅で 0.93m ずつ食い違っていた</b>。'
+             '裁定により<b>隅では塀のてっぺんを揃え</b>、その差は隣の塀の中で段に割って吸わせる。<br>'
+             '⛔ <b>塀は傾けない。</b>段ごとに水平な塀を継ぐ(瓦も柱も水平)。'
+             'だから<b>一段は「読める大きさ」でなければならない</b> — 0.25〜0.60m を目安にする。'
+             'これより小さい段は棟瓦の厚み(0.17m)を下回り、段ではなく据え付けのずれに見える'
+             '(2026-08-29 に土井境で実測 0.06m 刻みが見つかった。EDO-0053)。</p>')
+    fig(h, corner_elev_svg(d, _dem_s, 0, 28.0, 1, 10.0, "隅P1"),
+        cap="<b>隅 P1(辺0 ↔ 辺1)。</b>東から来る塀が 0.31m ずつ三段で登り切って、土井境の塀と同じ高さで角を回る。"
+            "塀そのものは段ごとに水平で、傾けない(瓦も柱も水平のまま)。段のぶん足元が浮くところは石垣が受ける。")
+    fig(h, corner_elev_svg(d, _dem_s, 1, 15.0, 2, 14.0, "隅P2"),
+        cap="<b>隅 P2(辺1 ↔ 辺2)。</b>角では同じ高さで、そこから西の塀が 0.31m ずつ三段で下って"
+            "台地の肩(s12)で次の塀に継ぐ。角に段差は残らない。")
+    fig(h, nagatsubone_svg(d),
+        cap="<b>長局(南)。</b>屋根の先が土井境の塀に 0.28m まで迫っていたので、"
+            "南の縁(入側)一列を落として離れを取った(2026-08-29 ユーザー裁定)。"
+            "<b>局は一室も減っていない</b> — 落ちたのは縁だけで、残る縁は北(通り道)と両妻。"
+            "奥郭の中仕切(板塀)は端を練塀へ 0.30m 差し込んで継ぐ(隙間を作らない)。")
     h.append("</div>")
 
     plate(h, nx(), "表門まわり", "冠木門(屋根なし)+両唐破風番所【写真A+日本案内記A/嘉永期への外挿はB】")

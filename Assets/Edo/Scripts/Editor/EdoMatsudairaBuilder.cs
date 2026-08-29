@@ -144,7 +144,7 @@ public static class EdoMatsudairaBuilder
 
     public struct Run
     {
-        public string name; public int edge; public float s0, s1, seat; public bool bench, nagaya; public float ishi;
+        public string name; public int edge; public float s0, s1, seat; public bool bench, nagaya, nijukai; public float ishi;
         /// <summary>斜面の run は天端が一直線に下る。seat は**中点**にすぎないので、
         /// 位置を持つ処理は必ず SeatAt(s) を使うこと。
         /// (2026-08-23 土井邸から「一本の run で −3.35m 埋没と +4.35m 露出が同時に起きる」と
@@ -177,6 +177,7 @@ public static class EdoMatsudairaBuilder
                         seat1 = Has(r, "seat1") ? F(r["seat1"]) : F(r["seat"]),
                         bench = Has(r, "bench") && (bool)r["bench"],
                         nagaya = (string)r["kind"] == "Nagaya",
+                        nijukai = Has(r, "nijukai") && (bool)r["nijukai"],
                         ishi = Has(r, "s") ? F(r["s"]) : 0f
                     });
                 }
@@ -532,65 +533,6 @@ public static class EdoMatsudairaBuilder
         return new NagModule { lo = mn, hi = mx, pivot = 0f };
     }
 
-    /// <summary>辺 e の [s0,s1] に表長屋を実寸ピッチで通す。seatAt(s) がその位置の天端を返す。</summary>
-    static int NagayaChain(Transform parent, int e, float s0, float s1, Func<float, float> seatAt, Func<float, string> nameAt)
-    {
-        var mc = Measure(EdoAssets.Eg.KnagayaC);
-        var ml = Measure(EdoAssets.Eg.KnagayaL);
-        var mr = Measure(EdoAssets.Eg.KnagayaR);
-        float Wc = mc.hi - mc.lo;                      // 実測 8.065m
-        float L = s1 - s0;
-        int n = Mathf.Max(1, Mathf.RoundToInt(L / Wc));
-        Vector2 outw = OutNormal(e);
-        float psi = Mathf.Atan2(outw.x, outw.y) * Mathf.Rad2Deg;
-        // 走り方向はローカル -X。辺の向きが逆なら flip。
-        Vector2 a = EdgePt(e, 0f), b = EdgePt(e, 1f);
-        Vector2 rdir = (b - a).normalized;
-        float rad = psi * Mathf.Deg2Rad;
-        Vector2 negRight = new Vector2(-Mathf.Cos(rad), Mathf.Sin(rad));
-        bool flip = Vector2.Dot(rdir, negRight) < 0;
-        // 端の妻部材は壁幅が 0.155m 狭い(l/r = 7.910 / c = 8.065)。**一律ピッチだと妻の隣に
-        // 隙間があく**ので、部材ごとの実寸を積み上げるカーソルで置く。
-        Func<int, string> pathAt = k =>
-        {
-            if (n > 1 && k == 0) return flip ? EdoAssets.Eg.KnagayaR : EdoAssets.Eg.KnagayaL;
-            if (n > 1 && k == n - 1) return flip ? EdoAssets.Eg.KnagayaL : EdoAssets.Eg.KnagayaR;
-            return EdoAssets.Eg.KnagayaC;
-        };
-        Func<string, NagModule> modOf = p2 =>
-            p2 == EdoAssets.Eg.KnagayaL ? ml : (p2 == EdoAssets.Eg.KnagayaR ? mr : mc);
-        float total = 0f;
-        for (int k = 0; k < n; k++) { var m2 = modOf(pathAt(k)); total += m2.hi - m2.lo; }
-        float cursor = s0 + (L - total) * 0.5f;        // 鎖を run の中央に置く(端数は隅・開口が受ける)
-        int made = 0;
-        for (int k = 0; k < n; k++)
-        {
-            string path = pathAt(k);
-            var m = modOf(path);
-            float w = m.hi - m.lo;
-            // 壁の低い側の端がちょうど cursor に来るピボット位置。
-            // psi の定義から local +X = (outw.y, -outw.x)、negRight = -localX。
-            //   flip=false(rdir ∥ -localX) … local +X は s の**減る**向き → s = pivot - x
-            //                                 壁は [pivot-m.hi, pivot-m.lo] → pivot = cursor + m.hi
-            //   flip=true (rdir ∥ +localX) … local +X は s の**増える**向き → s = pivot + x
-            //                                 壁は [pivot+m.lo, pivot+m.hi] → pivot = cursor - m.lo
-            // ⚠ 2026-08-24 是正: この2枝が逆だった。**中部材は左右対称(m.lo=-m.hi)なので誤差が
-            //   相殺され、妻部材(l/r)との継ぎ目でだけ -1.49m の重なりとして出ていた**
-            //   (普請検査が窓の二重描画として検出)。
-            float sPiv = flip ? (cursor - m.lo) : (cursor + m.hi);
-            Vector2 p = EdgePt(e, sPiv);
-            float seat = seatAt(cursor + w * 0.5f);
-            var go = EdoNishiTameikeBuilder.Place(path, new Vector3(p.x, seat, p.y), psi,
-                                                  Vector3.one * EdoSannoKitaBuilder.ES, parent,
-                                                  // ⚠ 名前は**部材の中心**で引く。ピボットは flip で
-                                                  //   部材1つ分先へずれるので、短い run に駒が一つも
-                                                  //   割り当たらなくなる(2026-08-24 に N_Nagaya_E1 で発覚)
-                                                  nameAt(cursor + w * 0.5f) + "_" + k);
-            if (go != null) { EdoNishiTameikeBuilder.SeatBottom(go, seat - 0.10f); made++; }
-            cursor += w;                               // 継ぎ目は必ず面一
-        }
-        return made;
-    }
 
     [MenuItem("Edo/松平出羽守上屋敷/2 外周(塀・長屋・木柵)")]
     public static void Stage2Menu() { Debug.Log("[Matsudaira] " + Stage2_Perimeter()); }
@@ -659,49 +601,38 @@ public static class EdoMatsudairaBuilder
                 hei++;
             }
         }
-        // 表長屋は**辺の上で連続する run を1本の鎖**にして実寸ピッチで通す。
-        // こうしないと段違いの run の継ぎ目に 8m の隙間があく(E1/E2/E3 の雛壇)。
-        foreach (int e in new SortedSet<int>(new List<int>(Array.ConvertAll(
-                     Array.FindAll(Runs, r => r.nagaya), r => r.edge))))
+        // 表長屋は **run ごとに1本**。指図が run の長さを持ち、その長さの部材を Blender で焼いてある
+        // (`Tools/Blender/build_nagaya_omote.py`)。
+        // ⛔ **丸ごとのモジュールを並べない。** 端が成り行きになって門・隅との間に隙間が空く
+        //   (2026-08-29: 御蔵門の西へ 1.66m 食い込み・東へ 0.96m の隙間が同時に出ていた。
+        //    原因は鎖を run の中央へ寄せる `cursor = s0 + (L - total) * 0.5f` だった)。
+        //   → CLAUDE.md 絶対規則5「部材どうしを中心で合わせない。どの面がどの面に接するかを指図に書く」
+        //   → 取り合いは指図の `joints`(どの面がどの面に・可動側はどちら)が正典
+        foreach (var r in Runs)
         {
-            var onEdge = new List<Run>(Array.FindAll(Runs, r => r.nagaya && r.edge == e));
-            onEdge.Sort((x, y) => x.s0.CompareTo(y.s0));
-            // 連続する run をまとめる
-            int i = 0;
-            while (i < onEdge.Count)
+            if (!r.nagaya) continue;
+            float len = r.s1 - r.s0;
+            string path = r.nijukai ? EdoAssets.Own.NagayaOmote2F(len) : EdoAssets.Own.NagayaOmote(len);
+            Vector2 outw2 = OutNormal(r.edge);
+            float psi2 = Mathf.Atan2(outw2.x, outw2.y) * Mathf.Rad2Deg;   // 見え面 +Z を外へ
+            float sMid = (r.s0 + r.s1) * 0.5f;
+            // ⚠ この部材は**ピボットが壁の外面**なので、置く時点で犬走りぶん内へ寄せる。
+            //   `AlignInubashiri` は壁面の部材名(namako/hei…)で外面を測るが、この FBX は
+            //   単一メッシュで子を持たないため対象外になる(軒で測ると 0.93m 余計に引っ込む)。
+            Vector2 p3 = EdgePt(r.edge, sMid) - outw2 * INUBASHIRI;
+            float seat3 = r.SeatAt(sMid);
+            // ピボット = 走りの中心・土台の底・**壁の外面**。FBX は実寸(m)なので scale=1
+            var go3 = EdoNishiTameikeBuilder.Place(path, new Vector3(p3.x, seat3, p3.y), psi2,
+                                                   Vector3.one, kak, r.name);
+            if (go3 == null)
             {
-                float cs0 = onEdge[i].s0, cs1 = onEdge[i].s1;
-                int j = i;
-                while (j + 1 < onEdge.Count && Mathf.Abs(onEdge[j + 1].s0 - cs1) < 0.05f)
-                { j++; cs1 = onEdge[j].s1; }
-                var chain = onEdge.GetRange(i, j - i + 1);
-                Func<float, float> seatAt = s =>
-                {
-                    foreach (var r in chain) if (s >= r.s0 - 0.01f && s <= r.s1 + 0.01f) return r.SeatAt(s);
-                    return chain[0].seat;
-                };
-                foreach (var seg in split(e, cs0, cs1))
-                {
-                    float a0 = Vector2.Dot(seg[0] - EdgePt(e, 0f), (EdgePt(e, 1f) - EdgePt(e, 0f)).normalized);
-                    float a1 = Vector2.Dot(seg[1] - EdgePt(e, 0f), (EdgePt(e, 1f) - EdgePt(e, 0f)).normalized);
-                    if (a1 - a0 < 4f) continue;
-                    // 部材名は**その位置の run 名**にする。辺+s の名前だと指図と突き合わせられない
-                    // ピボットは部材の端にあるので、短い run では境界の外へ出る。
-                    // **最も近い run** で引く(名前は突き合わせのためのものなので中心で決めてよい)
-                    Func<float, string> nameAt = s2 =>
-                    {
-                        string best = chain[0].name; float bd = float.MaxValue;
-                        foreach (var r in chain)
-                        {
-                            float dd = Mathf.Max(0f, Mathf.Max(r.s0 - s2, s2 - r.s1));
-                            if (dd < bd) { bd = dd; best = r.name; }
-                        }
-                        return best;
-                    };
-                    nag += NagayaChain(kak, e, a0, a1, seatAt, nameAt);
-                }
-                i = j + 1;
+                sb.AppendLine("⚠ 部材が無い: " + path + "\n   焼くには: blender --background --python "
+                              + "Tools/Blender/build_nagaya_omote.py -- " + len.ToString("0.##")
+                              + (r.nijukai ? " --floors 2" : ""));
+                continue;
             }
+            EdoNishiTameikeBuilder.SeatBottom(go3, seat3 - 0.10f);
+            nag++;
         }
         sb.AppendLine("塀・長屋: 長屋 " + nag + "棟 / 練塀run " + hei);
 
@@ -1173,9 +1104,21 @@ public static class EdoMatsudairaBuilder
             if (Has(k, "leaf"))
             {
                 var lf = O(k["leaf"]);
-                int nl2 = Leaves(grp, (string)k["name"], EdoAssets.JC.GateDoorCastleL, EdoAssets.JC.GateDoorCastleR,
-                                 3.0f, EdoAssets.JC.GateDoorCastleFoot, p2, y2, F(lf["w"]), sl2);
-                if (nl2 > 0) sb.AppendLine("　└ 扉 " + (string)lf["kind"] + " 幅" + F(lf["w"]).ToString("F1"));
+                // ⚠ **扉を足す前に、門が自前の扉を持っていないか実物を見る。**
+                //   edogoyomi の冠木門は doorl/doorr(+ sdoorl/sdoorr)を躯体に抱えている。
+                //   その上へ Gate Castle の扉を重ねると、開口ではなく**門の顔を板で覆う**
+                //   (2026-08-29: 御蔵門・東小門が白い板になり、冠木も扉も見えなくなっていた。
+                //    Gate Castle のマテリアルはテクスチャを持たないので真っ白に出る)。
+                if (HasOwnDoors(go))
+                {
+                    sb.AppendLine("　└ 扉は門が自前で持つ(doorl/doorr)ため足さない");
+                }
+                else
+                {
+                    int nl2 = Leaves(grp, (string)k["name"], EdoAssets.JC.GateDoorCastleL, EdoAssets.JC.GateDoorCastleR,
+                                     3.0f, EdoAssets.JC.GateDoorCastleFoot, p2, y2, F(lf["w"]), sl2);
+                    if (nl2 > 0) sb.AppendLine("　└ 扉 " + (string)lf["kind"] + " 幅" + F(lf["w"]).ToString("F1"));
+                }
             }
         }
         // 表門の扉
@@ -1191,6 +1134,21 @@ public static class EdoMatsudairaBuilder
         return sb.ToString();
     }
 
+
+    /// <summary>門が自前の扉を持っているか、置いた実物のメッシュ名で判定する
+    /// (edogoyomi の冠木門は doorl / doorr。名前で門の種類を決め打ちしない)。</summary>
+    static bool HasOwnDoors(GameObject go)
+    {
+        if (go == null) return false;
+        bool l = false, r = false;
+        foreach (var mr in go.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            string nm = mr.gameObject.name.ToLowerInvariant();
+            if (nm == "doorl" || nm == "sdoorl") l = true;
+            if (nm == "doorr" || nm == "sdoorr") r = true;
+        }
+        return l && r;
+    }
 
     /// <summary>門扉(両開き)を開口の芯へ据える。L/R とも突き合わせ側にピボットがあるので、
     /// 同じ点に両方置けば閉じる。開口幅 <paramref name="want"/> へは**横だけ**伸ばす。

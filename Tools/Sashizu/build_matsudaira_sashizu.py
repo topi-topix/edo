@@ -1191,7 +1191,10 @@ def plane_check(d):
     bad += vocab_check(d)
     bad += schema_check(d)
     bad += perimeter_closure_check(d)
+    bad += perimeter_ledger_check(d)
     bad += mune_wall_clearance_check(d)
+    bad += joints_check(d)
+    bad += kado_stock_check(d)
     return bad
 
 
@@ -2238,6 +2241,7 @@ def corners_table(d):
     P = d["polygon"]
     n = len(P)
     yag = {y["vertex"]: y for y in d["yagura"]}
+    cjs = _corner_joints(d)
     rows = []
     for i in range(n):
         prev_e, next_e = (i - 1) % n, i
@@ -2248,16 +2252,14 @@ def corners_table(d):
         dx1, dz1, _ = _edge_dir(P, prev_e)
         dx2, dz2, _ = _edge_dir(P, next_e)
         delta = math.degrees(math.acos(max(-1, min(1, dx1 * dx2 + dz1 * dz2))))
-        if rl is None or rr is None:
-            osame = "—"
-        elif i in yag:
-            osame = "隅櫓 %s が受ける" % yag[i]["name"]
-        elif rl["kind"] == "Nagaya" and rr["kind"] == "Nagaya":
-            osame = "長屋は退けて桁を突き付け(ebc11da の作法)"
-        elif rl["kind"] == "Dobei" and rr["kind"] == "Dobei":
-            osame = "留め継ぎ隅部材(build_kado・折れ角は現地=Δ%.1f°)" % delta
+        # ⛔ 納めは**取り合い表(joints)の裁定**から引く。ここで種別から推測すると、
+        #   図が裁定と別のことを言い出す(2026-08-29)。
+        j = cjs.get(i)
+        if j is None:
+            osame = "—(取り合いの記述が無い)"
         else:
-            osame = "塀を長屋の妻へ突き付け"
+            osame = "%s ／ 部材 <code>%s</code>(腕 %.2f/%.2f)" % (
+                j["kind"], j.get("partPath") or "—", j.get("armIn", 0.0), j.get("armOut", 0.0))
         ds = (rr["seat"] - rl["seat"]) if (rl and rr) else 0.0
         rows.append("<tr><td>P%d</td><td>(%.1f, %.1f)</td><td>%.1f°</td>"
                     "<td><code>%s</code> %.1f</td><td><code>%s</code> %.1f</td><td>%+.1f</td><td class='note'>%s</td></tr>"
@@ -2386,6 +2388,558 @@ def gate_parts_table(d):
             "<th>敷居</th><th>yaw</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>"
             "<p class='cap'>番所は外周線から街路側へ張出の半分だけ前に出た位置が芯。"
             "袖塀は門柱と番所のあいだを繋ぐ。すべて表門と同じ yaw(辺の向き)。</p>")
+
+
+# ---------------------------------------------------------------- 取り合いの詳細(§3f)
+#   全体設計(開口の位置)だけでは実装者は「芯を合わせる」しかできない。
+#   ここは **どの面がどの面に接するか** を面の座標で描く詳細設計の図版。
+#   ⚠ 2026-08-29(EDO-0053): この図が無かったので、同じ門の左右で 1.66m の食い込みと
+#     0.96m の隙間が同時に起きた。
+
+
+def _opening_span(d, key):
+    """開口の (辺, s0, s1, 名, 部材の並び) を設計値から組む。"""
+    g = d["gate"]
+    if key == "omote":
+        sp = g["plan"]["sPos"]
+        return (g["edge"], sp["banshoW"][0], sp["banshoE"][1], "表門", sp)
+    for k in d["komon"]:
+        if k["name"] == key:
+            nm = "御蔵門" if k["name"] == "Kuramon" else "東小門"
+            return (k["edge"], k["s"] - k["w"] / 2.0, k["s"] + k["w"] / 2.0, nm, None)
+    raise KeyError(key)
+
+
+ES_NAGAYA = 1.818
+CAP_W, BAY_W = 1.67561, 1.47823          # 素の実測(obj)。build_nagaya_omote.py と同じ値
+EPS_HI, EPS_LO = 0.50, -0.65
+
+
+def nagaya_eps(L):
+    """長さ L[m] の表長屋を起こしたときの (窓割りの本数 k, 無地の壁の詰め ε[m])。
+    ⛔ `build_nagaya_omote.py` の solve() と同じ式。**別の式を発明しない** —
+       図と生成器が別々に長さを解くと、図だけ通って部材が作れない。"""
+    Lo = L / ES_NAGAYA
+    best = None
+    for k in range(0, 400):
+        e = (2 * CAP_W + k * BAY_W - Lo) / (k + 1.0)
+        if e < EPS_LO or e > EPS_HI:
+            continue
+        if best is None or abs(e) < abs(best[1]):
+            best = (k, e)
+    return (best[0], best[1] * ES_NAGAYA) if best else (None, None)
+
+
+def _chain_mods(d, ch):
+    """鎖の中の**棟の切れ目** s。長さ可変の1本を天端の段ごとに切るだけ(端数は出ない)。"""
+    return [ch["s0"]] + [round(p["s1"], 4) for p in ch["pieces"]]
+
+
+def _joints_at(d, edge, s, tol=0.06):
+    return [j for j in d["joints"] if j["edge"] == edge and abs(j["s"] - s) <= tol]
+
+
+def opening_detail_svg(d, key):
+    """開口の取り合い詳細(平面)。上=街路側 / 下=郭の内側。走り s が横軸。"""
+    C = d["const"]
+    e, o0, o1, nm, sp = _opening_span(d, key)
+    wing = 16.5 if key == "omote" else 10.5              # 前後に描く長屋の長さ
+    s0, s1 = o0 - wing, o1 + wing
+    W = 940.0
+    sc = W / (s1 - s0)
+    DOUT, DIN = 4.4, 5.6                                 # 外/内に描く奥行[m]
+    top = 26.0
+    H = top + (DOUT + DIN) * sc + 62.0
+    yline = top + DOUT * sc                              # 外周線
+    def X(s_): return (s_ - s0) * sc
+    def Y(t):  return yline + t * sc                     # t: 内向き+ / 外向き−
+    g = _sv(W, H, "%s の取り合い詳細" % nm)
+    # 郭の内側・街路側の地
+    g.append(R(0, Y(0), W, DIN * sc, fill="var(--pl-main)", op=0.16))
+    g.append(T(6, Y(DIN) - 6, "郭の内側", "jo"))
+    g.append(T(6, top + 12, "街路側", "jo"))
+    # 長屋の鎖(実寸の駒で描く)
+    for ch in d["chains"]:
+        if ch["edge"] != e:
+            continue
+        bnd = _chain_mods(d, ch)
+        if bnd[-1] < s0 - 0.1 or bnd[0] > s1 + 0.1:
+            continue
+        g.append(R(X(max(bnd[0], s0)), Y(0), X(min(bnd[-1], s1)) - X(max(bnd[0], s0)),
+                   C["nagayaD"] * sc, fill="var(--nagaya)", op=0.55, stroke="var(--ink)", sw=1.2))
+        for k, b in enumerate(bnd):
+            if not (s0 - 0.01 <= b <= s1 + 0.01):
+                continue
+            heavy = k in (0, len(bnd) - 1)
+            g.append(LN(X(b), Y(0), X(b), Y(C["nagayaD"]), "var(--ink)",
+                        2.4 if heavy else 0.9, None, None if heavy else 0.7))
+        for p in ch["pieces"]:
+            cm = (p["s0"] + p["s1"]) / 2.0
+            if s0 + 0.6 < cm < s1 - 0.6:
+                g.append(T(X(cm), Y(C["nagayaD"] / 2) + 4, "%.2fm" % p["len"],
+                           "anS2", "middle", 10.5))
+        lab = "鎖 %s(%.2fm ／ %d本)" % (ch["id"], ch["len"], len(ch["pieces"]))
+        cm = min(max((max(bnd[0], s0) + min(bnd[-1], s1)) / 2.0, s0 + 5), s1 - 5)
+        g.append(T(X(cm), Y(C["nagayaD"]) + 15, lab, "anS2", "middle"))
+    # 練塀・袖塀(開口の外に来ることがある)
+    for r in d["runs"]:
+        if r["edge"] != e or r["kind"] != "Dobei":
+            continue
+        a, b = max(r["s0"], s0), min(r["s1"], s1)
+        if b - a < 0.05:
+            continue
+        g.append(R(X(a), Y(-C["dobeiT"] / 2), X(b) - X(a), C["dobeiT"] * sc,
+                   fill="var(--hei)", op=0.85, stroke="var(--ink)", sw=1.0))
+        g.append(T(X((a + b) / 2), Y(-C["dobeiT"] / 2) - 5, r["name"], "anS2", "middle", 9.5))
+    # 門
+    if key == "omote":
+        gp = d["gate"]["plan"]
+        bp = gp["bansho"]
+        for tag, col, dep, out in (("banshoW", "var(--dan)", bp["d"], bp["protrude"]),
+                                   ("banshoE", "var(--dan)", bp["d"], bp["protrude"]),
+                                   ("sodeW", "var(--hei)", C["dobeiT"], C["dobeiT"] / 2),
+                                   ("sodeE", "var(--hei)", C["dobeiT"], C["dobeiT"] / 2),
+                                   ("mon", "var(--ink-lo)", gp["monD"], gp["monD"] / 2)):
+            a, b = sp[tag]
+            g.append(R(X(a), Y(-out), X(b) - X(a), dep * sc, fill=col,
+                       stroke="var(--ink)", sw=1.3))
+            g.append(T(X((a + b) / 2), Y(-out) - 6,
+                       {"banshoW": "番所(西)", "banshoE": "番所(東)", "sodeW": "袖塀(西)",
+                        "sodeE": "袖塀(東)", "mon": "門柱・冠木"}[tag], "anS2", "middle", 10))
+        lf = gp["leaf"]
+        a, b = sp["mon"]
+        for i, (la, lb) in enumerate(((a, (a + b) / 2), ((a + b) / 2, b))):
+            g.append(R(X(la) + 1, Y(0.05), X(lb) - X(la) - 2, 0.22 * sc,
+                       fill="var(--shu)", op=0.85))
+        g.append(T(X((a + b) / 2), Y(0.05) + 0.22 * sc + 12,
+                   "扉 %s(内開き)" % lf["kind"], "anS2", "middle", 10))
+    else:
+        k = [x for x in d["komon"] if x["name"] == key][0]
+        post = 0.36
+        for pa in (o0, o1):
+            g.append(R(X(pa) - post * sc / 2, Y(-post / 2), post * sc, post * sc,
+                       fill="var(--ink)", op=0.95))
+        g.append(T(X((o0 + o1) / 2), top + 14, "%s(開口 %.1fm)" % (nm, k["w"]), "anS2", "middle"))
+        for la, lb in ((o0, (o0 + o1) / 2), ((o0 + o1) / 2, o1)):
+            g.append(R(X(la) + 1, Y(0.05), X(lb) - X(la) - 2, 0.22 * sc, fill="var(--shu)", op=0.85))
+        g.append('<path d="M %.1f %.1f A %.1f %.1f 0 0 1 %.1f %.1f" fill="none" '
+                 'stroke="var(--shu)" stroke-width="0.9" stroke-dasharray="3 3"/>'
+                 % (X(o0 + k["w"] / 2), Y(0.16), (k["w"] / 2) * sc, (k["w"] / 2) * sc,
+                    X(o0), Y(0.16 + k["w"] / 2)))
+        g.append(T(X((o0 + o1) / 2), Y(0.16 + k["w"] / 2) + 13,
+                   "扉 %s" % k["leaf"]["kind"], "anS2", "middle", 10))
+    # 外周線
+    g.append(LN(0, yline, W, yline, "var(--dim)", 0.9, dash="4 4"))
+    # 接する面の指示
+    for j in d["joints"]:
+        if j["edge"] != e or not (s0 + 0.2 < j["s"] < s1 - 0.2):
+            continue
+        x = X(j["s"])
+        g.append(LN(x, top - 14, x, Y(DIN) - 6, "var(--shu)", 2.0, dash="5 3", op=0.9))
+        g.append(T(x, top - 18, "%s %s %+.2f (%.2f‥%.2f)"
+                   % (j["id"], j["kind"], j["gap"], j["tol"][0], j["tol"][1]),
+                   "anS2", "middle", 10.5, "var(--shu)"))
+        g.append(T(x, Y(DIN) + 8, "動く側 = %s" % j["moves"], "anS2", "middle", 9.5))
+    g.append(T(6, H - 8, "上=街路側 / 下=郭の内側。走り s は左→右。太い縦線=接する面(妻面・小口・門柱の外面)。"
+                         "駒の記号 C=中部材 / L・R=妻部材(妻は 0.155m 狭い)。", "anS2", "start"))
+    g.append("</svg>")
+    return "\n".join(g)
+
+
+def corner_detail_svg(d, v, span=17.0, title=""):
+    """隅の取り合い詳細(平面・世界座標)。囲いの平面形を実寸で描く。"""
+    P = d["polygon"]
+    n = len(P)
+    C = d["const"]
+    cx, cz = P[v]
+    pr = Proj(cx - span, cx + span, cz - span, cz + span, W=560.0, top=26.0, bottom=34.0)
+    g = _sv(pr.W, pr.H, title or ("隅 P%d の取り合い" % v))
+    # 区画線(窓の外まで伸ばさない — 頂点から ±span*1.4 で切る)
+    for e in ((v - 1) % n, v % n):
+        a, b = P[e], P[(e + 1) % n]
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        ux, uz = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+        sv = (P[v][0] - a[0]) * ux + (P[v][1] - a[1]) * uz      # 頂点の走り
+        t0, t1 = max(0.0, sv - span * 1.4), min(L, sv + span * 1.4)
+        g.append(LN(pr.X(a[0] + ux * t0), pr.Y(a[1] + uz * t0),
+                    pr.X(a[0] + ux * t1), pr.Y(a[1] + uz * t1), "var(--dim)", 1.0, dash="4 4"))
+    # 囲いの平面形(検査と同じ _run_quad / _perimeter_footprints から)
+    for nm, q in _perimeter_footprints(d):
+        pts = " ".join("%.1f,%.1f" % (pr.X(p[0]), pr.Y(p[1])) for p in q)
+        if max(abs(p[0] - cx) for p in q) > span * 1.6 or max(abs(p[1] - cz) for p in q) > span * 1.6:
+            continue
+        col = "var(--nagaya)" if "Nagaya" in nm else ("var(--shu)" if nm.startswith("Y_NE") and "Sode" not in nm
+                                                      else "var(--hei)")
+        g.append('<polygon points="%s" fill="%s" fill-opacity="0.55" stroke="var(--ink)" stroke-width="1.2"/>'
+                 % (pts, col))
+        mx = sum(p[0] for p in q) / 4.0
+        mz = sum(p[1] for p in q) / 4.0
+        if abs(mx - cx) < span and abs(mz - cz) < span:
+            g.append(T(pr.X(mx), pr.Y(mz) + 4, nm, "anS2", "middle", 9.5))
+    g.append('<circle cx="%.1f" cy="%.1f" r="3.2" fill="var(--shu)"/>' % (pr.X(cx), pr.Y(cz)))
+    g.append(T(pr.X(cx) + 6, pr.Y(cz) - 6, "P%d" % v, "anS2", "start"))
+    for j in d["joints"]:
+        if j["edge"] not in ((v - 1) % n, v % n):
+            continue
+        w = edge_pt(P, j["edge"], j["s"])
+        if abs(w[0] - cx) > span or abs(w[1] - cz) > span:
+            continue
+        g.append('<circle cx="%.1f" cy="%.1f" r="4.2" fill="none" stroke="var(--shu)" stroke-width="1.6"/>'
+                 % (pr.X(w[0]), pr.Y(w[1])))
+        g.append(T(pr.X(w[0]) + 7, pr.Y(w[1]) + 12, "%s %s" % (j["id"], j["kind"]),
+                   "anS2", "start", 10, "var(--shu)"))
+    g.append(T(4, 15, title or ("隅 P%d(実寸の平面形。区画線=破線)" % v), "anS"))
+    g.append("</svg>")
+    return "\n".join(g)
+
+
+def chain_strip_svg(d):
+    """長屋の割付(鎖)。辺ごとに帯で描き、固定端▲と遊び端○、駒の境目を示す。"""
+    C = d["const"]
+    P = d["polygon"]
+    edges = sorted(set(ch["edge"] for ch in d["chains"]))
+    W = 940.0
+    rowH = 58.0
+    H = 30.0 + rowH * len(edges) + 22.0
+    g = _sv(W, H, "長屋の割付(鎖)")
+    for i, e in enumerate(edges):
+        a, b = P[e], P[(e + 1) % len(P)]
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        y = 34.0 + rowH * i
+        sc = (W - 128.0) / L
+        def X(s_): return 108.0 + s_ * sc
+        g.append(T(6, y + 14, "辺%d" % e, "anS2", "start"))
+        g.append(LN(X(0), y + 10, X(L), y + 10, "var(--dim)", 0.9, dash="4 4"))
+        for r in d["runs"]:
+            if r["edge"] != e or r["kind"] != "Dobei":
+                continue
+            g.append(R(X(r["s0"]), y + 6, X(r["s1"]) - X(r["s0"]), 8, fill="var(--hei)", op=0.9))
+        for ch in d["chains"]:
+            if ch["edge"] != e:
+                continue
+            bnd = _chain_mods(d, ch)
+            g.append(R(X(ch["s0"]), y, X(ch["s1"]) - X(ch["s0"]), 20,
+                       fill="var(--nagaya)", op=0.55, stroke="var(--ink)", sw=1.0))
+            for bb in bnd:
+                g.append(LN(X(bb), y, X(bb), y + 20, "var(--ink)", 0.8, op=0.8))
+            for key in ("s0", "s1"):                       # 両端とも固定端(面へ合わせる)
+                g.append('<path d="M %.1f %.1f l -5 -9 l 10 0 Z" fill="var(--shu)"/>'
+                         % (X(ch[key]), y - 2))
+            g.append(T(X((ch["s0"] + ch["s1"]) / 2), y + 14,
+                       "%s %.2fm / %d本" % (ch["id"], ch["len"], len(ch["pieces"])),
+                       "anS2", "middle", 10))
+        for k in d["komon"] + ([d["gate"]] if d["gate"]["edge"] == e else []):
+            if k["edge"] != e:
+                continue
+            if "plan" in k:
+                q0, q1 = k["plan"]["sPos"]["banshoW"][0], k["plan"]["sPos"]["banshoE"][1]
+            else:
+                q0, q1 = k["s"] - k["w"] / 2, k["s"] + k["w"] / 2
+            g.append(R(X(q0), y - 4, X(q1) - X(q0), 28, fill="var(--shu)", op=0.25,
+                       stroke="var(--shu)", sw=1.2))
+        for y2 in d.get("yagura", []):
+            if y2["vertex"] % len(P) == e:
+                g.append(R(X(0), y - 4, 6, 28, fill="var(--shu)", op=0.55))
+    g.append(T(6, H - 8, "▲=固定端(門・番所・隅櫓・頂点。動かさない)/ ○=遊び端(練塀へ継ぐ端。"
+                         "練塀は駒を伸縮して端数を吸えるのでこちらを動かす)。縦線=駒の境目。"
+                         "朱の帯=開口。", "anS2", "start"))
+    g.append("</svg>")
+    return "\n".join(g)
+
+
+def joints_face_table(d):
+    """取り合い表(§3f)。A/Bのどの面・納め・目標と許容・可動側。"""
+    rows = []
+    for j in d["joints"]:
+        rows.append("<tr><td><code>%s</code></td><td>%s</td><td>辺%d s=%.2f</td>"
+                    "<td><code>%s</code><br><span class='note'>%s</span></td>"
+                    "<td><code>%s</code><br><span class='note'>%s</span></td>"
+                    "<td>%s</td><td>%+.2f<br><span class='note'>[%.2f‥%.2f]</span></td>"
+                    "<td><code>%s</code></td><td>%s</td></tr>"
+                    % (j["id"], j["at"], j["edge"], j["s"],
+                       j["a"], j["aFace"], j["b"], j["bFace"], j["kind"],
+                       j["gap"], j["tol"][0], j["tol"][1], j["moves"], j.get("cert", "?")))
+    return ("<h3>取り合い表 — 接する面で決める</h3><div class='tw'><table><thead><tr>"
+            "<th>id</th><th>場所</th><th>位置</th><th>A とその面</th><th>B とその面</th>"
+            "<th>納め</th><th>目標 / 許容</th><th>可動側</th><th>確度</th>"
+            "</tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>"
+            "<p class='cap'>目標は<b>面と面の距離</b>(+=隙間 / −=差し込み・めり込み)。"
+            "許容は<b>隙間よりめり込みを許す</b>向きに振ってある — 0 を狙い、外すならめり込む側へ外す。"
+            "<b>芯・中心・ピボットで合わせない</b>: 部材を差し替えた瞬間に破れる。</p>")
+
+
+def chains_table(d):
+    """長屋の割付。**1区間1本** — 開口の縁から縁までを長さ指定の一体物で埋める。"""
+    rows = []
+    for ch in d["chains"]:
+        for i, p in enumerate(ch["pieces"]):
+            k, eps = nagaya_eps(p["len"])
+            head = ("<td rowspan='%d'><code>%s</code></td><td rowspan='%d'>辺%d</td>"
+                    "<td rowspan='%d'>%.2f–%.2f</td><td rowspan='%d'>%.2f</td>"
+                    "<td rowspan='%d' class='note'>%s<br>↕<br>%s</td>"
+                    % (len(ch["pieces"]), ch["id"], len(ch["pieces"]), ch["edge"],
+                       len(ch["pieces"]), ch["s0"], ch["s1"], len(ch["pieces"]), ch["len"],
+                       len(ch["pieces"]), ch["ends"]["s0"], ch["ends"]["s1"])) if i == 0 else ""
+            warn = (eps is not None and abs(eps) > d["const"]["nagayaEpsGuar"])
+            rows.append("<tr>%s<td><code>%s</code></td><td>%.2f–%.2f</td><td><b>%.2f</b></td>"
+                        "<td>%s</td><td>%s%+.3f m%s</td><td><code>%s</code></td><td>%s</td></tr>"
+                        % (head, p["run"], p["s0"], p["s1"], p["len"],
+                           "—" if k is None else str(k),
+                           "⚠ " if warn else "", 0.0 if eps is None else eps,
+                           "" if not warn else "(12m 未満なので保証の外)",
+                           p["asset"], ch.get("cert", "?") if i == 0 else ""))
+    return ("<h3>長屋の割付(鎖)— 1区間1本</h3><div class='tw'><table><thead><tr><th>鎖</th>"
+            "<th>辺</th><th>走り s</th><th>長さ</th><th class='note'>両端が接する面</th>"
+            "<th>run</th><th>走り s</th><th>棟の長さ L</th><th>窓割り k</th><th>無地の壁の詰め ε</th>"
+            "<th>部材</th><th>確度</th></tr></thead><tbody>"
+            + "".join(rows) + "</tbody></table></div>"
+            "<p class='cap'><b>表長屋は長さを 1cm 単位で指定して起こす</b>"
+            "(<code>build_nagaya_omote.py</code>)。だから鎖は<b>開口の縁から縁まで</b>を"
+            "面から面までの長さで埋め、<b>端数が出ない</b> — 隅の詰めも遊び端も要らない。"
+            "長さは瓦・海鼠・格子を伸ばさず、<b>窓割りの本数 k</b> と"
+            "<b>窓と窓の間の無地の壁の詰め ε</b>(素は 1.536m)だけで吸う。"
+            "1本が複数行あるのは<b>天端が段で変わる点で棟を切る</b>から — "
+            "段ごとに両端に妻を出した版を突き付ける(雛壇に並ぶ長屋の姿)。"
+            "⛔ 実装は L を定数で置かず、<b>据えたあと実メッシュの妻面を測って</b>許容を確かめる。</p>")
+
+
+def joints_check(d):
+    """**開口の両側と隅に取り合いの記述があるか。**空欄を残せない形にする。
+
+    ⚠ 2026-08-29(EDO-0053): 指図が開口の位置と幅しか持っておらず、
+      「どの面がどの面に接するか」が一行も無かった。実装は芯合わせしかできず、
+      同じ門の左右で 1.66m の食い込みと 0.96m の隙間が同時に起きた。
+    """
+    P = d["polygon"]
+    n = len(P)
+    bad = []
+    if not d.get("joints"):
+        return ["joints(取り合い表)が無い — 開口と隅の納めが空欄のまま実装へ渡る"]
+    need = []
+    g = d["gate"]
+    sp = g["plan"]["sPos"]
+    need.append((g["edge"], sp["banshoW"][0], "表門の西の縁"))
+    need.append((g["edge"], sp["banshoE"][1], "表門の東の縁"))
+    for k in d["komon"]:
+        nm = "御蔵門" if k["name"] == "Kuramon" else "東小門"
+        need.append((k["edge"], k["s"] - k["w"] / 2.0, nm + "の手前の縁"))
+        need.append((k["edge"], k["s"] + k["w"] / 2.0, nm + "の先の縁"))
+    for v in range(n):
+        e = (v - 1) % n
+        a, b = P[e], P[(e + 1) % n]
+        need.append((e, math.hypot(b[0] - a[0], b[1] - a[1]), "隅 P%d" % v))
+    for e, s, label in need:
+        hit = [j for j in d["joints"] if j["edge"] == e and abs(j["s"] - s) <= 0.35]
+        if not hit:
+            bad.append("%s(辺%d s=%.2f)に joints の記述が無い — "
+                       "どの面がどの面に接するかを書く(§3f)" % (label, e, s))
+    # 欄の埋まりは**すべての取り合い**で見る(必須の場所に紐づく物だけ見ると、隅櫓の袖塀の
+    # ように「場所の一覧に無いが実装が要る」取り合いが素通りする)
+    for j in d["joints"]:
+        for k2 in ("a", "aFace", "b", "bFace", "kind", "part", "procure", "gap", "tol", "moves",
+                   "fixed", "cert", "_"):
+            if k2 not in j or j[k2] in ("", None, []):
+                bad.append("取り合い %s に %s が無い — 空欄のまま実装へ渡せない" % (j.get("id", "?"), k2))
+        if isinstance(j.get("tol"), list) and len(j["tol"]) == 2:
+            lo, hi = j["tol"]
+            if hi > 0.0:
+                bad.append("%s の許容が隙間側へ開いている(上限 %+.2f)— "
+                           "閉じの許容は『隙間 > めり込み』" % (j["id"], hi))
+            if not (lo <= j["gap"] <= hi):
+                bad.append("%s の目標 %+.2f が許容 [%.2f‥%.2f] の外"
+                           % (j["id"], j["gap"], lo, hi))
+        if j["moves"] in (j["a"], j["b"]) or "(" in j["moves"] or j["moves"].startswith("両方"):
+            pass
+        elif j["moves"] not in (j["a"], j["b"]):
+            bad.append("%s の可動側 %s が A/B のどちらでもない — 誰が動くのかが決まっていない"
+                       % (j["id"], j["moves"]))
+    # 鎖の算術(**1区間1本** — 面から面までを長さ指定の一体物で埋める)
+    C = d["const"]
+    for ch in d.get("chains", []):
+        pcs = ch["pieces"]
+        if not pcs:
+            bad.append("鎖 %s に棟が一つも無い" % ch["id"])
+            continue
+        if abs(sum(p["len"] for p in pcs) - ch["len"]) > 0.005 or \
+           abs((ch["s1"] - ch["s0"]) - ch["len"]) > 0.005:
+            bad.append("鎖 %s の長さ %.3f が棟の合計と合わない — 端数を隅や開口へ押し出している"
+                       % (ch["id"], ch["len"]))
+        if abs(pcs[0]["s0"] - ch["s0"]) > 0.005 or abs(pcs[-1]["s1"] - ch["s1"]) > 0.005:
+            bad.append("鎖 %s の端が棟の端と合わない(端は開口・隅の面に合わせる)" % ch["id"])
+        for p, q in zip(pcs, pcs[1:]):
+            if abs(q["s0"] - p["s1"]) > 0.005:
+                bad.append("鎖 %s の %s → %s に隙間/重なりがある" % (ch["id"], p["run"], q["run"]))
+        for p in pcs:
+            rr = [r for r in d["runs"] if r["name"] == p["run"]]
+            if not rr:
+                bad.append("鎖 %s が知らない run %s を指している" % (ch["id"], p["run"]))
+                continue
+            r = rr[0]
+            if abs(r["s0"] - p["s0"]) > 0.005 or abs(r["s1"] - p["s1"]) > 0.005:
+                bad.append("鎖 %s の棟 %s(%.2f–%.2f)が run の s(%.2f–%.2f)と食い違う"
+                           % (ch["id"], p["run"], p["s0"], p["s1"], r["s0"], r["s1"]))
+            if abs(p["len"] - (p["s1"] - p["s0"])) > 0.005:
+                bad.append("鎖 %s の棟 %s の長さ %.3f が走りと合わない" % (ch["id"], p["run"], p["len"]))
+            k, eps = nagaya_eps(p["len"])
+            if k is None:
+                bad.append("鎖 %s の棟 %s は L=%.2fm が短すぎて起こせない(妻2枚が入らない)"
+                           % (ch["id"], p["run"], p["len"]))
+            elif p["len"] >= C["nagayaLenGuar"] and abs(eps) > C["nagayaEpsGuar"]:
+                bad.append("鎖 %s の棟 %s(L=%.2fm)は無地の壁の詰め ε=%+.3fm で、"
+                           "生成器が %.0fm 以上について保証する %.2fm を超えている — "
+                           "長さの解き方が図と生成器でずれている(同じ式を使うこと)"
+                           % (ch["id"], p["run"], p["len"], eps,
+                              C["nagayaLenGuar"], C["nagayaEpsGuar"]))
+            if "EdoAssets.Own.NagayaOmote" not in p.get("asset", ""):
+                bad.append("鎖 %s の棟 %s が部材を名指ししていない(EdoAssets.Own.NagayaOmote)"
+                           % (ch["id"], p["run"]))
+        if not ch.get("ends", {}).get("s0") or not ch.get("ends", {}).get("s1"):
+            bad.append("鎖 %s の両端がどの面に接するか書いていない" % ch["id"])
+    # 長屋 run が必ずどれかの鎖に入っているか(割付の書き漏らし)
+    inch = set()
+    for ch in d.get("chains", []):
+        inch |= set(p["run"] for p in ch["pieces"])
+    for r in d["runs"]:
+        if r["kind"] == "Nagaya" and r["name"] not in inch:
+            bad.append("長屋 run %s が鎖(chains)に入っていない — 割付が決まっていない" % r["name"])
+    return bad
+
+
+def _kado_deg(d, v):
+    """頂点 v の折れ角[deg]。実装の EdoOkabeYashikiBuilder.KadoDeg と同じ定義
+    (yaw = atan2(x, z) の DeltaAngle。負=鏡像=名前の末尾 M)。"""
+    P = d["polygon"]
+    n = len(P)
+    def yaw(e):
+        a, b = P[e % n], P[(e + 1) % n]
+        return math.degrees(math.atan2(b[0] - a[0], b[1] - a[1]))
+    return (yaw(v % n) - yaw((v - 1) % n) + 540.0) % 360.0 - 180.0
+
+
+def _kado_path(part, deg):
+    """EdoAssets.Own.Kado と同じ規則でパスを組む。⛔ ここを実装と違う綴りにしない。"""
+    return ("Assets/Edo/Models/Kado/%s_Kado_%02d%s.fbx"
+            % (part, int(round(abs(deg))), "M" if deg < 0 else ""))
+
+
+def _corner_joints(d):
+    """隅の取り合いを {頂点: joint} で返す。"""
+    n = len(d["polygon"])
+    out = {}
+    for j in d["joints"]:
+        if not j["at"].startswith("隅 P"):
+            continue
+        out[(j["edge"] + 1) % n] = j
+    return out
+
+
+def _kado_scope(d, j):
+    """隅部材の採否の規則が効く隅か。**木柵の隅と隅櫓の隅は規則の外。**
+    ⚠ kind の文字列(「重ね」)で判定すると、隅部材を使わない練塀の隅(P4/P5)まで
+      規則の外へ落ちて検査が素通りする(2026-08-29 に感度試験で発覚)。
+      **何が接しているか**で判定する。"""
+    if "置き換え" in j["kind"]:
+        return False                                   # 隅櫓が隅を置き換える
+    fen = set(f["name"] for f in d.get("fences", []))
+    return not (j["a"] in fen or j["b"] in fen)        # 木柵は互いに越えて敷く
+
+
+def kado_parts_table(d):
+    """**隅部材の採否**(頂点ごと)。折れ角・突き付けたときの開き・採否・部材・実在。"""
+    C = d["const"]
+    P = d["polygon"]
+    n = len(P)
+    cj = _corner_joints(d)
+    rows = []
+    for v in range(n):
+        j = cj.get(v)
+        deg = _kado_deg(d, v)
+        opn = C["dobeiWallT"] * math.tan(math.radians(abs(deg)) / 2.0)
+        if j is None:
+            rows.append("<tr><td>P%d</td><td>%+.2f°</td><td>%.3f m</td><td colspan='4' class='note'>"
+                        "取り合いの記述が無い</td></tr>" % (v, deg, opn))
+            continue
+        inscope = _kado_scope(d, j)
+        pp = j.get("partPath")
+        ok = bool(pp) and os.path.exists(os.path.join(ROOT, pp))
+        if not inscope:
+            saihi = "規則の外(%s)" % ("木柵は重ねる" if "重ね" in j["kind"] else "隅櫓が隅を置き換える")
+        else:
+            saihi = "<b>要る</b>" if abs(deg) >= C["kadoDegMin"] else "使わない"
+        rows.append("<tr><td>P%d</td><td>%+.2f°</td><td>%.3f m</td><td>%s</td>"
+                    "<td class='note'>%s</td><td><code>%s</code></td><td>%s</td>"
+                    "<td>%.2f / %.2f</td></tr>"
+                    % (v, deg, opn, saihi, j["kind"], pp or "—",
+                       ("在る" if ok else "<b>無い</b>") if pp else "—",
+                       j.get("armIn", 0.0), j.get("armOut", 0.0)))
+    return ("<h3>隅部材の採否(頂点ごと)</h3><div class='tw'><table><thead><tr><th>頂点</th>"
+            "<th>折れ角 Δ</th><th>突き付けの開き</th><th>規則の判定</th><th class='note'>納め</th>"
+            "<th>部材のパス</th><th>実在</th><th>腕 入/出</th></tr></thead><tbody>"
+            + "".join(rows) + "</tbody></table></div>"
+            "<p class='cap'><b>規則(2026-08-29 ユーザー裁定)</b>: 折れ角が "
+            "<code>const.kadoDegMin</code> 未満なら<b>隅部材を使わず</b>、直線材の突き付け＋重ねで"
+            "吸う。以上なら隅部材を挟む。根拠は<b>突き付けたときに外面へ開く量</b> = "
+            "<code>dobeiWallT · tan(Δ/2)</code>(表の3列目)。"
+            "90°級は在庫の正規隅(<code>Eg.DobeiCorner</code>)、浅い折れは留め継ぎ"
+            "(<code>build_kado.py</code>)。<b>腕</b>は隅部材が兼ねる長さで、"
+            "<b>練塀の側は run の s を変えず</b>隅部材が端の腕を兼ね、"
+            "<b>長屋の側は run を腕ぶん切る</b>(長屋は長さ指定の一体物なので端を動かすしかない)。"
+            "⛔ <code>LoadAssetAtPath</code> は例外を投げず null を返すので、"
+            "在庫に無い物を名指しすると<b>隅だけが黙って建たない</b>(絶対規則11)。"
+            "木柵どうしの隅は隅部材を使わず互いに越えて敷く。</p>")
+
+
+def kado_stock_check(d):
+    """隅部材の**採否が規則どおりか**と、名指しした部材が**実在するか**。
+    ⛔ 綴り違いは静かに壊れる(絶対規則11)。⛔ 規則と採否がずれたら、図だけが正しくなる。"""
+    C = d["const"]
+    P = d["polygon"]
+    n = len(P)
+    bad = []
+    cj = _corner_joints(d)
+    for v in range(n):
+        j = cj.get(v)
+        if j is None:
+            bad.append("隅 P%d に取り合いの記述が無い" % v)
+            continue
+        pp = j.get("partPath")
+        if "armIn" not in j or "armOut" not in j:
+            bad.append("隅 P%d(%s)に腕の長さ(armIn/armOut)が無い — "
+                       "隣の run をどこで止めるかが決まらない" % (v, j["id"]))
+        if not _kado_scope(d, j):
+            continue
+        deg = _kado_deg(d, v)
+        need = abs(deg) >= C["kadoDegMin"]
+        has = bool(pp)
+        if need != has:
+            bad.append("隅 P%d(%s・折れ %+.1f°)は規則では隅部材が%s のに、指図は%s — "
+                       "規則は『折れ角 %.0f° 未満なら使わない』(開き %.3fm)"
+                       % (v, j["id"], deg, "要る" if need else "要らない",
+                          "名指ししている" if has else "名指ししていない",
+                          C["kadoDegMin"],
+                          C["dobeiWallT"] * math.tan(math.radians(abs(deg)) / 2.0)))
+        if has and not os.path.exists(os.path.join(ROOT, pp)):
+            bad.append("隅 P%d(%s)の部材 %s が**無い** — LoadAssetAtPath は null を返すので、"
+                       "隅だけが黙って建たない(絶対規則11)" % (v, j["id"], pp))
+        if has and "留め継ぎ" in j["kind"]:
+            want = _kado_path("Dobei", deg)
+            if pp != want:
+                bad.append("隅 P%d(%s)は留め継ぎなのに部材が %s — 折れ角から導けば %s"
+                           % (v, j["id"], pp, want))
+        if has and j.get("procure") != "在庫" and os.path.exists(os.path.join(ROOT, pp)):
+            bad.append("隅 P%d(%s)の部材は在るのに調達が「%s」になっている"
+                       % (v, j["id"], j.get("procure")))
+        if not has and (j.get("armIn") or j.get("armOut")):
+            bad.append("隅 P%d(%s)は隅部材を使わないのに腕が 0 でない" % (v, j["id"]))
+        # 腕は隣の run より短いこと(腕が run を食い切ると帯が消える)
+        for arm, e in ((j.get("armIn", 0.0), j["edge"]),
+                       (j.get("armOut", 0.0), (j["edge"] + 1) % n)):
+            if arm <= 0:
+                continue
+            rs = [r for r in d["runs"] if r["edge"] == e]
+            if rs and max(r["s1"] for r in rs) - min(r["s0"] for r in rs) < arm:
+                bad.append("隅 P%d(%s)の腕 %.2fm が辺%d の囲いより長い" % (v, j["id"], arm, e))
+    return bad
 
 
 def bom_table(d):
@@ -2533,6 +3087,21 @@ def _perimeter_footprints(d):
         a, u, L = edge(k["edge"])
         c = (a[0] + u[0] * k["s"], a[1] + u[1] * k["s"])
         out.append((k["name"], _quad(c[0], c[1], u[0], u[1], k["w"] / 2.0, C["dobeiT"] / 2.0)))
+    # 隅部材(腕)。**外周を塞ぐ実体**なので閉じの検査に入れる — 入れ忘れると、
+    # 長屋の側を腕ぶん切った途端に隅が「穴」として鳴る。
+    for j in d.get("joints", []):
+        if not j["at"].startswith("隅 P"):
+            continue
+        vtx = (j["edge"] + 1) % n
+        for arm, e, at_end in ((j.get("armIn", 0.0), j["edge"], True),
+                               (j.get("armOut", 0.0), (j["edge"] + 1) % n, False)):
+            if arm <= 0:
+                continue
+            a, u, L = edge(e)
+            s0, s1 = (L - arm, L) if at_end else (0.0, arm)
+            c = (a[0] + u[0] * (s0 + s1) / 2, a[1] + u[1] * (s0 + s1) / 2)
+            out.append(("Kado_P%d/辺%d" % (vtx, e),
+                        _quad(c[0], c[1], u[0], u[1], arm / 2.0, C["dobeiT"] / 2.0)))
     for y in d.get("yagura", []):
         v = y["vertex"] % n
         a, u, L = edge(v)                             # 頂点から出る辺(=辺14)に軸を沿わせる
@@ -2595,8 +3164,14 @@ def perimeter_closure_check(d, tol=0.4, step=0.2):
       `qa-and-pitfalls.md`「検査の文言と実装の集合を突き合わせる」。
     ⛔ **門の開口は、扉(`leaf`)を申告するまで穴として数える。**開口幅と敷居しか
       書いていない門は、建てれば素通しになる(御蔵門・東小門が実際そうだった)。
+      ⭐ 扉の**出どころ**(`leaf.by`: 門の躯体に含まれる / 別部材)は閉じの判定を変えない —
+      どちらでも開口は閉じる。出どころは実装が別部材を据えるかどうかだけを決める
+      (2026-08-29: 冠木門は自前の扉を持つのに別部材を重ねて門の顔が白い板で覆われた)。
     ⛔ 隅櫓は**実際の平面形**で数える。「隅を置き換える」と書いても、辺と斜めに
       交わる矩形は辺の開口を端まで塞がない(北東隅で 1.41m と 0.34m 残っていた)。
+    ⚠ **この検査は「図の上で何かが当たるか」しか見ない。**建てる対象の一覧(runs)に
+      無い物 — 隅部材の腕のような joints にしか居ない物 — でも当たれば合格になる。
+      **帳簿の側は `perimeter_ledger_check` が見る。**両方を回すこと。
     """
     P = d["polygon"]
     n = len(P)
@@ -2638,6 +3213,181 @@ def perimeter_closure_check(d, tol=0.4, step=0.2):
                 bad.append("辺%d の s%.1f〜%.1f(%.2fm)が外周として閉じていない — "
                            "塞ぐ物を指図に書く(門なら扉 leaf、隅なら隅部材)"
                            % (e, s0, s1, s1 - s0 + step))
+    return bad
+
+
+def _perimeter_spans(d):
+    """**外周を塞ぐ物の s 区間の帳簿。**{辺: [(s0, s1, 名, 級)]} を返す。
+
+    級は三つ:
+      **遮蔽** — 人が越えられない囲い(表長屋・練塀・門扉・隅櫓)。`runs` / 門 / 櫓。
+      **標示** — 境を示すだけの木柵(`fences`)。基礎も整地も持たない。
+      **腕**   — 隅部材が兼ねる腕。⛔ **単独では閉じに数えない。**
+                 腕は `joints` にしか居らず `runs` に無いので、実装の run 一覧へ渡らない。
+    ⚠ 2026-08-29(EDO-0053 の後): 隅 P13 の辺13 側は腕(2.99m)だけが塞いだことになっていて、
+      実装では隅がそのまま口として残った(外から敷地内へ 1m 踏み込める唯一の箇所)。
+      面の当たりを見る `perimeter_closure_check` は腕を実体として数えるので鳴らなかった。
+    """
+    P = d["polygon"]
+    C = d["const"]
+    n = len(P)
+    sp = dict((e, []) for e in range(n))
+
+    def edge(e):
+        a, b = P[e % n], P[(e + 1) % n]
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        return a, ((b[0] - a[0]) / L, (b[1] - a[1]) / L), L
+
+    for r in d["runs"]:
+        sp[r["edge"] % n].append((r["s0"], r["s1"], r["name"], "遮蔽"))
+    for f in d.get("fences", []):
+        sp[f["edge"] % n].append((f["s0"], f["s1"], f["name"], "標示"))
+    g = d.get("gate")
+    if g:
+        for nm, (s0, s1) in g["plan"].get("sPos", {}).items():
+            if nm == "mon" and not g["plan"].get("leaf"):
+                continue                              # 扉を申告しない開口は穴
+            sp[g["edge"] % n].append((s0, s1, "表門/" + nm, "遮蔽"))
+    for k in d.get("komon", []):
+        if not k.get("leaf"):
+            continue
+        sp[k["edge"] % n].append((k["s"] - k["w"] / 2.0, k["s"] + k["w"] / 2.0, k["name"], "遮蔽"))
+    fps = dict(_perimeter_footprints(d))
+    for y in d.get("yagura", []):                     # 櫓は平面形を両隣の辺へ射影する
+        q = fps.get(y["name"])
+        if not q:
+            continue
+        v = y["vertex"] % n
+        for e in ((v - 1) % n, v):
+            a, u, L = edge(e)
+            pr = [(p[0] - a[0]) * u[0] + (p[1] - a[1]) * u[1] for p in q]
+            s0, s1 = max(0.0, min(pr)), min(L, max(pr))
+            if s1 - s0 > 0.05:
+                sp[e].append((s0, s1, y["name"], "遮蔽"))
+    for j in d.get("joints", []):                     # 隅部材の腕
+        if not j["at"].startswith("隅 P"):
+            continue
+        v = (j["edge"] + 1) % n
+        for arm, e, at_end in ((j.get("armIn", 0.0), j["edge"] % n, True),
+                               (j.get("armOut", 0.0), (j["edge"] + 1) % n, False)):
+            if arm <= 0:
+                continue
+            _, _, L = edge(e)
+            s0, s1 = (L - arm, L) if at_end else (0.0, arm)
+            sp[e].append((s0, s1, "Kado_P%d" % v, "腕"))
+    return sp
+
+
+def perimeter_ledger_check(d, tol=0.20):
+    """**外周の帳簿検査** — 全ての頂点と全ての辺を、区間の帳簿で検める。
+
+    見るのは三つ:
+      1. **辺**: 建てる対象(`runs`/門扉/櫓/木柵)の s 区間の和が辺長を覆うか。
+         覆わない区間は s の範囲つきで挙げる。腕しか跨いでいない区間は
+         「腕は runs に無いので実装へ渡らない」と名指しする。
+      2. **頂点**: 入ってくる端と出ていく端が `joints` の記述と同じ物か。
+         隅の取り合いが無い / A・B が指図のどの物でもない / 実際に隅へ来る run と
+         食い違う、のいずれも挙げる(=接する相手が joints に無い頂点)。
+      3. **宣言**: 木柵だけの辺・意図した開放区間は `perimeterClosure` に宣言が要る。
+         宣言の無い辺は既定=遮蔽として扱い、足りなければ挙げる。
+         ⛔ **黙って見逃す形にしない** — 宣言を消せば検査が鳴る。
+
+    ⚠ `perimeter_closure_check`(面の当たり)と役目が違う。あちらは「図の上で何かが
+      当たるか」、こちらは「**建てる対象の帳簿で覆えているか**」。腕だけの隅は
+      あちらを素通りする(2026-08-29 EDO-0053 の隅 P13)。
+    """
+    P = d["polygon"]
+    n = len(P)
+    sp = _perimeter_spans(d)
+    decl = d.get("perimeterClosure", [])
+    bad = []
+
+    def declared(e, cls, s0=None, s1=None):
+        for k in decl:
+            if e not in k.get("edges", []) or k.get("class") != cls:
+                continue
+            if s0 is None or ("s0" not in k and "s1" not in k):
+                return True
+            if k.get("s0", -1e9) - 1e-6 <= s0 and s1 <= k.get("s1", 1e9) + 1e-6:
+                return True
+        return False
+
+    # 1. 辺の被覆
+    for e in range(n):
+        a, b = P[e], P[(e + 1) % n]
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        segs = sorted([x for x in sp[e] if x[3] != "腕"], key=lambda x: x[0])
+        holes, cur = [], 0.0
+        for s0, s1, nm, cls in segs:
+            if s0 > cur + 1e-9:
+                holes.append((cur, min(s0, L)))
+            cur = max(cur, s1)
+        if cur < L - 1e-9:
+            holes.append((cur, L))
+        for h0, h1 in holes:
+            if h1 - h0 < tol or declared(e, "開放", h0, h1):
+                continue
+            arms = [x for x in sp[e] if x[3] == "腕" and x[0] < h1 - 1e-6 and x[1] > h0 + 1e-6]
+            why = ("隅部材の腕 %s が図の上では跨いでいるが、**腕は joints にしか無く runs に無い**ので"
+                   "実装の run 一覧へ渡らない — 腕ぶんを短い練塀の run として書き起こすこと"
+                   % arms[0][2]) if arms else \
+                  ("塞ぐ物を指図に書くか、開けておく意図なら perimeterClosure に"
+                   "『開放』として辺と s を宣言すること")
+            bad.append("辺%d の s%.2f〜%.2f(%.2fm)が外周の帳簿で覆われていない — %s"
+                       % (e, h0, h1, h1 - h0, why))
+        if segs and all(x[3] == "標示" for x in segs) and not declared(e, "標示"):
+            bad.append("辺%d は木柵(標示)だけで閉じている — 遮蔽でない旨を perimeterClosure に"
+                       "宣言すること(法面で守るなら、その旨を宣言に書く)" % e)
+    for k in decl:                                    # 効かなくなった宣言を残さない
+        for e in k.get("edges", []):
+            if k.get("class") != "標示":
+                continue
+            if any(x[3] == "遮蔽" for x in sp[e % n]):
+                bad.append("perimeterClosure が辺%d を『標示』と宣言しているが、遮蔽の囲いが"
+                           "置かれている — 宣言と実物が食い違う" % e)
+
+    # 2. 頂点の取り合い
+    known = set(r["name"] for r in d["runs"]) | set(f["name"] for f in d.get("fences", []))
+    known |= set(y["name"] for y in d.get("yagura", [])) | set(k["name"] for k in d.get("komon", []))
+    if d.get("gate"):
+        known |= set("表門/" + nm for nm in d["gate"]["plan"].get("sPos", {}))
+    cj = _corner_joints(d)
+    for v in range(n):
+        j = cj.get(v)
+        if j is None:
+            bad.append("隅 P%d に取り合い(joints)が無い — 接する二者とその面が決まっていない" % v)
+            continue
+        ein, eout = (v - 1) % n, v % n
+        inn = [x for x in sp[ein] if x[3] != "腕"]
+        out = [x for x in sp[eout] if x[3] != "腕"]
+        last = max(inn, key=lambda x: x[1]) if inn else None
+        first = min(out, key=lambda x: x[0]) if out else None
+        for side, x, want, face, e in (("入り", last, j["a"], j["aFace"], ein),
+                                       ("出", first, j["b"], j["bFace"], eout)):
+            if want.startswith("—"):
+                continue                              # 頂点そのもの(隅櫓が置き換える側)
+            if want not in known:
+                bad.append("隅 P%d(%s)の%s側が指図のどの物でもない物 %r を指している — "
+                           "名前が食い違っていると実装は面を測れない" % (v, j["id"], side, want))
+                continue
+            if not face or "面" not in face and "小口" not in face and "端" not in face:
+                bad.append("隅 P%d(%s)の%s側の面 %r が面として読めない — "
+                           "芯・ピボットでなく面で書くこと(絶対規則5)" % (v, j["id"], side, face))
+            if x is None:
+                bad.append("隅 P%d(%s)の%s側(辺%d)に外周の物が一つも無い" % (v, j["id"], side, e))
+            elif x[2] != want:
+                bad.append("隅 P%d(%s)の%s側は joints が %s と書くのに、辺%d で隅へ来るのは %s — "
+                           "取り合い表と帳簿が別のことを言っている" % (v, j["id"], side, want, e, x[2]))
+
+    # 3. 門扉の出どころ
+    gates = [("表門", d["gate"]["plan"].get("leaf"))] if d.get("gate") else []
+    gates += [(k["name"], k.get("leaf")) for k in d.get("komon", [])]
+    for nm, lf in gates:
+        if not lf:
+            bad.append("門 %s に扉(leaf)が無い — 開口が素通しになる" % nm)
+        elif not lf.get("by"):
+            bad.append("門 %s の扉に出どころ(leaf.by)が無い — 躯体が持つのか別部材を据えるのかが"
+                       "決まらず、実装が扉を二重に重ねる(2026-08-29 に冠木門で実際に起きた)" % nm)
     return bad
 
 
@@ -3701,6 +4451,12 @@ def main():
         print("⚠ 面のはみ出し %d 件:" % len(pbad))
         for b in pbad:
             print("   ", b)
+    # 外周の閉じは**件数を必ず出す。**0 件でないなら理由を添える(黙って通さない)。
+    cbad = perimeter_closure_check(d)
+    lbad = perimeter_ledger_check(d)
+    print("外周の閉じ: 面の当たり %d 件 / 帳簿(頂点・辺・宣言) %d 件" % (len(cbad), len(lbad)))
+    for b in cbad + lbad:
+        print("   ⚠", b)
 
     css = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "sashizu.css"), encoding="utf-8").read()
     h = ['<meta charset="utf-8">', "<title>松平出羽守上屋敷 指図</title>",
@@ -4013,6 +4769,54 @@ def main():
     h.append('<p class="cap">西斜面・南西の谷の法肩には<b>竹垣(四つ目垣)</b>を回す — '
              '落差のある生活面を素の縁にしない(岡部指図と同じ作法)。高さ0.9m・法肩から内へ0.45m。'
              '茶庭の縁もこの竹垣で、座敷と茶亭から溜池を垣越しに望む。</p>')
+    h.append("</div>")
+
+    # ------------------------------------------------------------ 取り合いの詳細(§3e/§3f)
+    plate(h, nx(), "取り合いの詳細(開口と隅)",
+          "全体設計では足りない粒度 — **どの面がどの面に接するか**を面の座標で決める")
+    h.append('<p class="cap"><b>全体設計(開口の位置と幅)だけを渡すと、実装者は「中心を合わせる」しか'
+             'できない。</b>2026-08-29 にそれが起きた — 門は開口の芯に、長屋は run の頭から丸ごとの'
+             'モジュールを並べていて、<b>同じ門の左右で食い込みと隙間が同時に</b>出た。'
+             'ユーザーの言葉「オブジェクト同士の位置関係は常に<b>どの点同士を接するか</b>を厳密に'
+             '考えないと隙間が空く」。以下は<b>詳細設計</b>: 接する面を名前で決め、目標値と許容と'
+             '<b>可動側</b>を書く。⛔ 芯・中心・ピボットで合わせない — 部材を差し替えた瞬間に破れる。</p>')
+    fig(h, chain_strip_svg(d),
+        cap="<b>長屋の割付。</b>表長屋は在庫部材の実寸でしか置けないので、鎖の長さは棟数×実寸で"
+            "決まる。<b>固定端(▲)を開口・隅櫓・頂点の面に合わせ、端数は遊び端(○)の練塀が吸う。</b>"
+            "鎖を run の中央へ寄せると、両端が同時に成り行きになる。")
+    for key, cap in (("omote", "<b>表門。</b>番所は外周線から街路側へ張り出すので、外周線より内は"
+                               "浅い。長屋のほうが奥行があり、番所の背後で長屋の妻が露出するのが正 — "
+                               "塞ごうとして番所を深くしない。"),
+                     ("Kuramon", "<b>御蔵門。</b>門柱の外面(開口の縁)へ長屋の妻面を突き付ける。"
+                                 "門柱が妻壁へ浅くめり込むのは可、隙間は不可。"),
+                     ("Higashi_Komon", "<b>東小門。</b>同じく開口の縁へ両側の長屋の妻面を突き付ける。"
+                                       "鎖はこの面を起点に割り付け、端数は反対の端へ送る。")):
+        fig(h, opening_detail_svg(d, key), cap=cap)
+    fig(h, corner_detail_svg(d, 13, 15.0, "隅 P13(辺12 ↔ 辺13)の取り合い"),
+        cap="<b>隅 P13。</b>折れ角が浅いので<b>留め継ぎの隅部材</b>が要る — 小口どうしを突き付けると"
+            "折れ角のぶんだけ隅に口が開く。")
+    fig(h, corner_detail_svg(d, 14, 15.0, "隅 P14(隅櫓 Y_NE)の取り合い"),
+        cap="<b>隅櫓 Y_NE。</b>櫓は隅を<b>置き換える</b>(内側に重ねない)。辺と斜めに交わるので"
+            "両脇に楔形が残り、その受けが袖塀。袖塀の小口は櫓の面と長屋の妻へ差し込む。")
+    h.append(chains_table(d))
+    h.append(joints_face_table(d))
+    h.append(kado_parts_table(d))
+    h.append('<div class="box"><h3>実装の順序(この詳細設計が効く工程)</h3><p>'
+             'すべて<b>外周のステージ(塀・長屋・木柵)</b>の中で完結する。造成のステージには触れない '
+             '(面の高さも run の天端も動かしていないので、<b>非冪等な造成を流し直す必要は無い</b>)。</p>'
+             '<ol><li><b>先行</b>: 留め継ぎの隅部材を Blender で起こす(角度ごと。上表で「無い」と'
+             '出ている分)。⛔ これを飛ばすと<b>隅だけが黙って建たない</b> — '
+             '<code>LoadAssetAtPath</code> は例外を投げず null を返す。</li>'
+             '<li><b>固定側を先に置く</b>: 表門一式・御蔵門・東小門・隅櫓。位置は開口の芯と頂点の'
+             '二等分線で決まる。</li>'
+             '<li><b>可動側の鎖を割り付ける</b>: 上の「長屋の割付」の固定端から、駒を'
+             '<b>面一で積む</b>(中央寄せをやめる)。端数は遊び端へ送る。</li>'
+             '<li><b>練塀・袖塀・隅の詰めを、鎖が空けた残りへ通す</b>。練塀の駒は伸縮するので'
+             '端数をそのまま吸う。</li>'
+             '<li><b>置いたあと実メッシュから面を測って寄せる</b>(定数で寄せない)。'
+             'ピボットが芯に無い・軒が出ている・スケールが掛かっている、のどれかで面は必ずずれる。</li>'
+             '<li><b>面と面の距離を測って合否を出す</b>: 上の取り合い表の許容に入らなければ落とす。</li>'
+             '</ol></div>')
     h.append("</div>")
 
     plate(h, nx(), "取り合い(実装用)", "すべて設計値から自動算出 — 手で書き写さない")

@@ -3,7 +3,12 @@ guid: 6265ff2078010418fa3fa53beb6891b3
 ModelImporter:
   serializedVersion: 24501
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: knagayamap
+    second: {fileID: -8419424956809715245, guid: 25defa6bb34dd4f63959ee4b982ed27a, type: 3}
   materials:
     materialImportMode: 2
     materialName: 0

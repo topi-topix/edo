@@ -105,7 +105,12 @@ public class EdoViewBookmarkWindow : EditorWindow
 
     static void Save(Book b) => System.IO.File.WriteAllText(JsonPath, JsonUtility.ToJson(b, true));
 
-    void OnEnable() { book = Load(); }
+    void OnEnable()
+    {
+        book = Load();
+        thumbW = EditorPrefs.GetFloat(PrefW, 1000f);
+        showHelp = EditorPrefs.GetBool(PrefHelp, false);
+    }
 
     Texture2D Thumb(string png)
     {
@@ -224,17 +229,22 @@ public class EdoViewBookmarkWindow : EditorWindow
         Object.DestroyImmediate(tx);
     }
 
+    // 一覧のサムネ幅(px)。ユーザーが好みで変えられるよう EditorPrefs に持つ。
+    const string PrefW = "EdoViewBookmark.thumbW2";
+    const string PrefHelp = "EdoViewBookmark.showHelp";
+    float thumbW = 1000f;
+    bool showHelp;
+
     void OnGUI()
     {
         if (book == null) book = Load();
-        EditorGUILayout.HelpBox("Cmd+Shift+B = 今の Scene ビュー画角をスクショ付きで記録。\n" +
-            "スクショを左クリック=赤丸マーカー / マーカー右クリック=削除。コメントも記入したら AI に「ブックマーク見て」。", MessageType.Info);
 
-        using (new EditorGUILayout.HorizontalScope())
+        using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
         {
-            if (GUILayout.Button("再読込")) { book = Load(); thumbs.Clear(); }
-            GUI.backgroundColor = new Color(1f, 0.7f, 0.6f);
-            if (GUILayout.Button("全消去") &&
+            if (GUILayout.Button("再読込", EditorStyles.toolbarButton, GUILayout.Width(50)))
+            { book = Load(); thumbs.Clear(); }
+
+            if (GUILayout.Button("全消去", EditorStyles.toolbarButton, GUILayout.Width(50)) &&
                 EditorUtility.DisplayDialog("全消去", "ブックマークとスクショを全て削除します。よろしいですか？", "削除", "やめる"))
             {
                 foreach (var e in book.entries)
@@ -248,8 +258,18 @@ public class EdoViewBookmarkWindow : EditorWindow
                 }
                 book = new Book(); Save(book); thumbs.Clear();
             }
-            GUI.backgroundColor = Color.white;
+
+            GUILayout.FlexibleSpace();
+            GUILayout.Label("画像", EditorStyles.miniLabel, GUILayout.Width(28));
+            float w2 = GUILayout.HorizontalSlider(thumbW, 220f, 1000f, GUILayout.Width(110));
+            if (!Mathf.Approximately(w2, thumbW)) { thumbW = w2; EditorPrefs.SetFloat(PrefW, thumbW); }
+            bool h2 = GUILayout.Toggle(showHelp, "?", EditorStyles.toolbarButton, GUILayout.Width(22));
+            if (h2 != showHelp) { showHelp = h2; EditorPrefs.SetBool(PrefHelp, showHelp); }
         }
+
+        if (showHelp)
+            EditorGUILayout.HelpBox("Cmd+Shift+B = 今の Scene ビュー画角をスクショ付きで記録。\n" +
+                "スクショを左クリック=赤丸マーカー / マーカー右クリック=削除。コメントも記入したら AI に「ブックマーク見て」。", MessageType.Info);
 
         if (book.entries.Count == 0)
         {
@@ -262,77 +282,93 @@ public class EdoViewBookmarkWindow : EditorWindow
         for (int i = 0; i < book.entries.Count; i++)
         {
             var e = book.entries[i];
-            EditorGUILayout.BeginVertical("box");
-            EditorGUILayout.LabelField($"#{i + 1}  ({e.time})  印:{e.marks.Count}個", EditorStyles.boldLabel);
-
             var t = Thumb(e.png);
-            if (t != null)
-            {
-                float w = EditorGUIUtility.currentViewWidth - 40f;
-                float h = w * t.height / t.width;
-                var r = GUILayoutUtility.GetRect(w, h, GUILayout.ExpandWidth(false));
-                GUI.DrawTexture(r, t, ScaleMode.StretchToFill);
+            // 窓が狭いときは画像を縮めて、コメント欄が潰れないようにする。
+            float iw = Mathf.Max(200f, Mathf.Min(thumbW, EditorGUIUtility.currentViewWidth - 200f));
+            float ih = (t != null) ? iw * t.height / t.width : iw * 0.5625f;
 
-                // 印の描画
-                for (int mi = 0; mi < e.marks.Count; mi++)
-                {
-                    var m = e.marks[mi];
-                    float mx = r.x + m.x * r.width, my = r.y + m.y * r.height;
-                    GUI.DrawTexture(new Rect(mx - 16, my - 16, 32, 32), RingTex(), ScaleMode.StretchToFill);
-                    var st = new GUIStyle(EditorStyles.boldLabel);
-                    st.normal.textColor = new Color(1f, 0.2f, 0.2f);
-                    GUI.Label(new Rect(mx + 12, my + 8, 30, 20), (mi + 1).ToString(), st);
-                }
-
-                // クリックで印の追加/削除
-                var ev = Event.current;
-                if (ev.type == EventType.MouseDown && r.Contains(ev.mousePosition))
-                {
-                    var uv = new Vector2((ev.mousePosition.x - r.x) / r.width, (ev.mousePosition.y - r.y) / r.height);
-                    if (ev.button == 0)
-                    {
-                        e.marks.Add(uv); Save(book); WriteAnnotated(e); ev.Use(); Repaint();
-                    }
-                    else if (ev.button == 1 && e.marks.Count > 0)
-                    {
-                        int nearest = -1; float best = 1e9f;
-                        for (int mi = 0; mi < e.marks.Count; mi++)
-                        {
-                            float d = Vector2.Distance(new Vector2(e.marks[mi].x * r.width, e.marks[mi].y * r.height),
-                                                       new Vector2(uv.x * r.width, uv.y * r.height));
-                            if (d < best) { best = d; nearest = mi; }
-                        }
-                        if (nearest >= 0 && best < 40f)
-                        {
-                            e.marks.RemoveAt(nearest); Save(book); WriteAnnotated(e); ev.Use(); Repaint();
-                        }
-                    }
-                }
-            }
-
-            EditorGUILayout.LabelField("指摘・コメント:");
-            string newNote = EditorGUILayout.TextArea(e.note, GUILayout.MinHeight(40));
-            if (newNote != e.note) { e.note = newNote; Save(book); }
-
+            EditorGUILayout.BeginVertical("box");
             using (new EditorGUILayout.HorizontalScope())
             {
-                if (GUILayout.Button("この画角へ移動"))
+                // ── 左: 縮小スクショ(クリックで印) ──
+                var r = GUILayoutUtility.GetRect(iw, ih, GUILayout.Width(iw), GUILayout.Height(ih));
+                if (t != null)
                 {
-                    var sv = SceneView.lastActiveSceneView;
-                    if (sv != null)
+                    GUI.DrawTexture(r, t, ScaleMode.StretchToFill);
+
+                    // 印の描画。リングは画像の縮尺に合わせて小さくする。
+                    float ring = Mathf.Clamp(iw * 0.075f, 16f, 40f);
+                    for (int mi = 0; mi < e.marks.Count; mi++)
                     {
-                        var rot = Quaternion.Euler(e.euler);
-                        sv.LookAtDirect(e.pos + rot * Vector3.forward * 8f, rot, 8f);
+                        var m = e.marks[mi];
+                        float mx = r.x + m.x * r.width, my = r.y + m.y * r.height;
+                        GUI.DrawTexture(new Rect(mx - ring * 0.5f, my - ring * 0.5f, ring, ring), RingTex(), ScaleMode.StretchToFill);
+                        var st = new GUIStyle(EditorStyles.miniBoldLabel);
+                        st.normal.textColor = new Color(1f, 0.2f, 0.2f);
+                        GUI.Label(new Rect(mx + ring * 0.4f, my + ring * 0.25f, 24, 16), (mi + 1).ToString(), st);
+                    }
+
+                    // クリックで印の追加/削除
+                    var ev = Event.current;
+                    if (ev.type == EventType.MouseDown && r.Contains(ev.mousePosition))
+                    {
+                        var uv = new Vector2((ev.mousePosition.x - r.x) / r.width, (ev.mousePosition.y - r.y) / r.height);
+                        if (ev.button == 0)
+                        {
+                            e.marks.Add(uv); Save(book); WriteAnnotated(e); ev.Use(); Repaint();
+                        }
+                        else if (ev.button == 1 && e.marks.Count > 0)
+                        {
+                            int nearest = -1; float best = 1e9f;
+                            for (int mi = 0; mi < e.marks.Count; mi++)
+                            {
+                                float d = Vector2.Distance(new Vector2(e.marks[mi].x * r.width, e.marks[mi].y * r.height),
+                                                           new Vector2(uv.x * r.width, uv.y * r.height));
+                                if (d < best) { best = d; nearest = mi; }
+                            }
+                            // 判定半径も縮尺に追従させる(小さい画像で消せなくならないよう)
+                            if (nearest >= 0 && best < ring * 1.25f)
+                            {
+                                e.marks.RemoveAt(nearest); Save(book); WriteAnnotated(e); ev.Use(); Repaint();
+                            }
+                        }
                     }
                 }
-                if (GUILayout.Button("印を全消去", GUILayout.Width(90)))
+
+                GUILayout.Space(6);
+
+                // ── 右: 見出し・コメント・操作 ──
+                using (new EditorGUILayout.VerticalScope())
                 {
-                    e.marks.Clear(); Save(book); WriteAnnotated(e);
+                    EditorGUILayout.LabelField($"#{i + 1}  {e.time}  印:{e.marks.Count}", EditorStyles.miniBoldLabel);
+
+                    // コメント欄を画像の高さいっぱいに伸ばす(見出し+ボタン列の分を引く)
+                    float noteH = Mathf.Max(36f, ih - 40f);
+                    string newNote = EditorGUILayout.TextArea(e.note, GUILayout.Height(noteH), GUILayout.ExpandWidth(true));
+                    if (newNote != e.note) { e.note = newNote; Save(book); }
+
+                    using (new EditorGUILayout.HorizontalScope())
+                    {
+                        if (GUILayout.Button(new GUIContent("移動", "この画角へ Scene ビューを移す"), EditorStyles.miniButtonLeft))
+                        {
+                            var sv = SceneView.lastActiveSceneView;
+                            if (sv != null)
+                            {
+                                var rot = Quaternion.Euler(e.euler);
+                                sv.LookAtDirect(e.pos + rot * Vector3.forward * 8f, rot, 8f);
+                            }
+                        }
+                        if (GUILayout.Button(new GUIContent("印消去", "この画像の赤丸を全て消す"), EditorStyles.miniButtonMid, GUILayout.Width(46)))
+                        {
+                            e.marks.Clear(); Save(book); WriteAnnotated(e);
+                        }
+                        if (GUILayout.Button(new GUIContent("削除", "このブックマークとスクショを消す"), EditorStyles.miniButtonRight, GUILayout.Width(38)))
+                            del = i;
+                    }
                 }
-                if (GUILayout.Button("削除", GUILayout.Width(60))) del = i;
             }
             EditorGUILayout.EndVertical();
-            EditorGUILayout.Space(4);
+            EditorGUILayout.Space(2);
         }
         EditorGUILayout.EndScrollView();
 

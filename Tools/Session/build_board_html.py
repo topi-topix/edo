@@ -347,7 +347,41 @@ h2{font-family:'Shippori Mincho',serif;font-weight:600;font-size:17px;
 .metric{margin:10px 0}
 .metric .lbl{font-size:11px;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:3px}
 
-/* ── issue 行(見やすさ改善: バッジ化・行間・info は控えめに) */
+/* ── タブ(主=タスク一覧 / 従=敷地別・動き) */
+.tabs{display:flex;gap:2px;border-bottom:2px solid var(--line);margin:26px 0 0}
+.tab{appearance:none;background:none;border:0;border-bottom:2px solid transparent;
+  margin-bottom:-2px;padding:9px 18px;font:inherit;font-size:14px;color:var(--muted);
+  cursor:pointer;font-family:'Shippori Mincho',serif;letter-spacing:.06em}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink);font-weight:600}
+.tab .n{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-left:7px}
+.tab:focus-visible{outline:2px solid var(--ai);outline-offset:-2px}
+.panel[hidden]{display:none}
+
+/* ── タスク一覧(全敷地を1枚で。これが主) */
+.tasks{width:100%;border-collapse:collapse;font-size:13.5px}
+.tasks thead th{position:sticky;top:0;background:var(--bg);text-align:left;font-weight:500;
+  font-size:11.5px;letter-spacing:.06em;color:var(--muted);padding:8px 10px;
+  border-bottom:1px solid var(--line-strong,var(--line));white-space:nowrap;z-index:2}
+.tasks thead th.sortable{cursor:pointer;user-select:none}
+.tasks thead th.sortable:hover{color:var(--ink)}
+.tasks thead th .ar{opacity:0;font-size:9px;margin-left:3px}
+.tasks thead th[data-dir] .ar{opacity:1}
+.tasks tbody td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.tasks tbody tr:hover{background:var(--card)}
+.tasks tbody tr.done-row td{opacity:.5}
+.tasks .c-id{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap}
+.tasks .c-site{white-space:nowrap;font-size:12.5px}
+.tasks .c-site i{display:inline-block;width:7px;height:7px;border-radius:50%;
+  margin-right:6px;background:var(--dot,var(--line-firm))}
+.tasks .c-ttl{width:99%}
+.tasks .c-ttl .reflinks{margin-top:3px}
+.tasks .c-when{white-space:nowrap;font-family:var(--mono);font-size:11px;color:var(--muted);
+  font-variant-numeric:tabular-nums;text-align:right}
+.tasks .c-badge{white-space:nowrap}
+.empty{padding:22px 4px;color:var(--muted);font-size:13.5px}
+
+/* ── issue 行(敷地別タブの中で使う) */
 .iss{font-size:13px;margin:8px 0 0;padding:0;list-style:none}
 .iss li{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 8px;
   padding:7px 10px;border-left:3px solid var(--line);margin-bottom:5px;
@@ -389,10 +423,38 @@ footer{margin-top:40px;color:var(--muted);font-size:11.5px}
 JS = """
 (function(){
   function $all(sel){ return Array.from(document.querySelectorAll(sel)); }
+
+  /* ── タブ。主タブ=タスク一覧(全敷地を1枚)、従タブ=敷地別・最近の動き。
+        フィルタはタブをまたいで効く(同じ .fitem を見る)。 */
+  var tabs = $all('.tab'), panels = $all('.panel');
+  function selectTab(name){
+    tabs.forEach(function(t){
+      var on = t.getAttribute('data-tab') === name;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+    });
+    panels.forEach(function(pl){ pl.hidden = pl.getAttribute('data-panel') !== name; });
+    try { localStorage.setItem('edo_tab', name); } catch(e){}
+  }
+  tabs.forEach(function(t){
+    t.addEventListener('click', function(){ selectTab(t.getAttribute('data-tab')); });
+    t.addEventListener('keydown', function(e){
+      var i = tabs.indexOf(t), n = null;
+      if (e.key === 'ArrowRight') n = tabs[(i+1) % tabs.length];
+      if (e.key === 'ArrowLeft')  n = tabs[(i-1+tabs.length) % tabs.length];
+      if (n){ e.preventDefault(); n.focus(); selectTab(n.getAttribute('data-tab')); }
+    });
+  });
+  var saved = null;
+  try { saved = localStorage.getItem('edo_tab'); } catch(e){}
+  selectTab(tabs.some(function(t){ return t.getAttribute('data-tab') === saved; })
+            ? saved : 'tasks');
+
+  /* ── フィルタ */
   var siteBtns = $all('#siteFilter .fchip');
   var typeBtns = $all('#typeFilter .fchip');
   var showDone = document.getElementById('showDone');
-  var search = document.getElementById('fsearch');
+  var search   = document.getElementById('fsearch');
   var resetBtn = document.getElementById('fReset');
   var items = $all('.fitem');
   var lanes = $all('.lane[data-site]');
@@ -406,33 +468,58 @@ JS = """
     var sites = activeVals(siteBtns, 'data-site');
     var types = activeVals(typeBtns, 'data-type');
     var q = search.value.trim().toLowerCase();
-    var shown = 0;
+    var shownRows = 0;
     items.forEach(function(el){
-      var okSite = sites.has(el.getAttribute('data-site'));
-      var okType = types.has(el.getAttribute('data-type'));
       var st = el.getAttribute('data-status');
-      var okStatus = showDone.checked || (st !== 'done' && st !== 'dropped');
-      var okSearch = !q || el.textContent.toLowerCase().indexOf(q) !== -1;
-      var vis = okSite && okType && okStatus && okSearch;
+      var vis = sites.has(el.getAttribute('data-site'))
+             && types.has(el.getAttribute('data-type'))
+             && (showDone.checked || (st !== 'done' && st !== 'dropped'))
+             && (!q || el.textContent.toLowerCase().indexOf(q) !== -1);
       el.style.display = vis ? '' : 'none';
-      if (vis) shown++;
+      if (vis && el.classList.contains('trow')) shownRows++;
     });
     lanes.forEach(function(l){
       l.style.display = sites.has(l.getAttribute('data-site')) ? '' : 'none';
     });
-    if (countEl) countEl.textContent = shown + ' 件表示中';
+    if (countEl) countEl.textContent = shownRows + ' 件表示中';
+    var none = document.getElementById('tasksEmpty');
+    if (none) none.hidden = shownRows !== 0;
   }
   siteBtns.concat(typeBtns).forEach(function(b){
     b.addEventListener('click', function(){ b.classList.toggle('active'); apply(); });
   });
   if (showDone) showDone.addEventListener('change', apply);
-  if (search) search.addEventListener('input', apply);
+  if (search)   search.addEventListener('input', apply);
   if (resetBtn) resetBtn.addEventListener('click', function(){
     siteBtns.concat(typeBtns).forEach(function(b){ b.classList.add('active'); });
-    showDone.checked = false;
-    search.value = '';
-    apply();
+    showDone.checked = false; search.value = ''; apply();
   });
+
+  /* ── タスク一覧の並べ替え。既定は優先度(要裁定→ブロッカー→進行中→open→完了)。 */
+  var tbody = document.getElementById('taskBody');
+  if (tbody){
+    $all('.tasks thead th.sortable').forEach(function(th){
+      th.addEventListener('click', function(){
+        var key = th.getAttribute('data-key');
+        var dir = th.getAttribute('data-dir') === 'asc' ? 'desc' : 'asc';
+        $all('.tasks thead th').forEach(function(o){
+          o.removeAttribute('data-dir');
+          var a = o.querySelector('.ar'); if (a) a.textContent = '';
+        });
+        th.setAttribute('data-dir', dir);
+        var ar = th.querySelector('.ar'); if (ar) ar.textContent = dir === 'asc' ? '▲' : '▼';
+        var rows = $all('#taskBody tr');
+        rows.sort(function(a, b){
+          var av = a.getAttribute('data-' + key), bv = b.getAttribute('data-' + key);
+          var an = parseFloat(av), bn = parseFloat(bv);
+          var c = (!isNaN(an) && !isNaN(bn)) ? an - bn : String(av).localeCompare(String(bv), 'ja');
+          return dir === 'asc' ? c : -c;
+        });
+        rows.forEach(function(r){ tbody.appendChild(r); });
+      });
+    });
+  }
+
   apply();
 })();
 """
@@ -600,6 +687,63 @@ def network_svg(rel, open_counts, w=380, h=280):
     return "".join(bits)
 
 
+SITE_DOT = {"matsudaira": "var(--ai)", "sanno": "var(--matsu)", "okabe": "var(--oud)",
+            "doi": "var(--shu)", "sotobori": "#4E8FA8", CROSS_KEY: "var(--line-firm)"}
+# 既定の並び: 手を打つべき順。要裁定 → ブロッカー → 進行中 → open → 完了
+PRIO = {"awaiting-user": 0, "in-progress": 2, "open": 3, "done": 8, "dropped": 9}
+
+
+def task_prio(i):
+    if i["status"] == "awaiting-user":
+        return 0
+    if i["type"] == "blocker" and i["status"] not in ("done", "dropped"):
+        return 1
+    return PRIO.get(i["status"], 5)
+
+
+def task_row(i, states):
+    """タスク一覧(全敷地を1枚)の1行。data-* はフィルタと並べ替えが読む。"""
+    site = display_site(i)
+    cls = "fitem trow"
+    if i["status"] in ("done", "dropped"):
+        cls += " done-row"
+    return (
+        '<tr id="row-%s" class="%s" data-site="%s" data-type="%s" data-status="%s"'
+        ' data-prio="%d" data-when="%d" data-sitename="%s" data-title="%s">'
+        '<td class="c-id">%s</td>'
+        '<td class="c-site"><i style="--dot:%s"></i>%s</td>'
+        '<td class="c-badge"><span class="badge type-%s">%s</span></td>'
+        '<td class="c-badge"><span class="badge st-%s">%s</span></td>'
+        '<td class="c-ttl">%s%s</td>'
+        '<td class="c-when">%s</td></tr>'
+        % (esc(i["id"]), esc(cls), esc(site), esc(i["type"]), esc(i["status"]),
+           task_prio(i), int(i.get("updated") or 0),
+           esc(SITES.get(i["estate"], CROSS_LABEL)), esc(i["title"]),
+           esc(i["id"]),
+           esc(SITE_DOT.get(site, "var(--line-firm)")), esc(SITES.get(i["estate"], CROSS_LABEL)),
+           esc(i["type"]), esc(TYPE_LABEL.get(i["type"], i["type"])),
+           esc(i["status"]), esc(STATUS_LABEL.get(i["status"], i["status"])),
+           esc(i["title"]), refs_html(i, states),
+           esc(ago(i.get("updated") or 0))))
+
+
+def tasks_table_html(issues, states):
+    rows = sorted(issues, key=lambda i: (task_prio(i), -(i.get("updated") or 0)))
+    head = [("prio", "優先", "sortable"), ("sitename", "敷地", "sortable"),
+            ("type", "種別", ""), ("status", "状態", "sortable"),
+            ("title", "タスク", "sortable"), ("when", "更新", "sortable")]
+    th = "".join(
+        '<th %sdata-key="%s">%s<span class="ar"></span></th>'
+        % (('class="%s" ' % c) if c else "", esc(k), esc(lbl)) for k, lbl, c in head)
+    # 1列目の見出しは「優先」だが中身は ID(既定の並びが優先度なので、列としては ID を見せる)
+    th = th.replace(">優先<", ">ID<", 1)
+    return ('<div class="mwrap"><table class="tasks"><thead><tr>%s</tr></thead>'
+            '<tbody id="taskBody">%s</tbody></table></div>'
+            '<div class="empty" id="tasksEmpty" hidden>'
+            '条件に合うタスクがありません。フィルタを緩めてください。</div>'
+            % (th, "".join(task_row(i, states) for i in rows)))
+
+
 def filterbar_html():
     p = ['<div class="filterbar">']
     p.append('<div class="fgroup" id="siteFilter"><span class="flabel">敷地</span>')
@@ -660,10 +804,7 @@ def build_html(issues, pending, commits, claims, states, summary):
              '<span><span class="dot" style="background:var(--line)"></span>その他(task/info) %d</span>'
              "</div>" % (len(waits), len(blks), len(others)))
 
-    # ── フィルタバー(敷地・種別・完了表示・検索)
-    p.append(filterbar_html())
-
-    # ── 要裁定
+    # ── 要裁定(タブの外。ユーザーの手が要る唯一のものなので常に見えるところに置く)
     p.append("<h2>要裁定 — ユーザーの判断待ち</h2>")
     if not waits:
         p.append('<div class="quiet">裁定待ちはありません。</div>')
@@ -685,10 +826,30 @@ def build_html(issues, pending, commits, claims, states, summary):
         p.append(refs_html(i, states))
         p.append("</div>")
 
-    # ── 敷地別レーン(邸はスパークライン+三巡則ゲージつき。邸を持たない敷地は
+    # ── タブ。主=タスク一覧(全敷地を1枚)。敷地別・動きは「その見方をしたいとき用」の従タブ。
+    live_n = len(live)
+    p.append('<div class="tabs" role="tablist">')
+    p.append('<button class="tab" role="tab" data-tab="tasks" aria-selected="true">'
+             'タスク一覧<span class="n">%d</span></button>' % live_n)
+    p.append('<button class="tab" role="tab" data-tab="sites" aria-selected="false">'
+             '敷地別<span class="n">%d</span></button>' % (len(SITES) + 1))
+    p.append('<button class="tab" role="tab" data-tab="feed" aria-selected="false">'
+             '最近の動き</button>')
+    p.append("</div>")
+
+    # ── 主タブ: 全敷地のタスクを1枚の表で。フィルタで絞る。
+    p.append('<div class="panel" data-panel="tasks">')
+    p.append(filterbar_html())
+    p.append(tasks_table_html(issues, states))
+    p.append("</div>")
+
+    # ── 従タブ: 敷地別(邸はスパークライン+三巡則ゲージつき。邸を持たない敷地は
     #    issue 一覧だけ。「全体・基盤」は cross/infra をまとめた専用レーン)
-    p.append("<h2>敷地別<span class=\"h2note\">邸だけでなく溜池・外堀のような敷地も同格で並ぶ</span></h2>"
-              "<div class='lanes'>")
+    p.append('<div class="panel" data-panel="sites" hidden>')
+    p.append('<p class="sub" style="color:var(--muted);font-size:12.5px;margin:14px 0 4px">'
+             '敷地ごとに進み具合を見たいとき用。タスクを横断で探すなら「タスク一覧」タブへ。'
+             '上のフィルタの敷地の絞り込みはこちらにも効く。</p>')
+    p.append("<div class='lanes'>")
     for e, name in SITES.items():
         is_estate = e in ESTATES
         s = summary["estates"][e]
@@ -741,9 +902,10 @@ def build_html(issues, pending, commits, claims, states, summary):
         p.append('<ul class="iss">%s</ul>' % "".join(issue_li(i, states) for i in cross_iss))
     else:
         p.append('<div class="kv">issue なし</div>')
-    p.append("</div></div>")
+    p.append("</div>")  # #lane-cross
+    p.append("</div>")  # .lanes
 
-    # ── 横断の相関
+    # 横断の相関(敷地の見方の一部なのでこのタブに置く)
     p.append('<h2>横断の相関<span class="h2note">円の太さ=言及した open issue 件数・数字=件数</span></h2>')
     p.append('<div class="netwrap">')
     p.append(network_svg(rel, open_counts))
@@ -752,8 +914,10 @@ def build_html(issues, pending, commits, claims, states, summary):
              "全敷地に及ぶ課題は「共通」から各敷地へ辺が伸びる。%s</div>"
              % (("全敷地共通(敷地を特定しない)課題 %d件。" % rel["general"]) if rel["general"] else ""))
     p.append("</div>")
+    p.append("</div>")  # panel sites
 
-    # ── 最近の動き
+    # ── 従タブ: 最近の動き
+    p.append('<div class="panel" data-panel="feed" hidden>')
     p.append("<h2>最近の動き(全ブランチ)</h2><div class='scroll'><table class='feed'>")
     for c in commits[:20]:
         p.append('<tr><td class="t">%s</td><td class="e">%s</td>'
@@ -761,12 +925,14 @@ def build_html(issues, pending, commits, claims, states, summary):
                  % (esc(ago(c["t"])), esc(SITES.get(c["estate"], "—")),
                     esc(c["h"]), esc(c["s"])))
     p.append("</table></div>")
+    p.append("</div>")  # panel feed
 
     p.append("<footer>Tools/Session/build_board_html.py が生成。正典: "
              ".git/edo-board(issue)/ docs/Sashizu/*_sashizu.json(_pending)/ "
              "docs/Sashizu/README.md(状態)。作法: docs/session-board.md<br>"
-             "フィルタ(敷地・種別・完了表示・検索)はこのページ内だけで完結する — "
-             "サーバや保存は無く、再読込すると全表示に戻る。</footer>")
+             "タスク一覧は全敷地を1枚に出し、フィルタで絞る。敷地別は「その見方をしたいとき」の別タブ。<br>"
+             "フィルタと並べ替えはこのページ内だけで完結する(サーバも保存も無い)。"
+             "開いていたタブだけは次に開いたときも復元する。</footer>")
     p.append("</div>")
     p.append("<script>%s</script>" % JS)
     return "\n".join(p)

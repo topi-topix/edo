@@ -184,12 +184,13 @@ def design_surface(np, d, cur, pre, ins, dist, floor, keep_out, coping, step, PX
     w = d["works"]
     band = (~ins) & (dist <= w["outerWidth"]) & (~keep_out)
     t = np.clip((dist - w["featherFrom"]) / (w["outerWidth"] - w["featherFrom"]), 0, 1)
-    des = np.where(band, pre * (1 - t) + cur * t, cur)     # ②③
+    # ② 岸は**最寄りの石垣の天端 − bankBelowCoping**(2026-08-30 ユーザー裁定A・EDO-0064)。
+    #    ⛔ 汀線から faceToPivot(躯体の厚み)までは石垣そのものが占める帯なので触らず、種地のまま。
+    tw = d["ishigaki"].get("faceToPivot", 4.80)
+    bank = coping - w.get("bankBelowCoping", 0.20)
+    base = np.where(dist >= tw, bank, pre)                  # ②
+    des = np.where(band, base * (1 - t) + cur * t, cur)     # ②③
     des = np.where(ins, floor, des)                         # ①
-    bf = w.get("bankFill")
-    if bf:                                                  # ②' 附則(石垣のすぐ背後の土居の天端を保つ)
-        sel = band & (dist >= bf["beyond"]) & (pre <= bf["srcAtOrBelow"])
-        des = np.where(sel, coping - bf["belowCoping"], des)
     fea = band & (dist > w["featherFrom"])                  # ④ 摺り付け帯だけ 45°
     for _ in range(80):
         lim = np.minimum(np.minimum(np.roll(des, 1, 0), np.roll(des, -1, 0)),
@@ -273,7 +274,7 @@ def main():
         r = q["rect"]
         ko |= (PX >= r[0]) & (PX <= r[1]) & (PZ >= r[2]) & (PZ <= r[3])
     ko &= ~ins
-    # 最寄りの石垣の天端の場(掘る水面の run だけ。附則 bankFill が読む)
+    # 最寄りの石垣の天端の場(掘る水面の run だけ。規則②が読む)
     COP = np.full(PX.shape, 0.0)
     bdd = np.full(PX.shape, 1e9)
     for r in d["ishigaki"]["runs"]:
@@ -295,7 +296,8 @@ def main():
     vol_cut = float(np.clip(-dz, 0, None).sum() * cell)
     vol_fill = float(np.clip(dz, 0, None).sum() * cell)
 
-    # ⚠ 規則②は汀線の外へ種地を戻すので、**掘る水面でも汀線の外に水面下の床が残る**。
+    # ⚠ 汀線の外に水面下の床が残るか。⭐ 裁定A(②が天端基準)以降、残りうるのは
+    #    汀線から faceToPivot まで(=石垣の躯体の下)だけになる。
     #    checks.overshoot が「面積を記録する」と宣言していたのに測っていなかった(2026-08-28 検図 高-7)。
     wy0 = [b["waterY"] for b in bodies if b.get("works")][0]
     ovs = band & (des < wy0 - 0.1)

@@ -511,8 +511,11 @@ def rule_svg(d, W=1180.0):
     X = lambda t: x0 + (t + span) / (2 * span) * xw
     Y = lambda v: y0 - v * ys
     fl = [b["floor"] for b in d["water"] if b.get("works")][0]
+    tw = d["ishigaki"].get("faceToPivot", 4.80)
     zones = [(-span, 0, "① 汀線の内側(堀) ── 床 %.2f 一律" % fl, "#BBD3DF"),
-             (0, w["featherFrom"], "② 0–%.0fm ── 種地をそのまま戻す" % w["featherFrom"], "var(--cut1)"),
+             (0, tw, "躯体 0–%.2fm ── 石垣そのもの(触らない)" % tw, "var(--paper2)"),
+             (tw, w["featherFrom"], "② %.2f–%.0fm ── 天端 − %.2f まで盛る"
+              % (tw, w["featherFrom"], w.get("bankBelowCoping", 0.2)), "var(--fill1)"),
              (w["featherFrom"], w["outerWidth"], "③ %.0f–%.0fm ── 摺り付け(④で45°頭打ち)"
               % (w["featherFrom"], w["outerWidth"]), "var(--fill1)"),
              (w["outerWidth"], span, "⑤ 工区の外 ── 触らない", "var(--paper2)")]
@@ -531,7 +534,8 @@ def rule_svg(d, W=1180.0):
               if byid_works(d, r) and "郭外" in r["side"]), key=lambda r: r["n"])
     cop = r0["copingFrom"]
     ofs = d["ishigaki"].get("faceToPivot", 4.80)   # 汀線(見え面)から躯体の裏面まで
-    seg = [(-span, fl), (0, fl), (1.5, fl), (ofs + 0.1, cop), (10, cop + 0.1),
+    bk = cop - d["works"].get("bankBelowCoping", 0.2)
+    seg = [(-span, fl), (0, fl), (ofs, fl), (ofs, bk), (10, bk),
            (14, cop - 0.4), (span, cop - 0.6)]
     h.append('<polyline points="%s" fill="none" stroke="var(--ink)" stroke-width="2.2"/>'
              % " ".join("%.1f,%.1f" % (X(t), Y(v)) for t, v in seg))
@@ -549,7 +553,9 @@ def rule_svg(d, W=1180.0):
     h.append('<text class="big" x="%.1f" y="20">工区と摺り付けの規則(模式・郭外側の片側だけ)</text>' % x0)
     h.append('<text class="sl" x="%.1f" y="%.1f">── 設計面　┄ 現況</text>' % (x0, y0 + 22))
     h.append('<text class="sl" x="%.1f" y="%.1f">⛔ 45°の頭打ちは③の帯だけ。'
-             '堀の壁は総石垣なので垂直のまま残す</text>' % (x0, y0 + 38))
+             '堀の壁は総石垣なので垂直のまま残す　⭐ ②は最寄りの天端 − %.2f m'
+             '(2026-08-30 ユーザー裁定A)</text>'
+             % (x0, y0 + 38, d["works"].get("bankBelowCoping", 0.2)))
     h.append(ENDSVG)
     return "\n".join(h)
 

@@ -131,11 +131,15 @@ def cross_width(pt, nrm, ne):
 
 
 def side_offset(d, body, side):
-    """その水面のその側の石垣が、汀線からどれだけ外に据わっているか[m]。長い run を採る。"""
+    """汀線(=石垣の見え面)から run 線(ピボット線)までの距離[m]。石垣の躯体の厚みに等しい。
+
+    ⭐ 2026-08-30 に 00002/00003 も face 基準へ揃えたので、全 run で ishigaki.faceToPivot で一定。
+    """
+    t = d["ishigaki"].get("faceToPivot", 4.80)
     rs = [r for r in d["ishigaki"]["runs"] if r.get("body") == body and side in r["side"]]
     if not rs:
-        return 4.81
-    return max(rs, key=lambda r: r["n"]).get("offset", 4.81)
+        return t
+    return max(rs, key=lambda r: r["n"]).get("offset", t)
 
 
 def coping_at(d, x, z, side, body=None):
@@ -563,6 +567,15 @@ def main():
     if args.check:
         return
     write_dem(DEM_OUT, head, layers, 1)
+    # ⭐ 生成器が計算できず**手で記録した実測**は、再生成で消さずに引き継ぐ(U8 の検算など)。
+    if os.path.exists(TER_OUT):
+        try:
+            old = json.load(open(TER_OUT, encoding="utf-8"))
+            for k in ("liveCheck2026_0830",):
+                if k in old:
+                    ter[k] = old[k]
+        except Exception as e:
+            print("⚠ 既存 %s の手記録を引き継げなかった: %s" % (os.path.basename(TER_OUT), e))
     json.dump(ter, open(TER_OUT, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     for p in (DEM_OUT, TER_OUT):
         print("書いた %s (%.0f KB)" % (os.path.relpath(p, ROOT), os.path.getsize(p) / 1024))

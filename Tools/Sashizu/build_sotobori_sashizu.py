@@ -454,13 +454,14 @@ def section_svg(d, s, W=1180.0):
              'stroke-dasharray="4 3"/>' % " ".join("%.1f,%.1f" % q for q in cur))
     h.append('<polyline points="%s" fill="none" stroke="var(--ink)" stroke-width="1.9"/>'
              % " ".join("%.1f,%.1f" % q for q in des))
-    for t, cp, lab in ((-s["offsetSW"], s["copingSW"], "郭外 石垣"),
-                       (s["width"] + s["offsetNE"], s["copingNE"], "郭内 石垣")):
+    # ⭐ 汀線 = 石垣の見え面。躯体はそこから陸側へ ishigaki.faceToPivot(=4.80m)ぶん厚い。
+    for ta, tb, cp, lab in ((-s["offsetSW"], 0.0, s["copingSW"], "郭外 石垣"),
+                            (s["width"], s["width"] + s["offsetNE"], s["copingNE"], "郭内 石垣")):
         if cp is None:
             continue
-        h.append('<path d="M%.1f,%.1f V%.1f" stroke="var(--ishi)" stroke-width="2.6" opacity="0.85"/>'
-                 % (X(t), Y(cp), Y(fl)))
-        h.append('<text class="anS2" x="%.1f" y="%.1f">%s 天端 %.2f</text>' % (X(t), Y(cp) - 7, lab, cp))
+        h.append(R(X(min(ta, tb)), Y(cp), abs(X(tb) - X(ta)), Y(fl) - Y(cp),
+                   fill="var(--ishi)", op=0.75))
+        h.append('<text class="anS2" x="%.1f" y="%.1f">%s 天端 %.2f</text>' % (X(ta), Y(cp) - 7, lab, cp))
     for t, lab in ((0, "汀線"), (s["width"], "汀線")):
         h.append('<path d="M%.1f,%.1f V%.1f" stroke="#3F6F86" stroke-width="0.8" '
                  'stroke-dasharray="2 3"/>' % (X(t), Y(lo), Y(hi)))
@@ -518,7 +519,8 @@ def rule_svg(d, W=1180.0):
     h.append('<text class="an2b" x="%.1f" y="%.1f">水面 %.2f</text>' % (X(-span) + 6, Y(wy) - 6, wy))
     r0 = max((r for r in d["ishigaki"]["runs"]
               if byid_works(d, r) and "郭外" in r["side"]), key=lambda r: r["n"])
-    cop, ofs = r0["copingFrom"], r0["offset"]
+    cop = r0["copingFrom"]
+    ofs = d["ishigaki"].get("faceToPivot", 4.80)   # 汀線(見え面)から躯体の裏面まで
     seg = [(-span, fl), (0, fl), (1.5, fl), (ofs + 0.1, cop), (10, cop + 0.1),
            (14, cop - 0.4), (span, cop - 0.6)]
     h.append('<polyline points="%s" fill="none" stroke="var(--ink)" stroke-width="2.2"/>'
@@ -528,9 +530,8 @@ def rule_svg(d, W=1180.0):
              % " ".join("%.1f,%.1f" % (X(t), Y(v)) for t, v in
                         [(-span, cop - 0.5), (0, cop - 0.5), (10, cop - 0.6),
                          (14, cop - 0.4), (span, cop - 0.6)]))
-    h.append('<path d="M%.1f,%.1f V%.1f" stroke="var(--ishi)" stroke-width="3" opacity="0.9"/>'
-             % (X(ofs), Y(cop), Y(fl)))
-    h.append('<text class="anS2" x="%.1f" y="%.1f">石垣(汀線の外 %.2f m・天端 %.2f)</text>'
+    h.append(R(X(0), Y(cop), X(ofs) - X(0), Y(fl) - Y(cop), fill="var(--ishi)", op=0.8))
+    h.append('<text class="anS2" x="%.1f" y="%.1f">石垣(見え面=汀線・躯体の厚み %.2f m・天端 %.2f)</text>'
              % (X(ofs) + 6, Y(cop) - 8, ofs, cop))
     for t in (0, w["outerWidth"]):
         h.append('<path d="M%.1f,%.1f V%.1f" stroke="#7A2E1E" stroke-width="1" '

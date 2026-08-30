@@ -36,6 +36,40 @@ def now():
     return time.time()
 
 
+# ────────────────────────────── 一件一葉(docs/reporting-protocol.md・規則8)
+#   ⛔ 1件の issue に複数の裁定を詰めない。
+#   EDO-0057 は「其の一=隅部材」「其の二=門の切り欠き」で起票され、両方に裁定が下りた後に
+#   さらに「天端の段」が湧いて、1件に3つの裁定が積み上がった。片方だけ答えても status が
+#   動かせず、巡回のたびに「未裁定が残っている」ようにしか見えない。
+_PACK_PATTERNS = (
+    (r"其の?[一二三四五六七八九十]", "「其の一/其の二」で数えている"),
+    (r"[①②③④⑤]\s*\S+.*[②③④⑤]", "丸数字で数えている"),
+    (r"\(1\).*\(2\)", "(1)(2) で数えている"),
+)
+
+
+def check_one_issue_one_ask(a):
+    """複数の裁定の詰め込みを弾く。戻り値: 理由(str) or None"""
+    body = " ".join([a.title or "", a.background or "", a.msg or ""] + list(a.options or []))
+    for pat, why in _PACK_PATTERNS:
+        if len(re.findall(pat, body)) >= 2:
+            return why
+    # 表題が2つの話題を「+」で束ねている(例: 「隅部材が建っていない + 門の切り欠きの扱い」)
+    if re.search(r"\S\s*[+＋]\s*\S", a.title or ""):
+        return "表題が「+」で2つの話題を束ねている"
+    return None
+
+
+def check_options(opts):
+    """選択肢が A/B/C の記号付きで2つ以上あるか。戻り値: 理由(str) or None"""
+    if len(opts) < 2:
+        return "選択肢が %d 個しかない(2つ以上)" % len(opts)
+    bad = [o for o in opts if not re.match(r"\s*[A-Z]\s*[:：]", o)]
+    if bad:
+        return "記号が無い選択肢がある(先頭を 'A: ' 'B: ' にする): %r" % bad[0][:40]
+    return None
+
+
 def path_of(iid):
     return os.path.join(BOARD, "%s.json" % iid)
 
@@ -82,12 +116,29 @@ def fmt_line(c):
 def cmd_post(a):
     me = sid(a.session)
     if a.type == "decision":
-        missing = [k for k in ("background", "options", "recommend", "impact", "where")
+        missing = [k for k in ("background", "options", "recommend", "impact", "where", "zu")
                    if not getattr(a, k)]
         if missing:
             print("⛔ decision は裁定のテンプレが必須: --%s が無い。\n"
                   "   ユーザーが判断できる形(背景/選択肢/推奨/影響/どこ)でしか裁定は仰げない。"
                   % " --".join(missing), file=sys.stderr)
+            return 1
+        why = check_options(a.options)
+        if why:
+            print("⛔ 選択肢は A/B/C の記号付きで2つ以上: %s\n"
+                  "   例: --options 'A: 深い石垣で受ける(造成小)' 'B: 平場を北へ補う(造成大)'\n"
+                  "   ⭐ 狙いは「1=A」の一言で返せる形。正典: docs/reporting-protocol.md 規則6"
+                  % why, file=sys.stderr)
+            return 1
+    if a.type in ("decision", "blocker"):
+        why = check_one_issue_one_ask(a)
+        if why:
+            print("⛔ 一件一葉 — 1件に複数の裁定を詰めない(%s)。\n"
+                  "   独立に答えられる事柄は別の issue に分けて起票する。\n"
+                  "   詰めると片方だけ裁定が下りたとき status を動かせず、巡回のたびに\n"
+                  "   「未裁定が残っている」ようにしか見えない(実例 EDO-0057 は3つ積み上がった)。\n"
+                  "   正典: docs/reporting-protocol.md 規則8\n"
+                  "   (図版番号を並べただけなら --where / --zu へ移す)" % why, file=sys.stderr)
             return 1
     # ⛔ **どこの話か分からない裁定・ブロッカーは立てられない。**
     #   2026-08-29 にユーザーから「どこのことを指してるのか分からない」と差し戻された。
@@ -228,6 +279,10 @@ def main():
     p.add_argument("--where", default="",
                    help="decision/blocker 必須: **どこ**の話か。図版番号(其◯)・辺と s・"
                         "グリッド(u,v)・世界座標・隣接物のうち、相手が図の上で指させるものを最低1つ")
+    p.add_argument("--zu", default="",
+                   help="decision 必須: **裁定図**。図版番号(其◯)か描いた図のパス。"
+                        "各案を同じ縮尺で並べた図と、案ごとに動く数値を添えること"
+                        "(2026-08-30 ユーザー指示。名前と数字の羅列で選ばせない)")
     p.set_defaults(fn=cmd_post)
     p = sub.add_parser("note", help="log へ1行追記(--status で状態遷移も)")
     p.add_argument("id"); p.add_argument("msg")

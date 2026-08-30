@@ -73,7 +73,7 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <p class="eyebrow">溜池の堰(どんどん)の下 〜 幸橋方向 / Sotobori_00001・00002・00003 ／ EDO-0039 / EDO-0040 ／ 基準年次 安政3年(1856)</p>
 <h1>溜池堰下流 外堀 掘り直し指図</h1>
 <p class="lede">2026-08-22 の造成リセットが、虎ノ門土橋の東の外堀を<b>掘削もろとも現代の地面へ戻していた</b>。水面のメッシュは張られたままなので、いまは乾いた地面の中に水の板が沈み、両岸の総石垣も土に埋まっている。これは<b>溜池の堰(どんどん)から下流ひと続き</b>を対象とした掘り直しの指図である。<b>新設ではなく復旧</b>で、堀の形・水位・石垣・橋はすでに考証を通って実装されており、この指図はそれを動かさない。<b>数値の正典は <code>sotobori_sashizu.json</code>、文章の正典は <code>sotobori_kosho.md</code>、実測は <code>sotobori_terrain.json</code>。</b>この頁はその三つから組んだもので、実装は読んでいない。</p>
-<div class="box"><p><b>三つの水面で扱いが違う</b> ── 08-22 のリセットが「水色の囲い」の内か外かで生死が分かれた。<b>00001</b>(堰〜虎ノ門)は囲いの中で無傷 ── 水面より下 <b>89.8%</b>・リセット直前と一致 <b>100.0%</b> なので<b>調査のみ</b>。囲いの外の <b>00002 / 00003</b>(土橋の東)は掘削が丸ごと戻り、水面より下はそれぞれ <b>1.1% / 0.1%</b> しか残っていない ── こちらが<b>掘り直しの対象</b>で、両岸の石垣 <b>681 個</b>が土に埋まっている。水面は張ったまま地面が水面より上に出ているので、土橋の東の堀は『乾いた溝の底に水の板が沈んでいる』状態で、両岸の石垣も土に埋まっている。</p></div>
+<div class="box"><p><b>三つの水面で扱いが違う</b> ── 08-22 のリセットが「水色の囲い」の内か外かで生死が分かれた。<b>00001</b>(堰〜虎ノ門)は囲いの中で無傷 ── 水面より下 <b>95.0%</b>・リセット直前と一致 <b>100.0%</b> なので<b>調査のみ</b>。囲いの外の <b>00002 / 00003</b>(土橋の東)は掘削が丸ごと戻り、水面より下はそれぞれ <b>1.1% / 0.1%</b> しか残っていない ── こちらが<b>掘り直しの対象</b>で、両岸の石垣 <b>681 個</b>が土に埋まっている。水面は張ったまま地面が水面より上に出ているので、土橋の東の堀は『乾いた溝の底に水の板が沈んでいる』状態で、両岸の石垣も土に埋まっている。</p></div>
 <div class="plate"><div class="phead"><h2>其一　位置と水系</h2><span class="meta">溜池 → 堰 → 虎ノ門 → 幸橋</span></div>
 <div class="fig"><svg viewBox="0 0 1180 250" role="img" aria-label="水系の段階">
 <defs><pattern id="pi1" width="9" height="9" patternUnits="userSpaceOnUse"><path d="M0,4.5 h9 M4.5,0 v9" stroke="var(--ishi)" stroke-width="0.8" opacity="0.6"/></pattern><pattern id="wv1" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M0,7 q2.5,-3 5,0 t5,0" stroke="#4E7E95" stroke-width="0.8" fill="none" opacity="0.55"/></pattern><clipPath id="cl1"><rect x="0" y="0" width="1180" height="250"/></clipPath></defs>
@@ -180,7 +180,7 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <p class="cap">平面。<b>青=水面 / 灰=石垣の run / 赤の破線=工区の境</b>。堀は虎ノ門土橋の東から東南東へ下り、幸橋方向で切れる。</p>
 </div>
 <div class="plate"><div class="phead"><h2>其二　現況調査</h2><span class="meta">三つの水面を同じ物差しで測る</span></div>
-<div class="tw"><table><thead><tr><th>水面</th><th>面積</th><th>水位</th><th>床</th><th>水面より下</th><th>扱い</th></tr></thead><tbody><tr><td>Sotobori_00001</td><td>1.03 ha</td><td>3.50</td><td>2.00 — 床±0.2m に 85.3%</td><td>89.8%</td><td class='note' style='text-align:left'>調査のみ ── 08-22 リセット直前と一致 100.0%。水面より上 0.106 ha (最大 +3.79 m・汀線から最大 8.0 m 内側)： 堰の頭(溜池落口・中島) 212 m²(水面+1m超 136)／堀の本体 652 m²(水面+1m超 632)／虎ノ門土橋 192 m²(水面+1m超 172)</td></tr><tr><td>Sotobori_00002</td><td>0.63 ha</td><td>1.80</td><td>0.30(設計)</td><td>1.1% → <b>100.0%</b></td><td class='note' style='text-align:left'>全面 掘り直し</td></tr><tr><td>Sotobori_00003</td><td>1.81 ha</td><td>1.80</td><td>0.30(設計)</td><td>0.1% → <b>100.0%</b></td><td class='note' style='text-align:left'>全面 掘り直し</td></tr></tbody></table></div>
+<div class="tw"><table><thead><tr><th>水面</th><th>面積</th><th>水位</th><th>床</th><th>水面より下</th><th>扱い</th></tr></thead><tbody><tr><td>Sotobori_00001</td><td>0.96 ha</td><td>3.50</td><td>2.00 — 床±0.2m に 90.3%</td><td>95.0%</td><td class='note' style='text-align:left'>調査のみ ── 08-22 リセット直前と一致 100.0%。水面より上 0.048 ha (最大 +3.79 m・汀線から最大 8.0 m 内側)： 堰の頭(溜池落口・中島) 168 m²(水面+1m超 96)／堀の本体 116 m²(水面+1m超 96)／虎ノ門土橋 196 m²(水面+1m超 172)</td></tr><tr><td>Sotobori_00002</td><td>0.63 ha</td><td>1.80</td><td>0.30(設計)</td><td>1.1% → <b>100.0%</b></td><td class='note' style='text-align:left'>全面 掘り直し</td></tr><tr><td>Sotobori_00003</td><td>1.81 ha</td><td>1.80</td><td>0.30(設計)</td><td>0.1% → <b>100.0%</b></td><td class='note' style='text-align:left'>全面 掘り直し</td></tr></tbody></table></div>
 <p class="cap">⛔ <b>00001 は1セルも触らない。</b>現況が 08-22 リセット直前と完全に一致しており、水面より上に出ている所も<b>その9割が汀線から4m以内の縁</b>で、残りは堰の頭と虎ノ門土橋 ── どちらも構造物であって掘り残しではない。⚠ ただし数値は<b>溜池の掘り直し(2026-08-26)の直前</b>のスナップショットによる。堰の頭がその工事の帯に掛かっていないかは live terrain でしか測れない(未解決 U8)。</p>
 </div>
 <div class="plate"><div class="phead"><h2>其三　現況図</h2><span class="meta">段彩 + 等高線 1m ── 造成リセット後の地面</span></div>
@@ -28790,18 +28790,18 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <text class="anS" x="628.2" y="307.7">郭外(南西)</text>
 <path d="M1146.0,457.7 l0,-24" stroke="var(--dim)" stroke-width="1"/><text class="anS2" x="1146.0" y="451.7">北</text>
 <path d="M14,479.7 h109.2" stroke="var(--dim)" stroke-width="1.4"/><text class="sl" x="129.2" y="482.7">100 m</text>
-<path d="M230.1,191.8 L168.6,130.4" stroke="#7A2E1E" stroke-width="1.1" stroke-dasharray="5 3"/>
-<text class="sr" x="218.1" y="195.8">イ</text>
-<path d="M371.6,164.8 L406.4,79.0" stroke="#7A2E1E" stroke-width="1.1" stroke-dasharray="5 3"/>
-<text class="sr" x="359.6" y="168.8">ロ</text>
-<path d="M487.0,211.6 L521.4,126.7" stroke="#7A2E1E" stroke-width="1.1" stroke-dasharray="5 3"/>
-<text class="sr" x="475.0" y="215.6">ハ</text>
-<path d="M632.3,256.5 L665.6,173.8" stroke="#7A2E1E" stroke-width="1.1" stroke-dasharray="5 3"/>
-<text class="sr" x="620.3" y="260.5">ニ</text>
-<path d="M1018.4,411.9 L1052.1,328.1" stroke="#7A2E1E" stroke-width="1.1" stroke-dasharray="5 3"/>
-<text class="sr" x="1006.4" y="415.9">ホ</text>
-<path d="M1078.1,436.0 L1112.0,352.0" stroke="#7A2E1E" stroke-width="1.1" stroke-dasharray="5 3"/>
-<text class="sr" x="1066.1" y="440.0">ヘ</text>
+<path d="M230.0,187.9 L170.6,129.4" stroke="#7A2E1E" stroke-width="1.1" stroke-dasharray="5 3"/>
+<text class="sr" x="218.0" y="191.9">イ</text>
+<path d="M373.4,165.5 L408.2,79.7" stroke="#7A2E1E" stroke-width="1.1" stroke-dasharray="5 3"/>
+<text class="sr" x="361.4" y="169.5">ロ</text>
+<path d="M488.8,212.3 L523.2,127.4" stroke="#7A2E1E" stroke-width="1.1" stroke-dasharray="5 3"/>
+<text class="sr" x="476.8" y="216.3">ハ</text>
+<path d="M634.1,257.2 L667.4,174.5" stroke="#7A2E1E" stroke-width="1.1" stroke-dasharray="5 3"/>
+<text class="sr" x="622.1" y="261.2">ニ</text>
+<path d="M1020.1,412.7 L1053.9,328.8" stroke="#7A2E1E" stroke-width="1.1" stroke-dasharray="5 3"/>
+<text class="sr" x="1008.1" y="416.7">ホ</text>
+<path d="M1079.9,436.8 L1113.8,352.7" stroke="#7A2E1E" stroke-width="1.1" stroke-dasharray="5 3"/>
+<text class="sr" x="1067.9" y="440.8">ヘ</text>
 </g></svg></div>
 <div class="legend"><span><span style="display:inline-block;width:15px;height:11px;background:#2E6E8E;border:1px solid var(--rule);margin-right:4px;vertical-align:-1px"></span>〜1 m</span><span><span style="display:inline-block;width:15px;height:11px;background:#3A8398;border:1px solid var(--rule);margin-right:4px;vertical-align:-1px"></span>1–2 m</span><span><span style="display:inline-block;width:15px;height:11px;background:#4E9A9B;border:1px solid var(--rule);margin-right:4px;vertical-align:-1px"></span>2–3 m</span><span><span style="display:inline-block;width:15px;height:11px;background:#6BAC90;border:1px solid var(--rule);margin-right:4px;vertical-align:-1px"></span>3–4 m</span><span><span style="display:inline-block;width:15px;height:11px;background:#8ABC84;border:1px solid var(--rule);margin-right:4px;vertical-align:-1px"></span>4–5 m</span><span><span style="display:inline-block;width:15px;height:11px;background:#A9C87C;border:1px solid var(--rule);margin-right:4px;vertical-align:-1px"></span>5–6 m</span><span><span style="display:inline-block;width:15px;height:11px;background:#C6D07A;border:1px solid var(--rule);margin-right:4px;vertical-align:-1px"></span>6–7 m</span><span><span style="display:inline-block;width:15px;height:11px;background:#DCC776;border:1px solid var(--rule);margin-right:4px;vertical-align:-1px"></span>7 m〜</span><span>── 等高線 1m(太線 5m)</span><span style="color:#7A2E1E">┄ 横断の切り位置</span></div>
 <p class="cap"><b>土橋の東(00002・00003)は汀線の内側がほぼ全面、水面 1.80 より上の陸になっている</b>のが読み取れる。上流の 00001(破線の汀線)は掘れたままで、段彩がそこだけ寒色に沈む。段彩のランプはこの低地用に 0〜8m で別に持つ(屋敷の指図の 10m 起点のランプでは全部同じ色になる)。赤の一点鎖線は横断の切り位置。</p>
@@ -31850,9 +31850,9 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 </g></svg></div>
 <div class="legend"><span><span style="display:inline-block;width:14px;height:11px;background:var(--fill4);border:1px solid var(--rule);margin-right:5px;vertical-align:-1px"></span>盛土 3m超</span><span><span style="display:inline-block;width:14px;height:11px;background:var(--fill3);border:1px solid var(--rule);margin-right:5px;vertical-align:-1px"></span>2〜3m</span><span><span style="display:inline-block;width:14px;height:11px;background:var(--fill2);border:1px solid var(--rule);margin-right:5px;vertical-align:-1px"></span>1〜2m</span><span><span style="display:inline-block;width:14px;height:11px;background:var(--fill1);border:1px solid var(--rule);margin-right:5px;vertical-align:-1px"></span>0.3〜1m</span><span><span style="display:inline-block;width:14px;height:11px;background:var(--nomove);border:1px solid var(--rule);margin-right:5px;vertical-align:-1px"></span>±0.3m(動かさない)</span><span><span style="display:inline-block;width:14px;height:11px;background:var(--cut1);border:1px solid var(--rule);margin-right:5px;vertical-align:-1px"></span>切土 0.3〜1m</span><span><span style="display:inline-block;width:14px;height:11px;background:var(--cut2);border:1px solid var(--rule);margin-right:5px;vertical-align:-1px"></span>1〜2m</span><span><span style="display:inline-block;width:14px;height:11px;background:var(--cut3);border:1px solid var(--rule);margin-right:5px;vertical-align:-1px"></span>2〜3m</span><span><span style="display:inline-block;width:14px;height:11px;background:var(--cut4);border:1px solid var(--rule);margin-right:5px;vertical-align:-1px"></span>3m超</span><span style="color:var(--paper2)">■ 造成しない斜面(素地)</span></div>
 <p class="cap">工区(掘る水面の汀線 + 14 m)の中だけを塗った。<b>その外は1セルも触らない。</b>朱の破線の矩形は<b>凍結域 K1</b>(虎ノ門枡形と土橋の足元)で、帯がここを覆うと生き残っている造成を最大 5.68 m 掘り落とすため、帯から外してある。⛔ <b>掘り直しの西端は土橋の東面。</b></p>
-<div class="tw"><table><thead><tr><th>諸元</th><th>値</th></tr></thead><tbody><tr><td class='note' style='text-align:left'>距離程(郭外の汀線に沿う。0 = 堰の直下)</td><td>1035.5 m</td></tr><tr><td class='note' style='text-align:left'>掘り直す水面(00002 + 00003)</td><td>2.44 ha</td></tr><tr><td class='note' style='text-align:left'>工区(その汀線 + 14 m)</td><td>4.68 ha</td></tr><tr><td class='note' style='text-align:left'>掘削</td><td>118,301 m³(最大 6.71 m)</td></tr><tr><td class='note' style='text-align:left'>盛土</td><td>18,970 m³(最大 3.94 m)</td></tr><tr><td class='note' style='text-align:left'>差引(場外へ出る土)</td><td>99,331 m³</td></tr><tr><td class='note' style='text-align:left'>工区の外へ出た変更セル</td><td>0</td></tr><tr><td class='note' style='text-align:left'>凍結域(帯から外した所)</td><td>2.17 ha ／ 動いたセル 0</td></tr><tr><td class='note' style='text-align:left'>距離程の隙間 — 虎ノ門土橋(堰堤)</td><td>42.3 m(距離程 209.9–252.2)</td></tr><tr><td class='note' style='text-align:left'>距離程の隙間 — 継ぎ目の岸(SW3a の据わる区間)</td><td>55.1 m(距離程 446.1–501.2)</td></tr></tbody></table></div>
+<div class="tw"><table><thead><tr><th>諸元</th><th>値</th></tr></thead><tbody><tr><td class='note' style='text-align:left'>距離程(郭外の汀線に沿う。0 = 堰の直下)</td><td>1034.7 m</td></tr><tr><td class='note' style='text-align:left'>掘り直す水面(00002 + 00003)</td><td>2.44 ha</td></tr><tr><td class='note' style='text-align:left'>工区(その汀線 + 14 m)</td><td>4.68 ha</td></tr><tr><td class='note' style='text-align:left'>掘削</td><td>118,323 m³(最大 6.71 m)</td></tr><tr><td class='note' style='text-align:left'>盛土</td><td>20,951 m³(最大 3.94 m)</td></tr><tr><td class='note' style='text-align:left'>差引(場外へ出る土)</td><td>97,372 m³</td></tr><tr><td class='note' style='text-align:left'>工区の外へ出た変更セル</td><td>0</td></tr><tr><td class='note' style='text-align:left'>凍結域(帯から外した所)</td><td>2.09 ha ／ 動いたセル 0</td></tr><tr><td class='note' style='text-align:left'>距離程の隙間 — 虎ノ門土橋(堰堤)</td><td>46.4 m(距離程 204.0–250.4)</td></tr><tr><td class='note' style='text-align:left'>距離程の隙間 — 継ぎ目の岸(SW3a の据わる区間)</td><td>54.7 m(距離程 444.8–499.5)</td></tr></tbody></table></div>
 </div>
-<div class="plate"><div class="phead"><h2>其五　縦断面</h2><span class="meta">距離程 1036 m ── 水位は一定・地盤は東へ下る</span></div>
+<div class="plate"><div class="phead"><h2>其五　縦断面</h2><span class="meta">距離程 1035 m ── 水位は一定・地盤は東へ下る</span></div>
 <div class="fig"><svg viewBox="0 0 1180 340" role="img" aria-label="縦断面">
 <defs><pattern id="pi5" width="9" height="9" patternUnits="userSpaceOnUse"><path d="M0,4.5 h9 M4.5,0 v9" stroke="var(--ishi)" stroke-width="0.8" opacity="0.6"/></pattern><pattern id="wv5" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M0,7 q2.5,-3 5,0 t5,0" stroke="#4E7E95" stroke-width="0.8" fill="none" opacity="0.55"/></pattern><clipPath id="cl5"><rect x="0" y="0" width="1180" height="340"/></clipPath></defs>
 <g clip-path="url(#cl5)">
@@ -31875,51 +31875,51 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <text class="sl" x="14" y="77.0">7 m</text>
 <path d="M52.0,284.0 V62.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.7"/>
 <text class="sl" x="52.0" y="299.0" style="text-anchor:middle">0</text>
-<path d="M158.6,284.0 V62.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.7"/>
-<text class="sl" x="158.6" y="299.0" style="text-anchor:middle">100</text>
-<path d="M265.2,284.0 V62.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.7"/>
-<text class="sl" x="265.2" y="299.0" style="text-anchor:middle">200</text>
-<path d="M371.8,284.0 V62.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.7"/>
-<text class="sl" x="371.8" y="299.0" style="text-anchor:middle">300</text>
-<path d="M478.5,284.0 V62.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.7"/>
-<text class="sl" x="478.5" y="299.0" style="text-anchor:middle">400</text>
-<path d="M585.1,284.0 V62.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.7"/>
-<text class="sl" x="585.1" y="299.0" style="text-anchor:middle">500</text>
-<path d="M691.7,284.0 V62.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.7"/>
-<text class="sl" x="691.7" y="299.0" style="text-anchor:middle">600</text>
-<path d="M798.3,284.0 V62.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.7"/>
-<text class="sl" x="798.3" y="299.0" style="text-anchor:middle">700</text>
-<path d="M904.9,284.0 V62.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.7"/>
-<text class="sl" x="904.9" y="299.0" style="text-anchor:middle">800</text>
-<path d="M1011.5,284.0 V62.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.7"/>
-<text class="sl" x="1011.5" y="299.0" style="text-anchor:middle">900</text>
-<path d="M1118.2,284.0 V62.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.7"/>
-<text class="sl" x="1118.2" y="299.0" style="text-anchor:middle">1000</text>
+<path d="M158.7,284.0 V62.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.7"/>
+<text class="sl" x="158.7" y="299.0" style="text-anchor:middle">100</text>
+<path d="M265.4,284.0 V62.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.7"/>
+<text class="sl" x="265.4" y="299.0" style="text-anchor:middle">200</text>
+<path d="M372.1,284.0 V62.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.7"/>
+<text class="sl" x="372.1" y="299.0" style="text-anchor:middle">300</text>
+<path d="M478.8,284.0 V62.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.7"/>
+<text class="sl" x="478.8" y="299.0" style="text-anchor:middle">400</text>
+<path d="M585.5,284.0 V62.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.7"/>
+<text class="sl" x="585.5" y="299.0" style="text-anchor:middle">500</text>
+<path d="M692.2,284.0 V62.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.7"/>
+<text class="sl" x="692.2" y="299.0" style="text-anchor:middle">600</text>
+<path d="M798.9,284.0 V62.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.7"/>
+<text class="sl" x="798.9" y="299.0" style="text-anchor:middle">700</text>
+<path d="M905.6,284.0 V62.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.7"/>
+<text class="sl" x="905.6" y="299.0" style="text-anchor:middle">800</text>
+<path d="M1012.3,284.0 V62.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.7"/>
+<text class="sl" x="1012.3" y="299.0" style="text-anchor:middle">900</text>
+<path d="M1119.0,284.0 V62.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.7"/>
+<text class="sl" x="1119.0" y="299.0" style="text-anchor:middle">1000</text>
 <text class="sl" x="604.0" y="316.0" style="text-anchor:middle">距離程 [m] ── 0 = 堰の直下(00001 の西端)</text>
-<rect x="52.0" y="179.0" width="268.9" height="45.0" fill="#BBD3DF" opacity="0.80"/>
-<path d="M52.0,179.0 H320.9" stroke="#3F6F86" stroke-width="1.8"/>
-<path d="M52.0,224.0 H320.9" stroke="var(--ink)" stroke-width="1.3" stroke-dasharray="5 3"/>
+<rect x="52.0" y="179.0" width="267.2" height="45.0" fill="#BBD3DF" opacity="0.80"/>
+<path d="M52.0,179.0 H319.2" stroke="#3F6F86" stroke-width="1.8"/>
+<path d="M52.0,224.0 H319.2" stroke="var(--ink)" stroke-width="1.3" stroke-dasharray="5 3"/>
 <text class="an2b" x="58.0" y="173.0">水面 3.50</text>
 <text class="sl" x="58.0" y="237.0">床 2.00</text>
-<text class="jo" x="186.4" y="42.0" style="text-anchor:middle">00001</text>
-<rect x="320.9" y="230.0" width="265.5" height="45.0" fill="#BBD3DF" opacity="0.80"/>
-<path d="M320.9,230.0 H586.4" stroke="#3F6F86" stroke-width="1.8"/>
-<path d="M320.9,275.0 H586.4" stroke="var(--ink)" stroke-width="1.3" stroke-dasharray="5 3"/>
-<text class="an2b" x="326.9" y="224.0">水面 1.80</text>
-<text class="sl" x="326.9" y="288.0">床 0.30</text>
-<text class="jo" x="453.6" y="42.0" style="text-anchor:middle">00002</text>
-<rect x="586.4" y="230.0" width="565.1" height="45.0" fill="#BBD3DF" opacity="0.80"/>
-<path d="M586.4,230.0 H1151.4" stroke="#3F6F86" stroke-width="1.8"/>
-<path d="M586.4,275.0 H1151.4" stroke="var(--ink)" stroke-width="1.3" stroke-dasharray="5 3"/>
-<text class="an2b" x="592.4" y="224.0">水面 1.80</text>
-<text class="sl" x="592.4" y="288.0">床 0.30</text>
-<text class="jo" x="868.9" y="42.0" style="text-anchor:middle">00003</text>
-<path d="M293.1,179.0 V230.0" stroke="var(--shu)" stroke-width="2.4"/>
-<text class="anG" x="293.1" y="170.0" style="text-anchor:middle">虎ノ門土橋の堰 天端 3.30 ／ 落差 1.70 m</text>
-<polyline points="52.0,80.3 62.7,80.0 73.3,81.8 84.0,80.6 94.6,80.6 105.3,77.3 116.0,77.3 126.6,76.7 137.3,76.7 148.0,79.1 158.6,81.2 169.3,79.1 179.9,78.5 190.6,77.9 201.3,77.3 211.9,75.2 222.6,76.7 233.2,78.5 243.9,80.0 254.6,80.9 265.2,82.1 320.9,86.9 331.5,77.9 342.2,77.0 352.9,78.5 363.5,80.0 374.2,84.8 384.9,86.9 395.5,89.9 406.2,95.3 416.8,98.6 427.5,99.5 438.2,103.7 448.8,104.9 459.5,105.5 470.1,105.2 480.8,106.1 491.5,107.0 502.1,112.7 512.8,121.4 523.5,123.2 586.4,124.7 597.0,128.6 607.7,135.5 618.3,140.3 629.0,144.2 639.7,147.2 650.3,146.9 661.0,151.1 671.6,150.5 682.3,149.0 693.0,147.2 703.6,150.8 714.3,151.7 725.0,149.9 735.6,149.0 746.3,152.6 756.9,151.7 767.6,155.6 778.3,158.9 788.9,158.6 799.6,162.8 810.2,158.9 820.9,156.2 831.6,155.0 842.2,157.7 852.9,160.1 863.6,164.9 874.2,174.8 884.9,180.5 895.5,179.3 906.2,185.3 916.9,183.5 927.5,184.4 938.2,181.7 948.8,191.3 959.5,194.6 970.2,193.4 980.8,189.8 991.5,188.6 1002.2,191.6 1012.8,188.9 1023.5,188.3 1034.1,186.2 1044.8,190.4 1055.5,190.7 1066.1,188.9 1076.8,179.0 1087.4,180.5 1098.1,178.1 1108.8,177.2 1119.4,173.9 1130.1,170.3 1140.8,166.7 1151.4,166.1" fill="none" stroke="var(--dim)" stroke-width="1.3" stroke-dasharray="3 3"/>
-<polyline points="52.0,224.0 62.7,224.0 73.3,224.0 84.0,217.4 94.6,135.5 105.3,133.1 116.0,150.5 126.6,154.1 137.3,155.9 148.0,148.7 158.6,151.4 169.3,149.0 179.9,191.9 190.6,139.1 201.3,197.3 211.9,206.3 222.6,204.2 233.2,224.0 243.9,143.9 254.6,118.7 265.2,133.4 320.9,86.0 331.5,87.5 342.2,87.5 352.9,102.2 363.5,98.6 374.2,99.5 384.9,103.4 395.5,104.0 406.2,105.2 416.8,109.7 427.5,106.4 438.2,98.6 448.8,101.0 459.5,102.5 470.1,115.1 480.8,116.0 491.5,114.2 502.1,115.4 512.8,116.6 523.5,117.8 586.4,129.2 597.0,130.7 607.7,134.6 618.3,135.8 629.0,138.2 639.7,138.8 650.3,140.6 661.0,141.5 671.6,145.4 682.3,145.7 693.0,140.3 703.6,138.2 714.3,142.1 725.0,148.1 735.6,149.0 746.3,144.8 756.9,151.4 767.6,155.0 778.3,152.9 788.9,152.3 799.6,152.0 810.2,151.4 820.9,150.2 831.6,153.8 842.2,161.3 852.9,169.7 863.6,175.7 874.2,183.2 884.9,186.2 895.5,186.5 906.2,197.3 916.9,192.5 927.5,192.2 938.2,194.6 948.8,203.9 959.5,202.7 970.2,198.2 980.8,197.6 991.5,198.8 1002.2,196.7 1012.8,198.8 1023.5,206.0 1034.1,201.2 1044.8,205.4 1055.5,206.9 1066.1,197.6 1076.8,193.4 1087.4,188.3 1098.1,185.0 1108.8,182.6 1119.4,178.4 1130.1,173.3 1140.8,163.7 1151.4,162.5" fill="none" stroke="var(--dim)" stroke-width="1.3"/>
-<polyline points="52.0,91.4 62.7,90.8 73.3,89.9 84.0,89.0 94.6,88.1 105.3,87.2 116.0,86.3 126.6,85.4 137.3,84.8 148.0,83.9 158.6,83.0 169.3,82.1 179.9,81.2 190.6,80.3 201.3,79.4 211.9,78.5 222.6,77.6 233.2,76.7 243.9,75.8 254.6,75.2 265.2,74.3 320.9,86.0 331.5,86.0 342.2,86.0 352.9,86.0 363.5,86.0 374.2,86.0 384.9,86.0 395.5,86.0 406.2,86.0 416.8,86.0 427.5,86.0 438.2,86.0 448.8,86.0 459.5,86.0 470.1,86.0 480.8,86.0 491.5,86.0 502.1,86.0 512.8,86.0 523.5,86.0 586.4,86.0 597.0,86.6 607.7,87.2 618.3,88.1 629.0,88.7 639.7,89.3 650.3,89.9 661.0,90.8 671.6,91.4 682.3,92.0 693.0,92.6 703.6,93.5 714.3,94.1 725.0,94.7 735.6,95.3 746.3,96.2 756.9,96.8 767.6,97.4 778.3,98.0 788.9,98.9 799.6,99.5 810.2,100.1 820.9,100.7 831.6,101.6 842.2,102.2 852.9,102.8 863.6,103.4 874.2,104.3 884.9,104.9 895.5,105.5 906.2,106.1 916.9,107.0 927.5,107.6 938.2,108.2 948.8,108.8 959.5,109.4 970.2,110.3 980.8,110.9 991.5,111.5 1002.2,112.1 1012.8,113.0 1023.5,113.6 1034.1,114.2 1044.8,114.8 1055.5,115.7 1066.1,116.3 1076.8,116.9 1087.4,117.5 1098.1,118.4 1108.8,119.0 1119.4,119.6 1130.1,120.2 1140.8,121.1 1151.4,121.7" fill="none" stroke="var(--ishi)" stroke-width="1.9" stroke-dasharray="6 3"/>
-<polyline points="52.0,29.6 62.7,29.6 73.3,29.6 84.0,29.6 94.6,29.6 105.3,29.6 116.0,29.6 126.6,29.6 137.3,29.6 148.0,29.6 158.6,29.6 169.3,29.6 179.9,29.6 190.6,29.6 201.3,29.6 211.9,29.6 222.6,29.6 233.2,29.6 243.9,29.6 254.6,29.6 265.2,29.6 320.9,80.0 331.5,80.0 342.2,80.0 352.9,80.0 363.5,80.0 374.2,80.0 384.9,80.0 395.5,80.0 406.2,80.0 416.8,80.0 427.5,80.0 438.2,80.0 448.8,80.0 459.5,80.0 470.1,80.0 480.8,80.0 491.5,80.0 502.1,80.0 512.8,80.0 523.5,80.0 586.4,81.5 597.0,82.1 607.7,83.0 618.3,83.6 629.0,84.2 639.7,85.1 650.3,85.7 661.0,86.3 671.6,87.2 682.3,87.8 693.0,88.4 703.6,89.3 714.3,89.9 725.0,90.5 735.6,91.4 746.3,92.0 756.9,92.6 767.6,93.5 778.3,94.1 788.9,94.7 799.6,95.6 810.2,96.2 820.9,96.8 831.6,97.7 842.2,98.3 852.9,98.9 863.6,99.8 874.2,100.4 884.9,101.0 895.5,101.9 906.2,102.5 916.9,103.1 927.5,104.0 938.2,104.6 948.8,105.2 959.5,106.1 970.2,106.7 980.8,107.3 991.5,108.2 1002.2,108.8 1012.8,109.4 1023.5,110.3 1034.1,110.9 1044.8,111.5 1055.5,112.4 1066.1,113.0 1076.8,113.6 1087.4,114.5 1098.1,115.1 1108.8,115.7 1119.4,116.6 1130.1,117.2 1140.8,117.8 1151.4,118.7" fill="none" stroke="var(--ishi)" stroke-width="1.9"/>
+<text class="jo" x="185.6" y="42.0" style="text-anchor:middle">00001</text>
+<rect x="319.2" y="230.0" width="265.8" height="45.0" fill="#BBD3DF" opacity="0.80"/>
+<path d="M319.2,230.0 H585.0" stroke="#3F6F86" stroke-width="1.8"/>
+<path d="M319.2,275.0 H585.0" stroke="var(--ink)" stroke-width="1.3" stroke-dasharray="5 3"/>
+<text class="an2b" x="325.2" y="224.0">水面 1.80</text>
+<text class="sl" x="325.2" y="288.0">床 0.30</text>
+<text class="jo" x="452.1" y="42.0" style="text-anchor:middle">00002</text>
+<rect x="585.0" y="230.0" width="565.5" height="45.0" fill="#BBD3DF" opacity="0.80"/>
+<path d="M585.0,230.0 H1150.5" stroke="#3F6F86" stroke-width="1.8"/>
+<path d="M585.0,275.0 H1150.5" stroke="var(--ink)" stroke-width="1.3" stroke-dasharray="5 3"/>
+<text class="an2b" x="591.0" y="224.0">水面 1.80</text>
+<text class="sl" x="591.0" y="288.0">床 0.30</text>
+<text class="jo" x="867.7" y="42.0" style="text-anchor:middle">00003</text>
+<path d="M292.3,179.0 V230.0" stroke="var(--shu)" stroke-width="2.4"/>
+<text class="anG" x="292.3" y="170.0" style="text-anchor:middle">虎ノ門土橋の堰 天端 3.30 ／ 落差 1.70 m</text>
+<polyline points="52.0,84.2 62.7,81.5 73.3,77.9 84.0,76.1 94.7,75.5 105.3,78.2 116.0,76.1 126.7,76.1 137.4,77.9 148.0,76.4 158.7,77.0 169.4,76.7 180.0,74.6 190.7,74.0 201.4,74.3 212.0,78.2 222.7,80.0 233.4,80.0 244.1,80.0 254.7,80.0 265.4,71.3 319.2,86.9 329.8,77.9 340.5,77.0 351.2,78.5 361.8,80.0 372.5,84.8 383.2,86.9 393.9,89.9 404.5,95.0 415.2,98.6 425.9,99.5 436.5,103.7 447.2,104.9 457.9,105.5 468.5,105.2 479.2,106.1 489.9,107.0 500.6,112.7 511.2,121.4 521.9,123.2 585.0,124.7 595.6,128.6 606.3,135.5 617.0,140.3 627.6,144.2 638.3,147.2 649.0,146.9 659.6,151.1 670.3,150.5 681.0,149.0 691.7,147.2 702.3,150.8 713.0,151.7 723.7,149.9 734.3,149.0 745.0,152.6 755.7,151.7 766.3,155.6 777.0,158.9 787.7,158.6 798.3,162.8 809.0,158.9 819.7,156.2 830.4,155.0 841.0,157.7 851.7,160.1 862.4,164.9 873.0,174.8 883.7,180.5 894.4,179.3 905.0,185.3 915.7,183.5 926.4,184.4 937.1,181.7 947.7,191.3 958.4,194.6 969.1,193.4 979.7,189.8 990.4,188.6 1001.1,191.6 1011.7,188.9 1022.4,188.3 1033.1,186.2 1043.8,190.4 1054.4,190.7 1065.1,188.9 1075.8,179.0 1086.4,180.5 1097.1,178.1 1107.8,177.2 1118.4,173.9 1129.1,170.3 1139.8,166.7 1150.5,166.1" fill="none" stroke="var(--dim)" stroke-width="1.3" stroke-dasharray="3 3"/>
+<polyline points="52.0,224.0 62.7,224.0 73.3,224.3 84.0,201.8 94.7,126.5 105.3,140.3 116.0,146.9 126.7,154.1 137.4,149.9 148.0,150.5 158.7,154.1 169.4,161.9 180.0,185.9 190.7,147.5 201.4,220.4 212.0,193.7 222.7,214.4 233.4,223.1 244.1,129.5 254.7,114.8 265.4,141.8 319.2,86.0 329.8,87.5 340.5,87.2 351.2,102.2 361.8,98.6 372.5,99.5 383.2,103.4 393.9,104.0 404.5,105.2 415.2,109.7 425.9,106.4 436.5,98.6 447.2,101.0 457.9,102.5 468.5,115.1 479.2,116.0 489.9,114.2 500.6,115.4 511.2,116.9 521.9,117.8 585.0,129.2 595.6,130.7 606.3,134.6 617.0,135.8 627.6,138.2 638.3,138.8 649.0,140.6 659.6,141.5 670.3,145.4 681.0,145.7 691.7,140.3 702.3,138.2 713.0,142.4 723.7,148.1 734.3,149.0 745.0,144.8 755.7,151.4 766.3,155.0 777.0,152.9 787.7,152.3 798.3,152.0 809.0,151.4 819.7,150.2 830.4,153.8 841.0,161.3 851.7,169.7 862.4,175.7 873.0,183.2 883.7,186.2 894.4,186.5 905.0,197.3 915.7,192.5 926.4,192.2 937.1,194.6 947.7,203.9 958.4,202.7 969.1,198.2 979.7,197.6 990.4,198.8 1001.1,196.7 1011.7,198.8 1022.4,206.0 1033.1,201.2 1043.8,205.4 1054.4,206.9 1065.1,197.6 1075.8,193.4 1086.4,188.3 1097.1,185.0 1107.8,182.6 1118.4,178.4 1129.1,173.3 1139.8,163.7 1150.5,162.5" fill="none" stroke="var(--dim)" stroke-width="1.3"/>
+<polyline points="52.0,89.9 62.7,89.0 73.3,88.4 84.0,87.5 94.7,86.6 105.3,86.0 116.0,85.1 126.7,84.2 137.4,83.3 148.0,82.7 158.7,81.8 169.4,80.9 180.0,80.3 190.7,79.4 201.4,78.5 212.0,77.9 222.7,77.0 233.4,76.1 244.1,75.2 254.7,74.6 265.4,73.7 319.2,86.0 329.8,86.0 340.5,86.0 351.2,86.0 361.8,86.0 372.5,86.0 383.2,86.0 393.9,86.0 404.5,86.0 415.2,86.0 425.9,86.0 436.5,86.0 447.2,86.0 457.9,86.0 468.5,86.0 479.2,86.0 489.9,86.0 500.6,86.0 511.2,86.0 521.9,86.0 585.0,86.0 595.6,86.6 606.3,87.2 617.0,88.1 627.6,88.7 638.3,89.3 649.0,89.9 659.6,90.8 670.3,91.4 681.0,92.0 691.7,92.6 702.3,93.5 713.0,94.1 723.7,94.7 734.3,95.3 745.0,96.2 755.7,96.8 766.3,97.4 777.0,98.0 787.7,98.9 798.3,99.5 809.0,100.1 819.7,100.7 830.4,101.6 841.0,102.2 851.7,102.8 862.4,103.4 873.0,104.3 883.7,104.9 894.4,105.5 905.0,106.1 915.7,107.0 926.4,107.6 937.1,108.2 947.7,108.8 958.4,109.4 969.1,110.3 979.7,110.9 990.4,111.5 1001.1,112.1 1011.7,113.0 1022.4,113.6 1033.1,114.2 1043.8,114.8 1054.4,115.7 1065.1,116.3 1075.8,116.9 1086.4,117.5 1097.1,118.4 1107.8,119.0 1118.4,119.6 1129.1,120.2 1139.8,121.1 1150.5,121.7" fill="none" stroke="var(--ishi)" stroke-width="1.9" stroke-dasharray="6 3"/>
+<polyline points="52.0,29.6 62.7,29.6 73.3,29.6 84.0,29.6 94.7,29.6 105.3,29.6 116.0,29.6 126.7,29.6 137.4,29.6 148.0,29.6 158.7,29.6 169.4,29.6 180.0,29.6 190.7,29.6 201.4,29.6 212.0,29.6 222.7,29.6 233.4,29.6 244.1,29.6 254.7,29.6 265.4,29.6 319.2,80.0 329.8,80.0 340.5,80.0 351.2,80.0 361.8,80.0 372.5,80.0 383.2,80.0 393.9,80.0 404.5,80.0 415.2,80.0 425.9,80.0 436.5,80.0 447.2,80.0 457.9,80.0 468.5,80.0 479.2,80.0 489.9,80.0 500.6,80.0 511.2,80.0 521.9,80.0 585.0,81.5 595.6,82.1 606.3,83.0 617.0,83.6 627.6,84.2 638.3,85.1 649.0,85.7 659.6,86.3 670.3,87.2 681.0,87.8 691.7,88.4 702.3,89.3 713.0,89.9 723.7,90.5 734.3,91.4 745.0,92.0 755.7,92.6 766.3,93.5 777.0,94.1 787.7,94.7 798.3,95.6 809.0,96.2 819.7,96.8 830.4,97.7 841.0,98.3 851.7,98.9 862.4,99.8 873.0,100.4 883.7,101.0 894.4,101.9 905.0,102.5 915.7,103.1 926.4,104.0 937.1,104.6 947.7,105.2 958.4,106.1 969.1,106.7 979.7,107.3 990.4,108.2 1001.1,108.8 1011.7,109.4 1022.4,110.3 1033.1,110.9 1043.8,111.5 1054.4,112.4 1065.1,113.0 1075.8,113.6 1086.4,114.5 1097.1,115.1 1107.8,115.7 1118.4,116.6 1129.1,117.2 1139.8,117.8 1150.5,118.7" fill="none" stroke="var(--ishi)" stroke-width="1.9"/>
 <path d="M1002.0,20.0 h22" stroke="var(--dim)" stroke-width="1.8" stroke-dasharray="3 3"/>
 <text class="sl" x="1028.0" y="23.0">現況 郭外</text>
 <path d="M1002.0,35.0 h22" stroke="var(--dim)" stroke-width="1.8"/>
@@ -31928,18 +31928,18 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <text class="sl" x="1028.0" y="53.0">石垣天端 郭外</text>
 <path d="M1002.0,65.0 h22" stroke="var(--ishi)" stroke-width="1.8"/>
 <text class="sl" x="1028.0" y="68.0">石垣天端 郭内</text>
-<path d="M169.3,284.0 V62.0" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="4 3"/>
-<text class="sr" x="169.3" y="57.0" style="text-anchor:middle">イ</text>
-<path d="M378.2,284.0 V62.0" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="4 3"/>
-<text class="sr" x="378.2" y="57.0" style="text-anchor:middle">ロ</text>
-<path d="M499.8,284.0 V62.0" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="4 3"/>
-<text class="sr" x="499.8" y="57.0" style="text-anchor:middle">ハ</text>
-<path d="M649.0,284.0 V62.0" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="4 3"/>
-<text class="sr" x="649.0" y="57.0" style="text-anchor:middle">ニ</text>
-<path d="M1055.2,284.0 V62.0" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="4 3"/>
-<text class="sr" x="1055.2" y="57.0" style="text-anchor:middle">ホ</text>
-<path d="M1118.2,284.0 V62.0" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="4 3"/>
-<text class="sr" x="1118.2" y="57.0" style="text-anchor:middle">ヘ</text>
+<path d="M169.4,284.0 V62.0" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="4 3"/>
+<text class="sr" x="169.4" y="57.0" style="text-anchor:middle">イ</text>
+<path d="M378.5,284.0 V62.0" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="4 3"/>
+<text class="sr" x="378.5" y="57.0" style="text-anchor:middle">ロ</text>
+<path d="M500.1,284.0 V62.0" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="4 3"/>
+<text class="sr" x="500.1" y="57.0" style="text-anchor:middle">ハ</text>
+<path d="M649.5,284.0 V62.0" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="4 3"/>
+<text class="sr" x="649.5" y="57.0" style="text-anchor:middle">ニ</text>
+<path d="M1056.0,284.0 V62.0" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="4 3"/>
+<text class="sr" x="1056.0" y="57.0" style="text-anchor:middle">ホ</text>
+<path d="M1119.0,284.0 V62.0" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="4 3"/>
+<text class="sr" x="1119.0" y="57.0" style="text-anchor:middle">ヘ</text>
 </g></svg></div>
 <p class="cap"><b>水位と床は全区間で一定</b>(段差は虎ノ門土橋の堰で作る)。現況の地盤は西の 6m 台から東の 3m 台まで下るので、<b>西では深く掘り、東では岸を盛る</b>。石垣の天端も東へ向かって下がる。</p>
 </div>
@@ -31948,54 +31948,53 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <defs><pattern id="pi6" width="9" height="9" patternUnits="userSpaceOnUse"><path d="M0,4.5 h9 M4.5,0 v9" stroke="var(--ishi)" stroke-width="0.8" opacity="0.6"/></pattern><pattern id="wv6" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M0,7 q2.5,-3 5,0 t5,0" stroke="#4E7E95" stroke-width="0.8" fill="none" opacity="0.55"/></pattern><clipPath id="cl6"><rect x="0" y="0" width="1180" height="300"/></clipPath></defs>
 <g clip-path="url(#cl6)">
 <rect x="0.0" y="0.0" width="1180.0" height="300.0" fill="var(--paper)"/>
-<path d="M50.0,258.7 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="261.7">1 m</text>
-<path d="M50.0,235.2 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="238.2">2 m</text>
-<path d="M50.0,211.7 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="214.7">3 m</text>
-<path d="M50.0,188.2 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="191.2">4 m</text>
-<path d="M50.0,164.7 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="167.7">5 m</text>
-<path d="M50.0,141.2 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="144.2">6 m</text>
-<path d="M50.0,117.7 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="120.7">7 m</text>
-<path d="M50.0,94.2 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="97.2">8 m</text>
-<path d="M50.0,70.7 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="73.7">9 m</text>
-<path d="M50.0,47.2 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="50.2">10 m</text>
-<path d="M50.0,23.7 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="26.7">11 m</text>
+<path d="M50.0,258.5 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="261.5">1 m</text>
+<path d="M50.0,235.8 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="238.8">2 m</text>
+<path d="M50.0,213.1 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="216.1">3 m</text>
+<path d="M50.0,190.4 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="193.4">4 m</text>
+<path d="M50.0,167.7 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="170.7">5 m</text>
+<path d="M50.0,145.0 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="148.0">6 m</text>
+<path d="M50.0,122.3 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="125.3">7 m</text>
+<path d="M50.0,99.6 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="102.6">8 m</text>
+<path d="M50.0,76.8 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="79.8">9 m</text>
+<path d="M50.0,54.1 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="57.1">10 m</text>
+<path d="M50.0,31.4 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="34.4">11 m</text>
 <path d="M56.0,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
-<path d="M132.8,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
-<path d="M209.5,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
-<path d="M286.3,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
-<path d="M363.0,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
-<path d="M439.8,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
-<path d="M516.6,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
-<path d="M593.3,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
-<path d="M670.1,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
-<path d="M746.8,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
-<path d="M823.6,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
-<path d="M900.4,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
-<path d="M977.1,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
-<path d="M1053.9,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
-<path d="M1130.6,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
-<rect x="393.7" y="199.9" width="422.8" height="35.3" fill="#BBD3DF" opacity="0.85"/>
-<path d="M393.7,199.9 H816.5" stroke="#3F6F86" stroke-width="1.6"/>
-<polyline points="56.0,111.8 71.4,113.0 86.7,114.6 102.1,116.0 117.4,117.7 132.8,119.1 148.1,120.3 163.5,121.4 178.8,121.9 194.2,122.1 209.5,122.1 224.9,122.1 240.2,122.1 255.6,121.7 270.9,121.0 286.3,120.3 301.6,119.6 317.0,118.9 332.3,117.7 347.7,114.2 363.0,115.3 378.4,121.2 393.7,122.4 409.1,122.4 424.5,139.8 439.8,197.8 455.2,230.3 470.5,235.2 485.9,235.2 501.2,235.2 516.6,235.2 531.9,235.2 547.3,235.2 562.6,235.2 578.0,235.2 593.3,235.2 608.7,235.2 624.0,235.2 639.4,235.2 654.7,235.2 670.1,235.2 685.4,235.2 700.8,235.2 716.1,235.2 731.5,235.2 746.8,235.2 762.2,235.2 777.5,235.2 792.9,235.2 808.3,235.2 823.6,235.2 839.0,235.2 854.3,235.2 869.7,235.2 885.0,234.7 900.4,231.0 915.7,216.9 931.1,194.8 946.4,168.4 961.8,145.9 977.1,125.0 992.5,108.7 1007.8,98.6 1023.2,90.6 1038.5,86.7 1053.9,83.1 1069.2,79.8 1084.6,77.7 1099.9,76.3 1115.3,75.6 1130.6,75.8 1146.0,76.8" fill="none" stroke="var(--dim)" stroke-width="1.1" stroke-dasharray="4 3"/>
-<polyline points="56.0,111.8 71.4,113.0 86.7,114.6 102.1,116.0 117.4,117.7 132.8,119.1 148.1,120.3 163.5,121.4 178.8,121.9 194.2,122.1 209.5,122.1 224.9,122.1 240.2,122.1 255.6,121.7 270.9,121.0 286.3,120.3 301.6,119.6 317.0,118.9 332.3,117.7 347.7,114.2 363.0,115.3 378.4,121.2 393.7,122.4 409.1,122.4 424.5,139.8 439.8,197.8 455.2,230.3 470.5,235.2 485.9,235.2 501.2,235.2 516.6,235.2 531.9,235.2 547.3,235.2 562.6,235.2 578.0,235.2 593.3,235.2 608.7,235.2 624.0,235.2 639.4,235.2 654.7,235.2 670.1,235.2 685.4,235.2 700.8,235.2 716.1,235.2 731.5,235.2 746.8,235.2 762.2,235.2 777.5,235.2 792.9,235.2 808.3,235.2 823.6,235.2 839.0,235.2 854.3,235.2 869.7,235.2 885.0,234.7 900.4,231.0 915.7,216.9 931.1,194.8 946.4,168.4 961.8,145.9 977.1,125.0 992.5,108.7 1007.8,98.6 1023.2,90.6 1038.5,86.7 1053.9,83.1 1069.2,79.8 1084.6,77.7 1099.9,76.3 1115.3,75.6 1130.6,75.8 1146.0,76.8" fill="none" stroke="var(--ink)" stroke-width="1.9"/>
-<rect x="320.1" y="124.0" width="73.7" height="111.2" fill="var(--ishi)" opacity="0.75"/>
-<text class="anS2" x="320.1" y="117.0">郭外 石垣 天端 6.73</text>
-<rect x="816.5" y="82.9" width="73.7" height="152.3" fill="var(--ishi)" opacity="0.75"/>
-<text class="anS2" x="816.5" y="75.9">郭内 石垣 天端 8.48</text>
-<path d="M393.7,254.0 V38.0" stroke="#3F6F86" stroke-width="0.8" stroke-dasharray="2 3"/>
-<path d="M816.5,254.0 V38.0" stroke="#3F6F86" stroke-width="0.8" stroke-dasharray="2 3"/>
-<text class="big" x="56.0" y="20">断面 イ ── 距離程 110 m ／ 水面幅 27.54 m ／ 垂直倍率 1.5 倍 ／ 調査(掘らない)</text>
+<path d="M136.1,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
+<path d="M216.3,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
+<path d="M296.4,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
+<path d="M376.6,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
+<path d="M456.7,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
+<path d="M536.9,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
+<path d="M617.0,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
+<path d="M697.2,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
+<path d="M777.3,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
+<path d="M857.5,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
+<path d="M937.6,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
+<path d="M1017.8,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
+<path d="M1097.9,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
+<rect x="408.6" y="201.8" width="390.0" height="34.1" fill="#BBD3DF" opacity="0.85"/>
+<path d="M408.6,201.8 H798.6" stroke="#3F6F86" stroke-width="1.6"/>
+<polyline points="56.0,121.4 72.0,122.5 88.1,123.6 104.1,124.5 120.1,125.2 136.1,125.9 152.2,126.4 168.2,126.4 184.2,126.4 200.3,126.4 216.3,125.9 232.3,125.7 248.4,125.0 264.4,124.3 280.4,123.6 296.4,122.5 312.5,120.0 328.5,119.3 344.5,122.9 360.6,126.4 376.6,126.8 392.6,140.0 408.6,185.4 424.7,228.8 440.7,235.8 456.7,235.8 472.8,235.8 488.8,235.8 504.8,235.8 520.9,235.8 536.9,235.8 552.9,235.8 568.9,235.8 585.0,235.8 601.0,235.8 617.0,235.8 633.1,235.8 649.1,235.8 665.1,235.8 681.1,235.8 697.2,235.8 713.2,235.8 729.2,235.8 745.3,235.8 761.3,235.8 777.3,235.8 793.4,235.8 809.4,235.8 825.4,235.8 841.4,235.8 857.5,235.8 873.5,235.8 889.5,235.1 905.6,233.1 921.6,221.7 937.6,192.7 953.6,165.9 969.7,144.1 985.7,126.6 1001.7,111.8 1017.8,100.9 1033.8,94.1 1049.8,88.2 1065.9,82.7 1081.9,79.1 1097.9,76.2 1113.9,74.6 1130.0,74.3 1146.0,75.0" fill="none" stroke="var(--dim)" stroke-width="1.1" stroke-dasharray="4 3"/>
+<polyline points="56.0,121.4 72.0,122.5 88.1,123.6 104.1,124.5 120.1,125.2 136.1,125.9 152.2,126.4 168.2,126.4 184.2,126.4 200.3,126.4 216.3,125.9 232.3,125.7 248.4,125.0 264.4,124.3 280.4,123.6 296.4,122.5 312.5,120.0 328.5,119.3 344.5,122.9 360.6,126.4 376.6,126.8 392.6,140.0 408.6,185.4 424.7,228.8 440.7,235.8 456.7,235.8 472.8,235.8 488.8,235.8 504.8,235.8 520.9,235.8 536.9,235.8 552.9,235.8 568.9,235.8 585.0,235.8 601.0,235.8 617.0,235.8 633.1,235.8 649.1,235.8 665.1,235.8 681.1,235.8 697.2,235.8 713.2,235.8 729.2,235.8 745.3,235.8 761.3,235.8 777.3,235.8 793.4,235.8 809.4,235.8 825.4,235.8 841.4,235.8 857.5,235.8 873.5,235.8 889.5,235.1 905.6,233.1 921.6,221.7 937.6,192.7 953.6,165.9 969.7,144.1 985.7,126.6 1001.7,111.8 1017.8,100.9 1033.8,94.1 1049.8,88.2 1065.9,82.7 1081.9,79.1 1097.9,76.2 1113.9,74.6 1130.0,74.3 1146.0,75.0" fill="none" stroke="var(--ink)" stroke-width="1.9"/>
+<rect x="331.7" y="127.5" width="76.9" height="108.3" fill="var(--ishi)" opacity="0.75"/>
+<text class="anS2" x="331.7" y="120.5">郭外 石垣 天端 6.77</text>
+<rect x="798.6" y="88.6" width="76.9" height="147.2" fill="var(--ishi)" opacity="0.75"/>
+<text class="anS2" x="798.6" y="81.6">郭内 石垣 天端 8.48</text>
+<path d="M408.6,254.0 V38.0" stroke="#3F6F86" stroke-width="0.8" stroke-dasharray="2 3"/>
+<path d="M798.6,254.0 V38.0" stroke="#3F6F86" stroke-width="0.8" stroke-dasharray="2 3"/>
+<text class="big" x="56.0" y="20">断面 イ ── 距離程 110 m ／ 水面幅 24.33 m ／ 垂直倍率 1.4 倍 ／ 調査(掘らない)</text>
 <text class="sl" x="601.0" y="286.0" style="text-anchor:middle">汀線からの距離 [m] (左=郭外 / 右=郭内)</text>
 </g></svg></div>
 <p class="cap"><b>調査断面 — 掘らないので設計 = 現況で、線は重なる。</b>調査断面 — 無傷の堀の姿。床 2.00・水面 3.50。この一枚が<b>無傷の堀の姿</b>で、土橋の東はこれが失われた状態にある。⚠ 郭外の石垣の天端が地面のずっと下にあるのが読み取れる(未解決 U9)。</p>
@@ -32043,22 +32042,22 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <path d="M988.2,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
 <path d="M1059.9,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
 <path d="M1131.7,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
-<path d="M56.0,85.9 L70.3,85.7 L84.7,85.2 L99.0,84.9 L113.4,84.7 L127.7,84.2 L142.1,84.0 L156.4,83.5 L170.7,83.2 L185.1,83.0 L199.4,82.5 L213.8,82.0 L228.1,81.5 L242.4,81.1 L256.8,80.6 L271.1,80.3 L285.5,79.8 L299.8,79.4 L314.2,79.1 L328.5,79.1 L342.8,79.4 L357.2,79.6 L371.5,79.8 L385.9,80.3 L400.2,80.3 L414.6,80.6 L428.9,80.6 L443.2,80.6 L457.6,80.1 L471.9,79.1 L486.3,78.4 L500.6,77.4 L514.9,77.4 L529.3,79.4 L543.6,81.5 L558.0,83.7 L572.3,86.2 L586.7,89.6 L601.0,93.2 L615.3,96.4 L629.7,99.5 L644.0,100.3 L658.4,100.0 L672.7,99.5 L687.1,99.3 L701.4,98.8 L715.7,98.8 L730.1,98.6 L744.4,98.6 L758.8,98.3 L773.1,98.3 L787.4,98.3 L801.8,98.1 L816.1,97.8 L830.5,97.6 L844.8,97.1 L859.2,96.6 L873.5,96.1 L887.8,95.6 L902.2,95.4 L916.5,94.9 L930.9,94.7 L945.2,94.4 L959.6,94.2 L973.9,93.9 L988.2,93.7 L1002.6,93.7 L1016.9,93.9 L1031.3,93.9 L1045.6,94.2 L1059.9,94.7 L1074.3,94.9 L1088.6,95.4 L1103.0,95.6 L1117.3,95.6 L1131.7,95.4 L1146.0,95.2 L1146.0,95.2 L1131.7,95.4 L1117.3,95.6 L1103.0,95.6 L1088.6,95.4 L1074.3,94.9 L1059.9,94.4 L1045.6,93.5 L1031.3,91.5 L1016.9,88.4 L1002.6,85.2 L988.2,83.0 L973.9,81.3 L959.6,81.3 L945.2,81.3 L930.9,81.3 L916.5,81.3 L902.2,81.8 L887.8,82.8 L873.5,128.2 L859.2,198.3 L844.8,234.5 L830.5,234.5 L816.1,234.5 L801.8,234.5 L787.4,234.5 L773.1,234.5 L758.8,234.5 L744.4,234.5 L730.1,234.5 L715.7,234.5 L701.4,234.5 L687.1,234.5 L672.7,234.5 L658.4,234.5 L644.0,234.5 L629.7,234.5 L615.3,234.5 L601.0,234.5 L586.7,234.5 L572.3,234.5 L558.0,234.5 L543.6,234.5 L529.3,234.5 L514.9,234.5 L500.6,234.5 L486.3,234.5 L471.9,234.5 L457.6,234.5 L443.2,234.5 L428.9,234.5 L414.6,234.5 L400.2,234.5 L385.9,234.5 L371.5,234.5 L357.2,234.5 L342.8,234.5 L328.5,234.5 L314.2,177.6 L299.8,105.1 L285.5,77.9 L271.1,77.2 L256.8,76.9 L242.4,77.2 L228.1,77.9 L213.8,79.1 L199.4,80.3 L185.1,81.8 L170.7,83.0 L156.4,83.5 L142.1,84.0 L127.7,84.2 L113.4,84.7 L99.0,84.9 L84.7,85.2 L70.3,85.7 L56.0,85.9 Z" fill="var(--cut2)" opacity="0.55"/>
-<rect x="371.5" y="198.1" width="470.0" height="36.5" fill="#BBD3DF" opacity="0.85"/>
-<path d="M371.5,198.1 H841.5" stroke="#3F6F86" stroke-width="1.6"/>
-<polyline points="56.0,85.9 70.3,85.7 84.7,85.2 99.0,84.9 113.4,84.7 127.7,84.2 142.1,84.0 156.4,83.5 170.7,83.2 185.1,83.0 199.4,82.5 213.8,82.0 228.1,81.5 242.4,81.1 256.8,80.6 271.1,80.3 285.5,79.8 299.8,79.4 314.2,79.1 328.5,79.1 342.8,79.4 357.2,79.6 371.5,79.8 385.9,80.3 400.2,80.3 414.6,80.6 428.9,80.6 443.2,80.6 457.6,80.1 471.9,79.1 486.3,78.4 500.6,77.4 514.9,77.4 529.3,79.4 543.6,81.5 558.0,83.7 572.3,86.2 586.7,89.6 601.0,93.2 615.3,96.4 629.7,99.5 644.0,100.3 658.4,100.0 672.7,99.5 687.1,99.3 701.4,98.8 715.7,98.8 730.1,98.6 744.4,98.6 758.8,98.3 773.1,98.3 787.4,98.3 801.8,98.1 816.1,97.8 830.5,97.6 844.8,97.1 859.2,96.6 873.5,96.1 887.8,95.6 902.2,95.4 916.5,94.9 930.9,94.7 945.2,94.4 959.6,94.2 973.9,93.9 988.2,93.7 1002.6,93.7 1016.9,93.9 1031.3,93.9 1045.6,94.2 1059.9,94.7 1074.3,94.9 1088.6,95.4 1103.0,95.6 1117.3,95.6 1131.7,95.4 1146.0,95.2" fill="none" stroke="var(--dim)" stroke-width="1.1" stroke-dasharray="4 3"/>
-<polyline points="56.0,85.9 70.3,85.7 84.7,85.2 99.0,84.9 113.4,84.7 127.7,84.2 142.1,84.0 156.4,83.5 170.7,83.0 185.1,81.8 199.4,80.3 213.8,79.1 228.1,77.9 242.4,77.2 256.8,76.9 271.1,77.2 285.5,77.9 299.8,105.1 314.2,177.6 328.5,234.5 342.8,234.5 357.2,234.5 371.5,234.5 385.9,234.5 400.2,234.5 414.6,234.5 428.9,234.5 443.2,234.5 457.6,234.5 471.9,234.5 486.3,234.5 500.6,234.5 514.9,234.5 529.3,234.5 543.6,234.5 558.0,234.5 572.3,234.5 586.7,234.5 601.0,234.5 615.3,234.5 629.7,234.5 644.0,234.5 658.4,234.5 672.7,234.5 687.1,234.5 701.4,234.5 715.7,234.5 730.1,234.5 744.4,234.5 758.8,234.5 773.1,234.5 787.4,234.5 801.8,234.5 816.1,234.5 830.5,234.5 844.8,234.5 859.2,198.3 873.5,128.2 887.8,82.8 902.2,81.8 916.5,81.3 930.9,81.3 945.2,81.3 959.6,81.3 973.9,81.3 988.2,83.0 1002.6,85.2 1016.9,88.4 1031.3,91.5 1045.6,93.5 1059.9,94.4 1074.3,94.9 1088.6,95.4 1103.0,95.6 1117.3,95.6 1131.7,95.4 1146.0,95.2" fill="none" stroke="var(--ink)" stroke-width="1.9"/>
+<path d="M56.0,86.6 L70.3,86.2 L84.7,85.7 L99.0,85.4 L113.4,84.9 L127.7,84.5 L142.1,84.2 L156.4,84.0 L170.7,83.7 L185.1,83.2 L199.4,83.0 L213.8,82.3 L228.1,81.8 L242.4,81.3 L256.8,80.6 L271.1,80.1 L285.5,79.6 L299.8,79.6 L314.2,79.4 L328.5,79.6 L342.8,79.6 L357.2,80.1 L371.5,80.3 L385.9,80.6 L400.2,80.8 L414.6,80.8 L428.9,80.8 L443.2,80.6 L457.6,80.3 L471.9,79.6 L486.3,78.6 L500.6,77.6 L514.9,76.9 L529.3,77.6 L543.6,79.6 L558.0,82.0 L572.3,84.2 L586.7,86.9 L601.0,90.5 L615.3,94.4 L629.7,97.4 L644.0,100.3 L658.4,100.3 L672.7,99.8 L687.1,99.3 L701.4,99.1 L715.7,98.8 L730.1,98.6 L744.4,98.6 L758.8,98.3 L773.1,98.3 L787.4,98.3 L801.8,98.3 L816.1,98.1 L830.5,98.1 L844.8,97.6 L859.2,97.1 L873.5,96.9 L887.8,96.6 L902.2,96.1 L916.5,95.6 L930.9,95.4 L945.2,95.2 L959.6,94.7 L973.9,94.4 L988.2,94.2 L1002.6,93.9 L1016.9,93.9 L1031.3,94.2 L1045.6,94.4 L1059.9,94.7 L1074.3,94.9 L1088.6,95.2 L1103.0,95.6 L1117.3,95.6 L1131.7,95.4 L1146.0,95.2 L1146.0,95.2 L1131.7,95.4 L1117.3,95.6 L1103.0,95.6 L1088.6,95.2 L1074.3,94.9 L1059.9,94.7 L1045.6,93.9 L1031.3,91.3 L1016.9,88.4 L1002.6,85.2 L988.2,82.3 L973.9,81.5 L959.6,81.3 L945.2,81.3 L930.9,81.3 L916.5,81.3 L902.2,81.3 L887.8,82.3 L873.5,102.5 L859.2,151.4 L844.8,206.3 L830.5,234.5 L816.1,234.5 L801.8,234.5 L787.4,234.5 L773.1,234.5 L758.8,234.5 L744.4,234.5 L730.1,234.5 L715.7,234.5 L701.4,234.5 L687.1,234.5 L672.7,234.5 L658.4,234.5 L644.0,234.5 L629.7,234.5 L615.3,234.5 L601.0,234.5 L586.7,234.5 L572.3,234.5 L558.0,234.5 L543.6,234.5 L529.3,234.5 L514.9,234.5 L500.6,234.5 L486.3,234.5 L471.9,234.5 L457.6,234.5 L443.2,234.5 L428.9,234.5 L414.6,234.5 L400.2,234.5 L385.9,234.5 L371.5,234.5 L357.2,234.5 L342.8,234.5 L328.5,197.6 L314.2,128.0 L299.8,84.9 L285.5,85.9 L271.1,86.2 L256.8,86.2 L242.4,86.2 L228.1,85.7 L213.8,85.2 L199.4,84.7 L185.1,84.2 L170.7,84.0 L156.4,84.2 L142.1,84.2 L127.7,84.5 L113.4,84.9 L99.0,85.4 L84.7,85.7 L70.3,86.2 L56.0,86.6 Z" fill="var(--cut2)" opacity="0.55"/>
+<rect x="371.5" y="198.1" width="470.1" height="36.5" fill="#BBD3DF" opacity="0.85"/>
+<path d="M371.5,198.1 H841.7" stroke="#3F6F86" stroke-width="1.6"/>
+<polyline points="56.0,86.6 70.3,86.2 84.7,85.7 99.0,85.4 113.4,84.9 127.7,84.5 142.1,84.2 156.4,84.0 170.7,83.7 185.1,83.2 199.4,83.0 213.8,82.3 228.1,81.8 242.4,81.3 256.8,80.6 271.1,80.1 285.5,79.6 299.8,79.6 314.2,79.4 328.5,79.6 342.8,79.6 357.2,80.1 371.5,80.3 385.9,80.6 400.2,80.8 414.6,80.8 428.9,80.8 443.2,80.6 457.6,80.3 471.9,79.6 486.3,78.6 500.6,77.6 514.9,76.9 529.3,77.6 543.6,79.6 558.0,82.0 572.3,84.2 586.7,86.9 601.0,90.5 615.3,94.4 629.7,97.4 644.0,100.3 658.4,100.3 672.7,99.8 687.1,99.3 701.4,99.1 715.7,98.8 730.1,98.6 744.4,98.6 758.8,98.3 773.1,98.3 787.4,98.3 801.8,98.3 816.1,98.1 830.5,98.1 844.8,97.6 859.2,97.1 873.5,96.9 887.8,96.6 902.2,96.1 916.5,95.6 930.9,95.4 945.2,95.2 959.6,94.7 973.9,94.4 988.2,94.2 1002.6,93.9 1016.9,93.9 1031.3,94.2 1045.6,94.4 1059.9,94.7 1074.3,94.9 1088.6,95.2 1103.0,95.6 1117.3,95.6 1131.7,95.4 1146.0,95.2" fill="none" stroke="var(--dim)" stroke-width="1.1" stroke-dasharray="4 3"/>
+<polyline points="56.0,86.6 70.3,86.2 84.7,85.7 99.0,85.4 113.4,84.9 127.7,84.5 142.1,84.2 156.4,84.2 170.7,84.0 185.1,84.2 199.4,84.7 213.8,85.2 228.1,85.7 242.4,86.2 256.8,86.2 271.1,86.2 285.5,85.9 299.8,84.9 314.2,128.0 328.5,197.6 342.8,234.5 357.2,234.5 371.5,234.5 385.9,234.5 400.2,234.5 414.6,234.5 428.9,234.5 443.2,234.5 457.6,234.5 471.9,234.5 486.3,234.5 500.6,234.5 514.9,234.5 529.3,234.5 543.6,234.5 558.0,234.5 572.3,234.5 586.7,234.5 601.0,234.5 615.3,234.5 629.7,234.5 644.0,234.5 658.4,234.5 672.7,234.5 687.1,234.5 701.4,234.5 715.7,234.5 730.1,234.5 744.4,234.5 758.8,234.5 773.1,234.5 787.4,234.5 801.8,234.5 816.1,234.5 830.5,234.5 844.8,206.3 859.2,151.4 873.5,102.5 887.8,82.3 902.2,81.3 916.5,81.3 930.9,81.3 945.2,81.3 959.6,81.3 973.9,81.5 988.2,82.3 1002.6,85.2 1016.9,88.4 1031.3,91.3 1045.6,93.9 1059.9,94.7 1074.3,94.9 1088.6,95.2 1103.0,95.6 1117.3,95.6 1131.7,95.4 1146.0,95.2" fill="none" stroke="var(--ink)" stroke-width="1.9"/>
 <rect x="302.7" y="81.3" width="68.8" height="153.2" fill="var(--ishi)" opacity="0.75"/>
 <text class="anS2" x="302.7" y="74.3">郭外 石垣 天端 6.60</text>
-<rect x="841.5" y="76.4" width="68.8" height="158.1" fill="var(--ishi)" opacity="0.75"/>
-<text class="anS2" x="841.5" y="69.4">郭内 石垣 天端 6.80</text>
+<rect x="841.7" y="76.4" width="68.8" height="158.1" fill="var(--ishi)" opacity="0.75"/>
+<text class="anS2" x="841.7" y="69.4">郭内 石垣 天端 6.80</text>
 <path d="M371.5,254.0 V38.0" stroke="#3F6F86" stroke-width="0.8" stroke-dasharray="2 3"/>
-<path d="M841.5,254.0 V38.0" stroke="#3F6F86" stroke-width="0.8" stroke-dasharray="2 3"/>
+<path d="M841.7,254.0 V38.0" stroke="#3F6F86" stroke-width="0.8" stroke-dasharray="2 3"/>
 <path d="M170.7,254.0 V38.0" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="6 4"/>
-<path d="M1042.3,254.0 V38.0" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="6 4"/>
+<path d="M1042.5,254.0 V38.0" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="6 4"/>
 <text class="sl" x="174.7" y="50.0">工区の境</text>
-<text class="sl" x="1038.3" y="50.0" style="text-anchor:end">工区の境</text>
-<text class="big" x="56.0" y="20">断面 ロ ── 距離程 306 m ／ 水面幅 32.77 m ／ 垂直倍率 1.7 倍</text>
+<text class="sl" x="1038.5" y="50.0" style="text-anchor:end">工区の境</text>
+<text class="big" x="56.0" y="20">断面 ロ ── 距離程 306 m ／ 水面幅 32.78 m ／ 垂直倍率 1.7 倍</text>
 <text class="sl" x="601.0" y="286.0" style="text-anchor:middle">汀線からの距離 [m] (左=郭外 / 右=郭内)</text>
 </g></svg></div>
 <p class="cap"><b>┄ 現況 / ── 設計 / 寒色の塗り = 掘る量</b>。虎ノ門土橋の東。この区間が全長で最も広い。⛔ <b>堀の壁は垂直のまま残す</b> — 溜池の掘り直しのように 45°で均すと石垣の面が土に埋まり、堀が皿になる。</p>
@@ -32106,22 +32105,22 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <path d="M1000.7,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
 <path d="M1073.3,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
 <path d="M1146.0,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
-<path d="M56.0,95.6 L70.5,95.6 L85.1,95.6 L99.6,95.6 L114.1,95.6 L128.7,95.4 L143.2,95.4 L157.7,95.6 L172.3,95.8 L186.8,96.1 L201.3,96.6 L215.9,97.3 L230.4,97.8 L244.9,98.1 L259.5,98.6 L274.0,99.1 L288.5,99.3 L303.1,99.6 L317.6,100.1 L332.1,100.3 L346.7,100.3 L361.2,100.3 L375.7,100.3 L390.3,100.3 L404.8,100.1 L419.3,100.1 L433.9,100.1 L448.4,99.8 L462.9,99.8 L477.5,99.8 L492.0,99.8 L506.5,100.1 L521.1,100.1 L535.6,100.3 L550.1,100.3 L564.7,100.6 L579.2,100.6 L593.7,100.6 L608.3,100.6 L622.8,100.6 L637.3,100.6 L651.9,100.6 L666.4,100.3 L680.9,100.3 L695.5,100.3 L710.0,100.3 L724.5,100.3 L739.1,100.3 L753.6,100.3 L768.1,100.6 L782.7,100.6 L797.2,100.6 L811.7,100.6 L826.3,100.6 L840.8,100.8 L855.3,100.8 L869.9,101.1 L884.4,101.1 L898.9,101.3 L913.5,101.3 L928.0,101.6 L942.5,101.6 L957.1,101.6 L971.6,101.6 L986.1,101.6 L1000.7,101.6 L1015.2,102.3 L1029.7,103.0 L1044.3,103.8 L1058.8,104.5 L1073.3,105.3 L1087.9,106.0 L1102.4,106.5 L1116.9,107.0 L1131.5,107.3 L1146.0,106.8 L1146.0,106.8 L1131.5,107.3 L1116.9,107.0 L1102.4,106.5 L1087.9,106.0 L1073.3,105.3 L1058.8,104.3 L1044.3,101.6 L1029.7,97.8 L1015.2,91.1 L1000.7,84.4 L986.1,81.0 L971.6,78.0 L957.1,77.7 L942.5,77.7 L928.0,77.7 L913.5,77.7 L898.9,78.2 L884.4,79.7 L869.9,107.5 L855.3,178.8 L840.8,234.1 L826.3,234.1 L811.7,234.1 L797.2,234.1 L782.7,234.1 L768.1,234.1 L753.6,234.1 L739.1,234.1 L724.5,234.1 L710.0,234.1 L695.5,234.1 L680.9,234.1 L666.4,234.1 L651.9,234.1 L637.3,234.1 L622.8,234.1 L608.3,234.1 L593.7,234.1 L579.2,234.1 L564.7,234.1 L550.1,234.1 L535.6,234.1 L521.1,234.1 L506.5,234.1 L492.0,234.1 L477.5,234.1 L462.9,234.1 L448.4,234.1 L433.9,234.1 L419.3,234.1 L404.8,234.1 L390.3,234.1 L375.7,234.1 L361.2,234.1 L346.7,234.1 L332.1,186.0 L317.6,115.5 L303.1,81.4 L288.5,80.0 L274.0,79.5 L259.5,80.5 L244.9,81.7 L230.4,83.9 L215.9,86.2 L201.3,89.6 L186.8,92.9 L172.3,94.4 L157.7,95.4 L143.2,95.4 L128.7,95.4 L114.1,95.6 L99.6,95.6 L85.1,95.6 L70.5,95.6 L56.0,95.6 Z" fill="var(--cut2)" opacity="0.55"/>
-<rect x="375.7" y="196.9" width="463.3" height="37.2" fill="#BBD3DF" opacity="0.85"/>
-<path d="M375.7,196.9 H839.1" stroke="#3F6F86" stroke-width="1.6"/>
-<polyline points="56.0,95.6 70.5,95.6 85.1,95.6 99.6,95.6 114.1,95.6 128.7,95.4 143.2,95.4 157.7,95.6 172.3,95.8 186.8,96.1 201.3,96.6 215.9,97.3 230.4,97.8 244.9,98.1 259.5,98.6 274.0,99.1 288.5,99.3 303.1,99.6 317.6,100.1 332.1,100.3 346.7,100.3 361.2,100.3 375.7,100.3 390.3,100.3 404.8,100.1 419.3,100.1 433.9,100.1 448.4,99.8 462.9,99.8 477.5,99.8 492.0,99.8 506.5,100.1 521.1,100.1 535.6,100.3 550.1,100.3 564.7,100.6 579.2,100.6 593.7,100.6 608.3,100.6 622.8,100.6 637.3,100.6 651.9,100.6 666.4,100.3 680.9,100.3 695.5,100.3 710.0,100.3 724.5,100.3 739.1,100.3 753.6,100.3 768.1,100.6 782.7,100.6 797.2,100.6 811.7,100.6 826.3,100.6 840.8,100.8 855.3,100.8 869.9,101.1 884.4,101.1 898.9,101.3 913.5,101.3 928.0,101.6 942.5,101.6 957.1,101.6 971.6,101.6 986.1,101.6 1000.7,101.6 1015.2,102.3 1029.7,103.0 1044.3,103.8 1058.8,104.5 1073.3,105.3 1087.9,106.0 1102.4,106.5 1116.9,107.0 1131.5,107.3 1146.0,106.8" fill="none" stroke="var(--dim)" stroke-width="1.1" stroke-dasharray="4 3"/>
-<polyline points="56.0,95.6 70.5,95.6 85.1,95.6 99.6,95.6 114.1,95.6 128.7,95.4 143.2,95.4 157.7,95.4 172.3,94.4 186.8,92.9 201.3,89.6 215.9,86.2 230.4,83.9 244.9,81.7 259.5,80.5 274.0,79.5 288.5,80.0 303.1,81.4 317.6,115.5 332.1,186.0 346.7,234.1 361.2,234.1 375.7,234.1 390.3,234.1 404.8,234.1 419.3,234.1 433.9,234.1 448.4,234.1 462.9,234.1 477.5,234.1 492.0,234.1 506.5,234.1 521.1,234.1 535.6,234.1 550.1,234.1 564.7,234.1 579.2,234.1 593.7,234.1 608.3,234.1 622.8,234.1 637.3,234.1 651.9,234.1 666.4,234.1 680.9,234.1 695.5,234.1 710.0,234.1 724.5,234.1 739.1,234.1 753.6,234.1 768.1,234.1 782.7,234.1 797.2,234.1 811.7,234.1 826.3,234.1 840.8,234.1 855.3,178.8 869.9,107.5 884.4,79.7 898.9,78.2 913.5,77.7 928.0,77.7 942.5,77.7 957.1,77.7 971.6,78.0 986.1,81.0 1000.7,84.4 1015.2,91.1 1029.7,97.8 1044.3,101.6 1058.8,104.3 1073.3,105.3 1087.9,106.0 1102.4,106.5 1116.9,107.0 1131.5,107.3 1146.0,106.8" fill="none" stroke="var(--ink)" stroke-width="1.9"/>
+<path d="M56.0,96.3 L70.5,96.1 L85.1,96.1 L99.6,96.1 L114.1,96.1 L128.7,96.1 L143.2,96.1 L157.7,96.3 L172.3,96.8 L186.8,97.3 L201.3,98.1 L215.9,98.6 L230.4,99.1 L244.9,99.6 L259.5,99.8 L274.0,100.3 L288.5,100.6 L303.1,100.8 L317.6,101.1 L332.1,101.3 L346.7,101.3 L361.2,101.3 L375.7,101.3 L390.3,101.1 L404.8,100.8 L419.3,100.6 L433.9,100.6 L448.4,100.3 L462.9,100.3 L477.5,100.1 L492.0,100.1 L506.5,100.1 L521.1,100.1 L535.6,100.1 L550.1,100.3 L564.7,100.3 L579.2,100.3 L593.7,100.6 L608.3,100.6 L622.8,100.8 L637.3,100.8 L651.9,101.1 L666.4,101.1 L680.9,101.1 L695.5,100.8 L710.0,100.8 L724.5,100.6 L739.1,100.6 L753.6,100.6 L768.1,100.6 L782.7,100.8 L797.2,100.8 L811.7,101.1 L826.3,101.3 L840.8,101.3 L855.3,101.6 L869.9,101.6 L884.4,101.8 L898.9,101.8 L913.5,101.8 L928.0,102.1 L942.5,102.1 L957.1,102.1 L971.6,102.1 L986.1,102.1 L1000.7,102.3 L1015.2,102.6 L1029.7,103.3 L1044.3,104.0 L1058.8,104.8 L1073.3,105.5 L1087.9,106.0 L1102.4,106.5 L1116.9,107.0 L1131.5,107.3 L1146.0,107.3 L1146.0,107.3 L1131.5,107.3 L1116.9,107.0 L1102.4,106.5 L1087.9,106.0 L1073.3,105.5 L1058.8,104.5 L1044.3,103.0 L1029.7,97.1 L1015.2,90.6 L1000.7,84.7 L986.1,79.5 L971.6,77.7 L957.1,77.7 L942.5,77.7 L928.0,77.7 L913.5,78.0 L898.9,78.7 L884.4,82.7 L869.9,124.4 L855.3,192.4 L840.8,228.2 L826.3,234.1 L811.7,234.1 L797.2,234.1 L782.7,234.1 L768.1,234.1 L753.6,234.1 L739.1,234.1 L724.5,234.1 L710.0,234.1 L695.5,234.1 L680.9,234.1 L666.4,234.1 L651.9,234.1 L637.3,234.1 L622.8,234.1 L608.3,234.1 L593.7,234.1 L579.2,234.1 L564.7,234.1 L550.1,234.1 L535.6,234.1 L521.1,234.1 L506.5,234.1 L492.0,234.1 L477.5,234.1 L462.9,234.1 L448.4,234.1 L433.9,234.1 L419.3,234.1 L404.8,234.1 L390.3,234.1 L375.7,234.1 L361.2,234.1 L346.7,224.7 L332.1,184.0 L317.6,123.9 L303.1,90.4 L288.5,82.7 L274.0,82.7 L259.5,82.7 L244.9,82.9 L230.4,83.7 L215.9,86.7 L201.3,90.4 L186.8,93.4 L172.3,95.6 L157.7,96.3 L143.2,96.1 L128.7,96.1 L114.1,96.1 L99.6,96.1 L85.1,96.1 L70.5,96.1 L56.0,96.3 Z" fill="var(--cut2)" opacity="0.55"/>
+<rect x="375.7" y="196.9" width="463.9" height="37.2" fill="#BBD3DF" opacity="0.85"/>
+<path d="M375.7,196.9 H839.6" stroke="#3F6F86" stroke-width="1.6"/>
+<polyline points="56.0,96.3 70.5,96.1 85.1,96.1 99.6,96.1 114.1,96.1 128.7,96.1 143.2,96.1 157.7,96.3 172.3,96.8 186.8,97.3 201.3,98.1 215.9,98.6 230.4,99.1 244.9,99.6 259.5,99.8 274.0,100.3 288.5,100.6 303.1,100.8 317.6,101.1 332.1,101.3 346.7,101.3 361.2,101.3 375.7,101.3 390.3,101.1 404.8,100.8 419.3,100.6 433.9,100.6 448.4,100.3 462.9,100.3 477.5,100.1 492.0,100.1 506.5,100.1 521.1,100.1 535.6,100.1 550.1,100.3 564.7,100.3 579.2,100.3 593.7,100.6 608.3,100.6 622.8,100.8 637.3,100.8 651.9,101.1 666.4,101.1 680.9,101.1 695.5,100.8 710.0,100.8 724.5,100.6 739.1,100.6 753.6,100.6 768.1,100.6 782.7,100.8 797.2,100.8 811.7,101.1 826.3,101.3 840.8,101.3 855.3,101.6 869.9,101.6 884.4,101.8 898.9,101.8 913.5,101.8 928.0,102.1 942.5,102.1 957.1,102.1 971.6,102.1 986.1,102.1 1000.7,102.3 1015.2,102.6 1029.7,103.3 1044.3,104.0 1058.8,104.8 1073.3,105.5 1087.9,106.0 1102.4,106.5 1116.9,107.0 1131.5,107.3 1146.0,107.3" fill="none" stroke="var(--dim)" stroke-width="1.1" stroke-dasharray="4 3"/>
+<polyline points="56.0,96.3 70.5,96.1 85.1,96.1 99.6,96.1 114.1,96.1 128.7,96.1 143.2,96.1 157.7,96.3 172.3,95.6 186.8,93.4 201.3,90.4 215.9,86.7 230.4,83.7 244.9,82.9 259.5,82.7 274.0,82.7 288.5,82.7 303.1,90.4 317.6,123.9 332.1,184.0 346.7,224.7 361.2,234.1 375.7,234.1 390.3,234.1 404.8,234.1 419.3,234.1 433.9,234.1 448.4,234.1 462.9,234.1 477.5,234.1 492.0,234.1 506.5,234.1 521.1,234.1 535.6,234.1 550.1,234.1 564.7,234.1 579.2,234.1 593.7,234.1 608.3,234.1 622.8,234.1 637.3,234.1 651.9,234.1 666.4,234.1 680.9,234.1 695.5,234.1 710.0,234.1 724.5,234.1 739.1,234.1 753.6,234.1 768.1,234.1 782.7,234.1 797.2,234.1 811.7,234.1 826.3,234.1 840.8,228.2 855.3,192.4 869.9,124.4 884.4,82.7 898.9,78.7 913.5,78.0 928.0,77.7 942.5,77.7 957.1,77.7 971.6,77.7 986.1,79.5 1000.7,84.7 1015.2,90.6 1029.7,97.1 1044.3,103.0 1058.8,104.5 1073.3,105.5 1087.9,106.0 1102.4,106.5 1116.9,107.0 1131.5,107.3 1146.0,107.3" fill="none" stroke="var(--ink)" stroke-width="1.9"/>
 <rect x="306.0" y="77.7" width="69.8" height="156.4" fill="var(--ishi)" opacity="0.75"/>
 <text class="anS2" x="306.0" y="70.7">郭外 石垣 天端 6.60</text>
-<rect x="839.1" y="72.8" width="69.8" height="161.4" fill="var(--ishi)" opacity="0.75"/>
-<text class="anS2" x="839.1" y="65.8">郭内 石垣 天端 6.80</text>
+<rect x="839.6" y="72.8" width="69.8" height="161.4" fill="var(--ishi)" opacity="0.75"/>
+<text class="anS2" x="839.6" y="65.8">郭内 石垣 天端 6.80</text>
 <path d="M375.7,254.0 V38.0" stroke="#3F6F86" stroke-width="0.8" stroke-dasharray="2 3"/>
-<path d="M839.1,254.0 V38.0" stroke="#3F6F86" stroke-width="0.8" stroke-dasharray="2 3"/>
+<path d="M839.6,254.0 V38.0" stroke="#3F6F86" stroke-width="0.8" stroke-dasharray="2 3"/>
 <path d="M172.3,254.0 V38.0" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="6 4"/>
-<path d="M1042.5,254.0 V38.0" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="6 4"/>
+<path d="M1043.1,254.0 V38.0" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="6 4"/>
 <text class="sl" x="176.3" y="50.0">工区の境</text>
-<text class="sl" x="1038.5" y="50.0" style="text-anchor:end">工区の境</text>
-<text class="big" x="56.0" y="20">断面 ハ ── 距離程 420 m ／ 水面幅 31.88 m ／ 垂直倍率 1.7 倍</text>
+<text class="sl" x="1039.1" y="50.0" style="text-anchor:end">工区の境</text>
+<text class="big" x="56.0" y="20">断面 ハ ── 距離程 420 m ／ 水面幅 31.92 m ／ 垂直倍率 1.7 倍</text>
 <text class="sl" x="601.0" y="286.0" style="text-anchor:middle">汀線からの距離 [m] (左=郭外 / 右=郭内)</text>
 </g></svg></div>
 <p class="cap"><b>┄ 現況 / ── 設計 / 寒色の塗り = 掘る量</b>。新シ橋の西。⛔ <b>堀の壁は垂直のまま残す</b> — 溜池の掘り直しのように 45°で均すと石垣の面が土に埋まり、堀が皿になる。</p>
@@ -32135,22 +32134,24 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <text class="sl" x="16" y="269.7">-1 m</text>
 <path d="M50.0,241.3 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
 <text class="sl" x="16" y="244.3">0 m</text>
-<path d="M50.0,215.8 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="218.8">1 m</text>
-<path d="M50.0,190.4 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="193.4">2 m</text>
-<path d="M50.0,165.0 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="168.0">3 m</text>
-<path d="M50.0,139.5 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="142.5">4 m</text>
-<path d="M50.0,114.1 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="117.1">5 m</text>
-<path d="M50.0,88.6 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="91.6">6 m</text>
-<path d="M50.0,63.2 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="66.2">7 m</text>
-<path d="M50.0,37.7 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="40.7">8 m</text>
+<path d="M50.0,215.9 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="218.9">1 m</text>
+<path d="M50.0,190.5 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="193.5">2 m</text>
+<path d="M50.0,165.2 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="168.2">3 m</text>
+<path d="M50.0,139.8 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="142.8">4 m</text>
+<path d="M50.0,114.4 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="117.4">5 m</text>
+<path d="M50.0,89.0 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="92.0">6 m</text>
+<path d="M50.0,63.6 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="66.6">7 m</text>
+<path d="M50.0,38.3 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="41.3">8 m</text>
+<path d="M50.0,12.9 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="15.9">9 m</text>
 <path d="M56.0,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
 <path d="M130.7,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
 <path d="M205.3,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
@@ -32166,15 +32167,15 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <path d="M951.9,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
 <path d="M1026.5,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
 <path d="M1101.2,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
-<path d="M56.0,122.7 L70.9,124.0 L85.9,125.0 L100.8,125.8 L115.7,126.3 L130.7,126.8 L145.6,127.0 L160.5,127.0 L175.5,127.0 L190.4,126.8 L205.3,126.5 L220.2,126.0 L235.2,125.3 L250.1,124.8 L265.0,124.0 L280.0,123.5 L294.9,122.7 L309.8,122.0 L324.8,121.4 L339.7,121.2 L354.6,120.9 L369.6,120.7 L384.5,120.7 L399.4,120.9 L414.4,121.2 L429.3,121.7 L444.2,122.2 L459.2,122.7 L474.1,123.2 L489.0,123.7 L503.9,124.2 L518.9,124.0 L533.8,124.0 L548.7,123.5 L563.7,123.2 L578.6,123.0 L593.5,122.5 L608.5,122.2 L623.4,122.0 L638.3,121.7 L653.3,121.7 L668.2,121.7 L683.1,121.7 L698.1,121.7 L713.0,121.7 L727.9,121.7 L742.8,121.7 L757.8,121.7 L772.7,121.7 L787.6,121.7 L802.6,121.7 L817.5,121.7 L832.4,121.7 L847.4,121.7 L862.3,121.7 L877.2,121.7 L892.2,121.4 L907.1,120.9 L922.0,120.4 L937.0,119.9 L951.9,119.4 L966.8,118.9 L981.8,118.7 L996.7,118.7 L1011.6,118.7 L1026.5,119.2 L1041.5,119.7 L1056.4,119.9 L1071.3,120.4 L1086.3,120.7 L1101.2,120.7 L1116.1,120.9 L1131.1,121.2 L1146.0,121.2 L1146.0,121.2 L1131.1,121.2 L1116.1,120.9 L1101.2,120.7 L1086.3,120.7 L1071.3,120.4 L1056.4,119.9 L1041.5,118.7 L1026.5,111.3 L1011.6,103.1 L996.7,93.0 L981.8,82.8 L966.8,79.5 L951.9,79.0 L937.0,78.7 L922.0,78.7 L907.1,78.7 L892.2,78.7 L877.2,88.9 L862.3,125.5 L847.4,175.4 L832.4,215.1 L817.5,233.6 L802.6,233.6 L787.6,233.6 L772.7,233.6 L757.8,233.6 L742.8,233.6 L727.9,233.6 L713.0,233.6 L698.1,233.6 L683.1,233.6 L668.2,233.6 L653.3,233.6 L638.3,233.6 L623.4,233.6 L608.5,233.6 L593.5,233.6 L578.6,233.6 L563.7,233.6 L548.7,233.6 L533.8,233.6 L518.9,233.6 L503.9,233.6 L489.0,233.6 L474.1,233.6 L459.2,233.6 L444.2,233.6 L429.3,233.6 L414.4,233.6 L399.4,233.6 L384.5,233.6 L369.6,233.6 L354.6,233.6 L339.7,233.6 L324.8,193.7 L309.8,132.6 L294.9,104.4 L280.0,90.7 L265.0,82.3 L250.1,82.3 L235.2,84.8 L220.2,94.2 L205.3,104.4 L190.4,115.1 L175.5,125.5 L160.5,127.0 L145.6,127.0 L130.7,126.8 L115.7,126.3 L100.8,125.8 L85.9,125.0 L70.9,124.0 L56.0,122.7 Z" fill="var(--cut2)" opacity="0.55"/>
-<rect x="384.5" y="195.5" width="441.8" height="38.2" fill="#BBD3DF" opacity="0.85"/>
-<path d="M384.5,195.5 H826.3" stroke="#3F6F86" stroke-width="1.6"/>
-<polyline points="56.0,122.7 70.9,124.0 85.9,125.0 100.8,125.8 115.7,126.3 130.7,126.8 145.6,127.0 160.5,127.0 175.5,127.0 190.4,126.8 205.3,126.5 220.2,126.0 235.2,125.3 250.1,124.8 265.0,124.0 280.0,123.5 294.9,122.7 309.8,122.0 324.8,121.4 339.7,121.2 354.6,120.9 369.6,120.7 384.5,120.7 399.4,120.9 414.4,121.2 429.3,121.7 444.2,122.2 459.2,122.7 474.1,123.2 489.0,123.7 503.9,124.2 518.9,124.0 533.8,124.0 548.7,123.5 563.7,123.2 578.6,123.0 593.5,122.5 608.5,122.2 623.4,122.0 638.3,121.7 653.3,121.7 668.2,121.7 683.1,121.7 698.1,121.7 713.0,121.7 727.9,121.7 742.8,121.7 757.8,121.7 772.7,121.7 787.6,121.7 802.6,121.7 817.5,121.7 832.4,121.7 847.4,121.7 862.3,121.7 877.2,121.7 892.2,121.4 907.1,120.9 922.0,120.4 937.0,119.9 951.9,119.4 966.8,118.9 981.8,118.7 996.7,118.7 1011.6,118.7 1026.5,119.2 1041.5,119.7 1056.4,119.9 1071.3,120.4 1086.3,120.7 1101.2,120.7 1116.1,120.9 1131.1,121.2 1146.0,121.2" fill="none" stroke="var(--dim)" stroke-width="1.1" stroke-dasharray="4 3"/>
-<polyline points="56.0,122.7 70.9,124.0 85.9,125.0 100.8,125.8 115.7,126.3 130.7,126.8 145.6,127.0 160.5,127.0 175.5,125.5 190.4,115.1 205.3,104.4 220.2,94.2 235.2,84.8 250.1,82.3 265.0,82.3 280.0,90.7 294.9,104.4 309.8,132.6 324.8,193.7 339.7,233.6 354.6,233.6 369.6,233.6 384.5,233.6 399.4,233.6 414.4,233.6 429.3,233.6 444.2,233.6 459.2,233.6 474.1,233.6 489.0,233.6 503.9,233.6 518.9,233.6 533.8,233.6 548.7,233.6 563.7,233.6 578.6,233.6 593.5,233.6 608.5,233.6 623.4,233.6 638.3,233.6 653.3,233.6 668.2,233.6 683.1,233.6 698.1,233.6 713.0,233.6 727.9,233.6 742.8,233.6 757.8,233.6 772.7,233.6 787.6,233.6 802.6,233.6 817.5,233.6 832.4,215.1 847.4,175.4 862.3,125.5 877.2,88.9 892.2,78.7 907.1,78.7 922.0,78.7 937.0,78.7 951.9,79.0 966.8,79.5 981.8,82.8 996.7,93.0 1011.6,103.1 1026.5,111.3 1041.5,118.7 1056.4,119.9 1071.3,120.4 1086.3,120.7 1101.2,120.7 1116.1,120.9 1131.1,121.2 1146.0,121.2" fill="none" stroke="var(--ink)" stroke-width="1.9"/>
-<rect x="312.8" y="76.7" width="71.7" height="157.0" fill="var(--ishi)" opacity="0.75"/>
-<text class="anS2" x="312.8" y="69.7">郭外 石垣 天端 6.47</text>
-<rect x="826.3" y="73.1" width="71.7" height="160.5" fill="var(--ishi)" opacity="0.75"/>
-<text class="anS2" x="826.3" y="66.1">郭内 石垣 天端 6.61</text>
+<path d="M56.0,124.3 L70.9,125.3 L85.9,126.1 L100.8,126.6 L115.7,127.1 L130.7,127.3 L145.6,127.6 L160.5,127.9 L175.5,127.6 L190.4,127.6 L205.3,127.1 L220.2,126.8 L235.2,126.1 L250.1,125.6 L265.0,124.8 L280.0,124.3 L294.9,123.5 L309.8,122.8 L324.8,122.3 L339.7,121.8 L354.6,121.5 L369.6,121.5 L384.5,121.5 L399.4,121.8 L414.4,122.0 L429.3,122.5 L444.2,123.0 L459.2,123.5 L474.1,124.0 L489.0,124.6 L503.9,125.1 L518.9,125.1 L533.8,124.8 L548.7,124.6 L563.7,124.0 L578.6,123.8 L593.5,123.3 L608.5,122.8 L623.4,122.5 L638.3,122.3 L653.3,122.0 L668.2,122.0 L683.1,122.0 L698.1,122.0 L713.0,122.0 L727.9,122.0 L742.8,122.0 L757.8,122.0 L772.7,122.0 L787.6,122.0 L802.6,122.0 L817.5,122.0 L832.4,122.0 L847.4,122.0 L862.3,122.0 L877.2,122.0 L892.2,121.8 L907.1,121.5 L922.0,121.0 L937.0,120.5 L951.9,120.2 L966.8,120.0 L981.8,120.0 L996.7,120.0 L1011.6,120.2 L1026.5,120.5 L1041.5,120.7 L1056.4,121.0 L1071.3,121.3 L1086.3,121.5 L1101.2,121.5 L1116.1,121.8 L1131.1,121.8 L1146.0,121.8 L1146.0,121.8 L1131.1,121.8 L1116.1,121.8 L1101.2,121.5 L1086.3,121.5 L1071.3,121.3 L1056.4,121.0 L1041.5,117.7 L1026.5,112.6 L1011.6,103.5 L996.7,93.1 L981.8,85.2 L966.8,80.6 L951.9,78.6 L937.0,78.6 L922.0,78.6 L907.1,78.9 L892.2,80.6 L877.2,97.9 L862.3,114.9 L847.4,166.7 L832.4,221.3 L817.5,233.7 L802.6,233.7 L787.6,233.7 L772.7,233.7 L757.8,233.7 L742.8,233.7 L727.9,233.7 L713.0,233.7 L698.1,233.7 L683.1,233.7 L668.2,233.7 L653.3,233.7 L638.3,233.7 L623.4,233.7 L608.5,233.7 L593.5,233.7 L578.6,233.7 L563.7,233.7 L548.7,233.7 L533.8,233.7 L518.9,233.7 L503.9,233.7 L489.0,233.7 L474.1,233.7 L459.2,233.7 L444.2,233.7 L429.3,233.7 L414.4,233.7 L399.4,233.7 L384.5,233.7 L369.6,233.7 L354.6,233.7 L339.7,209.8 L324.8,149.7 L309.8,99.2 L294.9,88.0 L280.0,82.4 L265.0,82.4 L250.1,82.4 L235.2,87.5 L220.2,94.1 L205.3,104.8 L190.4,116.2 L175.5,123.3 L160.5,126.6 L145.6,127.6 L130.7,127.3 L115.7,127.1 L100.8,126.6 L85.9,126.1 L70.9,125.3 L56.0,124.3 Z" fill="var(--cut2)" opacity="0.55"/>
+<rect x="384.5" y="195.6" width="441.8" height="38.1" fill="#BBD3DF" opacity="0.85"/>
+<path d="M384.5,195.6 H826.3" stroke="#3F6F86" stroke-width="1.6"/>
+<polyline points="56.0,124.3 70.9,125.3 85.9,126.1 100.8,126.6 115.7,127.1 130.7,127.3 145.6,127.6 160.5,127.9 175.5,127.6 190.4,127.6 205.3,127.1 220.2,126.8 235.2,126.1 250.1,125.6 265.0,124.8 280.0,124.3 294.9,123.5 309.8,122.8 324.8,122.3 339.7,121.8 354.6,121.5 369.6,121.5 384.5,121.5 399.4,121.8 414.4,122.0 429.3,122.5 444.2,123.0 459.2,123.5 474.1,124.0 489.0,124.6 503.9,125.1 518.9,125.1 533.8,124.8 548.7,124.6 563.7,124.0 578.6,123.8 593.5,123.3 608.5,122.8 623.4,122.5 638.3,122.3 653.3,122.0 668.2,122.0 683.1,122.0 698.1,122.0 713.0,122.0 727.9,122.0 742.8,122.0 757.8,122.0 772.7,122.0 787.6,122.0 802.6,122.0 817.5,122.0 832.4,122.0 847.4,122.0 862.3,122.0 877.2,122.0 892.2,121.8 907.1,121.5 922.0,121.0 937.0,120.5 951.9,120.2 966.8,120.0 981.8,120.0 996.7,120.0 1011.6,120.2 1026.5,120.5 1041.5,120.7 1056.4,121.0 1071.3,121.3 1086.3,121.5 1101.2,121.5 1116.1,121.8 1131.1,121.8 1146.0,121.8" fill="none" stroke="var(--dim)" stroke-width="1.1" stroke-dasharray="4 3"/>
+<polyline points="56.0,124.3 70.9,125.3 85.9,126.1 100.8,126.6 115.7,127.1 130.7,127.3 145.6,127.6 160.5,126.6 175.5,123.3 190.4,116.2 205.3,104.8 220.2,94.1 235.2,87.5 250.1,82.4 265.0,82.4 280.0,82.4 294.9,88.0 309.8,99.2 324.8,149.7 339.7,209.8 354.6,233.7 369.6,233.7 384.5,233.7 399.4,233.7 414.4,233.7 429.3,233.7 444.2,233.7 459.2,233.7 474.1,233.7 489.0,233.7 503.9,233.7 518.9,233.7 533.8,233.7 548.7,233.7 563.7,233.7 578.6,233.7 593.5,233.7 608.5,233.7 623.4,233.7 638.3,233.7 653.3,233.7 668.2,233.7 683.1,233.7 698.1,233.7 713.0,233.7 727.9,233.7 742.8,233.7 757.8,233.7 772.7,233.7 787.6,233.7 802.6,233.7 817.5,233.7 832.4,221.3 847.4,166.7 862.3,114.9 877.2,97.9 892.2,80.6 907.1,78.9 922.0,78.6 937.0,78.6 951.9,78.6 966.8,80.6 981.8,85.2 996.7,93.1 1011.6,103.5 1026.5,112.6 1041.5,117.7 1056.4,121.0 1071.3,121.3 1086.3,121.5 1101.2,121.5 1116.1,121.8 1131.1,121.8 1146.0,121.8" fill="none" stroke="var(--ink)" stroke-width="1.9"/>
+<rect x="312.8" y="77.3" width="71.7" height="156.4" fill="var(--ishi)" opacity="0.75"/>
+<text class="anS2" x="312.8" y="70.3">郭外 石垣 天端 6.46</text>
+<rect x="826.3" y="73.5" width="71.7" height="160.2" fill="var(--ishi)" opacity="0.75"/>
+<text class="anS2" x="826.3" y="66.5">郭内 石垣 天端 6.61</text>
 <path d="M384.5,254.0 V38.0" stroke="#3F6F86" stroke-width="0.8" stroke-dasharray="2 3"/>
 <path d="M826.3,254.0 V38.0" stroke="#3F6F86" stroke-width="0.8" stroke-dasharray="2 3"/>
 <path d="M175.5,254.0 V38.0" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="6 4"/>
@@ -32195,22 +32196,22 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <text class="sl" x="16" y="271.2">-1 m</text>
 <path d="M50.0,239.8 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
 <text class="sl" x="16" y="242.8">0 m</text>
-<path d="M50.0,211.4 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="214.4">1 m</text>
-<path d="M50.0,182.9 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="185.9">2 m</text>
-<path d="M50.0,154.5 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="157.5">3 m</text>
-<path d="M50.0,126.1 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="129.1">4 m</text>
-<path d="M50.0,97.7 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="100.7">5 m</text>
-<path d="M50.0,69.3 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="72.3">6 m</text>
-<path d="M50.0,40.8 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="43.8">7 m</text>
-<path d="M50.0,12.4 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="15.4">8 m</text>
+<path d="M50.0,211.5 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="214.5">1 m</text>
+<path d="M50.0,183.1 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="186.1">2 m</text>
+<path d="M50.0,154.8 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="157.8">3 m</text>
+<path d="M50.0,126.4 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="129.4">4 m</text>
+<path d="M50.0,98.1 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="101.1">5 m</text>
+<path d="M50.0,69.7 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="72.7">6 m</text>
+<path d="M50.0,41.4 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="44.4">7 m</text>
+<path d="M50.0,13.1 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="16.1">8 m</text>
 <path d="M56.0,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
 <path d="M129.6,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
 <path d="M203.3,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
@@ -32226,22 +32227,22 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <path d="M939.8,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
 <path d="M1013.4,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
 <path d="M1087.1,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
-<path d="M56.0,150.0 L70.7,150.3 L85.5,150.3 L100.2,150.5 L114.9,150.8 L129.6,150.8 L144.4,151.1 L159.1,151.1 L173.8,151.1 L188.6,151.4 L203.3,151.4 L218.0,151.4 L232.8,151.4 L247.5,151.4 L262.2,151.4 L276.9,151.4 L291.7,151.4 L306.4,151.1 L321.1,151.4 L335.9,151.4 L350.6,151.4 L365.3,151.7 L380.1,152.3 L394.8,152.5 L409.5,153.1 L424.2,153.7 L439.0,153.7 L453.7,154.0 L468.4,154.0 L483.2,154.2 L497.9,154.5 L512.6,154.8 L527.4,155.1 L542.1,155.4 L556.8,155.9 L571.5,156.2 L586.3,156.8 L601.0,156.8 L615.7,157.1 L630.5,157.4 L645.2,157.7 L659.9,158.2 L674.6,158.5 L689.4,158.8 L704.1,159.4 L718.8,159.9 L733.6,160.5 L748.3,161.1 L763.0,161.9 L777.8,162.5 L792.5,163.1 L807.2,163.6 L821.9,163.9 L836.7,164.2 L851.4,164.5 L866.1,164.5 L880.9,164.8 L895.6,165.0 L910.3,165.0 L925.1,165.3 L939.8,165.9 L954.5,166.5 L969.2,167.0 L984.0,167.6 L998.7,168.2 L1013.4,168.7 L1028.2,169.6 L1042.9,170.2 L1057.6,170.4 L1072.4,170.4 L1087.1,170.7 L1101.8,171.0 L1116.5,170.4 L1131.3,169.9 L1146.0,169.6 L1146.0,169.6 L1131.3,169.9 L1116.5,170.4 L1101.8,171.0 L1087.1,170.7 L1072.4,170.4 L1057.6,169.9 L1042.9,167.0 L1028.2,153.4 L1013.4,131.5 L998.7,111.0 L984.0,94.8 L969.2,83.5 L954.5,83.5 L939.8,83.5 L925.1,83.5 L910.3,83.5 L895.6,115.9 L880.9,152.5 L866.1,185.8 L851.4,217.9 L836.7,231.3 L821.9,231.3 L807.2,231.3 L792.5,231.3 L777.8,231.3 L763.0,231.3 L748.3,231.3 L733.6,231.3 L718.8,231.3 L704.1,231.3 L689.4,231.3 L674.6,231.3 L659.9,231.3 L645.2,231.3 L630.5,231.3 L615.7,231.3 L601.0,231.3 L586.3,231.3 L571.5,231.3 L556.8,231.3 L542.1,231.3 L527.4,231.3 L512.6,231.3 L497.9,231.3 L483.2,231.3 L468.4,231.3 L453.7,231.3 L439.0,231.3 L424.2,231.3 L409.5,231.3 L394.8,231.3 L380.1,231.3 L365.3,231.3 L350.6,231.3 L335.9,228.1 L321.1,189.8 L306.4,151.4 L291.7,121.8 L276.9,93.1 L262.2,86.3 L247.5,86.3 L232.8,92.6 L218.0,104.2 L203.3,118.7 L188.6,134.9 L173.8,146.9 L159.1,149.4 L144.4,151.1 L129.6,150.8 L114.9,150.8 L100.2,150.5 L85.5,150.3 L70.7,150.3 L56.0,150.0 Z" fill="var(--cut2)" opacity="0.55"/>
-<rect x="380.1" y="188.6" width="453.2" height="42.6" fill="#BBD3DF" opacity="0.85"/>
-<path d="M380.1,188.6 H833.3" stroke="#3F6F86" stroke-width="1.6"/>
-<polyline points="56.0,150.0 70.7,150.3 85.5,150.3 100.2,150.5 114.9,150.8 129.6,150.8 144.4,151.1 159.1,151.1 173.8,151.1 188.6,151.4 203.3,151.4 218.0,151.4 232.8,151.4 247.5,151.4 262.2,151.4 276.9,151.4 291.7,151.4 306.4,151.1 321.1,151.4 335.9,151.4 350.6,151.4 365.3,151.7 380.1,152.3 394.8,152.5 409.5,153.1 424.2,153.7 439.0,153.7 453.7,154.0 468.4,154.0 483.2,154.2 497.9,154.5 512.6,154.8 527.4,155.1 542.1,155.4 556.8,155.9 571.5,156.2 586.3,156.8 601.0,156.8 615.7,157.1 630.5,157.4 645.2,157.7 659.9,158.2 674.6,158.5 689.4,158.8 704.1,159.4 718.8,159.9 733.6,160.5 748.3,161.1 763.0,161.9 777.8,162.5 792.5,163.1 807.2,163.6 821.9,163.9 836.7,164.2 851.4,164.5 866.1,164.5 880.9,164.8 895.6,165.0 910.3,165.0 925.1,165.3 939.8,165.9 954.5,166.5 969.2,167.0 984.0,167.6 998.7,168.2 1013.4,168.7 1028.2,169.6 1042.9,170.2 1057.6,170.4 1072.4,170.4 1087.1,170.7 1101.8,171.0 1116.5,170.4 1131.3,169.9 1146.0,169.6" fill="none" stroke="var(--dim)" stroke-width="1.1" stroke-dasharray="4 3"/>
-<polyline points="56.0,150.0 70.7,150.3 85.5,150.3 100.2,150.5 114.9,150.8 129.6,150.8 144.4,151.1 159.1,149.4 173.8,146.9 188.6,134.9 203.3,118.7 218.0,104.2 232.8,92.6 247.5,86.3 262.2,86.3 276.9,93.1 291.7,121.8 306.4,151.4 321.1,189.8 335.9,228.1 350.6,231.3 365.3,231.3 380.1,231.3 394.8,231.3 409.5,231.3 424.2,231.3 439.0,231.3 453.7,231.3 468.4,231.3 483.2,231.3 497.9,231.3 512.6,231.3 527.4,231.3 542.1,231.3 556.8,231.3 571.5,231.3 586.3,231.3 601.0,231.3 615.7,231.3 630.5,231.3 645.2,231.3 659.9,231.3 674.6,231.3 689.4,231.3 704.1,231.3 718.8,231.3 733.6,231.3 748.3,231.3 763.0,231.3 777.8,231.3 792.5,231.3 807.2,231.3 821.9,231.3 836.7,231.3 851.4,217.9 866.1,185.8 880.9,152.5 895.6,115.9 910.3,83.5 925.1,83.5 939.8,83.5 954.5,83.5 969.2,83.5 984.0,94.8 998.7,111.0 1013.4,131.5 1028.2,153.4 1042.9,167.0 1057.6,169.9 1072.4,170.4 1087.1,170.7 1101.8,171.0 1116.5,170.4 1131.3,169.9 1146.0,169.6" fill="none" stroke="var(--ink)" stroke-width="1.9"/>
-<rect x="309.4" y="80.3" width="70.7" height="150.9" fill="var(--ishi)" opacity="0.75"/>
-<text class="anS2" x="309.4" y="73.3">郭外 石垣 天端 5.61</text>
-<rect x="833.3" y="77.2" width="70.7" height="154.0" fill="var(--ishi)" opacity="0.75"/>
-<text class="anS2" x="833.3" y="70.2">郭内 石垣 天端 5.72</text>
+<path d="M56.0,149.1 L70.7,149.4 L85.5,149.7 L100.2,150.0 L114.9,150.3 L129.6,150.5 L144.4,150.8 L159.1,150.8 L173.8,151.1 L188.6,151.1 L203.3,151.1 L218.0,151.4 L232.8,151.4 L247.5,151.4 L262.2,151.1 L276.9,151.1 L291.7,150.8 L306.4,150.8 L321.1,150.8 L335.9,151.1 L350.6,151.4 L365.3,151.7 L380.1,152.2 L394.8,152.5 L409.5,153.1 L424.2,153.7 L439.0,153.9 L453.7,154.2 L468.4,154.2 L483.2,154.2 L497.9,154.5 L512.6,154.8 L527.4,155.1 L542.1,155.1 L556.8,155.4 L571.5,155.6 L586.3,155.6 L601.0,155.9 L615.7,155.9 L630.5,156.2 L645.2,156.5 L659.9,156.8 L674.6,157.3 L689.4,157.6 L704.1,158.2 L718.8,158.8 L733.6,159.6 L748.3,160.2 L763.0,161.0 L777.8,161.9 L792.5,162.4 L807.2,163.0 L821.9,163.3 L836.7,163.6 L851.4,163.3 L866.1,163.3 L880.9,163.3 L895.6,163.3 L910.3,163.6 L925.1,163.9 L939.8,164.4 L954.5,165.0 L969.2,166.1 L984.0,167.0 L998.7,167.5 L1013.4,167.8 L1028.2,168.1 L1042.9,168.7 L1057.6,169.0 L1072.4,169.2 L1087.1,169.5 L1101.8,170.1 L1116.5,170.1 L1131.3,169.8 L1146.0,169.5 L1146.0,169.5 L1131.3,169.8 L1116.5,170.1 L1101.8,170.1 L1087.1,169.5 L1072.4,169.2 L1057.6,168.7 L1042.9,164.7 L1028.2,148.6 L1013.4,129.8 L998.7,108.9 L984.0,88.5 L969.2,85.1 L954.5,83.6 L939.8,83.4 L925.1,83.4 L910.3,83.6 L895.6,94.7 L880.9,129.0 L866.1,176.6 L851.4,215.7 L836.7,229.3 L821.9,231.3 L807.2,231.3 L792.5,231.3 L777.8,231.3 L763.0,231.3 L748.3,231.3 L733.6,231.3 L718.8,231.3 L704.1,231.3 L689.4,231.3 L674.6,231.3 L659.9,231.3 L645.2,231.3 L630.5,231.3 L615.7,231.3 L601.0,231.3 L586.3,231.3 L571.5,231.3 L556.8,231.3 L542.1,231.3 L527.4,231.3 L512.6,231.3 L497.9,231.3 L483.2,231.3 L468.4,231.3 L453.7,231.3 L439.0,231.3 L424.2,231.3 L409.5,231.3 L394.8,231.3 L380.1,231.3 L365.3,231.3 L350.6,231.3 L335.9,199.6 L321.1,161.0 L306.4,129.3 L291.7,100.6 L276.9,86.5 L262.2,86.5 L247.5,87.9 L232.8,93.8 L218.0,103.2 L203.3,119.1 L188.6,135.2 L173.8,143.7 L159.1,150.3 L144.4,150.8 L129.6,150.5 L114.9,150.3 L100.2,150.0 L85.5,149.7 L70.7,149.4 L56.0,149.1 Z" fill="var(--cut2)" opacity="0.55"/>
+<rect x="380.1" y="188.8" width="453.5" height="42.5" fill="#BBD3DF" opacity="0.85"/>
+<path d="M380.1,188.8 H833.6" stroke="#3F6F86" stroke-width="1.6"/>
+<polyline points="56.0,149.1 70.7,149.4 85.5,149.7 100.2,150.0 114.9,150.3 129.6,150.5 144.4,150.8 159.1,150.8 173.8,151.1 188.6,151.1 203.3,151.1 218.0,151.4 232.8,151.4 247.5,151.4 262.2,151.1 276.9,151.1 291.7,150.8 306.4,150.8 321.1,150.8 335.9,151.1 350.6,151.4 365.3,151.7 380.1,152.2 394.8,152.5 409.5,153.1 424.2,153.7 439.0,153.9 453.7,154.2 468.4,154.2 483.2,154.2 497.9,154.5 512.6,154.8 527.4,155.1 542.1,155.1 556.8,155.4 571.5,155.6 586.3,155.6 601.0,155.9 615.7,155.9 630.5,156.2 645.2,156.5 659.9,156.8 674.6,157.3 689.4,157.6 704.1,158.2 718.8,158.8 733.6,159.6 748.3,160.2 763.0,161.0 777.8,161.9 792.5,162.4 807.2,163.0 821.9,163.3 836.7,163.6 851.4,163.3 866.1,163.3 880.9,163.3 895.6,163.3 910.3,163.6 925.1,163.9 939.8,164.4 954.5,165.0 969.2,166.1 984.0,167.0 998.7,167.5 1013.4,167.8 1028.2,168.1 1042.9,168.7 1057.6,169.0 1072.4,169.2 1087.1,169.5 1101.8,170.1 1116.5,170.1 1131.3,169.8 1146.0,169.5" fill="none" stroke="var(--dim)" stroke-width="1.1" stroke-dasharray="4 3"/>
+<polyline points="56.0,149.1 70.7,149.4 85.5,149.7 100.2,150.0 114.9,150.3 129.6,150.5 144.4,150.8 159.1,150.3 173.8,143.7 188.6,135.2 203.3,119.1 218.0,103.2 232.8,93.8 247.5,87.9 262.2,86.5 276.9,86.5 291.7,100.6 306.4,129.3 321.1,161.0 335.9,199.6 350.6,231.3 365.3,231.3 380.1,231.3 394.8,231.3 409.5,231.3 424.2,231.3 439.0,231.3 453.7,231.3 468.4,231.3 483.2,231.3 497.9,231.3 512.6,231.3 527.4,231.3 542.1,231.3 556.8,231.3 571.5,231.3 586.3,231.3 601.0,231.3 615.7,231.3 630.5,231.3 645.2,231.3 659.9,231.3 674.6,231.3 689.4,231.3 704.1,231.3 718.8,231.3 733.6,231.3 748.3,231.3 763.0,231.3 777.8,231.3 792.5,231.3 807.2,231.3 821.9,231.3 836.7,229.3 851.4,215.7 866.1,176.6 880.9,129.0 895.6,94.7 910.3,83.6 925.1,83.4 939.8,83.4 954.5,83.6 969.2,85.1 984.0,88.5 998.7,108.9 1013.4,129.8 1028.2,148.6 1042.9,164.7 1057.6,168.7 1072.4,169.2 1087.1,169.5 1101.8,170.1 1116.5,170.1 1131.3,169.8 1146.0,169.5" fill="none" stroke="var(--ink)" stroke-width="1.9"/>
+<rect x="309.4" y="80.8" width="70.7" height="150.5" fill="var(--ishi)" opacity="0.75"/>
+<text class="anS2" x="309.4" y="73.8">郭外 石垣 天端 5.61</text>
+<rect x="833.6" y="77.7" width="70.7" height="153.6" fill="var(--ishi)" opacity="0.75"/>
+<text class="anS2" x="833.6" y="70.7">郭内 石垣 天端 5.72</text>
 <path d="M380.1,254.0 V38.0" stroke="#3F6F86" stroke-width="0.8" stroke-dasharray="2 3"/>
-<path d="M833.3,254.0 V38.0" stroke="#3F6F86" stroke-width="0.8" stroke-dasharray="2 3"/>
+<path d="M833.6,254.0 V38.0" stroke="#3F6F86" stroke-width="0.8" stroke-dasharray="2 3"/>
 <path d="M173.8,254.0 V38.0" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="6 4"/>
-<path d="M1039.5,254.0 V38.0" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="6 4"/>
+<path d="M1039.8,254.0 V38.0" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="6 4"/>
 <text class="sl" x="177.8" y="50.0">工区の境</text>
-<text class="sl" x="1035.5" y="50.0" style="text-anchor:end">工区の境</text>
-<text class="big" x="56.0" y="20">断面 ホ ── 距離程 941 m ／ 水面幅 30.77 m ／ 垂直倍率 1.9 倍</text>
+<text class="sl" x="1035.8" y="50.0" style="text-anchor:end">工区の境</text>
+<text class="big" x="56.0" y="20">断面 ホ ── 距離程 941 m ／ 水面幅 30.79 m ／ 垂直倍率 1.9 倍</text>
 <text class="sl" x="601.0" y="286.0" style="text-anchor:middle">汀線からの距離 [m] (左=郭外 / 右=郭内)</text>
 </g></svg></div>
 <p class="cap"><b>┄ 現況 / ── 設計 / 寒色の塗り = 掘る量</b>。現況地盤が全長で最も低い測点 — 岸を盛る。⛔ <b>堀の壁は垂直のまま残す</b> — 溜池の掘り直しのように 45°で均すと石垣の面が土に埋まり、堀が皿になる。</p>
@@ -32251,24 +32252,24 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <defs><pattern id="pi11" width="9" height="9" patternUnits="userSpaceOnUse"><path d="M0,4.5 h9 M4.5,0 v9" stroke="var(--ishi)" stroke-width="0.8" opacity="0.6"/></pattern><pattern id="wv11" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M0,7 q2.5,-3 5,0 t5,0" stroke="#4E7E95" stroke-width="0.8" fill="none" opacity="0.55"/></pattern><clipPath id="cl11"><rect x="0" y="0" width="1180" height="300"/></clipPath></defs>
 <g clip-path="url(#cl11)">
 <rect x="0.0" y="0.0" width="1180.0" height="300.0" fill="var(--paper)"/>
-<path d="M50.0,268.5 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="271.5">-1 m</text>
-<path d="M50.0,239.5 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="242.5">0 m</text>
-<path d="M50.0,210.6 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="213.6">1 m</text>
-<path d="M50.0,181.7 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="184.7">2 m</text>
-<path d="M50.0,152.8 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="155.8">3 m</text>
-<path d="M50.0,123.9 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="126.9">4 m</text>
-<path d="M50.0,95.0 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="98.0">5 m</text>
-<path d="M50.0,66.0 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="69.0">6 m</text>
-<path d="M50.0,37.1 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
-<text class="sl" x="16" y="40.1">7 m</text>
+<path d="M50.0,268.4 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="271.4">-1 m</text>
+<path d="M50.0,239.6 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="242.6">0 m</text>
+<path d="M50.0,210.7 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="213.7">1 m</text>
+<path d="M50.0,181.8 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="184.8">2 m</text>
+<path d="M50.0,152.9 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="155.9">3 m</text>
+<path d="M50.0,124.1 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="127.1">4 m</text>
+<path d="M50.0,95.2 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="98.2">5 m</text>
+<path d="M50.0,66.3 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="69.3">6 m</text>
+<path d="M50.0,37.4 H1146.0" stroke="var(--rule)" stroke-width="0.5" opacity="0.8"/>
+<text class="sl" x="16" y="40.4">7 m</text>
 <path d="M56.0,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
 <path d="M129.6,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
 <path d="M203.3,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
@@ -32284,22 +32285,22 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <path d="M939.8,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
 <path d="M1013.4,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
 <path d="M1087.1,254.0 V38.0" stroke="var(--rule)" stroke-width="0.4" opacity="0.6"/>
-<path d="M56.0,128.8 L70.7,128.5 L85.5,128.2 L100.2,128.2 L114.9,128.5 L129.6,128.5 L144.4,128.8 L159.1,129.1 L173.8,130.0 L188.6,130.5 L203.3,131.4 L218.0,132.3 L232.8,133.1 L247.5,133.7 L262.2,134.6 L276.9,135.2 L291.7,135.2 L306.4,135.2 L321.1,135.2 L335.9,134.9 L350.6,134.6 L365.3,134.6 L380.1,134.3 L394.8,134.0 L409.5,134.0 L424.2,133.7 L439.0,133.4 L453.7,133.4 L468.4,132.8 L483.2,132.0 L497.9,131.1 L512.6,130.2 L527.4,129.4 L542.1,129.1 L556.8,128.8 L571.5,128.8 L586.3,128.8 L601.0,129.4 L615.7,130.5 L630.5,131.4 L645.2,132.0 L659.9,132.6 L674.6,132.8 L689.4,133.1 L704.1,133.4 L718.8,133.7 L733.6,134.0 L748.3,134.3 L763.0,134.6 L777.8,135.2 L792.5,135.4 L807.2,135.7 L821.9,136.0 L836.7,136.3 L851.4,136.6 L866.1,136.9 L880.9,137.2 L895.6,137.8 L910.3,138.0 L925.1,138.6 L939.8,139.2 L954.5,139.2 L969.2,139.2 L984.0,139.2 L998.7,138.9 L1013.4,138.6 L1028.2,138.3 L1042.9,138.0 L1057.6,138.0 L1072.4,137.8 L1087.1,138.0 L1101.8,138.3 L1116.5,138.6 L1131.3,139.2 L1146.0,139.2 L1146.0,139.2 L1131.3,139.2 L1116.5,138.6 L1101.8,138.3 L1087.1,138.0 L1072.4,137.8 L1057.6,136.6 L1042.9,134.3 L1028.2,125.6 L1013.4,112.3 L998.7,99.9 L984.0,90.3 L969.2,84.3 L954.5,84.3 L939.8,84.3 L925.1,84.3 L910.3,84.3 L895.6,102.5 L880.9,121.6 L866.1,163.8 L851.4,212.7 L836.7,230.9 L821.9,230.9 L807.2,230.9 L792.5,230.9 L777.8,230.9 L763.0,230.9 L748.3,230.9 L733.6,230.9 L718.8,230.9 L704.1,230.9 L689.4,230.9 L674.6,230.9 L659.9,230.9 L645.2,230.9 L630.5,230.9 L615.7,230.9 L601.0,230.9 L586.3,230.9 L571.5,230.9 L556.8,230.9 L542.1,230.9 L527.4,230.9 L512.6,230.9 L497.9,230.9 L483.2,230.9 L468.4,230.9 L453.7,230.9 L439.0,230.9 L424.2,230.9 L409.5,230.9 L394.8,230.9 L380.1,230.9 L365.3,230.9 L350.6,230.9 L335.9,224.8 L321.1,175.6 L306.4,126.8 L291.7,108.3 L276.9,90.6 L262.2,87.2 L247.5,87.2 L232.8,91.8 L218.0,99.6 L203.3,109.1 L188.6,119.5 L173.8,127.3 L159.1,128.5 L144.4,128.8 L129.6,128.5 L114.9,128.5 L100.2,128.2 L85.5,128.2 L70.7,128.5 L56.0,128.8 Z" fill="var(--cut2)" opacity="0.55"/>
-<rect x="380.1" y="187.5" width="455.9" height="43.4" fill="#BBD3DF" opacity="0.85"/>
-<path d="M380.1,187.5 H835.9" stroke="#3F6F86" stroke-width="1.6"/>
-<polyline points="56.0,128.8 70.7,128.5 85.5,128.2 100.2,128.2 114.9,128.5 129.6,128.5 144.4,128.8 159.1,129.1 173.8,130.0 188.6,130.5 203.3,131.4 218.0,132.3 232.8,133.1 247.5,133.7 262.2,134.6 276.9,135.2 291.7,135.2 306.4,135.2 321.1,135.2 335.9,134.9 350.6,134.6 365.3,134.6 380.1,134.3 394.8,134.0 409.5,134.0 424.2,133.7 439.0,133.4 453.7,133.4 468.4,132.8 483.2,132.0 497.9,131.1 512.6,130.2 527.4,129.4 542.1,129.1 556.8,128.8 571.5,128.8 586.3,128.8 601.0,129.4 615.7,130.5 630.5,131.4 645.2,132.0 659.9,132.6 674.6,132.8 689.4,133.1 704.1,133.4 718.8,133.7 733.6,134.0 748.3,134.3 763.0,134.6 777.8,135.2 792.5,135.4 807.2,135.7 821.9,136.0 836.7,136.3 851.4,136.6 866.1,136.9 880.9,137.2 895.6,137.8 910.3,138.0 925.1,138.6 939.8,139.2 954.5,139.2 969.2,139.2 984.0,139.2 998.7,138.9 1013.4,138.6 1028.2,138.3 1042.9,138.0 1057.6,138.0 1072.4,137.8 1087.1,138.0 1101.8,138.3 1116.5,138.6 1131.3,139.2 1146.0,139.2" fill="none" stroke="var(--dim)" stroke-width="1.1" stroke-dasharray="4 3"/>
-<polyline points="56.0,128.8 70.7,128.5 85.5,128.2 100.2,128.2 114.9,128.5 129.6,128.5 144.4,128.8 159.1,128.5 173.8,127.3 188.6,119.5 203.3,109.1 218.0,99.6 232.8,91.8 247.5,87.2 262.2,87.2 276.9,90.6 291.7,108.3 306.4,126.8 321.1,175.6 335.9,224.8 350.6,230.9 365.3,230.9 380.1,230.9 394.8,230.9 409.5,230.9 424.2,230.9 439.0,230.9 453.7,230.9 468.4,230.9 483.2,230.9 497.9,230.9 512.6,230.9 527.4,230.9 542.1,230.9 556.8,230.9 571.5,230.9 586.3,230.9 601.0,230.9 615.7,230.9 630.5,230.9 645.2,230.9 659.9,230.9 674.6,230.9 689.4,230.9 704.1,230.9 718.8,230.9 733.6,230.9 748.3,230.9 763.0,230.9 777.8,230.9 792.5,230.9 807.2,230.9 821.9,230.9 836.7,230.9 851.4,212.7 866.1,163.8 880.9,121.6 895.6,102.5 910.3,84.3 925.1,84.3 939.8,84.3 954.5,84.3 969.2,84.3 984.0,90.3 998.7,99.9 1013.4,112.3 1028.2,125.6 1042.9,134.3 1057.6,136.6 1072.4,137.8 1087.1,138.0 1101.8,138.3 1116.5,138.6 1131.3,139.2 1146.0,139.2" fill="none" stroke="var(--ink)" stroke-width="1.9"/>
-<rect x="309.4" y="81.1" width="70.7" height="149.8" fill="var(--ishi)" opacity="0.75"/>
-<text class="anS2" x="309.4" y="74.1">郭外 石垣 天端 5.48</text>
-<rect x="835.9" y="77.9" width="70.7" height="153.0" fill="var(--ishi)" opacity="0.75"/>
-<text class="anS2" x="835.9" y="70.9">郭内 石垣 天端 5.59</text>
+<path d="M56.0,127.5 L70.7,127.2 L85.5,127.2 L100.2,126.9 L114.9,127.2 L129.6,127.5 L144.4,128.1 L159.1,128.7 L173.8,129.5 L188.6,130.1 L203.3,131.0 L218.0,131.9 L232.8,132.4 L247.5,133.3 L262.2,133.9 L276.9,134.2 L291.7,134.4 L306.4,134.4 L321.1,134.4 L335.9,134.2 L350.6,134.2 L365.3,133.9 L380.1,133.6 L394.8,133.6 L409.5,133.3 L424.2,133.0 L439.0,133.0 L453.7,132.7 L468.4,132.4 L483.2,131.6 L497.9,130.7 L512.6,130.1 L527.4,129.3 L542.1,128.7 L556.8,128.4 L571.5,128.4 L586.3,128.4 L601.0,128.4 L615.7,129.3 L630.5,130.1 L645.2,130.7 L659.9,131.3 L674.6,131.9 L689.4,132.1 L704.1,132.4 L718.8,132.7 L733.6,133.0 L748.3,133.3 L763.0,133.6 L777.8,133.9 L792.5,134.2 L807.2,134.4 L821.9,134.4 L836.7,134.7 L851.4,135.0 L866.1,135.3 L880.9,135.9 L895.6,136.2 L910.3,136.5 L925.1,136.8 L939.8,137.0 L954.5,137.3 L969.2,137.3 L984.0,137.6 L998.7,137.3 L1013.4,137.0 L1028.2,136.8 L1042.9,136.8 L1057.6,136.5 L1072.4,136.5 L1087.1,136.8 L1101.8,137.0 L1116.5,137.3 L1131.3,138.2 L1146.0,138.5 L1146.0,138.5 L1131.3,138.2 L1116.5,137.3 L1101.8,137.0 L1087.1,136.8 L1072.4,136.5 L1057.6,136.5 L1042.9,133.9 L1028.2,122.9 L1013.4,111.1 L998.7,98.6 L984.0,86.5 L969.2,84.5 L954.5,84.2 L939.8,84.2 L925.1,84.2 L910.3,92.6 L895.6,111.1 L880.9,126.4 L866.1,140.5 L851.4,176.9 L836.7,214.1 L821.9,230.9 L807.2,230.9 L792.5,230.9 L777.8,230.9 L763.0,230.9 L748.3,230.9 L733.6,230.9 L718.8,230.9 L704.1,230.9 L689.4,230.9 L674.6,230.9 L659.9,230.9 L645.2,230.9 L630.5,230.9 L615.7,230.9 L601.0,230.9 L586.3,230.9 L571.5,230.9 L556.8,230.9 L542.1,230.9 L527.4,230.9 L512.6,230.9 L497.9,230.9 L483.2,230.9 L468.4,230.9 L453.7,230.9 L439.0,230.9 L424.2,230.9 L409.5,230.9 L394.8,230.9 L380.1,230.9 L365.3,230.9 L350.6,230.9 L335.9,192.8 L321.1,137.6 L306.4,106.1 L291.7,91.4 L276.9,87.1 L262.2,87.1 L247.5,88.2 L232.8,92.0 L218.0,98.6 L203.3,109.0 L188.6,119.4 L173.8,124.6 L159.1,128.4 L144.4,128.1 L129.6,127.5 L114.9,127.2 L100.2,126.9 L85.5,127.2 L70.7,127.2 L56.0,127.5 Z" fill="var(--cut2)" opacity="0.55"/>
+<rect x="380.1" y="187.6" width="456.2" height="43.3" fill="#BBD3DF" opacity="0.85"/>
+<path d="M380.1,187.6 H836.2" stroke="#3F6F86" stroke-width="1.6"/>
+<polyline points="56.0,127.5 70.7,127.2 85.5,127.2 100.2,126.9 114.9,127.2 129.6,127.5 144.4,128.1 159.1,128.7 173.8,129.5 188.6,130.1 203.3,131.0 218.0,131.9 232.8,132.4 247.5,133.3 262.2,133.9 276.9,134.2 291.7,134.4 306.4,134.4 321.1,134.4 335.9,134.2 350.6,134.2 365.3,133.9 380.1,133.6 394.8,133.6 409.5,133.3 424.2,133.0 439.0,133.0 453.7,132.7 468.4,132.4 483.2,131.6 497.9,130.7 512.6,130.1 527.4,129.3 542.1,128.7 556.8,128.4 571.5,128.4 586.3,128.4 601.0,128.4 615.7,129.3 630.5,130.1 645.2,130.7 659.9,131.3 674.6,131.9 689.4,132.1 704.1,132.4 718.8,132.7 733.6,133.0 748.3,133.3 763.0,133.6 777.8,133.9 792.5,134.2 807.2,134.4 821.9,134.4 836.7,134.7 851.4,135.0 866.1,135.3 880.9,135.9 895.6,136.2 910.3,136.5 925.1,136.8 939.8,137.0 954.5,137.3 969.2,137.3 984.0,137.6 998.7,137.3 1013.4,137.0 1028.2,136.8 1042.9,136.8 1057.6,136.5 1072.4,136.5 1087.1,136.8 1101.8,137.0 1116.5,137.3 1131.3,138.2 1146.0,138.5" fill="none" stroke="var(--dim)" stroke-width="1.1" stroke-dasharray="4 3"/>
+<polyline points="56.0,127.5 70.7,127.2 85.5,127.2 100.2,126.9 114.9,127.2 129.6,127.5 144.4,128.1 159.1,128.4 173.8,124.6 188.6,119.4 203.3,109.0 218.0,98.6 232.8,92.0 247.5,88.2 262.2,87.1 276.9,87.1 291.7,91.4 306.4,106.1 321.1,137.6 335.9,192.8 350.6,230.9 365.3,230.9 380.1,230.9 394.8,230.9 409.5,230.9 424.2,230.9 439.0,230.9 453.7,230.9 468.4,230.9 483.2,230.9 497.9,230.9 512.6,230.9 527.4,230.9 542.1,230.9 556.8,230.9 571.5,230.9 586.3,230.9 601.0,230.9 615.7,230.9 630.5,230.9 645.2,230.9 659.9,230.9 674.6,230.9 689.4,230.9 704.1,230.9 718.8,230.9 733.6,230.9 748.3,230.9 763.0,230.9 777.8,230.9 792.5,230.9 807.2,230.9 821.9,230.9 836.7,214.1 851.4,176.9 866.1,140.5 880.9,126.4 895.6,111.1 910.3,92.6 925.1,84.2 939.8,84.2 954.5,84.2 969.2,84.5 984.0,86.5 998.7,98.6 1013.4,111.1 1028.2,122.9 1042.9,133.9 1057.6,136.5 1072.4,136.5 1087.1,136.8 1101.8,137.0 1116.5,137.3 1131.3,138.2 1146.0,138.5" fill="none" stroke="var(--ink)" stroke-width="1.9"/>
+<rect x="309.4" y="81.3" width="70.7" height="149.6" fill="var(--ishi)" opacity="0.75"/>
+<text class="anS2" x="309.4" y="74.3">郭外 石垣 天端 5.48</text>
+<rect x="836.2" y="78.4" width="70.7" height="152.5" fill="var(--ishi)" opacity="0.75"/>
+<text class="anS2" x="836.2" y="71.4">郭内 石垣 天端 5.58</text>
 <path d="M380.1,254.0 V38.0" stroke="#3F6F86" stroke-width="0.8" stroke-dasharray="2 3"/>
-<path d="M835.9,254.0 V38.0" stroke="#3F6F86" stroke-width="0.8" stroke-dasharray="2 3"/>
+<path d="M836.2,254.0 V38.0" stroke="#3F6F86" stroke-width="0.8" stroke-dasharray="2 3"/>
 <path d="M173.8,254.0 V38.0" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="6 4"/>
-<path d="M1042.2,254.0 V38.0" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="6 4"/>
+<path d="M1042.5,254.0 V38.0" stroke="#7A2E1E" stroke-width="1" stroke-dasharray="6 4"/>
 <text class="sl" x="177.8" y="50.0">工区の境</text>
-<text class="sl" x="1038.2" y="50.0" style="text-anchor:end">工区の境</text>
-<text class="big" x="56.0" y="20">断面 ヘ ── 距離程 1000 m ／ 水面幅 30.95 m ／ 垂直倍率 2.0 倍</text>
+<text class="sl" x="1038.5" y="50.0" style="text-anchor:end">工区の境</text>
+<text class="big" x="56.0" y="20">断面 ヘ ── 距離程 1000 m ／ 水面幅 30.97 m ／ 垂直倍率 2.0 倍</text>
 <text class="sl" x="601.0" y="286.0" style="text-anchor:middle">汀線からの距離 [m] (左=郭外 / 右=郭内)</text>
 </g></svg></div>
 <p class="cap"><b>┄ 現況 / ── 設計 / 寒色の塗り = 掘る量</b>。東端・天端が 5.4/5.5 まで下り切る。⛔ <b>堀の壁は垂直のまま残す</b> — 溜池の掘り直しのように 45°で均すと石垣の面が土に埋まり、堀が皿になる。</p>
@@ -32341,15 +32342,15 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <text class="sl" x="60.0" y="278.0">⛔ 45°の頭打ちは③の帯だけ。堀の壁は総石垣なので垂直のまま残す　⭐ ②は最寄りの天端 − 0.20 m(2026-08-30 ユーザー裁定A)</text>
 </g></svg></div>
 <ul class='prose'><li>① 汀線の内側 … その水面の床(00002・00003 は 0.30 = waterY 1.80 − depth 1.50)一律。</li><li>② 汀線の外 0–10m … <b>最寄りの石垣の見え面の天端 − 0.20m</b>(石垣の背後の土居)。⛔ 汀線から 4.80m までは<b>石垣の躯体が占める帯</b>(見え面が汀線・裏面がピボット線)なので触らない — 盛れば石そのものが土に埋まる。したがって天端基準で盛るのは <b>4.80–10m</b>。⭐ 2026-08-30 ユーザー裁定A(EDO-0064)。それまでの『種地をそのまま戻す』は、起点が躯体の裏面より 1.7m 外に置かれていたため継ぎ目に溝を残していた。</li><li>③ 汀線の外 10–14m … ②と現況を線形に摺り付ける。</li><li>④ ③の帯の中だけ 2m/2m(45°)で勾配を頭打ちにして、切り口の崖を均す。堀の壁は総石垣なので垂直のまま残す。</li><li>⑤ 帯から keepOut を外す … 掘らない水面(00001)とその岸14m、および凍結矩形 K1(虎ノ門枡形と土橋の足元)。⚠ 掘る水面の<b>内側</b>は外さない — 土橋を貫く水路は床まで掘る。</li><li>⑥ 工区(掘る水面の汀線+14m から ⑤ を引いた所)の外は1セルも触らない。</li></ul>
-<div class="box"><p><b>種地の出所の検算</b> ── 工区の中で現況が自然地形と 0.3m 超ちがう(=08-22 のリセットを生き延びた造成の)セルは <b>40 個</b>。そのうち種地と現況が一致するのは <b>22.5%</b>(最大差 5.68 m)にすぎない。⛔ <b>初版はここを「一致する」と書いていたが、通っていなかった</b> ── 種地をそのまま戻すと生き残っている枡形・土橋を最大 5.68 m 掘り落とすところだった。そこで土橋の足元を<b>凍結域 K1</b> として帯から外した結果、<b>不一致のまま帯で動くセルは 1 個</b>まで落ちた(水面の内側で動く 30 個は、土橋を貫く水路を床まで掘るもので設計どおり)。⚠ この検算は工区を広げれば成り立たなくなるので、広げるときは必ず取り直すこと。</p></div>
+<div class="box"><p><b>種地の出所の検算</b> ── 工区の中で現況が自然地形と 0.3m 超ちがう(=08-22 のリセットを生き延びた造成の)セルは <b>39 個</b>。そのうち種地と現況が一致するのは <b>20.5%</b>(最大差 5.68 m)にすぎない。⛔ <b>初版はここを「一致する」と書いていたが、通っていなかった</b> ── 種地をそのまま戻すと生き残っている枡形・土橋を最大 5.68 m 掘り落とすところだった。そこで土橋の足元を<b>凍結域 K1</b> として帯から外した結果、<b>不一致のまま帯で動くセルは 1 個</b>まで落ちた(水面の内側で動く 30 個は、土橋を貫く水路を床まで掘るもので設計どおり)。⚠ この検算は工区を広げれば成り立たなくなるので、広げるときは必ず取り直すこと。</p></div>
 <h4>やってはならないこと</h4>
 <ul class='prose'><li>⛔ 00001 の地形に触ること(調査のみ。堰の頭も虎ノ門の足元も動かさない)</li><li>⛔ WaterBody の Recarve を使うこと(snap は荒掘り時代の物で復元事故になる — 手動掘り + RebuildSurface + SyncWaterSnaps)</li><li>⛔ 工区の外へ勾配の摺り付けを溢れさせること</li><li>⛔ 石垣・橋・枡形・堰を動かすこと</li></ul>
 </div>
 <div class="plate"><div class="phead"><h2>其十三　石垣との取り合い</h2><span class="meta">背面の地盤が天端の直下にあるか</span></div>
-<div class="tw"><table><thead><tr><th>石垣の run</th><th>水面</th><th>扱い</th><th>評価点</th><th>天端 − 背面の設計地盤(中央) +2m</th><th>+4m</th><th>+6m</th><th>+8m</th></tr></thead><tbody><tr><td>CW1s</td><td>00001</td><td>調査</td><td>52</td><td>-0.08</td><td>-0.10</td><td>-0.19</td><td>-0.32</td></tr><tr><td>CW1n</td><td>00001</td><td>調査</td><td>48</td><td>+6.48</td><td>+4.05</td><td>+1.68</td><td>+0.73</td></tr><tr><td>R1</td><td>00001</td><td>調査</td><td>8</td><td>+0.24</td><td>+0.02</td><td>+0.12</td><td>+0.21</td></tr><tr><td>R3</td><td>00001</td><td>調査</td><td>9</td><td>+0.20</td><td>+0.20</td><td>+0.21</td><td>+0.40</td></tr><tr><td>SW2</td><td>00002</td><td>掘る</td><td>49</td><td>+0.06</td><td>+0.10</td><td>+0.24</td><td>+0.41</td></tr><tr><td>NE2</td><td>00002</td><td>掘る</td><td>49</td><td>+0.20</td><td>+0.20</td><td>+0.35</td><td>+0.74</td></tr><tr><td>SW3a</td><td>00003</td><td>掘る</td><td>14</td><td>+0.56</td><td>+0.22</td><td>+0.48</td><td>+1.10</td></tr><tr><td>SW3b</td><td>00003</td><td>掘る</td><td>4</td><td>+0.78</td><td>+0.47</td><td>+0.78</td><td>+1.07</td></tr><tr><td>SW3c</td><td>00003</td><td>掘る</td><td>134</td><td>+0.50</td><td>+0.22</td><td>+0.62</td><td>+1.46</td></tr><tr><td>NE3g</td><td>00003</td><td>掘る</td><td>8</td><td>+0.20</td><td>+0.22</td><td>+0.50</td><td>+1.12</td></tr><tr><td>NE3f</td><td>00003</td><td>掘る</td><td>2</td><td>+4.29</td><td>+0.84</td><td>+1.33</td><td>+1.17</td></tr><tr><td>NE3</td><td>00003</td><td>掘る</td><td>140</td><td>+0.22</td><td>+0.23</td><td>+0.66</td><td>+1.51</td></tr><tr><td>END3(仮設)</td><td>00003</td><td>掘る</td><td>8</td><td>+0.34</td><td>+0.59</td><td>+1.04</td><td>+1.45</td></tr></tbody></table></div>
+<div class="tw"><table><thead><tr><th>石垣の run</th><th>水面</th><th>扱い</th><th>評価点</th><th>天端 − 背面の設計地盤(中央) +2m</th><th>+4m</th><th>+6m</th><th>+8m</th></tr></thead><tbody><tr><td>CW1s</td><td>00001</td><td>調査</td><td>51</td><td>-0.22</td><td>-0.18</td><td>-0.13</td><td>-0.09</td></tr><tr><td>CW1n</td><td>00001</td><td>調査</td><td>47</td><td>+6.48</td><td>+4.00</td><td>+1.64</td><td>+0.71</td></tr><tr><td>R1</td><td>00001</td><td>調査</td><td>8</td><td>+0.25</td><td>+0.02</td><td>+0.13</td><td>+0.21</td></tr><tr><td>R3</td><td>00001</td><td>調査</td><td>9</td><td>+0.30</td><td>+0.20</td><td>+0.22</td><td>+0.40</td></tr><tr><td>SW2</td><td>00002</td><td>掘る</td><td>49</td><td>+0.20</td><td>+0.20</td><td>+0.26</td><td>+0.41</td></tr><tr><td>NE2</td><td>00002</td><td>掘る</td><td>49</td><td>+0.20</td><td>+0.20</td><td>+0.35</td><td>+0.74</td></tr><tr><td>SW3a</td><td>00003</td><td>掘る</td><td>14</td><td>+0.20</td><td>+0.20</td><td>+0.46</td><td>+1.00</td></tr><tr><td>SW3b</td><td>00003</td><td>掘る</td><td>3</td><td>+0.20</td><td>+0.20</td><td>+0.26</td><td>+0.48</td></tr><tr><td>SW3c</td><td>00003</td><td>掘る</td><td>134</td><td>+0.20</td><td>+0.20</td><td>+0.60</td><td>+1.45</td></tr><tr><td>NE3g</td><td>00003</td><td>掘る</td><td>8</td><td>+0.20</td><td>+0.20</td><td>+0.49</td><td>+1.11</td></tr><tr><td>NE3f</td><td>00003</td><td>掘る</td><td>2</td><td>+0.20</td><td>+0.22</td><td>+0.44</td><td>+0.81</td></tr><tr><td>NE3</td><td>00003</td><td>掘る</td><td>140</td><td>+0.20</td><td>+0.20</td><td>+0.60</td><td>+1.45</td></tr><tr><td>END3(仮設)</td><td>00003</td><td>掘る</td><td>8</td><td>+0.20</td><td>+0.20</td><td>+0.51</td><td>+1.15</td></tr></tbody></table></div>
 <p class="cap">石垣は <b>1個も動かさない</b>(CLAUDE.md 絶対規則1)。底は y=0 にあり、床はその 0.30 m 上に来るので、掘っても石垣は浮かない。測るのは<b>背面(陸側4m)の設計地盤が天端の直下にあるか</b>で、天端 − 地盤が 0 に近いほど土留めとして正しく立っている。⚠ 短い折れ(NE3f・SW3b・END3)は評価点が数点しかないので、中央値だけで合否を決めず<b>実装後に目視で確かめる</b>。⚠ <b>最大の外れ値は 00002 と 00003 の継ぎ目に集まる</b>(SW3b・NE3g) — 継ぎ目では石垣の背後に<b>溝が残る</b>。⛔ その量と原因の診断は<b>未解決 U7 が正典</b>で、ここには数値を写さない(2026-08-28 に写した値は 2026-08-30 に撤回された)。⚠ SW2 の最小が負なのは西端の虎ノ門寄りで<b>現況の地面がもともと天端より高い</b>ため。⚠ 00001 の run(CW1s・CW1n・R1・R3)は<b>合否の対象ではない</b> — 掘らないので設計地盤 = 現況で、断面の形も 00002・00003 と違う(次の表を見ること)。</p>
 <h4>石垣が土に埋まっていないか(run 線そのもので測る)</h4>
-<div class="tw"><table><thead><tr><th>石垣の run</th><th>水面</th><th>評価点</th><th>現況地盤 − 天端(中央)</th><th>設計地盤 − 天端(中央)</th><th>天端が埋まる割合</th></tr></thead><tbody><tr><td>CW1s</td><td>00001</td><td>52</td><td>+0.11</td><td>+0.11</td><td>15%</td></tr><tr><td>CW1n</td><td>00001</td><td>48</td><td>-6.48</td><td>-6.48</td><td>0%</td></tr><tr><td>R1</td><td>00001</td><td>8</td><td>-1.05</td><td>-1.05</td><td>0%</td></tr><tr><td>R3</td><td>00001</td><td>9</td><td>-1.24</td><td>-1.24</td><td>0%</td></tr><tr><td>SW2</td><td>00002</td><td>49</td><td>-0.43</td><td>-0.61</td><td>2%</td></tr><tr><td>NE2</td><td>00002</td><td>49</td><td>-0.82</td><td>-0.20</td><td>0%</td></tr><tr><td>SW3a</td><td>00003</td><td>14</td><td>-1.34</td><td>-1.68</td><td>0%</td></tr><tr><td>SW3b</td><td>00003</td><td>4</td><td>-1.30</td><td>-0.22</td><td>0%</td></tr><tr><td>SW3c</td><td>00003</td><td>134</td><td>-1.98</td><td>-2.36</td><td>0%</td></tr><tr><td>NE3g</td><td>00003</td><td>8</td><td>-1.50</td><td>-0.29</td><td>0%</td></tr><tr><td>NE3f</td><td>00003</td><td>2</td><td>-1.37</td><td>-4.41</td><td>0%</td></tr><tr><td>NE3</td><td>00003</td><td>140</td><td>-2.01</td><td>-0.24</td><td>0%</td></tr><tr><td>END3(仮設)</td><td>00003</td><td>8</td><td>-1.51</td><td>-0.22</td><td>0%</td></tr></tbody></table></div>
+<div class="tw"><table><thead><tr><th>石垣の run</th><th>水面</th><th>評価点</th><th>現況地盤 − 天端(中央)</th><th>設計地盤 − 天端(中央)</th><th>天端が埋まる割合</th></tr></thead><tbody><tr><td>CW1s</td><td>00001</td><td>51</td><td>+0.18</td><td>+0.18</td><td>26% ⚠</td></tr><tr><td>CW1n</td><td>00001</td><td>47</td><td>-6.48</td><td>-6.48</td><td>0%</td></tr><tr><td>R1</td><td>00001</td><td>8</td><td>-1.11</td><td>-1.11</td><td>0%</td></tr><tr><td>R3</td><td>00001</td><td>9</td><td>-1.63</td><td>-1.63</td><td>0%</td></tr><tr><td>SW2</td><td>00002</td><td>49</td><td>-0.43</td><td>-0.67</td><td>2%</td></tr><tr><td>NE2</td><td>00002</td><td>49</td><td>-0.83</td><td>-0.20</td><td>0%</td></tr><tr><td>SW3a</td><td>00003</td><td>14</td><td>-1.32</td><td>-1.40</td><td>0%</td></tr><tr><td>SW3b</td><td>00003</td><td>3</td><td>-1.30</td><td>-0.22</td><td>0%</td></tr><tr><td>SW3c</td><td>00003</td><td>134</td><td>-1.98</td><td>-1.58</td><td>0%</td></tr><tr><td>NE3g</td><td>00003</td><td>8</td><td>-1.53</td><td>-0.43</td><td>0%</td></tr><tr><td>NE3f</td><td>00003</td><td>2</td><td>-1.37</td><td>-1.71</td><td>0%</td></tr><tr><td>NE3</td><td>00003</td><td>140</td><td>-2.01</td><td>-0.27</td><td>0%</td></tr><tr><td>END3(仮設)</td><td>00003</td><td>8</td><td>-1.51</td><td>-0.20</td><td>0%</td></tr></tbody></table></div>
 <p class="cap">⚠ <b>00001 の郭外の CW1s(Ishigaki_Ext_4・86駒)は天端が地面に潜る。</b>土橋の取付の R1・R3 も同様。これは 08-22 のリセットのせいではない ── <b>現況と 08-22 リセット直前が一致</b>しており、2026-08-10 に建てたときからこの姿である。<b>この指図では直さない</b>(00001 は調査のみ。汀線と地形の是正は 2026-08-29 に実施済=U9)。⛔ <b>この表の 00001 の行は再生成するまで古い</b> ── 2026-08-30 に 00001 の run 線(ピボット)を実測へ直し、CW1s で 8.5〜8.9m 動いた。上の値は動く前の線で採ったものである。</p>
 </div>
 <div class="plate"><div class="phead"><h2>其十四　施工の段階</h2><span class="meta">地形の編集は Undo の外</span></div>
@@ -32447,8 +32448,8 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <b>採りうるのは2つ。</b> <b>(a)</b> 合格文に例外を書く(虎ノ門寄りの西端を評価から外す)。<b>(b)</b> 凍結域 K1 を東へ伸ばして SW2 の西端を工区から外す。⛔ <b>どちらも設計判断なので指図では決めない — ユーザー裁定待ち。</b> (b) は工区の境を動かすので <code>works.keepOut</code> と検査 <code>spill_live</code> に波及する。</td><td>P(実測)/ ?(採る案)</td></tr></tbody></table></div>
 </div>
 <div class="plate"><div class="phead"><h2>其十八　改訂</h2><span class="meta">経緯は git log docs/Sashizu/</span></div>
-<div class="tw"><table><thead><tr><th>commit</th><th>日付</th><th>件名</th></tr></thead><tbody><tr><td><code>f71167d</code></td><td>2026-08-30</td><td class='note' style='text-align:left'>fix: 00001 の works を false へ戻し、検図13件・考証17件のうち裁定に依らない分を潰す</td></tr><tr><td><code>023c49f</code></td><td>2026-08-30</td><td class='note' style='text-align:left'>fix: CWC3 は run ではなく離れて建つ隅4駒 — 1駒ずつ実測を持たせる(EDO-0046)</td></tr><tr><td><code>2c82818</code></td><td>2026-08-30</td><td class='note' style='text-align:left'>fix: NE3 の天端ランプの東西を正し、U7 の向き・量を決着させる(EDO-0046)</td></tr><tr><td><code>7b8947c</code></td><td>2026-08-30</td><td class='note' style='text-align:left'>fix: 00002/00003 の汀線を石垣の見え面へ揃え、U8・U11 を解決する(EDO-0046)</td></tr><tr><td><code>2666295</code></td><td>2026-08-29</td><td class='note' style='text-align:left'>fix: 継ぎ目の折れは史実だった — U7 の「入隅をなくす」案を撤回する</td></tr><tr><td><code>3b93725</code></td><td>2026-08-29</td><td class='note' style='text-align:left'>feat: 石垣を正典として 00001 の水域と地形を合わせる(EDO-0046/U9 解決)</td></tr><tr><td><code>a78c466</code></td><td>2026-08-28</td><td class='note' style='text-align:left'>fix: 石垣の天端の計算式が誤っていた — U9 を建て直し、U1b を裁定から降ろす</td></tr><tr><td><code>b49c15d</code></td><td>2026-08-28</td><td class='note' style='text-align:left'>fix: 検図22件・考証17件の「高」13件を潰す(EDO-0046/0040)</td></tr><tr><td><code>af55e9d</code></td><td>2026-08-27</td><td class='note' style='text-align:left'>fix: sotobori_dem.json に nat 層を足し、種地の検算を worktree で再現できるようにする</td></tr><tr><td><code>7c10df0</code></td><td>2026-08-26</td><td class='note' style='text-align:left'>fix: 検図5件・考証3件の「高」を潰す(EDO-0040)</td></tr><tr><td><code>041d5d4</code></td><td>2026-08-26</td><td class='note' style='text-align:left'>feat: 指図の対象を溜池の堰から下流ひと続きへ広げる(ユーザー指示)</td></tr><tr><td><code>dd08078</code></td><td>2026-08-26</td><td class='note' style='text-align:left'>feat: 外堀下流の掘り直しの指図を起こす(EDO-0039 の残件)</td></tr></tbody></table></div>
+<div class="tw"><table><thead><tr><th>commit</th><th>日付</th><th>件名</th></tr></thead><tbody><tr><td><code>4236545</code></td><td>2026-08-30</td><td class='note' style='text-align:left'>feat: 裁定A — 岸は石垣の天端 −0.20m。附則②′ を撤廃し U7 を決着させる(EDO-0064 close)</td></tr><tr><td><code>f71167d</code></td><td>2026-08-30</td><td class='note' style='text-align:left'>fix: 00001 の works を false へ戻し、検図13件・考証17件のうち裁定に依らない分を潰す</td></tr><tr><td><code>023c49f</code></td><td>2026-08-30</td><td class='note' style='text-align:left'>fix: CWC3 は run ではなく離れて建つ隅4駒 — 1駒ずつ実測を持たせる(EDO-0046)</td></tr><tr><td><code>2c82818</code></td><td>2026-08-30</td><td class='note' style='text-align:left'>fix: NE3 の天端ランプの東西を正し、U7 の向き・量を決着させる(EDO-0046)</td></tr><tr><td><code>7b8947c</code></td><td>2026-08-30</td><td class='note' style='text-align:left'>fix: 00002/00003 の汀線を石垣の見え面へ揃え、U8・U11 を解決する(EDO-0046)</td></tr><tr><td><code>2666295</code></td><td>2026-08-29</td><td class='note' style='text-align:left'>fix: 継ぎ目の折れは史実だった — U7 の「入隅をなくす」案を撤回する</td></tr><tr><td><code>3b93725</code></td><td>2026-08-29</td><td class='note' style='text-align:left'>feat: 石垣を正典として 00001 の水域と地形を合わせる(EDO-0046/U9 解決)</td></tr><tr><td><code>a78c466</code></td><td>2026-08-28</td><td class='note' style='text-align:left'>fix: 石垣の天端の計算式が誤っていた — U9 を建て直し、U1b を裁定から降ろす</td></tr><tr><td><code>b49c15d</code></td><td>2026-08-28</td><td class='note' style='text-align:left'>fix: 検図22件・考証17件の「高」13件を潰す(EDO-0046/0040)</td></tr><tr><td><code>af55e9d</code></td><td>2026-08-27</td><td class='note' style='text-align:left'>fix: sotobori_dem.json に nat 層を足し、種地の検算を worktree で再現できるようにする</td></tr><tr><td><code>7c10df0</code></td><td>2026-08-26</td><td class='note' style='text-align:left'>fix: 検図5件・考証3件の「高」を潰す(EDO-0040)</td></tr><tr><td><code>041d5d4</code></td><td>2026-08-26</td><td class='note' style='text-align:left'>feat: 指図の対象を溜池の堰から下流ひと続きへ広げる(ユーザー指示)</td></tr><tr><td><code>dd08078</code></td><td>2026-08-26</td><td class='note' style='text-align:left'>feat: 外堀下流の掘り直しの指図を起こす(EDO-0039 の残件)</td></tr></tbody></table></div>
 <p class="cap" style="margin-top:44px">章 18 ／ 図版(SVG) 12 面。<b>組み直すときは図を落としていないか必ず数える。</b></p>
-<div class="foot">組んだ日 2026-08-30 22:53 ／ 設計値 <code>sotobori_sashizu.json</code> ／ 文章 <code>sotobori_kosho.md</code> ／ 実測 <code>sotobori_terrain.json</code>。Y は海抜 m(Unity の Y がそのまま標高)。</div>
+<div class="foot">組んだ日 2026-08-30 22:55 ／ 設計値 <code>sotobori_sashizu.json</code> ／ 文章 <code>sotobori_kosho.md</code> ／ 実測 <code>sotobori_terrain.json</code>。Y は海抜 m(Unity の Y がそのまま標高)。</div>
 </div>
 </div>

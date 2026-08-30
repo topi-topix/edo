@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """松平出羽守上屋敷(出雲松江藩)の指図を組む。
 
-    python3 Tools/Sashizu/build_matsudaira_sashizu.py
+    python3 Tools/Sashizu/build_matsudaira_dewa_sashizu.py
 
 【順序】**指図が先、実装が後。** この生成器は実装を読まない。読むのは
 
-    docs/Sashizu/matsudaira_sashizu.json … 設計値の正典(人が書く)
-    docs/Sashizu/matsudaira_kosho.md     … 文章の部(人が書く・現況形)
+    docs/Sashizu/matsudaira_dewa_sashizu.json … 設計値の正典(人が書く)
+    docs/Sashizu/matsudaira_dewa_kosho.md     … 文章の部(人が書く・現況形)
 
 の二つだけ。実装から指図を作ると CLAUDE.md 絶対規則2 の関門が消える。
 
@@ -21,6 +21,7 @@
         組んだら「図版 N 面」を数えること(図版が黙って落ちた前科がある)。
 """
 import io
+import copy
 import json, math, os, re, subprocess, html
 import zlib as _zlib
 
@@ -31,9 +32,9 @@ from sashizu_lib import (R, _pat, _SVN, Proj, RGrid, slope_table, links_table,
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DOC = os.path.join(ROOT, "docs/Sashizu")
-JSON = os.path.join(DOC, "matsudaira_sashizu.json")
-MD = os.path.join(DOC, "matsudaira_kosho.md")
-OUT = os.path.join(DOC, "matsudaira_sashizu.html")
+JSON = os.path.join(DOC, "matsudaira_dewa_sashizu.json")
+MD = os.path.join(DOC, "matsudaira_dewa_kosho.md")
+OUT = os.path.join(DOC, "matsudaira_dewa_sashizu.html")
 TSUBO = 3.305785
 
 
@@ -491,7 +492,7 @@ def section_svg(d, sec):
                 return ya if b <= a else ya + (yb - ya) * (w - a) / (b - a)
         return nat[-1][1]
 
-    # 段の縁の始末は**実装(EdoMatsudairaBuilder.DesignY)と同じ規則**で描く。
+    # 段の縁の始末は**実装(EdoMatsudairaDewaBuilder.DesignY)と同じ規則**で描く。
     #   土留め(terraceWalls)のある縁 … 垂直。石垣が段差を受けるので地面は現況のまま
     #   土留めの無い縁               … 1:const.feather の土の法面で現況へ着地
     K = d["const"]["ken"]
@@ -1309,6 +1310,7 @@ def plane_check(d):
     bad += mune_wall_clearance_check(d)
     bad += joints_check(d)
     bad += kado_stock_check(d)
+    bad += kado_arm_check(d)
     bad += ishigaki_layout_check(d)
     return bad
 
@@ -1349,15 +1351,15 @@ def route_pierce_check(d, tol=1.0):
 def run_seat_check(d, tol=0.6):
     """**run の天端と背後の地盤の照合。**これが無いと「塀が埋まる/浮く」を図で見逃す
     (2026-08-23 検図: 北東で 2.26m 埋没・南東で 3.74m 浮きを見逃していた)。
-    地盤は matsudaira_terrain.json(造成前)から読む。埋没(地盤>天端)は即不可、
+    地盤は matsudaira_dewa_terrain.json(造成前)から読む。埋没(地盤>天端)は即不可、
     浮きは石垣基壇 4.0×s で受けられる範囲まで許す。"""
     try:
-        terr = json.load(open(os.path.join(DOC, "matsudaira_terrain.json"), encoding="utf-8"))
+        terr = json.load(open(os.path.join(DOC, "matsudaira_dewa_terrain.json"), encoding="utf-8"))
     except Exception as ex:
         # ⛔ **`return []` にしない。** 地盤が読めないのは「合格」ではなく「**回っていない**」。
         #   土井が同じ形を自邸で8本見つけた(2026-08-26 EDO-0029)。当方も2本あった。
         #   `qa-and-pitfalls.md`「測れないものは 0 件になる」。
-        return ["matsudaira_terrain.json が読めず **この検査は回っていない**(合格ではない): %s" % ex]
+        return ["matsudaira_dewa_terrain.json が読めず **この検査は回っていない**(合格ではない): %s" % ex]
     gr = RGrid(d)
     P = d["polygon"]
     n = len(P)
@@ -1685,13 +1687,13 @@ def section_crossings(d, sec):
 
 
 # 附属屋・井戸・隅櫓・中仕切塀の実寸(m)。**軒の出を含む外形**。
-# 部材を作り直して寸法が変わったら、ここも直す(build_matsudaira_fuzokuya.py の報告値)。
+# 部材を作り直して寸法が変わったら、ここも直す(build_matsudaira_dewa_fuzokuya.py の報告値)。
 FUZOKU_SIZE = {
     "Kura1": (13.76, 8.89), "Kura2": (13.76, 8.89), "Kura3": (13.76, 8.89),
     "Sakuji": (19.32, 8.99), "Chatei": (6.55, 6.55), "Inari": (3.34, 2.50),
 }
 IDO_SIZE = (1.90, 1.90)
-YAGURA_OUTER = 7.394        # 隅櫓の軒の出を含む外形(build_matsudaira_fuzokuya.py の報告値)
+YAGURA_OUTER = 7.394        # 隅櫓の軒の出を含む外形(build_matsudaira_dewa_fuzokuya.py の報告値)
 NJ_THICK = 0.25
 
 
@@ -2063,8 +2065,8 @@ def terrain_provenance_check(d):
     両方の「0件」が意味を失う(2026-08-23 に4邸が live terrain を『造成前』として吸い込んだ事故と同型)。
     """
     try:
-        tj = json.load(open(os.path.join(DOC, "matsudaira_terrain.json"), encoding="utf-8"))
-        dem = json.load(open(os.path.join(DOC, "matsudaira_dem.json"), encoding="utf-8"))
+        tj = json.load(open(os.path.join(DOC, "matsudaira_dewa_terrain.json"), encoding="utf-8"))
+        dem = json.load(open(os.path.join(DOC, "matsudaira_dewa_dem.json"), encoding="utf-8"))
     except Exception as ex:
         return ["地形の出所を照合できない — **この検査は回っていない**(合格ではない): %s" % ex]
     g = d["grid"]["shukaku"]
@@ -2145,9 +2147,9 @@ def outside_bury_check(d):
     ⚠ 造成前の地盤(`<屋敷>_dem.json` = 正本の切り出し)で測る。live terrain は使わない(規則12)。
     """
     try:
-        dem = json.load(open(os.path.join(DOC, "matsudaira_dem.json"), encoding="utf-8"))
+        dem = json.load(open(os.path.join(DOC, "matsudaira_dewa_dem.json"), encoding="utf-8"))
     except Exception:
-        return ["matsudaira_dem.json が読めない — 外側の埋没を測れない(測れないものは0件になる)"]
+        return ["matsudaira_dewa_dem.json が読めない — 外側の埋没を測れない(測れないものは0件になる)"]
     x0, z0 = dem["x0"], dem["z0"]
     step = dem.get("step", dem.get("res", 2.0))
     H = dem["h"] if "h" in dem else dem["height"]
@@ -2505,12 +2507,12 @@ def kaidan_ground_check(d):
     """石段の落差が、その位置の造成前地盤と面の差に合っているか。
     2026-08-23: 御蔵門の石段が『存在しない帯』の上に置かれ、降りた先が窪地になっていた。"""
     try:
-        terr = json.load(open(os.path.join(DOC, "matsudaira_terrain.json"), encoding="utf-8"))
+        terr = json.load(open(os.path.join(DOC, "matsudaira_dewa_terrain.json"), encoding="utf-8"))
     except Exception as ex:
         # ⛔ **`return []` にしない。** 地盤が読めないのは「合格」ではなく「**回っていない**」。
         #   土井が同じ形を自邸で8本見つけた(2026-08-26 EDO-0029)。当方も2本あった。
         #   `qa-and-pitfalls.md`「測れないものは 0 件になる」。
-        return ["matsudaira_terrain.json が読めず **この検査は回っていない**(合格ではない): %s" % ex]
+        return ["matsudaira_dewa_terrain.json が読めず **この検査は回っていない**(合格ではない): %s" % ex]
     bad = []
     for k in d["kaidans"]:
         if "pos" not in k:
@@ -2570,8 +2572,9 @@ def corners_table(d):
         if j is None:
             osame = "—(取り合いの記述が無い)"
         else:
-            osame = "%s ／ 部材 <code>%s</code>(腕 %.2f/%.2f)" % (
-                j["kind"], j.get("partPath") or "—", j.get("armIn", 0.0), j.get("armOut", 0.0))
+            ai, ao = _kado_arms(d, j)
+            osame = "%s ／ 部材 <code>%s</code>(腕 %.2f/%.2f m)" % (
+                j["kind"], _kado_name(j) or "—", ai, ao)
         ds = (rr["seat"] - rl["seat"]) if (rl and rr) else 0.0
         rows.append("<tr><td>P%d</td><td>(%.1f, %.1f)</td><td>%.1f°</td>"
                     "<td><code>%s</code> %.1f</td><td><code>%s</code> %.1f</td><td>%+.1f</td><td class='note'>%s</td></tr>"
@@ -3134,6 +3137,31 @@ def _kado_path(part, deg):
             % (part, int(round(abs(deg))), "M" if deg < 0 else ""))
 
 
+def _kado_name(j):
+    """取り合い j が使う隅部材の**名前**(`kado` を持たない継ぎ目は None)。"""
+    kd = j.get("kado")
+    if not kd:
+        return None
+    return "%s_Kado_%02d%s" % (kd["part"], int(round(abs(kd["deg"]))), "M" if kd["deg"] < 0 else "")
+
+
+def _kado_arms(d, j):
+    """取り合い j の腕の長さ(入り, 出)[**世界座標 m**]。
+
+    ⛔ **joints は腕の数値を持たない**(規則4)。正典は json の `kado`(部材の実測表)で、
+      素の実測 `armRaw` に `scale`(=ES 1.818。隅部材は ES 倍で据える)を掛けて導く。
+      ⚠ 2026-08-30 に素の腕(2.27前後)を世界の腕と取り違えた指図を出しかけた。
+    留め継ぎは折れ角を二等分するので**入りと出の腕は同じ長さ**。
+    """
+    nm = _kado_name(j)
+    K = d.get("kado") or {}
+    e = (K.get("parts") or {}).get(nm)
+    if not e:
+        return 0.0, 0.0
+    a = round(e["armRaw"] * K["scale"], 3)
+    return a, a
+
+
 def _corner_joints(d):
     """隅の取り合いを {頂点: joint} で返す。"""
     n = len(d["polygon"])
@@ -3156,6 +3184,36 @@ def _kado_scope(d, j):
     return not (j["a"] in fen or j["b"] in fen)        # 木柵は互いに越えて敷く
 
 
+def kado_measure_table(d):
+    """**隅部材の実測表**(json の `kado` がそのまま出る)。素の値と倍率を必ず併記する。"""
+    K = d.get("kado")
+    if not K:
+        return ""
+    C = d["const"]
+    rows = []
+    for nm, e in K["parts"].items():
+        pth = "Assets/Edo/Models/Kado/%s.fbx" % nm
+        ok = os.path.exists(os.path.join(ROOT, pth))
+        rows.append("<tr><td><code>%s</code></td><td>%+.2f°</td><td>%.3f</td><td><b>%.3f</b></td>"
+                    "<td>%s</td><td>%s</td></tr>"
+                    % (nm, e["degMeasured"], e["armRaw"], e["armRaw"] * K["scale"],
+                       "・".join(e["use"]), "在る" if ok else "<b>無い</b>"))
+    return ("<h3>隅部材の実測(腕と丈の正典)</h3><div class='tw'><table><thead><tr>"
+            "<th>部材</th><th>折れ角(実測)</th><th>腕 素の単位</th><th>腕 世界 [m]</th>"
+            "<th>使う隅</th><th>実在</th></tr></thead><tbody>" + "".join(rows)
+            + "</tbody></table></div>"
+            "<p class='cap'><b>倍率 %.3f(=ES)。</b>隅部材は <code>scale = ES</code> で据えるので、"
+            "<b>素の実測を %.3f 倍したものが世界の腕</b>。⚠ 2026-08-30 に素の腕(2.3前後)を"
+            "世界の腕と取り違えた指図を出しかけた — <b>単位を必ず併記する</b>。"
+            "丈は素 %.3f × %.3f = <b>%.3fm</b> で、<code>const.dobeiH</code> の %.2fm は丸めた呼び値"
+            "(取り合いに効くのは実部材の側。直線材も同じ素材・同じ倍率なので天端は揃う)。"
+            "腕は入り・出とも同じ長さ — 留め継ぎは折れ角を二等分するので左右対称。"
+            "⛔ この数値を取り合い表へ写さない(絶対規則4)。取り合いは部材名を指すだけで、"
+            "腕はここから導く。</p>"
+            % (K["scale"], K["scale"], K["heightRaw"], K["scale"],
+               K["heightRaw"] * K["scale"], C["dobeiH"]))
+
+
 def kado_parts_table(d):
     """**隅部材の採否**(頂点ごと)。折れ角・突き付けたときの開き・採否・部材・実在。"""
     C = d["const"]
@@ -3172,8 +3230,9 @@ def kado_parts_table(d):
                         "取り合いの記述が無い</td></tr>" % (v, deg, opn))
             continue
         inscope = _kado_scope(d, j)
-        pp = j.get("partPath")
+        pp = _kado_path(j["kado"]["part"], j["kado"]["deg"]) if j.get("kado") else None
         ok = bool(pp) and os.path.exists(os.path.join(ROOT, pp))
+        ai, ao = _kado_arms(d, j)
         if not inscope:
             saihi = "規則の外(%s)" % ("木柵は重ねる" if "重ね" in j["kind"] else "隅櫓が隅を置き換える")
         else:
@@ -3182,8 +3241,7 @@ def kado_parts_table(d):
                     "<td class='note'>%s</td><td><code>%s</code></td><td>%s</td>"
                     "<td>%.2f / %.2f</td></tr>"
                     % (v, deg, opn, saihi, j["kind"], pp or "—",
-                       ("在る" if ok else "<b>無い</b>") if pp else "—",
-                       j.get("armIn", 0.0), j.get("armOut", 0.0)))
+                       ("在る" if ok else "<b>無い</b>") if pp else "—", ai, ao))
     return ("<h3>隅部材の採否(頂点ごと)</h3><div class='tw'><table><thead><tr><th>頂点</th>"
             "<th>折れ角 Δ</th><th>突き付けの開き</th><th>規則の判定</th><th class='note'>納め</th>"
             "<th>部材のパス</th><th>実在</th><th>腕 入/出</th></tr></thead><tbody>"
@@ -3192,10 +3250,11 @@ def kado_parts_table(d):
             "<code>const.kadoDegMin</code> 未満なら<b>隅部材を使わず</b>、直線材の突き付け＋重ねで"
             "吸う。以上なら隅部材を挟む。根拠は<b>突き付けたときに外面へ開く量</b> = "
             "<code>dobeiWallT · tan(Δ/2)</code>(表の3列目)。"
-            "90°級は在庫の正規隅(<code>Eg.DobeiCorner</code>)、浅い折れは留め継ぎ"
-            "(<code>build_kado.py</code>)。<b>腕</b>は隅部材が兼ねる長さで、"
-            "<b>練塀の側は run の s を変えず</b>隅部材が端の腕を兼ね、"
-            "<b>長屋の側は run を腕ぶん切る</b>(長屋は長さ指定の一体物なので端を動かすしかない)。"
+            "部材は在庫の正規隅ではなく<b>実測の折れ角から起こした留め継ぎ</b>を使う"
+            "(⛔ 折れ角を決め打ちしてはならない — 当邸の「90°級」は実は +90.95° と −87.76°)。"
+            "<b>腕</b>は隅部材が兼ねる長さ(<b>世界座標</b>。正典は <code>kado</code> の素の実測 × "
+            "<code>scale</code>=ES 1.818)で、<b>両隣の run は腕ぶん退がる</b> — "
+            "入りの run は <code>辺長 − 腕 + |gap|</code> で止め、出の run は <code>腕 − |gap|</code> から始める。"
             "⛔ <code>LoadAssetAtPath</code> は例外を投げず null を返すので、"
             "在庫に無い物を名指しすると<b>隅だけが黙って建たない</b>(絶対規則11)。"
             "木柵どうしの隅は隅部材を使わず互いに越えて敷く。</p>")
@@ -3214,10 +3273,7 @@ def kado_stock_check(d):
         if j is None:
             bad.append("隅 P%d に取り合いの記述が無い" % v)
             continue
-        pp = j.get("partPath")
-        if "armIn" not in j or "armOut" not in j:
-            bad.append("隅 P%d(%s)に腕の長さ(armIn/armOut)が無い — "
-                       "隣の run をどこで止めるかが決まらない" % (v, j["id"]))
+        pp = _kado_path(j["kado"]["part"], j["kado"]["deg"]) if j.get("kado") else None
         if not _kado_scope(d, j):
             continue
         deg = _kado_deg(d, v)
@@ -3238,20 +3294,161 @@ def kado_stock_check(d):
             if pp != want:
                 bad.append("隅 P%d(%s)は留め継ぎなのに部材が %s — 折れ角から導けば %s"
                            % (v, j["id"], pp, want))
+        if has and abs(j["kado"]["deg"] - deg) > 0.5:
+            bad.append("隅 P%d(%s)の `kado.deg` %+.2f° が区画から導いた折れ角 %+.2f° と食い違う — "
+                       "折れ角は区画が決める(決め打ちしない)" % (v, j["id"], j["kado"]["deg"], deg))
         if has and j.get("procure") != "在庫" and os.path.exists(os.path.join(ROOT, pp)):
             bad.append("隅 P%d(%s)の部材は在るのに調達が「%s」になっている"
                        % (v, j["id"], j.get("procure")))
-        if not has and (j.get("armIn") or j.get("armOut")):
+        ai, ao = _kado_arms(d, j)
+        if not has and (ai or ao):
             bad.append("隅 P%d(%s)は隅部材を使わないのに腕が 0 でない" % (v, j["id"]))
         # 腕は隣の run より短いこと(腕が run を食い切ると帯が消える)
-        for arm, e in ((j.get("armIn", 0.0), j["edge"]),
-                       (j.get("armOut", 0.0), (j["edge"] + 1) % n)):
+        for arm, e in ((ai, j["edge"]), (ao, (j["edge"] + 1) % n)):
             if arm <= 0:
                 continue
             rs = [r for r in d["runs"] if r["edge"] == e]
             if rs and max(r["s1"] for r in rs) - min(r["s0"] for r in rs) < arm:
                 bad.append("隅 P%d(%s)の腕 %.2fm が辺%d の囲いより長い" % (v, j["id"], arm, e))
     return bad
+
+
+def kado_arm_check(d, tol=0.02):
+    """**隅の腕の検査。**全頂点 P0〜P(n-1) を、三つの観点で検める。
+
+      (a) **腕の長さが部材の実測と一致するか** — 正典は json の `kado`(素の実測 armRaw)。
+          世界の腕 = `armRaw × scale`(scale=ES 1.818。隅部材は ES 倍で据える)。
+          あわせて丈 `heightRaw × scale` が `const.dobeiH` と合うか、
+          `kado.parts[].degMeasured` が区画から導いた折れ角と合うかを見る。
+      (b) **隣の run の端が腕の端面に来ているか** — 入りの run は `辺長 − 腕 + |gap|` で止まり、
+          出の run は `腕 − |gap|` から始まる(gap は負=めり込み。⛔ 隙間は不可)。
+          隅部材が兼ねる腕と直線材が**二重**になっていないか、逆に**離れて**いないかを測る。
+      (c) **腕が実装へ渡る形で持たれているか** — `EdoMatsudairaDewaBuilder.PlaceKado` は
+          joints を舐めて `kado`(part/deg/seat)を持つ継ぎ目だけを据える。
+          `kado` の無い腕は図の上にしか無い。
+
+    ⚠ 2026-08-29(EDO-0053 の後): 隅 P13 の腕は joints にしか無く実装へ渡らず、
+      辺13 s0.7〜2.6 に 2.25m の口が開いた。⚠ 2026-08-30: その腕の長さが部材の実寸と
+      違い(`armIn=2.99`)、しかも**素の単位を世界座標と取り違えた**まま出しかけた。
+      → 腕の数値は joints から抜いて `kado` 一箇所に集め、この検査で三方から縛る。
+    """
+    C = d["const"]
+    P = d["polygon"]
+    n = len(P)
+    K = d.get("kado")
+    bad = []
+    if not K:
+        return ["`kado`(隅部材の実測表)が無い — 腕の長さが導けない"]
+    if abs(K["heightRaw"] * K["scale"] - C["dobeiH"]) > 0.01:
+        bad.append("隅部材の丈 %.3f × %.3f = %.3fm が const.dobeiH %.2fm と 0.01m 以上ちがう — "
+                   "隅と直線材で天端が段になる(倍率の取り違えを疑う)"
+                   % (K["heightRaw"], K["scale"], K["heightRaw"] * K["scale"], C["dobeiH"]))
+    R = dict((r["name"], r) for r in d["runs"])
+    cj = _corner_joints(d)
+    used = set()
+    for v in range(n):
+        j = cj.get(v)
+        if j is None:
+            bad.append("隅 P%d に取り合い(joints)が無い — 腕を検めようがない" % v)
+            continue
+        deg = _kado_deg(d, v)
+        need = _kado_scope(d, j) and abs(deg) >= C["kadoDegMin"]
+        nm = _kado_name(j)
+        if not need:
+            if nm:
+                bad.append("隅 P%d(%s)は隅部材が要らない折れ(%+.2f°)のに `kado` を持っている"
+                           % (v, j["id"], deg))
+            continue
+        # (c) 実装へ渡る形か
+        if not nm:
+            bad.append("隅 P%d(%s・折れ %+.2f°)の腕が**実装へ渡らない** — 取り合いに `kado` "
+                       "(part/deg/seat)が無く、`EdoMatsudairaDewaBuilder.PlaceKado` は据えない。"
+                       "2026-08-29 に P13 でこの形のまま 2.25m の口が開いた" % (v, j["id"], deg))
+            continue
+        used.add(nm)
+        ent = (K.get("parts") or {}).get(nm)
+        if not ent:
+            bad.append("隅 P%d(%s)の部材 %s が実測表 `kado.parts` に無い — 腕の長さが導けない"
+                       % (v, j["id"], nm))
+            continue
+        # (a) 実測との一致
+        if abs(ent["degMeasured"] - deg) > 0.5:
+            bad.append("隅 P%d(%s)の部材 %s の実測の折れ %+.2f° が区画の折れ %+.2f° と食い違う — "
+                       "部材が別の角度で起こされている" % (v, j["id"], nm, ent["degMeasured"], deg))
+        ai, ao = _kado_arms(d, j)
+        # ⛔ ここで `ai == armRaw × scale` を測らない — 同じ式で導いた値を同じ式で検算する
+        #   恒真の検査になる(qa-and-pitfalls「測れないものは 0 件になる」)。
+        #   実測表と実物の突き合わせは (b) の**隣の run の端**が担う。
+        # (b) 隣の run の端
+        g = abs(j["gap"])
+        for side, want_name, e, at_end, arm in (("入り", j["a"], j["edge"] % n, True, ai),
+                                                ("出", j["b"], (j["edge"] + 1) % n, False, ao)):
+            r = R.get(want_name)
+            if r is None:
+                bad.append("隅 P%d(%s)の%s側 %s が runs に無い — 端を測れない"
+                           % (v, j["id"], side, want_name))
+                continue
+            a, b = P[e], P[(e + 1) % n]
+            L = math.hypot(b[0] - a[0], b[1] - a[1])
+            if at_end:
+                want, got, lab = L - arm + g, r["s1"], "s1"
+            else:
+                want, got, lab = arm - g, r["s0"], "s0"
+            if abs(got - want) > tol:
+                bad.append("隅 P%d(%s)の%s側 %s の %s が %.2f — 腕 %.3fm と gap %+.2f から導けば "
+                           "%.2f(辺%d・差 %+.2fm。%s)"
+                           % (v, j["id"], side, want_name, lab, got, arm, j["gap"], want, e,
+                              got - want,
+                              "隅部材と二重" if (got - want) * (1 if at_end else -1) > 0
+                              else "隅部材との間に口が開く"))
+        # (d) 座は入りの run の端の座を写す(隅で天端が揃うのが正典)
+        rin = R.get(j["a"])
+        if rin is not None:
+            want = seat_at(rin, rin["s1"])
+            if abs(j["kado"]["seat"] - want) > 0.005:
+                bad.append("隅 P%d(%s)の `kado.seat` %.2f が入りの run %s の端の座 %.2f と違う — "
+                           "隅部材は入りの run の天端に合わせる"
+                           % (v, j["id"], j["kado"]["seat"], j["a"], want))
+    for nm in (K.get("parts") or {}):
+        if nm not in used:
+            bad.append("実測表 `kado.parts` の %s をどの隅も使っていない — 使わない部材を表に残さない" % nm)
+    return bad
+
+
+def kado_arm_sensitivity(d):
+    """**感度試験** — わざと壊して `kado_arm_check` が鳴るか。
+    ⛔ 鳴らない probe があれば、その壊れ方は検査で捕まらない。"""
+    base = len(kado_arm_check(d))
+    probes = []
+
+    def run(label, mut):
+        m = copy.deepcopy(d)
+        mut(m)
+        probes.append((label, len(kado_arm_check(m)) - base))
+
+    def _j(m, jid):
+        return [x for x in m["joints"] if x["id"] == jid][0]
+
+    def _r(m, nm):
+        return [x for x in m["runs"] if x["name"] == nm][0]
+
+    run("① 隅 P13 の `kado` を消す(腕が実装へ渡らない形へ戻す)",
+        lambda m: _j(m, "J_P13").pop("kado"))
+    run("② 部材の実測の腕を 2.30→2.60 に書き換える",
+        lambda m: m["kado"]["parts"]["Dobei_Kado_19"].__setitem__("armRaw", 2.60))
+    run("③ 倍率を ES→1.0 にする(素の単位を世界座標と取り違える)",
+        lambda m: m["kado"].__setitem__("scale", 1.0))
+    run("④ 入りの run の端を 0.50m 伸ばして腕と二重にする",
+        lambda m: _r(m, "N_Hei_E").__setitem__("s1", _r(m, "N_Hei_E")["s1"] + 0.50))
+    run("⑤ 出の run の始まりを 0.50m 遅らせて腕との間に口を開ける",
+        lambda m: _r(m, "S_Hei_C").__setitem__("s0", _r(m, "S_Hei_C")["s0"] + 0.50))
+    run("⑥ 隅の座を 0.50m ずらす(隅で天端が段になる)",
+        lambda m: _j(m, "J_P1")["kado"].__setitem__("seat", _j(m, "J_P1")["kado"]["seat"] + 0.50))
+    run("⑦ 部材の丈を 1.455→1.30 にする(隅だけ天端が下がる)",
+        lambda m: m["kado"].__setitem__("heightRaw", 1.30))
+    run("⑧ 折れ角の実測を +18.54→+30.0 に書き換える(別の角度の部材を当てる)",
+        lambda m: m["kado"]["parts"]["Dobei_Kado_19"].__setitem__("degMeasured", 30.0))
+    return base, probes
 
 
 def bom_table(d):
@@ -3271,8 +3468,8 @@ def history():
     try:
         log = subprocess.check_output(
             ["git", "-C", ROOT, "log", "--date=short",
-             "--pretty=%h|%ad|%s", "--", "docs/Sashizu/matsudaira_sashizu.json",
-             "docs/Sashizu/matsudaira_kosho.md"]).decode()
+             "--pretty=%h|%ad|%s", "--", "docs/Sashizu/matsudaira_dewa_sashizu.json",
+             "docs/Sashizu/matsudaira_dewa_kosho.md"]).decode()
     except Exception:
         log = ""
     rows = []
@@ -3405,8 +3602,9 @@ def _perimeter_footprints(d):
         if not j["at"].startswith("隅 P"):
             continue
         vtx = (j["edge"] + 1) % n
-        for arm, e, at_end in ((j.get("armIn", 0.0), j["edge"], True),
-                               (j.get("armOut", 0.0), (j["edge"] + 1) % n, False)):
+        ai, ao = _kado_arms(d, j)
+        for arm, e, at_end in ((ai, j["edge"], True),
+                               (ao, (j["edge"] + 1) % n, False)):
             if arm <= 0:
                 continue
             a, u, L = edge(e)
@@ -3534,11 +3732,14 @@ def _perimeter_spans(d):
     級は三つ:
       **遮蔽** — 人が越えられない囲い(表長屋・練塀・門扉・隅櫓)。`runs` / 門 / 櫓。
       **標示** — 境を示すだけの木柵(`fences`)。基礎も整地も持たない。
-      **腕**   — 隅部材が兼ねる腕。⛔ **単独では閉じに数えない。**
-                 腕は `joints` にしか居らず `runs` に無いので、実装の run 一覧へ渡らない。
-    ⚠ 2026-08-29(EDO-0053 の後): 隅 P13 の辺13 側は腕(2.99m)だけが塞いだことになっていて、
+      **腕**   — 隅部材が兼ねる腕で、`joints` に `kado`(部材・折れ角・座)を持つもの。
+                 `EdoMatsudairaDewaBuilder.PlaceKado` が joints を舐めて据えるので**実装へ渡る**。
+      **腕(実装へ渡らない)** — 腕は宣言されているのに `kado` が無いもの。
+                 ⛔ **閉じに数えない。**据える処理が読む欄が無いので、隅がそのまま口として残る。
+    ⚠ 2026-08-29(EDO-0053 の後): 隅 P13 の辺13 側は腕だけが塞いだことになっていて、
       実装では隅がそのまま口として残った(外から敷地内へ 1m 踏み込める唯一の箇所)。
       面の当たりを見る `perimeter_closure_check` は腕を実体として数えるので鳴らなかった。
+      2026-08-30 に腕を `kado` として実装が読む形へ移し、**読める腕だけ**を閉じに数えるようにした。
     """
     P = d["polygon"]
     C = d["const"]
@@ -3580,13 +3781,17 @@ def _perimeter_spans(d):
         if not j["at"].startswith("隅 P"):
             continue
         v = (j["edge"] + 1) % n
-        for arm, e, at_end in ((j.get("armIn", 0.0), j["edge"] % n, True),
-                               (j.get("armOut", 0.0), (j["edge"] + 1) % n, False)):
+        ai, ao = _kado_arms(d, j)
+        # **実装が読む形か**で級を分ける。`EdoMatsudairaDewaBuilder.PlaceKado` は joints を舐めて
+        # `kado` を持つ継ぎ目だけ据えるので、`kado` の無い腕は図の上にしか無い。
+        cls = "腕" if j.get("kado") else "腕(実装へ渡らない)"
+        for arm, e, at_end in ((ai, j["edge"] % n, True),
+                               (ao, (j["edge"] + 1) % n, False)):
             if arm <= 0:
                 continue
             _, _, L = edge(e)
             s0, s1 = (L - arm, L) if at_end else (0.0, arm)
-            sp[e].append((s0, s1, "Kado_P%d" % v, "腕"))
+            sp[e].append((s0, s1, "Kado_P%d" % v, cls))
     return sp
 
 
@@ -3628,7 +3833,7 @@ def perimeter_ledger_check(d, tol=0.20):
     for e in range(n):
         a, b = P[e], P[(e + 1) % n]
         L = math.hypot(b[0] - a[0], b[1] - a[1])
-        segs = sorted([x for x in sp[e] if x[3] != "腕"], key=lambda x: x[0])
+        segs = sorted([x for x in sp[e] if x[3] != "腕(実装へ渡らない)"], key=lambda x: x[0])
         holes, cur = [], 0.0
         for s0, s1, nm, cls in segs:
             if s0 > cur + 1e-9:
@@ -3639,9 +3844,9 @@ def perimeter_ledger_check(d, tol=0.20):
         for h0, h1 in holes:
             if h1 - h0 < tol or declared(e, "開放", h0, h1):
                 continue
-            arms = [x for x in sp[e] if x[3] == "腕" and x[0] < h1 - 1e-6 and x[1] > h0 + 1e-6]
-            why = ("隅部材の腕 %s が図の上では跨いでいるが、**腕は joints にしか無く runs に無い**ので"
-                   "実装の run 一覧へ渡らない — 腕ぶんを短い練塀の run として書き起こすこと"
+            arms = [x for x in sp[e] if x[3].startswith("腕") and x[0] < h1 - 1e-6 and x[1] > h0 + 1e-6]
+            why = ("隅部材の腕 %s が図の上では跨いでいるが、その取り合いに `kado` が無いので"
+                   "**実装(PlaceKado)が据えない** — joints へ `kado`(part/deg/seat)を書くこと"
                    % arms[0][2]) if arms else \
                   ("塞ぐ物を指図に書くか、開けておく意図なら perimeterClosure に"
                    "『開放』として辺と s を宣言すること")
@@ -3670,8 +3875,8 @@ def perimeter_ledger_check(d, tol=0.20):
             bad.append("隅 P%d に取り合い(joints)が無い — 接する二者とその面が決まっていない" % v)
             continue
         ein, eout = (v - 1) % n, v % n
-        inn = [x for x in sp[ein] if x[3] != "腕"]
-        out = [x for x in sp[eout] if x[3] != "腕"]
+        inn = [x for x in sp[ein] if not x[3].startswith("腕")]
+        out = [x for x in sp[eout] if not x[3].startswith("腕")]
         last = max(inn, key=lambda x: x[1]) if inn else None
         first = min(out, key=lambda x: x[0]) if out else None
         for side, x, want, face, e in (("入り", last, j["a"], j["aFace"], ein),
@@ -3764,7 +3969,7 @@ def _dem_at(dem, x, z):
 
 def _ground_along(d, dem, path, off=1.5, step=0.5):
     """道筋に沿って、内側 off[m] の造成前の地盤を拾う。x は展開の通し距離[m]。
-    ⚠ 地盤は **正本DEMの切り出し** から採る。matsudaira_terrain.json は穴があり、
+    ⚠ 地盤は **正本DEMの切り出し** から採る。matsudaira_dewa_terrain.json は穴があり、
       辺1 の内側 1.5m では null しか返らなかった(2026-08-29)。"""
     P = d["polygon"]
     n = len(P)
@@ -3977,7 +4182,7 @@ def _dem_at(dem, x, z):
 
 def _ground_along(d, dem, path, off=1.5, step=0.5):
     """道筋に沿って、内側 off[m] の造成前の地盤を拾う。x は展開の通し距離[m]。
-    ⚠ 地盤は **正本DEMの切り出し** から採る。matsudaira_terrain.json は穴があり、
+    ⚠ 地盤は **正本DEMの切り出し** から採る。matsudaira_dewa_terrain.json は穴があり、
       辺1 の内側 1.5m では null しか返らなかった(2026-08-29)。"""
     P = d["polygon"]
     n = len(P)
@@ -4734,9 +4939,9 @@ def main():
     d = json.load(open(JSON, encoding="utf-8"))
     prose = md2html(open(MD, encoding="utf-8").read())
     # 造成前の地形【確度P】。**生成器はこれを読む — 実装は読まない**(§3a/§3b)
-    dem = json.load(open(os.path.join(DOC, "matsudaira_dem.json"), encoding="utf-8"))
+    dem = json.load(open(os.path.join(DOC, "matsudaira_dewa_dem.json"), encoding="utf-8"))
     DAN = dan_map(d)
-    terr = json.load(open(os.path.join(DOC, "matsudaira_terrain.json"), encoding="utf-8"))
+    terr = json.load(open(os.path.join(DOC, "matsudaira_dewa_terrain.json"), encoding="utf-8"))
     parcels = json.load(open(os.path.join(DOC, "parcels.json"), encoding="utf-8"))
     NEI = [("土井大隅守邸", "doi", "#7a4a8a"), ("岡部内膳正邸", "okabe", "#2f6b4f")]
     neighbours = []
@@ -4781,6 +4986,18 @@ def main():
         print("    %s %s → %+d 件" % ("○" if delta > 0 else "⛔鳴らない", label, delta))
     if any(delta <= 0 for _, delta in iprobe):
         print("    ⛔ 鳴らない probe がある = その壊れ方は検査で捕まらない。検査を直すこと")
+    # 隅の腕も**件数を無条件に出す**(0 件を黙って通さない)。
+    kbad = kado_arm_check(d)
+    print("隅の腕(全 %d 頂点 — 実測との一致・隣の run の端・実装へ渡る形): %d 件"
+          % (len(d["polygon"]), len(kbad)))
+    for b in kbad:
+        print("   ⚠", b)
+    kbase, kprobe = kado_arm_sensitivity(d)
+    print("  感度試験(素の件数 %d):" % kbase)
+    for label, delta in kprobe:
+        print("    %s %s → %+d 件" % ("○" if delta > 0 else "⛔鳴らない", label, delta))
+    if any(delta <= 0 for _, delta in kprobe):
+        print("    ⛔ 鳴らない probe がある = その壊れ方は検査で捕まらない。検査を直すこと")
 
     css = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "sashizu.css"), encoding="utf-8").read()
     h = ['<meta charset="utf-8">', "<title>松平出羽守上屋敷 指図</title>",
@@ -4797,8 +5014,8 @@ def main():
              '石井戸枠は存在A・奥庭という位置は?。</p></div>')
     h.append('<p class="lede"><b>この文書は現況だけを載せる。</b>過去の案・撤回した説は書かない — '
              '経緯は <code>git log docs/Sashizu/</code> で追う。'
-             '寸法の正典は <code>matsudaira_sashizu.json</code>、文章は <code>matsudaira_kosho.md</code>、'
-             'この HTML は <code>Tools/Sashizu/build_matsudaira_sashizu.py</code> が組む。'
+             '寸法の正典は <code>matsudaira_dewa_sashizu.json</code>、文章は <code>matsudaira_dewa_kosho.md</code>、'
+             'この HTML は <code>Tools/Sashizu/build_matsudaira_dewa_sashizu.py</code> が組む。'
              '<b>数値をこの文書に書き足さないこと。</b></p>')
     h.append('<div class="box"><h3>作る順序</h3><p>'
              '① 設計=<code>json</code>/<code>md</code> を直す → ② 組む → ③ 検図(edo-kosho / edo-kenzu)'
@@ -5077,7 +5294,7 @@ def main():
     h.append("</div>")
 
     # ------------------------------------------------------------ 土井境の納まり
-    _dem_s = json.load(open(os.path.join(DOC, "matsudaira_dem.json"), encoding="utf-8"))
+    _dem_s = json.load(open(os.path.join(DOC, "matsudaira_dewa_dem.json"), encoding="utf-8"))
     plate(h, nx(), "土井境の納まり", "隅は塀のてっぺんを揃える(2026-08-29 ユーザー裁定・EDO-0053)")
     h.append('<p class="cap">土井家との境の塀は、内側の自然地盤が高いので足元を 27.93m に置いている'
              '(2026-08-24。土井側と突き合わせて決めた高さで動かせない — EDO-0025)。'
@@ -5137,14 +5354,25 @@ def main():
                      ("Higashi_Komon", "<b>東小門。</b>同じく開口の縁へ両側の長屋の妻面を突き付ける。"
                                        "鎖はこの面を起点に割り付け、端数は反対の端へ送る。")):
         fig(h, opening_detail_svg(d, key), cap=cap)
-    fig(h, corner_detail_svg(d, 13, 15.0, "隅 P13(辺12 ↔ 辺13)の取り合い"),
-        cap="<b>隅 P13。</b>折れ角が浅いので<b>留め継ぎの隅部材</b>が要る — 小口どうしを突き付けると"
-            "折れ角のぶんだけ隅に口が開く。")
+    for v, cap in ((0, "<b>隅 P0(敷地の南東の角)。</b>折れ角は直角ではないので、在庫の正規90°隅では"
+                       "回らない — <b>実測の折れ角から起こした留め継ぎ</b>で回す。ここで囲いの種別が"
+                       "変わる: 辺14 は腕の端面まで表長屋、腕から先が練塀。"),
+                   (1, "<b>隅 P1(南辺の折れ)。</b>両側とも練塀。折れ角が浅く、小口どうしを"
+                       "突き付けると外面に口が開くので留め継ぎで回す。"),
+                   (2, "<b>隅 P2(土井境の南東の角)。</b>ここだけ<b>入隅</b>(区画が内へ切れ込む)で、"
+                       "部材は鏡像。腕が旧 S_Hei_W0 を丸ごと兼ねるので、その run は廃した。"),
+                   (3, "<b>隅 P3(土井境の折れ)。</b>入りの練塀が斜面を下るので、隅部材の座は"
+                       "腕の付け根の天端を採る。段は腕の端に落ちる。"),
+                   (13, "<b>隅 P13(北の隅)。</b>折れ角が浅いので<b>留め継ぎの隅部材</b>が要る — "
+                        "小口どうしを突き付けると折れ角のぶんだけ隅に口が開く。ここで囲いの種別が"
+                        "変わる: 腕の端面から東が表長屋。")):
+        fig(h, corner_detail_svg(d, v, 15.0, "隅 P%d の取り合い" % v), cap=cap)
     fig(h, corner_detail_svg(d, 14, 15.0, "隅 P14(隅櫓 Y_NE)の取り合い"),
         cap="<b>隅櫓 Y_NE。</b>櫓は隅を<b>置き換える</b>(内側に重ねない)。辺と斜めに交わるので"
             "両脇に楔形が残り、その受けが袖塀。袖塀の小口は櫓の面と長屋の妻へ差し込む。")
     h.append(chains_table(d))
     h.append(joints_face_table(d))
+    h.append(kado_measure_table(d))
     h.append(kado_parts_table(d))
     h.append('<div class="box"><h3>実装の順序(この詳細設計が効く工程)</h3><p>'
              'すべて<b>外周のステージ(塀・長屋・木柵)</b>の中で完結する。造成のステージには触れない '
@@ -5152,12 +5380,16 @@ def main():
              '<ol><li><b>先行</b>: 留め継ぎの隅部材を Blender で起こす(角度ごと。上表で「無い」と'
              '出ている分)。⛔ これを飛ばすと<b>隅だけが黙って建たない</b> — '
              '<code>LoadAssetAtPath</code> は例外を投げず null を返す。</li>'
+             '<li><b>隅部材を頂点に据える</b>: 位置=頂点 / yaw=入りの辺の走り / '
+             '<b>scale=ES</b> / y=座−0.10(直線材の沈めに合わせる)。'
+             '<code>PlaceKado</code> は取り合いの <code>kado</code> を舐める。'
+             '⛔ 素の単位のまま置くと丈が 1.46m に潰れる。</li>'
              '<li><b>固定側を先に置く</b>: 表門一式・御蔵門・東小門・隅櫓。位置は開口の芯と頂点の'
              '二等分線で決まる。</li>'
              '<li><b>可動側の鎖を割り付ける</b>: 上の「長屋の割付」の固定端から、駒を'
              '<b>面一で積む</b>(中央寄せをやめる)。端数は遊び端へ送る。</li>'
-             '<li><b>練塀・袖塀・隅の詰めを、鎖が空けた残りへ通す</b>。練塀の駒は伸縮するので'
-             '端数をそのまま吸う。</li>'
+             '<li><b>練塀・袖塀を、鎖と隅部材の腕が空けた残りへ通す</b>。練塀の駒は伸縮するので'
+             '端数をそのまま吸う。⛔ <b>腕の区間へ直線材を重ねない</b> — 腕は隅部材が持つ。</li>'
              '<li><b>置いたあと実メッシュから面を測って寄せる</b>(定数で寄せない)。'
              'ピボットが芯に無い・軒が出ている・スケールが掛かっている、のどれかで面は必ずずれる。</li>'
              '<li><b>面と面の距離を測って合否を出す</b>: 上の取り合い表の許容に入らなければ落とす。</li>'
@@ -5188,8 +5420,8 @@ def main():
     h.append(history())
     h.append("</div>")
 
-    h.append('<div class="foot">組んだ日 %s ／ 設計値 <code>matsudaira_sashizu.json</code> ／ '
-             '文章 <code>matsudaira_kosho.md</code>。Y は海抜 m(Unity の Y がそのまま標高)。</div>'
+    h.append('<div class="foot">組んだ日 %s ／ 設計値 <code>matsudaira_dewa_sashizu.json</code> ／ '
+             '文章 <code>matsudaira_dewa_kosho.md</code>。Y は海抜 m(Unity の Y がそのまま標高)。</div>'
              % subprocess.check_output(["date", "+%Y-%m-%d %H:%M"]).decode().strip())
     h.append("</div>")
     open(OUT, "w", encoding="utf-8").write("\n".join(h))

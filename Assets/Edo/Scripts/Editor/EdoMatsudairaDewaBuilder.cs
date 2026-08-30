@@ -1,6 +1,6 @@
 // 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。
 //
-// 【正典は指図】docs/Sashizu/matsudaira_sashizu.json を**実行時に読む**。
+// 【正典は指図】docs/Sashizu/matsudaira_dewa_sashizu.json を**実行時に読む**。
 //   設計値(面の高さ・段の矩形・外周の run・土留め・棟)を C# に書き写さない —
 //   写した瞬間に指図とビルダーが別々に動き出す(CLAUDE.md 絶対規則9 と同じ理由。
 //   区画は既に parcels.json へ寄せた。ここでは指図そのものを同じやり方で寄せる)。
@@ -21,9 +21,9 @@ using System.IO;
 using UnityEditor;
 using UnityEngine;
 
-public static class EdoMatsudairaBuilder
+public static class EdoMatsudairaDewaBuilder
 {
-    public const string SashizuRel = "docs/Sashizu/matsudaira_sashizu.json";
+    public const string SashizuRel = "docs/Sashizu/matsudaira_dewa_sashizu.json";
     public const string ParcelId = "matsudaira_dewa";
     public const string Grp = "Edo_Yashiki_MatsudairaDewa";
 
@@ -677,6 +677,7 @@ public static class EdoMatsudairaBuilder
             nag++;
         }
         sb.AppendLine("塀・長屋: 長屋 " + nag + "棟 / 練塀run " + hei);
+        sb.AppendLine(PlaceKado(kak));
 
         // 木柵(地形なり)。在庫の矢来を等間隔に立てる。
         var fen = Group("Fences"); Clear(fen);
@@ -737,6 +738,63 @@ public static class EdoMatsudairaBuilder
     /// +X を外向きにしているので**法肩＝区画線**)。よって囲いの外面の目標は **線から内へ 0.30m**。
     /// ⛔ 部材の見かけ幅を決め打ちしない — **置いた駒の実メッシュから外面を測って**寄せる。
     ///   部材を差し替えた瞬間に決め打ちは壊れる(スキルの警告「lat 値で置くのは不可」)。</summary>
+    /// <summary>**隅部材(留め継ぎ)を据える。**指図の `joints` の `part` が正典。
+    ///
+    /// ⚠ 2026-08-29 まで **このビルダーには隅を据える処理が一つも無かった**
+    /// (`EdoOkabeYashikiBuilder` にしかなかった)。P0・P1・P2・P3・P13 の5隅すべてで、
+    /// 指図は留め継ぎの隅部材を指定しているのに実装は直線材を突き付けるだけだった。
+    ///
+    /// ⛔ **折れ角を決め打ちしない。**角度は区画が決めるもので毎回違う
+    /// (当邸は +90.95° / +18.54° / −87.76° / +41.24° / +18.52°)。
+    /// `EdoAssets.Own.Kado("Dobei", 折れ角)` が名前を作る。無い角度は build_kado.py で起こす。
+    ///
+    /// 据え: `position = 頂点 / yaw = **入りの run の走りの方位** / scale = ES`。
+    /// ⚠ scale は **ES(1.818)**。素の部材は丈 1.455 で、×ES = 2.645m ≒ `const.dobeiH` 2.65。
+    ///   直線材も `DobeiRun` が `(sx, ES, ES)` で据えているので倍率が揃う。
+    ///   **素の単位のまま置くと丈が 1.46m に潰れる。**
+    /// ⚠ 直線材は `SeatBottom(seat − 0.10)` で天端へ 0.10m 沈めてある。隅だけ seat ちょうどに
+    ///   置くと 0.10m 浮いて軒の線が隅で段になる(岡部で実測)。同じだけ沈める。</summary>
+    static string PlaceKado(Transform parent)
+    {
+        var sb = new System.Text.StringBuilder();
+        int n = 0; var miss = new List<string>();
+        foreach (var o in A(D["joints"]))
+        {
+            var j = O(o);
+            if (!Has(j, "part") || !Has(j, "kado")) continue;      // 隅部材を使う継ぎ目だけ
+            var kd = O(j["kado"]);
+            int e = (int)F(j["edge"]);
+            int v = (e + 1) % Poly.Length;                         // 継ぎ目の頂点 = 辺 e の終点
+            Vector2 a = Poly[e % Poly.Length], b = Poly[v];
+            Vector2 dIn = (b - a).normalized;
+            float deg = F(kd["deg"]);
+            string path = EdoAssets.Own.Kado((string)kd["part"], deg);
+            var src = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (src == null)
+            {
+                miss.Add((string)j["id"] + " → " + path
+                       + "(blender --background --python Tools/Blender/build_kado.py -- --part dobei --deg "
+                       + deg.ToString("F1") + ")");
+                continue;
+            }
+            // 天端は入りの run の座に合わせる(隅で天端が揃うのが正典)
+            float seat = F(kd["seat"]);
+            var go = (GameObject)PrefabUtility.InstantiatePrefab(src, parent);
+            Undo.RegisterCreatedObjectUndo(go, "kado");
+            go.name = "Kado_" + (string)j["id"];
+            go.transform.position = new Vector3(b.x, seat - 0.10f, b.y);
+            go.transform.rotation = Quaternion.Euler(0, Mathf.Atan2(dIn.x, dIn.y) * Mathf.Rad2Deg, 0);
+            go.transform.localScale = Vector3.one * ES_KADO;
+            n++;
+        }
+        sb.Append("隅部材: " + n + " 基");
+        if (miss.Count > 0) sb.Append(" / ★ 部材が無い " + miss.Count + " 件 — " + string.Join(" / ", miss.ToArray()));
+        return sb.ToString();
+    }
+
+    /// <summary>隅部材・練塀の直線材に共通の倍率。素の部材は江戸暦の単位なので ES を掛ける。</summary>
+    const float ES_KADO = 1.818f;
+
     public static string AlignInubashiri()
     {
         var kak = Group("Kakoi");
@@ -2091,11 +2149,11 @@ public static class EdoMatsudairaBuilder
     public static void CompareMenu() { Debug.Log("[Matsudaira] " + Compare()); }
     public static string Compare()
     {
-        // 検査の本体は EdoSashizuExport.CheckScene(汎用の器・屋敷テーブル "matsudaira")。
+        // 検査の本体は EdoSashizuExport.CheckScene(汎用の器・屋敷テーブル "matsudaira_dewa")。
         // ★を出すインライン実装は 2026-08-26 に共通側へ移した — 検査項目・判定・出力とも同一
         //   (移設の前後で出力の byte 一致を実機確認)。ここに残るのは造成の GradeQA だけ
         //   (指図の設計面と live terrain の照合はこのビルダー固有の Stage0 退避を使うため)。
-        return EdoSashizuExport.CheckScene("matsudaira") + GradeQA() + "\n" + InubashiriQA()
+        return EdoSashizuExport.CheckScene("matsudaira_dewa") + GradeQA() + "\n" + InubashiriQA()
              + "\n" + RunEndQA();
     }
 }

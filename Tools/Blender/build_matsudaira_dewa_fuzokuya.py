@@ -1,6 +1,6 @@
 """松江松平邸の附属屋・工作物を起こす — 土蔵・作事小屋・数寄屋・稲荷社・石井戸枠・隅櫓。
 
-    blender --background --python Tools/Blender/build_matsudaira_fuzokuya.py -- [名前...] [--render]
+    blender --background --python Tools/Blender/build_matsudaira_dewa_fuzokuya.py -- [名前...] [--render]
     (名前を省くと全部。--render で /tmp/fuzokuya_<名前>.png に検証レンダ)
 
 【なぜ新造するか】`docs/asset-catalog.md` §10「無い物」の照会結果:
@@ -12,7 +12,7 @@
                  1.92倍の引き伸ばしが要る → 棟が伸びて破綻するので寸法どおり起こす
   ・**作事小屋・数寄屋** … 無い(`Small House` は 13.2×9.5m で 10×4間にも 2.5間角にも合わない)
 
-【寸法】**指図 `matsudaira_sashizu.json` の service / wells / yagura が正典。ここで決めない。**
+【寸法】**指図 `matsudaira_dewa_sashizu.json` の service / wells / yagura が正典。ここで決めない。**
   Dozo 4×7間 / Koya 10×4間 / Sukiya 2.5×2.5間 / Inari 2×2間 / Yagura 3間角。
   ⚠ 指図の間数を変えたら、ここの既定値ではなく**指図を直してから**引数で焼き直すこと。
 

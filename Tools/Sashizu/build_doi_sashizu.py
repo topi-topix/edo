@@ -1511,7 +1511,7 @@ def _shared_edge_stats(d, base):
     rows = [(who, 当家の辺e, 正本との差の最大)] / missing = [(who, ファイル名, 未検査の辺)]。
 
     ⛔ **復元地盤ファイルが無い相手を `continue` で黙って飛ばさない。**
-    2026-08-26 まで `matsudaira_edo_world.json` が存在せず、当家の辺8・9(松平に面する、
+    2026-08-26 まで `matsudaira_dewa_edo_world.json` が存在せず、当家の辺8・9(松平に面する、
     **一番検査したい辺**)が一度も検査されないまま「指摘 0 件」を名乗っていた。
     採らなかった辺は `missing` として必ず表に出す(沈黙は情報を持たない)。
     ファイルが**在るのに読めない**場合はここでは受けない — `load_terrain` の `json.load` が
@@ -1519,7 +1519,7 @@ def _shared_edge_stats(d, base):
     """
     P = d["polygon"]
     rows, missing = [], []
-    for who, fn_ in (("岡部", "okabe_edo_world.json"), ("松平", "matsudaira_edo_world.json"),
+    for who, fn_ in (("岡部", "okabe_edo_world.json"), ("松平", "matsudaira_dewa_edo_world.json"),
                      ("土井", "doi_edo_world.json")):
         # ⚠ **共有辺は幾何で決める。** `NEIGHBOUR` が持つ辺番号は**相手の多角形の番号**で、
         #   当家の番号ではない(岡部の辺8・9は当家の辺0・1・2にあたり、当家の辺8・9は
@@ -4289,7 +4289,7 @@ def mune_fit_check(d):
 
 
 NEIGHBOUR = {"岡部": ("okabe_sashizu.json", (8, 9)),
-             "松平": ("matsudaira_sashizu.json", (0, 1, 2, 3))}
+             "松平": ("matsudaira_dewa_sashizu.json", (0, 1, 2, 3))}
 
 
 def wall_needed_check(d, dem):

@@ -734,7 +734,7 @@ def neighbor_plinth(d):
     ①相手が値を直したときに追随せず ②辺番号の対応を取り違える。
     当家の辺の上の点が相手のどの辺の s に当たるかを**座標で**求めて引き直す。"""
     out = []
-    for src, label in (("doi_sashizu.json", "土井"), ("matsudaira_sashizu.json", "松平"),
+    for src, label in (("doi_sashizu.json", "土井"), ("matsudaira_dewa_sashizu.json", "松平"),
                        ("sanno_sashizu.json", "山王")):
         try:
             nb = json.load(open(os.path.join(DOC, src), encoding="utf-8"))

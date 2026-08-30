@@ -73,8 +73,9 @@
     (切絵図の「松平備前守」は「松平肥前守」の誤読)。ここを取り違えると別の屋敷の石垣・区画を根拠にする。
     **当プロジェクトで「松平邸」と言えば 松平出羽守定安(出雲松江藩18.6万石)上屋敷 = `matsudaira_dewa`。**
     識別子は**官位まで入れる**(`matsudaira_dewa` / `matsudaira_yamato` / `sanbezakanishi_matsu` …)。
-    ⚠ 指図 `matsudaira_sashizu.json`・生成器・`EdoMatsudairaBuilder`・掲示板の `--estate matsudaira` は
-    **裸のまま**で、`_dewa` へ改称する余地がある(2026-08-30 時点・未実施)。
+    **2026-08-30 に改称済み**: 指図 `matsudaira_dewa_*`・生成器 `build_matsudaira_dewa_sashizu.py`・
+    `EdoMatsudairaDewaBuilder`・掲示板 `--estate matsudaira_dewa`・`CheckScene("matsudaira_dewa")`。
+    ⚠ シーンのグループ名 `Edo_Yashiki_Matsudaira`(=鍋島)は**履歴なので変えない**。
 
 14. **図には読める分解能がある。細部を粗い図で否定しない。** Unity の古地図オーバーレイ
    (御江戸大絵図・1枚もの木版)は TPS 補正後も**残差 中央値 55m**。⛔ 数m〜十数mの平面判断に

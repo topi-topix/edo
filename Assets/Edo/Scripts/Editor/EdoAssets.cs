@@ -350,11 +350,11 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_matsudaira_bansho.py -- [--render]</summary>
         public const string MatsudairaBansho = "Assets/Edo/Models/Mon/Matsudaira_Bansho.fbx";
 
-        /// <summary>松江松平邸の附属屋・工作物。すべて `Tools/Blender/build_matsudaira_fuzokuya.py`
+        /// <summary>松江松平邸の附属屋・工作物。すべて `Tools/Blender/build_matsudaira_dewa_fuzokuya.py`
         /// で起こす(在庫照会 `docs/asset-catalog.md` §10「無い物」の結果 — 井戸・鳥居・祠・二層櫓は
         /// 目録に無く、土蔵・数寄屋・作事小屋は在庫の寸法が指図に合わない)。
         /// **ピボットは footprint の中心・地盤レベル**。ローカル +X = 桁行、+Z = 表。
-        /// 作り直し: `blender --background --python Tools/Blender/build_matsudaira_fuzokuya.py -- &lt;名&gt; [--render]`
+        /// 作り直し: `blender --background --python Tools/Blender/build_matsudaira_dewa_fuzokuya.py -- &lt;名&gt; [--render]`
         /// (名 = dozo / koya / sukiya / inari / ido / yagura。省くと全部)</summary>
         public static class Matsudaira
         {

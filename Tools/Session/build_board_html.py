@@ -32,12 +32,12 @@ OUT = os.path.join(BOARD, "_pm")
 # 「敷地」= 邸(屋敷)に限らない、地区としてまとまった作業単位。
 # 邸(sashizu.json/README の状態列/検図・考証の巡数を持つ)と、それを持たない
 # 敷地(例: 外堀・溜池 — 複数邸にまたがるので1邸のものにできない)を区別する。
-SITES = {"matsudaira": "松江松平邸", "sanno": "山王社", "okabe": "岡部邸",
+SITES = {"matsudaira_dewa": "松江松平邸", "sanno": "山王社", "okabe": "岡部邸",
          "doi": "土井邸", "sotobori": "外堀・溜池"}
-ESTATES = {"matsudaira": "松江松平邸", "sanno": "山王社", "okabe": "岡部邸", "doi": "土井邸"}
-SHORT = {"matsudaira": "松", "sanno": "山", "okabe": "岡", "doi": "土", "sotobori": "堀"}
+ESTATES = {"matsudaira_dewa": "松江松平邸", "sanno": "山王社", "okabe": "岡部邸", "doi": "土井邸"}
+SHORT = {"matsudaira_dewa": "松", "sanno": "山", "okabe": "岡", "doi": "土", "sotobori": "堀"}
 MENTION = {  # 関係図・巡回検知が本文から敷地を拾うときの表記ゆれ(index[1]は path 突合にも使う)
-    "matsudaira": ["松平", "松江", "Matsudaira"],
+    "matsudaira_dewa": ["松平", "松江", "Matsudaira"],
     "sanno": ["山王", "Sanno"],
     "okabe": ["岡部", "Okabe"],
     "doi": ["土井", "Doi"],
@@ -810,7 +810,7 @@ def network_svg(rel, open_counts, w=380, h=280):
     return "".join(bits)
 
 
-SITE_DOT = {"matsudaira": "var(--ai)", "sanno": "var(--matsu)", "okabe": "var(--oud)",
+SITE_DOT = {"matsudaira_dewa": "var(--ai)", "sanno": "var(--matsu)", "okabe": "var(--oud)",
             "doi": "var(--shu)", "sotobori": "#4E8FA8", CROSS_KEY: "var(--line-firm)"}
 # 既定の並び: 手を打つべき順。要裁定 → ブロッカー → 進行中 → open → 完了
 PRIO = {"awaiting-user": 0, "in-progress": 2, "open": 3, "done": 8, "dropped": 9}

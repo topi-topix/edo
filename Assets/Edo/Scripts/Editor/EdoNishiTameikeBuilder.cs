@@ -318,7 +318,7 @@ public static class EdoNishiTameikeBuilder
     // A->B: 走り。outward: 敷地外向き法線。baseY: 土台レベル。gapC/gapHalf: 開口(世界座標中心/半幅) 無ければ gapHalf<=0
     /// <summary>実寸カーソル方式(2026-08-26 Phase 4a 統一・ユーザー承認済み)。
     /// 部材の壁実寸(c=8.065 / l・r=7.910)を実行時に測り、突き付けで積み上げる。
-    /// 契約は EdoMatsudairaBuilder.NagayaChain と同じ: 鎖は区間の中央に寄せ、端数は隅・開口が受ける。
+    /// 契約は EdoMatsudairaDewaBuilder.NagayaChain と同じ: 鎖は区間の中央に寄せ、端数は隅・開口が受ける。
     /// 連続グループの端は妻部材 l/r(孤立1棟は c)。gapC/gapHalf は従来同様、開口としてグループを分ける。
     /// (旧実装は屋根幅由来 PITCH=7.81 の span 均等割りで、全継ぎ目が 0.25〜1.47m 食い込んでいた)
     /// 作法は スキル unity-buke-yashiki の references/perimeter.md「ピッチは壁の実寸」。</summary>

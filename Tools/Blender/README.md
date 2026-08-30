@@ -20,7 +20,7 @@ Blender は GUI を開かずヘッドレスで回す — 指図の寸法が変�
 | `build_ishigaki_saka.py` | 石段の袖の土留め(勾配に沿った一枚物) |
 | `build_matsudaira_bansho.py` | 松江松平邸専用: 表門の番所(向唐破風・出格子) |
 | `build_matsudaira_omotemon.py` | 松江松平邸専用: 表門(屋根なしの冠木門) |
-| `build_matsudaira_fuzokuya.py` | 松江松平邸専用: 附属屋(土蔵・数寄屋・稲荷社・井戸・隅櫓ほか) |
+| `build_matsudaira_dewa_fuzokuya.py` | 松江松平邸専用: 附属屋(土蔵・数寄屋・稲荷社・井戸・隅櫓ほか) |
 
 パスは `vklib.REPO`(このファイルの位置から導出)起点。**sparse worktree では Assets が来ないので回らない** —
 メインのチェックアウトで `edo_session.py start <屋敷> --blender` を打ってから回すこと。

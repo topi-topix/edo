@@ -59,7 +59,7 @@ SLICES = [
         doc="造成前の地形【確度P】。**世界座標**の格子。h[iz][ix]=標高m。指図の現況図(段彩+等高線)に使う。",
     ),
     dict(
-        name="matsudaira_dem.json", x0=-770, z0=1020, step=2, nx=170, nz=150, nd=2, style="compact",
+        name="matsudaira_dewa_dem.json", x0=-770, z0=1020, step=2, nx=170, nz=150, nd=2, style="compact",
         parcels=["matsudaira_dewa"],
         doc="松平・土井・岡部まわりの造成前の地形【確度P】。世界座標 2m 刻み(x0,z0 から)。"
             "現況図(段彩+等高線)はこれを読む。標高は海抜m。",

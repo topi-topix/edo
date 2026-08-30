@@ -29,8 +29,11 @@ SASHIZU = os.path.join(ROOT, "docs", "Sashizu")
 BACKUP = os.path.join(ROOT, "TerrainBackups", "terrain_20260822_georef_fix")
 CANON = os.path.join(SASHIZU, "base_dem.json")
 
-# 正本の範囲 — 岡部・土井・松平・山王の全 DEM を余裕をもって覆う
-CANON_SPEC = dict(x0=-800, z0=600, step=2, nx=236, nz=371, nd=2)
+# 正本の範囲 — 岡部・土井・松平・山王 + 山王坂の武家4区画(丹羽/京極/内藤/社人)を余裕をもって覆う
+# ⚠ 2026-08-30 に東と南へ広げた(x1 -330→-12 / z0 600→478)。**既存セルの標高は1つも動かない**
+#   (再生成の突き合わせで 87,556 セルすべて 0 差を確認済)。京極・内藤の区画は旧範囲の完全に外側に
+#   あり、切り出せなかった。広げただけでセルが増えている。
+CANON_SPEC = dict(x0=-800, z0=478, step=2, nx=395, nz=432, nd=2)
 
 CANON_DOC = (
     "**地盤の正本。造成を一切含まない現代の地面(海抜m)。**"
@@ -59,14 +62,21 @@ SLICES = [
         doc="造成前の地形【確度P】。**世界座標**の格子。h[iz][ix]=標高m。指図の現況図(段彩+等高線)に使う。",
     ),
     dict(
-        name="matsudaira_dem.json", x0=-770, z0=1020, step=2, nx=170, nz=150, nd=2, style="compact",
+        name="matsudaira_dewa_dem.json", x0=-770, z0=1020, step=2, nx=170, nz=150, nd=2, style="compact",
         parcels=["matsudaira_dewa"],
         doc="松平・土井・岡部まわりの造成前の地形【確度P】。世界座標 2m 刻み(x0,z0 から)。"
             "現況図(段彩+等高線)はこれを読む。標高は海抜m。",
     ),
     dict(
+        name="kyogoku_bitchu_dem.json", x0=-320, z0=640, step=2, nx=111, nz=96, nd=2, style="compact",
+        parcels=["sannobuke_kyogoku"],
+        doc="京極備中守上屋敷(丹後峯山藩)まわりの造成前の地形【確度P】。世界座標 2m 刻み(x0,z0 から)。"
+            "h[iz][ix]=標高m。指図の現況図(段彩+等高線)・切盛図・断面がこれを読む。"
+            "⚠ **現代**の地面で、跡地(国会前庭〜議員会館まわり)の近代造成を含む。",
+    ),
+    dict(
         name="sanno_dem.json", x0=-660, z0=636, step=2, nx=146, nz=171, nd=1, style="compact",
-        parcels=["sannosha_prec", "sannosha_kanri", "sannosha_juge"]
+        parcels=["sannosha_prec", "sannosha_kanri", "sannobuke_juge"]
                 + [f"sannojubo_parcels_{i}" for i in range(10)],
         doc="山王権現社まわりの造成前の地形【確度P】。世界座標の格子。h[iz][ix]=標高m。"
             "生成器 build_sanno_sashizu.py が §3a 現況図・§3b 切盛図でこれを読む。",
@@ -236,24 +246,31 @@ def build_slices(check_only=False, fit=False):
     parcels = load_parcels()
     print("区画との突き合わせ(町割 parcels.json が正典):")
     specs = []
-    bad = 0
+    skipped = []
     for spec in SLICES:
+        ok = True
         if fit:
             spec, grown = fit_extent(spec, parcels, FIT_MARGIN)
             if grown:
                 x0, x1, z0, z1 = extent(spec)
                 print(f"   ↔ {spec['name']:20s} 区画に合わせて x[{x0},{x1}] z[{z0},{z1}] へ広げた")
-        bad += report_margins(spec, parcels)
+        if report_margins(spec, parcels):
+            ok = False
         cx1 = cx0 + cstep * (cnx - 1)
         cz1 = cz0 + cstep * (cnz - 1)
         ex = extent(spec)
         if ex[0] < cx0 or ex[1] > cx1 or ex[2] < cz0 or ex[3] > cz1:
             print(f"   ⛔ {spec['name']}: 正本の範囲 x[{cx0},{cx1}] z[{cz0},{cz1}] の外へ出る。"
                   f"CANON_SPEC を広げて `--canon` から作り直すこと")
-            bad += 1
-        specs.append(spec)
-    if bad:
-        raise SystemExit(f"⛔ 覆えていない切り出しが {bad} 件ある。上の指示に従って直すこと(何も書いていない)")
+            ok = False
+        if ok:
+            specs.append(spec)
+        else:
+            skipped.append(spec["name"])
+    if skipped:
+        print(f"\n⛔ 覆えていない切り出しは書かない(据え置き): {', '.join(skipped)}")
+        print("   ⚠ 据え置いた邸の DEM は**担当区画の一部を欠いたまま**である。上の指示に従って範囲を直すこと。")
+        print("   他の邸は下で書き直す — 1邸の不足で全邸を止めない(EDO-0014)。")
     print()
     for s in specs:
         path = os.path.join(SASHIZU, s["name"])
@@ -306,7 +323,9 @@ def build_slices(check_only=False, fit=False):
                "nx": s["nx"], "nz": s["nz"], "h": h}
         write_json(path, out, style=s["style"], nd=s["nd"])
     if not check_only:
-        print("各邸の DEM を正本からの切り出しで書き直した。")
+        print(f"{len(specs)}邸の DEM を正本からの切り出しで書き直した。")
+    if skipped:
+        raise SystemExit(f"⛔ 据え置いた切り出しが {len(skipped)} 件ある: {', '.join(skipped)}")
 
 
 def main():

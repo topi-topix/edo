@@ -160,7 +160,6 @@ public static class EdoSanbezakaNishiBuilder
 
     static void Umaya(Transform parent, Vector2 c, float psi)
     {
-        const float PITCH = 7.81f;
         var g = new GameObject("Umaya");
         g.transform.SetParent(parent, false);
         Undo.RegisterCreatedObjectUndo(g, "umaya");
@@ -169,7 +168,10 @@ public static class EdoSanbezakaNishiBuilder
         var m1 = B.Place(B.PKnagayaL, Vector3.zero, psi, Vector3.one * ES, g.transform, "u0");
         var m2 = B.Place(B.PKnagayaR, Vector3.zero, psi, Vector3.one * ES, g.transform, "u1");
         float y = G(c.x, c.y);
-        Vector2 p1 = c - negRight * (PITCH * 0.5f), p2 = c + negRight * (PITCH * 0.5f);
+        // 実寸突き付け(2026-08-26 Phase 4a): 旧 PITCH=7.81 は壁実寸 7.910 と合わず継ぎ目が食い込んでいた
+        var ml = NT.NagayaMeasure(B.PKnagayaL); var mr = NT.NagayaMeasure(B.PKnagayaR);
+        float half = (ml.W + mr.W) * 0.5f;
+        Vector2 p1 = c + negRight * (-half + ml.hi), p2 = c + negRight * (-half + ml.W + mr.hi);
         m1.transform.position = new Vector3(p1.x, y, p1.y);
         m2.transform.position = new Vector3(p2.x, y, p2.y);
         SeatB(m1, y - 0.10f); SeatB(m2, y - 0.10f);

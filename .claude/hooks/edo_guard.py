@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""司令塔のフック — Claude Code のツール呼び出しを見て、他セッションとの衝突だけを止める。
+"""門番のフック — Claude Code のツール呼び出しを見て、他セッションとの衝突だけを止める。
 
 stdin に PreToolUse の JSON が来る(session_id / tool_name / tool_input)。
 止めるときは **終了コード2 + stderr**(stderr がそのまま Claude に返る)。

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""司令塔 — 同じリポジトリで複数の Claude Code セッションが同時に動くための調停役。
+"""門番 — 同じリポジトリで複数の Claude Code セッションが同時に動くための調停役。
 
 **なぜ要るか**: 2026-08-24 に、松平・岡部を作業していたセッションが `git add` を広く打ち、
 **別のセッションが編集中だった山王の指図を巻き込んでコミットした**。作業自体は失われなかったが、
@@ -35,6 +35,108 @@ def _common_git_dir():
 LOCKS = os.path.join(_common_git_dir(), "edo-locks")
 TTL_MIN = 45.0
 RESOURCES = ("unity", "terrain", "git-index", "assets")
+# ⚠ フック(.claude/hooks/edo_guard.py)が session_id を切り詰める長さと**必ず一致させる**。
+SID_LEN = 12
+
+# ⚠ **心拍では「作業が終わったか」を判定できない。**
+#   心拍は Write/Edit/Bash でも更新されるので、Unity を握ったまま別の作業(指図の推敲など)を
+#   続けているセッションの claim は**永久に生き続ける**。TTL を縮めても解けない。
+#   2026-08-30 ユーザー指摘「作業が終わっているのに unity をつかみ続けて、他のセッションが
+#   さわれなくなる」。→ **資源ごとの最終使用時刻を心拍と別に持ち**、一定時間触られていない
+#   資源は空きとみなす(掴んだセッションが生きていても明け渡す)。
+IDLE_MIN = {"unity": 20.0, "terrain": 20.0, "assets": 30.0, "git-index": 10.0}
+
+
+def res_idle(c, r):
+    """資源 r を最後に使ってからの経過(分)。記録が無い旧 claim は心拍で代用する。"""
+    t = (c.get("used") or {}).get(r)
+    return (now() - (t if t else c.get("heartbeat", 0))) / 60.0
+
+
+def res_stale(c, r):
+    """資源 r は放置されているか(掴んだセッションが生きていても明け渡す)。"""
+    return res_idle(c, r) >= IDLE_MIN.get(r, 30.0)
+
+
+# ────────────────────────────── 待ち行列(2026-08-30 ユーザー指示)
+#   「つかみたい人がいたら待ち行列を作らせて、誰かが終わったら次の人に連絡して掴めるように」
+#   ⛔ 早い者勝ちにしない。空いた瞬間に別のセッションが割り込むと、待っていた側が延々待つ。
+#   空いたら**先頭の1名にだけ RESERVE_MIN 分の予約**を出し、その間は他が取れない。
+# ⛔ **LOCKS の中に置いてはならない。** load_all は LOCKS 内の *.json をすべて claim とみなし、
+#   heartbeat の無いファイルを「死んだ claim」として **削除する**。待ち行列を中に置くと、
+#   status を打つたびに行列が消え、全員が永遠に「1番目」になる(2026-08-30 の検査で踏んだ)。
+QUEUE = os.path.join(os.path.dirname(LOCKS), "edo-queue.json")
+RESERVE_MIN = 15.0
+
+
+def q_load():
+    try:
+        q = json.load(open(QUEUE, encoding="utf-8"))
+    except Exception:
+        return {}
+    live = {c["session"] for c in load_all()}
+    out = {}
+    for r, ws in q.items():
+        # 死んだセッションの待ちは落とす。予約が切れたものも待ちに戻す
+        keep = [w for w in ws if w["session"] in live]
+        for w in keep:
+            if w.get("reserved") and (now() - w["reserved"]) / 60.0 > RESERVE_MIN:
+                w.pop("reserved", None)
+        if keep:
+            out[r] = keep
+    return out
+
+
+def q_save(q):
+    os.makedirs(os.path.dirname(QUEUE), exist_ok=True)
+    json.dump(q, open(QUEUE, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+
+
+def q_enqueue(r, me, note=""):
+    """待ち行列に並ぶ(既に並んでいれば位置はそのまま)。戻り値: 1始まりの順番。"""
+    # ⚠ 待ち人にも claim(=心拍)が要る。無いと q_load の生存判定で自分が即座に落ち、
+    #   何度並んでも「1番目」に戻り続ける(2026-08-30 の検査で実際に踏んだ)。
+    touch(me)
+    q = q_load()
+    ws = q.setdefault(r, [])
+    for i, w in enumerate(ws):
+        if w["session"] == me:
+            return i + 1
+    ws.append({"session": me, "since": now(), "note": note})
+    q_save(q)
+    return len(ws)
+
+
+def q_drop(r, me):
+    q = q_load()
+    ws = q.get(r, [])
+    q[r] = [w for w in ws if w["session"] != me]
+    if not q[r]:
+        q.pop(r, None)
+    q_save(q)
+
+
+def q_head(r):
+    return (q_load().get(r) or [None])[0]
+
+
+def q_reserve(r):
+    """資源が空いたので先頭に予約を出す。戻り値: 予約した待ち人 or None。"""
+    q = q_load()
+    ws = q.get(r) or []
+    if not ws:
+        return None
+    ws[0]["reserved"] = now()
+    q_save(q)
+    return ws[0]
+
+
+def q_may_take(r, me):
+    """me はいま r を取ってよいか。予約が他人に出ていれば取れない。"""
+    h = q_head(r)
+    if h and h.get("reserved") and h["session"] != me:
+        return False, h
+    return True, h
 
 # ── 常に止める git の打ち方(他人の作業を巻き込む/破壊する)
 # ⚠ **コマンド位置に現れたものだけを見る。**
@@ -64,7 +166,7 @@ def now():
     return time.time()
 
 
-def sid(default=None):
+def sid(default=None, strict=True):
     """このセッションの識別子。
 
     ⚠ **フック経由と Bash 直叩きで別人になってはならない。** フックは session_id を
@@ -74,16 +176,29 @@ def sid(default=None):
     """
     e = os.environ.get("EDO_SESSION_ID") or default
     if e:
-        return e
+        # ⚠ **必ず切り詰める。** フック(edo_guard.py)は session_id を [:12] にして渡すので、
+        #   ここで切らないと「フル UUID を渡した自分」が別人になり、自分の claim を他人の
+        #   ものと判定して弾かれる(2026-08-30 に山王が踏んだ)。松平は短縮とフルで
+        #   claim が二重に立っていた。
+        return e[:SID_LEN]
     here = os.path.realpath(os.getcwd())
-    best = None
-    for c in load_all():
-        if os.path.realpath(c.get("cwd", "")) != here:
-            continue
-        if best is None or c.get("heartbeat", 0) > best.get("heartbeat", 0):
-            best = c
-    if best:
-        return best["session"]
+    same = [c for c in load_all() if os.path.realpath(c.get("cwd", "")) == here]
+    # ⛔ **曖昧なら推測しない(EDO-0044)。** 「同じ cwd の最新の心拍」を引き継ぐ実装は、
+    #   全セッションがメインのチェックアウトを共有すると**直前に動いた誰か**を指す。
+    #   2026-08-30、これで土井の claim が山王の記録へ入り、松平の note が土井に上書きされ、
+    #   作事奉行の steal が外堀の記録を書き換えた。**取り違えたまま黙って進むより止める。**
+    if len(same) > 1:
+        if not strict:
+            return None      # 読むだけの照会(status)は身元不明でも通す。▶ が出ないだけ
+        sys.exit(
+            "⛔ 門番: 自分が誰か決められない — 同じ作業ディレクトリに生きた claim が %d 件ある。\n"
+            "   %s\n"
+            "   → **`EDO_SESSION_ID=<短縮ID>` を付けて叩くこと。**短縮ID は `status` の ▶ 行に出る\n"
+            "     %d 文字の識別子(例 a154144d-ccb)。フル UUID を渡しても内部で切り詰めるので可。\n"
+            "   ⚠ 推測で他人の claim に書き込むと、note も資源も静かに壊れる(EDO-0044)。"
+            % (len(same), ", ".join(c["session"] for c in same), SID_LEN))
+    if same:
+        return same[0]["session"]
     return "pid-%s" % os.getppid()
 
 
@@ -175,18 +290,34 @@ def touch(me, paths=(), resources=()):
     for r in resources:
         if r not in c["resources"]:
             c["resources"].append(r)
+        # ⚠ 心拍と別に**その資源を使った時刻**を残す。これが無いと放置を検出できない
+        c.setdefault("used", {})[r] = now()
     save(c, fp)
     return c
+
+
+def _force_release(session, resources):
+    """他セッションの claim から資源だけを外す(放置の引き取り用)。"""
+    fp = os.path.join(LOCKS, "%s.json" % re.sub(r"[^A-Za-z0-9_.-]", "_", session))
+    try:
+        c = json.load(open(fp, encoding="utf-8"))
+    except Exception:
+        return
+    for r in resources:
+        if r in c.get("resources", []):
+            c["resources"].remove(r)
+        (c.get("used") or {}).pop(r, None)
+    json.dump(c, open(fp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
 
 # ────────────────────────────────────────────── サブコマンド
 def cmd_status(a):
     cs = load_all(a.ttl)
     if not cs:
-        print("司令塔: 生きている claim は無し")
+        print("門番: 生きている claim は無し")
         return 0
-    me = sid(a.session)
-    print("司令塔 — 生きている claim %d 件(TTL %.0f 分)" % (len(cs), a.ttl))
+    me = sid(a.session, strict=False)
+    print("門番 — 生きている claim %d 件(TTL %.0f 分)" % (len(cs), a.ttl))
     for c in cs:
         age = (now() - c["heartbeat"]) / 60.0
         print("  %s %-22s pid%-7s 心拍%4.1f分前" % (
@@ -194,15 +325,58 @@ def cmd_status(a):
         if c.get("note"):
             print("      %s" % c["note"])
         if c.get("resources"):
-            print("      資源: %s" % ", ".join(c["resources"]))
+            rs = []
+            for r in c["resources"]:
+                idle = res_idle(c, r)
+                rs.append("%s(最終使用 %.0f分前%s)" % (
+                    r, idle, " ⚠放置" if res_stale(c, r) else ""))
+            print("      資源: %s" % ", ".join(rs))
         for g in c["paths"]:
             print("      %s" % g)
+    q = q_load()
+    if q:
+        print("待ち行列:")
+        for r, ws in q.items():
+            for i, w in enumerate(ws):
+                print("  %s %s %d番 %s(%.0f分待ち)%s" % (
+                    "▶" if w["session"] == me else " ", r, i + 1, w["session"][:22],
+                    (now() - w["since"]) / 60.0,
+                    " ⭐予約中(残り %.0f分)" % (RESERVE_MIN - (now() - w["reserved"]) / 60.0)
+                    if w.get("reserved") else ""))
+    return 0
+
+
+def cmd_wait(a):
+    me = sid(a.session)
+    for r in a.resources:
+        if r not in RESOURCES:
+            print("不明な資源: %s" % r, file=sys.stderr)
+            return 1
+        hold = [c for c in load_all(a.ttl)
+                if r in c.get("resources", []) and c["session"] != me]
+        if not hold or res_stale(hold[0], r):
+            print("%s は空いている(待つ必要なし)。そのまま使えば claim が付く" % r)
+            continue
+        n = q_enqueue(r, me, a.note or "")
+        print("待ち行列: %s の %d 番目に並んだ(いまの使用者 %s・最終使用 %.0f分前)。\n"
+              "  空けば先頭のあなたに %.0f 分の予約が出る。使用者から連絡が来る決まり。"
+              % (r, n, hold[0]["session"], res_idle(hold[0], r), RESERVE_MIN))
+    return 0
+
+
+def cmd_unwait(a):
+    me = sid(a.session)
+    for r in a.resources:
+        q_drop(r, me)
+    print("待ち行列から降りた: %s" % ", ".join(a.resources))
     return 0
 
 
 def cmd_claim(a):
     me = sid(a.session)
     c, fp = mine(me)
+    was = os.path.exists(fp)
+    old_note = c.get("note", "")
     for p in a.paths:
         k = p if (p.startswith("sashizu:") or "*" in p) else (domain(p) or rel(p).replace(os.sep, "/"))
         if k not in c["paths"]:
@@ -218,6 +392,14 @@ def cmd_claim(a):
             return 2
         if r not in c["resources"]:
             c["resources"].append(r)
+    # ⚠ **既存の記録へ追記するときは黙って進まない(EDO-0044・土井の要望)。**
+    #   取り違えたまま note を上書きすると、相手は自分の claim が化けたことに気づけない。
+    if was and (a.note and old_note and a.note != old_note):
+        print("⚠ 門番: 既存の claim `%s` の note を書き換える。\n"
+              "     旧: %s\n     新: %s\n"
+              "   これがあなたの claim でないなら、いますぐ `EDO_SESSION_ID=<短縮ID>` を付けて\n"
+              "   やり直し、`edo_session.py claim --note '<旧の文言>'` で戻すこと。"
+              % (me, old_note, a.note), file=sys.stderr)
     if a.note:
         c["note"] = a.note
     c["pid"] = os.getppid()
@@ -238,12 +420,29 @@ def cmd_release(a):
         k = p if (p.startswith("sashizu:") or "*" in p) else (domain(p) or rel(p).replace(os.sep, "/"))
         if k in c["paths"]:
             c["paths"].remove(k)
+    freed = []
     for r in a.resources:
         if r in c["resources"]:
             c["resources"].remove(r)
+            freed.append(r)
+        (c.get("used") or {}).pop(r, None)
     save(c, fp)
     print("release: 残り %s %s" % (c["paths"], c["resources"]))
+    _hand_over(freed)
     return 0
+
+
+def _hand_over(freed):
+    """空けた資源を待ち行列の先頭へ引き渡す。⛔ 連絡は解放した側の義務。"""
+    for r in freed:
+        w = q_reserve(r)
+        if not w:
+            print("  %s は空きになった(待っているセッションは無し)" % r)
+            continue
+        print("  ⭐ %s の待ち行列の先頭は **%s**(%.0f 分待ち)。%.0f 分の予約を出した。\n"
+              "     ⛔ **次の人へ必ず連絡すること** — `ListAgents` で相手を探し、`SendMessage` で\n"
+              "     「%s が空きました。予約は %.0f 分です」と伝える。連絡しないと待ち続ける。"
+              % (r, w["session"], (now() - w["since"]) / 60.0, RESERVE_MIN, r, RESERVE_MIN))
 
 
 def _deny(msg):
@@ -262,12 +461,12 @@ def cmd_check_write(a):
     # ── ① 本物の競合(誰かが既にこのパス/ドメインを持っている)を**先に**見る。
     #    ここを後回しにすると、third が「山王は solo がメインで書いている最中」なのに
     #    「worktree を用意したのでどうぞ」と案内してしまい、**同じ論理ファイルを
-    #    別の場所で同時編集する**という司令塔が防ぎたい事故そのものになる(2026-08-24)。
+    #    別の場所で同時編集する**という門番が防ぎたい事故そのものになる(2026-08-24)。
     hs = holders(p, me, a.ttl)
     if hs:
         c, g = hs[0]
         return _deny(
-            "⛔ 司令塔: `%s` は**別のセッション %s** が押さえている(claim `%s`／心拍 %.0f 分前)。\n"
+            "⛔ 門番: `%s` は**別のセッション %s** が押さえている(claim `%s`／心拍 %.0f 分前)。\n"
             "   %s\n"
             "   同じファイルを同時に書くと片方の編集が消える。\n"
             "   → 待つか、そのセッションに `Tools/Session/edo_session.py release %s` を頼むこと。\n"
@@ -288,7 +487,7 @@ def cmd_check_write(a):
             if wt and os.path.realpath(wt) != os.path.realpath(ROOT):
                 touch(me, paths=[d])
                 return _deny(
-                    "⛔ 司令塔: いま**他のセッションが %d 本動いている**。指図の作業は worktree でやること。\n"
+                    "⛔ 門番: いま**他のセッションが %d 本動いている**。指図の作業は worktree でやること。\n"
                     "   `%s` の worktree を用意した:\n"
                     "     %s\n"
                     "   → **そこの同じパスを絶対パスで開けばよい**(cd は要らない):\n"
@@ -315,7 +514,7 @@ def cmd_check_bash(a):
     if BLENDER.search(cmd):
         if not in_main_checkout():
             return _deny(
-                "⛔ 司令塔: **Blender は worktree では回せない**。\n"
+                "⛔ 門番: **Blender は worktree では回せない**。\n"
                 "   在庫キット(Japanese Village Kit ほか)は再配布不可で gitignore されているので\n"
                 "   sparse worktree に**来ない**。`vklib.py` はメインの絶対パスを直書きしており、\n"
                 "   出力先 `Assets/Edo/Models/` も worktree には無い。\n"
@@ -325,7 +524,7 @@ def cmd_check_bash(a):
         h = [c for c in cs if c["session"] != me and "assets" in c.get("resources", [])]
         if h:
             return _deny(
-                "⛔ 司令塔: 部材の書き出しは**セッション %s** が使用中(心拍 %.0f 分前)。\n"
+                "⛔ 門番: 部材の書き出しは**セッション %s** が使用中(心拍 %.0f 分前)。\n"
                 "   %s\n"
                 "   出力先 `Assets/Edo/Models/` は共有で、同じ部材を同時に焼くと**後勝ちで上書き**される\n"
                 "   (`build_goten_roof.py -- rebuild` は Roofs/ の全数を焼き直す)。\n"
@@ -334,7 +533,7 @@ def cmd_check_bash(a):
         touch(me, resources=["assets"])
     for pat, why in BANNED:
         if re.search(pat, cmd):
-            return _deny("⛔ 司令塔: この git の打ち方は共有ワークツリーでは禁止。\n   %s" % why)
+            return _deny("⛔ 門番: この git の打ち方は共有ワークツリーでは禁止。\n   %s" % why)
     m = re.search(CMDPOS + r"git\s+commit\b", cmd)
     if m and not re.search(CMDPOS + r"git\s+commit\b[^|;&]*(--amend|-C\b|--continue)", cmd):
         staged = subprocess.run(["git", "-C", ROOT, "diff", "--cached", "--name-only"],
@@ -346,7 +545,7 @@ def cmd_check_bash(a):
                 bad.append((f, hs[0][0]["session"]))
         if bad:
             return _deny(
-                "⛔ 司令塔: staging に**別のセッションが押さえているファイル**が入っている。\n"
+                "⛔ 門番: staging に**別のセッションが押さえているファイル**が入っている。\n"
                 + "".join("   %s ← %s\n" % (f, s) for f, s in bad[:8])
                 + "   このままコミットすると相手の作業を巻き込む(2026-08-24 の事故と同じ)。\n"
                   "   → `git restore --staged <パス>` で外してからコミットすること。")
@@ -358,18 +557,38 @@ def cmd_check_unity(a):
     me = sid(a.session)
     cs = load_all(a.ttl)
     hold = [c for c in cs if "unity" in c.get("resources", [])]
+    if hold and hold[0]["session"] == me:
+        touch(me, resources=["unity"])   # 自分の使用時刻を打ち直す
+        return 0
+    ok, h = q_may_take("unity", me)
+    if not ok:                            # 空いていても予約者が居るなら割り込ませない
+        return _deny(
+            "⛔ 門番: Unity は**待ち行列の先頭 %s** に予約が出ている(残り最大 %.0f 分)。\n"
+            "   `edo_session.py wait --resources unity` で並ぶこと。"
+            % (h["session"], RESERVE_MIN - (now() - h["reserved"]) / 60.0))
     if not hold:
+        q_drop("unity", me)
         touch(me, resources=["unity"])
         return 0
-    if hold[0]["session"] == me:
-        touch(me)
+    # 掴んだままだが**一定時間 Unity を触っていない** → 明け渡させる(心拍では判定できない)
+    if res_stale(hold[0], "unity"):
+        _force_release(hold[0]["session"], ["unity"])
+        q_drop("unity", me)
+        touch(me, resources=["unity"])
+        print("⚠ 門番: Unity は %s が握ったままだったが、%.0f 分使われていないので引き取った。\n"
+              "   作業が終わったら `edo_session.py release --resources unity` を打つこと。"
+              % (hold[0]["session"], res_idle(hold[0], "unity")))
         return 0
+    n = q_enqueue("unity", me, a.session or "")
     return _deny(
-        "⛔ 司令塔: Unity は**セッション %s** が使用中(心拍 %.0f 分前)。\n   %s\n"
+        "⛔ 門番: Unity は**セッション %s** が使用中(最終使用 %.0f 分前)。\n   %s\n"
         "   Unity の実体は1つで、シーン・プレハブ・地形を共有している。"
         "**地形の編集は Undo の外**なので、同時に触ると復旧できない。\n"
-        "   → 終わるのを待つか、`Tools/Session/edo_session.py status` で状況を見ること。"
-        % (hold[0]["session"], (now() - hold[0]["heartbeat"]) / 60.0, hold[0].get("note", "")))
+        "   → **待ち行列に並べた(%d 番目)。** 空けば先頭のあなたに %.0f 分の予約が出る。\n"
+        "   順番は `edo_session.py status` で見える。降りるなら "
+        "`edo_session.py unwait --resources unity`。"
+        % (hold[0]["session"], res_idle(hold[0], "unity"), hold[0].get("note", ""),
+           n, RESERVE_MIN))
 
 
 def cmd_steal(a):
@@ -460,6 +679,21 @@ def in_main_checkout():
     return os.path.realpath(ROOT) == os.path.realpath(os.path.dirname(_common_git_dir()))
 
 
+def _board_open(name):
+    """掲示板のその邸+横断の open issue を出す。CLI は**メインの checkout の物**を使う
+    (worktree のブランチには main を取り込むまで無いことがある)。"""
+    bcli = os.path.join(os.path.dirname(_common_git_dir()), "Tools", "Session", "edo_board.py")
+    if not os.path.exists(bcli):
+        return
+    r = subprocess.run([sys.executable, bcli, "list", "--estate", name],
+                       capture_output=True, text=True)
+    o = r.stdout.strip()
+    if r.returncode == 0 and o and "該当 issue なし" not in o:
+        print("  掲示板(この邸+横断の open。作法: docs/session-board.md):")
+        for ln in o.split("\n"):
+            print("    " + ln)
+
+
 def cmd_start(a):
     """屋敷の作業を始める。**worktree を探し、無ければ作って**、claim まで済ませる。"""
     me = sid(a.session)
@@ -486,11 +720,13 @@ def cmd_start(a):
         if a.blender:
             print("  ⚠ 焼いたら Unity で **Edo ▸ 御殿 ▸ …マテリアルをremap** を走らせること"
                   "(FBX は材質名しか運ばないので、やらないと白い模型になる)")
+        _board_open(dom.split(":", 1)[-1])
         return 0
     save(c, fp)
     wt = ensure_wt(dom, quiet=False)
     print("start: %s\n  作業ディレクトリ: %s" % (dom, wt))
     print("  ⚠ Unity はここでは開けない。計測が要るなら別途 `claim --resources unity`")
+    _board_open(dom.split(":", 1)[-1])
     return 0
 
 
@@ -557,15 +793,23 @@ def cmd_worktrees(a):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="司令塔 — 並行セッションの調停")
+    ap = argparse.ArgumentParser(description="門番 — 並行セッションの調停")
     ap.add_argument("--session"); ap.add_argument("--ttl", type=float, default=TTL_MIN)
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("status").set_defaults(fn=cmd_status)
     p = sub.add_parser("claim"); p.add_argument("paths", nargs="*")
     p.add_argument("--resources", nargs="*", default=[]); p.add_argument("--note", default="")
     p.set_defaults(fn=cmd_claim)
-    p = sub.add_parser("release"); p.add_argument("paths", nargs="*")
+    p = sub.add_parser("release", help="claim を返す。⭐ Unity 作業が終わったら "
+                                       "`release --resources unity` を必ず打つ")
+    p.add_argument("paths", nargs="*")
     p.add_argument("--resources", nargs="*", default=[]); p.set_defaults(fn=cmd_release)
+    p = sub.add_parser("wait", help="使用中の資源の待ち行列に並ぶ(空けば先頭に予約が出る)")
+    p.add_argument("--resources", nargs="+", required=True, choices=RESOURCES)
+    p.add_argument("--note", default=""); p.set_defaults(fn=cmd_wait)
+    p = sub.add_parser("unwait", help="待ち行列から降りる")
+    p.add_argument("--resources", nargs="+", required=True, choices=RESOURCES)
+    p.set_defaults(fn=cmd_unwait)
     p = sub.add_parser("check-write"); p.add_argument("path")
     p.add_argument("--no-route", action="store_true"); p.set_defaults(fn=cmd_check_write)
     p = sub.add_parser("check-bash"); p.add_argument("command"); p.set_defaults(fn=cmd_check_bash)

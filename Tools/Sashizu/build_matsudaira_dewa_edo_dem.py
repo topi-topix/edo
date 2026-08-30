@@ -6,27 +6,27 @@ CLAUDE.md 規則12 / `docs/Sashizu/README.md` 決めごと5 /
 スキル `unity-buke-yashiki` `references/sashizu.md` §3a「地形は正本から採る」。
 
 ⚠ **2026-08-26 に起こした。** 目的は隣家(土井)の共有辺検査 —
-`build_doi_sashizu.py` の `shared_edge_check` が `matsudaira_edo_world.json` を読むのに
+`build_doi_sashizu.py` の `shared_edge_check` が `matsudaira_dewa_edo_world.json` を読むのに
 ファイルが存在せず、**土井の辺8・9(松平に面する、一番検査したい辺)が黙って素通り**していた。
 
 ⛔ **松平の近代造成の復元(recon)は未定義。** 岡部は `okabe_edo_recon.json`、土井は
 `doi_edo_recon.json` が手順を持つが、松平にはまだ無い。よってこのファイルが書く
-`matsudaira_edo_world.json` は**素の正本の写し**(区画の中も外も `base_dem.json` そのもの・
+`matsudaira_dewa_edo_world.json` は**素の正本の写し**(区画の中も外も `base_dem.json` そのもの・
 `_reconCells: 0`)である。松平の復元レイヤを定義するのは**松平の屋敷セッションの仕事** —
 `matsudaira_edo_recon.json` を起こしたら、この生成器に土井と同じ `reconstruct` を実装する。
 
-⛔ **`matsudaira_terrain.json` には触れない。** あれは生成器なしの手書きデータで、
+⛔ **`matsudaira_dewa_terrain.json` には触れない。** あれは生成器なしの手書きデータで、
 扱いはユーザー裁定待ち(2026-08-25)。このスクリプトは読みもしない。
 
 書くもの(派生物 — **手で編集しない**):
 
 | ファイル | 中身 |
 |---|---|
-| `matsudaira_edo_world.json` | **江戸期の地盤**(世界2m格子)。現状は復元ゼロ=**正本そのもの** |
+| `matsudaira_dewa_edo_world.json` | **江戸期の地盤**(世界2m格子)。現状は復元ゼロ=**正本そのもの** |
 
 使い方:
-    python3 Tools/Sashizu/build_matsudaira_edo_dem.py            # 書く(冪等)
-    python3 Tools/Sashizu/build_matsudaira_edo_dem.py --check    # 書かずに検査だけ
+    python3 Tools/Sashizu/build_matsudaira_dewa_edo_dem.py            # 書く(冪等)
+    python3 Tools/Sashizu/build_matsudaira_dewa_edo_dem.py --check    # 書かずに検査だけ
 """
 
 import json
@@ -37,9 +37,9 @@ import sys
 DOC = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                     "..", "..", "docs", "Sashizu"))
 BASE = os.path.join(DOC, "base_dem.json")
-SASHIZU = os.path.join(DOC, "matsudaira_sashizu.json")
+SASHIZU = os.path.join(DOC, "matsudaira_dewa_sashizu.json")
 RECON = os.path.join(DOC, "matsudaira_edo_recon.json")
-WORLD = os.path.join(DOC, "matsudaira_edo_world.json")
+WORLD = os.path.join(DOC, "matsudaira_dewa_edo_world.json")
 
 
 def load(p):
@@ -81,7 +81,7 @@ def build(check=False):
     world["_"] = ("**江戸期の地盤**(世界2m格子)。⛔ **松平の近代造成の復元は未定義** — "
                   "区画の中も外も正本 `base_dem.json` そのもの(復元 0 セル)。"
                   "matsudaira_edo_recon.json を起こしたら生成器に reconstruct を実装する。"
-                  "⛔ **手で編集しない。** 生成器 `Tools/Sashizu/build_matsudaira_edo_dem.py` が"
+                  "⛔ **手で編集しない。** 生成器 `Tools/Sashizu/build_matsudaira_dewa_edo_dem.py` が"
                   "毎回作り直す。")
 
     if check:

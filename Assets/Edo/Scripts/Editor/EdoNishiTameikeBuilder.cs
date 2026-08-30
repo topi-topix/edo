@@ -27,7 +27,6 @@ public static class EdoNishiTameikeBuilder
     const string PSmallHouse = EdoAssets.VK.SmallHouse;
     const string PBigHouse = EdoAssets.VK.BigHouse;
     const float ES = 1.818f; // edogoyomi scale
-    const float PITCH = 7.81f;
 
     // ---------- estate data ----------
     public class Estate
@@ -289,15 +288,40 @@ public static class EdoNishiTameikeBuilder
     }
 
     // ---------- nagaya run ----------
+    // 部材の壁実寸(走り方向)。edogoyomi knagaya の壁 = n_wall/namako/n_dodai。ES 適用後の値をキャッシュ。
+    public struct NagModule { public float lo, hi; public float W { get { return hi - lo; } } }
+    static readonly Dictionary<string, NagModule> _nagMeasure = new Dictionary<string, NagModule>();
+    /// <summary>部材をES倍で仮置きして壁(wall/namako/dodai)のローカルX実寸を測る。
+    /// 実測: c=8.065m / l・r=7.910m(妻側が0.155m狭い)。屋根の反り・鬼は端で出るので使わない。</summary>
+    public static NagModule NagayaMeasure(string path)
+    {
+        NagModule m;
+        if (_nagMeasure.TryGetValue(path, out m)) return m;
+        var pf = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        var go = (GameObject)PrefabUtility.InstantiatePrefab(pf);
+        go.transform.position = Vector3.zero;
+        go.transform.rotation = Quaternion.identity;
+        go.transform.localScale = Vector3.one * ES;
+        float mn = float.MaxValue, mx = float.MinValue;
+        foreach (var r in go.GetComponentsInChildren<Renderer>())
+        {
+            string n = r.gameObject.name.ToLower();
+            if (!(n.Contains("wall") || n.Contains("namako") || n.Contains("dodai"))) continue;
+            mn = Mathf.Min(mn, r.bounds.min.x); mx = Mathf.Max(mx, r.bounds.max.x);
+        }
+        UnityEngine.Object.DestroyImmediate(go);
+        m = new NagModule { lo = mn, hi = mx };
+        _nagMeasure[path] = m;
+        return m;
+    }
+
     // A->B: 走り。outward: 敷地外向き法線。baseY: 土台レベル。gapC/gapHalf: 開口(世界座標中心/半幅) 無ければ gapHalf<=0
-    /// <summary>⚠ **このピッチ(PITCH=7.81)は屋根幅から採った値で、壁の実寸と合っていない。**
-    /// knagaya01c の壁(n_wall/namako/n_dodai/n_taruki)は走り方向に **8.065m** あるので、
-    /// 7.81 で並べると**全継ぎ目が 0.252m 重なる** — なまこ紋が二重・瓦がずれ・窓の割りが崩れる。
-    /// さらに pitchRun = span/(n-1) で run ごとにピッチを変えるので、重なり量が run ごとに違う。
-    /// 直した実装は `EdoMatsudairaBuilder.NagayaChain`(部材を実行時に測り、実寸を積み上げる
-    /// カーソルで置く)。**他屋敷の長屋にも同じ崩れが出ているはず** — 作り直すときに寄せること。
-    /// 作法は スキル unity-buke-yashiki の references/perimeter.md「ピッチは壁の実寸」。
-    /// ここを直すと既存の屋敷すべての長屋が動くので、単独では変更していない(2026-08-23)。</summary>
+    /// <summary>実寸カーソル方式(2026-08-26 Phase 4a 統一・ユーザー承認済み)。
+    /// 部材の壁実寸(c=8.065 / l・r=7.910)を実行時に測り、突き付けで積み上げる。
+    /// 契約は EdoMatsudairaDewaBuilder.NagayaChain と同じ: 鎖は区間の中央に寄せ、端数は隅・開口が受ける。
+    /// 連続グループの端は妻部材 l/r(孤立1棟は c)。gapC/gapHalf は従来同様、開口としてグループを分ける。
+    /// (旧実装は屋根幅由来 PITCH=7.81 の span 均等割りで、全継ぎ目が 0.25〜1.47m 食い込んでいた)
+    /// 作法は スキル unity-buke-yashiki の references/perimeter.md「ピッチは壁の実寸」。</summary>
     public static List<GameObject> NagayaRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, float baseY,
         Vector2 gapC, float gapHalf, string prefix)
     {
@@ -308,47 +332,60 @@ public static class EdoNishiTameikeBuilder
         // run 方向はローカル -X: right=(cosψ,-sinψ) → -right=(-cosψ, sinψ)
         float rad = psi * Mathf.Deg2Rad;
         Vector2 negRight = new Vector2(-Mathf.Cos(rad), Mathf.Sin(rad));
-        Vector2 sA = A, sB = B; Vector2 rdir = dir;
-        if (Vector2.Dot(dir, negRight) < 0) { sA = B; sB = A; rdir = -dir; }
-        // grid: モジュール実体はピボットから走りに約 -4.3..+3.6。始端 pivot=4.4、終端 pivot=len-3.7。
-        // 一様ピッチ(≈7.81)になるよう n を丸めてピッチを微調整(格子を崩さない)
-        float span = len - 4.4f - 3.7f;
-        int n = Mathf.Max(2, Mathf.CeilToInt(span / PITCH) + 1); // ピッチ≦7.81(屋根幅7.96で必ず重なる)
-        float pitchRun = span / (n - 1);
-        float t0 = 4.4f;
-        // kept t 値を先に決め、連続グループごとに端へ妻キャップ(l=低t端 / r=高t端)を割り当てる
-        var kept = new List<float>();
-        for (int k = 0; k < n; k++)
+        Vector2 sA = A; Vector2 rdir = dir;
+        if (Vector2.Dot(dir, negRight) < 0) { sA = B; rdir = -dir; }
+        // 開口で区間を割る(壁の実面を開口の縁で止める。旧実装の±3.9m逃げは廃止=門の開口幅を保つ)
+        var segs = new List<float[]>();
+        if (gapHalf > 0)
         {
-            float tk = t0 + pitchRun * k;
-            if (gapHalf > 0)
-            {
-                float gT = Vector2.Dot(gapC - sA, rdir);
-                float skipLo = gT - gapHalf - 3.9f, skipHi = gT + gapHalf + 3.9f;
-                if (tk + 3.6f > skipLo && tk - 4.3f < skipHi) continue;
-            }
-            kept.Add(tk);
+            float gT = Vector2.Dot(gapC - sA, rdir);
+            if (gT - gapHalf > 0f) segs.Add(new float[] { 0f, Mathf.Min(gT - gapHalf, len) });
+            if (gT + gapHalf < len) segs.Add(new float[] { Mathf.Max(gT + gapHalf, 0f), len });
         }
-        for (int k = 0; k < kept.Count; k++)
+        else segs.Add(new float[] { 0f, len });
+        var mc = NagayaMeasure(PKnagayaC);
+        var ml = NagayaMeasure(PKnagayaL);
+        var mr = NagayaMeasure(PKnagayaR);
+        float Wc = mc.W;                               // 実測 8.065m
+        int idx = 0;                                   // 命名は run 通しの prefix_k(従来互換)
+        foreach (var seg in segs)
         {
-            float tk = kept[k];
-            bool lowEnd = (k == 0) || (kept[k] - kept[k - 1] > pitchRun * 1.5f);
-            bool highEnd = (k == kept.Count - 1) || (kept[k + 1] - kept[k] > pitchRun * 1.5f);
-            string path = lowEnd ? PKnagayaL : (highEnd ? PKnagayaR : PKnagayaC);
-            if (lowEnd && highEnd) path = PKnagayaC; // 孤立1棟はcで(両妻は不可能、後で塀が受ける)
-            var c2 = sA + rdir * tk;
-            // 自然地形モードでは、モジュール足元スパン(走り±4m)の地面最小値に据える(尻上がり回避)
-            float pieceBase = baseY;
-            if (followGround)
+            float L = seg[1] - seg[0];
+            if (L < 4f) continue;                      // 半棟も入らない区間は塀・隅が受ける
+            int n = Mathf.Max(1, Mathf.RoundToInt(L / Wc));
+            // rdir ∥ ローカル-X に揃えてあるので flip 無し: 低s端=l / 高s端=r。孤立1棟は c。
+            Func<int, string> pathAt = k =>
             {
-                float g0 = Ground(c2.x - rdir.x * 4f, c2.y - rdir.y * 4f);
-                float g1 = Ground(c2.x + rdir.x * 4f, c2.y + rdir.y * 4f);
-                float gc = Ground(c2.x, c2.y);
-                pieceBase = Mathf.Min(g0, Mathf.Min(g1, gc));
+                if (n > 1 && k == 0) return PKnagayaL;
+                if (n > 1 && k == n - 1) return PKnagayaR;
+                return PKnagayaC;
+            };
+            Func<string, NagModule> modOf = p2 => p2 == PKnagayaL ? ml : (p2 == PKnagayaR ? mr : mc);
+            float total = 0f;
+            for (int k = 0; k < n; k++) total += modOf(pathAt(k)).W;
+            float cursor = seg[0] + (L - total) * 0.5f; // 鎖は区間中央寄せ(端数は隅・開口が受ける)
+            for (int k = 0; k < n; k++)
+            {
+                string path = pathAt(k);
+                var m = modOf(path);
+                // ローカル +X = -rdir → s = pivot_s - x。壁 [pivot_s-hi, pivot_s-lo] → pivot_s = cursor + hi
+                float sPiv = cursor + m.hi;
+                var c2 = sA + rdir * sPiv;
+                var cm = sA + rdir * (cursor + m.W * 0.5f); // 接地の標本は部材中心で
+                // 自然地形モードでは、モジュール足元スパン(走り±4m)の地面最小値に据える(尻上がり回避)
+                float pieceBase = baseY;
+                if (followGround)
+                {
+                    float g0 = Ground(cm.x - rdir.x * 4f, cm.y - rdir.y * 4f);
+                    float g1 = Ground(cm.x + rdir.x * 4f, cm.y + rdir.y * 4f);
+                    float gc = Ground(cm.x, cm.y);
+                    pieceBase = Mathf.Min(g0, Mathf.Min(g1, gc));
+                }
+                var go = Place(path, new Vector3(c2.x, pieceBase, c2.y), psi, new Vector3(ES, ES, ES), parent, prefix + "_" + idx);
+                SeatBottom(go, pieceBase - 0.10f);
+                made.Add(go); idx++;
+                cursor += m.W;                         // 継ぎ目は必ず面一
             }
-            var go = Place(path, new Vector3(c2.x, pieceBase, c2.y), psi, new Vector3(ES, ES, ES), parent, prefix + "_" + k);
-            SeatBottom(go, pieceBase - 0.10f);
-            made.Add(go);
         }
         // namako(表)が外向きかを数値検証、逆なら180°回して面位置を復元
         if (made.Count > 0) VerifyFlipOutward(made, outward, prefix);
@@ -695,8 +732,11 @@ public static class EdoNishiTameikeBuilder
         Undo.RegisterCreatedObjectUndo(g, "umaya");
         var m1 = Place(PKnagayaL, Vector3.zero, psi, Vector3.one * ES, g.transform, "u0");
         var m2 = Place(PKnagayaR, Vector3.zero, psi, Vector3.one * ES, g.transform, "u1");
-        Vector2 p1 = c - negRight * (PITCH * 0.5f);
-        Vector2 p2 = c + negRight * (PITCH * 0.5f);
+        // 実寸突き付け(2026-08-26): 壁実寸 l/r=7.910m を測り、ペアの壁中心を c に合わせる
+        var ml = NagayaMeasure(PKnagayaL); var mr = NagayaMeasure(PKnagayaR);
+        float half = (ml.W + mr.W) * 0.5f;
+        Vector2 p1 = c + negRight * (-half + ml.hi);           // s = pivot_s - x → pivot = 壁低端 + hi
+        Vector2 p2 = c + negRight * (-half + ml.W + mr.hi);
         m1.transform.position = new Vector3(p1.x, y, p1.y);
         m2.transform.position = new Vector3(p2.x, y, p2.y);
         SeatBottom(m1, y - 0.10f); SeatBottom(m2, y - 0.10f);

@@ -16,10 +16,11 @@ Blender は GUI を開かずヘッドレスで回す — 指図の寸法が変�
 | `build_dobei.py` | 武家屋敷の土塀(腰石・下見板・漆喰・本瓦の一体物) |
 | `build_tsuijibei.py` | 築地塀(城塀から軒を詰めて小口を塞いだ派生) |
 | `build_kado.py` | 折れ角の隅部材(石垣・塀・長屋の留め継ぎ) |
+| `build_nagaya_omote.py` | **長さ可変の表長屋**(`knagaya01c/l/r` を窓割りで切って並べ、両端に妻を継ぐ) |
 | `build_ishigaki_saka.py` | 石段の袖の土留め(勾配に沿った一枚物) |
 | `build_matsudaira_bansho.py` | 松江松平邸専用: 表門の番所(向唐破風・出格子) |
 | `build_matsudaira_omotemon.py` | 松江松平邸専用: 表門(屋根なしの冠木門) |
-| `build_matsudaira_fuzokuya.py` | 松江松平邸専用: 附属屋(土蔵・数寄屋・稲荷社・井戸・隅櫓ほか) |
+| `build_matsudaira_dewa_fuzokuya.py` | 松江松平邸専用: 附属屋(土蔵・数寄屋・稲荷社・井戸・隅櫓ほか) |
 
 パスは `vklib.REPO`(このファイルの位置から導出)起点。**sparse worktree では Assets が来ないので回らない** —
 メインのチェックアウトで `edo_session.py start <屋敷> --blender` を打ってから回すこと。
@@ -179,6 +180,29 @@ Village Kit は **2.0m/間**。江戸間は 1間 = 6尺 = **1.818m**。
 - 床の間・違い棚・帳台構は**妻壁を開けて据える**(`EdoGotenKit.Mune` の openBaysEast/West)。
   塞いだままだと壁の裏に隠れる。壁の外へ出る箱なので**底板・天井板・小壁で塞ぐ**(光が漏れる)
 - 上段の間は `Mune(jodanFromIx:)` で床ごと 0.15 上げる。框だけ置くと飾りの下に隙間が出る
+
+## 長さ可変の表長屋(build_nagaya_omote.py)
+
+```bash
+blender --background --python Tools/Blender/build_nagaya_omote.py -- 28.5 --render
+blender --background --python Tools/Blender/build_nagaya_omote.py -- 16.35 --ends none   # 隣へ突き付ける版
+```
+
+在庫の長屋は **中部材 8.065m / 妻部材 7.910m の固定寸法**しかなく、run の端数が門・隅との間に残る
+(松江松平邸 御蔵門で西 1.66m 食い込み・東 0.96m 隙間。2026-08-29 ユーザー裁定で新造)。
+
+- 素の `knagaya01c` は **1棟 = 8.0622m の中に窓が3つ**。したがって **割付の単位 = bay = 2.6874m**
+- **海鼠・瓦・軒瓦は bay で完全に周期的**(頂点一致を総当たりで確認)。だから bay で切って並べれば
+  継ぎ目は出ない。⛔ **bay より細かい共通周期は無い**(垂木だけ 0.62m の独自ピッチ)
+- 長さは `L/ES = 2·(1.67609 − ε/2) + k·(1.47822 − ε)` を解いて **bay の本数 k** と
+  **無地の壁(pier)の詰め ε** で吸う。**瓦・海鼠・格子の形は一切伸ばさない**。
+  ソルバは |ε| が最小になる k を選ぶので **L≥12m なら ε は ±0.21m 以内、L≥20m なら ±0.08m 以内**
+- 切断面は**必ず pier(無地の壁)の中**。窓を切ると格子の小口が出る
+- **出力は実寸(m)**。edogoyomi の .obj と違い Unity では `scale = Vector3.one`
+- ピボット = **走りの中心・土台の底・壁の外面**。見え面 = +Z(Unity)
+- ⚠ obj を読んで `transform_apply` すると **X が反転する**。寸法は読み込み後のメッシュから測る
+- remap は **`Edo/長屋/表長屋のマテリアルをremap`**(`EdoNagayaOmote.cs`)。
+  素は 1 材 `knagayamap` で .obj のサブアセット。`SearchAndRemapMaterials` では当たらない
 
 ## まだ無いもの(次にやる)
 

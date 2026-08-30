@@ -41,9 +41,9 @@ public static class EdoSashizuExport
         { "okabe", new Yashiki { label = "Okabe", doc = "docs/Sashizu/okabe_sashizu.json",
                                  dump = "docs/Sashizu/okabe_current.json",
                                  root = EdoOkabeYashikiBuilder.GN, parcel = null } },
-        { "matsudaira", new Yashiki { label = "Matsudaira", doc = EdoMatsudairaBuilder.SashizuRel,
-                                      root = EdoMatsudairaBuilder.Grp,
-                                      parcel = EdoMatsudairaBuilder.ParcelId } },
+        { "matsudaira_dewa", new Yashiki { label = "MatsudairaDewa", doc = EdoMatsudairaDewaBuilder.SashizuRel,
+                                      root = EdoMatsudairaDewaBuilder.Grp,
+                                      parcel = EdoMatsudairaDewaBuilder.ParcelId } },
         // 土井のルート名は EdoSannoKitaBuilder.Stage2_Doi が建てた実物(2026-08-26 実機確認)
         { "doi", new Yashiki { label = "Doi", doc = "docs/Sashizu/doi_sashizu.json",
                                root = "Edo_Yashiki_DoiOsumi", parcel = "doi" } },
@@ -88,7 +88,7 @@ public static class EdoSashizuExport
         if (doc == null) return "指図が読めない: " + hs.doc;
 
         var sb = new StringBuilder();
-        // ---- 回転間グリッド(EdoMatsudairaBuilder.Frame と同じ式)----
+        // ---- 回転間グリッド(EdoMatsudairaDewaBuilder.Frame と同じ式)----
         var g = D(D(doc, "grid"), "shukaku");
         float ken = F(D(doc, "const"), "ken");
         float gx0 = F(g, "x0"), gz0 = F(g, "z0");
@@ -227,7 +227,7 @@ public static class EdoSashizuExport
         return sb.ToString();
     }
 
-    /// <summary>辺 edge の走り s[m] の世界座標(EdoMatsudairaBuilder.EdgePt と同じ式)。</summary>
+    /// <summary>辺 edge の走り s[m] の世界座標(EdoMatsudairaDewaBuilder.EdgePt と同じ式)。</summary>
     static Vector2 EdgePtOf(Vector2[] P, int edge, float s)
     {
         int n = P.Length;

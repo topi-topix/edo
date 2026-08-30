@@ -12,11 +12,21 @@
    邸固有の正当な差(建蔽率の行ラベル、考証 md の方言)は引数で吸収する。
    岡部・松平で新たに落ちる項目は**修正せず一覧で報告**(同裁定)。
 
-据え置き(統一すると意味が変わるため、裁定の据え置き条項で各生成器に残す):
-- `graded_y` — 岡部は「縁の盛土厚の逓減形」(cbee45a)、土井は「一定勾配+着地判定+
-  斜路・石段の先読み」で、**法面の物理モデルそのものが別**。どちらへ寄せても
-  切盛図・断面・土量の数値が変わる。
-- 山王の `design_y` — 世界座標・多角形の段・法面まで一体の実質 graded_y。
+3. **造成モデルの正典 `graded_y`**(2026-08-26 ユーザー指示「岡部式と土井式の
+   2パターンがあってよいのか？統一すべきでは？」→ 統一)。土井版
+   (一定勾配の法面+着地判定+斜路・石段の先読み+盛土floor)を正典としてここへ移し、
+   岡部もこれで生成する(旧岡部式=縁の盛土厚の逓減形 cbee45a は廃止)。
+   岡部の切盛・断面・土量が動くのは覚悟の上の裁定(変化量は統一時の報告と git log)。
+   岡部の「等高線なり多角形」の段は `poly` 分岐で受ける(土井のデータでは分岐が
+   発火せず、出力バイト不変を実証して切り替えた)。
+
+据え置き:
+- 山王の `design_y` — 物理モデルは同族(一定勾配 1:batterFill/batterCut +
+  着地判定 slope_lands + 土留め免除 on_wall)だが、世界座標の多角形の段・任意向きの
+  土留め線分・DEM を法線方向に歩く着地判定と一体で、ここの回転間グリッド前提の
+  インタフェース(辺名 u0..v1 / gapU・gapV / v=0 の外周 run / atWall の石段)には
+  載らない。無理に載せると着地判定がかえって弱くなる(こちらは評価点の nat と
+  比べるだけ)ため据え置く。
 
 - `_SVN` は SVG 図版番号のカウンタ。各生成器の `_sv()`(図版を開く関数、生成器ごとに
   defs が異なるため各自が持つ)が `from sashizu_lib import _SVN` で同じ list を
@@ -402,6 +412,297 @@ def design_y(d, u, v, in_parcel):
     return best
 
 
+# ---------------------------------------------------------------- 造成後の地盤(正典・土井式)
+# 2026-08-26 ユーザー指示で統一。土井の実装(検図13〜14巡を経た物理モデル)をそのまま移した。
+# `in_parcel` は生成器の区画判定(キャッシュを持つため各自が渡す — design_y と同じ作法)。
+
+
+def run_edges(d):
+    """外周 run(表長屋・練塀)が載っている辺の、グリッドでの区間。
+
+    基壇石垣が地形を受けるので、その辺から法面を出してはいけない
+    (2026-08-23 検図 M-6: 街路辺で盛土のすそが区画線を最大1.93m越える計算になっていた)。
+    表門の辺(v=0)だけを扱う — 他の辺の囲いは隣家の持ち物。
+    """
+    ken = d["const"]["ken"]
+    sg = d["gate"]["s"]
+    out = []
+    for r in d["runs"]:
+        if r["edge"] != d["gate"]["edge"]:
+            continue
+        out.append(((r["s0"] - sg) / ken, (r["s1"] - sg) / ken))
+    gp = d["gate"]["plan"]
+    out.append((-gp["monW"] / 2 / ken, gp["monW"] / 2 / ken))
+    return out
+
+
+def walled_edges(d, t):
+    """段 t の四辺のうち土留めが載っている**区間**。(辺名, lo, hi) の並びで返す。
+    辺単位で「壁が1本でもあれば辺全体を壁付き」と見ると、壁の無い区間に法面が出ず
+    垂直の段差が残る(2026-08-23 検図で南東縁に3.5mの受け無し段差が見つかった)。"""
+    def emit(name, lo, hi, gap):
+        """⚠ **開口の区間は壁が無い。** ここを壁付きとして返すと、法面も出ず検査も素通りし、
+        開口幅から通る物の幅を引いた分が**受けの無い垂直段差**として残る
+        (2026-08-24 検図: 8本合計28.8m)。開口で区間を割って返す。"""
+        segs = [(lo, hi)] if gap is None else \
+               [(lo, min(hi, gap[0])), (max(lo, gap[1]), hi)]
+        for a9, b9 in segs:
+            if b9 - a9 > 0.4:
+                out.append((name, a9, b9))
+
+    out = []
+    for w in d["terraceWalls"]:
+        if abs(w["coping"] - t["y"]) > 0.05:
+            continue
+        (au, av), (bu, bv) = w["a"], w["b"]
+        gh = w.get("gapHalf", 0.0)
+        if abs(au - bu) < 1e-9:                       # u=const の壁
+            lo, hi = max(min(av, bv), t["v0"]), min(max(av, bv), t["v1"])
+            gap = (w["gapV"] - gh, w["gapV"] + gh) if "gapV" in w else None
+            if abs(au - t["u0"]) < 1e-6:
+                emit("u0", lo, hi, gap)
+            if abs(au - t["u1"]) < 1e-6:
+                emit("u1", lo, hi, gap)
+        else:                                          # v=const の壁
+            lo, hi = max(min(au, bu), t["u0"]), min(max(au, bu), t["u1"])
+            gap = (w["gapU"] - gh, w["gapU"] + gh) if "gapU" in w else None
+            if abs(av - t["v0"]) < 1e-6:
+                emit("v0", lo, hi, gap)
+            if abs(av - t["v1"]) < 1e-6:
+                emit("v1", lo, hi, gap)
+    return out
+
+
+def _walled(we, edge, w):
+    """辺 edge の位置 w が、土留めの載っている区間に入っているか。"""
+    if not edge:
+        return False
+    for (e, lo, hi) in we:
+        if e == edge and lo - 1e-9 <= w <= hi + 1e-9:
+            return True
+    return False
+
+
+def ramp_y(d, u, v):
+    """土の斜路の踏面。⚠ `stair_y` は `kaidans` しか見ておらず、**斜路がどこにも存在しなかった**
+    (2026-08-25 検図11巡 中-1: 図が出す「厩の動線の最急 1:2.2」は斜路ではなく
+    その頭の崖の数字だった。設計勾配は 1:7.4)。"""
+    K = d["const"]["ken"]
+    for r in d.get("ramps", []):
+        if "u0" not in r:
+            continue          # 折れ線 `pts` 式の坂(岡部)は斜面の中の路盤 — 地盤は別勘定
+        u0, u1 = min(r["u0"], r["u1"]), max(r["u0"], r["u1"])
+        v0, v1 = min(r["v0"], r["v1"]), max(r["v0"], r["v1"])
+        if not (u0 - 1e-9 <= u <= u1 + 1e-9 and v0 - 1e-9 <= v <= v1 + 1e-9):
+            continue
+        w = [x for x in d["terraceWalls"] if x["name"] == r.get("atWall")]
+        # ⚠ **土留めに付かない斜路もある。** 段の縁が地山と出会う所の摺り付けは、
+        #   壁ではなく面と地山のあいだに架かる(2026-08-25 検図14巡 中-4)。
+        #   その場合は高い端の高さを `top` で申告する。
+        if not w:
+            top = r.get("top")
+            if top is None:
+                continue
+            u0_, u1_ = min(r["u0"], r["u1"]), max(r["u0"], r["u1"])
+            v0_, v1_ = min(r["v0"], r["v1"]), max(r["v0"], r["v1"])
+            if (u1_ - u0_) > (v1_ - v0_):
+                t = (u - u0_) / ((u1_ - u0_) or 1.0)
+            else:
+                t = (v - v0_) / ((v1_ - v0_) or 1.0)
+            if r.get("hiAt") == "lo":            # 高い端がどちらかを申告させる
+                t = 1.0 - t
+            return top - r["drop"] * (1.0 - max(0.0, min(1.0, t)))
+        top = w[0]["coping"]
+        # ⚠ **走行軸を先に決め、その軸上で「開口の芯に近い端」を上にする。**
+        #   「壁に近い側が上」は**壁に平行な斜路では両端が等距離で退化**する
+        #   (2026-08-25 検図12巡 中-1: 開口を壁の反対端へ移しても踏面が変わらなかった)。
+        vert_w = abs(w[0]["a"][0] - w[0]["b"][0]) < 1e-9
+        gk_w = "gapV" if vert_w else "gapU"
+        # ⚠ `along` は `=="u"` と比較されていて **`true` は死値**だった(2026-08-25 検図12巡 低-2)。
+        #   長短比で決める(斜路は長手に走る)。向きの規則はここ一箇所に置く。
+        along_u = (u1 - u0) > (v1 - v0)
+        if along_u:
+            t = (u - u0) / ((u1 - u0) or 1.0)
+            lo_a, hi_a = u0, u1
+        else:
+            t = (v - v0) / ((v1 - v0) or 1.0)
+            lo_a, hi_a = v0, v1
+        # 開口の芯(壁が持つ値。無ければ斜路自身の申告)を走行軸へ射影して比べる
+        gc = w[0].get(gk_w, r.get(gk_w))
+        if gc is not None and abs(hi_a - gc) > abs(lo_a - gc):
+            t = 1.0 - t
+        return top - r["drop"] * (1.0 - max(0.0, min(1.0, t)))
+    return None
+
+
+def stair_y(d, u, v, in_parcel):
+    """石段の掘割(切通し)の中なら、その位置の**踏面の高さ**を返す。外なら None。
+
+    石段は段と段のあいだの土手を**切通す**。掘割を地盤として扱わないと、
+    「踏面が地山に埋まっている」という誤検出になり、切土も切盛図に出ない
+    (2026-08-23 検図 M-2: K_Kita が最大 0.82m 埋まると出た)。
+    """
+    K = d["const"]["ken"]
+    for k in d["kaidans"]:
+        w = next((x for x in d["terraceWalls"] if x["name"] == k.get("atWall")), None)
+        if w is None:
+            continue          # 参照切れは refs_check が非0で止める(例外で落とさない)
+        run = k["run"] / K
+        hw = k["w"] / 2.0 / K + 0.25                    # 片側に犬走りぶんの余裕
+        if abs(w["a"][0] - w["b"][0]) < 1e-9:           # u=const の壁 → 段は u 方向へ下る
+            if abs(v - k["gapV"]) > hw:
+                continue
+            lo = -1.0 if design_y(d, w["a"][0] - 0.5, v, in_parcel) is None or \
+                 (design_y(d, w["a"][0] - 0.5, v, in_parcel) or 0) < w["coping"] else 1.0
+            t = (u - w["a"][0]) / (lo * run)
+        else:                                           # v=const の壁 → 段は v 方向へ下る
+            if abs(u - k["gapU"]) > hw:
+                continue
+            lo = -1.0 if design_y(d, k["gapU"], w["a"][1] - 0.5, in_parcel) is None or \
+                 (design_y(d, k["gapU"], w["a"][1] - 0.5, in_parcel) or 0) < w["coping"] else 1.0
+            t = (v - w["a"][1]) / (lo * run)
+        if -1e-9 <= t <= 1.0 + 1e-9:
+            return w["coping"] - k["drop"] * t
+    return None
+
+
+def poly_edge_dist(p, u, v):
+    """多角形の縁までの距離[間](外側の点用)。岡部の「等高線なり多角形」の段の縁。"""
+    n = len(p)
+    best = 1e18
+    for i in range(n):
+        (au, av), (bu, bv) = p[i], p[(i + 1) % n]
+        du_, dv_ = bu - au, bv - av
+        L2 = du_ * du_ + dv_ * dv_
+        q = 0.0 if L2 < 1e-12 else max(0.0, min(1.0, ((u - au) * du_ + (v - av) * dv_) / L2))
+        best = min(best, math.hypot(u - (au + q * du_), v - (av + q * dv_)))
+    return best
+
+
+def graded_y(d, u, v, nat, in_parcel, walled=None):
+    """**造成後の地盤**。段の中は段の高さ。段の外は法面(盛土 1:batterFill / 切土 1:batterCut)で
+    現地形へ摺り付ける — 段の縁に垂直の段差を残さないため(2026-08-23 ユーザー指摘)。
+    土留めが載っている辺からは法面を出さない(そこは壁が垂直に受ける)。
+    どこも触らない点では nat と同じ値を返すので、差がゼロ=無造成。
+
+    `poly` を持つ段(岡部の等高線なり多角形)は、中を t_contains・縁までの距離を
+    poly_edge_dist で見る。辺名を持たないので土留め・外周 run の免除は掛からない
+    (岡部は terraceWalls が空なので実害なし。壁付き多角形の段が要る邸が出たら拡張する)。"""
+    if not in_parcel(d, u, v):
+        return nat                                     # 区画の外は現地形のまま(造成しない)
+    # ⚠ **斜路と石段は段より先に見る。** 段の中を通るので `design_y` を先に引くと隠れ、
+    #   切盛図にも土量にも断面にも出なかった(2026-08-25 検図12巡 中-2:
+    #   斜路 26m³・石段 40m³ が隠れていた)。動線の `_ry` と同じ順にする。
+    rp = ramp_y(d, u, v)                               # 土の斜路の踏面
+    if rp is not None:
+        return rp
+    st = stair_y(d, u, v, in_parcel)                   # 石段の掘割は踏面が地盤
+    if st is not None:
+        return st
+    ins = design_y(d, u, v, in_parcel)
+    if ins is not None:
+        return ins
+    if nat is None:
+        return None
+    K = d["const"]["ken"]
+    bf = d["const"].get("batterFill", 1.5)
+    bc = d["const"].get("batterCut", 1.0)
+    cap = d["const"].get("featherCap", 12.0)
+    g = nat
+    floor = -1e9
+    for t in d["terraces"]:
+        p9 = t.get("poly")
+        if p9:
+            if t_contains(t, u, v):
+                continue                               # 多角形の内側は段そのもの
+            dm = poly_edge_dist(p9, u, v) * K
+        else:
+            if in_obb(t, u, v):
+                continue                               # 回転物の内側は段そのもの
+            we = walled[t["name"]] if walled else walled_edges(d, t)
+            # ⚠ **回転する段は、法面の距離も回転した軸で測る。**
+            #   外接矩形 `u0..v1` で測ると、OBB の外・AABB の内で du=dv=0 になり
+            #   **外接矩形いっぱいが段の高さで平らに造成される**
+            #   (2026-08-25 検図12巡 高-2: 6段で 114セル・96坪・90m³。平面は回転矩形、
+            #   切盛図は軸平行の矩形で、同じ段が二つの形で描かれていた)。
+            if "yaw" in t:
+                r_ = math.radians(t["yaw"])
+                lu_, lv_ = math.sin(r_), math.cos(r_)
+                du_, dv_ = math.cos(r_), -math.sin(r_)
+                a_ = (u - t["uc"]) * lu_ + (v - t["vc"]) * lv_
+                b_ = (u - t["uc"]) * du_ + (v - t["vc"]) * dv_
+                du = max(0.0, abs(a_) - t["L"] / 2.0)
+                dv = max(0.0, abs(b_) - t["D"] / 2.0)
+                eu = ("u1" if a_ > 0 else "u0") if du > 1e-9 else None
+                ev = ("v1" if b_ > 0 else "v0") if dv > 1e-9 else None
+            elif u < t["u0"]:
+                du, eu = t["u0"] - u, "u0"
+            elif u > t["u1"]:
+                du, eu = u - t["u1"], "u1"
+            else:
+                du, eu = 0.0, None
+            if "yaw" not in t:
+                if v < t["v0"]:
+                    dv, ev = t["v0"] - v, "v0"
+                elif v > t["v1"]:
+                    dv, ev = v - t["v1"], "v1"
+                else:
+                    dv, ev = 0.0, None
+            # ⚠ 隅では、辺の壁の**端**を引き継ぐ。素の v/u で引くと隅の外側は
+            #   どちらの壁の区間からも外れ、壁の角から盛土の楔が生える
+            #   (2026-08-23 検図: 表役所の郭の南東隅で 2.65m 宙吊り)。
+            qv = min(max(v, t["v0"]), t["v1"])
+            qu = min(max(u, t["u0"]), t["u1"])
+            if _walled(we, eu, qv) or _walled(we, ev, qu):
+                continue                               # 壁が受ける区間 — 法面を出さない
+            if ev == "v0" and abs(t["v0"]) < 1e-9 and any(a9 <= qu <= b9 for a9, b9 in run_edges(d)):
+                continue                               # 外周 run の基壇石垣が受ける(法面を出さない)
+            dm = math.hypot(du, dv) * K
+        if dm > cap:
+            continue
+        y2 = t["y"] - dm / bf
+        if t["y"] - cap / bf > nat:
+            continue                                   # cap の内で現地形に着地しない = 法面を出さない
+        g = max(g, y2)                                 # 盛土の裾がこぼれる
+        floor = max(floor, y2)                         # 盛土が要求する下限
+    for t in d["terraces"]:
+        p9 = t.get("poly")
+        if p9:
+            if t_contains(t, u, v):
+                continue                               # 多角形の内側は段そのもの
+            dm = poly_edge_dist(p9, u, v) * K
+        else:
+            if in_obb(t, u, v):
+                continue                               # 回転物の内側は段そのもの
+            we = walled[t["name"]] if walled else walled_edges(d, t)
+            if u < t["u0"]:
+                du, eu = t["u0"] - u, "u0"
+            elif u > t["u1"]:
+                du, eu = u - t["u1"], "u1"
+            else:
+                du, eu = 0.0, None
+            if v < t["v0"]:
+                dv, ev = t["v0"] - v, "v0"
+            elif v > t["v1"]:
+                dv, ev = v - t["v1"], "v1"
+            else:
+                dv, ev = 0.0, None
+            qv = min(max(v, t["v0"]), t["v1"])
+            qu = min(max(u, t["u0"]), t["u1"])
+            if _walled(we, eu, qv) or _walled(we, ev, qu):
+                continue
+            dm = math.hypot(du, dv) * K
+        if dm > cap:
+            continue
+        if t["y"] + cap / bc < nat:
+            continue                                   # cap の内で現地形に着かない
+        g = min(g, t["y"] + dm / bc)                   # 切土の法が日の目を見る
+    # ⚠ 切土の法面が**盛土の要求する下限を割らない**ようにする。
+    #   低い段の切土が高い段の縁の下を掘り、縁に受けの無い段差を作っていた
+    #   (2026-08-24 検図: 書院の郭の南縁で 0.89m)。
+    return max(g, floor)
+
+
 # ---------------------------------------------------------------- 建蔽率
 def kenpei(d, area, tsubo, svc_label, nagaya_label, ban_label):
     """建蔽率の算出(分母は敷地全体 — CLAUDE.md 規則5)。計算は最も厳しい土井版:
@@ -648,8 +949,10 @@ def overlap_check(d):
                     if (a0 <= c0 and b0 <= d0 and c1 <= a1 and d1 <= b1) or \
                        (c0 <= a0 and d0 <= b0 and a1 <= c1 and b1 <= d1):
                         continue
-                if {k1, k2} == {"niwa", "svc"}:
-                    # 庭の中に立つ亭・祠は庭に**完全に包含**されていれば可(庭は地面)
+                if {k1, k2} == {"niwa", "svc"} or {k1, k2} == {"niwa", "ido"}:
+                    # 庭の中に立つ亭・祠・井戸は庭に**完全に包含**されていれば可(庭は地面)。
+                    # ido の免除は EDO-0023(2026-08-26): 統一時に土井・岡部に niwa×ido の
+                    # 事例が無く落としていた — 庭の井戸は松平で5件、svc と同型の免除で受ける
                     (nk, na, n0, n1_, n2_, n3, _n), (sk, sa, s0, s1_, s2_, s3, _s) = \
                         (boxes[i], boxes[j]) if k1 == "niwa" else (boxes[j], boxes[i])
                     if n0 <= s0 and n1_ <= s1_ and s2_ <= n2_ and s3 <= n3:

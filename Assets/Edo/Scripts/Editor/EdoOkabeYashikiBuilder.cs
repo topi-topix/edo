@@ -2632,14 +2632,16 @@ public static class EdoOkabeYashikiBuilder
     }
     static void Umaya(Transform parent, Vector2 c, float psi, string nm)
     {
-        const float PITCH = 7.81f;
         var g = new GameObject(nm); g.transform.SetParent(parent, false);
         Undo.RegisterCreatedObjectUndo(g, "umaya");
         float rad = psi * Mathf.Deg2Rad;
         Vector2 negRight = new Vector2(-Mathf.Cos(rad), Mathf.Sin(rad));
         var m1 = B.Place(B.PKnagayaL, Vector3.zero, psi, Vector3.one * ES, g.transform, "u0");
         var m2 = B.Place(B.PKnagayaR, Vector3.zero, psi, Vector3.one * ES, g.transform, "u1");
-        Vector2 p1 = c - negRight * (PITCH * 0.5f), p2 = c + negRight * (PITCH * 0.5f);
+        // 実寸突き付け(2026-08-26 Phase 4a): 旧 PITCH=7.81 は壁実寸 7.910 と合わず継ぎ目が食い込んでいた
+        var ml = NT.NagayaMeasure(B.PKnagayaL); var mr = NT.NagayaMeasure(B.PKnagayaR);
+        float half = (ml.W + mr.W) * 0.5f;
+        Vector2 p1 = c + negRight * (-half + ml.hi), p2 = c + negRight * (-half + ml.W + mr.hi);
         float y = Mathf.Min(G(p1.x, p1.y), G(p2.x, p2.y));
         m1.transform.position = new Vector3(p1.x, y, p1.y); m2.transform.position = new Vector3(p2.x, y, p2.y);
         var b1 = B.RB(m1); m1.transform.position += new Vector3(0, (y - 0.10f) - b1.min.y, 0);

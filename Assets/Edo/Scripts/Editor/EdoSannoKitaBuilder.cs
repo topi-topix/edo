@@ -3,7 +3,7 @@
 // 【考証は指図が正典。ここに写さない】
 //   岡部 → docs/Sashizu/okabe_sashizu.json + okabe_kosho.md
 //   土井 → docs/Sashizu/doi_sashizu.json  + doi_kosho.md
-//   松平 → docs/Sashizu/matsudaira_sashizu.json + matsudaira_kosho.md
+//   松平 → docs/Sashizu/matsudaira_dewa_sashizu.json + matsudaira_dewa_kosho.md
 //   ⚠ **2026-08-25 に、ここにあった 2026-08-12 の考証ブロックを削除した。**
 //   4か月ぶん古びており、各屋敷の指図が撤回した説を現役の根拠として保持していた —
 //   家紋から屋敷の別を読む説(別は武鑑で取る)、紋の桶を6個とする説(実見では8回対称。
@@ -45,8 +45,8 @@ public static class EdoSannoKitaBuilder
         EdoAssets.JG.Boxwood01 };
     // ⚠ **斜面の植栽に竹を使わない**(2026-08-22 是正)。BambooBig は孟宗竹型の太稈で、
     //   嘉永期の江戸の孟宗竹は吹上御苑と近郊農村の筍畑にしか無い。斜面は Pines + Shrubs の
-    //   3帯(指図 matsudaira_sashizu.json の slopeBands)。竹垣は垣の材なので別物。
-    //   復活させる前に docs/Sashizu/matsudaira_kosho.md「斜面の植生」を読むこと。
+    //   3帯(指図 matsudaira_dewa_sashizu.json の slopeBands)。竹垣は垣の材なので別物。
+    //   復活させる前に docs/Sashizu/matsudaira_dewa_kosho.md「斜面の植生」を読むこと。
     const string PTobi = EdoAssets.JG.TobiIshi01;
     public const float ES = 1.818f;
 
@@ -501,10 +501,10 @@ public static class EdoSannoKitaBuilder
     }
 
     // ---------- Stage 3: 松平出羽守上屋敷 ----------
-    // ⛔ 失効。EdoMatsudairaBuilder(Stage0-6)に置換済み
+    // ⛔ 失効。EdoMatsudairaDewaBuilder(Stage0-6)に置換済み
     public static string Stage3_Matsudaira()
     {
-        if (StageRetired) return "⛔ 失効: Stage3_Matsudaira は EdoMatsudairaBuilder に置換済み";
+        if (StageRetired) return "⛔ 失効: Stage3_Matsudaira は EdoMatsudairaDewaBuilder に置換済み";
         const string G = "Edo_Yashiki_MatsudairaDewa";
         var exist = GameObject.Find(G);
         if (exist != null && exist.transform.childCount > 0) return "SKIP Matsudaira";
@@ -672,7 +672,7 @@ public static class EdoSannoKitaBuilder
     }
 
     // ---------- 一括 ----------
-    // ⚠ 岡部・松平は専用ビルダー(EdoOkabeYashikiBuilder / EdoMatsudairaBuilder)で建てる。
+    // ⚠ 岡部・松平は専用ビルダー(EdoOkabeYashikiBuilder / EdoMatsudairaDewaBuilder)で建てる。
     //   ここで現役なのは Stage0/2/4 のみ
     public static string BuildAll()
     {

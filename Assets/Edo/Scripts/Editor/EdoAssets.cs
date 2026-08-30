@@ -164,6 +164,17 @@ public static class EdoAssets
         public const string CastleWallCorner = "Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Castle Wall Corner.prefab";
         public const string CastleWall4x12Mesh = "Assets/Japanese Castle/Meshes/Exterior/Castle Wall 4x12.fbx";
 
+        // 門扉。**開口に扉を建てないと外周が素通しになる**(2026-08-29 EDO-0053 で
+        // 御蔵門・東小門が 2.7〜2.9m 開いたままだった)。
+        // L/R とも**突き合わせる側**にピボットがあるので、開口の芯へ両方置けば閉じる。
+        /// <summary>小門用(1.5×2.8)。対で開口 3.0m ちょうど。足元は local y=0.10。</summary>
+        public const string GateDoorCastleL = "Assets/Japanese Castle/Meshes/Exterior/Gate Castle Door L.fbx";
+        public const string GateDoorCastleR = "Assets/Japanese Castle/Meshes/Exterior/Gate Castle Door R.fbx";
+        public const float  GateDoorCastleFoot = 0.10f;
+        /// <summary>表門用(2.143×3.0)。対で 4.0m、足元は local y=0。開口へは横だけ伸ばす。</summary>
+        public const string GateDoorYaguraL = "Assets/Japanese Castle/Prefabs/Exterior/Gate Yagura/Gate Yagura Door A Left Hinge.prefab";
+        public const string GateDoorYaguraR = "Assets/Japanese Castle/Prefabs/Exterior/Gate Yagura/Gate Yagura Door A Right Hinge.prefab";
+
         public const string WallDefence       = "Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Wall Exterior Defence.prefab";
         public const string WallDefenceX8     = "Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Wall Exterior Defence x 8.prefab";
         public const string WallDefenceCorner = "Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Wall Exterior Defence Corner.prefab";
@@ -202,6 +213,25 @@ public static class EdoAssets
         public const string Rock02    = "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_Rock_A_02.prefab";
         public const string Rock03    = "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_Rock_A_03.prefab";
         public const string TobiIshi01= "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_TobiIshi_A_01.prefab";
+        public const string TobiIshi02= "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_TobiIshi_A_02.prefab";
+
+        // ---- 植栽の系列(Stage7 が使う)。生の高さと江戸の木に合わせる倍率は目録 §9。
+        const string JGP = "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/";
+        /// <summary>黒松。生 5.6m ×1.65。Big/Mid/Small × 01..03</summary>
+        public static string Pine(string size, int i)
+        { return JGP + "Trees/BlackPine/Tree_BlackPine_" + size + "_Green_0" + i + ".prefab"; }
+        /// <summary>桜。⚠ **Summer のみ使う**(季節は春ではない)。01 と 05 の2種。生 ×1.4</summary>
+        public static string SakuraSummer(string size, int i)
+        { return JGP + "Trees/Sakura/Tree_Sakura_" + size + "_Summer_0" + i + ".prefab"; }
+        /// <summary>柘植の刈込。Spring/Fall × 01..03、Single/ もある</summary>
+        public static string Boxwood(int i) { return JGP + "Plants/Boxwood/Plant_Boxwood_Spring_0" + i + ".prefab"; }
+        /// <summary>羊歯の下草。Spring/Fall × 01..02</summary>
+        public static string Fern(int i) { return JGP + "Plants/PaintedFern/Plant_PaintedFern_Spring_0" + i + ".prefab"; }
+        /// <summary>庭石。01..03</summary>
+        public static string Rock(int i) { return JGP + "Misc/Rocks/JG_Rock_A_0" + i + ".prefab"; }
+        /// <summary>躑躅・皐月。⚠ **A 02 は存在しない** — 01 / 03 / 04 の3種</summary>
+        public static string Azalea(int i)
+        { return "Assets/Japanese Castle/Prefabs/Foliage/Azalea A 0" + i + ".prefab"; }
     }
 
     /// <summary>自作(Assets/Edo 配下)</summary>
@@ -212,6 +242,17 @@ public static class EdoAssets
         public const string DanishiStep   = "Assets/Edo/Models/Shiomizaka/P_DanishiStep2m.prefab";
         public const string MichibataIshi = "Assets/Edo/Models/Shiomizaka/P_MichibataIshi2m.prefab";
 
+        /// <summary>常緑の広葉樹(モッコク・モチノキ・カシ・シイの見立て)。実寸 5.6×5.9×4.7m。
+        /// ⚠ **キットに常緑広葉樹が無いのでこれで代用する。**JapaneseGarden パックにあるのは
+        /// 黒松・桜・竹だけで、NatureManufacture の広葉樹はポプラで江戸には使えない
+        /// (`docs/asset-catalog.md` §9)。**梅もこれで代用する** — 夏の梅は葉だけの姿なので
+        /// 樹種の違いは遠景で出ない。⛔ 種名を名乗らせないこと(確度が化ける)。</summary>
+        [System.Obsolete("⛔ 使用禁止(2026-08-30 ユーザー指示「2度と使わないでください。見た目が" +
+            "しょぼすぎます」)。自作の低ポリゴン(2,384三角)で、在庫の木と並べると明らかに見劣りする。" +
+            "植栽は在庫のパックから採る(JG / JC.Foliage / NatureManufacture)。在庫に無い樹種が" +
+            "要るなら、在庫の木の作り(枝の分岐・葉のカード・LOD・材質)を参考にリアルに再現して起こす。")]
+        public const string Broadleaf = "Assets/Edo/Terrain/details/BroadleafTree.prefab";
+
         /// <summary>石段の法面を留める「坂の土留め」。天端が勾配どおりに**一直線で斜め**に下がる
         /// 一枚物(段々に下がるモジュールでは実物の石段の袖にならない)。生成は
         /// Tools/Blender/build_ishigaki_saka.py。無い寸法は -- &lt;走り&gt; &lt;落差&gt; で足す。
@@ -220,6 +261,57 @@ public static class EdoAssets
         {
             return "Assets/Edo/Models/Ishigaki/Ishigaki_Saka_"
                  + run.ToString("0.##") + "x" + drop.ToString("0.##") + ".fbx";
+        }
+
+        /// <summary>**長さ可変の表長屋**。在庫の `knagaya01c/l/r` を窓割り(bay=2.6874m)で切って
+        /// 並べ、両端に妻(破風・鬼・妻壁)を継いだ一体物。門と隅のあいだを**1本で**埋めるための部材。
+        /// 在庫の中部材 8.065m / 妻部材 7.910m の固定寸法では端数が必ず残る
+        /// (御蔵門の西に 1.66m の食い込み・東に 0.96m の隙間。2026-08-29 実測)。
+        ///
+        /// ⚠ **FBX は実寸(m)で出ている。`scale = Vector3.one` で置く**(edogoyomi の .obj と違い ES 不要)。
+        /// ローカル: 幅=X(=len) / 高さ=Y / 厚み=Z、**見え面(街路側)= +Z**。
+        /// ピボット = **走りの中心・土台の底・壁の外面**。外周線の上に
+        /// `position = 区間の中点 / yaw = 外向き法線の方位 / scale = Vector3.one` で置ける。
+        /// 軒は +Z へ 0.63m 出て、躯体は −Z へ 3.73m 入る。高さ 5.51m(妻の鬼まで)。
+        /// 直線材と同じく **`SeatBottom(seat − 0.10)`** で沈めること(隅部材と段差が出る)。
+        ///
+        /// len は m。**任意の長さを 1cm 単位でそのまま作れる**(窓割りの本数 k と無地の壁の
+        /// 詰め ε で吸うので、瓦・海鼠・格子の形は一切伸びない)。L≥12m で ε は ±0.21m 以内。
+        /// 無い長さは:
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- &lt;長さm&gt; [--render]
+        /// 隣へ突き付ける(妻を出さない)版が要るときは `-- &lt;長さm&gt; --ends none`
+        /// → `Nagaya_Omote_&lt;len&gt;_none.fbx`。</summary>
+        public static string NagayaOmote(float len) { return NagayaOmote(len, true); }
+        /// <summary>二階建ての表長屋(案A・**ユーザー裁定 2026-08-29**)。
+        /// 海鼠壁は腰壁のまま動かさず、白壁の帯を 1.673m 積んで階を作る(H 5.509 → 7.183m)。
+        /// ⛔ 海鼠を二階の腰まで立ち上げない — 平屋の区間との継ぎ目で帯が 2.1m 段になる。
+        /// ⚠ 上階の窓の位置は**典拠が無い【確度P】**(温古写真は画角外)。一次史料が出たら覆せる。
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- &lt;長さm&gt; --floors 2</summary>
+        public static string NagayaOmote2F(float len)
+        {
+            return "Assets/Edo/Models/Nagaya/Nagaya_Omote_" + len.ToString("0.##") + "_2f.fbx";
+        }
+        /// <summary>**長屋門**(ユーザー裁定 2026-08-30)— 表長屋の躯体を門の上まで通し、
+        /// その足元に門口を抜いた版。門(冠木門・扉)は Unity 側が開口の中へ据える。
+        ///
+        /// ⛔ **開口だけの短い部材は作れない**(妻2つ+bay で最小およそ 8.8m)。門口は
+        /// 必ず長い run の中に開ける。⚠ `gateFromLeft` は**部材のローカル +X の左端からの
+        /// 中心距離**[m]。生成器は書き出す前に Z まわりに 180° 回すので、obj 空間では
+        /// 右端から測って抜いている(取り違えると門口が反対の端に出る)。
+        /// 有効高は**土台の底から**測る。1階の軒までおよそ 4.0m あるので 3.0m の門口が収まる。
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- &lt;長さm&gt; --gate &lt;中心m&gt; &lt;幅m&gt; &lt;高さm&gt;
+        /// 二階建てにするなら `--floors 2` を足し、`_2f` 付きのパスで引く。</summary>
+        public static string NagayaOmoteMon(float len, float gateFromLeft, bool nikai)
+        {
+            return "Assets/Edo/Models/Nagaya/Nagaya_Omote_" + len.ToString("0.##")
+                 + "_mon" + gateFromLeft.ToString("0.##") + (nikai ? "_2f" : "") + ".fbx";
+        }
+
+        /// <summary>tsuma=false は両端を突き付けにした版(`--ends none`)。鎖の途中の一本に使う。</summary>
+        public static string NagayaOmote(float len, bool tsuma)
+        {
+            return "Assets/Edo/Models/Nagaya/Nagaya_Omote_" + len.ToString("0.##")
+                 + (tsuma ? "" : "_none") + ".fbx";
         }
 
         /// <summary>折れ角のある隅の部材(留め継ぎ)。生成は Tools/Blender/build_kado.py。
@@ -262,11 +354,11 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_matsudaira_bansho.py -- [--render]</summary>
         public const string MatsudairaBansho = "Assets/Edo/Models/Mon/Matsudaira_Bansho.fbx";
 
-        /// <summary>松江松平邸の附属屋・工作物。すべて `Tools/Blender/build_matsudaira_fuzokuya.py`
+        /// <summary>松江松平邸の附属屋・工作物。すべて `Tools/Blender/build_matsudaira_dewa_fuzokuya.py`
         /// で起こす(在庫照会 `docs/asset-catalog.md` §10「無い物」の結果 — 井戸・鳥居・祠・二層櫓は
         /// 目録に無く、土蔵・数寄屋・作事小屋は在庫の寸法が指図に合わない)。
         /// **ピボットは footprint の中心・地盤レベル**。ローカル +X = 桁行、+Z = 表。
-        /// 作り直し: `blender --background --python Tools/Blender/build_matsudaira_fuzokuya.py -- &lt;名&gt; [--render]`
+        /// 作り直し: `blender --background --python Tools/Blender/build_matsudaira_dewa_fuzokuya.py -- &lt;名&gt; [--render]`
         /// (名 = dozo / koya / sukiya / inari / ido / yagura。省くと全部)</summary>
         public static class Matsudaira
         {

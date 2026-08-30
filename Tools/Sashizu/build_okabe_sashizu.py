@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""岡部内膳正上屋敷(和泉岸和田藩 五万三千石)の指図を組む。
+"""岡部筑前守上屋敷(和泉岸和田藩 五万三千石)の指図を組む。
 
 **正典は docs/Sashizu/okabe_sashizu.json**(寸法)と okabe_kosho.md(文章)。
 この生成器は数値を持たない — 図も表もキャプションも json/md から引く。
@@ -1042,7 +1042,7 @@ def plan_svg(d):
     xs = [p[0] for p in P]; zs = [p[1] for p in P]
     pr = Proj(min(xs), max(xs), min(zs), max(zs), 900.0, pad=14.0)
     gr = RGrid(d)
-    g = _sv(pr.W, pr.H, "岡部内膳正上屋敷 敷地全体")
+    g = _sv(pr.W, pr.H, "岡部筑前守上屋敷 敷地全体")
 
     def gpoly(u0, v0, u1, v1, **kw):
         return gpolyN([(u0, v0), (u1, v0), (u1, v1), (u0, v1)], **kw)
@@ -1176,7 +1176,7 @@ def plan_frame(d, tname, pad=3.0):
 def goten_plan(d, u0, u1, v0, v1, label, note):
     """段の平面。**枠外の要素は clipPath で切る**(2026-08-23 検図: 枠の外にテキストが残っていた)。"""
     pr = LProj(u0, u1, v0, v1, 900.0)
-    g = _sv(pr.W, pr.H, "岡部内膳正上屋敷 %s" % label)
+    g = _sv(pr.W, pr.H, "岡部筑前守上屋敷 %s" % label)
     _SVN[0] = _SVN[0]
     cid = "gp%d" % _SVN[0]
     g.append('<defs><clipPath id="%s"><rect x="0" y="0" width="%.1f" height="%.1f"/></clipPath></defs>'
@@ -1596,7 +1596,7 @@ def cutfill_svg(d, ter):
     xs = [p[0] for p in P]; zs = [p[1] for p in P]
     pr = Proj(min(xs), max(xs), min(zs), max(zs), 900.0, pad=14.0)
     gr = RGrid(d)
-    g = _sv(pr.W, pr.H, "岡部内膳正上屋敷 切盛図")
+    g = _sv(pr.W, pr.H, "岡部筑前守上屋敷 切盛図")
     st = ter["step"]
     we = dict((t["name"], walled_edges(d, t)) for t in d["terraces"])
     g.append('<polygon points="%s" fill="var(--pl-slope)" opacity="0.55"/>'
@@ -1790,7 +1790,7 @@ def kindai_svg(d, W=900.0):
     P = d["polygon"]
     xs = [p[0] for p in P]; zs = [p[1] for p in P]
     pr = Proj(min(xs), max(xs), min(zs), max(zs), W, pad=14.0)
-    g = _sv(pr.W, pr.H, "岡部内膳正上屋敷 復元の効き方")
+    g = _sv(pr.W, pr.H, "岡部筑前守上屋敷 復元の効き方")
     g.append('<polygon points="%s" fill="var(--pl-slope)" opacity="0.35"/>'
              % " ".join("%.1f,%.1f" % (pr.X(p[0]), pr.Y(p[1])) for p in P))
     ix0 = (world["x0"] - base["x0"]) // base["step"]
@@ -1841,7 +1841,7 @@ def dem_svg(d, dem, others, W=900.0):
     x1, z1 = x0 + (dem["nx"] - 1) * st, z0 + (dem["nz"] - 1) * st
     pr = Proj(x0, x1, z0, z1, W, pad=0.0)
     gr = RGrid(d)
-    g = _sv(pr.W, pr.H, "岡部内膳正上屋敷 現況図(造成前の地形)")
+    g = _sv(pr.W, pr.H, "岡部筑前守上屋敷 現況図(造成前の地形)")
     g.append('<defs><clipPath id="dc%d"><rect x="0" y="0" width="%.1f" height="%.1f"/></clipPath></defs>'
              % (_SVN[0], pr.W, pr.H))
     g.append('<g clip-path="url(#dc%d)">' % _SVN[0])
@@ -1933,7 +1933,7 @@ RK = {"omote": ("var(--shu)", "表向"), "yaku": ("var(--take)", "役方"),
 def routes_svg(d, u0, u1, v0, v1):
     pr = LProj(u0, u1, v0, v1, 900.0)
     gr = RGrid(d)
-    g = _sv(pr.W, pr.H, "岡部内膳正上屋敷 動線")
+    g = _sv(pr.W, pr.H, "岡部筑前守上屋敷 動線")
     P = [gr.L(x, z) for x, z in d["polygon"]]
     g.append('<polygon points="%s" fill="var(--pl-slope)" opacity="0.5"/>'
              % " ".join("%.1f,%.1f" % (pr.X(u), pr.Y(v)) for u, v in P))
@@ -2218,7 +2218,7 @@ def section_svg(d, sec):
     def X(w): return (w - w0) * sx
     def Y(y): return HEAD + (y1 - y) * sx * ex
 
-    g = _sv(W, H, "岡部内膳正上屋敷 %s" % sec["name"])
+    g = _sv(W, H, "岡部筑前守上屋敷 %s" % sec["name"])
     pts = [(X(w0), Y(y0 + 0.01))] + [(X(a), Y(b)) for a, b in prof] + [(X(w1), Y(y0 + 0.01))]
     g.append('<polygon points="%s" fill="var(--dan)" stroke="var(--ink)" stroke-width="1.4"/>'
              % " ".join("%.1f,%.1f" % p for p in pts))
@@ -3392,27 +3392,33 @@ def main():
             print("   ", b)
 
     css = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "sashizu.css"), encoding="utf-8").read()
-    h = ['<meta charset="utf-8">', "<title>岡部内膳正上屋敷 指図</title>",
+    h = ['<meta charset="utf-8">', "<title>岡部筑前守上屋敷 指図</title>",
          "<style>%s</style>" % css, '<div class="wrap">']
     hn = d.get("han", {})
     h.append('<p class="eyebrow">外桜田永田町 ／ %s・%s %s 上屋敷</p>'
              % (hn.get("kaku", ""), hn.get("tono", ""), hn.get("kokuJa", "")))
-    h.append("<h1>岡部内膳正上屋敷 指図</h1>")
+    h.append("<h1>岡部筑前守上屋敷 指図</h1>")
     h.append('<div class="box" style="border-color:var(--shu);margin-top:14px"><h3>基準年次と確度</h3><p>'
-             '<b>基準年次=嘉永3年(1850)</b> — 基図(尾張屋版切絵図)の年次。安政2年の地震記録は'
-             '「倒れる前の姿」として遡って使う。<br>'
-             '<b>当主=岡部内膳正 長和</b>(10代。<b>嘉永3年『大成武鑑』の「岡部家」の條に'
-             '「岡部内膳正長和」とあり確度A</b>。⚠ 嘉永3年9月24日に没し弟の長発が継ぐので、'
-             '「当主=長和」と言えるのは同年9月まで【確度B — Web二次】)。'
-             '「岡部筑前守」は12代 長寛(安政2年家督)以降の受領名。<b>基準年次が嘉永3年なので表題は「内膳正」を採る</b>。<br>'
+             '<b>基準年次=安政3年(1856)</b>(2026-08-30 ユーザー裁定・CLAUDE.md)。<br>'
+             '<b>当主=岡部筑前守 長寛</b>(12代・安政2年家督。<b>[安政武鑑 岸和田](1855)が'
+             '「岡部筑前守長寛」と刷り確度A</b>)。'
+             '⭐ 参勤の年回りでは<b>安政3年(丙辰)は「暇」の年=藩主は在国</b>'
+             '(参府 丑卯巳未酉亥/暇 子寅辰午申戌)。御殿の構成は在府を前提にしていないので設計は動かない。<br>'
+             '⚠ <b>基図(尾張屋版切絵図 NDL1286657)は嘉永3年(1850)の板で、基準年次の6年前</b>。'
+             '区画・街路・門の位置は6年で動かないので図の読みは有効だが、'
+             '<b>人名表記は基図に合わせない</b>(同図の墨書は「岡部内膳正」)。<br>'
+             '⭐ <b>安政江戸地震(安政2年10月2日)は基準年次の前年</b>。'
+             '旧「倒れる前の姿として遡って使う」は撤回し、<b>復旧が済んだ姿を描く</b>。<br>'
              '<b>外構が「塀」であったことは当屋敷を含む一次記録から言える</b> — 安政江戸地震の被害書上が'
              '3邸一括で「右外構練塀潰其外所々大破」と記す記事に当屋敷が<b>明示的に含まれる</b>【<b>種別=確度S</b>・2026-08-24 に全文で確定】。'
+             '⭐ 基準年次が記録の<b>翌年</b>になったので、旧「嘉永3年への遡及=B」は<b>解消</b>した。⛔ ただし記録は「外構練塀潰」=倒壊なので、建てるのは<b>再建された練塀</b>。'
              '⚠ ただし<b>どの辺か・誰が所有した塀かは書かれていない</b>ので、'
              '<b>帰属と全周であることは確度U(当方の裁定)</b>。三層に分けて読むこと。'
              
              '屋敷指図(建物平面)は現存未確認 — 御殿の構成は類型(B)、室名・畳数は想定(U)。'
              '書院は<b>%s(%s)の格</b>で作り、帝鑑間格へ上げない(<b>確度B</b> — [岡部家歴代]Web二次。'
-             '『寛政重修諸家譜』での確認は未了。⚠ 居城の行は『大成武鑑』嘉永3 コマ314–316 が未読)。'
+             '『寛政重修諸家譜』での確認は未了。⚠ 居城「泉州南郡岸和田」・詰間「帝鑑間」は『大成武鑑』嘉永3 コマ314–316 で読了済み(2026-08-25)。'
+             '領知高・居城は [安政武鑑 岸和田](1855)が同値を刷るので確度A、詰間は当書の単独典拠で基準年次の6年前になるため確度B)。'
              '区画多角形はユーザーのブックマーク角(U)。</p></div>'
              % (hn.get("tono", ""), hn.get("kaku", "")))
     h.append('<p class="lede"><b>この文書は現況だけを載せる。</b>過去の案・撤回した説は書かない — '
@@ -3496,7 +3502,7 @@ def main():
                 cx = sum(a for a, _ in q) / len(q); cz = sum(b for _, b in q) / len(q)
                 others.append((q, col, wdt, lab, cx, cz))
         P0 = d["polygon"]      # 岡部は指図の polygon を正典に**1回だけ**描く
-        others.append((P0, "#C0392B", 2.8, "岡部内膳正 上屋敷",
+        others.append((P0, "#C0392B", 2.8, "岡部筑前守 上屋敷",
                        sum(a for a, _ in P0) / len(P0), sum(b for _, b in P0) / len(P0)))
         plate(h, nx(), "現況図(拝領時造成の前の地形)",
               "**江戸期の復元地盤**(近代造成を戻したもの)／ 段彩 2m ／ 等高線 2m(太線 10m)【確度 U/B】")

@@ -96,6 +96,12 @@ __pycache__/
 # 司令塔の登録簿(machine-local。docs/session-coordination.md)
 .claude/locks/
 
+# 司令塔が切る指図用の worktree(machine-local)。
+# ⚠ **中身はこのリポジトリ自身のチェックアウト**なので、追跡すると入れ子になる。
+# `edo_session.py start <屋敷>` が毎回ここに作るため、無視しないと
+# 開始しただけで未追跡ファイルが出る。
+.claude/worktrees/
+
 # 検証レンダ・スクリーンショットはリポジトリに入れない
 # (LFS 剥がしで 7.57GB→0.54GB に絞った経緯。共有は Artifact で行う)
 /*.png

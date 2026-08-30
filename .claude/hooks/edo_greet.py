@@ -18,6 +18,15 @@ if os.path.exists(CLI):
     if out and "生きている claim は無し" not in out:
         print("⚠ このリポジトリでは**他の Claude Code セッションが同時に動いている**。"
               "他人が押さえているファイルと Unity には触らないこと。\n" + out)
+        # ⛔ Unity の握りっぱなし(2026-08-30 ユーザー指摘)。心拍では終了を判定できないので、
+        #   起動のたびに「終わったら返す」を通達する。
+        if "unity" in out:
+            print("⛔ **Unity 作業が終わったら即 "
+                  "`python3 Tools/Session/edo_session.py release --resources unity`。**"
+                  " 心拍は別作業でも更新されるので、放っておくと他邸が永久に触れない。"
+                  " 使いたいのに埋まっていたら `edo_session.py wait --resources unity` で"
+                  "**待ち行列に並ぶ**(空けば先頭に15分の予約が出る)。"
+                  "⛔ **返した側は次の人へ SendMessage で連絡する義務がある。**")
         print("作業を始めるには **`python3 Tools/Session/edo_session.py start <屋敷>`**。"
               "指図だけなら worktree を探して(無ければ作って)そこへ回す。"
               "Unity を使うなら `start <屋敷> --unity` でメインに留まり Unity を確保する。")

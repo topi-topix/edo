@@ -129,6 +129,11 @@
   再配布不可で gitignore なので来ない)。
   ⚠ **打ち忘れても、他セッションが居る状態で指図に触れば門番がその場で回す**(cd は不要・絶対パスで開く)。
   ⛔ **Unity は排他**(実体が1つで地形の編集は Undo の外)。⛔ **worktree からは Unity を開けない**。
+  ⛔ **Unity 作業が終わったら即 `edo_session.py release --resources unity`。**
+  セッションを続けるかに関わらず、Unity を使わない時間は握らない(心拍は別作業でも更新されるので、
+  放置すると他邸が永久に触れない)。**20分 未使用の unity は待っている側が自動で引き取る。**
+  埋まっているときは `edo_session.py wait --resources unity` で**待ち行列**に並ぶ
+  (空けば先頭に15分の予約。⛔ **返した側は次の人へ SendMessage で連絡する義務がある**)。
   ⛔ **`git add -A` / `git commit -a` は門番が止める**(パスを明示すること)。
   → `docs/session-coordination.md`
 

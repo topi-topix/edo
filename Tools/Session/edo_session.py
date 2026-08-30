@@ -36,6 +36,106 @@ LOCKS = os.path.join(_common_git_dir(), "edo-locks")
 TTL_MIN = 45.0
 RESOURCES = ("unity", "terrain", "git-index", "assets")
 
+# ⚠ **心拍では「作業が終わったか」を判定できない。**
+#   心拍は Write/Edit/Bash でも更新されるので、Unity を握ったまま別の作業(指図の推敲など)を
+#   続けているセッションの claim は**永久に生き続ける**。TTL を縮めても解けない。
+#   2026-08-30 ユーザー指摘「作業が終わっているのに unity をつかみ続けて、他のセッションが
+#   さわれなくなる」。→ **資源ごとの最終使用時刻を心拍と別に持ち**、一定時間触られていない
+#   資源は空きとみなす(掴んだセッションが生きていても明け渡す)。
+IDLE_MIN = {"unity": 20.0, "terrain": 20.0, "assets": 30.0, "git-index": 10.0}
+
+
+def res_idle(c, r):
+    """資源 r を最後に使ってからの経過(分)。記録が無い旧 claim は心拍で代用する。"""
+    t = (c.get("used") or {}).get(r)
+    return (now() - (t if t else c.get("heartbeat", 0))) / 60.0
+
+
+def res_stale(c, r):
+    """資源 r は放置されているか(掴んだセッションが生きていても明け渡す)。"""
+    return res_idle(c, r) >= IDLE_MIN.get(r, 30.0)
+
+
+# ────────────────────────────── 待ち行列(2026-08-30 ユーザー指示)
+#   「つかみたい人がいたら待ち行列を作らせて、誰かが終わったら次の人に連絡して掴めるように」
+#   ⛔ 早い者勝ちにしない。空いた瞬間に別のセッションが割り込むと、待っていた側が延々待つ。
+#   空いたら**先頭の1名にだけ RESERVE_MIN 分の予約**を出し、その間は他が取れない。
+# ⛔ **LOCKS の中に置いてはならない。** load_all は LOCKS 内の *.json をすべて claim とみなし、
+#   heartbeat の無いファイルを「死んだ claim」として **削除する**。待ち行列を中に置くと、
+#   status を打つたびに行列が消え、全員が永遠に「1番目」になる(2026-08-30 の検査で踏んだ)。
+QUEUE = os.path.join(os.path.dirname(LOCKS), "edo-queue.json")
+RESERVE_MIN = 15.0
+
+
+def q_load():
+    try:
+        q = json.load(open(QUEUE, encoding="utf-8"))
+    except Exception:
+        return {}
+    live = {c["session"] for c in load_all()}
+    out = {}
+    for r, ws in q.items():
+        # 死んだセッションの待ちは落とす。予約が切れたものも待ちに戻す
+        keep = [w for w in ws if w["session"] in live]
+        for w in keep:
+            if w.get("reserved") and (now() - w["reserved"]) / 60.0 > RESERVE_MIN:
+                w.pop("reserved", None)
+        if keep:
+            out[r] = keep
+    return out
+
+
+def q_save(q):
+    os.makedirs(os.path.dirname(QUEUE), exist_ok=True)
+    json.dump(q, open(QUEUE, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+
+
+def q_enqueue(r, me, note=""):
+    """待ち行列に並ぶ(既に並んでいれば位置はそのまま)。戻り値: 1始まりの順番。"""
+    # ⚠ 待ち人にも claim(=心拍)が要る。無いと q_load の生存判定で自分が即座に落ち、
+    #   何度並んでも「1番目」に戻り続ける(2026-08-30 の検査で実際に踏んだ)。
+    touch(me)
+    q = q_load()
+    ws = q.setdefault(r, [])
+    for i, w in enumerate(ws):
+        if w["session"] == me:
+            return i + 1
+    ws.append({"session": me, "since": now(), "note": note})
+    q_save(q)
+    return len(ws)
+
+
+def q_drop(r, me):
+    q = q_load()
+    ws = q.get(r, [])
+    q[r] = [w for w in ws if w["session"] != me]
+    if not q[r]:
+        q.pop(r, None)
+    q_save(q)
+
+
+def q_head(r):
+    return (q_load().get(r) or [None])[0]
+
+
+def q_reserve(r):
+    """資源が空いたので先頭に予約を出す。戻り値: 予約した待ち人 or None。"""
+    q = q_load()
+    ws = q.get(r) or []
+    if not ws:
+        return None
+    ws[0]["reserved"] = now()
+    q_save(q)
+    return ws[0]
+
+
+def q_may_take(r, me):
+    """me はいま r を取ってよいか。予約が他人に出ていれば取れない。"""
+    h = q_head(r)
+    if h and h.get("reserved") and h["session"] != me:
+        return False, h
+    return True, h
+
 # ── 常に止める git の打ち方(他人の作業を巻き込む/破壊する)
 # ⚠ **コマンド位置に現れたものだけを見る。**
 #   文字列の中の例示や説明文まで拾うと、
@@ -175,8 +275,24 @@ def touch(me, paths=(), resources=()):
     for r in resources:
         if r not in c["resources"]:
             c["resources"].append(r)
+        # ⚠ 心拍と別に**その資源を使った時刻**を残す。これが無いと放置を検出できない
+        c.setdefault("used", {})[r] = now()
     save(c, fp)
     return c
+
+
+def _force_release(session, resources):
+    """他セッションの claim から資源だけを外す(放置の引き取り用)。"""
+    fp = os.path.join(LOCKS, "%s.json" % re.sub(r"[^A-Za-z0-9_.-]", "_", session))
+    try:
+        c = json.load(open(fp, encoding="utf-8"))
+    except Exception:
+        return
+    for r in resources:
+        if r in c.get("resources", []):
+            c["resources"].remove(r)
+        (c.get("used") or {}).pop(r, None)
+    json.dump(c, open(fp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
 
 # ────────────────────────────────────────────── サブコマンド
@@ -194,9 +310,50 @@ def cmd_status(a):
         if c.get("note"):
             print("      %s" % c["note"])
         if c.get("resources"):
-            print("      資源: %s" % ", ".join(c["resources"]))
+            rs = []
+            for r in c["resources"]:
+                idle = res_idle(c, r)
+                rs.append("%s(最終使用 %.0f分前%s)" % (
+                    r, idle, " ⚠放置" if res_stale(c, r) else ""))
+            print("      資源: %s" % ", ".join(rs))
         for g in c["paths"]:
             print("      %s" % g)
+    q = q_load()
+    if q:
+        print("待ち行列:")
+        for r, ws in q.items():
+            for i, w in enumerate(ws):
+                print("  %s %s %d番 %s(%.0f分待ち)%s" % (
+                    "▶" if w["session"] == me else " ", r, i + 1, w["session"][:22],
+                    (now() - w["since"]) / 60.0,
+                    " ⭐予約中(残り %.0f分)" % (RESERVE_MIN - (now() - w["reserved"]) / 60.0)
+                    if w.get("reserved") else ""))
+    return 0
+
+
+def cmd_wait(a):
+    me = sid(a.session)
+    for r in a.resources:
+        if r not in RESOURCES:
+            print("不明な資源: %s" % r, file=sys.stderr)
+            return 1
+        hold = [c for c in load_all(a.ttl)
+                if r in c.get("resources", []) and c["session"] != me]
+        if not hold or res_stale(hold[0], r):
+            print("%s は空いている(待つ必要なし)。そのまま使えば claim が付く" % r)
+            continue
+        n = q_enqueue(r, me, a.note or "")
+        print("待ち行列: %s の %d 番目に並んだ(いまの使用者 %s・最終使用 %.0f分前)。\n"
+              "  空けば先頭のあなたに %.0f 分の予約が出る。使用者から連絡が来る決まり。"
+              % (r, n, hold[0]["session"], res_idle(hold[0], r), RESERVE_MIN))
+    return 0
+
+
+def cmd_unwait(a):
+    me = sid(a.session)
+    for r in a.resources:
+        q_drop(r, me)
+    print("待ち行列から降りた: %s" % ", ".join(a.resources))
     return 0
 
 
@@ -238,12 +395,29 @@ def cmd_release(a):
         k = p if (p.startswith("sashizu:") or "*" in p) else (domain(p) or rel(p).replace(os.sep, "/"))
         if k in c["paths"]:
             c["paths"].remove(k)
+    freed = []
     for r in a.resources:
         if r in c["resources"]:
             c["resources"].remove(r)
+            freed.append(r)
+        (c.get("used") or {}).pop(r, None)
     save(c, fp)
     print("release: 残り %s %s" % (c["paths"], c["resources"]))
+    _hand_over(freed)
     return 0
+
+
+def _hand_over(freed):
+    """空けた資源を待ち行列の先頭へ引き渡す。⛔ 連絡は解放した側の義務。"""
+    for r in freed:
+        w = q_reserve(r)
+        if not w:
+            print("  %s は空きになった(待っているセッションは無し)" % r)
+            continue
+        print("  ⭐ %s の待ち行列の先頭は **%s**(%.0f 分待ち)。%.0f 分の予約を出した。\n"
+              "     ⛔ **次の人へ必ず連絡すること** — `ListAgents` で相手を探し、`SendMessage` で\n"
+              "     「%s が空きました。予約は %.0f 分です」と伝える。連絡しないと待ち続ける。"
+              % (r, w["session"], (now() - w["since"]) / 60.0, RESERVE_MIN, r, RESERVE_MIN))
 
 
 def _deny(msg):
@@ -358,18 +532,38 @@ def cmd_check_unity(a):
     me = sid(a.session)
     cs = load_all(a.ttl)
     hold = [c for c in cs if "unity" in c.get("resources", [])]
+    if hold and hold[0]["session"] == me:
+        touch(me, resources=["unity"])   # 自分の使用時刻を打ち直す
+        return 0
+    ok, h = q_may_take("unity", me)
+    if not ok:                            # 空いていても予約者が居るなら割り込ませない
+        return _deny(
+            "⛔ 門番: Unity は**待ち行列の先頭 %s** に予約が出ている(残り最大 %.0f 分)。\n"
+            "   `edo_session.py wait --resources unity` で並ぶこと。"
+            % (h["session"], RESERVE_MIN - (now() - h["reserved"]) / 60.0))
     if not hold:
+        q_drop("unity", me)
         touch(me, resources=["unity"])
         return 0
-    if hold[0]["session"] == me:
-        touch(me)
+    # 掴んだままだが**一定時間 Unity を触っていない** → 明け渡させる(心拍では判定できない)
+    if res_stale(hold[0], "unity"):
+        _force_release(hold[0]["session"], ["unity"])
+        q_drop("unity", me)
+        touch(me, resources=["unity"])
+        print("⚠ 門番: Unity は %s が握ったままだったが、%.0f 分使われていないので引き取った。\n"
+              "   作業が終わったら `edo_session.py release --resources unity` を打つこと。"
+              % (hold[0]["session"], res_idle(hold[0], "unity")))
         return 0
+    n = q_enqueue("unity", me, a.session or "")
     return _deny(
-        "⛔ 門番: Unity は**セッション %s** が使用中(心拍 %.0f 分前)。\n   %s\n"
+        "⛔ 門番: Unity は**セッション %s** が使用中(最終使用 %.0f 分前)。\n   %s\n"
         "   Unity の実体は1つで、シーン・プレハブ・地形を共有している。"
         "**地形の編集は Undo の外**なので、同時に触ると復旧できない。\n"
-        "   → 終わるのを待つか、`Tools/Session/edo_session.py status` で状況を見ること。"
-        % (hold[0]["session"], (now() - hold[0]["heartbeat"]) / 60.0, hold[0].get("note", "")))
+        "   → **待ち行列に並べた(%d 番目)。** 空けば先頭のあなたに %.0f 分の予約が出る。\n"
+        "   順番は `edo_session.py status` で見える。降りるなら "
+        "`edo_session.py unwait --resources unity`。"
+        % (hold[0]["session"], res_idle(hold[0], "unity"), hold[0].get("note", ""),
+           n, RESERVE_MIN))
 
 
 def cmd_steal(a):
@@ -581,8 +775,16 @@ def main():
     p = sub.add_parser("claim"); p.add_argument("paths", nargs="*")
     p.add_argument("--resources", nargs="*", default=[]); p.add_argument("--note", default="")
     p.set_defaults(fn=cmd_claim)
-    p = sub.add_parser("release"); p.add_argument("paths", nargs="*")
+    p = sub.add_parser("release", help="claim を返す。⭐ Unity 作業が終わったら "
+                                       "`release --resources unity` を必ず打つ")
+    p.add_argument("paths", nargs="*")
     p.add_argument("--resources", nargs="*", default=[]); p.set_defaults(fn=cmd_release)
+    p = sub.add_parser("wait", help="使用中の資源の待ち行列に並ぶ(空けば先頭に予約が出る)")
+    p.add_argument("--resources", nargs="+", required=True, choices=RESOURCES)
+    p.add_argument("--note", default=""); p.set_defaults(fn=cmd_wait)
+    p = sub.add_parser("unwait", help="待ち行列から降りる")
+    p.add_argument("--resources", nargs="+", required=True, choices=RESOURCES)
+    p.set_defaults(fn=cmd_unwait)
     p = sub.add_parser("check-write"); p.add_argument("path")
     p.add_argument("--no-route", action="store_true"); p.set_defaults(fn=cmd_check_write)
     p = sub.add_parser("check-bash"); p.add_argument("command"); p.set_defaults(fn=cmd_check_bash)

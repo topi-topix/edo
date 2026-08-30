@@ -3256,8 +3256,8 @@ def gate_parts_table(d):
     dx, dz, _ = _edge_dir(P, g["edge"])
     rows = []
     for nm, s_off in [("長屋門(芯)", 0.0),
-                      ("躯体 南端(練塀 E_Hei_S との継ぎ)", -gp["monW"] / 2),
-                      ("躯体 北端(練塀 E_Hei_N との継ぎ)", gp["monW"] / 2)]:
+                      ("躯体 南端(表長屋 E_Nagaya_S との継ぎ)", -gp["monW"] / 2),
+                      ("躯体 北端(表長屋 E_Nagaya_N との継ぎ)", gp["monW"] / 2)]:
         x, z = edge_pt(P, g["edge"], g["s"] + s_off)
         rows.append("<tr><td>%s</td><td>(%.2f, %.2f)</td><td>%.2f</td><td>%.1f</td></tr>"
                     % (nm, x, z, g["sill"], g["yaw"]))

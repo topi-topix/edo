@@ -65,11 +65,16 @@ SLICES = [
             "現況図(段彩+等高線)はこれを読む。標高は海抜m。",
     ),
     dict(
-        name="sanno_dem.json", x0=-660, z0=636, step=2, nx=146, nz=171, nd=1, style="compact",
+        name="sanno_dem.json", x0=-694, z0=600, step=2, nx=183, nz=205, nd=1, style="compact",
         parcels=["sannosha_prec", "sannosha_kanri", "sannobuke_juge"]
                 + [f"sannojubo_parcels_{i}" for i in range(10)],
         doc="山王権現社まわりの造成前の地形【確度P】。世界座標の格子。h[iz][ix]=標高m。"
             "生成器 build_sanno_sashizu.py が §3a 現況図・§3b 切盛図でこれを読む。",
+        # ⚠ 2026-08-31(EDO-0014 解決): x[-660,-370] z[636,976] では**樹下邸の東を 2.7m 欠く**。
+        #   区画+余白40m は x[-694,-326] z[598,1008] だが、**正本 base_dem.json 自体が
+        #   x[-800,-330] z[600,1340] までしか無い**ので、東を -330・南を 600 で正本に合わせて
+        #   クリップした(余白 西40.4 東37.3 南39.0 北41.3m)。⛔ これ以上広げるには
+        #   CANON_SPEC を広げて --canon から正本を作り直すことになる。
     ),
 ]
 

@@ -19,7 +19,7 @@
         以降 棟の表・囲いと石段の表・部材・考証・未解決。
         組んだら「図版 N 面」を数え、nx() の実結果と照合すること(図版が黙って落ちた前科がある)。
 """
-import json, math, os, re, subprocess, html
+import json, sys, math, os, re, subprocess, html
 
 import sashizu_lib
 from sashizu_lib import R, _pat, _SVN, Proj  # バイト同一を実証済みの共通部(_SVN は共有カウンタ)
@@ -346,6 +346,97 @@ def dem():
     if DEM is None:
         DEM = json.load(open(os.path.join(DOC, "sanno_dem.json"), encoding="utf-8"))
     return DEM
+
+
+# ⚠ sanno_dem.json は正本を **0.05m 刻みに量子化**して書き出される(2026-08-31 実測:
+#   85%のセルが正本と ±0.05m 以内でずれ、分布は一様=丸め)。正本の粒度は 0.01m。
+#   ⛔ ここを 0 にすると毎回落ちる。逆に大きくしすぎると live terrain の混入(過去の事故は
+#   8m 級)を見逃す。丸め幅のすぐ上に置く。
+TERRAIN_TOL = 0.06
+
+
+def terrain_provenance_check():
+    """地形の種地が **正本 base_dem.json から来ているか**を実測で確かめる(CLAUDE.md 規則13・EDO-0031)。
+
+    ⛔ **宣言を信用しない。** `sanno_dem.json` の `_` は「正本からの切り出し」と*名乗って*いるが、
+    名乗りは検査ではない。2026-08-23 に4邸が live terrain を「造成前」として吸い込んだ事故は、
+    どの邸も同じ文言を持ったまま起きた(EDO-0029「読めなければ0件」の監査)。
+    §3a 現況図・§3b 切盛図・全断面はこの地形を読むので、種地がずれていれば図の「0件」が意味を失う。
+
+    戻り値: 不具合の文字列のリスト(空なら合格)。
+    """
+    try:
+        base = json.load(open(os.path.join(DOC, "base_dem.json"), encoding="utf-8"))
+        cut = json.load(open(os.path.join(DOC, "sanno_dem.json"), encoding="utf-8"))
+    except Exception as ex:
+        return ["地形の出所を照合できない — **この検査は回っていない**(合格ではない): %s" % ex]
+
+    if base["step"] != cut["step"]:
+        return ["切り出しと正本で格子の刻みが違う(正本 %s / 切り出し %s)" % (base["step"], cut["step"])]
+    st = base["step"]
+    fx, fz = (cut["x0"] - base["x0"]) / st, (cut["z0"] - base["z0"]) / st
+    if fx != int(fx) or fz != int(fz):
+        return ["切り出しの原点が正本の格子に乗っていない(dx=%.3f dz=%.3f セル)— "
+                "補間が挟まるので切り出しとして扱えない" % (fx, fz)]
+    dx, dz = int(fx), int(fz)
+    B, C = base["h"], cut["h"]
+
+    # ⛔ 正本の外に出た点を**黙って飛ばさない**。飛ばすと「差が小さい」に化けて見えなくなる。
+    worst, wl, out, seen = 0.0, None, 0, 0
+    for j in range(len(C)):
+        for i in range(len(C[0])):
+            bj, bi = j + dz, i + dx
+            if not (0 <= bj < base["nz"] and 0 <= bi < base["nx"]):
+                out += 1
+                continue
+            a, b = C[j][i], B[bj][bi]
+            if a is None or b is None:
+                continue
+            seen += 1
+            if abs(a - b) > worst:
+                worst, wl = abs(a - b), (cut["x0"] + i * st, cut["z0"] + j * st, a, b)
+    if out:
+        return ["切り出しの %d セルが正本 base_dem.json の範囲の外にある — "
+                "CANON_SPEC を広げて `build_base_dem.py --canon` から正本を作り直すこと(規則13)" % out]
+    if seen < 200:
+        return ["地形の照合の標本が %d 点しか取れない — 切り出しか正本の範囲がおかしい" % seen]
+    if worst > TERRAIN_TOL:
+        return ["**種地が正本から来ていない** — 切り出しが正本と最大 %.2fm 食い違う "
+                "(x=%.0f z=%.0f: 切り出し %.2f / 正本 %.2f)。live terrain を吸っていないか(規則13)"
+                % (worst, wl[0], wl[1], wl[2], wl[3])]
+
+    # 担当区画が切り出しに収まっているか(欠測を黙って図に出さないための関門・EDO-0014)
+    try:
+        P = json.load(open(os.path.join(DOC, "parcels.json"), encoding="utf-8"))
+        P = P["parcels"] if isinstance(P, dict) and "parcels" in P else P
+        P = {q["id"]: q for q in P}
+    except Exception as ex:
+        return ["区画を読めないので切り出しの覆いを検べられない — この検査は回っていない: %s" % ex]
+    ids = ["sannosha_prec", "sannosha_kanri", "sannobuke_juge"] + \
+          ["sannojubo_parcels_%d" % i for i in range(10)]
+    X1 = cut["x0"] + (cut["nx"] - 1) * st
+    Z1 = cut["z0"] + (cut["nz"] - 1) * st
+    bad = []
+    for pid in ids:
+        q = P.get(pid)
+        if q is None:
+            bad.append("区画 %s が parcels.json に無い" % pid)
+            continue
+        pl = None
+        for k in ("polygon", "points", "pts", "poly"):
+            if k in q:
+                pl = q[k]
+                break
+        xs = [a for a, b in pl]
+        zs = [b for a, b in pl]
+        m = [("西", min(xs) - cut["x0"]), ("東", X1 - max(xs)),
+             ("南", min(zs) - cut["z0"]), ("北", Z1 - max(zs))]
+        short = [(k, v) for k, v in m if v < 0]
+        if short:
+            bad.append("%s が切り出しの外へ出ている(%s)— `build_base_dem.py` の SLICES を広げること"
+                       % (q.get("label", pid),
+                          "・".join("%s %.1fm" % (k, v) for k, v in short)))
+    return bad
 
 
 def dem_h(x, z):
@@ -2186,7 +2277,24 @@ KAN = ["其一", "其二", "其三", "其四", "其五", "其六", "其七", "�
        "其二十六", "其二十七", "其二十八", "其二十九", "其三十", "其三十一", "其三十二"]
 
 
+def run_checks():
+    """図を組む前に回す検査。⛔ **落ちたら組ませない** — 「検査はあるが誰も見ていない」を作らない。
+
+    ⚠ 山王の生成器には長く検査が1本も無かった(2026-08-31 に EDO-0031 で最初の1本を入れた)。
+    以後、検査を足すときはここへ並べること。
+    """
+    bad = []
+    bad += terrain_provenance_check()
+    return bad
+
+
 def main():
+    bad = run_checks()
+    if bad:
+        sys.stderr.write("⛔ 指図を組めない — 検査が %d 件で落ちた:\n" % len(bad))
+        for b in bad:
+            sys.stderr.write("   ・%s\n" % b)
+        sys.exit(1)
     d = json.load(open(JSON, encoding="utf-8"))
     prose = md2html(open(MD, encoding="utf-8").read())
     g = G(d)

@@ -418,6 +418,21 @@ def _wt_root():
     return os.path.join(os.path.dirname(_common_git_dir()), ".claude", "worktrees")
 
 
+def slug(name):
+    """屋敷名を worktree のディレクトリ名/ブランチ名に落とす。
+
+    ⚠ **日本語を落とさない。** 以前は `[^A-Za-z0-9_-]` で潰していたので、
+    「岡部」も「松平」も「土井」も等しく `--` になり、**別々の屋敷が同じ
+    `sashizu:--` を名乗って同じ worktree を共有していた**(司令塔が防ぐはずの
+    事故そのもの)。git の refname と POSIX のパスが本当に許さない字だけを外す。
+    """
+    s = re.sub(r"[\x00-\x20\x7f~^:?*\[\]\\/.]+", "-", name)
+    s = re.sub(r"-{2,}", "-", s).strip("-")
+    if not s:
+        raise ValueError("屋敷名 %r から使える名前が作れない" % (name,))
+    return s
+
+
 def wt_for(dom):
     """屋敷 `sashizu:<名>` に対応する worktree のパス(在れば)。"""
     name = dom.split(":", 1)[-1]
@@ -478,7 +493,7 @@ def _board_open(name):
 def cmd_start(a):
     """屋敷の作業を始める。**worktree を探し、無ければ作って**、claim まで済ませる。"""
     me = sid(a.session)
-    dom = "sashizu:" + re.sub(r"[^A-Za-z0-9_-]", "-", a.name)
+    dom = "sashizu:" + slug(a.name)
     c, fp = mine(me)
     if dom not in c["paths"]:
         c["paths"].append(dom)
@@ -518,7 +533,7 @@ def cmd_worktree(a):
     ⚠ **Unity は開けない**(パックが gitignore で来ない)。計測が要るなら
     メインのチェックアウトで `unity` 資源を取ってから測ること。
     """
-    name = re.sub(r"[^A-Za-z0-9_-]", "-", a.name)
+    name = slug(a.name)
     branch = a.branch or ("sashizu/%s" % name)
     path = os.path.join(_wt_root(), name)
     if os.path.exists(path):

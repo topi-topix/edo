@@ -785,11 +785,11 @@ def program_check(d):
     rows = []
     try:
         md = open(PROGRAM_MD, encoding="utf-8").read()
-    except Exception:
-        return []
+    except Exception as e:
+        return {"err": "`estate-types.md` が読めない(%s)" % e}
     i = md.find("上屋敷が備える役割")
     if i < 0:
-        return []
+        return {"err": "`estate-types.md` に「上屋敷が備える役割」の表が無い"}
     seg = md[i:]
     j = seg.find("\n#", 1)          # ⚠ 次の見出しで切る。切らないと同じ file の別の表を拾う
     for line in (seg[:j] if j > 0 else seg).split("\n"):
@@ -3873,11 +3873,20 @@ def main():
     cl = [x for x in op9 if x.startswith(("【解決済", "【裁定済"))]
     et = [x for x in op9 if x not in yo + ji + ch + cl]
     pr9 = program_check(d)
-    if pr9:
+    # ⚠ **章を消さない。** 錨(`estate-types.md`)が読めないとき、以前は `if pr9:` で
+    #   **章ごと黙って落ちていた**(2026-08-30 岡部。土井は同じ場所で loud に落としている)。
+    #   錨が無いことは「照合できていない」という**所見**であって、無いことにはできない。
+    plate(h, nx(), "在るべき役割との照合",
+          "⭐ **外の錨** — `estate-types.md`「上屋敷が備える役割」の表を毎回読んで照合する"
+          "(2026-08-26 土井 EDO-0013)")
+    if isinstance(pr9, dict):
+        h.append('<p class="cap">⛔ <b>錨が読めないので照合できていない</b> — %s。'
+                 'スキル <code>unity-buke-yashiki</code> を置いてから組み直すこと。'
+                 '<b>この章が「○ばかり」に見えないのは意図的</b>'
+                 '(錨が消えたら黙って通すのが最悪の壊れ方)。</p>' % pr9["err"])
+        h.append("</div>")
+    else:
         ng9 = [x for x in pr9 if not x[3] and "任意" not in x[1]]
-        plate(h, nx(), "在るべき役割との照合",
-              "⭐ **外の錨** — `estate-types.md`「上屋敷が備える役割」の表を毎回読んで照合する"
-              "(2026-08-26 土井 EDO-0013)")
         h.append('<p class="cap">⚠ <b>錨が無いと、役割と棟を同時に消せば検査が通る。</b>'
                  '当図の <code>program</code> ではなく<b>スキルの表</b>を読む。'
                  '%s</p>'

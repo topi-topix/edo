@@ -29,8 +29,11 @@ SASHIZU = os.path.join(ROOT, "docs", "Sashizu")
 BACKUP = os.path.join(ROOT, "TerrainBackups", "terrain_20260822_georef_fix")
 CANON = os.path.join(SASHIZU, "base_dem.json")
 
-# 正本の範囲 — 岡部・土井・松平・山王の全 DEM を余裕をもって覆う
-CANON_SPEC = dict(x0=-800, z0=600, step=2, nx=236, nz=371, nd=2)
+# 正本の範囲 — 岡部・土井・松平・山王 + 山王坂の武家4区画(丹羽/京極/内藤/社人)を余裕をもって覆う
+# ⚠ 2026-08-30 に東と南へ広げた(x1 -330→-12 / z0 600→478)。**既存セルの標高は1つも動かない**
+#   (再生成の突き合わせで 87,556 セルすべて 0 差を確認済)。京極・内藤の区画は旧範囲の完全に外側に
+#   あり、切り出せなかった。広げただけでセルが増えている。
+CANON_SPEC = dict(x0=-800, z0=478, step=2, nx=395, nz=432, nd=2)
 
 CANON_DOC = (
     "**地盤の正本。造成を一切含まない現代の地面(海抜m)。**"
@@ -63,6 +66,13 @@ SLICES = [
         parcels=["matsudaira_dewa"],
         doc="松平・土井・岡部まわりの造成前の地形【確度P】。世界座標 2m 刻み(x0,z0 から)。"
             "現況図(段彩+等高線)はこれを読む。標高は海抜m。",
+    ),
+    dict(
+        name="kyogoku_bitchu_dem.json", x0=-320, z0=640, step=2, nx=111, nz=96, nd=2, style="compact",
+        parcels=["sannobuke_kyogoku"],
+        doc="京極備中守上屋敷(丹後峯山藩)まわりの造成前の地形【確度P】。世界座標 2m 刻み(x0,z0 から)。"
+            "h[iz][ix]=標高m。指図の現況図(段彩+等高線)・切盛図・断面がこれを読む。"
+            "⚠ **現代**の地面で、跡地(国会前庭〜議員会館まわり)の近代造成を含む。",
     ),
     dict(
         name="sanno_dem.json", x0=-660, z0=636, step=2, nx=146, nz=171, nd=1, style="compact",

@@ -35,6 +35,8 @@ def _common_git_dir():
 LOCKS = os.path.join(_common_git_dir(), "edo-locks")
 TTL_MIN = 45.0
 RESOURCES = ("unity", "terrain", "git-index", "assets")
+# ⚠ フック(.claude/hooks/edo_guard.py)が session_id を切り詰める長さと**必ず一致させる**。
+SID_LEN = 12
 
 # ⚠ **心拍では「作業が終わったか」を判定できない。**
 #   心拍は Write/Edit/Bash でも更新されるので、Unity を握ったまま別の作業(指図の推敲など)を
@@ -164,7 +166,7 @@ def now():
     return time.time()
 
 
-def sid(default=None):
+def sid(default=None, strict=True):
     """このセッションの識別子。
 
     ⚠ **フック経由と Bash 直叩きで別人になってはならない。** フックは session_id を
@@ -174,16 +176,29 @@ def sid(default=None):
     """
     e = os.environ.get("EDO_SESSION_ID") or default
     if e:
-        return e
+        # ⚠ **必ず切り詰める。** フック(edo_guard.py)は session_id を [:12] にして渡すので、
+        #   ここで切らないと「フル UUID を渡した自分」が別人になり、自分の claim を他人の
+        #   ものと判定して弾かれる(2026-08-30 に山王が踏んだ)。松平は短縮とフルで
+        #   claim が二重に立っていた。
+        return e[:SID_LEN]
     here = os.path.realpath(os.getcwd())
-    best = None
-    for c in load_all():
-        if os.path.realpath(c.get("cwd", "")) != here:
-            continue
-        if best is None or c.get("heartbeat", 0) > best.get("heartbeat", 0):
-            best = c
-    if best:
-        return best["session"]
+    same = [c for c in load_all() if os.path.realpath(c.get("cwd", "")) == here]
+    # ⛔ **曖昧なら推測しない(EDO-0044)。** 「同じ cwd の最新の心拍」を引き継ぐ実装は、
+    #   全セッションがメインのチェックアウトを共有すると**直前に動いた誰か**を指す。
+    #   2026-08-30、これで土井の claim が山王の記録へ入り、松平の note が土井に上書きされ、
+    #   作事奉行の steal が外堀の記録を書き換えた。**取り違えたまま黙って進むより止める。**
+    if len(same) > 1:
+        if not strict:
+            return None      # 読むだけの照会(status)は身元不明でも通す。▶ が出ないだけ
+        sys.exit(
+            "⛔ 門番: 自分が誰か決められない — 同じ作業ディレクトリに生きた claim が %d 件ある。\n"
+            "   %s\n"
+            "   → **`EDO_SESSION_ID=<短縮ID>` を付けて叩くこと。**短縮ID は `status` の ▶ 行に出る\n"
+            "     %d 文字の識別子(例 a154144d-ccb)。フル UUID を渡しても内部で切り詰めるので可。\n"
+            "   ⚠ 推測で他人の claim に書き込むと、note も資源も静かに壊れる(EDO-0044)。"
+            % (len(same), ", ".join(c["session"] for c in same), SID_LEN))
+    if same:
+        return same[0]["session"]
     return "pid-%s" % os.getppid()
 
 
@@ -301,7 +316,7 @@ def cmd_status(a):
     if not cs:
         print("門番: 生きている claim は無し")
         return 0
-    me = sid(a.session)
+    me = sid(a.session, strict=False)
     print("門番 — 生きている claim %d 件(TTL %.0f 分)" % (len(cs), a.ttl))
     for c in cs:
         age = (now() - c["heartbeat"]) / 60.0
@@ -360,6 +375,8 @@ def cmd_unwait(a):
 def cmd_claim(a):
     me = sid(a.session)
     c, fp = mine(me)
+    was = os.path.exists(fp)
+    old_note = c.get("note", "")
     for p in a.paths:
         k = p if (p.startswith("sashizu:") or "*" in p) else (domain(p) or rel(p).replace(os.sep, "/"))
         if k not in c["paths"]:
@@ -375,6 +392,14 @@ def cmd_claim(a):
             return 2
         if r not in c["resources"]:
             c["resources"].append(r)
+    # ⚠ **既存の記録へ追記するときは黙って進まない(EDO-0044・土井の要望)。**
+    #   取り違えたまま note を上書きすると、相手は自分の claim が化けたことに気づけない。
+    if was and (a.note and old_note and a.note != old_note):
+        print("⚠ 門番: 既存の claim `%s` の note を書き換える。\n"
+              "     旧: %s\n     新: %s\n"
+              "   これがあなたの claim でないなら、いますぐ `EDO_SESSION_ID=<短縮ID>` を付けて\n"
+              "   やり直し、`edo_session.py claim --note '<旧の文言>'` で戻すこと。"
+              % (me, old_note, a.note), file=sys.stderr)
     if a.note:
         c["note"] = a.note
     c["pid"] = os.getppid()

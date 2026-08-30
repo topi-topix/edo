@@ -145,6 +145,11 @@ public static class EdoMatsudairaBuilder
     public struct Run
     {
         public string name; public int edge; public float s0, s1, seat; public bool bench, nagaya, nijukai;
+        /// <summary>長屋門の門口の辺沿い s[m](0 なら門口なし)。指図の `runs[].mon`。
+        /// ⛔ **開口だけの短い長屋部材は作れない**(妻2つ+bay で最小およそ 8.8m)ので、
+        /// 門口は run の中に開ける。天端の段は門口の外へ動かしてある(ユーザー裁定 2026-08-30 案A)。</summary>
+        public float monS, monW, monH;
+
         /// <summary>この run に石垣基壇が付くか。**指図の `base` が正典**。
         /// ⚠ 2026-08-29 まで指図の `s`(駒のモジュール規模)を 0 かどうかで代用していたが、
         /// ユーザー裁定で駒を実寸固定にしたため `s` は廃止された。規模の値を有無の旗に
@@ -183,7 +188,10 @@ public static class EdoMatsudairaBuilder
                         bench = Has(r, "bench") && (bool)r["bench"],
                         nagaya = (string)r["kind"] == "Nagaya",
                         nijukai = Has(r, "nijukai") && (bool)r["nijukai"],
-                        ishigaki = Has(r, "base") && (string)r["base"] == "Ishigaki"
+                        ishigaki = Has(r, "base") && (string)r["base"] == "Ishigaki",
+                        monS = Has(r, "mon") ? F(O(r["mon"])["s"]) : 0f,
+                        monW = Has(r, "mon") ? F(O(r["mon"])["w"]) : 0f,
+                        monH = Has(r, "mon") ? F(O(r["mon"])["h"]) : 0f
                     });
                 }
                 _runs = list.ToArray();
@@ -636,7 +644,17 @@ public static class EdoMatsudairaBuilder
             //   軒だけが渡る**(2026-08-29 ユーザーのブックマーク #1・#2・#3・#4〜#12 の光の筋。
             //   辺12 s=152.00 で実測 151.68 / 152.32)。**壁の実体が run を覆う長さ**で頼む。
             float len = r.s1 - r.s0 + 2f * NAGAYA_TSUMA_OVER;
-            string path = r.nijukai ? EdoAssets.Own.NagayaOmote2F(len) : EdoAssets.Own.NagayaOmote(len);
+            string path;
+            if (r.monS > 0f)
+            {
+                // 長屋門(ユーザー裁定 2026-08-30 案A)。門口は**部材のローカル +X の左端から**測る。
+                // 左端は run の s0 の側なので、s0 からの距離に妻の出を足す。
+                // ⚠ 向きは思い込まず、据えたあと検証レンダで必ず確かめること(2026-08-30 に
+                //    生成器側で左右を取り違えて門口が反対の端に出た前例がある)。
+                float gc = r.monS - r.s0 + NAGAYA_TSUMA_OVER;
+                path = EdoAssets.Own.NagayaOmoteMon(len, gc, r.nijukai);
+            }
+            else path = r.nijukai ? EdoAssets.Own.NagayaOmote2F(len) : EdoAssets.Own.NagayaOmote(len);
             Vector2 outw2 = OutNormal(r.edge);
             float psi2 = Mathf.Atan2(outw2.x, outw2.y) * Mathf.Rad2Deg;   // 見え面 +Z を外へ
             float sMid = (r.s0 + r.s1) * 0.5f;

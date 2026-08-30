@@ -2487,6 +2487,13 @@ def gate_overlap_check(d):
         for e, a, b, nm in spans:
             if r["edge"] != e:
                 continue
+            # 長屋門(ユーザー裁定 2026-08-30 案A): 門口を **run の中に開ける** run は
+            # 開口で割らない。躯体が門の上を通るのが目的なので、重なりは意図した姿。
+            # ⛔ 開口だけの短い長屋部材は作れない(妻2つ+bay で最小およそ 8.8m)。
+            mon = r.get("mon")
+            if mon and abs(float(mon["s"]) - (a + b) / 2.0) < 0.05 \
+                   and abs(float(mon["w"]) - (b - a)) < 0.05:
+                continue
             ov = min(r["s1"], b) - max(r["s0"], a)
             if ov > 0.05:
                 bad.append("%s が %s(s%.1f〜%.1f)と %.1fm 重なる — 実装は開口で割るので部材が入らない"

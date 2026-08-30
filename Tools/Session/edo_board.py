@@ -265,7 +265,20 @@ def main():
     ap = argparse.ArgumentParser(description="掲示板 — セッション横断の issue 登録簿(正典: docs/session-board.md)")
     ap.add_argument("--session")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    p = sub.add_parser("post", help="起票(節目=info/ブロッカー=blocker/裁定要請=decision)")
+    # argparse の usage 行には decision 固有の必須が出ない(required=False のため)。
+    # 空振りを減らすため epilog に6点セットを明記する(2026-08-30 外堀セッションの指摘)。
+    p = sub.add_parser(
+        "post", help="起票(節目=info/ブロッカー=blocker/裁定要請=decision)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+⚖ --type decision は6点セットが全部必須(1つでも欠けたら弾かれる):
+     --where  どこ(図の上で指させるもの)   --background 背景(2文以内)
+     --options 選択肢(A/B/C 記号・2つ以上)  --recommend  推奨と理由1文
+     --impact 影響(他邸への波及を含む)      --zu         裁定図(図版番号かパス)
+⛔ --type blocker は --where が必須。
+⛔ 一件一葉 — 1件に複数の裁定を詰めない(其の一/其の二・丸数字・表題の「+」は弾かれる)。
+   正典: docs/reporting-protocol.md 規則6・規則8
+""")
     p.add_argument("--title", required=True)
     p.add_argument("--estate", required=True, choices=ESTATES)
     p.add_argument("--type", required=True, choices=TYPES)

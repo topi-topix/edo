@@ -4,6 +4,7 @@
     blender --background --python Tools/Blender/build_nagaya_omote.py -- 28.5 --render
     blender --background --python Tools/Blender/build_nagaya_omote.py -- 20.0 --ends none
     blender --background --python Tools/Blender/build_nagaya_omote.py -- 12 16.35 28.5   # まとめて
+    blender --background --python Tools/Blender/build_nagaya_omote.py -- 63.18 --gate 10.18 3.0 3.0  # 長屋門
 
 【なぜ要るか】在庫の長屋は **中部材 8.065m / 妻部材 7.910m の固定寸法**しかない。外周の run は
   「丸ごとの棟を並べる」形でしか埋められないので、端数が必ず門・隅との間に残る
@@ -32,6 +33,16 @@
 【`--ends none`】両端を切りっぱなしにして隣へ突き付ける版。⚠ **切り口の位相は ε だけずれる**ので、
   ε の違う2本を突き付けると海鼠の紋が (εA−εB)/2 だけ食い違う。同じ長さ同士か、
   素の `knagaya01c` の継ぎ目と同程度(±0.1m)に収まる長さ同士で使うこと。
+
+【`--gate <中心m> <幅m> <高さm>`】**長屋門**(ユーザー裁定 2026-08-30)。躯体を門の上まで通し、
+  足元に門口を抜く。門(冠木門・扉)は作らない — Unity 側が開口の中へ据える。
+  ・中心は**出来上がりの部材のローカル +X の左端から**。⚠ 書き出す前に Z まわりに 180° 回すので
+    obj 空間では**右端から**測って抜く(取り違えると門口が反対の端に出る。2026-08-30 に踏んだ)
+  ・高さは**土台の底から**。⚠ obj の z は 0 が底ではない(底は負)ので、絶対 z として渡すと
+    切る面が高すぎて**屋根まで抜ける**(全高の切り欠きになる。2026-08-30 に踏んだ)
+  ・1階の軒の下端までおよそ 4.0m あるので 3.0m の門口が収まる
+  ・⛔ **開口だけの短い部材は作れない**(妻2つ+bay で最小およそ 8.8m)。門口は長い run の中に開ける
+  ・抜いたあと左右の方立と上の楣を張るので、開口の縁は透けない(検証レンダ `*_mon3d.png` で確認)
 
 【切る場所】切断面は**必ず pier(無地の壁)の中**に取る。窓を切ると格子の小口が出る。
   bay の切り出しは `c` の中央の窓を挟んで対称に、妻の切り出しは妻寄りの窓を挟んで同じ位相で
@@ -174,6 +185,54 @@ def fill_seam(o, z, tol=2e-4):
     return len(edges)
 
 
+def fill_boundary(o, pred, sides=64):
+    """境界(片面しか接していない辺)のうち、両端が pred を満たすものだけを塞ぐ。
+    ⛔ 全部の境界を塞がない — 素の .obj は軒裏などが元から開いている。"""
+    me = o.data
+    bm = bmesh.new(); bm.from_mesh(me)
+    edges = [e for e in bm.edges
+             if len(e.link_faces) == 1 and pred(e.verts[0].co) and pred(e.verts[1].co)]
+    n = len(edges)
+    if edges:
+        bmesh.ops.holes_fill(bm, edges=edges, sides=sides)
+    bm.to_mesh(me); bm.free(); me.update()
+    return n
+
+
+def carve_gate(o, x0, x1, z_top, tol=1e-4):
+    """**長屋門の門口を抜く(ユーザー裁定 2026-08-30)。**
+    走り方向 x の [x0, x1]、高さ z < z_top の躯体を抜き、屋根・軒・二階はそのまま残す。
+    抜いたあと左右に方立(小口)と上に楣を張るので、開口の縁が透けない。
+
+    ⚠ 座標は **obj 単位・Blender Z-up**(走り=X / 厚み=Y / 高さ=Z)。呼ぶのは
+    向きを直す前・スケールを掛ける前(組み上がった直後)。
+    ⛔ 門の躯体(冠木門・扉)はここでは作らない — Unity 側が開口の中へ据える。"""
+    me = o.data
+    bm = bmesh.new(); bm.from_mesh(me)
+    for co, no in ((Vector((x0, 0, 0)), Vector((1, 0, 0))),
+                   (Vector((x1, 0, 0)), Vector((1, 0, 0))),
+                   (Vector((0, 0, z_top)), Vector((0, 0, 1)))):
+        geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
+        bmesh.ops.bisect_plane(bm, geom=geom, dist=1e-5, plane_co=co, plane_no=no,
+                               clear_inner=False, clear_outer=False)
+    kill = [f for f in bm.faces
+            if all((x0 - tol) < v.co.x < (x1 + tol) and v.co.z < (z_top + tol) for v in f.verts)]
+    bmesh.ops.delete(bm, geom=kill, context='FACES')
+    bmesh.ops.delete(bm, geom=[e for e in bm.edges if not e.link_faces], context='EDGES')
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+    bm.to_mesh(me); bm.free(); me.update()
+
+    n = 0
+    for x in (x0, x1):                                    # 方立(開口の左右の小口)
+        n += fill_boundary(o, lambda c, x=x: abs(c.x - x) < 2e-3 and c.z < z_top + tol)
+    n += fill_boundary(o, lambda c: abs(c.z - z_top) < 2e-3           # 楣(開口の天井)
+                       and (x0 - tol) < c.x < (x1 + tol))
+    z_bottom = min(v.co.z for v in o.data.vertices)
+    print("[nagaya] 門口を抜いた: 幅 %.3fm / 有効高 %.3fm(土台の底から) / 塞いだ辺 %d"
+          % ((x1 - x0) * ES, (z_top - z_bottom) * ES, n))
+    return o
+
+
 def add_floor(o, z_namako_top, z_cut, floors):
     """**二階を積む(案A・ユーザー裁定 2026-08-29)。**
     海鼠壁は腰壁のまま動かさず、白壁の帯 [海鼠の天端 → 壁の天端] を上へ積み増して階を作る。
@@ -227,7 +286,7 @@ def solve(Lm, cap_w, bay, ncap):
 
 
 # ---------------------------------------------------------------- 組む
-def build(Lm, ends="both", name=None, floors=1):
+def build(Lm, ends="both", name=None, floors=1, gate=None):
     V.reset()
     gc, mc = read_groups("knagaya01c")
     gl, ml = read_groups("knagaya01l")
@@ -301,6 +360,21 @@ def build(Lm, ends="both", name=None, floors=1):
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=2e-4)
     bm.to_mesh(me); bm.free(); me.update()
 
+    # --- 長屋門の門口(ユーザー裁定 2026-08-30)。**階を積む前**に抜く —
+    #     積んだ後だと二階の床まで抜けてしまう
+    if gate is not None:
+        # gc_m は **出来上がりの部材のローカル +X の左端からの距離**[m]。
+        # ⚠ 書き出す前に Z まわりに 180° 回すので **obj 空間では X が反転する** —
+        #   obj の右端から測って抜かないと、門口が反対の端に出る(2026-08-30 に踏んだ)。
+        gc_m, gw_m, gh_m = gate                    # 中心[m](出来上がりの左端から) / 幅[m] / 有効高[m]
+        xs_all = [v.co.x for v in o.data.vertices]
+        cx = max(xs_all) - gc_m / ES
+        # ⚠ 高さは**土台の底からの高さ**。obj 空間の z は 0 が底ではない
+        #   (底は負)。絶対 z として渡すと切る面が高すぎて**屋根まで抜ける**
+        #   (2026-08-30 に踏んだ — 門口が全高の切り欠きになった)
+        z_bottom = min(v.co.z for v in o.data.vertices)
+        carve_gate(o, cx - (gw_m / ES) * 0.5, cx + (gw_m / ES) * 0.5, z_bottom + gh_m / ES)
+
     # --- 階を積む(案A)。帯の高さは**素の実測**から取る
     if floors > 1:
         print("[nagaya] 素の帯: 海鼠の天端 %.4f (%.3fm) / 屋根の下端 %.4f (%.3fm)"
@@ -331,6 +405,7 @@ def build(Lm, ends="both", name=None, floors=1):
     print("[nagaya] 目標 %.3fm との差 %+.4fm  面=%d" % (Lm, L_real - Lm, len(me.polygons)))
 
     nm = name or ("Nagaya_Omote_" + fmt(Lm)
+                  + ("" if gate is None else "_mon%s" % fmt(gate[0]))
                   + ("" if floors < 2 else "_%df" % floors)
                   + ("" if ends == "both" else "_" + ends))
     o.name = nm; o.data.name = nm
@@ -379,11 +454,18 @@ def hook():
         nt.links.new(img.outputs['Color'], b.inputs['Base Color'])
 
 
-def shots(o, tag):
+def shots(o, tag, gate=None):
     hook()
     mn, mx = V.bbox([o])
     c = (mn + mx) * 0.5
     L = (mx - mn).x
+    if gate is not None:
+        # ⑤ 門口の寄り(表・裏)。**縁の小口が透けていないか**をここで見る
+        gx = mn.x + gate[0]
+        V.studio((gx, c.y - 10, mn.z + 2.4), (gx, c.y, mn.z + 2.4), ortho_scale=9.0, res=(1500, 1100))
+        V.render(os.path.join(SHOT, "nagaya_%s_mon.png" % tag))
+        V.studio((gx - 5.0, c.y - 7.0, mn.z + 2.0), (gx + 1.0, c.y + 2.0, mn.z + 1.8), res=(1500, 1100))
+        V.render(os.path.join(SHOT, "nagaya_%s_mon3d.png" % tag))
     os.makedirs(SHOT, exist_ok=True)
     # ① 正面の立面(全長)
     V.studio((c.x, c.y - L, c.z), (c.x, c.y, c.z), ortho_scale=L * 1.08, res=(1900, 700))
@@ -410,20 +492,29 @@ def main():
     if "--ends" in argv:
         ends = argv[argv.index("--ends") + 1]
     name = argv[argv.index("--name") + 1] if "--name" in argv else None
+    # --gate <中心m(左端から)> <幅m> <有効高m> — 長屋門の門口を抜く
+    gate = None
+    if "--gate" in argv:
+        i = argv.index("--gate")
+        gate = (float(argv[i + 1]), float(argv[i + 2]), float(argv[i + 3]))
     skip = set()
     for f in ("--ends", "--name", "--floors"):
         if f in argv:
             skip.add(argv.index(f)); skip.add(argv.index(f) + 1)
+    if "--gate" in argv:
+        i = argv.index("--gate")
+        skip.update((i, i + 1, i + 2, i + 3))
     lens = [float(a) for i, a in enumerate(argv)
             if i not in skip and not a.startswith("--")]
     if not lens:
         lens = [28.5]
     floors = int(argv[argv.index("--floors") + 1]) if "--floors" in argv else 1
     for Lm in lens:
-        o, path, L_real = build(Lm, ends=ends, name=name, floors=floors)
+        o, path, L_real = build(Lm, ends=ends, name=name, floors=floors, gate=gate)
         if do_render:
-            shots(o, fmt(Lm) + ("" if floors < 2 else "_%df" % floors)
-                  + ("" if ends == "both" else "_" + ends))
+            shots(o, fmt(Lm) + ("" if gate is None else "_mon%s" % fmt(gate[0]))
+                  + ("" if floors < 2 else "_%df" % floors)
+                  + ("" if ends == "both" else "_" + ends), gate=gate)
 
 
 main()

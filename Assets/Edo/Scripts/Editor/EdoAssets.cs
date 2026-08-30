@@ -287,6 +287,22 @@ public static class EdoAssets
         {
             return "Assets/Edo/Models/Nagaya/Nagaya_Omote_" + len.ToString("0.##") + "_2f.fbx";
         }
+        /// <summary>**長屋門**(ユーザー裁定 2026-08-30)— 表長屋の躯体を門の上まで通し、
+        /// その足元に門口を抜いた版。門(冠木門・扉)は Unity 側が開口の中へ据える。
+        ///
+        /// ⛔ **開口だけの短い部材は作れない**(妻2つ+bay で最小およそ 8.8m)。門口は
+        /// 必ず長い run の中に開ける。⚠ `gateFromLeft` は**部材のローカル +X の左端からの
+        /// 中心距離**[m]。生成器は書き出す前に Z まわりに 180° 回すので、obj 空間では
+        /// 右端から測って抜いている(取り違えると門口が反対の端に出る)。
+        /// 有効高は**土台の底から**測る。1階の軒までおよそ 4.0m あるので 3.0m の門口が収まる。
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- &lt;長さm&gt; --gate &lt;中心m&gt; &lt;幅m&gt; &lt;高さm&gt;
+        /// 二階建てにするなら `--floors 2` を足し、`_2f` 付きのパスで引く。</summary>
+        public static string NagayaOmoteMon(float len, float gateFromLeft, bool nikai)
+        {
+            return "Assets/Edo/Models/Nagaya/Nagaya_Omote_" + len.ToString("0.##")
+                 + "_mon" + gateFromLeft.ToString("0.##") + (nikai ? "_2f" : "") + ".fbx";
+        }
+
         /// <summary>tsuma=false は両端を突き付けにした版(`--ends none`)。鎖の途中の一本に使う。</summary>
         public static string NagayaOmote(float len, bool tsuma)
         {

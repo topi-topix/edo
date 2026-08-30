@@ -228,6 +228,15 @@ def draw_frame(d, p, h, polys, water=True, ishigaki=True, works=True, labels=Tru
     if ishigaki:
         for r in d["ishigaki"]["runs"]:
             a, b = r["p0"], r["p1"]
+            if r.get("provisional"):
+                # ⛔ 非史実の仮設(END3)。史実の石垣と同列に見せない
+                h.append('<path d="M%.1f,%.1f L%.1f,%.1f" stroke="#8A8A8A" stroke-width="2.4" '
+                         'stroke-dasharray="5 4" stroke-linecap="butt" opacity="0.9"/>'
+                         % (p.X(a[0]), p.Y(a[1]), p.X(b[0]), p.Y(b[1])))
+                if labels:
+                    h.append('<text class="anS2" x="%.1f" y="%.1f">%s(仮設)</text>'
+                             % (p.X((a[0] + b[0]) / 2) + 6, p.Y((a[1] + b[1]) / 2), html.escape(r["line"])))
+                continue
             h.append('<path d="M%.1f,%.1f L%.1f,%.1f" stroke="var(--ishi)" stroke-width="3.2" '
                      'stroke-linecap="round" opacity="0.95"/>'
                      % (p.X(a[0]), p.Y(a[1]), p.X(b[0]), p.Y(b[1])))
@@ -455,8 +464,9 @@ def section_svg(d, s, W=1180.0):
     h.append('<polyline points="%s" fill="none" stroke="var(--ink)" stroke-width="1.9"/>'
              % " ".join("%.1f,%.1f" % q for q in des))
     # ⭐ 汀線 = 石垣の見え面。躯体はそこから陸側へ ishigaki.faceToPivot(=4.80m)ぶん厚い。
-    for ta, tb, cp, lab in ((-s["offsetSW"], 0.0, s["copingSW"], "郭外 石垣"),
-                            (s["width"], s["width"] + s["offsetNE"], s["copingNE"], "郭内 石垣")):
+    tw = d["ishigaki"].get("faceToPivot", 4.80)   # 躯体の厚み(見え面→ピボット線)
+    for ta, tb, cp, lab in ((-tw, 0.0, s["copingSW"], "郭外 石垣"),
+                            (s["width"], s["width"] + tw, s["copingNE"], "郭内 石垣")):
         if cp is None:
             continue
         h.append(R(X(min(ta, tb)), Y(cp), abs(X(tb) - X(ta)), Y(fl) - Y(cp),
@@ -591,10 +601,16 @@ def survey_table(ter):
     return tbl(["水面", "面積", "水位", "床", "水面より下", "扱い"], rows)
 
 
-def buried_table(ter):
+def _prov(d):
+    return {r["line"] for r in d["ishigaki"]["runs"] if r.get("provisional")}
+
+
+def buried_table(d, ter):
+    prov = _prov(d)
     rows = []
     for b in ter["ishigakiBuried"]:
         flag = " ⚠" if b["buriedPct"] > 20 else ""
+        b = dict(b, line=b["line"] + ("(仮設)" if b["line"] in prov else ""))
         rows.append("<tr><td>%s</td><td>%s</td><td>%d</td><td>%+.2f</td><td>%+.2f</td>"
                     "<td>%.0f%%%s</td></tr>"
                     % (b["line"], b["body"].replace("Sotobori_", ""), b["n"],
@@ -604,11 +620,13 @@ def buried_table(ter):
                 "設計地盤 − 天端(中央)", "天端が埋まる割合"], rows)
 
 
-def back_table(ter):
+def back_table(d, ter):
+    prov = _prov(d)
     rows = []
     for b in ter["ishigakiBack"]:
         flag = "" if (abs(b["median"]) <= 1.0 or not b["works"]) else " ⚠"
         o = b["byOffset"]
+        b = dict(b, line=b["line"] + ("(仮設)" if b["line"] in prov else ""))
         rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%d</td>"
                     "<td>%+.2f</td><td>%+.2f%s</td><td>%+.2f</td><td>%+.2f</td></tr>"
                     % (b["line"], b["body"].replace("Sotobori_", ""),
@@ -635,11 +653,12 @@ def check_table(d):
 
 
 def pending_table(d):
-    rows = ["<tr><td>%s</td><td class='note' style='text-align:left'>%s</td>"
+    rows = ["<tr><td>%s</td><td class='note' style='text-align:left'>%s</td><td>%s</td>"
             "<td class='note' style='text-align:left'>%s</td><td>%s</td></tr>"
-            % (u["id"], inline(html.escape(u["what"])), inline(html.escape(u["detail"])), u["cert"])
+            % (u["id"], inline(html.escape(u["what"])), html.escape(u.get("status", "—")),
+               inline(html.escape(u["detail"])), html.escape(u["cert"]))
             for u in d["unresolved"]]
-    return tbl(["", "事項", "中身", "確度"], rows)
+    return tbl(["", "事項", "状態", "中身", "確度"], rows)
 
 
 def history():
@@ -693,7 +712,8 @@ def main():
 
     h = ['<meta charset="utf-8">', "<title>%s</title>" % html.escape(d["title"]),
          "<style>%s</style>" % css, '<div class="wrap">']
-    h.append('<p class="eyebrow">%s ／ %s</p>' % (html.escape(d["subtitle"]), html.escape(d["board"])))
+    h.append('<p class="eyebrow">%s ／ %s ／ 基準年次 %s</p>'
+             % (html.escape(d["subtitle"]), html.escape(d["board"]), html.escape(d["year"])))
     h.append("<h1>%s</h1>" % html.escape(d["title"]))
     h.append('<p class="lede">2026-08-22 の造成リセットが、虎ノ門土橋の東の外堀を'
              '<b>掘削もろとも現代の地面へ戻していた</b>。水面のメッシュは張られたままなので、'
@@ -791,7 +811,7 @@ def main():
              % "".join("<li>⛔ %s</li>" % inline(html.escape(r)) for r in d["works"]["forbid"]))
 
     plate(h, nx(), "石垣との取り合い", "背面の地盤が天端の直下にあるか")
-    h.append(back_table(ter))
+    h.append(back_table(d, ter))
     h.append('<p class="cap">石垣は <b>1個も動かさない</b>(CLAUDE.md 絶対規則1)。'
              '底は y=0 にあり、床はその %.2f m 上に来るので、掘っても石垣は浮かない。'
              '測るのは<b>背面(陸側4m)の設計地盤が天端の直下にあるか</b>で、'
@@ -799,20 +819,23 @@ def main():
              '⚠ 短い折れ(NE3f・SW3b・END3)は評価点が数点しかないので、'
              '中央値だけで合否を決めず<b>実装後に目視で確かめる</b>。'
              '⚠ <b>最大の外れ値は 00002 と 00003 の継ぎ目に集まる</b>(SW3b・NE3g) — '
-             '二つの汀線が入隅で交わり、「汀線からの距離」で岸を測る規則が素直に効かない所で、'
-             '附則 bankFill は入隅では効かず、NE3f の直背後(+2m)は天端より 4.29m 低いまま残る(未解決 U7)。'
+             '継ぎ目では石垣の背後に<b>溝が残る</b>。'
+             '⛔ その量と原因の診断は<b>未解決 U7 が正典</b>で、ここには数値を写さない'
+             '(2026-08-28 に写した値は 2026-08-30 に撤回された)。'
              '⚠ SW2 の最小が負なのは西端の虎ノ門寄りで<b>現況の地面がもともと天端より高い</b>ため。'
              '⚠ 00001 の run(CW1s・CW1n・R1・R3)は<b>合否の対象ではない</b> — 掘らないので'
              '設計地盤 = 現況で、断面の形も 00002・00003 と違う(次の表を見ること)。</p>'
              % [b["floor"] for b in d["water"] if b.get("works")][0])
 
     h.append("<h4>石垣が土に埋まっていないか(run 線そのもので測る)</h4>")
-    h.append(buried_table(ter))
-    h.append('<p class="cap">⚠ <b>00001 の郭外の CW1s(Ishigaki_Ext_4・87個)は全長にわたり'
-             '天端が地面より 2m 下にある。</b>土橋の取付の R1・R3 も同様に埋まる。'
+    h.append(buried_table(d, ter))
+    h.append('<p class="cap">⚠ <b>00001 の郭外の CW1s(Ishigaki_Ext_4・86駒)は天端が地面に潜る。</b>'
+             '土橋の取付の R1・R3 も同様。'
              'これは 08-22 のリセットのせいではない ── <b>現況と 08-22 リセット直前が一致</b>しており、'
              '2026-08-10 に建てたときからこの姿である。'
-             '<b>この指図では直さない</b>(00001 は調査のみ)。是正は未解決 U9 として別に立てる。</p>')
+             '<b>この指図では直さない</b>(00001 は調査のみ。汀線と地形の是正は 2026-08-29 に実施済=U9)。'
+             '⛔ <b>この表の 00001 の行は再生成するまで古い</b> ── 2026-08-30 に 00001 の run 線'
+             '(ピボット)を実測へ直し、CW1s で 8.5〜8.9m 動いた。上の値は動く前の線で採ったものである。</p>')
 
     plate(h, nx(), "施工の段階", "地形の編集は Undo の外")
     h.append(stage_table(d))
@@ -821,6 +844,7 @@ def main():
     plate(h, nx(), "考証と決めごと", "文章の正典は sotobori_kosho.md")
     h.append('<div class="prose">%s</div>' % prose)
     plate(h, nx(), "未解決", "推定で埋めない対象")
+    h.append('<p class="cap">%s</p>' % inline(html.escape(d["unresolvedNote"])))
     h.append(pending_table(d))
     plate(h, nx(), "改訂", "経緯は git log docs/Sashizu/")
     h.append(history())

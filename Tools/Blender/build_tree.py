@@ -1,6 +1,6 @@
 """**木を在庫の作りに合わせて起こす。**
 
-    blender --background --python Tools/Blender/build_tree.py -- jokuroku Mid --render
+    blender --background --python Tools/Blender/build_tree.py -- jouryoku Mid --render
     blender --background --python Tools/Blender/build_tree.py -- ume Small Mid Big
 
 【なぜ要るか】⛔ **自作の低ポリゴンの木は使用禁止**(2026-08-30 ユーザー指示
@@ -51,7 +51,7 @@ SPROUT_UV = [
 # 樹種のプロファイル。⚠ 寸法は在庫の同格に合わせる(桜 Mid = 5.8×5.7m / Big = 8.6×7.3m)
 SPECIES = {
     # 常緑広葉樹(モッコク・モチノキ・カシ・シイ)— 密で丸い樹冠、立ち枝、葉が枝先に集まる
-    "jokuroku": dict(label="常緑広葉樹",
+    "jouryoku": dict(label="常緑広葉樹",
                      trunk_h=0.44, trunk_r=0.040, tip_r=0.006, lean=0.030,
                      crown_z=0.70, crown_rz=0.29, wh=0.68, top=0.55,
                      attractors=420, influence=0.32, kill=0.075, step=0.055,
@@ -278,22 +278,32 @@ def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     do_render = "--render" in argv
     args = [a for a in argv if not a.startswith("--")]
-    key = args[0] if args else "jokuroku"
+    key = args[0] if args else "jouryoku"
+    # `--var <n>` で1寸法あたり n 本の**別個体**を焼く(既定 3)。
+    # ⚠ 2026-09-01 庭方の指摘:「Own.Jokuroku は Mid/Small の 2 プレハブで
+    #   モッコク・モチノキ・カシ・シイの 4 樹種 43 本を代表しており、近景で
+    #   同じ木の繰り返しになる」。⭕ 骨格の乱数を個体ごとに変えて姿を散らす。
+    #   ⛔ 種は個体番号から決める(時刻や連番で振らない — 焼き直すたびに姿が変わると
+    #      検証レンダが比較できない)。1本目は従来と同じ名前のまま(既存の参照を壊さない)。
+    nvar = int(args[args.index("--var") + 1]) if "--var" in args else 3
+    args = [a for a in args if a != "--var" and not a.isdigit()] if "--var" in args else args
     sizes = args[1:] or ["Mid"]
     os.makedirs(OUT, exist_ok=True)
     for size in sizes:
+      for vi in range(nvar):
         V.reset()
-        rnd = random.Random(hash((key, size)) & 0xffffffff)
+        seed = hash((key, size, vi)) & 0xffffffff
         lods = []
         for i in range(3):
-            rnd2 = random.Random(hash((key, size)) & 0xffffffff)   # 同じ骨格から間引く
+            rnd2 = random.Random(seed)                             # 同じ骨格から間引く
             lods.append(build_one(key, size, i, rnd2))
-        for i, o in enumerate(lods):
-            print("[tree] %s %s LOD%d  tri=%d" % (key, size, i, tri(o)))
         mn, mx = V.bbox(lods)
-        print("[tree] %s %s 出来上がり(m) W %.2f × H %.2f × D %.2f"
-              % (SPECIES[key]["label"], size, mx.x - mn.x, mx.z - mn.z, mx.y - mn.y))
-        name = "Tree_%s_%s" % (key.capitalize(), size)
+        suffix = "" if vi == 0 else "_%02d" % (vi + 1)
+        name = "Tree_%s_%s%s" % (key.capitalize(), size, suffix)
+        print("[tree] %s %s%s  LOD tri=%d/%d/%d  W %.2f × H %.2f × D %.2f"
+              % (SPECIES[key]["label"], size, suffix,
+                 tri(lods[0]), tri(lods[1]), tri(lods[2]),
+                 mx.x - mn.x, mx.z - mn.z, mx.y - mn.y))
         for i, o in enumerate(lods): o.name = "LOD_%d" % i
         path = os.path.join(OUT, name + ".fbx")
         V.export_fbx(lods, path)
@@ -302,7 +312,7 @@ def main():
             hook()
             V.studio((mn.x - (mx.x-mn.x)*1.6, mn.y - (mx.y-mn.y)*2.2, (mx.z-mn.z)*0.55),
                      ((mn.x+mx.x)/2, (mn.y+mx.y)/2, (mx.z-mn.z)*0.45), res=(1100, 1400))
-            V.render(os.path.join(SHOT, "tree_%s_%s.png" % (key, size)))
+            V.render(os.path.join(SHOT, "tree_%s_%s%s.png" % (key, size, suffix)))
 
 
 main()

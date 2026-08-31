@@ -1742,8 +1742,10 @@ public static class EdoMatsudairaDewaBuilder
         int i1 = a.Count > 1 ? SafeInt(a[1]) : 0;
         if (cls == "Own")
         {
-            if (fn == "Jokuroku") return EdoAssets.Own.Jokuroku(a[0]);
-            if (fn == "Ume")      return EdoAssets.Own.Ume(a[0]);
+            // 個体番号は省略できる(第2引数が無ければ 1 本目)
+            if (fn == "Jouryoku") return EdoAssets.Own.Jouryoku(a[0], a.Count > 1 ? i1 : 1);
+            if (fn == "Jokuroku") return EdoAssets.Own.Jouryoku(a[0], a.Count > 1 ? i1 : 1);  // 旧綴り
+            if (fn == "Ume")      return EdoAssets.Own.Ume(a[0], a.Count > 1 ? i1 : 1);
         }
         else if (cls == "JG")
         {
@@ -2037,22 +2039,33 @@ public static class EdoMatsudairaDewaBuilder
         foreach (var o in crestArr) { var q = A(o); crest.Add(f.W(F(q[0]), F(q[1]))); }
         if (crest.Count < 2) return "法肩の折れ線が無い";
 
-        // ---- 法肩の外向き(区画の外側へ向く法線)。⛔ 中心からの向きで決めない
+        // ---- 法肩の「下る側」。⛔ **区画の内外では決まらない** — 法面は区画の**内側**にあり
+        //      (法尻=区画の西辺)、法肩の両側とも内側になる。2026-08-31 に内外で判定して
+        //      主平面の側を「外」と取り、遮蔽木が 0/23 になった。
+        //      **どちらが下るかで決める**(規則3「面の高さは地形が決める」の斜面版)。
         Func<int, Vector2> segOut = (i) =>
         {
             Vector2 a = crest[i], b = crest[i + 1];
             Vector2 t = (b - a).normalized;
             Vector2 n = new Vector2(t.y, -t.x);
             Vector2 mid = (a + b) * 0.5f;
-            if (EdoGeom.PIP(Poly, mid + n * 1.5f)) n = -n;   // 区画の内側なら反転
+            if (TerrainY(mid + n * 8f) > TerrainY(mid - n * 8f)) n = -n;
             return n;
         };
 
-        // ---- 法肩から外へ、区画の外へ出るまでの距離(=法面の幅)
+        // ---- 法肩から下る側へ、**下りが終わるまで**の距離(=法面の幅)。
+        //      区画の外へ出たらそこで打ち切る(法尻は区画の西辺)。
         Func<Vector2, Vector2, float> slopeWidth = (p, n) =>
         {
-            float d = 0f;
-            for (float t = 1f; t <= 90f; t += 1f) { if (!EdoGeom.PIP(Poly, p + n * t)) break; d = t; }
+            float lo = TerrainY(p), d = 0f;
+            for (float t = 1f; t <= 90f; t += 1f)
+            {
+                Vector2 q = p + n * t;
+                if (!EdoGeom.PIP(Poly, q)) break;
+                float y = TerrainY(q);
+                if (y < lo) { lo = y; d = t; }
+                else if (y > lo + 1.5f) break;             // 下りきった
+            }
             return d;
         };
 

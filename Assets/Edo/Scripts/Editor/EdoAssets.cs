@@ -274,18 +274,28 @@ public static class EdoAssets
         /// 材質は借り物の名前だけを運ぶ(`M_FJG_Tree_Sakura_Bark_A` / `..._Sprout_Summer`)ので
         /// **Unity で remap する**。LOD_0/1/2 の3本入り。
         /// 樹高: Small 3.6m / Mid 5.8m / Big 8.2m(在庫の同格に合わせた実測値)。
-        /// 生成: blender --background --python Tools/Blender/build_tree.py -- jokuroku Small Mid Big</summary>
-        public static string Jokuroku(string size)
+        ///
+        /// <para><paramref name="i"/> は**個体**(1〜3)。⚠ 2026-09-01 の庭方の指摘
+        /// 「2プレハブでモッコク・モチノキ・カシ・シイの4樹種43本を代表しており、
+        /// 近景で同じ木の繰り返しになる」。骨格の乱数を個体ごとに変えて姿を散らしてある。
+        /// ⛔ 1本の層を1個体で埋めない — 指図の parts で個体を混ぜること。</para>
+        ///
+        /// 生成: blender --background --python Tools/Blender/build_tree.py -- jouryoku Small Mid Big</summary>
+        public static string Jouryoku(string size, int i = 1)
         {
-            return "Assets/Edo/Models/Trees/Tree_Jokuroku_" + size + ".fbx";
+            return "Assets/Edo/Models/Trees/Tree_Jouryoku_" + size
+                 + (i <= 1 ? "" : "_" + i.ToString("00")) + ".fbx";
         }
 
-        /// <summary>**ウメ**。疎で屈曲した枝・横張り。⛔ 花は付けない(基準年次の描く時点が
-        /// 花期とは限らず、季節を1つに決めていないため)。他は <see cref="Jokuroku"/> と同じ作り。
-        /// 生成: blender --background --python Tools/Blender/build_tree.py -- ume Small Mid Big</summary>
-        public static string Ume(string size)
+        /// <summary>⛔ 綴りの誤り(常緑の訓みは Jouryoku)。<see cref="Jouryoku"/> へ移した。
+        /// 指図が古い綴りのまま残っている間だけの転送。</summary>
+        [System.Obsolete("Own.Jouryoku(size, i) を使う(常緑=Jouryoku)")]
+        public static string Jokuroku(string size) { return Jouryoku(size); }
+
+        public static string Ume(string size, int i = 1)
         {
-            return "Assets/Edo/Models/Trees/Tree_Ume_" + size + ".fbx";
+            return "Assets/Edo/Models/Trees/Tree_Ume_" + size
+                 + (i <= 1 ? "" : "_" + i.ToString("00")) + ".fbx";
         }
 
         /// <summary>石段の法面を留める「坂の土留め」。天端が勾配どおりに**一直線で斜め**に下がる

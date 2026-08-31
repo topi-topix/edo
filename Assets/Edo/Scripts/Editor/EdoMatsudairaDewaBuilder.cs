@@ -1656,7 +1656,7 @@ public static class EdoMatsudairaDewaBuilder
     /// <summary>附属屋 FBX のマテリアルを、**借り先を名指しして**結び直す。
     /// ⚠ `SearchAndRemapMaterials(..., Everywhere)` はプロジェクト全体(6.9GB)を舐めるので使わない
     ///   — 2026-08-24 に実際にユーザーの PC が固まった。借り先は3フォルダだけ見る。</summary>
-    [MenuItem("Edo/松平出羽守上屋敷/附属屋・門のマテリアルをremap")]
+    [MenuItem("Edo/松平出羽守上屋敷/附属屋・門・木のマテリアルをremap")]
     public static void RemapFuzokuyaMenu() { Debug.Log("[Matsudaira] " + RemapFuzokuya()); }
     public static string RemapFuzokuya()
     {
@@ -1664,6 +1664,8 @@ public static class EdoMatsudairaDewaBuilder
             "Assets/Japanese Village Kit/Materials",
             "Assets/Japanese Castle/Meshes/Exterior/Materials",
             "Assets/Edo/Materials",              // キットに無い材(鳥居の朱 Shu_Torii など)
+            // 新造した木(Own.Jokuroku / Own.Ume)は在庫の桜の樹皮・葉の材質名を名乗る
+            "Assets/Waldemarst/FreeJapaneseGarden/Materials",
         };
         var byName = new Dictionary<string, Material>();
         foreach (var dir in donorDirs)
@@ -1679,7 +1681,8 @@ public static class EdoMatsudairaDewaBuilder
         // ⚠ 門・番所(Models/Mon)も同じ借り先を使う。2026-08-31 に番所の瓦を
         //   Village Kit の `Roof B` へ替えたとき、ここが Fuzokuya しか見ていなかったため
         //   材質名が変わった番所が真っ白になった。**FBX を焼いた folder は必ずここに足す。**
-        string[] modelDirs = { "Assets/Edo/Models/Fuzokuya", "Assets/Edo/Models/Mon" };
+        string[] modelDirs = { "Assets/Edo/Models/Fuzokuya", "Assets/Edo/Models/Mon",
+                               "Assets/Edo/Models/Trees" };
         foreach (var guid in AssetDatabase.FindAssets("t:Model", modelDirs))
         {
             string path = AssetDatabase.GUIDToAssetPath(guid);
@@ -1716,9 +1719,91 @@ public static class EdoMatsudairaDewaBuilder
     ///   ・常緑:落葉 ≒ 7:3(全部落葉だと冬に骨組みが消える)
     ///   ・刈込は**塊で**(点在させない)/ 下草は**樹下**に散らして裸地を残さない
     /// 【季節】⛔ **開花木を置かない。**桜は Summer variant のみ(メモリ scene-season-not-spring)。
-    /// 【代用】常緑広葉樹と梅は在庫に無いので `Own.Broadleaf` で代用する(確度は樹種でなく**層**に付く)。
+    /// 【樹種】**指図の `planting[].parts[].api` が決める。**ビルダーは配るだけ(ResolveApi/PartBag)。
+    /// 常緑広葉樹とウメは在庫に無いので 2026-08-31 に新造した(ユーザー裁定 案C・Own.Jokuroku / Own.Ume)。
+    /// ⛔ 自作の低ポリ木 `Own.Broadleaf` は使用禁止(CLAUDE.md 規則10)。
     ///
     /// ⚠ 置く位置は**決定論**(zone 名から種を作る)。流し直しで木が動くと検証レンダが比較できない。</summary>
+
+    /// <summary>指図の `parts[].api` の文字列を実際のパスへ解決する。
+    /// ⛔ **ビルダーに樹種を書かない。**指図が `api` で名指ししたものだけを置く
+    /// (規則11 と同じ考え方 — 値の正典は指図で、ソースへ写さない)。
+    /// 2026-08-31 まで中木と花木が `Own.Broadleaf` 決め打ちで、指図の parts を無視していた。</summary>
+    static string ResolveApi(string api)
+    {
+        if (string.IsNullOrEmpty(api)) return null;
+        var m = System.Text.RegularExpressions.Regex.Match(api, @"^([A-Za-z]+)\.([A-Za-z0-9_]+)(?:\((.*)\))?$");
+        if (!m.Success) return null;
+        string cls = m.Groups[1].Value, fn = m.Groups[2].Value, arg = m.Groups[3].Value;
+        var raw = arg.Length == 0 ? new string[0] : arg.Split(',');
+        var a = new List<string>();
+        foreach (var x in raw) a.Add(x.Trim().Trim('"'));
+        int i0 = a.Count > 0 ? SafeInt(a[0]) : 0;
+        int i1 = a.Count > 1 ? SafeInt(a[1]) : 0;
+        if (cls == "Own")
+        {
+            if (fn == "Jokuroku") return EdoAssets.Own.Jokuroku(a[0]);
+            if (fn == "Ume")      return EdoAssets.Own.Ume(a[0]);
+        }
+        else if (cls == "JG")
+        {
+            if (fn == "Pine")          return EdoAssets.JG.Pine(a[0], i1);
+            if (fn == "SakuraSummer")  return EdoAssets.JG.SakuraSummer(a[0], i1);
+            if (fn == "Boxwood")       return EdoAssets.JG.Boxwood(i0);
+            if (fn == "Fern")          return EdoAssets.JG.Fern(i0);
+            if (fn == "Rock")          return EdoAssets.JG.Rock(i0);
+        }
+        else if (cls == "JC")
+        {
+            if (fn.StartsWith("Azalea")) return EdoAssets.JG.Azalea(SafeInt(fn.Substring(6)));
+        }
+        else if (cls == "NM")
+        {
+            if (fn == "MapleBush")  return EdoAssets.NM.MapleBush(i0);
+            if (fn == "GreyWillow") return EdoAssets.NM.GreyWillow(i0);
+        }
+        return null;
+    }
+
+    static int SafeInt(string t) { int v; return int.TryParse(t, out v) ? v : 0; }
+
+    /// <summary>指図の `parts[]` を、それぞれの `n` の割当てだけ順に配る器。
+    /// **呼ぶたびに1本ぶん減る。**割当てを使い切ったら null を返す。</summary>
+    class PartBag
+    {
+        readonly List<string> paths = new List<string>();
+        readonly List<float> scales = new List<float>();
+        public int Count { get { return paths.Count; } }
+        public PartBag(object partsArr, System.Random rnd)
+        {
+            if (partsArr == null) return;
+            foreach (var o in A(partsArr))
+            {
+                var q = O(o);
+                string path = ResolveApi((string)q["api"]);
+                if (path == null) continue;
+                int n = Has(q, "n") ? (int)F(q["n"]) : 1;
+                float sc = Has(q, "scale") ? F(q["scale"]) : 1f;
+                for (int i = 0; i < n; i++) { paths.Add(path); scales.Add(sc); }
+            }
+            // 種類が固まって並ばないよう混ぜる(決定論)
+            for (int i = paths.Count - 1; i > 0; i--)
+            {
+                int j = rnd.Next(i + 1);
+                var tp = paths[i]; paths[i] = paths[j]; paths[j] = tp;
+                var ts = scales[i]; scales[i] = scales[j]; scales[j] = ts;
+            }
+        }
+        public bool Next(out string path, out float scale)
+        {
+            path = null; scale = 1f;
+            if (paths.Count == 0) return false;
+            path = paths[paths.Count - 1]; scale = scales[scales.Count - 1];
+            paths.RemoveAt(paths.Count - 1); scales.RemoveAt(scales.Count - 1);
+            return true;
+        }
+    }
+
     [MenuItem("Edo/松平出羽守上屋敷/7 庭の植栽")]
     public static void Stage7Menu() { Debug.Log("[Matsudaira] " + Stage7_Niwa()); }
     public static string Stage7_Niwa()
@@ -1802,15 +1887,15 @@ public static class EdoMatsudairaDewaBuilder
             }
             else if (layer.StartsWith("中木"))
             {
-                // 常緑:落葉 ≒ 7:3。落葉は桜の Summer で代用(⛔ 花は咲かせない)
+                // **指図の parts が樹種と本数を決める。**ビルダーは配るだけ
+                var bagN = new PartBag(Has(pl, "parts") ? pl["parts"] : null, rnd);
                 for (int i = 0; i < want; i++)
                 {
                     Vector2 c;
                     if (!Spot(z, rnd, free, 2.2f, out c)) break;
-                    bool evergreen = (i % 10) < 7;
-                    string path = evergreen ? EdoAssets.Own.Broadleaf
-                                            : EdoAssets.JG.SakuraSummer(rnd.Next(3) == 0 ? "Big" : "Mid", rnd.Next(2) == 0 ? 1 : 5);
-                    var go = Plant(path, c.x, c.y, sub, zone + "_Naka_" + i, evergreen ? 1.0f : 1.4f, rnd, 0f);
+                    string path; float sc;
+                    if (!bagN.Next(out path, out sc)) break;
+                    var go = Plant(path, c.x, c.y, sub, zone + "_Naka_" + i, sc, rnd, 0f);
                     if (go != null) { made++; nTree++; }
                 }
             }
@@ -1857,11 +1942,14 @@ public static class EdoMatsudairaDewaBuilder
             else if (layer.StartsWith("花木"))
             {
                 // 梅林 — **等間隔の並木にしない**。塊で植え、間を空ける
+                var bagU = new PartBag(Has(pl, "parts") ? pl["parts"] : null, rnd);
                 for (int i = 0; i < want; i++)
                 {
                     Vector2 c;
                     if (!Spot(z, rnd, free, 1.8f, out c)) break;
-                    var go = Plant(EdoAssets.Own.Broadleaf, c.x, c.y, sub, zone + "_Ume_" + i, 0.8f, rnd, 0f);
+                    string path; float sc;
+                    if (!bagU.Next(out path, out sc)) break;
+                    var go = Plant(path, c.x, c.y, sub, zone + "_Ume_" + i, sc, rnd, 0f);
                     if (go != null) { made++; nTree++; }
                 }
             }
@@ -1913,6 +2001,223 @@ public static class EdoMatsudairaDewaBuilder
     }
 
     /// <summary>1本植える。設計面に据え、向きと大きさを散らす。tiltU!=0 なら u 方向へ傾ける。</summary>
+    // ---------------------------------------------------------------- Stage 8: 西斜面の林
+    /// <summary>指図の `slopeArea` と `slopePlanting` を読んで西の法面に林を作る。
+    ///
+    /// 【役目】`perimeterClosure` の「遮蔽は法面が受け、木柵は境の標示にとどまる」を成立させる。
+    ///   素の崖だけでは対岸(溜池東岸の堀端通り)から御殿の軒が見えるので、**法肩に沿った
+    ///   遮蔽木の列**がそれを受ける。列に見せないため offset と pitch を振る。
+    ///
+    /// 【置き方】`placement`:
+    ///   `crestLine` … 法肩の折れ線に沿って `screen.pitch` 間隔(±`jitter`)。法肩から
+    ///                 外(斜面側)へ `screen.offset` の範囲で振り出す。**落差が
+    ///                 `screen.minDrop` に満たない区間は数えない**(北西の登りは浅い)。
+    ///   `scatter`   … `slopeArea.bands` が示す「法肩→法尻の道のりの割合」の帯へ撒く。
+    ///
+    /// 【地面】⛔ `DesignY` を使わない — 法面は造成面ではないので設計面が無い。
+    ///   **live terrain を実測して据える**(規則3の「面の高さは地形が決める」の斜面版)。
+    /// 【樹種】指図の `parts[].api` が決める。ビルダーは配るだけ。
+    /// 【決定論】種は帯+層の名から作る。流し直しで木が動くと検証レンダが比較できない。</summary>
+    [MenuItem("Edo/松平出羽守上屋敷/8 西斜面の林")]
+    public static void Stage8Menu() { Debug.Log("[Matsudaira] " + Stage8_Shamen()); }
+    public static string Stage8_Shamen()
+    {
+        var grp = Group("Shamen"); Clear(grp);
+        var f = Grid;
+        var sb = new System.Text.StringBuilder();
+        var sa = O(D["slopeArea"]);
+        var sc = O(sa["screen"]);
+        float pitch = F(sc["pitch"]), jit = F(sc["jitter"]), minDrop = F(sc["minDrop"]);
+        var offR = A(sc["offset"]);
+        float off0 = F(offR[0]), off1 = F(offR[1]);
+
+        // ---- 法肩の折れ線(世界座標)
+        var crestArr = A(sa["crest"]);
+        var crest = new List<Vector2>();
+        foreach (var o in crestArr) { var q = A(o); crest.Add(f.W(F(q[0]), F(q[1]))); }
+        if (crest.Count < 2) return "法肩の折れ線が無い";
+
+        // ---- 法肩の外向き(区画の外側へ向く法線)。⛔ 中心からの向きで決めない
+        Func<int, Vector2> segOut = (i) =>
+        {
+            Vector2 a = crest[i], b = crest[i + 1];
+            Vector2 t = (b - a).normalized;
+            Vector2 n = new Vector2(t.y, -t.x);
+            Vector2 mid = (a + b) * 0.5f;
+            if (EdoGeom.PIP(Poly, mid + n * 1.5f)) n = -n;   // 区画の内側なら反転
+            return n;
+        };
+
+        // ---- 法肩から外へ、区画の外へ出るまでの距離(=法面の幅)
+        Func<Vector2, Vector2, float> slopeWidth = (p, n) =>
+        {
+            float d = 0f;
+            for (float t = 1f; t <= 90f; t += 1f) { if (!EdoGeom.PIP(Poly, p + n * t)) break; d = t; }
+            return d;
+        };
+
+        var placed = new List<Vector3>();                    // 既に置いた木(間隔の検査に使う)
+        var screens = new List<Vector4>();                   // 遮蔽木(x,z,樹高,—)
+        int nAll = 0;
+        var report = new List<string>();
+
+        foreach (var o in A(D["slopePlanting"]))
+        {
+            var bd = O(o);
+            string band = (string)bd["band"], layer = (string)bd["layer"];
+            int want = (int)F(bd["n"]);
+            float clr = F(bd["clr"]), spacing = F(bd["spacing"]);
+            string mode = (string)bd["placement"];
+            var rnd = new System.Random((band + "/" + layer).GetHashCode());
+            var bag = new PartBag(Has(bd, "parts") ? bd["parts"] : null, rnd);
+            float tilt0 = 0f, tilt1 = 0f;
+            if (Has(bd, "tilt")) { var t2 = A(bd["tilt"]); tilt0 = F(t2[0]); tilt1 = F(t2[1]); }
+            float sj0 = 0.88f, sj1 = 1.14f;
+            if (Has(bd, "scaleJitter")) { var j2 = A(bd["scaleJitter"]); sj0 = F(j2[0]); sj1 = F(j2[1]); }
+            var sub = Group("Shamen/" + layer);
+            int made = 0;
+
+            if (mode == "crestLine")
+            {
+                // 落差が minDrop 以上の区間だけを、弧長で pitch ごとに刻む
+                float acc = 0f;
+                for (int i = 0; i < crest.Count - 1 && made < want; i++)
+                {
+                    Vector2 a = crest[i], b = crest[i + 1], n = segOut(i);
+                    float L = Vector2.Distance(a, b);
+                    for (float t = acc; t < L && made < want; t += pitch)
+                    {
+                        Vector2 p = Vector2.Lerp(a, b, t / L);
+                        float w = slopeWidth(p, n);
+                        float drop = TerrainY(p) - TerrainY(p + n * Mathf.Max(1f, w));
+                        if (drop < minDrop) continue;                   // 浅い区間は数えない
+                        Vector2 q = p + n * (off0 + (float)rnd.NextDouble() * (off1 - off0));
+                        q += new Vector2((float)rnd.NextDouble() - 0.5f, (float)rnd.NextDouble() - 0.5f) * jit;
+                        if (!Far(placed, q, spacing)) continue;
+                        string path; float ps;
+                        if (!bag.Next(out path, out ps)) break;
+                        var go = PlantOnTerrain(path, q, sub, layer + "_" + made, ps, rnd, sj0, sj1,
+                                                tilt0, tilt1);
+                        if (go == null) continue;
+                        placed.Add(new Vector3(q.x, 0f, q.y));
+                        screens.Add(new Vector4(q.x, q.y, TreeHeight(go), 0f));
+                        made++; nAll++;
+                    }
+                    acc = Mathf.Max(0f, acc + pitch * Mathf.Ceil(L / pitch) - L);
+                }
+            }
+            else
+            {
+                var bands = O(sa["bands"]);
+                float b0 = 0.0f, b1 = 0.5f;
+                if (Has(bands, band)) { var bb = A(bands[band]); b0 = F(bb[0]); b1 = F(bb[1]); }
+                for (int k = 0; k < want * 60 && made < want; k++)
+                {
+                    int i = rnd.Next(crest.Count - 1);
+                    Vector2 a = crest[i], b = crest[i + 1], n = segOut(i);
+                    Vector2 p = Vector2.Lerp(a, b, (float)rnd.NextDouble());
+                    float w = slopeWidth(p, n);
+                    if (w < 2f) continue;
+                    float fr = b0 + (float)rnd.NextDouble() * (b1 - b0);
+                    Vector2 q = p + n * (w * fr);
+                    if (!EdoGeom.PIP(Poly, q)) continue;
+                    if (!Far(placed, q, spacing)) continue;
+                    string path; float ps;
+                    if (!bag.Next(out path, out ps)) break;
+                    var go = PlantOnTerrain(path, q, sub, layer + "_" + made, ps, rnd, sj0, sj1, tilt0, tilt1);
+                    if (go == null) continue;
+                    placed.Add(new Vector3(q.x, 0f, q.y));
+                    made++; nAll++;
+                }
+            }
+            report.Add(layer + " " + made + "/" + want);
+            if (made < want)
+                sb.AppendLine("⚠ " + band + " の " + layer + " が " + made + "/" + want +
+                              " しか置けない — 間隔 " + spacing.ToString("F1") + "m か帯が狭い");
+        }
+
+        sb.AppendLine(ScreenQA(crest, segOut, slopeWidth, screens, sc));
+        sb.Append("斜面の木 " + nAll + " 本  [" + string.Join(" | ", report.ToArray()) + "]");
+        return sb.ToString();
+    }
+
+    /// <summary>**遮蔽の検査。**法肩に `step` ごとの検査点を取り、`reach` 以内に樹高 `minH` 以上の
+    /// 木があるかを見る。⛔ 0件でなければ対岸から御殿の軒が抜ける。
+    /// ⚠ 樹高は**据えた実メッシュから測る**(呼び寸法や prefab の名前で信じない)。</summary>
+    static string ScreenQA(List<Vector2> crest, Func<int, Vector2> segOut,
+                           Func<Vector2, Vector2, float> slopeWidth,
+                           List<Vector4> screens, System.Collections.Generic.Dictionary<string, object> sc)
+    {
+        float step = F(sc["step"]), reach = F(sc["reach"]), minH = F(sc["minH"]), minDrop = F(sc["minDrop"]);
+        int pts = 0, bad = 0; float worst = 0f; Vector2 worstAt = Vector2.zero;
+        for (int i = 0; i < crest.Count - 1; i++)
+        {
+            Vector2 a = crest[i], b = crest[i + 1], n = segOut(i);
+            float L = Vector2.Distance(a, b);
+            for (float t = 0f; t < L; t += step)
+            {
+                Vector2 p = Vector2.Lerp(a, b, t / L);
+                float w = slopeWidth(p, n);
+                if (TerrainY(p) - TerrainY(p + n * Mathf.Max(1f, w)) < minDrop) continue;   // 浅い所は対象外
+                pts++;
+                float best = 0f;
+                foreach (var s2 in screens)
+                    if (Vector2.Distance(p, new Vector2(s2.x, s2.y)) <= reach && s2.z > best) best = s2.z;
+                if (best < minH) { bad++; if (minH - best > worst) { worst = minH - best; worstAt = p; } }
+            }
+        }
+        if (pts == 0) return "遮蔽QA: 落差 " + minDrop.ToString("F0") + "m 以上の法肩が無い";
+        return "遮蔽QA: 法肩の検査点 " + pts + " / 樹高 " + minH.ToString("F1") + "m 未満 = " + bad + " 件"
+             + (bad > 0 ? "(最悪 " + worst.ToString("F1") + "m 不足 at (" + worstAt.x.ToString("F0") + "," + worstAt.y.ToString("F0") + "))" : "");
+    }
+
+    /// <summary>据えた木の**実メッシュ**の高さ[m]。⛔ prefab の名前や呼び寸法で信じない。</summary>
+    static float TreeHeight(GameObject go)
+    {
+        var rs = go.GetComponentsInChildren<Renderer>(true);
+        if (rs.Length == 0) return 0f;
+        var b = rs[0].bounds;
+        foreach (var r in rs) b.Encapsulate(r.bounds);
+        return b.size.y;
+    }
+
+    static bool Far(List<Vector3> placed, Vector2 q, float d)
+    {
+        foreach (var p in placed)
+            if ((p.x - q.x) * (p.x - q.x) + (p.z - q.y) * (p.z - q.y) < d * d) return false;
+        return true;
+    }
+
+    /// <summary>法面へ据える。⛔ `DesignY` を使わない — 法面は造成面ではない。
+    /// live terrain を実測して足元を地面に置く。</summary>
+    static GameObject PlantOnTerrain(string path, Vector2 w, Transform parent, string name,
+                                     float scale, System.Random rnd, float sj0, float sj1,
+                                     float tilt0, float tilt1)
+    {
+        float y = TerrainY(w);
+        float s = scale * (sj0 + (float)rnd.NextDouble() * (sj1 - sj0));
+        var go = EdoNishiTameikeBuilder.Place(path, new Vector3(w.x, y, w.y),
+            (float)rnd.NextDouble() * 360f, Vector3.one * s, parent, name);
+        if (go == null) return null;
+        float tl = tilt0 + (float)rnd.NextDouble() * (tilt1 - tilt0);
+        if (tl > 0.01f)
+        {
+            float az = (float)rnd.NextDouble() * 360f;
+            go.transform.RotateAround(go.transform.position,
+                Quaternion.Euler(0, az, 0) * Vector3.forward, tl);
+        }
+        return go;
+    }
+
+    /// <summary>live terrain の高さ。⚠ 造成前の地盤(base_dem)ではなく**いまの作業面**。
+    /// 法面は造成していないので両者は一致するが、木は「いまの地面」に立てる。</summary>
+    static float TerrainY(Vector2 w)
+    {
+        var t = Terrain.activeTerrain;
+        if (t == null) return 0f;
+        return t.SampleHeight(new Vector3(w.x, 0f, w.y)) + t.transform.position.y;
+    }
+
     static GameObject Plant(string path, float u, float v, Transform parent, string name,
                             float scale, System.Random rnd, float tiltU, float sink = 0f)
     {

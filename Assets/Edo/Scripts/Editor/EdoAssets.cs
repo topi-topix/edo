@@ -234,6 +234,20 @@ public static class EdoAssets
         { return "Assets/Japanese Castle/Prefabs/Foliage/Azalea A 0" + i + ".prefab"; }
     }
 
+    /// <summary>NatureManufacture Meadow Environment。**灌木の在庫**(高木のポプラは江戸に使えない)。
+    /// ⚠ パックは再配布不可・gitignore。手元に無ければ README.md の手順で import する。</summary>
+    public static class NM
+    {
+        const string Bush = "Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Bushes/Prefabs/";
+
+        /// <summary>カエデの灌木(下草・林床の中層)。i = 1..4。</summary>
+        public static string MapleBush(int i) { return Bush + "prefab_maple_bush_0" + i + ".prefab"; }
+
+        /// <summary>ヤナギの灌木(水際・法面の下層)。i = 1..4。</summary>
+        public static string GreyWillow(int i) { return Bush + "prefab_grey_willow_0" + i + ".prefab"; }
+    }
+
+
     /// <summary>自作(Assets/Edo 配下)</summary>
     public static class Own
     {
@@ -252,6 +266,27 @@ public static class EdoAssets
             "植栽は在庫のパックから採る(JG / JC.Foliage / NatureManufacture)。在庫に無い樹種が" +
             "要るなら、在庫の木の作り(枝の分岐・葉のカード・LOD・材質)を参考にリアルに再現して起こす。")]
         public const string Broadleaf = "Assets/Edo/Terrain/details/BroadleafTree.prefab";
+
+        /// <summary>**常緑広葉樹**(モッコク・モチノキ・シラカシ・スダジイの見立て)。
+        /// 江戸の庭木の主役だが在庫の高木は黒松(針葉)・桜(落葉)・竹の三種しか無いので、
+        /// **在庫の木の作りを参考に新造した**(ユーザー裁定 2026-08-30 案C)。
+        /// 骨格は空間占有法で伸ばすので樹冠が箱にならず、内部にも枝が通る。
+        /// 材質は借り物の名前だけを運ぶ(`M_FJG_Tree_Sakura_Bark_A` / `..._Sprout_Summer`)ので
+        /// **Unity で remap する**。LOD_0/1/2 の3本入り。
+        /// 樹高: Small 3.6m / Mid 5.8m / Big 8.2m(在庫の同格に合わせた実測値)。
+        /// 生成: blender --background --python Tools/Blender/build_tree.py -- jokuroku Small Mid Big</summary>
+        public static string Jokuroku(string size)
+        {
+            return "Assets/Edo/Models/Trees/Tree_Jokuroku_" + size + ".fbx";
+        }
+
+        /// <summary>**ウメ**。疎で屈曲した枝・横張り。⛔ 花は付けない(基準年次の描く時点が
+        /// 花期とは限らず、季節を1つに決めていないため)。他は <see cref="Jokuroku"/> と同じ作り。
+        /// 生成: blender --background --python Tools/Blender/build_tree.py -- ume Small Mid Big</summary>
+        public static string Ume(string size)
+        {
+            return "Assets/Edo/Models/Trees/Tree_Ume_" + size + ".fbx";
+        }
 
         /// <summary>石段の法面を留める「坂の土留め」。天端が勾配どおりに**一直線で斜め**に下がる
         /// 一枚物(段々に下がるモジュールでは実物の石段の袖にならない)。生成は

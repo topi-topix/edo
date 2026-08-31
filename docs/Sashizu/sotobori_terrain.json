@@ -5,7 +5,14 @@
   "z0": 96,
   "step": 2,
   "nx": 549,
-  "nz": 215
+  "nz": 215,
+  "sampleX0": 56.12,
+  "sampleZ0": 96.07,
+  "sampleOffset": [
+   0.12,
+   0.07
+  ],
+  "_": "⚠ `x0`/`z0` は格子のラベル、`sampleX0`/`sampleZ0` は **高さを実際に採った heightmap の列/行の世界座標**。両者は `sampleOffset` だけずれる(heightmap の刻みに丸めるため)。⛔ 再実装するときは `sample*` の側を使うこと。⚠ 標本位置そのものは動かしていない(動かすと実測値が全部わずかに変わる)。"
  },
  "volumes": {
   "workAreaHa": 4.68,
@@ -18,6 +25,30 @@
   "maxFill_m": 3.94,
   "spillCells": 0,
   "keepOutCells": 0,
+  "byZone": {
+   "inside": {
+    "label": "① 汀線の内側(堀)",
+    "cut_m3": 101715,
+    "fill_m3": 0,
+    "maxCut_m": 6.71,
+    "maxFill_m": 0.0
+   },
+   "body": {
+    "label": "躯体の帯 0–4.80m(石垣の下・種地を戻す)",
+    "cut_m3": 16496,
+    "fill_m3": 2490,
+    "maxCut_m": 6.59,
+    "maxFill_m": 3.94
+   },
+   "bank": {
+    "label": "②③ 岸 4.80–14m(天端基準)",
+    "cut_m3": 112,
+    "fill_m3": 18460,
+    "maxCut_m": 0.5,
+    "maxFill_m": 3.65
+   }
+  },
+  "maxFillOutsideBody_m": 3.65,
   "overshoot_m2": 3972,
   "overshootMaxOutside_m": 4.3,
   "overshootMedianOutside_m": 1.3,

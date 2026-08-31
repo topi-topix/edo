@@ -450,6 +450,72 @@ def base_check(d):
     return bad
 
 
+def _run_fp(d, r):
+    """run の足跡(世界座標の四角形)。**練塀は境界線に跨り、長屋は外面が境界線に載る。**"""
+    P = d["polygon"]
+    a = edge_pt(P, r["edge"], r["s0"])
+    b = edge_pt(P, r["edge"], r["s1"])
+    nx, ny = _inward(P, r["edge"])
+    if r["kind"] == "Nagaya":
+        o0, o1 = 0.0, d["const"]["nagayaD"]           # 外面が境界線
+    else:
+        h = d["const"]["dobeiT"] / 2.0
+        o0, o1 = -h, h                                # 境界線に跨る
+    return [(a[0] + nx * o0, a[1] + ny * o0), (b[0] + nx * o0, b[1] + ny * o0),
+            (b[0] + nx * o1, b[1] + ny * o1), (a[0] + nx * o1, a[1] + ny * o1)]
+
+
+def _seg_dist(p, q, r, s):
+    """線分 pq と rs の最短距離。"""
+    def pd(pt, u, v):
+        dx, dy = v[0] - u[0], v[1] - u[1]
+        L2 = dx * dx + dy * dy
+        tt = 0.0 if L2 < 1e-12 else max(0.0, min(1.0, ((pt[0] - u[0]) * dx + (pt[1] - u[1]) * dy) / L2))
+        return math.hypot(pt[0] - (u[0] + dx * tt), pt[1] - (u[1] + dy * tt))
+    d1 = (q[0] - p[0], q[1] - p[1]); d2 = (s[0] - r[0], s[1] - r[1])
+    den = d1[0] * d2[1] - d1[1] * d2[0]
+    if abs(den) > 1e-12:                              # 交差していれば 0
+        ta = ((r[0] - p[0]) * d2[1] - (r[1] - p[1]) * d2[0]) / den
+        tb = ((r[0] - p[0]) * d1[1] - (r[1] - p[1]) * d1[0]) / den
+        if 0.0 <= ta <= 1.0 and 0.0 <= tb <= 1.0:
+            return 0.0
+    return min(pd(p, r, s), pd(q, r, s), pd(r, p, q), pd(s, p, q))
+
+
+def perimeter_corner_check(d, tol=0.02):
+    """**区画の隅で外周が閉じているか** — 隣り合う辺の run の**実足跡**で測る。
+
+    ⚠ 2026-08-31 の再検図で追加した。それまで隅を見る検査は一つも無かった —
+      `sashizu_lib.overlap_check` は `r["edge"] != gate["edge"]` で弾くので、
+      **門の辺以外の run は総当たりに一度も入らない**。当方はそれを知らずに
+      「重なりを消した」つもりで北東隅に 0.116m の素通しを作り、検図に捕まった。
+    ⭕ **めり込みは正常、隙間だけが欠陥**(メモリ「門と塀の閉じは『隙間>めり込み』」)。
+      塀は境界線に跨るので隅では必ず重なる。長屋は外面が境界線に載り、**妻面が隣の辺を塞ぐ**
+      (辺0 の s0〜4.61 に run が無いのはこれ。走り s だけで測ると穴に見えるので足跡で測る)。
+    ⛔ 門の開口は隅ではないのでここでは見ない(`gate_check` の担当)。
+    ⚠ 隅部材(`build_kado` の腕)は runs に居ないので、この検査からは見えない。
+      **腕で塞ぐ隅は帳簿の側で担保すること。**
+    """
+    P = d["polygon"]
+    n = len(P)
+    bad = []
+    for v in range(n):                                # 頂点 v = 辺(v-1) と 辺(v) の隅
+        ea, eb = (v - 1) % n, v
+        ra = [r for r in d["runs"] if r["edge"] == ea]
+        rb = [r for r in d["runs"] if r["edge"] == eb]
+        if not ra or not rb:
+            continue                                  # 片側に囲いが無い辺(相手が建てる)
+        ca = max(ra, key=lambda r: r["s1"])           # 頂点に一番近い run
+        cb = min(rb, key=lambda r: r["s0"])
+        fa, fb = _run_fp(d, ca), _run_fp(d, cb)
+        best = min(_seg_dist(fa[i], fa[(i + 1) % 4], fb[j], fb[(j + 1) % 4])
+                   for i in range(4) for j in range(4))
+        if best > tol:
+            bad.append("頂点P%d(辺%d %s ↔ 辺%d %s)の隅に素通し %.3fm"
+                       % (v, ea, ca["name"], eb, cb["name"], best))
+    return bad
+
+
 def seat_fill_check(d):
     """**面の縁と宣言した run の内側が、据面より落ち込んでいないか。**
     2026-08-24 検図: 段の多角形が区画線から最大4.5m離れており、その帯は段の外なので盛土されず、
@@ -2503,10 +2569,12 @@ def section_svg(d, sec):
             dd = (wx - qx) ** 2 + (wz - qz) ** 2
             if dd < best:
                 best, be, bs = dd, i, tt2 * math.sqrt(L2)
+        K9 = d["const"]["ken"]
         run = next((r for r in d["runs"] if r["edge"] == be and r["s0"] - 0.5 <= bs <= r["s1"] + 0.5), None)
         if run is None:
             continue                                  # 門の開口
-        hh = 5.3 if run["kind"] == "Nagaya" else d["const"]["dobeiH"]
+        hh = (d["const"]["nagayaH"] if run["kind"] == "Nagaya"
+              else d["const"]["dobeiH"])
         seat = rseat(run, bs)                         # 天端は一直線(水平 or 一定勾配)
         # ⛔ **基壇の足元は `edgeProfile` から取る**(断面の地盤線からではない)。
         #    同じ壁の露出が「断面の地盤」と「外周の展開」の二つの基準面から出ていて、
@@ -2514,13 +2582,16 @@ def section_svg(d, sec):
         gy = seat - _run_exposure(d, run, bs)
         if seat > gy + 0.05:                          # 基壇石垣
             bt9 = 2.4 * run["s"]          # 基壇の底厚(設計値)。固定1.8mで描いていた
-            # ⚠ 2026-08-31 検図: 外面を境界線に合わせる(中心合わせだと底厚の半分が区画外)
-            g.append(R(X(w), Y(seat), sx * bt9, (seat - gy) * sx * ex,
+            # ⚠ 2026-08-31 再検図: **単位を間へ揃える**(sx は px/間 なのに bt9 は m。門だけ /K していた)。
+            #   基準面は run の種別で決まる — 長屋は外面が境界線に載り、練塀は境界線に跨る。
+            _off = 0.0 if run["kind"] == "Nagaya" else -sx * bt9 / K9 / 2
+            g.append(R(X(w) + _off, Y(seat), sx * bt9 / K9, (seat - gy) * sx * ex,
                        fill=_pat(), stroke="var(--ishi)", sw=1.0))
         # ⚠ 2026-08-31 検図: kind で分ける。長屋は奥行 nagayaD(4.545m)で、練塀の 1.15m ではない。
         #   あわせて中心合わせをやめ、**外面を境界線に合わせて内側へ**取る(半分が区画外に出ていた)。
         wt9 = d["const"]["nagayaD"] if run["kind"] == "Nagaya" else d["const"]["dobeiT"]
-        g.append(R(X(w), Y(seat + hh), sx * wt9, hh * sx * ex,
+        _offw = 0.0 if run["kind"] == "Nagaya" else -sx * wt9 / K9 / 2
+        g.append(R(X(w) + _offw, Y(seat + hh), sx * wt9 / K9, hh * sx * ex,
                    fill=KC.get(run["kind"], "var(--dim)"), op=0.95))
         g.append(T(X(w), Y(seat + hh) - 5, "%s 天端%.2f 露出%.2f"
                    % (run["name"], seat, seat - gy), "jo", "middle"))
@@ -3450,6 +3521,10 @@ def main():
         print("⚠ 隣家の基壇との逆転 %d 件:" % len(lbad))
         for b in lbad:
             print("   ", b)
+    cbad = perimeter_corner_check(d)
+    print("外周の隅の閉じ: %d 件" % len(cbad))       # ⛔ 0件でも件数を必ず出す(黙って通さない)
+    for b in cbad:
+        print("    " + b)
     sbad = seat_fill_check(d)
     if sbad:
         print("⚠ 据面の内側の落ち込み %d 件:" % len(sbad))

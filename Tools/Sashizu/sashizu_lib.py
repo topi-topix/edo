@@ -52,8 +52,22 @@ def s_sign(d):
     岡部は `s = 14.37 − 1.818·u`(逆向き=−1)。ここを +1 に決め打ちしていたため、
     岡部の門の辺の run が**表門をはさんだ反対側**の箱として検査されており、
     重なりを構造的に見つけられなかった(2026-08-31 検図)。
-    既定は +1 なので、宣言していない邸の挙動は変わらない。"""
-    return -1.0 if d.get("grid", {}).get("sSign", 1) < 0 else 1.0
+
+    ⭐ **宣言でなく算出する。** `grid.sSign` の明示があればそれを使うが、
+    無ければ **u 軸の世界ベクトルと門の辺の向きの内積**から決める。
+    宣言に頼ると次の邸が書き忘れて同じ穴に落ちる(2026-08-31 再検図)。"""
+    g = d.get("grid", {})
+    if "sSign" in g:
+        return -1.0 if g["sSign"] < 0 else 1.0
+    uv = g.get("uWorld")            # [ux, uz] — 生成器が入れていれば使う
+    P9 = d.get("polygon")
+    e9 = d.get("gate", {}).get("edge")
+    if uv and P9 is not None and e9 is not None:
+        a9, b9 = P9[e9], P9[(e9 + 1) % len(P9)]
+        dot = uv[0] * (b9[0] - a9[0]) + uv[1] * (b9[1] - a9[1])
+        if abs(dot) > 1e-9:
+            return 1.0 if dot > 0 else -1.0
+    return 1.0
 
 
 def _pat(): return "url(#pi%d)" % _SVN[0]

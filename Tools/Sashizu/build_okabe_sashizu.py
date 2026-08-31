@@ -3086,9 +3086,13 @@ def gate_svg(d):
     g.append(LN(0, GY, W, GY, "var(--ink)", 1.6))
     g.append(T(4, GY + 16, "三べ坂前身の南北道。敷居=門前面の地盤=道なり", "anS2", "start"))
     g.append(T(4, 15, "正面見付(概略・等倍)。型式=現存実例2件[山脇]A・[西澄寺]A ＋ 格式階梯B/実在と被災=安政地震の記録(S)", "anS"))
-    g.append(T(4, 29, "⚠ 門の棟 %.2f(敷居%.2f+%.2f)に対し袖の表長屋の棟は %.2f(座%.2f+%.2f) — **長屋が %.2fm 高い**。"
-               "長屋門は両袖より高いのが型なので要裁定" % (d["gate"]["sill"] + monH, d["gate"]["sill"], monH,
-               seatN + nagH9, seatN, nagH9, (seatN + nagH9) - (d["gate"]["sill"] + monH)), "anS"))
+    _dm = (d["gate"]["sill"] + monH) - (seatN + nagH9)
+    g.append(T(4, 29, "門の棟 %.2f(敷居%.2f+%.2f)／袖の表長屋の棟 %.2f(座%.2f+%.2f) — %s。"
+               "門は街路に、袖は門前面の段に載るので %.2fm の段差がある"
+               % (d["gate"]["sill"] + monH, d["gate"]["sill"], monH, seatN + nagH9, seatN, nagH9,
+                  ("**門が %.2fm 高い**(長屋門は両袖より高いのが型)" % _dm) if _dm > 0.01
+                  else "⚠ **袖のほうが %.2fm 高い — 格式が逆転している。要裁定**" % (-_dm),
+                  seatN - d["gate"]["sill"]), "anS"))
     g.append("</svg>")
 
     # 平面

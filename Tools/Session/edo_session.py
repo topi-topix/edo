@@ -804,6 +804,91 @@ def cmd_worktree(a):
     return 0
 
 
+#   ⛔ **worktree の Tools/Session/ と CLAUDE.md は放っておくと古くなる(EDO-0076/0077)。**
+#   sparse worktree に Tools/ が入るのは Tools/Sashizu/(各邸が自分の生成器を編集・実行する)
+#   ために必要だが、同じ checkout に来る Tools/Session/ は main へマージするまで古いまま —
+#   動いてしまうのに古いコードなので気づけない(2026-08-31、wait/unwait が invalid choice に
+#   なり「入口ごとに判定が違う」と誤診された)。CLAUDE.md も同様で、外堀の worktree は
+#   基準年次が「嘉永期」のまま残っていた。
+#   フックは main の絶対パスを使うよう直したが、**セッションが手で相対パスから叩く経路**と
+#   **worktree の CLAUDE.md を読む経路**は残る。これを1コマンドで揃える。
+SYNC_PATHS = ["Tools/Session", "CLAUDE.md", "docs/session-coordination.md",
+              "docs/session-board.md", "docs/reporting-protocol.md", ".claude/hooks"]
+
+
+def cmd_sync_tools(a):
+    """main の運用ファイル(門番のツール・不変則・作法)を全 worktree の作業ツリーへ配る。
+    ⚠ **コミットはしない。** 各 worktree のブランチに勝手なコミットを積むと、その邸の
+    履歴に無関係な変更が混ざる(CLAUDE.md 規則4 の「経緯は git log で追う」が崩れる)。
+    作業ツリーのファイルだけを main の内容に合わせ、コミットするかは各セッションに委ねる。"""
+    main_root = os.path.dirname(_common_git_dir())
+    r = subprocess.run(["git", "-C", ROOT, "worktree", "list", "--porcelain"],
+                       capture_output=True, text=True).stdout
+    targets = []
+    for blk in r.split("\n\n"):
+        wp = None
+        for ln in blk.split("\n"):
+            if ln.startswith("worktree "):
+                wp = ln[9:]
+        if wp and os.path.realpath(wp) != os.path.realpath(main_root):
+            targets.append(wp)
+    if not targets:
+        print("worktree は無い(main だけ)")
+        return 0
+    total = 0
+    for wp in targets:
+        changed = []
+        for rp in SYNC_PATHS:
+            src = os.path.join(main_root, rp)
+            dst = os.path.join(wp, rp)
+            if not os.path.exists(src):
+                continue
+            # その worktree が sparse でそのパスを持っていなければ触らない(増やさない)
+            if not os.path.exists(os.path.dirname(dst) or wp):
+                continue
+            if os.path.isdir(src):
+                for fn in sorted(os.listdir(src)):
+                    if not fn.endswith((".py", ".md")):
+                        continue
+                    s2, d2 = os.path.join(src, fn), os.path.join(dst, fn)
+                    if not os.path.isdir(dst):
+                        continue
+                    if _copy_if_diff(s2, d2):
+                        changed.append(os.path.join(rp, fn))
+            else:
+                if os.path.exists(dst) and _copy_if_diff(src, dst):
+                    changed.append(rp)
+        if changed:
+            total += len(changed)
+            print("%s\n  更新 %d 件: %s" % (wp, len(changed), ", ".join(changed[:6])))
+        elif a.verbose:
+            print("%s\n  変更なし" % wp)
+    print("— %d worktree を確認 / %d ファイルを main に合わせた" % (len(targets), total))
+    if total:
+        print("⚠ **コミットはしていない。** 各 worktree のセッションが自分のブランチへ"
+              "含めるかは各自の判断(運用ファイルなので、通常は次の作業コミットに混ぜず"
+              "`git checkout -- <パス>` で戻してもよい — フックは main の実体を使うため)。")
+    return 0
+
+
+def _copy_if_diff(src, dst):
+    try:
+        with io.open(src, encoding="utf-8") as f:
+            a = f.read()
+        with io.open(dst, encoding="utf-8") as f:
+            b = f.read()
+    except Exception:
+        return False
+    if a == b:
+        return False
+    try:
+        with io.open(dst, "w", encoding="utf-8") as f:
+            f.write(a)
+        return True
+    except Exception:
+        return False
+
+
 def cmd_worktrees(a):
     r = subprocess.run(["git", "-C", ROOT, "worktree", "list", "--porcelain"],
                        capture_output=True, text=True).stdout
@@ -861,6 +946,11 @@ def main():
     p.add_argument("--full", action="store_true", help="Assets も含める(Unity を開くなら)")
     p.set_defaults(fn=cmd_worktree)
     sub.add_parser("worktrees").set_defaults(fn=cmd_worktrees)
+    p = sub.add_parser("sync-tools",
+                       help="main の門番ツール・不変則・作法を全 worktree の作業ツリーへ配る"
+                            "(コミットはしない。EDO-0076/0077)")
+    p.add_argument("--verbose", action="store_true", help="変更が無い worktree も出す")
+    p.set_defaults(fn=cmd_sync_tools)
     p = sub.add_parser("commit"); p.add_argument("paths", nargs="+")
     p.add_argument("-m", "--message", required=True); p.set_defaults(fn=cmd_commit)
     a = ap.parse_args()

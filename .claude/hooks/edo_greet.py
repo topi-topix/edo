@@ -64,3 +64,21 @@ if os.path.exists(CLI):
           "**全項目に番号と題**(報告・共有にも。無題の段落を置かない)。選択肢は **A/B/C**。"
           "裁定は一通に最大3件・各件6点セット(どこ/背景2文/選択肢/推奨/影響/裁定図)。"
           "⛔ 地の文の末尾に問いを埋めない。⭐ 狙いは「1=A、2=B」「報告3だけ違う」で返せる形。")
+
+# ⛔ worktree の CLAUDE.md は main へマージするまで古いまま(EDO-0077)。
+#   このセッションが読んでいる不変則が最新かどうかを、起動時に一度だけ確かめる。
+if os.path.abspath(ROOT) != os.path.abspath(MAIN_ROOT):
+    a = os.path.join(ROOT, "CLAUDE.md")
+    b = os.path.join(MAIN_ROOT, "CLAUDE.md")
+    try:
+        if os.path.exists(a) and os.path.exists(b) and open(a, encoding="utf-8").read() != \
+                open(b, encoding="utf-8").read():
+            print("⚠ **この worktree の CLAUDE.md は main と食い違っている。**"
+                  "sparse worktree は sashizu/<邸> ブランチへ main を取り込むまで更新されない"
+                  "(2026-08-31、外堀セッションが基準年次の記述違いで実際に踏んだ)。"
+                  "不変則(基準年次・絶対規則の番号など)を当てにする前に "
+                  "`diff %s %s` で差分を確認すること。"
+                  " Tools/Session/ のコマンドはフックが自動で main の最新版を使うのでこの限りではない。"
+                  % (a, b))
+    except Exception:
+        pass

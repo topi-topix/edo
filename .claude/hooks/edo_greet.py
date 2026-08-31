@@ -57,6 +57,17 @@ if os.path.exists(CLI):
             print(b.stdout.strip())
             print("報告・裁定要請の作法は **docs/session-board.md**(節目・ブロッカー・裁定要請だけ"
                   " post。自己検図・自己考証は**ユーザー入力なしに3巡まで**)。")
+    # 検図関門 — この指図を誰が検めたか。⛔ 2026-09-01、松江松平の庭が**庭方に一度も
+    #   検められないまま実装され**、ユーザーに差し戻された。ルーティング表に庭方は載って
+    #   いたのに、通さなくても何も起きなかった。散文の規則は破れるので機械で見張る。
+    rcli = os.path.join(MAIN_ROOT, "Tools", "Sashizu", "review_gate.py")
+    if os.path.exists(rcli):
+        r = subprocess.run([sys.executable, rcli, "--quiet"], capture_output=True, text=True, env=env)
+        if r.stdout.strip():
+            print(r.stdout.strip())
+            print("  ⛔ **関門が赤の指図を実装しない・赤のシーンをユーザーに見せない。**"
+                  " 検分に出して、結果を `review_gate.py --record <屋敷> <役> <pass|fail>` で"
+                  "**呼んだ側が書き戻す**(検分役は read-only で自分では書けない)。")
     # ⛔ 書き方の作法(規則16)。メッセージは揮発するので、起動のたびにここで通達する。
     #   2026-08-30 ユーザー指摘「どの質問や裁定にどう回答して良いか非常に困る」。
     print("⛔ **ユーザーへ書く前に `docs/reporting-protocol.md`(規則16・一件一葉)。**"

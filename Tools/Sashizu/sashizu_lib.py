@@ -757,7 +757,11 @@ def kenpei(d, area, tsubo, svc_label, nagaya_label, ban_label):
              for s in d["service"]) * K * K
     nag = sum((r["s1"] - r["s0"]) * d["const"]["nagayaD"] for r in d["runs"] if r["kind"] == "Nagaya")
     bs = d["gate"]["plan"]["bansho"]
-    ban = bs["count"] * bs.get("w", 0) * bs.get("d", 0)   # 長屋門は番所が躯体内=別計上なし
+    # ⛔ **躯体内の番所は別計上しない**(長屋門の桁行×梁間に既に含まれる)。
+    #    ⚠ 2026-08-31 五巡目: コメントは「躯体内=別計上なし」と書きながら**足していた**。
+    #    岡部で 6.48 m²(建蔽率 0.02pt)の二重計上。`bansho.kind` が「躯体内」を含むかで分ける。
+    ban = (0.0 if "躯体内" in str(bs.get("kind", ""))
+           else bs["count"] * bs.get("w", 0) * bs.get("d", 0))
     yag = sum((y["ken"] * K) ** 2 for y in d.get("yagura", []))
     gp = d["gate"]["plan"]
     mon = gp["monW"] * gp.get("monD", 1.2) + 2 * gp.get("sode", 0) * 0.4 \

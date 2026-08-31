@@ -511,6 +511,8 @@ def footprint_support_check(d, step=0.02, tol=0.01):
       測らないので、奥行 4.545m の長屋は**足跡の 3.3m ぶんが一度も標本されない**。
       「据面 0 件」は「長屋の内側 3.3m は測っていない」を含んでいた。
     ⛔ 現況が合格でも検査は要る — 辺12 の縁を 0.30m 動かすだけで 24.9m² の床が浮く。
+    ⚠ **この検査は一度恒真だった**(2026-08-31 五巡目)。0 件を見ても効いている証拠にならないので、
+      直したら必ず**破壊試験**(段の poly を潰し、全 run の `s` を 0.01 に落とす)で件数が出ることを確かめる。
     ⭕ 支えは段(`terraces[].poly`)**または**基壇石垣の天端(内向き 0〜2.4·s)。
       犬走りの帯は段の外だが基壇が受けるので、両方の和で測る。
     """
@@ -556,10 +558,14 @@ def footprint_support_check(d, step=0.02, tol=0.01):
                     #    「載っていない」と誤検出する(2026-08-31: 0.004 m² が 0.87 m² に化けた)。
                     # ⭕ **隣の辺の基壇も支えになる。** 隅では自分の辺の帯を外れても、
                     #    直交する辺の基壇(P0 では SE_Hei・底厚 1.8m)が受ける。
-                    on_base = any(a8[0] <= 0 or True and
-                                  -1e-9 <= (x - a8[0]) * n8x + (y - a8[1]) * n8y <= bt8 + 1e-9 and
-                                  r8s0 - 1e-9 <= ((x - a8[0]) * ex8 + (y - a8[1]) * ey8) <= r8s1 + 1e-9
-                                  for (a8, n8x, n8y, bt8, ex8, ey8, r8s0, r8s1) in bands)
+                    # ⛔ **2026-08-31 五巡目**: ここに `a8[0] <= 0 or True and …` と書いていた。
+                    #    `a8[0]` は辺の始点の**世界座標 X** で当区画は13頂点すべて x<0 なので、
+                    #    第1項が常に真=**この検査は恒真だった**(支えを全部消しても 0 件を返した)。
+                    #    検図が破壊試験で捕まえた。⭕ 現況の幾何は無罪で、壊れていたのは検査だけ。
+                    on_base = any(
+                        (-1e-9 <= (x - a8[0]) * n8x + (y - a8[1]) * n8y <= bt8 + 1e-9)
+                        and (r8s0 - 1e-9 <= (x - a8[0]) * ex8 + (y - a8[1]) * ey8 <= r8s1 + 1e-9)
+                        for (a8, n8x, n8y, bt8, ex8, ey8, r8s0, r8s1) in bands)
                     if not (on_ter or on_base):
                         miss += step * step
                 y += step
@@ -1332,6 +1338,35 @@ def _fit_note(d):
                               for a, b, c, f, lo, hi in sorted(ng, key=lambda q: -q[1]))
                  + "。")
     return head + tail
+
+
+def _cert_sig(c):
+    """確度の欄に出す記号だけを抜く(S/A/B/P/U)。本文は表の下の脚注へ畳む。
+    ⚠ 2026-08-31 五巡目: 確度の欄に約400字の同じ文を22行ぶん刷っており表として読めなかった。
+      記号は本文の `…=**S**` の形から拾う。"""
+    import re as _re
+    sig = []
+    for m9 in _re.finditer(r"=\s*\**([SABPU])\**(?![A-Za-z])", c or ""):
+        if m9.group(1) not in sig:
+            sig.append(m9.group(1))
+    return "/".join(sig) if sig else "—"
+
+
+def _max_joint_where(d):
+    """天端の段差が最大になる継ぎ目が、隅なのか辺の中なのかを言う。
+    ⚠ 2026-08-31 五巡目: リード文が「最大 2.63m(**隅を含む**)」と書いていたが、
+      実際は辺1 の中間の継ぎ目(s=66)で、隅の最大は 2.22m だった。"""
+    best = (0.0, None, None)
+    for x, y in _joints(d):
+        dz = abs(rseat(y, y["s0"]) - rseat(x, x["s1"]))
+        if dz > best[0]:
+            best = (dz, x, y)
+    if best[1] is None:
+        return "—"
+    x, y = best[1], best[2]
+    if x["edge"] == y["edge"]:
+        return "辺%d s=%.0f の継ぎ目" % (x["edge"], x["s1"])
+    return "辺%d と辺%d の隅" % (x["edge"], y["edge"])
 
 
 def _joints(d):
@@ -3074,15 +3109,29 @@ def gate_svg(d):
     g.append(R(X(wing + monW / 2 + 0.05), Y(3.0), X(monkuchi / 2 - 0.15), 3.0 * sx,
                fill="var(--ink-lo)", stroke="var(--ink)", sw=0.8))
     g.append(T(X(wing + monW / 2), Y(3.4), "門口(内開き・潜り戸)", "anS2", "middle"))
-    # 出格子番所(躯体内・両側)
-    for cx in (wing + monW * 0.22, wing + monW * 0.78):
-        g.append(R(X(cx - 1.6), Y(2.4), X(3.2), 1.9 * sx, fill="var(--dan)", stroke="var(--ink)", sw=1.0))
-        for i in range(8):
-            xx = X(cx - 1.4 + i * 0.36)
-            g.append(LN(xx, Y(2.3), xx, Y(0.7), "var(--ink)", 0.8, op=0.75))
-    bnm = d["gate"]["plan"].get("bansho", {}).get("kind", "番所")
-    g.append(T(X(wing + monW * 0.22), Y(2.8), bnm, "anS2", "middle"))
-    g.append(T(X(wing + monW * 0.78), Y(2.8), bnm, "anS2", "middle"))
+    # 番所 — ⚠ 2026-08-31 五巡目まで幅3.2m・躯体の22%/78%位置・高さ1.9 が直書きで、
+    #   設計(桁行9間 = 門戸6間 + **両端の**番所 各1.5間)と一致していなかった(規則4違反)。
+    #   ⭕ 幅は `bansho.w`、位置は**両端**、高さは `bansho.h` から引く。
+    bs = d["gate"]["plan"].get("bansho", {})
+    bw = bs.get("w", 2.7); bh = bs.get("h", 1.9)
+    for x0b in (wing, wing + monW - bw):
+        g.append(R(X(x0b), Y(bh + 0.5), X(bw), bh * sx, fill="var(--dan)", stroke="var(--ink)", sw=1.0))
+        k9 = max(2, int(bw / 0.36))
+        for i in range(k9):
+            xx = X(x0b + 0.2 + i * (bw - 0.4) / max(k9 - 1, 1))
+            g.append(LN(xx, Y(bh + 0.4), xx, Y(0.7), "var(--ink)", 0.8, op=0.75))
+    bnm = bs.get("kind", "番所")
+    g.append(T(X(wing + bw / 2), Y(bh + 0.9), bnm, "anS2", "middle"))
+    g.append(T(X(wing + monW - bw / 2), Y(bh + 0.9), bnm, "anS2", "middle"))
+    # ⭕ 2026-08-31 五巡目: 袖の表長屋が地盤線の 1.05m 上に浮いて見えていた。受けている
+    #    石垣基壇(辺12・s=1.0 → 底厚 2.4m)と門前面の地盤線を描く。断面は要らない —
+    #    段差は壁の走り方向に起きるので、辺に直交する横断面には原理的に出ない。
+    for x0 in (0.0, total - wing):
+        g.append(R(X(x0), Y(dh9), X(wing), dh9 * sx,
+                   fill=_pat(), stroke="var(--ishi)", sw=0.8))
+    g.append(LN(X(0), Y(dh9), X(wing), Y(dh9), "var(--ink)", 1.2))
+    g.append(LN(X(total - wing), Y(dh9), X(total), Y(dh9), "var(--ink)", 1.2))
+    g.append(T(X(wing / 2), Y(dh9) + 11, "門前面 %.2f(石垣基壇が受ける)" % seatN, "anS2", "middle"))
     g.append(LN(0, GY, W, GY, "var(--ink)", 1.6))
     g.append(T(4, GY + 16, "三べ坂前身の南北道。敷居=門前面の地盤=道なり", "anS2", "start"))
     g.append(T(4, 15, "正面見付(概略・等倍)。型式=現存実例2件[山脇]A・[西澄寺]A ＋ 格式階梯B/実在と被災=安政地震の記録(S)", "anS"))
@@ -3105,10 +3154,11 @@ def gate_svg(d):
     g2.append(R(0, wy - 8, X2(wing), 16, fill="var(--nagaya)", op=0.85))
     g2.append(R(X2(total - wing), wy - 8, X2(wing), 16, fill="var(--nagaya)", op=0.85))
     g2.append(R(X2(wing), wy - 10, X2(monW), 20, fill="var(--nagaya)", stroke="var(--ink)", sw=1.2))
-    g2.append(R(X2(wing + monW / 2 - 1.8), wy - 10, X2(3.6), 20, fill="var(--paper2)", stroke="var(--ink)", sw=1.0))
+    g2.append(R(X2(wing + monW / 2 - monkuchi / 2), wy - 10, X2(monkuchi), 20,
+                fill="var(--paper2)", stroke="var(--ink)", sw=1.0))
     g2.append(T(X2(wing + monW * 0.22), wy + 2, "番所", "anS2", "middle"))
     g2.append(T(X2(wing + monW * 0.78), wy + 2, "番所", "anS2", "middle"))
-    g2.append(T(X2(wing + monW / 2), wy - 16, "門口 3.6m", "anS2", "middle"))
+    g2.append(T(X2(wing + monW / 2), wy - 16, "門口 %.3fm" % monkuchi, "anS2", "middle"))
     g2.append(T(4, H2 - 8, "長屋門の躯体(桁行%.1fm×梁間%.1fm)に番所が入る。両袖は**表長屋**(奥行%.3fm)へ継ぐ" % (monW, monD, d["const"]["nagayaD"]), "anS2", "start"))
     g2.append("</svg>")
     return "\n".join(g) + "\n" + "\n".join(g2)
@@ -3164,11 +3214,18 @@ def runs_table(d):
                        ("%.2f" % y0r) if abs(y0r - y1r) < 0.02 else ("%.2f → %.2f" % (y0r, y1r)),
                        ("%.2f–%.2f" % run_base(d, r))
                        if r.get("base") else "—",
-                       r.get("on", "—"), inline(r.get("cert", ""))))
+                       r.get("on", "—"), _cert_sig(r.get("cert", ""))))
+    # ⚠ 2026-08-31 五巡目: 確度の欄に約400字の同じ文を22行ぶん刷っており、表として読めなかった。
+    #   ⭕ 欄は記号だけにし、本文は種別ごとに1つの脚注へ畳む。
+    notes = []
+    for kind9, lab9 in (("Nagaya", "表長屋"), ("Dobei", "練塀")):
+        c9 = next((r.get("cert", "") for r in d["runs"] if r["kind"] == kind9 and r.get("cert")), "")
+        if c9:
+            notes.append("<p class='cap'><b>%s の確度</b> — %s</p>" % (lab9, inline(c9)))
     return ('<div class="tw"><table><thead><tr><th>run</th><th>辺</th><th>走り s</th><th>長さ</th>'
             "<th>種別</th><th>天端 seat</th><th>基壇の露出</th><th>何の縁か</th>"
-            "<th class='note'>確度</th></tr></thead><tbody>"
-            + "".join(rows) + "</tbody></table></div>")
+            "<th>確度</th></tr></thead><tbody>"
+            + "".join(rows) + "</tbody></table></div>" + "".join(notes))
 
 
 def walls_table(d):
@@ -4154,11 +4211,12 @@ def main():
              '堀端(辺5)だけ木柵。<b>種別が練塀であることは確度S</b>、'
              '<b>帰属と全周は確度U(当方の裁定)</b>。'
              '<b>天端は run ごとに一直線</b> — 面の縁は水平、斜面は一定勾配。'
-             '段は run の継ぎ目と隅でだけ落ち、最大 %.2fm(隅を含む)。犬走り %.2fm。</p>'
+             '段は run の継ぎ目と隅でだけ落ち、最大 %.2fm(%s)。犬走り %.2fm。</p>'
              % (len(set(r["edge"] for r in d["runs"])),
                 "・辺".join(str(e) for e in blankE),
                 max([0.0] + [abs(rseat(y, y["s0"]) - rseat(x, x["s1"]))
                              for x, y in _joints(d)]),
+                _max_joint_where(d),
                 d["const"]["inubashiri"]))
     h.append("</div>")
 

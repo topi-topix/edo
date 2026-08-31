@@ -75,11 +75,16 @@ SLICES = [
             "⚠ **現代**の地面で、跡地(国会前庭〜議員会館まわり)の近代造成を含む。",
     ),
     dict(
-        name="sanno_dem.json", x0=-660, z0=636, step=2, nx=146, nz=171, nd=1, style="compact",
+        name="sanno_dem.json", x0=-694, z0=598, step=2, nx=185, nz=206, nd=1, style="compact",
         parcels=["sannosha_prec", "sannosha_kanri", "sannobuke_juge"]
                 + [f"sannojubo_parcels_{i}" for i in range(10)],
         doc="山王権現社まわりの造成前の地形【確度P】。世界座標の格子。h[iz][ix]=標高m。"
             "生成器 build_sanno_sashizu.py が §3a 現況図・§3b 切盛図でこれを読む。",
+        # ⚠ 2026-08-31(EDO-0014 解決): x[-660,-370] z[636,976] では**樹下邸の東を 2.7m 欠いて**いた。
+        #   区画+余白40m の x[-694,-326] z[598,1008] へ広げた。
+        #   ⭕ 当初は正本が x[-800,-330] z[600,1340] までしか無く東を -330 でクリップしたが、
+        #   b32e2bc(2026-08-30・京極の切り出しの新設)で正本が東と南へ広がったため、
+        #   マージ時に**本来の余白40mへ戻した**。既存の標高値は動かず、セルが増えるだけ。
     ),
 ]
 

@@ -697,29 +697,86 @@
  ],
  "_terraceWalls": "郭内の土留め。壁高=4.0×s / 天端幅=1.4×s / 底厚=2.4×s。回転フレームの線分(間)。**ここに線を引いた縁だけが垂直(石垣が受ける)**。引かなかった段の縁は法面(盛土1:batterFill / 切土1:batterCut)で現地形へ着地する。表郭と主平面の段差は0.3mしかないので土留めは置かない(石段1段と縁石で納める)。",
  "terraceWalls": [],
- "_slopeBands": "斜面の植生。『江戸名所図会』溜池(NDL pid2563386 コマ18)を実見すると、崖面は 稜線=樹林 / 法面=ハッチング(草地・裸地)で、樹は稜線と法面上部に集まる。**法面全体を樹林で埋めない。** 帯は法肩からの下りの割合(0=法肩, 1=法尻)。",
+ "_slopeBands": "斜面の植生の帯。『江戸名所図会』溜池(NDL pid2563386 コマ18)を実見すると、崖面は 稜線=樹林 / 法面=ハッチング(草地・裸地)で、**樹は稜線と法面上部に集まる。法面全体を樹林で埋めない。**帯は法肩からの落差の割合 t(定義は `_slopeArea`)。\n`dens` = **本/100m² の許容範囲**(役ごと)。面積は生成器が造成前 DEM から算出するので指図には書かない。実際に置く本数と部材は `slopePlanting`。⛔ **竹叢を置かない**(江戸の水辺79事例中1例 [橋本・堀1998]。斜面=竹林は誤り)。⛔ ポプラ(NatureManufacture の広葉高木)は江戸に使えない。",
  "slopeBands": [
   {
-   "name": "法肩〜上部",
+   "name": "帯A 法肩〜上部",
    "from": 0.0,
    "to": 0.33,
-   "veg": "黒松(疎)+雑木の樹林",
-   "asset": "JG.PineBig01-03 / JC.Azalea・Boxwood(下草)",
-   "_": "外から御殿を隠し、内から緑の間に溜池を望む([橋本・堀1998] 幕府御用地の緑の形態)"
+   "veg": "黒松の疎林 + 雑木(常緑広葉樹は裁定待ち)+ 灌木",
+   "ground": "草スプラット(樹下は落葉色を混ぜる)",
+   "dens": {
+    "高木": [
+     1.15,
+     1.65
+    ],
+    "中木": [
+     0.75,
+     1.25
+    ],
+    "低木": [
+     0.5,
+     1.2
+    ],
+    "下草": [
+     0.0,
+     0.0
+    ]
+   },
+   "_": "外から御殿を隠し、内から緑の間に溜池を望む([橋本・堀1998] 幕府御用地の緑の形態)。**帯の中でも法肩の 1.6〜5.0m は遮蔽の列**(`slopeArea.screen`)で、残りは散布。⚠ 高木の密度がこの帯だけ高いのは『稜線に樹が集まる』の数値化"
   },
   {
-   "name": "中部",
+   "name": "帯B 中部",
    "from": 0.33,
    "to": 0.7,
-   "veg": "低木・下草",
-   "asset": "JC.Azalea01/03 / JG.Boxwood01"
+   "veg": "灌木と下草のみ(高木・中木を置かない)",
+   "ground": "草スプラット + 土の見える斑(名所図会のハッチング)",
+   "dens": {
+    "高木": [
+     0.0,
+     0.0
+    ],
+    "中木": [
+     0.0,
+     0.0
+    ],
+    "低木": [
+     5.0,
+     8.0
+    ],
+    "下草": [
+     0.0,
+     0.0
+    ]
+   },
+   "_": "実測の勾配が 1:1 前後(45°)まで立つ区間。**高木を置かない** — 名所図会の法面はハッチングで、樹は上部に寄っている。⚠ 灌木は**鉛直に立てる**(斜面に合わせて倒さない)"
   },
   {
-   "name": "下部〜裾",
+   "name": "帯C 下部〜裾",
    "from": 0.7,
    "to": 1.0,
-   "veg": "草地",
-   "asset": "スプラット(草)のみ・高木を置かない"
+   "veg": "草地のみ",
+   "ground": "草スプラット",
+   "dens": {
+    "高木": [
+     0.0,
+     0.0
+    ],
+    "中木": [
+     0.0,
+     0.0
+    ],
+    "低木": [
+     0.0,
+     0.0
+    ],
+    "下草": [
+     0.0,
+     0.0
+    ]
+   },
+   "noPlanting": true,
+   "_": "堀端通りへ落ちる裾と、辺6〜9 沿いの平坦な裾(8.9m)。**何も植えない** — 地表の仕上げだけで受ける。⛔ 木を足したくなったら典拠から起こすこと(広重「赤坂桐畑」の対岸は木柵と草地で、樹は上に見える)"
   }
  ],
  "_rails": "郭の縁の竹垣(四つ目垣)。高さ0.9m・法肩から内へ0.45m。西斜面・南西ウェッジの crest に回す(岡部 指図の作法と同じ: 落差のある生活面を素の縁にしない)。回転フレームの折れ線(間)。",
@@ -909,7 +966,7 @@
    "name": "N_Nagaya_E2",
    "edge": 12,
    "s0": 152.0,
-   "s1": 168.1,
+   "s1": 167.87,
    "kind": "Nagaya",
    "seat": 28.3,
    "nijukai": true,
@@ -921,7 +978,7 @@
   {
    "name": "N_Hei_E",
    "edge": 12,
-   "s0": 168.1,
+   "s0": 167.87,
    "s1": 172.07,
    "kind": "Dobei",
    "seat": 28.7,
@@ -1113,23 +1170,9 @@
    "cert": "種別=B(屋敷境は練塀という類型。当家の塀種の史料は無い) / 帰属=U(境の実体は1条・松平が持つという裁定) / 天端=P/U(DEM 実測の地盤からの算出)"
   },
   {
-   "name": "S_Hei_Doi_S1",
-   "edge": 3,
-   "s0": 3.68,
-   "s1": 4.4,
-   "kind": "Dobei",
-   "seat": 17.0,
-   "seat0": 17.0,
-   "seat1": 17.0,
-   "base": "Ishigaki",
-   "on": "斜面",
-   "_": "土井境の西端。緩い下り。**2026-08-23 に木柵から練塀へ【ユーザー裁定U】** — 岡部側と規則を一本化: **相手が屋敷なら勾配によらず練塀**。天端は run 内で一直線(斜面は一定勾配)。石垣基壇の露出は最大 1.74m(規則の上限2.5m) **2026-08-29(EDO-0053)**: 天端を seat0→seat1 で下る指定にすると、実装は 2m 刻みに割って各片を水平に据えるので **段が 0.182m になり、瓦一段(0.17m)より小さくて『ずれ』にしか見えない**(既存の土井境で実測 0.06m)。段は読める大きさ(0.25〜0.60m)にまとめる — **段ごとに run を分け、各 run は水平**(辺0 の E1/E2/E3 と同じ作法)。 この run は水平 17.00m・s0.0〜4.4。石垣で受ける高さ 内 2.19m / 外面の露出 1.78m(駒の丈 4.00m のうち)",
-   "cert": "種別=B(屋敷境は練塀という類型。当家の塀種の史料は無い) / 帰属=U(境の実体は1条・松平が持つという裁定) / 天端=P/U(DEM 実測の地盤からの算出)"
-  },
-  {
    "name": "S_Hei_Doi_S1b",
    "edge": 3,
-   "s0": 4.4,
+   "s0": 3.68,
    "s1": 8.8,
    "kind": "Dobei",
    "seat": 16.5,
@@ -1137,7 +1180,7 @@
    "seat1": 16.5,
    "base": "Ishigaki",
    "on": "斜面",
-   "_": "土井境の西端。緩い下り。**2026-08-23 に木柵から練塀へ【ユーザー裁定U】** — 岡部側と規則を一本化: **相手が屋敷なら勾配によらず練塀**。天端は run 内で一直線(斜面は一定勾配)。石垣基壇の露出は最大 1.74m(規則の上限2.5m) **2026-08-29(EDO-0053)**: 天端を seat0→seat1 で下る指定にすると、実装は 2m 刻みに割って各片を水平に据えるので **段が 0.182m になり、瓦一段(0.17m)より小さくて『ずれ』にしか見えない**(既存の土井境で実測 0.06m)。段は読める大きさ(0.25〜0.60m)にまとめる — **段ごとに run を分け、各 run は水平**(辺0 の E1/E2/E3 と同じ作法)。 この run は水平 16.50m・s4.4〜8.8。石垣で受ける高さ 内 1.92m / 外面の露出 1.74m(駒の丈 4.00m のうち)",
+   "_": "土井境の西端。緩い下り。**2026-08-23 に木柵から練塀へ【ユーザー裁定U】** — 岡部側と規則を一本化: **相手が屋敷なら勾配によらず練塀**。天端は run 内で一直線(斜面は一定勾配)。石垣基壇の露出は最大 1.74m(規則の上限2.5m) **2026-08-29(EDO-0053)**: 天端を seat0→seat1 で下る指定にすると、実装は 2m 刻みに割って各片を水平に据えるので **段が 0.182m になり、瓦一段(0.17m)より小さくて『ずれ』にしか見えない**(既存の土井境で実測 0.06m)。段は読める大きさ(0.25〜0.60m)にまとめる — **段ごとに run を分け、各 run は水平**(辺0 の E1/E2/E3 と同じ作法)。 この run は水平 16.50m・s4.4〜8.8。石垣で受ける高さ 内 1.92m / 外面の露出 1.74m(駒の丈 4.00m のうち) ⚠ 2026-08-30: 隅 P3 の腕(3.705m)を gap 0.00 で受けたため、手前に 0.72m の切れ端(旧 S_Hei_Doi_S1・座 17.0)が残った。練塀の駒(2.00m)より短く実装へ渡らないので**畳んだ**。天端の段は s4.40 → s3.68 へ 0.72m 動くが、辺3 は 40.9m で 6.5m 下る斜面なので折れ線に対しては誤差。",
    "cert": "種別=B(屋敷境は練塀という類型。当家の塀種の史料は無い) / 帰属=U(境の実体は1条・松平が持つという裁定) / 天端=P/U(DEM 実測の地盤からの算出)"
   },
   {
@@ -1391,8 +1434,8 @@
     "w": 3.0,
     "h": 2.8,
     "cert": "B",
-    "_": "通用門の扉【類型B】。開口幅いっぱいの両開き。⭐ **2026-08-29: 扉は edogoyomi の冠木門の躯体が最初から持っている**(`doorl`/`doorr`/`sdoorl`/`sdoorr`)。**別部材の扉を上から重ねない** — 重ねると Gate Castle のマテリアルがテクスチャを持たないため門の顔が真っ白な板で覆われ、冠木も自前の扉も見えなくなる(実装で実際に起きて撤去した)。実装は門の名前で決め打ちせず、**据えた門の実メッシュに doorl/doorr があるかを見て**判断する。⛔ 開口が閉じている事実はここに残す — leaf を消すと閉じ検査が『素通し』と誤判定する。",
-    "by": "門の躯体に含まれる"
+    "_": "通用門の扉【類型B】。開口幅いっぱいの両開き。⭐ **2026-08-31 ユーザー裁定2-A: 扉は長屋の躯体に作り付ける**(`build_nagaya_omote.py --gate` が門口を彫り、方立・楣・両開きの板戸 3.0×2.8m・扉の上の小壁まで作る)。⛔ **Unity 側で在庫の門を開口へ落とし込まない** — 以前は冠木門を据え、部材の**全幅**(屋根の出と袖塀を含む 14.413m)を開口幅 3.0m に合わせて縮めていたため、壁に接する躯体が 1.56m しかなく左右に 0.72m ずつ隙間が空き、門の小屋根が長屋の通し屋根と二重になっていた。⛔ 開口が閉じている事実はここに残す — leaf を消すと閉じ検査が『素通し』と誤判定する。",
+    "by": "長屋の躯体に作り付け(build_nagaya_omote.py --gate)"
    }
   },
   {
@@ -1407,8 +1450,8 @@
     "w": 3.0,
     "h": 2.8,
     "cert": "B",
-    "_": "通用門の扉【類型B】。開口幅いっぱいの両開き。⭐ **2026-08-29: 扉は edogoyomi の冠木門の躯体が最初から持っている**(`doorl`/`doorr`/`sdoorl`/`sdoorr`)。**別部材の扉を上から重ねない** — 重ねると Gate Castle のマテリアルがテクスチャを持たないため門の顔が真っ白な板で覆われ、冠木も自前の扉も見えなくなる(実装で実際に起きて撤去した)。実装は門の名前で決め打ちせず、**据えた門の実メッシュに doorl/doorr があるかを見て**判断する。⛔ 開口が閉じている事実はここに残す — leaf を消すと閉じ検査が『素通し』と誤判定する。",
-    "by": "門の躯体に含まれる"
+    "_": "通用門の扉【類型B】。開口幅いっぱいの両開き。⭐ **2026-08-31 ユーザー裁定2-A: 扉は長屋の躯体に作り付ける**(`build_nagaya_omote.py --gate` が門口を彫り、方立・楣・両開きの板戸 3.0×2.8m・扉の上の小壁まで作る)。⛔ **Unity 側で在庫の門を開口へ落とし込まない** — 以前は冠木門を据え、部材の**全幅**(屋根の出と袖塀を含む 14.413m)を開口幅 3.0m に合わせて縮めていたため、壁に接する躯体が 1.56m しかなく左右に 0.72m ずつ隙間が空き、門の小屋根が長屋の通し屋根と二重になっていた。⛔ 開口が閉じている事実はここに残す — leaf を消すと閉じ検査が『素通し』と誤判定する。",
+    "by": "長屋の躯体に作り付け(build_nagaya_omote.py --gate)"
    }
   }
  ],
@@ -4645,7 +4688,9 @@
   "doiSakai": "**照合済(2026-08-26・EDO-0004 完了)。** 共有辺は幾何で同定して4本 — 松平の辺0/1/2/3 ⇔ 土井の辺6/7/8/9(離れ0.00m・全長で重なる)。S_Hei_C(松平の辺1=土井の辺7)について、土井の boundaryPlinth の coping+drop は 27.92 / 27.94 で当方の座 27.93 と **±0.01m で一致**。両家の食い違いは無い。⚠ 別件で S_Hei_C だけ base:Ishigaki を持たず足元が最大1.56m浮く件を EDO-0025 で起票。⚠ 隣家の辺番号は**相手の座標系の番号**。幾何で引くこと(土井 EDO-0012)",
   "kiriezu": "NDL1286657(切絵図)の松平区画の読み(2026-08-12)は補正前の方位のままで読みとしては ?。表門=北辺の結論は [五千分一東京図31] で A 確定済み — 再実見は切絵図の読み方の検証として残るのみ",
   "dorui": "土量は切盛図(其三)が造成前の地形から算出する一本にした。以前 json に持っていた grading ブロックは v4 の面の引き直し前の値のまま取り残されており、図と2倍近く食い違っていた(2026-08-23 検図で発覚)— CLAUDE.md 規則3 に従い削除した",
-  "fuchiishi": "**決着(2026-08-26)。** 切石縁石で通す(`fuchi` が設計値の正典)。白洲の砂利を留める役目があるので法面にしない。未処理の区間は `edge_treatment_check` が鳴るので、宣言でなく要求で守られている"
+  "fuchiishi": "**決着(2026-08-26)。** 切石縁石で通す(`fuchi` が設計値の正典)。白洲の砂利を留める役目があるので法面にしない。未処理の区間は `edge_treatment_check` が鳴るので、宣言でなく要求で守られている",
+  "shokusai": "**植栽の穴が2つ、裁定待ち**(2026-08-30)。①常緑広葉樹(モッコク・モチノキ・カシ・シイ)= 庭25本+斜面26本の**計51本** ②ウメ = 奥庭の梅林30本。在庫の高木は黒松・桜・竹の三種だけで両方とも無い。案A(在庫で代用)/ B(材質だけ替えた派生)/ C(新造)の見え方・手間・規約・波及は `plantPending` に、同じ縮尺で並べた図は指図の「樹影くらべ」。⛔ 裁定が下りるまで `provisional` の部材で埋めてあるので、実装は落ちないが**西庭が松だけの林になる**。",
+  "jisakuKi": "**決着(2026-08-30 ユーザー指示U)。** 自作の低ポリゴン広葉樹 `Assets/Edo/Terrain/details/BroadleafTree.prefab`(2,384三角)は**使用禁止** — 「これは2度と使わないでください。見た目がしょぼすぎます」。旧版の指図はこれを66本呼んでいた(西庭の中木24・奥西庭の中木12・奥庭の梅30)。在庫の同格の木は 11,326〜24,701三角で**桁がひとつ違う**。`plantRule.forbidden` に載せ、検査 `planting_stock_check` が指図の中の参照を鳴らす。"
  },
  "_const_feather": "batterFill/batterCut=段の縁を現地形へ落とす法面の勾配(盛土1:1.5・切土1:1)。featherCap=法面を延ばす上限[m]。wallNear=土留めが縁を覆っているとみなす距離[間]。**土留めのある縁は垂直(石垣が受ける)。無い縁は法面で現地形に着地させるが、featherCap 先でも着地しないなら法面では納まらない = 崖のままにする**(西斜面のように急な崖では法面が宙に伸びて土手になる。2026-08-23 実装で最大9mの土手が出て発覚)。",
  "_routes": "動線(§3d)。門を入ってから人がどう動く想定かを図と表で示す。折れ線はグリッド座標(u,v)。生成器が延長・昇り・越える石段の段数を算出する。系統: 表向(客・使者)/役方(日勤)/勝手(賄・物資)/奥向。**折れ線は入側(棟の外形の一間帯)・渡廊下・棟間の白洲に載せる** — 室の中を斜めに突っ切らない(2026-08-23 検図で、勝手が御土蔵一を10.3m貫通し、奥向が奥御殿の中でUターンしていた)。**勝手の動線を引くと、裏門の無い屋敷では米も薪も表門から入ることが図に出る**。",
@@ -5033,56 +5078,443 @@
   }
  ],
  "_nakajikiri": "**中仕切塀 — 奥向の結界を面として閉じる。**⚠ 2026-08-23 検図: 中奥と奥向を隔てる帯を塞ぐ物が『廊下2本』しか無く、**西庭を南に回れば奥御殿の西を素通りできた**(結界線 v47.5 上で塞がっている区間は2間のみ、開いていた幅は西16間・東9間)。塀は棟と別に持ち、**口は御錠口と御膳所口の2つだけ**。高さ2.4mの板塀【確度B=類型。当家の中仕切の史料は無い】",
- "_planting": "庭の植栽と点景。**すべて確度B=類型。当屋敷の植栽の一次史料は無い。** 年代の関門(`gardens-ponds.md`「植栽 — 庭師の技術と年代」): ⛔ ソメイヨシノ(命名 明治33年)不可 — そもそも季節が春でないので開花木を置かない / ⛔ 孟宗竹の竹叢不可(江戸の水辺79事例中1例。竹垣の材としての竹は別) / ⛔ 幕末以降の外来種不可。**石材は庭全体で一系統**(伊豆石)。",
+ "_planting": "庭の植栽。**すべて確度B=類型。当屋敷の植栽の一次史料は無い。** 年代の関門(`gardens-ponds.md`「植栽 — 庭師の技術と年代」): ⛔ ソメイヨシノ(命名 明治33年)不可 — そもそも季節が春でないので開花木を置かない / ⛔ 孟宗竹の竹叢不可(江戸の水辺79事例中1例。竹垣の材としての竹は別) / ⛔ 幕末以降の外来種不可。**石材は庭全体で一系統**(伊豆石)。\n**部材はすべて在庫の実物を名指しする**(`parts` の `api` = `EdoAssets` の呼び出し / `prefab` = `docs/asset-index.tsv` の名)。⛔ 樹種名だけ書いて実装に選ばせない。⛔ `EdoAssets.Own.Broadleaf` は使用禁止(`plantRule.forbidden`)。\n⚠ **在庫に無い樹種を要求する層は `pending` を持ち、裁定が下りるまでの `provisional` 部材を必ず添える**(欠品で実装が黙って落ちるのを防ぐ)。裁定の材料は `plantPending`。",
  "planting": [
   {
    "zone": "G_NishiNiwa",
    "layer": "主木",
+   "role": "高木",
    "species": "クロマツ",
+   "cert": "B",
    "n": 14,
-   "_": "庭の骨格。**3・5・7 の奇数の塊**で不等辺三角に。池が無いので「幹を水へ傾ける」作法は使えず、**崖(西)へ傾ける**=海風の見立てに置き換える。門被り・根上りは主景の一本だけ"
+   "clr": 2.5,
+   "spacing": 7.0,
+   "groups": [
+    5,
+    3,
+    3,
+    3
+   ],
+   "tilt": [
+    4.0,
+    9.0
+   ],
+   "tiltDir": "-u",
+   "parts": [
+    {
+     "api": "JG.Pine(\"Big\", 1)",
+     "prefab": "Tree_BlackPine_Big_Green_01",
+     "n": 2,
+     "scale": 1.65
+    },
+    {
+     "api": "JG.Pine(\"Big\", 2)",
+     "prefab": "Tree_BlackPine_Big_Green_02",
+     "n": 2,
+     "scale": 1.65
+    },
+    {
+     "api": "JG.Pine(\"Big\", 3)",
+     "prefab": "Tree_BlackPine_Big_Green_03",
+     "n": 1,
+     "scale": 1.65
+    },
+    {
+     "api": "JG.Pine(\"Mid\", 1)",
+     "prefab": "Tree_BlackPine_Mid_Green_01",
+     "n": 2,
+     "scale": 1.65
+    },
+    {
+     "api": "JG.Pine(\"Mid\", 2)",
+     "prefab": "Tree_BlackPine_Mid_Green_02",
+     "n": 2,
+     "scale": 1.65
+    },
+    {
+     "api": "JG.Pine(\"Mid\", 3)",
+     "prefab": "Tree_BlackPine_Mid_Green_03",
+     "n": 2,
+     "scale": 1.65
+    },
+    {
+     "api": "JG.Pine(\"Small\", 1)",
+     "prefab": "Tree_BlackPine_Small_Green_01",
+     "n": 1,
+     "scale": 1.65
+    },
+    {
+     "api": "JG.Pine(\"Small\", 2)",
+     "prefab": "Tree_BlackPine_Small_Green_02",
+     "n": 1,
+     "scale": 1.65
+    },
+    {
+     "api": "JG.Pine(\"Small\", 3)",
+     "prefab": "Tree_BlackPine_Small_Green_03",
+     "n": 1,
+     "scale": 1.65
+    }
+   ],
+   "_": "庭の骨格。**3・5・7 の奇数の塊**で不等辺三角に(`groups` が塊の大きさ)。池が無いので「幹を水へ傾ける」作法は使えず、**崖(西=−u)へ傾ける**=海風の見立てに置き換える。門被り・根上りは主景の一本だけ。⚠ 塊の中は `spacing` を 0.7 倍まで詰めてよい(塊にならない)"
   },
   {
    "zone": "G_NishiNiwa",
-   "layer": "中木",
-   "species": "モッコク・モチノキ・カシ・シイ / イロハモミジ",
-   "n": 24,
-   "_": "常緑:落葉 ≒ 7:3(全部落葉だと冬に骨組みが消える)。u-62 前後に**見切りの塊**を1群置き、主景の視線を遮る"
+   "layer": "中木(常緑)",
+   "role": "中木",
+   "species": "モッコク・モチノキ・カシ・シイ",
+   "cert": "B",
+   "n": 17,
+   "clr": 1.6,
+   "spacing": 4.5,
+   "tilt": [
+    0.0,
+    4.0
+   ],
+   "tiltDir": "-u",
+   "pending": "常緑広葉樹",
+   "parts": [
+    {
+     "api": "JG.Pine(\"Small\", 1)",
+     "prefab": "Tree_BlackPine_Small_Green_01",
+     "n": 6,
+     "scale": 1.65,
+     "provisional": true
+    },
+    {
+     "api": "JG.Pine(\"Small\", 2)",
+     "prefab": "Tree_BlackPine_Small_Green_02",
+     "n": 6,
+     "scale": 1.65,
+     "provisional": true
+    },
+    {
+     "api": "JG.Pine(\"Small\", 3)",
+     "prefab": "Tree_BlackPine_Small_Green_03",
+     "n": 5,
+     "scale": 1.65,
+     "provisional": true
+    }
+   ],
+   "_": "常緑:落葉 ≒ 7:3(全部落葉だと冬に骨組みが消える)。u−62 前後に**見切りの塊**を1群置き、主景の視線を遮る。⚠ **在庫に常緑広葉樹が無い** — 裁定が下りるまでは黒松 Small(常緑・在庫)で埋める `provisional`。⛔ この暫定のままだと**西庭が松だけの林になり、広葉の中木の層が消える**。裁定の材料は `plantPending.jouryoku`"
+  },
+  {
+   "zone": "G_NishiNiwa",
+   "layer": "中木(落葉)",
+   "role": "中木",
+   "species": "イロハモミジ",
+   "cert": "B",
+   "n": 7,
+   "clr": 1.6,
+   "spacing": 4.5,
+   "tilt": [
+    0.0,
+    4.0
+   ],
+   "tiltDir": "-u",
+   "parts": [
+    {
+     "api": "JG.SakuraSummer(\"Small\", 1)",
+     "prefab": "Tree_Sakura_Small_Summer_01",
+     "n": 2,
+     "scale": 1.0
+    },
+    {
+     "api": "JG.SakuraSummer(\"Small\", 5)",
+     "prefab": "Tree_Sakura_Small_Summer_05",
+     "n": 2,
+     "scale": 1.0
+    },
+    {
+     "api": "NM.MapleBush(4)",
+     "prefab": "prefab_maple_bush_04",
+     "n": 2,
+     "scale": 1.0,
+     "apiPending": true
+    },
+    {
+     "api": "NM.MapleBush(3)",
+     "prefab": "prefab_maple_bush_03",
+     "n": 1,
+     "scale": 1.0,
+     "apiPending": true
+    }
+   ],
+   "_": "落葉の三割。**カエデの灌木は在庫で唯一の本物のカエデ**(葉の形がモミジ)なので若木として使い、樹高の要る所だけ桜の夏姿(=花の無い落葉広葉樹の樹形)で代える。⛔ 桜として名乗らせない(季節は春ではない・確度が化ける)"
   },
   {
    "zone": "G_NishiNiwa",
    "layer": "低木・刈込",
-   "species": "サツキ・ツツジの大刈込 / ツゲ",
-   "n": 3,
-   "_": "**塊で3群**(点在させない)。江戸の大名庭園の見せ場。園路の縁を締める"
+   "role": "低木",
+   "species": "サツキ・ツツジ / ツゲ",
+   "cert": "B",
+   "n": 21,
+   "clr": 0.8,
+   "spacing": 1.6,
+   "groups": [
+    9,
+    7,
+    5
+   ],
+   "parts": [
+    {
+     "api": "JC.Azalea01",
+     "prefab": "Azalea A 01",
+     "n": 5,
+     "scale": 1.0
+    },
+    {
+     "api": "JC.Azalea03",
+     "prefab": "Azalea A 03",
+     "n": 5,
+     "scale": 1.0
+    },
+    {
+     "api": "JC.Azalea04",
+     "prefab": "Azalea A 04",
+     "n": 5,
+     "scale": 1.0
+    },
+    {
+     "api": "JG.Boxwood(1)",
+     "prefab": "Plant_Boxwood_Spring_01",
+     "n": 2,
+     "scale": 1.0
+    },
+    {
+     "api": "JG.Boxwood(2)",
+     "prefab": "Plant_Boxwood_Spring_02",
+     "n": 2,
+     "scale": 1.0
+    },
+    {
+     "api": "JG.Boxwood(3)",
+     "prefab": "Plant_Boxwood_Spring_03",
+     "n": 2,
+     "scale": 1.0
+    }
+   ],
+   "_": "**塊で3群**(点在させない)。江戸の大名庭園の見せ場。園路の縁を締める。`groups` の合計 = `n`"
   },
   {
    "zone": "G_NishiNiwa",
    "layer": "下草",
-   "species": "シダ・ヤブラン・コケ",
-   "n": 0,
-   "_": "樹下に散らす。**裸地を残さない**"
+   "role": "下草",
+   "species": "シダ",
+   "cert": "B",
+   "n": 114,
+   "clr": 0.4,
+   "spacing": 0.8,
+   "under": 3,
+   "parts": [
+    {
+     "api": "JG.Fern(1)",
+     "prefab": "Plant_PaintedFern_Spring_01",
+     "n": 57,
+     "scale": 1.0
+    },
+    {
+     "api": "JG.Fern(2)",
+     "prefab": "Plant_PaintedFern_Spring_02",
+     "n": 57,
+     "scale": 1.0
+    }
+   ],
+   "_": "**樹下に散らす。裸地を残さない。**`under`=主木・中木 1本につき置く株数、樹の芯から 2.4間角に散らす。n = under ×(主木14 + 中木17 + 中木7)= 114"
   },
   {
    "zone": "G_OkuNishiNiwa",
    "layer": "主木",
+   "role": "高木",
    "species": "クロマツ",
+   "cert": "B",
    "n": 8,
-   "_": "奥向から見る側の骨格"
+   "clr": 2.5,
+   "spacing": 7.0,
+   "groups": [
+    5,
+    3
+   ],
+   "tilt": [
+    4.0,
+    9.0
+   ],
+   "tiltDir": "-u",
+   "parts": [
+    {
+     "api": "JG.Pine(\"Big\", 1)",
+     "prefab": "Tree_BlackPine_Big_Green_01",
+     "n": 1,
+     "scale": 1.65
+    },
+    {
+     "api": "JG.Pine(\"Big\", 2)",
+     "prefab": "Tree_BlackPine_Big_Green_02",
+     "n": 1,
+     "scale": 1.65
+    },
+    {
+     "api": "JG.Pine(\"Mid\", 1)",
+     "prefab": "Tree_BlackPine_Mid_Green_01",
+     "n": 2,
+     "scale": 1.65
+    },
+    {
+     "api": "JG.Pine(\"Mid\", 2)",
+     "prefab": "Tree_BlackPine_Mid_Green_02",
+     "n": 1,
+     "scale": 1.65
+    },
+    {
+     "api": "JG.Pine(\"Mid\", 3)",
+     "prefab": "Tree_BlackPine_Mid_Green_03",
+     "n": 1,
+     "scale": 1.65
+    },
+    {
+     "api": "JG.Pine(\"Small\", 1)",
+     "prefab": "Tree_BlackPine_Small_Green_01",
+     "n": 1,
+     "scale": 1.65
+    },
+    {
+     "api": "JG.Pine(\"Small\", 3)",
+     "prefab": "Tree_BlackPine_Small_Green_03",
+     "n": 1,
+     "scale": 1.65
+    }
+   ],
+   "_": "奥向から見る側の骨格。奥御座之間・御寝所の西面が向く"
   },
   {
    "zone": "G_OkuNishiNiwa",
-   "layer": "中木・下草",
-   "species": "モミジ・モッコク / シダ",
-   "n": 12,
-   "_": "奥御座之間の西面からの中景"
+   "layer": "中木(常緑)",
+   "role": "中木",
+   "species": "モッコク・モチノキ",
+   "cert": "B",
+   "n": 8,
+   "clr": 1.6,
+   "spacing": 4.5,
+   "tilt": [
+    0.0,
+    4.0
+   ],
+   "tiltDir": "-u",
+   "pending": "常緑広葉樹",
+   "parts": [
+    {
+     "api": "JG.Pine(\"Small\", 1)",
+     "prefab": "Tree_BlackPine_Small_Green_01",
+     "n": 3,
+     "scale": 1.65,
+     "provisional": true
+    },
+    {
+     "api": "JG.Pine(\"Small\", 2)",
+     "prefab": "Tree_BlackPine_Small_Green_02",
+     "n": 3,
+     "scale": 1.65,
+     "provisional": true
+    },
+    {
+     "api": "JG.Pine(\"Small\", 3)",
+     "prefab": "Tree_BlackPine_Small_Green_03",
+     "n": 2,
+     "scale": 1.65,
+     "provisional": true
+    }
+   ],
+   "_": "奥御座之間の西面からの中景。⚠ 西庭と同じ穴 — `plantPending.jouryoku`"
+  },
+  {
+   "zone": "G_OkuNishiNiwa",
+   "layer": "中木(落葉)",
+   "role": "中木",
+   "species": "イロハモミジ",
+   "cert": "B",
+   "n": 4,
+   "clr": 1.6,
+   "spacing": 4.5,
+   "tilt": [
+    0.0,
+    4.0
+   ],
+   "tiltDir": "-u",
+   "parts": [
+    {
+     "api": "JG.SakuraSummer(\"Small\", 5)",
+     "prefab": "Tree_Sakura_Small_Summer_05",
+     "n": 2,
+     "scale": 1.0
+    },
+    {
+     "api": "NM.MapleBush(4)",
+     "prefab": "prefab_maple_bush_04",
+     "n": 2,
+     "scale": 1.0,
+     "apiPending": true
+    }
+   ],
+   "_": "落葉の三割"
+  },
+  {
+   "zone": "G_OkuNishiNiwa",
+   "layer": "下草",
+   "role": "下草",
+   "species": "シダ",
+   "cert": "B",
+   "n": 60,
+   "clr": 0.4,
+   "spacing": 0.8,
+   "under": 3,
+   "parts": [
+    {
+     "api": "JG.Fern(1)",
+     "prefab": "Plant_PaintedFern_Spring_01",
+     "n": 30,
+     "scale": 1.0
+    },
+    {
+     "api": "JG.Fern(2)",
+     "prefab": "Plant_PaintedFern_Spring_02",
+     "n": 30,
+     "scale": 1.0
+    }
+   ],
+   "_": "n = under ×(主木8 + 中木8 + 中木4)= 60"
   },
   {
    "zone": "G_OkuNiwaSE",
    "layer": "花木",
+   "role": "中木",
    "species": "ウメ",
-   "n": 30,
-   "_": "**梅林**。[後楽園図]が正月の梅の花見を庭の役割として記録【B】。西庭には群植しない"
+   "cert": "B",
+   "n": 22,
+   "clr": 1.2,
+   "spacing": 3.0,
+   "tilt": [
+    0.0,
+    5.0
+   ],
+   "tiltDir": "random",
+   "pending": "ウメ",
+   "parts": [
+    {
+     "api": "JG.SakuraSummer(\"Small\", 1)",
+     "prefab": "Tree_Sakura_Small_Summer_01",
+     "n": 11,
+     "scale": 1.0,
+     "provisional": true
+    },
+    {
+     "api": "JG.SakuraSummer(\"Small\", 5)",
+     "prefab": "Tree_Sakura_Small_Summer_05",
+     "n": 11,
+     "scale": 1.0,
+     "provisional": true
+    }
+   ],
+   "_": "**梅林**。[後楽園図]が正月の梅の花見を庭の役割として記録【B】。西庭には群植しない。**等間隔の並木にしない**(`spacing` 3.0m は樹冠が触れ合う密度 — 梅林はそう見える) — 塊で植えて間を空ける。⚠ **在庫に梅が無い** — 桜 Small を等倍(縮めも伸ばしもしない)で使うと樹高・樹冠が梅の実寸に近い。⛔ **枝の屈曲が違う**(梅は節ごとに折れる・桜は伸びやか)ので近景では梅に見えない。裁定の材料は `plantPending.ume`\n⚠ **2026-08-30 に 30本 → 22本。**帯は 28×5間 あるが、稲荷社・奥庭の井戸・中仕切塀・園路の退避を引くと**実効はその 4割**しか残らない(生成器が測る)。30本は退避を数えずに置いた数で、置ききれない"
   }
  ],
  "_tenkei": "点景物。灯籠の形式は年代に合わせる(雪見=江戸期に成立で可 / 春日型を主庭に乱立させない)。石組は**主石・副石・添石の三石を不等辺三角**に、**1/3 埋め**、**石は立てて寝かせない**(『作庭記』の禁忌)。",
@@ -5255,7 +5687,7 @@
     "S_Hei_Doi_W1",
     "S_Hei_Doi_W2",
     "S_Hei_Doi_W3",
-    "S_Hei_Doi_S1",
+    "S_Hei_Doi_S1b",
     "S_Hei_Doi_S2",
     "S_Hei_Doi_S3",
     "N_Hei_W1",
@@ -5624,8 +6056,8 @@
    "id": "C12E",
    "edge": 12,
    "s0": 135.8,
-   "s1": 168.1,
-   "len": 32.3,
+   "s1": 167.87,
+   "len": 32.07,
    "pieces": [
     {
      "run": "N_Nagaya_E1",
@@ -5637,9 +6069,9 @@
     {
      "run": "N_Nagaya_E2",
      "s0": 152.0,
-     "s1": 168.1,
-     "len": 16.1,
-     "asset": "EdoAssets.Own.NagayaOmote2F(16.74f)"
+     "s1": 167.87,
+     "len": 15.87,
+     "asset": "EdoAssets.Own.NagayaOmote2F(16.51f)"
     }
    ],
    "runs": [
@@ -5665,7 +6097,7 @@
      "s0": 4.18,
      "s1": 20.0,
      "len": 15.82,
-     "asset": "EdoAssets.Own.NagayaOmoteMon(16.46f, 10.14f, false)"
+     "asset": "EdoAssets.Own.NagayaOmoteMon(16.46f, 6.32f, false)"
     }
    ],
    "runs": [
@@ -5729,7 +6161,7 @@
      "s0": 48.0,
      "s1": 84.0,
      "len": 36.0,
-     "asset": "EdoAssets.Own.NagayaOmoteMon(36.64f, 30.32f, false)"
+     "asset": "EdoAssets.Own.NagayaOmoteMon(36.64f, 6.32f, false)"
     }
    ],
    "runs": [
@@ -5975,7 +6407,7 @@
    "id": "J_N12E",
    "at": "辺12 表長屋→練塀(隅 P13 の手前)",
    "edge": 12,
-   "s": 168.1,
+   "s": 167.87,
    "a": "N_Nagaya_E2",
    "aFace": "東妻面(壁の実体の端。屋根の反り・鬼は測らない)",
    "b": "N_Hei_E",
@@ -5991,7 +6423,8 @@
    "moves": "N_Hei_E",
    "fixed": "N_Nagaya_E2 の東妻面(鎖 C12E の末端)",
    "cert": "B",
-   "_": "表長屋から隅 P13 へ返す練塀に変わる継ぎ目。可動側は練塀(駒が伸縮する)。練塀の小口を長屋の妻壁へ sashikomi ぶん差し込む。"
+   "_": "表長屋から隅 P13 へ返す練塀に変わる継ぎ目。可動側は練塀(駒が伸縮する)。練塀の小口を長屋の妻壁へ sashikomi ぶん差し込む。",
+   "_yielded": "2026-08-30: 石垣の割り付けの死角を避けるため 168.10 → 167.87 へ 0.23m 動かした。駒 2.00m・ピッチ上限 1.80 では L=3.97 が 3.80〜4.00 の隙間に落ち、2枚だと重なり 0.03m(下限 0.20 未満)・3枚だと 1.015m(上限 1.00 超)でどちらも成立しなかった。L=4.20 なら 3枚・重なり 0.900 で上下とも余裕がある。"
   },
   {
    "id": "J_ST12E",
@@ -6258,7 +6691,7 @@
    "s": 59.75,
    "a": "S_Hei_Doi_W3",
    "aFace": "南の小口(練塀の走り方向の端面。厚 dobeiT を保つ) → 隅部材の**入りの腕の端面**へ突き付ける",
-   "b": "S_Hei_Doi_S1",
+   "b": "S_Hei_Doi_S1b",
    "bFace": "東の小口(練塀の走り方向の端面。厚 dobeiT を保つ) → 隅部材の**出の腕の端面**へ突き付ける",
    "kind": "留め継ぎ",
    "part": "EdoAssets.Own.Kado(\"Dobei\", 折れ角)  # 角度は polygon から導く(kado.deg)",
@@ -6553,5 +6986,468 @@
    "reason": "西辺は溜池側へ落ちる法面と谷で、相手が屋敷でない(往来・水際・崖)。2026-08-23 ユーザー裁定『相手が屋敷なら練塀、木柵は相手が屋敷でない辺だけ』による。**遮蔽は法面そのものが受け、木柵は境の標示にとどまる。**⚠ 実装の実測(2026-08-29)でも、この6辺は勾配が急で外から敷地内へ踏み込める箇所は無かった。",
    "cert": "U"
   }
- ]
+ ],
+ "_plantRule": "**植栽の据え方の規則。**木の位置は指図が持たない(何十本もの座標を設計値にしない)が、**規則・本数・部材は指図が持つ** — 実装に選ばせない。⚠ 単位は **樹の寸法と間隔=m / 庭の座標と退避=間(ken)**。散布は決定論(種は層の名から作る)で、流し直しても木が動かない。⚠ **図の散布と実装の散布は同じ規則・別の乱数**なので木の位置は一致しない。一致させるのは**規則・本数・密度・退避**であって位置ではない。⛔ **在庫に無い樹種を自作の低ポリゴンで代用しない**(2026-08-30 ユーザー指示。`forbidden` を参照)。樹高・樹冠・三角数は `docs/asset-index.tsv` が正典で、**ここにも図にも写さない** — 生成器が tsv から引いて図と表を作る。",
+ "plantRule": {
+  "seed": "zone + '/' + layer",
+  "_seed": "層の名から決定論的に種を作る(実装は System.Random((zone+'/'+layer).GetHashCode()))。⛔ 時刻や連番で振らない — 流し直すたびに木が動くと検証レンダが比較できない",
+  "yaw": "random",
+  "scaleJitter": [
+   0.88,
+   1.14
+  ],
+  "_scaleJitter": "部材ごとの `scale` に掛ける揺らぎ。同じ大きさの木を並べない。⚠ 遮蔽の要る層(斜面の法肩列)は下限を 1.00 に締める(`slopePlanting` の層が上書きする)",
+  "keepout": {
+   "mune": 1.0,
+   "link": 1.0,
+   "service": 1.5,
+   "well": 1.5,
+   "kaidan": 2.0,
+   "nakajikiri": 0.8,
+   "run": 1.0,
+   "route": 1.2,
+   "roji": 1.2,
+   "kaki": 0.8,
+   "tenkei": 1.0,
+   "rail": 0.8,
+   "fence": 0.8,
+   "parcel": 1.0
+  },
+  "_keepout": "**木を植えてはいけない帯の幅(間)。**矩形物(棟・渡廊下・附属屋・外周 run)は外形にこの値を足した矩形、線状物(園路 route・露地 roji・建仁寺垣 kaki・法肩の竹垣 rail・境の木柵 fence)は芯からこの距離、点状物(井戸 well・石段 kaidan・点景 tenkei)はこの半径。区画線 parcel は内へこの距離。**層ごとの `clr` をさらに足す**(大きい木ほど離す)。⛔ ここを緩めると枝が軒に入り、園路が塞がる。検査 `planting_clearance_check` が退避に載った本数を数える",
+  "forbidden": [
+   "Assets/Edo/Terrain/details/BroadleafTree.prefab",
+   "EdoAssets.Own.Broadleaf"
+  ],
+  "_forbidden": "⛔ **使用禁止**【ユーザー指示U 2026-08-30】「これは2度と使わないでください。見た目がしょぼすぎます」。自作の低ポリゴン(2,384三角)で、在庫の木(6,662〜24,701三角)と並べると桁がひとつ違う。指図がこの語を含むと検査 `planting_stock_check` が鳴る"
+ },
+ "_assetRequests": "**`EdoAssets.cs` への登録依頼。**指図が名指しする部材のうち、まだ `EdoAssets` にアクセサが無いもの。⛔ パスの literal をビルダーへ直書きしない(CLAUDE.md 規則12。`LoadAssetAtPath` は綴りが違っても例外を投げず null を返すので静かに壊れる)。**実装の前に edo-zaiko/棟梁がここの分を `EdoAssets.cs` へ足す。**検査 `planting_stock_check` は、未登録の api がこの表に載っていることを要求する",
+ "assetRequests": [
+  {
+   "api": "NM.MapleBush(i)",
+   "klass": "NM",
+   "_klass": "NatureManufacture Meadow Environment Dynamic Nature。`EdoAssets` に `NM` クラスがまだ無いので新設する",
+   "path": "Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Bushes/Prefabs/prefab_maple_bush_0{i}.prefab",
+   "range": "i = 1..4",
+   "_": "カエデの灌木。**在庫で唯一の本物のカエデ**(葉の形がモミジ)。斜面の低木と庭の落葉中木の下ごしらえに使う"
+  },
+  {
+   "api": "NM.GreyWillow(i)",
+   "klass": "NM",
+   "path": "Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Bushes/Prefabs/prefab_grey_willow_0{i}.prefab",
+   "range": "i = 1..4",
+   "_": "ヤナギの灌木。斜面中部の低木"
+  }
+ ],
+ "_slopeArea": "**西斜面(溜池東岸へ落ちる法面)の適用域。**帯の判定に要る幾何だけを持ち、**面積・標高・勾配は持たない** — それは造成前 DEM から算出する値で、指図に書き写すと DEM を直したとき食い違う(CLAUDE.md 規則4)。\n域 = 区画の内側で、次の**両方**を満たす所: ①法肩の折れ線 `crest` より外側(uv平面で、折れ線の進む向きに対して左が外)、②最寄りの区画辺が `toeEdges` のどれか。\n帯の位置 **t = (y法肩 − y) / (y法肩 − y法尻)**(0=法肩・1=法尻)。y法肩・y法尻 は**最寄りの法肩点・法尻点の地盤**。⛔ 絶対標高で帯を切らない — 北西の登り(辺11)は落差 6m、西辺の本体は落差 18m で、同じ標高が別の帯になる。\n⚠ **斜面は造成しない**(planes「斜面(造成しない)」)ので、実装は live terrain の高さをそのまま t の算出に使ってよい。",
+ "slopeArea": {
+  "grid": "shukaku",
+  "crest": [
+   [
+    -71,
+    3
+   ],
+   [
+    -71,
+    15
+   ],
+   [
+    -75,
+    15
+   ],
+   [
+    -75,
+    66
+   ],
+   [
+    -20,
+    66
+   ]
+  ],
+  "_crest": "法肩の折れ線(間)。**竹垣 `rails` の R_West + R_South と同じ線**(垣は法肩に立つので当然一致する)。⛔ ここと rails がずれたら`slope_planting_check` が鳴る",
+  "toeEdges": [
+   6,
+   7,
+   8,
+   9,
+   10,
+   11
+  ],
+  "_toeEdges": "法尻=区画の西辺(堀端通り=溜池東岸)。`perimeterClosure` が「遮蔽は法面が受け、木柵は境の標示にとどまる」と宣言している6辺",
+  "screen": {
+   "step": 3.0,
+   "reach": 7.5,
+   "minH": 6.5,
+   "offset": [
+    1.6,
+    5.0
+   ],
+   "pitch": 5.5,
+   "jitter": 1.2,
+   "minDrop": 8.0
+  },
+  "_screen": "**外から御殿を隠す役目を数値にしたもの。**`perimeterClosure` の宣言「遮蔽は法面が受け、木柵は境の標示にとどまる」は、法面**と樹林**が受けるという意味であって、素の崖だけでは御殿の軒が対岸から見える(其の断面図で検算する)。\n・`pitch` = 法肩に沿って置く遮蔽木の間隔(m)、`jitter` = そのゆらぎ(±m。**等間隔の並木にしない**)\n・`offset` = 法肩線から外(斜面側)へ出す距離の範囲(m)。下限は竹垣の退避(`plantRule.keepout.rail`)より外\n・検査: 法肩に沿って `step` m ごとの検査点を取り、**`reach` m 以内に樹高`minH` m 以上の木があること**。⛔ 0件でなければ対岸から御殿が抜ける\n・`minH` の根拠は幾何(生成器が DEM と御殿の軒高から必要樹高を出す)。遮蔽木の `scaleJitter` の下限を 1.00 に締めているのは、揺らぎの下振れで`minH` を割らせないため\n・`minDrop` = 遮蔽を求める最小の落差(m)。**北西の登り(辺11)は落差が浅く、その内側は御殿でなく西の明地(薮)なので遮蔽の役が無い** — 検査点から外す。⛔ 外した区間にも帯Aの散布は掛かる(木が無くなるわけではない)"
+ },
+ "_slopePlanting": "**斜面に実際に置く木。**`band` は `slopeBands` の名、`role` は `dens` の役と対応する(検査 `slope_planting_check` が帯ごとに密度を突き合わせる)。`placement` = `crestLine`(法肩の線に沿って `slopeArea.screen` の pitch/offset で置く)/ `scatter`(帯の中に決定論的に散らす)。⚠ **斜面の木は鉛直に立てる** — 傾けるのは庭の主木だけ(海風の見立て)。斜面で幹を倒すと生えている木に見えない。",
+ "slopePlanting": [
+  {
+   "band": "帯A 法肩〜上部",
+   "layer": "法肩の遮蔽木",
+   "role": "高木",
+   "species": "クロマツ",
+   "cert": "B",
+   "n": 23,
+   "placement": "crestLine",
+   "clr": 1.2,
+   "spacing": 4.0,
+   "scaleJitter": [
+    1.0,
+    1.14
+   ],
+   "tilt": [
+    0.0,
+    3.0
+   ],
+   "tiltDir": "random",
+   "parts": [
+    {
+     "api": "JG.Pine(\"Big\", 1)",
+     "prefab": "Tree_BlackPine_Big_Green_01",
+     "n": 4,
+     "scale": 1.65
+    },
+    {
+     "api": "JG.Pine(\"Big\", 2)",
+     "prefab": "Tree_BlackPine_Big_Green_02",
+     "n": 4,
+     "scale": 1.65
+    },
+    {
+     "api": "JG.Pine(\"Big\", 3)",
+     "prefab": "Tree_BlackPine_Big_Green_03",
+     "n": 2,
+     "scale": 1.65
+    },
+    {
+     "api": "JG.Pine(\"Mid\", 1)",
+     "prefab": "Tree_BlackPine_Mid_Green_01",
+     "n": 5,
+     "scale": 1.65
+    },
+    {
+     "api": "JG.Pine(\"Mid\", 2)",
+     "prefab": "Tree_BlackPine_Mid_Green_02",
+     "n": 5,
+     "scale": 1.65
+    },
+    {
+     "api": "JG.Pine(\"Mid\", 3)",
+     "prefab": "Tree_BlackPine_Mid_Green_03",
+     "n": 3,
+     "scale": 1.65
+    }
+   ],
+   "_": "**外から御殿を隠す列。**法肩に沿って `slopeArea.screen.pitch` 5.5m 間隔(±1.2m のゆらぎ)。⛔ 等間隔に並べない・⛔ 一直線に並べない(offset を 1.6〜5.0m の間で振る)。n は『**落差 8m 以上の**法肩の長さ ÷ pitch』で、長さは生成器が測る(北西の登りは落差が浅いので数えない)。⚠ `scaleJitter` の下限を 1.00 に締めてある — 縮むと `screen.minH` を割る"
+  },
+  {
+   "band": "帯A 法肩〜上部",
+   "layer": "上部の松",
+   "role": "高木",
+   "species": "クロマツ",
+   "cert": "B",
+   "n": 10,
+   "placement": "scatter",
+   "clr": 1.2,
+   "spacing": 6.0,
+   "tilt": [
+    0.0,
+    4.0
+   ],
+   "tiltDir": "random",
+   "parts": [
+    {
+     "api": "JG.Pine(\"Mid\", 1)",
+     "prefab": "Tree_BlackPine_Mid_Green_01",
+     "n": 2,
+     "scale": 1.65
+    },
+    {
+     "api": "JG.Pine(\"Mid\", 2)",
+     "prefab": "Tree_BlackPine_Mid_Green_02",
+     "n": 2,
+     "scale": 1.65
+    },
+    {
+     "api": "JG.Pine(\"Mid\", 3)",
+     "prefab": "Tree_BlackPine_Mid_Green_03",
+     "n": 2,
+     "scale": 1.65
+    },
+    {
+     "api": "JG.Pine(\"Small\", 1)",
+     "prefab": "Tree_BlackPine_Small_Green_01",
+     "n": 2,
+     "scale": 1.65
+    },
+    {
+     "api": "JG.Pine(\"Small\", 2)",
+     "prefab": "Tree_BlackPine_Small_Green_02",
+     "n": 1,
+     "scale": 1.65
+    },
+    {
+     "api": "JG.Pine(\"Small\", 3)",
+     "prefab": "Tree_BlackPine_Small_Green_03",
+     "n": 1,
+     "scale": 1.65
+    }
+   ],
+   "_": "遮蔽の列の内側・外側に散らして、列に見えないようにする"
+  },
+  {
+   "band": "帯A 法肩〜上部",
+   "layer": "上部の雑木",
+   "role": "中木",
+   "species": "雑木(常緑広葉樹を含む)",
+   "cert": "B",
+   "n": 26,
+   "placement": "scatter",
+   "clr": 1.0,
+   "spacing": 4.0,
+   "tilt": [
+    0.0,
+    5.0
+   ],
+   "tiltDir": "random",
+   "pending": "常緑広葉樹",
+   "parts": [
+    {
+     "api": "JG.SakuraSummer(\"Mid\", 1)",
+     "prefab": "Tree_Sakura_Mid_Summer_01",
+     "n": 4,
+     "scale": 1.2
+    },
+    {
+     "api": "JG.SakuraSummer(\"Mid\", 5)",
+     "prefab": "Tree_Sakura_Mid_Summer_05",
+     "n": 4,
+     "scale": 1.2
+    },
+    {
+     "api": "JG.SakuraSummer(\"Small\", 1)",
+     "prefab": "Tree_Sakura_Small_Summer_01",
+     "n": 9,
+     "scale": 1.2,
+     "provisional": true
+    },
+    {
+     "api": "JG.SakuraSummer(\"Small\", 5)",
+     "prefab": "Tree_Sakura_Small_Summer_05",
+     "n": 9,
+     "scale": 1.2,
+     "provisional": true
+    }
+   ],
+   "_": "松の間を埋める雑木。⚠ **常緑広葉樹が在庫に無い**ので、裁定が下りるまでは桜の夏姿(=花の無い落葉広葉樹の樹形)で埋める。⛔ 桜として名乗らせない。⚠ 崖の雑木林が全部落葉樹だと、対岸から見た緑の量が季節で変わる(いまの季節=夏では差が出ないので**暫定で通してよいが、裁定は要る**)。材料は `plantPending.jouryoku`"
+  },
+  {
+   "band": "帯A 法肩〜上部",
+   "layer": "上部の灌木",
+   "role": "低木",
+   "species": "ヤマツツジ・カエデの灌木",
+   "cert": "B",
+   "n": 20,
+   "placement": "scatter",
+   "clr": 0.6,
+   "spacing": 2.0,
+   "tilt": [
+    0.0,
+    0.0
+   ],
+   "tiltDir": "none",
+   "parts": [
+    {
+     "api": "JC.Azalea01",
+     "prefab": "Azalea A 01",
+     "n": 4,
+     "scale": 1.0
+    },
+    {
+     "api": "JC.Azalea03",
+     "prefab": "Azalea A 03",
+     "n": 4,
+     "scale": 1.0
+    },
+    {
+     "api": "JC.Azalea04",
+     "prefab": "Azalea A 04",
+     "n": 4,
+     "scale": 1.0
+    },
+    {
+     "api": "NM.MapleBush(1)",
+     "prefab": "prefab_maple_bush_01",
+     "n": 4,
+     "scale": 1.0,
+     "apiPending": true
+    },
+    {
+     "api": "NM.MapleBush(2)",
+     "prefab": "prefab_maple_bush_02",
+     "n": 4,
+     "scale": 1.0,
+     "apiPending": true
+    }
+   ],
+   "_": "林床の締め。⛔ 塊にしない(庭の刈込と違って自生の見立て)"
+  },
+  {
+   "band": "帯B 中部",
+   "layer": "中部の灌木",
+   "role": "低木",
+   "species": "ヤマツツジ・カエデ/ヤナギの灌木",
+   "cert": "B",
+   "n": 40,
+   "placement": "scatter",
+   "clr": 0.6,
+   "spacing": 1.8,
+   "tilt": [
+    0.0,
+    0.0
+   ],
+   "tiltDir": "none",
+   "parts": [
+    {
+     "api": "NM.MapleBush(2)",
+     "prefab": "prefab_maple_bush_02",
+     "n": 5,
+     "scale": 1.0,
+     "apiPending": true
+    },
+    {
+     "api": "NM.MapleBush(3)",
+     "prefab": "prefab_maple_bush_03",
+     "n": 6,
+     "scale": 1.0,
+     "apiPending": true
+    },
+    {
+     "api": "NM.MapleBush(4)",
+     "prefab": "prefab_maple_bush_04",
+     "n": 5,
+     "scale": 1.0,
+     "apiPending": true
+    },
+    {
+     "api": "NM.GreyWillow(2)",
+     "prefab": "prefab_grey_willow_02",
+     "n": 5,
+     "scale": 1.0,
+     "apiPending": true
+    },
+    {
+     "api": "NM.GreyWillow(3)",
+     "prefab": "prefab_grey_willow_03",
+     "n": 5,
+     "scale": 1.0,
+     "apiPending": true
+    },
+    {
+     "api": "NM.GreyWillow(4)",
+     "prefab": "prefab_grey_willow_04",
+     "n": 4,
+     "scale": 1.0,
+     "apiPending": true
+    },
+    {
+     "api": "JC.Azalea01",
+     "prefab": "Azalea A 01",
+     "n": 4,
+     "scale": 1.0
+    },
+    {
+     "api": "JC.Azalea03",
+     "prefab": "Azalea A 03",
+     "n": 3,
+     "scale": 1.0
+    },
+    {
+     "api": "JC.Azalea04",
+     "prefab": "Azalea A 04",
+     "n": 3,
+     "scale": 1.0
+    }
+   ],
+   "_": "45°の法面に散る灌木。**列にせず斑にする**(名所図会のハッチングの見立て)。⚠ 鉛直に立てる"
+  }
+ ],
+ "_plantPending": "**在庫で埋まらない層と、その埋め方の案。**⛔ 指図方は選ばない — 各案の見え方・手間・規約・波及を並べて**ユーザーの裁定を仰ぐ**。裁定が下りたら、採った案を `planting`/`slopePlanting` の `parts` へ書き戻し、この項と `pending`/`provisional` を消す。図は其の「樹影くらべ」。",
+ "plantPending": {
+  "jouryoku": {
+   "what": "常緑広葉樹(モッコク・モチノキ・シラカシ・スダジイ)",
+   "where": "西庭 G_NishiNiwa 中木17本 / 奥西庭 G_OkuNishiNiwa 中木8本 / 西斜面 帯A 雑木26本 = **計51本**",
+   "why": "在庫の高木は黒松(針葉)・桜(落葉)・竹の三種だけで、**江戸の庭木の主役である常緑広葉樹が一本も無い**。NatureManufacture の広葉樹はポプラで江戸に使えない",
+   "plans": [
+    {
+     "id": "A",
+     "title": "在庫で代用する(桜の夏姿・黒松 Small)",
+     "look": "夏は葉だけなので**遠景(30m 超)では通る**。近景で破れる — ①桜は幹が横へ伸びて枝が垂れ、モッコク・カシは上へ立って枝が短い ②葉のカードが落葉樹の薄い明るい緑で、照葉樹の濃く厚い緑にならない ③黒松で埋めると**針葉ばかりの林**になり広葉の層が消える",
+     "cost": "0(いま書いてある `provisional` がそのまま動く)",
+     "rule": "触れない。在庫の材質も名も変えない",
+     "spread": "無し"
+    },
+    {
+     "id": "B",
+     "title": "在庫の木を土台に、材質だけ変えた派生を作る",
+     "look": "**葉の色と厚みは直る**(濃緑・低い光沢)が、**枝ぶりは桜のまま**。①②のうち②だけ直り①は残る。遠景〜中景(15m 超)ではほぼ照葉樹に見える",
+     "cost": "小。桜のマテリアルを複製して葉のテクスチャを差し替え、プレハブ variant を4点(Big/Mid/Small/低木)。半日",
+     "rule": "⚠ **抵触する。**プロジェクトの規約は「キットの材質を新規に作らない・材質名を保つ」で、`Waldemarst` の URP 化パッチは**再 import で消える**([[japanese-garden-urp-patches]])。派生マテリアルを `Assets/Edo/` に置けば再 import では消えないが、**キットの再 import で親プレハブ側が戻ると variant のオーバーライドが外れうる**。採るなら『`Assets/Edo/Materials/` に置く・キットのアセットは書き換えない』を条件にする",
+     "spread": "他邸も同じ派生を使えるので**得**。岡部・山王・三べ坂の松だらけの庭が直る"
+    },
+    {
+     "id": "C",
+     "title": "在庫の木を参考に新造する(Tools/Blender)",
+     "look": "**①②とも直る。**幹と主枝を実ジオメトリで分岐させ、葉はアルファのカード、LOD を持たせ、三角数は在庫の同格(1万〜2万)に合わせる。在庫の松・桜と並べても見劣りしない",
+     "cost": "**大。**作るもの: モッコク・シラカシ・スダジイ・ウメ の4樹種 × Big/Mid/Small の3寸法 = **12点**、各 LOD4段。⚠ `Tools/Blender/` に**木を作るスクリプトが一本も無い**(いまあるのは土塀・御殿部材・長屋・門・石垣)ので、**枝分かれの生成・葉のカードの貼り方・LOD の焼き方・葉のアルファテクスチャ**をゼロから起こす。葉のテクスチャは在庫から流用できない(パックの材質を持ち出せない)",
+     "rule": "触れない(`Assets/Edo/` の自作物)。⚠ ただし**自作の低ポリゴンで済ませた前科がこの依頼の発端**なので、『在庫と同格の三角数・LOD 必須・並べて見劣りしないこと』を受入条件にする",
+     "spread": "全邸で使える。**在庫の穴が恒久的に埋まる**"
+    }
+   ],
+   "recommend": "?",
+   "_recommend": "⛔ 指図方は推さない(意匠と工数の配分はユーザーの裁定)。材料として: **見え方の効きは C > B > A、手間は C ≫ B > A**、B は規約に条件付きで触れる。**B を暫定に採り C を本命に置く**二段構えも取れる(B の派生は C ができたら捨てる)"
+  },
+  "ume": {
+   "what": "ウメ",
+   "where": "奥庭(南東)G_OkuNiwaSE の梅林 **30本**",
+   "why": "在庫に梅が無い。桜 Small を等倍で使うと**樹高と樹冠は梅に近い**が、**枝の屈曲が違う** — 梅は節ごとに折れて上へ跳ね、桜は伸びやかに垂れる。幹の肌も梅は黒く粗い",
+   "plans": [
+    {
+     "id": "A",
+     "title": "桜 Small を等倍で代用する",
+     "look": "**梅林は 15m 以上離れて見る庭**(奥庭の帯は幅5間)なので、遠景では通る。花期でない(季節は夏)ので**花の違いは出ない**。近景で枝の屈曲が桜に見える",
+     "cost": "0",
+     "rule": "触れない",
+     "spread": "無し"
+    },
+    {
+     "id": "B",
+     "title": "桜 Small の材質だけ替えて幹を黒くする",
+     "look": "幹の肌は直るが**枝ぶりは桜のまま**。梅らしさの主因は枝なので**効きが薄い**",
+     "cost": "小(半日)",
+     "rule": "A案 B と同じ条件",
+     "spread": "梅を使う邸すべて"
+    },
+    {
+     "id": "C",
+     "title": "梅を新造する",
+     "look": "直る。節ごとに折れる枝は**手続き生成で作りやすい**(直線の枝を短く切って角度を振るだけ)",
+     "cost": "中。常緑広葉樹の C 案と**同じ土台**(枝分かれ生成・葉カード・LOD)が要るので、C を採るなら常緑と**まとめて起こすのが安い**。梅単独なら 3点(Big/Mid/Small)",
+     "rule": "触れない",
+     "spread": "全邸"
+    }
+   ],
+   "recommend": "?",
+   "_recommend": "⛔ 指図方は推さない。材料として: **梅は遠景の帯にしか無い**ので常緑広葉樹より緊急度が低い。常緑で C を採るなら梅も C に載せる"
+  }
+ },
+ "_mon_dir": "⚠ 門口の中心は**部材のローカル +X の左端から**測るが、その左端は run の **s1 の側**(実測 2026-08-30)。据える yaw で +X が s の減る向きへ写るため。したがって `呼び寸法 = s1 − mon.s + 0.32`。s0 から測ると門口が反対側へ出る(辺13 で 3.7m ずれ、s12.50〜15.50 の門口が s8.8〜11.7 に開いた)。"
 }

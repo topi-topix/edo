@@ -35,7 +35,10 @@
   素の `knagaya01c` の継ぎ目と同程度(±0.1m)に収まる長さ同士で使うこと。
 
 【`--gate <中心m> <幅m> <高さm>`】**長屋門**(ユーザー裁定 2026-08-30)。躯体を門の上まで通し、
-  足元に門口を抜く。門(冠木門・扉)は作らない — Unity 側が開口の中へ据える。
+  足元に門口を抜き、**両開きの板戸(高さ DOOR_H=2.8m)と扉の上の小壁まで作り付ける**
+  (ユーザー裁定2-A 2026-08-31。以前は Unity 側が在庫の冠木門を落とし込んでいたが、
+   部材の全幅を開口幅に合わせていたため躯体が 1.56m しか無く左右に 0.72m ずつ隙間が空き、
+   門の小屋根が長屋の通し屋根と二重になっていた)。
   ・中心は**出来上がりの部材のローカル +X の左端から**。⚠ 書き出す前に Z まわりに 180° 回すので
     obj 空間では**右端から**測って抜く(取り違えると門口が反対の端に出る。2026-08-30 に踏んだ)
   ・高さは**土台の底から**。⚠ obj の z は 0 が底ではない(底は負)ので、絶対 z として渡すと
@@ -197,6 +200,116 @@ def fill_boundary(o, pred, sides=64):
         bmesh.ops.holes_fill(bm, edges=edges, sides=sides)
     bm.to_mesh(me); bm.free(); me.update()
     return n
+
+
+DOOR_H = 2.8                 # 指図 komon[].leaf の板戸の高さ[m]
+# 板戸の板目 — knagaya.jpg を 16x16 に割って「縦筋が強く横筋がほぼ無い暗い区画」を
+# 探して採った(輝度 40.3 / 縦筋 24.5 / 横筋 0.57)。⛔ 新しいテクスチャは作らない。
+# ⚠ 海鼠壁の帯から採ると**真っ黒な板**になる(2026-08-31 の1回目)。
+DOOR_UV = (0.3125, 0.3125, 0.3750, 0.3750)
+
+
+def board_uv(o, z_lo, z_hi):
+    """腰の下見板の帯から UV 矩形を借りる。**新しい材質もテクスチャも作らない。**
+    扉の板は長屋の下見板と同じ材なので、既にある面の UV をそのまま使う。"""
+    me = o.data
+    uvl = me.uv_layers.active.data
+    best, ba, bmi = None, 0.0, 0
+    for p in me.polygons:
+        if abs(p.normal.y) < 0.9:
+            continue
+        zc = sum(me.vertices[i].co.z for i in p.vertices) / len(p.vertices)
+        if not (z_lo <= zc <= z_hi):
+            continue
+        if p.area > ba:
+            ba, best, bmi = p.area, p, p.material_index
+    if best is None:
+        return (0.0, 0.0, 1.0, 1.0), 0
+    us = [uvl[i].uv[0] for i in best.loop_indices]
+    vs = [uvl[i].uv[1] for i in best.loop_indices]
+    return (min(us), min(vs), max(us), max(vs)), bmi
+
+
+def hang_doors(o, x0, x1, z_bot, z_top, leaf_h):
+    """**門口に両開きの板戸を吊り、扉の上に小壁を張る(ユーザー裁定2-A 2026-08-31)。**
+
+    ⚠ それまでは Unity 側が在庫の冠木門(`es_kmon/k_mon.obj`)を開口へ落とし込んでいた。
+      ところが実装が**部材の全幅(屋根の出と袖塀を含む 14.413m)**を開口幅 3.0m に
+      合わせて縮めていたため、壁に接すべき躯体は 7.53m×0.208 = **1.56m** しかなく、
+      左右に **0.72m ずつ隙間**が空いていた(ユーザー指摘 2026-08-31)。
+      さらに冠木門は自前の小屋根を持つので、長屋の通し屋根と**二重**になっていた。
+      → 規則5「部材どうしを中心で合わせない/呼び寸法で合わせない」。
+      扉は**長屋の躯体に作り付ける**ことにして、合わせる面を開口の実寸そのものにした。
+
+    座標は obj 単位・Blender Z-up(走り=X / 厚み=Y / 高さ=Z)。carve_gate の直後に呼ぶ。
+    """
+    me = o.data
+    # 開口の左右の小口(方立)から**壁の実厚み**を測る。呼び寸法を使わない
+    ys = [v.co.y for v in me.vertices
+          if abs(v.co.x - x0) < 2e-3 and z_bot - 1e-3 <= v.co.z <= z_top + 1e-3]
+    if len(ys) < 2:
+        ys = [v.co.y for v in me.vertices]
+    y_in, y_out = min(ys), max(ys)
+    t = 0.09 / ES                                   # 板戸の厚み 90mm
+    yc = (y_in + y_out) * 0.5
+    yd0, yd1 = yc - t * 0.5, yc + t * 0.5
+
+    # 扉は板戸の板目、扉の上の小壁は**開口より上の壁と同じ面**から UV を借りる
+    _, mi = board_uv(o, z_bot, z_top)
+    u0, v0, u1, v1 = DOOR_UV
+    kabe_uv, _mi2 = board_uv(o, z_top, z_top + (z_top - z_bot))
+
+    bm = bmesh.new(); bm.from_mesh(me)
+    uvl = bm.loops.layers.uv.active or bm.loops.layers.uv.new()
+
+    def box(bx0, bx1, by0, by1, bz0, bz1, rect=None):
+        a0, b0, a1, b1 = rect if rect else (u0, v0, u1, v1)
+        vs = bmesh.ops.create_cube(bm, size=1.0)["verts"]
+        for v in vs:
+            v.co.x = bx0 if v.co.x < 0 else bx1
+            v.co.y = by0 if v.co.y < 0 else by1
+            v.co.z = bz0 if v.co.z < 0 else bz1
+        for f in set(f for v in vs for f in v.link_faces):
+            f.material_index = mi
+            for l in f.loops:
+                # 走り方向を u・高さを v に取る(板目が縦に立つ)
+                fu = (l.vert.co.x - bx0) / max(1e-6, bx1 - bx0)
+                fv = (l.vert.co.z - bz0) / max(1e-6, bz1 - bz0)
+                l[uvl].uv = (a0 + (a1 - a0) * fu, b0 + (b1 - b0) * fv)
+
+    xm = (x0 + x1) * 0.5
+    zl = z_bot + leaf_h / ES                        # 扉の頭
+    gap = 0.012 / ES                                # 召し合わせの隙
+    box(x0, xm - gap, yd0, yd1, z_bot, zl)          # 左の扉
+    box(xm + gap, x1, yd0, yd1, z_bot, zl)          # 右の扉
+
+    # ---- 縦板張りと桟。**形で出す。**
+    # ⚠ 板戸は渋墨で真っ黒なので、テクスチャの明暗では板の継ぎ目が出ない
+    #   (2026-08-31 の1回目・2回目とも、扉が「黒い板1枚」に見えた)。
+    #   板の見付けを 15mm 起こし、桟を 35mm 起こして**陰影で目地を出す**。
+    pitch = 0.30 / ES                               # 板の見付け 300mm
+    bw = 0.275 / ES                                 # 板の幅(残り 25mm が目地)
+    proud = 0.015 / ES
+    for lx0, lx1 in ((x0, xm - gap), (xm + gap, x1)):
+        nb = max(1, int(round((lx1 - lx0) / pitch)))
+        for b in range(nb):
+            bc = lx0 + (lx1 - lx0) * (b + 0.5) / nb
+            box(bc - bw * 0.5, bc + bw * 0.5, yd1, yd1 + proud, z_bot, zl)
+            box(bc - bw * 0.5, bc + bw * 0.5, yd0 - proud, yd0, z_bot, zl)
+    sh = 0.13 / ES                                  # 桟の丈 130mm
+    sp = 0.035 / ES
+    for fz in (0.18, 0.52, 0.86):                   # 下・中・上の三本の桟
+        zc = z_bot + (zl - z_bot) * fz
+        for lx0, lx1 in ((x0, xm - gap), (xm + gap, x1)):
+            box(lx0, lx1, yd1 + proud, yd1 + proud + sp, zc - sh * 0.5, zc + sh * 0.5)
+            box(lx0, lx1, yd0 - proud - sp, yd0 - proud, zc - sh * 0.5, zc + sh * 0.5)
+    if zl < z_top - 1e-4:                           # 扉の上の小壁(楣まで)
+        box(x0, x1, y_in, y_out, zl, z_top, rect=kabe_uv)
+    bm.normal_update()
+    bm.to_mesh(me); bm.free(); me.update()
+    print("[nagaya] 扉を吊った: 両開き 幅 %.3fm × 高 %.3fm / 上の小壁 %.3fm / 厚み %.3fm"
+          % ((x1 - x0) * ES, leaf_h, (z_top - zl) * ES, t * ES))
+    return o
 
 
 def carve_gate(o, x0, x1, z_top, tol=1e-4):
@@ -373,7 +486,12 @@ def build(Lm, ends="both", name=None, floors=1, gate=None):
         #   (底は負)。絶対 z として渡すと切る面が高すぎて**屋根まで抜ける**
         #   (2026-08-30 に踏んだ — 門口が全高の切り欠きになった)
         z_bottom = min(v.co.z for v in o.data.vertices)
-        carve_gate(o, cx - (gw_m / ES) * 0.5, cx + (gw_m / ES) * 0.5, z_bottom + gh_m / ES)
+        gx0, gx1 = cx - (gw_m / ES) * 0.5, cx + (gw_m / ES) * 0.5
+        gz_top = z_bottom + gh_m / ES
+        carve_gate(o, gx0, gx1, gz_top)
+        # 扉は**長屋に作り付ける**(ユーザー裁定2-A 2026-08-31)。指図 komon[].leaf の
+        # 「両開きの板戸 h=2.8」。⛔ Unity 側で在庫の門を開口へ落とし込まない
+        hang_doors(o, gx0, gx1, z_bottom, gz_top, DOOR_H)
 
     # --- 階を積む(案A)。帯の高さは**素の実測**から取る
     if floors > 1:

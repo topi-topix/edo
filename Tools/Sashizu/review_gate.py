@@ -60,10 +60,52 @@ REVIEWERS = collections.OrderedDict([
         keys=["gardens", "planting", "plantRule", "tenkei",
               "slopeArea", "slopePlanting", "routes"],
         why="庭が庭として成立しているか(主景・見所・園路・作庭の作法・植栽の時代考証)",
-        # 庭・植栽・点景のどれかが指図にあれば庭方が要る
-        required=lambda d: any(d.get(k) for k in
-                               ("gardens", "planting", "tenkei", "slopePlanting")))),
+        required=lambda d: _needs_niwashi(d))),
 ])
+
+
+# ⚠ **キーの有無だけで判定しない**(2026-09-01 松平セッションの指摘)。
+#   「庭・植栽・点景のどれかがあれば」だけだと、**庭の実体はあるのに点景しか書いていない
+#   段階の指図**で要求が立たない — 一番検分が要る時期に関門がすり抜ける。
+#   ⭕ 「この敷地に庭があるか」を、書きかけでも拾える手がかりから判断する。
+_NIWA_HINTS = ("gardens", "planting", "plantRule", "tenkei", "slopePlanting", "slopeArea")
+# 棟・郭・区域の**名前**に現れる、庭の存在を示す語(書きかけでも拾える)
+#   ⛔ 「池」は入れない — 外堀の題「溜**池**堰下流」のような**地名**を拾ってしまう。
+#      庭の池は「泉水」「主庭」など別の語で必ず現れるので、取りこぼしにはならない。
+_NIWA_WORDS = ("庭", "泉水", "築山", "露地", "茶室", "稲荷", "園路", "枯山水")
+
+
+def _walk_names(o):
+    """指図の中の**名前らしい値**だけを辿る。題・説明文・典拠の引用は見ない
+    (⚠ 本文まで見ると『溜池』のような地名や、史料の引用文で誤検出する)。"""
+    if isinstance(o, dict):
+        for k, v in o.items():
+            if k.startswith("_"):
+                continue
+            if k in ("name", "ja", "label", "title") and isinstance(v, str):
+                yield v
+            else:
+                for x in _walk_names(v):
+                    yield x
+    elif isinstance(o, list):
+        for v in o:
+            for x in _walk_names(v):
+                yield x
+
+
+def _needs_niwashi(d):
+    """庭方が要るか。⚠ **キーの有無だけで決めない**(2026-09-01 松平セッションの指摘)—
+    「庭の実体はあるのに点景しか書いていない段階」で要求が立たず、
+    一番検分が要る時期に関門がすり抜ける。"""
+    # ① 庭まわりのキーが1つでも埋まっていれば要る
+    if any(d.get(k) for k in _NIWA_HINTS):
+        return True
+    # ② キーが空でも、棟・郭・区域の**名前**に庭を示す語があれば要る
+    #    ⛔ title は除く(「溜池堰下流 外堀 掘り直し指図」で誤検出するため)
+    for nm in _walk_names({k: v for k, v in d.items() if k != "title"}):
+        if any(w in nm for w in _NIWA_WORDS):
+            return True
+    return False
 
 VERDICTS = ("pass", "fail", "advisory")
 
@@ -103,7 +145,14 @@ def gate(name):
         want = fingerprint(doc, spec["keys"])
         got = rev.get(key)
         if not got:
-            rows.append(("⛔", key, spec["label"], "**一度も通していない**", spec["why"]))
+            # ⚠ **「通していない」と書かない。** この関門は 2026-09-01 に新設したので、
+            #   それ以前の検分は記録されていないだけで、実際には通している邸がある
+            #   (土井=検図14巡・考証13巡 / 岡部=検図12巡)。事実と食い違う非難を機械が
+            #   出すと、正しく回してきた邸ほど関門を信用しなくなる。
+            #   ⭕ ただし「改めて通す必要がある」という結論は変わらない — 過去の検分は
+            #      いまの指図を見ていないので、記録を遡って書いてはならない。
+            rows.append(("⛔", key, spec["label"], "**記録が無い**(関門は 2026-09-01 新設)",
+                         spec["why"] + " ／ 過去に通していても、いまの指図を見た検分が要る"))
             red += 1
             continue
         verdict = got.get("verdict")
@@ -178,7 +227,7 @@ def main():
             if why:
                 lines.append("        %s" % why)
     if quiet and total:
-        lines.insert(0, "検図関門 — **通していない/検め直しが要る指図がある**"
+        lines.insert(0, "検図関門 — **検分の記録が無い/検め直しが要る指図がある**"
                         "(`python3 Tools/Sashizu/review_gate.py`)")
     print("\n".join(lines))
     if not quiet and total:
@@ -187,4 +236,8 @@ def main():
     sys.exit(1 if total else 0)
 
 
-main()
+# ⚠ **`main()` を裸で呼ばない。** import しただけで全邸の検査が走り、`sys.exit` まで
+#   到達する(2026-09-01、判定の単体確認をしようとして踏んだ)。他所からこの道具の
+#   関数(`_needs_niwashi` / `gate` / `fingerprint`)を使えるようにしておく。
+if __name__ == "__main__":
+    main()

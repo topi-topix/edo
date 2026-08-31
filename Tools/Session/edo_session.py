@@ -813,7 +813,10 @@ def cmd_worktree(a):
 #   フックは main の絶対パスを使うよう直したが、**セッションが手で相対パスから叩く経路**と
 #   **worktree の CLAUDE.md を読む経路**は残る。これを1コマンドで揃える。
 SYNC_PATHS = ["Tools/Session", "CLAUDE.md", "docs/session-coordination.md",
-              "docs/session-board.md", "docs/reporting-protocol.md", ".claude/hooks"]
+              "docs/session-board.md", "docs/reporting-protocol.md", ".claude/hooks",
+              # ⚠ Tools/Sashizu/ は各邸が自分の生成器を持つので**ディレクトリごとは配らない**。
+              #   全邸共通の道具だけを名指しする(review_gate.py = 検図関門)。
+              "Tools/Sashizu/review_gate.py"]
 
 
 def cmd_sync_tools(a):

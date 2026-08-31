@@ -22,7 +22,7 @@
 import argparse, json, os, re, sys, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from edo_session import sid, _common_git_dir
+from edo_session import sid, _common_git_dir, atomic_write_json
 
 BOARD = os.path.join(_common_git_dir(), "edo-board")
 ESTATES = ("matsudaira_dewa", "sanno", "okabe", "doi", "sotobori", "cross", "infra")
@@ -99,7 +99,9 @@ def load_one(iid):
 
 def save(issue, fp):
     issue["updated"] = now()
-    json.dump(issue, open(fp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    # ⛔ 非アトミックな書き込みは、同時に読んでいる別セッションへ壊れた(途中の)JSON を
+    #   見せる瞬間がある(2026-08-31、edo_session.py の claim 消失と同根の問題として発見)。
+    atomic_write_json(issue, fp)
 
 
 def fmt_line(c):
@@ -179,10 +181,10 @@ def cmd_post(a):
     os.makedirs(BOARD, exist_ok=True)
     nums = [int(re.search(r"\d+", c["id"]).group()) for c in load_all()]
     n = max(nums or [0]) + 1
-    while True:  # 採番の衝突だけ O_EXCL で避ける
+    while True:  # 採番の衝突だけ O_EXCL で避ける(空ファイルの確保のみ・中身は後で atomic に書く)
         iid = "EDO-%04d" % n
         try:
-            f = open(path_of(iid), "x", encoding="utf-8")
+            open(path_of(iid), "x", encoding="utf-8").close()
             break
         except FileExistsError:
             n += 1
@@ -196,8 +198,7 @@ def cmd_post(a):
         "log": [{"t": now(), "by": me, "msg": a.msg or "起票"}],
         "created": now(), "updated": now(),
     }
-    json.dump(issue, f, ensure_ascii=False, indent=1)
-    f.close()
+    atomic_write_json(issue, path_of(iid))
     print("post: %s" % fmt_line(issue))
     return 0
 

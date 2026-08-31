@@ -16,7 +16,7 @@
 登録簿は `.claude/locks/*.json`(machine-local・gitignore)。
 プロセスが消えたか、`--ttl` 分だけ心拍が途絶えた claim は死んだものとして無視する。
 """
-import argparse, fnmatch, io, json, os, re, subprocess, sys, time
+import argparse, fnmatch, io, json, os, re, subprocess, sys, tempfile, time
 
 ROOT = os.environ.get("CLAUDE_PROJECT_DIR") or subprocess.run(
     ["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True,
@@ -214,7 +214,13 @@ def load_all(ttl=TTL_MIN):
         try:
             c = json.load(open(fp, encoding="utf-8"))
         except Exception:
-            os.remove(fp)
+            # ⛔ **読めない = 壊れている、とは限らない。消さない。**
+            #   save() は atomic_write_json で書くようになったので通常は起きないはずだが、
+            #   念のため防御を残す。ここで削除すると、たまたま同じ瞬間に別プロセスが
+            #   書き換え中(rename の直前)のファイルを掴んだだけで claim が消える
+            #   (2026-08-31、京極セッションが EDO_SESSION_ID 明示でも claim が消える
+            #   実例を報告 — 真因はここだった可能性が高い)。次回の呼び出しで読めれば
+            #   自然に復活する。TTL 切れの掃除だけがファイルを消してよい。
             continue
         # ⚠ **生存は心拍だけで判定する。** pid を使ってはならない — フックから呼ばれる
         #   スクリプトの親はその都度のシェルで、セッションの寿命と無関係(2026-08-24 に
@@ -241,11 +247,36 @@ def mine(s):
             "paths": [], "resources": [], "note": ""}, fp
 
 
+def atomic_write_json(obj, fp):
+    """他プロセスが同時に読んでも壊れた(空・途中)状態を絶対に見せない。
+    ⛔ **`json.dump(obj, open(fp,"w"))` は非アトミック** — open("w") が即座にファイルを
+    0バイトへ切り詰め、そこから書き終わるまでの間、同じファイルを読んだ他プロセスは
+    JSONDecodeError を踏む。load_all() の except 節はそれを「壊れた claim」として
+    **削除する**ため、複数セッションが同時に動く当プロジェクトでは自分の claim が
+    他人の read に巻き込まれて消える(2026-08-31、京極セッションが実例を報告・
+    EDO_SESSION_ID を明示していたのに sashizu:kyogoku_bitchu が消えた)。
+    同じディレクトリに一時ファイルを書いてから os.replace で置き換える
+    (POSIX の rename はアトミック — 読み手は「置き換わる前」か「後」しか見えない)。"""
+    d = os.path.dirname(fp) or "."
+    os.makedirs(d, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=".tmp-")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(obj, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, fp)
+    except Exception:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def save(c, fp):
     os.makedirs(LOCKS, exist_ok=True)
     c["heartbeat"] = now()
     c.setdefault("cwd", os.getcwd())
-    json.dump(c, open(fp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    atomic_write_json(c, fp)
 
 
 def rel(p):
@@ -307,7 +338,7 @@ def _force_release(session, resources):
         if r in c.get("resources", []):
             c["resources"].remove(r)
         (c.get("used") or {}).pop(r, None)
-    json.dump(c, open(fp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    atomic_write_json(c, fp)
 
 
 # ────────────────────────────────────────────── サブコマンド

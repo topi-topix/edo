@@ -128,6 +128,29 @@ def load_pending():
     return out
 
 
+def load_reviews():
+    """検図関門(Tools/Sashizu/review_gate.py)の結果を敷地ごとに拾う。
+    ⚠ 判定のロジックは持たない — review_gate を import して**同じ関数**を呼ぶ。
+    ここで判定を書き写すと、関門の改訂に追随せず二重管理になる。"""
+    out = {}
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "review_gate", os.path.join(ROOT, "Tools", "Sashizu", "review_gate.py"))
+        rg = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(rg)
+    except Exception:
+        return out
+    for e in SITES:
+        try:
+            red, rows = rg.gate(e)
+            out[e] = {"red": red, "rows": [{"mark": r[0], "label": r[2], "state": r[3]}
+                                           for r in rows]}
+        except Exception:
+            pass
+    return out
+
+
 def load_junsu_baseline():
     """前回ユーザー裁定時点の巡数(作事奉行の巡回状態から)。無ければ空。"""
     fp = os.path.join(OUT, "state.json")
@@ -353,6 +376,12 @@ h2{font-family:'Shippori Mincho',serif;font-weight:600;font-size:17px;
   border-radius:4px;padding:2px 8px;display:inline-block;margin:4px 0}
 .statepair{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
 .statepair .tag{font-size:11px;color:var(--muted);align-self:center}
+.gate{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0;align-items:center}
+.gate .tag{font-size:11px;color:var(--muted)}
+.gitem{font-size:11.5px;border-radius:4px;padding:1px 7px;border:1px solid var(--line);
+  background:var(--card);cursor:help}
+.gitem.g-ng{background:var(--shu-soft);border-color:var(--shu);color:var(--shu);font-weight:600}
+.gitem.g-ok{background:var(--matsu-soft);border-color:var(--matsu);color:var(--matsu)}
 .state.impl-wait{background:var(--oud-soft);color:var(--oud);font-weight:600}
 .kv{font-size:12.5px;color:var(--muted);margin:3px 0}
 .kv b{color:var(--ink);font-weight:500}
@@ -975,7 +1004,7 @@ def filterbar_html():
     return "".join(p)
 
 
-def build_html(issues, pending, commits, claims, states, summary):
+def build_html(issues, pending, commits, claims, states, summary, reviews):
     live = [i for i in issues if i["status"] not in ("done", "dropped")]
     waits = [i for i in live if i["status"] == "awaiting-user"]
     blks = [i for i in live if i["type"] == "blocker"]
@@ -1067,6 +1096,16 @@ def build_html(issues, pending, commits, claims, states, summary):
                                 esc(impl)))
         elif st.get("state"):
             p.append('<span class="state">%s</span>' % esc(st["state"]))
+        # 検図関門(2026-09-01 新設)。⛔ 赤の指図は実装しない・ユーザーに見せない。
+        rv = reviews.get(e)
+        if rv and rv.get("rows"):
+            p.append('<div class="gate%s">' % (" gate-red" if rv["red"] else ""))
+            p.append('<span class="tag">検分</span>')
+            for r in rv["rows"]:
+                cls = "g-ng" if r["mark"] in ("⛔", "⚠") else "g-ok"
+                p.append('<span class="gitem %s" title="%s">%s %s</span>'
+                         % (cls, esc(r["state"]), r["mark"], esc(r["label"].split("(")[0])))
+            p.append("</div>")
         if cl:
             for c in cl:
                 p.append('<div class="kv">担当: <b class="n">%s</b>(心拍 %.0f分前)%s</div>'
@@ -1148,12 +1187,13 @@ def main():
     commits = load_commits()
     claims = load_claims()
     states = load_readme_states()
+    reviews = load_reviews()
     summary = build_summary(issues, pending, commits, claims)
     os.makedirs(OUT, exist_ok=True)
     json.dump(summary, open(os.path.join(OUT, "summary.json"), "w", encoding="utf-8"),
               ensure_ascii=False, indent=1)
     open(os.path.join(OUT, "dashboard.html"), "w", encoding="utf-8").write(
-        build_html(issues, pending, commits, claims, states, summary))
+        build_html(issues, pending, commits, claims, states, summary, reviews))
     print("dashboard: %s\nsummary:   %s" % (os.path.join(OUT, "dashboard.html"),
                                             os.path.join(OUT, "summary.json")))
 

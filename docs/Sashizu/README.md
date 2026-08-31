@@ -83,7 +83,7 @@ python3 Tools/Sashizu/build_okabe_sashizu.py
 
 | 普請 | 地区 | 状態 | 図面 | Artifact |
 |---|---|---|---|---|
-| 溜池堰下流 外堀 掘り直し(Sotobori_00001・00002・00003) | 堰(どんどん)〜幸橋方向 | **実装済(00001 = 2026-08-29 ／ 00002・00003 = 2026-08-31)。⛔ QA不合格1件**(石垣の裏面が駒ごとに空く・郭外SW3c。数値QAは合格していたがレンダで発覚) **・裁定待ち1件**(EDO-0080・SW2 天端2%埋没) | [sotobori_sashizu.html](sotobori_sashizu.html) | https://claude.ai/code/artifact/87dd7a78-0238-47c6-917b-107fe4e92dd3 |
+| 溜池堰下流 外堀 掘り直し(Sotobori_00001・00002・00003) | 堰(どんどん)〜幸橋方向 | **実装済(00001 = 2026-08-29 ／ 00002・00003 = 2026-08-31)。⛔ QA不合格1件**(石垣の裏面が駒ごとに空く・郭外SW3c。数値QAは合格していたがレンダで発覚) **・⚠ 施工後の7検査のうち2件が △**(凍結域 K1 に未是正1セル・U14。施工記録の「意図せず動いたセル 0」は偽の合格だった) **・裁定待ち2件**(EDO-0080 = SW2 天端2%埋没・U12 ／ 出隅で躯体の帯が扇形になり駒が埋めない・U11) | [sotobori_sashizu.html](sotobori_sashizu.html) | https://claude.ai/code/artifact/87dd7a78-0238-47c6-917b-107fe4e92dd3 |
 | ├ 継ぎ目の折れの検証(00002×00003・新シ橋) | 世界座標 (590, 355) | **決着(2026-08-30)— 実装は史料と一致** | — | https://claude.ai/code/artifact/d864993f-2187-449e-94e8-10649d35c2ff |
 | ├ 裁定図(EDO-0046・U9/U1b/U7) | 同上 | U9・U1b・U7① 解決済／U7② は工法 | [sotobori_saitei.html](sotobori_saitei.html) | https://claude.ai/code/artifact/d3c33b29-b81c-49a4-bb98-f799aa557a4f |
 

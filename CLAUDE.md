@@ -154,14 +154,6 @@
   面の高さは指図のまま使える(動いたのは面の縁だけ)。→ `docs/terrain-georef-fix.md`
 - **コンパイルが止まっていることがある。** `Library/ScriptAssemblies/Assembly-CSharp-Editor.dll` の
   mtime がソースより古ければ実行しない。古いアセンブリで走ると「直したのに反映されない」と誤診する。
-  ⛔ **止まる原因の第一位は Unity の「ライセンス落ち」**(2026-08-31 に2セッションが独立に観測)。
-  `read_console` は通るのに `execute_code` / `refresh_unity` だけ Timeout か Connection closed を返し、
-  Asset Pipeline Refresh が毎回 `compile time=0 ms` を返すなら、**CPU の多寡に関わらず
-  `Logs/Editor.log` の `Licensing` 行を先に見る**。並びは
-  `IPC stream failed to read (Not connected)` → `Code 404 (Found 0 entitlement groups…)` の繰り返し。
-  ⛔ **セッション側からは復旧できない** — 再インポート・強制コンパイル・フォアグラウンド化・待機(40分)
-  はいずれも効かない。**Editor の再起動(必要なら Hub でサインインし直し)をユーザーへ依頼する。**
-  ⭐ **粘らずに早く頼む** — 実例では1セッションが3回つまずき、待機と再試行で1時間以上を溶かした。
 - **MCP タイムアウト後の再送で多重実行が起きる。** 冪等でないステージ(特に造成)は
   実行済みかを必ず先に確認する。ガードのマーカーは **active** にする
   (`GameObject.Find` は非アクティブを見つけない)。

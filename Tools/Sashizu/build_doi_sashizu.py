@@ -1919,6 +1919,122 @@ def perimeter_check(d):
     return bad
 
 
+def _quad(cx, cz, ux, uz, hl, ht):
+    """辺に沿う矩形の平面形。(ux,uz)=辺の単位ベクトル、hl=辺方向の半長、ht=法線方向の半厚。"""
+    nx, nz = -uz, ux
+    return [(cx + ux * a * hl + nx * b * ht, cz + uz * a * hl + nz * b * ht)
+            for a, b in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+
+
+def _seg_x(p1, p2, q1, q2):
+    """線分 p1-p2 と q1-q2 が交わるか。"""
+    def cr(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    d1, d2 = cr(q1, q2, p1), cr(q1, q2, p2)
+    d3, d4 = cr(p1, p2, q1), cr(p1, p2, q2)
+    return ((d1 > 0) != (d2 > 0)) and ((d3 > 0) != (d4 > 0))
+
+
+def _closure_footprints(d):
+    """**外周を実際に塞ぐ物**の平面形を、指図の設計値だけから組む(世界座標)。
+
+    ⛔ **門の開口は、扉(`leaf`)を申告するまで穴として数える。**開口幅と敷居しか
+      書いていない門は、建てれば素通しになる。⭐ 扉の出どころ(門の躯体に含まれる /
+      別部材)は閉じの判定を変えない — どちらでも開口は閉じる。
+    """
+    P = d["polygon"]
+    C = d["const"]
+    n = len(P)
+    out = []
+
+    def edge(e):
+        a, b = P[e % n], P[(e + 1) % n]
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        return a, ((b[0] - a[0]) / L, (b[1] - a[1]) / L), L
+
+    def put(name, e, s0, s1, t):
+        a, u, L = edge(e)
+        c = (a[0] + u[0] * (s0 + s1) / 2.0, a[1] + u[1] * (s0 + s1) / 2.0)
+        out.append((name, _quad(c[0], c[1], u[0], u[1], (s1 - s0) / 2.0, t)))
+
+    for r in d["runs"]:
+        t = (C["nagayaD"] if r["kind"] == "Nagaya" else C["dobeiT"]) / 2.0
+        put(r["name"], r["edge"], r["s0"], r["s1"], t)
+
+    g = d.get("gate")
+    if g:
+        w = g["plan"]["monW"] / 2.0
+        door = g["plan"]["doorKen"] * C["ken"] / 2.0        # 門戸部(扉の開口)
+        t = g["plan"]["monD"] / 2.0
+        # 躯体のうち門戸部の左右は塞ぐ。門戸部そのものは leaf を申告した時だけ塞ぐ。
+        put("表門/躯体(南)", g["edge"], g["s"] - w, g["s"] - door, t)
+        put("表門/躯体(北)", g["edge"], g["s"] + door, g["s"] + w, t)
+        if g["plan"].get("leaf"):
+            put("表門/門扉", g["edge"], g["s"] - door, g["s"] + door, t)
+
+    for k in d.get("komon") or []:
+        if not k.get("leaf"):
+            continue                                        # 扉が無い門は穴
+        put(k["name"], k["edge"], k["s"] - k["w"] / 2.0, k["s"] + k["w"] / 2.0,
+            C["dobeiT"] / 2.0)
+    return out
+
+
+def perimeter_closure_check(d, tol=0.4, step=0.2):
+    """**外周が閉じているか** — 区画線をまたぐ線が、どこかで外周の物に当たるかを全長で測る。
+
+    ⚠ 2026-08-29(EDO-0053)に松平がユーザーの指摘4件から起こした検査の当家版。
+      当家には検査が20本以上あるが、`perimeter_check` は**辺の s 上の帳簿**しか見ていない
+      — 「run を申告した」ことと「建てれば塞がる」ことは別で、0件はその帳簿を満たした
+      以上を意味しない。`qa-and-pitfalls.md`「検査の文言と実装の集合を突き合わせる」。
+    ⛔ **当家が持つ辺だけを回す**(`edgeOwner`)。南=岡部・北西=松平の所有辺で回すと
+      全区間が穴として出る — それは当家の欠陥ではない。
+    """
+    P = d["polygon"]
+    own = d.get("edgeOwner", {})
+    n = len(P)
+    fps = _closure_footprints(d)
+    cx = sum(q[0] for q in P) / n
+    cz = sum(q[1] for q in P) / n
+    bad = []
+    for e in range(n):
+        if own.get(str(e)) != "土井":
+            continue
+        a, b = P[e], P[(e + 1) % n]
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        ux, uz = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+        nx, nz = -uz, ux
+        mx, mz = (a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0
+        if (cx - mx) * nx + (cz - mz) * nz < 0:
+            nx, nz = -nx, -nz                               # 内向き
+        holes, cur, s = [], None, 0.0
+        while s <= L + 1e-9:
+            p1 = (a[0] + ux * s - nx * 2.0, a[1] + uz * s - nz * 2.0)
+            p2 = (a[0] + ux * s + nx * 5.0, a[1] + uz * s + nz * 5.0)
+            hit = False
+            for _, q in fps:
+                for i in range(4):
+                    if _seg_x(p1, p2, q[i], q[(i + 1) % 4]):
+                        hit = True
+                        break
+                if hit:
+                    break
+            if hit:
+                if cur is not None:
+                    holes.append(tuple(cur))
+                    cur = None
+            else:
+                cur = [s, s] if cur is None else [cur[0], s]
+            s += step
+        if cur is not None:
+            holes.append(tuple(cur))
+        for s0, s1 in holes:
+            if s1 - s0 + step >= tol:
+                bad.append("辺%d(当家)の s%.1f〜%.1f(%.2fm)が外周として閉じていない — "
+                           "塞ぐ物を指図に書く(門なら扉 leaf)" % (e, s0, s1, s1 - s0 + step))
+    return bad
+
+
 def clearance_check(d):
     """棟・付属屋から**区画線まで**の離れ。犬走り+基壇厚を確保する。
 
@@ -5219,7 +5335,8 @@ def main():
         for b in bad:
             print("   ", b)
     pbad = (plane_check(d) + inubashiri_check(d) + opening_fit_check(d) + refs_check(d)
-            + norms_check(d) + perimeter_check(d) + clearance_check(d) + rails_check(d)
+            + norms_check(d) + perimeter_check(d) + perimeter_closure_check(d)
+            + clearance_check(d) + rails_check(d)
             + ramp_check(d) + completeness_check(d) + program_check(d) + gate_overlap_check(d) + vocab_check(d)
             + terrace_overhang_check(d) + setchin_check(d)
             + route_check(d, load_terrain(os.path.join(DOC, "doi_edo_world.json")))

@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 34ea9686e7b234744a9ab55f8cc8f8a0
+guid: 449030bab9d034ea3bc204b570c331ed
 ModelImporter:
   serializedVersion: 24501
   internalIDToNameTable: []
@@ -7,8 +7,13 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
-      name: knagayamap
-    second: {fileID: -8419424956809715245, guid: 25defa6bb34dd4f63959ee4b982ed27a, type: 3}
+      name: M_FJG_Tree_Sakura_Bark_A
+    second: {fileID: 2100000, guid: e1936e8559092c0118a674b0569bfcab, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: M_FJG_Tree_Sakura_Sprout_Summer
+    second: {fileID: 2100000, guid: dd49da36fc317a6a8900eff9fa0b5bc8, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0

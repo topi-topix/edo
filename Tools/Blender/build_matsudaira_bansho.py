@@ -92,15 +92,20 @@ class Mesh(object):
         論理座標のまま出すと「表」が Unity のローカル −Z に出る
         (README の規約は 表=+Z)。2026-08-25 に番所が街路へ背を向け、
         出格子と唐破風が敷地の内側を向いていたのがこれ。
-        面の巻き順と UV も一緒に反転して、法線を外向きに保つ。
+        ⛔ **巻き順は反転しない。** 反転が1回多くなり、**面が全部裏返る**。
+        `quad` が `(x, z, y)` と軸を入れ替えて積む時点で1回、ここの Y 反転で1回、
+        合わせて偶数回の鏡映になっているので、巻きはそのままで法線が外を向く。
+        ⚠ 2026-08-31 実測: 巻きを反転していたため **背面 4/4・出格子の表 60/60 が裏返り**、
+        裏面は描かれないので**閉じているのに中が透けて見えた**
+        (ユーザーのブックマーク #3「袖番所の中が透けて見える」の正体)。
         """
         vs = [Vector((p.x, -p.y, p.z)) for p in self.v]
         faces, uvs, mi = [], [], []
         k = 0
         for fi, f in enumerate(self.f):
             n = len(f)
-            faces.append(list(reversed(f)))
-            uvs += list(reversed(self.uv[k:k + n]))
+            faces.append(list(f))
+            uvs += list(self.uv[k:k + n])
             mi.append(self.mi[fi])
             k += n
         me = bpy.data.meshes.new(name)

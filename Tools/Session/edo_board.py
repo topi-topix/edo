@@ -113,6 +113,26 @@ def fmt_line(c):
 
 
 # ────────────────────────────────────────────── サブコマンド
+# ⛔ 規則9 — 内部の符牒(U12 / EDO-0064 / 其十四 / SW2 …)を裸で出さない。
+#   2026-08-31 ユーザー指摘「U12 とか言われてもどんな内容だったか分かりません。
+#   必ずタスク表か裁定図、指図の該当箇所のリンクを示すように」。
+#   題は「その1行だけ見せて相手が中身を言い当てられるか」で判定する。
+BARE_TOKEN = re.compile(r"(?<![0-9A-Za-z])(U\d{1,3}|EDO-\d{3,4}|其[一二三四五六七八九十廿卅]+)(?![0-9A-Za-z])")
+
+
+def check_bare_token(title):
+    """題に符牒だけが載っていて、中身の説明が無いなら理由を返す。"""
+    m = BARE_TOKEN.findall(title or "")
+    if not m:
+        return None
+    # 符牒を抜いた残りが実質的な説明になっているか(記号と空白を除いて8文字以上)
+    rest = BARE_TOKEN.sub("", title)
+    rest = re.sub(r"[\s\-—:：/()（）\[\]、。,.]", "", rest)
+    if len(rest) >= 8:
+        return None
+    return "題が符牒(%s)だけで中身が分からない" % "・".join(sorted(set(m)))
+
+
 def cmd_post(a):
     me = sid(a.session)
     if a.type == "decision":
@@ -130,6 +150,14 @@ def cmd_post(a):
                   "   ⭐ 狙いは「1=A」の一言で返せる形。正典: docs/reporting-protocol.md 規則6"
                   % why, file=sys.stderr)
             return 1
+    why = check_bare_token(a.title)
+    if why:
+        print("⛔ 題に内部の符牒を裸で置かない(%s)。\n"
+              "   読み手はあなたの文脈を持っていない。符牒は**あなたの索引**であって相手の索引ではない。\n"
+              "   ⭐ 判定法: その題だけを他人に見せて、相手が中身を言い当てられるか。\n"
+              "   例: ⛔『U12 の扱い』→ ⭕『外堀: 掘る水面 SW2 の 2%% が石垣の天端に埋まる(U12)』\n"
+              "   正典: docs/reporting-protocol.md 規則9" % why, file=sys.stderr)
+        return 1
     if a.type in ("decision", "blocker"):
         why = check_one_issue_one_ask(a)
         if why:

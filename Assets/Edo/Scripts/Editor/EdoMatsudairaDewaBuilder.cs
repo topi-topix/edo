@@ -648,10 +648,12 @@ public static class EdoMatsudairaDewaBuilder
             if (r.monS > 0f)
             {
                 // 長屋門(ユーザー裁定 2026-08-30 案A)。門口は**部材のローカル +X の左端から**測る。
-                // 左端は run の s0 の側なので、s0 からの距離に妻の出を足す。
-                // ⚠ 向きは思い込まず、据えたあと検証レンダで必ず確かめること(2026-08-30 に
-                //    生成器側で左右を取り違えて門口が反対の端に出た前例がある)。
-                float gc = r.monS - r.s0 + NAGAYA_TSUMA_OVER;
+                // ⚠ **その「左端」は run の s1 の側**(実測 2026-08-30)。据える yaw は
+                //   `atan2(outw.x, outw.y)` で見え面 +Z を外へ向けるので、部材のローカル +X は
+                //   **s の減る向き**へ写る。s0 から測ると門口が反対側へ出る — 実際に
+                //   辺13 で 3.7m ずれ、指図 s12.50〜15.50 の門口が s8.8〜11.7 に開いた。
+                //   ⛔ 向きを式で決めない。`RunEndQA` が**据えた実メッシュの穴の位置**を測って見張る。
+                float gc = r.s1 - r.monS + NAGAYA_TSUMA_OVER;
                 path = EdoAssets.Own.NagayaOmoteMon(len, gc, r.nijukai);
             }
             else path = r.nijukai ? EdoAssets.Own.NagayaOmote2F(len) : EdoAssets.Own.NagayaOmote(len);
@@ -2122,6 +2124,50 @@ public static class EdoMatsudairaDewaBuilder
                 }
             }
         }
+        // (2b) 長屋門の門口が指図の s に開いているか。⛔ 呼び寸法で信じない — **壁の帯に
+        //      頂点が無い区間**(=穴)を実メッシュから拾って、指図の mon.s と突き合わせる。
+        //      2026-08-30: 部材のローカル +X の向きを取り違えて 3.7m ずれた前例がある。
+        foreach (var r in Runs)
+        {
+            if (r.monS <= 0f) continue;
+            Transform tr = null;
+            for (int i = 0; i < kak.childCount; i++)
+                if (kak.GetChild(i).name == r.name) tr = kak.GetChild(i);
+            if (tr == null) continue;
+            var a2 = Poly[r.edge % Poly.Length];
+            var b2 = Poly[(r.edge + 1) % Poly.Length];
+            Vector2 u2 = (b2 - a2).normalized;
+            float seat2 = r.SeatAt(r.monS);
+            int NB = 4000; var bins = new int[NB];
+            foreach (var mf in tr.GetComponentsInChildren<MeshFilter>())
+            {
+                if (mf.sharedMesh == null) continue;
+                var m2 = mf.transform.localToWorldMatrix;
+                foreach (var v in mf.sharedMesh.vertices)
+                {
+                    var w = m2.MultiplyPoint3x4(v);
+                    if (w.y < seat2 + 0.6f || w.y > seat2 + 1.4f) continue;
+                    int bi = Mathf.RoundToInt(((w.x - a2.x) * u2.x + (w.z - a2.y) * u2.y) * 10f);
+                    if (bi >= 0 && bi < NB) bins[bi]++;
+                }
+            }
+            float best = -1f, bw = 0f; int st2 = -1;
+            for (int i = Mathf.RoundToInt(r.s0 * 10f) + 2; i <= Mathf.RoundToInt(r.s1 * 10f) - 2; i++)
+            {
+                if (bins[i] == 0 && st2 < 0) st2 = i;
+                if ((bins[i] > 0 || i == Mathf.RoundToInt(r.s1 * 10f) - 2) && st2 >= 0)
+                {
+                    float w2 = (i - st2) / 10f;
+                    if (w2 > bw) { bw = w2; best = (st2 + i) / 20f; }
+                    st2 = -1;
+                }
+            }
+            if (best < 0f) bad.Add("長屋門 " + r.name + " に門口の穴が見つからない");
+            else if (Mathf.Abs(best - r.monS) > 0.30f)
+                bad.Add("長屋門 " + r.name + " 辺" + r.edge + " の門口が s=" + best.ToString("F2")
+                        + "(指図 " + r.monS.ToString("F2") + "・幅 " + bw.ToString("F2") + "m)");
+        }
+
         // (3) 石垣の駒が実寸のままか(run ごとに拡大縮小していないか)
         var scales = new List<float>();
         for (int i = 0; i < ig.childCount; i++)

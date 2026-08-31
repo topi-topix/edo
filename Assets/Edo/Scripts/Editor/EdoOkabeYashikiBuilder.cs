@@ -759,9 +759,17 @@ public static class EdoOkabeYashikiBuilder
     /// ⚠ FBX にはマテリアル**名**しか入っていない。remap しないと真っ白な模型になる
     ///   (2026-08-18、土塀の隅が白い板で出た)。素が .obj の部材は名前が
     ///   `s_hei_center` 等なので、その .mat が Assets のどこかにあれば当たる。</summary>
+    /// ⚠ **隅部材は全邸で共通**(`Assets/Edo/Models/Kado` を丸ごと舐める)。岡部の下にしか
+    ///   メニューが無く、松平から呼べずに隅が真っ白で建った(2026-08-30)。
+    ///   → `Edo/共通/…` へも同じ処理を出した(下の `RemapKadoMaterialsCommon`)。
     [MenuItem("Edo/岡部筑前守上屋敷/隅部材のマテリアルをremap")]
     public static void RemapKadoMaterials()
     { Debug.Log("[Okabe] 隅 remap: " + RemapDir("Assets/Edo/Models/Kado") + "件 / " + BindDonorMaterials()); }
+
+    /// <summary>隅部材の remap(**全邸共通**)。部材は `Assets/Edo/Models/Kado` に屋敷を跨いで
+    /// 置かれているので、屋敷ごとのメニューに埋めない。</summary>
+    [MenuItem("Edo/共通/隅部材のマテリアルをremap")]
+    public static void RemapKadoMaterialsCommon() { RemapKadoMaterials(); }
 
     /// <summary>素材の**提供元**からマテリアルを直接結ぶ。
     ///

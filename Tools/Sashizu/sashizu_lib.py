@@ -179,10 +179,15 @@ def slope_table(d):
         return ""
     rows = []
     for b2 in d["slopeBands"]:
+        # ⚠ `asset` は**旧い形**(部材を1行の文字列で書いていた頃)のキー。
+        #   新しい形は層ごとの `parts` を別配列(`slopePlanting`)に持つので、
+        #   ここには無い。**無くても落とさない**(邸ごとに移行の時期が違う)。
+        asset = b2.get("asset")
         rows.append("<tr><td>%s</td><td>法肩から %.0f〜%.0f%%</td><td class='note'>%s</td>"
                     "<td class='note'>%s</td></tr>"
-                    % (b2["name"], b2["from"] * 100, b2["to"] * 100, b2["veg"],
-                       "<code>%s</code>" % b2["asset"]))
+                    % (b2["name"], b2["from"] * 100, b2["to"] * 100, b2.get("veg", ""),
+                       ("<code>%s</code>" % asset) if asset
+                       else "<span class='note'>(部材は植栽の表へ)</span>"))
     return ("<h3>斜面の植生(3帯)</h3><div class='tw'><table><thead><tr><th>帯</th><th>範囲</th>"
             "<th class='note'>植生</th><th class='note'>部材</th></tr></thead><tbody>"
             + "".join(rows) + "</tbody></table></div>"

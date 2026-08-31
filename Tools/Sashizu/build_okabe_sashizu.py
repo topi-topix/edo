@@ -596,6 +596,14 @@ def perimeter_corner_check(d, tol=0.02):
         rb = [r for r in d["runs"] if r["edge"] == eb]
         if not ra or not rb:
             continue                                  # 片側に囲いが無い辺(相手が建てる)
+        # ⚠ **ほぼ一直線の継ぎ目は「隅」ではない。** 折れが浅ければ楔は開きようがないので、
+        #   面の重なりを求めるのは過剰(2026-08-31: P2 の折れは 1.1° で、全長を歩く検査は閉と出る)。
+        ua = (P[v][0] - P[ea][0], P[v][1] - P[ea][1])
+        ub = (P[(v + 1) % n][0] - P[v][0], P[(v + 1) % n][1] - P[v][1])
+        la = math.hypot(*ua) or 1e-9
+        lb = math.hypot(*ub) or 1e-9
+        turn = math.degrees(math.acos(max(-1.0, min(1.0,
+               (ua[0] * ub[0] + ua[1] * ub[1]) / (la * lb)))))
         ca = max(ra, key=lambda r: r["s1"])           # 頂点に一番近い run
         cb = min(rb, key=lambda r: r["s0"])
         fa, fb = _run_fp(d, ca), _run_fp(d, cb)
@@ -609,10 +617,10 @@ def perimeter_corner_check(d, tol=0.02):
         if best > tol:
             bad.append("頂点P%d(辺%d %s ↔ 辺%d %s)の隅に素通し %.3fm"
                        % (v, ea, ca["name"], eb, cb["name"], best))
-        elif ov <= 1e-6:
-            bad.append("頂点P%d(辺%d %s ↔ 辺%d %s)は**点接触**で面で重なっていない — "
+        elif ov <= 1e-6 and turn >= 5.0:
+            bad.append("頂点P%d(辺%d %s ↔ 辺%d %s・折れ %.1f°)は**点接触**で面で重なっていない — "
                        "折れ角が直角でないと妻面と辺の間に楔が開く"
-                       % (v, ea, ca["name"], eb, cb["name"]))
+                       % (v, ea, ca["name"], eb, cb["name"], turn))
     return bad
 
 
@@ -3369,6 +3377,14 @@ def corners_table(d):
             osame = "長屋は退けて桁を突き付け(ebc11da の作法)"
         elif rl["kind"] == "Dobei" and rr["kind"] == "Dobei":
             osame = "留め継ぎ隅部材(build_kado・折れ角は現地=Δ%.1f°)" % delta
+        elif {rl["kind"], rr["kind"]} == {"Dobei", "Nagaya"}:
+            # ⚠ 2026-08-31 三巡目で足した枝。辺12 が表長屋になって P0・P12 がここへ来たのに、
+            #    分岐が無いので「天端差」の枝へ落ち、**平面の納めがどこにも書かれていなかった**。
+            #    ⛔ 1間厚の練塀の小口を、奥行 4.545m の建屋の妻壁へどう取り付けるかは高さの話ではない。
+            ov9 = _quad_overlap(_run_fp(d, rl), _run_fp(d, rr))
+            osame = ("練塀の小口を表長屋の妻壁へ**突き付ける**(めり込み %.2f m²・折れ %.1f°)。"
+                     "⛔ 隙間を作らない — 折れ角が直角でないと妻面と辺の間に楔が開く"
+                     % (ov9, delta))
         elif abs((rseat(rr, rr["s0"]) if rr else 0) - (rseat(rl, rl["s1"]) if rl else 0)) > 0.3:
             osame = "天端差は高い側の基壇小口(隅石)で受ける"
         else:

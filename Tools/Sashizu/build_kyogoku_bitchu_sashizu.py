@@ -294,6 +294,43 @@ def perim_layer(P, thin=False):
     return o
 
 
+def garden_layer(P, small=False):
+    """園路・築山・見所・鳥居。"""
+    G = d.get("garden")
+    if not G:
+        return []
+    o = []
+    for f in G["features"]:
+        if "poly" in f:
+            fill = "var(--tsuki)" if f["name"] == "Tsukiyama" else "var(--niwa)"
+            o.append('<path d="%s" fill="%s" stroke="var(--roka)" stroke-width=".8" '
+                     'stroke-dasharray="3 2" opacity=".85"/>' % (uvpath(P, f["poly"]), fill))
+            cu = sum(q[0] for q in f["poly"]) / len(f["poly"])
+            cv = sum(q[1] for q in f["poly"]) / len(f["poly"])
+            if not small:
+                o.append(txt(P, cu, cv, f["ja"].split("(")[0], "anS2", dy=3))
+    for pa in G["paths"]:
+        o.append('<path d="%s" fill="none" stroke="var(--roka)" stroke-width="%.1f" '
+                 'stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="5 3"/>'
+                 % (uvpath(P, pa["pts"], False), max(1.4, P.L(pa["w"] * KEN))))
+    for f in G["features"]:
+        if f["name"] == "Torii":
+            x, z = W(f["u"], f["v"])
+            o.append('<path d="M %.1f %.1f L %.1f %.1f M %.1f %.1f L %.1f %.1f" '
+                     'stroke="var(--shu)" stroke-width="2.2" fill="none"/>'
+                     % (P.X(x) - 5, P.Y(z) - 4, P.X(x) + 5, P.Y(z) - 4,
+                        P.X(x) - 4, P.Y(z) - 1, P.X(x) + 4, P.Y(z) - 1))
+    for vw in G["views"]:
+        x, z = W(vw["u"], vw["v"])
+        tx_, tz_ = W(vw["toward"][0], vw["toward"][1])
+        o.append('<path d="M %.1f %.1f L %.1f %.1f" stroke="var(--shu)" stroke-width="1.1" '
+                 'stroke-dasharray="2 4" fill="none" opacity=".8"/>'
+                 % (P.X(x), P.Y(z), P.X(tx_), P.Y(tz_)))
+        o.append('<circle cx="%.1f" cy="%.1f" r="3.4" fill="var(--paper)" stroke="var(--shu)" stroke-width="2"/>'
+                 % (P.X(x), P.Y(z)))
+    return o
+
+
 def haichi_svg(kan):
     P = proj(980)
     o = parcel_layer(P)
@@ -311,6 +348,7 @@ def haichi_svg(kan):
     # 郭の中の zone
     for nm in ("Shirasu", "OmoteNiwa", "OkuNiwa", "Baba"):
         o.append('<path d="%s" fill="%s" opacity=".75" stroke="none"/>' % (zone_path(P, Z[nm]), ZONE_FILL[nm]))
+    o += garden_layer(P)
     # 外周
     o += perim_layer(P)
     # 棟
@@ -532,6 +570,7 @@ def goten_svg(kan):
     for z in d["zones"]:
         if z["name"] in ("Shirasu", "OmoteNiwa", "OkuNiwa", "Baba"):
             o.append('<path d="%s" fill="%s" opacity=".65"/>' % (zone_path(P, z), ZONE_FILL[z["name"]]))
+    o += garden_layer(P, small=True)
     o += perim_layer(P)
     for m in d["mune"]:
         if m["plane"] != "T1":
@@ -978,7 +1017,9 @@ def main():
                '<span style="color:var(--ishi)">■ 土蔵・石段</span>'
                '<span style="color:var(--shu)">▶ 門</span>'
                '<span>■ 白洲</span><span style="color:var(--take)">■ 樹林</span>'
-               '<span style="color:#7f8f6f">■ 主庭(造成しない窪み)</span>',
+               '<span style="color:#7f8f6f">■ 主庭(造成しない窪み)</span>'
+               '<span style="color:var(--roka)">╌ 園路</span>'
+               '<span style="color:var(--shu)">○┈ 見所と視線 ／ ⛩ 鳥居</span>',
         cap="<b>表門を入って北東から南西へ、表向 → 中奥 → 奥向 が一列に連続する</b>"
             "([西川1959]A)。台地がΓ形なので、表向は東の腕に、中奥・奥向・勝手は南の広いブロックに割れる。"
             "薄く描いた練塀は<b>隣家が持つ辺</b>(⚠ 未裁定・P2)。")
@@ -987,6 +1028,27 @@ def main():
              '起伏の小さい矩形を探してその高さをそのまま採った(<code>sashizu.md</code> §3a)。'
              '⭐ <b>土留めは1本も要らない</b> — 二つの郭はどちらも自然のベンチに載り、'
              '郭の縁が自然の法肩・法尻と一致する。</p>')
+    G = d["garden"]
+    h.append("<h3>庭 — 見所と園路</h3>")
+    h.append(tbl(["見所", "位置 (u,v)", "見る先", "比高 m", "水平 m", "俯角", "*覚"],
+                 [[v["ja"], "(%.0f, %.0f)" % (v["u"], v["v"]), "(%.0f, %.0f)" % tuple(v["toward"]),
+                   "%+.1f" % v["drop"], "%.1f" % v["dist"], "%.1f°" % v["angle"], "*" + v["_"]]
+                  for v in G["views"]]))
+    def _uvarea(pp):
+        return abs(sum(pp[i][0] * pp[(i + 1) % len(pp)][1] - pp[(i + 1) % len(pp)][0] * pp[i][1]
+                       for i in range(len(pp)))) / 2.0
+    rows = [[p2["ja"],
+             "%.0f m" % (sum(math.hypot(b[0] - a[0], b[1] - a[1])
+                             for a, b in zip(p2["pts"], p2["pts"][1:])) * KEN),
+             "%.1f" % p2["w"], "*" + p2["_"]] for p2 in G["paths"]]
+    for f in G["features"]:
+        where = ("(%.1f, %.1f)" % (f["u"], f["v"])) if "u" in f else ("%.0f 坪" % _uvarea(f["poly"]))
+        rows.append([f["ja"], where, "—", "*" + f["_"]])
+    h.append(tbl(["園路・点景", "延長 / 位置", "幅 間", "*覚"], rows))
+    h.append('<p class="cap">⚠ <b>庭方(edo-niwashi)の検分をまだ通していない。</b>'
+             '確度はすべて U(設計判断)。⭐ <b>主景は自然の高まり</b>で、'
+             '⛔ 盛りも削りもしない(§B-1「肩の高まりは築山に使う」)。</p>')
+    h.append("</div>")
 
     # 其二 現況図
     plate(h, nx(), "現況図 — 江戸期の復元地盤", "段彩 2m ／ 等高線 2m(10m 太線) ／ 確度P")

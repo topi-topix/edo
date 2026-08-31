@@ -68,6 +68,7 @@ python3 Tools/Sashizu/build_okabe_sashizu.py
 | 松平出羽守 上屋敷（出雲松江藩18万6千石・親藩国主） | 山王社北 | **起案・検図中（レビュー待ち）** | [matsudaira_dewa_sashizu.html](matsudaira_dewa_sashizu.html) | https://claude.ai/code/artifact/eaba651e-982d-4451-8bb5-d17ba95b8093 |
 | 土井大隅守 上屋敷（三河刈谷藩2万3千石・譜代雁間） | 山王社北 | **起案・検図済（レビュー待ち）** | [doi_sashizu.html](doi_sashizu.html) | https://claude.ai/code/artifact/539c4b6b-0937-458f-8287-e3200e94f3cf |
 | 山王権現社（日枝神社・江戸城の産土神・社領600石） | 永田馬場 星野山 | **起案・検図済（レビュー待ち）** | [sanno_sashizu.html](sanno_sashizu.html) | https://claude.ai/code/artifact/b6b4e5cd-8878-4162-be90-4dd4ed706beb |
+| 京極備中守 上屋敷（丹後峯山藩1万1千石・菊間詰=譜代格） | 山王坂 | **起案（レビュー待ち・検査10件通過）** | [kyogoku_bitchu_sashizu.html](kyogoku_bitchu_sashizu.html) | https://claude.ai/code/artifact/95578cd4-8016-41a3-9023-dd60e44cc206 |
 
 **寺社は武家屋敷と作りが違う。** `estate-types.md` の建蔽率・拝領坪数・門の格式は適用せず、
 「連続御殿複合＋外周長屋帯」も当てはまらない。図版は 社地／境内平面／社殿平面／断面／
@@ -92,8 +93,8 @@ python3 Tools/Sashizu/build_okabe_sashizu.py
 ## 生成
 
 `Tools/Sashizu/build_<屋敷>_sashizu.py` が `<屋敷>_sashizu.json` と `<屋敷>_kosho.md` から一枚に組む
-(4邸: okabe / matsudaira / doi / sanno)。地盤側は `Tools/Sashizu/build_base_dem.py`(切り出し)と
-`Tools/Sashizu/build_<屋敷>_edo_dem.py`(復元レイヤ・回転間格子。現状 okabe / doi のみ)が書く。
+(5邸: okabe / matsudaira / doi / sanno / kyogoku_bitchu)。地盤側は `Tools/Sashizu/build_base_dem.py`(切り出し)と
+`Tools/Sashizu/build_<屋敷>_edo_dem.py`(復元レイヤ・間格子。現状 okabe / doi / kyogoku_bitchu のみ)が書く。
 **生成器は実装を読まない。** 座標は世界座標（Unity のシーン座標）から `Proj` / `Grid` で
 直に変換しているので、図面と実装がズレない。
 

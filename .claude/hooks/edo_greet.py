@@ -4,7 +4,25 @@
 stdout がそのままコンテキストに入る。"""
 import json, os, subprocess, sys
 ROOT = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
-CLI = os.path.join(ROOT, "Tools", "Session", "edo_session.py")
+
+
+def _main_root(start):
+    """worktree から起動されても、常に main の(最新の)Tools/Session/ を使う。
+    edo_guard.py と同じ根拠(EDO-0076)— sparse worktree の Tools/ は
+    sashizu/<邸> ブランチへ main をマージするまで古いまま。"""
+    try:
+        r = subprocess.run(["git", "-C", start, "rev-parse", "--path-format=absolute",
+                            "--git-common-dir"], capture_output=True, text=True, timeout=5)
+        d = r.stdout.strip()
+        if d:
+            return os.path.dirname(d)
+    except Exception:
+        pass
+    return start
+
+
+MAIN_ROOT = _main_root(ROOT)
+CLI = os.path.join(MAIN_ROOT, "Tools", "Session", "edo_session.py")
 try:
     ev = json.load(sys.stdin)
 except Exception:
@@ -32,9 +50,7 @@ if os.path.exists(CLI):
               "Unity を使うなら `start <屋敷> --unity` でメインに留まり Unity を確保する。")
     # 掲示板の digest(裁定待ち・ブロッカー・open)。CLI は**メインの checkout の物**を使う
     # (worktree のブランチには main を取り込むまで無いことがある)
-    gc = subprocess.run(["git", "-C", ROOT, "rev-parse", "--path-format=absolute",
-                         "--git-common-dir"], capture_output=True, text=True).stdout.strip()
-    bcli = os.path.join(os.path.dirname(gc), "Tools", "Session", "edo_board.py")
+    bcli = os.path.join(MAIN_ROOT, "Tools", "Session", "edo_board.py")
     if os.path.exists(bcli):
         b = subprocess.run([sys.executable, bcli, "digest"], capture_output=True, text=True, env=env)
         if b.stdout.strip():

@@ -35,6 +35,35 @@ python3 Tools/Session/edo_session.py --session <短縮ID> commit ...
 
 ---
 
+## ⛔ worktree の Tools/Session/ は古い。`edo_session.py`/`edo_board.py` は main の絶対パスで呼ぶ
+
+sparse worktree には `Tools/` も入るので `python3 Tools/Session/edo_session.py ...` は**動いてしまう**
+——動くのに、**main へマージするまで古いコード**を実行する。エラーにならないので気づきにくい。
+
+2026-08-31、これで実際に壊れた: worktree 内の `edo_session.py` には `wait`/`unwait` サブコマンドが
+無く(`9677eea` 以降に main へ入った)、身元判定の是正(`81a5250`)も届いていなかった。
+`start` は worktree の古い判定で「使用中」、`wait` は同じ worktree の古い版で「invalid choice」——
+**同じセッションの中で、コマンドごとに違う結果が返った**(松平・外堀の両セッションが発見・EDO-0076)。
+`edo_board.py` も同様で、worktree 側の `ESTATES` に新しい邸が無ければ `post --estate <新邸>` が
+弾かれる。
+
+フック(`edo_guard.py`/`edo_greet.py`)は 2026-08-31 に、git の common-dir から main の絶対パスを
+解決して**常に main の Tools/Session/ を実行する**よう直した。**手で叩くときは同じことを自分でやる**:
+
+```bash
+# ⛔ worktree の cwd から相対パスで叩かない(古いコードが動く)
+python3 Tools/Session/edo_session.py status
+
+# ⭕ main の絶対パスで叩く(worktree の cwd からでもこれでよい)
+python3 /Users/toshio/project/edo-unity/Tools/Session/edo_session.py status
+python3 /Users/toshio/project/edo-unity/Tools/Session/edo_board.py list
+```
+
+`wait`/`unwait`/`--session` など聞き覚えのないサブコマンドが `invalid choice` で弾かれたら、
+まずこれを疑う——**バグではなく worktree の Tools/ が古いだけ**であることが多い。
+
+---
+
 ## 始め方 — 打つのは1行
 
 ```bash

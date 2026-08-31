@@ -12,12 +12,38 @@ import subprocess
 import sys
 
 ROOT = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
-CLI = os.path.join(ROOT, "Tools", "Session", "edo_session.py")
+
+
+def _main_root(start):
+    """git の common-dir から、全 worktree が共有する main のルートを解く。
+    ⚠ **worktree で動くセッションは CLAUDE_PROJECT_DIR がその worktree を指す。**
+    sparse worktree には Tools/ も入るが、main を更新しても sashizu/<邸> ブランチへ
+    マージするまでは古いまま — フックが worktree 内の CLI を呼ぶと、9677eea の
+    wait/unwait も 81a5250 の身元判定の是正も届かず、「入口ごとに判定が違う」現象になる
+    (2026-08-31、松平・外堀の両セッションが実例で発見・EDO-0076)。
+    git-common-dir はどの worktree から見ても main の .git を指すので、
+    その親を「常に最新のツールが置かれている場所」として使う。"""
+    try:
+        r = subprocess.run(["git", "-C", start, "rev-parse", "--path-format=absolute",
+                            "--git-common-dir"], capture_output=True, text=True, timeout=5)
+        d = r.stdout.strip()
+        if d:
+            return os.path.dirname(d)
+    except Exception:
+        pass
+    return start
+
+
+MAIN_ROOT = _main_root(ROOT)
+CLI = os.path.join(MAIN_ROOT, "Tools", "Session", "edo_session.py")
 
 
 def run(args, sess):
     env = dict(os.environ)
     env["EDO_SESSION_ID"] = sess
+    # ⚠ CLAUDE_PROJECT_DIR は呼び出し元の実際の作業場所(worktree ならその cwd)のまま渡す —
+    #   CLI のコード自体は MAIN_ROOT の最新版を使うが、sid() の cwd 判定や rel() の
+    #   パス相対化は「このセッションが今どこにいるか」を見るべきなので変えない。
     env["CLAUDE_PROJECT_DIR"] = ROOT
     r = subprocess.run([sys.executable, CLI] + args, capture_output=True, text=True, env=env)
     if r.returncode == 2:

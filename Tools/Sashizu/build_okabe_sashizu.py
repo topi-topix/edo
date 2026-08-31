@@ -1047,6 +1047,45 @@ PROGRAM_MD = os.path.expanduser(
     "~/.claude/skills/unity-buke-yashiki/references/estate-types.md")
 
 
+def _gardens_facing_zashiki(d):
+    """**座敷の前面にある庭**の数。⛔ 「gardens というキーがある」ではない。
+
+    ⚠ 2026-09-01 庭方: 従前は `json.dumps(d)` に "gardens" が含まれるかを見ていたので
+      **恒真**だった(庭を1つも持たない図でも達成と出る)。
+    ⭕ 庭が接している棟の面に**室が1間以上退いている**(=入側/縁がある)ことを要件にする。
+      妻(白壁)に向いた庭は座敷から見えないので数えない。
+    """
+    n = 0
+    for g in d.get("gardens", []):
+        gu0, gu1 = sorted((g["u0"], g["u1"]))
+        gv0, gv1 = sorted((g["v0"], g["v1"]))
+        for m in d.get("munes", []):
+            if not all(k in m for k in ("u0", "u1", "v0", "v1")):
+                continue
+            mu0, mu1 = sorted((m["u0"], m["u1"]))
+            mv0, mv1 = sorted((m["v0"], m["v1"]))
+            touch_u = (abs(gu1 - mu0) < 1e-6 or abs(gu0 - mu1) < 1e-6) and gv1 > mv0 and gv0 < mv1
+            touch_v = (abs(gv1 - mv0) < 1e-6 or abs(gv0 - mv1) < 1e-6) and gu1 > mu0 and gu0 < mu1
+            if not (touch_u or touch_v):
+                continue
+            # 接した面の内側 1間に室があるか(入側/縁の有無の代理)
+            rooms = m.get("rooms") or []
+            if not rooms:
+                continue
+            if touch_u:
+                edge = mu0 if abs(gu1 - mu0) < 1e-6 else mu1
+                deep = any(min(abs(r.get("u0", 1e9) - edge), abs(r.get("u1", 1e9) - edge)) >= 1.0 - 1e-6
+                           for r in rooms if "u0" in r)
+            else:
+                edge = mv0 if abs(gv1 - mv0) < 1e-6 else mv1
+                deep = any(min(abs(r.get("v0", 1e9) - edge), abs(r.get("v1", 1e9) - edge)) >= 1.0 - 1e-6
+                           for r in rooms if "v0" in r)
+            if deep:
+                n += 1
+                break
+    return n
+
+
 def program_check(d):
     """**在るべき役割の一覧を、スキルの表(外の錨)から読んで照合する。**
     ⚠ 2026-08-26 土井 EDO-0013: 錨が無いと**役割と棟を同時に消せば検査が通る**。
@@ -1071,15 +1110,30 @@ def program_check(d):
            "表役所": ["表役所", "役所"], "玄関・式台": ["御玄関", "御式台"],
            "書院": ["書院"], "居間・中奥": ["中奥", "御座之間"], "奥向": ["奥向"],
            "台所・勝手": ["御台所"], "湯殿・雪隠": ["御湯殿"], "局(女中部屋)": ["長局", "上陣"],
-           "御錠口": ["御錠口"], "庭(座敷の前面)": ["gardens"], "井戸": ["wells"],
-           "厩": ["Umaya", "厩"], "土蔵": ["Dozo"], "稲荷社": ["稲荷"],
-           "家中長屋": ["家臣長屋"], "米蔵": ["米蔵"], "隅櫓": ["yagura"],
+           "御錠口": ["御錠口"],
+           "厩": ["Umaya", "厩"], "土蔵": ["Dozo"],
+           "家中長屋": ["家臣長屋"], "米蔵": ["米蔵"],
            "馬場・作事小屋": ["馬場"], "中門": ["中門"],
            "火消道具蔵・御駕籠蔵": ["HikeshiDogugura", "Kagogura"]}
+    # ⛔ **2026-09-01 庭方**: KEY は `json.dumps(d)` への**文字列一致**なので、
+    #    値でなく**キー名**を書くと恒真になる。`"gardens"` / `"wells"` / `"yagura"` の3件が
+    #    それで、⚠ **庭を1つも持たない図が「庭=達成」と刷られていた**(空にしても True、
+    #    キーごと消しても `_gardens` の注記が残るので True)。五巡目に同型を1件直した直後の再発。
+    #    ⭕ 数を数える述語に替える。⛔ 文字列一致へ戻さないこと。
+    PRED = {
+        "庭(座敷の前面)": lambda d9: _gardens_facing_zashiki(d9) > 0,
+        "井戸": lambda d9: len(d9.get("wells", [])) > 0,
+        "隅櫓": lambda d9: len(d9.get("yagura", [])) > 0,
+        "稲荷社": lambda d9: any("稲荷" in str(s9.get("label", "")) + str(s9.get("name", ""))
+                                for s9 in d9.get("service", []) + d9.get("shrines", [])),
+    }
     out = []
     for role, need, src in rows:
-        ks = KEY.get(role, [role])
-        ok9 = any(k in txt for k in ks)
+        if role in PRED:
+            ok9 = PRED[role](d)
+        else:
+            ks = KEY.get(role, [role])
+            ok9 = any(k in txt for k in ks)
         # 雪隠だけは湯殿と別に見る(表が「湯殿・雪隠」で1行なので個別に)
         if role == "湯殿・雪隠":
             ok9 = ("御湯殿" in txt) and ("雪隠" in txt)

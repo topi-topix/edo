@@ -762,7 +762,7 @@ def fan_table(d):
         return ""
     rows = ["<tr><td>%s</td><td class='note' style='text-align:left'>%s</td>"
             "<td>(%.1f, %.1f)</td><td>%.1f%%</td><td>%.1f%%</td><td>%.1f%%</td></tr>"
-            % (v["v"], html.escape(v["where"]), v["p"][0], v["p"][1],
+            % (v["v"], inline(html.escape(v["where"])), v["p"][0], v["p"][1],
                v["pct"], v.get("insideWaterPct", 0.0), v["pctNearestRef"])
             for v in fan["vertices"]]
     return tbl(["頂点", "場所", "世界座標", "円内で水面より低い割合",
@@ -897,7 +897,7 @@ def check_table(d):
 def pending_table(d):
     rows = ["<tr><td>%s</td><td class='note' style='text-align:left'>%s</td><td>%s</td>"
             "<td class='note' style='text-align:left'>%s</td><td>%s</td></tr>"
-            % (u["id"], inline(html.escape(u["what"])), html.escape(u.get("status", "—")),
+            % (u["id"], inline(html.escape(u["what"])), inline(html.escape(u.get("status", "—"))),
                inline(html.escape(u["detail"])), inline(html.escape(u["cert"])))
             for u in d["unresolved"]]
     return tbl(["", "事項", "状態", "中身", "確度"], rows)

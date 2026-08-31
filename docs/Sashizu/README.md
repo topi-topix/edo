@@ -62,19 +62,28 @@ python3 Tools/Sashizu/build_okabe_sashizu.py
 
 ## 屋敷・社ごとの設計図
 
-| 屋敷・社 | 地区 | 状態 | 図面 | Artifact |
-|---|---|---|---|---|
-| 岡部内膳正 上屋敷（和泉岸和田藩5万3千石） | 山王社北 | **実装済・指図と一致(180項目)** | [okabe_sashizu.html](okabe_sashizu.html) | https://claude.ai/code/artifact/ce6d353b-33ea-4355-aeb4-c5097da69e53 |
-| 松平出羽守 上屋敷（出雲松江藩18万6千石・親藩国主） | 山王社北 | **起案・検図中（レビュー待ち）** | [matsudaira_dewa_sashizu.html](matsudaira_dewa_sashizu.html) | https://claude.ai/code/artifact/eaba651e-982d-4451-8bb5-d17ba95b8093 |
-| 土井大隅守 上屋敷（三河刈谷藩2万3千石・譜代雁間） | 山王社北 | **起案・検図済（レビュー待ち）** | [doi_sashizu.html](doi_sashizu.html) | https://claude.ai/code/artifact/539c4b6b-0937-458f-8287-e3200e94f3cf |
-| 山王権現社（日枝神社・江戸城の産土神・社領600石） | 永田馬場 星野山 | **起案・検図済（レビュー待ち）** | [sanno_sashizu.html](sanno_sashizu.html) | https://claude.ai/code/artifact/b6b4e5cd-8878-4162-be90-4dd4ed706beb |
-| 京極備中守 上屋敷（丹後峯山藩1万1千石・菊間詰=譜代格） | 山王坂 | **起案（レビュー待ち・検査10件通過）** | [kyogoku_bitchu_sashizu.html](kyogoku_bitchu_sashizu.html) | https://claude.ai/code/artifact/95578cd4-8016-41a3-9023-dd60e44cc206 |
+**状態は「指図」と「実装」の2軸で分けて書く**(2026-08-31 京極セッションの提案・外堀セッションの
+「実装済とユーザーが見たは別」を踏まえた改訂)。1軸だと「指図はレビュー待ちだが実装は進んでいる」
+邸(松江松平・山王)を表せず、実態とずれていた。
+
+- **指図**: 起案 → 検図中 → 検図済(レビュー待ち) → レビュー済
+- **実装**: 未着手 → 実装中 → 実装済(QA未) → 実装済・QA合格(ユーザー確認済)
+
+⭐ **「指図: 検図済 かつ 実装: 未着手」の行が、いま実装に着手してよい屋敷。**
+
+| 屋敷・社 | 地区 | 指図 | 実装 | 図面 | Artifact |
+|---|---|---|---|---|---|
+| 岡部内膳正 上屋敷（和泉岸和田藩5万3千石） | 山王社北 | レビュー済(検図12巡・当主/年次A)。石段踊り場1件は設計判断でEDO-0018と併せ保留 | **実装済・指図と一致(180項目)** | [okabe_sashizu.html](okabe_sashizu.html) | https://claude.ai/code/artifact/ce6d353b-33ea-4355-aeb4-c5097da69e53 |
+| 松平出羽守 上屋敷（出雲松江藩18万6千石・親藩国主） | 山王社北 | 検図中（レビュー待ち） | 実装中(Stage6まで・継続更新) | [matsudaira_dewa_sashizu.html](matsudaira_dewa_sashizu.html) | https://claude.ai/code/artifact/eaba651e-982d-4451-8bb5-d17ba95b8093 |
+| 土井大隅守 上屋敷（三河刈谷藩2万3千石・譜代雁間） | 山王社北 | **検図済（レビュー待ち・検図14巡・考証13巡通過・指摘0件）** | **未着手** | [doi_sashizu.html](doi_sashizu.html) | https://claude.ai/code/artifact/539c4b6b-0937-458f-8287-e3200e94f3cf |
+| 山王権現社（日枝神社・江戸城の産土神・社領600石） | 永田馬場 星野山 | 検図済（レビュー待ち・_pending 26件残） | 実装中(一部・EDO-0073修正中) | [sanno_sashizu.html](sanno_sashizu.html) | https://claude.ai/code/artifact/b6b4e5cd-8878-4162-be90-4dd4ed706beb |
+| 京極備中守 上屋敷（丹後峯山藩1万1千石・菊間詰=譜代格） | 山王坂 | 起案（レビュー待ち・検査10件通過） | 未着手(`EdoKyogokuBitchuBuilder.cs` 無し) | [kyogoku_bitchu_sashizu.html](kyogoku_bitchu_sashizu.html) | https://claude.ai/code/artifact/95578cd4-8016-41a3-9023-dd60e44cc206 |
 
 ## 土木の指図(屋敷ではない)
 
 | 普請 | 地区 | 状態 | 図面 | Artifact |
 |---|---|---|---|---|
-| 溜池堰下流 外堀 掘り直し(Sotobori_00001・00002・00003) | 堰(どんどん)〜幸橋方向 | **実装済(00001 = 2026-08-29 ／ 00002・00003 = 2026-08-31)。施工後7検査すべて合格** | [sotobori_sashizu.html](sotobori_sashizu.html) | https://claude.ai/code/artifact/87dd7a78-0238-47c6-917b-107fe4e92dd3 |
+| 溜池堰下流 外堀 掘り直し(Sotobori_00001・00002・00003) | 堰(どんどん)〜幸橋方向 | **実装済(00001 = 2026-08-29 ／ 00002・00003 = 2026-08-31)。施工後7検査すべて合格・⚠ `edo-fushin-qa` 未通過でユーザー未見** | [sotobori_sashizu.html](sotobori_sashizu.html) | https://claude.ai/code/artifact/87dd7a78-0238-47c6-917b-107fe4e92dd3 |
 | ├ 継ぎ目の折れの検証(00002×00003・新シ橋) | 世界座標 (590, 355) | **決着(2026-08-30)— 実装は史料と一致** | — | https://claude.ai/code/artifact/d864993f-2187-449e-94e8-10649d35c2ff |
 | ├ 裁定図(EDO-0046・U9/U1b/U7) | 同上 | U9・U1b・U7① 解決済／U7② は工法 | [sotobori_saitei.html](sotobori_saitei.html) | https://claude.ai/code/artifact/d3c33b29-b81c-49a4-bb98-f799aa557a4f |
 

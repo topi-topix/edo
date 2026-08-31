@@ -139,17 +139,32 @@ def load_junsu_baseline():
 
 def load_readme_states():
     """README の表から敷地ごとの状態と、公開済み指図 Artifact の URL を拾う。
-    URL は表の5列目(素の https://claude.ai/code/artifact/... 行末)。
+    2026-08-31 に「屋敷・社ごとの設計図」表が状態1列(5列)から**指図/実装の2列(6列)**へ
+    改訂された(1軸だと「指図はレビュー待ちだが実装は進んでいる」邸を表せなかったため)。
+    「土木の指図」表は5列(状態1列)のまま — 両方に当たる。
+    URL は行末の素の https://claude.ai/code/artifact/... 。
     敷地が worktree 止まりで README にまだ載っていなければ単に出ない(それが実情)。"""
     out = {}
     fp = os.path.join(ROOT, "docs", "Sashizu", "README.md")
+    pat6 = re.compile(r"\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|"
+                      r"\s*\[(\w+)_sashizu\.html\][^|]*\|\s*(https://\S+)?\s*\|")
+    pat5 = re.compile(r"\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*\[(\w+)_sashizu\.html\]"
+                      r"[^|]*\|\s*(https://\S+)?\s*\|")
     try:
         for ln in open(fp, encoding="utf-8"):
-            m = re.match(r"\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*\[(\w+)_sashizu\.html\]"
-                        r"[^|]*\|\s*(https://\S+)?\s*\|", ln)
-            if m and m.group(4) in SITES:
-                out[m.group(4)] = {"name": m.group(1), "area": m.group(2),
-                                   "state": m.group(3).strip("* "), "url": m.group(5)}
+            m6 = pat6.match(ln)
+            if m6 and m6.group(5) in SITES:
+                out[m6.group(5)] = {"name": m6.group(1), "area": m6.group(2),
+                                    "sashizu_state": m6.group(3).strip("* "),
+                                    "impl_state": m6.group(4).strip("* "),
+                                    "state": "%s / %s" % (m6.group(3).strip("* "),
+                                                          m6.group(4).strip("* ")),
+                                    "url": m6.group(6)}
+                continue
+            m5 = pat5.match(ln)
+            if m5 and m5.group(4) in SITES and m5.group(4) not in out:
+                out[m5.group(4)] = {"name": m5.group(1), "area": m5.group(2),
+                                    "state": m5.group(3).strip("* "), "url": m5.group(5)}
     except Exception:
         pass
     return out
@@ -336,6 +351,9 @@ h2{font-family:'Shippori Mincho',serif;font-weight:600;font-size:17px;
 .lane .area{color:var(--muted);font-size:11.5px;margin-bottom:8px}
 .state{font-size:12.5px;background:var(--ai-soft);color:var(--ai);
   border-radius:4px;padding:2px 8px;display:inline-block;margin:4px 0}
+.statepair{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
+.statepair .tag{font-size:11px;color:var(--muted);align-self:center}
+.state.impl-wait{background:var(--oud-soft);color:var(--oud);font-weight:600}
 .kv{font-size:12.5px;color:var(--muted);margin:3px 0}
 .kv b{color:var(--ink);font-weight:500}
 .kv .n{font-family:var(--mono)}
@@ -1036,7 +1054,18 @@ def build_html(issues, pending, commits, claims, states, summary):
             % esc(st["url"]) if st.get("url") else ""))
         if st.get("area"):
             p.append('<div class="area">%s</div>' % esc(st["area"]))
-        if st.get("state"):
+        if st.get("sashizu_state") is not None:
+            # 指図/実装の2軸(2026-08-31 改訂)。指図が済んで実装が未着手の邸は
+            # 「いま着手してよい屋敷」なので目立たせる(規則: ユーザーが一目で拾えること)。
+            impl = st.get("impl_state", "")
+            waiting = "未着手" in impl or "未着手" in st.get("sashizu_state", "")
+            p.append('<div class="statepair">'
+                     '<span class="tag">指図</span><span class="state">%s</span>'
+                     '<span class="tag">実装</span><span class="state%s">%s</span>'
+                     '</div>' % (esc(st["sashizu_state"]),
+                                " impl-wait" if waiting else "",
+                                esc(impl)))
+        elif st.get("state"):
             p.append('<span class="state">%s</span>' % esc(st["state"]))
         if cl:
             for c in cl:

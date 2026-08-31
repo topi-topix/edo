@@ -504,6 +504,71 @@ def _quad_overlap(qa, qb, step=0.02):
     return a
 
 
+def footprint_support_check(d, step=0.02, tol=0.01):
+    """**外周長屋の足跡が、段か基壇の天端に 100% 載っているか。**
+
+    ⚠ 2026-08-31 四巡目で追加。⛔ `seat_fill_check` は run に沿って**内側 1.2m の1本線**しか
+      測らないので、奥行 4.545m の長屋は**足跡の 3.3m ぶんが一度も標本されない**。
+      「据面 0 件」は「長屋の内側 3.3m は測っていない」を含んでいた。
+    ⛔ 現況が合格でも検査は要る — 辺12 の縁を 0.30m 動かすだけで 24.9m² の床が浮く。
+    ⭕ 支えは段(`terraces[].poly`)**または**基壇石垣の天端(内向き 0〜2.4·s)。
+      犬走りの帯は段の外だが基壇が受けるので、両方の和で測る。
+    """
+    K = d["const"]["ken"]
+    gr9 = RGrid(d)
+    bad = []
+    for r in d["runs"]:
+        if r["kind"] != "Nagaya":
+            continue
+        q = _run_fp(d, r)
+        P9w = d["polygon"]
+        nn = len(P9w)
+        nx, ny = _inward(P9w, r["edge"])
+        # ⭕ **隅では隣の辺の基壇も支えになる**(P0 では SE_Hei・底厚 1.8m が受ける)。
+        #    効くのは自分の辺と両隣だけなので、その3辺の帯を先に畳んでおく(総当たりは遅すぎた)。
+        bands = []
+        for e8 in ((r["edge"] - 1) % nn, r["edge"], (r["edge"] + 1) % nn):
+            a8 = P9w[e8]; b8 = P9w[(e8 + 1) % nn]
+            L8 = math.hypot(b8[0] - a8[0], b8[1] - a8[1]) or 1e-9
+            ex8, ey8 = (b8[0] - a8[0]) / L8, (b8[1] - a8[1]) / L8
+            n8x, n8y = _inward(P9w, e8)
+            for r8 in d["runs"]:
+                if r8["edge"] == e8:
+                    bands.append((a8, n8x, n8y, 2.4 * r8.get("s", 0.5), ex8, ey8, r8["s0"], r8["s1"]))
+        xs = [p[0] for p in q]; ys = [p[1] for p in q]
+        miss = 0.0
+        x = min(xs)
+        while x < max(xs):
+            y = min(ys)
+            while y < max(ys):
+                inq = False
+                c = False
+                for i in range(4):
+                    (ax, ay), (bx, by) = q[i], q[(i + 1) % 4]
+                    if (ay > y) != (by > y) and x < (bx - ax) * (y - ay) / (by - ay) + ax:
+                        c = not c
+                inq = c
+                if inq:
+                    u9, v9 = gr9.L(x, y)
+                    on_ter = any(tin(t9, u9, v9) for t9 in d["terraces"])
+                    # 基壇の帯: **その run 自身の辺の線**からの垂直距離で測る。
+                    # ⛔ `_par_near`(最寄りの辺)を使うと隅で辺が切り替わり、支えがあるのに
+                    #    「載っていない」と誤検出する(2026-08-31: 0.004 m² が 0.87 m² に化けた)。
+                    # ⭕ **隣の辺の基壇も支えになる。** 隅では自分の辺の帯を外れても、
+                    #    直交する辺の基壇(P0 では SE_Hei・底厚 1.8m)が受ける。
+                    on_base = any(a8[0] <= 0 or True and
+                                  -1e-9 <= (x - a8[0]) * n8x + (y - a8[1]) * n8y <= bt8 + 1e-9 and
+                                  r8s0 - 1e-9 <= ((x - a8[0]) * ex8 + (y - a8[1]) * ey8) <= r8s1 + 1e-9
+                                  for (a8, n8x, n8y, bt8, ex8, ey8, r8s0, r8s1) in bands)
+                    if not (on_ter or on_base):
+                        miss += step * step
+                y += step
+            x += step
+        if miss > tol:
+            bad.append("%s の足跡のうち %.2f m² が段にも基壇にも載っていない" % (r["name"], miss))
+    return bad
+
+
 def perimeter_closure_check(d, step=0.02, inset=0.05):
     """**外周が全長で閉じているか** — 区画線を歩き、内側が何かで塞がっているかを測る。
 
@@ -514,7 +579,8 @@ def perimeter_closure_check(d, step=0.02, inset=0.05):
       ⛔ **隅の対どうしを見るのでは足りない。**穴は run と run の間ではなく、
       **run と区画線の間**に開く(折れ角が直角でないと妻面と辺の間に楔が開く)。
     ⭕ 区画線から `inset` だけ内へ入った点が、外周の部材のどれかに覆われていれば閉。
-    ⛔ 門・木戸の開口は**扉の幅ぶんだけ**閉と数える(開口幅ではない)。
+    ⛔ 開口は**部材が実際に塞ぐ幅**で閉と数える(run の隙間の幅ではない) —
+      **表門は長屋門の躯体の桁行 `monW`**(躯体そのものが塞ぐ)、**木戸は門の幅 `komon.w`**。
       2026-08-31 三巡目: 木戸は開口 2.80m に対し `komon.w` 2.70m で、両端 0.05m ずつ素通しだった。
     """
     P9 = d["polygon"]
@@ -586,6 +652,8 @@ def perimeter_corner_check(d, tol=0.02):
     ⛔ 門の開口は隅ではないのでここでは見ない(`gate_check` の担当)。
     ⚠ 隅部材(`build_kado` の腕)は runs に居ないので、この検査からは見えない。
       **腕で塞ぐ隅は帳簿の側で担保すること。**
+    ⚠ **`fences` は見ない**(runs だけを回す)ので、木柵が付く隅(P5: 辺4 `W_Hei_C` ↔ 辺5 `F_Hori`)は
+      黙って飛ばす。⭕ そこは `perimeter_closure_check` が全長で見ている。
     """
     P = d["polygon"]
     n = len(P)
@@ -2982,18 +3050,29 @@ def gate_svg(d):
     def Y(m): return GY - m * sx
 
     g = _sv(W, H, "表門(長屋門)正面見付")
-    # 両翼の練塀
+    # ⚠ 2026-08-31 四巡目: 両袖を**練塀**として高さ 4.3m の直書きで描いていた。
+    #   辺12 は 2026-08-31 のユーザー裁定で**表長屋**になっており、見付だけが旧設計のままだった
+    #   (同じ図版の下の平面図は「両袖は表長屋へ継ぐ」と直っていて、上下で食い違っていた)。
+    #   ⛔ 高さも門口も直書きだったので、すべて設計値から引く。
+    nagH9 = d["const"]["nagayaH"]
+    seatN = next(r["seat"] for r in d["runs"] if r["kind"] == "Nagaya")
+    dh9 = seatN - d["gate"]["sill"]                   # 長屋の座は門の敷居より高い(段差)
+    monkuchi = gp.get("monkuchi", 2.0 * d["const"]["ken"])   # 門口=2間
     for x0 in (0.0, total - wing):
-        g.append(R(X(x0), Y(4.3), X(wing), 4.3 * sx, fill="var(--nagaya)", op=0.55))
-        g.append(R(X(x0) - 3, Y(4.3) - 9, X(wing) + 6, 9, fill="var(--ink-lo)"))
-    g.append(T(X(wing / 2), Y(4.9), "練塀(外構練塀潰=安政地震の記録)", "anS2", "middle"))
-    # 長屋門の躯体(一段高い屋根)
-    g.append(R(X(wing), Y(monH - 0.8), X(monW), (monH - 0.8) * sx, fill="var(--nagaya)", op=0.85))
-    g.append(R(X(wing) - 4, Y(monH - 0.8) - 12, X(monW) + 8, 12, fill="var(--ink-lo)"))
+        g.append(R(X(x0), Y(dh9 + nagH9), X(wing), nagH9 * sx, fill="var(--nagaya)", op=0.55))
+        g.append(R(X(x0) - 3, Y(dh9 + nagH9) - 9, X(wing) + 6, 9, fill="var(--ink-lo)"))
+    g.append(T(X(wing / 2), Y(dh9 + nagH9 + 0.6),
+               "表長屋(二階瓦葺窓付・棟高%.2f / 座は門の敷居より%.2f高い)" % (nagH9, dh9), "anS2", "middle"))
+    # 長屋門の躯体
+    g.append(R(X(wing), Y(monH), X(monW), monH * sx, fill="var(--nagaya)", op=0.85))
+    g.append(R(X(wing) - 4, Y(monH) - 12, X(monW) + 8, 12, fill="var(--ink-lo)"))
     # 門口(中央)
-    g.append(R(X(wing + monW / 2 - 1.8), Y(3.2), X(3.6), 3.2 * sx, fill="var(--paper2)", stroke="var(--ink)", sw=1.2))
-    g.append(R(X(wing + monW / 2 - 1.7), Y(3.0), X(1.6), 3.0 * sx, fill="var(--ink-lo)", stroke="var(--ink)", sw=0.8))
-    g.append(R(X(wing + monW / 2 + 0.1), Y(3.0), X(1.6), 3.0 * sx, fill="var(--ink-lo)", stroke="var(--ink)", sw=0.8))
+    g.append(R(X(wing + monW / 2 - monkuchi / 2), Y(3.2), X(monkuchi), 3.2 * sx,
+               fill="var(--paper2)", stroke="var(--ink)", sw=1.2))
+    g.append(R(X(wing + monW / 2 - monkuchi / 2 + 0.1), Y(3.0), X(monkuchi / 2 - 0.15), 3.0 * sx,
+               fill="var(--ink-lo)", stroke="var(--ink)", sw=0.8))
+    g.append(R(X(wing + monW / 2 + 0.05), Y(3.0), X(monkuchi / 2 - 0.15), 3.0 * sx,
+               fill="var(--ink-lo)", stroke="var(--ink)", sw=0.8))
     g.append(T(X(wing + monW / 2), Y(3.4), "門口(内開き・潜り戸)", "anS2", "middle"))
     # 出格子番所(躯体内・両側)
     for cx in (wing + monW * 0.22, wing + monW * 0.78):
@@ -3007,6 +3086,9 @@ def gate_svg(d):
     g.append(LN(0, GY, W, GY, "var(--ink)", 1.6))
     g.append(T(4, GY + 16, "三べ坂前身の南北道。敷居=門前面の地盤=道なり", "anS2", "start"))
     g.append(T(4, 15, "正面見付(概略・等倍)。型式=現存実例2件[山脇]A・[西澄寺]A ＋ 格式階梯B/実在と被災=安政地震の記録(S)", "anS"))
+    g.append(T(4, 29, "⚠ 門の棟 %.2f(敷居%.2f+%.2f)に対し袖の表長屋の棟は %.2f(座%.2f+%.2f) — **長屋が %.2fm 高い**。"
+               "長屋門は両袖より高いのが型なので要裁定" % (d["gate"]["sill"] + monH, d["gate"]["sill"], monH,
+               seatN + nagH9, seatN, nagH9, (seatN + nagH9) - (d["gate"]["sill"] + monH)), "anS"))
     g.append("</svg>")
 
     # 平面
@@ -3644,6 +3726,10 @@ def main():
     zbad = perimeter_closure_check(d)
     print("外周の閉じ(全長を歩く): %d 件" % len(zbad))
     for b in zbad:
+        print("    " + b)
+    fbad = footprint_support_check(d)
+    print("長屋の足跡の支え: %d 件" % len(fbad))
+    for b in fbad:
         print("    " + b)
     sbad = seat_fill_check(d)
     if sbad:

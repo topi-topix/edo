@@ -203,6 +203,7 @@ def fill_boundary(o, pred, sides=64):
 
 
 DOOR_H = 2.8                 # 指図 komon[].leaf の板戸の高さ[m]
+DOOR_SETBACK = 0.25          # 扉の表を壁の外面から内へ引く量[m](戸当たり・方立の見込み)
 # 板戸の板目 — knagaya.jpg を 16x16 に割って「縦筋が強く横筋がほぼ無い暗い区画」を
 # 探して採った(輝度 40.3 / 縦筋 24.5 / 横筋 0.57)。⛔ 新しいテクスチャは作らない。
 # ⚠ 海鼠壁の帯から採ると**真っ黒な板**になる(2026-08-31 の1回目)。
@@ -251,8 +252,13 @@ def hang_doors(o, x0, x1, z_bot, z_top, leaf_h):
         ys = [v.co.y for v in me.vertices]
     y_in, y_out = min(ys), max(ys)
     t = 0.09 / ES                                   # 板戸の厚み 90mm
-    yc = (y_in + y_out) * 0.5
-    yd0, yd1 = yc - t * 0.5, yc + t * 0.5
+    # ⚠ **壁厚の中央に吊らない。** carve_gate は門口の高さの躯体を**建物の全奥行**に
+    #   わたって抜くので、方立の y は 3.7m 幅になる。その中央に吊ると扉が建物の
+    #   奥まで引っ込み、外から見て門に見えない(2026-08-31 の1回目・実測で
+    #   外面から 1.88m 奥にあった)。長屋門の扉は**方立の内側**に吊るものなので、
+    #   表(素では +Y)の面から DOOR_SETBACK だけ内へ引いた位置に据える。
+    yd1 = y_out - DOOR_SETBACK / ES
+    yd0 = yd1 - t
 
     # 扉は板戸の板目、扉の上の小壁は**開口より上の壁と同じ面**から UV を借りる
     _, mi = board_uv(o, z_bot, z_top)
@@ -304,9 +310,22 @@ def hang_doors(o, x0, x1, z_bot, z_top, leaf_h):
             box(lx0, lx1, yd1 + proud, yd1 + proud + sp, zc - sh * 0.5, zc + sh * 0.5)
             box(lx0, lx1, yd0 - proud - sp, yd0 - proud, zc - sh * 0.5, zc + sh * 0.5)
     if zl < z_top - 1e-4:                           # 扉の上の小壁(楣まで)
-        box(x0, x1, y_in, y_out, zl, z_top, rect=kabe_uv)
+        # ⚠ 建物の全奥行を塞がない。壁と同じ見付けの板 1 枚にする
+        box(x0, x1, y_out - 0.30 / ES, y_out, zl, z_top, rect=kabe_uv)
     bm.normal_update()
     bm.to_mesh(me); bm.free(); me.update()
+    # 実測して報告する — 「壁の外面から何 m 内側に吊れたか」を目で確かめられるように
+    from collections import defaultdict
+    acc = defaultdict(float)
+    for pg in me.polygons:
+        if abs(pg.normal.y) < 0.9:
+            continue
+        acc[round(me.vertices[me.loops[pg.loop_start].vertex_index].co.y, 3)] += pg.area
+    order = sorted(acc.items(), key=lambda kv: -kv[1])[:4]
+    print("[nagaya] 壁に平行な面の y(面積の大きい順・m): "
+          + " / ".join("%.3f(%.1fm2)" % (y * ES, a * ES * ES) for y, a in order))
+    print("[nagaya] 方立から採った y_in %.3f  y_out %.3f  → 扉の表 %.3f (m)"
+          % (y_in * ES, y_out * ES, yd1 * ES))
     print("[nagaya] 扉を吊った: 両開き 幅 %.3fm × 高 %.3fm / 上の小壁 %.3fm / 厚み %.3fm"
           % ((x1 - x0) * ES, leaf_h, (z_top - zl) * ES, t * ES))
     return o

@@ -2106,7 +2106,15 @@ public static class EdoMatsudairaDewaBuilder
             var b2 = Poly[(r.edge + 1) % Poly.Length];
             Vector2 u2 = (b2 - a2).normalized;
             float seat2 = r.SeatAt(r.monS);
-            int NB = 4000; var bins = new int[NB];
+            // ⚠ 2026-08-31: 門口に扉を作り付けた(ユーザー裁定2-A)ので、
+            //   「run の中でいちばん広い空き」を門口とみなす旧法は成り立たなくなった
+            //   (扉が穴を埋め、代わりに壁のどこか別の空きを門口と誤認して
+            //    辺13 で s=13.30・幅1.40m と報告した)。
+            //   **壁の外面だけを見る。**扉は壁厚の中ほどに吊ってあるので外面には出ない。
+            Vector2 on2 = OutNormal(r.edge);
+            int NB = 4000; var bins = new int[NB]; var doorBins = new int[NB];
+            float dOut = float.NegativeInfinity;
+            // 1巡目 — 壁の外面の位置 dOut を、目の高さの帯から採る
             foreach (var mf in tr.GetComponentsInChildren<MeshFilter>())
             {
                 if (mf.sharedMesh == null) continue;
@@ -2115,8 +2123,29 @@ public static class EdoMatsudairaDewaBuilder
                 {
                     var w = m2.MultiplyPoint3x4(v);
                     if (w.y < seat2 + 0.6f || w.y > seat2 + 1.4f) continue;
+                    float d = (w.x - a2.x) * on2.x + (w.z - a2.y) * on2.y;
+                    if (d > dOut) dOut = d;
+                }
+            }
+            // 2巡目 — 門口(壁の外面)と扉(方立の内側)を別々に数える。
+            // ⚠ **高さの帯を分ける。** 扉は板の箱でできているので、頂点は丈の上下
+            //   (足元と頭)にしかない。目の高さの帯で数えると 0 になり、
+            //   塞がっているのに「塞がっていない」と出る(2026-08-31 に実測 42 頂点)。
+            foreach (var mf in tr.GetComponentsInChildren<MeshFilter>())
+            {
+                if (mf.sharedMesh == null) continue;
+                var m2 = mf.transform.localToWorldMatrix;
+                foreach (var v in mf.sharedMesh.vertices)
+                {
+                    var w = m2.MultiplyPoint3x4(v);
+                    float d = (w.x - a2.x) * on2.x + (w.z - a2.y) * on2.y;
                     int bi = Mathf.RoundToInt(((w.x - a2.x) * u2.x + (w.z - a2.y) * u2.y) * 10f);
-                    if (bi >= 0 && bi < NB) bins[bi]++;
+                    if (bi < 0 || bi >= NB) continue;
+                    if (w.y >= seat2 + 0.6f && w.y <= seat2 + 1.4f && d > dOut - 0.12f)
+                        bins[bi]++;                                   // 壁の外面(=門口はここが空く)
+                    if (w.y >= seat2 - 0.05f && w.y <= seat2 + r.monH
+                        && d < dOut - 0.12f && d > dOut - 0.80f)
+                        doorBins[bi]++;                               // 方立の内側(=扉)
                 }
             }
             float best = -1f, bw = 0f; int st2 = -1;
@@ -2128,6 +2157,24 @@ public static class EdoMatsudairaDewaBuilder
                     float w2 = (i - st2) / 10f;
                     if (w2 > bw) { bw = w2; best = (st2 + i) / 20f; }
                     st2 = -1;
+                }
+            }
+            // 門口が扉で塞がっているか — **扉が開口の端から端まで届いているか**を測る。
+            // ⚠ ビンごとの頂点の有無で数えない。扉は板の箱なので頂点は板の小口にしか
+            //   無く、0.30m ピッチの板を 0.10m のビンで数えると必ず穴が空く
+            //   (2026-08-31 に 8/24 と出て、塞がっているのに不合格になった)。
+            if (best >= 0f)
+            {
+                int dLo = -1, dHi = -1;
+                for (int i = 0; i < NB; i++) if (doorBins[i] > 0) { if (dLo < 0) dLo = i; dHi = i; }
+                if (dLo < 0)
+                    bad.Add("長屋門 " + r.name + " 辺" + r.edge + " の門口に扉が無い(素通し)");
+                else
+                {
+                    float cover = (dHi - dLo) / 10f;
+                    if (cover < bw - 0.20f)
+                        bad.Add("長屋門 " + r.name + " 辺" + r.edge + " の扉が開口に届いていない(扉 "
+                                + cover.ToString("F2") + "m / 開口 " + bw.ToString("F2") + "m)");
                 }
             }
             if (best < 0f) bad.Add("長屋門 " + r.name + " に門口の穴が見つからない");

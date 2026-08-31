@@ -392,6 +392,10 @@ def cmd_claim(a):
             return 2
         if r not in c["resources"]:
             c["resources"].append(r)
+        # ⚠ `claim` で直接取得したときも待ち行列から自分を落とす。落とさないと、
+        #   `check-unity` を経ずに取得したセッションが「保持者なのに順番待ち」のまま残り、
+        #   status の待ち行列の人数が水増しされる(2026-08-31、松平の 180分待ち表示で発覚)。
+        q_drop(r, me)
     # ⚠ **既存の記録へ追記するときは黙って進まない(EDO-0044・土井の要望)。**
     #   取り違えたまま note を上書きすると、相手は自分の claim が化けたことに気づけない。
     if was and (a.note and old_note and a.note != old_note):
@@ -559,6 +563,7 @@ def cmd_check_unity(a):
     hold = [c for c in cs if "unity" in c.get("resources", [])]
     if hold and hold[0]["session"] == me:
         touch(me, resources=["unity"])   # 自分の使用時刻を打ち直す
+        q_drop("unity", me)  # ⚠ 保持者自身が待ち行列に残ると人数が水増しされる(2026-08-31 実測)
         return 0
     ok, h = q_may_take("unity", me)
     if not ok:                            # 空いていても予約者が居るなら割り込ませない

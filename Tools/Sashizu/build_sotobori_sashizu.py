@@ -752,12 +752,14 @@ def main():
     h.append('<p class="eyebrow">%s ／ %s ／ 基準年次 %s</p>'
              % (html.escape(d["subtitle"]), html.escape(d["board"]), html.escape(d["year"])))
     h.append("<h1>%s</h1>" % html.escape(d["title"]))
-    h.append('<p class="lede">2026-08-22 の造成リセットが、虎ノ門土橋の東の外堀を'
-             '<b>掘削もろとも現代の地面へ戻していた</b>。水面のメッシュは張られたままなので、'
-             'いまは乾いた地面の中に水の板が沈み、両岸の総石垣も土に埋まっている。'
+    h.append('<p class="lede">2026-08-22 の造成リセットが、虎ノ門の橋の東の外堀を'
+             '<b>掘削もろとも現代の地面へ戻していた</b>。水面のメッシュは張られたままだったので、'
+             '乾いた地面の中に水の板が沈み、両岸の総石垣も土に埋まっていた。'
              'これは<b>溜池の堰(どんどん)から下流ひと続き</b>を対象とした掘り直しの指図である。'
-             '<b>新設ではなく復旧</b>で、堀の形・水位・石垣・橋はすでに考証を通って実装されており、'
+             '<b>新設ではなく復旧</b>で、堀の形・水位・石垣・橋はすでに実装されており、'
              'この指図はそれを動かさない。'
+             '<b>⭐ 00001 は 2026-08-29 に、00002・00003 は 2026-08-31 に実装を終え、'
+             '施工後の7検査をすべて通した。</b>'
              '<b>数値の正典は <code>sotobori_sashizu.json</code>、文章の正典は <code>sotobori_kosho.md</code>、'
              '実測は <code>sotobori_terrain.json</code>。</b>この頁はその三つから組んだもので、実装は読んでいない。</p>')
     sv = {r["id"]: r for r in ter["survey"]}
@@ -880,8 +882,32 @@ def main():
              '⭐ 2026-08-30 に 00001 の run 線(ピボット)を実測へ直し(CW1s で 8.5〜8.9m 動いた)、'
              '<b>08-31 に組み直したので上の値は実測の線で採ったもの</b>である。</p>')
 
-    plate(h, nx(), "施工の段階", "地形の編集は Undo の外")
+    plate(h, nx(), "施工の段階", "地形の編集は Undo の外 ── 2026-08-31 実施済")
     h.append(stage_table(d))
+    pw = ter.get("postWork2026_0831")
+    if pw:
+        a = pw["applied"]
+        h.append('<p class="cap">⭐ <b>%s に実施した。</b>%s '
+                 '設計どおり動いたセル <b>%s(%s m²)</b>／工区 %s m²、'
+                 '設計面との最大誤差 <b>%.3f m</b>(%s)。%s</p>'
+                 % (pw["date"], inline(html.escape(pw["what"])),
+                    "{:,}".format(a["cellsMoved"]), "{:,}".format(a["m2"]),
+                    "{:,}".format(a["workAreaM2"]), a["maxErrorVsDesign_m"],
+                    html.escape(a["note"]), inline(html.escape(pw["baseline"]))))
+        inc = pw["incident"]
+        h.append('<div class="box"><p><b>⛔ 施工中に踏んだ事故(復旧済)</b><br>'
+                 '%s<br><b>原因</b> ── %s<br><b>なぜ検算が見逃したか</b> ── %s<br>'
+                 '<b>復旧</b> ── %s<br>%s</p></div>'
+                 % (inline(html.escape(inc["what"])), inline(html.escape(inc["cause"])),
+                    inline(html.escape(inc["whyMissed"])), inline(html.escape(inc["recovered"])),
+                    inline(html.escape(inc["rule"]))))
+        rows = ["<tr><td><code>%s</code></td><td class='note' style='text-align:left'>%s</td>"
+                "<td>%s</td><td class='note' style='text-align:left'>%s</td></tr>"
+                % (c["id"], inline(html.escape(c["measured"])), html.escape(c["verdict"]),
+                   inline(html.escape(c.get("note", "—"))))
+                for c in pw["checks"]]
+        h.append("<h4>施工後の検査(実測)</h4>")
+        h.append(tbl(["id", "実測", "判定", "註"], rows))
     plate(h, nx(), "検査", "1件でも落ちたら退避から戻す")
     h.append(check_table(d))
     plate(h, nx(), "考証と決めごと", "文章の正典は sotobori_kosho.md")

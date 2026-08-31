@@ -617,7 +617,7 @@ def main():
     if os.path.exists(TER_OUT):
         try:
             old = json.load(open(TER_OUT, encoding="utf-8"))
-            for k in ("liveCheck2026_0830",):
+            for k in ("liveCheck2026_0830", "postWork2026_0831"):
                 if k in old:
                     ter[k] = old[k]
         except Exception as e:

@@ -157,6 +157,13 @@ public static class EdoSashizuExport
                 var names = new List<string>();
                 foreach (var o in Get2(doc, "runs")) names.Add(Str(o as Dictionary<string, object>, "name"));
                 foreach (var o in Get2(doc, "fences")) names.Add(Str(o as Dictionary<string, object>, "name"));
+                // 隅部材は **`runs` ではなく `joints` の `kado`** に居る(留め継ぎは run ではない)。
+                // ⚠ これを教えないと、据えた隅が全部「孤児の囲い」に見える(2026-08-30 に実際に出た)。
+                foreach (var o in Get2(doc, "joints"))
+                {
+                    var j = o as Dictionary<string, object>;
+                    if (j != null && j.ContainsKey("kado")) names.Add("Kado_" + Str(j, "id"));
+                }
                 foreach (var nm in names)
                 {
                     int c = 0;

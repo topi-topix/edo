@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 4efa3b516a95c4cefab14c4f899ead4c
+guid: fc3a2a72c9eb843d7971de8e3fc96e17
 ModelImporter:
   serializedVersion: 24501
   internalIDToNameTable: []
@@ -7,27 +7,27 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
-      name: Fence_B_01
-    second: {fileID: 2100000, guid: eff2666bf115c77408727fe3df6162fd, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: Roof B
-    second: {fileID: 2100000, guid: e66ba4c7e0fc31a4288a38b4c6fce9a0, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: Wall Exterior Defence
-    second: {fileID: 2100000, guid: e17ab15db40da9e46b7b8ffb232ff8de, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
       name: roof
-    second: {fileID: 2100000, guid: 78e6135f373fc4e07a471198eff6b166, type: 2}
+    second: {fileID: 2100000, guid: 46aea8a32dec24843adef3ad15ec2f3e, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: roof ornaments
+    second: {fileID: 2100000, guid: 2dba1ffbff60ed84194cd5d6c406b790, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: wall C
+    second: {fileID: 2100000, guid: 5882125c712caf74a8e76c5ccac460ec, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: wood
+    second: {fileID: 2100000, guid: 6127939ab0b92994fa5506eed0e13a74, type: 2}
   materials:
     materialImportMode: 2
-    materialName: 0
-    materialSearch: 1
+    materialName: 1
+    materialSearch: 2
     materialLocation: 1
     searchTexturesGlobally: 0
   animations:

@@ -45,6 +45,17 @@ _SVN = [0]
 MUNE_JA = {}
 
 
+def s_sign(d):
+    """走り s と グリッド u の**向きの関係**。u = sSign·(s − sg)/ken。
+
+    ⛔ 邸によって逆。土井は `s = 47.0 + 1.818·u`(同じ向き=+1)だが、
+    岡部は `s = 14.37 − 1.818·u`(逆向き=−1)。ここを +1 に決め打ちしていたため、
+    岡部の門の辺の run が**表門をはさんだ反対側**の箱として検査されており、
+    重なりを構造的に見つけられなかった(2026-08-31 検図)。
+    既定は +1 なので、宣言していない邸の挙動は変わらない。"""
+    return -1.0 if d.get("grid", {}).get("sSign", 1) < 0 else 1.0
+
+
 def _pat(): return "url(#pi%d)" % _SVN[0]
 
 
@@ -781,8 +792,8 @@ def overlap_check(d):
         if r["edge"] != d["gate"]["edge"]:
             continue
         depth = d["const"]["nagayaD"] if r["kind"] == "Nagaya" else d["const"]["dobeiT"]
-        boxes.append(("run", r["name"], (r["s0"] - sg) / ken2, 0.0,
-                      (r["s1"] - sg) / ken2, depth / ken2, None))
+        ua, ub = sorted((s_sign(d) * (r["s0"] - sg) / ken2, s_sign(d) * (r["s1"] - sg) / ken2))
+        boxes.append(("run", r["name"], ua, 0.0, ub, depth / ken2, None))
     gp2 = d["gate"]["plan"]
     boxes.append(("run", "Nagayamon", -gp2["monW"] / 2 / ken2, 0.0,
                   gp2["monW"] / 2 / ken2, gp2["monD"] / ken2, None))
@@ -855,7 +866,7 @@ def overlap_check(d):
         if r["edge"] != d["gate"]["edge"]:
             continue
         depth = d["const"]["nagayaD"] if r["kind"] == "Nagaya" else d["const"]["dobeiT"]
-        r0, r1 = (r["s0"] - sg) / ken2, (r["s1"] - sg) / ken2
+        r0, r1 = sorted((s_sign(d) * (r["s0"] - sg) / ken2, s_sign(d) * (r["s1"] - sg) / ken2))
         for t in d["terraces"]:
             iu = min(r1, t["u1"]) - max(r0, t["u0"])
             iv = min(depth / ken2, t["v1"]) - max(0.0, t["v0"])

@@ -124,6 +124,19 @@ def edge_pt(P, e, s):
     return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
 
 
+def _inward(P, e):
+    """辺 e の**内向き**単位法線(世界座標)。
+    ⛔ 重心で向きを決めない — 凹み多角形では1辺だけ反転する(掲示板 EDO-0058・松平で塀が隣家へ 0.95m 出た)。
+    多角形の回り(符号付き面積)から決めるので、凹みがあっても全辺で一貫する。"""
+    n = len(P)
+    a, b = P[e], P[(e + 1) % n]
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    L = math.hypot(dx, dy) or 1e-9
+    area2 = sum(P[i][0] * P[(i + 1) % n][1] - P[(i + 1) % n][0] * P[i][1] for i in range(n))
+    sgn = 1.0 if area2 > 0 else -1.0
+    return (-dy / L * sgn, dx / L * sgn)
+
+
 PLANE_COL = {"門前面": "var(--pl-omote)", "主面": "var(--pl-main)",
              "斜面(造成しない)": "var(--pl-slope)"}
 _DANC = {}
@@ -1194,8 +1207,18 @@ def plan_svg(d):
     # 外周の run(辺+走り)
     for r in d["runs"]:
         a = edge_pt(P, r["edge"], r["s0"]); b = edge_pt(P, r["edge"], r["s1"])
-        g.append(LN(pr.X(a[0]), pr.Y(a[1]), pr.X(b[0]), pr.Y(b[1]),
-                    KC.get(r["kind"], "var(--dim)"), 5 if r["kind"] == "Nagaya" else 3.4, cap="round"))
+        # ⚠ 2026-08-31 検図: 長屋は太い線でなく**奥行 nagayaD の帯**で描く(足跡が図に出ていなかった)
+        if r["kind"] == "Nagaya":
+            nx9, ny9 = _inward(P, r["edge"])
+            dd9 = d["const"]["nagayaD"]
+            q9 = [(a[0], a[1]), (b[0], b[1]),
+                  (b[0] + nx9 * dd9, b[1] + ny9 * dd9), (a[0] + nx9 * dd9, a[1] + ny9 * dd9)]
+            g.append('<polygon points="%s" fill="%s" stroke="var(--ink)" stroke-width="0.6" opacity="0.9"/>'
+                     % (" ".join("%.1f,%.1f" % (pr.X(x9), pr.Y(y9)) for x9, y9 in q9),
+                        KC.get(r["kind"], "var(--dim)")))
+        else:
+            g.append(LN(pr.X(a[0]), pr.Y(a[1]), pr.X(b[0]), pr.Y(b[1]),
+                        KC.get(r["kind"], "var(--dim)"), 3.4, cap="round"))
     # 郭の土留め
     for w in d["terraceWalls"]:
         a = gr.W(*w["a"]); b = gr.W(*w["b"])
@@ -2491,10 +2514,13 @@ def section_svg(d, sec):
         gy = seat - _run_exposure(d, run, bs)
         if seat > gy + 0.05:                          # 基壇石垣
             bt9 = 2.4 * run["s"]          # 基壇の底厚(設計値)。固定1.8mで描いていた
-            g.append(R(X(w) - sx * bt9 / 2, Y(seat), sx * bt9, (seat - gy) * sx * ex,
+            # ⚠ 2026-08-31 検図: 外面を境界線に合わせる(中心合わせだと底厚の半分が区画外)
+            g.append(R(X(w), Y(seat), sx * bt9, (seat - gy) * sx * ex,
                        fill=_pat(), stroke="var(--ishi)", sw=1.0))
-        wt9 = d["const"]["dobeiT"]        # 練塀の厚さ(設計値)。固定1.4mで描いていた
-        g.append(R(X(w) - sx * wt9 / 2, Y(seat + hh), sx * wt9, hh * sx * ex,
+        # ⚠ 2026-08-31 検図: kind で分ける。長屋は奥行 nagayaD(4.545m)で、練塀の 1.15m ではない。
+        #   あわせて中心合わせをやめ、**外面を境界線に合わせて内側へ**取る(半分が区画外に出ていた)。
+        wt9 = d["const"]["nagayaD"] if run["kind"] == "Nagaya" else d["const"]["dobeiT"]
+        g.append(R(X(w), Y(seat + hh), sx * wt9, hh * sx * ex,
                    fill=KC.get(run["kind"], "var(--dim)"), op=0.95))
         g.append(T(X(w), Y(seat + hh) - 5, "%s 天端%.2f 露出%.2f"
                    % (run["name"], seat, seat - gy), "jo", "middle"))
@@ -2643,7 +2669,7 @@ def perimeter_dev_svg(d):
     HEAD, FOOT = 34.0, 70.0
     sx = W / total
     dob = d["const"]["dobeiH"]
-    nagH = 5.3
+    nagH = d["const"]["nagayaH"]
     seats = [y for r in d["runs"] for y in (rseat(r, r["s0"]), rseat(r, r["s1"]))]
     gmin = min([y for prof2 in d.get("edgeProfile", {}).values() for _s2, y in prof2] + seats)
     y1 = max(seats) + nagH + 1.0
@@ -2818,7 +2844,7 @@ def gate_svg(d):
     g2.append(T(X2(wing + monW * 0.22), wy + 2, "番所", "anS2", "middle"))
     g2.append(T(X2(wing + monW * 0.78), wy + 2, "番所", "anS2", "middle"))
     g2.append(T(X2(wing + monW / 2), wy - 16, "門口 3.6m", "anS2", "middle"))
-    g2.append(T(4, H2 - 8, "長屋門の躯体(桁行%.1fm×梁間%.1fm)に番所が入る。両袖は**練塀**へ直に突き付ける(表長屋は0本)" % (monW, monD), "anS2", "start"))
+    g2.append(T(4, H2 - 8, "長屋門の躯体(桁行%.1fm×梁間%.1fm)に番所が入る。両袖は**表長屋**(奥行%.3fm)へ継ぐ" % (monW, monD, d["const"]["nagayaD"]), "anS2", "start"))
     g2.append("</svg>")
     return "\n".join(g) + "\n" + "\n".join(g2)
 
@@ -3051,16 +3077,28 @@ def plane_check(d):
         for (uu, vv) in rl["pts"]:
             if not pt_in(uu, vv):
                 bad.append("%s(竹垣) の端点が区画の外: (%g, %g)" % (rl["name"], uu, vv))
-    # 段の多角形の頂点は区画の中、かつ区画線から犬走り+塀厚半分だけ内へ入っている
-    clr = (d["const"]["inubashiri"] + d["const"]["dobeiT"] / 2.0) / d["const"]["ken"]
+    # 段の多角形の頂点は区画の中、かつ区画線から必要な離れだけ内へ入っている。
+    # ⚠ 2026-08-31 検図: **必要な離れは辺に何が載るかで違う。**
+    #   練塀の辺 … 犬走り 0.30 + 塀厚の半分(塀は境界線に跨る) = 0.875m。
+    #   長屋の辺 … 長屋は境界線に跨らず、犬走りの内側から奥行 4.545m を敷地の中へ取る。
+    #             段(盛土)は**その足跡の下まで通っていなければ床が空洞の上に載る**ので、
+    #             要求は逆に「犬走り 0.30m まで**寄せる**こと」になる。
+    #   従前は練塀の数字(0.88m)を全段に当てており、辺12を長屋にした瞬間に
+    #   「規約を満たすほど段が足りない」という矛盾が出た。
+    clr_hei = (d["const"]["inubashiri"] + d["const"]["dobeiT"] / 2.0) / d["const"]["ken"]
+    clr_nag = d["const"]["inubashiri"] / d["const"]["ken"]
+    nag_edges = set(r["edge"] for r in d["runs"] if r["kind"] == "Nagaya")
     for t in d["terraces"]:
         for i, (uu, vv) in enumerate(tpoly(t)):
             if not in_parcel(d, uu, vv):
                 bad.append("%s(段) の頂点[%d] が区画の外: (%g, %g)" % (t["name"], i, uu, vv))
-            elif par_dist(d, uu, vv) < clr - 1e-6:
-                bad.append("%s(段) の頂点[%d] が区画線まで %.2fm(規定 %.2fm)"
-                           % (t["name"], i, par_dist(d, uu, vv) * d["const"]["ken"],
-                              clr * d["const"]["ken"]))
+                continue
+            dist, e9, _s9 = _par_near(d, uu, vv)
+            clr = clr_nag if e9 in nag_edges else clr_hei
+            if dist < clr - 1e-6:
+                bad.append("%s(段) の頂点[%d] が区画線まで %.2fm(規定 %.2fm・辺%d)"
+                           % (t["name"], i, dist * d["const"]["ken"],
+                              clr * d["const"]["ken"], e9))
     return bad
 
 
@@ -3256,8 +3294,8 @@ def gate_parts_table(d):
     dx, dz, _ = _edge_dir(P, g["edge"])
     rows = []
     for nm, s_off in [("長屋門(芯)", 0.0),
-                      ("躯体 南端(表長屋 E_Nagaya_S との継ぎ)", -gp["monW"] / 2),
-                      ("躯体 北端(表長屋 E_Nagaya_N との継ぎ)", gp["monW"] / 2)]:
+                      ("躯体 北端(表長屋 E_Nagaya_S との継ぎ)", -gp["monW"] / 2),
+                      ("躯体 南端(表長屋 E_Nagaya_N との継ぎ)", gp["monW"] / 2)]:
         x, z = edge_pt(P, g["edge"], g["s"] + s_off)
         rows.append("<tr><td>%s</td><td>(%.2f, %.2f)</td><td>%.2f</td><td>%.1f</td></tr>"
                     % (nm, x, z, g["sill"], g["yaw"]))
@@ -3269,7 +3307,7 @@ def gate_parts_table(d):
                     % (x, z, k["sill"], kyaw))
     return ("<h3>門構えの部材位置</h3><div class='tw'><table><thead><tr><th>部材</th><th>芯の世界座標 (x,z)</th>"
             "<th>敷居</th><th>yaw</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>"
-            "<p class='cap'>長屋門の両袖は<b>練塀へ直に突き付ける</b>(番所は躯体内。呼称は json <code>gate.plan.bansho.kind</code>)。表長屋は0本。</p>")
+            "<p class='cap'>長屋門の両袖は<b>表長屋へ継ぐ</b>(番所は躯体内。呼称は json <code>gate.plan.bansho.kind</code>)。⭐ 2026-08-31 のユーザー裁定で辺12の両袖を表長屋にした。梁間は長屋と面一(いずれも 2.5間)。</p>")
 
 
 def bom_table(d):
@@ -3756,17 +3794,18 @@ def main():
              '[追川2017] の 15%% / 28.6%% / 47.7%% は<b>表長屋の規模比であって建蔽率ではない</b>ので'
              '混ぜない(分母の定義も原典未確認 — sources.md の⚠)。'
              '外周は全周 <b>%.0fm</b> のうち当家が建てるのが <b>%.0fm(%.0f%%)</b> で、'
-             'その内訳は練塀 %.0fm・木柵 %.0fm・長屋門 %.1fm。<b>表長屋は0本</b>。'
+             'その内訳は<b>表長屋 %.1fm</b>・練塀 %.0fm・木柵 %.0fm・長屋門 %.1fm。'
              '⚠ <b>面積が二つ併存する</b> — 記録の拝領坪数 %s坪余で割れば <b>%.1f%%</b>。'
              '分母は図の実体である polygon のままにするが、読者に隠さない。'
              '<b>建蔽率は結果であって目標ではない</b> — 数字のために空地へ棟を足さない。'
-             '⚠ <b>この %.1f%% は史料値の帯の外にある。</b>総練塀(表長屋0本・確度U)という当図固有の裁定と、'
+             '⚠ <b>この %.1f%% は史料値の帯の外にある。</b>表長屋を辺12だけに留めた裁定(確度U)と、'
              '造成しない斜面が半分という地形の実体の合成であって、'
              '<b>5万石級上屋敷の類型を代表する数字ではない</b>(§A-3)。</p>'
              % (kp, 100.0 * hika,
                 perim, ownL + d["gate"]["plan"]["monW"],
                 100.0 * (ownL + d["gate"]["plan"]["monW"]) / perim,
-                sum(r["s1"] - r["s0"] for r in d["runs"]),
+                sum(r["s1"] - r["s0"] for r in d["runs"] if r["kind"] == "Nagaya"),
+                sum(r["s1"] - r["s0"] for r in d["runs"] if r["kind"] != "Nagaya"),
                 sum(f["s1"] - f["s0"] for f in d.get("fences", [])),
                 d["gate"]["plan"]["monW"],
                 "{:,}".format(int(d.get("han", {}).get("tsubo", 0))),

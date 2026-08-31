@@ -1919,6 +1919,43 @@ def perimeter_check(d):
     return bad
 
 
+def mune_gap_check(d):
+    """**隣り合う棟の空きが、屋根として成立するか。**
+
+    ⚠ 2026-08-27(EDO-0049)に松平が実装で踏み、他邸へ申し送った。当家では
+      当たっていた — にもかかわらず**20本以上ある検査のどれも鳴らなかった**。
+      棟の矩形が重なっていないことは `overlap_check` が見ているが、
+      **「重なっていない」と「屋根が成立する」は別**。
+
+    切妻屋根は桁行方向へ両端が `tsumaEnd` 長く、両隣の棟の軒の出 `nokiDe` と重なる。
+    重なりの合計 (nokiDe+tsumaEnd)×2 = 2.40m が棟間の空きを超えると、瓦が隣の棟の
+    屋根を突き抜ける。**1間(1.818m)では成立しない。**
+    処方は正典 `buildings.md`「渡廊下は1間では成立しない」の2択 —
+      (a) 2間(3.64m)へ広げる  (b) 空きを詰めて入側どうしを直に継ぐ(突き付け)。
+    ⛔ **中途半端な空きを残さない** — 0 か 2.40m 以上か、のどちらか。
+    """
+    C = d["const"]
+    need = (C["nokiDe"] + C["tsumaEnd"]) * 2.0
+    K = C["ken"]
+    M = d["munes"]
+    bad = []
+    for i in range(len(M)):
+        for j in range(i + 1, len(M)):
+            a, b = M[i], M[j]
+            du = max(b["u0"] - a["u1"], a["u0"] - b["u1"])
+            dv = max(b["v0"] - a["v1"], a["v0"] - b["v1"])
+            if du > 0 and dv > 0:
+                continue                       # 斜めに離れている — 取り合わない
+            sep = max(du, dv) * K
+            if sep <= 1e-9 or sep >= need - 1e-9:
+                continue                       # 突き付け か 十分な空き
+            axis = "u" if du >= dv else "v"
+            bad.append("棟 %s と %s の%s方向の空きが %.3fm(%.2f間)しかない — "
+                       "軒の出+切妻端で %.2fm 要る。2間へ広げるか突き付けるか"
+                       % (a["name"], b["name"], axis, sep, sep / K, need))
+    return bad
+
+
 def _quad(cx, cz, ux, uz, hl, ht):
     """辺に沿う矩形の平面形。(ux,uz)=辺の単位ベクトル、hl=辺方向の半長、ht=法線方向の半厚。"""
     nx, nz = -uz, ux
@@ -5336,6 +5373,7 @@ def main():
             print("   ", b)
     pbad = (plane_check(d) + inubashiri_check(d) + opening_fit_check(d) + refs_check(d)
             + norms_check(d) + perimeter_check(d) + perimeter_closure_check(d)
+            + mune_gap_check(d)
             + clearance_check(d) + rails_check(d)
             + ramp_check(d) + completeness_check(d) + program_check(d) + gate_overlap_check(d) + vocab_check(d)
             + terrace_overhang_check(d) + setchin_check(d)

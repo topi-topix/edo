@@ -16,7 +16,7 @@
 登録簿は `.claude/locks/*.json`(machine-local・gitignore)。
 プロセスが消えたか、`--ttl` 分だけ心拍が途絶えた claim は死んだものとして無視する。
 """
-import argparse, fnmatch, io, json, os, re, subprocess, sys, time
+import argparse, fnmatch, io, json, os, re, subprocess, sys, tempfile, time
 
 ROOT = os.environ.get("CLAUDE_PROJECT_DIR") or subprocess.run(
     ["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True,
@@ -214,7 +214,13 @@ def load_all(ttl=TTL_MIN):
         try:
             c = json.load(open(fp, encoding="utf-8"))
         except Exception:
-            os.remove(fp)
+            # ⛔ **読めない = 壊れている、とは限らない。消さない。**
+            #   save() は atomic_write_json で書くようになったので通常は起きないはずだが、
+            #   念のため防御を残す。ここで削除すると、たまたま同じ瞬間に別プロセスが
+            #   書き換え中(rename の直前)のファイルを掴んだだけで claim が消える
+            #   (2026-08-31、京極セッションが EDO_SESSION_ID 明示でも claim が消える
+            #   実例を報告 — 真因はここだった可能性が高い)。次回の呼び出しで読めれば
+            #   自然に復活する。TTL 切れの掃除だけがファイルを消してよい。
             continue
         # ⚠ **生存は心拍だけで判定する。** pid を使ってはならない — フックから呼ばれる
         #   スクリプトの親はその都度のシェルで、セッションの寿命と無関係(2026-08-24 に
@@ -241,11 +247,36 @@ def mine(s):
             "paths": [], "resources": [], "note": ""}, fp
 
 
+def atomic_write_json(obj, fp):
+    """他プロセスが同時に読んでも壊れた(空・途中)状態を絶対に見せない。
+    ⛔ **`json.dump(obj, open(fp,"w"))` は非アトミック** — open("w") が即座にファイルを
+    0バイトへ切り詰め、そこから書き終わるまでの間、同じファイルを読んだ他プロセスは
+    JSONDecodeError を踏む。load_all() の except 節はそれを「壊れた claim」として
+    **削除する**ため、複数セッションが同時に動く当プロジェクトでは自分の claim が
+    他人の read に巻き込まれて消える(2026-08-31、京極セッションが実例を報告・
+    EDO_SESSION_ID を明示していたのに sashizu:kyogoku_bitchu が消えた)。
+    同じディレクトリに一時ファイルを書いてから os.replace で置き換える
+    (POSIX の rename はアトミック — 読み手は「置き換わる前」か「後」しか見えない)。"""
+    d = os.path.dirname(fp) or "."
+    os.makedirs(d, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=".tmp-")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(obj, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, fp)
+    except Exception:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def save(c, fp):
     os.makedirs(LOCKS, exist_ok=True)
     c["heartbeat"] = now()
     c.setdefault("cwd", os.getcwd())
-    json.dump(c, open(fp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    atomic_write_json(c, fp)
 
 
 def rel(p):
@@ -307,7 +338,7 @@ def _force_release(session, resources):
         if r in c.get("resources", []):
             c["resources"].remove(r)
         (c.get("used") or {}).pop(r, None)
-    json.dump(c, open(fp, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    atomic_write_json(c, fp)
 
 
 # ────────────────────────────────────────────── サブコマンド
@@ -392,6 +423,10 @@ def cmd_claim(a):
             return 2
         if r not in c["resources"]:
             c["resources"].append(r)
+        # ⚠ `claim` で直接取得したときも待ち行列から自分を落とす。落とさないと、
+        #   `check-unity` を経ずに取得したセッションが「保持者なのに順番待ち」のまま残り、
+        #   status の待ち行列の人数が水増しされる(2026-08-31、松平の 180分待ち表示で発覚)。
+        q_drop(r, me)
     # ⚠ **既存の記録へ追記するときは黙って進まない(EDO-0044・土井の要望)。**
     #   取り違えたまま note を上書きすると、相手は自分の claim が化けたことに気づけない。
     if was and (a.note and old_note and a.note != old_note):
@@ -559,6 +594,7 @@ def cmd_check_unity(a):
     hold = [c for c in cs if "unity" in c.get("resources", [])]
     if hold and hold[0]["session"] == me:
         touch(me, resources=["unity"])   # 自分の使用時刻を打ち直す
+        q_drop("unity", me)  # ⚠ 保持者自身が待ち行列に残ると人数が水増しされる(2026-08-31 実測)
         return 0
     ok, h = q_may_take("unity", me)
     if not ok:                            # 空いていても予約者が居るなら割り込ませない
@@ -768,6 +804,94 @@ def cmd_worktree(a):
     return 0
 
 
+#   ⛔ **worktree の Tools/Session/ と CLAUDE.md は放っておくと古くなる(EDO-0076/0077)。**
+#   sparse worktree に Tools/ が入るのは Tools/Sashizu/(各邸が自分の生成器を編集・実行する)
+#   ために必要だが、同じ checkout に来る Tools/Session/ は main へマージするまで古いまま —
+#   動いてしまうのに古いコードなので気づけない(2026-08-31、wait/unwait が invalid choice に
+#   なり「入口ごとに判定が違う」と誤診された)。CLAUDE.md も同様で、外堀の worktree は
+#   基準年次が「嘉永期」のまま残っていた。
+#   フックは main の絶対パスを使うよう直したが、**セッションが手で相対パスから叩く経路**と
+#   **worktree の CLAUDE.md を読む経路**は残る。これを1コマンドで揃える。
+SYNC_PATHS = ["Tools/Session", "CLAUDE.md", "docs/session-coordination.md",
+              "docs/session-board.md", "docs/reporting-protocol.md", ".claude/hooks",
+              # ⚠ Tools/Sashizu/ は各邸が自分の生成器を持つので**ディレクトリごとは配らない**。
+              #   全邸共通の道具だけを名指しする(review_gate.py = 検図関門)。
+              "Tools/Sashizu/review_gate.py"]
+
+
+def cmd_sync_tools(a):
+    """main の運用ファイル(門番のツール・不変則・作法)を全 worktree の作業ツリーへ配る。
+    ⚠ **コミットはしない。** 各 worktree のブランチに勝手なコミットを積むと、その邸の
+    履歴に無関係な変更が混ざる(CLAUDE.md 規則4 の「経緯は git log で追う」が崩れる)。
+    作業ツリーのファイルだけを main の内容に合わせ、コミットするかは各セッションに委ねる。"""
+    main_root = os.path.dirname(_common_git_dir())
+    r = subprocess.run(["git", "-C", ROOT, "worktree", "list", "--porcelain"],
+                       capture_output=True, text=True).stdout
+    targets = []
+    for blk in r.split("\n\n"):
+        wp = None
+        for ln in blk.split("\n"):
+            if ln.startswith("worktree "):
+                wp = ln[9:]
+        if wp and os.path.realpath(wp) != os.path.realpath(main_root):
+            targets.append(wp)
+    if not targets:
+        print("worktree は無い(main だけ)")
+        return 0
+    total = 0
+    for wp in targets:
+        changed = []
+        for rp in SYNC_PATHS:
+            src = os.path.join(main_root, rp)
+            dst = os.path.join(wp, rp)
+            if not os.path.exists(src):
+                continue
+            # その worktree が sparse でそのパスを持っていなければ触らない(増やさない)
+            if not os.path.exists(os.path.dirname(dst) or wp):
+                continue
+            if os.path.isdir(src):
+                for fn in sorted(os.listdir(src)):
+                    if not fn.endswith((".py", ".md")):
+                        continue
+                    s2, d2 = os.path.join(src, fn), os.path.join(dst, fn)
+                    if not os.path.isdir(dst):
+                        continue
+                    if _copy_if_diff(s2, d2):
+                        changed.append(os.path.join(rp, fn))
+            else:
+                if os.path.exists(dst) and _copy_if_diff(src, dst):
+                    changed.append(rp)
+        if changed:
+            total += len(changed)
+            print("%s\n  更新 %d 件: %s" % (wp, len(changed), ", ".join(changed[:6])))
+        elif a.verbose:
+            print("%s\n  変更なし" % wp)
+    print("— %d worktree を確認 / %d ファイルを main に合わせた" % (len(targets), total))
+    if total:
+        print("⚠ **コミットはしていない。** 各 worktree のセッションが自分のブランチへ"
+              "含めるかは各自の判断(運用ファイルなので、通常は次の作業コミットに混ぜず"
+              "`git checkout -- <パス>` で戻してもよい — フックは main の実体を使うため)。")
+    return 0
+
+
+def _copy_if_diff(src, dst):
+    try:
+        with io.open(src, encoding="utf-8") as f:
+            a = f.read()
+        with io.open(dst, encoding="utf-8") as f:
+            b = f.read()
+    except Exception:
+        return False
+    if a == b:
+        return False
+    try:
+        with io.open(dst, "w", encoding="utf-8") as f:
+            f.write(a)
+        return True
+    except Exception:
+        return False
+
+
 def cmd_worktrees(a):
     r = subprocess.run(["git", "-C", ROOT, "worktree", "list", "--porcelain"],
                        capture_output=True, text=True).stdout
@@ -825,6 +949,11 @@ def main():
     p.add_argument("--full", action="store_true", help="Assets も含める(Unity を開くなら)")
     p.set_defaults(fn=cmd_worktree)
     sub.add_parser("worktrees").set_defaults(fn=cmd_worktrees)
+    p = sub.add_parser("sync-tools",
+                       help="main の門番ツール・不変則・作法を全 worktree の作業ツリーへ配る"
+                            "(コミットはしない。EDO-0076/0077)")
+    p.add_argument("--verbose", action="store_true", help="変更が無い worktree も出す")
+    p.set_defaults(fn=cmd_sync_tools)
     p = sub.add_parser("commit"); p.add_argument("paths", nargs="+")
     p.add_argument("-m", "--message", required=True); p.set_defaults(fn=cmd_commit)
     a = ap.parse_args()

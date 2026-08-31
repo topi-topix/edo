@@ -51,15 +51,19 @@ SPROUT_UV = [
 # 樹種のプロファイル。⚠ 寸法は在庫の同格に合わせる(桜 Mid = 5.8×5.7m / Big = 8.6×7.3m)
 SPECIES = {
     # 常緑広葉樹(モッコク・モチノキ・カシ・シイ)— 密で丸い樹冠、立ち枝、葉が枝先に集まる
-    "jokuroku": dict(label="常緑広葉樹", trunk_h=0.46, lean=0.04, spread=0.34,
-                     ang=(22, 40), levels=4, kids=(3, 4), taper=0.66,
-                     leaf_scale=0.115, leaf_per_tip=9, crown=1.30,
-                     wh=0.80, top=0.55),
+    "jokuroku": dict(label="常緑広葉樹",
+                     trunk_h=0.44, trunk_r=0.040, tip_r=0.006, lean=0.030,
+                     crown_z=0.70, crown_rz=0.29, wh=0.68, top=0.55,
+                     attractors=420, influence=0.32, kill=0.075, step=0.055,
+                     iters=42, up=0.16, jitter=0.20,
+                     leaf_scale=0.105, leaf_per_tip=7),
     # ウメ — 疎で屈曲した枝、横張り、樹高が低い
-    "ume":       dict(label="ウメ",       trunk_h=0.30, lean=0.14, spread=0.44,
-                     ang=(34, 62), levels=4, kids=(2, 3), taper=0.60,
-                     leaf_scale=0.095, leaf_per_tip=5, crown=0.95,
-                     wh=0.95, top=0.72),
+    "ume":      dict(label="ウメ",
+                     trunk_h=0.36, trunk_r=0.034, tip_r=0.005, lean=0.10,
+                     crown_z=0.66, crown_rz=0.30, wh=0.86, top=0.74,
+                     attractors=190, influence=0.40, kill=0.105, step=0.070,
+                     iters=34, up=0.10, jitter=0.34,
+                     leaf_scale=0.088, leaf_per_tip=4),
 }
 SIZE = {"Small": 3.6, "Mid": 5.8, "Big": 8.2}          # 樹高[m](在庫の同格に合わせる)
 LOD  = [dict(seg=8, tip=1.00, leaf=1.00),               # LOD0
@@ -67,49 +71,109 @@ LOD  = [dict(seg=8, tip=1.00, leaf=1.00),               # LOD0
         dict(seg=5, tip=0.34, leaf=0.46)]               # LOD2
 
 
+def crown_points(sp, h, rnd, n):
+    """樹冠の体積に誘引点を撒く。**楕円体の内側を埋める**(殻に貼らない)。
+    ⛔ 枝先を輪郭へ押し込むやり方はやめた — 枝先が殻の上に並んで
+      樹冠が箱に見えた(2026-08-31 の試作。ユーザー指摘『樹冠が四角い』)。"""
+    cz = h * sp["crown_z"]
+    rz = h * sp["crown_rz"]
+    rx = h * sp["wh"] * 0.5
+    pts = []
+    guard = 0
+    while len(pts) < n and guard < n * 60:
+        guard += 1
+        # 体積一様に撒く(r**(1/3))。外周をやや厚くして葉を外に寄せる
+        u = rnd.random() ** (1.0 / 3.0)
+        u = u * 0.55 + u ** 0.45 * 0.45
+        th = rnd.uniform(0, math.tau)
+        ph = math.acos(rnd.uniform(-1, 1))
+        x = u * rx * math.sin(ph) * math.cos(th)
+        y = u * rx * math.sin(ph) * math.sin(th)
+        z = cz + u * rz * math.cos(ph)
+        # 上ほど細らせる(円錐にならない程度に)
+        dz = (z - cz) / rz
+        if dz > 0:
+            lim = rx * math.sqrt(max(0.0, 1.0 - dz * dz)) * (1.0 - (1.0 - sp["top"]) * dz)
+            if math.hypot(x, y) > lim:
+                continue
+        if z < h * sp["trunk_h"] * 0.8:
+            continue                                  # 幹の下には葉を付けない
+        pts.append(Vector((x, y, z)))
+    return pts
+
+
 def branch_skeleton(sp, h, rnd):
-    """枝の骨格を作る。返すのは [(始点, 終点, 半径始, 半径終, 深さ)]。
-    ⛔ 円錐を積まない — **実際に分岐させる**(在庫の木はそうなっている)。"""
+    """**空間占有法(space colonisation)**で骨格を作る。
+    樹冠に誘引点を撒き、いちばん近い節が引かれて伸びる。届いた点は消す。
+    ⭕ 樹冠の形は「押し込み」ではなく**枝が伸びた結果**として出るので、
+      輪郭が箱にならず、内部にも枝が通る。
+    返すのは ([(始点, 終点, 半径始, 半径終, 深さ)], 枝先)。"""
+    # --- 幹。根元を太らせ、上へ細り、少し揺らぐ
+    r0 = h * sp["trunk_r"]
+    nodes = [Vector((0, 0, 0))]
+    parent = [-1]
+    n_tr = 6
+    z_lead = h * sp["trunk_h"]
+    for i in range(1, n_tr + 1):
+        t = i / n_tr
+        sway = h * sp["lean"] * math.sin(t * 2.4 + rnd.uniform(0, 1)) * t
+        nodes.append(Vector((sway * rnd.uniform(0.5, 1.5), sway * rnd.uniform(-1, 1), z_lead * t)))
+        parent.append(len(nodes) - 2)
+
+    attr = crown_points(sp, h, rnd, sp["attractors"])
+    D_i = h * sp["influence"]          # 引きが届く距離
+    D_k = h * sp["kill"]               # 届いたとみなす距離
+    step = h * sp["step"]
+
+    for _ in range(sp["iters"]):
+        if not attr:
+            break
+        pull = {}
+        for a in attr:
+            best, bd = -1, 1e9
+            for ni in range(len(nodes)):
+                d = (a - nodes[ni]).length
+                if d < bd: bd, best = d, ni
+            if bd > D_i:
+                continue
+            pull.setdefault(best, Vector((0, 0, 0)))
+            pull[best] += (a - nodes[best]).normalized()
+        if not pull:
+            break
+        for ni, v in pull.items():
+            if v.length < 1e-6:
+                continue
+            d = v.normalized()
+            d.z += sp["up"]                       # 枝の立ち上がり
+            d = (d + Vector((rnd.uniform(-1, 1), rnd.uniform(-1, 1), 0)) * sp["jitter"]).normalized()
+            nodes.append(nodes[ni] + d * step)
+            parent.append(ni)
+        attr = [a for a in attr
+                if min((a - n).length for n in nodes) > D_k]
+
+    # --- 太さ: ダ・ヴィンチ則(親の断面積 = 子の断面積の和)を末端から積み上げる
+    kids = [[] for _ in nodes]
+    for ni in range(1, len(nodes)):
+        kids[parent[ni]].append(ni)
+    rad = [0.0] * len(nodes)
+    tip_r = h * sp["tip_r"]
+    for ni in range(len(nodes) - 1, -1, -1):
+        if not kids[ni]:
+            rad[ni] = tip_r
+        else:
+            rad[ni] = (sum(rad[k] ** 2.2 for k in kids[ni])) ** (1 / 2.2)
+    scale = r0 / max(1e-6, rad[0])
+    rad = [r * scale for r in rad]
+
     segs = []
-    r0 = h * 0.030                                       # 幹の根元の半径
-    trunk_top = Vector((rnd.uniform(-1, 1) * h * sp["lean"], rnd.uniform(-1, 1) * h * sp["lean"],
-                        h * sp["trunk_h"]))
-    segs.append((Vector((0, 0, 0)), trunk_top, r0, r0 * sp["taper"], 0))
-    frontier = [(trunk_top, (trunk_top - Vector((0, 0, 0))).normalized(), r0 * sp["taper"], 0)]
-    for lv in range(1, sp["levels"] + 1):
-        nxt = []
-        for base, dirv, rad, _ in frontier:
-            k = rnd.randint(*sp["kids"])
-            for i in range(k):
-                a = math.radians(rnd.uniform(*sp["ang"]))
-                az = (i / k) * math.tau + rnd.uniform(-0.5, 0.5)
-                # 親の向きから a だけ開き、方位 az へ振る
-                side = Vector((math.cos(az), math.sin(az), 0))
-                if side.length < 1e-6: side = Vector((1, 0, 0))
-                d = (dirv * math.cos(a) + side.normalized() * math.sin(a)).normalized()
-                # 上位ほど短く。樹冠の丸みは crown で調整
-                ln = h * (0.30 * sp["spread"]) * (sp["taper"] ** lv) * rnd.uniform(0.8, 1.25)
-                tip = base + d * ln
-                # 外側ほど上を向かせる(枝の立ち上がり)
-                tip.z += ln * 0.22 * sp["crown"]
-                # ⛔ **樹冠の輪郭に押し込める。** これが無いと枝先が同じ高さに並び、
-                #    横に広い「板」の樹冠になる(2026-08-31 の最初の試作がそうだった)。
-                #    楕円体: 高さ h、幅 h*wh、頂部は top の高さで細る
-                cz = h * 0.62                      # 樹冠の中心の高さ
-                rz = h * 0.46                      # 樹冠の縦半径
-                rx = h * sp["wh"] * 0.5            # 樹冠の横半径
-                dz = (tip.z - cz) / rz
-                if dz > 1.0: tip.z = cz + rz; dz = 1.0
-                lim = rx * math.sqrt(max(0.04, 1.0 - dz * dz))
-                if dz > 0: lim *= (1.0 - (1.0 - sp["top"]) * dz)   # 上ほど細る
-                r_xy = math.hypot(tip.x, tip.y)
-                if r_xy > lim and r_xy > 1e-6:
-                    tip.x *= lim / r_xy; tip.y *= lim / r_xy
-                r1 = rad * sp["taper"]
-                segs.append((base.copy(), tip, rad, r1, lv))
-                nxt.append((tip, d, r1, lv))
-        frontier = nxt
-    return segs, frontier
+    depth = [0] * len(nodes)
+    for ni in range(1, len(nodes)):
+        pi = parent[ni]
+        depth[ni] = depth[pi] + 1
+        segs.append((nodes[pi].copy(), nodes[ni].copy(), rad[pi], rad[ni], depth[ni]))
+    tips = [(nodes[ni], (nodes[ni] - nodes[parent[ni]]).normalized(), rad[ni], depth[ni])
+            for ni in range(1, len(nodes)) if not kids[ni]]
+    return segs, tips
 
 
 def add_branches(bm, segs, nseg):
@@ -171,6 +235,16 @@ def build_one(key, size, lod, rnd):
         m = bpy.data.materials.get(nm) or bpy.data.materials.new(nm)
         ob.data.materials.append(m)
     o = V.join([ob_b, ob_l], "LOD_%d" % lod)
+    # --- 樹高を目標へ正規化。⚠ 空間占有法は誘引点の散らばりで背が伸び縮みするので、
+    #     指図が樹高で層を決めている以上、**出来上がりを測って合わせる**(呼び寸法で信じない)。
+    zs = [v.co.z for v in o.data.vertices]
+    if zs:
+        got = max(zs) - min(zs)
+        if got > 1e-4:
+            k = h / got
+            for v in o.data.vertices:
+                v.co = Vector((v.co.x * k, v.co.y * k, (v.co.z - min(zs)) * k))
+            o.data.update()
     # --- 向き: Blender Z-up → Unity Y-up は FBX 書き出しが行う。ピボットは幹の芯・地面
     return o
 

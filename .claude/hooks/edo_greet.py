@@ -4,7 +4,25 @@
 stdout がそのままコンテキストに入る。"""
 import json, os, subprocess, sys
 ROOT = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
-CLI = os.path.join(ROOT, "Tools", "Session", "edo_session.py")
+
+
+def _main_root(start):
+    """worktree から起動されても、常に main の(最新の)Tools/Session/ を使う。
+    edo_guard.py と同じ根拠(EDO-0076)— sparse worktree の Tools/ は
+    sashizu/<邸> ブランチへ main をマージするまで古いまま。"""
+    try:
+        r = subprocess.run(["git", "-C", start, "rev-parse", "--path-format=absolute",
+                            "--git-common-dir"], capture_output=True, text=True, timeout=5)
+        d = r.stdout.strip()
+        if d:
+            return os.path.dirname(d)
+    except Exception:
+        pass
+    return start
+
+
+MAIN_ROOT = _main_root(ROOT)
+CLI = os.path.join(MAIN_ROOT, "Tools", "Session", "edo_session.py")
 try:
     ev = json.load(sys.stdin)
 except Exception:
@@ -32,15 +50,24 @@ if os.path.exists(CLI):
               "Unity を使うなら `start <屋敷> --unity` でメインに留まり Unity を確保する。")
     # 掲示板の digest(裁定待ち・ブロッカー・open)。CLI は**メインの checkout の物**を使う
     # (worktree のブランチには main を取り込むまで無いことがある)
-    gc = subprocess.run(["git", "-C", ROOT, "rev-parse", "--path-format=absolute",
-                         "--git-common-dir"], capture_output=True, text=True).stdout.strip()
-    bcli = os.path.join(os.path.dirname(gc), "Tools", "Session", "edo_board.py")
+    bcli = os.path.join(MAIN_ROOT, "Tools", "Session", "edo_board.py")
     if os.path.exists(bcli):
         b = subprocess.run([sys.executable, bcli, "digest"], capture_output=True, text=True, env=env)
         if b.stdout.strip():
             print(b.stdout.strip())
             print("報告・裁定要請の作法は **docs/session-board.md**(節目・ブロッカー・裁定要請だけ"
                   " post。自己検図・自己考証は**ユーザー入力なしに3巡まで**)。")
+    # 検図関門 — この指図を誰が検めたか。⛔ 2026-09-01、松江松平の庭が**庭方に一度も
+    #   検められないまま実装され**、ユーザーに差し戻された。ルーティング表に庭方は載って
+    #   いたのに、通さなくても何も起きなかった。散文の規則は破れるので機械で見張る。
+    rcli = os.path.join(MAIN_ROOT, "Tools", "Sashizu", "review_gate.py")
+    if os.path.exists(rcli):
+        r = subprocess.run([sys.executable, rcli, "--quiet"], capture_output=True, text=True, env=env)
+        if r.stdout.strip():
+            print(r.stdout.strip())
+            print("  ⛔ **関門が赤の指図を実装しない・赤のシーンをユーザーに見せない。**"
+                  " 検分に出して、結果を `review_gate.py --record <屋敷> <役> <pass|fail>` で"
+                  "**呼んだ側が書き戻す**(検分役は read-only で自分では書けない)。")
     # ⛔ 書き方の作法(規則16)。メッセージは揮発するので、起動のたびにここで通達する。
     #   2026-08-30 ユーザー指摘「どの質問や裁定にどう回答して良いか非常に困る」。
     print("⛔ **ユーザーへ書く前に `docs/reporting-protocol.md`(規則16・一件一葉)。**"
@@ -48,3 +75,21 @@ if os.path.exists(CLI):
           "**全項目に番号と題**(報告・共有にも。無題の段落を置かない)。選択肢は **A/B/C**。"
           "裁定は一通に最大3件・各件6点セット(どこ/背景2文/選択肢/推奨/影響/裁定図)。"
           "⛔ 地の文の末尾に問いを埋めない。⭐ 狙いは「1=A、2=B」「報告3だけ違う」で返せる形。")
+
+# ⛔ worktree の CLAUDE.md は main へマージするまで古いまま(EDO-0077)。
+#   このセッションが読んでいる不変則が最新かどうかを、起動時に一度だけ確かめる。
+if os.path.abspath(ROOT) != os.path.abspath(MAIN_ROOT):
+    a = os.path.join(ROOT, "CLAUDE.md")
+    b = os.path.join(MAIN_ROOT, "CLAUDE.md")
+    try:
+        if os.path.exists(a) and os.path.exists(b) and open(a, encoding="utf-8").read() != \
+                open(b, encoding="utf-8").read():
+            print("⚠ **この worktree の CLAUDE.md は main と食い違っている。**"
+                  "sparse worktree は sashizu/<邸> ブランチへ main を取り込むまで更新されない"
+                  "(2026-08-31、外堀セッションが基準年次の記述違いで実際に踏んだ)。"
+                  "不変則(基準年次・絶対規則の番号など)を当てにする前に "
+                  "`diff %s %s` で差分を確認すること。"
+                  " Tools/Session/ のコマンドはフックが自動で main の最新版を使うのでこの限りではない。"
+                  % (a, b))
+    except Exception:
+        pass

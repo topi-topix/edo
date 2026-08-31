@@ -10,6 +10,60 @@
 
 ---
 
+## ⛔ 身元は毎回 `--session <短縮ID>` で明示する
+
+**Bash の作業ディレクトリはターンをまたぐと元(メインのチェックアウト)へ戻ることがある。**
+`cd` した直後の数コマンドは worktree で動いても、次のターンで `pwd` を取るとメインに戻っている
+——これは Claude Code のシェルの仕様で、当プロジェクトの門番では直せない。
+
+`edo_session.py` は `EDO_SESSION_ID`(環境変数)が無いとき、**その時点の cwd** から身元を
+推測する。**フック(`edo_guard.py`)は自分自身の照会にしか `EDO_SESSION_ID` を渡さず、
+Bash が実際に実行するコマンドの環境には注入しない。** つまり明示しない限り、cwd がメインへ
+戻った瞬間に**別のセッションの claim へなりすます**か、該当する claim が無ければ**新しい
+空の身元**になる(2026-08-31、京極・土井の両セッションで実際に claim が消えて見えた)。
+
+**対策 — 毎回、次の形で打つ:**
+
+```bash
+python3 Tools/Session/edo_session.py --session <status の ▶ 行に出る短縮ID> claim ...
+python3 Tools/Session/edo_session.py --session <短縮ID> release ...
+python3 Tools/Session/edo_session.py --session <短縮ID> commit ...
+```
+
+`start` で最初に発行された短縮ID を控えておき、以後すべての呼び出しに付ける。
+`status` だけは省略しても壊れない(読むだけの照会は身元不明でも通す)。
+
+---
+
+## ⛔ worktree の Tools/Session/ は古い。`edo_session.py`/`edo_board.py` は main の絶対パスで呼ぶ
+
+sparse worktree には `Tools/` も入るので `python3 Tools/Session/edo_session.py ...` は**動いてしまう**
+——動くのに、**main へマージするまで古いコード**を実行する。エラーにならないので気づきにくい。
+
+2026-08-31、これで実際に壊れた: worktree 内の `edo_session.py` には `wait`/`unwait` サブコマンドが
+無く(`9677eea` 以降に main へ入った)、身元判定の是正(`81a5250`)も届いていなかった。
+`start` は worktree の古い判定で「使用中」、`wait` は同じ worktree の古い版で「invalid choice」——
+**同じセッションの中で、コマンドごとに違う結果が返った**(松平・外堀の両セッションが発見・EDO-0076)。
+`edo_board.py` も同様で、worktree 側の `ESTATES` に新しい邸が無ければ `post --estate <新邸>` が
+弾かれる。
+
+フック(`edo_guard.py`/`edo_greet.py`)は 2026-08-31 に、git の common-dir から main の絶対パスを
+解決して**常に main の Tools/Session/ を実行する**よう直した。**手で叩くときは同じことを自分でやる**:
+
+```bash
+# ⛔ worktree の cwd から相対パスで叩かない(古いコードが動く)
+python3 Tools/Session/edo_session.py status
+
+# ⭕ main の絶対パスで叩く(worktree の cwd からでもこれでよい)
+python3 /Users/toshio/project/edo-unity/Tools/Session/edo_session.py status
+python3 /Users/toshio/project/edo-unity/Tools/Session/edo_board.py list
+```
+
+`wait`/`unwait`/`--session` など聞き覚えのないサブコマンドが `invalid choice` で弾かれたら、
+まずこれを疑う——**バグではなく worktree の Tools/ が古いだけ**であることが多い。
+
+---
+
 ## 始め方 — 打つのは1行
 
 ```bash

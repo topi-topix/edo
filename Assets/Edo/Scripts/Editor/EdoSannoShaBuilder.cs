@@ -14,6 +14,7 @@
 // 各段階は既存グループがあればスキップ(手直し保護)。
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
@@ -65,8 +66,45 @@ public static class EdoSannoShaBuilder
     static readonly Vector2 APPROACH_MID = new Vector2(-412.9f, 889.5f); // 観理院北角の外側で折れる
     static readonly Vector2 APPROACH_END = new Vector2(-424.5f, 857.5f); // 男坂下(観理院練塀の外に平行)
     static readonly float StairX0 = -424f, StairX1 = -482f;      // 石段の下端/上端
-    // 境内(透塀)矩形(正典 = docs/Sashizu/parcels.json / CLAUDE.md 規則10)
+    // 社地の多角形(正典 = docs/Sashizu/parcels.json)。⚠ **20点の多角形であって矩形ではない。**
+    //   ⛔ 添字を固定長で回さないこと(EDO-0073 — `% 4` で先頭4点だけ拾う欠陥があった)。
     static Vector2[] PREC { get { return EdoParcels.Get("sannosha_prec"); } }
+
+    // ---------------------------------------------------------------- 指図の読み込み(EDO-0073)
+    // ⛔ **透塀・回廊のような社殿まわりの寸法は社地の区画から導かない。** 指図が正典。
+    public const string SashizuRel = "docs/Sashizu/sanno_sashizu.json";
+    static Dictionary<string, object> _d;
+    static string SashizuPath
+    {
+        get { return Path.Combine(Directory.GetParent(Application.dataPath).FullName, SashizuRel); }
+    }
+    public static void ReloadSashizu() { _d = null; }
+    static Dictionary<string, object> D
+    {
+        get
+        {
+            if (_d == null)
+            {
+                if (!File.Exists(SashizuPath)) throw new Exception("指図が無い: " + SashizuPath);
+                _d = EdoMiniJson.Parse(File.ReadAllText(SashizuPath)) as Dictionary<string, object>;
+                if (_d == null) throw new Exception("指図が読めない(JSON): " + SashizuPath);
+            }
+            return _d;
+        }
+    }
+    static Dictionary<string, object> Obj(object o) { return o as Dictionary<string, object>; }
+    static List<object> Arr(object o) { return o as List<object>; }
+    static float Num(object o) { return o == null ? 0f : Convert.ToSingle(o); }
+    static bool Has(Dictionary<string, object> o, string k) { return o != null && o.ContainsKey(k) && o[k] != null; }
+
+    /// <summary>指図の境内グリッド (u,v)[間] → 世界座標。grid.keidai が正典。</summary>
+    static Vector2 UV(float u, float v)
+    {
+        var g = Obj(Obj(D["grid"])["keidai"]);
+        float ken = Num(Obj(D["const"])["ken"]);
+        return new Vector2(Num(g["x0"]) + (Num(g["ux"]) * u + Num(g["vx"]) * v) * ken,
+                           Num(g["z0"]) + (Num(g["uz"]) * u + Num(g["vz"]) * v) * ken);
+    }
     // 観理院: 山麓の通り(南北小路)の西・石段下の南に接する縦長大区画(2026-08-11ユーザー下書き)
     // 辺: 0=S(前面道路) 1=W(山裾) 2=NW(参道コリドー沿い=表門) 3=N 4=E(南北小路沿い)
     static Vector2[] KANRI { get { return EdoParcels.Get("sannosha_kanri"); } }
@@ -153,19 +191,40 @@ public static class EdoSannoShaBuilder
         var sb = new System.Text.StringBuilder();
         EdoNishiTameikeBuilder.NaturalMode = true;
 
-        // 透塀(回廊の代用, es_dobei) — 東辺は随身門で開口
-        var kak = Group(GROUP, "Keidai/Kairo");
-        for (int i = 0; i < 4; i++)
+        // 透塀(es_dobei) ── ⛔ **指図の runs(kind=="透塀")から引く。社地の多角形からは引かない。**
+        //   2026-08-31 まで PREC(社地)を **4点の矩形として** 読んでいた(`for i<4` / `PREC[(i+1)%4]`)。
+        //   社地は 2026-08-26 のユーザーの引き直しで **20点**になったので、先頭4点(=社地南縁に
+        //   並ぶ連続4点 z≈727〜737)だけを拾って閉じ、**透塀が本来の位置から 118.7m 南へ落ち**、
+        //   外向き法線を `(PREC[0]+PREC[2])/2` から出していたため**面の裏表も反転**していた(EDO-0073)。
+        //   ⭕ 透塀は社地ではなく**社殿を囲うもの**で、周長 147.28m が史料拘束
+        //   【S 国宝建造物目録1941 「透塀 延長一四七・二八米」】。東辺の開口は随身門ではなく**中門**。
+        var kak = Group(GROUP, "Keidai/Sukibei");
+        var sukibei = new List<Dictionary<string, object>>();
+        foreach (var o in Arr(D["runs"]))
         {
-            Vector2 a = PREC[i], b = PREC[(i + 1) % 4];
-            Vector2 mid = (a + b) * 0.5f;
-            Vector2 cen = (PREC[0] + PREC[2]) * 0.5f;
-            Vector2 outw = (mid - cen); outw.Normalize();
-            if (i == 1) // 東辺 x=-490
-                EdoNishiTameikeBuilder.DobeiRun(kak, a, b, outw, "Kairo_E", true, 0, ZUIJIN, 7.2f);
-            else
-                EdoNishiTameikeBuilder.DobeiRun(kak, a, b, outw, "Kairo_" + i, true, 0, Vector2.zero, -1);
+            var r = Obj(o);
+            if (r != null && Has(r, "kind") && Convert.ToString(r["kind"]) == "透塀") sukibei.Add(r);
         }
+        if (sukibei.Count == 0) throw new Exception("指図に kind=\"透塀\" の run が無い(EDO-0073)");
+        // ⚠ 外向き法線は**透塀そのものの中心**から出す(社地の重心を使わない)
+        Vector2 skCen = Vector2.zero;
+        foreach (var r in sukibei) { var q = Arr(r["a"]); skCen += UV(Num(q[0]), Num(q[1])); }
+        skCen /= sukibei.Count;
+        float skPer = 0f;
+        foreach (var r in sukibei)
+        {
+            var qa = Arr(r["a"]); var qb = Arr(r["b"]);
+            Vector2 a = UV(Num(qa[0]), Num(qa[1])), b = UV(Num(qb[0]), Num(qb[1]));
+            Vector2 outw = ((a + b) * 0.5f - skCen).normalized;
+            Vector2 gapC = Vector2.zero; float gapHalf = -1f;
+            if (Has(r, "gapU")) { gapC = UV(Num(r["gapU"]), Num(qa[1])); gapHalf = Num(r["gapHalf"]) * ES; }
+            else if (Has(r, "gapV")) { gapC = UV(Num(qa[0]), Num(r["gapV"])); gapHalf = Num(r["gapHalf"]) * ES; }
+            EdoNishiTameikeBuilder.DobeiRun(kak, a, b, outw, Convert.ToString(r["name"]),
+                false, Num(r["seat"]), gapC, gapHalf);
+            skPer += (b - a).magnitude;
+        }
+        sb.AppendLine(string.Format("透塀 {0} run / 周長 {1:F2} m(指図の拘束 147.28m・差 {2:F2}m)",
+            sukibei.Count, skPer, skPer - 147.28f));
         // 随身門(楼門: Yaguramon A ×0.6, 通路=東西)
         var zj = Place(PYaguramon, Vector3.zero, 90f, Vector3.one * 0.6f, Group(GROUP, "Keidai/Mon"), "Zuijinmon");
         CenterSeat(zj, ZUIJIN.x, ZUIJIN.y, 0.25f);

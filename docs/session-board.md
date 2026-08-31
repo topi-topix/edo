@@ -141,6 +141,12 @@ greet フックが board の digest(裁定待ち・ブロッカー・open)を自
 ④ `_pending`×4 のハッシュ比較 → 変わった邸だけ読む ⑤ セッション↔邸の対応更新。
 状態は `.git/edo-board/_pm/state.json` に永続化する。
 
+⭐ **⑥ `edo_session.py sync-tools` を打つ。** main の運用ファイル(門番のツール・CLAUDE.md・
+各作法)を全 worktree の作業ツリーへ配る。**打たないと各 worktree が古い不変則と古い門番で
+動き続ける** — 2026-08-31 に、外堀の worktree が基準年次「嘉永期」のまま、全 worktree の
+`edo_session.py` に `wait`/`unwait` が無いまま動いていた(EDO-0076/0077)。⚠ コミットはしない
+設計なので、各邸のブランチを汚さない。**main の運用ファイルを直した直後にも打つこと。**
+
 ### 作事奉行の起動・引き継ぎ・止め方
 
 作事奉行は**使い捨て可能**。記憶はすべてディスクにある(board 本体・`_pm/state.json`・

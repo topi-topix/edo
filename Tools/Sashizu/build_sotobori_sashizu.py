@@ -513,12 +513,12 @@ def rule_svg(d, W=1180.0):
     fl = [b["floor"] for b in d["water"] if b.get("works")][0]
     tw = d["ishigaki"].get("faceToPivot", 4.80)
     zones = [(-span, 0, "① 汀線の内側(堀) ── 床 %.2f 一律" % fl, "#BBD3DF"),
-             (0, tw, "躯体 0–%.2fm ── 石垣そのもの(触らない)" % tw, "var(--paper2)"),
+             (0, tw, "躯体 0–%.2fm ── 石垣の下(種地を戻す)" % tw, "var(--cut1)"),
              (tw, w["featherFrom"], "② %.2f–%.0fm ── 天端 − %.2f まで盛る"
               % (tw, w["featherFrom"], w.get("bankBelowCoping", 0.2)), "var(--fill1)"),
              (w["featherFrom"], w["outerWidth"], "③ %.0f–%.0fm ── 摺り付け(④で45°頭打ち)"
               % (w["featherFrom"], w["outerWidth"]), "var(--fill1)"),
-             (w["outerWidth"], span, "⑤ 工区の外 ── 触らない", "var(--paper2)")]
+             (w["outerWidth"], span, "⑥ 工区の外 ── 触らない", "var(--paper2)")]
     for a, b, lab, col in zones:
         h.append(R(X(a), Y(7.6), X(b) - X(a), Y(0) - Y(7.6), fill=col, op=0.55))
         h.append('<text class="anS2" x="%.1f" y="%.1f">%s</text>'
@@ -556,6 +556,10 @@ def rule_svg(d, W=1180.0):
              '堀の壁は総石垣なので垂直のまま残す　⭐ ②は最寄りの天端 − %.2f m'
              '(2026-08-30 ユーザー裁定A)</text>'
              % (x0, y0 + 38, d["works"].get("bankBelowCoping", 0.2)))
+    h.append('<text class="sl" x="%.1f" y="%.1f">⛔ 躯体の帯(0–%.2fm)は「触らない」のではない '
+             '── 天端基準で盛らないだけで、種地(08-22 リセット直前)を戻すので'
+             '掘削も埋め戻しも起きる。上の平らな線は模式で、実際は種地の起伏をなぞる</text>'
+             % (x0, y0 + 52, ofs))
     h.append(ENDSVG)
     return "\n".join(h)
 
@@ -575,9 +579,36 @@ def spec_table(d, ter):
     add("掘り直す水面(00002 + 00003)", "%.2f ha" % v["waterAreaHa"])
     add("工区(その汀線 + %.0f m)" % d["works"]["outerWidth"], "%.2f ha" % v["workAreaHa"])
     add("掘削", "%s m³(最大 %.2f m)" % ("{:,}".format(v["cut_m3"]), v["maxCut_m"]))
-    add("盛土", "%s m³(最大 %.2f m)" % ("{:,}".format(v["fill_m3"]), v["maxFill_m"]))
-    add("差引(場外へ出る土)", "%s m³" % "{:,}".format(v["net_m3"]))
+    mf = "%s m³(最大 %.2f m)" % ("{:,}".format(v["fill_m3"]), v["maxFill_m"])
+    mf += "　⚠ この最大は<b>石垣の躯体の下</b>(汀線から %.2f m 以内)の値で、<b>地表には現れない</b>" \
+          % d["ishigaki"].get("faceToPivot", 4.80)
+    if v.get("maxFillOutsideBody_m") is not None:
+        mf += " ── 躯体を除いた最大は <b>%.2f m</b>" % v["maxFillOutsideBody_m"]
+    else:
+        mf += " ── 躯体を除いた最大は次の再生成で出る(<code>maxFillOutsideBody_m</code>)"
+    add("盛土", mf)
+    add("差引(場外へ出る土)",
+        "%s m³　⚠ <b>行き先は未決</b>(U13)" % "{:,}".format(v["net_m3"]))
+    if v.get("overshoot_m2") is not None:
+        add("汀線の外に残る水面下の床",
+            "%s m²(<b>全量が石垣の躯体の下</b>・汀線から中央 %.1f m・最大 %.1f m 外)"
+            % ("{:,}".format(v["overshoot_m2"]), v["overshootMedianOutside_m"],
+               v["overshootMaxOutside_m"]))
+    for k in ("inside", "body", "bank"):
+        z = v.get("byZone", {}).get(k)
+        if z:
+            add("　└ 帯ごとの土量 — %s" % html.escape(z["label"]),
+                "掘 %s / 盛 %s m³(最大 掘 %.2f・盛 %.2f m)"
+                % ("{:,}".format(z["cut_m3"]), "{:,}".format(z["fill_m3"]),
+                   z["maxCut_m"], z["maxFill_m"]))
     add("工区の外へ出た変更セル", "%d" % v["spillCells"])
+    g = ter.get("grid", {})
+    if g.get("sampleOffset"):
+        add("計算格子",
+            "%d m 刻み ／ ラベル原点 (%d, %d)　⚠ <b>高さを採った実位置は (%.2f, %.2f)</b> ── "
+            "heightmap の刻みに丸めるため (%.2f, %.2f) m ずれる。再実装は実位置の側を使うこと"
+            % (g["step"], g["x0"], g["z0"], g["sampleX0"], g["sampleZ0"],
+               g["sampleOffset"][0], g["sampleOffset"][1]))
     add("凍結域(帯から外した所)", "%.2f ha ／ 動いたセル %d" % (v["keepOutHa"], v["keepOutCells"]))
     for g in ter.get("gaps", []):
         add("距離程の隙間 — %s" % html.escape(g["name"]),
@@ -802,7 +833,7 @@ def main():
                    % html.escape(note))
         fig(h, section_svg(d, s), cap=cap)
 
-    plate(h, nx(), "工区と摺り付け", "規則 ①〜⑤")
+    plate(h, nx(), "工区と摺り付け", "規則 ①〜⑥")
     fig(h, rule_svg(d))
     h.append("<ul class='prose'>%s</ul>"
              % "".join("<li>%s</li>" % inline(html.escape(r)) for r in d["works"]["rule"]))
@@ -846,8 +877,8 @@ def main():
              'これは 08-22 のリセットのせいではない ── <b>現況と 08-22 リセット直前が一致</b>しており、'
              '2026-08-10 に建てたときからこの姿である。'
              '<b>この指図では直さない</b>(00001 は調査のみ。汀線と地形の是正は 2026-08-29 に実施済=U9)。'
-             '⛔ <b>この表の 00001 の行は再生成するまで古い</b> ── 2026-08-30 に 00001 の run 線'
-             '(ピボット)を実測へ直し、CW1s で 8.5〜8.9m 動いた。上の値は動く前の線で採ったものである。</p>')
+             '⭐ 2026-08-30 に 00001 の run 線(ピボット)を実測へ直し(CW1s で 8.5〜8.9m 動いた)、'
+             '<b>08-31 に組み直したので上の値は実測の線で採ったもの</b>である。</p>')
 
     plate(h, nx(), "施工の段階", "地形の編集は Undo の外")
     h.append(stage_table(d))

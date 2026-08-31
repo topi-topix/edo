@@ -137,9 +137,9 @@ def side_offset(d, body, side):
     """
     t = d["ishigaki"].get("faceToPivot", 4.80)
     rs = [r for r in d["ishigaki"]["runs"] if r.get("body") == body and side in r["side"]]
-    if not rs:
-        return t
-    return max(rs, key=lambda r: r["n"]).get("offset", t)
+    # ⛔ かつて run が持っていた `offset` は 2026-08-30 に全廃した(face 基準へ一本化)。
+    #    いまは body/side によらず躯体の厚みで一定。
+    return t
 
 
 def coping_at(d, x, z, side, body=None):
@@ -176,7 +176,7 @@ def load_terrain(backups):
 
 
 def design_surface(np, d, cur, pre, ins, dist, floor, keep_out, coping, step, PX, PZ):
-    """指図 works.rule ①〜④ をそのまま実装した設計面。
+    """指図 works.rule ①〜⑥ をそのまま実装した設計面。
 
     `ins` / `dist` / `floor` は **works=true の水面だけ**から作ること。
     00001 は disposition=調査のみなので、ここへ渡さなければ1セルも動かない(規則⑤)。
@@ -185,7 +185,8 @@ def design_surface(np, d, cur, pre, ins, dist, floor, keep_out, coping, step, PX
     band = (~ins) & (dist <= w["outerWidth"]) & (~keep_out)
     t = np.clip((dist - w["featherFrom"]) / (w["outerWidth"] - w["featherFrom"]), 0, 1)
     # ② 岸は**最寄りの石垣の天端 − bankBelowCoping**(2026-08-30 ユーザー裁定A・EDO-0064)。
-    #    ⛔ 汀線から faceToPivot(躯体の厚み)までは石垣そのものが占める帯なので触らず、種地のまま。
+    #    ⛔ 汀線から faceToPivot までは石垣の躯体の下。天端基準では**盛らず**、種地(pre)を戻す。
+    #    ⚠ 『触らない』ではない — この帯でも掘削と埋め戻しは起きる(volumes.byZone.body を見よ)。
     tw = d["ishigaki"].get("faceToPivot", 4.80)
     bank = coping - w.get("bankBelowCoping", 0.20)
     base = np.where(dist >= tw, bank, pre)                  # ②
@@ -200,6 +201,25 @@ def design_surface(np, d, cur, pre, ins, dist, floor, keep_out, coping, step, PX
             break
         des = new
     return des, band
+
+
+def _by_zone(np, dz, cell, ins, band, dist, tw):
+    """土量を ①汀線の内側 / 躯体の帯 0–tw / ②③岸 tw–14m の3帯に割る。
+
+    ⚠ 「躯体の帯は触らない」と読まれがちだが、実際には種地を戻すので掘削も埋め戻しも起きる
+    (2026-08-31 検図・高2)。図と規則がそれを隠さないよう、帯ごとに出す。
+    """
+    out = {}
+    for key, m, lab in (("inside", ins, "① 汀線の内側(堀)"),
+                        ("body", band & (dist < tw), "躯体の帯 0–%.2fm(石垣の下・種地を戻す)" % tw),
+                        ("bank", band & (dist >= tw), "②③ 岸 %.2f–14m(天端基準)" % tw)):
+        v = np.where(m, dz, 0.0)
+        out[key] = {"label": lab,
+                    "cut_m3": round(float(np.clip(-v, 0, None).sum() * cell)),
+                    "fill_m3": round(float(np.clip(v, 0, None).sum() * cell)),
+                    "maxCut_m": round(float(np.clip(-v, 0, None).max()), 2),
+                    "maxFill_m": round(float(np.clip(v, 0, None).max()), 2)}
+    return out
 
 
 # ---------------------------------------------------------------- 書き出し
@@ -223,6 +243,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--backups", default=os.path.join(ROOT, "TerrainBackups"))
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--emit-design", action="store_true",
+                    help="設計面を sotobori_dem.json の design 層へ落とす"
+                         "(地形が再リセットされたとき同じ面を書き戻せるように)")
     args = ap.parse_args()
     import numpy as np
 
@@ -244,6 +267,9 @@ def main():
     z0 = math.floor((min(zs) - m) / DEM_STEP) * DEM_STEP
     z1 = math.ceil((max(zs) + m) / DEM_STEP) * DEM_STEP
     c0, r0 = int(round((x0 - px) / sp)), int(round((z0 - pz) / sp))
+    # ⚠ 高さは heightmap の列/行から採るので、**実サンプル位置は x0/z0 とわずかにずれる**。
+    #    ラベル(x0,z0)と実位置(sx0,sz0)を両方出す。再実装する者がずれを継がないように。
+    sx0, sz0 = px + c0 * sp, pz + r0 * sp
     nx2, nz2 = int((x1 - x0) / sp) + 1, int((z1 - z0) / sp) + 1
     X = x0 + np.arange(nx2) * sp
     Z = z0 + np.arange(nz2) * sp
@@ -304,7 +330,14 @@ def main():
     surv = work & (np.abs(CUR - NAT) > 0.3)
     ter = {
         "_": TER_DOC,
-        "grid": {"x0": x0, "z0": z0, "step": sp, "nx": nx2, "nz": nz2},
+        "grid": {"x0": x0, "z0": z0, "step": sp, "nx": nx2, "nz": nz2,
+                 "sampleX0": round(sx0, 3), "sampleZ0": round(sz0, 3),
+                 "sampleOffset": [round(sx0 - x0, 3), round(sz0 - z0, 3)],
+                 "_": "⚠ `x0`/`z0` は格子のラベル、`sampleX0`/`sampleZ0` は "
+                      "**高さを実際に採った heightmap の列/行の世界座標**。"
+                      "両者は `sampleOffset` だけずれる(heightmap の刻みに丸めるため)。"
+                      "⛔ 再実装するときは `sample*` の側を使うこと。"
+                      "⚠ 標本位置そのものは動かしていない(動かすと実測値が全部わずかに変わる)。"},
         "volumes": {
             "workAreaHa": round(float(work.sum() * cell / 1e4), 2),
             "waterAreaHa": round(float(ins.sum() * cell / 1e4), 2),
@@ -315,6 +348,11 @@ def main():
             "maxFill_m": round(float(np.clip(dz, 0, None).max()), 2),
             "spillCells": int(((~work) & (np.abs(dz) > 0.01)).sum()),
             "keepOutCells": int((ko & (np.abs(dz) > 0.01)).sum()),
+            "byZone": _by_zone(np, dz, cell, ins, band, dist,
+                               d["ishigaki"].get("faceToPivot", 4.80)),
+            "maxFillOutsideBody_m": round(float(np.clip(
+                np.where(ins | (band & (dist >= d["ishigaki"].get("faceToPivot", 4.80))), dz, 0.0),
+                0, None).max()), 2),
             "overshoot_m2": int(ovs.sum() * cell),
             "overshootMaxOutside_m": (round(float(dist[ovs].max()), 1) if ovs.sum() else 0.0),
             "overshootMedianOutside_m": (round(float(np.median(dist[ovs])), 1) if ovs.sum() else 0.0),
@@ -531,6 +569,12 @@ def main():
                                 "(ref_height.npy)で、種地の出所の検算(provenance)はこの層と cur の差で判定する。"
                                 "⭐ これがあるので、TerrainBackups(gitignore・メインの作業ツリーのみ)が無い"
                                 "worktree でも検算を再現できる")}
+
+    if args.emit_design:
+        layers["design"] = (sub(des),
+                            "⭐ **施工した設計面**(works.rule ①〜⑥ を当てた結果)。"
+                            "地形が再リセットされたとき、この層を書き戻せば同じ面に戻せる。"
+                            "⛔ 工区の外は cur のまま入っているので、工区マスクの中だけを使うこと。")
 
     v = ter["volumes"]
     print("距離程 %.1f m(堰の直下から)／ 工区 %.2f ha(掘る水面 %.2f / 岸の帯 %.2f)"

@@ -27,7 +27,7 @@
 【材と UV — README の規約。新規マテリアルを作らない】
   木部   `Fences/Fence_B_01_x2.fbx` の `Fence_B_01`
   漆喰   Japanese Castle `Exterior/Wall Exterior Defence.fbx` の同名マテリアル
-  瓦     `roof/roof 2x2.fbx` の `roof`(葺き面の色味を借りる。ジオメトリは使わない)
+  瓦     `Roof B/roof B 4 x 16.fbx` の `Roof B`(周囲の長屋・御殿と同じ瓦。ジオメトリは使わない)
   石垣   Japanese Castle `Exterior/Castle Wall.fbx` があればその材、無ければ漆喰で代用
 """
 import bpy, sys, os, math
@@ -41,19 +41,22 @@ JC = os.path.join(PROJ, "Assets", "Japanese Castle")
 
 WOOD_SRC, WOOD_MAT = "Fences/Fence_B_01_x2.fbx", "Fence_B_01"
 PLASTER_SRC, PLASTER_MAT = "Exterior/Wall Exterior Defence.fbx", "Wall Exterior Defence"
-ROOF_SRC, ROOF_MAT = "roof/roof 2x2.fbx", "roof"
+ROOF_SRC, ROOF_MAT = "Roof B/roof B 4 x 16.fbx", "Roof B"
 
 WOOD_UV = (0.600, 0.03, 0.770, 0.97)
 WALLC_UV = (0.55, 0.34, 0.95, 0.62)
 ROOF_UV = (0.10, 0.10, 0.90, 0.90)
+ROOF_UPM = 0.1169                      # 借り先 roof B 4x16 の実測 UV/m(4.472m ↔ Δu 0.5226)
 
 W, D, PROTRUDE = 5.5, 3.6, 2.0        # 指図 gate.plan.bansho
 BASE_H = 0.55                          # 切石畳出の基壇
 BODY_H = 2.45                          # 軸部(基壇の上から桁まで)
 KOSHI_H = 0.85                         # 腰壁(下見板)
-KARA_RISE = 0.78                       # 向唐破風の起り(むくり)の矢高
+KARA_RISE = 0.78                       # 向唐破風の起り(むくり)の矢高。弦(桁行 5.5m)の 1/7
 EAVE = 0.55                            # 軒の出
 SEG = 12                               # 唐破風の折れ数
+MUNE_H = 1.30                          # 大棟の高さ(桁の上端から)。唐破風の軒先より上に取る
+MUNE_Z = 0.55                          # 大棟の奥行位置(z0 から D のこの割合。前を唐破風にする)
 
 
 class Mesh(object):
@@ -154,12 +157,17 @@ def borrow(src, mat_name, tag, castle=False, fallback=WOOD_UV):
 
 
 def kara_profile(t):
-    """向唐破風の稜線。**中央が起り(凸)・両端が照り(凹)で反り上がる S 字**。
+    """向唐破風の**軒先**の曲線。**中央が起り(凸)・両端が照り(凹)で反り上がる S 字**。
     ⚠ 単純な sin(半円)にすると樽屋根になる(2026-08-25 の1回目)。
-      唐破風は「中央の膨らみ」と「両端の跳ね」の二つで出来ている。"""
+      唐破風は「中央の膨らみ」と「両端の跳ね」の二つで出来ている。
+    ⚠ 2026-08-31(ユーザー裁定1-A): これは**棟ではなく軒先**の曲線。唐破風は
+      「軒先が波打ち、大棟は水平」な屋根で、棟を反らせると屋根が樽になる。
+      以前は棟に当てていたため、葺き面が平らなまま反った帯だけが宙に浮いていた。
+    ⚠ 端を 0 に正規化してある(以前は端が 0.234 で、指図の「起り=弦の1/7=0.78」に
+      対して見た目の矢高が 0.546 しか出ていなかった)。t=0,1 で 0 / t=0.5 で KARA_RISE。"""
     c = math.sin(math.pi * t) ** 1.35          # 中央の起り(裾を細く)
     e = 0.30 * (math.cos(math.pi * t) ** 2) ** 3.0   # 両端の照り(跳ね上がり)
-    return KARA_RISE * (c + e)
+    return KARA_RISE * (c + e - 0.30) / 0.70
 
 
 def build(name="Matsudaira_Bansho"):
@@ -211,31 +219,71 @@ def build(name="Matsudaira_Bansho"):
     # ---- 桁
     m.box(x0 - 0.10, x1 + 0.10, yt, yt + 0.20, z0 - 0.10, z1 + 0.10, W_UV, 0)
 
-    # ---- 向唐破風(正面 +Z 側。むくりの稜線を SEG 分割して葺く)
-    ey = yt + 0.20
-    ze = z1 + EAVE                       # 軒先
+    # ---- 屋根(向唐破風。**大棟は水平・前の軒先が反る**)
+    # ⚠ 2026-08-31 ユーザー裁定1-A。以前は棟を反らせ、背面の葺き面を「両端の高さだけ」の
+    #   四角形 1 枚で葺いていた。結果、葺き面は平らなまま反った破風板だけが宙に浮き、
+    #   斜め上から見ると板葺きの片流れに見えていた(ユーザー指摘)。
+    #   唐破風は「軒先が波打ち、大棟は水平」な屋根なので、曲線は軒先に当てる。
+    ey = yt + 0.20                       # 桁の上端
+    y_mune = ey + MUNE_H                 # 大棟(水平)
+    y_eave = ey - 0.30                   # 軒先の弦(唐破風の曲線の基準線)
+    z_front = z1 + EAVE                  # 前の軒先
+    z_back = z0 - EAVE                   # 後の軒先
+    z_mune = z0 + D * MUNE_Z             # 大棟の奥行位置
+
+    # 瓦の目の大きさ — **借り先(Village Kit)と同じ UV/m** を使う。
+    # ⚠ 矩形を屋根の幅いっぱいに一度だけ張ると、瓦の山が 0.5m 幅の板に伸びて
+    #   「板葺き」に見える(2026-08-31 の1回目)。借り先の面から採った UV/m を守り、
+    #   矩形の幅を超える分は**帯の切れ目で頭へ巻き戻す**(瓦の山は等間隔なので継ぎ目は出ない)。
+    ru0, rv0, ru1, rv1 = R_UV
+    uspan = ru1 - ru0
+    upm = ROOF_UPM                       # 借り先の実測 UV/m
+
     prev = None
     for k in range(SEG + 1):
         t = k / float(SEG)
         px = x0 + W * t
-        ph = ey + kara_profile(t)        # 棟の稜線
-        cur = (px, ph)
+        pe = y_eave + kara_profile(t)    # 前の軒先(唐破風の曲線)
+        cur = (px, pe)
         if prev is not None:
-            (ax, ah), (bx, bh) = prev, cur
-            # 葺き面(棟から軒先へ下る)
-            m.quad([(ax, ah, z1 - 0.15), (bx, bh, z1 - 0.15),
-                    (bx, ey - 0.30, ze), (ax, ey - 0.30, ze)], R_UV, 2)
-            # 破風板(見付け)
-            m.quad([(ax, ah, ze), (bx, bh, ze),
-                    (bx, bh - 0.22, ze), (ax, ah - 0.22, ze)], W_UV, 0)
+            (ax, ae), (bx, be) = prev, cur
+            du = upm * (W / float(SEG))              # 帯 1 本ぶんの UV 幅
+            base = ((k - 1) * du) % uspan
+            if base + du > uspan:                    # 矩形をはみ出す帯は頭へ巻き戻す
+                base = 0.0
+            ua, ub = ru0 + base, ru0 + base + du
+            # 流れの長さ(棟→軒先)。反りで長さが変わるので帯ごとに測る
+            dz = z_front - z_mune
+            dy = y_mune - (ae + be) * 0.5
+            slope = math.sqrt(dz * dz + dy * dy)
+            rv = min(rv1, rv0 + upm * slope)
+            # 前の葺き面(大棟は水平・軒先が反る)
+            m.quad([(ax, y_mune, z_mune), (bx, y_mune, z_mune),
+                    (bx, be, z_front), (ax, ae, z_front)], (ua, rv0, ub, rv), 2)
+            # 破風板(唐破風の見付け。軒先の曲線に沿って垂らす)
+            m.quad([(ax, ae, z_front), (bx, be, z_front),
+                    (bx, be - 0.24, z_front), (ax, ae - 0.24, z_front)], W_UV, 0)
+            # 軒天(唐破風の下。⚠ ここを開けると裏面が描かれないので**穴に見える**
+            #   — 2026-08-31 の1回目で軒の下が抜けて空が見えていた)
+            m.quad([(bx, be - 0.24, z_front), (ax, ae - 0.24, z_front),
+                    (ax, ey, z1), (bx, ey, z1)], W_UV, 0)
         prev = cur
-    # 唐破風の背後(棟から後ろへ落とす片流れ)
-    m.quad([(x0, ey + kara_profile(0.0), z1 - 0.15), (x1, ey + kara_profile(1.0), z1 - 0.15),
-            (x1, ey + 0.05, z0 - EAVE), (x0, ey + 0.05, z0 - EAVE)], R_UV, 2)
-    # 両妻の小口(棟と軒先を結ぶ三角)
-    for px in (x0, x1):
-        m.tri([(px, ey + kara_profile(0.0 if px == x0 else 1.0), z1 - 0.15),
-               (px, ey - 0.30, ze), (px, ey + 0.05, z0 - EAVE)], W_UV, 0)
+
+    # 後の葺き面(大棟が水平なので 1 枚でよい)
+    dz_b = z_mune - z_back
+    slope_b = math.sqrt(dz_b * dz_b + (y_mune - y_eave) ** 2)
+    rv_b = min(rv1, rv0 + upm * slope_b)
+    m.quad([(x0, y_mune, z_mune), (x1, y_mune, z_mune),
+            (x1, y_eave, z_back), (x0, y_eave, z_back)],
+           (ru0, rv0, ru0 + min(uspan, upm * W), rv_b), 2)
+    # 大棟(冠瓦の膨らみ)
+    m.box(x0 - 0.06, x1 + 0.06, y_mune - 0.02, y_mune + 0.16,
+          z_mune - 0.17, z_mune + 0.17, (ru0, rv0, ru0 + upm * 0.34, rv0 + upm * 0.18), 2)
+    # 両妻の小口(大棟・前の軒先・後の軒先を結ぶ)
+    for px, tt in ((x0, 0.0), (x1, 1.0)):
+        m.tri([(px, y_mune, z_mune),
+               (px, y_eave + kara_profile(tt), z_front),
+               (px, y_eave, z_back)], W_UV, 0)
 
     o = m.to_object(name, [wood, wall, roof])
     V.sel([o])

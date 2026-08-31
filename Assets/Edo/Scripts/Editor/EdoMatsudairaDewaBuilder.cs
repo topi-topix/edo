@@ -1193,64 +1193,28 @@ public static class EdoMatsudairaDewaBuilder
             if (go != null) { n++; sb.AppendLine("番所 " + key + " s=" + mid.ToString("F1")); }
         }
 
-        // 小門(御蔵門・東小門)— 在庫の冠木門を使う。開口 w に合わせて横だけ伸ばす
+        // 小門(御蔵門・東小門)— **扉ごと長屋に作り付けてある。ここでは何も置かない。**
+        //
+        // ⚠ 2026-08-31 ユーザー裁定2-A。それまでは在庫の冠木門 `Eg.Kabukimon` を開口へ
+        //   落とし込み、`PartSize(go).x`(= **部材の全幅**)が開口幅 w になるよう横へ縮めていた。
+        //   ところが冠木門の全幅 14.413m には**屋根の出と袖塀**が入っていて、壁に接すべき
+        //   躯体は扉の高さで 7.53m しかない。w=3.0 に合わせると躯体は **1.56m** まで痩せ、
+        //   左右に **0.72m ずつ隙間**が空いた(ユーザー指摘の画像で門の脇に草が見えていた)。
+        //   さらに冠木門は自前の小屋根を持つので、長屋の通し屋根と**二重**になっていた。
+        //   → 規則5「呼び寸法で合わせない/接する面で合わせる」。
+        //
+        //   いまは `runs[].mon` の門口を `build_nagaya_omote.py --gate` が長屋の躯体に彫り、
+        //   方立・楣・**両開きの板戸(3.0×2.8m)・扉の上の小壁**まで作り付けている。
+        //   開口の閉じは長屋のメッシュが持つので、閉じ検査もそのまま通る。
+        // ⛔ ここに門を置き直さない。置くと屋根が二重になり、隙間がまた開く。
         foreach (var o in A(D["komon"]))
         {
             var k = O(o);
-            int e2 = (int)F(k["edge"]);
-            float s2 = F(k["s"]), w2 = F(k["w"]), sl2 = F(k["sill"]);
-            Vector2 p2 = EdgePt(e2, s2);
-            Vector2 ow2 = OutNormal(e2);
-            float y2 = Mathf.Atan2(ow2.x, ow2.y) * Mathf.Rad2Deg;
-            var go = EdoNishiTameikeBuilder.Place(EdoAssets.Eg.Kabukimon,
-                new Vector3(p2.x, sl2, p2.y), y2,
-                Vector3.one * EdoSannoKitaBuilder.ES, grp, (string)k["name"]);
-            if (go != null)
-            {
-                // 開口幅へ合わせる(在庫の冠木門は間口が狭い)。
-                // ⚠ world の AABB で測らない — 斜めに回した門の AABB は実幅より大きく出るので、
-                //   縮め過ぎる。2026-08-25 に幅 3.0m の小門が **1.7m** へ潰れていた。
-                var ps = PartSize(go);
-                float have = ps.x;
-                if (have > 0.1f)
-                {
-                    float f2 = w2 / have;
-                    var ls = go.transform.localScale;
-                    go.transform.localScale = new Vector3(ls.x * f2, ls.y, ls.z);
-                }
-                n++; sb.AppendLine("小門 " + (string)k["name"] + " 辺" + e2 + " s=" + s2.ToString("F1") + " 幅" + w2.ToString("F1"));
-            }
-            // ⚠ **冠木門のピボットは本体の芯にない。** 丈の中心にあるので敷居の高さへ
-            //   そのまま置くと門が半分埋まり(2026-08-29 実測で 1.75m 埋没)、平面でも
-            //   区画線から 2.26m ずれる(ユーザーの #5 で門が小さく・扉と離れて見えた原因)。
-            //   **置いてから実測して据え直す** — 足元を敷居へ、平面の芯を区画線へ。
-            if (go != null)
-            {
-                EdoNishiTameikeBuilder.SeatBottom(go, sl2);
-                var gb = EdoNishiTameikeBuilder.RB(go);
-                var off = new Vector3(p2.x - gb.center.x, 0f, p2.y - gb.center.z);
-                go.transform.position += off;
-            }
-            if (Has(k, "leaf"))
-            {
-                var lf = O(k["leaf"]);
-                // ⚠ **扉を足す前に、門が自前の扉を持っていないか実物を見る。**
-                //   edogoyomi の冠木門は doorl/doorr(+ sdoorl/sdoorr)を躯体に抱えている。
-                //   その上へ Gate Castle の扉を重ねると、開口ではなく**門の顔を板で覆う**
-                //   (2026-08-29: 御蔵門・東小門が白い板になり、冠木も扉も見えなくなっていた。
-                //    Gate Castle のマテリアルはテクスチャを持たないので真っ白に出る)。
-                if (HasOwnDoors(go))
-                {
-                    sb.AppendLine("　└ 扉は門が自前で持つ(doorl/doorr)ため足さない");
-                }
-                else
-                {
-                    int nl2 = Leaves(grp, (string)k["name"], EdoAssets.JC.GateDoorCastleL, EdoAssets.JC.GateDoorCastleR,
-                                     3.0f, EdoAssets.JC.GateDoorCastleFoot, p2, y2, F(lf["w"]), sl2);
-                    if (nl2 > 0) sb.AppendLine("　└ 扉 " + (string)lf["kind"] + " 幅" + F(lf["w"]).ToString("F1"));
-                }
-            }
+            sb.AppendLine("小門 " + (string)k["name"] + " 辺" + F(k["edge"]).ToString("0")
+                        + " s=" + F(k["s"]).ToString("F1")
+                        + " — 門口・扉とも長屋に作り付け(部材を置かない)");
         }
+
         // 表門の扉
         if (Has(plan, "leaf"))
         {
@@ -1692,7 +1656,7 @@ public static class EdoMatsudairaDewaBuilder
     /// <summary>附属屋 FBX のマテリアルを、**借り先を名指しして**結び直す。
     /// ⚠ `SearchAndRemapMaterials(..., Everywhere)` はプロジェクト全体(6.9GB)を舐めるので使わない
     ///   — 2026-08-24 に実際にユーザーの PC が固まった。借り先は3フォルダだけ見る。</summary>
-    [MenuItem("Edo/松平出羽守上屋敷/附属屋のマテリアルをremap")]
+    [MenuItem("Edo/松平出羽守上屋敷/附属屋・門のマテリアルをremap")]
     public static void RemapFuzokuyaMenu() { Debug.Log("[Matsudaira] " + RemapFuzokuya()); }
     public static string RemapFuzokuya()
     {
@@ -1712,7 +1676,11 @@ public static class EdoMatsudairaDewaBuilder
             }
         }
         int n = 0; var miss = new List<string>();
-        foreach (var guid in AssetDatabase.FindAssets("t:Model", new[] { "Assets/Edo/Models/Fuzokuya" }))
+        // ⚠ 門・番所(Models/Mon)も同じ借り先を使う。2026-08-31 に番所の瓦を
+        //   Village Kit の `Roof B` へ替えたとき、ここが Fuzokuya しか見ていなかったため
+        //   材質名が変わった番所が真っ白になった。**FBX を焼いた folder は必ずここに足す。**
+        string[] modelDirs = { "Assets/Edo/Models/Fuzokuya", "Assets/Edo/Models/Mon" };
+        foreach (var guid in AssetDatabase.FindAssets("t:Model", modelDirs))
         {
             string path = AssetDatabase.GUIDToAssetPath(guid);
             var imp = AssetImporter.GetAtPath(path) as ModelImporter; if (imp == null) continue;

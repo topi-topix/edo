@@ -20,6 +20,7 @@ import html
 import json
 import math
 import os
+import re
 import subprocess
 
 import sashizu_lib
@@ -65,6 +66,16 @@ def low_legend():
 
 def inline(s):
     return sashizu_lib.inline(s)
+
+
+def plain(s):
+    """SVG の <text> 用。markdown の強調記号を落とす(SVG では <b> が効かない)。
+
+    ⚠ html の <p> では inline() を使うこと — そちらは ** を <b> に変える。
+    """
+    s = re.sub(r"\*\*(.+?)\*\*", r"\1", s, flags=re.S)
+    s = re.sub(r"`([^`]+)`", r"\1", s)
+    return html.escape(s)
 
 
 def md2html(text):
@@ -255,7 +266,7 @@ def draw_frame(d, p, h, polys, water=True, ishigaki=True, works=True, labels=Tru
                 h.append('<text class="anS" x="%.1f" y="%.1f">新シ橋</text>'
                          % (p.X(cx) + 7, p.Y(cz) - 6))
     if labels:
-        h.append('<text class="anS" x="%.1f" y="%.1f">虎ノ門土橋(堰)</text>'
+        h.append('<text class="anS" x="%.1f" y="%.1f">虎ノ門の橋(堰)</text>'
                  % (p.X(392), p.Y(462) - 4))
         h.append('<text class="anS" x="%.1f" y="%.1f">幸橋・汐留川へ(未再現)</text>'
                  % (p.X(1050) - 30, p.Y(150) + 26))
@@ -331,17 +342,17 @@ def system_svg(d, W=1180.0):
             h.append('<text class="anG" x="%.1f" y="%.1f">天端 %.2f</text>'
                      % (x + (seg - 8) / 2 - 14, ax(cr) - 6, cr))
         h.append('<text class="anS2" x="%.1f" y="%.1f">%s</text>'
-                 % (x + (seg - 8) / 2, H - 24, html.escape(s["name"])))
+                 % (x + (seg - 8) / 2, H - 24, plain(s["name"])))
         if s.get("note"):
             h.append('<text class="jo" x="%.1f" y="%.1f" style="text-anchor:middle">%s</text>'
-                     % (x + (seg - 8) / 2, H - 10, html.escape(s["note"])))
+                     % (x + (seg - 8) / 2, H - 10, plain(s["note"])))
     h.append('<text class="zn" x="%.1f" y="16">溜 池 ─── 虎 ノ 門 ─── 幸 橋</text>' % (W / 2))
     h.append(ENDSVG)
     return "\n".join(h)
 
 
 def profile_svg(d, ter, W=1180.0):
-    """縦断面。距離程 × 標高。水位は虎ノ門土橋で 3.50 → 1.80 に落ちる。"""
+    """縦断面。距離程 × 標高。水位は虎ノ門の橋で 3.50 → 1.80 に落ちる。"""
     pr = ter["profile"]
     L = ter["reachLength"]
     H = 340.0
@@ -380,7 +391,7 @@ def profile_svg(d, ter, W=1180.0):
         h.append('<text class="sl" x="%.1f" y="%.1f">床 %.2f</text>' % (X(s0) + 6, Y(fl) + 13, fl))
         h.append('<text class="jo" x="%.1f" y="%.1f" style="text-anchor:middle">%s</text>'
                  % ((X(s0) + X(s1)) / 2, Y(7.4) - 20, body.replace("Sotobori_", "")))
-    # 虎ノ門土橋(堰堤)の段差
+    # 虎ノ門の橋(堰堤)の段差
     for i in range(1, len(runs)):
         if runs[i][3] != runs[i - 1][3]:
             sx = (runs[i - 1][2] + runs[i][1]) / 2
@@ -390,7 +401,7 @@ def profile_svg(d, ter, W=1180.0):
                           if st.get("crest") and runs[i][3] < st["crest"] < runs[i - 1][3]), None)
             h.append('<text class="anG" x="%.1f" y="%.1f" style="text-anchor:middle">%s落差 %.2f m</text>'
                      % (X(sx), Y(runs[i - 1][3]) - 9,
-                        ("虎ノ門土橋の堰 天端 %.2f ／ " % crest) if crest else "",
+                        ("虎ノ門の橋の堰 天端 %.2f ／ " % crest) if crest else "",
                         runs[i - 1][3] - runs[i][3]))
     for key, col, dash, lab in ((5, "var(--dim)", "3 3", "現況 郭外"),
                                 (6, "var(--dim)", None, "現況 郭内"),
@@ -693,7 +704,7 @@ def pending_table(d):
     rows = ["<tr><td>%s</td><td class='note' style='text-align:left'>%s</td><td>%s</td>"
             "<td class='note' style='text-align:left'>%s</td><td>%s</td></tr>"
             % (u["id"], inline(html.escape(u["what"])), html.escape(u.get("status", "—")),
-               inline(html.escape(u["detail"])), html.escape(u["cert"]))
+               inline(html.escape(u["detail"])), inline(html.escape(u["cert"])))
             for u in d["unresolved"]]
     return tbl(["", "事項", "状態", "中身", "確度"], rows)
 
@@ -752,7 +763,7 @@ def main():
     h.append('<p class="eyebrow">%s ／ %s ／ 基準年次 %s</p>'
              % (html.escape(d["subtitle"]), html.escape(d["board"]), html.escape(d["year"])))
     h.append("<h1>%s</h1>" % html.escape(d["title"]))
-    h.append('<p class="lede">2026-08-22 の造成リセットが、虎ノ門の橋の東の外堀を'
+    h.append('<p class="lede">2026-08-22 の造成リセットが、虎ノ門の橋の東面から東の外堀を'
              '<b>掘削もろとも現代の地面へ戻していた</b>。水面のメッシュは張られたままだったので、'
              '乾いた地面の中に水の板が沈み、両岸の総石垣も土に埋まっていた。'
              'これは<b>溜池の堰(どんどん)から下流ひと続き</b>を対象とした掘り直しの指図である。'
@@ -768,24 +779,23 @@ def main():
              '「水色の囲い」の内か外かで生死が分かれた。'
              '<b>00001</b>(堰〜虎ノ門)は囲いの中で無傷 ── 水面より下 <b>%.1f%%</b>・'
              'リセット直前と一致 <b>%.1f%%</b> なので<b>調査のみ</b>。'
-             '囲いの外の <b>00002 / 00003</b>(土橋の東)は掘削が丸ごと戻り、水面より下は'
+             '囲いの外の <b>00002 / 00003</b>(虎ノ門の橋の東)は掘削が丸ごと戻り、水面より下は'
              'それぞれ <b>%.1f%% / %.1f%%</b> しか残っていない ── こちらが<b>掘り直しの対象</b>で、'
              '両岸の石垣 <b>%d 個</b>が土に埋まっている。%s</p></div>'
              % (sv["Sotobori_00001"]["curSubmergedPct"], sv["Sotobori_00001"]["curVsPreSamePct"],
                 sv["Sotobori_00002"]["curSubmergedPct"], sv["Sotobori_00003"]["curSubmergedPct"],
-                nishi, html.escape(d["why"]["note"])))
+                nishi, inline(html.escape(d["why"]["note"]))))
 
     plate(h, nx(), "位置と水系", "溜池 → 堰 → 虎ノ門 → 幸橋")
     fig(h, system_svg(d),
         cap="水位の段階は既存実装の設計値で、<b>この指図では動かさない</b>。"
             "溜池から堰(「どんどん」)で落ちた水は虎ノ門の堀へ入り、"
-            "<b>土橋の堰でもう一段落ちて</b>この区間の水位になる。東端の先(幸橋御門・汐留川)は未再現。")
+            "<b>虎ノ門の橋の堰でもう一段落ちて</b>この区間の水位になる。"
+            "東端の先は東へ<b>幸橋御門 →(一区間)→ 汐留の土橋 → 汐留川</b>の順で、いずれも未再現。")
     fig(h, plan_svg(d, dem, ter, "plain"),
         cap="平面。<b>青=水面 / 灰=石垣の run / 灰の破線=非史実の仮設 / 赤の破線=工区の境</b>。"
-            "堀は虎ノ門の橋の東から東南東へ下り、幸橋方向で切れる。"
-            "⚠ <b>虎ノ門の橋を「土橋」と呼ぶのは実装上の選択【U】</b> ── "
-            "[外堀保存管理計画書] の類型では低地の門は<b>橋台石垣</b>の側で、実装は類型と逆向きの選択にあたる。"
-            "以下の図と検査でもこの呼び名を使うが、<b>形式が決まっているという意味ではない</b>。")
+            "堀は虎ノ門の橋の東面から東南東へ下り、幸橋方向で切れる。"
+            + inline(html.escape(d["scope"]["naming"])))
 
     plate(h, nx(), "現況調査", "三つの水面を同じ物差しで測る")
     h.append(survey_table(ter))
@@ -800,7 +810,7 @@ def main():
 
     plate(h, nx(), "現況図", "段彩 + 等高線 1m ── 造成リセット後の地面")
     fig(h, plan_svg(d, dem, ter, "cur"), legend=low_legend(),
-        cap="<b>土橋の東(00002・00003)は汀線の内側がほぼ全面、水面 %.2f より上の陸になっている</b>のが"
+        cap="<b>虎ノ門の橋の東(00002・00003)は汀線の内側がほぼ全面、水面 %.2f より上の陸になっている</b>のが"
             "読み取れる。上流の 00001(破線の汀線)は掘れたままで、段彩がそこだけ寒色に沈む。"
             "段彩のランプはこの低地用に 0〜8m で別に持つ(屋敷の指図の 10m 起点のランプでは全部同じ色になる)。"
             "赤の一点鎖線は横断の切り位置。"
@@ -809,15 +819,15 @@ def main():
     plate(h, nx(), "掘削平面図", "切盛 ── 寒色=掘る / 暖色=盛る")
     fig(h, plan_svg(d, dem, ter, "cf"), legend=cutfill_legend(),
         cap="工区(掘る水面の汀線 + %.0f m)の中だけを塗った。<b>その外は1セルも触らない。</b>"
-            "朱の破線の矩形は<b>凍結域 K1</b>(虎ノ門枡形と土橋の足元)で、"
+            "朱の破線の矩形は<b>凍結域 K1</b>(虎ノ門枡形と虎ノ門の橋の足元)で、"
             "帯がここを覆うと生き残っている造成を最大 %.2f m 掘り落とすため、帯から外してある。"
-            "⛔ <b>掘り直しの西端は土橋の東面。</b>"
+            "⛔ <b>掘り直しの西端は虎ノ門の橋の東面。</b>"
             % (d["works"]["outerWidth"], ter["provenance"]["survMaxPreCurDiff"]))
     h.append(spec_table(d, ter))
 
     plate(h, nx(), "縦断面", "距離程 %.0f m ── 水位は一定・地盤は東へ下る" % ter["reachLength"])
     fig(h, profile_svg(d, ter),
-        cap="<b>水位と床は全区間で一定</b>(段差は虎ノ門土橋の堰で作る)。"
+        cap="<b>水位と床は全区間で一定</b>(段差は虎ノ門の橋の堰で作る)。"
             "現況の地盤は西の 6m 台から東の 3m 台まで下るので、"
             "<b>西では深く掘り、東では岸を盛る</b>。石垣の天端も東へ向かって下がる。")
 
@@ -827,12 +837,12 @@ def main():
         if s["works"]:
             cap = ("<b>┄ 現況 / ── 設計 / 寒色の塗り = 掘る量</b>。%s。"
                    "⛔ <b>堀の壁は垂直のまま残す</b> — 溜池の掘り直しのように 45°で均すと"
-                   "石垣の面が土に埋まり、堀が皿になる。" % html.escape(note))
+                   "石垣の面が土に埋まり、堀が皿になる。" % inline(html.escape(note)))
         else:
             cap = ("<b>調査断面 — 掘らないので設計 = 現況で、線は重なる。</b>%s。"
-                   "この一枚が<b>無傷の堀の姿</b>で、土橋の東はこれが失われた状態にある。"
+                   "この一枚が<b>無傷の堀の姿</b>で、虎ノ門の橋の東はこれが失われた状態にある。"
                    "⚠ 郭外の石垣の天端が地面のずっと下にあるのが読み取れる(未解決 U9)。"
-                   % html.escape(note))
+                   % inline(html.escape(note)))
         fig(h, section_svg(d, s), cap=cap)
 
     plate(h, nx(), "工区と摺り付け", "規則 ①〜⑥")
@@ -844,10 +854,10 @@ def main():
              'ちがう(=08-22 のリセットを生き延びた造成の)セルは <b>%d 個</b>。そのうち種地と現況が'
              '一致するのは <b>%.1f%%</b>(最大差 %.2f m)にすぎない。'
              '⛔ <b>初版はここを「一致する」と書いていたが、通っていなかった</b> ── 種地をそのまま'
-             '戻すと生き残っている枡形・土橋を最大 %.2f m 掘り落とすところだった。'
-             'そこで土橋の足元を<b>凍結域 K1</b> として帯から外した結果、'
+             '戻すと生き残っている枡形・橋を最大 %.2f m 掘り落とすところだった。'
+             'そこで虎ノ門の橋の足元を<b>凍結域 K1</b> として帯から外した結果、'
              '<b>不一致のまま帯で動くセルは %d 個</b>まで落ちた'
-             '(水面の内側で動く %d 個は、土橋を貫く水路を床まで掘るもので設計どおり)。'
+             '(水面の内側で動く %d 個は、虎ノ門の橋を貫く水路を床まで掘るもので設計どおり)。'
              '⚠ この検算は工区を広げれば成り立たなくなるので、広げるときは必ず取り直すこと。</p></div>'
              % (pv["survivingGradingCells"], pv["survSamePreCurPct"], pv["survMaxPreCurDiff"],
                 pv["survMaxPreCurDiff"], pv["survMovedInBandCells"], pv["survMovedInWaterCells"]))
@@ -875,7 +885,7 @@ def main():
     h.append("<h4>石垣が土に埋まっていないか(run 線そのもので測る)</h4>")
     h.append(buried_table(d, ter))
     h.append('<p class="cap">⚠ <b>00001 の郭外の CW1s(Ishigaki_Ext_4・86駒)は天端が地面に潜る。</b>'
-             '土橋の取付の R1・R3 も同様。'
+             '虎ノ門の橋の取付の R1・R3 も同様。'
              'これは 08-22 のリセットのせいではない ── <b>現況と 08-22 リセット直前が一致</b>しており、'
              '2026-08-10 に建てたときからこの姿である。'
              '<b>この指図では直さない</b>(00001 は調査のみ。汀線と地形の是正は 2026-08-29 に実施済=U9)。'
@@ -893,7 +903,7 @@ def main():
                  % (pw["date"], inline(html.escape(pw["what"])),
                     "{:,}".format(a["cellsMoved"]), "{:,}".format(a["m2"]),
                     "{:,}".format(a["workAreaM2"]), a["maxErrorVsDesign_m"],
-                    html.escape(a["note"]), inline(html.escape(pw["baseline"]))))
+                    inline(html.escape(a["note"])), inline(html.escape(pw["baseline"]))))
         inc = pw["incident"]
         h.append('<div class="box"><p><b>⛔ 施工中に踏んだ事故(復旧済)</b><br>'
                  '%s<br><b>原因</b> ── %s<br><b>なぜ検算が見逃したか</b> ── %s<br>'

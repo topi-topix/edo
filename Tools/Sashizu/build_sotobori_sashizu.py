@@ -686,7 +686,7 @@ def junction_svg(d, dem, ter, W=1180.0):
             continue
         h.append('<circle cx="%.1f" cy="%.1f" r="3" fill="#7A2E1E"/>' % (p.X(vx), p.Y(vz)))
         h.append('<text class="anG" x="%.1f" y="%.1f">%s ── 円内 %.1f%%(うち水面 %.1f%%)</text>'
-                 % (p.X(vx) + 7, p.Y(vz) - 7, v["v"], v["pctKenzu"],
+                 % (p.X(vx) + 7, p.Y(vz) - 7, v["v"], v["pct"],
                     v.get("insideWaterPct", 0.0)))
 
     # ⑥ 共有辺 / 残置 / 新シ橋 / 距離程
@@ -763,10 +763,10 @@ def fan_table(d):
     rows = ["<tr><td>%s</td><td class='note' style='text-align:left'>%s</td>"
             "<td>(%.1f, %.1f)</td><td>%.1f%%</td><td>%.1f%%</td><td>%.1f%%</td></tr>"
             % (v["v"], html.escape(v["where"]), v["p"][0], v["p"][1],
-               v["pctKenzu"], v["pctDem4m"], v.get("insideWaterPct", 0.0))
+               v["pct"], v.get("insideWaterPct", 0.0), v["pctNearestRef"])
             for v in fan["vertices"]]
-    return tbl(["頂点", "場所", "世界座標", "円内で水面より低い割合(検図方)",
-                "同(dem 4m 格子)", "うち水面の内側"], rows)
+    return tbl(["頂点", "場所", "世界座標", "円内で水面より低い割合",
+                "うち水面の内側", "参考(最近傍で採った値)"], rows)
 
 
 # ---------------------------------------------------------------- 表
@@ -1114,10 +1114,11 @@ def main():
             % (ter["gaps"][1]["length"], d["ishigaki"].get("faceToPivot", 4.80)))
     h.append(fan_table(d))
     h.append('<p class="cap">出隅ごとの量。<b>半径 %.2f m の円内のうち、設計面が水面 %.2f より低い割合</b>。'
+             '正の値は <code>sotobori_dem.json</code> の <code>design</code>(4m 格子)を<b>双一次</b>で採ったもの。'
              '⛔ <b>これは円の全面(水面の内側を含む)で採った割合で、扇形の埋め残しの面積ではない</b> ── '
-             '右端の列がそのうち水面の内側の分で、<b>共有辺の2頂点(v0/v1)は円のちょうど半分が水</b>である。'
-             '⚠ <b>右の2列は同じ量を別の格子で採ったもの</b>で、'
-             '<b>15 ポイントほど動く ── 桁の話として読むこと</b>(⭕ 順位は一致する)。'
+             '中の列がそのうち水面の内側の分で、<b>共有辺の2頂点(v0/v1)は円のちょうど半分が水</b>である。'
+             '⚠ <b>右端は同じ格子を最近傍で拾った参考値</b>で、'
+             '<b>標本の採り方だけで 15 ポイント動く</b>(⭕ 順位は一致する)。'
              '⛔ <b>実駒で測ったのは v6 のまわりだけ</b>(上の図の朱の矩形)で、'
              '<b>他の5頂点は実駒で未測</b>。⚠ <b>東端の2出隅(v4/v5)は現地で未確認</b>で、'
              'この図の窓の外にある。</p>'

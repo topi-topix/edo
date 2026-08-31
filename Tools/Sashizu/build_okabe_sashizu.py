@@ -482,6 +482,97 @@ def _seg_dist(p, q, r, s):
     return min(pd(p, r, s), pd(q, r, s), pd(r, p, q), pd(s, p, q))
 
 
+def _quad_overlap(qa, qb, step=0.02):
+    """四角形どうしの重なり面積(ラスタ近似・m²)。**点接触を 0 と数えるのが目的**なので粗くてよい。"""
+    xs = [p[0] for p in qa + qb]; ys = [p[1] for p in qa + qb]
+    x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
+    def inq(q, x, y):
+        c = False
+        for i in range(4):
+            (ax, ay), (bx, by) = q[i], q[(i + 1) % 4]
+            if (ay > y) != (by > y) and x < (bx - ax) * (y - ay) / (by - ay) + ax:
+                c = not c
+        return c
+    a = 0.0; x = x0 + step / 2
+    while x < x1:
+        y = y0 + step / 2
+        while y < y1:
+            if inq(qa, x, y) and inq(qb, x, y):
+                a += step * step
+            y += step
+        x += step
+    return a
+
+
+def perimeter_closure_check(d, step=0.02, inset=0.05):
+    """**外周が全長で閉じているか** — 区画線を歩き、内側が何かで塞がっているかを測る。
+
+    ⚠ 2026-08-31 の三巡目で作り直した。それまで当方が持っていたのは
+      「隣り合う run の足跡どうしの最短距離」を見る検査で、**二度も誤った** —
+      ①点接触を『閉じている』と数え(P0 で 1.19m² 開いていたのを 0 件と報告した)、
+      ②その 0 件を根拠に『長屋の妻が塞ぐ』と指図に書いてしまった。
+      ⛔ **隅の対どうしを見るのでは足りない。**穴は run と run の間ではなく、
+      **run と区画線の間**に開く(折れ角が直角でないと妻面と辺の間に楔が開く)。
+    ⭕ 区画線から `inset` だけ内へ入った点が、外周の部材のどれかに覆われていれば閉。
+    ⛔ 門・木戸の開口は**扉の幅ぶんだけ**閉と数える(開口幅ではない)。
+      2026-08-31 三巡目: 木戸は開口 2.80m に対し `komon.w` 2.70m で、両端 0.05m ずつ素通しだった。
+    """
+    P9 = d["polygon"]
+    n = len(P9)
+    fps = [(_run_fp(d, r), r["name"]) for r in d["runs"]]
+    for f in d.get("fences", []):                     # 木柵も囲い
+        if "edge" in f:
+            fps.append((_run_fp(d, dict(f, kind="Dobei")), f.get("name", "fence")))
+    opens = []
+    if d.get("gate"):
+        opens.append((d["gate"], "表門", d["gate"].get("plan", {}).get("monW")))
+    for k9 in (d.get("komon") or []):                 # 木戸は複数ありうる(list)
+        opens.append((k9, k9.get("label", "木戸"), k9.get("w")))
+    for g9, nm9, w9 in opens:
+        e9 = g9.get("edge"); c9 = g9.get("s")
+        if e9 is None or c9 is None or not w9:
+            continue
+        fps.append((_run_fp(d, {"edge": e9, "s0": c9 - w9 / 2.0, "s1": c9 + w9 / 2.0,
+                                "kind": "Dobei"}), nm9 + "(扉)"))
+
+    def covered(x, y):
+        for q, _nm in fps:
+            c = False
+            for i in range(4):
+                (ax, ay), (bx, by) = q[i], q[(i + 1) % 4]
+                if (ay > y) != (by > y) and x < (bx - ax) * (y - ay) / (by - ay) + ax:
+                    c = not c
+            if c:
+                return True
+        return False
+
+    own = set(r["edge"] for r in d["runs"]) | set(f["edge"] for f in d.get("fences", []) if "edge" in f)
+    bad = []
+    for e in range(n):
+        if e not in own:
+            continue                                  # 相手が建てる辺(松平境ほか)
+        a, b = P9[e], P9[(e + 1) % n]
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        nx, ny = _inward(P9, e)
+        holes, cur, s = [], None, 0.0
+        while s <= L:
+            t9 = s / L
+            x = a[0] + (b[0] - a[0]) * t9 + nx * inset
+            y = a[1] + (b[1] - a[1]) * t9 + ny * inset
+            if covered(x, y):
+                if cur is not None:
+                    holes.append((cur, s)); cur = None
+            elif cur is None:
+                cur = s
+            s += step
+        if cur is not None:
+            holes.append((cur, L))
+        for h0, h1 in holes:
+            if h1 - h0 > step * 1.5:                   # 1標本ぶんの丸めは拾わない
+                bad.append("辺%d の s=%.2f〜%.2f(%.2fm)が素通し" % (e, h0, h1, h1 - h0))
+    return bad
+
+
 def perimeter_corner_check(d, tol=0.02):
     """**区画の隅で外周が閉じているか** — 隣り合う辺の run の**実足跡**で測る。
 
@@ -510,9 +601,18 @@ def perimeter_corner_check(d, tol=0.02):
         fa, fb = _run_fp(d, ca), _run_fp(d, cb)
         best = min(_seg_dist(fa[i], fa[(i + 1) % 4], fb[j], fb[(j + 1) % 4])
                    for i in range(4) for j in range(4))
+        # ⛔ **最短距離だけでは足りない。**足跡が**一点で接する**と距離 0 を返すが、
+        #    その先に楔が開いていることがある(2026-08-31 三巡目: P0 で 1.19m² 開いていたのを
+        #    当検査は 0 件と報告した。当方はそれを『閉じている』と指図に書いてしまった)。
+        #    ⭕ **面で重なっていることを要件にする** — 点接触と面接触を区別する。
+        ov = _quad_overlap(fa, fb)
         if best > tol:
             bad.append("頂点P%d(辺%d %s ↔ 辺%d %s)の隅に素通し %.3fm"
                        % (v, ea, ca["name"], eb, cb["name"], best))
+        elif ov <= 1e-6:
+            bad.append("頂点P%d(辺%d %s ↔ 辺%d %s)は**点接触**で面で重なっていない — "
+                       "折れ角が直角でないと妻面と辺の間に楔が開く"
+                       % (v, ea, ca["name"], eb, cb["name"]))
     return bad
 
 
@@ -3524,6 +3624,10 @@ def main():
     cbad = perimeter_corner_check(d)
     print("外周の隅の閉じ: %d 件" % len(cbad))       # ⛔ 0件でも件数を必ず出す(黙って通さない)
     for b in cbad:
+        print("    " + b)
+    zbad = perimeter_closure_check(d)
+    print("外周の閉じ(全長を歩く): %d 件" % len(zbad))
+    for b in zbad:
         print("    " + b)
     sbad = seat_fill_check(d)
     if sbad:

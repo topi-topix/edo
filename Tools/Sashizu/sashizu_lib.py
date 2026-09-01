@@ -760,6 +760,39 @@ def kenpei(d, area, tsubo, svc_label, nagaya_label, ban_label):
 
 
 # ---------------------------------------------------------------- 矩形の重なり検査
+def _g_poly(o):
+    """物が `poly`(実形)を持つなら折れ線を返す。矩形しか持たない物は None。"""
+    if isinstance(o, dict) and o.get("poly"):
+        return [tuple(p) for p in o["poly"]]
+    return None
+
+
+def _pip(p, poly):
+    x, y = p
+    c = False
+    for i in range(len(poly)):
+        a, b = poly[i], poly[(i + 1) % len(poly)]
+        if (a[1] > y) != (b[1] > y) and x < a[0] + (y - a[1]) * (b[0] - a[0]) / (b[1] - a[1]):
+            c = not c
+    return c
+
+
+def _poly_box_overlap(o1, o2, a0, b0, a1, b1, c0, d0, c1, d1, step=0.25):
+    """実形どうし(片方が矩形でも可)が本当に重なるか。重なりの帯を細かく走査する。"""
+    p1, p2 = _g_poly(o1), _g_poly(o2)
+    u0, u1_ = max(a0, c0), min(a1, c1)
+    v0, v1_ = max(b0, d0), min(b1, d1)
+    u = u0 + step / 2
+    while u < u1_:
+        v = v0 + step / 2
+        while v < v1_:
+            if (p1 is None or _pip((u, v), p1)) and (p2 is None or _pip((u, v), p2)):
+                return True
+            v += step
+        u += step
+    return False
+
+
 def overlap_check(d):
     """矩形の総当たり重なり検査(棟・廊下・庭・付属屋)。接するは可、重なるは不可。
     ただし渡廊下が棟の外形(入側帯)に一間だけ乗り込むのは取り付きなので許す。
@@ -775,7 +808,9 @@ def overlap_check(d):
     for l in d["links"]:
         boxes.append(("link", l["name"], l["u0"], l["v0"], l["u1"], l["v1"], None))
     for n in d["gardens"]:
-        boxes.append(("niwa", n["name"], n["u0"], n["v0"], n["u1"], n["v1"], None))
+        # ⚠ 第7欄は「回転物 or 実形」。`poly` を持つ庭はここで実体を渡す(松平 2026-09-01)
+        boxes.append(("niwa", n["name"], n["u0"], n["v0"], n["u1"], n["v1"],
+                      n if n.get("poly") else None))
     for s in d["service"]:
         boxes.append(("svc", s["name"], s["u0"], s["v0"], s["u1"], s["v1"], s))
     # 外周 run と長屋門の躯体帯(表門の辺=グリッドの v=0 帯)。検図 H-3 で追加 —
@@ -935,12 +970,26 @@ def overlap_check(d):
             iu = min(a1, c1) - max(a0, c0)
             iv = min(b1, d1) - max(b0, d0)
             # 回転を持つ物は外接矩形でなく**分離軸**で見る(斜めに並ぶ家中長屋で誤検出する)
-            if iu > 1e-9 and iv > 1e-9 and (o1 is not None or o2 is not None):
+            if iu > 1e-9 and iv > 1e-9 and (o1 is not None or o2 is not None) \
+                    and not (_g_poly(o1) or _g_poly(o2)):
                 q1 = o1 if o1 is not None else {"u0": a0, "v0": b0, "u1": a1, "v1": b1}
                 q2 = o2 if o2 is not None else {"u0": c0, "v0": d0, "u1": c1, "v1": d1}
                 if not obb_overlap(q1, q2):
                     continue
+            if iu > 1e-9 and iv > 1e-9 and (_g_poly(o1) or _g_poly(o2)):
+                # ⚠ **`poly` を持つ庭は矩形ではない**(`u0..v1` はその外接箱)。
+                #   外接箱どうしで見ると、庭が避けて通した棟や隣の庭と「重なる」と出る
+                #   (2026-09-01 松平・枯池の庭と書院の中庭)。実形で見直す。
+                if not _poly_box_overlap(o1, o2, a0, b0, a1, b1, c0, d0, c1, d1):
+                    continue
             if iu > 1e-9 and iv > 1e-9:
+                if {k1, k2} == {"niwa", "link"}:
+                    # 中庭を渡廊下が横切るのは正しい姿(庭は地面)。**完全に包含**なら可。
+                    # ⛔ はみ出す渡廊下は下の「一間だけ乗り込む」規約で見る
+                    (n0_, n1_, n2_, n3_) = (a0, b0, a1, b1) if k1 == "niwa" else (c0, d0, c1, d1)
+                    (l0_, l1_, l2_, l3_) = (c0, d0, c1, d1) if k1 == "niwa" else (a0, b0, a1, b1)
+                    if n0_ <= l0_ and n1_ <= l1_ and l2_ <= n2_ and l3_ <= n3_:
+                        continue
                 if {"link"} & {k1, k2}:
                     # 取り付き: 渡廊下は**長手方向に一間だけ**棟の外形(入側帯)へ乗り込める。
                     # 幅方向の一間重なりを盾に長手で何間も乗り込むのは不可(検図指摘)。

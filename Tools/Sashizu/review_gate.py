@@ -52,6 +52,52 @@ import collections
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DOC = os.path.join(REPO, "docs", "Sashizu")
 
+
+def _doc_path(name):
+    """その邸の指図の**いま生きている実体**を返す。
+
+    ⛔ **main だけを見てはいけない。** 各邸は `.claude/worktrees/<邸>/` で作業しており、
+    検分の結果(`reviews`)はそこへ書かれる。main へマージするまで反映されないので、
+    main だけ見ると「通したのに赤のまま」になり、関門が形骸化する
+    (2026-09-01 実測: 山王は worktree で庭方=pass・考証/検図=fail を記録済みなのに、
+    関門は3件とも「記録が無い」と表示していた)。
+    ⚠ フックは main の絶対パスでこの道具を呼ぶので、cwd では判断できない。
+
+    ⭕ **新しい方を採る。** worktree と main の両方にあれば、`reviews` の `at`(検分の日)が
+    新しい側を正とする。同じなら worktree(作業中の実体)を採る。
+    """
+    main_fp = os.path.join(DOC, name + "_sashizu.json")
+    wt_fp = os.path.join(REPO, ".claude", "worktrees", name,
+                         "docs", "Sashizu", name + "_sashizu.json")
+    if not os.path.exists(wt_fp):
+        return main_fp
+    if not os.path.exists(main_fp):
+        return wt_fp
+
+    def _newest(fp):
+        try:
+            rv = (json.load(open(fp)).get("reviews") or {})
+        except Exception:
+            return ""
+        return max([v.get("at", "") for v in rv.values()] or [""])
+
+    return wt_fp if _newest(wt_fp) >= _newest(main_fp) else main_fp
+
+
+def estate_names():
+    """main と worktree の両方から邸の名を集める(worktree だけにある邸も拾う)。"""
+    names = set()
+    for f in os.listdir(DOC):
+        if f.endswith("_sashizu.json"):
+            names.add(f[: -len("_sashizu.json")])
+    wt_root = os.path.join(REPO, ".claude", "worktrees")
+    if os.path.isdir(wt_root):
+        for d in os.listdir(wt_root):
+            if os.path.exists(os.path.join(wt_root, d, "docs", "Sashizu",
+                                           d + "_sashizu.json")):
+                names.add(d)
+    return sorted(names)
+
 # 検分役 → (日本語名, その役が見る範囲のキー, いつ要るか)
 #   keys=None は「指図全体」。required は指図の中身を受け取って True/False を返す
 REVIEWERS = collections.OrderedDict([
@@ -135,16 +181,14 @@ def fingerprint(doc, keys):
 
 
 def estates():
-    out = []
-    for f in sorted(os.listdir(DOC)):
-        if f.endswith("_sashizu.json"):
-            out.append(f[:-len("_sashizu.json")])
-    return out
+    """互換のための薄い殻。実体は estate_names()(worktree も見る)。"""
+    return estate_names()
 
 
 def gate(name):
-    """1邸の関門。返すのは (赤の件数, 行の列)。"""
-    path = os.path.join(DOC, name + "_sashizu.json")
+    """1邸の関門。返すのは (赤の件数, 行の列)。
+    ⚠ 指図は main とは限らない — worktree の方が新しければそちらを見る(_doc_path)。"""
+    path = _doc_path(name)
     with open(path) as fp:
         doc = json.load(fp)
     rev = doc.get("reviews") or {}
@@ -186,11 +230,13 @@ def gate(name):
 
 
 def record(name, key, verdict, note):
+    # ⚠ 書き戻し先も _doc_path — main に書くと、worktree で作業している邸の
+    #   指図には反映されず、次の巡回でまた「記録が無い」に戻る。
     if key not in REVIEWERS:
         sys.exit("検分役が違う。使えるのは: " + " / ".join(REVIEWERS))
     if verdict not in VERDICTS:
         sys.exit("verdict は " + " / ".join(VERDICTS))
-    path = os.path.join(DOC, name + "_sashizu.json")
+    path = _doc_path(name)
     with open(path) as fp:
         doc = json.load(fp, object_pairs_hook=collections.OrderedDict)
     import datetime
@@ -209,7 +255,14 @@ def record(name, key, verdict, note):
     ])
     with open(path, "w") as fp:
         fp.write(json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
-    print("記録: %s / %s = %s" % (name, REVIEWERS[key]["label"], verdict))
+    # ⚠ **どこへ書いたかを必ず出す。** main と worktree のどちらに入ったかが見えないと、
+    #   「記録したのに関門が赤のまま」を追えない。
+    where = "worktree" if ".claude/worktrees/" in path else "main"
+    print("記録: %s / %s = %s  → %s (%s)"
+          % (name, REVIEWERS[key]["label"], verdict, os.path.relpath(path, REPO), where))
+    if where == "worktree":
+        print("  ⚠ worktree の指図に書いた。**main へマージするまで main 側には映らない** — "
+              "関門は新しい方を見るので赤は消えるが、マージを忘れないこと。")
 
 
 def main():

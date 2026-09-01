@@ -367,6 +367,10 @@ public static class EdoMatsudairaDewaBuilder
     public static void Stage1Menu() { Debug.Log("[Matsudaira] " + Stage1_Grade()); }
     public static string Stage1_Grade()
     {
+        // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
+        { var gate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
+          if (gate != null) return gate; }
+
         Stage0_Backup();
         var t = Terrain.activeTerrain; var td = t.terrainData;
         int hres = td.heightmapResolution;
@@ -565,6 +569,10 @@ public static class EdoMatsudairaDewaBuilder
     public static void Stage2Menu() { Debug.Log("[Matsudaira] " + Stage2_Perimeter()); }
     public static string Stage2_Perimeter()
     {
+        // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
+        { var gate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
+          if (gate != null) return gate; }
+
         EdoNishiTameikeBuilder.NaturalMode = false;     // 天端は run の seat で通す
         var kak = Group("Kakoi"); Clear(kak);
         var sb = new System.Text.StringBuilder();
@@ -927,6 +935,12 @@ public static class EdoMatsudairaDewaBuilder
     public static void Stage3Menu() { Debug.Log("[Matsudaira] " + Stage3_Ishigaki()); }
     public static string Stage3_Ishigaki()
     {
+        // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
+        //    2026-09-01: Stage7 が指図の poly/at/groups/clr を読まず、**撤回済みの
+        //    「松を全数 −u へ傾ける」がコードに生きていた**。流せば撤回した案が復活する。
+        { var gate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
+          if (gate != null) return gate; }
+
         var grp = Group("Ishigaki"); Clear(grp);
         var sb = new System.Text.StringBuilder();
         var gate = O(D["gate"]);
@@ -1083,6 +1097,12 @@ public static class EdoMatsudairaDewaBuilder
     public static void Stage4Menu() { Debug.Log("[Matsudaira] " + Stage4_Goten()); }
     public static string Stage4_Goten()
     {
+        // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
+        //    2026-09-01: Stage7 が指図の poly/at/groups/clr を読まず、**撤回済みの
+        //    「松を全数 −u へ傾ける」がコードに生きていた**。流せば撤回した案が復活する。
+        { var gate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
+          if (gate != null) return gate; }
+
         var grp = Group("Buildings"); Clear(grp);
         var f = Grid;
         float yawU = YawAlongU(), yawV = YawAlongV();
@@ -1156,6 +1176,12 @@ public static class EdoMatsudairaDewaBuilder
     public static void Stage5Menu() { Debug.Log("[Matsudaira] " + Stage5_Mon()); }
     public static string Stage5_Mon()
     {
+        // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
+        //    2026-09-01: Stage7 が指図の poly/at/groups/clr を読まず、**撤回済みの
+        //    「松を全数 −u へ傾ける」がコードに生きていた**。流せば撤回した案が復活する。
+        { var gate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
+          if (gate != null) return gate; }
+
         var root = Group("");
         // 旧案の残骸を撤去
         var old = root.Find("Omotemon");
@@ -1275,6 +1301,12 @@ public static class EdoMatsudairaDewaBuilder
     public static void Stage6Menu() { Debug.Log("[Matsudaira] " + Stage6_Zosaku()); }
     public static string Stage6_Zosaku()
     {
+        // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
+        //    2026-09-01: Stage7 が指図の poly/at/groups/clr を読まず、**撤回済みの
+        //    「松を全数 −u へ傾ける」がコードに生きていた**。流せば撤回した案が復活する。
+        { var gate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
+          if (gate != null) return gate; }
+
         var grp = Group("Fuzoku"); Clear(grp);
         var f = Grid;
         float yawU = YawAlongU(), yawV = YawAlongV();
@@ -1811,6 +1843,12 @@ public static class EdoMatsudairaDewaBuilder
     public static void Stage7Menu() { Debug.Log("[Matsudaira] " + Stage7_Niwa()); }
     public static string Stage7_Niwa()
     {
+        // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
+        //    2026-09-01: Stage7 が指図の poly/at/groups/clr を読まず、**撤回済みの
+        //    「松を全数 −u へ傾ける」がコードに生きていた**。流せば撤回した案が復活する。
+        { var gate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
+          if (gate != null) return gate; }
+
         var root = Group("");
         // 撤回した池の案の残骸(非アクティブ)。生成物なので消してよい
         var stale = root.Find("Garden");
@@ -1881,8 +1919,13 @@ public static class EdoMatsudairaDewaBuilder
                         float u = c.x + Mathf.Cos(ang) * rad, v = c.y + Mathf.Sin(ang) * rad;
                         if (!free(u, v, 2.0f)) continue;
                         string path = EdoAssets.JG.Pine(i == 0 ? "Big" : (rnd.Next(3) == 0 ? "Small" : "Mid"), 1 + rnd.Next(3));
-                        // ⚠ 池が無いので「幹を水へ傾ける」は使えない。**崖(西)へ傾ける**=海風の見立て
-                        var go = Plant(path, u, v, sub, zone + "_Pine_" + made, 1.65f, rnd, tiltU: -1f);
+                        // ⛔ **全数を同じ向きへ傾けない。**2026-09-01 に指図が撤回した案。
+                        //    旧: tiltU -1f =「崖(西)へ傾ける=海風の見立て」を松の全数に掛けていた。
+                        //    庭方の判定「溜池は18m下の淡水で海風の見立てが立つ地形ではない【?】。
+                        //    全数を同方向へ倒すと 12.5m の松で頂が 0.9〜2.0m 振れ、意匠でなく
+                        //    ピボットのずれに見える」。⭐ 傾けるのは**岬の付け根の1本だけ**で、
+                        //    それは指図の `at` で名指しされる(このべた書きの経路では扱わない)。
+                        var go = Plant(path, u, v, sub, zone + "_Pine_" + made, 1.65f, rnd, tiltU: 0f);
                         if (go != null) { made++; nTree++; }
                     }
                     ci++;
@@ -2025,6 +2068,12 @@ public static class EdoMatsudairaDewaBuilder
     public static void Stage8Menu() { Debug.Log("[Matsudaira] " + Stage8_Shamen()); }
     public static string Stage8_Shamen()
     {
+        // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
+        //    2026-09-01: Stage7 が指図の poly/at/groups/clr を読まず、**撤回済みの
+        //    「松を全数 −u へ傾ける」がコードに生きていた**。流せば撤回した案が復活する。
+        { var gate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
+          if (gate != null) return gate; }
+
         var grp = Group("Shamen"); Clear(grp);
         var f = Grid;
         var sb = new System.Text.StringBuilder();

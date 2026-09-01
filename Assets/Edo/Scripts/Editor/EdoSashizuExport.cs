@@ -79,6 +79,54 @@ public static class EdoSashizuExport
     ///   囲い run・fence の部材の存在/郭内の造作(Fuzoku 下の各群)。
     /// ⚠ 棟の照合点は Grid.W(u0, v1)(松平ビルダーの据え付けピボット)。指図に無い群
     /// (fences・nakajikiri など)は空として扱うので、屋敷ごとに項目を持ち替えなくてよい。</summary>
+    /// <summary>**検図関門(実装側)。**指図が検分を通っていなければ Stage を止める。
+    ///
+    /// ⚠ 2026-09-01 に検図が指摘した事故の型: 松江松平の Stage7 は指図の `poly`/`at`/`groups`/
+    ///   `clr` を一つも読まず、**撤回済みの「松を全数 −u へ傾ける」がコードに生きていた**。
+    ///   この状態で流すと、指図で撤回した案がシーンへ復活する。
+    ///   ⛔ 散文の規則(CLAUDE.md 規則18「関門が赤の指図を実装しない」)は破れるので機械で止める。
+    ///
+    /// 判定は指図の `reviews`(`Tools/Sashizu/review_gate.py` が書く)を読むだけ。
+    ///   ・`verdict == "fail"` … **止める**
+    ///   ・記録が無い/`hash` がずれている … **警告だけ**(2026-09-01 のユーザー裁定で移行期間中。
+    ///     関門を新設した時点で全邸が赤なので、止めると全セッションが即時停止する)
+    /// ⭐ 移行が終わったら「記録が無い」も止める側へ移す。
+    ///
+    /// 返り値: 止めるべきなら理由、流してよいなら null(警告は Debug.LogWarning で出す)。</summary>
+    public static string ReviewGate(string id)
+    {
+        if (!Houses.ContainsKey(id)) return null;
+        var path = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), Houses[id].doc);
+        if (!System.IO.File.Exists(path)) return null;
+        var doc = MiniJson.Parse(System.IO.File.ReadAllText(path)) as Dictionary<string, object>;
+        if (doc == null) return null;
+        var rev = doc.ContainsKey("reviews") ? doc["reviews"] as Dictionary<string, object> : null;
+        var stop = new List<string>();
+        var warn = new List<string>();
+        foreach (var key in new[] { "kenzu", "kosho", "niwashi" })
+        {
+            var got = rev != null && rev.ContainsKey(key) ? rev[key] as Dictionary<string, object> : null;
+            if (got == null) { warn.Add(key + "=記録なし"); continue; }
+            string v = got.ContainsKey("verdict") ? got["verdict"] as string : null;
+            if (v == "fail")
+                stop.Add(key + "=不合格(" + (got.ContainsKey("at") ? got["at"] : "?") + ")");
+        }
+        if (warn.Count > 0)
+            Debug.LogWarning("[検図関門] " + id + " — " + string.Join(" / ", warn.ToArray())
+                + "
+  移行期間中なので止めないが、**ユーザーへ見せる前には必ず通すこと**。"
+                + "
+  検分に出して `python3 Tools/Sashizu/review_gate.py --record " + id + " <役> <pass|fail>`。");
+        if (stop.Count == 0) return null;
+        return "⛔ 検図関門が赤: " + string.Join(" / ", stop.ToArray())
+             + "
+  **不合格の指図を実装しない。**直して検分に出し直してから流すこと。"
+             + "
+  詳細: python3 Tools/Sashizu/review_gate.py " + id
+             + "
+  ⚠ どうしても流すなら理由をユーザーへ述べて、明示の指示を得ること。";
+    }
+
     public static string CheckScene(string id)
     {
         var hs = Houses[id];

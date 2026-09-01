@@ -23,7 +23,7 @@ CLAUDE.md のルーティング表に edo-niwashi は載っていたのに、**�
 ・**誰が要るか**は指図の中身から決まる(庭があれば庭方が要る)。名簿を人が書き足す必要はない
 ・`hash` は**その検分が見た範囲の中身**の指紋。指図を書き換えると hash がずれ、
   検分は自動で **stale(検め直しが要る)** になる。⛔ 通ったことにして先へ進めない
-・検分役は read-only なので自分で書けない。**呼んだ側(本文脈)が結果を書き戻す**義務がある
+・検分役は read-only なので自分で書けない。**呼んだ側(普請奉行)が結果を書き戻す**義務がある
 
 【使い方】
     python3 Tools/Sashizu/review_gate.py              # 全邸の関門を見る(赤があれば exit 1)
@@ -104,17 +104,32 @@ REVIEWERS = collections.OrderedDict([
     ("kenzu", dict(
         label="検図(edo-kenzu)",
         keys=None,
+        # ⭐ **生成器と文章も指紋に混ぜる**(2026-09-02・松江松平 検図 低7)。
+        #   ⛔ json だけを見ていると、**壊れているのが `.py` の配線や `kosho.md` の文**の
+        #   ときに関門をそのまま通る(実際に3度起きた — 図が `main()` から呼ばれていない/
+        #   検査が報告経路を持たない/撤回済みの主張が md に残って公開されている)。
+        files=("py", "md"),
         why="図として成立しているか(重なり・断面・造成・柱割り・建蔽率)",
         required=lambda d: True)),
     ("kosho", dict(
         label="考証(edo-kosho)",
         keys=None,
+        files=("py", "md"),
         why="史実・典拠・確度",
         required=lambda d: True)),
     ("niwashi", dict(
         label="庭方(edo-niwashi)",
+        # ⚠ **庭方が見る範囲は「植栽と園路」だけではない。**2026-09-01 に松江松平で、
+        #   池・水の系・築山・庭の断面・主視点・中仕切の規則が指紋のキーに入っておらず、
+        #   ⛔ **いま壊れている物がちょうどこの穴に落ちた**(指図を書き換えても検分が
+        #   「検め直し」にならなかった)。⭕ 庭の意匠が載るキーはすべて入れる。
         keys=["gardens", "planting", "plantRule", "tenkei",
-              "slopeArea", "slopePlanting", "routes"],
+              "slopeArea", "slopePlanting", "routes",
+              "sensui", "mizu", "tsukiyama", "gardenSections",
+              "viewpoints", "nakajikiriRule"],
+        # ⚠ 庭方は**範囲キー**を持つので按分する — `kosho.md` は庭方の範囲外(考証の文章)、
+        #   `.py` は庭の検査と図版そのものなので入れる。
+        files=("py",),
         why="庭が庭として成立しているか(主景・見所・園路・作庭の作法・植栽の時代考証)",
         required=lambda d: _needs_niwashi(d))),
 ])
@@ -166,7 +181,32 @@ def _needs_niwashi(d):
 VERDICTS = ("pass", "fail", "advisory")
 
 
-def fingerprint(doc, keys):
+def _side_digest(name, path, files):
+    """指図と一緒に検分される**外の実体**の指紋(生成器の `.py` と文章の `kosho.md`)。
+
+    ⛔ **json だけを指紋にすると、壊れているのが `.py` や `.md` のときに関門を素通りする**
+      (2026-09-02・松江松平 検図 低7)。実例が3つある — ①図が `main()` から呼ばれず
+      artifact に出ない ②検査が報告経路を持たず素の設計を一度も報告しない
+      ③撤回済みの主張が `kosho.md` に残ったまま html に公開される。どれも json は正しかった。
+
+    ⚠ 根は**指図の実体と同じ側**を採る(worktree で作業していれば worktree の `.py` / `.md`)。
+    ⚠ 無い実体は `-` として混ぜる(有→無の変化も指紋を動かす)。"""
+    sep = os.sep + "docs" + os.sep
+    root = path.split(sep)[0] if sep in path else REPO
+    out = []
+    for kind in files or ():
+        fp = (os.path.join(root, "Tools", "Sashizu", "build_%s_sashizu.py" % name)
+              if kind == "py" else
+              os.path.join(root, "docs", "Sashizu", "%s_kosho.md" % name))
+        if os.path.exists(fp):
+            with open(fp, "rb") as f:
+                out.append(kind + ":" + hashlib.sha256(f.read()).hexdigest()[:16])
+        else:
+            out.append(kind + ":-")
+    return out
+
+
+def fingerprint(doc, keys, name=None, path=None, files=()):
     """検分が見た範囲の指紋。⚠ `_` で始まる注記のキーは**除く** —
     文章を直しただけで検め直しを要求すると、関門がすぐ形骸化する。
     ⛔ **`reviews` 自身も除く。** 除かないと自己矛盾になる — record() が reviews を
@@ -187,8 +227,10 @@ def fingerprint(doc, keys):
             #   以後どれだけ庭が育っても指紋が動かず「通っている」ままになる。
             #   ⭕ 見る範囲が空なら指図全体で採る(=何か変われば検め直しになる)。
             #   2026-09-01 の点検で見つけた、EDO-0101 と同じ「関門が形骸化する」型の穴。
-            return fingerprint(doc, None)
+            return fingerprint(doc, None, name, path, files)
     blob = json.dumps(src, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    if name and path:
+        blob += "|" + "|".join(_side_digest(name, path, files))
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
 
 
@@ -208,7 +250,7 @@ def gate(name):
     for key, spec in REVIEWERS.items():
         if not spec["required"](doc):
             continue
-        want = fingerprint(doc, spec["keys"])
+        want = fingerprint(doc, spec["keys"], name, path, spec.get("files", ()))
         got = rev.get(key)
         if not got:
             # ⚠ **「通していない」と書かない。** この関門は 2026-09-01 に新設したので、
@@ -253,7 +295,7 @@ def record(name, key, verdict, note):
         doc = json.load(fp, object_pairs_hook=collections.OrderedDict)
     import datetime
     doc.setdefault("_reviews", (
-        "**検図関門。**この指図を誰が検めたか。⛔ 呼んだ側(本文脈)が結果を書き戻す — "
+        "**検図関門。**この指図を誰が検めたか。⛔ 呼んだ側(普請奉行)が結果を書き戻す — "
         "検分役は read-only で自分では書けない。`hash` はその検分が見た範囲の指紋で、"
         "指図を書き換えるとずれ、検分は自動で『検め直しが要る』になる。"
         "見張りは `python3 Tools/Sashizu/review_gate.py`。"
@@ -262,7 +304,8 @@ def record(name, key, verdict, note):
     rv[key] = collections.OrderedDict([
         ("at", datetime.date.today().isoformat()),
         ("verdict", verdict),
-        ("hash", fingerprint(doc, REVIEWERS[key]["keys"])),
+        ("hash", fingerprint(doc, REVIEWERS[key]["keys"], name, path,
+                             REVIEWERS[key].get("files", ()))),
         ("note", note or ""),
     ])
     with open(path, "w") as fp:

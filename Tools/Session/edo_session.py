@@ -1016,6 +1016,11 @@ def cmd_worktree(a):
 #   **worktree の CLAUDE.md を読む経路**は残る。これを1コマンドで揃える。
 SYNC_PATHS = ["Tools/Session", "CLAUDE.md", "docs/session-coordination.md",
               "docs/session-board.md", "docs/reporting-protocol.md", ".claude/hooks",
+              # ⭐ **役の定義そのものも配る(2026-09-02)。** これが無いと、worktree の
+              #   セッションが呼ぶ検分役・棟梁は**その worktree の古い定義**で動く。
+              #   EDO-0076(門番のツールが古い)と同型の穴で、しかも気づけない —
+              #   エージェントは黙って古い規則で仕事をして、結果だけを返してくる。
+              ".claude/agents", ".claude/commands", "docs/fushin-bugyo.md",
               # ⚠ Tools/Sashizu/ は各邸が自分の生成器を持つので**ディレクトリごとは配らない**。
               #   全邸共通の道具だけを名指しする(review_gate.py = 検図関門)。
               "Tools/Sashizu/review_gate.py", "Tools/Sashizu/review_ledger.py"]

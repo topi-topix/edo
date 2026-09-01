@@ -66,7 +66,7 @@ python3 Tools/Session/build_board_html.py
 
 - **巡回・翻訳・異常検知・バックストップ** → 私(edo-sakuji-bugyo / 作事奉行)
 - **claim の衝突を自動で止める** → `Tools/Session/edo_session.py` の門番(人ではなく機構)
-- **大方針を決める** → 本文脈(ユーザーとの対話)
+- **大方針を決める** → 普請奉行(ユーザーとの対話)
 - **指図を書く** → `edo-sashizukata` / **検める** → `edo-kosho` `edo-kenzu` `edo-niwashi`
 - **Unity へ建てる** → `edo-toryo` / **建てた後の検査** → `edo-fushin-qa`
 - **在庫照会 / 部材の新造** → `edo-zaiko` / `edo-buzai`

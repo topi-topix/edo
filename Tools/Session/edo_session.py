@@ -35,6 +35,12 @@ def _common_git_dir():
 LOCKS = os.path.join(_common_git_dir(), "edo-locks")
 TTL_MIN = 45.0
 RESOURCES = ("unity", "terrain", "git-index", "assets")
+# ⚠ **排他ではない名乗り。** 「メインのチェックアウトに居るので worktree へ回さないでくれ」
+#   という意思表示で、複数のセッションが同時に持ってよい。check_write が見ている。
+#   ⛔ ここに無いと `claim --resources main` が「不明な資源」で落ちる —
+#      門番自身の拒否メッセージと docs/session-coordination.md が案内している逃げ道が、
+#      **案内どおりに打つと失敗する**状態だった。
+PSEUDO_RESOURCES = ("main",)
 # ⚠ フック(.claude/hooks/edo_guard.py)が session_id を切り詰める長さと**必ず一致させる**。
 SID_LEN = 12
 
@@ -284,21 +290,89 @@ def rel(p):
     return os.path.relpath(p, ROOT) if p.startswith(ROOT) else p
 
 
+_ESTATES = None
+
+
+def estate_names():
+    """指図を持つ敷地の名前(長い順)。⚠ **main だけを見ない** — 各邸は worktree で作業し、
+    新しい邸の指図はマージされるまで main に無い(京極・丹羽左京・内藤紀伊がこの状態だった)。"""
+    global _ESTATES
+    if _ESTATES is not None:
+        return _ESTATES
+    names, main_root = set(), os.path.dirname(_common_git_dir())
+    roots = [main_root]
+    wr = os.path.join(main_root, ".claude", "worktrees")
+    if os.path.isdir(wr):
+        roots += [os.path.join(wr, d) for d in sorted(os.listdir(wr))]
+    for rt in roots:
+        try:
+            for fn in os.listdir(os.path.join(rt, "docs", "Sashizu")):
+                m = re.match(r"([A-Za-z0-9_]+)_sashizu\.json$", fn)
+                if m:
+                    names.add(m.group(1))
+        except OSError:
+            pass
+    # ⭐ **指図がまだ無い敷地も名前として扱う。** worktree が切られている=普請場が立っている
+    #   ということで、起票も claim もその時点から要る(内藤紀伊はこの状態だった)。
+    #   ⚠ サブエージェントの残骸(`recursing-bohr-df1335` の類)を拾わないよう、
+    #      snake_case の小文字だけを敷地とみなす。
+    if os.path.isdir(wr):
+        for d in os.listdir(wr):
+            if re.match(r"^[a-z][a-z0-9_]*$", d) and os.path.isdir(os.path.join(wr, d, "docs")):
+                names.add(d)
+    _ESTATES = sorted(names, key=len, reverse=True)   # 長い名前から当てる
+    return _ESTATES
+
+
 def domain(p):
-    """指図・ビルダーは**屋敷の名前**を単位にまとめる(docs と Tools が対で動くので)。"""
+    """指図・ビルダーは**屋敷の名前**を単位にまとめる(docs と Tools が対で動くので)。
+
+    ⛔ **名前を `[a-z0-9]+` で切ってはならない。** 屋敷の識別子は官位まで入れる決まりで
+    (CLAUDE.md 規則15)、`matsudaira_dewa` `kyogoku_bitchu` `niwa_sakyo` `naito_kii` のように
+    **下線を含む**。下線の手前で切ると `sashizu:kyogoku` になり、`start kyogoku_bitchu` が
+    名乗った `sashizu:kyogoku_bitchu` と**永久に一致しない** —
+      ① 他セッションがその邸の指図を書いても covers() が None を返して**素通りする**
+         (門番が防ぐはずの 2026-08-24 の事故そのもの)
+      ② worktree の振り分けが `sashizu:kyogoku` を作りにいき、
+         同じ邸に worktree が2つ生えて別々の場所で同じ指図を編集する
+    ⭕ 実在する指図の名前(estate_names)から**最長一致**で採る。"""
     r = rel(p).replace(os.sep, "/")
+    for pre in ("docs/Sashizu/", "Tools/Sashizu/build_"):
+        if r.startswith(pre):
+            tail = r[len(pre):]
+            for n in estate_names():
+                if tail == n or tail.startswith(n + "_") or tail.startswith(n + "."):
+                    return "sashizu:" + n
     m = re.match(r"docs/Sashizu/([a-z0-9]+)_", r) or \
         re.match(r"Tools/Sashizu/build_([a-z0-9]+)_sashizu\.py", r)
     return "sashizu:" + m.group(1) if m else None
+
+
+def dom_match(g, d):
+    """claim の名乗り g は、いま触ろうとしている屋敷 d を覆うか。
+    ⭐ 短い旧称(`sashizu:matsudaira`)は長い正式名(`sashizu:matsudaira_dewa`)を覆う —
+    覆いすぎ(止めすぎ)は摩擦で済むが、覆い漏れは他人の編集を消す。"""
+    return bool(d) and (g == d or (g.startswith("sashizu:") and d.startswith(g + "_")))
 
 
 def covers(claim, path):
     r = rel(path).replace(os.sep, "/")
     d = domain(path)
     for g in claim.get("paths", []):
-        if g == r or fnmatch.fnmatch(r, g) or (d and g == d):
+        if g == r or fnmatch.fnmatch(r, g) or dom_match(g, d):
+            return g
+        # ⭐ **ディレクトリを名乗ったら、その下のファイルも守る。**
+        #   これが無いと `claim Tools/Session` が1バイトも守らない(完全一致か fnmatch のみ
+        #   だったため。`Tools/Session/*` と書いた人だけが守られる、という気づけない差だった)。
+        if not g.startswith("sashizu:") and "*" not in g and r.startswith(g.rstrip("/") + "/"):
             return g
     return None
+
+
+def domain_holders(dom, me, ttl=TTL_MIN):
+    """その屋敷を名乗っている**他の**セッション(ファイルではなく屋敷単位で引く)。"""
+    return [c for c in load_all(ttl) if c["session"] != me
+            and any(dom_match(g, dom) for g in c.get("paths", []))]
 
 
 def holders(path, me, ttl=TTL_MIN):
@@ -341,8 +415,66 @@ def _force_release(session, resources):
     atomic_write_json(c, fp)
 
 
+def take_resource(me, r, ttl=TTL_MIN):
+    """資源 r を取ってよいかを**一箇所で**決める。戻り値 (可否, 添える文言)。
+
+    ⛔ **入口ごとに規則が違ってはならない。** 2026-09-01 の点検で、`check-unity`(Unity MCP を
+    叩いた経路)だけが待ち行列の予約と放置の引き取りを見ており、`start --unity` と
+    `claim --resources unity` は**素通りで横取りできた**。規則どおり `wait` で並んで予約を
+    得たセッションが、後から来た `start --unity` に追い越される —
+    「⛔ 早い者勝ちにしない」という待ち行列の狙いが正面から破れていた。
+    ⭕ 3つの入口すべてがこの関数を通る。"""
+    if r in PSEUDO_RESOURCES:
+        return True, ""
+    cs = load_all(ttl)
+    if any(c["session"] == me and r in c.get("resources", []) for c in cs):
+        return True, ""
+    ok, h = q_may_take(r, me)
+    if not ok:
+        return False, ("⛔ 門番: %s は**待ち行列の先頭 %s** に予約が出ている(残り最大 %.0f 分)。\n"
+                       "   割り込まないこと。`edo_session.py wait --resources %s` で並ぶ。"
+                       % (r, h["session"], RESERVE_MIN - (now() - h["reserved"]) / 60.0, r))
+    hold = [c for c in cs if c["session"] != me and r in c.get("resources", [])]
+    if hold and not res_stale(hold[0], r):
+        n = q_enqueue(r, me)
+        return False, ("⛔ 門番: %s は**セッション %s** が使用中(最終使用 %.0f 分前)。\n   %s\n"
+                       "   → **待ち行列に並べた(%d 番目)。** 空けば先頭のあなたに %.0f 分の予約が出る。\n"
+                       "   順番は `status`。降りるなら `unwait --resources %s`。"
+                       % (r, hold[0]["session"], res_idle(hold[0], r),
+                          hold[0].get("note", ""), n, RESERVE_MIN, r))
+    msg = ""
+    if hold:      # 掴んだままだが一定時間触っていない → 明け渡させる(心拍では判定できない)
+        _force_release(hold[0]["session"], [r])
+        msg = ("⚠ 門番: %s は %s が握ったままだったが、%.0f 分使われていないので引き取った。\n"
+               "   作業が終わったら `edo_session.py release --resources %s` を打つこと。"
+               % (r, hold[0]["session"], res_idle(hold[0], r), r))
+    q_drop(r, me)
+    return True, msg
+
+
+def reserve_free_resources(ttl=TTL_MIN):
+    """保持者が居ないのに待ち行列だけ残っている資源を、先頭へ予約する。
+
+    ⚠ 引き渡し(_hand_over)は `release` を打ったときにしか走らない。心拍が途絶えて claim ごと
+    消えた場合や、資源だけ落ちた場合は**誰も予約を出さない**ので、待っている側は空いたことに
+    気づけない。`status`(挨拶フックと作事奉行の巡回が毎回打つ)で拾い直す。"""
+    cs = load_all(ttl)
+    out = []
+    for r, ws in q_load().items():
+        if ws[0].get("reserved"):
+            continue
+        if not [c for c in cs if r in c.get("resources", []) and not res_stale(c, r)]:
+            w = q_reserve(r)
+            if w:
+                out.append((r, w))
+    return out
+
+
 # ────────────────────────────────────────────── サブコマンド
 def cmd_status(a):
+    for r, w in reserve_free_resources(a.ttl):
+        print("⭐ %s が空いている(保持者なし)。待ち行列の先頭 %s に %.0f 分の予約を出した。"
+              % (r, w["session"], RESERVE_MIN))
     cs = load_all(a.ttl)
     if not cs:
         print("門番: 生きている claim は無し")
@@ -413,20 +545,18 @@ def cmd_claim(a):
         if k not in c["paths"]:
             c["paths"].append(k)
     for r in a.resources:
-        if r not in RESOURCES:
-            print("不明な資源: %s(%s のいずれか)" % (r, "/".join(RESOURCES)), file=sys.stderr)
+        if r not in RESOURCES and r not in PSEUDO_RESOURCES:
+            print("不明な資源: %s(%s のいずれか)"
+                  % (r, "/".join(RESOURCES + PSEUDO_RESOURCES)), file=sys.stderr)
             return 1
-        h = [x for x in load_all(a.ttl) if x["session"] != me and r in x.get("resources", [])]
-        if h:
-            print("⛔ 資源 %s は %s が押さえている。先に解放してもらうこと" % (r, h[0]["session"]),
-                  file=sys.stderr)
+        # ⭐ 予約の尊重・放置の引き取り・待ち行列の掃除は take_resource が一手に見る
+        ok, msg = take_resource(me, r, a.ttl)
+        if msg:
+            print(msg, file=sys.stderr)
+        if not ok:
             return 2
         if r not in c["resources"]:
             c["resources"].append(r)
-        # ⚠ `claim` で直接取得したときも待ち行列から自分を落とす。落とさないと、
-        #   `check-unity` を経ずに取得したセッションが「保持者なのに順番待ち」のまま残り、
-        #   status の待ち行列の人数が水増しされる(2026-08-31、松平の 180分待ち表示で発覚)。
-        q_drop(r, me)
     # ⚠ **既存の記録へ追記するときは黙って進まない(EDO-0044・土井の要望)。**
     #   取り違えたまま note を上書きすると、相手は自分の claim が化けたことに気づけない。
     if was and (a.note and old_note and a.note != old_note):
@@ -539,6 +669,94 @@ def cmd_check_write(a):
 
 BLENDER = re.compile(r"(?:^|[;&|(\n]\s*)(?:\S*/)?blender\b")
 
+# ────────────────────────────── Bash から書かれるファイル(2026-09-01 の点検で塞いだ穴)
+#   ⛔ **Write/Edit だけ見張っても守れない。** 門番は Edit を止めるが、同じファイルへの
+#   `sed -i` / `cat > …` / `python3 …build_<邸>_sashizu.py` は**素通りしていた**。
+#   エージェントが Bash で編集する経路(sed・heredoc・生成器の実行)は日常的に使われており、
+#   門番が防ぐと謳っている 2026-08-24 の事故(他人の編集中の指図を壊す)がそのまま起きる。
+#   ⚠ 判定は check-write と**同じ規則**(他人の claim を覆うときだけ止める)。無主のパス・
+#   自分の領分・scratchpad は素通りする。
+_HEREDOC = re.compile(r"<<-?\s*[\"']?([A-Za-z_][A-Za-z0-9_]*)[\"']?")
+_REDIR = re.compile(r"(?<![0-9&<>])>>?\s*(\"[^\"]+\"|'[^']+'|[^\s;&|<>()]+)")
+# 引数がそのまま書き換え先になるコマンド(いずれも「壊す」側)
+_ARG_WRITERS = {"tee": "all", "rm": "all", "truncate": "all", "patch": "all",
+                "mv": "last", "cp": "last", "install": "last", "rsync": "last"}
+
+
+def _strip_heredocs(cmd):
+    """heredoc の**中身**を落とす。⚠ 落とさないと、文書に書いた `> docs/…` のような
+    例示を「書き込み先」と誤読する。門番の原則「コマンド位置に現れたものだけを見る」。"""
+    out, lines, i = [], cmd.split("\n"), 0
+    while i < len(lines):
+        ln = lines[i]
+        out.append(ln)
+        m = _HEREDOC.search(ln)
+        i += 1
+        if m:
+            tag = m.group(1)
+            while i < len(lines) and lines[i].strip() != tag:
+                i += 1
+            i += 1
+    return "\n".join(out)
+
+
+def bash_write_targets(cmd):
+    """この Bash が書き換える(かもしれない)ファイルの列。取りこぼしより誤検出を嫌う。"""
+    import shlex
+    targets = []
+    for seg in re.split(r"[;&|\n]+|\|\|", _strip_heredocs(cmd)):
+        seg = seg.strip()
+        if not seg:
+            continue
+        for m in _REDIR.finditer(seg):
+            t = m.group(1).strip("\"'")
+            if t and not t.startswith(("&", "/dev/", "$")):
+                targets.append(t)
+        try:
+            argv = shlex.split(seg)
+        except ValueError:
+            continue
+        if not argv:
+            continue
+        cmd0 = os.path.basename(argv[0])
+        args = [x for x in argv[1:] if not x.startswith("-")]
+        if cmd0 == "sed" and any(x == "-i" or x.startswith("--in-place") or
+                                 (x.startswith("-") and "i" in x[1:] and not x.startswith("--"))
+                                 for x in argv[1:]):
+            targets += args[1:] if len(args) > 1 else []      # 先頭は式(スクリプト)
+        elif cmd0 in _ARG_WRITERS and args:
+            targets += args if _ARG_WRITERS[cmd0] == "all" else args[-1:]
+    # 展開が要るもの・明らかにパスでないものは見ない
+    return [t for t in targets if t and not any(ch in t for ch in "*?$`")]
+
+
+def _check_bash_writes(cmd, me, ttl):
+    """Bash が他人の押さえたファイルを書こうとしていないか。止めるなら文言を返す。"""
+    for t in bash_write_targets(cmd):
+        p = t if os.path.isabs(t) else os.path.join(ROOT, t)
+        hs = holders(p, me, ttl)
+        if hs:
+            c, g = hs[0]
+            return ("⛔ 門番: この Bash は `%s` を書き換える。**別のセッション %s** が押さえている"
+                    "(claim `%s`／心拍 %.0f 分前)。\n   %s\n"
+                    "   ⚠ Write/Edit だけでなく **sed -i・リダイレクト・生成器の実行**も見ている"
+                    "(2026-09-01 に塞いだ穴)。\n"
+                    "   → 待つか、`edo_session.py release %s` を相手に頼むこと。"
+                    % (rel(p), c["session"], g, (now() - c["heartbeat"]) / 60.0,
+                       c.get("note", ""), g))
+    # 生成器の実行は、書き出す先(指図の json/html)がコマンドに現れないので名前から引く
+    for m in re.finditer(r"build_([A-Za-z0-9_]+)_sashizu\.py", _strip_heredocs(cmd)):
+        dom = "sashizu:" + m.group(1)
+        hs = domain_holders(dom, me, ttl)
+        if hs:
+            return ("⛔ 門番: `%s` の生成器を走らせようとしている。**別のセッション %s** が"
+                    "その屋敷を押さえている(心拍 %.0f 分前)。\n   %s\n"
+                    "   生成器は指図の json/html を丸ごと書き直すので、相手の編集が消える。\n"
+                    "   → 待つか、`edo_session.py release %s` を相手に頼むこと。"
+                    % (dom, hs[0]["session"], (now() - hs[0]["heartbeat"]) / 60.0,
+                       hs[0].get("note", ""), dom))
+    return None
+
 
 def cmd_check_bash(a):
     me = sid(a.session)
@@ -569,6 +787,9 @@ def cmd_check_bash(a):
     for pat, why in BANNED:
         if re.search(pat, cmd):
             return _deny("⛔ 門番: この git の打ち方は共有ワークツリーでは禁止。\n   %s" % why)
+    why = _check_bash_writes(cmd, me, a.ttl)
+    if why:
+        return _deny(why)
     m = re.search(CMDPOS + r"git\s+commit\b", cmd)
     if m and not re.search(CMDPOS + r"git\s+commit\b[^|;&]*(--amend|-C\b|--continue)", cmd):
         staged = subprocess.run(["git", "-C", ROOT, "diff", "--cached", "--name-only"],
@@ -596,35 +817,14 @@ def cmd_check_unity(a):
         touch(me, resources=["unity"])   # 自分の使用時刻を打ち直す
         q_drop("unity", me)  # ⚠ 保持者自身が待ち行列に残ると人数が水増しされる(2026-08-31 実測)
         return 0
-    ok, h = q_may_take("unity", me)
-    if not ok:                            # 空いていても予約者が居るなら割り込ませない
-        return _deny(
-            "⛔ 門番: Unity は**待ち行列の先頭 %s** に予約が出ている(残り最大 %.0f 分)。\n"
-            "   `edo_session.py wait --resources unity` で並ぶこと。"
-            % (h["session"], RESERVE_MIN - (now() - h["reserved"]) / 60.0))
-    if not hold:
-        q_drop("unity", me)
-        touch(me, resources=["unity"])
-        return 0
-    # 掴んだままだが**一定時間 Unity を触っていない** → 明け渡させる(心拍では判定できない)
-    if res_stale(hold[0], "unity"):
-        _force_release(hold[0]["session"], ["unity"])
-        q_drop("unity", me)
-        touch(me, resources=["unity"])
-        print("⚠ 門番: Unity は %s が握ったままだったが、%.0f 分使われていないので引き取った。\n"
-              "   作業が終わったら `edo_session.py release --resources unity` を打つこと。"
-              % (hold[0]["session"], res_idle(hold[0], "unity")))
-        return 0
-    n = q_enqueue("unity", me, a.session or "")
-    return _deny(
-        "⛔ 門番: Unity は**セッション %s** が使用中(最終使用 %.0f 分前)。\n   %s\n"
-        "   Unity の実体は1つで、シーン・プレハブ・地形を共有している。"
-        "**地形の編集は Undo の外**なので、同時に触ると復旧できない。\n"
-        "   → **待ち行列に並べた(%d 番目)。** 空けば先頭のあなたに %.0f 分の予約が出る。\n"
-        "   順番は `edo_session.py status` で見える。降りるなら "
-        "`edo_session.py unwait --resources unity`。"
-        % (hold[0]["session"], res_idle(hold[0], "unity"), hold[0].get("note", ""),
-           n, RESERVE_MIN))
+    ok, msg = take_resource(me, "unity", a.ttl)
+    if not ok:
+        return _deny(msg + "\n   ⚠ Unity の実体は1つで、シーン・プレハブ・地形を共有している。"
+                           "**地形の編集は Undo の外**なので、同時に触ると復旧できない。")
+    if msg:
+        print(msg)
+    touch(me, resources=["unity"])
+    return 0
 
 
 def cmd_steal(a):
@@ -742,10 +942,12 @@ def cmd_start(a):
     if a.unity or a.blender:
         want = ["unity"] if a.unity else ["assets"]
         for w in want:
-            h = [x for x in load_all(a.ttl) if x["session"] != me and w in x.get("resources", [])]
-            if h:
-                print("⛔ %s は %s が使用中(%s)。終わるのを待つこと"
-                      % (w, h[0]["session"], h[0].get("note", "")), file=sys.stderr)
+            # ⭐ `check-unity` と同じ規則で取る(予約を追い越さない・放置は引き取る)。
+            #   ⛔ ここだけ独自判定にしていたため、`wait` で並んだ側を横取りできた。
+            ok, msg = take_resource(me, w, a.ttl)
+            if msg:
+                print(msg, file=sys.stderr)
+            if not ok:
                 return 2
         for r in want + ["main"]:
             if r not in c["resources"]:
@@ -859,6 +1061,19 @@ def cmd_sync_tools(a):
                     if _copy_if_diff(s2, d2):
                         changed.append(os.path.join(rp, fn))
             else:
+                # ⭐ **名指しした1ファイルは、無ければ作る。** SYNC_PATHS に個別に挙げてあるのは
+                #   「全邸共通の道具」で、無い worktree は**その道具を使えない**まま動く。
+                #   2026-09-01 実測: 検図関門(review_gate.py)が doi/京極/内藤/岡部の4つの
+                #   worktree に無く、配布から静かに落ちていた(既存ファイルしか更新しない実装で、
+                #   名指しした意図と食い違っていた)。⚠ ディレクトリの一括配布は増やさないまま。
+                if not os.path.exists(dst) and os.path.isdir(os.path.dirname(dst)):
+                    try:
+                        io.open(dst, "w", encoding="utf-8").write(
+                            io.open(src, encoding="utf-8").read())
+                        changed.append(rp + "(新規)")
+                        continue
+                    except Exception:
+                        pass
                 if os.path.exists(dst) and _copy_if_diff(src, dst):
                     changed.append(rp)
         if changed:

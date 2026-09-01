@@ -22,10 +22,17 @@
 import argparse, json, os, re, sys, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from edo_session import sid, _common_git_dir, atomic_write_json
+from edo_session import sid, _common_git_dir, atomic_write_json, estate_names
 
 BOARD = os.path.join(_common_git_dir(), "edo-board")
-ESTATES = ("matsudaira_dewa", "sanno", "okabe", "doi", "sotobori", "cross", "infra")
+# ⛔ **敷地の名簿を手で持たない。** 固定の tuple にしていたため、あとから起きた邸
+#   (京極備中守・丹羽左京・内藤紀伊)は `post --estate <邸>` が argparse で弾かれ、
+#   **掲示板に一言も起票できなかった**(2026-09-01 の点検で発覚。該当3邸の issue は 0 件)。
+#   横断影響の伝達は起票が記録の本体なので、名簿の抜けはそのまま「記録が無い」に化ける。
+#   ⭕ 指図の実体(main と worktree の docs/Sashizu/*_sashizu.json)から毎回引く。
+_FIXED = ("cross", "infra")          # 邸ではない置き場(横断・普請場の機構そのもの)
+_LEGACY = ("matsudaira_dewa", "sanno", "okabe", "doi", "sotobori")  # 既存 issue の後方互換
+ESTATES = tuple(sorted(set(estate_names()) | set(_FIXED) | set(_LEGACY)))
 TYPES = ("task", "decision", "blocker", "info")
 STATUSES = ("open", "awaiting-user", "in-progress", "done", "dropped")
 LIVE = ("open", "awaiting-user", "in-progress")

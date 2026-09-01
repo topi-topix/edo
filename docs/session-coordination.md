@@ -44,8 +44,10 @@ sparse worktree には `Tools/` も入るので `python3 Tools/Session/edo_sessi
 無く(`9677eea` 以降に main へ入った)、身元判定の是正(`81a5250`)も届いていなかった。
 `start` は worktree の古い判定で「使用中」、`wait` は同じ worktree の古い版で「invalid choice」——
 **同じセッションの中で、コマンドごとに違う結果が返った**(松平・外堀の両セッションが発見・EDO-0076)。
-`edo_board.py` も同様で、worktree 側の `ESTATES` に新しい邸が無ければ `post --estate <新邸>` が
-弾かれる。
+`edo_board.py` の敷地の名簿は 2026-09-01 に**指図の実体から毎回引く**ようになった
+(それまでは固定の tuple で、京極備中守・丹羽左京・内藤紀伊は `post --estate <邸>` が弾かれ、
+**掲示板に一言も起票できなかった**)。⚠ ただし worktree 側の古い写しを走らせれば古い名簿のままなので、
+main の絶対パスで叩く原則は変わらない。
 
 フック(`edo_guard.py`/`edo_greet.py`)は 2026-08-31 に、git の common-dir から main の絶対パスを
 解決して**常に main の Tools/Session/ を実行する**よう直した。**手で叩くときは同じことを自分でやる**:
@@ -87,7 +89,9 @@ python3 /Users/…/.claude/worktrees/sanno/Tools/Sashizu/build_sanno_sashizu.py
 
 ⚠ **一人で作業しているときは回さない。** 競合していないのにメインから追い出すのは邪魔なだけ。
 ⚠ **Unity を握っているセッションも回さない**(計測・実装のためメインに居るのが正しい)。
-⛔ どうしてもメインで書きたいなら `claim --resources main`。
+⛔ どうしてもメインで書きたいなら `claim --resources main`
+(⚠ 2026-09-01 まで「不明な資源」で**弾かれていた** — 門番自身が案内する逃げ道が塞がっていた。
+`main` は排他ではない名乗りで、複数のセッションが同時に持ってよい)。
 
 ### 指図用の worktree の中身
 
@@ -131,6 +135,11 @@ python3 Tools/Session/edo_session.py wait --resources unity --note "土井の接
 
 ⛔ **早い者勝ちにしない。** 空いた瞬間に別のセッションが割り込むと待っていた側が延々待つので、
 門番は**先頭の1名にだけ15分の予約**を出し、その間は他が取れない。
+⚠ 2026-09-01 まで、予約を見ていたのは **Unity MCP を叩いた経路だけ**で、`start --unity` と
+`claim --resources unity` は**素通りで横取りできた** — 規則どおり並んだ側が、後から来た
+`start --unity` に追い越されていた。いまは3つの入口が同じ関数(`take_resource`)を通る。
+⭐ 保持者が心拍ごと落ちた場合も、次の `status` で先頭に予約が出る(`release` を打たずに
+落ちると誰も引き渡さなかった)。
 Unity MCP を叩いて弾かれた場合は**自動で行列に並ぶ**(`wait` を打ち忘れても効く)。
 降りるときは `unwait --resources unity`。順番は `status` に出る。
 
@@ -180,7 +189,13 @@ python3 Tools/Session/edo_session.py worktrees   # どのワークツリーが�
 python3 Tools/Session/edo_session.py release     # 自分の claim を全部解く
 ```
 
-- 屋敷は **`sashizu:<名>`** で名乗る(`docs` と `Tools` の両方を一度に押さえる)
+- 屋敷は **`sashizu:<名>`** で名乗る(`docs` と `Tools` の両方を一度に押さえる)。
+  ⚠ **名は官位まで**(`matsudaira_dewa` / `kyogoku_bitchu` / `niwa_sakyo`)。2026-09-01 まで
+  門番は名前を最初の下線で切っており、`start kyogoku_bitchu` の名乗り `sashizu:kyogoku_bitchu` と
+  ファイルから導いた `sashizu:kyogoku` が**永久に一致せず、下線を含む名の邸は指図が
+  1バイトも守られていなかった**。いまは実在する指図の名前から最長一致で採る
+- ディレクトリを名乗れば**その下のファイルも守る**(2026-09-01 まで完全一致か glob だけで、
+  `claim Tools/Session` は何も守っていなかった)
 - **名乗り忘れても効く。** ファイルを書いた時点で、そのパスを自動で claim する
 - **45分 心拍が途絶えれば自動で失効**する。release を忘れても詰まらない
 
@@ -194,6 +209,8 @@ python3 Tools/Session/edo_session.py release     # 自分の claim を全部解�
 | 状況 | 挙動 |
 |---|---|
 | 他のセッションが押さえたファイルを Edit / Write | ⛔ 止める。誰が・何をしているかを出す |
+| **他のセッションが押さえたファイルを Bash で書く**(`sed -i` / `>` `>>` / `tee` / `mv` / `cp` / `rm`) | ⛔ 止める(2026-09-01 に塞いだ穴。それまで**素通りだった**) |
+| **他のセッションが押さえた屋敷の生成器を走らせる**(`python3 …/build_<邸>_sashizu.py`) | ⛔ 止める。生成器は指図を丸ごと書き直すので相手の編集が消える |
 | 他のセッションが Unity 使用中に Unity MCP を叩く | ⛔ 止める。⚠ 読むだけのもの(`read_console` ほか)は通す |
 | `git add -A` / `git add .` / `git commit -a` | ⛔ 常に止める。**パスを明示すること** |
 | `git reset --hard` / `git clean -f` / `git stash` / `git rebase` / 強制 push | ⛔ 常に止める |
@@ -202,6 +219,13 @@ python3 Tools/Session/edo_session.py release     # 自分の claim を全部解�
 
 ⚠ **止めるのはコマンド位置に現れたものだけ。** 文字列の中の例示や説明文は拾わない
 (そうしないと、この文書を書くだけで作業が止まる — 実際に踏んだ)。
+Bash の書き込み先を見るときも **heredoc の中身は落としてから**走査する
+(`cat > note.md <<EOF` の本文に他人のパスが出てきても止めない)。
+
+⚠ **判定の規則は Edit と同じ** — 他人の claim を覆うときだけ止まる。無主のパス・自分の領分・
+scratchpad は素通りする。⛔ **「Bash なら通る」を回避路として使わない** — 塞いだのは、
+エージェントが `sed -i` や heredoc で編集する経路が日常化していて、**門番が守っていると
+書いてある区画が実際には守られていなかった**ため(2026-09-01 の点検)。
 
 ## 引き継ぐとき
 

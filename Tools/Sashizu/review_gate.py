@@ -181,6 +181,13 @@ def fingerprint(doc, keys):
         for k in keys:
             if k in doc:
                 src[k] = doc[k]
+        if not src:
+            # ⛔ **空の指紋は全邸で同じ定数になる。** 庭方が要ると判定されたのに庭のキーが
+            #   まだ1つも無い段階(棟や郭の名前だけで庭が現れている段階)で pass を記録すると、
+            #   以後どれだけ庭が育っても指紋が動かず「通っている」ままになる。
+            #   ⭕ 見る範囲が空なら指図全体で採る(=何か変われば検め直しになる)。
+            #   2026-09-01 の点検で見つけた、EDO-0101 と同じ「関門が形骸化する」型の穴。
+            return fingerprint(doc, None)
     blob = json.dumps(src, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
 

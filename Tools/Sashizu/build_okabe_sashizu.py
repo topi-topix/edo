@@ -3971,6 +3971,166 @@ def fig(h, svg, cap=None, legend=None):
         h.append('<p class="cap">%s</p>' % cap)
 
 
+# ---------------------------------------------------------------- 生成器が正典へ書き戻す欄
+# ⚠ **「その物が在ること」は入力、「その寸法」が出力。** 両方消すと生成器が処理を飛ばして
+#   偽陽性になる(辺の別・断面の切り位置・run の存在は入力側)。
+# ⛔ ここに挙げた欄は**人が json へ書かない**。書いても次の組み立てで上書きされる。
+GEN_FIELDS = {
+    "sections": ("natural",),          # 断面の現地形線 — 復元地盤から毎回引き直す
+}
+# 門の開口に接する run の端だけは、開口の幅から決まる**従属値**。
+# ⛔ 全部の s0/s1 を消すと run の位置そのものが消えるので、**開口側の端だけ**を検査する。
+GEN_FIELDS_GATE = ("s0", "s1")
+
+
+def fix_gate_runs(x):
+    """**門の開口に接する run の端を、門から引き直す。**
+    2026-09-01 六巡目: 番所の幅を 1.5間へ直した拍子に桁行が 16.360→16.362 になり、
+    静的に持っていた両袖の s(6.19 / 22.55)が 0.001m ずつ食い込んで重なりが2件出た。
+    ⛔ 端を動かして従属値を引き直さない型の再発。開口の両端は毎回ここで算出する。"""
+    ge9, gs9 = x["gate"]["edge"], x["gate"]["s"]
+    half9 = x["gate"]["plan"]["monW"] / 2.0
+    for r9 in x["runs"]:
+        if r9.get("edge") != ge9:
+            continue
+        if abs(r9["s1"] - (gs9 - half9)) < 0.20:
+            r9["s1"] = round(gs9 - half9, 3)
+        if abs(r9["s0"] - (gs9 + half9)) < 0.20:
+            r9["s0"] = round(gs9 + half9, 3)
+    return x
+
+
+def fix_edge_profile(x):
+    """**外周の地盤を毎回取り直して書き戻す。** 2026-08-26 土井 EDO-0024 の警告
+    (「境界は正本で測る」が復元の箱の位置でたまたま成り立っているだけだと、箱が動いた瞬間に
+     黙って追随しなくなる)を当家に当てたら、`edgeProfile` が json に静的で
+    **いまの復元地盤と最大 5.86m ずれていた**(2026-08-23 の値のまま12巡通っていた)。
+    run の天端・基壇の露出・展開図の地盤線・断面の足元がすべてこれを読む。"""
+    _dem_at(x, 0, 0)
+    P9 = x["polygon"]
+    ep = {}
+    for i9 in range(len(P9)):
+        a9, b9 = P9[i9], P9[(i9 + 1) % len(P9)]
+        L9 = math.hypot(b9[0] - a9[0], b9[1] - a9[1])
+        pr9 = []
+        s9 = 0.0
+        while s9 <= L9 + 1e-9:
+            t9 = (s9 / L9) if L9 else 0.0
+            x9 = a9[0] + (b9[0] - a9[0]) * t9
+            z9 = a9[1] + (b9[1] - a9[1]) * t9
+            y9 = _world_at(x, *RGrid(x).L(x9, z9))
+            if y9 is not None:
+                pr9.append([round(s9, 1), round(y9, 2)])
+            s9 += 4.0
+        if pr9:
+            ep[str(i9)] = pr9
+    if ep:
+        x["edgeProfile"] = ep
+    return x
+
+
+def fix_sections(x):
+    """断面の現地形線を江戸期の復元地盤から引き直す。
+    ⚠ 2026-08-24 検図: 静的な `natural` と生成器の DEM が別々の値を持ち、崖の肩で 0.72m
+      食い違っていた。**同じ地形の二系統を残さない。**"""
+    for sec9 in x["sections"]:
+        nat9 = []
+        f9, t9 = _sec_span(x, sec9)
+        w9 = f9
+        while w9 <= t9 + 1e-9:
+            u9, v9 = (sec9["at"], w9) if sec9["axis"] == "u" else (w9, sec9["at"])
+            y9 = _dem_at(x, u9, v9)
+            if y9 is not None:
+                nat9.append([round(w9, 2), round(y9, 2)])
+            w9 += 1.5
+        if nat9:
+            sec9["natural"] = nat9
+    return x
+
+
+def pipeline(x):
+    """算出値を正典へ書き戻す一連のパス。**ここが唯一の定義**(土井 build_doi_sashizu.py の作法)。
+    ⛔ 往復試験の台本に**同じ手順の写し**を持たせない — 生成器にパスを足したとき、
+      台本だけが古いままになって偽の不一致を出す(2026-08-25 土井 検図14巡)。"""
+    x = fix_gate_runs(x)
+    x = fix_edge_profile(x)
+    x = fix_sections(x)
+    return x
+
+
+def roundtrip_check(raw, pipeline):
+    """**生成器が書く欄を全消去 → 再生成 → 正典と一致するか。**
+
+    ⚠ 入力側を動かす感度試験では、**生成器が消さない出力欄は どの変異でも生き延びる**。
+    土井が 2026-08-25 の検図10巡でこれに刺された — 前の版が書いた値が残り続け、
+    2本の検査を黙らせていて「機械検査すべて0件」が**古い値に支えられていた**。
+    当家も `edgeProfile` を 3日間 5.86m 古いまま12巡通している(EDO-0026)。
+    ⛔ 従属値を人間が引き直すのを覚えている必要はない。**消して組み直して一致を見る。**
+
+    門の開口に接する run の端は消せない(run の位置そのものが消える)ので、
+    **わざと 0.05m ずらして**、組み直しが引き戻すかを見る。"""
+    import copy
+    stripped = copy.deepcopy(raw)
+    for coll, keys in GEN_FIELDS.items():
+        for o in stripped.get(coll, []):
+            for k in keys:
+                o.pop(k, None)
+    if "edgeProfile" in stripped:              # 値だけ消し、辺の別は残す(入力)
+        stripped["edgeProfile"] = dict((k, []) for k in stripped["edgeProfile"])
+    ge9 = stripped["gate"]["edge"]
+    gs9 = stripped["gate"]["s"]
+    half9 = stripped["gate"]["plan"]["monW"] / 2.0
+    for r9 in stripped["runs"]:                # 開口側の端をずらす(消せないので破壊する)
+        if r9.get("edge") != ge9:
+            continue
+        if abs(r9["s1"] - (gs9 - half9)) < 0.20:
+            r9["s1"] += 0.05
+        if abs(r9["s0"] - (gs9 + half9)) < 0.20:
+            r9["s0"] -= 0.05
+    rebuilt = pipeline(stripped)
+    bad = []
+
+    def _cmp(where, a, b, tol=1e-6):
+        if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+            if abs(float(a) - float(b)) > tol:
+                bad.append("%s 正典=%.4f 組み直し=%.4f" % (where, a, b))
+        elif json.dumps(a, ensure_ascii=False, sort_keys=True) != \
+                json.dumps(b, ensure_ascii=False, sort_keys=True):
+            bad.append("%s 正典=%s 組み直し=%s"
+                       % (where, json.dumps(a, ensure_ascii=False)[:60],
+                          json.dumps(b, ensure_ascii=False)[:60]))
+
+    for coll, keys in GEN_FIELDS.items():
+        by = dict((o["name"], o) for o in rebuilt.get(coll, []) if "name" in o)
+        for o in raw.get(coll, []):
+            r = by.get(o.get("name"))
+            if r is None:
+                bad.append("%s %s が組み直しで消える" % (coll, o.get("name")))
+                continue
+            for k in keys:
+                _cmp("%s %s.%s" % (coll, o.get("name"), k), o.get(k), r.get(k))
+    ea, eb = raw.get("edgeProfile") or {}, rebuilt.get("edgeProfile") or {}
+    if set(ea) != set(eb):
+        bad.append("edgeProfile の辺の集合が組み直しと違う(正典=%s / 組み直し=%s)"
+                   % (sorted(ea), sorted(eb)))
+    else:
+        for k in sorted(ea):
+            if len(ea[k]) != len(eb[k]):
+                bad.append("edgeProfile[%s] の点数が %d → %d" % (k, len(ea[k]), len(eb[k])))
+                continue
+            w = max([abs(p0[1] - q0[1]) for p0, q0 in zip(ea[k], eb[k])] or [0.0])
+            if w > 1e-6:
+                bad.append("edgeProfile[%s] が組み直しと最大 %.3fm 違う — "
+                           "辺の地盤線は復元地盤から毎回引く" % (k, w))
+    by = dict((r["name"], r) for r in rebuilt["runs"])
+    for r9 in raw["runs"]:
+        if r9.get("edge") != ge9:
+            continue
+        for k in GEN_FIELDS_GATE:
+            _cmp("runs %s.%s(門の開口側の端)" % (r9["name"], k), r9.get(k), by[r9["name"]].get(k))
+    return bad
+
+
 def main():
     d = json.load(open(JSON, encoding="utf-8"))
     prose = md2html(open(MD, encoding="utf-8").read())
@@ -3993,58 +4153,15 @@ def main():
     # ⚠ 2026-08-24 検図: 断面の `natural`(json 静的)と生成器の江戸期DEM が別々の値を持ち、
     #   崖の肩(断面⑧ v=40)で 0.72m 食い違っていた。**毎回 DEM から組み直して書き戻す**
     #   (切盛量と同じ扱い — 同じ地形の二系統を残さない)。
-    _dem_at(d, 0, 0)
-    # ⚠ **外周の地盤も毎回取り直して書き戻す。** 2026-08-26 土井 EDO-0024 の警告
-    #   (「境界は正本で測る」が復元の箱の位置でたまたま成り立っているだけだと、箱が動いた瞬間に
-    #    黙って追随しなくなる)を当家に当てたら、`edgeProfile` が json に静的で
-    #   **いまの復元地盤と最大 5.86m ずれていた**(2026-08-23 の値のまま12巡通っていた)。
-    #   run の天端・基壇の露出・展開図の地盤線・断面の足元がすべてこれを読む。
-    P9 = d["polygon"]
-    ep = {}
-    for i9 in range(len(P9)):
-        a9, b9 = P9[i9], P9[(i9 + 1) % len(P9)]
-        L9 = math.hypot(b9[0] - a9[0], b9[1] - a9[1])
-        pr9 = []
-        s9 = 0.0
-        while s9 <= L9 + 1e-9:
-            t9 = (s9 / L9) if L9 else 0.0
-            x9 = a9[0] + (b9[0] - a9[0]) * t9
-            z9 = a9[1] + (b9[1] - a9[1]) * t9
-            y9 = _world_at(d, *RGrid(d).L(x9, z9))
-            if y9 is not None:
-                pr9.append([round(s9, 1), round(y9, 2)])
-            s9 += 4.0
-        if pr9:
-            ep[str(i9)] = pr9
-    if ep:
-        d["edgeProfile"] = ep
+    # ⭕ **往復試験を先に回す** — 正典から生成器の書く欄を剥がして組み直し、正典と一致するか。
+    #   ⛔ 「直したか覚えている」に頼らない。EDO-0106 で土井から移した型。
+    _raw = json.load(open(JSON, encoding="utf-8"))
+    rtbad = roundtrip_check(_raw, pipeline)
+    print("往復試験(剥がして組み直すと正典に戻るか): %d 件" % len(rtbad))   # ⛔ 0件でも件数を出す
+    for b in rtbad:
+        print("    " + b)
 
-    for sec9 in d["sections"]:
-        nat9 = []
-        f9, t9 = _sec_span(d, sec9)
-        w9 = f9
-        while w9 <= t9 + 1e-9:
-            u9, v9 = (sec9["at"], w9) if sec9["axis"] == "u" else (w9, sec9["at"])
-            y9 = _dem_at(d, u9, v9)
-            if y9 is not None:
-                nat9.append([round(w9, 2), round(y9, 2)])
-            w9 += 1.5
-        if nat9:
-            sec9["natural"] = nat9
-
-    # ⭕ **門の開口に接する run の端は、門から引き直す(従属値を手で持たない)。**
-    #   2026-09-01 六巡目: 番所の幅を 1.5間へ直した拍子に桁行が 16.360→16.362 になり、
-    #   静的に持っていた両袖の s(6.19 / 22.55)が 0.001m ずつ食い込んで重なりが2件出た。
-    #   ⛔ 端を動かして従属値を引き直さない型の再発。開口の両端は毎回ここで算出する。
-    ge9, gs9 = d["gate"]["edge"], d["gate"]["s"]
-    half9 = d["gate"]["plan"]["monW"] / 2.0
-    for r9 in d["runs"]:
-        if r9.get("edge") != ge9 or r9.get("kind") == "Gate":
-            continue
-        if abs(r9["s1"] - (gs9 - half9)) < 0.20:
-            r9["s1"] = round(gs9 - half9, 3)
-        if abs(r9["s0"] - (gs9 + half9)) < 0.20:
-            r9["s0"] = round(gs9 + half9, 3)
+    d = pipeline(d)
 
     bad = overlap_check(d)
     if bad:

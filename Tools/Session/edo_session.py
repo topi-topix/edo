@@ -816,7 +816,7 @@ SYNC_PATHS = ["Tools/Session", "CLAUDE.md", "docs/session-coordination.md",
               "docs/session-board.md", "docs/reporting-protocol.md", ".claude/hooks",
               # ⚠ Tools/Sashizu/ は各邸が自分の生成器を持つので**ディレクトリごとは配らない**。
               #   全邸共通の道具だけを名指しする(review_gate.py = 検図関門)。
-              "Tools/Sashizu/review_gate.py"]
+              "Tools/Sashizu/review_gate.py", "Tools/Sashizu/review_ledger.py"]
 
 
 def cmd_sync_tools(a):

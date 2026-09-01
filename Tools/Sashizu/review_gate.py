@@ -168,9 +168,14 @@ VERDICTS = ("pass", "fail", "advisory")
 
 def fingerprint(doc, keys):
     """検分が見た範囲の指紋。⚠ `_` で始まる注記のキーは**除く** —
-    文章を直しただけで検め直しを要求すると、関門がすぐ形骸化する。"""
+    文章を直しただけで検め直しを要求すると、関門がすぐ形骸化する。
+    ⛔ **`reviews` 自身も除く。** 除かないと自己矛盾になる — record() が reviews を
+    書き込むたびに指紋が動き、書いた直後から「検め直しが要る」に戻ってしまう
+    (2026-09-01、丹羽セッションが実測: 検図→考証と2件記録したら両方とも無効化され、
+    3役を同時に緑にすることが原理的に不可能だった。EDO-0101)。
+    検分は指図の中身を見るもので、検分の記録簿そのものを見るものではない。"""
     if keys is None:
-        src = {k: v for k, v in doc.items() if not k.startswith("_")}
+        src = {k: v for k, v in doc.items() if not k.startswith("_") and k != "reviews"}
     else:
         src = {}
         for k in keys:

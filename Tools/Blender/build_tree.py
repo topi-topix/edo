@@ -57,6 +57,17 @@ SPECIES = {
                      attractors=420, influence=0.32, kill=0.075, step=0.055,
                      iters=42, up=0.16, jitter=0.20,
                      leaf_scale=0.105, leaf_per_tip=7),
+    # イロハモミジ — **株立ち3〜5幹**・枝が水平に張る・葉が細かい。
+    # ⚠ 灌木の `NM.MapleBush`(丈1.5m)は中木に使えず、桜モデルでの代用も不可
+    #   (夏姿でも幹肌が桜と読め、季節の確度が化ける)。庭方の要求で新造した。
+    # ⛔ **紅葉色にしない** — 季節は春ではないが**秋でもない**。葉は夏の緑。
+    "momiji":   dict(label="イロハモミジ",
+                     trunk_h=0.22, trunk_r=0.030, tip_r=0.005, lean=0.16,
+                     crown_z=0.60, crown_rz=0.26, wh=1.06, top=0.80,
+                     attractors=300, influence=0.34, kill=0.080, step=0.058,
+                     iters=38, up=0.02, jitter=0.30,
+                     leaf_scale=0.070, leaf_per_tip=9,
+                     kabu=(3, 5)),          # 株立ちの幹の本数(奇数の幅)
     # ウメ — 疎で屈曲した枝、横張り、樹高が低い
     "ume":      dict(label="ウメ",
                      trunk_h=0.36, trunk_r=0.034, tip_r=0.005, lean=0.10,
@@ -109,16 +120,31 @@ def branch_skeleton(sp, h, rnd):
       輪郭が箱にならず、内部にも枝が通る。
     返すのは ([(始点, 終点, 半径始, 半径終, 深さ)], 枝先)。"""
     # --- 幹。根元を太らせ、上へ細り、少し揺らぐ
+    # ⭐ `kabu` を持つ種は**株立ち** — 根元から複数の幹が立ち上がる(モミジ・ヤマボウシの類)。
+    #   ⛔ 同じ高さ・同じ太さで並べない。1本を主幹とし、残りを細く低く添える。
     r0 = h * sp["trunk_r"]
     nodes = [Vector((0, 0, 0))]
     parent = [-1]
     n_tr = 6
     z_lead = h * sp["trunk_h"]
-    for i in range(1, n_tr + 1):
-        t = i / n_tr
-        sway = h * sp["lean"] * math.sin(t * 2.4 + rnd.uniform(0, 1)) * t
-        nodes.append(Vector((sway * rnd.uniform(0.5, 1.5), sway * rnd.uniform(-1, 1), z_lead * t)))
-        parent.append(len(nodes) - 2)
+    kabu = rnd.randint(*sp["kabu"]) if "kabu" in sp else 1
+    trunk_tops = []
+    for k in range(kabu):
+        # 主幹(k=0)は太く高く、添えは細く低い
+        frac = 1.0 if k == 0 else rnd.uniform(0.62, 0.88)
+        az = rnd.uniform(0, math.tau)
+        spread = 0.0 if k == 0 else h * rnd.uniform(0.020, 0.048)
+        base = Vector((math.cos(az) * spread, math.sin(az) * spread, 0.0))
+        nodes.append(base); parent.append(0)
+        prev = len(nodes) - 1
+        for i in range(1, n_tr + 1):
+            t = i / n_tr
+            sway = h * sp["lean"] * math.sin(t * 2.4 + rnd.uniform(0, 1)) * t
+            nodes.append(base + Vector((sway * rnd.uniform(0.5, 1.5) + math.cos(az) * spread * t * 2.2,
+                                        sway * rnd.uniform(-1, 1) + math.sin(az) * spread * t * 2.2,
+                                        z_lead * frac * t)))
+            parent.append(prev); prev = len(nodes) - 1
+        trunk_tops.append(prev)
 
     attr = crown_points(sp, h, rnd, sp["attractors"])
     D_i = h * sp["influence"]          # 引きが届く距離

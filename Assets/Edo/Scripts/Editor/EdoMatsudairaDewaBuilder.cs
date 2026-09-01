@@ -1745,6 +1745,7 @@ public static class EdoMatsudairaDewaBuilder
             // 個体番号は省略できる(第2引数が無ければ 1 本目)
             if (fn == "Jouryoku") return EdoAssets.Own.Jouryoku(a[0], a.Count > 1 ? i1 : 1);
             if (fn == "Jokuroku") return EdoAssets.Own.Jouryoku(a[0], a.Count > 1 ? i1 : 1);  // 旧綴り
+            if (fn == "Momiji")   return EdoAssets.Own.Momiji(a[0], a.Count > 1 ? i1 : 1);
             if (fn == "Ume")      return EdoAssets.Own.Ume(a[0], a.Count > 1 ? i1 : 1);
         }
         else if (cls == "JG")

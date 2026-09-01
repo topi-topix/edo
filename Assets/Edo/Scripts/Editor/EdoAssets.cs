@@ -292,6 +292,18 @@ public static class EdoAssets
         [System.Obsolete("Own.Jouryoku(size, i) を使う(常緑=Jouryoku)")]
         public static string Jokuroku(string size) { return Jouryoku(size); }
 
+        /// <summary>**イロハモミジ**。⭐ **株立ち3〜5幹・枝が水平に張る**(幅が高さを上回る)。
+        /// ⚠ 在庫の `NM.MapleBush` は**灌木**(丈1.5m)で中木に使えず、桜の夏姿での代用も
+        /// 不可(夏でも幹肌が桜と読め、季節の確度が化ける)。庭方の要求で 2026-09-01 に新造。
+        /// ⛔ **紅葉色にしない** — 季節は春ではないが**秋でもない**。葉は夏の緑。
+        /// <paramref name="i"/> は個体(1〜3)。樹高: Small 3.6m / Mid 5.8m。
+        /// 生成: blender --background --python Tools/Blender/build_tree.py -- momiji Small Mid</summary>
+        public static string Momiji(string size, int i = 1)
+        {
+            return "Assets/Edo/Models/Trees/Tree_Momiji_" + size
+                 + (i <= 1 ? "" : "_" + i.ToString("00")) + ".fbx";
+        }
+
         public static string Ume(string size, int i = 1)
         {
             return "Assets/Edo/Models/Trees/Tree_Ume_" + size

@@ -20,6 +20,7 @@ import html
 import json
 import math
 import os
+import re
 import subprocess
 
 import sashizu_lib
@@ -30,6 +31,7 @@ DOC = os.path.join(ROOT, "docs/Sashizu")
 JSON = os.path.join(DOC, "sotobori_sashizu.json")
 MD = os.path.join(DOC, "sotobori_kosho.md")
 DEM = os.path.join(DOC, "sotobori_dem.json")
+PARCELS = os.path.join(DOC, "parcels.json")   # 町割の正典。⛔ 読むだけ(編集は Edo/敷地割)
 TER = os.path.join(DOC, "sotobori_terrain.json")
 OUT = os.path.join(DOC, "sotobori_sashizu.html")
 VEX = 3.0          # 断面の垂直倍率
@@ -65,6 +67,16 @@ def low_legend():
 
 def inline(s):
     return sashizu_lib.inline(s)
+
+
+def plain(s):
+    """SVG の <text> 用。markdown の強調記号を落とす(SVG では <b> が効かない)。
+
+    ⚠ html の <p> では inline() を使うこと — そちらは ** を <b> に変える。
+    """
+    s = re.sub(r"\*\*(.+?)\*\*", r"\1", s, flags=re.S)
+    s = re.sub(r"`([^`]+)`", r"\1", s)
+    return html.escape(s)
 
 
 def md2html(text):
@@ -255,7 +267,7 @@ def draw_frame(d, p, h, polys, water=True, ishigaki=True, works=True, labels=Tru
                 h.append('<text class="anS" x="%.1f" y="%.1f">新シ橋</text>'
                          % (p.X(cx) + 7, p.Y(cz) - 6))
     if labels:
-        h.append('<text class="anS" x="%.1f" y="%.1f">虎ノ門土橋(堰)</text>'
+        h.append('<text class="anS" x="%.1f" y="%.1f">虎ノ門の橋(堰)</text>'
                  % (p.X(392), p.Y(462) - 4))
         h.append('<text class="anS" x="%.1f" y="%.1f">幸橋・汐留川へ(未再現)</text>'
                  % (p.X(1050) - 30, p.Y(150) + 26))
@@ -272,8 +284,39 @@ def draw_frame(d, p, h, polys, water=True, ishigaki=True, works=True, labels=Tru
              '<text class="sl" x="%.1f" y="%.1f">100 m</text>' % (y, L, 14 + L + 6, y + 3))
 
 
+def draw_parcels(d, p, h):
+    """隣接の区画線(`docs/Sashizu/parcels.json` が正典。⛔ ここは読むだけ)。
+
+    ⚠ **郭外(南西)の愛宕下の町屋は parcels.json に無い**ので線が引けない。図の註に書く。
+    """
+    try:
+        ps = json.load(open(PARCELS, encoding="utf-8"))["parcels"]
+    except Exception:
+        return 0
+    x0, x1, z0, z1 = extent(d)
+    n = 0
+    for q in ps:
+        pts = q.get("pts") or []
+        if not pts or not any(x0 <= a[0] <= x1 and z0 <= a[1] <= z1 for a in pts):
+            continue
+        n += 1
+        h.append('<path d="%s" fill="none" stroke="var(--dim)" stroke-width="1" '
+                 'stroke-dasharray="3 3" opacity="0.55"/>' % poly_path(p, pts))
+        ins = [a for a in pts if x0 <= a[0] <= x1 and z0 <= a[1] <= z1]
+        cx = sum(a[0] for a in ins) / len(ins)
+        cz = sum(a[1] for a in ins) / len(ins)
+        # ⛔ 名は parcels.json の label をそのまま出す(シーンのオブジェクト名)。
+        # 苗字だけに削らない — 裸の「Matsudaira」は鍋島邸を指す(CLAUDE.md 規則15)。
+        lab = q.get("label") or q.get("id", "")
+        h.append('<text class="jo" x="%.1f" y="%.1f" style="text-anchor:middle">%s</text>'
+                 % (p.X(cx), p.Y(cz), plain(lab)))
+    return n
+
+
 def plan_svg(d, dem, ter, mode):
     p, h, polys = base_plan(d, dem, layer="cur" if mode == "cur" else None, cf=(mode == "cf"))
+    if mode == "cur":
+        draw_parcels(d, p, h)
     draw_frame(d, p, h, polys)
     if mode == "cur":
         for s in ter["sections"]:
@@ -331,17 +374,17 @@ def system_svg(d, W=1180.0):
             h.append('<text class="anG" x="%.1f" y="%.1f">天端 %.2f</text>'
                      % (x + (seg - 8) / 2 - 14, ax(cr) - 6, cr))
         h.append('<text class="anS2" x="%.1f" y="%.1f">%s</text>'
-                 % (x + (seg - 8) / 2, H - 24, html.escape(s["name"])))
+                 % (x + (seg - 8) / 2, H - 24, plain(s["name"])))
         if s.get("note"):
             h.append('<text class="jo" x="%.1f" y="%.1f" style="text-anchor:middle">%s</text>'
-                     % (x + (seg - 8) / 2, H - 10, html.escape(s["note"])))
+                     % (x + (seg - 8) / 2, H - 10, plain(s["note"])))
     h.append('<text class="zn" x="%.1f" y="16">溜 池 ─── 虎 ノ 門 ─── 幸 橋</text>' % (W / 2))
     h.append(ENDSVG)
     return "\n".join(h)
 
 
 def profile_svg(d, ter, W=1180.0):
-    """縦断面。距離程 × 標高。水位は虎ノ門土橋で 3.50 → 1.80 に落ちる。"""
+    """縦断面。距離程 × 標高。水位は虎ノ門の橋で 3.50 → 1.80 に落ちる。"""
     pr = ter["profile"]
     L = ter["reachLength"]
     H = 340.0
@@ -380,7 +423,7 @@ def profile_svg(d, ter, W=1180.0):
         h.append('<text class="sl" x="%.1f" y="%.1f">床 %.2f</text>' % (X(s0) + 6, Y(fl) + 13, fl))
         h.append('<text class="jo" x="%.1f" y="%.1f" style="text-anchor:middle">%s</text>'
                  % ((X(s0) + X(s1)) / 2, Y(7.4) - 20, body.replace("Sotobori_", "")))
-    # 虎ノ門土橋(堰堤)の段差
+    # 虎ノ門の橋(堰堤)の段差
     for i in range(1, len(runs)):
         if runs[i][3] != runs[i - 1][3]:
             sx = (runs[i - 1][2] + runs[i][1]) / 2
@@ -390,7 +433,7 @@ def profile_svg(d, ter, W=1180.0):
                           if st.get("crest") and runs[i][3] < st["crest"] < runs[i - 1][3]), None)
             h.append('<text class="anG" x="%.1f" y="%.1f" style="text-anchor:middle">%s落差 %.2f m</text>'
                      % (X(sx), Y(runs[i - 1][3]) - 9,
-                        ("虎ノ門土橋の堰 天端 %.2f ／ " % crest) if crest else "",
+                        ("虎ノ門の橋の堰 天端 %.2f ／ " % crest) if crest else "",
                         runs[i - 1][3] - runs[i][3]))
     for key, col, dash, lab in ((5, "var(--dim)", "3 3", "現況 郭外"),
                                 (6, "var(--dim)", None, "現況 郭内"),
@@ -564,6 +607,220 @@ def rule_svg(d, W=1180.0):
     return "\n".join(h)
 
 
+# 継ぎ目の詳細平面の範囲。⚠ ここに横断は切れない — 距離程 444.8–499.5 は縦断の基準線が
+# 途切れる区間(reach.gaps)で、frames が無いので section_svg の仕組みが当たらない。
+JUNC_EXTENT = (530.0, 620.0, 314.0, 398.0)
+
+
+def _land_normal(a, b, poly):
+    """辺 a→b の、陸側(多角形の外)を向く単位法線。"""
+    vx, vy = b[0] - a[0], b[1] - a[1]
+    L = math.hypot(vx, vy) or 1.0
+    nx, ny = -vy / L, vx / L
+    mx, my = (a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0
+    if in_poly(mx + nx * 0.5, my + ny * 0.5, poly):
+        nx, ny = -nx, -ny
+    return nx, ny
+
+
+class _Shift(object):
+    """Proj を平行移動して使う(インセット用)。"""
+
+    def __init__(self, p, dx, dy):
+        self.p, self.dx, self.dy = p, dx, dy
+
+    def X(self, x):
+        return self.dx + self.p.X(x)
+
+    def Y(self, z):
+        return self.dy + self.p.Y(z)
+
+    def L(self, m):
+        return self.p.L(m)
+
+
+def _fan_layers(d, p, h, win, pat):
+    """砂色 = 規則②の「躯体の帯」/ 網 = 実駒の占める所。⛔ 両者の差が出隅の扇形。"""
+    x0, x1, z0, z1 = win
+    tw = d["ishigaki"].get("faceToPivot", 4.80)
+    wp = [b for b in d["water"] if b.get("works")]
+    h.append('<g opacity="0.55" fill="#D9C08A">')
+    for b in wp:
+        q = b["outline"]
+        for i in range(len(q)):
+            a, c = q[i], q[(i + 1) % len(q)]
+            nx, ny = _land_normal(a, c, q)
+            h.append('<path d="%s"/>' % poly_path(
+                p, [a, c, (c[0] + tw * nx, c[1] + tw * ny), (a[0] + tw * nx, a[1] + tw * ny)]))
+        for v in q:
+            h.append('<circle cx="%.1f" cy="%.1f" r="%.1f"/>'
+                     % (p.X(v[0]), p.Y(v[1]), p.L(tw)))
+    h.append("</g>")
+    for b in wp:
+        h.append('<path d="%s" fill="#CFE0E9" stroke="none"/>' % poly_path(p, b["outline"]))
+        h.append('<path d="%s" fill="%s" stroke="#3F6F86" stroke-width="1.4"/>'
+                 % (poly_path(p, b["outline"]), _wave()))
+    h.append('<g opacity="0.95">')
+    for r in d["ishigaki"]["runs"]:
+        f = r.get("face")
+        if not f:
+            continue
+        if not any(x0 - 30 <= q[0] <= x1 + 30 and z0 - 30 <= q[1] <= z1 + 30 for q in f):
+            continue
+        h.append('<path d="%s" fill="url(#pi%d)" stroke="var(--ishi)" stroke-width="1.1"%s/>'
+                 % (poly_path(p, [f[0], f[1], r["p1"], r["p0"]]), pat,
+                    ' stroke-dasharray="5 4"' if r.get("provisional") else ""))
+    h.append("</g>")
+    for c in d["ishigaki"]["corners"]:
+        if x0 <= c["p"][0] <= x1 and z0 <= c["p"][1] <= z1:
+            h.append('<circle cx="%.1f" cy="%.1f" r="4.2" fill="none" stroke="var(--ishi)" '
+                     'stroke-width="1.6" stroke-dasharray="3 2"/>'
+                     % (p.X(c["p"][0]), p.Y(c["p"][1])))
+
+
+def _east_inset(d, h, pat, ox, oy, w):
+    """⚠ 東端の2出隅(v4/v5)は本図の窓の外にあるので、同じ描き方の小図を添える。"""
+    x0, x1, z0, z1 = 1082.0, 1122.0, 130.0, 186.0
+    ip = _Shift(Proj(x0, x1, z0, z1, W=w), ox, oy)
+    hh = ip.p.H
+    _SVN[0] += 1
+    cid = "ins%d" % _SVN[0]
+    h.append('<defs><clipPath id="%s"><rect x="%.1f" y="%.1f" width="%.1f" height="%.1f"/>'
+             '</clipPath></defs>' % (cid, ox, oy, w, hh))
+    h.append(R(ox, oy, w, hh, fill="var(--paper2)", stroke="var(--rule)", sw=1.0))
+    h.append('<g clip-path="url(#%s)">' % cid)
+    _fan_layers(d, ip, h, (x0, x1, z0, z1), pat)
+    for v in d["ishigaki"].get("cornerFan", {}).get("vertices", []):
+        vx, vz = v["p"]
+        if not (x0 <= vx <= x1 and z0 <= vz <= z1):
+            continue
+        h.append('<circle cx="%.1f" cy="%.1f" r="3" fill="#7A2E1E"/>' % (ip.X(vx), ip.Y(vz)))
+        h.append('<text class="anG" x="%.1f" y="%.1f">%s %.1f m²</text>'
+                 % (ip.X(vx) - 66, ip.Y(vz) - 6, v["v"], v["outsideWaterBelowM2"]))
+    h.append("</g>")
+    h.append('<text class="an2b" x="%.1f" y="%.1f">東端の2出隅(本図の窓の外・同じ縮尺ではない)</text>'
+             % (ox, oy - 6))
+    h.append('<text class="jo" x="%.1f" y="%.1f">⚠ END3 は非史実の仮設(破線)。'
+             'v4/v5 はその隅で、幸橋御門の普請で撤去する → U3</text>' % (ox, oy + hh + 12))
+    L = ip.L(10)
+    h.append('<path d="M%.1f,%.1f h%.1f" stroke="var(--dim)" stroke-width="1.2"/>'
+             '<text class="sl" x="%.1f" y="%.1f">10 m</text>'
+             % (ox + 8, oy + hh - 8, L, ox + 8 + L + 5, oy + hh - 5))
+
+
+def junction_svg(d, dem, ter, W=1180.0):
+    """継ぎ目(距離程 444.8–499.5)の詳細平面。
+
+    ⚠ この区間は**縦断にも横断にも現れない** — 縦断の基準線が途切れ、横断の最寄りは
+    ニ(560m)で 60m 下流にある。図の最大の争点(U7 の折れ・SW3a・隅駒・残置・出隅の扇形)が
+    ここに集まるので、1面を割いて平面で見せる。
+    """
+    x0, x1, z0, z1 = JUNC_EXTENT
+    p = Proj(x0, x1, z0, z1, W=W, top=18, bottom=30)
+    h = _sv(p.W, p.H, "継ぎ目の詳細平面")
+    pat = _SVN[0]                      # 網かけ(実駒)のパターン id。⚠ インセットでも同じ物を使う
+    h.append(R(0, 0, p.W, p.H, fill="var(--paper)"))
+
+    # ①砂色 = 規則②の躯体の帯 / ②水面 / ③網 = 実駒 / ④隅駒(footprint 未実測なので点)
+    _fan_layers(d, p, h, (x0, x1, z0, z1), pat)
+    for c in d["ishigaki"]["corners"]:
+        if x0 <= c["p"][0] <= x1 and z0 <= c["p"][1] <= z1:
+            h.append('<text class="anS" x="%.1f" y="%.1f">%s(隅駒・footprint 未実測)</text>'
+                     % (p.X(c["p"][0]) + 8, p.Y(c["p"][1]) + 4, html.escape(c["name"])))
+
+    # ⑤ 出隅の扇形の量(ishigaki.cornerFan が正典)
+    for v in d["ishigaki"].get("cornerFan", {}).get("vertices", []):
+        vx, vz = v["p"]
+        if not (x0 <= vx <= x1 and z0 <= vz <= z1):
+            continue
+        h.append('<circle cx="%.1f" cy="%.1f" r="3" fill="#7A2E1E"/>' % (p.X(vx), p.Y(vz)))
+        h.append('<text class="anG" x="%.1f" y="%.1f">%s ── 埋め残し %.1f m²(%.1f%%)</text>'
+                 % (p.X(vx) + 7, p.Y(vz) - 7, v["v"], v["outsideWaterBelowM2"],
+                    v["outsideWaterBelowPct"]))
+
+    # ⑥ 共有辺 / 残置 / 新シ橋 / 距離程
+    sh = [c for c in d["checks"] if c["id"] == "junction"]
+    e0, e1 = (557.4, 381.4), (544.7, 352.3)
+    h.append('<path d="M%.1f,%.1f L%.1f,%.1f" stroke="#7A2E1E" stroke-width="1.6" '
+             'stroke-dasharray="7 4"/>' % (p.X(e0[0]), p.Y(e0[1]), p.X(e1[0]), p.Y(e1[1])))
+    h.append('<text class="anG" x="%.1f" y="%.1f">00002 × 00003 の共有辺%s</text>'
+             % (p.X((e0[0] + e1[0]) / 2) - 150, p.Y((e0[1] + e1[1]) / 2),
+                "(検査 junction)" if sh else ""))
+    jf = (ter.get("postWork2026_0831") or {}).get("junctionFloor")
+    if jf:
+        rx = [float(t) for t in re.findall(r"[0-9.]+", jf["range"])]
+        if len(rx) == 4:
+            h.append(R(p.X(rx[0]), p.Y(rx[3]), p.L(rx[1] - rx[0]), p.L(rx[3] - rx[2]),
+                       fill="#B4472E", stroke="#7A2E1E", sw=1.2, op=0.5))
+            h.append('<text class="anG" x="%.1f" y="%.1f">残置 %.2f m²(実駒で測った唯一の出隅)</text>'
+                     % (p.X(rx[1]) + 6, p.Y(rx[3]) - 4, jf["m2"]))
+    for s in d["structures"]:
+        if s["id"] == "Edo_Atarashibashi":
+            cx, cz = s["center"]
+            a = math.radians(s["axis"])
+            u = (math.sin(a), math.cos(a))
+            h.append('<path d="M%.1f,%.1f L%.1f,%.1f" stroke="var(--nagaya)" stroke-width="5" '
+                     'stroke-linecap="round" opacity="0.9"/>'
+                     % (p.X(cx - 22 * u[0]), p.Y(cz - 22 * u[1]),
+                        p.X(cx + 22 * u[0]), p.Y(cz + 22 * u[1])))
+            h.append('<text class="anS" x="%.1f" y="%.1f">新シ橋</text>'
+                     % (p.X(cx) + 8, p.Y(cz) - 8))
+    for g in ter.get("gaps", []):
+        if "継ぎ目" not in g["name"]:
+            continue
+        for ch, pt in ((g["from"], (545.06, 352.16)), (g["to"], (599.0, 343.0))):
+            h.append('<circle cx="%.1f" cy="%.1f" r="3.4" fill="none" stroke="var(--dim)" '
+                     'stroke-width="1.4"/>' % (p.X(pt[0]), p.Y(pt[1])))
+            h.append('<text class="sl" x="%.1f" y="%.1f">距離程 %.1f</text>'
+                     % (p.X(pt[0]) - 34, p.Y(pt[1]) + 46, ch))
+        h.append('<text class="anS" x="14" y="%.1f">⚠ 縦断の基準線はこの %.1f m が空白'
+                 '(%s)── 横断も切れない</text>'
+                 % (p.H - 34, g["length"], plain(g["name"])))
+
+    # ⑦ run の名
+    for r in d["ishigaki"]["runs"]:
+        f = r.get("face")
+        if not f:
+            continue
+        mx, mz = (f[0][0] + f[1][0]) / 2.0, (f[0][1] + f[1][1]) / 2.0
+        if not (x0 + 4 <= mx <= x1 - 4 and z0 + 4 <= mz <= z1 - 4):
+            # 長い run は窓の中に入る端の側へ寄せて置く
+            cand = [q for q in f if x0 + 6 <= q[0] <= x1 - 6 and z0 + 6 <= q[1] <= z1 - 6]
+            if not cand:
+                continue
+            mx, mz = cand[0]
+        h.append('<text class="an2b" x="%.1f" y="%.1f">%s</text>'
+                 % (p.X(mx) + 5, p.Y(mz) + 12, html.escape(r["line"])))
+
+    # ⚠ 東端の2出隅は本図の窓の外 — 同じ描き方の小図を左下の余白へ添える(2026-09-01 検図 低9)
+    _east_inset(d, h, pat, 26.0, p.H - 372.0, 208.0)
+
+    L = p.L(10)
+    y = p.H - 12
+    h.append('<path d="M240,%.1f h%.1f" stroke="var(--dim)" stroke-width="1.4"/>'
+             '<text class="sl" x="%.1f" y="%.1f">10 m(本図)</text>'
+             % (y, L, 240 + L + 6, y + 3))
+    h.append('<path d="M%.1f,%.1f l0,-24" stroke="var(--dim)" stroke-width="1"/>'
+             '<text class="anS2" x="%.1f" y="%.1f">北</text>'
+             % (p.W - 34, p.H - 34, p.W - 34, p.H - 40))
+    h.append('<text class="big" x="14" y="16">継ぎ目の詳細平面 ── 砂色 = 規則②の「躯体の帯」'
+             '／ 網 = 実駒の占める所</text>')
+    h.append(ENDSVG)
+    return "\n".join(h)
+
+
+def fan_table(d):
+    fan = d["ishigaki"].get("cornerFan")
+    if not fan:
+        return ""
+    rows = ["<tr><td>%s</td><td class='note' style='text-align:left'>%s</td>"
+            "<td>(%.1f, %.1f)</td><td><b>%.1f m²</b></td><td>%.1f%%</td></tr>"
+            % (v["v"], inline(html.escape(v["where"])), v["p"][0], v["p"][1],
+               v["outsideWaterBelowM2"], v["outsideWaterBelowPct"])
+            for v in fan["vertices"]]
+    return tbl(["頂点", "場所", "世界座標", "埋め残しの面積", "円に占める割合"], rows)
+
+
 # ---------------------------------------------------------------- 表
 def tbl(head, rows, cls="tw"):
     return ('<div class="%s"><table><thead><tr>%s</tr></thead><tbody>%s</tbody></table></div>'
@@ -591,9 +848,10 @@ def spec_table(d, ter):
         "%s m³　⚠ <b>行き先は未決</b>(U13)" % "{:,}".format(v["net_m3"]))
     if v.get("overshoot_m2") is not None:
         add("汀線の外に残る水面下の床",
-            "%s m²(<b>全量が石垣の躯体の下</b>・汀線から中央 %.1f m・最大 %.1f m 外)"
-            % ("{:,}".format(v["overshoot_m2"]), v["overshootMedianOutside_m"],
-               v["overshootMaxOutside_m"]))
+            "%s m²(<b>汀線から %.2f m の帯の中</b>・中央 %.1f m・最大 %.1f m 外。"
+            "⚠ <b>帯 ≠ 石の下</b> ── 出隅では帯が扇形になり、直線の駒が埋めない → U11)"
+            % ("{:,}".format(v["overshoot_m2"]), d["ishigaki"].get("faceToPivot", 4.80),
+               v["overshootMedianOutside_m"], v["overshootMaxOutside_m"]))
     for k in ("inside", "body", "bank"):
         z = v.get("byZone", {}).get(k)
         if z:
@@ -673,6 +931,23 @@ def back_table(d, ter):
                 "天端 − 背面の設計地盤(中央) +2m", "+4m", "+6m", "+8m"], rows)
 
 
+def corner_table(d):
+    """隅の駒6基。⛔ `face`(見え面)が未実測であることを図に出すための表。"""
+    rows = []
+    for c in d["ishigaki"]["corners"]:
+        rows.append("<tr><td><code>%s</code></td><td>%s</td>"
+                    "<td class='note' style='text-align:left'>%s</td>"
+                    "<td>(%.2f, %.2f)</td><td>%.2f</td><td>%s</td><td>%s</td>"
+                    "<td class='note' style='text-align:left'>%s</td></tr>"
+                    % (c["name"], c["body"].replace("Sotobori_", ""),
+                       html.escape(c.get("where", c.get("group", "—"))),
+                       c["p"][0], c["p"][1], c["coping"],
+                       ("%.2f" % c["yaw"]) if c.get("yaw") is not None else "—",
+                       ("%.4f" % c["sy"]) if c.get("sy") is not None else "—",
+                       inline(html.escape(c.get("faceStatus", "—")))))
+    return tbl(["隅の駒", "水面", "場所", "ピボット", "天端", "yaw", "sy", "見え面"], rows)
+
+
 def stage_table(d):
     rows = ["<tr><td>%d</td><td>%s</td><td class='note' style='text-align:left'>%s</td></tr>"
             % (s["n"], html.escape(s["name"]), inline(html.escape(s["what"]))) for s in d["stages"]]
@@ -692,8 +967,8 @@ def check_table(d):
 def pending_table(d):
     rows = ["<tr><td>%s</td><td class='note' style='text-align:left'>%s</td><td>%s</td>"
             "<td class='note' style='text-align:left'>%s</td><td>%s</td></tr>"
-            % (u["id"], inline(html.escape(u["what"])), html.escape(u.get("status", "—")),
-               inline(html.escape(u["detail"])), html.escape(u["cert"]))
+            % (u["id"], inline(html.escape(u["what"])), inline(html.escape(u.get("status", "—"))),
+               inline(html.escape(u["detail"])), inline(html.escape(u["cert"])))
             for u in d["unresolved"]]
     return tbl(["", "事項", "状態", "中身", "確度"], rows)
 
@@ -752,14 +1027,15 @@ def main():
     h.append('<p class="eyebrow">%s ／ %s ／ 基準年次 %s</p>'
              % (html.escape(d["subtitle"]), html.escape(d["board"]), html.escape(d["year"])))
     h.append("<h1>%s</h1>" % html.escape(d["title"]))
-    h.append('<p class="lede">2026-08-22 の造成リセットが、虎ノ門の橋の東の外堀を'
+    h.append('<p class="lede">2026-08-22 の造成リセットが、虎ノ門の橋の東面から東の外堀を'
              '<b>掘削もろとも現代の地面へ戻していた</b>。水面のメッシュは張られたままだったので、'
              '乾いた地面の中に水の板が沈み、両岸の総石垣も土に埋まっていた。'
              'これは<b>溜池の堰(どんどん)から下流ひと続き</b>を対象とした掘り直しの指図である。'
              '<b>新設ではなく復旧</b>で、堀の形・水位・石垣・橋はすでに実装されており、'
              'この指図はそれを動かさない。'
              '<b>⭐ 00001 は 2026-08-29 に、00002・00003 は 2026-08-31 に実装を終え、'
-             '施工後の7検査をすべて通した。</b>'
+             '施工後の7検査を回した ── <b>5件 ⭕・2件 △</b>。</b>⚠ △ は凍結域 K1 の中に'
+             '未是正のセルが1つ残るため(其十五 の施工記録と、未解決 U14)。'
              '<b>数値の正典は <code>sotobori_sashizu.json</code>、文章の正典は <code>sotobori_kosho.md</code>、'
              '実測は <code>sotobori_terrain.json</code>。</b>この頁はその三つから組んだもので、実装は読んでいない。</p>')
     sv = {r["id"]: r for r in ter["survey"]}
@@ -768,24 +1044,23 @@ def main():
              '「水色の囲い」の内か外かで生死が分かれた。'
              '<b>00001</b>(堰〜虎ノ門)は囲いの中で無傷 ── 水面より下 <b>%.1f%%</b>・'
              'リセット直前と一致 <b>%.1f%%</b> なので<b>調査のみ</b>。'
-             '囲いの外の <b>00002 / 00003</b>(土橋の東)は掘削が丸ごと戻り、水面より下は'
+             '囲いの外の <b>00002 / 00003</b>(虎ノ門の橋の東)は掘削が丸ごと戻り、水面より下は'
              'それぞれ <b>%.1f%% / %.1f%%</b> しか残っていない ── こちらが<b>掘り直しの対象</b>で、'
              '両岸の石垣 <b>%d 個</b>が土に埋まっている。%s</p></div>'
              % (sv["Sotobori_00001"]["curSubmergedPct"], sv["Sotobori_00001"]["curVsPreSamePct"],
                 sv["Sotobori_00002"]["curSubmergedPct"], sv["Sotobori_00003"]["curSubmergedPct"],
-                nishi, html.escape(d["why"]["note"])))
+                nishi, inline(html.escape(d["why"]["note"]))))
 
     plate(h, nx(), "位置と水系", "溜池 → 堰 → 虎ノ門 → 幸橋")
     fig(h, system_svg(d),
         cap="水位の段階は既存実装の設計値で、<b>この指図では動かさない</b>。"
             "溜池から堰(「どんどん」)で落ちた水は虎ノ門の堀へ入り、"
-            "<b>土橋の堰でもう一段落ちて</b>この区間の水位になる。東端の先(幸橋御門・汐留川)は未再現。")
+            "<b>虎ノ門の橋の堰でもう一段落ちて</b>この区間の水位になる。"
+            "東端の先は東へ<b>幸橋御門 →(一区間)→ 汐留の土橋 → 汐留川</b>の順で、いずれも未再現。")
     fig(h, plan_svg(d, dem, ter, "plain"),
         cap="平面。<b>青=水面 / 灰=石垣の run / 灰の破線=非史実の仮設 / 赤の破線=工区の境</b>。"
-            "堀は虎ノ門の橋の東から東南東へ下り、幸橋方向で切れる。"
-            "⚠ <b>虎ノ門の橋を「土橋」と呼ぶのは実装上の選択【U】</b> ── "
-            "[外堀保存管理計画書] の類型では低地の門は<b>橋台石垣</b>の側で、実装は類型と逆向きの選択にあたる。"
-            "以下の図と検査でもこの呼び名を使うが、<b>形式が決まっているという意味ではない</b>。")
+            "堀は虎ノ門の橋の東面から東南東へ下り、幸橋方向で切れる。"
+            + inline(html.escape(d["scope"]["naming"])))
 
     plate(h, nx(), "現況調査", "三つの水面を同じ物差しで測る")
     h.append(survey_table(ter))
@@ -800,24 +1075,32 @@ def main():
 
     plate(h, nx(), "現況図", "段彩 + 等高線 1m ── 造成リセット後の地面")
     fig(h, plan_svg(d, dem, ter, "cur"), legend=low_legend(),
-        cap="<b>土橋の東(00002・00003)は汀線の内側がほぼ全面、水面 %.2f より上の陸になっている</b>のが"
+        cap="<b>虎ノ門の橋の東(00002・00003)は汀線の内側がほぼ全面、水面 %.2f より上の陸になっている</b>のが"
             "読み取れる。上流の 00001(破線の汀線)は掘れたままで、段彩がそこだけ寒色に沈む。"
             "段彩のランプはこの低地用に 0〜8m で別に持つ(屋敷の指図の 10m 起点のランプでは全部同じ色になる)。"
             "赤の一点鎖線は横断の切り位置。"
+            "灰の点線は<b>隣接の区画</b>(<code>docs/Sashizu/parcels.json</code> が正典・読むだけ)で、"
+            "郭内(北東)の先に虎ノ門内の敷地、上流の岸に三屋敷が掛かる。"
+            "⚠ <b>名は <code>parcels.json</code> の label をそのまま出したシーンのオブジェクト名で、"
+            "当指図が同定したものではない</b> ── とくに <code>Edo_Yashiki_Matsudaira</code> は"
+            "<b>鍋島家の溜池中屋敷</b>であって松平邸ではない(CLAUDE.md 規則15)。"
+            "⚠ <b>郭外(南西)の愛宕下の町屋は区画がまだ起こされていないので線が無い</b> ── "
+            "図に出ていないことは「無い」ことを意味しない。"
+            "⛔ どちらの地盤も<b>この普請の担当ではない</b>。"
             % [b["waterY"] for b in d["water"] if b.get("works")][0])
 
     plate(h, nx(), "掘削平面図", "切盛 ── 寒色=掘る / 暖色=盛る")
     fig(h, plan_svg(d, dem, ter, "cf"), legend=cutfill_legend(),
         cap="工区(掘る水面の汀線 + %.0f m)の中だけを塗った。<b>その外は1セルも触らない。</b>"
-            "朱の破線の矩形は<b>凍結域 K1</b>(虎ノ門枡形と土橋の足元)で、"
+            "朱の破線の矩形は<b>凍結域 K1</b>(虎ノ門枡形と虎ノ門の橋の足元)で、"
             "帯がここを覆うと生き残っている造成を最大 %.2f m 掘り落とすため、帯から外してある。"
-            "⛔ <b>掘り直しの西端は土橋の東面。</b>"
+            "⛔ <b>掘り直しの西端は虎ノ門の橋の東面。</b>"
             % (d["works"]["outerWidth"], ter["provenance"]["survMaxPreCurDiff"]))
     h.append(spec_table(d, ter))
 
     plate(h, nx(), "縦断面", "距離程 %.0f m ── 水位は一定・地盤は東へ下る" % ter["reachLength"])
     fig(h, profile_svg(d, ter),
-        cap="<b>水位と床は全区間で一定</b>(段差は虎ノ門土橋の堰で作る)。"
+        cap="<b>水位と床は全区間で一定</b>(段差は虎ノ門の橋の堰で作る)。"
             "現況の地盤は西の 6m 台から東の 3m 台まで下るので、"
             "<b>西では深く掘り、東では岸を盛る</b>。石垣の天端も東へ向かって下がる。")
 
@@ -827,12 +1110,12 @@ def main():
         if s["works"]:
             cap = ("<b>┄ 現況 / ── 設計 / 寒色の塗り = 掘る量</b>。%s。"
                    "⛔ <b>堀の壁は垂直のまま残す</b> — 溜池の掘り直しのように 45°で均すと"
-                   "石垣の面が土に埋まり、堀が皿になる。" % html.escape(note))
+                   "石垣の面が土に埋まり、堀が皿になる。" % inline(html.escape(note)))
         else:
             cap = ("<b>調査断面 — 掘らないので設計 = 現況で、線は重なる。</b>%s。"
-                   "この一枚が<b>無傷の堀の姿</b>で、土橋の東はこれが失われた状態にある。"
+                   "この一枚が<b>無傷の堀の姿</b>で、虎ノ門の橋の東はこれが失われた状態にある。"
                    "⚠ 郭外の石垣の天端が地面のずっと下にあるのが読み取れる(未解決 U9)。"
-                   % html.escape(note))
+                   % inline(html.escape(note)))
         fig(h, section_svg(d, s), cap=cap)
 
     plate(h, nx(), "工区と摺り付け", "規則 ①〜⑥")
@@ -844,10 +1127,10 @@ def main():
              'ちがう(=08-22 のリセットを生き延びた造成の)セルは <b>%d 個</b>。そのうち種地と現況が'
              '一致するのは <b>%.1f%%</b>(最大差 %.2f m)にすぎない。'
              '⛔ <b>初版はここを「一致する」と書いていたが、通っていなかった</b> ── 種地をそのまま'
-             '戻すと生き残っている枡形・土橋を最大 %.2f m 掘り落とすところだった。'
-             'そこで土橋の足元を<b>凍結域 K1</b> として帯から外した結果、'
+             '戻すと生き残っている枡形・橋を最大 %.2f m 掘り落とすところだった。'
+             'そこで虎ノ門の橋の足元を<b>凍結域 K1</b> として帯から外した結果、'
              '<b>不一致のまま帯で動くセルは %d 個</b>まで落ちた'
-             '(水面の内側で動く %d 個は、土橋を貫く水路を床まで掘るもので設計どおり)。'
+             '(水面の内側で動く %d 個は、虎ノ門の橋を貫く水路を床まで掘るもので設計どおり)。'
              '⚠ この検算は工区を広げれば成り立たなくなるので、広げるときは必ず取り直すこと。</p></div>'
              % (pv["survivingGradingCells"], pv["survSamePreCurPct"], pv["survMaxPreCurDiff"],
                 pv["survMaxPreCurDiff"], pv["survMovedInBandCells"], pv["survMovedInWaterCells"]))
@@ -875,12 +1158,62 @@ def main():
     h.append("<h4>石垣が土に埋まっていないか(run 線そのもので測る)</h4>")
     h.append(buried_table(d, ter))
     h.append('<p class="cap">⚠ <b>00001 の郭外の CW1s(Ishigaki_Ext_4・86駒)は天端が地面に潜る。</b>'
-             '土橋の取付の R1・R3 も同様。'
+             '虎ノ門の橋の取付の R1・R3 も同様。'
              'これは 08-22 のリセットのせいではない ── <b>現況と 08-22 リセット直前が一致</b>しており、'
              '2026-08-10 に建てたときからこの姿である。'
              '<b>この指図では直さない</b>(00001 は調査のみ。汀線と地形の是正は 2026-08-29 に実施済=U9)。'
              '⭐ 2026-08-30 に 00001 の run 線(ピボット)を実測へ直し(CW1s で 8.5〜8.9m 動いた)、'
              '<b>08-31 に組み直したので上の値は実測の線で採ったもの</b>である。</p>')
+
+    h.append("<h4>隅の駒(run に載らない駒)</h4>")
+    h.append(corner_table(d))
+    h.append('<p class="cap">⚠ <b>隅の駒は run ではなく隅として持つ</b> ── 1個ないし飛び飛びの駒なので、'
+             'run 線として扱うと長さゼロの線や堀を横断する偽の線になり、背面の検査が壊れる。'
+             '⛔ <b>6基とも見え面(<code>face</code>)は未実測</b>。'
+             '2026-08-30 に実機で採ったのは <code>p</code>(ピボット)・<code>yaw</code>・<code>sy</code> までで、'
+             '前版が載せていた <code>face</code> は<b>直線 run 用の式を隅駒に当てた誤り</b>で、'
+             '<b>躯体の裏面</b>の上に落ちていた(隅駒の yaw は隣接 run のちょうど −90.00°なので、'
+             '式の <code>−right</code> が壁を横切らず<b>壁に沿う</b>)。2026-09-01 に落とした。'
+             '⭐ 採り直しは <code>Renderer.bounds</code> で ── <b>Unity 待ち</b>'
+             '(<code>ishigaki.cornersNote</code>)。'
+             '⭕ <b>汀線には及ばない</b> ── 頂点は run の <code>face</code> の端点から起こしてある。'
+             '⚠ <code>CWC_v6</code> の yaw・sy は 2026-09-01 にプレハブから確定した'
+             '(<code>base</code> 2.00 + 4 × 1.2560 = 7.024 = 記録の天端 7.02)。</p>')
+
+    plate(h, nx(), "継ぎ目の詳細平面", "距離程 %.1f–%.1f ── 縦断にも横断にも現れない区間"
+          % (ter["gaps"][1]["from"], ter["gaps"][1]["to"]))
+    fig(h, junction_svg(d, dem, ter),
+        cap="⚠ <b>この %.1f m は縦断の基準線が途切れる区間で、横断の最寄りは ニ(560m)で 60m 下流</b>にある。"
+            "ところが<b>図の最大の争点はここに集まる</b> ── U7 の折れ(この指図で唯一の確度A の史料主張)、"
+            "SW3a の 23 駒、隅駒 CWC3_v2 / CWC3_v6、そして継ぎ目の残置。そこで平面で1面を割いた。"
+            "⛔ <b>ここに横断は切れない</b> ── 距離程は郭外の汀線に沿う直線区間をつないで採るので、"
+            "この区間には基準線そのものが無い(<code>reach.gaps</code>)。"
+            "<br><b>砂色 = 規則②が「躯体」とみなす帯(汀線から %.2f m)／ 網 = 実駒が占める所"
+            "(見え面 → ピボット線)</b>。⭐ <b>両者が食い違うのが出隅で、砂色が扇形にはみ出す</b> ── "
+            "帯は<b>汀線からの距離</b>で作られるのに、石は<b>直線の駒</b>だからである。"
+            "⛔ この埋め残しは種地(堀底 0.30)のまま残り、地形の三角形分割で細長い楔として切られる ── "
+            "<b>現地で見える砂色の三角形の正体</b>。"
+            "⚠ <b>隅の駒は点でしか描けない</b> ── footprint(と見え面)が未実測だからで、"
+            "扇形が実際にどれだけ隠れるかは<b>採り直すまで分からない</b>(<code>ishigaki.cornersNote</code>)。"
+            "⛔ <b>直し方はユーザー裁定が要るので、この指図には現象と量だけを載せ、案は書かない。</b>"
+            % (ter["gaps"][1]["length"], d["ishigaki"].get("faceToPivot", 4.80)))
+    h.append(fan_table(d))
+    h.append('<p class="cap">出隅ごとの量。<b>半径 %.2f m の円(全面 %.2f m²)のうち、'
+             '「水面の外 かつ 設計面が水面 %.2f より低い」所</b>を測ったもの。'
+             '水面の内外は汀線の多角形で厳密に、設計面は <code>sotobori_dem.json</code> の '
+             '<code>design</code>(4m 格子)を<b>双一次</b>で。'
+             '⛔ <b>前版の「円内で水面より低い割合」(v1 90.1%% 等)は撤回した</b> ── '
+             '円の<b>全面</b>を分母にしていたため<b>堀そのものを埋め残しに数えて</b>おり、'
+             '<b>順位も違っていた</b>(v2 は実際には 0.0 m² で実質ゼロ)。'
+             '⛔ <b>実駒で測ったのは v6 のまわりだけ</b>(上の図の朱の矩形)で、'
+             '<b>他の5頂点は実駒で未測</b>。⚠ <b>東端の2出隅(v4/v5)は非史実の締切石垣 END3 の隅</b>で、'
+             '幸橋御門の普請で撤去する(U3)── <b>恒久は継ぎ目の4隅</b>。'
+             '<br>⚠ <b>この帯の半径 4.80 m は実測値ではなく算出値</b>(躯体の局所Xの張り出し 2.40 × '
+             '<code>scale.x</code> 2.00)。Unity で実測したのは駒の <code>position</code> と '
+             '<code>right</code> だけで、<b>汀線・規則②・この表がすべてこの1定数に載る</b> ── '
+             '<code>Renderer.bounds</code> で直に採り直すのが宿題(<code>ishigaki.faceToPivotNote</code>)。</p>'
+             % (d["ishigaki"].get("faceToPivot", 4.80), math.pi * 4.80 ** 2,
+                [b["waterY"] for b in d["water"] if b.get("works")][0]))
 
     plate(h, nx(), "施工の段階", "地形の編集は Undo の外 ── 2026-08-31 実施済")
     h.append(stage_table(d))
@@ -893,7 +1226,7 @@ def main():
                  % (pw["date"], inline(html.escape(pw["what"])),
                     "{:,}".format(a["cellsMoved"]), "{:,}".format(a["m2"]),
                     "{:,}".format(a["workAreaM2"]), a["maxErrorVsDesign_m"],
-                    html.escape(a["note"]), inline(html.escape(pw["baseline"]))))
+                    inline(html.escape(a["note"])), inline(html.escape(pw["baseline"]))))
         inc = pw["incident"]
         h.append('<div class="box"><p><b>⛔ 施工中に踏んだ事故(復旧済)</b><br>'
                  '%s<br><b>原因</b> ── %s<br><b>なぜ検算が見逃したか</b> ── %s<br>'
@@ -908,6 +1241,13 @@ def main():
                 for c in pw["checks"]]
         h.append("<h4>施工後の検査(実測)</h4>")
         h.append(tbl(["id", "実測", "判定", "註"], rows))
+        rs = pw.get("residual")
+        if rs:
+            h.append('<div class="box"><p><b>⛔ まだ残っている未是正(%s 検図)</b><br>%s</p></div>'
+                     % (rs["date"], "<br>".join(
+                         "%s<br><b>是正</b> ── %s"
+                         % (inline(html.escape(it["what"])), inline(html.escape(it["fix"])))
+                         for it in rs["items"])))
     plate(h, nx(), "検査", "1件でも落ちたら退避から戻す")
     h.append(check_table(d))
     plate(h, nx(), "考証と決めごと", "文章の正典は sotobori_kosho.md")
@@ -915,8 +1255,14 @@ def main():
     plate(h, nx(), "未解決", "推定で埋めない対象")
     h.append('<p class="cap">%s</p>' % inline(html.escape(d["unresolvedNote"])))
     h.append(pending_table(d))
-    plate(h, nx(), "改訂", "経緯は git log docs/Sashizu/")
+    plate(h, nx(), "改訂",
+          "git log — sotobori_sashizu.json + sotobori_kosho.md")
     h.append(history())
+    h.append('<p class="cap">⚠ <b>この表は組んだ時点の <code>git log</code> を焼いたもので、'
+             '構造上いちばん新しいコミット(この頁を生んだ改訂そのもの)を載せられない。</b>'
+             'この頁を組み直してからコミットするので、<b>最新の1件は常に欠ける</b> ── '
+             '完全な経緯は <code>git log docs/Sashizu/sotobori_sashizu.json '
+             'docs/Sashizu/sotobori_kosho.md</code> で見ること(2026-09-01 検図)。</p>')
     h.append('<p class="cap" style="margin-top:44px">@@PLATES@@。'
              '<b>組み直すときは図を落としていないか必ず数える。</b></p>')
     h.append('<div class="foot">組んだ日 %s ／ 設計値 <code>sotobori_sashizu.json</code> ／ '

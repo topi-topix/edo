@@ -185,7 +185,8 @@ def design_surface(np, d, cur, pre, ins, dist, floor, keep_out, coping, step, PX
     band = (~ins) & (dist <= w["outerWidth"]) & (~keep_out)
     t = np.clip((dist - w["featherFrom"]) / (w["outerWidth"] - w["featherFrom"]), 0, 1)
     # ② 岸は**最寄りの石垣の天端 − bankBelowCoping**(2026-08-30 ユーザー裁定A・EDO-0064)。
-    #    ⛔ 汀線から faceToPivot までは石垣の躯体の下。天端基準では**盛らず**、種地(pre)を戻す。
+    #    ⛔ 汀線から faceToPivot までは規則②が「躯体」とみなす帯。天端基準では**盛らず**、
+    #       種地(pre)を戻す。⛔ 「帯の中」=「石の下」ではない(出隅は扇形が埋まらない・U11)。
     #    ⚠ 『触らない』ではない — この帯でも掘削と埋め戻しは起きる(volumes.byZone.body を見よ)。
     tw = d["ishigaki"].get("faceToPivot", 4.80)
     bank = coping - w.get("bankBelowCoping", 0.20)
@@ -323,7 +324,8 @@ def main():
     vol_fill = float(np.clip(dz, 0, None).sum() * cell)
 
     # ⚠ 汀線の外に水面下の床が残るか。⭐ 裁定A(②が天端基準)以降、残りうるのは
-    #    汀線から faceToPivot まで(=石垣の躯体の下)だけになる。
+    #    汀線から faceToPivot まで(=規則②が「躯体」とみなす帯の中)だけになる。
+    #    ⛔ 「帯の中」は「石の下」ではない — 出隅では帯が扇形になり直線の駒が埋めない(U11)。
     #    checks.overshoot が「面積を記録する」と宣言していたのに測っていなかった(2026-08-28 検図 高-7)。
     wy0 = [b["waterY"] for b in bodies if b.get("works")][0]
     ovs = band & (des < wy0 - 0.1)

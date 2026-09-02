@@ -408,6 +408,35 @@ def reconstruct(seed, poly, gr, spec):
                 if inside[min(max(iz + dz, 0), nz - 1)][min(max(ix + dx, 0), nx - 1)]:
                     soft.add((ix + dx, iz + dz))
     soft = set(q for q in soft if 0 <= q[0] < nx and 0 <= q[1] < nz and inside[q[1]][q[0]])
+    # ⛔ **クリップを外した辺(`edgeClip.skipEdges`)の外側は、平滑化の平均にも混ぜない。**
+    #   ⚠ 2026-09-03 の庭方4巡目で見つかった:2026-09-02 の K078 は「辺5でクリップを外す」と
+    #     書きながら、外したのは⑧のクリップだけで**⑦の平滑化は外していなかった**。
+    #     その結果、区画の外の近代の地面(約 8.9m)が縁の3〜4セルへ滲み、
+    #     1883年図では 11.25→11.08 のほぼ水平な岸が **最大 1.33m 沈んだ段**に見えていた。
+    #     ⛔ 見かけの段に階段を刻みかけた(庭方が『地覆丸太の段』を提案する寸前だった)。
+    #   ⭕ **規約の目的は「隣家と境の高さが食い違わない」ことなので、隣家の無い辺では
+    #     ⑦⑧ とも外す。**⛔ 隣家のある辺(3・4・6・7)では従来どおり混ぜる。
+    skip_e9 = set(spec.get("edgeClip", {}).get("skipEdges", []) or [])
+    banned = set()
+    if skip_e9:
+        def _near_edge9(x9, z9):
+            best = (1e18, -1)
+            for i9 in range(len(poly)):
+                a9, b9 = poly[i9], poly[(i9 + 1) % len(poly)]
+                ex9, ez9 = b9[0] - a9[0], b9[1] - a9[1]
+                L9 = ex9 * ex9 + ez9 * ez9 or 1e-9
+                tt9 = max(0.0, min(1.0, ((x9 - a9[0]) * ex9 + (z9 - a9[1]) * ez9) / L9))
+                dx9, dz9 = x9 - (a9[0] + ex9 * tt9), z9 - (a9[1] + ez9 * tt9)
+                dd9 = dx9 * dx9 + dz9 * dz9
+                if dd9 < best[0]:
+                    best = (dd9, i9)
+            return best[1]
+        for q9 in range(nz):
+            for p9 in range(nx):
+                if inside[q9][p9]:
+                    continue
+                if _near_edge9(seed["x0"] + st * p9, seed["z0"] + st * q9) in skip_e9:
+                    banned.add((p9, q9))
     for _ in range(spec["smooth"]["passes"]):
         cur = dict(((ix, iz), h[iz][ix]) for ix, iz in soft)
         for ix, iz in soft:
@@ -415,12 +444,15 @@ def reconstruct(seed, poly, gr, spec):
             for dx in (-1, 0, 1):
                 for dz in (-1, 0, 1):
                     p, q = ix + dx, iz + dz
-                    if 0 <= p < nx and 0 <= q < nz and h[q][p] is not None:
+                    if 0 <= p < nx and 0 <= q < nz and h[q][p] is not None \
+                       and (p, q) not in banned:
                         acc.append(cur.get((p, q), h[q][p]))
             if acc:
                 h[iz][ix] = sum(acc) / len(acc)
     log.append("⑦ 変えた %d セル + 周り = %d セルを %d 回平滑化"
-               % (len(changed), len(soft), spec["smooth"]["passes"]))
+               "(⛔ クリップを外した辺の外側 %d セルは平均に混ぜない%s)"
+               % (len(changed), len(soft), spec["smooth"]["passes"], len(banned),
+                  ("・" + "辺" + "/辺".join(str(q) for q in sorted(skip_e9))) if skip_e9 else ""))
 
     # ⑧ **区画線の上は正本と一致させる**(2026-08-25 土井の申し入れ / 08-24 通達)。
     #    境から edgeClip[m] かけて復元へ摺り付ける。⛔ 境の線そのものは seed(=正本)。
@@ -447,6 +479,21 @@ def reconstruct(seed, poly, gr, spec):
                " — 境の線は正本と一致。**外した辺: %s**(隣家が無い辺)"
                % (ec, ec, n8, ("辺" + "・辺".join(str(q) for q in sorted(skip))) if skip else "なし"))
     return h, log, py, changed | soft, len(sel)
+
+
+def _near_edge_i(poly, x, z):
+    """点 (x,z) にいちばん近い辺の番号。差分を辺ごとに割って刷るのに使う。"""
+    best = (1e18, -1)
+    for i in range(len(poly)):
+        a, b = poly[i], poly[(i + 1) % len(poly)]
+        ex, ez = b[0] - a[0], b[1] - a[1]
+        L = ex * ex + ez * ez or 1e-9
+        tt = max(0.0, min(1.0, ((x - a[0]) * ex + (z - a[1]) * ez) / L))
+        dx, dz = x - (a[0] + ex * tt), z - (a[1] + ez * tt)
+        dd = dx * dx + dz * dz
+        if dd < best[0]:
+            best = (dd, i)
+    return best[1]
 
 
 def build(check=False):
@@ -589,6 +636,25 @@ def build(check=False):
                     if abs(a - b) > 0.5:
                         big += 1
         print("   %-24s 変わる %5d セル (うち>0.5m %4d / 最大 %.2fm)" % (nm, n, big, mx))
+        if path == WORLD and n:
+            # ⭐ **辺ごとに割って刷る。**⛔ 「縁だけが動いた」を言葉で言わずに数で示す
+            #   (2026-09-03: ⑦の除外を入れたときに、隣家のある辺が 0.000m のままであることを
+            #    確かめるために足した)。
+            per = {}
+            for iz9, (r1, r2) in enumerate(zip(new[key], old[key])):
+                for ix9, (a9, b9) in enumerate(zip(r1, r2)):
+                    if a9 is None or b9 is None or abs(a9 - b9) <= 0.005:
+                        continue
+                    x9 = new["x0"] + new["step"] * ix9
+                    z9 = new["z0"] + new["step"] * iz9
+                    e9 = _near_edge_i(poly, x9, z9)
+                    p9 = per.setdefault(e9, [0, 0.0])
+                    p9[0] += 1
+                    p9[1] = max(p9[1], abs(a9 - b9))
+            for e9 in range(len(poly)):
+                c9, m9 = per.get(e9, (0, 0.0))
+                print("      辺%-2d %5d セル / 最大 %.3fm%s"
+                      % (e9, c9, m9, "" if c9 else "   ⭕ 動いていない"))
         if not check:
             json.dump(new, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print("   区画内 %d セル / 台地の自然面 %.2f(正本から算出)" % (inside, py))

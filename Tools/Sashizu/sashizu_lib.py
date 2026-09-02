@@ -767,6 +767,19 @@ def _g_poly(o):
     return None
 
 
+def _poly_edge_dist(p, poly):
+    """点から多角形の**辺**までの最短距離。辺の上に載る点(=0)を内包から外すために使う。"""
+    best = None
+    for i in range(len(poly)):
+        (ax, az), (bx, bz) = poly[i], poly[(i + 1) % len(poly)]
+        dx, dz = bx - ax, bz - az
+        L2 = dx * dx + dz * dz
+        t = 0.0 if L2 <= 1e-18 else max(0.0, min(1.0, ((p[0] - ax) * dx + (p[1] - az) * dz) / L2))
+        dd = math.hypot(p[0] - (ax + dx * t), p[1] - (az + dz * t))
+        best = dd if best is None else min(best, dd)
+    return best if best is not None else 0.0
+
+
 def _pip(p, poly):
     x, y = p
     c = False
@@ -953,11 +966,24 @@ def overlap_check(d):
             for (k1, n1, a0, b0, a1, b1, _o1) in boxes:
                 if k1 == "run":
                     continue
+                # ⭐ **実形を持つ物は外接矩形で判定しない**(2026-09-03 松江・庭方【高5】)。
+                #   ⛔ 従前は `_o1`(poly)を受け取っていながら bbox しか見ておらず、
+                #     台形の庭が**外接矩形の隅**で竹垣に当たって偽陽性を出した
+                #     (実測は 0.76〜0.78 間 離れている)。⭕ poly があれば実形で判定する。
+                p9 = _g_poly(_o1)
                 hit = 0.0
                 for i9 in range(41):
                     t9 = i9 / 40.0
                     pu = a[0] + (b[0] - a[0]) * t9
                     pv = a[1] + (b[1] - a[1]) * t9
+                    if p9 is not None:
+                        # ⚠ **開区間で判定する**(2026-09-03 松江・庭方【高5】)。
+                        #   矩形の側は `1e-9` の余白つきの厳密不等号なので、poly の側も
+                        #   **辺の上に載る点は「貫通」に数えない** — さもないと
+                        #   「垣と庭が同じ線を共有する」正しい設計が貫通に化ける。
+                        if _pip((pu, pv), p9) and _poly_edge_dist((pu, pv), p9) > 1e-6:
+                            hit += 1
+                        continue
                     if a0 + 1e-9 < pu < a1 - 1e-9 and b0 + 1e-9 < pv < b1 - 1e-9:
                         hit += 1
                 if hit > 1:

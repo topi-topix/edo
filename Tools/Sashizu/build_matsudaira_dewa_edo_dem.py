@@ -52,8 +52,15 @@ ROT_EDO = os.path.join(DOC, "matsudaira_dewa_edo_dem.json")
 ROT_CUR = os.path.join(DOC, "matsudaira_dewa_cur_dem.json")
 ROT_SRC = os.path.join(DOC, "matsudaira_dewa_terrain.json")      # 回転格子の諸元だけ借りる(読むだけ)
 
-# 世界2m格子の窓 — `matsudaira_dewa_dem.json` と同じ範囲(現況図が同じ枠で読めるように)
-WIN = dict(x0=-770, z0=1020, step=2, nx=170, nz=150)
+# 世界2m格子の窓 — ⛔ **ここに数値を持たない**(2026-09-02 第5次・検図 B13)。
+# 正典は `build_base_dem.py` の `SLICES`(切り出しの台帳)で、`matsudaira_dewa_dem.json` と
+# **同じ枠**であることがこの生成器の前提(現況図・切盛図・断面が同じ枠で読める)。
+# ⛔ 二箇所に置くと、台帳側で窓を広げた日に江戸期地盤だけ古い枠のまま残る。
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import build_base_dem as _bbd                                            # noqa: E402
+
+_SLICE = next(x for x in _bbd.SLICES if x["name"] == "matsudaira_dewa_dem.json")
+WIN = dict((k, _SLICE[k]) for k in ("x0", "z0", "step", "nx", "nz"))
 
 
 def load(p):
@@ -106,27 +113,6 @@ class RGrid(object):
                 (dx * self.vx + dz * self.vz) / self.ken)
 
 
-def median(xs):
-    xs = sorted(xs)
-    n = len(xs)
-    return xs[n // 2] if n % 2 else (xs[n // 2 - 1] + xs[n // 2]) / 2.0
-
-
-def _pl_dist(P, x, z, closed=False):
-    """折れ線(閉じるなら多角形)の辺までの最短距離と、その足の弧長パラメタ s[m]。"""
-    best, bs, acc = None, 0.0, 0.0
-    n = len(P) if closed else len(P) - 1
-    for i in range(n):
-        a, b = P[i], P[(i + 1) % len(P)]
-        dx, dz = b[0] - a[0], b[1] - a[1]
-        L2 = dx * dx + dz * dz or 1e-9
-        t = max(0.0, min(1.0, ((x - a[0]) * dx + (z - a[1]) * dz) / L2))
-        dd = math.hypot(x - (a[0] + dx * t), z - (a[1] + dz * t))
-        if best is None or dd < best:
-            best, bs = dd, acc + math.sqrt(L2) * t
-        acc += math.sqrt(L2)
-    return best, bs
-
 
 def flats(grid, tol, minCells, poly=None):
     """**近代造成の平坦を形で拾う。** 高さを決め打ちせず、隣と tol 以内で連なる面の連結成分を取る。
@@ -167,20 +153,50 @@ def flats(grid, tol, minCells, poly=None):
     return cells, comps
 
 
+def edge_steps(seed, hw, poly):
+    """**復元を区画線で切ったことで残る段差**を測る(仕様 `order` ⑤ / 指図の `_pending.fukugenKukakuSen`)。
+
+    区画の外は正本そのものなので、区画線をまたぐ段差の**増分**は
+    「区画の中の縁のセルが正本からどれだけ動いたか」に等しい(外は動いていない)。
+    ⛔ 平滑化で見えなくしない・宣言で済ませない — **測って図と stdout に出す。**
+    返すのは {"max","med","over1","n","cells"}。`cells` は (x, z, Δ) の一覧。"""
+    nx, nz, st = seed["nx"], seed["nz"], seed["step"]
+    vals, cells = [], []
+    for iz in range(nz):
+        for ix in range(nx):
+            x, z = seed["x0"] + st * ix, seed["z0"] + st * iz
+            if not in_poly(poly, x, z):
+                continue
+            edge = False
+            for dx, dz in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                p, q = ix + dx, iz + dz
+                if not (0 <= p < nx and 0 <= q < nz):
+                    edge = True
+                    break
+                if not in_poly(poly, seed["x0"] + st * p, seed["z0"] + st * q):
+                    edge = True
+                    break
+            if not edge or hw[iz][ix] is None or seed["h"][iz][ix] is None:
+                continue
+            dv = abs(hw[iz][ix] - seed["h"][iz][ix])
+            vals.append(dv)
+            cells.append((x, z, dv))
+    if not vals:
+        return None
+    vs = sorted(vals)
+    return {"max": vs[-1], "med": vs[len(vs) // 2], "n": len(vs),
+            "over1": sum(1 for v in vs if v > 1.0), "cells": cells}
+
+
 def reconstruct(seed, sz, spec):
     """**近代造成を戻して江戸期の地盤を起こす。** 仕様の手順を正本(seed)に対して実行する。
     返すのは (h, ログ, 触ったセル)。⛔ 松平区画の中だけを触る。
 
-    手順(仕様 `order` と一致させること):
-      ① 近代の平坦を**窓の全体**で形から拾う(外堀通り・陸化した岸は区画の外)
-      ② その平坦の縁 `edgeCap` 以内はまるごと・`feather` かけて現況へ摺り付ける重みを作る
-      ③ 法肩(`slopeArea.crest`・高さは正本のまま)→ 法尻(`toeEdges`・高さは明治16年図の ○ を
-         岸に沿って内挿)を **一定勾配**で結ぶ斜面モデルで、重みのある所だけ置き換える
-      ④ 変えたセル+周り1セルを平滑化
-      ⑤ 区画線から `edgeClip` はまるごと正本(隣家と同じ面を読む協定)"""
+    ⛔ **手順は仕様 `order` が正典。**ここに書き写さない(2026-09-02 第5次・検図 B13:
+    仕様が4段・docstring が5段で食い違い、どちらが正か読めなかった)。
+    実行のたびに `order` を stdout へ出すので、**段数の一致はそこで確かめる。**"""
     log = []
     poly = sz["polygon"]
-    gr = RGrid(sz)
     nx, nz, st = seed["nx"], seed["nz"], seed["step"]
     h = [[seed["h"][iz][ix] for ix in range(nx)] for iz in range(nz)]
     inside = {}
@@ -193,28 +209,21 @@ def reconstruct(seed, sz, spec):
 
     # ① 近代の平坦(窓の全体)
     fd = spec["flatDetect"]
-    scope_poly = None if fd.get("scope", "window") == "window" else poly
+    scope_poly = None if fd["scope"] == "window" else poly
     flatset, comps = flats(seed, fd["tol"], fd["minCells"], scope_poly)
     log.append("① 近代の平坦 %d 面 %d セル(%s。上位: %s)"
                % (len(comps), len(flatset), "窓の全体" if scope_poly is None else "区画の中",
                   " / ".join("%.2f×%d" % (y, n) for n, y in comps[:4])))
 
-    # ② 平坦からの距離の重み
-    mk = spec["mask"]
-    cap = mk["edgeCap"] / float(st)
-    fea = mk["feather"] / float(st)
-    rad = int(math.ceil(cap + fea))
-    wmap = {}
-    for ix, iz in flatset:
-        for dx in range(-rad, rad + 1):
-            for dz in range(-rad, rad + 1):
-                dd = math.hypot(dx, dz)
-                if dd > cap + fea:
-                    continue
-                w = 1.0 if dd <= cap else 1.0 - (dd - cap) / fea
-                q = (ix + dx, iz + dz)
-                if w > wmap.get(q, 0.0):
-                    wmap[q] = w
+    # ⛔ **`mask`(平坦からの距離の重み)は当邸では使わない。**
+    #   `slope.apply` が `nearFlat` のときだけ効く仕掛けで、当邸は `whole`。
+    #   従前はここで重み `wmap` を組み立てていたが**誰も読まなかった**(2026-09-02 第5次・検図 B13)。
+    #   ⛔ 使わない計算を残さない — 「効いている」と誤読される。
+    if spec["slope"]["apply"] != "whole":
+        raise SystemExit("⛔ slope.apply=%r は未実装(当生成器は `whole` のみ)。"
+                         "`nearFlat` を使うなら `mask` の重みを実装してから仕様を変えること"
+                         % spec["slope"]["apply"])
+    log.append("・ `slope.apply` = whole — `mask`(平坦の縁からの重み)は当邸では効かない(報告のみ)")
 
     # ③ 斜面モデル — **1883 の法肩と法尻**(考証方の断面の px→X)を端にする。
     #   ⛔ 2026-09-02 の初版は端を指図の設計線(法肩=木柵の線・法尻=区画線)に置いており、
@@ -229,9 +238,11 @@ def reconstruct(seed, sz, spec):
     crest_w = cr
     toe_w = [(x, z) for x, z, _ in tw]
     z_lo = min(q[1] for q in cr + toe_w); z_hi = max(q[1] for q in cr + toe_w)
-    spf = float(sl.get("spanFeather", 6.0))
-    cfe = float(sl.get("crestFeather", 6.0))
-    toe_rise = float(sl.get("toeRise", 0.0))
+    # ⛔ **既定値を二重に持たない**(2026-09-02 第5次・検図 B13)— 仕様が持つ欄は仕様から読む。
+    #   `.get(key, 既定)` にすると、仕様から欄が消えた日に**黙って別の面を書く**。
+    spf = float(sl["spanFeather"])
+    cfe = float(sl["crestFeather"])
+    toe_rise = float(sl["toeRise"])
     # 法尻の高さ: Z で一次内挿(端の外は端の値)
     def toe_y(z):
         if z <= tw[0][1]: return tw[0][2]
@@ -266,9 +277,9 @@ def reconstruct(seed, sz, spec):
         if cy is None:
             continue
         ty = toe_y(z) + toe_rise
-        y = ty + (cy - ty) * t if sl.get("profile", "grade") == "grade" else None
-        if y is None:
-            raise SystemExit("⛔ slope.profile=%r は未実装" % sl.get("profile"))
+        if sl["profile"] != "grade":
+            raise SystemExit("⛔ slope.profile=%r は未実装" % sl["profile"])
+        y = ty + (cy - ty) * t
         wc = min(1.0, (xc - x) / cfe) if cfe > 0 else 1.0  # 法肩の直近は正本へ
         w = wc * wz
         if w <= 0.0:
@@ -278,7 +289,7 @@ def reconstruct(seed, sz, spec):
             changed.add((ix, iz))
         h[iz][ix] = y
         n3 += 1
-    log.append("③ 斜面モデル(1883 の法肩 %d 点→法尻 %d 点・一定勾配・法尻 %.1f〜%.1f m【U】・toeRise %.2f)を "
+    log.append("② 斜面モデル(1883 の法肩 %d 点→法尻 %d 点・一定勾配・法尻 %.1f〜%.1f m【U】・toeRise %.2f)を "
                "%d セルに当てた(Z %.0f〜%.0f ± %.0fm・法肩の直近 %.0fm は正本へ)"
                % (len(cr), len(tw), min(q[2] for q in tw), max(q[2] for q in tw), toe_rise, n3,
                   z_lo, z_hi, spf, cfe))
@@ -299,7 +310,7 @@ def reconstruct(seed, sz, spec):
                         acc.append(cur.get((p, q), h[q][p]))
             if acc:
                 h[iz][ix] = sum(acc) / len(acc)
-    hal = float(sm.get("haloMax", 0.30))
+    hal = float(sm["haloMax"])
     clip = 0
     for q in soft:
         if q in changed or before[q] is None or h[q[1]][q[0]] is None:
@@ -308,15 +319,14 @@ def reconstruct(seed, sz, spec):
         if abs(dv) > hal:
             h[q[1]][q[0]] = before[q] + math.copysign(hal, dv)
             clip += 1
-    log.append("④ 変えた %d セル+周り = %d セルを %d 回平滑化(変えていないセルの動きは上限 %.2fm・頭打ち %d)"
+    log.append("③ 変えた %d セル+周り = %d セルを %d 回平滑化(変えていないセルの動きは上限 %.2fm・頭打ち %d)"
                % (len(changed), len(soft), sm["passes"], hal, clip))
 
     # ⑤ 区画線の上は正本(隣家と同じ面を読む協定)
-    ec = float(spec.get("edgeClip", {}).get("m", 0.0))
+    ec = float(spec["edgeClip"]["m"])
     n5 = 0
     if ec > 0:
         toe_set = set(sa["toeEdges"])
-        share = [poly[i] for i in range(len(poly))]     # 閉多角形の全辺のうち法尻辺を除いた距離
         def _dist_nontoe(x, z):
             best = None
             for i in range(len(poly)):
@@ -341,23 +351,9 @@ def reconstruct(seed, sz, spec):
             h[iz][ix] = seed["h"][iz][ix] * (1.0 - w) + h[iz][ix] * w
             if abs(b4 - h[iz][ix]) > 0.005:
                 n5 += 1
-    log.append("⑤ 区画線から %.1fm はまるごと正本・そこから %.1fm で復元へ摺り付け(%d セル)" % (ec, ec, n5))
+    log.append("④ 区画線から %.1fm はまるごと正本・そこから %.1fm で復元へ摺り付け(%d セル)" % (ec, ec, n5))
     return h, log, changed | soft
 
-
-def _crest_height(seed, crest_w, x, z):
-    """法肩線の最寄り点の**正本**の高さ。⛔ 復元しない(台地の縁は近代に動いていない前提【U】)。"""
-    best = None
-    for i in range(len(crest_w) - 1):
-        a, b = crest_w[i], crest_w[i + 1]
-        dx, dz = b[0] - a[0], b[1] - a[1]
-        L2 = dx * dx + dz * dz or 1e-9
-        t = max(0.0, min(1.0, ((x - a[0]) * dx + (z - a[1]) * dz) / L2))
-        px, pz = a[0] + dx * t, a[1] + dz * t
-        dd = math.hypot(x - px, z - pz)
-        if best is None or dd < best[0]:
-            best = (dd, px, pz)
-    return bilinear(seed, best[1], best[2]) if best else None
 
 
 def _rot(sz, src, world_like, poly):
@@ -399,6 +395,9 @@ def build(check=False):
 
     if os.path.exists(RECON):
         spec = load(RECON)
+        print("   仕様 `%s` の手順 %d 段:" % (os.path.basename(RECON), len(spec["order"])))
+        for _o in spec["order"]:
+            print("     " + _o.replace("**", "").split("。")[0])
         hw, log, touched = reconstruct(seed, sz, spec)
         for line in log:
             print("   " + line.replace("**", ""))
@@ -422,7 +421,13 @@ def build(check=False):
                 hw[iz][ix] = seed["h"][iz][ix]           # ⛔ 区画の外は正本そのもの
             if hw[iz][ix] is not None:
                 hw[iz][ix] = round(hw[iz][ix], 2)
-    print("   区画内 %d セル(2m格子)/ 復元が値を作った %d セル" % (inside, len(touched)))
+    print("   ⑤ 区画内 %d セル(2m格子)/ 復元が値を作った %d セル" % (inside, len(touched)))
+    # ⭐ **復元は区画の中だけ**(仕様 `order` ⑤)。⛔ 帰結として区画線の上に段差が残る。
+    #   ⛔ 黙って平滑化しない・黙って隠さない — **測って出す**(2026-09-02 第5次・検図 B11)。
+    edge = edge_steps(seed, hw, poly)
+    if edge:
+        print("   ⑤ 区画線の段差(復元 − 正本): 最大 %.2fm / 1m 超 %d 箇所 / 中央 %.2fm"
+              % (edge["max"], edge["over1"], edge["med"]))
 
     world = dict(WIN)
     world["_"] = ("**江戸期の復元地盤**(世界2m格子・確度U/B)。指図の現況図と造成の出発点に使う。"
@@ -438,8 +443,11 @@ def build(check=False):
                     "面の高さ・石垣基壇・拝領時造成の切盛・西斜面の帯はこの面に対して出す。"
                     "⛔ 手で編集しない。生成器 `Tools/Sashizu/build_matsudaira_dewa_edo_dem.py`。")
     cur_rot = _rot(sz, src, seed, poly)
-    cur_rot["_"] = ("**造成前の現地形**(近代造成を含む現代の地面)を回転間グリッド shukaku で持つ。"
-                    "区画の外は null。切盛図と断面の切盛ハッチに使う。**種地は正本 `base_dem.json`**(確度P)。"
+    cur_rot["_"] = ("**現況地盤**(近代造成を含む現代の地面)を回転間グリッド shukaku で持つ。"
+                    "区画の外は null。**種地は正本 `base_dem.json`**(確度P)。"
+                    "⭕ 用途は**江戸期地盤の復元の差分図**(復元 − 現況)ただ一つ。"
+                    "⛔ 切盛図と断面の切盛ハッチはこれを読まない — 造成の出発点は"
+                    "**江戸期の復元地盤**(`matsudaira_dewa_edo_dem.json`)であって現況ではない。"
                     "⛔ 手で編集しない。生成器 `Tools/Sashizu/build_matsudaira_dewa_edo_dem.py`。")
 
     for path, new in ((WORLD, world), (ROT_EDO, edo_rot), (ROT_CUR, cur_rot)):

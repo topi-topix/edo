@@ -5354,7 +5354,7 @@ def mizu_svg(d):
 # ⭐ **図で宣言した不変条件は必ず検査に落とす**(当家の作法)。
 #   ⛔ 恒真にしない — 各検査は「わざと壊すと必ず件数が出る」ことを確かめてある(破壊試験)。
 #
-# **2026-09-02 の破壊試験(63件・すべて期待どおり)**
+# **2026-09-02 の破壊試験(66件・すべて期待どおり)**
 # ⛔ **「反応する」とだけ書かない — 壊す前と後の件数を並べる。**数が無い記録は偽になり得る。
 #   ⚠ この作法にした途端、⛔ **偽の記録が4件見つかった**(前後が同じだったもの):
 #     ・「結界を全部消す → 反応する」…… 実際は **1件 → 1件**。経路の指摘が1件出るだけで数が動かず、
@@ -5377,6 +5377,10 @@ def mizu_svg(d):
 #       「前提が消えた」の枝が先に鳴って **1件→1件**。⛔ 反応したふりをせず**外した**。
 #       ⭕ 代わりに「span を与えない(落差が測れない)」で wall_check を突く。
 #       ⚠ s の枝は**裁定が下りて壁が正常な状態に戻るまで到達しない**。
+#   ⚠ **2026-09-02(庭方の差替のあと)にもう1件作り直した。**
+#     ・「木戸を窓の中へ移す」…… **0件→0件**。⛔ 検査の劣化ではなく
+#       **規則そのものを廃した**ため(木戸は扇の軸上に置いて見所と兼ねるのが設計)。
+#       ⭕ 「柵から離す」「見所を2箇所にする」へ差し替えた。
 #   【結界(取り付き・表↔奥の非連結・動線)】素 0 件
 #     結界を全部消す                                0件 → 2件
 #     W1 を段の縁で止める(北の帯を空ける)                   0件 → 2件
@@ -5448,13 +5452,16 @@ def mizu_svg(d):
 #     法面の到達距離を 2m へ縮める                       0件 → 12件
 #   【郭の土留めの高さ】素 0 件
 #     土留めをもう1本足し、span を与えない(落差が測れない)         0件 → 1件
-#   【西の斜面と岸(窓・林・葭蓮・柵・小径)】素 6 件
-#     林の下端の線を直線にする                           6件 → 7件
-#     帯の連なりを切る(林の下端を1m下げる)                   6件 → 7件
-#     蓮の帯を水面より上げる                            6件 → 8件
-#     汀の柵を消す                                 6件 → 7件
-#     木戸を窓の中へ移す                              6件 → 7件
-#     窓の中の樹高の上限を半分にする                        6件 → 8件
+#   【西の斜面と岸(窓・林・葭蓮・柵・小径)】素 0 件
+#     林の下端の線を直線にする                           0件 → 1件
+#     帯の連なりを切る(林の下端を1m下げる)                   0件 → 1件
+#     蓮の帯を水面より上げる                            0件 → 2件
+#     汀の柵を消す                                 0件 → 1件
+#     木戸を柵から離す(区画界の上から外す)                    0件 → 1件
+#     堀端の見所を2箇所にする(木戸と兼ねる形を崩す)               0件 → 1件
+#     窓の松 P3 を扇の中へ戻す                         0件 → 1件
+#     法肩の松の丈の下限を 6.0 へ下げる                    0件 → 1件
+#     窓の中の樹高の上限を半分にする                        0件 → 2件
 #   【往復試験(剥がして組み直すと正典に戻るか)】素 0 件
 #     断面の現地形線を人が書き換える                        0件 → 1件
 
@@ -6651,28 +6658,21 @@ def nishi_items(d):
 
 
 def hokata_need(d):
-    """**法肩の松に要る樹高**。対岸の汀から御殿の棟を切る視線が法肩を通る高さ − 法肩の地盤。
-    ⛔ 数値を文章に書かない — ここが算出する。"""
+    """**法肩の松に要る樹高。**⛔ **要求は窓の外にだけ掛ける** — 窓は意図して開けてあるので、
+    窓の中を通る光線を遮蔽の要求に混ぜない(混ぜると要る丈が過大に出る。2026-09-02 に
+    指図方が 8.63m と出したのがこの誤り)。
+
+    ⚠ **御殿の大棟の高さが設計値に無い**ので、庭方が3つの候補で総当たりした結果を持つ。
+    ⛔ 検査は**最悪の候補**で見る。大棟が設計値に入ったら `needByRidge` を1本にする。"""
     N = (d.get("nishi") or {}).get("hokata") or {}
     sh = N.get("shading")
-    if not sh:
+    if not sh or not sh.get("needByRidge"):
         return None
-    ray = sh["farEyeY"] + (sh["ridgeY"] - sh["farEyeY"]) * sh["distHigataM"] / max(sh["distRidgeM"], 1e-9)
-    # ⚠ **松が立つ帯の実地盤で測る。**法肩の一点(24.70)ではない — 帯は法肩より下にあるので、
-    #   そこに立つ木は同じ高さの視線を切るのにより丈が要る。2026-09-02 に地盤を起こし直した結果、
-    #   この差が 1m 近く出た(庭方の与件は法肩の一点で計算していた)。
-    gs = []
-    for a9, b9 in (N.get("spans") or [[-27.0, 22.0]]):
-        u = a9
-        while u <= b9:
-            for v in (N.get("v0", 109.5), N.get("v1", 111.0)):
-                y9 = _dem_at(d, u, v)
-                if y9 is not None:
-                    gs.append(y9)
-            u += 1.0
-    gm = (sum(gs) / len(gs)) if gs else 24.7
-    return {"rayY": ray, "groundY": gm, "groundMin": min(gs) if gs else gm,
-            "needH": ray - gm, "needMax": ray - (min(gs) if gs else gm)}
+    nb = sh["needByRidge"]; rc = sh.get("ridgeCandidates") or []
+    k9 = nb.index(max(nb))
+    return {"needH": max(nb), "ridgeY": rc[k9] if k9 < len(rc) else None,
+            "byRidge": list(zip(rc, nb)), "worstAt": sh.get("worstAt"),
+            "sens": sh.get("sensitivity"), "scope": sh.get("scope", "窓の外だけ")}
 
 
 def nishi_check(d):
@@ -6714,8 +6714,9 @@ def nishi_check(d):
     hk = N.get("hokata") or {}
     if nd and hk.get("hMin") is not None and hk["hMin"] < nd["needH"] - 1e-6:
         bad.append("法肩の松の丈の下限 %.1fm が、対岸から御殿の棟を切るのに要る %.2fm に足りない"
-                   "(帯の実地盤 平均 %.2f・最低 %.2f。最低の所では %.2fm 要る)"
-                   % (hk["hMin"], nd["needH"], nd["groundY"], nd["groundMin"], nd["needMax"]))
+                   "(%s。大棟の候補ごとに %s)"
+                   % (hk["hMin"], nd["needH"], nd["scope"],
+                      " / ".join("%.2f→%.2fm" % q for q in nd["byRidge"])))
     for g9 in d.get("gardens", []):
         for sk9 in (g9.get("shokusai") or []):
             if sk9.get("screen") and nd and (sk9.get("hMin") or 0) < nd["needH"] - 1e-6:
@@ -6763,19 +6764,32 @@ def nishi_check(d):
         fe = [f for f in d.get("fences", []) if f["edge"] == sk9.get("edge")]
         if not fe:
             bad.append("汀の柵が辺%s に載っていない(`fences` に無い)" % sk9.get("edge"))
+        # ⛔ **「木戸は窓の外」という旧い規則は廃した**(2026-09-02 庭方) —
+        #   柵は柵際に立っても足元の水を隠すので、**木戸を扇の軸上に置いて見所と兼ねる**のが設計。
+        #   ⭕ 見るのは「1箇所だけであること」と「柵(区画界)の上にあること」。
         kd = sk9.get("kido")
-        if kd and in_mado(d, kd["u"], 165.0):
-            bad.append("木戸 (u%.1f) が窓の中にある — 窓の外へ出すこと" % kd["u"])
+        if kd:
+            if not isinstance(kd, dict):
+                bad.append("木戸が1箇所に定まっていない")
+            else:
+                dd9 = _par_near(d, kd["u"], kd["v"])
+                if dd9[1] != sk9.get("edge") or dd9[0] * K > 1.0:
+                    bad.append("木戸 (%.1f, %.1f) が柵の辺%s の上に無い(最寄りは辺%d・%.2fm)"
+                               % (kd["u"], kd["v"], sk9.get("edge"), dd9[1], dd9[0] * K))
+        mk9 = [m for m in (N.get("mikoro") or [])]
+        if len(mk9) > 1:
+            bad.append("堀端の見所が %d 箇所ある — 木戸と兼ねる1箇所に絞ること" % len(mk9))
     # ⑦ 小径
     km = (N.get("mado") or {}).get("komichi") or {}
     pts = [(a, b) for a, b in (km.get("pts") or [])]
     # ⛔ **1件に丸めるが、件数と最悪値は必ず出す**(点ごとに並べると1つの原因で表が埋まる)。
-    out9 = [q for q in pts if not in_mado(d, q[0], q[1])]
+    vlim = (N.get("mado") or {}).get("fanLimitV", 1e9)
+    out9 = [q for q in pts if q[1] <= vlim and not in_mado(d, q[0], q[1])]
     if out9:
         ax9 = axis_at(d, out9[0][1])
-        bad.append("窓の小径の折れ点 %d/%d 点が窓の外(=林の中を通る)— 最初は (%.1f, %.1f)、"
-                   "その v での窓は u%.1f〜%.1f" % (len(out9), len(pts), out9[0][0], out9[0][1],
-                                                  ax9[0], ax9[1]))
+        bad.append("窓の小径の折れ点 %d/%d 点が、斜面(v≦%.1f)で窓の外=林の中を通る — "
+                   "最初は (%.1f, %.1f)、その v での窓は u%.1f〜%.1f"
+                   % (len(out9), len(pts), vlim, out9[0][0], out9[0][1], ax9[0], ax9[1]))
     gmax = 0.0; gwhere = None
     for a9, b9 in zip(pts, pts[1:]):
         ya, yb = _dem_at(d, a9[0], a9[1]), _dem_at(d, b9[0], b9[1])
@@ -6997,16 +7011,39 @@ def nishi_table(d):
         ["林の下端の線", "%d 点・振れ ±%.2f間(算出。下限 %.1f間)"
          % (len(hy.get("edge") or []), _edge_wave(hy), hy.get("edgeWave", 2.0))],
         ["<b>法肩の松に要る丈</b>",
-         "対岸の汀の眼 %.2f → 御殿の棟 %.2f を切る視線が法肩で <b>%.2f</b> ／ "
-         "松の立つ帯の実地盤 平均 %.2f → <b>要る丈 %.2fm</b>(設計の下限 %.1fm)"
+         "対岸の汀(眼 %.2f)から奥向棟を切る視線 — <b>%s</b>で要る丈は "
+         "大棟の候補ごとに %s ／ 最悪の所は (u%.1f, v%.1f) ／ 感度 %.2f(大棟が1m上がると要る丈)"
+         "→ <b>要る丈 %.2fm</b>(設計の下限 %.1f・上限 %.1f)"
          % ((N.get("hokata") or {}).get("shading", {}).get("farEyeY", 0),
-            (N.get("hokata") or {}).get("shading", {}).get("ridgeY", 0),
-            nd.get("rayY", 0), nd.get("groundY", 0), nd.get("needH", 0),
-            (N.get("hokata") or {}).get("hMin", 0))],
+            nd.get("scope", ""),
+            " / ".join("大棟 %.2f → %.2fm" % q for q in nd.get("byRidge", [])),
+            (nd.get("worstAt") or [0, 0])[0], (nd.get("worstAt") or [0, 0])[1],
+            nd.get("sens", 0), nd.get("needH", 0),
+            (N.get("hokata") or {}).get("hMin", 0), (N.get("hokata") or {}).get("hMax", 0))],
         ["法尻の帯", "ススキ %d〜%d 株・榎 %d 本(単木の大木)"
          % ((N.get("hojiri") or {}).get("susuki", {}).get("nMin", 0),
             (N.get("hojiri") or {}).get("susuki", {}).get("nMax", 0),
             len((N.get("hojiri") or {}).get("enoki") or []))],
+        ["汀の柵と木戸", "木柵 h%.1f を辺%s の全長に ／ 木戸 (u%.1f, v%.1f)・幅 %.2fm・h%.1f"
+         "(辺の走り s=%.1fm・敷居の地盤 %.2f)。⛔ 木戸は1箇所だけ"
+         % ((N.get("saku") or {}).get("h", 0), (N.get("saku") or {}).get("edge", ""),
+            ((N.get("saku") or {}).get("kido") or {}).get("u", 0),
+            ((N.get("saku") or {}).get("kido") or {}).get("v", 0),
+            ((N.get("saku") or {}).get("kido") or {}).get("w", 0),
+            ((N.get("saku") or {}).get("kido") or {}).get("h", 0),
+            ((N.get("saku") or {}).get("kido") or {}).get("s", 0),
+            ((N.get("saku") or {}).get("kido") or {}).get("groundY", 0))],
+        ["堀端の見所", " ／ ".join(
+            "%s %s (u%.1f, v%.1f)・眼 %.2f — %s"
+            % (MARU[m9["no"] - 1], m9["label"], m9["u"], m9["v"], m9["eyeY"],
+               "・".join(m9.get("sees") or [])) for m9 in (N.get("mikoro") or []))
+         + "。⭕ <b>木戸と兼ねる</b> — 柵(h%.1f)は柵の内側からでは足元の水を隠すので、"
+           "敷居に立ってはじめて水面が足元から見える"
+         % (N.get("saku") or {}).get("h", 0)],
+        ["窓の小径", "折れ点 %d 点・総延長 %.1fm・最急 %.1f%%(上限 %.0f%%)・折り返し 2回"
+         % (len(((N.get("mado") or {}).get("komichi") or {}).get("pts") or []),
+            _komichi_len(d), _komichi_grad(d),
+            ((N.get("mado") or {}).get("komichi") or {}).get("gradMax", 20))],
         ["柵の外", "堤 1:%.1f の土羽 ／ ヨシ 幅 %.1f〜%.1fm・水深 %+.1f〜%+.1f ／ 蓮 汀から %.0f〜%.0fm"
          % ((N.get("tsutsumi") or {}).get("batter", 0),
             (N.get("tsutsumi") or {}).get("yoshi", {}).get("wMin", 0),
@@ -7021,6 +7058,24 @@ def nishi_table(d):
                "⛔ <b>灯籠・飛石・蹲踞は一つも置かない</b> — ここは庭ではなく<b>屋敷林と堀端</b>である。"
                "⛔ 柳・屋根の列・畑・馬場・水汲みの段・洗い場・船着も置かない。"
                "⛔ 堤を石垣にしない(切絵図は黒枠の無い無地の緑帯)。")
+
+
+def _komichi_len(d):
+    K = d["const"]["ken"]
+    p9 = (((d.get("nishi") or {}).get("mado") or {}).get("komichi") or {}).get("pts") or []
+    return sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(p9, p9[1:])) * K
+
+
+def _komichi_grad(d):
+    K = d["const"]["ken"]
+    p9 = (((d.get("nishi") or {}).get("mado") or {}).get("komichi") or {}).get("pts") or []
+    g9 = 0.0
+    for a, b in zip(p9, p9[1:]):
+        ya, yb = _dem_at(d, a[0], a[1]), _dem_at(d, b[0], b[1])
+        L9 = math.hypot(b[0] - a[0], b[1] - a[1]) * K
+        if ya is not None and yb is not None and L9 > 1e-6:
+            g9 = max(g9, 100.0 * abs(yb - ya) / L9)
+    return g9
 
 
 def _edge_wave(hy):

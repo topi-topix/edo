@@ -729,6 +729,63 @@ def main():
              '⛔ 窓の有無・幅ともに典拠は U で、どの案も史料が否定するものではありません。</p>')
     h.append("</div>")
 
+    # ---------------------------------------------------------- 第五次 裁定8
+    svg8 = obi_plan(dA2, ter6)
+    site_m2 = B.polygon_area_m2(dA2) if hasattr(B, "polygon_area_m2") else 34093.2
+    built0 = 3803.0
+    h.append('<hr style="margin:44px 0 8px;border:0;border-top:2px solid var(--rule)">')
+    h.append('<h2 style="margin-top:0">第五次の裁定 — 1件(2026-09-03)</h2>')
+    h.append('<div class="plate"><div class="phead"><h2>裁定8　法尻の帯に、何をどこに置くか</h2>'
+             '<span class="meta">どこ=溜池の岸の平らな帯(v131〜165)、見透しの窓の扇の南と北。指図「西の斜面と溜池の岸」</span></div>')
+    h.append('<div class="box"><h3>まず、何の話か — 裁定6=B(建物を置く)を受けて</h3>'
+             '<p>置く物の<b>型は考証方が史料で決めました</b>: 隣街区の丹羽邸(二本松10万石)の発掘で「台地の上に御殿 / 西の低地は'
+             '<b>詰人(中間・足軽)の長屋地区</b>(長屋・井戸・かわや・排水溝)」という型が出ています(確度S。当邸へ当てるのは外挿でB)。'
+             '⛔ <b>厩は不可</b>(切絵図に崖の西・北に道が無く馬の出入口が取れない=S)、土蔵の主群・舟蔵・離れ・畑も型に合いません。'
+             '棟は<b>水に背を向け</b>(水側は盲の板壁・開口は山側)、屋根は<b>桟瓦の黒</b>、外へ出る門は無く'
+             '<b>勝手の坂1本で上と繋がる袋の一画</b>です。</p>'
+             '<p>景の制約は<b>庭方</b>: 林の裾(v131〜145)に置き汀寄りに置かない(対岸から「林→屋根→榎→草→葭→水」の層になる)/'
+             '長手は等高線なり・奥行2.5〜3間(切盛±0.5m以内)/ <b>榎3本は残し軒から幹まで6m</b>/ 南隅(勾配11.6%)には建てない/'
+             '北の余地は幅8.5間で榎が中央なので小さく寄せるか建てない。</p>'
+             '<p>⭐ 同時に、<b>窓の中の芝の小径は廃します</b>(庭方の提案を採用)— 14間の窓には折り返しの路が入らず、'
+             '勝手の坂が木戸への道も兼ねるので、窓は芝だけの切れ込みになり景が良くなります。</p></div>')
+    h.append('<div class="fig">%s</div>' % svg8)
+    rows = []
+    for nm in ("A", "B", "C"):
+        mm, ss = OBI_VARIANTS[nm]
+        st = _obi_stats(dA2, ter6, mm)
+        area = sum(x["area"] for x in st); dzmax = max(x["dz"] for x in st)
+        hh = sum(int(x["ken"] / 1.5) for x in st if x["use"].startswith("詰人"))
+        gaps = _enoki_gap(dA2, mm)
+        rows.append('<tr><td><b>案%s</b></td><td>%d棟(%s)</td><td>%.0f m² = %.0f坪</td><td>約%d世帯</td>'
+                    '<td>%.1f%% → <b>%.1f%%</b></td><td>%.2f m</td><td>%s</td><td>%s</td></tr>'
+                    % (nm, len(mm), "・".join(x["id"] for x in st), area, area / 3.3058, hh,
+                       100 * built0 / site_m2, 100 * (built0 + area) / site_m2, dzmax,
+                       " / ".join("%s %.1fm" % g for g in gaps),
+                       "・".join(s[0] for s in ss)))
+    h.append('<div class="tw"><table><thead><tr><th>　</th><th>棟</th><th>建坪</th><th>詰人(1.5間/世帯)</th>'
+             '<th>建蔽率</th><th>棟の下の切盛の最大</th><th>榎の幹から軒まで</th><th>小物</th></tr></thead><tbody>%s</tbody></table></div>'
+             % "".join(rows))
+    h.append('<p class="cap">どの案も勝手の坂は同じ1本(仮の折れで %.0fm・林を幅2mで抜く=約 %.0f m²・林の3%%前後)。'
+             '切盛は棟ごとに面を持つ前提(帯全体は平らにしない)。⚠ 棟の座標は裁定のための仮置きで、'
+             '決まったら指図方が書き起こし、切盛±0.5m・榎の離れ6m・窓の視野(棟の頂点も総当たり)の検査で検めます。'
+             '⛔ 詰人の人数の典拠(軍役→江戸詰人数)は当プロジェクトに無く、世帯数は U のままです。</p>'
+             % (_saka_len(dA2), _saka_len(dA2) * 2.0))
+    h.append('<div class="tw"><table><thead><tr><th>　</th><th>案A 南に一組(長屋2棟+物置)</th>'
+             '<th>案B 南に一組+北に1棟</th><th>案C 南に1棟だけ</th></tr></thead><tbody>'
+             '<tr><td>対岸から見える屋根</td><td>林の裾に黒瓦の低い線が2本、榎E1が間を切る</td>'
+             '<td>同左+北にもう1本(窓の両側に屋根が並ぶ)</td><td>1本だけ。裾はほぼ草地のまま</td></tr>'
+             '<tr><td>尤もらしさ</td><td>丹羽の型(詰人の一画)に最も近く、控えめ。井戸端に大木</td>'
+             '<td>裾の景は最も名所図会に近いが、北は幅8.5間で榎E3に迫り窮屈</td><td>「一画」と呼ぶには小さい。裁定6=Bの意図に届きにくい</td></tr>'
+             '<tr><td>典拠の強さ</td><td>B(型)+U(棟数・位置)</td><td>同左。北の棟は景観の担保だけ(名所図会は根拠に使わない)</td><td>同左</td></tr>'
+             '<tr><td>動く物</td><td>棟3・小物2・坂1・排水溝・帯DをD1/D2に</td><td>+棟1・かわや1</td><td>棟1・小物2・坂1</td></tr>'
+             '</tbody></table></div>')
+    h.append('<p class="cap"><b>推奨=案A。</b>⭕ 理由は「江戸のその土地として尤もらしいか」の一点です — '
+             '隣街区で発掘された「低地=詰人の長屋地区」の型を、当邸の帯の広さ(南583坪)に合う最小の一組で写し、'
+             '<b>榎3本を残して屋根の列を大木が切る</b>裾の景になります。⚠ 案Bの北の棟は景としては良いが、'
+             '幅8.5間の余地の中央に榎E3が立ち、6mの離れを取ると4.5間の小棟しか入らず、窮屈さが目立ちます。'
+             '⛔ 当邸のこの帯についての典拠はBとUだけなので、控えめに置くのが典拠の強さに見合います。</p>')
+    h.append("</div>")
+
     h.append('<div class="box" style="border-color:var(--shu)"><h3>⚠ この図で決まらないこと</h3>'
              '<p>第一次(庭)の2件のほかに、主景の位置・汀線の形・石組・飛石・植栽・結界塀・稲荷社の'
              '位置などを含むが、それらは<b>裁定を要しない設計判断</b>として指図方が書き起こす。'
@@ -1096,6 +1153,7 @@ SAITEI_STATUS = [
     (5, "屋敷の西の端をどこまで「奥」とするか", "done", "B", "2026-09-02", "結界は崖の上まで。崖から下は外構の地"),
     (6, "溜池の岸の平らな帯に、建物を置くか", "done", "B", "2026-09-03", "窓の外の南北の余地に家臣長屋・厩・土蔵の類を置く → 何をどこには裁定8"),
     (7, "見透しの窓を、どこまで細めるか", "done", "B", "2026-09-03", "扇ぜんたいを相似に 23間 → 14間"),
+    (8, "法尻の帯に、何をどこに置くか", "open", "", "", "推奨=案A(南に詰人長屋2棟+物置・井戸・かわや、勝手の坂1本)"),
 ]
 _ST_LABEL = {"done": ("✅ 裁定済", "st-done"), "open": ("⏳ 未決 — お返事をお待ちしています", "st-open"),
              "void": ("⛔ 撤回(裁定不要)", "st-void")}
@@ -1132,6 +1190,154 @@ def apply_status(html):
     j = html.find("</style>")
     assert j > 0
     return html[:j + 8] + _ST_CSS + html[j + 8:]
+
+
+# ================================================================ 第五次(2026-09-03) 裁定8
+# 法尻の帯に「何をどこに」。型は考証方(K198: 詰人の平屋長屋+井戸・かわや・物置・排水溝、水に背を向ける)、
+# 景の制約は庭方(林の裾・等高線なり・奥行2.5〜3間・榎3本は残す・軒から幹6m・南隅は建てない・厩は不可)。
+# ⛔ 棟の座標は裁定のための仮置き(普請奉行)。決まったら指図方が書き起こし、検査(切盛±0.5・榎の離れ・窓)で検める。
+FAN8 = [(108.5, -0.87, 2.37), (134.4, -3.87, 5.87), (165.0, -6.00, 8.00)]      # 庭方 K187(14間・上端2.74間・芯+1.0)
+ENOKI_CLEAR_M = 6.0
+OBI_VARIANTS = {
+    # name: (棟の一覧 [(id, u0,u1,v0,v1, 用途)], 小物 [(id,u,v,用途)])
+    "A": ([("N1", -12.0, -4.5, 137.1, 139.6, "詰人長屋(南1)"), ("N2", -22.0, -14.5, 133.0, 135.5, "詰人長屋(南2)"),
+           ("M1", -10.0, -7.0, 143.5, 145.0, "物置")],
+          [("井戸", -13.0, 142.5), ("かわや", -6.0, 141.8)]),
+    "B": ([("N1", -12.0, -4.5, 137.1, 139.6, "詰人長屋(南1)"), ("N2", -22.0, -14.5, 133.0, 135.5, "詰人長屋(南2)"),
+           ("M1", -10.0, -7.0, 143.5, 145.0, "物置"), ("N3", 5.5, 10.0, 131.0, 133.5, "詰人長屋(北)")],
+          [("井戸", -13.0, 142.5), ("かわや", -6.0, 141.8), ("かわや", 7.5, 136.5)]),
+    "C": ([("N1", -12.0, -4.5, 137.1, 139.6, "詰人長屋(南1)")],
+          [("井戸", -13.0, 142.5), ("かわや", -6.0, 141.8)]),
+}
+OBI_SAKA = [(-19.0, 108.5), (-25.5, 118.5), (-16.5, 127.5), (-23.0, 133.5)]    # 勝手の坂(幅1間・段なし)の仮の折れ
+
+
+def _obi_stats(d, ter, munes):
+    """棟ごとに 面積・地盤の平均(=面)・|地盤−面| の最大 を実測する。"""
+    K = d["const"]["ken"]; step = ter["step"]
+    out = []
+    for mid, u0, u1, v0, v1, use in munes:
+        zs = []
+        for iv in range(ter["nv"]):
+            v = ter["v0"] + iv * step
+            if not (v0 <= v <= v1):
+                continue
+            for iu in range(ter["nu"]):
+                u = ter["u0"] + iu * step
+                if u0 <= u <= u1 and ter["h"][iv][iu] is not None:
+                    zs.append(ter["h"][iv][iu])
+        pad = sum(zs) / len(zs) if zs else float("nan")
+        dz = max(abs(z - pad) for z in zs) if zs else float("nan")
+        area = (u1 - u0) * (v1 - v0) * K * K
+        out.append(dict(id=mid, use=use, area=area, pad=pad, dz=dz, ken=(u1 - u0)))
+    return out
+
+
+def _enoki_gap(d, munes):
+    """棟の縁から榎の幹までの最短距離(m)。"""
+    K = d["const"]["ken"]; res = []
+    for e in d["nishi"]["hojiri"]["enoki"]:
+        best = 1e9
+        for mid, u0, u1, v0, v1, use in munes:
+            du = max(u0 - e["u"], 0, e["u"] - u1); dv = max(v0 - e["v"], 0, e["v"] - v1)
+            best = min(best, (du * du + dv * dv) ** 0.5 * K)
+        res.append((e["name"], best))
+    return res
+
+
+def _saka_len(d):
+    K = d["const"]["ken"]; L = 0.0
+    for (a, b), (c, e) in zip(OBI_SAKA, OBI_SAKA[1:]):
+        L += ((a - c) ** 2 + (b - e) ** 2) ** 0.5 * K
+    return L
+
+
+def obi_plan(d, ter):
+    """裁定8 — 法尻の帯の棟を3案重ねる(同じ縮尺)。実線=案A / 青破線=案Bで足す棟 / 斜線=案Cで置かない棟。"""
+    W, H = 940.0, 600.0
+    u0, u1, v0, v1 = -30.0, 32.0, 100.0, 176.0
+    sc = min((W - 60) / (v1 - v0), (H - 130) / (u1 - u0))
+
+    def X(v):
+        return 30 + (v1 - v) * sc
+
+    def Y(u):
+        return 90 + (u1 - u) * sc
+
+    g = sv(W, H, "裁定8 法尻の帯の棟")
+    step = ter["step"]
+    for iv in range(ter["nv"]):
+        v = ter["v0"] + iv * step
+        if not (v0 <= v <= v1):
+            continue
+        for iu in range(ter["nu"]):
+            u = ter["u0"] + iu * step
+            z = ter["h"][iv][iu]
+            if z is None or not B.in_parcel(d, u, v):
+                continue
+            col = "rgba(150,140,120,0.35)" if z > 24.0 else ("rgba(70,120,70,0.40)" if z > 14.0 else "rgba(214,196,120,0.35)")
+            RC(g, X(v + step), Y(u + step), step * sc + 0.6, step * sc + 0.6, col)
+    P = d["polygon"]; gr = B.RGrid(d)
+    pl = [gr.L(q[0], q[1]) for q in P]
+    g.append('<polygon points="%s" fill="none" stroke="var(--ink)" stroke-width="1.4" stroke-dasharray="7 4"/>'
+             % " ".join("%.1f,%.1f" % (X(q[1]), Y(q[0])) for q in pl))
+    # 汀線(杭列)・木戸
+    mz = d["nishi"]["tsutsumi"].get("mizugiwaM", 10.0) / d["const"]["ken"]
+    LN(g, X(165.0 + mz), Y(-27.0), X(165.0 + mz), Y(13.5), "#2e6e7a", 1.2, "2 3")
+    T(g, X(165.0 + mz) + 4, Y(13.5) - 6, "汀線=杭列(区画界から %.1fm)" % (mz * d["const"]["ken"]), "anS2", "start", 10)
+    g.append('<rect x="%.1f" y="%.1f" width="8" height="8" fill="var(--shu)"/>' % (X(165.28) - 4, Y(1.0) - 4))
+    T(g, X(165.28) + 6, Y(1.0) + 14, "木戸", "anS2", "start", 10)
+    # 窓の扇(14間・上端2.74間・芯+1.0) — ここには建てない
+    fan = [(a, v) for v, a, b in FAN8] + [(b, v) for v, a, b in reversed(FAN8)]
+    g.append('<polygon points="%s" fill="var(--shu)" fill-opacity="0.08" stroke="var(--shu)" stroke-width="1.6"/>'
+             % " ".join("%.1f,%.1f" % (X(q[1]), Y(q[0])) for q in fan))
+    T(g, X(140.0), Y(4.2), "見透しの窓(14間・上端2.74間)— 芝のみ・建てない・路も通さない", "anS2", "middle", 10)
+    # 榎と離れの円
+    K = d["const"]["ken"]
+    for e in d["nishi"]["hojiri"]["enoki"]:
+        cx, cy = X(e["v"]), Y(e["u"])
+        g.append('<circle cx="%.1f" cy="%.1f" r="%.1f" fill="none" stroke="#3a6b2a" stroke-width="0.8" stroke-dasharray="3 3"/>'
+                 % (cx, cy, ENOKI_CLEAR_M / K * sc))
+        g.append('<circle cx="%.1f" cy="%.1f" r="5" fill="#3a6b2a"/>' % (cx, cy))
+        T(g, cx - 9, cy + 4, "榎 %s(%d〜%dm)" % (e["name"], e["hMin"], e["hMax"]), "anS2", "end", 10)
+    # 林の下端
+    ed = d["nishi"]["hayashi"]["edge"]
+    g.append('<polyline points="%s" fill="none" stroke="#3a6b2a" stroke-width="1.2"/>'
+             % " ".join("%.1f,%.1f" % (X(q[1]), Y(q[0])) for q in ed))
+    T(g, X(ed[0][1]) + 4, Y(ed[0][0]) + 12, "林の下端", "anS2", "start", 10)
+    # 棟 — 案A 実線 / 案B の追加は青破線 / 案C は N1 のみ(N2・M1 に斜線)
+    A_m, A_s = OBI_VARIANTS["A"]; B_m, B_s = OBI_VARIANTS["B"]; C_m, C_s = OBI_VARIANTS["C"]
+    c_ids = {m[0] for m in C_m}
+    for mid, mu0, mu1, mv0, mv1, use in A_m:
+        RC(g, X(mv1), Y(mu1), (mv1 - mv0) * sc, (mu1 - mu0) * sc, "var(--nagaya)", "var(--ink)", 1.0, 0.9)
+        if mid not in c_ids:
+            for k in range(1, 6):
+                t = k / 6.0
+                LN(g, X(mv1) + (mv1 - mv0) * sc * t, Y(mu1), X(mv1), Y(mu1) + (mu1 - mu0) * sc * t, "var(--ink)", 0.6)
+        T(g, X(mv1) - 4, Y(mu1) - 4, "%s %s %.1f×%.1f間" % (mid, use, mu1 - mu0, mv1 - mv0), "anS2", "end", 10)
+    for mid, mu0, mu1, mv0, mv1, use in B_m:
+        if mid in {m[0] for m in A_m}:
+            continue
+        RC(g, X(mv1), Y(mu1), (mv1 - mv0) * sc, (mu1 - mu0) * sc, "#2e6e7a", "#2e6e7a", 1.4, 0.25, "5 3")
+        T(g, X(mv0) + 4, Y(mu0) + 12, "%s %s %.1f×%.1f間(案Bだけ)" % (mid, use, mu1 - mu0, mv1 - mv0), "anS2", "start", 10)
+    for sid, su, sv_, in B_s:
+        g.append('<rect x="%.1f" y="%.1f" width="7" height="7" fill="none" stroke="var(--ink)" stroke-width="1"/>' % (X(sv_) - 3.5, Y(su) - 3.5))
+        T(g, X(sv_) - 6, Y(su) + 4, sid, "anS2", "end", 9)
+    # 勝手の坂
+    g.append('<polyline points="%s" fill="none" stroke="#7a4a1a" stroke-width="3" stroke-linejoin="round"/>'
+             % " ".join("%.1f,%.1f" % (X(q[1]), Y(q[0])) for q in OBI_SAKA))
+    T(g, X(116.0), Y(-19.5), "勝手の坂(幅1間・段なし・≤20%・林を筋で抜く)", "anS2", "middle", 10)
+    for mu in d["munes"]:
+        RC(g, X(mu["v1"]), Y(mu["u1"]), (mu["v1"] - mu["v0"]) * sc, (mu["u1"] - mu["u0"]) * sc,
+           "var(--nagaya)", "var(--ink)", 0.7, 0.85)
+    T(g, X(104.0), Y(-12.0), "主面 24.8", "anS2", "middle", 11)
+    T(g, X(172.0), Y(28.0), "溜池", "anS2", "middle", 11)
+    T(g, 6, 16, "実線の棟=案A(南に長屋2棟+物置・井戸・かわや)/ 青破線=案Bで足す北の1棟 / 斜線=案Cでは置かない棟。"
+      "朱の扇=窓(建てない)/ 緑の破線円=榎の幹から6m(軒を入れない)", "anS2", "start", 11)
+    T(g, 6, 32, "緑=林(地盤14以上)/ 黄=法尻の帯(刈草地)/ 灰=主面 / 茶の太線=勝手の坂 / 青緑の点線=汀線(杭列)。"
+      "向き: u+ が北(上)・v+ が西(左)。⛔ 棟の座標は裁定のための仮置き", "anS2", "start", 10)
+    g.append("</svg>")
+    return "\n".join(g)
 
 
 

@@ -1420,6 +1420,11 @@ def plane_check(d):
     bad += group_pack_check(d)
     bad += crown_fallback_check(d)
     bad += garden_access_check(d)
+    # ⭐ **2026-09-02(第5次)に新設して同じ巡で配線した**(規則19)。
+    #   ⛔ どれも「直したのに検査が無い」型 — 幾何を直しても次の版でまた入る。
+    bad += band_overlap_check(d)
+    bad += route_connect_check(d)
+    bad += viewpoint_fov_check(d)
     return bad
 
 
@@ -7185,6 +7190,205 @@ def _L2(e, name):
     raise KeyError(name)
 
 
+# ── 帯どうしの重なり ────────────────────────────────────────────────────────
+# ⭐ **2026-09-02(第5次・検図 高1)に新設。**⛔ `overlap_check` は**矩形しか箱に入れない**ので、
+#   線状の帯(園路・水路の野筋・生垣)は総当たりの対象外だった。そのせいで
+#   **遣水と回遊路が全長の 86% で重なっていても 0 件**だった。⛔ 幾何を直しても、
+#   この検査が無ければ次の版でまた入る。
+# ⚠ **交差は不良ではない** — 道が流れを横切るのは正しい姿(そこに橋を架ける)。
+#   ⛔ 不良は**並走して重なる**こと。⇒ 重なる区間の**長さ**で判定する。
+# ⛔ 暗渠は対象外 — **地下**なので、地上の帯と平面で重なってよい(棟の下は `mizu_check` の持ち場)。
+
+def _bands(d):
+    """平面で場所を占める帯。(名, 芯線の点列[間], 幅[間])"""
+    out = []
+    for r in d.get("routes", []):
+        if r.get("w") and len(r.get("pts", [])) >= 2:
+            out.append((r["name"], [tuple(p) for p in r["pts"]], float(r["w"])))
+    y = d.get("sensui", {}).get("yarimizu")
+    if y and y.get("pts"):
+        out.append(("遣水の野筋", [tuple(p) for p in y["pts"]],
+                    float(y.get("nosuji", {}).get("w", 0.0))))
+    for t in d.get("tenkei", []):
+        if "生垣" in t.get("kind", "") and t.get("a") and t.get("b"):
+            out.append((t["name"], [tuple(t["a"]), tuple(t["b"])], float(t.get("w", 0.40))))
+    return [b for b in out if b[2] > 0]
+
+
+def _seg_dist(p, a, b):
+    ax, az = a
+    bx, bz = b
+    dx, dz = bx - ax, bz - az
+    L2 = dx * dx + dz * dz
+    if L2 <= 1e-12:
+        return math.hypot(p[0] - ax, p[1] - az)
+    t = max(0.0, min(1.0, ((p[0] - ax) * dx + (p[1] - az) * dz) / L2))
+    return math.hypot(p[0] - (ax + t * dx), p[1] - (az + t * dz))
+
+
+def band_overlap_check(d, step=0.25, lim=2.0):
+    """帯どうしが**並走して重なって**いないか。`lim` は許す重なりの長さ[間]。"""
+    bad = []
+    bands = _bands(d)
+    for i in range(len(bands)):
+        n1, p1, w1 = bands[i]
+        for j in range(i + 1, len(bands)):
+            n2, p2, w2 = bands[j]
+            need = (w1 + w2) / 2.0
+            hit, total = 0, 0
+            worst = None
+            for k in range(len(p1) - 1):
+                a, b = p1[k], p1[k + 1]
+                L = math.hypot(b[0] - a[0], b[1] - a[1])
+                n = max(1, int(L / step))
+                for m in range(n + 1):
+                    t = m / float(n)
+                    q = (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
+                    dmin = min(_seg_dist(q, p2[x], p2[x + 1]) for x in range(len(p2) - 1))
+                    total += 1
+                    if dmin < need:
+                        hit += 1
+                        if worst is None or dmin < worst[0]:
+                            worst = (dmin, q)
+            if not total:
+                continue
+            length = hit * step
+            if length > lim:
+                bad.append("帯の重なり %s(幅%.2f間)× %s(幅%.2f間) — **並走して %.1f間 重なる**"
+                           "(要る離れ %.2f間 / 最小 %.2f間 @ (%.1f, %.1f))"
+                           % (n1, w1, n2, w2, length, need, worst[0], worst[1][0], worst[1][1]))
+    return bad
+
+
+# ── 動線の連結 ─────────────────────────────────────────────────────────────
+# ⭐ **2026-09-02(第5次・検図 中2)に新設。**⛔ `garden_access_check` は
+#   「庭の点から**最寄りの道までの距離**」しか見ないので、**道どうしが切れていても通る**。
+#   実測で滝見の道は最寄りの園路まで 5.50m 途切れていたのに 0 件だった。
+
+def route_connect_check(d, tol=1.0):
+    """庭の道が**歩いて行き着けるか**。`tol` は繋がっているとみなす離れ[m]。"""
+    ES = d["const"]["ken"]
+    tolk = tol / ES
+    rs = [r for r in d.get("routes", []) if len(r.get("pts", [])) >= 2]
+    if not rs:
+        return []
+    idx = {r["name"]: i for i, r in enumerate(rs)}
+    par = list(range(len(rs)))
+
+    def find(x):
+        while par[x] != x:
+            par[x] = par[par[x]]
+            x = par[x]
+        return x
+
+    def near(A, B):
+        for q in A:
+            for k in range(len(B) - 1):
+                if _seg_dist(tuple(q), tuple(B[k]), tuple(B[k + 1])) <= tolk:
+                    return True
+        return False
+
+    for i in range(len(rs)):
+        for j in range(i + 1, len(rs)):
+            if near(rs[i]["pts"], rs[j]["pts"]) or near(rs[j]["pts"], rs[i]["pts"]):
+                par[find(i)] = find(j)
+
+    # ⭕ 錨は2つ — ①庭でない道(表・勝手ほか)に繋がる ②**棟から直に出られる**
+    #   ⚠ ②を落とすと、縁先の延段のように「入側から靴脱で降りる」道が全部鳴る
+    #   (2026-09-02 に踏んだ。庭の道は必ずしも他の道から入らない)。
+    anchored = {find(idx[r["name"]]) for r in rs if r.get("kind") != "niwa"}
+    for r in rs:
+        for q in r["pts"]:
+            if any(m["u0"] - tolk <= q[0] <= m["u1"] + tolk
+                   and m["v0"] - tolk <= q[1] <= m["v1"] + tolk for m in d.get("munes", [])):
+                anchored.add(find(idx[r["name"]]))
+                break
+    bad = []
+    for r in rs:
+        if r.get("kind") != "niwa":
+            continue
+        if find(idx[r["name"]]) not in anchored:
+            # 同じ組に錨があるか(他の niwa 経由で繋がっていれば良い)
+            grp = [x["name"] for x in rs if find(idx[x["name"]]) == find(idx[r["name"]])]
+            bad.append("庭の道 %s がどこからも歩いて行き着けない — 同じ組は %s だけで、"
+                       "屋敷の道に繋がっていない(離れ %.1fm 以内で繋がりと見る)"
+                       % (r["name"], " / ".join(sorted(grp)), tol))
+    return sorted(set(bad))
+
+
+# ── 主視点の画角 ───────────────────────────────────────────────────────────
+# ⭐ **2026-09-02(第5次・検図 低7)に新設。**⛔ `viewpoint_check` は主景の数・三層・姿勢・
+#   眼高しか見ず、**方位も画角も一切見ない**。庭方が「中景の石組が方位 73.8° で視野外」と
+#   見つけた型は、直しても検査が守らなかった。⇒ `viewpoints[].refs` の物の方位を見る。
+
+FOV = {"座視": 30.0, "立視": 35.0}
+
+
+def _ref_uv(d, ref):
+    """`refs` の名を (u, v) へ解く。⛔ 解けない名は None(呼び出し側が鳴らす)。"""
+    if "." in ref:
+        cur = d
+        for k in ref.split("."):
+            if not isinstance(cur, dict) or k not in cur:
+                return None
+            cur = cur[k]
+        if isinstance(cur, dict):
+            if cur.get("tiers"):                      # ⭕ 段の列は先頭の段を代表点に
+                t0 = cur["tiers"][0]
+                if "u" in t0 and "v" in t0:
+                    return (t0["u"], t0["v"])
+            if "outline" in cur and cur["outline"]:
+                pts = cur["outline"]
+                return (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
+            if "u" in cur and "v" in cur:
+                return (cur["u"], cur["v"])
+        return None
+    for key in ("tenkei", "tsukiyama", "viewpoints", "wells", "munes"):
+        for o in d.get(key, []):
+            if o.get("name") == ref and "u" in o and "v" in o:
+                return (o["u"], o["v"])
+    for o in d.get("mizu", {}).get("nodes", []):     # ⭕ 水の節点(MZ4 ほか)
+        if o.get("id") == ref and "u" in o and "v" in o:
+            return (o["u"], o["v"])
+    return None
+
+
+def viewpoint_fov_check(d):
+    """`refs` に挙げた物が、主視点の**画角の中**に在るか。"""
+    bad = []
+    DIRS = {"-u": 180.0, "+u": 0.0, "-v": 270.0, "+v": 90.0}
+    for vp in d.get("viewpoints", []):
+        refs = vp.get("refs")
+        if not refs:
+            continue
+        if vp.get("dir") in ("全周", "360", None):
+            continue                      # ⭕ 全周の見所(築山の頂ほか)は画角を持たない
+        if vp.get("dir") not in DIRS:
+            bad.append("主視点 %s の向き %r が知らない値" % (vp["name"], vp.get("dir")))
+            continue
+        half = FOV.get(vp.get("posture"), 30.0)
+        base = DIRS[vp["dir"]]
+        for layer in ("fore", "mid", "far"):
+            for ref in refs.get(layer, []) or []:
+                uv = _ref_uv(d, ref)
+                if uv is None:
+                    bad.append("主視点 %s の %s に挙げた %r が指図の中に見つからない"
+                               % (vp["name"], layer, ref))
+                    continue
+                du, dv = uv[0] - vp["u"], uv[1] - vp["v"]
+                if abs(du) < 1e-9 and abs(dv) < 1e-9:
+                    continue
+                ang = math.degrees(math.atan2(dv, du)) % 360.0
+                off = (ang - base + 180.0) % 360.0 - 180.0
+                if abs(off) > half:
+                    bad.append("主視点 %s の%s %s が**視野の外** — 方位 %+.1f°"
+                               "(画角 ±%.0f° / %s 向き)"
+                               % (vp["name"],
+                                  {"fore": "前景", "mid": "中景", "far": "遠景"}[layer],
+                                  ref, off, half, vp["dir"]))
+    return bad
+
+
 def _garden_checks(e, dem):
     """庭の検査の**文言そのもの**を返す。
 
@@ -8619,6 +8823,92 @@ def garden_svg(d):
     g.append(T(pr.W - 4, 16, "北 ↑　左=西(溜池・崖)", "anS", "end"))
     g.append("</svg>")
     return "\n".join(g)
+
+
+def okuniwa_band_svg(d):
+    """**奥庭の断面 — 3.7間の帯の並び。**⭐ 2026-09-02(第5次)新設【庭方 決定1】。
+
+    ⛔ **文章だけでは同じ重なりを見落とす**(庭方の言) — 遣水と回遊路が全長の 86% で
+    重なっていたのを、二巡のあいだ誰も気づけなかった。⇒ **帯の並びを図で確かめる。**
+    ⭐ **すべて指図の実値から測る**(⛔ この図に数値を書き込まない)。"""
+    ES = d["const"]["ken"]
+    # ── 実値を拾う
+    mune = min((m for m in d["munes"] if m["u0"] <= -40 <= m["u1"]),
+               key=lambda m: abs(m["v1"] - 62.0), default=None)
+    v_mune = mune["v1"] if mune else 62.0
+    endan = next((r for r in d["routes"] if r["name"] == "R_OkuNiwa_Endan"), None)
+    y = d["sensui"]["yarimizu"]
+    w_no = float(y["nosuji"]["w"])
+    kaki = [t for t in d["tenkei"] if t.get("name", "").startswith("T_Ikegaki_Oku")]
+    v_kaki = kaki[0]["a"][1] if kaki else 65.7
+    # 低木の帯 — `along.offset` を野筋の芯から測る
+    off = None
+    for pl in d.get("planting", []):
+        if pl.get("zone") == "G_OkuNiwa" and pl.get("role") == "低木":
+            a = pl.get("along") or {}
+            if a.get("offset"):
+                off = [float(x) for x in a["offset"]]
+    U = -40.0                                   # この u で切る(奥庭のまん中)
+    def vy(u, pts):                             # 芯線の v を u で引く
+        for k in range(len(pts) - 1):
+            a, b = pts[k], pts[k + 1]
+            if min(a[0], b[0]) <= u <= max(a[0], b[0]) and abs(b[0] - a[0]) > 1e-9:
+                t = (u - a[0]) / (b[0] - a[0])
+                return a[1] + (b[1] - a[1]) * t
+        return pts[0][1]
+    v_end = vy(U, endan["pts"]) if endan else 62.8
+    w_end = float(endan["w"]) if endan else 0.6
+    v_yar = vy(U, y["pts"])
+
+    bands = [("軒下・雨落ち", v_mune, v_end - w_end / 2, "#cfc6b4", "植えない"),
+             ("縁先の延段", v_end - w_end / 2, v_end + w_end / 2, "#b9ae95", "R_OkuNiwa_Endan"),
+             ("苔・伏石・下草", v_end + w_end / 2, v_yar - w_no / 2, "#a8bf9a", "V2 の前景"),
+             ("遣水の野筋", v_yar - w_no / 2, v_yar + w_no / 2, "#8fb6cc", "浅い谷"),
+             ("低木・刈込", v_yar + (off[0] if off else 0.6), v_yar + (off[1] if off else 1.2),
+              "#79955f", "遣水の南岸"),
+             ("生垣の足元", v_yar + (off[1] if off else 1.2), v_kaki, "#c9c2ad", ""),
+             ]
+    v0, v1 = v_mune, v_kaki + 0.35
+    W, H, L, R, T = 940.0, 300.0, 92.0, 40.0, 54.0
+    sx = (W - L - R) / ((v1 - v0) * ES)
+    def X(v): return L + (v - v0) * ES * sx
+    g = _sv(W, H, "奥庭の断面 — 帯の並び(軒下・延段・苔・野筋・低木・生垣)")
+    g.append('<rect x="0" y="0" width="%.0f" height="%.0f" fill="var(--paper)"/>' % (W, H))
+    yb, ht = 96.0, 108.0
+    for nm, a, b, col, note in bands:
+        if b - a <= 1e-6:
+            continue
+        g.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s" '
+                 'stroke="var(--ink)" stroke-width="0.8" opacity="0.85"/>'
+                 % (X(a), yb, X(b) - X(a), ht, col))
+        cx = (X(a) + X(b)) / 2
+        g.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="12" '
+                 'fill="var(--ink)">%s</text>' % (cx, yb + 42, nm))
+        g.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="10.5" '
+                 'fill="var(--ink2)">%.2f 間</text>' % (cx, yb + 60, b - a))
+        if note:
+            g.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="9.5" '
+                     'fill="var(--ink2)">%s</text>' % (cx, yb + 76, note))
+    # 棟と生垣の目印
+    g.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="var(--mune)" '
+             'opacity="0.5"/>' % (L - 46, yb - 30, 46, ht + 30))
+    g.append('<text x="%.1f" y="%.1f" text-anchor="end" font-size="11" fill="var(--ink)">'
+             '奥御殿</text>' % (L - 6, yb - 12))
+    g.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#4a6b3a" '
+             'stroke-width="5"/>' % (X(v_kaki), yb - 26, X(v_kaki), yb + ht))
+    g.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="11" fill="#4a6b3a">'
+             '生垣</text>' % (X(v_kaki), yb - 34))
+    # 全幅
+    g.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="var(--ink)" '
+             'stroke-width="1" marker-start="url(#ar)" marker-end="url(#ar)"/>'
+             % (X(v0), yb + ht + 34, X(v_kaki), yb + ht + 34))
+    g.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="12" fill="var(--ink)">'
+             '奥庭の深さ %.2f 間(%.2f m)</text>'
+             % ((X(v0) + X(v_kaki)) / 2, yb + ht + 52, v_kaki - v0, (v_kaki - v0) * ES))
+    g.append('<text x="%.0f" y="%.0f" font-size="12.5" fill="var(--ink)">'
+             '奥庭の断面(u = %.0f で切る) — 北(奥御殿)← → 南(生垣)</text>' % (L - 46, T - 18, U))
+    g.append("</svg>")
+    return "".join(g)
 
 
 def garden_east_svg(d):
@@ -10704,6 +10994,22 @@ def main():
                 "<b>梅林は正月の宴の場</b>で、床几の据石から東へ稲荷の鳥居2基を見る(<b>V7</b>)。"
                 "⚠ 円は<b>樹冠の実寸</b>で、木の<b>位置は設計値ではない</b> — "
                 "指図が決めるのは規則・本数・部材・退避・<b>塊の置き場所</b>。")
+        h.append("</div>")
+
+        plate(h, nx(), "奥庭の断面",
+              "軒下 → 縁先の延段 → 苔と伏石 → 遣水の野筋 → 低木の帯 → 生垣 ／ **帯の並び**")
+        fig(h, okuniwa_band_svg(d),
+            cap="⛔ <b>文章だけでは同じ重なりを見落とす</b>(庭方 2026-09-02 決定1)— "
+                "⚠ 遣水の野筋と回遊路が<b>全長の 86% で重なって</b>いたのを、"
+                "二巡のあいだ誰も気づけなかった(幅 1.8m の道が幅 2.9m の浅い谷の"
+                "<b>中に丸ごと入っていた</b>)。⇒ <b>帯の並びを図で確かめる。</b><br>"
+                "⭐ <b>この図の帯はすべて指図の実値から測っている</b> — "
+                "棟の南面・<code>R_OkuNiwa_Endan</code> の幅・<code>nosuji.w</code>・"
+                "低木の <code>along.offset</code>・生垣の <code>v</code>。"
+                "⛔ 図に数値を書き込んでいない(動かしたら図が追随する)。<br>"
+                "⚠ 帯どうしの重なりは検査 <code>band_overlap_check</code> が見張る"
+                "(⛔ 従前の重なり検査は<b>矩形しか箱に入れず</b>、"
+                "園路・水路・生垣は総当たりの対象外だった)。")
         h.append("</div>")
 
     # ------------------------------------------------------------ 西斜面の林

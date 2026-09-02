@@ -767,6 +767,36 @@ def _g_poly(o):
     return None
 
 
+def _contains(outer, inner, step=0.25):
+    """`inner` が `outer` に**完全に包含**されているか。
+
+    ⭐ 2026-09-03(松江・検図【高2】)に**実形**へ替えた。⛔ 従前は外接矩形の包含だけを見ており、
+      **台形の庭から矩形の露地が 3.53 m² はみ出していても 0 件**だった(38 m² でも通った)。
+    ⭕ `poly` を持つ物は折れ線で判定する — `inner` の縁と中を刻んで、すべて `outer` の中か。
+    ⚠ どちらも `poly` を持たないときは従来どおり矩形の包含(挙動を変えない)。"""
+    (_k1, _n1, a0, b0, a1, b1, o1) = outer
+    (_k2, _n2, c0, d0, c1, d1, o2) = inner
+    po, pi = _g_poly(o1), _g_poly(o2)
+    if po is None and pi is None:
+        return a0 <= c0 and b0 <= d0 and c1 <= a1 and d1 <= b1
+    pts = pi if pi is not None else [(c0, d0), (c1, d0), (c1, d1), (c0, d1)]
+    qs = []
+    for i in range(len(pts)):                       # 縁を刻む
+        (x0, y0), (x1, y1) = pts[i], pts[(i + 1) % len(pts)]
+        n = max(1, int(math.hypot(x1 - x0, y1 - y0) / step))
+        for k in range(n + 1):
+            t = k / float(n)
+            qs.append((x0 + (x1 - x0) * t, y0 + (y1 - y0) * t))
+    for q in qs:
+        if po is not None:
+            # ⚠ 辺の上に載る点は「中」に数える(接するは可)
+            if not (_pip(q, po) or _poly_edge_dist(q, po) <= 1e-6):
+                return False
+        elif not (a0 - 1e-6 <= q[0] <= a1 + 1e-6 and b0 - 1e-6 <= q[1] <= b1 + 1e-6):
+            return False
+    return True
+
+
 def _poly_edge_dist(p, poly):
     """点から多角形の**辺**までの最短距離。辺の上に載る点(=0)を内包から外すために使う。"""
     best = None
@@ -1026,16 +1056,14 @@ def overlap_check(d):
                         continue
                 if k1 == "niwa" and k2 == "niwa":
                     # 庭の中の池・中島・築山は、親の庭に**完全に包含**されていれば可(松平)
-                    if (a0 <= c0 and b0 <= d0 and c1 <= a1 and d1 <= b1) or \
-                       (c0 <= a0 and d0 <= b0 and a1 <= c1 and b1 <= d1):
+                    if _contains(boxes[i], boxes[j]) or _contains(boxes[j], boxes[i]):
                         continue
                 if {k1, k2} == {"niwa", "svc"} or {k1, k2} == {"niwa", "ido"}:
                     # 庭の中に立つ亭・祠・井戸は庭に**完全に包含**されていれば可(庭は地面)。
                     # ido の免除は EDO-0023(2026-08-26): 統一時に土井・岡部に niwa×ido の
                     # 事例が無く落としていた — 庭の井戸は松平で5件、svc と同型の免除で受ける
-                    (nk, na, n0, n1_, n2_, n3, _n), (sk, sa, s0, s1_, s2_, s3, _s) = \
-                        (boxes[i], boxes[j]) if k1 == "niwa" else (boxes[j], boxes[i])
-                    if n0 <= s0 and n1_ <= s1_ and s2_ <= n2_ and s3 <= n3:
+                    nb, sb = (boxes[i], boxes[j]) if k1 == "niwa" else (boxes[j], boxes[i])
+                    if _contains(nb, sb):
                         continue
                 bad.append("%s %s × %s %s (%.1f×%.1f間)" % (k1, n1, k2, n2, iu, iv))
     return bad

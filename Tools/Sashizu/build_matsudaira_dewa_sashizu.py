@@ -1459,6 +1459,7 @@ def plane_check(d):
     bad += slope_canopy_check(d, _dem_json())
     bad += slope_bare_check(d, _dem_json())
     bad += slope_zone_check(d, _dem_json())
+    bad += slope_avoid_check(d, _dem_json())
     bad += band_boundary_check(d, _dem_json())
     bad += planting_export_check(d, _dem_json())
     bad += design_value_check(d)
@@ -3229,10 +3230,6 @@ def nagaya_eps(L):
 def _chain_mods(d, ch):
     """鎖の中の**棟の切れ目** s。長さ可変の1本を天端の段ごとに切るだけ(端数は出ない)。"""
     return [ch["s0"]] + [round(p["s1"], 4) for p in ch["pieces"]]
-
-
-def _joints_at(d, edge, s, tol=0.06):
-    return [j for j in d["joints"] if j["edge"] == edge and abs(j["s"] - s) <= tol]
 
 
 def opening_detail_svg(d, key):
@@ -5424,6 +5421,20 @@ def scatter_gardens(d):
                         elif side in ("+v", "-v"):
                             if (side == "+v") != (v > by):
                                 continue
+                        # ⭐ **生垣の足元を死守する**(2026-09-03 庭方 N10)。
+                        #   帯の外縁 = 生垣の芯 − `footMin`。⛔ そこを越えて低木を置かない。
+                        #   ⚠ 残る幅が `minWidth` を割る区間には**そもそも置かない**。
+                        fm = al.get("footMin")
+                        if fm is not None:
+                            kaki = [t for t in d.get("tenkei", [])
+                                    if "生垣" in t.get("kind", "") and t.get("a")]
+                            if kaki:
+                                vk = min(kaki, key=lambda t: abs(t["a"][0] - u))["a"][1]
+                                edge = vk - float(fm)
+                                if v > edge:
+                                    continue
+                                if edge - (by + float(lo)) < float(al.get("minWidth", 0.0)):
+                                    continue
                         return (u, v)
                     return (pts[0][0], pts[0][1])
                 return pk_al
@@ -5575,9 +5586,9 @@ def slope_samples(d, dem, step=1.0):
         L = math.hypot(du, dv)
         return (du / L) * (uv[1] - a[1]) - (dv / L) * (uv[0] - a[0]) > 0, dd, q
 
-    def toe_near(w):
+    def toe_near(w, toes):
         best = (1e18, None)
-        for i in TOE:
+        for i in toes:
             a, b = P[i], P[(i + 1) % len(P)]
             dx, dy = b[0] - a[0], b[1] - a[1]
             L2 = dx * dx + dy * dy
@@ -5602,6 +5613,10 @@ def slope_samples(d, dem, step=1.0):
         return best
 
     out = []
+    # ⭐ **域ごとの法尻**(2026-09-03 庭方 N5 = `_pending.shamenObiMenseki` ⓐ)。
+    #   ⛔ 南西の谷の法尻は区画の西辺ではなく**南辺(岡部境)** — 一律に西辺で測っていたため、
+    #   谷の大半が走査から漏れ、残りも t<0.15 に寄って帯が幾何的に成り立たなかった。
+    REGT = dict((r["name"], _region_toe(d, r["name"])) for r in sa.get("regions", []))
     xs = [q[0] for q in P]
     zs = [q[1] for q in P]
     x = min(xs)
@@ -5613,25 +5628,29 @@ def slope_samples(d, dem, step=1.0):
             ok, dc, qc = outside(uv)
             # ⭐ **段 `terraces` の矩形を法面から差し引く**(2026-09-02 第5次・庭方 設計1)。
             #   ⛔ 差し引かないと、客土の平場 `Fukugen` の中へ斜面の木が立つ(実測6本)。
-            if ok and sa.get("subtractTerraces") and any(
-                    t["u0"] - 1e-9 <= uv[0] <= t["u1"] + 1e-9
-                    and t["v0"] - 1e-9 <= uv[1] <= t["v1"] + 1e-9
-                    for t in d["terraces"]):
+            if ok and _in_terrace(d, uv[0], uv[1]):
                 ok = False
             if ok and _pip_world(w, P):
-                if near_edge(w)[1] in TOE:
+                reg = _region_of(d, crest_near(uv)[2])
+                toes = REGT.get(reg, TOE)
+                if near_edge(w)[1] in toes:
                     yc = _dem_at(dem, *gr.W(qc[0], qc[1]))
-                    dt, qt = toe_near(w)
+                    dt, qt = toe_near(w, toes)
                     yt = _dem_at(dem, qt[0], qt[1])
                     y = _dem_at(dem, x, z)
                     if None not in (yc, yt, y):
                         H = max(yc - yt, 0.5)
                         t = max(0.0, min(1.0, (yc - y) / H))
-                        reg = _region_of(d, crest_near(uv)[2])
                         mineb = [b for b in bands if b.get("region", reg) == reg] or bands
                         bn = mineb[-1]["name"]
                         for b in mineb:
-                            if b["from"] <= t < b["to"]:
+                            # ⭐ **標高で切る帯**(`yRange`)は t を使わない(2026-09-03 庭方 N5)
+                            if b.get("yRange"):
+                                lo9, hi9 = [_slope_y(d, k) for k in b["yRange"]]
+                                if (lo9 is None or y >= lo9) and (hi9 is None or y < hi9):
+                                    bn = b["name"]
+                                    break
+                            elif b["from"] <= t < b["to"]:
                                 bn = b["name"]
                                 break
                         # ⭐ **谷の口**(2026-09-03・庭方 設計2)— 域S でも溜池へ開く口は
@@ -5645,6 +5664,44 @@ def slope_samples(d, dem, step=1.0):
         x += step
     _SLP[key] = out
     return out
+
+
+def _slope_y(d, key):
+    """`slopeArea` の**標高の従属値**を解く(例「沢の頭 = 滝の三の段の天端 + 0.12」)。
+
+    ⛔ 標高を literal で持たない(2026-09-03 庭方 N5)— 滝の段が動いたら帯の境も動く。"""
+    if key is None:
+        return None
+    spec = (d["slopeArea"].get("levels") or {}).get(key)
+    if spec is None:
+        raise SystemExit("⛔ `slopeArea.levels.%s` が無い — 帯の境の標高が解けない" % key)
+    cur = d
+    for tok in re.findall(r"[^.\[\]]+", spec["ref"]):
+        cur = cur[int(tok)] if re.fullmatch(r"-?\d+", tok) else cur[tok]
+    return float(cur) + float(spec.get("add", 0.0))
+
+
+def _region_toe(d, name):
+    """その域の**法尻の辺**(区画の辺の添字)。⛔ 無ければ `slopeArea.toeEdges`(域W の既定)。"""
+    for r in d["slopeArea"].get("regions", []):
+        if r["name"] == name:
+            return set(r.get("toe") or d["slopeArea"]["toeEdges"])
+    return set(d["slopeArea"]["toeEdges"])
+
+
+def _in_terrace(d, u, v):
+    """その点が段 `terraces` の矩形の中か。⛔ 法面の木も遮蔽の検査点もここには立たない。
+
+    ⭐ 2026-09-03(検図【高1】D1)に切り出した。⛔ 従前は `slope_samples` の走査格子にしか
+      効いておらず、**crestLine の割り付け**と**ジッタ後の点**は素通りしていた
+      (法肩の松4本と谷の肩の灌木1本が客土の平場 `Fukugen` の中に立ち、
+       うち3本は江戸期地盤が設計面より 6.3〜6.8m 低かった)。"""
+    if not d["slopeArea"].get("subtractTerraces"):
+        return False
+    for t in d["terraces"]:
+        if t["u0"] - 1e-9 <= u <= t["u1"] + 1e-9 and t["v0"] - 1e-9 <= v <= t["v1"] + 1e-9:
+            return True
+    return False
 
 
 def _region_of(d, seg):
@@ -5689,7 +5746,8 @@ def crest_stations(d, dem, step):
             uv = (a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f)
             q = (uv[0] + nu * 2.0 / gr.ken, uv[1] + nv * 2.0 / gr.ken)
             w = gr.W(q[0], q[1])
-            if _pip_world(w, P):
+            # ⛔ **段の中には検査点も遮蔽木も置かない**(2026-09-03 検図【高1】D1)
+            if _pip_world(w, P) and not _in_terrace(d, uv[0], uv[1]):
                 dd = 1e18
                 ei = -1
                 for j in range(len(P)):
@@ -5729,6 +5787,10 @@ def scatter_slope(d, dem):
     mine = []
 
     def ok(u, v, clr, sp):
+        # ⛔ **ジッタを掛けた後の点で段を判定する**(2026-09-03 検図【高1】D1)—
+        #   走査格子の段階で除いても、`offset` と ±0.5間 のジッタで段の中へ入り込む。
+        if _in_terrace(d, u, v):
+            return False
         if hit(u, v, clr):
             return False
         for (pu, pv, ps) in mine:
@@ -5974,6 +6036,12 @@ def planting_stock_check(d):
     return bad
 
 
+def _fill_tol(d, n):
+    """置ききれなくてよい本数。`plantRule.fillTolerance` の ratio × n と min の**大きいほう**。"""
+    ft = (d.get("plantRule") or {}).get("fillTolerance") or {}
+    return max(int(math.floor(float(ft.get("ratio", 0.0)) * n)), int(ft.get("min", 0)))
+
+
 def planting_clearance_check(d, dem, extra=None):
     """**木が棟・廊下・井戸・石段・園路の上に載っていないか。**
 
@@ -6006,9 +6074,17 @@ def planting_clearance_check(d, dem, extra=None):
             if av:
                 bad.append("植栽 %s/%s の木が『%s』(置かない帯)に入っている(u%.1f v%.1f)"
                            % (pl["zone"], pl["layer"], av, u, v))
-        if len(gs.get(key, [])) < int(pl["n"]):
+        # ⭐ **詰め残りの許容**(2026-09-03 庭方 N15)— `plantRule.fillTolerance`。
+        #   ⛔ 貪欲法の 1〜2本の詰め残りを ⚠ に数えると、**本当に置けない層が埋もれる**。
+        got_n, want_n = len(gs.get(key, [])), int(pl["n"])
+        tol_n = _fill_tol(d, want_n)
+        if want_n - got_n > tol_n:
             bad.append("植栽 %s/%s が %d/%d しか置けない — 庭が狭いか退避が多すぎる"
-                       % (pl["zone"], pl["layer"], len(gs.get(key, [])), pl["n"]))
+                       "(許容の詰め残り %d 本)" % (pl["zone"], pl["layer"], got_n, want_n, tol_n))
+        elif got_n < want_n:
+            bad.append("〔記録〕植栽 %s/%s の詰め残り %d 本(%d/%d・許容 %d)— "
+                       "貪欲法の端数で、設計の欠陥ではない"
+                       % (pl["zone"], pl["layer"], want_n - got_n, got_n, want_n, tol_n))
         # **塊の重心の間隔**(`groupGap`)— ⛔ これが効いていないと均一散布に戻る
         #   ⚠ **`groupGapExempt` を持つ層は下限を免除する**(2026-09-02 庭方 確認5)—
         #     二群が同じ平面に並んでいないときは、平面上の距離で読む指標が意味を持たない。
@@ -6034,8 +6110,14 @@ def planting_clearance_check(d, dem, extra=None):
             nm = hit(u, v, float(lay.get("clr", 1.0)))
             if nm:
                 bad.append("斜面 %s の木が %s に載っている(u%.1f v%.1f)" % (lay["layer"], nm, u, v))
-        if len(sp.get(lay["layer"], [])) < int(lay["n"]):
-            bad.append("斜面 %s が %d/%d しか置けない" % (lay["layer"], len(sp.get(lay["layer"], [])), lay["n"]))
+        got_n, want_n = len(sp.get(lay["layer"], [])), int(lay["n"])
+        tol_n = _fill_tol(d, want_n)
+        if want_n - got_n > tol_n:
+            bad.append("斜面 %s が %d/%d しか置けない(許容の詰め残り %d 本)"
+                       % (lay["layer"], got_n, want_n, tol_n))
+        elif got_n < want_n:
+            bad.append("〔記録〕斜面 %s の詰め残り %d 本(%d/%d・許容 %d)"
+                       % (lay["layer"], want_n - got_n, got_n, want_n, tol_n))
     return bad
 
 
@@ -6061,13 +6143,25 @@ def slope_planting_check(d, dem):
     smp = {}
     for s in slope_samples(d, dem):
         smp.setdefault(s[6], []).append(s)
-    cnt = {}
+    # ⭐ **帯の帰属は「立った点」から取る**(2026-09-03 検図【中4】D6)。
+    #   ⛔ 層に書いた `band` で数えると、法肩の列のように帯をまたぐ層で分母と分子がずれる。
+    cnt, stray = {}, {}
     for lay in d.get("slopePlanting", []):
         if lay["band"] not in area:
             bad.append("斜面 %s の band「%s」が slopeBands に無い" % (lay["layer"], lay["band"]))
             continue
-        cnt.setdefault(lay["band"], {}).setdefault(lay.get("role", "?"), 0)
-        cnt[lay["band"]][lay.get("role", "?")] += len(sp.get(lay["layer"], []))
+        for (u, v, _pt) in sp.get(lay["layer"], []):
+            bn, _rg = _tree_band(d, dem, u, v,
+                                 lay["band"] if lay.get("placement") == "crestLine" else None)
+            cnt.setdefault(bn, {}).setdefault(lay.get("role", "?"), 0)
+            cnt[bn][lay.get("role", "?")] += 1
+            if bn != lay["band"]:
+                stray.setdefault((lay["layer"], bn), 0)
+                stray[(lay["layer"], bn)] += 1
+    for (lname, bn), n9 in sorted(stray.items()):
+        if bn in ("(法面の外)",):
+            bad.append("斜面 %s の %d 本が**法面の走査域の外**に立っている — "
+                       "帯にも域にも属さない木は密度にも被覆率にも数えられない" % (lname, n9))
     for b in d["slopeBands"]:
         A = area.get(b["name"], 0.0)
         if A <= 0:
@@ -6123,10 +6217,36 @@ def slope_planting_check(d, dem):
     return bad
 
 
-def _slope_trees(d, dem, roles=("高木",)):
-    """法面に置いた木の (u, v, 樹冠半径m, 樹高m, 帯, 域)。⛔ 散布は検査と同じ関数から採る。"""
-    sp = scatter_slope(d, dem)
+_TBAND = {}
+
+
+def _tree_band(d, dem, u, v, fallback=None):
+    """その点が**実際に立っている**帯と域。→ (帯, 域)
+
+    ⚠ `fallback` は**法肩の列**のための逃げ道 — 稜の列は `offset` で法肩の外へ出るので、
+      走査格子(最寄りの区画の辺が法尻の辺である格子)に載らない点が端に出る。
+      ⛔ そこで木を落とすと**稜が切れる**(設計の役が壊れる)ので、層の宣言した帯へ帰す。
+
+    ⛔ 層に書いた `band` を鵜呑みにしない(2026-09-03 検図【中4】D6)— 法肩の列は
+      `offset` で法肩から外へ出るので、**域S に立ちながら帯W1 に計上される**木が7本あり、
+      帯の t を外れる点も4つあった。⭕ 帰属は**立った点の標本**から取る。"""
+    key = (round(u, 2), round(v, 2), fallback)
+    if key in _TBAND:
+        return _TBAND[key]
     smp = slope_samples(d, dem)
+    out = (fallback or "(法面の外)", "(域の外)")
+    if smp:
+        q = min(smp, key=lambda x: (x[2] - u) ** 2 + (x[3] - v) ** 2)
+        if math.hypot(q[2] - u, q[3] - v) <= 2.0:
+            out = (q[6], q[10])
+    _TBAND[key] = out
+    return out
+
+
+def _slope_trees(d, dem, roles=("高木",)):
+    """法面に置いた木の (u, v, 樹冠半径m, 樹高m, 帯, 域)。⛔ 散布は検査と同じ関数から採る。
+    ⚠ 帯と域は**立った点**から引く(⛔ 層に書いた `band` ではない)。"""
+    sp = scatter_slope(d, dem)
     out = []
     for lay in d.get("slopePlanting", []):
         if roles and lay.get("role") not in roles:
@@ -6135,9 +6255,9 @@ def _slope_trees(d, dem, roles=("高木",)):
             g = part_geom(pt)
             if not g:
                 continue
-            near = min(smp, key=lambda q: (q[2] - u) ** 2 + (q[3] - v) ** 2) if smp else None
-            out.append((u, v, g[0] / 2.0, g[1], lay["band"],
-                        near[10] if near else "(域の外)"))
+            bn, rg = _tree_band(d, dem, u, v,
+                                lay["band"] if lay.get("placement") == "crestLine" else None)
+            out.append((u, v, g[0] / 2.0, g[1], bn, rg))
     return out
 
 
@@ -6201,18 +6321,28 @@ def slope_bare_check(d, dem, step=1.0):
     """**裸地が広く続いていないか**(`slopeArea.checks.bareMax` m² 以上の連続した空き)。
     ⭐ 2026-09-02(第5次・庭方 設計1)新設。⛔ 滝の軸(`slopeArea.avoid`)と `checks.bareSkip` の帯は除外。"""
     sa = d["slopeArea"]
-    lim = float((sa.get("checks") or {}).get("bareMax", 0.0))
-    if lim <= 0:
+    base = float((sa.get("checks") or {}).get("bareMax", 0.0))
+    if base <= 0:
         return []
     # ⛔ 滝の軸は除外(庭方 設計1 の但し書き)— いまは `slopeArea.avoid` が持つ
     # ⛔ **草地の帯は裸地でよい**(2026-09-03・庭方 設計2 の二層)— 木を置かない帯を
     #   「裸地が続いている」と鳴らすのは、設計そのものを不良と呼ぶことになる。
     #   ⭕ 見るのは**樹林の帯**だけ(高木か中木の密度の上限が 0 でない帯)。
-    skip = set((sa.get("checks") or {}).get("bareSkip") or [])
-    woods = set(b["name"] for b in d.get("slopeBands", [])
-                if b["name"] not in skip
-                and max(float(b["dens"].get("高木", [0, 0])[1]),
-                        float(b["dens"].get("中木", [0, 0])[1])) > 0)
+    # ⭐ **敷居は帯ごとの従属値**(2026-09-03 庭方 N6): max(`bareMax`, 2 × 帯の面積 ÷ 帯の高木の本数)。
+    #   ⛔ 一律 20 m² は、密度 0.5〜4 本/100m² の疎林では**原理的に満たせない**敷居だった。
+    #   ⛔ **高木が0本の帯は検査しない** — 木で覆うと決めていない帯を「穴が開いている」と呼ばない。
+    area0 = slope_band_area(d, dem)
+    ntree = {}
+    for lay in d.get("slopePlanting", []):
+        if lay.get("role") == "高木":
+            ntree[lay["band"]] = ntree.get(lay["band"], 0) + int(lay["n"])
+    lims = {}
+    for b in d.get("slopeBands", []):
+        n0 = ntree.get(b["name"], 0)
+        if n0 <= 0:
+            continue
+        lims[b["name"]] = max(base, 2.0 * area0.get(b["name"], 0.0) / n0)
+    woods = set(lims)
     K = d["const"]["ken"]
     trees = _slope_trees(d, dem, roles=None)
     avoid = [av["box"] for av in sa.get("avoid", [])]
@@ -6227,10 +6357,10 @@ def slope_bare_check(d, dem, step=1.0):
             continue                       # ⛔ 木を置かないと決めた箱は裸地に数えない
         if any(math.hypot(u - t[0], v - t[1]) * K <= t[2] for t in trees):
             continue
-        cells.add((int(round(sm[0] / step)), int(round(sm[1] / step)), reg))
-    # 連結成分
+        cells.add((int(round(sm[0] / step)), int(round(sm[1] / step)), sm[6]))
+    # 連結成分(⛔ 帯ごとに数える — 敷居が帯ごとに違う)
     seen, bad, agg = set(), [], {}
-    idx = {(a, b): r for a, b, r in cells}
+    idx = {(a, b): nm for a, b, nm in cells}
     for key in list(idx):
         if key in seen:
             continue
@@ -6241,26 +6371,72 @@ def slope_bare_check(d, dem, step=1.0):
             comp.append((a, b))
             for da, db in ((1, 0), (-1, 0), (0, 1), (0, -1)):
                 q = (a + da, b + db)
-                if q in idx and q not in seen:
+                if q in idx and q not in seen and idx[q] == idx[key]:
                     seen.add(q)
                     stack.append(q)
         A = len(comp) * step * step
-        if A > lim:
-            agg.setdefault(idx[key], [0, 0.0, 0.0, 0.0, 0.0])
-            r = agg[idx[key]]
+        band = idx[key]
+        if A > lims.get(band, base):
+            r = agg.setdefault(band, [0, 0.0, 0.0, 0.0, 0.0])
             r[0] += 1
             r[1] += A
             if A > r[2]:
-                r[2], r[3], r[4] = A, (sum(c[0] for c in comp) * step / len(comp),
-                                       sum(c[1] for c in comp) * step / len(comp))[0], \
-                    (sum(c[1] for c in comp) * step / len(comp))
+                r[2] = A
+                r[3] = sum(c[0] for c in comp) * step / len(comp)
+                r[4] = sum(c[1] for c in comp) * step / len(comp)
     # ⭐ **帯ごとにまとめて1行**(2026-09-03)。⛔ 穴の数だけ ⚠ を並べると、
     #   同じ型の指摘で報告が埋まって**別の型が読めなくなる**。
     for nm2 in sorted(agg):
         n2, tot2, mx2, cx2, cz2 = agg[nm2]
         bad.append("樹林の帯 %s に**敷居超えの裸地が %d 箇所**(計 %.0f m² / 最大 %.0f m²・"
                    "敷居 %.0f m²。最大の中心 x%.0f z%.0f)— ⛔ 林の中に穴が開いて見える"
-                   % (nm2, n2, tot2, mx2, lim, cx2, cz2))
+                   % (nm2, n2, tot2, mx2, lims.get(nm2, base), cx2, cz2))
+    return bad
+
+
+def slope_bare_table(d, dem):
+    """裸地の敷居(帯ごとの従属値)と実測。⛔ 0 件でも数を出す。"""
+    base = float((d["slopeArea"].get("checks") or {}).get("bareMax", 0.0))
+    area0 = slope_band_area(d, dem)
+    ntree = {}
+    for lay in d.get("slopePlanting", []):
+        if lay.get("role") == "高木":
+            ntree[lay["band"]] = ntree.get(lay["band"], 0) + int(lay["n"])
+    bad = slope_bare_check(d, dem)
+    rows = ""
+    for b in d.get("slopeBands", []):
+        n0 = ntree.get(b["name"], 0)
+        A = area0.get(b["name"], 0.0)
+        lim = max(base, 2.0 * A / n0) if n0 > 0 else None
+        hit = [x for x in bad if b["name"] in x]
+        rows += ("<tr><td>%s</td><td>%s</td><td>%.0f m²</td><td>%d</td><td>%s</td><td>%s</td></tr>"
+                 % (inline(b.get("region", "—")), b["name"], A, n0,
+                    ("%.0f m²" % lim) if lim else "— <span class='note'>(高木0本・検査しない)</span>",
+                    "—" if lim is None else ("<b>○</b>" if not hit else "<b>⚠</b> " + inline(hit[0]))))
+    return ("<h3>裸地の敷居 — 帯ごとの従属値</h3><div class='tw'><table><thead><tr>"
+            "<th>域</th><th>帯</th><th>帯の面積</th><th>高木の本数</th><th>敷居</th><th>判定</th>"
+            "</tr></thead><tbody>%s</tbody></table></div>"
+            "<p class='cap'>敷居 = <b>max(%.0f m², 2 × 帯の面積 ÷ 帯の高木の本数)</b>。"
+            "⛔ 一律の敷居は、密度 0.5〜4 本/100m² の疎林では<b>原理的に満たせない</b> — "
+            "木の間の空きは密度と樹冠径から決まるので、敷居も<b>密度の従属値</b>にする。"
+            "⛔ <b>高木が0本の帯は検査しない</b>(木で覆うと決めていない帯を『穴が開いている』と呼ばない)。"
+            "⛔ 滝の左右(<code>slopeArea.avoid</code>)は裸地に数えない。</p>" % (rows, base))
+
+
+def slope_avoid_check(d, dem):
+    """`slopeArea.avoid` の箱が**法面の走査域に入っているか**(2026-09-03 庭方 N14)。
+
+    ⛔ 入っていなければ「何も避けていない空文」— 〔記録〕で流さず ⚠ に格上げする。"""
+    bad = []
+    smp = slope_samples(d, dem)
+    for av in d["slopeArea"].get("avoid", []):
+        x0, y0, x1, y1 = av["box"]
+        n = sum(1 for q in smp if min(x0, x1) <= q[2] <= max(x0, x1)
+                and min(y0, y1) <= q[3] <= max(y0, y1))
+        if n == 0:
+            bad.append("`slopeArea.avoid` の %s は**法面の走査域に一点も掛からない** — "
+                       "何も避けていない空文(u %g〜%g / v %g〜%g)。⛔ 箱を実際の帯へ合わせるか、"
+                       "退避そのものを落とすこと" % (av["name"], x0, x1, y0, y1))
     return bad
 
 
@@ -6363,19 +6539,45 @@ def band_boundary_stats(d, dem, tol=0.02):
     return out
 
 
-def _peer_boundary(d, pid):
-    """隣邸の帯の境の標高を**同じ式で**引く。引けなければ None(= 未測)。
+def _peers(d):
+    """**区画を接している隣邸**を `parcels.json` から引く(2026-09-03 検図【低2】D8)。
 
-    ⛔ 当邸の値を隣邸へ当てはめない。⭕ 隣邸が `slopeArea`(法肩の線・法尻の辺)を
-      publish していなければ、同じ式が立たないので **「未測」と表示する**。"""
+    ⛔ 隣邸の名を指図に直書きしない — 区画が動いたら顔ぶれも動く。
+    ⭕ 当邸の区画の辺に、頂点を 1.0m 以内で共有する区画を隣邸とする。"""
+    try:
+        pc = json.load(open(os.path.join(DOC, "parcels.json"), encoding="utf-8"))["parcels"]
+    except Exception:
+        return []
+    mine = [tuple(p) for p in d["polygon"]]
+    out = []
+    for p in pc:
+        if p["id"] == "matsudaira_dewa":
+            continue
+        n = sum(1 for q in p["pts"]
+                for r in mine if math.hypot(q[0] - r[0], q[1] - r[1]) <= 1.0)
+        if n >= 2:
+            out.append(p["id"])
+    return sorted(out)
+
+
+def _peer_boundary(d, pid):
+    """隣邸の帯の境の標高を**同じ式で**引く。引けなければ「回っていない」理由を返す。
+
+    ⛔ 当邸の値を隣邸へ当てはめない。⛔ **空で黙らない**(2026-09-03 検図【低2】D8)—
+      `toeEdges` が無いのは「例外」ではなく「**この検査がその邸については回っていない**」。
+    → (引けたか, 理由)"""
     try:
         e = json.load(open(os.path.join(DOC, "%s_sashizu.json" % pid), encoding="utf-8"))
-    except Exception:
-        return None
+    except Exception as ex:
+        return (None, "指図が読めない(%s)" % ex)
     sa = e.get("slopeArea") or {}
-    if not (sa.get("crest") and sa.get("toeEdges")):
-        return None
-    return "計算可"          # ⚠ ここへ来たら実装する(いまはどの邸も slopeArea を持たない)
+    if not sa:
+        return (None, "`slopeArea` を持たない")
+    if not sa.get("crest"):
+        return (None, "法肩の線 `crest` を持たない")
+    if not sa.get("toeEdges"):
+        return (None, "法尻の辺 `toeEdges` を持たない")
+    return ("計算可", "")
 
 
 def band_boundary_check(d, dem):
@@ -6394,12 +6596,18 @@ def band_boundary_check(d, dem):
         if med is None or n < 20:
             bad.append("帯の境 t=%.2f の標本が %d 点しか取れない — 中央値が測れない"
                        "(**この検査は回っていない**)" % (tt, n))
-    peers = [p for p in bb.get("peers", []) if _peer_boundary(d, p) is None]
-    if peers:
-        bad.append("帯の境の標高を隣邸(%s)と突き合わせられない — **未測**。"
-                   "⛔ 0 件は合格ではない: 各邸が `slopeArea`(法肩の線 `crest` と法尻の辺 "
-                   "`toeEdges`)を持てば同じ式で引ける。⇒ 掲示板へ(境 t=%s は3邸で共有している)"
-                   % ("・".join(peers), " / ".join("%.2f" % x for x in bb.get("t", []))))
+    # ⭐ **顔ぶれは区画の隣接からの従属値**(⛔ 指図に名を直書きしない)
+    peers = bb.get("peers") or _peers(d)
+    miss = [(p, _peer_boundary(d, p)[1]) for p in peers if _peer_boundary(d, p)[0] is None]
+    if not peers:
+        bad.append("帯の境を突き合わせる隣邸が `parcels.json` から一つも引けない — "
+                   "**この検査は回っていない**(空で黙らない)")
+    for p, why in miss:
+        bad.append("帯の境の標高を隣邸 %s と突き合わせられない — **回っていない**(%s)。"
+                   "⛔ 0 件は合格ではない: その邸が `slopeArea`(法肩の線 `crest` と"
+                   "法尻の辺 `toeEdges`)を持てば同じ式で引ける。⇒ 掲示板へ"
+                   "(境 t=%s は溜池の同じ岸を持つ邸で共有している)"
+                   % (p, why, " / ".join("%.2f" % x for x in bb.get("t", []))))
     return bad
 
 
@@ -6408,14 +6616,16 @@ def band_boundary_table(d, dem):
     if not bb:
         return ""
     st = band_boundary_stats(d, dem)
+    peers = bb.get("peers") or _peers(d)
     rows = ""
     for tt in bb.get("t", []):
         med, n = st.get(float(tt), (None, 0))
         cells = "<td>%s</td>" % (("<b>%.2f m</b>(標本 %d)" % (med, n)) if med is not None else "—")
-        for p in bb.get("peers", []):
-            cells += "<td>%s</td>" % ("未測" if _peer_boundary(d, p) is None else "計算可")
+        for p in peers:
+            ok9, why9 = _peer_boundary(d, p)
+            cells += "<td>%s</td>" % (ok9 or ("回っていない<span class='note'><br>%s</span>" % why9))
         rows += "<tr><td>t = %.2f</td>%s</tr>" % (float(tt), cells)
-    head = "".join("<th>%s</th>" % p for p in bb.get("peers", []))
+    head = "".join("<th>%s</th>" % p for p in peers)
     return ("<h3>帯の境の標高 — 邸をまたいで揃っているか</h3><div class='tw'><table><thead><tr>"
             "<th>境</th><th>当邸(中央値)</th>%s</tr></thead><tbody>%s</tbody></table></div>"
             "<p class='cap'>%s</p>" % (head, rows, inline(bb.get("_", ""))))
@@ -7839,6 +8049,7 @@ def _plant_cache_clear():
     _GCENT.clear()
     _SPL.clear()
     _CVH.clear()
+    _TBAND.clear()
     # ⛔ **法面の走査の cache も消す**(2026-09-02 第5次)— ここを残すと
     #   `slopeArea` を壊した probe が**素の標本を見続ける**ので、感度試験が空振りする
     #   (`_SLP` と `_SPL` は名前が1文字違いで、8日間 片方だけ消していた)。
@@ -8317,10 +8528,8 @@ DESIGN_WATCH = [
     ("slopePlantingZones", "主視点の遠景の適用域(庭方 設計2)", True),
     ("slopePlanting[*].clump", "奇数の小群で点在させる(庭方 設計2)", False),
     ("slopePlanting[*].tRange", "帯の中をさらに落差の割合で絞る(モミジ・庭方 設計2)", False),
-    ("slopePlanting[*].edgeBand", "汀の縁取りは区画線から内 N m だけ(庭方 設計2)", False),
     ("slopeArea.avoid", "滝の左右は高木・中木を置かない(庭方 回答3)", "guard"),
     ("nakajikiri[NJ_Oku_S_W].seatSpans", "根石を面の縁で区間に割る(庭方 回答4)", True),
-    ("rails[R_West].bayBySeg", "最急点に柱を足して柱間を詰める(庭方 回答5)", False),
     ("mizu.toi[MZ_Ankyo].coverBandOpen", "上が苔・草地だけの区間の土被りの帯(庭方 回答6)", True),
     ("gardens[G_Tanikage].access", "歩く庭ではないことの宣言(V2 の遠景の林)", True),
 ]
@@ -8331,7 +8540,8 @@ def _dv_checks(e):
     dem = _dem_json()
     return set(_garden_checks(e, dem)) | set(rail_ground_check(e)) | set(band_overlap_check(e)) \
         | set(viewpoint_fov_check(e)) | set(niwa_stone_check(e)) | set(neishi_check(e, dem)) \
-        | set(route_connect_check(e))
+        | set(route_connect_check(e)) | set(neishi_seat_check(e)) \
+        | set(planting_export_check(e, dem))
 
 
 def _dv_bogus(v, way):
@@ -8459,16 +8669,28 @@ def write_planting(d, dem):
                 "`u`,`v` は主郭グリッドの間、`api` は EdoAssets の関数名/在庫キー、"
                 "`ground` は据える面(design=造成した設計面 / terrain=造成しない法面)。"
                 "⛔ 手で編集しない — 生成器 `Tools/Sashizu/build_matsudaira_dewa_sashizu.py` の派生物。",
-           "n": len(pts), "points": pts}
+           "n": len(pts), "digest": _pl_digest(pts), "points": pts}
     json.dump(obj, io.open(os.path.join(DOC, PLANTING_OUT), "w", encoding="utf-8"),
               ensure_ascii=False, separators=(",", ":"))
     return pts
 
 
-def planting_export_check(d, dem):
-    """**書き出した本数と、図・検査が数えた本数が一致するか。**⭐ 2026-09-02(第5次)新設(規則19)。
+def _pl_digest(pts):
+    """書き出す点の指紋。**座標と部材まで**含める(⛔ 点数だけでは書き換えを見逃す)。"""
+    body = "\n".join("%s|%s|%.3f|%.3f|%s|%s" % (p["zone"], p["layer"], p["u"], p["v"],
+                                                p["api"], p["ground"]) for p in pts)
+    return "%08x" % (_zlib.crc32(body.encode("utf-8")) & 0xFFFFFFFF)
 
-    ⛔ 書き出しが散布と別の経路になった瞬間、実装は**検査の通っていない木**を据えることになる。"""
+
+def planting_export_check(d, dem):
+    """**実装へ渡す点が、いま検査が見ている点と同じか**(再現性)。⭐ 2026-09-02 新設 / 2026-09-03 改。
+
+    ⛔ 「陳腐化」ではなく **再現性** を名乗る(2026-09-03 検図【中2】D4)— `main()` が書いた
+      直後に読む構造なので、点数の一致は当たり前に通ってしまう。⭕ 見るのは三つ:
+      ① 書き出しの点数 = 各層の散布の合計(経路が分岐していないか)
+      ② ファイルの指紋 = `planting_points()` を**もう一度回した**指紋(座標・部材まで)
+      ③ **段の上に立つ `terrain` の点が 0**(法面の木が段の中に入っていないか。検図【高1】D1③)
+    """
     pts = planting_points(d, dem)
     gs = scatter_gardens(d)
     sp = scatter_slope(d, dem)
@@ -8479,6 +8701,13 @@ def planting_export_check(d, dem):
         bad.append("植栽の書き出し %d 点と、検査が数えた %d 点(庭 %d / 法面 %d)が食い違う — "
                    "⛔ 書き出しが散布と別の経路になっている(実装が検査の通っていない木を据える)"
                    % (len(pts), n_g + n_s, n_g, n_s))
+    # ③ 段の上に立つ法面の木(⛔ 0 でなければならない)
+    ont = [p for p in pts if p["ground"] == "terrain" and _in_terrace(d, p["u"], p["v"])]
+    if ont:
+        w = ont[0]
+        bad.append("法面の木が**段の上に %d 点**立っている(例: %s/%s @ u%.1f v%.1f)— "
+                   "⛔ 段は造成した平場で、そこは法面ではない(検図 2026-09-03【高1】)"
+                   % (len(ont), w["zone"], w["layer"], w["u"], w["v"]))
     p = os.path.join(DOC, PLANTING_OUT)
     if os.path.exists(p):
         try:
@@ -8486,8 +8715,11 @@ def planting_export_check(d, dem):
         except Exception as ex:
             return bad + ["植栽の書き出しが読めない — **この検査は回っていない**: %s" % ex]
         if int(old.get("n", -1)) != len(pts):
-            bad.append("`%s` が陳腐化している(%s 点 / いま %d 点)— "
-                       "指図を組み直してから実装へ渡すこと" % (PLANTING_OUT, old.get("n"), len(pts)))
+            bad.append("`%s` の点数が合わない(%s 点 / いま %d 点)" % (PLANTING_OUT, old.get("n"), len(pts)))
+        elif old.get("digest") != _pl_digest(pts):
+            bad.append("`%s` の**指紋が合わない**(ファイル %s / 再計算 %s)— "
+                       "点数は同じでも**座標か部材が違う**。⛔ 実装は検査の通っていない木を据える"
+                       % (PLANTING_OUT, old.get("digest"), _pl_digest(pts)))
     else:
         bad.append("`%s` がまだ書かれていない — 実装が据える点の正典が無い" % PLANTING_OUT)
     return bad
@@ -9890,9 +10122,27 @@ def _terr_at(d, u, v):
 
 
 def _nat_uv(terr, u, v):
-    i = int(round((u - terr["u0"]) / terr["step"])); j = int(round((v - terr["v0"]) / terr["step"]))
-    if i < 0 or j < 0 or i >= terr["nu"] or j >= terr["nv"]: return None
-    return terr["h"][j][i]
+    """回転間格子の地盤を**双一次**で引く。
+
+    ⛔ **最近傍(`int(round())`)にしない**(2026-09-03 庭方【高1】)— 格子は 1間(1.818m)刻みなので、
+      最近傍だと**格子の量子化そのもの**を測ってしまう。木柵の足元の段差 0.54m は
+      「地盤が跳ねている」のではなく「隣の格子点へ飛んだ」だけで、実測は 0.000m だった。
+    ⚠ 欠測(区画の外の null)に隣接する所は、**四隅が揃う所だけ**を返す — 片側だけで
+      補間すると区画の縁で値が内へ引き込まれる。"""
+    fu = (u - terr["u0"]) / terr["step"]
+    fv = (v - terr["v0"]) / terr["step"]
+    i0, j0 = int(math.floor(fu)), int(math.floor(fv))
+    nu, nv, H = terr["nu"], terr["nv"], terr["h"]
+    if 0 <= i0 < nu - 1 and 0 <= j0 < nv - 1:
+        q = (H[j0][i0], H[j0][i0 + 1], H[j0 + 1][i0], H[j0 + 1][i0 + 1])
+        if all(x is not None for x in q):
+            tu, tv = fu - i0, fv - j0
+            return ((q[0] * (1 - tu) + q[1] * tu) * (1 - tv)
+                    + (q[2] * (1 - tu) + q[3] * tu) * tv)
+    i, j = int(round(fu)), int(round(fv))       # ⭕ 縁は最近傍へ落とす(⛔ 黙って None にしない)
+    if i < 0 or j < 0 or i >= nu or j >= nv:
+        return None
+    return H[j][i]
 
 
 def _design_at_uv(d, u, v, terr):
@@ -11060,43 +11310,102 @@ def neishi_check(d, dem):
     return bad
 
 
-def _seat_of(d, nj, s_along, ground):
-    """柱間ごとの根石の座。→ (座 y, 区間の名, 柱間の添字) / 区間の外は None。
+def _nj_axis(nj):
+    """塀の走る向き。→ (v 方向か, 一定側の座標, 弧長の下限, 上限)"""
+    a2, b2 = tuple(nj["a"]), tuple(nj["b"])
+    vert = abs(b2[0] - a2[0]) < abs(b2[1] - a2[1])
+    lo = min(a2[1], b2[1]) if vert else min(a2[0], b2[0])
+    hi = max(a2[1], b2[1]) if vert else max(a2[0], b2[0])
+    return vert, (a2[0] if vert else a2[1]), lo, hi
 
-    ⭕ 区間は `nakajikiri[].seatSpans`(面の縁で割る)。区間の中は**柱間ごとに水平**。"""
+
+def _seat_joint_half(d, nj):
+    """区間の継ぎ目(面の縁)で測らない幅[間]の半分 = 従属値。
+
+    ⭕ 継ぎ目は**土留めか法面が受ける**ので敷居を当てない。幅は
+      (段の高さ − その場の地盤)× `const.batterFill` ÷ 1間 で決まる法面の走りから採る。"""
+    K = d["const"]["ken"]
+    bf = float(d["const"]["batterFill"])
+    terr = _terr_json()
+    vert, fix, lo, hi = _nj_axis(nj)
+    drops = []
+    for t in d["terraces"]:
+        for e in ((t["u0"], t["u1"]) if not vert else (t["v0"], t["v1"])):
+            if not (lo + 1e-9 < e < hi - 1e-9):
+                continue
+            u, v = (fix, e) if vert else (e, fix)
+            # ⛔ **造成前の地盤**と比べる(設計地盤は段の上では段そのものなので常に 0 になる)
+            g = _nat_uv(terr, u, v)
+            if g is not None:
+                drops.append(abs(float(t["y"]) - g))
+    return (max(drops) * bf / K / 2.0) if drops else 0.0
+
+
+def _seat_bays(d, nj, step=0.25):
+    """**柱間ごとの根石の座**(従属値)。→ {(区間, 柱間k): [座, |座−地盤| の最大, 弧長 lo, hi]}
+
+    ⭐ 2026-09-03(庭方【高2】N2)に literal を廃した。⛔ `seatSpans[].y / rise / step` の
+      値を指図が持たない — 区間は「**面の縁で切る**」という宣言だけで、座は**測って決める**:
+      ① 柱間の中の設計地盤の (max + min) / 2 を 0.05m 丸め
+      ② 隣の柱間との差を `seatStepMax` で頭打ち(段が読める大きさを超えない)
+    ⛔ 継ぎ目(区間の境)の前後 `_seat_joint_half` 間は測らない — 土留めが受ける。"""
     rule = (d.get("nakajikiriRule") or {}).get("neishi") or {}
     bay0 = float(rule.get("bay", 1.0))
+    stepmax = float(rule.get("seatStepMax", 0.15))
+    terr, dm = _terr_json(), _dem_json()
+    kg = ((d.get("sensui") or {}).get("yarimizu") or {}).get("kuguri") or {}
+    vert, fix, lo, hi = _nj_axis(nj)
+    jh = _seat_joint_half(d, nj)
+    out = {}
     for sp in nj.get("seatSpans", []):
         rng = sp.get("u") or sp.get("v")
-        lo, hi = min(rng), max(rng)
-        if not (lo - 1e-9 <= s_along <= hi + 1e-9):
+        s0, s1 = max(min(rng), lo), min(max(rng), hi)
+        if s1 - s0 <= 1e-9:
             continue
         bay = float(sp.get("bay", bay0))
-        k = int(math.floor((s_along - lo) / bay + 1e-9))
-        if sp.get("y") is not None:
-            return (float(sp["y"]) - float(sp.get("step", 0.0)) * k, "%g〜%g" % (lo, hi), k)
-        if sp.get("rise") is not None and ground is not None:
-            return (ground + float(sp["rise"]) * k, "%g〜%g" % (lo, hi), k)
-        return (None, "%g〜%g" % (lo, hi), k)
-    return None
+        nb = max(1, int(round((s1 - s0) / bay)))
+        name = "%g〜%g" % (min(rng), max(rng))
+        prev = None
+        for k in range(nb):
+            w0, w1 = s0 + (s1 - s0) * k / nb, s0 + (s1 - s0) * (k + 1) / nb
+            ys, w = [], w0
+            while w <= w1 + 1e-9:
+                # ⛔ 継ぎ目(区間の境)の前後は測らない
+                if min(abs(w - s0), abs(w - s1)) < jh and (s0 > lo + 1e-9 or s1 < hi - 1e-9):
+                    w += step
+                    continue
+                u, v = (fix, w) if vert else (w, fix)
+                # ⭕ 石樋の水口の区間は根石を切る
+                if kg.get("nakajikiri") == nj["name"] and kg.get("span") is not None \
+                        and abs(u - float(kg["u"])) <= float(kg["span"]) / 2.0:
+                    w += step
+                    continue
+                g = _ground_uv(d, u, v, terr, dm)
+                if g is not None:
+                    ys.append(g)
+                w += step
+            if not ys:
+                continue
+            seat = round(((max(ys) + min(ys)) / 2.0) / 0.05) * 0.05
+            if prev is not None and abs(seat - prev) > stepmax:
+                seat = prev + math.copysign(stepmax, seat - prev)
+            prev = seat
+            out[(name, k)] = [seat, max(abs(seat - g) for g in ys), w0, w1]
+    return out
 
 
-def neishi_seat_check(d, step=0.25):
-    """**板塀の根石の座が地盤を追えているか**【庭方 2026-09-03 回答4】。
+def neishi_seat_check(d):
+    """**板塀の根石の座が地盤を追えているか**【庭方 2026-09-03 N2】。
 
-    ⛔ **run 平均で測らない**(2026-09-02 の測り方は誤りだった)。
-    ⭕ 根石は段 `terraces` の**面の縁で区間に割り**(`seatSpans`)、区間の中は
-      **柱間ごとに水平**な根石で地盤を追う。見るのは二つ:
-      ① 隣り合う柱間の座の差 ≤ `seatStepMax`
-      ② 柱間の中の |座 − 設計地盤| ≤ `seatDevMax`
-    ⛔ 継ぎ目(区間の境)には敷居を当てない — そこは土留めが受ける。
-    ⭕ **石樋の水口の区間は根石を切る**(`sensui.yarimizu.kuguri.span` 間)ので測らない。"""
+    ⛔ **run 平均でも literal の座でもない。**座は柱間ごとの**従属値**(`_seat_bays`)で、
+      見るのは二つ:
+      ① 柱間の中の |座 − 設計地盤| ≤ `seatDevMax`(⛔ 緩めない)
+      ② 隣り合う柱間の座の差 ≤ `seatStepMax`
+    ⛔ 継ぎ目(面の縁)には敷居を当てない — そこは土留めが受ける。"""
     rule = (d.get("nakajikiriRule") or {}).get("neishi") or {}
     kinds = set(rule.get("applyKind") or [])
     stepmax = float(rule.get("seatStepMax", 0.15))
     devmax = float(rule.get("seatDevMax", 0.08))
-    kg = ((d.get("sensui") or {}).get("yarimizu") or {}).get("kuguri") or {}
-    terr, dm = _terr_json(), _dem_json()
     bad = []
     for nj in d.get("nakajikiri", []):
         if nj.get("kind") not in kinds:
@@ -11105,31 +11414,7 @@ def neishi_seat_check(d, step=0.25):
             bad.append("板塀 %s に `seatSpans`(面の縁で割った根石の区間)が無い — "
                        "座が決まらないので**この検査は回っていない**(合格ではない)" % nj["name"])
             continue
-        a2, b2 = tuple(nj["a"]), tuple(nj["b"])
-        vert = abs(b2[0] - a2[0]) < abs(b2[1] - a2[1])       # v 方向に走る塀か
-        lo = min(a2[1], b2[1]) if vert else min(a2[0], b2[0])
-        hi = max(a2[1], b2[1]) if vert else max(a2[0], b2[0])
-        base = _ground_uv(d, a2[0], lo, terr, dm) if vert else _ground_uv(d, lo, a2[1], terr, dm)
-        bays, w = {}, lo
-        while w <= hi + 1e-9:
-            u, v = (a2[0], w) if vert else (w, a2[1])
-            if kg.get("nakajikiri") == nj["name"] and kg.get("span") is not None \
-                    and abs(u - float(kg["u"])) <= float(kg["span"]) / 2.0:
-                w += step
-                continue
-            g = _ground_uv(d, u, v, terr, dm)
-            if g is None:
-                w += step
-                continue
-            st = _seat_of(d, nj, w, base)
-            if st is None or st[0] is None:
-                w += step
-                continue
-            y, span, k = st
-            rec = bays.setdefault((span, k), [y, 0.0, w, w])
-            rec[1] = max(rec[1], abs(y - g))
-            rec[3] = w
-            w += step
+        bays = _seat_bays(d, nj)
         if not bays:
             bad.append("板塀 %s の根石の座を測れない — **この検査は回っていない**" % nj["name"])
             continue
@@ -11153,42 +11438,39 @@ def neishi_seat_check(d, step=0.25):
 
 
 def neishi_seat_table(d):
-    """根石の区間と座の実測。⛔ 0 件でも数を出す。"""
+    """根石の区間と**測って決めた座**。⛔ 0 件でも数を出す。"""
     rule = (d.get("nakajikiriRule") or {}).get("neishi") or {}
     kinds = set(rule.get("applyKind") or [])
-    terr, dm = _terr_json(), _dem_json()
+    devmax = float(rule.get("seatDevMax", 0.08))
     rows = ""
     for nj in d.get("nakajikiri", []):
         if nj.get("kind") not in kinds or not nj.get("seatSpans"):
             continue
-        a2, b2 = tuple(nj["a"]), tuple(nj["b"])
-        vert = abs(b2[0] - a2[0]) < abs(b2[1] - a2[1])
+        bays = _seat_bays(d, nj)
+        jh = _seat_joint_half(d, nj)
         for sp in nj["seatSpans"]:
             rng = sp.get("u") or sp.get("v")
-            lo, hi = min(rng), max(rng)
-            base = _ground_uv(d, a2[0], lo, terr, dm) if vert else _ground_uv(d, lo, a2[1], terr, dm)
-            dev, w = 0.0, lo
-            while w <= hi + 1e-9:
-                u, v = (a2[0], w) if vert else (w, a2[1])
-                g = _ground_uv(d, u, v, terr, dm)
-                st = _seat_of(d, nj, w, base)
-                if g is not None and st and st[0] is not None:
-                    dev = max(dev, abs(st[0] - g))
-                w += 0.25
-            rows += ("<tr><td>%s</td><td>%s %g〜%g</td><td>%s</td><td>%.1f 間</td>"
-                     "<td>%.3f m</td><td>%s</td></tr>"
-                     % (nj["name"], "v" if vert else "u", lo, hi,
-                        ("水平 %.2f" % sp["y"]) if sp.get("y") is not None
-                        else ("一様に登る %.3f m/柱間" % sp.get("rise", 0.0)),
+            name = "%g〜%g" % (min(rng), max(rng))
+            mine = [v for k, v in bays.items() if k[0] == name]
+            if not mine:
+                continue
+            dev = max(v[1] for v in mine)
+            rows += ("<tr><td>%s</td><td>%s %s</td><td>%d</td><td>%.2f〜%.2f m</td>"
+                     "<td>%.1f 間</td><td>%.3f m</td><td>%s</td></tr>"
+                     % (nj["name"], "v" if sp.get("v") else "u", name, len(mine),
+                        min(v[0] for v in mine), max(v[0] for v in mine),
                         float(sp.get("bay", rule.get("bay", 1.0))), dev,
-                        "<b>○</b>" if dev <= float(rule.get("seatDevMax", 0.08)) + 1e-9 else "<b>⚠</b>"))
-    return ("<h3>板塀の根石 — 面の縁で割った区間と座</h3><div class='tw'><table><thead><tr>"
-            "<th>板塀</th><th>区間</th><th>座</th><th>柱間</th><th>|座−設計地盤| の最大</th>"
+                        "<b>○</b>" if dev <= devmax + 1e-9 else "<b>⚠</b>"))
+    return ("<h3>板塀の根石 — 面の縁で割った区間と、測って決めた座</h3>"
+            "<div class='tw'><table><thead><tr><th>板塀</th><th>区間</th><th>柱間の数</th>"
+            "<th>座の範囲</th><th>柱間</th><th>|座−設計地盤| の最大</th>"
             "<th>判定(許容 %.2f m)</th></tr></thead><tbody>%s</tbody></table></div>"
-            "<p class='cap'>⛔ <b>run 平均で測らない。</b>根石は<b>段の縁で区間に割り</b>、"
-            "区間の中は<b>柱間ごとに水平</b>な石で地盤を追う。継ぎ目(面の縁)は土留めが受けるので"
-            "敷居を当てない。⭕ 石樋の水口の区間は根石を切るので測らない。</p>"
-            % (float(rule.get("seatDevMax", 0.08)), rows))
+            "<p class='cap'>⛔ <b>座は指図が持たない。</b>区間は「<b>面の縁で切る</b>」という"
+            "宣言だけで、座は<b>柱間ごとに測って決める</b> — その柱間の設計地盤の"
+            "(最大+最小)÷2 を 0.05m に丸め、隣の柱間との差を "
+            "<code>seatStepMax</code> で頭打ちにする。⛔ 継ぎ目(面の縁)の前後 %.2f 間は"
+            "測らない — そこは土留めが受ける。⭕ 石樋の水口の区間は根石を切るので測らない。</p>"
+            % (devmax, rows, jh))
 
 
 def neishi_table(d, dem):
@@ -11623,6 +11905,117 @@ def route_grade_check(d, dem):
     return bad
 
 
+def katte_koubai_svg(d, dem):
+    """**裁定図 — 勝手動線の縦断と、段を起こすか否か**(2026-09-03 検図【中5】D7)。
+
+    ⛔ 敷居の値(いま `const.keri / const.fumi` = 階段の勾配)は**意匠と格式に触れる**ので
+      指図方も検図方も決めない。⭕ 決めてもらうために**同じ縮尺で並べた図**を出す。"""
+    K = d["const"]["ken"]
+    r = next(x for x in d["routes"] if x["name"] == "R_Katte")
+    terr, dm = _terr_json(), _dem_json()
+    pts = [tuple(p) for p in r["pts"]]
+    prof, L = [], 0.0
+    for i in range(len(pts) - 1):
+        a, b = pts[i], pts[i + 1]
+        seg = math.hypot(b[0] - a[0], b[1] - a[1])
+        n = max(1, int(seg / 0.1))
+        for j in range(n + (1 if i == len(pts) - 2 else 0)):
+            t = j / float(n)
+            u, v = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
+            y = _ground_uv(d, u, v, terr, dm)
+            if y is not None:
+                prof.append(((L + seg * t) * K, y, u, v))
+        L += seg
+    if len(prof) < 10:
+        return ""
+    Ltot = prof[-1][0]
+    ys = [q[1] for q in prof]
+    y0, y1 = min(ys) - 0.5, max(ys) + 0.5
+    # 5m 窓の勾配
+    win = []
+    for i, q in enumerate(prof):
+        j = i
+        while j + 1 < len(prof) and prof[j][0] - q[0] < 5.0:
+            j += 1
+        dl = prof[j][0] - q[0]
+        win.append(abs(prof[j][1] - q[1]) / dl if dl > 1e-6 else 0.0)
+    lim = float(d["const"]["keri"]) / float(d["const"]["fumi"])
+    over = [w for w in win if w > lim]
+    W, H, Lm, R, T = 940.0, 470.0, 66.0, 24.0, 46.0
+    HT = 150.0
+    sx = (W - Lm - R) / Ltot
+    sy = HT / max(y1 - y0, 0.5)
+    def X(l): return Lm + l * sx
+    def Y(y): return T + HT - (y - y0) * sy
+    g = _sv(W, H, "裁定図 — 勝手動線の縦断(案A / 案B)")
+    g.append('<rect x="0" y="0" width="%.0f" height="%.0f" fill="var(--paper)"/>' % (W, H))
+    g.append(T_(Lm - 60, T - 16, "① 勝手動線 R_Katte の縦断(全長 %.0f m・石段 0段)" % Ltot))
+    # 5m 窓が敷居を超える所を赤帯で
+    for i, q in enumerate(prof):
+        if win[i] > lim:
+            g.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="#AE3630" '
+                     'opacity="0.16"/>' % (X(q[0]) - 1, T, 2.4, HT))
+    g.append('<polyline points="%s" fill="none" stroke="var(--ink)" stroke-width="1.6"/>'
+             % " ".join("%.1f,%.1f" % (X(q[0]), Y(q[1])) for q in prof))
+    for yy in range(int(y0) + 1, int(y1) + 1):
+        g.append(LN(Lm, Y(yy), W - R, Y(yy), "var(--dim)", 0.4, "3 4"))
+        g.append(T_(6, Y(yy) + 4, "%d m" % yy, "anS2"))
+    g.append(T_(Lm, T + HT + 18,
+                "5m 窓の最急 %.0f%%(敷居 %.0f%% = 階段の勾配 `const.keri`/`const.fumi`)／"
+                "敷居を超える窓 %.1f%%(赤帯)" % (100 * max(win), 100 * lim,
+                                          100.0 * len(over) / len(win)), "anS"))
+    # ---- ② 案A / 案B を**同じ縮尺**で並べる(最急の区間 u32〜36)
+    seg = [q for q in prof if 32.0 <= q[2] <= 36.0]
+    if not seg:
+        seg = prof[:40]
+    l0, l1 = seg[0][0], seg[-1][0]
+    ya, yb = seg[0][1], seg[-1][1]
+    dl, dy = abs(l1 - l0), abs(yb - ya)
+    PW, PH, PY0 = 380.0, 150.0, T + HT + 96
+    ps = min(PW / max(dl, 0.5), PH / max(dy, 0.5))
+    for k, (px, title, note) in enumerate((
+            (Lm, "案A 段を起こさない(荷の道)",
+             "土の坂のまま。勾配 1:%.1f — 荷車と天秤棒の道として通す" % (dl / max(dy, 1e-6))),
+            (Lm + PW + 70, "案B 勝手口に石段",
+             "`const.keri` %.2f / `const.fumi` %.2f で %d 段"
+             % (d["const"]["keri"], d["const"]["fumi"],
+                max(1, int(round(dy / float(d["const"]["keri"]))))))) ):
+        g.append(T_(px, PY0 - 26, "② " + title if k == 0 else "② " + title))
+        gy = PY0 + PH
+        g.append(LN(px, gy, px + dl * ps, gy, "var(--dim)", 0.6))
+        if k == 0:
+            g.append('<polyline points="%.1f,%.1f %.1f,%.1f" fill="none" '
+                     'stroke="var(--shu)" stroke-width="2.2"/>'
+                     % (px, gy, px + dl * ps, gy - dy * ps))
+        else:
+            n = max(1, int(round(dy / float(d["const"]["keri"]))))
+            run = float(d["const"]["fumi"])
+            path = ["%.1f,%.1f" % (px, gy)]
+            cx, cy = px, gy
+            for i in range(n):
+                cy -= float(d["const"]["keri"]) * ps
+                path.append("%.1f,%.1f" % (cx, cy))
+                cx += run * ps
+                path.append("%.1f,%.1f" % (cx, cy))
+            path.append("%.1f,%.1f" % (px + dl * ps, gy - dy * ps))
+            g.append('<polyline points="%s" fill="none" stroke="var(--shu)" stroke-width="2.2"/>'
+                     % " ".join(path))
+            g.append('<polyline points="%.1f,%.1f %.1f,%.1f" fill="none" stroke="var(--dim)" '
+                     'stroke-width="1" stroke-dasharray="4 3"/>'
+                     % (px, gy, px + dl * ps, gy - dy * ps))
+        g.append(T_(px, gy + 20, note, "anS2"))
+        g.append(T_(px, gy + 36, "区間 u32〜36 ／ 平面 %.2f m ・ 落差 %.2f m(%.2f→%.2f)"
+                    % (dl, dy, ya, yb), "anS2"))
+    g.append(T_(Lm, H - 12, "⛔ 二つの案は**同じ縮尺**。敷居をどこに置くかは意匠と格式に触れる"
+                "(荷の道に段を刻むと荷車が通れない)ので、⛔ 指図方も検図方も決めない。", "anS2"))
+    g.append("</svg>")
+    return "\n".join(g), Ltot, max(win), 100.0 * len(over) / len(win), lim
+
+
+def T_(x, y, s2, cls="anS"):
+    return T(x, y, s2, cls, "start")
+
+
 def routes_table(d, dem):
     rows = ""
     for r in d["routes"]:
@@ -12050,11 +12443,17 @@ def main():
            # ⚠ 図版を足すと後ろが全部ずれる。**番号を本文へ直書きしない**
            #   (2026-08-30: 植栽で4面足したら「池の裁定は其廿二」が別の図を指した)。
            "其卅一", "其卅二", "其卅三", "其卅四", "其卅五",
-           "其卅六", "其卅七", "其卅八", "其卅九", "其四十"]
+           "其卅六", "其卅七", "其卅八", "其卅九", "其四十",
+           "其四十一", "其四十二", "其四十三", "其四十四", "其四十五",
+           "其四十六", "其四十七", "其四十八", "其四十九", "其五十"]
     _kn = [0]
 
     def nx():
         _kn[0] += 1
+        if _kn[0] > len(KAN):
+            raise SystemExit("⛔ 図版の採番が尽きた(%d 面目 / 用意は %d 面)— "
+                             "`KAN` を伸ばすこと。⛔ 番号を本文へ直書きしない作りなので、"
+                             "伸ばしても本文の参照はずれない" % (_kn[0], len(KAN)))
         return KAN[_kn[0] - 1]
 
     _gr = d["grid"]["shukaku"]
@@ -12287,6 +12686,31 @@ def main():
     h.append(garden_steps_table(d))
     h.append("</div>")
 
+    # ------------------------------------------------------------ 裁定図(勝手動線の勾配)
+    _kk = katte_koubai_svg(d, dem)
+    if _kk:
+        _kk_svg, _kk_L, _kk_max, _kk_pct, _kk_lim = _kk
+        plate(h, nx(), "勝手動線の勾配 — 段を起こすか【裁定要請】",
+              "**敷居の値は意匠と格式に触れる** ／ 案A・案Bを**同じ縮尺で並べた図**")
+        fig(h, _kk_svg,
+            cap="<b>どこ</b>: 勝手動線 <code>R_Katte</code>(御蔵門 u36 v2 → 大台所 u4 v36・"
+                "全長 %.0f m・<b>石段 0段</b>)。とくに <b>u32〜36 / v11.8〜15</b> の落ち"
+                "(28.81 → 27.64 m)。<br>"
+                "<b>いま何が起きているか</b>: 検査 <code>route_grade_check</code> の敷居は"
+                "<code>const.keri / const.fumi</code>(= <b>階段の勾配 1:%.1f</b>)で、"
+                "⛔ <b>これでは『段を起こすべき道』を検出できない</b> — "
+                "階段より急でなければ通ってしまうため、5m 窓の最急 <b>%.0f%%</b>・"
+                "敷居超えの窓 <b>%.1f%%</b> でも 0 件になる。<br>"
+                "<b>影響</b>: 案A は<b>部材も造成も増えない</b>(いまの指図のまま)。"
+                "案B は勝手口に石段 <code>K_Katte</code> を1基起こし、"
+                "段の据わる帯の造成(切土)が要る。<br>"
+                "<b>推奨</b>: ⛔ <b>指図方は選ばない。</b>⚠ ただし荷の道であることは効く — "
+                "米俵と薪を運ぶ道に段を刻むと荷車が通れないので、"
+                "<b>『段を起こす/起こさない』は格式ではなく用の判断</b>になる。"
+                "⇒ <code>_pending.katteKoubai</code>"
+                % (_kk_L, 1.0 / _kk_lim, 100 * _kk_max, _kk_pct))
+        h.append("</div>")
+
     # ------------------------------------------------------------ 主庭(2026-09-01)
     if d.get("sensui"):
         plate(h, nx(), "主庭の平面(御泉水・築山・園路・主視点)",
@@ -12298,7 +12722,10 @@ def main():
                    '<span style="color:#7a6a3d">╌ 園路(庭道)</span>'
                    '<span style="color:var(--shu)">● 点景 ／ ○ 主視点と視線</span>'
                    '<span style="color:#3B5A3C">○ 樹冠の実寸</span>',
-            cap="<b>★V1(御休息之間)が主景。</b>中奥は四方入側なので"
+            cap="⚠ <b>汀線 #19〜#21 は庭境まで 1.30 間</b>(他の汀は全周 1.5 間 以上)— "
+                "ここは<b>水尻の一点</b>で、余水が庭の外へ抜ける所なので詰まってよい。"
+                "⛔ <b>汀線は動かさない。</b><br>"
+                "<b>★V1(御休息之間)が主景。</b>中奥は四方入側なので"
                 "<b>西入側がこの庭へ正面から向く</b> — 屋敷で唯一そう作れる場所。"
                 "汀線の番号は <code>sensui.pond.outline</code> の順で、"
                 "<b>#5 岬の付け根に傾ける松ただ一本</b>(幹を池の中心へ 8°)。"
@@ -12508,7 +12935,11 @@ def main():
                 "<b>樹は稜線と法面上部に集まる</b>。それを帯の密度に落とした。"
                 "⛔ <b>竹叢を置かない</b>(江戸の水辺79事例中1例)。"
                 "⛔ ポプラ(在庫の広葉高木)は江戸に使えない。"
-                "円は<b>樹冠の実寸</b>で、位置は規則どおりに散らした標本(設計値ではない)。")
+                "円は<b>樹冠の実寸</b>で、位置は規則どおりに散らした標本(設計値ではない)。<br>"
+                "⚠ <b>帯W4(法尻)は草地だけ</b> — 汀の木本(柳・葭・蓮)は当家の指図に置かない。"
+                "同じ岸を持つ岡部が定めた並びでは<b>葭原は杭列(=汀線)の沖</b>にあり、"
+                "汀線は<b>当家の区画線より約10m 沖</b>に来る(掲示板 EDO-0119)。"
+                "⇒ 申し送りは <code>tameike_kishi</code>。")
         h.append('<div class="box" style="border-color:var(--take)">'
                  "<h3>実装が据える点は、この生成器が撒いた点そのもの</h3><p>"
                  "⛔ <b>実装は撒き直さない。</b>散布を二本に分けると、帯の二重管理と"
@@ -12524,25 +12955,30 @@ def main():
                     sum(1 for p in _pl_pts if p["ground"] == "terrain")))
         h.append(slope_band_table(d, dem))
         h.append(slope_canopy_table(d, dem))
+        h.append(slope_bare_table(d, dem))
         h.append(band_boundary_table(d, dem))
         h.append(slope_zone_table(d, dem))
         h.append(slope_planting_table(d, dem))
-        plate(h, nx(), "西斜面の断面 — 林が御殿を隠せているか",
-              "**垂直・水平とも実寸**(遮蔽の当たりを目で取るため)")
+        plate(h, nx(), "西斜面の断面 — 法肩の稜が連続しているか",
+              "**垂直・水平とも実寸**(稜の当たりを目で取るため)")
         for vc in (24.0, 40.0, 58.0):
             fig(h, slope_section_svg(d, dem, vc),
-                cap="<b>v=%g の断面。</b>破線は対岸から御殿の軒への見通し。"
-                    "法肩の樹がこの線を越えていれば御殿は隠れる。" % vc)
+                cap="<b>v=%g の断面。</b>⚠ 破線は対岸から御殿の軒への見通しで、"
+                    "<b>参考線</b>として残してある — ⛔ <b>これを上回るかどうかは合否ではない</b>"
+                    "(2026-09-03 考証【高2】: 『対岸から軒を隠す』という基準は撤回済み)。" % vc)
         _sc = d["slopeArea"]["screen"]
-        h.append('<div class="box" style="border-color:var(--take)"><h3>遮蔽は法面だけでは足りない</h3><p>'
-                 '<code>perimeterClosure</code> は西辺6辺を<b>「標示」</b>と宣言し、'
-                 '「遮蔽は法面が受け、木柵は境の標示にとどまる」と書いている。'
-                 'これは<b>法面と樹林</b>が受けるという意味で、素の崖だけでは対岸から御殿の軒が抜ける'
-                 '(上の断面の見通し線)。⭐ そこで<b>法肩に沿った遮蔽の列</b>を設計値にした — '
-                 '検査 <code>slope_planting_check</code> が法肩に沿って %.1fm ごとに'
-                 '「樹高 %.1fm 以上の木が %.1fm 以内にあるか」を測り、'
-                 '<b>切れていれば鳴る</b>。⚠ 落差 %.1fm 未満の区間(北西の登り・辺11)は外してある — '
-                 'その内側は御殿でなく西の明地なので隠す物が無い。</p></div>'
+        h.append('<div class="box" style="border-color:var(--take)">'
+                 "<h3>合否は「稜が連続しているか」で見る</h3><p>"
+                 "⛔ <b>『対岸から御殿の軒を隠す』という基準は撤回した</b>"
+                 "(2026-09-03 考証【高2】)。法肩の樹列の役は三つ — "
+                 "<b>(あ)水から見た輪郭</b>(⛔ 大屋根は隠さない)/ <b>(い)法肩を根で留める</b> / "
+                 "<b>(う)V1 の遠景</b>(樹林の梢と空)。<br>"
+                 "⭕ 判定は <code>slope_planting_check</code> が法肩に沿って %.1fm ごとに"
+                 "「樹高 <b>%.1fm</b> 以上の木が <b>%.1fm</b> 以内にあるか」を測る — "
+                 "<b>稜が切れていれば鳴る</b>。⚠ 落差 %.1fm 未満の区間(北西の登り・辺11)は"
+                 "外してある — その内側は御殿でなく西の明地なので稜を作る役が無い。<br>"
+                 "⚠ <code>perimeterClosure</code> の「遮蔽は法面が受け、木柵は境の標示にとどまる」は"
+                 "<b>法面と樹林</b>が受けるという意味で、⛔ 素の崖だけでは輪郭が立たない。</p></div>"
                  % (_sc["step"], _sc["minH"], _sc["reach"], _sc["minDrop"]))
         h.append("</div>")
 

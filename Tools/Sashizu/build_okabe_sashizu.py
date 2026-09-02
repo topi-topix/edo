@@ -3768,6 +3768,57 @@ def _near_own_edge(d, u, v, lim=1.5):
     return False
 
 
+_CLF = {}
+
+
+def cliff_metrics(d):
+    """**西の崖と、その下の帯の実測。**⛔ 「最急◯%」「標高◯」「幅約◯m」を文章に手で書かない
+    (規則4)— ここが**江戸期の復元地盤**から毎回算出する。
+    ⚠ これらは 2026-09-02 まで**現代の地面**の値だった(復元が屋敷の平場 v≦108 で止まっており、
+      崖の 99.0%・岸の帯の 100% が現況と同一だった)。崖と帯の境 `v1` は復元の仕様が持つ。"""
+    key = id(d)
+    if key in _CLF:
+        return _CLF[key]
+    K = d["const"]["ken"]
+    py = max(t["y"] for t in d["terraces"])
+    try:
+        rc = json.load(open(os.path.join(DOC, "okabe_edo_recon.json"), encoding="utf-8"))
+        v1 = rc["westCliff"]["v1"]; drop = rc["westCliff"]["drop"]
+    except Exception:
+        v1, drop = 134.0, 0.5
+    steep = 0.0; band = []; hig = []; wid = []
+    for i9 in range(-34, 22):
+        u = float(i9)
+        vh = None; prev = None; v = 100.0; last = None
+        while v < 200.0:
+            ok = in_parcel(d, u, v)
+            y = _dem_at(d, u, v) if ok else None
+            if ok:
+                last = v
+            if y is not None:
+                if vh is None and y < py - drop:
+                    vh = v
+                if vh is not None and v <= v1 and prev is not None:
+                    steep = max(steep, abs(y - prev) / (0.5 * K))   # 崖の区間だけで測る
+                if v >= v1:
+                    band.append(y)
+                prev = y
+            v += 0.5
+        if vh is not None and vh < v1:
+            hig.append(vh)
+        if last is not None and last > v1:
+            wid.append((last - v1) * K)
+    _CLF[key] = {"steepPct": 100.0 * steep,
+                 "bandMin": min(band) if band else None,
+                 "bandMax": max(band) if band else None,
+                 "bandCells": len(band),
+                 "higV": (min(hig), max(hig)) if hig else None,
+                 "v1": v1,
+                 "widthM": (sum(wid) / len(wid)) if wid else None,
+                 "dropM": (py - (sum(band) / len(band))) if band else None}
+    return _CLF[key]
+
+
 def _near_wall(d, u, v, lim=1.5):
     """郭の土留めの線から `lim` 間以内か。壁が垂直に受ける区間は法面の検査の対象外。"""
     for w in d.get("terraceWalls", []):
@@ -4035,6 +4086,13 @@ def wall_check(d):
             bad.append("%s に drop(実測落差)が無い — 断面で高さを検算できない" % w["name"])
             continue
         h = 4.0 * w["s"]
+        if dr[1] < 0.0:
+            # ⛔ 天端が地盤より下 = 壁が丸ごと土に埋まる。**立てる前提そのものが消えている。**
+            bad.append("%s の天端 %.2f が全区間で地盤より下(露出 %.2f〜%.2fm)— "
+                       "**壁が丸ごと埋まる。立てる前提(法面が到達距離の中で着地しない)が"
+                       "地盤の直しで消えていないか確かめること**"
+                       % (w["name"], w["coping"], dr[0], dr[1]))
+            continue
         if h < dr[1] - 0.05:
             bad.append("%s 壁高 %.2f < 最大落差 %.2f — 足りない" % (w["name"], h, dr[1]))
         elif h > dr[1] + 0.8:
@@ -5306,6 +5364,16 @@ def mizu_svg(d):
 #   ⭐ **適用範囲のある検査は「増える壊し方」と「増えない壊し方」の両方を置く**(⚠逆向き の行)。
 #     見晴らしの視線の検査は**台の中だけ**が持ち場で、袖は「地面が視線より高いのが設計どおり」。
 #     片側だけ試すと、範囲を広げすぎた検査が正しい設計を不合格として刷る事故に気づけない。
+#   ⚠ **2026-09-02(西の地盤の直しのあと)に壊し方を4つ作り直した。**地盤が変われば
+#     「何を壊せば鳴るか」も変わる。⛔ 前後が同じになった試験を残さない:
+#     ・「西の法尻の土留めを消す」…… 24件→0件 だったのが **0件→0件**。
+#       ⭕ これは検査の劣化ではなく**前提が消えた証拠**なので、⚠逆向き(増えないのが正)へ移した。
+#     ・「主面を 2m 上げる」…… 江戸期の崖が急なので地山側で除外され **0件→0件**。
+#       ⭕ batterCut を緩める / featherCap を縮める、へ差し替えた。
+#     ・土留めの s を変える2件 …… **天端が全区間で地盤より下**なので、どの s でも
+#       「前提が消えた」の枝が先に鳴って **1件→1件**。⛔ 反応したふりをせず**外した**。
+#       ⭕ 代わりに「span を与えない(落差が測れない)」で wall_check を突く。
+#       ⚠ s の枝は**裁定が下りて壁が正常な状態に戻るまで到達しない**。
 #   【結界(取り付き・表↔奥の非連結・動線)】素 0 件
 #     結界を全部消す                                0件 → 2件
 #     W1 を段の縁で止める(北の帯を空ける)                   0件 → 2件
@@ -5372,11 +5440,11 @@ def mizu_svg(d):
 #     御錠口を消す                                 1件 → 2件
 #     表役所の室を消す                               1件 → 2件
 #   【法面(段の外が現地形へ着地するか)】素 0 件
-#     西の法尻の土留めを消す                            0件 → 24件
-#     主面を 2m 上げる(法面が着地しなくなる)                 0件 → 40件
-#   【郭の土留めの高さ】素 0 件
-#     土留めの s を半分にする(丈が落差に足りない)               0件 → 1件
-#     土留めの s を倍にする(壁が土に埋まる)                  0件 → 1件
+#     ⚠逆向き: 西の法尻の土留めを消す(増えないのが正)             0件 → 0件
+#     切土の法面を 1:3 へ緩める                        0件 → 226件
+#     法面の到達距離を 2m へ縮める                       0件 → 12件
+#   【郭の土留めの高さ】素 1 件
+#     土留めをもう1本足し、span を与えない(落差が測れない)         1件 → 2件
 #   【往復試験(剥がして組み直すと正典に戻るか)】素 0 件
 #     断面の現地形線を人が書き換える                        0件 → 1件
 
@@ -7318,14 +7386,22 @@ def main():
              '量と収支は<b>「庭(主面の割り当て)」の土量の表</b>が一枚で刷る'
              '(⛔ 同じ量を二つの章で別々の基準で刷らない)。</p>')
     kbad = kekkai_check(d)
+    CLF = cliff_metrics(d)
     h.append(kekkai_table(d))
     h.append('<p class="cap"><b>結界の検査(取り付き・表↔奥の非連結・動線): %s。</b>'
              '⭐ 経路探索の歩く範囲は<b>主面の法肩から上</b>に絞ってある'
              '(段の外輪の中、または地盤が段の高さ −0.5m 以上 — 当図が段の輪郭を引くのと同じ物差し)。'
              '⛔ <b>緩めたのではなく、図の宣言を実態へ合わせた</b> — 崖から下は外構の地である。'
+             '⭐ その崖と帯は<b>実測でこうなっている</b>(江戸期の復元地盤から算出): '
+             '崖の最急 <b>%.0f%%</b>・法肩 v%.1f〜%.1f ／ 帯の標高 <b>%.2f〜%.2f</b>・'
+             '幅 <b>%.0fm</b>・台地からの落差 <b>%.1fm</b>。'
+             '⚠ <b>2026-09-02 に西の地盤を [五千分一東京図31](明治16)から起こし直した</b> — '
+             'それまで復元は屋敷の平場で止まっており、<b>崖と岸の帯は現代の地面のまま</b>だった。'
              '⛔ 勝手動線は一箇所も結界を横切らない — 台所の勝手口へは v&lt;80 側から回る。'
              '奥向へ入る屋内の口は御錠口の一本だけで、屋外はこの結界が受ける。</p>'
-             % ("<b>0 件</b>" if not kbad else "⚠ %d 件 — %s" % (len(kbad), " / ".join(kbad))))
+             % (("<b>0 件</b>" if not kbad else "⚠ %d 件 — %s" % (len(kbad), " / ".join(kbad)),
+                 CLF["steepPct"], CLF["higV"][0], CLF["higV"][1],
+                 CLF["bandMin"], CLF["bandMax"], CLF["widthM"], CLF["dropM"])))
     h.append("</div>")
 
     plate(h, nx(), "見晴らし(溜池の借景)",

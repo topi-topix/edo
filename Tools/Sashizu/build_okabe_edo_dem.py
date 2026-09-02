@@ -269,6 +269,95 @@ def reconstruct(seed, poly, gr, spec):
                "(平坦とその縁 %.0fm 以内はまるごと、そこから %.0fm で現況へ摺り付け)"
                % (n2, n3, mk["edgeCap"], mk["feather"]))
 
+    # ②' **西の崖と低い帯** — 1883年図の標高点から起こす(2026-09-02)。
+    #    ⛔ ここは 2026-09-02 まで復元が当たっておらず**現代の地面のまま**だった。
+    #    溜池が明治7〜8年に陸化し外堀通りが切られた、区画で最も改変の大きい一帯である。
+    wb, wc = spec.get("westBand"), spec.get("westCliff")
+    if wb and wc:
+        def _plane(sp):
+            """錨の (u,v,y) に平面 y=a+b·u+c·v を**最小二乗**で当てる。"""
+            S = [[0.0] * 4 for _ in range(3)]
+            for q in sp:
+                r = [1.0, q["uv"][0], q["uv"][1]]
+                for i in range(3):
+                    for j in range(3):
+                        S[i][j] += r[i] * r[j]
+                    S[i][3] += r[i] * q["y"]
+            for i in range(3):
+                pv = max(range(i, 3), key=lambda k: abs(S[k][i]))
+                S[i], S[pv] = S[pv], S[i]
+                for k in range(3):
+                    if k == i:
+                        continue
+                    f = S[k][i] / S[i][i]
+                    for cc in range(i, 4):
+                        S[k][cc] -= f * S[i][cc]
+            return [S[i][3] / S[i][i] for i in range(3)]
+        pa, pb, pc = _plane(wb["spots"])
+        res = [(q["uv"][0], q["uv"][1], q["y"], pa + pb * q["uv"][0] + pc * q["uv"][1] - q["y"])
+               for q in wb["spots"]]
+
+        def band(u, v):
+            return pa + pb * u + pc * v
+
+        def hsamp(u, v):
+            """(u,v) の現在の面を双一次で拾う。"""
+            x, z = gr.W(u, v)
+            fx = (x - seed["x0"]) / float(st); fz = (z - seed["z0"]) / float(st)
+            i0, j0 = int(math.floor(fx)), int(math.floor(fz))
+            tx, tz = fx - i0, fz - j0
+            acc = wt = 0.0
+            for dj, wv in ((0, 1 - tz), (1, tz)):
+                for di, wu in ((0, 1 - tx), (1, tx)):
+                    i, j = i0 + di, j0 + dj
+                    if 0 <= j < nz and 0 <= i < nx and h[j][i] is not None:
+                        acc += h[j][i] * wu * wv; wt += wu * wv
+            return acc / wt if wt > 1e-9 else None
+        # **法肩を u ごとに拾う** — 復元後の面が「台地の自然面 −drop」を下回る最初の v。
+        # ⛔ 一定の v0 を置くと、主面が西へ張り出す南西側で台地を削る。
+        us = sorted(set(round(q[0] * 2) / 2.0 for q in uv.values()))
+        hig = {}
+        for u in us:
+            vq = wc["vScan0"]
+            while vq <= wc["v1"]:
+                y0 = hsamp(u, vq)
+                if y0 is not None and y0 < py - wc["drop"]:
+                    hig[u] = (vq, y0)
+                    break
+                vq += 0.25
+        n2w = n3w = 0
+        for (ix, iz), (u, v) in uv.items():
+            if v < wc["vScan0"] or h[iz][ix] is None:
+                continue
+            key = min(hig, key=lambda q: abs(q - u)) if hig else None
+            if key is None or abs(key - u) > 1.0:
+                continue
+            vh, yh = hig[key]
+            if v < vh:
+                continue                                  # まだ台地の上
+            if v <= wc["v1"]:
+                t = (v - vh) / max(wc["v1"] - vh, 1e-9)
+                y = yh + (band(u, wc["v1"]) - yh) * t      # 崖 — 法肩から帯の上端へ一定勾配
+                n3w += 1
+            else:
+                y = band(u, v)                             # 低い帯 — 1883の標高点の平面
+                n2w += 1
+            if abs(h[iz][ix] - y) > 0.005:
+                changed.add((ix, iz))
+            h[iz][ix] = y
+        log.append("②' 西の崖 %d セル / 西の低い帯 %d セル を 1883年図から起こした。"
+                   "帯の平面 y = %.4f %+.5f·u %+.5f·v(u %+.3f%%/m・v %+.3f%%/m)／"
+                   "錨の残差 %s"
+                   % (n3w, n2w, pa, pb, pc, pb / 1.818 * 100, pc / 1.818 * 100,
+                      " / ".join("○%.1f %+.2f" % (q[2], q[3]) for q in res)))
+        if hig:
+            hv = [q[0] for q in hig.values()]
+            log.append("②'  法肩は u ごとに算出(台地の自然面 %.2f −%.2f を下回る最初の v)"
+                       " — v %.1f〜%.1f。崖の落差は %.2f〜%.2fm"
+                       % (py, wc["drop"], min(hv), max(hv),
+                          min(q[1] for q in hig.values()) - band(0, wc["v1"]),
+                          max(q[1] for q in hig.values()) - band(0, wc["v1"])))
+
     # ④ 校舎の盛土を台地の自然面へ
     n4 = 0
     for (ix, iz), (u, v) in uv.items():

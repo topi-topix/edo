@@ -115,10 +115,39 @@ def audit(path):
                 discarded.append({"name": nm, "line": node.lineno})
 
     # ── ⛔ 黙り: 走っているが、結果が print にも return にも届かない
-    mute = []
+    # ⭐ **変数経由で回す検査は免除**(2026-09-02 岡部の申し送り)—
+    #   `for 題, fn9 in ((…, garden_alloc_check), …): print(…, len(fn9(d)))` の形は
+    #   静的に追えない。⛔ **関数名が「呼び出しの func 以外」に値として現れたら免除**。
+    #   ⚠ 保守的に倒す — 狼少年の関門は無視される。
+    exempt = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            for a in list(node.args) + [k.value for k in node.keywords]:
+                exempt |= _value_names(a)
+        elif isinstance(node, (ast.Tuple, ast.List, ast.Set, ast.Dict)):
+            exempt |= _value_names(node)
+        elif isinstance(node, ast.Lambda):
+            # ⭐ **ラムダの中の呼び出しは免除**(2026-09-02 岡部の実物)—
+            #   `(題, lambda d, raw, ter: batter_check(d, ter))` の表にまとめて入れ、
+            #   呼び出し側が回して件数を刷る形がある。⛔ 静的には追えないので保守的に倒す。
+            exempt |= {n.func.id for n in ast.walk(node)
+                       if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+    exempt &= universe
+
+    # ⭐ **合否はモジュール全体で** — どこか1つの関数で刷られていれば良い形。
+    verdict = {}
     for n, node in funcs.items():
-        if n in seen:                       # 到達しない関数は「孤立」で既に鳴っている
-            mute += _flows(node)
+        if n not in seen:                   # 到達しない関数は「孤立」で既に鳴っている
+            continue
+        for nm, (v, seed, line) in _flows(node, exempt).items():
+            prev = verdict.get(nm)
+            rank = {"print": 3, "return": 3, "guarded": 2, None: 1}
+            if prev is None or rank[v] > rank[prev[0]]:
+                verdict[nm] = (v, seed, line)
+    mute = [{"name": nm, "line": ln, "via": sd,
+             "why": ("guarded" if v == "guarded" else "mute")}
+            for nm, (v, sd, ln) in sorted(verdict.items())
+            if v not in ("print", "return")]
 
     n_check = len([n for n in universe if _kind(n) == "検査"])
     return {"path": path, "library": False, "orphan": orphan, "discarded": discarded,
@@ -194,12 +223,87 @@ def _stringy(node):
     return False
 
 
-def _flows(fn):
-    """検査の戻り値が `print` か `return` へ届いているか。届かない検査を返す。
+def _value_names(node):
+    """`node` の中で**値として**現れる名前。⛔ 呼び出しの func 位置は数えない。
 
-    ⭐ **種ごとに閉包を取る** — 全部の種を1つの taint に混ぜると、
-    別名へ伝わった時点でどの種が届いたのか分からなくなる(2026-09-02 に踏んだ)。"""
-    seeds = {}                                   # 受けた名前 -> (検査名, lineno)
+    ⚠ ここを緩めると全滅する(2026-09-02 に踏んだ)— `(…, batter_check(d, ter), …)` の
+    ような**タプルの中の呼び出し**まで「値としての参照」に数えてしまい、
+    ⛔ 岡部の全29検査が免除に落ちて黙り検出が丸ごと効かなくなった。"""
+    out, stack = set(), [node]
+    while stack:
+        n = stack.pop()
+        if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load):
+            out.add(n.id)
+        for f, v in ast.iter_fields(n):
+            if isinstance(n, ast.Call) and f == "func":
+                continue                      # ⛔ 呼び出しの func は「値としての参照」ではない
+            if isinstance(v, ast.AST):
+                stack.append(v)
+            elif isinstance(v, list):
+                stack += [x for x in v if isinstance(x, ast.AST)]
+    return out
+
+
+def _reaches(fn, seed, nodes):
+    """`seed` が受けた値が print / return へ届くか。
+    返り値: "print" / "return" / "guarded"(0件のとき沈黙する print)/ None"""
+    taint = {seed}
+    for _ in range(6):                           # 素直な別名の閉包(浅くてよい)
+        before = len(taint)
+        for node in nodes:
+            if isinstance(node, (ast.Assign, ast.AugAssign)):
+                v = node.value
+                names = {x.id for x in ast.walk(v)
+                         if isinstance(x, ast.Name) and isinstance(x.ctx, ast.Load)}
+                if isinstance(v, (ast.Name, ast.BinOp)) and (names & taint):
+                    tg = node.targets if isinstance(node, ast.Assign) else [node.target]
+                    taint |= {t.id for t in tg if isinstance(t, ast.Name)}
+            elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) \
+                    and node.func.attr in _ALIAS_METH and len(node.args) == 1 \
+                    and isinstance(node.func.value, ast.Name):
+                arg = node.args[0]
+                if any(isinstance(x, ast.Name) and x.id in taint for x in ast.walk(arg)) \
+                        and not _stringy(arg):
+                    taint.add(node.func.value.id)   # ⭕ 数のまま運ぶ / ⛔ 文字列へ埋めない
+        if len(taint) == before:
+            break
+
+    # ⚠ 真偽で守られた print は「0件のとき沈黙する」= 件数が出ない。⛔ 黙りと実害が同じ。
+    guarded = set()
+    for node in nodes:
+        if not isinstance(node, ast.If):
+            continue
+        t = node.test
+        if not any(isinstance(x, ast.Name) and x.id in taint for x in ast.walk(t)):
+            continue
+        for sub in ast.walk(node):
+            if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Name) \
+                    and sub.func.id == "print":
+                guarded.add(id(sub))
+
+    hit = None
+    for node in nodes:
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) \
+                and node.func.id == "print":
+            if any(isinstance(x, ast.Name) and x.id in taint for x in ast.walk(node)):
+                if id(node) in guarded:
+                    hit = hit or "guarded"
+                else:
+                    return "print"
+        elif isinstance(node, ast.Return) and node.value is not None:
+            if any(isinstance(x, ast.Name) and x.id in taint for x in ast.walk(node.value)):
+                return "return"
+    return hit
+
+
+def _flows(fn, exempt):
+    """この関数の中で、検査の結果が「件数を刷る経路」に届いているか。
+
+    返り値: {検査名: ("print"|"return"|"guarded"|None, 受けた名前, 行)}
+    ⭐ **合否はモジュール全体で決める**(`audit` 側)。⛔ 同じ検査を
+    「要約で刷る関数」と「図へ埋める関数」の**別々の関数**から呼ぶのは正常な形なので、
+    関数ごとに鳴らすと必ず誤検出になる(2026-09-02 岡部で5件出した)。"""
+    seeds = {}
     for node in ast.walk(fn):
         if not isinstance(node, (ast.Assign, ast.AugAssign)):
             continue
@@ -207,58 +311,45 @@ def _flows(fn):
         if not (isinstance(val, ast.Call) and isinstance(val.func, ast.Name)):
             continue
         nm = val.func.id
-        if _kind(nm) != "検査":
+        if _kind(nm) != "検査" or nm in exempt:
             continue
         tgts = node.targets if isinstance(node, ast.Assign) else [node.target]
         for t in tgts:
             if isinstance(t, ast.Name):
-                seeds.setdefault(t.id, (nm, node.lineno))
+                seeds.setdefault(nm, []).append((t.id, node.lineno))
     if not seeds:
-        return []
+        return {}
 
     nodes = list(ast.walk(fn))
-    out = []
-    for seed, (nm, line) in sorted(seeds.items()):
-        taint = {seed}
-        for _ in range(6):                       # 素直な別名の閉包(浅くてよい)
-            before = len(taint)
-            for node in nodes:
-                if isinstance(node, (ast.Assign, ast.AugAssign)):
-                    v = node.value
-                    names = {x.id for x in ast.walk(v)
-                             if isinstance(x, ast.Name) and isinstance(x.ctx, ast.Load)}
-                    if (isinstance(v, (ast.Name, ast.BinOp))) and (names & taint):
-                        tg = node.targets if isinstance(node, ast.Assign) else [node.target]
-                        taint |= {t.id for t in tg if isinstance(t, ast.Name)}
-                elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) \
-                        and node.func.attr in _ALIAS_METH and len(node.args) == 1 \
-                        and isinstance(node.func.value, ast.Name):
-                    arg = node.args[0]
-                    inside = any(isinstance(x, ast.Name) and x.id in taint
-                                 for x in ast.walk(arg))
-                    # ⭕ そのまま渡す / 数のまま運ぶ → 器へ伝える(呼び出し側が刷れる)
-                    # ⛔ 文字列へ埋める → 伝えない(件数はそこで図の中に消える = 岡部の型)
-                    if inside and not _stringy(arg):
-                        taint.add(node.func.value.id)
-            if len(taint) == before:
+    out = {}
+    for nm, sites in seeds.items():
+        best, seed0, line0 = None, sites[0][0], sites[0][1]
+        for seed, line in sites:
+            v = _reaches(fn, seed, nodes)
+            if v in ("print", "return"):
+                best = v
                 break
-
-        ok = False
-        for node in nodes:
-            hit = None
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) \
-                    and node.func.id == "print":
-                hit = node
-            elif isinstance(node, ast.Return) and node.value is not None:
-                hit = node.value
-            if hit is None:
-                continue
-            if any(isinstance(x, ast.Name) and x.id in taint for x in ast.walk(hit)):
-                ok = True
-                break
-        if not ok:
-            out.append({"name": nm, "line": line, "via": seed})
+            if v == "guarded" and best is None:
+                best = "guarded"
+        out[nm] = (best, seed0, line0)
     return out
+
+
+def _live(main_fp):
+    """その生成器の**いま生きている実体**。⭐ `review_gate._doc_path` と同じ考え方。
+
+    ⛔ **worktree を無条件に優先してはいけない。**邸によっては main で作業している
+    (松江松平は main・岡部は worktree)。⚠ 無条件に worktree を採ると、
+    **古い版を検めて「検査が減った」と誤読する**(2026-09-02 に踏んだ: 検査 47 → 27)。
+    ⭕ **mtime の新しい方を採る。**"""
+    base = os.path.basename(main_fp)
+    estate = base[6:].rsplit("_", 1)[0]
+    wt = os.path.join(ROOT, ".claude", "worktrees", estate, "Tools", "Sashizu", base)
+    if not os.path.exists(wt):
+        return main_fp
+    if not os.path.exists(main_fp):
+        return wt
+    return wt if os.path.getmtime(wt) > os.path.getmtime(main_fp) else main_fp
 
 
 def targets(argv):
@@ -271,7 +362,12 @@ def targets(argv):
             if os.path.exists(a):
                 out.append(a)
                 continue
-            hits = sorted(glob.glob(os.path.join(ROOT, "Tools/Sashizu/build_%s_*.py" % a)))
+            # ⭐ **worktree を先に見る**(2026-09-02 岡部の申し送り)— 各邸は
+            #   `.claude/worktrees/<邸>/` で作業しており、main だけ見ると**旧版を検める**。
+            #   ⛔ 実際、岡部の作業版は検査が 14 → 28 本に増えていた。`review_gate._doc_path`
+            #   と同じ考え方。⭕ worktree にあればそちらを、無ければ main を採る。
+            hits = [_live(x) for x in
+                    sorted(glob.glob(os.path.join(ROOT, "Tools/Sashizu/build_%s_*.py" % a)))]
             if hits:
                 out += hits
             else:
@@ -284,9 +380,14 @@ def targets(argv):
                         )))))
                 raise SystemExit(2)
         return out
-    out = []
-    for p in ("Tools/Sashizu/build_*_sashizu.py", "Tools/Sashizu/build_*_saitei.py"):
-        out += sorted(glob.glob(os.path.join(ROOT, p)))
+    # ⭐ 無引数のときも**邸ごとに worktree を先に見る**(邸名で引いたときと揃える)。
+    out, seen = [], set()
+    for pat in ("Tools/Sashizu/build_*_sashizu.py", "Tools/Sashizu/build_*_saitei.py"):
+        for fp in sorted(glob.glob(os.path.join(ROOT, pat))):
+            fp = _live(fp)
+            if fp not in seen:
+                seen.add(fp)
+                out.append(fp)
     return out
 
 
@@ -314,7 +415,8 @@ def main():
         if r is None:
             continue
         reports.append(r)
-        bad += len(r["orphan"]) + len(r["discarded"]) + len(r.get("mute", ()))
+        bad += len(r["orphan"]) + len(r["discarded"]) \
+            + len([o for o in r.get("mute", ()) if o.get("why") != "guarded"])
 
     if a.json:
         print(json.dumps(reports, ensure_ascii=False, indent=1))
@@ -325,7 +427,9 @@ def main():
         if r["library"]:
             print("・%-38s 入口が無い(ライブラリ)— 見送り" % name)
             continue
-        mark = "⛔" if (r["orphan"] or r["discarded"] or r.get("mute")) else "⭕"
+        hard = r["orphan"] or r["discarded"] or \
+            [o for o in r.get("mute", ()) if o.get("why") != "guarded"]
+        mark = "⛔" if hard else ("⚠" if r.get("mute") else "⭕")
         print("%s %-38s 関数 %d / 到達 %d / 検査 %d"
               % (mark, name, r["n_func"], r["n_reached"], r["n_check"]))
         for o in r["orphan"]:
@@ -335,8 +439,20 @@ def main():
             print("    ⛔ 捨て L%-5d %s()  … 走るが戻り値を誰も受け取っていない"
                   % (o["line"], o["name"]))
         for o in r.get("mute", ()):
-            print("    ⛔ 黙り L%-5d %s()  … 走るが件数が print にも return にも届かない"
-                  "(受け `%s` は図の中で消える)" % (o["line"], o["name"], o["via"]))
+            if o.get("why") != "guarded":
+                print("    ⛔ 黙り L%-5d %s()  … 走るが件数が print にも return にも届かない"
+                      "(受け `%s` は図の中で消える)" % (o["line"], o["name"], o["via"]))
+        # ⭐ 「0件のとき沈黙」は**規約の食い違い**であって個別の欠陥ではない。
+        #   ⛔ 1本ずつ並べると狼少年になる(岡部で12行出た)ので**1行にまとめる**。
+        g = [o for o in r.get("mute", ()) if o.get("why") == "guarded"]
+        if g:
+            print("    ⚠ 0件で沈黙 %d 本 — `if bad: print(…)` の形で、**0件のとき件数が出ない**。"
+                  % len(g))
+            print("       %s" % " / ".join(o["name"] for o in g[:8])
+                  + (" ほか" if len(g) > 8 else ""))
+            print("       ⭕ 当プロジェクトの作法は「**0件でも件数を出す**」"
+                  "(0件と未実行が見分けられなくなるため)。⚠ 規約の食い違いなので、"
+                  "邸の方針として `if` を外すかどうかを決めること。")
 
     print()
     if bad:

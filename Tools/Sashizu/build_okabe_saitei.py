@@ -371,7 +371,7 @@ def main():
     h = ['<meta charset="utf-8">', "<title>岡部筑前守上屋敷 裁定図</title>",
          "<style>%s</style>" % css, '<div class="wrap">']
     h.append('<p class="eyebrow">外桜田永田町 ／ 岡部筑前守上屋敷 ／ 庭の設計(庭方 2026-09-02)</p>')
-    h.append("<h1>裁定図 — 庭をどう作るか(2件)</h1>")
+    h.append("<h1>裁定図 — 岡部筑前守上屋敷(%d件)</h1>" % len(SAITEI_STATUS))
     h.append('<div class="box" style="border-color:var(--midori)"><h3>裁定は下りている'
              '(2026-09-02・2件とも案A)</h3><p>この図は<b>問うた時点の姿</b>を残す。'
              '⭕ 裁定1=案A(5区画を平坦化しない)・裁定2=案A(長局の西庭を実用の庭にする)。'
@@ -736,7 +736,7 @@ def main():
              '⛔ 「馬場を置かない」「池を一つに絞る」「蹲踞を置かない」も当方の裁定であって、'
              '史料が否定しているわけではない。</p></div>')
     h.append("</div>")
-    io.open(OUT, "w", encoding="utf-8").write("\n".join(h))
+    io.open(OUT, "w", encoding="utf-8").write(apply_status("\n".join(h)))
     print("wrote %s (%d KB)" % (OUT, os.path.getsize(OUT) // 1024))
     print("裁定1の効き目 %+.0f m³ / 客土 案B %d → 案A %d m³(−%.0f%%)"
           % (-save, int(netB), int(netA), 100.0 * save / netB))
@@ -1084,6 +1084,54 @@ def mado_plan(d, ter):
     T(g, 6, 48, "向き: u+ が北(上)・v+ が西(左)。", "anS2", "start", 10)
     g.append("</svg>")
     return "\\n".join(g)
+
+
+# 裁定の状態 — ⛔ ここだけが正典。図の見出し・冒頭の一覧・板の左縁の色はすべてここから刷る。
+# (番号, 題, 状態 done/open/void, 決定, 日付, 一言)
+SAITEI_STATUS = [
+    (1, "主面の5区画を「平坦化しない」ことを認めるか", "done", "A", "2026-09-02", "平坦化しない(自然地盤なり)"),
+    (2, "長局の西庭をどう始末するか", "done", "A", "2026-09-02", "実用の庭「長局の物干」に改める"),
+    (3, "西の法尻の段差をどう受けるか", "void", "—", "2026-09-02", "撤回 — 前提(現代地形の71%の崖)が江戸期地盤の復元で消えた"),
+    (4, "「表役所」を作るか、作らない理由を書くか", "done", "B", "2026-09-02", "表役所は玄関棟の室として置く"),
+    (5, "屋敷の西の端をどこまで「奥」とするか", "done", "B", "2026-09-02", "結界は崖の上まで。崖から下は外構の地"),
+    (6, "溜池の岸の平らな帯に、建物を置くか", "done", "B", "2026-09-03", "窓の外の南北の余地に家臣長屋・厩・土蔵の類を置く → 何をどこには裁定8"),
+    (7, "見透しの窓を、どこまで細めるか", "done", "B", "2026-09-03", "扇ぜんたいを相似に 23間 → 14間"),
+]
+_ST_LABEL = {"done": ("✅ 裁定済", "st-done"), "open": ("⏳ 未決 — お返事をお待ちしています", "st-open"),
+             "void": ("⛔ 撤回(裁定不要)", "st-void")}
+_ST_CSS = ("<style>.st{display:inline-block;font-size:12px;font-weight:600;padding:3px 9px;border-radius:4px;"
+           "margin-right:10px;vertical-align:middle;letter-spacing:.02em}.st-done{background:#2e6e7a;color:#fff}"
+           ".st-open{background:var(--shu);color:#fff}.st-void{background:#8a8a8a;color:#fff}"
+           ".plate.done{border-left:8px solid #2e6e7a}.plate.open{border-left:8px solid var(--shu)}"
+           ".plate.void{border-left:8px solid #8a8a8a}"
+           ".stidx{width:100%;border-collapse:collapse;table-layout:auto}.stidx td,.stidx th{padding:5px 9px;border-bottom:1px solid var(--rule);vertical-align:top;text-align:left;white-space:normal}.stidx td:first-child,.stidx td:nth-child(4){white-space:nowrap}"
+           ".stidx tr.open td{background:rgba(198,93,58,.08)}</style>")
+
+
+def apply_status(html):
+    """板の見出しに状態の札を差し、冒頭に一覧を置く。⛔ 見出しの文字列で板を探すので、題を変えたら SAITEI_STATUS も直す。"""
+    for n, title, st, dec, day, memo in SAITEI_STATUS:
+        key = '<div class="plate"><div class="phead"><h2>裁定%d　' % n
+        assert html.count(key) == 1, "裁定%d の板が %d 個" % (n, html.count(key))
+        lab, cls = _ST_LABEL[st]
+        badge = '<span class="st %s">%s%s</span>' % (cls, lab, ("　案%s(%s)" % (dec, day)) if st == "done" else "")
+        html = html.replace(key, '<div class="plate %s" id="saitei-%d"><div class="phead"><h2>%s裁定%d　' % (st, n, badge, n))
+    n_open = sum(1 for r in SAITEI_STATUS if r[2] == "open")
+    rows = "".join('<tr class="%s"><td><a href="#saitei-%d">裁定%d</a></td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>'
+                   % (st, n, n, title, _ST_LABEL[st][0], ("案%s(%s)" % (dec, day)) if st == "done" else day, memo)
+                   for n, title, st, dec, day, memo in SAITEI_STATUS)
+    idx = ('<div class="box" style="margin:12px 0 28px"><h3>裁定の一覧 — 未決 %d 件 / 済 %d 件 / 撤回 %d 件</h3>'
+           '<table class="stidx"><thead><tr><th>　</th><th>題</th><th>状態</th><th>決定</th><th>決めたこと</th></tr></thead>'
+           '<tbody>%s</tbody></table>'
+           '<p class="cap">⭕ 済の板は記録として残しています(番号は振り直しません)。⏳ の板だけお返事をください。'
+           '板の左縁の色も同じ: 青緑=済 / 朱=未決 / 灰=撤回。</p></div>'
+           % (n_open, sum(1 for r in SAITEI_STATUS if r[2] == "done"), sum(1 for r in SAITEI_STATUS if r[2] == "void"), rows))
+    i = html.find("</h1>")
+    assert i > 0
+    html = html[:i + 5] + idx + html[i + 5:]
+    j = html.find("</style>")
+    assert j > 0
+    return html[:j + 8] + _ST_CSS + html[j + 8:]
 
 
 

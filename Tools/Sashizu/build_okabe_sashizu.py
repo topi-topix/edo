@@ -5410,7 +5410,7 @@ def mizu_svg(d):
 # ⭐ **図で宣言した不変条件は必ず検査に落とす**(当家の作法)。
 #   ⛔ 恒真にしない — 各検査は「わざと壊すと必ず件数が出る」ことを確かめてある(破壊試験)。
 #
-# **2026-09-02 の破壊試験(79件・すべて期待どおり)**
+# **2026-09-03 の破壊試験(82件・すべて期待どおり)**
 # ⛔ **「反応する」とだけ書かない — 壊す前と後の件数を並べる。**数が無い記録は偽になり得る。
 #   ⚠ この作法にした途端、⛔ **偽の記録が4件見つかった**(前後が同じだったもの):
 #     ・「結界を全部消す → 反応する」…… 実際は **1件 → 1件**。経路の指摘が1件出るだけで数が動かず、
@@ -5447,6 +5447,13 @@ def mizu_svg(d):
 #       件数が動かなかった。⛔ 相殺に気づかず通しかけた。⭕ 点数を13のまま等間隔にする。
 #     ・「窓の樹高の上限を半分にする」…… 上限が算出値になったので組み直しで戻る。
 #       ⭕ 入力側(視線の余裕 1.0→4.0m)を壊す形へ移した。
+#   ⚠ **2026-09-03(庭方4巡目のあと)にもう1つ作り直した。**
+#     ・「窓の視線の余裕を広げる」…… 1件→1件。⛔ 検査の劣化ではなく、
+#       **窓の松の丈が「その点の上限 −1.2m」の従属値になった**ので、上限を下げると
+#       丈も一緒に下がって違反にならない(=設計どおり)。
+#       ⭕ 「窓の中へ丈 6m の**固定の**植栽を置く」へ差し替えた。
+#     ⭐ 従属値を増やすほど「入力を壊す」試験は効かなくなる。⭕ 代わりに
+#       **往復試験(人が書き換えると鳴る)**が受け持つ形へ寄せる。
 #   【結界(取り付き・表↔奥の非連結・動線)】素 0 件
 #     結界を全部消す                                0件 → 2件
 #     W1 を段の縁で止める(北の帯を空ける)                   0件 → 2件
@@ -5523,23 +5530,26 @@ def mizu_svg(d):
 #     法面の到達距離を 2m へ縮める                       0件 → 12件
 #   【郭の土留めの高さ】素 0 件
 #     土留めをもう1本足し、span を与えない(落差が測れない)         0件 → 1件
-#   【西の斜面と岸(窓・林・葭蓮・柵・小径)】素 3 件
-#     林の下端の線を直線にする                           3件 → 4件
-#     帯の連なりを切る(林の下端の**出どころ**を1m下げる)          3件 → 4件
-#     蓮の帯を『地表』の別へ移す(標高で切れない物を標高で切る)          3件 → 5件
-#     汀の柵を消す                                 3件 → 4件
-#     木戸を柵から離す(区画界の上から外す)                    3件 → 4件
-#     堀端の見所を2箇所にする(木戸と兼ねる形を崩す)               3件 → 4件
-#     窓の松 P3 を扇の中へ戻す                         3件 → 4件
-#     法肩の松の丈の下限を 6.0 へ下げる                    3件 → 4件
-#     林の下端の u ピッチを等間隔にする(点数は 13 のまま)         3件 → 4件
-#     窓のススキの丈を 6m へ上げる(置ける区間が無くなる)           3件 → 4件
-#     汀の杭を陸の上へ並べる(足元が水面を跨がない)                3件 → 4件
-#     汀の杭の芯々を径より詰める                          3件 → 4件
-#     汀の杭の芯々を一定にする(等間隔)                      3件 → 4件
-#     汀の杭の頭を水面より下げる                          3件 → 4件
-#     窓の視線の余裕を 1.0→4.0m へ広げる(上限が下がる)         3件 → 5件
+#   【西の斜面と岸(窓・林・葭蓮・柵・小径)】素 1 件
+#     林の下端の線を直線にする                           1件 → 4件
+#     帯の連なりを切る(林の下端の**出どころ**を1m下げる)          1件 → 2件
+#     蓮の帯を『地表』の別へ移す(標高で切れない物を標高で切る)          1件 → 3件
+#     汀の柵を消す                                 1件 → 2件
+#     木戸を柵から離す(区画界の上から外す)                    1件 → 2件
+#     堀端の見所を2箇所にする(木戸と兼ねる形を崩す)               1件 → 2件
+#     窓の松の三本を一直線に並べる                         1件 → 2件
+#     林の下端の点を見透しの窓の中へ入れる                     1件 → 2件
+#     窓の松 P3 を扇の中へ戻す                         1件 → 2件
+#     法肩の松の丈の下限を 6.0 へ下げる                    1件 → 2件
+#     林の下端の u ピッチを等間隔にする(点数は 13 のまま)         1件 → 6件
+#     窓のススキの丈を 6m へ上げる(置ける区間が無くなる)           1件 → 2件
+#     汀の杭を陸の上へ並べる(足元が水面を跨がない)                1件 → 2件
+#     汀の杭の芯々を径より詰める                          1件 → 2件
+#     汀の杭の芯々を一定にする(等間隔)                      1件 → 2件
+#     汀の杭の頭を水面より下げる                          1件 → 2件
+#     窓の中へ丈 6m の植栽を1群置く(丈が固定の物)              1件 → 2件
 #   【往復試験(剥がして組み直すと正典に戻るか)】素 0 件
+#     窓の松の丈を人が書き換える(その点の上限からの従属値)            0件 → 1件
 #     中島の芯を人が書き換える(輪郭から出る従属値)                0件 → 2件
 #     池面への直接雨の面積を人が書き換える(汀線から出る従属値)          0件 → 1件
 #     断面の現地形線を人が書き換える                        0件 → 1件
@@ -6815,11 +6825,28 @@ def in_mado(d, u, v):
     return bool(a) and a[0] - 1e-9 <= u <= a[1] + 1e-9
 
 
-def mado_hlimit(d, v):
-    """窓の中に置ける樹高の上限[m]を v で引く。"""
-    t9 = (((d.get("nishi") or {}).get("mado") or {}).get("hLimit")) or []
+def mado_hlimit(d, v, u=None):
+    """窓の中に置ける樹高の上限[m]。
+
+    ⭐ **`u` を渡すと、その点の地盤で切り直す**(2026-09-03 庭方4巡目)。
+      ⛔ 表(`hLimit`)は扇の芯(眼の u)の地盤で作った断面の値なので、
+        芯から外れた木にそのまま当てると**地盤の差だけ嘘になる**
+        (庭方の実測 5.67m 対 当図 5.03m の残差 0.42m はこれだった)。
+      ⭕ 視線(ray)は v だけで決まるので、**ray を復元してから幹元の地盤を引く**。"""
+    md = ((d.get("nishi") or {}).get("mado") or {})
+    t9 = md.get("hLimit") or []
     if not t9:
         return None
+    if u is not None:
+        ey = md.get("eye") or {}
+        cr = md.get("crest")
+        g9 = _dem_at(d, u, v)
+        if ey.get("eyeY") is not None and cr and g9 is not None and cr[0] > ey.get("v", 0):
+            k9 = (v - ey["v"]) / (cr[0] - ey["v"])
+            ray = ey["eyeY"] + (cr[1] - ey["eyeY"]) * k9
+            return max(0.0, round(ray - g9 - md.get("clearance", 1.0), 2))
+    if v <= t9[0][0]:
+        return t9[0][1]
     if v <= t9[0][0]:
         return t9[0][1]
     for a9, b9 in zip(t9, t9[1:]):
@@ -6897,7 +6924,7 @@ def nishi_check(d):
     for kind, nm, u, v, hh in nishi_items(d):
         if not in_mado(d, u, v):
             continue
-        lim = mado_hlimit(d, v)
+        lim = mado_hlimit(d, v, u)
         if lim is not None and hh > lim + 1e-6:
             bad.append("窓の中の%s『%s』(v%.1f)が丈 %.1fm — その位置の上限 %.1fm を超える"
                        % (kind, nm, v, hh, lim))
@@ -6906,7 +6933,7 @@ def nishi_check(d):
             for q9 in (sk9.get("pts") or []):
                 if not in_mado(d, q9[0], q9[1]):
                     continue
-                lim = mado_hlimit(d, q9[1])
+                lim = mado_hlimit(d, q9[1], q9[0])
                 hh = sk9.get("hMax") or sk9.get("hMin") or 0.0
                 if lim is not None and hh > lim + 1e-6:
                     bad.append("窓の中の植栽『%s』(%.1f, %.1f)が丈 %.1fm — 上限 %.1fm を超える"
@@ -6925,12 +6952,37 @@ def nishi_check(d):
         if not (er.get("nMin", 0) <= len(eg0) <= er.get("nMax", 99)):
             bad.append("林の下端の線が %d 点 — %d〜%d 点で作ること(等間隔の鋸歯にしない)"
                        % (len(eg0), er.get("nMin", 0), er.get("nMax", 0)))
-        pit = [abs(b9[0] - a9[0]) for a9, b9 in zip(eg0, eg0[1:])]
-        pit = [q for q in pit if q > 1e-6]
+        # ⛔ **窓の口をまたぐ区間はピッチではない**(2026-09-03 庭方4巡目) —
+        #   林はそこで切れているので、口の幅を「間隔が広い」と数えると規則が意味を失う。
+        pit = []
+        for a9, b9 in zip(eg0, eg0[1:]):
+            if in_mado(d, (a9[0] + b9[0]) / 2.0, (a9[1] + b9[1]) / 2.0):
+                continue
+            if abs(b9[0] - a9[0]) > 1e-6:
+                pit.append(abs(b9[0] - a9[0]))
+        for q9 in eg0:                       # 林の木を窓の中へ置かない
+            if in_mado(d, q9[0], q9[1]):
+                bad.append("林の下端の点 (%.1f, %.1f) が見透しの窓の中にある" % (q9[0], q9[1]))
         if pit and (max(pit) - min(pit)) < 0.5:
             bad.append("林の下端の線の u ピッチが %.1f〜%.1f間 でほぼ等間隔 — "
                        "%.1f〜%.1f間 で振ること" % (min(pit), max(pit),
                                                  er.get("pitchMin", 0), er.get("pitchMax", 0)))
+    # ①' 窓の松 — 丈が不等・三本が一直線に乗らない(庭方の宣言)
+    ms9 = [m9 for m9 in ((N.get("mado") or {}).get("matsu") or []) if m9.get("h") is not None]
+    if len(ms9) >= 2:
+        hs9 = sorted(m9["h"] for m9 in ms9)
+        dmin = min(b9 - a9 for a9, b9 in zip(hs9, hs9[1:]))
+        need = (N.get("mado") or {}).get("matsuDhMin", 0.5)
+        if dmin < need - 1e-6:
+            bad.append("窓の松の丈が %s で、いちばん近い二本の差が %.2fm しかない"
+                       "(不等に見えるには %.1fm 以上要る)"
+                       % ("・".join("%.2f" % q for q in hs9), dmin, need))
+    if len(ms9) >= 3:
+        a9, b9, c9 = ms9[0], ms9[1], ms9[2]
+        cr9 = ((b9["u"] - a9["u"]) * (c9["v"] - a9["v"])
+               - (b9["v"] - a9["v"]) * (c9["u"] - a9["u"]))
+        if abs(cr9) < 1.0:
+            bad.append("窓の松の三本が一直線に近い(外積 %.2f)" % cr9)
     # ② 法肩の松の丈
     nd = hokata_need(d)
     hk = N.get("hokata") or {}
@@ -7068,9 +7120,20 @@ def slope_table(d):
             rng = "—"
         else:
             rng = "%.2f → %.2f" % (b9["y0"], b9["y1"])
-        rows.append("<tr><td><b>%s</b></td><td>%s</td><td>%s</td><td class='note'>%s</td>"
+        note9 = ""
+        if b9["name"].startswith("B"):
+            eg9 = [(a8, b8) for a8, b8 in (((d.get("nishi") or {}).get("hayashi") or {})
+                                           .get("edge") or [])]
+            ys9 = [q for q in (_dem_at(d, a8, b8) for a8, b8 in eg9) if q is not None]
+            if ys9:
+                # ⛔ **下端の境は標高ではなく線が正典**(2026-09-03 庭方4巡目)。
+                note9 = ("<br><span class='note'>下端の公称 %.1f に対し、"
+                         "<b>線の実地盤は %.2f〜%.2f</b>(%d点)。"
+                         "⛔ <b>境の正典は <code>hayashi.edge</code> の線</b>で、公称は目安。</span>"
+                         % (b9.get("y1") or 0, min(ys9), max(ys9), len(ys9)))
+        rows.append("<tr><td><b>%s</b></td><td>%s</td><td>%s%s</td><td class='note'>%s</td>"
                     "<td class='note'>%s</td><td class='note'>%s</td></tr>"
-                    % (b9["name"], b9.get("kind", "地表"), rng, b9["veg"],
+                    % (b9["name"], b9.get("kind", "地表"), rng, note9, b9["veg"],
                        "<code>%s</code>" % b9.get("asset", ""), _cert_sig(_cert(d, b9))))
     return ("<h3>西の斜面と岸の帯(%d帯)</h3><div class='tw'><table><thead><tr><th>帯</th>"
             "<th>別</th><th>標高</th><th class='note'>植生</th><th class='note'>部材</th>"
@@ -7477,8 +7540,9 @@ GEN_FIELDS_GATE = ("s0", "s1")
 #   **古いと壊れていても鳴らない**(壊すと鳴ることと、物差しが正しいことは別)。
 # `*` は並びの全要素。⛔ ここに挙げた欄は**人が json へ書かない**。
 GEN_PATHS = [
-    "nishi.mado.hLimit", "nishi.mado.crest", "nishi.mado.seeFromM",
+    "nishi.mado.hLimit", "nishi.mado.crest", "nishi.mado.crestKind", "nishi.mado.seeFromM",
     "nishi.mado.eye.eyeY", "nishi.mado.susuki.vMax", "nishi.mado.komichi.endPt",
+    "nishi.mado.matsu.*.h",
     "nishi.saku.kido.groundY",
     "nishi.tsutsumi.y0", "nishi.tsutsumi.y0Range", "nishi.tsutsumi.y1",
     "nishi.tsutsumi.yoshiBottom", "nishi.tsutsumi.mizugiwaM",
@@ -7679,7 +7743,27 @@ def fix_nishi(x):
                     if lim is None or m9 > lim[0]:
                         lim = (m9, v9, y9)
             v9 += 0.5
+        # ⭐ **汀の柵(h1.4)も遮る物に入れる**(2026-09-03 庭方4巡目)。
+        #   ⛔ 地盤だけで探すと、区画界に立つ柵が抜け落ちて上限が低く出る
+        #     (庭方の実測 5.67m 対 当図 4.60m。差 1.07m は柵の丈がそのまま効いていた)。
+        #   ⭕ 借景の遮蔽(`shakkei`)は K114 で柵を入れてある。同じ物差しへ揃える。
+        sk8 = N.get("saku") or {}
+        if sk8.get("h"):
+            vq8 = ey["v"] + 1.0
+            vlast = None
+            while vq8 < 200.0:
+                if in_parcel(x, ey["u"], vq8):
+                    vlast = vq8
+                vq8 += 0.05
+            if vlast is not None:
+                y8 = _dem_at(x, ey["u"], vlast)
+                if y8 is not None:
+                    m8 = (y8 + sk8["h"] - ey["eyeY"]) / ((vlast - ey["v"]) * K)
+                    if lim is None or m8 > lim[0]:
+                        lim = (m8, vlast, y8 + sk8["h"])
+                        md["crestKind"] = "汀の柵の天端(地盤 %.2f + 柵 %.1f)" % (y8, sk8["h"])
         if lim:
+            md.setdefault("crestKind", "地盤の高まり")
             md["crest"] = [round(lim[1], 2), round(lim[2], 2)]
             md["seeFromM"] = round((wy - ey["eyeY"]) / lim[0], 1) if lim[0] < 0 else None
             out = []
@@ -7690,6 +7774,16 @@ def fix_nishi(x):
                 ray = ey["eyeY"] + lim[0] * (v9 - ey["v"]) * K
                 out.append([v9, round(max(0.0, ray - g9 - md.get("clearance", 1.0)), 2)])
             md["hLimit"] = out
+        # ⭐ **窓の松の丈は「その点の上限 − `hBelowLimit`」の従属値**(2026-09-03 庭方4巡目)。
+        #   ⛔ 固定値で持つと、大棟や柵の丈・地盤が動いたときに追随せず、
+        #     検査だけが鳴る(あるいは黙る)状態になる。⭕ 扇の外の松は `hFix`(入力)。
+        for m8 in (md.get("matsu") or []):
+            if m8.get("hBelowLimit") is not None:
+                lm8 = mado_hlimit(x, m8["v"], m8["u"])
+                if lm8 is not None:
+                    m8["h"] = round(max(0.0, lm8 - m8["hBelowLimit"]), 2)
+            elif m8.get("hFix") is not None:
+                m8["h"] = m8["hFix"]
         su = md.get("susuki") or {}
         if su.get("hMax") and md.get("hLimit"):
             ok9 = [q[0] for q in md["hLimit"] if q[1] >= su["hMax"]]

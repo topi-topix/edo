@@ -455,7 +455,8 @@ public static partial class EdoMatsudairaDewaBuilder
     //   検査したのと同じ点)を `docs/Sashizu/matsudaira_dewa_planting_out.json` に書き出させ、ここは**据えるだけ**。
     //   ⛔ 岡部 2026-09-02: 「検査と散布を別々に書くと、検査が通って実装で 0 本になる」。
     //   旧 Stage7 は庭を外接箱で読み、樹種と塊がべた書きだった(検図 第4次【高7】)。
-    //   sidecar の1行 = { zone, layer, role, u, v, api, scale, tilt, tiltDir }(u,v は間)。
+    //   sidecar の1行 = { zone, layer, role, u, v, api, scale, tilt, tiltDir, ground }(u,v は間。ground=design|terrain)。
+    //   ⭐ 西斜面(旧 Stage8 の scatter/crestLine)もこの1本で据える — 帯の二重管理(検図【高5】)を構造で消す。
     [MenuItem("Edo/松平出羽守上屋敷/7' 植栽(指図の散布点を据える)")]
     public static void Stage7bMenu() { Debug.Log("[Matsudaira] " + Stage7b_NiwaFromScatter()); }
     public static string Stage7b_NiwaFromScatter()
@@ -474,7 +475,7 @@ public static partial class EdoMatsudairaDewaBuilder
         // 主視点(傾ける向きの相手)
         var vps = new Dictionary<string, Vector2>();
         foreach (var o in A(D["viewpoints"])) { var vp = O(o); vps[StrOf(vp, "name")] = f.W(F(vp["u"]), F(vp["v"])); }
-        int placed = 0, noPart = 0; var byZone = new Dictionary<string, int>();
+        int placed = 0, noPart = 0, nTerrain = 0; var byZone = new Dictionary<string, int>();
         foreach (var o in pts)
         {
             var p = O(o); string zone = StrOf(p, "zone") ?? "?";
@@ -483,8 +484,15 @@ public static partial class EdoMatsudairaDewaBuilder
             float u = F(p["u"]), v = F(p["v"]);
             var sub = Group("Niwa/Planting/" + zone + "/" + (StrOf(p, "layer") ?? "層"));
             float scale = HasKey(p, "scale") ? F(p["scale"]) : 1f;
-            var go = Plant(api, u, v, sub, zone + "_" + (StrOf(p, "role") ?? "") + "_" + placed, scale, rnd, 0f);
+            string nm = zone + "_" + (StrOf(p, "role") ?? "") + "_" + placed;
+            // ground: "design"(庭=設計面 DesignY)/ "terrain"(法面=造成しないので live terrain を実測)。
+            // ⛔ 法面に DesignY を使うと段の高さで宙に浮く(旧 Stage8 の作法を引き継ぐ)。
+            bool onTerrain = (StrOf(p, "ground") ?? "design") == "terrain";
+            var go = onTerrain
+                ? PlantOnTerrain(api, f.W(u, v), sub, nm, scale, rnd, 0.82f, 1.18f, 0f, 0f)
+                : Plant(api, u, v, sub, nm, scale, rnd, 0f);
             if (go == null) { noPart++; continue; }
+            if (onTerrain) nTerrain++;
             // 傾き: 層の tilt [lo,hi]°、向きは tiltDir(random / V1.. = その主視点へ)。⛔ 撤回済みの「全数 −u へ」は無い
             if (HasKey(p, "tilt"))
             {
@@ -504,7 +512,7 @@ public static partial class EdoMatsudairaDewaBuilder
             placed++; byZone[zone] = byZone.ContainsKey(zone) ? byZone[zone] + 1 : 1;
         }
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine(string.Format("植栽 {0} 本を据えた / 部材が解けず {1}", placed, noPart));
+        sb.AppendLine(string.Format("植栽 {0} 本を据えた(うち法面=live terrain {1})/ 部材が解けず {2}", placed, nTerrain, noPart));
         foreach (var kv in byZone) sb.AppendLine("  " + kv.Key + ": " + kv.Value);
         return sb.ToString();
     }

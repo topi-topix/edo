@@ -27,8 +27,18 @@ public static partial class EdoMatsudairaDewaBuilder
     public const string ParcelId = "matsudaira_dewa";
     public const string Grp = "Edo_Yashiki_MatsudairaDewa";
 
-    /// <summary>bench=true の run の内側を天端で平らにする幅[m]。指図 _runs の「外周帯(内側幅3m)」。</summary>
-    public const float BAND = 3.0f;
+    /// <summary>bench=true の run の内側を天端で平らにする幅[m]。**指図 `const.benchBand` から読む**
+    /// (⛔ 数値をここに持たない — 2026-09-02 検図【中6】【中3】: 「_runs の『外周帯(内側幅3m)』」は
+    /// 存在しない出典だった)。指図に無ければ例外(発明しない)。</summary>
+    public static float BAND
+    {
+        get
+        {
+            var c = O(D["const"]);
+            if (!Has(c, "benchBand")) throw new Exception("指図 const.benchBand が無い(BAND の出典)");
+            return F(c["benchBand"]);
+        }
+    }
 
     // ---------------------------------------------------------------- 指図の読み込み
     static Dictionary<string, object> _d;
@@ -2171,9 +2181,14 @@ public static partial class EdoMatsudairaDewaBuilder
             }
             else
             {
+                // ⛔ 2026-09-02 検図【高5】/庭方【高1】: `slopeArea.bands` は図と別の帯(0.40/0.78 vs 0.33/0.70)で
+                //    t の定義も別だった。帯は `slopeBands` に一本化され、斜面の散布は生成器の sidecar
+                //    (Stage7' `planting_out.json`・ground:"terrain")が担う。ここは既定値へ黙って落ちない。
+                if (!Has(sa, "bands"))
+                    return "⛔ 旧 Stage8 の scatter は廃止 — 斜面の点は 7' 植栽(sidecar)が据える(slopeArea.bands は指図から消えた)";
                 var bands = O(sa["bands"]);
-                float b0 = 0.0f, b1 = 0.5f;
-                if (Has(bands, band)) { var bb = A(bands[band]); b0 = F(bb[0]); b1 = F(bb[1]); }
+                float b0, b1;
+                { var bb = A(bands[band]); b0 = F(bb[0]); b1 = F(bb[1]); }
                 for (int k = 0; k < want * 60 && made < want; k++)
                 {
                     int i = rnd.Next(crest.Count - 1);

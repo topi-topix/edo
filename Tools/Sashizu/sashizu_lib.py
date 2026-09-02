@@ -643,6 +643,30 @@ def poly_edge_dist(p, u, v):
     return best
 
 
+def wall_caps(d, t, u, v, y2):
+    """**土留めが法面を打ち切るか。**壁の天端より下へ盛ろうとしたら、そこから先は壁が受ける。
+
+    ⭐ 天端が一定なので「天端より下」= 「壁より外」になる(壁は天端の等高線に立つ)。
+      多角形の線を持ち回らずに済む。⛔ `span` の中でだけ効かせる — 段のほかの縁は法面のまま。
+    ⚠ 2026-09-02 岡部: 従前は poly の段に土留めの免除が掛からず
+      (「壁付き多角形の段が要る邸が出たら拡張する」と書いてあった)、西の法尻で
+      法面が着地せず 44m にわたり最大 3.9m の垂直段差が残っていた。"""
+    for w in d.get("terraceWalls", []):
+        if w.get("terrace") and w["terrace"] != t["name"]:
+            continue
+        sp = w.get("span")
+        if not sp:
+            continue
+        q = u if sp.get("axis") == "u" else v
+        if not (min(sp["from"], sp["to"]) <= q <= max(sp["from"], sp["to"])):
+            continue
+        if sp.get("vFrom") is not None and v < sp["vFrom"]:
+            continue
+        if y2 < w["coping"]:
+            return True
+    return False
+
+
 def graded_y(d, u, v, nat, in_parcel, walled=None):
     """**造成後の地盤**。段の中は段の高さ。段の外は法面(盛土 1:batterFill / 切土 1:batterCut)で
     現地形へ摺り付ける — 段の縁に垂直の段差を残さないため(2026-08-23 ユーザー指摘)。
@@ -680,6 +704,8 @@ def graded_y(d, u, v, nat, in_parcel, walled=None):
             if t_contains(t, u, v):
                 continue                               # 多角形の内側は段そのもの
             dm = t_edge_dist(t, u, v) * K
+            if wall_caps(d, t, u, v, t["y"] - dm / bf):
+                continue                               # 土留めが受ける — これ以上先へ盛らない
         else:
             if in_obb(t, u, v):
                 continue                               # 回転物の内側は段そのもの

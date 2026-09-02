@@ -149,11 +149,15 @@ def flats(grid, poly, tol, minCells):
     return cells, comps
 
 
-def _poly_dist(P, x, z):
-    """多角形の辺までの最短距離。"""
+def _poly_dist(P, x, z, skip=()):
+    """多角形の辺までの最短距離。`skip` に挙げた辺は**数えない**。
+    ⭕ クリップの規約の目的は『隣家と境の高さが食い違わない』ことなので、
+      **隣家の無い辺は外す**(岡部の辺5=溜池の岸。2026-09-02)。"""
     best = None
     n = len(P)
     for i in range(n):
+        if i in skip:
+            continue
         a, b = P[i], P[(i + 1) % n]
         dx, dz = b[0] - a[0], b[1] - a[1]
         L2 = dx * dx + dz * dz or 1e-9
@@ -421,6 +425,7 @@ def reconstruct(seed, poly, gr, spec):
     # ⑧ **区画線の上は正本と一致させる**(2026-08-25 土井の申し入れ / 08-24 通達)。
     #    境から edgeClip[m] かけて復元へ摺り付ける。⛔ 境の線そのものは seed(=正本)。
     ec = spec.get("edgeClip", {}).get("m", 0.0)
+    skip = set(spec.get("edgeClip", {}).get("skipEdges", []) or [])
     if ec > 0:
         n8 = 0
         for (ix, iz), (u, v) in uv.items():
@@ -428,7 +433,7 @@ def reconstruct(seed, poly, gr, spec):
                 continue
             x = seed["x0"] + st * ix
             z = seed["z0"] + st * iz
-            dd = _poly_dist(poly, x, z)
+            dd = _poly_dist(poly, x, z, skip)
             if dd >= 2.0 * ec:
                 continue
             # 区画線から ec までは**まるごと正本**(双一次で線の上を拾っても正本になるように)、
@@ -439,7 +444,8 @@ def reconstruct(seed, poly, gr, spec):
             if abs(before - h[iz][ix]) > 0.005:
                 n8 += 1
         log.append("⑧ 区画線から %.1fm はまるごと正本・そこから %.1fm で復元へ摺り付け(%d セル)"
-               " — 境の線は正本と一致" % (ec, ec, n8))
+               " — 境の線は正本と一致。**外した辺: %s**(隣家が無い辺)"
+               % (ec, ec, n8, ("辺" + "・辺".join(str(q) for q in sorted(skip))) if skip else "なし"))
     return h, log, py, changed | soft, len(sel)
 
 

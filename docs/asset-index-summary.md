@@ -2,18 +2,27 @@
 
 `Edo ▸ アセット目録 ▸ 目録を再生成` で自動生成。全件は `asset-index.tsv`。
 
-- 総数 **2681** 点 / シーンで使用中 **152** 点 / ビルダーが参照 **69** 点
+- 総数 **2895** 点 / シーンで使用中 **83** 点 / ビルダーが参照 **77** 点
 - URP でピンクになる(BUILTIN) **4** 点
 
-## Edo — 14 点
+## Edo — 228 点
 
 | フォルダ | 点数 | 幅の中央値[m] | 高さの中央値[m] | 使用中 |
 |---|---:|---:|---:|---:|
-| `Assets/Edo/Models/Dobei` | 2 | 59.73 | 67.5 | 0 |
-| `Assets/Edo/Models/es_hmon` | 1 | 8.47 | 2.81 | 0 |
-| `Assets/Edo/Models/Gogan` | 1 | 107.53 | 45.92 | 1 |
+| `Assets/Edo/Models/Dobei` | 2 | 2 | 2.5 | 0 |
+| `Assets/Edo/Models/Fuzokuya` | 6 | 6.97 | 4.97 | 0 |
+| `Assets/Edo/Models/Gogan` | 1 | 107.53 | 45.92 | 0 |
+| `Assets/Edo/Models/Goten/Parts` | 21 | 1.82 | 2.73 | 0 |
+| `Assets/Edo/Models/Goten/Roofs` | 36 | 22.35 | 4.28 | 0 |
+| `Assets/Edo/Models/Ishigaki` | 2 | 12.5 | 7.45 | 0 |
+| `Assets/Edo/Models/Kado` | 12 | 4.39 | 1.46 | 0 |
+| `Assets/Edo/Models/Mon` | 2 | 9.51 | 4.98 | 2 |
+| `Assets/Edo/Models/Nagaya` | 28 | 19.77 | 5.51 | 0 |
 | `Assets/Edo/Models/Shiomizaka` | 4 | 2.09 | 0.59 | 2 |
+| `Assets/Edo/Models/Trees` | 24 | 5.94 | 5.8 | 0 |
+| `Assets/Edo/Models/Tsuijibei` | 1 | 2.1 | 2.57 | 0 |
 | `Assets/Edo/Prefabs` | 3 | 0.74 | 0.87 | 2 |
+| `Assets/Edo/Prefabs/Scene` | 83 | 111.49 | 15.86 | 83 |
 | `Assets/Edo/Terrain/details` | 3 | 0.45 | 0.11 | 1 |
 
 ## edogoyomi — 240 点
@@ -110,17 +119,17 @@
 
 | フォルダ | 点数 | 幅の中央値[m] | 高さの中央値[m] | 使用中 |
 |---|---:|---:|---:|---:|
-| `Assets/Japanese Castle/Meshes/Colliders` | 57 | 2.35 | 2.57 | 8 |
-| `Assets/Japanese Castle/Meshes/Exterior` | 226 | 2.5 | 2.05 | 42 |
+| `Assets/Japanese Castle/Meshes/Colliders` | 57 | 2.35 | 2.57 | 0 |
+| `Assets/Japanese Castle/Meshes/Exterior` | 226 | 2.5 | 2.05 | 3 |
 | `Assets/Japanese Castle/Meshes/Foliage` | 3 | 2.32 | 1.45 | 0 |
-| `Assets/Japanese Castle/Meshes/Interior` | 107 | 2 | 1.81 | 1 |
+| `Assets/Japanese Castle/Meshes/Interior` | 107 | 2 | 1.81 | 0 |
 | `Assets/Japanese Castle/Meshes/Props` | 19 | 1.15 | 1.92 | 0 |
 | `Assets/Japanese Castle/Prefabs` | 15 | 23.4 | 24.07 | 1 |
 | `Assets/Japanese Castle/Prefabs/Exterior/Balcony` | 8 | 2.28 | 1.29 | 0 |
-| `Assets/Japanese Castle/Prefabs/Exterior/Bridge` | 23 | 4 | 1.46 | 2 |
-| `Assets/Japanese Castle/Prefabs/Exterior/Defence Walls` | 45 | 4 | 4.27 | 6 |
+| `Assets/Japanese Castle/Prefabs/Exterior/Bridge` | 23 | 4 | 1.46 | 0 |
+| `Assets/Japanese Castle/Prefabs/Exterior/Defence Walls` | 45 | 4 | 4.27 | 5 |
 | `Assets/Japanese Castle/Prefabs/Exterior/Defence Walls B` | 18 | 2.1 | 3.42 | 0 |
-| `Assets/Japanese Castle/Prefabs/Exterior/Gate Yagura` | 31 | 2 | 1 | 0 |
+| `Assets/Japanese Castle/Prefabs/Exterior/Gate Yagura` | 31 | 2 | 1 | 2 |
 | `Assets/Japanese Castle/Prefabs/Exterior/Ground` | 9 | 4 | 0.65 | 0 |
 | `Assets/Japanese Castle/Prefabs/Exterior/Roof` | 52 | 2.32 | 1.72 | 0 |
 | `Assets/Japanese Castle/Prefabs/Exterior/Roof B` | 48 | 2.36 | 1.95 | 0 |
@@ -134,20 +143,20 @@
 | フォルダ | 点数 | 幅の中央値[m] | 高さの中央値[m] | 使用中 |
 |---|---:|---:|---:|---:|
 | `Assets/Japanese Village Kit/Meshes/Balcony` | 21 | 1.02 | 1.2 | 0 |
-| `Assets/Japanese Village Kit/Meshes/Fences` | 22 | 2 | 3.15 | 3 |
+| `Assets/Japanese Village Kit/Meshes/Fences` | 22 | 2 | 3.15 | 0 |
 | `Assets/Japanese Village Kit/Meshes/Foliage` | 6 | 0.57 | 0.78 | 0 |
 | `Assets/Japanese Village Kit/Meshes/Foundations` | 12 | 2 | 2.06 | 0 |
-| `Assets/Japanese Village Kit/Meshes/Props` | 45 | 0.85 | 0.49 | 2 |
+| `Assets/Japanese Village Kit/Meshes/Props` | 45 | 0.85 | 0.49 | 0 |
 | `Assets/Japanese Village Kit/Meshes/roof` | 62 | 4 | 2 | 0 |
 | `Assets/Japanese Village Kit/Meshes/Roof B` | 60 | 4 | 1.31 | 0 |
 | `Assets/Japanese Village Kit/Meshes/Shopping Streets` | 73 | 2 | 1.01 | 0 |
 | `Assets/Japanese Village Kit/Meshes/Walls and floors` | 124 | 2 | 3 | 0 |
 | `Assets/Japanese Village Kit/Prefabs` | 7 | 20.49 | 11.31 | 6 |
 | `Assets/Japanese Village Kit/Prefabs/Balcony` | 21 | 1.02 | 1.2 | 0 |
-| `Assets/Japanese Village Kit/Prefabs/Fences` | 20 | 2.12 | 3.3 | 0 |
+| `Assets/Japanese Village Kit/Prefabs/Fences` | 20 | 2.12 | 3.3 | 1 |
 | `Assets/Japanese Village Kit/Prefabs/Foliage` | 7 | 0.62 | 0.81 | 0 |
 | `Assets/Japanese Village Kit/Prefabs/Foundations` | 12 | 2 | 2.06 | 0 |
-| `Assets/Japanese Village Kit/Prefabs/Props` | 34 | 0.74 | 1.21 | 6 |
+| `Assets/Japanese Village Kit/Prefabs/Props` | 34 | 0.74 | 1.21 | 0 |
 | `Assets/Japanese Village Kit/Prefabs/Roofs` | 62 | 4 | 2 | 3 |
 | `Assets/Japanese Village Kit/Prefabs/Roofs B` | 64 | 3.1 | 1.21 | 0 |
 | `Assets/Japanese Village Kit/Prefabs/Shopping Streets` | 73 | 2 | 1.01 | 2 |
@@ -171,7 +180,7 @@
 | `Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Fence/Prefabs/Construction Set` | 19 | 0.72 | 0.06 | 0 |
 | `Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Models` | 71 | 0.49 | 0.7 | 0 |
 | `Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Flowers` | 45 | 0.39 | 0.67 | 0 |
-| `Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass` | 25 | 0.84 | 0.91 | 17 |
+| `Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass` | 25 | 0.84 | 0.91 | 0 |
 | `Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Unity Terrain Flowers` | 45 | 0.39 | 0.67 | 0 |
 | `Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Unity Terrain Grass` | 25 | 0.83 | 0.89 | 0 |
 | `Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Insects and Particles/Models` | 8 | 0.08 | 0.01 | 0 |
@@ -206,11 +215,11 @@
 | `Assets/Waldemarst/FreeJapaneseGarden/Models/Misc/Slopes` | 12 | 1.87 | 0.55 | 0 |
 | `Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks` | 5 | 0.57 | 0.4 | 5 |
 | `Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Slopes` | 3 | 3.88 | 0.84 | 0 |
-| `Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood` | 6 | 1.2 | 0.91 | 3 |
+| `Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood` | 6 | 1.2 | 0.91 | 1 |
 | `Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Single` | 6 | 1.08 | 0.83 | 0 |
-| `Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/PaintedFern` | 4 | 1.3 | 0.64 | 2 |
+| `Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/PaintedFern` | 4 | 1.3 | 0.64 | 1 |
 | `Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/PaintedFern/Single` | 4 | 1.3 | 0.64 | 0 |
-| `Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo` | 12 | 6.5 | 6.51 | 4 |
-| `Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine` | 18 | 5.57 | 4.67 | 8 |
-| `Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura` | 24 | 6.21 | 6.01 | 8 |
+| `Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo` | 12 | 6.5 | 6.51 | 2 |
+| `Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine` | 18 | 5.57 | 4.67 | 4 |
+| `Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura` | 24 | 6.21 | 6.01 | 4 |
 

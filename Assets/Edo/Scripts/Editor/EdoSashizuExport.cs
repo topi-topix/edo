@@ -113,18 +113,13 @@ public static class EdoSashizuExport
         }
         if (warn.Count > 0)
             Debug.LogWarning("[検図関門] " + id + " — " + string.Join(" / ", warn.ToArray())
-                + "
-  移行期間中なので止めないが、**ユーザーへ見せる前には必ず通すこと**。"
-                + "
-  検分に出して `python3 Tools/Sashizu/review_gate.py --record " + id + " <役> <pass|fail>`。");
+                + "\n  移行期間中なので止めないが、**ユーザーへ見せる前には必ず通すこと**。"
+                + "\n  検分に出して `python3 Tools/Sashizu/review_gate.py --record " + id + " <役> <pass|fail>`。");
         if (stop.Count == 0) return null;
         return "⛔ 検図関門が赤: " + string.Join(" / ", stop.ToArray())
-             + "
-  **不合格の指図を実装しない。**直して検分に出し直してから流すこと。"
-             + "
-  詳細: python3 Tools/Sashizu/review_gate.py " + id
-             + "
-  ⚠ どうしても流すなら理由をユーザーへ述べて、明示の指示を得ること。";
+             + "\n  **不合格の指図を実装しない。**直して検分に出し直してから流すこと。"
+             + "\n  詳細: python3 Tools/Sashizu/review_gate.py " + id
+             + "\n  ⚠ どうしても流すなら理由をユーザーへ述べて、明示の指示を得ること。";
     }
 
     public static string CheckScene(string id)

@@ -368,8 +368,8 @@ public static class EdoMatsudairaDewaBuilder
     public static string Stage1_Grade()
     {
         // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
-        { var gate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
-          if (gate != null) return gate; }
+        { var reviewGate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
+          if (reviewGate != null) return reviewGate; }
 
         Stage0_Backup();
         var t = Terrain.activeTerrain; var td = t.terrainData;
@@ -570,8 +570,8 @@ public static class EdoMatsudairaDewaBuilder
     public static string Stage2_Perimeter()
     {
         // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
-        { var gate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
-          if (gate != null) return gate; }
+        { var reviewGate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
+          if (reviewGate != null) return reviewGate; }
 
         EdoNishiTameikeBuilder.NaturalMode = false;     // 天端は run の seat で通す
         var kak = Group("Kakoi"); Clear(kak);
@@ -938,8 +938,8 @@ public static class EdoMatsudairaDewaBuilder
         // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
         //    2026-09-01: Stage7 が指図の poly/at/groups/clr を読まず、**撤回済みの
         //    「松を全数 −u へ傾ける」がコードに生きていた**。流せば撤回した案が復活する。
-        { var gate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
-          if (gate != null) return gate; }
+        { var reviewGate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
+          if (reviewGate != null) return reviewGate; }
 
         var grp = Group("Ishigaki"); Clear(grp);
         var sb = new System.Text.StringBuilder();
@@ -1100,8 +1100,8 @@ public static class EdoMatsudairaDewaBuilder
         // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
         //    2026-09-01: Stage7 が指図の poly/at/groups/clr を読まず、**撤回済みの
         //    「松を全数 −u へ傾ける」がコードに生きていた**。流せば撤回した案が復活する。
-        { var gate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
-          if (gate != null) return gate; }
+        { var reviewGate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
+          if (reviewGate != null) return reviewGate; }
 
         var grp = Group("Buildings"); Clear(grp);
         var f = Grid;
@@ -1179,8 +1179,8 @@ public static class EdoMatsudairaDewaBuilder
         // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
         //    2026-09-01: Stage7 が指図の poly/at/groups/clr を読まず、**撤回済みの
         //    「松を全数 −u へ傾ける」がコードに生きていた**。流せば撤回した案が復活する。
-        { var gate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
-          if (gate != null) return gate; }
+        { var reviewGate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
+          if (reviewGate != null) return reviewGate; }
 
         var root = Group("");
         // 旧案の残骸を撤去
@@ -1304,8 +1304,8 @@ public static class EdoMatsudairaDewaBuilder
         // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
         //    2026-09-01: Stage7 が指図の poly/at/groups/clr を読まず、**撤回済みの
         //    「松を全数 −u へ傾ける」がコードに生きていた**。流せば撤回した案が復活する。
-        { var gate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
-          if (gate != null) return gate; }
+        { var reviewGate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
+          if (reviewGate != null) return reviewGate; }
 
         var grp = Group("Fuzoku"); Clear(grp);
         var f = Grid;
@@ -1846,8 +1846,8 @@ public static class EdoMatsudairaDewaBuilder
         // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
         //    2026-09-01: Stage7 が指図の poly/at/groups/clr を読まず、**撤回済みの
         //    「松を全数 −u へ傾ける」がコードに生きていた**。流せば撤回した案が復活する。
-        { var gate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
-          if (gate != null) return gate; }
+        { var reviewGate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
+          if (reviewGate != null) return reviewGate; }
 
         var root = Group("");
         // 撤回した池の案の残骸(非アクティブ)。生成物なので消してよい
@@ -2071,8 +2071,8 @@ public static class EdoMatsudairaDewaBuilder
         // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
         //    2026-09-01: Stage7 が指図の poly/at/groups/clr を読まず、**撤回済みの
         //    「松を全数 −u へ傾ける」がコードに生きていた**。流せば撤回した案が復活する。
-        { var gate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
-          if (gate != null) return gate; }
+        { var reviewGate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
+          if (reviewGate != null) return reviewGate; }
 
         var grp = Group("Shamen"); Clear(grp);
         var f = Grid;

@@ -870,6 +870,17 @@ def overlap_check(d):
             boxes.append(("ramp", rp["name"], rp["u0"], rp["v0"], rp["u1"], rp["v1"], None))
     for wl in d.get("wells", []):
         boxes.append(("ido", wl["name"], wl["u"] - 0.5, wl["v"] - 0.5, wl["u"] + 0.5, wl["v"] + 0.5, None))
+    # ⭐ **石段の箱を総当たりへ入れる。**⛔ 従前は「石段×棟」「石段×階段廊下」の2つの専用ループ
+    #   しか無く、**石段×外周 run(長屋門)が構造的に検査されていなかった**
+    #   (2026-09-02 検図 K065: 門前の石段が長屋門へ食い込んでも 0件)。
+    for k7 in d.get("kaidans", []):
+        hw7 = k7["w"] / 2 / ken2
+        if k7.get("gapU") is not None:
+            a7, b7 = sorted((k7.get("v0", 0.0), k7.get("v1", 0.0)))
+            boxes.append(("kaidan", k7["name"], k7["gapU"] - hw7, a7, k7["gapU"] + hw7, b7, None))
+        elif k7.get("gapV") is not None:
+            a7, b7 = sorted((k7.get("u0", 0.0), k7.get("u1", 0.0)))
+            boxes.append(("kaidan", k7["name"], a7, k7["gapV"] - hw7, b7, k7["gapV"] + hw7, None))
     bad = []
     # 段どうしが重なっていないか。design_y は最大値を採るので、低い方の段は図上にしか
     # 存在しなくなり、そこに建つ棟が地盤に埋まる(2026-08-23 検図で家中長屋(南)2棟が全部
@@ -889,11 +900,24 @@ def overlap_check(d):
     #   2026-08-25 検図13巡 中-6)。石段×白洲・石段×段は除外規約で落とす。
     for k9 in d["kaidans"]:
         w9 = next((x for x in d["terraceWalls"] if x["name"] == k9.get("atWall")), None)
-        if w9 is None:
-            continue
         hw9 = k9["w"] / 2 / ken2
         rn9 = k9["run"] / ken2
-        if abs(w9["a"][0] - w9["b"][0]) < 1e-9:
+        if w9 is None:
+            # ⭐ **土留めに付かない石段(岡部は郭内の土留めが0本)でも箱を作る。**
+            #   ⛔ 従前は `atWall` が null だと素通りし、**当邸の石段は1本も総当たりに
+            #     入っていなかった**(2026-09-02 検図 K065。K_Mon が長屋門へ 0.793m² 食い込んだ
+            #     穴が塞がっていなかった)。降りる向きと区間は json が持っているので、それで作る。
+            if k9.get("gapU") is not None:
+                a9, b9 = sorted((k9.get("v0", 0.0), k9.get("v1", 0.0)))
+                kb9 = {"name": k9["name"], "u0": k9["gapU"] - hw9, "u1": k9["gapU"] + hw9,
+                       "v0": a9, "v1": b9}
+            elif k9.get("gapV") is not None:
+                a9, b9 = sorted((k9.get("u0", 0.0), k9.get("u1", 0.0)))
+                kb9 = {"name": k9["name"], "u0": a9, "u1": b9,
+                       "v0": k9["gapV"] - hw9, "v1": k9["gapV"] + hw9}
+            else:
+                continue
+        elif abs(w9["a"][0] - w9["b"][0]) < 1e-9:
             kb9 = {"name": k9["name"], "u0": w9["a"][0] - rn9, "u1": w9["a"][0],
                    "v0": k9.get("gapV", 0) - hw9, "v1": k9.get("gapV", 0) + hw9}
         else:
@@ -1026,6 +1050,10 @@ def overlap_check(d):
                     if (a0 <= c0 and b0 <= d0 and c1 <= a1 and d1 <= b1) or \
                        (c0 <= a0 and d0 <= b0 and a1 <= c1 and b1 <= d1):
                         continue
+                if {k1, k2} == {"kaidan", "niwa"} or {k1, k2} == {"kaidan"}:
+                    continue          # 石段×白洲(庭)は通り道なので可・石段どうしは別の段
+                if {k1, k2} == {"kaidan", "ramp"}:
+                    continue          # 石段と坂は別の動線
                 if {k1, k2} == {"niwa", "svc"} or {k1, k2} == {"niwa", "ido"}:
                     # 庭の中に立つ亭・祠・井戸は庭に**完全に包含**されていれば可(庭は地面)。
                     # ido の免除は EDO-0023(2026-08-26): 統一時に土井・岡部に niwa×ido の

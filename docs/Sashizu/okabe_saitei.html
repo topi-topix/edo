@@ -76,14 +76,14 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <p class="lede">庭方(edo-niwashi)の設計案のうち、<b>ユーザーの裁定が要る2件</b>だけを図にした。⛔ 数値は一つも手で書いていない — 地盤は江戸期の復元地盤 <code>okabe_edo_dem.json</code>、設計は <code>okabe_sashizu.json</code>、切盛は指図の生成器と同じ <code>graded_y()</code> から毎回算出している。組むのは <code>Tools/Sashizu/build_okabe_saitei.py</code>。</p>
 <div class="box" style="border-color:var(--shu)"><h3>⚠ 2026-09-02 訂正</h3><p>この図は当初、案Aの効き目を<b>「5区画の矩形の中にいま載っている盛土を足す」</b>方法で出しており、<b>1,800 m³</b>としていた。⛔ <b>それは効き目ではない。</b>平坦化をやめると区画の<b>縁</b>の土工も変わり、区画の矩形は主面の多角形から食み出す(西端の帯は矩形の一部しか段に掛からない)。⭕ 効き目は<b>二つの完成した設計を格子一枚ぶん歩いた差</b>でしか測れない。いまの図はその方法で出している。<b>裁定の向きは変わらない</b>が、数字は下の表のとおり小さくなる。</p></div>
 <div class="plate"><div class="phead"><h2>裁定1　主面の5区画を「平坦化しない」ことを認めるか</h2><span class="meta">どこ=主面(24.80)の南半分と西端・奥。指図の敷地図・切盛図と同じグリッド</span></div>
-<div class="box"><h3>いま何がどうなっているか(実測)</h3><p>主面を全面 24.80 で平らにする設計(案B)の拝領時造成は<b>盛土 5,536 m³ / 切土 1,353 m³ = 差引 +4,182 m³ の客土</b>。案Aはこれを <b>+2,823 m³</b> にする(<b>−32%</b>)。主面の南半分の自然地盤は最も低い所で <b>21.65 m</b> まで下がっており、<b>24.80 で通すと最大 3.2 m 盛る</b>ことになる。⛔ 庭の土工(池・築山)は<b>両案から外して</b>測ってある — この裁定は池の形とは独立。</p></div>
+<div class="box"><h3>いま何がどうなっているか(実測)</h3><p>主面を全面 24.80 で平らにする設計(案B)の拝領時造成は<b>盛土 5,536 m³ / 切土 1,353 m³ = 差引 +4,182 m³ の客土</b>。案Aはこれを <b>+2,816 m³</b> にする(<b>−33%</b>)。主面の南半分の自然地盤は最も低い所で <b>21.65 m</b> まで下がっており、<b>24.80 で通すと最大 3.2 m 盛る</b>ことになる。⛔ 庭の土工(池・築山)は<b>両案から外して</b>測ってある — この裁定は池の形とは独立。</p></div>
 <div class="tw"><table><thead><tr><th>区画</th><th>矩形のうち段に掛かる割合</th><th>その抜きだけを入れたときの効き目</th></tr></thead><tbody>
 <tr><td>南の芝谷</td><td>94%</td><td><b>-619 m³</b></td></tr>
-<tr><td>南西の樹林</td><td>79%</td><td><b>-627 m³</b></td></tr>
-<tr><td>長局の東の坪</td><td>100%</td><td><b>-37 m³</b></td></tr>
+<tr><td>南の樹林</td><td>79%</td><td><b>-626 m³</b></td></tr>
+<tr><td>長局の北の坪</td><td>100%</td><td><b>-28 m³</b></td></tr>
 <tr><td>奥の紅葉谷</td><td>64%</td><td><b>-108 m³</b></td></tr>
 <tr><td>西端の帯</td><td>32%</td><td><b>-40 m³</b></td></tr>
-<tr><td colspan='2'><b>5つ全部を入れたとき(=案A。順に依らず別に測った値)</b></td><td><b>-1359 m³</b></td></tr>
+<tr><td colspan='2'><b>5つ全部を入れたとき(=案A。順に依らず別に測った値)</b></td><td><b>-1367 m³</b></td></tr>
 </tbody></table></div>
 <p class="cap">⚠ <b>区画ごとの値を足しても合計にはならない</b> — 抜きどうしが縁を共有すると効き目が重なるため。合計は<b>5つ全部を入れた設計を別に組んで測った値</b>。⭐ 「段に掛かる割合」が小さい区画(西端の帯・奥の紅葉谷)は、<b>もともと造成していない斜面が矩形に含まれている</b>ので効き目が小さい。</p>
 <div class="fig"><svg viewBox="0 0 940 540" width="100%" role="img" aria-label="裁定1 断面 v=56" style="max-width:940px;height:auto">
@@ -2875,10 +2875,10 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <rect x="18.9" y="251.4" width="3.6" height="3.6" fill="rgba(198,93,58,0.32)"/>
 <polygon points="241.6,242.3 241.6,181.3 174.5,181.3 174.5,242.3" fill="none" stroke="var(--dim)" stroke-width="1.6" stroke-dasharray="5 4"/>
 <text class="anS2" x="208.0" y="211.8" style="text-anchor:middle;font-size:10.0px">南の芝谷</text>
-<polygon points="241.6,281.9 241.6,242.3 131.8,242.3 131.8,281.9" fill="none" stroke="var(--dim)" stroke-width="1.6" stroke-dasharray="5 4"/>
-<text class="anS2" x="186.7" y="262.1" style="text-anchor:middle;font-size:10.0px">南西の樹林</text>
-<polygon points="131.8,120.3 131.8,95.9 70.8,95.9 70.8,120.3" fill="none" stroke="var(--dim)" stroke-width="1.6" stroke-dasharray="5 4"/>
-<text class="anS2" x="101.3" y="108.1" style="text-anchor:middle;font-size:10.0px">長局の東の坪</text>
+<polygon points="241.6,281.9 241.6,242.3 134.8,242.3 134.8,281.9" fill="none" stroke="var(--dim)" stroke-width="1.6" stroke-dasharray="5 4"/>
+<text class="anS2" x="188.2" y="262.1" style="text-anchor:middle;font-size:10.0px">南の樹林</text>
+<polygon points="131.8,120.3 131.8,97.4 70.8,97.4 70.8,120.3" fill="none" stroke="var(--dim)" stroke-width="1.6" stroke-dasharray="5 4"/>
+<text class="anS2" x="101.3" y="108.8" style="text-anchor:middle;font-size:10.0px">長局の北の坪</text>
 <polygon points="107.4,102.0 107.4,79.1 64.7,79.1 64.7,102.0" fill="none" stroke="var(--dim)" stroke-width="1.6" stroke-dasharray="5 4"/>
 <text class="anS2" x="86.0" y="90.5" style="text-anchor:middle;font-size:10.0px">奥の紅葉谷</text>
 <polygon points="52.5,217.9 52.5,138.6 18.9,138.6 18.9,217.9" fill="none" stroke="var(--dim)" stroke-width="1.6" stroke-dasharray="5 4"/>
@@ -3766,6 +3766,9 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <rect x="464.1" y="266.7" width="3.6" height="3.6" fill="rgba(198,93,58,0.24)"/>
 <rect x="464.1" y="263.6" width="3.6" height="3.6" fill="rgba(198,93,58,0.20)"/>
 <rect x="464.1" y="260.6" width="3.6" height="3.6" fill="rgba(198,93,58,0.19)"/>
+<rect x="464.1" y="257.5" width="3.6" height="3.6" fill="rgba(198,93,58,0.19)"/>
+<rect x="464.1" y="254.5" width="3.6" height="3.6" fill="rgba(198,93,58,0.18)"/>
+<rect x="464.1" y="251.4" width="3.6" height="3.6" fill="rgba(198,93,58,0.17)"/>
 <rect x="464.1" y="211.8" width="3.6" height="3.6" fill="rgba(198,93,58,0.17)"/>
 <rect x="464.1" y="208.7" width="3.6" height="3.6" fill="rgba(198,93,58,0.17)"/>
 <rect x="464.1" y="205.7" width="3.6" height="3.6" fill="rgba(198,93,58,0.18)"/>
@@ -4789,10 +4792,10 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <rect x="351.3" y="251.4" width="3.6" height="3.6" fill="rgba(198,93,58,0.32)"/>
 <polygon points="573.9,242.3 573.9,181.3 506.8,181.3 506.8,242.3" fill="rgba(110,150,105,0.28)" stroke="var(--midori)" stroke-width="1.6"/>
 <text class="anS2" x="540.4" y="211.8" style="text-anchor:middle;font-size:10.0px">南の芝谷</text>
-<polygon points="573.9,281.9 573.9,242.3 464.1,242.3 464.1,281.9" fill="rgba(110,150,105,0.28)" stroke="var(--midori)" stroke-width="1.6"/>
-<text class="anS2" x="519.0" y="262.1" style="text-anchor:middle;font-size:10.0px">南西の樹林</text>
-<polygon points="464.1,120.3 464.1,95.9 403.1,95.9 403.1,120.3" fill="rgba(110,150,105,0.28)" stroke="var(--midori)" stroke-width="1.6"/>
-<text class="anS2" x="433.6" y="108.1" style="text-anchor:middle;font-size:10.0px">長局の東の坪</text>
+<polygon points="573.9,281.9 573.9,242.3 467.2,242.3 467.2,281.9" fill="rgba(110,150,105,0.28)" stroke="var(--midori)" stroke-width="1.6"/>
+<text class="anS2" x="520.6" y="262.1" style="text-anchor:middle;font-size:10.0px">南の樹林</text>
+<polygon points="464.1,120.3 464.1,97.4 403.1,97.4 403.1,120.3" fill="rgba(110,150,105,0.28)" stroke="var(--midori)" stroke-width="1.6"/>
+<text class="anS2" x="433.6" y="108.8" style="text-anchor:middle;font-size:10.0px">長局の北の坪</text>
 <polygon points="439.7,102.0 439.7,79.1 397.0,79.1 397.0,102.0" fill="rgba(110,150,105,0.28)" stroke="var(--midori)" stroke-width="1.6"/>
 <text class="anS2" x="418.4" y="90.5" style="text-anchor:middle;font-size:10.0px">奥の紅葉谷</text>
 <polygon points="384.8,217.9 384.8,138.6 351.3,138.6 351.3,217.9" fill="rgba(110,150,105,0.28)" stroke="var(--midori)" stroke-width="1.6"/>
@@ -4817,8 +4820,8 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <rect x="854.0" y="22.0" width="16.0" height="11.0" fill="rgba(198,93,58,0.80)"/>
 <text class="anS2" x="874.0" y="31.0" style="text-anchor:start;font-size:10.0px">2.5m以上</text>
 </svg></div>
-<p class="cap"><b>平面(同一縮尺)</b> — 橙が盛土。案Aでは5区画の橙が消える。⚠ 5区画の外(棟の載る所・門前面へ下る帯)の盛土は<b>どちらの案でも残る</b> — それが案Aでも残る 2,823 m³。</p>
-<div class="tw"><table><thead><tr><th>　</th><th>案A(推奨)</th><th>案B</th></tr></thead><tbody><tr><td>やること</td><td>5区画を主面の平坦から外し<b>自然地盤なり</b>にする。棟が載る所だけ 24.80</td><td>現況どおり主面を全面 24.80 で平らにする</td></tr><tr><td>客土</td><td><b>4,182 → 2,823 m³</b>(−32%)</td><td>4,182 m³ のまま</td></tr><tr><td>庭</td><td>窪みと高まりが残るので、<b>池の汀・築山の裾・谷を地形から起こせる</b></td><td>庭の起伏を<b>すべて盛土で作る</b>ことになる</td></tr><tr><td>規則3(面の高さは地形が決める)</td><td>適合</td><td><b>反する</b> — 窪みを埋めている</td></tr><tr><td>やり直しになるもの</td><td><code>terraces.Shumen</code> の多角形／南辺・南西辺の練塀 run の据面／<code>grading</code> の全数値／切盛図／断面</td><td>無し</td></tr></tbody></table></div>
+<p class="cap"><b>平面(同一縮尺)</b> — 橙が盛土。案Aでは5区画の橙が消える。⚠ 5区画の外(棟の載る所・門前面へ下る帯)の盛土は<b>どちらの案でも残る</b> — それが案Aでも残る 2,816 m³。</p>
+<div class="tw"><table><thead><tr><th>　</th><th>案A(推奨)</th><th>案B</th></tr></thead><tbody><tr><td>やること</td><td>5区画を主面の平坦から外し<b>自然地盤なり</b>にする。棟が載る所だけ 24.80</td><td>現況どおり主面を全面 24.80 で平らにする</td></tr><tr><td>客土</td><td><b>4,182 → 2,816 m³</b>(−33%)</td><td>4,182 m³ のまま</td></tr><tr><td>庭</td><td>窪みと高まりが残るので、<b>池の汀・築山の裾・谷を地形から起こせる</b></td><td>庭の起伏を<b>すべて盛土で作る</b>ことになる</td></tr><tr><td>規則3(面の高さは地形が決める)</td><td>適合</td><td><b>反する</b> — 窪みを埋めている</td></tr><tr><td>やり直しになるもの</td><td><code>terraces.Shumen</code> の多角形／南辺・南西辺の練塀 run の据面／<code>grading</code> の全数値／切盛図／断面</td><td>無し</td></tr></tbody></table></div>
 <p class="cap"><b>推奨=案A。</b>CLAUDE.md 規則3「面の高さは地形が決める・窪みは埋めず一段低い郭にする」の直接の適用であり、<b>庭の質と土量が同時に良くなる</b>。</p>
 </div>
 <div class="plate"><div class="phead"><h2>裁定2　長局の西庭をどう始末するか</h2><span class="meta">どこ=<code>NiwaOkuN</code> 長局の西庭 u+5〜+12 / v100〜106</span></div>
@@ -4857,6 +4860,101 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 </svg></div>
 <div class="tw"><table><thead><tr><th>　</th><th>案A(推奨)</th><th>案B</th></tr></thead><tbody><tr><td>やること</td><td><b>実用の庭「長局の物干」</b>に改める。井戸1・物干竿3・納戸小屋(1.5間×1間)・厠2。目隠しに建仁寺垣 h1.8m。⛔ 灯籠・飛石・景石は置かない</td><td>長局の v95〜100(室が入っていない5間)を<b>西の入側+縁</b>に改め、鑑賞庭のまま残す</td></tr><tr><td>良い所</td><td>女中の生活が成立する。史料の要らない実用施設</td><td>庭の数が減らない</td></tr><tr><td>悪い所</td><td>「庭」が1つ減る</td><td><b>棟の室割りが動く</b>。しかも西の景は溜池でなく土井境の法面で、開けても見るものが無い</td></tr><tr><td>やり直しになるもの</td><td><code>gardens</code> の1件を差し替え、<code>service</code> に井戸1・小屋1を追加</td><td><code>munes.Nagatsubone</code> の室割り／其七(棟と室)／建蔽率</td></tr></tbody></table></div>
 <p class="cap"><b>推奨=案A。</b>見えない庭を作るより、無い実用空間を作るほうが屋敷として成立する。⭕ そのうえで長局には<b>東側</b>(u+12〜+20 / v80〜100)に鑑賞庭を新設する(こちらは長局の東入側が正面に来るので座敷から見える)。</p>
+</div>
+<hr style="margin:44px 0 8px;border:0;border-top:2px solid var(--rule)">
+<h2 style="margin-top:0">第二次の裁定 — 3件(2026-09-02)</h2>
+<p class="lede">3役(考証・検図・庭方)の初回検分で出た55件のうち、<b>46件は指図方が直し</b>、9件が残った。そのうち<b>意匠の判断が要る3件</b>を図にする。⛔ 指図方には値を入れさせていないので、いまの指図は<b>この3件を「未解決」として毎回刷る</b>状態にしてある。</p>
+<div class="plate"><div class="phead"><h2>裁定3　西の法尻の段差をどう受けるか</h2><span class="meta">どこ=敷地北西 グリッド u−8〜+16.5 / v113〜115。指図の切盛図と断面②③</span></div>
+<div class="box"><h3>いま何がどうなっているか(実測)</h3><p>主面(24.80)の西縁から出る盛土(法 1:1.5)が、<b>自然斜面より緩いため到達距離 12m の中で着地しません</b>。行き場を失った設計面はそこで打ち切られ、<b>延長 46.4m・丈 0.56〜2.63m(平均 1.75m)の垂直の段差</b>が残ります。法面の検査が <b>24 件</b>出しているのがこれです。⚠ これは庭の追加が原因ではなく、<b>以前から潜んでいたもの</b>です。</p></div>
+<div class="fig"><svg viewBox="0 0 940 330" width="100%" role="img" aria-label="裁定3 西の法尻の断面" style="max-width:940px;height:auto">
+<rect x="70.0" y="34.0" width="840.0" height="234.0" fill="var(--paper2)" stroke="var(--rule)" stroke-width="0.80" opacity="0.55"/>
+<line x1="76.0" y1="272.0" x2="906.0" y2="272.0" stroke="var(--rule)" stroke-width="0.60" stroke-dasharray="3 4" opacity="0.80"/>
+<text class="anS2" x="72.0" y="275.0" style="text-anchor:end;font-size:9.0px">14</text>
+<line x1="76.0" y1="236.5" x2="906.0" y2="236.5" stroke="var(--rule)" stroke-width="0.60" stroke-dasharray="3 4" opacity="0.80"/>
+<text class="anS2" x="72.0" y="239.5" style="text-anchor:end;font-size:9.0px">16</text>
+<line x1="76.0" y1="201.0" x2="906.0" y2="201.0" stroke="var(--rule)" stroke-width="0.60" stroke-dasharray="3 4" opacity="0.80"/>
+<text class="anS2" x="72.0" y="204.0" style="text-anchor:end;font-size:9.0px">18</text>
+<line x1="76.0" y1="165.4" x2="906.0" y2="165.4" stroke="var(--rule)" stroke-width="0.60" stroke-dasharray="3 4" opacity="0.80"/>
+<text class="anS2" x="72.0" y="168.4" style="text-anchor:end;font-size:9.0px">20</text>
+<line x1="76.0" y1="129.9" x2="906.0" y2="129.9" stroke="var(--rule)" stroke-width="0.60" stroke-dasharray="3 4" opacity="0.80"/>
+<text class="anS2" x="72.0" y="132.9" style="text-anchor:end;font-size:9.0px">22</text>
+<line x1="76.0" y1="94.4" x2="906.0" y2="94.4" stroke="var(--rule)" stroke-width="0.60" stroke-dasharray="3 4" opacity="0.80"/>
+<text class="anS2" x="72.0" y="97.4" style="text-anchor:end;font-size:9.0px">24</text>
+<line x1="76.0" y1="58.9" x2="906.0" y2="58.9" stroke="var(--rule)" stroke-width="0.60" stroke-dasharray="3 4" opacity="0.80"/>
+<text class="anS2" x="72.0" y="61.9" style="text-anchor:end;font-size:9.0px">26</text>
+<polyline points="80.0,82.0 95.6,82.0 111.2,82.1 126.7,82.1 142.3,82.1 157.9,82.3 173.5,82.5 189.0,82.7 204.6,82.9 220.2,84.2 235.8,85.6 251.3,87.0 266.9,88.4 282.5,92.0 298.1,95.6 313.7,99.3 329.2,102.9 344.8,108.6 360.4,114.3 376.0,120.0 391.5,125.7 407.1,132.9 422.7,140.2 438.3,147.5 453.8,154.8 469.4,162.9 485.0,171.0 500.6,179.2 516.2,187.3 531.7,194.3 547.3,201.3 562.9,208.3 578.5,215.3 594.0,221.0 609.6,226.6 625.2,232.3 640.8,237.9 656.3,241.1 671.9,244.4 687.5,247.6 703.1,250.9 718.7,252.1 734.2,253.3 749.8,254.5 765.4,255.7 781.0,256.7 796.5,257.8 812.1,258.9 827.7,259.9 843.3,260.9 858.8,261.9 874.4,262.9 890.0,263.8" fill="none" stroke="var(--ink)" stroke-width="1.6" stroke-dasharray="6 3" opacity="0.9"/>
+<polyline points="80.0,80.2 95.6,80.2 111.2,80.2 126.7,80.2 142.3,80.2 157.9,82.3 173.5,82.5 189.0,82.7 204.6,82.9 220.2,84.2 235.8,85.6 251.3,87.0 266.9,88.4 282.5,87.1 298.1,81.7 313.7,82.7 329.2,86.0 344.8,89.8 360.4,94.6 376.0,99.7 391.5,104.9 407.1,110.2 422.7,115.5 438.3,120.8 453.8,126.2 469.4,131.5 485.0,136.9 500.6,142.2 516.2,147.6 531.7,153.0 547.3,158.3 562.9,163.7 578.5,169.1 594.0,174.4 609.6,226.6 625.2,232.3 640.8,237.9 656.3,241.1 671.9,244.4 687.5,247.6 703.1,250.9 718.7,252.1 734.2,253.3 749.8,254.5 765.4,255.7 781.0,256.7 796.5,257.8 812.1,258.9 827.7,259.9 843.3,260.9 858.8,261.9 874.4,262.9 890.0,263.8" fill="none" stroke="var(--shu)" stroke-width="2.4"/>
+<polyline points="80.0,80.2 95.6,80.2 111.2,80.2 126.7,80.2 142.3,80.2 157.9,82.3 173.5,82.5 189.0,82.7 204.6,82.9 220.2,84.2 235.8,85.6 251.3,87.0 266.9,88.4 282.5,90.5 298.1,82.5 313.7,84.0 329.2,89.0 344.8,94.6 360.4,101.8 376.0,109.5 391.5,117.3 407.1,125.2 422.7,133.1 438.3,141.1 453.8,149.1 469.4,157.2 485.0,165.2 500.6,173.2 516.2,181.3 531.7,189.3 547.3,197.4 562.9,205.4 578.5,213.5 594.0,221.0 609.6,226.6 625.2,232.3 640.8,237.9 656.3,241.1 671.9,244.4 687.5,247.6 703.1,250.9 718.7,252.1 734.2,253.3 749.8,254.5 765.4,255.7 781.0,256.7 796.5,257.8 812.1,258.9 827.7,259.9 843.3,260.9 858.8,261.9 874.4,262.9 890.0,263.8" fill="none" stroke="#2E6E7A" stroke-width="1.8"/>
+<polyline points="80.0,80.2 95.6,80.2 111.2,80.2 126.7,80.2 142.3,80.2 157.9,82.3 173.5,82.5 189.0,82.7 204.6,82.9 220.2,84.2 235.8,85.6 251.3,87.0 266.9,88.4 282.5,87.1 298.1,81.7 313.7,82.7 329.2,86.0 344.8,89.8 360.4,94.6 376.0,99.7 391.5,104.9 407.1,110.2 422.7,115.5 438.3,120.8 453.8,126.2 469.4,131.5 485.0,136.9 500.6,142.2 516.2,147.6 531.7,153.0 547.3,158.3 562.9,163.7 578.5,169.1 594.0,174.4 609.6,179.8 625.2,185.2 640.8,190.6 656.3,195.9 671.9,201.3 687.5,206.7 703.1,212.1 718.7,217.4 734.2,222.8 749.8,228.2 765.4,233.6 781.0,238.9 796.5,244.3 812.1,249.7 827.7,255.1 843.3,260.5 858.8,261.9 874.4,262.9 890.0,263.8" fill="none" stroke="#6E5A2E" stroke-width="1.8"/>
+<rect x="574.5" y="169.1" width="8.0" height="46.3" fill="var(--ishi)" stroke="var(--ink)" stroke-width="1.00" opacity="0.85"/>
+<text class="anS2" x="588.5" y="163.1" style="text-anchor:start;font-size:11.0px">案A 土留め(この断面で丈 2.61m)</text>
+<line x1="80.0" y1="276.0" x2="80.0" y2="282.0" stroke="var(--dim)" stroke-width="0.80"/>
+<text class="anS2" x="80.0" y="292.0" style="text-anchor:middle;font-size:9.0px">v105</text>
+<line x1="204.6" y1="276.0" x2="204.6" y2="282.0" stroke="var(--dim)" stroke-width="0.80"/>
+<text class="anS2" x="204.6" y="292.0" style="text-anchor:middle;font-size:9.0px">v107</text>
+<line x1="329.2" y1="276.0" x2="329.2" y2="282.0" stroke="var(--dim)" stroke-width="0.80"/>
+<text class="anS2" x="329.2" y="292.0" style="text-anchor:middle;font-size:9.0px">v109</text>
+<line x1="453.8" y1="276.0" x2="453.8" y2="282.0" stroke="var(--dim)" stroke-width="0.80"/>
+<text class="anS2" x="453.8" y="292.0" style="text-anchor:middle;font-size:9.0px">v111</text>
+<line x1="578.5" y1="276.0" x2="578.5" y2="282.0" stroke="var(--dim)" stroke-width="0.80"/>
+<text class="anS2" x="578.5" y="292.0" style="text-anchor:middle;font-size:9.0px">v113</text>
+<line x1="703.1" y1="276.0" x2="703.1" y2="282.0" stroke="var(--dim)" stroke-width="0.80"/>
+<text class="anS2" x="703.1" y="292.0" style="text-anchor:middle;font-size:9.0px">v115</text>
+<line x1="827.7" y1="276.0" x2="827.7" y2="282.0" stroke="var(--dim)" stroke-width="0.80"/>
+<text class="anS2" x="827.7" y="292.0" style="text-anchor:middle;font-size:9.0px">v117</text>
+<text class="anS2" x="6.0" y="16.0" style="text-anchor:start;font-size:11.0px">断面 u=+5(西の法尻を南北に切る)／縦横同一縮尺・単位 m(海抜)／破線=江戸期の復元地盤。⛔ 4本を同じ枠に重ねてある — 別々の図にすると差が読めない</text>
+<line x1="90.0" y1="316.0" x2="118.0" y2="316.0" stroke="var(--ink)" stroke-width="2.40"/>
+<text class="anS2" x="124.0" y="320.0" style="text-anchor:start;font-size:10.0px">江戸期の復元地盤(破線)</text>
+<line x1="300.0" y1="316.0" x2="328.0" y2="316.0" stroke="var(--shu)" stroke-width="2.40"/>
+<text class="anS2" x="334.0" y="320.0" style="text-anchor:start;font-size:10.0px">現況(盛土 1:1.5)</text>
+<line x1="510.0" y1="316.0" x2="538.0" y2="316.0" stroke="#2E6E7A" stroke-width="2.40"/>
+<text class="anS2" x="544.0" y="320.0" style="text-anchor:start;font-size:10.0px">案B 1:1.0</text>
+<line x1="720.0" y1="316.0" x2="748.0" y2="316.0" stroke="#6E5A2E" stroke-width="2.40"/>
+<text class="anS2" x="754.0" y="320.0" style="text-anchor:start;font-size:10.0px">案C 到達25m</text>
+</svg></div>
+<div class="tw"><table><thead><tr><th>　</th><th>案A</th><th>案B</th><th>案C</th></tr></thead><tbody><tr><td>やること</td><td><b>土留めを立てる</b><br>(法面は 1:1.5 のまま)</td><td><b>盛土を 1:1.0 へ</b><br>急にする</td><td><b>法面の到達を</b><br>25m へ延ばす</td></tr><tr><td>法面の検査</td><td>24件 → <b>0件</b><br>(段差を壁が受ける)</td><td>24件 → <b>0件</b></td><td>24件 → <b>0件</b></td></tr><tr><td>客土</td><td>2,571 m³ のまま</td><td><b>1,524 m³</b>(-1047)</td><td><b>2,889 m³</b>(+318)</td></tr><tr><td>新しく要る物</td><td><b>石垣</b><br>延長46m・丈 最大2.63m</td><td>無し(定数1つ)</td><td>無し(定数1つ)</td></tr></tbody></table></div>
+<p class="cap"><b>⛔ 案ごとに引っかかること</b><br><b>案A</b> … 石垣が1本増え、図・断面・部材表・実装のすべてに波及する。⚠ 郭内の土留めは 2026-08-23 に全廃しており、これを立てると<b>その方針が戻る</b>。<br><b>案B</b> … ⛔ <b>1:1.0 の裸の盛土は崩れる。</b>当図が 1:1.5 を採っているのはそれが安全側の標準だから。⭕ 土留めとの併用なら成り立つ。<br><b>案C</b> … ⛔ <b>西斜面を 25m 造成する</b>ことになり、CLAUDE.md 規則9「地形は現地形に従う・造成は最小限」に触れる。</p>
+<p class="cap"><b>推奨=案A(土留め)。</b>案Bは客土が 1,047 m³ 減って魅力的に見えますが、⛔ <b>1:1.0 の裸の盛土は崩れる</b>ので、結局は土留めが要ります。案Cは検査こそ通るものの、⛔ <b>造成を西斜面へ 25m 広げる</b>ので規則9に触れます。⭕ 案Aは「造成した以上、その足元は自分で受ける」という素直な形で、<b>44.5m の石垣は当屋敷の外周(約780m)に比べれば小さい</b>。⚠ ただし郭内の土留めを全廃した 2026-08-23 の方針が戻ることになります。</p>
+</div>
+<div class="plate"><div class="phead"><h2>裁定4　「表役所」を作るか、作らない理由を書くか</h2><span class="meta">どこ=表向(車寄・玄関棟・書院)。指図「在るべき役割との照合」の表</span></div>
+<div class="box"><h3>いま何がどうなっているか</h3><p>スキルの役割表(外の錨)が<b>「表役所」を必須</b>とするのに、当図には<b>棟も室もありません</b>。⛔ この行はつい先ほどまで「○(達成)」と刷られていました — 検査が <code>json</code> の文字列一致で、<b>「当図に表役所という棟は無く」という否定文に一致していた</b>ためです(当邸4例目の同型)。いまは正しく <b>⛔</b> が出ます。</p></div>
+<div class="tw"><table><thead><tr><th>ゾーン</th><th>棟</th><th>室</th></tr></thead><tbody><tr><td>表向</td><td><code>Kurumayose</code></td><td class='note'>—</td></tr><tr><td>表向</td><td><code>Genkan</code></td><td class='note'>御式台・御玄関・御広間・使者之間</td></tr><tr><td>表向</td><td><code>Shoin</code></td><td class='note'>上段之間・二之間・三之間</td></tr><tr><td>中奥</td><td><code>Daidokoro</code></td><td class='note'>御台所・御料理之間・俎立之間・肴方・御家具部屋</td></tr><tr><td>中奥</td><td><code>Nakaoku</code></td><td class='note'>御座之間・御小座敷・御次・御用部屋</td></tr><tr><td>奥向</td><td><code>Okumuki</code></td><td class='note'>御寝之間・御休息之間・御化粧之間・御呉服之間・御湯殿</td></tr><tr><td>奥向</td><td><code>Nagatsubone</code></td><td class='note'>上陣・下陣</td></tr></tbody></table></div>
+<div class="tw"><table><thead><tr><th>　</th><th>案A</th><th>案B</th><th>案C</th></tr></thead><tbody><tr><td>やること</td><td><b>表役所の棟を新設</b>する(表向・玄関棟の北)</td><td><b>玄関棟の中に室として設ける</b>(使者之間の隣)</td><td><b>作らない</b>と決め、理由を指図に書く</td></tr><tr><td>建蔽率</td><td>上がる(棟が1つ増える)</td><td><b>変わらない</b></td><td>変わらない</td></tr><tr><td>波及</td><td>棟と室の表・建蔽率・切盛・実装</td><td>玄関棟の室割りだけ</td><td>文章だけ</td></tr></tbody></table></div>
+<p class="cap">⚠ <b>史実はどの案も確度U</b> — 当屋敷の指図は現存未確認です。⭕ ただし案Bは<b>室割りが図面だけの情報</b>で実装との突き合わせ対象外なので、間違っていたときの影響がいちばん小さい。⛔ 案Cを採る場合は「<b>無かった</b>」も推定であると明記が要ります。</p>
+<p class="cap"><b>推奨=案B(玄関棟の室として設ける)。</b>表役所は留守居・用人が詰める事務の場で、<b>当家の石高(5万3千石)では独立した棟を構える規模ではない</b>と考えられます。⭕ 玄関棟には既に<b>使者之間</b>があり、来客の応対と事務は同じ棟に納まるのが自然です。⚠ いずれの案も<b>確度U(当方の設計判断)</b>で、当屋敷の指図は現存未確認です。</p>
+</div>
+<div class="plate"><div class="phead"><h2>裁定5　結界の西の抜けをどう始末するか</h2><span class="meta">どこ=結界塀 W6 の西端(グリッド u−19, v111.25)から西の斜面</span></div>
+<div class="box"><h3>いま何がどうなっているか(実測)</h3><p>表(玄関・書院・泉水)と奥(中奥・奥向・長局・奥庭)を屋外でも分けるため、結界塀を7区間まわして中門と木戸を一口ずつ開けました。⛔ ところが<b>その一口を両方閉めても、西の斜面を回って表から奥へ抜けられます</b>。検査(升目を歩く経路探索)が毎回そう出します。⚠ W6 の西端から外周の木柵(溜池の堤)まで<b>75.9m</b>あり、その間は地なりの西斜面で <b>24.46 から 8.5 へ 16m 下ります</b>。</p></div>
+<div class="fig"><svg viewBox="0 0 940 470" width="100%" role="img" aria-label="裁定5 結界の西の抜け" style="max-width:940px;height:auto">
+<polygon points="611.5,405.4 616.6,405.8 619.5,393.5 621.4,391.6 626.1,363.1 616.6,287.1 626.1,287.1 649.9,253.9 649.9,192.1 635.6,163.6 603.4,145.2 602.4,147.5 596.4,147.5 595.2,146.1 586.9,146.1 585.8,144.6 573.9,144.6 559.6,135.1 512.1,135.1 507.1,125.1 503.4,124.1 505.4,121.7 502.8,122.4 502.2,121.3 503.0,119.6 499.4,119.4 496.7,116.1 407.6,116.1 374.4,92.4 360.1,92.4 360.1,116.1 347.1,116.1 336.4,116.1 335.7,117.1 336.1,119.2 330.4,126.8 328.5,126.6 322.1,135.1 321.6,150.6 323.0,151.8 321.8,189.8 320.3,190.9 321.6,192.6 321.6,197.7 323.0,199.0 323.0,200.3 321.5,201.6 322.9,203.2 322.4,227.2 320.8,228.1 320.4,238.6 318.8,239.6 317.4,282.4 312.6,301.4 298.4,310.9 292.6,346.1 285.2,365.7 307.9,375.0 313.4,367.4 383.9,367.9 431.4,377.4 435.9,385.7 436.9,389.8" fill="rgba(150,140,120,0.14)" stroke="var(--ink)" stroke-width="1.2"/>
+<polygon points="837.5,427.9 800.5,424.6 436.5,392.0 309.8,378.2 229.3,345.3 114.1,340.4 24.8,149.8 107.3,109.4 169.7,69.0 271.9,85.2 650.9,72.5 741.8,56.1 837.5,176.0" fill="none" stroke="var(--dim)" stroke-width="1.4" stroke-dasharray="7 4"/>
+<rect x="590.5" y="206.4" width="9.5" height="14.2" fill="var(--nagaya)" stroke="var(--ink)" stroke-width="0.70" opacity="0.85"/>
+<rect x="538.2" y="187.4" width="52.2" height="52.2" fill="var(--nagaya)" stroke="var(--ink)" stroke-width="0.70" opacity="0.85"/>
+<rect x="467.0" y="213.5" width="61.8" height="28.5" fill="var(--nagaya)" stroke="var(--ink)" stroke-width="0.70" opacity="0.85"/>
+<rect x="467.0" y="246.8" width="57.0" height="47.5" fill="var(--nagaya)" stroke="var(--ink)" stroke-width="0.70" opacity="0.85"/>
+<rect x="405.2" y="199.2" width="52.2" height="42.8" fill="var(--nagaya)" stroke="var(--ink)" stroke-width="0.70" opacity="0.85"/>
+<rect x="334.0" y="199.2" width="57.0" height="42.8" fill="var(--nagaya)" stroke="var(--ink)" stroke-width="0.70" opacity="0.85"/>
+<rect x="362.5" y="156.5" width="95.0" height="33.2" fill="var(--nagaya)" stroke="var(--ink)" stroke-width="0.70" opacity="0.85"/>
+<line x1="462.2" y1="78.8" x2="462.2" y2="213.5" stroke="var(--hei)" stroke-width="4.00"/>
+<line x1="462.2" y1="213.5" x2="462.2" y2="223.0" stroke="var(--hei)" stroke-width="4.00"/>
+<line x1="462.2" y1="227.8" x2="462.2" y2="242.0" stroke="var(--hei)" stroke-width="4.00"/>
+<line x1="462.2" y1="242.0" x2="457.5" y2="242.0" stroke="var(--hei)" stroke-width="4.00"/>
+<line x1="457.5" y1="242.0" x2="457.5" y2="303.8" stroke="var(--hei)" stroke-width="4.00"/>
+<line x1="457.5" y1="303.8" x2="309.1" y2="303.8" stroke="var(--hei)" stroke-width="4.00"/>
+<line x1="469.4" y1="246.8" x2="469.4" y2="242.0" stroke="var(--hei)" stroke-width="4.00"/>
+<text class="anS2" x="462.2" y="72.5" style="text-anchor:middle;font-size:11.0px">結界塀 W1〜W7(v=79 と u=−19 の線)</text>
+<polyline points="448.0,306.1 386.2,337.0 334.0,370.2 305.5,392.1 462.2,392.1 524.0,356.0" fill="none" stroke="var(--shu)" stroke-width="2.6" stroke-dasharray="9 5"/>
+<text class="anS2" x="305.5" y="403.5" style="text-anchor:middle;font-size:11.0px">⛔ 開口を全部閉じても残る抜け</text>
+<text class="anS2" x="462.2" y="406.1" style="text-anchor:middle;font-size:10.0px">v=79 を u=−37.63 で越える</text>
+<text class="anS2" x="552.5" y="175.5" style="text-anchor:middle;font-size:12.0px">表</text>
+<text class="anS2" x="386.2" y="261.0" style="text-anchor:middle;font-size:12.0px">奥</text>
+<text class="anS2" x="220.0" y="356.0" style="text-anchor:middle;font-size:12.0px">西斜面(地なり)</text>
+<text class="anS2" x="6.0" y="16.0" style="text-anchor:start;font-size:11.0px">結界(v=79 と u=−19)と、開口を全部閉じたときに残る西の抜け。灰=主面(24.80)/ 破線=区画線 / 茶=御殿の棟。向き: u+ が北(上)・v+ が西(左)</text>
+<text class="anS2" x="6.0" y="32.0" style="text-anchor:start;font-size:10.0px">⛔ W6 の西端(u=−19, v=111.25)から外周の木柵(辺5)まで 75.9m ある。その間は地なりの西斜面で、24.46 から 8.5 へ 16m 下る。</text>
+</svg></div>
+<div class="tw"><table><thead><tr><th>　</th><th>案A</th><th>案B</th><th>案C</th></tr></thead><tbody><tr><td>やること</td><td><b>W6 を外周の木柵まで約76m 延ばす</b></td><td><b>法肩に竹垣を回す</b>(生成の閾値 <code>takegakiDrop</code> 1.0m を下げる)</td><td><b>西斜面を「奥の郭の外」と認める</b> — 結界は法肩まで</td></tr><tr><td>検査</td><td>0件になる</td><td>⛔ <b>0件にならない</b> — 斜面は 0.29〜0.72m/0.5間 でどこまで下っても歩ける</td><td>検査の対象を法肩までに絞る(=図の宣言を実態へ合わせる)</td></tr><tr><td>新しく要る物</td><td><b>16m 下る斜面を降りる塀 76m</b></td><td>竹垣が斜面一帯に増える(本数は算出)</td><td>無し</td></tr></tbody></table></div>
+<p class="cap"><b>⛔ 案ごとに引っかかること</b><br><b>案A</b> … ⛔ <b>屋敷内部の仕切りとしては過大。</b>のし塀 h1.8 を崖に76m建てるのは当屋敷の格に合わず、典拠も無い。<br><b>案B</b> … ⛔ <b>閾値を下げると他の縁にも垣が湧く</b>(竹垣は落差のある縁を拾う算出物)。しかも塞ぎきれない。<br><b>案C</b> … ⛔ <b>図の宣言を弱める</b>ことになる。⭕ ただし「表と奥を分ける」の実体は<b>御錠口(確度A)</b>で、屋外の結界はもともと当方の外挿(確度U)。</p>
+<p class="cap"><b>推奨=案C(西斜面を結界の外と認める)。</b>⭕ 西斜面は<b>平場でなく歩く場所でもない地なりの崖</b>で、屋敷の実際の境は<b>外周の木柵(溜池の堤)</b>です。⛔ そこへ内部の仕切りを76m下ろすのは、格にも典拠にも合いません。⚠ 案Cを採る場合は、<b>検査の対象を「法肩まで」と宣言し直し</b>、⛔ <b>「結界は屋外で閉じている」とは書かない</b>(閉じているのは法肩までである、と書く)。</p>
 </div>
 <div class="box" style="border-color:var(--shu)"><h3>⚠ この図で決まらないこと</h3><p>庭方の設計はこの2件のほかに、主景の位置・汀線の形・石組・飛石・植栽・結界塀・稲荷社の位置などを含むが、それらは<b>裁定を要しない設計判断</b>として指図方が書き起こす。いずれも<b>確度U(当方の設計判断・史料の裏づけ無し)</b>で、指図にそう明記する。⛔ 「馬場を置かない」「池を一つに絞る」「蹲踞を置かない」も当方の裁定であって、史料が否定しているわけではない。</p></div>
 </div>

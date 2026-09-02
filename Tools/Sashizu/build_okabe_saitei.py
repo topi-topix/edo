@@ -471,6 +471,163 @@ def main():
              '(こちらは長局の東入側が正面に来るので座敷から見える)。</p>')
     h.append("</div>")
 
+    # ---------------------------------------------------------- 第二次 3件
+    dA2 = B.pipeline(json.loads(json.dumps(raw)))
+    dB2 = _variant2(raw, batterFill=1.0)
+    dC2 = _variant2(raw, featherCap=25.0)
+
+    def _tot(dd):
+        we = dict((t["name"], B.walled_edges(dd, t)) for t in dd["terraces"])
+        st, K9 = ter["step"], dd["const"]["ken"]
+        A9 = (st * K9) ** 2
+        f = c = 0.0
+        for iv in range(ter["nv"]):
+            v = ter["v0"] + iv * st
+            for iu in range(ter["nu"]):
+                u = ter["u0"] + iu * st
+                n = ter["h"][iv][iu]
+                if n is None:
+                    continue
+                dz = B.graded_y(dd, u, v, n, we) - n
+                if dz > 0:
+                    f += dz * A9
+                else:
+                    c += -dz * A9
+        return f - c
+
+    nA, nB, nC = len(B.batter_check(dA2, ter)), len(B.batter_check(dB2, ter)), len(B.batter_check(dC2, ter))
+    tA, tB2, tC = _tot(dA2), _tot(dB2), _tot(dC2)
+    rows2 = _step_line(dA2, ter)
+    K9 = dA2["const"]["ken"]
+    wallL = (rows2[-1][0] - rows2[0][0]) * K9 if rows2 else 0.0
+    wallH = (min(r[2] for r in rows2), max(r[2] for r in rows2),
+             sum(r[2] for r in rows2) / len(rows2)) if rows2 else (0, 0, 0)
+
+    h.append('<hr style="margin:44px 0 8px;border:0;border-top:2px solid var(--rule)">')
+    h.append('<h2 style="margin-top:0">第二次の裁定 — 3件(2026-09-02)</h2>')
+    h.append('<p class="lede">3役(考証・検図・庭方)の初回検分で出た55件のうち、'
+             '<b>46件は指図方が直し</b>、9件が残った。そのうち<b>意匠の判断が要る3件</b>を図にする。'
+             '⛔ 指図方には値を入れさせていないので、いまの指図は'
+             '<b>この3件を「未解決」として毎回刷る</b>状態にしてある。</p>')
+
+    h.append('<div class="plate"><div class="phead"><h2>裁定3　西の法尻の段差をどう受けるか</h2>'
+             '<span class="meta">どこ=敷地北西 グリッド u−8〜+16.5 / v113〜115。指図の切盛図と断面②③</span></div>')
+    h.append('<div class="box"><h3>いま何がどうなっているか(実測)</h3>'
+             '<p>主面(24.80)の西縁から出る盛土(法 1:%.1f)が、'
+             '<b>自然斜面より緩いため到達距離 %.0fm の中で着地しません</b>。'
+             '行き場を失った設計面はそこで打ち切られ、<b>延長 %.1fm・丈 %.2f〜%.2fm(平均 %.2fm)の'
+             '垂直の段差</b>が残ります。法面の検査が <b>%d 件</b>出しているのがこれです。'
+             '⚠ これは庭の追加が原因ではなく、<b>以前から潜んでいたもの</b>です。</p></div>'
+             % (dA2["const"]["batterFill"], dA2["const"]["featherCap"], wallL,
+                wallH[0], wallH[1], wallH[2], nA))
+    h.append('<div class="fig">%s</div>' % toe_section(dA2, dB2, dC2, ter))
+    h.append('<div class="tw"><table><thead><tr><th>　</th><th>案A</th><th>案B</th><th>案C</th>'
+             '</tr></thead><tbody>'
+             '<tr><td>やること</td><td><b>土留めを立てる</b><br>(法面は 1:%.1f のまま)</td>'
+             '<td><b>盛土を 1:1.0 へ</b><br>急にする</td>'
+             '<td><b>法面の到達を</b><br>25m へ延ばす</td></tr>'
+             '<tr><td>法面の検査</td><td>%d件 → <b>0件</b><br>(段差を壁が受ける)</td>'
+             '<td>%d件 → <b>%d件</b></td><td>%d件 → <b>%d件</b></td></tr>'
+             '<tr><td>客土</td><td>%s m³ のまま</td><td><b>%s m³</b>(%+.0f)</td>'
+             '<td><b>%s m³</b>(%+.0f)</td></tr>'
+             '<tr><td>新しく要る物</td><td><b>石垣</b><br>延長%.0fm・丈 最大%.2fm</td>'
+             '<td>無し(定数1つ)</td><td>無し(定数1つ)</td></tr>'
+             '</tbody></table></div>'
+             % (dA2["const"]["batterFill"], nA, nA, nB, nA, nC,
+                "{:,}".format(int(tA)), "{:,}".format(int(tB2)), tB2 - tA,
+                "{:,}".format(int(tC)), tC - tA, wallL, wallH[1]))
+    h.append('<p class="cap"><b>⛔ 案ごとに引っかかること</b><br>'
+             '<b>案A</b> … 石垣が1本増え、図・断面・部材表・実装のすべてに波及する。'
+             '⚠ 郭内の土留めは 2026-08-23 に全廃しており、これを立てると<b>その方針が戻る</b>。<br>'
+             '<b>案B</b> … ⛔ <b>1:1.0 の裸の盛土は崩れる。</b>'
+             '当図が 1:1.5 を採っているのはそれが安全側の標準だから。⭕ 土留めとの併用なら成り立つ。<br>'
+             '<b>案C</b> … ⛔ <b>西斜面を 25m 造成する</b>ことになり、'
+             'CLAUDE.md 規則9「地形は現地形に従う・造成は最小限」に触れる。</p>')
+    h.append('<p class="cap"><b>推奨=案A(土留め)。</b>案Bは客土が %s m³ 減って魅力的に見えますが、'
+             '⛔ <b>1:1.0 の裸の盛土は崩れる</b>ので、結局は土留めが要ります。'
+             '案Cは検査こそ通るものの、⛔ <b>造成を西斜面へ 25m 広げる</b>ので規則9に触れます。'
+             '⭕ 案Aは「造成した以上、その足元は自分で受ける」という素直な形で、'
+             '<b>44.5m の石垣は当屋敷の外周(約780m)に比べれば小さい</b>。'
+             '⚠ ただし郭内の土留めを全廃した 2026-08-23 の方針が戻ることになります。</p>'
+             % "{:,}".format(int(abs(tB2 - tA))))
+    h.append("</div>")
+
+    zones = {}
+    for m in dA2["munes"]:
+        zones.setdefault(m.get("zone", "—"), []).append(m)
+    h.append('<div class="plate"><div class="phead"><h2>裁定4　「表役所」を作るか、作らない理由を書くか</h2>'
+             '<span class="meta">どこ=表向(車寄・玄関棟・書院)。指図「在るべき役割との照合」の表</span></div>')
+    h.append('<div class="box"><h3>いま何がどうなっているか</h3>'
+             '<p>スキルの役割表(外の錨)が<b>「表役所」を必須</b>とするのに、'
+             '当図には<b>棟も室もありません</b>。'
+             '⛔ この行はつい先ほどまで「○(達成)」と刷られていました — '
+             '検査が <code>json</code> の文字列一致で、'
+             '<b>「当図に表役所という棟は無く」という否定文に一致していた</b>ためです'
+             '(当邸4例目の同型)。いまは正しく <b>⛔</b> が出ます。</p></div>')
+    h.append('<div class="tw"><table><thead><tr><th>ゾーン</th><th>棟</th><th>室</th>'
+             '</tr></thead><tbody>'
+             + "".join("<tr><td>%s</td><td><code>%s</code></td><td class='note'>%s</td></tr>"
+                       % (z, m["name"], "・".join(r["name"] for r in m.get("rooms", [])) or "—")
+                       for z in ("表向", "中奥", "奥向") for m in zones.get(z, []))
+             + "</tbody></table></div>")
+    h.append('<div class="tw"><table><thead><tr><th>　</th><th>案A</th><th>案B</th><th>案C</th>'
+             '</tr></thead><tbody>'
+             '<tr><td>やること</td><td><b>表役所の棟を新設</b>する(表向・玄関棟の北)</td>'
+             '<td><b>玄関棟の中に室として設ける</b>(使者之間の隣)</td>'
+             '<td><b>作らない</b>と決め、理由を指図に書く</td></tr>'
+             '<tr><td>建蔽率</td><td>上がる(棟が1つ増える)</td><td><b>変わらない</b></td>'
+             '<td>変わらない</td></tr>'
+             '<tr><td>波及</td><td>棟と室の表・建蔽率・切盛・実装</td>'
+             '<td>玄関棟の室割りだけ</td><td>文章だけ</td></tr>'
+             '</tbody></table></div>')
+    h.append('<p class="cap">⚠ <b>史実はどの案も確度U</b> — 当屋敷の指図は現存未確認です。'
+             '⭕ ただし案Bは<b>室割りが図面だけの情報</b>で実装との突き合わせ対象外なので、'
+             '間違っていたときの影響がいちばん小さい。'
+             '⛔ 案Cを採る場合は「<b>無かった</b>」も推定であると明記が要ります。</p>')
+    h.append('<p class="cap"><b>推奨=案B(玄関棟の室として設ける)。</b>'
+             '表役所は留守居・用人が詰める事務の場で、'
+             '<b>当家の石高(5万3千石)では独立した棟を構える規模ではない</b>と考えられます。'
+             '⭕ 玄関棟には既に<b>使者之間</b>があり、来客の応対と事務は同じ棟に納まるのが自然です。'
+             '⚠ いずれの案も<b>確度U(当方の設計判断)</b>で、当屋敷の指図は現存未確認です。</p>')
+    h.append("</div>")
+
+    h.append('<div class="plate"><div class="phead"><h2>裁定5　結界の西の抜けをどう始末するか</h2>'
+             '<span class="meta">どこ=結界塀 W6 の西端(グリッド u−19, v111.25)から西の斜面</span></div>')
+    h.append('<div class="box"><h3>いま何がどうなっているか(実測)</h3>'
+             '<p>表(玄関・書院・泉水)と奥(中奥・奥向・長局・奥庭)を屋外でも分けるため、'
+             '結界塀を7区間まわして中門と木戸を一口ずつ開けました。'
+             '⛔ ところが<b>その一口を両方閉めても、西の斜面を回って表から奥へ抜けられます</b>。'
+             '検査(升目を歩く経路探索)が毎回そう出します。'
+             '⚠ W6 の西端から外周の木柵(溜池の堤)まで<b>75.9m</b>あり、'
+             'その間は地なりの西斜面で <b>24.46 から 8.5 へ 16m 下ります</b>。</p></div>')
+    h.append('<div class="fig">%s</div>' % kekkai_plan(dA2))
+    h.append('<div class="tw"><table><thead><tr><th>　</th><th>案A</th><th>案B</th><th>案C</th>'
+             '</tr></thead><tbody>'
+             '<tr><td>やること</td><td><b>W6 を外周の木柵まで約76m 延ばす</b></td>'
+             '<td><b>法肩に竹垣を回す</b>(生成の閾値 <code>takegakiDrop</code> 1.0m を下げる)</td>'
+             '<td><b>西斜面を「奥の郭の外」と認める</b> — 結界は法肩まで</td></tr>'
+             '<tr><td>検査</td><td>0件になる</td>'
+             '<td>⛔ <b>0件にならない</b> — 斜面は 0.29〜0.72m/0.5間 でどこまで下っても歩ける</td>'
+             '<td>検査の対象を法肩までに絞る(=図の宣言を実態へ合わせる)</td></tr>'
+             '<tr><td>新しく要る物</td><td><b>16m 下る斜面を降りる塀 76m</b></td>'
+             '<td>竹垣が斜面一帯に増える(本数は算出)</td><td>無し</td></tr>'
+             '</tbody></table></div>')
+    h.append('<p class="cap"><b>⛔ 案ごとに引っかかること</b><br>'
+             '<b>案A</b> … ⛔ <b>屋敷内部の仕切りとしては過大。</b>'
+             'のし塀 h1.8 を崖に76m建てるのは当屋敷の格に合わず、典拠も無い。<br>'
+             '<b>案B</b> … ⛔ <b>閾値を下げると他の縁にも垣が湧く</b>'
+             '(竹垣は落差のある縁を拾う算出物)。しかも塞ぎきれない。<br>'
+             '<b>案C</b> … ⛔ <b>図の宣言を弱める</b>ことになる。'
+             '⭕ ただし「表と奥を分ける」の実体は<b>御錠口(確度A)</b>で、'
+             '屋外の結界はもともと当方の外挿(確度U)。</p>')
+    h.append('<p class="cap"><b>推奨=案C(西斜面を結界の外と認める)。</b>'
+             '⭕ 西斜面は<b>平場でなく歩く場所でもない地なりの崖</b>で、'
+             '屋敷の実際の境は<b>外周の木柵(溜池の堤)</b>です。'
+             '⛔ そこへ内部の仕切りを76m下ろすのは、格にも典拠にも合いません。'
+             '⚠ 案Cを採る場合は、<b>検査の対象を「法肩まで」と宣言し直し</b>、'
+             '⛔ <b>「結界は屋外で閉じている」とは書かない</b>(閉じているのは法肩までである、と書く)。</p>')
+    h.append("</div>")
+
     h.append('<div class="box" style="border-color:var(--shu)"><h3>⚠ この図で決まらないこと</h3>'
              '<p>庭方の設計はこの2件のほかに、主景の位置・汀線の形・石組・飛石・植栽・結界塀・稲荷社の'
              '位置などを含むが、それらは<b>裁定を要しない設計判断</b>として指図方が書き起こす。'
@@ -482,6 +639,143 @@ def main():
     print("wrote %s (%d KB)" % (OUT, os.path.getsize(OUT) // 1024))
     print("裁定1の効き目 %+.0f m³ / 客土 案B %d → 案A %d m³(−%.0f%%)"
           % (-save, int(netB), int(netA), 100.0 * save / netB))
+
+
+
+
+# ================================================================ 第二次(2026-09-02)
+# 3役の検分55件のうち、意匠の判断が要って指図方に値を入れさせなかった3件。
+# ⛔ 数値は一つも手で書かない — すべて設計を実際に組み直して測る。
+
+def _variant2(raw, **kw):
+    """const を差し替えた設計を組む。"""
+    import copy
+    d = copy.deepcopy(raw)
+    d["const"].update(kw)
+    return B.pipeline(d)
+
+
+def _step_line(d, ter):
+    """設計面が自然より高いまま打ち切られる線(=土留めが要る線)。u ごとに最大の段差。"""
+    we = dict((t["name"], B.walled_edges(d, t)) for t in d["terraces"])
+    rows = []
+    u = -16.0
+    while u <= 17.0 + 1e-9:
+        best = None
+        v = 106.0
+        while v <= 122.0:
+            n1 = B._dem_at(d, u, v); n2 = B._dem_at(d, u, v + 0.5)
+            if n1 is not None and n2 is not None:
+                g1 = B.graded_y(d, u, v, n1, we); g2 = B.graded_y(d, u, v + 0.5, n2, we)
+                dr = (g1 - g2) - (n1 - n2)
+                if dr > 0.5 and (best is None or dr > best[1]):
+                    best = (v, dr, g1, n1)
+            v += 0.5
+        if best:
+            rows.append((u,) + best)
+        u += 0.5
+    return rows
+
+
+def toe_section(dA, dB, dC, ter, at_u=5.0, v0=105.0, v1=118.0):
+    """裁定3の断面 — **1枚の枠に4本**(自然/現況/案B/案C)。縮尺を揃えるため重ねる。"""
+    W, H = 940.0, 330.0
+    y0, y1 = 14.0, 26.5
+    sx = (W - 130) / (v1 - v0)
+
+    def X(v):
+        return 80 + (v - v0) * sx
+
+    def Y(y):
+        return H - 58 - (y - y0) / (y1 - y0) * (H - 108)
+
+    g = sv(W, H, "裁定3 西の法尻の断面")
+    RC(g, 70, 34, W - 100, H - 96, "var(--paper2)", "var(--rule)", 0.8, 0.55)
+    for yy in range(14, 27, 2):
+        LN(g, 76, Y(yy), W - 34, Y(yy), "var(--rule)", 0.6, "3 4", 0.8)
+        T(g, 72, Y(yy) + 3, "%d" % yy, "anS2", "end", 9)
+    nat = []
+    v = v0
+    while v <= v1 + 1e-9:
+        z = B._dem_at(dA, at_u, v)
+        if z is not None:
+            nat.append((v, z))
+        v += 0.25
+    g.append('<polyline points="%s" fill="none" stroke="var(--ink)" stroke-width="1.6" '
+             'stroke-dasharray="6 3" opacity="0.9"/>'
+             % " ".join("%.1f,%.1f" % (X(a), Y(b)) for a, b in nat))
+    for dd, col, wd, lab in ((dA, "var(--shu)", 2.4, "現況(盛土 1:1.5)— 着地せず打ち切られる"),
+                             (dB, "#2E6E7A", 1.8, "案B 盛土を 1:1.0 へ急にする"),
+                             (dC, "#6E5A2E", 1.8, "案C 法面の到達を 25m へ延ばす")):
+        we = dict((t["name"], B.walled_edges(dd, t)) for t in dd["terraces"])
+        pts = [(a, B.graded_y(dd, at_u, a, b, we)) for a, b in nat]
+        g.append('<polyline points="%s" fill="none" stroke="%s" stroke-width="%g"/>'
+                 % (" ".join("%.1f,%.1f" % (X(a), Y(b)) for a, b in pts), col, wd))
+    # 案A の土留め
+    rows = _step_line(dA, ter)
+    hit = [r for r in rows if abs(r[0] - at_u) < 0.26]
+    if hit:
+        vw, dr, gy, ny = hit[0][1], hit[0][2], hit[0][3], hit[0][4]
+        RC(g, X(vw) - 4, Y(gy), 8, Y(ny) - Y(gy), "var(--ishi)", "var(--ink)", 1.0, 0.85)
+        T(g, X(vw) + 10, Y(gy) - 6, "案A 土留め(この断面で丈 %.2fm)" % dr, "anS2", "start", 11)
+    for v9 in range(int(v0), int(v1) + 1, 2):
+        LN(g, X(v9), H - 54, X(v9), H - 48, "var(--dim)", 0.8)
+        T(g, X(v9), H - 38, "v%d" % v9, "anS2", "middle", 9)
+    T(g, 6, 16, "断面 u=+5(西の法尻を南北に切る)／縦横同一縮尺・単位 m(海抜)／"
+      "破線=江戸期の復元地盤。⛔ 4本を**同じ枠に重ねて**ある — 別々の図にすると差が読めない",
+      "anS2", "start", 11)
+    for i, (col, lab) in enumerate((("var(--ink)", "江戸期の復元地盤(破線)"),
+                                    ("var(--shu)", "現況(盛土 1:1.5)"),
+                                    ("#2E6E7A", "案B 1:1.0"),
+                                    ("#6E5A2E", "案C 到達25m"))):
+        LN(g, 90 + i * 210, H - 14, 118 + i * 210, H - 14, col, 2.4)
+        T(g, 124 + i * 210, H - 10, lab, "anS2", "start", 10)
+    g.append("</svg>")
+    return "\n".join(g)
+
+
+def kekkai_plan(d):
+    """裁定5 — 結界の線と、開口を全部閉じても残る西の抜け。"""
+    W, H = 940.0, 470.0
+    u0, u1, v0, v1 = -46.0, 34.0, 70.0, 170.0
+    sc = min((W - 60) / (v1 - v0), (H - 90) / (u1 - u0))
+
+    def X(v):
+        return 30 + (v1 - v) * sc
+
+    def Y(u):
+        return 52 + (u1 - u) * sc
+
+    g = sv(W, H, "裁定5 結界の西の抜け")
+    sh = next(t for t in d["terraces"] if t["name"] == "Shumen")
+    g.append('<polygon points="%s" fill="rgba(150,140,120,0.14)" stroke="var(--ink)" stroke-width="1.2"/>'
+             % " ".join("%.1f,%.1f" % (X(q[1]), Y(q[0])) for q in B.tpoly(sh)))
+    P = d["polygon"]
+    gr = B.RGrid(d)
+    pl = [gr.L(q[0], q[1]) for q in P]
+    g.append('<polygon points="%s" fill="none" stroke="var(--dim)" stroke-width="1.4" stroke-dasharray="7 4"/>'
+             % " ".join("%.1f,%.1f" % (X(q[1]), Y(q[0])) for q in pl))
+    for m in d["munes"]:
+        RC(g, X(m["v1"]), Y(m["u1"]), (m["v1"] - m["v0"]) * sc, (m["u1"] - m["u0"]) * sc,
+           "var(--nagaya)", "var(--ink)", 0.7, 0.85)
+    for w in d.get("kekkai", []):
+        a, b = w["a"], w["b"]
+        LN(g, X(a[1]), Y(a[0]), X(b[1]), Y(b[0]), "var(--hei)", 4.0)
+    T(g, X(79.0), Y(28.0) - 8, "結界塀 W1〜W7(v=79 と u=−19 の線)", "anS2", "middle", 11)
+    # 抜けの経路(模式)
+    esc = [(-19.5, 82.0), (-26.0, 95.0), (-33.0, 106.0), (-37.6, 112.0), (-37.6, 79.0), (-30.0, 66.0)]
+    g.append('<polyline points="%s" fill="none" stroke="var(--shu)" stroke-width="2.6" '
+             'stroke-dasharray="9 5"/>' % " ".join("%.1f,%.1f" % (X(q[1]), Y(q[0])) for q in esc))
+    T(g, X(112.0), Y(-40.0), "⛔ 開口を全部閉じても残る抜け", "anS2", "middle", 11)
+    T(g, X(79.0), Y(-37.6) + 14, "v=79 を u=−37.63 で越える", "anS2", "middle", 10)
+    for lab, uu, vv in (("表", 8.0, 60.0), ("奥", -10.0, 95.0), ("西斜面(地なり)", -30.0, 130.0)):
+        T(g, X(vv), Y(uu), lab, "anS2", "middle", 12)
+    T(g, 6, 16, "結界(v=79 と u=−19)と、開口を全部閉じたときに残る西の抜け。"
+      "灰=主面(24.80)/ 破線=区画線 / 茶=御殿の棟。向き: u+ が北(上)・v+ が西(左)", "anS2", "start", 11)
+    T(g, 6, 32, "⛔ W6 の西端(u=−19, v=111.25)から外周の木柵(辺5)まで **75.9m** ある。"
+      "その間は地なりの西斜面で、24.46 から 8.5 へ 16m 下る。", "anS2", "start", 10)
+    g.append("</svg>")
+    return "\n".join(g)
 
 
 if __name__ == "__main__":

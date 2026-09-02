@@ -1469,12 +1469,12 @@ def run_seat_check(d, tol=0.6):
     地盤は matsudaira_dewa_terrain.json(造成前)から読む。埋没(地盤>天端)は即不可、
     浮きは石垣基壇 4.0×s で受けられる範囲まで許す。"""
     try:
-        terr = json.load(open(os.path.join(DOC, "matsudaira_dewa_terrain.json"), encoding="utf-8"))
+        terr = json.load(open(os.path.join(DOC, "matsudaira_dewa_edo_dem.json"), encoding="utf-8"))
     except Exception as ex:
         # ⛔ **`return []` にしない。** 地盤が読めないのは「合格」ではなく「**回っていない**」。
         #   土井が同じ形を自邸で8本見つけた(2026-08-26 EDO-0029)。当方も2本あった。
         #   `qa-and-pitfalls.md`「測れないものは 0 件になる」。
-        return ["matsudaira_dewa_terrain.json が読めず **この検査は回っていない**(合格ではない): %s" % ex]
+        return ["matsudaira_dewa_edo_dem.json が読めず **この検査は回っていない**(合格ではない): %s" % ex]
     gr = RGrid(d)
     P = d["polygon"]
     n = len(P)
@@ -2208,8 +2208,8 @@ def terrain_provenance_check(d):
     両方の「0件」が意味を失う(2026-08-23 に4邸が live terrain を『造成前』として吸い込んだ事故と同型)。
     """
     try:
-        tj = json.load(open(os.path.join(DOC, "matsudaira_dewa_terrain.json"), encoding="utf-8"))
-        dem = json.load(open(os.path.join(DOC, "matsudaira_dewa_dem.json"), encoding="utf-8"))
+        tj = json.load(open(os.path.join(DOC, "matsudaira_dewa_edo_dem.json"), encoding="utf-8"))
+        dem = json.load(open(os.path.join(DOC, "matsudaira_dewa_edo_world.json"), encoding="utf-8"))
     except Exception as ex:
         return ["地形の出所を照合できない — **この検査は回っていない**(合格ではない): %s" % ex]
     g = d["grid"]["shukaku"]
@@ -2290,7 +2290,7 @@ def outside_bury_check(d):
     ⚠ 造成前の地盤(`<屋敷>_dem.json` = 正本の切り出し)で測る。live terrain は使わない(規則12)。
     """
     try:
-        dem = json.load(open(os.path.join(DOC, "matsudaira_dewa_dem.json"), encoding="utf-8"))
+        dem = json.load(open(os.path.join(DOC, "matsudaira_dewa_edo_world.json"), encoding="utf-8"))
     except Exception:
         return ["matsudaira_dewa_dem.json が読めない — 外側の埋没を測れない(測れないものは0件になる)"]
     x0, z0 = dem["x0"], dem["z0"]
@@ -2732,12 +2732,12 @@ def kaidan_ground_check(d):
     """石段の落差が、その位置の造成前地盤と面の差に合っているか。
     2026-08-23: 御蔵門の石段が『存在しない帯』の上に置かれ、降りた先が窪地になっていた。"""
     try:
-        terr = json.load(open(os.path.join(DOC, "matsudaira_dewa_terrain.json"), encoding="utf-8"))
+        terr = json.load(open(os.path.join(DOC, "matsudaira_dewa_edo_dem.json"), encoding="utf-8"))
     except Exception as ex:
         # ⛔ **`return []` にしない。** 地盤が読めないのは「合格」ではなく「**回っていない**」。
         #   土井が同じ形を自邸で8本見つけた(2026-08-26 EDO-0029)。当方も2本あった。
         #   `qa-and-pitfalls.md`「測れないものは 0 件になる」。
-        return ["matsudaira_dewa_terrain.json が読めず **この検査は回っていない**(合格ではない): %s" % ex]
+        return ["matsudaira_dewa_edo_dem.json が読めず **この検査は回っていない**(合格ではない): %s" % ex]
     bad = []
     for k in d["kaidans"]:
         if "pos" not in k:
@@ -5878,9 +5878,14 @@ _TERR = {}
 
 
 def _terr_json():
-    """造成前の地形(回転間格子)。⛔ live terrain から採らない(CLAUDE.md 規則13)。"""
+    """**造成前の地形 = 江戸期の復元地盤**(回転間格子)。⛔ live terrain から採らない(規則13)。
+
+    ⭐ **2026-09-02 に `matsudaira_dewa_terrain.json`(手書き・現代の地面)から
+    `matsudaira_dewa_edo_dem.json`(生成器 `build_matsudaira_dewa_edo_dem.py` の派生物)へ切り替えた。**
+    ⛔ EDO-0114: 溜池側の西斜面は江戸期の復元が当たっていない現代の地面のままで、
+    指図の帯・遮蔽木は全部その上に立っていた。⚠ 復元の仕様が無いあいだは両者は同一(復元0セル)。"""
     if not _TERR:
-        _TERR.update(json.load(open(os.path.join(DOC, "matsudaira_dewa_terrain.json"),
+        _TERR.update(json.load(open(os.path.join(DOC, "matsudaira_dewa_edo_dem.json"),
                                     encoding="utf-8")))
     return _TERR
 
@@ -5891,7 +5896,9 @@ _DEMJ = {}
 def _dem_json():
     """区画まわりの造成前 DEM(世界格子)。⛔ live terrain から採らない(規則13)。"""
     if not _DEMJ:
-        _DEMJ.update(json.load(open(os.path.join(DOC, "matsudaira_dewa_dem.json"),
+        # ⭐ 2026-09-02: 現代の切り出し `matsudaira_dewa_dem.json` → 江戸期の復元 `_edo_world.json`
+        #   (窓は同じ x0/z0/nx/nz。復元の仕様が無いあいだは値も同一)
+        _DEMJ.update(json.load(open(os.path.join(DOC, "matsudaira_dewa_edo_world.json"),
                                     encoding="utf-8")))
     return _DEMJ
 
@@ -10640,11 +10647,11 @@ def main():
     d = json.load(open(JSON, encoding="utf-8"))
     prose = md2html(open(MD, encoding="utf-8").read())
     # 造成前の地形【確度P】。**生成器はこれを読む — 実装は読まない**(§3a/§3b)
-    dem = json.load(open(os.path.join(DOC, "matsudaira_dewa_dem.json"), encoding="utf-8"))
+    dem = json.load(open(os.path.join(DOC, "matsudaira_dewa_edo_world.json"), encoding="utf-8"))
     DAN = dan_map(d)
     # ⭐ **`eye` を持たない主視点の眼高を、下の設計地盤+姿勢から埋める**(⛔ 指図に眼高を直書きさせない)
     fill_viewpoint_eyes(d)
-    terr = json.load(open(os.path.join(DOC, "matsudaira_dewa_terrain.json"), encoding="utf-8"))
+    terr = json.load(open(os.path.join(DOC, "matsudaira_dewa_edo_dem.json"), encoding="utf-8"))
     parcels = json.load(open(os.path.join(DOC, "parcels.json"), encoding="utf-8"))
     NEI = [("土井大隅守邸", "doi", "#7a4a8a"), ("岡部内膳正邸", "okabe", "#2f6b4f")]
     neighbours = []
@@ -11266,7 +11273,8 @@ def main():
     h.append("</div>")
 
     # ------------------------------------------------------------ 土井境の納まり
-    _dem_s = json.load(open(os.path.join(DOC, "matsudaira_dewa_dem.json"), encoding="utf-8"))
+    # ⭐ 2026-09-02: 設計の地盤は一枚 — 江戸期の復元地盤(edo_world)。土井境は edgeClip で正本と一致する
+    _dem_s = _dem_json()
     plate(h, nx(), "土井境の納まり", "隅は塀のてっぺんを揃える(2026-08-29 ユーザー裁定・EDO-0053)")
     h.append('<p class="cap">土井家との境の塀は、内側の自然地盤が高いので足元を 27.93m に置いている'
              '(2026-08-24。土井側と突き合わせて決めた高さで動かせない — EDO-0025)。'

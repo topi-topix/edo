@@ -634,6 +634,44 @@ def main():
              '「崖の上まで塀を回した」と正直に書くほうが図として強くなります。</p>')
     h.append("</div>")
 
+    # ---------------------------------------------------------- 第三次 裁定6
+    ter6 = B.load_terrain(os.path.join(DOC, "okabe_edo_dem.json"))
+    svg6, ar6 = hojiri_plan(dA2, ter6)
+    tot6 = (ar6["mado"] + ar6["S"] + ar6["N"]) / 3.3058
+    h.append('<hr style="margin:44px 0 8px;border:0;border-top:2px solid var(--rule)">')
+    h.append('<h2 style="margin-top:0">第三次の裁定 — 1件(2026-09-02)</h2>')
+    h.append('<div class="plate"><div class="phead"><h2>裁定6　溜池の岸の平らな帯に、建物を置くか</h2>'
+             '<span class="meta">どこ=西の法尻から柵まで(v134〜165)。指図「西の斜面と溜池の岸」</span></div>')
+    h.append('<div class="box"><h3>まず、何の話か</h3>'
+             '<p>屋敷の西は、平場から林の斜面を下りると<b>溜池の岸に平らな帯</b>(勾配 2〜7%%)があり、'
+             'それが区画の中に <b>%.0f坪</b> あります。いまの指図はここを<b>刈草地に榎3本</b>で空けています。'
+             '⛔ ところが「なぜ空けるのか」の理由も典拠も書いてありません。'
+             '考証方は「<b>江戸の上屋敷がこの規模の平場を草地のまま空けた例を知らない</b>」と言い、'
+             '庭方も「<b>建物があるほうが尤もらしい</b>」と見ています。</p>'
+             '<p>⭕ 同時代の図(江戸名所図会「溜池」)は、<b>同じ崖の裾に長屋の屋根の列</b>を描いています。'
+             '⚠ それは南隣の十坊のものである可能性が高く、当邸の裾と断定はできません。'
+             '⛔ ただし「断定できない」は「無かった」ではありません。</p>'
+             '<p>⛔ <b>見透しの窓の扇の中(%.0f坪)は、どちらの案でも空けたまま</b>です — '
+             '屋根が窓へ入ると溜池の借景が壊れます。置ける余地は<b>南 %.0f坪・北 %.0f坪</b>。</p></div>'
+             % (tot6, ar6["mado"] / 3.3058, ar6["S"] / 3.3058, ar6["N"] / 3.3058))
+    h.append('<div class="fig">%s</div>' % svg6)
+    h.append('<div class="tw"><table><thead><tr><th>　</th><th>案A 草地のまま</th>'
+             '<th>案B 南北の余地に建物を置く</th></tr></thead><tbody>'
+             '<tr><td>やること</td><td>いまのまま。<b>「空けるのは当方の裁定(U)」</b>と理由を書く</td>'
+             '<td>窓の外の南北に<b>家臣長屋・厩・土蔵</b>の類を置く</td></tr>'
+             '<tr><td>見た目</td><td>林の裾に開けた草地と大木3本、<br>その先に柵と葦と水面</td>'
+             '<td>林の裾に長屋の屋根が並ぶ<br>(名所図会の「裾の屋根の列」に近づく)</td></tr>'
+             '<tr><td>史料</td><td>⚠ 空地であった典拠は無い(U)</td>'
+             '<td>⚠ 当邸の裾に建物があった典拠も無い(U)</td></tr>'
+             '<tr><td>建蔽率</td><td>11.2% のまま</td><td>上がる(棟数による)</td></tr>'
+             '<tr><td>波及</td><td>文章だけ</td><td>棟と室の表・建蔽率・動線・部材</td></tr>'
+             '</tbody></table></div>')
+    h.append('<p class="cap"><b>推奨=案B。</b>⭕ 理由は「江戸のその土地として尤もらしいか」の一点です — '
+             '<b>千坪の平場を上屋敷が空けておく例が無く</b>、建蔽率 11.2% の低さの一因もここにあります。'
+             '⚠ ただし置く物と位置は<b>屋敷の型(家臣長屋は外周・土蔵は勝手の側)から決める意匠判断</b>で、'
+             '典拠はどちらの案も U です。⭕ 案Bなら、次の巡で「何をどこに」を図にしてお諮りします。</p>')
+    h.append("</div>")
+
     h.append('<div class="box" style="border-color:var(--shu)"><h3>⚠ この図で決まらないこと</h3>'
              '<p>第一次(庭)の2件のほかに、主景の位置・汀線の形・石組・飛石・植栽・結界塀・稲荷社の'
              '位置などを含むが、それらは<b>裁定を要しない設計判断</b>として指図方が書き起こす。'
@@ -830,6 +868,75 @@ def kekkai_plan(d):
       "anS2", "start", 11)
     g.append("</svg>")
     return "\n".join(g)
+
+def hojiri_plan(d, ter):
+    """裁定6 — 法尻の帯(千坪の桁)。窓の扇は空けたまま、南北の余地に建物を置くか。"""
+    W, H = 940.0, 520.0
+    u0, u1, v0, v1 = -30.0, 32.0, 100.0, 172.0
+    sc = min((W - 60) / (v1 - v0), (H - 100) / (u1 - u0))
+
+    def X(v):
+        return 30 + (v1 - v) * sc
+
+    def Y(u):
+        return 60 + (u1 - u) * sc
+
+    def half(v):
+        if v <= 134.4:
+            return 5.0 + 3.0 * (v - 108.5) / (134.4 - 108.5)
+        return 8.0 + 3.5 * (v - 134.4) / (165.0 - 134.4)
+
+    g = sv(W, H, "裁定6 法尻の帯")
+    step, K = ter["step"], d["const"]["ken"]
+    A = (step * K) ** 2
+    area = {"mado": 0.0, "S": 0.0, "N": 0.0}
+    for iv in range(ter["nv"]):
+        v = ter["v0"] + iv * step
+        if not (100.0 <= v <= 172.0):
+            continue
+        for iu in range(ter["nu"]):
+            u = ter["u0"] + iu * step
+            z = ter["h"][iv][iu]
+            if z is None or not B.in_parcel(d, u, v):
+                continue
+            if z > 24.0:
+                col = "rgba(150,140,120,0.35)"          # 主面
+            elif z > 12.9:
+                col = "rgba(110,150,105,0.30)"          # 斜面(林)
+            else:
+                col = "rgba(214,196,120,0.45)"          # 法尻の帯(草地)
+                if v >= 134.4:
+                    h = half(v)
+                    if abs(u - 0.5) <= h:
+                        area["mado"] += A; col = "rgba(214,196,120,0.20)"
+                    elif u < 0.5 - h:
+                        area["S"] += A; col = "rgba(198,93,58,0.35)"
+                    else:
+                        area["N"] += A; col = "rgba(46,110,122,0.35)"
+            RC(g, X(v + step), Y(u + step), step * sc + 0.6, step * sc + 0.6, col)
+    P = d["polygon"]; gr = B.RGrid(d)
+    pl = [gr.L(q[0], q[1]) for q in P]
+    g.append('<polygon points="%s" fill="none" stroke="var(--ink)" stroke-width="1.4" stroke-dasharray="7 4"/>'
+             % " ".join("%.1f,%.1f" % (X(q[1]), Y(q[0])) for q in pl))
+    # 扇の縁
+    fan = [(0.5 - half(v), v) for v in (108.5, 134.4, 165.0)] + \
+          [(0.5 + half(v), v) for v in (165.0, 134.4, 108.5)]
+    g.append('<polygon points="%s" fill="none" stroke="var(--shu)" stroke-width="2.0"/>'
+             % " ".join("%.1f,%.1f" % (X(q[1]), Y(q[0])) for q in fan))
+    for m in d["munes"]:
+        RC(g, X(m["v1"]), Y(m["u1"]), (m["v1"] - m["v0"]) * sc, (m["u1"] - m["u0"]) * sc,
+           "var(--nagaya)", "var(--ink)", 0.7, 0.85)
+    T(g, X(150.0), Y(0.5) + 4, "見透しの窓(扇)— 空けたまま %.0f坪" % (area["mado"] / 3.3058), "anS2", "middle", 11)
+    T(g, X(147.0), Y(-17.0) + 4, "南の余地 %.0f坪" % (area["S"] / 3.3058), "anS2", "middle", 12)
+    T(g, X(150.0), Y(19.0) + 4, "北の余地 %.0f坪" % (area["N"] / 3.3058), "anS2", "middle", 12)
+    T(g, X(120.0), Y(-24.0), "斜面(林)", "anS2", "middle", 11)
+    T(g, X(104.0), Y(-12.0), "主面 24.8", "anS2", "middle", 11)
+    T(g, X(168.0), Y(28.0), "溜池", "anS2", "middle", 11)
+    T(g, 6, 16, "法尻の帯(標高 9.6〜12.9・勾配 2〜7%)。灰=主面 / 緑=斜面の林 / 黄=刈草地 / "
+      "朱の枠=見透しの窓の扇(⛔ ここには建てない)/ 橙・青=建物を置ける余地", "anS2", "start", 11)
+    T(g, 6, 32, "向き: u+ が北(上)・v+ が西(左)。破線=区画線。", "anS2", "start", 10)
+    g.append("</svg>")
+    return "\n".join(g), area
 
 
 

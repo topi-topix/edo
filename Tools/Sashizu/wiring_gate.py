@@ -352,6 +352,92 @@ def _live(main_fp):
     return wt if os.path.getmtime(wt) > os.path.getmtime(main_fp) else main_fp
 
 
+# ────────────────────────────────────────────────────────────────────────────
+# 自己検査 — 「既知の欠陥を仕込んだ版で必ず鳴る」を毎回確かめる
+# ────────────────────────────────────────────────────────────────────────────
+# ⭐ **2026-09-02 岡部の提案。**⛔ この道具は一度、免除を広げすぎて**全29検査が免除に落ち、
+#   検出が丸ごと死んだ**ことがある。⚠ そのとき道具は「0件」を出しており、
+#   **外からは「直った」と区別が付かなかった**(気づけたのは岡部が実物で回したから)。
+#   ⇒ **検出が死んでいないこと自体を機械で見張る。**
+#
+#   python3 Tools/Sashizu/wiring_gate.py --selftest
+
+_CLEAN = """
+def foo_check(d):
+    return []
+
+def bar_table(d):
+    return "x"
+
+def main():
+    bad = foo_check(d)
+    print("foo: %d 件" % len(bad))
+    h = [bar_table(d)]
+    return h
+"""
+
+_CASES = [
+    # (題, 仕込む欠陥, 期待する種別, 期待する検査/産物名)
+    ("孤立(呼ばれない表)",
+     _CLEAN.replace("    h = [bar_table(d)]\n", "    h = []\n"), "orphan", "bar_table"),
+    ("捨て(戻り値を受け取らない)",
+     _CLEAN.replace("    bad = foo_check(d)\n    print(\"foo: %d 件\" % len(bad))\n",
+                    "    foo_check(d)\n"), "discarded", "foo_check"),
+    ("黙り(件数が図の中で消える)",
+     _CLEAN.replace('    print("foo: %d 件" % len(bad))\n',
+                    '    cap = "<p>foo: %d 件</p>" % len(bad)\n'), "mute", "foo_check"),
+    ("0件で沈黙(if で守られている)",
+     _CLEAN.replace('    print("foo: %d 件" % len(bad))\n',
+                    '    if bad:\n        print("foo: %d 件" % len(bad))\n'),
+     "guarded", "foo_check"),
+]
+
+
+def selftest():
+    """⛔ 落ちたら**この道具の検出が死んでいる**。コードでなく道具を疑うこと。"""
+    import tempfile
+    ng = 0
+
+    def _run(src):
+        fd, fp = tempfile.mkstemp(suffix=".py")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(src)
+        try:
+            return audit(fp)
+        finally:
+            os.unlink(fp)
+
+    r = _run(_CLEAN)
+    clean_hits = len(r["orphan"]) + len(r["discarded"]) + len(r.get("mute", ()))
+    if clean_hits:
+        print("⛔ 健全な版で %d 件鳴った(誤検出)" % clean_hits)
+        ng += 1
+    else:
+        print("⭕ 健全な版では鳴らない")
+
+    for title, src, kind, want in _CASES:
+        r = _run(src)
+        if kind == "guarded":
+            got = [o["name"] for o in r.get("mute", ()) if o.get("why") == "guarded"]
+        elif kind == "mute":
+            got = [o["name"] for o in r.get("mute", ()) if o.get("why") != "guarded"]
+        else:
+            got = [o["name"] for o in r[kind]]
+        if want in got:
+            print("⭕ %s → %s を鳴らした" % (title, want))
+        else:
+            print("⛔ %s → **鳴らなかった**(期待 %s / 実際 %s)" % (title, want, got or "0件"))
+            ng += 1
+
+    print()
+    if ng:
+        print("⛔ 自己検査 %d 件失敗 — **この道具の検出が死んでいる。**"
+              "⚠ 邸の生成器が0件でも、それは合格の意味を持たない。" % ng)
+    else:
+        print("⭕ 自己検査 全通 — 4型とも生きている。")
+    return 1 if ng else 0
+
+
 def targets(argv):
     """⭐ **邸名でも引ける**(2026-09-02 infra セッションの申し送り) —
     `review_gate.py okabe` / `review_ledger.py okabe` が邸名で引けるのに、
@@ -397,7 +483,12 @@ def main():
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--surfaced", nargs=2, metavar=("RUN.LOG", "OUT.HTML"),
                     help="実行ログの ⚠ 行が成果物 HTML に載っているかを突き合わせる")
+    ap.add_argument("--selftest", action="store_true",
+                    help="既知の欠陥を仕込んだ版で必ず鳴ることを確かめる(検出が死んでいないか)")
     a = ap.parse_args()
+
+    if a.selftest:
+        return selftest()
 
     if a.surfaced:
         warn_lines, miss = surfaced(*a.surfaced)

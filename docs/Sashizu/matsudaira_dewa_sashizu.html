@@ -75,7 +75,7 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <div class="box" style="border-color:var(--shu);margin-top:14px"><h3>基準年次と確度</h3><p><b>「松平出羽守」は斉貴(〜嘉永6年9月)と定安(嘉永6年9月〜)のどちらも指す。</b><b>シーンの基準年次は安政3年(1856)</b>(2026-08-29 ユーザー裁定)なので、<b>当主は定安</b>。⛔ 嘉永前半の斉貴についての記述を基準年次へ読み替えない。<br><b>当屋敷の指図・絵図は散逸</b>(藩主家の史料自体が散逸)。表門まわりの部材・意匠は明治初期の実写真(江戸東京博物館 温古写真集11)から起こした<b>確度A</b>(表門=屋根なし冠木門+両唐破風番所【写真A+日本案内記A/安政3年への外挿はB】、位置=明治16年実測図【A寄りB】)。御殿の構成は<b>類型(確度B)</b>、室名・畳数は<b>想定(確度?)</b>。区画の多角形は<b>ユーザーのブックマーク角(確度U)</b>。石井戸枠は存在A・奥庭という位置は?。</p></div>
 <p class="lede"><b>この文書は現況だけを載せる。</b>過去の案・撤回した説は書かない — 経緯は <code>git log docs/Sashizu/</code> で追う。寸法の正典は <code>matsudaira_dewa_sashizu.json</code>、文章は <code>matsudaira_dewa_kosho.md</code>、この HTML は <code>Tools/Sashizu/build_matsudaira_dewa_sashizu.py</code> が組む。<b>数値をこの文書に書き足さないこと。</b></p>
 <div class="box"><h3>作る順序</h3><p>① 設計=<code>json</code>/<code>md</code> を直す → ② 組む → ③ 検図(edo-kosho / edo-kenzu / edo-niwashi)→ ユーザーのレビュー → ④ 実装 → ⑤ 指図と実装を突き合わせて 0 件 → ⑥ 経緯はコミットへ。</p></div>
-<div class="box" style="border-color:var(--shu)"><h3>この指図の検査結果 — ⚠ 11 件</h3><p>生成器が組むたびに走る検査の<b>すべての ⚠ をここに載せる</b>。⛔ <b>従前は stdout にしか出ておらず、artifact のどこにも無かった</b> — 検図方の言葉で「<b>いまの指図は自分の検査結果を持っていない図</b>」だった(2026-09-01)。⭕ 0 件でないなら、下の一覧が<b>いま指図に残っている穴の全部</b>。⚠ 個々の検査の合否と内訳は、それぞれの図版の下の表にも出る。</p><h4>面・重なり・動線・段・水・庭(<code>plane_check</code> の束) — 8 件</h4><ul><li>役割「池泉」は錨の表に無い — 自作の役割で数を水増ししていないか</li><li>樋 MZ_Ankyo の土被り実測 0.48〜1.39m が <code>coverBand</code> [0.45, 1.0] を外れる</li><li>帯の重なり R_Shutei(幅0.90間)× NJ_Oku_N_W(幅0.19間) — <b>並走して 5.0間 重なる</b>(要る離れ 0.55間 / 最小 0.40間 @ (-38.0, 47.1))</li><li>〔判定せず〕主視点 V5 の前景 T_Tsukubai は視軸から +23.2° (⚠ 立視 の画角が未決 = <code>_pending.fovRisshi</code>)</li><li>〔判定せず〕主視点 V5 の前景 T_Toro_Oribe は視軸から +9.5° (⚠ 立視 の画角が未決 = <code>_pending.fovRisshi</code>)</li><li>〔判定せず〕主視点 V7 の遠景 T_Torii_1 は視軸から +8.5° (⚠ 立視 の画角が未決 = <code>_pending.fovRisshi</code>)</li><li>〔判定せず〕主視点 V7 の遠景 T_Torii_2 は視軸から +7.0° (⚠ 立視 の画角が未決 = <code>_pending.fovRisshi</code>)</li><li>〔判定せず〕主視点 V8 の前景 mizu.takiDaichi は視軸から -29.5° (⚠ 立視 の画角が未決 = <code>_pending.fovRisshi</code>)</li></ul><h4>植栽の退避 — 3 件</h4><ul><li>植栽 G_Sensui/低木・刈込 が 15/19 しか置けない — 庭が狭いか退避が多すぎる</li><li>植栽 G_NishiNiwa/下草 が 167/168 しか置けない — 庭が狭いか退避が多すぎる</li><li>植栽 G_OkuNiwa/下草 が 18/33 しか置けない — 庭が狭いか退避が多すぎる</li></ul></div>
+<div class="box" style="border-color:var(--shu)"><h3>この指図の検査結果 — ⚠ 2 件</h3><p>生成器が組むたびに走る検査の<b>すべての ⚠ をここに載せる</b>。⛔ <b>従前は stdout にしか出ておらず、artifact のどこにも無かった</b> — 検図方の言葉で「<b>いまの指図は自分の検査結果を持っていない図</b>」だった(2026-09-01)。⭕ 0 件でないなら、下の一覧が<b>いま指図に残っている穴の全部</b>。⚠ 個々の検査の合否と内訳は、それぞれの図版の下の表にも出る。</p><h4>面・重なり・動線・段・水・庭(<code>plane_check</code> の束) — 1 件</h4><ul><li>役割「池泉」は錨の表に無い — 自作の役割で数を水増ししていないか</li></ul><h4>植栽の退避 — 1 件</h4><ul><li>植栽 G_NishiNiwa/下草 が 167/168 しか置けない — 庭が狭いか退避が多すぎる</li></ul></div>
 <div class="plate" id="pl1"><div class="phead"><h2>其一　敷地</h2><span class="meta">42460 m²(12844坪)/拝領10,225坪余【B】/江戸間 1間=1.818m/主郭グリッドは北辺沿いに20.34°回転</span></div>
 <div class="fig"><svg viewBox="0 0 900 827" role="img" aria-label="松平出羽守上屋敷 敷地全体">
 <defs><pattern id="pi1" width="9" height="9" patternUnits="userSpaceOnUse"><path d="M0,4.5 h9 M4.5,0 v9" stroke="var(--ishi)" stroke-width="0.8" opacity="0.65"/></pattern></defs>
@@ -237,7 +237,7 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <p class="cap"><b>敷地は2つの水平面+1つの斜面。</b>造成も囲いもまず面から決め、囲いの天端=面の高さ、段は面の境にだけ立つ。<b>西斜面(溜池東岸)と南西の谷(岡部境)は造成しない</b> — 庭のまま、面の縁に竹垣。斜面は<b>黒松を疎に交えた雑木の樹林</b>(法肩=樹林／中部=低木／下部=草地の3帯)【確度B — 溜池の水辺の樹木は松、竹薮は江戸の水辺79事例中1例。西斜面の林の図と考証の章】。鞍部の盛土(量は段の note を正とする)で表長屋の石垣基壇が大通りへ露出する。西斜面の近代掘削の埋め戻しは拝領時造成と別勘定の復元【出自判定は ?】。<b>街路・隣地への影響はゼロ</b> — 面の造成は区画線で切り(図の色もその形)、境界の高低差は垂直の基壇石垣で受けるので、法尻が道や隣地へ出ることもない。</p>
 <h3>面と縁の対応</h3><div class='tw'><table><thead><tr><th>面</th><th>高さ</th><th class='note'>段(造成)</th><th class='note'>縁の囲い(天端=面の高さ)</th><th class='note'>注記</th></tr></thead><tbody><tr><td><span style="display:inline-block;width:11px;height:11px;background:var(--pl-omote);border:1px solid var(--rule);margin-right:6px"></span>表郭</td><td>26.7 m</td><td class='note'>表郭・東肩の帯</td><td class='note'><code>N_Nagaya_W</code>・<code>N_Nagaya_E1</code></td><td class='note'>門内の白洲。**地形が教えた高さ**(u-8..11×v2..15: 中央値26.85 / 26.7で不合格4%)。門の敷居は道なり25.8。主平面へは石段1段(0.3m)</td></tr><tr><td><span style="display:inline-block;width:11px;height:11px;background:var(--pl-main);border:1px solid var(--rule);margin-right:6px"></span>主平面</td><td>27.0 m</td><td class='note'>主郭・掘削跡の埋め戻し(復元)・蔵の帯・主郭(東翼)・奥郭</td><td class='note'><code>N_Nagaya_E2</code>・<code>E_Nagaya_M</code>・<code>S_Hei_E3</code>・<code>S_Hei_C</code></td><td class='note'>御殿複合・奥郭・御蔵。**敷地の面はこれ一枚**。台地全体(u-72..56×v16..56)の実測: 中央値27.11 / 27.0で不合格6%(26.9も27.1も7%、27.2は15%)。ユーザー裁定 2026-08-23: 御殿の一体性を採り一枚で通す</td></tr><tr><td><span style="display:inline-block;width:11px;height:11px;background:var(--pl-slope);border:1px solid var(--rule);margin-right:6px"></span>斜面(造成しない)</td><td>地形なり</td><td class='note'>—</td><td class='note'><code>N_Hei_W</code>・<code>N_Nagaya_E3</code>・<code>N_Hei_E</code>・<code>NE_Nagaya_1</code>・<code>NE_Nagaya_2</code>・<code>E_Nagaya_N1</code>・<code>E_Nagaya_N2</code>・<code>E_Nagaya_S1</code>・<code>E_Nagaya_S2</code>・<code>S_Hei_E1</code>・<code>S_Hei_E2</code></td><td class='note'>西斜面・南西の谷・北西の登り・堀端の裾・西の明地・表郭の西(u-26..-11)・**奥郭の南(v72以南、南東の隅で23.2mまで落ちる)**・**東翼の北東(u38..112×v15..26、道沿いの高まり28.8〜29.2)**・**北東の高み(u38..112×v0..15)**。境界は木柵(fences)、生活面の縁は法肩の竹垣(rails)。⚠ **北東の高み(28.8〜29.3m)は面にしない** — 区画の北東辺が斜めで、棟が入る矩形が区画内に取れない(22×8間はすべて区画外を含む)。長屋の石垣基壇が自然の高まりを受ける。(掘削跡の埋め戻しは段 Fukugen として明示した) **面から外した所の囲いは、天端を地形なりの段で追う**(囲いの天端=面の高さ、は面の縁にだけ効く規則)。北東の高み(28.5〜29.3)と南東ポケット(23.4〜26.4)は面にせず、長屋・練塀が段で降りる。2026-08-23 の検図で、旧版は北東で塀が2.26m埋まり南東で3.74m浮いていたことが分かった</td></tr></tbody></table></div>
 <p class="cap">斜面の植生の3帯(法肩〜上部/中部/下部〜裾)は<b>「西斜面の林」の図版</b>に、帯ごとの平面積・本数・密度つきで出す。</p>
-<p class="cap"><b>面のはみ出し検査(0.5間刻みの被覆・区画内包も判定): ⚠ 8 件 — 役割「池泉」は錨の表に無い — 自作の役割で数を水増ししていないか / 樋 MZ_Ankyo の土被り実測 0.48〜1.39m が `coverBand` [0.45, 1.0] を外れる / 帯の重なり R_Shutei(幅0.90間)× NJ_Oku_N_W(幅0.19間) — **並走して 5.0間 重なる**(要る離れ 0.55間 / 最小 0.40間 @ (-38.0, 47.1)) / 〔判定せず〕主視点 V5 の前景 T_Tsukubai は視軸から +23.2° (⚠ 立視 の画角が未決 = `_pending.fovRisshi`) / 〔判定せず〕主視点 V5 の前景 T_Toro_Oribe は視軸から +9.5° (⚠ 立視 の画角が未決 = `_pending.fovRisshi`) / 〔判定せず〕主視点 V7 の遠景 T_Torii_1 は視軸から +8.5° (⚠ 立視 の画角が未決 = `_pending.fovRisshi`) / 〔判定せず〕主視点 V7 の遠景 T_Torii_2 は視軸から +7.0° (⚠ 立視 の画角が未決 = `_pending.fovRisshi`) / 〔判定せず〕主視点 V8 の前景 mizu.takiDaichi は視軸から -29.5° (⚠ 立視 の画角が未決 = `_pending.fovRisshi`)。</b>棟・付属屋・廊下は自分の y と同じ高さの段の中に、庭・井戸はいずれかの段の中に完全に載っていること+**区画多角形の内側にあること**を機械検査している(造成しない斜面に載る庭=西庭の斜面部だけ除外)。<b>矩形の総当たり重なり: <b>0 件</b>。</b><b>中仕切塀の区画はみ出し(線分の途中も0.5%刻みで測る): <b>0 件</b>。</b></p>
+<p class="cap"><b>面のはみ出し検査(0.5間刻みの被覆・区画内包も判定): ⚠ 1 件 — 役割「池泉」は錨の表に無い — 自作の役割で数を水増ししていないか。</b>棟・付属屋・廊下は自分の y と同じ高さの段の中に、庭・井戸はいずれかの段の中に完全に載っていること+**区画多角形の内側にあること**を機械検査している(造成しない斜面に載る庭=西庭の斜面部だけ除外)。<b>矩形の総当たり重なり: <b>0 件</b>。</b><b>中仕切塀の区画はみ出し(線分の途中も0.5%刻みで測る): <b>0 件</b>。</b></p>
 </div>
 <div class="plate" id="pl2"><div class="phead"><h2>其二　現況図(造成前の地形)</h2><span class="meta">段彩2m・等高線2m(10mを太線)/<span class="cert">【確度P】</span>2026-08-23 実測</span></div>
 <div class="fig"><svg viewBox="0 0 980 949" role="img" aria-label="松平出羽守上屋敷 現況図(造成前の地形)">
@@ -43110,7 +43110,7 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <polyline points="1583.7,-335.8 393.3,281.4" fill="none" stroke="#3f6a80" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.9"/>
 <polyline points="393.3,281.4 500.0,409.1" fill="none" stroke="#3f6a80" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.9"/>
 <polyline points="393.3,281.4 439.2,396.4 518.1,609.2 648.2,939.5" fill="none" stroke="#3f6a80" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.9"/>
-<polyline points="612.0,556.8 481.3,631.7 620.4,1007.0 947.6,874.7" fill="none" stroke="#3f6a80" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.9"/>
+<polyline points="612.0,556.8 481.3,631.7 620.4,1007.0 958.5,886.1" fill="none" stroke="#3f6a80" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.9"/>
 <polyline points="648.2,939.5 713.3,913.2 781.9,896.5 841.7,867.8 901.6,863.2 938.8,862.6" fill="none" stroke="#3f6a80" stroke-width="2.2"/>
 <circle cx="955.6" cy="878.4" r="2.6" fill="var(--shu)"/>
 <circle cx="973.4" cy="902.6" r="2.6" fill="var(--shu)"/>
@@ -43147,36 +43147,44 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <circle cx="420.4" cy="358.6" r="1.6" fill="#5E7A4E"/>
 <circle cx="419.9" cy="317.6" r="41.7" fill="#5E7A4E" opacity="0.34"/>
 <circle cx="419.9" cy="317.6" r="1.6" fill="#5E7A4E"/>
-<circle cx="733.8" cy="411.8" r="11.3" fill="#8FA36B" opacity="0.34"/>
-<circle cx="733.8" cy="411.8" r="1.6" fill="#8FA36B"/>
-<circle cx="727.4" cy="423.7" r="16.3" fill="#8FA36B" opacity="0.34"/>
-<circle cx="727.4" cy="423.7" r="1.6" fill="#8FA36B"/>
-<circle cx="740.1" cy="421.9" r="13.2" fill="#8FA36B" opacity="0.34"/>
-<circle cx="740.1" cy="421.9" r="1.6" fill="#8FA36B"/>
-<circle cx="708.0" cy="416.7" r="13.2" fill="#8FA36B" opacity="0.34"/>
-<circle cx="708.0" cy="416.7" r="1.6" fill="#8FA36B"/>
-<circle cx="750.3" cy="411.9" r="13.2" fill="#8FA36B" opacity="0.34"/>
-<circle cx="750.3" cy="411.9" r="1.6" fill="#8FA36B"/>
-<circle cx="731.8" cy="446.2" r="11.3" fill="#8FA36B" opacity="0.34"/>
-<circle cx="731.8" cy="446.2" r="1.6" fill="#8FA36B"/>
-<circle cx="719.8" cy="413.8" r="13.2" fill="#8FA36B" opacity="0.34"/>
-<circle cx="719.8" cy="413.8" r="1.6" fill="#8FA36B"/>
-<circle cx="471.5" cy="487.1" r="11.3" fill="#8FA36B" opacity="0.34"/>
-<circle cx="471.5" cy="487.1" r="1.6" fill="#8FA36B"/>
-<circle cx="492.0" cy="520.1" r="11.3" fill="#8FA36B" opacity="0.34"/>
-<circle cx="492.0" cy="520.1" r="1.6" fill="#8FA36B"/>
-<circle cx="479.2" cy="516.9" r="13.2" fill="#8FA36B" opacity="0.34"/>
-<circle cx="479.2" cy="516.9" r="1.6" fill="#8FA36B"/>
-<circle cx="493.0" cy="488.5" r="16.3" fill="#8FA36B" opacity="0.34"/>
-<circle cx="493.0" cy="488.5" r="1.6" fill="#8FA36B"/>
-<circle cx="499.1" cy="502.2" r="16.3" fill="#8FA36B" opacity="0.34"/>
-<circle cx="499.1" cy="502.2" r="1.6" fill="#8FA36B"/>
-<circle cx="487.2" cy="478.5" r="16.3" fill="#8FA36B" opacity="0.34"/>
-<circle cx="487.2" cy="478.5" r="1.6" fill="#8FA36B"/>
-<circle cx="470.6" cy="504.5" r="11.3" fill="#8FA36B" opacity="0.34"/>
-<circle cx="470.6" cy="504.5" r="1.6" fill="#8FA36B"/>
-<circle cx="672.2" cy="364.3" r="11.3" fill="#8FA36B" opacity="0.34"/>
-<circle cx="672.2" cy="364.3" r="1.6" fill="#8FA36B"/>
+<circle cx="731.6" cy="416.1" r="11.3" fill="#8FA36B" opacity="0.34"/>
+<circle cx="731.6" cy="416.1" r="1.6" fill="#8FA36B"/>
+<circle cx="726.4" cy="426.7" r="16.3" fill="#8FA36B" opacity="0.34"/>
+<circle cx="726.4" cy="426.7" r="1.6" fill="#8FA36B"/>
+<circle cx="745.5" cy="411.7" r="13.2" fill="#8FA36B" opacity="0.34"/>
+<circle cx="745.5" cy="411.7" r="1.6" fill="#8FA36B"/>
+<circle cx="734.8" cy="440.5" r="13.2" fill="#8FA36B" opacity="0.34"/>
+<circle cx="734.8" cy="440.5" r="1.6" fill="#8FA36B"/>
+<circle cx="716.4" cy="413.2" r="13.2" fill="#8FA36B" opacity="0.34"/>
+<circle cx="716.4" cy="413.2" r="1.6" fill="#8FA36B"/>
+<circle cx="734.5" cy="401.8" r="11.3" fill="#8FA36B" opacity="0.34"/>
+<circle cx="734.5" cy="401.8" r="1.6" fill="#8FA36B"/>
+<circle cx="748.1" cy="423.5" r="13.2" fill="#8FA36B" opacity="0.34"/>
+<circle cx="748.1" cy="423.5" r="1.6" fill="#8FA36B"/>
+<circle cx="507.8" cy="459.7" r="11.3" fill="#8FA36B" opacity="0.34"/>
+<circle cx="507.8" cy="459.7" r="1.6" fill="#8FA36B"/>
+<circle cx="484.6" cy="482.9" r="11.3" fill="#8FA36B" opacity="0.34"/>
+<circle cx="484.6" cy="482.9" r="1.6" fill="#8FA36B"/>
+<circle cx="470.9" cy="464.1" r="13.2" fill="#8FA36B" opacity="0.34"/>
+<circle cx="470.9" cy="464.1" r="1.6" fill="#8FA36B"/>
+<circle cx="490.0" cy="434.0" r="16.3" fill="#8FA36B" opacity="0.34"/>
+<circle cx="490.0" cy="434.0" r="1.6" fill="#8FA36B"/>
+<circle cx="469.8" cy="442.6" r="16.3" fill="#8FA36B" opacity="0.34"/>
+<circle cx="469.8" cy="442.6" r="1.6" fill="#8FA36B"/>
+<circle cx="502.2" cy="439.9" r="16.3" fill="#8FA36B" opacity="0.34"/>
+<circle cx="502.2" cy="439.9" r="1.6" fill="#8FA36B"/>
+<circle cx="514.0" cy="443.6" r="11.3" fill="#8FA36B" opacity="0.34"/>
+<circle cx="514.0" cy="443.6" r="1.6" fill="#8FA36B"/>
+<circle cx="678.3" cy="330.0" r="11.3" fill="#8FA36B" opacity="0.34"/>
+<circle cx="678.3" cy="330.0" r="1.6" fill="#8FA36B"/>
+<circle cx="675.2" cy="357.7" r="13.2" fill="#8FA36B" opacity="0.34"/>
+<circle cx="675.2" cy="357.7" r="1.6" fill="#8FA36B"/>
+<circle cx="654.7" cy="322.8" r="16.3" fill="#8FA36B" opacity="0.34"/>
+<circle cx="654.7" cy="322.8" r="1.6" fill="#8FA36B"/>
+<circle cx="671.4" cy="343.9" r="16.3" fill="#8FA36B" opacity="0.34"/>
+<circle cx="671.4" cy="343.9" r="1.6" fill="#8FA36B"/>
+<circle cx="664.0" cy="329.9" r="11.3" fill="#8FA36B" opacity="0.34"/>
+<circle cx="664.0" cy="329.9" r="1.6" fill="#8FA36B"/>
 <circle cx="470.1" cy="321.9" r="7.3" fill="#A8B98A" opacity="0.34"/>
 <circle cx="470.1" cy="321.9" r="1.6" fill="#A8B98A"/>
 <circle cx="482.2" cy="300.3" r="7.3" fill="#A8B98A" opacity="0.34"/>
@@ -43406,7 +43414,7 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <circle cx="384.2" cy="722.0" r="7.3" fill="#A8B98A" opacity="0.34"/>
 <circle cx="384.2" cy="722.0" r="1.6" fill="#A8B98A"/>
 <circle cx="767.9" cy="395.6" r="2.6" fill="var(--shu)"/>
-<circle cx="710.5" cy="445.5" r="2.6" fill="var(--shu)"/>
+<circle cx="713.4" cy="444.5" r="2.6" fill="var(--shu)"/>
 <circle cx="500.0" cy="409.1" r="2.6" fill="var(--shu)"/>
 <circle cx="359.7" cy="546.9" r="2.6" fill="var(--shu)"/>
 <circle cx="655.1" cy="400.0" r="2.6" fill="var(--shu)"/>
@@ -43467,14 +43475,14 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <text class="jo" x="771.0" y="442.1" style="text-anchor:start;font-size:9.0px">縁先手水鉢</text>
 <line x1="612.7" y1="440.0" x2="618.7" y2="454.9" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
 <text class="jo" x="618.7" y="458.0" style="text-anchor:start;font-size:9.0px">6 ★岬の先端(★掘削後に隆起させる)</text>
-<line x1="710.5" y1="445.5" x2="715.5" y2="467.5" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
-<text class="jo" x="715.5" y="470.5" style="text-anchor:start;font-size:9.0px">主石組</text>
-<line x1="650.8" y1="447.8" x2="656.8" y2="483.8" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
-<text class="jo" x="656.8" y="486.8" style="text-anchor:start;font-size:9.0px">5 岬の付け根(★傾ける松)</text>
-<line x1="714.3" y1="452.9" x2="720.3" y2="499.3" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
-<text class="jo" x="720.3" y="502.4" style="text-anchor:start;font-size:9.0px">3 V1 に最も近い縁</text>
-<line x1="729.2" y1="469.4" x2="735.2" y2="515.8" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
-<text class="jo" x="735.2" y="518.9" style="text-anchor:start;font-size:9.0px">2 北東の縁</text>
+<line x1="713.4" y1="444.5" x2="718.4" y2="476.9" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
+<text class="jo" x="718.4" y="480.0" style="text-anchor:start;font-size:9.0px">主石組</text>
+<line x1="650.8" y1="447.8" x2="656.8" y2="494.3" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
+<text class="jo" x="656.8" y="497.3" style="text-anchor:start;font-size:9.0px">5 岬の付け根(★傾ける松)</text>
+<line x1="714.3" y1="452.9" x2="720.3" y2="509.8" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
+<text class="jo" x="720.3" y="512.9" style="text-anchor:start;font-size:9.0px">3 V1 に最も近い縁</text>
+<line x1="729.2" y1="469.4" x2="735.2" y2="526.3" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
+<text class="jo" x="735.2" y="529.4" style="text-anchor:start;font-size:9.0px">2 北東の縁</text>
 <line x1="556.0" y1="483.0" x2="552.0" y2="511.4" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
 <text class="jo" x="552.0" y="514.5" style="text-anchor:end;font-size:9.0px">池底の澪筋</text>
 <line x1="619.7" y1="500.0" x2="619.7" y2="532.4" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
@@ -43486,12 +43494,14 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <text class="jo" x="321.7" y="544.3" style="text-anchor:start;font-size:9.0px">築山の頂(床几)</text>
 <line x1="514.5" y1="531.4" x2="519.5" y2="553.3" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
 <text class="jo" x="519.5" y="556.4" style="text-anchor:start;font-size:9.0px">雪見灯籠</text>
-<text class="jo" x="672.2" y="533.8" style="text-anchor:start;font-size:9.0px">22 ⚠ 庭境まで最小(#21 と同値)</text>
+<line x1="666.2" y1="536.8" x2="672.2" y2="541.2" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
+<text class="jo" x="672.2" y="544.3" style="text-anchor:start;font-size:9.0px">22 ⚠ 庭境まで最小(#21 と同値)</text>
 <line x1="359.7" y1="546.9" x2="364.7" y2="558.4" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
 <text class="jo" x="364.7" y="561.4" style="text-anchor:start;font-size:9.0px">石組</text>
-<text class="jo" x="618.0" y="553.8" style="text-anchor:start;font-size:9.0px">21 ★水尻(余水吐の越流堰)⚠ 庭境まで最小</text>
-<line x1="612.0" y1="556.8" x2="618.0" y2="571.8" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
-<text class="jo" x="618.0" y="574.8" style="text-anchor:start;font-size:9.0px">水尻(余水吐)</text>
+<line x1="612.0" y1="556.8" x2="618.0" y2="561.3" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
+<text class="jo" x="618.0" y="564.3" style="text-anchor:start;font-size:9.0px">21 ★水尻(余水吐の越流堰)⚠ 庭境まで最小</text>
+<line x1="612.0" y1="556.8" x2="618.0" y2="582.3" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
+<text class="jo" x="618.0" y="585.3" style="text-anchor:start;font-size:9.0px">水尻(余水吐)</text>
 <line x1="515.4" y1="557.4" x2="521.4" y2="572.4" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
 <text class="jo" x="521.4" y="575.4" style="text-anchor:start;font-size:9.0px">19 西端</text>
 <text class="jo" x="524.1" y="606.2" style="text-anchor:middle;font-size:9.0px">Eda2</text>
@@ -43509,7 +43519,7 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <div class="legend"><span style="color:#3f6a80">▨ 御泉水(水面)</span><span style="color:#6b6446">▨ 中島(磯島)</span><span style="color:#8a7f52">▨ 築山(等高の輪 t=0.25/0.5/0.75/裾)</span><span style="color:#7a6a3d">╌ 園路(庭道)</span><span style="color:var(--shu)">● 点景 ／ ○ 主視点と視線</span><span style="color:#3B5A3C">○ 樹冠の実寸</span></div>
 <p class="cap"><b>★V1(御休息之間)が主景。</b>中奥は四方入側なので<b>西入側がこの庭へ正面から向く</b> — 屋敷で唯一そう作れる場所。汀線の番号は <code>sensui.pond.outline</code> の順で、<b>#5 岬の付け根に傾ける松ただ一本</b>(幹を池の中心へ 8°)。⭐ <b>汀線 22点は A案(枯池)から一点も動いていない</b> — A案は B案の輪郭を枯池に流用したもので、戻したのは中身だけ。⭐ <b>池底の澪筋</b>(破線と薄い帯)は水の下で、落ち口から水尻へ流れを一筋に通す。⚠ 木の<b>位置は設計値ではない</b>(規則・本数・部材・退避・<b>塊の置き場所</b>が設計値)。</p>
 <h3>主視点【すべて確度 P/B=類型。当屋敷の一次史料は無い】</h3>
-<div class="tw"><table><thead><tr><th>視点</th><th>場所</th><th>グリッド / 世界</th><th>眼高</th><th>方位</th><th class="note">前景</th><th class="note">中景</th><th class="note">遠景</th><th>確度</th></tr></thead><tbody><tr><td>★V1</td><td>御休息之間</td><td>u-30.0 v41.5<br><span class='note'>(-643.6, 1187.3)</span></td><td>28.60 m<br><span class='note'>座視</span></td><td>249.7°</td><td class='note'>沓脱石・水面・主石組</td><td class='note'>御泉水・岬の松・中島(磯島)・対岸の石組護岸 ／ 築山の東斜面と頂(松の黒に対するモミジの明るい緑)</td><td class='note'>西斜面の樹林の梢と空</td><td>P</td></tr><tr><td>V2</td><td>奥御座之間</td><td>u-44.0 v62.0<br><span class='note'>(-654.5, 1143.5)</span></td><td>28.60 m<br><span class='note'>座視</span></td><td>159.7°</td><td class='note'>苔・飛石・遣水の起点</td><td class='note'>石組(三石)・サツキの刈込</td><td class='note'>板塀の上に立ち上がる西斜面の松の梢と空</td><td>P</td></tr><tr><td>V3</td><td>黒書院上段</td><td>u-21.5 v26.5<br><span class='note'>(-638.6, 1218.2)</span></td><td>28.60 m<br><span class='note'>座視</span></td><td>159.7°</td><td class='note'>白砂と苔・切石の縁</td><td class='note'>三石の石組+モミジ1本(葉は夏の緑)</td><td class='note'>中奥の北入側の障子(閉じた坪庭)</td><td>P</td></tr><tr><td>V4</td><td>大広間上段</td><td>u-10.0 v28.5<br><span class='note'>(-617.7, 1222.1)</span></td><td>28.60 m<br><span class='note'>座視</span></td><td>159.7°</td><td class='note'>苔と敷石</td><td class='note'>刈込3群</td><td class='note'>中奥の北入側</td><td>P</td></tr><tr><td>V5</td><td>御茶屋の躙口</td><td>u-69.4 v26.0<br><span class='note'>(-720.6, 1188.8)</span></td><td>28.50 m<br><span class='note'>立視</span></td><td>69.7°</td><td class='note'>蹲踞・織部灯籠・飛石</td><td class='note'>建仁寺垣</td><td class='note'>無し(垣で切る=市中の山居)</td><td>B</td></tr><tr><td>V6</td><td>築山の頂(床几)</td><td>u-53.0 v39.0<br><span class='note'>(-684.4, 1177.0)</span></td><td>31.60 m<br><span class='note'>立視</span></td><td>全周</td><td class='note'>御泉水を見下ろす</td><td class='note'>御殿の屋根・芝野</td><td class='note'>西斜面の樹林</td><td>P</td></tr><tr><td>V7</td><td>梅林の宴の平場</td><td>u26.0 v69.5<br><span class='note'>(-530.5, 1174.9)</span></td><td>28.60 m<br><span class='note'>立視</span></td><td>69.7°</td><td class='note'>床几の据石4個・土間</td><td class='note'>梅の疎林(塊植え)</td><td class='note'>稲荷の鳥居2基と杜</td><td>B</td></tr><tr><td>V8</td><td>滝見の床几</td><td>u-27.4 v71.2<br><span class='note'>(-620.4, 1138.3)</span></td><td>23.06 m<br><span class='note'>立視(従属値)</span></td><td>339.7°</td><td class='note'>三段の滝と受け壺</td><td class='note'>南西の谷の沢</td><td class='note'>谷が下って開ける空</td><td>P</td></tr></tbody></table></div>
+<div class="tw"><table><thead><tr><th>視点</th><th>場所</th><th>グリッド / 世界</th><th>眼高</th><th>方位</th><th class="note">前景</th><th class="note">中景</th><th class="note">遠景</th><th>確度</th></tr></thead><tbody><tr><td>★V1</td><td>御休息之間</td><td>u-30.0 v41.5<br><span class='note'>(-643.6, 1187.3)</span></td><td>28.60 m<br><span class='note'>座視</span></td><td>249.7°</td><td class='note'>沓脱石・水面・主石組</td><td class='note'>御泉水・岬の松・中島(磯島)・対岸の石組護岸 ／ 築山の東斜面と頂(松の黒に対するモミジの明るい緑)</td><td class='note'>西斜面の樹林の梢と空</td><td>P</td></tr><tr><td>V2</td><td>奥御座之間</td><td>u-44.0 v62.0<br><span class='note'>(-654.5, 1143.5)</span></td><td>28.60 m<br><span class='note'>座視</span></td><td>159.7°</td><td class='note'>苔・飛石・遣水の起点</td><td class='note'>石組(三石)・サツキの刈込</td><td class='note'>板塀の上に立ち上がる西斜面の松の梢と空</td><td>P</td></tr><tr><td>V3</td><td>黒書院上段</td><td>u-21.5 v26.5<br><span class='note'>(-638.6, 1218.2)</span></td><td>28.60 m<br><span class='note'>座視</span></td><td>159.7°</td><td class='note'>白砂と苔・切石の縁</td><td class='note'>三石の石組+モミジ1本(葉は夏の緑)</td><td class='note'>中奥の北入側の障子(閉じた坪庭)</td><td>P</td></tr><tr><td>V4</td><td>大広間上段</td><td>u-10.0 v28.5<br><span class='note'>(-617.7, 1222.1)</span></td><td>28.60 m<br><span class='note'>座視</span></td><td>159.7°</td><td class='note'>苔と敷石</td><td class='note'>刈込3群</td><td class='note'>中奥の北入側</td><td>P</td></tr><tr><td>V5</td><td>御茶屋の躙口</td><td>u-69.4 v26.0<br><span class='note'>(-720.6, 1188.8)</span></td><td>28.50 m<br><span class='note'>立視</span></td><td>69.7°</td><td class='note'>蹲踞・織部灯籠・飛石</td><td class='note'>建仁寺垣</td><td class='note'>無し(垣で切る=市中の山居)</td><td>B</td></tr><tr><td>V6</td><td>築山の頂(床几)</td><td>u-53.0 v39.0<br><span class='note'>(-684.4, 1177.0)</span></td><td>31.60 m<br><span class='note'>立視</span></td><td>全周</td><td class='note'>御泉水を見下ろす</td><td class='note'>御殿の屋根・芝野</td><td class='note'>西斜面の樹林</td><td>P</td></tr><tr><td>V7</td><td>梅林の宴の平場</td><td>u26.0 v69.5<br><span class='note'>(-530.5, 1174.9)</span></td><td>28.60 m<br><span class='note'>立視</span></td><td>69.7°</td><td class='note'>床几の据石4個・土間</td><td class='note'>梅の疎林(塊植え)</td><td class='note'>稲荷の鳥居2基と杜</td><td>B</td></tr><tr><td>V8</td><td>滝見の床几</td><td>u-27.4 v71.2<br><span class='note'>(-620.4, 1138.3)</span></td><td>23.10 m<br><span class='note'>立視</span></td><td>339.7°</td><td class='note'>三段の滝と受け壺</td><td class='note'>南西の谷の沢</td><td class='note'>谷が下って開ける空</td><td>P</td></tr></tbody></table></div>
 <p class='cap'>⭐ <b>真行草</b>: 白洲・前庭=<b>真</b> / 主庭=<b>行</b> / 露地=<b>草</b>(『築山庭造伝』の三体)。方位は grid の回転から出る<b>従属値</b>なので指図には持たせない。⭐ <b>V8(滝見の床几)は B案で新設</b> — 台地端の滝を見る場所で、中仕切塀に開けた滝見口 <code>NJ_Taki_Kido</code> から降りる。</p>
 <h3>庭の姿の代理指標 — <b>すべて生成器の実測</b>(⛔ 指図に書かない)</h3>
 <div class="tw"><table><thead><tr><th>指標</th><th>実測</th><th class='note'>読み</th></tr></thead><tbody><tr><td>水面(設計汀線の内)</td><td><b>241 m²</b></td><td class='note'>掘削後の実測は被覆率の丸めで少し縮む(庭方の模擬掘削 228 m²)</td></tr><tr><td>水面 / 主庭 952 m²</td><td><b>25%</b></td><td class='note'></td></tr><tr><td>水面 /(主庭+西庭 3971 m²)</td><td><b>6%</b></td><td class='note'></td></tr><tr><td>汀線の頂点間隔</td><td><b>平均 3.40 m</b></td><td class='note'>1.31〜6.35 m・変動係数 <b>0.34</b>(⛔ 等間隔にしない)</td></tr><tr><td>池の円形度 4πA/L²</td><td><b>0.54</b></td><td class='note'>1.0 = 真円</td></tr><tr><td>中島の円形度</td><td><b>0.56</b></td><td class='note'>面積 10.0 m²。⚠ A案の7点は 0.85 で『碁石』だった</td></tr><tr><td>汀から庭境の最小</td><td><b>1.30 間(2.36 m)</b></td><td class='note'>⚠ 目安 1.5間 をわずかに割る(西境 u−46 と汀線 #19)</td></tr></tbody></table></div><p class='cap'>⛔ <b>これらは全部従属値</b>(CLAUDE.md 規則4)— json にも kosho.md にも写さない。⭐ 真行草は <b>行</b>。</p>
@@ -43534,7 +43544,7 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <text class="jo" x="984.0" y="90.9" style="text-anchor:start">この線より下は見えない</text>
 <text class="jo" x="984.0" y="108.9" style="text-anchor:start">⛔ 溜池の水面は 22.8m 下 — 借景に取れない</text>
 <rect x="22.5" y="123.2" width="7.2" height="5.9" fill="#6b6446" opacity="0.95"/>
-<circle cx="63.7" cy="126.2" r="3" fill="#6b6446"/>
+<circle cx="62.1" cy="126.2" r="3" fill="#6b6446"/>
 <circle cx="255.9" cy="108.2" r="3" fill="#6b6446"/>
 <circle cx="82.8" cy="126.2" r="3" fill="#6b6446"/>
 <circle cx="176.4" cy="126.2" r="3" fill="#6b6446"/>
@@ -43542,20 +43552,20 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <circle cx="272.2" cy="103.5" r="3" fill="#6b6446"/>
 <rect x="71.4" y="101.6" width="1.9" height="27.5" fill="#4E4030" opacity="0.85"/><ellipse cx="72.3" cy="80.2" rx="15.8" ry="27.5" fill="#33512F" opacity="0.85"/><ellipse cx="73.9" cy="87.7" rx="8.2" ry="12.2" fill="#25401F" opacity="0.68"/><ellipse cx="65.8" cy="85.2" rx="8.2" ry="12.2" fill="#25401F" opacity="0.68"/><ellipse cx="74.9" cy="65.1" rx="8.2" ry="12.2" fill="#25401F" opacity="0.68"/>
 <rect x="50.7" y="101.6" width="2.0" height="27.5" fill="#4E4030" opacity="0.85"/><ellipse cx="51.7" cy="80.2" rx="16.4" ry="27.5" fill="#33512F" opacity="0.85"/><ellipse cx="51.3" cy="73.6" rx="8.6" ry="12.2" fill="#25401F" opacity="0.68"/><ellipse cx="55.9" cy="81.7" rx="8.6" ry="12.2" fill="#25401F" opacity="0.68"/><ellipse cx="53.2" cy="69.9" rx="8.6" ry="12.2" fill="#25401F" opacity="0.68"/>
-<ellipse cx="43.4" cy="119.8" rx="3.8" ry="6.9" fill="#68843F" opacity="0.85"/><ellipse cx="46.0" cy="122.2" rx="3.8" ry="6.9" fill="#7E9A55" opacity="0.85"/><ellipse cx="48.6" cy="121.2" rx="3.8" ry="6.9" fill="#68843F" opacity="0.85"/>
-<ellipse cx="47.5" cy="120.0" rx="5.5" ry="8.4" fill="#68843F" opacity="0.85"/><ellipse cx="51.3" cy="120.6" rx="5.5" ry="8.4" fill="#7E9A55" opacity="0.85"/><ellipse cx="55.1" cy="118.7" rx="5.5" ry="8.4" fill="#68843F" opacity="0.85"/>
-<ellipse cx="41.6" cy="110.0" rx="4.4" ry="15.0" fill="#68843F" opacity="0.85"/><ellipse cx="44.7" cy="110.0" rx="4.4" ry="15.0" fill="#7E9A55" opacity="0.85"/><ellipse cx="47.8" cy="110.1" rx="4.4" ry="15.0" fill="#68843F" opacity="0.85"/>
-<ellipse cx="56.6" cy="113.9" rx="4.4" ry="15.0" fill="#68843F" opacity="0.85"/><ellipse cx="59.6" cy="113.5" rx="4.4" ry="15.0" fill="#7E9A55" opacity="0.85"/><ellipse cx="62.7" cy="111.9" rx="4.4" ry="15.0" fill="#68843F" opacity="0.85"/>
-<ellipse cx="34.8" cy="113.8" rx="4.4" ry="15.0" fill="#68843F" opacity="0.85"/><ellipse cx="37.8" cy="109.1" rx="4.4" ry="15.0" fill="#7E9A55" opacity="0.85"/><ellipse cx="40.9" cy="111.9" rx="4.4" ry="15.0" fill="#68843F" opacity="0.85"/>
-<ellipse cx="50.6" cy="122.3" rx="3.8" ry="6.9" fill="#68843F" opacity="0.85"/><ellipse cx="53.3" cy="122.4" rx="3.8" ry="6.9" fill="#7E9A55" opacity="0.85"/><ellipse cx="55.9" cy="121.4" rx="3.8" ry="6.9" fill="#68843F" opacity="0.85"/>
-<ellipse cx="50.2" cy="114.6" rx="4.4" ry="15.0" fill="#68843F" opacity="0.85"/><ellipse cx="53.3" cy="111.7" rx="4.4" ry="15.0" fill="#7E9A55" opacity="0.85"/><ellipse cx="56.3" cy="112.5" rx="4.4" ry="15.0" fill="#68843F" opacity="0.85"/>
-<ellipse cx="187.0" cy="121.5" rx="3.8" ry="6.9" fill="#68843F" opacity="0.85"/><ellipse cx="189.6" cy="120.6" rx="3.8" ry="6.9" fill="#7E9A55" opacity="0.85"/><ellipse cx="192.2" cy="120.3" rx="3.8" ry="6.9" fill="#68843F" opacity="0.85"/>
-<ellipse cx="182.8" cy="120.4" rx="3.8" ry="6.9" fill="#68843F" opacity="0.85"/><ellipse cx="185.5" cy="122.5" rx="3.8" ry="6.9" fill="#7E9A55" opacity="0.85"/><ellipse cx="188.1" cy="122.5" rx="3.8" ry="6.9" fill="#68843F" opacity="0.85"/>
-<ellipse cx="188.2" cy="111.5" rx="4.4" ry="15.0" fill="#68843F" opacity="0.85"/><ellipse cx="191.2" cy="110.0" rx="4.4" ry="15.0" fill="#7E9A55" opacity="0.85"/><ellipse cx="194.3" cy="111.0" rx="4.4" ry="15.0" fill="#68843F" opacity="0.85"/>
-<ellipse cx="175.4" cy="119.8" rx="5.5" ry="8.4" fill="#68843F" opacity="0.85"/><ellipse cx="179.2" cy="121.1" rx="5.5" ry="8.4" fill="#7E9A55" opacity="0.85"/><ellipse cx="183.0" cy="120.5" rx="5.5" ry="8.4" fill="#68843F" opacity="0.85"/>
-<ellipse cx="174.9" cy="118.3" rx="5.5" ry="8.4" fill="#68843F" opacity="0.85"/><ellipse cx="178.7" cy="118.1" rx="5.5" ry="8.4" fill="#7E9A55" opacity="0.85"/><ellipse cx="182.5" cy="118.8" rx="5.5" ry="8.4" fill="#68843F" opacity="0.85"/>
-<ellipse cx="176.4" cy="119.4" rx="5.5" ry="8.4" fill="#68843F" opacity="0.85"/><ellipse cx="180.2" cy="118.1" rx="5.5" ry="8.4" fill="#7E9A55" opacity="0.85"/><ellipse cx="184.0" cy="119.7" rx="5.5" ry="8.4" fill="#68843F" opacity="0.85"/>
-<ellipse cx="190.6" cy="121.6" rx="3.8" ry="6.9" fill="#68843F" opacity="0.85"/><ellipse cx="193.2" cy="122.2" rx="3.8" ry="6.9" fill="#7E9A55" opacity="0.85"/><ellipse cx="195.8" cy="122.1" rx="3.8" ry="6.9" fill="#68843F" opacity="0.85"/>
+<ellipse cx="45.2" cy="119.8" rx="3.8" ry="6.9" fill="#68843F" opacity="0.85"/><ellipse cx="47.8" cy="122.2" rx="3.8" ry="6.9" fill="#7E9A55" opacity="0.85"/><ellipse cx="50.5" cy="121.2" rx="3.8" ry="6.9" fill="#68843F" opacity="0.85"/>
+<ellipse cx="48.6" cy="120.0" rx="5.5" ry="8.4" fill="#68843F" opacity="0.85"/><ellipse cx="52.4" cy="120.6" rx="5.5" ry="8.4" fill="#7E9A55" opacity="0.85"/><ellipse cx="56.1" cy="118.7" rx="5.5" ry="8.4" fill="#68843F" opacity="0.85"/>
+<ellipse cx="37.1" cy="110.0" rx="4.4" ry="15.0" fill="#68843F" opacity="0.85"/><ellipse cx="40.1" cy="110.0" rx="4.4" ry="15.0" fill="#7E9A55" opacity="0.85"/><ellipse cx="43.2" cy="110.1" rx="4.4" ry="15.0" fill="#68843F" opacity="0.85"/>
+<ellipse cx="47.7" cy="113.9" rx="4.4" ry="15.0" fill="#68843F" opacity="0.85"/><ellipse cx="50.7" cy="113.5" rx="4.4" ry="15.0" fill="#7E9A55" opacity="0.85"/><ellipse cx="53.8" cy="111.9" rx="4.4" ry="15.0" fill="#68843F" opacity="0.85"/>
+<ellipse cx="51.8" cy="113.8" rx="4.4" ry="15.0" fill="#68843F" opacity="0.85"/><ellipse cx="54.8" cy="109.1" rx="4.4" ry="15.0" fill="#7E9A55" opacity="0.85"/><ellipse cx="57.9" cy="111.9" rx="4.4" ry="15.0" fill="#68843F" opacity="0.85"/>
+<ellipse cx="41.1" cy="122.3" rx="3.8" ry="6.9" fill="#68843F" opacity="0.85"/><ellipse cx="43.8" cy="122.4" rx="3.8" ry="6.9" fill="#7E9A55" opacity="0.85"/><ellipse cx="46.4" cy="121.4" rx="3.8" ry="6.9" fill="#68843F" opacity="0.85"/>
+<ellipse cx="38.0" cy="114.6" rx="4.4" ry="15.0" fill="#68843F" opacity="0.85"/><ellipse cx="41.0" cy="111.7" rx="4.4" ry="15.0" fill="#7E9A55" opacity="0.85"/><ellipse cx="44.1" cy="112.5" rx="4.4" ry="15.0" fill="#68843F" opacity="0.85"/>
+<ellipse cx="163.9" cy="121.5" rx="3.8" ry="6.9" fill="#68843F" opacity="0.85"/><ellipse cx="166.6" cy="120.6" rx="3.8" ry="6.9" fill="#7E9A55" opacity="0.85"/><ellipse cx="169.2" cy="120.3" rx="3.8" ry="6.9" fill="#68843F" opacity="0.85"/>
+<ellipse cx="179.7" cy="120.4" rx="3.8" ry="6.9" fill="#68843F" opacity="0.85"/><ellipse cx="182.3" cy="122.5" rx="3.8" ry="6.9" fill="#7E9A55" opacity="0.85"/><ellipse cx="185.0" cy="122.5" rx="3.8" ry="6.9" fill="#68843F" opacity="0.85"/>
+<ellipse cx="182.6" cy="111.5" rx="4.4" ry="15.0" fill="#68843F" opacity="0.85"/><ellipse cx="185.7" cy="110.0" rx="4.4" ry="15.0" fill="#7E9A55" opacity="0.85"/><ellipse cx="188.7" cy="111.0" rx="4.4" ry="15.0" fill="#68843F" opacity="0.85"/>
+<ellipse cx="166.9" cy="119.8" rx="5.5" ry="8.4" fill="#68843F" opacity="0.85"/><ellipse cx="170.7" cy="121.1" rx="5.5" ry="8.4" fill="#7E9A55" opacity="0.85"/><ellipse cx="174.5" cy="120.5" rx="5.5" ry="8.4" fill="#68843F" opacity="0.85"/>
+<ellipse cx="178.5" cy="118.3" rx="5.5" ry="8.4" fill="#68843F" opacity="0.85"/><ellipse cx="182.3" cy="118.1" rx="5.5" ry="8.4" fill="#7E9A55" opacity="0.85"/><ellipse cx="186.0" cy="118.8" rx="5.5" ry="8.4" fill="#68843F" opacity="0.85"/>
+<ellipse cx="161.9" cy="143.8" rx="5.5" ry="8.4" fill="#68843F" opacity="0.85"/><ellipse cx="165.7" cy="142.5" rx="5.5" ry="8.4" fill="#7E9A55" opacity="0.85"/><ellipse cx="169.5" cy="144.1" rx="5.5" ry="8.4" fill="#68843F" opacity="0.85"/>
+<ellipse cx="157.9" cy="146.0" rx="3.8" ry="6.9" fill="#68843F" opacity="0.85"/><ellipse cx="160.6" cy="146.6" rx="3.8" ry="6.9" fill="#7E9A55" opacity="0.85"/><ellipse cx="163.2" cy="146.5" rx="3.8" ry="6.9" fill="#68843F" opacity="0.85"/>
 <path d="M425.3 131.0 Q425.3 84.0 425.2 52.7" stroke="#6B5637" stroke-width="3.8" fill="none" stroke-linecap="round" opacity="0.85"/><ellipse cx="420.5" cy="71.2" rx="31.9" ry="12.7" fill="#2C4630" opacity="0.81"/><ellipse cx="418.4" cy="44.6" rx="25.7" ry="10.3" fill="#3B5A3C" opacity="0.81"/><ellipse cx="421.6" cy="18.0" rx="19.9" ry="8.0" fill="#2C4630" opacity="0.81"/><ellipse cx="430.0" cy="-8.6" rx="13.9" ry="5.6" fill="#3B5A3C" opacity="0.81"/>
 <path d="M443.4 130.6 Q444.7 109.2 445.6 95.0" stroke="#6B5637" stroke-width="2.0" fill="none" stroke-linecap="round" opacity="0.85"/><ellipse cx="442.7" cy="103.4" rx="18.9" ry="7.5" fill="#2C4630" opacity="0.81"/><ellipse cx="445.4" cy="91.3" rx="15.9" ry="6.4" fill="#3B5A3C" opacity="0.81"/><ellipse cx="445.1" cy="79.2" rx="12.1" ry="4.9" fill="#2C4630" opacity="0.81"/><ellipse cx="442.3" cy="67.1" rx="6.9" ry="2.8" fill="#3B5A3C" opacity="0.81"/>
 <path d="M496.7 131.4 Q498.6 85.3 499.8 54.5" stroke="#6B5637" stroke-width="3.5" fill="none" stroke-linecap="round" opacity="0.85"/><ellipse cx="491.6" cy="72.7" rx="32.8" ry="13.1" fill="#2C4630" opacity="0.81"/><ellipse cx="504.9" cy="46.6" rx="26.7" ry="10.7" fill="#3B5A3C" opacity="0.81"/><ellipse cx="505.6" cy="20.5" rx="20.0" ry="8.0" fill="#2C4630" opacity="0.81"/><ellipse cx="498.2" cy="-5.6" rx="12.5" ry="5.0" fill="#3B5A3C" opacity="0.81"/>
@@ -43595,8 +43605,8 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <text class="jo" x="26.1" y="141.2" style="text-anchor:middle;font-size:8.5px">沓脱石</text>
 <line x1="34.8" y1="133.2" x2="34.8" y2="158.3" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
 <text class="jo" x="34.8" y="161.2" style="text-anchor:middle;font-size:8.5px">縁先手水鉢</text>
-<line x1="63.7" y1="133.2" x2="63.7" y2="178.3" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
-<text class="jo" x="63.7" y="181.2" style="text-anchor:middle;font-size:8.5px">主石組(三石)</text>
+<line x1="62.1" y1="133.2" x2="62.1" y2="178.3" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
+<text class="jo" x="62.1" y="181.2" style="text-anchor:middle;font-size:8.5px">主石組(三石)</text>
 <text class="jo" x="82.8" y="141.2" style="text-anchor:middle;font-size:8.5px">雪見灯籠</text>
 <text class="jo" x="176.4" y="141.2" style="text-anchor:middle;font-size:8.5px">雪見灯籠</text>
 <text class="jo" x="184.8" y="153.2" style="text-anchor:start;font-size:8.5px">御泉水 水面 26.05m(汀の立ち上がり 0.95m を石組護岸が受ける)</text>
@@ -43670,92 +43680,92 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <div class="plate" id="pl24"><div class="phead"><h2>其廿四　水の系 — 取入口から溜池まで(縦断)</h2><span class="meta"><b>余水は敷地内で消えず、溜池へ抜ける</b> ／ 玉川上水の分水【型=B / 位置=U】</span></div>
 <div class="fig"><svg viewBox="0 0 980 529" role="img" aria-label="松平出羽守上屋敷 水の系の縦断">
 <defs><pattern id="pi24" width="9" height="9" patternUnits="userSpaceOnUse"><path d="M0,4.5 h9 M4.5,0 v9" stroke="var(--ishi)" stroke-width="0.8" opacity="0.65"/></pattern></defs>
-<polygon points="0.0,65.9 184.4,98.8 478.8,104.7 515.4,105.3 515.4,110.9 515.4,114.7 519.2,114.7 524.1,114.7 530.4,114.7 536.3,114.7 542.2,114.7 549.9,114.7 557.6,114.7 563.6,114.7 569.7,114.7 575.0,114.7 575.0,114.7 608.0,119.0 695.9,130.5 773.4,140.6 781.8,144.0 781.8,144.0 788.8,177.9 788.8,177.9 795.6,213.8 800.0,219.2 980.0,442.6 980.0,482.5 0.0,482.5" fill="#9fbfd0" opacity="0.55"/>
-<polyline points="0.0,65.9 184.4,98.8 478.8,104.7 515.4,105.3 515.4,110.9 515.4,114.7 519.2,114.7 524.1,114.7 530.4,114.7 536.3,114.7 542.2,114.7 549.9,114.7 557.6,114.7 563.6,114.7 569.7,114.7 575.0,114.7 575.0,114.7 608.0,119.0 695.9,130.5 773.4,140.6 781.8,144.0 781.8,144.0 788.8,177.9 788.8,177.9 795.6,213.8 800.0,219.2 980.0,442.6" fill="none" stroke="#3f6a80" stroke-width="2.0"/>
-<polyline points="478.8,104.7 633.8,107.7 642.9,108.6 649.2,109.2 664.7,110.7 679.3,112.1 692.5,113.3 700.6,114.1 705.7,114.1" fill="none" stroke="#5f7a4e" stroke-width="2.0" stroke-dasharray="7 4"/>
-<circle cx="0.0" cy="65.9" r="2.6" fill="#3d6ea8"/>
-<circle cx="184.4" cy="98.8" r="2.6" fill="#3d6ea8"/>
-<circle cx="478.8" cy="104.7" r="2.6" fill="#3d6ea8"/>
-<circle cx="515.4" cy="105.3" r="2.6" fill="var(--shu)"/>
-<circle cx="515.4" cy="110.9" r="2.6" fill="var(--shu)"/>
-<circle cx="515.4" cy="114.7" r="2.6" fill="var(--shu)"/>
-<circle cx="519.2" cy="114.7" r="2.6" fill="#3f6a80"/>
-<circle cx="524.1" cy="114.7" r="2.6" fill="#3f6a80"/>
-<circle cx="530.4" cy="114.7" r="2.6" fill="#3f6a80"/>
-<circle cx="536.3" cy="114.7" r="2.6" fill="#3f6a80"/>
-<circle cx="542.2" cy="114.7" r="2.6" fill="#3f6a80"/>
-<circle cx="549.9" cy="114.7" r="2.6" fill="#3f6a80"/>
-<circle cx="557.6" cy="114.7" r="2.6" fill="#3f6a80"/>
-<circle cx="563.6" cy="114.7" r="2.6" fill="#3f6a80"/>
-<circle cx="569.7" cy="114.7" r="2.6" fill="#3f6a80"/>
-<circle cx="575.0" cy="114.7" r="2.6" fill="#3f6a80"/>
-<circle cx="575.0" cy="114.7" r="2.6" fill="#7a5c3a"/>
-<circle cx="608.0" cy="119.0" r="2.6" fill="#5f7a4e"/>
-<circle cx="695.9" cy="130.5" r="2.6" fill="#5f7a4e"/>
-<circle cx="773.4" cy="140.6" r="2.6" fill="#5f7a4e"/>
-<circle cx="781.8" cy="144.0" r="2.6" fill="var(--shu)"/>
-<circle cx="781.8" cy="144.0" r="2.6" fill="var(--shu)"/>
-<circle cx="788.8" cy="177.9" r="2.6" fill="var(--shu)"/>
-<circle cx="788.8" cy="177.9" r="2.6" fill="var(--shu)"/>
-<circle cx="795.6" cy="213.8" r="2.6" fill="var(--shu)"/>
-<circle cx="800.0" cy="219.2" r="2.6" fill="#7a6a3d"/>
-<circle cx="980.0" cy="442.6" r="2.6" fill="#3d6ea8"/>
-<circle cx="478.8" cy="104.7" r="2.6" fill="#3d6ea8"/>
-<circle cx="633.8" cy="107.7" r="2.6" fill="#3f6a80"/>
-<circle cx="642.9" cy="108.6" r="2.6" fill="#3f6a80"/>
-<circle cx="649.2" cy="109.2" r="2.6" fill="#3f6a80"/>
-<circle cx="664.7" cy="110.7" r="2.6" fill="#3f6a80"/>
-<circle cx="679.3" cy="112.1" r="2.6" fill="#3f6a80"/>
-<circle cx="692.5" cy="113.3" r="2.6" fill="#3f6a80"/>
-<circle cx="700.6" cy="114.1" r="2.6" fill="#3f6a80"/>
-<circle cx="705.7" cy="114.1" r="2.6" fill="var(--shu)"/>
-<line x1="0.0" y1="482.5" x2="980.0" y2="482.5" stroke="var(--ink-lo)" stroke-width="0.50" stroke-dasharray="2 4" opacity="0.45"/>
-<text class="jo" x="2.0" y="480.5">7.6m</text>
-<line x1="0.0" y1="368.4" x2="980.0" y2="368.4" stroke="var(--ink-lo)" stroke-width="0.50" stroke-dasharray="2 4" opacity="0.45"/>
-<text class="jo" x="2.0" y="366.4">13.3m</text>
-<line x1="0.0" y1="254.3" x2="980.0" y2="254.3" stroke="var(--ink-lo)" stroke-width="0.50" stroke-dasharray="2 4" opacity="0.45"/>
-<text class="jo" x="2.0" y="252.3">19.0m</text>
-<line x1="0.0" y1="140.1" x2="980.0" y2="140.1" stroke="var(--ink-lo)" stroke-width="0.50" stroke-dasharray="2 4" opacity="0.45"/>
-<text class="jo" x="2.0" y="138.1">24.8m</text>
+<polygon points="0.0,66.0 184.8,98.9 479.9,104.9 516.5,105.5 516.5,111.1 516.5,114.9 520.4,114.9 525.2,114.9 531.5,114.9 537.4,114.9 543.3,114.9 551.1,114.9 558.8,114.9 564.8,114.9 570.9,114.9 576.2,114.9 576.2,114.9 609.4,119.4 697.4,131.2 776.4,141.9 781.3,144.3 781.3,144.3 788.4,178.2 788.4,178.2 795.2,214.2 799.6,219.7 980.0,443.5 980.0,483.5 0.0,483.5" fill="#9fbfd0" opacity="0.55"/>
+<polyline points="0.0,66.0 184.8,98.9 479.9,104.9 516.5,105.5 516.5,111.1 516.5,114.9 520.4,114.9 525.2,114.9 531.5,114.9 537.4,114.9 543.3,114.9 551.1,114.9 558.8,114.9 564.8,114.9 570.9,114.9 576.2,114.9 576.2,114.9 609.4,119.4 697.4,131.2 776.4,141.9 781.3,144.3 781.3,144.3 788.4,178.2 788.4,178.2 795.2,214.2 799.6,219.7 980.0,443.5" fill="none" stroke="#3f6a80" stroke-width="2.0"/>
+<polyline points="479.9,104.9 635.2,107.9 644.2,108.8 650.6,109.4 666.1,110.9 680.7,112.3 694.0,113.5 702.1,114.3 707.2,114.3" fill="none" stroke="#5f7a4e" stroke-width="2.0" stroke-dasharray="7 4"/>
+<circle cx="0.0" cy="66.0" r="2.6" fill="#3d6ea8"/>
+<circle cx="184.8" cy="98.9" r="2.6" fill="#3d6ea8"/>
+<circle cx="479.9" cy="104.9" r="2.6" fill="#3d6ea8"/>
+<circle cx="516.5" cy="105.5" r="2.6" fill="var(--shu)"/>
+<circle cx="516.5" cy="111.1" r="2.6" fill="var(--shu)"/>
+<circle cx="516.5" cy="114.9" r="2.6" fill="var(--shu)"/>
+<circle cx="520.4" cy="114.9" r="2.6" fill="#3f6a80"/>
+<circle cx="525.2" cy="114.9" r="2.6" fill="#3f6a80"/>
+<circle cx="531.5" cy="114.9" r="2.6" fill="#3f6a80"/>
+<circle cx="537.4" cy="114.9" r="2.6" fill="#3f6a80"/>
+<circle cx="543.3" cy="114.9" r="2.6" fill="#3f6a80"/>
+<circle cx="551.1" cy="114.9" r="2.6" fill="#3f6a80"/>
+<circle cx="558.8" cy="114.9" r="2.6" fill="#3f6a80"/>
+<circle cx="564.8" cy="114.9" r="2.6" fill="#3f6a80"/>
+<circle cx="570.9" cy="114.9" r="2.6" fill="#3f6a80"/>
+<circle cx="576.2" cy="114.9" r="2.6" fill="#3f6a80"/>
+<circle cx="576.2" cy="114.9" r="2.6" fill="#7a5c3a"/>
+<circle cx="609.4" cy="119.4" r="2.6" fill="#5f7a4e"/>
+<circle cx="697.4" cy="131.2" r="2.6" fill="#5f7a4e"/>
+<circle cx="776.4" cy="141.9" r="2.6" fill="#5f7a4e"/>
+<circle cx="781.3" cy="144.3" r="2.6" fill="var(--shu)"/>
+<circle cx="781.3" cy="144.3" r="2.6" fill="var(--shu)"/>
+<circle cx="788.4" cy="178.2" r="2.6" fill="var(--shu)"/>
+<circle cx="788.4" cy="178.2" r="2.6" fill="var(--shu)"/>
+<circle cx="795.2" cy="214.2" r="2.6" fill="var(--shu)"/>
+<circle cx="799.6" cy="219.7" r="2.6" fill="#7a6a3d"/>
+<circle cx="980.0" cy="443.5" r="2.6" fill="#3d6ea8"/>
+<circle cx="479.9" cy="104.9" r="2.6" fill="#3d6ea8"/>
+<circle cx="635.2" cy="107.9" r="2.6" fill="#3f6a80"/>
+<circle cx="644.2" cy="108.8" r="2.6" fill="#3f6a80"/>
+<circle cx="650.6" cy="109.4" r="2.6" fill="#3f6a80"/>
+<circle cx="666.1" cy="110.9" r="2.6" fill="#3f6a80"/>
+<circle cx="680.7" cy="112.3" r="2.6" fill="#3f6a80"/>
+<circle cx="694.0" cy="113.5" r="2.6" fill="#3f6a80"/>
+<circle cx="702.1" cy="114.3" r="2.6" fill="#3f6a80"/>
+<circle cx="707.2" cy="114.3" r="2.6" fill="var(--shu)"/>
+<line x1="0.0" y1="483.5" x2="980.0" y2="483.5" stroke="var(--ink-lo)" stroke-width="0.50" stroke-dasharray="2 4" opacity="0.45"/>
+<text class="jo" x="2.0" y="481.5">7.6m</text>
+<line x1="0.0" y1="369.1" x2="980.0" y2="369.1" stroke="var(--ink-lo)" stroke-width="0.50" stroke-dasharray="2 4" opacity="0.45"/>
+<text class="jo" x="2.0" y="367.1">13.3m</text>
+<line x1="0.0" y1="254.7" x2="980.0" y2="254.7" stroke="var(--ink-lo)" stroke-width="0.50" stroke-dasharray="2 4" opacity="0.45"/>
+<text class="jo" x="2.0" y="252.7">19.0m</text>
+<line x1="0.0" y1="140.4" x2="980.0" y2="140.4" stroke="var(--ink-lo)" stroke-width="0.50" stroke-dasharray="2 4" opacity="0.45"/>
+<text class="jo" x="2.0" y="138.4">24.8m</text>
 <line x1="0.0" y1="26.0" x2="980.0" y2="26.0" stroke="var(--ink-lo)" stroke-width="0.50" stroke-dasharray="2 4" opacity="0.45"/>
 <text class="jo" x="2.0" y="24.0">30.5m</text>
-<text class="jo" x="6.0" y="60.9" style="text-anchor:start;font-size:8.5px">玉川上水の分水枡 28.50m</text>
-<text class="jo" x="190.4" y="93.8" style="text-anchor:start;font-size:8.5px">落し枡B 26.85m</text>
-<text class="jo" x="484.8" y="99.7" style="text-anchor:start;font-size:8.5px">落し枡C(主庭の入り) 26.55m</text>
-<line x1="478.8" y1="104.7" x2="484.8" y2="118.9" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
-<text class="jo" x="484.8" y="121.7" style="text-anchor:start;font-size:8.5px">落し枡C(主庭の入り) 26.55m</text>
-<line x1="515.4" y1="105.3" x2="521.4" y2="141.4" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
-<text class="jo" x="521.4" y="144.3" style="text-anchor:start;font-size:8.5px">吐き口(岩屋) 26.52m</text>
-<text class="jo" x="639.8" y="102.7" style="text-anchor:start;font-size:8.5px">遣水の湧き口 26.40m</text>
-<line x1="642.9" y1="108.6" x2="648.9" y2="122.7" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
-<text class="jo" x="648.9" y="125.6" style="text-anchor:start;font-size:8.5px">石橋 26.36m</text>
-<line x1="515.4" y1="110.9" x2="521.4" y2="158.0" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
-<text class="jo" x="521.4" y="160.9" style="text-anchor:start;font-size:8.5px">落ち口 1段目(−0.28m) 26.24m</text>
-<line x1="700.6" y1="114.1" x2="706.6" y2="139.2" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
-<text class="jo" x="706.6" y="142.1" style="text-anchor:start;font-size:8.5px">遣水の落ち口 26.08m</text>
-<line x1="705.7" y1="114.1" x2="711.7" y2="161.2" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
-<text class="jo" x="711.7" y="164.1" style="text-anchor:start;font-size:8.5px">一の段 天端 26.08m</text>
-<line x1="575.0" y1="114.7" x2="581.0" y2="172.8" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
-<text class="jo" x="581.0" y="175.7" style="text-anchor:start;font-size:8.5px">御泉水 26.05m</text>
-<line x1="575.0" y1="114.7" x2="581.0" y2="194.8" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
-<text class="jo" x="581.0" y="197.7" style="text-anchor:start;font-size:8.5px">水尻(余水吐) 26.05m</text>
-<line x1="515.4" y1="114.7" x2="521.4" y2="216.8" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
-<text class="jo" x="521.4" y="219.7" style="text-anchor:start;font-size:8.5px">落ち口 2段目(−0.19m) 26.05m</text>
-<line x1="773.4" y1="140.6" x2="779.4" y2="176.7" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
-<text class="jo" x="779.4" y="179.6" style="text-anchor:start;font-size:8.5px">暗渠の末(一の段の滝壺へ吐く) 24.75m</text>
-<line x1="781.8" y1="144.0" x2="787.8" y2="191.1" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
-<text class="jo" x="787.8" y="194.0" style="text-anchor:start;font-size:8.5px">一の段 の滝壺 24.58m</text>
-<line x1="781.8" y1="144.0" x2="787.8" y2="213.1" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
-<text class="jo" x="787.8" y="216.0" style="text-anchor:start;font-size:8.5px">二の段 天端 24.58m</text>
-<line x1="788.8" y1="177.9" x2="794.8" y2="236.0" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
-<text class="jo" x="794.8" y="238.9" style="text-anchor:start;font-size:8.5px">三の段 天端 22.88m</text>
-<line x1="800.0" y1="219.2" x2="806.0" y2="255.4" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
-<text class="jo" x="806.0" y="258.2" style="text-anchor:start;font-size:8.5px">南西の谷(自然の沢・造成しない) 20.81m</text>
-<text class="jo" x="986.0" y="437.6" style="text-anchor:start;font-size:8.5px">区画の南西の出口 P4(この先は区画外の谷を下って溜池の汀へ) 9.60m</text>
-<text class="anS" x="4.0" y="16.0" style="text-anchor:start">水の系の縦断 ／ 水平 393m ／ 垂直 8 倍 ／ 実線=本流(池を通る) ／ 破線=枝2(遣水)</text>
+<text class="jo" x="6.0" y="61.0" style="text-anchor:start;font-size:8.5px">玉川上水の分水枡 28.50m</text>
+<text class="jo" x="190.8" y="93.9" style="text-anchor:start;font-size:8.5px">落し枡B 26.85m</text>
+<text class="jo" x="485.9" y="99.9" style="text-anchor:start;font-size:8.5px">落し枡C(主庭の入り) 26.55m</text>
+<line x1="479.9" y1="104.9" x2="485.9" y2="119.0" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
+<text class="jo" x="485.9" y="121.9" style="text-anchor:start;font-size:8.5px">落し枡C(主庭の入り) 26.55m</text>
+<line x1="516.5" y1="105.5" x2="522.5" y2="141.6" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
+<text class="jo" x="522.5" y="144.5" style="text-anchor:start;font-size:8.5px">吐き口(岩屋) 26.52m</text>
+<text class="jo" x="641.2" y="102.9" style="text-anchor:start;font-size:8.5px">遣水の湧き口 26.40m</text>
+<line x1="644.2" y1="108.8" x2="650.2" y2="122.9" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
+<text class="jo" x="650.2" y="125.8" style="text-anchor:start;font-size:8.5px">石橋 26.36m</text>
+<line x1="516.5" y1="111.1" x2="522.5" y2="158.2" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
+<text class="jo" x="522.5" y="161.1" style="text-anchor:start;font-size:8.5px">落ち口 1段目(−0.28m) 26.24m</text>
+<line x1="702.1" y1="114.3" x2="708.1" y2="139.4" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
+<text class="jo" x="708.1" y="142.3" style="text-anchor:start;font-size:8.5px">遣水の落ち口 26.08m</text>
+<line x1="707.2" y1="114.3" x2="713.2" y2="161.4" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
+<text class="jo" x="713.2" y="164.3" style="text-anchor:start;font-size:8.5px">一の段 天端 26.08m</text>
+<line x1="576.2" y1="114.9" x2="582.2" y2="173.0" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
+<text class="jo" x="582.2" y="175.9" style="text-anchor:start;font-size:8.5px">御泉水 26.05m</text>
+<line x1="576.2" y1="114.9" x2="582.2" y2="195.0" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
+<text class="jo" x="582.2" y="197.9" style="text-anchor:start;font-size:8.5px">水尻(余水吐) 26.05m</text>
+<line x1="516.5" y1="114.9" x2="522.5" y2="217.0" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
+<text class="jo" x="522.5" y="219.9" style="text-anchor:start;font-size:8.5px">落ち口 2段目(−0.19m) 26.05m</text>
+<line x1="776.4" y1="141.9" x2="782.4" y2="178.0" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
+<text class="jo" x="782.4" y="180.9" style="text-anchor:start;font-size:8.5px">暗渠の末(一の段の滝壺へ吐く) 24.70m</text>
+<line x1="781.3" y1="144.3" x2="787.3" y2="191.4" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
+<text class="jo" x="787.3" y="194.3" style="text-anchor:start;font-size:8.5px">一の段 の滝壺 24.58m</text>
+<line x1="781.3" y1="144.3" x2="787.3" y2="213.4" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
+<text class="jo" x="787.3" y="216.3" style="text-anchor:start;font-size:8.5px">二の段 天端 24.58m</text>
+<line x1="788.4" y1="178.2" x2="794.4" y2="236.3" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
+<text class="jo" x="794.4" y="239.2" style="text-anchor:start;font-size:8.5px">三の段 天端 22.88m</text>
+<line x1="799.6" y1="219.7" x2="805.6" y2="255.8" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
+<text class="jo" x="805.6" y="258.7" style="text-anchor:start;font-size:8.5px">南西の谷(自然の沢・造成しない) 20.81m</text>
+<text class="jo" x="986.0" y="438.5" style="text-anchor:start;font-size:8.5px">区画の南西の出口 P4(この先は区画外の谷を下って溜池の汀へ) 9.60m</text>
+<text class="anS" x="4.0" y="16.0" style="text-anchor:start">水の系の縦断 ／ 水平 392m ／ 垂直 8 倍 ／ 実線=本流(池を通る) ／ 破線=枝2(遣水)</text>
 </svg></div>
 <p class="cap"><b>取入口(玉川上水の分水枡)から区画の南西の出口 P4 まで、水面の高さを一列に並べた縦断。</b>⭐ <b>A案のときの難点『水尻の行き先が谷で余水吐が敷地内で消える』は前提が誤りだった</b> — 現況 20.1m の窪みは <code>Fukugen</code> の段(1883年以降の掘削跡)で、埋め戻して 27.0 に復す対象。埋め戻した後に水が向かうのは<b>南西の谷</b>(谷底が 24.1 → 10.0 と連続して下る自然の谷)で、出口は<b>区画の南西の出口 P4</b>で、その先は区画外の谷を下って汀へ達する。⭐ 1687年『江戸鹿子』の「<b>滝の末は赤坂の溜池へ落ち</b>」と一致する。</p>
-<div class="tw"><table><thead><tr><th>種別</th><th>地点</th><th>取入口からの距離</th><th>水面</th><th class='note'>一つ上流からの勾配・落差</th></tr></thead><tbody><tr><td colspan='5'><b>本流(取入口 → 御泉水 → 水尻 → 暗渠 → 台地端の滝 → 溜池)</b></td></tr><tr><td>枡</td><td>玉川上水の分水枡</td><td>0 m</td><td><b>28.50 m</b></td><td class='note'></td></tr><tr><td>枡</td><td>落し枡B</td><td>74 m</td><td><b>26.85 m</b></td><td class='note'>1/45</td></tr><tr><td>枡</td><td>落し枡C(主庭の入り)</td><td>192 m</td><td><b>26.55 m</b></td><td class='note'>1/394</td></tr><tr><td>岩屋</td><td>吐き口(岩屋)</td><td>207 m</td><td><b>26.52 m</b></td><td class='note'>1/489</td></tr><tr><td>落ち口</td><td>落ち口 1段目(−0.28m)</td><td>207 m</td><td><b>26.24 m</b></td><td class='note'>落差 0.28m</td></tr><tr><td>落ち口</td><td>落ち口 2段目(−0.19m)</td><td>207 m</td><td><b>26.05 m</b></td><td class='note'>落差 0.19m</td></tr><tr><td>池</td><td>御泉水</td><td>231 m</td><td><b>26.05 m</b></td><td class='note'>—</td></tr><tr><td>堰</td><td>水尻(余水吐)</td><td>231 m</td><td><b>26.05 m</b></td><td class='note'></td></tr><tr><td>暗渠</td><td>暗渠の末(一の段の滝壺へ吐く)</td><td>310 m</td><td><b>24.75 m</b></td><td class='note'>1/61</td></tr><tr><td>滝</td><td>一の段 の滝壺</td><td>314 m</td><td><b>24.58 m</b></td><td class='note'>1/20</td></tr><tr><td>滝</td><td>二の段 天端</td><td>314 m</td><td><b>24.58 m</b></td><td class='note'></td></tr><tr><td>滝</td><td>三の段 天端</td><td>317 m</td><td><b>22.88 m</b></td><td class='note'></td></tr><tr><td>沢</td><td>南西の谷(自然の沢・造成しない)</td><td>321 m</td><td><b>20.81 m</b></td><td class='note'>1/6</td></tr><tr><td>溜池</td><td>区画の南西の出口 P4(この先は区画外の谷を下って溜池の汀へ)</td><td>393 m</td><td><b>9.60 m</b></td><td class='note'>1/6</td></tr><tr><td colspan='5'><b>枝2(落し枡C → 石樋 → 遣水 → 台地端の滝の頭)</b></td></tr><tr><td>枡</td><td>落し枡C(主庭の入り)</td><td>192 m</td><td><b>26.55 m</b></td><td class='note'></td></tr><tr><td>遣水</td><td>遣水の湧き口</td><td>254 m</td><td><b>26.40 m</b></td><td class='note'>1/415</td></tr><tr><td>遣水</td><td>石橋</td><td>258 m</td><td><b>26.36 m</b></td><td class='note'>1/84</td></tr><tr><td>遣水</td><td>遣水の落ち口</td><td>281 m</td><td><b>26.08 m</b></td><td class='note'>1/84</td></tr><tr><td>滝</td><td>一の段 天端</td><td>283 m</td><td><b>26.08 m</b></td><td class='note'>—</td></tr></tbody></table></div><p class='cap'>⛔ <b>距離も勾配もすべて従属値</b>(座標と水面の設計値から生成器が測る)— 指図にも kosho.md にも写さない(規則4)。⭐ <b>末端は区画の南西の出口 P4</b>まで引いてある(⚠ <b>ここはまだ溜池の汀ではない</b> — 最も南西の頂点は P6 で、P4 の地盤は溜池の水面より高い。考証方 2026-09-01 高2 の是正)。この先は<b>区画外の自然の谷</b>を下って汀へ達する — 貞享4年(1687)『江戸鹿子』の「滝の末は赤坂の溜池へ落ち」が設計として成立していることを図の上で最後まで追えるようにするため。</p>
+<div class="tw"><table><thead><tr><th>種別</th><th>地点</th><th>取入口からの距離</th><th>水面</th><th class='note'>一つ上流からの勾配・落差</th></tr></thead><tbody><tr><td colspan='5'><b>本流(取入口 → 御泉水 → 水尻 → 暗渠 → 台地端の滝 → 溜池)</b></td></tr><tr><td>枡</td><td>玉川上水の分水枡</td><td>0 m</td><td><b>28.50 m</b></td><td class='note'></td></tr><tr><td>枡</td><td>落し枡B</td><td>74 m</td><td><b>26.85 m</b></td><td class='note'>1/45</td></tr><tr><td>枡</td><td>落し枡C(主庭の入り)</td><td>192 m</td><td><b>26.55 m</b></td><td class='note'>1/394</td></tr><tr><td>岩屋</td><td>吐き口(岩屋)</td><td>207 m</td><td><b>26.52 m</b></td><td class='note'>1/489</td></tr><tr><td>落ち口</td><td>落ち口 1段目(−0.28m)</td><td>207 m</td><td><b>26.24 m</b></td><td class='note'>落差 0.28m</td></tr><tr><td>落ち口</td><td>落ち口 2段目(−0.19m)</td><td>207 m</td><td><b>26.05 m</b></td><td class='note'>落差 0.19m</td></tr><tr><td>池</td><td>御泉水</td><td>231 m</td><td><b>26.05 m</b></td><td class='note'>—</td></tr><tr><td>堰</td><td>水尻(余水吐)</td><td>231 m</td><td><b>26.05 m</b></td><td class='note'></td></tr><tr><td>暗渠</td><td>暗渠の末(一の段の滝壺へ吐く)</td><td>311 m</td><td><b>24.70 m</b></td><td class='note'>1/59</td></tr><tr><td>滝</td><td>一の段 の滝壺</td><td>313 m</td><td><b>24.58 m</b></td><td class='note'>1/16</td></tr><tr><td>滝</td><td>二の段 天端</td><td>313 m</td><td><b>24.58 m</b></td><td class='note'></td></tr><tr><td>滝</td><td>三の段 天端</td><td>316 m</td><td><b>22.88 m</b></td><td class='note'></td></tr><tr><td>沢</td><td>南西の谷(自然の沢・造成しない)</td><td>320 m</td><td><b>20.81 m</b></td><td class='note'>1/6</td></tr><tr><td>溜池</td><td>区画の南西の出口 P4(この先は区画外の谷を下って溜池の汀へ)</td><td>392 m</td><td><b>9.60 m</b></td><td class='note'>1/6</td></tr><tr><td colspan='5'><b>枝2(落し枡C → 石樋 → 遣水 → 台地端の滝の頭)</b></td></tr><tr><td>枡</td><td>落し枡C(主庭の入り)</td><td>192 m</td><td><b>26.55 m</b></td><td class='note'></td></tr><tr><td>遣水</td><td>遣水の湧き口</td><td>254 m</td><td><b>26.40 m</b></td><td class='note'>1/415</td></tr><tr><td>遣水</td><td>石橋</td><td>258 m</td><td><b>26.36 m</b></td><td class='note'>1/84</td></tr><tr><td>遣水</td><td>遣水の落ち口</td><td>281 m</td><td><b>26.08 m</b></td><td class='note'>1/84</td></tr><tr><td>滝</td><td>一の段 天端</td><td>283 m</td><td><b>26.08 m</b></td><td class='note'>—</td></tr></tbody></table></div><p class='cap'>⛔ <b>距離も勾配もすべて従属値</b>(座標と水面の設計値から生成器が測る)— 指図にも kosho.md にも写さない(規則4)。⭐ <b>末端は区画の南西の出口 P4</b>まで引いてある(⚠ <b>ここはまだ溜池の汀ではない</b> — 最も南西の頂点は P6 で、P4 の地盤は溜池の水面より高い。考証方 2026-09-01 高2 の是正)。この先は<b>区画外の自然の谷</b>を下って汀へ達する — 貞享4年(1687)『江戸鹿子』の「滝の末は赤坂の溜池へ落ち」が設計として成立していることを図の上で最後まで追えるようにするため。</p>
 <h3>台地端の滝(三段)— <b>下端が自然地盤に載っているか</b></h3>
 <div class="tw"><table><thead><tr><th>段</th><th>水落石の位置</th><th>天端</th><th>落差</th><th>下端</th><th>滝壺の位置</th><th>滝壺の設計地盤</th><th>Δ(下端 − 設計地盤)</th><th class='note'>造成前 DEM(参考)</th></tr></thead><tbody><tr><td>一の段</td><td>u-30.0 v66.6</td><td>26.08 m</td><td>1.50 m</td><td><b>24.58 m</b></td><td>u-29.6 v68.0</td><td>24.58 m</td><td><b>+0.00 m</b></td><td class='note'>造成前 DEM 22.98 m(差 +1.60 m)【参考】</td></tr><tr><td>二の段</td><td>u-29.6 v68.0</td><td>24.58 m</td><td>1.70 m</td><td><b>22.88 m</b></td><td>u-29.2 v69.5</td><td>22.76 m</td><td><b>+0.12 m</b></td><td class='note'>造成前 DEM 21.20 m(差 +1.68 m)【参考】</td></tr><tr><td>三の段</td><td>u-29.2 v69.5</td><td>22.88 m</td><td>1.80 m</td><td><b>21.08 m</b></td><td>u-28.8 v71.0</td><td>21.00 m</td><td><b>+0.08 m</b></td><td class='note'>造成前 DEM 20.64 m(差 +0.44 m)【参考】</td></tr></tbody></table></div><p class='cap'>⭐ <b>三段は 1:1.5 の設計盛土法面の中に組み、滝石組がそのまま法面の土留めを兼ねる</b>(庭方 2026-09-01 中7)。⛔ <b>『盛土も切土もほとんど要らない』は誤りだった</b> — 盛土を張ると決めた場所で造成前 DEM と比べても意味が無い。検査 <code>taki_check</code> は <b>|下端 − 設計地盤| ≤ 0.30m を全段</b>に回す(従前は最下段だけ・当て先も造成前 DEM だった)。<br>⭐ <b>滝壺の位置は次の段の位置</b>(次の段の天端がそこに座る)。最下段だけは段の刻みの平均を一つ延ばした点で測る。<br>⭐ <b>一の段・二の段の滝壺と水受石は盛土の上に据えない</b>【B=庭師の作法(類型)】— 基礎を切って<b>自然地盤まで根入れ</b>し、壺は練り基礎+敷石で受ける。盛土の上の滝壺は<b>沈下と抜け水で涸れる</b>。<br>⭐ <b>水落石の口は 0.4間(0.73m)に絞る</b>【B】— 上水の分水は細流なので、口が広いと水膜が切れて「濡れた石」にしか見えない。⚠ 中仕切塀 <code>NJ_Oku_S_W</code> が滝の真上を横切るので、<b>滝見口 <code>NJ_Taki_Kido</code>(庭木戸・1間)</b>を開けて滝見の床几 <b>V8</b> へ <code>K_Takimi</code> で降りる。</p>
 <p class='cap'>⭐ <b>確度は三段に割る</b>(考証方 2026-09-01)— ①上水が邸へ来ていた(基準年次)= <b>B</b> ②その上水が池へ給水していた = <b>B</b>(一般則の 73% ではなく<b>当邸の文化年間の記録が「上水樋と接続した池泉」と明言している</b>ことに拠るので、他邸より強い)③取入口 = 型 <b>B</b>(隣接同型実例 [内藤2024] の松平安藝守/春秋園=当邸と同じ淀橋台南東縁 <b>A</b> + 一般則 <b>A</b> からの外挿)/ 標高の高い側 <b>P</b>(造成前DEM 実測)/ <b>隅の指名 U</b>。<br>⛔ <b>『玉川上水留』を追っても位置は出ない</b> — [内藤2024] 自身が「同書から引くのは分水口断面の寸法比較だけで標高値は無い」と明言。⭐ 絞り込みは東京都水道歴史館 <b>K0136「麹町区霞ヶ関町・永田町・三年町 上水樋線之図」</b>の実見待ち(<code>_pending.torinyuguchi</code>)。⛔ <b>①が B である以上、池そのものも B を超えない</b> — 指図のどこかで池を A と書かない。</p>
@@ -43828,36 +43838,44 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <circle cx="569.6" cy="448.4" r="1.4" fill="#5E7A4E"/>
 <circle cx="569.3" cy="422.1" r="26.8" fill="#5E7A4E" opacity="0.34"/>
 <circle cx="569.3" cy="422.1" r="1.4" fill="#5E7A4E"/>
-<circle cx="770.8" cy="482.6" r="7.3" fill="#8FA36B" opacity="0.34"/>
-<circle cx="770.8" cy="482.6" r="1.4" fill="#8FA36B"/>
-<circle cx="766.7" cy="490.2" r="10.5" fill="#8FA36B" opacity="0.34"/>
-<circle cx="766.7" cy="490.2" r="1.4" fill="#8FA36B"/>
-<circle cx="774.9" cy="489.1" r="8.5" fill="#8FA36B" opacity="0.34"/>
-<circle cx="774.9" cy="489.1" r="1.4" fill="#8FA36B"/>
-<circle cx="754.3" cy="485.7" r="8.5" fill="#8FA36B" opacity="0.34"/>
-<circle cx="754.3" cy="485.7" r="1.4" fill="#8FA36B"/>
-<circle cx="781.4" cy="482.7" r="8.5" fill="#8FA36B" opacity="0.34"/>
-<circle cx="781.4" cy="482.7" r="1.4" fill="#8FA36B"/>
-<circle cx="769.6" cy="504.7" r="7.3" fill="#8FA36B" opacity="0.34"/>
-<circle cx="769.6" cy="504.7" r="1.4" fill="#8FA36B"/>
-<circle cx="761.8" cy="483.9" r="8.5" fill="#8FA36B" opacity="0.34"/>
-<circle cx="761.8" cy="483.9" r="1.4" fill="#8FA36B"/>
-<circle cx="602.4" cy="531.0" r="7.3" fill="#8FA36B" opacity="0.34"/>
-<circle cx="602.4" cy="531.0" r="1.4" fill="#8FA36B"/>
-<circle cx="615.6" cy="552.2" r="7.3" fill="#8FA36B" opacity="0.34"/>
-<circle cx="615.6" cy="552.2" r="1.4" fill="#8FA36B"/>
-<circle cx="607.3" cy="550.1" r="8.5" fill="#8FA36B" opacity="0.34"/>
-<circle cx="607.3" cy="550.1" r="1.4" fill="#8FA36B"/>
-<circle cx="616.2" cy="531.9" r="10.5" fill="#8FA36B" opacity="0.34"/>
-<circle cx="616.2" cy="531.9" r="1.4" fill="#8FA36B"/>
-<circle cx="620.1" cy="540.7" r="10.5" fill="#8FA36B" opacity="0.34"/>
-<circle cx="620.1" cy="540.7" r="1.4" fill="#8FA36B"/>
-<circle cx="612.5" cy="525.5" r="10.5" fill="#8FA36B" opacity="0.34"/>
-<circle cx="612.5" cy="525.5" r="1.4" fill="#8FA36B"/>
-<circle cx="601.8" cy="542.2" r="7.3" fill="#8FA36B" opacity="0.34"/>
-<circle cx="601.8" cy="542.2" r="1.4" fill="#8FA36B"/>
-<circle cx="731.3" cy="452.1" r="7.3" fill="#8FA36B" opacity="0.34"/>
-<circle cx="731.3" cy="452.1" r="1.4" fill="#8FA36B"/>
+<circle cx="769.4" cy="485.4" r="7.3" fill="#8FA36B" opacity="0.34"/>
+<circle cx="769.4" cy="485.4" r="1.4" fill="#8FA36B"/>
+<circle cx="766.1" cy="492.1" r="10.5" fill="#8FA36B" opacity="0.34"/>
+<circle cx="766.1" cy="492.1" r="1.4" fill="#8FA36B"/>
+<circle cx="778.4" cy="482.5" r="8.5" fill="#8FA36B" opacity="0.34"/>
+<circle cx="778.4" cy="482.5" r="1.4" fill="#8FA36B"/>
+<circle cx="771.5" cy="501.0" r="8.5" fill="#8FA36B" opacity="0.34"/>
+<circle cx="771.5" cy="501.0" r="1.4" fill="#8FA36B"/>
+<circle cx="759.7" cy="483.5" r="8.5" fill="#8FA36B" opacity="0.34"/>
+<circle cx="759.7" cy="483.5" r="1.4" fill="#8FA36B"/>
+<circle cx="771.3" cy="476.2" r="7.3" fill="#8FA36B" opacity="0.34"/>
+<circle cx="771.3" cy="476.2" r="1.4" fill="#8FA36B"/>
+<circle cx="780.1" cy="490.1" r="8.5" fill="#8FA36B" opacity="0.34"/>
+<circle cx="780.1" cy="490.1" r="1.4" fill="#8FA36B"/>
+<circle cx="625.7" cy="513.4" r="7.3" fill="#8FA36B" opacity="0.34"/>
+<circle cx="625.7" cy="513.4" r="1.4" fill="#8FA36B"/>
+<circle cx="610.8" cy="528.3" r="7.3" fill="#8FA36B" opacity="0.34"/>
+<circle cx="610.8" cy="528.3" r="1.4" fill="#8FA36B"/>
+<circle cx="602.0" cy="516.2" r="8.5" fill="#8FA36B" opacity="0.34"/>
+<circle cx="602.0" cy="516.2" r="1.4" fill="#8FA36B"/>
+<circle cx="614.2" cy="496.8" r="10.5" fill="#8FA36B" opacity="0.34"/>
+<circle cx="614.2" cy="496.8" r="1.4" fill="#8FA36B"/>
+<circle cx="601.3" cy="502.4" r="10.5" fill="#8FA36B" opacity="0.34"/>
+<circle cx="601.3" cy="502.4" r="1.4" fill="#8FA36B"/>
+<circle cx="622.1" cy="500.7" r="10.5" fill="#8FA36B" opacity="0.34"/>
+<circle cx="622.1" cy="500.7" r="1.4" fill="#8FA36B"/>
+<circle cx="629.7" cy="503.0" r="7.3" fill="#8FA36B" opacity="0.34"/>
+<circle cx="629.7" cy="503.0" r="1.4" fill="#8FA36B"/>
+<circle cx="735.2" cy="430.1" r="7.3" fill="#8FA36B" opacity="0.34"/>
+<circle cx="735.2" cy="430.1" r="1.4" fill="#8FA36B"/>
+<circle cx="733.2" cy="447.9" r="8.5" fill="#8FA36B" opacity="0.34"/>
+<circle cx="733.2" cy="447.9" r="1.4" fill="#8FA36B"/>
+<circle cx="720.0" cy="425.4" r="10.5" fill="#8FA36B" opacity="0.34"/>
+<circle cx="720.0" cy="425.4" r="1.4" fill="#8FA36B"/>
+<circle cx="730.8" cy="439.0" r="10.5" fill="#8FA36B" opacity="0.34"/>
+<circle cx="730.8" cy="439.0" r="1.4" fill="#8FA36B"/>
+<circle cx="726.0" cy="430.0" r="7.3" fill="#8FA36B" opacity="0.34"/>
+<circle cx="726.0" cy="430.0" r="1.4" fill="#8FA36B"/>
 <circle cx="601.5" cy="424.9" r="4.7" fill="#A8B98A" opacity="0.34"/>
 <circle cx="601.5" cy="424.9" r="1.4" fill="#A8B98A"/>
 <circle cx="609.3" cy="411.0" r="4.7" fill="#A8B98A" opacity="0.34"/>
@@ -44706,42 +44724,42 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <circle cx="1202.5" cy="625.0" r="1.4" fill="#8FA36B"/>
 <circle cx="1197.6" cy="618.0" r="8.5" fill="#8FA36B" opacity="0.34"/>
 <circle cx="1197.6" cy="618.0" r="1.4" fill="#8FA36B"/>
-<circle cx="1203.2" cy="645.5" r="4.7" fill="#A8B98A" opacity="0.34"/>
-<circle cx="1203.2" cy="645.5" r="1.4" fill="#A8B98A"/>
-<circle cx="1192.4" cy="654.8" r="4.7" fill="#A8B98A" opacity="0.34"/>
-<circle cx="1192.4" cy="654.8" r="1.4" fill="#A8B98A"/>
-<circle cx="1172.8" cy="629.3" r="4.8" fill="#A8B98A" opacity="0.34"/>
-<circle cx="1172.8" cy="629.3" r="1.4" fill="#A8B98A"/>
-<circle cx="756.3" cy="809.3" r="4.8" fill="#A8B98A" opacity="0.34"/>
-<circle cx="756.3" cy="809.3" r="1.4" fill="#A8B98A"/>
-<circle cx="767.3" cy="813.2" r="4.8" fill="#A8B98A" opacity="0.34"/>
-<circle cx="767.3" cy="813.2" r="1.4" fill="#A8B98A"/>
-<circle cx="770.7" cy="803.1" r="4.8" fill="#A8B98A" opacity="0.34"/>
-<circle cx="770.7" cy="803.1" r="1.4" fill="#A8B98A"/>
-<circle cx="856.7" cy="781.8" r="4.7" fill="#A8B98A" opacity="0.34"/>
-<circle cx="856.7" cy="781.8" r="1.4" fill="#A8B98A"/>
-<circle cx="846.1" cy="773.6" r="4.8" fill="#A8B98A" opacity="0.34"/>
-<circle cx="846.1" cy="773.6" r="1.4" fill="#A8B98A"/>
-<circle cx="838.3" cy="780.8" r="4.8" fill="#A8B98A" opacity="0.34"/>
-<circle cx="838.3" cy="780.8" r="1.4" fill="#A8B98A"/>
-<circle cx="817.6" cy="787.2" r="4.7" fill="#A8B98A" opacity="0.34"/>
-<circle cx="817.6" cy="787.2" r="1.4" fill="#A8B98A"/>
-<circle cx="856.0" cy="769.7" r="4.8" fill="#A8B98A" opacity="0.34"/>
-<circle cx="856.0" cy="769.7" r="1.4" fill="#A8B98A"/>
-<circle cx="832.1" cy="790.8" r="4.7" fill="#A8B98A" opacity="0.34"/>
-<circle cx="832.1" cy="790.8" r="1.4" fill="#A8B98A"/>
-<circle cx="869.0" cy="775.1" r="4.7" fill="#A8B98A" opacity="0.34"/>
-<circle cx="869.0" cy="775.1" r="1.4" fill="#A8B98A"/>
-<circle cx="1191.9" cy="634.4" r="4.7" fill="#A8B98A" opacity="0.34"/>
-<circle cx="1191.9" cy="634.4" r="1.4" fill="#A8B98A"/>
-<circle cx="1207.2" cy="629.8" r="4.8" fill="#A8B98A" opacity="0.34"/>
-<circle cx="1207.2" cy="629.8" r="1.4" fill="#A8B98A"/>
-<circle cx="1218.0" cy="627.4" r="4.7" fill="#A8B98A" opacity="0.34"/>
-<circle cx="1218.0" cy="627.4" r="1.4" fill="#A8B98A"/>
-<circle cx="1198.4" cy="622.6" r="4.7" fill="#A8B98A" opacity="0.34"/>
-<circle cx="1198.4" cy="622.6" r="1.4" fill="#A8B98A"/>
-<circle cx="1185.6" cy="625.7" r="4.8" fill="#A8B98A" opacity="0.34"/>
-<circle cx="1185.6" cy="625.7" r="1.4" fill="#A8B98A"/>
+<circle cx="1196.8" cy="648.7" r="4.7" fill="#A8B98A" opacity="0.34"/>
+<circle cx="1196.8" cy="648.7" r="1.4" fill="#A8B98A"/>
+<circle cx="1191.3" cy="626.0" r="4.7" fill="#A8B98A" opacity="0.34"/>
+<circle cx="1191.3" cy="626.0" r="1.4" fill="#A8B98A"/>
+<circle cx="1174.5" cy="637.4" r="4.7" fill="#A8B98A" opacity="0.34"/>
+<circle cx="1174.5" cy="637.4" r="1.4" fill="#A8B98A"/>
+<circle cx="761.4" cy="812.8" r="4.8" fill="#A8B98A" opacity="0.34"/>
+<circle cx="761.4" cy="812.8" r="1.4" fill="#A8B98A"/>
+<circle cx="753.7" cy="821.4" r="4.8" fill="#A8B98A" opacity="0.34"/>
+<circle cx="753.7" cy="821.4" r="1.4" fill="#A8B98A"/>
+<circle cx="772.6" cy="813.3" r="4.7" fill="#A8B98A" opacity="0.34"/>
+<circle cx="772.6" cy="813.3" r="1.4" fill="#A8B98A"/>
+<circle cx="863.5" cy="772.3" r="4.7" fill="#A8B98A" opacity="0.34"/>
+<circle cx="863.5" cy="772.3" r="1.4" fill="#A8B98A"/>
+<circle cx="840.7" cy="785.8" r="4.8" fill="#A8B98A" opacity="0.34"/>
+<circle cx="840.7" cy="785.8" r="1.4" fill="#A8B98A"/>
+<circle cx="814.7" cy="796.8" r="4.8" fill="#A8B98A" opacity="0.34"/>
+<circle cx="814.7" cy="796.8" r="1.4" fill="#A8B98A"/>
+<circle cx="816.0" cy="784.1" r="4.7" fill="#A8B98A" opacity="0.34"/>
+<circle cx="816.0" cy="784.1" r="1.4" fill="#A8B98A"/>
+<circle cx="844.6" cy="774.6" r="4.8" fill="#A8B98A" opacity="0.34"/>
+<circle cx="844.6" cy="774.6" r="1.4" fill="#A8B98A"/>
+<circle cx="827.7" cy="792.9" r="4.8" fill="#A8B98A" opacity="0.34"/>
+<circle cx="827.7" cy="792.9" r="1.4" fill="#A8B98A"/>
+<circle cx="856.8" cy="782.4" r="4.7" fill="#A8B98A" opacity="0.34"/>
+<circle cx="856.8" cy="782.4" r="1.4" fill="#A8B98A"/>
+<circle cx="1208.5" cy="627.2" r="4.8" fill="#A8B98A" opacity="0.34"/>
+<circle cx="1208.5" cy="627.2" r="1.4" fill="#A8B98A"/>
+<circle cx="1209.2" cy="643.5" r="4.8" fill="#A8B98A" opacity="0.34"/>
+<circle cx="1209.2" cy="643.5" r="1.4" fill="#A8B98A"/>
+<circle cx="1225.1" cy="639.7" r="4.7" fill="#A8B98A" opacity="0.34"/>
+<circle cx="1225.1" cy="639.7" r="1.4" fill="#A8B98A"/>
+<circle cx="1218.7" cy="623.9" r="4.7" fill="#A8B98A" opacity="0.34"/>
+<circle cx="1218.7" cy="623.9" r="1.4" fill="#A8B98A"/>
+<circle cx="1188.2" cy="637.1" r="4.8" fill="#A8B98A" opacity="0.34"/>
+<circle cx="1188.2" cy="637.1" r="1.4" fill="#A8B98A"/>
 <circle cx="1546.5" cy="557.0" r="15.3" fill="#5E7A4E" opacity="0.34"/>
 <circle cx="1546.5" cy="557.0" r="1.4" fill="#5E7A4E"/>
 <circle cx="1511.1" cy="605.4" r="23.9" fill="#5E7A4E" opacity="0.34"/>
@@ -45003,7 +45021,7 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <polyline points="1316.8,2.4 552.1,398.9" fill="none" stroke="#3f6a80" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.9"/>
 <polyline points="552.1,398.9 620.7,480.9" fill="none" stroke="#3f6a80" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.9"/>
 <polyline points="552.1,398.9 581.6,472.7 632.3,609.4 715.9,821.5" fill="none" stroke="#3f6a80" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.9"/>
-<polyline points="692.6,575.8 608.7,623.8 698.0,864.9 908.2,779.9" fill="none" stroke="#3f6a80" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.9"/>
+<polyline points="692.6,575.8 608.7,623.8 698.0,864.9 915.2,787.3" fill="none" stroke="#3f6a80" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.9"/>
 <polyline points="715.9,821.5 757.7,804.6 801.8,794.0 840.1,775.5 878.6,772.5 902.5,772.2" fill="none" stroke="#3f6a80" stroke-width="2.2"/>
 <circle cx="913.3" cy="782.3" r="2.6" fill="var(--shu)"/>
 <circle cx="924.7" cy="797.8" r="2.6" fill="var(--shu)"/>
@@ -45018,7 +45036,7 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <circle cx="740.4" cy="811.6" r="2.0" fill="none" stroke="#3f6a80" stroke-width="1.2"/>
 <circle cx="902.5" cy="772.2" r="2.0" fill="none" stroke="#3f6a80" stroke-width="1.2"/>
 <circle cx="792.7" cy="472.2" r="2.6" fill="var(--shu)"/>
-<circle cx="755.9" cy="504.3" r="2.6" fill="var(--shu)"/>
+<circle cx="757.7" cy="503.6" r="2.6" fill="var(--shu)"/>
 <circle cx="620.7" cy="480.9" r="2.6" fill="var(--shu)"/>
 <circle cx="530.5" cy="569.4" r="2.6" fill="var(--shu)"/>
 <circle cx="720.3" cy="475.0" r="2.6" fill="var(--shu)"/>
@@ -45086,8 +45104,8 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <text class="jo" x="796.6" y="514.0" style="text-anchor:start;font-size:9.0px">縁先手水鉢</text>
 <line x1="693.1" y1="500.7" x2="699.1" y2="526.1" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
 <text class="jo" x="699.1" y="529.2" style="text-anchor:start;font-size:9.0px">6 ★岬の先端(★掘削後に隆起させる)</text>
-<line x1="755.9" y1="504.3" x2="760.9" y2="547.2" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
-<text class="jo" x="760.9" y="550.3" style="text-anchor:start;font-size:9.0px">主石組(三石)</text>
+<line x1="757.7" y1="503.6" x2="762.7" y2="546.5" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
+<text class="jo" x="762.7" y="549.6" style="text-anchor:start;font-size:9.0px">主石組(三石)</text>
 <line x1="717.5" y1="505.8" x2="723.5" y2="594.2" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
 <text class="jo" x="723.5" y="597.3" style="text-anchor:start;font-size:9.0px">5 岬の付け根(★傾ける松)</text>
 <line x1="758.3" y1="509.0" x2="764.3" y2="607.9" stroke="var(--ink-lo)" stroke-width="0.60" stroke-dasharray="2 2" opacity="0.75"/>
@@ -45155,7 +45173,7 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 ⛔ <b>2026-09-02(第4次)に西群(V2 の正面・5本)を消した</b>【庭方 回答3 — 庭方が自分の前回の指示を取り下げた】。<b>4間の帯に中木は物理的に入らない</b> — 棟の退避 2.64間で、生垣まで残り 0.76間(=1.38m)しかない。⭕ V2 の遠景は<b>西斜面の法肩の遮蔽木(クロマツ)</b>が受ける(板塀を越える視線に対して梢が上回る)ので、遠景は消えない
 ⚠ <b>部材は1点(<code>Own.Jouryoku("Mid")</code>)</b>へ絞った — 層が1本になったので<code>n</code> と <code>parts</code> の合計を合わせる従属の始末(検査 <code>planting_stock_check</code> (b))。⭐ <b>Mid を採る</b>のは、生垣(h1.9m)の上に頭を出すのがこの一本の役だから(Small では越えない)。⛔ 個体の振り分けが要るなら庭方の指定で差し替える
 ⚠ <b>2026-09-02(第5次)に <code>keepoutSkip</code> を直した</b>【庭方 中4】— <b>消えた名前 <code>T_Ikegaki_Oku</code> を指していた</b>ので免除が効かず、「生垣の上に頭を出させる」意図が黙って消えていた。生垣は3本に割れている</td></tr><tr><td>G_OkuNiwa</td><td>中木(落葉)</td><td class='note'>イロハモミジ</td><td>1</td><td class='note'><code>Own.Momiji(&quot;Mid&quot;)</code>×1</td><td>5.8 m</td><td>16,652</td><td class='note'>V2 の左手2.2間。<b>一本だけ位置が決まっている</b>。⭐ 奥庭は平庭なので高木は無く、この1本が唯一の樹形。奥御殿の南面から3.1間で退避(棟1.0+<code>clr</code>1.6=2.6間)を満たす<span class="cert">【庭方 2026-09-01・確度P】</span></td></tr><tr><td>G_OkuNiwa</td><td>低木・刈込</td><td class='note'>サツキ</td><td>12</td><td class='note'><code>JC.Azalea01</code>×4 ／ <code>JC.Azalea03</code>×4 ／ <code>JC.Azalea04</code>×4</td><td>1.2〜2.6 m</td><td>11,228</td><td class='note'>遣水の南岸を締める。⚠ 東端の群は 6→<b>5本</b>(⛔ 偶数の塊にしない=[作庭記])。
-⭐ <b>2026-09-02(第4次)【庭方 回答1】— 野筋(<code>sensui.yarimizu.nosuji</code>)はこの層の退避に効かない</b>。刈込は根が浅く、<b>野筋の肩がむしろ定位置</b>。規則は <code>plantRule.keepoutRolesOnly.nosuji</code>(高木・中木には掛けたまま)</td></tr><tr><td>G_OkuNiwa</td><td>下草</td><td class='note'>シダ・コケ</td><td>33</td><td class='note'><code>JG.Fern(1)</code>×17 ／ <code>JG.Fern(2)</code>×16</td><td>0.6〜0.7 m</td><td>9,762</td><td class='note'>⭐ <b>2026-09-01【庭方 回答9】— <code>under</code> を役ごとの値にした。</b>⛔ 従前の「残る12本は実装が置く」は<b>指図の外へ意匠を逃がしている</b>。⭕ 下草は樹下だけの物ではなく、<b>刈込の足元(根締め)・石組の際・遣水の岸</b>に入れるのが作法。
+⭐ <b>2026-09-02(第4次)【庭方 回答1】— 野筋(<code>sensui.yarimizu.nosuji</code>)はこの層の退避に効かない</b>。刈込は根が浅く、<b>野筋の肩がむしろ定位置</b>。規則は <code>plantRule.keepoutRolesOnly.nosuji</code>(高木・中木には掛けたまま)</td></tr><tr><td>G_OkuNiwa</td><td>下草</td><td class='note'>シダ・コケ</td><td>18</td><td class='note'><code>JG.Fern(1)</code>×9 ／ <code>JG.Fern(2)</code>×9</td><td>0.6〜0.7 m</td><td>5,319</td><td class='note'>⭐ <b>2026-09-01【庭方 回答9】— <code>under</code> を役ごとの値にした。</b>⛔ 従前の「残る12本は実装が置く」は<b>指図の外へ意匠を逃がしている</b>。⭕ 下草は樹下だけの物ではなく、<b>刈込の足元(根締め)・石組の際・遣水の岸</b>に入れるのが作法。
 検算: 中木(3+3)+ 落葉1 = 7本 ×3 = 21 + 低木12 ×1 = 12 → <b>n = 33</b>【P(従属値=上の層の本数からの計算)】。
 ⛔ <b>他のゾーンには入れない</b> — 主庭・西庭は刈込が<b>塊</b>で使われていて、1本ずつ付けると林床が均一になる。⭐ 役ごとに持てるのは「<b>高木の無い平庭</b>」だからで、それが奥庭の性格</td></tr><tr><td>G_OkuNiwaSE</td><td>花木</td><td class='note'>ウメ</td><td>11</td><td class='note'><code>Own.Ume(&quot;Mid&quot;)</code>×2 ／ <code>Own.Ume(&quot;Mid&quot;, 2)</code>×2 ／ <code>Own.Ume(&quot;Mid&quot;, 3)</code>×1 ／ <code>Own.Ume(&quot;Small&quot;)</code>×3 ／ <code>Own.Ume(&quot;Small&quot;, 2)</code>×2 ／ <code>Own.Ume(&quot;Small&quot;, 3)</code>×1</td><td>3.6〜5.8 m</td><td>56,914</td><td class='note'><b>三群の疎林</b>(5/3/3)。⭐ <b>三群とも参道 <code>R_Inari</code> の北へ寄せる</b> — V7 から見て<b>梅が手前・鳥居と杜が奥</b>の重なりを作る。⛔ 参道の南に散らすと鳥居が梅に埋もれる。⚠ 置く範囲から<b>宴の平場 <code>G_Ume_Hiroba</code> を除く</b>(<code>gardens.G_OkuNiwaSE.avoid</code>)。
 ⭐ <b>2026-09-01 直し【庭方 回答4】— <code>spacing</code> 3.0 → 4.5m / 13 → 11本(5/3/3)。</b>⛔ 従前の根拠「ウメの樹冠は径4〜5m」は<b>誤り</b> — 部材の実測は Mid 5.92〜6.56 / Small 3.87〜4.20 で、内訳の<b>加重平均 5.04m</b>。<code>spacing</code> 4.5(<code>packRatio</code> 0.7 で<b>芯々3.15m</b>)が正しい。⛔ 芯々2.1m で径5m を三重に重ねるのは林ではなく藪。⛔ <b>芯々を詰めて13本を守らない</b> — V7 の景は「<b>梅の隙間から鳥居が見える</b>」で成立する。
@@ -45163,7 +45181,7 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 ⚠ <b>11本の内訳は指図方が数値だけで決めた【P】</b> — 庭方の挙げた加重平均 5.04m を保つように <b>Mid×5 / Small×6</b>(加重平均 <b>5.00m</b>)へ落とした。⛔ 意匠の判断ではない
 ⚠ <b>2026-09-02(第5次)是正</b>【庭方 中5】— ⛔ <b>11本が一条に押し込まれ、疎林でなく並木になっていた</b>(参道の退避・宴の平場の avoid・井戸の退避で、北に1本の帯しか残っていなかった)。⭕ 参道 <code>R_Inari</code> と鳥居2基を南へ振り、北の帯を広げて<b>二列の千鳥</b>を組む。⛔ 総本数と塊の割りは変えない</td></tr><tr><td>G_Inari</td><td>中木(常緑)</td><td class='note'>モチノキ・シイ</td><td>5</td><td class='note'><code>Own.Jouryoku(&quot;Mid&quot;)</code>×1 ／ <code>Own.Jouryoku(&quot;Mid&quot;, 2)</code>×1 ／ <code>Own.Jouryoku(&quot;Mid&quot;, 3)</code>×1 ／ <code>Own.Jouryoku(&quot;Small&quot;)</code>×1 ／ <code>Own.Jouryoku(&quot;Small&quot;, 2)</code>×1</td><td>3.6〜5.8 m</td><td>46,638</td><td class='note'><b>稲荷は杜を背負う。</b>社の背後に常緑を塊で置く</td></tr><tr><td>G_Inari</td><td>低木・刈込</td><td class='note'>ツゲ</td><td>8</td><td class='note'><code>JG.Boxwood(1)</code>×3 ／ <code>JG.Boxwood(2)</code>×3 ／ <code>JG.Boxwood(3)</code>×2</td><td>0.8〜0.9 m</td><td>2,156</td><td class='note'>参道の両脇を締める。⛔ 参道の敷は玉砂利で飛石にしない(<code>routes.R_Inari</code>)</td></tr><tr><td>G_Inari</td><td>下草</td><td class='note'>シダ</td><td>15</td><td class='note'><code>JG.Fern(1)</code>×8 ／ <code>JG.Fern(2)</code>×7</td><td>0.6〜0.7 m</td><td>4,443</td><td class='note'>n = 3 × 中木5</td></tr><tr><td>G_Shirasu</td><td>主木(門被り)</td><td class='note'>クロマツ(門被り仕立て)</td><td>1</td><td class='note'><code>JG.Pine(&quot;Big&quot;, 1)</code>×1 ×1.65</td><td>10.6 m</td><td>17,333</td><td class='note'>⭐ <b>門被りの一本だけ。</b>⛔ 白洲(真)は開けておく・⛔ 根上りは作らない。⭕ <b>門被りの松は幹を横へ振って屋根を被せる仕立てが要点</b>で、アカマツ/クロマツの樹種の差は門前の一本では読めない【庭方 2026-09-01 の裁定=クロマツで通す】。⛔ 『アカマツ』と書いて黒松を置かない(確度が化ける)。⚠ <b>門被り=門に掛かる木</b>なので、門の石段 <code>K_Mon</code>・表門の躯体・区画線の退避を外す(<code>keepoutSkip</code>)— <b>門は区画線の上に建つ</b></td></tr><tr><td>G_Tomomachi</td><td>中木(常緑)</td><td class='note'>モッコク・モチノキ</td><td>3</td><td class='note'><code>Own.Jouryoku(&quot;Mid&quot;)</code>×1 ／ <code>Own.Jouryoku(&quot;Mid&quot;, 2)</code>×1 ／ <code>Own.Jouryoku(&quot;Mid&quot;, 3)</code>×1</td><td>5.8 m</td><td>27,282</td><td class='note'>供待の日除け。帯は供待の<b>東縁2間</b>(u17..19)を機械的に切り出した</td></tr><tr><td>G_Sawa</td><td>中木(常緑)</td><td class='note'>モチノキ・シイ</td><td>5</td><td class='note'><code>Own.Jouryoku(&quot;Mid&quot;)</code>×1 ／ <code>Own.Jouryoku(&quot;Mid&quot;, 2)</code>×1 ／ <code>Own.Jouryoku(&quot;Mid&quot;, 3)</code>×1 ／ <code>Own.Jouryoku(&quot;Small&quot;)</code>×1 ／ <code>Own.Jouryoku(&quot;Small&quot;, 2)</code>×1</td><td>3.6〜5.8 m</td><td>46,638</td><td class='note'>⭐ <b>谷は常緑の中木で囲う</b>【庭方 2026-09-01 中8】— 1群5本の奇数の塊ひとつ。⛔ 滝の左右 1.5間には置かない(<code>gardens.G_Sawa.avoid</code>)。⛔ 高木は入れない(谷は見下ろす場所)</td></tr><tr><td>G_Sawa</td><td>下草</td><td class='note'>シダ・コケ</td><td>15</td><td class='note'><code>JG.Fern(1)</code>×8 ／ <code>JG.Fern(2)</code>×7</td><td>0.6〜0.7 m</td><td>4,443</td><td class='note'>谷筋の半日陰。検算: 中木 5本 × 3 = <b>n = 15</b>【P(従属値=上の層の本数からの計算)】</td></tr></tbody></table></div>
 <p class='cap'>※ <b>樹高・樹冠・三角数は <code>docs/asset-index.tsv</code> の実測値</b>で、指図には持たせない(部材を差し替えたら自動で追従する)。⚠ <b>(在庫に無い)</b> と出ている部材は<b>目録の焼き直し待ち</b> — 自作の木(<code>Own.Jouryoku</code> / <code>Own.Ume</code>)は Unity の <code>Edo ▸ アセット目録 ▸ 目録を再生成</code> を回すまで実寸が引けない(<code>_pending.mokuroku</code>)。図では「大きさ不明」の破線で描いてある。</p>
-<p class='cap'>この指図が置く木・株の合計 <b>669 点 / 2,359,182 三角</b>(LOD0。在庫の木はすべて LOD を持つ)。⛔ 使用禁止の自作低ポリ(1本 2,384三角)は在庫の同格 6,662〜24,701三角と<b>桁がひとつ違う</b>。</p>
+<p class='cap'>この指図が置く木・株の合計 <b>654 点 / 2,354,739 三角</b>(LOD0。在庫の木はすべて LOD を持つ)。⛔ 使用禁止の自作低ポリ(1本 2,384三角)は在庫の同格 6,662〜24,701三角と<b>桁がひとつ違う</b>。</p>
 <p class='cap'>⛔ <b>ソメイヨシノを植えない</b>(命名 明治33年。そもそも季節が春でないので開花木は置かない)／⛔ <b>孟宗竹の竹叢を広げない</b>(江戸の水辺79事例中1例。竹垣の材としての竹は別)／⛔ 幕末以降の外来種は不可。<b>石材は庭全体で一系統</b>(伊豆石)。</p>
 <h3>点景(露地・灯籠・石組・垣)</h3><div class='tw'><table><thead><tr><th>名</th><th>種別</th><th class='note'>注記</th></tr></thead><tbody><tr><td>T_Kutsunugi_V1</td><td>沓脱石</td><td class='note'>御休息之間(V1)の縁先。天端 = 縁の高さ − 0.40m</td></tr><tr><td>T_Kutsunugi_V2</td><td>沓脱石</td><td class='note'>奥御座之間(V2)の縁先</td></tr><tr><td>T_Kutsunugi_Oku</td><td>沓脱石</td><td class='note'>奥の庭道 `R_OkuNiwa2` の起点</td></tr><tr><td>T_Iwagumi_Shu</td><td>主石組(三石)</td><td class='note'>**主景の要**(V1 の前景)。三石は不等辺三角に据え、**1/3 埋め**。⭐ **2026-09-02(第5次)に三石の広がりが決まった**【庭方 決定5】— `stones` に各石の位置・据え方・**見え丈**(地上に立つ姿の高さ[m])を持たせた。⚠ 主石を東へ寄せてある(旧位置では立石の外周が汀線に掛かっていた)。⛔ 石の組み方(主石+副石+添石の不等辺三角・1/3 埋め)は変えない。⚠ 上の `u`,`v` は**主石と同じ点**(この点景の代表点)</td></tr><tr><td>T_Iwagumi_Iwaya</td><td>吐き口の岩組(岩屋・三段)</td><td class='note'>御泉水の汀線 #14 の上。鏡石・水落石・水受石・脇石2、主石 1.4m の立石。⭐ **A案の枯滝石組を座標も石組もそのまま引き継いだ** — 『**水上ハ玉川の水をしかけて、岩やの内より流れ出**』(貞享4・[東京市史稿 遊園篇第1] p.615 = A)の**岩屋そのもの**で、石樋の口を鏡石と脇石で隠す。⛔ 「滝」と呼ばない。細目は `sensui.iwaya` が正典</td></tr><tr><td>T_Iwagumi_Oku</td><td>石組(三石)</td><td class='note'>奥庭の遣水の脇(V2 の中景)。⭐ **遣水の湧き口の南西**に据え、『**水が石の間から湧く**』組み方にする。⛔ 石の寸法・三石の組み方は変えない。⚠ **2026-09-02(第5次)は動かさない**【庭方 決定1】— 湧き口が南下したことで離れが詰まり、この組み方がここで初めて成立する(離れは生成器が測る)</td></tr><tr><td>T_Iwagumi_Yama</td><td>石組(五石)</td><td class='note'>築山の東中腹(V1 の中景)</td></tr><tr><td>T_Ishibashi</td><td>石橋(切石一枚 1.2間×0.9m)</td><td class='note'>奥庭の**遣水**に架ける。⭐ **水が戻っても要る**(流水は跨げない)。⚠ 遣水の敷幅に 4.0m の一枚石は据えられないので寸法は 1.2間×0.9m。
 ⚠ **2026-09-02(第5次)に遣水の新しい線形の上へ移した**【庭方 決定1】。⛔ **園路は渡らない** — 橋の用は**手入れの渡りと V2 の中景**で、回遊路 `R_OkuNiwa2` はここを通らない</td></tr><tr><td>T_Toro_Yukimi_1</td><td>雪見灯籠</td><td class='note'>御泉水の岬(汀線 #5〜#6)</td></tr><tr><td>T_Toro_Yukimi_2</td><td>雪見灯籠</td><td class='note'>御泉水の西縁。⚠ 汀まで 0.13間(0.24m)。⭕ **据石の天端を水面 +0.20 = 26.25 とし、汀線から水側へ 0.30m 出して据える**(`base`)。⭐ 雪見灯籠は本来**脚を水に浸して水面に映す**灯籠なので、水が戻れば 0.24m は欠点ではなく正解。⛔ **基礎の芯 `u,v` は動かさない**</td></tr><tr><td>T_Toro_Oribe</td><td>織部灯籠</td><td class='note'>内露地(蹲踞の脇)</td></tr><tr><td>T_Tsukubai</td><td>蹲踞</td><td class='note'>**露地の中だけ。**役石(手燭石・湯桶石)と組で。⛔ 主庭・奥庭には置かない</td></tr><tr><td>T_Chozubachi_1</td><td>縁先手水鉢</td><td class='note'>V1 の左手。⚠ 蹲踞とは別物(立手水鉢)</td></tr><tr><td>T_Chozubachi_2</td><td>縁先手水鉢</td><td class='note'>V2 の左手</td></tr><tr><td>T_Koshikake</td><td>外腰掛</td><td class='note'>外露地。客が中門の合図を待つ</td></tr><tr><td>T_Chumon</td><td>中門(枝折戸)</td><td class='note'>外露地と内露地の境。⭐ **露地の道 `R_Roji` が垣を横切る点そのもの**。⛔ **枝折戸のまま**にする【庭方 2026-09-01】— 東口の簀戸と作りを変えて、**外→内の順に簡素になる筋**を読ませる</td></tr><tr><td>T_Shogi</td><td>床几の平場(1.5間角+据石3)</td><td class='note'>築山の頂(V6)。⚠ `tsukiyama.M_Tsukiyama` の頂と同じ点 — 座標はここが正典。⚠ **頂の平場は [戸山図]=下屋敷13万坪の語彙からの転用**で、`cert` の B は『一般類型』の意味ではない。**当家・上屋敷の記録は無い【?】**(台帳 `estate-types.md`「下屋敷の大庭園の像を上屋敷へ持ち込まない」)</td></tr><tr><td>T_Shogi_Ume</td><td>床几の据石4個(0.5〜0.7m・平天端)</td><td class='note'>梅林の宴の平場(V7)。不等辺に据える。⛔ 建物は建てない(仮設の幔幕と毛氈)。⚠ **平場という設えは [戸山図]=下屋敷の語彙からの転用**(`T_Shogi` と同型)。⭕ ただし**役割(正月の梅の花見と宴)の典拠は [後楽園図]** で、後楽園は基準年次には**水戸家の上屋敷**の庭([小石川後楽園]A)なので、**上屋敷の役割の類型としては使える**。**当家の記録は無い【?】**</td></tr><tr><td>T_Monomi</td><td>物見の据石2個</td><td class='note'>⭐ **西斜面で空を見る一箇所**(`slopeArea.screen.minHBySpan` の v32〜40)。用途は決めない</td></tr><tr><td>T_Torii_1</td><td>鳥居(木造白木・一の鳥居)</td><td class='note'>稲荷の参道 `R_Inari`。⚠ **2026-09-02(第5次)に参道の振り直しへ追随した**【庭方 中5】</td></tr><tr><td>T_Torii_2</td><td>鳥居(木造白木・二の鳥居)</td><td class='note'>稲荷の参道 `R_Inari`。⚠ **2026-09-02(第5次)に参道の振り直しへ追随した**【庭方 中5】(社前)</td></tr><tr><td>T_Kaki_Kenninji_W</td><td>建仁寺垣</td><td class='note'>内露地の西</td></tr><tr><td>T_Kaki_Kenninji_N</td><td>建仁寺垣</td><td class='note'>内露地の北</td></tr><tr><td>T_Kaki_Kenninji_S</td><td>建仁寺垣</td><td class='note'>内露地の南</td></tr><tr><td>T_Kaki_Kenninji_M1</td><td>建仁寺垣</td><td class='note'>内外の境(北半)。⚠ **中門 `T_Chumon`(v26.8)のために v26.3〜27.3 を空けてある**</td></tr><tr><td>T_Kaki_Kenninji_M2</td><td>建仁寺垣</td><td class='note'>内外の境(南半)</td></tr><tr><td>T_Kaki_Yotsume_N</td><td>四つ目垣</td><td class='note'>外露地の北</td></tr><tr><td>T_Kaki_Yotsume_E1</td><td>四つ目垣</td><td class='note'>外露地の東(北半)。⚠ **露地の道 `R_Roji` が v27.26 で横切る**のでv26.76〜27.76 を口に空けた。口の形式は `T_Rojiguchi_E`(簀戸一枚)</td></tr><tr><td>T_Kaki_Yotsume_E2</td><td>四つ目垣</td><td class='note'>外露地の東(南半)</td></tr><tr><td>T_Kaki_Yotsume_S1</td><td>四つ目垣</td><td class='note'>外露地の南(西半)。⚠ **主庭の道 `R_Shutei` が u−58.06 で横切る**のでu−58.56〜−57.56 を口に空けた。口の形式は `T_Rojiguchi_S`(戸を吊らない)</td></tr><tr><td>T_Kaki_Yotsume_S2</td><td>四つ目垣</td><td class='note'>外露地の南(東半)</td></tr><tr><td>T_Kaki_Yotsume_W1</td><td>四つ目垣</td><td class='note'>外露地の西(北の残り)</td></tr><tr><td>T_Kaki_Yotsume_W2</td><td>四つ目垣</td><td class='note'>外露地の西(南の残り)</td></tr><tr><td>T_Ikegaki_Oku_W</td><td>生垣(ツゲ・マサキの刈込 h1.9m)</td><td class='note'>⭐ **中仕切塀(h2.4m)を消すための唯一の手。**奥庭の南を通す。⚠ 庭方の案は通しの一本だったが、u−19.63〜−10.372 は区画の切り欠き(隣地)なので**切れる**(指図方の突き合わせ)。西の一本はここ、東の一本は `T_Ikegaki_Oku_W2` で、あいだが**遣水と滝見の道の通る切れ目**。
@@ -45247,42 +45265,42 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <circle cx="410.9" cy="263.0" r="1.6" fill="#8FA36B"/>
 <circle cx="407.5" cy="258.1" r="5.8" fill="#8FA36B" opacity="0.34"/>
 <circle cx="407.5" cy="258.1" r="1.6" fill="#8FA36B"/>
-<circle cx="411.4" cy="277.1" r="3.2" fill="#A8B98A" opacity="0.34"/>
-<circle cx="411.4" cy="277.1" r="1.6" fill="#A8B98A"/>
-<circle cx="403.9" cy="283.6" r="3.2" fill="#A8B98A" opacity="0.34"/>
-<circle cx="403.9" cy="283.6" r="1.6" fill="#A8B98A"/>
-<circle cx="390.4" cy="265.9" r="3.3" fill="#A8B98A" opacity="0.34"/>
-<circle cx="390.4" cy="265.9" r="1.6" fill="#A8B98A"/>
-<circle cx="102.2" cy="390.5" r="3.3" fill="#A8B98A" opacity="0.34"/>
-<circle cx="102.2" cy="390.5" r="1.6" fill="#A8B98A"/>
-<circle cx="109.9" cy="393.2" r="3.3" fill="#A8B98A" opacity="0.34"/>
-<circle cx="109.9" cy="393.2" r="1.6" fill="#A8B98A"/>
-<circle cx="112.2" cy="386.1" r="3.3" fill="#A8B98A" opacity="0.34"/>
-<circle cx="112.2" cy="386.1" r="1.6" fill="#A8B98A"/>
-<circle cx="171.7" cy="371.4" r="3.2" fill="#A8B98A" opacity="0.34"/>
-<circle cx="171.7" cy="371.4" r="1.6" fill="#A8B98A"/>
-<circle cx="164.4" cy="365.8" r="3.3" fill="#A8B98A" opacity="0.34"/>
-<circle cx="164.4" cy="365.8" r="1.6" fill="#A8B98A"/>
-<circle cx="159.0" cy="370.7" r="3.3" fill="#A8B98A" opacity="0.34"/>
-<circle cx="159.0" cy="370.7" r="1.6" fill="#A8B98A"/>
-<circle cx="144.6" cy="375.1" r="3.2" fill="#A8B98A" opacity="0.34"/>
-<circle cx="144.6" cy="375.1" r="1.6" fill="#A8B98A"/>
-<circle cx="171.2" cy="363.1" r="3.3" fill="#A8B98A" opacity="0.34"/>
-<circle cx="171.2" cy="363.1" r="1.6" fill="#A8B98A"/>
-<circle cx="154.7" cy="377.7" r="3.2" fill="#A8B98A" opacity="0.34"/>
-<circle cx="154.7" cy="377.7" r="1.6" fill="#A8B98A"/>
-<circle cx="180.2" cy="366.8" r="3.2" fill="#A8B98A" opacity="0.34"/>
-<circle cx="180.2" cy="366.8" r="1.6" fill="#A8B98A"/>
-<circle cx="403.5" cy="269.4" r="3.2" fill="#A8B98A" opacity="0.34"/>
-<circle cx="403.5" cy="269.4" r="1.6" fill="#A8B98A"/>
-<circle cx="414.1" cy="266.3" r="3.3" fill="#A8B98A" opacity="0.34"/>
-<circle cx="414.1" cy="266.3" r="1.6" fill="#A8B98A"/>
-<circle cx="421.6" cy="264.6" r="3.2" fill="#A8B98A" opacity="0.34"/>
-<circle cx="421.6" cy="264.6" r="1.6" fill="#A8B98A"/>
-<circle cx="408.0" cy="261.3" r="3.2" fill="#A8B98A" opacity="0.34"/>
-<circle cx="408.0" cy="261.3" r="1.6" fill="#A8B98A"/>
-<circle cx="399.2" cy="263.5" r="3.3" fill="#A8B98A" opacity="0.34"/>
-<circle cx="399.2" cy="263.5" r="1.6" fill="#A8B98A"/>
+<circle cx="406.9" cy="279.4" r="3.2" fill="#A8B98A" opacity="0.34"/>
+<circle cx="406.9" cy="279.4" r="1.6" fill="#A8B98A"/>
+<circle cx="403.2" cy="263.7" r="3.2" fill="#A8B98A" opacity="0.34"/>
+<circle cx="403.2" cy="263.7" r="1.6" fill="#A8B98A"/>
+<circle cx="391.5" cy="271.5" r="3.2" fill="#A8B98A" opacity="0.34"/>
+<circle cx="391.5" cy="271.5" r="1.6" fill="#A8B98A"/>
+<circle cx="105.8" cy="392.8" r="3.3" fill="#A8B98A" opacity="0.34"/>
+<circle cx="105.8" cy="392.8" r="1.6" fill="#A8B98A"/>
+<circle cx="100.4" cy="398.8" r="3.3" fill="#A8B98A" opacity="0.34"/>
+<circle cx="100.4" cy="398.8" r="1.6" fill="#A8B98A"/>
+<circle cx="113.5" cy="393.2" r="3.2" fill="#A8B98A" opacity="0.34"/>
+<circle cx="113.5" cy="393.2" r="1.6" fill="#A8B98A"/>
+<circle cx="176.4" cy="364.8" r="3.2" fill="#A8B98A" opacity="0.34"/>
+<circle cx="176.4" cy="364.8" r="1.6" fill="#A8B98A"/>
+<circle cx="160.6" cy="374.2" r="3.3" fill="#A8B98A" opacity="0.34"/>
+<circle cx="160.6" cy="374.2" r="1.6" fill="#A8B98A"/>
+<circle cx="142.6" cy="381.8" r="3.3" fill="#A8B98A" opacity="0.34"/>
+<circle cx="142.6" cy="381.8" r="1.6" fill="#A8B98A"/>
+<circle cx="143.5" cy="373.0" r="3.2" fill="#A8B98A" opacity="0.34"/>
+<circle cx="143.5" cy="373.0" r="1.6" fill="#A8B98A"/>
+<circle cx="163.4" cy="366.5" r="3.3" fill="#A8B98A" opacity="0.34"/>
+<circle cx="163.4" cy="366.5" r="1.6" fill="#A8B98A"/>
+<circle cx="151.7" cy="379.1" r="3.3" fill="#A8B98A" opacity="0.34"/>
+<circle cx="151.7" cy="379.1" r="1.6" fill="#A8B98A"/>
+<circle cx="171.8" cy="371.9" r="3.2" fill="#A8B98A" opacity="0.34"/>
+<circle cx="171.8" cy="371.9" r="1.6" fill="#A8B98A"/>
+<circle cx="415.0" cy="264.5" r="3.3" fill="#A8B98A" opacity="0.34"/>
+<circle cx="415.0" cy="264.5" r="1.6" fill="#A8B98A"/>
+<circle cx="415.5" cy="275.7" r="3.3" fill="#A8B98A" opacity="0.34"/>
+<circle cx="415.5" cy="275.7" r="1.6" fill="#A8B98A"/>
+<circle cx="426.5" cy="273.1" r="3.2" fill="#A8B98A" opacity="0.34"/>
+<circle cx="426.5" cy="273.1" r="1.6" fill="#A8B98A"/>
+<circle cx="422.1" cy="262.2" r="3.2" fill="#A8B98A" opacity="0.34"/>
+<circle cx="422.1" cy="262.2" r="1.6" fill="#A8B98A"/>
+<circle cx="401.0" cy="271.4" r="3.3" fill="#A8B98A" opacity="0.34"/>
+<circle cx="401.0" cy="271.4" r="1.6" fill="#A8B98A"/>
 <circle cx="648.8" cy="216.0" r="10.6" fill="#5E7A4E" opacity="0.34"/>
 <circle cx="648.8" cy="216.0" r="1.6" fill="#5E7A4E"/>
 <circle cx="624.4" cy="249.4" r="16.5" fill="#5E7A4E" opacity="0.34"/>
@@ -45424,7 +45442,7 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <polyline points="489.9,-167.7 -39.0,106.6" fill="none" stroke="#3f6a80" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.9"/>
 <polyline points="-39.0,106.6 8.5,163.3" fill="none" stroke="#3f6a80" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.9"/>
 <polyline points="-39.0,106.6 -18.5,157.7 16.5,252.2 74.3,398.9" fill="none" stroke="#3f6a80" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.9"/>
-<polyline points="58.2,228.9 0.2,262.2 62.0,428.9 207.3,370.1" fill="none" stroke="#3f6a80" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.9"/>
+<polyline points="58.2,228.9 0.2,262.2 62.0,428.9 212.1,375.2" fill="none" stroke="#3f6a80" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.9"/>
 <polyline points="74.3,398.9 103.2,387.2 133.7,379.8 160.3,367.1 186.9,365.0 203.4,364.8" fill="none" stroke="#3f6a80" stroke-width="2.2"/>
 <circle cx="210.9" cy="371.8" r="2.6" fill="var(--shu)"/>
 <circle cx="218.8" cy="382.5" r="2.6" fill="var(--shu)"/>
@@ -51945,7 +51963,7 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <div class="tw"><table><thead><tr><th>部材</th><th>調達</th><th class="note">在庫パス/新造名</th><th class='note'>備考</th></tr></thead><tbody><tr><td>表門(冠木門・屋根なし)</td><td><b>新造(Blender)</b></td><td class='note'><code>build_matsudaira_omotemon.py(新規)</code></td><td class='note'>角柱高5.2m・冠木・内開き扉(筋金具・乳鋲)・柱頭の銅冠+**袖塀・潜り戸まで一体で新造**。**屋根なしが正**【写真A+日本案内記A。切妻小屋根案は2026-08-23撤回】。es_kmon(薬医門)/es_kabukimon(高3.74m)はどちらも合わない</td></tr><tr><td>向唐破風番所 ×2</td><td><b>新造(Blender)</b></td><td class='note'><code>build_matsudaira_bansho.py(新規)</code></td><td class='note'>5.5×3.6m・張出2.0m・出格子(正面+側面)・石垣畳出の基壇。既存 es_dbansho(3.6×2.1m)は規模・意匠とも不足【写真=A】</td></tr><tr><td>表長屋(海鼠壁・長さ可変)</td><td><b>新造(Blender)</b></td><td class='note'><code>build_nagaya_omote.py → EdoAssets.Own.NagayaOmote(len)</code></td><td class='note'>**ユーザー裁定 2026-08-29「長い表長屋を Blender で作るのが一番良い」。**在庫 `es_knagaya/knagaya01c|l|r` を窓割り(bay)で切って並べ、両端に妻(破風・鬼・妻壁)を継いだ一体物。長さを 1cm 単位で指定でき、瓦・海鼠・格子は一切伸ばさず**窓割りの本数 k と無地の壁の詰め ε**で吸う。要る長さは `chains[].pieces[].len`(この文章に写さない)。⚠ **FBX は実寸(m)で出るので `scale = Vector3.one`**(edogoyomi の .obj と違い ES 不要)。ピボット=走りの中心・土台の底・壁の外面、見え面 +Z。据えたら直線材と同じく `SeatBottom(seat − 0.10)`。実寸の奥行(軒+躯体)は設計の帯 nagayaD に収まる。材質は瓦+海鼠壁で写真と一致(岡部北辺で確認済み)。東翼は3段の雛壇で、段ごとに1本に切る</td></tr><tr><td>表長屋の二階(両翼)</td><td><b>新造(Blender)</b></td><td class='note'><code>EdoAssets.Own.NagayaOmote2F(len)</code></td><td class='note'>長さ可変版に階を積んだ派生(案A)。西翼 36.0m・東翼 16.2/16.1m を焼済。海鼠は腰のまま・上階の窓は白壁【確度P】</td></tr><tr><td>隅櫓 ×1</td><td><b>新造(Blender)</b></td><td class='note'><code>build_matsudaira_dewa_fuzokuya.py -- yagura(新規)</code></td><td class='note'>3間角の二重櫓。下層 下見板+漆喰(狭間)/上層 漆喰+格子窓/腰屋根と入母屋。実寸 7.39×7.39×8.64m。⚠ **当家に櫓があった典拠は無い【確度?】** — 姿も一般形に留める。⚠ 旧案『Eg.KnagayaC を 0.55 倍して転用』は 2026-08-25 撤回(長屋の妻を櫓に見立てるのは無理があった)</td></tr><tr><td>練塀(駒)</td><td>在庫</td><td class='note'><code>Eg.DobeiCenter</code></td><td class='note'>駒は走り方向に伸縮して端数を吸える(長屋と違い割付が要らない)</td></tr><tr><td>境界の木柵</td><td>在庫</td><td class='note'><code>在庫照会(edo-zaiko)→ 無ければ primitive 合成(丸太杭+貫2段)</code></td><td class='note'>斜面・谷・水際の境界標示(fences 10本・高さ1.4m・地形なり)。広重「赤坂桐畑」の対岸の柵【B】。基礎・整地なし</td></tr><tr><td>石井戸枠 ×5</td><td><b>新造(Blender)</b></td><td class='note'><code>build_matsudaira_dewa_fuzokuya.py -- ido(新規)</code></td><td class='note'>方形の切石枠(外1.30/内0.82/高0.62)+釣瓶の桁。実寸 1.90×1.90×2.21m。⚠ 銘は **慶長13年戊申**【読み=B】(旧記載の18年は誤り。2026-08-25 訂正)。現存実物は議長公邸にあるが**実見していない**ので、作ったのは同型の角井戸枠【確度B】</td></tr><tr><td>御茶屋(数寄屋)</td><td><b>新造(Blender)</b></td><td class='note'><code>build_matsudaira_dewa_fuzokuya.py -- sukiya(新規)</code></td><td class='note'>2.5×2.5間・四畳半+水屋。宝形の柿葺(瓦は葺かない)・障子・半間の縁側・躙口。実寸 6.55×6.55×4.44m。⚠ 旧案『VK.SmallHouse ×約0.5』は撤回 — 原寸 13.2×9.5m を半分にすると建具も半分になり、人の入れない模型になる【確度B】</td></tr><tr><td>稲荷社</td><td><b>新造(Blender)</b></td><td class='note'><code>build_matsudaira_dewa_fuzokuya.py -- inari(新規)</code></td><td class='note'>明神鳥居(笠木・島木とも反る)+ 一間社流造の小祠(千木・鰹木)+ 玉石の台石。実寸 2.50×3.34×2.76m。⚠ **朱塗りのマテリアルがキットに無く、新規作成は規約違反**なので素木のまま(経年した邸内社として読ませる)【確度B】</td></tr><tr><td>厩</td><td>在庫</td><td class='note'><code>Eg.KnagayaL/R の run 連結</code></td><td class='note'>単発ペア(部材実寸 8.065m)では14間に足りないので表長屋と同じ連結技法で伸ばす</td></tr><tr><td>御殿の躯体・屋根・渡廊下</td><td>在庫</td><td class='note'><code>EdoAssets.Goten.*(パーツ一式)+ RoofIrimoya_(wKen,dKen)</code></td><td class='note'>岡部 v4/v5 で実運用済み。無い屋根寸法は build_goten_roof.py にパラメータ追加するだけ</td></tr><tr><td>斜面の植栽(黒松+低木)</td><td>在庫</td><td class='note'><code>JG.PineBig01-03 / JC.Azalea01,03 / JG.Boxwood01</code></td><td class='note'>西斜面は3帯(法肩=松+雑木/中部=低木/下部=草地)。**竹(BambooBig01/02)は使わない** — 孟宗竹型の太稈で、基準年次の江戸の孟宗竹は吹上御苑と近郊農村の筍畑にしか無い</td></tr><tr><td>土蔵 ×3+作事小屋</td><td>在庫</td><td class='note'><code>Eg.Kura(等倍 6.24×6.64m ≒3.5間角)</code></td><td class='note'>蔵区画4×8間の残りは搬入の余地。非一様スケールはしない</td></tr><tr><td>土蔵 ×3(御駕籠蔵・火消道具蔵・御土蔵)</td><td><b>新造(Blender)</b></td><td class='note'><code>build_matsudaira_dewa_fuzokuya.py -- dozo(新規)</code></td><td class='note'>4×7間・白漆喰の大壁+石の基壇+水切り+観音扉。実寸 13.76×8.89×7.12m。在庫の es_kura は ES 後 6.2×6.6m で、指図の 4×7間 にするには奥行を1.92倍に引き伸ばす必要があり棟が破綻する【確度B=江戸の一般類型】</td></tr><tr><td>御作事小屋 ×1</td><td><b>新造(Blender)</b></td><td class='note'><code>build_matsudaira_dewa_fuzokuya.py -- koya(新規)</code></td><td class='note'>10×4間・片側の長手を開けた開き小屋(柱+板壁3面)。実寸 19.32×8.99×5.50m【確度B】</td></tr><tr><td>土井境の練塀の基壇(S_Hei_C)</td><td>在庫</td><td class='note'><code>EdoAssets.JC.CastleWall(駒は伸縮させない・scale=1)</code></td><td class='note'>78.9m。⚠ 2026-08-26 EDO-0025 の裁定で追加。境の run 13本のうちこれだけ基壇が無く、足元が最大1.56m浮いていた。座 27.93 は動かさないので土井側への影響なし。枚数と重なりは `ishigaki` の割り付け式から生成器が出す(手で書かない)</td></tr><tr><td>御殿の入母屋屋根(片/両妻の軒を落とした版)</td><td><b>新造(Blender)</b></td><td class='note'><code>build_goten_roof.py に軒フラグを足す(改修)</code></td><td class='note'>谷になる辺は軒を出さない。要る版: Yakusho 14x14(+u なし)/Kuroshoin 12x12(両なし)/Ohiroma 14x14(両なし)/Genkan 12x12(-u なし)/Okugoten 20x14(+u なし)/OkuYudono 6x6(両なし)/NagatsuboneN 18x6(両なし)/OkuDaidokoro 10x6(-u なし)。現行は W'=W+2E の対称生成なので、軒の出を辺ごとに指定できるようにする</td></tr><tr><td>谷樋</td><td><b>新造(Blender)</b></td><td class='note'><code>build_goten_roof.py(同上)</code></td><td class='note'>幅 0.45m・銅板(または木樋に銅板張り)。**11本** — 妻谷6本(表向 23.6m×3 / 奥向 12.7m×3)と軒谷5本(結界の帯・計 69.0m)。勾配 1/100 を中央から両端へ。縦樋は立てず軒先から雨落ち溝へ落とす【確度P=一般類型】</td></tr><tr><td>御殿の棟（妻に入側を回さない版）</td><td>在庫</td><td class='note'><code>EdoGotenKit.Mune を iriX:0 で呼ぶ（改修）</code></td><td class='note'>表向の四棟は Mune(kw, kd-2, iri:1, iriX:0)。⚠ **妻側の建具を辺ごとに指定できるようにする** — 棟が接する辺（谷のある辺）は襖の通しで隣の身舎へ続き、接しない妻だけ白壁。現行は iriX=0 だと両妻とも白壁になり、境に壁が二枚重なる</td></tr><tr><td>留め継ぎの隅部材(練塀・角度ごと)</td><td>在庫</td><td class='note'><code>EdoAssets.Own.Kado("Dobei", 折れ角)</code></td><td class='note'>折れ角の隅を留め(mitre)で回す部材(`Tools/Blender/build_kado.py`)。**当屋敷で要るのは 4 種**(`Dobei_Kado_91` / `_19` / `_88M` / `_41`)で、いずれも生成済み。⛔ **折れ角を決め打ちしない** — 区画が決めるもので、当邸は +90.95°/+18.54°/−87.76°/+41.24°/+18.52°。要否と角度・腕・丈の正典は `kado`(部材の実測表)と joints の `kado` で、この文章に写さない。⛔ `LoadAssetAtPath` は null を返すので綴り違いは隅だけが黙って建たない(絶対規則11)→ `kado_stock_check` / `kado_arm_check` が見張る。⚠ 据えは `scale = ES(1.818)`。素のまま置くと丈が 1.46m に潰れる。</td></tr><tr><td>門扉(表門・冠木門の開口)</td><td>在庫</td><td class='note'><code>JC.GateDoorYaguraL / JC.GateDoorYaguraR</code></td><td class='note'>Gate Yagura Door A(実寸 2.143×3.0)の対を、開口幅へ横だけ伸ばす。寸法は gate.plan.leaf</td></tr><tr><td>門扉(御蔵門・東小門)</td><td>在庫</td><td class='note'><code>JC.GateDoorCastleL / JC.GateDoorCastleR</code></td><td class='note'>Gate Castle Door L/R(実寸 1.5×2.8)の対がちょうど開口幅。足元は JC.GateDoorCastleFoot</td></tr><tr><td>露地口の簀戸 ×1(外露地の東口)</td><td><b>新造(Blender)</b></td><td class='note'><code>build_matsudaira_dewa_niwa.py -- sudo(新規)</code></td><td class='note'>竹の框に竹を編み、押縁は晒竹、柱は栗の丸太2本(径0.12m)。幅・丈・開き勝手は `tenkei.T_Rojiguchi_E`(この文章に写さない)。⛔ 中門の枝折戸と作りを変える — **外→内の順に簡素になる筋**を読ませる【庭方 2026-09-01・確度B】。在庫に露地の戸は無い(`docs/asset-index.tsv` を照会済み)</td></tr><tr><td>中門(枝折戸)×1</td><td><b>新造(Blender)</b></td><td class='note'><code>build_matsudaira_dewa_niwa.py -- shiorido(新規)</code></td><td class='note'>外露地と内露地の境(`tenkei.T_Chumon`)。竹と細丸太の軽い戸。⛔ 簀戸より簡素に作る【庭方 2026-09-01・確度B】</td></tr><tr><td>露地口の竹柱と踏分石(外露地の南口)</td><td><b>新造(Blender)</b></td><td class='note'><code>build_matsudaira_dewa_niwa.py -- fumiwake(新規)</code></td><td class='note'>⛔ **戸は吊らない。**四つ目垣の切れ目に留め結びの竹柱2本、口の中央に踏分石1個(寸法と埋めは `tenkei.T_Rojiguchi_S.ishi`)。自然石なので `Own.MichibataIshi`(汐見坂の道端石)を素材として流用できるか **edo-zaiko へ照会要**【庭方 2026-09-01・確度B】</td></tr><tr><td>自然石の段(築山の東面)</td><td><b>新造(Blender)</b></td><td class='note'><code>build_matsudaira_dewa_niwa.py -- shizenseki_dan(新規)</code></td><td class='note'>段数と両端は `kaidans.K_Tsukiyama`。⛔ **蹴上・踏面は指図に無い** — 両端が地形で固定されるので**段数からの従属値**で、生成器が導いて表に出す(汐見坂の裁定 2026-08-24 と同じ扱い)。踏石は不揃いの自然石で、途中に踏分石で折れ1つ。⛔ `Own.DanishiStep`(汐見坂の切石の段・2m幅)は切石なので使えない【確度B】</td></tr><tr><td>庭の点景(灯籠・石組・手水鉢・沓脱石・石橋・鳥居・垣)</td><td>在庫</td><td class='note'><code>灯籠=`Own.YukimiLantern` / `Own.KasugaLantern`(⛔ 春日は主庭に置かない)。石組・護岸石・沓脱石・手水鉢・石橋・鳥居・建仁寺垣・四つ目垣・生垣は **edo-zaiko へ照会要**</code></td><td class='note'>⚠ **2026-09-01 の庭は bom より後に設計されたので、点景の当たりがまだ付いていない。**位置と種別は `tenkei` が正典。⛔ **石材は庭全体で伊豆石の一系統**にそろえる。護岸石の丈は**見え面**(其の護岸の表)を満たすものを選ぶ — 小さい石は池の底に沈んで輪から消える</td></tr></tbody></table></div>
 </div>
 <div class="plate" id="pl38"><div class="phead"><h2>其卅八　未解決と申し送り</h2><span class="meta"><b>判断を待っている項・宿題・記録・決着</b> ／ 正典は設計値の <code>_pending</code>(⛔ 散文で書き写さない)</span></div>
-<p class='cap'>⛔ <b>正典は <code>_pending</code>(設計値ファイル)の1本。</b>この章は生成器がそこから組む — <b>散文で書き写さない</b>(2026-09-02 検図 低9: 49項目のうち図に出るのが1項目だけで、新設した5項目は<b>図を読む人に見えなかった</b>)。いま<b>判断を待っている項が 16 件</b>。</p><h3 style="color:var(--shu)">いま判断を待っている — 16 件</h3><p class="cap">⛔ <b>この版で埋まっていない意匠の判断。</b>指図方は数値を作らない — 決めるのは名指しした役(庭方・考証方・ユーザー)。</p><div class="tw"><table><thead><tr><th>キー</th><th>状態</th><th>誰の番か</th><th class='note'>中身</th></tr></thead><tbody><tr><td><code>jouryokuKatamari</code></td><td><b>裁定待ち</b></td><td>庭方(edo-niwashi)</td><td class='note'>⚠ <b>裁定待ち(庭方)。</b>主庭 <code>G_Sensui / 中木(常緑)</code> の「北東の隅」二塊(3+2)は<b>同じ box を指していて区別が無く、2 は偶数の塊</b>だったので、庭方が示した二案のうち<b>「1塊 n=5 に統合」</b>を採った。⛔ ところが実測では<b>5/5 → 1/5 に落ちた</b> — box <code>[-34,34,-31,37]</code>(29.7m²)は 3本の塊なら入るが 5本では入らない(東は御殿の軒の退避、西は御泉水)。⭕ もう一案の「2塊の box を分ける」には<b>二つめの box の座標が要る</b>(= 置き場所 = 意匠)ので、指図方では書けない</td></tr><tr><td><code>okuNiwaDansa</code></td><td><b>裁定待ち</b></td><td>庭方(edo-niwashi)</td><td class='note'>⚠ <b>裁定待ち(庭方)。</b>【庭方 報告1】<code>R_OkuNiwa2</code>(奥の庭道・環)が面の縁を <b>4回</b>跨いでいて、いずれも <b>0.44〜0.49m の垂直段差</b>なのに <code>kaidans</code> に段が無い。
+<p class='cap'>⛔ <b>正典は <code>_pending</code>(設計値ファイル)の1本。</b>この章は生成器がそこから組む — <b>散文で書き写さない</b>(2026-09-02 検図 低9: 49項目のうち図に出るのが1項目だけで、新設した5項目は<b>図を読む人に見えなかった</b>)。いま<b>判断を待っている項が 8 件</b>。</p><h3 style="color:var(--shu)">いま判断を待っている — 8 件</h3><p class="cap">⛔ <b>この版で埋まっていない意匠の判断。</b>指図方は数値を作らない — 決めるのは名指しした役(庭方・考証方・ユーザー)。</p><div class="tw"><table><thead><tr><th>キー</th><th>状態</th><th>誰の番か</th><th class='note'>中身</th></tr></thead><tbody><tr><td><code>jouryokuKatamari</code></td><td><b>裁定待ち</b></td><td>庭方(edo-niwashi)</td><td class='note'>⚠ <b>裁定待ち(庭方)。</b>主庭 <code>G_Sensui / 中木(常緑)</code> の「北東の隅」二塊(3+2)は<b>同じ box を指していて区別が無く、2 は偶数の塊</b>だったので、庭方が示した二案のうち<b>「1塊 n=5 に統合」</b>を採った。⛔ ところが実測では<b>5/5 → 1/5 に落ちた</b> — box <code>[-34,34,-31,37]</code>(29.7m²)は 3本の塊なら入るが 5本では入らない(東は御殿の軒の退避、西は御泉水)。⭕ もう一案の「2塊の box を分ける」には<b>二つめの box の座標が要る</b>(= 置き場所 = 意匠)ので、指図方では書けない</td></tr><tr><td><code>okuNiwaDansa</code></td><td><b>裁定待ち</b></td><td>庭方(edo-niwashi)</td><td class='note'>⚠ <b>裁定待ち(庭方)。</b>【庭方 報告1】<code>R_OkuNiwa2</code>(奥の庭道・環)が面の縁を <b>4回</b>跨いでいて、いずれも <b>0.44〜0.49m の垂直段差</b>なのに <code>kaidans</code> に段が無い。
 | どこ (u,v) | 現況 | 勾配 |
 | u−46.0 / v62.0 | 自然26.56 → 主郭27.00(昇り) | 1:1.14 |
 | u−46.2 / v62.7 | 主郭27.00 → 自然26.55(降り) | 1:1.21 |
@@ -51957,21 +51975,14 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 | 取入口を <b>u+50〜+65, v0〜3</b>(北東の隅)に置く | <b>U</b>(意匠の選択) |
 ⚠ <b>地形が排除したのは「表門脇と北辺の西半」までで、隅を指名していない</b> — 要求水位 26.6 を超えるのは u−45 と u+50 のあいだのどこか。隅から池まで 187m で余裕 2.6m ⇒ 勾配 約14‰ は木樋の自然流下には過大。
 ⛔ <b>『玉川上水留』を追っても位置は出ない</b> — [内藤2024] 自身が「同書から引くのは<b>分水口断面の寸法比較</b>だけで標高値は無い」と明言。
-⭐ <b>畳み方(原図の当てがある)</b>: 東京都水道歴史館の上水樋線之図。⛔ <b>当邸を含むのは K0105</b>(2026-09-02 考証方 高1・低1)— <b>館解説が描画範囲に「永田町周辺」を明記している</b>のはこの図葉で、K0136(第5種)ではない。⛔ <b>実見しても【U】は A に上がらない — 明治の図なので B 止まり。</b>⭕ 期待できるのは取入口の候補の帯を狭めることまで。台帳 = [水道歴史館 樋線図 永田町]</td></tr><tr><td><code>takimiJiban</code></td><td><b>未決</b></td><td>庭方(edo-niwashi)</td><td class='note'>⚠ <b>未決(庭方の判断が要る。2026-09-02 に論点だけへ絞った)。</b><b>滝見の床几 V8 の眼高</b>と<b>滝見の道の勾配</b>が、庭方の前提(造成前の自然地盤で設計)とこの指図の設計地盤(段 <code>Shukaku</code> の南縁から出る盛土法面)で食い違う。⛔ <b>数値は書かない</b>(規則4)— 差は生成器が設計地盤と造成前DEM から測って断面と表に出す。
-⭐ <b>畳み方(庭方の判断)</b>: ⓐ 現状のまま(法肩の上から見下ろす滝見)/ ⓑ 床几を法尻へ降ろす(位置=意匠なので指図方は動かせない)/ ⓒ この区間だけ盛土法面を張らない(= 面の縁の設計変更。他の検査に波及する)。⛔ <b>指図方はどれも選ばない。</b>⚠ <b>この版の合否は止めない</b>(幾何は成立している)</td></tr><tr><td><code>okuNiwaTeibokuKata</code></td><td><b>未決</b></td><td>庭方(edo-niwashi)</td><td class='note'>⚠ <b>一部決着・一点だけ未決(2026-09-02 第4次・庭方 回答1)。</b>⭕ <b>入った直し</b>: 帯の取り方を <code>along.offset</code>(遣水の肩)で明示し、<b>野筋の退避を高木・中木だけに効かせる</b>規則 <code>plantRule.keepoutRolesOnly</code> を入れ、生垣からの退避をこの層だけ 0.30間へ(<code>keepoutByLayer</code>)。
-⛔ <b>それでも <code>group_pack_check</code> は鳴る</b> — 帯が<b>園路 <code>R_OkuNiwa2</code> の退避(<code>keepout.route</code>)にほぼ丸ごと呑まれる</b>ため(遣水と回遊路は 0.2〜0.4間 の間隔で並走している)。実測(合法域と最大充填数)は生成器が出す。
-⭕ <b>庭方に要るのはこの一点</b> — 『<b>刈込に園路の退避を掛けたままでよいか</b>』。掛けたままなら本数か場所を替える、道の縁へ寄せるなら<b>この層の <code>keepoutByLayer.route</code> の値</b>が要る。⛔ 指図方はその数を作らない(意匠)</td></tr><tr><td><code>ankyoKaburi</code></td><td><b>差し戻し中</b></td><td>庭方(edo-niwashi)</td><td class='note'>⚠ <b>差し戻し中 — 庭方の判断が要る(2026-09-02 第5次)。</b>⭕ 土被りの帯 <code>coverBand</code>・<code>coverSkipTail</code>・掃除枡は【決定6】どおり入れた。⛔ <b>しかし帯と実測が食い違う</b> — 検査 <code>mizu_check</code> が鳴っている(実測の最小・最大は水の表に出る)。⚠ 指図方は<b>経路も上限も決められない</b>(経路=庭方【高1】の設計 / 上限=掃除の手が届く深さの判断)。⭕ 庭方へ:<b>勾配(<code>floorY</code> の上下端)か上限のどちらかを決め直してほしい。</b>⛔ 指図方が帯を実測へ合わせて広げることはしない — それは検査を設計へ合わせる操作で、帯の意味(掃除が届く深さ)が消える</td></tr><tr><td><code>rojiKoubai</code></td><td><b>未決</b></td><td>庭方(edo-niwashi)</td><td class='note'>⚠ <b>未決 — 造作の判断が要る(庭方 → 決めるのは普請奉行)。</b><b>露地の道が御茶屋の平場の縁で階段の勾配より急</b>(検査 <code>route_grade_check</code> が鳴る)。<code>terraceWalls</code> が空で土留めが無く、法面も届いていないため縁に垂直の段差が残る。⭕ <b>土留めを起こすか法面で受けるか</b>は造作の判断。⛔ 指図方は選ばない
-⭕ <b>★2026-09-02 — <code>route_grade_check</code> は現在0件</b>(<code>K_Roji</code> が段を受けたため)。⛔ 従前の「検査が鳴る」は現在形のまま古かった(第4次検図【低10】)。</td></tr><tr><td><code>hairanaiHonsuu</code></td><td><b>未決</b></td><td>庭方(edo-niwashi)</td><td class='note'>⚠ <b>未決 — 意匠の判断が要る(庭方)。</b><b>入りきらない本数が残る層がある。</b>検査 <code>planting_clearance_check</code> が層ごとに『n 本のうち何本置けたか』を鳴らす(実測は生成器が出す。⛔ 指図に写さない)。⭕ どれも『木を減らす / 帯を広げる / 退避を層ごとに緩める』という<b>意匠の判断</b>。⚠ 置く前に測る関門は <code>group_pack_check</code>(最大充填数 ≥ n)で、<b>庭方の手計算と生成器の実測が食い違う件は <code>_pending.groupArea</code></b></td></tr><tr><td><code>shuIshiHeimen</code></td><td><b>未決</b></td><td>庭方(edo-niwashi)</td><td class='note'>⚠ <b>未決 — 庭方の判断が要る(2026-09-02 に指図方が立てた)。</b>庭方【決定5】の検査条件は「各石の<b>外周</b>が汀線から 0.30m 以上 陸側」だが、<b>三石の平面の寸法(長軸・短軸、または平面の半径)が指図に無い</b>ので、検査 <code>iwagumi_check</code> は<b>芯</b>で見ている(= 条件より緩い)。⛔ 石の姿は意匠なので指図方は決めない。⭕ 要るのは <code>stones[]</code> ごとの平面寸法1つずつ。⚠ 芯からの離れの実測は点景の表に出ているので、そこから判断できる</td></tr><tr><td><code>fovRisshi</code></td><td><b>未決</b></td><td>庭方(edo-niwashi)</td><td class='note'>⚠ <b>未決 — 庭方の判断が要る(2026-09-02 に指図方が立てた)。</b><code>viewpointRule.fov</code> の<b>立視の画角</b>が無い(座視 30° は庭方の値)。⛔ 立視は座視と同じではない — 立って眺める視点(築山の頂 V6・宴の平場 V7・滝見の床几 V8・躙口 V5)は首を振る前提の姿勢で、画角の取り方が意匠の判断になる。⭕ 決まるまで検査 <code>viewpoint_fov_check</code> は<b>立視の視点を判定せず、三層に挙がった地物の方位のずれを表に出すだけ</b>にしてある。⚠ 表を見ると <b>V8(滝見の床几)の前景=台地端の滝</b>が視軸から大きく外れている</td></tr><tr><td><code>ikegakiHaba</code></td><td><b>未決</b></td><td>庭方(edo-niwashi)</td><td class='note'>⚠ <b>未決 — 庭方の判断が要る(2026-09-02 に指図方が立てた)。</b>生垣 <code>T_Ikegaki_Oku_*</code> の<b>幅(刈込の見付)</b>が指図に無い(丈 <code>h</code> だけがある)。⛔ 帯どうしの重なりを見る検査 <code>band_overlap_check</code> は、幅の無い帯を<b>芯線(幅0)</b>として扱うしかなく、生垣の側の重なりを<b>見落とす向き</b>に外れる。⭕ 要るのは3本に共通の幅1つ。⚠ 奥庭の断面では生垣の<b>足元の帯</b>は決まっている(<a href="#pl28"><b>其廿八</b>「奥庭の断面」</a>)ので、そこと矛盾しない値になる</td></tr><tr><td><code>ankyoHaba</code></td><td><b>未決</b></td><td>庭方(edo-niwashi)</td><td class='note'>⚠ <b>未決 — 庭方の判断が要る(2026-09-02 に指図方が立てた)。</b>暗渠 <code>mizu.toi.MZ_Ankyo</code> と石樋(枝1・枝2)の<b>幅</b>が指図に無い(内法の高さ <code>h</code> だけがある)。⛔ <code>band_overlap_check</code> は幅の無い帯を芯線として扱うので、<b>地下の帯どうしの重なり</b>を見落とす向きに外れる。⭕ 要るのは石樋の内法の幅(+ 石の厚み)。⚠ 掃除枡の内法 0.6m 角は決まっている</td></tr><tr><td><code>takimiMuki</code></td><td><b>確認待ち</b></td><td>庭方(edo-niwashi)</td><td class='note'>⚠ <b>確認待ち(庭方)。</b>滝見の床几 <code>V8</code> の向きを <b>-u → -v</b> へ改めた(2026-09-02 第5次)。
+⭐ <b>畳み方(原図の当てがある)</b>: 東京都水道歴史館の上水樋線之図。⛔ <b>当邸を含むのは K0105</b>(2026-09-02 考証方 高1・低1)— <b>館解説が描画範囲に「永田町周辺」を明記している</b>のはこの図葉で、K0136(第5種)ではない。⛔ <b>実見しても【U】は A に上がらない — 明治の図なので B 止まり。</b>⭕ 期待できるのは取入口の候補の帯を狭めることまで。台帳 = [水道歴史館 樋線図 永田町]</td></tr><tr><td><code>rojiKoubai</code></td><td><b>未決</b></td><td>庭方(edo-niwashi)</td><td class='note'>⚠ <b>未決 — 造作の判断が要る(庭方 → 決めるのは普請奉行)。</b><b>露地の道が御茶屋の平場の縁で階段の勾配より急</b>(検査 <code>route_grade_check</code> が鳴る)。<code>terraceWalls</code> が空で土留めが無く、法面も届いていないため縁に垂直の段差が残る。⭕ <b>土留めを起こすか法面で受けるか</b>は造作の判断。⛔ 指図方は選ばない
+⭕ <b>★2026-09-02 — <code>route_grade_check</code> は現在0件</b>(<code>K_Roji</code> が段を受けたため)。⛔ 従前の「検査が鳴る」は現在形のまま古かった(第4次検図【低10】)。</td></tr><tr><td><code>hairanaiHonsuu</code></td><td><b>未決</b></td><td>庭方(edo-niwashi)</td><td class='note'>⚠ <b>未決 — 意匠の判断が要る(庭方)。</b><b>入りきらない本数が残る層がある。</b>検査 <code>planting_clearance_check</code> が層ごとに『n 本のうち何本置けたか』を鳴らす(実測は生成器が出す。⛔ 指図に写さない)。⭕ どれも『木を減らす / 帯を広げる / 退避を層ごとに緩める』という<b>意匠の判断</b>。⚠ 置く前に測る関門は <code>group_pack_check</code>(最大充填数 ≥ n)で、<b>庭方の手計算と生成器の実測が食い違う件は <code>_pending.groupArea</code></b></td></tr><tr><td><code>takimiMuki</code></td><td><b>確認待ち</b></td><td>庭方(edo-niwashi)</td><td class='note'>⚠ <b>確認待ち(庭方)。</b>滝見の床几 <code>V8</code> の向きを <b>-u → -v</b> へ改めた(2026-09-02 第5次)。
 ⛔ 普請奉行の判断ではなく<b>測って決まった従属値</b> — 庭方が【高5】で床几を法尻 (−27.4, 71.2) へ降ろし「三段が積み上がって見上がる」と決めたのに、⛔ <b><code>dir</code> だけが移設前の <code>-u</code> のまま</b>だった。
 ⭕ 一の段への方位 240.5°、四方位のうち <code>-v</code> だけが画角 ±35° に入る(ずれ −29.5°)。
 ⚠ <b>庭方が別の向き(たとえば沢の下流を向かせる)を意図していたなら一値の差し替えで済む。</b>
 ⭐ この取り残しは<b>新設した <code>viewpoint_fov_check</code> が見つけた</b> — ⛔ 従前の <code>viewpoint_check</code> は主景の数・三層・姿勢・眼高しか見ず、<b>方位も画角も見なかった</b>。
 ⚠ <b>一意になるのは <code>dir</code> が四方位に限られるスキーマだから</b>(2026-09-02 考証 報告2)— 自由角なら <b>240.5° そのもの</b>が答えになる。
-⛔ <b>★2026-09-02 訂正</b> — 従前この項が挙げていた「画角 ±35° に入る」という根拠は<b>撤回</b>した(第4次検図【高2】)。⚠ 35° は<b>指図に無い数</b>(生成器のモジュール定数)で、⛔ <b>未決の数で設計値を動かしていた</b>。⭕ いま生きている根拠は「四方位の中で <code>-v</code> が最も近い(−29.5°)」ことだけ。⚠ 立視の画角が決まれば判定に変わる(<code>_pending.fovRisshi</code>)。</td></tr><tr><td><code>okuNiwaGesou</code></td><td><b>確認待ち</b></td><td>庭方(edo-niwashi)</td><td class='note'>⚠ <b>確認待ち(庭方)。</b>奥庭の<b>下草</b>が 18/33 しか置けない(2026-09-02 第5次の実測)。
-⭕ <b>低木・刈込は【決定1】の断面の組み直しで閉じた</b>(0/7 → 7本入る)が、⛔ <b>下草だけ残った</b>。
-⚠ 下草の帯は「苔・伏石・下草」の <b>0.5間(0.91m)</b> で、断面の表がそう割っている(<a href="#pl28"><b>其廿八</b>「奥庭の断面」</a>)。⭕ 33本はその幅に対して多い。
-⛔ <b>指図方も普請奉行も本数を減らせない</b> — 下草の密度は苔の見え方の判断。
-⭕ 庭方へ: <b>本数を帯に合わせて落とすか、帯を広げるか</b>(広げるなら断面の 3.7間 のどこから借りるか)。⚠ この版の合否を止めるかどうかも庭方の判断。</td></tr><tr><td><code>okuNiwaObiHigashi</code></td><td><b>確認待ち</b></td><td>庭方(edo-niwashi)</td><td class='note'>⚠ <b>確認待ち(庭方)。</b>奥庭の 3.7間 の割り付けは <b>u=−40 の一断面でしか成立していません</b>(2026-09-02 第4次検図【中4】)。⛔ 遣水が東へ振れる(v64.2 → 65.6)のに、縁先の延段(v≈62.85 で一直線)と生垣(v65.7 固定)は動かないため、東へ行くほど「苔・伏石」が膨らみ「生垣の足元」が食われます。
+⛔ <b>★2026-09-02 訂正</b> — 従前この項が挙げていた「画角 ±35° に入る」という根拠は<b>撤回</b>した(第4次検図【高2】)。⚠ 35° は<b>指図に無い数</b>(生成器のモジュール定数)で、⛔ <b>未決の数で設計値を動かしていた</b>。⭕ いま生きている根拠は「四方位の中で <code>-v</code> が最も近い(−29.5°)」ことだけ。⚠ 立視の画角が決まれば判定に変わる(<code>_pending.fovRisshi</code>)。</td></tr><tr><td><code>okuNiwaObiHigashi</code></td><td><b>確認待ち</b></td><td>庭方(edo-niwashi)</td><td class='note'>⚠ <b>確認待ち(庭方)。</b>奥庭の 3.7間 の割り付けは <b>u=−40 の一断面でしか成立していません</b>(2026-09-02 第4次検図【中4】)。⛔ 遣水が東へ振れる(v64.2 → 65.6)のに、縁先の延段(v≈62.85 で一直線)と生垣(v65.7 固定)は動かないため、東へ行くほど「苔・伏石」が膨らみ「生垣の足元」が食われます。
 ⛔ <b>u≈−33.4 より東で、低木の帯(幅0.6間=1.09m)が生垣の線を越えます</b> — 生垣の足元は u−40 で 0.21間 / u−38 で 0.02間 / u−33 で <b>−0.27間</b> / u−30.5 で <b>−1.10間</b>。
 ⭕ 直しは2択で、⛔ <b>どちらも意匠の判断</b>です: ①<b>生垣の v を遣水に追随</b>させる ②<b>遣水の東端の振れを抑える</b>。⚠ ①は生垣が折れ線になり、②は落ち口 (−30.5, 65.6) が動きます。
 ⭐ あわせて <b>u=−33 前後にもう1本断面</b>を切る(または <a href="#pl28"><b>其廿八</b>「奥庭の断面」</a> を2〜3断面の並記にする)よう検図方が求めています。⛔ 潰れる区間 u−34〜−30.5 を切る断面が現在1本もありません。</td></tr><tr><td><code>shuteiItabei</code></td><td><b>確認待ち</b></td><td>庭方(edo-niwashi)</td><td class='note'>⚠ <b>確認待ち(庭方)。</b>帯の検査を<b>中仕切塀まで広げた</b>ところ(2026-09-02 第4次検図【中5】)、⛔ <b>園路 <code>R_Shutei</code>(幅0.90間)が板塀 <code>NJ_Oku_N_W</code> と 5.0間 並走し、根石の帯へ 0.15間(0.27m)食い込みます</b>(芯々の最小 0.40間 @ (−38.0, 47.1)。要る離れ 0.55間)。
@@ -52192,7 +52203,7 @@ text{font-family:"Hiragino Sans","Yu Gothic",sans-serif}
 <p>主な典拠: [松江上屋敷門写真](温古写真集11・A)/西島太郎「松江藩主の居所と行動」(A)/ 松江歴史館「NARITAKE 松平斉貴」展(B)/[石井戸枠](存在A・位置?)/[黒門](A)/ [福井図]・[西川1959]・[追川2017] は <code>~/.claude/skills/unity-buke-yashiki/references/sources.md</code>。</p></div>
 </div>
 <div class="plate" id="pl40"><div class="phead"><h2>改訂　</h2><span class="meta">経緯はここに書かず git で追う</span></div>
-<div class='tw'><table><thead><tr><th>commit</th><th>日付</th><th class='note'>件名</th></tr></thead><tbody><tr><td><code>a89d97b3</code></td><td>2026-09-02</td><td class='note'>feat: 四巡目を仕上げる — 検査3本を新設、奥庭の断面図を起こし、⚠ 6件 → 4件</td></tr><tr><td><code>8ffa3473</code></td><td>2026-09-02</td><td class='note'>review: 三役の3巡目を関門へ書き戻した(三役とも不合格・指摘26件)</td></tr><tr><td><code>1ca804bf</code></td><td>2026-09-02</td><td class='note'>feat: 三役の2巡目を書き起こす — ⚠ 71件 → 6件、検査の穴を3つ塞いだ</td></tr><tr><td><code>c96526fa</code></td><td>2026-09-02</td><td class='note'>review: 松江松平を三役の検分に出し、結果を関門へ書き戻した(三役とも不合格)</td></tr><tr><td><code>73c49aef</code></td><td>2026-09-01</td><td class='note'>wip: 池を掘る指図(B案)— 書き起こし途中で中断</td></tr><tr><td><code>8f77763b</code></td><td>2026-09-01</td><td class='note'>fix: 主景が松で塞がっていた — 庭方の12件と考証の15件を指図へ</td></tr><tr><td><code>c3340053</code></td><td>2026-09-01</td><td class='note'>feat: 検図関門を実装側へ効かせる — 不合格の指図で Stage を流させない</td></tr><tr><td><code>63e215f2</code></td><td>2026-09-01</td><td class='note'>feat: 検図関門 — 指図が「誰に検められたか」を機械で見張る</td></tr><tr><td><code>02d4765e</code></td><td>2026-08-31</td><td class='note'>feat: 常緑広葉樹とウメを新造し(裁定C)、Stage7 を指図駆動へ・Stage8 を新設</td></tr><tr><td><code>8d401fbd</code></td><td>2026-08-31</td><td class='note'>docs: 訂正 — 表門の焼失年次は「実装が反転しうる二択」ではない</td></tr><tr><td><code>73442ea1</code></td><td>2026-08-31</td><td class='note'>docs: 被害の程度の3通りのうち『潰』が当邸では独立に落ちる</td></tr><tr><td><code>46f365b9</code></td><td>2026-08-31</td><td class='note'>docs: 表門の焼失年次の二択を絞る — 「後」なら屋根付きへ反転する</td></tr><tr><td><code>b90c9af5</code></td><td>2026-08-31</td><td class='note'>docs: 安政2年に表門が無事だった一次記録を考証へ足す(確度S)— ただし形式の結論には効かない</td></tr><tr><td><code>95ae6a0b</code></td><td>2026-08-31</td><td class='note'>fix: 番所の唐破風・長屋門の扉・南長局の屋根(ユーザー裁定1-A/2-A)</td></tr><tr><td><code>1ee17f1f</code></td><td>2026-08-31</td><td class='note'>fix: 面が全部裏返っていた — 番所が「透けて見える」の正体(EDO-0053 #3)</td></tr><tr><td><code>918d6607</code></td><td>2026-08-30</td><td class='note'>fix: 隅の腕と長屋は 0.00 でぴったり接する(ユーザー裁定)+ 裁定図を必須にする</td></tr><tr><td><code>63607950</code></td><td>2026-08-30</td><td class='note'>refactor: 当邸の識別子を matsudaira → matsudaira_dewa へ統一(規則15)</td></tr></tbody></table></div>
+<div class='tw'><table><thead><tr><th>commit</th><th>日付</th><th class='note'>件名</th></tr></thead><tbody><tr><td><code>7f9aa02d</code></td><td>2026-09-02</td><td class='note'>fix: 四巡目の検図・考証の指摘18件 — ⛔ 高3件はどれも「今巡の新設物が自分について嘘をついていた」</td></tr><tr><td><code>a89d97b3</code></td><td>2026-09-02</td><td class='note'>feat: 四巡目を仕上げる — 検査3本を新設、奥庭の断面図を起こし、⚠ 6件 → 4件</td></tr><tr><td><code>8ffa3473</code></td><td>2026-09-02</td><td class='note'>review: 三役の3巡目を関門へ書き戻した(三役とも不合格・指摘26件)</td></tr><tr><td><code>1ca804bf</code></td><td>2026-09-02</td><td class='note'>feat: 三役の2巡目を書き起こす — ⚠ 71件 → 6件、検査の穴を3つ塞いだ</td></tr><tr><td><code>c96526fa</code></td><td>2026-09-02</td><td class='note'>review: 松江松平を三役の検分に出し、結果を関門へ書き戻した(三役とも不合格)</td></tr><tr><td><code>73c49aef</code></td><td>2026-09-01</td><td class='note'>wip: 池を掘る指図(B案)— 書き起こし途中で中断</td></tr><tr><td><code>8f77763b</code></td><td>2026-09-01</td><td class='note'>fix: 主景が松で塞がっていた — 庭方の12件と考証の15件を指図へ</td></tr><tr><td><code>c3340053</code></td><td>2026-09-01</td><td class='note'>feat: 検図関門を実装側へ効かせる — 不合格の指図で Stage を流させない</td></tr><tr><td><code>63e215f2</code></td><td>2026-09-01</td><td class='note'>feat: 検図関門 — 指図が「誰に検められたか」を機械で見張る</td></tr><tr><td><code>02d4765e</code></td><td>2026-08-31</td><td class='note'>feat: 常緑広葉樹とウメを新造し(裁定C)、Stage7 を指図駆動へ・Stage8 を新設</td></tr><tr><td><code>8d401fbd</code></td><td>2026-08-31</td><td class='note'>docs: 訂正 — 表門の焼失年次は「実装が反転しうる二択」ではない</td></tr><tr><td><code>73442ea1</code></td><td>2026-08-31</td><td class='note'>docs: 被害の程度の3通りのうち『潰』が当邸では独立に落ちる</td></tr><tr><td><code>46f365b9</code></td><td>2026-08-31</td><td class='note'>docs: 表門の焼失年次の二択を絞る — 「後」なら屋根付きへ反転する</td></tr><tr><td><code>b90c9af5</code></td><td>2026-08-31</td><td class='note'>docs: 安政2年に表門が無事だった一次記録を考証へ足す(確度S)— ただし形式の結論には効かない</td></tr><tr><td><code>95ae6a0b</code></td><td>2026-08-31</td><td class='note'>fix: 番所の唐破風・長屋門の扉・南長局の屋根(ユーザー裁定1-A/2-A)</td></tr><tr><td><code>1ee17f1f</code></td><td>2026-08-31</td><td class='note'>fix: 面が全部裏返っていた — 番所が「透けて見える」の正体(EDO-0053 #3)</td></tr><tr><td><code>918d6607</code></td><td>2026-08-30</td><td class='note'>fix: 隅の腕と長屋は 0.00 でぴったり接する(ユーザー裁定)+ 裁定図を必須にする</td></tr><tr><td><code>63607950</code></td><td>2026-08-30</td><td class='note'>refactor: 当邸の識別子を matsudaira → matsudaira_dewa へ統一(規則15)</td></tr></tbody></table></div>
 </div>
-<div class="foot">組んだ日 2026-09-02 19:08 ／ 設計値 <code>matsudaira_dewa_sashizu.json</code> ／ 文章 <code>matsudaira_dewa_kosho.md</code>。Y は海抜 m(Unity の Y がそのまま標高)。</div>
+<div class="foot">組んだ日 2026-09-02 19:22 ／ 設計値 <code>matsudaira_dewa_sashizu.json</code> ／ 文章 <code>matsudaira_dewa_kosho.md</code>。Y は海抜 m(Unity の Y がそのまま標高)。</div>
 </div>

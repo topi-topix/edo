@@ -1425,6 +1425,8 @@ def plane_check(d):
     bad += band_overlap_check(d)
     bad += route_connect_check(d)
     bad += viewpoint_fov_check(d)
+    bad += niwa_stone_check(d)
+    bad += design_value_check(d)
     return bad
 
 
@@ -4788,7 +4790,13 @@ def keepout_shapes(d):
     #   ⛔ 低木・刈込と下草には掛けない — 根が浅く、**野筋の肩がむしろ定位置**。
     ym = ((d.get("sensui") or {}).get("yarimizu") or {})
     if ym.get("pts") and ym.get("nosuji"):
-        half = float(ym["nosuji"]["w"]) / 2.0
+        # ⭐ **半幅 + `plantRule.keepoutAdd.nosuji`**(2026-09-02 庭方 決定2)。
+        #   ⛔ **半幅ちょうどにしない** — 幹芯が谷の肩に立ち、**根鉢の縁が流路へ落ちる**。
+        #   根が流路を塞ぐと遣水は数年で涸れる。0.30間 = 中木の根鉢の半径。
+        #   ⚠ この値は 2026-09-02 の第4次まで**書かれていたのに読まれていなかった**
+        #   (庭方【高1】。値だけ書いて放置されると、検査も実装も守らない)。
+        half = float(ym["nosuji"]["w"]) / 2.0 \
+            + float((d["plantRule"].get("keepoutAdd") or {}).get("nosuji", 0.0))
         q = [tuple(x) for x in ym["pts"]]
         for i in range(len(q) - 1):
             out.append(("seg", (q[i], q[i + 1]), half, "野筋 " + ym.get("name", "MZ_Yarimizu"),
@@ -6783,7 +6791,10 @@ def _toi_cover(d, t, step=0.5):
 
     ⛔ 指図に宣言させない(2026-09-02 検図 中6: 経路を変えた後も旧経路の値が残っていた)。
     被り = **設計地盤 − 樋の天端**(天端 = 床 + 内法 `h`)。床は上下端の `floorY` を線形で割る。
-    ⚠ 上流端の `coverSkipHead`[m] は測らない — そこは越流堰の口で、地盤から出ているのが正。"""
+    ⚠ 上流端の `coverSkipHead`[m] は測らない — そこは越流堰の口で、地盤から出ているのが正。
+    ⚠ **下流端の `coverSkipTail`[m] も測らない**(2026-09-02 第4次・庭方【中1】)— そこは吐き口で、
+      同じく地盤から出ているのが正。⛔ 従前は宣言だけあって**読まれておらず**、
+      吐き口ぶんが測定に入ったまま「土被りが帯を外れる」と鳴っていた。"""
     pts = _toi_pts(d, t)
     fy = t.get("floorY")
     if not pts or len(pts) < 2 or not isinstance(fy, list):
@@ -6794,6 +6805,7 @@ def _toi_cover(d, t, step=0.5):
            for i in range(len(pts) - 1)]
     tot = sum(seg) or 1.0
     skip = float(t.get("coverSkipHead") or 0.0)
+    skip_t = float(t.get("coverSkipTail") or 0.0)
     h = float(t.get("h") or 0.0)
     out, acc = [], 0.0
     for i in range(len(pts) - 1):
@@ -6801,7 +6813,7 @@ def _toi_cover(d, t, step=0.5):
         for k in range(n + 1):
             r = k / float(n)
             s_ = acc + seg[i] * r
-            if s_ < skip - 1e-9:
+            if s_ < skip - 1e-9 or s_ > tot - skip_t + 1e-9:
                 continue
             u = pts[i][0] + (pts[i + 1][0] - pts[i][0]) * r
             v = pts[i][1] + (pts[i + 1][1] - pts[i][1]) * r
@@ -7409,6 +7421,119 @@ def viewpoint_fov_check(d):
                     bad.append("主視点 %s の%s %s が**視野の外** — 方位 %+.1f°"
                                "(画角 ±%.0f° / %s 向き)"
                                % (vp["name"], nm_, ref, off, half, vp["dir"]))
+    return bad
+
+
+def niwa_stone_check(d):
+    """**庭方の決定を実際に測る。**⭐ 2026-09-02(第4次・庭方【高1】)新設。
+    ⛔ 値だけ書かれて誰も読んでいなかった5件を、ここで初めて幾何に当てる。"""
+    bad = []
+    ES = d["const"]["ken"]
+    pond = ((d.get("sensui") or {}).get("pond") or {})
+    shore = [tuple(p) for p in pond.get("outline") or []]
+    if not shore:
+        return ["御泉水の輪郭が無い — 庭の石の検査が回らない"]
+    ring = shore + [shore[0]]
+
+    def to_shore(p):
+        return min(_seg_dist(p, ring[i], ring[i + 1]) for i in range(len(ring) - 1))
+
+    # ── 三石が水へ入らないか(庭方 決定5・決定12)
+    for t in d.get("tenkei", []):
+        if not t.get("stones"):
+            continue
+        clr = float(t.get("shoreClr", 0.30)) / ES        # [間]
+        for st in t["stones"]:
+            # ⚠ `stones[]` は**絶対座標**(代表点からの差分ではない)
+            u = float(st.get("u", t["u"]))
+            v = float(st.get("v", t["v"]))
+            plan = st.get("plan") or [0.0, 0.0]
+            rad = max(float(plan[0]), float(plan[1])) / 2.0 / ES
+            got = to_shore((u, v))
+            if got < clr + rad:
+                bad.append("%s の %s が汀に近すぎる — 芯→汀 %.2fm(要る %.2fm = "
+                           "離れ %.2fm + 外周 %.2fm)"
+                           % (t["name"], st.get("name", "?"), got * ES,
+                              (clr + rad) * ES, clr * ES, rad * ES))
+
+    # ── 石樋と汀の離れ(庭方 決定4)/ 石樋の内法(決定14)
+    for toi in (d.get("mizu") or {}).get("toi", []):
+        pts = [tuple(p) for p in (toi.get("pts") or [])]
+        if toi.get("shoreClr") is not None and len(pts) >= 2:
+            need = float(toi["shoreClr"])
+            bore = toi.get("bore") or {}
+            half = float(bore.get("outer", 0.0)) / 2.0 / ES
+            got = min(to_shore(p) for p in pts)
+            if got < need + half:
+                bad.append("石樋 %s が汀に近すぎる — 芯→汀 %.2f間(要る %.2f間 = "
+                           "離れ %.2f間 + 外法の半 %.2f間)"
+                           % (toi["name"], got, need + half, need, half))
+        if toi.get("bore") and not toi["bore"].get("outer"):
+            bad.append("石樋 %s の `bore.outer`(外法)が無い" % toi["name"])
+
+    # ── 掃除枡が経路の折れ点に在るか(庭方 決定6)
+    for toi in (d.get("mizu") or {}).get("toi", []):
+        for ms in toi.get("masu") or []:
+            pts = [tuple(p) for p in (toi.get("pts") or [])]
+            if not pts:
+                continue
+            near = min(math.hypot(ms["u"] - p[0], ms["v"] - p[1]) for p in pts)
+            if near > 0.5:
+                bad.append("掃除枡(%s)が %s の折れ点から %.2f間 離れている — "
+                           "⛔ 枡は折れ点に置く(竹通しは直線しか通らない)"
+                           % (ms.get("where", "?"), toi["name"], near))
+
+    # ── 護岸の裏込が池の壁を覆うか(庭方 決定4)
+    ur = ((d.get("sensui") or {}).get("gogan") or {}).get("urazume")
+    if ur:
+        floor = float(pond.get("floorY", 0.0))
+        if float(ur["botY"]) > floor + 0.30:
+            bad.append("護岸の裏込の底 %.2f が池の床 %.2f より %.2fm 高い — "
+                       "⛔ 垂直に掘った壁の足元を受けられない"
+                       % (ur["botY"], floor, float(ur["botY"]) - floor))
+    return bad
+
+
+def design_value_check(d):
+    """**指図に書いた値を、誰かが読んでいるか。**⭐ 2026-09-02(第4次・庭方【高1】)新設。
+
+    ⛔ **`check_wiring_check` の網の外の型。**あれは「**定義済みの検査**が報告経路に載っているか」を
+    見る仕掛けで、⛔ 「**設計値に対応する検査がそもそも無い**」は捕まえられない。
+    ⚠ 実際、庭方の決定2・4・5・6 の **6キーが死値**だった — とくに `keepoutAdd.nosuji` が
+    効いていないため**野筋の退避が半幅ちょうどのまま**で、⛔ 幹芯が谷の肩に立ち根鉢が流路へ落ちる
+    (= 遣水が数年で涸れる)状態が、値だけ書かれて放置されていた。
+
+    ⭕ **逆向きの照合** — 見張るキーの名が、生成器かビルダーの**ソースに現れるか**を見る。
+    ⛔ 名前で見るだけなので「読んでいるが使っていない」は捕まえられない(限界)。
+    ⭐ それでも「書いただけ」は確実に落ちる。"""
+    import io
+    watch = [
+        ("plantRule.keepoutAdd", "野筋の退避の上乗せ(庭方 決定2)"),
+        ("sensui.gogan.urazume", "護岸の裏込(庭方 決定4)"),
+        ("mizu.toi[MZ_Eda2].shoreClr", "石樋と汀の離れ(庭方 決定4)"),
+        ("tenkei[T_Iwagumi_Shu].stones", "三石の据え(庭方 決定5)"),
+        ("tenkei[T_Iwagumi_Shu].shoreClr", "三石が水へ入らないこと(庭方 決定5)"),
+        ("mizu.toi[MZ_Ankyo].masu", "掃除枡(庭方 決定6)"),
+        ("mizu.toi[MZ_Ankyo].coverSkipTail", "土被りの測定から外す末端(庭方 決定6)"),
+        ("mizu.toi[*].bore", "石樋の内法(庭方 決定14)"),
+        ("viewpointRule.fov", "主視点の画角(庭方 決定13)"),
+        ("const.benchBand", "外周帯の内側幅"),
+    ]
+    src = io.open(__file__, encoding="utf-8").read()
+    bld = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__)))), "Assets", "Edo", "Scripts", "Editor",
+        "EdoMatsudairaDewaBuilder.cs")
+    if os.path.exists(bld):
+        src += io.open(bld, encoding="utf-8").read()
+    bad = []
+    for key, why in watch:
+        leaf = key.replace("]", "").split(".")[-1].split("[")[-1]
+        # ⛔ この関数自身の `watch` の行は数えない(自分で自分を満たさない)
+        hits = sum(1 for ln in src.splitlines()
+                   if leaf in ln and '"%s"' % key not in ln and "watch = [" not in ln)
+        if hits == 0:                       # ⛔ watch の行は上で除いてある
+            bad.append("指図の `%s`(%s)を**誰も読んでいない** — 値を書いただけで、"
+                       "検査も実装も参照しない" % (key, why))
     return bad
 
 

@@ -7212,6 +7212,16 @@ def _bands(d):
     for t in d.get("tenkei", []):
         if "生垣" in t.get("kind", "") and t.get("a") and t.get("b"):
             out.append((t["name"], [tuple(t["a"]), tuple(t["b"])], float(t.get("w", 0.40))))
+    # ⭐ **中仕切塀も帯である**(2026-09-02 第4次検図【中5】)。⛔ 従前は網の外で、
+    #   遣水の野筋が板塀 `NJ_Oku_S_W` の足元へ 0.36m 食い込んでいても 0 件だった。
+    #   ⚠ **横切ること自体は不良でない**(`yarimizu.kuguri` = 石樋の水抜きが始末する)。
+    #   ⛔ 不良は**その手前で浅い谷が塀の足元を削る**こと — 板塀の根石が谷の中に立つ。
+    #   幅は根石の厚み `nakajikiriRule.neishi.t`(躯体より根石の方が広い)。
+    t_ne = float(((d.get("nakajikiriRule") or {}).get("neishi") or {}).get("t", 0.35))
+    ES = d["const"]["ken"]
+    for w in d.get("nakajikiri", []):
+        if w.get("a") and w.get("b"):
+            out.append((w["name"], [tuple(w["a"]), tuple(w["b"])], t_ne / ES))
     return [b for b in out if b[2] > 0]
 
 
@@ -7321,7 +7331,11 @@ def route_connect_check(d, tol=1.0):
 #   眼高しか見ず、**方位も画角も一切見ない**。庭方が「中景の石組が方位 73.8° で視野外」と
 #   見つけた型は、直しても検査が守らなかった。⇒ `viewpoints[].refs` の物の方位を見る。
 
-FOV = {"座視": 30.0, "立視": 35.0}
+# ⛔ **画角を生成器で持たない**(2026-09-02 第4次検図【高2】)。正典は
+#   `viewpointRule.fov`。⚠ 従前はモジュール定数 `{"座視":30.0,"立視":35.0}` で判定しており、
+#   ⛔ **`立視 35.0` は指図のどこにも無い数**だった。しかも**その数で設計値が動いた**
+#   (V8 の `dir` を「±35° に入る」を根拠に改めた)。⭕ 指図が `null` と宣言した姿勢は
+#   **判定せず、方位のずれだけを出す**(指図の `_fov` がそう指示している)。
 
 
 def _ref_uv(d, ref):
@@ -7366,7 +7380,12 @@ def viewpoint_fov_check(d):
         if vp.get("dir") not in DIRS:
             bad.append("主視点 %s の向き %r が知らない値" % (vp["name"], vp.get("dir")))
             continue
-        half = FOV.get(vp.get("posture"), 30.0)
+        fov = (d.get("viewpointRule") or {}).get("fov") or {}
+        if vp.get("posture") not in fov:
+            bad.append("主視点 %s の姿勢 %r の画角が `viewpointRule.fov` に無い"
+                       % (vp["name"], vp.get("posture")))
+            continue
+        half = fov[vp["posture"]]
         base = DIRS[vp["dir"]]
         for layer in ("fore", "mid", "far"):
             for ref in refs.get(layer, []) or []:
@@ -7380,12 +7399,16 @@ def viewpoint_fov_check(d):
                     continue
                 ang = math.degrees(math.atan2(dv, du)) % 360.0
                 off = (ang - base + 180.0) % 360.0 - 180.0
-                if abs(off) > half:
+                nm_ = {"fore": "前景", "mid": "中景", "far": "遠景"}[layer]
+                if half is None:
+                    # ⭕ 未決の姿勢 — ⛔ 判定しない。方位のずれだけを表に出す
+                    bad.append("〔判定せず〕主視点 %s の%s %s は視軸から %+.1f° "
+                               "(⚠ %s の画角が未決 = `_pending.fovRisshi`)"
+                               % (vp["name"], nm_, ref, off, vp["posture"]))
+                elif abs(off) > half:
                     bad.append("主視点 %s の%s %s が**視野の外** — 方位 %+.1f°"
                                "(画角 ±%.0f° / %s 向き)"
-                               % (vp["name"],
-                                  {"fore": "前景", "mid": "中景", "far": "遠景"}[layer],
-                                  ref, off, half, vp["dir"]))
+                               % (vp["name"], nm_, ref, off, half, vp["dir"]))
     return bad
 
 
@@ -8281,7 +8304,15 @@ def plate_ref_check(d):
       禁を検査にする(散文の禁は破れる)。"""
     bad = []
     KAN_RE = re.compile(r"其[一二三四五六七八九十廿卅]+")
-    srcs = [("kosho.md", open(MD, encoding="utf-8").read())]
+    srcs = [("kosho.md", open(MD, encoding="utf-8").read()),
+            # ⭐ **生成器自身の caption も見る**(2026-09-02 第4次検図【低7】)—
+            #   ⛔ 断面の凡例に「其一と同じ色分け」の直書きが残り、html に12回出ていた。
+            # ⚠ **キャプションの行だけを見る。**⛔ ソース全体を食わせると、採番表 `KAN`・
+            #   `plate()` の呼び出し・docstring の中の `{{図:題}}` という**書き方の例**まで
+            #   拾って 60件超の誤報になる(2026-09-02 に踏んだ。狼少年の関門は無視される)。
+            ("生成器のキャプション", "\n".join(
+                ln for ln in open(__file__, encoding="utf-8").read().splitlines()
+                if ('class="cap"' in ln or "cap=" in ln) and not ln.lstrip().startswith("#")))]
     for k, v in (d.get("_pending") or {}).items():
         srcs.append(("`_pending.%s`" % k, v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)))
     for nm, txt in srcs:
@@ -8842,12 +8873,21 @@ def okuniwa_band_svg(d):
     kaki = [t for t in d["tenkei"] if t.get("name", "").startswith("T_Ikegaki_Oku")]
     v_kaki = kaki[0]["a"][1] if kaki else 65.7
     # 低木の帯 — `along.offset` を野筋の芯から測る
+    # ⛔ **`along` は層の直下でなく `groups[].along` にある**(2026-09-02 第4次検図【高1】)。
+    #   ⚠ 層の直下だけを見ていたため `off` が None に落ち、**既定値で描いていた**
+    #   — 正典を書き換えても図が1ミリも動かず、しかも図が「実値から測っている」と偽っていた。
     off = None
     for pl in d.get("planting", []):
-        if pl.get("zone") == "G_OkuNiwa" and pl.get("role") == "低木":
-            a = pl.get("along") or {}
-            if a.get("offset"):
-                off = [float(x) for x in a["offset"]]
+        if pl.get("zone") != "G_OkuNiwa" or pl.get("role") != "低木":
+            continue
+        for src in [pl.get("along") or {}] + [(g.get("along") or {})
+                                              for g in (pl.get("groups") or [])]:
+            if src.get("offset"):
+                off = [float(x) for x in src["offset"]]
+                break
+    if off is None:
+        raise SystemExit("⛔ 奥庭の低木の帯 `along.offset` が指図から拾えない — "
+                         "既定値で描くと図が嘘をつく(2026-09-02 検図【高1】)")
     U = -40.0                                   # この u で切る(奥庭のまん中)
     def vy(u, pts):                             # 芯線の v を u で引く
         for k in range(len(pts) - 1):
@@ -8864,9 +8904,9 @@ def okuniwa_band_svg(d):
              ("縁先の延段", v_end - w_end / 2, v_end + w_end / 2, "#b9ae95", "R_OkuNiwa_Endan"),
              ("苔・伏石・下草", v_end + w_end / 2, v_yar - w_no / 2, "#a8bf9a", "V2 の前景"),
              ("遣水の野筋", v_yar - w_no / 2, v_yar + w_no / 2, "#8fb6cc", "浅い谷"),
-             ("低木・刈込", v_yar + (off[0] if off else 0.6), v_yar + (off[1] if off else 1.2),
+             ("低木・刈込", v_yar + off[0], v_yar + off[1],
               "#79955f", "遣水の南岸"),
-             ("生垣の足元", v_yar + (off[1] if off else 1.2), v_kaki, "#c9c2ad", ""),
+             ("生垣の足元", v_yar + off[1], v_kaki, "#c9c2ad", ""),
              ]
     v0, v1 = v_mune, v_kaki + 0.35
     W, H, L, R, T = 940.0, 300.0, 92.0, 40.0, 54.0
@@ -8877,6 +8917,10 @@ def okuniwa_band_svg(d):
     yb, ht = 96.0, 108.0
     for nm, a, b, col, note in bands:
         if b - a <= 1e-6:
+            # ⛔ **潰れた帯を黙って消さない**(2026-09-02 検図【低9】)— 図にも表にも
+            #   出ないと、東で帯が負になっていることが読めない。⭕ 赤で「潰れ」と描く。
+            g.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="11" '
+                     'fill="#AE3630">⛔ %s 潰れ %.2f 間</text>' % (X(a), yb + 42, nm, b - a))
             continue
         g.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s" '
                  'stroke="var(--ink)" stroke-width="0.8" opacity="0.85"/>'
@@ -10488,15 +10532,15 @@ def main():
                    for i in range(len(P)))) / 2
 
     bad = overlap_check(d)
-    if bad:
-        print("⚠ 矩形の重なり %d 件:" % len(bad))
-        for b in bad:
-            print("   ", b)
+    # ⛔ **0件でも件数を出す**(2026-09-02 第4次検図【低8】)— `if bad:` で囲むと
+    #   **0件と未実行が見分けられない**。矩形の重なりは検図の一番の持ち場。
+    print("矩形の重なり: %d 件" % len(bad))
+    for b in bad:
+        print("   ", b)
     nbad = nakajikiri_containment_check(d)
-    if nbad:
-        print("⚠ 中仕切塀の区画はみ出し %d 件:" % len(nbad))
-        for b in nbad:
-            print("   ", b)
+    print("中仕切塀の区画はみ出し: %d 件" % len(nbad))
+    for b in nbad:
+        print("   ", b)
     pbad = plane_check(d)
     if pbad:
         print("⚠ 面のはみ出し %d 件:" % len(pbad))
@@ -11205,7 +11249,8 @@ def main():
     h.append(civil_table(d))
     h.append(mune_contacts_table(d))
     h.append(gate_parts_table(d))
-    h.append('<p class="cap"><b>bench=true の run は外周帯(内側幅3m)を天端へ整地する</b>(切盛±1.7m)。'
+    h.append('<p class="cap"><b>bench=true の run は外周帯(内側幅%.0fm)を天端へ整地する</b>(切盛±1.7m)。'
+             % d["const"]["benchBand"] +
              '地形へこまめに追従して段を刻まない — 堀端通り沿い5辺215mは一本の天端。'
              '隣地・道の地形は動かせないので、差は基壇石垣の露出として受ける。</p>')
     h.append("</div>")

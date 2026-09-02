@@ -114,8 +114,15 @@ def audit(path):
             if nm in funcs and _kind(nm) == "検査" and returns_val.get(nm):
                 discarded.append({"name": nm, "line": node.lineno})
 
+    # ── ⛔ 黙り: 走っているが、結果が print にも return にも届かない
+    mute = []
+    for n, node in funcs.items():
+        if n in seen:                       # 到達しない関数は「孤立」で既に鳴っている
+            mute += _flows(node)
+
     n_check = len([n for n in universe if _kind(n) == "検査"])
     return {"path": path, "library": False, "orphan": orphan, "discarded": discarded,
+            "mute": mute,
             "n_func": len(universe), "n_reached": len(seen), "n_check": n_check}
 
 
@@ -151,9 +158,132 @@ def surfaced(log_path, html_path):
     return warn_lines, miss
 
 
+# ────────────────────────────────────────────────────────────────────────────
+# 第4型 — 走っているが「件数を刷る経路」に届かない(岡部 2026-09-02 の申し送り)
+# ────────────────────────────────────────────────────────────────────────────
+# ⭐ **孤立していないが要約に出ない検査は、孤立と実害が同じ。**
+#   岡部の `batter_check`(法面)は呼ばれているのに、結果が **切盛図のキャプションの中にしか**
+#   出ない。要約だけを見た指図方も普請奉行も「全項目0件」と報告し、**24件を1巡見落とした**。
+#   ⛔ `--surfaced`(実行ログ × 成果物)では拾えない — 実行ログにそもそも1行も出ないため。
+#
+# ⭕ 良い形: `bad = f(d)` → `print("… %d 件" % len(bad))`(0件でも必ず刷る)
+#          または `bad += f(d)` → `return bad`(呼び出し側が刷る責任を持つ)
+# ⛔ 悪い形: `bb = f(d, ter)` → `h.append('<p class="cap">法面の検査: %s' % …)` だけ
+#
+# ⚠ **保守的に判定する** — 狼少年の関門は無視されるので、疑わしきは鳴らさない。
+#   別名(`y = x` / `y += x` / `y.extend(x)` / `y.append(x)`)だけを追い、
+#   ⛔ **書式文字列の中に埋め込まれた参照では taint を伝播させない**(そこが岡部の型)。
+
+_ALIAS_METH = {"extend", "update", "append", "add"}
+_STR_METH = {"format", "join"}
+
+
+def _stringy(node):
+    """文字列を組み立てている式か。⭐ **ここが岡部の型と当邸の感度試験を分ける一線。**
+    ⛔ `h.append('<p>…%s' % (…, len(bb), …))` は**図の中へ埋める**ので、件数は誰にも刷られない。
+    ⭕ `out.append((題, len(msg)))` は**数のまま運ぶ**ので、呼び出し側が刷れる。"""
+    if isinstance(node, ast.JoinedStr):
+        return True
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return True
+    if isinstance(node, ast.BinOp):
+        return _stringy(node.left) or _stringy(node.right)
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) \
+            and node.func.attr in _STR_METH:
+        return True
+    return False
+
+
+def _flows(fn):
+    """検査の戻り値が `print` か `return` へ届いているか。届かない検査を返す。
+
+    ⭐ **種ごとに閉包を取る** — 全部の種を1つの taint に混ぜると、
+    別名へ伝わった時点でどの種が届いたのか分からなくなる(2026-09-02 に踏んだ)。"""
+    seeds = {}                                   # 受けた名前 -> (検査名, lineno)
+    for node in ast.walk(fn):
+        if not isinstance(node, (ast.Assign, ast.AugAssign)):
+            continue
+        val = node.value
+        if not (isinstance(val, ast.Call) and isinstance(val.func, ast.Name)):
+            continue
+        nm = val.func.id
+        if _kind(nm) != "検査":
+            continue
+        tgts = node.targets if isinstance(node, ast.Assign) else [node.target]
+        for t in tgts:
+            if isinstance(t, ast.Name):
+                seeds.setdefault(t.id, (nm, node.lineno))
+    if not seeds:
+        return []
+
+    nodes = list(ast.walk(fn))
+    out = []
+    for seed, (nm, line) in sorted(seeds.items()):
+        taint = {seed}
+        for _ in range(6):                       # 素直な別名の閉包(浅くてよい)
+            before = len(taint)
+            for node in nodes:
+                if isinstance(node, (ast.Assign, ast.AugAssign)):
+                    v = node.value
+                    names = {x.id for x in ast.walk(v)
+                             if isinstance(x, ast.Name) and isinstance(x.ctx, ast.Load)}
+                    if (isinstance(v, (ast.Name, ast.BinOp))) and (names & taint):
+                        tg = node.targets if isinstance(node, ast.Assign) else [node.target]
+                        taint |= {t.id for t in tg if isinstance(t, ast.Name)}
+                elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) \
+                        and node.func.attr in _ALIAS_METH and len(node.args) == 1 \
+                        and isinstance(node.func.value, ast.Name):
+                    arg = node.args[0]
+                    inside = any(isinstance(x, ast.Name) and x.id in taint
+                                 for x in ast.walk(arg))
+                    # ⭕ そのまま渡す / 数のまま運ぶ → 器へ伝える(呼び出し側が刷れる)
+                    # ⛔ 文字列へ埋める → 伝えない(件数はそこで図の中に消える = 岡部の型)
+                    if inside and not _stringy(arg):
+                        taint.add(node.func.value.id)
+            if len(taint) == before:
+                break
+
+        ok = False
+        for node in nodes:
+            hit = None
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) \
+                    and node.func.id == "print":
+                hit = node
+            elif isinstance(node, ast.Return) and node.value is not None:
+                hit = node.value
+            if hit is None:
+                continue
+            if any(isinstance(x, ast.Name) and x.id in taint for x in ast.walk(hit)):
+                ok = True
+                break
+        if not ok:
+            out.append({"name": nm, "line": line, "via": seed})
+    return out
+
+
 def targets(argv):
+    """⭐ **邸名でも引ける**(2026-09-02 infra セッションの申し送り) —
+    `review_gate.py okabe` / `review_ledger.py okabe` が邸名で引けるのに、
+    ⛔ 本ツールだけ生パスを要求して `FileNotFoundError` を投げていた。"""
     if argv:
-        return argv
+        out = []
+        for a in argv:
+            if os.path.exists(a):
+                out.append(a)
+                continue
+            hits = sorted(glob.glob(os.path.join(ROOT, "Tools/Sashizu/build_%s_*.py" % a)))
+            if hits:
+                out += hits
+            else:
+                sys.stderr.write(
+                    "⛔ 邸名にもパスにも当たらない: %s\n"
+                    "   邸名は %s\n" % (
+                        a, ", ".join(sorted(set(
+                            os.path.basename(x)[6:].rsplit("_", 1)[0]
+                            for x in glob.glob(os.path.join(ROOT, "Tools/Sashizu/build_*_sashizu.py"))
+                        )))))
+                raise SystemExit(2)
+        return out
     out = []
     for p in ("Tools/Sashizu/build_*_sashizu.py", "Tools/Sashizu/build_*_saitei.py"):
         out += sorted(glob.glob(os.path.join(ROOT, p)))
@@ -184,7 +314,7 @@ def main():
         if r is None:
             continue
         reports.append(r)
-        bad += len(r["orphan"]) + len(r["discarded"])
+        bad += len(r["orphan"]) + len(r["discarded"]) + len(r.get("mute", ()))
 
     if a.json:
         print(json.dumps(reports, ensure_ascii=False, indent=1))
@@ -195,7 +325,7 @@ def main():
         if r["library"]:
             print("・%-38s 入口が無い(ライブラリ)— 見送り" % name)
             continue
-        mark = "⛔" if (r["orphan"] or r["discarded"]) else "⭕"
+        mark = "⛔" if (r["orphan"] or r["discarded"] or r.get("mute")) else "⭕"
         print("%s %-38s 関数 %d / 到達 %d / 検査 %d"
               % (mark, name, r["n_func"], r["n_reached"], r["n_check"]))
         for o in r["orphan"]:
@@ -204,12 +334,15 @@ def main():
         for o in r["discarded"]:
             print("    ⛔ 捨て L%-5d %s()  … 走るが戻り値を誰も受け取っていない"
                   % (o["line"], o["name"]))
+        for o in r.get("mute", ()):
+            print("    ⛔ 黙り L%-5d %s()  … 走るが件数が print にも return にも届かない"
+                  "(受け `%s` は図の中で消える)" % (o["line"], o["name"], o["via"]))
 
     print()
     if bad:
         print("⛔ 結線の不備 %d 件 — **書いたのに誰の目にも入らない産物がある。**" % bad)
     else:
-        print("⭕ 孤立・捨て 0 件。")
+        print("⭕ 孤立・捨て・黙り 0 件。")
     print("⛔ 0件は「合格」ではない — 恒真の検査・検査の欠落・建てないと見えない不良は"
           "本ツールでは見えない(docs/verification-loops.md)。")
     return 1 if bad else 0

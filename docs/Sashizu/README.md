@@ -52,6 +52,7 @@
 | `matsudaira_dewa_edo_recon.json` | 松江松平の江戸期復元レイヤの仕様(1883 の法肩・法尻の点列と確度 `cert`。html の地盤の呼び名はここから引く) | 人(`_calib`/`_datum` は考証方の値) |
 | `matsudaira_dewa_edo_dem.json` / `_edo_world.json` / `_cur_dem.json` | 江戸期復元地盤(回転間格子 / 世界座標・区画でクリップ / 現況)。断面・切盛・法面の検査はすべて `_edo_*` を読む(⛔ `sections[].natural` に写さない) | `Tools/Sashizu/build_matsudaira_dewa_edo_dem.py`(`--check` で陳腐化を見張る) |
 | `matsudaira_dewa_planting_out.json` | ⭐ **実装が据える植栽の点の正典(生成物)** — 生成器が撒き検査した点そのもの(庭+法面・`ground:design|terrain`)。Unity の 7' 植栽はこれを据えるだけで**撒き直さない**(`planting_export_check` が本数一致を見張る) | `Tools/Sashizu/build_matsudaira_dewa_sashizu.py`(毎回) |
+| — | **松江松平の裁定図の綴り**(済/未決を冒頭の一覧と札で示す・番号は振り直さない)。Artifact https://claude.ai/code/artifact/35042658-748f-4510-bbb1-3e9c6156a999 | 普請奉行(scratchpad の `matsudaira_saitei_board.html` から公開) |
 
 ```bash
 python3 Tools/Sashizu/build_okabe_sashizu.py

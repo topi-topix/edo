@@ -1426,6 +1426,7 @@ def plane_check(d):
     bad += route_connect_check(d)
     bad += viewpoint_fov_check(d)
     bad += niwa_stone_check(d)
+    bad += rail_ground_check(d)
     bad += design_value_check(d)
     return bad
 
@@ -7498,6 +7499,59 @@ def niwa_stone_check(d):
             bad.append("護岸の裏込の底 %.2f が池の床 %.2f より %.2fm 高い — "
                        "⛔ 垂直に掘った壁の足元を受けられない"
                        % (ur["botY"], floor, float(ur["botY"]) - floor))
+    return bad
+
+
+def rail_ground_check(d, tol=0.5, step=1.0):
+    """**木柵(`rails`)の足元の地盤が、それが縁取る面から落ちていないか。**
+    ⭐ 2026-09-02(江戸期地盤の復元)に新設。⛔ `run_seat_check` は `runs`(塀・長屋)しか回さず、
+    **`rails` は地盤と一度も突き合わされていなかった**(検査の欠落)。復元で西の法肩の線
+    `R_West`(= `slopeArea.crest`)の地盤が v15 で −4.79m 下がったのに、⚠ が1件も出なかった。
+    ⛔ 木柵は「台地の縁の柵」で、足元が面から `tol` を超えて落ちていれば**斜面に立っている**。
+    ⚠ 直し方(線を 1883 の法肩へ移すか、斜面に立つのを受け入れるか)は意匠 → `_pending.crestLine1883`。"""
+    bad = []
+    faces = [(t["name"], float(t["y"])) for t in d.get("terraces", [])
+             if t.get("y") is not None and not t.get("slope")]
+    if not faces:
+        return bad
+    for r in d.get("rails", []) if isinstance(d.get("rails"), list) else d.get("rails", {}).values():
+        pts = [tuple(p) for p in r.get("pts") or []]
+        if len(pts) < 2:
+            continue
+        # 縁取る面 = 折れ線の重心に最も近い段(y を持つもの)
+        worst = None
+        n_bad = 0
+        for i in range(len(pts) - 1):
+            a, b = pts[i], pts[i + 1]
+            L = math.hypot(b[0] - a[0], b[1] - a[1])
+            n = max(1, int(L / step))
+            for k in range(n + 1):
+                t = k / float(n)
+                u, v = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
+                # ⭐ 比べるのは**設計面**(段 → 築山 → 法面 → 現況)— 木柵が実際に立つ面。
+                #   ⛔ 自然地盤と比べると、法肩の線が段の法面(盛土)の上に載る所で必ず鳴り、
+                #   現代の地面でも復元地盤でも同じ件数が出て何も分からない(2026-09-02 に踏んだ)。
+                g = _ground_uv(d, u, v, _terr_json(), _dem_json())
+                if g is None:
+                    continue
+                # 面: この点を含む段があればその y、無ければ最寄りの段の y
+                fy = None
+                for tr in d["terraces"]:
+                    if tr.get("y") is None or tr.get("slope"):
+                        continue
+                    if tr["u0"] - 1e-6 <= u <= tr["u1"] + 1e-6 and tr["v0"] - 1e-6 <= v <= tr["v1"] + 1e-6:
+                        fy = float(tr["y"]); break
+                if fy is None:
+                    fy = min(faces, key=lambda f: abs(f[1] - g))[1]
+                drop = fy - g
+                if drop > tol:
+                    n_bad += 1
+                    if worst is None or drop > worst[0]:
+                        worst = (drop, u, v, g, fy)
+        if worst:
+            bad.append("木柵 %s の足元が面から落ちている — 最大 %.2fm @ (u%.1f, v%.1f: 地盤 %.2f / 面 %.2f)・"
+                       "%d 点で %.1fm 超。⛔ 台地の縁の柵が**斜面に立っている**(→ `_pending.crestLine1883`)"
+                       % (r["name"], worst[0], worst[1], worst[2], worst[3], worst[4], n_bad, tol))
     return bad
 
 

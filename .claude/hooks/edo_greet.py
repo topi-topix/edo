@@ -74,6 +74,31 @@ if os.path.exists(CLI):
                   "いまの指図を見ていない)。改めて1回検分に出し、結果を "
                   "`review_gate.py --record <屋敷> <役> <pass|fail>` で**呼んだ側が書き戻す**"
                   "(検分役は read-only で自分では書けない)。")
+    # 結線関門(絶対規則19) — **書いたのに誰の目にも入らない産物**を鳴らす。
+    #   ⛔ 規則19 は CLAUDE.md に入ったが、**機構としては誰にも鳴っていなかった**。
+    #   これは規則18(検図関門)を作った動機そのもの ——「ルーティング表に載っていたが
+    #   通さなくても何も起きなかった」—— の再来で、2026-09-02 にここへ結線した(EDO-0113)。
+    #   ⚠ **`--quiet` は使わない。** 結線関門は 0 件でも全生成器を1行ずつ刷る作りで、
+    #   そのまま入れると挨拶が7行増える。作り手のセッションが claim 中で本体に
+    #   `--quiet` を足せないため、**exit コードで黙らせ、⛔ の行だけを拾う**
+    #   (不備が無ければ exit 0 で、ここは一言も出さない)。
+    wcli = os.path.join(MAIN_ROOT, "Tools", "Sashizu", "wiring_gate.py")
+    if os.path.exists(wcli):
+        w = subprocess.run([sys.executable, wcli], capture_output=True, text=True, env=env)
+        if w.returncode:
+            # 生成器の行と個々の不備(孤立/黙り)だけ拾う。道具の末尾の注意書き
+            # (「0件は合格ではない」ほか)は下で一言にまとめるので落とす。
+            bad = [ln for ln in w.stdout.split("\n")
+                   if "⛔" in ln and ("build_" in ln or "孤立" in ln or "黙り" in ln)]
+            if bad:
+                print("結線関門 — **書いたのに誰の目にも入らない産物がある**"
+                      "(`python3 Tools/Sashizu/wiring_gate.py <邸名>`)")
+                for ln in bad[:8]:
+                    print("  " + ln.strip())
+                print("  ⛔ **輪に入っていない値は「未検査」であって「合格」ではない**(規則19)。"
+                      "孤立=一度も走らない / 黙り=走るが件数が要約に届かない。"
+                      "⚠ **目視では見つからない** — 松江松平は同じ型を3度、"
+                      "岡部は要約だけ見て24件を1巡見落とした。正典: `docs/verification-loops.md`")
     # ⛔ 書き方の作法(規則16)。メッセージは揮発するので、起動のたびにここで通達する。
     #   2026-08-30 ユーザー指摘「どの質問や裁定にどう回答して良いか非常に困る」。
     print("⛔ **ユーザーへ書く前に `docs/reporting-protocol.md`(規則16・一件一葉)。**"

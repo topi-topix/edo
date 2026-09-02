@@ -449,4 +449,63 @@ public static partial class EdoMatsudairaDewaBuilder
         }
         return "滝見口: 開口に掛かる板塀の駒 " + off + " を非アクティブにした(⛔ 木戸そのものは部材なし・据えず)";
     }
+
+    // ------------------------------------------------------------------ 7' 植栽(指図の生成器が撒いた点を据える・冪等)
+    // ⭐ **検査と実装で置き方を別々に書かない。**生成器 `scatter_gardens` が撒いた点(`group_pack_check` ほかが
+    //   検査したのと同じ点)を `docs/Sashizu/matsudaira_dewa_planting_out.json` に書き出させ、ここは**据えるだけ**。
+    //   ⛔ 岡部 2026-09-02: 「検査と散布を別々に書くと、検査が通って実装で 0 本になる」。
+    //   旧 Stage7 は庭を外接箱で読み、樹種と塊がべた書きだった(検図 第4次【高7】)。
+    //   sidecar の1行 = { zone, layer, role, u, v, api, scale, tilt, tiltDir }(u,v は間)。
+    [MenuItem("Edo/松平出羽守上屋敷/7' 植栽(指図の散布点を据える)")]
+    public static void Stage7bMenu() { Debug.Log("[Matsudaira] " + Stage7b_NiwaFromScatter()); }
+    public static string Stage7b_NiwaFromScatter()
+    {
+        { var g = EdoSashizuExport.ReviewGate("matsudaira_dewa"); if (g != null) return g; }
+        // 指図と同じ場所(SashizuRel と同じ解き方)
+        string path = System.IO.Path.Combine(System.IO.Directory.GetParent(Application.dataPath).FullName,
+                                             "docs/Sashizu/matsudaira_dewa_planting_out.json");
+        if (!System.IO.File.Exists(path))
+            return "⛔ " + path + " が無い — 生成器 build_matsudaira_dewa_sashizu.py が散布点を書き出していない(--export-planting)";
+        var doc = EdoMiniJson.Parse(System.IO.File.ReadAllText(path)) as Dictionary<string, object>;
+        if (doc == null || !doc.ContainsKey("points")) return "⛔ planting_out の形が違う(points が無い)";
+        var pts = doc["points"] as List<object>;
+        var f = Grid; var rnd = new System.Random(1856);
+        var root = Group("Niwa/Planting"); Clear(root);
+        // 主視点(傾ける向きの相手)
+        var vps = new Dictionary<string, Vector2>();
+        foreach (var o in A(D["viewpoints"])) { var vp = O(o); vps[StrOf(vp, "name")] = f.W(F(vp["u"]), F(vp["v"])); }
+        int placed = 0, noPart = 0; var byZone = new Dictionary<string, int>();
+        foreach (var o in pts)
+        {
+            var p = O(o); string zone = StrOf(p, "zone") ?? "?";
+            string api = ResolveApi(StrOf(p, "api"));
+            if (api == null) { noPart++; continue; }
+            float u = F(p["u"]), v = F(p["v"]);
+            var sub = Group("Niwa/Planting/" + zone + "/" + (StrOf(p, "layer") ?? "層"));
+            float scale = HasKey(p, "scale") ? F(p["scale"]) : 1f;
+            var go = Plant(api, u, v, sub, zone + "_" + (StrOf(p, "role") ?? "") + "_" + placed, scale, rnd, 0f);
+            if (go == null) { noPart++; continue; }
+            // 傾き: 層の tilt [lo,hi]°、向きは tiltDir(random / V1.. = その主視点へ)。⛔ 撤回済みの「全数 −u へ」は無い
+            if (HasKey(p, "tilt"))
+            {
+                var tl = A(p["tilt"]); float lo = F(tl[0]), hi = F(tl[1]);
+                float deg = Mathf.Lerp(lo, hi, (float)rnd.NextDouble());
+                if (deg > 1e-3f)
+                {
+                    string dir = StrOf(p, "tiltDir") ?? "random";
+                    Vector2 here = f.W(u, v); float az;
+                    if (vps.ContainsKey(dir)) { var to = vps[dir] - here; az = Mathf.Atan2(to.x, to.y) * Mathf.Rad2Deg; }
+                    else az = (float)rnd.NextDouble() * 360f;
+                    // 幹を az の向きへ deg 倒す(倒す軸は az に直交する水平軸)
+                    var axis = Quaternion.Euler(0, az + 90f, 0) * Vector3.forward;
+                    go.transform.RotateAround(go.transform.position, axis, deg);
+                }
+            }
+            placed++; byZone[zone] = byZone.ContainsKey(zone) ? byZone[zone] + 1 : 1;
+        }
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine(string.Format("植栽 {0} 本を据えた / 部材が解けず {1}", placed, noPart));
+        foreach (var kv in byZone) sb.AppendLine("  " + kv.Key + ": " + kv.Value);
+        return sb.ToString();
+    }
 }

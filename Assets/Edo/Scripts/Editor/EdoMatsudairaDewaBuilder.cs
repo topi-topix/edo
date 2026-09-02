@@ -21,7 +21,7 @@ using System.IO;
 using UnityEditor;
 using UnityEngine;
 
-public static class EdoMatsudairaDewaBuilder
+public static partial class EdoMatsudairaDewaBuilder
 {
     public const string SashizuRel = "docs/Sashizu/matsudaira_dewa_sashizu.json";
     public const string ParcelId = "matsudaira_dewa";

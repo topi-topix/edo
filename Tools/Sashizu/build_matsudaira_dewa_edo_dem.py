@@ -216,77 +216,77 @@ def reconstruct(seed, sz, spec):
                 if w > wmap.get(q, 0.0):
                     wmap[q] = w
 
-    # ③ 斜面モデル — 法肩と法尻
+    # ③ 斜面モデル — **1883 の法肩と法尻**(考証方の断面の px→X)を端にする。
+    #   ⛔ 2026-09-02 の初版は端を指図の設計線(法肩=木柵の線・法尻=区画線)に置いており、
+    #   ①法肩が smoothing で 0.94m 下がる ②法尻の高さ 10.0 を区画線に当てて 1883 の法尻(区画の
+    #   0.7〜4.7m 外)より低く復元する ③門の外へ 25 セル漏れる、の3つが出た。
+    #   ⭕ 端 = `slope.crestSpots` / `slope.toeSpots`(世界座標の折れ線)。高さは法肩=正本(P)・法尻=仕様(U)。
+    #   ⭕ 適用域 = 両折れ線に挟まれた帯 × 折れ線の Z 範囲(± `spanFeather`)。法肩の直近 `crestFeather` は正本へ摺り付け。
     sl = spec["slope"]
     sa = sz["slopeArea"]
-    crest_w = [gr.W(u, v) for u, v in sa["crest"]]                 # 法肩(世界座標)
-    toe_w = []
-    for e in sa["toeEdges"]:                                        # 法尻 = 区画の西辺の連なり
-        a, b = poly[e], poly[(e + 1) % len(poly)]
-        if not toe_w or toe_w[-1] != tuple(a):
-            toe_w.append(tuple(a))
-        toe_w.append(tuple(b))
-    # 法尻の高さ: ○ を法尻線の弧長 s へ落として一次内挿(岡部の spotN/spotS と同じ作法)
-    spots = []
-    for sp in sl["toeSpots"]:
-        _, s_ = _pl_dist(toe_w, sp["xz"][0], sp["xz"][1])
-        spots.append((s_, float(sp["y"])))
-    spots.sort()
-    if len(spots) < 1:
-        raise SystemExit("⛔ slope.toeSpots が空 — 法尻の高さを決められない")
-
-    def toe_y(s_):
-        if len(spots) == 1 or s_ <= spots[0][0]:
-            return spots[0][1]
-        if s_ >= spots[-1][0]:
-            return spots[-1][1]
-        for (s0, y0), (s1, y1) in zip(spots, spots[1:]):
-            if s0 <= s_ <= s1:
-                return y0 + (y1 - y0) * (s_ - s0) / max(s1 - s0, 1e-9)
-        return spots[-1][1]
-
+    cr = sorted([(sp["xz"][0], sp["xz"][1]) for sp in sl["crestSpots"]], key=lambda q: q[1])
+    tw = sorted([(sp["xz"][0], sp["xz"][1], float(sp["y"])) for sp in sl["toeSpots"]], key=lambda q: q[1])
+    crest_w = cr
+    toe_w = [(x, z) for x, z, _ in tw]
+    z_lo = min(q[1] for q in cr + toe_w); z_hi = max(q[1] for q in cr + toe_w)
+    spf = float(sl.get("spanFeather", 6.0))
+    cfe = float(sl.get("crestFeather", 6.0))
     toe_rise = float(sl.get("toeRise", 0.0))
-    # 法肩の高さは正本の実測(法肩線上の双一次)を使う — 台地の縁は近代に動いていない前提【U】
+    # 法尻の高さ: Z で一次内挿(端の外は端の値)
+    def toe_y(z):
+        if z <= tw[0][1]: return tw[0][2]
+        if z >= tw[-1][1]: return tw[-1][2]
+        for (x0, z0, y0), (x1, z1, y1) in zip(tw, tw[1:]):
+            if z0 <= z <= z1:
+                return y0 + (y1 - y0) * (z - z0) / max(z1 - z0, 1e-9)
+        return tw[-1][2]
+    # 折れ線の x を Z で一次内挿(帯の判定を x の大小で行う — 西面は南北に走るので十分)
+    def _x_at(line, z):
+        if z <= line[0][1]: return line[0][0]
+        if z >= line[-1][1]: return line[-1][0]
+        for (x0, z0), (x1, z1) in zip(line, line[1:]):
+            if z0 <= z <= z1:
+                return x0 + (x1 - x0) * (z - z0) / max(z1 - z0, 1e-9)
+        return line[-1][0]
     changed, n3 = set(), 0
     for (ix, iz), (x, z) in inside.items():
-        w = wmap.get((ix, iz), 0.0)
-        if w <= 0.0 or h[iz][ix] is None:
+        if h[iz][ix] is None:
             continue
-        dc, _ = _pl_dist(crest_w, x, z)
-        dt, s_ = _pl_dist(toe_w, x, z)
-        if dc + dt < 1e-9:
+        # Z の門(折れ線の範囲 ± spanFeather)
+        if z < z_lo - spf or z > z_hi + spf:
             continue
-        t = dt / (dc + dt)                              # 0=法尻 … 1=法肩
-        # 法肩の高さ = 法肩線の最寄り点の正本の高さ
-        # (crest 上の点を探す代わりに、この列の法肩側の端 = 距離 dc の方向へ dc だけ戻した点)
-        # ⚠ 折れ線への足を厳密に取るより、法肩の高さは u,v で滑らかなので最寄り頂点の平均で足りる
-        cy = _crest_height(seed, crest_w, x, z)
+        wz = 1.0
+        if z < z_lo: wz = (z - (z_lo - spf)) / spf
+        if z > z_hi: wz = ((z_hi + spf) - z) / spf
+        xc, xt = _x_at(crest_w, z), _x_at(toe_w, z)      # 法肩 x(東)・法尻 x(西)
+        if not (xt <= x <= xc):                            # 帯の外(台地・区画外の岸)は触らない
+            continue
+        t = (x - xt) / max(xc - xt, 1e-9)                   # 0=法尻 … 1=法肩
+        cy = bilinear(seed, xc, z)                          # 法肩の高さ = 正本(1883 と ±0.8m で一致)
         if cy is None:
             continue
-        ty = toe_y(s_) + toe_rise
-        prof = sl.get("profile", "grade")
-        if prof == "grade":
-            y = ty + (cy - ty) * t
-        else:
-            raise SystemExit("⛔ slope.profile=%r は未実装" % prof)
+        ty = toe_y(z) + toe_rise
+        y = ty + (cy - ty) * t if sl.get("profile", "grade") == "grade" else None
+        if y is None:
+            raise SystemExit("⛔ slope.profile=%r は未実装" % sl.get("profile"))
+        wc = min(1.0, (xc - x) / cfe) if cfe > 0 else 1.0  # 法肩の直近は正本へ
+        w = wc * wz
+        if w <= 0.0:
+            continue
         y = y * w + h[iz][ix] * (1.0 - w)
         if abs(h[iz][ix] - y) > 0.005:
             changed.add((ix, iz))
         h[iz][ix] = y
         n3 += 1
-    log.append("③ 斜面モデル(法肩→法尻 一定勾配・法尻は明治16年図の ○ %d 点を岸に沿って内挿・"
-               "toeRise %.2f)を %d セルに当てた(平坦の縁 %.0fm 以内はまるごと、そこから %.0fm で現況へ摺り付け)"
-               % (len(spots), toe_rise, n3, mk["edgeCap"], mk["feather"]))
-
+    log.append("③ 斜面モデル(1883 の法肩 %d 点→法尻 %d 点・一定勾配・法尻 %.1f〜%.1f m【U】・toeRise %.2f)を "
+               "%d セルに当てた(Z %.0f〜%.0f ± %.0fm・法肩の直近 %.0fm は正本へ)"
+               % (len(cr), len(tw), min(q[2] for q in tw), max(q[2] for q in tw), toe_rise, n3,
+                  z_lo, z_hi, spf, cfe))
     # ④ 平滑化(変えたセル+周り1セル)。⛔ 変えていないセルは haloMax 以上動かさない
     sm = spec["smooth"]
-    soft = set()
-    for ix, iz in changed:
-        for dx in (-1, 0, 1):
-            for dz in (-1, 0, 1):
-                q = (ix + dx, iz + dz)
-                if q in inside:
-                    soft.add(q)
+    # ⭕ 平滑化は**変えたセルどうしの継ぎ目**だけ — 周りへ広げると法肩(正本)を引き下げ、門の外へ漏れる
+    #   (2026-09-02 初版: 法肩 −0.94m・門の外 25 セル)。
+    soft = set(changed)
     before = {q: h[q[1]][q[0]] for q in soft}
     for _ in range(sm["passes"]):
         cur = {q: h[q[1]][q[0]] for q in soft}
@@ -315,10 +315,25 @@ def reconstruct(seed, sz, spec):
     ec = float(spec.get("edgeClip", {}).get("m", 0.0))
     n5 = 0
     if ec > 0:
+        toe_set = set(sa["toeEdges"])
+        share = [poly[i] for i in range(len(poly))]     # 閉多角形の全辺のうち法尻辺を除いた距離
+        def _dist_nontoe(x, z):
+            best = None
+            for i in range(len(poly)):
+                if i in toe_set:
+                    continue
+                a, b = poly[i], poly[(i + 1) % len(poly)]
+                ddx, ddz = b[0] - a[0], b[1] - a[1]
+                L2 = ddx * ddx + ddz * ddz or 1e-9
+                tt = max(0.0, min(1.0, ((x - a[0]) * ddx + (z - a[1]) * ddz) / L2))
+                dq = math.hypot(x - (a[0] + ddx * tt), z - (a[1] + ddz * tt))
+                best = dq if best is None else min(best, dq)
+            return best
         for (ix, iz), (x, z) in inside.items():
             if h[iz][ix] is None or seed["h"][iz][ix] is None:
                 continue
-            dd, _ = _pl_dist(poly, x, z, closed=True)
+            # ⛔ 法尻の辺(堀端通り・溜池側)は協定の相手が隣家でないので edgeClip の対象外
+            dd = _dist_nontoe(x, z)
             if dd >= 2.0 * ec:
                 continue
             w = max(0.0, min(1.0, (dd - ec) / ec))

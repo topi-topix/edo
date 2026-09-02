@@ -411,17 +411,43 @@ def obb_overlap(a, b):
 
 
 # ---------------------------------------------------------------- 設計地盤(段の高さ)
+def _pt_in_ring(p, u, v):
+    """点が閉じた点列 p の中か(crossing number)。"""
+    n = len(p); c = False
+    for i in range(n):
+        (au, av), (bu, bv) = p[i], p[(i + 1) % n]
+        if (av > v) != (bv > v) and u < (bu - au) * (v - av) / (bv - av) + au:
+            c = not c
+    return c
+
+
+def t_holes(t):
+    """段の**抜き**(造成しない区画)の輪郭の並び。無ければ空。
+
+    ⭐ 2026-09-02 岡部: ユーザー裁定「主面の5区画を平坦化しない」で入れた。
+    段の外周は等高線なりのままにし、**面を作らない区画を穴として抜く** —
+    外周多角形を切り欠くと、内側だけの区画(長局の東の坪)が表せない。"""
+    return [[(a, b) for a, b in hh["poly"]] for hh in (t.get("holes") or [])]
+
+
+def t_keeps(t):
+    """抜きの中でも**面を残す**区画(=棟が載る所)。ユーザー裁定の但し書き
+    「棟が載る所だけ 24.80」を機械で当てる。**生成器が足跡から算出して書き戻す**
+    (`GEN_FIELDS["terraces"]["keeps"]`)ので、人は json に書かない。"""
+    return [[(a, b) for a, b in kp] for kp in (t.get("keeps") or [])]
+
+
 def t_contains(t, u, v):
     """(u,v) が段 t の中か。`poly`(岡部の等高線なり多角形)は crossing number、
-    `yaw`(土井の回転段)は OBB、どちらも無ければ矩形で見る。"""
+    `yaw`(土井の回転段)は OBB、どちらも無ければ矩形で見る。
+    ⭐ `holes` を持つ段では、穴の中は「段の外」= 造成しない自然地盤とする。"""
     p = t.get("poly")
     if p:
-        n = len(p); c = False
-        for i in range(n):
-            (au, av), (bu, bv) = p[i], p[(i + 1) % n]
-            if (av > v) != (bv > v) and u < (bu - au) * (v - av) / (bv - av) + au:
-                c = not c
-        return c
+        if not _pt_in_ring(p, u, v):
+            return False
+        if any(_pt_in_ring(hp, u, v) for hp in t_holes(t)):
+            return any(_pt_in_ring(kp, u, v) for kp in t_keeps(t))
+        return True
     return in_obb(t, u, v, 1e-9)
 
 
@@ -591,6 +617,19 @@ def stair_y(d, u, v, in_parcel):
     return None
 
 
+def t_edge_dist(t, u, v):
+    """段の縁までの距離[間]。**穴の縁も段の縁**(穴の中の点は穴の縁から法面が下りる)。"""
+    best = poly_edge_dist(t["poly"], u, v)
+    # ⚠ **抜きの縁を段の縁と見るのは、外輪の中にいるときだけ。**
+    #   抜きの矩形は外輪より外へはみ出して書いてよい(区画で切られる)ので、
+    #   外輪の外の点にまで当てると、段から遠い斜面が「抜きの縁のすぐ外」と読まれ、
+    #   そこへ法面の盛土が生える(2026-09-02: 辺1 の練塀 S_Hei2b が内側の土に 2.74m 埋まった)。
+    if _pt_in_ring(t["poly"], u, v):
+        for hp in t_holes(t) + t_keeps(t):
+            best = min(best, poly_edge_dist(hp, u, v))
+    return best
+
+
 def poly_edge_dist(p, u, v):
     """多角形の縁までの距離[間](外側の点用)。岡部の「等高線なり多角形」の段の縁。"""
     n = len(p)
@@ -640,7 +679,7 @@ def graded_y(d, u, v, nat, in_parcel, walled=None):
         if p9:
             if t_contains(t, u, v):
                 continue                               # 多角形の内側は段そのもの
-            dm = poly_edge_dist(p9, u, v) * K
+            dm = t_edge_dist(t, u, v) * K
         else:
             if in_obb(t, u, v):
                 continue                               # 回転物の内側は段そのもの
@@ -695,7 +734,7 @@ def graded_y(d, u, v, nat, in_parcel, walled=None):
         if p9:
             if t_contains(t, u, v):
                 continue                               # 多角形の内側は段そのもの
-            dm = poly_edge_dist(p9, u, v) * K
+            dm = t_edge_dist(t, u, v) * K
         else:
             if in_obb(t, u, v):
                 continue                               # 回転物の内側は段そのもの
@@ -799,7 +838,16 @@ def overlap_check(d):
     for l in d["links"]:
         boxes.append(("link", l["name"], l["u0"], l["v0"], l["u1"], l["v1"], None))
     for n in d["gardens"]:
-        boxes.append(("niwa", n["name"], n["u0"], n["v0"], n["u1"], n["v1"], None))
+        # ⭐ 2026-09-02 岡部: 庭が `rects`(**割り当ての矩形から棟と上位の庭を引いた残り**)を
+        #   持つときは、そちらを箱に入れる。庭は「建屋と囲いの間に残る面」なので、
+        #   割り当ての矩形そのものは棟や隣の庭と重なってよい(重なりは順で解く)。
+        #   ⛔ 免除ではない — 残りの矩形どうしはこの総当たりで従来どおり検査される。
+        rr = n.get("rects")
+        if rr:
+            for i9, q9 in enumerate(rr):
+                boxes.append(("niwa", "%s[%d]" % (n["name"], i9), q9[0], q9[1], q9[2], q9[3], None))
+        else:
+            boxes.append(("niwa", n["name"], n["u0"], n["v0"], n["u1"], n["v1"], None))
     for s in d["service"]:
         boxes.append(("svc", s["name"], s["u0"], s["v0"], s["u1"], s["v1"], s))
     # 外周 run と長屋門の躯体帯(表門の辺=グリッドの v=0 帯)。検図 H-3 で追加 —

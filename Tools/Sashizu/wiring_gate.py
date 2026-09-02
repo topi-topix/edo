@@ -1,0 +1,219 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""結線関門 — 「書いたのに誰の目にも入らない」産物を機械で鳴らす(全邸共通)。
+
+⭐ **狙い。**指図の欠陥は「値が間違っている」より先に「**値がどの目にも入っていない**」形で
+潜む。検査を書いたのに呼んでいない・図を書いたのに描いていない・測ったのに図へ出していない。
+⛔ どれも**目視では見つからない**(松江松平は同じ型を3度見逃し、4度目で機械化した)。
+⭕ 実測: 岡部の `walls_table()`(段の土留めの一覧表)は**書かれて一度も描かれていない**。
+
+⚠ **`build_matsudaira_dewa_sashizu.py` の `check_wiring_check` を各邸へ写さないこと。**
+あれは当邸の `plane_check` の束と `main()` の `WARN` という**固有の報告経路**に結ばれており、
+移植には読み替えが要る(移植の写しは 2026-08-25 に土井が偽の不一致28件を出した型)。
+⭕ 本ツールは**外から生成器のソースを読むだけ**で、邸ごとの構造を仮定しない。
+
+    python3 Tools/Sashizu/wiring_gate.py                     # 全邸の生成器
+    python3 Tools/Sashizu/wiring_gate.py Tools/Sashizu/build_okabe_sashizu.py
+    python3 Tools/Sashizu/wiring_gate.py --json
+
+⭐ **第3型(測ったのに図に出していない)は静的には見えない。**別モードで、生成器の
+実行ログと成果物の HTML を突き合わせる:
+
+    python3 Tools/Sashizu/build_<邸>_sashizu.py 2>&1 | tee /tmp/run.log
+    python3 Tools/Sashizu/wiring_gate.py --surfaced /tmp/run.log docs/Sashizu/<邸>_sashizu.html
+
+⛔ **限界 — 0件は「合格」ではなく「この型では捕まらなかった」。**名前で辿る静的解析なので:
+  ・恒真の検査(走って報告されるが何を壊しても0件)→ **破壊試験でしか出ない**
+    (岡部の `kekkai_check` は「結界を全部消す」でも0件だった・2026-09-02 検図)
+  ・検査そのものが無い領域 → **検査の型の欠落**は EDO-0106 の持ち場
+  ・部材の実メッシュの見え方・駒どうしの隙間 → **建てて見る輪でしか出ない**(規則5・EDO-0096)
+→ 正典 `docs/verification-loops.md`。
+"""
+
+import argparse
+import ast
+import glob
+import json
+import os
+import re
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# 産物を作る関数の名づけ。⚠ 各邸の慣習に合わせて足してよい — 「辿れる」なら鳴らないので、
+# 網を広げても誤報は増えない。
+KIND = [
+    ("検査", re.compile(r"(^|_)(check|verify|audit|validate|qa)(_|$)", re.I)),
+    ("図",   re.compile(r"(^|_)(svg|fig|figure|plate|plan|section|diagram|chart)(_|$)", re.I)),
+    ("表",   re.compile(r"(^|_)(table|tbl|ledger|matrix)(_|$)", re.I)),
+]
+
+
+def _kind(name):
+    for label, rx in KIND:
+        if rx.search(name):
+            return label
+    return None
+
+
+def _refs(node, universe):
+    """`node` の中で名前として現れる関数。⭐ 呼び出しだけでなく**値としての参照**も数える
+    (`[foo_check, bar_check]` のように束へ入れる書き方が各邸にある)。"""
+    out = set()
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Name) and isinstance(sub.ctx, ast.Load):
+            out.add(sub.id)
+        elif isinstance(sub, ast.Call) and isinstance(sub.func, ast.Attribute):
+            out.add(sub.func.attr)
+    return out & universe
+
+
+def audit(path):
+    src = open(path, encoding="utf-8").read()
+    tree = ast.parse(src)
+    funcs = {n.name: n for n in tree.body
+             if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+    universe = set(funcs)
+    if not universe:
+        return None
+
+    calls = {n: _refs(node, universe) for n, node in funcs.items()}
+
+    # 根 = module 直下から参照されるもの + main
+    roots = set()
+    for n in tree.body:
+        if not isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            roots |= _refs(n, universe)
+    if "main" in funcs:
+        roots.add("main")
+    if not roots:                      # ライブラリ(入口が無い)は外から呼ばれる前提で見送る
+        return {"path": path, "library": True, "orphan": [], "discarded": []}
+
+    seen, stack = set(), list(roots)
+    while stack:
+        x = stack.pop()
+        if x in seen:
+            continue
+        seen.add(x)
+        stack.extend(calls.get(x, ()))
+
+    # ── ⛔ 孤立: 産物を作るのに、どの入口からも辿れない
+    orphan = [{"name": n, "kind": _kind(n), "line": funcs[n].lineno}
+              for n in sorted(universe - seen)
+              if _kind(n) and not n.startswith("_")]
+
+    # ── ⛔ 捨て: 値を返す検査を**式文として**呼んでいる(戻り値を誰も受け取らない)
+    #    ⭐ 判定は「その Call の親が ast.Expr か」— 代入・演算・引数・return なら使われている。
+    returns_val = {n: any(isinstance(s, ast.Return) and s.value is not None
+                          for s in ast.walk(node)) for n, node in funcs.items()}
+    discarded = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
+            f = node.value.func
+            nm = f.id if isinstance(f, ast.Name) else None
+            if nm in funcs and _kind(nm) == "検査" and returns_val.get(nm):
+                discarded.append({"name": nm, "line": node.lineno})
+
+    n_check = len([n for n in universe if _kind(n) == "検査"])
+    return {"path": path, "library": False, "orphan": orphan, "discarded": discarded,
+            "n_func": len(universe), "n_reached": len(seen), "n_check": n_check}
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# 第3型 — 測ったのに図に出していない(実行ログ × 成果物 HTML)
+# ────────────────────────────────────────────────────────────────────────────
+_TAG = re.compile(r"<[^>]+>")
+_WS = re.compile(r"\s+")
+_NUM = re.compile(r"-?\d+\.\d+|-?\d+")
+
+
+def _plain(html):
+    return _WS.sub(" ", _TAG.sub(" ", html))
+
+
+def surfaced(log_path, html_path):
+    """実行ログの ⚠ 行が成果物へ載っているかを突き合わせる。
+
+    ⭐ 判定は**行に出てくる数値**で行う(文言は図の側で言い換えられるため)。
+    行の数値がすべて成果物の地の文に現れれば「載っている」とみなす。
+    ⚠ 粗い突き合わせ — 「載っていない」は要確認の合図であって断定ではない。"""
+    log = open(log_path, encoding="utf-8", errors="replace").read().splitlines()
+    body = _plain(open(html_path, encoding="utf-8", errors="replace").read())
+    hits = set(_NUM.findall(body))
+    miss = []
+    warn_lines = [ln for ln in log if ("⚠" in ln or "WARN" in ln or "⛔" in ln)]
+    for ln in warn_lines:
+        nums = [x for x in _NUM.findall(ln) if len(x) > 1]
+        if not nums:
+            continue
+        if not all(x in hits for x in nums):
+            miss.append(ln.strip()[:160])
+    return warn_lines, miss
+
+
+def targets(argv):
+    if argv:
+        return argv
+    out = []
+    for p in ("Tools/Sashizu/build_*_sashizu.py", "Tools/Sashizu/build_*_saitei.py"):
+        out += sorted(glob.glob(os.path.join(ROOT, p)))
+    return out
+
+
+def main():
+    ap = argparse.ArgumentParser(description="結線関門 — 誰にも届かない産物を鳴らす")
+    ap.add_argument("paths", nargs="*")
+    ap.add_argument("--json", action="store_true")
+    ap.add_argument("--surfaced", nargs=2, metavar=("RUN.LOG", "OUT.HTML"),
+                    help="実行ログの ⚠ 行が成果物 HTML に載っているかを突き合わせる")
+    a = ap.parse_args()
+
+    if a.surfaced:
+        warn_lines, miss = surfaced(*a.surfaced)
+        print("実行ログの警告行 %d 件 / 成果物に見当たらない %d 件" % (len(warn_lines), len(miss)))
+        for m in miss:
+            print("    ⚠ %s" % m)
+        if miss:
+            print("\n⛔ **測ったのに図に出ていない疑い。**stdout にしか無い検査結果は、"
+                  "読む人にとって存在しない(docs/verification-loops.md 第3型)。")
+        return 1 if miss else 0
+
+    reports, bad = [], 0
+    for p in targets(a.paths):
+        r = audit(p)
+        if r is None:
+            continue
+        reports.append(r)
+        bad += len(r["orphan"]) + len(r["discarded"])
+
+    if a.json:
+        print(json.dumps(reports, ensure_ascii=False, indent=1))
+        return 1 if bad else 0
+
+    for r in reports:
+        name = os.path.basename(r["path"])
+        if r["library"]:
+            print("・%-38s 入口が無い(ライブラリ)— 見送り" % name)
+            continue
+        mark = "⛔" if (r["orphan"] or r["discarded"]) else "⭕"
+        print("%s %-38s 関数 %d / 到達 %d / 検査 %d"
+              % (mark, name, r["n_func"], r["n_reached"], r["n_check"]))
+        for o in r["orphan"]:
+            print("    ⛔ 孤立 L%-5d %s()  … %sを作るが、main からも module 直下からも"
+                  "辿れない = 一度も走らない" % (o["line"], o["name"], o["kind"]))
+        for o in r["discarded"]:
+            print("    ⛔ 捨て L%-5d %s()  … 走るが戻り値を誰も受け取っていない"
+                  % (o["line"], o["name"]))
+
+    print()
+    if bad:
+        print("⛔ 結線の不備 %d 件 — **書いたのに誰の目にも入らない産物がある。**" % bad)
+    else:
+        print("⭕ 孤立・捨て 0 件。")
+    print("⛔ 0件は「合格」ではない — 恒真の検査・検査の欠落・建てないと見えない不良は"
+          "本ツールでは見えない(docs/verification-loops.md)。")
+    return 1 if bad else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

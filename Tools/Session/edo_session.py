@@ -1023,7 +1023,10 @@ SYNC_PATHS = ["Tools/Session", "CLAUDE.md", "docs/session-coordination.md",
               ".claude/agents", ".claude/commands", "docs/fushin-bugyo.md",
               # ⚠ Tools/Sashizu/ は各邸が自分の生成器を持つので**ディレクトリごとは配らない**。
               #   全邸共通の道具だけを名指しする(review_gate.py = 検図関門)。
-              "Tools/Sashizu/review_gate.py", "Tools/Sashizu/review_ledger.py"]
+              "Tools/Sashizu/review_gate.py", "Tools/Sashizu/review_ledger.py",
+              # ⭐ 結線関門(2026-09-02)— 「書いたのに誰の目にも入らない」産物を鳴らす。
+              #   ⛔ 各邸の生成器へ写さずに済むよう、外からソースを読む作りにしてある。
+              "Tools/Sashizu/wiring_gate.py", "docs/verification-loops.md"]
 
 
 def cmd_sync_tools(a):

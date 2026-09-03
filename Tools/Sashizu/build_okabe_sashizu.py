@@ -4553,8 +4553,14 @@ def assets_table(d):
                      kubun or "—", inline(cert or "—")])
     K = d["const"]["ken"]
     for s in d.get("service", []):
-        add("附属屋", s["name"], s.get("label"), "%.1f×%.1f 間" % (s["u1"] - s["u0"], s["v1"] - s["v0"]),
-            s.get("asset"), s.get("assetKubun"), s.get("assetCert"))
+        # ⭕ **開口の向き**(2026-09-04 棟梁)— 部材のピボットは壁の外面なので、
+        #   どちらの長辺を外へ向けるかを指図が言わないと実装が決めるしかない(規則5)。
+        fc = ("<br><b>開口 %s</b>" % s["face"]) if s.get("face") else ""
+        add("附属屋", s["name"], (s.get("label") or "") + fc,
+            "%.1f×%.1f 間" % (s["u1"] - s["u0"], s["v1"] - s["v0"]),
+            s.get("asset"), s.get("assetKubun"),
+            (s.get("assetCert") or "") + (("<br>" + str(s.get("faceCert") or ""))
+                                          if s.get("face") else ""))
         if not s.get("asset"):
             pend += 1
     for w in d.get("wells", []):

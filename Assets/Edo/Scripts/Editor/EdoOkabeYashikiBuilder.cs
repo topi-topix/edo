@@ -541,6 +541,7 @@ public static class EdoOkabeYashikiBuilder
     {
         var gate = ReviewGate(); if (gate != null) return gate;
         var sb = new System.Text.StringBuilder();
+        var wait = new List<string>();
         EdoNishiTameikeBuilder.NaturalMode = false;      // 天端は run の seat で通す
         var kak = Group("Kakoi"); Clear(kak);
 
@@ -548,7 +549,7 @@ public static class EdoOkabeYashikiBuilder
         int hei = 0, skipped = 0;
         foreach (var r in Runs)
         {
-            if (r.Nagaya) { skipped++; continue; }        // 表長屋は次巡(裁定3=B)
+            if (r.Nagaya) continue;                       // 表長屋は下でまとめて据える
             if (!r.Dobei)
             { sb.AppendLine("★ run " + r.name + " の kind が未知: " + r.kind); continue; }
             Vector2 outw = OutNormal(r.edge);
@@ -575,7 +576,10 @@ public static class EdoOkabeYashikiBuilder
                 hei++;
             }
         }
-        sb.AppendLine("練塀: " + hei + " run 据えた / 表長屋 " + skipped + " run は次巡(部材が未選定)");
+        sb.AppendLine("練塀: " + hei + " run 据えた");
+
+        // ---- 表長屋 ----------------------------------------------------
+        sb.AppendLine(PlaceOmoteNagaya(kak, wait));
 
         // ---- 隅の留め継ぎ ----------------------------------------------
         sb.AppendLine(PlaceKado(kak));
@@ -592,7 +596,109 @@ public static class EdoOkabeYashikiBuilder
         // ---- 木柵 ------------------------------------------------------
         sb.AppendLine(PlaceFences());
 
-        sb.AppendLine("⚠ 表門・表長屋・通用口は据えていない(裁定3=B)。閉じは ClosureQA を見ること");
+        if (wait.Count > 0)
+        {
+            sb.AppendLine("── 外周で据えなかったもの " + wait.Count + " 件 ──");
+            foreach (var w in wait) sb.AppendLine("  ★ " + w);
+        }
+        return sb.ToString();
+    }
+
+    // ---------------------------------------------------------------- 表長屋
+    /// <summary>表長屋の妻で、破風・鬼が**壁の実体より外へ出る量**[m](片側)。
+    /// 松江松平が `Nagaya_Omote_36.fbx` を実測した値(全長 36.000 に対し壁は 35.360)。
+    /// 妻部材は長さによらず同じなので定数。⛔ **呼び寸法をそのまま run 長に使わない理由がこれ** —
+    /// run 長で頼むと隣り合う run の**壁が 0.64m 空き、軒だけが渡る**。
+    /// ⚠ 据えた後に実測して食い違えば鳴らす(部材が変わったら定数は死ぬ)。</summary>
+    const float NAGAYA_TSUMA_OVER = 0.32f;
+
+    /// <summary>外周の表長屋。⭕ **2026-09-04 ユーザー裁定12=A で二階建てに確定**
+    /// (`roofs.OmoteNagaya.kai` = 二階・棟 7.183)。表門は**長屋の躯体を門の上まで通し、
+    /// その足元に門口を抜いた版**(`runs[].monS` が門口の芯を run の中で指す)。
+    ///
+    /// ⛔ **丸ごとのモジュールを並べない。**端が成り行きになって門・隅との間に隙間が空く
+    /// (2026-08-29 松江松平: 門の西へ 1.66m 食い込み・東へ 0.96m の隙間が同時に出た)。
+    /// ⭕ **run の長さで焼いた一本物**を据える。⚠ 呼び寸法は**壁の実体が run を覆う長さ**
+    /// (run 長 + 妻の出×2)。⛔ run 長そのままで頼まない。
+    /// ⚠ ピボットは**走りの中心・土台の底・壁の外面**なので、置く時点で犬走りぶん内へ寄せる。</summary>
+    static string PlaceOmoteNagaya(Transform kak, List<string> wait)
+    {
+        // 二階かどうかは指図が決める(⛔ 実装で決め打ちしない)
+        var rf = O(Get(O(Get(D, "roofs")), "OmoteNagaya"));
+        bool nikai = rf != null && Has(rf, "kai") && S(rf["kai"]).Contains("二階");
+        int made = 0, miss = 0; float lastH = 0f; bool anyMon = false;
+        var sb = new System.Text.StringBuilder();
+        foreach (var r in Runs)
+        {
+            if (!r.Nagaya) continue;
+            float len = r.s1 - r.s0 + 2f * NAGAYA_TSUMA_OVER;
+            float call = Mathf.Round(len * 100f) / 100f;
+            // 門口を抜いた版か(指図が run の中で門口の芯を指す)
+            float monS = 0f;
+            foreach (var o in A(D["runs"]) ?? new List<object>())
+            { var q = O(o); if (q != null && S(q["name"]) == r.name && Has(q, "monS")) monS = F(q["monS"]); }
+            if (monS > 0f) anyMon = true;
+            string path;
+            if (monS > 0f)
+            {
+                // ⚠ 門口は**部材のローカル +X の左端から**測るが、その「左端」は run の s1 の側
+                //   (見え面 +Z を外へ向ける yaw なので、ローカル +X は s の減る向きへ写る)。
+                //   ⛔ 向きを式で決めない — 据えた実メッシュの穴の位置を検査で見張ること。
+                float gc = Mathf.Round((r.s1 - monS + NAGAYA_TSUMA_OVER) * 100f) / 100f;
+                path = EdoAssets.Own.NagayaOmoteMon(call, gc, nikai);
+            }
+            else path = nikai ? EdoAssets.Own.NagayaOmote2F(call) : EdoAssets.Own.NagayaOmote(call);
+
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+            {
+                miss++;
+                wait.Add("表長屋 " + r.name + "(run " + (r.s1 - r.s0).ToString("0.###") + "m → 呼び "
+                       + call.ToString("0.##") + "m" + (nikai ? "・二階" : "") + "): 部材が無い " + path
+                       + " → blender --background --python Tools/Blender/build_nagaya_omote.py -- "
+                       + call.ToString("0.##") + (nikai ? " --floors 2" : ""));
+                continue;
+            }
+            Vector2 outw = OutNormal(r.edge);
+            float psi = Mathf.Atan2(outw.x, outw.y) * Mathf.Rad2Deg;   // 見え面 +Z を外へ
+            float sMid = (r.s0 + r.s1) * 0.5f;
+            // ⚠ ピボット = 壁の**外面**なので犬走りぶん内へ寄せてから置く
+            Vector2 p = EdgePt(r.edge, sMid) - outw * INUBASHIRI;
+            float seat = r.SeatAt(sMid);
+            var go = EdoBuild.Place(path, new Vector3(p.x, seat, p.y), psi, Vector3.one, kak, r.name);
+            if (go == null) { miss++; continue; }
+            EdoBuild.SeatBottom(go, seat - 0.10f);
+            // 妻の出の定数が部材と合っているかを、据えた実メッシュで検める
+            var bb = EdoBuild.RB(go);
+            Vector2 dir = (EdgePt(r.edge, r.s1) - EdgePt(r.edge, r.s0)).normalized;
+            float realLen = Mathf.Abs(bb.size.x * dir.x) + Mathf.Abs(bb.size.z * dir.y);
+            lastH = bb.size.y;
+            if (Mathf.Abs(realLen - call) > 0.10f)
+                wait.Add("表長屋 " + r.name + ": 部材の実長 " + realLen.ToString("F2")
+                       + "m が呼び " + call.ToString("0.##") + "m と食い違う(妻の出の定数 "
+                       + NAGAYA_TSUMA_OVER.ToString("0.##") + " が部材と合っていない疑い)");
+            made++;
+        }
+        // 棟高の突き合わせ(指図 ⇔ **据えた現物**)。⛔ 呼び寸法や doc の数字で比べない
+        if (Has(O(D["const"]), "nagayaH") && lastH > 0.1f)
+        {
+            float want = C("nagayaH");
+            if (Mathf.Abs(lastH - want) > 0.15f)
+                wait.Add("表長屋の棟高: 指図 const.nagayaH " + want.ToString("0.##")
+                       + "m / 据えた現物の実丈 " + lastH.ToString("0.##") + "m"
+                       + (nikai ? "(裁定12=A で二階に確定したので、指図の値が平屋のままの疑い)" : ""));
+        }
+        // 表門 — 裁定12=A で**長屋の躯体に門口を抜く**形になった(`runs[].monS`)
+        if (!anyMon)
+        {
+            var gp = O(Get(O(Get(D, "gate")), "plan"));
+            wait.Add("表門: どの表長屋の run も `monS`(門口の芯)を持たない — "
+                   + "裁定12=A は門を**長屋の躯体に抜く**形なので、指図方が run を継いで monS を"
+                   + "書くまで門口が開かない。⚠ 指図の棟高 gate.plan.monH = "
+                   + (gp != null && Has(gp, "monH") ? F(gp["monH"]).ToString("0.##") : "?")
+                   + "m(裁定12=A は 8.5)");
+        }
+        sb.Append("表長屋: " + made + " 棟" + (nikai ? "(二階)" : "(平屋)")
+                + (miss > 0 ? " / 部材の無い run " + miss : ""));
         return sb.ToString();
     }
 
@@ -1022,6 +1128,31 @@ public static class EdoOkabeYashikiBuilder
                 held++; continue;
             }
 
+            // ---- 部材そのもので建つ棟(車寄)。⭕ 2026-09-04 裁定10=A
+            //   入母屋を架けない別種なので部材キットでは組めない。`roofs[].asset` が部材を名指しする。
+            //   ⚠ **玄関棟の屋根面へ差し込む**ので、その面より内側を切り欠いて据える。
+            //   ⛔ 切り欠きの線は**指図 其十九 の食い込みの線**が正典 — 実装で決めない。
+            if (rf != null && Has(rf, "asset") && !Has(m, "ridge"))
+            {
+                string kp = AssetByKey(S(rf["asset"]), u1 - u0, v1 - v0);
+                if (kp == null || AssetDatabase.LoadAssetAtPath<GameObject>(kp) == null)
+                { wait.Add("棟 " + nm + ": 部材が引けない " + S(rf["asset"])); continue; }
+                float xu2, xv2; string nt2;
+                OrientOf(S(rf["asset"]), u1 - u0, v1 - v0, out xu2, out xv2, out nt2);
+                Vector2 cc2 = f.W((u0 + u1) * 0.5f, (v0 + v1) * 0.5f);
+                var gk2 = EdoBuild.Place(kp, new Vector3(cc2.x, F(m["y"]), cc2.y),
+                                         YawTo(xu2, xv2), Vector3.one, grp, nm);
+                if (gk2 == null) { wait.Add("棟 " + nm + ": 据えられない " + kp); continue; }
+                var bb2 = EdoBuild.RB(gk2);
+                gk2.transform.position += new Vector3(cc2.x - bb2.center.x, F(m["y"]) - bb2.min.y,
+                                                      cc2.y - bb2.center.z);
+                if (!Has(m, "kirikaki") && !Has(rf, "kirikaki"))
+                    wait.Add("棟 " + nm + ": **切り欠きの線が指図に無い**(裁定10=A) — "
+                           + "玄関棟の屋根面へ差し込む食い込みの線を 其十九 から `kirikaki` へ。"
+                           + "いまは切り欠かずに据えてあるので、背面が玄関棟の屋根と重なる");
+                made++; continue;
+            }
+
             // 大棟の向き。⛔ 指図が持たないときは推測しない
             string ridge = Has(m, "ridge") ? S(m["ridge"]) : null;
             if (ridge != "u" && ridge != "v")
@@ -1101,8 +1232,22 @@ public static class EdoOkabeYashikiBuilder
                 held++; continue;
             }
 
-            // 指図が部材を名指ししているもの(御錠口など)
-            if (Has(l, "asset"))
+            // ⛔ **2026-09-04 裁定11=B: 御錠口に `Own.Jouguchi` は使わない。**
+            //    廊下幅一間の建具として渡廊下の部材で通し、錠口の戸は在庫の戸を建て込む。
+            //    ⚠ 指図方が `links.L_Jouguchi` を 1×1 へ書き換え中。1間になるまでは据えない。
+            if (Has(l, "asset") && S(l["asset"]).EndsWith("Jouguchi"))
+            {
+                if (Mathf.Abs((alongU ? dv : du) - 1f) > 0.01f)
+                {
+                    wait.Add("御錠口 " + nm + ": 裁定11=B で**廊下幅一間**になるが、指図はまだ "
+                           + du.ToString("0.##") + "×" + dv.ToString("0.##") + "間。"
+                           + "⛔ `Own.Jouguchi`(3間角)は使わない — 1×1 へ書き換わるまで据えない");
+                    held++; continue;
+                }
+                // 1間になっていれば下の渡廊下の枝で通す(asset は無視する)
+            }
+            // 指図が部材を名指ししているもの(御錠口以外)
+            else if (Has(l, "asset"))
             {
                 string path = AssetByKey(S(l["asset"]), Mathf.Max(du, dv), Mathf.Min(du, dv));
                 if (path == null || AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
@@ -1230,12 +1375,11 @@ public static class EdoOkabeYashikiBuilder
         return Mathf.Atan2(-d.y, d.x) * Mathf.Rad2Deg;
     }
 
-    /// <summary>⛔ **裁定待ちで据えない**もの(2026-09-04 部材方の申し送り)。
-    /// 位置と向きの式は書いてあるが、**高さが決まるまで据えない**:
-    ///   ・`Kurumayose` … 棟天端 4.34 が玄関棟の軒先(地盤+3.20)より 1.14m 高い
-    ///   ・`L_Jouguchi` … 入母屋の棟天端 床+5.24 が渡廊下の大棟(床+2.503)より 2.7m 高い
-    /// ⭕ どちらも実物の納まりとしては有り得るが、**姿を決めるのは普請奉行**。</summary>
-    static readonly HashSet<string> HeldForRuling = new HashSet<string> { "Kurumayose", "L_Jouguchi" };
+    /// <summary>⛔ **裁定待ちで据えない**もの。⭕ **2026-09-04 のユーザー裁定で 2件とも解けた**:
+    ///   ・裁定10=A … 車寄は桟瓦のまま**玄関棟の屋根面へ差し込む**(切り欠いて据える)
+    ///   ・裁定11=B … 御錠口は**廊下幅一間の建具**にする(`Own.Jouguchi` は使わない)
+    /// ⚠ 空にしておく — 次に裁定待ちが出たらここへ名を入れれば据えなくなる。</summary>
+    static readonly HashSet<string> HeldForRuling = new HashSet<string>();
 
     /// <summary>箱状の附属屋を一つ据える(足跡の中心・地盤レベル)。
     /// ⚠ 部材の実寸と指図の足跡が食い違うときは**縮めも伸ばしもしない** — 記録する。

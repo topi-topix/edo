@@ -371,6 +371,44 @@ public static class EdoAssets
                  + (tsuma ? "" : "_none") + ".fbx";
         }
 
+        // ---------------------------------------------------------------- 崖下(法尻の帯)の部材
+        /// <summary>**崖下の詰人長屋**(岡部邸 `service` の N1/N2、`roofs.ObiNagaya`)。
+        /// 平屋・**桟瓦(いぶし黒)**・**下見板の腰**(なまこ無し)・**水側は盲面で開口は東**。
+        /// 表長屋(本瓦・二階・なまこ)と**格を分ける**のが指図の宣言なので、
+        /// <see cref="NagayaOmote(float)"/> で代用しないこと。
+        ///
+        /// ローカル: 幅=X(桁行)/ 高さ=Y / 厚み=Z。**+Z = 開口面(指図で言う東・山側)/
+        /// −Z = 盲面(水側)**。⚠ 据えるとき +Z を山側へ向ける(逆にすると盲面の意味が反転する)。
+        /// ピボット = **footprint の中心・地盤レベル**なので `service` の (u0..u1, v0..v1) の
+        /// 中心をそのまま使える。⚠ **軒はピボットの矩形の外へ出る** — 長手 ±Z に 0.900m
+        /// (指図 `nishi.obi.nokiOut` と実測一致)、妻 ±X に 0.37m。
+        /// 7.5×2.5間の実寸 14.375(X) × 4.300(Y) × 6.537(Z)、**棟天端 4.300**
+        /// (指図 `roofs.ObiNagaya.ridgeH` と一致)、軒桁 2.700。
+        /// 生成: blender --background --python Tools/Blender/build_obi_nagaya.py -- nagaya --ken 7.5 2.5</summary>
+        public static string ObiNagaya(float wKen, float dKen)
+        {
+            return NagayaDir + "Obi_Nagaya_" + wKen.ToString("0.##") + "x"
+                 + dKen.ToString("0.##") + "ken.fbx";
+        }
+        /// <summary>梁間は家臣長屋の規約どおり 2.5間(`const.nagayaD` = 4.545m)固定。</summary>
+        public static string ObiNagaya(float wKen) { return ObiNagaya(wKen, 2.5f); }
+
+        /// <summary>**崖下の物置**(岡部邸 `service.M1`)。3×1.5間・長屋と同じ作りで開口1
+        /// (中央に2間の両開き板戸)。実寸 6.194 × 3.804 × 4.419、棟天端 3.804・軒桁 2.700。
+        /// ⚠ 軒の出は **0.75m【U】**(指図の 0.9 は長屋について測る値。1.5間の小屋に 0.9 を
+        /// 出すと屋根が躯体の2倍近くになるので下げた)。ピボット・向きは <see cref="ObiNagaya(float,float)"/> と同じ。
+        /// 生成: blender --background --python Tools/Blender/build_obi_nagaya.py -- monooki</summary>
+        public const string ObiMonooki = NagayaDir + "Obi_Monooki_3x1.5ken.fbx";
+
+        /// <summary>**崖下のかわや**(岡部邸 `service.K_Obi`)。1間角・戸1。
+        /// 実寸 2.558 × 2.941 × 3.210、棟天端 2.941。⚠ 軒高 **2.20【U】**・軒の出 **0.60【U】**
+        /// — 指図の 2.70/0.9 のままだと1間角の塔になる。西面の目隠し(建仁寺垣・指図
+        /// `nishi.obi.fences`)は**この部材に作り付けていない** — Unity 側で立てること。
+        /// 生成: blender --background --python Tools/Blender/build_obi_nagaya.py -- kawaya</summary>
+        public const string ObiKawaya = NagayaDir + "Obi_Kawaya_1ken.fbx";
+
+        const string NagayaDir = "Assets/Edo/Models/Nagaya/";
+
         /// <summary>折れ角のある隅の部材(留め継ぎ)。生成は Tools/Blender/build_kado.py。
         /// 在庫の出隅ブロックは折れ角 Δ≳60° でしか成立しないので、浅い折れはこれで納める。
         /// ローカル: 走り(進行方向) = +Z ／ 躯体 = −X ／ 原点 = 折れ点・足元・内面。

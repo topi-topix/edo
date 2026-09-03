@@ -31,6 +31,17 @@ class Mesh(object):
         self.uv += [(u0, v0), (u1, v0), (u1, v1), (u0, v1)]
         self.mi.append(mat)
 
+    def quad_uvs(self, pts, uvs, mat=0):
+        """4隅の UV を**直に**与える四角形。⚠ `quad` は u=第1軸 / v=第2軸に固定なので、
+        **木理を板の長手へ流す**ことができない(長い横板に縦木理が乗って、
+        下見板が『縦縞の平板』に見えた。2026-09-04 に実見)。向きを変えたい面はこちらで出す。
+        ⛔ 巻き順は pts の順のまま — ここで入れ替えると面が裏返る。"""
+        i = len(self.v)
+        self.v += [Vector((p[0], p[2], p[1])) for p in pts]
+        self.f.append([i, i + 1, i + 2, i + 3])
+        self.uv += list(uvs)
+        self.mi.append(mat)
+
     def tri(self, pts, uv, mat=0):
         i = len(self.v)
         self.v += [Vector((p[0], p[2], p[1])) for p in pts]

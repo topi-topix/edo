@@ -1672,6 +1672,68 @@ public static class EdoOkabeYashikiBuilder
         return "提供元から結んだ " + n + "件";
     }
 
+    /// <summary>**当邸のために新造した部材**(崖下の長屋・棟門・丸太物・御殿の屋根)のマテリアルを、
+    /// **借り先を名指しして**結び直す。
+    /// ⚠ `SearchAndRemapMaterials(..., Everywhere)` はプロジェクト全体(6.9GB)を舐めるので使わない
+    ///   — 2026-08-24 に実際にユーザーの PC が固まった。借り先は下の 5 フォルダだけ見る。
+    /// ⚠ **同じ `Models/Nagaya` に在庫の表長屋(`Nagaya_Omote_*`)も居る**が、あれは材質を
+    ///   .obj のサブアセットとして抱えているのでここでは当たらない(「借り先が見つからない材:
+    ///   knagayamap」と出るのが正常)。表長屋は `Edo/長屋/表長屋のマテリアルをremap` が担当する。</summary>
+    [MenuItem("Edo/岡部筑前守上屋敷/新造部材のマテリアルをremap")]
+    public static void RemapOkabeShinzoMenu() { Debug.Log("[Okabe] " + RemapOkabeShinzo()); }
+    public static string RemapOkabeShinzo()
+    {
+        string[] donorDirs = {
+            "Assets/Japanese Village Kit/Materials",
+            "Assets/Japanese Castle/Meshes/Exterior/Materials",
+            "Assets/Edo/Materials",
+            // 丸太の手すり・汀の杭は NatureManufacture の丸太から切り出すので材質名は M_Wood_fence
+            "Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Fence/Models",
+        };
+        var byName = new Dictionary<string, Material>();
+        foreach (var dir in donorDirs)
+        {
+            if (!AssetDatabase.IsValidFolder(dir)) continue;
+            foreach (var guid in AssetDatabase.FindAssets("t:Material", new[] { dir }))
+            {
+                var m = AssetDatabase.LoadAssetAtPath<Material>(AssetDatabase.GUIDToAssetPath(guid));
+                if (m != null && !byName.ContainsKey(m.name)) byName[m.name] = m;
+            }
+        }
+        // ⚠ **FBX を焼いたフォルダは必ずここに足す。**松江松平で、番所の材質を替えたのに
+        //   remap がそのフォルダを見ておらず真っ白になった前例がある(2026-08-31)。
+        string[] modelDirs = { "Assets/Edo/Models/Nagaya", "Assets/Edo/Models/Mon",
+                               "Assets/Edo/Models/Maruta", "Assets/Edo/Models/Goten/Roofs" };
+        modelDirs = System.Array.FindAll(modelDirs, AssetDatabase.IsValidFolder);
+        int n = 0; var miss = new List<string>();
+        foreach (var guid in AssetDatabase.FindAssets("t:Model", modelDirs))
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            var imp = AssetImporter.GetAtPath(path) as ModelImporter; if (imp == null) continue;
+            var go = AssetDatabase.LoadAssetAtPath<GameObject>(path); if (go == null) continue;
+            bool touched = false;
+            foreach (var r in go.GetComponentsInChildren<MeshRenderer>())
+                foreach (var m in r.sharedMaterials)
+                {
+                    if (m == null) continue;
+                    Material donor;
+                    if (!byName.TryGetValue(m.name, out donor)) { if (!miss.Contains(m.name)) miss.Add(m.name); continue; }
+                    if (donor == m) continue;
+                    imp.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), m.name), donor);
+                    touched = true;
+                }
+            if (touched)
+            {
+                AssetDatabase.WriteImportSettingsIfDirty(path);
+                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+                n++;
+            }
+        }
+        AssetDatabase.SaveAssets();
+        return "新造部材の remap " + n + " 本"
+             + (miss.Count > 0 ? " / 借り先が見つからない材: " + string.Join(", ", miss.ToArray()) : "");
+    }
+
     [MenuItem("Edo/岡部筑前守上屋敷/坂の土留めのマテリアルをremap")]
     public static void RemapSakaMaterials()
     { Debug.Log("[Okabe] 坂の土留めのマテリアル remap: " + RemapDir("Assets/Edo/Models/Ishigaki") + "件"); }

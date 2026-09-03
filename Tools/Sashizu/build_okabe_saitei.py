@@ -837,6 +837,28 @@ def main():
              '廊下幅に縮めれば高さの矛盾ごと消え、外観に塔が立たない。⚠ 焼いた部材は捨てます(規模は小)。</p>')
     h.append("</div>")
 
+    # ---------------------------------------------------------- 裁定12
+    h.append('<div class="plate"><div class="phead"><h2>裁定12　表長屋の階と表門の棟高 — 「二階と名乗る5.3mの長屋」をどうするか</h2>'
+             '<span class="meta">どこ=辺12(三べ坂)の表長屋 E_Nagaya_S/N と表門(長屋門)。其十六・其十七</span></div>')
+    h.append('<div class="box"><h3>まず、何の話か</h3>'
+             '<p>指図は表長屋を「二階瓦葺窓付」([西川1959]A)と宣言しながら棟高を <b>5.30m</b> で持っています。在庫の部材は平屋 5.51 / 二階 7.18 で、'
+             '5.30 はどちらにも合わず、考証方は「平屋級の高さ」と判定しました(岡山藩の仕様書で二階長屋の軒高だけで 5.06m、根岸家長屋門の実測で二階の棟 7.51m)。'
+             '表門の棟高 7.30 は 2026-08-31 に「袖の長屋 5.30 より高く」でご裁定いただいた値で、<b>袖の高さに従属</b>しています。'
+             '⭕ 史実の型は「上屋敷の表長屋は二階(鳶魚B・松江上屋敷の明治写真A)、門の棟は袖と同高かやや高い」。'
+             '⚠ 5〜10万石級の現存長屋門(山脇・西澄寺・因州池田)は官製記載に高さが無く、門の棟高そのものは U のままです。</p></div>')
+    h.append('<div class="fig">%s</div>' % omote_elev(dA2))
+    h.append('<div class="tw"><table><thead><tr><th>　</th><th>案A 袖=二階・門 8.5</th><th>案B 袖=二階・門 9.2</th><th>案C 袖=平屋・門 7.30(現行の裁定)</th></tr></thead><tbody>'
+             '<tr><td>袖の棟(絶対)</td><td>20.48</td><td>20.48</td><td>18.81</td></tr>'
+             '<tr><td>門の棟(絶対)</td><td>20.75(袖+0.27)</td><td>21.43(袖+0.95)</td><td>19.55(袖+0.74)</td></tr>'
+             '<tr><td>史料との整合</td><td>⭕ 二階=[西川1959]A・鳶魚B・松江写真A。門は「同高かやや高い」の型</td><td>⭕ 同左。門は大きく見える(9.2m は5.3万石にはやや過大か・U)</td><td>⛔ 表長屋「二階」の宣言と [西川1959]A を落とす</td></tr>'
+             '<tr><td>部材</td><td>表長屋は二階の生成器(7.18・上段の窓あり)で焼き直し2本。門は長屋門の生成器で 8.5</td><td>同左・門 9.2</td><td>表長屋は平屋(焼き済みの生成器)。門 7.30</td></tr>'
+             '<tr><td>動く物</td><td>const.nagayaH・roofs・門の棟高</td><td>同左</td><td>roofs.OmoteNagaya.kai と cert</td></tr>'
+             '</tbody></table></div>')
+    h.append('<p class="cap"><b>推奨=案A。</b>史料が支える「二階の表長屋」を守り、門はそれよりやや高い 8.5m。'
+             '2026-08-31 のご裁定の趣旨(門が袖より高い)は保ち、数字だけ袖の実寸に追随させる形です。案B は差を保つ代わりに門が 9.2m になり、5.3万石の門としては大きめ。'
+             '案C は現行の数字を守るが A 級の史料を落とす。⚠ 門の棟高の典拠はどの案も U(現存例に高さの記載が無い)。</p>')
+    h.append("</div>")
+
     h.append('<div class="box" style="border-color:var(--shu)"><h3>⚠ この図で決まらないこと</h3>'
              '<p>第一次(庭)の2件のほかに、主景の位置・汀線の形・石組・飛石・植栽・結界塀・稲荷社の'
              '位置などを含むが、それらは<b>裁定を要しない設計判断</b>として指図方が書き起こす。'
@@ -1208,6 +1230,7 @@ SAITEI_STATUS = [
     (9, "検分の輪をどう扱うか(三巡則)", "done", "A→B", "2026-09-03", "関門2本を足し6巡目1回(34件で閾値超え)→ 約束どおり案B=実装の輪へ"),
     (10, "車寄の屋根が玄関棟の屋根面に食い込む", "open", "", "", "推奨=案A(桟瓦のまま母屋へ差し込む)"),
     (11, "御錠口(3間角)の屋根が渡廊下より2.7m高い", "open", "", "", "推奨=案B(廊下幅の建具に縮める)"),
+    (12, "表長屋の階と表門の棟高", "open", "", "", "推奨=案A(袖=二階 7.18・門 8.5)"),
 ]
 _ST_LABEL = {"done": ("✅ 裁定済", "st-done"), "open": ("⏳ 未決 — お返事をお待ちしています", "st-open"),
              "void": ("⛔ 撤回(裁定不要)", "st-void")}
@@ -1390,6 +1413,52 @@ def obi_plan(d, ter):
       "朱の扇=窓(建てない)/ 緑の破線円=榎の幹から6m(軒を入れない)", "anS2", "start", 11)
     T(g, 6, 32, "緑=林(地盤14以上)/ 黄=法尻の帯(刈草地)/ 灰=主面 / 茶の太線=勝手の坂 / 青緑の点線=汀線(杭列)。"
       "向き: u+ が北(上)・v+ が西(左)。⛔ 棟の座標は裁定のための仮置き", "anS2", "start", 10)
+    g.append("</svg>")
+    return "\n".join(g)
+
+
+# ================================================================ 裁定12(2026-09-04) 表長屋の階と表門の棟高
+# 数値: 門の敷居 gate.plan.sill 12.25(街路)/ 袖の座 13.30(門前面)/ 門の桁行 16.362 / 南袖 6.189 / 北袖 73.439(図は 30m で切る)
+# 部材の実寸(在庫方 2026-09-04): 表長屋 平屋 5.509 / 二階 7.183(生成器 build_nagaya_omote.py)。現行の指図: 袖 5.30(二階と宣言)・門 7.30
+OMOTE_VARIANTS = [
+    ("A", "袖=二階(7.18)・門 8.5(袖よりやや高い)", 7.183, 8.5),
+    ("B", "袖=二階(7.18)・門 9.2(従来の差 0.95 を保つ)", 7.183, 9.18),
+    ("C", "袖=平屋(5.51)・門 7.30(現行の裁定のまま)", 5.509, 7.30),
+]
+
+
+def omote_elev(d):
+    """裁定12 — 辺12(三べ坂)の立面。3案を同じ縮尺で並べる。"""
+    W, H = 960.0, 300.0
+    plan = d["gate"].get("plan") if isinstance(d.get("gate"), dict) else None
+    sill = float(plan.get("sill", 12.25)) if isinstance(plan, dict) else 12.25
+    seat = 13.30
+    gateL, sodeS, sodeN = 16.362, 6.189, 30.0
+    span = sodeS + gateL + sodeN
+    pw = (W - 40) / 3.0; sc = (pw - 20) / span
+    g = sv(W, H, "裁定12 表長屋の階と表門の棟高")
+    y0 = 250.0
+    for k, (nm, title, sodeH, monH) in enumerate(OMOTE_VARIANTS):
+        x0 = 20 + k * pw + 10
+        def X(s, x0=x0): return x0 + s * sc
+        def Y(z): return y0 - (z - 12.0) * sc
+        T(g, x0 + pw / 2 - 10, 16, "案%s %s" % (nm, title), "anS2", "middle", 10.5)
+        LN(g, X(0), Y(seat), X(sodeS), Y(seat), "var(--ink)", 1.0)
+        LN(g, X(sodeS + gateL), Y(seat), X(span), Y(seat), "var(--ink)", 1.0)
+        LN(g, X(sodeS), Y(sill), X(sodeS + gateL), Y(sill), "var(--ink)", 1.0)
+        for a, b in ((0, sodeS), (sodeS + gateL, span)):
+            RC(g, X(a), Y(seat + sodeH), (b - a) * sc, sodeH * sc, "var(--nagaya)", "var(--ink)", 0.8, 0.85)
+            if sodeH > 6.0:
+                LN(g, X(a), Y(seat + sodeH * 0.55), X(b), Y(seat + sodeH * 0.55), "#fff", 0.8, "3 2", 0.8)
+        RC(g, X(sodeS), Y(sill + monH), gateL * sc, monH * sc, "#8a6a40", "var(--ink)", 1.2, 0.9)
+        RC(g, X(sodeS + 5.0), Y(sill + 3.6), 3.636 * sc, 3.6 * sc, "#FBFAF6", "var(--ink)", 0.6)
+        T(g, X(sodeS + gateL / 2), Y(sill + monH) - 4, "門 棟 %.2f(%.2f)" % (sill + monH, monH), "anS2", "middle", 9.5)
+        T(g, X(sodeS + gateL + sodeN / 2), Y(seat + sodeH) - 4, "袖 棟 %.2f(%.2f)" % (seat + sodeH, sodeH), "anS2", "middle", 9.5)
+        dz = (sill + monH) - (seat + sodeH)
+        T(g, x0 + pw / 2 - 10, y0 + 22, "門−袖 = %+.2f m%s" % (dz, "" if dz > 0 else " ⛔ 袖が高い"), "anS2", "middle", 10)
+        T(g, X(sodeS + gateL / 2), Y(sill) + 12, "街路 %.2f" % sill, "jo", "middle", 9)
+        T(g, X(span - 2), Y(seat) + 12, "門前面 %.2f" % seat, "jo", "end", 9)
+    T(g, 6, H - 8, "辺12(三べ坂)の立面・同縮尺(1m=%.1fpx)。門は街路の敷居 %.2f、袖は門前面 %.2f に載る(1.05m の段差)。二階は白の破線=胴差の目安。北袖は 30m で切った(実長 73.4m)" % (sc, sill, seat), "jo", "start", 9)
     g.append("</svg>")
     return "\n".join(g)
 

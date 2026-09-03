@@ -962,68 +962,94 @@ public static class EdoOkabeYashikiBuilder
     /// <summary>御殿の棟。**部材キットで一間の柱割りから組む**(Village Kit の一軒家プレハブでは
     /// 入側から壁が見えて御殿にならない — 2026-08-14 ユーザー裁定)。
     ///
-    /// ⚠ 入側の間数は**指図に無い**。四方に一間回すのは 2026-08-14 のユーザー裁定
-    ///   (「入側が各棟の外周を巡り、隣の棟の入側と辺を共有して直に繋がる」)で、
-    ///   **当邸の指図が書いた値ではない**。指図が `iri`/`iriX` を持てばそちらが勝つ。
-    ///   ⛔ 黙って既定で埋めた事実を隠さない — 一覧へ出す。</summary>
+    /// 指図が持つようになった欄を**そのまま読む**(⛔ 推測で埋めない):
+    ///   `ridge` … **大棟の向き**("u"/"v")。部材キットのローカル +X をこの向きへ向ける。
+    ///             ⚠ 正方の玄関棟は「長いほうへ架ける」では決まらないので指図が決めている。
+    ///   `iri`   … 入側の間数。`iriX` は**例外の辺**(入側を回さない辺の名)で、空なら四方。
+    ///   `roof`  … `roofs` のキー。屋根の呼び寸法は**指図の (wKen, dKen) をそのまま渡す**
+    ///             (⛔ 長辺・短辺を実装で入れ替えない。指図が長辺先で書いている)。
+    /// ⚠ **屋根の外形は間数より 2.14m 大きい**(軒の出 0.90 が四周)。棟の壁面で合わせない。</summary>
     static string PlaceMunes(List<string> wait)
     {
         var grp = Group("Buildings"); Clear(grp);
         var f = Grid;
         float floor = C("gotenFloor");
-        int made = 0, noRoof = 0;
-        bool toldIri = false;
+        var roofs = O(Get(D, "roofs"));
+        int made = 0, noRoof = 0, held = 0;
         foreach (var o in A(D["munes"]) ?? new List<object>())
         {
             var m = O(o); if (m == null) continue;
             string nm = S(m["name"]);
             float u0 = F(m["u0"]), v0 = F(m["v0"]), u1 = F(m["u1"]), v1 = F(m["v1"]);
-            float du = u1 - u0, dv = v1 - v0;
-            // 入側 — 指図が持てばそれ、無ければ 2026-08-14 裁定の「四方に一間」
-            int iri = Has(m, "iri") ? (int)F(m["iri"]) : 1;
-            int iriX = Has(m, "iriX") ? (int)F(m["iriX"]) : 1;
-            if (!Has(m, "iri") && !toldIri)
-            { wait.Add("munes[].iri / iriX(入側の間数)が指図に無い — 2026-08-14 裁定の『四方に一間』で組んだ。"
-                     + "指図に欄を起こすこと(全 " + A(D["munes"]).Count + " 棟に効く)"); toldIri = true; }
+            var rf = roofs != null && Has(m, "roof") ? O(Get(roofs, S(m["roof"]))) : null;
 
-            bool alongU = AlongU(du, dv);
-            int W = Mathf.RoundToInt(alongU ? du : dv);      // 桁行(大棟の走る側)の間数
-            int Dd = Mathf.RoundToInt(alongU ? dv : du);     // 梁間の間数
-            int nx = W - 2 * iriX, nz = Dd - 2 * iri;
-            if (nx < 1 || nz < 1)
-            { wait.Add("棟 " + nm + " は身舎が残らない(外形 " + W + "×" + Dd + "間 − 入側)。"
-                     + "車寄・式台のような開いた造作は座敷棟の部材キットでは組めない — 別部材が要る"); continue; }
-
-            var g = PivotUV(u0, v0, u1, v1);
-            Vector2 p = f.W(g.x, g.y);
-            float yaw = alongU ? YawU() : YawV();
-            // 屋根は棟の寸法ごとに焼く。無ければ骨組みだけ組む(GotenKit が警告を出す)
-            string roof = EdoAssets.Goten.RoofIrimoya_(W, Dd);
-            if (AssetDatabase.LoadAssetAtPath<GameObject>(roof) == null)
+            // ⛔ 裁定待ちのものは**式は書くが据えない**
+            if (HeldForRuling.Contains(nm))
             {
-                wait.Add("棟 " + nm + " の入母屋屋根が無い → blender --background --python "
+                var gh = PivotUV(u0, v0, u1, v1); var ph = f.W(gh.x, gh.y);
+                wait.Add("棟 " + nm + " は**据えない(裁定待ち)** — 部材 "
+                       + (rf != null && Has(rf, "asset") ? S(rf["asset"]) : "?")
+                       + " は焼けており、据え位置は世界(" + ph.x.ToString("F1") + ", " + ph.y.ToString("F1")
+                       + ")・面 " + F(m["y"]).ToString("0.##")
+                       + "。⚠ 車寄の棟天端 4.34 が玄関棟の軒先(地盤+3.20)より 1.14m 高く、"
+                       + "背面の屋根が玄関棟の屋根面へ食い込む。姿を決めるのは普請奉行");
+                held++; continue;
+            }
+
+            // 大棟の向き。⛔ 指図が持たないときは推測しない
+            string ridge = Has(m, "ridge") ? S(m["ridge"]) : null;
+            if (ridge != "u" && ridge != "v")
+            { wait.Add("棟 " + nm + ": 指図 munes[].ridge(大棟の向き)が \"u\"/\"v\" でない — 据えない"); continue; }
+            bool alongU = ridge == "u";
+            int W = Mathf.RoundToInt(alongU ? (u1 - u0) : (v1 - v0));   // 桁行(大棟の走る側)
+            int Dd = Mathf.RoundToInt(alongU ? (v1 - v0) : (u1 - u0));  // 梁間
+
+            // 入側 — `iriX` は例外の辺の名。両側とも例外なら その軸は 0
+            int iri = Has(m, "iri") ? (int)F(m["iri"]) : 0;
+            var exc = new HashSet<string>();
+            foreach (var q in A(Get(m, "iriX")) ?? new List<object>())
+            { var nmx = q as string; if (nmx != null) exc.Add(nmx); }
+            string xa = alongU ? "u" : "v", za = alongU ? "v" : "u";
+            int iriX = (exc.Contains(xa + "0") && exc.Contains(xa + "1")) ? 0 : iri;  // ±X(桁行の妻側)
+            int iriZ = (exc.Contains(za + "0") && exc.Contains(za + "1")) ? 0 : iri;  // ±Z(梁間の平側)
+            int nx = W - 2 * iriX, nz = Dd - 2 * iriZ;
+            if (nx < 1 || nz < 1)
+            { wait.Add("棟 " + nm + " は身舎が残らない(外形 " + W + "×" + Dd + "間 − 入側)— 別部材が要る"); continue; }
+
+            // 屋根 — ⭕ 指図の呼び寸法をそのまま渡す
+            string roof = null;
+            if (rf != null && Has(rf, "asset")) roof = AssetByKey(S(rf["asset"]));
+            else if (rf != null && Has(rf, "wKen"))
+                roof = EdoAssets.Own.GotenRoofIrimoya((int)F(rf["wKen"]), (int)F(rf["dKen"]));
+            if (roof != null && AssetDatabase.LoadAssetAtPath<GameObject>(roof) == null)
+            {
+                wait.Add("棟 " + nm + " の屋根が無い → blender --background --python "
                        + "Tools/Blender/build_goten_roof.py -- " + (W * C("ken")).ToString("0.###")
                        + " " + (Dd * C("ken")).ToString("0.###")
                        + " Goten_Roof_Irimoya_" + W + "x" + Dd + "ken");
                 roof = null; noRoof++;
             }
+
+            var g = PivotUV(u0, v0, u1, v1);
+            Vector2 p = f.W(g.x, g.y);
+            float yaw = alongU ? YawU() : YawV();
             var go = EdoGotenKit.Mune(nm, grp, new Vector3(p.x, F(m["y"]), p.y), yaw,
-                                      nx, nz, iri, floor, roof, true, true, null, null, -1, iriX);
+                                      nx, nz, iriZ, floor, roof, true, true, null, null, -1, iriX);
             if (go != null) made++;
         }
-        return "棟: " + made + " 棟(うち屋根待ち " + noRoof + ")";
+        return "棟: " + made + " 棟(屋根待ち " + noRoof + " / 裁定待ちで据えず " + held + ")";
     }
 
-    // ---------------------------------------------------------------- 渡廊下
-    /// <summary>渡廊下。**幅は一間**(指図 `_links`)。⛔ 両端は棟の壁面へ突き付ける
-    /// (離すと取り合いに隙間が出る — 部材キットの規約)。
-    /// ⚠ 御錠口のように一間幅でないものは廊下の部材では組めないので据えない。</summary>
+    // ---------------------------------------------------------------- 渡廊下・御錠口
+    /// <summary>渡廊下は**幅一間**(指図 `_links`)で部材キットが組む。
+    /// 御錠口は専用の部材(3間角)で、指図の `asset` が名指しする。
+    /// ⛔ 両端は棟の壁面へ突き付ける(離すと取り合いに隙間が出る)。</summary>
     static string PlaceLinks(List<string> wait)
     {
         var grp = Group("Buildings");
         var f = Grid;
         float floor = C("gotenFloor");
-        int made = 0;
+        int made = 0, held = 0;
         foreach (var o in A(D["links"]) ?? new List<object>())
         {
             var l = O(o); if (l == null) continue;
@@ -1031,22 +1057,50 @@ public static class EdoOkabeYashikiBuilder
             float u0 = F(l["u0"]), v0 = F(l["v0"]), u1 = F(l["u1"]), v1 = F(l["v1"]);
             float du = u1 - u0, dv = v1 - v0;
             bool alongU = AlongU(du, dv);
-            float wide = alongU ? dv : du;                    // 幅(間)
-            float runK = alongU ? du : dv;                    // 走り(間)
+            var g = PivotUV(u0, v0, u1, v1);
+            Vector2 p = f.W(g.x, g.y);
+            float yaw = alongU ? YawU() : YawV();
+
+            // ⛔ 裁定待ちのものは**式は書くが据えない**
+            if (HeldForRuling.Contains(nm))
+            {
+                Vector2 cc = f.W((u0 + u1) * 0.5f, (v0 + v1) * 0.5f);
+                wait.Add("廊下 " + nm + "(" + S(l["kind"]) + ")は**据えない(裁定待ち)** — 部材 "
+                       + (Has(l, "asset") ? S(l["asset"]) : "?") + " は焼けており、据えは"
+                       + "**足跡の中心**(世界 " + cc.x.ToString("F1") + ", " + cc.y.ToString("F1")
+                       + ")・**床レベル**(面 " + F(l["y"]).ToString("0.##") + " + gotenFloor "
+                       + floor.ToString("0.##") + " = " + (F(l["y"]) + floor).ToString("0.##")
+                       + ")・ローカル +X = 廊下の通る向き。⚠ 入母屋の棟天端が床+5.24 で"
+                       + "渡廊下の大棟(床+2.503)より 2.7m 高い。姿を決めるのは普請奉行");
+                held++; continue;
+            }
+
+            // 指図が部材を名指ししているもの(御錠口など)
+            if (Has(l, "asset"))
+            {
+                string path = AssetByKey(S(l["asset"]), Mathf.Max(du, dv), Mathf.Min(du, dv));
+                if (path == null || AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+                { wait.Add("廊下 " + nm + ": 部材が引けない " + S(l["asset"])); continue; }
+                Vector2 c = f.W((u0 + u1) * 0.5f, (v0 + v1) * 0.5f);
+                // ⚠ ピボットは**床レベル**(地盤ではない)— 部材の doc の規約
+                var go2 = EdoBuild.Place(path, new Vector3(c.x, F(l["y"]) + floor, c.y), yaw,
+                                         Vector3.one, grp, nm);
+                if (go2 != null) made++;
+                continue;
+            }
+
+            float wide = alongU ? dv : du, runK = alongU ? du : dv;
             if (Mathf.Abs(wide - 1f) > 0.01f)
             { wait.Add("廊下 " + nm + "(" + S(l["kind"]) + ")は幅 " + wide.ToString("0.##")
                      + "間で一間ではない — 渡廊下の部材では組めない。部材か寸法の指定が要る"); continue; }
             int nx = Mathf.RoundToInt(runK);
             if (nx < 1) { wait.Add("廊下 " + nm + " の走りが 0 間"); continue; }
-            var g = PivotUV(u0, v0, u1, v1);
-            Vector2 p = f.W(g.x, g.y);
-            float yaw = alongU ? YawU() : YawV();
             // ⛔ 両端の柱は棟の柱と重なるので立てない(z-fighting)
             var go = EdoGotenKit.Roka(nm, grp, new Vector3(p.x, F(l["y"]), p.y), yaw, nx,
                                       floor, true, true, true, false, false);
             if (go != null) made++;
         }
-        return "渡廊下: " + made + " 本";
+        return "渡廊下: " + made + " 本(裁定待ちで据えず " + held + ")";
     }
 
     // ---------------------------------------------------------------- 附属屋・井戸
@@ -1055,33 +1109,102 @@ public static class EdoOkabeYashikiBuilder
     ///   棟梁が「たぶんこれだろう」で当てると、指図に書かれていない意匠が既成事実になる。</summary>
     static string AssetByKey(string key) { return AssetByKey(key, 0f, 0f); }
 
-    /// <param name="wKen">足跡の**長辺**[間]</param><param name="dKen">足跡の**短辺**[間]</param>
-    /// ⚠ 寸法つきの部材(崖下の長屋・棟門)は、**指図の足跡から呼び寸法を渡す**。
-    ///   ⛔ 部材の名前に寸法を書き写さない — 足跡を動かした瞬間に別の部材を引いてしまう。
+    /// <summary>指図の `asset` を `EdoAssets` の実体へ解く。
+    ///
+    /// 【書式】指図は **`Own.Umaya` / `Own.Matsudaira.Dozo` / `Own.NagayaOmote(21.816)` /
+    /// `Own.RoofIrimoya_(11,11)`** の形で書く。族(`Own.` など)は落とし、**最後の名**で引く。
+    /// 括弧の中は呼び寸法で、⭕ **指図の値をそのまま渡す**(⛔ 入れ替えない・丸めない)。
+    ///
+    /// 【寸法が指図に無いとき】`wKen`/`dKen` に**足跡から出した長辺・短辺[間]**が入る。
+    /// ⛔ 部材の名前に寸法を書き写さない — 足跡を動かした瞬間に別の部材を引く。
+    ///
+    /// ⚠ **単位に注意**: `NagayaOmote` の引数は **m**、`ObiNagaya` の引数は **間**。
+    ///   指図が `Own.ObiNagaya(13.635)`(=7.5間を m で書いた)と書いているので、
+    ///   ObiNagaya だけは括弧の値を使わず**足跡の間数**で引く(単位の食い違いは一覧へ出す)。</summary>
     static string AssetByKey(string key, float wKen, float dKen)
     {
         if (string.IsNullOrEmpty(key)) return null;
-        // 指図は `Own.ObiNagaya` の形で来る(族を落として名で引く)
-        string k = key;
-        int dot = k.LastIndexOf('.');
-        if (dot >= 0) k = k.Substring(dot + 1);
+        // 括弧の中(呼び寸法)を取り出す
+        var args = new List<float>();
+        string head = key;
+        int lp = key.IndexOf('(');
+        if (lp >= 0)
+        {
+            int rp = key.LastIndexOf(')');
+            head = key.Substring(0, lp);
+            string inner = key.Substring(lp + 1, Mathf.Max(0, (rp < 0 ? key.Length : rp) - lp - 1));
+            foreach (var t in inner.Split(','))
+            {
+                float v;
+                if (float.TryParse(t.Trim(), System.Globalization.NumberStyles.Float,
+                                   System.Globalization.CultureInfo.InvariantCulture, out v)) args.Add(v);
+            }
+        }
+        int dot = head.LastIndexOf('.');
+        string k = dot >= 0 ? head.Substring(dot + 1) : head;
+        float a0 = args.Count > 0 ? args[0] : 0f;
+        float a1 = args.Count > 1 ? args[1] : 0f;
         switch (k)
         {
+            // ---- 在庫(edogoyomi ほか)
             case "Kura":   return EdoAssets.Eg.Kura;
             case "Hogaki": return EdoAssets.Eg.Hogaki5;
             case "Itabei": return EdoAssets.Eg.Itabei5;
             case "Kabukimon": return EdoAssets.Eg.Kabukimon;
             case "TakeGaki":  return EdoAssets.Eg.TakeGaki;
             case "DanishiStep": return EdoAssets.Own.DanishiStep;
-            // ---- 崖下(法尻の帯)の部材。⚠ +Z = 開口面(山側)/ −Z = 盲面(水側)
+            // ---- 松江松平のために焼いた汎用の附属屋(指図が名指しで流用を決めた)
+            case "Dozo": return EdoAssets.Own.Matsudaira.Dozo;
+            case "Koya": return EdoAssets.Own.Matsudaira.Koya;
+            case "Ido":  return EdoAssets.Own.Matsudaira.Ido;
+            // ---- 表長屋(引数は **m**)
+            case "NagayaOmote":   return a0 > 0f ? EdoAssets.Own.NagayaOmote(a0) : null;
+            case "NagayaOmote2F": return a0 > 0f ? EdoAssets.Own.NagayaOmote2F(a0) : null;
+            // ---- 崖下(法尻の帯)。⚠ 引数は **間** なので足跡から引く(指図は m で書いている)
             case "ObiNagaya":  return wKen > 0f ? EdoAssets.Own.ObiNagaya(wKen, dKen) : null;
             case "ObiMonooki": return EdoAssets.Own.ObiMonooki;
             case "ObiKawaya":  return EdoAssets.Own.ObiKawaya;
-            // ---- 通用口の棟門。呼び寸法は門口の幅(`komon[].w`)
+            // ---- 岡部のために焼いた附属屋
+            case "Umaya":      return EdoAssets.Own.Umaya;
+            case "Tomomachi":  return EdoAssets.Own.Tomomachi;
+            case "NandoKoya":  return EdoAssets.Own.NandoKoya;
+            case "Kurumayose": return EdoAssets.Own.Kurumayose;
+            case "Jouguchi":   return EdoAssets.Own.Jouguchi;
+            case "Inari15":    return EdoAssets.Own.Inari15;
+            case "Torii":      return EdoAssets.Own.Torii;
+            // ---- 結界(のし塀)。長さは区間から出す(指図は長さを書かない)
+            case "Noshibei":   return EdoAssets.Own.Noshibei(a0 > 0f ? a0 : wKen);
+            // ---- 門
             case "Munamon":    return wKen > 0f ? EdoAssets.Own.Munamon(wKen, false) : null;
+            // ---- 御殿の入母屋。⭕ **指図の (wKen, dKen) をそのまま渡す**(長辺先で書かれている)
+            case "RoofIrimoya_":
+            case "GotenRoofIrimoya":
+                return args.Count >= 2 ? EdoAssets.Own.GotenRoofIrimoya((int)a0, (int)a1) : null;
+            // ---- 西の斜面の丸太物
+            case "MarutaTesuri":     return EdoAssets.Own.MarutaTesuri;
+            case "MarutaTesuriPost": return EdoAssets.Own.MarutaTesuriPost;
+            case "Kui":              return a0 > 0f ? EdoAssets.Own.Kui(a0) : null;
+            case "KuiNuki":          return EdoAssets.Own.KuiNuki;
             default: return null;
         }
     }
+
+    /// <summary>ローカル **+X** をグリッドの向き (du, dv) へ向ける yaw[°]。
+    /// ⚠ 部材ごとに「+X が何を向くか」は違う(厩・供待は長手 = v / 車寄は +Z が参道の側)。
+    /// ⛔ 「長いほうへ +X」で一律に決めない — 部材の doc が正典。</summary>
+    public static float YawTo(float du, float dv)
+    {
+        var f = Grid;
+        Vector2 d = (f.W(du, dv) - f.W(0f, 0f)).normalized;
+        return Mathf.Atan2(-d.y, d.x) * Mathf.Rad2Deg;
+    }
+
+    /// <summary>⛔ **裁定待ちで据えない**もの(2026-09-04 部材方の申し送り)。
+    /// 位置と向きの式は書いてあるが、**高さが決まるまで据えない**:
+    ///   ・`Kurumayose` … 棟天端 4.34 が玄関棟の軒先(地盤+3.20)より 1.14m 高い
+    ///   ・`L_Jouguchi` … 入母屋の棟天端 床+5.24 が渡廊下の大棟(床+2.503)より 2.7m 高い
+    /// ⭕ どちらも実物の納まりとしては有り得るが、**姿を決めるのは普請奉行**。</summary>
+    static readonly HashSet<string> HeldForRuling = new HashSet<string> { "Kurumayose", "L_Jouguchi" };
 
     /// <summary>箱状の附属屋を一つ据える(足跡の中心・地盤レベル)。
     /// ⚠ 部材の実寸と指図の足跡が食い違うときは**縮めも伸ばしもしない** — 記録する。
@@ -1103,32 +1226,76 @@ public static class EdoOkabeYashikiBuilder
         return true;
     }
 
+    /// <summary>部材ごとの**向きの規約**。⛔ 「長いほうへ +X」で一律に決めない — 部材の doc が正典。
+    /// 返すのは「ローカル +X を向けるグリッドの向き」(du, dv)。</summary>
+    static void OrientOf(string key, float du, float dv, out float xu, out float xv, out string note)
+    {
+        note = null;
+        int dot = key == null ? -1 : key.LastIndexOf('.');
+        int lp = key == null ? -1 : key.IndexOf('(');
+        string k = key == null ? "" : key.Substring(dot + 1, (lp < 0 ? key.Length : lp) - dot - 1);
+        switch (k)
+        {
+            // 崖下の帯: +Z = 開口面(山側 = −v)⇒ +X = −u。⛔ 逆にすると盲面が山へ向く
+            case "ObiNagaya": case "ObiMonooki": case "ObiKawaya":
+                xu = -1f; xv = 0f; note = "+Z を山側(−v)へ"; return;
+            // 稲荷の小祠: +Z = 正面(南 = −u)⇒ +X = +v
+            case "Inari15":
+                xu = 0f; xv = 1f; note = "+Z を南(−u)へ"; return;
+            // 車寄: +X = +u / +Z = 参道の側(−v)⇒ +X = −u(⚠ いまは据えない)
+            case "Kurumayose":
+                xu = -1f; xv = 0f; note = "+Z を参道(−v)へ"; return;
+            // 既定: 長辺へ +X(厩・供待は長手 = v / 納戸小屋は長手 = u。どちらもこれで合う)
+            default:
+                if (du >= dv) { xu = 1f; xv = 0f; } else { xu = 0f; xv = 1f; }
+                return;
+        }
+    }
+
     static string PlaceService(List<string> wait)
     {
         var grp = Group("Fuzoku/Service"); Clear(grp);
         var f = Grid;
-        int made = 0, noAsset = 0;
+        int made = 0, noAsset = 0, pivotOdd = 0;
         foreach (var o in A(D["service"]) ?? new List<object>())
         {
             var s2 = O(o); if (s2 == null) continue;
             string nm = S(s2["name"]);
             float u0 = F(s2["u0"]), v0 = F(s2["v0"]), u1 = F(s2["u1"]), v1 = F(s2["v1"]);
-            // ⚠ 呼び寸法は**足跡の長辺・短辺**で渡す(部材のローカル +X = 桁行 = 長辺)
-            float wKen = Mathf.Max(u1 - u0, v1 - v0), dKen = Mathf.Min(u1 - u0, v1 - v0);
-            string path = AssetByKey(Has(s2, "asset") ? S(s2["asset"]) : null, wKen, dKen);
+            float du = u1 - u0, dv = v1 - v0;
+            // ⚠ 呼び寸法は**足跡の長辺・短辺**で渡す
+            float wKen = Mathf.Max(du, dv), dKen = Mathf.Min(du, dv);
+            string key = Has(s2, "asset") ? S(s2["asset"]) : null;
+            string path = AssetByKey(key, wKen, dKen);
             if (path == null)
             {
                 noAsset++;
-                wait.Add("附属屋 " + nm + "(" + S(s2["label"]) + " " + (u1 - u0).ToString("0.##")
-                       + "×" + (v1 - v0).ToString("0.##") + "間): 指図 service[].asset が無い — "
-                       + "どの部材で建てるかは在庫方・部材方が決めること");
+                wait.Add("附属屋 " + nm + "(" + S(s2["label"]) + " " + du.ToString("0.##")
+                       + "×" + dv.ToString("0.##") + "間): 部材が引けない "
+                       + (key ?? "(asset の指定なし)"));
                 continue;
             }
+            // ⚠ **表長屋の部材はピボットの規約が違う**(走りの中心・土台の底・**壁の外面**)。
+            //   足跡の中心へ置くと梁間の半分ずれる。⛔ どちらの面を外にするかは指図が持たない。
+            if (key.Contains("NagayaOmote"))
+            {
+                pivotOdd++;
+                wait.Add("家臣長屋 " + nm + "(" + S(s2["label"]) + "): 部材 " + key
+                       + " は**ピボットが壁の外面**(走りの中心・土台の底)で、足跡の中心ではない。"
+                       + "⛔ **どちらの面を外に向けるか**が指図に無いので据えない — "
+                       + "外周の長屋と違い自立の棟なので、向きは納めの判断(指図方・庭方へ)");
+                continue;
+            }
+            float xu, xv; string nt;
+            OrientOf(key, du, dv, out xu, out xv, out nt);
+            float yaw = YawTo(xu, xv);
             Vector2 c = f.W((u0 + u1) * 0.5f, (v0 + v1) * 0.5f);
-            float yaw = AlongU(u1 - u0, v1 - v0) ? YawU() : YawV();
-            if (PlaceBox(grp, nm, path, c, F(s2["y"]), u1 - u0, v1 - v0, yaw, wait)) made++;
+            if (PlaceBox(grp, nm, path, c, F(s2["y"]), du, dv, yaw, wait)) made++;
         }
-        return "附属屋: " + made + " 棟据えた / " + noAsset + " 棟は部材の指定待ち";
+        var sb = new System.Text.StringBuilder("附属屋: " + made + " 棟据えた");
+        if (noAsset > 0) sb.Append(" / " + noAsset + " 棟は部材が引けない");
+        if (pivotOdd > 0) sb.Append(" / " + pivotOdd + " 棟はピボットの規約待ち");
+        return sb.ToString();
     }
 
     static string PlaceWells(List<string> wait)
@@ -1142,12 +1309,7 @@ public static class EdoOkabeYashikiBuilder
             string nm = S(w["name"]);
             string path = AssetByKey(Has(w, "asset") ? S(w["asset"]) : null);
             if (path == null)
-            {
-                noAsset++;
-                wait.Add("井戸 " + nm + ": 指図 wells[].asset が無い — 井戸の部材は在庫の目録に "
-                       + "**当邸のものが無い**(既存は松江松平邸のために焼いた物)。部材方へ");
-                continue;
-            }
+            { noAsset++; wait.Add("井戸 " + nm + ": 部材が引けない " + (Has(w, "asset") ? S(w["asset"]) : "(指定なし)")); continue; }
             Vector2 c = f.W(F(w["u"]), F(w["v"]));
             var go = EdoBuild.Place(path, new Vector3(c.x, F(w["y"]), c.y), YawU(), Vector3.one, grp, nm);
             if (go == null) { wait.Add("井戸 " + nm + ": 部材が読めない " + path); continue; }
@@ -1155,7 +1317,7 @@ public static class EdoOkabeYashikiBuilder
             go.transform.position += new Vector3(c.x - b.center.x, F(w["y"]) - b.min.y, c.y - b.center.z);
             made++;
         }
-        return "井戸: " + made + " 基据えた / " + noAsset + " 基は部材の指定待ち";
+        return "井戸: " + made + " 基据えた" + (noAsset > 0 ? " / " + noAsset + " 基は部材が引けない" : "");
     }
 
     // ---------------------------------------------------------------- 結界の塀
@@ -1165,23 +1327,68 @@ public static class EdoOkabeYashikiBuilder
     static string PlaceKekkai(List<string> wait)
     {
         var grp = Group("Fuzoku/Nakajikiri"); Clear(grp);
-        int made = 0, noAsset = 0;
+        var f = Grid;
+        int made = 0, noPart = 0; var missing = new HashSet<string>();
         foreach (var o in A(Get(D, "kekkai")) ?? new List<object>())
         {
             var k = O(o); if (k == null) continue;
             string nm = S(k["name"]);
-            string path = AssetByKey(Has(k, "asset") ? S(k["asset"]) : null);
-            if (path == null)
+            string key = Has(k, "asset") ? S(k["asset"]) : null;
+            if (key == null) { wait.Add("結界 " + nm + ": 指図 kekkai[].asset が無い"); continue; }
+            var av = A(Get(k, "a")); var bv = A(Get(k, "b"));
+            if (av == null || bv == null) { wait.Add("結界 " + nm + ": a / b が無い"); continue; }
+            float au = F(av[0]), avv = F(av[1]), bu = F(bv[0]), bvv = F(bv[1]);
+            // 開口(中門・木戸)で区間を割る。⛔ 開口の上に塀を通さない
+            var cuts = new List<float[]>();          // 走り t(0..1)の区間
+            float len = Mathf.Sqrt((bu - au) * (bu - au) + (bvv - avv) * (bvv - avv));
+            var gap = O(Get(k, "gap"));
+            if (gap != null && len > 1e-6f)
             {
-                noAsset++;
-                wait.Add("結界 " + nm + "(" + S(k["label"]) + "・" + S(k["kata"]) + " h"
-                       + F(k["h"]).ToString("0.##") + "): 指図 kekkai[].asset が無い。"
-                       + "⛔ のし塀+瓦の部材は在庫に無く、板塀で代用しない — 部材方へ");
-                continue;
+                string ax = S(Get(gap, "axis"));
+                float g0 = F(Get(gap, "from")), g1 = F(Get(gap, "to"));
+                float p0 = ax == "u" ? au : avv, p1 = ax == "u" ? bu : bvv;
+                if (Mathf.Abs(p1 - p0) > 1e-6f)
+                {
+                    float t0 = Mathf.Clamp01((g0 - p0) / (p1 - p0)), t1 = Mathf.Clamp01((g1 - p0) / (p1 - p0));
+                    cuts.Add(new float[] { Mathf.Min(t0, t1), Mathf.Max(t0, t1) });
+                }
             }
-            made++;   // 部材が決まったらここで区間を割って並べる(開口 gap は空ける)
+            var segs = new List<float[]>();
+            float cur = 0f;
+            foreach (var c2 in cuts) { if (c2[0] > cur) segs.Add(new float[] { cur, c2[0] }); cur = Mathf.Max(cur, c2[1]); }
+            if (cur < 1f) segs.Add(new float[] { cur, 1f });
+
+            int i = 0;
+            foreach (var sg in segs)
+            {
+                float segLen = (sg[1] - sg[0]) * len * C("ken");     // 間 → m
+                if (segLen < 0.3f) continue;
+                // ⭕ 長さは**区間から出す**(指図は長さを書かない)。0.01m へ丸めて部材名にする
+                float call = Mathf.Round(segLen * 100f) / 100f;
+                string path = AssetByKey(key, call, 0f);
+                if (path == null || AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+                {
+                    missing.Add(nm + " " + call.ToString("0.##") + "m"); noPart++;
+                    continue;
+                }
+                float tm = (sg[0] + sg[1]) * 0.5f;
+                Vector2 c = f.W(Mathf.Lerp(au, bu, tm), Mathf.Lerp(avv, bvv, tm));
+                // ⚠ ピボットは**走りの中心・地盤レベル・壁の芯**(面ではない)
+                float yaw = YawTo(bu - au, bvv - avv);
+                float y = Graded.At(c.x, c.y); if (float.IsNaN(y)) y = EdoBuild.Ground(c.x, c.y);
+                var go = EdoBuild.Place(path, new Vector3(c.x, y, c.y), yaw, Vector3.one, grp, nm + "_" + i);
+                if (go != null) { EdoBuild.SeatBottom(go, y); made++; }
+                i++;
+            }
         }
-        return "結界の塀: " + made + " 本据えた / " + noAsset + " 本は部材の指定待ち";
+        var sb = new System.Text.StringBuilder("結界の塀: " + made + " 本");
+        if (missing.Count > 0)
+        {
+            sb.Append(" / 部材の無い長さ " + missing.Count + " 件");
+            wait.Add("結界の塀: 焼かれていない長さ " + string.Join(" / ", new List<string>(missing).ToArray())
+                   + " → blender --background --python Tools/Blender/build_noshibei.py -- <長さm>");
+        }
+        return sb.ToString();
     }
 
     // ---------------------------------------------------------------- 石段
@@ -1422,37 +1629,45 @@ public static class EdoOkabeYashikiBuilder
         if (orl == null) return "丸太の手すり: 指図に routes[].outsideRail が無い";
         var ts = O(Get(orl, "tesuri"));
         if (ts == null) return "丸太の手すり: outsideRail.tesuri が無い";
-        string path = AssetByKey(Has(ts, "asset") ? S(ts["asset"]) : null);
-        float uF = F(orl["uFrom"]), uT = F(orl["uTo"]), v = F(orl["v"]);
-        if (path == null)
-        {
-            wait.Add("丸太の手すり(u " + uF.ToString("0.##") + "〜" + uT.ToString("0.##")
-                   + " / v " + v.ToString("0.##") + "・丈 " + F(ts["h"]).ToString("0.##")
-                   + "m・柱の芯々 " + F(ts["postPitchKen"]).ToString("0.##") + "間・丸太径 "
-                   + F(ts["logDia"]).ToString("0.##") + "m): 部材 MarutaTesuri が EdoAssets に未登録"
-                   + "(部材方が新造中)。⛔ 竹垣で代用しない");
-            return "丸太の手すり: 部材待ち";
-        }
+        // 部材方が**この区間のために**焼いた物(部材の doc が routes.R_Katte.outsideRail.tesuri を名指し)
+        string path = AssetByKey(Has(ts, "asset") ? S(ts["asset"]) : "Own.MarutaTesuri");
+        string post = EdoAssets.Own.MarutaTesuriPost;
+        if (path == null || AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+        { wait.Add("丸太の手すり: 部材が引けない " + (path ?? "?")); return "丸太の手すり: 部材待ち"; }
+
         var grp = Group("Nishi/Tesuri"); Clear(grp);
         var f = Grid;
-        float pitch = F(ts["postPitchKen"]);
+        float uF = F(orl["uFrom"]), uT = F(orl["uTo"]), v = F(orl["v"]);
+        float pitch = F(ts["postPitchKen"]);                     // 芯々[間]
         int n = Mathf.Max(1, Mathf.RoundToInt(Mathf.Abs(uT - uF) / Mathf.Max(0.1f, pitch)));
         int made = 0;
-        for (int i = 0; i <= n; i++)
+        // ⚠ ピボットは**スパンの中心**で柱は −X 端に立つ。⇒ 各スパンの中点へ据える
+        for (int i = 0; i < n; i++)
         {
-            float u = Mathf.Lerp(uF, uT, i / (float)n);
+            float u = Mathf.Lerp(uF, uT, (i + 0.5f) / n);
             Vector2 c = f.W(u, v);
             float y = Graded.At(c.x, c.y); if (float.IsNaN(y)) y = EdoBuild.Ground(c.x, c.y);
-            var go = EdoBuild.Place(path, new Vector3(c.x, y, c.y), YawU(), Vector3.one, grp, "Tesuri_" + i);
+            var go = EdoBuild.Place(path, new Vector3(c.x, y, c.y), YawTo(uT - uF, 0f), Vector3.one,
+                                    grp, "Tesuri_" + i);
             if (go != null) { EdoBuild.SeatBottom(go, y); made++; }
         }
-        return "丸太の手すり: " + made + " 本";
+        // ⛔ run の +X 端に柱を1本足す(足さないと最後の横木が宙で終わる — 部材の doc)
+        {
+            Vector2 c = f.W(uT, v);
+            float y = Graded.At(c.x, c.y); if (float.IsNaN(y)) y = EdoBuild.Ground(c.x, c.y);
+            var go = EdoBuild.Place(post, new Vector3(c.x, y, c.y), YawTo(uT - uF, 0f), Vector3.one,
+                                    grp, "Tesuri_EndPost");
+            if (go != null) { EdoBuild.SeatBottom(go, y); made++; }
+        }
+        return "丸太の手すり: " + made + " 点(スパン " + n + " + 端柱1)";
     }
 
     // ---------------------------------------------------------------- 汀の杭列
     /// <summary>汀線に沿う松の丸太杭。⭐ **本数は汀線の実長から算出する**(⛔ 辺5の長さを流用しない
-    /// — 2026-09-03 庭方4巡目)。汀線は堤の天端から法 1:`batter` で水面まで下った線で、
-    /// **生成器が算出して `impl.kui` へ焼く**。⚠ 区画の外なので地形は触らない。</summary>
+    /// — 2026-09-03 庭方4巡目)。汀線・径・頭の高さ・傾きの方位は**生成器が `impl.kui` へ焼く**。
+    /// ⚠ ピボットは**頭の芯**で杭は −Y へ 1.55 垂れるので、`y` に頭の高さを直に入れる。
+    /// 傾き 5° は +X へ焼き込んであるので、**yaw を振れば傾きの方位が散る**。
+    /// ⛔ 実装で乱数を振らない — 図と食い違う。</summary>
     static string PlaceKuiretsu(List<string> wait)
     {
         var kr = O(Get(O(Get(D, "nishi")), "kuiretsu"));
@@ -1460,19 +1675,47 @@ public static class EdoOkabeYashikiBuilder
         var pts = A(Get(IMPL, "kui"));
         if (pts == null)
         {
-            wait.Add("算出物に kui が無い — 汀線(堤の天端から法 1:" + F(O(Get(O(Get(D, "nishi")), "tsutsumi"))["batter"]).ToString("0.##")
-                   + " で水面 " + F(O(Get(O(Get(D, "nishi")), "tsutsumi"))["waterY"]).ToString("0.##")
-                   + "m まで)と、その実長に沿う杭の**位置・径・頭の高さ・傾き**を生成器に焼かせること"
-                   + "(指図は諸元の範囲だけを持ち、本数は算出値=約242本)");
+            var tt0 = O(Get(O(Get(D, "nishi")), "tsutsumi"));
+            wait.Add("算出物に kui が無い — 汀線(堤の天端から法 1:"
+                   + (tt0 != null ? F(tt0["batter"]).ToString("0.##") : "?") + " で水面 "
+                   + (tt0 != null ? F(tt0["waterY"]).ToString("0.##") : "?")
+                   + "m まで)と、その実長に沿う杭の**位置・径・頭の高さ・傾きの方位**を"
+                   + "生成器に焼かせること(指図は諸元の範囲だけを持ち、本数は算出値)");
             return "汀の杭列: 算出物待ち";
         }
-        if (AssetByKey("Kui") == null)
+        var grp = Group("Nishi/Kui"); Clear(grp);
+        var f = Grid;
+        int made = 0, nuki = 0; var missing = new HashSet<string>();
+        float below = F(Get(O(Get(kr, "nuki")), "below"));
+        foreach (var o in pts)
         {
-            wait.Add("汀の杭 " + pts.Count + " 本ぶんの点は算出物にあるが、部材 Kui(dia) が EdoAssets に未登録"
-                   + "(部材方が新造中)。⛔ 円柱で代用しない");
-            return "汀の杭列: 部材待ち(点 " + pts.Count + ")";
+            var k = O(o); if (k == null) continue;
+            var w = A(Get(k, "world"));
+            Vector2 c;
+            if (w != null && w.Count >= 2) c = new Vector2(F(w[0]), F(w[1]));
+            else if (Has(k, "u")) c = f.W(F(k["u"]), F(k["v"]));
+            else continue;
+            float dia = F(Get(k, "dia"));
+            string path = EdoAssets.Own.Kui(dia);
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null) { missing.Add(dia.ToString("0.00")); continue; }
+            float top = F(Get(k, "top"));                     // 頭の高さ(水面 + topMin..topMax)
+            float yaw = Has(k, "yaw") ? F(k["yaw"]) : 0f;     // ⛔ 実装で振らない
+            var go = EdoBuild.Place(path, new Vector3(c.x, top, c.y), yaw, Vector3.one, grp,
+                                    Has(k, "name") ? S(k["name"]) : "Kui_" + made);
+            if (go != null) made++;
+            // 貫 — 頭から `nuki.below` 下。⚠ 指図の「杭ごと1段」は部材が数千本になるので
+            //      部材方が 1間の丸太1本として出した(据えるのは杭の並びに沿って)
+            if (Has(k, "nuki") && below > 0f)
+            {
+                var gn = EdoBuild.Place(EdoAssets.Own.KuiNuki, new Vector3(c.x, top - below, c.y),
+                                        yaw, Vector3.one, grp, "Nuki_" + nuki);
+                if (gn != null) nuki++;
+            }
         }
-        return "汀の杭列: " + pts.Count + " 本(部材が登録され次第ここで据える)";
+        if (missing.Count > 0)
+            wait.Add("汀の杭: 焼かれていない径 " + string.Join(" / ", new List<string>(missing).ToArray())
+                   + " → build_maruta.py -- kui");
+        return "汀の杭列: " + made + " 本(貫 " + nuki + ")";
     }
 
     // ---------------------------------------------------------------- 残り(地表・部材待ち)

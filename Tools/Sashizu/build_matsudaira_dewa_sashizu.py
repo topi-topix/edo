@@ -1471,6 +1471,7 @@ def plane_check(d):
     bad += tsukiyama_walk_check(d, _dem_json())
     bad += v1_water_check(d, _dem_json())
     bad += v8_ridge_check(d, _dem_json())
+    bad += yakuboku_check(d)
     bad += terrace_edge_check(d)
     bad += west_edge_check(d)
     bad += band_boundary_check(d, _dem_json())
@@ -5388,6 +5389,9 @@ def scatter_gardens(d):
         # --- 塊の置き場所ごとの候補点(規則は指図の `groups[]` が持つ)
         def sampler(gs, n):
             spread = math.sqrt(max(int(n), 1) / 3.0) * sp
+            if gs.get("at"):                    # ⭕ 役木は座標そのもの(散布器は使わない)
+                q0 = gs["at"][0]
+                return lambda: (q0[0], q0[1])
             if gs.get("near"):
                 c = gs["near"]
                 return lambda: (c[0] + (rg.random() - 0.5) * 2 * spread,
@@ -5518,6 +5522,21 @@ def scatter_gardens(d):
             used = set()
             for gi, gs in enumerate(pl["groups"]):
                 g = int(gs["n"])
+                # ⭐ **`at` は座標を名指しした役木**(2026-09-04 庭方 回答N1)。
+                #   ⛔ **丸めない・寄せない** — 三つの退避が残す唯一の窓に置く点なので、
+                #   0.05間 動かすと窓から出る。⇒ 検査 `yakuboku_check` が窓の中かを測る。
+                if gs.get("at"):
+                    for (au, av) in gs["at"]:
+                        idx = next((i for i in range(n) if i not in used), None)
+                        if idx is None:
+                            break
+                        used.add(idx)
+                        put(au, av, idx)
+                        made += 1
+                    cents.append((sum(q[0] for q in gs["at"]) / len(gs["at"]),
+                                  sum(q[1] for q in gs["at"]) / len(gs["at"]),
+                                  json.dumps(gs.get("at")) + "/" + str(gs.get("where"))))
+                    continue
                 spread = math.sqrt(max(g, 1) / 3.0)
                 pick = sampler(gs, g)
                 # ⚠ **芯を1つ引いて終わりにしない。**空きの狭い庭では塊の半分が
@@ -5920,7 +5939,10 @@ def scatter_slope(d, dem):
             for z9 in d.get("slopePlantingZones", []):
                 if z9.get("garden") or not z9.get("n"):
                     continue
-                if z9.get("region") and z9["region"] != _band_region(d, lay["band"]):
+                if z9.get("layer") and z9["layer"] != lay["layer"]:
+                    continue                      # ⭕ ゾーンは名指しした層にだけ効く(回答N4)
+                if not z9.get("layer") and z9.get("region") \
+                        and z9["region"] != _band_region(d, lay["band"]):
                     continue
                 ur, vr = z9["uRange"], z9["vRange"]
                 inz = [q for q in pool if ur[0] <= q[2] <= ur[1] and vr[0] <= q[3] <= vr[1]]
@@ -6686,6 +6708,8 @@ def tsukiyama_walk_check(d, dem):
         bt = tk.get("batter") or {}
         wm = bt.get("walkMax")
         if wm is None:
+            # ⭕ **法の分母は判定に使わない**(2026-09-04 庭方 回答N3)。
+            #   築山の『登れるか』は道が実際に通る所の勾配(`const.routeGradeRule`)で見る。
             continue
         # `tsukiyama_measure` は [(築山, 面積, 土量, [(区間名, 法の分母), ...])] を返す
         st = [q for q in tsukiyama_measure(d, dem) if q[0]["name"] == tk["name"]]
@@ -6841,39 +6865,100 @@ def v1_water_check(d, dem):
     return []
 
 
-def v8_ridge_check(d, dem):
-    """**V8 の正面の板塀の稜が、樹冠で破れているか**(2026-09-04 庭方【高3】N5)。
+def v8_ridge_scan(d, dem):
+    """**V8 の正面で、板塀の稜が樹冠で破れているか**を方位ごとに測る【庭方 2026-09-04 回答N2】。
 
-    ⛔ 板塀の水平な天端が視野を横切ったままだと、滝見の景が『塀の線』で切られる。
-    ⭕ V8 の視軸の左右で、板塀の天端より上に**樹冠が掛かる**点があること。"""
+    ⛔ 「左右に木があるか」では通ってしまう(2026-09-04 に −35°〜−15° の5点が素通しだった)。
+    ⭕ 庭方の測り方に合わせる — 視軸 ±`half`° を `step`° 刻みで走査し、各方位で
+      ①中仕切塀 `NJ_Oku_S_W`(v=66)との交点までの距離 D
+      ②塀の天端の仰角 atan((天端 − 眼高) / D)
+      ③その方位の視線の錐に入る樹冠の**梢**(立つ地盤 + 丈)の仰角
+      を出し、**③ が ② を上回る方位**を数える。→ [(方位, 塀の仰角, 梢の仰角 or None)]
+    """
     vp = next((q for q in d.get("viewpoints", []) if q["name"] == "V8"), None)
     nj = next((x for x in d.get("nakajikiri", []) if x["name"] == "NJ_Oku_S_W"), None)
     if vp is None or nj is None:
         return []
+    rule = (d.get("viewpointRule") or {}).get("ridgeScan") or {}
+    half = float(rule.get("half", 50.0))
+    stp = float(rule.get("step", 5.0))
     terr, dm = _terr_json(), _dem_json()
+    K = d["const"]["ken"]
     vw = (nj["a"][1] + nj["b"][1]) / 2.0
+    eye = float(vp.get("eye") or 0.0)
+    DIRS = {"-u": 180.0, "+u": 0.0, "-v": 270.0, "+v": 90.0}
+    base = DIRS.get(vp.get("dir"), 270.0)
     trees = _all_trees(d, dem)
-    side = {"左(西)": 0, "右(東)": 0}
-    for du in [x / 2.0 for x in range(-12, 13)]:
-        if du == 0:
+    out = []
+    k = -int(round(half / stp))
+    while k <= int(round(half / stp)):
+        a9 = math.radians(base + k * stp)
+        du, dv = math.cos(a9), math.sin(a9)
+        if abs(dv) < 1e-6:
+            k += 1
             continue
-        u = vp["u"] + du
-        g = _ground_uv(d, u, vw, terr, dm)
+        t = (vw - vp["v"]) / dv                      # 塀(v=vw)との交点までの進み[間]
+        if t <= 0:
+            k += 1
+            continue
+        u9 = vp["u"] + du * t
+        D = t * K
+        g = _ground_uv(d, u9, vw, terr, dm)
         if g is None:
+            k += 1
             continue
-        top = g + float(nj.get("h", 2.4))
+        wall = math.degrees(math.atan2(g + float(nj.get("h", 2.4)) - eye, D))
+        best = None
         for (tu, tv, tr, lo, hi) in trees:
-            if abs(tu - u) <= tr and vw - 2.0 <= tv <= vw + 4.0 and hi > top + 0.5:
-                side["左(西)" if du < 0 else "右(東)"] += 1
-                break
-    # ⭐ **左右とも破れること**(2026-09-04 庭方 回答N5 で塊を2つに割った狙い)。
-    #   ⛔ 片側だけでは、視野のもう半分が塀の水平線で切られたままになる。
-    miss = [k for k, n in side.items() if n == 0]
+            # 視線(半直線)からの距離が樹冠半径の中で、塀より手前でない木
+            dd = _seg_dist((tu, tv), (vp["u"], vp["v"]),
+                           (vp["u"] + du * t * 3.0, vp["v"] + dv * t * 3.0))
+            if dd > tr:
+                continue
+            dist = math.hypot(tu - vp["u"], tv - vp["v"]) * K
+            if dist < 0.5:
+                continue
+            ang = math.degrees(math.atan2(hi - eye, dist))
+            if best is None or ang > best:
+                best = ang
+        out.append((base + k * stp - base, wall, best))
+        k += 1
+    return out
+
+
+def v8_ridge_check(d, dem):
+    """V8 の正面の**全方位**で板塀の稜が破れているか(庭方 2026-09-04 回答N2)。"""
+    sc = v8_ridge_scan(d, dem)
+    if not sc:
+        return []
+    miss = [(a, w, b) for (a, w, b) in sc if b is None or b <= w]
     if miss:
-        return ["V8 の正面の**%s で板塀の稜が樹冠で破れていない** — "
+        return ["V8 の正面で**板塀の稜が %d/%d 方位で破れていない** — "
                 "水平な天端が視野を横切ったままで、滝見の景が塀の線で切られる"
-                "(左 %d 点 / 右 %d 点)" % ("・".join(miss), side["左(西)"], side["右(東)"])]
+                "(素通しの方位 %s)"
+                % (len(miss), len(sc),
+                   "・".join("%+.0f°" % a for a, _w, _b in miss[:8]))]
     return []
+
+
+def yakuboku_check(d):
+    """**座標を名指しした役木(`groups[].at`)が、退避の窓の中にあるか**【庭方 2026-09-04 回答N1】。
+
+    ⛔ 役木は散布器が探した点ではなく**設計値**なので、⛔ 丸めても寄せてもいけない。
+    ⭕ 代わりに「三つの退避が残す唯一の窓の中か」を検査が測る。"""
+    hit = free_fn(d)
+    bad = []
+    for pl in d.get("planting", []):
+        for g in (pl.get("groups") or []):
+            for (au, av) in (g.get("at") or []):
+                nm = hit(au, av, float(pl.get("clr", 1.0)), pl.get("role"),
+                         pl.get("keepoutSkip"), pl.get("pondClr"), layer_crown_r(d, pl),
+                         pl.get("keepoutByLayer"))
+                if nm:
+                    bad.append("役木 %s/%s『%s』(u%.2f v%.2f)が **%s の退避の中**にある — "
+                               "⛔ 座標は設計値なので寄せない。窓を作り直すこと"
+                               % (pl["zone"], pl["layer"], g.get("where", "?"), au, av, nm))
+    return bad
 
 
 def terrace_edge_check(d, out=0.30, step=0.5):
@@ -6993,7 +7078,8 @@ def slope_zone_count_check(d, dem):
         if z.get("garden") or not z.get("n"):
             continue
         ur, vr = z["uRange"], z["vRange"]
-        n = sum(1 for lst in sp.values() for (u, v, _p) in lst
+        src = [sp.get(z["layer"], [])] if z.get("layer") else list(sp.values())
+        n = sum(1 for lst in src for (u, v, _p) in lst
                 if ur[0] <= u <= ur[1] and vr[0] <= v <= vr[1])
         if n < int(z["n"]):
             bad.append("`slopePlantingZones` の %s に %d/%d 本しか立っていない — "
@@ -7382,7 +7468,9 @@ def group_place_check(d):
         for gs in pl.get("groups", []):
             if gs.get("where") is None:
                 continue
-            if gs.get("box") or gs.get("near") or gs.get("ref") or gs.get("along"):
+            # ⭕ `at` は**座標そのもの**を名指しした役木(2026-09-04 庭方 回答N1)
+            if gs.get("box") or gs.get("near") or gs.get("ref") or gs.get("along") \
+                    or gs.get("at"):
                 continue
             bad.append("植栽 %s/%s の塊『%s』(%d本)に置き場所の座標が無い — "
                        "庭の中を自由に散る=均一散布のまま(庭方へ差し戻し中 `_pending.kataMitei`)"
@@ -12535,6 +12623,17 @@ def route_profile(d, r, dem, step=None):
             (prof[0][1] if prof else None, prof[-1][1] if prof else None))
 
 
+def _nat_slope(d, uv, dd=0.5):
+    """その点の**造成前の地盤**の勾配(面の縁の摺り付けと地形そのものを見分けるため)。"""
+    terr = _terr_json()
+    K = d["const"]["ken"]
+    ys = [_nat_uv(terr, uv[0] + a * dd, uv[1] + b * dd) for (a, b) in
+          ((-1, 0), (1, 0), (0, -1), (0, 1))]
+    if any(y is None for y in ys):
+        return None
+    return max(abs(ys[1] - ys[0]), abs(ys[3] - ys[2])) / (2.0 * dd * K)
+
+
 def route_grade_check(d, dem):
     """**歩ける勾配か。**⛔ 段の無い区間が『階段の勾配』より急なら、そこは歩けない。
 
@@ -12582,10 +12681,16 @@ def route_grade_check(d, dem):
         if worst and worst[0] > lim:
             uke = ("庭の段(`const.gardenStepRule`)" if r.get("kind") == "niwa"
                    else "石段(`const.keri`/`const.fumi`)")
+            # ⭐ **地形の勾配か、面の縁の摺り付けか**を言い分ける(2026-09-04 庭方 回答N5)。
+            #   ⛔ 区別しないと「地形が急」と読まれ、面の割り付けの問題が隠れる。
+            nat = _nat_slope(d, worst[1])
+            why = ("**面の縁の摺り付け**(地形そのものは 1:%.1f)— 段の割り付けを見直すこと"
+                   % (1.0 / nat) if nat and nat < worst[0] * 0.8
+                   else "**地形の勾配**")
             bad.append("動線 %s が u%.1f v%.1f で 1:%.1f — 段の無い区間で"
-                       "役『%s』の敷居 1:%.1f より急。**歩けない**(%s で受けること)"
+                       "役『%s』の敷居 1:%.1f より急。%s。**歩けない**(%s で受けること)"
                        % (r["label"], worst[1][0], worst[1][1], 1.0 / worst[0],
-                          r.get("kind", "?"), 1.0 / lim, uke))
+                          r.get("kind", "?"), 1.0 / lim, why, uke))
     return bad
 
 

@@ -409,6 +409,28 @@ public static class EdoAssets
 
         const string NagayaDir = "Assets/Edo/Models/Nagaya/";
 
+        /// <summary>**通用口の棟門**(岡部邸 `komon.Tsuyodo` — 袋小路に開く勝手口)。
+        /// 二本の本柱の上に直に切妻を載せる最も簡素な門。⚠ 在庫の門は薬医門(`Eg.Kmon`)・
+        /// 冠木門・城門しかなく、**棟門は無い**。通用口に薬医門を据えると格が上がる。
+        ///
+        /// ローカル: 幅=X(門口の方向)/ 高さ=Y / 厚み=Z、**+Z = 外(袋小路の側)**。
+        /// ピボット = **門の芯・敷居レベル**なので `komon[].sill`(16.06)をそのまま y に使える。
+        /// 実寸 4.600(X) × 3.860(Y) × 2.592(Z)、**底は −0.260**(沓石が敷居より下へ出る)。
+        /// 門口 2.70m(`komon[].w`)・有効高 2.40・**棟天端 3.60**。
+        ///
+        /// <paramref name="opened"/> = true で**内開きに 78° 開いた**版。扉が −Z へ 1.3m ほど
+        /// 張り出すので、据える所の内側にその余地が要る(bbox の D は 2.627 に増える)。
+        /// ⚠ **仮置き【U】**: 棟高3.60 / 本柱 0.24角(「φ0.24」を角柱の見付として採った)/
+        /// 冠木下端2.40 / 桁3.00 / 梁間1.30 / 軒の出0.55 / 扉の丈・振れ角。指図に無い。
+        /// 生成: blender --background --python Tools/Blender/build_munamon.py -- --w 2.7</summary>
+        public static string Munamon(float w, bool opened)
+        {
+            return MonDir + "Munamon_" + w.ToString("0.##") + (opened ? "_Open" : "") + ".fbx";
+        }
+        public static string Munamon(float w) { return Munamon(w, false); }
+
+        const string MonDir = "Assets/Edo/Models/Mon/";
+
         /// <summary>折れ角のある隅の部材(留め継ぎ)。生成は Tools/Blender/build_kado.py。
         /// 在庫の出隅ブロックは折れ角 Δ≳60° でしか成立しないので、浅い折れはこれで納める。
         /// ローカル: 走り(進行方向) = +Z ／ 躯体 = −X ／ 原点 = 折れ点・足元・内面。

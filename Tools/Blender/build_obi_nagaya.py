@@ -259,6 +259,46 @@ def obi_roof(W, D, name, P, ridge_show=0.36, noki=NOKI):
 
 
 # ---------------------------------------------------------------- 躯体
+def gable_set(m, P, hw, hd, eaveH, roofZ, apex, noki, end=None):
+    """切妻の妻まわり(妻壁の三角・けらば裏板・破風板)を一式張る。
+    棟門など他の切妻の部材からも呼ぶので関数にしてある。"""
+    end = END if end is None else end
+    # ---- 妻壁(三角)。**底辺は軒桁の線** — 屋根はここで壁の天端に合わせてある
+    for sx, inward in ((-hw, +1), (hw, -1)):
+        tri_uv = VM.sub(P['cuv'], 0.05, 0.05, 0.95, 0.95)
+        for s in (-1, 1):
+            # (厚み, 高さ) の4点。頂点側は棟で潰した細い四角形として渡す
+            pts = [(s * hd, eaveH), (s * 0.02, apex - 0.02 * R.RATIO),
+                   (0.0, apex), (0.0, eaveH)]
+            section(m, sx, sx + inward * 0.10, pts, tri_uv, WALL)
+
+    # ---- けらば裏板(妻の軒の出の下)。塞がないと瓦の裏から空が抜ける
+    for sx, inward in ((-hw, +1), (hw, -1)):
+        for s in (-1, 1):
+            pts = [(0.0, apex), (s * (hd + noki), roofZ),
+                   (s * (hd + noki), roofZ - 0.05), (0.0, apex - 0.05)]
+            section(m, sx, sx - inward * end, pts,
+                    VM.sub(P['wuv'], 0.05, 0.05, 0.95, 0.45), WOOD)
+
+    # ---- 破風板。**板の 45% を屋根面より上へ出す**(README の drop=0.55)。
+    #      低いと天端を瓦の波形が食って、木ではありえない縁になる
+    BW, BT, UP = 0.30, 0.055, 0.55   # 破風板: 幅 / 見付 / 屋根面より上へ出す割合
+    for sx, inward in ((-hw - end, +1), (hw + end, -1)):
+        for s in (-1, 1):
+            nz, ny = s * R.RATIO, 1.0
+            L = math.hypot(nz, ny)
+            nz, ny = nz / L, ny / L
+            A = (0.0, apex)
+            B = (s * (hd + noki), roofZ)
+            pts = [(A[0] + nz * BW * UP, A[1] + ny * BW * UP),
+                   (B[0] + nz * BW * UP, B[1] + ny * BW * UP),
+                   (B[0] - nz * BW * (1 - UP), B[1] - ny * BW * (1 - UP)),
+                   (A[0] - nz * BW * (1 - UP), A[1] - ny * BW * (1 - UP))]
+            section(m, sx, sx + inward * BT, pts,
+                    VM.sub(P['wuv'], 0.60, 0.02, 0.78, 0.98), WOOD)
+    return m
+
+
 def build(wKen, dKen, name, eaveH=2.70, ridge_show=0.36, plan=None,
           koshiH=KOSHI, noki=NOKI):
     """plan = 開口面(+Z)の割付 [(x0, x1, 'door'|'window'), ...](走りの中心が 0)"""
@@ -344,39 +384,7 @@ def build(wKen, dKen, name, eaveH=2.70, ridge_show=0.36, plan=None,
         m.box(s * hw - s * 0.17, s * hw, eaveH - 0.19, eaveH, -hd, hd,
               VM.sub(P['wuv'], 0.20, 0.50, 0.95, 0.80), WOOD)
 
-    # ---- 妻壁(三角)。**底辺は軒桁の線** — 屋根はここで壁の天端に合わせてある
-    for sx, inward in ((-hw, +1), (hw, -1)):
-        tri_uv = VM.sub(P['cuv'], 0.05, 0.05, 0.95, 0.95)
-        for s in (-1, 1):
-            # (厚み, 高さ) の4点。頂点側は棟で潰した細い四角形として渡す
-            pts = [(s * hd, eaveH), (s * 0.02, apex - 0.02 * R.RATIO),
-                   (0.0, apex), (0.0, eaveH)]
-            section(m, sx, sx + inward * 0.10, pts, tri_uv, WALL)
-
-    # ---- けらば裏板(妻の軒の出の下)。塞がないと瓦の裏から空が抜ける
-    for sx, inward in ((-hw, +1), (hw, -1)):
-        for s in (-1, 1):
-            pts = [(0.0, apex), (s * (hd + noki), roofZ),
-                   (s * (hd + noki), roofZ - 0.05), (0.0, apex - 0.05)]
-            section(m, sx, sx - inward * END, pts,
-                    VM.sub(P['wuv'], 0.05, 0.05, 0.95, 0.45), WOOD)
-
-    # ---- 破風板。**板の 45% を屋根面より上へ出す**(README の drop=0.55)。
-    #      低いと天端を瓦の波形が食って、木ではありえない縁になる
-    BW, BT, UP = 0.30, 0.055, 0.55   # 破風板: 幅 / 見付 / 屋根面より上へ出す割合
-    for sx, inward in ((-hw - END, +1), (hw + END, -1)):
-        for s in (-1, 1):
-            nz, ny = s * R.RATIO, 1.0
-            L = math.hypot(nz, ny)
-            nz, ny = nz / L, ny / L
-            A = (0.0, apex)
-            B = (s * (hd + noki), roofZ)
-            pts = [(A[0] + nz * BW * UP, A[1] + ny * BW * UP),
-                   (B[0] + nz * BW * UP, B[1] + ny * BW * UP),
-                   (B[0] - nz * BW * (1 - UP), B[1] - ny * BW * (1 - UP)),
-                   (A[0] - nz * BW * (1 - UP), A[1] - ny * BW * (1 - UP))]
-            section(m, sx, sx + inward * BT, pts,
-                    VM.sub(P['wuv'], 0.60, 0.02, 0.78, 0.98), WOOD)
+    gable_set(m, P, hw, hd, eaveH, roofZ, apex, noki)
 
     body = m.to_object(name + "_body", [P['wood'], P['wall'], P['stone'], P['shoji']])
     roof = obi_roof(W, D, name + "_roof", P, ridge_show=ridge_show, noki=noki)
@@ -511,4 +519,5 @@ def main():
             shots(o, key)
 
 
-main()
+if __name__ == "__main__":
+    main()

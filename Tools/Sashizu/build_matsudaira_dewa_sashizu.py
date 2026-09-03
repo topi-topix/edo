@@ -5033,6 +5033,20 @@ def free_fn(d):
     byrole = d["plantRule"].get("keepoutByRole", {})
     onlyrole = d["plantRule"].get("keepoutRolesOnly", {})
     exempt = set(d["plantRule"].get("clrExempt", []))
+    # ⭐ **種別で免除する**(2026-09-05【第10次・庭方】 回答1)— 軒の無い**練塀** `Dobei` の
+    #   上へは枝が張り出してよい(内側の板塀 `nakajikiri` を免除しているのと同じ理屈)。
+    #   ⛔ **`Nagaya` は免除しない** — 軒があるので枝が屋根へ入る。
+    #   ⭕ 免除しても **幹は樹冠半径ぶん内側**に留める(`clrExemptCapCrown`)=
+    #     枝は塀の上まで、区画線の外までは出ない【U・庭方】。
+    exByKind = d["plantRule"].get("clrExemptByKind") or {}
+    capCrown = bool(d["plantRule"].get("clrExemptCapCrown"))
+    runKind = dict(("外周 " + r["name"], r.get("kind")) for r in d.get("runs", []))
+    # ⭕ **免除する run が張り付いている区画線の区間**(辺の添字 → 辺沿い走り s の帯)。
+    #   ⛔ 塀だけ免除して区画線を元のままにすると、塀は区画線の上に立つので**免除が効かない**。
+    EXR = {}
+    for _r9 in d.get("runs", []):
+        if _r9.get("kind") in (exByKind.get("run") or []):
+            EXR.setdefault(_r9["edge"], []).append((float(_r9["s0"]), float(_r9["s1"])))
     ks = (d.get("sensui") or {}).get("pond")
     # ⭐ **毎回作り直していた列を一度だけ組む**(2026-09-05 の高速化)。
     #   ⛔ 判定は変えない — 距離の min を取る相手も順も同じで、
@@ -5052,7 +5066,7 @@ def free_fn(d):
     crole = set(_cru.get("roles", []))
     cmode = _cru.get("mode", "max")
 
-    def hit(u, v, clr, role=None, skip=None, pondClr=None, crownR=0.0, ovr=None):
+    def hit(u, v, clr, role=None, skip=None, pondClr=None, crownR=0.0, ovr=None, capR=None):
         """clr = 層ごとの上乗せ[間] / role = 層の役(退避の上書き) /
         skip = **その層だけ退避を外す物の名**(生垣の内側へ植える等) /
         pondClr = 池の汀からの離れ[間]。`"crown"` なら**樹冠の半径**(層が上書きするとき) /
@@ -5082,7 +5096,14 @@ def free_fn(d):
                 base = _ko_value(d, ov[kk])
             if ovr and kk in ovr:
                 base = _ko_value(d, ovr[kk])
-            r = base + (0.0 if kk in exempt else clr + addC)
+            if kk in exempt:
+                r = base
+            elif runKind.get(nm) in (exByKind.get(kk) or []):
+                # ⭕ 免除しても**幹は樹冠半径ぶん内側**(`capR` は撒く側が名指しした部材の半径)
+                cr9 = float(capR if capR is not None else crownR)
+                r = max(base, cr9) if capCrown else base
+            else:
+                r = base + clr + addC
             if u < bb[0] - r or u > bb[2] + r or v < bb[1] - r or v > bb[3] + r:
                 continue                                    # 大まかな箱で先に落とす
             if kind == "rect":
@@ -5124,8 +5145,20 @@ def free_fn(d):
         if not _pip_world(w, P):
             return "区画の外"
         if not (skip and any("区画線" in x for x in skip)):
-            thr = (par + clr) * gr.ken
-            for a9, b9, x0, y0, x1, y1 in PPE:
+            thr0 = (par + clr) * gr.ken
+            # ⭐ 免除する塀が張り付いた区間では、**幹は樹冠半径ぶん内側**まで寄れる
+            #   (枝は塀の上へ出てよいが、区画線は越えない)【第10次・庭方 回答1】。
+            cr8 = float(capR if capR is not None else crownR)
+            thrX = max(par * gr.ken, cr8 * gr.ken) if (capCrown and cr8 > 0) else thr0
+            for i9, (a9, b9, x0, y0, x1, y1) in enumerate(PPE):
+                thr = thr0
+                if EXR.get(i9):
+                    L9 = math.hypot(b9[0] - a9[0], b9[1] - a9[1])
+                    t9 = 0.0 if L9 < 1e-9 else max(0.0, min(1.0, (
+                        (w[0] - a9[0]) * (b9[0] - a9[0]) + (w[1] - a9[1]) * (b9[1] - a9[1])) / (L9 * L9)))
+                    s9 = t9 * L9
+                    if any(q0 - 1e-9 <= s9 <= q1 + 1e-9 for (q0, q1) in EXR[i9]):
+                        thr = thrX
                 if w[0] < x0 - thr or w[0] > x1 + thr or w[1] < y0 - thr or w[1] > y1 + thr:
                     continue
                 if _seg_dist(w, a9, b9) < thr:
@@ -6005,11 +6038,14 @@ def scatter_slope(d, dem):
         for (_u, _v, _p) in _gs0.get((_pl["zone"], _pl["layer"]), []):
             mine.append((_u, _v, _r))
 
-    def ok(u, v, clr, sp, band0=None, role0=None):
+    def ok(u, v, clr, sp, band0=None, role0=None, cap=None):
         # ⛔ **ジッタを掛けた後の点で段を判定する**(2026-09-03 検図【高1】D1)—
         #   走査格子の段階で除いても、`offset` と ±0.5間 のジッタで段の中へ入り込む。
-        # ⚠ 庭の箱は**退避のぶん広げて**避ける(縁の外に立つ木も中の木に届く)
-        if _in_terrace(d, u, v) or _in_garden_zone(d, u, v, margin=clr):
+        # ⛔ **庭の箱そのもの**だけを避ける(2026-09-05 に `margin=clr` を外した)。
+        #   ⚠ 箱を退避のぶん広げると、箱の外の谷の肩まで塞がって**庭方が名指しした木が立たない**。
+        #   ⭕ 庭の木と近すぎないかは、箱ではなく**木どうしの実距離**を
+        #     `cross_scatter_clearance_check` が測る(検査と散布で同じ物差し)。
+        if _in_terrace(d, u, v) or _in_garden_zone(d, u, v):
             return False
         # ⛔ **その役を禁じている帯へは置かない**(2026-09-05)。帯の境は標高や t で切れるので、
         #   ジッタで隣の帯へ落ちることがある — 落ちた先が「高木を置かない帯」なら不可。
@@ -6018,7 +6054,8 @@ def scatter_slope(d, dem):
             for b9 in d.get("slopeBands", []):
                 if b9["name"] == bn9 and float(b9["dens"].get(role0, [0, 1])[1]) <= 0:
                     return False
-        if hit(u, v, clr):
+        # ⭕ `cap` = **撒く部材の樹冠半径**(免除した塀・区画線の際でだけ効く。⛔ ほかの距離は不変)
+        if hit(u, v, clr, capR=cap):
             return False
         for (pu, pv, ps) in mine:
             if math.hypot(u - pu, v - pv) < (sp + ps) / 2.0 * 0.85:
@@ -6050,6 +6087,7 @@ def scatter_slope(d, dem):
             _zoff += len(_zp)
         sp = float(lay.get("spacing", 3.0)) / K
         clr = float(lay.get("clr", 1.0))
+        crown0 = layer_crown_r(d, lay)          # ⭕ 免除した塀・区画線の際で効く樹冠半径[間]
         made = 0
         if lay.get("placement") == "crestLine":
             st = crest_stations(d, dem, 0.5)
@@ -6070,7 +6108,7 @@ def scatter_slope(d, dem):
                     off = (o0 + rg.random() * (o1 - o0)) / K
                     u = base[0][0] + base[1][0] * off
                     v = base[0][1] + base[1][1] * off
-                    if ok(u, v, clr, sp, lay["band"], lay.get("role")):
+                    if ok(u, v, clr, sp, lay["band"], lay.get("role"), crown0):
                         _SPL[nm].append((u, v, parts[made]))
                         mine.append((u, v, sp))
                         made += 1
@@ -6113,6 +6151,9 @@ def scatter_slope(d, dem):
                 inz = [q for q in pool if ur[0] <= q[2] <= ur[1] and vr[0] <= q[3] <= vr[1]]
                 if not inz:
                     continue
+                # ⭕ ゾーンが部材を名指ししているなら、**その部材の樹冠半径**で際を測る
+                #   (⛔ 層の最大の樹冠で測ると、小さい木を置く区画まで弾かれる)
+                crownZ = layer_crown_r(d, z9) if z9.get("parts") else crown0
                 for _i in range(int(z9["n"])):
                     for _t in range(400):
                         q = inz[rg.randrange(len(inz))]
@@ -6120,7 +6161,7 @@ def scatter_slope(d, dem):
                         v = q[3] + (rg.random() - 0.5) * 1.0 / K
                         if not (ur[0] <= u <= ur[1] and vr[0] <= v <= vr[1]):
                             continue
-                        if made < len(parts) and ok(u, v, clr, sp, lay["band"], lay.get("role")):
+                        if made < len(parts) and ok(u, v, clr, sp, lay["band"], lay.get("role"), crownZ):
                             _SPL[nm].append((u, v, parts[made]))
                             mine.append((u, v, sp))
                             made += 1
@@ -6158,7 +6199,7 @@ def scatter_slope(d, dem):
                             th = rg.random() * 2 * math.pi
                             u = seeds[-1][0] + r * math.cos(th)
                             v = seeds[-1][1] + r * math.sin(th)
-                            if ok(u, v, clr, sp, lay["band"], lay.get("role")) and any(
+                            if ok(u, v, clr, sp, lay["band"], lay.get("role"), crown0) and any(
                                     abs(q[2] - u) < 1.0 and abs(q[3] - v) < 1.0 for q in pool):
                                 _SPL[nm].append((u, v, parts[made]))
                                 mine.append((u, v, sp))
@@ -6171,7 +6212,7 @@ def scatter_slope(d, dem):
                     s = pool[rg.randrange(len(pool))]
                     u = s[2] + (rg.random() - 0.5) * 1.0 / K
                     v = s[3] + (rg.random() - 0.5) * 1.0 / K
-                    if made < len(parts) and ok(u, v, clr, sp, lay["band"], lay.get("role")):
+                    if made < len(parts) and ok(u, v, clr, sp, lay["band"], lay.get("role"), crown0):
                         _SPL[nm].append((u, v, parts[made]))
                         mine.append((u, v, sp))
                         made += 1
@@ -6380,8 +6421,15 @@ def planting_clearance_check(d, dem, extra=None):
         got = list(sp.get(lay["layer"], []))
         if extra and extra[0] == lay["layer"]:
             got.append(extra[1])
+        # ⛔ **散布と同じ物差しで測る** — 免除した塀・区画線の際は「幹が樹冠半径ぶん内側か」で見る
+        #   (2026-09-05: `capR` を渡さずに測っていたため、撒いた木を検査が弾いていた)。
+        cap0 = layer_crown_r(d, lay)
+        capz = dict((z["layer"], layer_crown_r(d, z))
+                    for z in d.get("slopePlantingZones", []) if z.get("parts") and z.get("layer"))
         for (u, v, pt) in got:
-            nm = hit(u, v, float(lay.get("clr", 1.0)))
+            nm = hit(u, v, float(lay.get("clr", 1.0)), capR=cap0)
+            if nm and lay["layer"] in capz:
+                nm = hit(u, v, float(lay.get("clr", 1.0)), capR=capz[lay["layer"]])
             if nm:
                 bad.append("斜面 %s の木が %s に載っている(u%.1f v%.1f)" % (lay["layer"], nm, u, v))
         got_n, want_n = len(sp.get(lay["layer"], [])), int(lay["n"])
@@ -7085,19 +7133,142 @@ def v8_cover(d, dem):
     return (half, [tuple(x) for x in merged], gaps, wall_at)
 
 
-def v8_gap_len(d, dem):
-    """**塀の上の素通しの長さ**[m]。→ (最長の素通し, 覆う帯の数, 空き帯[(a0,a1,長さm)])
+_V8G = [None]
+_V8HIT = [None]
+
+
+def v8_plantable(d, adeg):
+    """その方位に**木を置ける点が一つでも有るか**【第10次・庭方 回答2】。
+
+    ⛔ 「置けないから免除」を**宣言で済ませない** — 視線に沿って奥庭の平場
+      (`ridgeScan.plantBox`)を 0.05間 で走査し、退避(石段・棟・板塀・野筋)を
+      抜ける点が一つでも有れば「置ける」。⭕ 一つも無い方位だけを素通しの勘定から外す。"""
+    vp, base, _vw, _eye, _hh, _half, _wall = _V8G[0]
+    rule = (d.get("viewpointRule") or {}).get("ridgeScan") or {}
+    box = rule.get("plantBox")
+    lz = rule.get("plantLayer")
+    if not box or not lz:
+        return True                              # 欄が無ければ免除しない(⛔ 黙って通さない)
+    pl = next((p for p in d.get("planting", [])
+               if p["zone"] == lz[0] and p["layer"] == lz[1]), None)
+    if pl is None:
+        return True
+    hit = _V8HIT[0]
+    x0, y0, x1, y1 = min(box[0], box[2]), min(box[1], box[3]), max(box[0], box[2]), max(box[1], box[3])
+    a9 = math.radians(base + adeg)
+    du, dv = math.cos(a9), math.sin(a9)
+    t, cr = 0.05, layer_crown_r(d, pl)
+    while t < 200.0:
+        u, v = vp["u"] + du * t, vp["v"] + dv * t
+        if x0 <= u <= x1 and y0 <= v <= y1:
+            if not hit(u, v, float(pl.get("clr", 1.0)), pl.get("role"),
+                       pl.get("keepoutSkip"), pl.get("pondClr"), cr,
+                       pl.get("keepoutByLayer")):
+                return True
+        t += 0.05
+    return False
+
+
+def v8_gap_len(d, dem, astep=0.25):
+    """**塀の上の素通しの長さ**[m]。→ (最長の素通し, 覆う帯の数, 空き帯, 免除した帯)
 
     ⭕ 空きの角の幅 × その方位の塀までの距離 = **塀の上で見える隙間の長さ**。
-    ⛔ 塀に当たらない方位(視線が塀の面を外れる)は「塀の上の素通し」ではないので数えない。"""
+    ⛔ 塀に当たらない方位(視線が塀の面を外れる)は「塀の上の素通し」ではないので数えない。
+    ⭐ **木を置ける点が一つも無い方位は外す**【第10次・庭方 回答2】— ⛔ 宣言では外さず
+      `v8_plantable` が実測する。⚠ 長さは外した後の**区間の端から端**で測る
+      (刻み `astep` は置ける/置けないの境を探すためだけに使い、判定値は連続角のまま)。"""
     half, merged, gaps, wall_at = v8_cover(d, dem)
-    out = []
+    _V8G[0] = _v8_geom(d, dem)
+    _V8HIT[0] = free_fn(d)
+    out, skip = [], []
     for (a0, a1) in gaps:
         w = wall_at((a0 + a1) / 2.0)
         if w is None:
             continue
-        out.append((a0, a1, math.radians(a1 - a0) * w[0]))
-    return (max([q[2] for q in out] or [0.0]), len(merged), out)
+        # 置ける/置けないで区間を割る
+        runs, cur, a = [], None, a0
+        while a < a1 - 1e-9:
+            b = min(a + astep, a1)
+            p = v8_plantable(d, (a + b) / 2.0)
+            if cur is None or cur[2] != p:
+                if cur is not None:
+                    runs.append(cur)
+                cur = [a, b, p]
+            else:
+                cur[1] = b
+            a = b
+        if cur is not None:
+            runs.append(cur)
+        for (b0, b1, p) in runs:
+            w2 = wall_at((b0 + b1) / 2.0)
+            L = math.radians(b1 - b0) * (w2[0] if w2 else w[0])
+            (out if p else skip).append((b0, b1, L))
+    return (max([q[2] for q in out] or [0.0]), len(merged), out, skip)
+
+
+def v8_blockers(d, a0, a1, n=8):
+    """免除した方位で**何が木を止めているか**。→ [(物の名, 走査点の割合%)]
+
+    ⛔ 「置けないから免除」を名前も出さずに通さない — 止めている物を figure に出す。"""
+    if _V8G[0] is None or _V8HIT[0] is None:
+        return []
+    vp, base, _vw, _eye, _hh, _half, _wall = _V8G[0]
+    hit = _V8HIT[0]
+    rule = (d.get("viewpointRule") or {}).get("ridgeScan") or {}
+    box, lz = rule.get("plantBox"), rule.get("plantLayer")
+    pl = next((p for p in d.get("planting", [])
+               if box and lz and p["zone"] == lz[0] and p["layer"] == lz[1]), None)
+    if pl is None:
+        return []
+    cr = layer_crown_r(d, pl)
+    x0, y0 = min(box[0], box[2]), min(box[1], box[3])
+    x1, y1 = max(box[0], box[2]), max(box[1], box[3])
+    tally, tot = {}, 0
+    for k in range(n):
+        a9 = math.radians(base + a0 + (a1 - a0) * (k / float(max(n - 1, 1))))
+        du, dv = math.cos(a9), math.sin(a9)
+        t = 0.05
+        while t < 200.0:
+            u, v = vp["u"] + du * t, vp["v"] + dv * t
+            if x0 <= u <= x1 and y0 <= v <= y1:
+                tot += 1
+                nm = hit(u, v, float(pl.get("clr", 1.0)), pl.get("role"),
+                         pl.get("keepoutSkip"), pl.get("pondClr"), cr,
+                         pl.get("keepoutByLayer"))
+                tally[nm or "(空き)"] = tally.get(nm or "(空き)", 0) + 1
+            t += 0.05
+    return [(k, 100.0 * v / tot) for k, v in
+            sorted(tally.items(), key=lambda q: -q[1])] if tot else []
+
+
+def v8_gap_table(d, dem):
+    """**V8 の稜の帯**(覆う / 木を置ける空き / 免除)を1枚の表に。⛔ 0 件でも出す。"""
+    lim = float(((d.get("viewpointRule") or {}).get("ridgeScan") or {}).get("gapMax", 0.30))
+    gap, nspan, gaps, skip = v8_gap_len(d, dem)
+    _half, merged, _g, _w = v8_cover(d, dem)
+    rows = ""
+    for (a0, a1) in merged:
+        rows += ("<tr><td>樹冠が覆う</td><td>%+.2f°〜%+.2f°</td><td>—</td>"
+                 "<td class='note'>梢が塀の天端の仰角を上回る</td></tr>" % (a0, a1))
+    for (a0, a1, L) in gaps:
+        rows += ("<tr><td><b>素通し</b></td><td>%+.2f°〜%+.2f°</td><td><b>%.2f m</b></td>"
+                 "<td class='note'>%s</td></tr>"
+                 % (a0, a1, L, "⚠ 敷居 %.2fm を超える" % lim if L > lim + 1e-9 else "敷居の内"))
+    for (a0, a1, L) in skip:
+        why = " / ".join("%s %.0f%%" % q for q in v8_blockers(d, a0, a1)[:3])
+        rows += ("<tr><td>免除(<b>木を置ける点が 0</b>)</td><td>%+.2f°〜%+.2f°</td>"
+                 "<td class='note'>(%.2f m)</td><td class='note'>止めている物: %s</td></tr>"
+                 % (a0, a1, L, why or "—"))
+    return ("<h3>V8 の稜 — 方位の帯(⛔ 刻みで量子化しない)</h3>"
+            "<div class='tw'><table><thead><tr><th>種別</th><th>方位(視軸から)</th>"
+            "<th>塀の上の長さ</th><th class='note'>備考</th></tr></thead>"
+            "<tbody>%s</tbody></table></div>"
+            "<p class='cap'>⭕ <b>免除は宣言でなく実測</b>(<code>v8_plantable</code>)— "
+            "その方位の視線に沿って奥庭の平場 <code>ridgeScan.plantBox</code> を 0.05間 で走査し、"
+            "退避を抜ける点が<b>一つも無い</b>方位だけを外す。⛔ 敷居 <code>gapMax</code> "
+            "(%.2f m)は据え置き。⚠ <b>残る素通しは %.2f m</b>"
+            "(免除した帯 %d 本・木を置ける空き %d 本)。</p>"
+            % (rows or "<tr><td colspan='4'>帯が無い</td></tr>", lim, gap, len(skip), len(gaps)))
 
 
 def v8_ridge_check(d, dem):
@@ -7106,15 +7277,25 @@ def v8_ridge_check(d, dem):
     ⭐ 判定は**連続角**(2026-09-05・庭方 回答2)— 刻みで量子化しない。
     ⛔ 残る空きは**方位まで名指しする**(どこを塞げばよいかが図と表から読めるように)。"""
     lim = float(((d.get("viewpointRule") or {}).get("ridgeScan") or {}).get("gapMax", 0.30))
-    gap, nspan, gaps = v8_gap_len(d, dem)
+    gap, nspan, gaps, skip = v8_gap_len(d, dem)
     if gap > lim + 1e-9:
         big = [q for q in gaps if q[2] > lim + 1e-9]
         return ["V8 の正面で**板塀の上に %.2fm の素通し**がある(敷居 %.2fm。"
-                "樹冠が覆う帯 %d 本・空き %d 本のうち敷居超えは %d 本: %s)— "
+                "樹冠が覆う帯 %d 本・木を置ける空き %d 本のうち敷居超えは %d 本: %s)— "
                 "水平な天端が視野を横切ったままになる"
                 % (gap, lim, nspan, len(gaps), len(big),
                    " ／ ".join("**%+.1f°〜%+.1f°**(%.2fm)" % q for q in big))]
-    return []
+    # ⭕ **通っても黙らない**(規則19)— 測った値を成果物に残す。
+    #   ⛔ 黙ると「設計値を動かしても出力が動かない」= 番人が死ぬ(2026-09-05 に実際そうなった)。
+    why = ""
+    if skip:
+        why = "。免除 %d 本(%s。止めているのは %s)" % (
+            len(skip),
+            " ／ ".join("%+.1f°〜%+.1f°" % (q[0], q[1]) for q in skip),
+            " / ".join("%s %.0f%%" % q for q in v8_blockers(d, skip[0][0], skip[0][1])[:2]))
+    return ["〔記録〕V8 の正面の板塀の稜: **残る素通し %.2fm**(敷居 %.2fm)— "
+            "樹冠が覆う帯 %d 本 / 木を置ける空き %d 本%s"
+            % (gap, lim, nspan, len(gaps), why)]
 
 
 def yakuboku_check(d):
@@ -14009,7 +14190,7 @@ def main():
         h.append("<h3>庭の姿の代理指標 — <b>すべて生成器の実測</b>(⛔ 指図に書かない)</h3>")
         _inb, _tb = group_box_rate(d)
         _vs, _vt, _vpct = v1_water_view(d, dem)
-        _v8gap, _v8span, _v8gaps = v8_gap_len(d, dem)
+        _v8gap, _v8span, _v8gaps, _v8skip = v8_gap_len(d, dem)
         _v8lim = float(((d.get("viewpointRule") or {}).get("ridgeScan") or {}).get("gapMax", 0.30))
         _v8 = ("<b>%.2f m</b> %s" % (_v8gap, "○" if not v8_ridge_check(d, dem) else "⚠"))
         _wb = ((d.get("viewpointRule") or {}).get("waterView") or {}).get("band") or [0, 100]
@@ -14020,7 +14201,8 @@ def main():
                  "<tr><td><b>V1 から見える水面</b>の割合</td><td>%d / %d = <b>%.1f%%</b></td>"
                  "<td>%g〜%g%%</td><td>%s</td></tr>"
                  "<tr><td><b>V8 の正面の板塀の稜</b></td>"
-                 "<td>塀の上の<b>素通しの長さ</b>(視軸 ±%.0f°・樹冠の帯 %d 本・空き %d 本)</td>"
+                 "<td>塀の上の<b>素通しの長さ</b>(視軸 ±%.0f°・樹冠の帯 %d 本・"
+                 "木を置ける空き %d 本・免除 %d 本)</td>"
                  "<td>%.2f m 以下</td><td>%s</td></tr>"
                  "<tr><td><b>梅林の塊</b>(`row` を除く)</td><td>箱の v の広がり</td>"
                  "<td>芯々の 0.85 倍 以上</td><td>%s</td></tr>"
@@ -14040,12 +14222,13 @@ def main():
                     _vs, _vt, _vpct, _wb[0], _wb[1],
                     "<b>○</b>" if _wb[0] <= _vpct <= _wb[1] else "<b>⚠</b>",
                     ((d.get("viewpointRule") or {}).get("ridgeScan") or {}).get("half", 30.0),
-                    _v8span, len(_v8gaps), _v8lim, _v8,
+                    _v8span, len(_v8gaps), len(_v8skip), _v8lim, _v8,
                     "<b>○</b>" if not ume_spread_check(d) else "<b>⚠</b>",
                     "<b>○</b>" if not [x for x in group_box_check(d) if "G_Inari" in x]
                     else "<b>⚠</b>",
                     "<b>○</b>" if not slope_bare_check(d, dem) else "<b>⚠</b> 1箇所以上",
                     "<b>○</b>" if not terrace_edge_check(d) else "<b>⚠</b>"))
+        h.append(v8_gap_table(d, dem))
         h.append(sensui_metrics_table(d))
         h.append("<h3>築山 — 面積と土量は<b>造成前 DEM から測る</b>(指図に書かない)</h3>")
         h.append(tsukiyama_table(d, dem))

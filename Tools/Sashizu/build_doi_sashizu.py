@@ -2407,7 +2407,9 @@ VOCAB = [
     ("bom",       "measure",  ("terraceWalls", "boundaryPlinth", "runBase",
                                "flank", "kaidan"),                              True,  "item"),
     ("links",     "kind",     ("渡廊下", "階段廊下", "御錠口"),                  False, "name"),
-    ("gardens",   "kind",     ("shirasu", "niwa"),                              True,  "name"),
+    # kansho = 鑑賞の庭(座敷から見る庭)。2026-09-04 に奥庭が池庭になったので足した
+    ("gardens",   "kind",     ("shirasu", "niwa", "kansho"),                    True,  "name"),
+    ("akichi",    "cert",     ("?",),                                           False, "name"),
     ("routes",    "kind",     ("omote", "yaku", "katte", "oku"),                False, "name"),
 ]
 
@@ -2445,6 +2447,7 @@ def program_check(d):
     have |= set(g["name"] for g in d.get("gardens", []))    # 庭・白洲
     have |= set(l["name"] for l in d.get("links", []))      # 御錠口・廊下
     have |= set(r["name"] for r in d.get("rails", []))      # 竹垣
+    have |= set(a["name"] for a in d.get("akichi", []))     # 明地(用途未定の空白)
     if d.get("gate"):
         have.add("gate")
     head, tbl = sources_index()
@@ -2542,7 +2545,14 @@ def norms_check(d):
     def off(x):
         return abs(x / GRID - round(x / GRID)) > 1e-6
 
+    # ⚠ **庭の点景は柱割りに載せない。** 稲荷の小祠は庭方が景の中で据える物で、
+    #   御殿の柱割りに乗る建屋ではない(2026-09-04、庭方が北東の隅へ移した位置は
+    #   半間の格子から 0.05〜0.10間 外れる)。⛔ 免除は**名指し**で持ち、
+    #   `const.gridFreeService` に理由つきで書く — 無名の例外にしない。
+    gfree = set(d["const"].get("gridFreeService", []))
     for o in d["munes"] + d.get("service", []):
+        if o["name"] in gfree:
+            continue
         if abs(o.get("yaw", 0.0)) > 1e-9:        # 回転棟は寸法だけ見る(位置は現地形都合)
             for k in ("L", "D"):
                 if k in o and off(o[k]):
@@ -5124,6 +5134,1340 @@ def history():
             "</tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>")
 
 
+# ---------------------------------------------------------------- 奥庭(池庭)
+# ⚠ **ここで算出する値を設計値へ写さない。**面積・水面比・周長・円形度・辺長CV・見隠れ・
+#   土量・園路の全長・石段の段数・沢飛石の石数・護岸石の個数・杭の本数・汀からの離れは
+#   すべて従属値で、庭方の設計書にある数字は「検算の答え合わせ用」である。
+#   → 正典は `gardens.G_Okuniwa` の入力欄だけ。
+
+_ASSET_DIM = [None]
+
+
+def asset_dim(name):
+    """`docs/asset-index.tsv` から目録名で W/H/D[m] を引く。**部材の実寸は目録が正典。**"""
+    if _ASSET_DIM[0] is None:
+        tb = {}
+        p = os.path.join(os.path.dirname(DOC), "asset-index.tsv")
+        if os.path.exists(p):
+            for ln in open(p, encoding="utf-8"):
+                c = ln.rstrip("\n").split("\t")
+                if len(c) > 6:
+                    try:
+                        tb.setdefault(c[1], (float(c[4]), float(c[5]), float(c[6])))
+                    except ValueError:
+                        pass
+        _ASSET_DIM[0] = tb
+    return _ASSET_DIM[0].get(name)
+
+
+def niwa(d):
+    """池を持つ庭(=奥庭)。無ければ None。"""
+    return next((g for g in d.get("gardens", []) if g.get("migiwa")), None)
+
+
+def _shoelace(p):
+    s = 0.0
+    for i in range(len(p)):
+        a, b = p[i]
+        c, e = p[(i + 1) % len(p)]
+        s += a * e - c * b
+    return abs(s) / 2.0
+
+
+def _segd(p, a, b):
+    px, pz = p
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    t = 0.0 if (dx == 0 and dy == 0) else max(0.0, min(
+        1.0, ((px - a[0]) * dx + (pz - a[1]) * dy) / (dx * dx + dy * dy)))
+    return math.hypot(px - a[0] - t * dx, pz - a[1] - t * dy)
+
+
+def _pip(pt, poly):
+    x, y = pt
+    c = False
+    n = len(poly)
+    for i in range(n):
+        x1, y1 = poly[i]
+        x2, y2 = poly[(i + 1) % n]
+        if (y1 > y) != (y2 > y):
+            xi = x1 + (y - y1) * (x2 - x1) / (y2 - y1)
+            if x < xi:
+                c = not c
+    return c
+
+
+class Niwa(object):
+    """奥庭の地形モデル。**設計値から毎回組み直す**(静的な派生値を正典に置かない)。"""
+
+    def __init__(self, d):
+        self.d = d
+        self.g = niwa(d)
+        self.ken = d["const"]["ken"]
+        g = self.g
+        self.mg = g["migiwa"]
+        self.pond = [(a, b) for a, b in self.mg["pts"]]
+        self.base = design_y(d, (g["u0"] + g["u1"]) / 2.0, (g["v0"] + g["v1"]) / 2.0)
+        self.waterY = self.mg["waterY"]
+        self.depth = self.mg["depthMax"]
+        # 汀からの最大距離(池床の放物面の正規化に使う)
+        self.dmax = 0.0
+        for u, v in self._cells(0.1):
+            if self.inpond(u, v):
+                self.dmax = max(self.dmax, self.dshore(u, v))
+        self.dmax = self.dmax or 1.0
+
+    # -------- 格子
+    def _cells(self, st):
+        g = self.g
+        u = g["u0"]
+        while u <= g["u1"] + 1e-9:
+            v = g["v0"]
+            while v <= g["v1"] + 1e-9:
+                yield (u, v)
+                v += st
+            u += st
+
+    # -------- 池
+    def inpond(self, u, v):
+        return _pip((u, v), self.pond)
+
+    def dshore(self, u, v):
+        return min(_segd((u, v), self.pond[i], self.pond[(i + 1) % len(self.pond)])
+                   for i in range(len(self.pond)))
+
+    def bed(self, u, v):
+        sh = self.mg.get("shallow")
+        if sh and sh["v0"] <= v <= sh["v1"]:
+            return sh["bedY"]
+        return self.waterY - self.depth * (self.dshore(u, v) / self.dmax) ** 0.6
+
+    # -------- 築山
+    def mound(self, u, v):
+        h = 0.0
+        for t in self.g.get("tsukiyama", []):
+            if t.get("kata") == "土手":
+                if t["u0"] <= u <= t["u1"] and t["v0"] <= v <= t["v1"]:
+                    r = abs(v - (t["v0"] + t["v1"]) / 2.0) / ((t["v1"] - t["v0"]) / 2.0)
+                    h = max(h, t["rise"] * 0.5 * (1 + math.cos(math.pi * min(r, 1.0))))
+                continue
+            ru, rv = t["dU"] / 2.0, t["dV"] / 2.0
+            x, y = (u - t["u"]) / ru, (v - t["v"]) / rv
+            r = math.hypot(x, y)
+            # 頂の平場(床几)は**山を切った平場**として持つ。⛔ 素の楕円丘に平場を
+            # 「max で足す」と平場の縁が崖になり、園路の勾配が 65% に化ける
+            # (2026-09-04 に踏んだ)。⭕ 正規化半径を平場の縁から裾へ引き伸ばす。
+            rd = 0.0
+            da = t.get("daira")
+            if da and r > 1e-9:
+                a = da["dU"] / 2.0 / ru
+                b = da["dV"] / 2.0 / rv
+                rd = 1.0 / math.hypot(x / (r * a), y / (r * b))
+                rd = min(rd, 0.95)
+            if r < 1.0:
+                s = 0.0 if r <= rd else (r - rd) / (1.0 - rd)
+                h = max(h, t["rise"] * 0.5 * (1 + math.cos(math.pi * s)))
+        return h
+
+    def ground(self, u, v):
+        """造園後の地表。池の中は池床、外は面+築山。"""
+        if self.inpond(u, v):
+            return self.bed(u, v)
+        return self.base + self.mound(u, v)
+
+    # -------- 見所
+    def eye(self, no):
+        m = next((x for x in self.g["mikoro"] if x["no"] == no), None)
+        if m is None:
+            return None
+        md = m.get("eyeMode")
+        if md == "sit":
+            return self.base + self.d["const"]["gotenFloor"] + self.d["const"]["eyeSit"]
+        if md == "床几":
+            return self.base + self.mound(m["u"], m["v"]) + self.d["const"]["eyeSit"]
+        if md == "water":
+            return self.waterY
+        return None                               # stand は眼高が設計書に無い【?】
+
+    # -------- 御土蔵(主景の対岸)
+    def kura(self):
+        k = next((s for s in self.d["service"] if s["name"] == "Kura1"), None)
+        if k is None:
+            return None
+        c = self.d["const"]
+        return dict(o=k, face=k["u1"], eave=k["y"] + c["kuraEave"],
+                    wall=k["y"] + c["kuraWallTop"], ridge=k["y"] + c["kuraRidge"])
+
+
+_NIWA_CACHE = [None, None]
+
+
+def NI(d):
+    if _NIWA_CACHE[0] is not d:
+        _NIWA_CACHE[0] = d
+        _NIWA_CACHE[1] = Niwa(d) if niwa(d) else None
+    return _NIWA_CACHE[1]
+
+
+def niwa_stats(d):
+    """庭の従属値を**毎回**算出する。⛔ ここで出した数字を json へ書き戻さない。"""
+    n = NI(d)
+    if n is None:
+        return {}
+    K = n.ken
+    g, mg = n.g, n.mg
+    P = n.pond
+    A = _shoelace(P)
+    per = sum(math.dist(P[i], P[(i + 1) % len(P)]) for i in range(len(P)))
+    seg = [math.dist(P[i], P[(i + 1) % len(P)]) for i in range(len(P))]
+    mu = sum(seg) / len(seg)
+    cv = (sum((s - mu) ** 2 for s in seg) / len(seg)) ** 0.5 / mu
+    ga = (g["u1"] - g["u0"]) * (g["v1"] - g["v0"])
+    st = 0.1
+    cut = fill = pa = 0.0
+    a1 = st * st * K * K
+    for u, v in n._cells(st):
+        if n.inpond(u, v):
+            cut += (n.base - n.bed(u, v)) * a1
+            pa += a1
+        else:
+            fill += n.mound(u, v) * a1
+    land = ga * K * K - pa
+    o = dict(areaKen=A, areaM2=A * K * K, tsubo=A * K * K / TSUBO,
+             per=per * K, circ=4 * math.pi * A / per ** 2, cv=cv,
+             gardenTsubo=ga * K * K / TSUBO, gardenM2=ga * K * K,
+             waterPct=100.0 * A / ga, cut=cut, fill=fill, diff=cut - fill,
+             level=(cut - fill) / land if land > 0 else 0.0, pondM2=pa, landM2=land,
+             segMin=min(seg) * K, segMax=max(seg) * K)
+    # 汀 → 庭境 / 棟
+    bb = (min(p[0] for p in P), max(p[0] for p in P),
+          min(p[1] for p in P), max(p[1] for p in P))
+    o["clrBound"] = min(bb[0] - g["u0"], g["u1"] - bb[1], bb[2] - g["v0"], g["v1"] - bb[3])
+    o["clrBoundBy"] = ["南", "北", "東", "西"][
+        [bb[0] - g["u0"], g["u1"] - bb[1], bb[2] - g["v0"], g["v1"] - bb[3]].index(o["clrBound"])]
+    best, bnm = 9e9, "?"
+    ex = set(mg.get("clearance", {}).get("exempt", []))
+    for m in d["munes"] + d["service"]:
+        if "yaw" in m or m["name"] in ex:
+            continue
+        for (u, v) in P:
+            du = max(m["u0"] - u, 0.0, u - m["u1"])
+            dv = max(m["v0"] - v, 0.0, v - m["v1"])
+            q = math.hypot(du, dv)
+            if q < best:
+                best, bnm = q, m["name"]
+    o["clrMune"], o["clrMuneBy"] = best, bnm
+    # くびれ(水口)
+    kb = 9e9
+    for i in range(len(P)):
+        for j in range(i + 2, len(P)):
+            if i == 0 and j == len(P) - 1:
+                continue
+            mid = ((P[i][0] + P[j][0]) / 2.0, (P[i][1] + P[j][1]) / 2.0)
+            if not n.inpond(*mid):
+                continue
+            q = math.dist(P[i], P[j])
+            if q < kb:
+                kb, o["kubire"] = q, (i + 1, j + 1)
+    o["kubireM"] = kb * K
+    # 園路
+    o["enro"] = []
+    for e in g.get("enro", []):
+        pts = [(a, b) for a, b in e["pts"]]
+        L = sum(math.dist(pts[i], pts[i + 1]) for i in range(len(pts) - 1)) * K
+        mx, steps, stepL = 0.0, 0, 0.0
+        for i in range(len(pts) - 1):
+            a, b = pts[i], pts[i + 1]
+            l = math.dist(a, b) * K
+            dz = n.ground(*b) - n.ground(*a)
+            gr = abs(dz) / l if l > 1e-9 else 0.0
+            mx = max(mx, gr)
+            if gr * 100 > 15.0:                   # 急な区間は野面の石段を切る
+                steps += int(round(abs(dz) / e["keri"]))
+                stepL += l
+        wet = [p for p in pts if n.inpond(*p)]
+        o["enro"].append(dict(name=e["name"], label=e["label"], L=L, grade=mx * 100,
+                              steps=steps, stepL=stepL, wet=len(wet),
+                              dshore=min(n.dshore(*p) for p in pts) * K))
+    # 沢飛石
+    o["sawa"] = []
+    for s in g.get("sawatobi", []):
+        span = math.dist(s["a"], s["b"]) * K
+        cnt = max(1, int(round(span / s["pitch"])))
+        o["sawa"].append(dict(name=s["name"], span=span, n=cnt, pitch=span / cnt))
+    # 護岸の被覆
+    cover = {}
+    for coll, key in (("gogan", "石組"), ("suhama", "州浜"), ("rangui", "乱杭")):
+        for x in g.get(coll, []):
+            i = x["frm"] - 1
+            while True:
+                cover.setdefault(i, []).append(x["name"])
+                i = (i + 1) % len(P)
+                if i == x["to"] - 1:
+                    break
+    tk = g.get("sawatobiTake")
+    if tk:
+        cover.setdefault(tk["frm"] - 1, []).append("(沢飛石の取付)")
+    o["coverGap"] = [i + 1 for i in range(len(P)) if i not in cover]
+    o["coverDup"] = [(i + 1, cover[i]) for i in cover if len(cover[i]) > 1]
+    o["cover"] = cover
+    # 乱杭の本数(汀線に沿った弧長からの従属値)
+    o["rangui"] = []
+    for r in g.get("rangui", []):
+        i, L = r["frm"] - 1, 0.0
+        while i != r["to"] - 1:
+            L += math.dist(P[i], P[(i + 1) % len(P)])
+            i = (i + 1) % len(P)
+        o["rangui"].append(dict(name=r["name"], L=L * K, n=int(round(L * K / r["pitch"]))))
+    # 護岸石の個数
+    o["gogan"] = []
+    for x in g.get("gogan", []):
+        i, L = x["frm"] - 1, 0.0
+        while i != x["to"] - 1:
+            L += math.dist(P[i], P[(i + 1) % len(P)])
+            i = (i + 1) % len(P)
+        w = (x["lenMin"] + x["lenMax"]) / 2.0
+        o["gogan"].append(dict(name=x["name"], label=x["label"], L=L * K,
+                               n=int(round(L * K / (w * x["pitchRatio"]))),
+                               yaku=int(round(L * K / (w * x["pitchRatio"]) / x["yakuEvery"]))))
+    # 築山
+    o["tsuki"] = []
+    v1 = next((m for m in g["mikoro"] if m.get("main")), g["mikoro"][0])
+    e1 = n.eye(v1["no"])
+    for t in g.get("tsukiyama", []):
+        if t.get("kata") == "土手":
+            continue
+        ru = t["dU"] / 2.0 * K
+        bat = ru / t["rise"]
+        dd = math.hypot(t["u"] - v1["u"], t["v"] - v1["v"]) * K
+        # ⚠ **公称の法(直径÷高さ)では平場を見落とす。**頂を平らに切ると残りの法が急になるので、
+        #   **実際の地表を刻んで最急を測る**(2026-09-04 に踏んだ)。
+        mxg = 0.0
+        stp = 0.05
+        for k in range(-int(t["dU"] / 2 / stp) - 1, int(t["dU"] / 2 / stp) + 2):
+            u0 = t["u"] + k * stp
+            g0 = n.mound(u0, t["v"])
+            g1 = n.mound(u0 + stp, t["v"])
+            mxg = max(mxg, abs(g1 - g0) / (stp * K))
+        o["tsuki"].append(dict(name=t["name"], label=t["label"], batter=bat,
+                               batterReal=(1.0 / mxg if mxg > 1e-9 else 99.0),
+                               d=dd, ang=math.degrees(math.atan2(t["topY"] - e1, dd)),
+                               top=t["topY"], rise=t["rise"],
+                               suso=t["u"] - t["dU"] / 2.0))
+    # 見隠れ(主視点から見える水面の割合)
+    # ⚠ **隠す物を分けて数える。** 一つの割合にすると、座視で必ず起きる「手前の岸に隠れる」分と、
+    #   設計として効かせている「築山の見隠れ」が混ざって、どちらの話か分からなくなる。
+    vis = tot = 0
+    byM, byB = [], []
+    for u, v in n._cells(0.2):
+        if not n.inpond(u, v):
+            continue
+        tot += 1
+        dd = math.hypot(u - v1["u"], v - v1["v"]) * K
+        blk = None
+        nn = max(3, int(dd / 0.5))
+        for k in range(1, nn):
+            t9 = k / float(nn)
+            uu = v1["u"] + (u - v1["u"]) * t9
+            vv = v1["v"] + (v - v1["v"]) * t9
+            if n.ground(uu, vv) > e1 + (n.waterY - e1) * t9 + 0.02:
+                blk = (uu, vv, n.mound(uu, vv))
+                break
+        if blk is None:
+            vis += 1
+        elif blk[2] > 0.15:
+            byM.append((u, v))
+        else:
+            byB.append((u, v))
+    o["visPct"] = 100.0 * vis / tot if tot else 0.0
+    o["hidMoundPct"] = 100.0 * len(byM) / tot if tot else 0.0
+    o["hidBankPct"] = 100.0 * len(byB) / tot if tot else 0.0
+    o["hidMoundAt"] = ((sum(p[0] for p in byM) / len(byM), sum(p[1] for p in byM) / len(byM))
+                       if byM else None)
+    o["eye1"] = e1
+    # 主景の見切り — 御土蔵をどれだけの帯で塞ぐ必要があるか
+    ku = n.kura()
+    o["kura"] = ku
+    o["screen"] = []
+    if ku:
+        dk = (v1["u"] - ku["face"]) * K
+        for s in g.get("shokusai", []):
+            if s.get("crownFrom") is None:
+                continue
+            hh = max((asset_dim(x) or (0, 0, 0))[1] for x in s.get("idx", [])) * s.get("scale", 1.0)
+            ww = max((asset_dim(x) or (0, 0, 0))[0] for x in s.get("idx", [])) * s.get("scale", 1.0)
+            for (u, v) in s["at"]:
+                dd = (v1["u"] - u) * K
+                if dd <= 0 or dd >= dk:
+                    continue
+                gy = n.ground(u, v)
+                lo = e1 + (ku["eave"] - e1) * dd / dk - gy
+                hi = e1 + (ku["ridge"] - e1) * dd / dk - gy
+                o["screen"].append(dict(sp=s["species"], sz=s["size"], u=u, v=v, gy=gy,
+                                        lo=lo, hi=hi, h=hh, w=ww, c0=s["crownFrom"],
+                                        ok=(s["crownFrom"] <= lo and hi <= hh)))
+    # 水の収支
+    gs = g["mizu"]["gensen"]
+    inflow = (gs["yane"]["m2"] * gs["yane"]["runoff"]
+              + o["areaM2"] * gs["chokusetsu"]["runoff"]) * gs["rainMmY"] / 1000.0
+    out = o["areaM2"] * gs["johatsu"]["mmY"] / 1000.0
+    o["water"] = dict(inflow=inflow, out=out, bal=inflow - out)
+    # 水尻の縦断
+    ms = g["mizu"]["mizushiri"]
+    tp = [(P[ms["shiki"]["at"] - 1][0], P[ms["shiki"]["at"] - 1][1], ms["shiki"]["sill"])]
+    ut = ms["umeToi"]
+    for i, (u, v) in enumerate(ut["pts"]):
+        y = ms["shiki"]["sill"] + (ut["outY"] - ms["shiki"]["sill"]) * (i + 1) / float(len(ut["pts"]))
+        tp.append((u, v, y))
+    o["toi"] = tp
+    o["toiLen"] = sum(math.hypot(tp[i + 1][0] - tp[i][0], tp[i + 1][1] - tp[i][1])
+                      for i in range(len(tp) - 1)) * K
+    o["toiGrade"] = (tp[0][2] - tp[-1][2]) / o["toiLen"] * 100.0 if o["toiLen"] else 0.0
+    return o
+
+
+def niwa_check(d):
+    """奥庭の不変条件。⛔ **検査の無い不変条件は必ず壊れる。**"""
+    n = NI(d)
+    if n is None:
+        return []
+    g, K = n.g, n.ken
+    o = niwa_stats(d)
+    bad = []
+    mg = n.mg
+    cl = mg.get("clearance", {})
+    # ① 汀線の頂点が庭の内側・棟の外側
+    for i, (u, v) in enumerate(n.pond):
+        if not (g["u0"] <= u <= g["u1"] and g["v0"] <= v <= g["v1"]):
+            bad.append("汀線 #%d (%.2f, %.2f) が庭 %s の外" % (i + 1, u, v, g["name"]))
+    if o["clrBound"] < cl.get("gardenBound", 1.5) - 1e-9:
+        bad.append("汀から庭境までの最小が %.2f間(%s)— 下限 %.2f間"
+                   % (o["clrBound"], o["clrBoundBy"], cl.get("gardenBound", 1.5)))
+    if o["clrMune"] < cl.get("mune", 1.5) - 1e-9:
+        bad.append("汀から棟 %s までが %.2f間 — 下限 %.2f間"
+                   % (o["clrMuneBy"], o["clrMune"], cl.get("mune", 1.5)))
+    # ② 池が矩形でない(円形度・辺長のばらつき)
+    if o["circ"] > 0.75:
+        bad.append("池の円形度 %.3f — 丸すぎる(0.75 以下)" % o["circ"])
+    if o["cv"] < 0.10:
+        bad.append("汀線の辺長の変動係数 %.3f — 等間隔すぎる(0.10 以上)" % o["cv"])
+    if len(n.pond) < 8:
+        bad.append("汀線が %d 点 — 矩形に見える" % len(n.pond))
+    # ③ 護岸が全周を覆う
+    for i in o["coverGap"]:
+        bad.append("汀線 #%d–#%d に護岸の指定が無い — 裸の縁を残さない" % (i, i % len(n.pond) + 1))
+    for i, who in o["coverDup"]:
+        bad.append("汀線 #%d–#%d を %s が二重に受け持つ"
+                   % (i, i % len(n.pond) + 1, "・".join(who)))
+    # ④ 園路(水中の点。棟との食い違いと勾配は `niwa_todo` が別枠で出す)
+    for e in o["enro"]:
+        if e["wet"]:
+            bad.append("園路 %s の点が %d 個 水中にある" % (e["label"], e["wet"]))
+    # ⑤ 掘削と盛土の釣り合い
+    if abs(o["level"]) > 0.5:
+        bad.append("掘削 − 盛土 を庭の陸地に均すと %+.2fm — 許容 ±0.5m" % o["level"])
+    # ⑥ 主視点から見える水面が 100% でない(見隠れが効いている)
+    if o["visPct"] >= 100.0:
+        bad.append("主視点から水面が %.0f%% 見える — 見隠れが効いていない" % o["visPct"])
+    if o["hidMoundPct"] <= 0.0:
+        bad.append("**築山による見隠れが 0%** — 池が一望できてしまう(築山Bは西の池を切る役)")
+    # ⑦ 築山の法(公称=直径÷高さ)と南裾
+    bf = d["const"]["batterFill"]
+    for t in o["tsuki"]:
+        if t["batter"] < bf - 1e-9:
+            bad.append("%s の法(公称)1:%.2f が盛土の上限 1:%.1f より急" % (t["label"], t["batter"], bf))
+    ku = n.kura()
+    if ku:
+        need = ku["face"] + d["const"]["inubashiri"] / K
+        for t in o["tsuki"]:
+            if t["name"] == "Tsukiyama_A1" and t["suso"] < need - 1e-6:
+                bad.append("築山A1 の南裾 u=%.2f が御土蔵の北面+犬走り u=%.2f に届いていない"
+                           % (t["suso"], need))
+    # ⑧ 水尻 — 樋が土蔵と交わらない / 落とし口が区画線の内側
+    gr = RGrid(d)
+    Pg = [gr.L(x, z) for x, z in d["polygon"]]
+    ms = g["mizu"]["mizushiri"]
+    path = [(x, y) for x, y, _ in o["toi"]] + [tuple(ms["otoshimizo"]["to"])]
+    for m in d["service"]:
+        if "yaw" in m:
+            continue
+        box = [(m["u0"], m["v0"]), (m["u1"], m["v0"]), (m["u1"], m["v1"]), (m["u0"], m["v1"])]
+        for p in path:
+            if _pip(p, box):
+                bad.append("水尻の樋の折れ点 (%.2f, %.2f) が %s の中" % (p[0], p[1], m["name"]))
+        near = min(min(_segd(p, box[i], box[(i + 1) % 4]) for i in range(4)) for p in path)
+        if m["name"].startswith("Kura") and near < 0.8 - 1e-9:
+            bad.append("水尻の樋が %s へ %.2f間 まで寄る(下限 0.8間)" % (m["name"], near))
+    for p in path:
+        if not _pip(p, Pg):
+            bad.append("水尻の経路 (%.2f, %.2f) が区画の外 — 隣家へ流し込まない" % p)
+    if o["toiGrade"] <= 0.0:
+        bad.append("水尻の樋の勾配が %+.2f%% — 水が流れない" % o["toiGrade"])
+    # ⑨ 禁句(季節・年次)
+    NG = ("ソメイヨシノ", "桜", "サクラ", "孟宗竹", "竹叢", "ポプラ", "maple_bush", "Broadleaf",
+          "Spring_Sakura", "Sakura")
+    for s in g.get("shokusai", []):
+        t = s["species"] + " " + " ".join(s.get("idx", [])) + " " + str(s.get("asset", ""))
+        for w in NG:
+            if w in t:
+                bad.append("植栽に禁句「%s」(%s)— 開花木・竹・幕末以降の外来種は置かない"
+                           % (w, s["species"]))
+    # ⑩ 稲荷が池に重ならない
+    ya = g["yashiro"]["hokora"]
+    for (u, v) in ((ya["u0"], ya["v0"]), (ya["u1"], ya["v0"]),
+                   (ya["u0"], ya["v1"]), (ya["u1"], ya["v1"])):
+        if n.inpond(u, v):
+            bad.append("稲荷の祠の隅 (%.2f, %.2f) が池の中" % (u, v))
+    ir = next((s for s in d["service"] if s["name"] == ya["ref"]), None)
+    if ir is None:
+        bad.append("`yashiro.hokora.ref` = %s が付属屋に無い" % ya["ref"])
+    elif any(abs(ir[k] - ya[k]) > 1e-9 for k in ("u0", "v0", "u1", "v1")):
+        bad.append("稲荷の祠の矩形が `service.%s` と食い違う — 正典は付属屋のほう" % ya["ref"])
+    # ⑪ 地なり — 設計面と江戸期復元地盤の差
+    ter = load_terrain(os.path.join(DOC, "doi_edo_dem.json"))
+    if ter:
+        w = 0.0
+        for u, v in n._cells(0.5):
+            q = terr_at(ter, u, v)
+            if q is not None:
+                w = max(w, abs(q - n.base))
+        if w > d["const"]["niwaGridTol"]:
+            bad.append("`on: 地なり` の庭で設計面と復元地盤の差が最大 %.2fm(上限 %.2fm)"
+                       % (w, d["const"]["niwaGridTol"]))
+    # ⑫ 主景の見切り — 樹冠が塞ぐべき帯を覆っているか
+    for s in o["screen"]:
+        if not s["ok"]:
+            bad.append("%s %s (%.2f, %.2f) の樹冠 %.2f〜%.2fm が、"
+                       "塞ぐべき帯 %.2f〜%.2fm を覆えない — 主景の対岸に御土蔵の白壁が残る"
+                       % (s["sp"], s["sz"], s["u"], s["v"], s["c0"], s["h"], s["lo"], s["hi"]))
+    if ku and not o["screen"]:
+        bad.append("御土蔵の白壁を切る樹冠が一つも定義されていない")
+    # ⑬ 沢飛石は奇数枚・支間が跳べる幅
+    for s in o["sawa"]:
+        if s["n"] % 2 == 0:
+            bad.append("沢飛石 %s が %d 枚(偶数)— 奇数にする" % (s["name"], s["n"]))
+        if s["pitch"] > 0.75:
+            bad.append("沢飛石 %s の芯々 %.2fm — 一歩で跳べない" % (s["name"], s["pitch"]))
+    # ⑭ 見所が庭か棟の中にある
+    for m in g["mikoro"]:
+        inn = (g["u0"] - 1e-9 <= m["u"] <= g["u1"] + 1e-9
+               and g["v0"] - 1e-9 <= m["v"] <= g["v1"] + 1e-9)
+        inm = any(x["u0"] <= m["u"] <= x["u1"] and x["v0"] <= m["v"] <= x["v1"]
+                  for x in d["munes"] if "yaw" not in x)
+        if not (inn or inm):
+            bad.append("見所 %d (%.2f, %.2f) が庭にも棟にも無い" % (m["no"], m["u"], m["v"]))
+    return bad
+
+
+def niwa_todo(d):
+    """⛔ **庭方へ差し戻す点。指図方では直せない。**
+
+    ⚠ 指図方は「決まったことを数値へ書き起こす」役で、**意匠の判断はしない**(規則17)。
+    数値へ落として初めて見えた不整合は、直さずにここへ出して庭方へ返す — ⛔ 数値を
+    黙って動かして辻褄を合わせない。⭕ 出す場所は `main` の隣家の宿題と同じ「別枠」で、
+    **面のはみ出し検査と混ぜない**(混ぜると指図が不成立に見える)。
+    """
+    n = NI(d)
+    if n is None:
+        return []
+    g, K = n.g, n.ken
+    o = niwa_stats(d)
+    out = []
+    # ⚠ cos 減衰の丘は**局所の最急が公称の π/2 倍**になる(形の性質で、設計の誤りではない)。
+    #   ここで拾うのはその素の形からさらに外れた場合だけ — A1 の頂の平場のように、
+    #   **平場が山に対して大きすぎて残りの法が立つ**型。
+    for t in o["tsuki"]:
+        exp = t["batter"] * 2.0 / math.pi
+        if t["batterReal"] < exp - 0.02:
+            tt = next(x for x in g["tsukiyama"] if x["name"] == t["name"])
+            da = tt.get("daira")
+            out.append("**%s の法が実測 1:%.2f** — 素の丘なら 1:%.2f になるはずの所"
+                       "(公称 1:%.2f)。%s ⇒ **平場を小さくするか、山の裾を広げるか、"
+                       "頂を下げるかは意匠の判断**なので指図方では動かさない。"
+                       % (t["label"], t["batterReal"], exp, t["batter"],
+                          ("頂の平場 %.1f×%.1f間 が幅 %.1f間・高さ %.2fm の山に対して大きく、"
+                           "平場の縁から裾までに残る法が 1:%.2f になる。"
+                           % (da["dU"], da["dV"], tt["dU"], tt["rise"], t["batterReal"]))
+                          if da else "頂の形が素の丘と違う。"))
+    for e in g.get("enro", []):
+        stepG = e["keri"] / e["fumi"]
+        for i, (a, b) in enumerate(zip(e["pts"], e["pts"][1:])):
+            l = math.dist(a, b) * K
+            dz = n.ground(*b) - n.ground(*a)
+            if l < 1e-9:
+                continue
+            gr = abs(dz) / l
+            if gr > stepG + 1e-9:
+                out.append("**%s の第%d区間 (%.2f, %.2f)→(%.2f, %.2f) が %.0f%%** — "
+                           "指定の野面の石段(蹴上 %.2f / 踏面 %.2f = %.0f%%)でも登れない"
+                           % (e["label"], i + 1, a[0], a[1], b[0], b[1], gr * 100,
+                              e["keri"], e["fumi"], stepG * 100))
+    for e in g.get("enro", []):
+        for (a, b) in zip(e["pts"], e["pts"][1:]):
+            for m in d["munes"] + d["service"] + d["links"]:
+                if "yaw" in m:
+                    continue
+                hit = 0
+                for i in range(81):
+                    t9 = i / 80.0
+                    pu = a[0] + (b[0] - a[0]) * t9
+                    pv = a[1] + (b[1] - a[1]) * t9
+                    if m["u0"] + 1e-9 < pu < m["u1"] - 1e-9 and m["v0"] + 1e-9 < pv < m["v1"] - 1e-9:
+                        hit += 1
+                if hit > 1:
+                    out.append("**%s が %s の隅を %.0f%% の区間で掠める** — "
+                               "(%.2f, %.2f)→(%.2f, %.2f)。路の点を動かすのは意匠の判断"
+                               % (e["label"], m["name"], 100.0 * hit / 81, a[0], a[1], b[0], b[1]))
+    for k in g.get("kaki", []):
+        if k.get("cert") == "?":
+            out.append("**%s の走りが決まらない** — %s"
+                       % (k["label"], "社地の矩形と開ける一方が設計書に無い"
+                          if k["name"].startswith("Yotsume") else "設計書に寸法が無い"))
+    # 埋樋の土被り(⚠ 地表より上に出ていたら「埋樋」ではない)
+    ter0 = load_terrain(os.path.join(DOC, "doi_edo_dem.json"))
+    for (u, v, y) in o["toi"]:
+        q = terr_at(ter0, u, v)
+        if q is not None and q - y < 0.30:
+            out.append("**水尻の埋樋 (%.2f, %.2f) の土被りが %+.2fm**(下限 0.30m)— "
+                       "復元地盤 %.2f に対し樋の底が %.2f。⭕ 石組の吐き口はここで地表へ出る"
+                       "設計なので**終点は除いてよい**が、途中の点なら樋の線形か閾の高さを"
+                       "見直すのは意匠の判断" % (u, v, q - y, q, y))
+    for m in g.get("mikoro", []):
+        if n.eye(m["no"]) is None:
+            out.append("**見所 %d「%s」の眼高が決まらない** — `eyeMode`=%s の眼高が設計書に無い"
+                       % (m["no"], m["label"], m.get("eyeMode")))
+    return out
+
+
+def akichi_stats(d):
+    """主郭の**無名の空白**を 0.5間格子で測る。⛔ 用途を発明しない — 位置で数えるだけ。"""
+    out = []
+    st = 0.5
+    a1 = st * st * d["const"]["ken"] ** 2 / TSUBO
+    occ = []
+    for m in d["munes"] + d["service"]:
+        occ.append(m)
+    boxes = [(x["u0"], x["v0"], x["u1"], x["v1"]) for x in d["links"] + d["gardens"]]
+    boxes += [(w["u"] - 0.5, w["v"] - 0.5, w["u"] + 0.5, w["v"] + 0.5) for w in d["wells"]]
+    shu = next((t for t in d["terraces"] if t["name"] == "Shu"), None)
+    if shu is None:
+        return out, 0.0, []
+    free = []
+    u = shu["u0"] + st / 2
+    while u < shu["u1"]:
+        v = shu["v0"] + st / 2
+        while v < shu["v1"]:
+            if in_parcel(d, u, v) and not any(in_obb(m, u, v) for m in occ) \
+                    and not any(a <= u <= c and b <= v <= e for a, b, c, e in boxes):
+                free.append((u, v))
+            v += st
+        u += st
+    named = set()
+    for a in d.get("akichi", []):
+        cell = [p for p in free if a["u0"] <= p[0] <= a["u1"] and a["v0"] <= p[1] <= a["v1"]]
+        named |= set(cell)
+        out.append(dict(name=a["name"], label=a["label"], tsubo=len(cell) * a1,
+                        u0=a["u0"], v0=a["v0"], u1=a["u1"], v1=a["v1"], cert=a["cert"]))
+    rest = [p for p in free if p not in named]
+    return out, len(free) * a1, rest
+
+
+def akichi_check(d):
+    """明地の**枠**が重なっていないか。⚠ 枠の外に残る空白は失格ではない — 表と図に出す
+    (⛔ 「枠を足せば消える」形の検査にしない。空白の実測そのものが成果物)。"""
+    bad = []
+    for a in d.get("akichi", []):
+        for b in d.get("akichi", []):
+            if a["name"] >= b["name"]:
+                continue
+            iu = min(a["u1"], b["u1"]) - max(a["u0"], b["u0"])
+            iv = min(a["v1"], b["v1"]) - max(a["v0"], b["v0"])
+            if iu > 1e-9 and iv > 1e-9:
+                bad.append("明地の枠 %s と %s が %.1f×%.1f間 重なる — 坪数を二重に数える"
+                           % (a["name"], b["name"], iu, iv))
+    return bad
+
+
+def terr_at(ter, u, v):
+    """回転間格子の地形を (u,v) で引く(双一次)。"""
+    if not ter:
+        return None
+    fu = (u - ter["u0"]) / ter["step"]
+    fv = (v - ter["v0"]) / ter["step"]
+    iu, iv = int(math.floor(fu)), int(math.floor(fv))
+    if iu < 0 or iv < 0 or iu + 1 >= ter["nu"] or iv + 1 >= ter["nv"]:
+        return None
+    tu, tv = fu - iu, fv - iv
+    q = []
+    for (a, b) in ((iu, iv), (iu + 1, iv), (iu, iv + 1), (iu + 1, iv + 1)):
+        h = ter["h"][b][a]
+        if h is None:
+            return None
+        q.append(h)
+    return (q[0] * (1 - tu) + q[1] * tu) * (1 - tv) + (q[2] * (1 - tu) + q[3] * tu) * tv
+
+
+# ---------------------------------------------------------------- 奥庭の図
+GOGAN_COL = {"石組護岸": "#6E7A83", "石組護岸(低)": "#9AA6AE",
+             "州浜": "#C9A24B", "乱杭": "#7A5C3A", "(沢飛石の取付)": "#A8452C"}
+LAYER_COL = {"高木": "#3F5F3A", "中木": "#6E8C4E", "花木": "#9C6B7A"}
+
+
+def _chaikin(p, k=2):
+    q = list(p)
+    for _ in range(k):
+        r = []
+        n2 = len(q)
+        for i in range(n2):
+            a, b = q[i], q[(i + 1) % n2]
+            r.append((a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25))
+            r.append((a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75))
+        q = r
+    return q
+
+
+def _tsuki_ring(n, t, h):
+    """築山 t の標高差 h の等高線(平場を切った profile の逆関数)。"""
+    if h <= 0 or h >= t["rise"]:
+        return []
+    s = math.acos(2.0 * h / t["rise"] - 1.0) / math.pi
+    ru, rv = t["dU"] / 2.0, t["dV"] / 2.0
+    da = t.get("daira")
+    out = []
+    for i in range(73):
+        th = i / 72.0 * 2 * math.pi
+        cx, cy = math.cos(th), math.sin(th)
+        rd = 0.0
+        if da:
+            a = da["dU"] / 2.0 / ru
+            b = da["dV"] / 2.0 / rv
+            rd = min(1.0 / math.hypot(cx / a, cy / b), 0.95)
+        r = rd + s * (1.0 - rd)
+        out.append((t["u"] + r * cx * ru, t["v"] + r * cy * rv))
+    return out
+
+
+def niwa_plan_svg(d, W=760.0):
+    n = NI(d)
+    g = n.g
+    o = niwa_stats(d)
+    pr = LProj(-14.8, 3.2, 62.6, 83.0, W, top=26.0, bottom=30.0)
+    sv = _sv(pr.W, pr.H, "土井大隅守上屋敷 奥庭の平面")
+    X, Y, L = pr.X, pr.Y, pr.L
+
+    def poly(pts, **kw):
+        return '<polygon points="%s" %s/>' % (
+            " ".join("%.1f,%.1f" % (X(u), Y(v)) for u, v in pts),
+            " ".join('%s="%s"' % (k.replace("sw", "stroke-width").replace("op", "opacity"), v)
+                     for k, v in kw.items()))
+
+    def line(pts, col, w, dash=None, op=None):
+        a = '<polyline points="%s" fill="none" stroke="%s" stroke-width="%.2f"' % (
+            " ".join("%.1f,%.1f" % (X(u), Y(v)) for u, v in pts), col, w)
+        if dash:
+            a += ' stroke-dasharray="%s"' % dash
+        if op is not None:
+            a += ' opacity="%.2f"' % op
+        return a + ' stroke-linejoin="round"/>'
+    # 庭の地
+    sv.append(pr.rect(g["u0"], g["v0"], g["u1"], g["v1"], fill="var(--niwa)",
+                      stroke="var(--ink)", sw=1.4))
+    # まわりの棟
+    for m in d["munes"] + d["service"]:
+        if "yaw" in m or m["u1"] < -14.8 or m["u0"] > 3.2 or m["v1"] < 62.6 or m["v0"] > 83.0:
+            continue
+        sv.append(pr.rect(m["u0"], m["v0"], m["u1"], m["v1"], fill="var(--ink-mid)",
+                          stroke="var(--ink)", sw=1.2))
+        sv.append(T((X(m["u0"]) + X(m["u1"])) / 2, (Y(m["v0"]) + Y(m["v1"])) / 2 + 4,
+                    MUNE_JA.get(m["name"], m.get("label", m["name"])), "rmS", "middle", 11.0))
+    # 築山の等高線
+    for t in g["tsukiyama"]:
+        if t.get("kata") == "土手":
+            sv.append(pr.rect(t["u0"], t["v0"], t["u1"], t["v1"], fill="var(--tsuki)",
+                              stroke="var(--tsuki)", sw=1.0, op=0.5))
+            sv.append(T(X((t["u0"] + t["u1"]) / 2), Y(t["v0"]) + 12,
+                        "%s +%.2f" % (t["label"], t["rise"]), "jo", "middle"))
+            continue
+        h = 0.25
+        first = True
+        while h < t["rise"]:
+            rg = _tsuki_ring(n, t, h)
+            if rg:
+                sv.append(poly(rg, fill="var(--tsuki)" if first else "none",
+                               stroke="#8A9070", sw=0.7, op=0.30 if first else 1.0))
+                first = False
+            h += 0.25
+        sv.append('<circle cx="%.1f" cy="%.1f" r="2.6" fill="#5A6144"/>' % (X(t["u"]), Y(t["v"])))
+        sv.append(T(X(t["u"]), Y(t["v"]) - 6, "%s %.2f" % (t["label"], t["topY"]),
+                    "anS2", "middle"))
+    # 池
+    P = n.pond
+    sv.append(poly(P, fill="var(--ike)", stroke="none"))
+    sv.append(line(_chaikin(P) + [_chaikin(P)[0]], "#5B8296", 1.0, dash="3 3"))
+    # 護岸(区間ごとに色)
+    for i in range(len(P)):
+        who = o["cover"].get(i, [])
+        kata = "?"
+        for x in g.get("gogan", []):
+            if x["name"] in who:
+                kata = x["kata"]
+        if any(x["name"] in who for x in g.get("suhama", [])):
+            kata = "州浜"
+        if any(x["name"] in who for x in g.get("rangui", [])):
+            kata = "乱杭"
+        if "(沢飛石の取付)" in who:
+            kata = "(沢飛石の取付)"
+        sv.append(line([P[i], P[(i + 1) % len(P)]], GOGAN_COL.get(kata, "#C0392B"), 4.0))
+    for i, (u, v) in enumerate(P):
+        sv.append('<circle cx="%.1f" cy="%.1f" r="7" fill="var(--paper)" stroke="#5B8296" stroke-width="1"/>'
+                  % (X(u), Y(v)))
+        sv.append(T(X(u), Y(v) + 3.5, str(i + 1), "jo", "middle", 9.0))
+    # 州浜の帯
+    for s in g.get("suhama", []):
+        i = s["frm"] - 1
+        seg = [P[i]]
+        while i != s["to"] - 1:
+            i = (i + 1) % len(P)
+            seg.append(P[i])
+        sv.append(line(seg, GOGAN_COL["州浜"], L(s["toLand"] / n.ken + s["fromWater"] / n.ken),
+                       op=0.35))
+    # 岩島
+    for w in g.get("iwajima", []):
+        sv.append('<circle cx="%.1f" cy="%.1f" r="%.1f" fill="#6E7A83"/>'
+                  % (X(w["u"]), Y(w["v"]), L(w["hMain"] / n.ken * 0.5)))
+        sv.append(T(X(w["u"]) + 9, Y(w["v"]) + 4, "岩島", "jo"))
+    # 沓脱・飛石・沢飛石
+    for k in g.get("kutsunugi", []):
+        sv.append(pr.rect(k["u"] - k["L"] / 2 / n.ken, k["v"] - k["W"] / 2 / n.ken,
+                          k["u"] + k["L"] / 2 / n.ken, k["v"] + k["W"] / 2 / n.ken,
+                          fill="#8A8F94", stroke="var(--ink)", sw=0.8))
+        sv.append(T(X(k["u"]) - 10, Y(k["v"]) + 4, "沓脱石", "jo", "end"))
+    for t in g.get("tobiishi", []):
+        for j, (u, v) in enumerate(t["pts"]):
+            r = L((t["fumiwakeR"] if j == t["fumiwake"] else 0.45) / n.ken * 0.5)
+            sv.append('<circle cx="%.1f" cy="%.1f" r="%.1f" fill="#9AA0A5" stroke="var(--ink)" stroke-width="0.6"/>'
+                      % (X(u), Y(v), r))
+    for s in o["sawa"]:
+        sw = next(x for x in g["sawatobi"] if x["name"] == s["name"])
+        for j in range(s["n"]):
+            t9 = (j + 0.5) / s["n"]
+            u = sw["a"][0] + (sw["b"][0] - sw["a"][0]) * t9
+            v = sw["a"][1] + (sw["b"][1] - sw["a"][1]) * t9
+            sv.append('<circle cx="%.1f" cy="%.1f" r="%.1f" fill="#9AA0A5" stroke="var(--ink)" stroke-width="0.6"/>'
+                      % (X(u), Y(v), L((sw["rMin"] + sw["rMax"]) / 2 / n.ken * 0.5)))
+        sv.append(T(X((sw["a"][0] + sw["b"][0]) / 2) - 6, Y((sw["a"][1] + sw["b"][1]) / 2) - 8,
+                    "沢飛石 %d石" % s["n"], "jo", "end"))
+    # 三尊石・灯籠
+    for s in g.get("ishigumi", []):
+        sv.append('<circle cx="%.1f" cy="%.1f" r="%.1f" fill="#4E585F"/>'
+                  % (X(s["u"]), Y(s["v"]), max(2.0, L(s["h"] / n.ken * 0.4))))
+    if g.get("ishigumi"):
+        s0 = g["ishigumi"][0]
+        sv.append(T(X(s0["u"]) - 8, Y(s0["v"]) - 8, "三尊石", "jo", "end"))
+    for t in g.get("toro", []):
+        sv.append('<path d="M %.1f %.1f l 5 8 h -10 Z" fill="var(--shu)"/>' % (X(t["u"]), Y(t["v"]) - 8))
+        sv.append(T(X(t["u"]) + 8, Y(t["v"]) + 12, t["label"], "jo"))
+    # 刈込
+    for k in g.get("karikomi", []):
+        sv.append(pr.rect(k["u0"], k["v0"], k["u1"], k["v1"], fill="#7E9A5E",
+                          stroke="#5E7A3E", sw=0.8, op=0.55))
+    # 植栽
+    for s in g.get("shokusai", []):
+        dim = [asset_dim(x) for x in s.get("idx", [])]
+        dim = [x for x in dim if x]
+        wm = (max(q[0] for q in dim) * s.get("scale", 1.0)) if dim else 3.0
+        hm = (max(q[1] for q in dim) * s.get("scale", 1.0)) if dim else 5.0
+        for (u, v) in s["at"]:
+            sv.append('<circle cx="%.1f" cy="%.1f" r="%.1f" fill="none" '
+                      'stroke="%s" stroke-width="1" stroke-dasharray="3 3" opacity="0.65"/>'
+                      % (X(u), Y(v), L(wm / 2 / n.ken), LAYER_COL.get(s["layer"], "#3F5F3A")))
+            sv.append('<circle cx="%.1f" cy="%.1f" r="3" fill="%s"/>'
+                      % (X(u), Y(v), LAYER_COL.get(s["layer"], "#3F5F3A")))
+            sv.append(T(X(u), Y(v) - 5, "%s%s" % (s["species"][:4], s["size"][0]),
+                        "jo", "middle", 8.0))
+    # 垣
+    for k in g.get("kaki", []):
+        if "v" in k:
+            sv.append(line([(k["u0"], k["v"]), (k["u1"], k["v"])], "#6B4E2E", 3.0))
+            sv.append(T(X((k["u0"] + k["u1"]) / 2), Y(k["v"]) + 13, k["label"], "jo", "middle"))
+        elif k.get("southU") is not None:
+            sv.append(line([(k["southU"], g["v0"] + 0.3), (k["southU"], 67.6)],
+                           "#B03A2E", 2.0, dash="4 4"))
+            sv.append(T(X(k["southU"]) - 6, Y(67.4) + 12,
+                        "四つ目垣: 社地の外周が未定【?】", "jo", "end"))
+    # 稲荷
+    ya = g["yashiro"]
+    sv.append(line(ya["sando"]["pts"], "#C9A24B", L(ya["sando"]["w"] / n.ken), op=0.7))
+    tr = ya["torii"]
+    sv.append(LN(X(tr["u"]), Y(tr["v"]) - 9, X(tr["u"]), Y(tr["v"]) + 9, "var(--shu)", 2.6))
+    sv.append(T(X(tr["u"]) + 8, Y(tr["v"]) - 10, "鳥居(素木)", "jo"))
+    ch = ya["chozu"]
+    sv.append(pr.rect(ch["u"] - ch["L"] / 2 / n.ken, ch["v"] - ch["W"] / 2 / n.ken,
+                      ch["u"] + ch["L"] / 2 / n.ken, ch["v"] + ch["W"] / 2 / n.ken,
+                      fill="#6E7A83", stroke="var(--ink)", sw=0.6))
+    sv.append(T(X(ch["u"]) + 7, Y(ch["v"]) + 4, "手水石", "jo"))
+    # 園路
+    for e in g.get("enro", []):
+        sv.append(line(e["pts"], "var(--michi)", L(e["w"] / n.ken), op=0.55))
+        for (a, b) in zip(e["pts"], e["pts"][1:]):
+            l = math.dist(a, b) * n.ken
+            if l < 1e-9:
+                continue
+            gr = abs(n.ground(*b) - n.ground(*a)) / l
+            if gr * 100 > 15.0:
+                sv.append(line([a, b], "var(--shu)", 2.0, dash="2 3"))
+    # 水尻
+    tp = [(u, v) for u, v, _ in o["toi"]] + [tuple(g["mizu"]["mizushiri"]["otoshimizo"]["to"])]
+    sv.append(line(tp, "#3E6A8A", 2.0, dash="6 3"))
+    sv.append('<circle cx="%.1f" cy="%.1f" r="4" fill="none" stroke="#3E6A8A" stroke-width="1.6"/>'
+              % (X(tp[-1][0]), Y(tp[-1][1])))
+    sv.append(T(X(tp[-1][0]), Y(tp[-1][1]) + 15, "受け石(浸透枡)", "jo", "middle"))
+    sv.append(T(X(tp[0][0]) - 9, Y(tp[0][1]) + 4, "水尻の閾", "jo", "end"))
+    # 井戸
+    for w in d["wells"]:
+        if not (g["u0"] - 1 <= w["u"] <= g["u1"] + 1 and g["v0"] - 1 <= w["v"] <= g["v1"] + 1):
+            continue
+        sv.append('<circle cx="%.1f" cy="%.1f" r="5" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.6"/>'
+                  % (X(w["u"]), Y(w["v"])))
+        sv.append(T(X(w["u"]) + 8, Y(w["v"]) + 4, "井戸", "jo"))
+    # 見所
+    for m in g["mikoro"]:
+        col = "var(--shu)" if m.get("main") else "#7A6A50"
+        sv.append('<circle cx="%.1f" cy="%.1f" r="9" fill="%s"/>' % (X(m["u"]), Y(m["v"]), col))
+        sv.append(T(X(m["u"]), Y(m["v"]) + 4, str(m["no"]), "jo", "middle", 11.0,
+                    fill="var(--paper)"))
+        if m.get("dir") == "-u":
+            sv.append(LN(X(m["u"]) + 10, Y(m["v"]), X(m["u"]) + 42, Y(m["v"]), col, 1.6, dash="5 3"))
+        elif m.get("dir") == "+v":
+            sv.append(LN(X(m["u"]), Y(m["v"]) + 10, X(m["u"]), Y(m["v"]) + 34, col, 1.6, dash="5 3"))
+    sv.append(T(4, 15, "グリッド座標(u=北+ / v=奥(西)+)。**上=東 / 左=北 / 下=西 / 右=南**。"
+                "汀線の番号は設計値の順", "anS"))
+    sv.append(T(4, 27, "細い破線の輪郭=Chaikin×2(施工形状) ／ 破線の円=樹冠の実寸", "anS2"))
+    sv.append(T(4, pr.H - 6, "朱の丸=主視点 / 茶の丸=その他の見所 / 朱の破線=野面の石段を切る区間 / "
+                "青の破線=水尻の埋樋", "anS2", "start"))
+    sv.append("</svg>")
+    return "\n".join(sv)
+
+
+def niwa_section_svg(d, sec, W=880.0):
+    n = NI(d)
+    g = n.g
+    o = niwa_stats(d)
+    m0 = next(x for x in g["mikoro"] if x["no"] == sec["frm"])
+    e0 = n.eye(m0["no"])
+    a = (m0["u"], m0["v"])
+    b = tuple(sec["to"])
+    Lm = math.dist(a, b) * n.ken
+    ve = sec["vExag"]
+    top, bot, pad = 30.0, 34.0, 54.0
+    # ⚠ 縦の窓は**中身から決める**。固定にすると蔵の無い断面が空欄だらけになる
+    #   (2026-09-04 の1巡目で「斜めの断面」が9割白紙だった)。
+    _q = [e0, n.bed(*a) if n.inpond(*a) else n.ground(*a)]
+    for _i in range(41):
+        _t = _i / 40.0
+        _u = a[0] + (b[0] - a[0]) * _t
+        _v = a[1] + (b[1] - a[1]) * _t
+        _q.append(n.ground(_u, _v))
+    _ku0 = n.kura()
+    if _ku0 and sec.get("kura"):
+        _q += [_ku0["ridge"], _ku0["o"]["y"]]
+    for _s0 in niwa_stats(d)["screen"]:
+        if sec.get("kura"):
+            _q.append(_s0["gy"] + _s0["h"])
+    y0 = math.floor(min(_q)) - 0.5
+    y1 = math.ceil(max(_q)) + 0.5
+    s = (W - pad * 2) / Lm
+    H = (y1 - y0) * ve * s + top + bot
+
+    def PX(t):
+        return pad + t * Lm * s
+
+    def PY(y):
+        return top + (y1 - y) * ve * s
+    sv = _sv(W, H, "土井大隅守上屋敷 %s" % sec["label"])
+    yy = math.ceil(y0 * 2) / 2
+    while yy <= y1 + 1e-9:
+        sv.append(LN(pad, PY(yy), W - pad, PY(yy), "var(--rule)", 0.6))
+        sv.append(T(pad - 5, PY(yy) + 3, "%.1f" % yy, "jo", "end"))
+        yy += 0.5
+    N = 320
+    gr = []
+    for i in range(N + 1):
+        t = i / float(N)
+        u = a[0] + (b[0] - a[0]) * t
+        v = a[1] + (b[1] - a[1]) * t
+        gr.append((PX(t), PY(n.ground(u, v))))
+    sv.append('<polygon points="%s" fill="var(--pl-main)"/>'
+              % (" ".join("%.1f,%.1f" % p for p in gr)
+                 + " %.1f,%.1f %.1f,%.1f" % (PX(1), PY(y0), PX(0), PY(y0))))
+    sv.append('<polyline points="%s" fill="none" stroke="var(--ink)" stroke-width="1.6"/>'
+              % " ".join("%.1f,%.1f" % p for p in gr))
+    # 池は**水面から池床まで**を塗る(水面の帯だけだと水深が読めない)
+    seg = []
+    for i in range(N + 1):
+        t = i / float(N)
+        u = a[0] + (b[0] - a[0]) * t
+        v = a[1] + (b[1] - a[1]) * t
+        if n.inpond(u, v):
+            seg.append((t, n.bed(u, v)))
+        elif seg:
+            sv.append('<polygon points="%s" fill="var(--ike)" stroke="#5B8296" stroke-width="1"/>'
+                      % (" ".join("%.1f,%.1f" % (PX(q), PY(n.waterY)) for q, _ in seg)
+                         + " " + " ".join("%.1f,%.1f" % (PX(q), PY(bb)) for q, bb in reversed(seg))))
+            seg = []
+    # 御土蔵
+    ku = o.get("kura")
+    if ku and sec.get("kura"):
+        tk = (a[0] - ku["face"]) / (a[0] - b[0]) if abs(a[0] - b[0]) > 1e-9 else 1.0
+        x0 = PX(min(tk, 1.0))
+        x1 = W - pad
+        sv.append(R(x0, PY(ku["ridge"]), max(2.0, x1 - x0), PY(ku["o"]["y"]) - PY(ku["ridge"]),
+                    fill="var(--paper2)", stroke="var(--ink)", sw=1.4))
+        sv.append(LN(x0, PY(ku["eave"]), x1, PY(ku["eave"]), "var(--ink)", 1.0, dash="4 3"))
+        sv.append(T(min((x0 + x1) / 2, W - pad - 4), PY(ku["ridge"]) - 6,
+                    "御土蔵(文書)棟 %.2f / 軒下端 %.2f【部材の実測】" % (ku["ridge"], ku["eave"]),
+                    "anS2", "end"))
+        # 見切り線
+        for lv, col, nm, fr in ((ku["eave"], "var(--shu)", "眼 → 蔵の軒下端 への視線", 0.62),
+                                (ku["ridge"], "#C77F5A", "眼 → 蔵の棟 への視線", 0.42)):
+            sv.append(LN(PX(0), PY(e0), x0, PY(lv), col, 1.4, dash="6 3"))
+            sv.append(T(PX(0) + (x0 - PX(0)) * fr, PY(e0) + (PY(lv) - PY(e0)) * fr - 5,
+                        nm, "jo", "middle", 9.5, fill=col))
+        # 塞ぐべき帯。⚠ **切り面から遠い木を断面に描かない** — 3本とも u がほぼ同じで、
+        #   そのまま描くと重なって読めない(v が 4〜7間 離れていて切り面の上に無い)。
+        #   遠い木の検算は下の表が受け持つ。
+        far = 0
+        for sc in o["screen"]:
+            t = (a[0] - sc["u"]) / (a[0] - b[0]) if abs(a[0] - b[0]) > 1e-9 else 0.0
+            if not (0 < t < 1):
+                continue
+            vv = a[1] + (b[1] - a[1]) * t
+            if abs(sc["v"] - vv) > 2.0:
+                far += 1
+                continue
+            sv.append(R(PX(t) - 5, PY(sc["gy"] + sc["hi"]), 10,
+                        PY(sc["gy"] + sc["lo"]) - PY(sc["gy"] + sc["hi"]),
+                        fill="var(--shu)", op=0.30))
+            sv.append(R(PX(t) - 14, PY(sc["gy"] + sc["h"]), 28,
+                        PY(sc["gy"] + sc["c0"]) - PY(sc["gy"] + sc["h"]),
+                        fill="#3F5F3A", op=0.22, stroke="#3F5F3A", sw=1.0))
+            sv.append(T(PX(t), PY(sc["gy"] + sc["h"]) - 5,
+                        "常緑広葉Big 樹冠 %.1f〜%.1fm" % (sc["c0"], sc["h"]), "jo", "middle"))
+            sv.append(T(PX(t), PY(sc["gy"] + sc["lo"]) + 12,
+                        "塞ぐ帯 %.2f〜%.2fm %s" % (sc["lo"], sc["hi"], "⭕" if sc["ok"] else "⚠"),
+                        "jo", "middle"))
+        if far:
+            sv.append(T(W - pad, top + 12,
+                        "⚠ 切り面から 2間 より遠い常緑広葉Big %d本 は描いていない(検算は表)"
+                        % far, "jo", "end"))
+    # 見切り線(眼から地表に接する視線)と、その陰に落ちる水面
+    ang, tg = -9e9, 0.0
+    hid = []
+    for i in range(1, N + 1):
+        t = i / float(N)
+        u = a[0] + (b[0] - a[0]) * t
+        v = a[1] + (b[1] - a[1]) * t
+        gy = n.ground(u, v)
+        q = (gy - e0) / (t * Lm)
+        if q > ang:
+            ang, tg = q, t
+        if n.inpond(u, v) and n.waterY < e0 + ang * t * Lm - 0.02:
+            hid.append(t)
+    if hid:
+        sv.append(LN(PX(0), PY(e0), PX(1), PY(e0 + ang * Lm), "#B03A2E", 1.2, dash="7 3"))
+        sv.append(T(PX(min(tg + 0.06, 0.95)), PY(e0 + ang * (min(tg + 0.06, 0.95)) * Lm) - 6,
+                    "見切り線(眼から地表に接する視線)", "jo", "middle", 9.5, fill="#B03A2E"))
+        sv.append(R(PX(min(hid)), PY(n.waterY) - 4, max(2.0, PX(max(hid)) - PX(min(hid))), 8,
+                    fill="#B03A2E", op=0.40))
+        sv.append(T((PX(min(hid)) + PX(max(hid))) / 2, PY(n.waterY) + 18,
+                    "見所から**見えない水面**(見隠れ)", "jo", "middle", 9.5, fill="#B03A2E"))
+    # 眼
+    sv.append('<circle cx="%.1f" cy="%.1f" r="4" fill="var(--shu)"/>' % (PX(0), PY(e0)))
+    sv.append(T(PX(0) + 7, PY(e0) - 6, "見所 %d %s 眼高 %.2f" % (m0["no"], m0["label"], e0), "anS2"))
+    sv.append(LN(pad, PY(n.waterY), W - pad, PY(n.waterY), "#5B8296", 0.8, dash="3 4"))
+    sv.append(T(W - pad + 3, PY(n.waterY) + 3, "水面 %.2f" % n.waterY, "jo"))
+    sv.append(T(4, 15, "%s ／ 水平 %.1fm ／ 垂直 %.1f倍" % (sec["label"], Lm, ve), "anS"))
+    sv.append(T(4, H - 6, sec.get("_", ""), "anS2", "start"))
+    sv.append("</svg>")
+    return "\n".join(sv)
+
+
+def niwa_mizushiri_svg(d, W=820.0):
+    n = NI(d)
+    g = n.g
+    o = niwa_stats(d)
+    ter = load_terrain(os.path.join(DOC, "doi_edo_dem.json"))
+    ms = g["mizu"]["mizushiri"]
+    pts = [(u, v, y) for u, v, y in o["toi"]]
+    to = ms["otoshimizo"]["to"]
+    pts.append((to[0], to[1], None))
+    acc, cum = [0.0], 0.0
+    for i in range(len(pts) - 1):
+        cum += math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]) * n.ken
+        acc.append(cum)
+    top, bot, pad = 28.0, 52.0, 62.0
+    _gy = [terr_at(ter, u, v) for u, v, _ in pts[:-1]] + [terr_at(ter, to[0], to[1])]
+    _gy = [q for q in _gy if q is not None] + [y for _, _, y in pts if y is not None]
+    y0 = math.floor(min(_gy) * 5) / 5 - 0.2
+    y1 = math.ceil(max(_gy) * 5) / 5 + 0.2
+    ve = 18.0
+    s = (W - pad * 2) / cum
+    H = (y1 - y0) * ve * s + top + bot
+
+    def PX(m):
+        return pad + m * s
+
+    def PY(y):
+        return top + (y1 - y) * ve * s
+    sv = _sv(W, H, "土井大隅守上屋敷 水尻の縦断")
+    yy = y0
+    while yy <= y1 + 1e-9:
+        sv.append(LN(pad, PY(yy), W - pad, PY(yy), "var(--rule)", 0.6))
+        sv.append(T(pad - 5, PY(yy) + 3, "%.1f" % yy, "jo", "end"))
+        yy += 0.2
+    # 復元地盤
+    gp = []
+    for i in range(len(pts) - 1):
+        for k in range(21):
+            t = k / 20.0
+            u = pts[i][0] + (pts[i + 1][0] - pts[i][0]) * t
+            v = pts[i][1] + (pts[i + 1][1] - pts[i][1]) * t
+            q = terr_at(ter, u, v)
+            if q is not None:
+                gp.append((PX(acc[i] + (acc[i + 1] - acc[i]) * t), PY(q)))
+    if gp:
+        sv.append('<polyline points="%s" fill="none" stroke="var(--ink)" stroke-width="1.6"/>'
+                  % " ".join("%.1f,%.1f" % p for p in gp))
+    sv.append('<polyline points="%s" fill="none" stroke="#3E6A8A" stroke-width="2.2"/>'
+              % " ".join("%.1f,%.1f" % (PX(acc[i]), PY(pts[i][2]))
+                         for i in range(len(pts) - 1)))
+    for i in range(len(pts) - 1):
+        sv.append('<circle cx="%.1f" cy="%.1f" r="3" fill="#3E6A8A"/>'
+                  % (PX(acc[i]), PY(pts[i][2])))
+        sv.append(T(PX(acc[i]), PY(pts[i][2]) - 7, "%.2f" % pts[i][2], "jo", "middle"))
+        sv.append(T(PX(acc[i]), H - 34 + (14 if i % 2 else 0),
+                    "(%.1f, %.1f)" % (pts[i][0], pts[i][1]), "jo", "middle", 8.5))
+    sv.append(T(PX(acc[0]) + 4, PY(pts[0][2]) - 20, "石の閾(余水吐)", "anS2"))
+    sv.append(T(PX(acc[-2]) - 4, PY(pts[-2][2]) - 20, "石組の吐き口", "anS2", "end"))
+    sv.append(T(PX(acc[-1]), H - 14, "受け石(玉石の浸透枡)", "jo", "middle"))
+    sv.append(T(4, 15, "水尻の縦断 ／ 延長 %.1fm ／ 樋の勾配 %.2f%% ／ 垂直 %.0f倍 ／ "
+                "細い実線=江戸期の復元地盤(確度P)" % (o["toiLen"], o["toiGrade"], ve), "anS"))
+    sv.append("</svg>")
+    return "\n".join(sv)
+
+
+def akichi_svg(d, W=760.0):
+    rows, tot, rest = akichi_stats(d)
+    shu = next(t for t in d["terraces"] if t["name"] == "Shu")
+    pr = LProj(shu["u0"] - 1, shu["u1"] + 1, shu["v0"] - 1, shu["v1"] + 1, W, top=24.0, bottom=22.0)
+    sv = _sv(pr.W, pr.H, "土井大隅守上屋敷 主面の明地")
+    sv.append(pr.rect(shu["u0"], shu["v0"], shu["u1"], shu["v1"], fill="var(--pl-main)",
+                      stroke="var(--ink)", sw=1.2))
+    # ⚠ **描く順**: 地 → 物 → 空白 → 枠 → 名。空白を先に塗ると棟と庭に覆われて消える
+    #   (2026-09-04 の1巡目で実際に消えていた)。
+    for m in d["munes"] + d["service"]:
+        if "yaw" in m:
+            sv.append('<polygon points="%s" fill="var(--ink-mid)" stroke="var(--ink)" stroke-width="1"/>'
+                      % " ".join("%.1f,%.1f" % (pr.X(x), pr.Y(y)) for x, y in obb_pts(m)))
+            continue
+        sv.append(pr.rect(m["u0"], m["v0"], m["u1"], m["v1"], fill="var(--ink-mid)",
+                          stroke="var(--ink)", sw=1.0))
+    for l in d["links"]:
+        sv.append(pr.rect(l["u0"], l["v0"], l["u1"], l["v1"], fill="var(--roka)"))
+    for g in d["gardens"]:
+        sv.append(pr.rect(g["u0"], g["v0"], g["u1"], g["v1"], fill="var(--niwa)",
+                          stroke="var(--ink)", sw=0.8, op=0.9))
+    st = 0.5
+    for (u, v) in rest:
+        sv.append(R(pr.X(u + st / 2), pr.Y(v - st / 2), pr.L(st), pr.L(st),
+                    fill="#C0392B", op=0.32))
+    for a in d.get("akichi", []):
+        sv.append(pr.rect(a["u0"], a["v0"], a["u1"], a["v1"], fill="none",
+                          stroke="var(--shu)", sw=1.8, dash="7 4"))
+    for a in rows:
+        cx = min(max((pr.X(a["u0"]) + pr.X(a["u1"])) / 2, 96.0), pr.W - 96.0)
+        sv.append(T(cx, (pr.Y(a["v0"]) + pr.Y(a["v1"])) / 2,
+                    "%s %.1f坪【%s】" % (a["label"], a["tsubo"], a["cert"]), "rmS", "middle", 11.0))
+    if rest:
+        sv.append(T(pr.W / 2, pr.H - 4,
+                    "赤=どの枠にも入っていない空白 %.1f坪(枠を足せば消えるが、"
+                    "空白の実測そのものが成果物)" % (len(rest) * 0.25 * d["const"]["ken"] ** 2 / TSUBO),
+                    "anS2", "middle"))
+    sv.append(T(4, 15, "主面 Shu の**無名の空白**を 0.5間格子で測ったもの。朱の破線=明地の枠 / "
+                "赤の塗り=どの枠にも入っていない空白 / 灰=棟・付属屋 / 緑=庭", "anS"))
+    sv.append(T(4, pr.H - 6, "⛔ 用途を発明しない。位置で名を立て、考証方の検分を待つ【確度?】", "anS2"))
+    sv.append("</svg>")
+    return "\n".join(sv)
+
+
+def _tw(head, rows):
+    return ("<div class='tw'><table><thead><tr>"
+            + "".join("<th>%s</th>" % h for h in head) + "</tr></thead><tbody>"
+            + "".join("<tr>" + "".join("<td>%s</td>" % c for c in r) + "</tr>" for r in rows)
+            + "</tbody></table></div>")
+
+
+def niwa_pond_table(d):
+    o = niwa_stats(d)
+    n = NI(d)
+    rows = [
+        ("水面", "%.1f m²(%.1f坪)" % (o["areaM2"], o["tsubo"]), "庭 %.1f坪 の <b>%.1f%%</b>"
+         % (o["gardenTsubo"], o["waterPct"])),
+        ("周長 / 頂点", "%.1f m / %d点" % (o["per"], len(n.pond)),
+         "辺長 %.2f〜%.2f m" % (o["segMin"], o["segMax"])),
+        ("円形度 4πA/P²", "<b>%.3f</b>" % o["circ"], "1.00=真円。⭕ 丸くない"),
+        ("辺長の変動係数 CV", "<b>%.3f</b>" % o["cv"], "0=等間隔。⭕ 等間隔でない"),
+        ("くびれ(水口)", "#%d ↔ #%d %.2f m" % (o["kubire"][0], o["kubire"][1], o["kubireM"]),
+         "沢飛石が渡る"),
+        ("汀 → 庭の境", "%.2f 間(%s)" % (o["clrBound"], o["clrBoundBy"]),
+         "下限 %.2f 間" % n.mg["clearance"]["gardenBound"]),
+        ("汀 → 最寄りの棟", "%.2f 間(%s)" % (o["clrMune"], o["clrMuneBy"]),
+         "下限 %.2f 間(稲荷の小祠は庭の点景なので除く)" % n.mg["clearance"]["mune"]),
+        ("主視点から見える水面", "<b>%.0f%%</b>" % o["visPct"],
+         "隠れる %.0f%% の内訳: <b>築山の見隠れ %.0f%%</b> / 手前の岸 %.0f%%(座視では必ず起きる)"
+         % (100.0 - o["visPct"], o["hidMoundPct"], o["hidBankPct"])),
+    ]
+    return _tw(("指標", "値", "判定"), rows)
+
+
+def niwa_vol_table(d):
+    o = niwa_stats(d)
+    n = NI(d)
+    rows = [("掘削(池)", "%.0f m³" % o["cut"], "水面 %.0f m²・平均掘り %.2f m"
+             % (o["pondM2"], o["cut"] / o["pondM2"]))]
+    for t in n.g["tsukiyama"]:
+        rows.append(("盛土 %s" % t["label"], "", "頂 %s / 盛 +%.2f m"
+                     % (("%.2f" % t["topY"]) if "topY" in t else "—", t["rise"])))
+    rows.append(("盛土(合計)", "%.0f m³" % o["fill"], "築山4基+東の土手"))
+    rows.append(("差引", "<b>%+.0f m³</b>" % o["diff"], "正=土が余る"))
+    rows.append(("庭の陸地に均すと", "<b>%+.3f m</b>" % o["level"],
+                 "陸地 %.0f m²。許容 ±0.5m ⭕ 敷地外へ土を出さない・入れない" % o["landM2"]))
+    w = o["water"]
+    rows.append(("水の収支(年)", "%+.0f m³/年" % w["bal"],
+                 "集水 %.0f(屋根+池面×降水 %.0fmm)− 蒸発 %.0f(%.0fmm)"
+                 % (w["inflow"], n.g["mizu"]["gensen"]["rainMmY"], w["out"],
+                    n.g["mizu"]["gensen"]["johatsu"]["mmY"])))
+    return _tw(("項目", "量", "内訳"), rows)
+
+
+def niwa_gogan_table(d):
+    o = niwa_stats(d)
+    n = NI(d)
+    g = n.g
+    rows = []
+    for s in g.get("suhama", []):
+        rows.append(("州浜", s["label"], "#%d–#%d" % (s["frm"], s["to"]), "—",
+                     "砂利 水面下 %.1fm〜内陸 %.1fm・平石 %d個・そこの草は消す"
+                     % (s["fromWater"], s["toLand"], s["stones"])))
+    for x in o["gogan"]:
+        q = next(y for y in g["gogan"] if y["name"] == x["name"])
+        rows.append((q["kata"], q["label"], "#%d–#%d" % (q["frm"], q["to"]),
+                     "%.1f m" % x["L"],
+                     "伊豆石 %d 個(うち役石 %d)・1/3埋め・天端 水面+%.2f〜+%.2f"
+                     % (x["n"], x["yaku"], q["capMin"], q["capMax"])))
+    for x in o["rangui"]:
+        q = next(y for y in g["rangui"] if y["name"] == x["name"])
+        rows.append(("乱杭", q["label"], "#%d–#%d" % (q["frm"], q["to"]), "%.1f m" % x["L"],
+                     "杭 %d 本(芯々 %.3fm)・径 %.3f〜%.3f・傾±%.0f°・天端 %.2f"
+                     % (x["n"], q["pitch"], q["rMin"], q["rMax"], q["tilt"], q["topY"])))
+    tk = g.get("sawatobiTake")
+    if tk:
+        rows.append(("(素の汀)", "沢飛石の南詰の取付", "#%d–#%d" % (tk["frm"], tk["to"]), "—",
+                     "⚠ ここだけ護岸を置かない(庭方の指定)"))
+    return _tw(("形式", "区間の名", "汀線", "延長", "仕様"), rows)
+
+
+def niwa_plant_table(d):
+    n = NI(d)
+    rows = []
+    for s in n.g.get("shokusai", []):
+        dim = [(x, asset_dim(x)) for x in s.get("idx", [])]
+        got = [q for q in dim if q[1]]
+        miss = [q[0] for q in dim if not q[1]]
+        sc = s.get("scale", 1.0)
+        h = ("%.1f〜%.1f m" % (min(q[1][1] for q in got) * sc, max(q[1][1] for q in got) * sc)
+             if got else "⚠ 目録に無い")
+        w = ("%.1f〜%.1f m" % (min(q[1][0] for q in got) * sc, max(q[1][0] for q in got) * sc)
+             if got else "—")
+        rows.append((s["layer"], s["species"], s["size"], str(s["n"]), h, w,
+                     ("×%.2f " % sc if abs(sc - 1.0) > 1e-9 else "")
+                     + html.escape(str(s.get("asset", "")))
+                     + (" ⚠ 目録に無い: " + "・".join(miss) if miss else ""),
+                     "、".join("(%.2f, %.2f)" % (u, v) for u, v in s["at"])))
+    return _tw(("層", "樹種", "寸", "本数", "樹高(部材の実測)", "樹冠幅", "部材", "位置(u,v)"), rows)
+
+
+def niwa_mikoro_table(d):
+    n = NI(d)
+    o = niwa_stats(d)
+    rows = []
+    for m in n.g["mikoro"]:
+        e = n.eye(m["no"])
+        rows.append(("%d" % m["no"],
+                     m["label"] + ("　<b>主景</b>" if m.get("main") else ""),
+                     "(%.2f, %.2f)" % (m["u"], m["v"]),
+                     ("%.2f" % e) if e is not None else "<b>?</b>(設計書に無い)",
+                     m.get("eyeMode", ""), "／".join(m.get("sees", []))))
+    return _tw(("見所", "名", "位置(u,v)", "眼高", "座り方", "見るもの"), rows)
+
+
+def niwa_tsuki_table(d):
+    o = niwa_stats(d)
+    bf = d["const"]["batterFill"]
+    rows = []
+    for t in o["tsuki"]:
+        rows.append((t["label"], "%.2f(+%.2f)" % (t["top"], t["rise"]),
+                     "1:%.2f" % t["batter"], "1:%.2f" % t["batterReal"],
+                     "%.1f m" % t["d"], "%+.2f°" % t["ang"],
+                     "⭕" if t["batter"] >= bf else "⚠"))
+    return _tw(("築山", "頂(盛)", "法(公称)", "法(実測の最急)", "主視点から", "仰角", "上限 1:%.1f" % bf), rows)
+
+
+def niwa_screen_table(d):
+    """主景の見切り — 樹冠が塞ぐべき帯を覆えているか。⭐ **①-a の合否はこの表と断面で決まる。**"""
+    o = niwa_stats(d)
+    ku = o.get("kura")
+    if not ku:
+        return ""
+    rows = []
+    for s in o["screen"]:
+        rows.append(("%s %s" % (s["sp"], s["sz"]), "(%.2f, %.2f)" % (s["u"], s["v"]),
+                     "%.2f" % s["gy"],
+                     "<b>%.2f 〜 %.2f m</b>" % (s["lo"], s["hi"]),
+                     "%.2f 〜 %.2f m" % (s["c0"], s["h"]),
+                     "<b>⭕</b>" if s["ok"] else "<b>⚠ 抜ける</b>"))
+    return _tw(("木", "位置(u,v)", "地表", "塞ぐべき帯(地上)", "樹冠(地上)", "判定"), rows)
+
+
+def niwa_toi_table(d):
+    """埋樋の土被り。⚠ 樋が地表より上に出ていたら埋樋ではない。"""
+    n = NI(d)
+    o = niwa_stats(d)
+    ter = load_terrain(os.path.join(DOC, "doi_edo_dem.json"))
+    rows = []
+    for (u, v, y) in o["toi"]:
+        q = terr_at(ter, u, v)
+        rows.append(("(%.2f, %.2f)" % (u, v), "%.2f" % y,
+                     ("%.2f" % q) if q is not None else "—",
+                     ("<b>%+.2f m</b>%s" % (q - y, "" if q - y >= 0.30 else " ⚠"))
+                     if q is not None else "—"))
+    return _tw(("折れ点(u,v)", "樋の底", "復元地盤(P)", "土被り(下限 0.30m)"), rows)
+
+
+def akichi_table(d):
+    rows, tot, rest = akichi_stats(d)
+    a1 = 0.25 * d["const"]["ken"] ** 2 / TSUBO
+    out = []
+    for a in rows:
+        out.append((a["label"], "u[%.1f, %.1f] v[%.1f, %.1f]" % (a["u0"], a["u1"], a["v0"], a["v1"]),
+                    "%.1f 坪" % a["tsubo"], a["cert"]))
+    out.append(("<b>枠の外に残る空白</b>", "u[%.1f, %.1f] v[%.1f, %.1f]"
+                % (min(p[0] for p in rest), max(p[0] for p in rest),
+                   min(p[1] for p in rest), max(p[1] for p in rest)) if rest else "—",
+                "<b>%.1f 坪</b>" % (len(rest) * a1), "?"))
+    out.append(("<b>主面の無名の空白(合計)</b>", "—", "<b>%.1f 坪</b>" % tot, "P(実測)"))
+    return _tw(("明地の枠", "範囲", "坪数(0.5間格子の実測)", "確度"), out)
+
+
 # ---------------------------------------------------------------- 組み立て
 _PLATES = {}
 
@@ -5389,7 +6733,15 @@ def main():
             + wall_end_check(d, load_terrain(os.path.join(DOC, "doi_edo_world.json")))
             + wall_profile_check(d)
             + recon_reach_check(d)
+            + niwa_check(d) + akichi_check(d)
             + wall_needed_check(d, load_terrain(os.path.join(DOC, "doi_dem.json"))))
+    # ⛔ **庭方へ差し戻す点は別枠。** 指図方は意匠を動かせないので、面のはみ出し検査と混ぜない
+    #   (混ぜると「指図が不成立」に見える)。隣家の宿題と同じ扱い。
+    tbad = niwa_todo(d)
+    if tbad:
+        print("── 庭方へ差し戻す点(指図方では直せない)%d 件:" % len(tbad))
+        for b in tbad:
+            print("   ", b)
     nbad = (neighbour_wall_check(d, load_terrain(os.path.join(DOC, "doi_edo_dem.json")),
                                  load_terrain(os.path.join(DOC, "doi_dem.json")))
             + shared_edge_check(d, load_terrain(os.path.join(DOC, "base_dem.json"))))
@@ -5440,11 +6792,13 @@ def main():
     _J = "〇一二三四五六七八九"
 
     def _kan(n):
+        # ⚠ **20 以上を潰さない。** 旧版は n≥20 をすべて「其十」に丸めており、
+        #   庭の章を足して 20 章を越えた 2026-09-04 に「其十」が3つ並んだ。
+        #   章の参照は `KANOF` が題から引くので番号の重複は**参照先を壊す**。
         if n < 10:
             return "其" + _J[n]
-        if n == 10:
-            return "其十"
-        return "其十" + (_J[n - 10] if n < 20 else "")
+        t, u = divmod(n, 10)
+        return "其" + ("" if t == 1 else _J[t]) + "十" + ("" if u == 0 else _J[u])
     KAN = [_kan(i) for i in range(1, 41)]
     _kn = [0]
 
@@ -5640,6 +6994,134 @@ def main():
             "岡部との共有境界は<b>両指図の区画多角形が 0.00m で一致</b>しており、"
             "囲いは岡部が全区間に持つ(当家は建てない)。")
     h.append("</div>")
+
+    # ---------------------------------------------------------------- 奥庭
+    # ⚠ **設計値を入れたら同じ巡でそれを描く図を出す**(規則19)。庭の欄だけ足して
+    #   図を出さないと、汀線も築山も園路も**誰の目にも触れないまま**正典に座る。
+    if NI(d):
+        _ng = NI(d).g
+        _no = niwa_stats(d)
+        plate(h, nx(), "奥庭(座敷前の池庭)",
+              "庭方(edo-niwashi)が 2026-09-04 に設計 ／ 指図方が数値へ書き起こし ／ "
+              "作庭の体=行 ／ 存在=B・形と寸法=U ／ ⛔ 回遊の大庭園にしない")
+        fig(h, niwa_plan_svg(d),
+            legend="".join('<span style="color:%s">━ %s</span>' % (c, k)
+                           for k, c in GOGAN_COL.items())
+                   + '<span style="color:var(--michi)">━ 園路(幅%.1fm)</span>'
+                     % _ng["enro"][0]["w"]
+                   + "".join('<span style="color:%s">● %s</span>' % (c, k)
+                             for k, c in LAYER_COL.items())
+                   + '<span style="color:#7E9A5E">■ 刈込</span>'
+                     '<span style="color:var(--tsuki)">■ 築山(等高線 0.25m)</span>'
+                     '<span style="color:var(--ike)">■ 池</span>',
+            cap="<b>主景は一点=見所①(奥御広間の入側)。</b>他はすべてこれに従わせる。"
+                "前景=沓脱石・飛石・州浜の汀／中景=東の池・岩島・北東の岬の雪見灯籠／"
+                "遠景=築山A1の尾根とその上のクロマツ・常緑広葉。"
+                "<b>池は掘り込み</b>(水面 %.2f・最深 %.2fm)で、⛔ 滝も遣水も置かない — "
+                "主面の台地に落差の源が無いため<b>天水の止水池</b>にする。"
+                "<b>園路は同心円にしない</b> — 東の帯 → 築山の稜線(上り)→ 西の池の外 → "
+                "築山Bの裾 → 沢飛石(寄り)の順に離れ・寄り・上りが入る。"
+                "⛔ <b>蹲踞・手水鉢・石橋・中島・堂・茶屋は置かない</b>(茶庭と下屋敷の語彙)。"
+                "⭕ 稲荷の社前の手水石だけは社の作法として置く。"
+                % (_ng["migiwa"]["waterY"], _ng["migiwa"]["depthMax"]))
+        h.append("<h3>池(泉水)の形</h3>")
+        h.append(niwa_pond_table(d))
+        h.append('<p class="cap">⛔ <b>この表の数字を設計値へ写さない</b> — すべて汀線18点からの'
+                 '従属値で、生成器が毎回測る。汀線は<b>平滑化前の設計値</b>で、実装では '
+                 'Chaikin×%d を掛ける(平面図の細い破線が施工形状)。</p>'
+                 % _ng["migiwa"]["smooth"])
+        h.append("<h3>護岸 — 全周を4形式で覆う</h3>")
+        h.append(niwa_gogan_table(d))
+        h.append('<p class="cap">⛔ <b>裸の縁を残さない。</b>⛔ <b>輪郭点をそのまま護岸の据え位置に'
+                 'しない</b> — 掘削が縁を下げるので、護岸は「外向きに進んで最初に地面が水面を'
+                 '超える点」に据える。⭐ <b>石材は庭全体で一系統=伊豆石</b>(江戸の石材流通【B】)。'
+                 '⛔ 産地を混ぜない。石の個数・杭の本数は延長からの従属値。</p>')
+        h.append("<h3>築山と土量</h3>")
+        h.append(niwa_tsuki_table(d))
+        h.append(niwa_vol_table(d))
+        h.append('<p class="cap"><b>掘削と盛土は釣り合わせる</b>([築山庭造伝] の'
+                 '「池を掘りたる土をもって山を築く」。当てはめは <b>B</b>)。'
+                 '<b>敷地外へ土を出さない・入れない。</b>庭は <code>on: 地なり</code> で'
+                 '<b>切土ゼロ</b> — 動かす土は池の掘削と築山の盛土だけである。'
+                 '⚠ 法の「実測の最急」が「公称」より急なのは cos 減衰の丘の性質'
+                 '(局所の最急が公称の π/2 倍)で、形の話であって設計の誤りではない。'
+                 'それより外れる基は下の<b>庭方へ差し戻す点</b>に出る。</p>')
+        h.append("<h3>見所</h3>")
+        h.append(niwa_mikoro_table(d))
+        h.append("<h3>植栽 — 常緑を骨格に、落葉を景に</h3>")
+        h.append(niwa_plant_table(d))
+        h.append('<p class="cap">⛔ <b>ソメイヨシノ・桜(開花木)・孟宗竹の竹叢・幕末以降の外来種を'
+                 '置かない。</b>⛔ 自作の低ポリゴンの木を使わない。⛔ イロハモミジを<b>紅葉色に'
+                 'しない</b>(季節は春でも秋でもない)。⛔ <b>ウメに花を咲かせない</b> — 描く時点が'
+                 '旧暦1〜6月の<b>幅</b>なので葉姿(青梅)で置く【2026-09-04 普請奉行の裁定】。'
+                 '⭐ 樹高・樹冠幅は <code>docs/asset-index.tsv</code> の実測で、'
+                 '<b>指図には写さない</b>。個体(01〜03)を混ぜること。</p>')
+        h.append("</div>")
+
+        plate(h, nx(), "奥庭の断面 — 主景の見切り",
+              "御土蔵の白壁を樹冠で切れているかを、部材の実寸から検算する")
+        for _s in d.get("gardenSections", []):
+            h.append('<h3>%s</h3>' % _s["label"])
+            fig(h, niwa_section_svg(d, _s))
+        h.append("<h3>見切りの検算 — 樹冠が塞ぐべき帯</h3>")
+        h.append(niwa_screen_table(d))
+        h.append('<p class="cap">⭐ <b>「主景の対岸が御土蔵の白壁」という指摘の合否はこの表で決まる。</b>'
+                 '眼から蔵の<b>軒下端</b>への視線と<b>棟</b>への視線が、その木の位置で地表から'
+                 '何 m の所を通るか(=塞ぐべき帯)を出し、樹冠(下端は設計書の値・'
+                 '樹高は部材の実測)が覆えているかを見る。⛔ <b>築山だけでは切れない</b> — '
+                 '3.6m 級の山が要って土量が破綻する。<b>木で切るのが正解</b>で、'
+                 '樹冠の下端が抜ける帯は<b>刈込①(蔵前の帯)</b>が受ける。'
+                 '⛔ 樹冠の下端が設計書に無い層(クロマツ・モミジ・ウメ)は<b>遮蔽に数えない</b>'
+                 '(安全側)。</p>')
+        _ku = _no.get("kura")
+        h.append('<p class="cap">⚠ <b>御土蔵の高さは部材の実寸で置き直した。</b>'
+                 '庭方の仮置き(棟 32.10 / 軒下端 30.00)に対し、<code>EdoAssets.Eg.Kura</code>'
+                 '(edogoyomi の蔵を ES=1.818 倍)の実測は<b>棟 %.2f / 妻壁の頂 %.2f / '
+                 '軒下端 %.2f</b> で、<b>1m 余り高い</b> — 塞ぐべき帯もそのぶん上がる。'
+                 '内訳は obj の材質で割った実測(白壁 0.000〜%.3fm / 屋根 %.3f〜%.3fm)。'
+                 '⚠ <b>足形は合っていない</b>(等倍の部材は %.2f×%.2f間、御土蔵の矩形は '
+                 '%d×%d間)— 高さだけ等倍を採り、平面の並べ方は '
+                 '<code>_pending.kurabuzai</code> で在庫方・部材方へ回す。</p>'
+                 % (_ku["ridge"], _ku["wall"], _ku["eave"],
+                    d["const"]["kuraWallTop"], d["const"]["kuraEave"], d["const"]["kuraRidge"],
+                    (asset_dim("kura") or (0, 0, 0))[0], (asset_dim("kura") or (0, 0, 0))[2],
+                    _ku["o"]["u1"] - _ku["o"]["u0"], _ku["o"]["v1"] - _ku["o"]["v0"])
+                 if _ku else "")
+        h.append("<h3>水尻(余水吐)の縦断</h3>")
+        fig(h, niwa_mizushiri_svg(d),
+            cap="<b>余水は西端 #14 の石の閾から埋樋で法面の下へ落とし、受け石(玉石の浸透枡)で"
+                "止める。</b>⛔ <b>隣家へ流し込まない</b> — 落とし口は岡部境の内側。"
+                "⚠ <b>勾配が緩い</b>ので、樋の底と復元地盤を重ねて毎回検算する。"
+                "御土蔵(什器)との最近接は検査が測る。")
+        h.append(niwa_toi_table(d))
+        h.append('<p class="cap">⚠ <b>土被りが 0.30m を切る点は「埋樋」として成立しない。</b>'
+                 '⭕ 終点(石組の吐き口)はそこで地表へ出る設計なので除いてよい。'
+                 '地盤は江戸期の復元地盤の実測【確度P】。</p>')
+        h.append("</div>")
+
+    if d.get("akichi"):
+        plate(h, nx(), "主郭の明地(用途未定)",
+              "0.5間格子の実測 ／ ⛔ 用途を発明しない ／ 全枠【確度 ?】= 考証方の検分待ち")
+        fig(h, akichi_svg(d),
+            cap="<b>主面のうち、どの棟にも庭にも属さない無名の面。</b>庭方の点検(2026-09-04)で"
+                "見つかった。奥庭を v64.5 まで広げてその一部を取り込み、"
+                "<b>奥向の井戸</b>が北の帯に入った(従前の井戸3本は勝手・門前・表役所だけで、"
+                "奥御湯殿・奥御雪隠の水の出所が指図に無かった)。残りは<b>用途を発明せず</b>、"
+                "<b>位置で名を立てて明地とする</b> — 名に用途を入れない。"
+                "⚠ <b>枠は「測る枠」であって面ではない</b>(枠の中の棟・庭・蔵は差し引く)。")
+        h.append(akichi_table(d))
+        h.append("</div>")
+
+    # ⚠ **測った ⚠ を stdout に閉じ込めない**(規則19)。庭方へ返す点は図に載せる。
+    if tbad:
+        plate(h, nx(), "庭方へ差し戻す点(指図方では直せない)",
+              "%d 件 ／ ⛔ 意匠の判断なので指図方は数値を動かさない" % len(tbad))
+        h.append('<p class="cap">指図方は「決まったことを実装できる数値へ書き起こす」役で、'
+                 '<b>意匠の判断はしない</b>(CLAUDE.md 規則17)。'
+                 '数値へ落として初めて見えた不整合を、<b>直さずにここへ出して庭方へ返す</b> — '
+                 '⛔ 黙って値を動かして辻褄を合わせない。</p>')
+        h.append("<ul>" + "".join("<li>%s</li>" % b for b in tbad) + "</ul>")
+        h.append("</div>")
 
     plate(h, nx(), "棟と室", "1間²=2畳 ／ 室名・畳数は【確度 ?】(土間・板敷は間²)")
     h.append(munes_table(d, load_terrain(os.path.join(DOC, "doi_edo_dem.json"))))

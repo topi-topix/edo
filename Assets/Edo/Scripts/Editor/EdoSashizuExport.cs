@@ -37,16 +37,25 @@ public static class EdoSashizuExport
     ///   root    … シーンのルート GameObject 名
     ///   parcel  … EdoParcels の区画 id
     ///   gradeQA … 造成の検査(部門別の集計に載せる)。持たない邸は null
+    ///   pivot   … 棟・廊下の**据え付け点**。⚠ 部材キットの原点は「外形の角・走りが +X」なので、
+    ///             フレームの手前(u+/v+ の向き)が邸ごとに違うと角も変わる。⛔ 検査だけが
+    ///             式を持つと実装とズレるので、**ビルダーの式をそのまま呼ぶ**。null なら松平式
     /// ⚠ 2026-09-03: 岡部を**汎用の突き合わせへ寄せた**。旧 `Check()` は段を x0/x1/z0/z1、run を
     ///   top/seat/wall で比べる**旧スキーマ専用**で、回転間グリッドへ移った指図と噛み合わず
     ///   ✗ が 100件超のまま固まっていた。現況の書き出し `Build()` も同じ理由で撤去した。</summary>
-    public class Yashiki { public string label, doc, impl, root, parcel; public Func<string> gradeQA; }
+    public class Yashiki
+    {
+        public string label, doc, impl, root, parcel;
+        public Func<string> gradeQA;
+        public Func<Dictionary<string, object>, string, Vector2> pivot;
+    }
     public static readonly Dictionary<string, Yashiki> Houses = new Dictionary<string, Yashiki>
     {
         { "okabe", new Yashiki { label = "Okabe", doc = EdoOkabeYashikiBuilder.SashizuRel,
                                  impl = EdoOkabeYashikiBuilder.ImplRel,
                                  root = EdoOkabeYashikiBuilder.GN, parcel = EdoOkabeYashikiBuilder.ParcelId,
-                                 gradeQA = EdoOkabeYashikiBuilder.GradeQA } },
+                                 gradeQA = EdoOkabeYashikiBuilder.GradeQA,
+                                 pivot = EdoOkabeYashikiBuilder.Pivot } },
         { "matsudaira_dewa", new Yashiki { label = "MatsudairaDewa", doc = EdoMatsudairaDewaBuilder.SashizuRel,
                                       root = EdoMatsudairaDewaBuilder.Grp,
                                       parcel = EdoMatsudairaDewaBuilder.ParcelId } },
@@ -202,14 +211,17 @@ public static class EdoSashizuExport
             foreach (var o in Get2(doc, "munes"))
             {
                 var m = o as Dictionary<string, object>; if (m == null) continue;
-                chk(bld, Str(m, "name"), W(F(m, "u0"), F(m, "v1")), "棟", "主郭");
+                chk(bld, Str(m, "name"),
+                    hs.pivot != null ? hs.pivot(m, "mune") : W(F(m, "u0"), F(m, "v1")), "棟", "主郭");
             }
             foreach (var o in Get2(doc, "links"))
             {
                 var l = o as Dictionary<string, object>; if (l == null) continue;
                 float u0 = F(l, "u0"), v0 = F(l, "v0"), u1 = F(l, "u1"), v1 = F(l, "v1");
                 bool alongU = (u1 - u0) >= (v1 - v0);
-                chk(bld, Str(l, "name"), alongU ? W(u0, v1) : W(u0, v0), "廊下", "主郭");
+                chk(bld, Str(l, "name"),
+                    hs.pivot != null ? hs.pivot(l, "link") : (alongU ? W(u0, v1) : W(u0, v0)),
+                    "廊下", "主郭");
             }
             if (bld != null)
                 for (int i = 0; i < bld.childCount; i++)
@@ -299,7 +311,11 @@ public static class EdoSashizuExport
                 var railNames = jn(doc, "rails");
                 if (railNames.Count == 0 && impl != null) railNames = jn(impl, "rails");
 
-                want("Nakajikiri", jn(doc, "nakajikiri"), "中仕切", "主郭");
+                // ⚠ 屋敷の内部を分ける塀の欄名は邸で違う(松平=nakajikiri / 岡部=kekkai)。
+                //   両方を期待集合に入れる。⛔ 片方しか見ないと、据えた結界が全部「孤児」になる。
+                var shikiri = jn(doc, "nakajikiri");
+                shikiri.AddRange(jn(doc, "kekkai"));
+                want("Nakajikiri", shikiri, "中仕切", "主郭");
                 want("Takegaki", railNames, "竹垣", "主郭");
                 want("Kaidan", jn(doc, "kaidans"), "石段", "主郭");
                 want("Ido", jn(doc, "wells"), "井戸", "主郭");

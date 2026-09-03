@@ -4435,6 +4435,12 @@ def corners_table(d):
             osame += ("／Δ天端 %+.2fm は**高い側(<code>%s</code>)の基壇小口=隅石**で受け、"
                       "低い側の天端をその小口へ突き付ける(段は隅でだけ落とす)"
                       % (ds, hi9["name"]))
+        # ⭕ **run が自分で納めを宣言していたら、隅の欄にそれを継ぐ**(規則5)。
+        #   ⚠ 2026-09-04: 隅 P0 に**練塀の返し**を足したので、なぜ辺12 に練塀が出るのかを
+        #   ここで読めるようにする(⛔ 隅部材の新造ではない)。
+        for r7 in (rl, rr):
+            if r7 and r7.get("osame"):
+                osame += "<br>⭕ <b>%s の納め</b>: %s" % (r7["name"], r7["osame"])
         rows.append("<tr><td>P%d</td><td>(%.1f, %.1f)</td><td>%.1f°</td>"
                     "<td><code>%s</code> %.2f</td><td><code>%s</code> %.2f</td><td>%+.2f</td><td class='note'>%s</td></tr>"
                     % (i, P[i][0], P[i][1], delta,
@@ -4967,6 +4973,42 @@ def nagaya_call_check(d):
     return bad
 
 
+def _corner_gap_uncovered(d, e9, sa, sb, step=0.01):
+    """辺 `e9` の s∈[sa, sb] を**犬走りの内側で歩き**、囲いの足跡が覆っていない長さ[m]。
+
+    ⛔ 隅の 0.30 を除外しない — 隅そのものがこの検査の主題(2026-09-04 裁定1=B)。"""
+    P9 = d["polygon"]
+    n9 = len(P9)
+    a9, b9 = P9[e9], P9[(e9 + 1) % n9]
+    L9 = math.hypot(b9[0] - a9[0], b9[1] - a9[1]) or 1e-9
+    nx9, ny9 = _inward(P9, e9)
+    ins = d["const"]["inubashiri"] + 0.05
+    fps = [_run_fp(d, r8) for r8 in d["runs"]]
+    for f8 in d.get("fences", []):
+        if "edge" in f8:
+            fps.append(_run_fp(d, dict(f8, kind="Dobei")))
+    miss = 0.0
+    s9 = sa
+    while s9 <= sb:
+        t9 = s9 / L9
+        x9 = a9[0] + (b9[0] - a9[0]) * t9 + nx9 * ins
+        y9 = a9[1] + (b9[1] - a9[1]) * t9 + ny9 * ins
+        hit = False
+        for q9 in fps:
+            c9 = False
+            for i9 in range(4):
+                (ax, ay), (bx, by) = q9[i9], q9[(i9 + 1) % 4]
+                if (ay > y9) != (by > y9) and x9 < (bx - ax) * (y9 - ay) / (by - ay) + ax:
+                    c9 = not c9
+            if c9:
+                hit = True
+                break
+        if not hit:
+            miss += step
+        s9 += step
+    return miss
+
+
 def run_reaches_corner_check(d):
     """**辺の末尾の run が隅まで届いているか**(2026-09-04 棟梁の ClosureQA)。
 
@@ -4989,21 +5031,39 @@ def run_reaches_corner_check(d):
         L9 = math.hypot(b9[0] - a9[0], b9[1] - a9[1])
         last = max(rs, key=lambda r: r["s1"])
         if L9 - last["s1"] > 0.02:
-            bad.append("辺%d の末尾 %s が隅まで %.3fm 届かない(s1 %.3f / 辺長 %.3f)— "
-                       "⛔ 丸めた値を s1 へ写さない"
-                       % (e9, last["name"], L9 - last["s1"], last["s1"], L9))
+            # ⭕ **空いた区間の線を実際に歩いて、何かが覆っているかを見る。**
+            #   ⛔ 「隣の辺の run と面で重なっているか」では足りない — 長屋は奥行 4.35 が
+            #   あるので、辺の上に 0.400m 空いていても隣の練塀と重なってしまい、
+            #   **素通しを見逃す**(2026-09-04 に破壊試験で捕まえた)。
+            #   ⚠ `perimeter_closure_check` は隅の 0.30 を別の持ち場として外すので、
+            #   **この検査だけは外さずに歩く**(隅がこの検査の主題だから)。
+            miss9 = _corner_gap_uncovered(d, e9, last["s1"], L9)
+            if miss9 > 0.02:
+                bad.append("辺%d の末尾 %s が隅まで %.3fm 届かず、そのうち **%.3fm が素通し**"
+                           "(囲いの足跡がどれも覆っていない)。⛔ 丸めた値を s1 へ写さない"
+                           % (e9, last["name"], L9 - last["s1"], miss9))
         first = min(rs, key=lambda r: r["s0"])
         if first["s0"] > 0.02:
-            bad.append("辺%d の先頭 %s が隅から %.3fm 空く(s0 %.3f)"
-                       % (e9, first["name"], first["s0"], first["s0"]))
+            miss8 = _corner_gap_uncovered(d, e9, 0.0, first["s0"])
+            if miss8 > 0.02:
+                bad.append("辺%d の先頭 %s が隅から %.3fm 空き、そのうち **%.3fm が素通し**"
+                           % (e9, first["name"], first["s0"], miss8))
+        # ⚠ **隅の頂点では犬走りのぶんだけ足跡が外へ出る** — 鋭角の隅の幾何で、
+        #   区画線から `inubashiri` 内へ寄せた矩形の角は頂点の外側へ回り込む。
+        #   ⭕ 許容は `const.kidan.cornerOutTolM`(宣言値)。⛔ 無条件に見逃さない —
+        #   奥行のある長屋を隅まで伸ばすと 0.41m 出て、これは許容を大きく超える
+        #   (2026-09-04 裁定1=B で北袖は伸ばさず**練塀の返し**で閉じた)。
+        tolOut = ((d["const"].get("kidan") or {}).get("cornerOutTolM", 0.05))
         for r9 in rs:
             for p9 in _run_fp(d, r9):
                 u9, v9 = gr9.L(*p9)
                 if not in_parcel(d, u9, v9):
                     dd, _e, _s = _par_near(d, u9, v9)
+                    if dd * d["const"]["ken"] <= tolOut + 1e-9:
+                        continue                    # ⭕ 隅の頂点の回り込み(許容の内)
                     bad.append("%s の足跡の隅 (%.3f, %.3f) が**区画の外** %.3fm — "
-                               "隅まで届かせた代償。⛔ 素通しと越境のどちらを取るかは奉行の裁定"
-                               % (r9["name"], u9, v9, dd * d["const"]["ken"]))
+                               "許容 %.2fm を超える。⛔ 越境は隣地の話なので奉行の裁定"
+                               % (r9["name"], u9, v9, dd * d["const"]["ken"], tolOut))
                     break
     return bad
 

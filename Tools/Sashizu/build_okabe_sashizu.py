@@ -4659,6 +4659,45 @@ def mune_roof_table(d):
                   ("%.2f m" % nd["needH"]) if nd.get("needH") else "—"))
 
 
+def kido_table(d):
+    """**結界の門・木戸・潜りの開口と建具**(2026-09-04 部材方)。
+
+    ⛔ 幅を三つ持つ図にしない — 開口の幅は1つ、部材の幅は別に持つ。"""
+    rows = []
+    for k9 in d.get("kekkai", []):
+        g9 = k9.get("gap")
+        if not g9:
+            continue
+        rows.append([k9["name"] + "(" + str(g9.get("kind") or "") + ")",
+                     "%s 軸 %.2f〜%.2f" % (g9.get("axis"), g9["from"], g9["to"]),
+                     "<b>%.3f 間 = %.3f m</b>" % (g9["wKen"], g9["wM"]),
+                     "<b>%s</b>" % g9.get("leaves", "?"),
+                     "<code>%s</code>" % g9.get("asset", "—"),
+                     "部材の実寸 <b>%.3f</b>(柱2本ぶん広い)<br>"
+                     "⭕ 塀の run は<b>部材の外側</b>に取り付く(⛔ 開口の縁ではない)"
+                     % g9.get("partW", 0)])
+    sk = (d.get("nishi") or {}).get("saku") or {}
+    for nm, o9 in (("汀の柵の木戸", sk.get("kido")), ("汀の柵の潜り", sk.get("kuguri"))):
+        if not o9:
+            continue
+        rows.append([nm, "辺%s s=%.1f" % (sk.get("edge", 5), o9.get("s", 0)),
+                     "<b>%.3f m</b>(h%.1f)" % (o9.get("w", 0), o9.get("h", 0)),
+                     "<b>%s</b>" % (o9.get("leaves") or o9.get("kata") or "?"),
+                     "<code>%s</code>" % (o9.get("asset") or "—"),
+                     "⛔ 潜りは 1.4m 超でも<b>片開き</b>(建具の型が違う=U)"])
+    mm = (d["const"].get("munamon") or {})
+    return _tw(["口", "位置", "開口", "建具", "部材", "納め"], rows,
+               "⛔ <b>開口 1.4m 超は両開き</b>(建具として片開きを持たない・部材方の判断=U)。"
+               "⭐ 棟門の諸元(すべて<b>U</b>・部材方の作り値): 棟天端 <b>%.2f</b>・本柱 %.2f角・"
+               "冠木の下端 <b>%.2f</b>(通れる高さ)・桁 %.2f・梁間 %.2f・軒の出 %.2f・"
+               "扉の振れ %.0f°・沓石は敷居より %.2f 下(⭕ 据えは敷居の y をそのまま)・"
+               "<b>開版が内側へ %.2f 張り出す</b>(⛔ その余地を塀・園路で塞がない)。"
+               "⚠ 棟門という型式の典拠は<b>未確認</b>。"
+               % (mm.get("ridgeY", 0), mm.get("hashira", 0), mm.get("kabukiUnder", 0),
+                  mm.get("keta", 0), mm.get("hari", 0), mm.get("nokiOut", 0),
+                  mm.get("tobiraDeg", 0), mm.get("kutsuishiDrop", 0), mm.get("kaibanOut", 0)))
+
+
 def build_stamp():
     """**この図を組んだ時点**を表の先頭に出す。
     ⛔ 2026-09-01 六巡目まで、改訂表は `git log` だけを引いていたので、
@@ -7293,6 +7332,7 @@ CHECK_LIST = [
     ("区画の多角形が正典と同期しているか",       lambda d, raw, ter: parcel_sync_check(d)),
     ("基壇と塀の据え位置(宣言した面と足跡)",     lambda d, raw, ter: kidan_check(d)),
     ("撒いた植栽(本数・区画の中・在庫の対応)",   lambda d, raw, ter: planting_check(d)),
+    ("開口の幅が図の中で1つか(結界の門・木戸)", lambda d, raw, ter: gap_consistency_check(d)),
     ("石段の足元と天端(段の宣言との一致)",      lambda d, raw, ter: kaidan_y_check(d)),
     ("汀の杭の割り付け",                      lambda d, raw, ter: kui_check(d)),
     ("算出物 okabe_impl.json の鮮度",           lambda d, raw, ter: impl_fresh_check(d)),
@@ -7464,8 +7504,19 @@ def kidan_check(d):
     kd = d["const"].get("kidan") or {}
     if not kd:
         return ["`const.kidan`(据え位置の宣言)が無い — 実装は芯で合わせるしかない(規則5)"]
-    c = d["central"] if False else d["const"]
+    c = d["const"]
     ib = c["inubashiri"]
+    # ⛔ **恒真にしない**(2026-09-04 破壊試験が『犬走りを 0 にする』で鳴らなかった) —
+    #   足跡は `inubashiri` から作られるので、足跡と `inubashiri` を比べるだけでは
+    #   定数を動かした瞬間に両側が一緒に動いて必ず一致してしまう。
+    #   ⭕ **設計の要求そのもの**を見る: 塀は法肩に面一で立ててはならない
+    #   (雨落ちが天端の目地を直に洗って笠石を欠けさせる。2026-08-18 ユーザー裁定 0.30)。
+    if ib <= 1e-9:
+        bad.append("犬走りが 0 — 塀が法肩に**面一**で立つ。雨落ちが天端の目地を直に洗う"
+                   "(2026-08-18 ユーザー裁定 0.30m)")
+    if ib < c["copingBear"] - 1e-9:
+        bad.append("犬走り %.2f が 塀の掛かり %.2f より狭い — 天端の割り付けが逆になる"
+                   % (ib, c["copingBear"]))
     P = d["polygon"]
     for r in d["runs"]:
         fp = _run_fp(d, r)
@@ -7921,6 +7972,51 @@ def kaidan_y_check(d):
             bad.append("%s の段数×蹴上 %.3f が落差 %.3f と合わない"
                        % (k9["name"], k9.get("steps", 0) * k9.get("keri", 0),
                           k9["y1"] - k9["y0"]))
+    return bad
+
+
+def gap_consistency_check(d):
+    """**開口の幅が図の中で1つに揃っているか**(2026-09-04 部材方)。
+
+    ⛔ 結界 W6 は **3つの幅**を同時に持っていた — `gap.from/to` の差 3.00間 /
+      注記の文言「幅 1.6間」/ 塀の run の実際の口 1.85間(塀の端で切れる)。
+      ⛔ 実装はどれを採ってもよいことになり、どれを採っても他の2つと食い違う。
+    ⭕ ①`from/to` の差 ②`wKen`/`wM` の欄 ③注記の文言 ④**塀の中に実際に開く口**
+      の四つが一致することを見る。⚠ 木戸の**部材**は開口より広い(柱2本ぶん)ので、
+      それは `partW` として別に持つ(ここでは幅と混ぜない)。"""
+    import re as _re
+    bad = []
+    K = d["const"]["ken"]
+    for k9 in d.get("kekkai", []):
+        g9 = k9.get("gap")
+        if not g9:
+            continue
+        w9 = (g9["to"] - g9["from"])
+        if g9.get("wKen") is None or abs(g9["wKen"] - w9) > 1e-6:
+            bad.append("%s の口: `wKen` %s が `from/to` の差 %.3f間 と違う"
+                       % (k9["name"], g9.get("wKen"), w9))
+        if g9.get("wM") is not None and abs(g9["wM"] - w9 * K) > 1e-3:
+            bad.append("%s の口: `wM` %.3f が %.3f間 = %.3fm と違う"
+                       % (k9["name"], g9["wM"], w9, w9 * K))
+        m9 = _re.search(r"幅\s*([0-9.]+)\s*間", str(g9.get("_") or ""))
+        if m9 and abs(float(m9.group(1)) - w9) > 0.01:
+            bad.append("%s の口: 注記の文言『幅 %s間』が `from/to` の差 %.3f間 と違う"
+                       % (k9["name"], m9.group(1), w9))
+        # ④ 塀の中に実際に開く口(塀の端で切れる分を数える)
+        a9, b9 = k9.get("a"), k9.get("b")
+        if a9 and b9:
+            ax = 0 if g9.get("axis") == "u" else 1
+            lo, hi = sorted([a9[ax], b9[ax]])
+            f9 = max(min(g9["from"], hi), lo)
+            t9 = max(min(g9["to"], hi), lo)
+            if abs((t9 - f9) - w9) > 1e-6:
+                bad.append("%s の口: 塀の中に実際に開くのは %.3f間 で、宣言の %.3f間 と違う"
+                           "(塀は %.2f〜%.2f)" % (k9["name"], t9 - f9, w9, lo, hi))
+        if g9.get("partW") is not None and g9["partW"] <= g9.get("wM", 0):
+            bad.append("%s の口: 部材の幅 %.3f が開口 %.3f 以下 — 柱の分が無い"
+                       % (k9["name"], g9["partW"], g9.get("wM", 0)))
+        if not g9.get("asset"):
+            bad.append("%s の口に部材の当たりが無い" % k9["name"])
     return bad
 
 
@@ -12300,6 +12396,7 @@ def main():
 
     plate(h, nx(), "取り合い(実装用)", "すべて設計値から自動算出 — 手で書き写さない")
     h.append(kidan_table(d))
+    h.append(kido_table(d))
     h.append(corners_table(d))
     h.append(joints_table(d))
     h.append(civil_table(d))

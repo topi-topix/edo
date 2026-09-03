@@ -728,14 +728,40 @@ public static class EdoOkabeYashikiBuilder
     {
         var fen = Group("Fences"); Clear(fen);
         var sb = new System.Text.StringBuilder();
-        // 柵に開く口(指図が持つものだけ。実装で発明しない)
+        // 柵に開く口(指図が持つものだけ。実装で発明しない)。⭕ **潜りの戸を先に据えて実寸を測り**、
+        // その幅で柵を空ける(⛔ 開口の呼び寸法で空けない — 戸の柱のぶん柵が食い込む)
         var gaps = new List<float[]>();     // {edge, s0, s1}
         var saku = O(Get(O(Get(D, "nishi")), "saku"));
-        if (saku != null && Has(saku, "kido"))
+        int kuguri = 0;
+        if (saku != null)
         {
-            var k = O(saku["kido"]);
-            float s = F(k["s"]), w = F(k["w"]);
-            gaps.Add(new float[] { F(saku["edge"]), s - w / 2f, s + w / 2f });
+            var k = O(Get(saku, "kuguri")) ?? O(Get(saku, "kido"));
+            if (k != null)
+            {
+                int e0 = (int)F(saku["edge"]);
+                float s = F(k["s"]), w = F(k["w"]);
+                Vector2 c0 = EdgePt(e0, s);
+                Vector2 ow = OutNormal(e0);
+                float psi0 = Mathf.Atan2(ow.x, ow.y) * Mathf.Rad2Deg;   // +Z = 見え面(外)
+                string kp = AssetByKey(Has(k, "asset") ? S(k["asset"]) : "Own.HoriKido", w, 0f);
+                float openW = w;
+                if (kp != null && AssetDatabase.LoadAssetAtPath<GameObject>(kp) != null)
+                {
+                    var gk = Group("Fences");
+                    float gy = Graded.At(c0.x, c0.y); if (float.IsNaN(gy)) gy = EdoBuild.Ground(c0.x, c0.y);
+                    // ⚠ ピボット = 開口の芯・地盤レベル(底は −0.140 で沓石が地盤より下へ出る)
+                    var go0 = EdoBuild.Place(kp, new Vector3(c0.x, gy, c0.y), psi0, Vector3.one,
+                                             gk, "Kuguri");
+                    if (go0 != null)
+                    {
+                        kuguri++;
+                        var bb = EdoBuild.RB(go0);
+                        Vector2 dir0 = (EdgePt(e0, s + 1f) - c0).normalized;
+                        openW = Mathf.Abs(bb.size.x * dir0.x) + Mathf.Abs(bb.size.z * dir0.y);
+                    }
+                }
+                gaps.Add(new float[] { e0, s - openW / 2f, s + openW / 2f });
+            }
         }
         int posts = 0, runs = 0; float wMeasured = 0f;
         foreach (var o in A(D["fences"]) ?? new List<object>())
@@ -771,7 +797,7 @@ public static class EdoOkabeYashikiBuilder
             runs++;
         }
         sb.Append("木柵: " + posts + " 枚 / " + runs + " run(駒の実寸 " + wMeasured.ToString("F3") + "m)");
-        if (gaps.Count > 0) sb.Append(" ｜ 潜りの口 " + gaps.Count + " 箇所を空けた(戸は次巡)");
+        if (gaps.Count > 0) sb.Append(" ｜ 潜りの口 " + gaps.Count + " 箇所(戸 " + kuguri + " 枚)");
         // 指図の柵の高さと部材の実丈を突き合わせる(⛔ 合わないときに黙って据えない)
         if (Has(O(D["const"]), "fenceH"))
         {
@@ -1174,8 +1200,13 @@ public static class EdoOkabeYashikiBuilder
             case "Torii":      return EdoAssets.Own.Torii;
             // ---- 結界(のし塀)。長さは区間から出す(指図は長さを書かない)
             case "Noshibei":   return EdoAssets.Own.Noshibei(a0 > 0f ? a0 : wKen);
-            // ---- 門
+            // ---- 門・木戸
             case "Munamon":    return wKen > 0f ? EdoAssets.Own.Munamon(wKen, false) : null;
+            // ⚠ 木戸の**X の実寸は開口より柱2本ぶん広い**(2.727→3.197 / 2.909→3.379)。
+            //    塀の run はその**実寸の外側**に取り付く(開口の値で継ぐと 0.47m 食い込む)
+            case "Kido":       return (a0 > 0f ? a0 : wKen) > 0f
+                                   ? EdoAssets.Own.Kido(a0 > 0f ? a0 : wKen) : null;
+            case "HoriKido":   return EdoAssets.Own.HoriKido;
             // ---- 御殿の入母屋。⭕ **指図の (wKen, dKen) をそのまま渡す**(長辺先で書かれている)
             case "RoofIrimoya_":
             case "GotenRoofIrimoya":
@@ -1324,11 +1355,19 @@ public static class EdoOkabeYashikiBuilder
     /// <summary>表向と奥向を屋外でも分ける結界の塀。**練塀ではなく「のし塀+瓦」**
     /// (屋敷の内部の仕切りなので外構より軽くする — 指図 `_kekkai`)。
     /// ⚠ のし塀の部材は在庫に無い。板塀(`Itabei5`)は別の構法なので**代用しない**。</summary>
+    /// <summary>結界の塀と、その開口に建てる木戸・中門。
+    ///
+    /// ⚠ **開口の幅で塀を継がない。**木戸の X の実寸は開口より**方立柱2本ぶん広い**
+    ///   (開口 2.727 → 実寸 3.197)。開口の値で継ぐと塀が木戸へ 0.47m 食い込む。
+    ///   ⭕ **据えた駒の実メッシュから走り方向の幅を測り、その外側で塀を切る**
+    ///   (CLAUDE.md 規則5「部材どうしを中心で合わせない」)。
+    /// ⭕ のし塀の長さは**区間から出す**(指図は長さを書かない)。</summary>
     static string PlaceKekkai(List<string> wait)
     {
         var grp = Group("Fuzoku/Nakajikiri"); Clear(grp);
         var f = Grid;
-        int made = 0, noPart = 0; var missing = new HashSet<string>();
+        float ken = C("ken");
+        int made = 0, gates = 0; var missing = new HashSet<string>();
         foreach (var o in A(Get(D, "kekkai")) ?? new List<object>())
         {
             var k = O(o); if (k == null) continue;
@@ -1338,55 +1377,95 @@ public static class EdoOkabeYashikiBuilder
             var av = A(Get(k, "a")); var bv = A(Get(k, "b"));
             if (av == null || bv == null) { wait.Add("結界 " + nm + ": a / b が無い"); continue; }
             float au = F(av[0]), avv = F(av[1]), bu = F(bv[0]), bvv = F(bv[1]);
-            // 開口(中門・木戸)で区間を割る。⛔ 開口の上に塀を通さない
-            var cuts = new List<float[]>();          // 走り t(0..1)の区間
-            float len = Mathf.Sqrt((bu - au) * (bu - au) + (bvv - avv) * (bvv - avv));
+            float lenKen = Mathf.Sqrt((bu - au) * (bu - au) + (bvv - avv) * (bvv - avv));
+            if (lenKen < 1e-6f) continue;
+            float yaw = YawTo(bu - au, bvv - avv);
+
+            // ---- 開口(木戸・中門)。⭕ 先に**部材を据えて実寸を測り**、その外側で塀を切る
+            var cuts = new List<float[]>();
             var gap = O(Get(k, "gap"));
-            if (gap != null && len > 1e-6f)
+            if (gap != null)
             {
                 string ax = S(Get(gap, "axis"));
                 float g0 = F(Get(gap, "from")), g1 = F(Get(gap, "to"));
                 float p0 = ax == "u" ? au : avv, p1 = ax == "u" ? bu : bvv;
+                float declKen = Mathf.Abs(g1 - g0);                    // from/to から出る開口[間]
+                float wantKen = Has(gap, "wKen") ? F(gap["wKen"]) : declKen;  // 指図が幅を持つならそれ
                 if (Mathf.Abs(p1 - p0) > 1e-6f)
                 {
                     float t0 = Mathf.Clamp01((g0 - p0) / (p1 - p0)), t1 = Mathf.Clamp01((g1 - p0) / (p1 - p0));
-                    cuts.Add(new float[] { Mathf.Min(t0, t1), Mathf.Max(t0, t1) });
+                    float tc = (t0 + t1) * 0.5f;
+                    // ⛔ **指図の中で幅が食い違うなら据えない**(2026-09-04 部材方の申し送り:
+                    //    W6 は from/to の差 3.00間 / 文言 1.6間 / 塀の実長からの口 1.85間 の三つ巴)
+                    if (Mathf.Abs(declKen - wantKen) > 0.01f)
+                    {
+                        wait.Add("結界 " + nm + " の開口は**指図の中で幅が食い違う** — from/to の差 "
+                               + declKen.ToString("0.##") + "間 / 宣言 " + wantKen.ToString("0.##")
+                               + "間。⛔ 一つに揃うまで木戸を据えない(塀の run もその幅で動く)");
+                    }
+                    else
+                    {
+                        // 木戸(中門は棟門)。呼び寸法は**開口の m**
+                        bool isMon = S(Get(gap, "kind")) == "中門";
+                        string gk = Has(gap, "asset") ? S(gap["asset"]) : (isMon ? "Own.Munamon" : "Own.Kido");
+                        float wM = Mathf.Round(wantKen * ken * 100f) / 100f;
+                        string gpath = AssetByKey(gk, wM, 0f);
+                        Vector2 gc = f.W(Mathf.Lerp(au, bu, tc), Mathf.Lerp(avv, bvv, tc));
+                        float gy = Graded.At(gc.x, gc.y); if (float.IsNaN(gy)) gy = EdoBuild.Ground(gc.x, gc.y);
+                        if (gpath == null || AssetDatabase.LoadAssetAtPath<GameObject>(gpath) == null)
+                        {
+                            missing.Add(nm + " の" + (isMon ? "中門" : "木戸") + " " + wM.ToString("0.##") + "m");
+                        }
+                        else
+                        {
+                            var gg = EdoBuild.Place(gpath, new Vector3(gc.x, gy, gc.y), yaw, Vector3.one,
+                                                    grp, nm + "_Kido");
+                            if (gg != null)
+                            {
+                                gates++;
+                                // ⭕ **実メッシュの走り方向の幅**で塀を切る(呼び寸法ではない)
+                                var bb = EdoBuild.RB(gg);
+                                Vector2 dir = (f.W(bu, bvv) - f.W(au, avv)).normalized;
+                                float realW = Mathf.Abs(bb.size.x * dir.x) + Mathf.Abs(bb.size.z * dir.y);
+                                float halfT = (realW / ken) * 0.5f / lenKen;
+                                cuts.Add(new float[] { tc - halfT, tc + halfT });
+                            }
+                        }
+                        if (cuts.Count == 0)   // 木戸が据わらなくても口は空ける
+                            cuts.Add(new float[] { Mathf.Min(t0, t1), Mathf.Max(t0, t1) });
+                    }
                 }
             }
+
+            // ---- のし塀 — 開口で割った区間ごとに、長さを算出して引く
             var segs = new List<float[]>();
             float cur = 0f;
             foreach (var c2 in cuts) { if (c2[0] > cur) segs.Add(new float[] { cur, c2[0] }); cur = Mathf.Max(cur, c2[1]); }
             if (cur < 1f) segs.Add(new float[] { cur, 1f });
-
             int i = 0;
             foreach (var sg in segs)
             {
-                float segLen = (sg[1] - sg[0]) * len * C("ken");     // 間 → m
+                float segLen = (sg[1] - sg[0]) * lenKen * ken;
                 if (segLen < 0.3f) continue;
-                // ⭕ 長さは**区間から出す**(指図は長さを書かない)。0.01m へ丸めて部材名にする
                 float call = Mathf.Round(segLen * 100f) / 100f;
                 string path = AssetByKey(key, call, 0f);
                 if (path == null || AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
-                {
-                    missing.Add(nm + " " + call.ToString("0.##") + "m"); noPart++;
-                    continue;
-                }
+                { missing.Add(nm + " の塀 " + call.ToString("0.##") + "m"); continue; }
                 float tm = (sg[0] + sg[1]) * 0.5f;
                 Vector2 c = f.W(Mathf.Lerp(au, bu, tm), Mathf.Lerp(avv, bvv, tm));
                 // ⚠ ピボットは**走りの中心・地盤レベル・壁の芯**(面ではない)
-                float yaw = YawTo(bu - au, bvv - avv);
                 float y = Graded.At(c.x, c.y); if (float.IsNaN(y)) y = EdoBuild.Ground(c.x, c.y);
                 var go = EdoBuild.Place(path, new Vector3(c.x, y, c.y), yaw, Vector3.one, grp, nm + "_" + i);
                 if (go != null) { EdoBuild.SeatBottom(go, y); made++; }
                 i++;
             }
         }
-        var sb = new System.Text.StringBuilder("結界の塀: " + made + " 本");
+        var sb = new System.Text.StringBuilder("結界の塀: " + made + " 本 / 木戸・中門 " + gates + " 基");
         if (missing.Count > 0)
         {
-            sb.Append(" / 部材の無い長さ " + missing.Count + " 件");
-            wait.Add("結界の塀: 焼かれていない長さ " + string.Join(" / ", new List<string>(missing).ToArray())
-                   + " → blender --background --python Tools/Blender/build_noshibei.py -- <長さm>");
+            sb.Append(" / 部材の無い寸法 " + missing.Count + " 件");
+            wait.Add("結界: 焼かれていない寸法 " + string.Join(" / ", new List<string>(missing).ToArray())
+                   + " → build_noshibei.py / build_kido.py");
         }
         return sb.ToString();
     }
@@ -1512,6 +1591,11 @@ public static class EdoOkabeYashikiBuilder
         else if (fam == "Own")
         {
             if (nm == "Jouryoku") return EdoAssets.Own.Jouryoku(size, idx);
+            // ⚠ **同じ "Mid" でも樹種で樹高が違う**(エノキ13.5 / ムクノキ12 / ケヤキ14.5)。
+            //    ⛔ 寸法の呼びを樹種を跨いで揃えない — 指図の h で倍率を掛けるので姿が崩れる
+            if (nm == "Enoki")    return EdoAssets.Own.Enoki(size, idx);
+            if (nm == "Mukunoki") return EdoAssets.Own.Mukunoki(size, idx);
+            if (nm == "Keyaki")   return EdoAssets.Own.Keyaki(size, idx);
             if (nm == "Momiji")   return EdoAssets.Own.Momiji(size, idx);
             if (nm == "Ume")      return EdoAssets.Own.Ume(size, idx);
         }

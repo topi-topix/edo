@@ -297,6 +297,27 @@ def kirikaki_planes(at_v=None, above_y=None):
     kk = d["roofs"]["Goten_Kurumayose"]["sashikomi"]["kirikaki"]
     mu = [m for m in d["munes"] if m["name"] == "Kurumayose"][0]
     v_piv = (mu["v0"] + mu["v1"]) / 2.0
+    # ⭐ **指図の atV を、指図自身が言う導き方で検算する。**
+    #   規約: v の単位は**間**、軒の出は**m**。混ぜると軒先の線が手前にずれ、玄関棟の屋根に
+    #   覆われない切り欠きが露天に出る(2026-09-04 に 0.736m ぶん実際に踏んだ)。
+    #   ⛔ ここで直さない — 指図が正典。⭕ **食い違いを叫ぶ**だけにして、指図方へ返す。
+    gk = [m for m in d["munes"] if m["name"] == d["roofs"]["Goten_Kurumayose"]["sashikomi"]["intoMune"]][0]
+    gr = d["roofs"]["Goten_" + gk["name"]]
+    # 軒の出[m/片側] = 屋根の外形 − 棟の平面。⚠ `dKen` は屋根側にあり、v の向きとは限らないので
+    #   **棟の v の間数**から引く(玄関棟は 11×11 で等しいが、他所へ写したときに効く)
+    noki = (float(gr["outerD"]) - (float(gk["v1"]) - float(gk["v0"])) * KEN) / 2.0
+    if not 0.0 < noki < 2.0:
+        print(u"[okfuz] ⚠ 軒の出の算出が怪しい: %.3fm — outerD と棟の v 間数が対応していない" % noki)
+    near = gk["v0"] if v_piv < gk["v0"] else gk["v1"]                 # 車寄に面する側の外壁
+    want = near - noki / KEN if v_piv < gk["v0"] else near + noki / KEN
+    if abs(float(kk["atV"]) - want) > 0.01:
+        print(u"[okfuz] ⚠⚠ 指図の atV が導き方と食い違う: %s 間。外壁 %.1f 間 − 軒の出 %.2fm"
+              u"(=%.4f 間)→ **%.4f 間**が正。差 %.3fm ぶん余計に切る" %
+              (kk["atV"], near, noki, noki / KEN, want, abs(float(kk["atV"]) - want) * KEN))
+        print(u"[okfuz]    ⛔ 部材方は直さない。指図 `kirikaki.atV` を指図方が直すこと")
+    else:
+        print(u"[okfuz] ⭕ atV の検算 一致(外壁 %.1f 間 − 軒の出 %.2fm = %.4f 間)" % (near, noki, want))
+
     v = float(kk["atV"]) if at_v is None else float(at_v)
     z = float(kk["aboveY"]) if above_y is None else float(above_y)
     y = (v - v_piv) * KEN

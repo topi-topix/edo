@@ -5533,7 +5533,7 @@ def mizu_svg(d):
 # ⭐ **図で宣言した不変条件は必ず検査に落とす**(当家の作法)。
 #   ⛔ 恒真にしない — 各検査は「わざと壊すと必ず件数が出る」ことを確かめてある(破壊試験)。
 #
-# **2026-09-03 の破壊試験(109件・すべて期待どおり)**
+# **2026-09-03 の破壊試験(111件・すべて期待どおり)**
 # ⛔ **「反応する」とだけ書かない — 壊す前と後の件数を並べる。**数が無い記録は偽になり得る。
 #   ⚠ この作法にした途端、⛔ **偽の記録が4件見つかった**(前後が同じだったもの):
 #     ・「結界を全部消す → 反応する」…… 実際は **1件 → 1件**。経路の指摘が1件出るだけで数が動かず、
@@ -5631,6 +5631,11 @@ def mizu_svg(d):
 #     ・「坂を u−26 の崖へ振る」…… 0件→0件。⛔ (−26,127) は崖の肩の手前で、
 #       93%の崖(u−25〜−27 / v126〜131)に**入っていなかった**。⭕ (−26.5,130) へ。
 #   ⭐ **裁定で設計が消えると、その設計を壊す試験も消える。**⛔ 残すと例外を数える。
+#   ⚠ **2026-09-03(K209・K210 のあと)にもう1つ作り直した。**
+#     ・「法肩の竹垣を h2.0 へ上げる」…… 0件→0件。⛔ K210 で**視軸の区間だけ四つ目垣 h0.6**
+#       に落とす特例が戻り、見所⑧⑨がその区間の中に入ったので、竹垣の丈を上げても当たらない。
+#       ⭕ 「特例の幅を −5間 に縮める(見所が特例の外へ出る)」へ差し替えた。
+#     ⭐ **特例を足すと、素の値を壊す試験が効かなくなる** — 壊す先を「特例の適用範囲」へ移す。
 #   【結界(取り付き・表↔奥の非連結・動線)】素 0 件
 #     結界を全部消す                                0件 → 2件
 #     W1 を段の縁で止める(北の帯を空ける)                   0件 → 2件
@@ -5669,10 +5674,15 @@ def mizu_svg(d):
 #     台の沓脱石を丈1.4mへ上げる                        0件 → 1件
 #     ⚠逆向き: 袖の石を袖の中で動かす(増えないのが正)             0件 → 0件
 #     ⚠逆向き: 袖の刈込を袖の中で伸ばす(増えないのが正)            0件 → 0件
-#   【見所(入側か庭の中か・借景の視線)】素 1 件
-#     見所を庭でも入側でもない所へ置く                       1件 → 2件
-#     御殿の床を −5.0m にする(入側の眼が地盤より下がる)          1件 → 9件
-#     法肩の竹垣を h2.0 へ上げる(借景が切れる)               1件 → 2件
+#   【見所(入側か庭の中か・借景の視線)】素 0 件
+#     見所を庭でも入側でもない所へ置く                       0件 → 1件
+#     御殿の床を −5.0m にする(入側の眼が地盤より下がる)          0件 → 8件
+#     視軸の特例の幅を −5間 に縮める(見所が特例の外へ出て竹垣 h0.9 に当たる) 0件 → 1件
+#     視軸の柵の特例を h0.9 へ戻す(床几の視線を切る)            0件 → 1件
+#   【坂の規則(勾配・脚・折れ)】素 0 件
+#     北東の坂の2点目 (29,35) を戻す(1脚目が 2.7m に戻る)    0件 → 2件
+#     坂の頭を窓の中(u+1)へ移す                        0件 → 1件
+#     坂を u−26 の崖(93%)へ振る                     0件 → 1件
 #   【庭の点景と竹垣・勝手動線・結界塀の交差】素 0 件
 #     結界塀 W1 を池の上へ下ろす                        0件 → 2件
 #     勝手動線を築山Bの上へ回す                          0件 → 1件
@@ -5744,9 +5754,6 @@ def mizu_svg(d):
 #     N1 を榎 E1 へ 4m 寄せる                      0件 → 1件
 #     N2 の面を 1.0m 上げる(帯を均す)                  0件 → 1件
 #     N1 を崖面(帯D1)へ載せる                        0件 → 1件
-#   【坂の規則(勾配・脚・折れ)】素 0 件
-#     坂の頭を窓の中(u+1)へ移す                        0件 → 1件
-#     坂を u−26 の崖(93%)へ振る                     0件 → 1件
 #   【法肩の松の割り付け(区間ごと)】素 0 件
 #     法肩の松の南を 5本にする(北が空く)                    0件 → 2件
 #     法肩の松の総数と区間の合計を食い違わせる                   0件 → 1件
@@ -6473,42 +6480,30 @@ def mikoro_check(d):
             #   きつい傾きで視線を切るなら、その柵が景を殺している。
             sk9 = g.get("shakkei")
             if sk9 and mk.get("target") == "shakkei":
+                # **床几の視線が、法肩の柵の天端の上を `railClear` 以上で通るか。**
+                # ⭐ 2026-09-03 庭方 K210: 物差しを一本化した —
+                #   ・眼 = 従属値(基準身長)/ ・柵の v = 其十八の竹垣の線(`rail_v_at`)
+                #   ・足元 = **造成面**(`graded_y`。⛔ 地山ではない)
+                #   ・天端 = 足元 + (視軸の区間なら `railH`、外なら `const.takegakiH`)
+                # ⛔ 斜めの距離で測らない(同じ u の v の差で測る)。
                 sm9 = shakkei_metrics(d)
-                if sm9 and sm9.get("crestM"):
-                    lim9 = (sm9["crestY"] - mk["eyeY"]) / sm9["crestM"]
-                    worst = None
-                    for rl9 in auto_rails(d):
-                        for (ru, rv) in rl9["pts"]:
-                            # ⚠ **視点の真西の筋だけを見る。**視軸は幅12間の帯だが、
-                            #   帯の中の向きごとに地形の縦断が違う(台地の落ち際が斜めに走る)。
-                            #   `shakkei_metrics` の堤の天端は**視点の真西の縦断**から出した値なので、
-                            #   横へ振れた柵の点を同じ物差しで比べると偽の指摘が出る。
-                            if abs(ru - mk["u"]) > 1.0 or rv <= mk["v"] + 0.1:
-                                continue
-                            gy9 = graded_y(d, ru, rv, _dem_at(d, ru, rv))
-                            if gy9 is None:
-                                continue
-                            # ⭕ 法肩の柵は**竹垣の章に一本化**した(2026-09-03 庭方 K204)
-                            top = gy9 + d["const"]["takegakiH"]
-                            dist = math.hypot(ru - mk["u"], rv - mk["v"]) * K
-                            m9 = (top - mk["eyeY"]) / max(dist, 1e-9)
-                            if m9 > lim9 + 1e-6 and (worst is None or m9 > worst[0]):
-                                worst = (m9, rl9["name"], top, dist, gy9)
-                    if worst:
-                        # ⛔ **`seeFromM=None` で例外にしない**(2026-09-03 検図4巡目)。
-                        #   ⚠ `run_checks` は例外が出ると**リストごと1行に差し替える**ので、
-                        #     先に集めた指摘が消える(全 eyeYFix を下げると本来10件が1行になった)。
-                        #     破壊試験「眼高の入力を下げる 0→1」はその**例外**を数えていた=偽。
-                        sf9 = sm9.get("seeFromM")
-                        aft = ((sk9["waterY"] - mk["eyeY"]) / worst[0]) if worst[0] else None
-                        bad.append("見所%s(眼高 %.2f)の視線を、視軸の法肩の柵が"
-                                   "いまの遮蔽点よりきつく切る — "
-                                   "%s の天端 %.2f が %.1fm 先(地盤 %.2f + 柵 %.2f)。"
-                                   "水面が見えはじめる距離が %s から %s へ後退する"
-                                   % (MARU[mk["no"] - 1], mk["eyeY"], worst[1], worst[2],
-                                      worst[3], worst[4], d["const"]["takegakiH"],
-                                      ("%.0fm" % sf9) if sf9 else "**見えない**",
-                                      ("%.0fm" % aft) if aft else "**見えない**"))
+                vr9 = rail_v_at(d, mk["u"])
+                if sm9 and sm9.get("crestM") and vr9 is not None:
+                    gy9 = graded_y(d, mk["u"], vr9, _dem_at(d, mk["u"], vr9))
+                    inax = (sk9.get("railU0") is not None
+                            and sk9["railU0"] - 1e-9 <= mk["u"] <= sk9["railU1"] + 1e-9)
+                    hh9 = sk9.get("railH") if inax else d["const"]["takegakiH"]
+                    top = (gy9 or 0.0) + (hh9 or 0.0)
+                    dist = max((vr9 - mk["v"]) * K, 1e-9)
+                    ray = mk["eyeY"] + (sm9["crestY"] - mk["eyeY"]) / sm9["crestM"] * dist
+                    need = sk9.get("railClear", 0.15)
+                    if ray - top < need - 1e-6:
+                        bad.append("見所%s(眼 %.2f)の視線が、法肩の%s(v%.2f・造成面 %.2f + h%.2f "
+                                   "= 天端 %.2f)の上を %.3fm しか通らない — %.2fm 以上要る"
+                                   "(⚠ 足元は**造成面**であって地山ではない)"
+                                   % (MARU[mk["no"] - 1], mk["eyeY"],
+                                      (sk9.get("railKata") if inax else "竹垣"), vr9,
+                                      gy9 or 0.0, hh9 or 0.0, top, ray - top, need))
     return bad
 
 
@@ -6921,6 +6916,28 @@ def mizu_table(d):
                    d, (((g.get("mizu") or {}).get("gensen") or {}).get("shintou")) or {}))
 
 
+def _mk9(d):
+    """**床几の座視の見所(⑨)**。⛔ 借景の主視点(⑧・入側の座視)と混ぜない —
+    柵に一番きついのは眼の低い床几のほう。"""
+    for g9 in d.get("gardens", []):
+        for m9 in (g9.get("mikoro") or []):
+            if m9.get("eyeMode") == "shogi":
+                return m9
+    return (shakkei_metrics(d) or {}).get("mk")
+
+
+def _rail_clear(d, mk, sk, h9):
+    """床几の視線が法肩の柵の天端の上を通る余裕[m]。⛔ 図と検査で二度計算しない。"""
+    sm = shakkei_metrics(d)
+    vr = rail_v_at(d, mk["u"])
+    if not sm or not sm.get("crestM") or vr is None:
+        return 0.0
+    gy = graded_y(d, mk["u"], vr, _dem_at(d, mk["u"], vr)) or 0.0
+    dist = max((vr - mk["v"]) * d["const"]["ken"], 1e-9)
+    ray = mk["eyeY"] + (sm["crestY"] - mk["eyeY"]) / sm["crestM"] * dist
+    return ray - (gy + (h9 or 0.0))
+
+
 def shakkei_table(d):
     sk = shakkei_metrics(d)
     if not sk:
@@ -6941,10 +6958,16 @@ def shakkei_table(d):
          + "。⛔ 平行な帯にしない"],
         ["額縁のクロマツ", "視軸の外(|u| > %.1f)の法肩に芯々 %.1f〜%.1f 間で密に"
          % (s["frameOutside"], s["framePitchMin"], s["framePitchMax"])],
-        ["法肩の柵", "⛔ <b>特例は無い</b> — 其十八の<b>竹垣 h%.2f のまま</b>"
-                   "(2026-09-03 庭方 K204: 座視 %.2f は天端の上を通るので、視軸だけ低くする"
-                   "必要が無かった。⚠ 余裕は下の検査が刷る)"
-         % (d["const"]["takegakiH"], sk["mk"]["eyeY"])],
+        ["法肩の柵", "視軸の <b>u %.2f〜%.2f</b> だけ %s <b>h%.2f</b> へ落とす"
+                   "(扇の上端を柵の v=%.2f へ外挿し、左右に %.1f間 を足した幅=算出)<br>"
+                   "⚠ 足元は<b>造成面</b> ／ <b>床几の座視</b>(見所⑨・眼 %.2f)が天端の上を"
+                   "通る余裕は <b>%.3fm</b>(要 %.2fm)。⛔ 竹垣 h%.2f のままだと "
+                   "<b>%+.3fm</b> で切れる"
+         % (s.get("railU0", 0), s.get("railU1", 0), s.get("railKata", ""), s.get("railH", 0),
+            s.get("railV", 0), s.get("railClearKen", 0), _mk9(d)["eyeY"],
+            _rail_clear(d, _mk9(d), s, s.get("railH")),
+            s.get("railClear", 0.15), d["const"]["takegakiH"],
+            _rail_clear(d, _mk9(d), s, d["const"]["takegakiH"]))],
     ]
     return _tw(["借景", "実測・算出"], [[a, b] for a, b in rows],
                "<b>借景が実在すること=P</b>(江戸期の復元地盤を視軸に沿って歩いて測った)。"
@@ -7245,6 +7268,35 @@ def obi_east_clear(d):
             u8 += 0.25
         out.append({"name": o["name"], "gapM": worst[0], "atU": worst[1]})
     return out
+
+
+def fan_at_v(fan, v9):
+    """扇の左右の縁を v で引く(⛔ 3点の外へは**最後の勾配で外挿**する)。"""
+    if v9 <= fan[0][0]:
+        a9, b9 = fan[0], fan[1]
+    elif v9 >= fan[-1][0]:
+        a9, b9 = fan[-2], fan[-1]
+    else:
+        for a9, b9 in zip(fan, fan[1:]):
+            if v9 <= b9[0]:
+                break
+    t9 = (v9 - a9[0]) / max(b9[0] - a9[0], 1e-9)
+    return (a9[1] + (b9[1] - a9[1]) * t9, a9[2] + (b9[2] - a9[2]) * t9)
+
+
+def rail_v_at(d, u9):
+    """**法肩の竹垣が立つ v** を u で引く(其十八 `auto_rails` の線が実体)。
+
+    ⚠ 2026-09-03 庭方 K210(a): 「柵は眼の 1.31m 先」は**斜めの距離**で、
+      柵の点を u ごと拾っていたためだった。⭕ 実体は**同じ u での v の差**(0.55m)で、
+      柵の v は其十八の線が持つ。⛔ 眼の v と柵の v を混ぜない。"""
+    best = None
+    for rl in auto_rails(d):
+        for (ru, rv) in rl["pts"]:
+            dd = abs(ru - u9)
+            if best is None or dd < best[0]:
+                best = (dd, rv)
+    return None if best is None else best[1]
 
 
 def ramp_metrics(d, rp):
@@ -8783,6 +8835,9 @@ GEN_PATHS = [
     "gardens.*.nakajima.*.u", "gardens.*.nakajima.*.v",
     "gardens.*.sawatobi.*.stonePts",
     "ramps.*.measured", "ramps.*.len", "ramps.*.rise", "ramps.*.earth",
+    # ⛔ `ramps.*.prof` は入れない — 北東の坂の路盤は**入力**(設計した高さ)で、
+    #   剥がすと組み直せない。⭕ 脚長と勾配の欄だけは毎回引き直している。
+
     "gardens.*.mizu.gensen.chokusetsu.m2",
 ]
 
@@ -9044,19 +9099,24 @@ def fix_nishi(x):
                     m8["eyeY"] = round(gg8 + eye_above(x, md8), 2)
             elif m8.get("eyeYFix") is not None:
                 m8["eyeY"] = m8["eyeYFix"]
-    # ③'' 四つ目垣に落とす区間 = **扇の上端 ± `railClearKen`**(2026-09-03 庭方5巡目 K187)。
+    # ③'' 四つ目垣に落とす区間【2026-09-03 庭方 K210】
+    #   ⭕ **扇の上端を「柵の v」へ外挿し、左右に `railClearKen` を足した幅**。
     #   ⛔ 手で持たない — 2026-09-03 まで `railU0/railU1` は**どこからも読まれない死値**だった。
+    #   ⚠ 扇は v で開くので、柵の立つ v(其十八の竹垣の線)まで伸ばしてから幅を取る。
     md7 = N.get("mado") or {}
     fan7 = md7.get("fan") or []
     for g7 in x.get("gardens", []):
         sk7 = g7.get("shakkei")
         if not sk7 or not fan7:
             continue
-        half7 = (fan7[0][2] - fan7[0][1]) / 2.0
-        cen7 = (fan7[0][2] + fan7[0][1]) / 2.0
-        cl7 = sk7.get("railClearKen", 0.5)
-        sk7["railU0"] = round(cen7 - half7 - cl7, 2)
-        sk7["railU1"] = round(cen7 + half7 + cl7, 2)
+        vr7 = rail_v_at(x, (md7.get("eye") or {}).get("u", 0.0))
+        if vr7 is None:
+            vr7 = fan7[0][0]
+        lo7, hi7 = fan_at_v(fan7, vr7)
+        cl7 = sk7.get("railClearKen", 0.6)
+        sk7["railU0"] = round(lo7 - cl7, 2)
+        sk7["railU1"] = round(hi7 + cl7, 2)
+        sk7["railV"] = round(vr7, 2)
     # ④ 小径の終点は木戸(⛔ 二重持ちをやめた)
     km = (N.get("mado") or {}).get("komichi") or {}
     if km.get("endAtKido") and kd:
@@ -9404,8 +9464,21 @@ def fix_ramps(x):
                     if i9 < len(ls):
                         s9 += ls[i9]
                 rp["prof"] = prof
-        # 切盛(路盤 − 地盤)を帯の全幅で積む
+        # ⭕ **`prof` の脚長と勾配の欄は従属値**(⛔ 手で持たない) — 点を動かしたら引き直す。
+        #   ⚠ 2026-09-03: 1脚目を併合したとき、この2欄が古いままだと表が嘘をつく。
         pr9 = rp.get("prof")
+        if pr9 and len(pr9) == len(pts):
+            for i9 in range(len(pr9)):
+                if i9 < len(pr9) - 1:
+                    L8 = math.hypot(pr9[i9 + 1][0] - pr9[i9][0],
+                                    pr9[i9 + 1][1] - pr9[i9][1]) * K9
+                    dz8 = abs(pr9[i9 + 1][2] - pr9[i9][2])
+                    pr9[i9][3] = round(L8, 1)
+                    pr9[i9][4] = round(100.0 * dz8 / max(L8, 1e-9), 1)
+                else:
+                    pr9[i9][3] = 0
+                    pr9[i9][4] = 0
+        # 切盛(路盤 − 地盤)を帯の全幅で積む
         if pr9:
             w9 = rp.get("w", K9)
             cut = fill = 0.0

@@ -1054,6 +1054,11 @@ def overlap_check(d):
                     along = iu if llong == "u" else iv
                     if along <= 1.0 + 1e-9:
                         continue
+                    # ⭐ **庭に完全に包含された渡廊下は可**(庭は地面)。2026-09-04 松江・検図 D6:
+                    #   ⛔ ここも外接矩形の包含で見ていたので、台形の庭で破れる。実形で見る。
+                    nb2, lb2 = (boxes[i], boxes[j]) if k1 == "niwa" else (boxes[j], boxes[i])
+                    if _contains(nb2, lb2):
+                        continue
                 if k1 == "niwa" and k2 == "niwa":
                     # 庭の中の池・中島・築山は、親の庭に**完全に包含**されていれば可(松平)
                     if _contains(boxes[i], boxes[j]) or _contains(boxes[j], boxes[i]):

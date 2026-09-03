@@ -9982,9 +9982,9 @@
  "reviews": {
   "niwashi": {
    "at": "2026-09-03",
-   "verdict": "pass",
-   "hash": "e5470d2d16abda70",
-   "note": "第10次 pass(回答1 migiwaNeishiRoshutsu=ⓑ show据え置き / 報告1 其三十 u−38 の帯は footMin・minWidth を図にも通す / 報告2 其廿八の但し書き(別の乱数)は旧契約 / 共有 5件(谷の肩の注記21本・zones parts 死値・判断待ち2件決着・_pending_state 分類・katteKoubaiNokori 残骸)/ 共有2 window・stepMax の感度試験)"
+   "verdict": "fail",
+   "hash": "6eebe1271255f7e4",
+   "note": "第10次(検め直し・D1 後) fail: 裸地2箇所 278m²(最大152=板塀と谷陰の庭の間 2間のリボン)/ V8 素通し 2.47m(3方位=滝の左右の退避の廊下)/ 帯S-上 中木 0.99・7/18・灌木 23/34。回答: ⓑ 中木 0.80〜1.40 n8・低木 2.50〜4.00 n23・高木据え置き・bareSkip にリボン / V8 は half 50→30 + 敷居を連続角で + 残る2方位を生成器が特定 / slopeArea.avoid 削除・G_Sawa.avoid roles から低木を外す / sawaNori 可(110m² を苔と伏石で仕上げ)。報告: 密度表を _tree_band で+判定欄 / 谷陰14本・沢20点が平面図に無い / n は literal / 土井境(岡部でない)"
   },
   "kenzu": {
    "at": "2026-09-03",

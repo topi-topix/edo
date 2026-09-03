@@ -469,14 +469,18 @@ public static class EdoAssets
         ///
         /// ローカル: 幅=X(門口の方向)/ 高さ=Y / 厚み=Z、**+Z = 外(袋小路の側)**。
         /// ピボット = **門の芯・敷居レベル**なので `komon[].sill`(16.06)をそのまま y に使える。
-        /// 実寸 4.600(X) × 3.860(Y) × 2.592(Z)、**底は −0.260**(沓石が敷居より下へ出る)。
-        /// 門口 2.70m(`komon[].w`)・有効高 2.40・**棟天端 3.60**。
+        /// 有効高 2.40・**棟天端 3.60**・**底は −0.260**(沓石が敷居より下へ出る)。
+        /// 焼いてある門口(`komon[].w`): **2.7** と **2.727**(=1.5間)。
+        /// ⚠ ファイル名は**小数2桁**(`ToString("0.##")`)なので 2.727 は `Munamon_2.73.fbx`。
+        ///   実寸(門口 2.727): 4.627(X) × 3.860(Y) × 2.592(Z)。
+        ///   実寸(門口 2.7  ): 4.600(X) × 3.860(Y) × 2.592(Z)。
+        /// ⭕ **袖塀と突き付けるなら 2.727 を使う** — 2.7 だと両脇に 0.03m の隙が出る(規則5)。
         ///
         /// <paramref name="opened"/> = true で**内開きに 78° 開いた**版。扉が −Z へ 1.3m ほど
-        /// 張り出すので、据える所の内側にその余地が要る(bbox の D は 2.627 に増える)。
+        /// 張り出すので、据える所の内側にその余地が要る(bbox の D が 2.641 へ増える)。
         /// ⚠ **仮置き【U】**: 棟高3.60 / 本柱 0.24角(「φ0.24」を角柱の見付として採った)/
         /// 冠木下端2.40 / 桁3.00 / 梁間1.30 / 軒の出0.55 / 扉の丈・振れ角。指図に無い。
-        /// 生成: blender --background --python Tools/Blender/build_munamon.py -- --w 2.7</summary>
+        /// 生成: blender --background --python Tools/Blender/build_munamon.py -- --w 2.727 [--render]</summary>
         public static string Munamon(float w, bool opened)
         {
             return MonDir + "Munamon_" + w.ToString("0.##") + (opened ? "_Open" : "") + ".fbx";
@@ -691,7 +695,7 @@ public static class EdoAssets
         ///
         /// 焼いてある長さ: 1.82 / 3.64 / 5.45 / 20.91 / 45.19 / 53.45(= 指図の7本を開口で割った実長)。
         /// ⚠ **開口(中門・木戸)はこの部材に含まれない。**中門は <see cref="Munamon(float,bool)"/>
-        /// (門口 2.7m ≒ 1.5間)が使える。⛔ **木戸の部材はまだ無い** — 別途 部材方へ依頼が要る。
+        /// (門口 **2.727m = 1.5間**。2.7 だと両脇に 0.03m の隙が出る)が使える。⛔ **木戸の部材はまだ無い** — 別途 部材方へ依頼が要る。
         /// 無い長さは: blender --background --python Tools/Blender/build_noshibei.py -- &lt;長さm&gt;</summary>
         public static string Noshibei(float len)
         {

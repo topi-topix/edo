@@ -1180,6 +1180,269 @@ public static class EdoOkabeYashikiBuilder
     }
 
     // =====================================================================
+    // Stage5 — 西の斜面(林・法肩の松・榎・崖下の帯・勝手の坂・汀の柵と杭・葭・蓮)
+    //
+    // 【散布は生成器が撒く。ここは据えるだけ】⛔ **実装が撒き直さない。**
+    //   指図の検査(見透しの窓の樹高の上限・対岸から見た二層・松が坂を貫かないか・
+    //   木戸から `gateClearKen` の内に芯を置かない…)は、**生成器が撒いた点**に対して掛かっている。
+    //   ここで別の乱数で撒くと、**検査を通った配置とシーンの配置が別物**になる
+    //   (2026-09-02 岡部の言:「検査と散布を別々に書くと、検査が通って実装で 0 本になる」。
+    //    松江松平はこの型を踏んで `planting_out.json` の焼き出しへ移した)。
+    //   → 散布点は `okabe_impl.json` の `planting` から読む(裁定1=A の延長)。
+    //
+    // 【部材】崖下の帯の棟・丸太の手すり・汀の杭は**部材方が新造・登録中**(2026-09-04)。
+    //   ⛔ 在庫で見繕って代用しない — 登録されるまでは据えずに一覧へ出す。
+    // =====================================================================
+
+    /// <summary>⚠ **部材方が新造・登録中**(2026-09-04)。登録されたら <see cref="AssetByKey"/> に
+    /// 1行ずつ足す。⛔ それまで在庫の別物で代用しない(代用は在庫方の判断であって棟梁のではない)。</summary>
+    static readonly string[] NishiPartsPending = {
+        "ObiNagaya(len)  — 崖下の平屋長屋 N1/N2(7.5×2.5間・桟瓦・下見板腰・水側は盲面)",
+        "ObiMonooki      — 物置 M1(3×1.5間)",
+        "ObiKawaya       — かわや K_Obi(1×1間)",
+        "MarutaTesuri    — 丸太の手すり(横木1段・丸太径 0.12)",
+        "Kui(dia)        — 汀の杭(松の丸太・径 0.12〜0.18)",
+    };
+
+    /// <summary>植栽の部材のキーを解く。**キーは指図(算出物)が持ち、ここは辞書を引くだけ。**
+    /// 書式は `族.名.寸法.個体`(例 `JG.Pine.Big.2` / `Own.Jouryoku.Mid.1`)。
+    /// ⛔ **どの在庫の木がどの樹種を代表するかは在庫方の判断**で、ここで決めない
+    ///   — 部材の doc も「指図の parts で個体を混ぜること」と求めている。</summary>
+    static string PlantByKey(string key)
+    {
+        if (string.IsNullOrEmpty(key)) return null;
+        var t = key.Split('.');
+        if (t.Length < 2) return null;
+        string fam = t[0], nm = t[1];
+        string size = t.Length > 2 ? t[2] : "Mid";
+        int idx = 1;
+        if (t.Length > 3) int.TryParse(t[3], out idx);
+        if (idx < 1) idx = 1;
+        if (fam == "JG")
+        {
+            if (nm == "Pine")    return EdoAssets.JG.Pine(size, idx);
+            if (nm == "Boxwood") return EdoAssets.JG.Boxwood(idx);
+            if (nm == "Fern")    return EdoAssets.JG.Fern(idx);
+        }
+        else if (fam == "Own")
+        {
+            if (nm == "Jouryoku") return EdoAssets.Own.Jouryoku(size, idx);
+            if (nm == "Momiji")   return EdoAssets.Own.Momiji(size, idx);
+            if (nm == "Ume")      return EdoAssets.Own.Ume(size, idx);
+        }
+        return null;
+    }
+
+    /// <summary>部材の**素の丈**[m]。丈を指図の値へ合わせる倍率を出すのに使う。一度測って覚える。</summary>
+    static Dictionary<string, float> _plantH = new Dictionary<string, float>();
+    static float NaturalHeight(string path, Transform parent)
+    {
+        float h;
+        if (_plantH.TryGetValue(path, out h)) return h;
+        var probe = EdoBuild.Place(path, new Vector3(0, -9999f, 0), 0f, Vector3.one, parent, "__probe");
+        h = probe == null ? 0f : EdoBuild.RB(probe).size.y;
+        if (probe != null) UnityEngine.Object.DestroyImmediate(probe);
+        _plantH[path] = h;
+        return h;
+    }
+
+    [MenuItem("Edo/岡部筑前守上屋敷/5 西の斜面(林・松・帯・汀)")]
+    public static void Stage5Menu() { Debug.Log("[Okabe] " + Stage5_Nishi()); }
+
+    public static string Stage5_Nishi()
+    {
+        var gate = ReviewGate(); if (gate != null) return gate;
+        var sb = new System.Text.StringBuilder();
+        var wait = new List<string>();
+        sb.AppendLine(PlantFromImpl(wait));
+        sb.AppendLine(PlaceTesuri(wait));
+        sb.AppendLine(PlaceKuiretsu(wait));
+        sb.AppendLine(ReportNishiRest(wait));
+        sb.AppendLine("── 据えなかったもの(部材待ち・欄待ち)" + wait.Count + " 件 ──");
+        foreach (var w in wait) sb.AppendLine("  ★ " + w);
+        return sb.ToString();
+    }
+
+    // ---------------------------------------------------------------- 植栽
+    /// <summary>**生成器が撒いた散布点を据えるだけ。**
+    /// 期待する欄は <c>impl.planting.points[]</c> =
+    /// <c>{ name, zone, role, species, asset, u, v, h, tilt, tiltDir[2], ground }</c>。
+    /// ・`asset` … 部材のキー(`JG.Pine.Big.2` など)。**どの在庫の木がどの樹種かは在庫方が決める**
+    /// ・`h`     … 実際に置く丈[m]。⚠ 指図の `hMin`/`hMax` と窓の樹高の上限を**生成器が既に噛ませた後**の値
+    /// ・`ground`… `design`(造成後の地盤)か `terrain`(現地形)
+    /// ⛔ ここで丈を丸めたり、上限を当て直したりしない — 二重に判定すると図と食い違う。</summary>
+    static string PlantFromImpl(List<string> wait)
+    {
+        var pl = O(Get(IMPL, "planting"));
+        if (pl == null)
+        {
+            wait.Add("算出物に planting が無い — 林(高木72・中木160・低木22群・下草・つる・ヤダケ)/"
+                   + "法肩の松15/榎3/ススキ の**散布点を生成器に焼かせること**"
+                   + "(`--export-impl` に planting を足す)。⛔ 実装側で撒き直すと、"
+                   + "指図の検査(窓の樹高の上限・対岸の二層・坂と木戸の離れ)が見た配置と別物になる");
+            return "植栽: 算出物待ち";
+        }
+        var pts = A(Get(pl, "points"));
+        if (pts == null) { wait.Add("算出物 planting.points が無い"); return "植栽: 算出物待ち"; }
+        var grp = Group("Nishi/Planting"); Clear(grp);
+        var f = Grid;
+        int made = 0, noPart = 0, noAsset = 0;
+        var byZone = new Dictionary<string, int>();
+        var missing = new HashSet<string>();
+        foreach (var o in pts)
+        {
+            var q = O(o); if (q == null) continue;
+            string key = Has(q, "asset") ? S(q["asset"]) : null;
+            if (key == null) { noAsset++; continue; }
+            string path = PlantByKey(key);
+            if (path == null) { missing.Add(key); noPart++; continue; }
+            Vector2 c = f.W(F(q["u"]), F(q["v"]));
+            float y = S(Get(q, "ground")) == "terrain" ? EdoBuild.Ground(c.x, c.y) : Graded.At(c.x, c.y);
+            if (float.IsNaN(y)) y = EdoBuild.Ground(c.x, c.y);
+            var go = EdoBuild.Place(path, new Vector3(c.x, y, c.y), 0f, Vector3.one, grp,
+                                    Has(q, "name") ? S(q["name"]) : (S(q["zone"]) + "_" + made));
+            if (go == null) { missing.Add(key + " → " + path); noPart++; continue; }
+            // 丈を指図の値へ合わせる(⛔ 部材の素の丈で置かない — 指図の hMin/hMax が意味を失う)
+            float want = F(Get(q, "h")), nat = NaturalHeight(path, grp);
+            if (want > 0.1f && nat > 0.1f)
+                go.transform.localScale = Vector3.one * (want / nat);
+            // 水へ傾ける松など。⚠ 傾ける向きも生成器が持つ(実装で決めない)
+            float tilt = F(Get(q, "tilt"));
+            if (Mathf.Abs(tilt) > 0.01f)
+            {
+                var d2 = A(Get(q, "tiltDir"));
+                Vector2 dir = (d2 != null && d2.Count == 2) ? new Vector2(F(d2[0]), F(d2[1])) : Vector2.up;
+                Vector2 w2 = (f.W(dir.x, dir.y) - f.W(0f, 0f)).normalized;
+                go.transform.rotation = Quaternion.AngleAxis(tilt, new Vector3(w2.y, 0f, -w2.x));
+            }
+            EdoBuild.SeatBottom(go, y);
+            made++;
+            string z = S(Get(q, "zone")) ?? "?";
+            byZone[z] = (byZone.ContainsKey(z) ? byZone[z] : 0) + 1;
+        }
+        foreach (var k in missing)
+            wait.Add("植栽の部材のキーが解けない: " + k + " — 在庫方が `impl.planting.points[].asset` の"
+                   + "書式(族.名.寸法.個体)で名指しすること");
+        if (noAsset > 0)
+            wait.Add("散布点 " + noAsset + " 件に asset が無い — **どの在庫の木がどの樹種を代表するか**は"
+                   + "在庫方の判断。⛔ 実装で見繕わない");
+        var sb = new System.Text.StringBuilder("植栽: " + made + " 本据えた");
+        foreach (var kv in byZone) sb.Append(" / " + kv.Key + " " + kv.Value);
+        if (noPart > 0) sb.Append(" ｜ 部材が引けず据えられない " + noPart);
+        return sb.ToString();
+    }
+
+    // ---------------------------------------------------------------- 丸太の手すり
+    /// <summary>勝手の道が**法肩の竹垣の外(池側)を通る区間**の落下止め
+    /// (2026-09-03 ユーザー裁定1=A)。⛔ 竹垣にしない — 丸太の横木1段で、垣ではない
+    /// (法肩の竹垣と読み違えると、宣言した「垣の外を通る区間」の意味が消える)。</summary>
+    static string PlaceTesuri(List<string> wait)
+    {
+        Dictionary<string, object> orl = null;
+        foreach (var o in A(Get(D, "routes")) ?? new List<object>())
+        { var r = O(o); if (r != null && Has(r, "outsideRail")) orl = O(r["outsideRail"]); }
+        if (orl == null) return "丸太の手すり: 指図に routes[].outsideRail が無い";
+        var ts = O(Get(orl, "tesuri"));
+        if (ts == null) return "丸太の手すり: outsideRail.tesuri が無い";
+        string path = AssetByKey(Has(ts, "asset") ? S(ts["asset"]) : null);
+        float uF = F(orl["uFrom"]), uT = F(orl["uTo"]), v = F(orl["v"]);
+        if (path == null)
+        {
+            wait.Add("丸太の手すり(u " + uF.ToString("0.##") + "〜" + uT.ToString("0.##")
+                   + " / v " + v.ToString("0.##") + "・丈 " + F(ts["h"]).ToString("0.##")
+                   + "m・柱の芯々 " + F(ts["postPitchKen"]).ToString("0.##") + "間・丸太径 "
+                   + F(ts["logDia"]).ToString("0.##") + "m): 部材 MarutaTesuri が EdoAssets に未登録"
+                   + "(部材方が新造中)。⛔ 竹垣で代用しない");
+            return "丸太の手すり: 部材待ち";
+        }
+        var grp = Group("Nishi/Tesuri"); Clear(grp);
+        var f = Grid;
+        float pitch = F(ts["postPitchKen"]);
+        int n = Mathf.Max(1, Mathf.RoundToInt(Mathf.Abs(uT - uF) / Mathf.Max(0.1f, pitch)));
+        int made = 0;
+        for (int i = 0; i <= n; i++)
+        {
+            float u = Mathf.Lerp(uF, uT, i / (float)n);
+            Vector2 c = f.W(u, v);
+            float y = Graded.At(c.x, c.y); if (float.IsNaN(y)) y = EdoBuild.Ground(c.x, c.y);
+            var go = EdoBuild.Place(path, new Vector3(c.x, y, c.y), YawU(), Vector3.one, grp, "Tesuri_" + i);
+            if (go != null) { EdoBuild.SeatBottom(go, y); made++; }
+        }
+        return "丸太の手すり: " + made + " 本";
+    }
+
+    // ---------------------------------------------------------------- 汀の杭列
+    /// <summary>汀線に沿う松の丸太杭。⭐ **本数は汀線の実長から算出する**(⛔ 辺5の長さを流用しない
+    /// — 2026-09-03 庭方4巡目)。汀線は堤の天端から法 1:`batter` で水面まで下った線で、
+    /// **生成器が算出して `impl.kui` へ焼く**。⚠ 区画の外なので地形は触らない。</summary>
+    static string PlaceKuiretsu(List<string> wait)
+    {
+        var kr = O(Get(O(Get(D, "nishi")), "kuiretsu"));
+        if (kr == null) return "汀の杭列: 指図に nishi.kuiretsu が無い";
+        var pts = A(Get(IMPL, "kui"));
+        if (pts == null)
+        {
+            wait.Add("算出物に kui が無い — 汀線(堤の天端から法 1:" + F(O(Get(O(Get(D, "nishi")), "tsutsumi"))["batter"]).ToString("0.##")
+                   + " で水面 " + F(O(Get(O(Get(D, "nishi")), "tsutsumi"))["waterY"]).ToString("0.##")
+                   + "m まで)と、その実長に沿う杭の**位置・径・頭の高さ・傾き**を生成器に焼かせること"
+                   + "(指図は諸元の範囲だけを持ち、本数は算出値=約242本)");
+            return "汀の杭列: 算出物待ち";
+        }
+        if (AssetByKey("Kui") == null)
+        {
+            wait.Add("汀の杭 " + pts.Count + " 本ぶんの点は算出物にあるが、部材 Kui(dia) が EdoAssets に未登録"
+                   + "(部材方が新造中)。⛔ 円柱で代用しない");
+            return "汀の杭列: 部材待ち(点 " + pts.Count + ")";
+        }
+        return "汀の杭列: " + pts.Count + " 本(部材が登録され次第ここで据える)";
+    }
+
+    // ---------------------------------------------------------------- 残り(地表・部材待ち)
+    /// <summary>西の斜面のうち、**据える物が無い**か**部材待ち**のものを一覧に出す。
+    /// ⛔ 黙って落とすと「S5 は通った」のに何も無い、という状態が見えなくなる。</summary>
+    static string ReportNishiRest(List<string> wait)
+    {
+        var n = O(Get(D, "nishi"));
+        if (n == null) return "西の斜面: 指図に nishi が無い";
+        // 崖下の帯の棟 — 行は service[] にあるので据えるのは S3。ここでは部材の要件だけ渡す
+        var obi = O(Get(n, "obi"));
+        if (obi != null)
+        {
+            var rf = O(Get(O(Get(D, "roofs")), "ObiNagaya"));
+            wait.Add("崖下の帯の棟(N1・N2・M1・かわや)は `service[]` の行なので据えるのは S3。"
+                   + "部材の要件: " + (rf == null ? "roofs.ObiNagaya が無い"
+                     : S(rf["kawara"]) + "・" + S(rf["kai"]) + "・腰は" + S(rf["koshi"])
+                     + "・軒高 " + F(rf["eaveH"]).ToString("0.##") + "・棟高 " + F(rf["ridgeH"]).ToString("0.##")
+                     + "・水側(西)は盲面")
+                   + " / 軒の出 " + F(Get(obi, "nokiOut")).ToString("0.##") + "m");
+        }
+        // 見透しの窓・葭・蓮・坂の路面 — いずれも地表の塗りと草
+        var mado = O(Get(n, "mado"));
+        if (mado != null)
+            wait.Add("見透しの窓の地表(" + S(Get(mado, "ground")) + ")は**地表の巡**で塗る。"
+                   + "⛔ どの地表層で塗るかが指図に無い(窓・法尻の草地・勝手の坂の土の道の3つとも)");
+        var tt = O(Get(n, "tsutsumi"));
+        if (tt != null)
+            wait.Add("葭(幅 " + F(O(tt["yoshi"])["wMin"]).ToString("0.##") + "〜"
+                   + F(O(tt["yoshi"])["wMax"]).ToString("0.##") + "m)と蓮(汀から沖へ "
+                   + F(O(tt["hasu"])["fromM"]).ToString("0.##") + "〜" + F(O(tt["hasu"])["toM"]).ToString("0.##")
+                   + "m)は**区画の外の水域**。地表と草の層で受けるので S5 では据えない。"
+                   + "⚠ 蓮は池床が " + F(O(tt["hasu"])["bedYMin"]).ToString("0.##")
+                   + "m より上であることが前提 — 溜池の普請へ渡す越境の件");
+        // 勝手の坂 — 土工は S1(graded_y)に入っている。路面は地表
+        foreach (var o in A(Get(D, "ramps")) ?? new List<object>())
+        {
+            var r = O(o); if (r == null || S(r["name"]) != "R_SakaObi") continue;
+            wait.Add("勝手の坂 R_SakaObi(幅 " + F(r["w"]).ToString("0.##") + "m・全長 "
+                   + F(O(Get(r, "measured"))["len"]).ToString("0.#") + "m)は**土の道で路盤は地盤なり**。"
+                   + "土工は S1 の造成に入っているので、S5 で据える物は無い(路面の塗りは地表の巡)");
+        }
+        foreach (var s2 in NishiPartsPending)
+            wait.Add("部材待ち(部材方が新造・登録中): " + s2);
+        return "西の斜面: 据える物のない項目と部材待ちを一覧へ出した";
+    }
+
+    // =====================================================================
     // 外周の検査
     // =====================================================================
     struct Iv { public float a, b; }
@@ -1343,7 +1606,7 @@ public static class EdoOkabeYashikiBuilder
     // =====================================================================
     // 通し
     // =====================================================================
-    [MenuItem("Edo/岡部筑前守上屋敷/S1→S3 を通す")]
+    [MenuItem("Edo/岡部筑前守上屋敷/S1→S5 を通す")]
     public static void RunAllMenu() { Debug.Log("[Okabe] " + RunAll()); }
 
     public static string RunAll()
@@ -1357,6 +1620,7 @@ public static class EdoOkabeYashikiBuilder
         sb.AppendLine(OpeningQA());
         sb.AppendLine(ClosureQA());
         sb.AppendLine(Stage3_Shukaku());
+        sb.AppendLine(Stage5_Nishi());
         return sb.ToString();
     }
 

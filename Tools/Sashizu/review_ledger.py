@@ -32,6 +32,7 @@
     python3 Tools/Sashizu/review_ledger.py okabe --open           # 未解決だけ
     python3 Tools/Sashizu/review_ledger.py okabe --add c "断面ヌのCAPが図と食い違う"
     python3 Tools/Sashizu/review_ledger.py okabe --close K012 "是正済(commit abc1234)"
+    python3 Tools/Sashizu/review_ledger.py okabe --ref K012 "→ 其十二・nishi_check・nishi.mado.fan"
     python3 Tools/Sashizu/review_ledger.py okabe --round-end      # 巡を締めて収束を判定
     python3 Tools/Sashizu/review_ledger.py --all                  # 全邸の収束の様子
 
@@ -143,6 +144,25 @@ def cmd_close(name, iid, note, state="closed"):
     sys.exit("その指摘が無い: %s" % iid)
 
 
+def cmd_ref(name, iid, note):
+    """**閉じ書きへ「図に届いた証拠」を追記する**(2026-09-03 ユーザー裁定9=A)。
+
+    ⛔ 上書きしない — 既にある閉じ書きの後ろへ足す。⭕ 追記するのは
+      **其◯(図版)・`*_check`(検査)・json のキー**のどれか。`decision_gate.py` がこれを見る。"""
+    d = load(name)
+    for it in d["items"]:
+        if it["id"] == iid:
+            cur = it.get("close_note", "")
+            if note in cur:
+                print("%s: 既に同じ追記がある" % iid)
+                return 0
+            it["close_note"] = (cur + " " + note).strip()
+            save(name, d)
+            print("%s: 追記 — %s" % (iid, note))
+            return 0
+    sys.exit("その指摘が無い: %s" % iid)
+
+
 def cmd_round_end(name):
     """巡を締める。⭐ **新規が0件なら収束**。総数0ではない。"""
     d = load(name)
@@ -218,6 +238,8 @@ def main():
         return cmd_add(name, rest[1], " ".join(rest[2:]))
     if rest[0] == "--close":
         return cmd_close(name, rest[1], " ".join(rest[2:]))
+    if rest[0] == "--ref":
+        return cmd_ref(name, rest[1], " ".join(rest[2:]))
     if rest[0] == "--drop":
         return cmd_close(name, rest[1], " ".join(rest[2:]), state="dropped")
     if rest[0] == "--round-end":

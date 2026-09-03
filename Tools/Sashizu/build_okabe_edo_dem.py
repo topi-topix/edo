@@ -149,11 +149,15 @@ def flats(grid, poly, tol, minCells):
     return cells, comps
 
 
-def _poly_dist(P, x, z):
-    """多角形の辺までの最短距離。"""
+def _poly_dist(P, x, z, skip=()):
+    """多角形の辺までの最短距離。`skip` に挙げた辺は**数えない**。
+    ⭕ クリップの規約の目的は『隣家と境の高さが食い違わない』ことなので、
+      **隣家の無い辺は外す**(岡部の辺5=溜池の岸。2026-09-02)。"""
     best = None
     n = len(P)
     for i in range(n):
+        if i in skip:
+            continue
         a, b = P[i], P[(i + 1) % n]
         dx, dz = b[0] - a[0], b[1] - a[1]
         L2 = dx * dx + dz * dz or 1e-9
@@ -269,6 +273,95 @@ def reconstruct(seed, poly, gr, spec):
                "(平坦とその縁 %.0fm 以内はまるごと、そこから %.0fm で現況へ摺り付け)"
                % (n2, n3, mk["edgeCap"], mk["feather"]))
 
+    # ②' **西の崖と低い帯** — 1883年図の標高点から起こす(2026-09-02)。
+    #    ⛔ ここは 2026-09-02 まで復元が当たっておらず**現代の地面のまま**だった。
+    #    溜池が明治7〜8年に陸化し外堀通りが切られた、区画で最も改変の大きい一帯である。
+    wb, wc = spec.get("westBand"), spec.get("westCliff")
+    if wb and wc:
+        def _plane(sp):
+            """錨の (u,v,y) に平面 y=a+b·u+c·v を**最小二乗**で当てる。"""
+            S = [[0.0] * 4 for _ in range(3)]
+            for q in sp:
+                r = [1.0, q["uv"][0], q["uv"][1]]
+                for i in range(3):
+                    for j in range(3):
+                        S[i][j] += r[i] * r[j]
+                    S[i][3] += r[i] * q["y"]
+            for i in range(3):
+                pv = max(range(i, 3), key=lambda k: abs(S[k][i]))
+                S[i], S[pv] = S[pv], S[i]
+                for k in range(3):
+                    if k == i:
+                        continue
+                    f = S[k][i] / S[i][i]
+                    for cc in range(i, 4):
+                        S[k][cc] -= f * S[i][cc]
+            return [S[i][3] / S[i][i] for i in range(3)]
+        pa, pb, pc = _plane(wb["spots"])
+        res = [(q["uv"][0], q["uv"][1], q["y"], pa + pb * q["uv"][0] + pc * q["uv"][1] - q["y"])
+               for q in wb["spots"]]
+
+        def band(u, v):
+            return pa + pb * u + pc * v
+
+        def hsamp(u, v):
+            """(u,v) の現在の面を双一次で拾う。"""
+            x, z = gr.W(u, v)
+            fx = (x - seed["x0"]) / float(st); fz = (z - seed["z0"]) / float(st)
+            i0, j0 = int(math.floor(fx)), int(math.floor(fz))
+            tx, tz = fx - i0, fz - j0
+            acc = wt = 0.0
+            for dj, wv in ((0, 1 - tz), (1, tz)):
+                for di, wu in ((0, 1 - tx), (1, tx)):
+                    i, j = i0 + di, j0 + dj
+                    if 0 <= j < nz and 0 <= i < nx and h[j][i] is not None:
+                        acc += h[j][i] * wu * wv; wt += wu * wv
+            return acc / wt if wt > 1e-9 else None
+        # **法肩を u ごとに拾う** — 復元後の面が「台地の自然面 −drop」を下回る最初の v。
+        # ⛔ 一定の v0 を置くと、主面が西へ張り出す南西側で台地を削る。
+        us = sorted(set(round(q[0] * 2) / 2.0 for q in uv.values()))
+        hig = {}
+        for u in us:
+            vq = wc["vScan0"]
+            while vq <= wc["v1"]:
+                y0 = hsamp(u, vq)
+                if y0 is not None and y0 < py - wc["drop"]:
+                    hig[u] = (vq, y0)
+                    break
+                vq += 0.25
+        n2w = n3w = 0
+        for (ix, iz), (u, v) in uv.items():
+            if v < wc["vScan0"] or h[iz][ix] is None:
+                continue
+            key = min(hig, key=lambda q: abs(q - u)) if hig else None
+            if key is None or abs(key - u) > 1.0:
+                continue
+            vh, yh = hig[key]
+            if v < vh:
+                continue                                  # まだ台地の上
+            if v <= wc["v1"]:
+                t = (v - vh) / max(wc["v1"] - vh, 1e-9)
+                y = yh + (band(u, wc["v1"]) - yh) * t      # 崖 — 法肩から帯の上端へ一定勾配
+                n3w += 1
+            else:
+                y = band(u, v)                             # 低い帯 — 1883の標高点の平面
+                n2w += 1
+            if abs(h[iz][ix] - y) > 0.005:
+                changed.add((ix, iz))
+            h[iz][ix] = y
+        log.append("②' 西の崖 %d セル / 西の低い帯 %d セル を 1883年図から起こした。"
+                   "帯の平面 y = %.4f %+.5f·u %+.5f·v(u %+.3f%%/m・v %+.3f%%/m)／"
+                   "錨の残差 %s"
+                   % (n3w, n2w, pa, pb, pc, pb / 1.818 * 100, pc / 1.818 * 100,
+                      " / ".join("○%.1f %+.2f" % (q[2], q[3]) for q in res)))
+        if hig:
+            hv = [q[0] for q in hig.values()]
+            log.append("②'  法肩は u ごとに算出(台地の自然面 %.2f −%.2f を下回る最初の v)"
+                       " — v %.1f〜%.1f。崖の落差は %.2f〜%.2fm"
+                       % (py, wc["drop"], min(hv), max(hv),
+                          min(q[1] for q in hig.values()) - band(0, wc["v1"]),
+                          max(q[1] for q in hig.values()) - band(0, wc["v1"])))
+
     # ④ 校舎の盛土を台地の自然面へ
     n4 = 0
     for (ix, iz), (u, v) in uv.items():
@@ -315,6 +408,35 @@ def reconstruct(seed, poly, gr, spec):
                 if inside[min(max(iz + dz, 0), nz - 1)][min(max(ix + dx, 0), nx - 1)]:
                     soft.add((ix + dx, iz + dz))
     soft = set(q for q in soft if 0 <= q[0] < nx and 0 <= q[1] < nz and inside[q[1]][q[0]])
+    # ⛔ **クリップを外した辺(`edgeClip.skipEdges`)の外側は、平滑化の平均にも混ぜない。**
+    #   ⚠ 2026-09-03 の庭方4巡目で見つかった:2026-09-02 の K078 は「辺5でクリップを外す」と
+    #     書きながら、外したのは⑧のクリップだけで**⑦の平滑化は外していなかった**。
+    #     その結果、区画の外の近代の地面(約 8.9m)が縁の3〜4セルへ滲み、
+    #     1883年図では 11.25→11.08 のほぼ水平な岸が **最大 1.33m 沈んだ段**に見えていた。
+    #     ⛔ 見かけの段に階段を刻みかけた(庭方が『地覆丸太の段』を提案する寸前だった)。
+    #   ⭕ **規約の目的は「隣家と境の高さが食い違わない」ことなので、隣家の無い辺では
+    #     ⑦⑧ とも外す。**⛔ 隣家のある辺(3・4・6・7)では従来どおり混ぜる。
+    skip_e9 = set(spec.get("edgeClip", {}).get("skipEdges", []) or [])
+    banned = set()
+    if skip_e9:
+        def _near_edge9(x9, z9):
+            best = (1e18, -1)
+            for i9 in range(len(poly)):
+                a9, b9 = poly[i9], poly[(i9 + 1) % len(poly)]
+                ex9, ez9 = b9[0] - a9[0], b9[1] - a9[1]
+                L9 = ex9 * ex9 + ez9 * ez9 or 1e-9
+                tt9 = max(0.0, min(1.0, ((x9 - a9[0]) * ex9 + (z9 - a9[1]) * ez9) / L9))
+                dx9, dz9 = x9 - (a9[0] + ex9 * tt9), z9 - (a9[1] + ez9 * tt9)
+                dd9 = dx9 * dx9 + dz9 * dz9
+                if dd9 < best[0]:
+                    best = (dd9, i9)
+            return best[1]
+        for q9 in range(nz):
+            for p9 in range(nx):
+                if inside[q9][p9]:
+                    continue
+                if _near_edge9(seed["x0"] + st * p9, seed["z0"] + st * q9) in skip_e9:
+                    banned.add((p9, q9))
     for _ in range(spec["smooth"]["passes"]):
         cur = dict(((ix, iz), h[iz][ix]) for ix, iz in soft)
         for ix, iz in soft:
@@ -322,16 +444,20 @@ def reconstruct(seed, poly, gr, spec):
             for dx in (-1, 0, 1):
                 for dz in (-1, 0, 1):
                     p, q = ix + dx, iz + dz
-                    if 0 <= p < nx and 0 <= q < nz and h[q][p] is not None:
+                    if 0 <= p < nx and 0 <= q < nz and h[q][p] is not None \
+                       and (p, q) not in banned:
                         acc.append(cur.get((p, q), h[q][p]))
             if acc:
                 h[iz][ix] = sum(acc) / len(acc)
     log.append("⑦ 変えた %d セル + 周り = %d セルを %d 回平滑化"
-               % (len(changed), len(soft), spec["smooth"]["passes"]))
+               "(⛔ クリップを外した辺の外側 %d セルは平均に混ぜない%s)"
+               % (len(changed), len(soft), spec["smooth"]["passes"], len(banned),
+                  ("・" + "辺" + "/辺".join(str(q) for q in sorted(skip_e9))) if skip_e9 else ""))
 
     # ⑧ **区画線の上は正本と一致させる**(2026-08-25 土井の申し入れ / 08-24 通達)。
     #    境から edgeClip[m] かけて復元へ摺り付ける。⛔ 境の線そのものは seed(=正本)。
     ec = spec.get("edgeClip", {}).get("m", 0.0)
+    skip = set(spec.get("edgeClip", {}).get("skipEdges", []) or [])
     if ec > 0:
         n8 = 0
         for (ix, iz), (u, v) in uv.items():
@@ -339,7 +465,7 @@ def reconstruct(seed, poly, gr, spec):
                 continue
             x = seed["x0"] + st * ix
             z = seed["z0"] + st * iz
-            dd = _poly_dist(poly, x, z)
+            dd = _poly_dist(poly, x, z, skip)
             if dd >= 2.0 * ec:
                 continue
             # 区画線から ec までは**まるごと正本**(双一次で線の上を拾っても正本になるように)、
@@ -350,8 +476,24 @@ def reconstruct(seed, poly, gr, spec):
             if abs(before - h[iz][ix]) > 0.005:
                 n8 += 1
         log.append("⑧ 区画線から %.1fm はまるごと正本・そこから %.1fm で復元へ摺り付け(%d セル)"
-               " — 境の線は正本と一致" % (ec, ec, n8))
+               " — 境の線は正本と一致。**外した辺: %s**(隣家が無い辺)"
+               % (ec, ec, n8, ("辺" + "・辺".join(str(q) for q in sorted(skip))) if skip else "なし"))
     return h, log, py, changed | soft, len(sel)
+
+
+def _near_edge_i(poly, x, z):
+    """点 (x,z) にいちばん近い辺の番号。差分を辺ごとに割って刷るのに使う。"""
+    best = (1e18, -1)
+    for i in range(len(poly)):
+        a, b = poly[i], poly[(i + 1) % len(poly)]
+        ex, ez = b[0] - a[0], b[1] - a[1]
+        L = ex * ex + ez * ez or 1e-9
+        tt = max(0.0, min(1.0, ((x - a[0]) * ex + (z - a[1]) * ez) / L))
+        dx, dz = x - (a[0] + ex * tt), z - (a[1] + ez * tt)
+        dd = dx * dx + dz * dz
+        if dd < best[0]:
+            best = (dd, i)
+    return best[1]
 
 
 def build(check=False):
@@ -494,6 +636,25 @@ def build(check=False):
                     if abs(a - b) > 0.5:
                         big += 1
         print("   %-24s 変わる %5d セル (うち>0.5m %4d / 最大 %.2fm)" % (nm, n, big, mx))
+        if path == WORLD and n:
+            # ⭐ **辺ごとに割って刷る。**⛔ 「縁だけが動いた」を言葉で言わずに数で示す
+            #   (2026-09-03: ⑦の除外を入れたときに、隣家のある辺が 0.000m のままであることを
+            #    確かめるために足した)。
+            per = {}
+            for iz9, (r1, r2) in enumerate(zip(new[key], old[key])):
+                for ix9, (a9, b9) in enumerate(zip(r1, r2)):
+                    if a9 is None or b9 is None or abs(a9 - b9) <= 0.005:
+                        continue
+                    x9 = new["x0"] + new["step"] * ix9
+                    z9 = new["z0"] + new["step"] * iz9
+                    e9 = _near_edge_i(poly, x9, z9)
+                    p9 = per.setdefault(e9, [0, 0.0])
+                    p9[0] += 1
+                    p9[1] = max(p9[1], abs(a9 - b9))
+            for e9 in range(len(poly)):
+                c9, m9 = per.get(e9, (0, 0.0))
+                print("      辺%-2d %5d セル / 最大 %.3fm%s"
+                      % (e9, c9, m9, "" if c9 else "   ⭕ 動いていない"))
         if not check:
             json.dump(new, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print("   区画内 %d セル / 台地の自然面 %.2f(正本から算出)" % (inside, py))

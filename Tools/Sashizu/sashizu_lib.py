@@ -45,6 +45,31 @@ _SVN = [0]
 MUNE_JA = {}
 
 
+def s_sign(d):
+    """走り s と グリッド u の**向きの関係**。u = sSign·(s − sg)/ken。
+
+    ⛔ 邸によって逆。土井は `s = 47.0 + 1.818·u`(同じ向き=+1)だが、
+    岡部は `s = 14.37 − 1.818·u`(逆向き=−1)。ここを +1 に決め打ちしていたため、
+    岡部の門の辺の run が**表門をはさんだ反対側**の箱として検査されており、
+    重なりを構造的に見つけられなかった(2026-08-31 検図)。
+
+    ⭐ **宣言でなく算出する。** `grid.sSign` の明示があればそれを使うが、
+    無ければ **u 軸の世界ベクトルと門の辺の向きの内積**から決める。
+    宣言に頼ると次の邸が書き忘れて同じ穴に落ちる(2026-08-31 再検図)。"""
+    g = d.get("grid", {})
+    if "sSign" in g:
+        return -1.0 if g["sSign"] < 0 else 1.0
+    uv = g.get("uWorld")            # [ux, uz] — 生成器が入れていれば使う
+    P9 = d.get("polygon")
+    e9 = d.get("gate", {}).get("edge")
+    if uv and P9 is not None and e9 is not None:
+        a9, b9 = P9[e9], P9[(e9 + 1) % len(P9)]
+        dot = uv[0] * (b9[0] - a9[0]) + uv[1] * (b9[1] - a9[1])
+        if abs(dot) > 1e-9:
+            return 1.0 if dot > 0 else -1.0
+    return 1.0
+
+
 def _pat(): return "url(#pi%d)" % _SVN[0]
 
 
@@ -391,17 +416,43 @@ def obb_overlap(a, b):
 
 
 # ---------------------------------------------------------------- 設計地盤(段の高さ)
+def _pt_in_ring(p, u, v):
+    """点が閉じた点列 p の中か(crossing number)。"""
+    n = len(p); c = False
+    for i in range(n):
+        (au, av), (bu, bv) = p[i], p[(i + 1) % n]
+        if (av > v) != (bv > v) and u < (bu - au) * (v - av) / (bv - av) + au:
+            c = not c
+    return c
+
+
+def t_holes(t):
+    """段の**抜き**(造成しない区画)の輪郭の並び。無ければ空。
+
+    ⭐ 2026-09-02 岡部: ユーザー裁定「主面の5区画を平坦化しない」で入れた。
+    段の外周は等高線なりのままにし、**面を作らない区画を穴として抜く** —
+    外周多角形を切り欠くと、内側だけの区画(長局の東の坪)が表せない。"""
+    return [[(a, b) for a, b in hh["poly"]] for hh in (t.get("holes") or [])]
+
+
+def t_keeps(t):
+    """抜きの中でも**面を残す**区画(=棟が載る所)。ユーザー裁定の但し書き
+    「棟が載る所だけ 24.80」を機械で当てる。**生成器が足跡から算出して書き戻す**
+    (`GEN_FIELDS["terraces"]["keeps"]`)ので、人は json に書かない。"""
+    return [[(a, b) for a, b in kp] for kp in (t.get("keeps") or [])]
+
+
 def t_contains(t, u, v):
     """(u,v) が段 t の中か。`poly`(岡部の等高線なり多角形)は crossing number、
-    `yaw`(土井の回転段)は OBB、どちらも無ければ矩形で見る。"""
+    `yaw`(土井の回転段)は OBB、どちらも無ければ矩形で見る。
+    ⭐ `holes` を持つ段では、穴の中は「段の外」= 造成しない自然地盤とする。"""
     p = t.get("poly")
     if p:
-        n = len(p); c = False
-        for i in range(n):
-            (au, av), (bu, bv) = p[i], p[(i + 1) % n]
-            if (av > v) != (bv > v) and u < (bu - au) * (v - av) / (bv - av) + au:
-                c = not c
-        return c
+        if not _pt_in_ring(p, u, v):
+            return False
+        if any(_pt_in_ring(hp, u, v) for hp in t_holes(t)):
+            return any(_pt_in_ring(kp, u, v) for kp in t_keeps(t))
+        return True
     return in_obb(t, u, v, 1e-9)
 
 
@@ -571,6 +622,19 @@ def stair_y(d, u, v, in_parcel):
     return None
 
 
+def t_edge_dist(t, u, v):
+    """段の縁までの距離[間]。**穴の縁も段の縁**(穴の中の点は穴の縁から法面が下りる)。"""
+    best = poly_edge_dist(t["poly"], u, v)
+    # ⚠ **抜きの縁を段の縁と見るのは、外輪の中にいるときだけ。**
+    #   抜きの矩形は外輪より外へはみ出して書いてよい(区画で切られる)ので、
+    #   外輪の外の点にまで当てると、段から遠い斜面が「抜きの縁のすぐ外」と読まれ、
+    #   そこへ法面の盛土が生える(2026-09-02: 辺1 の練塀 S_Hei2b が内側の土に 2.74m 埋まった)。
+    if _pt_in_ring(t["poly"], u, v):
+        for hp in t_holes(t) + t_keeps(t):
+            best = min(best, poly_edge_dist(hp, u, v))
+    return best
+
+
 def poly_edge_dist(p, u, v):
     """多角形の縁までの距離[間](外側の点用)。岡部の「等高線なり多角形」の段の縁。"""
     n = len(p)
@@ -582,6 +646,30 @@ def poly_edge_dist(p, u, v):
         q = 0.0 if L2 < 1e-12 else max(0.0, min(1.0, ((u - au) * du_ + (v - av) * dv_) / L2))
         best = min(best, math.hypot(u - (au + q * du_), v - (av + q * dv_)))
     return best
+
+
+def wall_caps(d, t, u, v, y2):
+    """**土留めが法面を打ち切るか。**壁の天端より下へ盛ろうとしたら、そこから先は壁が受ける。
+
+    ⭐ 天端が一定なので「天端より下」= 「壁より外」になる(壁は天端の等高線に立つ)。
+      多角形の線を持ち回らずに済む。⛔ `span` の中でだけ効かせる — 段のほかの縁は法面のまま。
+    ⚠ 2026-09-02 岡部: 従前は poly の段に土留めの免除が掛からず
+      (「壁付き多角形の段が要る邸が出たら拡張する」と書いてあった)、西の法尻で
+      法面が着地せず 44m にわたり最大 3.9m の垂直段差が残っていた。"""
+    for w in d.get("terraceWalls", []):
+        if w.get("terrace") and w["terrace"] != t["name"]:
+            continue
+        sp = w.get("span")
+        if not sp:
+            continue
+        q = u if sp.get("axis") == "u" else v
+        if not (min(sp["from"], sp["to"]) <= q <= max(sp["from"], sp["to"])):
+            continue
+        if sp.get("vFrom") is not None and v < sp["vFrom"]:
+            continue
+        if y2 < w["coping"]:
+            return True
+    return False
 
 
 def graded_y(d, u, v, nat, in_parcel, walled=None):
@@ -620,7 +708,9 @@ def graded_y(d, u, v, nat, in_parcel, walled=None):
         if p9:
             if t_contains(t, u, v):
                 continue                               # 多角形の内側は段そのもの
-            dm = poly_edge_dist(p9, u, v) * K
+            dm = t_edge_dist(t, u, v) * K
+            if wall_caps(d, t, u, v, t["y"] - dm / bf):
+                continue                               # 土留めが受ける — これ以上先へ盛らない
         else:
             if in_obb(t, u, v):
                 continue                               # 回転物の内側は段そのもの
@@ -675,7 +765,7 @@ def graded_y(d, u, v, nat, in_parcel, walled=None):
         if p9:
             if t_contains(t, u, v):
                 continue                               # 多角形の内側は段そのもの
-            dm = poly_edge_dist(p9, u, v) * K
+            dm = t_edge_dist(t, u, v) * K
         else:
             if in_obb(t, u, v):
                 continue                               # 回転物の内側は段そのもの
@@ -737,7 +827,11 @@ def kenpei(d, area, tsubo, svc_label, nagaya_label, ban_label):
              for s in d["service"]) * K * K
     nag = sum((r["s1"] - r["s0"]) * d["const"]["nagayaD"] for r in d["runs"] if r["kind"] == "Nagaya")
     bs = d["gate"]["plan"]["bansho"]
-    ban = bs["count"] * bs.get("w", 0) * bs.get("d", 0)   # 長屋門は番所が躯体内=別計上なし
+    # ⛔ **躯体内の番所は別計上しない**(長屋門の桁行×梁間に既に含まれる)。
+    #    ⚠ 2026-08-31 五巡目: コメントは「躯体内=別計上なし」と書きながら**足していた**。
+    #    岡部で 6.48 m²(建蔽率 0.02pt)の二重計上。`bansho.kind` が「躯体内」を含むかで分ける。
+    ban = (0.0 if "躯体内" in str(bs.get("kind", ""))
+           else bs["count"] * bs.get("w", 0) * bs.get("d", 0))
     yag = sum((y["ken"] * K) ** 2 for y in d.get("yagura", []))
     gp = d["gate"]["plan"]
     mon = gp["monW"] * gp.get("monD", 1.2) + 2 * gp.get("sode", 0) * 0.4 \
@@ -851,9 +945,18 @@ def overlap_check(d):
     for l in d["links"]:
         boxes.append(("link", l["name"], l["u0"], l["v0"], l["u1"], l["v1"], None))
     for n in d["gardens"]:
+        # ⭐ 2026-09-02 岡部: 庭が `rects`(**割り当ての矩形から棟と上位の庭を引いた残り**)を
+        #   持つときは、そちらを箱に入れる。庭は「建屋と囲いの間に残る面」なので、
+        #   割り当ての矩形そのものは棟や隣の庭と重なってよい(重なりは順で解く)。
+        #   ⛔ 免除ではない — 残りの矩形どうしはこの総当たりで従来どおり検査される。
         # ⚠ 第7欄は「回転物 or 実形」。`poly` を持つ庭はここで実体を渡す(松平 2026-09-01)
-        boxes.append(("niwa", n["name"], n["u0"], n["v0"], n["u1"], n["v1"],
-                      n if n.get("poly") else None))
+        rr = n.get("rects")
+        if rr:
+            for i9, q9 in enumerate(rr):
+                boxes.append(("niwa", "%s[%d]" % (n["name"], i9), q9[0], q9[1], q9[2], q9[3], None))
+        else:
+            boxes.append(("niwa", n["name"], n["u0"], n["v0"], n["u1"], n["v1"],
+                          n if n.get("poly") else None))
     for s in d["service"]:
         boxes.append(("svc", s["name"], s["u0"], s["v0"], s["u1"], s["v1"], s))
     # 外周 run と長屋門の躯体帯(表門の辺=グリッドの v=0 帯)。検図 H-3 で追加 —
@@ -864,8 +967,8 @@ def overlap_check(d):
         if r["edge"] != d["gate"]["edge"]:
             continue
         depth = d["const"]["nagayaD"] if r["kind"] == "Nagaya" else d["const"]["dobeiT"]
-        boxes.append(("run", r["name"], (r["s0"] - sg) / ken2, 0.0,
-                      (r["s1"] - sg) / ken2, depth / ken2, None))
+        ua, ub = sorted((s_sign(d) * (r["s0"] - sg) / ken2, s_sign(d) * (r["s1"] - sg) / ken2))
+        boxes.append(("run", r["name"], ua, 0.0, ub, depth / ken2, None))
     gp2 = d["gate"]["plan"]
     boxes.append(("run", "Nagayamon", -gp2["monW"] / 2 / ken2, 0.0,
                   gp2["monW"] / 2 / ken2, gp2["monD"] / ken2, None))
@@ -876,6 +979,17 @@ def overlap_check(d):
             boxes.append(("ramp", rp["name"], rp["u0"], rp["v0"], rp["u1"], rp["v1"], None))
     for wl in d.get("wells", []):
         boxes.append(("ido", wl["name"], wl["u"] - 0.5, wl["v"] - 0.5, wl["u"] + 0.5, wl["v"] + 0.5, None))
+    # ⭐ **石段の箱を総当たりへ入れる。**⛔ 従前は「石段×棟」「石段×階段廊下」の2つの専用ループ
+    #   しか無く、**石段×外周 run(長屋門)が構造的に検査されていなかった**
+    #   (2026-09-02 検図 K065: 門前の石段が長屋門へ食い込んでも 0件)。
+    for k7 in d.get("kaidans", []):
+        hw7 = k7["w"] / 2 / ken2
+        if k7.get("gapU") is not None:
+            a7, b7 = sorted((k7.get("v0", 0.0), k7.get("v1", 0.0)))
+            boxes.append(("kaidan", k7["name"], k7["gapU"] - hw7, a7, k7["gapU"] + hw7, b7, None))
+        elif k7.get("gapV") is not None:
+            a7, b7 = sorted((k7.get("u0", 0.0), k7.get("u1", 0.0)))
+            boxes.append(("kaidan", k7["name"], a7, k7["gapV"] - hw7, b7, k7["gapV"] + hw7, None))
     bad = []
     # 段どうしが重なっていないか。design_y は最大値を採るので、低い方の段は図上にしか
     # 存在しなくなり、そこに建つ棟が地盤に埋まる(2026-08-23 検図で家中長屋(南)2棟が全部
@@ -895,11 +1009,24 @@ def overlap_check(d):
     #   2026-08-25 検図13巡 中-6)。石段×白洲・石段×段は除外規約で落とす。
     for k9 in d["kaidans"]:
         w9 = next((x for x in d["terraceWalls"] if x["name"] == k9.get("atWall")), None)
-        if w9 is None:
-            continue
         hw9 = k9["w"] / 2 / ken2
         rn9 = k9["run"] / ken2
-        if abs(w9["a"][0] - w9["b"][0]) < 1e-9:
+        if w9 is None:
+            # ⭐ **土留めに付かない石段(岡部は郭内の土留めが0本)でも箱を作る。**
+            #   ⛔ 従前は `atWall` が null だと素通りし、**当邸の石段は1本も総当たりに
+            #     入っていなかった**(2026-09-02 検図 K065。K_Mon が長屋門へ 0.793m² 食い込んだ
+            #     穴が塞がっていなかった)。降りる向きと区間は json が持っているので、それで作る。
+            if k9.get("gapU") is not None:
+                a9, b9 = sorted((k9.get("v0", 0.0), k9.get("v1", 0.0)))
+                kb9 = {"name": k9["name"], "u0": k9["gapU"] - hw9, "u1": k9["gapU"] + hw9,
+                       "v0": a9, "v1": b9}
+            elif k9.get("gapV") is not None:
+                a9, b9 = sorted((k9.get("u0", 0.0), k9.get("u1", 0.0)))
+                kb9 = {"name": k9["name"], "u0": a9, "u1": b9,
+                       "v0": k9["gapV"] - hw9, "v1": k9["gapV"] + hw9}
+            else:
+                continue
+        elif abs(w9["a"][0] - w9["b"][0]) < 1e-9:
             kb9 = {"name": k9["name"], "u0": w9["a"][0] - rn9, "u1": w9["a"][0],
                    "v0": k9.get("gapV", 0) - hw9, "v1": k9.get("gapV", 0) + hw9}
         else:
@@ -938,7 +1065,7 @@ def overlap_check(d):
         if r["edge"] != d["gate"]["edge"]:
             continue
         depth = d["const"]["nagayaD"] if r["kind"] == "Nagaya" else d["const"]["dobeiT"]
-        r0, r1 = (r["s0"] - sg) / ken2, (r["s1"] - sg) / ken2
+        r0, r1 = sorted((s_sign(d) * (r["s0"] - sg) / ken2, s_sign(d) * (r["s1"] - sg) / ken2))
         for t in d["terraces"]:
             iu = min(r1, t["u1"]) - max(r0, t["u0"])
             iv = min(depth / ken2, t["v1"]) - max(0.0, t["v0"])
@@ -1063,6 +1190,10 @@ def overlap_check(d):
                     # 庭の中の池・中島・築山は、親の庭に**完全に包含**されていれば可(松平)
                     if _contains(boxes[i], boxes[j]) or _contains(boxes[j], boxes[i]):
                         continue
+                if {k1, k2} == {"kaidan", "niwa"} or {k1, k2} == {"kaidan"}:
+                    continue          # 石段×白洲(庭)は通り道なので可・石段どうしは別の段
+                if {k1, k2} == {"kaidan", "ramp"}:
+                    continue          # 石段と坂は別の動線
                 if {k1, k2} == {"niwa", "svc"} or {k1, k2} == {"niwa", "ido"}:
                     # 庭の中に立つ亭・祠・井戸は庭に**完全に包含**されていれば可(庭は地面)。
                     # ido の免除は EDO-0023(2026-08-26): 統一時に土井・岡部に niwa×ido の

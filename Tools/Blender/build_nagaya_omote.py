@@ -394,6 +394,182 @@ def add_floor(o, z_namako_top, z_cut, floors):
     return o
 
 
+# ---------------------------------------------------------------- 棟を上げる
+BANSHO_OUT   = 0.30      # 出格子の出[m](躯体内の番所の物見)。⛔ 指図に数値なし【確度U】
+BANSHO_FRAME = 0.05      # 出格子の枠が窓の外へ回る量[m]【確度U】
+
+
+def raise_eaves(o, z_cuts, blank_h, extra):
+    """**棟を上げる。瓦の勾配は一切触らない — 上げた分はすべて軒高で稼ぐ。**
+
+    上げ代 extra を**各階に等分**し、階ごとに「窓の頭 〜 その階の天端」の
+    **無地の白壁**を積んで、その上をまるごと持ち上げる。
+    ⛔ 上げ代を全部いちばん上(軒の下)へ積まない — 二階の窓の上に 2.3m の
+      のっぺりした白壁が残り、門でなく土蔵に見える(2026-09-04 の1回目で実見)。
+    z_cuts は**下の階から順に**並べたその階の天端(=素の軒の下端 + 階の帯 × 階数)。
+    ⛔ 帯を1段に伸ばして引き伸ばさない — 漆喰のテクスチャが縦に伸びる。
+    無地の帯 blank_h より薄い切片を n = ceil(extra/blank_h) 段に割る。
+    ⚠ 座標はすべて obj 単位(×ES=1.818 で m)。**階を積んだ後**に呼ぶこと
+      (z_cut は積んだ後の軒の下端)。
+
+    【なぜ要るか】長屋門は両袖の表長屋より棟が高いのが型(ユーザー裁定12-A 2026-09-04:
+      表長屋の棟 7.183 に対し**門は 8.5**)。瓦モジュールの勾配 0.5456 は動かせないので、
+      梁間を変えずに棟だけ上げるには軒高で稼ぐしかない。
+    """
+    per = extra / len(z_cuts)
+    n = max(1, int(math.ceil(per / blank_h - 1e-9)))
+    t = per / n
+    off = 0.0
+    for zc in z_cuts:                   # 下の階から順に(上の階は前の挿入ぶん持ち上がっている)
+        z = zc + off
+        upper = dup(o, "eaves_up")      # その階より上(上階の壁・屋根・軒・破風・鬼)
+        bisect_z(upper, z, True)
+        shift_z(upper, per)
+        bisect_z(o, z, False)
+        parts = [o]
+        for i in range(n):
+            b = dup(o, "eband%02d" % i) # 無地の白壁の切片(窓の頭より上・その階の天端まで)
+            bisect_z(b, z - t, True)
+            shift_z(b, t * (i + 1))
+            parts.append(b)
+        parts.append(upper)
+        o = V.join(parts, o.name)
+        me = o.data
+        bm = bmesh.new(); bm.from_mesh(me)
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=2e-4)
+        bm.to_mesh(me); bm.free(); me.update()
+        off += per
+    print("[nagaya] 軒を上げた: +%.4f (%.3fm) = 各階 %.3fm(無地の帯 %.3fm x %d 段)x %d 階"
+          "(瓦の勾配は不変)" % (extra, extra * ES, per * ES, t * ES, n, len(z_cuts)))
+    return o
+
+
+# ---------------------------------------------------------------- 出格子番所・冠木
+def _boxer(o, z_lo, z_hi, rect=None, inset=0.12):
+    """新しい箱を **既にある材質のまま** 足すための小道具を返す。
+    ⛔ 新しい材質もテクスチャも作らない(規約2)。UV は矩形で借りる(規約3)。
+
+    ⚠ **面ごとに軸を選んで貼る。** 全部の面を u=x / v=z で貼ると、妻面(法線が±X)は
+      u が潰れて矩形の**縁の1本の線**を舐め、隣の区画(白い漆喰)が滲んで
+      **側板だけ真っ白**になる(2026-09-04 の1回目で実見)。
+    ⚠ 借りる矩形は 12% 内側へ寄せる — アトラスは区画の境目で隣へ滲む。
+    """
+    me = o.data
+    _, mi = board_uv(o, z_lo, z_hi)
+    r = DOOR_UV if rect is None else rect
+    du, dv = (r[2] - r[0]) * inset, (r[3] - r[1]) * inset
+    u0, v0, u1, v1 = r[0] + du, r[1] + dv, r[2] - du, r[3] - dv
+    bm = bmesh.new(); bm.from_mesh(me)
+    uvl = bm.loops.layers.uv.active or bm.loops.layers.uv.new()
+
+    def box(x0, x1, y0, y1, z0, z1, z0o=None, z1o=None):
+        """z0o/z1o を渡すと **外側(y1)の高さだけ** そこへ落ちる(庇の勾配)。"""
+        z0o = z0 if z0o is None else z0o
+        z1o = z1 if z1o is None else z1o
+        vs = bmesh.ops.create_cube(bm, size=1.0)["verts"]
+        for v in vs:
+            outer = v.co.y > 0
+            v.co.x = x0 if v.co.x < 0 else x1
+            v.co.z = (z0o if outer else z0) if v.co.z < 0 else (z1o if outer else z1)
+            v.co.y = y0 if not outer else y1
+        for f in set(f for v in vs for f in v.link_faces):
+            f.material_index = mi
+            n = f.normal
+            if abs(n.z) > 0.7:        ia, ib = 0, 1     # 水平面(庇の上下)
+            elif abs(n.x) > 0.7:      ia, ib = 1, 2     # 妻面(袖板の小口)
+            else:                     ia, ib = 0, 2     # 正面・背面
+            aa = [l.vert.co[ia] for l in f.loops]
+            bb = [l.vert.co[ib] for l in f.loops]
+            a0, a1 = min(aa), max(aa)
+            b0, b1 = min(bb), max(bb)
+            for l in f.loops:
+                fu = (l.vert.co[ia] - a0) / max(1e-6, a1 - a0)
+                fv = (l.vert.co[ib] - b0) / max(1e-6, b1 - b0)
+                l[uvl].uv = (u0 + (u1 - u0) * fu, v0 + (v1 - v0) * fv)
+
+    def done():
+        bm.normal_update(); bm.to_mesh(me); bm.free(); me.update()
+    return box, done
+
+
+def add_degoshi(o, centers, y_front, z_sill, z_head, half_w):
+    """**両端の番所に出格子を付ける(指図 gate.plan.bansho「躯体内の出格子番所」)。**
+
+    ⛔ **張り出しの番所(別棟)は作らない** — 指図が 2026-08-31 に「躯体内」へ改めており、
+      桁行9間 = 門戸6間 + 番所 1.5間×2 が閉じる必要がある(別棟にすると建蔽率も二重計上)。
+    ⭕ したがって番所は躯体の中にあり、**外へ出るのは物見の出格子だけ**。
+
+    ⚠ **素の窓は1間に上下2段ある**(下 1.07〜1.65m / 上 2.74〜3.32m・実測)。
+      出格子は**下段だけ**を覆う — 2段まとめて覆うと 1.25m 幅 × 2.25m 丈の
+      電話ボックスになる(2026-09-04 の1回目で実見)。上段は武者窓のまま残す。
+
+    座標は obj 単位・Blender Z-up(走り=X / 厚み=Y / 高さ=Z)。**向きを直す前**に呼ぶ
+    (この段階では表が +Y)。centers は窓の中心 x の並び。
+    """
+    box, done = _boxer(o, z_sill, z_head)
+    p  = BANSHO_OUT / ES                        # 出
+    hw = half_w + BANSHO_FRAME / ES             # 枠まで含む半幅
+    for xc in centers:
+        x0, x1 = xc - hw, xc + hw
+        y0, y1 = y_front, y_front + p
+        # 膳板(持ち出しの下枠)。少し大きめに回して雨仕舞いに見せる
+        box(x0 - 0.02, x1 + 0.02, y0, y1 + 0.02, z_sill - 0.10 / ES, z_sill)
+        # 左右の袖板(出格子の側面。ここが開いていると中が透ける)
+        for a, b in ((x0, x0 + 0.05 / ES), (x1 - 0.05 / ES, x1)):
+            box(a, b, y0, y1, z_sill, z_head)
+        # 縦格子(前面)。⛔ 一枚板で塞がない — 番所は外を見る所
+        pitch = 0.105 / ES
+        bw_   = 0.032 / ES
+        nb = max(2, int(round((x1 - x0 - 0.10 / ES) / pitch)))
+        for i in range(nb):
+            bc = x0 + 0.05 / ES + (x1 - x0 - 0.10 / ES) * (i + 0.5) / nb
+            box(bc - bw_ * 0.5, bc + bw_ * 0.5, y1 - 0.05 / ES, y1, z_sill, z_head)
+        # 上枠(楣)と小庇。庇は外へ 0.10m 下がる(勾配を付けないと板が浮いて見える)
+        box(x0, x1, y0, y1, z_head, z_head + 0.09 / ES)
+        zt = z_head + 0.09 / ES
+        box(x0 - 0.09 / ES, x1 + 0.09 / ES, y0, y1 + 0.14 / ES,
+            zt, zt + 0.06 / ES, z0o=zt - 0.10 / ES, z1o=zt - 0.04 / ES)
+    done()
+    print("[nagaya] 出格子番所 %d ケ所: 幅 %.3fm x 丈 %.3fm / 出 %.3fm(躯体内・張出しなし)"
+          % (len(centers), hw * 2 * ES, (z_head - z_sill) * ES, BANSHO_OUT))
+    return o
+
+
+def add_kabuki(o, x0, x1, z_head, h, y_front, out=0.07, over=0.25):
+    """**門口の頭に冠木(横木)を見せる。** 開口の有効高は変えない —
+    冠木の**下端が開口の頭**で、そこから上へ h だけ木を出す。
+    ⛔ 白壁のままだと 3.64m の開口が「壁の抜け」にしか見えない(2026-09-04 に実見)。
+    ⚠ 既存の小門(`--kabuki` を渡さない)には付かないので出力は変わらない。"""
+    box, done = _boxer(o, z_head - 1.0, z_head)
+    box(x0 - over / ES, x1 + over / ES, y_front, y_front + out / ES,
+        z_head, z_head + h / ES)
+    done()
+    print("[nagaya] 冠木を出した: 幅 %.3fm x 丈 %.3fm / 壁面より %.3fm 前へ"
+          % ((x1 - x0 + 2 * over / ES) * ES, h, out))
+    return o
+
+
+def win_extent(koshi):
+    """(半幅, 下段の窓の下端, 出格子の頭, **窓の一番上**) を返す(obj 単位)。
+
+    ⚠ 素の窓は1間に**上下2段**ある。出格子は下段だけを覆うので頭は**上段の窓の下**。
+    ⛔ **この「出格子の頭」を無地の帯の下端に流用しない。** 流用すると棟上げで積む
+      切片が上段の窓を掠め、**窓の上枠が壁の途中に複製されて黒い横棒**が出る
+      (2026-09-04 に実見)。無地の帯は必ず**窓の一番上 → 軒の下端**で測ること。"""
+    xs = sorted(set(round(v.co.x, 4) for v in koshi.data.vertices))
+    cl = [[xs[0]]]
+    for a, b in zip(xs, xs[1:]):
+        (cl.append([b]) if b - a > 0.30 else cl[-1].append(b))
+    hw = max((c[-1] - c[0]) for c in cl) * 0.5
+    zs = sorted(set(round(v.co.z, 4) for v in koshi.data.vertices))
+    cz = [[zs[0]]]
+    for a, b in zip(zs, zs[1:]):
+        (cz.append([b]) if b - a > 0.05 else cz[-1].append(b))
+    z0 = cz[0][0]
+    z1 = (cz[2][0] - 0.02) if len(cz) >= 3 else cz[-1][-1]
+    return hw, z0, z1, cz[-1][-1]
+
+
 # ---------------------------------------------------------------- 割付を解く
 def solve(Lm, cap_w, bay, ncap):
     """L[m] から (bay 本数 k, pier の詰め ε) を出す。ε は obj 単位。
@@ -418,7 +594,8 @@ def solve(Lm, cap_w, bay, ncap):
 
 
 # ---------------------------------------------------------------- 組む
-def build(Lm, ends="both", name=None, floors=1, gate=None):
+def build(Lm, ends="both", name=None, floors=1, gate=None,
+          ridge=None, doorh=None, bansho=0, kabuki=0.0):
     V.reset()
     gc, mc = read_groups("knagaya01c")
     gl, ml = read_groups("knagaya01l")
@@ -443,8 +620,16 @@ def build(Lm, ends="both", name=None, floors=1, gate=None):
     #   複製されて、中途半端な庇と、妻で行き場を失った瓦の破片が出る(2026-08-29 に実見)。
     z_roof_bot = min(zspan(gc[k])[0] for k in ("n_taruki", "n_noki", "n_hira", "n_maru")
                      if k in gc)
+    # 出格子・棟上げに要る素の実測(join が素を食う前に採る)
+    win_hw, z_win0, z_win1, z_win_top = win_extent(gc["koshi"])
+    y_wall_front = max(v.co.y for v in gc["n_wall"].data.vertices)   # 壁の外面(素では +Y)
+    blank_h = z_roof_bot - z_win_top     # **窓の一番上** 〜 軒の下端 = 無地の白壁の帯
+    # 妻の出 = 破風の外端が土台の小口より外へ出る量(棟梁が呼び寸法を組むのに要る)
+    tsuma_out = l_gab - max(v.co.x for v in gl["n_dodai"].data.vertices)
     print("[nagaya] 素の実測: 棟 %.5f (%.4fm) / bay %.5f (%.4fm) / 妻 %.5f (%.4fm)"
           % (W, W * ES, bay, bay * ES, cap_w, cap_w * ES))
+    print("[nagaya] 妻の出(破風の外端 − 土台の小口)= %.4f (%.3fm) / 片側。"
+          "呼び寸法 L は**破風まで含む全幅**" % (tsuma_out, tsuma_out * ES))
 
     ncap = {"both": 2, "left": 1, "right": 1, "none": 0}[ends]
     k, eps = solve(Lm, cap_w, bay, ncap)
@@ -492,8 +677,35 @@ def build(Lm, ends="both", name=None, floors=1, gate=None):
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=2e-4)
     bm.to_mesh(me); bm.free(); me.update()
 
-    # --- 長屋門の門口(ユーザー裁定 2026-08-30)。**階を積む前**に抜く —
-    #     積んだ後だと二階の床まで抜けてしまう
+    # --- 階を積む(案A)。帯の高さは**素の実測**から取る
+    if floors > 1:
+        print("[nagaya] 素の帯: 海鼠の天端 %.4f (%.3fm) / 屋根の下端 %.4f (%.3fm)"
+              % (z_namako_top, z_namako_top * ES, z_roof_bot, z_roof_bot * ES))
+        o = add_floor(o, z_namako_top, z_roof_bot, floors)
+    dzf = z_roof_bot - z_namako_top
+    z_cuts = [z_roof_bot + dzf * i for i in range(floors)]   # 下の階から順に各階の天端
+
+    # --- 棟の目標高さ(土台の底から m)。⛔ 瓦の勾配は触らず軒高だけで稼ぐ
+    if ridge is not None:
+        me = o.data
+        zs0 = [v.co.z for v in me.vertices]
+        h_now = max(zs0) - min(zs0)
+        extra = ridge / ES - h_now
+        if extra < -1e-4:
+            raise SystemExit("[nagaya] 棟 %.3fm は既定の %.3fm より低い — 軒では下げられない"
+                             % (ridge, h_now * ES))
+        if extra > 1e-4:
+            print("[nagaya] 棟 %.3fm へ(いま %.3fm)/ 無地の帯は %.3fm ある"
+                  % (ridge, h_now * ES, blank_h * ES))
+            o = raise_eaves(o, z_cuts, blank_h, extra)
+            me = o.data
+
+    # --- 長屋門の門口(ユーザー裁定 2026-08-30)。**階を積み、棟を上げた後**に抜く。
+    #   ⛔ 2026-09-04 まで積む前に抜いていた。`add_floor` は白壁の帯
+    #   [海鼠の天端 → 軒の下端] を丸ごと複製するので、**門口の空洞と板戸まで二階へ複製され**、
+    #   二階の壁の同じ位置に「もう一枚の門扉」が現れていた(岡部の表門の検証レンダで実見)。
+    #   ⭕ 積んでから抜けば二階の壁は無傷のまま、門口は一階だけに開く。
+    #   ⚠ 平屋(floors=1)では順序を変えても結果は同じなので、既存の小門の出力は変わらない。
     if gate is not None:
         # gc_m は **出来上がりの部材のローカル +X の左端からの距離**[m]。
         # ⚠ 書き出す前に Z まわりに 180° 回すので **obj 空間では X が反転する** —
@@ -510,13 +722,18 @@ def build(Lm, ends="both", name=None, floors=1, gate=None):
         carve_gate(o, gx0, gx1, gz_top)
         # 扉は**長屋に作り付ける**(ユーザー裁定2-A 2026-08-31)。指図 komon[].leaf の
         # 「両開きの板戸 h=2.8」。⛔ Unity 側で在庫の門を開口へ落とし込まない
-        hang_doors(o, gx0, gx1, z_bottom, gz_top, DOOR_H)
+        hang_doors(o, gx0, gx1, z_bottom, gz_top,
+                   DOOR_H if doorh is None else doorh)
+        if kabuki:
+            add_kabuki(o, gx0, gx1, gz_top, kabuki, y_wall_front)
 
-    # --- 階を積む(案A)。帯の高さは**素の実測**から取る
-    if floors > 1:
-        print("[nagaya] 素の帯: 海鼠の天端 %.4f (%.3fm) / 屋根の下端 %.4f (%.3fm)"
-              % (z_namako_top, z_namako_top * ES, z_roof_bot, z_roof_bot * ES))
-        o = add_floor(o, z_namako_top, z_roof_bot, floors)
+    # --- 両端の出格子番所(長屋門)。窓は x = (j+0.5)·bw に並ぶ(j = −1 … k)
+    if bansho:
+        bwid = bay - eps
+        cen = [-bwid * 0.5, (k + 0.5) * bwid]
+        add_degoshi(o, cen[:bansho] if bansho < 2 else cen,
+                    y_wall_front, z_win0, z_win1, win_hw)
+        me = o.data
 
     # --- 向き: 表(素では +Y)を Blender −Y へ。**回転**で行う(鏡映は巻きが裏返る)
     o.data.transform(Matrix.Rotation(math.pi, 4, 'Z'))
@@ -591,7 +808,7 @@ def hook():
         nt.links.new(img.outputs['Color'], b.inputs['Base Color'])
 
 
-def shots(o, tag, gate=None):
+def shots(o, tag, gate=None, bansho=0):
     hook()
     mn, mx = V.bbox([o])
     c = (mn + mx) * 0.5
@@ -604,8 +821,11 @@ def shots(o, tag, gate=None):
         V.studio((gx - 5.0, c.y - 7.0, mn.z + 2.0), (gx + 1.0, c.y + 2.0, mn.z + 1.8), res=(1500, 1100))
         V.render(os.path.join(SHOT, "nagaya_%s_mon3d.png" % tag))
     os.makedirs(SHOT, exist_ok=True)
-    # ① 正面の立面(全長)
-    V.studio((c.x, c.y - L, c.z), (c.x, c.y, c.z), ortho_scale=L * 1.08, res=(1900, 700))
+    # ① 正面の立面(全長)。⚠ 高さが入る画角にする — 二階・棟上げの部材は 700px では
+    #    上下が切れて「軒より上が見えない」レンダになる(2026-09-04 に踏んだ)
+    H = (mx - mn).z
+    hpx = max(700, min(1400, int(1900 * (H * 1.14) / (L * 1.08))))
+    V.studio((c.x, c.y - L, c.z), (c.x, c.y, c.z), ortho_scale=L * 1.08, res=(1900, hpx))
     V.render(os.path.join(SHOT, "nagaya_%s_elev.png" % tag))
     # ② 継ぎ目の寄り(左の妻から3本目の継ぎ目あたり)
     xj = mn.x + min(L * 0.5, 9.0)
@@ -617,6 +837,14 @@ def shots(o, tag, gate=None):
     # ③' 妻を裏(敷地の内側)から。裏の壁と妻の納まりを見る
     V.studio((mn.x - 8.0, c.y + 11.0, mn.z + 5.0), (mn.x + 3.0, c.y + 1.5, mn.z + 2.2), res=(1500, 1000))
     V.render(os.path.join(SHOT, "nagaya_%s_ura.png" % tag))
+    if bansho:
+        # ⑥ 出格子番所の寄り(左端)。格子が透けているか・庇が浮いていないかを見る
+        V.studio((mn.x + 1.2, c.y - 6.0, mn.z + 2.6), (mn.x + 1.2, c.y, mn.z + 2.2),
+                 ortho_scale=4.2, res=(1300, 1200))
+        V.render(os.path.join(SHOT, "nagaya_%s_bansho.png" % tag))
+        V.studio((mn.x - 3.4, c.y - 5.6, mn.z + 3.4), (mn.x + 1.4, c.y + 0.5, mn.z + 2.0),
+                 res=(1400, 1100))
+        V.render(os.path.join(SHOT, "nagaya_%s_bansho3d.png" % tag))
     # ④ 街路から見た斜め(人の目の高さ)
     V.studio((mn.x - 6.0, c.y - 16.0, 1.7), (c.x, c.y, 2.4), res=(1900, 900))
     V.render(os.path.join(SHOT, "nagaya_%s_street.png" % tag))
@@ -634,8 +862,17 @@ def main():
     if "--gate" in argv:
         i = argv.index("--gate")
         gate = (float(argv[i + 1]), float(argv[i + 2]), float(argv[i + 3]))
+    # --ridge <m>   棟天端の目標高さ(土台の底 = 敷居から)。軒高だけで稼ぐ
+    # --doorh <m>   板戸の丈(既定 DOOR_H=2.8)。楣まで通すなら門口の有効高と同じ値を渡す
+    # --bansho <n>  両端に出格子番所を付ける(長屋門。0=付けない)
+    ridge  = float(argv[argv.index("--ridge") + 1])  if "--ridge"  in argv else None
+    doorh  = float(argv[argv.index("--doorh") + 1])  if "--doorh"  in argv else None
+    bansho = int(argv[argv.index("--bansho") + 1])   if "--bansho" in argv else 0
+    # --kabuki <丈m>  門口の頭に冠木(横木)を見せる。0 = 出さない(既存の小門は従来どおり)
+    kabuki = float(argv[argv.index("--kabuki") + 1]) if "--kabuki" in argv else 0.0
     skip = set()
-    for f in ("--ends", "--name", "--floors"):
+    for f in ("--ends", "--name", "--floors", "--ridge", "--doorh", "--bansho",
+              "--kabuki"):
         if f in argv:
             skip.add(argv.index(f)); skip.add(argv.index(f) + 1)
     if "--gate" in argv:
@@ -647,11 +884,13 @@ def main():
         lens = [28.5]
     floors = int(argv[argv.index("--floors") + 1]) if "--floors" in argv else 1
     for Lm in lens:
-        o, path, L_real = build(Lm, ends=ends, name=name, floors=floors, gate=gate)
+        o, path, L_real = build(Lm, ends=ends, name=name, floors=floors, gate=gate,
+                                ridge=ridge, doorh=doorh, bansho=bansho,
+                                kabuki=kabuki)
         if do_render:
             shots(o, fmt(Lm) + ("" if gate is None else "_mon%s" % fmt(gate[0]))
                   + ("" if floors < 2 else "_%df" % floors)
-                  + ("" if ends == "both" else "_" + ends), gate=gate)
+                  + ("" if ends == "both" else "_" + ends), gate=gate, bansho=bansho)
 
 
 main()

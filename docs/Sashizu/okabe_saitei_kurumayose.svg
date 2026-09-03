@@ -1,0 +1,48 @@
+<svg viewBox="0 0 960 330" width="100%" role="img" aria-label="車寄と玄関棟の取り合い(裁定図)" style="max-width:960px;height:auto">
+<style>svg{background:#FBFAF6;font-family:'Hiragino Sans','Noto Sans JP',sans-serif}:root,svg{--ink:#23201A;--dim:#615C4E;--rule:#D3CEBF;--shu:#A8452C;--ishi:#6E7A83;--nagaya:#7A5C3A;--ike:#A9C2CE}.jo{font-size:9.5px;fill:#615C4E}.anS2{font-size:10.5px;fill:#615C4E;text-anchor:middle}</style>
+<text class="anS2" x="150.0" y="26.0" style="text-anchor:middle;font-size:13.0px">案A 現況(部材の実寸のまま)</text>
+<rect x="161.0" y="232.2" width="143.0" height="17.8" fill="var(--nagaya)" stroke="var(--ink)" stroke-width="1.00" opacity="0.55"/>
+<line x1="161.0" y1="203.8" x2="293.0" y2="203.8" stroke="var(--ink)" stroke-width="1.40"/>
+<line x1="161.0" y1="203.8" x2="271.0" y2="138.4" stroke="var(--shu)" stroke-width="2.00"/>
+<text class="jo" x="232.5" y="132.4" style="text-anchor:middle;font-size:10.0px">玄関棟 入母屋 11×11(大棟 33.94)</text>
+<text class="jo" x="165.4" y="198.8" style="text-anchor:start;font-size:10.0px">軒先 28.00</text>
+<line x1="-4.0" y1="232.2" x2="161.0" y2="232.2" stroke="var(--dim)" stroke-width="0.80" stroke-dasharray="4 3"/>
+<text class="jo" x="1.5" y="227.2" style="text-anchor:start;font-size:10.0px">床 25.42(面 24.80 + 0.62)</text>
+<line x1="101.9" y1="218.2" x2="150.0" y2="191.3" stroke="var(--ike)" stroke-width="2.20"/>
+<line x1="150.0" y1="191.3" x2="198.1" y2="218.2" stroke="var(--ike)" stroke-width="2.20"/>
+<text class="jo" x="150.0" y="185.3" style="text-anchor:middle;font-size:10.0px">車寄 棟 29.14</text>
+<line x1="150.0" y1="203.8" x2="150.0" y2="191.3" stroke="var(--shu)" stroke-width="3.00"/>
+<text class="jo" x="153.3" y="197.5" style="text-anchor:start;font-size:11.0px">食い込み 1.14m</text>
+<line x1="-4.0" y1="239.0" x2="304.0" y2="239.0" stroke="var(--ink)" stroke-width="1.60"/>
+<text class="jo" x="1.5" y="251.0" style="text-anchor:start;font-size:10.0px">面 24.80</text>
+<text class="jo" x="150.0" y="300.0" style="text-anchor:middle;font-size:10.0px">車寄 棟 29.14 &gt; 玄関の軒先 28.00 → 1.14m 食い込む</text>
+<text class="anS2" x="470.0" y="26.0" style="text-anchor:middle;font-size:13.0px">案B 車寄の屋根を緩勾配に</text>
+<rect x="481.0" y="232.2" width="143.0" height="17.8" fill="var(--nagaya)" stroke="var(--ink)" stroke-width="1.00" opacity="0.55"/>
+<line x1="481.0" y1="203.8" x2="613.0" y2="203.8" stroke="var(--ink)" stroke-width="1.40"/>
+<line x1="481.0" y1="203.8" x2="591.0" y2="138.4" stroke="var(--shu)" stroke-width="2.00"/>
+<text class="jo" x="552.5" y="132.4" style="text-anchor:middle;font-size:10.0px">玄関棟 入母屋 11×11(大棟 33.94)</text>
+<text class="jo" x="485.4" y="198.8" style="text-anchor:start;font-size:10.0px">軒先 28.00</text>
+<line x1="316.0" y1="232.2" x2="481.0" y2="232.2" stroke="var(--dim)" stroke-width="0.80" stroke-dasharray="4 3"/>
+<text class="jo" x="321.5" y="227.2" style="text-anchor:start;font-size:10.0px">床 25.42(面 24.80 + 0.62)</text>
+<line x1="421.9" y1="218.2" x2="470.0" y2="206.0" stroke="var(--ike)" stroke-width="2.20" stroke-dasharray="6 4"/>
+<line x1="470.0" y1="206.0" x2="518.1" y2="218.2" stroke="var(--ike)" stroke-width="2.20" stroke-dasharray="6 4"/>
+<text class="jo" x="470.0" y="200.0" style="text-anchor:middle;font-size:10.0px">車寄 棟 27.80(3寸)</text>
+<text class="jo" x="473.3" y="204.9" style="text-anchor:start;font-size:11.0px">余裕 0.20m</text>
+<line x1="316.0" y1="239.0" x2="624.0" y2="239.0" stroke="var(--ink)" stroke-width="1.60"/>
+<text class="jo" x="321.5" y="251.0" style="text-anchor:start;font-size:10.0px">面 24.80</text>
+<text class="jo" x="470.0" y="300.0" style="text-anchor:middle;font-size:10.0px">3寸(檜皮・柿葺)で棟 ≒27.80 → 軒先の下に 0.20m 収まる</text>
+<text class="anS2" x="790.0" y="26.0" style="text-anchor:middle;font-size:13.0px">案C 車寄を廃し式台だけ</text>
+<rect x="801.0" y="232.2" width="143.0" height="17.8" fill="var(--nagaya)" stroke="var(--ink)" stroke-width="1.00" opacity="0.55"/>
+<line x1="801.0" y1="203.8" x2="933.0" y2="203.8" stroke="var(--ink)" stroke-width="1.40"/>
+<line x1="801.0" y1="203.8" x2="911.0" y2="138.4" stroke="var(--shu)" stroke-width="2.00"/>
+<text class="jo" x="872.5" y="132.4" style="text-anchor:middle;font-size:10.0px">玄関棟 入母屋 11×11(大棟 33.94)</text>
+<text class="jo" x="805.4" y="198.8" style="text-anchor:start;font-size:10.0px">軒先 28.00</text>
+<line x1="636.0" y1="232.2" x2="801.0" y2="232.2" stroke="var(--dim)" stroke-width="0.80" stroke-dasharray="4 3"/>
+<text class="jo" x="641.5" y="227.2" style="text-anchor:start;font-size:10.0px">床 25.42(面 24.80 + 0.62)</text>
+<rect x="773.5" y="234.1" width="33.0" height="5.0" fill="var(--ishi)" stroke="var(--ink)" stroke-width="1.00"/>
+<text class="jo" x="790.0" y="228.1" style="text-anchor:middle;font-size:10.0px">式台のみ(屋根なし)</text>
+<line x1="636.0" y1="239.0" x2="944.0" y2="239.0" stroke="var(--ink)" stroke-width="1.60"/>
+<text class="jo" x="641.5" y="251.0" style="text-anchor:start;font-size:10.0px">面 24.80</text>
+<text class="jo" x="790.0" y="300.0" style="text-anchor:middle;font-size:10.0px">屋根が無いので取り合いは消える。⛔ 格式の判断は別</text>
+<text class="jo" x="8.0" y="318.0" style="text-anchor:start;font-size:10.0px">断面は東西・同縮尺(1m = 11.0px)。玄関棟の軒先・大棟は指図の算出値(`roofs.Goten_Genkan`)、車寄は 部材方の実測 `Okabe_Kurumayose.fbx`(2026-09-04)。⛔ 意匠は決めない — 図と寸法だけ。</text>
+</svg>

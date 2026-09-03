@@ -56,7 +56,7 @@ def check(name, verbose=True):
     bad = []
     n = 0
     for it in d["items"]:
-        if "決定" not in it.get("text", ""):
+        if not re.search(r"決定|裁定|答え", it.get("text", "")):
             continue
         if it.get("state") != "closed":
             continue

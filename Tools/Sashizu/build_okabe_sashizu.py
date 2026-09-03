@@ -620,7 +620,17 @@ def footprint_support_check(d, step=0.02, tol=0.01):
             n8x, n8y = _inward(P9w, e8)
             for r8 in d["runs"]:
                 if r8["edge"] == e8:
-                    bands.append((a8, n8x, n8y, 2.4 * r8.get("s", 0.5), ex8, ey8, r8["s0"], r8["s1"]))
+                    bt9 = 2.4 * r8.get("s", 0.5)
+                    # ⭕ **隅では駒が出隅の中へ食い込む**(スキル `unity-modular-stonewall` §R4:
+                    #    「両側の直線を出隅に食い込ませる。突き合わせない」)。したがって
+                    #    基壇の帯は run の s の外へ**底厚ぶん**伸びる。
+                    #    ⛔ ここを s0/s1 で切ると、隅で長屋の妻が『支えなし』に化ける
+                    #    (2026-09-04 棟梁の ClosureQA の直しで P0 に 0.71m² 出た)。
+                    #    ⚠ 伸ばすのは**辺の端の側だけ** — 辺の途中の継ぎ目は伸ばさない。
+                    L9 = math.hypot(b8[0] - a8[0], b8[1] - a8[1]) or 1e-9
+                    s0e = r8["s0"] - (bt9 if r8["s0"] <= 1e-6 else 0.0)
+                    s1e = r8["s1"] + (bt9 if r8["s1"] >= L9 - 1e-6 else 0.0)
+                    bands.append((a8, n8x, n8y, bt9, ex8, ey8, s0e, s1e))
         xs = [p[0] for p in q]; ys = [p[1] for p in q]
         miss = 0.0
         x = min(xs)
@@ -4258,7 +4268,12 @@ def plane_check(d):
     #             要求は逆に「犬走り 0.30m まで**寄せる**こと」になる。
     #   従前は練塀の数字(0.88m)を全段に当てており、辺12を長屋にした瞬間に
     #   「規約を満たすほど段が足りない」という矛盾が出た。
-    clr_hei = (d["const"]["inubashiri"] + d["const"]["dobeiT"] / 2.0) / d["const"]["ken"]
+    # ⭐ **2026-09-04: 塀の辺も長屋の辺と同じ 犬走り 0.30 になった。**
+    #   従前の 0.875 = 犬走り 0.30 + 塀厚の半分 0.575 は、**練塀が境界線に跨っていた頃**の値。
+    #   ⭕ `const.kidan`(法肩=区画線・塀は犬走りの内側)に改めた以上、段は
+    #     **犬走りの内側まで来てよい** — 区画線から 1.4×s の石垣の天端が支える。
+    #   ⛔ 0.875 のままだと、隅で長屋の足跡が段の外へ出る(棟梁の ClosureQA 2026-09-04)。
+    clr_hei = d["const"]["inubashiri"] / d["const"]["ken"]
     clr_nag = d["const"]["inubashiri"] / d["const"]["ken"]
     nag_edges = set(r["edge"] for r in d["runs"] if r["kind"] == "Nagaya")
     for t in d["terraces"]:
@@ -4698,6 +4713,21 @@ def kido_table(d):
                   mm.get("tobiraDeg", 0), mm.get("kutsuishiDrop", 0), mm.get("kaibanOut", 0)))
 
 
+def kirikaki_atv(d):
+    """**切り欠きが始まる v(間)** = 玄関棟の外壁 − 軒の出。
+
+    ⛔ **単位を混ぜない**(2026-09-04 部材方の指摘) — `v0` は**間**、`nokiOut` は **m**。
+      `52.0 − 0.90` と引くと 51.10 になり、真値 52.0 − 0.90/1.818 = **51.505** より
+      0.405間(0.736m)手前になる。⭕ **算出する**(⛔ 手で 51.505 と書かない)。
+    ⭕ こうすると切り口は**玄関棟の軒先の線から始まり、全部が屋根の下に隠れる**。"""
+    mg = next((m for m in d["munes"] if m["name"] == "Genkan"), None)
+    if not mg:
+        return 0.0
+    noki = (d.get("roofs") or {}).get("Goten_Genkan", {}).get("nokiOut",
+                                                              d["const"].get("nokiOut", 0.90))
+    return mg["v0"] - noki / d["const"]["ken"]
+
+
 def sashikomi_svg(d):
     """**車寄が玄関棟の屋根面へ差し込む所**(2026-09-04 ユーザー裁定10=A)。
 
@@ -4760,13 +4790,12 @@ def sashikomi_svg(d):
     kk = sk.get("kirikaki") or {}
     if kk:
         ky = plane + kk.get("aboveY", 0)
-        o.append(LN(X(kk.get("atV", 51.0)), Y(ky), X(56.0), Y(ky), "#B8860B", 2.0, "5 3"))
-        o.append(LN(X(kk.get("atV", 51.0)), Y(ky), X(kk.get("atV", 51.0)), Y(ky + 1.6),
-                    "#B8860B", 1.4, "5 3"))
-        o.append(T(X(kk.get("atV", 51.0)) + 4, Y(ky + 1.6) - 4,
-                   "切り欠く面: v ≧ %.2f かつ 面から %.2f より上(高さ %.2f)"
-                   % (kk.get("atV", 0), kk.get("aboveY", 0), kk.get("cutH", 0)),
-                   "jo"))
+        av = kirikaki_atv(d)
+        o.append(LN(X(av), Y(ky), X(56.0), Y(ky), "#B8860B", 2.0, "5 3"))
+        o.append(LN(X(av), Y(ky), X(av), Y(ky + 1.6), "#B8860B", 1.4, "5 3"))
+        o.append(T(X(av) + 4, Y(ky + 1.6) - 4,
+                   "切り欠く面: v ≧ %.3f 間 かつ 面から %.2f より上(高さ %.2f)"
+                   % (av, kk.get("aboveY", 0), kk.get("cutH", 0)), "jo"))
     o.append(T(20, H - 14, "⭕ %s ／ 縦横同縮尺(1m = %.0fpx)。⛔ 勾配は緩めない"
                "(2026-09-04 ユーザー裁定10=A)" % (sk.get("osame", ""), sc), "anS2", "start", 10))
     o.append("</svg>")
@@ -4814,6 +4843,13 @@ def sashikomi_check(d):
         if abs(kk.get("cutH", 0) - ov) > 0.005:
             bad.append("切り欠き: 高さ %.3f が 食い込み %.3f と違う(⛔ 手で書かない)"
                        % (kk.get("cutH", 0), ov))
+        av9 = kirikaki_atv(d)
+        if kk.get("atV") is not None and abs(kk["atV"] - av9) > 0.001:
+            bad.append("切り欠き: `atV` %.3f が 外壁 %.1f − 軒の出/江戸間 = %.3f と違う — "
+                       "⛔ **間と m を混ぜていないか**(2026-09-04 部材方)。露出 %.3fm"
+                       % (kk["atV"], next(m["v0"] for m in d["munes"]
+                                          if m["name"] == "Genkan"), av9,
+                          abs(kk["atV"] - av9) * d["const"]["ken"]))
         if kk.get("cutFrom") != "車寄":
             bad.append("切り欠き: 削る側が車寄でない(%s)— ⛔ 玄関棟の屋根は切らない"
                        % kk.get("cutFrom"))
@@ -4839,12 +4875,16 @@ def nagaya_run_table(d):
                      "<code>%s</code>" % (r.get("asset") or "—")])
     return _tw(["run", "辺", "s の範囲", "<b>run 長</b>", "門口", "部材"], rows,
                "⭐ 辺%d の外周は<b>『南袖 + 長屋門 + 北袖』を一本の系</b>として継ぐ。"
-               "⭕ 実装は <code>monS</code> を持つ run に <b>`Own.NagayaOmoteMon`</b> を使い、"
-               "<b>呼び寸法 = run 長 + 妻の出 %.2f×2</b> を自分で出す"
-               "(⛔ 指図は run 長だけを持つ・規則4)。"
-               "⛔ 門の躯体そのものは <code>gate</code>(別の物)で、run は袖だけ。"
+               "⭕ 実装は <code>monS</code> を持つ run に <b>`Own.NagayaOmoteMon`</b> を使う。"
+               "⛔ <b>呼びに妻の出を足さない</b> — 生成器の <code>len</code> は"
+               "<b>破風まで含む全幅</b>(妻の出は片側 <b>%.3f</b>・土台の小口はその内側)なので、"
+               "<b>呼び = run 長そのもの</b>で隣の破風と突き付く。"
+               "⚠ 長屋門の <b>16.362 も全幅</b> —「桁行9間」は全幅の呼びで、"
+               "<b>柱通りは %.3f</b>。⛔ 足して頼むと辺%d で <b>2.1m はみ出す</b>"
+               "(<code>nagaya_call_check</code> が見張る)。"
                "⚠ 棟高は <code>const.nagayaH</code> = <b>%.3f</b>(二階)。"
-               % (ge, to, d["const"]["nagayaH"]))
+               % (ge, to, d["gate"]["plan"].get("monPillarSpan", 0), ge,
+                  d["const"]["nagayaH"]))
 
 
 def gate_vs_sode_check(d):
@@ -4877,6 +4917,94 @@ def gate_vs_sode_check(d):
         elif abs(r9.get("len", 0) - (r9["s1"] - r9["s0"])) > 1e-6:
             bad.append("%s の `len` %.3f が s の差 %.3f と違う"
                        % (r9["name"], r9.get("len", 0), r9["s1"] - r9["s0"]))
+    return bad
+
+
+def nagaya_call_widths(d):
+    """辺の上に並ぶ物の**呼び寸法**(実装が生成器へ渡す `len`)を返す。
+
+    ⭐ 生成器の `len` は**破風まで含む全幅**(2026-09-04 部材方の実測)なので、
+      ⭕ 既定では **呼び = 走りの長さそのもの**。⛔ 妻の出を足さない。
+    ⚠ `const.nagayaCallAddsTsuma` を `true` にすると『足す』側の呼びを返す —
+      破壊試験でそれが破綻することを見せるための欄。"""
+    ge = d["gate"]["edge"]
+    add = 2.0 * d["const"].get("nagayaTsumaOut", 0.0) \
+        if d["const"].get("nagayaCallAddsTsuma") else 0.0
+    out = []
+    for r9 in d.get("runs", []):
+        if r9.get("kind") == "Nagaya" and r9.get("edge") == ge:
+            out.append((r9["name"], r9["s0"], r9["s1"],
+                        (r9["s1"] - r9["s0"]) + add))
+    gs, gw = d["gate"]["s"], d["gate"]["plan"]["monW"]
+    out.append(("(長屋門)", gs - gw / 2.0, gs + gw / 2.0, gw + add))
+    out.sort(key=lambda q: q[1])
+    return out
+
+
+def nagaya_call_check(d):
+    """**呼び寸法の合計が、辺の上で占める長さと合うか**(2026-09-04 部材方)。
+
+    ⛔ 『呼び = run 長 + 妻の出×2』で頼むと、袖2本と門の3枚ぶん余計に伸びて
+      **辺12 で 2.1m はみ出す**。指図が呼びの規約を言わないと実装がこれを踏む。
+    ⭕ 走りの合計と呼びの合計を突き合わせ、差が出たら鳴らす。"""
+    bad = []
+    ws = nagaya_call_widths(d)
+    if not ws:
+        return bad
+    span = sum(b9 - a9 for _n, a9, b9, _w in ws)
+    call = sum(w9 for _n, _a, _b, w9 in ws)
+    if abs(call - span) > 0.005:
+        bad.append("辺%d の呼びの合計 %.3f が 走りの合計 %.3f と %.2fm 食い違う — "
+                   "生成器の `len` は**破風まで含む全幅**なので"
+                   "**呼びに妻の出(片側 %.3f)を足さない**"
+                   % (d["gate"]["edge"], call, span, call - span,
+                      d["const"].get("nagayaTsumaOut", 0.0)))
+    gw = d["gate"]["plan"]["monW"]
+    ps = d["gate"]["plan"].get("monPillarSpan")
+    if ps is not None and abs((gw - ps) - 2.0 * d["const"].get("nagayaTsumaOut", 0.0)) > 0.005:
+        bad.append("長屋門: 全幅 %.3f − 柱通り %.3f = %.3f が 妻の出×2 %.3f と合わない"
+                   % (gw, ps, gw - ps, 2.0 * d["const"].get("nagayaTsumaOut", 0.0)))
+    return bad
+
+
+def run_reaches_corner_check(d):
+    """**辺の末尾の run が隅まで届いているか**(2026-09-04 棟梁の ClosureQA)。
+
+    ⛔ 「丸めた値を s1 へ写して隅に素通し」の型 — 辺0 で一度起き、
+      2026-09-04 に辺12 で再発した(s1 96.026 に対し辺長 96.426 で **0.400m** 空いていた)。
+    ⭕ **辺長は区画の実長から毎回算出する**(⛔ json の s1 を信じない)。
+    ⚠ めり込み(s1 > 辺長)は正常 — 隙間だけが欠陥(メモリ「門と塀の閉じは『隙間>めり込み』」)。
+    ⭕ 併せて **足跡が区画からはみ出していないか**も出す — 隅まで届かせると
+      長屋の妻が区画線を越えることがあり、**素通しより重い**(どちらを取るかは奉行の裁定)。"""
+    bad = []
+    P9 = d["polygon"]
+    n9 = len(P9)
+    gr9 = RGrid(d)
+    own = set(r["edge"] for r in d["runs"])
+    for e9 in range(n9):
+        rs = [r for r in d["runs"] if r["edge"] == e9]
+        if not rs or e9 not in own:
+            continue
+        a9, b9 = P9[e9], P9[(e9 + 1) % n9]
+        L9 = math.hypot(b9[0] - a9[0], b9[1] - a9[1])
+        last = max(rs, key=lambda r: r["s1"])
+        if L9 - last["s1"] > 0.02:
+            bad.append("辺%d の末尾 %s が隅まで %.3fm 届かない(s1 %.3f / 辺長 %.3f)— "
+                       "⛔ 丸めた値を s1 へ写さない"
+                       % (e9, last["name"], L9 - last["s1"], last["s1"], L9))
+        first = min(rs, key=lambda r: r["s0"])
+        if first["s0"] > 0.02:
+            bad.append("辺%d の先頭 %s が隅から %.3fm 空く(s0 %.3f)"
+                       % (e9, first["name"], first["s0"], first["s0"]))
+        for r9 in rs:
+            for p9 in _run_fp(d, r9):
+                u9, v9 = gr9.L(*p9)
+                if not in_parcel(d, u9, v9):
+                    dd, _e, _s = _par_near(d, u9, v9)
+                    bad.append("%s の足跡の隅 (%.3f, %.3f) が**区画の外** %.3fm — "
+                               "隅まで届かせた代償。⛔ 素通しと越境のどちらを取るかは奉行の裁定"
+                               % (r9["name"], u9, v9, dd * d["const"]["ken"]))
+                    break
     return bad
 
 
@@ -7517,6 +7645,8 @@ CHECK_LIST = [
     ("開口の幅が図の中で1つか(結界の門・木戸)", lambda d, raw, ter: gap_consistency_check(d)),
     ("車寄の差し込み(食い込みの寸法)",          lambda d, raw, ter: sashikomi_check(d)),
     ("長屋門と袖の高さ・門口の芯",              lambda d, raw, ter: gate_vs_sode_check(d)),
+    ("表長屋の呼び寸法(全幅・妻の出を足さない)",   lambda d, raw, ter: nagaya_call_check(d)),
+    ("辺の末尾の run が隅まで届くか",           lambda d, raw, ter: run_reaches_corner_check(d)),
     ("石段の足元と天端(段の宣言との一致)",      lambda d, raw, ter: kaidan_y_check(d)),
     ("汀の杭の割り付け",                      lambda d, raw, ter: kui_check(d)),
     ("算出物 okabe_impl.json の鮮度",           lambda d, raw, ter: impl_fresh_check(d)),

@@ -3089,8 +3089,10 @@ def section_svg(d, sec):
         if (sec["axis"] == "u" and m["u0"] <= at <= m["u1"]) or \
            (sec["axis"] == "v" and m["v0"] <= at <= m["v1"]):
             rf0 = (d.get("roofs") or {}).get(m.get("roof") or "") or {}
+            # ⭐ 2026-09-04: **棟ごとの屋根の宣言を読む**(S5-6)。⛔ 全棟一律の 5.9 を当てない。
+            #   ⚠ 帯の棟は面から、御殿は**床から**測る(`roofs.*._ridgeH` がそう宣言している)。
             tops.append((m["y"] + rf0.get("ridgeH", sec["ridgeAbove"])) if m.get("obi")
-                        else (m["y"] + fl0 + sec["ridgeAbove"]))
+                        else (m["y"] + fl0 + rf0.get("ridgeH", sec["ridgeAbove"])))
     ys = [p[1] for p in prof]
     y1 = max(ys + tops + [d["gate"]["sill"] + d["gate"]["plan"]["monH"]
                           if (sec["axis"] == "u" and abs(sec["at"]) < 2) else -99]) + 1.6
@@ -4609,6 +4611,41 @@ def planting_table(d):
                   "⚠ <b>登録済みは <code>L_grass</code> だけ</b> — 残りは棟梁が "
                   "<code>EdoAssets</code> へ登録する。⛔ 名を書かずに『塗る』と書かない。"
                   "<span class='cert'>確度 %s</span>" % gl.get("certSig", "U")))
+
+
+def mune_roof_table(d):
+    """**棟ごとの入側・大棟の向き・屋根の高さ**(2026-09-04 棟梁 S3-2/3-3/S5-6)。
+
+    ⛔ 「入側が各棟の外周を巡る」「長いほうへ架ける」を文章だけで済ませない —
+      棟ごとに数値で書かないと、実装は棟ごとに向きを決め直すことになる。"""
+    K = d["const"]["ken"]
+    fl = d["const"]["gotenFloor"]
+    rows = []
+    for m in d.get("munes", []):
+        rf = (d.get("roofs") or {}).get(m.get("roof") or "") or {}
+        wU, wV = m["u1"] - m["u0"], m["v1"] - m["v0"]
+        iri = m.get("iri")
+        iriS = ("<b>四方に %d 間</b>" % iri) if iri else "<b>回さない</b>"
+        if m.get("iriX"):
+            iriS += "(例外: %s)" % "・".join(m["iriX"])
+        rd = m.get("ridge")
+        rh = rf.get("ridgeH")
+        rows.append([m["name"], "%.0f×%.0f 間" % (wU, wV), iriS,
+                     ("<b>%s</b> 方向" % rd) if rd else "—",
+                     ("軒 %.2f / 棟 <b>%.3f</b>(床から)<br>= 面 %.2f + 床 %.2f + 棟 %.3f "
+                      "→ <b>標高 %.3f</b>" % (rf.get("eaveH", 0), rh, m["y"], fl, rh,
+                                              m["y"] + fl + rh)) if rh else "—",
+                     inline(str(m.get("ridgeCert") or "") + " / " + str(m.get("iriCert") or ""))])
+    nd = hokata_need(d) or {}
+    return _tw(["棟", "平面", "入側", "大棟", "屋根の高さ[m]", "確度"], rows,
+               "⭐ <b>大棟の高さは算出</b>(⛔ 手で書かない)— <code>build_goten_roof.py</code> の"
+               "入母屋の式(梁間の中央・勾配比 0.5456=5.5寸・軒の出 0.90)。"
+               "⭕ これで <b>法肩の松に要る丈が1本に決まった</b> — 遮蔽の相手は "
+               "<code>%s</code> の大棟(標高 %s)で、要る丈 <b>%s</b>"
+               "(⛔ 従前は大棟が設計値に無く、3つの候補の最悪で見ていた)。"
+               % ((d["nishi"]["hokata"]["shading"] or {}).get("ridgeFrom", "?"),
+                  ("%.2f m" % nd["ridgeY"]) if nd.get("ridgeY") else "—",
+                  ("%.2f m" % nd["needH"]) if nd.get("needH") else "—"))
 
 
 def build_stamp():
@@ -7245,6 +7282,7 @@ CHECK_LIST = [
     ("区画の多角形が正典と同期しているか",       lambda d, raw, ter: parcel_sync_check(d)),
     ("基壇と塀の据え位置(宣言した面と足跡)",     lambda d, raw, ter: kidan_check(d)),
     ("撒いた植栽(本数・区画の中・在庫の対応)",   lambda d, raw, ter: planting_check(d)),
+    ("石段の足元と天端(段の宣言との一致)",      lambda d, raw, ter: kaidan_y_check(d)),
     ("汀の杭の割り付け",                      lambda d, raw, ter: kui_check(d)),
     ("算出物 okabe_impl.json の鮮度",           lambda d, raw, ter: impl_fresh_check(d)),
     ("矩形の重なり",                       lambda d, raw, ter: overlap_check(d)),
@@ -7844,6 +7882,35 @@ def impl_fresh_check(d):
     if hz:
         return ["造成後の地盤に**区画の中の穴が %d セル**ある — 実装が地面を持てない" % hz]
     return []
+
+
+def kaidan_y_check(d):
+    """**石段の足元と天端が段の宣言と合っているか**(2026-09-04 棟梁 S3-1)。
+
+    ⛔ 地形から読まない — 足元も天端も**段(と門の敷居)の宣言からの従属値**である。
+    ⭕ `y0`/`y1` と `drop`・段数×蹴上 の三つが互いに合うことを見る。"""
+    bad = []
+    ty = {t9["name"]: t9["y"] for t9 in d.get("terraces", [])}
+    want = {"K_Mon": (d["gate"]["sill"], ty.get("Monzen")),
+            "K_Sando": (ty.get("Monzen"), ty.get("Shumen"))}
+    for k9 in d.get("kaidans", []):
+        w9 = want.get(k9["name"])
+        if not w9 or w9[0] is None or w9[1] is None:
+            continue
+        if k9.get("y0") is None or k9.get("y1") is None:
+            bad.append("%s に足元・天端(`y0`/`y1`)が無い — 実装が地形から読むしかない" % k9["name"])
+            continue
+        if abs(k9["y0"] - w9[0]) > 1e-6 or abs(k9["y1"] - w9[1]) > 1e-6:
+            bad.append("%s の足元・天端が段の宣言と違う(図 %.3f→%.3f / 宣言 %.3f→%.3f)"
+                       % (k9["name"], k9["y0"], k9["y1"], w9[0], w9[1]))
+        if abs((k9["y1"] - k9["y0"]) - k9.get("drop", 0)) > 1e-6:
+            bad.append("%s の落差 %.3f が 天端−足元 %.3f と合わない"
+                       % (k9["name"], k9.get("drop", 0), k9["y1"] - k9["y0"]))
+        if abs(k9.get("steps", 0) * k9.get("keri", 0) - (k9["y1"] - k9["y0"])) > 0.01:
+            bad.append("%s の段数×蹴上 %.3f が落差 %.3f と合わない"
+                       % (k9["name"], k9.get("steps", 0) * k9.get("keri", 0),
+                          k9["y1"] - k9["y0"]))
+    return bad
 
 
 def walls_wired_check(d):
@@ -9271,6 +9338,23 @@ def hokata_need(d):
     if not sh or not sh.get("needByRidge"):
         return None
     nb = sh["needByRidge"]; rc = sh.get("ridgeCandidates") or []
+    # ⭐ **大棟が設計値に入ったので候補を1本へ畳む**(2026-09-04 棟梁 S5-6)。
+    #   ⛔ 「3つの候補の最悪」で見続けない — 高さが決まった以上、当たっていない候補で
+    #     安全側に振るのは**設計を隠す**ことになる(要る丈が実際より小さく/大きく出る)。
+    #   ⭕ 感度 `sensitivity`(大棟が1m上がると要る丈が何m増えるか)で内挿する。
+    src9 = sh.get("ridgeFrom")
+    ry9 = None
+    if src9:
+        m9 = next((q for q in d.get("munes", []) if q["name"] == src9), None)
+        rf9 = (d.get("roofs") or {}).get((m9 or {}).get("roof") or "") or {}
+        if m9 and rf9.get("ridgeH") is not None:
+            ry9 = m9["y"] + d["const"]["gotenFloor"] + rf9["ridgeH"]
+    if ry9 is not None and rc and nb:
+        need = nb[0] + sh.get("sensitivity", 0.89) * (ry9 - rc[0])
+        return {"needH": need, "ridgeY": ry9,
+                "byRidge": [(ry9, need)], "worstAt": sh.get("worstAt"),
+                "sens": sh.get("sensitivity"),
+                "scope": sh.get("scope", "窓の外だけ")}
     k9 = nb.index(max(nb))
     return {"needH": max(nb), "ridgeY": rc[k9] if k9 < len(rc) else None,
             "byRidge": list(zip(rc, nb)), "worstAt": sh.get("worstAt"),
@@ -10309,6 +10393,13 @@ def nishi_table(d):
           + "<br>⛔ <b>伐った高木の分を他所へ足さない</b>(K207)— 代わりに"
             "<b>筋の両側へ低木のマント(帯C の樹種)を寄せて</b>切り口の裾を閉じる")
          if (_rp9 := next((q for q in d.get("ramps", []) if q.get("cutW")), None)) else "—"],
+        ["<b>汀の柵の潜り</b>(見所⑫)",
+         ("辺%s の s=%.1f・幅 %.3f(1間)・<b>%s h%.1f</b> — ⛔ 柵と同じ高さで、"
+          "跨がず<b>潜って</b>汀へ出る。部材 <code>%s</code>(%s)"
+          "<span class='cert'>確度 %s</span>"
+          % ((N.get("saku") or {}).get("edge", 5), _kg9["s"], _kg9["w"], _kg9["kata"],
+             _kg9["h"], _kg9["asset"], _kg9["assetKubun"], _kg9.get("certSig", "U")))
+         if (_kg9 := (N.get("saku") or {}).get("kuguri")) else "—"],
         ["<b>垣の外を通ってよい区間と手すり</b>(裁定1=A)",
          ("u%.1f〜%.1f の v%.1f を <b>%.1fm</b> — 法肩の竹垣(その位置で v%.2f)の"
           "<b>外(池側)</b>を走る。⭕ <b>宣言した区間</b>なので検査は鳴らさないが、"
@@ -11804,6 +11895,7 @@ def main():
                 d["gate"]["plan"]["monW"],
                 "{:,}".format(int(d.get("han", {}).get("tsubo", 0))),
                 kp * (area / TSUBO) / max(d.get("han", {}).get("tsubo", 1), 1), kp))
+    h.append(mune_roof_table(d))
     h.append("</div>")
 
     # ================================================================ 庭

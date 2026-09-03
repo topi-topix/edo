@@ -604,102 +604,112 @@ public static class EdoOkabeYashikiBuilder
         return sb.ToString();
     }
 
-    // ---------------------------------------------------------------- 表長屋
-    /// <summary>表長屋の妻で、破風・鬼が**壁の実体より外へ出る量**[m](片側)。
-    /// 松江松平が `Nagaya_Omote_36.fbx` を実測した値(全長 36.000 に対し壁は 35.360)。
-    /// 妻部材は長さによらず同じなので定数。⛔ **呼び寸法をそのまま run 長に使わない理由がこれ** —
-    /// run 長で頼むと隣り合う run の**壁が 0.64m 空き、軒だけが渡る**。
-    /// ⚠ 据えた後に実測して食い違えば鳴らす(部材が変わったら定数は死ぬ)。</summary>
-    const float NAGAYA_TSUMA_OVER = 0.32f;
-
-    /// <summary>外周の表長屋。⭕ **2026-09-04 ユーザー裁定12=A で二階建てに確定**
-    /// (`roofs.OmoteNagaya.kai` = 二階・棟 7.183)。表門は**長屋の躯体を門の上まで通し、
-    /// その足元に門口を抜いた版**(`runs[].monS` が門口の芯を run の中で指す)。
+    // ---------------------------------------------------------------- 表長屋と表門
+    /// <summary>外周の表長屋と表門。⭕ **2026-09-04 裁定12=A**(二階・棟 7.183 / 表門の棟 8.5)。
     ///
-    /// ⛔ **丸ごとのモジュールを並べない。**端が成り行きになって門・隅との間に隙間が空く
-    /// (2026-08-29 松江松平: 門の西へ 1.66m 食い込み・東へ 0.96m の隙間が同時に出た)。
-    /// ⭕ **run の長さで焼いた一本物**を据える。⚠ 呼び寸法は**壁の実体が run を覆う長さ**
-    /// (run 長 + 妻の出×2)。⛔ run 長そのままで頼まない。
-    /// ⚠ ピボットは**走りの中心・土台の底・壁の外面**なので、置く時点で犬走りぶん内へ寄せる。</summary>
+    /// ⚠⚠ **呼び寸法は run の長さ そのもの。**部材の `len` は**破風まで含む全幅**で、
+    /// 隣の破風と**突き付く**。3棟の全幅の和 6.189 + 16.362 + 73.475 = 96.026 が辺12 の実長に一致する。
+    /// ⛔ 「run 長 + 妻の出×2」で頼まない — 2026-09-04 に一度そう書いて指図方に正された。
+    /// ⛔ 丸ごとのモジュールを並べない(端が成り行きになって門・隅に隙間が空く)。
+    ///
+    /// ⚠ ピボットは **走りの中心・土台の底(門は敷居)・壁の外面**。壁の外面なので、
+    /// 置く時点で犬走りぶん内へ寄せる。**+Z = 見え面**を外へ向ける。
+    /// ⚠ 材質は `Edo/長屋/表長屋のマテリアルをremap` を打たないと真っ白になる。</summary>
     static string PlaceOmoteNagaya(Transform kak, List<string> wait)
     {
-        // 二階かどうかは指図が決める(⛔ 実装で決め打ちしない)
         var rf = O(Get(O(Get(D, "roofs")), "OmoteNagaya"));
         bool nikai = rf != null && Has(rf, "kai") && S(rf["kai"]).Contains("二階");
-        int made = 0, miss = 0; float lastH = 0f; bool anyMon = false;
+        int made = 0, miss = 0; float lastH = 0f;
         var sb = new System.Text.StringBuilder();
+
+        // ---- 表長屋の run(⭕ 部材は指図の `runs[].asset` が名指しする)
         foreach (var r in Runs)
         {
             if (!r.Nagaya) continue;
-            float len = r.s1 - r.s0 + 2f * NAGAYA_TSUMA_OVER;
-            float call = Mathf.Round(len * 100f) / 100f;
-            // 門口を抜いた版か(指図が run の中で門口の芯を指す)
-            float monS = 0f;
+            float call = Mathf.Round((r.s1 - r.s0) * 1000f) / 1000f;   // ⭕ run 長そのもの
+            string key = null;
             foreach (var o in A(D["runs"]) ?? new List<object>())
-            { var q = O(o); if (q != null && S(q["name"]) == r.name && Has(q, "monS")) monS = F(q["monS"]); }
-            if (monS > 0f) anyMon = true;
-            string path;
-            if (monS > 0f)
-            {
-                // ⚠ 門口は**部材のローカル +X の左端から**測るが、その「左端」は run の s1 の側
-                //   (見え面 +Z を外へ向ける yaw なので、ローカル +X は s の減る向きへ写る)。
-                //   ⛔ 向きを式で決めない — 据えた実メッシュの穴の位置を検査で見張ること。
-                float gc = Mathf.Round((r.s1 - monS + NAGAYA_TSUMA_OVER) * 100f) / 100f;
-                path = EdoAssets.Own.NagayaOmoteMon(call, gc, nikai);
-            }
-            else path = nikai ? EdoAssets.Own.NagayaOmote2F(call) : EdoAssets.Own.NagayaOmote(call);
-
-            if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+            { var q = O(o); if (q != null && S(q["name"]) == r.name && Has(q, "asset")) key = S(q["asset"]); }
+            string path = key != null ? AssetByKey(key, call, 0f)
+                        : (nikai ? EdoAssets.Own.NagayaOmote2F(call) : EdoAssets.Own.NagayaOmote(call));
+            if (path == null || AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
             {
                 miss++;
-                wait.Add("表長屋 " + r.name + "(run " + (r.s1 - r.s0).ToString("0.###") + "m → 呼び "
-                       + call.ToString("0.##") + "m" + (nikai ? "・二階" : "") + "): 部材が無い " + path
+                wait.Add("表長屋 " + r.name + "(run " + call.ToString("0.###") + "m"
+                       + (nikai ? "・二階" : "") + "): 部材が無い " + (path ?? key)
                        + " → blender --background --python Tools/Blender/build_nagaya_omote.py -- "
-                       + call.ToString("0.##") + (nikai ? " --floors 2" : ""));
+                       + call.ToString("0.###") + (nikai ? " --floors 2" : ""));
                 continue;
             }
-            Vector2 outw = OutNormal(r.edge);
-            float psi = Mathf.Atan2(outw.x, outw.y) * Mathf.Rad2Deg;   // 見え面 +Z を外へ
-            float sMid = (r.s0 + r.s1) * 0.5f;
-            // ⚠ ピボット = 壁の**外面**なので犬走りぶん内へ寄せてから置く
-            Vector2 p = EdgePt(r.edge, sMid) - outw * INUBASHIRI;
-            float seat = r.SeatAt(sMid);
-            var go = EdoBuild.Place(path, new Vector3(p.x, seat, p.y), psi, Vector3.one, kak, r.name);
-            if (go == null) { miss++; continue; }
-            EdoBuild.SeatBottom(go, seat - 0.10f);
-            // 妻の出の定数が部材と合っているかを、据えた実メッシュで検める
-            var bb = EdoBuild.RB(go);
-            Vector2 dir = (EdgePt(r.edge, r.s1) - EdgePt(r.edge, r.s0)).normalized;
-            float realLen = Mathf.Abs(bb.size.x * dir.x) + Mathf.Abs(bb.size.z * dir.y);
-            lastH = bb.size.y;
-            if (Mathf.Abs(realLen - call) > 0.10f)
-                wait.Add("表長屋 " + r.name + ": 部材の実長 " + realLen.ToString("F2")
-                       + "m が呼び " + call.ToString("0.##") + "m と食い違う(妻の出の定数 "
-                       + NAGAYA_TSUMA_OVER.ToString("0.##") + " が部材と合っていない疑い)");
-            made++;
+            if (PlaceNagayaPiece(kak, r.name, path, r.edge, (r.s0 + r.s1) * 0.5f,
+                                 r.SeatAt((r.s0 + r.s1) * 0.5f), call, wait, ref lastH)) made++;
         }
+
+        // ---- 表門 — 長屋の躯体に門口を抜いた版(裁定12=A)
+        {
+            var g = O(Get(D, "gate"));
+            var gp = g == null ? null : O(Get(g, "plan"));
+            if (gp != null && Has(gp, "monW"))
+            {
+                float monW = F(gp["monW"]);
+                // ⚠ 門口は**部材のローカル +X の左端から**測る。門は桁行の中央に開くので monW/2。
+                //   ⛔ 向きを式で決め切らない — 据えた実メッシュの穴の位置は検査で見張る
+                float gc = Mathf.Round(monW / 2f * 1000f) / 1000f;
+                string gpath = EdoAssets.Own.NagayaOmoteMon(Mathf.Round(monW * 1000f) / 1000f, gc, nikai);
+                if (AssetDatabase.LoadAssetAtPath<GameObject>(gpath) == null)
+                {
+                    miss++;
+                    wait.Add("表門: 部材が無い " + gpath + " → build_nagaya_omote.py -- "
+                           + monW.ToString("0.###") + " --gate " + gc.ToString("0.###") + " …"
+                           + (nikai ? " --floors 2" : ""));
+                }
+                else
+                {
+                    // ⚠ 門のピボットの高さは**敷居**(`gate.sill`)。⛔ 面から起こさない
+                    float sill = Has(g, "sill") ? F(g["sill"]) : 0f;
+                    if (PlaceNagayaPiece(kak, "Omotemon", gpath, (int)F(g["edge"]), F(g["s"]),
+                                         sill, monW, wait, ref lastH)) made++;
+                }
+                if (Has(g, "asset") && S(g["asset"]).StartsWith("要選定"))
+                    wait.Add("表門: 指図の `gate.asset` が「要選定」のまま — 裁定12=A で "
+                           + "`Own.NagayaOmoteMon(" + monW.ToString("0.###") + ", " + gc.ToString("0.###")
+                           + ", 二階)` に決まっているので、指図方が書き換えること");
+            }
+        }
+
         // 棟高の突き合わせ(指図 ⇔ **据えた現物**)。⛔ 呼び寸法や doc の数字で比べない
         if (Has(O(D["const"]), "nagayaH") && lastH > 0.1f)
         {
             float want = C("nagayaH");
             if (Mathf.Abs(lastH - want) > 0.15f)
-                wait.Add("表長屋の棟高: 指図 const.nagayaH " + want.ToString("0.##")
-                       + "m / 据えた現物の実丈 " + lastH.ToString("0.##") + "m"
-                       + (nikai ? "(裁定12=A で二階に確定したので、指図の値が平屋のままの疑い)" : ""));
+                wait.Add("表長屋の棟高: 指図 const.nagayaH " + want.ToString("0.###")
+                       + "m / 据えた現物の実丈 " + lastH.ToString("0.###") + "m");
         }
-        // 表門 — 裁定12=A で**長屋の躯体に門口を抜く**形になった(`runs[].monS`)
-        if (!anyMon)
-        {
-            var gp = O(Get(O(Get(D, "gate")), "plan"));
-            wait.Add("表門: どの表長屋の run も `monS`(門口の芯)を持たない — "
-                   + "裁定12=A は門を**長屋の躯体に抜く**形なので、指図方が run を継いで monS を"
-                   + "書くまで門口が開かない。⚠ 指図の棟高 gate.plan.monH = "
-                   + (gp != null && Has(gp, "monH") ? F(gp["monH"]).ToString("0.##") : "?")
-                   + "m(裁定12=A は 8.5)");
-        }
-        sb.Append("表長屋: " + made + " 棟" + (nikai ? "(二階)" : "(平屋)")
-                + (miss > 0 ? " / 部材の無い run " + miss : ""));
+        sb.Append("表長屋・表門: " + made + " 棟" + (nikai ? "(二階)" : "(平屋)")
+                + (miss > 0 ? " / 部材の無いもの " + miss : ""));
         return sb.ToString();
+    }
+
+    /// <summary>長屋の一本物を据える。ピボット = 走りの中心・土台の底・**壁の外面**。
+    /// ⭕ 据えた実メッシュで**走り方向の実長**を測り、呼び寸法と食い違えば鳴らす。</summary>
+    static bool PlaceNagayaPiece(Transform kak, string name, string path, int edge, float sMid,
+                                 float seat, float call, List<string> wait, ref float lastH)
+    {
+        Vector2 outw = OutNormal(edge);
+        float psi = Mathf.Atan2(outw.x, outw.y) * Mathf.Rad2Deg;      // 見え面 +Z を外へ
+        Vector2 p = EdgePt(edge, sMid) - outw * INUBASHIRI;           // 壁の外面 → 犬走りぶん内へ
+        var go = EdoBuild.Place(path, new Vector3(p.x, seat, p.y), psi, Vector3.one, kak, name);
+        if (go == null) return false;
+        EdoBuild.SeatBottom(go, seat - 0.10f);
+        var bb = EdoBuild.RB(go);
+        Vector2 dir = (EdgePt(edge, sMid + 1f) - EdgePt(edge, sMid)).normalized;
+        float realLen = Mathf.Abs(bb.size.x * dir.x) + Mathf.Abs(bb.size.z * dir.y);
+        lastH = bb.size.y;
+        if (Mathf.Abs(realLen - call) > 0.10f)
+            wait.Add("長屋 " + name + ": 部材の実長 " + realLen.ToString("F3")
+                   + "m が呼び " + call.ToString("0.###") + "m と食い違う"
+                   + "(⚠ 呼び寸法は**破風まで含む全幅**で、隣と突き付く)");
+        return true;
     }
 
     // ---------------------------------------------------------------- 石垣基壇
@@ -1107,6 +1117,7 @@ public static class EdoOkabeYashikiBuilder
         var f = Grid;
         float floor = C("gotenFloor");
         var roofs = O(Get(D, "roofs"));
+        var sb0 = new System.Text.StringBuilder();
         int made = 0, noRoof = 0, held = 0;
         foreach (var o in A(D["munes"]) ?? new List<object>())
         {
@@ -1146,10 +1157,7 @@ public static class EdoOkabeYashikiBuilder
                 var bb2 = EdoBuild.RB(gk2);
                 gk2.transform.position += new Vector3(cc2.x - bb2.center.x, F(m["y"]) - bb2.min.y,
                                                       cc2.y - bb2.center.z);
-                if (!Has(m, "kirikaki") && !Has(rf, "kirikaki"))
-                    wait.Add("棟 " + nm + ": **切り欠きの線が指図に無い**(裁定10=A) — "
-                           + "玄関棟の屋根面へ差し込む食い込みの線を 其十九 から `kirikaki` へ。"
-                           + "いまは切り欠かずに据えてあるので、背面が玄関棟の屋根と重なる");
+                sb0.Append(KirikakiCheck(gk2, m, rf, wait));
                 made++; continue;
             }
 
@@ -1194,7 +1202,49 @@ public static class EdoOkabeYashikiBuilder
                                       nx, nz, iriZ, floor, roof, true, true, null, null, -1, iriX);
             if (go != null) made++;
         }
-        return "棟: " + made + " 棟(屋根待ち " + noRoof + " / 裁定待ちで据えず " + held + ")";
+        return "棟: " + made + " 棟(屋根待ち " + noRoof + " / 裁定待ちで据えず " + held + ")" + sb0;
+    }
+
+    /// <summary>**車寄の切り欠き**(2026-09-04 裁定10=A)。指図の規則は一つ —
+    /// 「玄関棟の**軒先の線**より奥(v ≧ `atV`)で、**面から** `aboveY` より上にある車寄の面を切る」。
+    /// ⛔ 玄関棟の屋根は切らない(親側は無傷)。
+    ///
+    /// ⚠ **メッシュを実行時に切らない。**切り欠きは矩形の抜き(二つの半空間の積を除く)で、
+    /// 平面1枚のクリップでは表せず、三角形を割り直す必要がある。⛔ 重心で三角形を捨てる近似は
+    /// 縁がぎざぎざになって瓦が欠ける。⭕ **切り欠き済みの部材を部材方に焼いてもらう**のが筋なので、
+    /// ここでは**据えた現物を測って、どれだけ食い込んでいるかを数字で出す**にとどめる。</summary>
+    static string KirikakiCheck(GameObject go, Dictionary<string, object> m,
+                                Dictionary<string, object> rf, List<string> wait)
+    {
+        var sk = O(Get(rf, "sashikomi"));
+        var kk = sk == null ? null : O(Get(sk, "kirikaki"));
+        if (kk == null)
+        { wait.Add("棟 " + S(m["name"]) + ": 切り欠きの線が指図に無い(裁定10=A)"); return ""; }
+        float atV = F(kk["atV"]), aboveY = F(kk["aboveY"]), face = F(m["y"]);
+        var f = Grid;
+        int n = 0; float maxAbove = 0f, maxV = float.MinValue;
+        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var mtx = mf.transform.localToWorldMatrix;
+            var vs = mf.sharedMesh.vertices;
+            for (int i = 0; i < vs.Length; i++)
+            {
+                var w = mtx.MultiplyPoint3x4(vs[i]);
+                var uv = f.L(new Vector2(w.x, w.z));
+                if (uv.y < atV) continue;                      // 軒先の線より手前は切らない
+                float above = (w.y - face) - aboveY;
+                if (above <= 0f) continue;                     // 軒先の高さより下は切らない
+                n++; maxAbove = Mathf.Max(maxAbove, above); maxV = Mathf.Max(maxV, uv.y);
+            }
+        }
+        if (n == 0) return " / 車寄の切り欠き: 不要(食い込み 0)";
+        wait.Add("車寄の切り欠き: **未実施** — 玄関棟の軒先の線(v≧" + atV.ToString("0.##")
+               + ")より奥で、面+" + aboveY.ToString("0.###") + "m より上に車寄の頂点が " + n
+               + " 点ある(最大 " + maxAbove.ToString("F2") + "m 上・v 最大 " + maxV.ToString("F2") + ")。"
+               + "⛔ 実行時にメッシュを割り直さない(縁がぎざぎざになって瓦が欠ける) — "
+               + "部材方へ**切り欠き済みの版**を依頼すること(規則: atV / aboveY / cutFrom=車寄・玄関棟は切らない)");
+        return " / 車寄の食い込み " + n + " 点";
     }
 
     // ---------------------------------------------------------------- 渡廊下・御錠口
@@ -1232,28 +1282,23 @@ public static class EdoOkabeYashikiBuilder
                 held++; continue;
             }
 
-            // ⛔ **2026-09-04 裁定11=B: 御錠口に `Own.Jouguchi` は使わない。**
-            //    廊下幅一間の建具として渡廊下の部材で通し、錠口の戸は在庫の戸を建て込む。
-            //    ⚠ 指図方が `links.L_Jouguchi` を 1×1 へ書き換え中。1間になるまでは据えない。
-            if (Has(l, "asset") && S(l["asset"]).EndsWith("Jouguchi"))
+            // ⭕ **2026-09-04 裁定11=B: 御錠口は廊下幅一間の建具。**`Own.Jouguchi`(3間角)は使わない。
+            //    指図は `asset` に "EdoGotenKit.Roka + EdoAssets.Goten.Fusuma" と書くので、
+            //    **Roka を名指すものは下の渡廊下の枝で通し**、Fusuma を名指すなら錠口の戸を建て込む。
+            string akey = Has(l, "asset") ? S(l["asset"]) : null;
+            bool wantFusuma = akey != null && akey.Contains("Fusuma");
+            if (akey != null && akey.EndsWith("Jouguchi"))
             {
-                if (Mathf.Abs((alongU ? dv : du) - 1f) > 0.01f)
-                {
-                    wait.Add("御錠口 " + nm + ": 裁定11=B で**廊下幅一間**になるが、指図はまだ "
-                           + du.ToString("0.##") + "×" + dv.ToString("0.##") + "間。"
-                           + "⛔ `Own.Jouguchi`(3間角)は使わない — 1×1 へ書き換わるまで据えない");
-                    held++; continue;
-                }
-                // 1間になっていれば下の渡廊下の枝で通す(asset は無視する)
+                wait.Add("御錠口 " + nm + ": 指図がまだ `Own.Jouguchi`(3間角)を指している — "
+                       + "裁定11=B は**廊下幅一間の建具**なので使わない。指図方が書き換えるまで据えない");
+                held++; continue;
             }
-            // 指図が部材を名指ししているもの(御錠口以外)
-            else if (Has(l, "asset"))
+            if (akey != null && !akey.Contains("Roka"))
             {
-                string path = AssetByKey(S(l["asset"]), Mathf.Max(du, dv), Mathf.Min(du, dv));
+                string path = AssetByKey(akey, Mathf.Max(du, dv), Mathf.Min(du, dv));
                 if (path == null || AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
-                { wait.Add("廊下 " + nm + ": 部材が引けない " + S(l["asset"])); continue; }
+                { wait.Add("廊下 " + nm + ": 部材が引けない " + akey); continue; }
                 Vector2 c = f.W((u0 + u1) * 0.5f, (v0 + v1) * 0.5f);
-                // ⚠ ピボットは**床レベル**(地盤ではない)— 部材の doc の規約
                 var go2 = EdoBuild.Place(path, new Vector3(c.x, F(l["y"]) + floor, c.y), yaw,
                                          Vector3.one, grp, nm);
                 if (go2 != null) made++;
@@ -1269,7 +1314,24 @@ public static class EdoOkabeYashikiBuilder
             // ⛔ 両端の柱は棟の柱と重なるので立てない(z-fighting)
             var go = EdoGotenKit.Roka(nm, grp, new Vector3(p.x, F(l["y"]), p.y), yaw, nx,
                                       floor, true, true, true, false, false);
-            if (go != null) made++;
+            if (go == null) continue;
+            made++;
+            // ⭕ 錠口の戸 — 廊下の断面を塞ぐ在庫の建具(裁定11=B「錠口の建具は在庫の戸」)。
+            //   ⚠ 廊下のローカルは +X = 走り / +Z = 幅一間。戸は幅を跨ぐので **Y まわり 90°**。
+            if (wantFusuma)
+            {
+                float K = EdoAssets.Goten.Ken;
+                var src = AssetDatabase.LoadAssetAtPath<GameObject>(EdoAssets.Goten.Fusuma);
+                if (src == null) wait.Add("御錠口 " + nm + ": 建具が無い " + EdoAssets.Goten.Fusuma);
+                else
+                {
+                    var fs = (GameObject)PrefabUtility.InstantiatePrefab(src, go.transform);
+                    Undo.RegisterCreatedObjectUndo(fs, "jouguchi");
+                    fs.name = nm + "_Tobira";
+                    fs.transform.localPosition = new Vector3(0f, floor, K * 0.5f);
+                    fs.transform.localRotation = Quaternion.Euler(0f, 90f, 0f);
+                }
+            }
         }
         return "渡廊下: " + made + " 本(裁定待ちで据えず " + held + ")";
     }
@@ -1715,15 +1777,31 @@ public static class EdoOkabeYashikiBuilder
     /// 書式は `族.名.寸法.個体`(例 `JG.Pine.Big.2` / `Own.Jouryoku.Mid.1`)。
     /// ⛔ **どの在庫の木がどの樹種を代表するかは在庫方の判断**で、ここで決めない
     ///   — 部材の doc も「指図の parts で個体を混ぜること」と求めている。</summary>
-    static string PlantByKey(string key)
+    static string PlantByKey(string key) { return PlantByKey(key, key); }
+    static string PlantByKey(string key, string seedName)
     {
         if (string.IsNullOrEmpty(key)) return null;
         var t = key.Split('.');
         if (t.Length < 2) return null;
         string fam = t[0], nm = t[1];
         string size = t.Length > 2 ? t[2] : "Mid";
+        // ⚠ 個体は `1` か `1-3`(範囲)で来る。⛔ **1本の層を1個体で埋めない**(部材の doc)ので、
+        //   範囲なら **名前から決まる**個体を選ぶ(乱数ではないので何度流しても同じ)。
+        //   ⭕ 個体を指図で決めたいときは範囲でなく単一の番号を書けばそちらが勝つ。
         int idx = 1;
-        if (t.Length > 3) int.TryParse(t[3], out idx);
+        if (t.Length > 3)
+        {
+            string it = t[3];
+            int dash = it.IndexOf('-');
+            if (dash > 0)
+            {
+                int lo2, hi2;
+                if (int.TryParse(it.Substring(0, dash), out lo2) &&
+                    int.TryParse(it.Substring(dash + 1), out hi2) && hi2 >= lo2)
+                    idx = lo2 + (StableHash(seedName) % (hi2 - lo2 + 1));
+            }
+            else int.TryParse(it, out idx);
+        }
         if (idx < 1) idx = 1;
         if (fam == "JG")
         {
@@ -1744,6 +1822,15 @@ public static class EdoOkabeYashikiBuilder
             if (nm == "Ume")      return EdoAssets.Own.Ume(size, idx);
         }
         return null;
+    }
+
+    /// <summary>名前から決まる安定した非負の整数。⛔ 乱数ではない — 何度流しても同じ物が出る。
+    /// (`string.GetHashCode` は .NET の版で変わるので使わない)</summary>
+    static int StableHash(string s2)
+    {
+        int h = 17;
+        if (s2 != null) for (int i = 0; i < s2.Length; i++) h = unchecked(h * 31 + s2[i]);
+        return h < 0 ? -h : h;
     }
 
     /// <summary>部材の**素の丈**[m]。丈を指図の値へ合わせる倍率を出すのに使う。一度測って覚える。</summary>
@@ -1778,7 +1865,7 @@ public static class EdoOkabeYashikiBuilder
 
     // ---------------------------------------------------------------- 植栽
     /// <summary>**生成器が撒いた散布点を据えるだけ。**
-    /// 期待する欄は <c>impl.planting.points[]</c> =
+    /// 期待する欄は <c>impl.planting[]</c>(素の配列。`{points:[…]}` でも受ける)=
     /// <c>{ name, zone, role, species, asset, u, v, h, tilt, tiltDir[2], ground }</c>。
     /// ・`asset` … 部材のキー(`JG.Pine.Big.2` など)。**どの在庫の木がどの樹種かは在庫方が決める**
     /// ・`h`     … 実際に置く丈[m]。⚠ 指図の `hMin`/`hMax` と窓の樹高の上限を**生成器が既に噛ませた後**の値
@@ -1786,8 +1873,10 @@ public static class EdoOkabeYashikiBuilder
     /// ⛔ ここで丈を丸めたり、上限を当て直したりしない — 二重に判定すると図と食い違う。</summary>
     static string PlantFromImpl(List<string> wait)
     {
-        var pl = O(Get(IMPL, "planting"));
-        if (pl == null)
+        // ⚠ 算出物は**素の配列**で来る(`{points:[…]}` ではない)。両方受ける
+        var pts = A(Get(IMPL, "planting"));
+        if (pts == null) { var pl0 = O(Get(IMPL, "planting")); pts = pl0 == null ? null : A(Get(pl0, "points")); }
+        if (pts == null)
         {
             wait.Add("算出物に planting が無い — 林(高木72・中木160・低木22群・下草・つる・ヤダケ)/"
                    + "法肩の松15/榎3/ススキ の**散布点を生成器に焼かせること**"
@@ -1795,8 +1884,6 @@ public static class EdoOkabeYashikiBuilder
                    + "指図の検査(窓の樹高の上限・対岸の二層・坂と木戸の離れ)が見た配置と別物になる");
             return "植栽: 算出物待ち";
         }
-        var pts = A(Get(pl, "points"));
-        if (pts == null) { wait.Add("算出物 planting.points が無い"); return "植栽: 算出物待ち"; }
         var grp = Group("Nishi/Planting"); Clear(grp);
         var f = Grid;
         int made = 0, noPart = 0, noAsset = 0;
@@ -1807,7 +1894,7 @@ public static class EdoOkabeYashikiBuilder
             var q = O(o); if (q == null) continue;
             string key = Has(q, "asset") ? S(q["asset"]) : null;
             if (key == null) { noAsset++; continue; }
-            string path = PlantByKey(key);
+            string path = PlantByKey(key, Has(q, "name") ? S(q["name"]) : key);
             if (path == null) { missing.Add(key); noPart++; continue; }
             Vector2 c = f.W(F(q["u"]), F(q["v"]));
             float y = S(Get(q, "ground")) == "terrain" ? EdoBuild.Ground(c.x, c.y) : Graded.At(c.x, c.y);
@@ -1926,16 +2013,19 @@ public static class EdoOkabeYashikiBuilder
             float dia = F(Get(k, "dia"));
             string path = EdoAssets.Own.Kui(dia);
             if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null) { missing.Add(dia.ToString("0.00")); continue; }
-            float top = F(Get(k, "top"));                     // 頭の高さ(水面 + topMin..topMax)
-            float yaw = Has(k, "yaw") ? F(k["yaw"]) : 0f;     // ⛔ 実装で振らない
+            float top = Has(k, "topY") ? F(k["topY"]) : F(Get(k, "top"));   // 頭の高さ
+            // ⚠ 傾き 5° は部材の **+X へ焼き込んである**ので、yaw を振れば傾きの方位が散る。
+            //   算出物が yaw を持たないので**名前から決まる向き**を使う(⛔ 乱数ではない)。
+            float yaw = Has(k, "yaw") ? F(k["yaw"]) : (StableHash(S(Get(k, "name"))) % 360);
             var go = EdoBuild.Place(path, new Vector3(c.x, top, c.y), yaw, Vector3.one, grp,
                                     Has(k, "name") ? S(k["name"]) : "Kui_" + made);
             if (go != null) made++;
             // 貫 — 頭から `nuki.below` 下。⚠ 指図の「杭ごと1段」は部材が数千本になるので
             //      部材方が 1間の丸太1本として出した(据えるのは杭の並びに沿って)
-            if (Has(k, "nuki") && below > 0f)
+            if (Has(k, "nukiY") || (Has(k, "nuki") && below > 0f))
             {
-                var gn = EdoBuild.Place(EdoAssets.Own.KuiNuki, new Vector3(c.x, top - below, c.y),
+                float ny = Has(k, "nukiY") ? F(k["nukiY"]) : top - below;
+                var gn = EdoBuild.Place(EdoAssets.Own.KuiNuki, new Vector3(c.x, ny, c.y),
                                         yaw, Vector3.one, grp, "Nuki_" + nuki);
                 if (gn != null) nuki++;
             }
@@ -2427,13 +2517,13 @@ public static class EdoOkabeYashikiBuilder
         if (zone == "hayashi")
         {
             var hy = O(Get(n, "hayashi")); if (hy == null) return false;
-            if (role == "takagi")
+            if (role == "高木" || role == "takagi")
                 foreach (var o in A(Get(hy, "takagi")) ?? new List<object>())
                 {
                     var t = O(o);
                     if (t != null && S(t["species"]) == species) { lo = F(t["hMin"]); hi = F(t["hMax"]); return true; }
                 }
-            if (role == "yadake")
+            if (role == "ヤダケ" || role == "yadake")
             { var y = O(Get(hy, "yadake")); if (y != null) { lo = F(y["hMin"]); hi = F(y["hMax"]); return true; } }
             return false;
         }
@@ -2442,22 +2532,22 @@ public static class EdoOkabeYashikiBuilder
         if (zone == "hojiri")
         {
             var hj = O(Get(n, "hojiri")); if (hj == null) return false;
-            if (role == "enoki")
+            if (role == "榎" || role == "enoki")
                 foreach (var o in A(Get(hj, "enoki")) ?? new List<object>())
                 {
                     var t = O(o);
                     if (t != null && S(t["name"]) == name) { lo = F(t["hMin"]); hi = F(t["hMax"]); return true; }
                 }
-            if (role == "susuki")
+            if (role == "ススキ" || role == "susuki")
             { var su = O(Get(hj, "susuki")); if (su != null) { lo = F(su["hMin"]); hi = F(su["hMax"]); return true; } }
             return false;
         }
         if (zone == "mado")
         {
             var md = O(Get(n, "mado")); if (md == null) return false;
-            if (role == "susuki")
+            if (role == "ススキ" || role == "susuki")
             { var su = O(Get(md, "susuki")); if (su != null) { lo = F(su["hMin"]); hi = F(su["hMax"]); return true; } }
-            if (role == "matsu")
+            if (role == "松" || role == "matsu")
                 foreach (var o in A(Get(md, "matsu")) ?? new List<object>())
                 {
                     var t = O(o);

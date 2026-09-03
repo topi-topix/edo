@@ -7139,6 +7139,7 @@ def shakkei_table(d):
 #   ⚠ 引数の形が違う検査があるので、列の第2要素は「(d, raw, ter) を受けて件数の並びを返す関数」。
 CHECK_LIST = [
     ("往復試験(剥がして組み直すと正典に戻るか)", lambda d, raw, ter: roundtrip_check(raw, pipeline)),
+    ("区画の多角形が正典と同期しているか",       lambda d, raw, ter: parcel_sync_check(d)),
     ("矩形の重なり",                       lambda d, raw, ter: overlap_check(d)),
     ("面のはみ出し(棟・庭が段と区画の中か)",     lambda d, raw, ter: plane_check(d)),
     ("郭の土留めの高さ",                    lambda d, raw, ter: wall_check(d)),
@@ -7224,6 +7225,35 @@ def checks_table(chk):
                "⛔ <b>0件は「合格」ではない</b> — 恒真の検査・検査そのものの欠落・"
                "建てないと見えない不良はここには出ない(<code>docs/verification-loops.md</code>)。"
                "⭐ 合計 <b>%d 件</b>。⛔ 指摘が残っている図はユーザーに見せない・実装しない。" % tot)
+
+
+def parcel_sync_check(d):
+    """**区画の多角形が正典(`docs/Sashizu/parcels.json` の id=okabe)と一致するか**
+    (2026-09-03 棟梁の棚卸し・裁定2=案A)。
+
+    ⛔ 指図の `polygon` は正典の**同期コピー**だと自分で宣言しているのに、
+      同期していることを誰も確かめていなかった — P2 が 0.600m・P3 が 1.128m ずれたまま
+      **辺長・run の s1・段の多角形・切盛量**がその上に載っていた(CLAUDE.md 規則11)。
+    ⭕ 1点ずつ突き合わせ、**0.001m でも違えば鳴らす**。⛔ 直すのは指図の側
+      (区画はユーザーの敷地割が正典)。"""
+    bad = []
+    p9 = os.path.join(DOC, "parcels.json")
+    if not os.path.exists(p9):
+        return ["区画の正典 parcels.json が無い(%s)" % p9]
+    try:
+        src = json.load(open(p9, encoding="utf-8"))
+        pa9 = [q for q in src["parcels"] if q["id"] == "okabe"][0]["pts"]
+    except Exception as e9:
+        return ["区画の正典を読めない: %s: %s" % (type(e9).__name__, e9)]
+    mine = d.get("polygon") or []
+    if len(mine) != len(pa9):
+        return ["区画の頂点の数が正典と違う(指図 %d / 正典 %d)" % (len(mine), len(pa9))]
+    for i9, (a9, b9) in enumerate(zip(mine, pa9)):
+        dd = math.hypot(a9[0] - b9[0], a9[1] - b9[1])
+        if dd > 0.001:
+            bad.append("P%d が正典と %.3fm ずれる(指図 %.3f,%.3f / parcels.json %.3f,%.3f)"
+                       % (i9, dd, a9[0], a9[1], b9[0], b9[1]))
+    return bad
 
 
 def walls_wired_check(d):

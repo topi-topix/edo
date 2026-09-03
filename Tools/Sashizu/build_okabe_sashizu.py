@@ -530,11 +530,21 @@ def _run_fp(d, r):
     a = edge_pt(P, r["edge"], r["s0"])
     b = edge_pt(P, r["edge"], r["s1"])
     nx, ny = _inward(P, r["edge"])
+    # ⭐ **面の並びは `const.kidan` が正典**(2026-09-03 棟梁の棚卸し・報告2-④)。
+    #   法肩(石垣の天端の外縁)= 区画線 を基準面に採り、塀も長屋も**犬走りの内側**に立つ。
+    #   ⛔ 従前は練塀を境界線に跨らせ(±0.575)、長屋は外面を境界線に直に置いていた
+    #     — 同じ図の中で 0.875m と 0.30m の二つの作法が同居していた(規則5)。
+    kd9 = d["const"].get("kidan") or {}
+    ib9 = d["const"]["inubashiri"] if kd9 else 0.0
     if r["kind"] == "Nagaya":
-        o0, o1 = 0.0, d["const"]["nagayaD"]           # 外面が境界線
+        o0 = ib9 if kd9.get("nagayaInubashiri") else 0.0
+        o1 = o0 + d["const"]["nagayaD"]
+    elif kd9:
+        o0 = ib9
+        o1 = o0 + d["const"]["dobeiT"]
     else:
         h = d["const"]["dobeiT"] / 2.0
-        o0, o1 = -h, h                                # 境界線に跨る
+        o0, o1 = -h, h
     return [(a[0] + nx * o0, a[1] + ny * o0), (b[0] + nx * o0, b[1] + ny * o0),
             (b[0] + nx * o1, b[1] + ny * o1), (a[0] + nx * o1, a[1] + ny * o1)]
 
@@ -649,7 +659,7 @@ def footprint_support_check(d, step=0.02, tol=0.01):
     return bad
 
 
-def perimeter_closure_check(d, step=0.02, inset=0.05):
+def perimeter_closure_check(d, step=0.02, inset=None):
     """**外周が全長で閉じているか** — 区画線を歩き、内側が何かで塞がっているかを測る。
 
     ⚠ 2026-08-31 の三巡目で作り直した。それまで当方が持っていたのは
@@ -663,6 +673,13 @@ def perimeter_closure_check(d, step=0.02, inset=0.05):
       **表門は長屋門の躯体の桁行 `monW`**(躯体そのものが塞ぐ)、**木戸は門の幅 `komon.w`**。
       2026-08-31 三巡目: 木戸は開口 2.80m に対し `komon.w` 2.70m で、両端 0.05m ずつ素通しだった。
     """
+    # ⭐ **歩く線は `const.kidan` が決める**(2026-09-03 棟梁の棚卸し・報告2-④)。
+    #   法肩=区画線 で塀は犬走りの内側に立つので、区画線から 0.05m の線は
+    #   **犬走りの上**(まだ囲いの外)を歩くことになり、全辺が『素通し』に化ける。
+    #   ⛔ 検査の測り方を旧作法に貼り付けたままにしない。
+    if inset is None:
+        kd9 = d["const"].get("kidan") or {}
+        inset = (d["const"]["inubashiri"] + 0.05) if kd9 else 0.05
     P9 = d["polygon"]
     n = len(P9)
     fps = [(_run_fp(d, r), r["name"]) for r in d["runs"]]
@@ -700,8 +717,17 @@ def perimeter_closure_check(d, step=0.02, inset=0.05):
         a, b = P9[e], P9[(e + 1) % n]
         L = math.hypot(b[0] - a[0], b[1] - a[1])
         nx, ny = _inward(P9, e)
-        holes, cur, s = [], None, 0.0
-        while s <= L:
+        # ⚠ **隅の 0.30m(犬走りの幅)は別の検査の持ち場**(2026-09-03 棟梁の棚卸し・報告2-④)。
+        #   法肩=区画線 + 犬走り 0.30 を採ると、**辺の端では二辺の犬走りが交わる**ので
+        #   run はどうしても区画の頂点まで届かない(届かせると段の外に浮く)。
+        #   ⭕ 隅は `perimeter_corner_check` が**面での重なり**を要求していて、歩く検査より強い。
+        #   ⛔ ただし**両隣に run がある隅に限る** — 片側が相手の建てる辺なら skirt は引かない。
+        skirt = d["const"]["inubashiri"] if (d["const"].get("kidan") or {}) else 0.0
+        own_e = own
+        s0skip = skirt if ((e - 1) % n in own_e) else 0.0
+        s1skip = skirt if ((e + 1) % n in own_e) else 0.0
+        holes, cur, s = [], None, s0skip
+        while s <= L - s1skip:
             t9 = s / L
             x = a[0] + (b[0] - a[0]) * t9 + nx * inset
             y = a[1] + (b[1] - a[1]) * t9 + ny * inset
@@ -712,7 +738,7 @@ def perimeter_closure_check(d, step=0.02, inset=0.05):
                 cur = s
             s += step
         if cur is not None:
-            holes.append((cur, L))
+            holes.append((cur, L - s1skip))
         for h0, h1 in holes:
             if h1 - h0 > step * 1.5:                   # 1標本ぶんの丸めは拾わない
                 bad.append("辺%d の s=%.2f〜%.2f(%.2fm)が素通し" % (e, h0, h1, h1 - h0))
@@ -7140,6 +7166,7 @@ def shakkei_table(d):
 CHECK_LIST = [
     ("往復試験(剥がして組み直すと正典に戻るか)", lambda d, raw, ter: roundtrip_check(raw, pipeline)),
     ("区画の多角形が正典と同期しているか",       lambda d, raw, ter: parcel_sync_check(d)),
+    ("基壇と塀の据え位置(宣言した面と足跡)",     lambda d, raw, ter: kidan_check(d)),
     ("矩形の重なり",                       lambda d, raw, ter: overlap_check(d)),
     ("面のはみ出し(棟・庭が段と区画の中か)",     lambda d, raw, ter: plane_check(d)),
     ("郭の土留めの高さ",                    lambda d, raw, ter: wall_check(d)),
@@ -7253,6 +7280,79 @@ def parcel_sync_check(d):
         if dd > 0.001:
             bad.append("P%d が正典と %.3fm ずれる(指図 %.3f,%.3f / parcels.json %.3f,%.3f)"
                        % (i9, dd, a9[0], a9[1], b9[0], b9[1]))
+    return bad
+
+
+def kidan_faces(d):
+    """`const.kidan.faces` を**実数**に解いて返す(区画線から内向きが正・m)。
+    ⛔ 表に文字列のまま刷らない — 解けない式が混じったら気づけない。"""
+    kd = d["const"].get("kidan") or {}
+    c = d["const"]
+    env = {"inubashiri": c["inubashiri"], "dobeiT": c["dobeiT"], "nagayaD": c["nagayaD"],
+           "copingBear": c["copingBear"]}
+    out = []
+    for nm, expr, note in (kd.get("faces") or []):
+        vals = []
+        for part in str(expr).split("→"):
+            p = part.strip()
+            if not p:
+                continue
+            try:
+                vals.append(("%.2f" % eval(p, {"__builtins__": {}}, env)))
+            except Exception:
+                vals.append(p)                     # s・h を含む式はそのまま見せる
+        out.append((nm, " → ".join(vals), note))
+    return out
+
+
+def kidan_table(d):
+    """**基壇石垣と塀・長屋の据え位置**を面で刷る(2026-09-03 棟梁の棚卸し・報告2-④)。"""
+    kd = d["const"].get("kidan") or {}
+    if not kd:
+        return ""
+    rows = [[nm, "<code>%s</code>" % v, note] for nm, v, note in kidan_faces(d)]
+    bs = [(r["name"], run_base(d, r)) for r in d["runs"]]
+    hmax = max((b[1][1] for b in bs), default=0.0)
+    worst = max(bs, key=lambda q: q[1][1])[0] if bs else "—"
+    return _tw(["面(外→内)", "区画線からの位置[m]", "備考"], rows,
+               "⭐ <b>基準面は %s を %s に載せる</b>(隙間 %.2f / 許容 +%.2f −%.2f・可動側=%s)。"
+               "⛔ <b>芯・ピボットで合わせない</b>(CLAUDE.md 規則5)。"
+               "⚠ 石垣の基部は勾配 4:1 で<b>区画線の外へ出る</b> — 露出の最大は "
+               "<b>%.2fm</b>(<code>%s</code>)なので出は <b>%.2fm</b>。"
+               "<span class='cert'>確度 %s</span>"
+               % (kd.get("datum", ""), kd.get("datumAt", ""), kd.get("gapM", 0),
+                  kd.get("tolPlusM", 0), kd.get("tolMinusM", 0), kd.get("moves", ""),
+                  hmax, worst, hmax / 4.0, kd.get("certSig", "U")))
+
+
+def kidan_check(d):
+    """**宣言した面の並びと、図が実際に置く足跡が合っているか**。
+
+    ⛔ 宣言だけして `_run_fp` が別の位置に置く、を許さない(それが 2026-09-03 まで起きていた)。
+    ⭕ ①塀・長屋の外面が区画線の**内**にある ②犬走りが宣言どおり ③石垣の天端幅が
+      犬走り+塀の掛かりを飲む(`coping_check` と別の角度で見る)。"""
+    bad = []
+    kd = d["const"].get("kidan") or {}
+    if not kd:
+        return ["`const.kidan`(据え位置の宣言)が無い — 実装は芯で合わせるしかない(規則5)"]
+    c = d["central"] if False else d["const"]
+    ib = c["inubashiri"]
+    P = d["polygon"]
+    for r in d["runs"]:
+        fp = _run_fp(d, r)
+        nx, ny = _inward(P, r["edge"])
+        a = edge_pt(P, r["edge"], r["s0"])
+        off = [(q[0] - a[0]) * nx + (q[1] - a[1]) * ny for q in fp]
+        o0 = min(off)
+        if o0 < -1e-6:
+            bad.append("%s の外面が区画線の外 %.2fm(宣言は犬走り %.2fm 内)"
+                       % (r["name"], -o0, ib))
+        elif abs(o0 - ib) > 1e-6:
+            bad.append("%s の犬走りが %.2fm(宣言 %.2fm)" % (r["name"], o0, ib))
+        top = 1.4 * r["s"]
+        if top < ib + c["copingBear"] - 1e-6:
+            bad.append("%s の天端幅 %.2fm が 犬走り+掛かり %.2fm に足りない"
+                       % (r["name"], top, ib + c["copingBear"]))
     return bad
 
 
@@ -11595,6 +11695,7 @@ def main():
     h.append("</div>")
 
     plate(h, nx(), "取り合い(実装用)", "すべて設計値から自動算出 — 手で書き写さない")
+    h.append(kidan_table(d))
     h.append(corners_table(d))
     h.append(joints_table(d))
     h.append(civil_table(d))

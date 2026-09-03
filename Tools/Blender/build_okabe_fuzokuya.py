@@ -27,7 +27,7 @@
 
 【材】`wood` / `wall C` / `Foundation_A_01`(Village Kit)+ 瓦は `roof`。⛔ 新規に作らない。
 """
-import bpy, sys, os, math
+import bpy, sys, os, math, io
 from mathutils import Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -211,7 +211,7 @@ def nandokoya(uKen=1.5, vKen=1.0, name="Okabe_NandoKoya"):
 
 
 # ================================================================ 車寄
-def kurumayose(uKen=3, vKen=2, name="Okabe_Kurumayose"):
+def kurumayose(uKen=3, vKen=2, name="Okabe_Kurumayose", cut=None):
     """**車寄** 3間(間口・u)× 2間(奥行・v)。指図 `munes[0]` / `roofs.Goten_Kurumayose`
     「⛔ **入母屋を架けない・入側を回さない別種**(3×2間の寄せ)」。
     **四方を開けた寄せ**(柱+頭貫+桁+天井板)に**妻入の切妻**を架ける — 参道から見て
@@ -268,7 +268,73 @@ def kurumayose(uKen=3, vKen=2, name="Okabe_Kurumayose"):
     o = V.join([body, gab, roof], name)
     V.set_origin(o, (0.0, 0.0, 0.0))
     V.sel([o]); bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    if cut is not None:                   # 玄関棟の屋根へ差し込むための切り欠き
+        kirikaki(o, cut[0], cut[1])
     return o, name
+
+
+
+# ================================================================ 車寄の切り欠き
+SASHIZU = os.path.join(V.REPO, "docs", "Sashizu", "okabe_sashizu.json")
+
+
+def kirikaki_planes(at_v=None, above_y=None):
+    """指図 `roofs.Goten_Kurumayose.sashikomi.kirikaki` の規則を**部材ローカルの平面2枚**へ落とす。
+
+    規則(指図が正典・⛔ ここに数値を書き写さない):
+      「玄関棟の軒先の線 v ≧ `atV` の側で、面から `aboveY` より上にある車寄の面を切り欠く」
+
+    ⭐ **json から読む**。指図方が数値を直したら、焼き直すだけで部材が追従する
+      (⛔ 生成器に写すと指図と部材が別々に動く)。
+
+    【座標の変換】車寄のローカルは **+X=+u / +Z=参道の側(=−v)**、
+      書き出しで Unity +Z = Blender −Y に反転しているので **Blender +Y = +v**。
+      ピボットは footprint の中心なので v の原点は `munes.Kurumayose` の中心。
+        Blender y = (v − v中心) × 1.818   /   Blender z = 面からの高さ
+    """
+    import json
+    d = json.load(io.open(SASHIZU, encoding="utf-8"))
+    kk = d["roofs"]["Goten_Kurumayose"]["sashikomi"]["kirikaki"]
+    mu = [m for m in d["munes"] if m["name"] == "Kurumayose"][0]
+    v_piv = (mu["v0"] + mu["v1"]) / 2.0
+    v = float(kk["atV"]) if at_v is None else float(at_v)
+    z = float(kk["aboveY"]) if above_y is None else float(above_y)
+    y = (v - v_piv) * KEN
+    print(u"[okfuz] 切り欠き: 指図 atV=%s 間 / aboveY=%s m(面から)。ピボット v=%.1f 間"
+          % (kk["atV"], kk["aboveY"], v_piv))
+    print(u"[okfuz]   → 使う値 v=%.4f 間 → **Blender y ≧ %+.4f** かつ **z ≧ %.4f** を落とす"
+          % (v, y, z))
+    return y, z
+
+
+def kirikaki(o, at_y, above_z):
+    """`at_y` より奥(+v)で `above_z` より上の面を落とす。
+
+    ⛔ **boolean を使わない** — 屋根は瓦モジュールの非多様体な面の集まりで、boolean は解けない
+      (`Tools/Blender/README.md` の踏んだ落とし穴)。⭕ **bisect で頂点を挿して割る**ので
+      瓦は欠けず、切り口は一直線に通る。
+    ⚠ bisect は面の付かない**孤立頂点を残す** — 落とさないと bbox が実形状より大きく出る。
+    ⛔ **切り口を `holes_fill` で塞がない。**瓦は開いたシェル(strip)なので `is_boundary` の辺が
+      мesh 中に無数にあり、軒先も妻も一緒に塞がれて屋根の上に斜めの膜が張る(2026-09-04 に踏んだ)。
+      ⭕ 切り口は開けたまま — 玄関棟の屋根の下に隠れる位置だから見えない。
+    """
+    import bmesh
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    for co, no in (((0.0, at_y, 0.0), (0.0, 1.0, 0.0)),
+                   ((0.0, 0.0, above_z), (0.0, 0.0, 1.0))):
+        bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:],
+                               dist=1e-5, plane_co=co, plane_no=no)
+    e = 1e-4
+    kill = [f for f in bm.faces
+            if f.calc_center_median().y > at_y + e and f.calc_center_median().z > above_z + e]
+    n = len(kill)
+    bmesh.ops.delete(bm, geom=kill, context="FACES")
+    bmesh.ops.delete(bm, geom=[x for x in bm.verts if not x.link_faces], context="VERTS")
+    bm.to_mesh(o.data)
+    bm.free()
+    print(u"[okfuz] 切り欠き: 面 %d 枚を落とした(切り口は開けたまま)" % n)
+    return o
 
 
 # ================================================================ 御錠口
@@ -442,8 +508,18 @@ def torii(name="Okabe_Torii"):
     return o, name
 
 
+def kurumayose_cut(at_v=None, above_y=None):
+    """車寄の**切り欠き済み**の版。⭕ 棟梁は実行時にメッシュを割らない方針なので、
+    差し込みの納めは**部材の側で解いておく**。規則と数値は指図が正典(`kirikaki_planes`)。
+        blender ... -- kurumayose_cut [--at-v <間>] [--above-y <m>] [--render]
+    ⚠ `--at-v` / `--above-y` は**裁定図を描くための比較用**。既定は必ず指図の値。"""
+    y, z = kirikaki_planes(at_v, above_y)
+    return kurumayose(name="Okabe_Kurumayose_Cut", cut=(y, z))
+
+
 PARTS = {"umaya": umaya, "tomomachi": tomomachi, "nandokoya": nandokoya,
-         "kurumayose": kurumayose, "jouguchi": jouguchi, "inari15": inari15, "torii": torii}
+         "kurumayose": kurumayose, "kurumayose_cut": kurumayose_cut,
+         "jouguchi": jouguchi, "inari15": inari15, "torii": torii}
 
 
 def ortho(w, h, res):
@@ -479,13 +555,17 @@ def shots(o, key, box):
 
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    want = [a for a in argv if not a.startswith("--")] or list(PARTS.keys())
+    def opt(flag):
+        return float(argv[argv.index(flag) + 1]) if flag in argv else None
+    kw = {"at_v": opt("--at-v"), "above_y": opt("--above-y")}
+    skip = {argv[argv.index(f) + 1] for f in ("--at-v", "--above-y") if f in argv}
+    want = [a for a in argv if not a.startswith("--") and a not in skip] or list(PARTS.keys())
     for key in want:
         if key not in PARTS:
             print("[okfuz] ⚠ 知らない部材: %s (%s)" % (key, "/".join(PARTS)))
             continue
         V.reset()
-        o, name = PARTS[key]()
+        o, name = PARTS[key](**kw) if key == "kurumayose_cut" else PARTS[key]()
         mn, mx = V.bbox([o])
         print("[okfuz] %-20s Unity実寸 W(X)=%.3f  H(Y)=%.3f  D(Z)=%.3f  底=%.3f  面=%d"
               % (name, mx.x - mn.x, mx.z - mn.z, mx.y - mn.y, mn.z, len(o.data.polygons)))

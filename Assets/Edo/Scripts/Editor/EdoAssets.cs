@@ -690,6 +690,27 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_okabe_fuzokuya.py -- kurumayose</summary>
         public const string Kurumayose = FuzokuyaDir + "Okabe_Kurumayose.fbx";
 
+        /// <summary>**車寄(切り欠き済み)** — 玄関棟の屋根へ差し込むための納めを**部材の側で解いた**版
+        /// 【2026-09-04 ユーザー裁定10=A】。⭕ 棟梁は実行時にメッシュを割らないので、こちらを据える。
+        /// ⛔ 素の <see cref="Kurumayose"/> を置いて交差させたままにしない — 瓦が二重に見える。
+        ///
+        /// 切るのは指図 <c>roofs.Goten_Kurumayose.sashikomi.kirikaki</c> の規則ひとつだけ:
+        /// **玄関棟の軒先の線 v ≧ `atV` の側で、面から `aboveY` より上にある車寄の面**。
+        /// ⛔ 玄関棟の屋根は切らない(親側は無傷)。⭐ 生成器は**その数値を指図の json から読む**ので、
+        /// 指図方が直したら焼き直すだけで追従する(⛔ C# にも生成器にも数値を写さない)。
+        ///
+        /// ローカル・ピボット・材質は素の版と同一(**+X = +u / +Z = 参道の側**、footprint の中心・地盤)。
+        /// 外形の実寸も同じ **7.146 × 4.342 × 4.376** — 落ちるのは奥(+v)の上部だけで、
+        /// 参道から見える破風・棟・軒はすべて素のまま残る。面 1381 → 1510。
+        /// ⚠ 切り口は**開けたまま**(玄関棟の屋根の下に隠れる位置)。⛔ 塞ぐと瓦の開いたシェルまで
+        ///   一緒に張られて屋根の上に膜が出る(2026-09-04 に踏んだ)。
+        ///
+        /// ⚠⚠ **未決**: 指図の `atV` 51.1 は「外壁 52.0 − 軒の出 0.90」を**単位を混ぜて**引いた値
+        ///   (v は間・軒の出は m)。単位を揃えると 51.505 で、いまの値は **0.736m 手前**を切るため
+        ///   玄関棟の軒先より前に平らな切り欠きが露出する。普請奉行へ裁定を上げてある。
+        /// 生成: blender --background --python Tools/Blender/build_okabe_fuzokuya.py -- kurumayose_cut --render</summary>
+        public const string KurumayoseCut = FuzokuyaDir + "Okabe_Kurumayose_Cut.fbx";
+
         /// <summary>**御錠口** 3間角(岡部邸 `links[2]` L_Jouguchi)。表向と奥向を分ける
         /// **一口だけ**の口([西川1959]/[高知2000] A)。**幅一間の渡廊下**が ±X の面に取り付く。
         /// ⭕ **+X の開口に御錠口の唐戸(両開きの板戸)を建て込んである。** −X 側は開けたまま。

@@ -4059,6 +4059,11 @@ def plane_check(d):
         if pt:
             bad.append("%s が区画の外: グリッド(%.2f, %.2f)" % (nm, pt[0], pt[1]))
             continue
+        if m.get("obi"):
+            # ⭕ **崖下の帯の棟は「段」に載らない**(2026-09-03 ユーザー裁定8=A) —
+            #   帯D2 は造成した面ではなく**地なりの平坦帯**で、棟ごとに小さな面を持つ。
+            #   ⛔ 免除ではなく**持ち場の移動**: 帯D2 の中か・切盛が許容内かは `obi_check` が見る。
+            continue
         pt = covered(m["u0"], m["v0"], m["u1"], m["v1"], m["y"])
         if pt:
             bad.append("%s (y=%.1f) が面の外: グリッド(%.2f, %.2f)"
@@ -4118,6 +4123,8 @@ def plane_check(d):
             bad.append("%s(庭・混) が段と抜きにまたがっていない(段の中=%s / 抜き=%s)"
                        % (g["name"], mix[0], mix[1]))
     for w in d["wells"]:
+        if w.get("obi"):
+            continue                       # ⭕ 同上(`obi_check` の持ち場)
         pt = covered(w["u"] - 0.5, w["v"] - 0.5, w["u"] + 0.5, w["v"] + 0.5, None)
         if pt:
             bad.append("%s(井戸) が段の外: (%.2f, %.2f)" % (w["name"], pt[0], pt[1]))
@@ -5526,7 +5533,7 @@ def mizu_svg(d):
 # ⭐ **図で宣言した不変条件は必ず検査に落とす**(当家の作法)。
 #   ⛔ 恒真にしない — 各検査は「わざと壊すと必ず件数が出る」ことを確かめてある(破壊試験)。
 #
-# **2026-09-03 の破壊試験(105件・すべて期待どおり)**
+# **2026-09-03 の破壊試験(109件・すべて期待どおり)**
 # ⛔ **「反応する」とだけ書かない — 壊す前と後の件数を並べる。**数が無い記録は偽になり得る。
 #   ⚠ この作法にした途端、⛔ **偽の記録が4件見つかった**(前後が同じだったもの):
 #     ・「結界を全部消す → 反応する」…… 実際は **1件 → 1件**。経路の指摘が1件出るだけで数が動かず、
@@ -5616,6 +5623,14 @@ def mizu_svg(d):
 #       ⛔ 肩が**窓の中へ入る**(余裕が負)ときも鳴らす。壊し方も肩ごとに2本置いた。
 #     ⚠ **閾値を緩めて黙らせたのではない** — 総幅の 0.6×2=1.2 に対し、肩ごとの上限は
 #       0.75 で**一つの肩に許す量はむしろ厳しい**。緩めたのは「不揃いを許すかどうか」だけ。
+#   ⚠ **2026-09-03(裁定8=A と庭方5巡目のあと)に4つ入れ替えた。**
+#     ・「視軸の法肩の柵を h1.4 へ戻す」…… 1件→1件。⛔ K204 で**柵の特例そのものを廃した**
+#       (`railH` が無くなった)ので壊す先が消えた。⭕ 「竹垣 `takegakiH` を h2.0 へ」へ。
+#     ・小径の2件 …… **例外**(−1)。⛔ K188 で**小径を廃した**ので `komichi` が無い。
+#       ⭕ 2件とも**外した** — 設計が消えた試験は残さない(壊す物が無い)。
+#     ・「坂を u−26 の崖へ振る」…… 0件→0件。⛔ (−26,127) は崖の肩の手前で、
+#       93%の崖(u−25〜−27 / v126〜131)に**入っていなかった**。⭕ (−26.5,130) へ。
+#   ⭐ **裁定で設計が消えると、その設計を壊す試験も消える。**⛔ 残すと例外を数える。
 #   【結界(取り付き・表↔奥の非連結・動線)】素 0 件
 #     結界を全部消す                                0件 → 2件
 #     W1 を段の縁で止める(北の帯を空ける)                   0件 → 2件
@@ -5654,14 +5669,14 @@ def mizu_svg(d):
 #     台の沓脱石を丈1.4mへ上げる                        0件 → 1件
 #     ⚠逆向き: 袖の石を袖の中で動かす(増えないのが正)             0件 → 0件
 #     ⚠逆向き: 袖の刈込を袖の中で伸ばす(増えないのが正)            0件 → 0件
-#   【見所(入側か庭の中か・借景の視線)】素 0 件
-#     見所を庭でも入側でもない所へ置く                       0件 → 1件
-#     御殿の床を −5.0m にする(入側の眼が地盤より下がる)          0件 → 9件
-#     視軸の法肩の柵を h1.4 へ戻す(借景が切れる)              0件 → 2件
+#   【見所(入側か庭の中か・借景の視線)】素 1 件
+#     見所を庭でも入側でもない所へ置く                       1件 → 2件
+#     御殿の床を −5.0m にする(入側の眼が地盤より下がる)          1件 → 9件
+#     法肩の竹垣を h2.0 へ上げる(借景が切れる)               1件 → 2件
 #   【庭の点景と竹垣・勝手動線・結界塀の交差】素 0 件
 #     結界塀 W1 を池の上へ下ろす                        0件 → 2件
 #     勝手動線を築山Bの上へ回す                          0件 → 1件
-#     勝手動線を池の中へ引き回す                          0件 → 1件
+#     勝手動線を池の中へ引き回す                          0件 → 2件
 #   【庭の土量の収支】素 0 件
 #     築山を高くして掘削土で足りなくする                      0件 → 1件
 #     法面を 1:3 へ緩める(抜きの中が埋まる)                 0件 → 1件
@@ -5692,40 +5707,46 @@ def mizu_svg(d):
 #     法面の到達距離を 2m へ縮める                       0件 → 12件
 #   【郭の土留めの高さ】素 0 件
 #     土留めをもう1本足し、span を与えない(落差が測れない)         0件 → 1件
-#   【西の斜面と岸(窓・林・葭蓮・柵・小径)】素 1 件
-#     林の下端の線を直線にする                           1件 → 5件
-#     帯の連なりを切る(林の下端の**出どころ**を1m下げる)          1件 → 2件
-#     蓮の帯を『地表』の別へ移す(標高で切れない物を標高で切る)          1件 → 3件
-#     汀の柵を消す                                 1件 → 2件
-#     木戸を柵から離す(区画界の上から外す)                    1件 → 2件
-#     堀端の見所を2箇所にする(木戸と兼ねる形を崩す)               1件 → 2件
-#     窓の松の hDesign を 4.2/4.2 に揃える(丈の不等が消える)  1件 → 2件
-#     窓の視線の余裕を 1.0→2.5m へ広げる(頭打ちが効いて丈の差が縮む)  1件 → 2件
+#   【西の斜面と岸(窓・林・葭蓮・柵・小径)】素 0 件
+#     林の下端の線を直線にする                           0件 → 4件
+#     帯の連なりを切る(林の下端の**出どころ**を1m下げる)          0件 → 1件
+#     蓮の帯を『地表』の別へ移す(標高で切れない物を標高で切る)          0件 → 2件
+#     汀の柵を消す                                 0件 → 1件
+#     木戸を柵から離す(区画界の上から外す)                    0件 → 1件
+#     堀端の見所を2箇所にする(木戸と兼ねる形を崩す)               0件 → 1件
+#     窓の松の hDesign を 4.2/4.2 に揃える(丈の不等が消える)  0件 → 1件
+#     窓の視線の余裕を 1.0→2.5m へ広げる(頭打ちが効いて丈の差が縮む)  0件 → 1件
 #     扇を 23間 へ戻す(裁定7=B の上限を破る)               0件 → 1件
 #     窓の松 P2 を扇の外(u+9.0)へ出す                  0件 → 1件
-#     小径を前の6点へ戻し `stepAddPt` も 3.0 へ戻す(逃げ道を開ける) 1件 → 2件
-#     ⚠逆向き: `stepAddPt` だけ 3.0 へ戻す(いまの7点なら増えないのが正) 1件 → 1件
-#     窓の松の三本を一直線に並べる                         1件 → 2件
+#     窓の松の三本を一直線に並べる                         0件 → 1件
 #     林の下端の北の肩を u+6.5 へ開く(余裕 1.3間)           0件 → 1件
 #     法肩の松の南の肩を窓の中(u−0.3)へ入れる                0件 → 1件
-#     林の下端の点を見透しの窓の中へ入れる                     1件 → 4件
-#     窓の松 P3 を扇の中へ戻す                         1件 → 2件
-#     法肩の松の丈の下限を 6.0 へ下げる                    1件 → 2件
-#     林の下端の u ピッチを等間隔にする(点数は 9 のまま)          1件 → 6件
-#     林の下端を 13 点に戻す(点数の規則を突く)                1件 → 6件
-#     窓のススキの丈を 6m へ上げる(置ける区間が無くなる)           1件 → 2件
-#     汀の杭を陸の上へ並べる(足元が水面を跨がない)                1件 → 3件
-#     汀の杭の芯々を径より詰める                          1件 → 2件
-#     汀の杭の芯々を一定にする(等間隔)                      1件 → 2件
-#     汀の杭の頭を水面より下げる                          1件 → 2件
-#     堤の天端の標本を 0.3間 内側へ戻す(区画線の段を跨ぐ)          1件 → 2件
-#     堤の天端の隅の除外をやめる(辺4・辺6のクリップ帯を混ぜる)         1件 → 2件
-#     葭の上端を水面より上へ戻す(depthMin −0.3)           1件 → 3件
-#     葭原の幅を 1.0m へ狭める(勾配が急になる)               1件 → 2件
-#     蓮の外端の池床を 4.0 へ下げる(水深 2.6m)             1件 → 2件
-#     蓮の外端の池床の宣言を消す(区画外の前提が消える)              1件 → 2件
-#     法尻のススキを窓の中にも置けることにする(丈2.0mが上限を超える)     1件 → 2件
-#     窓の中へ丈 6m の植栽を1群置く(丈が固定の物)              1件 → 2件
+#     林の下端の点を見透しの窓の中へ入れる                     0件 → 3件
+#     窓の松 P3 を扇の中へ戻す                         0件 → 1件
+#     法肩の松の丈の下限を 6.0 へ下げる                    0件 → 1件
+#     林の下端の u ピッチを等間隔にする(点数は 9 のまま)          0件 → 5件
+#     林の下端を 13 点に戻す(点数の規則を突く)                0件 → 5件
+#     窓のススキの丈を 6m へ上げる(置ける区間が無くなる)           0件 → 1件
+#     汀の杭を陸の上へ並べる(足元が水面を跨がない)                0件 → 2件
+#     汀の杭の芯々を径より詰める                          0件 → 1件
+#     汀の杭の芯々を一定にする(等間隔)                      0件 → 1件
+#     汀の杭の頭を水面より下げる                          0件 → 1件
+#     堤の天端の標本を 0.3間 内側へ戻す(区画線の段を跨ぐ)          0件 → 1件
+#     堤の天端の隅の除外をやめる(辺4・辺6のクリップ帯を混ぜる)         0件 → 1件
+#     葭の上端を水面より上へ戻す(depthMin −0.3)           0件 → 2件
+#     葭原の幅を 1.0m へ狭める(勾配が急になる)               0件 → 1件
+#     蓮の外端の池床を 4.0 へ下げる(水深 2.6m)             0件 → 1件
+#     蓮の外端の池床の宣言を消す(区画外の前提が消える)              0件 → 1件
+#     法尻のススキを窓の中にも置けることにする(丈2.0mが上限を超える)     0件 → 1件
+#     窓の中へ丈 6m の植栽を1群置く(丈が固定の物)              0件 → 1件
+#   【崖下の帯の棟(帯D2・切盛・榎の離れ)】素 0 件
+#     N1 を東へ1間ずらす(山側の余地を割る)                  0件 → 1件
+#     N1 を榎 E1 へ 4m 寄せる                      0件 → 1件
+#     N2 の面を 1.0m 上げる(帯を均す)                  0件 → 1件
+#     N1 を崖面(帯D1)へ載せる                        0件 → 1件
+#   【坂の規則(勾配・脚・折れ)】素 0 件
+#     坂の頭を窓の中(u+1)へ移す                        0件 → 1件
+#     坂を u−26 の崖(93%)へ振る                     0件 → 1件
 #   【法肩の松の割り付け(区間ごと)】素 0 件
 #     法肩の松の南を 5本にする(北が空く)                    0件 → 2件
 #     法肩の松の総数と区間の合計を食い違わせる                   0件 → 1件
@@ -6467,7 +6488,8 @@ def mikoro_check(d):
                             gy9 = graded_y(d, ru, rv, _dem_at(d, ru, rv))
                             if gy9 is None:
                                 continue
-                            top = gy9 + sk9["railH"]
+                            # ⭕ 法肩の柵は**竹垣の章に一本化**した(2026-09-03 庭方 K204)
+                            top = gy9 + d["const"]["takegakiH"]
                             dist = math.hypot(ru - mk["u"], rv - mk["v"]) * K
                             m9 = (top - mk["eyeY"]) / max(dist, 1e-9)
                             if m9 > lim9 + 1e-6 and (worst is None or m9 > worst[0]):
@@ -6484,7 +6506,7 @@ def mikoro_check(d):
                                    "%s の天端 %.2f が %.1fm 先(地盤 %.2f + 柵 %.2f)。"
                                    "水面が見えはじめる距離が %s から %s へ後退する"
                                    % (MARU[mk["no"] - 1], mk["eyeY"], worst[1], worst[2],
-                                      worst[3], worst[4], sk9["railH"],
+                                      worst[3], worst[4], d["const"]["takegakiH"],
                                       ("%.0fm" % sf9) if sf9 else "**見えない**",
                                       ("%.0fm" % aft) if aft else "**見えない**"))
     return bad
@@ -6919,10 +6941,10 @@ def shakkei_table(d):
          + "。⛔ 平行な帯にしない"],
         ["額縁のクロマツ", "視軸の外(|u| > %.1f)の法肩に芯々 %.1f〜%.1f 間で密に"
          % (s["frameOutside"], s["framePitchMin"], s["framePitchMax"])],
-        ["法肩の柵", "<b>u %.2f〜%.2f</b> の区間だけ %s h%.2f へ落とす"
-                   "(扇の上端 ± %.2f間 から算出。座視 %.2f が柵の天端の上を通る)"
-         % (s.get("railU0", 0), s.get("railU1", 0), s["railKata"], s["railH"],
-            s.get("railClearKen", 0), sk["mk"]["eyeY"])],
+        ["法肩の柵", "⛔ <b>特例は無い</b> — 其十八の<b>竹垣 h%.2f のまま</b>"
+                   "(2026-09-03 庭方 K204: 座視 %.2f は天端の上を通るので、視軸だけ低くする"
+                   "必要が無かった。⚠ 余裕は下の検査が刷る)"
+         % (d["const"]["takegakiH"], sk["mk"]["eyeY"])],
     ]
     return _tw(["借景", "実測・算出"], [[a, b] for a, b in rows],
                "<b>借景が実在すること=P</b>(江戸期の復元地盤を視軸に沿って歩いて測った)。"
@@ -6976,6 +6998,8 @@ CHECK_LIST = [
     ("西の斜面と岸(窓・林・葭蓮・柵・小径)",    lambda d, raw, ter: nishi_check(d)),
     ("確度の記号(宣言と本文の食い違い)",        lambda d, raw, ter: certsig_check(d)),
     ("法肩の松の割り付け(区間ごと)",           lambda d, raw, ter: hokata_check(d)),
+    ("崖下の帯の棟(帯D2・切盛・榎の離れ)",      lambda d, raw, ter: obi_check(d)),
+    ("坂の規則(勾配・脚・折れ)",               lambda d, raw, ter: ramp_check(d)),
 ]
 
 
@@ -7145,6 +7169,254 @@ def mizu_visible(d):
             "seg": seg}
 
 
+def saka_forest(d):
+    """勝手の坂が**林を伐る帯**の実測 — 林の中の路長・伐る面積・林に対する割合・伐る本数。
+
+    ⛔ 手で書かない(2026-09-03 庭方5巡目 K205)。⭕ 林の下端の線より上(v が小さい側)を林とする。"""
+    K9 = d["const"]["ken"]
+    N9 = d.get("nishi") or {}
+    hy = N9.get("hayashi") or {}
+    eg = [(a9, b9) for a9, b9 in (hy.get("edge") or [])]
+    rp = next((q for q in d.get("ramps", []) if q.get("cutW")), None)
+    if not (eg and rp):
+        return None
+
+    def edge_v(u9):
+        if u9 <= eg[0][0]:
+            return eg[0][1]
+        for a9, b9 in zip(eg, eg[1:]):
+            if u9 <= b9[0]:
+                t9 = (u9 - a9[0]) / max(b9[0] - a9[0], 1e-9)
+                return a9[1] + (b9[1] - a9[1]) * t9
+        return eg[-1][1]
+    pts = [(a9, b9) for a9, b9 in rp["pts"]]
+    inL = 0.0
+    for a9, b9 in zip(pts, pts[1:]):
+        n9 = max(1, int(math.hypot(b9[0] - a9[0], b9[1] - a9[1]) * K9 / 0.5))
+        for k9 in range(n9):
+            f9 = (k9 + 0.5) / n9
+            u8 = a9[0] + (b9[0] - a9[0]) * f9
+            v8 = a9[1] + (b9[1] - a9[1]) * f9
+            if v8 <= edge_v(u8):                       # 林の下端より上=林の中
+                inL += math.hypot(b9[0] - a9[0], b9[1] - a9[1]) * K9 / n9
+    cut = inL * rp["cutW"]
+    # 林の面積(下端の線から法肩まで)と本数の密度から、伐る本数を出す
+    us = [q[0] for q in eg]
+    ar = 0.0
+    u8 = min(us)
+    while u8 < max(us):
+        ar += max(0.0, edge_v(u8) - (hy.get("vTop") or 111.0)) * 0.5
+        u8 += 0.5
+    ar *= K9 * K9
+    tg = sum(q["n"] for q in (hy.get("takagi") or []))
+    ch = sum(q["n"] for q in (hy.get("chuboku") or []))
+    pct = (100.0 * cut / ar) if ar > 0 else 0.0
+    return {"inForestM": inL, "cutM2": cut, "forestM2": ar, "pct": pct,
+            "takagi": tg * cut / ar if ar > 0 else 0.0,
+            "chuboku": ch * cut / ar if ar > 0 else 0.0}
+
+
+def obi_east_clear(d):
+    """崖下の棟の**東(山側)の余地** — 林の下端の線から棟の東面までの距離[m]。"""
+    K9 = d["const"]["ken"]
+    N9 = d.get("nishi") or {}
+    eg = [(a9, b9) for a9, b9 in ((N9.get("hayashi") or {}).get("edge") or [])]
+    if not eg:
+        return []
+
+    def edge_v(u9):
+        if u9 <= eg[0][0]:
+            return eg[0][1]
+        for a9, b9 in zip(eg, eg[1:]):
+            if u9 <= b9[0]:
+                t9 = (u9 - a9[0]) / max(b9[0] - a9[0], 1e-9)
+                return a9[1] + (b9[1] - a9[1]) * t9
+        return eg[-1][1]
+    out = []
+    for o in obi_metrics(d):
+        if not o["roofed"]:
+            continue
+        worst = None
+        u8 = o["u0"]
+        while u8 <= o["u1"] + 1e-9:
+            gap = (o["v0"] - edge_v(u8)) * K9        # 棟の東面(v が小さい側)まで
+            if worst is None or gap < worst[0]:
+                worst = (gap, u8)
+            u8 += 0.25
+        out.append({"name": o["name"], "gapM": worst[0], "atU": worst[1]})
+    return out
+
+
+def ramp_metrics(d, rp):
+    """坂の実測 — 総延長・落差・最急勾配・脚の最短・折れの最大。
+
+    ⛔ 2026-09-03 まで `gradMax`/`turnMax`/`legMin` は**どこからも読まれない死値**だった
+      (`railU0` と同じ型)。⭕ ここで測り、`ramp_check` が宣言と突き合わせる。"""
+    K = d["const"]["ken"]
+    pts = [(a9, b9) for a9, b9 in (rp.get("pts") or [])]
+    if len(pts) < 2:
+        return None
+    # ⛔ **坂は地盤なりではない** — 自分の路盤(`prof` の第3欄)を持つ。
+    #   ⚠ 地盤で測ると、切土で通す区間が「31.7%の坂」に見える(2026-09-03 の実例)。
+    pr9 = rp.get("prof")
+    if pr9 and len(pr9) == len(pts):
+        ys = [q[2] for q in pr9]
+    else:
+        ys = [_dem_at(d, q[0], q[1]) for q in pts]
+    if any(q is None for q in ys):
+        return None
+    ls, gs = [], []
+    for (a9, b9), (ya, yb) in zip(zip(pts, pts[1:]), zip(ys, ys[1:])):
+        L9 = math.hypot(b9[0] - a9[0], b9[1] - a9[1]) * K
+        ls.append(L9)
+        gs.append(100.0 * abs(yb - ya) / max(L9, 1e-9))
+    ts = []
+    for i9 in range(len(pts) - 2):
+        v1 = (pts[i9 + 1][0] - pts[i9][0], pts[i9 + 1][1] - pts[i9][1])
+        v2 = (pts[i9 + 2][0] - pts[i9 + 1][0], pts[i9 + 2][1] - pts[i9 + 1][1])
+        n1, n2 = math.hypot(*v1), math.hypot(*v2)
+        if n1 < 1e-9 or n2 < 1e-9:
+            continue
+        cs = max(-1.0, min(1.0, (v1[0] * v2[0] + v1[1] * v2[1]) / (n1 * n2)))
+        ts.append(math.degrees(math.acos(cs)))
+    return {"len": round(sum(ls), 1), "rise": round(max(ys) - min(ys), 2),
+            "grad": round(max(gs), 1), "gradAt": gs.index(max(gs)),
+            "leg": round(min(ls), 1), "turn": round(max(ts), 1) if ts else 0.0}
+
+
+def ramp_check(d):
+    """**坂の規則**(勾配・脚の長さ・折れ角)を実測と突き合わせる。
+
+    ⚠ 2026-09-03 ユーザー裁定8=A の書き起こしで分かったこと —
+      **坂の規則は宣言されていたが、検査が一つも無かった**(`gradMax`/`turnMax`/`legMin` が死値)。
+    ⛔ 折れ角の規則は**折り返しを許さない** — 折り返しは 140〜150° の折れになる。"""
+    bad = []
+    for rp in d.get("ramps", []):
+        m9 = ramp_metrics(d, rp)
+        if not m9:
+            bad.append("坂『%s』の折れ点か地盤が測れない" % rp.get("name"))
+            continue
+        nm = rp.get("label") or rp.get("name")
+        if rp.get("gradMax") is not None and m9["grad"] > rp["gradMax"] + 1e-6:
+            bad.append("坂『%s』の最急 %.1f%% が上限 %.1f%% を超える(%d脚目)"
+                       % (nm, m9["grad"], rp["gradMax"], m9["gradAt"] + 1))
+        if rp.get("legMin") is not None and m9["leg"] < rp["legMin"] - 1e-6:
+            bad.append("坂『%s』の脚の最短 %.1fm が下限 %.1fm を割る" % (nm, m9["leg"], rp["legMin"]))
+        if rp.get("outsideMado"):
+            # ⛔ **見透しの窓(扇)の中を坂が通らない**(2026-09-03 ユーザー裁定8=A)。
+            pts = [(a9, b9) for a9, b9 in (rp.get("pts") or [])]
+            hit = None
+            for a9, b9 in zip(pts, pts[1:]):
+                n8 = max(1, int(math.hypot(b9[0] - a9[0], b9[1] - a9[1]) / 0.25))
+                for k8 in range(n8 + 1):
+                    f8 = k8 / float(n8)
+                    q8 = (a9[0] + (b9[0] - a9[0]) * f8, a9[1] + (b9[1] - a9[1]) * f8)
+                    if in_mado(d, q8[0], q8[1]):
+                        hit = q8
+                        break
+                if hit:
+                    break
+            if hit:
+                ax8 = axis_at(d, hit[1]) or (0.0, 0.0)
+                bad.append("坂『%s』が見透しの窓の中を通る — (%.1f, %.1f)。"
+                           "その v の窓は u%.2f〜%.2f" % (nm, hit[0], hit[1], ax8[0], ax8[1]))
+        if rp.get("turnMax") is not None and m9["turn"] > rp["turnMax"] + 1e-6:
+            bad.append("坂『%s』の折れの最大 %.0f° が上限 %.0f° を超える"
+                       "(⚠ 折り返しは 140〜150° になるので、この規則では折り返せない)"
+                       % (nm, m9["turn"], rp["turnMax"]))
+    return bad
+
+
+def obi_items(d):
+    """崖下の帯に置いた物(棟・小物・井戸)を (名, u0,v0,u1,v1, 面y or None) で返す。"""
+    out = []
+    for s9 in d.get("service", []):
+        if s9.get("obi"):
+            out.append((s9.get("label") or s9["name"], s9["u0"], s9["v0"], s9["u1"], s9["v1"],
+                        s9.get("y"), bool(s9.get("roof"))))
+    for w9 in d.get("wells", []):
+        if w9.get("obi"):
+            # ⚠ 井戸は**屋根を持たない**ので、榎の離れ(軒までの規則)の対象外。
+            out.append((w9.get("label") or w9["name"], w9["u"] - 0.5, w9["v"] - 0.5,
+                        w9["u"] + 0.5, w9["v"] + 0.5, w9.get("y"), False))
+    return out
+
+
+def obi_metrics(d):
+    """崖下の帯の棟ごとの実測 — 面積・足跡の実地盤・|地盤 − 面| の最大・榎までの離れ。"""
+    K = d["const"]["ken"]
+    N9 = d.get("nishi") or {}
+    obi = N9.get("obi") or {}
+    noki = obi.get("nokiOut", 0.0) / K                 # 軒の出[間]
+    enoki = (N9.get("hojiri") or {}).get("enoki") or []
+    out = []
+    for nm, u0, v0, u1, v1, y9, isB in obi_items(d):
+        zs = []
+        u8 = u0
+        while u8 <= u1 + 1e-9:
+            v8 = v0
+            while v8 <= v1 + 1e-9:
+                q8 = _dem_at(d, u8, v8)
+                if q8 is not None:
+                    zs.append(q8)
+                v8 += 0.25
+            u8 += 0.25
+        pad = (sum(zs) / len(zs)) if zs else None
+        dz = max(abs(q8 - (y9 if y9 is not None else pad)) for q8 in zs) if zs else None
+        gaps = []
+        for e9 in enoki:
+            du = max(u0 - noki - e9["u"], e9["u"] - (u1 + noki), 0.0)
+            dv = max(v0 - noki - e9["v"], e9["v"] - (v1 + noki), 0.0)
+            gaps.append((e9["name"], math.hypot(du, dv) * K))
+        out.append({"name": nm, "roofed": isB, "u0": u0, "v0": v0, "u1": u1, "v1": v1, "y": y9,
+                    "areaM2": (u1 - u0) * (v1 - v0) * K * K, "pad": pad, "dz": dz,
+                    "gaps": sorted(gaps, key=lambda q: q[1])})
+    return out
+
+
+def obi_check(d):
+    """**崖下の帯の棟の不変条件**(2026-09-03 ユーザー裁定8=A)。
+
+    ① 帯**D2(法尻の平坦帯)**にだけ載る — 崖面(D1)にも堤(E)にも出さない
+    ② 棟ごとに面を持ち、|足跡の実地盤 − 面| ≦ `padTolM`(⛔ 帯全体を均さない)
+    ③ 榎の幹から**軒**まで `enokiClearM` 以上(⚠ 屋根を持つ物だけ。井戸は対象外)
+    ④ 水側(西)は盲面・開口は東(宣言があること)"""
+    bad = []
+    N9 = d.get("nishi") or {}
+    obi = N9.get("obi") or {}
+    if not obi.get("munes"):
+        return bad
+    bands = {b9["name"][:2]: b9 for b9 in (d.get("slopeBands") or [])}
+    d2 = next((b9 for b9 in (d.get("slopeBands") or []) if b9["name"].startswith("D2")), None)
+    tol = obi.get("padTolM", 0.5)
+    clr = obi.get("enokiClearM", 6.0)
+    for o in obi_metrics(d):
+        if o["pad"] is None:
+            bad.append("帯の『%s』の足跡の地盤が測れない(復元地盤の外)" % o["name"])
+            continue
+        if d2 and d2.get("y0") is not None:
+            if not (d2["y1"] - 0.2 <= o["pad"] <= d2["y0"] + 0.2):
+                bad.append("帯の『%s』の足跡の地盤 %.2f が帯D2(%.2f〜%.2f)の外 — "
+                           "崖面や堤に載せない" % (o["name"], o["pad"], d2["y1"], d2["y0"]))
+        if o["y"] is not None and o["dz"] is not None and o["dz"] > tol + 1e-6:
+            bad.append("帯の『%s』の切盛が %.2fm(面 %.2f)— 許容 %.1fm を超える"
+                       "(⛔ 帯全体を均さない。棟ごとに面を持つ)" % (o["name"], o["dz"], o["y"], tol))
+        if o["roofed"] and o["gaps"] and o["gaps"][0][1] < clr - 1e-6:
+            bad.append("帯の『%s』の軒が榎『%s』の幹から %.1fm — %.1fm 以上あけること"
+                       % (o["name"], o["gaps"][0][0], o["gaps"][0][1], clr))
+    ec = obi.get("eastClearM")
+    if ec:
+        for q9 in obi_east_clear(d):
+            if q9["gapM"] < ec - 0.005:
+                bad.append("帯の『%s』の東(山側)の余地が %.2fm(u%.1f)— %.1fm あけること"
+                           "(犬走り+雨落ち+掃く通り+林縁の張り出し)"
+                           % (q9["name"], q9["gapM"], q9["atU"], ec))
+    rf = (d.get("roofs") or {}).get("ObiNagaya") or {}
+    if "盲面" not in str(rf.get("mado", "")):
+        bad.append("崖下の長屋の**水側(西)を盲面にする**宣言が屋根の欄に無い")
+    return bad
+
+
 def mado_metrics(d):
     """**見透しの窓の効き**を数で出す。⛔ 図にも表にも数を書かない — ここが唯一の出どころ。
 
@@ -7291,11 +7563,44 @@ def hokata_pts(d):
     ns = hk.get("spanN") or []
     vm = (hk.get("v0", 0) + hk.get("v1", 0)) / 2.0
     rnd = random.Random(hk.get("jitterSeed", 0))
-    out = []
+    # ⛔ **木戸の口で区間を割る**(2026-09-03 庭方5巡目 K205) — 口をまたいで芯々を割ると
+    #   口の両側に松が寄って、口の前が塞がるか芯々が上限を破る。
+    gz = [g9 for g9 in (hk.get("gateU") or [])]
+    gc = hk.get("gateClearKen", 1.0)
+    sub = []
     for i9, (a9, b9) in enumerate(sp):
         n9 = ns[i9] if i9 < len(ns) else max(1, int(round((b9 - a9) / 4.0)))
+        cuts = [(g9 - gc, g9 + gc) for g9 in gz if a9 < g9 < b9]
+        if not cuts:
+            sub.append((i9, a9, b9, n9, None))
+            continue
+        segs, cur = [], a9
+        for lo, hi in sorted(cuts):
+            if lo > cur:
+                segs.append((cur, lo))
+            cur = max(cur, hi)
+        if cur < b9:
+            segs.append((cur, b9))
+        tot = sum(q[1] - q[0] for q in segs) or 1.0
+        got = [max(1, int(round(n9 * (q[1] - q[0]) / tot))) for q in segs]
+        while sum(got) > n9 and max(got) > 1:
+            got[got.index(max(got))] -= 1
+        while sum(got) < n9:
+            got[got.index(max(got))] += 1
+        for (lo, hi), k8 in zip(segs, got):
+            # ⭕ 1本しか置けない小区間は、**もとの区間の端(=窓の縁)側**へ寄せる
+            #   (⛔ 真ん中に置くと窓の縁に松が立たず、そこだけ対岸から抜ける)。
+            end9 = None
+            if k8 == 1:
+                if abs(hi - b9) < 1e-6:
+                    end9 = hi
+                elif abs(lo - a9) < 1e-6:
+                    end9 = lo
+            sub.append((i9, lo, hi, k8, end9))
+    out = []
+    for i9, a9, b9, n9, end9 in sub:
         if n9 <= 1:
-            out.append((i9, (a9 + b9) / 2.0, vm))
+            out.append((i9, end9 if end9 is not None else (a9 + b9) / 2.0, vm))
             continue
         # ⭕ **両端にも立てる**(区間の端=窓の縁に松が無いと、そこだけ対岸から棟が抜ける)。
         base = (b9 - a9) / float(n9 - 1)
@@ -7306,10 +7611,19 @@ def hokata_pts(d):
         amp = min(base - hk.get("pitchMin", 3.0), hk.get("pitchMax", 4.5) - base, 0.6)
         dev = [q / mx * max(amp, 0.0) for q in dev]    # ⛔ 等間隔にしない・⛔ 上下限を割らない
         u9 = a9
-        out.append((i9, u9, vm))
+        pts9 = [u9]
         for k9 in range(n9 - 1):
             u9 += base + dev[k9]
-            out.append((i9, u9, vm))
+            pts9.append(u9)
+        # ⛔ **木戸の口に松の芯を置かない**(2026-09-03 庭方5巡目 K205)
+        gz = hk.get("gateU") or []
+        gc = hk.get("gateClearKen", 1.0)
+        for gu in gz:
+            for k9, q9 in enumerate(pts9):
+                if abs(q9 - gu) < gc:
+                    pts9[k9] = gu + (gc if q9 >= gu else -gc)
+        for q9 in pts9:
+            out.append((i9, q9, vm))
     return out
 
 
@@ -7327,12 +7641,24 @@ def hokata_check(d):
         bad.append("法肩の松の総数 %d と区間ごとの合計 %d が合わない"
                    % (hk.get("n", 0), sum(hk.get("spanN") or [])))
     pts = hokata_pts(d)
+    subs = {}
+    for i9, u9, _v9 in pts:
+        subs.setdefault(i9, []).append(u9)
+    for gu in (hk.get("gateU") or []):
+        near = min((abs(q9[1] - gu) for q9 in pts), default=99.0)
+        if near < hk.get("gateClearKen", 1.0) - 1e-6:
+            bad.append("法肩の松の芯が木戸の口(u%.1f)から %.2f間 — %.1f間 以上あけること"
+                       % (gu, near, hk.get("gateClearKen", 1.0)))
+    gz9 = [g9 for g9 in (hk.get("gateU") or [])]
+    gc9 = hk.get("gateClearKen", 1.0)
     for i9, (a9, b9) in enumerate(hk["spans"]):
         us = sorted(q[1] for q in pts if q[0] == i9)
         if not us:
             bad.append("法肩の松の区間 %d(u%.1f〜%.1f)に1本も無い" % (i9, a9, b9))
             continue
-        gaps = [b8 - a8 for a8, b8 in zip(us, us[1:])]
+        # ⛔ 木戸の口をまたぐ隙は「芯々」ではない(口は空けるのが設計)
+        gaps = [b8 - a8 for a8, b8 in zip(us, us[1:])
+                if not any(a8 < g9 < b8 for g9 in gz9)]
         ends = [us[0] - a9, b9 - us[-1]]
         worst = max(gaps) if gaps else 0.0
         if worst > hk.get("pitchMax", 4.5) + 1e-6:
@@ -7601,6 +7927,42 @@ def nishi_check(d):
             bad.append("視線を切る所の標高が章で割れている — 借景の章 %.2f / 窓の章 %.2f。"
                        "同じ点(汀の柵の天端)を別の物差しで読んでいる"
                        % (sm8["crestY"], md8["crest"][1]))
+    # ①''''' **棟の頂点(大棟・妻)を窓の視線へ総当たり**(2026-09-03 考証 K193)
+    #   ⛔ 樹だけ見ても足りない — 屋根は動かないので、**窓から見えるかは棟で決まる**。
+    #   ⚠ 御殿の大棟の高さは設計値に無いので `hokata.shading.ridgeCandidates` を**総当たり**する。
+    md7 = N.get("mado") or {}
+    ey7 = md7.get("eye") or {}
+    cr7 = md7.get("crest")
+    if ey7.get("eyeY") is not None and cr7:
+        def _ray(v9):
+            k9 = (v9 - ey7["v"]) / max(cr7[0] - ey7["v"], 1e-9)
+            return ey7["eyeY"] + (cr7[1] - ey7["eyeY"]) * k9
+        cl7 = md7.get("clearance", 1.0)
+        rf7 = d.get("roofs") or {}
+        apex = []
+        for s7 in d.get("service", []):            # 崖下の帯の棟(実寸の棟高を持つ)
+            if not s7.get("obi") or not s7.get("roof"):
+                continue
+            r7 = rf7.get(s7["roof"]) or {}
+            for u8 in (s7["u0"], (s7["u0"] + s7["u1"]) / 2.0, s7["u1"]):
+                for v8 in (s7["v0"], (s7["v0"] + s7["v1"]) / 2.0, s7["v1"]):
+                    apex.append((s7.get("label") or s7["name"], u8, v8,
+                                 (s7.get("y") or 0) + r7.get("ridgeH", 0)))
+        sh7 = (N.get("hokata") or {}).get("shading") or {}
+        for m7 in d.get("munes", []):              # 御殿の棟 — 大棟の候補ごと
+            for rc in (sh7.get("ridgeCandidates") or []):
+                for u8 in (m7["u0"], m7["u1"]):
+                    for v8 in (m7["v0"], m7["v1"]):
+                        apex.append(("%s(大棟の候補 %.2f)" % (MUNE_JA.get(m7["name"], m7["name"]), rc),
+                                     u8, v8, rc))
+        for nm7, u8, v8, y8 in apex:
+            # ⛔ **眼より手前(v が小さい側)は窓ではない** — 扇は前にしか開かない。
+            if v8 <= ey7["v"] + 1e-9 or not in_mado(d, u8, v8):
+                continue
+            lim7 = _ray(v8) - cl7
+            if y8 > lim7 + 1e-6:
+                bad.append("窓の中の棟の頂点『%s』(%.1f, %.1f)の高さ %.2f が"
+                           "視線 − 余裕 %.2f を超える" % (nm7, u8, v8, y8, lim7))
     # ①'''' 窓の開きと、幕(松の列・林の下端)の口(2026-09-03 ユーザー裁定7=B)
     md9 = N.get("mado") or {}
     mm9 = mado_metrics(d)
@@ -8122,7 +8484,37 @@ def nishi_table(d):
             (nd.get("worstAt") or [0, 0])[0], (nd.get("worstAt") or [0, 0])[1],
             nd.get("sens", 0), nd.get("needH", 0),
             (N.get("hokata") or {}).get("hMin", 0), (N.get("hokata") or {}).get("hMax", 0))],
-        ["法尻の帯の建物 — 型と作法(⛔ 棟はまだ1つも置かない)",
+        ["崖下の帯の棟(裁定8=A)",
+         (" ／ ".join("<b>%s</b> %.1f×%.1f間・%.0f m²(面 %.2f・切盛 %.2f)"
+                     % (o9["name"], o9["u1"] - o9["u0"], o9["v1"] - o9["v0"], o9["areaM2"],
+                        o9["y"] or 0, o9["dz"] or 0) for o9 in obi_metrics(d) if o9["roofed"])
+          + "<br>東(山側)の余地 %s(要 %.1fm)／ 榎の幹から軒まで %s"
+          % (" ／ ".join("%s %.2fm" % (q9["name"], q9["gapM"]) for q9 in obi_east_clear(d)),
+             (N.get("obi") or {}).get("eastClearM", 0),
+             " ／ ".join("%s→%s %.1fm" % (o9["name"], o9["gaps"][0][0], o9["gaps"][0][1])
+                        for o9 in obi_metrics(d) if o9["roofed"] and o9["gaps"]))
+          + "<br>屋根 <b>%s・%s・%s腰</b>(%s)"
+          % ((d.get("roofs") or {}).get("ObiNagaya", {}).get("kawara", ""),
+             (d.get("roofs") or {}).get("ObiNagaya", {}).get("kai", ""),
+             (d.get("roofs") or {}).get("ObiNagaya", {}).get("koshi", ""),
+             (d.get("roofs") or {}).get("ObiNagaya", {}).get("mado", "")))
+         if any(o9["roofed"] for o9 in obi_metrics(d)) else "—"],
+        ["勝手の坂(崖下の帯へ)",
+         ("路長 %.1fm・落差 %.2fm・脚ごとの最急 <b>%.1f%%</b> / "
+          "<b>2間窓の局所 %.2f%%</b>(上限 %.0f%%)・脚 %.1fm 以上・折れ最大 %.0f°"
+          "(⛔ 折れの規則は掛けない=林の中で見えない)<br>"
+          "林の中 %.1fm ／ 伐る帯 幅 %.2fm = <b>%.0f m²(林の %.1f%%)</b> ／ "
+          "高木 約%.1f本・中木 約%.1f株<br>切土 %d m³(最大 %.2fm)・盛土 %d m³(最大 %.2fm)"
+          % (_rp9["measured"]["len"], _rp9["measured"]["rise"], _rp9["measured"]["grad"],
+             _rp9["measured"].get("local", 0),
+             _rp9.get("gradMax", 0), _rp9["measured"]["leg"], _rp9["measured"]["turn"],
+             (saka_forest(d) or {}).get("inForestM", 0), _rp9.get("cutW", 0),
+             (saka_forest(d) or {}).get("cutM2", 0), (saka_forest(d) or {}).get("pct", 0),
+             (saka_forest(d) or {}).get("takagi", 0), (saka_forest(d) or {}).get("chuboku", 0),
+             _rp9["earth"]["kiridoM3"], _rp9["earth"]["kiridoMax"],
+             _rp9["earth"]["moridoM3"], _rp9["earth"]["moridoMax"]))
+         if (_rp9 := next((q for q in d.get("ramps", []) if q.get("cutW")), None)) else "—"],
+        ["法尻の帯の建物 — 型と作法",
          ("<b>%s</b><br>%s<br>確度 %s"
           % (inline((N.get("obi") or {}).get("yoto", "—")),
              "<br>".join(inline(q) for q in ((N.get("obi") or {}).get("sahou") or [])),
@@ -8379,7 +8771,7 @@ GEN_FIELDS_GATE = ("s0", "s1")
 # `*` は並びの全要素。⛔ ここに挙げた欄は**人が json へ書かない**。
 GEN_PATHS = [
     "nishi.mado.hLimit", "nishi.mado.crest", "nishi.mado.crestKind", "nishi.mado.seeFromM",
-    "nishi.mado.eye.eyeY", "nishi.mado.susuki.vMax", "nishi.mado.komichi.endPt",
+    "nishi.mado.eye.eyeY", "nishi.mado.susuki.vMax",
     "nishi.mado.matsu.*.h", "nishi.mado.matsu.*.hCap",
     "gardens.*.mikoro.*.eyeY",
     "gardens.*.shakkei.railU0", "gardens.*.shakkei.railU1",
@@ -8390,6 +8782,7 @@ GEN_PATHS = [
     "nishi.mikoro.*.eyeY",
     "gardens.*.nakajima.*.u", "gardens.*.nakajima.*.v",
     "gardens.*.sawatobi.*.stonePts",
+    "ramps.*.measured", "ramps.*.len", "ramps.*.rise", "ramps.*.earth",
     "gardens.*.mizu.gensen.chokusetsu.m2",
 ]
 
@@ -8974,6 +9367,77 @@ def fix_sawatobi(x):
     return x
 
 
+def fix_ramps(x):
+    """坂の路盤(`prof`)と実測(`measured`)を書き戻す。⛔ 人が書かない。
+
+    ⭐ `profFrom: "uniform"` の坂は、**両端の地盤を一様勾配で結ぶ路盤**を起こす
+      (2026-09-03 ユーザー裁定8=A の勝手の坂)。⛔ 途中の地盤なりにしない —
+      地盤なりだと 27% の区間が出る。⭕ 一様にすると切盛が要るぶんは `earth` が出す。"""
+    K9 = x["const"]["ken"]
+    for rp in x.get("ramps", []):
+        pts = [(a9, b9) for a9, b9 in (rp.get("pts") or [])]
+        if rp.get("profFrom") == "ground" and len(pts) >= 2:
+            # ⭕ **土の道は地盤なり**(2026-09-03 庭方5巡目 K205 の案EE)。
+            ys = [_dem_at(x, q9[0], q9[1]) for q9 in pts]
+            if None not in ys:
+                ls = [math.hypot(b9[0] - a9[0], b9[1] - a9[1]) * K9
+                      for a9, b9 in zip(pts, pts[1:])]
+                prof = []
+                for i9, q9 in enumerate(pts):
+                    leg = ls[i9] if i9 < len(ls) else 0.0
+                    gr = (100.0 * abs(ys[i9 + 1] - ys[i9]) / leg) if leg > 1e-9 else 0.0
+                    prof.append([q9[0], q9[1], round(ys[i9], 2), round(leg, 1), round(gr, 1)])
+                rp["prof"] = prof
+        if rp.get("profFrom") == "uniform" and len(pts) >= 2:
+            ys = [_dem_at(x, pts[0][0], pts[0][1]), _dem_at(x, pts[-1][0], pts[-1][1])]
+            if None not in ys:
+                ls = [math.hypot(b9[0] - a9[0], b9[1] - a9[1]) * K9
+                      for a9, b9 in zip(pts, pts[1:])]
+                L9 = sum(ls)
+                gr = 100.0 * (ys[0] - ys[1]) / max(L9, 1e-9)
+                prof, s9 = [], 0.0
+                for i9, q9 in enumerate(pts):
+                    y9 = ys[0] - (ys[0] - ys[1]) * (s9 / max(L9, 1e-9))
+                    leg = ls[i9] if i9 < len(ls) else 0.0
+                    prof.append([q9[0], q9[1], round(y9, 2), round(leg, 1),
+                                 round(gr, 1) if i9 < len(ls) else 0.0])
+                    if i9 < len(ls):
+                        s9 += ls[i9]
+                rp["prof"] = prof
+        # 切盛(路盤 − 地盤)を帯の全幅で積む
+        pr9 = rp.get("prof")
+        if pr9:
+            w9 = rp.get("w", K9)
+            cut = fill = 0.0
+            cmax = fmax = 0.0
+            for (a9, b9) in zip(pr9, pr9[1:]):
+                n9 = max(1, int(math.hypot(b9[0] - a9[0], b9[1] - a9[1]) * K9 / 1.0))
+                for k9 in range(n9):
+                    f9 = (k9 + 0.5) / n9
+                    u8 = a9[0] + (b9[0] - a9[0]) * f9
+                    v8 = a9[1] + (b9[1] - a9[1]) * f9
+                    y8 = a9[2] + (b9[2] - a9[2]) * f9
+                    g8 = _dem_at(x, u8, v8)
+                    if g8 is None:
+                        continue
+                    dz = y8 - g8
+                    seg = math.hypot(b9[0] - a9[0], b9[1] - a9[1]) * K9 / n9
+                    if dz < 0:
+                        cut += -dz * seg * w9; cmax = max(cmax, -dz)
+                    else:
+                        fill += dz * seg * w9; fmax = max(fmax, dz)
+            rp["earth"] = {"kiridoM3": int(round(cut)), "kiridoMax": round(cmax, 2),
+                           "moridoM3": int(round(fill)), "moridoMax": round(fmax, 2),
+                           "_": "坂の路盤(幅 %.3fm)を江戸期地盤へ摺り付ける土工。**帯の全幅で積算**。"
+                                "拝領時造成には含めない" % w9}
+        m9 = ramp_metrics(x, rp)
+        if m9:
+            rp["measured"] = m9
+            rp["len"] = m9["len"]
+            rp["rise"] = m9["rise"]
+    return x
+
+
 def pipeline(x):
     """算出値を正典へ書き戻す一連のパス。**ここが唯一の定義**(土井 build_doi_sashizu.py の作法)。
     ⛔ 往復試験の台本に**同じ手順の写し**を持たせない — 生成器にパスを足したとき、
@@ -8981,6 +9445,7 @@ def pipeline(x):
     x = fix_gate_runs(x)
     x = fix_terrace_walls(x)
     x = fix_nishi(x)
+    x = fix_ramps(x)
     x = fix_terrace_keeps(x)
     x = fix_naka(x)
     x = fix_sawatobi(x)

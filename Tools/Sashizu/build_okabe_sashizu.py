@@ -3275,8 +3275,12 @@ def section_svg(d, sec):
             eave8 = rf8.get("eaveH", eave)
             ridge8 = rf8.get("ridgeH", ridge)
         else:
+            # ⭐ 2026-09-04(棟梁 S5-6/部材方): **御殿も棟ごとの宣言を読む**。
+            #   ⚠ `roofs.*.eaveH` は**軒先**(床から 2.577)で、`sections.eaveAbove` 4.2 とは
+            #     別のもの(4.2 は軒桁の見当だった)。⛔ 二つを混ぜない。
             f = m["y"] + fl
-            eave8, ridge8 = eave, ridge
+            eave8 = rf8.get("eaveH", eave)
+            ridge8 = rf8.get("ridgeH", ridge)
         nm = MUNE_JA.get(m.get("name"), m.get("label", m.get("name", "")))
         if "label" in m and m["name"] not in MUNE_JA:
             nm = m["label"]
@@ -4632,9 +4636,10 @@ def mune_roof_table(d):
         rh = rf.get("ridgeH")
         rows.append([m["name"], "%.0f×%.0f 間" % (wU, wV), iriS,
                      ("<b>%s</b> 方向" % rd) if rd else "—",
-                     ("軒 %.2f / 棟 <b>%.3f</b>(床から)<br>= 面 %.2f + 床 %.2f + 棟 %.3f "
-                      "→ <b>標高 %.3f</b>" % (rf.get("eaveH", 0), rh, m["y"], fl, rh,
-                                              m["y"] + fl + rh)) if rh else "—",
+                     ("軒先 %.3f / 棟 <b>%.3f</b>(床から)<br>= 面 %.2f + 床 %.2f + 棟 %.3f "
+                      "→ <b>標高 %.3f</b><br>屋根の外形 <b>%.2f × %.2f</b>(軒の出 0.90 四周)"
+                      % (rf.get("eaveH", 0), rh, m["y"], fl, rh, m["y"] + fl + rh,
+                         rf.get("outerW", 0), rf.get("outerD", 0))) if rh else "—",
                      inline(str(m.get("ridgeCert") or "") + " / " + str(m.get("iriCert") or ""))])
     nd = hokata_need(d) or {}
     return _tw(["棟", "平面", "入側", "大棟", "屋根の高さ[m]", "確度"], rows,

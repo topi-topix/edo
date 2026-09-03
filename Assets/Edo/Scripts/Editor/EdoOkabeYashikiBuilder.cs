@@ -1210,6 +1210,7 @@ public static class EdoOkabeYashikiBuilder
         if (fam == "JG")
         {
             if (nm == "Pine")    return EdoAssets.JG.Pine(size, idx);
+            if (nm == "Bamboo")  return EdoAssets.JG.Bamboo(size, idx);   // ヤダケの代用(丈で縮める)
             if (nm == "Boxwood") return EdoAssets.JG.Boxwood(idx);
             if (nm == "Fern")    return EdoAssets.JG.Fern(idx);
         }

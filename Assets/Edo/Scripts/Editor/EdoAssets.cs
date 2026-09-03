@@ -220,6 +220,16 @@ public static class EdoAssets
         /// <summary>黒松。生 5.6m ×1.65。Big/Mid/Small × 01..03</summary>
         public static string Pine(string size, int i)
         { return JGP + "Trees/BlackPine/Tree_BlackPine_" + size + "_Green_0" + i + ".prefab"; }
+        /// <summary>竹。**Big/Mid/Small × 01・02**(`Green` のみ引く — `Dry` は枯れ姿で当プロジェクトでは使わない)。
+        /// 実寸[m]は目録 `docs/asset-index.tsv` の実測値(scale=1・幅 × **丈** × 奥行):
+        ///   Small_01 4.33 × <b>4.33</b> × 1.93 ／ Small_02 4.03 × <b>4.03</b> × 2.25
+        ///   Mid_01   6.29 × <b>6.32</b> × 3.26 ／ Mid_02   6.70 × <b>6.70</b> × 3.91
+        ///   Big_01   9.56 × <b>9.61</b> × 5.90 ／ Big_02   9.03 × <b>9.06</b> × 6.70
+        /// ピボットは足元(`pivot_bottom` = 0)なので地盤の y をそのまま渡せる。
+        /// ⚠ **ヤダケ(矢竹)の代用に使うときは丈で縮める** — 指図 `nishi.hayashi.yadake` は 4〜6m で、
+        ///   Small でも素のままだと下限に張り付く。⛔ 孟宗竹の姿のまま大きく置かない。</summary>
+        public static string Bamboo(string size, int i)
+        { return JGP + "Trees/Bamboo/Tree_Bamboo_" + size + "_Green_0" + i + ".prefab"; }
         /// <summary>桜。⚠ **Summer のみ使う**(季節は春ではない)。01 と 05 の2種。生 ×1.4</summary>
         public static string SakuraSummer(string size, int i)
         { return JGP + "Trees/Sakura/Tree_Sakura_" + size + "_Summer_0" + i + ".prefab"; }
@@ -495,6 +505,25 @@ public static class EdoAssets
         }
         const string FuzokuyaDir = "Assets/Edo/Models/Fuzokuya/";
 
-        public const string LayerGrass  = "Assets/Edo/Terrain/layers/L_grass.terrainlayer";
+        /// <summary>地表層(TerrainLayer)。**「実寸」= 繰り返しの一枚の大きさ `m_TileSize`**[m]。
+        /// ⚠ タイリングが小さいほど近景は細かく、遠景は模様が目立つ。塗り分けるときは
+        ///   隣り合う層のタイルの大きさを見て、境目で柄が急に変わらないようにする。
+        /// ⛔ ここに無い層を勝手に足さない — 地表の設計は指図(どの層で塗るか)が持つ。</summary>
+        public const string LayerGrass  = "Assets/Edo/Terrain/layers/L_grass.terrainlayer";  // 芝・草地。タイル 4×4m
+        /// <summary>土(踏み固めた道・白洲・前庭)。タイル 8×8m</summary>
+        public const string LayerDirt   = "Assets/Edo/Terrain/layers/L_dirt.terrainlayer";
+        /// <summary>裸地(切土の肌・法面)。タイル 11×11m</summary>
+        public const string LayerBare   = "Assets/Edo/Terrain/layers/L_bare.terrainlayer";
+        /// <summary>岩(崖・露岩)。タイル 7×7m。⚠ 4層のうちこれだけ `Smoothness` 0.15(濡れて見える)</summary>
+        public const string LayerRock   = "Assets/Edo/Terrain/layers/L_rock.terrainlayer";
+
+        /// <summary>詳細植生(Detail)の下草。**丈は 0.11m** — 地表の毛羽で、草叢ではない。
+        /// 実寸[m]は目録の実測値(幅 × **丈** × 奥行):A 0.45 × <b>0.11</b> × 0.40 / B 0.33 × <b>0.11</b> × 0.20。
+        /// ⚠ `pivot_bottom` = −0.02 なので、地盤の y をそのまま渡すと 2cm 沈む(下草なので実害は無い)。
+        /// ⚠ Terrain の Detail として使う版は同じフォルダの `GrassLowA_up.asset` / `GrassLowB_up.asset`。
+        /// ⛔ **同じフォルダの `BroadleafTree` は使用禁止のまま**(CLAUDE.md 規則10 —
+        ///   「これは2度と使わないでください。見た目がしょぼすぎます」2026-08-30 ユーザー指示)。</summary>
+        public const string GrassLowA   = "Assets/Edo/Terrain/details/GrassLowA.prefab";
+        public const string GrassLowB   = "Assets/Edo/Terrain/details/GrassLowB.prefab";
     }
 }

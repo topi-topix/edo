@@ -37,6 +37,8 @@ public static class EdoSashizuExport
     ///   root    … シーンのルート GameObject 名
     ///   parcel  … EdoParcels の区画 id
     ///   gradeQA … 造成の検査(部門別の集計に載せる)。持たない邸は null
+    ///   implQA  … 生成器が焼いた算出物の検め。⭐ **地形より先に見る** — 算出物が古い/欠けて
+    ///             いれば、地形の検査は「合っている」と嘘をつく(比べる相手が古いだけ)
     ///   pivot   … 棟・廊下の**据え付け点**。⚠ 部材キットの原点は「外形の角・走りが +X」なので、
     ///             フレームの手前(u+/v+ の向き)が邸ごとに違うと角も変わる。⛔ 検査だけが
     ///             式を持つと実装とズレるので、**ビルダーの式をそのまま呼ぶ**。null なら松平式
@@ -47,6 +49,7 @@ public static class EdoSashizuExport
     {
         public string label, doc, impl, root, parcel;
         public Func<string> gradeQA;
+        public Func<string> implQA;
         public Func<Dictionary<string, object>, string, Vector2> pivot;
     }
     public static readonly Dictionary<string, Yashiki> Houses = new Dictionary<string, Yashiki>
@@ -55,6 +58,7 @@ public static class EdoSashizuExport
                                  impl = EdoOkabeYashikiBuilder.ImplRel,
                                  root = EdoOkabeYashikiBuilder.GN, parcel = EdoOkabeYashikiBuilder.ParcelId,
                                  gradeQA = EdoOkabeYashikiBuilder.GradeQA,
+                                 implQA = EdoOkabeYashikiBuilder.ImplQA,
                                  pivot = EdoOkabeYashikiBuilder.Pivot } },
         { "matsudaira_dewa", new Yashiki { label = "MatsudairaDewa", doc = EdoMatsudairaDewaBuilder.SashizuRel,
                                       root = EdoMatsudairaDewaBuilder.Grp,
@@ -173,14 +177,20 @@ public static class EdoSashizuExport
                       "本 / 区画 " + P.Length + "頂点" + (impl == null ? "" : " / 算出物あり"));
 
         // ---- 造成 — 邸が検査を持っていればその結果を部門へ載せる
-        if (hs.gradeQA != null)
+        // ⭐ **算出物を地形より先に見る。**算出物が古い/欠けていれば、地形の検査は
+        //   「合っている」と嘘をつく(比べる相手が古いだけで、差がゼロに出る)。
+        Action<Func<string>, string> runQA = (fn, label) =>
         {
-            string q = null;
-            try { q = hs.gradeQA(); }
-            catch (Exception ex) { q = "★ 造成の検査が走らない: " + ex.Message; }
-            sb.AppendLine("造成: " + FirstLine(q));
-            if (q != null && (q.Contains("✗") || q.StartsWith("★"))) bad("造成", FirstLine(q));
-        }
+            if (fn == null) return;
+            string q;
+            try { q = fn(); }
+            catch (Exception ex) { q = "★ " + label + "が走らない: " + ex.Message; }
+            sb.AppendLine("造成/" + label + ": " + FirstLine(q));
+            // ⛔ StartsWith で見ない — ★ が2行目以降に出る報告(算出物の検め)を丸ごと取り逃がす
+            if (EdoQaVerdict.Failed(q)) bad("造成", label + ": " + FirstLine(q));
+        };
+        runQA(hs.implQA, "算出物");
+        runQA(hs.gradeQA, "地形");
 
         // ---- 名前 → 部門。**西の斜面の物は指図が名指しで持っている**(nishi.obi)
         var nishiNames = new HashSet<string>();

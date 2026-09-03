@@ -149,23 +149,12 @@ public static class EdoOkabeYashikiBuilder
         var src = O(_impl.ContainsKey("src") ? _impl["src"] : null);
         if (src == null || !src.ContainsKey("sha256"))
         { Debug.LogWarning("[Okabe] 算出物に src.sha256 が無い — 指図との対応を機械で確かめられない"); return; }
-        string want = Convert.ToString(src["sha256"]).ToLowerInvariant();
-        string got = Sha256Hex(Path.Combine(ProjRoot, SashizuRel));
-        if (want != got)
+        string want = Convert.ToString(src["sha256"]);
+        string got = EdoQaVerdict.Sha256Hex(Path.Combine(ProjRoot, SashizuRel));
+        if (!EdoQaVerdict.FingerprintMatches(want, got))
             throw new Exception("⛔ 算出物が**いまの指図から焼かれていない**"
                 + "\n   指図 " + got.Substring(0, 16) + "… / 算出物が名乗る元 " + want.Substring(0, Math.Min(16, want.Length)) + "…"
                 + "\n   `python3 Tools/Sashizu/build_okabe_sashizu.py --export-impl` を回し直すこと");
-    }
-    static string Sha256Hex(string path)
-    {
-        using (var sha = System.Security.Cryptography.SHA256.Create())
-        using (var fs = File.OpenRead(path))
-        {
-            var h = sha.ComputeHash(fs);
-            var sb = new System.Text.StringBuilder(h.Length * 2);
-            for (int i = 0; i < h.Length; i++) sb.Append(h[i].ToString("x2"));
-            return sb.ToString();
-        }
     }
 
     // ---- json の小物 ----

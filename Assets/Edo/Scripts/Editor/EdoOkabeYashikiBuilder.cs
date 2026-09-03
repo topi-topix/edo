@@ -1604,6 +1604,322 @@ public static class EdoOkabeYashikiBuilder
     }
 
     // =====================================================================
+    // 算出物の自己検査 — **Unity の場面にも地形にも触らない**
+    //
+    // ⭐ 生成器が焼いた `okabe_impl.json` が、指図の宣言と噛み合っているかだけを見る。
+    //   地形も現物も読まないので、**merge を待っている間でも・造成の前でも走る**。
+    // ⚠ これが無いと、焼き損じ(格子が区画を覆っていない・杭が汀線から外れている・
+    //   松が木戸の余裕を侵している)が**据えてみるまで分からない**。安い輪で捕まえる
+    //   べきものを、高い輪(実装・ユーザーの目)に見つけさせないための関門。
+    //   → `docs/verification-loops.md`(CLAUDE.md 規則19)
+    // =====================================================================
+    [MenuItem("Edo/岡部筑前守上屋敷/算出物を検める")]
+    public static void ImplQAMenu() { Debug.Log("[Okabe] " + ImplQA()); }
+
+    /// <summary>算出物 `okabe_impl.json` の自己検査。**場面にも地形にも触らない**ので
+    /// `execute_code` からでもコマンドラインからでも同じ結果になる。
+    /// 返り値は人が読む報告。⛔ 項目を足したら「何を測ったか」を文言に必ず書くこと
+    /// (「共有辺」と書いて全辺を回す類の嘘を作らない — 2026-08 の検査の教訓)。</summary>
+    public static string ImplQA()
+    {
+        Reload();
+        var sb = new System.Text.StringBuilder("算出物の検め(場面・地形に触らない)\n");
+        int bad = 0;
+        System.Action<string> ng = delegate(string m) { sb.Append("  ★ ").Append(m).Append('\n'); bad++; };
+        System.Action<string> ok = delegate(string m) { sb.Append("  ✔ ").Append(m).Append('\n'); };
+
+        Dictionary<string, object> im;
+        try { im = IMPL; }
+        catch (Exception ex) { return sb.Append("  ★ ").Append(ex.Message).Append('\n').ToString(); }
+
+        // ---- ① 指紋 --------------------------------------------------
+        var src = O(Get(im, "src"));
+        if (src == null || !Has(src, "sha256")) ng("src.sha256 が無い — 指図との対応を機械で確かめられない");
+        else ok("src.sha256 が指図と一致(" + S(src["sha256"]).Substring(0, 12) + "…)");
+        // ⚠ 不一致なら IMPL の getter が例外を投げているので、ここへ来た時点で一致している
+
+        var P = Poly;
+        var f = Grid;
+
+        // ---- ② 造成後の地盤の格子が区画を覆うか ------------------------
+        {
+            var g = O(Get(im, "graded"));
+            if (g == null) ng("graded が無い");
+            else
+            {
+                float x0 = F(g["x0"]), z0 = F(g["z0"]), st = F(g["step"]);
+                int nx = (int)F(g["nx"]), nz = (int)F(g["nz"]);
+                float x1 = x0 + (nx - 1) * st, z1 = z0 + (nz - 1) * st;
+                float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
+                foreach (var q in P)
+                { mnx = Mathf.Min(mnx, q.x); mxx = Mathf.Max(mxx, q.x); mnz = Mathf.Min(mnz, q.y); mxz = Mathf.Max(mxz, q.y); }
+                if (x0 > mnx || x1 < mxx || z0 > mnz || z1 < mxz)
+                    ng(string.Format("graded の格子が区画の外接矩形を覆っていない 格子[{0:F1}〜{1:F1}, {2:F1}〜{3:F1}] / 区画[{4:F1}〜{5:F1}, {6:F1}〜{7:F1}]",
+                        x0, x1, z0, z1, mnx, mxx, mnz, mxz));
+                // 区画の中の節点に穴が無いか(=区画内で null を返さない)
+                int hole = 0, inN = 0; Vector2 worst = Vector2.zero;
+                for (int j = 0; j < nz; j++)
+                    for (int i = 0; i < nx; i++)
+                    {
+                        var q = new Vector2(x0 + i * st, z0 + j * st);
+                        if (!EdoGeom.PIP(P, q)) continue;
+                        inN++;
+                        if (float.IsNaN(Graded.At(q.x, q.y))) { hole++; worst = q; }
+                    }
+                if (hole > 0) ng(string.Format("graded に区画内の穴 {0} / {1} 節点(例 {2:F1},{3:F1})", hole, inN, worst.x, worst.y));
+                else ok(string.Format("graded は区画内 {0} 節点すべてに値がある(格子 {1:F2}m)", inN, st));
+            }
+        }
+
+        // ---- ③ 隅の留め継ぎが区画の頂点に一致するか --------------------
+        {
+            var cs = A(Get(im, "corners"));
+            if (cs == null) ng("corners が無い");
+            else
+            {
+                int n = 0; float mx = 0f; string worst = null;
+                foreach (var o in cs)
+                {
+                    var c = O(o); if (c == null) continue;
+                    int v = (int)F(c["vertex"]);
+                    if (v < 0 || v >= P.Length) { ng("corner " + S(c["id"]) + " の vertex " + v + " が区画の頂点数 " + P.Length + " の外"); continue; }
+                    var w = A(Get(c, "world"));
+                    if (w == null || w.Count < 2) { ng("corner " + S(c["id"]) + " に world が無い"); continue; }
+                    float d = (new Vector2(F(w[0]), F(w[1])) - P[v]).magnitude;
+                    if (d > mx) { mx = d; worst = S(c["id"]); }
+                    n++;
+                }
+                if (mx > 0.01f) ng(string.Format("corners の world が頂点と最大 {0:F3}m ずれ(@{1})— 指図の polygon を parcels.json へ同期し直すこと", mx, worst));
+                else ok("corners " + n + " 件は区画の頂点に一致(最大 " + mx.ToString("F3") + "m)");
+            }
+        }
+
+        // ---- ④ 基壇の区間が run の中か --------------------------------
+        {
+            var bs = A(Get(im, "base"));
+            if (bs == null) ng("base が無い");
+            else
+            {
+                var byName = new Dictionary<string, Run>();
+                foreach (var r in Runs) byName[r.name] = r;
+                int n = 0, outside = 0;
+                foreach (var o in bs)
+                {
+                    var b = O(o); if (b == null) continue;
+                    string nm = S(b["run"]);
+                    if (!byName.ContainsKey(nm)) { ng("base の run " + nm + " が指図の runs に無い"); continue; }
+                    var r = byName[nm];
+                    if (Has(b, "s") && Mathf.Abs(F(b["s"]) - r.s) > 1e-4f)
+                        ng("base " + nm + " の倍率 s=" + F(b["s"]).ToString("0.##") + " が指図の run の s=" + r.s.ToString("0.##") + " と違う");
+                    foreach (var q in A(Get(b, "segs")) ?? new List<object>())
+                    {
+                        var t2 = A(q); if (t2 == null || t2.Count != 2) continue;
+                        n++;
+                        if (F(t2[0]) < r.s0 - 0.01f || F(t2[1]) > r.s1 + 0.01f)
+                        { ng(string.Format("base {0} の区間 [{1:F2},{2:F2}] が run の [{3:F2},{4:F2}] の外", nm, F(t2[0]), F(t2[1]), r.s0, r.s1)); outside++; }
+                    }
+                }
+                if (outside == 0) ok("base の区間 " + n + " 本はすべて run の中");
+            }
+        }
+
+        // ---- ⑤ 法肩の竹垣が段の縁に載るか ------------------------------
+        {
+            var rs = A(Get(im, "rails"));
+            if (rs == null) ng("rails が無い — 法肩の竹垣は生成器の算出値で、指図の json は持たない");
+            else
+            {
+                float off = (C("inubashiri") + C("takegakiInset")) / C("ken");   // 縁から内へ(間)
+                int n = 0, far = 0; float mx = 0f; string worst = null;
+                foreach (var o in rs)
+                {
+                    var r = O(o); if (r == null) continue;
+                    var pts = A(Get(r, "world"));
+                    if (pts == null) { ng("rail " + S(r["name"]) + " に world が無い(実装は世界座標の折れ線を使う)"); continue; }
+                    foreach (var q in pts)
+                    {
+                        var w = A(q); if (w == null || w.Count < 2) continue;
+                        var uv = f.L(new Vector2(F(w[0]), F(w[1])));
+                        float d = Mathf.Abs(TerraceRingDist(uv) - off);
+                        n++;
+                        if (d > mx) { mx = d; worst = S(r["name"]); }
+                        if (d > 0.30f) far++;      // 0.30間 = 0.55m
+                    }
+                }
+                if (far > 0) ng(string.Format("rails の折れ点 {0}/{1} が段の縁から {2:F2}間 の位置に無い(最大ずれ {3:F2}間 @{4})", far, n, off, mx, worst));
+                else ok(string.Format("rails の折れ点 {0} 点は段の縁から {1:F2}間 に載る(最大ずれ {2:F2}間)", n, off, mx));
+            }
+        }
+
+        // ---- ⑥ 植栽の点 ------------------------------------------------
+        {
+            var pl = O(Get(im, "planting"));
+            var pts = pl == null ? null : A(Get(pl, "points"));
+            if (pts == null) ng("planting.points が無い — 林・法肩の松・榎・ススキの散布点を生成器に焼かせること");
+            else
+            {
+                int n = 0, outP = 0, badH = 0, noDecl = 0, gateHit = 0;
+                float gateU = 0f, gateClear = 0f; bool hasGate = false;
+                var hk = O(Get(O(Get(D, "nishi")), "hokata"));
+                if (hk != null && Has(hk, "gateU"))
+                {
+                    var gu = A(hk["gateU"]);
+                    if (gu != null && gu.Count > 0) { gateU = F(gu[0]); gateClear = F(hk["gateClearKen"]); hasGate = true; }
+                }
+                foreach (var o in pts)
+                {
+                    var q = O(o); if (q == null) continue;
+                    n++;
+                    float u = F(q["u"]), v = F(q["v"]);
+                    Vector2 w = f.W(u, v);
+                    if (!EdoGeom.PIP(P, w)) outP++;
+                    float lo, hi;
+                    if (!HeightRange(S(Get(q, "zone")), S(Get(q, "role")), S(Get(q, "species")), S(Get(q, "name")), out lo, out hi))
+                        noDecl++;
+                    else
+                    {
+                        float h = F(Get(q, "h"));
+                        if (h < lo - 0.01f || h > hi + 0.01f) badH++;
+                    }
+                    if (hasGate && S(Get(q, "zone")) == "hokata" && Mathf.Abs(u - gateU) < gateClear - 1e-4f) gateHit++;
+                }
+                if (outP > 0) ng("planting の点 " + outP + " / " + n + " が区画の外");
+                else ok("planting の点 " + n + " はすべて区画の中");
+                if (badH > 0) ng("planting の丈 " + badH + " 件が指図の hMin〜hMax の外");
+                else ok("planting の丈は宣言の範囲の中(丈の宣言が無い層 " + noDecl + " 件は測っていない)");
+                if (gateHit > 0) ng(string.Format("法肩の松 {0} 本が木戸(u={1:F2})の余裕 {2:F2}間 を侵している", gateHit, gateU, gateClear));
+                else if (hasGate) ok(string.Format("法肩の松は木戸(u={0:F2})から {1:F2}間 を空けている", gateU, gateClear));
+            }
+        }
+
+        // ---- ⑦ 汀の杭が汀線に載るか ------------------------------------
+        {
+            var ks = A(Get(im, "kui"));
+            var tt = O(Get(O(Get(D, "nishi")), "tsutsumi"));
+            var kr = O(Get(O(Get(D, "nishi")), "kuiretsu"));
+            if (ks == null) ng("kui が無い — 汀線と杭(位置・径・頭・傾き・貫)を生成器に焼かせること");
+            else if (tt == null || kr == null) ng("指図に nishi.tsutsumi / kuiretsu が無い");
+            else
+            {
+                int e = (int)F(kr["edge"]);
+                float mizu = F(tt["mizugiwaM"]);
+                Vector2 a = P[e % P.Length], b = P[(e + 1) % P.Length], nrm = OutNormal(e);
+                Vector2 A2 = a + nrm * mizu, B2 = b + nrm * mizu;   // 汀線 = 辺を外へ mizugiwaM 出した線
+                int n = 0, far = 0; float mx = 0f;
+                float dMin = F(kr["dMin"]), dMax = F(kr["dMax"]);
+                int badD = 0;
+                foreach (var o in ks)
+                {
+                    var k = O(o); if (k == null) continue;
+                    n++;
+                    var w = A(Get(k, "world"));
+                    Vector2 c;
+                    if (w != null && w.Count >= 2) c = new Vector2(F(w[0]), F(w[1]));
+                    else if (Has(k, "u")) c = f.W(F(k["u"]), F(k["v"]));
+                    else { ng("kui に world も u/v も無い"); break; }
+                    float d = DistSeg(c, A2, B2);
+                    if (d > mx) mx = d;
+                    if (d > 0.60f) far++;
+                    float dia = F(Get(k, "dia"));
+                    if (dia > 0f && (dia < dMin - 1e-4f || dia > dMax + 1e-4f)) badD++;
+                }
+                if (far > 0) ng(string.Format("kui {0}/{1} 本が汀線(辺{2}を外へ {3:F2}m)から 0.60m 以上離れている(最大 {4:F2}m)", far, n, e, mizu, mx));
+                else ok(string.Format("kui {0} 本は汀線に載る(最大の離れ {1:F2}m)", n, mx));
+                if (badD > 0) ng("kui の径 " + badD + " 本が指図の " + dMin.ToString("0.##") + "〜" + dMax.ToString("0.##") + "m の外");
+            }
+        }
+
+        sb.Append(bad == 0 ? "→ 0 件 ✔ 算出物は指図と噛み合っている" : "→ ★ " + bad + " 件");
+        return sb.ToString();
+    }
+
+    /// <summary>点(グリッド座標)から**段の輪郭**(外輪・抜き・keeps)までの最短距離[間]。
+    /// 法肩の竹垣は縁から内へ一定量入った所に立つので、その検算に使う。</summary>
+    static float TerraceRingDist(Vector2 uv)
+    {
+        float best = float.MaxValue;
+        foreach (var o in A(D["terraces"]) ?? new List<object>())
+        {
+            var t = O(o); if (t == null) continue;
+            best = Mathf.Min(best, RingDist(A(Get(t, "poly")), uv));
+            foreach (var h in A(Get(t, "holes")) ?? new List<object>())
+            { var hh = O(h); if (hh != null) best = Mathf.Min(best, RingDist(A(Get(hh, "poly")), uv)); }
+            foreach (var k in A(Get(t, "keeps")) ?? new List<object>())
+                best = Mathf.Min(best, RingDist(A(k), uv));
+        }
+        return best;
+    }
+    static float RingDist(List<object> ring, Vector2 p)
+    {
+        if (ring == null || ring.Count < 2) return float.MaxValue;
+        float best = float.MaxValue;
+        for (int i = 0; i < ring.Count; i++)
+        {
+            var a = A(ring[i]); var b = A(ring[(i + 1) % ring.Count]);
+            if (a == null || b == null || a.Count < 2 || b.Count < 2) continue;
+            best = Mathf.Min(best, DistSeg(p, new Vector2(F(a[0]), F(a[1])), new Vector2(F(b[0]), F(b[1]))));
+        }
+        return best;
+    }
+    static float DistSeg(Vector2 p, Vector2 a, Vector2 b)
+    {
+        Vector2 d = b - a; float L2 = d.sqrMagnitude;
+        if (L2 < 1e-9f) return (p - a).magnitude;
+        float t = Mathf.Clamp01(Vector2.Dot(p - a, d) / L2);
+        return (p - (a + d * t)).magnitude;
+    }
+
+    /// <summary>指図が**宣言している丈の範囲**を引く。⛔ 宣言の無い層に既定の範囲を当てない
+    /// — 当てると「検査を通った」ことになるが、実際には何も検めていない。</summary>
+    static bool HeightRange(string zone, string role, string species, string name, out float lo, out float hi)
+    {
+        lo = hi = 0f;
+        var n = O(Get(D, "nishi")); if (n == null) return false;
+        if (zone == "hayashi")
+        {
+            var hy = O(Get(n, "hayashi")); if (hy == null) return false;
+            if (role == "takagi")
+                foreach (var o in A(Get(hy, "takagi")) ?? new List<object>())
+                {
+                    var t = O(o);
+                    if (t != null && S(t["species"]) == species) { lo = F(t["hMin"]); hi = F(t["hMax"]); return true; }
+                }
+            if (role == "yadake")
+            { var y = O(Get(hy, "yadake")); if (y != null) { lo = F(y["hMin"]); hi = F(y["hMax"]); return true; } }
+            return false;
+        }
+        if (zone == "hokata")
+        { var hk = O(Get(n, "hokata")); if (hk != null) { lo = F(hk["hMin"]); hi = F(hk["hMax"]); return true; } return false; }
+        if (zone == "hojiri")
+        {
+            var hj = O(Get(n, "hojiri")); if (hj == null) return false;
+            if (role == "enoki")
+                foreach (var o in A(Get(hj, "enoki")) ?? new List<object>())
+                {
+                    var t = O(o);
+                    if (t != null && S(t["name"]) == name) { lo = F(t["hMin"]); hi = F(t["hMax"]); return true; }
+                }
+            if (role == "susuki")
+            { var su = O(Get(hj, "susuki")); if (su != null) { lo = F(su["hMin"]); hi = F(su["hMax"]); return true; } }
+            return false;
+        }
+        if (zone == "mado")
+        {
+            var md = O(Get(n, "mado")); if (md == null) return false;
+            if (role == "susuki")
+            { var su = O(Get(md, "susuki")); if (su != null) { lo = F(su["hMin"]); hi = F(su["hMax"]); return true; } }
+            if (role == "matsu")
+                foreach (var o in A(Get(md, "matsu")) ?? new List<object>())
+                {
+                    var t = O(o);
+                    if (t != null && S(t["name"]) == name) { lo = hi = F(t["h"]); return true; }
+                }
+            return false;
+        }
+        return false;
+    }
+
+    // =====================================================================
     // 通し
     // =====================================================================
     [MenuItem("Edo/岡部筑前守上屋敷/S1→S5 を通す")]

@@ -5744,7 +5744,7 @@ def slope_samples(d, dem, step=1.0):
 
     out = []
     # ⭐ **域ごとの法尻**(2026-09-03 庭方 N5 = `_pending.shamenObiMenseki` ⓐ)。
-    #   ⛔ 南西の谷の法尻は区画の西辺ではなく**南辺(岡部境)** — 一律に西辺で測っていたため、
+    #   ⛔ 南西の谷の法尻は区画の西辺ではなく**南辺(土井・岡部境)** — 一律に西辺で測っていたため、
     #   谷の大半が走査から漏れ、残りも t<0.15 に寄って帯が幾何的に成り立たなかった。
     REGT = dict((r["name"], _region_toe(d, r["name"])) for r in sa.get("regions", []))
     xs = [q[0] for q in P]
@@ -9763,6 +9763,8 @@ DESIGN_WATCH = [
     ("nakajikiri[NJ_Oku_S_W].seatSpans", "根石を面の縁で区間に割る(庭方 回答4)", True),
     ("mizu.toi[MZ_Ankyo].coverBandOpen", "上が苔・草地だけの区間の土被りの帯(庭方 回答6)", True),
     ("gardens[G_Tanikage].access", "歩く庭ではないことの宣言(V2 の遠景の林)", True),
+    ("plantRule.clrExemptByKind", "練塀の退避免除(庭方 第10次 回答1)", True),
+    ("plantRule.clrExemptCapCrown", "練塀の退避免除(庭方 第10次 回答1)", True),
 ]
 
 
@@ -14192,7 +14194,10 @@ def main():
         _vs, _vt, _vpct = v1_water_view(d, dem)
         _v8gap, _v8span, _v8gaps, _v8skip = v8_gap_len(d, dem)
         _v8lim = float(((d.get("viewpointRule") or {}).get("ridgeScan") or {}).get("gapMax", 0.30))
-        _v8 = ("<b>%.2f m</b> %s" % (_v8gap, "○" if not v8_ridge_check(d, dem) else "⚠"))
+        # ⚠ 2026-09-05【第11次・低 N3】 v8_ridge_check() は合格時も〔記録〕の非空リストを
+        # 返す(規則19「通っても黙らない」)ため、リストの真偽では判定できない
+        # (not v8_ridge_check() は常に False)。**敷居超えの行があるか**そのもので判定する。
+        _v8 = ("<b>%.2f m</b> %s" % (_v8gap, "⚠" if _v8gap > _v8lim + 1e-9 else "○"))
         _wb = ((d.get("viewpointRule") or {}).get("waterView") or {}).get("band") or [0, 100]
         h.append("<div class='tw'><table><thead><tr><th>指標</th><th>実測</th><th>帯</th>"
                  "<th>判定</th></tr></thead><tbody>"

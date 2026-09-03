@@ -592,7 +592,7 @@ def footprint_support_check(d, step=0.02, tol=0.01):
     """**外周長屋の足跡が、段か基壇の天端に 100% 載っているか。**
 
     ⚠ 2026-08-31 四巡目で追加。⛔ `seat_fill_check` は run に沿って**内側 1.2m の1本線**しか
-      測らないので、奥行 4.545m の長屋は**足跡の 3.3m ぶんが一度も標本されない**。
+      測らないので、奥行 4.35m の長屋は**足跡の 3.3m ぶんが一度も標本されない**。
       「据面 0 件」は「長屋の内側 3.3m は測っていない」を含んでいた。
     ⛔ 現況が合格でも検査は要る — 辺12 の縁を 0.30m 動かすだけで 24.9m² の床が浮く。
     ⚠ **この検査は一度恒真だった**(2026-08-31 五巡目)。0 件を見ても効いている証拠にならないので、
@@ -3373,7 +3373,7 @@ def section_svg(d, sec):
             _off = 0.0 if run["kind"] == "Nagaya" else -sx * bt9 / K9 / 2
             g.append(R(X(w) + _off, Y(seat), sx * bt9 / K9, (seat - gy) * sx * ex,
                        fill=_pat(), stroke="var(--ishi)", sw=1.0))
-        # ⚠ 2026-08-31 検図: kind で分ける。長屋は奥行 nagayaD(4.545m)で、練塀の 1.15m ではない。
+        # ⚠ 2026-08-31 検図: kind で分ける。長屋は奥行 nagayaD(4.35m)で、練塀の 1.15m ではない。
         #   あわせて中心合わせをやめ、**外面を境界線に合わせて内側へ**取る(半分が区画外に出ていた)。
         wt9 = d["const"]["nagayaD"] if run["kind"] == "Nagaya" else d["const"]["dobeiT"]
         _offw = 0.0 if run["kind"] == "Nagaya" else -sx * wt9 / K9 / 2
@@ -4253,7 +4253,7 @@ def plane_check(d):
     # 段の多角形の頂点は区画の中、かつ区画線から必要な離れだけ内へ入っている。
     # ⚠ 2026-08-31 検図: **必要な離れは辺に何が載るかで違う。**
     #   練塀の辺 … 犬走り 0.30 + 塀厚の半分(塀は境界線に跨る) = 0.875m。
-    #   長屋の辺 … 長屋は境界線に跨らず、犬走りの内側から奥行 4.545m を敷地の中へ取る。
+    #   長屋の辺 … 長屋は境界線に跨らず、犬走りの内側から奥行 4.35m を敷地の中へ取る。
     #             段(盛土)は**その足跡の下まで通っていなければ床が空洞の上に載る**ので、
     #             要求は逆に「犬走り 0.30m まで**寄せる**こと」になる。
     #   従前は練塀の数字(0.88m)を全段に当てており、辺12を長屋にした瞬間に
@@ -4399,7 +4399,7 @@ def corners_table(d):
         elif {rl["kind"], rr["kind"]} == {"Dobei", "Nagaya"}:
             # ⚠ 2026-08-31 三巡目で足した枝。辺12 が表長屋になって P0・P12 がここへ来たのに、
             #    分岐が無いので「天端差」の枝へ落ち、**平面の納めがどこにも書かれていなかった**。
-            #    ⛔ 1間厚の練塀の小口を、奥行 4.545m の建屋の妻壁へどう取り付けるかは高さの話ではない。
+            #    ⛔ 1間厚の練塀の小口を、奥行 4.35m の建屋の妻壁へどう取り付けるかは高さの話ではない。
             ov9 = _quad_overlap(_run_fp(d, rl), _run_fp(d, rr))
             osame = ("練塀の小口を表長屋の妻壁へ**突き付ける**(めり込み %.2f m²・折れ %.1f°)。"
                      "⛔ 隙間を作らない — 折れ角が直角でないと妻面と辺の間に楔が開く"
@@ -4696,6 +4696,188 @@ def kido_table(d):
                % (mm.get("ridgeY", 0), mm.get("hashira", 0), mm.get("kabukiUnder", 0),
                   mm.get("keta", 0), mm.get("hari", 0), mm.get("nokiOut", 0),
                   mm.get("tobiraDeg", 0), mm.get("kutsuishiDrop", 0), mm.get("kaibanOut", 0)))
+
+
+def sashikomi_svg(d):
+    """**車寄が玄関棟の屋根面へ差し込む所**(2026-09-04 ユーザー裁定10=A)。
+
+    ⛔ 「差し込む」と文章で書いて終わりにしない — **食い込みの量を寸法線で示す**。
+      実装はこの図を見て『どちらの面を切り欠くか』を判断する。"""
+    rk = (d.get("roofs") or {}).get("Goten_Kurumayose") or {}
+    sk = rk.get("sashikomi") or {}
+    if not sk:
+        return ""
+    gk = (d.get("roofs") or {}).get("Goten_Genkan") or {}
+    mk = next((m for m in d["munes"] if m["name"] == "Kurumayose"), None)
+    mg = next((m for m in d["munes"] if m["name"] == "Genkan"), None)
+    if not mk or not mg:
+        return ""
+    plane = mk["y"]
+    fl = d["const"]["gotenFloor"]
+    W, H, sc = 900.0, 340.0, 26.0
+    o = _sv(W, H, "車寄が玄関棟の屋根面へ差し込む(裁定10=A)")
+    y0 = plane - 0.6
+
+    def Y(y):
+        return 285.0 - (y - y0) * sc
+
+    def X(v):
+        return 120.0 + (v - 47.0) * sc
+    # 地面(面)
+    o.append(LN(X(47.0), Y(plane), X(56.0), Y(plane), "var(--ink)", 1.6))
+    o.append(T(X(47.1), Y(plane) + 13, "白洲の面 %.2f" % plane, "jo"))
+    # 玄関棟(v52 から北へ)。床・軒先・屋根面
+    gEave = plane + fl + gk.get("eaveH", 0)
+    gRidge = plane + fl + gk.get("ridgeH", 0)
+    o.append(R(X(mg["v0"]), Y(plane + fl), (56.0 - mg["v0"]) * sc, (fl + 0.0) * sc + 1,
+               "var(--nagaya)", "var(--ink)", 1.0, None, 0.5))
+    o.append(LN(X(mg["v0"]), Y(gEave), X(56.0), Y(gEave), "var(--ink)", 1.4))
+    o.append(LN(X(mg["v0"]), Y(gEave), X(mg["v0"] + (gRidge - gEave) / 0.5456),
+                Y(gRidge), "var(--shu)", 2.4))
+    o.append(T(X(mg["v0"]) + 6, Y(gEave) - 6, "玄関棟の軒先 %.2f(面から %.2f)"
+               % (gEave, gEave - plane), "jo"))
+    o.append(T(X(mg["v0"]) + 6, Y(plane + fl) - 5, "床 %.2f" % (plane + fl), "jo"))
+    # 車寄(v50〜52)。切妻の桟瓦
+    kEave = plane + rk.get("eaveH", 0)
+    kRidge = plane + rk.get("ridgeH", 0)
+    cv = (mk["v0"] + mk["v1"]) / 2.0
+    o.append(LN(X(mk["v0"]), Y(kEave), X(cv), Y(kRidge), "var(--ike)", 2.6))
+    o.append(LN(X(cv), Y(kRidge), X(mk["v1"]), Y(kEave), "var(--ike)", 2.6))
+    o.append(LN(X(mk["v0"]), Y(plane), X(mk["v0"]), Y(kEave), "var(--dim)", 1.0, "3 3"))
+    o.append(LN(X(mk["v1"]), Y(plane), X(mk["v1"]), Y(kEave), "var(--dim)", 1.0, "3 3"))
+    o.append(T(X(cv), Y(kRidge) - 8, "車寄(桟瓦の切妻)棟 %.2f(面から %.2f)"
+               % (kRidge, kRidge - plane), "jo", "middle"))
+    o.append(T(X(mk["v0"]) + 4, Y(kEave) + 12, "軒先 %.2f" % kEave, "jo"))
+    # 食い込みの寸法線
+    xd = X(mk["v1"]) + 26
+    o.append(LN(xd, Y(gEave), xd, Y(kRidge), "var(--shu)", 2.2))
+    o.append(LN(xd - 6, Y(gEave), xd + 6, Y(gEave), "var(--shu)", 1.4))
+    o.append(LN(xd - 6, Y(kRidge), xd + 6, Y(kRidge), "var(--shu)", 1.4))
+    o.append(T(xd + 10, (Y(gEave) + Y(kRidge)) / 2 + 4,
+               "食い込み %.2f m" % sk.get("overlapM", 0), "jo"))
+    o.append(LN(X(mk["v1"]), Y(gEave), xd, Y(gEave), "var(--dim)", 0.8, "3 3"))
+    o.append(LN(X(cv), Y(kRidge), xd, Y(kRidge), "var(--dim)", 0.8, "3 3"))
+    kk = sk.get("kirikaki") or {}
+    if kk:
+        ky = plane + kk.get("aboveY", 0)
+        o.append(LN(X(kk.get("atV", 51.0)), Y(ky), X(56.0), Y(ky), "#B8860B", 2.0, "5 3"))
+        o.append(LN(X(kk.get("atV", 51.0)), Y(ky), X(kk.get("atV", 51.0)), Y(ky + 1.6),
+                    "#B8860B", 1.4, "5 3"))
+        o.append(T(X(kk.get("atV", 51.0)) + 4, Y(ky + 1.6) - 4,
+                   "切り欠く面: v ≧ %.2f かつ 面から %.2f より上(高さ %.2f)"
+                   % (kk.get("atV", 0), kk.get("aboveY", 0), kk.get("cutH", 0)),
+                   "jo"))
+    o.append(T(20, H - 14, "⭕ %s ／ 縦横同縮尺(1m = %.0fpx)。⛔ 勾配は緩めない"
+               "(2026-09-04 ユーザー裁定10=A)" % (sk.get("osame", ""), sc), "anS2", "start", 10))
+    o.append("</svg>")
+    return "\n".join(o)
+
+
+def sashikomi_check(d):
+    """**差し込みの寸法が図の中で辻褄が合うか**(2026-09-04 裁定10=A)。
+
+    ⛔ 食い込みの量を手で書かせない — 車寄の棟と玄関棟の軒先から**引き算で出る**。"""
+    bad = []
+    rk = (d.get("roofs") or {}).get("Goten_Kurumayose") or {}
+    sk = rk.get("sashikomi") or {}
+    if not sk:
+        return ["車寄の差し込み(`roofs.Goten_Kurumayose.sashikomi`)の宣言が無い"]
+    gk = (d.get("roofs") or {}).get(sk.get("intoMune") and
+                                    ("Goten_" + sk["intoMune"]) or "") or {}
+    mk = next((m for m in d["munes"] if m["name"] == "Kurumayose"), None)
+    if not gk or not mk:
+        return ["差し込む相手の棟(`sashikomi.intoMune`)が見つからない"]
+    fl = d["const"]["gotenFloor"]
+    kr = rk.get("ridgeH")
+    ge = fl + gk.get("eaveH", 0)
+    if abs(sk.get("kurumayoseRidgeY", 0) - kr) > 1e-6:
+        bad.append("差し込み: 車寄の棟 %.3f が `roofs` の宣言 %.3f と違う"
+                   % (sk.get("kurumayoseRidgeY", 0), kr))
+    if abs(sk.get("genkanEaveY", 0) - ge) > 0.005:
+        bad.append("差し込み: 玄関棟の軒先 %.3f が 床 %.2f + 軒先 %.3f = %.3f と違う"
+                   % (sk.get("genkanEaveY", 0), fl, gk.get("eaveH", 0), ge))
+    ov = kr - ge
+    if abs(sk.get("overlapM", 0) - ov) > 0.005:
+        bad.append("差し込み: 食い込み %.3f が 棟−軒先 %.3f と違う(⛔ 手で書かない)"
+                   % (sk.get("overlapM", 0), ov))
+    if ov <= 0:
+        bad.append("差し込み: 車寄の棟が玄関棟の軒先より低い(%.3f)— 差し込みが起きない" % ov)
+    if not sk.get("osame"):
+        bad.append("差し込み: **どちらの面を切り欠くか**が書かれていない(実装が決めるしかない)")
+    kk = sk.get("kirikaki") or {}
+    if not kk:
+        bad.append("差し込み: **切り欠く面の位置**(`kirikaki`)が無い — 実装が削る所を決められない")
+    else:
+        if abs(kk.get("aboveY", 0) - ge) > 0.005:
+            bad.append("切り欠き: 下端 %.3f が 玄関棟の軒先 %.3f と違う"
+                       % (kk.get("aboveY", 0), ge))
+        if abs(kk.get("cutH", 0) - ov) > 0.005:
+            bad.append("切り欠き: 高さ %.3f が 食い込み %.3f と違う(⛔ 手で書かない)"
+                       % (kk.get("cutH", 0), ov))
+        if kk.get("cutFrom") != "車寄":
+            bad.append("切り欠き: 削る側が車寄でない(%s)— ⛔ 玄関棟の屋根は切らない"
+                       % kk.get("cutFrom"))
+    return bad
+
+
+def nagaya_run_table(d):
+    """**外周の表長屋の run**(走り長・門口の芯・部材)。2026-09-04 棟梁の受け口。
+
+    ⛔ 呼び寸法(run 長 + 妻の出×2)は**ここに書かない** — 実装が出す(規則4)。"""
+    ge = d["gate"]["edge"]
+    to = d["const"].get("nagayaTsumaOut", 0.0)
+    rows = []
+    for r in d.get("runs", []):
+        if r.get("kind") != "Nagaya":
+            continue
+        rows.append(["<b>%s</b>" % r["name"], "辺%d" % r["edge"],
+                     "s %.3f〜%.3f" % (r["s0"], r["s1"]),
+                     "<b>%.3f m</b>" % (r["s1"] - r["s0"]),
+                     ("芯 s=%.2f(半幅 %.3f)<br>門に接する端 <b>%s</b> / s0 から %.3f"
+                      % (r.get("monS", 0), r.get("monHalfW", 0), r.get("monSide", "—"),
+                         r.get("monFromS0", 0))) if r.get("monS") is not None else "—",
+                     "<code>%s</code>" % (r.get("asset") or "—")])
+    return _tw(["run", "辺", "s の範囲", "<b>run 長</b>", "門口", "部材"], rows,
+               "⭐ 辺%d の外周は<b>『南袖 + 長屋門 + 北袖』を一本の系</b>として継ぐ。"
+               "⭕ 実装は <code>monS</code> を持つ run に <b>`Own.NagayaOmoteMon`</b> を使い、"
+               "<b>呼び寸法 = run 長 + 妻の出 %.2f×2</b> を自分で出す"
+               "(⛔ 指図は run 長だけを持つ・規則4)。"
+               "⛔ 門の躯体そのものは <code>gate</code>(別の物)で、run は袖だけ。"
+               "⚠ 棟高は <code>const.nagayaH</code> = <b>%.3f</b>(二階)。"
+               % (ge, to, d["const"]["nagayaH"]))
+
+
+def gate_vs_sode_check(d):
+    """**長屋門が両袖の表長屋より高いか**(2026-09-04 ユーザー裁定12=A の眼目)。
+
+    ⛔ 図が自分で立てた型「長屋門は両袖より高い」を、数字で見張る。
+      ⚠ 門は街路(`gate.sill`)に、袖は門前面の段(`terraces.Monzen.y`)に載るので
+      **段差ぶんを足してから**比べる(高さだけ比べると必ず間違える)。
+    ⭕ 併せて、門の辺の表長屋の run が `monS`(門口の芯)を持つことも見る —
+      持たないと実装が袖に `NagayaOmoteMon` を使えない(2026-09-04 棟梁の受け口)。"""
+    bad = []
+    ge = d["gate"]["edge"]
+    sill = d["gate"]["sill"]
+    monY = sill + d["gate"]["plan"]["monH"]
+    za = next((t9["y"] for t9 in d["terraces"] if t9["name"] == "Monzen"), None)
+    if za is None:
+        return ["門前面の段が無い — 袖の座が測れない"]
+    sodeY = za + d["const"]["nagayaH"]
+    if monY <= sodeY + 1e-6:
+        bad.append("長屋門の棟 %.3f が袖の表長屋の棟 %.3f **以下** — "
+                   "長屋門は両袖より高いのが型(門 %.2f+%.2f / 袖 %.2f+%.2f)"
+                   % (monY, sodeY, sill, d["gate"]["plan"]["monH"],
+                      za, d["const"]["nagayaH"]))
+    for r9 in d.get("runs", []):
+        if r9.get("kind") != "Nagaya" or r9.get("edge") != ge:
+            continue
+        if r9.get("monS") is None:
+            bad.append("%s(門の辺の表長屋)に `monS`(門口の芯)が無い — "
+                       "実装が `NagayaOmoteMon` を使えない" % r9["name"])
+        elif abs(r9.get("len", 0) - (r9["s1"] - r9["s0"])) > 1e-6:
+            bad.append("%s の `len` %.3f が s の差 %.3f と違う"
+                       % (r9["name"], r9.get("len", 0), r9["s1"] - r9["s0"]))
+    return bad
 
 
 def build_stamp():
@@ -7333,6 +7515,8 @@ CHECK_LIST = [
     ("基壇と塀の据え位置(宣言した面と足跡)",     lambda d, raw, ter: kidan_check(d)),
     ("撒いた植栽(本数・区画の中・在庫の対応)",   lambda d, raw, ter: planting_check(d)),
     ("開口の幅が図の中で1つか(結界の門・木戸)", lambda d, raw, ter: gap_consistency_check(d)),
+    ("車寄の差し込み(食い込みの寸法)",          lambda d, raw, ter: sashikomi_check(d)),
+    ("長屋門と袖の高さ・門口の芯",              lambda d, raw, ter: gate_vs_sode_check(d)),
     ("石段の足元と天端(段の宣言との一致)",      lambda d, raw, ter: kaidan_y_check(d)),
     ("汀の杭の割り付け",                      lambda d, raw, ter: kui_check(d)),
     ("算出物 okabe_impl.json の鮮度",           lambda d, raw, ter: impl_fresh_check(d)),
@@ -12396,7 +12580,12 @@ def main():
 
     plate(h, nx(), "取り合い(実装用)", "すべて設計値から自動算出 — 手で書き写さない")
     h.append(kidan_table(d))
+    h.append(nagaya_run_table(d))
     h.append(kido_table(d))
+    _sk9 = sashikomi_svg(d)
+    if _sk9:
+        fig(h, _sk9, cap="<b>車寄が玄関棟の屋根面へ差し込む</b>【2026-09-04 ユーザー裁定10=A】。"
+                         "⛔ 勾配を緩めない・⛔ 車寄を廃さない。食い込みは寸法線のとおり。")
     h.append(corners_table(d))
     h.append(joints_table(d))
     h.append(civil_table(d))

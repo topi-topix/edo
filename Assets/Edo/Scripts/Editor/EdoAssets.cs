@@ -563,6 +563,50 @@ public static class EdoAssets
         }
         const string FuzokuyaDir = "Assets/Edo/Models/Fuzokuya/";
 
+        // ---------------------------------------------------------------- 岡部邸の附属屋・結界
+        /// <summary>**厩** 4×9間(岡部邸 `service.Umaya`)。長手 = v。**前面(+Z)は吹き放ち**で
+        /// 足元に半高の板壁、馬房を4つに仕切る。背面と両妻は下見板。
+        /// ローカル: 幅=X(**長手 = v**)/ 高さ=Y / 厚み=Z、**+Z = 開いている側**。
+        /// ⇒ 据えるときは **ローカル +X を +v へ**向ける yaw を与える。
+        /// ピボット = footprint の中心・地盤レベル。実寸 17.142 × 5.174 × 9.164。
+        /// ⚠ **仮置き【U】**: 軒高 2.85 / 馬房4 / 軒の出 0.85 / 切妻。指図は位置と間数だけを持つ。
+        /// 生成: blender --background --python Tools/Blender/build_okabe_fuzokuya.py -- umaya</summary>
+        public const string Umaya = FuzokuyaDir + "Okabe_Umaya.fbx";
+
+        /// <summary>**供待** 3×5間(岡部邸 `service.Tomomachi`)。長手 = v。
+        /// **前面(+Z)は腰高まで塞いで上は吹き放ち**、床は板張りの縁。背面と妻は下見板+漆喰。
+        /// 実寸 9.870 × 4.508 × 7.346。向き・ピボットは <see cref="Umaya"/> と同じ。
+        /// ⚠ **仮置き【U】**: 軒高 2.70 / 軒の出 0.85 / 切妻。
+        /// 生成: blender --background --python Tools/Blender/build_okabe_fuzokuya.py -- tomomachi</summary>
+        public const string Tomomachi = FuzokuyaDir + "Okabe_Tomomachi.fbx";
+
+        /// <summary>**納戸小屋** 1.5×1間・**板葺**(岡部邸 `service.Nando_Nagatsubone`)。
+        /// 長局の物干の道具を仕舞う小屋。⛔ **瓦を葺いていない** — `roof 2x2` の勾配は
+        /// 0.5456 固定で 1間の小屋には棟が高すぎるため、指図どおり板葺(勾配 0.40【U】)にした。
+        /// 長手 = u(1.5間)。実寸 3.247 × 2.722 × 2.658。**+Z に片開きの板戸**。
+        /// ⚠ **仮置き【U】**: 軒高 2.05 / 板葺の勾配 0.40 / 軒の出 0.42。
+        /// 生成: blender --background --python Tools/Blender/build_okabe_fuzokuya.py -- nandokoya</summary>
+        public const string NandoKoya = FuzokuyaDir + "Okabe_NandoKoya.fbx";
+
+        /// <summary>**のし塀**(熨斗瓦を載せた白壁の袖塀)。岡部邸の**結界** `kekkai` の7本。
+        /// ⛔ 外構の練塀・築地塀で代用しないこと — 指図が「**屋内の仕切りなので外構より軽く**」と
+        /// 明記している(`assetCert`)。⭕ 笠木は Village Kit の `roof top x1`(冠瓦+熨斗2段の
+        /// 実ジオメトリ)を継いである。
+        ///
+        /// ローカル: 幅=X(走り)/ 高さ=Y / 厚み=Z。ピボット = **走りの中心・地盤レベル・壁の芯**
+        /// (⚠ 面ではなく芯 — 塀は表裏が同じ作り)。⇒ `position = 区間の中点 / yaw = 走りの方位 /
+        /// scale = Vector3.one`。高さは **1.800 ちょうど**(`kekkai[].h` と一致)、厚み 0.47
+        /// (壁 0.30 + 腰石の出 + 控柱 0.10。控柱は **−Z 側**に片側だけ)。
+        ///
+        /// 焼いてある長さ: 1.82 / 3.64 / 5.45 / 20.91 / 45.19 / 53.45(= 指図の7本を開口で割った実長)。
+        /// ⚠ **開口(中門・木戸)はこの部材に含まれない。**中門は <see cref="Munamon(float,bool)"/>
+        /// (門口 2.7m ≒ 1.5間)が使える。⛔ **木戸の部材はまだ無い** — 別途 部材方へ依頼が要る。
+        /// 無い長さは: blender --background --python Tools/Blender/build_noshibei.py -- &lt;長さm&gt;</summary>
+        public static string Noshibei(float len)
+        {
+            return "Assets/Edo/Models/Hei/Noshibei_" + len.ToString("0.##") + ".fbx";
+        }
+
         /// <summary>地表層(TerrainLayer)。**「実寸」= 繰り返しの一枚の大きさ `m_TileSize`**[m]。
         /// ⚠ タイリングが小さいほど近景は細かく、遠景は模様が目立つ。塗り分けるときは
         ///   隣り合う層のタイルの大きさを見て、境目で柄が急に変わらないようにする。

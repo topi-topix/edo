@@ -2097,7 +2097,8 @@ public static class EdoOkabeYashikiBuilder
         // ⚠ **FBX を焼いたフォルダは必ずここに足す。**松江松平で、番所の材質を替えたのに
         //   remap がそのフォルダを見ておらず真っ白になった前例がある(2026-08-31)。
         string[] modelDirs = { "Assets/Edo/Models/Nagaya", "Assets/Edo/Models/Mon",
-                               "Assets/Edo/Models/Maruta", "Assets/Edo/Models/Goten/Roofs" };
+                               "Assets/Edo/Models/Maruta", "Assets/Edo/Models/Goten/Roofs",
+                               "Assets/Edo/Models/Fuzokuya", "Assets/Edo/Models/Hei" };
         modelDirs = System.Array.FindAll(modelDirs, AssetDatabase.IsValidFolder);
         int n = 0; var miss = new List<string>();
         foreach (var guid in AssetDatabase.FindAssets("t:Model", modelDirs))

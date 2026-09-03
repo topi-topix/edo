@@ -10012,20 +10012,20 @@
   "niwashi": {
    "at": "2026-09-03",
    "verdict": "pass",
-   "hash": "6dc6014427d9844f",
-   "note": "第9次 pass(指摘 中2/低4 は文言と結線): 箱内率 100% / V1 80.3% / V8 21/21。中1 window 死値 / 中2 _nat_slope 横断勾配 / 低3 walkMax 見張り / 低4 fillTolerance byRole 下草 0.05 / 低5 決着済み3件が未のまま / 低6 楔の説明。回答: 谷の肩は中木 Mid×2(高木23→21・中木18→20)/ 楔は撤去し window 5.0 と stepMax 0.15 を結線 / 回答A〜D(shuteiItabei 0.27m 離す・ashiObi 決着・neishi 区間は従属値・sakuAshimoto 面の縁で割る/復元の帯の縁を摺り付け)"
+   "hash": "e5470d2d16abda70",
+   "note": "第10次 pass(回答1 migiwaNeishiRoshutsu=ⓑ show据え置き / 報告1 其三十 u−38 の帯は footMin・minWidth を図にも通す / 報告2 其廿八の但し書き(別の乱数)は旧契約 / 共有 5件(谷の肩の注記21本・zones parts 死値・判断待ち2件決着・_pending_state 分類・katteKoubaiNokori 残骸)/ 共有2 window・stepMax の感度試験)"
   },
   "kenzu": {
    "at": "2026-09-03",
    "verdict": "fail",
-   "hash": "03a45384e82c3b15",
-   "note": "第9次 fail 16件(高3/中5/低8): 高1 routeGradeRule.window 死値→勝手に 1:7.0/1:1.0/1:13.2 の三値(赤枠に 7.6% literal) / 高2 walkMax 残骸4か所(tsukiyama_walk_check 恒真・DESIGN_WATCH・其廿一注記・_pending 二重) / 高3 其卅一 遠景表が帯S-2 ○ vs ⚠ 0/2 / 中1 neishi判定②実質恒真(露出0.005 vs show 0.20) / 中2 Chatei・ShukakuNKusabi が planes に無い / 中3 ridgeScan に番人無し / 中4 terrace_edge の許容が法の従属値(法を立てる壊れに鳴らない) / 中5 勝手動線 未決 / 低1 _tk_y round 6か所 / 低2 probe 帯B / 低3 役木の余裕 0.11〜0.23間 / 低4 memo 鍵 / 低5 バケット半角 asin / 低6 其卅一 合計 76m² 差 / 低7 土量表に識別子 / 低8 zone_count が理由を言わない"
+   "hash": "69ebf7f3fc7805f9",
+   "note": "第10次 fail 12件(高3/中3/低6): 高1 G_Tanikage/G_Sawa で庭と法面が同じ793m²を二重散布(宣言「適用域の外」は誤り・高木×高木 0.37m・退避違反88組) / 高2 route_grade_check が R_Katte 違反時に TypeError で落ちる(_nat_uv None 1点) / 高3 勝手の最急が動線表1:9.7 と其廿二1:13.35 の二値 / 中1 _dv_checks に route_grade_check が無く window・stepMax が偽の⚠2件 / 中2 ridgeScan の guard は誤り(step 1°で 2/101 素通し・塀上0.29m) / 中3 _pending の tsukiyamaKataNori が撤回済みのまま決着表示 / 低1 帯の面積 域別76m²差(taniguchi) / 低2 土量表に識別子なし / 低3 役木の余裕0.10〜0.22間 / 低4 其廿二 step=0.1 直書き / 低5 stepMax・batterRunMax は欄を消すと黙る・batterMax等がDESIGN_WATCH外 / 低6 G_Sawa に法面 +1.09m"
   },
   "kosho": {
    "at": "2026-09-03",
    "verdict": "fail",
-   "hash": "03a45384e82c3b15",
-   "note": "第9次 fail 9件(高2/中4/低3+軽微2): 高1 gate._ と kosho.md 根拠2 が焼失規定のまま(HTML のみ直った) / 高2 其一の cap が旧3帯・確度B / 中1 E/F px と X が較正式で 1.4〜1.6m 食い違い(原図待ち・確度?) / 中2 kosho.md 樹冠仮値 L906 / 中3 索引 127/134・東京市史稿 市街篇 目次 が索引に無い・×7→×8 / 中4 routeGradeRule に確度無し(U) / 低1 G_OkuNiwa 中木 P→B/U / 低2 [安政武鑑] 宙吊り→[大成武鑑 安政4] 新項 / 低3 17m東→10〜19m / 軽微 docstring 見出し・agent 定義の件数"
+   "hash": "69ebf7f3fc7805f9",
+   "note": "第10次 fail 11件(高1/中3/低4/軽微3): 高1 台帳[大成武鑑 安政4]の「中・下屋敷を持たない」は誤り — 大崎に抱屋敷4,230坪(島根県立図書館レファレンス・B)→新項[松江大崎抱屋敷]・隠居所を置かない根拠 / 中1 kosho.md 樹冠仮値 L908 未閉 / 中2 索引に[東京市史稿 市街篇 目次]が無い(129欄/128件/A63) / 中3 planting[28] n=14 が廃止帯S1の密度に依る・ゾーン名S-1/S-2が紛らわしい / 低1 L39 5-003=下屋敷→抱屋敷・9筆に[ID] / 低2 1883読取断面E/Fを図版E/Fと区別(E′/F′) / 低3 [名所図会・溜池]Sの使用条件(草地の落差の最小)を図に / 軽微 docstring章立て・agent件数・kosho_C3_C9日付・[寛政武鑑]裸ID。K3(E/F px ?)の保留の書き方は正しい"
   }
  },
  "_viewpoints": "**主視点(座敷から庭をどう見るか)。**庭方 2026-09-01 の設計値。⛔ これが無いと『主景』が検査できず、庭は棟の裏の空地になる(2026-09-01 庭方の不合格の第一項)。\n・`eye` = 目の高さの**絶対標高[m]**。座敷は 面 + `const.gotenFloor` + 座視の目、立つ所は地盤 + 立視の目。生成器が下の地盤と突き合わせて姿勢と合うかを検める\n・`dir` はグリッドの向き(`-u`=西微南 …)。**方位角は grid から出る従属値なので指図に書かない**\n・`fore`/`mid`/`far` = 前景・中景・遠景。**三層が揃わない視点は庭になっていない**\n⭐ 真行草: 白洲・前庭=**真** / 主庭=**行** / 露地=**草**([築山庭造伝]の三体)。\n⛔ **溜池は借景に取れない**(庭方の実測) — V1 から水面への視線は西の自然地盤へ食い込み、法肩からも築山の頂からも水面は見えない。根拠は庭方の実測(⛔ 生成器に検算する検査は無い)。",

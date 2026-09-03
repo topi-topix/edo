@@ -824,8 +824,14 @@ def shots(o, tag, gate=None, bansho=0):
     # ① 正面の立面(全長)。⚠ 高さが入る画角にする — 二階・棟上げの部材は 700px では
     #    上下が切れて「軒より上が見えない」レンダになる(2026-09-04 に踏んだ)
     H = (mx - mn).z
-    hpx = max(700, min(1400, int(1900 * (H * 1.14) / (L * 1.08))))
-    V.studio((c.x, c.y - L, c.z), (c.x, c.y, c.z), ortho_scale=L * 1.08, res=(1900, hpx))
+    wpx, hpx = 1900, 1900 * (H * 1.14) / (L * 1.08)
+    if hpx > 1200:                      # 短くて背の高い部材は**幅を縮める** —
+        wpx, hpx = wpx * 1200 / hpx, 1200   # 縦を頭打ちにすると棟が切れる
+    # ⚠ `ortho_scale` は**画像の長いほうの辺**に効く。縦長になったら縦の実寸を渡す —
+    #   横の実寸を渡すと縦横とも足りず、6m級の短い部材で土台も棟も切れる(2026-09-04)
+    V.studio((c.x, c.y - L, c.z), (c.x, c.y, c.z),
+             ortho_scale=(L * 1.08 if wpx >= hpx else H * 1.14),
+             res=(int(wpx), int(hpx)))
     V.render(os.path.join(SHOT, "nagaya_%s_elev.png" % tag))
     # ② 継ぎ目の寄り(左の妻から3本目の継ぎ目あたり)
     xj = mn.x + min(L * 0.5, 9.0)

@@ -393,14 +393,39 @@ public static class EdoAssets
         /// 隣へ突き付ける(妻を出さない)版が要るときは `-- &lt;長さm&gt; --ends none`
         /// → `Nagaya_Omote_&lt;len&gt;_none.fbx`。</summary>
         public static string NagayaOmote(float len) { return NagayaOmote(len, true); }
+        /// <summary>Blender の生成器がファイル名に使う数字の書き方
+        /// (<c>("%.2f" % L).rstrip("0").rstrip(".")</c>)を C# 側で**同じ結果**に再現する。
+        ///
+        /// ⛔ <c>float.ToString("0.##")</c> は使えない。.NET は書式化の前に**最短往復表現**へ
+        /// 丸めるので、<c>73.475f</c>(実体は 73.4749984…)が "73.48" になり得る。生成器は
+        /// 格納された値そのものを丸めて <c>..._73.47_2f.fbx</c> を出すので、名前が食い違う。
+        /// ⚠ パスの取り違えは <c>LoadAssetAtPath</c> が **null を返すだけ**で例外にならない
+        /// (CLAUDE.md 規則12)ので、目で気づけない。
+        /// ⭕ 格納された値を 1/100 単位へ落としてから文字列にする。
+        /// ⚠ 二進で厳密に x.xx5 になる値(0.125 など)だけは Python の偶数丸めと割れるが、
+        ///   run 長のような十進リテラル由来の値では起きない。</summary>
+        static string Len2(float m)
+        {
+            long h = (long)System.Math.Floor((double)m * 100.0 + 0.5);
+            string t = (h / 100L).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            long f = h % 100L;
+            if (f != 0L) t += "." + (f % 10L == 0L ? (f / 10L).ToString() : f.ToString("00"));
+            return t;
+        }
+
         /// <summary>二階建ての表長屋(案A・**ユーザー裁定 2026-08-29**)。
         /// 海鼠壁は腰壁のまま動かさず、白壁の帯を 1.673m 積んで階を作る(H 5.509 → 7.183m)。
         /// ⛔ 海鼠を二階の腰まで立ち上げない — 平屋の区間との継ぎ目で帯が 2.1m 段になる。
         /// ⚠ 上階の窓の位置は**典拠が無い【確度P】**(温古写真は画角外)。一次史料が出たら覆せる。
-        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- &lt;長さm&gt; --floors 2</summary>
+        ///   blender --background --python Tools/Blender/build_nagaya_omote.py -- &lt;長さm&gt; --floors 2 --render
+        ///
+        /// ⭐ **岡部の表門の両袖**(辺12・ユーザー裁定12-A 2026-09-04)。`len` は **run 長そのもの**を渡す
+        /// (`E_Nagaya_S` 6.189 / `E_Nagaya_N` 73.475)。⛔ **妻の出を足さない** — 生成器の `len` は
+        /// 破風まで含む全幅で、6.189 + 16.362(表門) + 73.475 = 96.026 が辺12にちょうど収まり、
+        /// 隣り合う破風どうしが突き付く。実寸は W=len(X) × H 7.183(Y) × D 4.352(Z)。</summary>
         public static string NagayaOmote2F(float len)
         {
-            return "Assets/Edo/Models/Nagaya/Nagaya_Omote_" + len.ToString("0.##") + "_2f.fbx";
+            return "Assets/Edo/Models/Nagaya/Nagaya_Omote_" + Len2(len) + "_2f.fbx";
         }
         /// <summary>**長屋門**(ユーザー裁定 2026-08-30)— 表長屋の躯体を門の上まで通し、
         /// その足元に門口を抜いた版。**扉(両開きの板戸)は部材に作り付け**(裁定2-A 2026-08-31)。
@@ -427,14 +452,14 @@ public static class EdoAssets
         /// 敷居レベルに置くので、街路 12.25 の表門なら `position.y = 12.25`。</summary>
         public static string NagayaOmoteMon(float len, float gateFromLeft, bool nikai)
         {
-            return "Assets/Edo/Models/Nagaya/Nagaya_Omote_" + len.ToString("0.##")
-                 + "_mon" + gateFromLeft.ToString("0.##") + (nikai ? "_2f" : "") + ".fbx";
+            return "Assets/Edo/Models/Nagaya/Nagaya_Omote_" + Len2(len)
+                 + "_mon" + Len2(gateFromLeft) + (nikai ? "_2f" : "") + ".fbx";
         }
 
         /// <summary>tsuma=false は両端を突き付けにした版(`--ends none`)。鎖の途中の一本に使う。</summary>
         public static string NagayaOmote(float len, bool tsuma)
         {
-            return "Assets/Edo/Models/Nagaya/Nagaya_Omote_" + len.ToString("0.##")
+            return "Assets/Edo/Models/Nagaya/Nagaya_Omote_" + Len2(len)
                  + (tsuma ? "" : "_none") + ".fbx";
         }
 

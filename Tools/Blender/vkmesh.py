@@ -173,7 +173,15 @@ def ext_mat(V, root_mesh_dir, root_tex_dir, src, mat_name, fallback):
 
 def import_fbx_abs(path, keep=None):
     """絶対パスの FBX を読み、メッシュだけ残して world 変換を焼く。
-    keep(name)->bool で LOD の選り分けができる(NatureManufacture は `_LOD0/1/2` を1本に持つ)。"""
+    keep(name)->bool で LOD の選り分けができる(NatureManufacture は `_LOD0/1/2` を1本に持つ)。
+
+    ⚠ **取り込んだオブジェクトはそのまま使わず、メッシュを新しいオブジェクトへ包み直す。**
+      NatureManufacture の丸太で、取り込んだオブジェクトが **影は落とすのにカメラに写らない**
+      という状態になった(2026-09-04)。`o.data.vertices` は 230 点あり `hide_render` も False、
+      材質も正常なのに `o.dimensions` が **0 に潰れて**いて、評価後のジオメトリが空だった
+      (書き出しのあと bbox が 0 になるのも同じ現象)。同じメッシュを `bpy.data.objects.new`
+      で包み直したものは正しく写る。⛔ 原因を追わずに「材質が透明」と誤診しない
+      — 材質を無地の新品に差し替えても写らなかった。"""
     before = set(bpy.data.objects)
     bpy.ops.import_scene.fbx(filepath=path)
     new = [o for o in bpy.data.objects if o not in before]
@@ -189,6 +197,15 @@ def import_fbx_abs(path, keep=None):
     for o in new:
         if o.type != 'MESH' or (keep is not None and not keep(o.name)):
             bpy.data.objects.remove(o, do_unlink=True)
-        else:
-            out.append(o)
+            continue
+        w = bpy.data.objects.new(o.name + "_w", o.data.copy())
+        w.matrix_world = o.matrix_world.copy()
+        bpy.context.scene.collection.objects.link(w)
+        bpy.data.objects.remove(o, do_unlink=True)
+        out.append(w)
+    if out:
+        bpy.ops.object.select_all(action='DESELECT')
+        for o in out:
+            o.select_set(True)
+        bpy.context.view_layer.objects.active = out[0]
     return out

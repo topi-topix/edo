@@ -441,6 +441,47 @@ public static class EdoAssets
 
         const string MonDir = "Assets/Edo/Models/Mon/";
 
+        // ---------------------------------------------------------------- 丸太物(手すり・汀の杭)
+        /// <summary>**丸太の手すり 1スパン**(岡部邸 `routes.R_Katte.outsideRail.tesuri`)。
+        /// 柱 φ0.12・高さ0.90・芯々1間、**横木は丸太1段**。⛔ 竹垣にしない — 法肩の竹垣と
+        /// 読み違える。道の外肩が 1.2m 落ちる所の落下止め。
+        /// ⭕ **在庫の丸太**(NatureManufacture `wood_log_0X`)を切って使っているので樹皮が本物。
+        ///
+        /// ローカル: 幅=X(走り)/ 高さ=Y / 厚み=Z。ピボット = **スパンの中心・地盤レベル**。
+        /// 柱はスパンの **−X 端**に立ち、横木は −X 端から +X 端まで通る。
+        /// ⇒ 折れ線の各スパンの中点に yaw を与えて並べれば柱が 1.818 ピッチで立ち横木が続く。
+        /// ⛔ **run の +X 端には <see cref="MarutaTesuriPost"/> を1本足すこと** —
+        ///    足さないと最後の横木が宙で終わる。
+        /// 実寸 1.865 × 0.920 × 0.119。
+        /// 生成: blender --background --python Tools/Blender/build_maruta.py -- tesuri</summary>
+        public const string MarutaTesuri = MarutaDir + "Maruta_Tesuri_1ken.fbx";
+
+        /// <summary>手すりの run の端に足す柱1本。ピボット = 柱の芯・地盤レベル。
+        /// 実寸 0.107 × 0.920 × 0.119。</summary>
+        public const string MarutaTesuriPost = MarutaDir + "Maruta_Tesuri_Post.fbx";
+
+        /// <summary>**汀の杭 1本**(岡部邸 `nishi.kuiretsu`)。全長 1.55(根入れ1.2)・傾 5°。
+        /// <paramref name="dia"/> は 0.12 / 0.15 / 0.18 の3種(指図 `dMin`..`dMax`)。
+        /// ⛔ **1種で並べない・芯々を等間隔にしない**(`pitchMin` 0.30〜`pitchMax` 0.40)。
+        ///
+        /// ピボット = **頭の芯**で、杭は −Y へ 1.55 垂れる。⇒ `y = 水面 + rand(0.25, 0.45)`
+        /// (`topMin`/`topMax`)を直に入れればよい。傾き 5° は **+X 方向へ焼き込んである**ので、
+        /// **yaw を乱数で振れば傾きの方位が散る**。実寸(0.12)0.247 × 1.548 × 0.106。
+        /// 生成: blender --background --python Tools/Blender/build_maruta.py -- kui</summary>
+        public static string Kui(float dia)
+        {
+            return MarutaDir + "Kui_" + dia.ToString("0.00") + ".fbx";
+        }
+
+        /// <summary>杭列の**貫**(`nishi.kuiretsu.nuki`)。⚠ 指図の「1段」は杭の芯々(0.3〜0.4m)
+        /// ごとだが、**それでは部材が数千本になる**ので **1間(1.818m)の丸太1本**として出した。
+        /// 据えるときは `y = 杭の頭 − 0.35`(`nuki.below`)、杭列の水側へ寄せて走りに沿って回す。
+        /// ピボット = 中心・水平。実寸 1.818 × 0.080 × 0.082。
+        /// 生成: blender --background --python Tools/Blender/build_maruta.py -- nuki</summary>
+        public const string KuiNuki = MarutaDir + "Kui_Nuki_1ken.fbx";
+
+        const string MarutaDir = "Assets/Edo/Models/Maruta/";
+
         /// <summary>折れ角のある隅の部材(留め継ぎ)。生成は Tools/Blender/build_kado.py。
         /// 在庫の出隅ブロックは折れ角 Δ≳60° でしか成立しないので、浅い折れはこれで納める。
         /// ローカル: 走り(進行方向) = +Z ／ 躯体 = −X ／ 原点 = 折れ点・足元・内面。

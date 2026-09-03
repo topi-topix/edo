@@ -9,7 +9,7 @@
 
 章は本文の並び順に自動採番する(其一〜)。**図番を生成器に書かない。**
 """
-import json, math, os, re, random, subprocess, html, collections
+import json, math, os, re, random, subprocess, sys, html, collections
 
 import sashizu_lib
 from sashizu_lib import (R, _pat, _SVN, Proj, RGrid, cf_color, cutfill_legend,
@@ -4582,6 +4582,35 @@ def assets_table(d):
                "(普請奉行 2026-09-03)。" % pend)
 
 
+def planting_table(d):
+    """**撒いた株の内訳と、樹種→在庫の対応**(2026-09-03 棟梁 S5-1 / 在庫方)。"""
+    pt = planting_pts(d)
+    by = collections.OrderedDict()
+    for q in pt:
+        k = (q["role"], q["species"])
+        e = by.setdefault(k, {"n": 0, "asset": q["asset"], "kubun": q["kubun"],
+                              "hLo": q["h"], "hHi": q["h"], "zone": q["zone"]})
+        e["n"] += 1
+        e["hLo"] = min(e["hLo"], q["h"]); e["hHi"] = max(e["hHi"], q["h"])
+    rows = []
+    for (role, sp), e in by.items():
+        rows.append([e["zone"], role, sp, "<b>%d</b>" % e["n"],
+                     "%.1f〜%.1f m" % (e["hLo"], e["hHi"]),
+                     "<code>%s</code>" % e["asset"], e["kubun"]])
+    gl = d.get("groundLayers") or {}
+    gr = [[k, "<code>%s</code>" % v[0], v[1]] for k, v in gl.items()
+          if isinstance(v, list) and len(v) >= 2]
+    return (_tw(["帯", "役", "樹種", "株", "丈", "部材", "調達"], rows,
+                "⭐ 位置は<b>種 <code>seed</code> で再現できる撒き</b> — "
+                "⛔ 実装が勝手に撒くと、指図の検査(窓の樹高・対岸から見た層)が見ているものと"
+                "現物が別になる。⭕ 計 <b>%d 株</b>。⚠ 『見立て』は別種で代用したもの(確度U)。"
+                % len(pt))
+            + _tw(["所", "地表層", "備考"], gr,
+                  "⚠ <b>登録済みは <code>L_grass</code> だけ</b> — 残りは棟梁が "
+                  "<code>EdoAssets</code> へ登録する。⛔ 名を書かずに『塗る』と書かない。"
+                  "<span class='cert'>確度 %s</span>" % gl.get("certSig", "U")))
+
+
 def build_stamp():
     """**この図を組んだ時点**を表の先頭に出す。
     ⛔ 2026-09-01 六巡目まで、改訂表は `git log` だけを引いていたので、
@@ -7215,6 +7244,9 @@ CHECK_LIST = [
     ("往復試験(剥がして組み直すと正典に戻るか)", lambda d, raw, ter: roundtrip_check(raw, pipeline)),
     ("区画の多角形が正典と同期しているか",       lambda d, raw, ter: parcel_sync_check(d)),
     ("基壇と塀の据え位置(宣言した面と足跡)",     lambda d, raw, ter: kidan_check(d)),
+    ("撒いた植栽(本数・区画の中・在庫の対応)",   lambda d, raw, ter: planting_check(d)),
+    ("汀の杭の割り付け",                      lambda d, raw, ter: kui_check(d)),
+    ("算出物 okabe_impl.json の鮮度",           lambda d, raw, ter: impl_fresh_check(d)),
     ("矩形の重なり",                       lambda d, raw, ter: overlap_check(d)),
     ("面のはみ出し(棟・庭が段と区画の中か)",     lambda d, raw, ter: plane_check(d)),
     ("郭の土留めの高さ",                    lambda d, raw, ter: wall_check(d)),
@@ -7402,6 +7434,416 @@ def kidan_check(d):
             bad.append("%s の天端幅 %.2fm が 犬走り+掛かり %.2fm に足りない"
                        % (r["name"], top, ib + c["copingBear"]))
     return bad
+
+
+def _plant_asset(d, species):
+    """樹種 → (在庫の参照, 別, 備考)。⛔ 対応が無ければ **"pending"** を返す(黙って空にしない)。"""
+    m = ((d.get("plantAssets") or {}).get("map") or {}).get(species)
+    if not m:
+        return ("pending", "未定", "⛔ 在庫方の対応が無い")
+    return (m[0], m[1], m[2] if len(m) > 2 else "")
+
+
+def _in_hayashi(d, u, v):
+    """林の帯(下端の折れ線 `edge` 〜 上端 `vTop`)の中か。"""
+    hy = (d.get("nishi") or {}).get("hayashi") or {}
+    eg = hy.get("edge") or []
+    if not eg or not in_parcel(d, u, v):
+        return False
+    us = [q[0] for q in eg]
+    if not (min(us) <= u <= max(us)):
+        return False
+    lo = None
+    for a9, b9 in zip(eg, eg[1:]):
+        if min(a9[0], b9[0]) <= u <= max(a9[0], b9[0]):
+            tt = (u - a9[0]) / ((b9[0] - a9[0]) or 1e-9)
+            lo = a9[1] + (b9[1] - a9[1]) * tt
+            break
+    if lo is None:
+        return False
+    return hy.get("vTop", 111.0) <= v <= lo
+
+
+def _scatter(d, rnd, n, pitch, inside, tries=400):
+    """**宣言した間隔で n 点を撒く**(ポアソン風の棄却法)。
+
+    ⛔ 位置は設計ではなく**規則の実現**である — 帯・本数・芯々の間隔・丈はすべて
+      庭方が決めて json に宣言してあり、ここはそれを種 `seed` で再現可能に展開するだけ。
+    ⛔ 種を持たないと**回すたびに林が動く**(2026-09-03 棟梁 S5-2)。"""
+    K = d["const"]["ken"]
+    pmin = (pitch[0] if isinstance(pitch, (list, tuple)) else pitch) / K
+    hy = (d.get("nishi") or {}).get("hayashi") or {}
+    eg = hy.get("edge") or [[0, 0]]
+    u0 = min(q[0] for q in eg); u1 = max(q[0] for q in eg)
+    v0 = hy.get("vTop", 111.0); v1 = max(q[1] for q in eg)
+    out = []
+    for _ in range(n * tries):
+        if len(out) >= n:
+            break
+        u9 = rnd.uniform(u0, u1); v9 = rnd.uniform(v0, v1)
+        if not inside(u9, v9):
+            continue
+        if any((u9 - a9) ** 2 + (v9 - b9) ** 2 < pmin * pmin for a9, b9 in out):
+            continue
+        out.append((u9, v9))
+    return out
+
+
+def planting_pts(d):
+    """**撒いた植栽の点**。実装(棟梁)はこれをそのまま置く。
+
+    ⛔ 「72本」と数だけ書いて実装に撒かせない — 撒き方が実装ごとに変わると、
+      指図の検査(窓の樹高・対岸から見た層)が見ているものと現物が別になる。
+    ⭕ 欄は `{name, zone, role, species, asset, kubun, u, v, h, tilt, tiltDir, ground}`。
+      `ground` は design(造成後の面) / terrain(現地形なり)。"""
+    N = d.get("nishi") or {}
+    hy = N.get("hayashi") or {}
+    out = []
+
+    def add(nm, zone, role, sp, u9, v9, h9, ground="design", tilt=0.0, tdir=(0.0, 1.0)):
+        a9, k9, _n9 = _plant_asset(d, sp)
+        out.append({"name": nm, "zone": zone, "role": role, "species": sp,
+                    "asset": a9, "kubun": k9, "u": round(u9, 3), "v": round(v9, 3),
+                    "h": round(h9, 2), "tilt": round(tilt, 1),
+                    "tiltDir": [round(tdir[0], 3), round(tdir[1], 3)], "ground": ground})
+    rnd = random.Random(hy.get("seed", 1856))
+    ins = lambda u9, v9: _in_hayashi(d, u9, v9)
+    # ① 林の高木(帯B)
+    pts = _scatter(d, rnd, sum(q["n"] for q in (hy.get("takagi") or [])),
+                   hy.get("takagiPitch", [5.0, 7.5]), ins)
+    i9 = 0
+    for sp9 in (hy.get("takagi") or []):
+        for _k in range(sp9["n"]):
+            if i9 >= len(pts):
+                break
+            u9, v9 = pts[i9]; i9 += 1
+            add("Takagi%02d" % i9, "hayashi", "高木", sp9["species"], u9, v9,
+                rnd.uniform(sp9["hMin"], sp9["hMax"]), "terrain")
+    # ② 林の中木
+    pts = _scatter(d, rnd, sum(q["n"] for q in (hy.get("chuboku") or [])),
+                   hy.get("chubokuPitch", [2.5, 4.0]), ins)
+    i9 = 0
+    for sp9 in (hy.get("chuboku") or []):
+        for _k in range(sp9["n"]):
+            if i9 >= len(pts):
+                break
+            u9, v9 = pts[i9]; i9 += 1
+            add("Chuboku%03d" % i9, "hayashi", "中木", sp9["species"], u9, v9,
+                rnd.uniform(3.0, 6.0), "terrain")
+    # ③ 低木の塊(群の芯だけを焼く — 株は実装が perGroup で散らす)
+    tb = hy.get("teiboku") or {}
+    pts = _scatter(d, rnd, tb.get("groups", 0), [6.0, 9.0], ins)
+    for k9, (u9, v9) in enumerate(pts):
+        add("TeibokuG%02d" % (k9 + 1), "hayashi", "低木の塊(%s株)"
+            % "・".join(str(x) for x in (tb.get("perGroup") or [])), "低木の塊",
+            u9, v9, 1.5, "terrain")
+    # ④ ヤダケの一叢
+    yk = hy.get("yadake") or {}
+    if yk:
+        add("Yadake", "hayashi", "ヤダケ(一叢)", "ヤダケ",
+            (yk["u0"] + yk["u1"]) / 2.0, (yk["v0"] + yk["v1"]) / 2.0,
+            (yk["hMin"] + yk["hMax"]) / 2.0, "terrain")
+    # ⑤ つる(フジは高木の幹に絡める — 高木の点を借りる)
+    ts = hy.get("tsuru") or {}
+    tak = [q for q in out if q["role"] == "高木"]
+    for k9 in range(ts.get("fuji", 0)):
+        if not tak:
+            break
+        h9 = tak[rnd.randrange(len(tak))]
+        add("Fuji%d" % (k9 + 1), "hayashi", "つる(高木の幹に)", "フジ",
+            h9["u"], h9["v"], h9["h"] * 0.7, "terrain")
+    # ⑥ 法肩の松(位置は `hokata_pts` が既に割り付けている — 丈だけここで振る)
+    hk9 = N.get("hokata") or {}
+    r4 = random.Random(hk9.get("jitterSeed", 1856))
+    hLo = hk9.get("hMin", 9.0); hHi = hk9.get("hMax", 12.0)
+    for k9, p9 in enumerate(hokata_pts(d) or []):
+        add("HokataMatsu%02d" % (k9 + 1), "hokata", "法肩の松", "クロマツ",
+            p9[1], p9[2], r4.uniform(hLo, hHi), "design")
+    # ⑦ 榎(法尻・3本)
+    for e9 in ((N.get("hojiri") or {}).get("enoki") or []):
+        add(e9["name"], "hojiri", "榎(法尻の目印)", "エノキ", e9["u"], e9["v"],
+            (e9["hMin"] + e9["hMax"]) / 2.0, "terrain")
+    # ⑧ ススキ(法尻・窓の外)
+    sk = (N.get("hojiri") or {}).get("susuki") or {}
+    r2 = random.Random(sk.get("seed", 1856))
+    nS = int((sk.get("nMin", 0) + sk.get("nMax", 0)) / 2)
+    got = 0
+    for _ in range(nS * 400):
+        if got >= nS:
+            break
+        u9 = r2.uniform(-27.0, 22.0); v9 = r2.uniform(sk.get("v0", 150.0), sk.get("v1", 163.0))
+        if not in_parcel(d, u9, v9):
+            continue
+        got += 1
+        add("SusukiH%02d" % got, "hojiri", "ススキ(法尻)", "ススキ", u9, v9,
+            r2.uniform(sk.get("hMin", 1.2), sk.get("hMax", 2.0)), "terrain")
+    # ⑨ ススキ(窓の外・汀寄り)
+    sm = (N.get("mado") or {}).get("susuki") or {}
+    r3 = random.Random(sm.get("seed", 1856))
+    nM = int((sm.get("nMin", 0) + sm.get("nMax", 0)) / 2)
+    got = 0
+    for _ in range(nM * 400):
+        if got >= nM:
+            break
+        u9 = r3.uniform(-27.0, 22.0); v9 = r3.uniform(140.0, sm.get("vMax", 152.0))
+        if not in_parcel(d, u9, v9):
+            continue
+        got += 1
+        add("SusukiM%02d" % got, "mado", "ススキ(窓の外)", "ススキ", u9, v9,
+            r3.uniform(sm.get("hMin", 1.2), sm.get("hMax", 2.0)), "terrain")
+    # ⑩ 窓の松(三本一組)
+    for m9 in ((N.get("mado") or {}).get("matsu") or []):
+        add(m9["name"], "mado", "窓の松(三本一組)", "クロマツ",
+            m9["u"], m9["v"], m9.get("h") or 0.0, "terrain")
+    return out
+
+
+def planting_check(d):
+    """**撒いた点が宣言した本数と合っているか**(2026-09-03 棟梁 S5-1)。
+
+    ⛔ 棄却法は「撒けなかった」を黙って許す — **足りなければ鳴らす**。"""
+    bad = []
+    N = d.get("nishi") or {}
+    hy = N.get("hayashi") or {}
+    pt = planting_pts(d)
+    want = {"高木": sum(q["n"] for q in (hy.get("takagi") or [])),
+            "中木": sum(q["n"] for q in (hy.get("chuboku") or []))}
+    for role, w9 in want.items():
+        got = len([q for q in pt if q["role"] == role])
+        if got != w9:
+            bad.append("%s が %d 本しか撒けていない(宣言 %d)— 帯が狭いか芯々が広すぎる"
+                       % (role, got, w9))
+    g9 = len([q for q in pt if q["role"].startswith("低木")])
+    if g9 != (hy.get("teiboku") or {}).get("groups", 0):
+        bad.append("低木の塊が %d 群(宣言 %d)" % (g9, (hy.get("teiboku") or {}).get("groups", 0)))
+    for q in pt:
+        if not in_parcel(d, q["u"], q["v"]):
+            bad.append("%s(%s)が区画の外: (%.1f, %.1f)" % (q["name"], q["species"], q["u"], q["v"]))
+            break
+    nA = len([q for q in pt if q["asset"] == "pending"])
+    if nA:
+        bad.append("在庫の対応が付いていない株が %d(新造待ちの樹種)— **実装に渡す前に埋める**" % nA)
+    return bad
+
+
+IMPL_OUT = os.path.join(DOC, "okabe_impl.json")
+
+
+def kui_pts(d):
+    """**汀の杭列**(2026-09-03 棟梁 S5-3)。汀線(世界座標)に沿って実長で割り付ける。
+
+    ⛔ 「約242本」と数だけ渡さない — 径も頭の出も傾きも貫の高さも実装が発明することになる。
+    ⭕ 径・頭の出は宣言した範囲から **種 `kuiretsu.seed` で**振る(回すたびに変わらない)。
+    ⚠ `migiwa_line` は (世界の折れ線, 実長) を返す — グリッドへ落とすのはここ。"""
+    N = d.get("nishi") or {}
+    ku = N.get("kuiretsu") or {}
+    ts = N.get("tsutsumi") or {}
+    ml = migiwa_line(d)
+    ln = (ml[0] if isinstance(ml, tuple) else ml) or []
+    if not ku or len(ln) < 2:
+        return []
+    gr = RGrid(d)
+    wy = ts.get("waterY", 6.60)
+    pitch = (ku.get("pitchMin", 0.30) + ku.get("pitchMax", 0.40)) / 2.0
+    rnd = random.Random(ku.get("seed", 1856))
+    nuki = (ku.get("nuki") or {})
+    out, k9, carry = [], 0, 0.0
+    for a9, b9 in zip(ln, ln[1:]):
+        seg = math.hypot(b9[0] - a9[0], b9[1] - a9[1])
+        s9 = carry
+        while s9 < seg:
+            tt = s9 / seg if seg > 1e-9 else 0.0
+            x9 = a9[0] + (b9[0] - a9[0]) * tt
+            z9 = a9[1] + (b9[1] - a9[1]) * tt
+            u9, v9 = gr.L(x9, z9)
+            k9 += 1
+            top = wy + rnd.uniform(ku.get("topMin", 0.25), ku.get("topMax", 0.45))
+            out.append({"name": "Kui%03d" % k9,
+                        "u": round(u9, 3), "v": round(v9, 3),
+                        "dia": round(rnd.uniform(ku.get("dMin", 0.12),
+                                                 ku.get("dMax", 0.18)), 3),
+                        "topY": round(top, 3),
+                        "neire": ku.get("neire", 1.2),
+                        "tilt": ku.get("tilt", 5.0),
+                        "nukiY": round(top - nuki.get("below", 0.35), 3)})
+            s9 += pitch
+        carry = s9 - seg
+    return out
+
+
+def kui_check(d):
+    """**焼いた杭が算出した本数と合うか**。⛔ 割り付けが実装ごとに変わるのを許さない。"""
+    want = _kui_n(d)
+    got = len(kui_pts(d))
+    if want and abs(got - want) > max(2, want * 0.02):
+        return ["汀の杭が %d 本(算出 %d 本)— 割り付けが宣言(`kuiretsu.pitchMin/Max`)と合わない"
+                % (got, want)]
+    return []
+
+
+def _sha256(path):
+    import hashlib
+    h9 = hashlib.sha256()
+    with open(path, "rb") as f9:
+        h9.update(f9.read())
+    return h9.hexdigest()
+
+
+def export_impl(d, ter):
+    """**実装が読む算出物を焼く**(`docs/Sashizu/okabe_impl.json`)。
+
+    ⭕ スキーマは棟梁の `EdoOkabeYashikiBuilder.IMPL` の doc コメントが正典。
+    ⛔ **指図が変わったら焼き直しが要る** — `src.sha256` を入れ、ビルダーが実ファイルと
+      照合して食い違えば止まる。図の側も `impl_fresh_check` が同じ照合をする。
+    ⚠ `graded` は**世界座標**の 1.0m 格子(回転格子だと二度の補間が入る)。"""
+    gr = RGrid(d)
+    P = d["polygon"]
+    step = 1.0
+    marg = d["const"].get("featherCap", 8.0) + 4.0        # 摺り付け帯
+    x0 = math.floor(min(p[0] for p in P) - marg)
+    x1 = math.ceil(max(p[0] for p in P) + marg)
+    z0 = math.floor(min(p[1] for p in P) - marg)
+    z1 = math.ceil(max(p[1] for p in P) + marg)
+    nx = int((x1 - x0) / step) + 1
+    nz = int((z1 - z0) / step) + 1
+    H, cells, holes = [], 0, 0
+    for iz in range(nz):
+        row = []
+        zz = z0 + iz * step
+        for ix in range(nx):
+            xx = x0 + ix * step
+            u9, v9 = gr.L(xx, zz)
+            if not in_parcel(d, u9, v9):
+                row.append(None)
+                continue
+            nat = _dem_at(d, u9, v9)
+            if nat is None:
+                row.append(None); holes += 1        # ⛔ 区画の中の穴は欠陥(実装が地面を持てない)
+                continue
+            y9 = graded_y(d, u9, v9, nat)
+            row.append(None if y9 is None else round(y9, 3))
+            if y9 is None:
+                holes += 1
+            else:
+                cells += 1
+        H.append(row)
+    rails = []
+    for rl in auto_rails(d):
+        w9 = [[round(q[0], 3), round(q[1], 3)] for q in (gr.W(*p9) for p9 in rl["pts"])]
+        L9 = sum(math.hypot(b9[0] - a9[0], b9[1] - a9[1]) for a9, b9 in zip(w9, w9[1:]))
+        ys = [rail_v_at(d, p9[0]) for p9 in rl["pts"]]
+        rails.append({"name": rl["name"], "terrace": rl.get("terrace"),
+                      "world": w9, "len": round(L9, 2),
+                      "drop": round((max(ys) - min(ys)) if ys and None not in ys else 0.0, 2),
+                      "h": d["const"].get("takegakiH", 0.9)})
+    corners = []
+    n9 = len(P)
+    for i9 in range(n9):
+        pe, ne = (i9 - 1) % n9, i9
+        rl = [r for r in d["runs"] if r["edge"] == pe]
+        rr = [r for r in d["runs"] if r["edge"] == ne]
+        rl = max(rl, key=lambda r: r["s1"]) if rl else None
+        rr = min(rr, key=lambda r: r["s0"]) if rr else None
+        dx1, dz1, _ = _edge_dir(P, pe)
+        dx2, dz2, _ = _edge_dir(P, ne)
+        deg = math.degrees(math.atan2(dx1 * dz2 - dz1 * dx2, dx1 * dx2 + dz1 * dz2))
+        part = None
+        if rl and rr and rl["kind"] == "Dobei" and rr["kind"] == "Dobei":
+            part = "Dobei"                          # 留め継ぎ隅部材(build_kado)
+        corners.append({"id": "P%d" % i9, "vertex": i9,
+                        "world": [round(P[i9][0], 3), round(P[i9][1], 3)],
+                        "deg": round(deg, 2), "part": part,
+                        "runIn": rl["name"] if rl else None,
+                        "runOut": rr["name"] if rr else None,
+                        "seatIn": round(rseat(rl, rl["s1"]), 3) if rl else None,
+                        "seatOut": round(rseat(rr, rr["s0"]), 3) if rr else None,
+                        "yawFrom": "in" if rl else "out"})
+    base = []
+    bmin = d["const"]["baseMin"]
+    for r9 in d["runs"]:
+        lo, hi = run_base(d, r9)
+        segs, thin, cur = [], [], None
+        s9 = r9["s0"]
+        while s9 <= r9["s1"] + 1e-9:
+            prof = d.get("edgeProfile", {}).get(str(r9["edge"]))
+            g9 = None
+            if prof:
+                if s9 <= prof[0][0]:
+                    g9 = prof[0][1]
+                else:
+                    g9 = prof[-1][1]
+                    for (a1, y1), (b1, y2) in zip(prof, prof[1:]):
+                        if a1 <= s9 <= b1:
+                            g9 = y1 + (y2 - y1) * (s9 - a1) / (b1 - a1)
+                            break
+            ex = (rseat(r9, s9) - g9) if g9 is not None else 0.0
+            if ex >= bmin:
+                cur = s9 if cur is None else cur
+            elif cur is not None:
+                segs.append([round(cur, 3), round(s9, 3)]); cur = None
+            s9 += 0.5
+        if cur is not None:
+            segs.append([round(cur, 3), round(r9["s1"], 3)])
+        prev = r9["s0"]
+        for a9, b9 in segs:
+            if a9 - prev > 0.5:
+                thin.append([round(prev, 3), round(a9, 3)])
+            prev = b9
+        if r9["s1"] - prev > 0.5:
+            thin.append([round(prev, 3), round(r9["s1"], 3)])
+        base.append({"run": r9["name"], "s": r9["s"],
+                     "cap": round(d["const"]["baseUnit"] * r9["s"], 3),
+                     "lo": round(lo, 3), "hi": round(hi, 3),
+                     "segs": segs, "thin": thin})
+    plant = []
+    for q9 in planting_pts(d):
+        w9 = gr.W(q9["u"], q9["v"])
+        p2 = dict(q9)
+        p2["world"] = [round(w9[0], 3), round(w9[1], 3)]
+        plant.append(p2)
+    kui = []
+    for q9 in kui_pts(d):
+        w9 = gr.W(q9["u"], q9["v"])
+        p2 = dict(q9)
+        p2["world"] = [round(w9[0], 3), round(w9[1], 3)]
+        kui.append(p2)
+    out = collections.OrderedDict([
+        ("of", "okabe_sashizu.json"),
+        ("src", {"sha256": _sha256(JSON), "bytes": os.path.getsize(JSON)}),
+        ("at", __import__("datetime").datetime.now().astimezone().isoformat(timespec="seconds")),
+        ("generator", "Tools/Sashizu/build_okabe_sashizu.py --export-impl"),
+        ("checks", {"gradeTol": 0.30, "baseMin": bmin}),
+        ("graded", {"x0": float(x0), "z0": float(z0), "step": step,
+                    "nx": nx, "nz": nz, "holes": holes, "h": H}),
+        ("rails", rails), ("corners", corners), ("base", base),
+        ("planting", plant), ("kui", kui)])
+    json.dump(out, open(IMPL_OUT, "w", encoding="utf-8"), ensure_ascii=False)
+    return {"cells": cells, "holes": holes, "rails": len(rails), "corners": len(corners),
+            "base": len(base), "planting": len(plant), "kui": len(kui)}
+
+
+def impl_fresh_check(d):
+    """**焼いた算出物が今の指図のものか**(2026-09-03 棟梁の棚卸し 1)。
+
+    ⛔ 古い焼きで実装すると、図では直っている不具合が現物にだけ残る。
+    ⭕ `okabe_impl.json` の `src.sha256` を**実ファイルのバイト列**と突き合わせる
+      (ビルダーが走る前に同じ照合をするので、図の側でも先に鳴らす)。"""
+    if not os.path.exists(IMPL_OUT):
+        return ["算出物 `okabe_impl.json` がまだ焼かれていない — "
+                "`python3 Tools/Sashizu/build_okabe_sashizu.py --export-impl`"]
+    try:
+        im = json.load(open(IMPL_OUT, encoding="utf-8"))
+    except Exception as e9:
+        return ["算出物が読めない: %s: %s" % (type(e9).__name__, e9)]
+    got = _sha256(JSON)
+    if (im.get("src") or {}).get("sha256") != got:
+        return ["算出物が**古い焼き**(指図の sha256 %s… に対し %s…)— 焼き直す"
+                % (got[:12], str((im.get("src") or {}).get("sha256"))[:12])]
+    # ⛔ **区画の中に null を残さない** — 実装がそこの地面を持てない(棟梁の要件)
+    hz = (im.get("graded") or {}).get("holes")
+    if hz:
+        return ["造成後の地盤に**区画の中の穴が %d セル**ある — 実装が地面を持てない" % hz]
+    return []
 
 
 def walls_wired_check(d):
@@ -7688,6 +8130,10 @@ def data_wired_check(d):
     #   ⛔ 無条件の免除にしない — 接頭辞そのものがソースに literal で無ければ認めない。
     pre9 = [p for p in ((d.get("_wiredElsewhere") or {}).get("prefixes") or [])
             if ('"%s"' % p) in src]
+    # ⭕ **鍵そのものが名簿になっている辞書**(樹種→在庫など)は、鍵を1つずつ literal で
+    #   書けない。⛔ 免除ではなく申告 — 親のパスが生成器に literal で無ければ認めない。
+    look9 = [p for p in ((d.get("_wiredElsewhere") or {}).get("lookupDicts") or [])
+             if ('"%s"' % p.split(".")[-1]) in src]
     bad = []
     seen = set()
 
@@ -7697,7 +8143,8 @@ def data_wired_check(d):
                 if k9.startswith("_") or k9.isdigit():   # ⛔ 数字の鍵は名前で読まない(役石の番号など)
                     continue
                 if (k9 not in skip and k9 not in seen and ('"%s"' % k9) not in src
-                        and not any(k9.startswith(p9) for p9 in pre9)):
+                        and not any(k9.startswith(p9) for p9 in pre9)
+                        and path not in look9):
                     seen.add(k9)
                     bad.append("`%s.%s` が生成器のどこからも読まれていない(死値)" % (path, k9))
                 walk(v9, path + "." + k9)
@@ -11580,6 +12027,7 @@ def main():
                  "帯を区画界の内側へ描いていた)。" % vC))
     h.append(slope_table(d))
     h.append(nishi_table(d))
+    h.append(planting_table(d))
     nbad2 = CHK["西の斜面と岸(窓・林・葭蓮・柵・小径)"]
     _km2 = ' / 窓の小径が林の中を通らず勾配が上限以下か' \
         if ((d.get("nishi") or {}).get("mado") or {}).get("komichi") else ''
@@ -11850,5 +12298,25 @@ def main():
     print("  run: 検図(edo-kosho / edo-kenzu) → ユーザーのレビュー → 実装 → 突き合わせ")
 
 
+def main_export_impl():
+    """`--export-impl` — 実装が読む算出物だけを焼く。
+
+    ⚠ **指図を書き換えたら図を組み直してから焼く**(生成器が設計値ファイルへ書き戻す欄が
+      あるので、順序が逆だと `src.sha256` が組み直しの前の版を指す)。"""
+    d = json.load(open(JSON, encoding="utf-8"))
+    d = pipeline(d)
+    ter9 = load_terrain(os.path.join(DOC, "okabe_edo_dem.json"))
+    st = export_impl(d, ter9)
+    print("wrote %s (%.0f KB)" % (IMPL_OUT, os.path.getsize(IMPL_OUT) / 1024))
+    print("  graded セル %d(区画の中の穴 %d)/ rails %d / corners %d / base %d "
+          "/ planting %d / kui %d"
+          % (st["cells"], st["holes"], st["rails"], st["corners"], st["base"],
+             st["planting"], st["kui"]))
+    print("  src.sha256 = %s" % _sha256(JSON))
+
+
 if __name__ == "__main__":
-    main()
+    if "--export-impl" in sys.argv:
+        main_export_impl()
+    else:
+        main()

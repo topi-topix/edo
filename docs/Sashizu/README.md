@@ -78,7 +78,7 @@ python3 Tools/Sashizu/build_okabe_sashizu.py
 | 屋敷・社 | 地区 | 指図 | 実装 | 図面 | Artifact |
 |---|---|---|---|---|---|
 | 岡部内膳正 上屋敷（和泉岸和田藩5万3千石） | 山王社北 | レビュー済(検図12巡・当主/年次A)。石段踊り場1件は設計判断でEDO-0018と併せ保留 | **実装済・指図と一致(180項目)** | [okabe_sashizu.html](okabe_sashizu.html) | https://claude.ai/code/artifact/ce6d353b-33ea-4355-aeb4-c5097da69e53 |
-| 松平出羽守 上屋敷（出雲松江藩18万6千石・親藩国主） | 山王社北 | **三役 pass(十一巡目・2026-09-04)** → 実装待ち | 実装中(Stage6まで・継続更新) | [matsudaira_dewa_sashizu.html](matsudaira_dewa_sashizu.html) | https://claude.ai/code/artifact/eaba651e-982d-4451-8bb5-d17ba95b8093 |
+| 松平出羽守 上屋敷（出雲松江藩18万6千石・親藩国主） | 山王社北 | **三役 pass(十一巡目・2026-09-04)** → 実装待ち | 実装中(Stage6まで・継続更新) | [matsudaira_dewa_sashizu.html](matsudaira_dewa_sashizu.html) | https://claude.ai/code/artifact/21e27f80-8a85-4ada-aac9-9baef15464ee(⚠ 2026-09-04 に URL が変わった — 旧 eaba651e… は別セッションの公開で上書きできなかった) |
 | 土井大隅守 上屋敷（三河刈谷藩2万3千石・譜代雁間） | 山王社北 | **検図済（レビュー待ち・検図14巡・考証13巡通過・指摘0件）** | **未着手** | [doi_sashizu.html](doi_sashizu.html) | https://claude.ai/code/artifact/539c4b6b-0937-458f-8287-e3200e94f3cf |
 | 山王権現社（日枝神社・江戸城の産土神・社領600石） | 永田馬場 星野山 | 検図済（レビュー待ち・_pending 26件残） | 実装中(一部・EDO-0073修正中) | [sanno_sashizu.html](sanno_sashizu.html) | https://claude.ai/code/artifact/b6b4e5cd-8878-4162-be90-4dd4ed706beb |
 | 京極備中守 上屋敷（丹後峯山藩1万1千石・菊間詰=譜代格） | 山王坂 | 起案（レビュー待ち・検査10件通過） | 未着手(`EdoKyogokuBitchuBuilder.cs` 無し) | [kyogoku_bitchu_sashizu.html](kyogoku_bitchu_sashizu.html) | https://claude.ai/code/artifact/95578cd4-8016-41a3-9023-dd60e44cc206 |

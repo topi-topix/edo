@@ -1010,7 +1010,9 @@ def overlap_check(d):
     for k9 in d["kaidans"]:
         w9 = next((x for x in d["terraceWalls"] if x["name"] == k9.get("atWall")), None)
         hw9 = k9["w"] / 2 / ken2
-        rn9 = k9["run"] / ken2
+        # ⚠ `run` を持たない石段(松江松平の庭の段・2026-09-04 merge で判明)は土留めに付く箱を作れない。
+        #   ⛔ KeyError で生成ごと止めない — 土留め無しの箱(gapU/gapV)はそのまま作れる
+        rn9 = (k9["run"] / ken2) if k9.get("run") is not None else None
         if w9 is None:
             # ⭐ **土留めに付かない石段(岡部は郭内の土留めが0本)でも箱を作る。**
             #   ⛔ 従前は `atWall` が null だと素通りし、**当邸の石段は1本も総当たりに
@@ -1026,6 +1028,8 @@ def overlap_check(d):
                        "v0": k9["gapV"] - hw9, "v1": k9["gapV"] + hw9}
             else:
                 continue
+        elif rn9 is None:
+            continue
         elif abs(w9["a"][0] - w9["b"][0]) < 1e-9:
             kb9 = {"name": k9["name"], "u0": w9["a"][0] - rn9, "u1": w9["a"][0],
                    "v0": k9.get("gapV", 0) - hw9, "v1": k9.get("gapV", 0) + hw9}

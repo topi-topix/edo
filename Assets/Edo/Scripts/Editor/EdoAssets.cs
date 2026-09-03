@@ -618,6 +618,23 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_okabe_fuzokuya.py -- jouguchi</summary>
         public const string Jouguchi = FuzokuyaDir + "Okabe_Jouguchi.fbx";
 
+        /// <summary>**稲荷社の小祠** 1.5間角(岡部邸 `service.Inari`)。台石+一間社流造の小祠。
+        /// **+Z = 正面(南)**。ピボット = footprint の中心・地盤レベル。実寸 2.727 × 2.540 × 2.727。
+        /// ⛔ **鳥居はこの部材に入っていない** — 指図 `gardens[3].yashiro` が「躯体の矩形は
+        /// service/Inari が持つ」と書いており、鳥居・参道・四つ目垣は庭方が別に範囲を決めている。
+        /// 鳥居は <see cref="Torii"/> を参道へ据えること。
+        /// ⛔ **在庫の <see cref="Matsudaira.Inari"/> は流用できない** — あれは**朱の明神鳥居**込みで、
+        /// 指図 `certs.garden.inari` の「玉垣・朱鳥居は使わない」に反する。
+        /// ⚠ **当屋敷に稲荷があった記録は無い=U**(一般類型)。姿も一般形。
+        /// 生成: blender --background --python Tools/Blender/build_okabe_fuzokuya.py -- inari15</summary>
+        public const string Inari15 = FuzokuyaDir + "Okabe_Inari15.fbx";
+
+        /// <summary>**素木の明神鳥居**(稲荷の参道の点景)。⛔ **朱に塗らない**(指図の明文)。
+        /// ローカル: 幅=X(柱の並び)/ 高さ=Y / 厚み=Z。ピボット = **柱の芯の中央・地盤レベル**。
+        /// 実寸 2.000 × 2.320 × 0.300、**底 −0.100**(根巻石が地盤より下へ出る)。内法幅 1.30・柱高 1.85。
+        /// 生成: blender --background --python Tools/Blender/build_okabe_fuzokuya.py -- torii</summary>
+        public const string Torii = FuzokuyaDir + "Okabe_Torii.fbx";
+
         /// <summary>**のし塀**(熨斗瓦を載せた白壁の袖塀)。岡部邸の**結界** `kekkai` の7本。
         /// ⛔ 外構の練塀・築地塀で代用しないこと — 指図が「**屋内の仕切りなので外構より軽く**」と
         /// 明記している(`assetCert`)。⭕ 笠木は Village Kit の `roof top x1`(冠瓦+熨斗2段の

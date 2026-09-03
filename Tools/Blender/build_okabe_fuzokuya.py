@@ -333,8 +333,123 @@ def jouguchi(ken=3, name="Okabe_Jouguchi"):
     return o, name
 
 
+# ================================================================ 稲荷社 / 鳥居
+def inari15(ken=1.5, name="Okabe_Inari15"):
+    """**稲荷社の小祠** 1.5間角(岡部邸 `service.Inari`)。台石 + 一間社流造の小祠。
+    **南向き(+Z が正面)**。
+
+    ⛔ **鳥居はこの部材に含めない。**指図 `gardens[3].yashiro` が
+    「**躯体の矩形は `service/Inari` が持つ**」と書いており、鳥居・参道・四つ目垣は
+    庭方が別に範囲を決めている。⚠ 1.5間(2.727m)の中へ鳥居まで押し込むと、
+    笠木が祠の屋根を横切って絡む(2026-09-04 に実見)。→ 鳥居は <see cref="torii"/> で別に出す。
+    ⛔ **玉垣・朱鳥居は使わない**(指図 `certs.garden.inari` の明文)。
+      ⇒ 在庫の `Own.Matsudaira.Inari` は**朱の明神鳥居**込みなので流用できない。
+    ⚠ **当屋敷に稲荷があったという記録は無い=U**(一般類型で置いたもの)。姿も一般形に留める。
+
+    ローカル: **+Z = 正面**。ピボット = footprint の中心・地盤レベル。"""
+    P = N.palette()
+    S = ken * KEN
+    h = S / 2.0
+    W_UV = VM.sub(P['wuv'], 0.15, 0.10, 0.55, 0.90)
+    m = VM.Mesh()
+    m.box(-h, h, 0.0, 0.28, -h, h, VM.sub(P['suv'], 0, 0, 1, 0.5), STONE)
+    m.box(-h + 0.10, h - 0.10, 0.28, 0.34, -h + 0.10, h - 0.10,
+          VM.sub(P['suv'], 0.1, 0.5, 0.9, 0.95), STONE)
+    bw, bd, fl, bh = 1.05, 0.90, 0.82, 0.90
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            m.box(sx * bw / 2 - 0.05, sx * bw / 2 + 0.05, 0.34, fl,
+                  sz * bd / 2 - 0.05, sz * bd / 2 + 0.05, W_UV, WOOD)
+    m.box(-bw / 2 - 0.17, bw / 2 + 0.17, fl - 0.09, fl,
+          -bd / 2 - 0.17, bd / 2 + 0.32, VM.sub(P['wuv'], 0.05, 0.10, 0.95, 0.55), WOOD)
+    for (x0, x1, z0, z1) in ((-bw / 2, bw / 2, -bd / 2, -bd / 2 + 0.07),
+                             (-bw / 2, -bw / 2 + 0.07, -bd / 2, bd / 2),
+                             (bw / 2 - 0.07, bw / 2, -bd / 2, bd / 2)):
+        m.box(x0, x1, fl, fl + bh, z0, z1, W_UV, WOOD)
+    m.box(-bw / 2, bw / 2, fl, fl + bh, bd / 2 - 0.07, bd / 2,
+          VM.sub(P['wuv'], 0.62, 0.05, 0.80, 0.95), WOOD)           # 正面の扉
+    for sx in (-1, 1):                                              # 高欄(簡素)
+        m.box(sx * (bw / 2 + 0.14) - 0.035, sx * (bw / 2 + 0.14) + 0.035, fl, fl + 0.34,
+              -bd / 2 - 0.14, bd / 2 + 0.29, W_UV, WOOD)
+    for i in range(3):                                              # 木階
+        m.box(-0.32, 0.32, 0.34 + (fl - 0.34) * i / 3.0, 0.34 + (fl - 0.34) * (i + 1) / 3.0,
+              bd / 2 + 0.32 - 0.13 * (i + 1), bd / 2 + 0.32 - 0.13 * i,
+              VM.sub(P['wuv'], 0.30, 0.10, 0.85, 0.35), WOOD)
+    # ---- 流造の屋根(前が長く流れる)。⛔ 一枚面にしない — 裏も張らないと空が抜ける
+    ry, zr = fl + bh + 0.42, -0.09
+    zb, zf = -bd / 2 - 0.32, bd / 2 + 0.70
+    yb, yf = fl + bh + 0.06, fl + bh * 0.50
+    xh = bw / 2 + 0.34
+    for dv in (0.0, -0.075):
+        back = [(-xh, ry + dv, zr), (xh, ry + dv, zr), (xh, yb + dv, zb), (-xh, yb + dv, zb)]
+        front = [(xh, ry + dv, zr), (-xh, ry + dv, zr), (-xh, yf + dv, zf), (xh, yf + dv, zf)]
+        if dv < 0:
+            back, front = back[::-1], front[::-1]
+        m.quad(back, VM.sub(P['wuv'], 0.10, 0.10, 0.90, 0.40), WOOD)
+        m.quad(front, VM.sub(P['wuv'], 0.10, 0.50, 0.90, 0.90), WOOD)
+    for sx in (-xh, xh):
+        m.tri([(sx, ry, zr), (sx, yb, zb), (sx, yb, zr)], VM.sub(P['wuv'], 0.6, 0.1, 0.8, 0.3), WOOD)
+        m.tri([(sx, ry, zr), (sx, yf, zf), (sx, yf, zr)], VM.sub(P['wuv'], 0.6, 0.1, 0.8, 0.3), WOOD)
+    m.box(-xh, xh, ry, ry + 0.10, zr - 0.08, zr + 0.08,
+          VM.sub(P['wuv'], 0.60, 0.60, 0.90, 0.80), WOOD)
+    for i in (-1, 0, 1):
+        m.box(i * 0.26 - 0.05, i * 0.26 + 0.05, ry + 0.10, ry + 0.20, zr - 0.12, zr + 0.12,
+              VM.sub(P['wuv'], 0.70, 0.60, 0.80, 0.70), WOOD)
+    for sx in (-1, 1):
+        m.box(sx * (bw / 2 + 0.24), sx * (bw / 2 + 0.30), ry - 0.10, ry + 0.40,
+              zr - 0.05, zr + 0.05, VM.sub(P['wuv'], 0.60, 0.20, 0.70, 0.50), WOOD)
+    o = m.to_object(name + "_body", [P['wood'], P['wall'], P['stone'], P['shoji']])
+    o.name = name; o.data.name = name
+    V.set_origin(o, (0.0, 0.0, 0.0))
+    return o, name
+
+
+def torii(name="Okabe_Torii"):
+    """**素木の明神鳥居**(稲荷の参道に立てる点景)。⛔ **朱に塗らない**
+    — 指図 `certs.garden.inari` が「玉垣・朱鳥居は使わない」と明記している。
+    ローカル: 幅=X(柱の並び)/ 高さ=Y / 厚み=Z。**+Z が参道の手前**(どちら向きでもよい)。
+    ピボット = **柱の芯の中央・地盤レベル**。内法幅 1.30 / 柱高 1.85。"""
+    P = N.palette()
+    W_UV = VM.sub(P['wuv'], 0.15, 0.10, 0.55, 0.90)
+    tw, th, pr = 1.30, 1.85, 0.070
+    m = VM.Mesh()
+    for sx in (-1, 1):
+        x = sx * tw / 2
+        m.box(x - pr, x + pr, 0.0, th, -pr, pr, W_UV, WOOD)
+        m.box(x - 0.15, x + 0.15, -0.10, 0.14, -0.15, 0.15,
+              VM.sub(P['suv'], 0, 0, 0.4, 0.4), STONE)              # 亀腹の代わりの根巻石
+    m.box(-tw / 2 - 0.21, tw / 2 + 0.21, th - 0.50, th - 0.39, -0.055, 0.055, W_UV, WOOD)  # 貫
+    # 島木 + 笠木。⚠ **2本まとめて同じ反りに乗せる** — 笠木だけ反らせると間が楔形に開く
+    n, KW = 12, tw / 2 + 0.35
+    for i in range(n):
+        t0, t1 = i / float(n), (i + 1) / float(n)
+        x0, x1 = -KW + 2 * KW * t0, -KW + 2 * KW * t1
+        r0, r1 = 0.12 * ((2 * t0 - 1) ** 2), 0.12 * ((2 * t1 - 1) ** 2)
+        for zz, sg in ((0.105, 1), (-0.105, -1)):
+            m.quad([(x0, th + r0, zz), (x1, th + r1, zz),
+                    (x1, th + 0.12 + r1, zz), (x0, th + 0.12 + r0, zz)][::sg], W_UV, WOOD)
+        for zz, sg in ((0.135, 1), (-0.135, -1)):
+            m.quad([(x0, th + 0.12 + r0, zz), (x1, th + 0.12 + r1, zz),
+                    (x1, th + 0.25 + r1, zz), (x0, th + 0.25 + r0, zz)][::sg], W_UV, WOOD)
+        m.quad([(x0, th + 0.25 + r0, -0.135), (x1, th + 0.25 + r1, -0.135),
+                (x1, th + 0.25 + r1, 0.135), (x0, th + 0.25 + r0, 0.135)], W_UV, WOOD)
+        m.quad([(x1, th + r1, -0.105), (x0, th + r0, -0.105),
+                (x0, th + r0, 0.105), (x1, th + r1, 0.105)], W_UV, WOOD)
+    m.box(-0.075, 0.075, th - 0.39, th, -0.05, 0.05, W_UV, WOOD)    # 額束
+    o = m.to_object(name + "_body", [P['wood'], P['wall'], P['stone'], P['shoji']])
+    o.name = name; o.data.name = name
+    V.set_origin(o, (0.0, 0.0, 0.0))
+    return o, name
+
+
 PARTS = {"umaya": umaya, "tomomachi": tomomachi, "nandokoya": nandokoya,
-         "kurumayose": kurumayose, "jouguchi": jouguchi}
+         "kurumayose": kurumayose, "jouguchi": jouguchi, "inari15": inari15, "torii": torii}
+
+
+def ortho(w, h, res):
+    """⚠ `ortho_scale` は**画像の長辺**に効く。幅だけで決めると縦が切れる
+    (2026-09-04 に踏んだ — 1.5間角の稲荷が枠から溢れて姿が判定できなかった)。"""
+    return max(w, h * float(res[0]) / res[1]) * 1.12
 
 
 def shots(o, key, box):
@@ -345,18 +460,20 @@ def shots(o, key, box):
     H = mx.z - mn.z
     r = max(mx.x - mn.x, mx.y - mn.y, H)
     # ① 開口面(+Z = Blender −Y。厚みを反転して出しているため)から斜め
-    V.studio((mn.x - r * 0.45, mn.y - r * 1.0, 1.7), (c.x, c.y, H * 0.45), res=(1700, 1000))
+    V.studio((mn.x - r * 0.9, mn.y - r * 1.8, max(1.7, H * 0.7)),
+             (c.x, c.y, H * 0.42), res=(1700, 1000))
     V.render(os.path.join(SHOT, "okfuz_%s_3d.png" % key))
     # ② 開口面の立面
     V.studio((c.x, mn.y - r * 2.2, c.z), (c.x, c.y, c.z),
-             ortho_scale=max(mx.x - mn.x, H) * 1.15, res=(1700, 1000))
+             ortho_scale=ortho(mx.x - mn.x, H, (1700, 1000)), res=(1700, 1000))
     V.render(os.path.join(SHOT, "okfuz_%s_elev.png" % key))
     # ③ 背面から斜め(開口が漏れていないか)
-    V.studio((mx.x + r * 0.45, mx.y + r * 1.0, 1.9), (c.x, c.y, H * 0.45), res=(1700, 1000))
+    V.studio((mx.x + r * 0.9, mx.y + r * 1.8, max(1.9, H * 0.7)),
+             (c.x, c.y, H * 0.42), res=(1700, 1000))
     V.render(os.path.join(SHOT, "okfuz_%s_ura.png" % key))
     # ④ 妻の正面立面(妻壁が塞がっているか)
     V.studio((mn.x - r * 2.4, c.y, c.z), (c.x, c.y, c.z),
-             ortho_scale=max(mx.y - mn.y, H) * 1.18, res=(1300, 1100))
+             ortho_scale=ortho(mx.y - mn.y, H, (1300, 1100)), res=(1300, 1100))
     V.render(os.path.join(SHOT, "okfuz_%s_gable.png" % key))
 
 

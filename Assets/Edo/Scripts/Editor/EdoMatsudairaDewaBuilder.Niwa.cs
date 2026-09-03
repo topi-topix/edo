@@ -129,7 +129,9 @@ public static partial class EdoMatsudairaDewaBuilder
             var tk = O(o);
             // 指図: 頂 (u,v)・天端 topY・裾 skirt[](u,v の輪郭)。盛土の面 = 頂から裾へ直線(裾では自然地盤に一致)
             Vector2 top = f.W(F(tk["u"]), F(tk["v"]));
-            float topY = F(tk["topY"]);
+            // ⚠ 指図は頂の標高を `y` で持つ(`_tsukiyama`「`u,v,y` = 頂の位置と**標高**」)。
+            //    2026-09-04: ここが `topY` 決め打ちで KeyNotFoundException になっていた(棟梁)。
+            float topY = HasKey(tk, "y") ? F(tk["y"]) : F(tk["topY"]);
             var skirt = UVLine(tk["skirt"]);
             Vector2 mn = top, mx = top;
             foreach (var q in skirt) { mn = Vector2.Min(mn, q); mx = Vector2.Max(mx, q); }
@@ -438,7 +440,9 @@ public static partial class EdoMatsudairaDewaBuilder
         if (kido == null) return "指図に NJ_Taki_Kido が無い";
         var f = Grid; var a = A(kido["a"]); var b = A(kido["b"]);
         Vector2 wa = f.W(F(a[0]), F(a[1])), wb = f.W(F(b[0]), F(b[1]));
-        var walls = Group("Nakajikiri"); int off = 0;
+        // ⚠ 中仕切の駒は Stage6 が `Fuzoku/Nakajikiri` に置く。`Group("Nakajikiri")` だと
+        //    空の新規グループを作って **0 件で黙って成功**していた(2026-09-04 棟梁)。
+        var walls = Group("Fuzoku/Nakajikiri"); int off = 0;
         foreach (Transform t in walls)
         {
             var rs = t.GetComponentsInChildren<Renderer>(); if (rs.Length == 0) continue;

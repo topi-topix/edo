@@ -1407,6 +1407,81 @@ public static partial class EdoMatsudairaDewaBuilder
         {
             var k = O(o);
             string nm = (string)k["name"];
+
+            // ---- 庭の段(`kind: "庭の段"`)は郭をつなぐ石段と持ち物が違う。
+            //   ⛔ 蹴上・踏面・落差を**指図から読まない** — 両端が地形で固定されるので段数からの従属値
+            //   (`_kaidans` の注記 ②、汐見坂の裁定 2026-08-24 と同じ扱い)。
+            //   指図が持つのは **両端 a/b・折れ点 via・段数 steps・幅 w** だけ。
+            //   ⭐ 導出は生成器 `build_matsudaira_dewa_sashizu.py::garden_step_geom` と同じ式にする:
+            //      走り = 折れ線 a→via…→b の**平面長**(⛔ 両端の直線距離で測らない)/ 落差 = |yb − ya|
+            //      蹴上 = 落差/n ・ 踏面 = 走り/n。地盤は**実地形**(造成 1 と築山 1b の後の面)。
+            //   2026-09-04 棟梁: ここが無く、Stage6 が 庭の段 の `drop` で KeyNotFoundException を投げていた。
+            if (Has(k, "kind") && (string)k["kind"] == "庭の段")
+            {
+                if (!Has(k, "a") || !Has(k, "b"))
+                { sb.AppendLine("⚠ 庭の段 " + nm + ": 指図に a/b が無い"); continue; }
+                var gpath = new List<Vector2>();
+                var ga = A(k["a"]); gpath.Add(f.W(F(ga[0]), F(ga[1])));
+                if (Has(k, "via")) foreach (var q in A(k["via"])) { var pq = A(q); gpath.Add(f.W(F(pq[0]), F(pq[1]))); }   // ⚠ `pv` は同じ関数の後段(pos の v)で宣言されるので別名(CS0136)
+                var gb = A(k["b"]); gpath.Add(f.W(F(gb[0]), F(gb[1])));
+                float ghor = 0f;
+                for (int i = 1; i < gpath.Count; i++) ghor += Vector2.Distance(gpath[i - 1], gpath[i]);
+                int gn = Mathf.Max(1, (int)F(k["steps"]));
+                float gya = TerrainY(gpath[0].x, gpath[0].y);
+                float gyb = TerrainY(gpath[gpath.Count - 1].x, gpath[gpath.Count - 1].y);
+                float gdrop = Mathf.Abs(gyb - gya), gy0 = Mathf.Min(gya, gyb);
+                float gkeri = gdrop / gn, gfumi = ghor / gn;
+                float gw = F(k["w"]);
+                int gacross = Mathf.Max(1, Mathf.RoundToInt(gw / 1.98f));
+                bool upFromA = gyb > gya;
+                var gmod = AssetDatabase.LoadAssetAtPath<GameObject>(EdoAssets.Own.DanishiStep);
+                if (gmod == null) { sb.AppendLine("⚠ 段石が無い: " + EdoAssets.Own.DanishiStep); continue; }
+                for (int i = 0; i < gn; i++)
+                {
+                    // 下から i 段目。弧長 s は**登る向き**に測る
+                    float sUp = gfumi * (i + 0.5f);
+                    float sA = upFromA ? sUp : ghor - sUp;          // a 端からの弧長
+                    // 折れ線上の点と接線
+                    Vector2 c = gpath[0], tan = (gpath[1] - gpath[0]).normalized;
+                    float acc = 0f;
+                    for (int j = 1; j < gpath.Count; j++)
+                    {
+                        float seg = Vector2.Distance(gpath[j - 1], gpath[j]);
+                        if (sA <= acc + seg || j == gpath.Count - 1)
+                        {
+                            float tt = seg < 1e-6f ? 0f : Mathf.Clamp01((sA - acc) / seg);
+                            c = Vector2.Lerp(gpath[j - 1], gpath[j], tt);
+                            tan = (gpath[j] - gpath[j - 1]).normalized;
+                            break;
+                        }
+                        acc += seg;
+                    }
+                    if (!upFromA) tan = -tan;                        // 接線は登る向きへ
+                    float gyaw = Mathf.Atan2(tan.x, tan.y) * Mathf.Rad2Deg;
+                    Vector2 gside = new Vector2(tan.y, -tan.x);
+                    float gtop = gy0 + gkeri * (i + 1);
+                    for (int j = 0; j < gacross; j++)
+                    {
+                        float t2 = (j - (gacross - 1) * 0.5f) * (gw / gacross);
+                        Vector2 cc = c + gside * t2;
+                        var go = EdoNishiTameikeBuilder.Place(EdoAssets.Own.DanishiStep,
+                            new Vector3(cc.x, gtop, cc.y), gyaw, Vector3.one, dnGrp, nm + "_" + i + "_" + j);
+                        if (go == null) continue;
+                        float have2 = RunWidth(EdoNishiTameikeBuilder.RB(go), gyaw);
+                        if (have2 > 0.05f) go.transform.localScale = new Vector3((gw / gacross) / have2, 1f, 1f);
+                        var bb2 = EdoNishiTameikeBuilder.RB(go);
+                        go.transform.position += new Vector3(cc.x - bb2.center.x, gtop - bb2.max.y, cc.y - bb2.center.z);
+                        nDan++;
+                    }
+                }
+                sb.AppendLine("庭の段 " + nm + " " + gn + "段×" + gacross + "枚 蹴上" + gkeri.ToString("F3")
+                              + " 踏面" + gfumi.ToString("F3") + " 走り" + ghor.ToString("F2")
+                              + " (" + Mathf.Min(gya, gyb).ToString("F2") + "→" + Mathf.Max(gya, gyb).ToString("F2") + ")"
+                              + (Has(k, "orikaeshi") && !Has(k, "via")
+                                 ? "  ⚠ orikaeshi=" + F(k["orikaeshi"]) + " なのに via が無い(折れ点が指図に無い→指図方へ)" : ""));
+                continue;
+            }
+
             var pos = A(k["pos"]);
             float pu = F(pos[0]), pv = F(pos[1]);
             string dir = Has(k, "dir") ? (string)k["dir"] : null;

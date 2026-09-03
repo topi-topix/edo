@@ -4534,6 +4534,54 @@ def bom_table(d):
             "<th class='note'>備考</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>")
 
 
+def assets_table(d):
+    """**図の全部材の当たり**(附属屋・井戸・結界塀・御殿の屋根)を1枚に刷る
+    (2026-09-03 棟梁の棚卸し S3-5 / 在庫方の答え)。
+
+    ⛔ 「在庫を引いた」で終わらせない — **在庫 / 流用 / 見立て(U) / 新造待ち** の別と
+      確度を欄に持ち、**未定の件数を勘定して出す**(0 件でないうちは実装に渡らない)。"""
+    rows, pend = [], 0
+    def add(kind, name, label, size, ref, kubun, cert):
+        rows.append([kind, "<b>%s</b><br><span class='note'>%s</span>" % (name, label or ""),
+                     size, ("<code>%s</code>" % ref) if ref else "<b>未定</b>",
+                     kubun or "—", inline(cert or "—")])
+    K = d["const"]["ken"]
+    for s in d.get("service", []):
+        add("附属屋", s["name"], s.get("label"), "%.1f×%.1f 間" % (s["u1"] - s["u0"], s["v1"] - s["v0"]),
+            s.get("asset"), s.get("assetKubun"), s.get("assetCert"))
+        if not s.get("asset"):
+            pend += 1
+    for w in d.get("wells", []):
+        add("井戸", w.get("name", "—"), w.get("label"), "—",
+            w.get("asset"), w.get("assetKubun"), w.get("assetCert"))
+        if not w.get("asset"):
+            pend += 1
+    for k in d.get("kekkai", []):
+        add("結界塀", k["name"], k.get("label"), "—",
+            k.get("asset"), k.get("assetKubun"), k.get("assetCert"))
+        if not k.get("asset"):
+            pend += 1
+    for m in d.get("munes", []):
+        # ⭐ 御殿の屋根の鍵は **"Goten_" + 棟の名** の約束(`_wiredElsewhere.prefixes` が申告)。
+        rk = m.get("roof") or ""
+        if rk and not rk.startswith("Goten_"):
+            rows.append(["⚠ 約束違い", m["name"], "—",
+                         "<code>%s</code>" % rk, "—",
+                         "屋根の鍵は <code>Goten_&lt;棟の名&gt;</code> でなければならない"])
+        rf = (d.get("roofs") or {}).get(rk) or {}
+        sz = ("%d×%d 間" % (rf["wKen"], rf["dKen"])) if rf.get("wKen") else \
+             "%.0f×%.0f 間" % (m["u1"] - m["u0"], m["v1"] - m["v0"])
+        add("御殿の屋根", m["name"], "%s(%s)" % (m.get("label") or "", rf.get("kata", "?")), sz,
+            rf.get("asset"), rf.get("assetKubun"), rf.get("_"))
+        if not rf.get("asset"):
+            pend += 1
+    return _tw(["別", "名", "寸法", "部材", "調達", "確度・備考"], rows,
+               "⭐ <b>未定 %d 件</b>。⛔ <b>未定が残るうちは実装に渡らない</b>。"
+               "⚠ 『新造待ち』は<b>名だけ予約してある</b> — 焼けるまで実体は無い。"
+               "⚠ 『流用』は他邸のために焼いた駒で、<b>一般類型Bで家固有の意匠が無い</b>ことが条件"
+               "(普請奉行 2026-09-03)。" % pend)
+
+
 def build_stamp():
     """**この図を組んだ時点**を表の先頭に出す。
     ⛔ 2026-09-01 六巡目まで、改訂表は `git log` だけを引いていたので、
@@ -7636,6 +7684,10 @@ def data_wired_check(d):
     skip |= set((d.get("_wiredElsewhere") or {}).get("keys") or [])
     skip |= set(p9.split(".")[-1].replace("[*]", "")
                 for p9 in ((d.get("_wiredElsewhere") or {}).get("paths") or []))
+    # ⭕ **生成器が鍵を組み立てて読む**ものは接頭辞で申告する(2026-09-03 棟梁の棚卸し S3-6)。
+    #   ⛔ 無条件の免除にしない — 接頭辞そのものがソースに literal で無ければ認めない。
+    pre9 = [p for p in ((d.get("_wiredElsewhere") or {}).get("prefixes") or [])
+            if ('"%s"' % p) in src]
     bad = []
     seen = set()
 
@@ -7644,7 +7696,8 @@ def data_wired_check(d):
             for k9, v9 in o.items():
                 if k9.startswith("_") or k9.isdigit():   # ⛔ 数字の鍵は名前で読まない(役石の番号など)
                     continue
-                if k9 not in skip and k9 not in seen and ('"%s"' % k9) not in src:
+                if (k9 not in skip and k9 not in seen and ('"%s"' % k9) not in src
+                        and not any(k9.startswith(p9) for p9 in pre9)):
                     seen.add(k9)
                     bad.append("`%s.%s` が生成器のどこからも読まれていない(死値)" % (path, k9))
                 walk(v9, path + "." + k9)
@@ -11708,6 +11761,7 @@ def main():
     if "bom" in d:
         plate(h, nx(), "部材表", "在庫は docs/asset-catalog.md 照会済み。新造は edo-buzai(Blender)")
         h.append(bom_table(d))
+        h.append(assets_table(d))
         h.append("</div>")
 
     plate(h, nx(), "検査の総覧(40種・0件のものも刷る)",

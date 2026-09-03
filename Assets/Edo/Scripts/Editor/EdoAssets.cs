@@ -320,6 +320,50 @@ public static class EdoAssets
                  + (i <= 1 ? "" : "_" + i.ToString("00")) + ".fbx";
         }
 
+        // ---------------------------------------------------------------- 落葉高木3種(岡部邸)
+        // ⚠ **在庫の Small/Mid/Big(3.6/5.8/8.2m)では収まらない。**指図が要求するのは
+        //   エノキ 11〜16 / ムクノキ 10〜14 / ケヤキ 13〜16 で、桜 Big の 2 倍近い。
+        //   ⇒ 生成器は樹種ごとの寸法表を持つ。**同じ "Mid" でも樹種で樹高が違う**(下の doc)。
+        // ⚠ 樹皮・葉の材質は在庫の桜のものを名乗る(キットに落葉高木の樹皮が無い)=確度U。
+        //   姿(幹の分かれ方・枝の角度・樹冠の輪郭)で樹種を描き分けてある。
+        // ⛔ **紅葉色にしない** — 季節は春でも秋でもない。葉は夏の緑。
+
+        /// <summary>**エノキ**(一里塚の木)。⭐ **低い位置で数本の大枝に分かれ、枝が斜め上へ
+        /// 開いて扇形〜半球形の広い樹冠**。幅 ≒ 高さ。法尻の3本と林の11本に使う。
+        /// 樹高: **Small 11.0m / Mid 13.5m / Big 16.0m**(実測 W×D: 11〜12 / 14〜15 / 17〜19m)。
+        /// <paramref name="i"/> は個体(1〜3)。⛔ 1本の層を1個体で埋めない — 混ぜること。
+        /// LOD_0/1/2 の3本入り(LOD0 6.4〜8.1k tri)。⚠ 材質は名前だけなので **Unity で remap**。
+        /// 生成: blender --background --python Tools/Blender/build_tree.py -- enoki Small Mid Big</summary>
+        public static string Enoki(string size, int i = 1)
+        {
+            return "Assets/Edo/Models/Trees/Tree_Enoki_" + size
+                 + (i <= 1 ? "" : "_" + i.ToString("00")) + ".fbx";
+        }
+
+        /// <summary>**ムクノキ**。エノキに似るが ⭐ **幹がより通直で高く、樹冠は縦長**
+        /// (幅 &lt; 高さ)。枝は細くしなやかで垂れ気味。
+        /// 樹高: **Small 10.0m / Mid 12.0m / Big 14.0m**(実測 W×D: 9 / 11 / 13m 前後)。
+        /// <paramref name="i"/> は個体(1〜3)。LOD0 4.5〜6.0k tri。
+        /// 生成: blender --background --python Tools/Blender/build_tree.py -- mukunoki Small Mid Big</summary>
+        public static string Mukunoki(string size, int i = 1)
+        {
+            return "Assets/Edo/Models/Trees/Tree_Mukunoki_" + size
+                 + (i <= 1 ? "" : "_" + i.ToString("00")) + ".fbx";
+        }
+
+        /// <summary>**ケヤキ**。⭐ **箒形** — 短い直幹から大枝が扇状に立ち上がり、上へ広がる
+        /// 逆三角の樹冠。⛔ 他の2種と同じ丸い樹冠にしない(**箒形が樹種の見分け**)。
+        /// 単木で抜く木なので、近景に耐えるよう個体を混ぜること。
+        /// 樹高: **Small 13.0m / Mid 14.5m / Big 16.0m**(実測 W×D: 12〜13 / 14 / 15〜16m)。
+        /// <paramref name="i"/> は個体(1〜3)。LOD0 6.8〜7.9k tri
+        /// (⚠ 在庫の同格 5,960〜6,575 をやや超える。樹冠が大きいぶん枝が多い)。
+        /// 生成: blender --background --python Tools/Blender/build_tree.py -- keyaki Small Mid Big</summary>
+        public static string Keyaki(string size, int i = 1)
+        {
+            return "Assets/Edo/Models/Trees/Tree_Keyaki_" + size
+                 + (i <= 1 ? "" : "_" + i.ToString("00")) + ".fbx";
+        }
+
         /// <summary>石段の法面を留める「坂の土留め」。天端が勾配どおりに**一直線で斜め**に下がる
         /// 一枚物(段々に下がるモジュールでは実物の石段の袖にならない)。生成は
         /// Tools/Blender/build_ishigaki_saka.py。無い寸法は -- &lt;走り&gt; &lt;落差&gt; で足す。

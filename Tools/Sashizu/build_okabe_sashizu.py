@@ -8006,6 +8006,35 @@ def route_grade_check(d):
     return bad
 
 
+def outside_rail(d):
+    """**垣の外を通ってよい区間と、そこに立てる手すりの諸元**(2026-09-03 裁定1=A・K300)。
+
+    ⛔ 「宣言してあるから鳴らない」で終わらせない — **宣言そのものを図と表に出す**
+      (区間の長さ・手すりの延長・柱の本数・落差)。宣言が図に無いと、実装は手すりを建てない。"""
+    for r9 in d.get("routes", []):
+        orl = r9.get("outsideRail")
+        if not orl:
+            continue
+        K9 = d["const"]["ken"]
+        u0, u1, vv = orl["uFrom"], orl["uTo"], orl["v"]
+        ts = orl.get("tesuri") or {}
+        lenM = abs(u1 - u0) * K9
+        pitch = ts.get("postPitchKen", 1.0) * K9
+        posts = int(round(lenM / pitch)) + 1
+        # 道の外肩の落差 = 手すりの立つ v から 1間 池側へ寄った所との地盤差
+        y0 = _dem_at(d, (u0 + u1) / 2.0, vv)
+        y1 = _dem_at(d, (u0 + u1) / 2.0, vv + 1.0)
+        return {"route": r9["name"], "uFrom": u0, "uTo": u1, "v": vv,
+                "lenM": lenM, "posts": posts, "pitchM": pitch,
+                "h": ts.get("h", 0.9), "kind": ts.get("kind", ""),
+                "side": ts.get("side", ""), "cert": ts.get("certSig", "U"),
+                "logDia": ts.get("logDia", 0.0), "postDia": ts.get("postDia", 0.0),
+                "certNote": ts.get("certNote", ""),
+                "dropM": (None if (y0 is None or y1 is None) else y0 - y1),
+                "railV": rail_v_at(d, (u0 + u1) / 2.0)}
+    return None
+
+
 def katte_rail_check(d):
     """**勝手の線が法肩の竹垣の「どちら側」を走るか**(2026-09-03 検図6巡目 K291 で作り直した)。
 
@@ -8042,6 +8071,9 @@ def katte_rail_check(d):
     for r9 in d.get("routes", []):
         if "勝手" not in (r9.get("label") or ""):
             continue
+        # ⭕ **宣言した区間(裁定1=A)の中は通ってよい** — 宣言の外で外を歩いたら鳴らす。
+        orl = r9.get("outsideRail") or {}
+        oa, ob = sorted([orl.get("uFrom", 0.0), orl.get("uTo", 0.0)]) if orl else (1e9, -1e9)
         worst = None
         for (u9, v9) in r9["pts"]:
             if not (pts9[0][0] - 2.0 <= u9 <= pts9[-1][0] + 2.0):
@@ -8051,8 +8083,22 @@ def katte_rail_check(d):
                 continue
             if any(abs(u9 - g9) <= w9 + 1.0 for g9, w9 in gz):
                 continue                              # ⭕ 木戸の口の近くは通ってよい
+            if oa - 0.01 <= u9 <= ob + 0.01:
+                continue                              # ⭕ 宣言した区間の中
             if worst is None or out > worst[0]:
                 worst = (out, u9, v9)
+        # ⛔ 宣言だけして手すりを立てない、を許さない(裁定1=A の条件)
+        if orl and not (orl.get("tesuri") or {}).get("h"):
+            bad.append("%s は垣の外を通る区間を宣言しているのに**手すりが無い**"
+                       "(`outsideRail.tesuri.h`)— 裁定1=A の条件" % r9["name"])
+        # ⛔ 宣言した区間が実際に外を歩く所を覆っているか(短すぎる宣言を許さない)
+        if orl:
+            outs = [u9 for (u9, v9) in r9["pts"]
+                    if (v9 - rail_v(u9)) * K9 > 0.5
+                    and not any(abs(u9 - g9) <= w9 + 1.0 for g9, w9 in gz)]
+            if outs and (min(outs) < oa - 0.01 or max(outs) > ob + 0.01):
+                bad.append("%s の宣言(u%.1f〜%.1f)が外を歩く所(u%.1f〜%.1f)を覆っていない"
+                           % (r9["name"], oa, ob, min(outs), max(outs)))
         if worst:
             bad.append("勝手の線が法肩の竹垣の**外**を %.1fm 走る((%.1f, %.1f))— "
                        "宣言した口は %s だけ。⚠ **図の本文はこの区間を『意図してそう引いた』**と"
@@ -9258,6 +9304,26 @@ def nishi_plan_svg(d):
                  % " ".join("%.1f,%.1f" % (pr.X(a9), pr.Y(b9)) for a9, b9 in rp9["pts"]))
         mid = rp9["pts"][len(rp9["pts"]) // 2]
         o.append(T(pr.X(mid[0]) - 6, pr.Y(mid[1]), "勝手の坂", "jo", "end"))
+    # ⭕ **垣の外を通ってよい区間と、その崖側の丸太手すり**【2026-09-03 裁定1=A・K300】
+    orl9 = outside_rail(d)
+    if orl9:
+        vR = orl9["v"]
+        o.append('<polyline points="%.1f,%.1f %.1f,%.1f" fill="none" stroke="var(--shu)" '
+                 'stroke-width="2.0" stroke-dasharray="2 3" opacity="0.95"/>'
+                 % (pr.X(orl9["uFrom"]), pr.Y(vR), pr.X(orl9["uTo"]), pr.Y(vR)))
+        # 手すりは道の**崖側**(v が大きい側)へ 0.5間 寄せて立てる
+        vT = vR + 0.5
+        o.append('<polyline points="%.1f,%.1f %.1f,%.1f" fill="none" stroke="#6B5637" '
+                 'stroke-width="2.2"/>'
+                 % (pr.X(orl9["uFrom"]), pr.Y(vT), pr.X(orl9["uTo"]), pr.Y(vT)))
+        nP = max(orl9["posts"], 2)
+        for i9 in range(nP):
+            uP = orl9["uFrom"] + (orl9["uTo"] - orl9["uFrom"]) * i9 / (nP - 1.0)
+            o.append('<circle cx="%.1f" cy="%.1f" r="1.4" fill="#6B5637"/>'
+                     % (pr.X(uP), pr.Y(vT)))
+        o.append(T(pr.X((orl9["uFrom"] + orl9["uTo"]) / 2), pr.Y(vT) + 12,
+                   "丸太手すり h%.1f・柱%d本(垣の外を通ってよい区間 %.1fm)"
+                   % (orl9["h"], orl9["posts"], orl9["lenM"]), "jo", "middle"))
     # ヤダケ
     yd = hy.get("yadake")
     if yd:
@@ -9613,6 +9679,20 @@ def nishi_table(d):
           + "<br>⛔ <b>伐った高木の分を他所へ足さない</b>(K207)— 代わりに"
             "<b>筋の両側へ低木のマント(帯C の樹種)を寄せて</b>切り口の裾を閉じる")
          if (_rp9 := next((q for q in d.get("ramps", []) if q.get("cutW")), None)) else "—"],
+        ["<b>垣の外を通ってよい区間と手すり</b>(裁定1=A)",
+         ("u%.1f〜%.1f の v%.1f を <b>%.1fm</b> — 法肩の竹垣(その位置で v%.2f)の"
+          "<b>外(池側)</b>を走る。⭕ <b>宣言した区間</b>なので検査は鳴らさないが、"
+          "<b>この外で垣の外を歩けば鳴る</b>(`katte_rail_check`)。<br>"
+          "崖側に <b>%s h%.2f</b>(柱 %d 本・%.2fm 間隔・%s・確度%s"
+          "／ 横木 φ%.2f・柱 φ%.2f)。道の外肩の落差 %s<br>⚠ %s"
+          "<br>⛔ 竹垣にしない — 落下止めであって囲いではない。"
+          "⛔ 坂の頭・木戸・道筋は動かしていない【2026-09-03 裁定1=A・普請奉行 K300】"
+          % (_or9["uFrom"], _or9["uTo"], _or9["v"], _or9["lenM"], _or9["railV"],
+             _or9["kind"], _or9["h"], _or9["posts"], _or9["pitchM"], _or9["side"],
+             _or9["cert"], _or9["logDia"], _or9["postDia"],
+             ("%.2fm(1間 池側で)" % _or9["dropM"]) if _or9["dropM"] is not None else "—",
+             _or9["certNote"]))
+         if (_or9 := outside_rail(d)) else "—"],
         ["法尻の帯(草地)",
          "%s ／ ススキ %d〜%d 株(丈 %.1f〜%.1fm・棟から %.1f間 以上・v%.0f〜%.0f)"
          % ((N.get("hojiri") or {}).get("shiba", "—"),

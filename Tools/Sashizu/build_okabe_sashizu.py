@@ -2048,13 +2048,20 @@ def goten_plan(d, u0, u1, v0, v1, label, note):
             g.append(pr.rect(ka, at2 - hw, kb, at2 + hw,
                              fill="var(--shu-lo)", stroke="var(--shu)", sw=1.0))
         g.append(T(pr.X(cu), pr.Y(cv) - 8, "%s %d段" % (k["name"], k["steps"]), "anS2", "middle"))
+    for o9 in obi_metrics(d):                           # ⭕ 崖下の帯の棟(K248)
+        g.append(pr.rect(o9["u0"], o9["v0"], o9["u1"], o9["v1"],
+                         fill="var(--ink-lo)", stroke="var(--ink)", sw=0.8, op=0.7))
+        g.append(T(pr.X((o9["u0"] + o9["u1"]) / 2), pr.Y((o9["v0"] + o9["v1"]) / 2) + 4,
+                   o9["name"], "jo", "middle"))
     for rp in d.get("ramps", []):                       # 坂(斜面を勾配で登る道)
         pts = [(pr.X(u), pr.Y(v)) for u, v in rp["pts"]]
         g.append('<polyline points="%s" fill="none" stroke="var(--nagaya)" stroke-width="%.1f" '
                  'stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/>'
                  % (" ".join("%.1f,%.1f" % q for q in pts), max(4.0, pr.L(rp["w"] / 1.818))))
         g.append(T(pts[len(pts) // 2][0], pts[len(pts) // 2][1] - 7,
-                   "%s 全長%.0fm 最急%.1f%%" % (rp["label"], rp["len"], rp["gradMax"]), "anS2", "middle"))
+                   "%s 全長%.0fm 最急%.1f%%"
+                   % (rp["label"], rp["len"],
+                      (ramp_metrics(d, rp) or {}).get("grad", 0)), "anS2", "middle"))
     for rl in auto_rails(d):
         pts = [(u, v) for u, v in rl["pts"]]
         g.append('<polyline points="%s" fill="none" stroke="var(--take)" stroke-width="2.4" stroke-dasharray="2 4"/>'
@@ -2798,9 +2805,18 @@ def routes_table(d):
             gp2 = ko.get("_gridPos")
             if gp2 and math.hypot(u0 - gp2[0], v0 - gp2[1]) < 4:
                 ys.append(ko["sill"])
+        # ⭕ **継いだ坂は延長も昇降も足す**(2026-09-03 検図5巡目 K249) —
+        #   ⛔ 起点が一致する坂しか拾わないと、末尾に継いだ坂(勝手の坂)が数から落ちる。
         for rp2 in d.get("ramps", []):
-            if math.hypot(u0 - rp2["pts"][0][0], v0 - rp2["pts"][0][1]) < 4:
+            ends = (tuple(rp2["pts"][0]), tuple(rp2["pts"][-1]))
+            mine = (tuple(r["pts"][0]), tuple(r["pts"][-1]))
+            near = min(math.hypot(a8[0] - b8[0], a8[1] - b8[1])
+                       for a8 in ends for b8 in mine)
+            if near < 1.0:
+                m8 = ramp_metrics(d, rp2) or {}
+                ln += m8.get("len", 0.0)
                 ys.append(rp2["prof"][0][2])
+                ys.append(rp2["prof"][-1][2])
         rise = (max(ys) - min(ys)) if ys else 0.0
         steps = 0
         counted = set()
@@ -2992,7 +3008,9 @@ def section_svg(d, sec):
     for m in d["munes"] + d["service"]:
         if (sec["axis"] == "u" and m["u0"] <= at <= m["u1"]) or \
            (sec["axis"] == "v" and m["v0"] <= at <= m["v1"]):
-            tops.append(m["y"] + fl0 + sec["ridgeAbove"])
+            rf0 = (d.get("roofs") or {}).get(m.get("roof") or "") or {}
+            tops.append((m["y"] + rf0.get("ridgeH", sec["ridgeAbove"])) if m.get("obi")
+                        else (m["y"] + fl0 + sec["ridgeAbove"]))
     ys = [p[1] for p in prof]
     y1 = max(ys + tops + [d["gate"]["sill"] + d["gate"]["plan"]["monH"]
                           if (sec["axis"] == "u" and abs(sec["at"]) < 2) else -99]) + 1.6
@@ -3166,16 +3184,26 @@ def section_svg(d, sec):
         if b <= w0 or a >= w1:
             continue                          # 画枠の外(検図 H-2)
         a, b = max(a, w0), min(b, w1)
-        f = m["y"] + fl
+        # ⛔ **崖下の帯の棟に御殿の床(`gotenFloor`)を足さない**(2026-09-03 庭方 K231) —
+        #   `obi.sahou` は「高床にしない」と宣言している。⭕ 床は棟の面 `y` そのもの。
+        # ⛔ **軒・棟の高さも御殿の値を当てない**(検図 K250) — `roofs` の宣言から取る。
+        rf8 = (d.get("roofs") or {}).get(m.get("roof") or "") or {}
+        if m.get("obi"):
+            f = m["y"]
+            eave8 = rf8.get("eaveH", eave)
+            ridge8 = rf8.get("ridgeH", ridge)
+        else:
+            f = m["y"] + fl
+            eave8, ridge8 = eave, ridge
         nm = MUNE_JA.get(m.get("name"), m.get("label", m.get("name", "")))
         if "label" in m and m["name"] not in MUNE_JA:
             nm = m["label"]
         g.append('<polygon points="%s" fill="var(--ink-mid)" stroke="var(--ink)" stroke-width="1.2"/>'
                  % " ".join("%.1f,%.1f" % p for p in
-                            [(X(a), Y(f)), (X(a), Y(f + eave)),
-                             ((X(a) + X(b)) / 2, Y(f + ridge)),
-                             (X(b), Y(f + eave)), (X(b), Y(f))]))
-        g.append(T((X(a) + X(b)) / 2, Y(f + eave) + 12, nm, "rmS", "middle",
+                            [(X(a), Y(f)), (X(a), Y(f + eave8)),
+                             ((X(a) + X(b)) / 2, Y(f + ridge8)),
+                             (X(b), Y(f + eave8)), (X(b), Y(f))]))
+        g.append(T((X(a) + X(b)) / 2, Y(f + eave8) + 12, nm, "rmS", "middle",
                    fit(nm, sx * (b - a) - 4, 10.5)))
     # 御錠口
     for l in d["links"]:
@@ -4377,7 +4405,8 @@ def civil_table(d):
         rows.append("<tr><td><code>%s</code></td><td>坂(幅 %.2fm)</td>"
                     "<td class='note'>%s</td><td>全長 %.1fm・昇り %.2fm・最急 %.1f%%</td></tr>"
                     % (rp["name"], rp["w"], " → ".join("(%.1f, %.1f)" % q for q in pts),
-                       rp["len"], rp["rise"], rp["gradMax"]))
+                       rp["len"], rp["rise"],
+                       (ramp_metrics(d, rp) or {}).get("grad", 0)))
     for rl in auto_rails(d):
         pts = [gr.W(u, v) for u, v in rl["pts"]]
         lo9, hi9 = _rail_offset(d, rl)
@@ -5482,7 +5511,8 @@ def shakkei_svg(d):
                             for a, b in ((eM, ts9["y0"]), (eM + mg, wl))))
         o.append(T(X(eM + mg / 2), Y((ts9["y0"] + wl) / 2) - 8,
                    "E 堤(設計線 1:%.1f)" % ts9.get("batter", 2.2), "jo", "middle"))
-    o.append(T(46, H - 10, "水平[m](視点から西へ)／ 縦は標高[m]・**誇張なし**", "anS2"))
+    o.append(T(46, H - 10, "水平[m](視点から西へ)／ 縦は標高[m]・**縦%.2f倍**"
+               % _vexag(X, Y, 1.0), "anS2"))
     o.append("</svg>")
     return "\n".join(o)
 
@@ -5533,7 +5563,7 @@ def mizu_svg(d):
 # ⭐ **図で宣言した不変条件は必ず検査に落とす**(当家の作法)。
 #   ⛔ 恒真にしない — 各検査は「わざと壊すと必ず件数が出る」ことを確かめてある(破壊試験)。
 #
-# **2026-09-03 の破壊試験(113件・すべて期待どおり)**
+# **2026-09-03 の破壊試験(115件・すべて期待どおり)**
 # ⛔ **「反応する」とだけ書かない — 壊す前と後の件数を並べる。**数が無い記録は偽になり得る。
 #   ⚠ この作法にした途端、⛔ **偽の記録が4件見つかった**(前後が同じだったもの):
 #     ・「結界を全部消す → 反応する」…… 実際は **1件 → 1件**。経路の指摘が1件出るだけで数が動かず、
@@ -5646,6 +5676,13 @@ def mizu_svg(d):
 #     ・⛔ **「対岸から見た層」の検査は合否を出さない状態で置いた** — 一度目の式は恒真、
 #       二度目の式は素の設計で18件鳴る。**どちらが庭方の見立てか決められないので、
 #       数だけ刷って合否は開けない**(定義が揃うまで)。⛔ 恒真のまま通さない。
+#   ⚠ **2026-09-03(庭方6巡目 K262/K263 と検図5巡目のあと)に2つ作り直した。**
+#     ・「法肩の松の南の肩を窓の中へ」…… 0件→0件。⛔ K262 で**南が3区間に割れた**ので
+#       `spans[0]` はもう窓の肩ではない(窓の肩は `spans[2]`)。⭕ 添字を直し、
+#       u+1.0 まで入れて**窓の中の松の丈**として鳴らす形へ。
+#     ・「N1/N2 を汀へ8間」…… ⛔ **庭方の式では 28間 寄せても鳴らない**(草地 0.95°)。
+#       ⭕ 検査が生きていることは「層の下限を 0.5→3.5° へ上げる 0→6件」で確かめる。
+#       ⚠ この事実は庭方へ返す(棟を汀へ寄せても層は痩せない式になっている)。
 #   【結界(取り付き・表↔奥の非連結・動線)】素 0 件
 #     結界を全部消す                                0件 → 2件
 #     W1 を段の縁で止める(北の帯を空ける)                   0件 → 2件
@@ -5740,7 +5777,7 @@ def mizu_svg(d):
 #     窓の松 P2 を扇の外(u+9.0)へ出す                  0件 → 1件
 #     窓の松の三本を一直線に並べる                         0件 → 1件
 #     林の下端の北の肩を u+6.5 へ開く(余裕 1.3間)           0件 → 1件
-#     法肩の松の南の肩を窓の中(u−0.3)へ入れる                0件 → 1件
+#     法肩の松の南の肩を窓の中(u+1.0)へ入れる                0件 → 1件
 #     林の下端の点を見透しの窓の中へ入れる                     0件 → 3件
 #     窓の松 P3 を扇の中へ戻す                         0件 → 1件
 #     法肩の松の丈の下限を 6.0 へ下げる                    0件 → 1件
@@ -5759,6 +5796,12 @@ def mizu_svg(d):
 #     蓮の外端の池床の宣言を消す(区画外の前提が消える)              0件 → 1件
 #     法尻のススキを窓の中にも置けることにする(丈2.0mが上限を超える)     0件 → 1件
 #     窓の中へ丈 6m の植栽を1群置く(丈が固定の物)              0件 → 1件
+#   【対岸から見た層(林と草地の見かけの厚み)】素 0 件
+#     層の下限を 0.5→3.5° へ上げる(検査が生きている確かめ)       0件 → 6件
+#   【法肩の松の割り付け(区間ごと)】素 0 件
+#     南の小区間を1つに戻す(口を数えない割り付け)                0件 → 1件
+#     法肩の松の南を 5本にする(北が空く)                    0件 → 4件
+#     法肩の松の総数と区間の合計を食い違わせる                   0件 → 1件
 #   【データの死値(json のキーが読まれているか)】素 0 件
 #     json に読まれないキーを1つ足す                     0件 → 1件
 #   【動線・坂が樹の芯を横切らない】素 0 件
@@ -5768,9 +5811,6 @@ def mizu_svg(d):
 #     N1 を榎 E1 へ 4m 寄せる                      0件 → 1件
 #     N2 の面を 1.0m 上げる(帯を均す)                  0件 → 1件
 #     N1 を崖面(帯D1)へ載せる                        0件 → 1件
-#   【法肩の松の割り付け(区間ごと)】素 1 件
-#     法肩の松の南を 5本にする(北が空く)                    1件 → 2件
-#     法肩の松の総数と区間の合計を食い違わせる                   1件 → 2件
 #   【確度の記号(宣言と本文の食い違い)】素 0 件
 #     確度の記号を本文に無い P へ書き換える                   0件 → 1件
 #     確度の記号の宣言を消す                            0件 → 1件
@@ -6793,6 +6833,32 @@ def shokusai_table(d):
                      "*丈 %.1f〜%.1f m・%s" % (hk9.get("hMin", 0), hk9.get("hMax", 0),
                                              hk9.get("lean", "")),
                      "*" + cert_sig(d, hk9)])
+    # ⛔ **西の帯の層も植栽表に出す**(2026-09-03 庭方5巡目 K236)
+    ts9 = N9.get("tsutsumi") or {}
+    su8 = (N9.get("hojiri") or {}).get("susuki") or {}
+    if su8:
+        rows.append(["西の斜面(法尻の帯)", "草本", "ススキ", "%d〜%d 株" % (su8.get("nMin", 0),
+                                                                    su8.get("nMax", 0)),
+                     "—", "*v%.0f〜%.0f・棟から %.1f間 以上・丈 %.1f〜%.1fm"
+                     % (su8.get("v0", 0), su8.get("v1", 0), su8.get("clearKen", 0),
+                        su8.get("hMin", 0), su8.get("hMax", 0)), "*U"])
+    bD2 = next((b9 for b9 in (d.get("slopeBands") or []) if b9["name"].startswith("D2")), None)
+    if bD2:
+        rows.append(["西の斜面(帯D2)", "地被", "ノシバの刈芝", "—", "—",
+                     "*%s" % bD2.get("veg", ""), "*" + cert_sig(d, bD2)])
+    for nm8, key8 in (("葭原", "yoshi"), ("蓮", "hasu")):
+        o8 = ts9.get(key8) or {}
+        if not o8:
+            continue
+        rows.append(["西の岸(%s)" % nm8, "水辺", nm8, "—", "—",
+                     "*" + (("幅 %.0f〜%.0fm・稈高 %.1f〜%.1fm" % (o8.get("wMin", 0),
+                                                              o8.get("wMax", 0),
+                                                              o8.get("hMin", 0),
+                                                              o8.get("hMax", 0)))
+                            if key8 == "yoshi" else
+                            ("汀から %.0f〜%.0fm・葉高 水面+%.1f〜%.1f"
+                             % (o8.get("fromM", 0), o8.get("toM", 0),
+                                o8.get("leafMin", 0), o8.get("leafMax", 0)))), "*S/B/U"])
     hj9 = N9.get("hojiri") or {}
     if hj9.get("enoki"):
         rows.append(["西の斜面(法尻の帯)", "高木", "エノキ", "%d 本" % len(hj9["enoki"]),
@@ -7073,8 +7139,26 @@ def chk_line(chk, nm):
 def walls_wired_check(d):
     """**郭の土留めの表が図に出ているか**(結線)。⛔ 0本でも表は刷る — 「無い」ことは
     設計判断なので、黙って消すと『土留めを検討したのか』が図から読めなくなる。
-    ⚠ 2026-09-02 の結線関門: `walls_table()` は書かれて**一度も走っていなかった**。"""
-    return []
+    ⚠ 2026-09-02 の結線関門: `walls_table()` は書かれて**一度も走っていなかった**。
+    ⛔ **2026-09-03 検図5巡目 K255: それでも `return []` の恒真のままだった。**
+    ⭕ いまは**表の中身を実際に作って**、①表が空でないこと ②宣言した土留めの本数と
+      表の行数が合うこと ③0本のときは『無い理由』の但し書きが載っていることを見る。"""
+    bad = []
+    try:
+        html = walls_table(d)
+    except Exception as e9:
+        return ["郭の土留めの表が組めない(%s: %s)" % (type(e9).__name__, e9)]
+    if not html or "<table" not in html:
+        bad.append("郭の土留めの表が刷られていない")
+        return bad
+    n9 = len(d.get("terraceWalls") or [])
+    rows = html.count("<tr>") - 1                      # ヘッダ行を除く
+    if n9 == 0:
+        if "郭内に土留めは無い" not in html:
+            bad.append("土留めが0本なのに『無い』の但し書きが表に無い")
+    elif rows != n9:
+        bad.append("土留めの表の行数 %d が宣言の本数 %d と合わない" % (rows, n9))
+    return bad
 
 
 # ================================================================ 西の斜面と溜池の岸
@@ -7273,21 +7357,35 @@ def data_wired_check(d):
 
 
 def taigan_layers(d):
-    """**対岸の汀の眼から見た「層の見かけの厚み」**(2026-09-03 考証 K211→K244・庭方 K230)。
+    """**対岸の汀の眼から見た層の見かけの厚み**【2026-09-03 庭方6巡目 K263 の式】。
 
-    ⭕ 眼は可視水面と同じ実線(`parcels.json` の対岸の東縁)の上・高さ `farEyeY`。
-      u ごとに、東を向いて ①林(下端の線〜法肩)②草地(帯の屋根の下手 or 林の下端 〜 辺5)
-      の**見かけの厚み[°]**と、参考に D1 の落差[m]を出す。
-    ⛔ 「二層に見える」を宣言で済ませない — **角度で測る**。"""
+    ⭐ 眼 E(u) = (u, farV(u), `farEyeY`)。`farV` は対岸の区画(`parcels.json`)の東縁の斜線。
+      ⛔ 眼の v を固定しない・⛔ 1断面で代表しない(庭方の 0.89° はその2つが原因だった)。
+    ⭐ d = (farV − v) × 1間、θ = atan2(y − 眼高, d)。
+      ・**林** = θ(法肩 `hokata.v1`, 地盤 + `canopyH`) − θ(林の下端 v(u), 地盤 + `underH`)
+      ・**草地** = θ(vG, **地盤**) − θ(vY, 葭の上端)
+        vG = max(林の下端 v(u), その u に掛かる棟の**最も汀寄りの v**)
+        ⛔ **屋根の高さは使わない**(これが恒真を避ける鍵 — 屋根を上げても厚くならない)
+        vY = 辺5の v(u) + (辺5の地盤 − 水面) × `batter` ÷ 1間(葭の上端)
+    ⚠ `canopyH` / `underH` / `farShoreY` は**確度U**。"""
     N9 = d.get("nishi") or {}
     K9 = d["const"]["ken"]
     seg = far_shore(d)
     hk = N9.get("hokata") or {}
-    eyeY = ((hk.get("shading") or {}).get("farEyeY")) or 10.55
+    sh9 = hk.get("shading") or {}
     hy = N9.get("hayashi") or {}
+    ts9 = N9.get("tsutsumi") or {}
     eg = [(a9, b9) for a9, b9 in (hy.get("edge") or [])]
     if not (seg and eg):
         return []
+    # ⭕ 眼高 = 対岸の汀の地盤 + 立位(基準身長から。⛔ 別の人の値を持たない)
+    eyeY = (sh9.get("farShoreY") if sh9.get("farShoreY") is not None else 9.00) \
+        + eye_above(d, "stand")
+    canopy = hy.get("canopyH", 12.0)
+    under = hy.get("underH", 3.0)
+    vTop = hk.get("v1", 111.0)
+    wy = ts9.get("waterY", 6.60)
+    bat = ts9.get("batter", 2.2)
 
     def edge_v(u9):
         if u9 <= eg[0][0]:
@@ -7298,74 +7396,64 @@ def taigan_layers(d):
                 return a9[1] + (b9[1] - a9[1]) * t9
         return eg[-1][1]
 
-    def far_v(u9):                              # 対岸の汀の v(斜線)
-        # ⛔ **`max(分母, 1e-9)` にしない** — 分母は**負にもなる**(この線は u が減る向き)。
-        #   2026-09-03: これで距離が 1e12 になり、角度が全部 0 に潰れていた。
+    def far_v(u9):
         (a9, b9) = seg
-        den = (b9[0] - a9[0]) or 1e-9
+        den = (b9[0] - a9[0]) or 1e-9          # ⛔ 符号を潰さない
         return a9[1] + (b9[1] - a9[1]) * ((u9 - a9[0]) / den)
     P9 = d["polygon"]
     e5 = (N9.get("saku") or {}).get("edge", 5)
     gr = RGrid(d)
-    pa, pb = [gr.L(*P9[e5]), gr.L(*P9[(e5 + 1) % len(P9)])]
+    pa, pb = gr.L(*P9[e5]), gr.L(*P9[(e5 + 1) % len(P9)])
 
-    def parcel_v(u9):                           # 辺5(区画界)の v(⛔ 分母の符号を潰さない)
+    def parcel_v(u9):
         den = (pb[0] - pa[0]) or 1e-9
         return pa[1] + (pb[1] - pa[1]) * ((u9 - pa[0]) / den)
 
-    def ang(u9, v9, y9):
-        dist = max((far_v(u9) - v9) * K9, 1e-9)
-        return math.degrees(math.atan2(y9 - eyeY, dist))
-    roofs = d.get("roofs") or {}
+    def th(u9, v9, y9):
+        return math.degrees(math.atan2(y9 - eyeY, max((far_v(u9) - v9) * K9, 1e-9)))
     out = []
     u9 = max(eg[0][0], -27.0)
     while u9 <= min(eg[-1][0], 22.0) + 1e-9:
-        vE = edge_v(u9)                          # 林の下端
-        vT = (hy.get("vTop") or 111.0)           # 法肩
-        yE = _dem_at(d, u9, vE); yT = _dem_at(d, u9, vT)
-        if yE is None or yT is None:
-            u9 += 1.0
-            continue
-        # 林の見かけ(下端の地盤 〜 法肩の樹冠の頭)
-        aF = ang(u9, vT, yT + (hy.get("takagiHMax") or 12.0)) - ang(u9, vE, yE)
-        # 草地の見かけ = **林の下端の角** − **手前で遮る物の角**
-        #   ⛔ 遮る物は下から食う — 帯の屋根が高い/汀寄りなら、その上端までが隠れる。
-        #   ⚠ 2026-09-03: 最初の式は「屋根の角 − 辺5の角」で、屋根を上げると草地が**厚く**なった
-        #     (=決して鳴らない恒真)。⭕ 上下を入れ替えた。
+        vE = edge_v(u9)
+        yE = _dem_at(d, u9, vE)
+        yT = _dem_at(d, u9, vTop)
         vP = parcel_v(u9)
         yP = _dem_at(d, u9, vP - 2.0)
-        if yP is None:
+        if None in (yE, yT, yP):
             u9 += 1.0
             continue
-        low = (vP, yP)                                   # 手前の遮り(既定=辺5の地盤)
+        aF = th(u9, vTop, yT + canopy) - th(u9, vE, yE + under)
+        # 草地の上端 — 林の下端 か、その u に掛かる棟の**最も汀寄りの v**(⛔ 屋根の高さは使わない)
+        vG = vE
         for o8 in obi_metrics(d):
             if o8["roofed"] and o8["u0"] - 0.5 <= u9 <= o8["u1"] + 0.5:
-                r8 = roofs.get("ObiNagaya") or {}
-                cand = (o8["v0"], (o8["y"] or 0) + r8.get("ridgeH", 0))
-                if ang(u9, cand[0], cand[1]) > ang(u9, low[0], low[1]):
-                    low = cand
-        top = (vE, yE)
-        aG = ang(u9, top[0], top[1]) - ang(u9, low[0], low[1])
+                vG = max(vG, o8["v1"])
+        yG = _dem_at(d, u9, vG) or yE
+        vY = vP + (yP - wy) * bat / K9          # 葭の上端(堤の法尻)
+        aG = th(u9, vG, yG) - th(u9, vY, wy + (ts9.get("yoshi") or {}).get("depthMin", 0.0) + 0.30)
         out.append({"u": u9, "forestDeg": aF, "grassDeg": aG,
-                    "d1DropM": yE - yP, "topV": top[0], "topY": top[1],
-                    "edgeV": vE, "edgeY": yE, "parcelV": vP, "parcelY": yP})
+                    "d1DropM": yE - yP, "topV": vG, "topY": yG,
+                    "edgeV": vE, "edgeY": yE, "parcelV": vP, "parcelY": yP,
+                    "yoshiV": vY, "eyeY": eyeY})
         u9 += 1.0
     return out
 
 
 def taigan_check(d):
-    """**対岸から二層に見えるか。**⚠ **合否はまだ出さない**(2026-09-03 指図方 → 庭方/考証)。
+    """**対岸から二層に見えるか。**⭕ 合否を開けた【2026-09-03 庭方6巡目 K263 で式が決まった】。
 
-    ⛔ 一度目の式(屋根の角 − 辺5の角)は**恒真**だった — 屋根を上げると草地が『厚く』なり、
-      どう壊しても鳴らなかった。⭕ 上下を入れ替えた式(林の下端の角 − 手前の遮りの角)は
-      **素の設計で 18 箇所が負**になる(u−22 で −2.05°)。
-    ⛔ **どちらの式が庭方の見立てかを決められないので、いまは数だけ刷って合否を出さない。**
-      ⭕ 図と表には両方の材料(林の厚み・草地の厚み・D1 の落差)を出してある。
-    ⚠ 庭方の版は u−12 で +0.89°(当図の同じ u は %s)。定義が揃ったらここを開ける。"""
-    L = taigan_layers(d)
-    q12 = next((q9 for q9 in L if abs(q9["u"] + 12) < 0.51), None)
-    _ = "%.2f°" % q12["grassDeg"] if q12 else "—"
-    return []
+    ⛔ 一度目の式(屋根の角 − 辺5の角)は**恒真**、二度目(林の下端 − 手前の遮り)は素で18件鳴った。
+    ⭕ 庭方の式は**屋根の高さを使わず**、棟の**汀寄りの縁の地盤**で草地の上端を切る。"""
+    bad = []
+    lim = ((d.get("nishi") or {}).get("hayashi") or {}).get("layerMinDeg", 0.5)
+    for q9 in taigan_layers(d):
+        if q9["grassDeg"] < lim - 1e-9:
+            bad.append("対岸から見た**草地の層**が u%+.0f で %.2f° しかない — %.2f° 以上要る"
+                       "(⚠ 棟が汀へ寄ると草地が食われる)" % (q9["u"], q9["grassDeg"], lim))
+        if q9["forestDeg"] < lim - 1e-9:
+            bad.append("対岸から見た**林の層**が u%+.0f で %.2f° しかない — %.2f° 以上要る"
+                       % (q9["u"], q9["forestDeg"], lim))
+    return bad
 
 
 def far_shore(d):
@@ -7503,7 +7591,7 @@ def saka_forest(d):
     ar = 0.0
     u8 = min(us)
     while u8 < max(us):
-        ar += max(0.0, edge_v(u8) - (hy.get("vTop") or 111.0)) * 0.5
+        ar += max(0.0, edge_v(u8) - hy.get("vTop", 111.0)) * 0.5
         u8 += 0.5
     ar *= K9 * K9
     tg = sum(q["n"] for q in (hy.get("takagi") or []))
@@ -7606,9 +7694,27 @@ def ramp_metrics(d, rp):
             continue
         cs = max(-1.0, min(1.0, (v1[0] * v2[0] + v1[1] * v2[1]) / (n1 * n2)))
         ts.append(math.degrees(math.acos(cs)))
+    # ⭕ **`stepWinKen` 間の窓の局所もここで測る**(2026-09-03 庭方5巡目 K233) —
+    #   検査の中で後から足していたので、表は常に 0.00% を刷っていた(死値と同じ)。
+    loc = 0.0
+    win = rp.get("stepWinKen")
+    if win:
+        for a8, b8 in zip(pts, pts[1:]):
+            Lk = math.hypot(b8[0] - a8[0], b8[1] - a8[1])
+            n8 = max(1, int(math.ceil(Lk / win)))
+            for k8 in range(n8):
+                p8 = (a8[0] + (b8[0] - a8[0]) * k8 / n8, a8[1] + (b8[1] - a8[1]) * k8 / n8)
+                q8 = (a8[0] + (b8[0] - a8[0]) * (k8 + 1) / n8,
+                      a8[1] + (b8[1] - a8[1]) * (k8 + 1) / n8)
+                ya, yb = _dem_at(d, p8[0], p8[1]), _dem_at(d, q8[0], q8[1])
+                L8 = math.hypot(q8[0] - p8[0], q8[1] - p8[1]) * K
+                if ya is None or yb is None or L8 < 1e-6:
+                    continue
+                loc = max(loc, 100.0 * abs(yb - ya) / L8)
     return {"len": round(sum(ls), 1), "rise": round(max(ys) - min(ys), 2),
             "grad": round(max(gs), 1), "gradAt": gs.index(max(gs)),
-            "leg": round(min(ls), 1), "turn": round(max(ts), 1) if ts else 0.0}
+            "leg": round(min(ls), 1), "turn": round(max(ts), 1) if ts else 0.0,
+            "local": round(loc, 2)}
 
 
 def ramp_check(d):
@@ -7812,6 +7918,31 @@ def obi_check(d):
     for nm9 in (obi.get("komono") or []):
         if not any(nm9 == s9.get("name") for s9 in d.get("service", []) + d.get("wells", [])):
             bad.append("\u5e2f\u306e\u5c0f\u7269\u300e%s\u300f\u304c\u5b9f\u4f53\u306b\u7121\u3044" % nm9)
+    # ⛔ **軒線が見透しの窓(扇)へ入らない**(2026-09-03 検図5巡目 K251)
+    K8 = d["const"]["ken"]
+    nk8 = obi.get("nokiOut", 0.0) / K8
+    for o9 in obi_metrics(d):
+        if not o9["roofed"]:
+            continue
+        worst = None
+        for u8 in (o9["u0"] - nk8, o9["u1"] + nk8):
+            for v8 in (o9["v0"] - nk8, o9["v1"] + nk8):
+                ax8 = axis_at(d, v8)
+                if not ax8:
+                    continue
+                inn = min(u8 - ax8[0], ax8[1] - u8)      # 正なら扇の中
+                if inn > 0 and (worst is None or inn > worst[0]):
+                    worst = (inn, u8, v8)
+        if worst:
+            bad.append("帯の『%s』の軒先が見透しの窓へ %.2fm 入る((%.2f, %.2f))— "
+                       "南へ寄せるか u1 を詰める" % (o9["name"], worst[0] * K8,
+                                                  worst[1], worst[2]))
+    # ⛔ **宣言した垣が実体を指しているか**(2026-09-03 庭方5巡目 K235)
+    for f9 in (obi.get("fences") or []):
+        at9 = f9.get("at")
+        if not any(at9 == s9.get("name") for s9 in d.get("service", []) + d.get("wells", [])):
+            bad.append("帯の垣『%s h%.1f』の相手『%s』が実体に無い"
+                       % (f9.get("kata", ""), f9.get("h", 0), at9))
     rf = (d.get("roofs") or {}).get("ObiNagaya") or {}
     if "盲面" not in str(rf.get("mado", "")):
         bad.append("崖下の長屋の**水側(西)を盲面にする**宣言が屋根の欄に無い")
@@ -8410,12 +8541,17 @@ def nishi_check(d):
         cl7 = md7.get("clearance", 1.0)
         rf7 = d.get("roofs") or {}
         apex = []
+        nk7 = (N.get("obi") or {}).get("nokiOut", 0.0) / K      # 軒の出[間]
         for s7 in d.get("service", []):            # 崖下の帯の棟(実寸の棟高を持つ)
             if not s7.get("obi") or not s7.get("roof"):
                 continue
             r7 = rf7.get(s7["roof"]) or {}
-            for u8 in (s7["u0"], (s7["u0"] + s7["u1"]) / 2.0, s7["u1"]):
-                for v8 in (s7["v0"], (s7["v0"] + s7["v1"]) / 2.0, s7["v1"]):
+            # ⭕ **軒線の矩形**で総当たり(2026-09-03 考証 K228 / 検図 K251) —
+            #   躯体の隅だけ見ると、軒先が扇へ入っていても丸ごと素通りする。
+            for u8 in (s7["u0"] - nk7, (s7["u0"] + s7["u1"]) / 2.0, s7["u1"] + nk7):
+                for v8 in (s7["v0"] - nk7, (s7["v0"] + s7["v1"]) / 2.0, s7["v1"] + nk7):
+                    apex.append(("%s の軒先" % (s7.get("label") or s7["name"]), u8, v8,
+                                 (s7.get("y") or 0) + r7.get("eaveH", 0)))
                     apex.append((s7.get("label") or s7["name"], u8, v8,
                                  (s7.get("y") or 0) + r7.get("ridgeH", 0)))
         sh7 = (N.get("hokata") or {}).get("shading") or {}
@@ -8475,7 +8611,14 @@ def nishi_check(d):
         hk9 = N.get("hokata") or {}
         if hk9.get("spans") and hk9.get("v0") is not None:
             vm8 = (hk9["v0"] + hk9.get("v1", hk9["v0"])) / 2.0
-            _kata("法肩の松の口", hk9["spans"][0][1], vm8, hk9["spans"][-1][0], vm8)
+            ax8 = axis_at(d, vm8) or (0.0, 0.0)
+            # ⭕ **窓を挟む肩**を選ぶ(⛔ 区間の一番端どうしではない) —
+            #   2026-09-03 庭方6巡目 K262 で南が3区間に割れ、端が窓から 20間 離れた。
+            sS = max((q8[1] for q8 in hk9["spans"] if q8[1] <= ax8[0] + 1e-9),
+                     default=hk9["spans"][0][1])
+            sN = min((q8[0] for q8 in hk9["spans"] if q8[0] >= ax8[1] - 1e-9),
+                     default=hk9["spans"][-1][0])
+            _kata("法肩の松の口", sS, vm8, sN, vm8)
         if mm9.get("hayashiGapAt"):
             a9, b9 = mm9["hayashiGapAt"]
             _kata("林の下端の口", a9[0], a9[1], b9[0], b9[1])
@@ -8592,55 +8735,125 @@ def slope_table(d):
 def nishi_cross_svg(d, vCut):
     """**西の岸 — 南北の横断**(v を固定して u を横に取る)。
 
-    ⚠ 2026-09-03 検図4巡目: 汀・柵・木戸・杭・堤・葭・蓮を**横断する断面が一枚も無かった**。
-      縦断だけでは「u ごとに天端が振れる」ことも「木戸が一箇所」であることも図で確かめられない。
-    ⛔ 区画界より外は地形DEMから拾わない(設計線)。"""
+    ⚠ 2026-09-03 検図5巡目 K247 で作り直した。⛔ 前の版は
+      ① 区画の外の近代の地面を実線で描き(自分のキャプションに反する)
+      ② 汀の柵を断面の全幅に19本立て(実体は**辺5との交点の1本**)
+      ③ 区画界の縦線が無く ④ 堤・葭・杭・蓮を一つも描かなかった。
+    ⭐ **辺5は斜めに走る**ので、v を固定した断面は**1点でしか区画界を切らない**。
+      その点より西は**設計線**(堤 1:`batter` → 水面 → 葭 → 杭 → 蓮)で描く。"""
     N = d.get("nishi") or {}
     ts = N.get("tsutsumi") or {}
+    sk = N.get("saku") or {}
     K = d["const"]["ken"]
-    W, H = 900.0, 300.0
+    W, H = 900.0, 320.0
     o = _sv(W, H, "西の岸(横断 v=%.0f)" % vCut)
-    us = [q / 2.0 for q in range(-2 * 30, 2 * 25)]
-    prof = [(u9, _dem_at(d, u9, vCut)) for u9 in us]
-    prof = [(a, b) for a, b in prof if b is not None]
+    # ① 区画の中だけを実測で拾う(⛔ 外は拾わない)
+    us = [q / 4.0 for q in range(-4 * 30, 4 * 25)]
+    prof = [(u9, _dem_at(d, u9, vCut)) for u9 in us if in_parcel(d, u9, vCut)]
+    prof = [(a9, b9) for a9, b9 in prof if b9 is not None]
     if not prof:
         return ""
-    u0, u1 = prof[0][0] - 1.0, prof[-1][0] + 1.0
+    # ② 辺5(区画界)をこの v で切る u
+    P9 = d["polygon"]
+    e5 = sk.get("edge", 5)
+    gr = RGrid(d)
+    pa, pb = gr.L(*P9[e5]), gr.L(*P9[(e5 + 1) % len(P9)])
+    uPar = None
+    if abs(pb[1] - pa[1]) > 1e-9:
+        s9 = (vCut - pa[1]) / (pb[1] - pa[1])
+        if -0.01 <= s9 <= 1.01:
+            uPar = pa[0] + (pb[0] - pa[0]) * s9
+    u0 = min(q[0] for q in prof) - 1.0
+    u1 = (uPar if uPar is not None else max(q[0] for q in prof)) + 6.0
     y0, y1 = 4.0, max(q[1] for q in prof) + 3.0
 
     def X(u9):
         return 52.0 + (W - 66.0) * (u9 - u0) / (u1 - u0)
 
     def Y(y9):
-        return H - 36.0 - (H - 64.0) * (y9 - y0) / (y1 - y0)
+        return H - 46.0 - (H - 76.0) * (y9 - y0) / (y1 - y0)
     for y9 in range(int(y0), int(y1) + 1, 2):
         o.append(LN(X(u0), Y(y9), X(u1), Y(y9), "var(--rule)", 0.6))
         o.append(T(46, Y(y9) + 4, "%d" % y9, "jo", "end"))
     wy = ts.get("waterY", 6.60)
-    o.append(R(X(u0), Y(wy), X(u1) - X(u0), Y(y0) - Y(wy), fill="var(--ike)", op=0.35))
-    o.append('<polyline points="%s" fill="none" stroke="var(--ink)" stroke-width="1.6"/>'
-             % " ".join("%.1f,%.1f" % (X(a), Y(b)) for a, b in prof))
-    # 柵(区画界の上・全長)と木戸
-    sk = N.get("saku") or {}
-    if sk.get("h"):
-        for u9, y9 in prof[::6]:
-            o.append(LN(X(u9), Y(y9), X(u9), Y(y9 + sk["h"]), "#6B5637", 1.0))
-        o.append(T(X(prof[len(prof) // 2][0]), Y(prof[len(prof) // 2][1] + sk["h"]) - 6,
-                   "汀の柵 h%.1f(辺%s の全長)" % (sk["h"], sk.get("edge", "")), "jo", "middle"))
+    o.append(R(X(u0), Y(wy), X(u1) - X(u0), Y(y0) - Y(wy), fill="var(--ike)", op=0.30))
+    o.append('<polyline points="%s" fill="none" stroke="var(--ink)" stroke-width="1.8"/>'
+             % " ".join("%.1f,%.1f" % (X(a9), Y(b9)) for a9, b9 in prof))
+    # ③ 区画界の縦線と、そこに立つ**1本**の柵
+    if uPar is not None:
+        yPar = _dem_at(d, uPar - 0.3, vCut) or prof[-1][1]
+        o.append(LN(X(uPar), Y(y0), X(uPar), Y(y1), "var(--shu)", 1.2, dash="4 3"))
+        o.append(T(X(uPar), Y(y1) - 6, "区画界(辺%s)" % e5, "jo", "middle"))
+        o.append(T(X(uPar) + 5, Y(y1) + 8, "← 実測　設計線 →", "jo"))
+        if sk.get("h"):
+            o.append(LN(X(uPar), Y(yPar), X(uPar), Y(yPar + sk["h"]), "#6B5637", 2.4))
+            o.append(T(X(uPar) - 6, Y(yPar + sk["h"]) - 4,
+                       "汀の柵 h%.1f(1本)" % sk["h"], "jo", "end"))
+        # ④ 外は設計線 — 堤 1:batter → 水面 → 葭 → 杭 → 蓮
+        bat = ts.get("batter", 2.2)
+        mg = (yPar - wy) * bat / K                      # 水面までの水平[間]
+        o.append('<polyline points="%s" fill="none" stroke="var(--nagaya)" stroke-width="2.2" '
+                 'stroke-dasharray="7 4"/>'
+                 % " ".join("%.1f,%.1f" % (X(a9), Y(b9))
+                            for a9, b9 in ((uPar, yPar), (uPar + mg, wy))))
+        o.append(T(X(uPar + mg / 2), Y((yPar + wy) / 2) - 6,
+                   "E 堤(1:%.1f・%.1fm)" % (bat, mg * K), "jo", "middle"))
+        ys9 = ts.get("yoshi") or {}
+        o.append(R(X(uPar + mg), Y(wy + ys9.get("hMax", 2.0)),
+                   max(X(uPar + mg + ys9.get("wMax", 6.0) / K) - X(uPar + mg), 1.0),
+                   abs(Y(wy + ys9.get("hMax", 2.0)) - Y(wy)), fill="#9FB98C", op=0.5))
+        o.append(T(X(uPar + mg) + 4, Y(wy + ys9.get("hMax", 2.0)) - 4,
+                   "F 葭原(幅 %.0f〜%.0fm・稈高 %.1f〜%.1fm)"
+                   % (ys9.get("wMin", 0), ys9.get("wMax", 0),
+                      ys9.get("hMin", 0), ys9.get("hMax", 0)), "jo"))
+        ku9 = N.get("kuiretsu") or {}
+        if ku9:
+            hd = wy + (ku9.get("topMin", 0.25) + ku9.get("topMax", 0.45)) / 2.0
+            for i9 in range(7):
+                uk = uPar + mg + i9 * 0.25
+                o.append(LN(X(uk), Y(hd), X(uk), Y(wy - 0.6), "#6B5637", 1.0))
+            o.append(T(X(uPar + mg) + 4, Y(hd) + 12, "杭列(汀線)", "jo"))
+        hs9 = ts.get("hasu") or {}
+        u3 = uPar + mg + hs9.get("fromM", 8.0) / K
+        u4 = uPar + mg + hs9.get("toM", 30.0) / K
+        o.append(R(X(min(u3, u1)), Y(wy + hs9.get("leafMax", 0.9)),
+                   max(X(min(u4, u1)) - X(min(u3, u1)), 1.0),
+                   abs(Y(wy + hs9.get("leafMax", 0.9)) - Y(wy)), fill="#6E8B4E", op=0.5))
+        o.append(T(X(min(u3, u1)) + 4, Y(wy + hs9.get("leafMax", 0.9)) - 4,
+                   "G 蓮(汀から %.0f〜%.0fm)" % (hs9.get("fromM", 0), hs9.get("toM", 0)), "jo"))
+    # ⑤ 木戸は「その v の断面が木戸を切るとき」だけ
     kd = sk.get("kido") or {}
-    if kd and abs(kd.get("v", 0) - vCut) < 4.0:
-        o.append(LN(X(kd["u"]), Y(y0), X(kd["u"]), Y(y1), "var(--shu)", 1.2, dash="4 3"))
-        o.append(T(X(kd["u"]), Y(y1) - 6, "木戸(見透しの口・敷居 %.2f)" % (kd.get("groundY") or 0),
+    if kd and abs(kd.get("v", 0) - vCut) < 0.75:
+        o.append(LN(X(kd["u"]), Y(y0), X(kd["u"]), Y(y1), "var(--shu)", 1.6))
+        o.append(T(X(kd["u"]), Y(y1) - 18, "木戸(敷居 %.2f)" % (kd.get("groundY") or 0),
                    "jo", "middle"))
-    # 見透しの窓の口(この v での u の幅)
-    ax = axis_at(d, vCut)
-    if ax:
-        o.append(R(X(ax[0]), Y(y1) - 12, X(ax[1]) - X(ax[0]), 10, fill="var(--shirasu)", op=0.8))
-        o.append(T((X(ax[0]) + X(ax[1])) / 2, Y(y1) - 16, "見透しの窓 u%.1f〜%.1f" % ax, "jo", "middle"))
-    o.append(T(52, H - 12, "u[間](左=北 / 右=南)／ 縦は標高[m]。"
-                           "⛔ **区画界より外(西)は設計線** — この断面は区画の中だけ", "anS2"))
+    # ⑥ 崖下の棟をこの断面が切るなら描く
+    rf9 = (d.get("roofs") or {}).get("ObiNagaya") or {}
+    for o9 in obi_metrics(d):
+        if not (o9["v0"] <= vCut <= o9["v1"]) or not o9["roofed"]:
+            continue
+        yb = o9["y"] or 0
+        o.append(R(X(o9["u0"]), Y(yb + rf9.get("eaveH", 2.7)), X(o9["u1"]) - X(o9["u0"]),
+                   abs(Y(yb + rf9.get("eaveH", 2.7)) - Y(yb)), fill="#8A8A80", op=0.8))
+        o.append('<polygon points="%.1f,%.1f %.1f,%.1f %.1f,%.1f" fill="#4A4A52"/>'
+                 % (X(o9["u0"] - 0.5), Y(yb + rf9.get("eaveH", 2.7)),
+                    X((o9["u0"] + o9["u1"]) / 2), Y(yb + rf9.get("ridgeH", 4.3)),
+                    X(o9["u1"] + 0.5), Y(yb + rf9.get("eaveH", 2.7))))
+        o.append(T(X((o9["u0"] + o9["u1"]) / 2), Y(yb + rf9.get("ridgeH", 4.3)) - 5,
+                   o9["name"], "jo", "middle"))
+    ex = _vexag(X, Y, K)
+    o.append(T(52, H - 12, "u[間](左=南 / 右=北)／ 縦は標高[m]・**縦%.2f倍**。"
+               "⚠ **辺5は斜めに走る**ので、この断面が区画界を切るのは<b>1点だけ</b>"
+               "(u%.1f)。その西は設計線" % (ex, uPar if uPar is not None else 0), "anS2"))
     o.append("</svg>")
     return "\n".join(o)
+
+
+def _vexag(X, Y, K):
+    """縦の誇張倍率(横1間=K[m] に対する縦[m]の倍率)。⛔ 「誇張なし」と書かない(K252)。"""
+    dx = abs(X(1.0) - X(0.0)) / K            # px / 横1m
+    dy = abs(Y(1.0) - Y(0.0))                # px / 縦1m
+    return dy / dx if dx > 1e-9 else 1.0
 
 
 def nishi_plan_svg(d):
@@ -8673,6 +8886,18 @@ def nishi_plan_svg(d):
         o.append('<polyline points="%s" fill="none" stroke="#3E5A30" stroke-width="2.0"/>'
                  % " ".join("%.1f,%.1f" % (pr.X(a), pr.Y(b)) for a, b in west))
         o.append(T(pr.X(-22), pr.Y(120), hy.get("label", "林"), "anS2", "middle"))
+    # ⭕ **床几(見所⑨)と視軸**(2026-09-03 庭方5巡目 K239) — 起点が図に無いと視軸を指せない。
+    ey9 = (N.get("mado") or {}).get("eye") or {}
+    if ey9.get("u") is not None:
+        fan9 = (N.get("mado") or {}).get("fan") or []
+        if fan9:
+            for uEnd in (fan9[-1][1], fan9[-1][2]):
+                o.append(LN(pr.X(ey9["u"]), pr.Y(ey9["v"]), pr.X(uEnd), pr.Y(fan9[-1][0]),
+                            "var(--shu)", 0.8, dash="3 3"))
+        o.append('<circle cx="%.1f" cy="%.1f" r="4" fill="var(--shu)"/>'
+                 % (pr.X(ey9["u"]), pr.Y(ey9["v"])))
+        o.append(T(pr.X(ey9["u"]) + 8, pr.Y(ey9["v"]) + 4, "⑨ 床几(眼 %.2f)"
+                   % (ey9.get("eyeY") or 0), "jo"))
     # 見透しの窓(扇)
     fan = (N.get("mado") or {}).get("fan") or []
     if fan:
@@ -8734,11 +8959,11 @@ def nishi_plan_svg(d):
         o.append(T(pr.X((yd["u0"] + yd["u1"]) / 2), pr.Y(yd["v1"]) + 10, "ヤダケの一叢", "jo", "middle"))
     # 法肩の松
     hk = N.get("hokata") or {}
-    for a9, b9 in (hk.get("spans") or []):
-        n9 = max(2, int(round((b9 - a9) / 3.75)))
-        for i9 in range(n9):
-            u = a9 + (b9 - a9) * (i9 + 0.5) / n9
-            o.append(_tree(pr, u, (hk["v0"] + hk["v1"]) / 2.0, 5.0, "#2F5A2F"))
+    # ⛔ **平面が別の割り付けで描かない**(2026-09-03 庭方5巡目 K234) —
+    #   検査は `hokata_pts`(区間ごとの本数・振れ・口の避け)を見るのに、
+    #   図は等間隔の別ループで12本描いていた。⭕ 正典は一つ。
+    for _i9, u9, v9 in hokata_pts(d):
+        o.append(_tree(pr, u9, v9, 5.0, "#2F5A2F"))
     # 榎
     for e in ((N.get("hojiri") or {}).get("enoki") or []):
         o.append(_tree(pr, e["u"], e["v"], 8.0, "#7A5C3A"))
@@ -8837,7 +9062,17 @@ def nishi_sec_svg(d, axisU=None, inForest=False):
     # ---- 区画界の外は設計線(堤 → 葭 → 蓮)
     if vpar is not None and ts.get("y0") is not None:
         vt = vpar
-        dv = ts.get("mizugiwaM", 0.0) / K
+        # ⛔ **法線方向の距離を v 軸へそのまま置かない**(2026-09-03 検図5巡目 K253) —
+        #   辺5は斜めなので、法線の 10.05m を v へ置くと図上の法が 1:1.99(宣言 1:2.2 より急)になる。
+        #   ⭕ **v 方向へ投影**する(cosθ で割る)。θ は辺5の法線と v 軸のなす角。
+        P8 = d["polygon"]
+        e8 = (N.get("saku") or {}).get("edge", 5)
+        nx8, nz8 = _inward(P8, e8)
+        gr8 = RGrid(d)
+        o8 = gr8.L(0.0, 0.0)
+        n8 = gr8.L(nx8, nz8)
+        cos8 = abs(n8[1] - o8[1]) or 1.0                # 法線の v 成分(単位ベクトル)
+        dv = ts.get("mizugiwaM", 0.0) / K / cos8
         line = [(vt, ts["y0"]), (vt + dv, ts["y1"])]
         o.append('<polyline points="%s" fill="none" stroke="var(--nagaya)" stroke-width="2.2" '
                  'stroke-dasharray="7 4"/>'
@@ -8845,7 +9080,8 @@ def nishi_sec_svg(d, axisU=None, inForest=False):
         o.append(T(X(vt + dv / 2) , Y((ts["y0"] + ts["y1"]) / 2) - 8, "E 堤(設計線 1:%.1f)"
                    % ts.get("batter", 2.2), "jo", "middle"))
         vy = vt + dv
-        vy2 = vy + 1.2
+        ys8 = ts.get("yoshi") or {}
+        vy2 = vy + (ys8.get("wMax", 6.0) / K / cos8)     # ⭕ 葭の幅は宣言から(⛔ 直書きしない)
         o.append(R(X(vy), Y(ts["y1"] + 2.2), X(vy2) - X(vy), abs(Y(ts["y1"] + 2.2) - Y(ts["y1"])),
                    fill="#9FB98C", op=0.65))
         o.append(T(X(vy2) + 4, Y(ts["y1"]) - 4, "F 葭原(%.2f→%.2f・稈高 %.1f〜%.1f)"
@@ -8865,8 +9101,9 @@ def nishi_sec_svg(d, axisU=None, inForest=False):
             o.append(T(X(vy2 - 0.1), Y(hd) - 6, "杭列(約 %d 本・頭 水面+%.2f〜%.2f)"
                        % (_kui_n(d), ku9.get("topMin", 0), ku9.get("topMax", 0)), "jo", "middle"))
         hs = ts.get("hasu") or {}
-        v3 = vy2 + hs.get("fromM", 8.0) / K
-        v4 = min(v1, vy2 + hs.get("toM", 30.0) / K)
+        # ⭕ 蓮は**汀線から**測る(⛔ 葭の沖端からではない)
+        v3 = vy + hs.get("fromM", 8.0) / K / cos8
+        v4 = min(v1, vy + hs.get("toM", 30.0) / K / cos8)
         o.append(R(X(v3), Y(wy + hs.get("leafMax", 0.9)), X(v4) - X(v3),
                    abs(Y(wy + hs.get("leafMax", 0.9)) - Y(wy)), fill="#6E8B4E", op=0.55))
         o.append(T(X((v3 + v4) / 2), Y(wy + hs.get("leafMax", 0.9)) - 5,
@@ -8913,7 +9150,8 @@ def nishi_sec_svg(d, axisU=None, inForest=False):
                  % (X(mk["v"]), Y(mk.get("eyeY", wy))))
         o.append(T(X(mk["v"]), Y(mk.get("eyeY", wy)) - 8,
                    "%s %s" % (MARU[mk["no"] - 1], mk.get("label", "")), "jo", "middle"))
-    o.append(T(52, H - 10, "横軸=v(グリッド)／ 縦=標高[m]・**誇張なし**。帯は標高で切る", "anS2"))
+    o.append(T(52, H - 10, "横軸=v(グリッド)／ 縦=標高[m]・**縦%.2f倍**。帯は標高で切る"
+               % _vexag(X, Y, K), "anS2"))
     o.append("</svg>")
     return "\n".join(o)
 
@@ -8946,7 +9184,7 @@ def nishi_table(d):
             ("%.0f m²" % mm["seeM2"]) if mm.get("seeM2") else "—",
             ("%.0f〜%.0f m" % tuple(mm["seeFromRange"])) if mm.get("seeFromRange") else "—",
             ("%.2f°" % mm["seeAngDeg"]) if mm.get("seeAngDeg") else "—")],
-        ["窓のクロマツ 3本",
+        ["窓の松2本 + 窓の外の松1本(三本一組)",
          " ／ ".join("<b>%s</b>(%+.1f, %.1f)丈 <b>%.2f</b>%s"
                     % (m9["name"], m9["u"], m9["v"], m9["h"],
                        ("(意匠 %.1f / 頭打ち %.2f = その点の上限 %.2f − %.1f)"
@@ -9008,7 +9246,9 @@ def nishi_table(d):
              (saka_forest(d) or {}).get("cutM2", 0), (saka_forest(d) or {}).get("pct", 0),
              (saka_forest(d) or {}).get("takagi", 0), (saka_forest(d) or {}).get("chuboku", 0),
              _rp9["earth"]["kiridoM3"], _rp9["earth"]["kiridoMax"],
-             _rp9["earth"]["moridoM3"], _rp9["earth"]["moridoMax"]))
+             _rp9["earth"]["moridoM3"], _rp9["earth"]["moridoMax"])
+          + "<br>⛔ <b>伐った高木の分を他所へ足さない</b>(K207)— 代わりに"
+            "<b>筋の両側へ低木のマント(帯C の樹種)を寄せて</b>切り口の裾を閉じる")
          if (_rp9 := next((q for q in d.get("ramps", []) if q.get("cutW")), None)) else "—"],
         ["法尻の帯(草地)",
          "%s ／ ススキ %d〜%d 株(丈 %.1f〜%.1fm・棟から %.1f間 以上・v%.0f〜%.0f)"
@@ -9038,7 +9278,7 @@ def nishi_table(d):
                        for f9 in ((N.get("obi") or {}).get("fences") or [])),
              cert_sig(d, N.get("obi") or {})))
          if N.get("obi") else "—"],
-        ["法尻の余地(裁定6=B。⛔ 棟はまだ置かない=裁定8)",
+        ["法尻の余地(裁定8=A で南に一組を置いた**残り**)",
          " ／ ".join("<b>%s %.0f 坪</b>・勾配 %.1f〜%.1f%%" % (y9["label"], y9["tsubo"],
                                                           y9["gMin"], y9["gMax"])
                     for y9 in yochi_metrics(d)) or "—"],
@@ -9330,13 +9570,19 @@ def _gp_walk(o, parts):
     return _gp_walk(o[k], parts[1:])
 
 
+GP_DEAD = []
+
+
 def _gp_strip(x):
+    """`GEN_PATHS` の欄を剥がす。⛔ **解決先0件のパスは `GP_DEAD` に積む**(検査が拾う)。
+
+    ⚠ 2026-09-03 検図5巡目 K255: print 止まりだったので、html の往復試験は 0件 と刷っていた
+      (K181 の直しが**報告経路まで届いていなかった**)。"""
+    del GP_DEAD[:]
     for p9 in GEN_PATHS:
         got = _gp_walk(x, p9.split("."))
         if not got:
-            # ⛔ **解決先が0件のパスを黙って通さない**(2026-09-03 検図4巡目) —
-            #   欄の名を変えた瞬間に、そのパスは往復試験の網から静かに外れる。
-            print("   ⛔ GEN_PATHS『%s』が指す欄が1つも無い(綴りか構造が変わった)" % p9)
+            GP_DEAD.append(p9)
         for par, k in got:
             par.pop(k, None)
 
@@ -9762,7 +10008,11 @@ def fix_edge_profile(x):
     _dem_at(x, 0, 0)
     P9 = x["polygon"]
     gr9 = RGrid(x)
-    inw = x["const"].get("edgeInKen", 1.0)
+    # ⛔ **内寄せの物差しを二つ持たない**(2026-09-03 検図5巡目 K254) —
+    #   `edge_datum_table` は堤の天端と同じ `sampleInKen`(2.0間・辺の法線)で読む。
+    #   ⭕ ここも同じ値・同じ向き(辺の法線)に揃える。
+    inw = ((x.get("nishi") or {}).get("tsutsumi") or {}).get("sampleInKen",
+                                                             x["const"].get("edgeInKen", 1.0))
     ep = {}
     cu, cv = 0.0, 0.0
     for p9 in P9:
@@ -9782,9 +10032,11 @@ def fix_edge_profile(x):
                 #   ⚠ 他の辺は区画線の上が隣家との協定で正本に一致しており、
                 #     外周の塀・基壇はその高さに載っている。内側へ寄せると協定が破れる
                 #     (2026-09-03: 全辺へ当てたら塀の天端の指摘が 0 → 32件 出た)。
-                du, dv = cu - u9, cv - v9             # 区画の内側へ向く単位ベクトル
-                nn = math.hypot(du, dv) or 1.0
-                y9 = _dem_at(x, u9 + du / nn * inw, v9 + dv / nn * inw)
+                # ⭕ **辺の法線**で内へ入る(⛔ 重心方向にしない=辺ごとに向きが揺れる)
+                nx8, nz8 = _inward(P9, i9)
+                q8 = gr9.L(x9 + nx8 * inw * x["const"]["ken"],
+                           z9 + nz8 * inw * x["const"]["ken"])
+                y9 = _dem_at(x, q8[0], q8[1])
                 if y9 is None:
                     y9 = _dem_at(x, u9, v9)
             else:
@@ -10022,6 +10274,7 @@ def roundtrip_check(raw, pipeline):
             for k in keys:
                 o.pop(k, None)
     _gp_strip(stripped)                        # 入れ子の中の算出値も剥がす
+    dead9 = list(GP_DEAD)                      # ⭕ 解決先0件のパスは往復試験の指摘として出す
     if "edgeProfile" in stripped:              # 値だけ消し、辺の別は残す(入力)
         stripped["edgeProfile"] = dict((k, []) for k in stripped["edgeProfile"])
     ge9 = stripped["gate"]["edge"]
@@ -10077,6 +10330,9 @@ def roundtrip_check(raw, pipeline):
             continue
         for k in GEN_FIELDS_GATE:
             _cmp("runs %s.%s(門の開口側の端)" % (r9["name"], k), r9.get(k), by[r9["name"]].get(k))
+    for p9 in dead9:
+        bad.append("GEN_PATHS『%s』が指す欄が1つも無い(綴りか構造が変わった)— "
+                   "そのパスは往復試験の網から外れている" % p9)
     return bad
 
 
@@ -10407,7 +10663,7 @@ def main():
 
     if d.get("routes"):
         plate(h, nx(), "動線(表門を入ってからどう動くか)", "系統4つ ／ すべて【設計判断U】")
-        fig(h, routes_svg(d, -42, 32, -4, 112),
+        fig(h, routes_svg(d, -42, 32, -4, 150),
             legend="".join('<span style="color:%s">━ %s</span>' % (c, n) for c, n in
                            [RK["omote"], RK["yaku"], RK["katte"], RK["oku"]]),
             cap="<b>門の軸(朱)が屋敷の背骨。</b>表門から御式台まで一本で通し、登るほど格が上がる — "
@@ -10424,7 +10680,8 @@ def main():
                  '米俵・薪を担いで通れるよう段を刻まない。'
                  '袋小路の通用口は<b>両家とも開く</b>(2026-08-23 ユーザー裁定) — '
                  '口に辻番を置く行き止まりの小路が存在する理由は、両家の勝手口を兼ねる形がよく説明する。</p>'
-                 % (rp0.get("name", "R_Ramp"), rp0.get("len", 0), rp0.get("gradMax", 0)))
+                 % (rp0.get("name", "R_Ramp"), rp0.get("len", 0),
+                    (ramp_metrics(d, rp0) or {}).get("grad", 0)))
         h.append("</div>")
 
     plate(h, nx(), "棟と室",

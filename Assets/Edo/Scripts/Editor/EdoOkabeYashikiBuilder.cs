@@ -506,7 +506,8 @@ public static class EdoOkabeYashikiBuilder
     //   ・表門(長屋門・辺12 s6.189〜22.551)… 指図の `gate.asset` が「要選定」のまま
     //   ・表長屋 `E_Nagaya_S`/`E_Nagaya_N` … 該当長の部材が未生成。加えて指図の
     //     `const.nagayaH` 5.30 が在庫(平屋 5.509 / 二階 7.183)のどちらとも合わない
-    //   ・通用口 `Tsuyodo`(辺10 s=8.0・棟門)… 型式に対応する部材が未指定
+    //   ⭕ **通用口 `Tsuyodo` は建つ**(2026-09-04 部材方が棟門を新造・登録) — 裁定3=B で
+    //     次巡に回した3件のうち、部材が揃ったこれだけ前倒しした。
     //   ⚠ よって辺12 の 96.4m は素通しのまま残る。`ClosureQA` がその長さを数字で出す。
     //
     // 【開口は run の s が既に避けてある】表門は E_Nagaya_S/N の間、通用口は
@@ -585,6 +586,9 @@ public static class EdoOkabeYashikiBuilder
         // ---- 石垣基壇 --------------------------------------------------
         sb.AppendLine(PlaceIshigaki());
 
+        // ---- 通用口(小門)----------------------------------------------
+        sb.AppendLine(PlaceKomon());
+
         // ---- 木柵 ------------------------------------------------------
         sb.AppendLine(PlaceFences());
 
@@ -645,6 +649,73 @@ public static class EdoOkabeYashikiBuilder
         if (miss.Count > 0)
             sb.Append("\n★ 算出物 base に無い run " + miss.Count + " 件: " + string.Join(" / ", miss.ToArray()));
         return sb.ToString();
+    }
+
+    // ---------------------------------------------------------------- 通用口(小門)
+    /// <summary>袋小路へ開く通用口。指図 `komon[]` の **辺・走り s・門口の幅 w・敷居 sill** が正典。
+    ///
+    /// 【据え】部材のピボットは**門の芯・敷居レベル**なので `sill` をそのまま y に使える
+    /// (⛔ 地盤から起こさない — 敷居は設計値で、地形の擦り付けの途中に落ちることがある)。
+    /// ローカル **+Z = 外**(袋小路の側)なので yaw は外向き法線の方位。
+    ///
+    /// ⚠ **面は据えてから実メッシュで測って寄せる**(CLAUDE.md 規則5 / 2026-08-29 EDO-0053:
+    ///   門が塀の面から飛び出していると、門が壁の一部でなく前に置いた飾りに見える)。
+    ///   目標は囲いと同じ「区画線から内へ `inubashiri`」。⛔ 部材の呼び寸法で置かない。</summary>
+    static string PlaceKomon()
+    {
+        var grp = Group("Mon"); Clear(grp);
+        var sb = new System.Text.StringBuilder();
+        int made = 0;
+        foreach (var o in A(Get(D, "komon")) ?? new List<object>())
+        {
+            var k = O(o); if (k == null) continue;
+            string nm = S(k["name"]);
+            int e = (int)F(k["edge"]);
+            float sPos = F(k["s"]), w = F(k["w"]);
+            if (!Has(k, "sill")) { sb.AppendLine("★ 小門 " + nm + ": 指図に sill が無い"); continue; }
+            float sill = F(k["sill"]);
+            string path = AssetByKey(Has(k, "asset") ? S(k["asset"]) : "Munamon", w, 0f);
+            if (path == null || AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+            { sb.AppendLine("★ 小門 " + nm + "(" + S(k["kind"]) + " 門口 " + w.ToString("0.##")
+                          + "m): 部材が無い " + (path ?? "(asset の指定なし)")); continue; }
+            Vector2 nrm = OutNormal(e);
+            Vector2 c = EdgePt(e, sPos);
+            float yaw = Mathf.Atan2(nrm.x, nrm.y) * Mathf.Rad2Deg;      // ローカル +Z を外へ
+            var go = EdoBuild.Place(path, new Vector3(c.x, sill, c.y), yaw, Vector3.one, grp, nm);
+            if (go == null) { sb.AppendLine("★ 小門 " + nm + ": 据えられない " + path); continue; }
+            // 走りの方向の芯を開口の芯へ合わせ、外面を犬走りの位置へ寄せる
+            float face = FaceOut(go, e);
+            if (face != float.MinValue)
+            {
+                float shift = -INUBASHIRI - face;
+                go.transform.position += new Vector3(nrm.x * shift, 0f, nrm.y * shift);
+                sb.AppendLine("小門 " + nm + ": 外面 " + face.ToString("+0.00;-0.00") + " → "
+                            + (-INUBASHIRI).ToString("F2") + "m(寄せ " + shift.ToString("+0.00;-0.00") + ")");
+            }
+            made++;
+        }
+        sb.Append("通用口: " + made + " 基");
+        return sb.ToString();
+    }
+
+    /// <summary>据えた現物の**外面**(辺 e の区画線から外向きへの最大の張り出し[m])。
+    /// ⛔ 呼び寸法や bbox の半分で代用しない — 部材を差し替えた瞬間に壊れる。</summary>
+    static float FaceOut(GameObject go, int e)
+    {
+        var P = Poly; var a = P[e % P.Length]; Vector2 nrm = OutNormal(e);
+        float best = float.MinValue;
+        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var m = mf.transform.localToWorldMatrix;
+            var vs = mf.sharedMesh.vertices;
+            for (int q = 0; q < vs.Length; q++)
+            {
+                var w = m.MultiplyPoint3x4(vs[q]);
+                best = Mathf.Max(best, (w.x - a.x) * nrm.x + (w.z - a.y) * nrm.y);
+            }
+        }
+        return best;
     }
 
     // ---------------------------------------------------------------- 木柵
@@ -982,10 +1053,19 @@ public static class EdoOkabeYashikiBuilder
     /// <summary>指図が名指しした部材のキーを `EdoAssets` の実体へ解く。
     /// ⛔ **ここに無いキーを推測で足さない。**部材の選定は在庫方・部材方の仕事で、
     ///   棟梁が「たぶんこれだろう」で当てると、指図に書かれていない意匠が既成事実になる。</summary>
-    static string AssetByKey(string key)
+    static string AssetByKey(string key) { return AssetByKey(key, 0f, 0f); }
+
+    /// <param name="wKen">足跡の**長辺**[間]</param><param name="dKen">足跡の**短辺**[間]</param>
+    /// ⚠ 寸法つきの部材(崖下の長屋・棟門)は、**指図の足跡から呼び寸法を渡す**。
+    ///   ⛔ 部材の名前に寸法を書き写さない — 足跡を動かした瞬間に別の部材を引いてしまう。
+    static string AssetByKey(string key, float wKen, float dKen)
     {
         if (string.IsNullOrEmpty(key)) return null;
-        switch (key)
+        // 指図は `Own.ObiNagaya` の形で来る(族を落として名で引く)
+        string k = key;
+        int dot = k.LastIndexOf('.');
+        if (dot >= 0) k = k.Substring(dot + 1);
+        switch (k)
         {
             case "Kura":   return EdoAssets.Eg.Kura;
             case "Hogaki": return EdoAssets.Eg.Hogaki5;
@@ -993,6 +1073,12 @@ public static class EdoOkabeYashikiBuilder
             case "Kabukimon": return EdoAssets.Eg.Kabukimon;
             case "TakeGaki":  return EdoAssets.Eg.TakeGaki;
             case "DanishiStep": return EdoAssets.Own.DanishiStep;
+            // ---- 崖下(法尻の帯)の部材。⚠ +Z = 開口面(山側)/ −Z = 盲面(水側)
+            case "ObiNagaya":  return wKen > 0f ? EdoAssets.Own.ObiNagaya(wKen, dKen) : null;
+            case "ObiMonooki": return EdoAssets.Own.ObiMonooki;
+            case "ObiKawaya":  return EdoAssets.Own.ObiKawaya;
+            // ---- 通用口の棟門。呼び寸法は門口の幅(`komon[].w`)
+            case "Munamon":    return wKen > 0f ? EdoAssets.Own.Munamon(wKen, false) : null;
             default: return null;
         }
     }
@@ -1027,7 +1113,9 @@ public static class EdoOkabeYashikiBuilder
             var s2 = O(o); if (s2 == null) continue;
             string nm = S(s2["name"]);
             float u0 = F(s2["u0"]), v0 = F(s2["v0"]), u1 = F(s2["u1"]), v1 = F(s2["v1"]);
-            string path = AssetByKey(Has(s2, "asset") ? S(s2["asset"]) : null);
+            // ⚠ 呼び寸法は**足跡の長辺・短辺**で渡す(部材のローカル +X = 桁行 = 長辺)
+            float wKen = Mathf.Max(u1 - u0, v1 - v0), dKen = Mathf.Min(u1 - u0, v1 - v0);
+            string path = AssetByKey(Has(s2, "asset") ? S(s2["asset"]) : null, wKen, dKen);
             if (path == null)
             {
                 noAsset++;

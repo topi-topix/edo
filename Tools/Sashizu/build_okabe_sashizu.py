@@ -5563,7 +5563,7 @@ def mizu_svg(d):
 # ⭐ **図で宣言した不変条件は必ず検査に落とす**(当家の作法)。
 #   ⛔ 恒真にしない — 各検査は「わざと壊すと必ず件数が出る」ことを確かめてある(破壊試験)。
 #
-# **2026-09-03 の破壊試験(115件・すべて期待どおり)**
+# **2026-09-03 の破壊試験(117件・すべて期待どおり)**
 # ⛔ **「反応する」とだけ書かない — 壊す前と後の件数を並べる。**数が無い記録は偽になり得る。
 #   ⚠ この作法にした途端、⛔ **偽の記録が4件見つかった**(前後が同じだったもの):
 #     ・「結界を全部消す → 反応する」…… 実際は **1件 → 1件**。経路の指摘が1件出るだけで数が動かず、
@@ -5683,6 +5683,16 @@ def mizu_svg(d):
 #     ・「N1/N2 を汀へ8間」…… ⛔ **庭方の式では 28間 寄せても鳴らない**(草地 0.95°)。
 #       ⭕ 検査が生きていることは「層の下限を 0.5→3.5° へ上げる 0→6件」で確かめる。
 #       ⚠ この事実は庭方へ返す(棟を汀へ寄せても層は痩せない式になっている)。
+#   ⭐ **2026-09-03 ユーザー裁定9=A で「汀へ寄せるな」を m 建てで縛った**(庭方 K264)。
+#     ⚠ 角度の検査(対岸から見た層)は**棟を汀へ寄せても痩せない**式なので、
+#       それだけでは寄せるなを縛れなかった(28間 寄せても 0.95° で閾値 0.5° に届かない)。
+#     ⭕ A 下手の面 → 辺5 ≧ 20.0m /  B 足元の地盤 − 水面 ≧ 4.5m の二本を足し、
+#       壊し方も「M1 を v153 へ 0→1件」「N2 の面を 10.9 へ 0→1件」で持った。
+#   ⭐ **決定関門 `decision_gate.py` を新設**(裁定9=A の2本目) — 台帳の【決定】の項が
+#     閉じ書きで **其◯ / *_check / json のキー** のどれかを指しているかを見る。
+#     ⚠ 立ち上げたとき **22件中20件が参照なし**だった。⛔ 参照が書いてあることしか
+#     見ない(中身は検分役と破壊試験の仕事)が、書こうとした瞬間に
+#     「どこにも出ていない決定」が露見する。
 #   【結界(取り付き・表↔奥の非連結・動線)】素 0 件
 #     結界を全部消す                                0件 → 2件
 #     W1 を段の縁で止める(北の帯を空ける)                   0件 → 2件
@@ -5807,6 +5817,8 @@ def mizu_svg(d):
 #   【動線・坂が樹の芯を横切らない】素 0 件
 #     榎 E1 を坂の路盤の上へ移す                        0件 → 1件
 #   【崖下の帯の棟(帯D2・切盛・榎の離れ)】素 0 件
+#     M1 を v153 へ出す(汀へ寄せる)                   0件 → 1件
+#     N2 の面を 10.9 へ下げる(水面へ寄せる)               0件 → 1件
 #     N1 を東へ1間ずらす(山側の余地を割る)                  0件 → 1件
 #     N1 を榎 E1 へ 4m 寄せる                      0件 → 1件
 #     N2 の面を 1.0m 上げる(帯を均す)                  0件 → 1件
@@ -7868,6 +7880,25 @@ def obi_metrics(d):
     return out
 
 
+def obi_kishi(d):
+    """崖下の棟ごとの (名, 辺5までの水平距離[m], 水面からの比高[m])。⛔ 図と検査で二度計算しない。"""
+    K9 = d["const"]["ken"]
+    N9 = d.get("nishi") or {}
+    P9 = d["polygon"]
+    e9 = (N9.get("saku") or {}).get("edge", 5)
+    gr9 = RGrid(d)
+    pa9, pb9 = gr9.L(*P9[e9]), gr9.L(*P9[(e9 + 1) % len(P9)])
+    wy9 = (N9.get("tsutsumi") or {}).get("waterY", 6.60)
+    out = []
+    for o9 in obi_metrics(d):
+        den = (pb9[0] - pa9[0]) or 1e-9
+        dd = min((pa9[1] + (pb9[1] - pa9[1]) * ((u8 - pa9[0]) / den) - o9["v1"]) * K9
+                 for u8 in (o9["u0"], (o9["u0"] + o9["u1"]) / 2.0, o9["u1"]))
+        out.append((o9["name"], dd,
+                    (o9["y"] if o9["y"] is not None else (o9["pad"] or 0)) - wy9))
+    return out
+
+
 def obi_check(d):
     """**崖下の帯の棟の不変条件**(2026-09-03 ユーザー裁定8=A)。
 
@@ -7918,8 +7949,42 @@ def obi_check(d):
     for nm9 in (obi.get("komono") or []):
         if not any(nm9 == s9.get("name") for s9 in d.get("service", []) + d.get("wells", [])):
             bad.append("\u5e2f\u306e\u5c0f\u7269\u300e%s\u300f\u304c\u5b9f\u4f53\u306b\u7121\u3044" % nm9)
-    # ⛔ **軒線が見透しの窓(扇)へ入らない**(2026-09-03 検図5巡目 K251)
+    # ⛔ **汀へ寄せない**(2026-09-03 ユーザー裁定9=A / 庭方 K264)。
+    #   ⚠ 角度の検査(対岸から見た層)は**棟を汀へ寄せても痩せない**式なので、
+    #     それだけでは「寄せるな」を縛れない。⭕ **m 建て**で二本立てる:
+    #     A 棟の**下手の面**から、その u の**辺5**までの水平距離 ≧ `kishiClearM`
+    #     B 棟の**足元の地盤** − 水面 ≧ `mizuAboveM`
+    #   ⛔ どちらも**確度U**(A は堤の法面 10.0m の2倍・B は辺5の比高)。
     K8 = d["const"]["ken"]
+    P8 = d["polygon"]
+    e8 = ((d.get("nishi") or {}).get("saku") or {}).get("edge", 5)
+    gr8 = RGrid(d)
+    pa8, pb8 = gr8.L(*P8[e8]), gr8.L(*P8[(e8 + 1) % len(P8)])
+
+    def _par_v(u8):
+        den = (pb8[0] - pa8[0]) or 1e-9
+        return pa8[1] + (pb8[1] - pa8[1]) * ((u8 - pa8[0]) / den)
+    kc = obi.get("kishiClearM")
+    mz = obi.get("mizuAboveM")
+    wy8 = ((d.get("nishi") or {}).get("tsutsumi") or {}).get("waterY", 6.60)
+    for o9 in obi_metrics(d):
+        if kc is not None:
+            worst = None
+            for u8 in (o9["u0"], (o9["u0"] + o9["u1"]) / 2.0, o9["u1"]):
+                dd = (_par_v(u8) - o9["v1"]) * K8       # 下手の面 → 辺5[m]
+                if worst is None or dd < worst[0]:
+                    worst = (dd, u8)
+            if worst[0] < kc - 1e-6:
+                bad.append("帯の『%s』の下手の面から辺5まで %.1fm(u%.1f)— %.1fm 以上あける"
+                           "(⛔ 汀へ寄せない)" % (o9["name"], worst[0], worst[1], kc))
+        if mz is not None and o9["pad"] is not None:
+            above = (o9["y"] if o9["y"] is not None else o9["pad"]) - wy8
+            if above < mz - 1e-6:
+                bad.append("帯の『%s』の足元 %.2f が水面 %.2f より %.2fm しか高くない — "
+                           "%.1fm 以上要る(⛔ 汀へ下ろさない)"
+                           % (o9["name"], o9["y"] if o9["y"] is not None else o9["pad"],
+                              wy8, above, mz))
+    # ⛔ **軒線が見透しの窓(扇)へ入らない**(2026-09-03 検図5巡目 K251)
     nk8 = obi.get("nokiOut", 0.0) / K8
     for o9 in obi_metrics(d):
         if not o9["roofed"]:
@@ -9227,6 +9292,12 @@ def nishi_table(d):
              (N.get("obi") or {}).get("eastClearM", 0),
              " ／ ".join("%s→%s %.1fm" % (o9["name"], o9["gaps"][0][0], o9["gaps"][0][1])
                         for o9 in obi_metrics(d) if o9["roofed"] and o9["gaps"]))
+          + "<br>汀への離れ %s(要 %.1fm)／ 水面より上 %s(要 %.1fm)"
+            "<br>⭐ <b>鳴ったら真っ先に M1</b>(どちらもいまの最小)"
+          % (" ／ ".join("%s %.1fm" % (q9[0], q9[1]) for q9 in obi_kishi(d)),
+             (N.get("obi") or {}).get("kishiClearM", 0),
+             " ／ ".join("%s %+.2fm" % (q9[0], q9[2]) for q9 in obi_kishi(d)),
+             (N.get("obi") or {}).get("mizuAboveM", 0))
           + "<br>屋根 <b>%s・%s・%s腰</b>(%s)"
           % ((d.get("roofs") or {}).get("ObiNagaya", {}).get("kawara", ""),
              (d.get("roofs") or {}).get("ObiNagaya", {}).get("kai", ""),

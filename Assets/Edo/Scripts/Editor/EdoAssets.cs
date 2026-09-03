@@ -588,6 +588,36 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_okabe_fuzokuya.py -- nandokoya</summary>
         public const string NandoKoya = FuzokuyaDir + "Okabe_NandoKoya.fbx";
 
+        /// <summary>**車寄** 3間(間口)× 2間(奥行)(岡部邸 `munes[0]` / `roofs.Goten_Kurumayose`)。
+        /// 指図の「⛔ **入母屋を架けない・入側を回さない別種**」に従い、**四方を開けた寄せ**
+        /// (柱8本+頭貫+桁+天井板)に**妻入の切妻**を架けた — 参道から見て破風が正面に来る。
+        /// 前庭は真砂土の叩きなので**床を張っていない**。
+        ///
+        /// ローカル: **+X = +u(間口)/ +Z = 参道の側(= −v)**。ピボット = footprint の中心・**地盤**レベル。
+        /// ⚠ 玄関棟は +v 側に建つので、据えるときは **ローカル −Z を玄関の面へ**向ける。
+        /// 実寸 7.146 × 4.342 × 4.376(軒桁 2.30 / 軒先 1.89 / **棟天端 4.34**)。
+        ///
+        /// ⚠⚠ **裁定事項** — 棟天端 4.34 は玄関棟の軒先(床0.62+2.577 = **地盤+3.20**)より
+        /// **1.14m 高い**。⇒ 車寄の背面の屋根は玄関棟の屋根面へ食い込む(実物の車寄の納まりだが、
+        /// 見え方を決めるのは普請奉行)。⛔ 軒桁を下げて逃げると人がくぐれない。
+        /// 原因は瓦の勾配が `roof 2x2` の実測 0.5456 に固定で、3間の span では避けられないこと。
+        /// 生成: blender --background --python Tools/Blender/build_okabe_fuzokuya.py -- kurumayose</summary>
+        public const string Kurumayose = FuzokuyaDir + "Okabe_Kurumayose.fbx";
+
+        /// <summary>**御錠口** 3間角(岡部邸 `links[2]` L_Jouguchi)。表向と奥向を分ける
+        /// **一口だけ**の口([西川1959]/[高知2000] A)。**幅一間の渡廊下**が ±X の面に取り付く。
+        /// ⭕ **+X の開口に御錠口の唐戸(両開きの板戸)を建て込んである。** −X 側は開けたまま。
+        /// ±Z は白漆喰の大壁に連子窓(裏に明かり障子)。
+        ///
+        /// ローカル: **+X = 廊下の通る向き**。ピボット = footprint の中心・**床レベル**
+        /// (⚠ 地盤ではない — `EdoGotenKit` の棟と同じ規約。据えるときは 面 + `const.gotenFloor` 0.62)。
+        /// 実寸 7.596 × 5.858 × 7.596、**底 −0.620**(基壇が床より下へ出る)。軒先は棟と揃えて床+2.577。
+        ///
+        /// ⚠⚠ **裁定事項** — 入母屋なので棟天端が **床+5.24** になり、渡廊下(大棟天端 床+2.503)
+        /// より 2.7m 高い。実物でも御錠口は一段高い屋根で標すが、⭕ 姿を決めるのは普請奉行。
+        /// 生成: blender --background --python Tools/Blender/build_okabe_fuzokuya.py -- jouguchi</summary>
+        public const string Jouguchi = FuzokuyaDir + "Okabe_Jouguchi.fbx";
+
         /// <summary>**のし塀**(熨斗瓦を載せた白壁の袖塀)。岡部邸の**結界** `kekkai` の7本。
         /// ⛔ 外構の練塀・築地塀で代用しないこと — 指図が「**屋内の仕切りなので外構より軽く**」と
         /// 明記している(`assetCert`)。⭕ 笠木は Village Kit の `roof top x1`(冠瓦+熨斗2段の

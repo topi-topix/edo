@@ -210,7 +210,131 @@ def nandokoya(uKen=1.5, vKen=1.0, name="Okabe_NandoKoya"):
     return o, name
 
 
-PARTS = {"umaya": umaya, "tomomachi": tomomachi, "nandokoya": nandokoya}
+# ================================================================ 車寄
+def kurumayose(uKen=3, vKen=2, name="Okabe_Kurumayose"):
+    """**車寄** 3間(間口・u)× 2間(奥行・v)。指図 `munes[0]` / `roofs.Goten_Kurumayose`
+    「⛔ **入母屋を架けない・入側を回さない別種**(3×2間の寄せ)」。
+    **四方を開けた寄せ**(柱+頭貫+桁+天井板)に**妻入の切妻**を架ける — 参道から見て
+    破風が正面に来るのが車寄の要点。前庭は真砂土の叩きなので**床を張らない**。
+
+    ローカル: **+X = +u(間口)/ +Z = 参道の側(= −v)**。ピボット = footprint の中心・**地盤**レベル。
+    ⚠ 玄関棟は +v 側に建つので、据えるときは **ローカル −Z を玄関の面へ**向ける。
+
+    ⚠⚠ **屋根が玄関棟の軒より高くなる。**`EdoGotenKit` は棟の軒先を床+2.577(=地盤+3.197)に
+    固定しているが、瓦の勾配は 0.5456 に固定なので、3間の span に切妻を架けると棟天端は
+    地盤+4.50 になる(下の実測)。⇒ **車寄の背面の屋根は玄関棟の屋根面へ食い込む。**
+    これは実物の車寄の納まりそのものだが、⭕ **普請奉行の裁定事項**として返すこと。
+    ⛔ 軒桁を下げて逃げると人がくぐれない(いまの 2.30 で軒先 1.89)。"""
+    P = N.palette()
+    W, D = uKen * KEN, vKen * KEN          # X=間口 / Z=奥行(棟はこちらへ走る)
+    EAVE, NOKI, END = 2.30, 0.75, 0.30
+    hw, hd = W / 2.0, D / 2.0
+    m = VM.Mesh()
+    # 礎石 + 柱(間口に1間ピッチ・奥行の前後2列)。⛔ 壁を張らない
+    for i in range(uKen + 1):
+        x = -hw + W * i / float(uKen)
+        for z in (-hd, hd):
+            m.box(x - 0.27, x + 0.27, 0.0, 0.20, z - 0.27, z + 0.27,
+                  VM.sub(P['suv'], 0, 0.5, 0.5, 1), STONE)
+            m.box(x - 0.10, x + 0.10, 0.18, EAVE, z - 0.10, z + 0.10,
+                  VM.sub(P['wuv'], 0.10, 0.02, 0.42, 0.98), WOOD)
+    # 頭貫(柱の頭を繋ぐ)+ 桁(棟の走る向き = Z)+ 妻梁(X)
+    for z in (-hd, hd):
+        m.box(-hw - 0.10, hw + 0.10, EAVE - 0.36, EAVE - 0.18, z - 0.09, z + 0.09,
+              VM.sub(P['wuv'], 0.30, 0.15, 0.90, 0.45), WOOD)
+    for x in (-hw, hw):
+        m.box(x - 0.09, x + 0.09, EAVE - 0.18, EAVE, -hd - 0.10, hd + 0.10,
+              VM.sub(P['wuv'], 0.20, 0.50, 0.95, 0.80), WOOD)
+    m.box(-hw + 0.06, hw - 0.06, EAVE - 0.06, EAVE, -hd + 0.06, hd - 0.06,
+          VM.sub(P['wuv'], 0.05, 0.10, 0.95, 0.60), WOOD)          # 天井板(見上げ)
+    # 妻まわりは棟の走る向き(Z)に対して張る。gable_set は X が棟なので入れ替えて渡す
+    apex = EAVE + (hw + NOKI) * R.RATIO
+    body = m.to_object(name + "_body", [P['wood'], P['wall'], P['stone'], P['shoji']])
+    keep = N.END
+    N.END = END
+    try:
+        # 棟は Z(奥行)へ走らせたいので、D=間口 / W=奥行 で焼いてから 90° 回す
+        m2 = VM.Mesh()
+        N.gable_set(m2, P, hd, hw, EAVE, EAVE - NOKI * R.RATIO, apex, NOKI, end=END)
+        gab = m2.to_object(name + "_gable", [P['wood'], P['wall'], P['stone'], P['shoji']])
+        roof = N.obi_roof(D, W, name + "_roof", P, ridge_show=0.30, noki=NOKI)
+    finally:
+        N.END = keep
+    roof.location = (0.0, 0.0, EAVE - NOKI * R.RATIO)
+    bpy.context.view_layer.update()
+    V.sel([roof]); bpy.ops.object.transform_apply(location=True, rotation=False, scale=False)
+    V.rotate_z([roof, gab], 90)          # 棟を X → Y(= 論理の奥行)へ
+    V.dedup_materials()
+    o = V.join([body, gab, roof], name)
+    V.set_origin(o, (0.0, 0.0, 0.0))
+    V.sel([o]); bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    return o, name
+
+
+# ================================================================ 御錠口
+def jouguchi(ken=3, name="Okabe_Jouguchi"):
+    """**御錠口** 3間角(指図 `links[2]` L_Jouguchi)。表向と奥向を分ける**一口だけ**の口
+    ([西川1959]/[高知2000] A)。**幅一間の渡廊下**が ±X の面に取り付く。
+
+    ローカル: **+X = 廊下の通る向き**、±Z は白壁(連子窓)。
+    ピボット = footprint の中心・**床レベル**(⚠ 地盤ではない — `EdoGotenKit` の棟と同じ
+    規約。据えるときは 面 + `const.gotenFloor`(0.62)に置く)。
+    ⭕ **+X 側の開口に御錠口の唐戸(両開きの板戸)を建て込んである。**−X 側は開けたまま。
+
+    ⚠⚠ **屋根は入母屋で、棟天端は床+5.0 近くになる。**渡廊下(大棟天端 床+2.503)より
+    ずっと高い — 実物でも御錠口は一段高い屋根で標す作りだが、⭕ **普請奉行の裁定事項**。
+    軒先は `EdoGotenKit` の棟と揃えて **床+2.577** に置いてある。"""
+    P = N.palette()
+    S = ken * KEN
+    h = S / 2.0
+    TATE = 2.727          # 建具丈(江戸間 1間半)
+    OPEN = KEN            # 廊下の開口幅 = 1間
+    m = VM.Mesh()
+    m.box(-h - 0.12, h + 0.12, -0.62, 0.0, -h - 0.12, h + 0.12,
+          VM.sub(P['suv'], 0, 0, 1, 0.5), STONE)                   # 床下の基壇
+    m.box(-h, h, 0.0, 0.10, -h, h, VM.sub(P['wuv'], 0.05, 0.10, 0.95, 0.60), WOOD)  # 床
+    # 柱(四隅 + 開口の方立)
+    for x in (-h, h):
+        for z in (-h, -OPEN / 2, OPEN / 2, h):
+            m.box(x - 0.09, x + 0.09, 0.10, TATE, z - 0.09, z + 0.09,
+                  VM.sub(P['wuv'], 0.10, 0.02, 0.42, 0.98), WOOD)
+    # ±Z の面は白壁(腰は板)+ 連子窓
+    for sz, sg in ((-h, -1), (h, 1)):
+        N.shitami(m, P, -h, h, 0.10, 0.85, sz, sg, 'x')
+        N.mizukiri(m, P, -h, h, 0.85, sz, sg, 'x')
+        N.plaster(m, P, -h, h, 0.85, TATE, sz, sg, 'x')
+        m.box(-0.95, 0.95, 1.10, 1.16, sz - sg * 0.02, sz + sg * 0.07,
+              VM.sub(P['wuv'], 0.45, 0.10, 0.90, 0.35), WOOD)
+        m.box(-0.95, 0.95, 1.94, 2.00, sz - sg * 0.02, sz + sg * 0.07,
+              VM.sub(P['wuv'], 0.45, 0.40, 0.90, 0.65), WOOD)
+        m.box(-0.92, 0.92, 1.18, 1.92, sz - sg * 0.115, sz - sg * 0.085,
+              VM.sub(P['juv'], 0.05, 0.05, 0.95, 0.95), N.SHOJI)     # 明かり障子
+        m.koshi(-0.92, 0.92, 1.18, 1.92, sz - sg * 0.05, sz + sg * 0.02,
+                VM.sub(P['wuv'], 0.60, 0.10, 0.95, 0.90), WOOD, pitch=0.115, bar=0.026)
+    # ±X の面: 開口の外側は白壁、開口は 1間
+    for sx, sg in ((-h, -1), (h, 1)):
+        for (a, b) in ((-h, -OPEN / 2), (OPEN / 2, h)):
+            N.shitami(m, P, a, b, 0.10, 0.85, sx, sg, 'z')
+            N.mizukiri(m, P, a, b, 0.85, sx, sg, 'z')
+            N.plaster(m, P, a, b, 0.85, TATE, sx, sg, 'z')
+        m.box(sx - sg * 0.10, sx + sg * 0.02, TATE - 0.10, TATE, -OPEN / 2, OPEN / 2,
+              VM.sub(P['wuv'], 0.30, 0.40, 0.80, 0.60), WOOD)        # 楣
+    # ⭕ 御錠口の唐戸(両開きの板戸)を **+X の開口**に建て込む
+    N.door_leaves(m, P, -OPEN / 2, OPEN / 2, 0.12, TATE - 0.10, h, 1, n=2)
+    body = m.to_object(name + "_body", [P['wood'], P['wall'], P['stone'], P['shoji']])
+    roof = R.make_irimoya(S, S, name + "_roof", eave=0.90)
+    roof.location = (0.0, 0.0, 2.577)      # EdoGotenKit の棟と同じ軒先レベル
+    bpy.context.view_layer.update()
+    V.sel([roof]); bpy.ops.object.transform_apply(location=True, rotation=False, scale=False)
+    V.dedup_materials()
+    o = V.join([body, roof], name)
+    V.set_origin(o, (0.0, 0.0, 0.0))
+    V.sel([o]); bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    return o, name
+
+
+PARTS = {"umaya": umaya, "tomomachi": tomomachi, "nandokoya": nandokoya,
+         "kurumayose": kurumayose, "jouguchi": jouguchi}
 
 
 def shots(o, key, box):

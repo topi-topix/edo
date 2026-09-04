@@ -7732,6 +7732,7 @@ CHECK_LIST = [
     ("辺の末尾の run が隅まで届くか",           lambda d, raw, ter: run_reaches_corner_check(d)),
     ("石段の足元と天端(段の宣言との一致)",      lambda d, raw, ter: kaidan_y_check(d)),
     ("汀の杭の割り付け",                      lambda d, raw, ter: kui_check(d)),
+    ("庭の算出物(12区画・池の器)",            lambda d, raw, ter: garden_impl_check(d)),
     ("算出物 okabe_impl.json の鮮度",           lambda d, raw, ter: impl_fresh_check(d)),
     ("矩形の重なり",                       lambda d, raw, ter: overlap_check(d)),
     ("面のはみ出し(棟・庭が段と区画の中か)",     lambda d, raw, ter: plane_check(d)),
@@ -8209,6 +8210,295 @@ def kui_check(d):
     return bad
 
 
+def _stones_along(pts, pMin, pMax, seed):
+    """折れ線 `pts`(間)に**不等ピッチ**で石を並べ、(u, v) の並びを返す。
+
+    ⛔ 平均値で刻まない — 手で据えた飛石は芯々が揃わない(杭列と同じ作法)。
+    ⭕ 種つきなので回すたびに動かない。"""
+    if len(pts) < 2:
+        return []
+    rnd = random.Random(seed)
+    out, carry = [], 0.0
+    for a9, b9 in zip(pts, pts[1:]):
+        seg = math.hypot(b9[0] - a9[0], b9[1] - a9[1])
+        s9 = carry
+        while s9 < seg:
+            tt = s9 / seg if seg > 1e-9 else 0.0
+            out.append((a9[0] + (b9[0] - a9[0]) * tt, a9[1] + (b9[1] - a9[1]) * tt))
+            s9 += rnd.uniform(pMin, pMax)
+        carry = s9 - seg
+    return out
+
+
+def _ring_of(pts, cu, cv, rU, rV, n9, jag, seed):
+    """不等辺の輪郭(中島・岩島・州浜の平面形)。⛔ 真円・楕円にしない。"""
+    rnd = random.Random(seed)
+    out = []
+    for i9 in range(n9):
+        th = 2.0 * math.pi * i9 / n9
+        k9 = 1.0 + rnd.uniform(-jag, jag)
+        out.append((cu + rU * k9 * math.cos(th), cv + rV * k9 * math.sin(th)))
+    return out
+
+
+def garden_impl(d):
+    """**庭12区画の算出物**(2026-09-04 棟梁 S4 の器のため)。
+
+    ⭕ 欄は世界座標で `{name, zone, kind, world, y, h, asset}`(棟梁の `IMPL` の作法)。
+    ⛔ **生成器が算出している物だけ**を焼く — json にそのまま在る設計値(矩形・確度・
+      本数の宣言)は焼かない(実装は指図の json を直接読める)。
+    ⚠ したがってここに出るのは「grid の宣言から**幾何を起こした**もの」に限る:
+      平滑後の汀線・輪郭・石の並び・等高線・区間の割り付け。"""
+    gr = RGrid(d)
+    K = d["const"]["ken"]
+    out = []
+
+    def W(u9, v9):
+        w9 = gr.W(u9, v9)
+        return [round(w9[0], 3), round(w9[1], 3)]
+
+    def add(nm, zone, kind, pts, y=None, h=None, asset=None, **kw):
+        o = {"name": nm, "zone": zone, "kind": kind,
+             "world": [W(*p9) for p9 in pts]}
+        if y is not None:
+            o["y"] = round(y, 3)
+        if h is not None:
+            o["h"] = round(h, 3)
+        o["asset"] = asset
+        o.update(kw)
+        out.append(o)
+
+    for g in d.get("gardens", []):
+        gz = g["name"]
+        # ⓪ **区画の実形**(段の多角形で切った後)。⭕ `polys` は生成器の算出値(GEN_FIELDS)で、
+        #    json の `u0..v1` の矩形とは違う — **実装が地表を塗る範囲はこちら**。
+        for i8, pl8 in enumerate(g.get("polys") or []):
+            if len(pl8) < 3:
+                continue
+            add("%s_plan%02d" % (gz, i8 + 1), gz, "庭の実形(段で切った後)",
+                [(p8[0], p8[1]) for p8 in pl8] + [(pl8[0][0], pl8[0][1])],
+                asset=None, kindOf=g.get("kind"), label=g.get("label"),
+                note="⛔ json の矩形(`u0..v1`)ではなく**段の多角形で切った実形**。"
+                     "地表・下草を塗る範囲はこちら")
+        # ① 池の汀線(**平滑後**の実体)と護岸の受け持ち
+        mg = g.get("migiwa")
+        if mg:
+            ring = chaikin([(a9, b9) for a9, b9 in mg["pts"]], mg.get("smooth", 2))
+            add("Migiwa_" + gz, gz, "汀線(平滑後)", list(ring) + [ring[0]],
+                y=mg.get("waterY"), asset=None,
+                bedY=mg.get("bedY"), depthMax=mg.get("depthMax"),
+                bankRun=mg.get("bankRun"),
+                lenM=round(sum(math.hypot(b9[0] - a9[0], b9[1] - a9[1]) * K
+                               for a9, b9 in zip(ring, list(ring[1:]) + [ring[0]])), 3),
+                note="⛔ 生の 16 点(設計値)ではなく **Chaikin %d 回の平滑後**が掘る形"
+                     % mg.get("smooth", 2))
+            for gg in (g.get("gogan") or []):
+                if gg.get("rest"):
+                    continue
+                arc = [p9 for p9 in ring
+                       if gg["u0"] - 0.3 <= p9[0] <= gg["u1"] + 0.3
+                       and gg["v0"] - 0.3 <= p9[1] <= gg["v1"] + 0.3]
+                if len(arc) < 2:
+                    continue
+                aL = sum(math.hypot(b9[0] - a9[0], b9[1] - a9[1]) * K
+                         for a9, b9 in zip(arc, arc[1:]))
+                nSt = max(1, int(round(aL / (((gg.get("lenMin", 0.45)
+                                              + gg.get("lenMax", 1.2)) / 2.0)
+                                             * gg.get("pitchRatio", 0.78)))))
+                add(gg["name"], gz, "石組護岸の区間", arc, y=mg.get("waterY"),
+                    asset="Own.Ishigumi",
+                    lenM=round(aL, 3), stones=nSt,
+                    ishi=gg.get("ishi"), lenMin=gg.get("lenMin"), lenMax=gg.get("lenMax"),
+                    buryRatio=gg.get("buryRatio"), jag=gg.get("jag"),
+                    yakuEvery=gg.get("yakuEvery"),
+                    note="⭕ **据え方**: 長手 %.2f〜%.2fm を芯々比 %.2f で並べ、%d 個ごとに"
+                         "役石(丈 %.2f〜%.2f)。埋まりは丈の %.0f%%、天端の乱れ ±%.2fm"
+                         % (gg.get("lenMin", 0), gg.get("lenMax", 0),
+                            gg.get("pitchRatio", 0), gg.get("yakuEvery", 0),
+                            gg.get("yakuMin", 0), gg.get("yakuMax", 0),
+                            gg.get("buryRatio", 0) * 100, gg.get("jag", 0)))
+            for sh in (g.get("suhama") or []):
+                cu = (sh["u0"] + sh["u1"]) / 2.0; cv = (sh["v0"] + sh["v1"]) / 2.0
+                rU = (sh["u1"] - sh["u0"]) / 2.0; rV = (sh["v1"] - sh["v0"]) / 2.0
+                add(sh["name"], gz, "州浜(砂利の帯)",
+                    _ring_of(mg["pts"], cu, cv, rU, rV, 14, 0.12, 1856),
+                    y=mg.get("waterY"), asset="L_bare",
+                    fromWater=sh.get("fromWater"), toLand=sh.get("toLand"),
+                    stones=sh.get("stones"), bare=sh.get("bare"),
+                    note="⛔ **そこの草は消す**(砂利スプラット)。平石 %d 個を半分埋め"
+                         % sh.get("stones", 0))
+            for rg in (g.get("rangui") or []):
+                arc = ring_arc(ring, rg["a"], rg["b"])
+                aL = sum(math.hypot(b9[0] - a9[0], b9[1] - a9[1]) * K
+                         for a9, b9 in zip(arc, arc[1:]))
+                nK = max(2, int(round(aL / rg["pitch"])) + 1)
+                add(rg["name"], gz, "乱杭", _stones_along(arc, rg["pitch"] * 0.92,
+                                                          rg["pitch"] * 1.08, 1856),
+                    y=rg.get("topY"), asset="Own.Rangui",
+                    lenM=round(aL, 3), n=nK,
+                    rMin=rg.get("rMin"), rMax=rg.get("rMax"), tilt=rg.get("tilt"),
+                    note="本数は**平滑後の汀線に沿った弧長からの従属値**(%.2fm ÷ 芯々 %.3f)"
+                         % (aL, rg["pitch"]))
+        # ② 中島・岩島
+        for nk in (g.get("nakajima") or []):
+            add(nk["name"], gz, "中島(輪郭)",
+                _ring_of(None, nk["u"], nk["v"], nk.get("stoneRMax", 0.7) * 2.4,
+                         nk.get("stoneRMax", 0.7) * 1.9, 7, 0.18, 1856),
+                y=nk.get("topY"), asset=None,
+                stones=nk.get("stones"), tree=nk.get("tree"), treeN=nk.get("treeN"),
+                note="⛔ **真円にしない**(7点の不等辺)。汀石 %d 個を不等間隔の輪に。"
+                     "⛔ 橋を架けない" % nk.get("stones", 0))
+        for iw in (g.get("iwajima") or []):
+            add(iw["name"], gz, "岩島", [(iw["u"], iw["v"])],
+                y=(mg or {}).get("waterY"), h=iw.get("hMain"), asset="Own.Ishigumi",
+                hShoulder=iw.get("hShoulder"), sink=iw.get("sink"),
+                note="大石1+肩石1。基部を水面下 %.2f に沈める" % iw.get("sink", 0))
+        # ③ 沢飛石(⭕ `stonePts` は生成器の算出値)
+        for sw in (g.get("sawatobi") or []):
+            add(sw["name"], gz, "沢飛石", [(p9[0], p9[1]) for p9 in sw["pts"]],
+                y=sw.get("topY"), asset="Own.Tobiishi",
+                n=len(sw["pts"]), rMin=sw.get("rMin"), rMax=sw.get("rMax"),
+                note="⛔ 橋を架けない — くびれは沢飛石で渡る。天端は水面+%.2f"
+                     % (sw.get("topY", 0) - ((mg or {}).get("waterY") or 0)))
+        # ④ 飛石(筋の折れ点 → **石の位置**へ)
+        for tb in (g.get("tobiishi") or []):
+            st = _stones_along([(p9[0], p9[1]) for p9 in tb["pts"]],
+                               tb.get("pitchMin", 0.42), tb.get("pitchMax", 0.50), 1856)
+            add(tb["name"], gz, "飛石", st, asset="Own.Tobiishi",
+                n=len(st), fumiwake=tb.get("fumiwake"),
+                note="⛔ `pts` は**筋の折れ点**であって石の位置ではない — "
+                     "芯々 %.2f〜%.2f の不等ピッチで %d 枚"
+                     % (tb.get("pitchMin", 0), tb.get("pitchMax", 0), len(st)))
+        # ⑤ 園路
+        for en in (g.get("enro") or []):
+            L9 = sum(math.hypot(b9[0] - a9[0], b9[1] - a9[1]) * K
+                     for a9, b9 in zip(en["pts"], en["pts"][1:]))
+            add(en["name"], gz, "園路", [(p9[0], p9[1]) for p9 in en["pts"]],
+                asset="L_dirt", h=en.get("w"), lenM=round(L9, 3),
+                note="幅 %.2fm。⛔ 同心円にしない" % en.get("w", 0))
+        # ⑥ 築山の等高線
+        for ts in (g.get("tsukiyama") or []):
+            E9 = _DEM.get(id(d))
+            if E9 is None:
+                _dem_at(d, 0, 0); E9 = _DEM.get(id(d))
+            base = []
+            for k9 in range(24):
+                th = 2.0 * math.pi * k9 / 24
+                base.append((ts["u"] + ts["dU"] / 2.0 * math.cos(th),
+                             ts["v"] + ts["dV"] / 2.0 * math.sin(th)))
+            add(ts["name"], gz, "築山(裾の輪郭)", base + [base[0]],
+                y=ts.get("topY"), asset=None,
+                dU=ts.get("dU"), dV=ts.get("dV"),
+                note="頂 %.2f。⛔ 頂に平場を切らない。等高線は裾(r=1)から頂へ "
+                     "`1−r` の比で立ち上げる" % ts.get("topY", 0))
+            for lv in (0.75, 0.5, 0.25):
+                rr = []
+                for k9 in range(24):
+                    th = 2.0 * math.pi * k9 / 24
+                    rr.append((ts["u"] + ts["dU"] / 2.0 * lv * math.cos(th),
+                               ts["v"] + ts["dV"] / 2.0 * lv * math.sin(th)))
+                add("%s_c%02d" % (ts["name"], int(lv * 100)), gz, "築山(等高線)",
+                    rr + [rr[0]], asset=None, r=lv,
+                    note="裾からの比 r=%.2f の輪(高さは頂と裾の内挿)" % lv)
+        # ⑦ 景石・灯籠・沓脱石
+        for ig in (g.get("ishigumi") or []):
+            add(ig["name"], gz, "景石", [(ig["u"], ig["v"])], h=ig.get("h"),
+                asset="Own.Ishigumi", pose=ig.get("pose"), role=ig.get("role"),
+                buryRatio=ig.get("buryRatio"), ishi=ig.get("ishi"))
+        for tr in (g.get("toro") or []):
+            add(tr["name"], gz, "灯籠", [(tr["u"], tr["v"])],
+                asset="Own.Toro", kata=tr.get("kata"),
+                note="⛔ 春日型を置かない・⛔ 蹲踞を置かない")
+        for kn in (g.get("kutsunugi") or []):
+            add(kn["name"], gz, "沓脱石", [(kn["u"], kn["v"])],
+                asset="Own.Kutsunugi", ishi=kn.get("ishi"),
+                L=kn.get("L"), Wd=kn.get("W"))
+        # ⑧ 垣(井戸の四つ目垣・稲荷の四つ目垣)
+        gk = ((g.get("mizu") or {}).get("gensen") or {}).get("idoKaki")
+        if gk:
+            add("IdoKaki_" + gz, gz, "垣(%s)" % gk.get("kata", ""),
+                [(gk["u0"], gk["v0"]), (gk["u1"], gk["v0"]),
+                 (gk["u1"], gk["v1"]), (gk["u0"], gk["v1"]), (gk["u0"], gk["v0"])],
+                h=gk.get("h"), asset="Own.YotsumeGaki",
+                note="⛔ 見せる井戸ではないので露出させない")
+        ys = g.get("yashiro") or {}
+        yk = ys.get("kaki") if isinstance(ys, dict) else None
+        if isinstance(ys, list):
+            for y9 in ys:
+                yk = y9.get("kaki")
+                if yk and yk.get("u0") is not None:
+                    add("YashiroKaki_" + gz, gz, "垣(%s)" % yk.get("kata", ""),
+                        [(yk["u0"], yk["v0"]), (yk["u1"], yk["v0"]),
+                         (yk["u1"], yk["v1"]), (yk["u0"], yk["v1"]), (yk["u0"], yk["v0"])],
+                        h=yk.get("h"), asset="Own.YotsumeGaki")
+        elif yk and yk.get("u0") is not None:
+            add("YashiroKaki_" + gz, gz, "垣(%s)" % yk.get("kata", ""),
+                [(yk["u0"], yk["v0"]), (yk["u1"], yk["v0"]),
+                 (yk["u1"], yk["v1"]), (yk["u0"], yk["v1"]), (yk["u0"], yk["v0"])],
+                h=yk.get("h"), asset="Own.YotsumeGaki")
+    # ⑨ 崖下の帯の垣(建仁寺垣・四つ目垣)。⚠ `nishi.obi.fences` は **`at` で相手を指す**だけ
+    #    なので、**位置は生成器が起こす**(=まさに算出物)。
+    #    ⭕ 建仁寺垣は指された棟の宣言された面に沿って `lenKen` 間、
+    #      四つ目垣は指された井戸を囲む輪。
+    svc = {s9["name"]: s9 for s9 in d.get("service", [])}
+    wls = {w9.get("name"): w9 for w9 in d.get("wells", [])}
+    for f9 in (((d.get("nishi") or {}).get("obi") or {}).get("fences") or []):
+        at = f9.get("at")
+        kata = str(f9.get("kata", ""))
+        nm9 = "ObiKaki_%s" % at
+        if at in svc:
+            s9 = svc[at]
+            cu = (s9["u0"] + s9["u1"]) / 2.0
+            ln = f9.get("lenKen", 2.0)
+            side = str(f9.get("side", ""))
+            vv = s9["v1"] if "西" in side else s9["v0"]
+            add(nm9, "obi", "垣(%s)" % kata,
+                [(cu - ln / 2.0, vv), (cu + ln / 2.0, vv)],
+                h=f9.get("h"), asset="Own.KenninjiGaki" if "建仁寺" in kata
+                else "Own.YotsumeGaki",
+                at=at, side=side, lenKen=ln,
+                note="⭕ 位置は `%s` の%sから起こした(json は `at` で相手を指すだけ)。%s"
+                     % (at, side or "面", f9.get("_", "")))
+        elif at in wls:
+            w9 = wls[at]
+            r9 = 1.0
+            add(nm9, "obi", "垣(%s)" % kata,
+                [(w9["u"] - r9, w9["v"] - r9), (w9["u"] + r9, w9["v"] - r9),
+                 (w9["u"] + r9, w9["v"] + r9), (w9["u"] - r9, w9["v"] + r9),
+                 (w9["u"] - r9, w9["v"] - r9)],
+                h=f9.get("h"), asset="Own.YotsumeGaki", at=at,
+                note="⭕ 位置は井戸 `%s` の芯から起こした(半径 %.1f 間)。%s"
+                     % (at, r9, f9.get("_", "")))
+    return out
+
+
+def garden_impl_check(d):
+    """**庭の算出物が空になっていないか**(2026-09-04 棟梁 S4)。
+
+    ⛔ 「焼いたつもり」を許さない — 12区画すべてが実形を持ち、池のある庭には
+      汀線・護岸・中島・沢飛石が出ることを数で見る。
+    ⚠ 数が減ったら、庭の宣言が消えたか生成器の分岐が外れたかのどちらか。"""
+    bad = []
+    gi = garden_impl(d)
+    zs = set(q["zone"] for q in gi)
+    for g9 in d.get("gardens", []):
+        if g9["name"] not in zs:
+            bad.append("庭 `%s`(%s)の算出物が **0 件** — 実形すら焼けていない"
+                       % (g9["name"], g9.get("label", "")))
+    need = {"汀線(平滑後)": 1, "中島(輪郭)": 1, "沢飛石": 1, "石組護岸の区間": 1,
+            "州浜(砂利の帯)": 1, "乱杭": 1}
+    have = collections.Counter(q["kind"] for q in gi)
+    for k9, n9 in need.items():
+        if have.get(k9, 0) < n9:
+            bad.append("庭の算出物に **%s** が %d 件(要 %d)— 池の器が欠ける"
+                       % (k9, have.get(k9, 0), n9))
+    for q in gi:
+        if not q.get("world"):
+            bad.append("庭の算出物 `%s` に世界座標が無い" % q["name"])
+            break
+    return bad
+
+
 def _sha256(path):
     import hashlib
     h9 = hashlib.sha256()
@@ -8346,6 +8636,7 @@ def export_impl(d, ter):
               "len": round(mlen9, 3),
               "waterY": (N9 := (d.get("nishi") or {})).get("tsutsumi", {}).get("waterY", 6.60),
               "n": len(mw9)}
+    gimpl = garden_impl(d)          # ⭕ 庭12区画の算出物(2026-09-04 棟梁 S4)
     out = collections.OrderedDict([
         ("of", "okabe_sashizu.json"),
         ("src", {"sha256": _sha256(JSON), "bytes": os.path.getsize(JSON)}),
@@ -8355,11 +8646,12 @@ def export_impl(d, ter):
         ("graded", {"x0": float(x0), "z0": float(z0), "step": step,
                     "nx": nx, "nz": nz, "holes": holes, "h": H}),
         ("rails", rails), ("corners", corners), ("base", base),
-        ("planting", plant), ("kui", kui), ("migiwa", migiwa)])
+        ("planting", plant), ("kui", kui), ("migiwa", migiwa),
+        ("gardens", gimpl)])
     json.dump(out, open(IMPL_OUT, "w", encoding="utf-8"), ensure_ascii=False)
     return {"cells": cells, "holes": holes, "rails": len(rails), "corners": len(corners),
             "base": len(base), "planting": len(plant), "kui": len(kui),
-            "migiwa": len(mw9), "migiwaLen": mlen9}
+            "migiwa": len(mw9), "migiwaLen": mlen9, "gardens": len(gimpl)}
 
 
 def impl_fresh_check(d):
@@ -12990,6 +13282,7 @@ def main_export_impl():
           "/ planting %d / kui %d / migiwa %d点 %.1fm"
           % (st["cells"], st["holes"], st["rails"], st["corners"], st["base"],
              st["planting"], st["kui"], st["migiwa"], st["migiwaLen"]))
+    print("  gardens %d 節" % st["gardens"])
     print("  src.sha256 = %s" % _sha256(JSON))
 
 

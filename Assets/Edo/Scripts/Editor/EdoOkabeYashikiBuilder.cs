@@ -2452,10 +2452,22 @@ public static class EdoOkabeYashikiBuilder
         if (idx < 1) idx = 1;
         if (fam == "NM")
         {
-            // ⚠ `NM.GrassMeadow01` は **EdoAssets に未登録**(在庫方の登録待ち)。
-            //   ⛔ パスの literal をここに書かない(規則12)— 引けない旨を一覧へ出す。
             if (nm == "MapleBush")  return EdoAssets.NM.MapleBush(idx);
             if (nm == "GreyWillow") return EdoAssets.NM.GreyWillow(idx);
+            // 草地の草叢(ススキ)。名は `GrassMeadow01`、寸法の欄が**変種**("detailed"/"cross")。
+            if (nm.StartsWith("GrassMeadow"))
+            {
+                string fam2 = nm.Substring("GrassMeadow".Length);
+                string variant = (size == "Mid") ? "" : size;     // 既定の "Mid" は無印扱い
+                var ixs = EdoAssets.NM.GrassMeadowIndices(fam2, variant);
+                if (ixs.Length == 0) return null;                 // その変種は焼かれていない
+                // ⚠ 算出物が個体を指定していないので、**名前から決まる**個体を実在する番号の中から選ぶ
+                //   (⛔ 乱数ではない)。⭕ 指図が範囲や単一の番号を書けばそちらが勝つ。
+                //   ⛔ 連番と決めつけない — 実在する番号は EdoAssets が持つ(02 の無印は 1 が無い)。
+                int pick = (paren > 0 || (t.Length > 3)) && idx >= 1 && System.Array.IndexOf(ixs, idx) >= 0
+                         ? idx : ixs[StableHash(seedName + "g") % ixs.Length];
+                return EdoAssets.NM.GrassMeadow(fam2, variant, pick);
+            }
             return null;
         }
         if (fam == "JG")

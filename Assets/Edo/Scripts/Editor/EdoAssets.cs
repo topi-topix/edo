@@ -273,6 +273,50 @@ public static class EdoAssets
 
         /// <summary>ヤナギの灌木(水際・法面の下層)。i = 1..4。</summary>
         public static string GreyWillow(int i) { return Bush + "prefab_grey_willow_0" + i + ".prefab"; }
+
+        const string GrassDir = "Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/"
+                              + "Grass/Prefabs Unity Terrain Grass/";
+
+        /// <summary>**草地(メドウ)の草叢**。岡部邸のススキ(見透しの窓・法尻)に使う。
+        /// ⚠ ファイル名は `prefab_**Terrain_**grass_meadow_…` で、**`Terrain_` が入る**
+        /// (2026-09-04 の在庫の報告は落ちていた。⛔ 名を推測で組まない)。
+        ///
+        /// <para><paramref name="family"/> = "01"/"02"/"03"、<paramref name="variant"/> =
+        /// ""(無印)/"cross"/"detailed"、<paramref name="i"/> = 個体。
+        /// ⚠ **通し番号は系統ごとに歯抜け**なので、必ず <see cref="GrassMeadowIndices"/> で
+        /// 実在する番号を引くこと(例: 02 の無印は **1 が無く 2〜6**)。</para>
+        ///
+        /// ⚠ これは **Unity Terrain の detail 用**のプレハブ。GameObject として据えても動くが、
+        /// 数が増えるなら Terrain の detail 層へ載せるほうが軽い。</summary>
+        public static string GrassMeadow(string family, string variant, int i)
+        {
+            return GrassDir + "prefab_Terrain_grass_meadow_" + family
+                 + (string.IsNullOrEmpty(variant) ? "" : "_" + variant) + "_" + i + ".prefab";
+        }
+
+        /// <summary>系統・変種ごとに**実在する**個体の番号(2026-09-04 に `ls` で確認)。
+        /// ⛔ 連番と決めつけない — 02 の無印は 1 が無い。03 に cross/detailed は無い。</summary>
+        public static int[] GrassMeadowIndices(string family, string variant)
+        {
+            if (family == "01")
+            {
+                if (variant == "cross")    return new[] { 1, 2, 3 };
+                if (variant == "detailed") return new[] { 1, 2 };
+                return new[] { 1, 2, 3, 4, 5, 6 };
+            }
+            if (family == "02")
+            {
+                if (variant == "cross")    return new[] { 1, 2, 3 };
+                if (variant == "detailed") return new[] { 1, 2 };
+                return new[] { 2, 3, 4, 5, 6 };          // ⚠ 1 は無い
+            }
+            if (family == "03")
+            {
+                if (variant == "cross" || variant == "detailed") return new int[0];  // ⚠ 無い
+                return new[] { 1, 2, 3, 4 };
+            }
+            return new int[0];
+        }
     }
 
 

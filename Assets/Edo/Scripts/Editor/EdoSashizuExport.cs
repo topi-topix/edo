@@ -335,7 +335,50 @@ public static class EdoSashizuExport
                 want("Ido", jn(doc, "wells"), "井戸", "主郭");
                 want("Yagura", jn(doc, "yagura"), "隅櫓", "主郭");
                 want("Service", jn(doc, "service"), "附属屋", "主郭");
-                want("Niwa", jn(doc, "gardens"), "庭", "庭");
+                // ⚠ 庭は `Fuzoku/Niwa` ではなく**ルート直下の `Niwa/<種別>`** に据わる
+                //   (種別ごとに据え方が違うので群を分けてある)。⛔ 見る場所を間違えると
+                //   「据えたのに一つも無い」と報告する(2026-09-04 に実際に出た)。
+                {
+                    var have2 = new List<string>();
+                    var nw = root.transform.Find("Niwa");
+                    if (nw != null)
+                        for (int i = 0; i < nw.childCount; i++)
+                        {
+                            var sub2 = nw.GetChild(i);
+                            for (int j = 0; j < sub2.childCount; j++) have2.Add(sub2.GetChild(j).name);
+                        }
+                    // ⚠ 据わる物の名は算出物の**節の名**(`Sanseki_Shu` など)で、指図の庭の名
+                    //   (`NiwaShoin`)とは違う。⭕ 紐付けは算出物の **`zone`** が持つ。
+                    //   ⛔ 名前の前方一致で結ぼうとすると全部「一つも無い」になる。
+                    var zoneNodes = new Dictionary<string, List<string>>();
+                    if (impl != null)
+                        foreach (var o in Get2(impl, "gardens"))
+                        {
+                            var gg2 = o as Dictionary<string, object>; if (gg2 == null) continue;
+                            string z2 = Str(gg2, "zone"), n2 = Str(gg2, "name");
+                            if (z2 == null || n2 == null) continue;
+                            // ⚠ **部材で表す節だけを数える。**芝谷・樹林・白洲のように
+                            //   **地表と地形だけで表す庭**は、物が0個でも正しい(⛔ 欠陥ではない)。
+                            string as2 = Str(gg2, "asset");
+                            if (as2 == null || as2.StartsWith("L_")) continue;
+                            if (!zoneNodes.ContainsKey(z2)) zoneNodes[z2] = new List<string>();
+                            zoneNodes[z2].Add(n2);
+                        }
+                    foreach (var o in Get2(doc, "gardens"))
+                    {
+                        string zn = Str(o as Dictionary<string, object>, "name");
+                        if (zn == null) continue;
+                        int c3 = 0;
+                        // ⭕ 部材で表す節が無い庭は、物が0でも正しい — 数えない
+                        if (!zoneNodes.ContainsKey(zn)) continue;
+                        var want3 = zoneNodes[zn];
+                        foreach (var q in have2)
+                            foreach (var nn in want3) if (q == nn || q.StartsWith(nn + "_")) { c3++; break; }
+                        // 庭の「区画」は地表と地形で表すものもあるので、部材が0でも直ちに欠陥ではない。
+                        // ⭕ ただし**その区画に属する物が一つも無い**なら鳴らす
+                        if (c3 == 0) bad("庭", "庭 " + zn + " に属する物が実装に一つも無い");
+                    }
+                }
                 // 井戸・附属屋は1個ものなので位置も見る
                 foreach (var o in Get2(doc, "wells"))
                 {

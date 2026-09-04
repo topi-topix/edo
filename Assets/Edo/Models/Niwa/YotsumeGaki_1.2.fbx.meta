@@ -3,7 +3,12 @@ guid: f850cce0185744f61bac5b4696cebcb9
 ModelImporter:
   serializedVersion: 24501
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Bamboo garden fence
+    second: {fileID: 2100000, guid: 3566d9dd1deb157428cbaaf2f2088f8a, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0

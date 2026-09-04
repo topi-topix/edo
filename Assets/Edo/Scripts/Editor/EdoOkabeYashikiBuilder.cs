@@ -1175,6 +1175,11 @@ public static class EdoOkabeYashikiBuilder
     public static Vector2 Pivot(Dictionary<string, object> o, string kind)
     {
         float u0 = F(Get(o, "u0")), v0 = F(Get(o, "v0")), u1 = F(Get(o, "u1")), v1 = F(Get(o, "v1"));
+        // ⚠ **部材そのもので建つ棟**(車寄など・`ridge` を持たない)はピボットが
+        //   **足跡の中心**。⛔ 部材キットで組む棟(外形の角)と同じ式で測らない
+        //   (2026-09-04: 車寄が 3.28m ずれていると誤報した)。
+        if (kind == "mune" && !Has(o, "ridge"))
+            return Grid.W((u0 + u1) * 0.5f, (v0 + v1) * 0.5f);
         var g = PivotUV(u0, v0, u1, v1);
         return Grid.W(g.x, g.y);
     }
@@ -1192,6 +1197,7 @@ public static class EdoOkabeYashikiBuilder
         sb.AppendLine(PlaceService(wait));
         sb.AppendLine(PlaceWells(wait));
         sb.AppendLine(PlaceKekkai(wait));
+        sb.AppendLine(PlaceTakegaki(wait));
         sb.AppendLine(PlaceKaidans(wait));
         sb.AppendLine(PlaceSando(wait));
         sb.AppendLine("── 据えなかったもの(部材待ち・欄待ち)" + wait.Count + " 件 ──");
@@ -1573,9 +1579,14 @@ public static class EdoOkabeYashikiBuilder
     static void OrientOf(string key, float du, float dv, out float xu, out float xv, out string note)
     {
         note = null;
-        int dot = key == null ? -1 : key.LastIndexOf('.');
-        int lp = key == null ? -1 : key.IndexOf('(');
-        string k = key == null ? "" : key.Substring(dot + 1, (lp < 0 ? key.Length : lp) - dot - 1);
+        // ⛔ **括弧を先に落としてから最後の `.` を探す。**引数の小数点(`Own.NagayaOmote(21.816)` の
+        //   「.816」)を族の区切りと取り違えると、部分文字列の長さが負になって例外で落ちる
+        //   (2026-09-04 に S3 が `Length cannot be less than zero` で止まった)。
+        string head = key ?? "";
+        int lp = head.IndexOf('(');
+        if (lp >= 0) head = head.Substring(0, lp);
+        int dot = head.LastIndexOf('.');
+        string k = dot >= 0 ? head.Substring(dot + 1) : head;
         switch (k)
         {
             // 崖下の帯: +Z = 開口面(山側 = −v)⇒ +X = −u。⛔ 逆にすると盲面が山へ向く
@@ -1778,6 +1789,57 @@ public static class EdoOkabeYashikiBuilder
                    + " → build_noshibei.py / build_kido.py");
         }
         return sb.ToString();
+    }
+
+    // ---------------------------------------------------------------- 法肩の竹垣
+    /// <summary>**法肩の竹垣**(四つ目垣)。⚠ 2026-09-04 まで**据える処理が無かった** —
+    /// 算出物 `impl.rails` は 17本あり、突き合わせも数えているのに実装だけが持っていなかった。
+    /// ⭕ 折れ線に沿って在庫の竹垣を敷き詰める。丈は算出物の `h`(既定 `const.takegakiH`)。
+    /// ⚠ 部材の走りは **+Z**(生 1.05m)なので、江戸間の割りに合わせて 0.909 で使う。
+    /// ⛔ 地面から浮かせない — 各駒を地盤へ落とす(法肩は勾配が変わるので駒ごとに拾う)。</summary>
+    static string PlaceTakegaki(List<string> wait)
+    {
+        var rails = A(Get(IMPL, "rails"));
+        if (rails == null) { wait.Add("算出物に rails(法肩の竹垣)が無い"); return "竹垣: 算出物待ち"; }
+        var src = AssetDatabase.LoadAssetAtPath<GameObject>(EdoAssets.Eg.TakeGaki);
+        if (src == null) { wait.Add("竹垣の部材が無い: " + EdoAssets.Eg.TakeGaki); return "竹垣: 部材待ち"; }
+        var grp = Group("Fuzoku/Takegaki"); Clear(grp);
+        const float S2 = 0.909f, PITCH = 1.05f * S2;
+        int made = 0, runs = 0;
+        foreach (var o in rails)
+        {
+            var r = O(o); if (r == null) continue;
+            var pts = A(Get(r, "world"));
+            if (pts == null || pts.Count < 2) continue;
+            string nm = S(r["name"]);
+            float h = Has(r, "h") ? F(r["h"]) : C("takegakiH");
+            runs++;
+            for (int i = 0; i + 1 < pts.Count; i++)
+            {
+                var a1 = A(pts[i]); var b1 = A(pts[i + 1]);
+                if (a1 == null || b1 == null) continue;
+                Vector2 P0 = new Vector2(F(a1[0]), F(a1[1])), P1 = new Vector2(F(b1[0]), F(b1[1]));
+                float len = (P1 - P0).magnitude;
+                if (len < 0.05f) continue;
+                int n = Mathf.Max(1, Mathf.RoundToInt(len / PITCH));
+                float pitch = len / n;
+                Vector2 dir = (P1 - P0) / len;
+                float yaw = Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg;
+                for (int k = 0; k < n; k++)
+                {
+                    Vector2 c = P0 + dir * (pitch * (k + 0.5f));
+                    float y = Graded.At(c.x, c.y); if (float.IsNaN(y)) y = EdoBuild.Ground(c.x, c.y);
+                    var go = EdoBuild.Place(EdoAssets.Eg.TakeGaki, new Vector3(c.x, y, c.y), yaw,
+                                            new Vector3(S2, S2 * h / 0.9f, S2 * pitch / PITCH),
+                                            grp, nm + "_" + made);
+                    if (go == null) continue;
+                    var bb = EdoBuild.RB(go);
+                    go.transform.position += new Vector3(c.x - bb.center.x, y - 0.05f - bb.min.y, c.y - bb.center.z);
+                    made++;
+                }
+            }
+        }
+        return "法肩の竹垣: " + made + " 駒 / " + runs + " 本";
     }
 
     // ---------------------------------------------------------------- 石段
@@ -2331,11 +2393,11 @@ public static class EdoOkabeYashikiBuilder
     /// <summary>⚠ **部材方が新造・登録中**(2026-09-04)。登録されたら <see cref="AssetByKey"/> に
     /// 1行ずつ足す。⛔ それまで在庫の別物で代用しない(代用は在庫方の判断であって棟梁のではない)。</summary>
     static readonly string[] NishiPartsPending = {
-        "ObiNagaya(len)  — 崖下の平屋長屋 N1/N2(7.5×2.5間・桟瓦・下見板腰・水側は盲面)",
-        "ObiMonooki      — 物置 M1(3×1.5間)",
-        "ObiKawaya       — かわや K_Obi(1×1間)",
-        "MarutaTesuri    — 丸太の手すり(横木1段・丸太径 0.12)",
-        "Kui(dia)        — 汀の杭(松の丸太・径 0.12〜0.18)",
+        "ObiNagaya — 崖下の平屋長屋 N1/N2(7.5×2.5間・桟瓦・下見板腰・水側は盲面)",
+        "ObiMonooki — 物置 M1(3×1.5間)",
+        "ObiKawaya — かわや K_Obi(1×1間)",
+        "MarutaTesuri — 丸太の手すり(横木1段・丸太径 0.12)",
+        "Kui — 汀の杭(松の丸太・径 0.12〜0.18)",
     };
 
     /// <summary>植栽の部材のキーを解く。**キーは指図(算出物)が持ち、ここは辞書を引くだけ。**
@@ -2346,10 +2408,29 @@ public static class EdoOkabeYashikiBuilder
     static string PlantByKey(string key, string seedName)
     {
         if (string.IsNullOrEmpty(key)) return null;
-        var t = key.Split('.');
+        // ⛔ **括弧を先に落とす。**つるは `Own.TsuruFuji(1)` の形で来るので、素朴に '.' で割ると
+        //   名が「TsuruFuji(1)」になって辞書に当たらない(2026-09-04 に S3 が例外で落ちた型と同じ)。
+        //   括弧の中は**個体**として使う。
+        string head0 = key; int paren = -1;
+        int lp0 = key.IndexOf('(');
+        if (lp0 >= 0)
+        {
+            int rp0 = key.LastIndexOf(')');
+            head0 = key.Substring(0, lp0);
+            int.TryParse(key.Substring(lp0 + 1, Mathf.Max(0, (rp0 < 0 ? key.Length : rp0) - lp0 - 1)).Trim(), out paren);
+        }
+        var t = head0.Split('.');
         if (t.Length < 2) return null;
         string fam = t[0], nm = t[1];
         string size = t.Length > 2 ? t[2] : "Mid";
+        // ⚠ 寸法は `Small/Mid` のように**選択肢**で来ることがある(指図が『混ぜる』と言う所)。
+        //   ⛔ そのままパスに入れると `Tree_Bamboo_Small/Mid_Green_01` になって落ちる
+        //   (2026-09-04 に S5 が asset not found で止まった)。⭕ **名前から決まる**ものを選ぶ。
+        if (size.IndexOf('/') >= 0)
+        {
+            var alt = size.Split('/');
+            size = alt[StableHash(seedName + "sz") % alt.Length];
+        }
         // ⚠ 個体は `1` か `1-3`(範囲)で来る。⛔ **1本の層を1個体で埋めない**(部材の doc)ので、
         //   範囲なら **名前から決まる**個体を選ぶ(乱数ではないので何度流しても同じ)。
         //   ⭕ 個体を指図で決めたいときは範囲でなく単一の番号を書けばそちらが勝つ。
@@ -2367,7 +2448,16 @@ public static class EdoOkabeYashikiBuilder
             }
             else int.TryParse(it, out idx);
         }
+        if (paren > 0) idx = paren;          // 括弧の個体が最優先
         if (idx < 1) idx = 1;
+        if (fam == "NM")
+        {
+            // ⚠ `NM.GrassMeadow01` は **EdoAssets に未登録**(在庫方の登録待ち)。
+            //   ⛔ パスの literal をここに書かない(規則12)— 引けない旨を一覧へ出す。
+            if (nm == "MapleBush")  return EdoAssets.NM.MapleBush(idx);
+            if (nm == "GreyWillow") return EdoAssets.NM.GreyWillow(idx);
+            return null;
+        }
         if (fam == "JG")
         {
             if (nm == "Pine")    return EdoAssets.JG.Pine(size, idx);
@@ -2426,12 +2516,18 @@ public static class EdoOkabeYashikiBuilder
                 var w = m.MultiplyPoint3x4(vs[i]);
                 float dy = w.y - baseY;
                 if (dy < y0 || dy > y1) continue;
-                rs.Add((new Vector2(w.x, w.z) - axis).magnitude);
+                float r = (new Vector2(w.x, w.z) - axis).magnitude;
+                if (r < 0.01f) continue;          // 軸上の退化点(枝の付け根・板ポリの芯)は数えない
+                rs.Add(r);
             }
         }
         if (rs.Count == 0) return 0f;
         rs.Sort();
-        return 2f * rs[Mathf.Clamp(Mathf.RoundToInt(rs.Count * 0.90f) - 1, 0, rs.Count - 1)];
+        // ⚠ **分布は二峰**(幹の低い塊と、葉・低い枝の高い塊)。2026-09-04 の実測(クロマツ 13.7m):
+        //   p20 0.372 / p30 0.414(← 幹)/ p50 0.721 / p90 1.755(← 葉)。
+        //   ⛔ 高い分位を取ると葉を拾い、幹径が 3.5m と出て**つるが一本も絡まない**。
+        //   ⭕ **非ゼロの 25 分位**を取る(幹の塊の中)。実測値は据えるたびに一覧へ出して検められる。
+        return 2f * rs[Mathf.Clamp(Mathf.RoundToInt(rs.Count * 0.25f) - 1, 0, rs.Count - 1)];
     }
 
     /// <summary>名前から決まる安定した非負の整数。⛔ 乱数ではない — 何度流しても同じ物が出る。
@@ -2510,7 +2606,9 @@ public static class EdoOkabeYashikiBuilder
             if (key == null) { noAsset++; continue; }
             if (key.Contains("Tsuru")) { vines.Add(q); continue; }
             string path = PlantByKey(key, Has(q, "name") ? S(q["name"]) : key);
-            if (path == null) { missing.Add(key); noPart++; continue; }
+            // ⛔ 部材が無いときに例外で Stage 全体を止めない — 記録して次へ
+            if (path == null || AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+            { missing.Add(key + (path == null ? "" : " → " + path)); noPart++; continue; }
             Vector2 c = f.W(F(q["u"]), F(q["v"]));
             float y = S(Get(q, "ground")) == "terrain" ? EdoBuild.Ground(c.x, c.y) : Graded.At(c.x, c.y);
             if (float.IsNaN(y)) y = EdoBuild.Ground(c.x, c.y);
@@ -2535,7 +2633,7 @@ public static class EdoOkabeYashikiBuilder
             byZone[z] = (byZone.ContainsKey(z) ? byZone[z] : 0) + 1;
         }
         // ---- 二巡目: つる(高木の幹に絡む)-------------------------------
-        int vine = 0, vineSkip = 0;
+        int vine = 0, vineSkip = 0; var vineLog = new List<string>();
         foreach (var q in vines)
         {
             string key = S(q["asset"]);
@@ -2577,6 +2675,7 @@ public static class EdoOkabeYashikiBuilder
             // ⛔ 一様スケールにしない — XZ は幹径へ、Y は丈へ別々に合わせる
             gv.transform.localScale = new Vector3(dia / tref, sy, dia / tref);
             EdoBuild.SeatBottom(gv, y2);
+            vineLog.Add(S(q["name"]) + " on " + hostName + " 幹径 " + dia.ToString("F3"));
             vine++;
         }
         if (vine + vineSkip > 0)
@@ -2592,6 +2691,7 @@ public static class EdoOkabeYashikiBuilder
         foreach (var kv in byZone) sb.Append(" / " + kv.Key + " " + kv.Value);
         if (noPart > 0) sb.Append(" ｜ 部材が引けず据えられない " + noPart);
         if (vineSkip > 0) sb.Append(" ｜ つる 据えず " + vineSkip);
+        if (vineLog.Count > 0) sb.Append("\n  つるの幹径(実測): " + string.Join(" / ", vineLog.ToArray()));
         return sb.ToString();
     }
 
@@ -2673,9 +2773,14 @@ public static class EdoOkabeYashikiBuilder
             if (w != null && w.Count >= 2) c = new Vector2(F(w[0]), F(w[1]));
             else if (Has(k, "u")) c = f.W(F(k["u"]), F(k["v"]));
             else continue;
+            // ⭕ **焼き上がりの径へ丸める**(算出物は 0.12〜0.18 の連続値、部材は3種)。
+            //   ⛔ 丸めないと合わない径が全部落ちる(2026-09-04: 242 本中 85 本しか据わらなかった)
             float dia = F(Get(k, "dia"));
-            string path = EdoAssets.Own.Kui(dia);
-            if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null) { missing.Add(dia.ToString("0.00")); continue; }
+            var kd = new float[] { 0.12f, 0.15f, 0.18f };
+            float pick = kd[0];
+            foreach (var dd in kd) if (Mathf.Abs(dd - dia) < Mathf.Abs(pick - dia)) pick = dd;
+            string path = EdoAssets.Own.Kui(pick);
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null) { missing.Add(pick.ToString("0.00")); continue; }
             float top = Has(k, "topY") ? F(k["topY"]) : F(Get(k, "top"));   // 頭の高さ
             // ⚠ 傾き 5° は部材の **+X へ焼き込んである**ので、yaw を振れば傾きの方位が散る。
             //   算出物が yaw を持たないので**名前から決まる向き**を使う(⛔ 乱数ではない)。
@@ -2739,8 +2844,19 @@ public static class EdoOkabeYashikiBuilder
                    + F(O(Get(r, "measured"))["len"]).ToString("0.#") + "m)は**土の道で路盤は地盤なり**。"
                    + "土工は S1 の造成に入っているので、S5 で据える物は無い(路面の塗りは地表の巡)");
         }
+        // ⭕ **実際に引けるかで判定する**(⛔ 固定の文言を並べない — 焼けた後も「待ち」と嘘をつく)
         foreach (var s2 in NishiPartsPending)
-            wait.Add("部材待ち(部材方が新造・登録中): " + s2);
+        {
+            int c2 = s2.IndexOf(' ');
+            string k2 = c2 > 0 ? s2.Substring(0, c2) : s2;
+            // ⚠ 径や長さが要る部材は、代表の寸法で引いて実在を見る(⛔ 引数 0 で null を貰って
+            //   「待ち」と嘘をつかない — 2026-09-04 に `Kui` がそれで残った)
+            string pth = k2 == "Kui" ? EdoAssets.Own.Kui(0.15f)
+                       : k2 == "ObiNagaya" ? EdoAssets.Own.ObiNagaya(7.5f, 2.5f)
+                       : AssetByKey(k2, 7.5f, 2.5f);
+            if (pth == null || AssetDatabase.LoadAssetAtPath<GameObject>(pth) == null)
+                wait.Add("部材待ち: " + s2);
+        }
         return "西の斜面: 据える物のない項目と部材待ちを一覧へ出した";
     }
 

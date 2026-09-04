@@ -3,7 +3,12 @@ guid: 610eac9c8d1ac484da5fff27e1d3c875
 ModelImporter:
   serializedVersion: 24501
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: M_photoscanned_rocks_01
+    second: {fileID: 2100000, guid: 854c2a4ac214c8f47939e9fd60886c7c, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0

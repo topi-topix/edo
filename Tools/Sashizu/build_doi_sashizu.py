@@ -5182,6 +5182,15 @@ def _segd(p, a, b):
     return math.hypot(px - a[0] - t * dx, pz - a[1] - t * dy)
 
 
+def _seg_cross(p, q, r, s):
+    """線分 pq と rs が交わるか(端点で触れるだけは交わりとしない)。"""
+    def cr(a, b, c):
+        return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+    d1, d2 = cr(r, s, p), cr(r, s, q)
+    d3, d4 = cr(p, q, r), cr(p, q, s)
+    return (d1 * d2 < -1e-12) and (d3 * d4 < -1e-12)
+
+
 def _pip(pt, poly):
     x, y = pt
     c = False
@@ -5286,7 +5295,9 @@ class Niwa(object):
             return self.base + self.mound(m["u"], m["v"]) + self.d["const"]["eyeSit"]
         if md == "water":
             return self.waterY
-        return None                               # stand は眼高が設計書に無い【?】
+        if md == "stand" and "eyeStand" in self.d["const"]:
+            return self.base + self.mound(m["u"], m["v"]) + self.d["const"]["eyeStand"]
+        return None
 
     # -------- 御土蔵(主景の対岸)
     def kura(self):
@@ -5384,9 +5395,58 @@ def niwa_stats(d):
             if gr * 100 > 15.0:                   # 急な区間は野面の石段を切る
                 steps += int(round(abs(dz) / e["keri"]))
                 stepL += l
+        # ⚠ **区間の両端だけで測ると急な中腹を見落とす**(2026-09-04 庭方の申し送り)。
+        #   0.25m 刻みで実際の地表を刻み、**1m 窓の最急**を別に持つ。
+        prof, s0 = [], 0.0
+        for i in range(len(pts) - 1):
+            a, b = pts[i], pts[i + 1]
+            l = math.dist(a, b) * K
+            m0 = max(1, int(math.ceil(l / 0.25)))
+            for k in range(m0 + (1 if i == len(pts) - 2 else 0)):
+                t9 = k / float(m0)
+                prof.append((s0 + l * t9,
+                             n.ground(a[0] + (b[0] - a[0]) * t9, a[1] + (b[1] - a[1]) * t9)))
+            s0 += l
+        # ⚠ **窓は「1m ちょうど」で滑らせる。**「1m 以内の任意の2点」にすると、
+        #   土手の縁の 0.23m の段(蹴上1段ぶん)を 0.25m 幅で割って 92% に化ける
+        #   — それは段であって勾配ではない(2026-09-04 に踏んだ)。
+        win, at, W1 = 0.0, 0.0, 1.0
+
+        def _zat(s9):
+            if s9 <= prof[0][0]:
+                return prof[0][1]
+            if s9 >= prof[-1][0]:
+                return prof[-1][1]
+            for k9 in range(len(prof) - 1):
+                if prof[k9][0] <= s9 <= prof[k9 + 1][0]:
+                    dd = prof[k9 + 1][0] - prof[k9][0]
+                    t8 = 0.0 if dd < 1e-9 else (s9 - prof[k9][0]) / dd
+                    return prof[k9][1] + (prof[k9 + 1][1] - prof[k9][1]) * t8
+            return prof[-1][1]
+        if L <= W1:
+            win = abs(prof[-1][1] - prof[0][1]) / max(L, 1e-9)
+        else:
+            s9 = 0.0
+            while s9 + W1 <= L + 1e-9:
+                q = abs(_zat(s9 + W1) - _zat(s9)) / W1
+                if q > win:
+                    win, at = q, s9
+                s9 += 0.25
         wet = [p for p in pts if n.inpond(*p)]
+        # 路縁(幅の半分)から汀・社地までの離れ。⚠ 終端(沢飛石の袂)は汀に寄るのが役目
+        hw = e["w"] / 2.0 / K
+        ed = min(n.dshore(*p) - hw for p in pts[1:-1]) * K if len(pts) > 2 else 9e9
+        sh = g.get("kaki") and next((k.get("shachi") for k in g["kaki"] if k.get("shachi")), None)
+        eg = 9e9
+        if sh:
+            box = [(sh["u0"], sh["v0"]), (sh["u1"], sh["v0"]),
+                   (sh["u1"], sh["v1"]), (sh["u0"], sh["v1"])]
+            for p in pts:
+                eg = min(eg, (min(_segd(p, box[i], box[(i + 1) % 4]) for i in range(4)) - hw) * K)
         o["enro"].append(dict(name=e["name"], label=e["label"], L=L, grade=mx * 100,
-                              steps=steps, stepL=stepL, wet=len(wet),
+                              gradeWin=win * 100, gradeWinAt=at,
+                              steps=steps, stepL=stepL, wet=len(wet), w=e["w"],
+                              edgeShore=ed, edgeShachi=eg,
                               dshore=min(n.dshore(*p) for p in pts) * K))
     # 沢飛石
     o["sawa"] = []
@@ -5570,11 +5630,16 @@ def niwa_check(d):
         bad.append("主視点から水面が %.0f%% 見える — 見隠れが効いていない" % o["visPct"])
     if o["hidMoundPct"] <= 0.0:
         bad.append("**築山による見隠れが 0%** — 池が一望できてしまう(築山Bは西の池を切る役)")
-    # ⑦ 築山の法(公称=直径÷高さ)と南裾
+    # ⑦ 築山の法と南裾。⭐ **2026-09-04 庭方の物差し** — 公称(直径÷高さ)だけでは
+    #   1:0.53 の崖を見逃していたので、**実測の最急**を別の条として立てる。
     bf = d["const"]["batterFill"]
     for t in o["tsuki"]:
         if t["batter"] < bf - 1e-9:
             bad.append("%s の法(公称)1:%.2f が盛土の上限 1:%.1f より急" % (t["label"], t["batter"], bf))
+        if t["batterReal"] < bf - 1e-9:
+            bad.append("%s の法(**実測の最急**)1:%.2f が盛土の上限 1:%.1f より急 — "
+                       "公称は 1:%.2f。頂の平場の切り方か山の裾を見直すこと"
+                       % (t["label"], t["batterReal"], bf, t["batter"]))
     ku = n.kura()
     if ku:
         need = ku["face"] + d["const"]["inubashiri"] / K
@@ -5617,6 +5682,28 @@ def niwa_check(d):
                    (ya["u0"], ya["v1"]), (ya["u1"], ya["v1"])):
         if n.inpond(u, v):
             bad.append("稲荷の祠の隅 (%.2f, %.2f) が池の中" % (u, v))
+    # ⑩b 社地の垣・参道・点景の取り合い
+    for k in g.get("kaki", []):
+        sh = k.get("shachi")
+        if not sh:
+            continue
+        if not (sh["u0"] <= ya["u0"] and ya["u1"] <= sh["u1"]
+                and sh["v0"] <= ya["v0"] and ya["v1"] <= sh["v1"]):
+            bad.append("%s の社地が祠を囲めていない" % k["label"])
+        # 参道は**開ける一方**を通ること(⛔ 垣を跨いで入らない)
+        for (p, q) in zip(g["yashiro"]["sando"]["pts"], g["yashiro"]["sando"]["pts"][1:]):
+            for (r0, r1) in zip(k["pts"], k["pts"][1:]):
+                if _seg_cross(p, q, r0, r1):
+                    bad.append("稲荷の参道が %s を横切る((%.2f, %.2f)→(%.2f, %.2f))"
+                               % (k["label"], p[0], p[1], q[0], q[1]))
+        # 手水石・灯籠は「社地の中」か「開き口の側(参道の上)」のどちらかに在ること
+        for nm, ob in (("手水石", g["yashiro"]["chozu"]), ("灯籠(社前)", g["toro"][-1])):
+            pu, pv = ob["u"], ob["v"]
+            if sh["u0"] <= pu <= sh["u1"] and sh["v0"] <= pv <= sh["v1"]:
+                continue                           # 社地の中は可
+            if pu < sh["u0"] and sh["v0"] <= pv <= sh["v1"]:
+                continue                           # 開き口(−u)の側の参道まわりも可
+            bad.append("%s (%.2f, %.2f) が社地の中にも開き口の側にも無い" % (nm, pu, pv))
     ir = next((s for s in d["service"] if s["name"] == ya["ref"]), None)
     if ir is None:
         bad.append("`yashiro.hokora.ref` = %s が付属屋に無い" % ya["ref"])
@@ -5672,35 +5759,17 @@ def niwa_todo(d):
     g, K = n.g, n.ken
     o = niwa_stats(d)
     out = []
-    # ⚠ cos 減衰の丘は**局所の最急が公称の π/2 倍**になる(形の性質で、設計の誤りではない)。
-    #   ここで拾うのはその素の形からさらに外れた場合だけ — A1 の頂の平場のように、
-    #   **平場が山に対して大きすぎて残りの法が立つ**型。
-    for t in o["tsuki"]:
-        exp = t["batter"] * 2.0 / math.pi
-        if t["batterReal"] < exp - 0.02:
-            tt = next(x for x in g["tsukiyama"] if x["name"] == t["name"])
-            da = tt.get("daira")
-            out.append("**%s の法が実測 1:%.2f** — 素の丘なら 1:%.2f になるはずの所"
-                       "(公称 1:%.2f)。%s ⇒ **平場を小さくするか、山の裾を広げるか、"
-                       "頂を下げるかは意匠の判断**なので指図方では動かさない。"
-                       % (t["label"], t["batterReal"], exp, t["batter"],
-                          ("頂の平場 %.1f×%.1f間 が幅 %.1f間・高さ %.2fm の山に対して大きく、"
-                           "平場の縁から裾までに残る法が 1:%.2f になる。"
-                           % (da["dU"], da["dV"], tt["dU"], tt["rise"], t["batterReal"]))
-                          if da else "頂の形が素の丘と違う。"))
-    for e in g.get("enro", []):
+    # ⚠ **築山の法は `niwa_check` が「実測の最急 ≤ batterFill」で見る**(2026-09-04 庭方の
+    #   物差しの差し替え)。⛔ **素の丘(公称 × 2/π)との比較はしない** — 通過条件を解くと
+    #   平場の幅 ≤ 7.5cm となり、平場を持つ限り構造的に通らない検査だった。
+    # 園路の勾配は**1m 窓の最急**で見る(区間の両端だけだと急な中腹を見落とす)。
+    for e, q in zip(g.get("enro", []), o["enro"]):
         stepG = e["keri"] / e["fumi"]
-        for i, (a, b) in enumerate(zip(e["pts"], e["pts"][1:])):
-            l = math.dist(a, b) * K
-            dz = n.ground(*b) - n.ground(*a)
-            if l < 1e-9:
-                continue
-            gr = abs(dz) / l
-            if gr > stepG + 1e-9:
-                out.append("**%s の第%d区間 (%.2f, %.2f)→(%.2f, %.2f) が %.0f%%** — "
-                           "指定の野面の石段(蹴上 %.2f / 踏面 %.2f = %.0f%%)でも登れない"
-                           % (e["label"], i + 1, a[0], a[1], b[0], b[1], gr * 100,
-                              e["keri"], e["fumi"], stepG * 100))
+        if q["gradeWin"] > stepG * 100 + 1e-9:
+            out.append("**%s の 1m 窓の最急が %.0f%%**(起点から %.1fm)— "
+                       "指定の野面の石段(蹴上 %.2f / 踏面 %.2f = %.0f%%)でも登れない"
+                       % (e["label"], q["gradeWin"], q["gradeWinAt"],
+                          e["keri"], e["fumi"], stepG * 100))
     for e in g.get("enro", []):
         for (a, b) in zip(e["pts"], e["pts"][1:]):
             for m in d["munes"] + d["service"] + d["links"]:
@@ -5875,9 +5944,13 @@ def niwa_plan_svg(d, W=760.0):
     for m in d["munes"] + d["service"]:
         if "yaw" in m or m["u1"] < -14.8 or m["u0"] > 3.2 or m["v1"] < 62.6 or m["v0"] > 83.0:
             continue
-        sv.append(pr.rect(m["u0"], m["v0"], m["u1"], m["v1"], fill="var(--ink-mid)",
+        # ⚠ **窓の外へはみ出す棟を素の座標で描かない** — 見出しの帯まで塗りつぶす
+        #   (2026-09-04 に踏んだ。居間棟が v52 から描かれて図の題を隠していた)。
+        cu0, cu1 = max(m["u0"], pr.u0), min(m["u1"], pr.u1)
+        cv0, cv1 = max(m["v0"], pr.v0), min(m["v1"], pr.v1)
+        sv.append(pr.rect(cu0, cv0, cu1, cv1, fill="var(--ink-mid)",
                           stroke="var(--ink)", sw=1.2))
-        sv.append(T((X(m["u0"]) + X(m["u1"])) / 2, (Y(m["v0"]) + Y(m["v1"])) / 2 + 4,
+        sv.append(T((X(cu0) + X(cu1)) / 2, (Y(cv0) + Y(cv1)) / 2 + 4,
                     MUNE_JA.get(m["name"], m.get("label", m["name"])), "rmS", "middle", 11.0))
     # 築山の等高線
     for t in g["tsukiyama"]:
@@ -5965,7 +6038,7 @@ def niwa_plan_svg(d, W=760.0):
         sv.append(T(X(s0["u"]) - 8, Y(s0["v"]) - 8, "三尊石", "jo", "end"))
     for t in g.get("toro", []):
         sv.append('<path d="M %.1f %.1f l 5 8 h -10 Z" fill="var(--shu)"/>' % (X(t["u"]), Y(t["v"]) - 8))
-        sv.append(T(X(t["u"]) + 8, Y(t["v"]) + 12, t["label"], "jo"))
+        sv.append(T(X(t["u"]), Y(t["v"]) - 9, t["label"], "jo", "middle"))
     # 刈込
     for k in g.get("karikomi", []):
         sv.append(pr.rect(k["u0"], k["v0"], k["u1"], k["v1"], fill="#7E9A5E",
@@ -5986,25 +6059,29 @@ def niwa_plan_svg(d, W=760.0):
                         "jo", "middle", 8.0))
     # 垣
     for k in g.get("kaki", []):
-        if "v" in k:
+        if k.get("pts"):
+            sh = k.get("shachi")
+            if sh:
+                sv.append(pr.rect(sh["u0"], sh["v0"], sh["u1"], sh["v1"], fill="none",
+                                  stroke="#6B4E2E", sw=0.7, dash="3 3", op=0.7))
+            sv.append(line(k["pts"], "#5F7A4E", 2.6))     # 三方(透かす垣)
+            sv.append(T(X(sh["u1"]) - 6 if sh else X(k["pts"][0][0]) - 6,
+                        (Y(k["pts"][0][1]) + Y(k["pts"][-1][1])) / 2,
+                        "四つ目垣 h%.1f(南開き)" % k["h"], "jo", "end"))
+        elif "v" in k:
             sv.append(line([(k["u0"], k["v"]), (k["u1"], k["v"])], "#6B4E2E", 3.0))
             sv.append(T(X((k["u0"] + k["u1"]) / 2), Y(k["v"]) + 13, k["label"], "jo", "middle"))
-        elif k.get("southU") is not None:
-            sv.append(line([(k["southU"], g["v0"] + 0.3), (k["southU"], 67.6)],
-                           "#B03A2E", 2.0, dash="4 4"))
-            sv.append(T(X(k["southU"]) - 6, Y(67.4) + 12,
-                        "四つ目垣: 社地の外周が未定【?】", "jo", "end"))
     # 稲荷
     ya = g["yashiro"]
     sv.append(line(ya["sando"]["pts"], "#C9A24B", L(ya["sando"]["w"] / n.ken), op=0.7))
     tr = ya["torii"]
     sv.append(LN(X(tr["u"]), Y(tr["v"]) - 9, X(tr["u"]), Y(tr["v"]) + 9, "var(--shu)", 2.6))
-    sv.append(T(X(tr["u"]) + 8, Y(tr["v"]) - 10, "鳥居(素木)", "jo"))
+    sv.append(T(X(tr["u"]), Y(tr["v"]) + 20, "鳥居(素木)", "jo", "middle"))
     ch = ya["chozu"]
     sv.append(pr.rect(ch["u"] - ch["L"] / 2 / n.ken, ch["v"] - ch["W"] / 2 / n.ken,
                       ch["u"] + ch["L"] / 2 / n.ken, ch["v"] + ch["W"] / 2 / n.ken,
                       fill="#6E7A83", stroke="var(--ink)", sw=0.6))
-    sv.append(T(X(ch["u"]) + 7, Y(ch["v"]) + 4, "手水石", "jo"))
+    sv.append(T(X(ch["u"]), Y(ch["v"]) - 9, "手水石", "jo", "middle"))
     # 園路
     for e in g.get("enro", []):
         sv.append(line(e["pts"], "var(--michi)", L(e["w"] / n.ken), op=0.55))
@@ -6041,9 +6118,10 @@ def niwa_plan_svg(d, W=760.0):
             sv.append(LN(X(m["u"]), Y(m["v"]) + 10, X(m["u"]), Y(m["v"]) + 34, col, 1.6, dash="5 3"))
     sv.append(T(4, 15, "グリッド座標(u=北+ / v=奥(西)+)。**上=東 / 左=北 / 下=西 / 右=南**。"
                 "汀線の番号は設計値の順", "anS"))
-    sv.append(T(4, 27, "細い破線の輪郭=Chaikin×2(施工形状) ／ 破線の円=樹冠の実寸", "anS2"))
+    sv.append(T(4, 27, "細い破線の輪郭=Chaikin×2(施工形状) ／ 破線の円=樹冠の実寸",
+                "anS2", "start"))
     sv.append(T(4, pr.H - 6, "朱の丸=主視点 / 茶の丸=その他の見所 / 朱の破線=野面の石段を切る区間 / "
-                "青の破線=水尻の埋樋", "anS2", "start"))
+                "青の破線=水尻の埋樋 / 緑の実線=四つ目垣(三方・南開き)", "anS2", "start"))
     sv.append("</svg>")
     return "\n".join(sv)
 
@@ -6422,6 +6500,26 @@ def niwa_tsuki_table(d):
     return _tw(("築山", "頂(盛)", "法(公称)", "法(実測の最急)", "主視点から", "仰角", "上限 1:%.1f" % bf), rows)
 
 
+def niwa_enro_table(d):
+    """園路。⚠ **勾配は二通り測る** — 石段を切るかは**区間**、登れるかは**1m 窓の最急**。"""
+    o = niwa_stats(d)
+    g = NI(d).g
+    rows = []
+    for e, q in zip(g.get("enro", []), o["enro"]):
+        lim = e["keri"] / e["fumi"] * 100
+        rows.append((q["label"], "%.2f m" % q["w"], "%.1f m" % q["L"],
+                     "%.0f%%" % q["grade"],
+                     "<b>%.0f%%</b>%s(起点+%.1fm)"
+                     % (q["gradeWin"], " ⚠" if q["gradeWin"] > lim else "", q["gradeWinAt"]),
+                     ("%d 段(%.1fm)" % (q["steps"], q["stepL"])) if q["steps"] else "切らない",
+                     "%.2f m" % q["edgeShore"],
+                     ("%.2f m" % q["edgeShachi"]) if q["edgeShachi"] < 100 else "—",
+                     str(q["wet"])))
+    return _tw(("園路", "幅", "全長", "区間の最急", "1m 窓の最急(限 %.0f%%)"
+                % (g["enro"][0]["keri"] / g["enro"][0]["fumi"] * 100),
+                "野面の石段", "路縁 → 汀", "路縁 → 社地", "水中の点"), rows)
+
+
 def niwa_screen_table(d):
     """主景の見切り — 樹冠が塞ぐべき帯を覆えているか。⭐ **①-a の合否はこの表と断面で決まる。**"""
     o = niwa_stats(d)
@@ -6661,10 +6759,11 @@ def main():
     rtbad = roundtrip_check(_raw, pipeline)
     d = pipeline(json.load(open(JSON, encoding="utf-8")))
     write_back(d)
-    if rtbad:
-        print("⚠ 往復試験の不一致 %d 件 — **正典に生成器が再現できない値が残っている**:" % len(rtbad))
-        for b in rtbad:
-            print("   ", b)                       # 算出した値は**正典へ戻す**(図だけが新しい状態を作らない)
+    print("── 往復試験の不一致: %s"
+          % ("**0 件**" if not rtbad else
+             "⚠ %d 件 — **正典に生成器が再現できない値が残っている**" % len(rtbad)))
+    for b in rtbad:
+        print("   ", b)                           # 算出した値は**正典へ戻す**(図だけが新しい状態を作らない)
     raw = open(MD, encoding="utf-8").read()
     blk, miss = sources_block(raw)
     _ka = d["kaidans"]
@@ -6711,10 +6810,9 @@ def main():
               % (d["gate"]["yaw"], yaw_exp))
 
     bad = overlap_check(d)
-    if bad:
-        print("⚠ 矩形の重なり %d 件:" % len(bad))
-        for b in bad:
-            print("   ", b)
+    print("── 矩形の重なり: %s" % ("**0 件**" if not bad else "⚠ %d 件" % len(bad)))
+    for b in bad:
+        print("   ", b)
     pbad = (plane_check(d) + inubashiri_check(d) + opening_fit_check(d) + refs_check(d)
             + norms_check(d) + perimeter_check(d) + perimeter_closure_check(d)
             + mune_gap_check(d)
@@ -6737,11 +6835,12 @@ def main():
             + wall_needed_check(d, load_terrain(os.path.join(DOC, "doi_dem.json"))))
     # ⛔ **庭方へ差し戻す点は別枠。** 指図方は意匠を動かせないので、面のはみ出し検査と混ぜない
     #   (混ぜると「指図が不成立」に見える)。隣家の宿題と同じ扱い。
+    # ⛔ **0件でも件数を出す**(0件と未実行を見分けられなくしない)。
     tbad = niwa_todo(d)
-    if tbad:
-        print("── 庭方へ差し戻す点(指図方では直せない)%d 件:" % len(tbad))
-        for b in tbad:
-            print("   ", b)
+    print("── 庭方へ差し戻す点(指図方では直せない): %s"
+          % ("**0 件**" if not tbad else "⚠ %d 件" % len(tbad)))
+    for b in tbad:
+        print("   ", b)
     nbad = (neighbour_wall_check(d, load_terrain(os.path.join(DOC, "doi_edo_dem.json")),
                                  load_terrain(os.path.join(DOC, "doi_dem.json")))
             + shared_edge_check(d, load_terrain(os.path.join(DOC, "base_dem.json"))))
@@ -6754,10 +6853,9 @@ def main():
         for b in pbad:
             print("   ", b)
     wbad = wall_check(d)
-    if wbad:
-        print("⚠ 土留めの高さ %d 件:" % len(wbad))
-        for b in wbad:
-            print("   ", b)
+    print("── 土留めの高さ: %s" % ("**0 件**" if not wbad else "⚠ %d 件" % len(wbad)))
+    for b in wbad:
+        print("   ", b)
 
     css = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "sashizu.css"), encoding="utf-8").read()
     h = ['<meta charset="utf-8">', "<title>土井大隅守上屋敷 指図</title>",
@@ -7043,9 +7141,30 @@ def main():
                  '「池を掘りたる土をもって山を築く」。当てはめは <b>B</b>)。'
                  '<b>敷地外へ土を出さない・入れない。</b>庭は <code>on: 地なり</code> で'
                  '<b>切土ゼロ</b> — 動かす土は池の掘削と築山の盛土だけである。'
-                 '⚠ 法の「実測の最急」が「公称」より急なのは cos 減衰の丘の性質'
-                 '(局所の最急が公称の π/2 倍)で、形の話であって設計の誤りではない。'
-                 'それより外れる基は下の<b>庭方へ差し戻す点</b>に出る。</p>')
+                 '⭐ <b>法は「実測の最急」で検め、上限は <code>const.batterFill</code>(1:1.5)。</b>'
+                 '⛔ 素の丘(公称 × 2/π)との比較はしない — 平場を切れば必ず立つのは形の性質で、'
+                 '欠陥ではない【2026-09-04 庭方の物差しの差し替え】。'
+                 '⚠ <b>公称(直径÷高さ)だけでは足りない</b> — それだけを見ていたとき、'
+                 '築山A1 の平場の縁に <b>1:0.53 の崖</b>が立っていたのを見逃していた。両方を検める。<br>'
+                 '⭐ <b>主峰の優越は高さでなく「幅と頂の平場の有無」で付ける</b> — '
+                 '築山A1 は頂が主視点の眼より下がるが、稜線が眼と同高だと山は地平線と重なって'
+                 '<b>厚みを失う</b>ので、そのほうが良い。</p>')
+        h.append("<h3>園路</h3>")
+        h.append(niwa_enro_table(d))
+        h.append('<p class="cap">⚠ <b>勾配は二通り測る。</b>野面の石段を切るかは<b>区間</b>の勾配で決め、'
+                 '「登れるか」は<b>0.25m 刻みで地表を刻んだ 1m 窓の最急</b>で検める — '
+                 '区間の両端だけで測ると<b>急な中腹を見落とす</b>(2026-09-04 庭方の申し送り)。'
+                 '⛔ 窓は<b>1m ちょうど</b>で滑らせる — 「1m 以内の任意の2点」にすると、'
+                 '東の土手の縁の 0.23m の段(蹴上1段ぶん)を 0.25m 幅で割って 92%% に化ける。'
+                 '<b>それは段であって勾配ではない。</b><br>'
+                 '⭐ <b>主路は稲荷の社地の外を隘路で抜ける</b> — 社地の南西隅と汀 #2 のあいだは '
+                 '1.29m しかないので、路を隘路の芯に通し<b>幅を 0.75m(2尺5寸)に締めた</b>。'
+                 '⭕ <b>社の角で路が細くなり、抜けると池が開く</b>のは景として得になる。'
+                 '⭐ <b>枝路は登らない</b> — 築山A1・A2 のあいだの鞍部を横に抜けて主路に落ち合う'
+                 '(尾根を越えずに近道できる本当の分岐)。'
+                 '⚠ 「路縁 → 汀」は<b>終端(沢飛石の袂)を除いた</b>値 — そこは汀に寄るのが役目。'
+                 '⭕ 沓脱石からの第1区間には<b>飛石5石が乗る</b>(沓脱から飛石で路に入る作りで、'
+                 '重なりは意図)。</p>')
         h.append("<h3>見所</h3>")
         h.append(niwa_mikoro_table(d))
         h.append("<h3>植栽 — 常緑を骨格に、落葉を景に</h3>")
@@ -7097,6 +7216,14 @@ def main():
         h.append('<p class="cap">⚠ <b>土被りが 0.30m を切る点は「埋樋」として成立しない。</b>'
                  '⭕ 終点(石組の吐き口)はそこで地表へ出る設計なので除いてよい。'
                  '地盤は江戸期の復元地盤の実測【確度P】。</p>')
+        # ⛔ **0件でも件数を出す。**0件と未実行を見分けられなくしない。
+        h.append('<p class="cap">%s</p>'
+                 % ("⭕ <b>庭方へ差し戻す点: 0 件。</b>指図方が数値へ落として見つけた5件"
+                    "(築山A1 の法・枝路の勾配・主路が稲荷を掠める・四つ目垣の走り・見所5 の眼高)は"
+                    "<b>2026-09-04 に庭方が決定して解消</b>した。この検査は毎回走り、"
+                    "意匠の判断が要る不整合が出たら別章を立てて刷る。"
+                    if not tbad else
+                    "⚠ <b>庭方へ差し戻す点が %d 件ある</b> — 別章を見よ。" % len(tbad)))
         h.append("</div>")
 
     if d.get("akichi"):
@@ -7337,10 +7464,11 @@ def main():
         ("台帳", re.sub(r"[*~`]", "", _ledger_text())),
         ("メモリ", re.sub(r"[*~`]", "", _memo_text())),
     ])
+    print("── 撤回済みの説の残り: %s"
+          % ("**0 件**" if not rbad else "⚠ %d 件 — **図は書き出したが要修正**" % len(rbad)))
+    for b in rbad:
+        print("   ", b)
     if rbad:
-        print("⚠ 撤回済みの説が残っている %d 件 — **図は書き出したが要修正**:" % len(rbad))
-        for b in rbad:
-            print("   ", b)
         sys.exit(2)
     # ⚠ **典拠 ID の照合も「図」を見る。** 文章(md)だけを照合していたため、
     #   生成器のべた書きで出る図の冒頭箱に、撤回済みの典拠(天保9年武鑑・「同時代史料2点」)が

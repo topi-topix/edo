@@ -806,6 +806,26 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_kido.py -- horikido</summary>
         public const string HoriKido = "Assets/Edo/Models/Hei/HoriKido.fbx";
 
+        /// <summary>**汀の木柵 1スパン**(`fences[0]` F_Hori・辺5 の全長 s0〜80.589)。
+        /// 杭 0.11角 + 貫2段 + 上の横木 + **南京下見に重ねた横板5枚**。
+        /// ⛔ **在庫の `Eg.Hogaki5` は実丈 0.79m** で、指図 `const.fenceH` 1.40 に 0.6m 足りない
+        /// (視線の遮蔽の計算が天端=地盤+1.40 を前提にしている)。Village Kit の `fence A/B`・
+        /// `Fence_B_01` はいずれも**屋根つきの板塀**で「基礎を持たない木柵」ではない。
+        /// ⭕ 杭・材・上の横木の高さは <see cref="HoriKido"/>(潜り)と揃えてある。
+        /// ローカル: 幅=X(走り)/ 高さ=Y / 厚み=Z。**+Z = 見え面 = 外(水側)**。
+        /// ピボット = **スパンの中心・地盤レベル**。実寸 1.818 × 1.520 × 0.148(**底 −0.120** = 根入れ)。
+        /// ⛔ **`SeatBottom` で据えない**(根入れぶん 0.12 浮く)— `position.y = 地盤` を直に入れる。
+        /// ⚠ 杭は **−X 端**(外面が x=−0.909)。**bbox がちょうど1間**なので、
+        ///   **重なりを取らず 1.818 ちょうどのピッチ**で突き付けること(重ねると板が z-fighting する)。
+        /// 生成: blender --background --python Tools/Blender/build_hori_saku.py -- [--render]</summary>
+        public const string HoriSaku = "Assets/Edo/Models/Hei/HoriSaku.fbx";
+
+        /// <summary>**汀の木柵の端の杭**。⛔ 足さないと run の最後の板が宙で終わる。
+        /// ピボット = **run の +X 端(杭の +X 面)・地盤レベル** ⇒ `s = s1` をそのまま渡せる。
+        /// 実寸 0.110 × 1.520 × 0.110(**底 −0.120** = 根入れ)。
+        /// 生成: blender --background --python Tools/Blender/build_hori_saku.py -- post</summary>
+        public const string HoriSakuPost = "Assets/Edo/Models/Hei/HoriSakuPost.fbx";
+
         /// <summary>地表層(TerrainLayer)。**「実寸」= 繰り返しの一枚の大きさ `m_TileSize`**[m]。
         /// ⚠ タイリングが小さいほど近景は細かく、遠景は模様が目立つ。塗り分けるときは
         ///   隣り合う層のタイルの大きさを見て、境目で柄が急に変わらないようにする。

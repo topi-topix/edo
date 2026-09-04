@@ -4637,7 +4637,9 @@ def planting_table(d):
                 "⭐ 位置は<b>種 <code>seed</code> で再現できる撒き</b> — "
                 "⛔ 実装が勝手に撒くと、指図の検査(窓の樹高・対岸から見た層)が見ているものと"
                 "現物が別になる。⭕ 計 <b>%d 株</b>。⚠ 『見立て』は別種で代用したもの(確度U)。"
-                % len(pt))
+                "<br>⭐ <b>つるの据え方</b>(2026-09-04 部材方・確度U): %s"
+                % (len(pt), inline(str(((d.get("nishi") or {}).get("hayashi") or {})
+                                       .get("tsuru", {}).get("sahou", "—")))))
             + _tw(["所", "地表層", "備考"], gr,
                   "⚠ <b>登録済みは <code>L_grass</code> だけ</b> — 残りは棟梁が "
                   "<code>EdoAssets</code> へ登録する。⛔ 名を書かずに『塗る』と書かない。"
@@ -5087,6 +5089,42 @@ def run_reaches_corner_check(d):
                                "許容 %.2fm を超える。⛔ 越境は隣地の話なので奉行の裁定"
                                % (r9["name"], u9, v9, dd * d["const"]["ken"], tolOut))
                     break
+    return bad
+
+
+def rooms_check(d):
+    """**室が身舎の中に収まり、互いに重ならないか**(2026-09-04 普請奉行の大方針)。
+
+    ⚠ 身舎 = 棟の矩形から**入側 `iri` 間**を四周引いた内側。⛔ 入側は室ではない。
+    ⛔ 室割りは図面だけの情報で**実装の突き合わせ対象外**だが、**図の中の辻褄**は見る —
+      室が身舎の外へ出ていたり重なっていたりする図は、読んだ人がそのまま信じる。
+    ⚠ `iriX` に挙げた辺は入側を回さないので、その側は身舎が棟の縁まで届く。"""
+    bad = []
+    for m9 in d.get("munes", []):
+        rs = m9.get("rooms") or []
+        if not rs:
+            continue
+        iri = m9.get("iri", 0) or 0
+        ex = set(m9.get("iriX") or [])
+        u0 = m9["u0"] + (0 if "u0" in ex else iri)
+        u1 = m9["u1"] - (0 if "u1" in ex else iri)
+        v0 = m9["v0"] + (0 if "v0" in ex else iri)
+        v1 = m9["v1"] - (0 if "v1" in ex else iri)
+        for r9 in rs:
+            if (r9["u0"] < u0 - 1e-6 or r9["u1"] > u1 + 1e-6
+                    or r9["v0"] < v0 - 1e-6 or r9["v1"] > v1 + 1e-6):
+                bad.append("%s の室『%s』(u%.1f〜%.1f v%.1f〜%.1f)が身舎"
+                           "(u%.1f〜%.1f v%.1f〜%.1f・入側 %d 間)の外へ出る"
+                           % (m9["name"], r9["name"], r9["u0"], r9["u1"],
+                              r9["v0"], r9["v1"], u0, u1, v0, v1, iri))
+        for i9 in range(len(rs)):
+            for j9 in range(i9 + 1, len(rs)):
+                a9, b9 = rs[i9], rs[j9]
+                ou = min(a9["u1"], b9["u1"]) - max(a9["u0"], b9["u0"])
+                ov = min(a9["v1"], b9["v1"]) - max(a9["v0"], b9["v0"])
+                if ou > 1e-6 and ov > 1e-6:
+                    bad.append("%s の室『%s』と『%s』が %.2f×%.2f 間 重なる"
+                               % (m9["name"], a9["name"], b9["name"], ou, ov))
     return bad
 
 
@@ -7733,6 +7771,7 @@ CHECK_LIST = [
     ("石段の足元と天端(段の宣言との一致)",      lambda d, raw, ter: kaidan_y_check(d)),
     ("汀の杭の割り付け",                      lambda d, raw, ter: kui_check(d)),
     ("庭の算出物(12区画・池の器)",            lambda d, raw, ter: garden_impl_check(d)),
+    ("室が身舎の中か・重ならないか",             lambda d, raw, ter: rooms_check(d)),
     ("算出物 okabe_impl.json の鮮度",           lambda d, raw, ter: impl_fresh_check(d)),
     ("矩形の重なり",                       lambda d, raw, ter: overlap_check(d)),
     ("面のはみ出し(棟・庭が段と区画の中か)",     lambda d, raw, ter: plane_check(d)),
@@ -8041,15 +8080,39 @@ def planting_pts(d):
         add("Yadake", "hayashi", "ヤダケ(一叢)", "ヤダケ",
             (yk["u0"] + yk["u1"]) / 2.0, (yk["v0"] + yk["v1"]) / 2.0,
             (yk["hMin"] + yk["hMax"]) / 2.0, "terrain")
-    # ⑤ つる(フジは高木の幹に絡める — 高木の点を借りる)
+    # ⑤ つる(高木の幹に絡める — 高木の点を借りる)。⭐ 2026-09-04 部材方が3種を焼いた。
+    #   ⛔ 幹径の合わない高木には絡めない(`tsuru.trunkMin`〜`trunkMax`)。
+    #   ⭕ 個体は種類ごとに**混ぜる**(`tsuru.assets`)。
     ts = hy.get("tsuru") or {}
+    tas = ts.get("assets") or {}
     tak = [q for q in out if q["role"] == "高木"]
-    for k9 in range(ts.get("fuji", 0)):
-        if not tak:
-            break
-        h9 = tak[rnd.randrange(len(tak))]
-        add("Fuji%d" % (k9 + 1), "hayashi", "つる(高木の幹に)", "フジ",
-            h9["u"], h9["v"], h9["h"] * 0.7, "terrain")
+    r5 = random.Random(hy.get("seed", 1856) + 5)
+    k9 = 0
+    for sp9, n9 in (("フジ", ts.get("fuji", 0)),
+                    ("テイカカズラ", ts.get("teika", 0)),
+                    ("キヅタ", ts.get("kizuta", 0))):
+        lst = tas.get(sp9) or []
+        for i9 in range(n9):
+            if not tak:
+                break
+            h9 = tak[r5.randrange(len(tak))]
+            k9 += 1
+            a9, kb9, _n9 = _plant_asset(d, sp9)
+            if lst:
+                a9, kb9 = lst[i9 % len(lst)], "在庫(2026-09-04 焼成)"
+            out.append({"name": "Tsuru%02d" % k9, "zone": "hayashi",
+                        "role": "つる(高木の幹に)", "species": sp9,
+                        "asset": a9, "kubun": kb9,
+                        "u": h9["u"], "v": h9["v"], "h": round(h9["h"] * 0.7, 2),
+                        "tilt": 0.0, "tiltDir": [0.0, 1.0], "ground": "terrain",
+                        "onTree": h9["name"],
+                        "yaw": round(r5.uniform(0.0, 360.0), 1)
+                        if sp9 != "フジ" else 0.0,
+                        "trunkRef": ts.get("trunkRef", 0.60),
+                        "trunkMin": ts.get("trunkMin"),
+                        "trunkMax": ts.get("trunkMax"),
+                        "yScatter": ts.get("yScatter"),
+                        "sahou": ts.get("sahou")})
     # ⑥ 法肩の松(位置は `hokata_pts` が既に割り付けている — 丈だけここで振る)
     hk9 = N.get("hokata") or {}
     r4 = random.Random(hk9.get("jitterSeed", 1856))

@@ -1853,6 +1853,129 @@ public static class EdoOkabeYashikiBuilder
     }
 
     // =====================================================================
+    // Stage4 — 庭(⛔ **地形には触らない**)
+    //
+    // ⭐ **池の床も築山も S1 が既に彫ってある。**生成器の `graded_y` は `niwa_y`(池の放物面・
+    //   築山の円錐)を段より**先に**重ねるので、`impl.graded` にそれが入っている
+    //   (2026-09-04 実測: 汀線上 23.97〜24.00 / 最深 22.68(池床 22.50)/ 築山の頂の近く 27.59)。
+    //   ⛔ **ここで掘り直さない。**WaterBaker の `Recarve` を呼ぶと S1 が正しく作った岬・
+    //   中島・くびれが平らに戻る(メモリ「池のsnap矩形の重なり」/「Recarveで造成が消える」)。
+    //   ⚠ WaterBaker の snap 矩形 320×320m は**他邸に掛かる**(松江の 6a が土井6点・岡部4点に
+    //   掛かって起票になった)。当邸から呼ぶときも同じ危険がある。
+    //
+    // ⭕ したがって S4 の受け持ちは **① 部材を据える ② 地表と水面を次の輪へ渡す** の2つだけ。
+    // =====================================================================
+    [MenuItem("Edo/岡部筑前守上屋敷/4 庭(部材を据える・地形には触らない)")]
+    public static void Stage4Menu() { Debug.Log("[Okabe] " + Stage4_Niwa()); }
+
+    public static string Stage4_Niwa()
+    {
+        var gate = ReviewGate(); if (gate != null) return gate;
+        var wait = new List<string>();
+        var sb = new System.Text.StringBuilder();
+        var items = A(Get(IMPL, "gardens"));
+        if (items == null)
+        { return "庭: 算出物に gardens が無い — 生成器の --export-impl に足すこと"; }
+
+        var grp = Group("Niwa"); Clear(grp);
+        int made = 0, splat = 0, terrainOwned = 0;
+        var missing = new Dictionary<string, int>();
+        var byKind = new Dictionary<string, int>();
+
+        foreach (var o in items)
+        {
+            var g = O(o); if (g == null) continue;
+            string kind = S(g["kind"]) ?? "?";
+            string key = Has(g, "asset") ? S(g["asset"]) : null;
+            var pts = A(Get(g, "world"));
+            byKind[kind] = (byKind.ContainsKey(kind) ? byKind[kind] : 0) + 1;
+
+            // ---- 地表の塗り(スプラット)は**地表の輪**が受け持つ。ここでは据えない
+            if (key != null && key.StartsWith("L_")) { splat++; continue; }
+            // ---- 地形そのもの(汀線・池・築山・中島の輪郭・庭の実形)は S1 が彫った
+            if (key == null) { terrainOwned++; continue; }
+
+            string path = AssetByKey(key);
+            if (path == null || AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+            { missing[key] = (missing.ContainsKey(key) ? missing[key] : 0) + 1; continue; }
+            if (pts == null || pts.Count == 0) continue;
+
+            // ⚠ 点1つの物(景石・灯籠・沓脱石・岩島)と、折れ線に沿って並べる物(護岸・乱杭・
+            //   沢飛石・飛石・垣)を分ける。⛔ 折れ線を1個の物として据えない
+            var sub = Group("Niwa/" + kind.Replace("(", "_").Replace(")", "").Replace("・", "_"));
+            if (pts.Count == 1)
+            {
+                var w = A(pts[0]); if (w == null || w.Count < 2) continue;
+                Vector2 c = new Vector2(F(w[0]), F(w[1]));
+                float y = Has(g, "y") ? F(g["y"]) : Graded.At(c.x, c.y);
+                if (float.IsNaN(y)) y = EdoBuild.Ground(c.x, c.y);
+                var go = EdoBuild.Place(path, new Vector3(c.x, y, c.y),
+                                        StableHash(S(g["name"])) % 360, Vector3.one, sub, S(g["name"]));
+                if (go != null) { SeatByBury(go, g, y); made++; }
+            }
+            else
+            {
+                int n = Has(g, "n") ? (int)F(g["n"]) : (Has(g, "stones") ? (int)F(g["stones"]) : pts.Count);
+                for (int i = 0; i < n; i++)
+                {
+                    // 折れ線に沿って n 個を等分に割る(⚠ 芯々の乱れは算出物が持つときそちらが勝つ)
+                    float t = n <= 1 ? 0f : i / (float)(n - 1);
+                    Vector2 c = PolyAt(pts, t);
+                    float y = Has(g, "y") ? F(g["y"]) : Graded.At(c.x, c.y);
+                    if (float.IsNaN(y)) y = EdoBuild.Ground(c.x, c.y);
+                    var go = EdoBuild.Place(path, new Vector3(c.x, y, c.y),
+                                            StableHash(S(g["name"]) + "_" + i) % 360, Vector3.one,
+                                            sub, S(g["name"]) + "_" + i);
+                    if (go != null) { SeatByBury(go, g, y); made++; }
+                }
+            }
+        }
+        sb.Append("庭: " + made + " 点据えた / 地表の塗り " + splat + " 件は**地表の輪**へ / "
+                + "地形 " + terrainOwned + " 件は **S1 が彫り済み**(⛔ 掘り直さない)");
+        foreach (var kv in missing)
+            wait.Add("庭の部材が EdoAssets に無い: " + kv.Key + "(" + kv.Value + " 件)");
+        // 水面 — ⛔ 実装で決めない
+        wait.Add("**池の水面**が無い。⚠ 床は S1 が彫ってあるので要るのは水面だけだが、"
+               + "WaterBaker は `Recarve` で**地形も彫り直す**(S1 の岬・中島・くびれが平らに戻る)。"
+               + "⛔ snap 矩形 320×320m が他邸に掛かる件も未決。⭕ 水面だけを張る道具か、"
+               + "Recarve を呼ばない使い方の裁定が要る(普請奉行へ)");
+        wait.Add("地表の塗り " + splat + " 件(庭の実形・州浜 L_bare・園路 L_dirt)は**地表の輪**の受け持ち。"
+               + "⚠ 指図が『どの地表層で塗るか』を持つのは州浜と園路だけで、庭の実形37件は層が無い");
+        sb.Append('\n').Append("── 据えなかったもの " + wait.Count + " 件 ──");
+        foreach (var w in wait) sb.Append("\n  ★ ").Append(w);
+        return sb.ToString();
+    }
+
+    /// <summary>折れ線 `pts`(世界座標)の走り比 t(0〜1)の点。</summary>
+    static Vector2 PolyAt(List<object> pts, float t)
+    {
+        var v = new List<Vector2>();
+        foreach (var q in pts) { var w = A(q); if (w != null && w.Count >= 2) v.Add(new Vector2(F(w[0]), F(w[1]))); }
+        if (v.Count == 0) return Vector2.zero;
+        if (v.Count == 1) return v[0];
+        float tot = 0f;
+        for (int i = 1; i < v.Count; i++) tot += (v[i] - v[i - 1]).magnitude;
+        float want = Mathf.Clamp01(t) * tot, acc = 0f;
+        for (int i = 1; i < v.Count; i++)
+        {
+            float seg = (v[i] - v[i - 1]).magnitude;
+            if (acc + seg >= want) return Vector2.Lerp(v[i - 1], v[i], seg < 1e-6f ? 0f : (want - acc) / seg);
+            acc += seg;
+        }
+        return v[v.Count - 1];
+    }
+
+    /// <summary>石を「丈の `buryRatio` だけ埋めて」据える。⛔ 底を地盤に合わせない —
+    /// 石組は**埋まっているのが常法**で、置いただけだと乗っているように見える。</summary>
+    static void SeatByBury(GameObject go, Dictionary<string, object> g, float groundY)
+    {
+        var b = EdoBuild.RB(go);
+        float bury = Has(g, "buryRatio") ? F(g["buryRatio"]) : 0f;
+        float sink = Has(g, "sink") ? F(g["sink"]) : 0f;
+        go.transform.position += new Vector3(0f, groundY - b.min.y - b.size.y * bury - sink, 0f);
+    }
+
+    // =====================================================================
     // Stage5 — 西の斜面(林・法肩の松・榎・崖下の帯・勝手の坂・汀の柵と杭・葭・蓮)
     //
     // 【散布は生成器が撒く。ここは据えるだけ】⛔ **実装が撒き直さない。**
@@ -1922,6 +2045,10 @@ public static class EdoOkabeYashikiBuilder
             if (nm == "Enoki")    return EdoAssets.Own.Enoki(size, idx);
             if (nm == "Mukunoki") return EdoAssets.Own.Mukunoki(size, idx);
             if (nm == "Keyaki")   return EdoAssets.Own.Keyaki(size, idx);
+            // つる3種。⚠ 寸法の呼びを持たず**個体だけ**(`Own.TsuruFuji.1-3` の形で来る)
+            if (nm == "TsuruFuji")   return EdoAssets.Own.TsuruFuji(idx);
+            if (nm == "TsuruTeika")  return EdoAssets.Own.TsuruTeika(idx);
+            if (nm == "TsuruKizuta") return EdoAssets.Own.TsuruKizuta(idx);
             if (nm == "Momiji")   return EdoAssets.Own.Momiji(size, idx);
             if (nm == "Ume")      return EdoAssets.Own.Ume(size, idx);
         }
@@ -2004,7 +2131,7 @@ public static class EdoOkabeYashikiBuilder
         }
         var grp = Group("Nishi/Planting"); Clear(grp);
         var f = Grid;
-        int made = 0, noPart = 0, noAsset = 0;
+        int made = 0, noPart = 0, noAsset = 0, noHost = 0;
         var byZone = new Dictionary<string, int>();
         var missing = new HashSet<string>();
         foreach (var o in pts)
@@ -2022,9 +2149,29 @@ public static class EdoOkabeYashikiBuilder
             if (go == null) { missing.Add(key + " → " + path); noPart++; continue; }
             // 丈を指図の値へ合わせる(⛔ 部材の素の丈で置かない — 指図の hMin/hMax が意味を失う)
             float want = F(Get(q, "h")), nat = NaturalHeight(path, grp);
-            if (want > 0.1f && nat > 0.1f)
+            bool isTsuru = key.Contains("Tsuru");
+            if (isTsuru)
+            {
+                // ⭐ **つるは幹に絡む**。部材は「幹径 0.60(半径0.30)の高木」を前提に作ってあるので、
+                //   ⭕ **XZ を 幹径/0.60 で伸縮**して宿主の幹に合わせ、Y は丈で別に伸縮する。
+                //   ⚠ 幹径は 0.40〜0.85 に収める(倍率 0.67〜1.42。超えると葉が潰れて樹種が読めない)。
+                //   ⛔ 一様スケールにしない — 幹に食い込むか浮くかのどちらかになる。
+                float dia = Has(q, "hostDia") ? F(q["hostDia"]) : 0.60f;
+                dia = Mathf.Clamp(dia, 0.40f, 0.85f);
+                float sxz = dia / 0.60f;
+                float sy = 1f;
+                if (want > 0.1f && nat > 0.1f) sy = Mathf.Clamp(want / nat, 0.75f, 1.25f);  // ±25% まで
+                go.transform.localScale = new Vector3(sxz, sy, sxz);
+                if (!Has(q, "host"))
+                    noHost++;   // ⚠ 絡む相手が指図に無い(位置だけで据えている)
+            }
+            else if (want > 0.1f && nat > 0.1f)
                 go.transform.localScale = Vector3.one * (want / nat);
             // 水へ傾ける松など。⚠ 傾ける向きも生成器が持つ(実装で決めない)
+            // ⭐ テイカ・キヅタは**覆うのがローカル +X の側だけ**(全周は覆わない)。
+            //   ⛔ 振らないと全個体が同じ側を向く。⛔ 乱数でもない — **名前から決まる**向き。
+            if (isTsuru && !key.Contains("Fuji"))
+                go.transform.rotation = Quaternion.Euler(0f, StableHash(Has(q, "name") ? S(q["name"]) : key) % 360, 0f);
             float tilt = F(Get(q, "tilt"));
             if (Mathf.Abs(tilt) > 0.01f)
             {
@@ -2047,6 +2194,9 @@ public static class EdoOkabeYashikiBuilder
         var sb = new System.Text.StringBuilder("植栽: " + made + " 本据えた");
         foreach (var kv in byZone) sb.Append(" / " + kv.Key + " " + kv.Value);
         if (noPart > 0) sb.Append(" ｜ 部材が引けず据えられない " + noPart);
+        if (noHost > 0)
+            wait.Add("つる " + noHost + " 本に `host`(絡む高木)が無い — 位置だけで据えている。"
+                   + "⚠ 幹径は既定 0.60 で伸縮した。指図方が `host` と `hostDia` を書けば宿主の幹へ合う");
         return sb.ToString();
     }
 
@@ -2769,6 +2919,7 @@ public static class EdoOkabeYashikiBuilder
         sb.AppendLine(OpeningQA());
         sb.AppendLine(ClosureQA());
         sb.AppendLine(Stage3_Shukaku());
+        sb.AppendLine(Stage4_Niwa());
         sb.AppendLine(Stage5_Nishi());
         return sb.ToString();
     }

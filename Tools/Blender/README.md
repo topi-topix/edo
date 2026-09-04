@@ -27,6 +27,8 @@ Blender は GUI を開かずヘッドレスで回す — 指図の寸法が変�
 | `build_maruta.py` | 岡部邸: **丸太の手すりと汀の杭列**(NatureManufacture の `wood_log_0X` を切って使う) |
 | `build_okabe_fuzokuya.py` | 岡部邸: 附属屋(厩・供待・納戸小屋) |
 | `build_noshibei.py` | 岡部邸: **のし塀**(熨斗瓦の笠木を載せた白壁の袖塀。長さ可変) |
+| `build_kido.py` | 岡部邸: **木戸**(のし塀の開口を塞ぐ板戸 / 汀の柵に開ける潜り `HoriKido`) |
+| `build_hori_saku.py` | 岡部邸: **汀の木柵 h1.40**(杭+貫+南京下見の横板。1間1スパン + 端の杭) |
 
 パスは `vklib.REPO`(このファイルの位置から導出)起点。**sparse worktree では Assets が来ないので回らない** —
 メインのチェックアウトで `edo_session.py start <屋敷> --blender` を打ってから回すこと。

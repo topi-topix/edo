@@ -1935,8 +1935,7 @@ public static class EdoOkabeYashikiBuilder
         foreach (var kv in missing)
             wait.Add("庭の部材が EdoAssets に無い: " + kv.Key + "(" + kv.Value + " 件)");
         sb.Append('\n').Append(PlaceWaterSurface(items, wait));
-        wait.Add("地表の塗り " + splat + " 件(庭の実形・州浜 L_bare・園路 L_dirt)は**地表の輪**の受け持ち。"
-               + "⚠ 指図が『どの地表層で塗るか』を持つのは州浜と園路だけで、庭の実形37件は層が無い");
+        sb.Append('\n').Append(PaintSplat(items, wait));
         sb.Append('\n').Append("── 据えなかったもの " + wait.Count + " 件 ──");
         foreach (var w in wait) sb.Append("\n  ★ ").Append(w);
         return sb.ToString();
@@ -2027,6 +2026,88 @@ public static class EdoOkabeYashikiBuilder
         WaterBaker.RebuildSurface(wb);
         return "水面: " + nm + " 汀 " + wb.outline.Count + " 点 / 水面 " + wy.ToString("F2")
              + "(⛔ 地形は彫っていない — 床は S1)";
+    }
+
+    /// <summary>**地表を塗る**(2026-09-04 指図方が `layer` を宣言した分)。
+    ///
+    /// ⭕ 面の**実形**(段の多角形で切った後)で塗る。⛔ json の矩形で塗らない。
+    /// 混合は `layerMix` の比(例 `L_grass + L_bare` を 0.7:0.3)。
+    /// ⛔ **層の番号を決め打ちしない** — `.terrainlayer` のパスで地形の層を引く
+    /// (層の並びは邸ごと・時期ごとに変わる。番号を書くと黙って別の層を塗る)。
+    /// ⛔⛔ **区画の外は 1 セルも塗らない。**塗った数と、外に掛かって捨てた数の両方を出す。</summary>
+    static string PaintSplat(List<object> items, List<string> wait)
+    {
+        var t = Terrain.activeTerrain; var td = t.terrainData;
+        var layers = td.terrainLayers;
+        // 層の名 → 地形の層の番号。⛔ 番号を書かない
+        var idx = new Dictionary<string, int>();
+        for (int i = 0; i < layers.Length; i++)
+        {
+            if (layers[i] == null) continue;
+            string ap = AssetDatabase.GetAssetPath(layers[i]);
+            if (string.IsNullOrEmpty(ap)) continue;
+            idx[System.IO.Path.GetFileNameWithoutExtension(ap)] = i;
+        }
+        // 塗る面を集める
+        var faces = new List<object[]>();      // { Vector2[] poly, float[] weights }
+        int noLayer = 0;
+        foreach (var o in items)
+        {
+            var g = O(o); if (g == null || !Has(g, "layer")) continue;
+            var pts = A(Get(g, "world"));
+            if (pts == null || pts.Count < 3) { noLayer++; continue; }
+            // "L_grass + L_bare" を割る
+            var names = new List<string>();
+            foreach (var nm in S(g["layer"]).Split('+')) names.Add(nm.Trim());
+            var mix = A(Get(g, "layerMix"));
+            var wts = new float[layers.Length];
+            bool ok = true; float tot = 0f;
+            for (int i = 0; i < names.Count; i++)
+            {
+                if (!idx.ContainsKey(names[i]))
+                { wait.Add("地形に層 " + names[i] + " が無い(面 " + S(g["name"]) + ")"); ok = false; break; }
+                float w = (mix != null && i < mix.Count) ? F(mix[i]) : 1f / names.Count;
+                wts[idx[names[i]]] += w; tot += w;
+            }
+            if (!ok || tot <= 0f) continue;
+            for (int i = 0; i < wts.Length; i++) wts[i] /= tot;
+            var poly = new List<Vector2>();
+            foreach (var q in pts) { var w2 = A(q); if (w2 != null && w2.Count >= 2) poly.Add(new Vector2(F(w2[0]), F(w2[1]))); }
+            faces.Add(new object[] { poly.ToArray(), wts });
+        }
+        if (faces.Count == 0) return "地表の塗り: 塗る面が無い";
+
+        // 敷地の外接矩形だけを読む(⛔ 全域は重い)
+        var P = Poly;
+        float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
+        foreach (var q in P) { mnx = Mathf.Min(mnx, q.x); mxx = Mathf.Max(mxx, q.x); mnz = Mathf.Min(mnz, q.y); mxz = Mathf.Max(mxz, q.y); }
+        Vector3 tp = t.transform.position, ts = td.size;
+        int aw = td.alphamapWidth, ah = td.alphamapHeight, L = td.alphamapLayers;
+        System.Func<float, int> AX = delegate(float wx) { return Mathf.Clamp(Mathf.FloorToInt((wx - tp.x) / ts.x * aw), 0, aw - 1); };
+        System.Func<float, int> AZ = delegate(float wz) { return Mathf.Clamp(Mathf.FloorToInt((wz - tp.z) / ts.z * ah), 0, ah - 1); };
+        int x0 = AX(mnx), x1 = AX(mxx), z0 = AZ(mnz), z1 = AZ(mxz);
+        int w3 = x1 - x0 + 1, h3 = z1 - z0 + 1;
+        var A3 = td.GetAlphamaps(x0, z0, w3, h3);
+        int painted = 0, outside = 0;
+        for (int zz = 0; zz < h3; zz++)
+            for (int xx = 0; xx < w3; xx++)
+            {
+                var p = new Vector2(tp.x + (x0 + xx + 0.5f) / aw * ts.x, tp.z + (z0 + zz + 0.5f) / ah * ts.z);
+                float[] wts = null;
+                foreach (var f2 in faces)
+                { if (EdoGeom.PIP((Vector2[])f2[0], p)) { wts = (float[])f2[1]; break; } }
+                if (wts == null) continue;
+                // ⛔⛔ **区画の外は塗らない**(面が区画を跨いでいても切る)
+                if (!EdoGeom.PIP(P, p)) { outside++; continue; }
+                for (int l = 0; l < L && l < wts.Length; l++) A3[zz, xx, l] = wts[l];
+                painted++;
+            }
+        td.SetAlphamaps(x0, z0, A3);
+        var sb = new System.Text.StringBuilder("地表の塗り: " + painted + " セル / 面 " + faces.Count + " 件");
+        sb.Append(outside > 0 ? "(⛔ 区画の外に掛かった " + outside + " セルは塗らずに捨てた ✔)"
+                              : "(区画の外に掛かるセルは無し ✔)");
+        if (noLayer > 0) wait.Add("layer を持つが輪郭の点が足りない面 " + noLayer + " 件");
+        return sb.ToString();
     }
 
     /// <summary>折れ線 `pts`(世界座標)の走り比 t(0〜1)の点。</summary>
@@ -3074,6 +3155,9 @@ public static class EdoOkabeYashikiBuilder
             "Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Fence/Models",
             // 新造の木(Own.Enoki/Keyaki/…)とつる(Own.TsuruFuji/…)は FJG の樹皮・葉の名を名乗る
             "Assets/Waldemarst/FreeJapaneseGarden/Materials",
+            // 庭石・飛石・沓脱石(Own.Ishigumi/Tobiishi/Kutsunugi)は NatureManufacture の
+            // photoscanned rock を切って使うので材質名は M_photoscanned_rocks_01
+            "Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Rocks/Rocks/Models/Materials",
         };
         var byName = new Dictionary<string, Material>();
         foreach (var dir in donorDirs)
@@ -3090,10 +3174,12 @@ public static class EdoOkabeYashikiBuilder
         // ⚠ `Models/Trees` は当邸が新造した高木3種とつる3種が居る。ここに入れないと
         //   松江松平のメニュー(`Edo/松平出羽守上屋敷/附属屋・門・木のマテリアルをremap`)を
         //   走らせない限り真っ白のままだった(2026-09-04 に部材方が発見)。
+        // ⚠ `Models/Niwa` は庭の点景(庭石・飛石・沓脱石・四つ目垣・建仁寺垣・乱杭)。
+        //   ⛔ 入れ忘れると石が真っ白・竹垣が真っ白になる(FBX は材質「名」しか運ばない)。
         string[] modelDirs = { "Assets/Edo/Models/Nagaya", "Assets/Edo/Models/Mon",
                                "Assets/Edo/Models/Maruta", "Assets/Edo/Models/Goten/Roofs",
                                "Assets/Edo/Models/Fuzokuya", "Assets/Edo/Models/Hei",
-                               "Assets/Edo/Models/Trees" };
+                               "Assets/Edo/Models/Trees", "Assets/Edo/Models/Niwa" };
         modelDirs = System.Array.FindAll(modelDirs, AssetDatabase.IsValidFolder);
         int n = 0; var miss = new List<string>();
         foreach (var guid in AssetDatabase.FindAssets("t:Model", modelDirs))

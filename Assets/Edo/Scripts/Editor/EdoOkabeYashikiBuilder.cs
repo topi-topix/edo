@@ -723,13 +723,26 @@ public static class EdoOkabeYashikiBuilder
         var go = EdoBuild.Place(path, new Vector3(p.x, seat, p.y), psi, Vector3.one, kak, name);
         if (go == null) return false;
         EdoBuild.SeatBottom(go, seat - 0.10f);
+
+        // ⛔⛔ **走り方向の長さを world の AABB から出さない。**
+        //   `|size.x·ux| + |size.z·uz|` は、長さ Lp・奥行 D の箱を yaw で回すと
+        //   **Lp + 2·D·|ux·uz|** になり、**奥行が長さに混ざる**。辺12(世界軸から 5.71° 振れ)
+        //   では長屋の奥行 4.35m が +0.862m の水増しになり、⚠ **長さに依らない項なので
+        //   3棟が揃って同じ差**を出した(2026-09-04。部材は指図どおりで、測り方が誤っていた)。
+        //   ⭕ **部材のローカル軸で測る**(OBB)。ローカル +X が走り。
+        float mnx, mxx, mnz, mxz, mny;
+        EdoBuild.ObbFootprint(go.transform, out mnx, out mxx, out mnz, out mxz, out mny);
+        float realLen = mxx - mnx;
         var bb = EdoBuild.RB(go);
-        Vector2 dir = (EdgePt(edge, sMid + 1f) - EdgePt(edge, sMid)).normalized;
-        float realLen = Mathf.Abs(bb.size.x * dir.x) + Mathf.Abs(bb.size.z * dir.y);
         lastH = bb.size.y;
-        _nagayaSpan[name] = new Vector2(sMid - realLen * 0.5f, sMid + realLen * 0.5f);
+        // ローカル +X が s の増える向きか減る向きかを、実際のベクトルで見る(⛔ 式で決めない)
+        Vector3 dirXw = go.transform.rotation * Vector3.right;
+        Vector2 edgeDir = (EdgePt(edge, sMid + 1f) - EdgePt(edge, sMid)).normalized;
+        float sSign = (dirXw.x * edgeDir.x + dirXw.z * edgeDir.y) >= 0f ? 1f : -1f;
+        float sA = sMid + sSign * mnx, sB = sMid + sSign * mxx;
+        _nagayaSpan[name] = new Vector2(Mathf.Min(sA, sB), Mathf.Max(sA, sB));
         if (Mathf.Abs(realLen - call) > 0.10f)
-            wait.Add("長屋 " + name + ": 部材の実長 " + realLen.ToString("F3")
+            wait.Add("長屋 " + name + ": 部材の実長(OBB)" + realLen.ToString("F3")
                    + "m が呼び " + call.ToString("0.###") + "m と食い違う"
                    + "(⚠ 呼び寸法は**破風まで含む全幅**で、隣と突き付く)");
         return true;
@@ -894,9 +907,8 @@ public static class EdoOkabeYashikiBuilder
                     if (go0 != null)
                     {
                         kuguri++;
-                        var bb = EdoBuild.RB(go0);
-                        Vector2 dir0 = (EdgePt(e0, s + 1f) - c0).normalized;
-                        openW = Mathf.Abs(bb.size.x * dir0.x) + Mathf.Abs(bb.size.z * dir0.y);
+                        float kw2, kd2; ObbWD(go0, out kw2, out kd2);   // ⭕ OBB(ローカル +X = 走り)
+                        openW = kw2;
                     }
                 }
                 gaps.Add(new float[] { e0, s - openW / 2f, s + openW / 2f });
@@ -955,10 +967,9 @@ public static class EdoOkabeYashikiBuilder
     {
         var probe = EdoBuild.Place(path, new Vector3(0, -9999f, 0), psi, Vector3.one, parent, "__probe");
         if (probe == null) return 0f;
-        var b = EdoBuild.RB(probe);
-        float w = Mathf.Max(b.size.x, b.size.z);
+        float pw, pd; ObbWD(probe, out pw, out pd);      // ⭕ OBB。⛔ 回した AABB の max ではない
         UnityEngine.Object.DestroyImmediate(probe);
-        return w;
+        return pw;
     }
     static float MeasureHeight(string path, Transform parent)
     {
@@ -1026,6 +1037,7 @@ public static class EdoOkabeYashikiBuilder
         var P = Poly;
         float target = -INUBASHIRI;
         int moved = 0, seen = 0; float worst = 0f; string worstName = null;
+        float resid = 0f; string residName = null;
         for (int i = 0; i < kak.childCount; i++)
         {
             var c = kak.GetChild(i);
@@ -1055,10 +1067,27 @@ public static class EdoOkabeYashikiBuilder
             if (Mathf.Abs(shift) > Mathf.Abs(worst)) { worst = shift; worstName = c.name; }
             if (Mathf.Abs(shift) > 0.02f)
             { c.position += new Vector3(nrm.x * shift, 0f, nrm.y * shift); moved++; }
+            // ⭐ **寄せた後にもう一度測る**(残差)。⛔ 「寄せ量」を残差と読み違えない —
+            //   寄せ量が大きいのは元が外れていただけで、直ったかどうかは残差でしか分からない。
+            float after = float.MinValue;
+            foreach (var mf in c.GetComponentsInChildren<MeshFilter>())
+            {
+                if (mf.sharedMesh == null || !WallFace.Contains(mf.gameObject.name)) continue;
+                var m2 = mf.transform.localToWorldMatrix;
+                var vs2 = mf.sharedMesh.vertices;
+                for (int q2 = 0; q2 < vs2.Length; q2++)
+                {
+                    var w2 = m2.MultiplyPoint3x4(vs2[q2]);
+                    after = Mathf.Max(after, (w2.x - a.x) * nrm.x + (w2.z - a.y) * nrm.y);
+                }
+            }
+            if (after != float.MinValue)
+            { float rr = Mathf.Abs(after - target); if (rr > resid) { resid = rr; residName = c.name; } }
         }
         return "犬走りへ寄せた: " + moved + " / " + seen + " 駒(最大の寄せ "
              + worst.ToString("+0.00;-0.00") + "m @" + (worstName ?? "-") + " ・目標 "
-             + target.ToString("F2") + "m)";
+             + target.ToString("F2") + "m)｜**寄せた後の残差 最大 " + resid.ToString("F3")
+             + "m @" + (residName ?? "-") + "** " + (resid > 0.02f ? "★" : "✔");
     }
 
     // =====================================================================
@@ -1482,7 +1511,8 @@ public static class EdoOkabeYashikiBuilder
         var b = EdoBuild.RB(go);
         go.transform.position += new Vector3(c.x - b.center.x, y - b.min.y, c.y - b.center.z);
         float wantW = wKen * C("ken"), wantD = dKen * C("ken");
-        float haveW = Mathf.Max(b.size.x, b.size.z), haveD = Mathf.Min(b.size.x, b.size.z);
+        float hw, hd; ObbWD(go, out hw, out hd);          // ⭕ OBB
+        float haveW = Mathf.Max(hw, hd), haveD = Mathf.Min(hw, hd);
         if (Mathf.Abs(haveW - Mathf.Max(wantW, wantD)) > 0.5f ||
             Mathf.Abs(haveD - Mathf.Min(wantW, wantD)) > 0.5f)
             wait.Add("附属屋 " + nm + ": 部材の実寸 " + haveW.ToString("F2") + "×" + haveD.ToString("F2")
@@ -1658,9 +1688,8 @@ public static class EdoOkabeYashikiBuilder
                             {
                                 gates++;
                                 // ⭕ **実メッシュの走り方向の幅**で塀を切る(呼び寸法ではない)
-                                var bb = EdoBuild.RB(gg);
-                                Vector2 dir = (f.W(bu, bvv) - f.W(au, avv)).normalized;
-                                float realW = Mathf.Abs(bb.size.x * dir.x) + Mathf.Abs(bb.size.z * dir.y);
+                                float gw2, gd2; ObbWD(gg, out gw2, out gd2);   // ⭕ OBB(ローカル +X = 開口の走り)
+                                float realW = gw2;
                                 float halfT = (realW / ken) * 0.5f / lenKen;
                                 cuts.Add(new float[] { tc - halfT, tc + halfT });
                             }
@@ -1850,6 +1879,20 @@ public static class EdoOkabeYashikiBuilder
             if (nm == "Ume")      return EdoAssets.Own.Ume(size, idx);
         }
         return null;
+    }
+
+    /// <summary>据えた現物の**ローカル軸での幅(+X)と奥行(+Z)**[m]。
+    /// ⛔⛔ **world の AABB から出さない。**回した箱の AABB を走り方向へ射影すると
+    /// `Lp + 2·D·|ux·uz|` になり、**奥行が長さに混ざる**(2026-09-04 に岡部の表長屋で
+    /// +0.862m の水増しが出た。⚠ **長さに依らない項なので、複数の部材が揃って同じ差**を出す
+    /// — それが「測り方の項」の合図)。⭕ 部材のローカル軸で測る(OBB)。</summary>
+    static void ObbWD(GameObject go, out float wLocal, out float dLocal)
+    {
+        float mnx, mxx, mnz, mxz, mny;
+        EdoBuild.ObbFootprint(go.transform, out mnx, out mxx, out mnz, out mxz, out mny);
+        wLocal = mxx - mnx; dLocal = mxz - mnz;
+        if (wLocal < 0f) wLocal = 0f;
+        if (dLocal < 0f) dLocal = 0f;
     }
 
     /// <summary>名前から決まる安定した非負の整数。⛔ 乱数ではない — 何度流しても同じ物が出る。

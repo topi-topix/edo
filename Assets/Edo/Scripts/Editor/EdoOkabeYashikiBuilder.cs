@@ -2420,9 +2420,10 @@ public static class EdoOkabeYashikiBuilder
 
         // ---- ⑥ 植栽の点 ------------------------------------------------
         {
-            var pl = O(Get(im, "planting"));
-            var pts = pl == null ? null : A(Get(pl, "points"));
-            if (pts == null) ng("planting.points が無い — 林・法肩の松・榎・ススキの散布点を生成器に焼かせること");
+            // ⚠ 算出物は**素の配列**で来る(`{points:[…]}` ではない)。両方受ける
+            var pts = A(Get(im, "planting"));
+            if (pts == null) { var pl = O(Get(im, "planting")); pts = pl == null ? null : A(Get(pl, "points")); }
+            if (pts == null) ng("planting が無い — 林・法肩の松・榎・ススキの散布点を生成器に焼かせること");
             else
             {
                 int n = 0, outP = 0, badH = 0, noDecl = 0, gateHit = 0;
@@ -2469,9 +2470,30 @@ public static class EdoOkabeYashikiBuilder
             else
             {
                 int e = (int)F(kr["edge"]);
-                float mizu = F(tt["mizugiwaM"]);
-                Vector2 a = P[e % P.Length], b = P[(e + 1) % P.Length], nrm = OutNormal(e);
-                Vector2 A2 = a + nrm * mizu, B2 = b + nrm * mizu;   // 汀線 = 辺を外へ mizugiwaM 出した線
+                // ⚠ **汀線は辺から一定の距離ではない。**堤の天端 `y0Line` は u ごとに違い、
+                //   汀は「天端から法 1:batter で水面まで下った水平距離」なので、**その点の天端**で決まる。
+                //   ⛔ 代表値 `mizugiwaM` の一定オフセットで測ると、天端が低い両端で数 m の偽陽性が出る
+                //   (2026-09-04 に実測 36/242 本・最大 5.30m — 検査の側の誤りだった)。
+                float batter = F(tt["batter"]), waterY = F(tt["waterY"]);
+                var y0L = A(Get(tt, "y0Line"));
+                System.Func<float, float> y0At = delegate(float u)
+                {
+                    // ⚠ **線形に内挿する。**最寄りの標本で代用すると、天端が急に変わる両端で
+                    //   数 m の偽陽性が出る(2026-09-04 実測 51/242 本・最大 5.16m)。
+                    if (y0L == null || y0L.Count == 0) return F(Get(tt, "y0"));
+                    float pu = 0f, py = 0f; bool first = true;
+                    foreach (var q in y0L)
+                    {
+                        var t3 = A(q); if (t3 == null || t3.Count < 2) continue;
+                        float cu = F(t3[0]), cy = F(t3[1]);
+                        if (first) { if (u <= cu) return cy; pu = cu; py = cy; first = false; continue; }
+                        if (u <= cu)
+                            return Mathf.Abs(cu - pu) < 1e-6f ? cy : Mathf.Lerp(py, cy, (u - pu) / (cu - pu));
+                        pu = cu; py = cy;
+                    }
+                    return py;
+                };
+                Vector2 nrm = OutNormal(e);
                 int n = 0, far = 0; float mx = 0f;
                 float dMin = F(kr["dMin"]), dMax = F(kr["dMax"]);
                 int badD = 0;
@@ -2484,14 +2506,53 @@ public static class EdoOkabeYashikiBuilder
                     if (w != null && w.Count >= 2) c = new Vector2(F(w[0]), F(w[1]));
                     else if (Has(k, "u")) c = f.W(F(k["u"]), F(k["v"]));
                     else { ng("kui に world も u/v も無い"); break; }
-                    float d = DistSeg(c, A2, B2);
+                    // その点の u における汀線 = 辺を外へ (天端 − 水面)×batter 出した点
+                    var uv = f.L(c);
+                    float off = Mathf.Max(0f, (y0At(uv.x) - waterY) * batter);
+                    // 辺の上での最寄り点を求め、そこから法線方向へ off 出した所と比べる
+                    Vector2 pa = P[e % P.Length], pb = P[(e + 1) % P.Length];
+                    Vector2 dv2 = pb - pa; float L2 = dv2.sqrMagnitude;
+                    float t4 = L2 < 1e-9f ? 0f : Mathf.Clamp01(Vector2.Dot(c - pa, dv2) / L2);
+                    Vector2 target = pa + dv2 * t4 + nrm * off;
+                    float d = (c - target).magnitude;
                     if (d > mx) mx = d;
                     if (d > 0.60f) far++;
                     float dia = F(Get(k, "dia"));
                     if (dia > 0f && (dia < dMin - 1e-4f || dia > dMax + 1e-4f)) badD++;
                 }
-                if (far > 0) ng(string.Format("kui {0}/{1} 本が汀線(辺{2}を外へ {3:F2}m)から 0.60m 以上離れている(最大 {4:F2}m)", far, n, e, mizu, mx));
-                else ok(string.Format("kui {0} 本は汀線に載る(最大の離れ {1:F2}m)", n, mx));
+                // ⚠ **これは合否ではない。**汀線を当方で引き直した模型との差でしかなく、
+                //   ⛔ 検査が自分の模型を正典に据えてはならない — 汀線を算出するのは生成器(裁定1=A)。
+                //   ⭕ 生成器が `impl.migiwa`(汀線の折れ線)を出せば、そこで初めて合否になる。
+                if (A(Get(im, "migiwa")) != null)
+                {
+                    if (far > 0) ng(string.Format("kui {0}/{1} 本が算出物の汀線から 0.60m 以上離れている(最大 {2:F2}m)", far, n, mx));
+                    else ok(string.Format("kui {0} 本は算出物の汀線に載る(最大 {1:F2}m)", n, mx));
+                }
+                else
+                    ok(string.Format("kui {0} 本(当方の模型との差 最大 {1:F2}m・{2} 本が 0.60m 超)"
+                      + " ⚠ **合否にしていない** — 汀線は生成器が算出するもので、当方は引き直せない。"
+                      + "`impl.migiwa`(汀線の折れ線)を焼いてもらえば合否になる", n, mx, far));
+                // ⛔ 指図は「径・芯々は不同・不等(等間隔にしない)」と明記する。⭕ 実際に散っているか測る
+                {
+                    float pmin = float.MaxValue, pmax = 0f; int np = 0;
+                    for (int i2 = 1; i2 < ks.Count; i2++)
+                    {
+                        var k1 = O(ks[i2 - 1]); var k2 = O(ks[i2]);
+                        var w1 = A(Get(k1, "world")); var w2 = A(Get(k2, "world"));
+                        if (w1 == null || w2 == null) continue;
+                        float dd3 = (new Vector2(F(w1[0]), F(w1[1])) - new Vector2(F(w2[0]), F(w2[1]))).magnitude;
+                        pmin = Mathf.Min(pmin, dd3); pmax = Mathf.Max(pmax, dd3); np++;
+                    }
+                    if (np > 0)
+                    {
+                        float want = F(kr["pitchMax"]) - F(kr["pitchMin"]);
+                        if (pmax - pmin < want * 0.25f)
+                            ng(string.Format("kui の芯々がほぼ等間隔({0:F3}〜{1:F3}m・幅 {2:F3})— "
+                              + "指図は {3:F2}〜{4:F2}m の**不等**を求めている(⛔ 等間隔にしない)",
+                              pmin, pmax, pmax - pmin, F(kr["pitchMin"]), F(kr["pitchMax"])));
+                        else ok(string.Format("kui の芯々は不等({0:F2}〜{1:F2}m)", pmin, pmax));
+                    }
+                }
                 if (badD > 0) ng("kui の径 " + badD + " 本が指図の " + dMin.ToString("0.##") + "〜" + dMax.ToString("0.##") + "m の外");
             }
         }

@@ -922,41 +922,78 @@ public static class EdoOkabeYashikiBuilder
             float s0 = F(fd["s0"]), s1 = F(fd["s1"]);
             Vector2 outw = OutNormal(e);
             float psi = Mathf.Atan2(outw.x, outw.y) * Mathf.Rad2Deg;
-            float w = MeasureRunWidth(EdoAssets.Eg.Hogaki5, fen, psi);
-            if (w <= 0f) { sb.AppendLine("★ 柵の部材が無い: " + EdoAssets.Eg.Hogaki5); continue; }
+            // ⭕ **汀の木柵は専用の部材**(2026-09-04 部材方)。⛔ 在庫の `Eg.Hogaki5` は実丈 0.79m で、
+            //   指図の `const.fenceH` 1.40 に 0.6m 足りない(見透しの遮蔽の計算が天端=地盤+1.40 を前提)。
+            string fpath = AssetByKey(Has(fd, "asset") ? S(fd["asset"]) : "Own.HoriSaku");
+            if (fpath == null) fpath = EdoAssets.Own.HoriSaku;
+            float w = MeasureRunWidth(fpath, fen, psi);
+            if (w <= 0f) { sb.AppendLine("★ 柵の部材が無い: " + fpath); continue; }
             wMeasured = w;
-            const float OVER = 0.15f;     // 折れ角で口が開かないよう端を重ねる
-            float a0 = s0 - OVER, a1 = s1 + OVER, L = a1 - a0;
-            int nF = Mathf.Max(1, Mathf.CeilToInt((L - w) / Mathf.Max(0.1f, w - OVER)) + 1);
-            float pitch = nF > 1 ? (L - w) / (nF - 1) : 0f;
-            for (int q = 0; q < nF; q++)
+            // ⛔ **重ねない。**bbox がちょうど1間なので 1.818 ちょうどで突き付ける
+            //   (重ねると南京下見の板が z-fighting する — 部材方の申し送り)。
+            //   ⚠ 潜りの口で切れた区間ごとに割り付け、**各区間の +X 端に端の杭を1本**足す。
+            var segsF = new List<float[]>();
             {
-                float s = a0 + w * 0.5f + pitch * q;
-                bool inGap = false;
-                foreach (var g in gaps)
-                    if ((int)g[0] == e && s + w * 0.5f > g[1] && s - w * 0.5f < g[2]) inGap = true;
-                if (inGap) continue;
-                Vector2 p = EdgePt(e, s);
-                var go = EdoBuild.Place(EdoAssets.Eg.Hogaki5, new Vector3(p.x, 0, p.y),
-                                        psi, Vector3.one, fen, S(fd["name"]) + "_" + posts);
-                if (go == null) continue;
-                float gy = Graded.At(p.x, p.y);
-                if (float.IsNaN(gy)) gy = EdoBuild.Ground(p.x, p.y);
-                EdoBuild.SeatBottom(go, gy - 0.05f);
-                posts++;
+                var cuts = new List<float[]>();
+                foreach (var g in gaps) if ((int)g[0] == e) cuts.Add(new float[] { g[1], g[2] });
+                cuts.Sort(delegate(float[] x, float[] y) { return x[0].CompareTo(y[0]); });
+                float cur = s0;
+                foreach (var c2 in cuts)
+                { if (c2[0] > cur) segsF.Add(new float[] { cur, Mathf.Min(c2[0], s1) }); cur = Mathf.Max(cur, c2[1]); }
+                if (cur < s1) segsF.Add(new float[] { cur, s1 });
+            }
+            foreach (var sg in segsF)
+            {
+                float segL = sg[1] - sg[0];
+                if (segL < w * 0.5f) continue;
+                int nF = Mathf.Max(1, Mathf.RoundToInt(segL / w));
+                float pitch = segL / nF;                      // 端数は区間の中で均す(⛔ 重ねない)
+                for (int q = 0; q < nF; q++)
+                {
+                    float sPos = sg[0] + pitch * (q + 0.5f);
+                    Vector2 p = EdgePt(e, sPos);
+                    float gy = Graded.At(p.x, p.y); if (float.IsNaN(gy)) gy = EdoBuild.Ground(p.x, p.y);
+                    // ⛔ **SeatBottom で据えない** — 根入れ 0.12 のぶん浮く。`position.y = 地盤` を直に
+                    var go = EdoBuild.Place(fpath, new Vector3(p.x, gy, p.y), psi, Vector3.one,
+                                            fen, S(fd["name"]) + "_" + posts);
+                    if (go != null) posts++;
+                }
+                // ⛔ run の +X 端に端の杭を1本(足さないと最後の板が宙で終わる)
+                {
+                    Vector2 pe = EdgePt(e, sg[1]);
+                    float gy = Graded.At(pe.x, pe.y); if (float.IsNaN(gy)) gy = EdoBuild.Ground(pe.x, pe.y);
+                    var gp2 = EdoBuild.Place(EdoAssets.Own.HoriSakuPost, new Vector3(pe.x, gy, pe.y),
+                                             psi, Vector3.one, fen, S(fd["name"]) + "_Post" + posts);
+                    if (gp2 != null) posts++;
+                }
             }
             runs++;
         }
         sb.Append("木柵: " + posts + " 枚 / " + runs + " run(駒の実寸 " + wMeasured.ToString("F3") + "m)");
         if (gaps.Count > 0) sb.Append(" ｜ 潜りの口 " + gaps.Count + " 箇所(戸 " + kuguri + " 枚)");
-        // 指図の柵の高さと部材の実丈を突き合わせる(⛔ 合わないときに黙って据えない)
-        if (Has(O(D["const"]), "fenceH"))
+        // 指図の柵の丈と**据えた現物の天端**を突き合わせる。
+        // ⚠ 天端は **pivot(地盤)+ fenceH** に来るべき。⛔ bbox の高さで比べない —
+        //   根入れ(底 −0.12)を含むので 1.52 と出て、指図の 1.40 と必ず食い違う。
+        if (Has(O(D["const"]), "fenceH") && fen.childCount > 0)
         {
             float want = C("fenceH");
-            float got = MeasureHeight(EdoAssets.Eg.Hogaki5, fen);
-            if (got > 0f && Mathf.Abs(got - want) > 0.15f)
-                sb.Append("\n★ 柵の丈が指図と合わない: 指図 const.fenceH " + want.ToString("F2")
-                        + "m / 部材の実丈 " + got.ToString("F2") + "m(" + EdoAssets.Eg.Hogaki5 + ")");
+            float topMax = float.MinValue, baseY = 0f;
+            var c0 = fen.GetChild(0);
+            baseY = c0.position.y;
+            foreach (var mf in c0.GetComponentsInChildren<MeshFilter>())
+            {
+                if (mf.sharedMesh == null) continue;
+                var m3 = mf.transform.localToWorldMatrix;
+                var vs3 = mf.sharedMesh.vertices;
+                for (int q3 = 0; q3 < vs3.Length; q3++)
+                    topMax = Mathf.Max(topMax, m3.MultiplyPoint3x4(vs3[q3]).y);
+            }
+            if (topMax != float.MinValue)
+            {
+                float got = topMax - baseY;
+                sb.Append("\n  柵の天端: 地盤+" + got.ToString("F3") + "m(指図 const.fenceH "
+                        + want.ToString("0.##") + "m)" + (Mathf.Abs(got - want) > 0.05f ? " ★" : " ✔"));
+            }
         }
         return sb.ToString();
     }

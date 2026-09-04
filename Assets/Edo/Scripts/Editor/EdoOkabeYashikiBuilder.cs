@@ -1934,16 +1934,99 @@ public static class EdoOkabeYashikiBuilder
                 + "地形 " + terrainOwned + " 件は **S1 が彫り済み**(⛔ 掘り直さない)");
         foreach (var kv in missing)
             wait.Add("庭の部材が EdoAssets に無い: " + kv.Key + "(" + kv.Value + " 件)");
-        // 水面 — ⛔ 実装で決めない
-        wait.Add("**池の水面**が無い。⚠ 床は S1 が彫ってあるので要るのは水面だけだが、"
-               + "WaterBaker は `Recarve` で**地形も彫り直す**(S1 の岬・中島・くびれが平らに戻る)。"
-               + "⛔ snap 矩形 320×320m が他邸に掛かる件も未決。⭕ 水面だけを張る道具か、"
-               + "Recarve を呼ばない使い方の裁定が要る(普請奉行へ)");
+        sb.Append('\n').Append(PlaceWaterSurface(items, wait));
         wait.Add("地表の塗り " + splat + " 件(庭の実形・州浜 L_bare・園路 L_dirt)は**地表の輪**の受け持ち。"
                + "⚠ 指図が『どの地表層で塗るか』を持つのは州浜と園路だけで、庭の実形37件は層が無い");
         sb.Append('\n').Append("── 据えなかったもの " + wait.Count + " 件 ──");
         foreach (var w in wait) sb.Append("\n  ★ ").Append(w);
         return sb.ToString();
+    }
+
+    /// <summary>**池の水面だけを張る**(2026-09-04 普請奉行の裁定)。
+    ///
+    /// ⛔⛔ **`WaterBaker.Recarve` を呼ばない。**床は S1 が彫ってあり、Recarve は
+    ///   スナップ領域(輪郭 bbox + 150m)を丸ごと書き戻すので、**S1 が作った岬・中島・くびれが
+    ///   平らに戻る**(メモリ「Recarveで造成が消える」/「池のsnap矩形の重なり」)。
+    ///   ⚠ `WaterBaker.Create` は末尾で `Recarve` を呼ぶので**使わない** — 器を自分で組み、
+    ///   **`RebuildSurface`(水面メッシュだけ)** を呼ぶ。
+    ///   ⭕ 副次の利点: `WaterBody` として場面に居るので、**他邸が Recarve したとき
+    ///   `OtherWaterMask` が当家の池を守ってくれる**(掘り込みを埋められない)。
+    ///
+    /// ⚠ **二重に平滑しない。**`RebuildSurface` は `SmoothTagged(outline, sharp, 2)` を掛けるが、
+    ///   指図の汀線は**既に Chaikin 2 回の平滑後**(65点)である。⇒ `sharp` を全 true にして
+    ///   角を残す = 平滑を素通しにする。⛔ 素通しにしないと汀線が縮んで、S1 が彫った床と合わない。
+    ///
+    /// ⚠ 材質は**場面に既に居る水面から借りる**(松江松平の御泉水と揃える指示)。
+    ///   無いときだけ `WaterBaker.Create` と同じ設定で起こす。⛔ レイヤは触らない(既定のまま)。</summary>
+    static string PlaceWaterSurface(List<object> items, List<string> wait)
+    {
+        // 汀線(平滑後)を算出物から取る
+        Dictionary<string, object> mig = null;
+        foreach (var o in items)
+        { var g = O(o); if (g != null && (S(g["kind"]) ?? "").StartsWith("汀線")) { mig = g; break; } }
+        if (mig == null) { wait.Add("算出物に汀線(平滑後)が無い — 水面を張れない"); return "水面: 汀線待ち"; }
+        var pts = A(Get(mig, "world"));
+        if (pts == null || pts.Count < 3) { wait.Add("汀線の点が足りない"); return "水面: 汀線待ち"; }
+        float wy = F(mig["y"]);
+        float depth = Has(mig, "depthMax") ? F(mig["depthMax"]) : 1.5f;
+
+        string nm = "P_" + (S(mig["name"]) ?? "Sensui");
+        var parent = GameObject.Find("Water");
+        if (parent == null) { parent = new GameObject("Water"); Undo.RegisterCreatedObjectUndo(parent, "water"); }
+        var exist = parent.transform.Find(nm);
+        WaterBody wb = exist != null ? exist.GetComponent<WaterBody>() : null;
+        if (wb == null)
+        {
+            var go = new GameObject(nm, typeof(MeshFilter), typeof(MeshRenderer), typeof(WaterBody));
+            Undo.RegisterCreatedObjectUndo(go, "water");
+            go.transform.SetParent(parent.transform, true);
+            wb = go.GetComponent<WaterBody>();
+        }
+        wb.outline = new List<Vector3>();
+        wb.sharp = new List<bool>();
+        foreach (var q in pts)
+        {
+            var w = A(q); if (w == null || w.Count < 2) continue;
+            wb.outline.Add(new Vector3(F(w[0]), wy, F(w[1])));
+            wb.sharp.Add(true);           // ⛔ 二重に平滑しない(指図の汀線は平滑後)
+        }
+        wb.waterY = wy;
+        wb.depth = depth;
+        // ⛔ 地形を彫る側の設定は**触らない**(Recarve を呼ばないので効かないが、既定を明示しておく)
+        wb.raiseBanks = false; wb.verticalWalls = false; wb.levelFloor = false;
+
+        // 材質 — 場面の他の水面から借りる(松江の御泉水と揃える)
+        var mr = wb.GetComponent<MeshRenderer>();
+        if (mr.sharedMaterial == null)
+        {
+            Material donor = null;
+            foreach (var o2 in UnityEngine.Object.FindObjectsByType<WaterBody>(
+                         FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (o2 == wb) continue;
+                var r2 = o2.GetComponent<MeshRenderer>();
+                if (r2 != null && r2.sharedMaterial != null) { donor = r2.sharedMaterial; break; }
+            }
+            if (donor != null) mr.sharedMaterial = donor;
+            else
+            {
+                var sh = Shader.Find("Edo/Water");
+                if (sh == null) { wait.Add("シェーダ `Edo/Water` が見つからない(URP の Depth+Opaque Texture が要る)"); return "水面: 材質待ち"; }
+                var mat = new Material(sh);
+                mat.SetColor("_DeepColor", new Color(0.13f, 0.32f, 0.40f));
+                mat.SetColor("_ShallowColor", new Color(0.28f, 0.50f, 0.55f));
+                mat.SetFloat("_FresnelPower", 3.0f); mat.SetFloat("_Alpha", 0.8f);
+                AssetDatabase.CreateAsset(mat, AssetDatabase.GenerateUniqueAssetPath(
+                    "Assets/Edo/Water/" + nm + ".mat"));
+                mr.sharedMaterial = mat;
+                wait.Add("水面の材質を**新しく起こした**(場面に借りられる水面が無かった)。"
+                       + "⚠ 松江松平の御泉水と見え方が揃っているか、検証レンダで確かめること");
+            }
+        }
+        // ⭕ **水面メッシュだけ**を焼く。⛔ Recarve は呼ばない
+        WaterBaker.RebuildSurface(wb);
+        return "水面: " + nm + " 汀 " + wb.outline.Count + " 点 / 水面 " + wy.ToString("F2")
+             + "(⛔ 地形は彫っていない — 床は S1)";
     }
 
     /// <summary>折れ線 `pts`(世界座標)の走り比 t(0〜1)の点。</summary>

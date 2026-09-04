@@ -5389,12 +5389,33 @@ class Niwa(object):
         return self.waterY - self.depth * (self.dshore(u, v) / self.dmax) ** 0.6
 
     # -------- 築山
+    def mound_one(self, t, u, v):
+        """**その一基だけ**の盛り上がり。⛔ 法(勾配)を測るときは `mound`(全基の max)で
+        測らない — 隣に別の盛土が重なっていると**他基の斜面を自分の法として拾う**
+        (2026-09-04: 蔵前の土手を短辺減衰に直した途端、築山A1/A2/C の実測が
+        いずれも土手の 1:0.85 に化けた)。"""
+        return self._m1(t, u, v)
+
     def mound(self, u, v):
         h = 0.0
         for t in self.g.get("tsukiyama", []):
+            h = max(h, self._m1(t, u, v))
+        return h
+
+    def _m1(self, t, u, v):
+        h = 0.0
+        for t in (t,):
             if t.get("kata") == "土手":
+                # ⭐ **減衰軸は `decay` が決める**(2026-09-04 庭方の第4巡)。
+                #   ⛔ v 固定にしていたため、長辺が v の `Dote_Kuramae` は
+                #   **両端が 0 になる蒲鉾**になり、壁の足元に一様な稜線が通っていなかった
+                #   (御土蔵の見える面に 0.5% の素通しが残った原因)。
+                #   ⛔ **未指定を既定へ倒さない** — `dote_check` が鳴らす。
                 if t["u0"] <= u <= t["u1"] and t["v0"] <= v <= t["v1"]:
-                    r = abs(v - (t["v0"] + t["v1"]) / 2.0) / ((t["v1"] - t["v0"]) / 2.0)
+                    if t.get("decay") == "u":
+                        r = abs(u - (t["u0"] + t["u1"]) / 2.0) / ((t["u1"] - t["u0"]) / 2.0)
+                    else:
+                        r = abs(v - (t["v0"] + t["v1"]) / 2.0) / ((t["v1"] - t["v0"]) / 2.0)
                     h = max(h, t["rise"] * 0.5 * (1 + math.cos(math.pi * min(r, 1.0))))
                 continue
             ru, rv = t["dU"] / 2.0, t["dV"] / 2.0
@@ -5671,6 +5692,28 @@ def niwa_stats(d):
     o["tsuki"] = []
     v1 = next((m for m in g["mikoro"] if m.get("main")), g["mikoro"][0])
     e1 = n.eye(v1["no"])
+    # 土手の法も測る(⛔ 上限は台帳にも庭方の決定にも無いので**測って刷るだけ**・閾値を発明しない)
+    o["dote"] = []
+    for t in g.get("tsukiyama", []):
+        if t.get("kata") != "土手":
+            continue
+        du9, dv9 = t["u1"] - t["u0"], t["v1"] - t["v0"]
+        hw = (du9 if t.get("decay") == "u" else dv9) / 2.0 * K
+        mx9 = 0.0
+        stp = 0.01
+        for k in range(-int((hw / K) / stp) - 2, int((hw / K) / stp) + 3):
+            if t.get("decay") == "u":
+                a0 = (t["u0"] + t["u1"]) / 2.0 + k * stp
+                g0, g1 = n.mound_one(t, a0, (t["v0"] + t["v1"]) / 2.0), \
+                    n.mound_one(t, a0 + stp, (t["v0"] + t["v1"]) / 2.0)
+            else:
+                a0 = (t["v0"] + t["v1"]) / 2.0 + k * stp
+                g0, g1 = n.mound_one(t, (t["u0"] + t["u1"]) / 2.0, a0), \
+                    n.mound_one(t, (t["u0"] + t["u1"]) / 2.0, a0 + stp)
+            mx9 = max(mx9, abs(g1 - g0) / (stp * K))
+        o["dote"].append(dict(name=t["name"], label=t["label"], rise=t["rise"],
+                              decay=t.get("decay", "?"), w=min(du9, dv9), L=max(du9, dv9),
+                              batterReal=(1.0 / mx9 if mx9 > 1e-9 else 99.0)))
     for t in g.get("tsukiyama", []):
         if t.get("kata") == "土手":
             continue
@@ -5688,12 +5731,15 @@ def niwa_stats(d):
         for ax in ("u", "v"):
             R = t["dU"] if ax == "u" else t["dV"]
             for k in range(-int(R / 2 / stp) - 1, int(R / 2 / stp) + 2):
+                # ⛔ **`mound`(全基の max)で測らない** — 隣の盛土が重なっていると
+                #   他基の斜面を自分の法として拾う(2026-09-04: 蔵前の土手を短辺減衰へ
+                #   直した途端、築山A1/A2/C の実測がいずれも土手の 1:0.85 に化けた)。
                 if ax == "u":
                     a0 = t["u"] + k * stp
-                    g0, g1 = n.mound(a0, t["v"]), n.mound(a0 + stp, t["v"])
+                    g0, g1 = n.mound_one(t, a0, t["v"]), n.mound_one(t, a0 + stp, t["v"])
                 else:
                     a0 = t["v"] + k * stp
-                    g0, g1 = n.mound(t["u"], a0), n.mound(t["u"], a0 + stp)
+                    g0, g1 = n.mound_one(t, t["u"], a0), n.mound_one(t, t["u"], a0 + stp)
                 mxg = max(mxg, abs(g1 - g0) / (stp * K))
         o["tsuki"].append(dict(name=t["name"], label=t["label"], batter=bat,
                                batterReal=(1.0 / mxg if mxg > 1e-9 else 99.0),
@@ -5979,6 +6025,22 @@ def niwa_check(d):
         if w > d["const"]["niwaGridTol"]:
             bad.append("`on: 地なり` の庭で設計面と復元地盤の差が最大 %.2fm(上限 %.2fm)"
                        % (w, d["const"]["niwaGridTol"]))
+    # ⑪b 土手は**減衰軸**を必ず持つ。⛔ 未指定を既定へ倒さない(2026-09-04 庭方の第4巡)。
+    #    ⚠ 書式をなぞって軸を落とすと、長辺方向に減衰する**蒲鉾**になって端が 0 になる。
+    for t in g.get("tsukiyama", []):
+        if t.get("kata") != "土手":
+            continue
+        if t.get("decay") not in ("u", "v"):
+            bad.append("土手 %s に `decay`(減衰軸 u/v)が無い — 軸を落とすと長辺方向に減衰して"
+                       "**両端が 0 の蒲鉾**になる(壁の足元の土手は一様な稜線でなければ働かない)"
+                       % t["name"])
+            continue
+        du9, dv9 = t["u1"] - t["u0"], t["v1"] - t["v0"]
+        shortax = "u" if du9 <= dv9 else "v"
+        if t["decay"] != shortax:
+            bad.append("土手 %s の `decay`=%s が短辺(%s: %.2f間 対 %.2f間)と食い違う — "
+                       "稜線は長辺に沿って一様に通すこと"
+                       % (t["name"], t["decay"], shortax, min(du9, dv9), max(du9, dv9)))
     # ⑫ 主景の見切り — **蔵の見える面が全長 × 全高にわたって塞がるか**
     # ⛔ 「各樹が自分の位置で帯を覆うか」では面の端と低い帯が抜ける(2026-09-04 庭方 中9)。
     if not o.get("kuraFace"):
@@ -6139,6 +6201,27 @@ def _crowns(d):
     return out
 
 
+def _niwa_frames(d, pad=12.0):
+    """庭のまわりの**躯体の矩形**を `munes` + `service` から機械で作る。
+
+    ⛔ **名前で並べない**(2026-09-04 庭方の第4巡・是正1)。手で並べた5枠に `Inari` が
+    抜けていて、樹冠が祠へ 1.08m 食い込むのを見逃した。⭕ 庭の矩形を `pad`[間] 広げた
+    範囲に掛かるものを全部返すので、**将来 附属屋が増えても自動で入る**。
+    """
+    n = NI(d)
+    if n is None:
+        return []
+    g = n.g
+    a, b = g["u0"] - pad, g["u1"] + pad
+    c, e = g["v0"] - pad, g["v1"] + pad
+    out = []
+    for m in d["munes"] + d.get("service", []):
+        if m["u1"] < a or m["u0"] > b or m["v1"] < c or m["v0"] > e:
+            continue
+        out.append(m)
+    return out
+
+
 def niwa_cover(d):
     """**樹冠の被覆率** — 水面のうち樹冠に覆われる割合と、陸の被覆率。
 
@@ -6242,8 +6325,13 @@ def niwa_plant_check(d):
     # 6-③ 樹冠が棟・付属屋の矩形に食い込まない(部材実測・scale込み)
     # ⭕ **犬走り(矩形の外 `const.inubashiri`)への張り出しは食い込みに数えない** —
     #   枝が雨落ちの上に出るのは普通で、禁じるのは**躯体の線を越えること**(庭方の第3巡)。
+    # ⛔ **枠を手で並べない**(2026-09-04 庭方の第4巡・是正1)。庭方の検算は
+    #   `Oku/Ima/Daidokoro/Kura1/Kura2` の5枠を手で並べていて **`Inari` を書き漏らし**、
+    #   1.08m の食い込みを見逃した。⇒ **`munes` + `service` から機械で作る** —
+    #   将来 附属屋が増えても自動で入る。⭕ 対象は「庭の矩形に接するか重なるもの」まで
+    #   絞ってよい(遠い棟は樹冠が届かない)が、⛔ **名前で絞らない**。
     for c in cr:
-        for m in d["munes"] + d["service"]:
+        for m in _niwa_frames(d):
             if "yaw" in m:
                 continue
             du = max(m["u0"] - c["u"], 0.0, c["u"] - m["u1"])
@@ -7161,12 +7249,26 @@ def niwa_tsuki_table(d):
                      "1:%.3f" % t["batter"], "1:%.3f" % t["batterReal"],
                      "%+.3f" % (t["batterReal"] - bf),
                      "%.1f m" % t["d"], "%+.2f°" % t["ang"], "⭕" if ok else "⚠"))
+    for t in o.get("dote", []):
+        rows.append(("<i>%s(土手)</i>" % t["label"], "+%.2f" % t["rise"], "—",
+                     "1:%.3f" % t["batterReal"], "—",
+                     "短辺 %.2f間 × 長辺 %.2f間" % (t["w"], t["L"]),
+                     "減衰軸 <code>%s</code>" % t["decay"], "—"))
     return _tw(("築山", "頂(盛)", "法(公称)", "法(実測の最急)", "上限との差",
                 "主視点から", "仰角", "上限 1:%.1f" % bf), rows) + (
         "<p class='cap'>⚠ <b>実測の最急は 0.01間 刻みで u・v の両軸を走査した値</b>"
         "(0.005/0.002間 と 3桁目まで一致する)。⛔ 従前の 0.05間 刻みは割線なので"
         "<b>法を緩い側へ丸めていた</b> — 上限との差が 0.01 の桁なので刻みで合否が動く"
-        "(2026-09-04 検図方 低-7)。⚠ <b>庭方の第3巡で築山が動いたら測り直すこと。</b></p>")
+        "(2026-09-04 検図方 低-7)。"
+        "⛔ <b>法は「その一基だけ」の面で測る</b>(<code>Niwa.mound_one</code>)— 全基の max で"
+        "測ると<b>隣の盛土の斜面を自分の法として拾う</b>(蔵前の土手を短辺減衰へ直した途端、"
+        "築山A1/A2/C の実測がいずれも土手の 1:0.85 に化けた)。"
+        "<br>⚠ <b>下の斜体2行は土手</b>で、<b>合否は出していない【確度?】</b> — "
+        "土手の法の上限は台帳にも庭方の決定にも無いので<b>測って刷るだけ</b>(⛔ 閾値を発明しない)。"
+        "⭐ <b>蔵前の土手は短辺 0.95間 に 0.65m を盛るので 1:0.85 と急</b>で、築山に当てている"
+        "盛土の上限 1:1.5 は満たさない。壁の足元に回す小さな土手に同じ物差しを当てるべきかは"
+        "<b>庭方の判断</b>。1:1.5 に収めるなら短辺を 1.69間 まで広げることになる"
+        "(いまの 0.95間 の 1.8 倍)。</p>")
 
 
 def niwa_enro_table(d):

@@ -269,7 +269,7 @@ def kurumayose(uKen=3, vKen=2, name="Okabe_Kurumayose", cut=None):
     V.set_origin(o, (0.0, 0.0, 0.0))
     V.sel([o]); bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
     if cut is not None:                   # 玄関棟の屋根へ差し込むための切り欠き
-        kirikaki(o, cut[0], cut[1])
+        kirikaki(o, cut[0], cut[1], cut[2], KIRIKAKI_SINK)
     return o, name
 
 
@@ -278,11 +278,29 @@ def kurumayose(uKen=3, vKen=2, name="Okabe_Kurumayose", cut=None):
 SASHIZU = os.path.join(V.REPO, "docs", "Sashizu", "okabe_sashizu.json")
 
 
+# 瓦の波の逃げ【U】。⚠ **指図の値ではない** — 玄関棟の屋根 FBX を実測して決めた生成器側の定数。
+# `Goten_Roof_Irimoya_11x11ken` の瓦の上面は、軒先を通る名目平面に対して **−0.027〜+0.128** で
+# うねる(2026-09-04 実測・帯 |u|≦3.60 / 軒先から 1.30m まで)。名目平面ちょうどで切ると
+# 谷の所で車寄が 0.03 だけ瓦の上へ出る。⭕ **谷より下へ 0.05 沈めて**切り、瓦の波に隠す。
+KIRIKAKI_SINK = 0.05
+
+
 def kirikaki_planes(at_v=None, above_y=None):
     """指図 `roofs.Goten_Kurumayose.sashikomi.kirikaki` の規則を**部材ローカルの平面2枚**へ落とす。
 
     規則(指図が正典・⛔ ここに数値を書き写さない):
       「玄関棟の軒先の線 v ≧ `atV` の側で、面から `aboveY` より上にある車寄の面を切り欠く」
+
+    ⚠⚠ **`aboveY` の水平面で切ると足りない。**玄関棟の屋根は軒先から **5.5寸(`R.RATIO`)で
+      上がる斜面**なので、切るべきは水平面ではなく**屋根面そのもの**である。
+        面からの高さ z(v) = `aboveY` + (v − `atV`) × 1.818 × `R.RATIO`
+      ⛔ 水平面で切ると **切りすぎ**(軒下に隠れて見えない所まで落ちる)たうえ、切り口の壁が
+      軒先の線に立って**玄関棟の軒先と同じ面で喧嘩する**(2026-09-04 に棟梁の実機が
+      「玄関棟の屋根面に 177 頂点食い込む」と出した実体はこれ)。
+      ⭕ 斜面で切れば、車寄の屋根は**玄関棟の軒の下へ滑り込む**形になる。
+    ⭐ **指図へ返す式**(`kirikaki` を「面」で持つ形に改めるなら):
+        atV = 51.505 間 / aboveY = 3.197 m(面から)/ **slope = 0.5456**(= `R.RATIO`・5.5寸)
+      ⚠ slope は**瓦モジュールの実測から来る固定値**で、設計で選べる数ではない。
 
     ⭐ **json から読む**。指図方が数値を直したら、焼き直すだけで部材が追従する
       (⛔ 生成器に写すと指図と部材が別々に動く)。
@@ -321,15 +339,28 @@ def kirikaki_planes(at_v=None, above_y=None):
     v = float(kk["atV"]) if at_v is None else float(at_v)
     z = float(kk["aboveY"]) if above_y is None else float(above_y)
     y = (v - v_piv) * KEN
+    # ⭕ **勾配**。指図がまだ持っていないので瓦モジュールの実測値を使う。
+    #   ⛔ 指図に `slope` が入ったら**そちらが正典**。食い違いは叫ぶだけにして指図方へ返す。
+    slope = R.RATIO
+    if "slope" in kk:
+        if abs(float(kk["slope"]) - R.RATIO) > 1e-4:
+            print(u"[okfuz] ⚠⚠ 指図の kirikaki.slope=%s が瓦モジュールの勾配 %.4f と食い違う。"
+                  u"⛔ 部材方は直さない — 指図方へ返す" % (kk["slope"], R.RATIO))
+        slope = float(kk["slope"])
     print(u"[okfuz] 切り欠き: 指図 atV=%s 間 / aboveY=%s m(面から)。ピボット v=%.1f 間"
           % (kk["atV"], kk["aboveY"], v_piv))
-    print(u"[okfuz]   → 使う値 v=%.4f 間 → **Blender y ≧ %+.4f** かつ **z ≧ %.4f** を落とす"
-          % (v, y, z))
-    return y, z
+    print(u"[okfuz]   → 使う値 v=%.4f 間 → **Blender y ≧ %+.4f** かつ "
+          u"**z ≧ %.4f + (y−%.4f)×%.4f − 沈み %.2f** を落とす(⭕ 屋根面の斜面で切る)"
+          % (v, y, z, y, slope, KIRIKAKI_SINK))
+    return y, z, slope
 
 
-def kirikaki(o, at_y, above_z):
-    """`at_y` より奥(+v)で `above_z` より上の面を落とす。
+def kirikaki(o, at_y, above_z, slope=0.0, sink=0.0):
+    """`at_y` より奥(+v)で、**玄関棟の屋根面**より上の面を落とす。
+
+    屋根面 = `at_y` を通り `slope`(5.5寸)で +Y へ上がる平面。`sink` だけ下げて瓦の波に隠す。
+    ⛔ `slope=0` の水平面で切らない — 軒下の見えない所まで落としたうえ、切り口の壁が
+      玄関棟の軒先と同じ面に立つ(2026-09-04 に棟梁の実機が食い込みとして検出した)。
 
     ⛔ **boolean を使わない** — 屋根は瓦モジュールの非多様体な面の集まりで、boolean は解けない
       (`Tools/Blender/README.md` の踏んだ落とし穴)。⭕ **bisect で頂点を挿して割る**ので
@@ -340,21 +371,30 @@ def kirikaki(o, at_y, above_z):
       ⭕ 切り口は開けたまま — 玄関棟の屋根の下に隠れる位置だから見えない。
     """
     import bmesh
+    from mathutils import Vector as _V
+    z0 = above_z - sink
+    # 屋根面の法線(単位化しないと bisect の dist が効かない)
+    rn = _V((0.0, -slope, 1.0)).normalized()
     bm = bmesh.new()
     bm.from_mesh(o.data)
-    for co, no in (((0.0, at_y, 0.0), (0.0, 1.0, 0.0)),
-                   ((0.0, 0.0, above_z), (0.0, 0.0, 1.0))):
+    for co, no in (((0.0, at_y, 0.0), _V((0.0, 1.0, 0.0))),
+                   ((0.0, at_y, z0), rn)):
         bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:],
                                dist=1e-5, plane_co=co, plane_no=no)
     e = 1e-4
+
+    def above_roof(c):
+        return c.z - slope * (c.y - at_y) > z0 + e
+
     kill = [f for f in bm.faces
-            if f.calc_center_median().y > at_y + e and f.calc_center_median().z > above_z + e]
+            if f.calc_center_median().y > at_y + e and above_roof(f.calc_center_median())]
     n = len(kill)
     bmesh.ops.delete(bm, geom=kill, context="FACES")
     bmesh.ops.delete(bm, geom=[x for x in bm.verts if not x.link_faces], context="VERTS")
     bm.to_mesh(o.data)
     bm.free()
-    print(u"[okfuz] 切り欠き: 面 %d 枚を落とした(切り口は開けたまま)" % n)
+    print(u"[okfuz] 切り欠き: 面 %d 枚を落とした(屋根面 勾配%.4f・沈み%.2f / 切り口は開けたまま)"
+          % (n, slope, sink))
     return o
 
 
@@ -534,8 +574,78 @@ def kurumayose_cut(at_v=None, above_y=None):
     差し込みの納めは**部材の側で解いておく**。規則と数値は指図が正典(`kirikaki_planes`)。
         blender ... -- kurumayose_cut [--at-v <間>] [--above-y <m>] [--render]
     ⚠ `--at-v` / `--above-y` は**裁定図を描くための比較用**。既定は必ず指図の値。"""
-    y, z = kirikaki_planes(at_v, above_y)
-    return kurumayose(name="Okabe_Kurumayose_Cut", cut=(y, z))
+    y, z, sl = kirikaki_planes(at_v, above_y)
+    return kurumayose(name="Okabe_Kurumayose_Cut", cut=(y, z, sl))
+
+
+# ================================================================ 差し込みの検証(書き出さない)
+def sashikomi_preview():
+    """**車寄 × 玄関棟の屋根**を指図どおりに重ねて、切り欠きが屋根面に沿っているか見る。
+
+        blender --background --python Tools/Blender/build_okabe_fuzokuya.py -- sashikomi
+
+    ⛔ 何も書き出さない — 検証レンダ(断面 + 立面 + 俯瞰)だけを出す。
+    ⚠ **玄関棟の屋根 FBX の bbox は 22.140** で、身舎 19.998 との差から軒の出を出すと
+      1.071m になる。⛔ **それは隅棟の角の飛び出し** — 車寄の載る帯(|u|≦3.60)では
+      軒の出は **0.900 ちょうど**(2026-09-04 実測)で、指図の `outerD` 21.798 と合う。
+    """
+    import json
+    d = json.load(io.open(SASHIZU, encoding="utf-8"))
+    kk = d["roofs"]["Goten_Kurumayose"]["sashikomi"]["kirikaki"]
+    mu = [m for m in d["munes"] if m["name"] == "Kurumayose"][0]
+    gk = [m for m in d["munes"] if m["name"] == "Genkan"][0]
+    v_piv = (mu["v0"] + mu["v1"]) / 2.0
+    above = float(kk["aboveY"])
+
+    o, _n = kurumayose_cut()
+    # 玄関棟の屋根。⭕ 大棟は v 方向(指図 `munes.Genkan.ridge` = "v")なので 90° 回す
+    roof = VM.import_fbx_abs(os.path.join(V.REPO, "Assets", "Edo", "Models", "Goten",
+                                          "Roofs", "Goten_Roof_Irimoya_11x11ken.fbx"))
+    roof = V.join(roof, "Genkan_Roof_ref") if len(roof) > 1 else roof[0]
+    V.rotate_z([roof], 90)
+    V.sel([roof]); bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    mn, mx = V.bbox([roof])
+    c = (mn + mx) * 0.5
+    gv = ((gk["v0"] + gk["v1"]) / 2.0 - v_piv) * KEN      # 玄関棟の中心の y
+    # ⚠ 屋根 FBX の **z=0 が軒先**。`EdoGotenKit` は 面+aboveY(= 床+2.577)に置く
+    roof.location = (-c.x, gv - c.y, above)
+    bpy.context.view_layer.update()
+    V.hook_textures()
+    os.makedirs(SHOT, exist_ok=True)
+
+    kmn, kmx = V.bbox([o])
+    # ① 立面(+X から。車寄の妻は −Y 側 = 参道)
+    V.studio((14.0, -1.0, 3.0), (0.0, 0.6, 2.6), ortho_scale=13.0, res=(1700, 1100))
+    V.render(os.path.join(SHOT, "okfuz_sashikomi_elev.png"))
+    # ② 取り合いの寄り(切り口が開いて見えないか)
+    V.studio((7.0, -0.6, 5.4), (0.3, 1.2, 3.7), ortho_scale=5.2, res=(1700, 1100))
+    V.render(os.path.join(SHOT, "okfuz_sashikomi_joint.png"))
+    # ③ **参道から**の見上げ(⭕ 実際に人が見る唯一の向き。切り欠きが露天に出ていないか)
+    V.studio((1.6, -11.0, 1.6), (0.0, 0.0, 3.2), res=(1700, 1100))
+    V.render(os.path.join(SHOT, "okfuz_sashikomi_front.png"))
+    # ④ 俯瞰(切り欠きの縁が屋根面に沿っているか)
+    V.studio((7.0, -4.0, 9.5), (0.0, 1.4, 3.6), res=(1700, 1100))
+    V.render(os.path.join(SHOT, "okfuz_sashikomi_top.png"))
+    # ⑤ **断面**(u=0 で真っ二つにして +X から見る)。⭕ 差し込みの高さ関係はここでしか読めない
+    _halve([o, roof], 0.02)
+    V.studio((14.0, -1.0, 3.0), (0.0, 0.6, 2.6), ortho_scale=9.0, res=(1700, 1100))
+    V.render(os.path.join(SHOT, "okfuz_sashikomi_section.png"))
+    print("[okfuz] 差し込みの検証レンダ: "
+          "Screenshots/okfuz_sashikomi_{elev,joint,front,top,section}.png")
+
+
+def _halve(objs, at_x):
+    """x > at_x を落として断面を作る(検証レンダ専用)"""
+    import bmesh
+    from mathutils import Vector as _V
+    for ob in objs:
+        bm = bmesh.new(); bm.from_mesh(ob.data)
+        bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:],
+                               dist=1e-5, plane_co=(at_x, 0, 0), plane_no=_V((1.0, 0, 0)))
+        kill = [f for f in bm.faces if f.calc_center_median().x > at_x + 1e-4]
+        bmesh.ops.delete(bm, geom=kill, context="FACES")
+        bmesh.ops.delete(bm, geom=[x for x in bm.verts if not x.link_faces], context="VERTS")
+        bm.to_mesh(ob.data); bm.free()
 
 
 PARTS = {"umaya": umaya, "tomomachi": tomomachi, "nandokoya": nandokoya,
@@ -581,6 +691,10 @@ def main():
     kw = {"at_v": opt("--at-v"), "above_y": opt("--above-y")}
     skip = {argv[argv.index(f) + 1] for f in ("--at-v", "--above-y") if f in argv}
     want = [a for a in argv if not a.startswith("--") and a not in skip] or list(PARTS.keys())
+    if "sashikomi" in want:                # ⛔ 書き出さない検証だけの枝
+        V.reset()
+        sashikomi_preview()
+        want = [w for w in want if w != "sashikomi"]
     for key in want:
         if key not in PARTS:
             print("[okfuz] ⚠ 知らない部材: %s (%s)" % (key, "/".join(PARTS)))

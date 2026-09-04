@@ -2828,6 +2828,8 @@ public static class EdoOkabeYashikiBuilder
             "Assets/Edo/Materials",
             // 丸太の手すり・汀の杭は NatureManufacture の丸太から切り出すので材質名は M_Wood_fence
             "Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Fence/Models",
+            // 新造の木(Own.Enoki/Keyaki/…)とつる(Own.TsuruFuji/…)は FJG の樹皮・葉の名を名乗る
+            "Assets/Waldemarst/FreeJapaneseGarden/Materials",
         };
         var byName = new Dictionary<string, Material>();
         foreach (var dir in donorDirs)
@@ -2841,9 +2843,13 @@ public static class EdoOkabeYashikiBuilder
         }
         // ⚠ **FBX を焼いたフォルダは必ずここに足す。**松江松平で、番所の材質を替えたのに
         //   remap がそのフォルダを見ておらず真っ白になった前例がある(2026-08-31)。
+        // ⚠ `Models/Trees` は当邸が新造した高木3種とつる3種が居る。ここに入れないと
+        //   松江松平のメニュー(`Edo/松平出羽守上屋敷/附属屋・門・木のマテリアルをremap`)を
+        //   走らせない限り真っ白のままだった(2026-09-04 に部材方が発見)。
         string[] modelDirs = { "Assets/Edo/Models/Nagaya", "Assets/Edo/Models/Mon",
                                "Assets/Edo/Models/Maruta", "Assets/Edo/Models/Goten/Roofs",
-                               "Assets/Edo/Models/Fuzokuya", "Assets/Edo/Models/Hei" };
+                               "Assets/Edo/Models/Fuzokuya", "Assets/Edo/Models/Hei",
+                               "Assets/Edo/Models/Trees" };
         modelDirs = System.Array.FindAll(modelDirs, AssetDatabase.IsValidFolder);
         int n = 0; var miss = new List<string>();
         foreach (var guid in AssetDatabase.FindAssets("t:Model", modelDirs))

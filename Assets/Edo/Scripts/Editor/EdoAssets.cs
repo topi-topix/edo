@@ -364,6 +364,56 @@ public static class EdoAssets
                  + (i <= 1 ? "" : "_" + i.ToString("00")) + ".fbx";
         }
 
+        // ---------------------------------------------------------------- つる3種(岡部邸 西の斜面)
+        // 指図 `nishi.hayashi.tsuru`(フジ5・テイカカズラ・キヅタ「高木の幹に絡む」)。
+        // ⚠ 在庫の `Japanese Village Kit/Prefabs/Foliage/Wisteria_A_01` は**藤棚専用**で
+        //   幹に絡む姿が作れない(在庫方の判定 = 在庫に無い)。⇒ 2026-09-04 に新造。
+        // ⭐ **どれも「幹径 0.60m(半径 0.30)の高木」を前提に作ってある。**
+        //   実装は高木の幹の位置に据え、`scale = (d/0.60, 1, d/0.60)` で幹径 d に合わせる。
+        //   ⚠ **XZ だけ伸縮するので葉も横に伸びる。**d は **0.40〜0.85m の範囲に収める**こと
+        //   (倍率 0.67〜1.42。それを超えると葉が潰れて樹種が読めなくなる)。
+        // ⚠ 丈は指図の値へ合わせて **Y を別途伸縮**してよい(±25% までは姿が保つ)。
+        // ⛔ **開花させない**(規則10)。フジの花房は一切入っていない(旧暦6月で花期は過ぎている)。
+        // ⚠ 材質は名前だけを運ぶ ⇒ **Unity で `Edo/岡部筑前守上屋敷/新造部材のマテリアルをremap`**。
+
+        /// <summary>**フジ(ノダフジ)が高木の幹に絡む姿**。2〜3本の蔓が幹を巻いて登り、
+        /// 羽状複葉の葉が外へ張り出す。⛔ **花は無い**(旧暦6月・花期後)。
+        /// <para>葉は在庫の `Wisteria_A_Leaves_01/02` の実物(材 `Wisteria_A_01`)。
+        /// 蔓の本体だけは多角柱で起こしてある — ⚠ キットの `Wisteria_A_Branches_01` は
+        /// **枝の絵を描いた平らなカード**で、幹に巻くと色の抜けた帯にしか見えなかった。</para>
+        /// <para><paramref name="i"/> は個体(1〜3)。**丈が違う**:
+        /// 1 = 3.49m / 2 = 4.66m / 3 = 5.86m(いずれも実測。幅・厚みは 1.5〜2.1m)。
+        /// ⛔ 5本すべてを1個体で埋めない — 指図の tsuru.fuji=5 は個体を混ぜて割り付ける。</para>
+        /// 巻きは**上から見て時計回り**(ノダフジ=右巻きの見立て。⚠ 和名の右/左は文献で割れる = 確度U)。
+        /// 生成: blender --background --python Tools/Blender/build_tsuru.py -- fuji --render</summary>
+        public static string TsuruFuji(int i = 1)
+        {
+            return "Assets/Edo/Models/Trees/Tsuru_Fuji_" + i.ToString("00") + ".fbx";
+        }
+
+        /// <summary>**テイカカズラ**(常緑のつる)。幹に貼り付いて登る**細い帯**。
+        /// 匍匐する茎3本 + 小さな葉のカード。⭐ フジと違い空中へ出ず、幹の面を這う。
+        /// <para>⭐ **覆うのはローカル +X の側だけ**(帯幅 約150°)。⛔ 全周は覆わない
+        /// — **向きは実装が yaw で振る**こと(振らないと全個体が同じ側を向く)。</para>
+        /// <para><paramref name="i"/> は個体(1〜2)。丈 1 = 2.68m / 2 = 3.73m(実測)。</para>
+        /// ⚠ 葉は在庫の桜の夏葉のアトラスを借りている(キットに常緑のつるの葉が無い)= **確度U**。
+        /// 生成: blender --background --python Tools/Blender/build_tsuru.py -- teika --render</summary>
+        public static string TsuruTeika(int i = 1)
+        {
+            return "Assets/Edo/Models/Trees/Tsuru_Teika_" + i.ToString("00") + ".fbx";
+        }
+
+        /// <summary>**キヅタ**(常緑のつる)。テイカカズラより ⭐ **葉が大きく・帯が広く(約240°)・
+        /// 密**で、幹を覆う「蔓のマント」になる。匍匐する茎4本。
+        /// <para>⭐ 覆うのはローカル +X の側。⛔ 全周は覆わない — **向きは実装が yaw で振る**。</para>
+        /// <para><paramref name="i"/> は個体(1〜2)。丈 1 = 2.50m / 2 = 3.47m(実測)。</para>
+        /// ⚠ 葉は在庫の桜の夏葉のアトラスを借りている = **確度U**(キヅタ本来の濃い照葉ではない)。
+        /// 生成: blender --background --python Tools/Blender/build_tsuru.py -- kizuta --render</summary>
+        public static string TsuruKizuta(int i = 1)
+        {
+            return "Assets/Edo/Models/Trees/Tsuru_Kizuta_" + i.ToString("00") + ".fbx";
+        }
+
         /// <summary>石段の法面を留める「坂の土留め」。天端が勾配どおりに**一直線で斜め**に下がる
         /// 一枚物(段々に下がるモジュールでは実物の石段の袖にならない)。生成は
         /// Tools/Blender/build_ishigaki_saka.py。無い寸法は -- &lt;走り&gt; &lt;落差&gt; で足す。

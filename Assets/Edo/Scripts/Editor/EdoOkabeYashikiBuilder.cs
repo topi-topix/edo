@@ -1792,20 +1792,26 @@ public static class EdoOkabeYashikiBuilder
     }
 
     // ---------------------------------------------------------------- 法肩の竹垣
-    /// <summary>**法肩の竹垣**(四つ目垣)。⚠ 2026-09-04 まで**据える処理が無かった** —
-    /// 算出物 `impl.rails` は 17本あり、突き合わせも数えているのに実装だけが持っていなかった。
-    /// ⭕ 折れ線に沿って在庫の竹垣を敷き詰める。丈は算出物の `h`(既定 `const.takegakiH`)。
-    /// ⚠ 部材の走りは **+Z**(生 1.05m)なので、江戸間の割りに合わせて 0.909 で使う。
-    /// ⛔ 地面から浮かせない — 各駒を地盤へ落とす(法肩は勾配が変わるので駒ごとに拾う)。</summary>
+    /// <summary>**法肩の竹垣(四つ目垣)**。⚠ 2026-09-04 まで**据える処理が無かった**上、
+    /// 最初に通したときは在庫の `Eg.TakeGaki`(竹の**菱格子=網代風**で四つ目垣ではない)を
+    /// **非一様スケール**で伸ばしていた。⛔ どちらも誤り — 部材方の指摘で `Own.YotsumeGaki(h)` へ。
+    ///
+    /// 【据え】⭕ **bbox がちょうど1間**なので `scale = Vector3.one` で **1.818 で突き付ける**。
+    /// ⛔ 伸縮しない(竹の太さと結びの間隔が変わる)。⛔ **`SeatBottom` を使わない** —
+    /// 根入れ −0.15 のぶん浮く。`position.y = 地盤` を直に入れる。
+    /// ⛔ run の +X 端に <c>YotsumeGakiPost(h)</c> を1本足す(足さないと胴縁が宙で終わる)。
+    /// ⚠ 端数は**わずかに重ねて**吸う(⛔ 隙間を作らない — メモリ「門と塀の閉じは隙間>めり込み」)。
+    ///
+    /// 【丈】`impl.rails[].h` が持つ。焼いてあるのは 0.6 / 0.9 / 1.2 の3種で、
+    /// ⛔ **無い丈は据えずに一覧へ出す**(勝手に近い丈へ寄せない — 見透しの遮蔽の計算が丈で決まる)。</summary>
     static string PlaceTakegaki(List<string> wait)
     {
         var rails = A(Get(IMPL, "rails"));
         if (rails == null) { wait.Add("算出物に rails(法肩の竹垣)が無い"); return "竹垣: 算出物待ち"; }
-        var src = AssetDatabase.LoadAssetAtPath<GameObject>(EdoAssets.Eg.TakeGaki);
-        if (src == null) { wait.Add("竹垣の部材が無い: " + EdoAssets.Eg.TakeGaki); return "竹垣: 部材待ち"; }
         var grp = Group("Fuzoku/Takegaki"); Clear(grp);
-        const float S2 = 0.909f, PITCH = 1.05f * S2;
-        int made = 0, runs = 0;
+        const float SPAN = 1.818f;
+        var baked = new float[] { 0.6f, 0.9f, 1.2f };
+        int made = 0, posts = 0, runs = 0; var noH = new HashSet<string>();
         foreach (var o in rails)
         {
             var r = O(o); if (r == null) continue;
@@ -1813,7 +1819,15 @@ public static class EdoOkabeYashikiBuilder
             if (pts == null || pts.Count < 2) continue;
             string nm = S(r["name"]);
             float h = Has(r, "h") ? F(r["h"]) : C("takegakiH");
+            // ⛔ 焼いていない丈へ勝手に寄せない
+            bool ok = false;
+            foreach (var bh in baked) if (Mathf.Abs(bh - h) < 0.001f) ok = true;
+            if (!ok) { noH.Add(h.ToString("0.##")); continue; }
+            string span = EdoAssets.Own.YotsumeGaki(h), post = EdoAssets.Own.YotsumeGakiPost(h);
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(span) == null)
+            { noH.Add(h.ToString("0.##")); continue; }
             runs++;
+            Vector2 last = Vector2.zero; float lastYaw = 0f; bool any = false;
             for (int i = 0; i + 1 < pts.Count; i++)
             {
                 var a1 = A(pts[i]); var b1 = A(pts[i + 1]);
@@ -1821,7 +1835,8 @@ public static class EdoOkabeYashikiBuilder
                 Vector2 P0 = new Vector2(F(a1[0]), F(a1[1])), P1 = new Vector2(F(b1[0]), F(b1[1]));
                 float len = (P1 - P0).magnitude;
                 if (len < 0.05f) continue;
-                int n = Mathf.Max(1, Mathf.RoundToInt(len / PITCH));
+                // ⚠ 端数は**重ねて**吸う(⛔ 隙間を作らない)。1間ちょうどの区間で余計な1枚を足さない
+                int n = Mathf.Max(1, Mathf.CeilToInt(len / SPAN - 0.02f));
                 float pitch = len / n;
                 Vector2 dir = (P1 - P0) / len;
                 float yaw = Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg;
@@ -1829,17 +1844,27 @@ public static class EdoOkabeYashikiBuilder
                 {
                     Vector2 c = P0 + dir * (pitch * (k + 0.5f));
                     float y = Graded.At(c.x, c.y); if (float.IsNaN(y)) y = EdoBuild.Ground(c.x, c.y);
-                    var go = EdoBuild.Place(EdoAssets.Eg.TakeGaki, new Vector3(c.x, y, c.y), yaw,
-                                            new Vector3(S2, S2 * h / 0.9f, S2 * pitch / PITCH),
+                    // ⛔ SeatBottom を使わない(根入れ −0.15 のぶん浮く)
+                    var go = EdoBuild.Place(span, new Vector3(c.x, y, c.y), yaw, Vector3.one,
                                             grp, nm + "_" + made);
-                    if (go == null) continue;
-                    var bb = EdoBuild.RB(go);
-                    go.transform.position += new Vector3(c.x - bb.center.x, y - 0.05f - bb.min.y, c.y - bb.center.z);
-                    made++;
+                    if (go != null) made++;
                 }
+                last = P1; lastYaw = yaw; any = true;
+            }
+            // ⛔ run の +X 端に親柱を1本
+            if (any && AssetDatabase.LoadAssetAtPath<GameObject>(post) != null)
+            {
+                float y = Graded.At(last.x, last.y); if (float.IsNaN(y)) y = EdoBuild.Ground(last.x, last.y);
+                var gp = EdoBuild.Place(post, new Vector3(last.x, y, last.y), lastYaw, Vector3.one,
+                                        grp, nm + "_Post");
+                if (gp != null) posts++;
             }
         }
-        return "法肩の竹垣: " + made + " 駒 / " + runs + " 本";
+        if (noH.Count > 0)
+            wait.Add("法肩の竹垣: 焼いていない丈 " + string.Join(" / ", new List<string>(noH).ToArray())
+                   + "m の run を据えなかった(⛔ 近い丈へ寄せない — 見透しの遮蔽が丈で決まる)"
+                   + " → build_okabe_niwa.py -- yotsumegaki");
+        return "法肩の竹垣: " + made + " スパン + 親柱 " + posts + " / " + runs + " 本";
     }
 
     // ---------------------------------------------------------------- 石段

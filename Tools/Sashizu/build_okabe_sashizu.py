@@ -5157,6 +5157,56 @@ def rooms_check(d):
     return bad
 
 
+def buzai_values_table(d):
+    """**部材の駒から出た値**(⛔ 指図が先に決めたものではない)を1枚にまとめる。
+
+    ⭐ 2026-09-04 部材方。⚠ すべて**確度U** — 駒を作り直せば動く値なので、
+      史料の裏づけがあるかのように読ませない。"""
+    rows = []
+    for g9 in d.get("gardens", []):
+        for rg in (g9.get("rangui") or []):
+            if rg.get("pieceLen"):
+                rows.append(["乱杭 <code>%s</code>" % rg["name"],
+                             "全長 <b>%.3f m</b>" % rg["pieceLen"],
+                             "在庫の細丸太の実長が上限。⛔ 水底までの深さがこれを超える所には打てない",
+                             rg.get("pieceLenCert", "U")])
+        for tr in (g9.get("toro") or []):
+            if tr.get("h"):
+                rows.append(["灯籠 <code>%s</code>(%s)" % (tr["name"], tr.get("kata", "")),
+                             "丈 <b>%.3f</b> / 笠径 <b>%.3f</b>" % (tr["h"], tr.get("kasaD", 0)),
+                             "在庫 <code>%s</code> を **ES のまま**。"
+                             "⛔ 『h 約1.2』は指図由来ではないので採らない"
+                             % (tr.get("asset") or ""), tr.get("hCert", "U")])
+        for kn in (g9.get("kutsunugi") or []):
+            kc = (d.get("const") or {}).get("kutsunugi") or {}
+            rows.append(["沓脱石 <code>%s</code>" % kn["name"],
+                         "L %.2f → 幅 <b>%.4f</b>(一様 %.4f)"
+                         % (kn.get("L", 0), kn.get("W", 0),
+                            kn.get("L", 0) / (kc.get("partL", 1.2) or 1.2)),
+                         "駒 %.2f×%.2f の**一様スケール**。⛔ 幅は L の従属値で人が書かない"
+                         % (kc.get("partL", 0), kc.get("partW", 0)), "U"])
+    yo = (d.get("const") or {}).get("yotsume") or {}
+    if yo:
+        rows.append(["四つ目垣(共通)",
+                     "立子 <b>%s 本/間</b>(芯々 %s)・胴縁 %s"
+                     % (yo.get("tateko"), yo.get("tatekoPitch"),
+                        " / ".join("h%s→%s段" % (k9, v9)
+                                   for k9, v9 in (yo.get("doubuchi") or {}).items())),
+                     "駒の実寸から出た値。⛔ 指図が先に決めたものではない",
+                     yo.get("certSig", "U")])
+    for f9 in (((d.get("nishi") or {}).get("obi") or {}).get("fences") or []):
+        if f9.get("shadeH"):
+            rows.append(["建仁寺垣(<code>%s</code> の%s)" % (f9.get("at"), f9.get("side", "")),
+                         "垣 %.3f / **遮蔽高 <b>%.3f</b>**" % (f9.get("h", 0), f9["shadeH"]),
+                         "遮蔽高は**玉縁の天端**。⛔ 遮蔽の計算に垣の丈 1.500 を使わない",
+                         f9.get("shadeHCert", "U")])
+    return _tw(["物", "値", "由来", "確度"], rows,
+               "⚠ <b>すべて部材方が焼いた駒の実寸から出た値</b>(2026-09-04)で、"
+               "<b>指図が先に決めたものではない</b>。⛔ 史料の裏づけがあるかのように読ませない — "
+               "駒を作り直せば動く。⭕ 幅・段数のように<b>他の値から決まるもの</b>は"
+               "生成器が引き直す(<code>gardens.*.kutsunugi.*.W</code>)。")
+
+
 def build_stamp():
     """**この図を組んだ時点**を表の先頭に出す。
     ⛔ 2026-09-01 六巡目まで、改訂表は `git log` だけを引いていたので、
@@ -7800,6 +7850,7 @@ CHECK_LIST = [
     ("石段の足元と天端(段の宣言との一致)",      lambda d, raw, ter: kaidan_y_check(d)),
     ("汀の杭の割り付け",                      lambda d, raw, ter: kui_check(d)),
     ("庭の算出物(12区画・池の器)",            lambda d, raw, ter: garden_impl_check(d)),
+    ("乱杭の根入れ(駒の全長で足りるか)",         lambda d, raw, ter: rangui_check(d)),
     ("室が身舎の中か・重ならないか",             lambda d, raw, ter: rooms_check(d)),
     ("算出物 okabe_impl.json の鮮度",           lambda d, raw, ter: impl_fresh_check(d)),
     ("矩形の重なり",                       lambda d, raw, ter: overlap_check(d)),
@@ -8333,6 +8384,77 @@ def _ring_of(pts, cu, cv, rU, rV, n9, jag, seed):
     return out
 
 
+def _yotsume_spec(d, h9):
+    """四つ目垣の作り(立子・胴縁)を**丈から**解いて返す。⛔ dict を丸ごと渡さない。"""
+    yo = (d.get("const") or {}).get("yotsume") or {}
+    if not yo:
+        return {}
+    db = yo.get("doubuchi") or {}
+    seg = db.get("%.1f" % (h9 or 0)) or db.get(str(h9))
+    if seg is None and db:
+        seg = db[sorted(db, key=lambda k9: abs(float(k9) - (h9 or 0)))[0]]
+    return {"tateko": yo.get("tateko"), "tatekoPitch": yo.get("tatekoPitch"),
+            "doubuchi": seg,
+            "yotsumeNote": "1間あたり立子 %s 本(芯々 %s)・胴縁 %s 段(丈 %s)"
+                           % (yo.get("tateko"), yo.get("tatekoPitch"), seg, h9)}
+
+
+def rangui_neire(d, rg):
+    """**乱杭の根入れ**[m](池床から杭の下端まで)。⛔ 負なら池床に届いていない。
+
+    ⚠ 全長 0.660 は**在庫の細丸太の実長が上限**(2026-09-04 部材方)なので、
+      深い所には打てない。⭕ 池床は `niwa_y` が返す**掘った後の底**で測る。"""
+    if not rg.get("pieceLen") or rg.get("topY") is None:
+        return None
+    g9, mg9, ring9 = pond_of(d)
+    if not mg9:
+        return None
+    arc = ring_arc(ring9, rg["a"], rg["b"])
+    worst = None
+    for (u9, v9) in arc:
+        nat = _dem_at(d, u9, v9)
+        if nat is None:
+            continue
+        bed = niwa_y(d, u9, v9, nat)         # ⚠ 汀線の上では池床は**水面と同じ高さ**になる
+        if bed is None:
+            continue
+        # ⭕ 杭のうち**池床より下に入る長さ** = 全長 −(池床 − 天端)。
+        #   ⛔ 「池床 − 下端」で測らない — それは池床が天端より上にある汀では
+        #   全長に依らない値になり、**駒を半分にしても鳴らない**(2026-09-04 に破壊試験で発覚)。
+        n9 = rg["pieceLen"] - (bed - rg["topY"])
+        worst = n9 if worst is None else min(worst, n9)
+    return None if worst is None else round(worst, 3)
+
+
+def rangui_check(d):
+    """**乱杭が池床へ届き、根入れが足りるか**(2026-09-04 部材方の全長 0.660 から)。
+
+    ⛔ 「杭を並べた」で終わらせない — 駒の全長が決まった以上、**深い所には打てない**。
+    ⭕ 根入れ(池床から下端まで)が `neireMin` に満たなければ鳴らす。"""
+    bad = []
+    for g9 in d.get("gardens", []):
+        for rg in (g9.get("rangui") or []):
+            if not rg.get("pieceLen"):
+                continue
+            n9 = rangui_neire(d, rg)
+            need = rg.get("neireMin", 0.30)
+            # ⛔ **頭は水面より下**(図が自分でそう宣言している) — 出すと杭列が柵に見える。
+            _g8, mg8, _r8 = pond_of(d)
+            wy8 = (mg8 or {}).get("waterY")
+            if wy8 is not None and rg.get("topY") is not None and rg["topY"] >= wy8 - 1e-6:
+                bad.append("乱杭 `%s` の天端 %.3f が水面 %.3f **以上** — "
+                           "図の宣言は『水面より下』(出すと杭列が柵に見える)"
+                           % (rg["name"], rg["topY"], wy8))
+            if n9 is None:
+                bad.append("乱杭 `%s` の根入れが測れない(池床が読めない)" % rg["name"])
+            elif n9 < need - 1e-6:
+                bad.append("乱杭 `%s` の根入れが **%.3fm**(要 %.2f)— "
+                           "全長 %.3f では池床へ届かない。⛔ 駒を伸ばせないので"
+                           "**杭列を浅い所へ寄せる**か長い駒を焼く"
+                           % (rg["name"], n9, need, rg["pieceLen"]))
+    return bad
+
+
 def garden_impl(d):
     """**庭12区画の算出物**(2026-09-04 棟梁 S4 の器のため)。
 
@@ -8430,6 +8552,10 @@ def garden_impl(d):
                     y=rg.get("topY"), asset="Own.Rangui",
                     lenM=round(aL, 3), n=nK,
                     rMin=rg.get("rMin"), rMax=rg.get("rMax"), tilt=rg.get("tilt"),
+                    pieceLen=rg.get("pieceLen"),
+                    botY=(round(rg["topY"] - rg["pieceLen"], 3)
+                          if rg.get("pieceLen") and rg.get("topY") else None),
+                    neire=rangui_neire(d, rg),
                     note="本数は**平滑後の汀線に沿った弧長からの従属値**(%.2fm ÷ 芯々 %.3f)"
                          % (aL, rg["pitch"]))
         # ② 中島・岩島
@@ -8500,12 +8626,20 @@ def garden_impl(d):
                 buryRatio=ig.get("buryRatio"), ishi=ig.get("ishi"))
         for tr in (g.get("toro") or []):
             add(tr["name"], gz, "灯籠", [(tr["u"], tr["v"])],
-                asset="Own.Toro", kata=tr.get("kata"),
-                note="⛔ 春日型を置かない・⛔ 蹲踞を置かない")
+                asset=tr.get("asset") or "Own.Toro", kata=tr.get("kata"),
+                h=tr.get("h"), kasaD=tr.get("kasaD"),
+                note="⛔ 春日型を置かない・⛔ 蹲踞を置かない。"
+                     "⭕ 在庫を **ES のまま**据える(丈 %s・笠径 %s)"
+                     % (tr.get("h"), tr.get("kasaD")))
         for kn in (g.get("kutsunugi") or []):
+            kc9 = (d.get("const") or {}).get("kutsunugi") or {}
             add(kn["name"], gz, "沓脱石", [(kn["u"], kn["v"])],
                 asset="Own.Kutsunugi", ishi=kn.get("ishi"),
-                L=kn.get("L"), Wd=kn.get("W"))
+                L=kn.get("L"), Wd=kn.get("W"),
+                scale=(round(kn["L"] / kc9.get("partL", 1.2), 4) if kn.get("L") else None),
+                note="⭕ 駒 %.2f×%.2f を**一様スケール** %.4f で伸縮(幅は L からの従属値)"
+                     % (kc9.get("partL", 0), kc9.get("partW", 0),
+                        (kn.get("L", 0) / (kc9.get("partL", 1.2) or 1.2))))
         # ⑧ 垣(井戸の四つ目垣・稲荷の四つ目垣)
         gk = ((g.get("mizu") or {}).get("gensen") or {}).get("idoKaki")
         if gk:
@@ -8513,6 +8647,7 @@ def garden_impl(d):
                 [(gk["u0"], gk["v0"]), (gk["u1"], gk["v0"]),
                  (gk["u1"], gk["v1"]), (gk["u0"], gk["v1"]), (gk["u0"], gk["v0"])],
                 h=gk.get("h"), asset="Own.YotsumeGaki",
+                **_yotsume_spec(d, gk.get("h")),
                 note="⛔ 見せる井戸ではないので露出させない")
         ys = g.get("yashiro") or {}
         yk = ys.get("kaki") if isinstance(ys, dict) else None
@@ -8523,7 +8658,8 @@ def garden_impl(d):
                     add("YashiroKaki_" + gz, gz, "垣(%s)" % yk.get("kata", ""),
                         [(yk["u0"], yk["v0"]), (yk["u1"], yk["v0"]),
                          (yk["u1"], yk["v1"]), (yk["u0"], yk["v1"]), (yk["u0"], yk["v0"])],
-                        h=yk.get("h"), asset="Own.YotsumeGaki")
+                        h=yk.get("h"), asset="Own.YotsumeGaki",
+                        **_yotsume_spec(d, yk.get("h")))
         elif yk and yk.get("u0") is not None:
             add("YashiroKaki_" + gz, gz, "垣(%s)" % yk.get("kata", ""),
                 [(yk["u0"], yk["v0"]), (yk["u1"], yk["v0"]),
@@ -8587,7 +8723,8 @@ def garden_impl(d):
                 [(cu - ln / 2.0, vv), (cu + ln / 2.0, vv)],
                 h=f9.get("h"), asset="Own.KenninjiGaki" if "建仁寺" in kata
                 else "Own.YotsumeGaki",
-                at=at, side=side, lenKen=ln,
+                at=at, side=side, lenKen=ln, shadeH=f9.get("shadeH"),
+                **(_yotsume_spec(d, f9.get("h")) if "四つ目" in kata else {}),
                 note="⭕ 位置は `%s` の%sから起こした(json は `at` で相手を指すだけ)。%s"
                      % (at, side or "面", f9.get("_", "")))
         elif at in wls:
@@ -8598,6 +8735,7 @@ def garden_impl(d):
                  (w9["u"] + r9, w9["v"] + r9), (w9["u"] - r9, w9["v"] + r9),
                  (w9["u"] - r9, w9["v"] - r9)],
                 h=f9.get("h"), asset="Own.YotsumeGaki", at=at,
+                **_yotsume_spec(d, f9.get("h")),
                 note="⭕ 位置は井戸 `%s` の芯から起こした(半径 %.1f 間)。%s"
                      % (at, r9, f9.get("_", "")))
     return out
@@ -11710,6 +11848,7 @@ GEN_PATHS = [
 
     "gardens.*.mizu.gensen.chokusetsu.m2",
     "edges.*.len",                      # ⭕ 2026-09-04: polygon からの派生(棟梁 S1/S2 の①)
+    "gardens.*.kutsunugi.*.W",          # ⭕ 2026-09-04: 一様スケールなので L からの派生(部材方)
 ]
 
 
@@ -12429,11 +12568,29 @@ def edges_len_check(d):
     return bad
 
 
+def fix_kutsunugi(x):
+    """**沓脱石の幅を長さから引き直す**(2026-09-04 部材方)。
+
+    ⭕ 駒は 1.2×0.75 の1つで**一様スケール**なので、`W` は `L` の従属値。
+    ⛔ 人が書いた `W` を残さない — 駒を伸縮させたときに幅だけ合わなくなる(規則5)。"""
+    kc = (x.get("const") or {}).get("kutsunugi") or {}
+    if not kc.get("uniform"):
+        return x
+    pl = kc.get("partL", 1.2) or 1.2
+    pw = kc.get("partW", 0.75)
+    for g9 in x.get("gardens", []):
+        for kn in (g9.get("kutsunugi") or []):
+            if kn.get("L"):
+                kn["W"] = round(pw * kn["L"] / pl, 4)
+    return x
+
+
 def pipeline(x):
     """算出値を正典へ書き戻す一連のパス。**ここが唯一の定義**(土井 build_doi_sashizu.py の作法)。
     ⛔ 往復試験の台本に**同じ手順の写し**を持たせない — 生成器にパスを足したとき、
       台本だけが古いままになって偽の不一致を出す(2026-08-25 土井 検図14巡)。"""
     x = fix_edges(x)
+    x = fix_kutsunugi(x)
     x = fix_gate_runs(x)
     x = fix_terrace_walls(x)
     x = fix_nishi(x)
@@ -13331,6 +13488,7 @@ def main():
         plate(h, nx(), "部材表", "在庫は docs/asset-catalog.md 照会済み。新造は edo-buzai(Blender)")
         h.append(bom_table(d))
         h.append(assets_table(d))
+        h.append(buzai_values_table(d))
         h.append("</div>")
 
     plate(h, nx(), "検査の総覧(40種・0件のものも刷る)",

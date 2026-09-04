@@ -2233,6 +2233,33 @@ public static class EdoOkabeYashikiBuilder
         if (dLocal < 0f) dLocal = 0f;
     }
 
+    /// <summary>据えた木の**幹径**[m]。根元の少し上(`y0`〜`y1` m)の帯で、幹の芯からの
+    /// 半径の **90 分位**を取って 2 倍する。⚠ 最大だと低い枝や葉のカードを拾う。
+    /// ⛔ 既定値で埋めない — つるを絡めてよい木かどうかがこの値で決まる。</summary>
+    static float TrunkDiameter(GameObject host, float y0, float y1)
+    {
+        var b = EdoBuild.RB(host);
+        float baseY = b.min.y;
+        Vector2 axis = new Vector2(host.transform.position.x, host.transform.position.z);
+        var rs = new List<float>();
+        foreach (var mf in host.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var m = mf.transform.localToWorldMatrix;
+            var vs = mf.sharedMesh.vertices;
+            for (int i = 0; i < vs.Length; i++)
+            {
+                var w = m.MultiplyPoint3x4(vs[i]);
+                float dy = w.y - baseY;
+                if (dy < y0 || dy > y1) continue;
+                rs.Add((new Vector2(w.x, w.z) - axis).magnitude);
+            }
+        }
+        if (rs.Count == 0) return 0f;
+        rs.Sort();
+        return 2f * rs[Mathf.Clamp(Mathf.RoundToInt(rs.Count * 0.90f) - 1, 0, rs.Count - 1)];
+    }
+
     /// <summary>名前から決まる安定した非負の整数。⛔ 乱数ではない — 何度流しても同じ物が出る。
     /// (`string.GetHashCode` は .NET の版で変わるので使わない)</summary>
     static int StableHash(string s2)
@@ -2295,14 +2322,19 @@ public static class EdoOkabeYashikiBuilder
         }
         var grp = Group("Nishi/Planting"); Clear(grp);
         var f = Grid;
-        int made = 0, noPart = 0, noAsset = 0, noHost = 0;
+        int made = 0, noPart = 0, noAsset = 0;
         var byZone = new Dictionary<string, int>();
         var missing = new HashSet<string>();
+        // ⭐ **二巡する。**つるは絡む相手(`onTree`)の**据えた現物から幹径を測る**ので、
+        //   一巡目で高木を据え、二巡目でつるを絡める。⛔ 順番を混ぜると宿主がまだ居ない。
+        var placed = new Dictionary<string, GameObject>();
+        var vines = new List<Dictionary<string, object>>();
         foreach (var o in pts)
         {
             var q = O(o); if (q == null) continue;
             string key = Has(q, "asset") ? S(q["asset"]) : null;
             if (key == null) { noAsset++; continue; }
+            if (key.Contains("Tsuru")) { vines.Add(q); continue; }
             string path = PlantByKey(key, Has(q, "name") ? S(q["name"]) : key);
             if (path == null) { missing.Add(key); noPart++; continue; }
             Vector2 c = f.W(F(q["u"]), F(q["v"]));
@@ -2313,29 +2345,7 @@ public static class EdoOkabeYashikiBuilder
             if (go == null) { missing.Add(key + " → " + path); noPart++; continue; }
             // 丈を指図の値へ合わせる(⛔ 部材の素の丈で置かない — 指図の hMin/hMax が意味を失う)
             float want = F(Get(q, "h")), nat = NaturalHeight(path, grp);
-            bool isTsuru = key.Contains("Tsuru");
-            if (isTsuru)
-            {
-                // ⭐ **つるは幹に絡む**。部材は「幹径 0.60(半径0.30)の高木」を前提に作ってあるので、
-                //   ⭕ **XZ を 幹径/0.60 で伸縮**して宿主の幹に合わせ、Y は丈で別に伸縮する。
-                //   ⚠ 幹径は 0.40〜0.85 に収める(倍率 0.67〜1.42。超えると葉が潰れて樹種が読めない)。
-                //   ⛔ 一様スケールにしない — 幹に食い込むか浮くかのどちらかになる。
-                float dia = Has(q, "hostDia") ? F(q["hostDia"]) : 0.60f;
-                dia = Mathf.Clamp(dia, 0.40f, 0.85f);
-                float sxz = dia / 0.60f;
-                float sy = 1f;
-                if (want > 0.1f && nat > 0.1f) sy = Mathf.Clamp(want / nat, 0.75f, 1.25f);  // ±25% まで
-                go.transform.localScale = new Vector3(sxz, sy, sxz);
-                if (!Has(q, "host"))
-                    noHost++;   // ⚠ 絡む相手が指図に無い(位置だけで据えている)
-            }
-            else if (want > 0.1f && nat > 0.1f)
-                go.transform.localScale = Vector3.one * (want / nat);
-            // 水へ傾ける松など。⚠ 傾ける向きも生成器が持つ(実装で決めない)
-            // ⭐ テイカ・キヅタは**覆うのがローカル +X の側だけ**(全周は覆わない)。
-            //   ⛔ 振らないと全個体が同じ側を向く。⛔ 乱数でもない — **名前から決まる**向き。
-            if (isTsuru && !key.Contains("Fuji"))
-                go.transform.rotation = Quaternion.Euler(0f, StableHash(Has(q, "name") ? S(q["name"]) : key) % 360, 0f);
+            if (want > 0.1f && nat > 0.1f) go.transform.localScale = Vector3.one * (want / nat);
             float tilt = F(Get(q, "tilt"));
             if (Mathf.Abs(tilt) > 0.01f)
             {
@@ -2345,10 +2355,59 @@ public static class EdoOkabeYashikiBuilder
                 go.transform.rotation = Quaternion.AngleAxis(tilt, new Vector3(w2.y, 0f, -w2.x));
             }
             EdoBuild.SeatBottom(go, y);
+            if (Has(q, "name")) placed[S(q["name"])] = go;
             made++;
             string z = S(Get(q, "zone")) ?? "?";
             byZone[z] = (byZone.ContainsKey(z) ? byZone[z] : 0) + 1;
         }
+        // ---- 二巡目: つる(高木の幹に絡む)-------------------------------
+        int vine = 0, vineSkip = 0;
+        foreach (var q in vines)
+        {
+            string key = S(q["asset"]);
+            string path = PlantByKey(key, Has(q, "name") ? S(q["name"]) : key);
+            if (path == null || AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+            { missing.Add(key); noPart++; continue; }
+            string hostName = Has(q, "onTree") ? S(q["onTree"]) : null;
+            GameObject host = null;
+            if (hostName == null || !placed.TryGetValue(hostName, out host))
+            { vineSkip++; wait.Add("つる " + S(q["name"]) + ": 絡む高木 " + (hostName ?? "(onTree が無い)")
+                                 + " が据わっていない — 据えない"); continue; }
+            // ⭕ **幹径は宿主の据えた現物から測る**(⛔ 既定値で埋めない)。
+            //   根元の少し上(0.30〜0.80m)の帯で、幹の芯からの半径の 90 分位を取る
+            //   (⚠ 最大だと低い枝や葉のカードを拾う)。
+            float dia = TrunkDiameter(host, 0.30f, 0.80f);
+            float tmin = Has(q, "trunkMin") ? F(q["trunkMin"]) : 0.40f;
+            float tmax = Has(q, "trunkMax") ? F(q["trunkMax"]) : 0.85f;
+            if (dia < tmin || dia > tmax)
+            {
+                vineSkip++;
+                wait.Add("つる " + S(q["name"]) + "(" + S(Get(q, "species")) + "): 宿主 " + hostName
+                       + " の幹径 " + dia.ToString("F3") + "m が指図の " + tmin.ToString("0.##") + "〜"
+                       + tmax.ToString("0.##") + "m の外 — ⛔ **据えない**(細い木に太いつるを巻かない)");
+                continue;
+            }
+            float tref = Has(q, "trunkRef") ? F(q["trunkRef"]) : 0.60f;
+            float ys = Has(q, "yScatter") ? F(q["yScatter"]) : 0.25f;
+            // 位置は宿主の足元(算出物の world / u,v はその点)
+            Vector2 c2 = f.W(F(q["u"]), F(q["v"]));
+            float y2 = S(Get(q, "ground")) == "terrain" ? EdoBuild.Ground(c2.x, c2.y) : Graded.At(c2.x, c2.y);
+            if (float.IsNaN(y2)) y2 = EdoBuild.Ground(c2.x, c2.y);
+            // ⭕ yaw は**算出物が持つ**(種で決めた値)。⛔ 実装で振らない
+            var gv = EdoBuild.Place(path, new Vector3(c2.x, y2, c2.y), F(Get(q, "yaw")),
+                                    Vector3.one, grp, S(q["name"]));
+            if (gv == null) { noPart++; continue; }
+            float natv = NaturalHeight(path, grp), wantv = F(Get(q, "h"));
+            float sy = 1f;
+            if (wantv > 0.1f && natv > 0.1f) sy = Mathf.Clamp(wantv / natv, 1f - ys, 1f + ys);
+            // ⛔ 一様スケールにしない — XZ は幹径へ、Y は丈へ別々に合わせる
+            gv.transform.localScale = new Vector3(dia / tref, sy, dia / tref);
+            EdoBuild.SeatBottom(gv, y2);
+            vine++;
+        }
+        if (vine + vineSkip > 0)
+            byZone["つる"] = vine;
+
         foreach (var k in missing)
             wait.Add("植栽の部材のキーが解けない: " + k + " — 在庫方が `impl.planting.points[].asset` の"
                    + "書式(族.名.寸法.個体)で名指しすること");
@@ -2358,9 +2417,7 @@ public static class EdoOkabeYashikiBuilder
         var sb = new System.Text.StringBuilder("植栽: " + made + " 本据えた");
         foreach (var kv in byZone) sb.Append(" / " + kv.Key + " " + kv.Value);
         if (noPart > 0) sb.Append(" ｜ 部材が引けず据えられない " + noPart);
-        if (noHost > 0)
-            wait.Add("つる " + noHost + " 本に `host`(絡む高木)が無い — 位置だけで据えている。"
-                   + "⚠ 幹径は既定 0.60 で伸縮した。指図方が `host` と `hostDia` を書けば宿主の幹へ合う");
+        if (vineSkip > 0) sb.Append(" ｜ つる 据えず " + vineSkip);
         return sb.ToString();
     }
 

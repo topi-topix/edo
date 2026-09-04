@@ -43,8 +43,26 @@ public static class EdoAssets
         public const string Itabei5     = "Assets/edogoyomi/obj_itabei/itabei5.obj";
         public const string Hogaki5     = "Assets/edogoyomi/obj_hogaki/hogaki5.obj";
         /// <summary>竹垣(0.9高 x 1.05長)。水際・庭園帯の囲いに。
-        /// 典拠は広重「赤坂桐畑」の対岸の柵 — ただし寺群の囲いの可能性が高く類推</summary>
+        /// 典拠は広重「赤坂桐畑」の対岸の柵 — ただし寺群の囲いの可能性が高く類推。
+        /// ⛔ **これは四つ目垣ではない。**2026-09-04 に Blender で実見したところ
+        /// **竹の菱格子(網代風)**で、四つ目(縦横の格子で向こうが四角く抜ける)ではなかった。
+        /// 四つ目垣・建仁寺垣が要るなら <see cref="Own.YotsumeGaki"/> / <see cref="Own.KenninjiGaki"/>。
+        /// ⭕ 本物の四つ目垣は同じキットの **`Fences/Bamboo garden fence`(B の付かない方)**で、
+        /// そちらは親柱2+立子4+胴縁4+棕櫚縄16 の正しい四つ目(丈0.900・スパン1.000)。</summary>
         public const string TakeGaki    = "Assets/Japanese Village Kit/Prefabs/Fences/bamboo garden fence B.prefab";
+
+        /// <summary>**雪見灯籠**(六角の広い笠 + 宝珠 + 火袋 + **竿を持たない三脚**)。
+        /// ⭕ **在庫にあるので新造しない**(2026-09-04 に部材方が実見して確認)。
+        /// 生 0.431 × 0.504 × 0.498 → **ES(1.818)を掛けて 0.784 × 0.916 × 0.906**、1,158三角。
+        /// テクスチャは同じフォルダの `t_yukimi.jpg`(御影石)。ピボットは足元(接地)。
+        /// ⚠ **他の edogoyomi と同じく素で置かず `ES = 1.818` を掛ける。**
+        /// ⚠ 指図が h1.2 を求めるなら `scale = 1.818 × 1.31`(笠径 1.19 になるので大振り)。
+        /// ⛔ **自作の <see cref="Own.YukimiLantern"/> は当邸では使わない** — 材質
+        ///   `M_LanternStone` が**テクスチャを1枚も持たない**(べた塗り)。他邸で使用中なので消さない。
+        /// ⛔ 春日型(<see cref="Own.KasugaLantern"/> / edogoyomi の `t_kasuga`)を庭に置かない
+        ///   (指図 `gardens[].toro` 「⛔ 春日型を置かない」)。</summary>
+        public const string ToroYukimi  = "Assets/edogoyomi/t_yukimi/t_yukimi.obj";
+        public const string TexToroYukimi = "Assets/edogoyomi/t_yukimi/t_yukimi.jpg";
 
         // 店先の小物
         public const string Shop01Taru  = "Assets/edogoyomi/es_shop01/s01_taru.obj";
@@ -875,6 +893,140 @@ public static class EdoAssets
         /// 実寸 0.110 × 1.520 × 0.110(**底 −0.120** = 根入れ)。
         /// 生成: blender --background --python Tools/Blender/build_hori_saku.py -- post</summary>
         public const string HoriSakuPost = "Assets/Edo/Models/Hei/HoriSakuPost.fbx";
+
+        // ---------------------------------------------------------------- 庭の点景(岡部邸)
+        // 指図 `gardens[]` / 算出物 `okabe_impl.json` の `gardens[].asset` が指す部材。
+        // ⛔ **雪見灯籠だけは在庫にある** → <see cref="Eg.ToroYukimi"/>(下の Toro は転送)。
+        // 材質は 石 = `M_photoscanned_rocks_01` / 竹垣 = `Bamboo garden fence` /
+        // 乱杭 = `M_Wood_fence`。⛔ 新規マテリアルは1つも作っていない。
+        // remap は **`Edo/岡部筑前守上屋敷/新造部材のマテリアルをremap`**(`Models/Niwa` を見る)。
+        const string NiwaDir = "Assets/Edo/Models/Niwa/";
+
+        /// <summary>**庭石1個**(景石・石組護岸の石・岩島・中島の汀石・荒磯の立石を全部これで置く)。
+        /// ⭕ NatureManufacture の **photoscanned rock** を切って使っているので写真計測の実肌。
+        /// ⛔ 円柱や多面体を自作していない。⛔ `JG.Rock01..03` は使わない
+        ///   (FBX 内の材質名が `Test` で remap が当たらない)。
+        ///
+        /// <para><b>丈をちょうど 1.000 に正規化してある。ピボット = 石の芯・底。</b>
+        /// ⇒ 総丈 H で置くなら `localScale = Vector3.one * H`、`position.y = 据える底の高さ`。
+        /// 指図の `h` は**露出高**で `buryRatio` 0.333 なので **H = h × 1.5**、
+        /// `position.y = 地盤 − 0.5h`(= 地盤 − H/3)。
+        /// 護岸石のように**長軸**で指定される場合は `localScale = Vector3.one * (長軸 / W_i)`。</para>
+        ///
+        /// <para><paramref name="i"/> = 個体 0..4。⛔ **1種で並べない**(指図は「不同」を要求)。
+        /// 丈 1.000 のときの平面の実測 W(X) × D(Z) と姿:
+        /// <list type="bullet">
+        /// <item>0 … 0.263 × 0.839 <b>立石(板状に立つ)</b> — 三石の主石向き</item>
+        /// <item>1 … 0.889 × 0.603 <b>立石(やや太い)</b> — 副石向き</item>
+        /// <item>2 … 2.161 × 1.435 <b>臥石(低く広い)</b> — 添石・州浜の平石向き</item>
+        /// <item>3 … 1.536 × 1.167 <b>塊石</b> — 護岸の役石・荒磯の立石向き</item>
+        /// <item>4 … 1.174 × 1.363 <b>小塊</b> — 中島の汀石・岩島の肩石向き</item>
+        /// </list>
+        /// ⭕ **yaw を乱数で振る** — 5個体しかないので、向きを散らさないと同じ石が並ぶ。</para>
+        /// 生成: blender --background --python Tools/Blender/build_okabe_niwa.py -- ishigumi</summary>
+        public static string Ishigumi(int i) { return NiwaDir + "Ishigumi_" + i + ".fbx"; }
+
+        /// <summary>**飛石・沢飛石1枚**(天端が平ら)。⭕ 同じ photoscanned rock の**頭を水平に
+        /// 落として**天端を作り、縁は自然石のまま残してある(⛔ 切石に見せない)。
+        ///
+        /// <para><b>長軸をちょうど 1.000 に正規化してある。ピボット = 天端の芯</b>で、石は
+        /// −Y へ垂れる。⇒ `localScale = Vector3.one * 長軸`、<b>`position.y = 天端の高さ`</b>を直に。
+        /// 沢飛石は `sawatobi.topY`(水面 +0.12)、飛石は 地盤 +0.03〜0.05。</para>
+        ///
+        /// <para><paramref name="i"/> = 個体 0..2。長軸 1.000 のときの実測:
+        /// <list type="bullet">
+        /// <item>0 … 1.000 × 0.841、<b>厚 0.300</b>(Y −0.300..0) 飛石(薄手)</item>
+        /// <item>1 … 0.862 × 1.000、<b>厚 0.360</b>(Y −0.360..0) 飛石(厚手)</item>
+        /// <item>2 … 0.889 × 1.000、<b>厚 0.950</b>(Y −0.950..0) <b>沢飛石</b></item>
+        /// </list>
+        /// ⚠ **沢飛石(くびれ)には 2 を使う。**0/1 は厚 0.30〜0.36 しかないので、
+        /// 水深 0.45(`migiwa.shallow`)の池床に届かず**水中に浮く**。2 は長軸 0.62 のとき
+        /// 厚 0.59 になり、天端 24.12 − 0.59 = 23.53 ≒ 池床 23.55 に据わる。
+        /// ⛔ 陸の飛石に 2 を使うと厚みぶんの土工が要る(埋めれば見えないので実害は無い)。</para>
+        /// 生成: blender --background --python Tools/Blender/build_okabe_niwa.py -- tobiishi</summary>
+        public static string Tobiishi(int i) { return NiwaDir + "Tobiishi_" + i + ".fbx"; }
+
+        /// <summary>**沓脱石**(根府川石)。天端を平らに落とした自然石。
+        /// <b>実寸 1.200(X) × 0.500(Y) × 0.750(Z)、ピボット = 天端の芯</b>で石は Y −0.500..0
+        /// (露出 0.35 + 根 0.15)。⇒ <b>`position.y = 天端の高さ`</b>を直に入れる。
+        /// ⚠ 指図は長局 0.9×0.6 / 見晴らし 1.0×0.7 も要求する。⭕ **一様スケール `L/1.2`** で当てる
+        /// (0.9 → 0.675 幅 / 1.0 → 0.625 幅。指図の 0.6 / 0.7 と 0.05〜0.08 差)。
+        /// ⛔ X と Z を別々に伸ばすと石肌が方向でつぶれる。
+        /// 生成: blender --background --python Tools/Blender/build_okabe_niwa.py -- kutsunugi</summary>
+        public const string Kutsunugi = NiwaDir + "Kutsunugi.fbx";
+
+        /// <summary>**四つ目垣 1スパン(1間)**。親柱1 + 立子5 + 胴縁(h1.2 で4段 / h0.9 で3段)+
+        /// 棕櫚縄の結び。⭕ 竹の断面・アトラスの帯・**結びの実体**は在庫の
+        /// `Japanese Village Kit/Meshes/Fences/Bamboo garden fence`(本物の四つ目垣)から借りた。
+        /// ⛔ <see cref="Eg.TakeGaki"/> は**菱格子**で四つ目ではない(2026-09-04 に実見)。
+        ///
+        /// <para>ローカル: 幅=X(走り)/ 高さ=Y / 厚み=Z。**+Z = 見え面**(胴縁と結びがこちら)。
+        /// ピボット = **スパンの中心・地盤レベル**。親柱は **−X 端**(外面が x = −0.909)で
+        /// **bbox がちょうど1間**。⇒ **1.818 ちょうどのピッチで突き付ける**(⛔ 重ねない)。
+        /// ⛔ run の +X 端には <see cref="YotsumeGakiPost"/> を1本足す(足さないと胴縁が宙で終わる)。
+        /// ⛔ **`SeatBottom` で据えない** — 根入れ 0.150 が Y&lt;0 に出ているので 0.15 浮く。
+        /// `position.y = 地盤` を直に入れる。</para>
+        ///
+        /// <para><paramref name="h"/> = 1.2(井戸囲い `mizu.gensen.idoKaki` / 帯の井戸)または
+        /// 0.9(稲荷の垣 `yashiro.kaki`)。実寸:
+        /// h1.2 → 1.818 × <b>1.350</b> × 0.087(Y −0.150..1.200)/
+        /// h0.9 → 1.818 × <b>1.050</b> × 0.087(Y −0.150..0.900)。</para>
+        /// 生成: blender --background --python Tools/Blender/build_okabe_niwa.py -- yotsume</summary>
+        public static string YotsumeGaki(float h)
+        { return NiwaDir + "YotsumeGaki_" + h.ToString("0.0") + ".fbx"; }
+
+        /// <summary>四つ目垣の run の **+X 端に足す親柱1本**。⛔ 足さないと最後の胴縁が宙で終わる。
+        /// ピボット = **run の終端(柱の +X 面)・地盤レベル** ⇒ `s = s1` をそのまま渡せる。
+        /// 実寸 0.064 × (h + 0.150) × 0.064。⛔ `SeatBottom` で据えない(根入れ 0.150)。</summary>
+        public static string YotsumeGakiPost(float h)
+        { return NiwaDir + "YotsumeGakiPost_" + h.ToString("0.0") + ".fbx"; }
+
+        /// <summary>**建仁寺垣 1スパン(1間)**。親柱1 + 胴縁3(裏)+ **割竹の立子35枚を隙間なく** +
+        /// 押縁3段 + 玉縁 + 結び12。⛔ **立子に目地を空けていない**(芯々 = 見付 0.052)—
+        /// 7mm でも空けると向こうが透けて、目隠しの垣という前提が崩れる(汀の木柵で実見した型)。
+        /// ⭕ 割竹の丸みは**見え面(+Z)側**へ向けてある(背の弦を表に出すと横縞の平板に見える)。
+        /// ⭕ 節の高さは立子ごとに位相をずらしてある(揃えると垣の中ほどに横一文字の帯が出る)。
+        ///
+        /// <para>ローカル: 幅=X / 高さ=Y / 厚み=Z。**+Z = 見え面**(押縁と結びがこちら)。
+        /// ピボット = **スパンの中心・地盤レベル**。親柱は **−X 端**で **bbox がちょうど1間**。
+        /// ⇒ 1.818 ちょうどのピッチで突き付ける。⛔ +X 端に <see cref="KenninjiGakiPost"/> を足す。
+        /// ⛔ `SeatBottom` で据えない(根入れ 0.150)。</para>
+        ///
+        /// <para><paramref name="h"/> = 1.5(かわや `K_Obi` の西面の目隠し。`obi` の 2間)。
+        /// 実寸 1.818 × <b>1.686</b> × 0.106(Y −0.150..1.536)。
+        /// ⚠ **高さ 1.686 は玉縁(天端の笠竹)の分**で、垣そのものの丈は 1.500。
+        /// 遮蔽の計算は 1.5 でなく **1.536(玉縁の天端)**で立つ。</para>
+        /// 生成: blender --background --python Tools/Blender/build_okabe_niwa.py -- kenninji</summary>
+        public static string KenninjiGaki(float h)
+        { return NiwaDir + "KenninjiGaki_" + h.ToString("0.0") + ".fbx"; }
+
+        /// <summary>建仁寺垣の run の **+X 端に足す親柱1本**。ピボット = run の終端・地盤レベル。
+        /// 実寸 0.064 × (h + 0.150) × 0.064。</summary>
+        public static string KenninjiGakiPost(float h)
+        { return NiwaDir + "KenninjiGakiPost_" + h.ToString("0.0") + ".fbx"; }
+
+        /// <summary>**乱杭1本**(汀を留める細い杭。`gardens[].rangui`)。
+        /// ⭕ 在庫の**細丸太**(NatureManufacture `wood_log_06/08/09`・径 0.062〜0.069)を
+        /// **半径方向だけ**縮めて切り出した。⛔ 太丸太(`wood_log_01/02/04`・径 0.12)から
+        /// 絞ると樹皮の刻みが実寸で 1/3 になり「つるつるの棒」になる。
+        ///
+        /// <para><paramref name="dia"/> = 0.034 / 0.043 / 0.052 の3種(指図 `rMin`..`rMax`)。
+        /// ⛔ **1種で並べない・芯々を等間隔にしない**(指図は芯々 0.125 の**密度**であって
+        /// 等間隔の指定ではない)。
+        /// ピボット = **頭の芯**で杭は −Y へ **0.660** 垂れる。⇒ `position.y = topY`
+        /// (`rangui.topY` 23.67 = 水面 −0.33)を直に入れる。
+        /// 傾 4°(`rangui.tilt`)は **+X 方向へ焼き込んである**ので、**yaw を乱数で振れば
+        /// 傾きの方位が散る**。実寸(0.043)0.089 × 0.660 × 0.042。</para>
+        /// ⚠ 全長 0.660 は**指図に無い値**(確度 U)。細丸太の実長が 0.718m しか無いのが上限。
+        /// 生成: blender --background --python Tools/Blender/build_okabe_niwa.py -- rangui</summary>
+        public static string Rangui(float dia)
+        { return NiwaDir + "Rangui_" + dia.ToString("0.000") + ".fbx"; }
+
+        /// <summary>**雪見灯籠**。⚠ 実体は在庫の <see cref="Eg.ToroYukimi"/>(edogoyomi)で、
+        /// これはそこへの転送(⛔ パスの literal を二重に書かないため)。棟梁が `Own.` の下で
+        /// 探すので入口だけ用意してある。⛔ **`ES = 1.818` を掛けて置く**(素だと 0.5m の模型)。
+        /// ⛔ 春日型を置かない。⛔ 自作の <see cref="YukimiLantern"/> は使わない(材質がべた塗り)。</summary>
+        public const string Toro = Eg.ToroYukimi;
 
         /// <summary>地表層(TerrainLayer)。**「実寸」= 繰り返しの一枚の大きさ `m_TileSize`**[m]。
         /// ⚠ タイリングが小さいほど近景は細かく、遠景は模様が目立つ。塗り分けるときは

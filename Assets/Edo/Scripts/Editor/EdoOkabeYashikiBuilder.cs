@@ -2341,12 +2341,25 @@ public static class EdoOkabeYashikiBuilder
                 { sb.AppendLine(string.Format("  ★ 辺{0} の長さが {1:+0.000;-0.000}m ずれ(指図 {2:F3} / 実長 {3:F3})",
                     e, d, F(ed["len"]), EdgeLen(e))); bad++; }
             }
-        // run の s1 が辺からはみ出す / 届かない
-        foreach (var r in Runs)
+        // run の s1 と辺長の関係。⚠ **「はみ出し」を2つの意味で使わない**(2026-09-04 指図方):
+        //   ・**めり込み**(s1 > 辺長)… 出隅で**必要**。隣の run と突き合わせず食い込ませるのが作法
+        //     (メモリ『門と塀の閉じは隙間>めり込み』/ スキル `unity-modular-stonewall` §R4)。
+        //     ⭕ 欠陥ではないので ★ にしない。
+        //   ・**越境**(足跡が区画の外へ出る)… こちらが欠陥。⚠ s では測れない —
+        //     据えた足跡で測るもので、許容は `const.kidan.cornerOutTolM`。
         {
-            float over = r.s1 - EdgeLen(r.edge);
-            if (over > 0.005f)
-            { sb.AppendLine(string.Format("  ★ run {0} が辺{1} を {2:F3}m はみ出す", r.name, r.edge, over)); bad++; }
+            var mekomi = new List<string>();
+            foreach (var r in Runs)
+            {
+                float over = r.s1 - EdgeLen(r.edge);
+                if (over > 0.005f)
+                    mekomi.Add(string.Format("{0} 辺{1} +{2:F3}m", r.name, r.edge, over));
+            }
+            if (mekomi.Count > 0)
+                sb.AppendLine("  ℹ 出隅のめり込み(s1 > 辺長・**正常**)" + mekomi.Count + " 件: "
+                            + string.Join(" / ", mekomi.ToArray())
+                            + "\n     ⚠ 越境(区画の外へ出たか)は s では測れない — 据えた足跡で測る"
+                            + "(許容 const.kidan.cornerOutTolM)");
         }
         sb.Append(bad == 0 ? "  0 件 ✔" : "  ★ " + bad + " 件 — 指図を parcels.json へ同期し直すこと(2026-09-03 裁定2=A)");
         return sb.ToString();

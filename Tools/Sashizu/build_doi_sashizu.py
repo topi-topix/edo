@@ -5728,11 +5728,20 @@ def niwa_stats(d):
         #   ⛔ 減衰軸の一本線だけを走査しない — **稜線の端の摺り付けも法面**であり、
         #   そこは刈込に覆われないので別の上限(`batterFill`)で見る。
         #   ⇒ **覆われる区間**(刈込の footprint の中)と**覆われない区間**の最急を分けて持つ。
+        # ⭐ **「覆う」は footprint の**全周の包含**で判定する**(2026-09-04 庭方の裁定②)。
+        #   ⛔ `onDote` で結ばれているだけでは足りない — 部分的に載っているだけの刈込を
+        #   「覆い」と数えると、覆いの条が空文になる(東の土手が実際にそうだった)。
+        #   ⛔ 端の摺り付けを除外しない。土手と刈込は `onDote` で結ばれた**一つの物**で、
+        #   土手が裾を引くなら刈込もそこまで下りる。
         cov9 = None
+        on9 = None
         for k9 in g.get("karikomi", []):
             if k9.get("kata") == "帯" or k9.get("onDote") != t["name"]:
                 continue
-            cov9 = k9
+            on9 = k9["label"]                      # 結ばれてはいる(載っている)
+            if (k9["u0"] <= t["u0"] + 1e-9 and t["u1"] <= k9["u1"] + 1e-9
+                    and k9["v0"] <= t["v0"] + 1e-9 and t["v1"] <= k9["v1"] + 1e-9):
+                cov9 = k9                          # **全周を覆っている**
         stp = 0.02
         mxIn = mxOut = mxEnd = 0.0
         u9 = t["u0"]
@@ -5764,7 +5773,7 @@ def niwa_stats(d):
         end9 = n.mound_one(t, p0[0], p0[1]) - n.mound_one(t, p1[0], p1[1])
         o["dote"].append(dict(name=t["name"], label=t["label"], rise=t["rise"],
                               decay=t.get("decay", "?"), w=min(du9, dv9), L=max(du9, dv9),
-                              covered=(cov9["label"] if cov9 else None), endStep=end9,
+                              covered=(cov9["label"] if cov9 else None), onDote=on9, endStep=end9,
                               taperEnds=t.get("taperEnds"),
                               batterIn=(1.0 / mxIn if mxIn > 1e-9 else 99.0),
                               batterOut=(1.0 / mxOut if mxOut > 1e-9 else 99.0),
@@ -6197,7 +6206,19 @@ def karikomi_poly(d, k, step=0.05):
     ⛔ **矩形に展開して正典へ書き戻さない** — 汀線が動いたら追随しなくなる(庭方の申し送り3)。
     """
     if k.get("kata") != "帯":
-        return [(k["u0"], k["v0"]), (k["u1"], k["v0"]), (k["u1"], k["v1"]), (k["u0"], k["v1"])]
+        # ⚠ **矩形も辺を刻んで返す。**⛔ 四隅だけを返すと、**辺の中ほどで最接近する取り合いを
+        #   取りこぼす** — 刈込①と主路の離れが 2.26m と出ていたが、実際は辺どうしで 0.19m だった
+        #   (2026-09-04 庭方の裁定の照合で発覚)。⭕ 帯と同じ刻みで点列にする。
+        c9 = [(k["u0"], k["v0"]), (k["u1"], k["v0"]), (k["u1"], k["v1"]), (k["u0"], k["v1"])]
+        out9 = []
+        for i9 in range(4):
+            a9, b9 = c9[i9], c9[(i9 + 1) % 4]
+            L9 = math.hypot(b9[0] - a9[0], b9[1] - a9[1])
+            ns9 = max(1, int(math.ceil(L9 / step)))
+            for t9 in range(ns9):
+                s9 = t9 / float(ns9)
+                out9.append((a9[0] + (b9[0] - a9[0]) * s9, a9[1] + (b9[1] - a9[1]) * s9))
+        return out9
     n = NI(d)
     P = n.pond
     m = len(P)
@@ -6272,11 +6293,17 @@ def karikomi_stats(d):
             for p in poly:
                 q = min(_segd(p, a, b) for a, b in zip(e["pts"], e["pts"][1:])) * K
                 eg = min(eg, q - _enro_halfwidth(e, p[0], p[1]))
-        L = 0.0
-        for a, b in zip(poly, poly[1:]):
-            L += math.hypot(b[0] - a[0], b[1] - a[1])
+        # 延長 — ⚠ **矩形は長辺**(周長の半分だと短辺ぶんが足されて長く出る)。
+        #   帯は内縁と外縁を往復した多角形なので周長の半分が中心線の長さになる。
+        if k.get("kata") == "帯":
+            L = 0.0
+            for a, b in zip(poly, poly[1:]):
+                L += math.hypot(b[0] - a[0], b[1] - a[1])
+            L = L / 2.0
+        else:
+            L = max(k["u1"] - k["u0"], k["v1"] - k["v0"])
         out.append(dict(k=k, poly=poly, wet=100.0 * wet / tot if tot else 0.0,
-                        edge=eg, L=L * K / 2.0, bad=None,
+                        edge=eg, L=L * K, bad=None,
                         bb=(min(us), min(vs), max(us), max(vs))))
     _KARI_CACHE[0], _KARI_CACHE[1] = d, out
     return out
@@ -7426,7 +7453,9 @@ def niwa_tsuki_table(d):
                      "短辺 %.2f間 × 長辺 %.2f間" % (t["w"], t["L"]),
                      "減衰軸 <code>%s</code>／摺り付け %s間／端の段 %.2fm／覆い=%s"
                      % (t["decay"], ("%.2f" % t["taperEnds"]) if t["taperEnds"] else "<b>無</b>",
-                        t["endStep"], t["covered"] or "無"),
+                        t["endStep"],
+                        t["covered"] or ((t["onDote"] + "が載るが<b>全周は覆わない</b>")
+                                         if t["onDote"] else "無")),
                      "⭕" if (okIn and okOut) else "⚠"))
     return _tw(("築山", "頂(盛)", "法(公称)", "法(実測の最急)", "上限との差",
                 "主視点から", "仰角", "上限 1:%.1f" % bf), rows) + (

@@ -267,6 +267,10 @@ public static class EdoSashizuExport
                         if (c != null && c.ContainsKey("part") && c["part"] != null) names.Add("Kado_" + Str(c, "id"));
                     }
                 foreach (var o in Get2(doc, "komon")) names.Add(Str(o as Dictionary<string, object>, "name"));
+                // ⚠ **表門と汀の潜りは名前を持たない**(`gate` は単数・潜りは `nishi.saku.kuguri`)。
+                //   ⛔ 教えないと、据えた門と戸が「孤児の囲い」に数えられる(2026-09-04 に実際に出た)。
+                if (D(doc, "gate") != null) names.Add("Omotemon");
+                if (D(D(D(doc, "nishi"), "saku"), "kuguri") != null) names.Add("Kuguri");
                 foreach (var nm in names)
                 {
                     if (nm == null) continue;

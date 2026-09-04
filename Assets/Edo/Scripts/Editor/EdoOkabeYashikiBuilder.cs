@@ -2170,7 +2170,9 @@ public static class EdoOkabeYashikiBuilder
                 {
                     ours = true;
                     doc.Add(new Iv { a = r.s0, b = r.s1 });
-                    if (r.Dobei) impl.Add(new Iv { a = r.s0, b = r.s1 });
+                    // ⭕ 2026-09-04 裁定12=A で表長屋も S2 で建つようになった。
+                    //    ⛔ 練塀だけを「実装の被覆」に数えると、建っている 79.66m を素通しと報告する
+                    impl.Add(new Iv { a = r.s0, b = r.s1 });
                 }
             foreach (var o in A(Get(D, "fences")) ?? new List<object>())
             {

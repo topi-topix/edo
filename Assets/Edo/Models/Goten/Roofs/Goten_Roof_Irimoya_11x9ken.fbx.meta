@@ -1,14 +1,9 @@
 fileFormatVersion: 2
-guid: 00b493b72c165411b982fed4ce280061
+guid: 7ad6863ed8c9a49458da4661c11ea9ce
 ModelImporter:
   serializedVersion: 24501
   internalIDToNameTable: []
   externalObjects:
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: Foundation_A_01
-    second: {fileID: 2100000, guid: 3ce4a815bce2cce4ba40d7156c957e2f, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
@@ -31,8 +26,8 @@ ModelImporter:
     second: {fileID: 2100000, guid: 6127939ab0b92994fa5506eed0e13a74, type: 2}
   materials:
     materialImportMode: 2
-    materialName: 0
-    materialSearch: 1
+    materialName: 1
+    materialSearch: 2
     materialLocation: 1
     searchTexturesGlobally: 0
   animations:

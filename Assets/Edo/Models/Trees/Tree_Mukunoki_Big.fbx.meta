@@ -1,34 +1,9 @@
 fileFormatVersion: 2
-guid: 00b493b72c165411b982fed4ce280061
+guid: c2779ec6df85c4139a6f05bd5e18e9e9
 ModelImporter:
   serializedVersion: 24501
   internalIDToNameTable: []
-  externalObjects:
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: Foundation_A_01
-    second: {fileID: 2100000, guid: 3ce4a815bce2cce4ba40d7156c957e2f, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: roof
-    second: {fileID: 2100000, guid: 46aea8a32dec24843adef3ad15ec2f3e, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: roof ornaments
-    second: {fileID: 2100000, guid: 2dba1ffbff60ed84194cd5d6c406b790, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: wall C
-    second: {fileID: 2100000, guid: 5882125c712caf74a8e76c5ccac460ec, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: wood
-    second: {fileID: 2100000, guid: 6127939ab0b92994fa5506eed0e13a74, type: 2}
+  externalObjects: {}
   materials:
     materialImportMode: 2
     materialName: 0

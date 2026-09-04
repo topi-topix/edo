@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 00b493b72c165411b982fed4ce280061
+guid: 561fd4c946286468bb30a086728027d4
 ModelImporter:
   serializedVersion: 24501
   internalIDToNameTable: []
@@ -19,6 +19,11 @@ ModelImporter:
       assembly: UnityEngine.CoreModule
       name: roof ornaments
     second: {fileID: 2100000, guid: 2dba1ffbff60ed84194cd5d6c406b790, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: wall A
+    second: {fileID: 2100000, guid: 6e3f95cf5bf5fdb45b0001d53b5abd55, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule

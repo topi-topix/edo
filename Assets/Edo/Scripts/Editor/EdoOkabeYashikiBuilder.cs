@@ -1878,7 +1878,7 @@ public static class EdoOkabeYashikiBuilder
         { return "庭: 算出物に gardens が無い — 生成器の --export-impl に足すこと"; }
 
         var grp = Group("Niwa"); Clear(grp);
-        int made = 0, splat = 0, terrainOwned = 0;
+        int made = 0, splat = 0, terrainOwned = 0, skipped = 0;
         var missing = new Dictionary<string, int>();
         var byKind = new Dictionary<string, int>();
 
@@ -1895,41 +1895,13 @@ public static class EdoOkabeYashikiBuilder
             // ---- 地形そのもの(汀線・池・築山・中島の輪郭・庭の実形)は S1 が彫った
             if (key == null) { terrainOwned++; continue; }
 
-            string path = AssetByKey(key);
-            if (path == null || AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
-            { missing[key] = (missing.ContainsKey(key) ? missing[key] : 0) + 1; continue; }
-            if (pts == null || pts.Count == 0) continue;
-
-            // ⚠ 点1つの物(景石・灯籠・沓脱石・岩島)と、折れ線に沿って並べる物(護岸・乱杭・
-            //   沢飛石・飛石・垣)を分ける。⛔ 折れ線を1個の物として据えない
+            // ⚠ **部材ごとに据え方が違う**(ピボットも正規化の軸も別)。⛔ 一律に置かない。
             var sub = Group("Niwa/" + kind.Replace("(", "_").Replace(")", "").Replace("・", "_"));
-            if (pts.Count == 1)
-            {
-                var w = A(pts[0]); if (w == null || w.Count < 2) continue;
-                Vector2 c = new Vector2(F(w[0]), F(w[1]));
-                float y = Has(g, "y") ? F(g["y"]) : Graded.At(c.x, c.y);
-                if (float.IsNaN(y)) y = EdoBuild.Ground(c.x, c.y);
-                var go = EdoBuild.Place(path, new Vector3(c.x, y, c.y),
-                                        StableHash(S(g["name"])) % 360, Vector3.one, sub, S(g["name"]));
-                if (go != null) { SeatByBury(go, g, y); made++; }
-            }
-            else
-            {
-                int n = Has(g, "n") ? (int)F(g["n"]) : (Has(g, "stones") ? (int)F(g["stones"]) : pts.Count);
-                for (int i = 0; i < n; i++)
-                {
-                    // 折れ線に沿って n 個を等分に割る(⚠ 芯々の乱れは算出物が持つときそちらが勝つ)
-                    float t = n <= 1 ? 0f : i / (float)(n - 1);
-                    Vector2 c = PolyAt(pts, t);
-                    float y = Has(g, "y") ? F(g["y"]) : Graded.At(c.x, c.y);
-                    if (float.IsNaN(y)) y = EdoBuild.Ground(c.x, c.y);
-                    var go = EdoBuild.Place(path, new Vector3(c.x, y, c.y),
-                                            StableHash(S(g["name"]) + "_" + i) % 360, Vector3.one,
-                                            sub, S(g["name"]) + "_" + i);
-                    if (go != null) { SeatByBury(go, g, y); made++; }
-                }
-            }
+            int n0 = PlaceNiwaItem(sub, g, kind, key, pts, missing, wait);
+            made += n0;
+            if (n0 == 0 && !missing.ContainsKey(key)) skipped++;
         }
+        if (skipped > 0) sb.Append("");
         sb.Append("庭: " + made + " 点据えた / 地表の塗り " + splat + " 件は**地表の輪**へ / "
                 + "地形 " + terrainOwned + " 件は **S1 が彫り済み**(⛔ 掘り直さない)");
         foreach (var kv in missing)
@@ -2108,6 +2080,208 @@ public static class EdoOkabeYashikiBuilder
                               : "(区画の外に掛かるセルは無し ✔)");
         if (noLayer > 0) wait.Add("layer を持つが輪郭の点が足りない面 " + noLayer + " 件");
         return sb.ToString();
+    }
+
+    /// <summary>庭の一節を据える。**部材ごとに据え方が違う**ので種別で分ける。
+    /// ⛔ 一律に「点へ置いて底を地盤に合わせる」としない — 石は埋まり、飛石はピボットが天端、
+    /// 垣は1間で突き付け、乱杭はピボットが頭。部材の doc が正典。</summary>
+    static int PlaceNiwaItem(Transform sub, Dictionary<string, object> g, string kind, string key,
+                             List<object> pts, Dictionary<string, int> missing, List<string> wait)
+    {
+        string nm = S(g["name"]);
+        System.Func<string, GameObject> load = delegate(string pth)
+        {
+            if (pth == null || AssetDatabase.LoadAssetAtPath<GameObject>(pth) == null)
+            { missing[key] = (missing.ContainsKey(key) ? missing[key] : 0) + 1; return null; }
+            return AssetDatabase.LoadAssetAtPath<GameObject>(pth);
+        };
+        System.Func<int, Vector2> P2 = delegate(int i)
+        { var w = A(pts[i]); return new Vector2(F(w[0]), F(w[1])); };
+        System.Func<Vector2, float> GY = delegate(Vector2 c)
+        { float y = Graded.At(c.x, c.y); return float.IsNaN(y) ? EdoBuild.Ground(c.x, c.y) : y; };
+        int made = 0;
+
+        // ---- 庭石(景石・岩島)。⭕ 丈 1.0 に正規化・ピボット = 芯・底
+        //      露出 h を `buryRatio` 埋めるなら **総丈 H = h/(1−bury)**、y = 地盤 − (H−h)
+        if (kind == "景石" || kind == "岩島")
+        {
+            float h = F(Get(g, "h"));
+            float bury = Has(g, "buryRatio") ? F(g["buryRatio"]) : 0.333f;
+            float sink = Has(g, "sink") ? F(g["sink"]) : 0f;
+            int idv = StableHash(nm) % 5;
+            var src = load(EdoAssets.Own.Ishigumi(idv)); if (src == null) return 0;
+            Vector2 c = P2(0);
+            float H = h / Mathf.Max(0.05f, 1f - bury);
+            float y = (Has(g, "y") ? F(g["y"]) : GY(c)) - (H - h) - sink;
+            var go = EdoBuild.Place(EdoAssets.Own.Ishigumi(idv), new Vector3(c.x, y, c.y),
+                                    StableHash(nm + "y") % 360, Vector3.one * H, sub, nm);
+            if (go != null) made++;
+            // 岩島は肩石を1つ添える
+            if (kind == "岩島" && Has(g, "hShoulder"))
+            {
+                float hs = F(g["hShoulder"]);
+                float Hs = hs / Mathf.Max(0.05f, 1f - bury);
+                var go2 = EdoBuild.Place(EdoAssets.Own.Ishigumi(4),
+                    new Vector3(c.x + 0.9f, (Has(g, "y") ? F(g["y"]) : GY(c)) - (Hs - hs) - sink, c.y + 0.5f),
+                    StableHash(nm + "s") % 360, Vector3.one * Hs, sub, nm + "_Kata");
+                if (go2 != null) made++;
+            }
+            return made;
+        }
+
+        // ---- 石組護岸。折れ線に沿って `stones` 個。⭕ **長軸**で指定されるので scale = 長軸/W_i
+        if (kind.StartsWith("石組護岸"))
+        {
+            int n = Has(g, "stones") ? (int)F(g["stones"]) : 20;
+            float lo = F(Get(g, "lenMin")), hi = F(Get(g, "lenMax"));
+            float bury = Has(g, "buryRatio") ? F(g["buryRatio"]) : 0.333f;
+            float jag = Has(g, "jag") ? F(g["jag"]) : 0f;
+            int yaku = Has(g, "yakuEvery") ? (int)F(g["yakuEvery"]) : 0;
+            float baseY = Has(g, "y") ? F(g["y"]) : 0f;
+            for (int i = 0; i < n; i++)
+            {
+                bool isYaku = yaku > 0 && (i % yaku) == 0;
+                int idv = isYaku ? 3 : (StableHash(nm + i) % 3);      // 役石は塊石 3
+                float w0 = IshigumiW(idv);
+                float axis = Mathf.Lerp(lo, hi, (StableHash(nm + "L" + i) % 1000) / 1000f);
+                float sc = axis / Mathf.Max(0.05f, w0);
+                Vector2 c = PolyAt(pts, n <= 1 ? 0f : i / (float)(n - 1));
+                float y = baseY - sc * bury + ((StableHash(nm + "j" + i) % 1000) / 1000f - 0.5f) * 2f * jag;
+                var go = EdoBuild.Place(EdoAssets.Own.Ishigumi(idv), new Vector3(c.x, y, c.y),
+                                        StableHash(nm + "r" + i) % 360, Vector3.one * sc, sub, nm + "_" + i);
+                if (go != null) made++;
+            }
+            return made;
+        }
+
+        // ---- 飛石・沢飛石。⭕ **長軸 1.0 に正規化・ピボット = 天端の芯**(石は −Y へ垂れる)
+        //      ⚠ 沢飛石は必ず個体 2(厚 0.95)。0/1 は薄くて水中に浮く
+        if (kind == "沢飛石" || kind == "飛石")
+        {
+            bool sawa = kind == "沢飛石";
+            int n = Has(g, "n") ? (int)F(g["n"]) : pts.Count;
+            float lo = Has(g, "rMin") ? F(g["rMin"]) : 0.55f;
+            float hi = Has(g, "rMax") ? F(g["rMax"]) : 0.62f;
+            for (int i = 0; i < n; i++)
+            {
+                int idv = sawa ? 2 : (StableHash(nm + i) % 2);
+                var src = load(EdoAssets.Own.Tobiishi(idv)); if (src == null) return made;
+                Vector2 c = (n == pts.Count) ? P2(i) : PolyAt(pts, n <= 1 ? 0f : i / (float)(n - 1));
+                float axis = Mathf.Lerp(lo, hi, (StableHash(nm + "L" + i) % 1000) / 1000f);
+                // ⭕ y は**天端**を直に(⛔ 底を地盤に合わせない)
+                float y = Has(g, "y") ? F(g["y"]) : GY(c) + 0.04f;
+                var go = EdoBuild.Place(EdoAssets.Own.Tobiishi(idv), new Vector3(c.x, y, c.y),
+                                        StableHash(nm + "r" + i) % 360, Vector3.one * axis, sub, nm + "_" + i);
+                if (go != null) made++;
+            }
+            return made;
+        }
+
+        // ---- 沓脱石。⭕ 一様スケール L/1.2・ピボット = 天端の芯
+        if (kind == "沓脱石")
+        {
+            if (load(EdoAssets.Own.Kutsunugi) == null) return 0;
+            Vector2 c = P2(0);
+            float L = Has(g, "L") ? F(g["L"]) : 1.2f;
+            float y = Has(g, "y") ? F(g["y"]) : GY(c);
+            var go = EdoBuild.Place(EdoAssets.Own.Kutsunugi, new Vector3(c.x, y, c.y),
+                                    0f, Vector3.one * (L / 1.2f), sub, nm);
+            return go != null ? 1 : 0;
+        }
+
+        // ---- 垣(四つ目・建仁寺)。⭕ **1.818 ちょうどで突き付け**・+X 端に親柱・y = 地盤
+        //      ⛔ SeatBottom を使わない(根入れ −0.15 のぶん浮く)
+        if (kind.StartsWith("垣"))
+        {
+            bool kenninji = kind.Contains("建仁寺");
+            float h = Has(g, "h") ? F(g["h"]) : (kenninji ? 1.5f : 1.2f);
+            string span = kenninji ? EdoAssets.Own.KenninjiGaki(h) : EdoAssets.Own.YotsumeGaki(h);
+            string post = kenninji ? EdoAssets.Own.KenninjiGakiPost(h) : EdoAssets.Own.YotsumeGakiPost(h);
+            if (load(span) == null) return 0;
+            const float SPAN = 1.818f;
+            for (int i = 1; i < pts.Count; i++)
+            {
+                Vector2 a2 = P2(i - 1), b2 = P2(i);
+                float len = (b2 - a2).magnitude;
+                if (len < SPAN * 0.5f) continue;
+                int nS = Mathf.Max(1, Mathf.RoundToInt(len / SPAN));
+                float pitch = len / nS;
+                float yaw = Mathf.Atan2(b2.x - a2.x, b2.y - a2.y) * Mathf.Rad2Deg;
+                for (int k = 0; k < nS; k++)
+                {
+                    Vector2 c = Vector2.Lerp(a2, b2, (k + 0.5f) / nS);
+                    var go = EdoBuild.Place(span, new Vector3(c.x, GY(c), c.y), yaw,
+                                            new Vector3(pitch / SPAN, 1f, 1f), sub, nm + "_" + i + "_" + k);
+                    if (go != null) made++;
+                }
+                if (i == pts.Count - 1 && load(post) != null)
+                {
+                    var gp = EdoBuild.Place(post, new Vector3(b2.x, GY(b2), b2.y), yaw, Vector3.one, sub, nm + "_Post");
+                    if (gp != null) made++;
+                }
+            }
+            return made;
+        }
+
+        // ---- 灯籠。⭕ 在庫の雪見灯籠(edogoyomi)。ES 倍・ピボット = 足元
+        if (kind == "灯籠")
+        {
+            if (load(EdoAssets.Eg.ToroYukimi) == null) return 0;
+            Vector2 c = P2(0);
+            float y = Has(g, "y") ? F(g["y"]) : GY(c);
+            var go = EdoBuild.Place(EdoAssets.Eg.ToroYukimi, new Vector3(c.x, y, c.y),
+                                    StableHash(nm) % 360, Vector3.one * ES, sub, nm);
+            if (go != null) EdoBuild.SeatBottom(go, y);
+            return go != null ? 1 : 0;
+        }
+
+        // ---- 乱杭。⭕ ピボット = 頭の芯・傾 4° は +X へ焼込 ⇒ yaw で方位が散る
+        if (kind == "乱杭")
+        {
+            int n = Has(g, "n") ? (int)F(g["n"]) : pts.Count;
+            float lo = Has(g, "rMin") ? F(g["rMin"]) : 0.034f;
+            float hi = Has(g, "rMax") ? F(g["rMax"]) : 0.052f;
+            float topY = Has(g, "y") ? F(g["y"]) : 0f;
+            var dias = new float[] { 0.034f, 0.043f, 0.052f };
+            for (int i = 0; i < n; i++)
+            {
+                float d = Mathf.Lerp(lo, hi, (StableHash(nm + i) % 1000) / 1000f);
+                float best = dias[0];
+                foreach (var dd in dias) if (Mathf.Abs(dd - d) < Mathf.Abs(best - d)) best = dd;
+                string pth = EdoAssets.Own.Rangui(best);
+                if (load(pth) == null) return made;
+                Vector2 c = PolyAt(pts, n <= 1 ? 0f : i / (float)(n - 1));
+                var go = EdoBuild.Place(pth, new Vector3(c.x, topY, c.y),
+                                        StableHash(nm + "r" + i) % 360, Vector3.one, sub, nm + "_" + i);
+                if (go != null) made++;
+            }
+            return made;
+        }
+
+        // ---- それ以外(1点物)
+        {
+            string pth = AssetByKey(key);
+            if (load(pth) == null) return 0;
+            Vector2 c = P2(0);
+            float y = Has(g, "y") ? F(g["y"]) : GY(c);
+            var go = EdoBuild.Place(pth, new Vector3(c.x, y, c.y), StableHash(nm) % 360, Vector3.one, sub, nm);
+            if (go != null) { SeatByBury(go, g, y); return 1; }
+            return 0;
+        }
+    }
+
+    /// <summary>庭石の個体 i の、丈 1.000 のときの平面の幅 W(X)[m](部材の doc の実測値)。
+    /// 護岸石のように**長軸**で指定される石の倍率を出すのに使う。</summary>
+    static float IshigumiW(int i)
+    {
+        switch (i)
+        {
+            case 0: return 0.839f;   // 立石(板状) — 長軸は Z
+            case 1: return 0.889f;   // 立石(やや太い)
+            case 2: return 2.161f;   // 臥石(低く広い)
+            case 3: return 1.536f;   // 塊石
+            default: return 1.363f;  // 小塊
+        }
     }
 
     /// <summary>折れ線 `pts`(世界座標)の走り比 t(0〜1)の点。</summary>

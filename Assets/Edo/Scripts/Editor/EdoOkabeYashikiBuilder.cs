@@ -637,7 +637,9 @@ public static class EdoOkabeYashikiBuilder
     {
         var rf = O(Get(O(Get(D, "roofs")), "OmoteNagaya"));
         bool nikai = rf != null && Has(rf, "kai") && S(rf["kai"]).Contains("二階");
-        int made = 0, miss = 0; float lastH = 0f;
+        // ⚠ 棟高は**表長屋と表門で違う**(裁定12=A: 長屋 7.183 / 門 8.5)。
+        //   ⛔ 「最後に据えた現物」と比べると門の高さで長屋を裁いてしまう(2026-09-04 に誤報)。
+        int made = 0, miss = 0; float lastH = 0f, nagH = 0f;
         var sb = new System.Text.StringBuilder();
 
         // ---- 表長屋の run(⭕ 部材は指図の `runs[].asset` が名指しする)
@@ -660,7 +662,7 @@ public static class EdoOkabeYashikiBuilder
                 continue;
             }
             if (PlaceNagayaPiece(kak, r.name, path, r.edge, (r.s0 + r.s1) * 0.5f,
-                                 r.SeatAt((r.s0 + r.s1) * 0.5f), call, wait, ref lastH)) made++;
+                                 r.SeatAt((r.s0 + r.s1) * 0.5f), call, wait, ref lastH)) { made++; nagH = lastH; }
         }
 
         // ---- 表門 — 長屋の躯体に門口を抜いた版(裁定12=A)
@@ -696,11 +698,19 @@ public static class EdoOkabeYashikiBuilder
         }
 
         // 棟高の突き合わせ(指図 ⇔ **据えた現物**)。⛔ 呼び寸法や doc の数字で比べない
-        if (Has(O(D["const"]), "nagayaH") && lastH > 0.1f)
+        if (Has(O(D["const"]), "nagayaH") && nagH > 0.1f)
         {
             float want = C("nagayaH");
-            if (Mathf.Abs(lastH - want) > 0.15f)
+            if (Mathf.Abs(nagH - want) > 0.15f)
                 wait.Add("表長屋の棟高: 指図 const.nagayaH " + want.ToString("0.###")
+                       + "m / 据えた**表長屋**の実丈 " + nagH.ToString("0.###") + "m");
+            else sb.Append("(棟高 " + nagH.ToString("0.###") + "m ✔)");
+        }
+        // 表門の棟高は別に見る(指図 gate.plan.monH)
+        {
+            var gp2 = O(Get(O(Get(D, "gate")), "plan"));
+            if (gp2 != null && Has(gp2, "monH") && lastH > 0.1f && Mathf.Abs(lastH - F(gp2["monH"])) > 0.15f)
+                wait.Add("表門の棟高: 指図 gate.plan.monH " + F(gp2["monH"]).ToString("0.###")
                        + "m / 据えた現物の実丈 " + lastH.ToString("0.###") + "m");
         }
         sb.Append("表長屋・表門: " + made + " 棟" + (nikai ? "(二階)" : "(平屋)")

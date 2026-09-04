@@ -4631,8 +4631,31 @@ def planting_table(d):
                      "%.1f〜%.1f m" % (e["hLo"], e["hHi"]),
                      "<code>%s</code>" % e["asset"], e["kubun"]])
     gl = d.get("groundLayers") or {}
-    gr = [[k, "<code>%s</code>" % v[0], v[1]] for k, v in gl.items()
-          if isinstance(v, list) and len(v) >= 2]
+    gr = []
+    # ⭕ **割り当ての正典は各物**(2026-09-04 棟梁)— 庭・窓・法尻・坂・参道から引く。
+    for g9 in d.get("gardens", []):
+        if not g9.get("layer"):
+            continue
+        gr.append(["庭 " + (g9.get("label") or g9["name"]),
+                   "<code>%s</code>" % g9["layer"],
+                   inline(str(g9.get("_layer") or "").split("。", 1)[-1])
+                   + " <span class='cert'>%s</span>" % (g9.get("layerCert") or "")])
+    N9 = d.get("nishi") or {}
+    for lbl, o9 in (("見透しの窓", (N9.get("mado") or {})),
+                    ("法尻の帯", (N9.get("hojiri") or {}))):
+        if o9.get("layer"):
+            mx = o9.get("layerMix")
+            gr.append([lbl, "<code>%s</code>" % o9["layer"],
+                       (("比 %s。" % " : ".join("%.1f" % q9 for q9 in mx)) if mx else "")
+                       + inline(str(o9.get("_layer") or "").split("。", 1)[-1])])
+    for rp9 in d.get("ramps", []):
+        if rp9.get("layer"):
+            gr.append(["坂 " + (rp9.get("label") or rp9["name"]),
+                       "<code>%s</code>" % rp9["layer"],
+                       inline(str(rp9.get("_layer") or "").split("。", 1)[-1])])
+    if (d.get("sando") or {}).get("layer"):
+        gr.append(["参道", "<code>%s</code>" % d["sando"]["layer"],
+                   inline(str(d["sando"].get("_layer") or "").split("。", 1)[-1])])
     return (_tw(["帯", "役", "樹種", "株", "丈", "部材", "調達"], rows,
                 "⭐ 位置は<b>種 <code>seed</code> で再現できる撒き</b> — "
                 "⛔ 実装が勝手に撒くと、指図の検査(窓の樹高・対岸から見た層)が見ているものと"
@@ -4643,6 +4666,12 @@ def planting_table(d):
             + _tw(["所", "地表層", "備考"], gr,
                   "⚠ <b>登録済みは <code>L_grass</code> だけ</b> — 残りは棟梁が "
                   "<code>EdoAssets</code> へ登録する。⛔ 名を書かずに『塗る』と書かない。"
+                  "⭕ <b>割り当ての正典は各物</b>(<code>gardens[].layer</code> / "
+                  "<code>nishi.mado.layer</code> / <code>nishi.hojiri.layer</code>+"
+                  "<code>layerMix</code> / <code>ramps[].layer</code> / "
+                  "<code>sando.layer</code>)— この表はその**一覧**。"
+                  "⛔ <code>impl.gardens</code> の面はすべて <code>layer</code> を持つ"
+                  "(<code>garden_impl_check</code> が見張る)。"
                   "<span class='cert'>確度 %s</span>" % gl.get("certSig", "U")))
 
 
@@ -8341,8 +8370,9 @@ def garden_impl(d):
             add("%s_plan%02d" % (gz, i8 + 1), gz, "庭の実形(段で切った後)",
                 [(p8[0], p8[1]) for p8 in pl8] + [(pl8[0][0], pl8[0][1])],
                 asset=None, kindOf=g.get("kind"), label=g.get("label"),
+                layer=g.get("layer"), layerMix=g.get("layerMix"),
                 note="⛔ json の矩形(`u0..v1`)ではなく**段の多角形で切った実形**。"
-                     "地表・下草を塗る範囲はこちら")
+                     "地表・下草を塗る範囲はこちら。⭕ 塗る層は `layer`")
         # ① 池の汀線(**平滑後**の実体)と護岸の受け持ち
         mg = g.get("migiwa")
         if mg:
@@ -8499,6 +8529,44 @@ def garden_impl(d):
                 [(yk["u0"], yk["v0"]), (yk["u1"], yk["v0"]),
                  (yk["u1"], yk["v1"]), (yk["u0"], yk["v1"]), (yk["u0"], yk["v0"])],
                 h=yk.get("h"), asset="Own.YotsumeGaki")
+    # ⑧' **窓の芝・法尻の草地・坂の土の道**(2026-09-04 棟梁: 層の宣言が無かった)。
+    #    ⛔ 庭12区画だけ層を持って、西の斜面が持たないのは片手落ち。
+    N8 = d.get("nishi") or {}
+    md8 = N8.get("mado") or {}
+    fan8 = md8.get("fan") or []
+    if fan8:                       # ⛔ `layer` の有無で節を消さない(消すと検査が鳴らない)
+        ring8 = [(q8[1], q8[0]) for q8 in fan8] + \
+                [(q8[2], q8[0]) for q8 in reversed(fan8)]
+        add("MadoShiba", "nishi.mado", "見透しの窓の刈芝", ring8 + [ring8[0]],
+            asset=None, layer=md8.get("layer"),
+            note="⛔ 窓は高木を置かない切れ込みで、**地表は刈芝**。"
+                 "⛔ 草地(地肌混じり)にしない")
+    hj8 = N8.get("hojiri") or {}
+    ya8 = (N8.get("yochi") or {}).get("areas") or []
+    if True:                       # ⛔ 同上
+        for i8, a8 in enumerate(ya8):
+            add("HojiriKusachi%02d" % (i8 + 1), "nishi.hojiri", "法尻の刈草地",
+                [(a8["u0"], a8["v0"]), (a8["u1"], a8["v0"]),
+                 (a8["u1"], a8["v1"]), (a8["u0"], a8["v1"]), (a8["u0"], a8["v0"])],
+                asset=None, layer=hj8.get("layer"), layerMix=hj8.get("layerMix"),
+                label=a8.get("label"),
+                note="⛔ 一枚で塗らない — 刈草地は草と地肌の**混合**(比は `layerMix`)")
+    for rp8 in d.get("ramps", []):
+        if not rp8.get("pts"):
+            continue               # ⛔ `layer` の有無では飛ばさない(検査が鳴らなくなる)
+        add(rp8["name"], "ramps", "坂の土の道",
+            [(p8[0], p8[1]) for p8 in rp8["pts"]],
+            asset=None, layer=rp8.get("layer"), h=rp8.get("cutW"),
+            note="⛔ 敷石も砂利も置かない(裏方の坂)")
+    sd8 = d.get("sando") or {}
+    if sd8:                        # ⛔ 同上
+        hw8 = sd8.get("width", 0) / 2.0
+        add("Sando", "sando", "参道",
+            [(sd8["u"] - hw8, sd8["v0"]), (sd8["u"] + hw8, sd8["v0"]),
+             (sd8["u"] + hw8, sd8["v1"]), (sd8["u"] - hw8, sd8["v1"]),
+             (sd8["u"] - hw8, sd8["v0"])],
+            asset=None, layer=sd8.get("layer"),
+            note="⛔ **敷石は当面置かない**(確度U)。白洲と塗り分ける")
     # ⑨ 崖下の帯の垣(建仁寺垣・四つ目垣)。⚠ `nishi.obi.fences` は **`at` で相手を指す**だけ
     #    なので、**位置は生成器が起こす**(=まさに算出物)。
     #    ⭕ 建仁寺垣は指された棟の宣言された面に沿って `lenKen` 間、
@@ -8559,6 +8627,26 @@ def garden_impl_check(d):
         if not q.get("world"):
             bad.append("庭の算出物 `%s` に世界座標が無い" % q["name"])
             break
+    # ⛔ **どの層で塗るかを持たない面を残さない**(2026-09-04 棟梁)。
+    #   ⚠ 面(実形・芝・草地・道)だけが対象 — 石・灯籠・垣・輪郭は層を持たない。
+    NEED = ("庭の実形(段で切った後)", "見透しの窓の刈芝", "法尻の刈草地",
+            "坂の土の道", "参道")
+    ok = set((d.get("groundLayers") or {}).get("names")
+             or ["L_grass", "L_dirt", "L_bare", "L_rock"])
+    for q in gi:
+        if q["kind"] not in NEED:
+            continue
+        lay = q.get("layer")
+        if not lay:
+            bad.append("`%s`(%s)に **`layer`(塗る地表層)が無い** — 実装が選ぶことになる"
+                       % (q["name"], q["kind"]))
+            continue
+        for one in [s9.strip() for s9 in str(lay).split("+")]:
+            if one not in ok:
+                bad.append("`%s` の層 `%s` は在庫の4枚(%s)に無い"
+                           % (q["name"], one, " / ".join(sorted(ok))))
+        if "+" in str(lay) and not q.get("layerMix"):
+            bad.append("`%s` は混合の層(%s)なのに `layerMix`(比)が無い" % (q["name"], lay))
     return bad
 
 

@@ -545,6 +545,11 @@ public static class EdoOkabeYashikiBuilder
         EdoNishiTameikeBuilder.NaturalMode = false;      // 天端は run の seat で通す
         var kak = Group("Kakoi"); Clear(kak);
 
+        // ---- 表長屋・表門(⭐ 練塀より**先**に据える)-----------------------
+        //   隅の返し(短い練塀)は長屋の**実測の妻面**へ突き付けるので、先に据えて面を測る
+        _nagayaSpan.Clear();
+        string nagRep = PlaceOmoteNagaya(kak, wait);
+
         // ---- 練塀 ------------------------------------------------------
         int hei = 0, skipped = 0;
         foreach (var r in Runs)
@@ -553,7 +558,22 @@ public static class EdoOkabeYashikiBuilder
             if (!r.Dobei)
             { sb.AppendLine("★ run " + r.name + " の kind が未知: " + r.kind); continue; }
             Vector2 outw = OutNormal(r.edge);
-            Vector2 a = EdgePt(r.edge, r.s0), b = EdgePt(r.edge, r.s1);
+            // ⭐ **隅の返し**の納め(其十九)。隣が長屋の run なら、その**実測の妻面**へ突き付ける。
+            //   ⛔ 呼び寸法で継がない(可動側は返し=練塀の側)。
+            float rs0 = r.s0, rs1 = r.s1;
+            foreach (var nr in Runs)
+            {
+                if (!nr.Nagaya || nr.edge != r.edge || !_nagayaSpan.ContainsKey(nr.name)) continue;
+                var span = _nagayaSpan[nr.name];
+                if (Mathf.Abs(nr.s1 - r.s0) < 0.30f) rs0 = span.y;   // 長屋の北 → 返しの南の小口
+                if (Mathf.Abs(nr.s0 - r.s1) < 0.30f) rs1 = span.x;
+            }
+            if (Mathf.Abs(rs0 - r.s0) > 0.001f || Mathf.Abs(rs1 - r.s1) > 0.001f)
+                wait.Add("練塀 " + r.name + ": 隣の長屋の**実測の妻面**へ寄せた s "
+                       + r.s0.ToString("0.###") + "〜" + r.s1.ToString("0.###") + " → "
+                       + rs0.ToString("0.###") + "〜" + rs1.ToString("0.###")
+                       + "(⛔ 呼び寸法で継がない・可動側は練塀)");
+            Vector2 a = EdgePt(r.edge, rs0), b = EdgePt(r.edge, rs1);
             if (Mathf.Abs(r.seat1 - r.seat0) < 0.01f)
             {
                 EdoNishiTameikeBuilder.DobeiRun(kak, a, b, outw, r.name, false, r.seat0, Vector2.zero, -1);
@@ -576,10 +596,8 @@ public static class EdoOkabeYashikiBuilder
                 hei++;
             }
         }
+        sb.AppendLine(nagRep);
         sb.AppendLine("練塀: " + hei + " run 据えた");
-
-        // ---- 表長屋 ----------------------------------------------------
-        sb.AppendLine(PlaceOmoteNagaya(kak, wait));
 
         // ---- 隅の留め継ぎ ----------------------------------------------
         sb.AppendLine(PlaceKado(kak));
@@ -692,6 +710,10 @@ public static class EdoOkabeYashikiBuilder
 
     /// <summary>長屋の一本物を据える。ピボット = 走りの中心・土台の底・**壁の外面**。
     /// ⭕ 据えた実メッシュで**走り方向の実長**を測り、呼び寸法と食い違えば鳴らす。</summary>
+    /// <summary>据えた長屋の**実メッシュ**が辺の上で占める区間[m](s)。
+    /// 隅の返し(短い練塀)はここへ突き付けるので、⛔ 呼び寸法で継がない。</summary>
+    static Dictionary<string, Vector2> _nagayaSpan = new Dictionary<string, Vector2>();
+
     static bool PlaceNagayaPiece(Transform kak, string name, string path, int edge, float sMid,
                                  float seat, float call, List<string> wait, ref float lastH)
     {
@@ -705,6 +727,7 @@ public static class EdoOkabeYashikiBuilder
         Vector2 dir = (EdgePt(edge, sMid + 1f) - EdgePt(edge, sMid)).normalized;
         float realLen = Mathf.Abs(bb.size.x * dir.x) + Mathf.Abs(bb.size.z * dir.y);
         lastH = bb.size.y;
+        _nagayaSpan[name] = new Vector2(sMid - realLen * 0.5f, sMid + realLen * 0.5f);
         if (Mathf.Abs(realLen - call) > 0.10f)
             wait.Add("長屋 " + name + ": 部材の実長 " + realLen.ToString("F3")
                    + "m が呼び " + call.ToString("0.###") + "m と食い違う"
@@ -1401,7 +1424,12 @@ public static class EdoOkabeYashikiBuilder
             case "Umaya":      return EdoAssets.Own.Umaya;
             case "Tomomachi":  return EdoAssets.Own.Tomomachi;
             case "NandoKoya":  return EdoAssets.Own.NandoKoya;
-            case "Kurumayose": return EdoAssets.Own.Kurumayose;
+            case "Kurumayose":
+                // ⭕ 切り欠き済みの版があればそちらを使う(裁定10=A の納め)。
+                //    ⛔ 実行時にメッシュを割らない — 縁がぎざぎざになって瓦が欠ける
+                return AssetDatabase.LoadAssetAtPath<GameObject>(EdoAssets.Own.KurumayoseCut) != null
+                     ? EdoAssets.Own.KurumayoseCut : EdoAssets.Own.Kurumayose;
+            case "KurumayoseCut": return EdoAssets.Own.KurumayoseCut;
             case "Jouguchi":   return EdoAssets.Own.Jouguchi;
             case "Inari15":    return EdoAssets.Own.Inari15;
             case "Torii":      return EdoAssets.Own.Torii;

@@ -591,7 +591,17 @@ public static class EdoAssets
         /// 据えは `position = 折れ点 / yaw = 入りの走りの方位 / scale = (s,s,s)`。
         /// deg が負(名前の末尾 M)は鏡像 = yaw が**減る**向きの折れ。
         /// 腕は片側 1 モジュールなので、入りの run は 1 モジュール短く、出の run は
-        /// 1 モジュール遅く始める。</summary>
+        /// 1 モジュール遅く始める。
+        ///
+        /// ⚠ **名前は `RoundToInt(|deg|)` の 2 桁**なので、|deg| &lt; 0.5° は `00` に丸まる。
+        /// 生成器(build_kado.py)も同じ丸めで名前を作るので一致する。
+        /// ⭕ **浅い折れも留めで通る** — Δ=0.24° は「ほぼ直材」の一枚物として焼ける
+        /// (2026-09-04 実測。突き付けに逃げる必要は無い)。
+        ///
+        /// 焼いてあるもの(Dobei = 練塀。腕は折れ点から ±2.26m・高さ 1.455m・s を掛けて据える):
+        /// 00M 01M 06 07 11 14M 18 19 31 38M 41 62M 88M 91 95M ／ Ishigaki 31・31M ／
+        /// Tsuijibei 31 ／ Nagaya 38M。無い角度は:
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part dobei --deg &lt;符号つき角度&gt; --render</summary>
         public static string Kado(string part, float deg)
         {
             return "Assets/Edo/Models/Kado/" + part + "_Kado_"

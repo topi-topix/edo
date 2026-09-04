@@ -5711,8 +5711,33 @@ def niwa_stats(d):
                 g0, g1 = n.mound_one(t, (t["u0"] + t["u1"]) / 2.0, a0), \
                     n.mound_one(t, (t["u0"] + t["u1"]) / 2.0, a0 + stp)
             mx9 = max(mx9, abs(g1 - g0) / (stp * K))
+        # **刈込が法面まで覆っているか** — 覆いは footprint の包含で判定する。
+        # ⛔ 「載っている」では足りない(天端だけ載って法面が露出する形がある)。
+        # ⚠ **包含は「法面のある軸=減衰軸」で見る。**土手の法は `decay` 軸にしか無く、
+        #   稜線軸の両端は cos ではなく**垂直に切れている**(下の `endStep`)。
+        #   ⛔ 全方向の包含を求めると、庭方が指定した「u 範囲を同一」の形が通らない。
+        cov9 = None
+        for k9 in g.get("karikomi", []):
+            if k9.get("kata") == "帯" or k9.get("onDote") != t["name"]:
+                continue
+            if t.get("decay") == "u":
+                ok9 = (k9["u0"] <= t["u0"] + 1e-9 and t["u1"] <= k9["u1"] + 1e-9
+                       and k9["v1"] > t["v0"] and k9["v0"] < t["v1"])
+            else:
+                ok9 = (k9["v0"] <= t["v0"] + 1e-9 and t["v1"] <= k9["v1"] + 1e-9
+                       and k9["u1"] > t["u0"] and k9["u0"] < t["u1"])
+            if ok9:
+                cov9 = k9["label"]
+        # 稜線軸の**端の段**(cos で落ちずに垂直に切れる高さ)。⛔ 上限は決まっていないので
+        #   **測って刷るだけ**(閾値を発明しない)。⚠ 摺り付けるかは庭方の判断。
+        if t.get("decay") == "u":
+            p0, p1 = ((t["u0"] + t["u1"]) / 2.0, t["v0"]), ((t["u0"] + t["u1"]) / 2.0, t["v0"] - 0.01)
+        else:
+            p0, p1 = (t["u0"], (t["v0"] + t["v1"]) / 2.0), (t["u0"] - 0.01, (t["v0"] + t["v1"]) / 2.0)
+        end9 = n.mound_one(t, p0[0], p0[1]) - n.mound_one(t, p1[0], p1[1])
         o["dote"].append(dict(name=t["name"], label=t["label"], rise=t["rise"],
                               decay=t.get("decay", "?"), w=min(du9, dv9), L=max(du9, dv9),
+                              covered=cov9, endStep=end9,
                               batterReal=(1.0 / mx9 if mx9 > 1e-9 else 99.0)))
     for t in g.get("tsukiyama", []):
         if t.get("kata") == "土手":
@@ -6041,6 +6066,25 @@ def niwa_check(d):
             bad.append("土手 %s の `decay`=%s が短辺(%s: %.2f間 対 %.2f間)と食い違う — "
                        "稜線は長辺に沿って一様に通すこと"
                        % (t["name"], t["decay"], shortax, min(du9, dv9), max(du9, dv9)))
+    # ⑪c 土手の法。⭐ **上限は2段**(2026-09-04 庭方の裁定)。
+    #    ①裸の土手 = `batterFill`(1:1.5)【B】
+    #    ②**刈込の footprint が土手の footprint を覆う**土手 = `doteBatterCovered`(1:1.0)【U・庭方】
+    #    ③いかなる土手も `batterCut`(1:1.0)より立てない【台帳から引ける唯一の線】
+    #    ⛔ 露出する区間が少しでもあれば①で見る。
+    cst9 = d["const"]
+    for q in o.get("dote", []):
+        lim9 = cst9["batterFill"]
+        why9 = "裸の土手(法面が露出する)"
+        if q["covered"]:
+            lim9 = cst9["doteBatterCovered"]
+            why9 = "刈込 %s が法面まで覆う" % q["covered"]
+        if q["batterReal"] < lim9 - 1e-9:
+            bad.append("土手 %s の法(実測の最急)1:%.3f が上限 1:%.1f より急(%s)"
+                       % (q["label"], q["batterReal"], lim9, why9))
+        if q["batterReal"] < cst9["batterCut"] - 1e-9:
+            bad.append("土手 %s の法 1:%.3f が切土の法 1:%.1f より急 — "
+                       "盛った土が自然の土より立つことはありえない"
+                       % (q["label"], q["batterReal"], cst9["batterCut"]))
     # ⑫ 主景の見切り — **蔵の見える面が全長 × 全高にわたって塞がるか**
     # ⛔ 「各樹が自分の位置で帯を覆うか」では面の端と低い帯が抜ける(2026-09-04 庭方 中9)。
     if not o.get("kuraFace"):
@@ -6286,6 +6330,11 @@ def niwa_plant_check(d):
         pts.append((s["name"], "石組", s["u"], s["v"]))
     for s in g.get("kutsunugi", []):
         pts.append((s["name"], "沓脱", s["u"], s["v"]))
+    # ⭐ **飛石も対象**(2026-09-04 検図方 中-2)。⛔ 沢飛石(`sawatobi`)だけが水面を渡る物で、
+    #   **飛石は陸の物**なので `inpondExempt` に入れない — 池へ落ちたら鳴らす。
+    for s in g.get("tobiishi", []):
+        for j9, (pu9, pv9) in enumerate(s["pts"]):
+            pts.append(("%s の第%d石" % (s["name"], j9 + 1), "飛石", pu9, pv9))
     ch = g.get("yashiro", {}).get("chozu")
     if ch:
         pts.append(("Chozu_Inari", "手水石", ch["u"], ch["v"]))
@@ -6355,16 +6404,25 @@ def niwa_plant_check(d):
                 out.append("%s が %.1f%% — 上限 %.1f%%【庭方の検査 6-④】"
                            % (ttl, got, lim[key]))
     if lim.get("singleTreeDeg"):
-        v1 = next((m for m in g["mikoro"] if m.get("main")), g["mikoro"][0])
-        for c in cr:
-            dd = math.hypot((c["u"] - v1["u"]) * K, (c["v"] - v1["v"]) * K)
-            if dd <= 1e-6:
+        # ⭐ **主景だけでなく「座敷から見る見所」すべてに回す**(2026-09-04 庭方 低-1)。
+        #   ⛔ 主景だけを見ていると、別の座敷で一本が視野を塞いでいても鳴らない
+        #   (見所②=奥御座敷の入側で最大 43.9°)。
+        # ⛔ **庭の中に立つ見所(床几・沢飛石の上・参道の口)には当てない** — 木の脇に
+        #   立つのだから一本が 85〜144° を占めるのは当然で、45° は成り立たない
+        #   (⭕ 実測は見所の表に刷る。閾値だけを外す)。判定は `eyeMode` で分ける。
+        for v9 in g["mikoro"]:
+            if v9.get("eyeMode") != "sit":
                 continue
-            ang = 2.0 * math.degrees(math.atan2(c["r"], dd))
-            if ang > lim["singleTreeDeg"] + 1e-9:
-                out.append("見所①から見た **%s %s (%.2f, %.2f) の水平占有角が %.1f°** — "
-                           "上限 %.1f°(⛔ 一本で主景を塞がない)【庭方の検査】"
-                           % (c["sp"], c["sz"], c["u"], c["v"], ang, lim["singleTreeDeg"]))
+            for c in cr:
+                dd = math.hypot((c["u"] - v9["u"]) * K, (c["v"] - v9["v"]) * K)
+                if dd <= 1e-6:
+                    continue
+                ang = 2.0 * math.degrees(math.atan2(c["r"], dd))
+                if ang > lim["singleTreeDeg"] + 1e-9:
+                    out.append("見所%d「%s」から見た **%s %s (%.2f, %.2f) の水平占有角が %.1f°** — "
+                               "上限 %.1f°(⛔ 一本で景を塞がない)【庭方の検査】"
+                               % (v9["no"], v9["label"], c["sp"], c["sz"],
+                                  c["u"], c["v"], ang, lim["singleTreeDeg"]))
     # 主景に名指しした物が樹冠に隠れない
     out += mustsee_check(d)
     return out
@@ -7133,11 +7191,13 @@ def niwa_vol_table(d):
     for t in n.g["tsukiyama"]:
         rows.append(("盛土 %s" % t["label"], "", "頂 %s / 盛 +%.2f m"
                      % (("%.2f" % t["topY"]) if "topY" in t else "—", t["rise"])))
-    rows.append(("盛土(合計)", "%.0f m³" % o["fill"], "築山4基+東の土手"))
+    rows.append(("盛土(合計)", "%.0f m³" % o["fill"], "築山4基+東の土手+蔵前の土手"))
     # ⛔ **符号の向きは当図で一つ**(検図方 低-1)。其四の切盛表と同じく
     #   **差引 = 盛土 − 切土 / 正 = 土が足りない**で刷る。⛔ ここだけ逆向きにしない。
     rows.append(("差引(盛土 − 切土)", "<b>%+.0f m³</b>" % (-o["diff"]),
-                 "正=土が足りない(其四の切盛表と同じ向き)"))
+                 "正=土が足りない(其四の切盛表と同じ向き)。⭐ <b>読み下すと %s</b>"
+                 % ("%.0f m³ 余る" % o["diff"] if o["diff"] > 0 else
+                    "%.0f m³ 足りない" % -o["diff"])))
     rows.append(("庭の陸地に均すと", "<b>%+.3f m</b>" % o["level"],
                  "陸地 %.0f m²。許容 ±0.5m ⭕ 敷地外へ土を出さない・入れない" % o["landM2"]))
     w = o["water"]
@@ -7228,15 +7288,37 @@ def niwa_cover_table(d):
 def niwa_mikoro_table(d):
     n = NI(d)
     o = niwa_stats(d)
+    K = n.ken
+    cr = _crowns(d)
+    lim = (n.g.get("coverLimits") or {}).get("singleTreeDeg")
     rows = []
     for m in n.g["mikoro"]:
         e = n.eye(m["no"])
+        # ⭐ **単木の水平占有角の実測を見所ごとに刷る**(2026-09-04 庭方 低-1)。
+        #   ⛔ 判定を当てるのは**座敷から見る見所**(`sit`)だけ — 庭の中に立つ見所は
+        #   木の脇に立つのだから 85〜144° になるのが当然で、45° は成り立たない。
+        best = max(((2.0 * math.degrees(math.atan2(
+            c["r"], math.hypot((c["u"] - m["u"]) * K, (c["v"] - m["v"]) * K))),
+            "%s %s" % (c["sp"], c["sz"])) for c in cr), default=(0.0, "—"))
+        if m.get("eyeMode") == "sit" and lim:
+            ang = "<b>%.1f°</b> %s<br><span class='note'>%s(上限 %.0f°)</span>" % (
+                best[0], "⭕" if best[0] <= lim + 1e-9 else "⚠", best[1], lim)
+        else:
+            ang = "%.1f°<br><span class='note'>%s(庭の中に立つ見所 — 上限を当てない)</span>" % (
+                best[0], best[1])
         rows.append(("%d" % m["no"],
                      m["label"] + ("　<b>主景</b>" if m.get("main") else ""),
                      "(%.2f, %.2f)" % (m["u"], m["v"]),
                      ("%.2f" % e) if e is not None else "<b>?</b>(設計書に無い)",
-                     m.get("eyeMode", ""), "／".join(m.get("sees", []))))
-    return _tw(("見所", "名", "位置(u,v)", "眼高", "座り方", "見るもの"), rows)
+                     m.get("eyeMode", ""), ang, "／".join(m.get("sees", []))))
+    return _tw(("見所", "名", "位置(u,v)", "眼高", "座り方",
+                "単木の水平占有角(最大)", "見るもの"), rows) + (
+        "<p class='cap'>⭐ <b>単木の水平占有角は「一本で景を塞がない」の物差し</b>"
+        "(⛔ 旧のクロマツ Big ×1.65 は主景から 79.6° を占めていた)。"
+        "⛔ <b>上限 %s を当てるのは座敷から見る見所(<code>sit</code>)だけ</b> — "
+        "床几・沢飛石の上・参道の口は<b>庭の中に立つ</b>ので、木の脇で 85〜144° になるのは当然。"
+        "⭕ それでも<b>実測は刷る</b>(⛔ 測って黙らない)。</p>"
+        % (("%.0f°" % lim) if lim else "—"))
 
 
 def niwa_tsuki_table(d):
@@ -7250,10 +7332,14 @@ def niwa_tsuki_table(d):
                      "%+.3f" % (t["batterReal"] - bf),
                      "%.1f m" % t["d"], "%+.2f°" % t["ang"], "⭕" if ok else "⚠"))
     for t in o.get("dote", []):
+        lim9 = d["const"]["doteBatterCovered"] if t["covered"] else bf
         rows.append(("<i>%s(土手)</i>" % t["label"], "+%.2f" % t["rise"], "—",
-                     "1:%.3f" % t["batterReal"], "—",
+                     "1:%.3f" % t["batterReal"], "%+.3f" % (t["batterReal"] - lim9),
                      "短辺 %.2f間 × 長辺 %.2f間" % (t["w"], t["L"]),
-                     "減衰軸 <code>%s</code>" % t["decay"], "—"))
+                     "減衰軸 <code>%s</code>／%s／稜線の端の段 %.2fm" % (
+                         t["decay"], ("刈込が覆う(上限 1:%.1f)" % lim9) if t["covered"]
+                         else ("裸(上限 1:%.1f)" % lim9), t["endStep"]),
+                     "⭕" if t["batterReal"] >= lim9 - 1e-9 else "⚠"))
     return _tw(("築山", "頂(盛)", "法(公称)", "法(実測の最急)", "上限との差",
                 "主視点から", "仰角", "上限 1:%.1f" % bf), rows) + (
         "<p class='cap'>⚠ <b>実測の最急は 0.01間 刻みで u・v の両軸を走査した値</b>"
@@ -7263,12 +7349,20 @@ def niwa_tsuki_table(d):
         "⛔ <b>法は「その一基だけ」の面で測る</b>(<code>Niwa.mound_one</code>)— 全基の max で"
         "測ると<b>隣の盛土の斜面を自分の法として拾う</b>(蔵前の土手を短辺減衰へ直した途端、"
         "築山A1/A2/C の実測がいずれも土手の 1:0.85 に化けた)。"
-        "<br>⚠ <b>下の斜体2行は土手</b>で、<b>合否は出していない【確度?】</b> — "
-        "土手の法の上限は台帳にも庭方の決定にも無いので<b>測って刷るだけ</b>(⛔ 閾値を発明しない)。"
-        "⭐ <b>蔵前の土手は短辺 0.95間 に 0.65m を盛るので 1:0.85 と急</b>で、築山に当てている"
-        "盛土の上限 1:1.5 は満たさない。壁の足元に回す小さな土手に同じ物差しを当てるべきかは"
-        "<b>庭方の判断</b>。1:1.5 に収めるなら短辺を 1.69間 まで広げることになる"
-        "(いまの 0.95間 の 1.8 倍)。</p>")
+        "<br>⭐ <b>下の斜体2行は土手</b>で、上限は<b>2段</b>で見る【2026-09-04 庭方の裁定】 — "
+        "①<b>裸の土手</b>(法面が露出する)は 1:%.1f【B】/ "
+        "②<b>刈込の footprint が土手の footprint を覆う</b>土手は 1:%.1f【U・庭方】"
+        "(根が張った法面は保つ。⛔ 台帳に直接の典拠は無い)/ "
+        "③いかなる土手も<b>切土の法 1:%.1f より立てない</b>(台帳から引ける唯一の線 — "
+        "盛った土が自然の土より立つことはありえない)。"
+        "⛔ <b>露出する区間が少しでもあれば①で見る</b>(覆いは footprint の包含で判定)。"
+        "⚠ 蔵前の土手は短辺を 0.95 → 1.15間 に広げ、刈込①の footprint を土手と同一にして"
+        "②の帯へ入れた。⛔ 1:1.5 に収める案(短辺 1.69間)は御土蔵との犬走りを食うので採らない。"
+        "<br>⚠ <b>包含は「法面のある軸=減衰軸」で見る</b> — 土手の法は減衰軸にしか無く、"
+        "<b>稜線軸の両端は cos で落ちず垂直に切れている</b>(表の「稜線の端の段」)。"
+        "⛔ この段には上限を当てていない【確度?】 — <b>摺り付けるかどうかは庭方の判断</b>で、"
+        "当図は<b>測って刷るだけ</b>(⛔ 閾値を発明しない)。</p>"
+        % (bf, d["const"]["doteBatterCovered"], d["const"]["batterCut"]))
 
 
 def niwa_enro_table(d):

@@ -5414,9 +5414,21 @@ class Niwa(object):
                 if t["u0"] <= u <= t["u1"] and t["v0"] <= v <= t["v1"]:
                     if t.get("decay") == "u":
                         r = abs(u - (t["u0"] + t["u1"]) / 2.0) / ((t["u1"] - t["u0"]) / 2.0)
+                        a9, a0, a1 = v, t["v0"], t["v1"]      # 稜線の走る軸
                     else:
                         r = abs(v - (t["v0"] + t["v1"]) / 2.0) / ((t["v1"] - t["v0"]) / 2.0)
-                    h = max(h, t["rise"] * 0.5 * (1 + math.cos(math.pi * min(r, 1.0))))
+                        a9, a0, a1 = u, t["u0"], t["u1"]
+                    # ⭐ **稜線の両端も cos で摺り付ける**(`taperEnds`[間]。2026-09-04 庭方の裁定)。
+                    #   ⛔ 従前は端が**垂直に切れて**いた(蔵前 0.65m・東 0.35m の段)。
+                    #   ⚠ 東の土手の端の段は主路の点#6 が踏む **0.23m の設計外の一段**になっていた。
+                    #   ⭕ 端も法面なので、法の検査は摺り付けを含めて全周で見る。
+                    te = t.get("taperEnds")
+                    f9 = 1.0
+                    if te:
+                        d9 = min(a9 - a0, a1 - a9)
+                        if d9 < te:
+                            f9 = 0.5 * (1 - math.cos(math.pi * max(d9, 0.0) / te))
+                    h = max(h, t["rise"] * f9 * 0.5 * (1 + math.cos(math.pi * min(r, 1.0))))
                 continue
             ru, rv = t["dU"] / 2.0, t["dV"] / 2.0
             x, y = (u - t["u"]) / ru, (v - t["v"]) / rv
@@ -5592,16 +5604,30 @@ def niwa_stats(d):
                 stepL += l
         # ⚠ **区間の両端だけで測ると急な中腹を見落とす**(2026-09-04 庭方の申し送り)。
         #   0.25m 刻みで実際の地表を刻み、**1m 窓の最急**を別に持つ。
-        prof, s0 = [], 0.0
+        prof, s0, segOf = [], 0.0, []
         for i in range(len(pts) - 1):
             a, b = pts[i], pts[i + 1]
             l = math.dist(a, b) * K
             m0 = max(1, int(math.ceil(l / 0.25)))
+            dz9 = n.ground(*b) - n.ground(*a)
+            cut9 = (abs(dz9) / l * 100 > 15.0) if l > 1e-9 else False   # この区間に石段を切ったか
             for k in range(m0 + (1 if i == len(pts) - 2 else 0)):
                 t9 = k / float(m0)
                 prof.append((s0 + l * t9,
                              n.ground(a[0] + (b[0] - a[0]) * t9, a[1] + (b[1] - a[1]) * t9)))
+                segOf.append((i, cut9, a[0] + (b[0] - a[0]) * t9, a[1] + (b[1] - a[1]) * t9))
             s0 += l
+        # ⭐ **設計されていない段**(2026-09-04 庭方の裁定)。⛔ 「1m 窓の最急」は
+        #   **短い落差を『段であって勾配ではない』として窓から落とす** — そこに石段が切って
+        #   あれば正しいが、**切っていない所の段は設計外の一段**で歩く人が躓く。
+        #   ⇒ 0.25m 刻みの縦断で**隣り合う標本の落差**を測り、石段を切っていない区間だけ見る。
+        stepMax, stepAt = 0.0, None
+        for k9 in range(len(prof) - 1):
+            if segOf[k9][1] or segOf[k9 + 1][1]:
+                continue                          # 石段を切った区間の落差は蹴上そのもの
+            dz8 = abs(prof[k9 + 1][1] - prof[k9][1])
+            if dz8 > stepMax:
+                stepMax, stepAt = dz8, (segOf[k9][2], segOf[k9][3], prof[k9][0])
         # ⚠ **窓は「1m ちょうど」で滑らせる。**「1m 以内の任意の2点」にすると、
         #   土手の縁の 0.23m の段(蹴上1段ぶん)を 0.25m 幅で割って 92% に化ける
         #   — それは段であって勾配ではない(2026-09-04 に踏んだ)。
@@ -5644,7 +5670,7 @@ def niwa_stats(d):
         o["enro"].append(dict(name=e["name"], label=e["label"], L=L, grade=mx * 100,
                               gradeWin=win * 100, gradeWinAt=at,
                               steps=steps, stepL=stepL, wet=len(wet), w=e["w"],
-                              wSeg=e.get("wSeg", []),
+                              wSeg=e.get("wSeg", []), stepMax=stepMax, stepAt=stepAt,
                               edgeShore=ed, edgeShachi=eg,
                               dshore=min(n.dshore(*p) for p in pts) * K))
     # 沢飛石
@@ -5698,38 +5724,39 @@ def niwa_stats(d):
         if t.get("kata") != "土手":
             continue
         du9, dv9 = t["u1"] - t["u0"], t["v1"] - t["v0"]
-        hw = (du9 if t.get("decay") == "u" else dv9) / 2.0 * K
-        mx9 = 0.0
-        stp = 0.01
-        for k in range(-int((hw / K) / stp) - 2, int((hw / K) / stp) + 3):
-            if t.get("decay") == "u":
-                a0 = (t["u0"] + t["u1"]) / 2.0 + k * stp
-                g0, g1 = n.mound_one(t, a0, (t["v0"] + t["v1"]) / 2.0), \
-                    n.mound_one(t, a0 + stp, (t["v0"] + t["v1"]) / 2.0)
-            else:
-                a0 = (t["v0"] + t["v1"]) / 2.0 + k * stp
-                g0, g1 = n.mound_one(t, (t["u0"] + t["u1"]) / 2.0, a0), \
-                    n.mound_one(t, (t["u0"] + t["u1"]) / 2.0, a0 + stp)
-            mx9 = max(mx9, abs(g1 - g0) / (stp * K))
-        # **刈込が法面まで覆っているか** — 覆いは footprint の包含で判定する。
-        # ⛔ 「載っている」では足りない(天端だけ載って法面が露出する形がある)。
-        # ⚠ **包含は「法面のある軸=減衰軸」で見る。**土手の法は `decay` 軸にしか無く、
-        #   稜線軸の両端は cos ではなく**垂直に切れている**(下の `endStep`)。
-        #   ⛔ 全方向の包含を求めると、庭方が指定した「u 範囲を同一」の形が通らない。
+        # ⭐ **法は footprint の全周を 2次元の勾配で測る**(2026-09-04 庭方の裁定)。
+        #   ⛔ 減衰軸の一本線だけを走査しない — **稜線の端の摺り付けも法面**であり、
+        #   そこは刈込に覆われないので別の上限(`batterFill`)で見る。
+        #   ⇒ **覆われる区間**(刈込の footprint の中)と**覆われない区間**の最急を分けて持つ。
         cov9 = None
         for k9 in g.get("karikomi", []):
             if k9.get("kata") == "帯" or k9.get("onDote") != t["name"]:
                 continue
-            if t.get("decay") == "u":
-                ok9 = (k9["u0"] <= t["u0"] + 1e-9 and t["u1"] <= k9["u1"] + 1e-9
-                       and k9["v1"] > t["v0"] and k9["v0"] < t["v1"])
-            else:
-                ok9 = (k9["v0"] <= t["v0"] + 1e-9 and t["v1"] <= k9["v1"] + 1e-9
-                       and k9["u1"] > t["u0"] and k9["u0"] < t["u1"])
-            if ok9:
-                cov9 = k9["label"]
-        # 稜線軸の**端の段**(cos で落ちずに垂直に切れる高さ)。⛔ 上限は決まっていないので
-        #   **測って刷るだけ**(閾値を発明しない)。⚠ 摺り付けるかは庭方の判断。
+            cov9 = k9
+        stp = 0.02
+        mxIn = mxOut = mxEnd = 0.0
+        u9 = t["u0"]
+        while u9 <= t["u1"] + 1e-9:
+            v9 = t["v0"]
+            while v9 <= t["v1"] + 1e-9:
+                gu = (n.mound_one(t, u9 + stp, v9) - n.mound_one(t, u9 - stp, v9)) / (2 * stp * K)
+                gv = (n.mound_one(t, u9, v9 + stp) - n.mound_one(t, u9, v9 - stp)) / (2 * stp * K)
+                gg = math.hypot(gu, gv)
+                inside = bool(cov9) and (cov9["u0"] - 1e-9 <= u9 <= cov9["u1"] + 1e-9
+                                         and cov9["v0"] - 1e-9 <= v9 <= cov9["v1"] + 1e-9)
+                if inside:
+                    mxIn = max(mxIn, gg)
+                else:
+                    mxOut = max(mxOut, gg)
+                    # 摺り付けそのものの勾配(**稜線軸方向だけ**)。⚠ 庭方が「端の最急」と
+                    #   呼んだのはこちらで、2次元の勾配より緩く出る。両方を表に刷る。
+                    mxEnd = max(mxEnd, abs(gv if t.get("decay") == "u" else gu))
+                v9 += stp * 5
+            u9 += stp * 5
+        mx9 = max(mxIn, mxOut)
+        # **刈込が法面まで覆っているか** — 覆いは footprint の包含で判定する。
+        # ⛔ 「載っている」では足りない(天端だけ載って法面が露出する形がある)。
+        # 稜線軸の**端の段**(摺り付けずに垂直に切れる高さ)。⭕ `taperEnds` を入れれば 0 になる。
         if t.get("decay") == "u":
             p0, p1 = ((t["u0"] + t["u1"]) / 2.0, t["v0"]), ((t["u0"] + t["u1"]) / 2.0, t["v0"] - 0.01)
         else:
@@ -5737,7 +5764,11 @@ def niwa_stats(d):
         end9 = n.mound_one(t, p0[0], p0[1]) - n.mound_one(t, p1[0], p1[1])
         o["dote"].append(dict(name=t["name"], label=t["label"], rise=t["rise"],
                               decay=t.get("decay", "?"), w=min(du9, dv9), L=max(du9, dv9),
-                              covered=cov9, endStep=end9,
+                              covered=(cov9["label"] if cov9 else None), endStep=end9,
+                              taperEnds=t.get("taperEnds"),
+                              batterIn=(1.0 / mxIn if mxIn > 1e-9 else 99.0),
+                              batterOut=(1.0 / mxOut if mxOut > 1e-9 else 99.0),
+                              batterEnd=(1.0 / mxEnd if mxEnd > 1e-9 else 99.0),
                               batterReal=(1.0 / mx9 if mx9 > 1e-9 else 99.0)))
     for t in g.get("tsukiyama", []):
         if t.get("kata") == "土手":
@@ -5970,13 +6001,38 @@ def niwa_check(d):
             bad.append("%s の法(**実測の最急**)1:%.2f が盛土の上限 1:%.1f より急 — "
                        "公称は 1:%.2f。頂の平場の切り方か山の裾を見直すこと"
                        % (t["label"], t["batterReal"], bf, t["batter"]))
-    ku = n.kura()
-    if ku:
-        need = ku["face"] + d["const"]["inubashiri"] / K
-        for t in o["tsuki"]:
-            if t["name"] == "Tsukiyama_A1" and t["suso"] < need - 1e-6:
-                bad.append("築山A1 の南裾 u=%.2f が御土蔵の北面+犬走り u=%.2f に届いていない"
-                           % (t["suso"], need))
+    # ⭐ **庭の土工すべて(築山4基 + 土手2本)の裾から棟・付属屋まで ≥ `inubashiri`**
+    #   (2026-09-04 検図方の確認巡 中-1)。
+    #   ⚠ 従前は `Tsukiyama_A1` を**名指し**して御土蔵との1組だけを見ていたので、
+    #   **土手+刈込①を蔵の壁面に密着(犬走り 0)させても 0 件**だった。
+    #   ⛔ 名前で絞らない — 枠は `_niwa_frames` が `munes`+`service` から機械で作る。
+    inu9 = d["const"]["inubashiri"] / K
+    for t in g.get("tsukiyama", []):
+        if t.get("kata") == "土手":
+            fu0, fu1, fv0, fv1 = t["u0"], t["u1"], t["v0"], t["v1"]
+        else:
+            fu0, fu1 = t["u"] - t["dU"] / 2.0, t["u"] + t["dU"] / 2.0
+            fv0, fv1 = t["v"] - t["dV"] / 2.0, t["v"] + t["dV"] / 2.0
+        for m in _niwa_frames(d):
+            if "yaw" in m:
+                continue
+            du = max(m["u0"] - fu1, fu0 - m["u1"])
+            dv = max(m["v0"] - fv1, fv0 - m["v1"])
+            gap = max(du, dv)                      # 矩形どうしの離れ(重なれば負)
+            if gap < inu9 - 1e-6:
+                bad.append("庭の土工 %s の裾 u[%.2f, %.2f] v[%.2f, %.2f] から %s まで %.2f間 — "
+                           "犬走り %.2f間(%.2fm)を下回る(⛔ 壁の足元に土を寄せない)"
+                           % (t["label"], fu0, fu1, fv0, fv1, m["name"], gap,
+                              inu9, d["const"]["inubashiri"]))
+        # ⛔ **土工の footprint は庭の矩形に内包されること。**はみ出すと `ground_y` が
+        #   庭の外で `graded_y` に切り替わり、**境で黙って崖になる**。
+        if not (g["u0"] - 1e-9 <= fu0 and fu1 <= g["u1"] + 1e-9
+                and g["v0"] - 1e-9 <= fv0 and fv1 <= g["v1"] + 1e-9):
+            bad.append("庭の土工 %s の footprint u[%.2f, %.2f] v[%.2f, %.2f] が庭の矩形 "
+                       "u[%.2f, %.2f] v[%.2f, %.2f] からはみ出す — 庭の外は `graded_y` が"
+                       "地表を返すので、境で黙って崖になる"
+                       % (t["label"], fu0, fu1, fv0, fv1,
+                          g["u0"], g["u1"], g["v0"], g["v1"]))
     # ⑧ 水尻 — 樋が土蔵と交わらない / 落とし口が区画線の内側
     gr = RGrid(d)
     Pg = [gr.L(x, z) for x, z in d["polygon"]]
@@ -6073,18 +6129,23 @@ def niwa_check(d):
     #    ⛔ 露出する区間が少しでもあれば①で見る。
     cst9 = d["const"]
     for q in o.get("dote", []):
-        lim9 = cst9["batterFill"]
-        why9 = "裸の土手(法面が露出する)"
-        if q["covered"]:
-            lim9 = cst9["doteBatterCovered"]
-            why9 = "刈込 %s が法面まで覆う" % q["covered"]
-        if q["batterReal"] < lim9 - 1e-9:
-            bad.append("土手 %s の法(実測の最急)1:%.3f が上限 1:%.1f より急(%s)"
-                       % (q["label"], q["batterReal"], lim9, why9))
+        # ⭐ **区間ごとに上限が違う**(2026-09-04 庭方の裁定)。
+        #   刈込に覆われる区間 → `doteBatterCovered`(1:1.0)/ 覆われない区間(摺り付けを含む)
+        #   → `batterFill`(1:1.5)。⛔ ③いかなる土手も `batterCut` より立てない。
+        # ⛔ **法の上限違反は `niwa_todo`(庭方へ差し戻す枠)で出す** — 直す手が
+        #   「rise を変える / footprint を広げる / 刈込の範囲を変える」のいずれも**意匠**で、
+        #   指図方には動かせない。ここ(`niwa_check`)で見るのは**書き漏らし**だけ。
         if q["batterReal"] < cst9["batterCut"] - 1e-9:
             bad.append("土手 %s の法 1:%.3f が切土の法 1:%.1f より急 — "
                        "盛った土が自然の土より立つことはありえない"
                        % (q["label"], q["batterReal"], cst9["batterCut"]))
+        # ⛔ **端も法面。**摺り付けを持たない土手は稜線の端が垂直に切れる。
+        if not q.get("taperEnds"):
+            bad.append("土手 %s に `taperEnds`(稜線の端の摺り付け[間])が無い — "
+                       "端が垂直に %.2fm 切れる(端も法面である)" % (q["label"], q["endStep"]))
+        elif abs(q["endStep"]) > 0.01:
+            bad.append("土手 %s の稜線の端に %.2fm の段が残る — `taperEnds` が効いていない"
+                       % (q["label"], q["endStep"]))
     # ⑫ 主景の見切り — **蔵の見える面が全長 × 全高にわたって塞がるか**
     # ⛔ 「各樹が自分の位置で帯を覆うか」では面の端と低い帯が抜ける(2026-09-04 庭方 中9)。
     if not o.get("kuraFace"):
@@ -6525,6 +6586,28 @@ def niwa_todo(d):
     #   物差しの差し替え)。⛔ **素の丘(公称 × 2/π)との比較はしない** — 通過条件を解くと
     #   平場の幅 ≤ 7.5cm となり、平場を持つ限り構造的に通らない検査だった。
     # 園路の勾配は**1m 窓の最急**で見る(区間の両端だけだと急な中腹を見落とす)。
+    cst8 = d["const"]
+    for q in o.get("dote", []):
+        if q["covered"] and q["batterIn"] < cst8["doteBatterCovered"] - 1e-9:
+            out.append("**土手 %s の「刈込 %s に覆われる区間」の法が 1:%.3f**(上限 1:%.1f)— "
+                       "rise を下げるか footprint を広げるのは意匠の判断【庭方の裁定の条】"
+                       % (q["label"], q["covered"], q["batterIn"], cst8["doteBatterCovered"]))
+        if q["batterOut"] < cst8["batterFill"] - 1e-9:
+            out.append("**土手 %s の「刈込に覆われない区間(摺り付けを含む)」の法が 1:%.3f**"
+                       "(上限 1:%.1f)— ⚠ **摺り付けそのものの勾配(稜線軸方向)は 1:%.3f で通る**が、"
+                       "摺り付けの帯には**横断方向(減衰軸)の法がそのまま残る**ので、"
+                       "面の勾配で測ると立つ。⇒ 刈込の footprint を土手と揃えて覆うか、"
+                       "この帯を「端の勾配で見る」と定めるかは意匠の判断【庭方の裁定の条】"
+                       % (q["label"], q["batterOut"], cst8["batterFill"], q["batterEnd"]))
+    lim8 = d["const"].get("enroStepMax")
+    for q in o["enro"]:
+        if lim8 and q["stepMax"] >= lim8 - 1e-9 and q["stepAt"]:
+            out.append("**%s に設計されていない段 %.2fm**((%.2f, %.2f)・起点から %.1fm)— "
+                       "石段を切っていない区間なので、歩く人が躓く一段になる(上限 %.2fm)。"
+                       "⛔ 「1m 窓の最急」はこの短い落差を『段であって勾配ではない』として"
+                       "窓から落とすので、別の条で見る【庭方の裁定】"
+                       % (q["label"], q["stepMax"], q["stepAt"][0], q["stepAt"][1],
+                          q["stepAt"][2], lim8))
     for e, q in zip(g.get("enro", []), o["enro"]):
         stepG = e["keri"] / e["fumi"]
         if q["gradeWin"] > stepG * 100 + 1e-9:
@@ -7332,14 +7415,19 @@ def niwa_tsuki_table(d):
                      "%+.3f" % (t["batterReal"] - bf),
                      "%.1f m" % t["d"], "%+.2f°" % t["ang"], "⭕" if ok else "⚠"))
     for t in o.get("dote", []):
-        lim9 = d["const"]["doteBatterCovered"] if t["covered"] else bf
+        dc9 = d["const"]["doteBatterCovered"]
+        okIn = (not t["covered"]) or t["batterIn"] >= dc9 - 1e-9
+        okOut = t["batterOut"] >= bf - 1e-9
         rows.append(("<i>%s(土手)</i>" % t["label"], "+%.2f" % t["rise"], "—",
-                     "1:%.3f" % t["batterReal"], "%+.3f" % (t["batterReal"] - lim9),
+                     "覆われる 1:%.3f<br>覆われない 1:%.3f<br><span class='note'>"
+                     "摺り付けだけ 1:%.3f</span>"
+                     % (t["batterIn"], t["batterOut"], t["batterEnd"]),
+                     "覆 %+.3f<br>裸 %+.3f" % (t["batterIn"] - dc9, t["batterOut"] - bf),
                      "短辺 %.2f間 × 長辺 %.2f間" % (t["w"], t["L"]),
-                     "減衰軸 <code>%s</code>／%s／稜線の端の段 %.2fm" % (
-                         t["decay"], ("刈込が覆う(上限 1:%.1f)" % lim9) if t["covered"]
-                         else ("裸(上限 1:%.1f)" % lim9), t["endStep"]),
-                     "⭕" if t["batterReal"] >= lim9 - 1e-9 else "⚠"))
+                     "減衰軸 <code>%s</code>／摺り付け %s間／端の段 %.2fm／覆い=%s"
+                     % (t["decay"], ("%.2f" % t["taperEnds"]) if t["taperEnds"] else "<b>無</b>",
+                        t["endStep"], t["covered"] or "無"),
+                     "⭕" if (okIn and okOut) else "⚠"))
     return _tw(("築山", "頂(盛)", "法(公称)", "法(実測の最急)", "上限との差",
                 "主視点から", "仰角", "上限 1:%.1f" % bf), rows) + (
         "<p class='cap'>⚠ <b>実測の最急は 0.01間 刻みで u・v の両軸を走査した値</b>"
@@ -7349,7 +7437,9 @@ def niwa_tsuki_table(d):
         "⛔ <b>法は「その一基だけ」の面で測る</b>(<code>Niwa.mound_one</code>)— 全基の max で"
         "測ると<b>隣の盛土の斜面を自分の法として拾う</b>(蔵前の土手を短辺減衰へ直した途端、"
         "築山A1/A2/C の実測がいずれも土手の 1:0.85 に化けた)。"
-        "<br>⭐ <b>下の斜体2行は土手</b>で、上限は<b>2段</b>で見る【2026-09-04 庭方の裁定】 — "
+        "<br>⭐ <b>下の斜体2行は土手</b>で、法は <b>footprint の全周を2次元の勾配で測る</b>"
+        "(⛔ 減衰軸の一本線だけを走査しない — <b>稜線の端の摺り付けも法面</b>)。"
+        "上限は<b>2段</b>で見る【2026-09-04 庭方の裁定】 — "
         "①<b>裸の土手</b>(法面が露出する)は 1:%.1f【B】/ "
         "②<b>刈込の footprint が土手の footprint を覆う</b>土手は 1:%.1f【U・庭方】"
         "(根が張った法面は保つ。⛔ 台帳に直接の典拠は無い)/ "
@@ -7358,10 +7448,11 @@ def niwa_tsuki_table(d):
         "⛔ <b>露出する区間が少しでもあれば①で見る</b>(覆いは footprint の包含で判定)。"
         "⚠ 蔵前の土手は短辺を 0.95 → 1.15間 に広げ、刈込①の footprint を土手と同一にして"
         "②の帯へ入れた。⛔ 1:1.5 に収める案(短辺 1.69間)は御土蔵との犬走りを食うので採らない。"
-        "<br>⚠ <b>包含は「法面のある軸=減衰軸」で見る</b> — 土手の法は減衰軸にしか無く、"
-        "<b>稜線軸の両端は cos で落ちず垂直に切れている</b>(表の「稜線の端の段」)。"
-        "⛔ この段には上限を当てていない【確度?】 — <b>摺り付けるかどうかは庭方の判断</b>で、"
-        "当図は<b>測って刷るだけ</b>(⛔ 閾値を発明しない)。</p>"
+        "<br>⭐ <b>稜線の両端は `taperEnds` で cos に摺り付ける</b>(端の段=0.00m)。"
+        "⚠ 従前は端が垂直に切れており(蔵前 0.65m・東 0.35m)、"
+        "<b>東の土手の縁は主路の点#6 が踏む 0.23m の設計外の一段</b>になっていた。"
+        "⚠ <b>「摺り付けだけ」の行は稜線軸方向の勾配</b>で、庭方が「端の最急」と呼んだ値。"
+        "<b>面の勾配(覆われない)より緩く出る</b> — 摺り付けの帯には横断方向の法がそのまま残るため。</p>"
         % (bf, d["const"]["doteBatterCovered"], d["const"]["batterCut"]))
 
 

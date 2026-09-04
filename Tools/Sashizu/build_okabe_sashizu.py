@@ -5042,6 +5042,28 @@ def run_reaches_corner_check(d):
                 bad.append("辺%d の末尾 %s が隅まで %.3fm 届かず、そのうち **%.3fm が素通し**"
                            "(囲いの足跡がどれも覆っていない)。⛔ 丸めた値を s1 へ写さない"
                            % (e9, last["name"], L9 - last["s1"], miss9))
+        # ⭕ **辺長を越える s1(めり込み)は、隅を閉じるために要る分だけ許す。**
+        #   ⚠ 2026-09-04 棟梁 S1/S2 の② — `W_Hei_S2` の s1 が辺長を 0.200m 越えるのを
+        #   「はみ出し」と読まれた。⛔ **区画の外へは出ていない**(越境 0.000m)。
+        #   ⭕ 出隅では両側の run を隅の中へ食い込ませるのが作法(スキル §R4)で、
+        #   辺長ちょうどまで縮めると P4 に **0.096m の素通し**が開く。
+        #   ⛔ ただし「要らないめり込み」は許さない — 縮めても隅が閉じるなら鳴らす。
+        if last["s1"] - L9 > 0.02:
+            short = dict(last)
+            short["s1"] = L9
+            d2 = dict(d)
+            d2["runs"] = [short if r8 is last else r8 for r8 in d["runs"]]
+            # ⭕ 判定は**隅が面で重なったままか**(`perimeter_corner_check` と同じ基準)。
+            #   ⛔ 「線が覆われているか」では決まらない — 縮めた run 自身が線を覆うので恒真になる。
+            nb2 = [r8 for r8 in d["runs"] if r8["edge"] == (e9 + 1) % n9]
+            ov2 = 0.0
+            if nb2:
+                ov2 = _quad_overlap(_run_fp(d2, short),
+                                    _run_fp(d, min(nb2, key=lambda r8: r8["s0"])))
+            if ov2 > 1e-6:
+                bad.append("辺%d の末尾 %s の s1 が辺長を %.3fm 越えるが、"
+                           "辺長ちょうどでも隅は閉じる — **要らないめり込み**"
+                           % (e9, last["name"], last["s1"] - L9))
         first = min(rs, key=lambda r: r["s0"])
         if first["s0"] > 0.02:
             miss8 = _corner_gap_uncovered(d, e9, 0.0, first["s0"])
@@ -7700,6 +7722,7 @@ def shakkei_table(d):
 CHECK_LIST = [
     ("往復試験(剥がして組み直すと正典に戻るか)", lambda d, raw, ter: roundtrip_check(raw, pipeline)),
     ("区画の多角形が正典と同期しているか",       lambda d, raw, ter: parcel_sync_check(d)),
+    ("edges.len が polygon の辺長と一致するか",  lambda d, raw, ter: edges_len_check(d)),
     ("基壇と塀の据え位置(宣言した面と足跡)",     lambda d, raw, ter: kidan_check(d)),
     ("撒いた植栽(本数・区画の中・在庫の対応)",   lambda d, raw, ter: planting_check(d)),
     ("開口の幅が図の中で1つか(結界の門・木戸)", lambda d, raw, ter: gap_consistency_check(d)),
@@ -8118,7 +8141,12 @@ def kui_pts(d):
         return []
     gr = RGrid(d)
     wy = ts.get("waterY", 6.60)
-    pitch = (ku.get("pitchMin", 0.30) + ku.get("pitchMax", 0.40)) / 2.0
+    # ⛔ **芯々を等間隔にしない**(2026-09-04 棟梁 S1/S2 の⑤)。
+    #   従前は平均値ひとつで刻んでいたので、実測の芯々が 0.344〜0.352(幅 0.008)に揃い、
+    #   宣言した「不同不等」(`pitchMin`〜`pitchMax`)と食い違っていた。
+    #   ⭕ **1本ごとに種つきで振る** — 手で打った杭は間隔が揃わない。
+    pMin = ku.get("pitchMin", 0.30)
+    pMax = ku.get("pitchMax", 0.40)
     rnd = random.Random(ku.get("seed", 1856))
     nuki = (ku.get("nuki") or {})
     out, k9, carry = [], 0, 0.0
@@ -8140,19 +8168,45 @@ def kui_pts(d):
                         "neire": ku.get("neire", 1.2),
                         "tilt": ku.get("tilt", 5.0),
                         "nukiY": round(top - nuki.get("below", 0.35), 3)})
-            s9 += pitch
+            if len(out) >= 2:
+                px = out[-2]
+                out[-1]["pitch"] = round(math.hypot(
+                    (out[-1]["u"] - px["u"]) * d["const"]["ken"],
+                    (out[-1]["v"] - px["v"]) * d["const"]["ken"]), 4)
+            s9 += rnd.uniform(pMin, pMax)          # ⛔ 平均値で刻まない
         carry = s9 - seg
     return out
 
 
 def kui_check(d):
-    """**焼いた杭が算出した本数と合うか**。⛔ 割り付けが実装ごとに変わるのを許さない。"""
+    """**焼いた杭が算出した本数と合い、芯々が不同不等か**。
+
+    ⛔ 割り付けが実装ごとに変わるのを許さない。
+    ⛔ **等間隔も許さない**(2026-09-04 棟梁 S1/S2 の⑤)— 実測の芯々の幅が 0.008 しかなく、
+      宣言の `pitchMin`〜`pitchMax`(0.30〜0.40)の「不同不等」と食い違っていた。
+      手で打った杭は間隔が揃わない。⭕ **芯々の幅 ≥ 0.05** を要求する。"""
+    bad = []
+    pts = kui_pts(d)
     want = _kui_n(d)
-    got = len(kui_pts(d))
+    got = len(pts)
     if want and abs(got - want) > max(2, want * 0.02):
-        return ["汀の杭が %d 本(算出 %d 本)— 割り付けが宣言(`kuiretsu.pitchMin/Max`)と合わない"
-                % (got, want)]
-    return []
+        bad.append("汀の杭が %d 本(算出 %d 本)— 割り付けが宣言(`kuiretsu.pitchMin/Max`)と合わない"
+                   % (got, want))
+    ps = [q["pitch"] for q in pts if q.get("pitch") is not None]
+    if ps:
+        ku = (d.get("nishi") or {}).get("kuiretsu") or {}
+        spread = max(ps) - min(ps)
+        if spread < 0.05:
+            bad.append("汀の杭の芯々が %.3f〜%.3f(幅 **%.3f**)で**ほぼ等間隔** — "
+                       "宣言は %.2f〜%.2f の不同不等。⛔ 平均値で刻まない(種つきで振る)"
+                       % (min(ps), max(ps), spread,
+                          ku.get("pitchMin", 0), ku.get("pitchMax", 0)))
+        lo, hi = ku.get("pitchMin", 0.30), ku.get("pitchMax", 0.40)
+        out = [p for p in ps if p < lo - 0.005 or p > hi + 0.005]
+        if out:
+            bad.append("汀の杭の芯々が宣言の外へ %d 本(%.3f〜%.3f / 宣言 %.2f〜%.2f)"
+                       % (len(out), min(out), max(out), lo, hi))
+    return bad
 
 
 def _sha256(path):
@@ -8281,6 +8335,17 @@ def export_impl(d, ter):
         p2 = dict(q9)
         p2["world"] = [round(w9[0], 3), round(w9[1], 3)]
         kui.append(p2)
+    # ⭕ **汀線の折れ線**(2026-09-04 棟梁 S1/S2 の⑦)— 棟梁の算出物の検めが杭の合否に使う。
+    #   ⛔ 杭だけ渡して汀線を渡さないと、実装は「杭が汀に載っているか」を自分で測れない。
+    ml9 = migiwa_line(d)
+    mw9 = (ml9[0] if isinstance(ml9, tuple) else ml9) or []
+    mlen9 = (ml9[1] if isinstance(ml9, tuple) and len(ml9) > 1 else
+             sum(math.hypot(b8[0] - a8[0], b8[1] - a8[1])
+                 for a8, b8 in zip(mw9, mw9[1:])))
+    migiwa = {"world": [[round(p8[0], 3), round(p8[1], 3)] for p8 in mw9],
+              "len": round(mlen9, 3),
+              "waterY": (N9 := (d.get("nishi") or {})).get("tsutsumi", {}).get("waterY", 6.60),
+              "n": len(mw9)}
     out = collections.OrderedDict([
         ("of", "okabe_sashizu.json"),
         ("src", {"sha256": _sha256(JSON), "bytes": os.path.getsize(JSON)}),
@@ -8290,10 +8355,11 @@ def export_impl(d, ter):
         ("graded", {"x0": float(x0), "z0": float(z0), "step": step,
                     "nx": nx, "nz": nz, "holes": holes, "h": H}),
         ("rails", rails), ("corners", corners), ("base", base),
-        ("planting", plant), ("kui", kui)])
+        ("planting", plant), ("kui", kui), ("migiwa", migiwa)])
     json.dump(out, open(IMPL_OUT, "w", encoding="utf-8"), ensure_ascii=False)
     return {"cells": cells, "holes": holes, "rails": len(rails), "corners": len(corners),
-            "base": len(base), "planting": len(plant), "kui": len(kui)}
+            "base": len(base), "planting": len(plant), "kui": len(kui),
+            "migiwa": len(mw9), "migiwaLen": mlen9}
 
 
 def impl_fresh_check(d):
@@ -11200,6 +11266,7 @@ GEN_PATHS = [
     #   剥がすと組み直せない。⭕ 脚長と勾配の欄だけは毎回引き直している。
 
     "gardens.*.mizu.gensen.chokusetsu.m2",
+    "edges.*.len",                      # ⭕ 2026-09-04: polygon からの派生(棟梁 S1/S2 の①)
 ]
 
 
@@ -11888,10 +11955,42 @@ def fix_ramps(x):
     return x
 
 
+def fix_edges(x):
+    """**`edges[].len` を polygon の実長から毎回引き直す**(2026-09-04 棟梁 S1/S2 の①)。
+
+    ⛔ 従前は人が書いた値が残り、区画を `parcels.json` へ同期した後も焼き直されず、
+      辺1 +0.081 / 辺2 +0.830 / 辺3 −0.690 の食い違いを抱えたまま12巡通っていた。
+    ⭕ **区画が動けば辺長も動く** — 派生値は pipeline が持つ(CLAUDE.md 規則4)。"""
+    P9 = x["polygon"]
+    n9 = len(P9)
+    for i9, e9 in enumerate(x.get("edges", [])):
+        a9, b9 = P9[i9 % n9], P9[(i9 + 1) % n9]
+        e9["len"] = round(math.hypot(b9[0] - a9[0], b9[1] - a9[1]), 3)
+    return x
+
+
+def edges_len_check(d):
+    """**`edges[].len` が polygon の辺長と一致するか**(2026-09-04 棟梁 S1/S2 の①)。
+
+    ⛔ pipeline が引き直すので普段は鳴らない — **引き直しを外した瞬間に鳴る**ための番人。"""
+    bad = []
+    P9 = d["polygon"]
+    n9 = len(P9)
+    for i9, e9 in enumerate(d.get("edges", [])):
+        a9, b9 = P9[i9 % n9], P9[(i9 + 1) % n9]
+        L9 = math.hypot(b9[0] - a9[0], b9[1] - a9[1])
+        if abs(e9.get("len", 0) - L9) > 0.002:
+            bad.append("辺%d の `len` %.3f が polygon の実長 %.3f と %+.3fm 食い違う — "
+                       "派生値の焼き直し漏れ(⛔ 人が書かない)"
+                       % (i9, e9.get("len", 0), L9, e9.get("len", 0) - L9))
+    return bad
+
+
 def pipeline(x):
     """算出値を正典へ書き戻す一連のパス。**ここが唯一の定義**(土井 build_doi_sashizu.py の作法)。
     ⛔ 往復試験の台本に**同じ手順の写し**を持たせない — 生成器にパスを足したとき、
       台本だけが古いままになって偽の不一致を出す(2026-08-25 土井 検図14巡)。"""
+    x = fix_edges(x)
     x = fix_gate_runs(x)
     x = fix_terrace_walls(x)
     x = fix_nishi(x)
@@ -12888,9 +12987,9 @@ def main_export_impl():
     st = export_impl(d, ter9)
     print("wrote %s (%.0f KB)" % (IMPL_OUT, os.path.getsize(IMPL_OUT) / 1024))
     print("  graded セル %d(区画の中の穴 %d)/ rails %d / corners %d / base %d "
-          "/ planting %d / kui %d"
+          "/ planting %d / kui %d / migiwa %d点 %.1fm"
           % (st["cells"], st["holes"], st["rails"], st["corners"], st["base"],
-             st["planting"], st["kui"]))
+             st["planting"], st["kui"], st["migiwa"], st["migiwaLen"]))
     print("  src.sha256 = %s" % _sha256(JSON))
 
 

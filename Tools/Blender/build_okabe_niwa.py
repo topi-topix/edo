@@ -432,8 +432,10 @@ def yotsume(h=1.2, name=None):
     xs = [a0 + KEN * (k + 1) / (ntate + 1.0) for k in range(ntate)]
     for k, x in enumerate(xs):
         t.pole((x, 0, -0.06), (x, 0, h), R_TATEKO, U_TATEKO[k % 4], V_TATEKO, SEG_TATEKO)
-    # 胴縁(見え面側へ出す = Blender −Y)。h1.2 で4段・h0.9 で3段
-    nrow = 4 if h >= 1.05 else 3
+    # 胴縁(見え面側へ出す = Blender −Y)。h1.2 で4段・h0.9 で3段・h0.6 で2段
+    # ⚠ 段数を丈に比例させないと、低い垣で胴縁が詰まって**建仁寺垣のように塞がって見える**。
+    #   h0.6 で3段だと芯々 0.18 になり、視軸の窓の足元が抜けない(`nishi.mado.railH`)。
+    nrow = 4 if h >= 1.05 else (3 if h >= 0.75 else 2)
     zs = [h - 0.06 - (h - 0.24) * k / float(nrow - 1) for k in range(nrow)]
     for k, z in enumerate(zs):
         t.pole((a0, FACE, z), (a1, FACE, z), R_DOEN, U_DOEN[k % 4], V_DOEN, SEG_DOEN)
@@ -656,7 +658,9 @@ def main():
                 V.reset(); o, n = rangui(d); _emit(o, n, "%s%.3f" % (key, d), do_render)
         elif key in ("yotsume", "kenninji"):
             fn, fp = (yotsume, yotsume_post) if key == "yotsume" else (kenninji, kenninji_post)
-            hs = (1.2, 0.9) if key == "yotsume" else (1.5,)
+            # ⚠ **0.6 は `nishi.mado.railH`(視軸の区間 u−0.92〜2.92・庭方 K210)**。
+            #   竹垣 h0.9 は床几の視線を切る(余裕 −0.08m)ので、その区間だけ 0.6 に落とす
+            hs = (1.2, 0.9, 0.6) if key == "yotsume" else (1.5,)
             for h in hs:
                 V.reset(); o, n = fn(h); _emit(o, n, "%s%.1f" % (key, h), do_render)
                 V.reset(); o, n = fp(h); _emit(o, n, "%s%.1f_post" % (key, h), do_render)

@@ -1011,10 +1011,15 @@ public static class EdoAssets
         /// ⛔ **`SeatBottom` で据えない** — 根入れ 0.150 が Y&lt;0 に出ているので 0.15 浮く。
         /// `position.y = 地盤` を直に入れる。</para>
         ///
-        /// <para><paramref name="h"/> = 1.2(井戸囲い `mizu.gensen.idoKaki` / 帯の井戸)または
-        /// 0.9(稲荷の垣 `yashiro.kaki`)。実寸:
-        /// h1.2 → 1.818 × <b>1.350</b> × 0.087(Y −0.150..1.200)/
-        /// h0.9 → 1.818 × <b>1.050</b> × 0.087(Y −0.150..0.900)。</para>
+        /// <para><paramref name="h"/> = 1.2(井戸囲い `mizu.gensen.idoKaki` / 帯の井戸)/
+        /// 0.9(稲荷の垣 `yashiro.kaki`)/ <b>0.6</b>(**視軸の区間** `nishi.mado.railH`・
+        /// 法肩の u−0.92〜2.92。竹垣 h0.9 は床几の視線を切る(余裕 −0.08m)ので、
+        /// その区間だけ落とす — 2026-09-03 庭方 K210)。実寸:
+        /// h1.2 → 1.818 × <b>1.350</b> × 0.087(Y −0.150..1.200・胴縁4段)/
+        /// h0.9 → 1.818 × <b>1.050</b> × 0.087(Y −0.150..0.900・胴縁3段)/
+        /// h0.6 → 1.818 × <b>0.750</b> × 0.087(Y −0.150..0.600・<b>胴縁2段</b>)。
+        /// ⚠ **段数は丈で変える** — h0.6 で3段にすると芯々 0.18 で詰まり、
+        /// 建仁寺垣のように塞がって見えて**窓の足元が抜けない**。</para>
         /// 生成: blender --background --python Tools/Blender/build_okabe_niwa.py -- yotsume</summary>
         public static string YotsumeGaki(float h)
         { return NiwaDir + "YotsumeGaki_" + h.ToString("0.0") + ".fbx"; }

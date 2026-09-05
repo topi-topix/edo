@@ -1639,22 +1639,48 @@ public static class EdoOkabeYashikiBuilder
                        + (key ?? "(asset の指定なし)"));
                 continue;
             }
-            // ⚠ **表長屋の部材はピボットの規約が違う**(走りの中心・土台の底・**壁の外面**)。
-            //   足跡の中心へ置くと梁間の半分ずれる。⛔ どちらの面を外にするかは指図が持たない。
-            if (key.Contains("NagayaOmote"))
+            // ⭕ **`face` が外を向く面を決める**(2026-09-06 指図方)。u+/u-/v+/v-。
+            //   ⛔ 棟の芯に置かない — 部材のピボットが**壁の外面**なら、その面の線の上に置く。
+            string face = Has(s2, "face") ? S(s2["face"]) : null;
+            bool wallPivot = key.Contains("NagayaOmote");   // ピボット = 走りの中心・土台の底・壁の外面
+            if (wallPivot && face == null)
             {
                 pivotOdd++;
                 wait.Add("家臣長屋 " + nm + "(" + S(s2["label"]) + "): 部材 " + key
-                       + " は**ピボットが壁の外面**(走りの中心・土台の底)で、足跡の中心ではない。"
-                       + "⛔ **どちらの面を外に向けるか**が指図に無いので据えない — "
-                       + "外周の長屋と違い自立の棟なので、向きは納めの判断(指図方・庭方へ)");
+                       + " は**ピボットが壁の外面**。⛔ `service[].face` が無いので据えない");
                 continue;
             }
-            float xu, xv; string nt;
-            OrientOf(key, du, dv, out xu, out xv, out nt);
-            float yaw = YawTo(xu, xv);
-            Vector2 c = f.W((u0 + u1) * 0.5f, (v0 + v1) * 0.5f);
-            if (PlaceBox(grp, nm, path, c, F(s2["y"]), du, dv, yaw, wait)) made++;
+            float yaw; Vector2 c;
+            if (face != null)
+            {
+                // 外を向く向き(グリッド)と、その面の線の上の点
+                float ou = face == "u+" ? 1f : face == "u-" ? -1f : 0f;
+                float ov = face == "v+" ? 1f : face == "v-" ? -1f : 0f;
+                if (ou == 0f && ov == 0f)
+                { wait.Add("附属屋 " + nm + ": face が知らない値 \"" + face + "\" — u+/u-/v+/v- のどれか"); continue; }
+                Vector2 ow = (f.W(ou, ov) - f.W(0f, 0f)).normalized;
+                yaw = Mathf.Atan2(ow.x, ow.y) * Mathf.Rad2Deg;      // ⭕ 部材の +Z(見え面)を外へ
+                // ⭕ 壁の外面がピボットの部材は**その面の線の上**、そうでなければ足跡の中心
+                float pu = wallPivot ? (ou > 0f ? u1 : ou < 0f ? u0 : (u0 + u1) * 0.5f) : (u0 + u1) * 0.5f;
+                float pv = wallPivot ? (ov > 0f ? v1 : ov < 0f ? v0 : (v0 + v1) * 0.5f) : (v0 + v1) * 0.5f;
+                c = f.W(pu, pv);
+            }
+            else
+            {
+                float xu, xv; string nt;
+                OrientOf(key, du, dv, out xu, out xv, out nt);
+                yaw = YawTo(xu, xv);
+                c = f.W((u0 + u1) * 0.5f, (v0 + v1) * 0.5f);
+            }
+            if (wallPivot)
+            {
+                // ⛔ 足跡の照合(PlaceBox)は中心前提なので使わない。ピボットは壁の外面・土台の底
+                var go2 = EdoBuild.Place(path, new Vector3(c.x, F(s2["y"]), c.y), yaw, Vector3.one, grp, nm);
+                if (go2 == null) { wait.Add("附属屋 " + nm + ": 据えられない " + path); continue; }
+                EdoBuild.SeatBottom(go2, F(s2["y"]) - 0.10f);
+                made++;
+            }
+            else if (PlaceBox(grp, nm, path, c, F(s2["y"]), du, dv, yaw, wait)) made++;
         }
         var sb = new System.Text.StringBuilder("附属屋: " + made + " 棟据えた");
         if (noAsset > 0) sb.Append(" / " + noAsset + " 棟は部材が引けない");
@@ -1720,52 +1746,44 @@ public static class EdoOkabeYashikiBuilder
             if (gap != null)
             {
                 string ax = S(Get(gap, "axis"));
-                float g0 = F(Get(gap, "from")), g1 = F(Get(gap, "to"));
+                // ⭕ **開口は『駒の実寸』で割る**(2026-09-06 指図方)。⛔ 開口の縁で割らない —
+                //   棟門は屋根と控柱があり、開口 2.727 に対し実寸 4.627 と 1.9m も違う。
+                //   ⭕ 位置は指図の `fromFit`/`toFit`(`fitShift` を織り込み済み)の中点。
+                float g0 = Has(gap, "fromFit") ? F(gap["fromFit"]) : F(Get(gap, "from"));
+                float g1 = Has(gap, "toFit")   ? F(gap["toFit"])   : F(Get(gap, "to"));
                 float p0 = ax == "u" ? au : avv, p1 = ax == "u" ? bu : bvv;
-                float declKen = Mathf.Abs(g1 - g0);                    // from/to から出る開口[間]
-                float wantKen = Has(gap, "wKen") ? F(gap["wKen"]) : declKen;  // 指図が幅を持つならそれ
+                float declKen = Mathf.Abs(g1 - g0);
                 if (Mathf.Abs(p1 - p0) > 1e-6f)
                 {
                     float t0 = Mathf.Clamp01((g0 - p0) / (p1 - p0)), t1 = Mathf.Clamp01((g1 - p0) / (p1 - p0));
                     float tc = (t0 + t1) * 0.5f;
-                    // ⛔ **指図の中で幅が食い違うなら据えない**(2026-09-04 部材方の申し送り:
-                    //    W6 は from/to の差 3.00間 / 文言 1.6間 / 塀の実長からの口 1.85間 の三つ巴)
-                    if (Mathf.Abs(declKen - wantKen) > 0.01f)
-                    {
-                        wait.Add("結界 " + nm + " の開口は**指図の中で幅が食い違う** — from/to の差 "
-                               + declKen.ToString("0.##") + "間 / 宣言 " + wantKen.ToString("0.##")
-                               + "間。⛔ 一つに揃うまで木戸を据えない(塀の run もその幅で動く)");
-                    }
+                    bool isMon = S(Get(gap, "kind")) == "中門";
+                    string gk = Has(gap, "asset") ? S(gap["asset"]) : (isMon ? "Own.Munamon" : "Own.Kido");
+                    float wM = Mathf.Round(declKen * ken * 100f) / 100f;      // 開口の呼び[m]
+                    string gpath = AssetByKey(gk, wM, 0f);
+                    // ⭕ 駒の実寸は `const.parts` が持つ(部材方の実測)。⛔ 当て推量しない
+                    string partKey = gpath == null ? null : System.IO.Path.GetFileNameWithoutExtension(gpath);
+                    var parts = O(Get(O(D["const"]), "parts"));
+                    float realW = (parts != null && partKey != null && Has(parts, partKey))
+                                ? F(parts[partKey]) : 0f;
+                    Vector2 gc = f.W(Mathf.Lerp(au, bu, tc), Mathf.Lerp(avv, bvv, tc));
+                    float gy = Graded.At(gc.x, gc.y); if (float.IsNaN(gy)) gy = EdoBuild.Ground(gc.x, gc.y);
+                    if (gpath == null || AssetDatabase.LoadAssetAtPath<GameObject>(gpath) == null)
+                        missing.Add(nm + " の" + (isMon ? "中門" : "木戸") + " " + wM.ToString("0.##") + "m");
                     else
                     {
-                        // 木戸(中門は棟門)。呼び寸法は**開口の m**
-                        bool isMon = S(Get(gap, "kind")) == "中門";
-                        string gk = Has(gap, "asset") ? S(gap["asset"]) : (isMon ? "Own.Munamon" : "Own.Kido");
-                        float wM = Mathf.Round(wantKen * ken * 100f) / 100f;
-                        string gpath = AssetByKey(gk, wM, 0f);
-                        Vector2 gc = f.W(Mathf.Lerp(au, bu, tc), Mathf.Lerp(avv, bvv, tc));
-                        float gy = Graded.At(gc.x, gc.y); if (float.IsNaN(gy)) gy = EdoBuild.Ground(gc.x, gc.y);
-                        if (gpath == null || AssetDatabase.LoadAssetAtPath<GameObject>(gpath) == null)
-                        {
-                            missing.Add(nm + " の" + (isMon ? "中門" : "木戸") + " " + wM.ToString("0.##") + "m");
-                        }
-                        else
-                        {
-                            var gg = EdoBuild.Place(gpath, new Vector3(gc.x, gy, gc.y), yaw, Vector3.one,
-                                                    grp, nm + "_Kido");
-                            if (gg != null)
-                            {
-                                gates++;
-                                // ⭕ **実メッシュの走り方向の幅**で塀を切る(呼び寸法ではない)
-                                float gw2, gd2; ObbWD(gg, out gw2, out gd2);   // ⭕ OBB(ローカル +X = 開口の走り)
-                                float realW = gw2;
-                                float halfT = (realW / ken) * 0.5f / lenKen;
-                                cuts.Add(new float[] { tc - halfT, tc + halfT });
-                            }
-                        }
-                        if (cuts.Count == 0)   // 木戸が据わらなくても口は空ける
-                            cuts.Add(new float[] { Mathf.Min(t0, t1), Mathf.Max(t0, t1) });
+                        var gg = EdoBuild.Place(gpath, new Vector3(gc.x, gy, gc.y), yaw, Vector3.one,
+                                                grp, nm + "_Kido");
+                        if (gg != null) gates++;
                     }
+                    if (realW <= 0f)
+                    {
+                        wait.Add("結界 " + nm + ": 開口の駒の実寸が `const.parts` に無い(" + (partKey ?? "?")
+                               + ")— 開口の呼び " + wM.ToString("0.##") + "m で割った(⛔ 当て推量)");
+                        realW = wM;
+                    }
+                    float halfT = (realW / ken) * 0.5f / lenKen;
+                    cuts.Add(new float[] { tc - halfT, tc + halfT });
                 }
             }
 

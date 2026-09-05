@@ -5013,7 +5013,12 @@ def free_fn(d):
     """`free(u, v, clr)` — その点に木を立ててよいか。clr は層ごとの上乗せ[間]。
 
     ⛔ 中心どうしの距離では見ない。**退避は物の外形から測る**(規則5と同じ考え方)。
-    戻り値は当たった物の名(当たらなければ None)— どれに載ったかを検査が言えるように。"""
+    戻り値は当たった物の名(当たらなければ None)— どれに載ったかを検査が言えるように。
+    ⭐ **点景の群の外接半径**(`tenkei[].spread`[間])— 高木・中木・低木の退避へ足す
+      (`keepout.tenkei` + `spread`)。⛔ **下草は据え置き**(石組の際まで下草は入ってよい)
+      【2026-09-04・庭方】。⛔ ここで数値を作らない — `spread` は指図の従属値。"""
+    tkSpread = {("点景 " + t["name"]): float(t.get("spread", 0.0))
+                for t in d.get("tenkei", []) if "u" in t and "pts" not in t and "a" not in t}
     shapes = []
     for kind, g, mg, nm, kk in keepout_shapes(d):
         if kind == "rect":
@@ -5026,7 +5031,7 @@ def free_fn(d):
         else:
             bb = (min(q[0] for q in g), min(q[1] for q in g),
                   max(q[0] for q in g), max(q[1] for q in g))
-        shapes.append((kind, g, mg, nm, bb, kk))
+        shapes.append((kind, g, mg, nm, bb, kk, tkSpread.get(nm, 0.0)))
     P = d["polygon"]
     gr = RGrid(d)
     par = d["plantRule"]["keepout"]["parcel"]
@@ -5080,7 +5085,7 @@ def free_fn(d):
         if role in crole and crownR:
             addC = (float(crownR) - clr) if cmode == "max" else float(crownR)
             addC = max(0.0, addC)
-        for kind, g, mg, nm, bb, kk in shapes:
+        for kind, g, mg, nm, bb, kk, spr in shapes:
             if skip and any(x in nm for x in skip):
                 continue
             # ⭐ **その欄が効く役が決まっているなら、外の役には掛けない**
@@ -5103,7 +5108,7 @@ def free_fn(d):
                 cr9 = float(capR if capR is not None else crownR)
                 r = max(base, cr9) if capCrown else base
             else:
-                r = base + clr + addC
+                r = base + clr + addC + (spr if role != "下草" else 0.0)
             if u < bb[0] - r or u > bb[2] + r or v < bb[1] - r or v > bb[3] + r:
                 continue                                    # 大まかな箱で先に落とす
             if kind == "rect":
@@ -8651,26 +8656,52 @@ def tsukiyama_do_table(d, dem, stats):
             "<th class='note'>出どころ・行き先</th></tr></thead><tbody>%s</tbody></table></div>" % rows)
 
 
+def _gogan_exclude_gap(d):
+    """**吐き口の岩組(岩屋)が占める汀線区間**[0始まりの頂点index, 幅[m]] を返す(無ければ None)。
+    ⛔ **値を二重で持たない** — 幅は `tenkei[T_Iwagumi_Iwaya].atShore.spanMax` の従属値
+      (護岸の帯の走査から見て『goganGap』)【2026-09-06】。"""
+    tk = {t["name"]: t for t in d.get("tenkei", [])}.get("T_Iwagumi_Iwaya")
+    atsh = (tk or {}).get("atShore")
+    if not atsh:
+        return None
+    return int(atsh["shore"]) - 1, float(atsh["spanMax"])
+
+
 def gogan_bands(d):
     """護岸の区間ごとの実寸。→ [{where, L[m], 石数, 天端の標高, 水面上の見え面}]
 
     ⭐ **B案(2026-09-01 改)で天端は `bands[].topAbove` の設計値**になった
       (= 水面からの高さ)。⛔ 石の丈から導かない・⛔ 独立乱数で振らない。
     ⭐ 芯々は**天端石**の長軸で取る(根石は下段で隠れる)。
-    ⚠ `bands[].from/to` は汀線 `pond.outline` の**1始まりの番号**で、環をその向きに辿った区間。"""
+    ⚠ `bands[].from/to` は汀線 `pond.outline` の**1始まりの番号**で、環をその向きに辿った区間。
+    ⭐ **2026-09-06 `goganGap`** — 吐き口の岩組(岩屋)が占める区間は常石を置かない
+      (`_gogan_exclude_gap`)。石数は**その分を引いた実効長 `effL`** から出す。"""
     ks = d.get("sensui")
     if not ks:
         return []
     go, po = ks["gogan"], [tuple(p) for p in ks["pond"]["outline"]]
     K, n = d["const"]["ken"], len(po)
     wy = float(ks["pond"]["waterY"])
+    exgap = _gogan_exclude_gap(d)
     out = []
     for bd in go["bands"]:
         i, j, L = int(bd["from"]) - 1, int(bd["to"]) - 1, 0.0
+        gap_pos = None
+        if exgap and i == exgap[0]:
+            gap_pos = 0.0
         while i != j:
             i2 = (i + 1) % n
             L += math.hypot(po[i2][0] - po[i][0], po[i2][1] - po[i][1]) * K
             i = i2
+            if exgap and i == exgap[0]:
+                gap_pos = L
+        gap = None
+        effL = L
+        if gap_pos is not None:
+            lo9 = max(0.0, gap_pos - exgap[1])
+            hi9 = min(L, gap_pos + exgap[1])
+            gap = (lo9, hi9)
+            effL = L - (hi9 - lo9)
         ya = bd.get("yakuishi")
         ev = int(bd.get("yakuEvery") or 0)
         tb = bd["tenbaishi"]
@@ -8681,8 +8712,9 @@ def gogan_bands(d):
         rows = [("常石", bd["neishi"], tb, bd["topAbove"])]
         if ya:
             rows.append(("役石", bd["neishi"], ya, bd.get("yakuTopAbove") or bd["topAbove"]))
-        out.append({"where": bd["where"], "L": L, "seatY": float(bd["seatY"]),
-                    "n": int(round(L / pitch)), "pitch": pitch, "rows": rows,
+        out.append({"where": bd["where"], "L": L, "effL": effL, "gap": gap,
+                    "seatY": float(bd["seatY"]),
+                    "n": int(round(effL / pitch)) if pitch > 0 else 0, "pitch": pitch, "rows": rows,
                     "long": tb, "yaku": ya, "every": ev,
                     "wall": [(wy + t[0] - float(bd["seatY"]), wy + t[1] - float(bd["seatY"]))
                              for (_k, _ne, _tb, t) in rows],
@@ -8752,6 +8784,10 @@ def gogan_check(d):
             if tp[0] < lo - 1e-3 or tp[1] > hi + 1e-3:
                 bad.append("護岸 %s の%s: 天端 %.3f〜%.3fm が `topCheck` の帯 %.2f〜%.2fm を外れる"
                            % (b["where"], kd, tp[0], tp[1], lo, hi))
+        # ⭐ **goganGap**(2026-09-06)— 岩屋の区間を引いた実効長が尽きていないか
+        if b.get("gap") is not None and b["effL"] <= 1e-6:
+            bad.append("護岸『%s』の goganGap 除外幅(岩屋)が帯の全長 %.2fm を超える — 常石が1個も置けない"
+                       % (b["where"], b["L"]))
     return bad
 
 
@@ -8780,16 +8816,26 @@ def gogan_table(d):
                         ("%.2f m" % b["seatY"]) if b["seatY"] is not None else "—",
                         ("%.2f〜%.2f m" % (tp[0], tp[1])) if tp[0] is not None else "—",
                         ("+%.2f〜+%.2f m" % (sh[0], sh[1])) if sh[0] is not None else "—"))
+    exgap = _gogan_exclude_gap(d)
+    gapNote = ""
+    if exgap:
+        gapb = [b for b in bs if b.get("gap")]
+        if gapb:
+            gapNote = ("⛔ <b>goganGap</b> — 汀線 #%d(吐き口の岩組)前後 ±%.2fm は常石を置かない"
+                       "(<code>tenkei[T_Iwagumi_Iwaya].atShore.spanMax</code> の従属値。"
+                       "石数はこの分を引いた実効長 <code>effL</code> から出す)。<br>"
+                       % (exgap[0] + 1, exgap[1]))
     note = ("<p class='cap'>⭐ <b>天端は設計値</b>(<code>bands[].topAbove</code> = 水面 %.2fm からの高さ)。"
             "⛔ 石の丈から導かない・⛔ <code>topJitter</code> の独立乱数は使わない。<br>"
             "⭐ <b>据え付け面 <code>seatY</code>(汀の棚)から 1/3(<code>bury</code> %.4f)が埋まる</b> — "
             "⛔ A案の『枯池の床から』は廃止。据え付け位置は <code>seatRule</code>「%s」。<br>"
-            "石数は <code>L ÷(天端石の平均の長軸 × gapRatio %.2f)</code>の導出値 — "
+            "%s"
+            "石数は <code>effL ÷(天端石の平均の長軸 × gapRatio %.2f)</code>の導出値 — "
             "<b>合計 %d 個</b>(立石を含む)。"
             "検査 <code>gogan_check</code> は①天端 ∈ <code>topCheck</code> %.2f〜%.2fm "
             "②水面上の見え面 ≥ <code>showMin</code> %.2fm "
             "③石の長軸が発掘の寸法帯(常石 1.20 / 役石 1.50m)を超えないこと、の三本立て。</p>"
-            % (wy, float(go["bury"]), go.get("seatRule", ""), float(go["gapRatio"]), tot,
+            % (wy, float(go["bury"]), go.get("seatRule", ""), gapNote, float(go["gapRatio"]), tot,
                go["topCheck"][0], go["topCheck"][1], float(go.get("showMin") or 0)))
     return ('<div class="tw"><table><thead><tr><th>区間</th><th>石</th><th>延長</th>'
             "<th>石数</th><th>根石の長軸</th><th>天端石の長軸</th><th>据え付け面</th>"
@@ -9665,11 +9711,42 @@ def niwa_stone_check(d):
     def to_shore(p):
         return min(_seg_dist(p, ring[i], ring[i + 1]) for i in range(len(ring) - 1))
 
-    # ── 三石が水へ入らないか(庭方 決定5・決定12)
+    # ── 三石が水へ入らないか(庭方 決定5・決定12)/ 岩屋の六石は逆向き(atShore・2026-09-06)
     for t in d.get("tenkei", []):
         if not t.get("stones"):
             continue
-        clr = float(t.get("shoreClr", 0.30)) / ES        # [間]
+        atsh = t.get("atShore")
+        if atsh:
+            # ⭐ **逆向きの条件**(汀に寄せる・天端は帯の中・水受石だけが水中)
+            #   【庭方 2026-09-04 第11次のあと 設計1】。⛔ `shoreClr` の『離れる』条件とは向きが逆
+            idx = int(atsh["shore"]) - 1
+            if not (0 <= idx < len(shore)):
+                bad.append("%s の atShore.shore #%d が汀線の範囲外(1〜%d)"
+                           % (t["name"], int(atsh["shore"]), len(shore)))
+                continue
+            anchor = shore[idx]
+            span_max = float(atsh["spanMax"])            # [m]
+            lo, hi = float(atsh["topBand"][0]), float(atsh["topBand"][1])
+            in_water = []
+            for st in t["stones"]:
+                u = float(st.get("u", t["u"]))
+                v = float(st.get("v", t["v"]))
+                d_anchor = math.hypot(u - anchor[0], v - anchor[1]) * ES   # [m]
+                if d_anchor > span_max + 1e-6:
+                    bad.append("%s の %s が汀線 #%d から離れすぎ — 芯 %.2fm(上限 %.2fm)"
+                               % (t["name"], st.get("name", "?"), int(atsh["shore"]),
+                                  d_anchor, span_max))
+                top = float(st.get("bedY", 0.0)) + float(st.get("show", 0.0))
+                if not (lo - 1e-6 <= top <= hi + 1e-6):
+                    bad.append("%s の %s の天端 %.2fm が帯 %.2f〜%.2fm を外れる"
+                               % (t["name"], st.get("name", "?"), top, lo, hi))
+                if _pip_world((u, v), shore):
+                    in_water.append(st.get("name", "?"))
+            if len(in_water) != 1 or in_water[0] != "水受石":
+                bad.append("%s は水に立つ石が %s — ⛔ 水受石ただ1つのはず"
+                           % (t["name"], "、".join(in_water) if in_water else "0個"))
+            continue
+        clr = float(t.get("shoreClr") if t.get("shoreClr") is not None else 0.30) / ES  # [間]
         for st in t["stones"]:
             # ⚠ `stones[]` は**絶対座標**(代表点からの差分ではない)
             u = float(st.get("u", t["u"]))
@@ -12196,15 +12273,20 @@ def draw_sensui(d, g, P, pr, poly, lb=None, gogan=True):
                 walk.append((po[i], po[i2]))
                 i = i2
             acc = 0.0
+            base9 = 0.0
+            gap9 = b.get("gap")
             for (a2, b2) in walk:
                 L = math.hypot(b2[0] - a2[0], b2[1] - a2[1]) * d["const"]["ken"]
                 while acc < L:
                     t = acc / L
-                    x, y = P(a2[0] + (b2[0] - a2[0]) * t, a2[1] + (b2[1] - a2[1]) * t)
-                    g.append('<circle cx="%.1f" cy="%.1f" r="%.2f" fill="#8f8a6e" '
-                             'opacity="0.9"/>' % (x, y, max(1.0, rr)))
+                    # ⭐ **goganGap**(2026-09-06)— 岩屋の区間には常石を置かない
+                    if not (gap9 and gap9[0] - 1e-6 <= base9 + acc <= gap9[1] + 1e-6):
+                        x, y = P(a2[0] + (b2[0] - a2[0]) * t, a2[1] + (b2[1] - a2[1]) * t)
+                        g.append('<circle cx="%.1f" cy="%.1f" r="%.2f" fill="#8f8a6e" '
+                                 'opacity="0.9"/>' % (x, y, max(1.0, rr)))
                     acc += b["pitch"]
                 acc -= L
+                base9 += L
     for i, (a, b) in enumerate(po, 1):
         x, y = P(a, b)
         g.append('<circle cx="%.1f" cy="%.1f" r="1.6" fill="#3f6a80"/>' % (x, y))

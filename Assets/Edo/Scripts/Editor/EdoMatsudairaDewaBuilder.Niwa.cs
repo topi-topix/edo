@@ -334,7 +334,7 @@ public static partial class EdoMatsudairaDewaBuilder
         int nGogan = 0; var gsub = Group("Niwa/Ishigumi/Gogan");
         foreach (var bo in A(gogan["bands"]))
         {
-            var b = O(bo); int i0 = Convert.ToInt32(b["from"]), i1 = Convert.ToInt32(b["to"]);
+            var b = O(bo); int i0 = Convert.ToInt32(b["from"]) - 1, i1 = Convert.ToInt32(b["to"]) - 1;   // ⚠ 指図の from/to は汀線の番号 #(1始まり)。生成器 gogan_bands() と同じく −1(2026-09-06 検図 第13次 中1)
             var tb = A(b["tenbaishi"]); float sMin = F(tb[0]), sMax = F(tb[1]);       // 天端石の長さ帯
             var ta = A(b["topAbove"]); float aMin = F(ta[0]), aMax = F(ta[1]);        // 天端 = 水面 + この帯
             float gap = HasKey(gogan, "gapRatio") ? F(gogan["gapRatio"]) : 0.78f;

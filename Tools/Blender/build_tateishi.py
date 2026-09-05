@@ -84,6 +84,36 @@
   ・⭕ 稜の丸めは**割れ肌ノイズ(`add_crack_noise`)より先に**やる。ノイズを先に
     掛けると細分後のほぼ全辺が非ゼロの角度を持ってしまい、角度しきい値で
     「本当の粗い facet 境」だけを拾えなくなる(割れ肌まで丸めてつぶれた石になる)。
+
+【2026-09-06 UV直し(形は無変更)】普請奉行差し戻し: `tateishi_L2_front_closeup.png` の
+  頭の帯(上端から10〜15%・肩リング〜割れ面)で正面近景に縦縞・縦流れ。
+  ⛔ **原因は「頭=cap相当」を一括りに (x,y) 平面投影していたこと** — ではなく
+  試行錯誤の結果、**もっと根が深いと判明した**:
+    1回目の疑い(不採用): (x,y) 平面投影だと複数の割れ面が apex 付近の狭い範囲へ
+    重なって収束するから、と考えて「側面の円筒投影をそのまま上へ延長」(周方向 u は
+    既存の頂点レイヤー `uparam`、鉛直方向 v は新設の頂点レイヤー `vparam`)に
+    差し替えたが、**レンダで確認すると縞は消えなかった**(むしろ放射状に悪化)。
+  ⛔⛔ **真因**: `uparam`/`vparam` は**頂点**レイヤー — 1個の頂点には1つの値しか
+    持てない。ところが頭の割れ面は m=11 方向すべてのウェッジ(肩リングの隣接2点+
+    apex_v の細い扇形三角形)が **同じ apex_v 1点を共有**している。その1点に
+    「apex の u」を1つだけ書くと、周方向に大きく離れたウェッジ(肩側の u が
+    0.7 のものなど)まで無理やりその1値へ収束させることになり、細長いスリバー
+    三角形ごとに強い引き伸ばし=放射状の縞が出る。これは円筒投影に変えても
+    平面投影のままでも変わらない、**頂点属性でコーンの頂点を扱う限り原理的に
+    避けられない**問題だった。
+  ⭕ **正しい対処**: UV は本来「頂点」ではなく「ループ(面の角)」の値 —
+    同じ apex_v でもウェッジ(面)ごとに別の UV を持てる(コーンの頂点をUV展開する
+    ときの標準的な扱い)。`gen_stone` が割れ面の三角形をまだ細分・bevel する前
+    (辺の対応が単純なうち)に、ウェッジごと直接ループへ書き込む: 土台2点は側面と
+    全く同じ式(uparam×back_len×DENS_U / vparam×DENS_V。vparam はボディ・肩リングで
+    z そのもの=側面の v と連続、apex では「肩リング平均→apex の実距離(斜面長)」を
+    z に足した値)、apex 側の角だけ**そのウェッジの土台2点の生値(pingpong で
+    畳む前)の平均**にする(局所的で暴れない・側面と連続)。以後(細分・bevel・
+    `assign_uv` の一括処理)は**この面をタグで見分けて一切上書きしない**
+    (`_is_head_face` — 頂点タグ `is_head_v` の事後判定。全頂点が頭タグの面は
+    早期UV済みとみなす)。埋設される底のファンは元から問題が出ていないので
+    手を付けていない(z≈0 で判定し常に (x,y) 平面投影のまま)。詳細は `gen_stone`
+    のファン生成部と `assign_uv` 本体のコメント参照。
 """
 import bpy, bmesh, sys, os, math, random
 from mathutils import Vector
@@ -157,6 +187,22 @@ PROFILES = {
         shoulder=None, tilt_mul=2.0, lean_profile="linear", lean_scale=1.0),
 }
 PROFILE_BY_VARIANT = {1: "atama", 2: "kata", 3: "hosori"}
+
+# ================================================================ 2026-09-06 第4次差し戻し
+# 「長さは良いが、上端が水平面でスパッと切られたように見える」— 天端の輪郭が一周
+# はっきり残っていたのが原因(旧: ほぼ水平な天端リング+その上に2〜3枚のほぼ平らな
+# 小面)。⭕ 頭を「割れて落ちた岩の肩」に作り替える — 単一の頂点(見付の後ろ寄り・
+# 中心から外す)へ、勾配のついた割れ面 3〜5 枚が不均等に落ちる形にする(下の
+# gen_stone 内、肩リング(shoulder_ring)+単一 apex のファンを参照)。
+# `HEAD_FRAC` = 頭の高さ配分(1 − 肩の高さ比。大きいほど割れ面が大きい・急)、
+# `HEAD_APEX_OFFSET` = 頂点を中心からどれだけ外すか(w に対する比率)。
+# atama(頭が重い)は両方大きく、hosori(先細り)は両方小さく(⛔ それでも頂点は
+# 必ず vertex bevel で3〜5cm丸める — 尖らせすぎない)。
+# ⭐ 2026-09-06 第5次差し戻し「頭が尖りすぎ・鮫の背びれ」— 前回は頭の高さ配分・
+# 傾きの上限が過大で、勾配30〜50°・長い直線の稜・針のような頂になった。
+# ここを半分程度に絞り、勾配10〜25°・丸く鈍い肩を狙う(下の gen_stone 参照)。
+HEAD_FRAC = {"atama": (0.07, 0.11), "kata": (0.055, 0.085), "hosori": (0.04, 0.065)}
+HEAD_APEX_OFFSET = {"atama": (0.10, 0.17), "kata": (0.08, 0.13), "hosori": (0.04, 0.08)}
 
 
 def scale_at(t, anchors):
@@ -243,10 +289,27 @@ def _footprint_xy(rng, w, d, ridge_jit, scale, band_noise, tfrac, profile,
 
 def gen_stone(seed, w, d, h, profile_name="atama"):
     """粗いロフトを作って bmesh へ積む。頂点はバンド×リングで共有(Decimateが効くように)。
-    戻り値: (bm, m, rng, side_edges, uparam_layer, back_len, is_cap_layer, is_apex_layer)。
+    戻り値: (bm, m, rng, side_edges, uparam_layer, back_len, is_cap_layer, is_apex_layer,
+    is_head_v_layer, vparam_layer, uv_layer, uv_ready_layer, ou, ov)。
     `side_edges` = 側面(前面含む)だけの辺リスト — 天端・底のファンは細分の対象から外すため
-    ここで(ファンを足す前に)確定させて返す。"""
+    ここで(ファンを足す前に)確定させて返す。
+    `vparam_layer`/`uv_layer`/`uv_ready_layer`/`ou`/`ov` は 2026-09-06 UV直しで追加
+    (モジュール docstring 参照)。
+    `vparam` は側面の v(=z)をそのまま頭の割れ面まで滑らかに延長するための頂点レイヤー。
+    `uv_layer` はここで前倒しに作る — **頭の割れ面(shoulder_ring→apex_v のファン)の
+    UV はここ(まだ細分・bevel前)で確定させて返す**(理由は下のファン生成部のコメント参照)。
+    `uv_ready_layer` はその早期UV済みループだけを示すループレイヤー(`assign_uv` が
+    上書きを避けるのに使う。面単位の `is_head_v` では境界の誤爆で真っ暗な帯が出た
+    実例あり — uv_layer 作成部のコメント参照)。
+    `ou`/`ov` はこの石ぶんの矩形内オフセット(`assign_uv` が従来 `rng` から都度引いていたが、
+    ファンの早期UVと後段の一括UVで同じ値を共有する必要があるため、ここで一度だけ確定させる)。"""
     rng = random.Random(seed)
+    # ⭐ 2026-09-06 UV直し: UVの矩形内オフセットは形を作る `rng` とは別系統の乱数から引く
+    #   (`rng` から引くと、この呼び出しを追加した分だけ以降のノイズ・bevel の乱数列が
+    #   ずれて既存の石の姿が変わってしまう — 規約「形には触らない」に反する)。
+    uv_rng = random.Random(seed ^ 0xA5F00D)
+    ou = 0.5 + uv_rng.uniform(-0.10, 0.10)
+    ov = 0.5 + uv_rng.uniform(-0.10, 0.10)
     profile = PROFILES[profile_name]
     m = N_BACK + 1
     ridge_jit = [0.0] * m
@@ -275,6 +338,32 @@ def gen_stone(seed, w, d, h, profile_name="atama"):
 
     bm = bmesh.new()
     uparam = bm.verts.layers.float.new("uparam")
+    # ⭐ 2026-09-06 UV直し: 側面の v(=z)を頭の割れ面までそのまま延長するための頂点レイヤー。
+    #   ボディ・肩リングでは z と同じ値を入れる(側面の v 式 `co.z * DENS_V` と完全一致 =
+    #   境界で継ぎ目が出ない)。頭の割れ面(apex_v)だけは下で z に「肩リング平均→apex の
+    #   実距離(斜面長)」を足した値を入れる — uparam と同じく細分・bevel でも位置と一緒に
+    #   線形補間されるので、割れ面の途中の頂点も自然に中間値を持つ。
+    vparam = bm.verts.layers.float.new("vparam")
+    # ⭐ 2026-09-06 UV直し: uv_layer もここ(細分・bevel より前)で作る。頭の割れ面
+    #   (ファン)の UV は下で細分前に直接書き込むので、レイヤー自体を先に用意しておく必要がある。
+    uv_layer = bm.loops.layers.uv.new("UVMap")
+    # ⛔⛔ **1回失敗した実装**: 「早期UV済みの面は `is_head_v`(頂点タグ)が全頂点1なら
+    #   スキップ」という**面単位**の判定を最初に書いたが、これは事故った ——
+    #   `is_head_v` は頂点タグなので、細分で生まれる「ボディ最上段リング(is_head_v=0)
+    #   ↔ 肩リング(is_head_v=1)」境界の**新しい頂点**の値は整数レイヤーの補間で
+    #   ちょうど0/1の境目に落ちることがあり、そこに接する子クアッドが誤って
+    #   「全頂点 is_head_v=1」= 頭面と判定されてしまう。その子クアッドは早期UVを
+    #   実際には書いていない(早期に書いたのは扇形の割れ面3頂点のループだけ)ため、
+    #   スキップした結果 UV が bmesh の既定値 (0,0) のまま残り、そこだけ真っ暗な
+    #   帯としてレンダに出た(2026-09-06 に実見 — `tateishi_L_2_elev.png` に肩の
+    #   高さでべったり黒い帯)。
+    # ⭕ **面単位でなくループ単位**で「早期UV済みか」を持つ — 下のファン生成部で
+    #   実際に書き込んだ3ループにだけ `uv_ready=1` を立てる専用レイヤー。UV 自体と
+    #   同じ loop カスタムデータなので、細分・bevel でも UV と全く同じ経路で
+    #   一緒に補間される(= UV が正しく運ばれるなら uv_ready も正しく運ばれる)。
+    #   境界を挟むクアッドの「触っていない方のループ」は uv_ready=0 のまま保たれるので、
+    #   誤って早期UV済み扱いされることがない。
+    uv_ready = bm.loops.layers.float.new("uv_ready")
     # ⚠⚠ **天端・底の判定は面の法線(閾値)ではなく、作った時点のタグで持つ。**
     #   hosori(強い先細り)で天端が非常に狭くなると、多面天端の各小面の法線が乱れて
     #   閾値 0.85 を割り込み、UV が側面(円周)の式へ誤って落ちてジグザグに破綻した
@@ -286,6 +375,15 @@ def gen_stone(seed, w, d, h, profile_name="atama"):
     #   `round_apex()` で vertex bevel して潰すために、作成時点でタグを付けて後から
     #   拾えるようにする(is_cap と同じ理由 — 法線や位置からの事後判定は当てにならない)。
     is_apex = bm.verts.layers.int.new("is_apex")
+    # ⭐⭐ 2026-09-06 第6次差し戻し対応: 「頭の割れ面」を**面のタグ**(is_head)で
+    #   持つのをやめ、**頂点のタグ**(is_head_v)に変えた。理由 — 面タグは
+    #   `bmesh.ops.subdivide_edges` を通すと新しくできた面へ確実に引き継がれるとは
+    #   限らない(検証していない・実際に隣接する側面のクアッドまで is_head=1 に
+    #   誤爆させて UV が縞状に破綻した)。⭕ 頂点のカスタムデータは細分で**位置と
+    #   一緒に確実に線形補間される**(この事実は `uparam` で既に使っている・
+    #   README の踏んだ落とし穴にも既出)。面が「頭」かどうかは、その面の頂点が
+    #   **全部** is_head_v なら頭、という事後判定にする(`_is_head_face` 関数)。
+    is_head_v = bm.verts.layers.int.new("is_head_v")
     # ⚠ **u の巻き戻し(1.0→0.0)を前面の上に置かない。**周方向の並びは
     #   [前面右, 背弧…, 前面左] なので、そのまま index/m を u にすると継ぎ目が
     #   一番目立つ前面の真上に来る。**中心を背側へ回して**継ぎ目を裏へ逃がす。
@@ -294,9 +392,25 @@ def gen_stone(seed, w, d, h, profile_name="atama"):
     # 背弧の実長のおおよその見積り(UV密度の基準。前面・天端・底は別に平面投影するので使わない)
     back_len = math.pi * (w * 0.56 + d * 0.60) * ((N_BACK - 1) / float(N_BACK))
 
+    # ⭐⭐ 2026-09-06 第6次差し戻し対応: 「頭の面のテクスチャが縦に伸びる」の
+    #   再発の原因は UV 式ではなく**ジオメトリの側にあった**。ボディ最上段(旧
+    #   BODY_MAX=0.55〜0.65 固定)と肩リング(tfrac_sh=0.85〜0.96)の間に、
+    #   通常のバンド間隔(≒0.6/(K_BANDS-1)≈0.12)の**2倍以上ある巨大な1バンド**
+    #   ができていて、そのバンドだけ他のバンドと同じ細分数(SUBDIV_CUTS)しか
+    #   受けないため、そこだけテクスチャ密度が薄く=間延びして見えた(flat gray の
+    #   デバッグで幾何形状は綺麗でも、テクスチャ版だけ縞に見えた理由はこれ)。
+    #   ⭕ **先に肩の高さ(tfrac_sh)を決め**、そこから通常バンドと同じ間隔になる
+    #   よう BODY_MAX を逆算する(移行バンドを「特大の1枚」にしない)。
+    head_frac = rng.uniform(*HEAD_FRAC.get(profile_name, (0.12, 0.18)))
+    tfrac_sh = 1.0 - head_frac
+    BODY_MAX = tfrac_sh * (K_BANDS - 1) / K_BANDS if K_BANDS > 1 else 0.0
+
+    # 体(ボディ): 裾から肩の下まで。ボディは h 全域ではなく BODY_MAX までに圧縮し、
+    #   その上に肩(shoulder_ring)と割れ面の頭を別枠で足す(天端が水平リングで
+    #   一周閉じる旧作りをやめるため)。
     rings = []   # rings[band] = [BMVert,...]（m個）
-    for b in range(K_BANDS + 1):
-        tfrac = b / float(K_BANDS)
+    for b in range(K_BANDS):
+        tfrac = (b / float(K_BANDS - 1)) * BODY_MAX if K_BANDS > 1 else 0.0
         z = h * tfrac
         # ⭐ 2026-09-06: 一律の「先細り」をやめ、プロファイル(atama/kata/hosori)の
         #   折れ線から縮尺を取る — ①頭でっかち ②非対称な肩 ③強い先細り、で輪郭を変える。
@@ -309,48 +423,117 @@ def gen_stone(seed, w, d, h, profile_name="atama"):
         for i, (x, y) in enumerate(pts):
             v = bm.verts.new((x, y, z))
             v[uparam] = uparam_of[i]
+            v[vparam] = z
             ring.append(v)
         rings.append(ring)
+
+    # ⭐⭐ 肩リング(shoulder_ring) = 割れた頭が始まる境界。**水平には作らない**:
+    #   ①前後左右へ傾ける(見付の上端が斜め/山形になる — 個体ごとに tilt_dir で
+    #     左右が変わる)②1〜2箇所を側面へ5〜15cm食い込ませる(割れ面の段。前面の
+    #     2隅=index 0,m-1 は避ける — 前面の平面性を壊さないため)。
+    scale_sh = scale_at(tfrac_sh, profile["anchors"])
+    lean_dx_sh = lean_total * lean_shape(tfrac_sh, lean_kind)
+    pts_sh = _footprint_xy(rng, w, d, ridge_jit, scale_sh, 0.05, tfrac_sh, profile,
+                            ridge_features, belly_freq, belly_phase, lean_dx_sh)
+    # ⭐ 2026-09-06 第5次差し戻し「頭が尖りすぎ・鮫の背びれ」対応: 前回は
+    #   `tilt = 0.10〜0.20*h*tilt_mul`(tilt_mul は hosori で2.0)を x/half_fw_ref に
+    #   掛ける式だったため、前面2隅の高低差が全高の最大67%まで暴れ、HEAD_FRAC の
+    #   高さ予算をはみ出して急勾配・直線的な稜になっていた。⭕ **前面2隅の高低差を
+    #   直接の目標値(全高の5〜12%)として決め打ちし**、そこから逆算して傾きの
+    #   係数を出す(tilt_mul には依存しない — 暴走の原因だったので外した)。
+    corner_diff = rng.uniform(0.05, 0.12) * h
+    bite_specs = []
+    for _ in range(rng.choice([1, 1, 2])):
+        width = rng.choice([2, 3])
+        hi = max(1, m - 2 - width)
+        start = rng.randint(1, hi) if hi >= 1 else 1
+        bite_specs.append((start, width, rng.uniform(0.04, 0.10)))
+    bite_dz = [0.0] * m
+    pts_sh = list(pts_sh)
+    for start, width, amt in bite_specs:
+        for k in range(width):
+            idx = start + k
+            if idx <= 0 or idx >= m - 1:
+                continue
+            x, y = pts_sh[idx]
+            r = math.hypot(x, y) or 1.0
+            f = max(0.3, 1.0 - amt / r)
+            pts_sh[idx] = (x * f, y * f)
+            # ⚠ 2026-09-06 第6次差し戻し対応: z の食い込みを強くしすぎると、この
+            #   食い込み点と隣の食い込んでいない点を結ぶ遷移バンドの四角形が
+            #   異様に縦長になり、そこだけテクスチャの縦密度が違って見える縞の
+            #   原因になった(BODY_MAX を揃えても残った・実見で特定)。
+            #   ⭕ z の食い込みは控えめにし、主に半径方向の食い込み(段差の見え方)
+            #   で表現する。
+            bite_dz[idx] += amt * rng.uniform(0.10, 0.25)
+
+    tilt_dir = rng.choice([-1, 1])
+    half_fw_ref = max(w * 0.5, 1e-6)
+    z_body_top = rings[-1][0].co.z
+    shoulder_ring = []
+    for i, (x, y) in enumerate(pts_sh):
+        # x=±half_fw_ref で ±corner_diff/2 になるよう線形勾配を掛ける(プロファイルの
+        # tilt_mul には依存しない — 全個体で「全高の5〜12%」という絶対量を守るため)。
+        z = h * tfrac_sh + tilt_dir * (corner_diff * 0.5) * (x / half_fw_ref) - bite_dz[i]
+        z = max(z, z_body_top + h * 0.015)   # ボディ最上段より必ず高く保つ(逆転防止)
+        v = bm.verts.new((x, y, z))
+        v[uparam] = uparam_of[i]
+        v[vparam] = z    # 肩リングも z そのまま(側面の v と連続)
+        v[is_head_v] = 1
+        shoulder_ring.append(v)
+    rings.append(shoulder_ring)
     bm.verts.ensure_lookup_table()
 
-    # 天端の傾き: ランダムな方位・勾配(h の 4〜9% ×プロファイルの tilt_mul。hosori は強め)
-    phi = rng.uniform(0, 2 * math.pi)
-    tilt = rng.uniform(0.04, 0.09) * h * profile["tilt_mul"]
-    for v in rings[K_BANDS]:
-        v.co.z += tilt * (v.co.x * math.cos(phi) + v.co.y * math.sin(phi)) / max(w, d)
+    # 頭の頂点(単一)。「見付の後ろ寄り・中心から外す」— 前面は front_y<0 なので
+    # +y が背側。プロファイルごとに HEAD_APEX_OFFSET で外す量を変える(atama=やや
+    # 大きく/hosori=控えめ)。⭐ 頂点自体は後段の round_apex で**握りこぶし大**
+    # (8〜15cm/L・5〜10cm/S)に丸めるので、ここでの外し量は控えめにして
+    # 「勾配10〜25°の鈍い肩」の枠に収める(前回の暴走の反省 — 頭の形の派手さは
+    # HEAD_FRAC/APEX_OFFSET でなく round_apex の丸め半径と割れ面のノイズで出す)。
+    apex_side = rng.choice([-1, 1])
+    off_lo, off_hi = HEAD_APEX_OFFSET.get(profile_name, (0.08, 0.13))
+    apex_dx = apex_side * rng.uniform(off_lo, off_hi) * w
+    apex_dy = rng.uniform(0.08, 0.20) * d
+    apex_z = h * tfrac_sh + head_frac * h * rng.uniform(0.5, 0.9)  # 肩よりは高いが h には届かせない
+    apex_v = bm.verts.new((apex_dx, apex_dy, apex_z))
+    apex_pos = Vector((apex_dx, apex_dy, apex_z))   # 斜面長の計算だけに使う局所変数(戻り値には含めない)
+    apex_v[uparam] = 0.0
+    apex_v[is_apex] = 1
+    apex_v[is_head_v] = 1
+    # 2026-09-06 UV直し: v は「肩リングの平均位置→apex の実距離(斜面長)」を z に足す。
+    #   肩リング側は vparam==z なので、この式は境界でちょうど連続になる(肩リング平均の
+    #   vparam ≒ その平均 z に一致し、そこへ斜面長を足しただけ)。
+    shoulder_avg = Vector((0.0, 0.0, 0.0))
+    for sv in shoulder_ring:
+        shoulder_avg += sv.co
+    shoulder_avg /= max(len(shoulder_ring), 1)
+    slope_len = (apex_pos - shoulder_avg).length
+    apex_v[vparam] = shoulder_avg.z + slope_len
 
-    # 側面: バンド間を四角形でつなぐ(前面の辺も含め m 枚/バンド)
-    for b in range(K_BANDS):
+    # 側面: バンド間を四角形でつなぐ(前面の辺も含め m 枚/バンド)。肩リングも
+    # rings の最後の要素として同じ扱いで繋がるので、①肩の傾き ②食い込みの段は
+    # ここで自動的に側面の凹凸として現れる(特別扱いのコードは要らない)。
+    for b in range(len(rings) - 1):
         r0, r1 = rings[b], rings[b + 1]
         for i in range(m - 1):
             bm.faces.new((r0[i], r0[i + 1], r1[i + 1], r1[i]))
         # 前面(m-1 → 0 を結ぶ最後の辺)
         bm.faces.new((r0[m - 1], r0[0], r1[0], r1[m - 1]))
-    side_edges = list(bm.edges)   # ⚠ ここで確定(下のファンを足す前)
 
-    # 底(バンド0・z=0固定・ノイズ無し)。中心ファンで閉じる(埋設側なので単純な1点でよい)。
-    bc = bm.verts.new((0.0, -d * 0.05, 0.0))
-    bc[uparam] = 0.0
-    for i in range(m):
-        j = (i + 1) % m
-        f = bm.faces.new((rings[0][j], rings[0][i], bc))
-        f[is_cap] = 1
-
-    # ⭐ 2026-09-06: 天端は単一の頂点に集めず、**2〜3枚の割れた小面**に分ける
-    #   (差し戻し④「天端は平らな面を作らず、割れた小面2-3枚の集まりに」)。
-    #   円環を乱数の分割点で連続した弧に切り、弧ごとに別の頂点(高さも僅かにばらす)へ
-    #   ファンを立てる — 境界の頂点は隣の弧と共有するので穴は空かない。1点に全部集めると
-    #   円錐状の「尖った蓋」に見え、稜線が1本もできない。
-    top = rings[K_BANDS]
-    n_facets = rng.choice([2, 3])
-    # ⚠ 分割点が隣接すると弧が1〜2頂点しかない極端に細い小面ができ、UVが伸びて
-    # 縞状に見える(2026-09-06 第2次差し戻しの検証レンダで実見)。最小間隔を確保する。
+    # ⭐⭐ 2026-09-06 第4次差し戻し: 天端は「水平リング+ほぼ平らな小面」をやめ、
+    #   **肩リング(shoulder_ring)から単一の頭頂点(apex_v)へ落ちる 3〜5 枚の割れ面**
+    #   にする。肩リング自体が①傾き②食い込みで既に不揃いな高さを持つうえ、apex が
+    #   中心から外れているので、分割された弧ごとに勾配が自然にばらつく。
+    top = shoulder_ring
+    n_facets = rng.choice([3, 4, 5])
+    # ⚠ m=11 に対し最大5分割なので、旧来の "max(3, m//(n_facets*2))" は満たせない
+    #   (5分割だと平均間隔2.2)。最小間隔は 2 まで緩める。
+    splits = sorted(rng.sample(range(m), min(n_facets, m)))
     for _try in range(20):
         splits = sorted(rng.sample(range(m), min(n_facets, m)))
         gaps = [(splits[(k + 1) % len(splits)] - splits[k]) % m for k in range(len(splits))]
-        if min(gaps) >= max(3, m // (n_facets * 2)):
+        if min(gaps) >= 2:
             break
-    apex_h_jit = h * 0.055
     for k in range(len(splits)):
         a_idx, b_idx = splits[k], splits[(k + 1) % len(splits)]
         arc = [a_idx]
@@ -360,20 +543,75 @@ def gen_stone(seed, w, d, h, profile_name="atama"):
             arc.append(i)
         if len(arc) < 2:
             continue
-        avg = Vector((0.0, 0.0, 0.0))
-        for idx in arc:
-            avg += top[idx].co
-        avg /= float(len(arc))
-        avg.z += rng.uniform(-apex_h_jit, apex_h_jit)
-        apex = bm.verts.new(avg)
-        apex[uparam] = 0.0
-        apex[is_apex] = 1
         for t in range(len(arc) - 1):
-            f = bm.faces.new((top[arc[t]], top[arc[t + 1]], apex))
+            va, vb = top[arc[t]], top[arc[t + 1]]
+            f = bm.faces.new((va, vb, apex_v))
             f[is_cap] = 1
+            # ⭐⭐ 2026-09-06 UV直し(頭の帯の縦縞・放射状の引き伸ばし)。
+            #   apex_v は m=11 方向すべてのウェッジから共有される**単一の頂点**なので、
+            #   頂点レイヤー(uparam/vparam)に「apex の u」を1つだけ書いても、周方向に
+            #   大きく離れた肩リング点(例 u=0.7)まで無理やりその1値へ収束させることになり、
+            #   細長いスリバー三角形ごとに強烈な引き伸ばし=放射状の縞が出る
+            #   (2026-09-06 に実見 — cylindrical化しても解消しなかった)。
+            #   ⭕ **UV はループ(面の角)ごとの値**なので、同じ apex_v でもウェッジごとに
+            #   別の値を持たせられる(コーンの頂点をUV展開する標準的な手当て)。
+            #   ここで**まだ細分・bevel 前**(辺が長く、ウェッジの対応が単純)のうちに
+            #   直接書き込む — 土台2点は側面と全く同じ式(uparam×back_len×DENS_U /
+            #   vparam×DENS_V)、apex 側の角だけ「このウェッジの土台2点の生値の平均」
+            #   にする(= 側面と連続かつウェッジごとに局所的で暴れない)。
+            #   ⚠ 平均は **pingpong で畳む前の生値**で取る — 畳んだ後の値を平均すると、
+            #   畳み目(整数境界)をまたぐウェッジで壊れる。
+            raw_ua = va[uparam] * back_len * DENS_U
+            raw_ub = vb[uparam] * back_len * DENS_U
+            raw_pv_a = va[vparam] * DENS_V + ov * 0.3
+            raw_pv_b = vb[vparam] * DENS_V + ov * 0.3
+            raw_uc = (raw_ua + raw_ub) * 0.5
+            raw_vc = apex_v[vparam] * DENS_V + ov * 0.3   # 高さは全ウェッジ共通でよい(周方向ほど暴れない)
+            f.loops[0][uv_layer].uv = (RECT[0] + pingpong(raw_ua) * (RECT[2] - RECT[0]),
+                                        RECT[1] + pingpong(raw_pv_a) * (RECT[3] - RECT[1]))
+            f.loops[1][uv_layer].uv = (RECT[0] + pingpong(raw_ub) * (RECT[2] - RECT[0]),
+                                        RECT[1] + pingpong(raw_pv_b) * (RECT[3] - RECT[1]))
+            f.loops[2][uv_layer].uv = (RECT[0] + pingpong(raw_uc) * (RECT[2] - RECT[0]),
+                                        RECT[1] + pingpong(raw_vc) * (RECT[3] - RECT[1]))
+            # この3ループだけ「早期UV済み」を立てる(assign_uv 側はループ単位でこれを見て
+            # 上書きを避ける — 面単位の is_head_v タグに頼らない理由は uv_layer 作成部の注記参照)。
+            f.loops[0][uv_ready] = 1.0
+            f.loops[1][uv_ready] = 1.0
+            f.loops[2][uv_ready] = 1.0
+
+    # ⭐⭐ 2026-09-06 第6次差し戻し対応: **round_apex(頂点の丸め)はここ**(割れ面を
+    #   作ってapex_vが実際に辺を持った直後・まだ細分前)でやる。
+    #   ⛔⛔ **前の版はここより前(apex_v作成の直後、まだ割れ面=辺が1本も無い状態)
+    #   で呼んでいた。孤立した頂点(辺0本)を bevel しても何も起きない**ので、
+    #   実質何も丸まっておらず、フラットシェーディングで見た実際のジオメトリは
+    #   依然として細長い薄片(スリバー)だらけの「鮫の背びれ」のまま残っていた
+    #   (テクスチャの「縦縞」に見えていたのは UV の不具合ではなく、この薄片群が
+    #   板状に反射する陰影そのものだった — flat gray のデバッグレンダで実見して
+    #   ようやく判明した)。⭕ **割れ面(=apex への辺)を作った直後、まだ細分前**
+    #   (辺が m=11本・どれも0.3〜0.5m級で長い)に呼ぶ。旧説明にあった「細分後は
+    #   辺が半分の長さに縮む」問題も併せて回避できる。
+    bm.normal_update()
+    round_apex(bm, h, rng, is_apex, is_head_v, is_cap)
+    bm.normal_update()
+
+    # ⚠ **side_edges はここ(頭の割れ面+round_apex の後)で確定させる** — こうすると
+    #   側面と頭の両方の辺が下の1回の subdivide_edges(build_one 側)へまとめて渡り、
+    #   境界の辺を二重に細分することがない(第5次差し戻しの版は頭だけ先に別途
+    #   細分していたため、境界の辺が既に消費されており、後続の side_edges 経由の
+    #   細分が無効な参照を渡すことになっていた — is_head の誤爆と縞模様の根本原因)。
+    side_edges = list(bm.edges)   # ⚠ 側面+頭の割れ面。底のファンを足す前に確定させる
+
+    # 底(バンド0・z=0固定・ノイズ無し)。中心ファンで閉じる(埋設側なので単純な1点でよい)。
+    bc = bm.verts.new((0.0, -d * 0.05, 0.0))
+    bc[uparam] = 0.0
+    bc[vparam] = 0.0
+    for i in range(m):
+        j = (i + 1) % m
+        f = bm.faces.new((rings[0][j], rings[0][i], bc))
+        f[is_cap] = 1
 
     bm.normal_update()
-    return bm, m, rng, side_edges, uparam, back_len, is_cap, is_apex
+    return bm, m, rng, side_edges, uparam, back_len, is_cap, is_apex, is_head_v, vparam, uv_layer, uv_ready, ou, ov
 
 
 def ensure_outward(bm):
@@ -388,7 +626,7 @@ def ensure_outward(bm):
         bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
 
 
-def add_crack_noise(bm, w, d, h, rng, amp_back=0.014, amp_front=0.003):
+def add_crack_noise(bm, w, d, h, rng, is_head_v_layer=None, amp_back=0.014, amp_front=0.003):
     """細分後の側面頂点へ、前面以外を強めに・前面は弱めにノイズを掛けて割れ肌を作る。
     底(z≈0)と天端近く(z>0.94h)は触らない — 天端はファンの向き(法線)が
     ノイズで暴れると一部の面だけ裏返り、`ensure_outward` の全体反転では直せない
@@ -398,12 +636,21 @@ def add_crack_noise(bm, w, d, h, rng, amp_back=0.014, amp_front=0.003):
     ハードに切り替えると、見付の縁がまさにそこで「定規で引いた直線」に見える
     (2026-09-06 第2次差し戻し — vs_boulder で指摘された)。⭕ 前面の平面(y=front_y)からの
     距離でなめらかに補間する — 縁のノイズが自然に強まっていくので、直線が視覚的に
-    強調されない。`chamfer_front_seam` と組み合わせて初めて縁が崩れる。"""
+    強調されない。
+
+    `is_head_v_layer`(頂点タグ)を渡すと、頭の割れ面の頂点はここでは触らない
+    (2026-09-06 第5次差し戻し対応)— `add_head_noise` が別の絶対量(1〜3cm)で
+    処理するので、ここの「石のサイズに比例した振幅」で二重に動かさない。"""
+    head_verts = set()
+    if is_head_v_layer is not None:
+        head_verts = {v for v in bm.verts if v[is_head_v_layer]}
     top_guard = h * 0.94
     front_y0 = -d * 0.5
     blend = d * 0.30
     for v in bm.verts:
         if v.co.z < 1e-5 or v.co.z > top_guard:
+            continue
+        if v in head_verts:
             continue
         t = min(max((v.co.y - front_y0) / blend, 0.0), 1.0)
         amp = amp_front + (amp_back - amp_front) * t
@@ -412,7 +659,23 @@ def add_crack_noise(bm, w, d, h, rng, amp_back=0.014, amp_front=0.003):
         v.co.z += rng.uniform(-amp, amp) * h * 0.3
 
 
-def round_edges(bm, h, rng, is_cap_layer, angle_thresh=math.radians(18.0)):
+def add_head_noise(bm, rng, is_head_v_layer, is_apex_layer, amp_lo=0.01, amp_hi=0.03):
+    """頭の割れ面(is_head_v タグの頂点)へ**絶対量1〜3cm**の頂点ノイズを掛け、
+    長い直線の稜を無くす(2026-09-06 第5次差し戻し item3)。石のサイズに比例
+    させない(`add_crack_noise` と違い、L でも S でも同じ「握りこぶしの表面の
+    凹凸」に見せたいので絶対値で振る)。round_apex が既に丸めた頂点(is_apex)は
+    ここでは対象にしない — 丸めた直後に大きく動かすと bevel で作った丸みの形が
+    崩れる。"""
+    verts = {v for v in bm.verts if v[is_head_v_layer]}
+    for v in verts:
+        if v[is_apex_layer]:
+            continue
+        n = v.normal if v.normal.length > 1e-6 else Vector((0, 0, 1))
+        amp = rng.uniform(amp_lo, amp_hi) * rng.choice([-1.0, 1.0])
+        v.co += n * amp
+
+
+def round_edges(bm, h, rng, is_cap_layer, is_head_v_layer, angle_thresh=math.radians(26.0)):
     """すべての凸の稜(見付の縁・側面どうしの粗い facet 境・天端の小面と側面の境)を
     bmesh bevel で丸める。2026-09-06 第3次差し戻し「庭石ですが、角が鋭すぎませんか」
     への対応 — これ以前は `chamfer_front_seam`(前面の2隅の列だけを乱数で振って
@@ -448,7 +711,8 @@ def round_edges(bm, h, rng, is_cap_layer, angle_thresh=math.radians(18.0)):
         if len(faces) != 2:
             continue
         f0, f1 = faces
-        cap0, cap1 = bool(f0[is_cap_layer]), bool(f1[is_cap_layer])
+        cap0 = _is_cap_like(f0, is_cap_layer, is_head_v_layer)
+        cap1 = _is_cap_like(f1, is_cap_layer, is_head_v_layer)
         if cap0 and cap1:
             continue   # 同じファンの内部(スポーク) — 丸めない
         z_avg = (e.verts[0].co.z + e.verts[1].co.z) * 0.5
@@ -491,53 +755,122 @@ def round_edges(bm, h, rng, is_cap_layer, angle_thresh=math.radians(18.0)):
                 print("[tateishi] ⚠ bevel skip band=%d n=%d: %s" % (band_i, len(live), exc))
 
 
-def round_apex(bm, rng, is_apex_layer):
-    """天端の各小面のファンの要(頂の1点)を vertex bevel で潰す(⛔ 平らにしない —
-    item 2)。1点に頂点が集まる円錐状の「尖った蓋」のままだと、面取りでは触れない
-    (面取りは辺の操作で、頂点1点に収束する角は辺の集合として拾えない)。
-    小面ごとに独立した頂点(数は2〜3個)なので1個ずつ vertex bevel する。"""
+def round_apex(bm, h, rng, is_apex_layer, is_head_v_layer=None, is_cap_layer=None):
+    """頭頂点(単一・割れ面が集まる要)を vertex bevel で潰す — **握りこぶし大**
+    に丸める(2026-09-06 第5次差し戻し item1「頂は点でなく小さな丸い山」)。
+    半径は石の全高 h で線形補間: h=1.0(S)で5〜10cm、h=2.1(L)で8〜15cm
+    (前回の 3〜5cm では「まだ尖って見える・鮫の背びれ」と差し戻された)。
+    1点に頂点が集まる円錐状の頂は edge bevel では触れない(辺の操作なので、
+    頂点1点に収束する角は辺の集合として拾えない)。
+
+    ⚠ **`gen_stone` が細分の前に呼ぶ**(辺がまだ長いうち)。細分後に呼ぶと
+    apex に集まる辺が半分の長さに縮んでいて、8〜15cmという半径に対して
+    短すぎ、`clamp_overlap` が競合して頂の周りが尖った破片だらけになる
+    (2026-09-06 第5次差し戻しで実見・第6次で修正)。
+
+    `is_head_v_layer`/`is_cap_layer` を渡すと、bevel が作った新しい頂点・面へ
+    明示的にタグを立て直す — vertex bevel が customdata をどこまで引き継ぐか
+    保証されないため(is_apex の頂点は消費されて新しい頂点に置き換わる)。"""
+    t = min(max((h - 1.0) / (2.1 - 1.0), 0.0), 1.0)
+    lo = 0.05 + (0.08 - 0.05) * t
+    hi = 0.10 + (0.15 - 0.10) * t
     verts = [v for v in bm.verts if v[is_apex_layer]]
     for v in verts:
         if not v.is_valid:
             continue
-        radius = rng.uniform(0.02, 0.035)
+        radius = rng.uniform(lo, hi)
+        # ⚠ 2026-09-06 第6次差し戻し・追加修正: 肩リングの食い込み(bite)や傾きで
+        #   apex への辺の長さが不揃いになると、一番短い辺だけ極端に短いことがある。
+        #   その辺に対して要求半径が長すぎると clamp_overlap が無理に押し込めて、
+        #   頂の一部だけ尖った破片が残った(hosori の一部個体で実見)。
+        #   ⭕ 実際に繋がっている辺の**最短の長さの45%**も半径の上限にする。
+        min_edge = min((e.calc_length() for e in v.link_edges), default=radius)
+        radius = min(radius, min_edge * 0.85)
         try:
-            bmesh.ops.bevel(bm, geom=[v], offset=radius, offset_type='OFFSET',
-                             segments=rng.choice([2, 3]), affect='VERTICES',
-                             clamp_overlap=True)
+            res = bmesh.ops.bevel(bm, geom=[v], offset=radius, offset_type='OFFSET',
+                                   segments=rng.choice([2, 3]), affect='VERTICES',
+                                   clamp_overlap=True)
         except Exception as exc:
             print("[tateishi] ⚠ apex bevel skip: %s" % exc)
+            continue
+        if is_head_v_layer is None and is_cap_layer is None:
+            continue
+        new_faces = [el for el in res.get('faces', []) if isinstance(el, bmesh.types.BMFace)]
+        for f in new_faces:
+            if is_cap_layer is not None:
+                f[is_cap_layer] = 1
+            if is_head_v_layer is not None:
+                for nv in f.verts:
+                    nv[is_head_v_layer] = 1
 
 
-def assign_uv(bm, uv_layer, uparam, back_len, is_cap_layer, rng=None):
-    """3通りの平面/円周投影を面の向きで振り分ける。⚠ 一点貼り禁止(規約4) — 全頂点位置から
-    決定論的に計算するので、面積の大きい面でもテクスチャの縞が読める。
+def assign_uv(bm, uv_layer, uparam, back_len, is_cap_layer, is_head_v_layer=None,
+              vparam=None, ou=0.5, ov=0.5, uv_ready=None):
+    """**早期UV済みのループ(頭の割れ面のファン)以外**へ UV を振る。⚠ 一点貼り禁止
+    (規約4) — 全頂点位置から決定論的に計算するので、面積の大きい面でもテクスチャの
+    縞が読める。
 
+    ・**早期UV済みのループ**(`uv_ready` レイヤーが立っている — `gen_stone` が
+      shoulder_ring→apex_v のファンを作った時点で直接書き込み済み)は**ここでは
+      一切触らない**(下の「2026-09-06 UV直し」参照)。
+      ⚠⚠ **面単位でなく必ずループ単位で判定する。** 最初は「is_head_v(頂点タグ)が
+      全頂点1の面はスキップ」という面単位の判定にしていたが、細分がボディ最上段
+      リング↔肩リング境界の新しい頂点へ誤って is_head_v=1 を伝播させることがあり、
+      そこに触れる子クアッド(早期UVを実際には持たない)まで巻き込んでスキップして
+      しまい、UV が既定値 (0,0) のまま残って真っ暗な帯としてレンダに出た
+      (2026-09-06 に実見)。`uv_ready` は uv_layer と全く同じ loop カスタムデータ
+      なので、UV 自体が正しく運ばれるところにしか立たない — 誤爆しない。
     ・**前面**(法線が Blender −Y に強く寄る = Unity +Z の見付)… (x, z) の平面投影。
       矩形の平らな面なので、単純な平面投影が一番歪まない。
-    ・**天端・底**(`is_cap_layer` で作成時にタグ済み)… (x, y) の平面投影。
-      ⚠⚠ **法線の閾値では判定しない。** hosori(強い先細り)で天端が狭くなると
-      多面天端の小面の法線が乱れて閾値を割り込み、UV が円周の式へ誤って落ちて
-      ジグザグに破綻した(2026-09-06 に実見)。天端・底は細分されない一枚物なので、
-      `gen_stone` が作成時に付けたタグをそのまま信じる方が確実。
-    ・**背・側**(それ以外の不等な円弧面)… 周方向は `uparam`(頂点ごとに持たせた
-      連続パラメータ。細分でも位置と一緒に線形補間される)× 背弧のおおよその実長、
-      鉛直方向は高さ z。どちらも `DENS_U`/`DENS_V`(在庫の岩1体の実測密度)を掛ける。
+    ・**底(埋設)**(`is_cap_layer` で作成時にタグ済み・z≈0)… (x, y) の平面投影。
+      埋まって見えないので歪みは無視できる。
+    ・**それ以外**(背・側の不等な円弧面、および肩リング境界を挟む遷移バンドの
+      非頭側の角)… 周方向は `uparam`(頂点ごとに持たせた連続パラメータ。細分・bevel
+      でも位置と一緒に線形補間される)× 背弧のおおよその実長、鉛直方向は `vparam`
+      (ボディ・肩リングは z そのもの)。どちらも `DENS_U`/`DENS_V`(在庫の岩1体の
+      実測密度)を掛ける。`vparam` を渡さない呼び出しには後方互換で `co.z` を使う。
     密度を掛けたあとは `pingpong()` で [0,1] に畳んで矩形へ写す(継ぎ目が出ない)。
 
-    `rng` を渡すと、原点に小さな乱数オフセットを足す。⚠ **9個体が同じ矩形を同じ位置で
-    見るとヒビの模様が判子のように揃う**(2026-09-06 に実見 — S/M/L × 3個体が横並びだと
-    同じ亀裂線が全員に出ていて分かった)。矩形の**内側の安全域(縁から離れた所)**に
-    収まる範囲だけ振るので、パディングへは踏み込まない。"""
-    ou = ov = 0.5
-    if rng is not None:
-        ou += rng.uniform(-0.10, 0.10)
-        ov += rng.uniform(-0.10, 0.10)
+    ⚠⚠ **2026-09-06 UV直し(頭の帯の縦縞・放射状の引き伸ばし)**: 以前は「天端・底・
+    頭の割れ面」をひとまとめに (x,y) 平面投影していた。頭の割れ面は複数枚が apex 付近の
+    狭い (x,y) 範囲へ向かって収束するため、実面積の異なる面が同じ狭い UV 域へ繰り返し
+    畳み込まれ、正面近景(`tateishi_L2_front_closeup.png`)で縦縞・縦流れに見えた。
+    ⛔⛔ **一度は「頭も円筒投影(uparam/vparam)で側面と連続させる」案を試したが、
+    これも失敗した** — apex_v は m=11 方向すべてのウェッジから共有される**単一の頂点**
+    なので、頂点レイヤーに「apex の u」を1つだけ書いても、周方向に大きく離れた
+    肩リング点(例 u=0.7)まで無理やりその1値へ収束させることになり、細長い
+    スリバー三角形ごとに強烈な引き伸ばし=放射状の縞が出た(2026-09-06 に実見。
+    コーンの頂点を単一の頂点属性で円筒投影しようとする限り、この放射縞は原理的に
+    避けられない — 頂点属性は面ごとに値を変えられないため)。
+    ⭕ **正しい対処は「UV はループ(面の角)ごとの値」という事実を使うこと** — 同じ
+    apex_v でも、ウェッジ(小さな割れ面三角形)ごとに別の UV を持たせられる
+    (コーンの頂点をUV展開するときの標準的な扱い)。`gen_stone` がまだ細分・bevel前
+    (辺の対応が単純)の段階で、ウェッジごとに「土台2点は側面と同じ式・apex側の角は
+    その2点の生値の平均」を直接書き込み済み — ここではそれを**上書きしない**。
+    ⚠⚠ **法線の閾値では天端/頭を判定しない**(cap_like の判定は従来どおり
+    `_is_cap_like` — 作成時のタグに基づく事後判定。hosori で天端が狭くなり法線が
+    乱れても崩れない。2026-09-06 に実見済みの罠、再発させない)。
+    ⚠⚠ **面ごとに投影軸を法線で切り替える(triplanar風)手は不採用**
+    (2026-09-06 第6次差し戻しで実見)。割れ肌ノイズで細かく波打つ隣接三角形が
+    交互に別の軸を選び、texture 空間の全く違う場所を読んでゼブラ縞になった。
+
+    `ou`/`ov` は矩形内オフセット — `gen_stone` が石ごとに一度だけ決めた値を渡す
+    (頭のファンの早期UVと、ここでの一括UVで**同じ値を共有する必要がある**ため。
+    ⚠ **9個体が同じ矩形を同じ位置で見るとヒビの模様が判子のように揃う**
+    (2026-09-06 に実見 — S/M/L × 3個体が横並びだと同じ亀裂線が全員に出ていて
+    分かった)。矩形の**内側の安全域(縁から離れた所)**に収まる範囲だけ振るので、
+    パディングへは踏み込まない。"""
     for f in bm.faces:
         n = f.normal
-        is_cap = bool(f[is_cap_layer])
+        is_cap = _is_cap_like(f, is_cap_layer, is_head_v_layer) if is_head_v_layer is not None             else bool(f[is_cap_layer])
         is_front = (not is_cap) and n.y < -0.85
+        # 底(埋設)は z≈0 で見分ける。`is_cap`(_is_cap_like)は is_head_v の頂点タグに
+        # 依存するため肩リング境界の細分でまれに誤爆しうる(uv_layer 作成部のコメント
+        # 参照) — z の高さでも確認して、誤爆した頭寄りの面を「底」扱いしないようにする。
+        is_bottom = is_cap and all(loop.vert.co.z < 1e-4 for loop in f.loops)
         for loop in f.loops:
+            if uv_ready is not None and loop[uv_ready] > 0.5:
+                continue   # このループは gen_stone が早期UV済み。上書きしない。
             co = loop.vert.co
             # ⚠ **オフセットは整数を避ける。**`pingpong` の畳み目は整数境界に立つので、
             #   x=0(前面・天端の中心線)がちょうど畳み目に乗ると左右対称に鏡映してしまう
@@ -546,12 +879,13 @@ def assign_uv(bm, uv_layer, uparam, back_len, is_cap_layer, rng=None):
             if is_front:
                 fu = pingpong(co.x * DENS_U + ou)
                 fv = pingpong(co.z * DENS_V + ov * 0.3)
-            elif is_cap:
+            elif is_bottom:
                 fu = pingpong(co.x * DENS_P + ou)
                 fv = pingpong(co.y * DENS_P + ov)
             else:
+                v_h = loop.vert[vparam] if vparam is not None else co.z
                 fu = pingpong(loop.vert[uparam] * back_len * DENS_U)
-                fv = pingpong(co.z * DENS_V + ov * 0.3)
+                fv = pingpong(v_h * DENS_V + ov * 0.3)
             loop[uv_layer].uv = (RECT[0] + fu * (RECT[2] - RECT[0]),
                                   RECT[1] + fv * (RECT[3] - RECT[1]))
 
@@ -582,24 +916,47 @@ def bounds(objs):
     return mn, mx
 
 
-def finish_mesh(bm, w, d, h, rng, uparam, back_len, is_cap_layer, is_apex_layer, m, name):
+def _is_head_face(f, is_head_v_layer):
+    """面が「頭の割れ面」かどうかを**頂点のタグから事後判定する**(2026-09-06
+    第6次差し戻し対応)。面タグは細分で新しい面へ引き継がれる保証が無いが、
+    頂点タグは細分でも位置と一緒に確実に補間される(`uparam` と同じ理屈)。
+    全頂点が is_head_v なら頭(側面と頭の境の遷移バンドは半分だけ head 頂点なので
+    False になり、正しく「側面」のまま扱われる)。"""
+    return all(v[is_head_v_layer] for v in f.verts)
+
+
+def _is_cap_like(f, is_cap_layer, is_head_v_layer):
+    """天端・底・頭の割れ面をまとめて「cap 相当」とみなす(round_edges の
+    cap↔非cap境界ルール用)。底のファンは面タグ(is_cap、細分を一切通らないので
+    100%信頼できる)、頭の割れ面は頂点タグの事後判定(`_is_head_face`)。"""
+    return bool(f[is_cap_layer]) or _is_head_face(f, is_head_v_layer)
+
+
+def finish_mesh(bm, w, d, h, rng, uparam, back_len, is_cap_layer, is_apex_layer, is_head_v_layer, m, name,
+                 vparam=None, uv_layer=None, uv_ready=None, ou=0.5, ov=0.5):
     """細分 → 稜を丸める(bevel) → 割れ肌ノイズ → 法線確定 → UV。共有(build_one と
     グループショットの両方が呼ぶ — 2箇所に同じ手順を書き写すと片方だけ直して片方が
     古いまま、が起きるため)。戻り値は `bpy.types.Mesh`(bm は free 済み)。
     ⚠ 呼び出し側が **先に** `bmesh.ops.subdivide_edges(bm, edges=side_edges, ...)`
-    を済ませてから渡すこと(天端・底のファンは細分しないので、ここでは繰り返さない)。"""
+    を済ませてから渡すこと(天端・底のファンは細分しないので、ここでは繰り返さない)。
+    ⚠ **頭頂点の vertex bevel(round_apex)はここでは呼ばない** — `gen_stone` が
+    細分前の粗い(=辺が長い)段階で既に済ませている(2026-09-06 第6次差し戻し対応。
+    理由は `gen_stone` 内のコメント参照)。
+    ⚠ **`uv_layer` はここで新規作成しない** — `gen_stone` が細分・bevel より前に
+    作って頭の割れ面のUVを直接書き込み済みのものを、そのまま受け取って使う
+    (2026-09-06 UV直し)。新しいレイヤーを作るとその書き込みが失われる。"""
     ensure_outward(bm)
     bm.normal_update()
-    # ⭐ 稜の丸め(round_apex/round_edges)は割れ肌ノイズより先にやる。この時点の
-    #   geometry はまだ線形細分だけの粗いロフトで、面の法線がきれいに揃っている。
-    #   ノイズを先に掛けると細分後のほぼ全辺が非ゼロの角度を持ってしまい、
-    #   角度しきい値で「本当の粗い facet 境」だけを拾えなくなる(割れ肌まで
-    #   丸めてつぶれた石になる)。
-    round_apex(bm, rng, is_apex_layer)
+    round_edges(bm, h, rng, is_cap_layer, is_head_v_layer)
     bm.normal_update()
-    round_edges(bm, h, rng, is_cap_layer)
+    # ⭐ 2026-09-06 第5次差し戻し item3「長い直線の稜を作らない」— 頭の割れ面
+    #   (is_head_v の頂点)へ絶対量1〜3cmの細かいノイズを掛ける。round_edges で
+    #   丸めた**後**にやる(丸めの土台がガタつくと bevel が失敗しやすいため)。
+    add_head_noise(bm, rng, is_head_v_layer, is_apex_layer)
     bm.normal_update()
-    add_crack_noise(bm, w, d, h, rng)
+    # ⚠ add_crack_noise は is_head_v の頂点を二重処理しない(振幅の基準が違う —
+    #   add_crack_noise は石のサイズに比例、add_head_noise は絶対量cm)。
+    add_crack_noise(bm, w, d, h, rng, is_head_v_layer)
     bm.normal_update()
     ensure_outward(bm)
     # ⚠ **`reverse_faces` はキャッシュ済みの `f.normal` を即座に更新しない場合がある。**
@@ -609,8 +966,8 @@ def finish_mesh(bm, w, d, h, rng, uparam, back_len, is_cap_layer, is_apex_layer,
     bm.normal_update()
 
     me = bpy.data.meshes.new(name)
-    uv_layer = bm.loops.layers.uv.new("UVMap")
-    assign_uv(bm, uv_layer, uparam, back_len, is_cap_layer, rng)
+    assign_uv(bm, uv_layer, uparam, back_len, is_cap_layer, is_head_v_layer,
+              vparam=vparam, ou=ou, ov=ov, uv_ready=uv_ready)
     bm.to_mesh(me)
     bm.free()
     me.update()
@@ -622,11 +979,12 @@ def build_one(size, i):
     w, d, h = SPEC[size]
     seed = hash((size, i)) & 0xFFFFFFFF
     profile_name = PROFILE_BY_VARIANT.get(i, "atama")
-    bm, m, rng, side_edges, uparam, back_len, is_cap_layer, is_apex_layer = gen_stone(seed, w, d, h, profile_name)
+    bm, m, rng, side_edges, uparam, back_len, is_cap_layer, is_apex_layer, is_head_layer, vparam, uv_layer, uv_ready, ou, ov = gen_stone(seed, w, d, h, profile_name)
 
     # 細分(天端・底のファンには触れない。前面の平らさは保ったまま稜の密度だけ上げる)
     bmesh.ops.subdivide_edges(bm, edges=side_edges, cuts=SUBDIV_CUTS, use_grid_fill=True)
-    me = finish_mesh(bm, w, d, h, rng, uparam, back_len, is_cap_layer, is_apex_layer, m, "Tateishi_%s_%d" % (size, i))
+    me = finish_mesh(bm, w, d, h, rng, uparam, back_len, is_cap_layer, is_apex_layer, is_head_layer, m, "Tateishi_%s_%d" % (size, i),
+                      vparam=vparam, uv_layer=uv_layer, uv_ready=uv_ready, ou=ou, ov=ov)
 
     o = bpy.data.objects.new(me.name, me)
     bpy.context.scene.collection.objects.link(o)
@@ -732,10 +1090,11 @@ def compare_boulder():
     gi = 0
     for i in (1, 2, 3):
         w, d, h = SPEC["M"]
-        bm, m, rng, side_edges, uparam, back_len, is_cap_layer, is_apex_layer = gen_stone(
+        bm, m, rng, side_edges, uparam, back_len, is_cap_layer, is_apex_layer, is_head_layer, vparam, uv_layer, uv_ready, ou, ov = gen_stone(
             hash(("cmp", i)) & 0xFFFFFFFF, w, d, h, PROFILE_BY_VARIANT.get(i, "atama"))
         bmesh.ops.subdivide_edges(bm, edges=side_edges, cuts=SUBDIV_CUTS, use_grid_fill=True)
-        me = finish_mesh(bm, w, d, h, rng, uparam, back_len, is_cap_layer, is_apex_layer, m, "cmp_tateishi_%d" % i)
+        me = finish_mesh(bm, w, d, h, rng, uparam, back_len, is_cap_layer, is_apex_layer, is_head_layer, m, "cmp_tateishi_%d" % i,
+                          vparam=vparam, uv_layer=uv_layer, uv_ready=uv_ready, ou=ou, ov=ov)
         o = bpy.data.objects.new(me.name, me)
         bpy.context.scene.collection.objects.link(o)
         o.data.materials.append(_borrow_rock_material())
@@ -822,10 +1181,11 @@ def main():
         for size in want:
             w, d, h = SPEC[size]
             for i in (1, 2, 3):
-                bm, m, rng, side_edges, uparam, back_len, is_cap_layer, is_apex_layer = gen_stone(
+                bm, m, rng, side_edges, uparam, back_len, is_cap_layer, is_apex_layer, is_head_layer, vparam, uv_layer, uv_ready, ou, ov = gen_stone(
                     hash((size, i)) & 0xFFFFFFFF, w, d, h, PROFILE_BY_VARIANT.get(i, "atama"))
                 bmesh.ops.subdivide_edges(bm, edges=side_edges, cuts=SUBDIV_CUTS, use_grid_fill=True)
-                me = finish_mesh(bm, w, d, h, rng, uparam, back_len, is_cap_layer, is_apex_layer, m, "grp_%s_%d" % (size, i))
+                me = finish_mesh(bm, w, d, h, rng, uparam, back_len, is_cap_layer, is_apex_layer, is_head_layer, m, "grp_%s_%d" % (size, i),
+                                  vparam=vparam, uv_layer=uv_layer, uv_ready=uv_ready, ou=ou, ov=ov)
                 o = bpy.data.objects.new(me.name, me)
                 bpy.context.scene.collection.objects.link(o)
                 o.data.materials.append(_borrow_rock_material())

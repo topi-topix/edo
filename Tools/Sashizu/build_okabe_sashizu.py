@@ -144,7 +144,7 @@ _DANC = {}
 
 def dan_color(d, y):
     """段の色。**面の名前で引く**(2026-08-23 検図: 高さをキーにした旧 DAN が必ず外れていた)。"""
-    key = id(d)
+    key = _ckey(d)
     if key not in _DANC:
         m = {}
         for pl in d.get("planes", []):
@@ -275,12 +275,41 @@ def tarea(t):
 
 
 _BASE = {}
+_WLD = {}
+_WALK = {}
+_RAILS = {}
+_PIN = {}
+_DEM = {}
+_NIWA = {}
+
+
+# ⛔ **`id(d)` を鍵にしたキャッシュは、辞書が捨てられると id が再利用されて別物に化ける。**
+#   ⚠ 2026-09-06 に破壊試験で発覚 — 変異させた指図を次々に組む破壊試験では、
+#   前の `d` の id が新しい `d` に割り当たり、`auto_rails` が**前の指図の垣**を返していた
+#   (検査が変異に反応しないので「壊れていない」ように見えた)。
+#   ⭕ **辞書そのものへの参照を持ち続け**、鍵が本当にその辞書かを確かめてから使う。
+_CACHE_OWNER = {}
+
+
+def _ckey(d):
+    """キャッシュの鍵。⛔ 使う側は必ずこれを通す(生の `id(d)` を鍵にしない)。"""
+    k = id(d)
+    if _CACHE_OWNER.get(k) is not d:
+        _CACHE_OWNER[k] = d                 # ⭕ 参照を握るので、この id は再利用されない
+        for c in (_BASE, _RAILS, _PIN, _DEM, _NIWA, _WLD):
+            c.pop(k, None)                  # ⛔ 前の持ち主の値を引き継がない
+        for kk in [q for q in _WALK if q[0] == k]:
+            _WALK.pop(kk, None)             # ⛔ 複合鍵のほうも捨てる
+        for kk in [q for q in _BASE if isinstance(q, tuple) and q[0] == k]:
+            _BASE.pop(kk, None)
+    return k
+
 
 
 def run_base(d, r):
     """run の石垣基壇の露出(最小, 最大)。**edgeProfile から算出する** —
     設計値ファイルに書き写すと seat の引き直しに追従せず腐る(2026-08-23 検図)。"""
-    key = (id(d), r["name"])
+    key = (_ckey(d), r["name"])
     if key in _BASE:
         return _BASE[key]
     prof = d.get("edgeProfile", {}).get(str(r["edge"]))
@@ -304,8 +333,6 @@ def run_base(d, r):
     return _BASE[key]
 
 
-_RAILS = {}
-
 
 def _ptrunc(seq, f="(%.1f, %.1f)"):
     """折れ線の座標列を『始点 → …(折れ点 n点)… → 終点』に畳む。
@@ -320,7 +347,7 @@ def _ptrunc(seq, f="(%.1f, %.1f)"):
 
 def _par_near(d, u, v):
     """区画線までの最短距離と、その最寄りの辺番号・辺上の走り s を返す。"""
-    key = id(d)
+    key = _ckey(d)
     if key not in _PIN:
         in_parcel(d, 0, 0)
     Pg = _PIN[key]
@@ -397,6 +424,11 @@ def _rail_offset(d, rl):
     return (min(ds), max(ds)) if ds else (0.0, 0.0)
 
 
+def _gaki_asset(d):
+    """法肩の竹垣の部材名。⛔ 在庫の `TakeGaki`(網代風)は四つ目垣ではないので使わない。"""
+    return d["const"].get("takegakiAsset", "Own.YotsumeGaki")
+
+
 def auto_rails(d):
     """**法肩の竹垣を段の多角形から算出する。** 手で持つと段を動かすたびに腐る。
     段の輪郭のうち「外側の地山が段より 1.0m 以上低い」= 落差のある縁を拾い、
@@ -408,8 +440,8 @@ def auto_rails(d):
     ③ 参道・石段・坂を塞いでいた → `_in_opening` で切る(「動線を塞がない」は図の宣言)。
     ④ オフセットを重心からの放射方向で取っていたため垂直距離が 0.45m にならなかった
        → **各線分の外向き法線**で取る。"""
-    if id(d) in _RAILS:
-        return _RAILS[id(d)]
+    if _ckey(d) in _RAILS:
+        return _RAILS[_ckey(d)]
     K = d["const"]["ken"]
     # ⛔ 2026-09-01 六巡目まで 0.15 / 1.0 / 9.0 が直書きだった(規則4違反・実装側と二重管理)。
     off = (d["const"]["inubashiri"] + d["const"]["takegakiInset"]) / K
@@ -479,7 +511,72 @@ def auto_rails(d):
                         "terrace": t["name"],
                         "pts": [[round(x, 2), round(y, 2)] for x, y in pts],
                         "len": round(L, 1), "drop": dz})
-    _RAILS[id(d)] = out
+    out = _rails_split_axis(d, out)
+    _RAILS[_ckey(d)] = out
+    return out
+
+
+def _rails_split_axis(d, rails):
+    """**視軸の区間だけ柵を低くする特例を run の割り付けへ通す**(2026-09-04 部材方・規則19)。
+
+    ⛔ 2026-09-04 まで `railU0`/`railU1`/`railH` を読むのは**視線の検査と作図だけ**で、
+      `auto_rails` の run は**全部 h0.9** だった — 図は「視軸だけ h0.6」と言い、
+      実装へ渡る算出物は言っていない(**書いたのに繋いでいない**の型)。
+    ⭕ 法肩の run を `railU0`〜`railU1` で切り、その区間だけ `railH`・`railKata` を持たせる。
+    ⚠ 切るのは**法肩の垣だけ**(`hokata.railVWindow` の v に入る run) — 崖の肩の垣は触らない。"""
+    # ⚠ 特例は **見晴らしの庭の借景**(`gardens[].shakkei`)が持つ — `nishi.saku` ではない。
+    #   ⛔ 在処を取り違えると「特例が無い」ことにされて全部 h0.9 になる(2026-09-04)。
+    sk9 = next((g9["shakkei"] for g9 in d.get("gardens", [])
+                if (g9.get("shakkei") or {}).get("railU0") is not None), {})
+    hk9 = (d.get("nishi") or {}).get("hokata") or {}
+    u0, u1 = sk9.get("railU0"), sk9.get("railU1")
+    hDef = d["const"]["takegakiH"]
+    kDef = d["const"].get("takegakiKata", "四つ目垣")
+    if u0 is None or u1 is None:
+        for r9 in rails:                       # ⛔ 特例が無ければ全部 既定の丈
+            r9["h"], r9["kata"] = hDef, kDef
+            r9["asset"] = "%s(%.1f)" % (_gaki_asset(d), hDef)
+        return rails
+    v0w, v1w = (hk9.get("railVWindow") or [100.0, 111.0])
+    out = []
+    for r9 in rails:
+        pts = [tuple(p9) for p9 in r9["pts"]]
+        inWin = all(v0w <= p9[1] <= v1w for p9 in pts)
+        if not inWin:
+            r9["h"], r9["kata"] = hDef, kDef
+            r9["asset"] = "%s(%.1f)" % (_gaki_asset(d), hDef)
+            out.append(r9)
+            continue
+        # u を横切る所で切る
+        cuts = []
+        for a9, b9 in zip(pts, pts[1:]):
+            cuts.append(a9)
+            for uc in (u0, u1):
+                if (a9[0] - uc) * (b9[0] - uc) < 0:
+                    tt = (uc - a9[0]) / ((b9[0] - a9[0]) or 1e-9)
+                    cuts.append((uc, a9[1] + (b9[1] - a9[1]) * tt))
+        cuts.append(pts[-1])
+        segs, cur = [], [cuts[0]]
+        for p9 in cuts[1:]:
+            cur.append(p9)
+            if abs(p9[0] - u0) < 1e-6 or abs(p9[0] - u1) < 1e-6:
+                segs.append(cur); cur = [p9]
+        if len(cur) > 1:
+            segs.append(cur)
+        K9 = d["const"]["ken"]
+        for i9, sg in enumerate(segs):
+            mu = sum(p9[0] for p9 in sg) / len(sg)
+            ax = (u0 - 1e-9 <= mu <= u1 + 1e-9)
+            L9 = sum(math.hypot(b9[0] - a9[0], b9[1] - a9[1])
+                     for a9, b9 in zip(sg, sg[1:])) * K9
+            h9 = sk9.get("railH", hDef) if ax else hDef
+            k9 = sk9.get("railKata", kDef) if ax else kDef
+            out.append({"name": r9["name"] + ("_ax" if ax else "_%d" % (i9 + 1)),
+                        "terrace": r9["terrace"],
+                        "pts": [[round(x9, 2), round(y9, 2)] for x9, y9 in sg],
+                        "len": round(L9, 1), "drop": r9["drop"],
+                        "h": h9, "kata": k9, "onAxis": ax,
+                        "asset": "%s(%.1f)" % (_gaki_asset(d), h9)})
     return out
 
 
@@ -815,7 +912,7 @@ def seat_fill_check(d):
     段の頂点だけを見る検査では捕まらないので、run に沿って 1m 刻みで内側 1.2m の地盤を測る。"""
     K = d["const"]["ken"]
     in_parcel(d, 0, 0)
-    Pg = _PIN[id(d)]
+    Pg = _PIN[_ckey(d)]
     cu = sum(p[0] for p in Pg) / len(Pg); cv = sum(p[1] for p in Pg) / len(Pg)
     we = dict((t["name"], walled_edges(d, t)) for t in d["terraces"])
     out = []
@@ -1451,9 +1548,9 @@ def crossing_check(d):
 
 def _fit_note(d):
     """規則3の合格宣言を**算出**して返す。件数も最大Δも復元セル率も設計値から出す。"""
-    E = _DEM.get(id(d))
+    E = _DEM.get(_ckey(d))
     if E is None:
-        _dem_at(d, 0, 0); E = _DEM.get(id(d))
+        _dem_at(d, 0, 0); E = _DEM.get(_ckey(d))
     cur = None
     try:
         cur = json.load(open(os.path.join(DOC, "okabe_terrain.json"), encoding="utf-8"))
@@ -2212,12 +2309,10 @@ def load_terrain(path):
     return t
 
 
-_PIN = {}
-
 
 def in_parcel(d, u, v):
     """グリッド座標が区画の中か。**段も法面もここで切る**(敷地外への波及ゼロ)。"""
-    key = id(d)
+    key = _ckey(d)
     if key not in _PIN:
         gr = RGrid(d)
         _PIN[key] = [gr.L(x, z) for x, z in d["polygon"]]
@@ -2232,7 +2327,7 @@ def in_parcel(d, u, v):
 
 def par_dist(d, u, v):
     """区画線までの最短距離(グリッド単位)。中か外かは in_parcel で別に見る。"""
-    key = id(d)
+    key = _ckey(d)
     if key not in _PIN:
         in_parcel(d, 0, 0)
     Pg = _PIN[key]
@@ -2258,12 +2353,10 @@ def walled_edges(d, t):
     return sashizu_lib.walled_edges(d, t)
 
 
-_DEM = {}
-
 
 def _dem_at(d, u, v):
     """江戸期の復元地盤(回転間グリッド)の値。graded_y の関門で縁の地山を見るために使う。"""
-    key = id(d)
+    key = _ckey(d)
     if key not in _DEM:
         try:
             _DEM[key] = json.load(open(os.path.join(DOC, "okabe_edo_dem.json"), encoding="utf-8"))
@@ -2294,12 +2387,10 @@ def _dem_at(d, u, v):
     return _world_at(d, u, v)
 
 
-_WLD = {}
-
 
 def _world_at(d, u, v):
     """区画の外の地盤。`okabe_edo_world.json`(区画の中=復元 / 外=正本)から双一次で拾う。"""
-    key = id(d)
+    key = _ckey(d)
     if key not in _WLD:
         try:
             _WLD[key] = (json.load(open(os.path.join(DOC, "okabe_edo_world.json"), encoding="utf-8")),
@@ -2324,12 +2415,10 @@ def _world_at(d, u, v):
     return acc / wt if wt > 1e-9 else None
 
 
-_NIWA = {}
-
 
 def niwa_geom(d):
     """庭の土工の下ごしらえ(池の汀線と最大内接距離・築山の楕円)。**一度だけ算出して持つ**。"""
-    key = id(d)
+    key = _ckey(d)
     if key in _NIWA:
         return _NIWA[key]
     ponds, mounds = [], []
@@ -3434,9 +3523,9 @@ def edge_datum_table(d):
         base = json.load(open(os.path.join(DOC, "base_dem.json"), encoding="utf-8"))
     except Exception:
         return ""
-    E = _DEM.get(id(d))
+    E = _DEM.get(_ckey(d))
     if E is None:
-        _dem_at(d, 0, 0); E = _DEM.get(id(d))
+        _dem_at(d, 0, 0); E = _DEM.get(_ckey(d))
     gr = RGrid(d)
     P = d["polygon"]
     n = len(P)
@@ -4002,7 +4091,7 @@ _OWNE = {}
 
 def _near_own_edge(d, u, v, lim=1.5):
     """当家が囲いを建てる辺から lim 間以内か。そこの段差は石垣基壇が受ける。"""
-    key = id(d)
+    key = _ckey(d)
     if key not in _OWNE:
         gr = RGrid(d)
         P = [gr.L(x, z) for x, z in d["polygon"]]
@@ -4025,7 +4114,7 @@ def cliff_metrics(d):
     (規則4)— ここが**江戸期の復元地盤**から毎回算出する。
     ⚠ これらは 2026-09-02 まで**現代の地面**の値だった(復元が屋敷の平場 v≦108 で止まっており、
       崖の 99.0%・岸の帯の 100% が現況と同一だった)。崖と帯の境 `v1` は復元の仕様が持つ。"""
-    key = id(d)
+    key = _ckey(d)
     if key in _CLF:
         return _CLF[key]
     K = d["const"]["ken"]
@@ -4630,6 +4719,7 @@ def planting_table(d):
         rows.append([e["zone"], role, sp, "<b>%d</b>" % e["n"],
                      "%.1f〜%.1f m" % (e["hLo"], e["hHi"]),
                      "<code>%s</code>" % e["asset"], e["kubun"]])
+    _ts9 = ((d.get("nishi") or {}).get("hayashi") or {}).get("tsuru") or {}
     gl = d.get("groundLayers") or {}
     gr = []
     # ⭕ **割り当ての正典は各物**(2026-09-04 棟梁)— 庭・窓・法尻・坂・参道から引く。
@@ -4661,8 +4751,9 @@ def planting_table(d):
                 "⛔ 実装が勝手に撒くと、指図の検査(窓の樹高・対岸から見た層)が見ているものと"
                 "現物が別になる。⭕ 計 <b>%d 株</b>。⚠ 『見立て』は別種で代用したもの(確度U)。"
                 "<br>⭐ <b>つるの据え方</b>(2026-09-04 部材方・確度U): %s"
-                % (len(pt), inline(str(((d.get("nishi") or {}).get("hayashi") or {})
-                                       .get("tsuru", {}).get("sahou", "—")))))
+                "<br>⭐ <b>宿主の選び方</b>: %s"
+                % (len(pt), inline(str(_ts9.get("sahou", "—"))),
+                   inline(str(_ts9.get("hostRule", "—")))))
             + _tw(["所", "地表層", "備考"], gr,
                   "⚠ <b>登録済みは <code>L_grass</code> だけ</b> — 残りは棟梁が "
                   "<code>EdoAssets</code> へ登録する。⛔ 名を書かずに『塗る』と書かない。"
@@ -5207,6 +5298,71 @@ def buzai_values_table(d):
                "生成器が引き直す(<code>gardens.*.kutsunugi.*.W</code>)。")
 
 
+def tsuru_check(d):
+    """**つるの宿主の幹径が範囲に入っているか**(2026-09-04 棟梁の突き合わせ)。
+
+    ⛔ 「絡めた」で終わらせない — 細い木に太いつるを巻くと現物で破綻する。"""
+    bad = []
+    ts = ((d.get("nishi") or {}).get("hayashi") or {}).get("tsuru") or {}
+    lo, hi = ts.get("trunkMin", 0.40), ts.get("trunkMax", 0.85)
+    pts = planting_pts(d)
+    vines = [q for q in pts if "つる" in q["role"]]
+    want = sum(ts.get(k9, 0) for k9 in ("fuji", "teika", "kizuta"))
+    for q in vines:
+        dia = q.get("hostDia")
+        if dia is None:
+            bad.append("つる `%s` の宿主 `%s` に幹径が無い(`plantAssets.trunkDia` に族が無い)"
+                       % (q["name"], q.get("onTree")))
+        elif not (lo - 1e-9 <= dia <= hi + 1e-9):
+            bad.append("つる `%s` の宿主 `%s`(径 %.3f)が %.2f〜%.2f の外 — "
+                       "⛔ 細い木に太いつるを巻かない" % (q["name"], q.get("onTree"), dia, lo, hi))
+    if want and not vines:
+        bad.append("つるを %d 株 宣言しているのに**宿主が1本も無い** — "
+                   "`plantAssets.trunkDia` の族が %.2f〜%.2f に入らない" % (want, lo, hi))
+    return bad
+
+
+def rails_axis_check(d):
+    """**視軸の特例が run の割り付けに届いているか**(2026-09-04 部材方・規則19)。
+
+    ⛔ 図が「視軸だけ h0.6」と言い、実装へ渡る `impl.rails` が全部 h0.9 なら、
+      それは**書いたのに繋いでいない**。⭕ h0.6 の区間が実在し、その u の範囲が
+      宣言 `railU0`〜`railU1`(を柵の実長で切ったもの)と一致することを見る。
+    ⚠ 柵自身が `railU1` まで届いていないことはある — その場合は**届いている所まで**が正。"""
+    bad = []
+    sk = next((g9["shakkei"] for g9 in d.get("gardens", [])
+               if (g9.get("shakkei") or {}).get("railU0") is not None), None)
+    if not sk:
+        return bad
+    u0, u1, h6 = sk["railU0"], sk["railU1"], sk.get("railH")
+    rails = auto_rails(d)
+    ax = [r9 for r9 in rails if r9.get("onAxis")]
+    if not ax:
+        bad.append("視軸の特例(`shakkei.railU0`〜`railU1` を h%.1f へ)が **run に1本も無い** — "
+                   "宣言が割り付けへ届いていない" % (h6 or 0))
+        return bad
+    for r9 in ax:
+        if abs(r9.get("h", 0) - (h6 or 0)) > 1e-6:
+            bad.append("視軸の run `%s` の丈 %.2f が宣言 %.2f と違う"
+                       % (r9["name"], r9.get("h", 0), h6 or 0))
+    us = [p9[0] for r9 in ax for p9 in r9["pts"]]
+    # ⭕ 宣言を切るのは **その柵自身の u の広がり**(⛔ 窓の中の柵をまとめてではない) —
+    #   柵は `railU1` まで届いていないことがあり、まとめると届いている他の柵の端を拾う
+    #   (2026-09-04: 2.67 までの柵に対し 2.92 を求めて偽の不一致が出た)。
+    base = set(re.sub(r"_(ax|\d+)$", "", r9["name"]) for r9 in ax)
+    own = [p9[0] for r9 in rails for p9 in r9["pts"]
+           if re.sub(r"_(ax|\d+)$", "", r9["name"]) in base]
+    want0, want1 = max(u0, min(own)), min(u1, max(own))
+    if abs(min(us) - want0) > 0.05 or abs(max(us) - want1) > 0.05:
+        bad.append("視軸の run の u が %.2f〜%.2f で、宣言 %.2f〜%.2f を柵の実長で切った "
+                   "%.2f〜%.2f と合わない" % (min(us), max(us), u0, u1, want0, want1))
+    for r9 in rails:
+        if not r9.get("asset"):
+            bad.append("法肩の垣 `%s` に部材の当たりが無い" % r9["name"])
+            break
+    return bad
+
+
 def build_stamp():
     """**この図を組んだ時点**を表の先頭に出す。
     ⛔ 2026-09-01 六巡目まで、改訂表は `git log` だけを引いていたので、
@@ -5437,8 +5593,8 @@ def pond_metrics(d):
             pv = ts["v"] + ts["dV"] / 2.0 * math.sin(th)
             o["dTsukiyama"] = min(o["dTsukiyama"], sashizu_lib.poly_edge_dist(ring, pu, pv))
     # 掘り込みであることの実測(汀の内側の江戸期地盤)
-    E = _DEM.get(id(d)) or (_dem_at(d, 0, 0) or _DEM.get(id(d)))
-    E = _DEM.get(id(d))
+    E = _DEM.get(_ckey(d)) or (_dem_at(d, 0, 0) or _DEM.get(_ckey(d)))
+    E = _DEM.get(_ckey(d))
     vals = []
     if E:
         for jv in range(E["nv"]):
@@ -5557,9 +5713,9 @@ def pond_metrics(d):
 def tsukiyama_metrics(d):
     """築山ごとの実測。**底の自然地盤は必ず実測して刷る**(『高まりに載る』を宣言で済ませない)。"""
     out = []
-    E = _DEM.get(id(d))
+    E = _DEM.get(_ckey(d))
     if E is None:
-        _dem_at(d, 0, 0); E = _DEM.get(id(d))
+        _dem_at(d, 0, 0); E = _DEM.get(_ckey(d))
     K = d["const"]["ken"]
     g0, mg0, ring0 = pond_of(d)
     mk = None
@@ -5624,7 +5780,7 @@ def earth_breakdown(d, ter):
       読み手が引き算して合わない(2026-09-02 呼び出し元の指示)。**内訳だけを刷る。**
     ⭐ 差の分け方: ②−① を「抜きの中で盛土をやめたぶん」と「**抜きの縁に新しく出る法面**」に、
       ③−② を「池(床と岸)」と「築山」に分ける。四つの合計が ③−① に一致する(検査が見る)。"""
-    key = id(d)
+    key = _ckey(d)
     if key in _BRK:
         return _BRK[key]
     import copy
@@ -5640,9 +5796,9 @@ def earth_breakdown(d, ter):
     #   TypeError で落ち、main の呼び順に依存する時限爆弾になる(2026-09-02 検図 K072)。
     _dem_at(d, 0, 0); _world_at(d, 0, 0); in_parcel(d, 0, 0)
     for x9 in (base, hol):                    # DEM の読み直しを避けてキャッシュを差す
-        _DEM[id(x9)] = _DEM[id(d)]
-        _WLD[id(x9)] = _WLD[id(d)]
-        _PIN[id(x9)] = _PIN[id(d)]
+        _DEM[id(x9)] = _DEM[_ckey(d)]
+        _WLD[id(x9)] = _WLD[_ckey(d)]
+        _PIN[id(x9)] = _PIN[_ckey(d)]
     K = d["const"]["ken"]
     cell = (ter["step"] * K) ** 2
     holes = [hp for t9 in d["terraces"] for hp in tholes(t9)]
@@ -7046,7 +7202,7 @@ def _walk_grid(d, step=0.5, scope="hogata"):
       屋外の結界はもともと当方の外挿(確度U)である。
       ⚠ `scope="all"` は**破壊試験専用** — 崖の下まで歩けるようにして、
       絞った範囲の外を見ていないことを確かめるために使う。"""
-    key = (id(d), step, scope)
+    key = (_ckey(d), step, scope)
     if key in _WALK:
         return _WALK[key]
     gr = RGrid(d)
@@ -7076,9 +7232,6 @@ def _walk_grid(d, step=0.5, scope="hogata"):
             H[jv][iu] = _dem_at(d, uu, vv)
     _WALK[key] = (u0, v0, step, nu, nv, H)
     return _WALK[key]
-
-
-_WALK = {}
 
 
 def _wall_segs(d, closed=True):
@@ -7851,6 +8004,8 @@ CHECK_LIST = [
     ("汀の杭の割り付け",                      lambda d, raw, ter: kui_check(d)),
     ("庭の算出物(12区画・池の器)",            lambda d, raw, ter: garden_impl_check(d)),
     ("乱杭の根入れ(駒の全長で足りるか)",         lambda d, raw, ter: rangui_check(d)),
+    ("つるの宿主の幹径",                      lambda d, raw, ter: tsuru_check(d)),
+    ("視軸の特例が垣の割り付けに届くか",           lambda d, raw, ter: rails_axis_check(d)),
     ("室が身舎の中か・重ならないか",             lambda d, raw, ter: rooms_check(d)),
     ("算出物 okabe_impl.json の鮮度",           lambda d, raw, ter: impl_fresh_check(d)),
     ("矩形の重なり",                       lambda d, raw, ter: overlap_check(d)),
@@ -8106,6 +8261,29 @@ def _scatter(d, rnd, n, pitch, inside, tries=400):
     return out
 
 
+def _tsuru_hosts(d, takagi):
+    """**つるの宿主になれる高木**だけを返す(2026-09-04 棟梁の突き合わせ)。
+
+    ⛔ 幹径の合わない木へ絡めない — 宿主3本の実測が 0.904 / 2.941 / 2.630 と出て、
+      `trunkMax` 0.85 を超えていた。⭕ `plantAssets.trunkDia` の**範囲がまるごと**
+      `trunkMin`〜`trunkMax` に収まる族だけを宿主にする。
+    ⚠ クロマツ Big(径 0.66〜0.90)は上限を超えるので**外れる**。"""
+    ts = ((d.get("nishi") or {}).get("hayashi") or {}).get("tsuru") or {}
+    dia = ((d.get("plantAssets") or {}).get("trunkDia") or {})
+    lo, hi = ts.get("trunkMin", 0.40), ts.get("trunkMax", 0.85)
+    out = []
+    for q9 in takagi:
+        rng = dia.get(q9.get("asset"))
+        if not rng or len(rng) < 2:
+            continue
+        if rng[0] < lo - 1e-9 or rng[1] > hi + 1e-9:
+            continue
+        o9 = dict(q9)
+        o9["_dia"] = round((rng[0] + rng[1]) / 2.0, 3)
+        out.append(o9)
+    return out
+
+
 def planting_pts(d):
     """**撒いた植栽の点**。実装(棟梁)はこれをそのまま置く。
 
@@ -8165,7 +8343,8 @@ def planting_pts(d):
     #   ⭕ 個体は種類ごとに**混ぜる**(`tsuru.assets`)。
     ts = hy.get("tsuru") or {}
     tas = ts.get("assets") or {}
-    tak = [q for q in out if q["role"] == "高木"]
+    # ⛔ 幹径の合う高木だけを宿主にする(2026-09-04)。⚠ 空なら**焼かない**。
+    tak = _tsuru_hosts(d, [q for q in out if q["role"] == "高木"])
     r5 = random.Random(hy.get("seed", 1856) + 5)
     k9 = 0
     for sp9, n9 in (("フジ", ts.get("fuji", 0)),
@@ -8186,6 +8365,8 @@ def planting_pts(d):
                         "u": h9["u"], "v": h9["v"], "h": round(h9["h"] * 0.7, 2),
                         "tilt": 0.0, "tiltDir": [0.0, 1.0], "ground": "terrain",
                         "onTree": h9["name"],
+                        "hostDia": h9.get("_dia"),
+                        "hostAsset": h9.get("asset"),
                         "yaw": round(r5.uniform(0.0, 360.0), 1)
                         if sp9 != "フジ" else 0.0,
                         "trunkRef": ts.get("trunkRef", 0.60),
@@ -8597,9 +8778,9 @@ def garden_impl(d):
                 note="幅 %.2fm。⛔ 同心円にしない" % en.get("w", 0))
         # ⑥ 築山の等高線
         for ts in (g.get("tsukiyama") or []):
-            E9 = _DEM.get(id(d))
+            E9 = _DEM.get(_ckey(d))
             if E9 is None:
-                _dem_at(d, 0, 0); E9 = _DEM.get(id(d))
+                _dem_at(d, 0, 0); E9 = _DEM.get(_ckey(d))
             base = []
             for k9 in range(24):
                 th = 2.0 * math.pi * k9 / 24
@@ -8842,7 +9023,9 @@ def export_impl(d, ter):
         rails.append({"name": rl["name"], "terrace": rl.get("terrace"),
                       "world": w9, "len": round(L9, 2),
                       "drop": round((max(ys) - min(ys)) if ys and None not in ys else 0.0, 2),
-                      "h": d["const"].get("takegakiH", 0.9)})
+                      "h": rl.get("h", d["const"].get("takegakiH", 0.9)),
+                      "kata": rl.get("kata"), "onAxis": rl.get("onAxis", False),
+                      "asset": rl.get("asset")})
     corners = []
     n9 = len(P)
     for i9 in range(n9):

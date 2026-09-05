@@ -274,6 +274,6 @@ python3 Tools/Session/edo_session.py steal sashizu:sanno --reason "前のセッ�
 
 ## 報告・裁定・セッション間の情報共有
 
-→ **[session-board.md](session-board.md)** — 掲示板(`edo_board.py`)と作事奉行(差配役)。
+→ **[session-board.md](session-board.md)** — 掲示板(`edo_board.py`)。
 節目・ブロッカー・裁定要請だけ post、他邸に効く変更は起票+相手セッションへ直接メッセージ、
 自己検図はユーザー入力なしに3巡まで。

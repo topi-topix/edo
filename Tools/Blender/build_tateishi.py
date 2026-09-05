@@ -60,6 +60,30 @@
   ・⚠ 天端を単純な水平ngonで閉じると「僅かに傾く」を表現できないうえ、傾けると非平面
     ngonになって法線がおかしくなる。⭕ 中心ファン(三角形の集合)にすれば非平面でも
     破綻しない。
+
+【2026-09-06 第3次差し戻し「庭石ですが、角が鋭すぎませんか」への対応】
+  ⭕ `round_edges()` / `round_apex()` を追加し、bmesh の **bevel オペレータ**で
+  見付の縁・側面どうしの粗い facet 境・天端の小面の境を実際に丸めた
+  (segments 2〜3・半径 2〜6cm)。以前の `chamfer_front_seam`(前面の2隅の列だけを
+  乱数で振って面取りっぽく見せる偽物)は削除 — 新しいセグメントが入らないので
+  「直線を別の直線に置き換えるだけ」で、第2次差し戻しの原因そのものだった。
+  ・⛔ **bmesh.ops.bevel は1回の呼び出しに半径を1つしか取れない**(辺ごとに
+    違う半径は指定できない)。⭕ 辺を高さ4バンド×ランダムな小さな束に分けて、
+    束ごとに別の半径・セグメント数で複数回 bevel する。束をまたいで前の bevel が
+    隣の頂点を動かすことがあるので、**毎回 `edge.is_valid`/`vert.is_valid` で
+    生存確認**してから渡す(風化石は稜ごとに丸みが不揃いなのが自然でもある)。
+  ・⚠ **「丸めるべき辺」を法線の角度しきい値だけで決めると、天端の小面と側面の境を
+    取りこぼす。**hosori(強い先細り)で天端が狭くなると小面の法線が乱れ、角度が
+    しきい値を割り込むことがある。⭕ **cap(天端・底ファン)と非capの境**は角度に
+    よらず必ず丸め対象にする(`is_cap` レイヤーで機械的に判定できる — 法線に頼らない
+    のは README「天端・底の判定は面の法線でなく作った時点のタグで持つ」と同じ理由)。
+    ただし底(z≈0)は埋まって見えないので除外する。
+  ・⛔ **頂点1点に収束するファンの頂は edge bevel では丸められない**(辺の操作なので)。
+    ⭕ `is_apex` レイヤーでファンの要をタグしておき、`affect='VERTICES'` の
+    vertex bevel で個別に潰す。
+  ・⭕ 稜の丸めは**割れ肌ノイズ(`add_crack_noise`)より先に**やる。ノイズを先に
+    掛けると細分後のほぼ全辺が非ゼロの角度を持ってしまい、角度しきい値で
+    「本当の粗い facet 境」だけを拾えなくなる(割れ肌まで丸めてつぶれた石になる)。
 """
 import bpy, bmesh, sys, os, math, random
 from mathutils import Vector
@@ -219,7 +243,7 @@ def _footprint_xy(rng, w, d, ridge_jit, scale, band_noise, tfrac, profile,
 
 def gen_stone(seed, w, d, h, profile_name="atama"):
     """粗いロフトを作って bmesh へ積む。頂点はバンド×リングで共有(Decimateが効くように)。
-    戻り値: (bm, m, rng, side_edges, uparam_layer, back_len)。
+    戻り値: (bm, m, rng, side_edges, uparam_layer, back_len, is_cap_layer, is_apex_layer)。
     `side_edges` = 側面(前面含む)だけの辺リスト — 天端・底のファンは細分の対象から外すため
     ここで(ファンを足す前に)確定させて返す。"""
     rng = random.Random(seed)
@@ -257,6 +281,11 @@ def gen_stone(seed, w, d, h, profile_name="atama"):
     #   (2026-09-06 に実見)。⭕ 天端・底のファンは細分もされない一枚物なので、
     #   作った瞬間にタグを付ければ以後ずっと正しい(法線の揺れに影響されない)。
     is_cap = bm.faces.layers.int.new("is_cap")
+    # ⭐ 2026-09-06 第3次差し戻し「角が鋭すぎませんか」対応: 天端の各小面はファンの要
+    #   (apex)に頂点が1点だけ集まる円錐状の「尖った蓋」になっている。ここを
+    #   `round_apex()` で vertex bevel して潰すために、作成時点でタグを付けて後から
+    #   拾えるようにする(is_cap と同じ理由 — 法線や位置からの事後判定は当てにならない)。
+    is_apex = bm.verts.layers.int.new("is_apex")
     # ⚠ **u の巻き戻し(1.0→0.0)を前面の上に置かない。**周方向の並びは
     #   [前面右, 背弧…, 前面左] なので、そのまま index/m を u にすると継ぎ目が
     #   一番目立つ前面の真上に来る。**中心を背側へ回して**継ぎ目を裏へ逃がす。
@@ -338,12 +367,13 @@ def gen_stone(seed, w, d, h, profile_name="atama"):
         avg.z += rng.uniform(-apex_h_jit, apex_h_jit)
         apex = bm.verts.new(avg)
         apex[uparam] = 0.0
+        apex[is_apex] = 1
         for t in range(len(arc) - 1):
             f = bm.faces.new((top[arc[t]], top[arc[t + 1]], apex))
             f[is_cap] = 1
 
     bm.normal_update()
-    return bm, m, rng, side_edges, uparam, back_len, is_cap
+    return bm, m, rng, side_edges, uparam, back_len, is_cap, is_apex
 
 
 def ensure_outward(bm):
@@ -382,32 +412,101 @@ def add_crack_noise(bm, w, d, h, rng, amp_back=0.014, amp_front=0.003):
         v.co.z += rng.uniform(-amp, amp) * h * 0.3
 
 
-def chamfer_front_seam(bm, w, d, h, rng, uparam, m):
-    """見付(前面)と側面の境の縦の稜を、幅3〜8cmの不規則な面取りへ崩す。
-    ⛔⛔ **2026-09-06 第2次差し戻し**「見付と側面の境が定規で引いた縦線になっている」
-    (vs_boulder の3本に共通)。前面の2隅(index 0, m-1)は元々 x だけ僅かに振って
-    y=front_y に固定していたので、バンドを積み上げると**完全に直線の稜**になっていた。
+def round_edges(bm, h, rng, is_cap_layer, angle_thresh=math.radians(18.0)):
+    """すべての凸の稜(見付の縁・側面どうしの粗い facet 境・天端の小面と側面の境)を
+    bmesh bevel で丸める。2026-09-06 第3次差し戻し「庭石ですが、角が鋭すぎませんか」
+    への対応 — これ以前は `chamfer_front_seam`(前面の2隅の列だけを乱数で振って
+    面取りっぽく見せる偽物)を使っていたが、**本物の bevel に差し替えた**
+    (新しいセグメントが入るので実際に丸まる。偽の面取りは「定規で引いた縦線」を
+    別の直線に置き換えるだけで、第2次差し戻しの原因になっていた)。
 
-    ⭕ 前面の2隅にあたる列だけを `uparam` の値で特定し(この列は細分後も他の列と
-    混ざらない — README「新造ジオメトリのUVを複数面の平均で決めない」と同じ考え方で、
-    列を保つように subdivide が線形補間するため)、バンドごとに乱数で 3〜8cm ぶん
-    内側(+Y)・左右(±X)・上下(Z)へ振る。天端・底には掛けない(据わりと多面天端を守る)。"""
-    mid = m // 2
-    u_right = ((0 - mid) % m) / float(m)
-    u_left = ((m - 1 - mid) % m) / float(m)
-    eps = 1e-4
-    top_guard = h * 0.94
-    for v in bm.verts:
-        if v.co.z < 1e-5 or v.co.z > top_guard:
+    ⛔ **ブーリアンでは丸められない**(README「踏んだ落とし穴」に既出 — ブーリアンは
+    重なり合った非マニフォールドのタイル面で EXACT ソルバが「中身が詰まっている」と
+    誤判定して型そのものを返す)。同じ理由でここでも使わず、bmesh の edge bevel
+    オペレータで直接丸める。
+
+    候補の選び方(このロフトの構造から機械的に決まる):
+    ・**cap(天端・底ファン)と非capの境**の辺は、角度によらず必ず対象にする
+      — これが「天端の小面の交線」そのもの(天端の小面と、その下の側面が接する輪)。
+      ただし **底(z が 0 に近い)は埋設されて見えないので除外する**(item 2)。
+    ・残りは隣接2面の法線がなす角が `angle_thresh` を超える辺だけを拾う
+      — これが「見付の縁」(前面の平らな1枚と、隣の不等角度な円弧面の境)と
+      「側面どうしの粗い facet 境」(= ジャギーに振った円弧の折れ目)。
+      細分で生まれた、ほぼ同一平面のなだらかな辺はここで弾かれる — 割れ肌の細かい
+      凹凸は `add_crack_noise` に任せ、ここでは触らない(item 3)。
+
+    半径 2〜6cm・セグメント 2〜3 を**稜ごと・高さのバンドごとに揺らす**。
+    bmesh の bevel オペレータは1回の呼び出しに半径を1つしか取れないので、辺を
+    高さ4バンド×ランダムな小さな束に割って、束ごとに別の半径・セグメント数で
+    複数回 bevel する。束をまたいで bevel が隣の頂点を動かすことがあるが
+    `edge.is_valid` で毎回生存確認するので安全 — むしろ風化した石の稜は
+    場所によって丸みが不揃いなのが自然。"""
+    eps_z = h * 0.02
+    cand = []
+    for e in bm.edges:
+        faces = e.link_faces
+        if len(faces) != 2:
             continue
-        u = v[uparam]
-        if abs(u - u_right) > eps and abs(u - u_left) > eps:
+        f0, f1 = faces
+        cap0, cap1 = bool(f0[is_cap_layer]), bool(f1[is_cap_layer])
+        if cap0 and cap1:
+            continue   # 同じファンの内部(スポーク) — 丸めない
+        z_avg = (e.verts[0].co.z + e.verts[1].co.z) * 0.5
+        if cap0 != cap1:
+            if z_avg < eps_z:
+                continue   # 底の縁は埋まるので不要(item 2)
+            cand.append(e)
             continue
-        depth = rng.uniform(0.03, 0.08)
-        v.co.y += depth * rng.uniform(0.5, 1.0)
-        if abs(v.co.x) > 1e-6:
-            v.co.x += math.copysign(depth * rng.uniform(0.25, 0.65), -v.co.x)
-        v.co.z += rng.uniform(-0.03, 0.03) * h
+        if f0.normal.angle(f1.normal, 0.0) > angle_thresh:
+            cand.append(e)
+    if not cand:
+        return
+
+    rng.shuffle(cand)
+    n_bands = 4
+    bands = [[] for _ in range(n_bands)]
+    for e in cand:
+        z_avg = (e.verts[0].co.z + e.verts[1].co.z) * 0.5
+        bidx = min(int(z_avg / max(h, 1e-6) * n_bands), n_bands - 1)
+        bands[bidx].append(e)
+
+    for band_i, edges_in_band in enumerate(bands):
+        if not edges_in_band:
+            continue
+        n_chunks = max(1, min(4, len(edges_in_band) // 6))
+        chunks = [[] for _ in range(n_chunks)]
+        for k, e in enumerate(edges_in_band):
+            chunks[k % n_chunks].append(e)
+        for chunk in chunks:
+            live = [e for e in chunk if e.is_valid]
+            if not live:
+                continue
+            radius = rng.uniform(0.02, 0.06)
+            segs = rng.choice([2, 3])
+            try:
+                bmesh.ops.bevel(bm, geom=live, offset=radius, offset_type='OFFSET',
+                                 segments=segs, profile=rng.uniform(0.45, 0.60),
+                                 affect='EDGES', clamp_overlap=True, loop_slide=True)
+            except Exception as exc:
+                print("[tateishi] ⚠ bevel skip band=%d n=%d: %s" % (band_i, len(live), exc))
+
+
+def round_apex(bm, rng, is_apex_layer):
+    """天端の各小面のファンの要(頂の1点)を vertex bevel で潰す(⛔ 平らにしない —
+    item 2)。1点に頂点が集まる円錐状の「尖った蓋」のままだと、面取りでは触れない
+    (面取りは辺の操作で、頂点1点に収束する角は辺の集合として拾えない)。
+    小面ごとに独立した頂点(数は2〜3個)なので1個ずつ vertex bevel する。"""
+    verts = [v for v in bm.verts if v[is_apex_layer]]
+    for v in verts:
+        if not v.is_valid:
+            continue
+        radius = rng.uniform(0.02, 0.035)
+        try:
+            bmesh.ops.bevel(bm, geom=[v], offset=radius, offset_type='OFFSET',
+                             segments=rng.choice([2, 3]), affect='VERTICES',
+                             clamp_overlap=True)
+        except Exception as exc:
+            print("[tateishi] ⚠ apex bevel skip: %s" % exc)
 
 
 def assign_uv(bm, uv_layer, uparam, back_len, is_cap_layer, rng=None):
@@ -483,17 +582,22 @@ def bounds(objs):
     return mn, mx
 
 
-def finish_mesh(bm, w, d, h, rng, uparam, back_len, is_cap_layer, m, name):
-    """細分 → 面取り → 割れ肌ノイズ → 法線確定 → UV。共有(build_one とグループショットの
-    両方が呼ぶ — 2箇所に同じ手順を書き写すと片方だけ直して片方が古いまま、が起きるため)。
-    戻り値は `bpy.types.Mesh`(bm は free 済み)。⚠ 呼び出し側が **先に**
-    `bmesh.ops.subdivide_edges(bm, edges=side_edges, ...)` を済ませてから渡すこと
-    (天端・底のファンは細分しないので、ここでは繰り返さない)。"""
+def finish_mesh(bm, w, d, h, rng, uparam, back_len, is_cap_layer, is_apex_layer, m, name):
+    """細分 → 稜を丸める(bevel) → 割れ肌ノイズ → 法線確定 → UV。共有(build_one と
+    グループショットの両方が呼ぶ — 2箇所に同じ手順を書き写すと片方だけ直して片方が
+    古いまま、が起きるため)。戻り値は `bpy.types.Mesh`(bm は free 済み)。
+    ⚠ 呼び出し側が **先に** `bmesh.ops.subdivide_edges(bm, edges=side_edges, ...)`
+    を済ませてから渡すこと(天端・底のファンは細分しないので、ここでは繰り返さない)。"""
     ensure_outward(bm)
     bm.normal_update()
-    # ⭐ 割れ肌ノイズより先に面取りを掛ける — 面取りで前面の縁が y=front_y から離れるので、
-    #   後段のノイズ振幅ブレンド(前面からの距離で決める)が縁を自然と「側面寄り」に扱う。
-    chamfer_front_seam(bm, w, d, h, rng, uparam, m)
+    # ⭐ 稜の丸め(round_apex/round_edges)は割れ肌ノイズより先にやる。この時点の
+    #   geometry はまだ線形細分だけの粗いロフトで、面の法線がきれいに揃っている。
+    #   ノイズを先に掛けると細分後のほぼ全辺が非ゼロの角度を持ってしまい、
+    #   角度しきい値で「本当の粗い facet 境」だけを拾えなくなる(割れ肌まで
+    #   丸めてつぶれた石になる)。
+    round_apex(bm, rng, is_apex_layer)
+    bm.normal_update()
+    round_edges(bm, h, rng, is_cap_layer)
     bm.normal_update()
     add_crack_noise(bm, w, d, h, rng)
     bm.normal_update()
@@ -518,11 +622,11 @@ def build_one(size, i):
     w, d, h = SPEC[size]
     seed = hash((size, i)) & 0xFFFFFFFF
     profile_name = PROFILE_BY_VARIANT.get(i, "atama")
-    bm, m, rng, side_edges, uparam, back_len, is_cap_layer = gen_stone(seed, w, d, h, profile_name)
+    bm, m, rng, side_edges, uparam, back_len, is_cap_layer, is_apex_layer = gen_stone(seed, w, d, h, profile_name)
 
     # 細分(天端・底のファンには触れない。前面の平らさは保ったまま稜の密度だけ上げる)
     bmesh.ops.subdivide_edges(bm, edges=side_edges, cuts=SUBDIV_CUTS, use_grid_fill=True)
-    me = finish_mesh(bm, w, d, h, rng, uparam, back_len, is_cap_layer, m, "Tateishi_%s_%d" % (size, i))
+    me = finish_mesh(bm, w, d, h, rng, uparam, back_len, is_cap_layer, is_apex_layer, m, "Tateishi_%s_%d" % (size, i))
 
     o = bpy.data.objects.new(me.name, me)
     bpy.context.scene.collection.objects.link(o)
@@ -628,10 +732,10 @@ def compare_boulder():
     gi = 0
     for i in (1, 2, 3):
         w, d, h = SPEC["M"]
-        bm, m, rng, side_edges, uparam, back_len, is_cap_layer = gen_stone(
+        bm, m, rng, side_edges, uparam, back_len, is_cap_layer, is_apex_layer = gen_stone(
             hash(("cmp", i)) & 0xFFFFFFFF, w, d, h, PROFILE_BY_VARIANT.get(i, "atama"))
         bmesh.ops.subdivide_edges(bm, edges=side_edges, cuts=SUBDIV_CUTS, use_grid_fill=True)
-        me = finish_mesh(bm, w, d, h, rng, uparam, back_len, is_cap_layer, m, "cmp_tateishi_%d" % i)
+        me = finish_mesh(bm, w, d, h, rng, uparam, back_len, is_cap_layer, is_apex_layer, m, "cmp_tateishi_%d" % i)
         o = bpy.data.objects.new(me.name, me)
         bpy.context.scene.collection.objects.link(o)
         o.data.materials.append(_borrow_rock_material())
@@ -718,10 +822,10 @@ def main():
         for size in want:
             w, d, h = SPEC[size]
             for i in (1, 2, 3):
-                bm, m, rng, side_edges, uparam, back_len, is_cap_layer = gen_stone(
+                bm, m, rng, side_edges, uparam, back_len, is_cap_layer, is_apex_layer = gen_stone(
                     hash((size, i)) & 0xFFFFFFFF, w, d, h, PROFILE_BY_VARIANT.get(i, "atama"))
                 bmesh.ops.subdivide_edges(bm, edges=side_edges, cuts=SUBDIV_CUTS, use_grid_fill=True)
-                me = finish_mesh(bm, w, d, h, rng, uparam, back_len, is_cap_layer, m, "grp_%s_%d" % (size, i))
+                me = finish_mesh(bm, w, d, h, rng, uparam, back_len, is_cap_layer, is_apex_layer, m, "grp_%s_%d" % (size, i))
                 o = bpy.data.objects.new(me.name, me)
                 bpy.context.scene.collection.objects.link(o)
                 o.data.materials.append(_borrow_rock_material())

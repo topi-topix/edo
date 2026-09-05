@@ -356,7 +356,11 @@ public static partial class EdoMatsudairaDewaBuilder
                 var rs = go.GetComponentsInChildren<Renderer>();
                 if (rs.Length > 0 && HasKey(st, "plan"))
                 {
+                    // ⚠ 寸法は石の**自身の軸**で測る(`plan` の長・幅は見付 +Z を正面にした石の x・z)。向き(yaw)を掛けた後の
+                    //   世界軸の外接箱で測ると長と幅が混ざり、正しく解けた立石まで異方比で落ちる(2026-09-06 鏡石 1.61 で発覚)。
+                    var rot0 = go.transform.rotation; go.transform.rotation = Quaternion.identity;
                     var b = rs[0].bounds; foreach (var r in rs) b.Encapsulate(r.bounds);
+                    go.transform.rotation = rot0;
                     var pl = A(st["plan"]); float L = F(pl[0]), Wd = F(pl[1]);
                     float sx = L / Mathf.Max(0.01f, b.size.x), sz = Wd / Mathf.Max(0.01f, b.size.z), sy = full / Mathf.Max(0.01f, b.size.y);
                     float mx = Mathf.Max(sx, Mathf.Max(sy, sz)), mn = Mathf.Min(sx, Mathf.Min(sy, sz));

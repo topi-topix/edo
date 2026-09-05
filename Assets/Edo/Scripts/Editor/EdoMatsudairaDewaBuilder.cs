@@ -1856,6 +1856,7 @@ public static partial class EdoMatsudairaDewaBuilder
     static string ResolveApi(string api)
     {
         if (string.IsNullOrEmpty(api)) return null;
+        api = api.Trim(); if (api.StartsWith("EdoAssets.")) api = api.Substring("EdoAssets.".Length);   // 指図の石は `EdoAssets.Own.Tateishi(...)` と書かれる(2026-09-06 解けずに転石へ落ちていた)
         var m = System.Text.RegularExpressions.Regex.Match(api, @"^([A-Za-z]+)\.([A-Za-z0-9_]+)(?:\((.*)\))?$");
         if (!m.Success) return null;
         string cls = m.Groups[1].Value, fn = m.Groups[2].Value, arg = m.Groups[3].Value;
@@ -1871,6 +1872,7 @@ public static partial class EdoMatsudairaDewaBuilder
             if (fn == "Jokuroku") return EdoAssets.Own.Jouryoku(a[0], a.Count > 1 ? i1 : 1);  // 旧綴り
             if (fn == "Momiji")   return EdoAssets.Own.Momiji(a[0], a.Count > 1 ? i1 : 1);
             if (fn == "Ume")      return EdoAssets.Own.Ume(a[0], a.Count > 1 ? i1 : 1);
+            if (fn == "Tateishi") return EdoAssets.Own.Tateishi(a[0], a.Count > 1 ? i1 : 1);   // 立石 S/M/L(2026-09-06 石組の api を解けず在庫の転石へ落ちていた)
         }
         else if (cls == "JG")
         {

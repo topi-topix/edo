@@ -266,11 +266,25 @@ public static class EdoSashizuExport
                         var c = o as Dictionary<string, object>;
                         if (c != null && c.ContainsKey("part") && c["part"] != null) names.Add("Kado_" + Str(c, "id"));
                     }
-                foreach (var o in Get2(doc, "komon")) names.Add(Str(o as Dictionary<string, object>, "name"));
+                // ⚠ 小門は**部材を持たない邸がある**(松平: 門口・板戸・小壁は長屋の躯体に Blender が彫り込む
+                //   `build_nagaya_omote.py --gate`。置くと屋根が二重になる)。⇒ `asset`/`api` を持つ小門だけを
+                //   部材として期待する。⛔ 持たない小門を期待すると「一つも無い」と嘘をつく(2026-09-06 棟梁 報告4)。
+                foreach (var o in Get2(doc, "komon"))
+                {
+                    var km = o as Dictionary<string, object>; if (km == null) continue;
+                    if (km.ContainsKey("asset") || km.ContainsKey("api")) names.Add(Str(km, "name"));
+                }
                 // ⚠ **表門と汀の潜りは名前を持たない**(`gate` は単数・潜りは `nishi.saku.kuguri`)。
                 //   ⛔ 教えないと、据えた門と戸が「孤児の囲い」に数えられる(2026-09-04 に実際に出た)。
                 if (D(doc, "gate") != null) names.Add("Omotemon");
                 if (D(D(D(doc, "nishi"), "saku"), "kuguri") != null) names.Add("Kuguri");
+                // ⚠ 表門の両番所も名前を持たない(`gate.plan.sPos.banshoW/E` の欄)。Stage 5 は `Bansho_W/E` の名で据える。
+                //   ⛔ 教えないと据えた番所が「孤児の囲い」になる(2026-09-06 棟梁 報告4)。
+                {
+                    var sPos = D(D(D(doc, "gate"), "plan"), "sPos");
+                    if (sPos != null && sPos.ContainsKey("banshoW")) names.Add("Bansho_W");
+                    if (sPos != null && sPos.ContainsKey("banshoE")) names.Add("Bansho_E");
+                }
                 foreach (var nm in names)
                 {
                     if (nm == null) continue;

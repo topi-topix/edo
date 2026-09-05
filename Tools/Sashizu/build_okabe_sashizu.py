@@ -4816,9 +4816,16 @@ def kido_table(d):
                      "<b>%.3f 間 = %.3f m</b>" % (g9["wKen"], g9["wM"]),
                      "<b>%s</b>" % g9.get("leaves", "?"),
                      "<code>%s</code>" % g9.get("asset", "—"),
-                     "部材の実寸 <b>%.3f</b>(柱2本ぶん広い)<br>"
-                     "⭕ 塀の run は<b>部材の外側</b>に取り付く(⛔ 開口の縁ではない)"
-                     % g9.get("partW", 0)])
+                     ("駒 <code>%s</code> の実寸 <b>%.3f</b>(開口より %.3f 広い)<br>"
+                      "塀は <b>%s</b>(和 %.3f = 全長 %.3f)"
+                      % (g9.get("part", "?"), g9.get("partW", 0),
+                         g9.get("partW", 0) - g9.get("wM", 0),
+                         " + ".join("%.3f" % s9 for s9 in (k9.get("segs") or [])),
+                         sum(k9.get("segs") or []) + g9.get("partW", 0), k9.get("len", 0))
+                      + ("<br>⚠ 口が端に寄るので駒を端へ面一で寄せた — "
+                         "**素通しの口は %+.3fm 動いて %.3f〜%.3f**(宣言は意図として残す)"
+                         % (g9.get("fitShift", 0), g9.get("fromFit", 0), g9.get("toFit", 0))
+                         if abs(g9.get("fitShift", 0)) > 0.001 else ""))])
     sk = (d.get("nishi") or {}).get("saku") or {}
     for nm, o9 in (("汀の柵の木戸", sk.get("kido")), ("汀の柵の潜り", sk.get("kuguri"))):
         if not o9:
@@ -4830,6 +4837,8 @@ def kido_table(d):
                      "⛔ 潜りは 1.4m 超でも<b>片開き</b>(建具の型が違う=U)"])
     mm = (d["const"].get("munamon") or {})
     return _tw(["口", "位置", "開口", "建具", "部材", "納め"], rows,
+               "⭕ <b>塀の run は駒の実寸で割る</b>(2026-09-06 部材方の実測 <code>const.parts</code>)— "
+               "⛔ 『開口+柱2本』の当て推量をやめた(棟門は開口 2.727 に対し駒が <b>4.627</b>)。"
                "⛔ <b>開口 1.4m 超は両開き</b>(建具として片開きを持たない・部材方の判断=U)。"
                "⭐ 棟門の諸元(すべて<b>U</b>・部材方の作り値): 棟天端 <b>%.2f</b>・本柱 %.2f角・"
                "冠木の下端 <b>%.2f</b>(通れる高さ)・桁 %.2f・梁間 %.2f・軒の出 %.2f・"
@@ -8012,6 +8021,7 @@ CHECK_LIST = [
     ("基壇と塀の据え位置(宣言した面と足跡)",     lambda d, raw, ter: kidan_check(d)),
     ("撒いた植栽(本数・区画の中・在庫の対応)",   lambda d, raw, ter: planting_check(d)),
     ("開口の幅が図の中で1つか(結界の門・木戸)", lambda d, raw, ter: gap_consistency_check(d)),
+    ("結界の塀+駒の和が全長に合うか",            lambda d, raw, ter: kekkai_run_check(d)),
     ("車寄の差し込み(食い込みの寸法)",          lambda d, raw, ter: sashikomi_check(d)),
     ("長屋門と袖の高さ・門口の芯",              lambda d, raw, ter: gate_vs_sode_check(d)),
     ("表長屋の呼び寸法(全幅・妻の出を足さない)",   lambda d, raw, ter: nagaya_call_check(d)),
@@ -12048,6 +12058,9 @@ GEN_PATHS = [
     "gardens.*.mizu.gensen.chokusetsu.m2",
     "edges.*.len",                      # ⭕ 2026-09-04: polygon からの派生(棟梁 S1/S2 の①)
     "gardens.*.kutsunugi.*.W",          # ⭕ 2026-09-04: 一様スケールなので L からの派生(部材方)
+    "kekkai.*.len", "kekkai.*.segs",    # ⭕ 2026-09-06: 塀の全長と、駒で割った残り(棟梁⑤)
+    "kekkai.*.gap.partW", "kekkai.*.gap.gapCenter",
+    "kekkai.*.gap.fromFit", "kekkai.*.gap.toFit", "kekkai.*.gap.fitShift",
 ]
 
 
@@ -12784,12 +12797,88 @@ def fix_kutsunugi(x):
     return x
 
 
+def fix_kekkai_segs(x):
+    """**結界の塀の run を、開口に据わる駒の実寸で割る**(2026-09-06 棟梁⑤)。
+
+    ⛔ 開口の縁で割らない — 柱・控柱・屋根が開口より外へ出る(棟門は開口 2.727 に対し
+      駒が **4.627**)。⭕ 塀 = 駒の外側の残り2本。
+    ⭕ `segs`(2本の長さ[m])・`partW`(駒の実寸)・`gapCenter`(駒の芯の軸座標)は**算出値**。"""
+    K9 = x["const"]["ken"]
+    parts = (x["const"].get("parts") or {})
+    for w9 in x.get("kekkai", []):
+        g9 = w9.get("gap")
+        a9, b9 = w9.get("a"), w9.get("b")
+        if not a9 or not b9:
+            continue
+        L9 = math.hypot(b9[0] - a9[0], b9[1] - a9[1]) * K9
+        w9["len"] = round(L9, 3)
+        if not g9:
+            w9["segs"] = [round(L9, 3)]
+            continue
+        pw = parts.get(g9.get("part"))
+        if pw is None:
+            w9["segs"] = None
+            continue
+        ax = 0 if g9.get("axis") == "u" else 1
+        c9 = (g9["from"] + g9["to"]) / 2.0            # 開口の芯(軸の座標・間)
+        lo9, hi9 = sorted([a9[ax], b9[ax]])
+        s9 = (c9 - lo9) * K9                          # 塀の一端から芯まで[m]
+        # ⭕ **駒は塀の中に収める。**端に寄った口は駒を端へ**面一**で寄せ、
+        #   残りをもう一方の塀に回す(⛔ 二本を別々に丸めると和が全長からずれる)。
+        #   ⚠ そのぶん**素通しの口は 駒と開口の差の半分だけ内へ寄る** — その実位置を
+        #   `fromFit`/`toFit` に書き戻す(⛔ 宣言 `from`/`to` は意図として残す)。
+        s1 = min(max(s9 - pw / 2.0, 0.0), max(L9 - pw, 0.0))
+        g9["partW"] = pw
+        g9["gapCenter"] = round(c9, 3)
+        w9["segs"] = [round(s1, 3), round(max(L9 - s1 - pw, 0.0), 3)]
+        clr = g9.get("wM") or pw
+        c2 = (s1 + pw / 2.0) / K9 + lo9                # 実際に据わる駒の芯(間)
+        g9["fromFit"] = round(c2 - clr / 2.0 / K9, 3)
+        g9["toFit"] = round(c2 + clr / 2.0 / K9, 3)
+        g9["fitShift"] = round((c2 - c9) * K9, 3)
+    return x
+
+
+def kekkai_run_check(d):
+    """**塀の run と駒の和が塀の全長に合うか**(2026-09-06 棟梁⑤)。
+
+    ⛔ 「開口を空けた」で終わらせない — 駒の実寸で割らないと、塀が駒へ食い込むか隙間が空く。"""
+    bad = []
+    for w9 in d.get("kekkai", []):
+        segs = w9.get("segs")
+        L9 = w9.get("len")
+        if L9 is None or segs is None:
+            g9 = w9.get("gap") or {}
+            if g9:
+                bad.append("結界 %s の開口に駒が当たっていない(`gap.part` が `const.parts` に無い)"
+                           % w9["name"])
+            continue
+        g9 = w9.get("gap") or {}
+        pw = (g9.get("partW") or 0.0)
+        tot = sum(segs) + pw
+        if abs(tot - L9) > 0.005:
+            bad.append("結界 %s: 塀 %s + 駒 %.3f = %.3f が全長 %.3f と %+.3fm 食い違う"
+                       % (w9["name"], " + ".join("%.3f" % s8 for s8 in segs), pw, tot, L9,
+                          tot - L9))
+        for s8 in segs:
+            if s8 < -1e-9:
+                bad.append("結界 %s の塀が負の長さ(%.3f)— 駒が塀より長い" % (w9["name"], s8))
+        if pw and pw > L9 + 1e-9:
+            bad.append("結界 %s: 駒 %.3f が塀の全長 %.3f より長い" % (w9["name"], pw, L9))
+        # ⚠ 端に寄った口は塀が 0 になる — **欠陥ではない**(駒の柱が隅の柱を兼ねる)。
+        #   ⛔ ただし**寄せた量**は図に出す(宣言の位置から動いているので)。
+        if abs(g9.get("fitShift", 0.0)) > 0.001 and g9.get("fromFit") is None:
+            bad.append("結界 %s: 駒を寄せたのに実位置(`fromFit`/`toFit`)が無い" % w9["name"])
+    return bad
+
+
 def pipeline(x):
     """算出値を正典へ書き戻す一連のパス。**ここが唯一の定義**(土井 build_doi_sashizu.py の作法)。
     ⛔ 往復試験の台本に**同じ手順の写し**を持たせない — 生成器にパスを足したとき、
       台本だけが古いままになって偽の不一致を出す(2026-08-25 土井 検図14巡)。"""
     x = fix_edges(x)
     x = fix_kutsunugi(x)
+    x = fix_kekkai_segs(x)
     x = fix_gate_runs(x)
     x = fix_terrace_walls(x)
     x = fix_nishi(x)

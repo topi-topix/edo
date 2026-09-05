@@ -8418,10 +8418,149 @@ def _poly_perim(pts, K):
                for i in range(len(pts)))
 
 
+def mound_is_island(m):
+    """その隆起が**中島**か(= `sensui.island.outline` を読む別枝)。
+
+    ⛔ 中島に `shoreIdx` を与えてはならない — 実装 `Stage6a2_Mounds` の島の枝は
+      `sensui.island.outline` を読み、汀線の三角は作らない。"""
+    return str(m.get("where") or "").startswith("`sensui.island")
+
+
+def mound_shore_idx(m):
+    """岬の隆起が使う**汀線の頂点番号**を、散文の `where` から導く。⭐ 2026-09-04 新設。
+
+    ⭐ **`where` が正典で `shoreIdx` はその従属値**(⛔ 番号を二重に書かない・規則4)。
+    ⚠ **返すのは 0始まり。**実装 `Stage6a2_Mounds` は `shore[Convert.ToInt32(i)]` と
+      **素引き**する(`Assets/Edo/Scripts/Editor/EdoMatsudairaDewaBuilder.Niwa.cs`)。
+      `where` の `#` は図の丸数字と同じ **1始まり**(`sensui.gogan._bands` の宣言と同じ)なので、
+      ここで 1 を引く。⛔ 実装の読み方を 1始まりへ改めるなら**この関数も同時に改める**
+      (照合は `mounds_shoreidx_check` が実装のソースを読んで見張る)。
+    ⛔ 中島は None(三角を作らない)。番号が3つ未満しか読めない `where` も None。"""
+    if mound_is_island(m):
+        return None
+    idx = [int(x) - 1 for x in re.findall(r"#(\d+)", str(m.get("where") or ""))]
+    return idx if len(idx) >= 3 else None
+
+
+def _mound_with_idx(m, idx):
+    """`shoreIdx` を **`where` の直後**へ差し込んだ写し(⛔ 末尾へ足すと注記の後ろに紛れる)。"""
+    out = {}
+    for k, v in m.items():
+        if k == "shoreIdx":
+            continue
+        out[k] = v
+        if k == "where" and idx is not None:
+            out["shoreIdx"] = idx
+    if idx is not None and "shoreIdx" not in out:
+        out["shoreIdx"] = idx
+    return out
+
+
+def sync_shoreidx():
+    """岬の `sensui.mounds.items[].shoreIdx` を `where` から導いて**設計値ファイルへ書き戻す**。
+
+    ⭐ **2026-09-04 新設(棟梁 差し戻し1)。**実装 `Stage6a2_Mounds` は `shoreIdx`(数値の配列)
+      しか読めず、散文の `where` だけを置いた版では**東西の岬 2 基が隆起しなかった**
+      (先端は掘削で 0.65m 水没したまま = 瓢箪の岬が消える)。
+    ⛔ **人が json へ番号を手で書かない。**正典は `where` で、書き手はここだけ(規則4)。
+    ⚠ **`main()` が `d` を読む前に呼ぶ** — 以降の検査・図は書き戻した後の値を見る
+      (`write_planting` と同じ『生成器が書き、検査が同じものを見る』作り)。
+    ⚠ 書き戻すのは**この欄だけ**なので、ファイルは `main()` の `d` とは別に読み直す
+      (⛔ `fill_viewpoint_eyes` のような**その場の埋め**を巻き込んで書き出さない)。
+    返すのは (名, where, shoreIdx, 変わったか) の列。"""
+    raw = io.open(JSON, encoding="utf-8").read()
+    doc = json.loads(raw)
+    mnd = ((doc.get("sensui") or {}).get("mounds") or {})
+    items = mnd.get("items")
+    if not items:
+        return []
+    out, new = [], []
+    for m in items:
+        idx = mound_shore_idx(m)
+        m2 = _mound_with_idx(m, idx)
+        new.append(m2)
+        out.append((m.get("name"), m.get("where"), idx,
+                    list(m2.items()) != list(m.items())))
+    mnd["items"] = new
+    txt = json.dumps(doc, ensure_ascii=False, indent=1) + "\n"
+    if txt != raw:
+        io.open(JSON, "w", encoding="utf-8").write(txt)
+    return out
+
+
+def mounds_shoreidx_check(d):
+    """**岬の隆起が実装へ「数値」で渡っているか**(2026-09-04・棟梁 差し戻し1)。
+
+    ⛔ 散文の `where` は実装が読めない。⭕ 見るのは五つ:
+      ① 岬に `shoreIdx` があるか(無ければ実装は三角を作れず、先端は水没したまま)
+      ② その値が `where` から導いた番号と**一致**するか(1始まり/0始まりの取り違えを含む)
+      ③ 番号が汀線の範囲に収まり、**環の上で連続した頂点**か(飛ぶと三角が汀の外へ出る)
+      ④ 三角が潰れていないか(一直線に並ぶと隆起する面積が 0)
+      ⑤ **実装の読み方が変わっていないか** — `shore[Convert.ToInt32(i)]` の素引き(=0始まり)を
+         前提に番号を導いているので、実装が 1 を引く形に変わったらここで鳴らす。
+    ⛔ 中島(`sensui.island.outline` を読む別枝)に `shoreIdx` を与えない。"""
+    ks = d.get("sensui")
+    if not ks or not ks.get("mounds"):
+        return []
+    po = [tuple(p) for p in ks["pond"]["outline"]]
+    n = len(po)
+    bad = []
+    for m in ks["mounds"].get("items") or []:
+        nm = m.get("name")
+        idx = mound_shore_idx(m)
+        cur = m.get("shoreIdx")
+        if mound_is_island(m):
+            if cur is not None:
+                bad.append("中島 `%s` が `shoreIdx` を持っている — 実装は島を "
+                           "`sensui.island.outline` で隆起させる別枝で、汀線の三角を作らない" % nm)
+            continue
+        if idx is None:
+            bad.append("岬 `%s` の `where`(%s)から汀線の番号が 3 つ読めない — "
+                       "**散文だけでは実装 `Stage6a2_Mounds` が三角を作れず、岬は水没したまま**"
+                       % (nm, m.get("where")))
+            continue
+        if cur is None:
+            bad.append("岬 `%s` に `shoreIdx` が無い — 実装は散文の `where` を読めない"
+                       "(2026-09-04 の差し戻し1 の型)。生成器 `sync_shoreidx` が書き戻す" % nm)
+            continue
+        if [x for x in cur] != idx:
+            bad.append("岬 `%s` の `shoreIdx` %s が `where`(%s)から導いた %s と食い違う — "
+                       "⚠ `where` の `#` は**1始まり**・`shoreIdx` は実装が素引きする**0始まり**"
+                       % (nm, cur, m.get("where"), idx))
+            continue
+        if any(not (0 <= i < n) for i in idx):
+            bad.append("岬 `%s` の `shoreIdx` %s が汀線の頂点(0〜%d)の外を指している"
+                       % (nm, cur, n - 1))
+            continue
+        if any((idx[k] + 1) % n != idx[k + 1] for k in range(len(idx) - 1)):
+            bad.append("岬 `%s` の `shoreIdx` %s が汀線の**連続した頂点でない** — "
+                       "三角が汀の外(水の上・庭の上)へ出る" % (nm, cur))
+        if _poly_area([po[i] for i in idx], d["const"]["ken"]) < 1e-6:
+            bad.append("岬 `%s` の三角が潰れている(面積 0)— 隆起する面が無い" % nm)
+    # ⑤ 実装の読み方(0始まりの素引き)を照合する
+    bld = os.path.join(ROOT, "Assets", "Edo", "Scripts", "Editor",
+                       "EdoMatsudairaDewaBuilder.Niwa.cs")
+    if not os.path.exists(bld):
+        bad.append("実装 `EdoMatsudairaDewaBuilder.Niwa.cs` が見つからず、"
+                   "**`shoreIdx` の 0始まり/1始まりの照合はこの回は回っていない**")
+    else:
+        cs = io.open(bld, encoding="utf-8").read()
+        cs = re.sub(r"//[^\n]*", " ", cs)
+        line = [x for x in cs.split("\n") if "shoreIdx" in x]
+        if not line:
+            bad.append("実装が `shoreIdx` を読んでいない — 指図が書いても隆起へ渡らない")
+        elif not re.search(r"shore\[\s*Convert\.ToInt32\(\s*i\s*\)\s*\]", "\n".join(line)):
+            bad.append("実装の `shoreIdx` の読み方が『`shore[i]` の素引き』から変わった — "
+                       "⛔ `mound_shore_idx` は**0始まり**で番号を導いている。"
+                       "実装を 1始まりへ改めるなら導出も同時に改めること")
+    return bad
+
+
 def mounds_measure(d):
     """**掘った後に隆起させる三つ**(岬2・中島)の土量[m³]。⛔ 指図に書かない。
 
-    近似 = 平面積 ×(天端 − 裾)/ 2(頂から裾へ直線で降ろした錐台の平均)。"""
+    近似 = 平面積 ×(天端 − 裾)/ 2(頂から裾へ直線で降ろした錐台の平均)。
+    ⭐ 4つ目に**実装へ渡る形**(汀線の番号と `shoreIdx`)を返す — 表に出して図の外から見えるようにする。"""
     ks = d.get("sensui")
     if not ks:
         return []
@@ -8429,16 +8568,18 @@ def mounds_measure(d):
     po = [tuple(p) for p in ks["pond"]["outline"]]
     out = []
     for m in ks.get("mounds", {}).get("items", []):
-        if m.get("where", "").startswith("`sensui.island"):
+        if mound_is_island(m):
             pts = [tuple(p) for p in ks["island"]["outline"]]
+            how = "島の輪郭 `sensui.island.outline`(%d点)" % len(pts)
         else:
-            # 汀線の三点の三角(marks に載る岬)
-            idx = [int(x) for x in re.findall(r"#(\d+)", m.get("where", ""))]
-            if len(idx) < 3:
+            idx = mound_shore_idx(m)          # 汀線の三点の三角(0始まり)
+            if idx is None or any(not (0 <= i < len(po)) for i in idx):
                 continue
-            pts = [po[i - 1] for i in idx]
+            pts = [po[i] for i in idx]
+            how = ("汀線 %s → <code>shoreIdx</code> %s"
+                   % ("–".join("#%d" % (i + 1) for i in idx), "[%s]" % ", ".join(str(i) for i in idx)))
         A = _poly_area(pts, K)
-        out.append((m["label"], A, A * (float(m["topY"]) - float(m["skirtY"])) / 2.0))
+        out.append((m["label"], A, A * (float(m["topY"]) - float(m["skirtY"])) / 2.0, how))
     return out
 
 
@@ -8481,8 +8622,9 @@ def tsukiyama_do_table(d, dem, stats):
             "<td>%.0f m²</td><td><b>+%.0f m³</b></td>"
             "<td class='note'>出る土</td></tr>" % (A, Vp))
     use = [("築山の盛土", need, "造成前 DEM と盛土の面の差(上の表の計)")]
-    for (lb, Am, Vm) in mounds_measure(d):
-        use.append(("%s の隆起" % lb, Vm, "掘削の後にハイトマップ直書き(%.0f m²)" % Am))
+    for (lb, Am, Vm, how) in mounds_measure(d):
+        use.append(("%s の隆起" % lb, Vm,
+                    "掘削の後にハイトマップ直書き(%.0f m² / %s)" % (Am, how)))
     sv = sebiyama_measure(d)
     if sv > 0:
         use.append(("滝の背山", sv, "石樋の被りを取るため面 27.0 → 27.25"))
@@ -9163,6 +9305,8 @@ def sensui_check(d):
                    "`WaterBaker.Create` は水位を『汀の中央値 − 0.3』に自動で決めるので、"
                    "**Create のあと代入して Recarve をもう一度呼ばないと落差が消える**")
     # ---- 掘った後に隆起させる三つ
+    #   ⭐ **実装へ数値で渡っているか**は別の検査に切り出した(2026-09-04 差し戻し1)
+    bad += mounds_shoreidx_check(d)
     mnd = (ks.get("mounds") or {}).get("items") or []
     if len(mnd) < 3:
         bad.append("`sensui.mounds` が %d 件 — 岬2・中島の**掘削後の隆起**が要る"
@@ -9765,6 +9909,8 @@ DESIGN_WATCH = [
     ("gardens[G_Tanikage].access", "歩く庭ではないことの宣言(V2 の遠景の林)", True),
     ("plantRule.clrExemptByKind", "練塀の退避免除(庭方 第10次 回答1)", True),
     ("plantRule.clrExemptCapCrown", "練塀の退避免除(庭方 第10次 回答1)", True),
+    ("sensui.mounds.items[MD_Misaki_E].shoreIdx", "東の岬の三角(実装 6a′ が読む汀線の頂点)", True),
+    ("sensui.mounds.items[MD_Misaki_W].shoreIdx", "西の岬の三角(実装 6a′ が読む汀線の頂点)", True),
 ]
 
 
@@ -10126,6 +10272,18 @@ def planting_sensitivity(d, dem):
           lambda e: e["sensui"]["baker"].__setitem__("api", "WaterBaker.Create(outline, depth)"))
     probe("掘削後の隆起(`mounds`)を落とす(岬の先端と中島が水没する)",
           lambda e: e["sensui"]["mounds"].__setitem__("items", []))
+    probe("岬の `shoreIdx` を落とす(実装が三角を作れず岬が隆起しない)",
+          lambda e: [m.pop("shoreIdx", None) for m in e["sensui"]["mounds"]["items"]])
+    probe("岬の `shoreIdx` を 1始まりのまま書く(隣の三角が上がる)",
+          lambda e: [m.__setitem__("shoreIdx", [i + 1 for i in m["shoreIdx"]])
+                     for m in e["sensui"]["mounds"]["items"] if m.get("shoreIdx")])
+    probe("岬の `where` から汀線の番号を消す(散文だけへ戻す)",
+          lambda e: [m.__setitem__("where", "岬の三角")
+                     for m in e["sensui"]["mounds"]["items"] if m.get("shoreIdx")])
+    probe("中島に `shoreIdx` を与える(島の枝が汀線の三角を作る)",
+          # ⚠ **名で引く**(添字で指すと隆起を足した日に別の物を壊す probe になる)
+          lambda e: [m.__setitem__("shoreIdx", [0, 1, 2])
+                     for m in e["sensui"]["mounds"]["items"] if mound_is_island(m)])
     probe("中島を護岸の天端より高くする(遠近が壊れる)",
           lambda e: e["sensui"]["mounds"]["items"][2].__setitem__("topY", 27.60))
     probe("澪筋の床を池底と同じにする(流れが一筋に通らない)",
@@ -12009,6 +12167,19 @@ def draw_sensui(d, g, P, pr, poly, lb=None, gogan=True):
         return
     po = [tuple(p) for p in ks["pond"]["outline"]]
     g.append(poly(po, "#9fbfd0", 1.0, "#3f6a80", 1.6))      # ⭐ 水面(⛔ 砂利の州ではない)
+    # ⭐ **掘った後に隆起させる岬**(`sensui.mounds`)— 実装が読む `shoreIdx` の三角をそのまま描く。
+    #   ⛔ 図に出さないと「散文だけで実装へ渡っていない」型が図の上でも見えない(2026-09-04 差し戻し1)。
+    for m in ((ks.get("mounds") or {}).get("items") or []):
+        idx = mound_shore_idx(m)
+        if not idx or any(not (0 <= i < len(po)) for i in idx):
+            continue
+        tri = [po[i] for i in idx]
+        g.append(poly(tri, "#c9bd94", 0.95, "#8a7d4f", 1.0))
+        if lb is not None:
+            x, y = P(*[sum(c) / len(tri) for c in zip(*tri)])
+            lb.add(x, y, "%s(汀線 %s)" % (m.get("label"),
+                                          "–".join("#%d" % (i + 1) for i in idx)),
+                   anchor="middle", dx=0.0, dy=-4.0)
     # ⭐ **護岸石を実寸で並べる**(⛔ 汀線を太い線で描くだけでは『石組護岸』が図に出ない)。
     #   個数と芯々は `gogan_bands` の従属値。半径は天端石の長軸の半分。
     if gogan:
@@ -13740,6 +13911,14 @@ def fig(h, svg, cap=None, legend=None):
 
 def main():
     global DAN
+    # ⭐ **岬の `shoreIdx` を `where` から導いて書き戻す**(2026-09-04・棟梁 差し戻し1)。
+    #   ⛔ `d` を読む**前**に回す — 以降の検査も図も、実装が読むのと同じ値を見る。
+    _si = sync_shoreidx()
+    print("岬の汀線番号(`where` → `shoreIdx`・書き戻し %d 件):"
+          % sum(1 for x in _si if x[3]))
+    for (nm, wh, idx, ch) in _si:
+        print("    %s %s → %s %s" % ("★" if ch else " ", wh, idx,
+                                     "(書き戻した)" if ch else ""))
     d = json.load(open(JSON, encoding="utf-8"))
     prose = md2html(open(MD, encoding="utf-8").read())
     # 造成前の地盤 = 江戸期の復元地盤。**生成器はこれを読む — 実装は読まない**(§3a/§3b)

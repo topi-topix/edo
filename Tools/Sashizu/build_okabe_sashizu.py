@@ -4919,11 +4919,17 @@ def sashikomi_svg(d):
     if kk:
         ky = plane + kk.get("aboveY", 0)
         av = kirikaki_atv(d)
-        o.append(LN(X(av), Y(ky), X(56.0), Y(ky), "#B8860B", 2.0, "5 3"))
+        # ⭕ **屋根面そのもの**で切る(⛔ 水平な線で切らない・2026-09-06 棟梁)。
+        sl = kk.get("slope", 0.5456)
+        v2 = 56.0
+        y2 = ky + (v2 - av) * d["const"]["ken"] * sl
+        o.append(LN(X(av), Y(ky), X(v2), Y(y2), "#B8860B", 2.0, "5 3"))
         o.append(LN(X(av), Y(ky), X(av), Y(ky + 1.6), "#B8860B", 1.4, "5 3"))
         o.append(T(X(av) + 4, Y(ky + 1.6) - 4,
-                   "切り欠く面: v ≧ %.3f 間 かつ 面から %.2f より上(高さ %.2f)"
-                   % (av, kk.get("aboveY", 0), kk.get("cutH", 0)), "jo"))
+                   "切り欠く面 = 屋根面: y(%s) = %.2f + (%s − %.3f)×%.3f×%.4f"
+                   " — ⛔ bbox から軒の出を導かない"
+                   % (kk.get("slopeAxis", "v"), kk.get("aboveY", 0),
+                      kk.get("slopeAxis", "v"), av, d["const"]["ken"], sl), "jo"))
     o.append(T(20, H - 14, "⭕ %s ／ 縦横同縮尺(1m = %.0fpx)。⛔ 勾配は緩めない"
                "(2026-09-04 ユーザー裁定10=A)" % (sk.get("osame", ""), sc), "anS2", "start", 10))
     o.append("</svg>")
@@ -4978,6 +4984,16 @@ def sashikomi_check(d):
                        % (kk["atV"], next(m["v0"] for m in d["munes"]
                                           if m["name"] == "Genkan"), av9,
                           abs(kk["atV"] - av9) * d["const"]["ken"]))
+        if not kk.get("slope"):
+            bad.append("切り欠き: **勾配 `slope` が無い** — 水平な線で切ることになる")
+        elif abs(kk["slope"] - 1.143 / 2.095) > 1e-3:
+            bad.append("切り欠き: 勾配 %.4f が屋根の生成器の %.4f(=1.143/2.095)と違う"
+                       % (kk["slope"], 1.143 / 2.095))
+        if not kk.get("rule"):
+            bad.append("切り欠き: **面の式(`rule`)が無い** — 実装が面を起こせない")
+        if kk.get("slopeAxis") not in ("u", "v"):
+            bad.append("切り欠き: 勾配の向き `slopeAxis` が u/v でない(%s)"
+                       % kk.get("slopeAxis"))
         if kk.get("cutFrom") != "車寄":
             bad.append("切り欠き: 削る側が車寄でない(%s)— ⛔ 玄関棟の屋根は切らない"
                        % kk.get("cutFrom"))

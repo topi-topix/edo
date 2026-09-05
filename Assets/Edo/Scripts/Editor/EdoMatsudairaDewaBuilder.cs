@@ -1772,7 +1772,11 @@ public static partial class EdoMatsudairaDewaBuilder
 
     /// <summary>附属屋 FBX のマテリアルを、**借り先を名指しして**結び直す。
     /// ⚠ `SearchAndRemapMaterials(..., Everywhere)` はプロジェクト全体(6.9GB)を舐めるので使わない
-    ///   — 2026-08-24 に実際にユーザーの PC が固まった。借り先は3フォルダだけ見る。</summary>
+    ///   — 2026-08-24 に実際にユーザーの PC が固まった。借り先は3フォルダだけ見る。
+    /// ⚠ **2026-09-06 に `Models/Niwa`(立石 `Own.Tateishi`)を追加するまで、このメニューは
+    ///   庭石の類を一切見ていなかった**(対象は Fuzokuya/Mon/Trees だけだった)。
+    ///   `Models/Niwa` の FBX を増やしたら、ここに folder を足すのを忘れないこと
+    ///   — 忘れると真っ白のまま気づかれない(門・番所で 2026-08-31 に踏んだのと同じ型)。</summary>
     [MenuItem("Edo/松平出羽守上屋敷/附属屋・門・木のマテリアルをremap")]
     public static void RemapFuzokuyaMenu() { Debug.Log("[Matsudaira] " + RemapFuzokuya()); }
     public static string RemapFuzokuya()
@@ -1783,6 +1787,9 @@ public static partial class EdoMatsudairaDewaBuilder
             "Assets/Edo/Materials",              // キットに無い材(鳥居の朱 Shu_Torii など)
             // 新造した木(Own.Jokuroku / Own.Ume)は在庫の桜の樹皮・葉の材質名を名乗る
             "Assets/Waldemarst/FreeJapaneseGarden/Materials",
+            // 立石(Own.Tateishi)は NatureManufacture の photoscanned rock の材質名をそのまま運ぶ
+            // (岡部庭の Ishigumi/Tobiishi/Kutsunugi と同じ借り先。EdoOkabeYashikiBuilder 参照)
+            "Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Rocks/Rocks/Models/Materials",
         };
         var byName = new Dictionary<string, Material>();
         foreach (var dir in donorDirs)
@@ -1799,7 +1806,7 @@ public static partial class EdoMatsudairaDewaBuilder
         //   Village Kit の `Roof B` へ替えたとき、ここが Fuzokuya しか見ていなかったため
         //   材質名が変わった番所が真っ白になった。**FBX を焼いた folder は必ずここに足す。**
         string[] modelDirs = { "Assets/Edo/Models/Fuzokuya", "Assets/Edo/Models/Mon",
-                               "Assets/Edo/Models/Trees" };
+                               "Assets/Edo/Models/Trees", "Assets/Edo/Models/Niwa" };
         foreach (var guid in AssetDatabase.FindAssets("t:Model", modelDirs))
         {
             string path = AssetDatabase.GUIDToAssetPath(guid);

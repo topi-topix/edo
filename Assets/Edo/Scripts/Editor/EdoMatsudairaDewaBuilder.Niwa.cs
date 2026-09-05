@@ -313,25 +313,66 @@ public static partial class EdoMatsudairaDewaBuilder
         var shore = UVLine(pond["outline"]);
         // 石組(主石組・岩屋ほか)— `stones[]` を持つ点景を据える。見え丈 show・1/3 埋め(`gogan.bury`)
         var gogan = O(Sensui["gogan"]); float bury = HasKey(gogan, "bury") ? F(gogan["bury"]) : 0.3333f;
-        int nStone = 0;
+        int nStone = 0, nSkip = 0;
+        // 主視点(face の相手)
+        var vpW = new Dictionary<string, Vector2>();
+        foreach (var vo in A(D["viewpoints"])) { var vp = O(vo); vpW[StrOf(vp, "name")] = f.W(F(vp["u"]), F(vp["v"])); }
         foreach (var o in A(D["tenkei"]))
         {
             var t = O(o); if (!HasKey(t, "stones")) continue;
             var sub = Group("Niwa/Ishigumi/" + StrOf(t, "name"));
+            // 群の主石(face:"主石" の相手)= 名に「主石」「鏡石」を含む最初の石
+            Vector2? shuW = null;
+            foreach (var so0 in A(t["stones"])) { var s0 = O(so0); string n0 = StrOf(s0, "name") ?? "";
+                if (n0.Contains("主石") || n0.Contains("鏡石")) { shuW = f.W(HasKey(s0, "u") ? F(s0["u"]) : F(t["u"]), HasKey(s0, "v") ? F(s0["v"]) : F(t["v"])); break; } }
             int i = 0;
             foreach (var so in A(t["stones"]))
             {
-                var st = O(so); float u = HasKey(st, "u") ? F(st["u"]) : F(t["u"]); float v = HasKey(st, "v") ? F(st["v"]) : F(t["v"]);
-                float show = F(st["show"]); float full = show / (1f - bury);
-                Vector2 w = f.W(u, v); float gy = TerrainY(w.x, w.y);
-                var go = EdoNishiTameikeBuilder.Place(EdoAssets.JG.Rock(1 + rnd.Next(3)),
-                    new Vector3(w.x, gy - full * bury, w.y), (float)rnd.NextDouble() * 360f, Vector3.one, sub, StrOf(st, "name") ?? ("石" + i));
-                if (go != null) { ScaleToHeight(go, full); nStone++; }
-                i++;
+                var st = O(so); string snm = StrOf(st, "name") ?? ("石" + i);
+                float u = HasKey(st, "u") ? F(st["u"]) : F(t["u"]); float v = HasKey(st, "v") ? F(st["v"]) : F(t["v"]);
+                // 埋め: 石ごとの `bury` が優先(天井石は 0 = 架ける)。全丈 = 見え丈 ÷ (1 − 埋め)
+                float bu = HasKey(st, "bury") ? F(st["bury"]) : bury;
+                float show = F(st["show"]); float full = show / Mathf.Max(0.01f, 1f - bu);
+                Vector2 w = f.W(u, v);
+                // 据え付け面: 指図の `bedY`(岩屋の三段=水面から従属)があればそれ、無ければ実地形
+                float gy = HasKey(st, "bedY") ? F(st["bedY"]) : TerrainY(w.x, w.y);
+                // 部材: 指図の `api`(立石は Own.Tateishi / 伏石は JG.Rock)。無ければ在庫の転石
+                string path = HasKey(st, "api") ? ResolveApi(StrOf(st, "api")) : null;
+                if (path == null) path = EdoAssets.JG.Rock(1 + rnd.Next(3));
+                // 向き: `face`(V1/V2 = その主視点へ見付 +Z を向ける / 主石 = 群の主石へ / 洞の内 = 主石の逆)。無ければ乱数
+                float yaw = (float)rnd.NextDouble() * 360f; string face = StrOf(st, "face");
+                if (face != null)
+                {
+                    Vector2? tgt = null;
+                    if (vpW.ContainsKey(face)) tgt = vpW[face];
+                    else if (face.Contains("主石") && shuW.HasValue) tgt = shuW.Value;
+                    else if (face.Contains("洞") && shuW.HasValue) tgt = w + (w - shuW.Value);
+                    if (tgt.HasValue) { Vector2 dv = tgt.Value - w; yaw = Mathf.Atan2(dv.x, dv.y) * Mathf.Rad2Deg; }
+                }
+                var go = EdoNishiTameikeBuilder.Place(path, new Vector3(w.x, gy - full * bu, w.y), yaw, Vector3.one, sub, snm);
+                if (go == null) { nSkip++; sb.AppendLine("⚠ 石 " + snm + ": 部材が解けない(" + (StrOf(st, "api") ?? "在庫") + ")"); i++; continue; }
+                // 寸法: 指図の `plan` [長, 幅] と全丈へ **非等方**に合わせる。⛔ 異方比(軸ごとの拡縮の最大/最小)が 1.35 を超える石は
+                //   岩肌が伸びて岩に見えないので据えず、部材方へ(庭方 2026-09-04 共有2-4)。
+                var rs = go.GetComponentsInChildren<Renderer>();
+                if (rs.Length > 0 && HasKey(st, "plan"))
+                {
+                    var b = rs[0].bounds; foreach (var r in rs) b.Encapsulate(r.bounds);
+                    var pl = A(st["plan"]); float L = F(pl[0]), Wd = F(pl[1]);
+                    float sx = L / Mathf.Max(0.01f, b.size.x), sz = Wd / Mathf.Max(0.01f, b.size.z), sy = full / Mathf.Max(0.01f, b.size.y);
+                    float mx = Mathf.Max(sx, Mathf.Max(sy, sz)), mn = Mathf.Min(sx, Mathf.Min(sy, sz));
+                    if (mx / mn > 1.35f)
+                    {
+                        sb.AppendLine(string.Format("⚠ 石 {0}: 異方比 {1:F2}(x{2:F2} y{3:F2} z{4:F2})— 据えず。丈 {5:F2}m の立石を部材方へ", snm, mx / mn, sx, sy, sz, full));
+                        UnityEngine.Object.DestroyImmediate(go); nSkip++; i++; continue;
+                    }
+                    go.transform.localScale = new Vector3(sx, sy, sz);
+                }
+                else ScaleToHeight(go, full);
+                nStone++; i++;
             }
         }
         // 石組護岸: 帯ごとに汀線を歩き、`seatRule`(外向きに進んで最初に地面が waterY を超える点)へ据える
-        int nGogan = 0; var gsub = Group("Niwa/Ishigumi/Gogan");
+        int nGogan = 0; var gsub = Group("Niwa/Ishigumi/Gogan"); var shoreArr = shore.ToArray();
         foreach (var bo in A(gogan["bands"]))
         {
             var b = O(bo); int i0 = Convert.ToInt32(b["from"]) - 1, i1 = Convert.ToInt32(b["to"]) - 1;   // ⚠ 指図の from/to は汀線の番号 #(1始まり)。生成器 gogan_bands() と同じく −1(2026-09-06 検図 第13次 中1)
@@ -348,8 +389,10 @@ public static partial class EdoMatsudairaDewaBuilder
                     float size = Mathf.Lerp(sMin, sMax, (float)rnd.NextDouble());
                     Vector2 q = Vector2.Lerp(a, c, pos / seg);
                     // 外向き = 汀線の左右のうち池の外(輪郭の重心から遠い側)
-                    Vector2 ctr = Vector2.zero; foreach (var s0 in shore) ctr += s0; ctr /= shore.Count;
-                    Vector2 nrm = new Vector2(-(c - a).y, (c - a).x).normalized; if (Vector2.Dot(nrm, q - ctr) < 0) nrm = -nrm;
+                    // ⛔ 「輪郭の重心から遠い側」は瓢箪のくびれ(#15→#16)で反転する(庭方 2026-09-04 共有3)。
+                    //    外向き = 法線方向へ 0.8m 進んだ点が池の**外**(PIP false)。
+                    Vector2 nrm = new Vector2(-(c - a).y, (c - a).x).normalized;
+                    if (EdoGeom.PIP(shoreArr, q + nrm * 0.8f)) nrm = -nrm;
                     Vector2 seat = q; for (int k = 0; k < 40; k++) { seat = q + nrm * (k * 0.1f); if (TerrainY(seat.x, seat.y) > wy) break; }
                     float top = wy + Mathf.Lerp(aMin, aMax, (float)rnd.NextDouble());
                     float gy = TerrainY(seat.x, seat.y); float full = (top - gy) / (1f - bury);
@@ -363,7 +406,7 @@ public static partial class EdoMatsudairaDewaBuilder
                 if (idx > i0 + n) break;
             }
         }
-        sb.AppendLine(string.Format("石組 {0} 石 / 護岸 {1} 石(石橋は部材なし・据えず)", nStone, nGogan));
+        sb.AppendLine(string.Format("石組 {0} 石(据えず {2})/ 護岸 {1} 石(石橋は部材なし・据えず)", nStone, nGogan, nSkip));
         return sb.ToString();
     }
 

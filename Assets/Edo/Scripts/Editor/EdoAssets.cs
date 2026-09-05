@@ -1022,6 +1022,39 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_okabe_niwa.py -- kutsunugi</summary>
         public const string Kutsunugi = NiwaDir + "Kutsunugi.fbx";
 
+        /// <summary>**立石(縦長の庭石)3種**。松江松平上屋敷の庭(`tenkei[].stones[]` の
+        /// 主石・副石・鏡石、`sensui.iwaya` の鏡石ほか)向け。ユーザー裁定3=A(2026-09-06)。
+        /// ⛔ **在庫の岩は使わない** — `JG.Rock01..03`(FreeJapaneseGarden)は実見すると
+        /// 全部が丈&lt;幅の扁平な転石で、立石(丈&gt;幅)に使える個体が無い。⭕ Blender の bmesh で
+        /// 手続き生成した(円柱・直方体の押し出しではなく、前面だけ真っ平らな「見付」を持ち
+        /// 残りは不等な円弧で割れ肌を持つ多角柱)。
+        ///
+        /// <para>実寸(Unity座標・スケール1で): W(X)×H(Y)×D(Z)。ピボット = **底面中央**。
+        /// <list type="bullet">
+        /// <item><b>S</b> … 0.600 × 1.000 × 0.450</item>
+        /// <item><b>M</b> … 0.700 × 1.400 × 0.500</item>
+        /// <item><b>L</b> … 0.800 × 2.100 × 0.600(岩屋の鏡石・主石組の主石向け)</item>
+        /// </list>
+        /// 各サイズ3個体(<paramref name="variant"/> = 1..3)。⛔ **1個体で並べない**
+        /// (庭方の設計は「不等辺」を要求する — 同じ石を並べると三石・五石の意匠が壊れる)。
+        /// 石は据える側で 1/3 埋める前提の**全丈**なので、地盤より下へ沈める場合は
+        /// <c>position.y = 地盤 − H/3</c> のように呼び出し側で埋め代を引くこと(石自体は削らない)。</para>
+        ///
+        /// <para>材質: ⛔⛔ **依頼(JG_Rock_A_01 の材質名を保つ)はそのまま実装していない。**
+        /// `JG_Rock_A_01_LOD0.fbx` の材質名は Blender から見て `Test` で、この名前の .mat は
+        /// プロジェクトに存在せず remap が当たらない(2026-09-04 に岡部庭の景石で踏まれた地雷と
+        /// 同じ — `Ishigumi`/`Tobiishi`/`Kutsunugi` のコメント参照)。⭕ 代わりに**同じ岩石景の
+        /// 部材が既に使っている** `M_photoscanned_rocks_01`(NatureManufacture・写真計測の実肌)を
+        /// そのまま運んだ。新規マテリアルは作っていない。UV は同じアトラスの1枚岩ぶんの矩形を
+        /// 密度そのまま(0.30 uv/m)で使うので、丈2.1mでも引き伸ばされない。</para>
+        ///
+        /// <para>LOD1 を同梱(Decimate 40%・約500三角)。Unity 側は `Tateishi_&lt;size&gt;_&lt;variant&gt;_LOD0`/`_LOD1`
+        /// の命名から自動で LODGroup を作る(README の命名規則どおり。ただしこのビルドで
+        /// 初めて使うので、Unity 取り込み後に LODGroup が実際に立つか確認すること)。</para>
+        /// 生成: blender --background --python Tools/Blender/build_tateishi.py -- all --render</summary>
+        public static string Tateishi(string size, int variant)
+        { return NiwaDir + "Tateishi_" + size + "_" + variant + ".fbx"; }
+
         /// <summary>**四つ目垣 1スパン(1間)**。親柱1 + 立子5 + 胴縁(h1.2 で4段 / h0.9 で3段)+
         /// 棕櫚縄の結び。⭕ 竹の断面・アトラスの帯・**結びの実体**は在庫の
         /// `Japanese Village Kit/Meshes/Fences/Bamboo garden fence`(本物の四つ目垣)から借りた。

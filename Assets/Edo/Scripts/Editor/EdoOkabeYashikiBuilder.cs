@@ -1326,6 +1326,14 @@ public static class EdoOkabeYashikiBuilder
         if (kk == null)
         { wait.Add("棟 " + S(m["name"]) + ": 切り欠きの線が指図に無い(裁定10=A)"); return ""; }
         float atV = F(kk["atV"]), aboveY = F(kk["aboveY"]), face = F(m["y"]);
+        // ⚠ **切り欠きは水平面ではなく屋根面**(2026-09-04 部材方)。玄関棟の軒先の線から
+        //   奥(v ≧ atV)へ、勾配 `slope` で上がる**斜面**より上を切る。
+        //   ⛔ 水平面のままだと 278 頂点を誤検出する(切り欠き済みの部材を「未実施」と報告する)。
+        float slope = Has(kk, "slope") ? F(kk["slope"]) : 0.5456f;
+        if (!Has(kk, "slope"))
+            wait.Add("車寄の切り欠き: 指図 `kirikaki.slope` が無いので勾配 0.5456(部材方の実測)を"
+                   + "当てた — 指図方が欄を足すこと");
+        float ken = C("ken");
         var f = Grid;
         int n = 0; float maxAbove = 0f, maxV = float.MinValue;
         foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
@@ -1337,15 +1345,18 @@ public static class EdoOkabeYashikiBuilder
             {
                 var w = mtx.MultiplyPoint3x4(vs[i]);
                 var uv = f.L(new Vector2(w.x, w.z));
-                if (uv.y < atV) continue;                      // 軒先の線より手前は切らない
-                float above = (w.y - face) - aboveY;
-                if (above <= 0f) continue;                     // 軒先の高さより下は切らない
+                if (uv.y < atV) continue;                       // 軒先の線より手前は切らない
+                // ⭕ 屋根面: 面から `aboveY` + 奥行き(m)× 勾配
+                float cut = aboveY + (uv.y - atV) * ken * slope;
+                float above = (w.y - face) - cut;
+                if (above <= 0f) continue;
                 n++; maxAbove = Mathf.Max(maxAbove, above); maxV = Mathf.Max(maxV, uv.y);
             }
         }
         if (n == 0) return " / 車寄の切り欠き: 不要(食い込み 0)";
-        wait.Add("車寄の切り欠き: **未実施** — 玄関棟の軒先の線(v≧" + atV.ToString("0.##")
-               + ")より奥で、面+" + aboveY.ToString("0.###") + "m より上に車寄の頂点が " + n
+        wait.Add("車寄の切り欠き: **屋根面より上に出ている** — 玄関棟の軒先の線(v≧" + atV.ToString("0.##")
+               + ")より奥で、面+" + aboveY.ToString("0.###") + "m から勾配 " + slope.ToString("0.####")
+               + " で上がる屋根面より上に車寄の頂点が " + n
                + " 点ある(最大 " + maxAbove.ToString("F2") + "m 上・v 最大 " + maxV.ToString("F2") + ")。"
                + "⛔ 実行時にメッシュを割り直さない(縁がぎざぎざになって瓦が欠ける) — "
                + "部材方へ**切り欠き済みの版**を依頼すること(規則: atV / aboveY / cutFrom=車寄・玄関棟は切らない)");

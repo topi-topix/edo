@@ -457,7 +457,7 @@ def reserve_free_resources(ttl=TTL_MIN):
 
     ⚠ 引き渡し(_hand_over)は `release` を打ったときにしか走らない。心拍が途絶えて claim ごと
     消えた場合や、資源だけ落ちた場合は**誰も予約を出さない**ので、待っている側は空いたことに
-    気づけない。`status`(挨拶フックと作事奉行の巡回が毎回打つ)で拾い直す。"""
+    気づけない。`status`(挨拶フックが毎回打つ)で拾い直す。"""
     cs = load_all(ttl)
     out = []
     for r, ws in q_load().items():

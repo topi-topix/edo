@@ -5,7 +5,7 @@
 
 - **掲示板** = `.git/edo-board/` の issue 登録簿(git 管理外・全 worktree 共有)。
   CLI は `Tools/Session/edo_board.py`。
-- 差配役(司令塔→作事奉行)は 2026-09-06 に廃止した(末尾)。**セッション間の伝達は当事者が直接行う**。
+- **セッション間の伝達は当事者が直接行う**(巡回する差配役は置いていない。経緯は `docs/lessons.md`)。
 
 ---
 
@@ -104,21 +104,12 @@ greet フックが board の digest(裁定待ち・ブロッカー・open)を自
 
 ---
 
-## 作事奉行(差配役)は廃止した(2026-09-06 ユーザー裁定)
+## ダッシュボード
 
-旧称「司令塔」→ 2026-08-29「作事奉行」→ 2026-09-06 廃止。経緯は `docs/lessons.md`。
-記録上3回しか呼ばれず、ダッシュボードは 9月2日で止まり、三巡則の見張りも効いていなかった。
-仕事は次のとおり機械と当事者に移した:
-
-| 旧・作事奉行の仕事 | いま誰が |
-|---|---|
-| ダッシュボードの生成 | `python3 Tools/Session/build_board_html.py`(LLM を挟まない)。再公開はユーザーが求めたときに任意のセッションが `Artifact(url=下記)` で行う |
-| ユーザーへの翻訳 | 各普請奉行が `reporting-protocol.md` の作法で直接報告する |
-| 異常検知(停滞・三巡則・裁定の滞留) | 挨拶フックの掲示板 digest・検図関門・結線関門。三巡則は各普請奉行が自分で守る(`docs/fushin-bugyo.md`) |
-| 取りこぼしの起票・伝達 | 当事者が §4 のとおり起票+直接メッセージ |
-| `sync-tools` | main の運用ファイルを直したセッションがその場で打つ |
-
-ダッシュボード Artifact(同一 URL へ上書き): https://claude.ai/code/artifact/cfda75da-234f-4411-9cdb-701904838613
+`python3 Tools/Session/build_board_html.py` が `.git/edo-board/_pm/dashboard.html` を生成する。
+見たいときに誰でも流してよく、再公開は同一 URL へ上書きする:
+https://claude.ai/code/artifact/cfda75da-234f-4411-9cdb-701904838613
+⚠ 定期に流す担い手は決まっていない(EDO-0138)。
 
 ---
 

@@ -147,4 +147,4 @@
 ⛔ 指図を見せる前・実装に入る前に `python3 Tools/Sashizu/review_gate.py`。赤は実装しない。
 ⛔ 裁定を求めるときは**裁定図**(どこ・現況・各案を同じ縮尺で・数値の差・推奨)を出す。名前と数字の羅列で選ばせない。
 ⚠ `edo-toryo` は指図に無い値を発明しない。踏んだ罠は `unity-buke-yashiki/references/qa-and-pitfalls.md` へ書き戻す。
-⚠ 作事奉行(差配役)は 2026-09-06 に廃止。ダッシュボードは `Tools/Session/build_board_html.py`、見張りは挨拶フック。
+⚠ 巡回する差配役は置かない。ダッシュボードは `Tools/Session/build_board_html.py`、見張りは挨拶フック。

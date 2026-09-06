@@ -4601,6 +4601,7 @@ def edge_step_check(d, dem):
             line = t[edge]
             sgn = -1.0 if edge in ("u0", "v0") else 1.0
             worst = 0.0; spot = None
+            steep = (0.0, 0.0, 0.0, 0.0, 0.0)      # (超過, u, v, 落差, 許容)
             n = max(6, int(hi - lo))
             for i in range(n + 1):
                 q = lo + (hi - lo) * i / float(n)
@@ -4626,9 +4627,32 @@ def edge_step_check(d, dem):
                     continue
                 if abs(gi - go) > abs(worst):
                     worst = gi - go; spot = (uo, vo)
+                # ⭐ **法面が追いつくか**(2026-09-06 普請奉行)。⚠ probe 0.11m の落差だけを
+                #   見ていると、**法面の走りが足りない縁**を拾えない — 縁ぎわは小さくても、
+                #   少し外で設計の法(盛 1:1.5 / 切 1:1.0)より急に落ちていれば壁が要る。
+                #   ⛔ **落差の絶対値でなく「勾配」で見る**(規則: 法は走りと落差の比)。
+                r9 = 0.5                                   # 0.5間 外まで見る
+                uo2, vo2 = ((line + sgn * r9, q) if edge in ("u0", "u1")
+                            else (q, line + sgn * r9))
+                if design_y(d, uo2, vo2) is None and in_parcel(d, uo2, vo2):
+                    wx2, wz2 = gr.W(uo2, vo2)
+                    n2 = dem_bilinear(dem, wx2, wz2)
+                    g2 = None if n2 is None else graded_y(d, uo2, vo2, n2, we)
+                    if g2 is not None:
+                        dz = gi - g2
+                        bat = (d["const"]["batterFill"] if dz > 0
+                               else d["const"]["batterCut"])
+                        allow = r9 * d["const"]["ken"] / bat
+                        if abs(dz) - allow > abs(steep[0]):
+                            steep = (abs(dz) - allow, uo2, vo2, dz, allow)
             if abs(worst) > lim and spot:
                 bad.append("段の縁に受けの無い段差 %s の %s: %+.2fm (グリッド %.1f, %.1f)"
                            % (t["name"], edge, worst, spot[0], spot[1]))
+            if steep[0] > 1e-6:
+                bad.append("段の縁の法が設計より急 %s の %s: 0.5間 外で %+.2fm "
+                           "(法の許容 %.2fm)— 法面が追いつかないので土留めが要る "
+                           "(グリッド %.1f, %.1f)"
+                           % (t["name"], edge, steep[3], steep[4], steep[1], steep[2]))
     return bad
 
 
@@ -8202,7 +8226,24 @@ def edge_step_qa_table(d, dem):
                 hit = (yi is not None and yo is not None
                        and abs(yi - yo) > lim + 1e-4 and not cov)
                 if hit:
-                    if design_y(d, uo, vo) is not None:
+                    # ⚠⚠ **角(端点)では内側の probe が隣の段に落ちる。**この段の縁として
+                    #   鳴っていても、実際に受けるのは**隣の段の壁**である(2026-09-06 に
+                    #   `MonzenE` の `u0`・q=12.0 で踏んだ — あそこは `MonzenE` の v1 端点で、
+                    #   内側の probe は `MaeNiwa`(21.9)に落ち、`TW_MaeS` が既に受けていた)。
+                    #   ⛔ **自分の段の壁だけを見て「受けが無い」と言わない。**
+                    own = design_y(d, ui, vi)
+                    other = [x for x in d["terraces"]
+                             if x["name"] != t["name"] and own is not None
+                             and abs(x["y"] - own) < 0.01
+                             and x["u0"] - 1e-9 <= ui <= x["u1"] + 1e-9
+                             and x["v0"] - 1e-9 <= vi <= x["v1"] + 1e-9]
+                    held = [x["name"] for x in other
+                            if _walled(we[x["name"]], edge, q)]
+                    if own is not None and abs(own - t["y"]) > 0.01 and held:
+                        cls = "F 角の取り違え(%s の壁が受ける)" % held[0]
+                    elif own is not None and abs(own - t["y"]) > 0.01:
+                        cls = "F 角の取り違え(内側が %s)" % (other[0]["name"] if other else "別の段")
+                    elif design_y(d, uo, vo) is not None:
                         cls = "A 外が別の段"
                     elif not in_parcel(d, uo, vo):
                         cls = "B 区画の外"
@@ -8240,9 +8281,12 @@ def edge_step_qa_table(d, dem):
         "<b>B 区画の外</b>=隣家・道で <code>runs</code> の基壇石垣か隣家の塀が受ける"
         "(<code>edge_step_check</code> は <code>in_parcel</code> で外している)/ "
         "<b>D 素地=法面</b>=<b>指図が法面と定めた縁</b>・設計どおり / "
-        "<b>E 法面で説明できない</b>=<b>実質の検討はここだけ</b>。"
+        "<b>F 角の取り違え</b>=<b>段の端点で内側の probe が隣の段に落ちている</b> — "
+        "受けるのは<b>隣の段の壁</b>で、⛔ 自分の段の壁だけを見て「受けが無い」と言わない / "
+        "<b>E 法面で説明できない</b>=<b>ここだけが実質の検討</b>。"
         "⛔ <b>壁はまだ足さない</b>(設計判断)。⇒ 実装側は ①区画の外を除く ②外が別の段を除く "
-        "③probe を縁ぎわに寄せるか法面の許容(走り × 勾配)と比べる、の3つを直すこと。</p>"
+        "③probe を縁ぎわに寄せるか法面の許容(走り × 勾配)と比べる "
+        "④<b>角では隣の段の壁も見る</b>、の4つを直すこと。</p>"
         % (1.0 / d["const"]["batterFill"] * 1.0, fill, 1.0 / d["const"]["batterCut"] * 1.0, cut,
            lim,
            " / ".join("%s %d" % (k, v) for k, v in sorted(tally.items())), len(rows)))

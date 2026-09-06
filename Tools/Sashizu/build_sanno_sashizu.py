@@ -827,8 +827,8 @@ def genkyo_svg(d, kan, x0, x1, z0, z1, W=900.0):
     y = pr.H - 14
     o.append(LN(14, y, 14 + pr.L(100), y, stroke="var(--dim)", sw=1.2))
     o.append(T(14 + pr.L(100) / 2, y - 4, "100 m", fs=10.5, anchor="middle"))
-    o.append(ENDSVG)
     o += sando_band(d, pr.X, pr.Y, pr.L); o += torii_marks(d, pr.X, pr.Y)   # 参道と鳥居(検図 2026-09-06)
+    o.append(ENDSVG)
     return "\n".join(o)
 
 
@@ -1161,8 +1161,8 @@ def kirimori_svg(d, kan, x0, x1, z0, z1, W=900.0):
     tot = sum(t_[1] for t_ in tally.values()) - sum(t_[2] for t_ in tally.values())
     o.append(T(pr.W - 6, yy, "差引 %+.0f m³(正なら客土が要る／負なら残土が出る)" % tot, fs=10.5,
                anchor="end", fill="var(--shu)"))
-    o.append(ENDSVG)
     o += sando_band(d, pr.X, pr.Y, pr.L); o += torii_marks(d, pr.X, pr.Y)   # 参道と鳥居(検図 2026-09-06)
+    o.append(ENDSVG)
     return "\n".join(o)
 
 
@@ -2730,7 +2730,7 @@ def sando_roadside_table(d):
         r.append("<tr><td>%s</td><td class='note'>%s</td></tr>" % (a, inline(b)))
     row("路面", "幅 %g m ／ 仕上げ %s【?】" % (rs["roadWidth"], rs["surface"]))
     row("側溝", "素掘り 幅 %g 間 ／ 両側" % rs["sokkoKen"])
-    row("路肩", "土。片側 約 %g m(東西の帯の代表値。**道敷の幅は場所で変わるので従属値**)" % rs["rokataOneSide"])
+    row("路肩", "土。" + inline(rs.get("rokataRule", "道敷の幅から従属")))
     for sec in rs["sections"]:
         row(sec["name"], "延長 %.1f m ／ 植栽 %s" % (sec["len"], sec.get("planting", "—")))
     row("柵(社地側)", "境から %g 間 ／ run `%s`(部材は Saku_SW と同じ)"
@@ -3211,7 +3211,7 @@ def main():
     h.append(neighbors_table(d))
     h.append("</div>")
 
-    plate(h, nx(), "社叢と植栽", "面は其一・其五に描いてある ／ 数値の出口はこの表だけ")
+    plate(h, nx(), "社叢と植栽", "面は境内の平面図と前庭の附図に描いてある(帯4と立木3区は社地の全図にも) ／ 数値の出口はこの表だけ")
     h.append("<h3>社叢の帯</h3>")
     h.append(shaso_table(d))
     h.append('<p class="cap"><b>社叢が境内の実体である。</b>帯1〜3は法肩からの下りの割合で切り、'

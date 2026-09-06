@@ -296,6 +296,14 @@ public static class EdoSashizuExport
                     if (sPos != null && sPos.ContainsKey("banshoW")) names.Add("Bansho_W");
                     if (sPos != null && sPos.ContainsKey("banshoE")) names.Add("Bansho_E");
                 }
+                // ⚠ **門外の踏石も名前を持たない**(`komon[].fumiishi` の欄。段の名は `Fumiishi_<門>_<段>_<枚>`)。
+                //   ⛔ 教えないと据えた踏石が「孤児の囲い」になる(2026-09-06 棟梁・実装第4回)。
+                foreach (var o in Get2(doc, "komon"))
+                {
+                    var km = o as Dictionary<string, object>; if (km == null) continue;
+                    if (km.ContainsKey("fumiishi") && km["fumiishi"] != null)
+                        names.Add("Fumiishi_" + Str(km, "name"));
+                }
                 foreach (var nm in names)
                 {
                     if (nm == null) continue;

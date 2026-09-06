@@ -882,10 +882,54 @@ public static partial class EdoDoiBuilder
     //   引き取った(規則19「輪に入っていない値は未検査であって合格ではない」)。
     //   ⛔ 使い捨てのまま置くと、次に建て直したとき誰も測らない。
 
+    /// <summary>縁の内外を見る probe の距離[間]。⭐ **指図の `edge_step_check` と同じ 0.06間(0.11m)**。
+    /// ⚠⚠ **0.5間(0.909m)にしてはならない** — そこでは設計どおりの法面(盛 1:`batterFill` で 0.61m /
+    /// 切 1:`batterCut` で 0.91m)が正当に落ちきっており、そこへ `stepAbsorbMax`(=**段の縁で摺り付け
+    /// られる落差**)を当てるのは単位の取り違えになる。法面が在る縁がほぼ全部鳴った
+    /// (2026-09-06 指図方の仕分け: 33区間のうち **指図の欠落は 0 件**だった)。</summary>
+    const float EdgeProbe = 0.06f;
+
+    /// <summary>グリッド点 (u,v) を土留めが受けているか。⭐ **段に紐づけず幾何で見る。**
+    /// ⚠ 段の角では**隣の段の壁**が落差を受けていることがある(2026-09-06 指図方の申し送り④ —
+    /// `MonzenE` の u0・v=12.0 は `MonzenE` 自身の壁では受かっておらず、隣の段 `MaeNiwa` の
+    /// `TW_MaeS` が同じ線 u=−6 で受けていた。段ごとの `WalledEdges` では見えない)。
+    /// `top` は落差の**高い側**の高さ — 土留めの天端はそこに一致する。</summary>
+    static bool WalledAt(float u, float v, float top)
+    {
+        foreach (var w in Walls)
+        {
+            if (Mathf.Abs(w.coping - top) > 0.12f) continue;
+            if (Mathf.Abs(w.a.x - w.b.x) < 1e-6f)                       // u=const の壁
+            {
+                if (Mathf.Abs(w.a.x - u) > 0.10f) continue;
+                float lo = Mathf.Min(w.a.y, w.b.y), hi = Mathf.Max(w.a.y, w.b.y);
+                if (v < lo - 1e-6f || v > hi + 1e-6f) continue;
+                if (w.hasGapV && Mathf.Abs(v - w.gapV) < w.gapHalf) continue;   // 開口には壁が無い
+                return true;
+            }
+            else                                                         // v=const の壁
+            {
+                if (Mathf.Abs(w.a.y - v) > 0.10f) continue;
+                float lo = Mathf.Min(w.a.x, w.b.x), hi = Mathf.Max(w.a.x, w.b.x);
+                if (u < lo - 1e-6f || u > hi + 1e-6f) continue;
+                if (w.hasGapU && Mathf.Abs(u - w.gapU) < w.gapHalf) continue;
+                return true;
+            }
+        }
+        return false;
+    }
+
     /// <summary>**検査① 段の縁の落差を土留めが受けているか。**
-    /// 段の四辺を 0.5間 刻みで歩き、縁の内外 0.5間 の `GradedY` の差が `const.stepAbsorbMax` を
-    /// 超えるのに `terraceWalls` が載っていない区間を出す。
-    /// ⚠ **これは実装でなく指図の欠落を捕まえる検査** — 出たら棟梁は壁を発明せず、指図方へ回す。</summary>
+    /// 段の四辺を 0.5間 刻みで歩き、縁の内外 **0.06間(0.11m)** の `GradedY` の差が
+    /// `const.stepAbsorbMax` を超えるのに土留めが載っていない区間を出す。
+    /// ⚠ **これは実装でなく指図の欠落を捕まえる検査** — 出たら棟梁は壁を発明せず、指図方へ回す。
+    /// ⭐ **2026-09-06 に指図方の申し送り4件で直した**(それまで 33区間 出ていたが、仕分けの結果
+    /// **指図の欠落 E は 0 件**で、内訳は A 外が別の段 12 / B 区画の外 7 / D 素地=法面 29 / F 角の
+    /// 取り違え 1 だった。⛔ **測り方が違うだけの数字を「指図の欠落」として指図方へ回していた**):
+    ///   ① **区画の外を除く** — 隣家・道は当家の造成の対象外(`InParcelUV`)
+    ///   ② **外が別の段の所を除く** — 段と段の取り合いは `adjacency_check` の担当で、二重に鳴る
+    ///   ③ **probe を縁ぎわへ寄せる** — `EdgeProbe` の註
+    ///   ④ **角では隣の段の壁も見る** — `WalledAt` の註</summary>
     [MenuItem(MENU + "検査① 段の縁の落差と土留め EdgeStepQA")]
     public static void EdgeStepQAMenu() { Debug.Log("[Doi] " + EdgeStepQA()); }
     public static string EdgeStepQA()
@@ -893,10 +937,13 @@ public static partial class EdoDoiBuilder
         float lim = C("stepAbsorbMax");
         var sb = new System.Text.StringBuilder();
         int bad = 0, spans = 0, nub = 0;
+        // ⭐ **仕分けの内訳を刷る**(規則19 — 落とした点を数えずに 0 件と言わない)。
+        //   ⛔ 0 件が「除外を効かせすぎて何も見ていない」から来ていないことは `held`(土留めが
+        //      現に受けた点)で分かる — これが 0 なら検査に歯が無い。
+        int skipOut = 0, skipOther = 0, held = 0;
         foreach (var t in Terraces)
         {
             if (t.rot) continue;                       // 回転する段(長屋の郭)は別の作法。ここでは見ない
-            var we = WalledEdges(t);
             // 四辺: (edge名, 走る軸の値域, 固定値, 外向き符号)
             string[] en = new string[] { "u0", "u1", "v0", "v1" };
             for (int e = 0; e < 4; e++)
@@ -908,19 +955,28 @@ public static partial class EdoDoiBuilder
                 float runLo = float.NaN, runHi = 0f, worst = 0f; string kind = "";
                 for (float q = q0; q <= q1 + 1e-6f; q += 0.5f)
                 {
-                    float ui = vertEdge ? fix - sgn * 0.5f : q, vi = vertEdge ? q : fix - sgn * 0.5f;
-                    float uo = vertEdge ? fix + sgn * 0.5f : q, vo = vertEdge ? q : fix + sgn * 0.5f;
+                    float ui = vertEdge ? fix - sgn * EdgeProbe : q, vi = vertEdge ? q : fix - sgn * EdgeProbe;
+                    float uo = vertEdge ? fix + sgn * EdgeProbe : q, vo = vertEdge ? q : fix + sgn * EdgeProbe;
+                    // ① 区画の外は当家の造成の対象外(隣家・道が持つ)— 見ない
+                    if (!InParcelUV(uo, vo) || !InParcelUV(ui, vi)) { skipOut++; continue; }
                     var wi = Grid.W(ui, vi); var wo = Grid.W(uo, vo);
                     float yi = GradedY(ui, vi, NaturalY(wi.x, wi.y));
                     float yo = GradedY(uo, vo, NaturalY(wo.x, wo.y));
                     if (float.IsNaN(yi) || float.IsNaN(yo)) continue;
+                    // ② 外が別の段 = 段と段の取り合い(`adjacency_check` の担当)。ここで二重に鳴らさない
+                    bool onOther = false;
+                    foreach (var t2 in Terraces) if (t2 != t && t2.In(uo, vo, 0f)) { onOther = true; break; }
+                    if (onOther) { skipOther++; continue; }
                     // ⚠ **落差は両向きに見る。**内が高い = 盛(擁壁が要る)/ 外が高い = 切(法面が立つ)。
                     //   ⛔ 片側だけ見ると、段の背後の 1:1 の切土法面(43°の草の崖)を丸ごと見落とす。
                     float drop = yi - yo;
-                    bool covered = Walled(we, en[e], q);
+                    // ④ 壁は幾何で引く(角では隣の段の壁が受ける)。⛔ `Walled(we, ...)` は自分の段しか見ない
+                    float pu = vertEdge ? fix : q, pv = vertEdge ? q : fix;
+                    bool covered = WalledAt(pu, pv, yi) || WalledAt(pu, pv, yo);
                     // ⭕ **開口の中は斜路・石段が落差を受ける**ので欠陥ではない(⛔ 一律に鳴らさない)
                     if (!float.IsNaN(RampY(uo, vo)) || !float.IsNaN(StairY(uo, vo))
                      || !float.IsNaN(RampY(ui, vi)) || !float.IsNaN(StairY(ui, vi))) covered = true;
+                    if (Mathf.Abs(drop) > lim + 1e-4f && covered) held++;
                     bool hurt = Mathf.Abs(drop) > lim + 1e-4f && !covered;
                     if (hurt && (float.IsNaN(runLo) || Mathf.Abs(drop) > Mathf.Abs(worst)))
                         kind = drop > 0f ? "盛" : "切";
@@ -943,6 +999,9 @@ public static partial class EdoDoiBuilder
         }
         return "検査① 段の縁 " + spans + " 点 / 土留めの無い落差 " + bad + " 区間"
              + "(ほかに 1間 未満の点だけの当たり " + nub + " 件は隅の刻みの粗さなので落とした)"
+             + "\n   仕分け: 区画の外で見ない " + skipOut + " 点 / 外が別の段(`adjacency_check` の担当) "
+             + skipOther + " 点 / **土留めが現に受けた " + held + " 点**"
+             + (held == 0 ? " ⛔ **0 = 検査に歯が無い**(除外が効きすぎている)" : "")
              + (bad == 0 ? "" : "\n" + sb.ToString()
                 + "   ⛔ **これは指図の欠落**(`terraceWalls` に壁が無い)— 実装で壁を発明しない。指図方へ回すこと");
     }
@@ -1057,6 +1116,9 @@ public static partial class EdoDoiBuilder
         {
             if (tr == ig) continue;
             if (tr.GetComponents<Renderer>().Length == 0) continue;
+            // ⭕ **門外の踏石は意図した例外** — `komon[].fumiishi` は街路側(区画線の外)に据える物で、
+            //   敷居と街路の差を受けるのが役目。⛔ これを「区画外へ出た」として差し戻さない。
+            if (tr.name.StartsWith("Fumiishi_")) continue;
             tot++;
             float outMax = 0f;
             foreach (var mf in tr.GetComponentsInChildren<MeshFilter>())
@@ -1259,8 +1321,10 @@ public static partial class EdoDoiBuilder
             // 犬走り: 石垣の法肩(=区画線)から内へ控える。⭕ ピボットが**壁の外面**なので
             //   そのぶんを足し引きしない(⛔ `es_knagaya` のように芯を戻す必要は無い)
             Vector2 mid = EdgePt(r.edge, (r.s0 + r.s1) * 0.5f) - outw * Inubashiri;
-            // ⚠ 通用門込みの本は**扉と方立が土台の底より 0.38 下へ出る**のが正。
-            //   ピボットは土台の底なので `seat` をそのまま渡す(⛔ `komon[].sill` を渡すと 0.38 沈む)
+            // ⭐ **2026-09-06 に `komon[Tsuyo_Mon].sill` を 21.52 → 21.90 =(run の `seat`)へ改めた。**
+            //   ⇒ 通用門込みの本も**ピボットより下へ出る頂点は 0**(`--gate-drop` なしで焼き直し)。
+            //   ⛔ **従前の「0.38 の沈み代」の補正は入れない** — 敷居と座が同じ値なので `seat` をそのまま渡す。
+            //   ⚠ 街路(区画線の外 21.29)との 0.61m の段差は**門外の踏石**が吸収する(部材は未造)。
             var go = EdoBuild.Place(path, new Vector3(mid.x, r.seat, mid.y), YawFace(outw),
                                     Vector3.one, kak, r.name);
             if (go == null) continue;
@@ -1335,11 +1399,109 @@ public static partial class EdoDoiBuilder
                             + " / 内 " + (line - lo2).ToString("F3")
                             + "(練塀の組は 外 0.576 / 内 0.776)");
             }
+            // ⚠⚠ **置いた駒の材質スロットは、部材の submesh が増えても追随しない。**
+            //   2026-09-06 普請検査: `Ura_Kido` の slot[2](小壁+瓦)が **NULL でマゼンタ**だった。
+            //   FBX の側は正しく `s_heimap` に結ばれていて、**シーンの駒だけが古い override** を
+            //   抱えていた(submesh 2 が増える前に置かれた駒)。⇒ 置いた直後に素の部材から結び直す。
+            RebindMaterials(go2, path);
             ReportFit(sb, go2, ke, ks - KomonSpan(k) / 2f, ks + KomonSpan(k) / 2f, "小門 " + name);
         }
 
+        // ── 門外の踏石(`komon[].fumiishi`)。⭐ 2026-09-06 に指図が持った(検図方 中-1)。
+        //   ⛔ **蹴上・踏面をここで決めない** — 蹴上は `(sill − 街路の地盤) ÷ n` の**従属値**、
+        //     踏面は `const.fumi`、幅は門口 `w`。指図 `fumiishi._` の宣言どおり。
+        sb.Append(PlaceFumiishi(mon));
+
         sb.Append(WaitReport());
         return sb.ToString();
+    }
+
+    /// <summary>置いた駒の材質を、素の部材のスロットから結び直す。
+    /// ⚠ **FBX を焼き直して submesh が増えても、既にシーンに在る駒の `m_Materials` は伸びない**
+    /// (古い長さのまま残るか、増えた分が null になる)。remap は**アセットにしか効かない**ので
+    /// 目視するまで気づけない(2026-09-06 普請検査で `Ura_Kido` の slot[2] が NULL=マゼンタ)。</summary>
+    static void RebindMaterials(GameObject go, string modelPath)
+    {
+        var src = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
+        if (src == null || go == null) return;
+        var sr = src.GetComponentsInChildren<MeshRenderer>(true);
+        var dr = go.GetComponentsInChildren<MeshRenderer>(true);
+        if (sr.Length != dr.Length) return;                    // 構成が違う = 触らない
+        for (int i = 0; i < dr.Length; i++)
+        {
+            var want = sr[i].sharedMaterials;
+            var got = dr[i].sharedMaterials;
+            bool same = got.Length == want.Length;
+            if (same) for (int j = 0; j < got.Length; j++) if (got[j] != want[j]) { same = false; break; }
+            if (!same) dr[i].sharedMaterials = want;
+        }
+    }
+
+    /// <summary>**門外の踏石。**指図 `komon[].fumiishi`(`n` 段・`side`)。
+    /// ⭐ 蹴上 = **(敷居 − 街路の地盤) ÷ n** の従属値、踏面 = `const.fumi`、幅 = 門口 `w`。
+    /// ⛔ **どれも実装で決め打ちしない**(指図 `fumiishi._` が「ここに書かない」と宣言している)。
+    /// ⚠ 石段 `kaidans` と同じ作り(`Own.DanishiStep` を段ごとに天端で据える)。
+    /// ⚠ **区画線の外へ出る**が、門外の踏石なので**意図した例外**(`ParcelOutQA` が名で除外)。</summary>
+    static string PlaceFumiishi(Transform mon)
+    {
+        int made = 0, nk = 0; var sb = new System.Text.StringBuilder();
+        float tread = C("fumi"), keri = C("keri");
+        foreach (var o in A(D["komon"]))
+        {
+            var k = O(o);
+            if (!Has(k, "fumiishi")) continue;
+            var fi = O(k["fumiishi"]);
+            int n = (int)F(fi["n"]);
+            string nm = S(k["name"]);
+            if (n < 1) { Wait("踏石 " + nm + " の `fumiishi.n` が " + n); continue; }
+            if (!Exists(EdoAssets.Own.DanishiStep))
+            { Wait("段石の部材が無い: " + EdoAssets.Own.DanishiStep); break; }
+            int ke = (int)F(k["edge"]); float ks = F(k["s"]), sill = F(k["sill"]), wid = F(k["w"]);
+            Vector2 outw = OutNormal(ke);
+            Vector2 p = EdgePt(ke, ks);
+            // 街路の地盤は**造成前の正本**から採る(生成器 `komon_step_check` と同じ点・同じ源)
+            float g9 = NaturalY(p.x, p.y);
+            if (float.IsNaN(g9)) { Wait("踏石 " + nm + ": 街路の地盤が引けない"); continue; }
+            float dz = sill - g9, rise = dz / n;
+            if (rise > keri + 1e-4f)
+                Wait("踏石 " + nm + " の蹴上が " + rise.ToString("F3") + "m(上限 `const.keri` "
+                   + keri.ToString("F2") + ")— 段数を増やすのは**指図の判断**。指図方へ");
+            Vector2 up = -outw;                                  // 登る向き(街路 → 門)
+            float yaw = Mathf.Atan2(up.x, up.y) * Mathf.Rad2Deg; // 段石は local +Z = 登る向き
+            Vector2 side = new Vector2(up.y, -up.x);
+            int across = Mathf.Max(1, Mathf.RoundToInt(wid / C("stepW")));
+            float laid = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                // 天端 = 街路 + 蹴上×(i+1)。最上段の天端は敷居に一致する
+                float top = g9 + rise * (i + 1);
+                // 芯 = 区画線から外へ (n − i − 0.5) × 踏面(最上段が門口に接する)
+                Vector2 c0 = p + outw * (tread * (n - i - 0.5f));
+                for (int j = 0; j < across; j++)
+                {
+                    float t = (j - (across - 1) * 0.5f) * (wid / across);
+                    Vector2 c = c0 + side * t;
+                    var go = EdoBuild.Place(EdoAssets.Own.DanishiStep, new Vector3(c.x, top, c.y),
+                                            yaw, Vector3.one, mon, "Fumiishi_" + nm + "_" + i + "_" + j);
+                    if (go == null) continue;
+                    var bb = EdoBuild.RB(go);
+                    go.transform.position += new Vector3(c.x - bb.center.x, top - bb.max.y, c.y - bb.center.z);
+                    var bb2 = EdoBuild.RB(go);
+                    laid = Mathf.Max(laid, bb2.size.x > bb2.size.z ? bb2.size.x : bb2.size.z);
+                    made++;
+                }
+            }
+            nk++;
+            sb.AppendLine("   踏石 " + nm + ": " + n + "段 × " + across + "枚 / 街路 "
+                + g9.ToString("F3") + " → 敷居 " + sill.ToString("F3")
+                + "(差 " + dz.ToString("F3") + "m)/ 蹴上 " + rise.ToString("F3")
+                + " ・踏面 " + tread.ToString("F2") + " ・門口 " + wid.ToString("F2") + "m");
+            if (across * C("stepW") < wid - 0.05f)
+                Wait("踏石 " + nm + " の実幅 " + (across * C("stepW")).ToString("F2")
+                   + "m が門口 " + wid.ToString("F2") + "m に足りない(段石の定尺 "
+                   + C("stepW").ToString("F2") + "m の割り)— 部材方・指図方へ");
+        }
+        return "踏石: " + made + " 枚 / " + nk + " 口\n" + sb.ToString();
     }
 
     // ---------------------------------------------------------------- Stage3 石垣

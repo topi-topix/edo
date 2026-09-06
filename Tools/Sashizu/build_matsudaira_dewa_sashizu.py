@@ -6659,14 +6659,21 @@ def slope_band_counts(d, dem):
 
     ⭐ **帯の帰属は「立った点」から取る**(2026-09-03 検図【中4】D6)。
       ⛔ 層に書いた `band` で数えると、法肩の列のように帯をまたぐ層で分母と分子がずれる。
-    ⭐ 2026-09-05(第10次・庭方 報告1)に**検査と表で共有する一本**へ切り出した — 
-      ⛔ 別々に数えていたので、表だけが許容外に見えて検査は鳴らない、という食い違いが出ていた。"""
+    ⭐ 2026-09-05(第10次・庭方 報告1)に**検査と表で共有する一本**へ切り出した —
+      ⛔ 別々に数えていたので、表だけが必要外に見えて検査は鳴らない、という食い違いが出ていた。
+    ⭐ **2026-09-06(庭方 裁定B・第14次)** — 層が `countBy:"layer"` を持つときは
+      `crestLine` と同じく**宣言した `band` で数える**(実帰属を見ない)。⛔ 稜の列と同じ理由
+      (帯をまたいで置く層は物理位置で数えると分母分子がずれる)で、`肩の常緑` が対象。
+      これにより帯W2 上部の樹林へ物理的にこぼれた本数は帯W1 側へ数え直される。"""
     sp = scatter_slope(d, dem)
     cnt, stray = {}, {}
     for lay in d.get("slopePlanting", []):
         for (u, v, _pt) in sp.get(lay["layer"], []):
-            bn, _rg = _tree_band(d, dem, u, v,
-                                 lay["band"] if lay.get("placement") == "crestLine" else None)
+            if lay.get("countBy") == "layer":
+                bn = lay["band"]
+            else:
+                bn, _rg = _tree_band(d, dem, u, v,
+                                     lay["band"] if lay.get("placement") == "crestLine" else None)
             cnt.setdefault(bn, {}).setdefault(lay.get("role", "?"), 0)
             cnt[bn][lay.get("role", "?")] += 1
             if bn != lay["band"]:
@@ -10297,6 +10304,22 @@ def viewpoint_fov_check(d):
     return bad
 
 
+def _stone_bedY(t, st):
+    """石の `bedY` を解く。**架け石は他の石の天端に従属する**(2026-09-06 検図【低】是正)。
+
+    ⛔ literal を書かない — `bedY` が dict なら `{"ref": <同じ点景内の石の名>, "add": 上乗せ[m]}`
+      として、参照先の石の**天端**(`bedY + show`)+`add` を返す。⚠ 循環参照は呼び出し側の
+      再帰で `RecursionError` になるので、参照先どうしが互いを指す指図は書かないこと。"""
+    b = st.get("bedY", 0.0)
+    if isinstance(b, dict):
+        ref = next((s for s in t["stones"] if s["name"] == b["ref"]), None)
+        if ref is None:
+            raise SystemExit("⛔ tenkei %s の石 %s の bedY.ref『%s』が見つからない"
+                              % (t["name"], st.get("name"), b["ref"]))
+        return _stone_bedY(t, ref) + float(ref.get("show", 0.0)) + float(b.get("add", 0.0))
+    return float(b)
+
+
 def niwa_stone_check(d):
     """**庭方の決定を実際に測る。**⭐ 2026-09-02(第4次・庭方【高1】)新設。
     ⛔ 値だけ書かれて誰も読んでいなかった5件を、ここで初めて幾何に当てる。"""
@@ -10336,7 +10359,7 @@ def niwa_stone_check(d):
                     bad.append("%s の %s が汀線 #%d から離れすぎ — 芯 %.2fm(上限 %.2fm)"
                                % (t["name"], st.get("name", "?"), int(atsh["shore"]),
                                   d_anchor, span_max))
-                top = float(st.get("bedY", 0.0)) + float(st.get("show", 0.0))
+                top = _stone_bedY(t, st) + float(st.get("show", 0.0))
                 if not (lo - 1e-6 <= top <= hi + 1e-6):
                     bad.append("%s の %s の天端 %.2fm が帯 %.2f〜%.2fm を外れる"
                                % (t["name"], st.get("name", "?"), top, lo, hi))

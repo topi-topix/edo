@@ -2635,7 +2635,7 @@ def main():
                 if abs(_pp[_i][0] - _bw[0]) < 0.06 and abs(_pp[_i][1] - _bw[1]) < 0.06: _sb = _s
                 _s += math.hypot(_pp[_i + 1][0] - _pp[_i][0], _pp[_i + 1][1] - _pp[_i][1])
             if _sb is not None:
-                stairs = [(_sb, _sb + _k["planeLen"], _k["yBot"], _k["yTop"], _k["name"])]
+                stairs = [(_sb, _sb + _k["planeLen"], _k["yBot"], _k["yTop"], _k)]   # 末尾は kaidan の dict(女坂と同じ)
         elif key == "NS4827":
             # 回廊の基壇。天端は境内面ではなく **coping**(2026-08-23 検図 中-1)
             over = [(kz0, kz1, kcop)]

@@ -1360,9 +1360,13 @@ public static partial class EdoMatsudairaDewaBuilder
             kido.Add(new[] { f.W(F(a[0]), F(a[1])), f.W(F(b[0]), F(b[1])) });
         }
         var njGrp = Group("Fuzoku/Nakajikiri");
-        foreach (var o in A(D["nakajikiri"]))
+        // ⚠ **木戸を先に据えてから板塀を敷く**(2026-09-06 是正)。板塀が空ける穴は据えた木戸の実メッシュから
+        //    取るので、指図の並び順(木戸が最後)のまま流すと**古い穴で塀を敷いてしまう**。
+        var njOrder = new List<Dictionary<string, object>>();
+        foreach (var o in A(D["nakajikiri"])) { var w0 = O(o); if ((string)w0["kind"] == "庭木戸") njOrder.Add(w0); }
+        foreach (var o in A(D["nakajikiri"])) { var w0 = O(o); if ((string)w0["kind"] != "庭木戸") njOrder.Add(w0); }
+        foreach (var w in njOrder)
         {
-            var w = O(o);
             string nm = (string)w["name"];
             var a = A(w["a"]); var b = A(w["b"]);
             Vector2 A2 = f.W(F(a[0]), F(a[1])), B2 = f.W(F(b[0]), F(b[1]));
@@ -1370,22 +1374,38 @@ public static partial class EdoMatsudairaDewaBuilder
             if ((string)w["kind"] == "庭木戸")
             {
                 // 在庫の冠木門を開口幅へ合わせて据える【確度B — 庭木戸そのものの在庫は無い】
+                // ⚠ **2026-09-06 ユーザー指摘の是正**(ブックマーク#3・#5「木戸と板塀の位置がずれている/中心で
+                //    測っていないか」)。旧実装の欠陥は 2 つ:
+                //    ① yaw が `Atan2(dir.y, -dir.x)` で**走りから 90° 転んでいた**(正しくは `Atan2(dir.x, dir.y)`)。
+                //    ② 冠木門のメッシュは**ピボットから 2.3m 離れて**おり、ピボットを開口の中心へ置くと
+                //       実体が塀の走りから外れる。⇒ CLAUDE.md 規則5「中心で合わせない・実メッシュの面で寄せる」に従い、
+                //       据えたあと**実メッシュの外接箱の中心**が開口の中心に来るよう平面で寄せ直す。
                 Vector2 c = (A2 + B2) * 0.5f;
                 Vector2 dir = (B2 - A2).normalized;
                 var go = EdoNishiTameikeBuilder.Place(EdoAssets.Eg.Kabukimon,
-                    new Vector3(c.x, DesignY(c), c.y), Mathf.Atan2(dir.y, -dir.x) * Mathf.Rad2Deg,
+                    new Vector3(c.x, DesignY(c), c.y), Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg,
                     Vector3.one * EdoSannoKitaBuilder.ES, njGrp, nm);
                 if (go != null)
                 {
                     var bb = EdoNishiTameikeBuilder.RB(go);
-                    float have = Mathf.Max(bb.size.x, bb.size.z);
+                    // 幅は**走り方向へ投影した実メッシュの伸び**で測る(外接箱の x/z の大きい方ではない)
+                    float have = ProjSpan(go, dir);
                     float want = (B2 - A2).magnitude;
                     if (have > 0.1f)
                     {
                         var ls = go.transform.localScale;
                         go.transform.localScale = new Vector3(ls.x * want / have, ls.y * h / bb.size.y, ls.z);
                     }
-                    go.transform.position += new Vector3(0, DesignY(c) - EdoNishiTameikeBuilder.RB(go).min.y, 0);
+                    // 平面: 実メッシュの中心を開口の中心へ / 鉛直: 実メッシュの底を設計地盤へ
+                    var bb2 = EdoNishiTameikeBuilder.RB(go);
+                    go.transform.position += new Vector3(c.x - bb2.center.x, DesignY(c) - bb2.min.y, c.y - bb2.center.z);
+                    // 板塀が空ける「穴」は、指図の a/b ではなく**据えた実メッシュの走り方向の伸び**で取る
+                    var bb3 = EdoNishiTameikeBuilder.RB(go);
+                    float half = ProjSpan(go, dir) * 0.5f;
+                    Vector2 mc = new Vector2(bb3.center.x, bb3.center.z);
+                    for (int ki = 0; ki < kido.Count; ki++)
+                        if (Vector2.Distance((kido[ki][0] + kido[ki][1]) * 0.5f, c) < 0.05f)
+                            kido[ki] = new[] { mc - dir * half, mc + dir * half };
                     nHei++;
                 }
                 continue;
@@ -1756,6 +1776,31 @@ public static partial class EdoMatsudairaDewaBuilder
     ///   (PlaceItabeiSpan が中点で再帰的に割る)。
     /// 現況(是正前): NJ_Oku_S_W_11(6.8m)・NJ_Oku_N_W_2/3(7.2m×2)のように、木戸と重なる
     /// bay を丸ごと落としていたため木戸の両側に 2.3m/5m の素通しの隙間ができていた。</summary>
+
+    /// <summary>置いた駒の**実メッシュ**を走り方向 <paramref name="dir"/> へ投影した伸び[m]。
+    /// ⛔ 外接箱の x/z の大きい方で代用しない — 斜めのグリッドでは箱が膨らむ(2026-08 の偽陽性5件と同じ罠)。</summary>
+    static float ProjSpan(GameObject go, Vector2 dir)
+    {
+        float mn = float.MaxValue, mx = float.MinValue;
+        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            // ⛔ **見えないメッシュを数えない**(2026-09-06): 冠木門のプレハブには Renderer の無い/切ってある
+            //    駒が入っており、頂点を素で走ると走り方向の伸びが 2.38m(実際に見えるのは 1.17m)になる。
+            //    その値で開口を空けると木戸の両側に 0.6m の隙間が残る(ユーザー ブックマーク#3・#5)。
+            var rr = mf.GetComponent<Renderer>();
+            if (rr == null || !rr.enabled || !mf.gameObject.activeInHierarchy) continue;
+            var l2w = mf.transform.localToWorldMatrix;
+            foreach (var v in mf.sharedMesh.vertices)
+            {
+                var wv = l2w.MultiplyPoint3x4(v);
+                float t = wv.x * dir.x + wv.z * dir.y;
+                if (t < mn) mn = t; if (t > mx) mx = t;
+            }
+        }
+        return mx > mn ? mx - mn : 0f;
+    }
+
     static int ItabeiRun(Transform parent, Vector2 A2, Vector2 B2, float h, string prefix,
                          List<Vector2[]> skip)
     {

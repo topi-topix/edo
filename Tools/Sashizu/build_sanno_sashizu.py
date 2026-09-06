@@ -14,10 +14,9 @@
 グリッドは**世界軸そのもの**(u=東+/v=北+、原点=楼門の芯)。回転フレームは要らない。
 断面は json の `profiles`(Unity 地形の実測)を下敷きにする。
 
-【図版】其一 社地/其二 境内 平面(附図 前庭)/其三 社殿 平面/其四〜其十三 断面イ〜ヌ(10枚)/
-        其十四 男坂と女坂の割付/其十五 囲いの展開/其十六 門/其十七 山麓/其十八 社僧十坊/
-        以降 棟の表・囲いと石段の表・部材・考証・未解決。
-        組んだら「図版 N 面」を数え、nx() の実結果と照合すること(図版が黙って落ちた前科がある)。
+【図版】⛔ **一覧をここに持たない**(検図5巡目 低23 — 章の増減で必ず腐る)。
+        章の題と番号は `nx()` の出力が正典で、組んだら末尾の「図版 N 面」を数えること
+        (図版が黙って落ちた前科がある)。
 """
 import json, sys, math, os, re, subprocess, html
 
@@ -321,20 +320,42 @@ def garden_poly(gd):
             (gd["u1"], gd["v1"]), (gd["u0"], gd["v1"])]
 
 
-def shrub_segments(gd):
-    """東縁の低木の帯の区間。`segments`(2026-09-06 の二区間)と旧形の単区間の両方に対応。"""
-    sb = gd.get("shrubBand")
-    if not sb: return []
-    if sb.get("segments"):
-        return [dict((k, v) for k, v in list(sb.items()) + list(q.items()) if k != "segments")
-                for q in sb["segments"]]
-    return [dict(sb, name="")]
+def shrub_areas(d):
+    """**低木を撒く面**の列 ── (名, 枠の4点[uv], 判定関数, bbox)。
+
+    ⚠ 2026-09-06 検図5巡目 中5: 旧 `shrub_segments()` は `gardens[].shrubBand` を読んでいたが、
+    その欄は 2026-09-06b に `shrubs.box` へ置き換わって **json から消えていた**。
+    呼び出し3箇所(総当たり・空地の検査・表)が丸ごと空回りしていた(死にコード)。
+    ⭐ 面は **枠 `shrubs.box` ∩ (帯の輪郭から `shrubs.crownRKen` 以上内)** で、
+    帯が折れる区間にも追随する(検図5巡目 中12 — 低木1本が袖塀へ 0.546m めり込んでいた)。
+    """
+    out = []
+    for gd in d["gardens"]:
+        sh = gd.get("shrubs")
+        if not sh or not sh.get("box"): continue
+        P = [(q[0], q[1]) for q in (gd.get("poly") or [])]
+        u0, v0, u1, v1 = sh["box"]
+        B = [(u0, v0), (u1, v0), (u1, v1), (u0, v1)]
+        r = sh.get("crownRKen", 0.0)
+        out.append(("低木の面:" + gd["name"].split("(")[0], B,
+                    (lambda B, P, r: (lambda q: in_poly(q, B) and (not P or (
+                        in_poly(q, P) and min(_pt_seg(q, P[i], P[(i + 1) % len(P)])
+                                              for i in range(len(P))) >= r)))) (B, P, r),
+                    (u0, v0, u1, v1)))
+    return out
 
 
-def shrub_rect(sb):
-    """低木の帯の矩形(uv)。**`u` は帯の東縁で、幅は内(西)へ取る** — 図と検査で同じ関数を使う。"""
-    return [(sb["u"] - sb["widthKen"], sb["v"][0]), (sb["u"], sb["v"][0]),
-            (sb["u"], sb["v"][1]), (sb["u"] - sb["widthKen"], sb["v"][1])]
+def shrub_ok(gd, q):
+    """点が**その区の低木を撒く面**の中か(枠 ∩ 輪郭から樹冠半径以上内)。"""
+    sh = gd.get("shrubs") or {}
+    if not sh.get("box"): return False
+    u0, v0, u1, v1 = sh["box"]
+    if not (u0 <= q[0] <= u1 and v0 <= q[1] <= v1): return False
+    P = [(x, y) for x, y in (gd.get("poly") or [])]
+    if not P: return True
+    r = sh.get("crownRKen", 0.0)
+    return in_poly(q, P) and min(_pt_seg(q, P[i], P[(i + 1) % len(P)])
+                                 for i in range(len(P))) >= r
 
 
 # ---------------------------------------------------------------- 井戸屋形(前庭の帯の北の端)
@@ -362,27 +383,39 @@ def ido_rects(d):
 
 
 def ido_clearances(d, g):
-    """井戸屋形の**離隔**(⛔ 設計値ではない従属値)── (名, m) の列。"""
+    """井戸屋形の**離隔**(⛔ 設計値ではない従属値)── (名, m) の列。
+
+    ⭐ **起点はすべて「石敷の縁」にそろえる**(2026-09-06 検図5巡目 中8)— 旧版は
+    参道の階へは「隅」から、通行帯へは「芯」から測っており、同じ表の2行で起点が違って
+    通行帯までの離隔が 2.6 倍に見えていた。
+    """
     R = ido_rects(d)
     if not R: return []
     ken = d["const"]["ken"]
     u0, v0, u1, v1 = R["石敷"]
+    C = [(u0, v0), (u1, v0), (u1, v1), (u0, v1)]
     out = []
     for k in d["kaidans"]:
         if k["name"] != "参道の階(前庭へ)": continue
         hw = (k.get("wKen") or k["w"] / ken) / 2.0
-        out.append(("石敷の北東の隅 → 参道の階の開口の西の肩",
-                    math.hypot((u1 - (k["a"][0] - hw)), (v1 - k["a"][1])) * ken))
+        q = (k["a"][0] - hw, k["a"][1])
+        out.append(("石敷の縁 → 参道の階の開口の西の肩",
+                    min(_pt_seg(q, C[i], C[(i + 1) % 4]) for i in range(4)) * ken))
     for rt in d.get("routes", []):
-        if not rt.get("wByTerrace"): continue
-        hw = route_w(d, rt, "Zentei") / 2.0 / ken
+        if rt["name"] != "表参(参詣)": continue
         pts = [(g.U(q[0]), g.V(q[1])) if rt.get("world") else (q[0], q[1]) for q in rt["pts"]]
         best = None
         for i in range(len(pts) - 1):
-            dd = _pt_seg(((u0 + u1) / 2.0, (v0 + v1) / 2.0), pts[i], pts[i + 1]) - hw
+            mid = ((pts[i][0] + pts[i + 1][0]) / 2.0, (pts[i][1] + pts[i + 1][1]) / 2.0)
+            te = terrace_at(d, g, mid)
+            # ⛔ **前庭の区間だけを測る** — 井戸屋形は前庭の物で、参道(公道・幅 5.5m)の帯まで
+            #    混ぜると「最も近い」が坂の上の道の端になり、離隔の意味が変わる
+            if te != "Zentei": continue
+            hw = route_w(d, rt, te, at=mid) / 2.0 / ken
+            dd = min(_pt_seg(c, pts[i], pts[i + 1]) for c in C) - hw
             best = dd if best is None else min(best, dd)
         if best is not None:
-            out.append(("石敷の芯 → 動線『%s』の通行帯の縁" % rt["name"], best * ken))
+            out.append(("石敷の縁 → 動線『%s』の通行帯の縁(前庭の区間)" % rt["name"], best * ken))
         break
     return out
 
@@ -420,6 +453,16 @@ def ido_check(d):
     if ov > 1e-6:
         note.append("井戸屋形の浸透枡が石敷から %.2f m はみ出す — 枡の芯か大きさは庭方の判断"
                     % (ov * ken))
+    # ⭐ **枡が帯の輪郭の内か**(2026-09-06 検図5巡目 中9)— 旧版は石敷との比較しか無く、
+    #    枡を広場へ 3.21m 出しても何も鳴らなかった。⛔ 帯の外の枡は建たないので**止める**。
+    if obi:
+        P = [(q[0], q[1]) for q in obi[0]["poly"]]
+        outm = [q for q in ((ms[0], ms[1]), (ms[2], ms[1]), (ms[2], ms[3]), (ms[0], ms[3]))
+                if not in_poly((q[0] + (1e-4 if q[0] < (ms[0] + ms[2]) / 2 else -1e-4),
+                                q[1] + (1e-4 if q[1] < (ms[1] + ms[3]) / 2 else -1e-4)), P)]
+        if outm:
+            bad.append("井戸屋形の浸透枡の隅 %d 点が帯の輪郭の外へ出ている(`ido.masuUV` を内へ寄せる)"
+                       % len(outm))
     return bad, note
 
 
@@ -555,7 +598,8 @@ def kido_bay_check(d):
 
 
 def shrub_box(gd):
-    """低木を撒く面(uv の4点)。`shrubs.box` があればそれ、無ければ玉垣の輪郭。"""
+    """低木を撒く面の**枠**(uv の4点)。⚠ 枠の中がすべて撒ける訳ではない — 実際の面は
+    `shrub_ok`(枠 ∩ 帯の輪郭から `crownRKen` 以上内)で、帯の折れに追随する。"""
     sh = gd.get("shrubs") or {}
     if not sh.get("box"): return None
     u0, v0, u1, v1 = sh["box"]
@@ -576,7 +620,9 @@ def island_shrubs(gd, ken):
     kr = kido_rect(gd, ken)
     B = shrub_box(gd)
     if B:
-        src = (q for q in poly_scan(B, st) if in_poly(q, P))
+        # ⭐ **輪郭から樹冠半径以上**(2026-09-06 検図5巡目 中12 — 帯が v3.5 で折れるのを枠が見ておらず、
+        #    低木1本が袖塀 `Ita_Niou_N` へ 0.546m めり込んでいた)
+        src = (q for q in poly_scan(B, st) if shrub_ok(gd, q))
     else:
         ins = st / 2.0
         src = (q for q in poly_scan(P, st)
@@ -782,18 +828,21 @@ def draw_clusters(d, lp, inwin):
             o.append('<circle cx="%.1f" cy="%.1f" r="2.6" fill="var(--take)"/>' % (lp.X(u), lp.Y(v)))
             lab = sg["name"] + (" %.1fm" % sg["h"] if sg.get("h") else "")
             o.append(T(lp.X(u) + 4, lp.Y(v) - 4, lab, fs=9, fill="var(--take)"))
-        for sb in shrub_segments(gd):
-            if not inwin([sb["u"] - sb["widthKen"], sb["v"][0]], [sb["u"], sb["v"][1]]): continue
-            o.append(lp.rect(sb["u"] - sb["widthKen"], sb["v"][0], sb["u"], sb["v"][1],
-                             fill="var(--niwa)", op=0.75, stroke="var(--take)", sw=0.7))
-            o.append(T(lp.X(sb["u"] - sb["widthKen"] / 2.0),
-                       lp.Y((sb["v"][0] + sb["v"][1]) / 2.0), "低木の帯",
-                       fs=9, anchor="middle", fill="var(--take)"))
-        # 低木を撒く面(⭐ 2026-09-06b — 帯の輪郭とは別の面なので図に出す)
+        # 低木を撒く面(⭐ 帯の輪郭とは別の面なので図に出す)。
+        # ⚠ 2026-09-06 検図5巡目 中5 — ここには `shrubBand` を読む死にコードが並んでいた
+        #    (その欄は json から消えている)。**撒く面は `shrub_ok` が唯一の正典**。
         _sb = shrub_box(gd)
         if _sb and inwin(_sb[0], _sb[2]):
-            o.append(PL([(lp.X(u), lp.Y(v)) for u, v in _sb], close=True, fill="var(--niwa)",
-                        op=0.35, stroke="var(--take)", sw=0.6, dash="4 3"))
+            _st = (gd["shrubs"]["spacingM"] / d["const"]["ken"]) / 2.0
+            for _q in poly_scan(_sb, _st):
+                if shrub_ok(gd, _q):
+                    o.append(lp.rect(_q[0] - _st / 2.0, _q[1] - _st / 2.0,
+                                     _q[0] + _st / 2.0, _q[1] + _st / 2.0,
+                                     fill="var(--niwa)", op=0.30, stroke="none"))
+            o.append(PL([(lp.X(u), lp.Y(v)) for u, v in _sb], close=True, fill="none",
+                        stroke="var(--take)", sw=0.6, dash="4 3"))
+            o.append(T(lp.X((_sb[0][0] + _sb[2][0]) / 2.0), lp.Y(_sb[0][1]) - 4,
+                       "低木を撒く面", fs=9, anchor="middle", fill="var(--take)"))
         # 玉垣(立てる区間は実線・立てない辺と開口は破線)と木戸の開口、帯の照葉低木
         _tge = tamagaki_edges(d, gd)
         for nm, a, b, fen, L, rs in _tge:
@@ -1038,6 +1087,24 @@ def avoid_shapes(d, g, scope):
         zp = terrace_poly_uv(d["terraces"][1])
         for i in range(len(zp)):
             out.append(_shape_seg(zp[i], zp[(i + 1) % len(zp)], cz["terraceEdge"], "前庭の縁"))
+        # ⭐ **2026-09-06 検図5巡目 中5 で足した実体** — 井戸屋形の石敷・玉垣・縁台・空地(供待)が
+        #    一つも入っておらず、前庭の合法域が実際より広く出ていた。
+        #    ⛔ 退避の余白は宣言が無いので**実体の輪郭そのもの**(余白 0)で当てる。
+        _ir = ido_rects(d)
+        if _ir:
+            out.append(_shape_rect(*(list(_ir["石敷"]) + ["井戸:石敷"])))
+        for gd in d["gardens"]:
+            own = gd.get("tamagaki")
+            for nm, a, b, fence, _ln, rs in tamagaki_edges(d, gd):
+                if not fence: continue
+                for rn in rs:
+                    out.append(_shape_seg(rn[0], rn[1], own["postDiaM"] / 2.0 / ken, "玉垣:" + nm))
+            if gd.get("noPlant") and gd.get("poly"):
+                us = [q[0] for q in gd["poly"]]; vs = [q[1] for q in gd["poly"]]
+                out.append(_shape_rect(min(us), min(vs), max(us), max(vs), "空地:" + gd["name"].split("(")[0]))
+        for nm, Q in prop_rects(d):
+            us = [q[0] for q in Q]; vs = [q[1] for q in Q]
+            out.append(_shape_rect(min(us), min(vs), max(us), max(vs), "点景:" + nm))
         return out
     av = [b["avoid"] for b in d["slopeBands"] if b.get("avoid")][0]
     ot = [k for k in d["kaidans"] if k["name"] == "男坂"][0]
@@ -1371,9 +1438,21 @@ def viewpoint_rows(d, g):
         eye = vp.get("eye")
         src = "設計値"
         if eye is None:
-            h = dem_h(*g.W(u, v))
-            eye = (h or 0.0) + vp.get("eyeOver", 0.0)
-            src = "現地形 %.2f m + %.1f m" % (h or 0.0, vp.get("eyeOver", 0.0))
+            # ⭐ **設計地盤(平場があれば平場・無ければ現地形)+ 座面高 + eyeOver**
+            #   (2026-09-06 検図5巡目 低15 — 旧版は現地形しか見ず、V2/V-Z1/V-Z3 は
+            #    `eye` に `terraces[1].y + eyeOver` を書き写して二重に持っていた)
+            h = design_y(d, g, *g.W(u, v))
+            base = "設計地盤" if h is not None else "現地形"
+            if h is None: h = dem_h(*g.W(u, v))
+            seat = 0.0
+            if vp.get("seatOn"):
+                _k, _, _nm = vp["seatOn"].partition(":")
+                for _p in d.get(_k, []):
+                    if _p.get("name") == _nm: seat = (_p.get("plan") or {}).get("seatH", 0.0)
+            eye = (h or 0.0) + seat + vp.get("eyeOver", 0.0)
+            src = ("%s %.2f m%s + %.2f m"
+                   % (base, h or 0.0,
+                      " + 座面 %.2f m" % seat if seat else "", vp.get("eyeOver", 0.0)))
         shows = []
         for nm in vp.get("shows", []):
             for holder in d["gardens"] + d["slopeBands"] + [d["planting"]]:
@@ -1517,12 +1596,34 @@ def single_crown(d, sg):
     return best
 
 
-def route_w(d, rt, terrace=None):
-    """動線の路面幅[m]。**段ごとの読み替え**(`routes[].wByTerrace`)があればそれを使う。
+def gate_at(d, q):
+    """点 (u,v) が門の平面の中なら、その門。無ければ None。"""
+    for gt in d["gates"]:
+        hu, hv = gt["plan"]["du"] / 2.0, gt["plan"]["dv"] / 2.0
+        if abs(q[0] - gt["u"]) <= hu and abs(q[1] - gt["v"]) <= hv: return gt
+    return None
+
+
+def terrace_at(d, g, q):
+    """点 (u,v) が載る平場の名。どの平場にも載らなければ None。"""
+    for te in d["terraces"]:
+        if in_poly(g.W(q[0], q[1]), terrace_poly(te, g)): return te["name"]
+    return None
+
+
+def route_w(d, rt, terrace=None, at=None):
+    """動線の路面幅[m]。**区間ごとの読み替え**。
 
     ⛔ 幅を二重に持たない — `w` は参道(公道)の幅で、前庭の中は門口から導いた別の値
-    (庭方 2026-09-06b)。⚠ **門をくぐる区間は `gates[].monguchiKen` が幅を決める**。
+    (庭方 2026-09-06b)。⭐ **門をくぐる区間は `gates[].monguchiKen` が幅を決める**
+    (2026-09-06 検図5巡目 中7 — 宣言だけあって計算が無く、表参の通行帯 3.636m が
+    門口 1.818m の2倍のまま両脇柱へ 0.909m ずつ乗っていた)。`at` は測る点 (u,v)。
+    **門 > 段 > 素の `w`** の順で決まる。
     """
+    if at is not None:
+        gt = gate_at(d, at)
+        if gt is not None and gt.get("monguchiKen"):
+            return gt["monguchiKen"] * d["const"]["ken"]
     if terrace and (rt.get("wByTerrace") or {}).get(terrace) is not None:
         return rt["wByTerrace"][terrace]
     return rt["w"]
@@ -1561,6 +1662,8 @@ def planting_avoid_check(d, g):
                 r = gd["shrubs"]["spacingM"] / 2.0 / ken     # 低木の樹冠の半径(芯々=樹冠)
                 hb = {}
                 for p in poly_scan(B, st):
+                    # ⭐ 枠ではなく**実際に撒く面**で測る(枠 ∩ 輪郭から `crownRKen` 以上内)
+                    if not shrub_ok(gd, p): continue
                     nm = shape_hit(p, sh)
                     for k in range(12):
                         aa = 2.0 * math.pi * k / 12.0
@@ -1619,10 +1722,7 @@ def noplant_overlap_check(d, g):
     st = 0.25
     ct = cell_tsubo(d, st)
     TE = dict((t["name"], [(q[0], q[1]) for q in terrace_poly_uv(t)]) for t in d["terraces"])
-    bands = []
-    for gd in d["gardens"]:
-        for sb in shrub_segments(gd):
-            bands.append(("低木の帯:" + (sb.get("name") or gd["name"]), shrub_rect(sb)))
+    bands = [(nm, f) for nm, _B, f, _bb in shrub_areas(d)]
     for gd in d["gardens"]:
         if not gd.get("noPlant"): continue
         P = garden_poly(gd)
@@ -1634,8 +1734,8 @@ def noplant_overlap_check(d, g):
             if n * ct > 0.02:
                 bad.append("%s が平場『%s』の輪郭の外へ %.2f 坪 出ている"
                            % (gd["name"], gd["clip"], n * ct))
-        for nm, B in bands:
-            n = sum(1 for q in cells if in_poly(q, B))
+        for nm, fb in bands:
+            n = sum(1 for q in cells if fb(q))
             if n * ct > 0.02:
                 note.append("%s が %s と %.2f 坪 重なる" % (gd["name"], nm, n * ct))
         for rt in d.get("routes", []):
@@ -1652,21 +1752,20 @@ def noplant_overlap_check(d, g):
 
 
 # **意図された接合**の白名簿。⛔ ここを増やすときは理由を書く(黙って消さない)。
+# ⭐ **2026-09-06 検図5巡目 中5 で 18件 → 6件へ絞った。**残した6件は今回**実測で坪が立った**組だけで、
+#    落とした12件は**0.00坪**だった(= 接するだけで重ならない/そもそも当たらない)。
+#    許可は「重なってよい」という宣言なので、重なっていない組を許可しておくと、
+#    将来そこが本当に重なった日に黙って通ってしまう(死んだ許可)。落としたのは
+#    (門:隨身門(楼門), 白洲) (石段:向拝の階, 棟:向拝) (石段:参道の階(前庭へ), 帯4)
+#    (門:坂下の門(仁王門), 帯4) 権現造の継ぎ4組(本殿/作り合い/幣殿/拝殿/向拝)
+#    (玉垣:返し, 前庭の帯) (玉垣:東面 上, 前庭の帯)
+#    (踏石:仁王門の敷居前, 門:坂下の門(仁王門)) (踏石:参道の階の上端, 石段:参道の階(前庭へ))。
+#    ⛔ これらは**接する**のが正しい姿なので、重なりが出たら鳴ってよい。
 _OVL_OK = [
     ("門:中門", "白洲"), ("門:中門", "中庭"),                      # 門は塀の線に立ち、庭の縁を噛む
-    ("門:隨身門(楼門)", "白洲"),                                   # 同上
-    ("石段:向拝の階", "中庭"), ("石段:向拝の階", "棟:向拝"),        # 階は向拝から中庭へ降りる
+    ("石段:向拝の階", "中庭"),                                     # 階は向拝から中庭へ降りる
     ("石段:男坂", "帯4"), ("石段:女坂(御成坂)", "帯4"),             # 帯4は坂を含む裾。空けるのは avoid
-    ("石段:参道の階(前庭へ)", "帯4"), ("門:坂下の門(仁王門)", "帯4"),
-    ("棟:本殿", "棟:作り合い"), ("棟:作り合い", "棟:幣殿"),          # 権現造の継ぎ(接する)
-    ("棟:幣殿", "棟:拝殿"), ("棟:拝殿", "棟:向拝"),
-    # 2026-09-06 検図4巡目 中8 で集合を広げたときの**意図された接合**
-    ("玉垣:返し", "前庭の帯"), ("玉垣:東面 上", "前庭の帯"),               # 玉垣は帯の輪郭に立つ
-    ("井戸:石敷", "前庭の帯"),                                             # 井戸屋形は帯の北の端に建つ
-    ("踏石:仁王門の敷居前", "門:坂下の門(仁王門)"),                        # 踏石は敷居の前に接して敷く
-    ("踏石:参道の階の上端", "石段:参道の階(前庭へ)"),
-    # ⚠ 2026-09-06b に落とした白名簿 —(踏石:参道の階の上端, 御成の供待)は供待を南東へ移して
-    #    接しなくなった。(玉垣:南面/北面/斜/西面, 前庭の植込みの島)は島そのものを撤回した。
+    ("井戸:石敷", "前庭の帯"),                                     # 井戸屋形は帯の北の端に建つ
 ]
 
 
@@ -1718,10 +1817,9 @@ def _ovl_shapes(d, g):
                           [(u0, v0), (u1, v0), (u1, v1), (u0, v1)])
     # ⭐ **2026-09-06 検図4巡目 中8 で集合を広げた** — 低木の帯・玉垣・踏石・面を持つ点景が
     #    一つも入っておらず、供待と低木の帯の 1.98 m² を取り逃していた。
+    for nm, _B, f, bb in shrub_areas(d):
+        out.append((nm, f, bb))
     for gd in d["gardens"]:
-        for sb in shrub_segments(gd):
-            poly_item("低木の帯:%s%s" % (gd["name"].split("(")[0], sb.get("name") or ""),
-                      shrub_rect(sb))
         # ⭐ 開口(井戸の口)で切れた辺は**立つ区間ごとに**載せる(2026-09-06b)
         for nm, _a, _b, fence, _ln, rs in tamagaki_edges(d, gd):
             if not fence: continue
@@ -1781,6 +1879,8 @@ def rect_overlap_check(d, g, minTsubo=0.05):
                 continue                               # 塊は区・帯の中に置く定義域
             elif nb.startswith("塊:") and (na.startswith("境内の立木") or na.startswith("帯")):
                 continue
+            elif ("低木の面:" + nb) == na or ("低木の面:" + na) == nb:
+                continue                               # 撒く面はその区の中に取る定義域
             u0, v0 = max(ba[0], bb[0]), max(ba[1], bb[1])
             u1, v1 = min(ba[2], bb[2]), min(ba[3], bb[3])
             if u1 - u0 <= 0 or v1 - v0 <= 0: continue
@@ -1796,7 +1896,7 @@ def rect_overlap_check(d, g, minTsubo=0.05):
                 # **定義域(塊・低木の帯)が絡む重なりは〔記録〕** — 撒く範囲は庭方の意匠で、
                 # ⛔ 指図方が帯や箱を動かして黙らせない(2026-09-06 検図4巡目 中8 で低木の帯を足したとき、
                 #    縁台 其2 が南区間の帯に 0.12 坪 掛かることが出た)
-                dom = ("塊:", "低木の帯:")
+                dom = ("塊:", "低木の面:")
                 (note if (na.startswith(dom) or nb.startswith(dom)) else bad).append(
                     "%s と %s が %.2f 坪 重なる" % (na, nb, n * ct))
     return bad, note
@@ -2264,18 +2364,37 @@ MAIGI_DEG = (0.2, 3.0)  # 0.2°未満は通過点(共線)。この間は「迷�
 
 
 def path_polys(d):
-    """検査に掛ける道 ── (系統, 名, 折れ線[世界座標], 幅[m] or None, 折返しの頂点, 止めるか)。"""
+    """検査に掛ける道 ── (系統, 名, 折れ線[世界座標], 脚ごとの幅[m] の列, 折返しの頂点, 止めるか)。
+
+    ⭐ **幅は脚ごとに引く**(2026-09-06 検図5巡目 中6/中7)— 旧版は `rt["w"]` 一本だったので
+    前庭の読み替え(`wByTerrace`)も門口(`gates[].monguchiKen`)も見ておらず、
+    「道幅より短い脚」を過大に報告し、`wByTerrace` を外しても何も変わらなかった。
+    """
     g = G(d)
     out = []
+
+    def legw(rt, pts):
+        """脚の中点が載る段・くぐる門から幅を引く。⛔ 一本の値で測らない。"""
+        ws = []
+        for i in range(len(pts) - 1):
+            mx = ((pts[i][0] + pts[i + 1][0]) / 2.0, (pts[i][1] + pts[i + 1][1]) / 2.0)
+            q = (g.U(mx[0]), g.V(mx[1]))
+            ws.append(route_w(d, rt, terrace_at(d, g, q), at=q))
+        return ws
+
     for rt in d.get("routes", []):
         pts = [(q[0], q[1]) if rt.get("world") else g.W(q[0], q[1]) for q in rt["pts"]]
-        out.append(("動線", rt["name"], pts, rt.get("w"), set(rt.get("switchbacks", [])), True))
+        out.append(("動線", rt["name"], pts, legw(rt, pts), set(rt.get("switchbacks", [])), True))
     for sg in d.get("fumotomichi", []):
-        out.append(("麓道", sg["name"], [tuple(q) for q in sg["pts"]], sg.get("w"),
+        pts = [tuple(q) for q in sg["pts"]]
+        out.append(("麓道", sg["name"], pts, [sg.get("w")] * (len(pts) - 1),
                     set(sg.get("switchbacks", [])), True))
     for k in d.get("kattemichi", []):
-        # 勝手道そのものは動線 `賄` として同じ折れ線が掛かるので、ここは〔記録〕どまり
-        out.append(("勝手道", k["name"], [tuple(q) for q in k["pts"]], k.get("w"),
+        pts = [tuple(q) for q in k["pts"]]
+        # ⚠ 西の勝手道は動線『賄』が同じ折れ線を **⛔ 側で** 掛けるので、ここは〔記録〕どまり。
+        #   東の勝手道はどの動線からも参照されていないので**誰も止めない**が、
+        #   線形を引き直すには通してよい回廊の裁定が要る(→ `_pending`)。⛔ 黙って通さず毎回刷る。
+        out.append(("勝手道", k["name"], pts, [k.get("w")] * (len(pts) - 1),
                     set(k.get("switchbacks", [])), False))
     return out
 
@@ -2290,10 +2409,12 @@ def path_shape_check(d):
     短い脚・折返し・迷い点はそれぞれ〔記録〕として毎回刷る。戻り値 (⛔止める, 〔記録〕)。
     """
     bad, note = [], []
-    for kind, nm, pts, w, sw, gate in path_polys(d):
+    for kind, nm, pts, W, sw, gate in path_polys(d):
         L = [math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1])
              for i in range(len(pts) - 1)]
-        short = [i for i, l in enumerate(L) if w and l < w - 1e-9]
+        wa = lambda i: W[i] if 0 <= i < len(W) else None          # 脚 i の道幅
+        w = max([q for q in W if q] or [0]) or None                # 表示用(最も広い区間)
+        short = [i for i, l in enumerate(L) if wa(i) and l < wa(i) - 1e-9]
         turn = []
         for i in range(1, len(pts) - 1):
             a, b, c = pts[i - 1], pts[i], pts[i + 1]
@@ -2305,26 +2426,30 @@ def path_shape_check(d):
         tight, undecl = [], []
         for i, a in hp:
             legs = min(L[i - 1], L[i])
-            if w and legs < w - 1e-9: tight.append((i, a, legs))
+            wi = min([q for q in (wa(i - 1), wa(i)) if q] or [0])   # 折返しの両隣の狭いほうの道幅
+            if wi and legs < wi - 1e-9: tight.append((i, a, legs, wi))
             elif i not in sw: undecl.append((i, a))
         if gate:
             bad += ["%s『%s』の頂点%d (%.2f, %.2f) は 引き返し角 %.0f° なのに脚が %.2f m しかない"
                     "(道幅 %.2f m)— 短い脚で折り返す形は建たない"
-                    % (kind, nm, i, pts[i][0], pts[i][1], a, lg, w) for i, a, lg in tight]
+                    % (kind, nm, i, pts[i][0], pts[i][1], a, lg, wi) for i, a, lg, wi in tight]
             bad += ["%s『%s』の頂点%d (%.2f, %.2f) の引き返し角 %.0f° が宣言されていない"
                     "(九十九折なら `switchbacks` に頂点の番号を書く)"
                     % (kind, nm, i, pts[i][0], pts[i][1], a) for i, a in undecl]
         else:
             if tight:
                 note.append("%s『%s』── **短い脚で折り返す**頂点が %d 点(最短の脚 %.2f m ／ 道幅 %.2f m): %s"
-                            % (kind, nm, len(tight), min(q[2] for q in tight), w,
+                            % (kind, nm, len(tight), min(q[2] for q in tight),
+                               min(q[3] for q in tight),
                                "・".join("頂点%d" % q[0] for q in tight)))
             if undecl:
                 note.append("%s『%s』── 宣言の無い引き返しが %d 点: %s"
                             % (kind, nm, len(undecl), "・".join("頂点%d" % i for i, _a in undecl)))
         if short:
-            note.append("%s『%s』── 道幅 %.2f m より短い脚が %d 本(最短 %.2f m)"
-                        % (kind, nm, w, len(short), min(L[i] for i in short)))
+            note.append("%s『%s』── 道幅より短い脚が %d 本(最短 %.2f m ／ その脚の道幅 %.2f m。"
+                        "道幅は脚ごとに 段(`wByTerrace`)と門口(`monguchiKen`)から引く)"
+                        % (kind, nm, len(short), min(L[i] for i in short),
+                           wa(min(short, key=lambda i: L[i]))))
         if hp:
             note.append("%s『%s』── 引き返し(>%g°)が %d 点%s"
                         % (kind, nm, HAIRPIN_DEG, len(hp),
@@ -3207,6 +3332,22 @@ def wall_steps(d, g, key, prof, design):
     return out
 
 
+def _cross(A, B, ax, at):
+    """線分 A→B が切断線(EW なら z=at / NS なら x=at)を横切る座標。切らなければ None。"""
+    i, j = (1, 0) if ax == "EW" else (0, 1)
+    if (A[i] - at) * (B[i] - at) > 0: return None
+    t = (at - A[i]) / (B[i] - A[i]) if abs(B[i] - A[i]) > 1e-9 else 0.0
+    return A[j] + (B[j] - A[j]) * t
+
+
+def _span(A, B, ax, at):
+    """矩形(対角 A,B)が切断線に掛かる区間。掛からなければ None。"""
+    i, j = (1, 0) if ax == "EW" else (0, 1)
+    lo, hi = min(A[i], B[i]), max(A[i], B[i])
+    if not (lo - 1e-6 <= at <= hi + 1e-6): return None
+    return (min(A[j], B[j]), max(A[j], B[j]))
+
+
 def section_marks(d, g, key, prof):
     """断面の切断線が**実際に切る**棟・囲い・門を拾う(2026-08-24 検図 中-1)。
 
@@ -3240,7 +3381,38 @@ def section_marks(d, g, key, prof):
                 if (A[0] - at) * (B[0] - at) > 0: continue
                 t = (at - A[0]) / (B[0] - A[0]) if abs(B[0] - A[0]) > 1e-9 else 0.0
                 c = A[1] + (B[1] - A[1]) * t
-            out.append((c - 0.4, c + 0.4, yk, r["kind"], "廊" if r["kind"] == "回廊" else "塀"))
+            # ⭐ 天端は run が名指す `seat`(2026-09-06 検図5巡目 中11 — 前庭の板塀を境内面 28.3 の
+            #    高さに描いていた。前庭を切る断面を足したので目に見えるようになった)
+            out.append((c - 0.4, c + 0.4, r.get("seat") or yk, r["kind"],
+                        "廊" if r["kind"] == "回廊" else "塀"))
+    # ⭐ **前庭の新設物**(玉垣・井戸屋形・縁台・低木の面)を切る(2026-09-06 検図5巡目 中11)。
+    #    ⛔ 断面に出ない物は「図に無い設計値」になる(規則19)。
+    zy = d["terraces"][1]["y"]
+    for gd in d["gardens"]:
+        for nm, a, b, fence, _ln, rs in tamagaki_edges(d, gd):
+            if not fence: continue
+            for rn in rs:
+                A, B = g.W(*rn[0]), g.W(*rn[1])
+                c = _cross(A, B, ax, at)
+                if c is not None:
+                    out.append((c - 0.3, c + 0.3, zy, "玉垣 " + nm, "玉垣"))
+        sh = gd.get("shrubs")
+        if sh and sh.get("box"):
+            u0, v0, u1, v1 = sh["box"]
+            A, B = g.W(u0, v0), g.W(u1, v1)
+            c = _span(A, B, ax, at)
+            if c: out.append((c[0], c[1], zy, "低木を撒く面", "植込"))
+    _ir = ido_rects(d)
+    if _ir:
+        A, B = g.W(_ir["軒先"][0], _ir["軒先"][1]), g.W(_ir["軒先"][2], _ir["軒先"][3])
+        c = _span(A, B, ax, at)
+        if c: out.append((c[0], c[1], zy, "井戸屋形", "屋形"))
+    for nm, Q in prop_rects(d):
+        W_ = [g.W(q[0], q[1]) for q in Q]
+        A = (min(q[0] for q in W_), min(q[1] for q in W_))
+        B = (max(q[0] for q in W_), max(q[1] for q in W_))
+        c = _span(A, B, ax, at)
+        if c: out.append((c[0], c[1], zy, nm, "縁台"))
     for gt in d["gates"]:
         q = g.W(gt["u"], gt["v"])
         du, dv = gt["plan"]["du"] / 2.0 * d["const"]["ken"], gt["plan"]["dv"] / 2.0 * d["const"]["ken"]
@@ -3329,12 +3501,18 @@ def section_svg(d, key, design, marks, title, flip=False, viewtxt="", flats=(), 
         o.append(LN(0, Y(y), W, Y(y), stroke="var(--grid)", sw=0.5, op=0.55))
         o.append(T(3, Y(y) - 2, "%d m" % y, fs=9.5, fill="var(--dim)"))
     # 建物・門・石段のマーク
+    # ⭐ **図の窓でクリップする**(2026-09-06 — 断面 WEST に本殿など8件が窓の外から混入していた
+    #    `_pending`「section_marksのクリップ窓バグ」。前庭の東西断面を足して目に見えるようになった)
     for c0m, c1m, yb, lab, kind in marks:
+        if max(c0m, c1m) < c0 - 1e-6 or min(c0m, c1m) > c1 + 1e-6: continue
+        c0m, c1m = max(min(c0m, c1m), c0), min(max(c0m, c1m), c1)
         xa, xb = X(c0m), X(c1m)
         if xa > xb: xa, xb = xb, xa
-        hgt = {"社殿": 7.5, "門": 9.0, "廊": 5.0, "塀": 2.1, "堂": 4.5}.get(kind, 4.0)
+        hgt = {"社殿": 7.5, "門": 9.0, "廊": 5.0, "塀": 2.1, "堂": 4.5,
+               "玉垣": 1.2, "屋形": 2.9, "縁台": 0.42, "植込": 1.6}.get(kind, 4.0)
         col = {"社殿": "var(--shu)", "門": "var(--shu)", "廊": "var(--roka)",
-               "塀": "var(--hei)", "堂": "var(--nagaya)"}.get(kind, "var(--nagaya)")
+               "塀": "var(--hei)", "堂": "var(--nagaya)", "玉垣": "var(--take)",
+               "屋形": "var(--roka)", "縁台": "var(--take)", "植込": "var(--niwa)"}.get(kind, "var(--nagaya)")
         hpx = max(9.0, min(46.0, hgt * vs))
         o.append(R(xa, Y(yb) - hpx, xb - xa, hpx, fill=col, op=0.55, stroke="var(--ink)", sw=0.8))
         o.append(T((xa + xb) / 2, Y(yb) - hpx - 4, lab, fs=fit(lab, xb - xa, 10.5), anchor="middle"))
@@ -3965,13 +4143,16 @@ def runs_table(d):
         else:
             L = "—"
         seat = ("%.1f m" % r["seat"]) if r.get("seat") else "地形なり"
-        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>"
+        # ⭐ **厚み**は `const.itabeiThickM`(在庫 itabei5 の実寸 × ES)。板塀だけが持つ
+        #    (2026-09-06 検図5巡目 低16 — `joints` が「塀の厚みは門より薄い」と定めるのに値が無かった)
+        th = ("%.3f m" % d["const"]["itabeiThickM"]) if r["kind"] == "板塀" else "—"
+        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>"
                     "<td class='note'>%s</td><td class='note'>%s</td></tr>"
-                    % (r["name"], r["kind"], L, seat, r.get("base", "—"),
+                    % (r["name"], r["kind"], L, th, seat, r.get("base", "—"),
                        html.escape(r.get("gate", "") or "—"), r.get("acc", "—")))
-    return ('<div class="tw"><table><thead><tr><th>run</th><th>種別</th><th>長さ</th><th>天端</th>'
-            "<th>基壇</th><th class='note'>開口</th><th class='note'>確度</th></tr></thead><tbody>"
-            + "".join(rows) + "</tbody></table></div>")
+    return ('<div class="tw"><table><thead><tr><th>run</th><th>種別</th><th>長さ</th><th>厚み</th>'
+            "<th>天端</th><th>基壇</th><th class='note'>開口</th><th class='note'>確度</th>"
+            "</tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>")
 
 
 def kaidan_table(d):
@@ -4150,14 +4331,16 @@ def tachiki_table(d, g):
                            if sg.get("crown") else ("" if not sg.get("h") else " 丈%.1fm" % sg["h"]),
                            sg.get("role", "")))
             first = False
-        for sb in shrub_segments(gd):
-            rows.append("<tr><td>%s</td><td>%s</td><td>東縁の低木の帯 %s</td>"
-                        "<td class='note'>u %g(内側へ幅 %g 間)・v %g〜%g</td><td>—</td>"
-                        "<td>%g 間</td><td>%s</td><td class='note'>%s</td></tr>"
-                        % (_gname(gd) if first else "", ar if first else "", sb.get("name", ""),
-                           sb["u"], sb["widthKen"], sb["v"][0], sb["v"][1], sb["spacing"],
-                           sb["veg"], "板塀が無い区間(崖の肩)を低木で塞ぐ。"
-                                      "島が接する区間は島が引き取る"))
+        _sh = gd.get("shrubs")
+        if _sh and _sh.get("box"):
+            _n = len(island_shrubs(gd, ken))
+            rows.append("<tr><td>%s</td><td>%s</td><td>低木を撒く面</td>"
+                        "<td class='note'>枠 u %g〜%g・v %g〜%g ∩ 輪郭から %g 間 内</td><td>%d 本</td>"
+                        "<td>%.2f m 芯々</td><td>%s</td><td class='note'>%s</td></tr>"
+                        % (_gname(gd) if first else "", ar if first else "",
+                           _sh["box"][0], _sh["box"][2], _sh["box"][1], _sh["box"][3],
+                           _sh.get("crownRKen", 0.0), _n, _sh["spacingM"], _sh["veg"],
+                           "⛔ 本数は設計値ではない — 面と芯々からの従属値(木戸の裏は空ける)"))
             first = False
         tgs = tamagaki_stats(d, gd)
         if tgs:
@@ -4244,14 +4427,16 @@ def zentei_yochi(d, g):
     vm = (min(q[1] for q in P) + max(q[1] for q in P)) / 2.0
     uz = max(q[0] for q in terrace_poly_uv(d["terraces"][1]))
     band = None
+    # ⛔ `wByTerrace` の有無で分岐しない(2026-09-06 検図5巡目 中6)— 幅は
+    #    `route_w` が脚ごとに(段と門口から)引く。宣言を外したら**縁台が通行帯へ出て鳴る**。
     for rt in d.get("routes", []):
-        if not rt.get("wByTerrace"): continue
-        hw = route_w(d, rt, "Zentei") / 2.0 / ken
         pts = [(g.U(q[0]), g.V(q[1])) if rt.get("world") else (q[0], q[1]) for q in rt["pts"]]
         for i in range(len(pts) - 1):
             (ua, va), (ub, vb) = pts[i], pts[i + 1]
             if abs(vb - va) < 1e-9 or not (min(va, vb) <= vm <= max(va, vb)): continue
             u = ua + (ub - ua) * (vm - va) / (vb - va)
+            mid = ((ua + ub) / 2.0, (va + vb) / 2.0)
+            hw = route_w(d, rt, terrace_at(d, g, mid), at=mid) / 2.0 / ken
             if ue < u < uz: band = (rt["name"], u - hw, u + hw)
         if band: break
     rows = []
@@ -4302,6 +4487,10 @@ def endai_rows(d):
     return out
 
 
+# 縁台の並びの物差し(**検査の物差しであって設計値ではない**ので json に置かない)
+ENDAI_GAP_RATIO_MIN = 1.5     # 芯々の 最大/最小。これを下回ると「等間隔の列」
+
+
 def endai_check(d, g):
     """縁台が**玉垣の東・通行帯の外**に納まっているか(ユーザー裁定 2026-09-06)。
 
@@ -4320,10 +4509,23 @@ def endai_check(d, g):
         if lim is not None and east > lim + 1e-9:
             bad.append("茶店の縁台 %s の東の張り出し u %.3f が表参の通行帯の西縁 u %.3f を越える"
                        % (lab, east, lim))
-    ds = [q[6] for q in endai_rows(d) if q[6]]
+    # ⭐ **「等間隔にしない」「4基とも向きを違える」は設計の縛りなので機械で押さえる**
+    #    (2026-09-06 検図5巡目 低19 — 等間隔・同 yaw にしても無音だった)。
+    #    ⛔ 止める — 縛りを割った並びは庭方の意図した姿ではない。
+    rows = endai_rows(d)
+    yaws = [q[3] for q in rows]
+    if len(set(yaws)) != len(yaws):
+        bad.append("茶店の縁台の yaw が相異ならない(%s)— ⛔ 4基とも向きを違える(原図の縁台は揃っていない)"
+                   % "・".join("%g°" % y for y in yaws))
+    ds = [q[6] for q in rows if q[6]]
     if ds:
-        note.append("茶店の縁台の隣どうしの芯々 %s m(⛔ 等間隔にしない — 最大/最小 %.2f 倍)"
-                    % ("・".join("%.2f" % q for q in ds), max(ds) / max(1e-9, min(ds))))
+        ratio = max(ds) / max(1e-9, min(ds))
+        if ratio < ENDAI_GAP_RATIO_MIN:
+            bad.append("茶店の縁台の芯々が %s m で 最大/最小 %.2f 倍 — 下限 %.2f 倍を割る"
+                       "(⛔ 等間隔の列にしない。2基ずつ二つの塊に分ける)"
+                       % ("・".join("%.2f" % q for q in ds), ratio, ENDAI_GAP_RATIO_MIN))
+        note.append("茶店の縁台の隣どうしの芯々 %s m(⛔ 等間隔にしない — 最大/最小 %.2f 倍・下限 %.2f 倍)"
+                    % ("・".join("%.2f" % q for q in ds), ratio, ENDAI_GAP_RATIO_MIN))
     return bad, note
 
 
@@ -4641,7 +4843,33 @@ def fig(h, svg, cap=None, legend=None):
 KAN = ["其一", "其二", "其三", "其四", "其五", "其六", "其七", "其八", "其九", "其十",
        "其十一", "其十二", "其十三", "其十四", "其十五", "其十六", "其十七", "其十八",
        "其十九", "其二十", "其二十一", "其二十二", "其二十三", "其二十四", "其二十五",
-       "其二十六", "其二十七", "其二十八", "其二十九", "其三十", "其三十一", "其三十二"]
+       "其二十六", "其二十七", "其二十八", "其二十九", "其三十", "其三十一", "其三十二",
+       "其三十三", "其三十四", "其三十五", "其三十六", "其三十七", "其三十八", "其三十九", "其四十"]
+
+
+_PENDRE = re.compile(r"`_pending`\u300c([^\u300d]+)\u300d")
+
+
+def pending_pointer_check(d):
+    """`_pending` を指すポインタが**実在する項**を指しているか(⛔)。
+
+    ⚠ 2026-09-06 検図5巡目 高4 — `kattemichi[東の勝手道]` の註が「→ `_pending`」と書くのに
+    該当する項が無かった(**指し先の無いポインタ**)。宣言だけ残して中身が無いのは規則19 の欠陥。
+    """
+    keys = list((d.get("_pending") or {}).keys())
+    bad = []
+
+    def walk(o, path):
+        if isinstance(o, dict):
+            for k, v in o.items(): walk(v, path + "/" + str(k))
+        elif isinstance(o, list):
+            for i, v in enumerate(o): walk(v, path + "[%d]" % i)
+        elif isinstance(o, str):
+            for nm in _PENDRE.findall(o):
+                if not any(k == nm or k.startswith(nm) for k in keys):
+                    bad.append("%s が `_pending`\u300c%s\u300d を指すが、その項が無い" % (path, nm))
+    walk(d, "")
+    return bad
 
 
 def run_checks():
@@ -4668,12 +4896,13 @@ def run_checks():
     io = ido_check(d)
     ed = endai_check(d, g)
     rp = ["%s が %s を貫く" % q for q in route_pierce(d, g)]
+    pp = pending_pointer_check(d)
     # ⛔ **件数のまま運ぶ**(⛔ 文字列へ埋めない)— `rows` が print と return の両方へ届く形
     rows = []
     rows.append(("地形の出自(造成前の正本の切り出し)", tp, []))
     rows.append(("参道の柵と林縁が社地の辺のオフセットか", so, []))
     rows.append(("植栽の多角形 ∩ 退避 = 0", pa[0], pa[1]))
-    rows.append(("面の総当たり(棟・門・区・帯・石段・塊・玉垣・低木の帯・踏石・点景)", ro[0], ro[1]))
+    rows.append(("面の総当たり(棟・門・区・帯・石段・塊・玉垣・低木の面・踏石・点景)", ro[0], ro[1]))
     rows.append(("空地(供待)が平場の中か・何と重なるか", np_[0], np_[1]))
     rows.append(("社叢の帯の不変条件 ①②③", bi, []))
     rows.append(("道の形(道幅より短い脚・引き返し・迷い点)", ps[0], ps[1]))
@@ -4682,6 +4911,7 @@ def run_checks():
     rows.append(("井戸屋形の取り合い(軒先≡石敷・石敷が帯の内・玉垣の開口)", io[0], io[1]))
     rows.append(("茶店の縁台が玉垣の東・通行帯の外か", ed[0], ed[1]))
     rows.append(("動線が構造物を貫通しないか", rp, []))
+    rows.append(("`_pending` を指すポインタの指し先が実在するか", pp, []))
     bad = [q for _nm, b, _n in rows for q in b]
     note = [q for _nm, _b, n in rows for q in n]
     return bad, note, rows
@@ -4829,13 +5059,11 @@ def main():
         cap="<b>附図 前庭 平面。</b>前庭に囲い" + _zentei_kakoi(d) + "・坂下の門・茶店の縁台4・"
             "<b>玉垣で囲う植込みの帯</b>【S 名所図会】・<b>井戸屋形</b>【S 名所図会・ユーザー裁定 2026-09-06】・"
             "<b>御成の供待の空地</b>(破線)・"
-            "参道の取り合いが集まる面。⭐ <b>2026-09-06b に庭方が組み直した</b> — "
-            "植込みは東寄りの島をやめて<b>西縁に付く帯</b>にし、"
-            "<b>仁王門から北へ 袖塀 → 玉垣の植込み → 井戸屋形</b> の順に並べた【ユーザー裁定】。"
+            "参道の取り合いが集まる面。<b>植込みは前庭の西縁に付く帯</b>で、"
+            "<b>仁王門から北へ 袖塀 → 玉垣の植込み → 井戸屋形</b> の順に並ぶ【ユーザー裁定】。"
             "縁台4基は<b>玉垣の前・かつ玉垣の東</b>(広場の側)。"
-            "<b>表参は門口の芯を通って男坂の足へ真西から取り付く</b>"
-            "(2026-09-06 に引き直した — 旧線は門の開口を素通りしていた)。"
-            "前庭の中だけ<b>路面幅を 2.0 間へ下げてある</b>(門口の倍)。"
+            "<b>表参は門口の芯を通って男坂の足へ真西から取り付く</b>。"
+            "前庭の中は<b>路面幅 2.0 間</b>(門口の倍)で、<b>門をくぐる区間だけ門口の 1 間</b>。"
             "<b>北縁の中央(参道の芯線の下端)の開口が参道の入り</b>で、"
             "そこに参道の階(段数は石段の表)が取り付く。<b>南縁は女坂の口で段違い</b>になり、"
             "口の西を TW_Zentei_SW、口の東(南東の張り出し)を TW_Zentei_SE が受ける。"
@@ -5121,15 +5349,14 @@ def main():
              '(2026-09-06 — 旧図は堂と動線の上を覆ったまま「使える坪」を別に持っていた)。'
              '⭐ <b>松は等方に伸ばさない</b> — 在庫の黒松は丈 ≒ 樹冠の開放樹形で、丈へ等方に合わせると'
              '林冠が閉じきる。丈は Y だけ、樹冠は XZ をわずかに広げる(<code>planting.scaleRule</code>)。'
-             '⭐ <b>前庭は 2026-09-06b に庭方が組み直した</b> — 東寄りに孤立していた植込みの島を撤回し、'
-             '<b>前庭の西縁に付く帯</b>にした。こうすると帯の樹冠の上に社叢 帯4 の樹林が重なり、'
+             '⭐ <b>前庭の植込みは西縁に付く帯</b>である。こうすると帯の樹冠の上に社叢 帯4 の樹林が重なり、'
              '<b>前景=低木・中景=帯の高木・遠景=帯4の林</b>が一つの緑の塊に見え、'
              '<b>広場は開いたまま</b>残る(⛔ 中央に通すと広場が二分される)。'
              '南端を仁王門が、北端を既存の北縁の板塀が閉じるので、帯は両端とも既存部材に取り付いて浮かない。'
              '⭐ <b>仁王門から北へ 袖塀 → 玉垣の植込み → 井戸屋形</b>の順に並ぶ【ユーザー裁定 2026-09-06】。'
-             '<b>門被りは帯の中のクロマツ</b>が務め、帯4の松は役名を<b>「坂の頭の松」</b>へ改めた。'
-             '⛔ <b>広場に自立した高木を置かない</b>【S 原図は描かない】ので榎は帯の中へ移し、'
-             '⛔ <b>東縁の低木の帯も落とした</b> — 東縁の緑は前庭の外(帯4)の樹冠が縁から立ち上がって受ける。'
+             '<b>門被りは帯の中のクロマツ</b>が務め、帯4の松は<b>「坂の頭の松」</b>。'
+             '⛔ <b>広場に自立した高木を置かない</b>【S 原図は描かない】ので榎も椋も帯の中に立つ。'
+             '<b>前庭の東縁の緑は前庭の外(帯4)の樹冠</b>が縁から立ち上がって受ける。'
              '⛔ <b>御成の駕籠寄せは建てない</b> — <b>女坂の口の真横</b>に供待の空地を取るだけにする。')
     h.append("<h3>★主景の検算 ─ 楼門から西を見る</h3>")
     h.append(shukei_table(d, g))
@@ -5191,6 +5418,12 @@ def main():
     _ma = sum(m["du"] * m["dv"] for m in d["munes"] if m["yaku"] != "接続") * ken * ken
     _ma += sum(r.get("bari", 2) * r["ken"] for r in d["runs"] if r.get("mune")) * ken * ken
     _ma += sum(gt["plan"]["du"] * gt["plan"]["dv"] for gt in d["gates"]) * ken * ken
+    # ⭐ **井戸屋形は屋根を持つ建物**なので底面積に入る(2026-09-06 検図5巡目 低22)。
+    #    ⛔ 呼び寸法ではなく**軒先の平面**で採る(建蔽率は屋根の水平投影)。
+    _ir = ido_rects(d)
+    if _ir:
+        _no = _ir["軒先"]
+        _ma += (_no[2] - _no[0]) * (_no[3] - _no[1]) * ken * ken
     h.append('<div class="box"><p><b>面積の総括</b>(§A-4 敷地全体ベース)── '
              '社地 <b>%.0f m²(%.0f 坪)</b> ／ 山上の平場 <b>%.0f m²</b> ／ '
              '建物の底面積 <b>%.0f m²</b> ／ <b>建蔽率 %.2f%%</b>。'

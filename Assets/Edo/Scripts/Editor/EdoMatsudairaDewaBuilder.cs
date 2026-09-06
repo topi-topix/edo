@@ -21,14 +21,24 @@ using System.IO;
 using UnityEditor;
 using UnityEngine;
 
-public static class EdoMatsudairaDewaBuilder
+public static partial class EdoMatsudairaDewaBuilder
 {
     public const string SashizuRel = "docs/Sashizu/matsudaira_dewa_sashizu.json";
     public const string ParcelId = "matsudaira_dewa";
     public const string Grp = "Edo_Yashiki_MatsudairaDewa";
 
-    /// <summary>bench=true の run の内側を天端で平らにする幅[m]。指図 _runs の「外周帯(内側幅3m)」。</summary>
-    public const float BAND = 3.0f;
+    /// <summary>bench=true の run の内側を天端で平らにする幅[m]。**指図 `const.benchBand` から読む**
+    /// (⛔ 数値をここに持たない — 2026-09-02 検図【中6】【中3】: 「_runs の『外周帯(内側幅3m)』」は
+    /// 存在しない出典だった)。指図に無ければ例外(発明しない)。</summary>
+    public static float BAND
+    {
+        get
+        {
+            var c = O(D["const"]);
+            if (!Has(c, "benchBand")) throw new Exception("指図 const.benchBand が無い(BAND の出典)");
+            return F(c["benchBand"]);
+        }
+    }
 
     // ---------------------------------------------------------------- 指図の読み込み
     static Dictionary<string, object> _d;
@@ -368,8 +378,8 @@ public static class EdoMatsudairaDewaBuilder
     public static string Stage1_Grade()
     {
         // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
-        { var gate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
-          if (gate != null) return gate; }
+        { var reviewGate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
+          if (reviewGate != null) return reviewGate; }
 
         Stage0_Backup();
         var t = Terrain.activeTerrain; var td = t.terrainData;
@@ -570,8 +580,8 @@ public static class EdoMatsudairaDewaBuilder
     public static string Stage2_Perimeter()
     {
         // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
-        { var gate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
-          if (gate != null) return gate; }
+        { var reviewGate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
+          if (reviewGate != null) return reviewGate; }
 
         EdoNishiTameikeBuilder.NaturalMode = false;     // 天端は run の seat で通す
         var kak = Group("Kakoi"); Clear(kak);
@@ -938,8 +948,8 @@ public static class EdoMatsudairaDewaBuilder
         // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
         //    2026-09-01: Stage7 が指図の poly/at/groups/clr を読まず、**撤回済みの
         //    「松を全数 −u へ傾ける」がコードに生きていた**。流せば撤回した案が復活する。
-        { var gate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
-          if (gate != null) return gate; }
+        { var reviewGate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
+          if (reviewGate != null) return reviewGate; }
 
         var grp = Group("Ishigaki"); Clear(grp);
         var sb = new System.Text.StringBuilder();
@@ -1100,8 +1110,8 @@ public static class EdoMatsudairaDewaBuilder
         // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
         //    2026-09-01: Stage7 が指図の poly/at/groups/clr を読まず、**撤回済みの
         //    「松を全数 −u へ傾ける」がコードに生きていた**。流せば撤回した案が復活する。
-        { var gate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
-          if (gate != null) return gate; }
+        { var reviewGate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
+          if (reviewGate != null) return reviewGate; }
 
         var grp = Group("Buildings"); Clear(grp);
         var f = Grid;
@@ -1179,8 +1189,8 @@ public static class EdoMatsudairaDewaBuilder
         // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
         //    2026-09-01: Stage7 が指図の poly/at/groups/clr を読まず、**撤回済みの
         //    「松を全数 −u へ傾ける」がコードに生きていた**。流せば撤回した案が復活する。
-        { var gate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
-          if (gate != null) return gate; }
+        { var reviewGate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
+          if (reviewGate != null) return reviewGate; }
 
         var root = Group("");
         // 旧案の残骸を撤去
@@ -1304,8 +1314,8 @@ public static class EdoMatsudairaDewaBuilder
         // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
         //    2026-09-01: Stage7 が指図の poly/at/groups/clr を読まず、**撤回済みの
         //    「松を全数 −u へ傾ける」がコードに生きていた**。流せば撤回した案が復活する。
-        { var gate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
-          if (gate != null) return gate; }
+        { var reviewGate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
+          if (reviewGate != null) return reviewGate; }
 
         var grp = Group("Fuzoku"); Clear(grp);
         var f = Grid;
@@ -1397,6 +1407,81 @@ public static class EdoMatsudairaDewaBuilder
         {
             var k = O(o);
             string nm = (string)k["name"];
+
+            // ---- 庭の段(`kind: "庭の段"`)は郭をつなぐ石段と持ち物が違う。
+            //   ⛔ 蹴上・踏面・落差を**指図から読まない** — 両端が地形で固定されるので段数からの従属値
+            //   (`_kaidans` の注記 ②、汐見坂の裁定 2026-08-24 と同じ扱い)。
+            //   指図が持つのは **両端 a/b・折れ点 via・段数 steps・幅 w** だけ。
+            //   ⭐ 導出は生成器 `build_matsudaira_dewa_sashizu.py::garden_step_geom` と同じ式にする:
+            //      走り = 折れ線 a→via…→b の**平面長**(⛔ 両端の直線距離で測らない)/ 落差 = |yb − ya|
+            //      蹴上 = 落差/n ・ 踏面 = 走り/n。地盤は**実地形**(造成 1 と築山 1b の後の面)。
+            //   2026-09-04 棟梁: ここが無く、Stage6 が 庭の段 の `drop` で KeyNotFoundException を投げていた。
+            if (Has(k, "kind") && (string)k["kind"] == "庭の段")
+            {
+                if (!Has(k, "a") || !Has(k, "b"))
+                { sb.AppendLine("⚠ 庭の段 " + nm + ": 指図に a/b が無い"); continue; }
+                var gpath = new List<Vector2>();
+                var ga = A(k["a"]); gpath.Add(f.W(F(ga[0]), F(ga[1])));
+                if (Has(k, "via")) foreach (var q in A(k["via"])) { var pq = A(q); gpath.Add(f.W(F(pq[0]), F(pq[1]))); }   // ⚠ `pv` は同じ関数の後段(pos の v)で宣言されるので別名(CS0136)
+                var gb = A(k["b"]); gpath.Add(f.W(F(gb[0]), F(gb[1])));
+                float ghor = 0f;
+                for (int i = 1; i < gpath.Count; i++) ghor += Vector2.Distance(gpath[i - 1], gpath[i]);
+                int gn = Mathf.Max(1, (int)F(k["steps"]));
+                float gya = TerrainY(gpath[0].x, gpath[0].y);
+                float gyb = TerrainY(gpath[gpath.Count - 1].x, gpath[gpath.Count - 1].y);
+                float gdrop = Mathf.Abs(gyb - gya), gy0 = Mathf.Min(gya, gyb);
+                float gkeri = gdrop / gn, gfumi = ghor / gn;
+                float gw = F(k["w"]);
+                int gacross = Mathf.Max(1, Mathf.RoundToInt(gw / 1.98f));
+                bool upFromA = gyb > gya;
+                var gmod = AssetDatabase.LoadAssetAtPath<GameObject>(EdoAssets.Own.DanishiStep);
+                if (gmod == null) { sb.AppendLine("⚠ 段石が無い: " + EdoAssets.Own.DanishiStep); continue; }
+                for (int i = 0; i < gn; i++)
+                {
+                    // 下から i 段目。弧長 s は**登る向き**に測る
+                    float sUp = gfumi * (i + 0.5f);
+                    float sA = upFromA ? sUp : ghor - sUp;          // a 端からの弧長
+                    // 折れ線上の点と接線
+                    Vector2 c = gpath[0], tan = (gpath[1] - gpath[0]).normalized;
+                    float acc = 0f;
+                    for (int j = 1; j < gpath.Count; j++)
+                    {
+                        float seg = Vector2.Distance(gpath[j - 1], gpath[j]);
+                        if (sA <= acc + seg || j == gpath.Count - 1)
+                        {
+                            float tt = seg < 1e-6f ? 0f : Mathf.Clamp01((sA - acc) / seg);
+                            c = Vector2.Lerp(gpath[j - 1], gpath[j], tt);
+                            tan = (gpath[j] - gpath[j - 1]).normalized;
+                            break;
+                        }
+                        acc += seg;
+                    }
+                    if (!upFromA) tan = -tan;                        // 接線は登る向きへ
+                    float gyaw = Mathf.Atan2(tan.x, tan.y) * Mathf.Rad2Deg;
+                    Vector2 gside = new Vector2(tan.y, -tan.x);
+                    float gtop = gy0 + gkeri * (i + 1);
+                    for (int j = 0; j < gacross; j++)
+                    {
+                        float t2 = (j - (gacross - 1) * 0.5f) * (gw / gacross);
+                        Vector2 cc = c + gside * t2;
+                        var go = EdoNishiTameikeBuilder.Place(EdoAssets.Own.DanishiStep,
+                            new Vector3(cc.x, gtop, cc.y), gyaw, Vector3.one, dnGrp, nm + "_" + i + "_" + j);
+                        if (go == null) continue;
+                        float have2 = RunWidth(EdoNishiTameikeBuilder.RB(go), gyaw);
+                        if (have2 > 0.05f) go.transform.localScale = new Vector3((gw / gacross) / have2, 1f, 1f);
+                        var bb2 = EdoNishiTameikeBuilder.RB(go);
+                        go.transform.position += new Vector3(cc.x - bb2.center.x, gtop - bb2.max.y, cc.y - bb2.center.z);
+                        nDan++;
+                    }
+                }
+                sb.AppendLine("庭の段 " + nm + " " + gn + "段×" + gacross + "枚 蹴上" + gkeri.ToString("F3")
+                              + " 踏面" + gfumi.ToString("F3") + " 走り" + ghor.ToString("F2")
+                              + " (" + Mathf.Min(gya, gyb).ToString("F2") + "→" + Mathf.Max(gya, gyb).ToString("F2") + ")"
+                              + (Has(k, "orikaeshi") && !Has(k, "via")
+                                 ? "  ⚠ orikaeshi=" + F(k["orikaeshi"]) + " なのに via が無い(折れ点が指図に無い→指図方へ)" : ""));
+                continue;
+            }
+
             var pos = A(k["pos"]);
             float pu = F(pos[0]), pv = F(pos[1]);
             string dir = Has(k, "dir") ? (string)k["dir"] : null;
@@ -1687,7 +1772,11 @@ public static class EdoMatsudairaDewaBuilder
 
     /// <summary>附属屋 FBX のマテリアルを、**借り先を名指しして**結び直す。
     /// ⚠ `SearchAndRemapMaterials(..., Everywhere)` はプロジェクト全体(6.9GB)を舐めるので使わない
-    ///   — 2026-08-24 に実際にユーザーの PC が固まった。借り先は3フォルダだけ見る。</summary>
+    ///   — 2026-08-24 に実際にユーザーの PC が固まった。借り先は3フォルダだけ見る。
+    /// ⚠ **2026-09-06 に `Models/Niwa`(立石 `Own.Tateishi`)を追加するまで、このメニューは
+    ///   庭石の類を一切見ていなかった**(対象は Fuzokuya/Mon/Trees だけだった)。
+    ///   `Models/Niwa` の FBX を増やしたら、ここに folder を足すのを忘れないこと
+    ///   — 忘れると真っ白のまま気づかれない(門・番所で 2026-08-31 に踏んだのと同じ型)。</summary>
     [MenuItem("Edo/松平出羽守上屋敷/附属屋・門・木のマテリアルをremap")]
     public static void RemapFuzokuyaMenu() { Debug.Log("[Matsudaira] " + RemapFuzokuya()); }
     public static string RemapFuzokuya()
@@ -1697,7 +1786,15 @@ public static class EdoMatsudairaDewaBuilder
             "Assets/Japanese Castle/Meshes/Exterior/Materials",
             "Assets/Edo/Materials",              // キットに無い材(鳥居の朱 Shu_Torii など)
             // 新造した木(Own.Jokuroku / Own.Ume)は在庫の桜の樹皮・葉の材質名を名乗る
+            // 立石・平石2種・切石橋(Own.Tateishi/Own.Hiraishi/Own.Ishibashi)は
+            // `M_FJG_Rock_001`(護岸の転石 JG_Rock_A_01..03 と同じ材。2026-09-06 裁定1=B)
+            // の材質名をそのまま運ぶ — この donorDir(FreeJapaneseGarden/Materials)で拾える。
             "Assets/Waldemarst/FreeJapaneseGarden/Materials",
+            // 岡部庭の Ishigumi/Tobiishi/Kutsunugi は今も NatureManufacture の
+            // photoscanned rock の材質名を運ぶ(EdoOkabeYashikiBuilder 参照。立石側は
+            // 2026-09-06 にこちらから M_FJG_Rock_001 へ切り替えたので、このフォルダは
+            // もう Own.Tateishi 用ではない)。
+            "Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Rocks/Rocks/Models/Materials",
         };
         var byName = new Dictionary<string, Material>();
         foreach (var dir in donorDirs)
@@ -1714,7 +1811,7 @@ public static class EdoMatsudairaDewaBuilder
         //   Village Kit の `Roof B` へ替えたとき、ここが Fuzokuya しか見ていなかったため
         //   材質名が変わった番所が真っ白になった。**FBX を焼いた folder は必ずここに足す。**
         string[] modelDirs = { "Assets/Edo/Models/Fuzokuya", "Assets/Edo/Models/Mon",
-                               "Assets/Edo/Models/Trees" };
+                               "Assets/Edo/Models/Trees", "Assets/Edo/Models/Niwa" };
         foreach (var guid in AssetDatabase.FindAssets("t:Model", modelDirs))
         {
             string path = AssetDatabase.GUIDToAssetPath(guid);
@@ -1764,6 +1861,7 @@ public static class EdoMatsudairaDewaBuilder
     static string ResolveApi(string api)
     {
         if (string.IsNullOrEmpty(api)) return null;
+        api = api.Trim(); if (api.StartsWith("EdoAssets.")) api = api.Substring("EdoAssets.".Length);   // 指図の石は `EdoAssets.Own.Tateishi(...)` と書かれる(2026-09-06 解けずに転石へ落ちていた)
         var m = System.Text.RegularExpressions.Regex.Match(api, @"^([A-Za-z]+)\.([A-Za-z0-9_]+)(?:\((.*)\))?$");
         if (!m.Success) return null;
         string cls = m.Groups[1].Value, fn = m.Groups[2].Value, arg = m.Groups[3].Value;
@@ -1779,6 +1877,7 @@ public static class EdoMatsudairaDewaBuilder
             if (fn == "Jokuroku") return EdoAssets.Own.Jouryoku(a[0], a.Count > 1 ? i1 : 1);  // 旧綴り
             if (fn == "Momiji")   return EdoAssets.Own.Momiji(a[0], a.Count > 1 ? i1 : 1);
             if (fn == "Ume")      return EdoAssets.Own.Ume(a[0], a.Count > 1 ? i1 : 1);
+            if (fn == "Tateishi") return EdoAssets.Own.Tateishi(a[0], a.Count > 1 ? i1 : 1);   // 立石 S/M/L(2026-09-06 石組の api を解けず在庫の転石へ落ちていた)
         }
         else if (cls == "JG")
         {
@@ -1846,8 +1945,8 @@ public static class EdoMatsudairaDewaBuilder
         // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
         //    2026-09-01: Stage7 が指図の poly/at/groups/clr を読まず、**撤回済みの
         //    「松を全数 −u へ傾ける」がコードに生きていた**。流せば撤回した案が復活する。
-        { var gate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
-          if (gate != null) return gate; }
+        { var reviewGate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
+          if (reviewGate != null) return reviewGate; }
 
         var root = Group("");
         // 撤回した池の案の残骸(非アクティブ)。生成物なので消してよい
@@ -2071,8 +2170,8 @@ public static class EdoMatsudairaDewaBuilder
         // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
         //    2026-09-01: Stage7 が指図の poly/at/groups/clr を読まず、**撤回済みの
         //    「松を全数 −u へ傾ける」がコードに生きていた**。流せば撤回した案が復活する。
-        { var gate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
-          if (gate != null) return gate; }
+        { var reviewGate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
+          if (reviewGate != null) return reviewGate; }
 
         var grp = Group("Shamen"); Clear(grp);
         var f = Grid;
@@ -2171,9 +2270,14 @@ public static class EdoMatsudairaDewaBuilder
             }
             else
             {
+                // ⛔ 2026-09-02 検図【高5】/庭方【高1】: `slopeArea.bands` は図と別の帯(0.40/0.78 vs 0.33/0.70)で
+                //    t の定義も別だった。帯は `slopeBands` に一本化され、斜面の散布は生成器の sidecar
+                //    (Stage7' `planting_out.json`・ground:"terrain")が担う。ここは既定値へ黙って落ちない。
+                if (!Has(sa, "bands"))
+                    return "⛔ 旧 Stage8 の scatter は廃止 — 斜面の点は 7' 植栽(sidecar)が据える(slopeArea.bands は指図から消えた)";
                 var bands = O(sa["bands"]);
-                float b0 = 0.0f, b1 = 0.5f;
-                if (Has(bands, band)) { var bb = A(bands[band]); b0 = F(bb[0]); b1 = F(bb[1]); }
+                float b0, b1;
+                { var bb = A(bands[band]); b0 = F(bb[0]); b1 = F(bb[1]); }
                 for (int k = 0; k < want * 60 && made < want; k++)
                 {
                     int i = rnd.Next(crest.Count - 1);

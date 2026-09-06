@@ -1,0 +1,52 @@
+<svg viewBox="0 0 960 330" width="100%" role="img" aria-label="御錠口と渡廊下の取り合い(裁定図)" style="max-width:960px;height:auto">
+<style>svg{background:#FBFAF6;font-family:'Hiragino Sans','Noto Sans JP',sans-serif}:root,svg{--ink:#23201A;--dim:#615C4E;--rule:#D3CEBF;--shu:#A8452C;--ishi:#6E7A83;--nagaya:#7A5C3A;--ike:#A9C2CE}.jo{font-size:9.5px;fill:#615C4E}.anS2{font-size:10.5px;fill:#615C4E;text-anchor:middle}</style>
+<text class="anS2" x="150.0" y="26.0" style="text-anchor:middle;font-size:13.0px">案A 現況(3間角・棟 床+5.24)</text>
+<rect x="109.1" y="225.7" width="81.8" height="24.3" fill="var(--nagaya)" stroke="var(--ink)" stroke-width="1.00" opacity="0.60"/>
+<line x1="109.1" y1="192.7" x2="150.0" y2="147.1" stroke="var(--shu)" stroke-width="2.20"/>
+<line x1="150.0" y1="147.1" x2="190.9" y2="192.7" stroke="var(--shu)" stroke-width="2.20"/>
+<text class="jo" x="150.0" y="141.1" style="text-anchor:middle;font-size:10.0px">御錠口 3間角 棟 30.66</text>
+<rect x="23.9" y="225.7" width="27.3" height="24.3" fill="var(--nagaya)" stroke="var(--ink)" stroke-width="0.80" opacity="0.50"/>
+<line x1="23.9" y1="197.2" x2="37.5" y2="188.2" stroke="var(--ink)" stroke-width="1.60"/>
+<line x1="37.5" y1="188.2" x2="51.1" y2="197.2" stroke="var(--ink)" stroke-width="1.60"/>
+<text class="jo" x="37.5" y="182.2" style="text-anchor:middle;font-size:9.0px">渡廊下 幅1間・大棟 27.92</text>
+<rect x="248.9" y="225.7" width="27.3" height="24.3" fill="var(--nagaya)" stroke="var(--ink)" stroke-width="0.80" opacity="0.50"/>
+<line x1="248.9" y1="197.2" x2="262.5" y2="188.2" stroke="var(--ink)" stroke-width="1.60"/>
+<line x1="262.5" y1="188.2" x2="276.1" y2="197.2" stroke="var(--ink)" stroke-width="1.60"/>
+<text class="jo" x="262.5" y="182.2" style="text-anchor:middle;font-size:9.0px">渡廊下 幅1間・大棟 27.92</text>
+<line x1="-60.0" y1="235.0" x2="360.0" y2="235.0" stroke="var(--ink)" stroke-width="1.60"/>
+<text class="jo" x="-52.5" y="247.0" style="text-anchor:start;font-size:10.0px">面 24.80</text>
+<text class="jo" x="150.0" y="300.0" style="text-anchor:middle;font-size:10.0px">渡廊下の大棟 27.92 との差 2.74m</text>
+<text class="anS2" x="470.0" y="26.0" style="text-anchor:middle;font-size:13.0px">案B 廊下幅1間の建具に縮める</text>
+<rect x="456.4" y="225.7" width="27.3" height="24.3" fill="var(--nagaya)" stroke="var(--ink)" stroke-width="1.00" opacity="0.60"/>
+<line x1="456.4" y1="192.7" x2="470.0" y2="188.2" stroke="var(--shu)" stroke-width="2.20" stroke-dasharray="6 4"/>
+<line x1="470.0" y1="188.2" x2="483.6" y2="192.7" stroke="var(--shu)" stroke-width="2.20" stroke-dasharray="6 4"/>
+<text class="jo" x="470.0" y="182.2" style="text-anchor:middle;font-size:10.0px">廊下幅の建具 棟 27.92</text>
+<rect x="343.9" y="225.7" width="27.3" height="24.3" fill="var(--nagaya)" stroke="var(--ink)" stroke-width="0.80" opacity="0.50"/>
+<line x1="343.9" y1="197.2" x2="357.5" y2="188.2" stroke="var(--ink)" stroke-width="1.60"/>
+<line x1="357.5" y1="188.2" x2="371.1" y2="197.2" stroke="var(--ink)" stroke-width="1.60"/>
+<text class="jo" x="357.5" y="182.2" style="text-anchor:middle;font-size:9.0px">渡廊下 幅1間・大棟 27.92</text>
+<rect x="568.9" y="225.7" width="27.3" height="24.3" fill="var(--nagaya)" stroke="var(--ink)" stroke-width="0.80" opacity="0.50"/>
+<line x1="568.9" y1="197.2" x2="582.5" y2="188.2" stroke="var(--ink)" stroke-width="1.60"/>
+<line x1="582.5" y1="188.2" x2="596.1" y2="197.2" stroke="var(--ink)" stroke-width="1.60"/>
+<text class="jo" x="582.5" y="182.2" style="text-anchor:middle;font-size:9.0px">渡廊下 幅1間・大棟 27.92</text>
+<line x1="260.0" y1="235.0" x2="680.0" y2="235.0" stroke="var(--ink)" stroke-width="1.60"/>
+<text class="jo" x="267.5" y="247.0" style="text-anchor:start;font-size:10.0px">面 24.80</text>
+<text class="jo" x="470.0" y="300.0" style="text-anchor:middle;font-size:10.0px">棟を廊下に揃える(27.92)。⛔ 3間角の小屋ではなくなる</text>
+<text class="anS2" x="790.0" y="26.0" style="text-anchor:middle;font-size:13.0px">案C 3間角のまま寄棟の低勾配</text>
+<rect x="749.1" y="225.7" width="81.8" height="24.3" fill="var(--nagaya)" stroke="var(--ink)" stroke-width="1.00" opacity="0.60"/>
+<line x1="749.1" y1="192.7" x2="790.0" y2="174.7" stroke="var(--shu)" stroke-width="2.20" stroke-dasharray="6 4"/>
+<line x1="790.0" y1="174.7" x2="830.9" y2="192.7" stroke="var(--shu)" stroke-width="2.20" stroke-dasharray="6 4"/>
+<text class="jo" x="790.0" y="168.7" style="text-anchor:middle;font-size:10.0px">3間角・寄棟 3寸 棟 28.82</text>
+<rect x="663.9" y="225.7" width="27.3" height="24.3" fill="var(--nagaya)" stroke="var(--ink)" stroke-width="0.80" opacity="0.50"/>
+<line x1="663.9" y1="197.2" x2="677.5" y2="188.2" stroke="var(--ink)" stroke-width="1.60"/>
+<line x1="677.5" y1="188.2" x2="691.1" y2="197.2" stroke="var(--ink)" stroke-width="1.60"/>
+<text class="jo" x="677.5" y="182.2" style="text-anchor:middle;font-size:9.0px">渡廊下 幅1間・大棟 27.92</text>
+<rect x="888.9" y="225.7" width="27.3" height="24.3" fill="var(--nagaya)" stroke="var(--ink)" stroke-width="0.80" opacity="0.50"/>
+<line x1="888.9" y1="197.2" x2="902.5" y2="188.2" stroke="var(--ink)" stroke-width="1.60"/>
+<line x1="902.5" y1="188.2" x2="916.1" y2="197.2" stroke="var(--ink)" stroke-width="1.60"/>
+<text class="jo" x="902.5" y="182.2" style="text-anchor:middle;font-size:9.0px">渡廊下 幅1間・大棟 27.92</text>
+<line x1="580.0" y1="235.0" x2="1000.0" y2="235.0" stroke="var(--ink)" stroke-width="1.60"/>
+<text class="jo" x="587.5" y="247.0" style="text-anchor:start;font-size:10.0px">面 24.80</text>
+<text class="jo" x="790.0" y="300.0" style="text-anchor:middle;font-size:10.0px">3寸で棟 ≒28.82(差 0.90m)</text>
+<text class="jo" x="8.0" y="318.0" style="text-anchor:start;font-size:10.0px">断面は同縮尺(1m = 15.0px)。床は面 24.80 + 床 0.62。渡廊下の大棟は `EdoGotenKit` の定数 2.503、御錠口は 部材方の実測(3間角・底が床より 0.62 下がる)。⛔ 意匠は決めない。</text>
+</svg>

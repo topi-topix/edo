@@ -32,7 +32,7 @@ RATIO = MOD_RISE / MOD_RUN          # 0.5456 ≒ 5.5寸勾配
 COURSE = 0.357                      # 瓦の段ピッチ(流れ方向)
 STEP_RUN = COURSE * 5               # 1.785 = 5段。1段分重ねて葺くと段が通る
 STEP_RISE = STEP_RUN * RATIO
-OUT = os.path.join(V.REPO, "Assets", "Edo", "Models", "Goten", "Roofs")
+OUT = V.out_dir(os.path.join(V.REPO, "Assets", "Edo", "Models", "Goten", "Roofs"))
 
 KEN = 1.818                         # 江戸間。渡廊下は幅1間
 ROKA_EAVE = 0.60                    # 渡廊下の軒の出(棟の 0.90 より浅い)
@@ -455,6 +455,77 @@ def make_irimoya(W, D, name="Goten_Roof", eave=0.90, gable_frac=0.45):
     return o
 
 
+def make_yosemune(W, D, name="Goten_Roof_Yosemune", eave=0.90):
+    """**寄棟(四方に流れる)。** W=桁行(X) D=梁間(Y)。返り値=1メッシュ。
+
+    【なぜ入母屋と別に要るか】土井邸の表役所 `Yakusho`(10×10間)は**役所であって御殿ではない**
+      ので、御殿の入母屋より一段下げた寄棟・瓦葺とする(2026-09-06 考証方の判定【U】)。
+      ⛔ **入母屋の妻を潰した代用にしない** — 妻壁・破風・木連格子・懸魚・袖瓦は
+        **そもそも作らない**。四流れの瓦場と、大棟1本 + 隅棟4本だけで組む。
+
+    【作図】軒の出 eave を四周に取った外周 W'×D'。四面とも同じ勾配 RATIO なので、
+      隅の稜線は平面で **45°**、大棟の高さは h=(D'/2)·RATIO、大棟の長さは **W'−D'**。
+      ⇒ 入母屋の `gable_frac` を 1.0 まで振り切った形と同じ骨格になるが、**妻が無いので
+        軒先の台形2枚と三角2枚**で閉じる(入母屋の「妻から上の矩形」は現れない)。
+
+    ⚠⚠ **正方形の平面(W=D)では大棟の長さが 0 になり、寄棟は必然的に方形造(宝形)になる。**
+      これは作図の都合ではなく幾何の帰結 — 四面の勾配が等しい限り、正方形の寄棟は必ず
+      隅棟4本が頂点で交わる四角錐になる。⇒ 頂点は **露盤**(方形造の常法)で塞ぐ。
+      ⛔ 大棟が要るなら平面を長方形にするか入母屋に戻すしかない。**普請奉行の裁定事項。**
+    """
+    Wp, Dp = W + 2 * eave, D + 2 * eave
+    if Dp > Wp:
+        raise SystemExit("[yosemune] 桁行 %.3f < 梁間 %.3f — 桁行 ≧ 梁間 で呼ぶこと" % (W, D))
+    cy = Dp / 2.0
+    h = cy * RATIO                      # 大棟(=隅棟の頂点)の高さ
+    a = cy                              # 隅の平面上の入り込み(45°なので梁間の半分)
+    x0, y0 = -eave, -eave
+
+    def P(px, py):
+        return (x0 + px, y0 + py)
+
+    pieces = []
+    # 長手の二面 = 軒先の台形。短手の二面 = 三角(隅)
+    pieces.append(tile_field([[P(0, 0), P(Wp, 0), P(Wp - a, a), P(a, a)]],
+                             P(0, 0), 90, 0.0, name + "_S"))
+    pieces.append(tile_field([[P(Wp, Dp), P(0, Dp), P(a, Dp - a), P(Wp - a, Dp - a)]],
+                             P(0, Dp), 270, 0.0, name + "_N"))
+    pieces.append(tile_field([[P(0, 0), P(a, a), P(a, Dp - a), P(0, Dp)]],
+                             P(0, 0), 0, 0.0, name + "_W"))
+    pieces.append(tile_field([[P(Wp, Dp), P(Wp - a, Dp - a), P(Wp - a, a), P(Wp, 0)]],
+                             P(Wp, 0), 180, 0.0, name + "_E"))
+
+    p = palette()
+    r0, r1 = (x0 + a, y0 + cy, h), (x0 + Wp - a, y0 + cy, h)
+    ridge_len = Wp - Dp
+    if ridge_len > 0.35:
+        pieces += ridge(r0, r1, name + "_omune", w=0.50, h=0.42)
+        pieces += oni(r0, (-1, 0), name + "_oni0", scale=1.15)
+        pieces += oni(r1, (1, 0), name + "_oni1", scale=1.15)
+    # 隅棟4本。頂点は大棟の端(正方形なら1点に集まる)
+    for (cx, cyy, tx, ty) in [(0, 0, a, a), (Wp, 0, Wp - a, a),
+                              (0, Dp, a, Dp - a), (Wp, Dp, Wp - a, Dp - a)]:
+        pieces += ridge((x0 + cx, y0 + cyy, 0.02), (x0 + tx, y0 + ty, h),
+                        name + "_sumi", w=0.40, h=0.33)
+    if ridge_len <= 0.35:
+        # 方形造の頂点 — **露盤**で塞ぐ。⛔ 開けたままにしない(隅棟4本の小口が透ける)
+        # ⚠ 材は瓦(`roof`)のまま。⛔ 新規マテリアルを作らない
+        cxp, cyp = (r0[0] + r1[0]) / 2.0, r0[1]
+        for (s, hgt, zb) in ((0.72, 0.16, h - 0.10), (0.52, 0.20, h + 0.06)):
+            b = V.box(name + "_roban", (s, s, hgt), (cxp, cyp, zb + hgt / 2.0),
+                      p['roof'], p['uv_roof'])
+            pieces.append(b)
+
+    pieces = [q for q in pieces if q]
+    V.dedup_materials()
+    o = V.join(pieces, name)
+    V.set_origin(o, (W / 2, D / 2, 0.0))
+    print("[yosemune] %s 桁行%.3f × 梁間%.3f / 軒の出%.2f / 大棟長 %.3f%s / 棟高 %.3f"
+          % (name, W, D, eave, max(0.0, ridge_len),
+             "(=0 → 方形造・露盤で納めた)" if ridge_len <= 0.35 else "", h))
+    return o
+
+
 def make_kirizuma(W, D=KEN, name="Goten_Roof_Kirizuma", eave=ROKA_EAVE,
                   end=ROKA_END, tsuma=False):
     """W=桁行(X・大棟の方向) D=梁間(Y) の低い切妻。渡廊下の屋根。返り値=1メッシュ
@@ -570,11 +641,20 @@ if __name__ == "__main__":
         mn, mx = report(o, name)
         V.export_fbx(o, os.path.join(OUT, name + ".fbx"))
         raise SystemExit(0)
-    if argv and argv[0] == "kirizuma":
-        if len(argv) > 1:                       # 単発: -- kirizuma <間数>
-            n = int(argv[1])
+    if argv and argv[0] == "yosemune":
+        # 寄棟 — `-- yosemune <桁行m> <梁間m> [名前]`。⚠ 桁行 ≧ 梁間 で呼ぶ
+        W = float(argv[1]); D = float(argv[2])
+        name = argv[3] if len(argv) > 3 else "Goten_Roof_Yosemune"
+        V.reset()
+        o = make_yosemune(W, D, name)
+        mn, mx = report(o, name)
+        V.export_fbx(o, os.path.join(OUT, name + ".fbx"))
+    elif argv and argv[0] == "kirizuma":
+        if len(argv) > 1:                       # 単発: -- kirizuma <間数(端数可)>
+            n = float(argv[1])
             V.reset()
-            name = "Goten_Roof_Kirizuma_%dken" % n
+            # ⚠ 端数の間数(渡廊下 1.5間など)は `1.5ken` と刷る。整数は従来どおり `3ken`
+            name = "Goten_Roof_Kirizuma_%sken" % (("%g" % n) if n != int(n) else "%d" % int(n))
             o = make_kirizuma(n * KEN, KEN, name)
             mn, mx = report(o, name)
             V.export_fbx(o, os.path.join(OUT, name + ".fbx"))

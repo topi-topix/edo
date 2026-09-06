@@ -4,17 +4,231 @@
 # root_scale: ルート自身の補正スケール(1 でなければ共通ヘルパに Vector3.one を渡すと化ける)
 # shader: BUILTIN = URP でピンクになる。use: S=シーンで使用中 / B=ビルダーが参照
 path	name	pack	kind	sx	sy	sz	pivot_bottom	root_scale	tris	renderers	shader	use
-Assets/Edo/Models/Dobei/DobeiModule2m.fbx	DobeiModule2m	Edo	fbx	30.97	35	9.91	0	2,0.35,0.5	44	1	URP	-
-Assets/Edo/Models/Dobei/DobeiModule2m_1.fbx	DobeiModule2m_1	Edo	fbx	88.5	100	28.32	0	1	44	1	URP	-
-Assets/Edo/Models/es_hmon/h_mon.obj	h_mon	Edo	obj	8.47	2.81	3.31	-0.99	1	38088	46	URP	-
-Assets/Edo/Models/Gogan/RankuiModule2m.fbx	RankuiModule2m	Edo	fbx	107.53	45.92	71.02	-3.63	1	448	1	URP	S
+Assets/Edo/Models/Dobei/Dobei2m.fbx	Dobei2m	Edo	fbx	2	2.5	1	0	1	404	1	URP	-
+Assets/Edo/Models/Dobei/Dobei2m_End.fbx	Dobei2m_End	Edo	fbx	2	2.5	1	0	1	436	1	URP	-
+Assets/Edo/Models/Fuzokuya/Matsudaira_Dozo.fbx	Matsudaira_Dozo	Edo	fbx	13.76	7.12	8.89	0	1	8314	1	URP	-
+Assets/Edo/Models/Fuzokuya/Matsudaira_Ido.fbx	Matsudaira_Ido	Edo	fbx	1.9	2.21	1.9	-0.06	1	132	1	URP	-
+Assets/Edo/Models/Fuzokuya/Matsudaira_Inari.fbx	Matsudaira_Inari	Edo	fbx	2.5	2.76	3.34	0	1	384	1	URP	-
+Assets/Edo/Models/Fuzokuya/Matsudaira_Koya.fbx	Matsudaira_Koya	Edo	fbx	19.32	5.5	8.99	0	1	11886	1	URP	-
+Assets/Edo/Models/Fuzokuya/Matsudaira_Sukiya.fbx	Matsudaira_Sukiya	Edo	fbx	6.55	4.44	6.55	0	1	524	1	URP	-
+Assets/Edo/Models/Fuzokuya/Matsudaira_SumiYagura.fbx	Matsudaira_SumiYagura	Edo	fbx	7.39	8.64	7.39	0	1	11974	1	URP	-
+Assets/Edo/Models/Gogan/RankuiModule2m.fbx	RankuiModule2m	Edo	fbx	107.53	45.92	71.02	-3.63	1	448	1	URP	-
+Assets/Edo/Models/Goten/Parts/Goten_Amado_1ken.fbx	Goten_Amado_1ken	Edo	fbx	1.82	2.73	0.1	0	1	98	1	URP	-
+Assets/Edo/Models/Goten/Parts/Goten_Beam_1ken.fbx	Goten_Beam_1ken	Edo	fbx	1.82	0.18	0.22	0	1	16	1	URP	-
+Assets/Edo/Models/Goten/Parts/Goten_Ceiling_1ken.fbx	Goten_Ceiling_1ken	Edo	fbx	1.82	0.09	1.82	0	1	60	1	URP	-
+Assets/Edo/Models/Goten/Parts/Goten_Chigaidana_1ken.fbx	Goten_Chigaidana_1ken	Edo	fbx	1.82	2.73	0.93	0	1	144	1	URP	-
+Assets/Edo/Models/Goten/Parts/Goten_Chodaigamae_1ken.fbx	Goten_Chodaigamae_1ken	Edo	fbx	2.16	2.73	0.2	0	1	228	1	URP	-
+Assets/Edo/Models/Goten/Parts/Goten_Column.fbx	Goten_Column	Edo	fbx	0.18	2.73	0.18	0	1	16	1	URP	-
+Assets/Edo/Models/Goten/Parts/Goten_FloorBoard_1ken.fbx	Goten_FloorBoard_1ken	Edo	fbx	1.82	0.06	1.82	0	1	168	1	URP	-
+Assets/Edo/Models/Goten/Parts/Goten_Fusuma_1ken.fbx	Goten_Fusuma_1ken	Edo	fbx	1.82	1.82	0.07	0	1	168	1	URP	-
+Assets/Edo/Models/Goten/Parts/Goten_JodanKamachi_1ken.fbx	Goten_JodanKamachi_1ken	Edo	fbx	1.82	0.15	0.69	0	1	24	1	URP	-
+Assets/Edo/Models/Goten/Parts/Goten_KaidanRoka_12x8.fbx	Goten_KaidanRoka_12x8	Edo	fbx	1.82	9.47	12.17	-8.27	1	1392	1	URP	-
+Assets/Edo/Models/Goten/Parts/Goten_KaidanRoka_9x6.fbx	Goten_KaidanRoka_9x6	Edo	fbx	1.82	7.47	9.17	-6.27	1	1056	1	URP	-
+Assets/Edo/Models/Goten/Parts/Goten_Koran_1ken.fbx	Goten_Koran_1ken	Edo	fbx	1.82	1.16	0.07	0	1	62	1	URP	-
+Assets/Edo/Models/Goten/Parts/Goten_NureenCorner.fbx	Goten_NureenCorner	Edo	fbx	0.89	1.09	0.89	0	1	250	1	URP	-
+Assets/Edo/Models/Goten/Parts/Goten_Nureen_1ken.fbx	Goten_Nureen_1ken	Edo	fbx	1.82	1.09	0.89	0	1	158	1	URP	-
+Assets/Edo/Models/Goten/Parts/Goten_Ranma_1ken.fbx	Goten_Ranma_1ken	Edo	fbx	1.82	0.91	0.11	0	1	240	1	URP	-
+Assets/Edo/Models/Goten/Parts/Goten_ShojiHalf.fbx	Goten_ShojiHalf	Edo	fbx	0.91	2.73	0.05	0	1	164	1	URP	-
+Assets/Edo/Models/Goten/Parts/Goten_Shoji_1ken.fbx	Goten_Shoji_1ken	Edo	fbx	1.82	2.73	0.09	0	1	328	1	URP	-
+Assets/Edo/Models/Goten/Parts/Goten_Tatami_1ken.fbx	Goten_Tatami_1ken	Edo	fbx	1.82	0.04	1.82	0	1	24	1	URP	-
+Assets/Edo/Models/Goten/Parts/Goten_Tokonoma_1ken.fbx	Goten_Tokonoma_1ken	Edo	fbx	1.82	2.73	0.98	0	1	120	1	URP	-
+Assets/Edo/Models/Goten/Parts/Goten_WallPlaster_1ken.fbx	Goten_WallPlaster_1ken	Edo	fbx	1.82	2.73	0.04	0	1	80	1	URP	-
+Assets/Edo/Models/Goten/Parts/Goten_WallRenji_1ken.fbx	Goten_WallRenji_1ken	Edo	fbx	1.82	2.73	0.04	0	1	192	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya.fbx	Goten_Roof_Irimoya	Edo	fbx	16.69	3.78	11.23	-0.13	1	15655	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_10x6ken.fbx	Goten_Roof_Irimoya_10x6ken	Edo	fbx	20.32	4.28	13.05	-0.13	1	19496	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_11x10ken.fbx	Goten_Roof_Irimoya_11x10ken	Edo	fbx	22.14	6.26	20.32	-0.13	1	29778	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_12x12ken.fbx	Goten_Roof_Irimoya_12x12ken	Edo	fbx	23.96	7.25	23.96	-0.13	1	35994	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_13x11ken.fbx	Goten_Roof_Irimoya_13x11ken	Edo	fbx	25.78	6.76	22.14	-0.13	1	37284	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_14x14ken.fbx	Goten_Roof_Irimoya_14x14ken	Edo	fbx	27.59	8.24	27.59	-0.13	1	46612	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_14x6ken.fbx	Goten_Roof_Irimoya_14x6ken	Edo	fbx	27.59	4.28	13.05	-0.13	1	25458	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_14x8ken.fbx	Goten_Roof_Irimoya_14x8ken	Edo	fbx	27.59	5.27	16.69	-0.13	1	32868	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_15x10ken.fbx	Goten_Roof_Irimoya_15x10ken	Edo	fbx	29.41	6.26	20.32	-0.13	1	38151	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_16x11ken.fbx	Goten_Roof_Irimoya_16x11ken	Edo	fbx	31.23	6.76	22.14	-0.13	1	44080	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_17x11ken.fbx	Goten_Roof_Irimoya_17x11ken	Edo	fbx	33.05	6.76	22.14	-0.13	1	46435	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_18x14ken.fbx	Goten_Roof_Irimoya_18x14ken	Edo	fbx	34.87	8.24	27.59	-0.13	1	57417	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_18x16ken.fbx	Goten_Roof_Irimoya_18x16ken	Edo	fbx	34.87	9.23	31.23	-0.13	1	63139	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_18x6ken.fbx	Goten_Roof_Irimoya_18x6ken	Edo	fbx	34.87	4.28	13.05	-0.13	1	31260	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_20x14ken.fbx	Goten_Roof_Irimoya_20x14ken	Edo	fbx	38.5	8.24	27.59	-0.13	1	62426	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_22x14ken.fbx	Goten_Roof_Irimoya_22x14ken	Edo	fbx	42.14	8.24	27.59	-0.13	1	67792	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_22x5ken.fbx	Goten_Roof_Irimoya_22x5ken	Edo	fbx	42.14	3.78	11.23	-0.13	1	35730	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_22x6ken.fbx	Goten_Roof_Irimoya_22x6ken	Edo	fbx	42.14	4.28	13.05	-0.13	1	37172	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_26x11ken.fbx	Goten_Roof_Irimoya_26x11ken	Edo	fbx	49.41	6.76	22.14	-0.13	1	67706	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_37x8ken.fbx	Goten_Roof_Irimoya_37x8ken	Edo	fbx	69.41	5.27	16.69	-0.13	1	76937	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_5x5.fbx	Goten_Roof_Irimoya_5x5	Edo	fbx	11.23	3.78	11.23	-0.13	1	11494	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_6x6ken.fbx	Goten_Roof_Irimoya_6x6ken	Edo	fbx	13.05	4.28	13.05	-0.13	1	13586	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_9x6ken.fbx	Goten_Roof_Irimoya_9x6ken	Edo	fbx	18.5	4.28	13.05	-0.13	1	18040	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Kirizuma_10ken.fbx	Goten_Roof_Kirizuma_10ken	Edo	fbx	18.92	1.11	3.13	-0.15	1	4906	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Kirizuma_12ken.fbx	Goten_Roof_Kirizuma_12ken	Edo	fbx	22.55	1.11	3.13	-0.15	1	5835	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Kirizuma_1ken.fbx	Goten_Roof_Kirizuma_1ken	Edo	fbx	2.56	1.11	3.13	-0.15	1	817	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Kirizuma_2ken.fbx	Goten_Roof_Kirizuma_2ken	Edo	fbx	4.37	1.11	3.13	-0.15	1	1266	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Kirizuma_3ken.fbx	Goten_Roof_Kirizuma_3ken	Edo	fbx	6.19	1.11	3.13	-0.15	1	1741	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Kirizuma_4ken.fbx	Goten_Roof_Kirizuma_4ken	Edo	fbx	8.01	1.11	3.13	-0.15	1	2122	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Kirizuma_5ken.fbx	Goten_Roof_Kirizuma_5ken	Edo	fbx	9.83	1.11	3.13	-0.15	1	2590	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Kirizuma_6ken.fbx	Goten_Roof_Kirizuma_6ken	Edo	fbx	11.65	1.11	3.13	-0.15	1	3046	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Kirizuma_7ken.fbx	Goten_Roof_Kirizuma_7ken	Edo	fbx	13.46	1.11	3.13	-0.15	1	3524	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Kirizuma_8ken.fbx	Goten_Roof_Kirizuma_8ken	Edo	fbx	15.28	1.11	3.13	-0.15	1	3982	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Kirizuma_9ken.fbx	Goten_Roof_Kirizuma_9ken	Edo	fbx	17.1	1.11	3.13	-0.15	1	4448	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Noboriro_W1.fbx	Goten_Roof_Noboriro_W1	Edo	fbx	11.56	1.11	3.13	-0.15	1	3034	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Noboriro_W2.fbx	Goten_Roof_Noboriro_W2	Edo	fbx	15.16	1.11	3.13	-0.15	1	3958	1	URP	-
+Assets/Edo/Models/Ishigaki/Ishigaki_Saka_12x8.fbx	Ishigaki_Saka_12x8	Edo	fbx	0.71	8.45	14	0	1	164	1	URP	-
+Assets/Edo/Models/Ishigaki/Ishigaki_Saka_9x6.fbx	Ishigaki_Saka_9x6	Edo	fbx	0.71	6.45	11	0	1	142	1	URP	-
+Assets/Edo/Models/Kado/Dobei_Kado_06.fbx	Dobei_Kado_06	Edo	fbx	0.87	1.46	4.55	0	1	9540	1	URP	-
+Assets/Edo/Models/Kado/Dobei_Kado_07.fbx	Dobei_Kado_07	Edo	fbx	0.9	1.46	4.56	0	1	9540	1	URP	-
+Assets/Edo/Models/Kado/Dobei_Kado_19.fbx	Dobei_Kado_19	Edo	fbx	1.36	1.46	4.56	0	1	9712	1	URP	-
+Assets/Edo/Models/Kado/Dobei_Kado_31.fbx	Dobei_Kado_31	Edo	fbx	1.79	1.46	4.45	0	1	9836	1	URP	-
+Assets/Edo/Models/Kado/Dobei_Kado_38M.fbx	Dobei_Kado_38M	Edo	fbx	2.11	1.46	4.1	0	1	9356	1	URP	-
+Assets/Edo/Models/Kado/Dobei_Kado_41.fbx	Dobei_Kado_41	Edo	fbx	2.08	1.46	4.29	0	1	9884	1	URP	-
+Assets/Edo/Models/Kado/Dobei_Kado_88M.fbx	Dobei_Kado_88M	Edo	fbx	2.59	1.46	2.58	0	1	9052	1	URP	-
+Assets/Edo/Models/Kado/Dobei_Kado_91.fbx	Dobei_Kado_91	Edo	fbx	2.78	1.46	2.78	0	1	10504	1	URP	-
+Assets/Edo/Models/Kado/Ishigaki_Kado_31.fbx	Ishigaki_Kado_31	Edo	fbx	3.44	4	4.96	0	1	150	1	URP	-
+Assets/Edo/Models/Kado/Ishigaki_Kado_31M.fbx	Ishigaki_Kado_31M	Edo	fbx	3.09	4	3.71	0	1	102	1	URP	-
+Assets/Edo/Models/Kado/Nagaya_Kado_38M.fbx	Nagaya_Kado_38M	Edo	fbx	5.65	3.01	10.94	0	1	29950	1	URP	-
+Assets/Edo/Models/Kado/Tsuijibei_Kado_31.fbx	Tsuijibei_Kado_31	Edo	fbx	2.9	2.57	4.33	0	1	2336	1	URP	-
+Assets/Edo/Models/Mon/Matsudaira_Bansho.fbx	Matsudaira_Bansho	Edo	fbx	5.9	4.66	4.7	0	1	628	1	URP	B
+Assets/Edo/Models/Mon/Matsudaira_Omotemon.fbx	Matsudaira_Omotemon	Edo	fbx	13.12	5.3	0.52	0	1	240	1	URP	B
+Assets/Edo/Models/Nagaya/Nagaya_Omote_10.18.fbx	Nagaya_Omote_10.18	Edo	fbx	10.18	5.51	4.35	0	1	21116	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_16.1.fbx	Nagaya_Omote_16.1	Edo	fbx	16.1	5.51	4.35	0	1	29480	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_16.1_2f.fbx	Nagaya_Omote_16.1_2f	Edo	fbx	16.1	7.18	4.35	0	1	30872	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_16.2.fbx	Nagaya_Omote_16.2	Edo	fbx	16.2	5.51	4.35	0	1	29600	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_16.2_2f.fbx	Nagaya_Omote_16.2_2f	Edo	fbx	16.2	7.18	4.35	0	1	30992	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_16.35_none.fbx	Nagaya_Omote_16.35_none	Edo	fbx	16.35	5.44	4.29	0	1	23184	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_16.46_mon6.32.fbx	Nagaya_Omote_16.46_mon6.32	Edo	fbx	16.46	5.51	4.35	0	1	28760	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_16.51_2f.fbx	Nagaya_Omote_16.51_2f	Edo	fbx	16.51	7.18	4.35	0	1	31072	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_16.84_2f.fbx	Nagaya_Omote_16.84_2f	Edo	fbx	16.84	7.18	4.35	0	1	31636	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_17.2.fbx	Nagaya_Omote_17.2	Edo	fbx	17.2	5.51	4.35	0	1	30960	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_17.84.fbx	Nagaya_Omote_17.84	Edo	fbx	17.84	5.51	4.35	0	1	31492	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_18.26.fbx	Nagaya_Omote_18.26	Edo	fbx	18.26	5.51	4.35	0	1	32696	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_19.45.fbx	Nagaya_Omote_19.45	Edo	fbx	19.45	5.51	4.35	0	1	33704	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_20.09.fbx	Nagaya_Omote_20.09	Edo	fbx	20.09	5.51	4.35	0	1	34884	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_20.64.fbx	Nagaya_Omote_20.64	Edo	fbx	20.64	5.51	4.35	0	1	35474	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_24.5.fbx	Nagaya_Omote_24.5	Edo	fbx	24.5	5.51	4.35	0	1	41106	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_24.64.fbx	Nagaya_Omote_24.64	Edo	fbx	24.64	5.51	4.35	0	1	41152	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_24.fbx	Nagaya_Omote_24	Edo	fbx	24	5.51	4.35	0	1	40562	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_24_2f.fbx	Nagaya_Omote_24_2f	Edo	fbx	24	7.18	4.35	0	1	42632	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_28.5.fbx	Nagaya_Omote_28.5	Edo	fbx	28.5	5.51	4.35	0	1	46784	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_29.14.fbx	Nagaya_Omote_29.14	Edo	fbx	29.14	5.51	4.35	0	1	47858	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_36.64_2f.fbx	Nagaya_Omote_36.64_2f	Edo	fbx	36.64	7.18	4.35	0	1	61402	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_36.64_mon6.32.fbx	Nagaya_Omote_36.64_mon6.32	Edo	fbx	36.64	5.51	4.35	0	1	57400	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_36.fbx	Nagaya_Omote_36	Edo	fbx	36	5.51	4.35	0	1	57488	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_36_2f.fbx	Nagaya_Omote_36_2f	Edo	fbx	36	7.18	4.35	0	1	60462	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_46.14.fbx	Nagaya_Omote_46.14	Edo	fbx	46.14	5.51	4.35	0	1	70944	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_50.fbx	Nagaya_Omote_50	Edo	fbx	50	5.51	4.35	0	1	77460	1	URP	-
+Assets/Edo/Models/Nagaya/Nagaya_Omote_9.54.fbx	Nagaya_Omote_9.54	Edo	fbx	9.54	5.51	4.35	0	1	19826	1	URP	-
 Assets/Edo/Models/Shiomizaka/DanishiStep2m.fbx	DanishiStep2m	Edo	fbx	1.98	0.49	0.62	-0.5	1	432	1	URP	-
 Assets/Edo/Models/Shiomizaka/MichibataIshi2m.fbx	MichibataIshi2m	Edo	fbx	2.19	0.69	0.43	-0.68	1	756	1	URP	-
-Assets/Edo/Models/Shiomizaka/P_DanishiStep2m.prefab	P_DanishiStep2m	Edo	prefab	1.98	0.49	0.62	-0.5	1	432	1	URP	SB
-Assets/Edo/Models/Shiomizaka/P_MichibataIshi2m.prefab	P_MichibataIshi2m	Edo	prefab	2.19	0.69	0.43	-0.68	1	756	1	URP	SB
-Assets/Edo/Prefabs/KasugaLantern.prefab	KasugaLantern	Edo	prefab	0.74	1.89	0.64	0	1	328	1	URP	SB
+Assets/Edo/Models/Shiomizaka/P_DanishiStep2m.prefab	P_DanishiStep2m	Edo	prefab	1.98	0.49	0.62	-0.5	1	432	1	URP	B
+Assets/Edo/Models/Shiomizaka/P_MichibataIshi2m.prefab	P_MichibataIshi2m	Edo	prefab	2.19	0.69	0.43	-0.68	1	756	1	URP	B
+Assets/Edo/Models/Trees/Tree_Jouryoku_Big.fbx	Tree_Jouryoku_Big	Edo	fbx	8.02	8.2	7.87	0	1	8896	3	URP	-
+Assets/Edo/Models/Trees/Tree_Jouryoku_Big_02.fbx	Tree_Jouryoku_Big_02	Edo	fbx	8	8.2	7.94	0	1	9026	3	URP	-
+Assets/Edo/Models/Trees/Tree_Jouryoku_Big_03.fbx	Tree_Jouryoku_Big_03	Edo	fbx	7.62	8.2	8.08	0	1	9532	3	URP	-
+Assets/Edo/Models/Trees/Tree_Jouryoku_Mid.fbx	Tree_Jouryoku_Mid	Edo	fbx	5.55	5.8	5.95	0	1	9436	3	URP	-
+Assets/Edo/Models/Trees/Tree_Jouryoku_Mid_02.fbx	Tree_Jouryoku_Mid_02	Edo	fbx	5.73	5.8	5.52	0	1	8442	3	URP	-
+Assets/Edo/Models/Trees/Tree_Jouryoku_Mid_03.fbx	Tree_Jouryoku_Mid_03	Edo	fbx	5.7	5.8	5.68	0	1	9404	3	URP	-
+Assets/Edo/Models/Trees/Tree_Jouryoku_Small.fbx	Tree_Jouryoku_Small	Edo	fbx	3.6	3.6	3.34	0	1	9434	3	URP	-
+Assets/Edo/Models/Trees/Tree_Jouryoku_Small_02.fbx	Tree_Jouryoku_Small_02	Edo	fbx	3.63	3.6	3.55	0	1	9922	3	URP	-
+Assets/Edo/Models/Trees/Tree_Jouryoku_Small_03.fbx	Tree_Jouryoku_Small_03	Edo	fbx	3.59	3.6	3.35	0	1	9124	3	URP	-
+Assets/Edo/Models/Trees/Tree_Momiji_Mid.fbx	Tree_Momiji_Mid	Edo	fbx	7.34	5.8	7.35	0	1	16652	3	URP	-
+Assets/Edo/Models/Trees/Tree_Momiji_Mid_02.fbx	Tree_Momiji_Mid_02	Edo	fbx	7.16	5.8	7.07	0	1	15060	3	URP	-
+Assets/Edo/Models/Trees/Tree_Momiji_Mid_03.fbx	Tree_Momiji_Mid_03	Edo	fbx	6.98	5.8	6.94	0	1	14002	3	URP	-
+Assets/Edo/Models/Trees/Tree_Momiji_Small.fbx	Tree_Momiji_Small	Edo	fbx	4.72	3.6	4.89	0	1	15270	3	URP	-
+Assets/Edo/Models/Trees/Tree_Momiji_Small_02.fbx	Tree_Momiji_Small_02	Edo	fbx	4.07	3.6	4.2	0	1	15882	3	URP	-
+Assets/Edo/Models/Trees/Tree_Momiji_Small_03.fbx	Tree_Momiji_Small_03	Edo	fbx	4.79	3.6	4.6	0	1	13998	3	URP	-
+Assets/Edo/Models/Trees/Tree_Ume_Big.fbx	Tree_Ume_Big	Edo	fbx	8.84	8.2	9.06	0	1	5504	3	URP	-
+Assets/Edo/Models/Trees/Tree_Ume_Big_02.fbx	Tree_Ume_Big_02	Edo	fbx	8.93	8.2	9.25	0	1	4892	3	URP	-
+Assets/Edo/Models/Trees/Tree_Ume_Big_03.fbx	Tree_Ume_Big_03	Edo	fbx	9.48	8.2	9.72	0	1	4982	3	URP	-
+Assets/Edo/Models/Trees/Tree_Ume_Mid.fbx	Tree_Ume_Mid	Edo	fbx	5.87	5.8	6.11	0	1	4968	3	URP	-
+Assets/Edo/Models/Trees/Tree_Ume_Mid_02.fbx	Tree_Ume_Mid_02	Edo	fbx	5.92	5.8	5.71	0	1	4850	3	URP	-
+Assets/Edo/Models/Trees/Tree_Ume_Mid_03.fbx	Tree_Ume_Mid_03	Edo	fbx	6.03	5.8	6.56	0	1	5086	3	URP	-
+Assets/Edo/Models/Trees/Tree_Ume_Small.fbx	Tree_Ume_Small	Edo	fbx	4.2	3.6	3.69	0	1	5392	3	URP	-
+Assets/Edo/Models/Trees/Tree_Ume_Small_02.fbx	Tree_Ume_Small_02	Edo	fbx	3.87	3.6	3.53	0	1	5366	3	URP	-
+Assets/Edo/Models/Trees/Tree_Ume_Small_03.fbx	Tree_Ume_Small_03	Edo	fbx	4.05	3.6	3.94	0	1	5284	3	URP	-
+Assets/Edo/Models/Tsuijibei/Tsuijibei2m.fbx	Tsuijibei2m	Edo	fbx	2	2.57	2.1	0	1	1084	1	URP	-
+Assets/Edo/Prefabs/KasugaLantern.prefab	KasugaLantern	Edo	prefab	0.74	1.89	0.64	0	1	328	1	URP	B
 Assets/Edo/Prefabs/Machiya.prefab	Machiya	Edo	prefab	0	0	0	0	1	0	1	URP	-
-Assets/Edo/Prefabs/YukimiLantern.prefab	YukimiLantern	Edo	prefab	0.93	0.87	0.93	-0.01	1	312	1	URP	SB
+Assets/Edo/Prefabs/Scene/Edo_Atarashibashi.prefab	Edo_Atarashibashi	Edo	prefab	21.51	7.28	39.06	0.3	1	1764	73	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Azukarichi_MatsudairaYamatoAkichi.prefab	Edo_Azukarichi_MatsudairaYamatoAkichi	Edo	prefab	258.07	10.85	245.68	7.52	1	274134	91	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Azukarichi_Toda.prefab	Edo_Azukarichi_Toda	Edo	prefab	338.66	10.88	140.23	7	1	338574	105	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Daichi_AzabuAmishiro.prefab	Edo_Daichi_AzabuAmishiro	Edo	prefab	57.09	9	121.06	7.25	1	305486	555	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Daichi_Gosoji.prefab	Edo_Daichi_Gosoji	Edo	prefab	30.2	4.91	30.96	9.31	1	95417	168	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Daichi_Higakubo.prefab	Edo_Daichi_Higakubo	Edo	prefab	56.63	5.43	40.37	9.62	1	108638	186	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Daichi_HitotsugiMotoAkasaka.prefab	Edo_Daichi_HitotsugiMotoAkasaka	Edo	prefab	80.25	8.85	122.31	10.53	1	316130	680	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Daichi_MotoAkasaka.prefab	Edo_Daichi_MotoAkasaka	Edo	prefab	78.98	9.35	175.5	7.08	1	469055	799	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Daichi_Nagaicho.prefab	Edo_Daichi_Nagaicho	Edo	prefab	113.54	7.72	80.18	9.09	1	232131	361	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Daichi_Seiryuji.prefab	Edo_Daichi_Seiryuji	Edo	prefab	75.8	8.25	64.95	8.68	1	225405	336	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Hikeshi_Koide.prefab	Edo_Hikeshi_Koide	Edo	prefab	86.53	15.81	111.49	27.28	1	863054	1759	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Hoshiba.prefab	Edo_Hoshiba	Edo	prefab	297.82	9.42	566.95	6.84	1	114816	2190	-	S
+Assets/Edo/Prefabs/Scene/Edo_Jomanji.prefab	Edo_Jomanji	Edo	prefab	39.3	7.67	37.84	8.91	1	341348	1492	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Monzen_Nebutocho.prefab	Edo_Monzen_Nebutocho	Edo	prefab	31.26	5.33	52.91	28.82	1	120250	142	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Oomatoba.prefab	Edo_Oomatoba	Edo	prefab	58.85	3	33.42	7.37	1	10936	127	URP	S
+Assets/Edo/Prefabs/Scene/Edo_SannoBo_Chijoin.prefab	Edo_SannoBo_Chijoin	Edo	prefab	58.39	17.02	78.68	7.83	1	254606	320	URP	S
+Assets/Edo/Prefabs/Scene/Edo_SannoBo_Chikoin.prefab	Edo_SannoBo_Chikoin	Edo	prefab	37.52	16.64	44.01	8.23	1	117573	270	URP	S
+Assets/Edo/Prefabs/Scene/Edo_SannoBo_Chomyoin.prefab	Edo_SannoBo_Chomyoin	Edo	prefab	32.23	16.77	56.38	8.36	1	182693	308	URP	S
+Assets/Edo/Prefabs/Scene/Edo_SannoBo_Enjoin.prefab	Edo_SannoBo_Enjoin	Edo	prefab	35.35	16.17	81.87	8.17	1	315239	658	URP	S
+Assets/Edo/Prefabs/Scene/Edo_SannoBo_Fukujuin.prefab	Edo_SannoBo_Fukujuin	Edo	prefab	40.03	16.11	55.97	8.26	1	246768	315	URP	S
+Assets/Edo/Prefabs/Scene/Edo_SannoBo_Hosenin.prefab	Edo_SannoBo_Hosenin	Edo	prefab	32.84	16.67	44.73	8.57	1	138659	248	URP	S
+Assets/Edo/Prefabs/Scene/Edo_SannoBo_Hozoin.prefab	Edo_SannoBo_Hozoin	Edo	prefab	36.72	18.51	63.81	8.58	1	219068	317	URP	S
+Assets/Edo/Prefabs/Scene/Edo_SannoBo_Jojuin.prefab	Edo_SannoBo_Jojuin	Edo	prefab	30.45	16.9	71.85	8.62	1	256115	327	URP	S
+Assets/Edo/Prefabs/Scene/Edo_SannoBo_Jomyoin.prefab	Edo_SannoBo_Jomyoin	Edo	prefab	60.7	23.91	104.92	7.24	1	365244	695	URP	S
+Assets/Edo/Prefabs/Scene/Edo_SannoBo_Muryoin.prefab	Edo_SannoBo_Muryoin	Edo	prefab	45.31	14.49	41.69	8.28	1	171668	271	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Sanno_JugeYashiki.prefab	Edo_Sanno_JugeYashiki	Edo	prefab	141.34	17.35	38.04	10.58	1	554501	1714	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Sanno_Kanriin.prefab	Edo_Sanno_Kanriin	Edo	prefab	46.73	20.51	156.99	9.45	1	1093667	3138	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Sanno_Monzencho.prefab	Edo_Sanno_Monzencho	Edo	prefab	240.19	23.06	76.56	9.88	1	782646	642	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Sanno_Sha.prefab	Edo_Sanno_Sha	Edo	prefab	444.94	35.59	197.07	10.05	1	2681960	4846	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Sanno_Shanin8.prefab	Edo_Sanno_Shanin8	Edo	prefab	31.01	19.41	150.5	8.34	1	365817	1354	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Shinmachi_1.prefab	Edo_Shinmachi_1	Edo	prefab	78.92	9.39	92.31	9.3	1	483426	891	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Shinmachi_2.prefab	Edo_Shinmachi_2	Edo	prefab	81.95	8.38	64.32	9.28	1	386301	487	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Shinmachi_3.prefab	Edo_Shinmachi_3	Edo	prefab	99.44	7.78	109.98	9.59	1	750155	871	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Shiomizaka.prefab	Edo_Shiomizaka	Edo	prefab	95.84	4.99	90.05	8.2	1	76032	176	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Tamachi5_Higashi.prefab	Edo_Tamachi5_Higashi	Edo	prefab	72.46	7.32	89.75	8.8	1	514465	1666	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Tamachi_1.prefab	Edo_Tamachi_1	Edo	prefab	49.31	9.12	108.66	9.62	1	271650	668	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Tamachi_2.prefab	Edo_Tamachi_2	Edo	prefab	46.2	7.39	110.27	9.16	1	145543	225	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Tamachi_3.prefab	Edo_Tamachi_3	Edo	prefab	50.86	7.54	108.95	9.23	1	293023	323	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Tamachi_4.prefab	Edo_Tamachi_4	Edo	prefab	55.1	6.61	132.11	8.84	1	415051	451	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Tamachi_5.prefab	Edo_Tamachi_5	Edo	prefab	80.11	8.69	136.8	8.58	1	802372	993	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Tamachi_Bank.prefab	Edo_Tamachi_Bank	Edo	prefab	179.93	15.06	480.18	6.95	1	393796	115	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Temple_Chosenji.prefab	Edo_Temple_Chosenji	Edo	prefab	103.9	27.95	88.67	16.26	1	721266	2454	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Temple_Yosenji.prefab	Edo_Temple_Yosenji	Edo	prefab	80.19	16.56	73.2	27.54	1	629106	1918	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Toranomon.prefab	Edo_Toranomon	Edo	prefab	67.63	22.44	82.9	1	1	553746	1791	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Tsujibansho.prefab	Edo_Tsujibansho	Edo	prefab	344.95	14.79	116.38	6.77	1	20460	42	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_AbeSettsu.prefab	Edo_Yashiki_AbeSettsu	Edo	prefab	164.93	31.36	165.57	10.63	1	2977783	9088	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_AsaiW2.prefab	Edo_Yashiki_AsaiW2	Edo	prefab	47.77	13.07	73.01	28.15	1	127726	280	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_DoiOsumi.prefab	Edo_Yashiki_DoiOsumi	Edo	prefab	173.45	25.68	107.54	14.77	1	647327	1248	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_GotoHyobu.prefab	Edo_Yashiki_GotoHyobu	Edo	prefab	210.87	31.49	83.75	11.01	1	1270099	3362	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_HayashiZusho.prefab	Edo_Yashiki_HayashiZusho	Edo	prefab	53.51	15.99	53.1	10.42	1	443579	1098	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_InagakiW6.prefab	Edo_Yashiki_InagakiW6	Edo	prefab	36.12	13.11	48.67	25.7	1	113345	256	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_Inoue.prefab	Edo_Yashiki_Inoue	Edo	prefab	95.69	21.95	101	16.88	1	648552	1075	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_IshiiW3.prefab	Edo_Yashiki_IshiiW3	Edo	prefab	24.64	12.16	39.47	28.21	1	135437	222	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_Kano.prefab	Edo_Yashiki_Kano	Edo	prefab	123.03	15.86	94.95	10.26	1	1195299	3399	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_KatsutaSakyo.prefab	Edo_Yashiki_KatsutaSakyo	Edo	prefab	80.73	16.26	82.25	25.38	1	671662	1575	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_KyogokuBitchu.prefab	Edo_Yashiki_KyogokuBitchu	Edo	prefab	173.81	25.96	122.36	13.63	1	567460	1282	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_Matsudaira.prefab	Edo_Yashiki_Matsudaira	Edo	prefab	239.39	22.16	201.4	5.5	1	2633496	8250	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_MatsudairaDewa.prefab	Edo_Yashiki_MatsudairaDewa	Edo	prefab	292.05	33.6	267.61	6.68	1	4757832	13064	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_MatsudairaHyuga.prefab	Edo_Yashiki_MatsudairaHyuga	Edo	prefab	142.67	20.22	134.1	9.52	1	1603707	3558	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_MatsudairaMino.prefab	Edo_Yashiki_MatsudairaMino	Edo	prefab	364.72	28.2	450.75	8.94	1	4389086	11221	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_MatsudairaMondo.prefab	Edo_Yashiki_MatsudairaMondo	Edo	prefab	120.63	18.77	87.72	23.17	1	1221858	2957	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_MatsudairaYamato.prefab	Edo_Yashiki_MatsudairaYamato	Edo	prefab	250.35	36.43	242.14	7.5	1	2936215	6304	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_MitsudaW1.prefab	Edo_Yashiki_MitsudaW1	Edo	prefab	38.94	11.82	31.84	28.4	1	78599	212	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_MizunoHyuga.prefab	Edo_Yashiki_MizunoHyuga	Edo	prefab	140.01	19.41	136	15.9	1	1155067	2371	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_Murase.prefab	Edo_Yashiki_Murase	Edo	prefab	57.17	14.88	50.95	7.05	1	447402	1109	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_NaitoKii.prefab	Edo_Yashiki_NaitoKii	Edo	prefab	318.53	31.61	168.49	7.49	1	2425145	6941	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_NaitoNoto.prefab	Edo_Yashiki_NaitoNoto	Edo	prefab	249.94	23.63	272.44	5.61	1	3002066	7265	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_NiwaSakyo.prefab	Edo_Yashiki_NiwaSakyo	Edo	prefab	248.39	31.54	206.38	9.23	1	2349123	6779	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_Ogura.prefab	Edo_Yashiki_Ogura	Edo	prefab	68.14	15.08	57.73	11.25	1	497029	1386	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_OkabeChikuzen.prefab	Edo_Yashiki_OkabeChikuzen	Edo	prefab	323.21	35.68	162.09	5	1	5642751	18098	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_OkumuraW5.prefab	Edo_Yashiki_OkumuraW5	Edo	prefab	44.95	13.11	51.95	28.07	1	138587	275	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_OokaYasoichiro.prefab	Edo_Yashiki_OokaYasoichiro	Edo	prefab	84.3	15.29	53.35	25.4	1	569192	1654	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_Ota.prefab	Edo_Yashiki_Ota	Edo	prefab	94.11	15.64	82.81	5.5	1	695973	1400	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_SagaraEchizen.prefab	Edo_Yashiki_SagaraEchizen	Edo	prefab	143.88	23.86	155.84	10.09	1	1193716	1810	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_SatoW4.prefab	Edo_Yashiki_SatoW4	Edo	prefab	35.48	13.26	47.85	28.32	1	96532	230	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_TodaUneme.prefab	Edo_Yashiki_TodaUneme	Edo	prefab	296.16	32.1	229.42	10.44	1	2844235	6805	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_Toki.prefab	Edo_Yashiki_Toki	Edo	prefab	117.42	17.03	84.65	7	1	899762	1856	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_ToriiTanba.prefab	Edo_Yashiki_ToriiTanba	Edo	prefab	175.29	19.47	113.64	24.68	1	2219951	4472	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_WatanabeBitchu.prefab	Edo_Yashiki_WatanabeBitchu	Edo	prefab	149.66	26.72	124.54	13.58	1	4176267	5165	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_YamaguchiUshiku.prefab	Edo_Yashiki_YamaguchiUshiku	Edo	prefab	149.68	29.13	176.16	9.71	1	1469872	3433	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_Yokota.prefab	Edo_Yashiki_Yokota	Edo	prefab	69.02	15.31	136.97	6.89	1	1066989	2092	URP	S
+Assets/Edo/Prefabs/Scene/Ishigaki_Sotobori.prefab	Ishigaki_Sotobori	Edo	prefab	940.24	8.48	352.1	0	1	58200	882	URP	S
+Assets/Edo/Prefabs/Scene/Tameike_Seki.prefab	Tameike_Seki	Edo	prefab	143.92	6.68	104.47	1.99	1	9692	146	URP	S
+Assets/Edo/Prefabs/YukimiLantern.prefab	YukimiLantern	Edo	prefab	0.93	0.87	0.93	-0.01	1	312	1	URP	B
 Assets/Edo/Terrain/details/BroadleafTree.prefab	BroadleafTree	Edo	prefab	5.6	5.9	4.7	0	1	2384	1	URP	B
 Assets/Edo/Terrain/details/GrassLowA.prefab	GrassLowA	Edo	prefab	0.45	0.11	0.4	-0.02	1	128	1	URP	-
 Assets/Edo/Terrain/details/GrassLowB.prefab	GrassLowB	Edo	prefab	0.33	0.11	0.2	-0.02	1	80	1	URP	-
@@ -40,8 +254,8 @@ Assets/edogoyomi/cr2_v4oiran/Runtime/geometries/Honey/v4hikigi_obi.obj	v4hikigi_
 Assets/edogoyomi/cr2_v4oiran/Runtime/geometries/Honey/v4top.obj	v4top	edogoyomi	obj	0.34	0.19	0.12	0.46	1	3507	6	URP	-
 Assets/edogoyomi/cr2_yamaoka_zukin/Runtime/geometries/Honey/yamaoka_m3.obj	yamaoka_m3	edogoyomi	obj	0.18	0.18	0.14	0.6	1	2476	5	URP	-
 Assets/edogoyomi/cr2_yamaoka_zukin/Runtime/geometries/Honey/yamaoka_zukin.obj	yamaoka_zukin	edogoyomi	obj	0.18	0.18	0.14	0.6	1	2476	5	URP	-
-Assets/edogoyomi/es_dbansho/dbansho.obj	dbansho	edogoyomi	obj	1.99	1.93	1.17	-0.99	1	19288	33	URP	SB
-Assets/edogoyomi/es_dobei/s_hei_center.obj	s_hei_center	edogoyomi	obj	1.64	1.46	0.63	0	1	2948	10	URP	SB
+Assets/edogoyomi/es_dbansho/dbansho.obj	dbansho	edogoyomi	obj	1.99	1.93	1.17	-0.99	1	19288	33	URP	B
+Assets/edogoyomi/es_dobei/s_hei_center.obj	s_hei_center	edogoyomi	obj	1.64	1.46	0.63	0	1	2948	10	URP	B
 Assets/edogoyomi/es_dobei/s_hei_corner.obj	s_hei_corner	edogoyomi	obj	1.56	1.46	1.54	0	1	4011	21	URP	B
 Assets/edogoyomi/es_dobei/s_hei_l.obj	s_hei_l	edogoyomi	obj	1.74	1.48	0.65	0	1	3214	13	URP	-
 Assets/edogoyomi/es_dobei/s_hei_r.obj	s_hei_r	edogoyomi	obj	1.73	1.48	0.65	0	1	3208	13	URP	-
@@ -53,8 +267,8 @@ Assets/edogoyomi/es_funayado/Runtime/Geometries/Honey/f_2fshoji4.obj	f_2fshoji4	
 Assets/edogoyomi/es_funayado/Runtime/Geometries/Honey/f_backdoor.obj	f_backdoor	edogoyomi	obj	0.39	0.68	0.02	0.03	1	252	1	URP	-
 Assets/edogoyomi/es_funayado/Runtime/Geometries/Honey/f_shojil.obj	f_shojil	edogoyomi	obj	0.43	0.77	0.01	0.01	1	190	1	URP	-
 Assets/edogoyomi/es_funayado/Runtime/Geometries/Honey/f_shojir.obj	f_shojir	edogoyomi	obj	0.44	0.77	0.01	0.01	1	190	1	URP	-
-Assets/edogoyomi/es_hinomi/hinomiyagura.obj	hinomiyagura	edogoyomi	obj	1.65	5.15	1.67	-2.2	1	1066	11	URP	SB
-Assets/edogoyomi/es_hmon/h_mon.obj	h_mon	edogoyomi	obj	8.47	2.81	3.31	-0.99	1	38088	46	URP	SB
+Assets/edogoyomi/es_hinomi/hinomiyagura.obj	hinomiyagura	edogoyomi	obj	1.65	5.15	1.67	-2.2	1	1066	11	URP	B
+Assets/edogoyomi/es_hmon/h_mon.obj	h_mon	edogoyomi	obj	8.47	2.81	3.31	-0.99	1	38088	46	URP	B
 Assets/edogoyomi/es_izakaya/nnoren_noise.obj	nnoren_noise	edogoyomi	obj	0.8	0.36	0.05	0.44	1	48864	5	URP	-
 Assets/edogoyomi/es_izakaya/Runtime/Geometries/Honey/izakaya.obj	izakaya	edogoyomi	obj	2.37	1.63	2.27	0	1	5409	27	URP	-
 Assets/edogoyomi/es_izakaya/Runtime/Geometries/Honey/iz_backdoor.obj	iz_backdoor	edogoyomi	obj	0.39	0.69	0.02	0.03	1	252	1	URP	-
@@ -64,33 +278,33 @@ Assets/edogoyomi/es_izakaya/Runtime/Geometries/Honey/iz_shojil.obj	iz_shojil	edo
 Assets/edogoyomi/es_izakaya/Runtime/Geometries/Honey/iz_shojir.obj	iz_shojir	edogoyomi	obj	0.44	0.78	0.01	0.01	1	190	1	URP	-
 Assets/edogoyomi/es_izakaya/Runtime/Geometries/Honey/nawanoren.obj	nawanoren	edogoyomi	obj	1.64	0.75	0.05	0.9	1	48864	5	URP	-
 Assets/edogoyomi/es_jishinban/daichochin.obj	daichochin	edogoyomi	obj	0.35	0.75	0.4	0	1	1160	1	URP	-
-Assets/edogoyomi/es_jishinban/jishinban.obj	jishinban	edogoyomi	obj	2.12	3.64	2.72	0	1	5536	1	URP	SB
-Assets/edogoyomi/es_kabukimon/kabukimon.obj	kabukimon	edogoyomi	obj	4.43	2.06	0.65	-0.96	1	11674	32	URP	SB
-Assets/edogoyomi/es_kido/kido_open.obj	kido_open	edogoyomi	obj	2.56	0.98	0.71	0	1	1022	1	URP	SB
+Assets/edogoyomi/es_jishinban/jishinban.obj	jishinban	edogoyomi	obj	2.12	3.64	2.72	0	1	5536	1	URP	B
+Assets/edogoyomi/es_kabukimon/kabukimon.obj	kabukimon	edogoyomi	obj	4.43	2.06	0.65	-0.96	1	11674	32	URP	B
+Assets/edogoyomi/es_kido/kido_open.obj	kido_open	edogoyomi	obj	2.56	0.98	0.71	0	1	1022	1	URP	B
 Assets/edogoyomi/es_kidobanya/kd_box.obj	kd_box	edogoyomi	obj	0.37	0.09	0.28	0.28	1	12	1	URP	-
 Assets/edogoyomi/es_kidobanya/kd_geta.obj	kd_geta	edogoyomi	obj	0.12	0.06	0.21	0.29	1	240	1	URP	-
 Assets/edogoyomi/es_kidobanya/kd_kasa.obj	kd_kasa	edogoyomi	obj	0.07	0.08	0.4	0.29	1	152	1	URP	-
 Assets/edogoyomi/es_kidobanya/kd_kasa3.obj	kd_kasa3	edogoyomi	obj	0.37	0.22	0.32	0.6	1	792	1	URP	-
 Assets/edogoyomi/es_kidobanya/kd_nawa.obj	kd_nawa	edogoyomi	obj	0.12	0.3	0.03	0.51	1	288	1	URP	-
 Assets/edogoyomi/es_kidobanya/kd_waraji.obj	kd_waraji	edogoyomi	obj	0.28	0.29	0.04	0.51	1	672	1	URP	-
-Assets/edogoyomi/es_kidobanya/kidobanya.obj	kidobanya	edogoyomi	obj	1.83	1.61	2.78	0	1	1412	1	URP	SB
-Assets/edogoyomi/es_kmon/k_mon.obj	k_mon	edogoyomi	obj	7.93	3.68	4.77	-0.99	1	80448	45	URP	SB
-Assets/edogoyomi/es_knagaya/knagaya01c.obj	knagaya01c	edogoyomi	obj	4.45	2.99	2.36	-1.01	1	16300	11	URP	SB
-Assets/edogoyomi/es_knagaya/knagaya01l.obj	knagaya01l	edogoyomi	obj	4.67	3.03	2.39	-1.01	1	20188	16	URP	SB
-Assets/edogoyomi/es_knagaya/knagaya01r.obj	knagaya01r	edogoyomi	obj	4.67	3.03	2.39	-1.01	1	20188	16	URP	SB
-Assets/edogoyomi/es_kura/kura.obj	kura	edogoyomi	obj	3.43	3.58	3.65	0	1	10706	32	URP	SB
-Assets/edogoyomi/es_nmon/nagayamon.obj	nagayamon	edogoyomi	obj	12.37	2.81	3.31	-0.99	1	82200	53	URP	SB
+Assets/edogoyomi/es_kidobanya/kidobanya.obj	kidobanya	edogoyomi	obj	1.83	1.61	2.78	0	1	1412	1	URP	B
+Assets/edogoyomi/es_kmon/k_mon.obj	k_mon	edogoyomi	obj	7.93	3.68	4.77	-0.99	1	80448	45	URP	B
+Assets/edogoyomi/es_knagaya/knagaya01c.obj	knagaya01c	edogoyomi	obj	4.45	2.99	2.36	-1.01	1	16300	11	URP	B
+Assets/edogoyomi/es_knagaya/knagaya01l.obj	knagaya01l	edogoyomi	obj	4.67	3.03	2.39	-1.01	1	20188	16	URP	B
+Assets/edogoyomi/es_knagaya/knagaya01r.obj	knagaya01r	edogoyomi	obj	4.67	3.03	2.39	-1.01	1	20188	16	URP	B
+Assets/edogoyomi/es_kura/kura.obj	kura	edogoyomi	obj	3.43	3.58	3.65	0	1	10706	32	URP	B
+Assets/edogoyomi/es_nmon/nagayamon.obj	nagayamon	edogoyomi	obj	12.37	2.81	3.31	-0.99	1	82200	53	URP	B
 Assets/edogoyomi/es_shop01/kakoi.obj	kakoi	edogoyomi	obj	0.26	0.22	0.26	0	1	228	1	URP	-
-Assets/edogoyomi/es_shop01/oke.obj	oke	edogoyomi	obj	0.33	0.31	0.33	0	1	768	1	URP	SB
+Assets/edogoyomi/es_shop01/oke.obj	oke	edogoyomi	obj	0.33	0.31	0.33	0	1	768	1	URP	B
 Assets/edogoyomi/es_shop01/s01_fuda.obj	s01_fuda	edogoyomi	obj	0.26	0.29	0.01	0.27	1	36	1	URP	-
-Assets/edogoyomi/es_shop01/s01_taru.obj	s01_taru	edogoyomi	obj	0.44	0.45	0.48	0	1	3872	1	URP	SB
-Assets/edogoyomi/es_shop01/shop01.obj	shop01	edogoyomi	obj	2.71	2.34	2.22	-0.01	1	13136	28	URP	SB
-Assets/edogoyomi/es_shop02/shop02.obj	shop02	edogoyomi	obj	3.92	2.58	3.8	0	1	27285	1	URP	SB
+Assets/edogoyomi/es_shop01/s01_taru.obj	s01_taru	edogoyomi	obj	0.44	0.45	0.48	0	1	3872	1	URP	B
+Assets/edogoyomi/es_shop01/shop01.obj	shop01	edogoyomi	obj	2.71	2.34	2.22	-0.01	1	13136	28	URP	B
+Assets/edogoyomi/es_shop02/shop02.obj	shop02	edogoyomi	obj	3.92	2.58	3.8	0	1	27285	1	URP	B
 Assets/edogoyomi/obj_hogaki/hogaki.obj	hogaki	edogoyomi	obj	0.83	0.78	0.04	0	1	354	3	URP	-
-Assets/edogoyomi/obj_hogaki/hogaki5.obj	hogaki5	edogoyomi	obj	4.11	0.78	0.04	0	1	1770	1	URP	SB
+Assets/edogoyomi/obj_hogaki/hogaki5.obj	hogaki5	edogoyomi	obj	4.11	0.78	0.04	0	1	1770	1	URP	B
 Assets/edogoyomi/obj_hogaki/hogaki_pole.obj	hogaki_pole	edogoyomi	obj	0.04	0.78	0.04	0	1	312	1	URP	-
 Assets/edogoyomi/obj_itabei/itabei.obj	itabei	edogoyomi	obj	0.84	0.8	0.08	-0.01	1	168	2	URP	-
-Assets/edogoyomi/obj_itabei/itabei5.obj	itabei5	edogoyomi	obj	4.12	0.8	0.08	-0.01	1	840	1	URP	SB
+Assets/edogoyomi/obj_itabei/itabei5.obj	itabei5	edogoyomi	obj	4.12	0.8	0.08	-0.01	1	840	1	URP	B
 Assets/edogoyomi/obj_itabei/itabei_pole.obj	itabei_pole	edogoyomi	obj	0.08	0.8	0.08	-0.01	1	52	1	URP	-
 Assets/edogoyomi/obj_kabocha/kabocha.obj	kabocha	edogoyomi	obj	0.8	0.56	0.79	-0.29	1	2784	1	URP	-
 Assets/edogoyomi/obj_kamidana/kamidana.obj	kamidana	edogoyomi	obj	1.15	1.23	0.69	-0.15	1	1694	21	URP	-
@@ -264,19 +478,19 @@ Assets/Japanese Castle/Meshes/Colliders/Balcony Handrail x8 Collider.fbx	Balcony
 Assets/Japanese Castle/Meshes/Colliders/Bridge side Collider.fbx	Bridge side Collider	Japanese Castle	fbx	2	1.49	2.39	-0.5	1	36	1	URP	-
 Assets/Japanese Castle/Meshes/Colliders/Bridge side R Collider.fbx	Bridge side R Collider	Japanese Castle	fbx	2	1.49	2.39	-0.5	1	36	1	URP	-
 Assets/Japanese Castle/Meshes/Colliders/Bridge side R x 8 Collider.fbx	Bridge side R x 8 Collider	Japanese Castle	fbx	8	1.49	2.39	-0.5	1	36	1	URP	-
-Assets/Japanese Castle/Meshes/Colliders/Bridge side x 8 Collider.fbx	Bridge side x 8 Collider	Japanese Castle	fbx	8	1.49	2.39	-0.5	1	36	1	URP	S
+Assets/Japanese Castle/Meshes/Colliders/Bridge side x 8 Collider.fbx	Bridge side x 8 Collider	Japanese Castle	fbx	8	1.49	2.39	-0.5	1	36	1	URP	-
 Assets/Japanese Castle/Meshes/Colliders/Bridge start side L Collider.fbx	Bridge start side L Collider	Japanese Castle	fbx	4.26	2.49	2.39	-1.52	1	76	1	URP	-
 Assets/Japanese Castle/Meshes/Colliders/Bridge start side L x 8 Collider.fbx	Bridge start side L x 8 Collider	Japanese Castle	fbx	8	2.51	2.39	-1.52	1	96	1	URP	-
 Assets/Japanese Castle/Meshes/Colliders/Bridge start side R Collider.fbx	Bridge start side R Collider	Japanese Castle	fbx	4.26	2.49	2.39	-1.52	1	76	1	URP	-
 Assets/Japanese Castle/Meshes/Colliders/Bridge start side R x 8 Collider.fbx	Bridge start side R x 8 Collider	Japanese Castle	fbx	8	2.51	2.39	-1.52	1	96	1	URP	-
 Assets/Japanese Castle/Meshes/Colliders/Gate Top Floor Collider.fbx	Gate Top Floor Collider	Japanese Castle	fbx	4.48	3	0.61	0	1	36	1	URP	-
-Assets/Japanese Castle/Meshes/Colliders/Gate Yagura Eave A End L Collision.fbx	Gate Yagura Eave A End L Collision	Japanese Castle	fbx	0.37	0.68	1.1	-0.34	1	12	1	URP	S
-Assets/Japanese Castle/Meshes/Colliders/Gate Yagura Eave A End R Collision.fbx	Gate Yagura Eave A End R Collision	Japanese Castle	fbx	0.37	0.68	1.1	-0.34	1	12	1	URP	S
-Assets/Japanese Castle/Meshes/Colliders/Gate Yagura Eave A x2 Collision.fbx	Gate Yagura Eave A x2 Collision	Japanese Castle	fbx	2	0.67	1.09	-0.32	1	12	1	URP	S
+Assets/Japanese Castle/Meshes/Colliders/Gate Yagura Eave A End L Collision.fbx	Gate Yagura Eave A End L Collision	Japanese Castle	fbx	0.37	0.68	1.1	-0.34	1	12	1	URP	-
+Assets/Japanese Castle/Meshes/Colliders/Gate Yagura Eave A End R Collision.fbx	Gate Yagura Eave A End R Collision	Japanese Castle	fbx	0.37	0.68	1.1	-0.34	1	12	1	URP	-
+Assets/Japanese Castle/Meshes/Colliders/Gate Yagura Eave A x2 Collision.fbx	Gate Yagura Eave A x2 Collision	Japanese Castle	fbx	2	0.67	1.09	-0.32	1	12	1	URP	-
 Assets/Japanese Castle/Meshes/Colliders/Gate Yagura Eave A x4 Collision.fbx	Gate Yagura Eave A x4 Collision	Japanese Castle	fbx	4	0.67	1.09	-0.32	1	12	1	URP	-
-Assets/Japanese Castle/Meshes/Colliders/Gate Yagura Eave A x8 Collision.fbx	Gate Yagura Eave A x8 Collision	Japanese Castle	fbx	8	0.67	1.09	-0.32	1	12	1	URP	S
-Assets/Japanese Castle/Meshes/Colliders/Gate Yagura Wall A Door x2 Collision.fbx	Gate Yagura Wall A Door x2 Collision	Japanese Castle	fbx	2	3	0.31	0	1	64	1	URP	S
-Assets/Japanese Castle/Meshes/Colliders/Gate Yagura Wall A Exterior Window x2 Collision.fbx	Gate Yagura Wall A Exterior Window x2 Collision	Japanese Castle	fbx	2	3	0.16	0	1	108	1	URP	S
+Assets/Japanese Castle/Meshes/Colliders/Gate Yagura Eave A x8 Collision.fbx	Gate Yagura Eave A x8 Collision	Japanese Castle	fbx	8	0.67	1.09	-0.32	1	12	1	URP	-
+Assets/Japanese Castle/Meshes/Colliders/Gate Yagura Wall A Door x2 Collision.fbx	Gate Yagura Wall A Door x2 Collision	Japanese Castle	fbx	2	3	0.31	0	1	64	1	URP	-
+Assets/Japanese Castle/Meshes/Colliders/Gate Yagura Wall A Exterior Window x2 Collision.fbx	Gate Yagura Wall A Exterior Window x2 Collision	Japanese Castle	fbx	2	3	0.16	0	1	108	1	URP	-
 Assets/Japanese Castle/Meshes/Colliders/Gate Yagura Wall A Interior Window x2 Collision.fbx	Gate Yagura Wall A Interior Window x2 Collision	Japanese Castle	fbx	2	3	0.16	0	1	24	1	URP	-
 Assets/Japanese Castle/Meshes/Colliders/Roof Castle B Corner 6 x 6 Collider.fbx	Roof Castle B Corner 6 x 6 Collider	Japanese Castle	fbx	6.32	6.45	6.32	5.07	1	32	1	URP	-
 Assets/Japanese Castle/Meshes/Colliders/Roof Castle Corner 6 x 6 Collider.fbx	Roof Castle Corner 6 x 6 Collider	Japanese Castle	fbx	6.32	3.45	6.32	0.07	1	32	1	URP	-
@@ -284,7 +498,7 @@ Assets/Japanese Castle/Meshes/Colliders/Steps A Collider.fbx	Steps A Collider	Ja
 Assets/Japanese Castle/Meshes/Colliders/Steps B Collider.fbx	Steps B Collider	Japanese Castle	fbx	4.33	2.55	5.55	-0.05	1	104	1	URP	-
 Assets/Japanese Castle/Meshes/Colliders/Steps C Colllider.fbx	Steps C Colllider	Japanese Castle	fbx	4.15	2.55	5.55	-0.05	1	84	1	URP	-
 Assets/Japanese Castle/Meshes/Colliders/Wall Exterior A Wildow Collider.fbx	Wall Exterior A Wildow Collider	Japanese Castle	fbx	2	3	0.53	0	1	120	1	URP	-
-Assets/Japanese Castle/Meshes/Colliders/Wall Exterior C Window B Collider.fbx	Wall Exterior C Window B Collider	Japanese Castle	fbx	2	3	0.3	0	1	32	1	URP	S
+Assets/Japanese Castle/Meshes/Colliders/Wall Exterior C Window B Collider.fbx	Wall Exterior C Window B Collider	Japanese Castle	fbx	2	3	0.3	0	1	32	1	URP	-
 Assets/Japanese Castle/Meshes/Colliders/Wall Exterior Corner Collider.fbx	Wall Exterior Corner Collider	Japanese Castle	fbx	2.3	3	2.3	0	1	20	1	URP	-
 Assets/Japanese Castle/Meshes/Colliders/Wall Exterior D Window Collider.fbx	Wall Exterior D Window Collider	Japanese Castle	fbx	2	2.87	0.26	0.1	1	222	1	URP	-
 Assets/Japanese Castle/Meshes/Colliders/Wall Exterior Defence 45 Collider.fbx	Wall Exterior Defence 45 Collider	Japanese Castle	fbx	3.46	2.57	3.46	0	1	56	1	URP	-
@@ -323,19 +537,19 @@ Assets/Japanese Castle/Meshes/Exterior/Balcony Handrail.fbx	Balcony Handrail	Jap
 Assets/Japanese Castle/Meshes/Exterior/Balcony x 8.fbx	Balcony x 8	Japanese Castle	fbx	8	0.43	2	-0.43	1	280	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Balcony.fbx	Balcony	Japanese Castle	fbx	2	0.43	2	-0.43	1	82	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Bridge Bean x 4.fbx	Bridge Bean x 4	Japanese Castle	fbx	0.43	0.66	4	-1.49	1	16	1	URP	-
-Assets/Japanese Castle/Meshes/Exterior/Bridge column.fbx	Bridge column	Japanese Castle	fbx	1.06	3.76	1.51	-4.22	1	54	1	URP	S
+Assets/Japanese Castle/Meshes/Exterior/Bridge column.fbx	Bridge column	Japanese Castle	fbx	1.06	3.76	1.51	-4.22	1	54	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Bridge floor B x 8.fbx	Bridge floor B x 8	Japanese Castle	fbx	8	0.83	2	-0.83	1	64	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Bridge floor B.fbx	Bridge floor B	Japanese Castle	fbx	2	0.83	2	-0.83	1	16	1	URP	-
-Assets/Japanese Castle/Meshes/Exterior/Bridge floor x 8.fbx	Bridge floor x 8	Japanese Castle	fbx	8	0.07	2	-0.07	1	32	1	URP	S
+Assets/Japanese Castle/Meshes/Exterior/Bridge floor x 8.fbx	Bridge floor x 8	Japanese Castle	fbx	8	0.07	2	-0.07	1	32	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Bridge floor.fbx	Bridge floor	Japanese Castle	fbx	2	0.07	2	-0.07	1	8	1	URP	-
-Assets/Japanese Castle/Meshes/Exterior/Bridge handrail.fbx	Bridge handrail	Japanese Castle	fbx	2	0.93	0.32	0.04	1	64	1	URP	S
+Assets/Japanese Castle/Meshes/Exterior/Bridge handrail.fbx	Bridge handrail	Japanese Castle	fbx	2	0.93	0.32	0.04	1	64	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Bridge Ornament.fbx	Bridge Ornament	Japanese Castle	fbx	0.46	0.07	0.13	0.92	1	466	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/bridge post B.fbx	bridge post B	Japanese Castle	fbx	0.24	0.91	0.18	-0.01	1	142	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Bridge post C.fbx	Bridge post C	Japanese Castle	fbx	0.24	0.5	0.18	-0.01	1	8	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Bridge post.fbx	Bridge post	Japanese Castle	fbx	0.42	1.89	0.42	-0.02	1	874	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Bridge side R x 8.fbx	Bridge side R x 8	Japanese Castle	fbx	8	1.46	2.37	-0.47	1	2810	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Bridge side R.fbx	Bridge side R	Japanese Castle	fbx	2	1.46	2.37	-0.47	1	714	1	URP	-
-Assets/Japanese Castle/Meshes/Exterior/Bridge side x 8.fbx	Bridge side x 8	Japanese Castle	fbx	8	1.46	2.37	-0.47	1	2810	1	URP	S
+Assets/Japanese Castle/Meshes/Exterior/Bridge side x 8.fbx	Bridge side x 8	Japanese Castle	fbx	8	1.46	2.37	-0.47	1	2810	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Bridge side.fbx	Bridge side	Japanese Castle	fbx	2	1.46	2.37	-0.47	1	714	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Bridge start floor .fbx	Bridge start floor 	Japanese Castle	fbx	4	1.07	2	-1.07	1	32	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Bridge start floor B x 8.fbx	Bridge start floor B x 8	Japanese Castle	fbx	8	1.83	2	-1.83	1	64	1	URP	-
@@ -370,30 +584,30 @@ Assets/Japanese Castle/Meshes/Exterior/Castle Wall Corner 2 x 8.fbx	Castle Wall 
 Assets/Japanese Castle/Meshes/Exterior/Castle Wall Corner 2.fbx	Castle Wall Corner 2	Japanese Castle	fbx	3	4	3	0	1	114	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Castle Wall Corner 2_2x2.fbx	Castle Wall Corner 2_2x2	Japanese Castle	fbx	2	4	2	0	1	82	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Castle Wall Corner x 12.fbx	Castle Wall Corner x 12	Japanese Castle	fbx	4.4	12	4.4	0	1	146	1	URP	-
-Assets/Japanese Castle/Meshes/Exterior/Castle Wall Corner.fbx	Castle Wall Corner	Japanese Castle	fbx	2.4	4	2.4	0	1	64	1	URP	S
+Assets/Japanese Castle/Meshes/Exterior/Castle Wall Corner.fbx	Castle Wall Corner	Japanese Castle	fbx	2.4	4	2.4	0	1	64	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Castle Wall x 4.fbx	Castle Wall x 4	Japanese Castle	fbx	2.4	4	4	0	1	40	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Castle Wall x 8.fbx	Castle Wall x 8	Japanese Castle	fbx	2.4	4	8	0	1	80	1	URP	-
-Assets/Japanese Castle/Meshes/Exterior/Castle Wall.fbx	Castle Wall	Japanese Castle	fbx	2.4	4	2	0	1	66	1	URP	S
+Assets/Japanese Castle/Meshes/Exterior/Castle Wall.fbx	Castle Wall	Japanese Castle	fbx	2.4	4	2	0	1	66	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Door A Exterior 01 x4.fbx	Door A Exterior 01 x4	Japanese Castle	fbx	6.01	4.35	2.08	-0.01	1	3120	12	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Door A Interior 01 x4.fbx	Door A Interior 01 x4	Japanese Castle	fbx	4.6	3.73	0.66	0	1	58	4	URP	-
-Assets/Japanese Castle/Meshes/Exterior/Gate Castle Door L.fbx	Gate Castle Door L	Japanese Castle	fbx	1.5	2.8	0.35	0.1	1	504	1	URP	-
-Assets/Japanese Castle/Meshes/Exterior/Gate Castle Door R.fbx	Gate Castle Door R	Japanese Castle	fbx	1.5	2.8	0.35	0.1	1	504	1	URP	-
+Assets/Japanese Castle/Meshes/Exterior/Gate Castle Door L.fbx	Gate Castle Door L	Japanese Castle	fbx	1.5	2.8	0.35	0.1	1	504	1	URP	B
+Assets/Japanese Castle/Meshes/Exterior/Gate Castle Door R.fbx	Gate Castle Door R	Japanese Castle	fbx	1.5	2.8	0.35	0.1	1	504	1	URP	B
 Assets/Japanese Castle/Meshes/Exterior/Gate Castle Exterior End L.fbx	Gate Castle Exterior End L	Japanese Castle	fbx	1.6	4	1.7	0	1	38	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Gate Castle Exterior End R.fbx	Gate Castle Exterior End R	Japanese Castle	fbx	1.6	4	1.7	0	1	38	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Gate Castle Exterior.fbx	Gate Castle Exterior	Japanese Castle	fbx	4	4	1.7	0	1	80	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Gate Top Floor E.fbx	Gate Top Floor E	Japanese Castle	fbx	4.48	3	0.61	0	1	2532	5	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Gate Top Floor.fbx	Gate Top Floor	Japanese Castle	fbx	4.48	3	0.61	0	1	804	5	URP	-
-Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Colunm A x4.fbx	Gate Yagura Colunm A x4	Japanese Castle	fbx	1	4	1	0	1	8	1	URP	S
-Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Colunm B x4.fbx	Gate Yagura Colunm B x4	Japanese Castle	fbx	0.5	4	0.5	0	1	8	1	URP	S
-Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Colunm Base.fbx	Gate Yagura Colunm Base	Japanese Castle	fbx	1.69	0.09	1.69	0	1	18	1	URP	S
-Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Colunm C x4.fbx	Gate Yagura Colunm C x4	Japanese Castle	fbx	0.54	4	0.54	0	1	96	1	URP	S
-Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Door A Left Hinge.fbx	Gate Yagura Door A Left Hinge	Japanese Castle	fbx	2.14	3	0.31	0	1	940	2	URP	S
-Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Door A Right Hinge.fbx	Gate Yagura Door A Right Hinge	Japanese Castle	fbx	2.14	3	0.31	0	1	940	2	URP	S
-Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Eave A End L.fbx	Gate Yagura Eave A End L	Japanese Castle	fbx	0.37	0.68	1.13	-0.34	1	68	1	URP	S
-Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Eave A End R.fbx	Gate Yagura Eave A End R	Japanese Castle	fbx	0.37	0.68	1.13	-0.34	1	68	1	URP	S
-Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Eave A x2.fbx	Gate Yagura Eave A x2	Japanese Castle	fbx	2	0.68	1.11	-0.34	1	154	1	URP	S
+Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Colunm A x4.fbx	Gate Yagura Colunm A x4	Japanese Castle	fbx	1	4	1	0	1	8	1	URP	-
+Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Colunm B x4.fbx	Gate Yagura Colunm B x4	Japanese Castle	fbx	0.5	4	0.5	0	1	8	1	URP	-
+Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Colunm Base.fbx	Gate Yagura Colunm Base	Japanese Castle	fbx	1.69	0.09	1.69	0	1	18	1	URP	-
+Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Colunm C x4.fbx	Gate Yagura Colunm C x4	Japanese Castle	fbx	0.54	4	0.54	0	1	96	1	URP	-
+Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Door A Left Hinge.fbx	Gate Yagura Door A Left Hinge	Japanese Castle	fbx	2.14	3	0.31	0	1	940	2	URP	-
+Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Door A Right Hinge.fbx	Gate Yagura Door A Right Hinge	Japanese Castle	fbx	2.14	3	0.31	0	1	940	2	URP	-
+Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Eave A End L.fbx	Gate Yagura Eave A End L	Japanese Castle	fbx	0.37	0.68	1.13	-0.34	1	68	1	URP	-
+Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Eave A End R.fbx	Gate Yagura Eave A End R	Japanese Castle	fbx	0.37	0.68	1.13	-0.34	1	68	1	URP	-
+Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Eave A x2.fbx	Gate Yagura Eave A x2	Japanese Castle	fbx	2	0.68	1.11	-0.34	1	154	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Eave A x4.fbx	Gate Yagura Eave A x4	Japanese Castle	fbx	4	0.68	1.11	-0.34	1	308	1	URP	-
-Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Eave A x8.fbx	Gate Yagura Eave A x8	Japanese Castle	fbx	8	0.68	1.11	-0.34	1	616	1	URP	S
+Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Eave A x8.fbx	Gate Yagura Eave A x8	Japanese Castle	fbx	8	0.68	1.11	-0.34	1	616	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Kugikakushi.fbx	Gate Yagura Kugikakushi	Japanese Castle	fbx	0.31	0.31	0.16	-0.15	1	178	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Top A x2.fbx	Gate Yagura Top A x2	Japanese Castle	fbx	2	1	0.3	0	1	72	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Top A x4.fbx	Gate Yagura Top A x4	Japanese Castle	fbx	4	1	0.3	0	1	144	1	URP	-
@@ -408,11 +622,11 @@ Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Top D x2.fbx	Gate Yagura Top 
 Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Top D x4.fbx	Gate Yagura Top D x4	Japanese Castle	fbx	4	1	0.7	0	1	80	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Top D x8.fbx	Gate Yagura Top D x8	Japanese Castle	fbx	8	1	0.7	0	1	160	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Top E x2.fbx	Gate Yagura Top E x2	Japanese Castle	fbx	2	1	0.49	0	1	42	1	URP	-
-Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Top E x4.fbx	Gate Yagura Top E x4	Japanese Castle	fbx	4	1	0.49	0	1	84	1	URP	S
-Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Top E x8.fbx	Gate Yagura Top E x8	Japanese Castle	fbx	8	1	0.49	0	1	168	1	URP	S
-Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Wall A Door x2.fbx	Gate Yagura Wall A Door x2	Japanese Castle	fbx	2	3	0.37	0	1	788	2	URP	S
-Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Wall A Exterior Window x2.fbx	Gate Yagura Wall A Exterior Window x2	Japanese Castle	fbx	2	3	0.15	0	1	76	1	URP	S
-Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Wall A Exterior x2.fbx	Gate Yagura Wall A Exterior x2	Japanese Castle	fbx	2	3	0.07	0	1	12	1	URP	S
+Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Top E x4.fbx	Gate Yagura Top E x4	Japanese Castle	fbx	4	1	0.49	0	1	84	1	URP	-
+Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Top E x8.fbx	Gate Yagura Top E x8	Japanese Castle	fbx	8	1	0.49	0	1	168	1	URP	-
+Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Wall A Door x2.fbx	Gate Yagura Wall A Door x2	Japanese Castle	fbx	2	3	0.37	0	1	788	2	URP	-
+Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Wall A Exterior Window x2.fbx	Gate Yagura Wall A Exterior Window x2	Japanese Castle	fbx	2	3	0.15	0	1	76	1	URP	-
+Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Wall A Exterior x2.fbx	Gate Yagura Wall A Exterior x2	Japanese Castle	fbx	2	3	0.07	0	1	12	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Gate Yagura Wall A Interior Window x2.fbx	Gate Yagura Wall A Interior Window x2	Japanese Castle	fbx	2	3	0.15	0	1	20	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Ground 4x4.fbx	Ground 4x4	Japanese Castle	fbx	4	0	4	0	1	2	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Ground 8x8.fbx	Ground 8x8	Japanese Castle	fbx	8	0	8	0	1	8	1	URP	-
@@ -420,7 +634,7 @@ Assets/Japanese Castle/Meshes/Exterior/Roof Castle 1x1.fbx	Roof Castle 1x1	Japan
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle 1x2.fbx	Roof Castle 1x2	Japanese Castle	fbx	2	0.61	1	3.17	1	82	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle 1x8.fbx	Roof Castle 1x8	Japanese Castle	fbx	8	0.61	1	3.17	1	328	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle 2x1.fbx	Roof Castle 2x1	Japanese Castle	fbx	1	1.11	2	3.17	1	50	1	URP	-
-Assets/Japanese Castle/Meshes/Exterior/Roof Castle 2x8.fbx	Roof Castle 2x8	Japanese Castle	fbx	8	1.11	2	0.17	1	328	1	URP	S
+Assets/Japanese Castle/Meshes/Exterior/Roof Castle 2x8.fbx	Roof Castle 2x8	Japanese Castle	fbx	8	1.11	2	0.17	1	328	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle 6x8.fbx	Roof Castle 6x8	Japanese Castle	fbx	8	3.11	6	0.17	1	984	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle Akashi B.fbx	Roof Castle Akashi B	Japanese Castle	fbx	12	2.41	2.62	1.59	1	4878	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle Akashi B1.fbx	Roof Castle Akashi B1	Japanese Castle	fbx	11.35	1.79	2.03	2.19	1	1840	1	URP	-
@@ -429,7 +643,7 @@ Assets/Japanese Castle/Meshes/Exterior/Roof Castle Akashi M1.fbx	Roof Castle Aka
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle Akashi S 1.fbx	Roof Castle Akashi S 1	Japanese Castle	fbx	5.61	1.17	2.05	2.21	1	1454	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle Akashi S.fbx	Roof Castle Akashi S	Japanese Castle	fbx	5.61	1.61	2.65	1.79	1	3070	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle B 1x1.fbx	Roof Castle B 1x1	Japanese Castle	fbx	1	1.11	1	5.17	1	50	1	URP	-
-Assets/Japanese Castle/Meshes/Exterior/Roof Castle B 1x8.fbx	Roof Castle B 1x8	Japanese Castle	fbx	8	1.11	1	5.17	1	328	1	URP	S
+Assets/Japanese Castle/Meshes/Exterior/Roof Castle B 1x8.fbx	Roof Castle B 1x8	Japanese Castle	fbx	8	1.11	1	5.17	1	328	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle B 2x1.fbx	Roof Castle B 2x1	Japanese Castle	fbx	1	2.11	2	5.17	1	50	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle B 6x8.fbx	Roof Castle B 6x8	Japanese Castle	fbx	8	6.11	6	5.17	1	984	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle B Corner 2.fbx	Roof Castle B Corner 2	Japanese Castle	fbx	2.32	2.58	2.32	4.97	1	202	1	URP	-
@@ -444,25 +658,25 @@ Assets/Japanese Castle/Meshes/Exterior/Roof Castle Corner End 2x2.fbx	Roof Castl
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle Corner End B 2x2.fbx	Roof Castle Corner End B 2x2	Japanese Castle	fbx	2.74	1.01	2.72	1.54	1	2043	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle Corner End B Curve.fbx	Roof Castle Corner End B Curve	Japanese Castle	fbx	4.57	1.44	4.56	1.54	1	3365	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle Corner End B.fbx	Roof Castle Corner End B	Japanese Castle	fbx	4.57	1.01	4.56	1.54	1	3365	1	URP	-
-Assets/Japanese Castle/Meshes/Exterior/Roof Castle Corner End Curve.fbx	Roof Castle Corner End Curve	Japanese Castle	fbx	4.57	1.39	4.56	1.59	1	2327	1	URP	S
+Assets/Japanese Castle/Meshes/Exterior/Roof Castle Corner End Curve.fbx	Roof Castle Corner End Curve	Japanese Castle	fbx	4.57	1.39	4.56	1.59	1	2327	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle Corner End.fbx	Roof Castle Corner End	Japanese Castle	fbx	4.57	0.95	4.56	1.59	1	2329	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle Corner.fbx	Roof Castle Corner	Japanese Castle	fbx	2.32	1.48	2.32	3.07	1	202	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle End B x 8.fbx	Roof Castle End B x 8	Japanese Castle	fbx	8	0.75	2.35	1.54	1	2648	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle End B.fbx	Roof Castle End B	Japanese Castle	fbx	2	0.75	2.35	1.54	1	662	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle End Gap 1.fbx	Roof Castle End Gap 1	Japanese Castle	fbx	2.04	1.07	1.38	5.11	1	488	1	URP	-
-Assets/Japanese Castle/Meshes/Exterior/Roof Castle End Gap B.fbx	Roof Castle End Gap B	Japanese Castle	fbx	2.09	1.58	1.39	6.1	1	596	1	URP	S
+Assets/Japanese Castle/Meshes/Exterior/Roof Castle End Gap B.fbx	Roof Castle End Gap B	Japanese Castle	fbx	2.09	1.58	1.39	6.1	1	596	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle End Gap.fbx	Roof Castle End Gap	Japanese Castle	fbx	1	0.7	2.35	1.59	1	216	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle End L B.fbx	Roof Castle End L B	Japanese Castle	fbx	2.06	2.58	1.39	5.1	1	468	1	URP	-
-Assets/Japanese Castle/Meshes/Exterior/Roof Castle End L.fbx	Roof Castle End L	Japanese Castle	fbx	2.03	1.57	1.38	4.11	1	402	1	URP	S
-Assets/Japanese Castle/Meshes/Exterior/Roof Castle End Ornament.fbx	Roof Castle End Ornament	Japanese Castle	fbx	1.55	1.12	1.66	3.56	1	662	1	URP	S
-Assets/Japanese Castle/Meshes/Exterior/Roof Castle End x 8.fbx	Roof Castle End x 8	Japanese Castle	fbx	8	0.7	2.35	0.59	1	1672	1	URP	S
-Assets/Japanese Castle/Meshes/Exterior/Roof Castle End.fbx	Roof Castle End	Japanese Castle	fbx	2	0.7	2.35	1.59	1	418	1	URP	S
+Assets/Japanese Castle/Meshes/Exterior/Roof Castle End L.fbx	Roof Castle End L	Japanese Castle	fbx	2.03	1.57	1.38	4.11	1	402	1	URP	-
+Assets/Japanese Castle/Meshes/Exterior/Roof Castle End Ornament.fbx	Roof Castle End Ornament	Japanese Castle	fbx	1.55	1.12	1.66	3.56	1	662	1	URP	-
+Assets/Japanese Castle/Meshes/Exterior/Roof Castle End x 8.fbx	Roof Castle End x 8	Japanese Castle	fbx	8	0.7	2.35	0.59	1	1672	1	URP	-
+Assets/Japanese Castle/Meshes/Exterior/Roof Castle End.fbx	Roof Castle End	Japanese Castle	fbx	2	0.7	2.35	1.59	1	418	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle Gap.FBX	Roof Castle Gap	Japanese Castle	fbx	1	1.11	2	3.17	1	42	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle Top A End.fbx	Roof Castle Top A End	Japanese Castle	fbx	1.01	0.8	1.53	5	1	444	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle Top A x 8.fbx	Roof Castle Top A x 8	Japanese Castle	fbx	0.46	0.48	8	0.01	1	160	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle Top A.fbx	Roof Castle Top A	Japanese Castle	fbx	0.46	0.48	2	0.01	1	40	1	URP	-
-Assets/Japanese Castle/Meshes/Exterior/Roof Castle Top B End.fbx	Roof Castle Top B End	Japanese Castle	fbx	1.12	1.07	1.42	5.01	1	532	1	URP	S
-Assets/Japanese Castle/Meshes/Exterior/Roof Castle Top B x 8.fbx	Roof Castle Top B x 8	Japanese Castle	fbx	0.48	0.73	8	0.01	1	160	1	URP	S
+Assets/Japanese Castle/Meshes/Exterior/Roof Castle Top B End.fbx	Roof Castle Top B End	Japanese Castle	fbx	1.12	1.07	1.42	5.01	1	532	1	URP	-
+Assets/Japanese Castle/Meshes/Exterior/Roof Castle Top B x 8.fbx	Roof Castle Top B x 8	Japanese Castle	fbx	0.48	0.73	8	0.01	1	160	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle Top B.fbx	Roof Castle Top B	Japanese Castle	fbx	0.48	0.73	2	0.01	1	40	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle Top End.fbx	Roof Castle Top End	Japanese Castle	fbx	2.53	1.25	2.32	3.07	1	1040	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle Top Gap.fbx	Roof Castle Top Gap	Japanese Castle	fbx	1	0.84	2	3.17	1	124	1	URP	-
@@ -472,9 +686,9 @@ Assets/Japanese Castle/Meshes/Exterior/Roof Castle Wall 2x2.fbx	Roof Castle Wall
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle Wall Bottom.fbx	Roof Castle Wall Bottom	Japanese Castle	fbx	2	1	0.14	0	1	12	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle Wall Half B.fbx	Roof Castle Wall Half B	Japanese Castle	fbx	2	3.14	0.88	2	1	35	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle Wall Half Bottom.fbx	Roof Castle Wall Half Bottom	Japanese Castle	fbx	2	2.14	0.88	0	1	45	1	URP	-
-Assets/Japanese Castle/Meshes/Exterior/Roof Castle Wall Half.fbx	Roof Castle Wall Half	Japanese Castle	fbx	2	2.14	0.88	1	1	35	1	URP	S
+Assets/Japanese Castle/Meshes/Exterior/Roof Castle Wall Half.fbx	Roof Castle Wall Half	Japanese Castle	fbx	2	2.14	0.88	1	1	35	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle Wall Top A.fbx	Roof Castle Wall Top A	Japanese Castle	fbx	2	1.64	0.88	0	1	54	1	URP	-
-Assets/Japanese Castle/Meshes/Exterior/Roof Castle Wall Top B.fbx	Roof Castle Wall Top B	Japanese Castle	fbx	2	2.14	0.88	0	1	54	1	URP	S
+Assets/Japanese Castle/Meshes/Exterior/Roof Castle Wall Top B.fbx	Roof Castle Wall Top B	Japanese Castle	fbx	2	2.14	0.88	0	1	54	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Roof Castle.fbx	Roof Castle	Japanese Castle	fbx	2	1.11	2	3.17	1	82	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Shachihoko.fbx	Shachihoko	Japanese Castle	fbx	0.41	1.66	1.17	0.65	1	2565	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Steps A.fbx	Steps A	Japanese Castle	fbx	4	2.09	5.2	0	1	104	1	URP	-
@@ -495,11 +709,11 @@ Assets/Japanese Castle/Meshes/Exterior/Wall Exterior A Wildow End R.fbx	Wall Ext
 Assets/Japanese Castle/Meshes/Exterior/Wall Exterior A Wildow.fbx	Wall Exterior A Wildow	Japanese Castle	fbx	2.62	3.03	0.53	0	1	196	3	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Wall Exterior A x 8.fbx	Wall Exterior A x 8	Japanese Castle	fbx	8	3	0.17	0	1	72	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Wall Exterior A.fbx	Wall Exterior A	Japanese Castle	fbx	2	3	0.17	0	1	36	1	URP	-
-Assets/Japanese Castle/Meshes/Exterior/Wall Exterior C Window A End L.fbx	Wall Exterior C Window A End L	Japanese Castle	fbx	0.2	1.4	0.27	1.3	1	18	1	URP	S
-Assets/Japanese Castle/Meshes/Exterior/Wall Exterior C Window A End R.fbx	Wall Exterior C Window A End R	Japanese Castle	fbx	0.2	1.4	0.27	1.3	1	18	1	URP	S
-Assets/Japanese Castle/Meshes/Exterior/Wall Exterior C Window A.fbx	Wall Exterior C Window A	Japanese Castle	fbx	2	3	0.34	0	1	108	3	URP	S
-Assets/Japanese Castle/Meshes/Exterior/Wall Exterior C Window B.fbx	Wall Exterior C Window B	Japanese Castle	fbx	2.01	3	0.34	0	1	206	1	URP	S
-Assets/Japanese Castle/Meshes/Exterior/Wall Exterior C Wood Corner.fbx	Wall Exterior C Wood Corner	Japanese Castle	fbx	2.34	3	2.34	0	1	280	1	URP	S
+Assets/Japanese Castle/Meshes/Exterior/Wall Exterior C Window A End L.fbx	Wall Exterior C Window A End L	Japanese Castle	fbx	0.2	1.4	0.27	1.3	1	18	1	URP	-
+Assets/Japanese Castle/Meshes/Exterior/Wall Exterior C Window A End R.fbx	Wall Exterior C Window A End R	Japanese Castle	fbx	0.2	1.4	0.27	1.3	1	18	1	URP	-
+Assets/Japanese Castle/Meshes/Exterior/Wall Exterior C Window A.fbx	Wall Exterior C Window A	Japanese Castle	fbx	2	3	0.34	0	1	108	3	URP	-
+Assets/Japanese Castle/Meshes/Exterior/Wall Exterior C Window B.fbx	Wall Exterior C Window B	Japanese Castle	fbx	2.01	3	0.34	0	1	206	1	URP	-
+Assets/Japanese Castle/Meshes/Exterior/Wall Exterior C Wood Corner.fbx	Wall Exterior C Wood Corner	Japanese Castle	fbx	2.34	3	2.34	0	1	280	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Wall Exterior C Wood Shelf Corner B.fbx	Wall Exterior C Wood Shelf Corner B	Japanese Castle	fbx	3.2	3	3.2	0	1	390	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Wall Exterior C Wood Shelf End L.fbx	Wall Exterior C Wood Shelf End L	Japanese Castle	fbx	0.38	2.97	1.2	0.04	1	155	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Wall Exterior C Wood Shelf End R.fbx	Wall Exterior C Wood Shelf End R	Japanese Castle	fbx	0.38	2.97	1.2	0.04	1	155	1	URP	-
@@ -536,11 +750,11 @@ Assets/Japanese Castle/Meshes/Exterior/Wall Exterior Roof Castle Akashi M.fbx	Wa
 Assets/Japanese Castle/Meshes/Exterior/Wall Exterior Roof Castle Akashi S.fbx	Wall Exterior Roof Castle Akashi S	Japanese Castle	fbx	5.28	2.59	2.58	0	1	354	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Wall Exterior Roof Castle Corner 2.fbx	Wall Exterior Roof Castle Corner 2	Japanese Castle	fbx	2.36	1.76	2.35	0	1	174	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Wall Exterior Roof Castle Corner 2x2.fbx	Wall Exterior Roof Castle Corner 2x2	Japanese Castle	fbx	2.34	1.76	2.34	0	1	222	1	URP	-
-Assets/Japanese Castle/Meshes/Exterior/Wall Exterior Roof Castle Corner Curve.fbx	Wall Exterior Roof Castle Corner Curve	Japanese Castle	fbx	4.29	2.22	4.29	0	1	508	1	URP	S
+Assets/Japanese Castle/Meshes/Exterior/Wall Exterior Roof Castle Corner Curve.fbx	Wall Exterior Roof Castle Corner Curve	Japanese Castle	fbx	4.29	2.22	4.29	0	1	508	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Wall Exterior Roof Castle Corner.fbx	Wall Exterior Roof Castle Corner	Japanese Castle	fbx	4.29	1.76	4.29	0	1	392	1	URP	-
 Assets/Japanese Castle/Meshes/Exterior/Wall Exterior Roof Castle Gap.fbx	Wall Exterior Roof Castle Gap	Japanese Castle	fbx	1	1.76	2.34	0	1	76	1	URP	-
-Assets/Japanese Castle/Meshes/Exterior/Wall Exterior Roof Castle x 8.fbx	Wall Exterior Roof Castle x 8	Japanese Castle	fbx	8	1.76	2.34	0	1	480	1	URP	S
-Assets/Japanese Castle/Meshes/Exterior/Wall Exterior Roof Castle.fbx	Wall Exterior Roof Castle	Japanese Castle	fbx	2	1.76	2.34	0	1	120	1	URP	S
+Assets/Japanese Castle/Meshes/Exterior/Wall Exterior Roof Castle x 8.fbx	Wall Exterior Roof Castle x 8	Japanese Castle	fbx	8	1.76	2.34	0	1	480	1	URP	-
+Assets/Japanese Castle/Meshes/Exterior/Wall Exterior Roof Castle.fbx	Wall Exterior Roof Castle	Japanese Castle	fbx	2	1.76	2.34	0	1	120	1	URP	-
 Assets/Japanese Castle/Meshes/Foliage/Azalea A 01.fbx	Azalea A 01	Japanese Castle	fbx	1.99	1.19	1.92	-0.03	1	445	1	URP	-
 Assets/Japanese Castle/Meshes/Foliage/Azalea A 03.fbx	Azalea A 03	Japanese Castle	fbx	2.32	2.58	2.2	0	1	1258	1	URP	-
 Assets/Japanese Castle/Meshes/Foliage/Azalea A 04.fbx	Azalea A 04	Japanese Castle	fbx	2.81	1.45	2.87	-0.05	1	1104	1	URP	-
@@ -557,7 +771,7 @@ Assets/Japanese Castle/Meshes/Interior/Bean C x 8.fbx	Bean C x 8	Japanese Castle
 Assets/Japanese Castle/Meshes/Interior/Bean C.fbx	Bean C	Japanese Castle	fbx	4	0.9	0.8	1	1	12	1	URP	-
 Assets/Japanese Castle/Meshes/Interior/Ceiling 1x1.fbx	Ceiling 1x1	Japanese Castle	fbx	1	0.2	1	-0.4	1	10	1	URP	-
 Assets/Japanese Castle/Meshes/Interior/Ceiling 2x2.fbx	Ceiling 2x2	Japanese Castle	fbx	2	0.2	2	-0.4	1	16	1	URP	-
-Assets/Japanese Castle/Meshes/Interior/Ceiling.fbx	Ceiling	Japanese Castle	fbx	4	0.2	4	-0.4	1	28	1	URP	S
+Assets/Japanese Castle/Meshes/Interior/Ceiling.fbx	Ceiling	Japanese Castle	fbx	4	0.2	4	-0.4	1	28	1	URP	-
 Assets/Japanese Castle/Meshes/Interior/Column A x 6.fbx	Column A x 6	Japanese Castle	fbx	0.32	6	0.32	0	1	16	1	URP	-
 Assets/Japanese Castle/Meshes/Interior/Column A x1.fbx	Column A x1	Japanese Castle	fbx	0.32	1	0.32	0	1	16	1	URP	-
 Assets/Japanese Castle/Meshes/Interior/Column A.fbx	Column A	Japanese Castle	fbx	0.32	3	0.32	0	1	8	1	URP	-
@@ -684,7 +898,7 @@ Assets/Japanese Castle/Prefabs/Exterior/Bridge/Bridge Bean x 4.prefab	Bridge Bea
 Assets/Japanese Castle/Prefabs/Exterior/Bridge/Bridge column.prefab	Bridge column	Japanese Castle	prefab	1.06	3.76	1.51	-3.22	1	54	1	URP	-
 Assets/Japanese Castle/Prefabs/Exterior/Bridge/Bridge floor B x 8.prefab	Bridge floor B x 8	Japanese Castle	prefab	8	0.83	2	-0.83	1	64	1	URP	-
 Assets/Japanese Castle/Prefabs/Exterior/Bridge/Bridge floor B.prefab	Bridge floor B	Japanese Castle	prefab	2	0.83	2	-0.83	1	16	1	URP	-
-Assets/Japanese Castle/Prefabs/Exterior/Bridge/Bridge floor x 8.prefab	Bridge floor x 8	Japanese Castle	prefab	8	0.07	2	-0.07	1	32	1	URP	S
+Assets/Japanese Castle/Prefabs/Exterior/Bridge/Bridge floor x 8.prefab	Bridge floor x 8	Japanese Castle	prefab	8	0.07	2	-0.07	1	32	1	URP	-
 Assets/Japanese Castle/Prefabs/Exterior/Bridge/Bridge floor.prefab	Bridge floor	Japanese Castle	prefab	2	0.07	2	-0.07	1	8	1	URP	-
 Assets/Japanese Castle/Prefabs/Exterior/Bridge/Bridge handrail.prefab	Bridge handrail	Japanese Castle	prefab	2	0.93	0.32	0.04	1	64	1	URP	-
 Assets/Japanese Castle/Prefabs/Exterior/Bridge/Bridge Ornament.prefab	Bridge Ornament	Japanese Castle	prefab	0.46	0.07	0.13	-0.08	1	466	1	URP	-
@@ -693,7 +907,7 @@ Assets/Japanese Castle/Prefabs/Exterior/Bridge/Bridge post C.prefab	Bridge post 
 Assets/Japanese Castle/Prefabs/Exterior/Bridge/Bridge post.prefab	Bridge post	Japanese Castle	prefab	0.42	1.89	0.42	-0.02	1	874	1	URP	-
 Assets/Japanese Castle/Prefabs/Exterior/Bridge/Bridge side R x 8.prefab	Bridge side R x 8	Japanese Castle	prefab	8	1.46	2.37	-0.47	1	2810	1	URP	-
 Assets/Japanese Castle/Prefabs/Exterior/Bridge/Bridge side R.prefab	Bridge side R	Japanese Castle	prefab	2	1.46	2.37	-0.47	1	714	1	URP	-
-Assets/Japanese Castle/Prefabs/Exterior/Bridge/Bridge side x 8.prefab	Bridge side x 8	Japanese Castle	prefab	8	1.46	2.37	-0.47	1	2810	1	URP	S
+Assets/Japanese Castle/Prefabs/Exterior/Bridge/Bridge side x 8.prefab	Bridge side x 8	Japanese Castle	prefab	8	1.46	2.37	-0.47	1	2810	1	URP	-
 Assets/Japanese Castle/Prefabs/Exterior/Bridge/Bridge side.prefab	Bridge side	Japanese Castle	prefab	2	1.46	2.37	-0.47	1	714	1	URP	-
 Assets/Japanese Castle/Prefabs/Exterior/Bridge/Bridge start floor .prefab	Bridge start floor 	Japanese Castle	prefab	4	1.07	2	-0.07	1	32	1	URP	-
 Assets/Japanese Castle/Prefabs/Exterior/Bridge/Bridge start floor B x 8.prefab	Bridge start floor B x 8	Japanese Castle	prefab	8	1.83	2	-0.83	1	64	1	URP	-
@@ -743,11 +957,11 @@ Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Castle Wall C Corner x 8.p
 Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Castle Wall C Cornerx 12.prefab	Castle Wall C Cornerx 12	Japanese Castle	prefab	7.62	12	7.62	0	1	146	1	URP	-
 Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Castle Wall Corner 2 x 8.prefab	Castle Wall Corner 2 x 8	Japanese Castle	prefab	5	12	5	0	1	136	1	URP	-
 Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Castle Wall Corner 2.prefab	Castle Wall Corner 2	Japanese Castle	prefab	3	4	3	0	1	114	1	URP	-
-Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Castle Wall Corner 2_2x2.prefab	Castle Wall Corner 2_2x2	Japanese Castle	prefab	2	4	2	0	1	82	1	URP	S
+Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Castle Wall Corner 2_2x2.prefab	Castle Wall Corner 2_2x2	Japanese Castle	prefab	2	4	2	0	1	82	1	URP	-
 Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Castle Wall Corner x 12.prefab	Castle Wall Corner x 12	Japanese Castle	prefab	4.4	12	4.4	0	1	146	1	URP	-
-Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Castle Wall Corner.prefab	Castle Wall Corner	Japanese Castle	prefab	2.4	4	2.4	0	1	64	1	URP	SB
+Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Castle Wall Corner.prefab	Castle Wall Corner	Japanese Castle	prefab	2.4	4	2.4	0	1	64	1	URP	B
 Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Castle Wall x 8.prefab	Castle Wall x 8	Japanese Castle	prefab	2.4	4	8	0	1	80	1	URP	-
-Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Castle Wall.prefab	Castle Wall	Japanese Castle	prefab	2.4	4	2	0	1	66	1	URP	SB
+Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Castle Wall.prefab	Castle Wall	Japanese Castle	prefab	2.4	4	2	0	1	66	1	URP	B
 Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Wall Exterior Defence 45 Tall.prefab	Wall Exterior Defence 45 Tall	Japanese Castle	prefab	3.36	4.27	3.36	0	1	1548	1	URP	-
 Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Wall Exterior Defence 45.prefab	Wall Exterior Defence 45	Japanese Castle	prefab	3.36	2.57	3.36	0	1	1548	1	URP	-
 Assets/Japanese Castle/Prefabs/Exterior/Defence Walls/Wall Exterior Defence Corner 45 Tall.prefab	Wall Exterior Defence Corner 45 Tall	Japanese Castle	prefab	4.26	4.27	3.33	0	1	2441	1	URP	-
@@ -770,8 +984,8 @@ Assets/Japanese Castle/Prefabs/Exterior/Gate Yagura/Gate Yagura Colunm A x4.pref
 Assets/Japanese Castle/Prefabs/Exterior/Gate Yagura/Gate Yagura Colunm B x4.prefab	Gate Yagura Colunm B x4	Japanese Castle	prefab	0.5	4	0.5	0	1	8	1	URP	-
 Assets/Japanese Castle/Prefabs/Exterior/Gate Yagura/Gate Yagura Colunm Base.prefab	Gate Yagura Colunm Base	Japanese Castle	prefab	1.69	0.09	1.69	0	1	18	1	URP	-
 Assets/Japanese Castle/Prefabs/Exterior/Gate Yagura/Gate Yagura Colunm C x4.prefab	Gate Yagura Colunm C x4	Japanese Castle	prefab	0.54	4	0.54	0	1	96	1	URP	-
-Assets/Japanese Castle/Prefabs/Exterior/Gate Yagura/Gate Yagura Door A Left Hinge.prefab	Gate Yagura Door A Left Hinge	Japanese Castle	prefab	2.14	3	0.31	0	1	940	2	URP	-
-Assets/Japanese Castle/Prefabs/Exterior/Gate Yagura/Gate Yagura Door A Right Hinge.prefab	Gate Yagura Door A Right Hinge	Japanese Castle	prefab	2.14	3	0.31	0	1	940	2	URP	-
+Assets/Japanese Castle/Prefabs/Exterior/Gate Yagura/Gate Yagura Door A Left Hinge.prefab	Gate Yagura Door A Left Hinge	Japanese Castle	prefab	2.14	3	0.31	0	1	940	2	URP	B
+Assets/Japanese Castle/Prefabs/Exterior/Gate Yagura/Gate Yagura Door A Right Hinge.prefab	Gate Yagura Door A Right Hinge	Japanese Castle	prefab	2.14	3	0.31	0	1	940	2	URP	B
 Assets/Japanese Castle/Prefabs/Exterior/Gate Yagura/Gate Yagura Eave A End L.prefab	Gate Yagura Eave A End L	Japanese Castle	prefab	0.37	0.68	1.13	-0.34	1	68	1	URP	-
 Assets/Japanese Castle/Prefabs/Exterior/Gate Yagura/Gate Yagura Eave A End R.prefab	Gate Yagura Eave A End R	Japanese Castle	prefab	0.37	0.68	1.13	-0.34	1	68	1	URP	-
 Assets/Japanese Castle/Prefabs/Exterior/Gate Yagura/Gate Yagura Eave A x2.prefab	Gate Yagura Eave A x2	Japanese Castle	prefab	2	0.68	1.11	-0.34	1	154	1	URP	-
@@ -939,9 +1153,9 @@ Assets/Japanese Castle/Prefabs/Exterior/Walls/Wall Exterior E Corner.prefab	Wall
 Assets/Japanese Castle/Prefabs/Exterior/Walls/Wall Exterior E Window.prefab	Wall Exterior E Window	Japanese Castle	prefab	2	3	0.25	0	1	370	1	URP	-
 Assets/Japanese Castle/Prefabs/Exterior/Walls/Wall Exterior E x 8.prefab	Wall Exterior E x 8	Japanese Castle	prefab	8	3	0.1	0	1	104	1	URP	-
 Assets/Japanese Castle/Prefabs/Exterior/Walls/Wall Exterior E.prefab	Wall Exterior E	Japanese Castle	prefab	2	3	0.1	0	1	48	1	URP	-
-Assets/Japanese Castle/Prefabs/Foliage/Azalea A 01.prefab	Azalea A 01	Japanese Castle	prefab	1.99	1.19	1.92	-0.03	1	445	1	URP	SB
-Assets/Japanese Castle/Prefabs/Foliage/Azalea A 03.prefab	Azalea A 03	Japanese Castle	prefab	2.32	2.58	2.2	0	1	1258	1	URP	SB
-Assets/Japanese Castle/Prefabs/Foliage/Azalea A 04.prefab	Azalea A 04	Japanese Castle	prefab	2.81	1.45	2.87	-0.05	1	1104	1	URP	SB
+Assets/Japanese Castle/Prefabs/Foliage/Azalea A 01.prefab	Azalea A 01	Japanese Castle	prefab	1.99	1.19	1.92	-0.03	1	445	1	URP	B
+Assets/Japanese Castle/Prefabs/Foliage/Azalea A 03.prefab	Azalea A 03	Japanese Castle	prefab	2.32	2.58	2.2	0	1	1258	1	URP	B
+Assets/Japanese Castle/Prefabs/Foliage/Azalea A 04.prefab	Azalea A 04	Japanese Castle	prefab	2.81	1.45	2.87	-0.05	1	1104	1	URP	B
 Assets/Japanese Castle/Prefabs/Interior/Bean A x 1.prefab	Bean A x 1	Japanese Castle	prefab	2	0.35	0.67	-0.5	1	28	1	URP	-
 Assets/Japanese Castle/Prefabs/Interior/Bean A x 8.prefab	Bean A x 8	Japanese Castle	prefab	8	0.35	0.67	-0.5	1	28	1	URP	-
 Assets/Japanese Castle/Prefabs/Interior/Bean A.prefab	Bean A	Japanese Castle	prefab	4	0.35	0.67	-0.5	1	14	1	URP	-
@@ -1063,7 +1277,7 @@ Assets/Japanese Castle/Prefabs/Props/Kimono Stand B.prefab	Kimono Stand B	Japane
 Assets/Japanese Castle/Prefabs/Props/Kimono stand.prefab	Kimono stand	Japanese Castle	prefab	0.41	2.03	2.37	0	1	1520	2	URP	-
 Assets/Japanese Castle/Prefabs/Props/Stand 10 Sword.prefab	Stand 10 Sword	Japanese Castle	prefab	0.91	2.22	0.58	0	1	1044	1	URP	-
 Assets/Japanese Castle/Prefabs/Props/Stand 5 Sword.prefab	Stand 5 Sword	Japanese Castle	prefab	0.63	1.49	0.58	0	1	624	1	URP	-
-Assets/Japanese Castle/Prefabs/Props/Stone Basket.prefab	Stone Basket	Japanese Castle	prefab	0.77	1	0.72	-0.12	1	1724	9	URP	SB
+Assets/Japanese Castle/Prefabs/Props/Stone Basket.prefab	Stone Basket	Japanese Castle	prefab	0.77	1	0.72	-0.12	1	1724	9	URP	B
 Assets/Japanese Castle/Prefabs/Small Tower B.prefab	Small Tower B	Japanese Castle	prefab	18.8	30.31	20.8	-12	1	81510	275	URP	-
 Assets/Japanese Castle/Prefabs/Small Tower.prefab	Small Tower	Japanese Castle	prefab	21.57	23.31	19.18	0	1	86586	630	URP	-
 Assets/Japanese Castle/Prefabs/Small Yagura end.prefab	Small Yagura end	Japanese Castle	prefab	14.8	20.68	11.4	-14	1	19262	106	URP	-
@@ -1076,7 +1290,7 @@ Assets/Japanese Castle/Prefabs/Yagura B End.prefab	Yagura B End	Japanese Castle	
 Assets/Japanese Castle/Prefabs/Yagura B Tower.prefab	Yagura B Tower	Japanese Castle	prefab	25.56	31.31	22.8	-18	1	95316	562	URP	-
 Assets/Japanese Castle/Prefabs/Yagura B.prefab	Yagura B	Japanese Castle	prefab	16	23.73	22.8	-8	1	21618	148	URP	-
 Assets/Japanese Castle/Prefabs/Yagura.prefab	Yagura	Japanese Castle	prefab	29.15	12.79	17.18	0	1	77492	521	URP	-
-Assets/Japanese Castle/Prefabs/Yaguramon A.prefab	Yaguramon A	Japanese Castle	prefab	21.15	11.3	11.15	-0.22	1	39182	165	URP	SB
+Assets/Japanese Castle/Prefabs/Yaguramon A.prefab	Yaguramon A	Japanese Castle	prefab	21.15	11.3	11.15	-0.22	1	39182	165	URP	B
 Assets/Japanese Village Kit/Meshes/Balcony/balcony A x 1.fbx	balcony A x 1	Japanese Village Kit	fbx	1	1.2	0.98	0.4	1	94	2	URP	-
 Assets/Japanese Village Kit/Meshes/Balcony/balcony A x 8.fbx	balcony A x 8	Japanese Village Kit	fbx	8	1.2	0.98	0.4	1	620	2	URP	-
 Assets/Japanese Village Kit/Meshes/Balcony/balcony A.fbx	balcony A	Japanese Village Kit	fbx	2	1.2	0.98	0.4	1	158	2	URP	-
@@ -1103,12 +1317,12 @@ Assets/Japanese Village Kit/Meshes/Fences/Bamboo garden fence.fbx	Bamboo garden 
 Assets/Japanese Village Kit/Meshes/Fences/fence A corner.fbx	fence A corner	Japanese Village Kit	fbx	2.23	3.3	2.23	0	1	310	1	URP	-
 Assets/Japanese Village Kit/Meshes/Fences/fence A end.fbx	fence A end	Japanese Village Kit	fbx	0.46	3.3	2.5	0	1	122	1	URP	-
 Assets/Japanese Village Kit/Meshes/Fences/fence A x 1.fbx	fence A x 1	Japanese Village Kit	fbx	0.46	3.3	1	0	1	98	1	URP	-
-Assets/Japanese Village Kit/Meshes/Fences/fence A x 8.fbx	fence A x 8	Japanese Village Kit	fbx	0.46	3.3	8	0	1	344	1	URP	S
+Assets/Japanese Village Kit/Meshes/Fences/fence A x 8.fbx	fence A x 8	Japanese Village Kit	fbx	0.46	3.3	8	0	1	344	1	URP	-
 Assets/Japanese Village Kit/Meshes/Fences/fence A.fbx	fence A	Japanese Village Kit	fbx	0.46	3.3	2	0	1	98	1	URP	-
 Assets/Japanese Village Kit/Meshes/Fences/fence B corner.fbx	fence B corner	Japanese Village Kit	fbx	2.23	3.3	2.23	0	1	174	1	URP	-
 Assets/Japanese Village Kit/Meshes/Fences/fence B end.fbx	fence B end	Japanese Village Kit	fbx	0.46	3.3	2.5	0	1	190	1	URP	-
 Assets/Japanese Village Kit/Meshes/Fences/fence B x 1.fbx	fence B x 1	Japanese Village Kit	fbx	0.46	3.3	1	0	1	126	1	URP	-
-Assets/Japanese Village Kit/Meshes/Fences/fence B x 8.fbx	fence B x 8	Japanese Village Kit	fbx	0.46	3.3	8	0	1	616	1	URP	S
+Assets/Japanese Village Kit/Meshes/Fences/fence B x 8.fbx	fence B x 8	Japanese Village Kit	fbx	0.46	3.3	8	0	1	616	1	URP	-
 Assets/Japanese Village Kit/Meshes/Fences/fence B.fbx	fence B	Japanese Village Kit	fbx	0.46	3.3	2	0	1	166	1	URP	-
 Assets/Japanese Village Kit/Meshes/Fences/Fence_B_01_Cor_x1.fbx	Fence_B_01_Cor_x1	Japanese Village Kit	fbx	1.27	1.98	1.27	0	1	298	2	URP	-
 Assets/Japanese Village Kit/Meshes/Fences/Fence_B_01_Cor_x2.fbx	Fence_B_01_Cor_x2	Japanese Village Kit	fbx	2.27	1.98	2.27	0	1	430	2	URP	-
@@ -1116,7 +1330,7 @@ Assets/Japanese Village Kit/Meshes/Fences/Fence_B_01_End.fbx	Fence_B_01_End	Japa
 Assets/Japanese Village Kit/Meshes/Fences/Fence_B_01_Gate.fbx	Fence_B_01_Gate	Japanese Village Kit	fbx	2.55	2.33	0.54	0	1	440	2	URP	-
 Assets/Japanese Village Kit/Meshes/Fences/Fence_B_01_x1.fbx	Fence_B_01_x1	Japanese Village Kit	fbx	1	1.98	0.54	0	1	116	2	URP	-
 Assets/Japanese Village Kit/Meshes/Fences/Fence_B_01_x2.fbx	Fence_B_01_x2	Japanese Village Kit	fbx	2	1.98	0.54	0	1	192	2	URP	-
-Assets/Japanese Village Kit/Meshes/Fences/Fence_B_01_x8.fbx	Fence_B_01_x8	Japanese Village Kit	fbx	8	1.98	0.54	0	1	696	2	URP	S
+Assets/Japanese Village Kit/Meshes/Fences/Fence_B_01_x8.fbx	Fence_B_01_x8	Japanese Village Kit	fbx	8	1.98	0.54	0	1	696	2	URP	-
 Assets/Japanese Village Kit/Meshes/Fences/gate door L.fbx	gate door L	Japanese Village Kit	fbx	0.08	3	1.58	0.1	1	68	1	URP	-
 Assets/Japanese Village Kit/Meshes/Fences/gate door R.fbx	gate door R	Japanese Village Kit	fbx	0.08	3	1.58	0.1	1	68	1	URP	-
 Assets/Japanese Village Kit/Meshes/Fences/gate.fbx	gate	Japanese Village Kit	fbx	1.7	5.14	7.43	0	1	372	3	URP	-
@@ -1149,7 +1363,7 @@ Assets/Japanese Village Kit/Meshes/Props/bamboo tray.fbx	bamboo tray	Japanese Vi
 Assets/Japanese Village Kit/Meshes/Props/bamboo weave A.fbx	bamboo weave A	Japanese Village Kit	fbx	0.18	1.96	0.85	0	1	42	1	URP	-
 Assets/Japanese Village Kit/Meshes/Props/bamboo weave B.fbx	bamboo weave B	Japanese Village Kit	fbx	1.94	0.12	1.28	0.96	1	100	1	URP	-
 Assets/Japanese Village Kit/Meshes/Props/bamboo weave C.fbx	bamboo weave C	Japanese Village Kit	fbx	0	1.96	1.28	0	1	30	1	URP	-
-Assets/Japanese Village Kit/Meshes/Props/bucket A.fbx	bucket A	Japanese Village Kit	fbx	0.61	0.48	0.65	-0.01	1	716	1	URP	S
+Assets/Japanese Village Kit/Meshes/Props/bucket A.fbx	bucket A	Japanese Village Kit	fbx	0.61	0.48	0.65	-0.01	1	716	1	URP	-
 Assets/Japanese Village Kit/Meshes/Props/bucket B.fbx	bucket B	Japanese Village Kit	fbx	0.61	0.7	0.61	0	1	796	1	URP	-
 Assets/Japanese Village Kit/Meshes/Props/Cart_A_01.fbx	Cart_A_01	Japanese Village Kit	fbx	3.43	0.33	1.2	-0.08	1	1092	1	URP	-
 Assets/Japanese Village Kit/Meshes/Props/Cart_A_Rope_01.fbx	Cart_A_Rope_01	Japanese Village Kit	fbx	1.28	1.27	0.4	0.03	1	2262	1	URP	-
@@ -1181,7 +1395,7 @@ Assets/Japanese Village Kit/Meshes/Props/Kuniyakimono_A_04.fbx	Kuniyakimono_A_04
 Assets/Japanese Village Kit/Meshes/Props/Noren A.fbx	Noren A	Japanese Village Kit	fbx	2.99	2.39	0.16	-0.37	1	1160	1	URP	-
 Assets/Japanese Village Kit/Meshes/Props/Noren B.fbx	Noren B	Japanese Village Kit	fbx	2	0.49	0.02	1.54	1	1134	1	URP	-
 Assets/Japanese Village Kit/Meshes/Props/Noren C.fbx	Noren C	Japanese Village Kit	fbx	1.96	0.47	0.02	1.54	1	528	1	URP	-
-Assets/Japanese Village Kit/Meshes/Props/RiceBarrel_01.fbx	RiceBarrel_01	Japanese Village Kit	fbx	0.43	0.43	0.74	-0.21	1	164	1	URP	S
+Assets/Japanese Village Kit/Meshes/Props/RiceBarrel_01.fbx	RiceBarrel_01	Japanese Village Kit	fbx	0.43	0.43	0.74	-0.21	1	164	1	URP	-
 Assets/Japanese Village Kit/Meshes/Props/Tray_A_01.fbx	Tray_A_01	Japanese Village Kit	fbx	0.4	0.03	0.15	0	1	108	1	URP	-
 Assets/Japanese Village Kit/Meshes/Roof B/roof B 2 x 16.fbx	roof B 2 x 16	Japanese Village Kit	fbx	2.02	1.34	16	-1.21	1	64	1	URP	-
 Assets/Japanese Village Kit/Meshes/Roof B/roof B 2 x 2.fbx	roof B 2 x 2	Japanese Village Kit	fbx	2.02	1.34	2	-0.21	1	10	1	URP	-
@@ -1523,8 +1737,8 @@ Assets/Japanese Village Kit/Prefabs/Balcony/balcony D.prefab	balcony D	Japanese 
 Assets/Japanese Village Kit/Prefabs/Balcony/balcoony A 2.prefab	balcoony A 2	Japanese Village Kit	prefab	2	1.2	0.98	0.4	1	154	2	URP	-
 Assets/Japanese Village Kit/Prefabs/Balcony/balcoony A corner L.prefab	balcoony A corner L	Japanese Village Kit	prefab	1	1.2	0.98	0.4	1	132	2	URP	-
 Assets/Japanese Village Kit/Prefabs/Balcony/balcoony A corner R.prefab	balcoony A corner R	Japanese Village Kit	prefab	1	1.2	0.98	0.4	1	132	2	URP	-
-Assets/Japanese Village Kit/Prefabs/Big House.prefab	Big House	Japanese Village Kit	prefab	28.49	11.31	26.49	-1	1	65500	575	URP	SB
-Assets/Japanese Village Kit/Prefabs/Fences/bamboo garden fence B.prefab	bamboo garden fence B	Japanese Village Kit	prefab	0.05	0.9	1.05	0	1	524	2	URP	-
+Assets/Japanese Village Kit/Prefabs/Big House.prefab	Big House	Japanese Village Kit	prefab	28.49	11.31	26.49	-1	1	65500	575	URP	B
+Assets/Japanese Village Kit/Prefabs/Fences/bamboo garden fence B.prefab	bamboo garden fence B	Japanese Village Kit	prefab	0.05	0.9	1.05	0	1	524	2	URP	B
 Assets/Japanese Village Kit/Prefabs/Fences/Bamboo garden fence.prefab	Bamboo garden fence	Japanese Village Kit	prefab	0.05	0.9	1.05	0	1	292	2	URP	-
 Assets/Japanese Village Kit/Prefabs/Fences/fence A corner.prefab	fence A corner	Japanese Village Kit	prefab	2.23	3.3	2.23	0	1	310	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Fences/fence A end.prefab	fence A end	Japanese Village Kit	prefab	0.46	3.3	2.5	0	1	122	1	URP	-
@@ -1563,24 +1777,24 @@ Assets/Japanese Village Kit/Prefabs/Foundations/Foundation_A_03_x1_CornerA.prefa
 Assets/Japanese Village Kit/Prefabs/Foundations/Foundation_A_03_x2.prefab	Foundation_A_03_x2	Japanese Village Kit	prefab	2	2.42	0.78	-2	1	192	2	URP	-
 Assets/Japanese Village Kit/Prefabs/Foundations/Foundation_A_03_x2_CornerA.prefab	Foundation_A_03_x2_CornerA	Japanese Village Kit	prefab	2.38	2.42	2.38	-2	1	380	2	URP	-
 Assets/Japanese Village Kit/Prefabs/Foundations/Foundation_A_03_X8.prefab	Foundation_A_03_X8	Japanese Village Kit	prefab	8	2.42	0.78	-2	1	642	2	URP	-
-Assets/Japanese Village Kit/Prefabs/House A.prefab	House A	Japanese Village Kit	prefab	14.49	11.31	14.49	-1	1	34381	257	URP	SB
-Assets/Japanese Village Kit/Prefabs/House B.prefab	House B	Japanese Village Kit	prefab	8.84	9.31	18.33	-1	1	21464	195	URP	SB
-Assets/Japanese Village Kit/Prefabs/House.prefab	House	Japanese Village Kit	prefab	20.49	7.31	16.49	-1	1	37539	287	URP	SB
-Assets/Japanese Village Kit/Prefabs/Manor.prefab	Manor	Japanese Village Kit	prefab	38.49	15.31	62.49	-1	1	245458	2573	URP	SB
+Assets/Japanese Village Kit/Prefabs/House A.prefab	House A	Japanese Village Kit	prefab	14.49	11.31	14.49	-1	1	34381	257	URP	B
+Assets/Japanese Village Kit/Prefabs/House B.prefab	House B	Japanese Village Kit	prefab	8.84	9.31	18.33	-1	1	21464	195	URP	B
+Assets/Japanese Village Kit/Prefabs/House.prefab	House	Japanese Village Kit	prefab	20.49	7.31	16.49	-1	1	37539	287	URP	B
+Assets/Japanese Village Kit/Prefabs/Manor.prefab	Manor	Japanese Village Kit	prefab	38.49	15.31	62.49	-1	1	245458	2573	URP	B
 Assets/Japanese Village Kit/Prefabs/Props/bamboo B.prefab	bamboo B	Japanese Village Kit	prefab	0.03	2	0.03	0	1	78	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Props/bamboo C.prefab	bamboo C	Japanese Village Kit	prefab	0.06	2	0.06	0	1	78	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Props/bamboo D.prefab	bamboo D	Japanese Village Kit	prefab	0.57	2	0.55	0	1	390	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Props/bamboo E.prefab	bamboo E	Japanese Village Kit	prefab	0.57	2	0.74	0	1	858	1	URP	-
-Assets/Japanese Village Kit/Prefabs/Props/bamboo stand.prefab	bamboo stand	Japanese Village Kit	prefab	0.81	1.92	2	-0.01	1	1326	1	URP	S
+Assets/Japanese Village Kit/Prefabs/Props/bamboo stand.prefab	bamboo stand	Japanese Village Kit	prefab	0.81	1.92	2	-0.01	1	1326	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Props/bamboo tray B.prefab	bamboo tray B	Japanese Village Kit	prefab	0.44	0.81	0.44	-0.81	1	351	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Props/bamboo tray.prefab	bamboo tray	Japanese Village Kit	prefab	0.5	0.04	0.5	0	1	188	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Props/bamboo weave A.prefab	bamboo weave A	Japanese Village Kit	prefab	0.18	1.96	0.85	0	1	42	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Props/bamboo weave B.prefab	bamboo weave B	Japanese Village Kit	prefab	1.94	0.12	1.28	-0.07	1	100	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Props/bamboo weave C.prefab	bamboo weave C	Japanese Village Kit	prefab	0	1.96	1.28	0	1	30	1	URP	-
-Assets/Japanese Village Kit/Prefabs/Props/bucket A.prefab	bucket A	Japanese Village Kit	prefab	0.61	0.48	0.65	-0.01	1	716	1	URP	S
-Assets/Japanese Village Kit/Prefabs/Props/bucket B.prefab	bucket B	Japanese Village Kit	prefab	0.61	0.7	0.61	0	1	796	1	URP	S
-Assets/Japanese Village Kit/Prefabs/Props/Cart_A_01.prefab	Cart_A_01	Japanese Village Kit	prefab	3.43	1.21	1.71	-0.61	1	5280	3	URP	S
-Assets/Japanese Village Kit/Prefabs/Props/Cart_A_02.prefab	Cart_A_02	Japanese Village Kit	prefab	3.43	1.97	1.71	-0.61	1	8526	10	URP	S
+Assets/Japanese Village Kit/Prefabs/Props/bucket A.prefab	bucket A	Japanese Village Kit	prefab	0.61	0.48	0.65	-0.01	1	716	1	URP	-
+Assets/Japanese Village Kit/Prefabs/Props/bucket B.prefab	bucket B	Japanese Village Kit	prefab	0.61	0.7	0.61	0	1	796	1	URP	-
+Assets/Japanese Village Kit/Prefabs/Props/Cart_A_01.prefab	Cart_A_01	Japanese Village Kit	prefab	3.43	1.21	1.71	-0.61	1	5280	3	URP	-
+Assets/Japanese Village Kit/Prefabs/Props/Cart_A_02.prefab	Cart_A_02	Japanese Village Kit	prefab	3.43	1.97	1.71	-0.61	1	8526	10	URP	-
 Assets/Japanese Village Kit/Prefabs/Props/Cart_A_Wheel_L_01.prefab	Cart_A_Wheel_L_01	Japanese Village Kit	prefab	1.21	1.21	0.3	-0.61	1	2094	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Props/Cart_A_Wheel_R_01.prefab	Cart_A_Wheel_R_01	Japanese Village Kit	prefab	1.21	1.21	0.3	-0.61	1	2094	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Props/Chabudai_A_01.prefab	Chabudai_A_01	Japanese Village Kit	prefab	1.01	0.4	1.61	0	1	940	1	URP	-
@@ -1599,7 +1813,7 @@ Assets/Japanese Village Kit/Prefabs/Props/Kuniyakimono_A_01.prefab	Kuniyakimono_
 Assets/Japanese Village Kit/Prefabs/Props/Kuniyakimono_A_02.prefab	Kuniyakimono_A_02	Japanese Village Kit	prefab	0.1	0.04	0.1	0	1	1792	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Props/Kuniyakimono_A_03.prefab	Kuniyakimono_A_03	Japanese Village Kit	prefab	0.13	0.05	0.13	0	1	3328	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Props/Kuniyakimono_A_04.prefab	Kuniyakimono_A_04	Japanese Village Kit	prefab	0.11	0.06	0.11	0	1	2816	1	URP	-
-Assets/Japanese Village Kit/Prefabs/Props/RiceBarrel_01.prefab	RiceBarrel_01	Japanese Village Kit	prefab	0.43	0.43	0.74	-0.21	1	164	1	URP	S
+Assets/Japanese Village Kit/Prefabs/Props/RiceBarrel_01.prefab	RiceBarrel_01	Japanese Village Kit	prefab	0.43	0.43	0.74	-0.21	1	164	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Props/Tray_A_01.prefab	Tray_A_01	Japanese Village Kit	prefab	0.4	0.03	0.15	0	1	108	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Roofs B/roof B 2 x 16.prefab	roof B 2 x 16	Japanese Village Kit	prefab	2.02	1.34	16	-1.21	1	64	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Roofs B/roof B 2 x 2.prefab	roof B 2 x 2	Japanese Village Kit	prefab	2.02	1.34	2	-1.21	1	10	1	URP	-
@@ -1667,7 +1881,7 @@ Assets/Japanese Village Kit/Prefabs/Roofs B/Roof B Wood 2.prefab	Roof B Wood 2	J
 Assets/Japanese Village Kit/Prefabs/Roofs B/roof B.prefab	roof B	Japanese Village Kit	prefab	4.02	2.34	4	-2.21	1	16	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Roofs/roof 2x2.prefab	roof 2x2	Japanese Village Kit	prefab	2.09	1.14	2	-1.06	1	164	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Roofs/roof 2x4.prefab	roof 2x4	Japanese Village Kit	prefab	4.12	2.14	2	-0.06	1	212	1	URP	-
-Assets/Japanese Village Kit/Prefabs/Roofs/roof 2x8.prefab	roof 2x8	Japanese Village Kit	prefab	2.09	1.14	8	-1.06	1	650	1	URP	SB
+Assets/Japanese Village Kit/Prefabs/Roofs/roof 2x8.prefab	roof 2x8	Japanese Village Kit	prefab	2.09	1.14	8	-1.06	1	650	1	URP	B
 Assets/Japanese Village Kit/Prefabs/Roofs/roof 4x16.prefab	roof 4x16	Japanese Village Kit	prefab	4.12	2.14	16	-2.06	1	1342	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Roofs/roof 4x2.prefab	roof 4x2	Japanese Village Kit	prefab	2.09	1.14	4	-1.06	1	326	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Roofs/roof corner A 2x2.prefab	roof corner A 2x2	Japanese Village Kit	prefab	2.26	1.41	2.26	-1.2	1	231	1	URP	-
@@ -1800,7 +2014,7 @@ Assets/Japanese Village Kit/Prefabs/Shopping Streets/Wall Shop Wood x 8.prefab	W
 Assets/Japanese Village Kit/Prefabs/Shopping Streets/Wall Shop Wood.prefab	Wall Shop Wood	Japanese Village Kit	prefab	2	3	0.18	0	1	28	2	URP	-
 Assets/Japanese Village Kit/Prefabs/Shopping Streets/Wall Shop x 8.prefab	Wall Shop x 8	Japanese Village Kit	prefab	8	3	0.18	0	1	660	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Shopping Streets/Wall Shop.prefab	Wall Shop	Japanese Village Kit	prefab	2	3	0.18	0	1	168	1	URP	-
-Assets/Japanese Village Kit/Prefabs/Small House.prefab	Small House	Japanese Village Kit	prefab	14.49	7.31	10.49	-1	1	21916	157	URP	SB
+Assets/Japanese Village Kit/Prefabs/Small House.prefab	Small House	Japanese Village Kit	prefab	14.49	7.31	10.49	-1	1	21916	157	URP	B
 Assets/Japanese Village Kit/Prefabs/Village.prefab	Village	Japanese Village Kit	prefab	126.05	12.56	114.37	-1.27	1	665252	3741	URP	-
 Assets/Japanese Village Kit/Prefabs/Walls and floors/balcony rail B.prefab	balcony rail B	Japanese Village Kit	prefab	0.08	1.27	1	-0.03	1	62	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Walls and floors/balcony rail x 4.prefab	balcony rail x 4	Japanese Village Kit	prefab	0.08	1.27	4	-0.03	1	120	1	URP	-
@@ -1813,7 +2027,7 @@ Assets/Japanese Village Kit/Prefabs/Walls and floors/ceiling interior 1X1.prefab
 Assets/Japanese Village Kit/Prefabs/Walls and floors/ceiling interior 2X2.prefab	ceiling interior 2X2	Japanese Village Kit	prefab	2	0.08	2	-0.1	1	50	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Walls and floors/ceiling interior 4x4.prefab	ceiling interior 4x4	Japanese Village Kit	prefab	4	0.08	4	-0.1	1	80	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Walls and floors/ceiling.prefab	ceiling	Japanese Village Kit	prefab	4	0.1	4	-0.1	1	96	1	URP	-
-Assets/Japanese Village Kit/Prefabs/Walls and floors/column A .prefab	column A 	Japanese Village Kit	prefab	0.2	3	0.2	0	1	16	1	URP	SB
+Assets/Japanese Village Kit/Prefabs/Walls and floors/column A .prefab	column A 	Japanese Village Kit	prefab	0.2	3	0.2	0	1	16	1	URP	B
 Assets/Japanese Village Kit/Prefabs/Walls and floors/column A small.prefab	column A small	Japanese Village Kit	prefab	0.2	1	0.2	0	1	16	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Walls and floors/column A tall.prefab	column A tall	Japanese Village Kit	prefab	0.2	4	0.2	0	1	16	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Walls and floors/column B small.prefab	column B small	Japanese Village Kit	prefab	0.12	1	0.12	0	1	16	1	URP	-
@@ -1823,7 +2037,7 @@ Assets/Japanese Village Kit/Prefabs/Walls and floors/door wall A.prefab	door wal
 Assets/Japanese Village Kit/Prefabs/Walls and floors/door wall B.prefab	door wall B	Japanese Village Kit	prefab	0.05	3	2	0	1	188	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Walls and floors/door wall.prefab	door wall	Japanese Village Kit	prefab	0.05	3	1	0	1	164	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Walls and floors/floor interior 1x1.prefab	floor interior 1x1	Japanese Village Kit	prefab	1	0.03	1	-0.02	1	10	1	URP	-
-Assets/Japanese Village Kit/Prefabs/Walls and floors/floor interior 2x2.prefab	floor interior 2x2	Japanese Village Kit	prefab	2	0.03	2	-0.02	1	10	1	URP	SB
+Assets/Japanese Village Kit/Prefabs/Walls and floors/floor interior 2x2.prefab	floor interior 2x2	Japanese Village Kit	prefab	2	0.03	2	-0.02	1	10	1	URP	B
 Assets/Japanese Village Kit/Prefabs/Walls and floors/floor interior 4x4.prefab	floor interior 4x4	Japanese Village Kit	prefab	4	0.03	4	-0.02	1	10	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Walls and floors/floor.prefab	floor	Japanese Village Kit	prefab	1	0.07	1	-0.05	1	42	1	URP	-
 Assets/Japanese Village Kit/Prefabs/Walls and floors/irori.prefab	irori	Japanese Village Kit	prefab	2	0.85	2	-0.29	1	1244	8	URP	-
@@ -2200,30 +2414,30 @@ Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs 
 Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Flowers/prefab_flower_sunroot_01_cross_1.prefab	prefab_flower_sunroot_01_cross_1	NatureManufacture Assets	prefab	0.43	1.81	0.57	-0.09	1	31	1	URP	-
 Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Flowers/prefab_flower_sunroot_01_detailed_1.prefab	prefab_flower_sunroot_01_detailed_1	NatureManufacture Assets	prefab	0.56	1.67	0.72	-0.09	1	150	3	MIXED	-
 Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Flowers/prefab_flower_sunroot_01_detailed_2.prefab	prefab_flower_sunroot_01_detailed_2	NatureManufacture Assets	prefab	0.54	1.57	0.62	-0.09	1	140	2	URP	-
-Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_01_1.prefab	prefab_grass_meadow_01_1	NatureManufacture Assets	prefab	0.84	1.64	0	-0.03	1	18	2	URP	S
-Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_01_2.prefab	prefab_grass_meadow_01_2	NatureManufacture Assets	prefab	0	1.64	0.75	-0.06	1	17	2	URP	S
+Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_01_1.prefab	prefab_grass_meadow_01_1	NatureManufacture Assets	prefab	0.84	1.64	0	-0.03	1	18	2	URP	-
+Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_01_2.prefab	prefab_grass_meadow_01_2	NatureManufacture Assets	prefab	0	1.64	0.75	-0.06	1	17	2	URP	-
 Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_01_3.prefab	prefab_grass_meadow_01_3	NatureManufacture Assets	prefab	0.76	0.7	0	-0.08	1	15	2	URP	-
-Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_01_4.prefab	prefab_grass_meadow_01_4	NatureManufacture Assets	prefab	1	0.91	0	-0.09	1	16	2	URP	S
-Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_01_5.prefab	prefab_grass_meadow_01_5	NatureManufacture Assets	prefab	0.67	1.45	0	-0.06	1	19	2	URP	S
-Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_01_6.prefab	prefab_grass_meadow_01_6	NatureManufacture Assets	prefab	0.54	0.85	0	-0.07	1	16	2	URP	S
-Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_01_cross_1.prefab	prefab_grass_meadow_01_cross_1	NatureManufacture Assets	prefab	0.75	1.67	0.84	-0.06	1	35	2	URP	S
-Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_01_cross_2.prefab	prefab_grass_meadow_01_cross_2	NatureManufacture Assets	prefab	0.76	0.91	1	-0.09	1	31	2	URP	S
+Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_01_4.prefab	prefab_grass_meadow_01_4	NatureManufacture Assets	prefab	1	0.91	0	-0.09	1	16	2	URP	-
+Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_01_5.prefab	prefab_grass_meadow_01_5	NatureManufacture Assets	prefab	0.67	1.45	0	-0.06	1	19	2	URP	-
+Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_01_6.prefab	prefab_grass_meadow_01_6	NatureManufacture Assets	prefab	0.54	0.85	0	-0.07	1	16	2	URP	-
+Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_01_cross_1.prefab	prefab_grass_meadow_01_cross_1	NatureManufacture Assets	prefab	0.75	1.67	0.84	-0.06	1	35	2	URP	-
+Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_01_cross_2.prefab	prefab_grass_meadow_01_cross_2	NatureManufacture Assets	prefab	0.76	0.91	1	-0.09	1	31	2	URP	-
 Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_01_cross_3.prefab	prefab_grass_meadow_01_cross_3	NatureManufacture Assets	prefab	0.67	1.45	0.54	-0.07	1	35	2	URP	-
 Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_01_detailed_1.prefab	prefab_grass_meadow_01_detailed_1	NatureManufacture Assets	prefab	1	0.89	0.99	-0.09	1	202	2	URP	-
-Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_01_detailed_2.prefab	prefab_grass_meadow_01_detailed_2	NatureManufacture Assets	prefab	0.76	1.7	0.85	-0.07	1	267	2	URP	S
-Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_02_2.prefab	prefab_grass_meadow_02_2	NatureManufacture Assets	prefab	0.69	0.6	0	-0.03	1	17	2	URP	S
-Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_02_3.prefab	prefab_grass_meadow_02_3	NatureManufacture Assets	prefab	0.58	0.65	0	-0.02	1	18	2	URP	S
+Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_01_detailed_2.prefab	prefab_grass_meadow_01_detailed_2	NatureManufacture Assets	prefab	0.76	1.7	0.85	-0.07	1	267	2	URP	-
+Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_02_2.prefab	prefab_grass_meadow_02_2	NatureManufacture Assets	prefab	0.69	0.6	0	-0.03	1	17	2	URP	-
+Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_02_3.prefab	prefab_grass_meadow_02_3	NatureManufacture Assets	prefab	0.58	0.65	0	-0.02	1	18	2	URP	-
 Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_02_4.prefab	prefab_grass_meadow_02_4	NatureManufacture Assets	prefab	0.41	0.53	0	-0.05	1	12	2	URP	-
 Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_02_5.prefab	prefab_grass_meadow_02_5	NatureManufacture Assets	prefab	0.93	1.56	0	-0.12	1	19	2	URP	-
-Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_02_6.prefab	prefab_grass_meadow_02_6	NatureManufacture Assets	prefab	0.91	1.51	0	-0.08	1	19	2	URP	S
-Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_02_cross_1.prefab	prefab_grass_meadow_02_cross_1	NatureManufacture Assets	prefab	0.69	0.65	0.58	-0.03	1	35	2	URP	S
-Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_02_cross_2.prefab	prefab_grass_meadow_02_cross_2	NatureManufacture Assets	prefab	0.45	0.64	0.41	-0.06	1	24	2	URP	S
+Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_02_6.prefab	prefab_grass_meadow_02_6	NatureManufacture Assets	prefab	0.91	1.51	0	-0.08	1	19	2	URP	-
+Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_02_cross_1.prefab	prefab_grass_meadow_02_cross_1	NatureManufacture Assets	prefab	0.69	0.65	0.58	-0.03	1	35	2	URP	-
+Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_02_cross_2.prefab	prefab_grass_meadow_02_cross_2	NatureManufacture Assets	prefab	0.45	0.64	0.41	-0.06	1	24	2	URP	-
 Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_02_cross_3.prefab	prefab_grass_meadow_02_cross_3	NatureManufacture Assets	prefab	0.93	1.56	0.91	-0.12	1	38	2	URP	-
-Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_02_detailed_1.prefab	prefab_grass_meadow_02_detailed_1	NatureManufacture Assets	prefab	0.7	0.61	0.6	-0.07	1	153	2	URP	S
-Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_02_detailed_2.prefab	prefab_grass_meadow_02_detailed_2	NatureManufacture Assets	prefab	0.93	1.52	0.91	-0.12	1	236	2	URP	S
+Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_02_detailed_1.prefab	prefab_grass_meadow_02_detailed_1	NatureManufacture Assets	prefab	0.7	0.61	0.6	-0.07	1	153	2	URP	-
+Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_02_detailed_2.prefab	prefab_grass_meadow_02_detailed_2	NatureManufacture Assets	prefab	0.93	1.52	0.91	-0.12	1	236	2	URP	-
 Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_03_1.prefab	prefab_grass_meadow_03_1	NatureManufacture Assets	prefab	1.11	0.41	0.97	-0.01	1	97	2	URP	-
-Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_03_2.prefab	prefab_grass_meadow_03_2	NatureManufacture Assets	prefab	1.23	0.74	1.14	-0.01	1	112	2	URP	S
-Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_03_3.prefab	prefab_grass_meadow_03_3	NatureManufacture Assets	prefab	1.4	0.7	1.15	-0.01	1	87	2	URP	S
+Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_03_2.prefab	prefab_grass_meadow_03_2	NatureManufacture Assets	prefab	1.23	0.74	1.14	-0.01	1	112	2	URP	-
+Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_03_3.prefab	prefab_grass_meadow_03_3	NatureManufacture Assets	prefab	1.4	0.7	1.15	-0.01	1	87	2	URP	-
 Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Grass/prefab_grass_meadow_03_4.prefab	prefab_grass_meadow_03_4	NatureManufacture Assets	prefab	0.67	1.6	0.86	-0.1	1	60	2	URP	-
 Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Unity Terrain Flowers/prefab_Terrain_flower_bouncing_bet_01_1.prefab	prefab_Terrain_flower_bouncing_bet_01_1	NatureManufacture Assets	prefab	0.2	0.64	0	-0.04	1	6	1	URP	-
 Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Grass/Prefabs Unity Terrain Flowers/prefab_Terrain_flower_bouncing_bet_01_2.prefab	prefab_Terrain_flower_bouncing_bet_01_2	NatureManufacture Assets	prefab	0.2	0.59	0	-0.04	1	8	1	URP	-
@@ -2603,20 +2817,20 @@ Assets/Waldemarst/FreeJapaneseGarden/Models/Misc/Slopes/FJG_Slope_B_01_Lineal_Co
 Assets/Waldemarst/FreeJapaneseGarden/Models/Misc/Slopes/FJG_Slope_B_01_Lineal_LOD0.fbx	FJG_Slope_B_01_Lineal_LOD0	Waldemarst	fbx	1.95	0.62	0.95	-0.05	0.9,1,1	228	1	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Models/Misc/Slopes/FJG_Slope_B_01_Lineal_LOD1.fbx	FJG_Slope_B_01_Lineal_LOD1	Waldemarst	fbx	1.95	0.64	0.95	-0.06	0.9,1,1	109	1	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Models/Misc/Slopes/FJG_Slope_B_01_Lineal_LOD2.fbx	FJG_Slope_B_01_Lineal_LOD2	Waldemarst	fbx	1.95	0.64	0.94	-0.06	0.9,1,1	59	1	URP	-
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_Rock_A_01.prefab	JG_Rock_A_01	Waldemarst	prefab	0.74	0.87	0.67	-0.05	1	521	3	URP	SB
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_Rock_A_02.prefab	JG_Rock_A_02	Waldemarst	prefab	0.57	0.64	0.53	-0.04	1	807	3	URP	SB
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_Rock_A_03.prefab	JG_Rock_A_03	Waldemarst	prefab	0.83	0.4	0.66	-0.03	1	660	3	URP	SB
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_TobiIshi_A_01.prefab	JG_TobiIshi_A_01	Waldemarst	prefab	0.42	0.09	0.39	-0.01	1	226	3	URP	SB
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_TobiIshi_A_02.prefab	JG_TobiIshi_A_02	Waldemarst	prefab	0.43	0.09	0.41	-0.01	1	225	3	URP	S
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_Rock_A_01.prefab	JG_Rock_A_01	Waldemarst	prefab	0.74	0.87	0.67	-0.05	1	521	3	URP	B
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_Rock_A_02.prefab	JG_Rock_A_02	Waldemarst	prefab	0.57	0.64	0.53	-0.04	1	807	3	URP	B
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_Rock_A_03.prefab	JG_Rock_A_03	Waldemarst	prefab	0.83	0.4	0.66	-0.03	1	660	3	URP	B
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_TobiIshi_A_01.prefab	JG_TobiIshi_A_01	Waldemarst	prefab	0.42	0.09	0.39	-0.01	1	226	3	URP	B
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_TobiIshi_A_02.prefab	JG_TobiIshi_A_02	Waldemarst	prefab	0.43	0.09	0.41	-0.01	1	225	3	URP	B
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Slopes/JG_Slope_B_01_Concave.prefab	JG_Slope_B_01_Concave	Waldemarst	prefab	3.88	0.84	1.52	-0.09	1	394	3	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Slopes/JG_Slope_B_01_Convex.prefab	JG_Slope_B_01_Convex	Waldemarst	prefab	4.01	0.83	1.42	-0.06	1	396	3	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Slopes/JG_Slope_B_01_Lineal.prefab	JG_Slope_B_01_Lineal	Waldemarst	prefab	3.25	0.96	1.43	-0.09	1	396	3	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Plant_Boxwood_Fall_01.prefab	Plant_Boxwood_Fall_01	Waldemarst	prefab	0.96	0.91	1.07	-0.13	1	254	3	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Plant_Boxwood_Fall_02.prefab	Plant_Boxwood_Fall_02	Waldemarst	prefab	1.06	0.84	1.2	-0.11	1	282	3	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Plant_Boxwood_Fall_03.prefab	Plant_Boxwood_Fall_03	Waldemarst	prefab	1.03	0.91	1.2	-0.11	1	274	3	URP	-
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Plant_Boxwood_Spring_01.prefab	Plant_Boxwood_Spring_01	Waldemarst	prefab	0.96	0.91	1.07	-0.13	1	254	3	URP	SB
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Plant_Boxwood_Spring_02.prefab	Plant_Boxwood_Spring_02	Waldemarst	prefab	1.06	0.84	1.2	-0.11	1	282	3	URP	S
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Plant_Boxwood_Spring_03.prefab	Plant_Boxwood_Spring_03	Waldemarst	prefab	1.03	0.91	1.2	-0.11	1	274	3	URP	S
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Plant_Boxwood_Spring_01.prefab	Plant_Boxwood_Spring_01	Waldemarst	prefab	0.96	0.91	1.07	-0.13	1	254	3	URP	B
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Plant_Boxwood_Spring_02.prefab	Plant_Boxwood_Spring_02	Waldemarst	prefab	1.06	0.84	1.2	-0.11	1	282	3	URP	-
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Plant_Boxwood_Spring_03.prefab	Plant_Boxwood_Spring_03	Waldemarst	prefab	1.03	0.91	1.2	-0.11	1	274	3	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Single/Plant_Boxwood_Single_Fall_01.prefab	Plant_Boxwood_Single_Fall_01	Waldemarst	prefab	0.94	0.83	1.07	-0.09	1	122	1	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Single/Plant_Boxwood_Single_Fall_02.prefab	Plant_Boxwood_Single_Fall_02	Waldemarst	prefab	1.04	0.77	1.08	-0.07	1	141	1	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Single/Plant_Boxwood_Single_Fall_03.prefab	Plant_Boxwood_Single_Fall_03	Waldemarst	prefab	1.03	0.87	1.15	-0.11	1	129	1	URP	-
@@ -2625,20 +2839,20 @@ Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Single/Plant_Boxwood
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Single/Plant_Boxwood_Single_Spring_03.prefab	Plant_Boxwood_Single_Spring_03	Waldemarst	prefab	1.03	0.87	1.15	-0.11	1	129	1	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/PaintedFern/Plant_PaintedFern_Fall_01.prefab	Plant_PaintedFern_Fall_01	Waldemarst	prefab	1.28	0.61	1.04	-0.2	1	306	3	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/PaintedFern/Plant_PaintedFern_Fall_02.prefab	Plant_PaintedFern_Fall_02	Waldemarst	prefab	1.32	0.66	1.23	-0.2	1	285	3	URP	-
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/PaintedFern/Plant_PaintedFern_Spring_01.prefab	Plant_PaintedFern_Spring_01	Waldemarst	prefab	1.28	0.61	1.04	-0.2	1	306	3	URP	SB
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/PaintedFern/Plant_PaintedFern_Spring_02.prefab	Plant_PaintedFern_Spring_02	Waldemarst	prefab	1.32	0.66	1.23	-0.2	1	285	3	URP	S
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/PaintedFern/Plant_PaintedFern_Spring_01.prefab	Plant_PaintedFern_Spring_01	Waldemarst	prefab	1.28	0.61	1.04	-0.2	1	306	3	URP	B
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/PaintedFern/Plant_PaintedFern_Spring_02.prefab	Plant_PaintedFern_Spring_02	Waldemarst	prefab	1.32	0.66	1.23	-0.2	1	285	3	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/PaintedFern/Single/Plant_PaintedFern_Single_Fall_01.prefab	Plant_PaintedFern_Single_Fall_01	Waldemarst	prefab	1.28	0.61	1.04	-0.2	1	132	1	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/PaintedFern/Single/Plant_PaintedFern_Single_Fall_02.prefab	Plant_PaintedFern_Single_Fall_02	Waldemarst	prefab	1.32	0.66	1.23	-0.2	1	116	1	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/PaintedFern/Single/Plant_PaintedFern_Single_Spring_01.prefab	Plant_PaintedFern_Single_Spring_01	Waldemarst	prefab	1.28	0.61	1.04	-0.2	1	132	1	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/PaintedFern/Single/Plant_PaintedFern_Single_Spring_02.prefab	Plant_PaintedFern_Single_Spring_02	Waldemarst	prefab	1.32	0.66	1.23	-0.2	1	116	1	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Big_Dry_01.prefab	Tree_Bamboo_Big_Dry_01	Waldemarst	prefab	9.56	9.61	5.9	0	1	11467	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Big_Dry_02.prefab	Tree_Bamboo_Big_Dry_02	Waldemarst	prefab	9.03	9.06	6.7	0	1	15982	4	URP	-
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Big_Green_01.prefab	Tree_Bamboo_Big_Green_01	Waldemarst	prefab	9.56	9.61	5.9	0	1	11467	4	URP	SB
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Big_Green_02.prefab	Tree_Bamboo_Big_Green_02	Waldemarst	prefab	9.03	9.06	6.7	0	1	15982	4	URP	SB
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Big_Green_01.prefab	Tree_Bamboo_Big_Green_01	Waldemarst	prefab	9.56	9.61	5.9	0	1	11467	4	URP	B
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Big_Green_02.prefab	Tree_Bamboo_Big_Green_02	Waldemarst	prefab	9.03	9.06	6.7	0	1	15982	4	URP	B
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Mid_Dry_01.prefab	Tree_Bamboo_Mid_Dry_01	Waldemarst	prefab	6.29	6.32	3.26	0	1	7586	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Mid_Dry_02.prefab	Tree_Bamboo_Mid_Dry_02	Waldemarst	prefab	6.7	6.7	3.91	0	1	10362	4	URP	-
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Mid_Green_01.prefab	Tree_Bamboo_Mid_Green_01	Waldemarst	prefab	6.29	6.32	3.26	0	1	7586	4	URP	S
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Mid_Green_02.prefab	Tree_Bamboo_Mid_Green_02	Waldemarst	prefab	6.7	6.7	3.91	0	1	10362	4	URP	S
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Mid_Green_01.prefab	Tree_Bamboo_Mid_Green_01	Waldemarst	prefab	6.29	6.32	3.26	0	1	7586	4	URP	-
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Mid_Green_02.prefab	Tree_Bamboo_Mid_Green_02	Waldemarst	prefab	6.7	6.7	3.91	0	1	10362	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Small_Dry_01.prefab	Tree_Bamboo_Small_Dry_01	Waldemarst	prefab	4.34	4.34	2.01	0	1	7009	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Small_Dry_02.prefab	Tree_Bamboo_Small_Dry_02	Waldemarst	prefab	4.04	4.04	2.34	0	1	5409	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Small_Green_01.prefab	Tree_Bamboo_Small_Green_01	Waldemarst	prefab	4.33	4.33	1.93	0	1	7009	4	URP	-
@@ -2646,42 +2860,42 @@ Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Bamboo/Tree_Bamboo_Small_Gree
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Dry_01.prefab	Tree_BlackPine_Big_Dry_01	Waldemarst	prefab	6.42	6.42	6.37	-0.39	1	17347	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Dry_02.prefab	Tree_BlackPine_Big_Dry_02	Waldemarst	prefab	7.64	6.64	7.64	-0.37	1	23112	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Dry_03.prefab	Tree_BlackPine_Big_Dry_03	Waldemarst	prefab	6.78	6.55	6.78	-0.42	1	24701	4	URP	-
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_01.prefab	Tree_BlackPine_Big_Green_01	Waldemarst	prefab	6.48	6.43	6.48	-0.39	1	17333	4	URP	SB
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_02.prefab	Tree_BlackPine_Big_Green_02	Waldemarst	prefab	7.64	6.64	7.64	-0.37	1	23112	4	URP	SB
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_03.prefab	Tree_BlackPine_Big_Green_03	Waldemarst	prefab	6.91	6.55	6.91	-0.42	1	24701	4	URP	SB
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_01.prefab	Tree_BlackPine_Big_Green_01	Waldemarst	prefab	6.48	6.43	6.48	-0.39	1	17333	4	URP	B
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_02.prefab	Tree_BlackPine_Big_Green_02	Waldemarst	prefab	7.64	6.64	7.64	-0.37	1	23112	4	URP	B
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Big_Green_03.prefab	Tree_BlackPine_Big_Green_03	Waldemarst	prefab	6.91	6.55	6.91	-0.42	1	24701	4	URP	B
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Mid_Dry_01.prefab	Tree_BlackPine_Mid_Dry_01	Waldemarst	prefab	5.57	4.7	5.57	-0.47	1	11326	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Mid_Dry_02.prefab	Tree_BlackPine_Mid_Dry_02	Waldemarst	prefab	5.23	4.22	5.23	-0.43	1	12418	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Mid_Dry_03.prefab	Tree_BlackPine_Mid_Dry_03	Waldemarst	prefab	5.69	5.11	5.69	-0.41	1	16242	4	URP	-
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Mid_Green_01.prefab	Tree_BlackPine_Mid_Green_01	Waldemarst	prefab	5.57	4.65	5.57	-0.47	1	11326	4	URP	SB
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Mid_Green_02.prefab	Tree_BlackPine_Mid_Green_02	Waldemarst	prefab	5.21	4.17	5.21	-0.43	1	12418	4	URP	S
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Mid_Green_01.prefab	Tree_BlackPine_Mid_Green_01	Waldemarst	prefab	5.57	4.65	5.57	-0.47	1	11326	4	URP	B
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Mid_Green_02.prefab	Tree_BlackPine_Mid_Green_02	Waldemarst	prefab	5.21	4.17	5.21	-0.43	1	12418	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Mid_Green_03.prefab	Tree_BlackPine_Mid_Green_03	Waldemarst	prefab	5.68	5.17	5.68	-0.41	1	16242	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Small_Dry_01.prefab	Tree_BlackPine_Small_Dry_01	Waldemarst	prefab	4.18	2.84	4.18	-0.28	1	9765	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Small_Dry_02.prefab	Tree_BlackPine_Small_Dry_02	Waldemarst	prefab	3.77	2.98	3.77	-0.25	1	6662	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Small_Dry_03.prefab	Tree_BlackPine_Small_Dry_03	Waldemarst	prefab	4.15	3.33	4.15	-0.22	1	9839	4	URP	-
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Small_Green_01.prefab	Tree_BlackPine_Small_Green_01	Waldemarst	prefab	4.18	2.84	4.18	-0.28	1	9765	4	URP	S
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Small_Green_02.prefab	Tree_BlackPine_Small_Green_02	Waldemarst	prefab	3.76	2.98	3.76	-0.25	1	6662	4	URP	S
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Small_Green_03.prefab	Tree_BlackPine_Small_Green_03	Waldemarst	prefab	4.17	3.33	4.17	-0.22	1	9839	4	URP	S
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Small_Green_01.prefab	Tree_BlackPine_Small_Green_01	Waldemarst	prefab	4.18	2.84	4.18	-0.28	1	9765	4	URP	-
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Small_Green_02.prefab	Tree_BlackPine_Small_Green_02	Waldemarst	prefab	3.76	2.98	3.76	-0.25	1	6662	4	URP	-
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/BlackPine/Tree_BlackPine_Small_Green_03.prefab	Tree_BlackPine_Small_Green_03	Waldemarst	prefab	4.17	3.33	4.17	-0.22	1	9839	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Big_Fall_01.prefab	Tree_Sakura_Big_Fall_01	Waldemarst	prefab	8.59	7.34	8.59	-0.04	1	17015	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Big_Fall_05.prefab	Tree_Sakura_Big_Fall_05	Waldemarst	prefab	8.52	8.06	8.52	-0.03	1	17007	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Big_Spring_01.prefab	Tree_Sakura_Big_Spring_01	Waldemarst	prefab	8.56	7.31	8.56	-0.04	1	16168	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Big_Spring_05.prefab	Tree_Sakura_Big_Spring_05	Waldemarst	prefab	8.58	8.05	8.58	-0.03	1	15925	4	URP	-
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Big_Summer_01.prefab	Tree_Sakura_Big_Summer_01	Waldemarst	prefab	8.59	7.34	8.59	-0.04	1	17015	4	URP	SB
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Big_Summer_05.prefab	Tree_Sakura_Big_Summer_05	Waldemarst	prefab	8.52	8.06	8.52	-0.03	1	17007	4	URP	SB
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Big_Summer_01.prefab	Tree_Sakura_Big_Summer_01	Waldemarst	prefab	8.59	7.34	8.59	-0.04	1	17015	4	URP	B
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Big_Summer_05.prefab	Tree_Sakura_Big_Summer_05	Waldemarst	prefab	8.52	8.06	8.52	-0.03	1	17007	4	URP	B
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Big_Winter_01.prefab	Tree_Sakura_Big_Winter_01	Waldemarst	prefab	8.59	7.34	8.59	-0.04	1	17015	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Big_Winter_05.prefab	Tree_Sakura_Big_Winter_05	Waldemarst	prefab	8.52	8.06	8.52	-0.03	1	17007	4	URP	-
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Mid_Fall_01.prefab	Tree_Sakura_Mid_Fall_01	Waldemarst	prefab	5.77	5.73	5.77	-0.03	1	13419	4	URP	S
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Mid_Fall_05.prefab	Tree_Sakura_Mid_Fall_05	Waldemarst	prefab	6.65	6.32	6.65	-0.04	1	13028	4	URP	S
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Mid_Fall_01.prefab	Tree_Sakura_Mid_Fall_01	Waldemarst	prefab	5.77	5.73	5.77	-0.03	1	13419	4	URP	-
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Mid_Fall_05.prefab	Tree_Sakura_Mid_Fall_05	Waldemarst	prefab	6.65	6.32	6.65	-0.04	1	13028	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Mid_Spring_01.prefab	Tree_Sakura_Mid_Spring_01	Waldemarst	prefab	5.76	5.72	5.76	-0.03	1	11833	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Mid_Spring_05.prefab	Tree_Sakura_Mid_Spring_05	Waldemarst	prefab	6.65	6.3	6.65	-0.04	1	11416	4	URP	-
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Mid_Summer_01.prefab	Tree_Sakura_Mid_Summer_01	Waldemarst	prefab	5.77	5.73	5.77	-0.03	1	13419	4	URP	SB
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Mid_Summer_05.prefab	Tree_Sakura_Mid_Summer_05	Waldemarst	prefab	6.65	6.32	6.65	-0.04	1	13028	4	URP	SB
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Mid_Summer_01.prefab	Tree_Sakura_Mid_Summer_01	Waldemarst	prefab	5.77	5.73	5.77	-0.03	1	13419	4	URP	B
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Mid_Summer_05.prefab	Tree_Sakura_Mid_Summer_05	Waldemarst	prefab	6.65	6.32	6.65	-0.04	1	13028	4	URP	B
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Mid_Winter_01.prefab	Tree_Sakura_Mid_Winter_01	Waldemarst	prefab	5.77	5.73	5.77	-0.03	1	13419	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Mid_Winter_05.prefab	Tree_Sakura_Mid_Winter_05	Waldemarst	prefab	6.65	6.32	6.65	-0.04	1	13028	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Small_Fall_01.prefab	Tree_Sakura_Small_Fall_01	Waldemarst	prefab	4.5	4.5	3.75	0	1	7144	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Small_Fall_05.prefab	Tree_Sakura_Small_Fall_05	Waldemarst	prefab	4.85	4.34	4.85	0	1	5519	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Small_Spring_01.prefab	Tree_Sakura_Small_Spring_01	Waldemarst	prefab	4.44	4.44	3.72	0	1	4760	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Small_Spring_05.prefab	Tree_Sakura_Small_Spring_05	Waldemarst	prefab	4.71	4.3	4.71	0	1	3824	4	URP	-
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Small_Summer_01.prefab	Tree_Sakura_Small_Summer_01	Waldemarst	prefab	4.5	4.5	3.75	0	1	7114	4	URP	S
-Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Small_Summer_05.prefab	Tree_Sakura_Small_Summer_05	Waldemarst	prefab	4.85	4.34	4.85	0	1	5519	4	URP	S
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Small_Summer_01.prefab	Tree_Sakura_Small_Summer_01	Waldemarst	prefab	4.5	4.5	3.75	0	1	7114	4	URP	-
+Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Small_Summer_05.prefab	Tree_Sakura_Small_Summer_05	Waldemarst	prefab	4.85	4.34	4.85	0	1	5519	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Small_Winter_01.prefab	Tree_Sakura_Small_Winter_01	Waldemarst	prefab	4.5	4.5	3.75	0	1	7144	4	URP	-
 Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Trees/Sakura/Tree_Sakura_Small_Winter_05.prefab	Tree_Sakura_Small_Winter_05	Waldemarst	prefab	4.85	4.34	4.85	0	1	5519	4	URP	-

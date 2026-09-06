@@ -12,7 +12,7 @@
 - **正典は写さない。** 邸の未決の中身は `docs/Sashizu/<屋敷>_sashizu.json` の `_pending` が
   正典のまま。issue は `refs` で指すだけ(CLAUDE.md「同じ事実を二重に書かない」)。
 - **post する契機は3つだけ**: 節目(info)/ブロッカー(blocker)/裁定要請(decision)。
-  細かい報告は書かない — コミットが報告を兼ね、作事奉行が git log を読む。
+  細かい報告は書かない — コミットが報告を兼ねる。
 - **decision はテンプレ強制**(背景/選択肢/推奨/影響)。ユーザーが判断できる形で
   しか裁定を仰げないようにする。
 
@@ -22,10 +22,17 @@
 import argparse, json, os, re, sys, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from edo_session import sid, _common_git_dir, atomic_write_json
+from edo_session import sid, _common_git_dir, atomic_write_json, estate_names
 
 BOARD = os.path.join(_common_git_dir(), "edo-board")
-ESTATES = ("matsudaira_dewa", "sanno", "okabe", "doi", "sotobori", "cross", "infra")
+# ⛔ **敷地の名簿を手で持たない。** 固定の tuple にしていたため、あとから起きた邸
+#   (京極備中守・丹羽左京・内藤紀伊)は `post --estate <邸>` が argparse で弾かれ、
+#   **掲示板に一言も起票できなかった**(2026-09-01 の点検で発覚。該当3邸の issue は 0 件)。
+#   横断影響の伝達は起票が記録の本体なので、名簿の抜けはそのまま「記録が無い」に化ける。
+#   ⭕ 指図の実体(main と worktree の docs/Sashizu/*_sashizu.json)から毎回引く。
+_FIXED = ("cross", "infra")          # 邸ではない置き場(横断・普請場の機構そのもの)
+_LEGACY = ("matsudaira_dewa", "sanno", "okabe", "doi", "sotobori")  # 既存 issue の後方互換
+ESTATES = tuple(sorted(set(estate_names()) | set(_FIXED) | set(_LEGACY)))
 TYPES = ("task", "decision", "blocker", "info")
 STATUSES = ("open", "awaiting-user", "in-progress", "done", "dropped")
 LIVE = ("open", "awaiting-user", "in-progress")
@@ -231,6 +238,8 @@ def cmd_close(a):
 
 def cmd_list(a):
     cs = load_all()
+    if getattr(a, "type", None):
+        cs = [c for c in cs if c["type"] == a.type]
     if a.estate:
         cs = [c for c in cs if c["estate"] == a.estate or
               (a.estate != "cross" and c["estate"] == "cross")]
@@ -271,22 +280,45 @@ def cmd_show(a):
 
 
 def cmd_digest(a):
-    """greet 用の圧縮表示(≤12行)。裁定待ちとブロッカーを優先。"""
+    """greet 用の圧縮表示。裁定待ち → ブロッカー → 宿題(task)→ 節目(info・新しい順)。
+
+    ⛔ 2026-09-06 まで「裁定待ち・ブロッカー・その他」を**古い順に10行**出していたため、
+    11日前の info が枠を埋め、**手仕舞いで残した宿題が一件も出ていなかった**
+    (EDO-0137〜0139 を起票した直後の digest に出ないことをユーザーが見抜いた)。
+    引き継ぎを書いても誰の目にも入らないなら、書いていないのと同じ(CLAUDE.md 規則19)。
+    ⛔ **答えるべき物(裁定待ち・ブロッカー)と引き継ぎ(宿題)は省略しない。**
+    省略してよいのは節目(info)だけ。"""
     cs = [c for c in load_all() if c["status"] in LIVE]
     if not cs:
         return 0  # 静かに(greet に空行を足さない)
     wait = [c for c in cs if c["status"] == "awaiting-user"]
-    blk = [c for c in cs if c["type"] == "blocker"]
-    rest = [c for c in cs if c not in wait and c not in blk]
-    print("掲示板 — open %d 件(裁定待ち %d・ブロッカー %d)。詳細: python3 Tools/Session/edo_board.py show <ID>"
-          % (len(cs), len(wait), len(blk)))
-    lines = 0
-    for c in wait + blk + rest:
-        if lines >= 10:
-            print("  …ほか %d 件(`edo_board.py list`)" % (len(cs) - lines))
-            break
+    blk = [c for c in cs if c["type"] == "blocker" and c not in wait]
+    task = [c for c in cs if c["type"] == "task" and c not in wait]
+    rest = sorted([c for c in cs if c not in wait + blk + task],
+                  key=lambda c: c.get("updated", 0), reverse=True)
+    print("掲示板 — open %d 件(裁定待ち %d・ブロッカー %d・宿題 %d)。"
+          "詳細: python3 Tools/Session/edo_board.py show <ID>"
+          % (len(cs), len(wait), len(blk), len(task)))
+    task.sort(key=lambda c: c.get("updated", 0), reverse=True)
+    shown = 0
+    for c in wait + blk:                      # ⛔ 答えるべき物は省略しない
         print("  %s" % fmt_line(c))
-        lines += 1
+        shown += 1
+    for c in task[:6]:                        # 引き継ぎは新しい順に6件
+        print("  %s" % fmt_line(c))
+        shown += 1
+    if len(task) > 6:
+        print("  ・ …宿題ほか %d 件(`edo_board.py list --type task`)" % (len(task) - 6))
+    # 滞留の見張り(旧・差配役の異常検知の代わり。7日動いていない宿題を1行で鳴らす)
+    old_task = [c for c in task if (now() - c.get("updated", 0)) > 7 * 86400]
+    if old_task:
+        print("  ⚠ 宿題 %d 件が7日以上動いていない — 済んだ物は "
+              "`edo_board.py close <ID>`、生きている物は自邸へ引き取ること" % len(old_task))
+    for c in rest[:3]:                        # 節目は新しい順に3件
+        print("  %s" % fmt_line(c))
+        shown += 1
+    if shown < len(cs):
+        print("  …ほか %d 件(`edo_board.py list`)" % (len(cs) - shown))
     return 0
 
 
@@ -334,6 +366,7 @@ def main():
     p.add_argument("--dropped", action="store_true"); p.add_argument("--msg", default="")
     p.set_defaults(fn=cmd_close)
     p = sub.add_parser("list"); p.add_argument("--estate", choices=ESTATES)
+    p.add_argument("--type", choices=TYPES, help="種別で絞る(宿題だけ見るなら --type task)")
     p.add_argument("--all", action="store_true", help="done/dropped も含める")
     p.add_argument("--json", action="store_true")
     p.set_defaults(fn=cmd_list)

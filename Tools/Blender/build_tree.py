@@ -75,8 +75,45 @@ SPECIES = {
                      attractors=190, influence=0.40, kill=0.105, step=0.070,
                      iters=34, up=0.10, jitter=0.34,
                      leaf_scale=0.088, leaf_per_tip=4),
+    # ---- 落葉高木3種(岡部邸)。⚠ **葉の房の寸法は絶対値で効かせる** —
+    #      `leaf_scale` は樹高に掛かるので、14m の木に常緑広葉樹の 0.105 を使うと
+    #      房が 1.5m になって「木」に見えない。房が 0.5m 前後になる値を選んである。
+    # ⛔ **紅葉色にしない**(季節は春でも秋でもない)。葉は夏の緑のまま。
+    # ⚠ 樹皮の材質は在庫の桜のものを名乗る(キットに落葉高木の樹皮が無いため)=確度U。
+    #   ⇒ 姿(幹の分かれ方・枝の角度・樹冠の輪郭)で樹種を描き分ける。
+
+    # エノキ — 一里塚の木。**低い位置(樹高の 1/3)で数本の大枝に分かれ**、
+    #          枝が斜め上へ開いて **扇形〜半球形の広い樹冠**。幅 ≒ 高さ。
+    "enoki":    dict(label="エノキ",
+                     trunk_h=0.30, trunk_r=0.030, tip_r=0.0040, lean=0.045,
+                     crown_z=0.62, crown_rz=0.33, wh=0.98, top=0.62,
+                     attractors=370, influence=0.30, kill=0.072, step=0.052,
+                     iters=44, up=0.13, jitter=0.22,
+                     leaf_scale=0.042, leaf_per_tip=5,
+                     sizes=dict(Small=11.0, Mid=13.5, Big=16.0)),
+    # ムクノキ — エノキに似るが **幹がより通直で高く**、樹冠はやや縦長。
+    #            枝は細くしなやかで **垂れ気味**(`up` を小さく)。
+    "mukunoki": dict(label="ムクノキ",
+                     trunk_h=0.40, trunk_r=0.026, tip_r=0.0038, lean=0.030,
+                     crown_z=0.66, crown_rz=0.32, wh=0.80, top=0.58,
+                     attractors=360, influence=0.31, kill=0.074, step=0.052,
+                     iters=42, up=0.06, jitter=0.26,
+                     leaf_scale=0.044, leaf_per_tip=5,
+                     sizes=dict(Small=10.0, Mid=12.0, Big=14.0)),
+    # ケヤキ — **箒形**が定義的。短い直幹から大枝が扇状に立ち上がり、上へ広がる。
+    #          ⇒ `up` を大きく・`lean` を小さく・**`bottom` で樹冠の下を絞る**。
+    "keyaki":   dict(label="ケヤキ",
+                     trunk_h=0.26, trunk_r=0.032, tip_r=0.0040, lean=0.018,
+                     crown_z=0.66, crown_rz=0.34, wh=0.95, top=0.90, bottom=0.30,
+                     attractors=380, influence=0.30, kill=0.070, step=0.050,
+                     iters=46, up=0.30, jitter=0.18,
+                     leaf_scale=0.040, leaf_per_tip=5,
+                     sizes=dict(Small=13.0, Mid=14.5, Big=16.0)),
 }
 SIZE = {"Small": 3.6, "Mid": 5.8, "Big": 8.2}          # 樹高[m](在庫の同格に合わせる)
+# ⚠ **落葉高木は在庫の同格では収まらない。**指図が要求するのは エノキ 11〜16 /
+#   ムクノキ 10〜14 / ケヤキ 13〜16 で、桜 Big の 8.2m の 2 倍近い。
+#   ⇒ 樹種の側に `sizes` を持たせて上書きする(⛔ SIZE を書き換えると他の種の姿が動く)。
 LOD  = [dict(seg=8, tip=1.00, leaf=1.00),               # LOD0
         dict(seg=6, tip=0.62, leaf=0.72),               # LOD1
         dict(seg=5, tip=0.34, leaf=0.46)]               # LOD2
@@ -105,6 +142,13 @@ def crown_points(sp, h, rnd, n):
         dz = (z - cz) / rz
         if dz > 0:
             lim = rx * math.sqrt(max(0.0, 1.0 - dz * dz)) * (1.0 - (1.0 - sp["top"]) * dz)
+            if math.hypot(x, y) > lim:
+                continue
+        # ⭐ **下ほど細らせる**(`bottom` < 1)。ケヤキの**箒形**はこれが無いと出ない —
+        #   上を広げようとしても x,y は rx で頭打ちなので、**下を絞る**しか逆円錐にならない。
+        #   ⛔ 既定 1.0 = 従来どおり(常緑広葉樹・モミジ・ウメの姿は動かさない)
+        elif sp.get("bottom", 1.0) < 1.0:
+            lim = rx * (1.0 - (1.0 - sp["bottom"]) * min(1.0, -dz))
             if math.hypot(x, y) > lim:
                 continue
         if z < h * sp["trunk_h"] * 0.8:
@@ -243,7 +287,7 @@ def add_leaves(bm, tips, sp, h, rnd, per_tip, scale):
 
 
 def build_one(key, size, lod, rnd):
-    sp = SPECIES[key]; h = SIZE[size]; L = LOD[lod]
+    sp = SPECIES[key]; h = sp.get("sizes", SIZE)[size]; L = LOD[lod]
     segs, tips = branch_skeleton(sp, h, rnd)
     # --- 樹皮
     me_b = bpy.data.meshes.new("bark")

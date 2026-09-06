@@ -43,7 +43,7 @@ import build_goten_roof as R
 
 PROJ = V.REPO
 JC = os.path.join(PROJ, "Assets", "Japanese Castle")
-OUT = os.path.join(PROJ, "Assets", "Edo", "Models", "Fuzokuya")
+OUT = V.out_dir(os.path.join(PROJ, "Assets", "Edo", "Models", "Fuzokuya"))
 KEN = 1.818
 
 WOOD_SRC, WOOD_MAT = "Fences/Fence_B_01_x2.fbx", "Fence_B_01"
@@ -250,12 +250,17 @@ def _finish(name, m, mats, extra):
 
 
 # ================================================================ 土蔵
-def dozo(uk=4, vk=7, name="Matsudaira_Dozo"):
+def dozo(uk=4, vk=7, name="Matsudaira_Dozo", eave=4.60):
     """土蔵。長手(棟)= vk 間 = ローカル X。据えは yawV(ローカル +X → +v)。
-    腰は石の basement、上は白漆喰の大壁。妻に観音扉一対。【確度B=江戸の一般類型】"""
+    腰は石の basement、上は白漆喰の大壁。妻に観音扉一対。【確度B=江戸の一般類型】
+
+    ⚠ `eave` は**軒の下端**(地盤から m)。⛔ 棟の天端は指定できない —
+      瓦モジュールの勾配 0.5456 は動かせないので、**棟高 = eave + (梁間/2 + 0.75)×0.5456**
+      が従属して決まる(README「棟が高すぎる」の項)。⇒ 指図が軒高と棟高を両方持っていても
+      **梁間が変われば両立しない**ので、軒を合わせて棟の実測を指図へ返すこと。"""
     (wm, wuv), (sm, suv), (pm, puv) = palette()
     W, D = vk * KEN, uk * KEN          # X=桁行(長手) Y=梁間
-    BASE, EAVE = 0.40, 4.60            # 基壇高 / 軒高
+    BASE, EAVE = 0.40, eave            # 基壇高 / 軒高
     hw, hd = W / 2, D / 2
     m = Mesh()
     # 基壇(切石積み)
@@ -501,13 +506,13 @@ def inari(name="Matsudaira_Inari"):
 
 
 # ================================================================ 石井戸枠
-def ido(name="Matsudaira_Ido"):
+def ido(name="Matsudaira_Ido", h=0.62, tsurube=False):
     """石井戸枠 + 釣瓶の桁。枠は切石を四方に組んだ角井戸。
     ⚠ 指図 wells.Ido_Oku の「慶長13年戊申銘の石井戸枠」は**議長公邸に現存する実物**だが、
       銘や意匠は実見していないので、ここで作るのは**同型の角井戸枠**である。【確度B】"""
     (wm, wuv), (sm, suv), (pm, puv) = palette()
     m = Mesh()
-    OUT_W, IN_W, H = 1.30, 0.82, 0.62
+    OUT_W, IN_W, H = 1.30, 0.82, h
     t = (OUT_W - IN_W) / 2
     # 据石(地面に馴染ませる敷き)
     m.box(-0.95, 0.95, -0.06, 0.10, -0.95, 0.95, _sub(suv, 0, 0, 1, .5), STONE)
@@ -529,6 +534,21 @@ def ido(name="Matsudaira_Ido"):
     for s in (-1, 1):
         m.box(s * px - 0.05, s * px + 0.05, ph - 0.42, ph - 0.14, -0.05, 0.05,
               _sub(wuv, .3, .1, .4, .4), WOOD)
+    if tsurube:
+        # **釣瓶**(桶+吊り縄)。⛔ 桶を省くと「柱と梁だけの櫓」に見えて井戸に読めない。
+        # ⚠ 縄は 0.03 角の細い箱で出す — 曲げないので平行移動枠(build_tsuru.tube)は要らない
+        bz0, bz1 = 0.10 + H + 0.30, 0.10 + H + 0.62      # 桶は枠の少し上に吊る
+        # ⚠ **吊り縄を柱と同じ太さで出さない。**0.07 角でも、柱(0.14 角)の半分あるので
+        #   立面では「もう一本の柱」に見える(2026-09-06 に実見)。縄は 28mm 角にする
+        m.box(-0.014, 0.014, bz1 + 0.04, ph - 0.14, -0.014, 0.014,
+              _sub(wuv, .25, .0, .32, 1), WOOD)          # 吊り縄
+        for (a0, a1, b0, b1) in ((-0.20, -0.16, -0.20, 0.20), (0.16, 0.20, -0.20, 0.20),
+                                 (-0.16, 0.16, -0.20, -0.16), (-0.16, 0.16, 0.16, 0.20)):
+            m.box(a0, a1, bz0, bz1, b0, b1, _sub(wuv, .45, .15, .85, .55), WOOD)
+        m.box(-0.20, 0.20, bz0, bz0 + 0.04, -0.20, 0.20,
+              _sub(wuv, .45, .55, .85, .80), WOOD)       # 桶の底
+        m.box(-0.20, 0.20, bz1 + 0.02, bz1 + 0.05, -0.035, 0.035,
+              _sub(wuv, .30, .10, .60, .25), WOOD)       # 弦(つる)
     return _finish(name, m, [wm, sm, pm], [])
 
 
@@ -619,4 +639,8 @@ def main():
             V.render("/tmp/fuzokuya_%s.png" % key)
 
 
-main()
+# ⚠ **裸で main() を呼ばない。**他邸の生成器がここから型を import する
+#   (`build_doi_buzai.py` が dozo/ido を借りる)ので、import しただけで
+#   松平の部材が全数焼き直されてしまう。
+if __name__ == "__main__":
+    main()

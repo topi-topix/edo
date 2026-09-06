@@ -312,7 +312,7 @@ def garden_layer(P, small=False):
     for pa in G["paths"]:
         o.append('<path d="%s" fill="none" stroke="var(--roka)" stroke-width="%.1f" '
                  'stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="5 3"/>'
-                 % (uvpath(P, pa["pts"], False), max(1.4, P.L(pa["w"] * KEN))))
+                 % (uvpath(P, pa["pts"], False), min(2.6, max(1.4, P.L(pa["w"] * KEN)))))
     for f in G["features"]:
         if f["name"] == "Torii":
             x, z = W(f["u"], f["v"])
@@ -320,6 +320,33 @@ def garden_layer(P, small=False):
                      'stroke="var(--shu)" stroke-width="2.2" fill="none"/>'
                      % (P.X(x) - 5, P.Y(z) - 4, P.X(x) + 5, P.Y(z) - 4,
                         P.X(x) - 4, P.Y(z) - 1, P.X(x) + 4, P.Y(z) - 1))
+    for st in G.get("stones", []):
+        x, z = W(st["u"], st["v"])
+        for i in range(st["n"]):
+            r = 3.2 - i * 0.6
+            o.append('<circle cx="%.1f" cy="%.1f" r="%.1f" fill="var(--ishi)" stroke="var(--ink)" '
+                     'stroke-width=".6"/>' % (P.X(x) + i * 5.0 - 3, P.Y(z) + (i % 2) * 4.5 - 2, max(1.6, r)))
+    for lt in G.get("lanterns", []):
+        x, z = W(lt["u"], lt["v"])
+        o.append('<path d="M %.1f %.1f l 3 0 l -1.5 -5 Z" fill="var(--ishi)" stroke="var(--ink)" '
+                 'stroke-width=".5"/>' % (P.X(x) - 1.5, P.Y(z)))
+    for tb in G.get("tobiishi", []):
+        pa = next((q for q in G["paths"] if q["name"] == tb["path"]), None)
+        if not pa:
+            continue
+        pts = pa["pts"]
+        tot = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(pts, pts[1:])) * KEN
+        for i in range(tb["n"]):
+            dd = min(tot - 0.01, i * tb["pitch"] + 0.5)
+            acc = 0.0
+            for a, b in zip(pts, pts[1:]):
+                seg = math.hypot(b[0] - a[0], b[1] - a[1]) * KEN
+                if acc + seg >= dd:
+                    t = (dd - acc) / (seg or 1)
+                    x, z = W(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
+                    o.append('<circle cx="%.1f" cy="%.1f" r="1.7" fill="var(--ishi)"/>' % (P.X(x), P.Y(z)))
+                    break
+                acc += seg
     for vw in G["views"]:
         x, z = W(vw["u"], vw["v"])
         tx_, tz_ = W(vw["toward"][0], vw["toward"][1])
@@ -1045,6 +1072,24 @@ def main():
         where = ("(%.1f, %.1f)" % (f["u"], f["v"])) if "u" in f else ("%.0f 坪" % _uvarea(f["poly"]))
         rows.append([f["ja"], where, "—", "*" + f["_"]])
     h.append(tbl(["園路・点景", "延長 / 位置", "幅 間", "*覚"], rows))
+    h.append("<h4>植栽 — 帯ごとの樹種と本数</h4>")
+    h.append(tbl(["場", "帯", "高さ m", "何を", "本数", "*在庫 / 覚"],
+                 [[z["ja"], b["band"], b["y"], b["what"], ("%d" % b["n"]) if b["n"] else "—",
+                   "*" + "<br>".join("<code>%s</code>" % esc(a) for a in b["asset"]) + "<br>" + b["_"]]
+                  for z in G["planting"] for b in z["bands"]]))
+    h.append("<h4>石組・灯籠・飛石</h4>")
+    rows2 = []
+    for st in G.get("stones", []):
+        rows2.append(["石組", st["ja"], "(%.1f, %.1f)" % (st["u"], st["v"]), "%d 石" % st["n"],
+                      "*" + "<code>%s</code><br>%s" % (esc(st["asset"][0]), st["_"])])
+    for lt in G.get("lanterns", []):
+        rows2.append(["灯籠", "%s(%s)" % (lt["ja"], lt["form"]), "(%.1f, %.1f)" % (lt["u"], lt["v"]),
+                      "%d 基" % lt.get("n", 1),
+                      "*" + "<code>%s</code><br>%s" % (esc(lt["asset"][0]), lt["_"])])
+    for tb in G.get("tobiishi", []):
+        rows2.append(["飛石", tb["ja"], tb["path"], "%d 枚 / 芯々 %.1f m" % (tb["n"], tb["pitch"]),
+                      "*" + "<code>%s</code><br>%s" % (esc(tb["asset"][0]), tb["_"])])
+    h.append(tbl(["種", "名", "位置 (u,v)", "数", "*在庫 / 覚"], rows2))
     h.append('<p class="cap">⚠ <b>庭方(edo-niwashi)の検分をまだ通していない。</b>'
              '確度はすべて U(設計判断)。⭐ <b>主景は自然の高まり</b>で、'
              '⛔ 盛りも削りもしない(§B-1「肩の高まりは築山に使う」)。</p>')

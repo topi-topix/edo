@@ -842,21 +842,20 @@ public static partial class EdoDoiBuilder
                     var bb2 = EdoBuild.RB(go);
                     float mitsuke = bb2.max.y - ugy[i];                 // 見付(地盤から上)
                     float nene = ugy[i] - bb2.min.y;                    // 根入れ(地盤から下)
-                    // ⭐ **`uke.digEach` は「据え穴をどれだけ掘るか」の申告**(2026-09-06 庭方)。
-                    //   ⚠ **石は動かない** — 天端は絶対高、`scale` を上げれば丈が伸びて底が下がり、
-                    //   そのぶん穴が要る。⇒ 掘り代は**根入れ以上**でなければ石が納まらない。
-                    //   ⛔ 掘り代を地盤の高さと取り違えない(地盤を下げると根入れは逆に減る)。
-                    float dig = 0f;
-                    if (Has(uk, "digEach"))
-                    { var de = A(uk["digEach"]); if (de != null && i < de.Count) dig = F(de[i]); }
+                    // ⛔⛔ **`uke.digEach`(据え穴の掘り代の申告)は 2026-09-06 に撤回された。**
+                    //   ⭕ **床を掘っても根入れは増えない** — 天端が絶対高で石は剛体なので、掘った分は
+                    //   **見付が増えるだけ**で、埋まりは `石丈 − 露出` のまま。⇒ 満たすのは**石丈**
+                    //   (`石丈 ≥ (1 + buryMin) × 露出`)。⛔ **露出は元の地盤から測る**(掘り下げ後で測らない)。
+                    //   ⛔⛔ **この読み取りを復活させないこと。**指図・生成器の側では撤回済みで、
+                    //   ここだけが 2026-09-06 の監査まで残っていた(規則4 は文章・正典・生成器の三方だが、
+                    //   **実装が第四の置き場**である)。→ docs/verification-loops.md「欄が無い物は関門に掛からない」
                     capRep.Append("\n     受け石#" + (i + 1) + (i == low ? "(下流)" : "") + " 天端 "
                         + bb2.max.y.ToString("F3") + " / 地盤 " + ugy[i].ToString("F3")
                         + " / 見付 " + mitsuke.ToString("F3") + " / 根入れ " + nene.ToString("F3")
-                        + " / scale " + sc.ToString("F2")
-                        + (dig > 0f ? " / 掘り代の申告 " + dig.ToString("F2") : ""));
-                    if (dig > 0f && nene > dig + 1e-4f)
-                        Wait("受け石#" + (i + 1) + ": 根入れ " + nene.ToString("F3")
-                           + "m が申告の掘り代 " + dig.ToString("F2") + "m を超える — 指図方へ");
+                        + " / scale " + sc.ToString("F2"));
+                    if (Has(uk, "digEach"))
+                        Wait("受け石: 指図に `digEach` が復活している — **撤回済みの説**(床を掘っても"
+                           + "根入れは増えない)。⇒ 指図方へ差し戻すこと");
                     // ⚠ 庭方: **根入れ ≥ 見付 × `buryMin`**。⛔ 実装で天端を下げて辻褄を合わせない
                     if (Has(uk, "buryMin"))
                     {

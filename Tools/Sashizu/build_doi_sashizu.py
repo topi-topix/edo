@@ -2648,6 +2648,14 @@ def norms_check(d):
         for k in ("u0", "u1", "v0", "v1"):
             if off(l[k]):
                 bad.append("%s の %s=%.3f間 が半間の格子に載らない" % (l["name"], k, l[k]))
+        # ⭐ **廊下の幅は一間**(2026-09-06 検図方の検め直し)。`_links` が冒頭で
+        #   「幅一間」と宣言しているのに検査が無く、⚠ **御錠口を 3間幅にしても 0 件で黙った**。
+        #   ⛔ 宣言した規範には検査を付ける(規則19)。**短辺=幅**として見る
+        #   (廊下は長辺が走り・短辺が幅で、向きは棟の並びで決まる)。
+        wd = min(l["u1"] - l["u0"], l["v1"] - l["v0"])
+        if abs(wd - 1.0) > 1e-6:
+            bad.append("%s の幅(短辺)が %.2f間 — 廊下の幅は一間"
+                       "(`_links` の宣言。部材キットも幅一間しか持たない)" % (l["name"], wd))
 
     # ⭐ **室割り**(2026-09-04 検図方 中-2)。⚠ 従前 `rooms` 53室に検査が一本も無く、
     #   御小姓部屋を 0.37間 ずらしても、御次之間を隣室へ2間食い込ませても 0 件だった。
@@ -3018,6 +3026,20 @@ def _memo_text():
 def _impl_text():
     """実装(ビルダー)の本文。撤回の照合に掛ける。無ければ空。"""
     return open(IMPL, encoding="utf-8").read() if os.path.exists(IMPL) else ""
+
+
+HIST_MARK = "経緯はここに書かず git で追う"
+
+
+def _strip_history(body):
+    """図の本文から**改訂の章(git のコミット件名の表)だけ**を落とす。
+
+    ⛔ コミット件名は履歴で書き換えられない(規則4)。撤回の作業を記録した件名は
+    必ず禁句を含むので、⚠ **撤回を済ませた瞬間に `retracted_check` が赤くなる**。
+    ⛔ 章まるごとの除外リストにしない — 落とすのはこの1章だけで、他は全部照合に掛ける。
+    """
+    i = body.find(HIST_MARK)
+    return body if i < 0 else body[:i]
 
 
 def retracted_check(d, texts):
@@ -6641,6 +6663,23 @@ def _shitakusa_pts(o, st=0.1):
             u += st
 
 
+def _suhama_polys(d):
+    """**州浜の砂利帯の平面形**(陸側 `toLand` のオフセット帯)。
+
+    ⭐ 2026-09-06 庭方の検め直しで、下草の散布域から**水面と同じ扱いで抜く**ことになった —
+    砂利帯は `bare`(そこの草は消す)と宣言しているので、下草を撒く所ではない。
+    ⛔ 形をここで発明しない — `karikomi` の「帯」と**同じ器**(`karikomi_poly`)で組む。
+    """
+    n = NI(d)
+    if n is None:
+        return []
+    out = []
+    for s in n.g.get("suhama", []):
+        out.append(karikomi_poly(d, {"kata": "帯", "frm": s["frm"], "to": s["to"],
+                                     "off0": 0.0, "off1": s["toLand"] / n.ken}))
+    return [p for p in out if p]
+
+
 _SKC = [None, None]
 
 
@@ -6662,17 +6701,22 @@ def shitakusa_stats(d):
         for o in shitakusa_regions(d):
             o = dict(o)
             if o["err"]:
-                o.update(land=0.0, wetPct=0.0, outPct=0.0, cells=0)
+                o.update(land=0.0, wetPct=0.0, gvlPct=0.0, outPct=0.0, cells=0)
                 out.append(o)
                 continue
             cells = list(_shitakusa_pts(o))
+            sub = _suhama_polys(d)
             wet = [1 for (u, v) in cells if n.inpond(u, v)]
+            # ⭐ 砂利帯も抜く(2026-09-04 の `bare` 宣言どおり草を消す所なので撒けない)
+            gvl = [1 for (u, v) in cells
+                   if not n.inpond(u, v) and any(_pip((u, v), q) for q in sub)]
             outs = [1 for (u, v) in cells
                     if not (g["u0"] - 1e-9 <= u <= g["u1"] + 1e-9
                             and g["v0"] - 1e-9 <= v <= g["v1"] + 1e-9)]
             o.update(cells=len(cells),
-                     land=(len(cells) - len(wet)) * cell,
+                     land=(len(cells) - len(wet) - len(gvl)) * cell,
                      wetPct=(100.0 * len(wet) / len(cells)) if cells else 0.0,
+                     gvlPct=(100.0 * len(gvl) / len(cells)) if cells else 0.0,
                      outPct=(100.0 * len(outs) / len(cells)) if cells else 0.0)
             out.append(o)
     _SKC[0], _SKC[1] = d, out
@@ -6723,7 +6767,7 @@ def shitakusa_table(d):
             df = "—"
         rows.append((o["label"], "<code>%s</code>" % o["name"], o["kata"] or "?", df,
                      "%.1f m²" % o["m2"], "<b>%.1f m²</b>" % o["land"],
-                     "%.1f%%" % o["wetPct"],
+                     "%.1f%%" % o["wetPct"], "%.1f%%" % o.get("gvlPct", 0.0),
                      "⚠ " + o["err"] if o["err"]
                      else ("⭕" if (o["land"] > 0 and o["outPct"] <= 0
                                    and o["wetPct"] <= 50.0) else "⚠")))
@@ -6738,10 +6782,16 @@ def shitakusa_table(d):
             "⭐ <b>公称の域から水面を切って「陸」を出す</b> — 築山A1 の裾は設計どおり汀へ落ち、"
             "モミジの樹冠も汀へ差し掛けるので、半楕円・樹冠の円をそのまま採ると池に掛かる。"
             "⛔ <b>域を縮めて意匠を変えるのではない</b>(撒く所が陸に限られるだけ)。"
-            "⚠ ただし<b>過半が水面なら域の取り方が間違っている</b>ので、そこは検査が鳴らす。</p>"
+            "⚠ ただし<b>過半が水面なら域の取り方が間違っている</b>ので、そこは検査が鳴らす。"
+            "⭐ <b>2026-09-06 庭方の検め直しで、州浜の砂利帯も水面と同じ扱いで抜いた</b> — "
+            "砂利帯は <code>bare</code>(そこの草は消す)と宣言している所なので下草は撒けない。"
+            "⚠ 実際に<b>常緑広葉 Small (−0.45, 67.75) の樹冠が州浜と重なる</b>。"
+            "⛔ 樹も帯も動かさない — <b>重なった分に撒かないだけ</b>。"
+            "帯の形は <code>suhama</code> の <code>frm</code>/<code>to</code> と "
+            "<code>toLand</code> から <code>karikomi</code> の「帯」と同じ器で組む。</p>"
             % (mz.get("y0", 0.0), mz.get("y1", 0.0)))
-    return _tw(("散布域", "名", "形", "定義(幾何から)", "公称", "陸(実撒き)", "水面で切った割合",
-                "判定"), rows) + tail
+    return _tw(("散布域", "名", "形", "定義(幾何から)", "公称", "撒く所",
+                "水面で切った割合", "砂利帯で切った割合", "判定"), rows) + tail
 
 
 def _niwa_frames(d, pad=12.0):
@@ -7765,8 +7815,9 @@ def niwa_gogan_table(d):
         q = next(y for y in g["gogan"] if y["name"] == x["name"])
         rows.append((q["kata"], q["label"], "#%d–#%d" % (q["frm"], q["to"]),
                      "%.1f m" % x["L"],
-                     "伊豆石 %d 個(うち役石 %d)・1/3埋め・天端 水面+%.2f〜+%.2f"
-                     % (x["n"], x["yaku"], q["capMin"], q["capMax"])))
+                     "%s %d 個(うち役石 %d)・1/3埋め・天端 水面+%.2f〜+%.2f"
+                     % (q.get("ishi", "⚠ 石材が指図に無い"), x["n"], x["yaku"],
+                        q["capMin"], q["capMax"])))
     for x in o["rangui"]:
         q = next(y for y in g["rangui"] if y["name"] == x["name"])
         rows.append(("乱杭", q["label"], "#%d–#%d" % (q["frm"], q["to"]), "%.1f m" % x["L"],
@@ -7983,6 +8034,54 @@ def niwa_kura_table(d):
         "眼から見て地形の見切り線と樹冠の下端のあいだに残る 1.2〜1.8m の低い帯は"
         "<b>枝下より下なので木では塞げない</b>。そこは <code>Dote_Kuramae</code>(+0.45m)に"
         "載せた刈込①が受ける(2026-09-04 庭方の第3巡・決定 中9)。</p>")
+
+
+def niwa_tenkei_table(d):
+    """**点景(灯籠・沓脱石・稲荷の祠と鳥居と手水石)の据え位置・部材・据え向き。**
+
+    ⚠ 2026-09-06 まで、これらの `_`(据え向き・張り出し・部材の実寸)は
+    **どの表にも図にも出ていなかった** — 庭園図に名札が出るだけで、
+    「長辺を参道の軸と平行に据える」「水面上へ 0.25m 出る」は誰の目にも入らなかった
+    (規則19: 設計値を入れたら同じ巡でそれを描く図を出す)。
+    """
+    n = NI(d)
+    if n is None:
+        return ""
+    g = n.g
+    rows = []
+    for t in g.get("toro", []):
+        rows.append((t["label"], "(%.2f, %.2f)" % (t["u"], t["v"]),
+                     "<code>%s</code>" % t.get("asset", "—"),
+                     "%s型" % t.get("kata", "?"), t.get("cert", "?")))
+    for k in g.get("kutsunugi", []):
+        rows.append(("沓脱石", "(%.2f, %.2f)" % (k["u"], k["v"]), "—",
+                     "%.2f × %.2f m・天端 %.2f" % (k["L"], k["W"], k["topY"])
+                     if k.get("topY") is not None else "%.2f × %.2f m" % (k["L"], k["W"]),
+                     k.get("cert", "?")))
+    y = g.get("yashiro") or {}
+    for key, lab in (("hokora", "稲荷の祠"), ("torii", "鳥居"), ("chozu", "手水石")):
+        o = y.get(key)
+        if not isinstance(o, dict):
+            continue
+        pos = ("(%.2f, %.2f)" % (o["u"], o["v"])) if "u" in o else \
+              ("u[%.2f, %.2f] v[%.2f, %.2f]" % (o["u0"], o["u1"], o["v0"], o["v1"]))
+        det = o.get("align") or o.get("kata") or ""
+        if o.get("front"):
+            det = ("正面 %s" % o["front"]) + ("・" + det if det else "")
+        if key == "chozu":
+            det = "%.2f × %.2f m ／ <b>%s</b>" % (o["L"], o["W"], o.get("align", "⚠ 据え向きが無い"))
+        rows.append((lab, pos, "<code>%s</code>" % o.get("asset", "— (小物で合成)"),
+                     det, y.get("cert", "?")))
+    return _tw(("点景", "位置(u,v)", "部材", "据え向き・寸", "確度"), rows) + (
+        "<p class='cap'>⭐ <b>据え向きは寸法と同じ設計値</b> — 手水石は"
+        "<b>長辺を参道の軸(v=65.75 に沿う u 方向)と平行</b>に据える。"
+        "⚠ 直交させると路縁までの空きが +0.018m しか残らず参道へ実質はみ出す"
+        "(平行なら +0.128m)【庭方の実測=P】。⛔ 手水石も参道も動かさない — <b>向きだけで解く</b>。"
+        "⭕ <b>雪見灯籠は据え位置の芯が陸</b>(汀の陸側 0.20m)で、"
+        "笠と前脚が<b>水面上へ 0.25m</b> 張り出すのは意図"
+        "(部材の奥行 0.906 ÷ 2 − 0.20)。⛔ <b>灯籠は動かさない</b>。"
+        "⛔ <b>雪見は素で置かない</b> — edogoyomi なので <code>ES</code> = 1.818 を掛ける。"
+        "⛔ 春日型は社前に1基だけ・参道の上に置かない・主庭へ持ち出さない。</p>")
 
 
 def niwa_karikomi_table(d):
@@ -8700,6 +8799,8 @@ def main():
                  '<b>指図には写さない</b>。個体(01〜03)を混ぜること。</p>')
         h.append("<h3>刈込 — 汀に沿うものは矩形でなく帯</h3>")
         h.append(niwa_karikomi_table(d))
+        h.append("<h3>点景 — 据え位置・部材・据え向き</h3>")
+        h.append(niwa_tenkei_table(d))
         h.append("<h3>下草の散布域 — 言葉でなく幾何で持つ</h3>")
         h.append(shitakusa_table(d))
         h.append("<h3>樹冠の被覆率(庭方の検査 6-④)</h3>")
@@ -9011,9 +9112,15 @@ def main():
         #   その手前に差した禁句が**撤回の印で赦されて**しまう(2026-08-25 検図13巡 低-6:
         #   ⛔ の直前へ差した禁句が 0 件、印の無い所へ差すと 1 件だった)。
         #   **開きタグでも切る** — 印の効き目をその要素の中だけに閉じ込める。
+        # ⚠ **改訂(git のコミット件名)は照合から外す。** コミット件名は**履歴**であって
+        #   現況の記述ではなく、⛔ **書き換えられない**(規則4「経緯は git log が持つ」)。
+        #   撤回の作業そのものを記録した件名(例「…の呼称を改めた」)が必ず禁句を含むので、
+        #   外さないと**撤回を済ませた瞬間に検査が赤くなる**(2026-09-06 に踏んだ)。
+        #   ⛔ 除外は「改訂の章まるごと」ではなく**その章だけ**に閉じる。
         ("図", re.sub(r"[*~`]", "",
                       re.sub(r"</?(p|td|th|li|h[1-6]|div|tr|table|ul|ol|section|"
-                             r"figcaption|caption|svg|g|text|tspan)\b[^>]*>", "\n\n", body))),
+                             r"figcaption|caption|svg|g|text|tspan)\b[^>]*>", "\n\n",
+                             _strip_history(body)))),
         # ⚠ **実装も照合の面に入れる。** 四面(設計値・文章・生成器・図)だけを見ていたため、
         #   実装のヘッダに 2026-08-12 の考証ブロックが4か月ぶん古びたまま残り、
         #   各屋敷の指図が撤回した説を現役の根拠として保持していた

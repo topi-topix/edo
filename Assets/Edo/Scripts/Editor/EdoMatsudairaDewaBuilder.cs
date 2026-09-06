@@ -1877,7 +1877,9 @@ public static partial class EdoMatsudairaDewaBuilder
             if (fn == "Jokuroku") return EdoAssets.Own.Jouryoku(a[0], a.Count > 1 ? i1 : 1);  // 旧綴り
             if (fn == "Momiji")   return EdoAssets.Own.Momiji(a[0], a.Count > 1 ? i1 : 1);
             if (fn == "Ume")      return EdoAssets.Own.Ume(a[0], a.Count > 1 ? i1 : 1);
-            if (fn == "Tateishi") return EdoAssets.Own.Tateishi(a[0], a.Count > 1 ? i1 : 1);   // 立石 S/M/L(2026-09-06 石組の api を解けず在庫の転石へ落ちていた)
+            if (fn == "Tateishi") return EdoAssets.Own.Tateishi(a[0], a.Count > 1 ? i1 : 1);
+            if (fn == "Hiraishi") return EdoAssets.Own.Hiraishi(a[0]);     // 平石(天井石 Tenjo / 伏石 Fuse・2026-09-06 新造)
+            if (fn == "Ishibashi") return EdoAssets.Own.Ishibashi();      // 切石の一枚橋   // 立石 S/M/L(2026-09-06 石組の api を解けず在庫の転石へ落ちていた)
         }
         else if (cls == "JG")
         {

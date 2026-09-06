@@ -335,7 +335,7 @@ public static partial class EdoMatsudairaDewaBuilder
                 float show = F(st["show"]); float full = show / Mathf.Max(0.01f, 1f - bu);
                 Vector2 w = f.W(u, v);
                 // 据え付け面: 指図の `bedY`(岩屋の三段=水面から従属)があればそれ、無ければ実地形
-                float gy = HasKey(st, "bedY") ? F(st["bedY"]) : TerrainY(w.x, w.y);
+                float gy = HasKey(st, "bedY") ? StoneBedY(t, st) : TerrainY(w.x, w.y);
                 // 部材: 指図の `api`(立石は Own.Tateishi / 伏石は JG.Rock)。無ければ在庫の転石
                 string path = HasKey(st, "api") ? ResolveApi(StrOf(st, "api")) : null;
                 if (path == null) path = EdoAssets.JG.Rock(1 + rnd.Next(3));
@@ -364,7 +364,7 @@ public static partial class EdoMatsudairaDewaBuilder
                     var pl = A(st["plan"]); float L = F(pl[0]), Wd = F(pl[1]);
                     float sx = L / Mathf.Max(0.01f, b.size.x), sz = Wd / Mathf.Max(0.01f, b.size.z), sy = full / Mathf.Max(0.01f, b.size.y);
                     float mx = Mathf.Max(sx, Mathf.Max(sy, sz)), mn = Mathf.Min(sx, Mathf.Min(sy, sz));
-                    if (mx / mn > 1.35f)
+                    if (mx / mn > 1.365f)   // 上限 1.35 + 丸め(奥の添石 1.36 は庭方が僅差として許容【U】2026-09-06)
                     {
                         sb.AppendLine(string.Format("⚠ 石 {0}: 異方比 {1:F2}(x{2:F2} y{3:F2} z{4:F2})— 据えず。丈 {5:F2}m の立石を部材方へ", snm, mx / mn, sx, sy, sz, full));
                         UnityEngine.Object.DestroyImmediate(go); nSkip++; i++; continue;
@@ -418,6 +418,22 @@ public static partial class EdoMatsudairaDewaBuilder
         }
         sb.AppendLine(string.Format("石組 {0} 石(据えず {2})/ 護岸 {1} 石(石橋は部材なし・据えず)", nStone, nGogan, nSkip));
         return sb.ToString();
+    }
+
+    /// <summary>石の `bedY` を解く。生成器 `_stone_bedY()` と同じ式 — dict なら {ref: 同じ点景内の石の名, add} として
+    /// 参照先の**天端**(bedY + show)+ add(架け石は支え石の天端に従属・検図 2026-09-06【低】)。数値ならそのまま。</summary>
+    static float StoneBedY(Dictionary<string, object> tk, Dictionary<string, object> st, int depth = 0)
+    {
+        if (!HasKey(st, "bedY")) return 0f;
+        var b = st["bedY"];
+        var bd = b as Dictionary<string, object>;
+        if (bd == null) return F(b);
+        if (depth > 8) throw new Exception("石 " + StrOf(st, "name") + " の bedY.ref が循環している");
+        string refName = StrOf(bd, "ref"); Dictionary<string, object> refSt = null;
+        foreach (var so in A(tk["stones"])) { var s2 = O(so); if (StrOf(s2, "name") == refName) { refSt = s2; break; } }
+        if (refSt == null) throw new Exception("石 " + StrOf(st, "name") + " の bedY.ref『" + refName + "』が点景 " + StrOf(tk, "name") + " に無い");
+        float add = HasKey(bd, "add") ? F(bd["add"]) : 0f;
+        return StoneBedY(tk, refSt, depth + 1) + (HasKey(refSt, "show") ? F(refSt["show"]) : 0f) + add;
     }
 
     /// <summary>置いた駒の**実メッシュ**の高さを測って、丈 h[m] に合わせる(CLAUDE.md 規則5: 呼び寸法で置かない)。</summary>

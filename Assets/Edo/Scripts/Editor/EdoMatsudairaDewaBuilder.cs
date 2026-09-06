@@ -1786,9 +1786,14 @@ public static partial class EdoMatsudairaDewaBuilder
             "Assets/Japanese Castle/Meshes/Exterior/Materials",
             "Assets/Edo/Materials",              // キットに無い材(鳥居の朱 Shu_Torii など)
             // 新造した木(Own.Jokuroku / Own.Ume)は在庫の桜の樹皮・葉の材質名を名乗る
+            // 立石・平石2種・切石橋(Own.Tateishi/Own.Hiraishi/Own.Ishibashi)は
+            // `M_FJG_Rock_001`(護岸の転石 JG_Rock_A_01..03 と同じ材。2026-09-06 裁定1=B)
+            // の材質名をそのまま運ぶ — この donorDir(FreeJapaneseGarden/Materials)で拾える。
             "Assets/Waldemarst/FreeJapaneseGarden/Materials",
-            // 立石(Own.Tateishi)は NatureManufacture の photoscanned rock の材質名をそのまま運ぶ
-            // (岡部庭の Ishigumi/Tobiishi/Kutsunugi と同じ借り先。EdoOkabeYashikiBuilder 参照)
+            // 岡部庭の Ishigumi/Tobiishi/Kutsunugi は今も NatureManufacture の
+            // photoscanned rock の材質名を運ぶ(EdoOkabeYashikiBuilder 参照。立石側は
+            // 2026-09-06 にこちらから M_FJG_Rock_001 へ切り替えたので、このフォルダは
+            // もう Own.Tateishi 用ではない)。
             "Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Rocks/Rocks/Models/Materials",
         };
         var byName = new Dictionary<string, Material>();

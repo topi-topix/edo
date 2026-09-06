@@ -377,6 +377,11 @@ public static partial class EdoMatsudairaDewaBuilder
         }
         // 石組護岸: 帯ごとに汀線を歩き、`seatRule`(外向きに進んで最初に地面が waterY を超える点)へ据える
         int nGogan = 0; var gsub = Group("Niwa/Ishigumi/Gogan"); var shoreArr = shore.ToArray();
+        // ⭐ goganGap(検図 第14次 2026-09-06): 吐き口の岩組(岩屋)が占める汀線の区間には常石を置かない。
+        //   生成器 `_gogan_exclude_gap` と同じ従属値 = tenkei[T_Iwagumi_Iwaya].atShore の {shore(1始まり), spanMax[m]}。
+        int gapIdx = -1; float gapSpan = 0f;
+        foreach (var o in A(D["tenkei"])) { var t = O(o); if (StrOf(t, "name") == "T_Iwagumi_Iwaya" && HasKey(t, "atShore"))
+            { var ash = O(t["atShore"]); gapIdx = Convert.ToInt32(ash["shore"]) - 1; gapSpan = F(ash["spanMax"]); } }
         foreach (var bo in A(gogan["bands"]))
         {
             var b = O(bo); int i0 = Convert.ToInt32(b["from"]) - 1, i1 = Convert.ToInt32(b["to"]) - 1;   // ⚠ 指図の from/to は汀線の番号 #(1始まり)。生成器 gogan_bands() と同じく −1(2026-09-06 検図 第13次 中1)
@@ -392,6 +397,7 @@ public static partial class EdoMatsudairaDewaBuilder
                 {
                     float size = Mathf.Lerp(sMin, sMax, (float)rnd.NextDouble());
                     Vector2 q = Vector2.Lerp(a, c, pos / seg);
+                    if (gapIdx >= 0 && Vector2.Distance(q, shore[gapIdx]) <= gapSpan) { pos += size * gap; continue; }   // goganGap
                     // 外向き = 汀線の左右のうち池の外(輪郭の重心から遠い側)
                     // ⛔ 「輪郭の重心から遠い側」は瓢箪のくびれ(#15→#16)で反転する(庭方 2026-09-04 共有3)。
                     //    外向き = 法線方向へ 0.8m 進んだ点が池の**外**(PIP false)。

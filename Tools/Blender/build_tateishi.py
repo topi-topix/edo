@@ -22,15 +22,28 @@
   (`find` で0件)。同じ地雷は 2026-09-04 に岡部庭の景石(`Ishigumi`/`Tobiishi`/`Kutsunugi`)でも
   踏まれていて、そのときの結論がそのまま `EdoAssets.cs` にコメントで残っている:
     「⛔ `JG.Rock01..03` は使わない(FBX 内の材質名が `Test` で remap が当たらない)」
-  ⭕ 規約の目的(新規マテリアルを作らず既存 .mat に remap で結び直す)を守るため、
-  **岡部庭と同じ在庫岩 `M_photoscanned_rocks_01`(NatureManufacture・写真計測の実肌)**の
-  材質名をそのまま運ぶ。ジオメトリは新規でも材質名はキット由来のまま — 新規マテリアルは
-  1つも作っていない。
 
-【UV】**一点貼りにしない**(規約4)。同じ NatureManufacture のアトラス
-  (`T_Photoscanned_rocks_01_BC.tga` 4096×4096)から実在の岩1体ぶんの矩形を取り、
-  その**実測テクセル密度**(UV幅・高さ ÷ その岩の実寸)を側面・天端に**そのまま**使う
-  — 密度を変えると同じ岩肌なのに解像感が変わって浮く。**周方向は累積弧長・鉛直方向は高さ**
+  【2026-09-06 ユーザー裁定1=B で `M_photoscanned_rocks_01` → `M_FJG_Rock_001` へ変更】
+  護岸の転石(`JG_Rock_A_01..03.prefab`)と材を揃える裁定。**問題は FBX 内の材質名が
+  `Test` だったことであって、`.mat` 自体は `Assets/Waldemarst/FreeJapaneseGarden/
+  Materials/Misc/M_FJG_Rock_001.mat` に実在する**(prefab はこれへ手で貼り替え済み)。
+  ⭕ よって「FBX 内の材質名を最初から `M_FJG_Rock_001` にして書き出す」だけで
+  Unity の Search&Remap は .mat 名の一致で当たる — `Test` を経由する必要は無い。
+  実装は `V.named_material(ROCK_MAT)`(FBX由来ではなく名前だけの新規 Blender マテリアル。
+  `wall A` を空の名前で用意したのと同じ手当て)。**マテリアル自体は新規作成していない**
+  — 作っているのは Blender 内の「同名の入れ物」で、Unity 側は既存 .mat に remap される。
+
+【UV】**一点貼りにしない**(規約4)。当初は「`M_FJG_Rock_001` のテクスチャは
+  アトラスでなく1枚のタイル岩肌のはず」と想定していたが、**実測すると誤りだった**:
+  `FJG_Rock_A_01/02/03_LOD0.fbx` を読んで UV 範囲を測ると、3体はそれぞれ
+  `T_FJG_Rock_Dark_001_Albedo.png`(4096×4096)の**別の象限**(A_01=右下 u[0.51,0.98]
+  v[0.01,0.48] / A_02=左下 / A_03=左上)を専有していて、`M_photoscanned_rocks_01` と
+  **同じ「個体ごとの矩形アイランドを敷き詰めたアトラス」構造**だった。よって UV の作法は
+  変えず、**同じ手続き(矩形を1つ選び、実測テクセル密度で pingpong 折り返し)を
+  そのまま踏襲**する。矩形は A_01 の象限の**安全な内側**(象限の縁からマージンを取って
+  他象限の縁のパディングを踏まない): `RECT = (0.55, 0.05, 0.94, 0.44)`(縁から
+  0.04 内側)。密度は A_01 の実測(UV幅 0.4726×4096 ≒ 1936px ÷ 実寸の大きい方の辺
+  1.4718m ≒ **1317px/m** → `DENS ≒ 0.32 uv/m`)。**周方向は累積弧長・鉛直方向は高さ**
   で座標を作り、密度を掛けたあと `pingpong()` で [0,1] へ折り返す(継ぎ目が出ない。
   `build_okabe_niwa.Take.pole()` の考え方と同じ)。丈2.1mの L でも周長×密度・高さ×密度は
   どちらも1を超えないので実際には折り返しは発生しない(念のため入れてあるだけ)。
@@ -125,26 +138,37 @@ import vkmesh as VM
 OUT = os.path.join(V.REPO, "Assets", "Edo", "Models", "Niwa")
 SHOT = os.path.join(V.REPO, "Screenshots")
 
+# ⚠ NatureManufacture の写真計測岩(旧材質)。`compare_boulder()` の見た目比較カット
+#   専用に残す — 出荷物(ROCK_MAT)はもう使わない(2026-09-06 ユーザー裁定1=B)。
 NMR = os.path.join(V.REPO, "Assets", "NatureManufacture Assets",
                     "Meadow Environment Dynamic Nature", "Rocks", "Rocks", "Models")
-NMR_TEX = os.path.join(NMR, "Textures", "T_Photoscanned_rocks_01_BC.tga")
-NMR_NRM = os.path.join(NMR, "Textures", "T_Photoscanned_rocks_01_N.tga")
-ROCK_MAT = "M_photoscanned_rocks_01"
 
-# ⚠⚠ **最初は Rock_04 の UV バウンズをそのまま矩形に使ったが、これは NG だった。**
-#   写真計測のアトラスは 1個体=1枚の単純な矩形ではなく、**個体ごとの不定形 UV アイランドを
-#   隙間なく敷き詰めた上に、境界をぼかし止めする放射状の「パディング」を焼いてある**
-#   (`T_Photoscanned_rocks_01_BC.tga` を直に開いて確認 — 各岩の周りに縞状のストライプが
-#   埋め尽くしている)。個体の bounding box をそのまま矩形として使うと、四隅がこのパディング
-#   (隣の個体の切れ端や無関係な縞)に掛かり、**同じ面の中で無関係な絵柄へワープする**ため、
-#   前面が万華鏡のように破綻した(2026-09-06 に実見。`docs` 相当のスクリーンショットは
-#   `/tmp/rock_atlas_preview.png` / `/tmp/crop1.png` に残る)。
-#   ⭕ **岩1個体の内側だけを見て、パディングに掛からない矩形を手で選び直した**
-#   (画素 (510,1330)-(1210,1930)、4096角。周囲の縞と接しない安全な内側)。
-#   密度はテクスチャの解像度と Rock_04 実測(1962px/1.333m 相当)から
-#   概算 1250px/m として、この矩形の一辺 700px ≒ 0.56m とみなした。
-RECT = (510.0 / 4096, 1.0 - 1930.0 / 4096, 1210.0 / 4096, 1.0 - 1330.0 / 4096)
-DENS_U = DENS_V = DENS_P = 0.30           # [uv/m]。矩形がほぼ正方形なので等方に統一
+# ⭐ 2026-09-06 ユーザー裁定1=B: 護岸の転石(JG_Rock_A_01..03)と材を揃える。
+#   `Assets/Waldemarst/FreeJapaneseGarden/Materials/Misc/M_FJG_Rock_001.mat` が使う
+#   実テクスチャ(_BaseMap / _BumpMap)。
+FJG_TEX_DIR = os.path.join(V.REPO, "Assets", "Waldemarst", "FreeJapaneseGarden", "Textures", "Misc")
+FJG_TEX = os.path.join(FJG_TEX_DIR, "T_FJG_Rock_Dark_001_Albedo.png")
+FJG_NRM = os.path.join(FJG_TEX_DIR, "T_FJG_Rock_001_Normal.png")
+ROCK_MAT = "M_FJG_Rock_001"
+
+# ⚠⚠ **最初は Rock_04(NatureManufacture)の UV バウンズをそのまま矩形に使ったが、これは
+#   NG だった。** 写真計測のアトラスは 1個体=1枚の単純な矩形ではなく、**個体ごとの不定形
+#   UV アイランドを隙間なく敷き詰めた上に、境界をぼかし止めする放射状の「パディング」を
+#   焼いてある**(`T_Photoscanned_rocks_01_BC.tga` を直に開いて確認 — 各岩の周りに縞状の
+#   ストライプが埋め尽くしている)。個体の bounding box をそのまま矩形として使うと、四隅が
+#   このパディング(隣の個体の切れ端や無関係な縞)に掛かり、**同じ面の中で無関係な絵柄へ
+#   ワープする**ため、前面が万華鏡のように破綻した(2026-09-06 に実見)。
+#   ⭕ **岩1個体の内側だけを見て、パディングに掛からない矩形を手で選び直した。**
+#
+#   【2026-09-06 裁定1=B の材質切替に伴う再選定】`M_FJG_Rock_001` のテクスチャも
+#   **同じ「個体ごとの矩形アイランド」構造**だと実測で判明(モジュール docstring の
+#   【UV】節参照)。`FJG_Rock_A_01_LOD0.fbx` の UV 実測は u[0.5100,0.9827] v[0.0107,0.4833]
+#   (4096角の右下象限)。その**内側**(象限の縁のパディングを踏まない、四辺 0.04 マージン)
+#   を矩形に使う: `RECT = (0.55, 0.05, 0.94, 0.44)`。
+#   密度は同じ個体の実測: UV幅 (0.9827-0.5100)*4096 ≒ 1936px ÷ 実寸の大きい方の辺
+#   1.4718m(world bbox 実測)≒ **1317px/m** → **0.32 uv/m**。
+RECT = (0.55, 0.05, 0.94, 0.44)
+DENS_U = DENS_V = DENS_P = 0.32           # [uv/m]。矩形がほぼ正方形なので等方に統一
 
 # 仕様(Unity座標: W(X)×D(Z)×H(Y))。ユーザー裁定3=A の寸法どおり。
 SPEC = {
@@ -891,17 +915,13 @@ def assign_uv(bm, uv_layer, uparam, back_len, is_cap_layer, is_head_v_layer=None
 
 
 def _borrow_rock_material():
-    m = bpy.data.materials.get(ROCK_MAT)
-    if m:
-        return m
-    objs = VM.import_fbx_abs(os.path.join(NMR, "Rock_04.FBX"),
-                             keep=lambda n: "LOD1" not in n and "LOD2" not in n)
-    m = bpy.data.materials.get(ROCK_MAT)
-    for o in objs:
-        bpy.data.objects.remove(o, do_unlink=True)
-    if m is None:
-        raise SystemExit("[tateishi] M_photoscanned_rocks_01 を読めない")
-    return m
+    """`M_FJG_Rock_001` は**FBX経由で借りない**(在庫岩の FBX 内材質名は `Test` で、
+    そのまま運ぶと Unity の Search&Remap が当たらない — モジュール docstring の
+    【材質】節参照)。⭕ `vklib.named_material` と同じ考え方で**名前だけの入れ物**を
+    Blender 内に作る。書き出す FBX のマテリアル名は文字列としてこの名前を持つので、
+    Unity 側は既存の `M_FJG_Rock_001.mat` に名前一致で remap できる
+    (新規マテリアルは作っていない — 借りているのは名前だけ)。"""
+    return V.named_material(ROCK_MAT)
 
 
 def bounds(objs):
@@ -1031,7 +1051,11 @@ def make_lod1(lod0):
 
 
 def hook():
-    """検証レンダ用に岩のアルベドを結ぶ(`build_okabe_niwa.hook` と同じ手順・同じ罠)。"""
+    """検証レンダ用に岩のアルベドを結ぶ(`build_okabe_niwa.hook` と同じ手順・同じ罠)。
+    2026-09-06 裁定1=B: `M_FJG_Rock_001` は `V.named_material` で作った空の入れ物
+    (ノード無し)なので、ここで初めて `T_FJG_Rock_Dark_001_Albedo.png` /
+    `T_FJG_Rock_001_Normal.png` を結線する(FBX 書き出しには一切影響しない —
+    書き出されるのはマテリアル**名**だけで、ノードは Unity 側の .mat が持つ)。"""
     for m in bpy.data.materials:
         base = m.name.split('.')[0]
         if base != ROCK_MAT:
@@ -1051,11 +1075,11 @@ def hook():
         except Exception:
             pass
         img = nt.nodes.new('ShaderNodeTexImage')
-        img.image = bpy.data.images.load(NMR_TEX, check_existing=True)
+        img.image = bpy.data.images.load(FJG_TEX, check_existing=True)
         nt.links.new(img.outputs['Color'], b.inputs['Base Color'])
-        if os.path.exists(NMR_NRM):
+        if os.path.exists(FJG_NRM):
             ni = nt.nodes.new('ShaderNodeTexImage')
-            ni.image = bpy.data.images.load(NMR_NRM, check_existing=True)
+            ni.image = bpy.data.images.load(FJG_NRM, check_existing=True)
             ni.image.colorspace_settings.name = 'Non-Color'
             nm = nt.nodes.new('ShaderNodeNormalMap')
             nt.links.new(ni.outputs['Color'], nm.inputs['Color'])

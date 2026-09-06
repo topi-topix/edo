@@ -2349,8 +2349,16 @@ def cert_rulings_table(d):
         return "<p class='cap'>⚠ <b>裁定の記録が 0 件。</b></p>"
     return _tw(("役割", "側面", "確度", "<b>決めた者</b>", "確度を裁定した者", "典拠", "理由"),
                rows) + (
-        "<p class='cap'>⭐ <b>⭐ 印は<b>ユーザー裁定</b>の行(%d 件)</b> — "
-        "⛔ <b>覆すのに普請奉行の一存では足りない</b>。</p>" % nu) + (
+        "<p class='cap'>⭐ <b>⭐ 印は<b>ユーザー裁定</b>の行(<b>この表の中で %d 件</b>)</b> — "
+        "⛔ <b>覆すのに普請奉行の一存では足りない</b>。"
+        "⚠⚠ <b>これは邸のユーザー裁定の総数ではない</b>(2026-09-06 考証方 低2)— "
+        "<b>図の他所にも少なくとも5件ある</b>: <b>基準年次(安政3年・全邸共通)</b> / "
+        "<b>表門は復旧が済んだ姿</b>(2026-08-30 案A)/ <b>足形・室割りは動かさない</b> / "
+        "<b>区画は動かさない</b>(2026-08-24)/ <b>台所を西へ0.5間</b>(2026-08-31 EDO-0049 案A)/ "
+        "<b>屋敷の向きを維持</b>(2026-08-23)。"
+        "⚠⚠ ⭐ <b>とくに「足形・室割りは動かさない」は、雁行の乖離"
+        "(<code>_pending.gankou</code>)を未解決にしている当の制約</b> — "
+        "⛔ <b>表の外にあると忘れられる</b>ので、ここから参照を張る。</p>" % nu) + (
         "<p class='cap'>⚠⚠ <b>2026-09-06: 「いつ・誰が」の1列を2列に割った</b>(考証方 中1)— "
         "⛔ <b>同じ列が「決めた者(出自)」と「確度を裁定した者」の2つの意味で使われていた</b>。"
         "⚠ <b>池の行だけ直っていたので、かえって他の行が『出自』として読まれた</b> — "
@@ -2947,6 +2955,19 @@ def refs_check(d):
     names = set(w["name"] for w in d["terraceWalls"])
     tn = set(t["name"] for t in d["terraces"])
     bad = []
+    # ⭐⭐ **隣家の名簿は2つある**(2026-09-06 検図方)。
+    #   `NEIGHBOUR`(生成器の定数・`neighbour_block` と `neighbour_wall_check` が使う)と
+    #   `neighbours`(設計値・`neighbour_hash_check` が使う)が**別々に隣家を列挙**しており、
+    #   ⛔ **片方にだけ隣家を足すと「測るのに sha を見ない」(または逆)が静かに生まれる**。
+    #   ⚠ 前巡で塞いだ「入力の鮮度」の穴と同じ形。⇒ **集合が一致すること**を測る。
+    _mf = set(fn_ for fn_, _e in NEIGHBOUR.values())
+    _df = set(q.get("file") for q in (d.get("neighbours") or {}).values())
+    for f9 in sorted(_mf - _df):
+        bad.append("隣家 `%s` を生成器の `NEIGHBOUR` は測るのに `neighbours` に sha が無い — "
+                   "**動いても誰も気づかない**" % f9)
+    for f9 in sorted(_df - _mf):
+        bad.append("`neighbours` に `%s` の sha があるのに生成器の `NEIGHBOUR` が測っていない — "
+                   "**sha だけ見て数字を取っていない**" % f9)
     for k in d["kaidans"] + d.get("ramps", []):
         w = k.get("atWall")
         if w is None:

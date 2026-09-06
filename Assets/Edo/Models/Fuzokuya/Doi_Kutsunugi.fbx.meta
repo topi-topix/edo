@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 851e4f10829244f2ab89cbc60855ef86
+guid: 9dfb6fd75fda34875bd81f64f578c5d1
 ModelImporter:
   serializedVersion: 24501
   internalIDToNameTable: []
@@ -7,18 +7,8 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
-      name: Foundation_A_01
-    second: {fileID: 2100000, guid: 3ce4a815bce2cce4ba40d7156c957e2f, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: s_heimap
-    second: {fileID: -3481131008871277802, guid: 8838f97c8ed5b4dbb80dec7663f0bcb0, type: 3}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: wood
-    second: {fileID: 2100000, guid: 6127939ab0b92994fa5506eed0e13a74, type: 2}
+      name: M_photoscanned_rocks_01
+    second: {fileID: 2100000, guid: 854c2a4ac214c8f47939e9fd60886c7c, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0

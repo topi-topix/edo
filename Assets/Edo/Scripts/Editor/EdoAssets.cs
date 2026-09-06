@@ -1274,6 +1274,24 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_doi_buzai.py -- chozu --render</summary>
         public const string DoiChozu = FuzokuyaDir + "Doi_Chozu.fbx";
 
+        /// <summary>**沓脱石** — 奥棟の南入側の前の一枚石(`gardens.G_Okuniwa.kutsunugi.Kutsunugi_Oku`)。
+        /// 実寸 **1.400(X) × 0.488(Y) × 0.950(Z)**。在庫の実岩 `Rock_05_cut` を切り、
+        /// **上面だけを均した自然石**(⛔ 面(chamfer)は立てていない — 稜を取ると据石の格が変わる)。
+        ///
+        /// <para>ピボット = **足形の芯・天端(水切りの中立点)**。石は Y **−0.483 … +0.005**。
+        /// ⇒ <c>position.y = kutsunugi[].topY</c>(26.92)を**直に**入れる
+        /// (⛔ bbox から座り直さない)。</para>
+        ///
+        /// <para>天端は水平だが **ローカル +Z へ 1/100 の水切り**(見込み 0.95m で落差 9.5mm)。
+        /// ⛔ **+Z を入側へ向けない** — 指図 `mizukiri.to` は「−u(入側と反対=庭側)」で、
+        /// 裏を返せば **−Z が入側**(奥棟の南面 = +u 側)を向く。雨を縁の下へ入れないための向き。</para>
+        ///
+        /// ⛔ **非一様スケールを掛けない**(写真計測の石肌の斑が流れる)。
+        /// ⛔ **根固めの栗石は部材に含まない** — 地表側(棟梁)の表現。
+        /// 材 = `M_photoscanned_rocks_01`(⛔ 新規マテリアルを作らない。remap が要る)。
+        /// 生成: blender --background --python Tools/Blender/build_doi_buzai.py -- kutsunugi --render</summary>
+        public const string DoiKutsunugi = FuzokuyaDir + "Doi_Kutsunugi.fbx";
+
         /// <summary>**水尻の石の閾(余水吐)**。汀 #14(西端)、天端は `mizu.mizushiri.shiki.sill`
         /// (水面 +0.05)。実寸 **1.200(X) × 0.490(Y) × 0.890(Z)**。数量1。
         /// 生成: blender --background --python Tools/Blender/build_doi_buzai.py -- shiki --render</summary>

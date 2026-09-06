@@ -157,7 +157,29 @@ public static partial class EdoDoiBuilder
     /// <summary>汀線の点(指図の `roles` は 1 始まり)。</summary>
     static Vector2 Sh(int oneBased)
     { var n = NiwaModel; return n.pond[((oneBased - 1) % n.pond.Length + n.pond.Length) % n.pond.Length]; }
-    /// <summary>汀線を frm→to へ辿った折れ線(1 始まり・巡回)。</summary>
+    /// <summary>設計の汀の点を**水面メッシュの縁**(Chaikin×2)へ寄せる(最寄り点)。
+    /// ⭐ 庭方の第3条(2026-09-06)— 護岸・州浜・水際に据える物は「**見えている水際**」に取り合わせる。
+    /// ⛔ **地形の水際で据えない** — heightmap は格子 2.0m で設計より粗く、外向きに進んで
+    /// 最初に地表が waterY を超える点で据えると最大 2m 引っ込んで石も砂利も浮く。</summary>
+    static Vector2 SnapToWaterEdge(Vector2 g)
+    {
+        var E = PondEdge();
+        Vector2 best = g; float bd = float.MaxValue;
+        for (int i = 0, j = E.Length - 1; i < E.Length; j = i++)
+        {
+            Vector2 a = E[j], b = E[i], ab = b - a;
+            float L2 = Mathf.Max(1e-12f, ab.sqrMagnitude);
+            float t = Mathf.Clamp01(Vector2.Dot(g - a, ab) / L2);
+            Vector2 q = a + ab * t;
+            float d = Vector2.Distance(g, q);
+            if (d < bd) { bd = d; best = q; }
+        }
+        return best;
+    }
+
+    /// <summary>汀線を frm→to へ辿った折れ線(1 始まり・巡回)。
+    /// ⭕ **据え位置に使う線なので水面メッシュの縁へ寄せる**(庭方の第3条)。
+    /// ⚠ 面積の計測と `clip` は**設計の汀**(`n.pond`)のまま — 生成器が刷る表と食い違わせないため。</summary>
     static List<Vector2> ShoreWalk(int frm, int to)
     {
         var n = NiwaModel; int N = n.pond.Length;
@@ -165,7 +187,7 @@ public static partial class EdoDoiBuilder
         int i = frm;
         for (int k = 0; k < N + 1; k++)
         {
-            outp.Add(Sh(i));
+            outp.Add(SnapToWaterEdge(Sh(i)));
             if (i == to) break;
             i = i % N + 1;
         }
@@ -191,8 +213,51 @@ public static partial class EdoDoiBuilder
     static float LineLen(List<Vector2> L)
     { float t = 0f; for (int i = 0; i + 1 < L.Count; i++) t += Vector2.Distance(L[i], L[i + 1]); return t; }
 
-    /// <summary>ハイトマップの窓を開いて fn で書き、閉じる。⛔ **区画の外と庭の矩形の外は触らない**。</summary>
-    static string EditNiwaHeights(Func<float, float, float> fn, string label)
+    static Vector2[] _pondW;
+    /// <summary>設計の汀(`migiwa.pts`)を**世界座標**で。セルとの重なりは世界の軸平行で見るので要る。</summary>
+    static Vector2[] PondWorld()
+    {
+        if (_pondW != null) return _pondW;
+        var n = NiwaModel;
+        var r = new Vector2[n.pond.Length];
+        for (int i = 0; i < n.pond.Length; i++) r[i] = Wu(n.pond[i].x, n.pond[i].y);
+        _pondW = r; return r;
+    }
+    static float Cross2(Vector2 p, Vector2 q, Vector2 r)
+    { return (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x); }
+    static bool SegHit(Vector2 a, Vector2 b, Vector2 c, Vector2 d)
+    {
+        float d1 = Cross2(c, d, a), d2 = Cross2(c, d, b), d3 = Cross2(a, b, c), d4 = Cross2(a, b, d);
+        return ((d1 > 0f) != (d2 > 0f)) && ((d3 > 0f) != (d4 > 0f));
+    }
+    /// <summary>セル(世界の軸平行な正方形)が汀多角形と**少しでも重なる**か(coverage &gt; 0)。
+    /// ⛔⛔ **中心点で判定しない。**水口は 2.07m しかなく、heightmap の格子 2.0m では
+    /// 中心点がどのセルにも入らず**陸が残って池が東西に割れた**(2026-09-06 普請検査・庭方の第1条)。</summary>
+    static bool PondOverlapsCell(float wx, float wz, float half)
+    {
+        var P = PondWorld();
+        // ① セルの 3×3 の標本のどれかが池の中(= セルが池に含まれる/半分掛かる)
+        for (int a = -1; a <= 1; a++)
+            for (int b = -1; b <= 1; b++)
+                if (EdoGeom.PIP(P, new Vector2(wx + a * half, wz + b * half))) return true;
+        // ② 汀の頂点がセルの中(= 池がセルより細い)
+        for (int i = 0; i < P.Length; i++)
+            if (Mathf.Abs(P[i].x - wx) <= half && Mathf.Abs(P[i].y - wz) <= half) return true;
+        // ③ 汀の辺がセルの辺と交わる(= 池がセルを貫く)
+        Vector2 c0 = new Vector2(wx - half, wz - half), c1 = new Vector2(wx + half, wz - half);
+        Vector2 c2 = new Vector2(wx + half, wz + half), c3 = new Vector2(wx - half, wz + half);
+        for (int i = 0, j = P.Length - 1; i < P.Length; j = i++)
+            if (SegHit(P[j], P[i], c0, c1) || SegHit(P[j], P[i], c1, c2)
+             || SegHit(P[j], P[i], c2, c3) || SegHit(P[j], P[i], c3, c0)) return true;
+        return false;
+    }
+
+    /// <summary>直前の <see cref="EditNiwaHeights"/> のセルの一辺[m]。重なり判定に要る。</summary>
+    static float _niwaCell = 2f;
+
+    /// <summary>ハイトマップの窓を開いて fn(u, v, 現況) で書き、閉じる。
+    /// ⛔ **区画の外と庭の矩形の外は触らない**。</summary>
+    static string EditNiwaHeights(Func<float, float, float, float> fn, string label)
     {
         var n = NiwaModel;
         var t = Terrain.activeTerrain; var td = t.terrainData;
@@ -211,6 +276,7 @@ public static partial class EdoDoiBuilder
         int w = x1 - x0 + 1, h = z1 - z0 + 1;
         var H = td.GetHeights(x0, z0, w, h);
         var P = Poly;
+        _niwaCell = ts.x / (hres - 1);
         int cells = 0; double up = 0, dn = 0;
         for (int z = 0; z < h; z++) for (int x = 0; x < w; x++)
         {
@@ -219,15 +285,138 @@ public static partial class EdoDoiBuilder
             if (!EdoGeom.PIP(P, new Vector2(wx, wz))) continue;            // ⛔ 区画の外
             var g = Grid.L(new Vector2(wx, wz));
             if (!n.Inside(g.x, g.y)) continue;                              // ⛔ 庭の矩形の外
-            float y = fn(g.x, g.y);
-            if (float.IsNaN(y)) continue;
             float cur = H[z, x] * ts.y + tp.y;
+            float y = fn(g.x, g.y, cur);
+            if (float.IsNaN(y)) continue;
             if (y > cur) up += y - cur; else dn += cur - y;
             H[z, x] = (y - tp.y) / ts.y; cells++;
         }
         td.SetHeightsDelayLOD(x0, z0, H); td.SyncHeightmap();
         float cell = ts.x / (hres - 1); double a = cell * cell;
         return string.Format("{0}: cells={1} 盛{2:F0}m³ 切{3:F0}m³", label, cells, up * a, dn * a);
+    }
+
+    /// <summary>汀の内側で水面下へ沈める最小の深さ[m]。⚠ **設計値ではなく格子の都合**
+    /// (heightmap 2.0m で幅 8.7m の池を掘るための下限の保証)。⛔ 指図へ写さない。
+    /// ⭕ 掘る値そのものは**設計の池床**(椀形)で、これは「浅く残らない」ための床。</summary>
+    const float POND_MIN_SUB = 0.30f;
+
+    static Vector2[] _pondEdge;
+    /// <summary>**水面メッシュの縁**(グリッド座標)。
+    /// ⚠⚠ `WaterBaker.RebuildSurface` は輪郭に **Chaikin ×2**(`WaterGeom.SmoothTagged(…, 2)`)を
+    /// 掛けてから三角形にするので、**見えている水際は `migiwa.pts` の折れ線ではない**(隅が落ちる)。
+    /// ⇒ ⭕ **護岸・州浜・下草・水際の草は「この縁」に取り合わせる。**
+    /// ⛔ **地形の水際(外へ進んで最初に地表が waterY を超える点)で据えない** — 地形は格子 2.0m で
+    /// 設計より粗く、最大 2m 内へずれるので、石も砂利も引っ込んで浮く(2026-09-06 庭方の第3条)。</summary>
+    static Vector2[] PondEdge()
+    {
+        if (_pondEdge != null) return _pondEdge;
+        var n = NiwaModel;
+        var o3 = new List<Vector3>();
+        foreach (var p in n.pond) { var w = Wu(p.x, p.y); o3.Add(new Vector3(w.x, n.waterY, w.y)); }
+        var sm = WaterGeom.SmoothTagged(o3, null, 2);
+        var res = new Vector2[sm.Count];
+        for (int i = 0; i < sm.Count; i++) res[i] = Grid.L(new Vector2(sm[i].x, sm[i].z));
+        _pondEdge = res;
+        return res;
+    }
+    /// <summary>水面メッシュの縁の内側か(⛔ `NiwaM.InPond` は**設計の**汀で、こちらは**見える**汀)。</summary>
+    static bool InWater(float u, float v) { return EdoGeom.PIP(PondEdge(), new Vector2(u, v)); }
+
+    /// <summary>**検査④ 掘った池が水面の下に納まっているか。**
+    /// 汀多角形の内側の heightmap のセルを数え、①水面より上のセルが 0 か ②最深がいくつか を刷る。
+    /// ⚠ 2026-09-06 の普請検査は 14.4% が水面より上で、池が東西2つに割れていた。</summary>
+    [MenuItem(MENU + "検査④ 池が水面の下に納まっているか PondQA")]
+    public static void PondQAMenu() { Debug.Log("[Doi] " + PondQA()); }
+    public static string PondQA()
+    {
+        var n = NiwaModel; if (n == null) return "検査④: 庭が無い";
+        var t = Terrain.activeTerrain; var td = t.terrainData;
+        int hres = td.heightmapResolution;
+        Vector3 tp = t.transform.position, ts = td.size;
+        float cell = ts.x / (hres - 1);
+        // 汀の bbox を世界座標で囲う
+        float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
+        foreach (var p in n.pond)
+        {
+            var w = Wu(p.x, p.y);
+            mnx = Mathf.Min(mnx, w.x); mxx = Mathf.Max(mxx, w.x);
+            mnz = Mathf.Min(mnz, w.y); mxz = Mathf.Max(mxz, w.y);
+        }
+        int inCell = 0, above = 0; float deepest = float.MaxValue;
+        for (float x = mnx - cell; x <= mxx + cell; x += cell)
+            for (float z = mnz - cell; z <= mxz + cell; z += cell)
+            {
+                var g = Grid.L(new Vector2(x, z));
+                if (!n.InPond(g.x, g.y)) continue;
+                float y = t.SampleHeight(new Vector3(x, 0f, z)) + tp.y;
+                inCell++;
+                if (y > n.waterY) above++;
+                deepest = Mathf.Min(deepest, y);
+            }
+        var sb = new System.Text.StringBuilder();
+        sb.Append("検査④ 池: 汀内 " + inCell + " セル / 水面(" + n.waterY.ToString("F2")
+                + ")より上 = " + above + " セル"
+                + (inCell == 0 ? "" : " / 格子上の最深 " + deepest.ToString("F2")
+                   + "(水深 " + (n.waterY - deepest).ToString("F2") + "m)")
+                + (above == 0 ? " ⭕" : " ⚠ 池が割れる"));
+
+        // ── 水口(`migiwa.roles` が「水口」と書いた汀の点)が水面下か。⛔ 番号を写さず役から引く
+        var mg = O(n.g["migiwa"]);
+        var roles = Has(mg, "roles") ? O(mg["roles"]) : null;
+        int mina = 0, minaBad = 0; float minaWorst = -99f;
+        if (roles != null)
+            foreach (var kv in roles)
+            {
+                if (kv.Value == null || S(kv.Value) == null || S(kv.Value).IndexOf("水口") < 0) continue;
+                int idx; if (!int.TryParse(kv.Key, out idx)) continue;
+                Vector2 gp = Sh(idx);
+                // 汀の点そのものと、池の内側へ 0.3間 寄せた点の両方を見る
+                for (int s = 0; s < 2; s++)
+                {
+                    Vector2 q = gp;
+                    if (s == 1)
+                    {
+                        // 池の重心へ 0.3間 寄せる(内側)
+                        Vector2 c = Vector2.zero;
+                        for (int i = 0; i < n.pond.Length; i++) c += n.pond[i];
+                        c /= n.pond.Length;
+                        q = gp + (c - gp).normalized * 0.3f;
+                    }
+                    var w = Wu(q.x, q.y);
+                    float y = t.SampleHeight(new Vector3(w.x, 0f, w.y)) + tp.y;
+                    mina++;
+                    if (y > n.waterY) { minaBad++; minaWorst = Mathf.Max(minaWorst, y - n.waterY); }
+                }
+            }
+        sb.Append("\n   水口: " + mina + " 点中 水面より上 " + minaBad + " 点"
+                + (minaBad == 0 ? " ⭕(東西の池がつながる)" : " ⚠ 最大 +" + minaWorst.ToString("F2") + "m — 池が割れる"));
+
+        // ── 沢飛石の足元が水中か(⛔ 陸に立っていたら渡り石にならない)
+        int sw = 0, swBad = 0;
+        var tk = GameObject.Find(Grp);
+        if (tk != null)
+        {
+            var g2 = tk.transform.Find("Niwa/Tenkei");
+            if (g2 != null)
+                foreach (var tr in g2.GetComponentsInChildren<Transform>())
+                {
+                    if (tr.name.IndexOf("Sawatobi") < 0) continue;
+                    float y = t.SampleHeight(tr.position) + tp.y;
+                    sw++;
+                    if (y > n.waterY) swBad++;
+                }
+        }
+        sb.Append("\n   沢飛石: " + sw + " 個中 足元が陸 " + swBad + " 個"
+                + (sw == 0 ? "(まだ据えていない)" : (swBad == 0 ? " ⭕" : " ⚠")));
+
+        Wait("池の深さ: 指図 `migiwa.depthMax` 1.00m・`bedY` 25.20 に対し、"
+           + "**heightmap のセル 2.0m では幅 8.7m の池の底を彫りきれない**(格子上の実測の最深 "
+           + (inCell == 0 ? "—" : (n.waterY - deepest).ToString("F2")) + "m)。"
+           + "⭕ 椀形の床は設計どおり書き、汀ぎわは " + POND_MIN_SUB.ToString("F2")
+           + "m を下限として保証した(⛔ 平床にしていない)。"
+           + "⇒ 指図方へ:『格子の限界で設計深さに届かない』断りが要る");
+        return sb.ToString();
     }
 
     // ------------------------------------------------------------------ Stage6 奥庭
@@ -261,8 +450,36 @@ public static partial class EdoDoiBuilder
         var n = NiwaModel;
         // ⚠ 目標の面は**絶対値**(現況を読まない)なので何度流しても同じ = 冪等。
         //   マーカーは「一度は流した」を残すためだけに置く。
-        string r = EditNiwaHeights((u, v) => n.Ground(u, v), "奥庭の土工(池床+築山+土手)");
+        //
+        // ⚠⚠ **heightmap のセルは 2.0m。この池は幅 8.7m しかないので約4セルしか無い。**
+        //   設計の池床は汀で水面に一致する(深さ 0 から放物で落ちる)ので、汀のすぐ内側のセルへ
+        //   設計値をそのまま書くと、**隣の陸のセルとの補間で水面より上へ持ち上がる**。
+        //   2026-09-06 の普請検査で、汀内 3,031 点のうち **14.4% が水面より上**・水口(汀 #8〜#10・#17)が
+        //   陸になって**池が東西2つに割れて**いた。
+        //   ⇒ ⭕ **汀の内側のセルは必ず水面 − `POND_MIN_SUB` 以下へ沈め、汀の外 1m は水面 +0.05 以上に保つ。**
+        //   ⛔ **設計(`migiwa` の床の形)は動かしていない** — 格子で表せない所を格子の側で丸めているだけ。
+        //   ⚠ 深さ `depthMax` 1.0m は 2m 格子では再現しきれない(下の Wait で申し送る)。
+        //
+        // ⭐ **2026-09-06 庭方の3条**(⛔ 前案の「汀内を一律 waterY−0.30」は撤回):
+        //   ① セルの判定は**中心点でなく面の重なり**(`PondOverlapsCell`)。水口 2.07m に格子 2.0m では
+        //      中心点判定だと1セルも入らず陸が残る = 池が東西に割れる。
+        //   ② 落とす値は **min(現況, 設計の池床)**。⛔ 一律の平床にしない(水が透けて水たまりに見える)。
+        //      `waterY − POND_MIN_SUB` は**下限の保証**として残す(汀ぎわのセルが浅く残らないため)。
+        //   ③ 据え位置は**水面メッシュの縁**(`PondEdge`)から。⛔ 地形の水際で据えない。
+        string r = EditNiwaHeights((u, v, cur) =>
+        {
+            float ground = n.Ground(u, v);
+            if (PondOverlapsCell(Wu(u, v).x, Wu(u, v).y, _niwaCell * 0.5f))
+            {
+                // ⭕ 椀形の床(`Bed`)。⛔ 平床にしない。現況が既に深ければそれを残す
+                float y = Mathf.Min(cur, n.Bed(u, v));
+                return Mathf.Min(y, n.waterY - POND_MIN_SUB);      // 下限の保証
+            }
+            if (n.DShore(u, v) * Grid.ken <= 1.0f) return Mathf.Max(ground, n.waterY + 0.05f);
+            return ground;
+        }, "奥庭の土工(池床+築山+土手)");
         if (!Marked("6a_niwa_dokou")) Mark("6a_niwa_dokou", r);
+        r += " / " + PondQA();
 
         // 水面。⛔ WaterBaker.Create は呼ばない(理由はファイル冒頭)。地形には触れない。
         var grp = Group("Niwa/Mizu"); Clear(grp);
@@ -512,31 +729,72 @@ public static partial class EdoDoiBuilder
             }
         }
 
-        // ④ 受け石(玉石の浸透枡)。⛔ 新造せず在庫の小径の立石を**伏せて**3種混ぜる。
-        //    ⚠ **個数と配置は指図に無い**(`uke` は「玉石の浸透枡(受け石)」の一語)。
-        //      部材方の申し送りが名指しした variant 1..3 のとおり 3個だけ据えた【U】。
-        if (haveEnd)
+        // ④ 受け石(玉石の浸透枡)。⭐ **2026-09-06 に指図が数・方位・半径・天端の出入りを持った**
+        //    (それまでは「玉石の浸透枡(受け石)」の一語で、第2回は 120°等配 3個を発明していた)。
+        //    ⛔ **等配・等半径にしない** — 機械で置いた円に見える。方位・半径は `uke.at` が正典。
+        //    ⛔ 「石は立てる」は景石の作法 — 受け石は**伏せる**(水を受ける面が要る)。
+        if (haveEnd && Has(ms, "otoshimizo") && Has(O(ms["otoshimizo"]), "uke"))
         {
-            for (int i = 1; i <= 3; i++)
+            var uk = O(O(ms["otoshimizo"])["uke"]);
+            var uat = A(uk["at"]);
+            if (uat == null || uat.Count == 0) Wait("受け石の `uke.at`(方位・半径)が無い");
+            else
             {
-                string path = EdoAssets.Own.Tateishi("S", i);
-                if (!Exists(path)) { Wait("受け石の部材が無い: " + path); break; }
-                float ang = (i - 1) * 120f + 20f;
-                Vector2 c = endPt + new Vector2(Mathf.Cos(ang * Mathf.Deg2Rad), Mathf.Sin(ang * Mathf.Deg2Rad)) * 0.45f;
-                float gy = GroundY(c.x, c.y);
-                var go = EdoBuild.Place(path, new Vector3(c.x, gy, c.y),
-                                        (float)rnd.NextDouble() * 360f, Vector3.one * 0.55f, grp, "Ukeishi_" + i);
-                if (go == null) continue;
-                // **伏せる** — 丈 1.0 に正規化した立石を寝かせ、半分ほど埋める
-                go.transform.rotation = go.transform.rotation * Quaternion.Euler(90f, 0f, 0f);
-                var bb = EdoBuild.RB(go);
-                go.transform.position += new Vector3(0f, gy - bb.center.y, 0f);
-                made++;
+                float usc = Has(uk, "scale") ? F(uk["scale"]) : 1f;
+                float cj = Has(uk, "capJitter") ? F(uk["capJitter"]) : 0f;
+                float ch = Has(uk, "capHigh") ? F(uk["capHigh"]) : 0f;
+                if (Has(uk, "n") && (int)F(uk["n"]) != uat.Count)
+                    Wait("受け石の `uke.n`(" + (int)F(uk["n"]) + ")と `uke.at` の数("
+                       + uat.Count + ")が食い違う — ⛔ どちらかを黙って採らない");
+                // ⭐ **どれが「下流側の1個」かは幾何で決まる** — 落とし溝の流れ(吐き口 → 終点)への
+                //   射影が最大の石。⛔ 指図の番号を写さない(石を動かせば入れ替わる)。
+                var toG = A(O(ms["otoshimizo"])["to"]);
+                Vector2 endG = new Vector2(F(toG[0]), F(toG[1]));
+                var utp = A(O(ms["umeToi"])["pts"]);
+                var lastG = A(utp[utp.Count - 1]);
+                Vector2 fg = endG - new Vector2(F(lastG[0]), F(lastG[1]));
+                float fl = Mathf.Max(1e-6f, fg.magnitude);
+                var offs = new List<Vector2>();
+                int low = -1; float best = float.MinValue;
+                for (int i = 0; i < uat.Count; i++)
+                {
+                    var q = A(uat[i]);
+                    float deg = F(q[0]), rad = F(q[1]);          // [方位°, 半径m]
+                    // ⚠ 方位は **(u,v) 格子の中の角**(0°=+u / 90°=+v)。半径は m なので間へ落とす
+                    Vector2 dg = new Vector2(Mathf.Cos(deg * Mathf.Deg2Rad),
+                                             Mathf.Sin(deg * Mathf.Deg2Rad)) * (rad / Grid.ken);
+                    offs.Add(dg);
+                    float pr = Vector2.Dot(dg, fg) / fl;
+                    if (pr > best) { best = pr; low = i; }
+                }
+                string uapi = Has(uk, "asset") ? S(uk["asset"]) : null;
+                int uke = 0;
+                for (int i = 0; i < uat.Count; i++)
+                {
+                    // ⛔ **1種で並べない** — variant を3種混ぜる(指図 `asset` の "1..3")
+                    string path = ResolveNiwaApi(uapi, (i % 3) + 1);
+                    if (path == null || !Exists(path))
+                    { Wait("受け石の部材が引けない: " + (uapi ?? "(asset 無し)")); break; }
+                    Vector2 gq = endG + offs[i];
+                    Vector2 c = Wu(gq.x, gq.y);
+                    float gy = GroundY(c.x, c.y);
+                    var go = EdoBuild.Place(path, new Vector3(c.x, gy, c.y),
+                                            (float)rnd.NextDouble() * 360f, Vector3.one * usc,
+                                            grp, "Ukeishi_" + (i + 1));
+                    if (go == null) continue;
+                    // **伏せる** — 丈 1.0 に正規化した立石を 90° 倒し、芯を地盤へ沈める(半分埋め)
+                    go.transform.rotation = go.transform.rotation * Quaternion.Euler(90f, 0f, 0f);
+                    var bb = EdoBuild.RB(go);
+                    // ⭕ **天端は揃えない**(出入り ±capJitter)。⭕ **下流側の1個だけ +capHigh** —
+                    //   全部同高だと水が抜けて枡にならない
+                    float dy = ((float)rnd.NextDouble() * 2f - 1f) * cj + (i == low ? ch : 0f);
+                    go.transform.position += new Vector3(0f, gy - bb.center.y + dy, 0f);
+                    uke++;
+                }
+                made += uke;
+                sb.Append("受け石" + uke + "(下流側=" + (low + 1) + "番を +"
+                        + ch.ToString("F2") + "m) ");
             }
-            sb.Append("受け石3 ");
-            Wait("水尻の受け石(玉石の浸透枡)— **個数と配置が指図に無い**"
-               + "(`mizushiri.otoshimizo.uke` は語だけ)。部材方の申し送りの variant 1..3 に合わせて"
-               + " 3個を終点のまわり 0.45m へ伏せた【U】→ 数と広がりは指図方へ差し戻し");
         }
         return "水尻: " + made + " 基 " + sb.ToString();
     }
@@ -584,10 +842,10 @@ public static partial class EdoDoiBuilder
             if (go != null) { EdoBuild.SeatBottom(go, GroundY(w.x, w.y)); made++; }
         }
 
-        // 沓脱石。⚠⚠ **指図が名指しする丈の呼び名が部材に無い。**
-        //   `kutsunugi[].asset` は `Own.Tateishi("Big", 1..3)` だが、立石の丈は **S / M / L** の3種で
-        //   "Big" は**樹木の呼び名**(`Own.Jouryoku("Big", i)`)。⇒ どの丈を寝かせ、
-        //   1.4 × 0.95m の足形へどう当てるかは**設計判断**なので、⛔ 決め打ちせず据えない。
+        // 沓脱石。⛔ **「石は立てる」は景石(`ishigumi`)の作法** — 沓脱石は**伏せて据える**物
+        //   (踏む面が要る)。⭕ 専用部材 `Own.DoiKutsunugi`(2026-09-06 部材方が焼いた)は
+        //   ピボット = **足形の芯・天端(水切りの中立点)**なので、`topY` を**直に**入れる。
+        //   ⛔ bbox から座り直さない。⛔ 非一様スケールを掛けない(石肌の斑が流れる)。
         foreach (var o in A(n.g["kutsunugi"]))
         {
             var kg = O(o);
@@ -597,21 +855,35 @@ public static partial class EdoDoiBuilder
             {
                 Wait("沓脱石 " + S(kg["name"]) + "(" + F(kg["L"]).ToString("F2") + "×"
                    + F(kg["W"]).ToString("F2") + "m・天端 " + F(kg["topY"]).ToString("F2")
-                   + ")の部材が引けない: " + (api2 ?? "(asset 無し)")
-                   + " — 立石の丈は **S(0.60×1.00×0.45)/ M(0.70×1.40×0.50)/ L(0.80×2.10×0.60)** の3種で、"
-                   + "\"Big\" は樹木の呼び名。⛔ どれを寝かせて 1.4×0.95 に当てるかは設計判断なので据えない"
-                   + " → 呼び出し元(普請奉行)の裁定へ");
+                   + ")の部材が引けない: " + (api2 ?? "(asset 無し)"));
                 continue;
             }
-            // ⛔ 「石は立てる」を沓脱石に当てない — **寝かせて天端を水平に**据える(topY)。
+            // ⭕ 水切りは**ローカル +Z へ 1/100**。⛔ **+Z を入側へ向けない** —
+            //   指図 `mizukiri.to` が向きの正典(「−u(入側と反対=庭側)」)なので、
+            //   そこから yaw を導く。⛔ 読めない値を既定へ倒さない(黙って裏返ると雨が縁の下へ入る)。
+            var f9 = Grid;
+            string mto = Has(kg, "mizukiri") && Has(O(kg["mizukiri"]), "to")
+                       ? S(O(kg["mizukiri"])["to"]) : null;
+            Vector2 zdir;
+            if (mto != null && mto.StartsWith("-u")) zdir = new Vector2(-f9.ux, -f9.uz);
+            else if (mto != null && mto.StartsWith("+u")) zdir = new Vector2(f9.ux, f9.uz);
+            else if (mto != null && mto.StartsWith("-v")) zdir = new Vector2(-f9.vx, -f9.vz);
+            else if (mto != null && mto.StartsWith("+v")) zdir = new Vector2(f9.vx, f9.vz);
+            else
+            {
+                Wait("沓脱石 " + S(kg["name"]) + " の水切りの向き `mizukiri.to` が読めない: "
+                   + (mto ?? "(無し)") + " — ⛔ 既定へ倒すと水切りが入側(縁の下)へ向くので据えない");
+                continue;
+            }
             Vector2 w = Wu(F(kg["u"]), F(kg["v"]));
-            var go = EdoBuild.Place(path, new Vector3(w.x, F(kg["topY"]), w.y), YawAlongU(),
+            var go = EdoBuild.Place(path, new Vector3(w.x, F(kg["topY"]), w.y), YawFace(zdir),
                                     Vector3.one, grp, S(kg["name"]));
             if (go == null) continue;
-            go.transform.rotation = go.transform.rotation * Quaternion.Euler(90f, 0f, 0f);
-            var bb0 = EdoBuild.RB(go);
-            go.transform.position += new Vector3(0f, F(kg["topY"]) - bb0.max.y, 0f);
             made++;
+            if (Has(kg, "nekatame"))
+                Wait("沓脱石の**根固め(" + S(kg["nekatame"]) + ")**は据えていない — 部材でなく"
+                   + "**地表側の表現**(小石の散らしかスプラット)で、当邸の地表仕上げの工程がまだ無い"
+                   + "(指図 `shitakusa.koke` の「コケ・芝はスプラット」と同じ待ち)");
         }
 
         // 飛石(ピボット=天端の芯)
@@ -875,40 +1147,272 @@ public static partial class EdoDoiBuilder
             }
         }
 
-        // 下草(シダ)。指図 `shitakusa.shida.where` は場所を言葉で指すだけなので、
-        // ⛔ 位置を発明せず、**モミジの根方**だけ(位置が指図で定まる)に据える。
+        // 下草(シダ)。⭐ **2026-09-06 に指図が散布域を言葉から幾何へ落とした**
+        //   (`shitakusa.shida.where[].kata` = 「築山の面」/「樹下」)。⛔ 範囲を実装で発明しない。
+        //   ⛔ `clip`: **池の水面**と**州浜の砂利帯**(`suhama[].bare` = そこの草を消す所)は抜く。
+        //   ⚠ 面積は生成器の「下草の散布域」の表と**同じ 0.1間 格子**で測る(表と食い違わせない)。
+        var skRep = new System.Text.StringBuilder();
         {
             var sgrp = Group("Niwa/Shitakusa"); Clear(sgrp);
-            foreach (var o in A(n.g["shokusai"]))
+            var bands = SuhamaBands();
+            float cellM2 = 0.1f * 0.1f * Grid.ken * Grid.ken;
+            // ⚠ **株間は部材の実寸から決める**(⛔ 決め打ちしない・刈込と同じ作法)。
+            //   ⚠ **撒く密度そのものは指図に無い**【U】— 下の Wait で差し戻す。
+            float fw1, fh1, fw2, fh2;
+            MeasureWH(EdoAssets.JG.Fern(1), out fw1, out fh1);
+            MeasureWH(EdoAssets.JG.Fern(2), out fw2, out fh2);
+            float pitchM = Mathf.Max(fw1, fw2);
+            if (pitchM < 0.05f) { Wait("シダの部材が測れない: " + EdoAssets.JG.Fern(1)); pitchM = 0f; }
+            float step = pitchM / Grid.ken;                              // [間]
+            foreach (var r in ShitakusaRegions())
             {
-                var sk = O(o);
-                if (S(sk["species"]) != "イロハモミジ") continue;
-                var at = A(sk["at"]);
-                for (int i = 0; i < at.Count; i++)
+                if (r.err != null) { Wait("下草 " + r.name + "(" + r.label + "): " + r.err); continue; }
+                // ---- 面積(生成器 `shitakusa_stats` と同じ数え方。⚠ 樹冠の円は重なりを引かない=上限値)
+                int cells = 0, wet = 0, gvl = 0, outs = 0;
+                foreach (var q in SkCells(r))
                 {
-                    var p = A(at[i]);
-                    for (int j = 0; j < 3; j++)
+                    cells++;
+                    bool inp = n.InPond(q.x, q.y);
+                    if (inp) wet++;
+                    else if (SkInBand(bands, q)) gvl++;
+                    if (!n.Inside(q.x, q.y)) outs++;
+                }
+                float land = (cells - wet - gvl) * cellM2;
+                skRep.Append("\n   " + r.label + "(" + r.name + "): 陸 " + land.ToString("F1")
+                           + " m²(水 " + (cells > 0 ? 100f * wet / cells : 0f).ToString("F1")
+                           + "% / 砂利 " + (cells > 0 ? 100f * gvl / cells : 0f).ToString("F1")
+                           + "% / 庭の外 " + (cells > 0 ? 100f * outs / cells : 0f).ToString("F1") + "%)");
+                if (outs > 0) Wait("下草 " + r.name + " が庭の矩形の外へ出る(" + outs + " 格子)");
+                if (land <= 1e-6f || step <= 0f) continue;
+                // ---- 散布。域の外接矩形を株間の格子で刻み、域の中 ∧ clip の外だけに据える
+                float u0 = float.MaxValue, u1 = float.MinValue, v0 = float.MaxValue, v1 = float.MinValue;
+                if (r.poly != null) foreach (var p in r.poly)
+                {
+                    u0 = Mathf.Min(u0, p.x); u1 = Mathf.Max(u1, p.x);
+                    v0 = Mathf.Min(v0, p.y); v1 = Mathf.Max(v1, p.y);
+                }
+                foreach (var c in r.circ)
+                {
+                    u0 = Mathf.Min(u0, c.x - c.z); u1 = Mathf.Max(u1, c.x + c.z);
+                    v0 = Mathf.Min(v0, c.y - c.z); v1 = Mathf.Max(v1, c.y + c.z);
+                }
+                int k9 = 0;
+                for (float u = u0; u <= u1 + 1e-9f; u += step)
+                    for (float v = v0; v <= v1 + 1e-9f; v += step)
                     {
-                        float ang = (float)rnd.NextDouble() * Mathf.PI * 2f;
-                        float rr = 0.35f + (float)rnd.NextDouble() * 0.35f;
-                        Vector2 q = new Vector2(F(p[0]) + Mathf.Cos(ang) * rr / Grid.ken,
-                                                F(p[1]) + Mathf.Sin(ang) * rr / Grid.ken);
-                        Vector2 w = Wu(q.x, q.y);
-                        string path = EdoAssets.JG.Fern((j % 2) + 1);
+                        // ⛔ 格子のまま並べない(機械で置いた列に見える)— 株間の ±25% で散らす
+                        Vector2 q = new Vector2(u + ((float)rnd.NextDouble() - 0.5f) * step * 0.5f,
+                                                v + ((float)rnd.NextDouble() - 0.5f) * step * 0.5f);
+                        if (!SkIn(r, q.x, q.y)) continue;
+                        if (!n.Inside(q.x, q.y)) continue;
+                        if (n.InPond(q.x, q.y)) continue;                 // ⛔ 水面
+                        if (SkInBand(bands, q)) continue;                 // ⛔ 州浜の砂利帯
+                        string path = EdoAssets.JG.Fern((k9 % 2) + 1);
                         if (!Exists(path)) { Wait("シダの部材が無い: " + path); break; }
+                        Vector2 w = Wu(q.x, q.y);
                         var go = EdoBuild.Place(path, new Vector3(w.x, GroundY(w.x, w.y), w.y),
                                                 (float)rnd.NextDouble() * 360f, Vector3.one, sgrp,
-                                                "Shida_" + shida);
-                        if (go != null) shida++;
+                                                r.name + "_" + k9);
+                        if (go != null) { k9++; shida++; }
                     }
+                skRep.Append(" → " + k9 + " 株");
+            }
+            Wait("下草の**撒く密度(株間)が指図に無い**【U】— 域は `shitakusa.shida.where` の幾何どおりだが、"
+               + "株間は**部材の実寸**(シダの足 " + pitchM.ToString("F2") + "m)を採った。"
+               + "⇒ 密度を指図の値にしたいなら指図方へ(`shida` に株間か被覆率が要る)");
+            Wait("コケ・芝・州浜の砂利は**スプラット**(指図 `shitakusa.koke`)— 地表仕上げの工程が要る");
+            Wait("水際の帯(`shitakusa.mizugiwa` 水面 −0.35〜+0.80m の NatureManufacture Meadow を"
+               + "交差2本1組)は**まだ据えていない** — 指図にはあるが今回の3件の範囲外");
+        }
+        return "植栽: 高中木 " + trees + " 本 / 刈込 " + kari + " 株 / シダ " + shida + " 株"
+             + skRep.ToString();
+    }
+
+    // ------------------------------------------------------------------ 下草の散布域(⛔ 言葉でなく幾何)
+    /// <summary>下草の散布域。指図 `shitakusa.shida.where` の `kata` から**毎回組み直す**
+    /// (⛔ 範囲の数値を指図に写さない・⛔ 実装で発明しない)。築山を動かせば域も動く。</summary>
+    class SkRegion
+    {
+        public string name, label, kata, err;
+        public Vector2[] poly;                              // 「築山の面」= 半楕円 (u,v)
+        public List<Vector3> circ = new List<Vector3>();    // 「樹下」= 樹冠の円 (u, v, r[間])
+    }
+
+    static List<SkRegion> ShitakusaRegions()
+    {
+        var n = NiwaModel;
+        var res = new List<SkRegion>();
+        var st = Has(n.g, "shitakusa") ? O(n.g["shitakusa"]) : null;
+        var sd = (st != null && Has(st, "shida")) ? O(st["shida"]) : null;
+        var wl = (sd != null && Has(sd, "where")) ? A(sd["where"]) : null;
+        if (wl == null) return res;
+        var tk = new Dictionary<string, Dictionary<string, object>>();
+        foreach (var o in A(n.g["tsukiyama"])) { var q = O(o); tk[S(q["name"])] = q; }
+        foreach (var o in wl)
+        {
+            var w = O(o);
+            if (w == null)
+            {
+                res.Add(new SkRegion { name = "?", label = "?",
+                    err = "散布域が文字列のまま — 幾何へ落としていない" });
+                continue;
+            }
+            var r = new SkRegion { name = S(w["name"]), label = S(w["label"]), kata = S(w["kata"]) };
+            if (r.kata == "築山の面")
+            {
+                Dictionary<string, object> t = null;
+                tk.TryGetValue(S(w["of"]) ?? "", out t);
+                if (t == null || !Has(t, "dU"))
+                    r.err = "築山 " + S(w["of"]) + " が `tsukiyama` に無い(または楕円でない)";
+                else
+                {
+                    // 楕円 footprint の `side` 側の半分(稜線 u=uc → 裾 → 稜線)
+                    float rU = F(t["dU"]) / 2f, rV = F(t["dV"]) / 2f;
+                    string sd2 = Has(w, "side") ? S(w["side"]) : "+u";
+                    float sg = (sd2 != null && sd2.StartsWith("-")) ? -1f : 1f;
+                    var pts = new Vector2[41];
+                    for (int i = 0; i <= 40; i++)
+                    {
+                        float th = Mathf.PI * i / 40f;
+                        pts[i] = new Vector2(F(t["u"]) + sg * rU * Mathf.Sin(th),
+                                             F(t["v"]) + rV * Mathf.Cos(th));
+                    }
+                    r.poly = pts;
                 }
             }
-            Wait("下草: 指図 `shitakusa.shida.where` は「築山A1の北面」「稲荷の社叢」を**言葉で**指すだけで"
-               + "座標が無い。⛔ 位置を発明しないので、根方の位置が定まる**モミジ**の周りにだけ据えた"
-               + " → 残り2箇所は指図方へ差し戻し(散布域の矩形か点列が要る)");
-            Wait("コケ・芝・州浜の砂利は**スプラット**(指図 `shitakusa.koke`)— 地表仕上げの工程が要る");
+            else if (r.kata == "樹下")
+            {
+                string sp = S(w["species"]), sz = S(w["size"]);
+                foreach (var o2 in A(n.g["shokusai"]))
+                {
+                    var sk = O(o2);
+                    string sp2 = S(sk["species"]);
+                    if (sp == null || sp2 == null || !sp2.StartsWith(sp)) continue;
+                    if (S(sk["size"]) != sz) continue;
+                    float rad = CrownR(sk);
+                    if (rad <= 0f) { r.err = "樹冠が測れない: " + sp + " " + sz; break; }
+                    foreach (var p0 in A(sk["at"]))
+                    { var p = A(p0); r.circ.Add(new Vector3(F(p[0]), F(p[1]), rad)); }
+                }
+                if (r.err == null && r.circ.Count == 0)
+                    r.err = "`shokusai` に「" + sp + " " + sz + "」の層が無い";
+            }
+            else r.err = "知らない `kata` " + r.kata + " — 語彙に無い値では何も撒かない";
+            res.Add(r);
         }
-        return "植栽: 高中木 " + trees + " 本 / 刈込 " + kari + " 株 / シダ " + shida + " 株";
+        return res;
+    }
+
+    /// <summary>樹冠の半径[間]。⛔ 呼び寸法を使わない — **据える部材の実メッシュ**の
+    /// 平面の大きい方 ÷2 × `scale`(生成器が `docs/asset-index.tsv` から引くのと同じ値)。
+    /// ⛔ 樹冠幅を指図へ写さない。</summary>
+    static float CrownR(Dictionary<string, object> sk)
+    {
+        string api = S(sk["asset"]);
+        float sc = Has(sk, "scale") ? F(sk["scale"]) : 1f;
+        float w = 0f;
+        for (int i = 1; i <= 3; i++)
+        {
+            string p = ResolveNiwaApi(api, i);
+            if (p == null || !Exists(p)) continue;
+            float ww, hh; MeasureWH(p, out ww, out hh);
+            w = Mathf.Max(w, ww);
+        }
+        return w <= 0f ? 0f : w / 2f * sc / Grid.ken;
+    }
+
+    static bool SkIn(SkRegion r, float u, float v)
+    {
+        if (r.poly != null && EdoGeom.PIP(r.poly, new Vector2(u, v))) return true;
+        foreach (var c in r.circ)
+            if ((u - c.x) * (u - c.x) + (v - c.y) * (v - c.y) <= c.z * c.z) return true;
+        return false;
+    }
+
+    /// <summary>面積を測る格子(0.1間)。⚠ **生成器 `_shitakusa_pts` と同じ数え方**にする —
+    /// 樹冠の円は円ごとに走査するので重なりを二重に数える(=面積は上限値)。
+    /// ⛔ ここを賢くすると表と実装の面積が食い違う。</summary>
+    static IEnumerable<Vector2> SkCells(SkRegion r)
+    {
+        const float ST = 0.1f;
+        if (r.poly != null)
+        {
+            float u0 = float.MaxValue, u1 = float.MinValue, v0 = float.MaxValue, v1 = float.MinValue;
+            foreach (var p in r.poly)
+            {
+                u0 = Mathf.Min(u0, p.x); u1 = Mathf.Max(u1, p.x);
+                v0 = Mathf.Min(v0, p.y); v1 = Mathf.Max(v1, p.y);
+            }
+            for (float u = u0; u <= u1 + 1e-9f; u += ST)
+                for (float v = v0; v <= v1 + 1e-9f; v += ST)
+                    if (EdoGeom.PIP(r.poly, new Vector2(u, v))) yield return new Vector2(u, v);
+        }
+        foreach (var c in r.circ)
+            for (float u = c.x - c.z; u <= c.x + c.z + 1e-9f; u += ST)
+                for (float v = c.y - c.z; v <= c.y + c.z + 1e-9f; v += ST)
+                    if ((u - c.x) * (u - c.x) + (v - c.y) * (v - c.y) <= c.z * c.z)
+                        yield return new Vector2(u, v);
+    }
+
+    /// <summary>汀線の辺 i(0起算)の**外向き法線**(単位・(u,v))。
+    /// ⛔ 池心からの方向で代用しない — 非凸の池では内を向く。</summary>
+    static Vector2 ShoreOut(int i)
+    {
+        var n = NiwaModel; int m = n.pond.Length;
+        Vector2 a = n.pond[i], b = n.pond[(i + 1) % m];
+        float sa = 0f;
+        for (int k = 0; k < m; k++)
+        { Vector2 p = n.pond[k], q = n.pond[(k + 1) % m]; sa += p.x * q.y - q.x * p.y; }
+        float sgn = sa > 0f ? 1f : -1f;
+        Vector2 d = b - a; float L = Mathf.Max(1e-9f, d.magnitude);
+        return new Vector2(sgn * d.y / L, -sgn * d.x / L);
+    }
+
+    /// <summary>州浜の砂利帯の平面形(汀の陸側 `toLand` のオフセット帯)。
+    /// ⛔ **下草はここへ撒かない** — 指図が `bare`(そこの草は消す)と宣言している所。
+    /// ⛔ 形を発明せず、`suhama` の `frm`/`to` と汀線から毎回組む。
+    /// ⚠ ここは**計測と clip の器**なので**設計の汀**(`n.pond`)で組む — 生成器の
+    /// 「下草の散布域」の表(砂利 19.5% ほか)と同じ数を出すため。
+    /// ⭕ 砂利を**実際に撒く線**は `ShoreWalk`(水面メッシュの縁へ寄せてある)側。</summary>
+    static List<Vector2[]> SuhamaBands()
+    {
+        var n = NiwaModel; var res = new List<Vector2[]>();
+        if (!Has(n.g, "suhama")) return res;
+        int m = n.pond.Length;
+        foreach (var o in A(n.g["suhama"]))
+        {
+            var s = O(o);
+            float off1 = F(s["toLand"]) / Grid.ken;
+            var idx = new List<int>();
+            int i = (int)F(s["frm"]) - 1, iEnd = (int)F(s["to"]) - 1;
+            while (true) { idx.Add(i); if (i == iEnd) break; i = (i + 1) % m; if (idx.Count > m) break; }
+            var inner = new List<Vector2>(); var outer = new List<Vector2>();
+            int lim = idx.Count > 1 ? idx.Count - 1 : idx.Count;
+            for (int k = 0; k < lim; k++)
+            {
+                int e = idx[k];
+                Vector2 a = n.pond[e], b = n.pond[(e + 1) % m];
+                Vector2 nn = ShoreOut(e);
+                float L = Vector2.Distance(a, b);
+                int ns = Mathf.Max(1, Mathf.CeilToInt(L / 0.05f));
+                for (int t = 0; t <= ns; t++)
+                {
+                    Vector2 p = Vector2.Lerp(a, b, t / (float)ns);
+                    inner.Add(p); outer.Add(p + nn * off1);
+                }
+            }
+            if (inner.Count < 2) continue;
+            var poly = new List<Vector2>(inner);
+            for (int k = outer.Count - 1; k >= 0; k--) poly.Add(outer[k]);
+            res.Add(poly.ToArray());
+        }
+        return res;
+    }
+
+    static bool SkInBand(List<Vector2[]> bands, Vector2 q)
+    {
+        foreach (var b in bands) if (EdoGeom.PIP(b, q)) return true;
+        return false;
     }
 
     /// <summary>部材を1枚置いて**実寸**(平面の幅・丈)を測り、すぐ捨てる。⛔ 決め打ちの定数に戻さない。</summary>
@@ -947,6 +1451,14 @@ public static partial class EdoDoiBuilder
         if (a.StartsWith("Eg.ToroYukimi")) return EdoAssets.Eg.ToroYukimi;
         if (a.StartsWith("Own.YukimiLantern")) return EdoAssets.Own.YukimiLantern;
         if (a.StartsWith("Own.Toro")) return EdoAssets.Own.Toro;
+        // ⭐ 沓脱石は**専用部材**(2026-09-06 部材方が焼いた)。⛔ 立石を非一様スケールで代用しない。
+        if (a.StartsWith("Own.DoiKutsunugi")) return EdoAssets.Own.DoiKutsunugi;
+        // ⭐ 木戸・竹垣は寸法で焼き分ける。⚠ 数の引数は括弧から読む
+        if (a.StartsWith("Own.Kido")) return EdoAssets.Own.Kido(ArgNum(api, 1.8f));
+        if (a.StartsWith("Own.KenninjiGakiPost")) return EdoAssets.Own.KenninjiGakiPost(ArgNum(api, 1.8f));
+        if (a.StartsWith("Own.KenninjiGaki")) return EdoAssets.Own.KenninjiGaki(ArgNum(api, 1.8f));
+        if (a.StartsWith("Own.YotsumeGakiPost")) return EdoAssets.Own.YotsumeGakiPost(ArgNum(api, 0.9f));
+        if (a.StartsWith("Own.YotsumeGaki")) return EdoAssets.Own.YotsumeGaki(ArgNum(api, 0.9f));
         // ⚠ 立石の丈は **S / M / L**。⛔ 樹木の呼び名("Big"/"Mid"/"Small")を当てない —
         //   解けない丈は null を返し、呼び側が「未据え付け」へ積む(⛔ 近い丈へ寄せない)。
         if (a.StartsWith("Own.Tateishi")) return EdoAssets.Own.Tateishi(ArgSize(api), variant);
@@ -966,6 +1478,18 @@ public static partial class EdoDoiBuilder
         if (size == "Big") return i == 1 ? EdoAssets.JG.PineBig01 : (i == 2 ? EdoAssets.JG.PineBig02 : EdoAssets.JG.PineBig03);
         return EdoAssets.JG.PineMid01.Replace("Mid_Green_01", "Mid_Green_0" + i);
     }
+    /// <summary>`Own.Kido(1.8)` の 1.8 を取り出す。⛔ 読めなければ既定へ倒さず呼び側へ返す
+    /// ため、既定値は呼び側が明示して渡す。</summary>
+    static float ArgNum(string api, float dflt)
+    {
+        int a = api.IndexOf('(');
+        if (a < 0) return dflt;
+        int b = api.IndexOf(')', a + 1);
+        if (b <= a) return dflt;
+        float v;
+        return float.TryParse(api.Substring(a + 1, b - a - 1).Trim(), out v) ? v : dflt;
+    }
+
     /// <summary>`Own.Jouryoku("Big", i)` の "Big" を取り出す。</summary>
     static string ArgSize(string api)
     {

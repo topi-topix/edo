@@ -47,6 +47,8 @@ public static partial class EdoDoiBuilder
     {
         _d = null; _frame = null; _terr = null; _walls = null; _runs = null;
         _nat = null; _walledCache = null; _runEdges = null; _niwa = null;
+        // ⚠ **足したキャッシュはここへも足す。**落とすと「指図を読み直したのに古い値で建つ」。
+        _boxCache = null; _pondW = null; _pondEdge = null;
         Debug.Log("[Doi] 指図を読み直した");
     }
     static Dictionary<string, object> D
@@ -593,8 +595,80 @@ public static partial class EdoDoiBuilder
         foreach (var s in _wait) sb.Append("\n   ⚠ " + s);
         return sb.ToString();
     }
+    /// <summary>**未据え付けの一覧**。⚠ `_wait` は「この巡で走らせた Stage が積んだ物」しか持たない —
+    /// ドメインリロード後や Stage を走らせていない状態では**空**で、それを「0 件 = 全部据わった」と
+    /// 読むと嘘になる(2026-09-06 の普請検査で、指図が沓脱石を足したのに 0 件と出た)。
+    /// ⇒ ⭕ **現行の json を読み直し、`asset` / `assetState` を持つ節を全部歩いて組み直す。**</summary>
+    /// <summary>`asset` の欄が**機械で引ける単純な呼び出し**か。
+    /// ⚠ `bom` の欄は人が読む部材表で「A ／ B」「Ishigaki.* — ピッチ1.80m」のような散文が入る。
+    /// ⛔ それを「呼び名が解けない」と数えると、実際は据わっている物が大量に並んで
+    /// **本物の欠落が埋もれる**(2026-09-06 に 38 件中 30 件が散文だった)。</summary>
+    static bool SimpleApi(string api)
+    {
+        if (string.IsNullOrEmpty(api) || !api.StartsWith("EdoAssets.")) return false;
+        if (api.IndexOf('／') >= 0 || api.IndexOf('＋') >= 0 || api.IndexOf('*') >= 0
+         || api.IndexOf('/') >= 0 || api.IndexOf('—') >= 0) return false;
+        int a = api.IndexOf('(');
+        if (a < 0) return api.IndexOf(' ') < 0;
+        int b = api.LastIndexOf(')');
+        return b > a && b >= api.TrimEnd().Length - 1;      // 括弧の後ろに文が続かないこと
+    }
+
     [MenuItem(MENU + "未据え付けの一覧")]
-    public static void WaitMenu() { Debug.Log("[Doi] " + WaitReport()); }
+    public static void WaitMenu() { Debug.Log("[Doi] " + PendingReport()); }
+    public static string PendingReport()
+    {
+        Reload();
+        var hits = new List<string>();
+        Action<object, string> walk = null;
+        walk = (node, path) =>
+        {
+            var dd = O(node);
+            if (dd != null)
+            {
+                string nm = Has(dd, "name") ? S(dd["name"]) : null;
+                string where = path + (nm != null ? "(" + nm + ")" : "");
+                string api0 = (Has(dd, "asset") && dd["asset"] is string) ? S(dd["asset"]) : null;
+                string p0 = SimpleApi(api0) ? ResolveNiwaApi(api0, 1) : null;
+                if (Has(dd, "assetState"))
+                {
+                    string st = S(dd["assetState"]);
+                    if (st != null && st.IndexOf("未焼成") >= 0)
+                    {
+                        // ⭕ **申告が古くないかを実物で検める。**指図が「未焼成」と言っていても
+                        //   部材方が焼き終えていることがある(指図の改訂漏れ)⇒ それ自体を差し戻す。
+                        if (p0 != null && Exists(p0))
+                            hits.Add("指図の `assetState` が古い(部材は焼けている): " + where + " → " + p0);
+                        else
+                            hits.Add("未焼成: " + where + " — " + st);
+                    }
+                }
+                // ⚠ **`asset` は機械で引けるものだけ見る。**`bom` の欄は人が読む部材表で、
+                //   「A ／ B」「Ishigaki.* — ピッチ1.80m」のような散文が入る。
+                //   ⛔ それを「呼び名が解けない」と数えると、実際は据わっている物が大量に並んで
+                //     本物の欠落が埋もれる(2026-09-06 に 38 件中 30 件が散文だった)。
+                // ⛔ 解けない = 欠落とは限らない(`ResolveNiwaApi` は庭の語彙しか持たない)。
+                //   ⇒ **解けたのに実物が無い**ときだけ鳴らす。
+                if (p0 != null && !Exists(p0)) hits.Add("部材が無い: " + where + " → " + p0);
+                foreach (var kv in dd)
+                    if (!kv.Key.StartsWith("_")) walk(kv.Value, path + "/" + kv.Key);
+                return;
+            }
+            var ll = A(node);
+            if (ll != null) for (int i = 0; i < ll.Count; i++) walk(ll[i], path + "[" + i + "]");
+        };
+        foreach (var kv in D) if (!kv.Key.StartsWith("_")) walk(kv.Value, kv.Key);
+
+        var sb = new System.Text.StringBuilder();
+        sb.Append("未据え付け(現行 json を読み直して組み直した): " + hits.Count + " 件");
+        foreach (var s in hits) sb.Append("\n   ⚠ " + s);
+        if (_wait.Count > 0)
+        {
+            sb.Append("\n-- この巡の Stage が積んだ控え " + _wait.Count + " 件 --");
+            foreach (var s in _wait) sb.Append("\n   ⚠ " + s);
+        }
+        return sb.ToString();
+    }
 
     static bool Exists(string path)
     { return !string.IsNullOrEmpty(path) && AssetDatabase.LoadAssetAtPath<GameObject>(path) != null; }
@@ -763,6 +837,263 @@ public static partial class EdoDoiBuilder
         return string.Format("GradeQA: 敷地内 {0} セル / 設計面と {1:F2}m 超ずれ = {2} 件 ({3:P1})。最悪 {4:F2}m at ({5:F1},{6:F1})",
                              n, TOL, bad, n == 0 ? 0f : (float)bad / n, worst, wp.x, wp.y);
     }
+
+    /// <summary>**裏木戸の小壁・瓦の材質を練塀へ明示的に結ぶ。**
+    /// ⚠⚠ `Own.Kido(w)` の FBX は材質名 `s_heimap` を名乗るが、**同名で別系統の材質が2つある** —
+    /// FBX 自身が抱える `s_heimap`(`_BaseMap` = NULL = 真っ白)と、練塀 `es_dobei/s_hei_center.obj` が
+    /// **サブアセットとして**持つ `s_heimap`(`_BaseMap` = `s_hei`)。
+    /// ⛔ **名前一致の remap では拾えない** — 一括 remap は .mat の入ったフォルダしか舐めないので、
+    /// .obj の中に居る本物に当たらず、FBX 自身の白い方が残る(2026-09-06 の普請検査で実見)。
+    /// ⇒ ⭕ **提供元を名指しして結ぶ。**⛔ 新しい .mat を作らない(キットの材質名を保つ規約)。</summary>
+    [MenuItem(MENU + "裏木戸の材質を練塀へ明示的に結ぶ")]
+    public static void RemapKidoMenu() { Debug.Log("[Doi] " + RemapKido()); }
+    public static string RemapKido()
+    {
+        // 提供元 = 練塀の .obj が抱える `s_heimap`(サブアセット)
+        Material donor = null;
+        foreach (var a in AssetDatabase.LoadAllAssetsAtPath(EdoAssets.Eg.DobeiCenter))
+        {
+            var m = a as Material;
+            if (m != null && m.name == "s_heimap") { donor = m; break; }
+        }
+        if (donor == null) return "⚠ 練塀の `s_heimap` が引けない: " + EdoAssets.Eg.DobeiCenter;
+
+        int n = 0; var sb = new System.Text.StringBuilder();
+        foreach (var o in A(D["komon"]))
+        {
+            var k = O(o);
+            string api = Has(k, "asset") ? S(k["asset"]) : null;
+            string path = ResolveNiwaApi(api, 1);
+            if (path == null || !Exists(path)) continue;
+            var imp = AssetImporter.GetAtPath(path) as ModelImporter;
+            if (imp == null) continue;
+            imp.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), "s_heimap"), donor);
+            AssetDatabase.WriteImportSettingsIfDirty(path);
+            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+            sb.Append(" " + S(k["name"]) + "→" + System.IO.Path.GetFileName(path));
+            n++;
+        }
+        AssetDatabase.SaveAssets();
+        return "裏木戸の材質を練塀の `s_heimap`(" + EdoAssets.Eg.DobeiCenter + ")へ結んだ: " + n + " 件" + sb.ToString();
+    }
+
+    // ================================================================ 普請検査の常設化(2026-09-06)
+    // ⭐ 2026-09-06 の普請検査が **execute_code の使い捨てで** 測った3件を、ここへ常設の関数として
+    //   引き取った(規則19「輪に入っていない値は未検査であって合格ではない」)。
+    //   ⛔ 使い捨てのまま置くと、次に建て直したとき誰も測らない。
+
+    /// <summary>**検査① 段の縁の落差を土留めが受けているか。**
+    /// 段の四辺を 0.5間 刻みで歩き、縁の内外 0.5間 の `GradedY` の差が `const.stepAbsorbMax` を
+    /// 超えるのに `terraceWalls` が載っていない区間を出す。
+    /// ⚠ **これは実装でなく指図の欠落を捕まえる検査** — 出たら棟梁は壁を発明せず、指図方へ回す。</summary>
+    [MenuItem(MENU + "検査① 段の縁の落差と土留め EdgeStepQA")]
+    public static void EdgeStepQAMenu() { Debug.Log("[Doi] " + EdgeStepQA()); }
+    public static string EdgeStepQA()
+    {
+        float lim = C("stepAbsorbMax");
+        var sb = new System.Text.StringBuilder();
+        int bad = 0, spans = 0, nub = 0;
+        foreach (var t in Terraces)
+        {
+            if (t.rot) continue;                       // 回転する段(長屋の郭)は別の作法。ここでは見ない
+            var we = WalledEdges(t);
+            // 四辺: (edge名, 走る軸の値域, 固定値, 外向き符号)
+            string[] en = new string[] { "u0", "u1", "v0", "v1" };
+            for (int e = 0; e < 4; e++)
+            {
+                bool vertEdge = e < 2;                                    // u=const の辺
+                float fix = e == 0 ? t.u0 : e == 1 ? t.u1 : e == 2 ? t.v0 : t.v1;
+                float sgn = (e == 0 || e == 2) ? -1f : 1f;                // 外へ出る向き
+                float q0 = vertEdge ? t.v0 : t.u0, q1 = vertEdge ? t.v1 : t.u1;
+                float runLo = float.NaN, runHi = 0f, worst = 0f; string kind = "";
+                for (float q = q0; q <= q1 + 1e-6f; q += 0.5f)
+                {
+                    float ui = vertEdge ? fix - sgn * 0.5f : q, vi = vertEdge ? q : fix - sgn * 0.5f;
+                    float uo = vertEdge ? fix + sgn * 0.5f : q, vo = vertEdge ? q : fix + sgn * 0.5f;
+                    var wi = Grid.W(ui, vi); var wo = Grid.W(uo, vo);
+                    float yi = GradedY(ui, vi, NaturalY(wi.x, wi.y));
+                    float yo = GradedY(uo, vo, NaturalY(wo.x, wo.y));
+                    if (float.IsNaN(yi) || float.IsNaN(yo)) continue;
+                    // ⚠ **落差は両向きに見る。**内が高い = 盛(擁壁が要る)/ 外が高い = 切(法面が立つ)。
+                    //   ⛔ 片側だけ見ると、段の背後の 1:1 の切土法面(43°の草の崖)を丸ごと見落とす。
+                    float drop = yi - yo;
+                    bool covered = Walled(we, en[e], q);
+                    // ⭕ **開口の中は斜路・石段が落差を受ける**ので欠陥ではない(⛔ 一律に鳴らさない)
+                    if (!float.IsNaN(RampY(uo, vo)) || !float.IsNaN(StairY(uo, vo))
+                     || !float.IsNaN(RampY(ui, vi)) || !float.IsNaN(StairY(ui, vi))) covered = true;
+                    bool hurt = Mathf.Abs(drop) > lim + 1e-4f && !covered;
+                    if (hurt && (float.IsNaN(runLo) || Mathf.Abs(drop) > Mathf.Abs(worst)))
+                        kind = drop > 0f ? "盛" : "切";
+                    if (hurt)
+                    {
+                        if (float.IsNaN(runLo)) { runLo = q; worst = drop; }
+                        runHi = q;
+                        if (Mathf.Abs(drop) > Mathf.Abs(worst)) worst = drop;
+                    }
+                    else if (!float.IsNaN(runLo))
+                    {
+                        if (Emit(sb, t, en[e], vertEdge, fix, runLo, runHi, worst, kind, lim)) bad++; else nub++;
+                        runLo = float.NaN;
+                    }
+                    spans++;
+                }
+                if (!float.IsNaN(runLo))
+                { if (Emit(sb, t, en[e], vertEdge, fix, runLo, runHi, worst, kind, lim)) bad++; else nub++; }
+            }
+        }
+        return "検査① 段の縁 " + spans + " 点 / 土留めの無い落差 " + bad + " 区間"
+             + "(ほかに 1間 未満の点だけの当たり " + nub + " 件は隅の刻みの粗さなので落とした)"
+             + (bad == 0 ? "" : "\n" + sb.ToString()
+                + "   ⛔ **これは指図の欠落**(`terraceWalls` に壁が無い)— 実装で壁を発明しない。指図方へ回すこと");
+    }
+
+    /// <summary>検査①の1区間を刷る。⚠ **1間 に満たない当たりは落とす** — 0.5間 刻みで段の隅を
+    /// 回ると、隣の段の角で1点だけ当たることがあり、実体のある区間と混ざると読めなくなる。</summary>
+    static bool Emit(System.Text.StringBuilder sb, Terrace t, string edge, bool vertEdge,
+                     float fix, float lo, float hi, float worst, string kind, float lim)
+    {
+        if (hi - lo < 1.0f) return false;
+        sb.AppendLine("  ⚠ " + t.name + " の辺 " + edge + "(" + (vertEdge ? "u" : "v") + "="
+            + fix.ToString("F2") + ") " + (vertEdge ? "v" : "u") + "[" + lo.ToString("F1")
+            + ".." + hi.ToString("F1") + "] " + (hi - lo).ToString("F1") + "間 / "
+            + kind + "の落差 最大 " + Mathf.Abs(worst).ToString("F2")
+            + "m > " + lim.ToString("F2") + "m なのに土留めが無い");
+        return true;
+    }
+
+    /// <summary>**検査② 門・小門の門口を石垣が塞いでいないか。**
+    /// `gate` と `komon` の s ± w/2 の帯に、天端が敷居(`sill`)より高い `Ishigaki` の駒の
+    /// 実メッシュが入っていないかを見る。⚠ **呼び寸法でなく駒の実メッシュ**で測る(規則5)。</summary>
+    [MenuItem(MENU + "検査② 門口を石垣が塞いでいないか KomonIshigakiQA")]
+    public static void KomonIshigakiQAMenu() { Debug.Log("[Doi] " + KomonIshigakiQA()); }
+    public static string KomonIshigakiQA()
+    {
+        var grp = GameObject.Find(Grp);
+        if (grp == null) return "検査②: 屋敷のルートが無い";
+        var ig = grp.transform.Find("Ishigaki");
+        if (ig == null) return "検査②: Ishigaki の群が無い(Stage3 が未実行)";
+        // 門口の一覧(表門 + 小門)
+        var mouths = new List<Vector4>();                  // x=edge, y=s, z=w, w=sill
+        var gt = O(D["gate"]);
+        mouths.Add(new Vector4(F(gt["edge"]), F(gt["s"]), F(O(gt["plan"])["monW"]), F(gt["sill"])));
+        var names = new List<string>(); names.Add("表門");
+        foreach (var o in A(D["komon"]))
+        {
+            var k = O(o);
+            mouths.Add(new Vector4(F(k["edge"]), F(k["s"]), F(k["w"]), F(k["sill"])));
+            names.Add(S(k["name"]));
+        }
+        var sb = new System.Text.StringBuilder(); int bad = 0;
+        var all = ig.GetComponentsInChildren<Transform>();
+        for (int m = 0; m < mouths.Count; m++)
+        {
+            int edge = (int)mouths[m].x; float s = mouths[m].y, w = mouths[m].z, sill = mouths[m].w;
+            Vector2 pA = EdgePt(edge, s - w / 2f), pB = EdgePt(edge, s + w / 2f);
+            Vector2 dir = (pB - pA).normalized;
+            for (int i = 0; i < all.Length; i++)
+            {
+                var tr = all[i];
+                if (tr == ig) continue;
+                var rs = tr.GetComponents<Renderer>();
+                if (rs.Length == 0) continue;
+                var b = rs[0].bounds; for (int k2 = 0; k2 < rs.Length; k2++) b.Encapsulate(rs[k2].bounds);
+                if (b.max.y <= sill + 0.02f) continue;                 // 敷居より低い駒は塞がない
+                // 駒の実メッシュの頂点を辺の s へ射影して重なりを見る
+                float lo = float.MaxValue, hi = float.MinValue, dmax = 0f;
+                foreach (var mf in tr.GetComponentsInChildren<MeshFilter>())
+                {
+                    var msh = mf.sharedMesh; if (msh == null) continue;
+                    var vt = msh.vertices;
+                    for (int k2 = 0; k2 < vt.Length; k2 += 7)          // 粗く間引く(頂点は多い)
+                    {
+                        Vector3 wv = mf.transform.TransformPoint(vt[k2]);
+                        Vector2 d2 = new Vector2(wv.x, wv.z) - pA;
+                        float ss = Vector2.Dot(d2, dir);
+                        float dd = Mathf.Abs(d2.x * dir.y - d2.y * dir.x);
+                        if (dd > 3.0f) continue;                       // 辺から離れた駒は関係ない
+                        lo = Mathf.Min(lo, ss); hi = Mathf.Max(hi, ss); dmax = Mathf.Max(dmax, dd);
+                    }
+                }
+                if (lo > hi) continue;
+                float ov = Mathf.Min(hi, w) - Mathf.Max(lo, 0f);
+                if (ov > 0.05f)
+                {
+                    // ⚠ **2通りある。**① run を割り損ねて基壇が門口へ食い込んだ(実装の欠陥)
+                    //   ② run の**中の潜り**で基壇は続いてよいが、`komon[].sill` が基壇の天端より
+                    //      低い(**指図の不整合** — 潜りの敷居は基壇の上に載るはず)。
+                    bool inRun = false;
+                    foreach (var r in Runs)
+                        if (r.edge == edge && r.s0 - 1e-6f <= s - w / 2f && s + w / 2f <= r.s1 + 1e-6f) inRun = true;
+                    sb.AppendLine("  ⚠ " + names[m] + "(辺" + edge + " s" + s.ToString("F2") + "・門口 "
+                        + w.ToString("F2") + "m・敷居 " + sill.ToString("F2") + ")に "
+                        + tr.name + " が " + ov.ToString("F2") + "m 入る(天端 " + b.max.y.ToString("F2") + ")"
+                        + (inRun
+                           ? " ⇒ **run の中の潜り**なので基壇は続いてよい。敷居が基壇の天端より "
+                             + (b.max.y - sill).ToString("F2") + "m 低いのが問題 = **指図の不整合**"
+                             + "(⛔ 実装で敷居も基壇も動かさない・指図方へ)"
+                           : " ⇒ run を割り損ねている = **実装の欠陥**"));
+                    bad++;
+                }
+            }
+        }
+        return "検査② 門口 " + mouths.Count + " 口 / 石垣が塞ぐ " + bad + " 件"
+             + (bad == 0 ? "" : "\n" + sb.ToString());
+    }
+
+    /// <summary>**検査③ 石垣の駒が区画の外へ出ていないか。**
+    /// 全 `Ishigaki` の駒の**実メッシュの頂点**を `EdoParcels.Get("doi")` の多角形で判定する。
+    /// ⚠ OBB でも呼び寸法でもなく頂点で見る(駒は 2.400 × 2.000 で、ピボットが隅にある)。</summary>
+    [MenuItem(MENU + "検査③ 石垣が区画外へ出ていないか ParcelOutQA")]
+    public static void ParcelOutQAMenu() { Debug.Log("[Doi] " + ParcelOutQA()); }
+    public static string ParcelOutQA()
+    {
+        var grp = GameObject.Find(Grp);
+        if (grp == null) return "検査③: 屋敷のルートが無い";
+        var ig = grp.transform.Find("Ishigaki");
+        if (ig == null) return "検査③: Ishigaki の群が無い(Stage3 が未実行)";
+        var P = Poly;
+        var sb = new System.Text.StringBuilder(); int bad = 0, tot = 0; float worst = 0f; string wn = "";
+        foreach (var tr in ig.GetComponentsInChildren<Transform>())
+        {
+            if (tr == ig) continue;
+            if (tr.GetComponents<Renderer>().Length == 0) continue;
+            tot++;
+            float outMax = 0f;
+            foreach (var mf in tr.GetComponentsInChildren<MeshFilter>())
+            {
+                var msh = mf.sharedMesh; if (msh == null) continue;
+                var vt = msh.vertices;
+                for (int k = 0; k < vt.Length; k += 7)
+                {
+                    Vector3 wv = mf.transform.TransformPoint(vt[k]);
+                    var q = new Vector2(wv.x, wv.z);
+                    if (EdoGeom.PIP(P, q)) continue;
+                    // 区画の外 — 最寄りの辺までの距離を出す
+                    float d = float.MaxValue;
+                    for (int e = 0, j = P.Length - 1; e < P.Length; j = e++)
+                    {
+                        Vector2 a = P[j], b = P[e], ab = b - a;
+                        float L2 = Mathf.Max(1e-9f, ab.sqrMagnitude);
+                        float t2 = Mathf.Clamp01(Vector2.Dot(q - a, ab) / L2);
+                        d = Mathf.Min(d, Vector2.Distance(q, a + ab * t2));
+                    }
+                    outMax = Mathf.Max(outMax, d);
+                }
+            }
+            if (outMax > 0.40f)
+            {
+                bad++;
+                if (outMax > worst) { worst = outMax; wn = tr.name; }
+                if (bad <= 20) sb.AppendLine("  ⚠ " + tr.name + " が区画外へ " + outMax.ToString("F2") + "m");
+            }
+        }
+        return "検査③ 石垣 " + tot + " 駒 / 区画外へ 0.40m 超 = " + bad + " 駒"
+             + (bad == 0 ? "" : "(最悪 " + wn + " " + worst.ToString("F2") + "m)\n" + sb.ToString());
+    }
+
+    [MenuItem(MENU + "検査①②③ をまとめて走らせる")]
+    public static void AllQAMenu()
+    { Debug.Log("[Doi]\n" + EdgeStepQA() + "\n" + KomonIshigakiQA() + "\n" + ParcelOutQA()); }
 
     // ---------------------------------------------------------------- Stage2 外周
     /// <summary>犬走り ≒ 1尺。石垣の法肩と囲いの外面の距離(`const.inubashiri`)。</summary>
@@ -1012,7 +1343,15 @@ public static partial class EdoDoiBuilder
     }
 
     // ---------------------------------------------------------------- Stage3 石垣
-    const float IG_RUN = 2.00f;        // Castle Wall の走り方向の実体[m]
+    // ⚠⚠ **Castle Wall の実メッシュ**(2026-09-06 実測):
+    //     local X ∈ [−2.400, 0.000] / Y ∈ [0, 4.000] / Z ∈ [−2.000, 0.000]。
+    //   据えるとき **local +X = 外向き・local +Z = 走り**にしているので、
+    //   ⛔ **ピボットは走りの「頭」ではなく「尻」** — 駒は pivot から **−Z へ 2.0m 後ろへ**延びる
+    //   (胴も +X でなく −X へ 2.4m = 内側へ入る。こちらは区画の内側なので都合がよい)。
+    //   ⇒ 走りの始点にピボットを置くと、駒が **2.0m 手前へはみ出す**。
+    //   これが 2026-09-06 の普請検査で「門口を石垣が塞ぐ」「区画外へ 2.19m 出る」として
+    //   別々に上がった 2 件の**同一の原因**だった(⛔ 呼び寸法で置いた・規則5)。
+    const float IG_RUN = 2.00f;        // Castle Wall の走り方向の実体[m](= 実測の Z 幅)
     const float IG_H = 4.00f;          // 同・高さ[m](ピボットは底)
     const float IG_PITCH_MAX = 1.80f;  // ピッチ上限(重なり 0.20m 以上 = 隙間は原理的に出ない)
 
@@ -1035,9 +1374,19 @@ public static partial class EdoDoiBuilder
             float psi = Mathf.Atan2(-nn.y, nn.x) * Mathf.Rad2Deg;
             int N = (L <= IG_RUN) ? 1 : Mathf.CeilToInt((L - IG_RUN) / IG_PITCH_MAX) + 1;
             float pitch = (N > 1) ? (L - IG_RUN) / (N - 1) : 0f;
+            // ⚠ 丁場が駒1枚より短いと、どちらの端に合わせても反対側へ食み出す。
+            //   ⇒ **中央へ寄せて食み出しを半分ずつに分け**、⛔ 黙って通さず控えへ積む。
+            float head = (L <= IG_RUN) ? (L + IG_RUN) / 2f : IG_RUN;
+            if (L <= IG_RUN)
+                Wait("石垣 " + name + ": 丁場 " + L.ToString("F2") + "m が駒1枚(" + IG_RUN.ToString("F2")
+                   + "m)より短い — 中央へ寄せたので両端へ " + ((IG_RUN - L) / 2f).ToString("F2") + "m ずつ食み出す");
             for (int i = 0; i < N; i++)
             {
-                Vector2 p = a + dir * (pitch * i);
+                // ⭕ **駒はピボットから −Z(走りの手前)へ 2.0m 延びる**ので、頭の駒のピボットは
+                //   走りの始点 a ではなく **a + IG_RUN** に置く。⇒ 頭の駒が [a, a+2.0]、
+                //   尻の駒が [b−2.0, b] に載り、**両端が run の端にぴたりと合う**。
+                //   ⛔ a に置くと run 全体が 2.0m 手前へずれる(門口を塞ぐ・区画外へ出る)。
+                Vector2 p = a + dir * (head + pitch * i);
                 var go = EdoBuild.Place(EdoAssets.JC.CastleWall, new Vector3(p.x, top - IG_H, p.y),
                                         psi, Vector3.one, grp, name + "_" + made);
                 if (go != null) made++;

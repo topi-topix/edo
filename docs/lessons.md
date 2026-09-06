@@ -75,8 +75,9 @@ CLAUDE.md は不変則とルーティングだけを載せる(2026-09-06 に減�
 117 本の主セッションと 376 本のサブエージェントの記録を集計した。費用の 6 割は「文脈全体の
 毎往復の読み直し」で、主セッションの往復の半分が文脈 400K 超、圧縮は 1M 手前まで起きなかった。
 放置後の丸ごと再キャッシュが cache 書きの半分。指図方1回で 2,346 往復の例があった。
-→ 作法は `docs/fushin-bugyo.md`「文脈の作法」。図解は Artifact
-https://claude.ai/code/artifact/a7d38a32-0da0-4e67-ac85-491621f3b73f
+→ 作法は `docs/fushin-bugyo.md`「文脈の作法」。Artifact は2枚:
+体制の図解 https://claude.ai/code/artifact/a7d38a32-0da0-4e67-ac85-491621f3b73f /
+トークンの実測と改善策 https://claude.ai/code/artifact/68dca532-a054-4685-9b40-d257b05e6e14
 
 ## 手仕舞いの規定(2026-09-06 追加)
 

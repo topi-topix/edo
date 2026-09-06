@@ -228,13 +228,39 @@ def band(pts, PX, PY, LEN, w, fill, stroke, op=0.55, sw=0.8):
         dx, dz = b[0] - a[0], b[1] - a[1]
         L = _m.hypot(dx, dz) or 1.0
         nx, nz = -dz / L, dx / L
-        left.append((q[0] + nx * w / 2, q[1] + nz * w / 2))
-        right.append((q[0] - nx * w / 2, q[1] - nz * w / 2))
+        hw = w / 2
+        if 0 < i < n - 1:                      # 留め: 折れ角で半幅を w/2/cos(θ/2) に補正(検図 2026-09-06)
+            ux, uz = q[0] - a[0], q[1] - a[1]; vx, vz = b[0] - q[0], b[1] - q[1]
+            lu = _m.hypot(ux, uz) or 1.0; lv = _m.hypot(vx, vz) or 1.0
+            c = _m.hypot(ux / lu + vx / lv, uz / lu + vz / lv) / 2.0
+            hw = w / 2 / max(c, 0.3)
+        left.append((q[0] + nx * hw, q[1] + nz * hw))
+        right.append((q[0] - nx * hw, q[1] - nz * hw))
     ring = left + right[::-1]
     out = [PL([(PX(x), PY(z)) for x, z in ring], fill=fill, op=op,
               stroke=stroke, sw=sw, close=True)]
     out.append(PL([(PX(x), PY(z)) for x, z in pts], stroke=stroke, sw=0.7, dash="6 4", op=0.9))
     return out
+
+
+def path_max_grade(pts, win, ds=0.5):
+    """折れ線に沿って現地形を ds 刻みで採り、幅 win の窓で最大の勾配[%]を返す(平均だけでは段が読めない・検図 2026-09-06)。"""
+    segs = [(pts[i], pts[i + 1]) for i in range(len(pts) - 1)]
+    L = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in segs)
+    if L <= 0: return 0.0
+    def at(s):
+        for a, b in segs:
+            l = math.hypot(b[0] - a[0], b[1] - a[1])
+            if s <= l: t = s / l if l else 0.0; return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
+            s -= l
+        return pts[-1]
+    n = int(L / ds) + 1
+    hs = [dem_h(*at(min(i * ds, L))) for i in range(n)]
+    k = max(1, int(round(win / ds))); best = 0.0
+    for i in range(n - k):
+        if hs[i] is None or hs[i + k] is None: continue
+        best = max(best, abs(hs[i + k] - hs[i]) / (k * ds) * 100.0)
+    return best
 
 
 def path_stats(pts):
@@ -257,7 +283,8 @@ def sando_band(d, PX, PY, LEN):
         o = band(sd["pts"], PX, PY, LEN, sd.get("w") or 5.5, "var(--michi)", "var(--shu)", op=0.45)
     x, z = sd["pts"][-1]
     L, gr = path_stats(sd["pts"])
-    o.append(T(PX(x) - 6, PY(z) - 6, "参道 %.0f m ／ 平均 %.1f%%" % (L, gr),
+    g5, g20 = path_max_grade(sd["pts"], 5.0), path_max_grade(sd["pts"], 20.0)
+    o.append(T(PX(x) - 6, PY(z) - 6, "参道 %.0f m ／ 平均 %.1f%% ／ 最大 5m窓 %.0f%%・20m窓 %.0f%%" % (L, gr, g5, g20),
                fs=10, anchor="end", fill="var(--shu)"))
     return o
 
@@ -463,6 +490,13 @@ DANSAI = ["#20476B", "#2E6E93", "#4E97AE", "#7FBBBF", "#A9D2B5", "#CBE0A6",
 
 def dansai(hh):
     return DANSAI[max(0, min(len(DANSAI) - 1, int((hh - 6.0) // 2.0)))]
+
+
+def _widen(d, x0, x1, z0, z1, pad=12.0):
+    """現況図・切盛図の窓に参道と鳥居を入れる(辻と参道の一部が図の外だった・検図 2026-09-06)。"""
+    ext = list(d["sando"]["pts"]) + [t["pos"] for t in d["torii"] if t.get("pos")]
+    return (min([x0] + [q[0] - pad for q in ext]), max([x1] + [q[0] + pad for q in ext]),
+            min([z0] + [q[1] - pad for q in ext]), max([z1] + [q[1] + pad for q in ext]))
 
 
 def genkyo_svg(d, kan, x0, x1, z0, z1, W=900.0):
@@ -962,7 +996,9 @@ def routes_table(rows):
 def shachi_svg(d, kan="其一"):
     g = G(d)
     P = d["polygon"]
-    xs = [p[0] for p in P]; zs = [p[1] for p in P]
+    # 窓は参道と鳥居まで含める(二ノ鳥居が画面外だった・検図 2026-09-06)
+    ext = list(d["sando"]["pts"]) + [t["pos"] for t in d["torii"] if t.get("pos")]
+    xs = [p[0] for p in P] + [q[0] for q in ext]; zs = [p[1] for p in P] + [q[1] for q in ext]
     pr = Proj(min(xs), max(xs), min(zs), max(zs), W=900.0, pad=22.0, top=26.0, bottom=30.0)
     o = _sv(pr.W, pr.H, "社地の全図")
     o.append(R(0, 0, pr.W, pr.H, fill="var(--paper2)"))
@@ -1018,7 +1054,7 @@ def shachi_svg(d, kan="其一"):
     # 麓道(山裾を回る小道。**一周しない** — 常明院で行き止まり)
     for seg in d.get("fumotomichi", []):
         fp = [(pr.X(x), pr.Y(z)) for x, z in seg["pts"]]
-        o.append(PL(fp, stroke="var(--michi)", sw=4.5, op=0.95))
+        o += band(seg["pts"], pr.X, pr.Y, pr.L, seg.get("w") or 4.5, "var(--michi)", "var(--michi)", op=0.6)  # 実幅(検図 2026-09-06)
         o.append(PL(fp, stroke="var(--ink)", sw=0.6, dash="2 4", op=0.5))
     # 行き止まりの印
     fz = [s2 for s2 in d.get("fumotomichi", []) if "終端" in s2["name"]]
@@ -2048,7 +2084,7 @@ def sanroku_svg(d, kan="其十一"):
     # 麓道(山裾を回る小道。**一周しない** — 常明院で行き止まり)
     for seg in d.get("fumotomichi", []):
         fp = [(pr.X(x), pr.Y(z)) for x, z in seg["pts"]]
-        o.append(PL(fp, stroke="var(--michi)", sw=6.0, op=0.95))
+        o += band(seg["pts"], pr.X, pr.Y, pr.L, seg.get("w") or 4.5, "var(--michi)", "var(--michi)", op=0.6)  # 実幅(検図 2026-09-06)
         o.append(PL(fp, stroke="var(--ink)", sw=0.6, dash="2 4", op=0.5))
     # 行き止まりの印
     fz = [s2 for s2 in d.get("fumotomichi", []) if "終端" in s2["name"]]
@@ -2071,10 +2107,6 @@ def sanroku_svg(d, kan="其十一"):
         w = g.W(gt["u"], gt["v"])
         o.append(R(pr.X(w[0]) - 4, pr.Y(w[1]) - 6, 8, 12, fill="var(--shu)", stroke="var(--ink)", sw=1.0))
         o.append(T(pr.X(w[0]) - 8, pr.Y(w[1]) + 4, gt["name"], fs=11, anchor="end", fill="var(--shu)"))
-    # 山麓の通り(南北小路)
-    o.append(PL([(pr.X(-386.4), pr.Y(715)), (pr.X(-387.8), pr.Y(845)), (pr.X(-390.0), pr.Y(926))],
-                stroke="var(--dim)", sw=6.0, op=0.35))
-    o.append(T(pr.X(-383), pr.Y(760), "山麓の通り(南北小路)", fs=10.5, fill="var(--dim)"))
     o += cut_lines(d, pr.X, pr.Y, pr.L,
                    clip=(14.0, pr.top + 10.0, pr.W - 14.0, pr.top + pr.zh - 6.0))
     o.append(T(6, 15, kan + "　山麓 ─ 二ノ鳥居の辻で折れて前庭へ入る", fs=12.5, fill="var(--dim)"))
@@ -2365,7 +2397,7 @@ def main():
     gx0, gx1 = min(q[0] for q in P_) - 20, max(q[0] for q in P_) + 20
     gz0, gz1 = min(q[1] for q in P_) - 20, max(q[1] for q in P_) + 20
     plate(h, nx(), "現況図(造成前の地形)", "段彩 2 m ／ 等高線 2 m(10 m 太線) ／ 正本 base_dem.json からの切り出し・確度P")
-    fig(h, genkyo_svg(d, KAN[n[0] - 1], gx0, gx1, gz0, gz1),
+    fig(h, genkyo_svg(d, KAN[n[0] - 1], *_widen(d, gx0, gx1, gz0, gz1)),
         cap="<b>造成のすべての出発点。</b>面の高さは設計者が決めたのではなく、"
             "<b>この地形を走査して自然の平場から採った</b>(境内=山頂平坦面 h≥27.5 / 前庭=男坂下の棚)。"
             "赤の破線は隣地(別当觀理院・神主樹下邸)の区画 — <b>境の地形は隣と一続き</b>なので重ねてある。"
@@ -2394,7 +2426,7 @@ def main():
     h.append("</div>")
 
     plate(h, nx(), "切盛図", "Δ = 設計地盤 − 現況 ／ 暖色 = 盛土 ／ 寒色 = 切土 ／ 無彩 = ±0.3 m")
-    fig(h, kirimori_svg(d, KAN[n[0] - 1], gx0, gx1, gz0, gz1),
+    fig(h, kirimori_svg(d, KAN[n[0] - 1], *_widen(d, gx0, gx1, gz0, gz1)),
         cap="<b>どこを盛り、どこを切るか。</b>地の色のままの所は<b>造成しない</b>(社叢・山麓の通り・坂の外)。"
             "<b>坂の通路も造成の対象に入れてある</b>(2026-08-23 の検図で落ちているのが分かった) — "
             "旧図が掘っていた5mの切通しは廃した。<b>男坂の全長では盛土が主(最大1.4m・平均0.8m)だが、下端寄りの約13%区間は切土(最大1.2m)になる</b>(2026-09-01 是正 — 旧文『全長に1.0〜1.5mの盛土』は実測と食い違っていた)。"
@@ -2422,7 +2454,7 @@ def main():
             "名所図会の題箋(薬師・不動・庚申・鐘楼・鼓楼・宝蔵)のどれかである見込みだが、推定で名を与えない。")
     fig(h, keidai_svg(d, 9, 35, -13, 13, "%s 附図　前庭 平面" % KAN[n[0] - 1]),
         cap="<b>附図 前庭 平面。</b>前庭に囲い" + _zentei_kakoi(d) + "・坂下の門・茶店の縁台4・"
-            "参道の取り合いが集まる面。<b>北縁の東端の開口が参道の入り</b>で、"
+            "参道の取り合いが集まる面。<b>北縁の中央(参道の芯線の下端)の開口が参道の入り</b>で、"
             "そこに参道の階(段数は石段の表)が取り付く。<b>南縁は女坂の口で段違い</b>になり、"
             "口の西を TW_Zentei_SW、口の東(南東の張り出し)を TW_Zentei_SE が受ける。"
             "東縁は腰石垣 TW_Zentei_E(断面リ)。数値は表と断面で読む。")
@@ -2481,6 +2513,7 @@ def main():
                 "それらより11.9〜20.1m西(本殿11.92m・観音堂17.82m・御供所20.10m)で、この線上には無かった)。"
                 "⚠ この線上の盛土は最大+1.13mにとどまる(2026-09-01 是正 — 旧文『3m級の盛土』は線から"
                 "離れた地点(平場西端付近)の値が混入していた)。西肩の3m級盛土は本図・切盛図で読む。"),
+      "SANDO": ("<b>二ノ鳥居から前庭の石段まで、道の領域の中心線に沿って展開した縦断</b>。段は前庭へ上がる石段だけで、途中の急な所は造成しない前提の現地形のまま(要裁定)。"),
       "ONNA2": ("<b>左が前庭(北東)・右が山上(南西→西)で、展開して描いた断面</b>。"
                 "<b>女坂は男坂の南で屈曲しながら登る</b>(12区間の連続カーブ・展開長55.15m。2026-09-01 是正 — "
                 "旧文『南西へ34m上り、折れて西へ28m』は明治16年実測図の値で、当図の設計線(2026-08-23に"

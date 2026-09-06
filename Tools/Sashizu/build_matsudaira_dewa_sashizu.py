@@ -6017,9 +6017,24 @@ def grass_layer_check(d, dem):
         return []
     minAbs = float(grass["minAbs"])
     _t0, widths = _grass_widths(d, dem)
+    # ⭐ **2026-09-06(第18次・検図)**: 標本が極小の列(<20点)は域の隅のコーナー効果として
+    #   区別する — `slopeArea.checks.grassMinAbsAccept` に載った列は「受容」として記録する
+    #   (⛔ 検査は落とさない・文言だけ「不合格」から「受容」に変える。`maxGapAccept` と同じ形式)。
+    accept_tbl = ((d["slopeArea"].get("checks") or {}).get("grassMinAbsAccept") or {})
     bad = []
     for u, w, n in widths:
         if w + 1e-6 < minAbs:
+            if n < 20:
+                accept = accept_tbl.get(str(int(round(u))))
+                if accept:
+                    bad.append("〔記録〕u%+.0f 列: 法尻の草地の幅 %.2fm(標本 %d 点・<20)— "
+                               "minAbs %.1fm を満たさないが受容。%s"
+                               % (u, w, n, minAbs, accept.get("note", "")))
+                    continue
+                bad.append("u%+.0f 列: 法尻の草地の幅 %.2fm(標本 %d 点・<20 — minAbs を満たす"
+                           "物理的余地が無い可能性)— minAbs %.1fm を満たさない"
+                           % (u, w, n, minAbs))
+                continue
             bad.append("u%+.0f 列: 法尻の草地の幅 %.2fm(標本 %d 点)— minAbs %.1fm を満たさない"
                        % (u, w, n, minAbs))
     return bad
@@ -6984,7 +6999,7 @@ def _slope_bare_check0(d, dem, step=1.0):
             ntree[lay["band"]] = ntree.get(lay["band"], 0) + int(lay["n"])
     lims = {}
     for b in d.get("slopeBands", []):
-        # ⭐ **2026-09-06(庭方 裁定2)** — `noBare` の帯は裸地検査から外す(帯W4と同じ扱い)。
+        # ⭐ **2026-09-06(庭方 裁定2)** — `noBare` の帯は裸地検査から外す(帯W3と同じ扱い)。
         #   点在の疎林(密度0.5〜1.0本/100m²)という意匠と裸地の敷居は原理的に衝突する。
         if b.get("noBare"):
             continue
@@ -11022,8 +11037,8 @@ def planting_sensitivity(d, dem):
     probe("法肩の遮蔽木を間引く(pitch を倍に)",
           lambda e: e["slopeArea"]["screen"].__setitem__("pitch",
                                                          e["slopeArea"]["screen"]["pitch"] * 2))
-    probe("草地の帯(帯W4)へ高木を入れる",
-          lambda e: e["slopePlanting"][1].__setitem__("band", "帯W4 法尻の草地"))
+    probe("草地の帯(帯W3)へ高木を入れる",
+          lambda e: e["slopePlanting"][1].__setitem__("band", "帯W3 法尻の草地"))
     probe("庭を狭めて本数を置ききれなくする",
           lambda e: e["gardens"].__setitem__(
               [i for i, g in enumerate(e["gardens"]) if g["name"] == "G_NishiNiwa"][0],
@@ -11670,7 +11685,7 @@ def slope_band_table(d, dem):
             dn.append("<b>%s</b> %s %d本 = %.2f <span class='note'>(%.2f〜%.2f)</span>"
                       % (ok9, role, n, r9, lo, hi))
         # ⭐ **面積を「どの域から来たか」で割って出す**(2026-09-05 検図 D7)。
-        #   ⛔ 帯W4 は谷の口(`slopeArea.taniguchi`)を通じて**域S の標本も入る**ので、
+        #   ⛔ 帯W3 は谷の口(`slopeArea.taniguchi`)を通じて**域S の標本も入る**ので、
         #     一つの数で出すと『域W の草地がその広さ』と読めてしまう。
         by_reg = {}
         for q in slope_samples(d, dem):
@@ -11689,7 +11704,7 @@ def slope_band_table(d, dem):
         ra[q[10]] = ra.get(q[10], 0.0) + 1.0
     foot = ("<p class='cap'>域ごとの走査面積: %s。⚠ <b>帯は域ごとに引く</b> — "
             "同じ t でも域W と域S では別の帯(⛔ 名だけで引くと標本が別の域の帯へ落ちる)。"
-            "⚠ 谷の口(`slopeArea.taniguchi`)は域S でも<b>帯W4 と同じ扱い</b>。</p>"
+            "⚠ 谷の口(`slopeArea.taniguchi`)は域S でも<b>帯W3 と同じ扱い</b>。</p>"
             % " / ".join("<b>%s %.0f m²</b>" % (k, v) for k, v in sorted(ra.items())))
     return ('<div class="tw"><table><thead><tr><th>域</th><th>帯</th><th>t(落差の割合)</th>'
             '<th>平面積</th><th class="note">本/100m²(許容)</th><th class="note">植生</th>'
@@ -14866,14 +14881,14 @@ def main():
                '<span style="color:var(--pl-slope)">■ 斜面(造成しない・松+雑木の樹林)</span>'
                '<span style="color:var(--nagaya)">━ 表長屋</span>'
                '<span style="color:var(--hei)">━ 練塀(面の縁のみ)</span>'
-               '<span style="color:var(--take)">┄ 竹垣(法肩)/ 木柵(境界・地形なり)</span>'
+               '<span style="color:var(--take)">┄ 竹垣(法肩)</span>'
                '<span style="color:var(--ishi)">┄ 郭の土留め</span>'
                '<span>▪ 御殿の棟 ／ ▫ 付属屋</span>'
                '<span style="color:var(--shu)">● 表門 ／ ■ 隅櫓 ／ ┄ 断面</span>',
         cap="<b>敷地は2つの水平面+1つの斜面。</b>造成も囲いもまず面から決め、"
             "囲いの天端=面の高さ、段は面の境にだけ立つ。"
             "<b>西斜面(溜池東岸)と南西の谷(岡部境)は造成しない</b> — 庭のまま、面の縁に竹垣。"
-            "斜面は<b>樹林と草地の二層</b>(上=樹林 帯W1・W2 ／ 下=草地 帯W3・W4。"
+            "斜面は<b>3帯</b>(帯W1 稜の列 ／ 帯W2 樹林 ／ 帯W3 法尻の草地。"
             "黒松を疎に交えた雑木)【<b>帯の別=確度S</b> — 『江戸名所図会』溜池の崖を"
             "NDL 原寸で実見(EDO-0115)。<b>樹種の配合=B</b> — 溜池の水辺の樹木は松、"
             "竹薮は江戸の水辺79事例中1例。西斜面の林の図と考証の章】。"
@@ -15398,7 +15413,7 @@ def main():
                 "⛔ ポプラ(在庫の広葉高木)は江戸に使えない。"
                 "円は<b>樹冠の実寸</b>で、位置は規則から従属して決まる(設計値ではない)。"
                 "⭕ <b>実装は撒き直さない</b>(<code>planting_out</code> をそのまま据える)。<br>"
-                "⚠ <b>帯W4(法尻)は草地だけ</b> — 汀の木本(柳・葭・蓮)は当家の指図に置かない。"
+                "⚠ <b>帯W3(法尻)は草地だけ</b> — 汀の木本(柳・葭・蓮)は当家の指図に置かない。"
                 "同じ岸を持つ岡部が定めた並びでは<b>葭原は杭列(=汀線)の沖</b>にあり、"
                 "汀線は<b>当家の区画線より約10m 沖</b>に来る(掲示板 EDO-0119)。"
                 "⇒ 申し送りは <code>tameike_kishi</code>。<br>"
@@ -15453,8 +15468,8 @@ def main():
                  "「樹高 <b>%.1fm</b> 以上の木が <b>%.1fm</b> 以内にあるか」を測る — "
                  "<b>稜が切れていれば鳴る</b>。⚠ 落差 %.1fm 未満の区間(北西の登り・辺11)は"
                  "外してある — その内側は御殿でなく西の明地なので稜を作る役が無い。<br>"
-                 "⚠ <code>perimeterClosure</code> の「遮蔽は法面が受け、木柵は境の標示にとどまる」は"
-                 "<b>法面と樹林</b>が受けるという意味で、⛔ 素の崖だけでは輪郭が立たない。</p></div>"
+                 "⚠ <code>perimeterClosure</code> は「法面と樹林そのものが境と遮蔽を担う"
+                 "(木柵なし)」——⛔ 素の崖だけでは輪郭が立たない。</p></div>"
                  % (_sc["step"], _sc["minH"], _sc["reach"], _sc["minDrop"]))
         h.append("</div>")
 
@@ -15480,7 +15495,7 @@ def main():
     fig(h, perimeter_dev_svg(d))
     h.append(runs_table(d))
     h.append('<p class="cap">長屋は<b>表門の両翼と北東・東辺だけ</b>。南(土井境の台地上)と北辺西は練塀、'
-             '<b>斜面・谷・水際は塀を立てず地形なりの木柵</b>(囲いの実体は崖と樹林+法肩の竹垣)。'
+             '<b>斜面・谷・水際は地物を置かず、法面と樹林そのものが境と遮蔽を担う</b>(木柵なし。法肩は竹垣)。'
              '土井境の囲いは1条・松平が持つ(区画トポロジの裁定)。犬走り %.2fm。</p>'
              % d["const"]["inubashiri"])
     _ig = d["ishigaki"]

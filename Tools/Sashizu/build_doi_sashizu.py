@@ -25,6 +25,7 @@
 """
 import json, math, os, re, subprocess, html, sys
 import collections
+import hashlib
 
 import sashizu_lib
 from sashizu_lib import (R, _pat, _SVN, Proj, RGrid, cf_color, cutfill_legend,
@@ -5956,6 +5957,29 @@ def _cert(rf, key, dflt="?"):
     return ((rf or {}).get("certs") or {}).get(key, dflt)
 
 
+def neighbour_hash_check(d):
+    """**隣家の指図が動いたら鳴らす。**⛔ 隣家の json を読む検査があるのに、
+    **隣家が動いたことを誰も検知していなかった**(2026-09-06 検図方 中1)。
+
+    ⚠ commit 済みの図に、既に消えた松平の run(`S_Hei_Doi_S1` +1.680m)が載ったままだった。
+    ⛔ **生成器がハッシュを書き戻してはいけない** — 書き戻すと二度と鳴らない。
+    ⇒ 鳴ったら **①回し直す ②`neighbours[].sha` を書き直す ③図を commit する**。
+    """
+    bad = []
+    for pid, q in (d.get("neighbours") or {}).items():
+        fp = os.path.join(DOC, q["file"])
+        if not os.path.exists(fp):
+            bad.append("隣家の指図 `%s` が無い — `neighbours.%s` の宣言と食い違う" % (q["file"], pid))
+            continue
+        cur = hashlib.sha256(open(fp, "rb").read()).hexdigest()[:16]
+        if cur != q.get("sha"):
+            bad.append("**隣家が動いた — 図を回し直せ**: `%s` の sha が %s → %s。"
+                       "⛔ 当図の隣家の表(埋没・余裕)は古い可能性がある。"
+                       "回し直して `neighbours.%s.sha` を書き直し、図を commit すること"
+                       % (q["file"], q.get("sha"), cur, pid))
+    return bad
+
+
 def band_check(d):
     """**身舎の帯の割り付けが規則どおりか。**(2026-09-06 ユーザー裁定=案C)
 
@@ -6116,8 +6140,8 @@ def band_check(d):
                 continue
             _e, rg9 = svc_roof(d, o)
             if rg9 is not None and o["y"] + rg9 > lo9[2] + kover + 1e-9:
-                bad.append("%s の棟が %.3fm で、御殿の最高 %s %.3fm を %.2fm 超える"
-                           "(蔵の例外の上限 %.2fm)— 蔵は2階建てだが、御殿より高くてよい幅にも限りがある"
+                bad.append("%s の棟が %.3fm で、御殿の最高 %s %.3fm を %.3fm 超える"
+                           "(蔵の例外の上限 %.3fm)— 蔵は2階建てだが、御殿より高くてよい幅にも限りがある"
                            % (o.get("label", o["name"]), o["y"] + rg9, lo9[1], lo9[2],
                               o["y"] + rg9 - lo9[2], kover))
     # ⭐ ⑨ **軒の出が 0 の物を黙って通さない**(同 中7)。
@@ -8015,11 +8039,31 @@ def niwa_plant_check(d):
     #   **2本を報告なしに落とした**。⛔ 表は同じ行の中で「本数 3」と刷りながら位置は1つで、
     #   **本文を読んだ棟梁は位置を2つ発明する**(前巡の受け石とまったく同じ型)。
     #   ⛔ `n` を持つ層は**必ず** `len(at)` と一致させる。
-    for s9 in g.get("shokusai", []):
-        if s9.get("n") is not None and int(s9["n"]) != len(s9.get("at", [])):
-            out.append("**%s %s の本数 %d と据え位置 %d 個が合わない** — "
-                       "⛔ 数だけ書いて位置が無い物は実装が発明する【庭方の検査】"
-                       % (s9["species"], s9["size"], int(s9["n"]), len(s9.get("at", []))))
+    #   ⭐⭐ **2026-09-06 検図方 中2: `shokusai` の名指しをやめ、再帰で全箇所に当てる。**
+    #   ⚠ `n` と `at` を両方持つ辞書は設計値に **7箇所**あり、6箇所が `shokusai`、
+    #   残る1つが **受け石**(`mizushiri.otoshimizo.uke`)。⛔ **`uke.n` を 3→5 にしても 0件**だった —
+    #   **庭方が2巡続けて指摘した当の物**に、同じ型の検査が当たっていなかった。
+    #   ⭕ 再帰なら将来 `n`/`at` を持つ物が増えても自動で入る。
+    def _na(o9, path9):
+        if isinstance(o9, dict):
+            if o9.get("n") is not None and isinstance(o9.get("at"), list):
+                try:
+                    n9 = int(o9["n"])
+                except (TypeError, ValueError):
+                    n9 = None
+                if n9 is not None and n9 != len(o9["at"]):
+                    out.append("**%s の本数 %d と据え位置 %d 個が合わない**(`%s`)— "
+                               "⛔ 数だけ書いて位置が無い物は実装が発明する【庭方の検査】"
+                               % (o9.get("label") or o9.get("kata")
+                                  or ("%s %s" % (o9.get("species", "?"), o9.get("size", ""))),
+                                  n9, len(o9["at"]), path9))
+            for k9, v9 in o9.items():
+                if not k9.startswith("_"):
+                    _na(v9, path9 + "." + k9)
+        elif isinstance(o9, list):
+            for i9, v9 in enumerate(o9):
+                _na(v9, "%s[%d]" % (path9, i9))
+    _na(g, "gardens.%s" % g.get("name", "?"))
     # ⭐⭐ **樹どうしの隙**(2026-09-06 庭方 高2 の物差し)。
     #   ⛔ **樹冠は交わってよいが、半分より深く重ねない** — **芯々 ≥ (r_a + r_b) ÷ 2**【庭方の意匠・U】。
     #   ⚠ 8m級の Big 2本が**幹の隙 0.15m**で立ち、樹冠が **96% 同心**だった(其八でも点と破線円が
@@ -10007,7 +10051,7 @@ def main():
         print("   ", b)
     pbad = (plane_check(d) + inubashiri_check(d) + opening_fit_check(d) + refs_check(d)
             + norms_check(d) + perimeter_check(d) + perimeter_closure_check(d)
-            + mune_gap_check(d) + band_check(d)
+            + mune_gap_check(d) + band_check(d) + neighbour_hash_check(d)
             + clearance_check(d) + rails_check(d)
             + ramp_check(d) + completeness_check(d) + program_check(d) + gate_overlap_check(d) + vocab_check(d)
             + terrace_overhang_check(d) + setchin_check(d)

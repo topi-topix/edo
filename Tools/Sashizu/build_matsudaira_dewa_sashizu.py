@@ -6017,6 +6017,39 @@ def _band_region(d, band):
     return None
 
 
+def _border_pool(d, gr, edges, within, step=1.0):
+    """**境界線(`polygon` の指定辺)沿いの候補点** → [(u, v)]。
+
+    ⭐ 2026-09-06(庭方 設計3・E・確度U)『境の標示』の候補地。
+    ⛔ **正確な垂線距離ではなく簡便な内挿**(`within`/2 だけ内側へ寄せた点)—
+      境の標示という装飾要素の候補地であって、退避の基準には使わない
+      (退避は呼び出し側の `ok()` が別に見る)。"""
+    P = d["polygon"]
+    out = []
+    # ⭐ **複数の入り込み(2026-09-06)** — 1本の内挿線(`within`/2)だけだと候補が薄く、
+    #   叢を詰め切れないことがある。⛔ `within` を超えない範囲で複数の深さを走査する
+    #   (見た目の意匠は変えない — どれも「境界線から `within` m 以内」の候補地)。
+    depths = [within * f for f in (0.25, 0.5, 0.75, 1.0)]
+    for ei in edges:
+        a, b = P[ei], P[(ei + 1) % len(P)]
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        if L < 1e-6:
+            continue
+        du, dv = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+        nu, nv = -dv, du
+        k = 0
+        while k * step <= L:
+            f = k * step
+            wx, wz = a[0] + du * f, a[1] + dv * f
+            k += 1
+            for sgn in (1.0, -1.0):
+                for depth in depths:
+                    tx, tz = wx + nu * sgn * depth, wz + nv * sgn * depth
+                    if _pip_world((tx, tz), P):
+                        out.append(gr.L(tx, tz))
+    return out
+
+
 def scatter_slope(d, dem):
     """西斜面の植栽を決定論的に散らす。→ {層名: [(u, v, part)]}"""
     if _SPL:
@@ -6034,6 +6067,12 @@ def scatter_slope(d, dem):
     #   ⛔ 二つの散布が別々の `mine` を持つと、**互いの退避が一度も見られない**。
     #   ⭕ 法面は庭のあとに撒くので、庭の点を種として持てる(⛔ 庭の側は動かさない)。
     mine = []
+    # ⭐ **帯ごとに置いた高木の実位置**(2026-09-06 庭方 設計3)。→ {帯: [(u,v,樹冠半径[間])]}
+    #   `placement:"maxGap"` の空隙判定と、低木の「幹元」寄せの両方がこれを読む。
+    #   ⛔ 層の宣言した帯(`lay["band"]`)で積む — 帯をまたぐ列(法肩の松)も、
+    #     宣言した帯へは必ず1本ぶん計上される(その帯の高木として扱ってよい)。
+    hi_by_band = {}
+    hi_all = []          # ⭐ [(u,v,樹冠半径[間])] — 宣言した帯を問わない全高木(maxGapの空隙判定用)
     _roles = set((d["plantRule"].get("crownRule") or {}).get("roles", ["高木", "中木"]))
     _gs0 = scatter_gardens(d)
     for _pl in d.get("planting", []):
@@ -6094,6 +6133,17 @@ def scatter_slope(d, dem):
         clr = float(lay.get("clr", 1.0))
         crown0 = layer_crown_r(d, lay)          # ⭕ 免除した塀・区画線の際で効く樹冠半径[間]
         made = 0
+
+        def _record(u, v, pt, _lay=lay, _sp=sp):
+            """撒いた1点を書き出し、高木なら `hi_by_band`/`hi_all` にも積む。"""
+            _SPL[nm].append((u, v, pt))
+            mine.append((u, v, _sp))
+            if _lay.get("role") == "高木":
+                cr9 = crown_r(d, pt)
+                cr9 = cr9 if cr9 is not None else crown0
+                hi_by_band.setdefault(_lay["band"], []).append((u, v, cr9))
+                hi_all.append((u, v, cr9))
+
         if lay.get("placement") == "crestLine":
             st = crest_stations(d, dem, 0.5)
             if not st:
@@ -6101,23 +6151,38 @@ def scatter_slope(d, dem):
             w0, Lm = st[0][2], st[-1][2]           # **検査点のある区間だけ**を割り付ける
             pitch, jit = float(sc["pitch"]), float(sc["jitter"])
             o0, o1 = float(sc["offset"][0]), float(sc["offset"][1])
+            # ⭐ **内外二重化**(2026-09-06 庭方 設計3・B)。`innerFrac` の割合を
+            #   `innerOffset`〜`o1`(控え列)へ、残りを `o0`〜`innerOffset`(前列)へ振る。
+            #   ⛔ 単列に見せない — `screen.offset`/`pitch`/`jitter` 自体は不変。
+            inner_frac = float(lay.get("innerFrac", 0.0))
+            inner_off = float(lay.get("innerOffset", o1))
+            inner_flags = [i < round(inner_frac * len(parts)) for i in range(len(parts))]
+            rg.shuffle(inner_flags)
             k = 0
-            while made < len(parts) and k < len(parts) * 4:
+            while made < len(parts) and k < len(parts) * 8:
                 want = w0 + (k + 0.5) * pitch + (rg.random() - 0.5) * 2 * jit
                 k += 1
                 if want < w0 or want > Lm:
                     continue
                 base = min(st, key=lambda q: abs(q[2] - want))
                 done = False
-                for _t in range(24):
-                    off = (o0 + rg.random() * (o1 - o0)) / K
-                    u = base[0][0] + base[1][0] * off
-                    v = base[0][1] + base[1][1] * off
-                    if ok(u, v, clr, sp, lay["band"], lay.get("role"), crown0):
-                        _SPL[nm].append((u, v, parts[made]))
-                        mine.append((u, v, sp))
-                        made += 1
-                        done = True
+                is_inner = inner_flags[made] if made < len(inner_flags) else False
+                primary = (inner_off, o1) if is_inner else (o0, min(inner_off, o1))
+                fallback = (o0, min(inner_off, o1)) if is_inner else (inner_off, o1)
+                # ⭕ **狙った列(内/外)がその場所で塞がっていれば、もう一列で拾う**
+                #   (2026-09-06)。⛔ 内外二重化のために「置ける場所があるのに欠番になる」を
+                #   起こさない — 総数(=n)を保つことを列の割合より優先する。
+                for (lo9, hi9) in (primary, fallback):
+                    for _t in range(40):
+                        off = (lo9 + rg.random() * (hi9 - lo9)) / K
+                        u = base[0][0] + base[1][0] * off
+                        v = base[0][1] + base[1][1] * off
+                        if ok(u, v, clr, sp, lay["band"], lay.get("role"), crown0):
+                            _record(u, v, parts[made])
+                            made += 1
+                            done = True
+                            break
+                    if done:
                         break
                 if not done:
                     continue
@@ -6167,16 +6232,116 @@ def scatter_slope(d, dem):
                         if not (ur[0] <= u <= ur[1] and vr[0] <= v <= vr[1]):
                             continue
                         if made < len(parts) and ok(u, v, clr, sp, lay["band"], lay.get("role"), crownZ):
-                            _SPL[nm].append((u, v, parts[made]))
-                            mine.append((u, v, sp))
+                            _record(u, v, parts[made])
+                            made += 1
+                            break
+            # ⭐ **境の標示**(2026-09-06 庭方 設計3・E・確度U)。`borderClump` を持つ層は、
+            #   境界線(`polygon` の指定辺)の内側 `within` m に**奇数の叢**を先に置く。
+            #   ⛔ 既存の層の予算(`n`)から回すだけ — 増数しない。`pool`(帯内散布)は使わない。
+            bc = lay.get("borderClump")
+            if bc:
+                edges_bc = [int(x) for x in bc.get("edges", [])]
+                within_bc = float(bc.get("within", 3.0))
+                poolB = [q for q in _border_pool(d, gr, edges_bc, within_bc)
+                         if _tree_band(d, dem, q[0], q[1], None)[0] == lay["band"]]
+                if poolB:
+                    planB = [int(x) for x in bc.get("clump", [])]
+                    gapB = [float(x) for x in bc.get("clumpGap", [8.0, 15.0])]
+                    seedsB = []
+                    for _c in planB:
+                        got = None
+                        for _t in range(400):
+                            q = poolB[rg.randrange(len(poolB))]
+                            if all(math.hypot(q[0] - a, q[1] - b2) * K >= gapB[0] for a, b2 in seedsB):
+                                got = q
+                                break
+                        seedsB.append(got or poolB[0])
+                        for _i in range(_c):
+                            if made >= len(parts):
+                                break
+                            placedB = False
+                            # ⭐ **半径を段階的に広げる**(2026-09-06)。境の帯は
+                            #   `within` の細い帯(半width=1.5m)なので、既定半径だと
+                            #   自分自身の帯からすぐ外へ出て**群の総数が欠ける**。
+                            for _grow in (1.0, 1.8, 3.0):
+                                for _t in range(200):
+                                    r = (sp * 1.2 * _grow) * math.sqrt(rg.random())
+                                    th = rg.random() * 2 * math.pi
+                                    u = seedsB[-1][0] + r * math.cos(th)
+                                    v = seedsB[-1][1] + r * math.sin(th)
+                                    if _tree_band(d, dem, u, v, None)[0] != lay["band"]:
+                                        continue
+                                    if ok(u, v, clr, sp, lay["band"], lay.get("role"), crown0):
+                                        _record(u, v, parts[made])
+                                        made += 1
+                                        placedB = True
+                                        break
+                                if placedB:
+                                    break
+            # ⭐ **幹元の低木**(2026-09-06 庭方 設計3・D)。低木の層は、同じ帯の高木の
+            #   樹冠縁から 1.5〜2.5m のところへ**先に**割り付ける(既存の低木本数の再配置。
+            #   ⛔ 増数しない)。⚠ 高木の本数が予算を上回れば、届かない木は無印のまま残る
+            #   (それでも検査は帯単位で60%以上を求めるだけで、100%は求めない)。
+            if lay.get("role") == "低木" and lay["band"] in hi_by_band:
+                anchors = list(hi_by_band[lay["band"]])
+                rg.shuffle(anchors)
+                for (tu, tv, tr) in anchors:
+                    if made >= len(parts):
+                        break
+                    for _t in range(60):
+                        ang = rg.random() * 2 * math.pi
+                        dist = float(tr) + (1.5 + rg.random() * 1.0) / K
+                        u = tu + math.cos(ang) * dist
+                        v = tv + math.sin(ang) * dist
+                        # ⛔ **同じ帯の中に留める**(2026-09-06)。帯W1 は t 0〜0.15 の細い帯なので、
+                        #   幹から 1.5〜2.5m 離すと隣の帯(帯W2)や走査域の外へ出ることがある —
+                        #   出た点を「帯W1 の低木」として書くと密度会計が壊れる。
+                        if _tree_band(d, dem, u, v, None)[0] != lay["band"]:
+                            continue
+                        if ok(u, v, clr, sp, lay["band"], lay.get("role"), crown0):
+                            _record(u, v, parts[made])
                             made += 1
                             break
             if not pool:
+                continue
+            # ⭐ **候補点のうち既存高木から最も離れた点を採る**(2026-09-06 庭方 設計3・A)。
+            #   ⛔ 単純散布は等間隔にも大穴にもなり得る — 空いた所を優先して埋める。
+            if lay.get("placement") == "maxGap":
+                # ⭐ **宣言した帯でなく実位置で空隙を測る**(2026-09-06)。⛔ `hi_by_band` は
+                #   層が「宣言した帯」で積むので、法肩の列など帯をまたぐ層の実際の落ち先
+                #   (この帯へのこぼれ)が見えず、空いていない所を「空いている」と誤認する。
+                band_pts = [(u2, v2, r2) for (u2, v2, r2) in hi_all
+                            if _tree_band(d, dem, u2, v2, None)[0] == lay["band"]]
+                remain = len(parts) - made
+                cand_all = pool if len(pool) <= 3000 else rg.sample(pool, 3000)
+                for _i in range(remain):
+                    best, best_d = None, -1.0
+                    for q in cand_all:
+                        u0, v0 = q[2], q[3]
+                        if not ok(u0, v0, clr, sp, lay["band"], lay.get("role"), crown0):
+                            continue
+                        if band_pts:
+                            dmin = min(math.hypot(u0 - pu, v0 - pv) for (pu, pv, _r) in band_pts)
+                        else:
+                            dmin = 1e18
+                        if dmin > best_d:
+                            best_d, best = dmin, (u0, v0)
+                    if best is None:
+                        continue
+                    cr9 = crown_r(d, parts[made])
+                    _record(best[0], best[1], parts[made])
+                    band_pts.append((best[0], best[1], cr9 if cr9 is not None else crown0))
+                    made += 1
                 continue
             # ⭐ **奇数の小群に固める**(`clump` = 群ごとの本数・`clumpGap` = 群の芯の離れ m)。
             #   ⛔ 一様に撒くと「点在」に見えない(庭方 設計2 の W3 は 1/1/3/1/5 の小群)。
             plan = [int(x) for x in (lay.get("clump") or [])]
             gap = [float(x) for x in (lay.get("clumpGap") or [0.0, 0.0])]
+            # ⭐ **叢が大きいほど円を広げ、詰まりを緩める**(2026-09-06)。
+            #   ⛔ 半径を `spacing` だけで決め打つと、8〜14本の茂み(帯S-下)が
+            #     全員 `spacing` 間隔を守ろうとして**円の面積が足りず**詰め残りが出る。
+            #   `clumpPack`(既定1.0)は群内だけの詰まり係数 — <1で密な自生の茂みを許す。
+            pack = float(lay.get("clumpPack", 1.0))
             seeds = []
             if plan:
                 order, need = [], len(parts)
@@ -6196,19 +6361,29 @@ def scatter_slope(d, dem):
                             got = (q[2], q[3])
                             break
                     seeds.append(got or (pool[0][2], pool[0][3]))
+                    rC = sp * 1.5 * math.sqrt(max(1.0, _c / 3.0))
+                    _placed0 = made
                     for _i in range(_c):
                         if made >= len(parts):
                             break
-                        for _t in range(400):
-                            r = (sp * 1.5) * math.sqrt(rg.random())
-                            th = rg.random() * 2 * math.pi
-                            u = seeds[-1][0] + r * math.cos(th)
-                            v = seeds[-1][1] + r * math.sin(th)
-                            if ok(u, v, clr, sp, lay["band"], lay.get("role"), crown0) and any(
-                                    abs(q[2] - u) < 1.0 and abs(q[3] - v) < 1.0 for q in pool):
-                                _SPL[nm].append((u, v, parts[made]))
-                                mine.append((u, v, sp))
-                                made += 1
+                        placed9 = False
+                        # ⭐ **半径を段階的に広げる**(2026-09-06)。⛔ 群の芯の周りが
+                        #   (帯境・退避・既存の木で)混んでいると、既定半径のままでは
+                        #   後続の成員が入れず**群の総数が欠ける** — 見た目の詰まりより
+                        #   本数(n)を優先し、広げてでも置く。
+                        for _grow in (1.0, 1.6, 2.4, 3.5):
+                            for _t in range(300):
+                                r = (rC * _grow) * math.sqrt(rg.random())
+                                th = rg.random() * 2 * math.pi
+                                u = seeds[-1][0] + r * math.cos(th)
+                                v = seeds[-1][1] + r * math.sin(th)
+                                if ok(u, v, clr, sp * pack, lay["band"], lay.get("role"), crown0) and any(
+                                        abs(q[2] - u) < 1.0 and abs(q[3] - v) < 1.0 for q in pool):
+                                    _record(u, v, parts[made])
+                                    made += 1
+                                    placed9 = True
+                                    break
+                            if placed9:
                                 break
                 continue
             # ⛔ **残りだけを撒く** — ゾーン(`slopePlantingZones`)が先に取った分を数え直す
@@ -6218,10 +6393,41 @@ def scatter_slope(d, dem):
                     u = s[2] + (rg.random() - 0.5) * 1.0 / K
                     v = s[3] + (rg.random() - 0.5) * 1.0 / K
                     if made < len(parts) and ok(u, v, clr, sp, lay["band"], lay.get("role"), crown0):
-                        _SPL[nm].append((u, v, parts[made]))
-                        mine.append((u, v, sp))
+                        _record(u, v, parts[made])
                         made += 1
                         break
+    # ⭐ **手当て(2026-09-06 庭方 裁定1・4)** — 空隙・空白へのピンポイントの手直し。
+    #   ⛔ 通常の散布(帯の面積×密度・clump)の外側の明示的な1本ずつの追加/増径なので、
+    #   層の `n`/`parts` の予算とは別枠(検査は密度上限の枠内かを別途見る)。
+    for gf in sa.get("crestGapFill", []):
+        lname = gf.get("layer")
+        if lname not in _SPL:
+            continue
+        pt = {"api": gf["api"], "prefab": gf["prefab"], "scale": float(gf.get("scale", 1.0)), "n": 1}
+        _SPL[lname].append((float(gf["u"]), float(gf["v"]), pt))
+    for mp in sa.get("maxGapPatch", []):
+        band = mp["band"]
+        add = mp.get("add")
+        if add:
+            pt = {"api": add["api"], "prefab": add["prefab"], "scale": float(add.get("scale", 1.0)), "n": 1}
+            for lay2 in d.get("slopePlanting", []):
+                if lay2["band"] == band and lay2.get("placement") == "maxGap":
+                    _SPL[lay2["layer"]].append((float(add["u"]), float(add["v"]), pt))
+                    break
+        for bo in mp.get("boost", []):
+            nu, nv = bo["near"]
+            mul = float(bo.get("scale", 1.0))
+            for lay2 in d.get("slopePlanting", []):
+                if lay2["band"] != band:
+                    continue
+                lst = _SPL.get(lay2["layer"])
+                if not lst:
+                    continue
+                for i, (u, v, pt) in enumerate(lst):
+                    if math.hypot(u - nu, v - nv) < 0.5:
+                        pt2 = dict(pt)
+                        pt2["scale"] = float(pt.get("scale", 1.0)) * mul
+                        lst[i] = (u, v, pt2)
     return _SPL
 
 
@@ -6685,9 +6891,18 @@ def _slope_bare_check0(d, dem, step=1.0):
     # ⛔ **草地の帯は裸地でよい**(2026-09-03・庭方 設計2 の二層)— 木を置かない帯を
     #   「裸地が続いている」と鳴らすのは、設計そのものを不良と呼ぶことになる。
     #   ⭕ 見るのは**樹林の帯**だけ(高木か中木の密度の上限が 0 でない帯)。
-    # ⭐ **敷居は帯ごとの従属値**(2026-09-03 庭方 N6): max(`bareMax`, 2 × 帯の面積 ÷ 帯の高木の本数)。
+    # ⭐ **敷居は帯ごとの従属値**(2026-09-03 庭方 N6): max(`bareMax`, `bareMaxMul` × 帯の面積 ÷ 帯の高木の本数)。
     #   ⛔ 一律 20 m² は、密度 0.5〜4 本/100m² の疎林では**原理的に満たせない**敷居だった。
     #   ⛔ **高木が0本の帯は検査しない** — 木で覆うと決めていない帯を「穴が開いている」と呼ばない。
+    #   ⭐ **2026-09-06(庭方 設計3・F)** — 乗数 2.0 → **`bareMaxMul`(既定1.2)**に締めた。
+    #     **`bareMaxCap`の絶対上限は `checks.canopy` を持つ帯(=閉じた林冠を求める帯)にだけ効く**。
+    #     ⛔ `checks.canopy` 自体が「帯W3・W4 に林冠を求めない」と宣言している
+    #     (草地に樹が点在する層。庭方 設計2)ので、そこへ**同じ絶対上限**を掛けると
+    #     自己矛盾になる(点在の意匠そのものを『穴』と呼ぶ)— 疎な点在の帯は乗数だけで見る。
+    ck9 = sa.get("checks") or {}
+    mul9 = float(ck9.get("bareMaxMul", 2.0))
+    cap9 = float(ck9.get("bareMaxCap", 1e18))
+    canopy_bands = set((ck9.get("canopy") or {}).keys())
     area0 = slope_band_area(d, dem)
     ntree = {}
     for lay in d.get("slopePlanting", []):
@@ -6695,10 +6910,17 @@ def _slope_bare_check0(d, dem, step=1.0):
             ntree[lay["band"]] = ntree.get(lay["band"], 0) + int(lay["n"])
     lims = {}
     for b in d.get("slopeBands", []):
+        # ⭐ **2026-09-06(庭方 裁定2)** — `noBare` の帯は裸地検査から外す(帯W4と同じ扱い)。
+        #   点在の疎林(密度0.5〜1.0本/100m²)という意匠と裸地の敷居は原理的に衝突する。
+        if b.get("noBare"):
+            continue
         n0 = ntree.get(b["name"], 0)
         if n0 <= 0:
             continue
-        lims[b["name"]] = max(base, 2.0 * area0.get(b["name"], 0.0) / n0)
+        lim9 = max(base, mul9 * area0.get(b["name"], 0.0) / n0)
+        if b["name"] in canopy_bands:
+            lim9 = min(cap9, lim9)
+        lims[b["name"]] = lim9
     woods = set(lims)
     K = d["const"]["ken"]
     trees = _slope_trees(d, dem, roles=None)
@@ -6755,7 +6977,11 @@ def _slope_bare_check0(d, dem, step=1.0):
 
 def slope_bare_table(d, dem):
     """裸地の敷居(帯ごとの従属値)と実測。⛔ 0 件でも数を出す。"""
-    base = float((d["slopeArea"].get("checks") or {}).get("bareMax", 0.0))
+    ck9 = d["slopeArea"].get("checks") or {}
+    base = float(ck9.get("bareMax", 0.0))
+    mul9 = float(ck9.get("bareMaxMul", 2.0))
+    cap9 = float(ck9.get("bareMaxCap", 1e18))
+    canopy_bands = set((ck9.get("canopy") or {}).keys())
     area0 = slope_band_area(d, dem)
     ntree = {}
     for lay in d.get("slopePlanting", []):
@@ -6766,27 +6992,401 @@ def slope_bare_table(d, dem):
     for b in d.get("slopeBands", []):
         n0 = ntree.get(b["name"], 0)
         A = area0.get(b["name"], 0.0)
-        lim = max(base, 2.0 * A / n0) if n0 > 0 else None
+        if b.get("noBare"):
+            lim = None
+        elif n0 <= 0:
+            lim = None
+        else:
+            lim = max(base, mul9 * A / n0)
+            if b["name"] in canopy_bands:
+                lim = min(cap9, lim)
         hit = [x for x in bad if b["name"] in x]
         rows += ("<tr><td>%s</td><td>%s</td><td>%.0f m²</td><td>%d</td><td>%s</td><td>%s</td></tr>"
                  % (inline(b.get("region", "—")), b["name"], A, n0,
-                    ("%.0f m²" % lim) if lim else "— <span class='note'>(高木0本・検査しない)</span>",
+                    ("%.0f m²" % lim) if lim else
+                    ("— <span class='note'>(点在の意匠のため検査しない)</span>" if b.get("noBare")
+                     else "— <span class='note'>(高木0本・検査しない)</span>"),
                     "—" if lim is None else ("<b>○</b>" if not hit else "<b>⚠</b> " + inline(hit[0]))))
     return ("<h3>裸地の敷居 — 帯ごとの従属値</h3><div class='tw'><table><thead><tr>"
             "<th>域</th><th>帯</th><th>帯の面積</th><th>高木の本数</th><th>敷居</th><th>判定</th>"
             "</tr></thead><tbody>%s</tbody></table></div>"
-            "<p class='cap'>敷居 = <b>max(%.0f m², 2 × 帯の面積 ÷ 帯の高木の本数)</b>。"
+            "<p class='cap'>敷居 = <b>max(%.0f m², %.1f × 帯の面積 ÷ 帯の高木の本数)</b>"
+            "(2026-09-06 に乗数 2.0→1.2)。<b>絶対上限 %.0f m²</b> は "
+            "<code>checks.canopy</code> を持つ帯(閉じた林冠を求める帯=帯W2・帯S-上)にだけ効く"
+            "— <code>checks.canopy</code> 自体が帯W3・W4 に林冠を求めていないので、"
+            "その帯にまで同じ上限を掛けると『点在』という意匠そのものを穴と呼ぶ自己矛盾になる。"
             "⛔ 一律の敷居は、密度 0.5〜4 本/100m² の疎林では<b>原理的に満たせない</b> — "
             "木の間の空きは密度と樹冠径から決まるので、敷居も<b>密度の従属値</b>にする。"
             "⛔ <b>高木が0本の帯は検査しない</b>(木で覆うと決めていない帯を『穴が開いている』と呼ばない)。"
             "⛔ <b>木を置かないと決めた箱は裸地に数えない</b> — %s。</p>"
-            % (rows, base,
+            % (rows, base, mul9, cap9,
                " ／ ".join("<b>%s</b>(u %g〜%g / v %g〜%g)"
                           % (inline(av.get("name", "?")), av["box"][0], av["box"][2],
                              av["box"][1], av["box"][3])
                           for av in ((d["slopeArea"].get("checks") or {}).get("bareSkip", [])
                                      + d["slopeArea"].get("avoid", [])))
                or "いま外している箱は無い"))
+
+
+def _nn_dists(pts, K):
+    """点群(u,v,...)の最近傍距離[m]の列。⛔ 点が2未満なら空。"""
+    out = []
+    for i in range(len(pts)):
+        u, v = pts[i][0], pts[i][1]
+        dm = None
+        for j in range(len(pts)):
+            if j == i:
+                continue
+            dd = math.hypot(u - pts[j][0], v - pts[j][1]) * K
+            if dm is None or dd < dm:
+                dm = dd
+        if dm is not None:
+            out.append(dm)
+    return out
+
+
+def slope_gap_check(d, dem):
+    """**最大空隙** — `placement:"maxGap"` の帯で、高木の最近傍距離(NN)の
+    `maxGapPercentile`(既定90)パーセンタイルが**樹冠径 × maxGapFactor**(既定0.7)以下か。
+    ⭐ 2026-09-06(庭方 設計3・A)。⛔ 密度(本/100m²)は満たせても、単純散布は
+    等間隔にも大穴にも化ける — **空隙そのもの**を測る。"""
+    sa = d["slopeArea"]
+    ck = sa.get("checks") or {}
+    factor = float(ck.get("maxGapFactor", 0.7))
+    pct = float(ck.get("maxGapPercentile", 90))
+    K = d["const"]["ken"]
+    bands = sorted({lay["band"] for lay in d.get("slopePlanting", []) if lay.get("placement") == "maxGap"})
+    bad = []
+    for bn in bands:
+        trees = [(u, v, r) for (u, v, r, hgt, band, reg) in _slope_trees(d, dem) if band == bn]
+        if len(trees) < 2:
+            bad.append("帯 %s は maxGap 配置だが高木が2本未満で空隙が測れない" % bn)
+            continue
+        nn = sorted(_nn_dists(trees, K))
+        idx = min(len(nn) - 1, int(math.ceil(pct / 100.0 * len(nn))) - 1)
+        p90 = nn[idx]
+        crown_d = 2.0 * (sum(r for _u, _v, r in trees) / len(trees))
+        lim = crown_d * factor
+        if p90 > lim + 1e-6:
+            # ⭐ **2026-09-06(庭方 裁定1)** — 係数・百分位・密度上限は動かさず対処
+            #   (`slopeArea.maxGapPatch`)したうえで、なお敷居を割るときは
+            #   `checks.maxGapAccept` に載った帯を**受容**として記録する
+            #   (⛔ 検査は落とさない・文言だけ「不合格」から「受容」に変える)。
+            accept = ck.get("maxGapAccept", {}).get(bn)
+            if accept:
+                bad.append("〔記録〕帯 %s の最大空隙 — 高木の最近傍距離の%d%%点が %.1fm"
+                           "(敷居=樹冠径 %.1fm × %.2f = %.1fm)。%s"
+                           % (bn, pct, p90, crown_d, factor, lim, accept.get("note", "受容")))
+            else:
+                bad.append("**帯 %s に大穴がある** — 高木の最近傍距離の%d%%点が %.1fm"
+                           "(敷居=樹冠径 %.1fm × %.2f = %.1fm を超える)"
+                           % (bn, pct, p90, crown_d, factor, lim))
+    return bad
+
+
+def slope_gap_table(d, dem):
+    """最大空隙の実測(帯ごと)。⛔ maxGap を持たない邸は空の表を出す。"""
+    sa = d["slopeArea"]
+    ck = sa.get("checks") or {}
+    factor = float(ck.get("maxGapFactor", 0.7))
+    pct = float(ck.get("maxGapPercentile", 90))
+    K = d["const"]["ken"]
+    bands = sorted({lay["band"] for lay in d.get("slopePlanting", []) if lay.get("placement") == "maxGap"})
+    bad = slope_gap_check(d, dem)
+    rows = ""
+    for bn in bands:
+        trees = [(u, v, r) for (u, v, r, hgt, band, reg) in _slope_trees(d, dem) if band == bn]
+        if len(trees) < 2:
+            rows += "<tr><td>%s</td><td colspan=4>木が2本未満</td></tr>" % inline(bn)
+            continue
+        nn = sorted(_nn_dists(trees, K))
+        idx = min(len(nn) - 1, int(math.ceil(pct / 100.0 * len(nn))) - 1)
+        p90 = nn[idx]
+        crown_d = 2.0 * (sum(r for _u, _v, r in trees) / len(trees))
+        lim = crown_d * factor
+        over = p90 > lim + 1e-6
+        accepted = bool(ck.get("maxGapAccept", {}).get(bn)) if over else False
+        if not over:
+            mark = "<b>○</b>"
+        elif accepted:
+            mark = "<b>△</b> 受容(%s)" % inline(ck["maxGapAccept"][bn].get("note", ""))
+        else:
+            mark = "<b>⚠</b>"
+        rows += ("<tr><td>%s</td><td>%d本</td><td>%.1fm</td><td>%.1fm</td><td>%s</td></tr>"
+                 % (inline(bn), len(trees), p90, lim, mark))
+    return ("<h3>最大空隙 — max-gap 配置の帯</h3><div class='tw'><table><thead><tr>"
+            "<th>帯</th><th>高木の本数</th><th>NN %d%%点</th><th>敷居(樹冠径×%.2f)</th>"
+            "<th>判定</th></tr></thead><tbody>%s</tbody></table></div>"
+            "<p class='cap'>NN = 高木どうしの最近傍距離。%d%%点が樹冠径×%.2f を超えると"
+            "『閉じた林』に見えない大穴がある。</p>" % (pct, factor, rows, pct, factor))
+
+
+def _crest_run_gaps(d, dem, pts):
+    """稜列の並び順(run)の隣接距離[m]。⛔ **域をまたぐ隣接ペアは除く**
+    (2026-09-06 庭方 裁定4)— 域W→域S の境で稜の松が実在しない空白(実測 13.5〜13.8間)を
+    挟むため、その1組の距離が全体のばらつきを支配し、旧配置・新配置が同じ CV になって
+    『並木』を判別できなくなっていた(検図)。域の境は `crestGapFill` で埋める別の話で、
+    ここでは**測る式**を直す — 域が連続する区間だけを均一度の対象にする。"""
+    K = d["const"]["ken"]
+    st = crest_stations(d, dem, 0.5)
+    if not st:
+        return []
+
+    def _run(pt):
+        u, v, _p = pt
+        q = min(st, key=lambda s: (s[0][0] - u) ** 2 + (s[0][1] - v) ** 2)
+        return q[2]
+    pts2 = sorted(pts, key=_run)
+    regs = [_tree_band(d, dem, u, v, None)[1] for (u, v, _p) in pts2]
+    out = []
+    for i in range(len(pts2) - 1):
+        if regs[i] != regs[i + 1]:
+            continue                          # ⛔ 域境をまたぐ隣接は「並び」ではない
+        out.append(math.hypot(pts2[i + 1][0] - pts2[i][0], pts2[i + 1][1] - pts2[i][1]) * K)
+    return out
+
+
+def crest_uniformity_check(d, dem):
+    """**稜列の均一度** — `placement:"crestLine"` の層で、実測した並び順の隣接距離の
+    変動係数(CV=標準偏差/平均)が `crestCVMin`(既定0.25)未満なら『並木』として不合格。
+    ⭐ 2026-09-06(庭方 設計3・F)。⛔ `pitch`±`jitter` を書いても、置いた点が
+    結局ほぼ等間隔なら見た目は並木のまま — **実測のばらつき**を見る。
+    ⚠ **2026-09-06(庭方 裁定4)** — 域をまたぐ隣接ペアは式から除く(`_crest_run_gaps`)。"""
+    sa = d["slopeArea"]
+    lim = float((sa.get("checks") or {}).get("crestCVMin", 0.25))
+    sp = scatter_slope(d, dem)
+    bad = []
+    for lay in d.get("slopePlanting", []):
+        if lay.get("placement") != "crestLine":
+            continue
+        pts = sp.get(lay["layer"], [])
+        if len(pts) < 3:
+            continue
+        d1 = _crest_run_gaps(d, dem, pts)
+        if not d1:
+            continue
+        mean = sum(d1) / len(d1)
+        if mean <= 0:
+            continue
+        var = sum((x - mean) ** 2 for x in d1) / len(d1)
+        cv = math.sqrt(var) / mean
+        if cv < lim - 1e-9:
+            bad.append("**層 %s の稜列が並木に見える**(隣接距離のCV %.2f < %.2f)"
+                       % (lay["layer"], cv, lim))
+    return bad
+
+
+def crest_uniformity_table(d, dem):
+    """稜列の均一度の実測。"""
+    lim = float((d["slopeArea"].get("checks") or {}).get("crestCVMin", 0.25))
+    bad = crest_uniformity_check(d, dem)
+    rows = ""
+    for lay in d.get("slopePlanting", []):
+        if lay.get("placement") != "crestLine":
+            continue
+        hit = any(lay["layer"] in x for x in bad)
+        rows += "<tr><td>%s</td><td>%s</td></tr>" % (
+            inline(lay["layer"]), "<b>○</b>" if not hit else "<b>⚠</b> " + inline([x for x in bad if lay["layer"] in x][0]))
+    return ("<h3>稜列の均一度</h3><div class='tw'><table><thead><tr><th>層</th><th>判定</th></tr></thead>"
+            "<tbody>%s</tbody></table></div><p class='cap'>隣接距離(稜に沿った並び順)のCVが"
+            "<b>%.2f 未満なら並木として不合格</b>。内外二重化(`innerFrac`)がばらつきを作る。</p>"
+            % (rows, lim))
+
+
+def clump_singleton_check(d):
+    """**単木の上限** — `clump` を持つ層で、実現した群のうち n=1(単木)の割合が
+    `singletonMax`(既定0.15)を超えないか。⭐ 2026-09-06(庭方 設計3・F)。
+    ⛔ 15% を超えると『点在』でなく『単木の寄せ集め』に見える。"""
+    lim = float((d["slopeArea"].get("checks") or {}).get("singletonMax", 0.15))
+    bad = []
+    for lay in d.get("slopePlanting", []):
+        plan = [int(x) for x in (lay.get("clump") or [])]
+        if not plan:
+            continue
+        n = int(lay["n"])
+        order, need = [], n
+        while need > 0 and plan:
+            for c in plan:
+                if need <= 0:
+                    break
+                order.append(min(c, need))
+                need -= min(c, need)
+            if not order:
+                break
+        if not order:
+            continue
+        singles = sum(1 for c in order if c == 1)
+        ratio = singles / float(len(order))
+        if ratio > lim + 1e-9:
+            bad.append("層 %s の群 %d件中 %d件が単木(%.0f%% > %.0f%%)"
+                       % (lay["layer"], len(order), singles, ratio * 100, lim * 100))
+    return bad
+
+
+def clump_singleton_table(d):
+    """単木の上限の実測(`clump` を持つ層だけ)。"""
+    lim = float((d["slopeArea"].get("checks") or {}).get("singletonMax", 0.15))
+    bad = clump_singleton_check(d)
+    rows = ""
+    for lay in d.get("slopePlanting", []):
+        plan = [int(x) for x in (lay.get("clump") or [])]
+        if not plan:
+            continue
+        n = int(lay["n"])
+        order, need = [], n
+        while need > 0 and plan:
+            for c in plan:
+                if need <= 0:
+                    break
+                order.append(min(c, need))
+                need -= min(c, need)
+            if not order:
+                break
+        singles = sum(1 for c in order if c == 1)
+        ratio = (singles / float(len(order))) if order else 0.0
+        hit = any(lay["layer"] in x for x in bad)
+        rows += ("<tr><td>%s</td><td>%s</td><td>%d</td><td>%d</td><td>%.0f%%</td><td>%s</td></tr>"
+                 % (inline(lay["layer"]), order, len(order), singles, ratio * 100,
+                    "<b>○</b>" if not hit else "<b>⚠</b>"))
+    if not rows:
+        return ""
+    return ("<h3>単木の上限 — `clump` を持つ層</h3><div class='tw'><table><thead><tr>"
+            "<th>層</th><th>実現した群</th><th>群の数</th><th>単木(n=1)の数</th><th>割合</th>"
+            "<th>判定</th></tr></thead><tbody>%s</tbody></table></div>"
+            "<p class='cap'>単木の割合が <b>%.0f%% を超えると不合格</b>。</p>" % (rows, lim * 100))
+
+
+def stump_shrub_check(d, dem):
+    """**幹元の低木** — 高木の何%が、樹冠縁 `stumpShrubReach`(既定2.5)m 以内に
+    低木を持つか(`stumpShrubMin`、既定0.60、以上を要る)。⭐ 2026-09-06(庭方 設計3・D)。
+    ⛔ 60% を割ると『地面が裸のまま木だけ立つ』見え方になる。"""
+    sa = d["slopeArea"]
+    lim = float((sa.get("checks") or {}).get("stumpShrubMin", 0.60))
+    reach = float((sa.get("checks") or {}).get("stumpShrubReach", 2.5))
+    K = d["const"]["ken"]
+    hi = [(u, v, r) for (u, v, r, hgt, band, reg) in _slope_trees(d, dem, roles=("高木",))]
+    lo = [(u, v) for (u, v, r, hgt, band, reg) in _slope_trees(d, dem, roles=("低木",))]
+    if not hi:
+        return []
+    covered = 0
+    for (u, v, r) in hi:
+        if any(math.hypot(u - u2, v - v2) * K - r <= reach for (u2, v2) in lo):
+            covered += 1
+    ratio = covered / float(len(hi))
+    if ratio < lim - 1e-9:
+        return ["**幹元の低木が足りない** — 高木 %d本中 %d本(%.0f%%)しか %.1fm 以内に"
+                "低木が無い(要る %.0f%%以上)" % (len(hi), covered, ratio * 100, reach, lim * 100)]
+    return []
+
+
+def stump_shrub_table(d, dem):
+    """幹元の低木の実測。"""
+    sa = d["slopeArea"]
+    lim = float((sa.get("checks") or {}).get("stumpShrubMin", 0.60))
+    reach = float((sa.get("checks") or {}).get("stumpShrubReach", 2.5))
+    K = d["const"]["ken"]
+    hi = [(u, v, r, band) for (u, v, r, hgt, band, reg) in _slope_trees(d, dem, roles=("高木",))]
+    lo = [(u, v) for (u, v, r, hgt, band, reg) in _slope_trees(d, dem, roles=("低木",))]
+    agg = {}
+    for (u, v, r, band) in hi:
+        cov = any(math.hypot(u - u2, v - v2) * K - r <= reach for (u2, v2) in lo)
+        a = agg.setdefault(band, [0, 0])
+        a[0] += 1
+        a[1] += 1 if cov else 0
+    rows = ""
+    for band in sorted(agg):
+        n0, c0 = agg[band]
+        ratio = c0 / float(n0) if n0 else 0.0
+        rows += ("<tr><td>%s</td><td>%d</td><td>%d</td><td>%.0f%%</td><td>%s</td></tr>"
+                 % (inline(band), n0, c0, ratio * 100, "<b>○</b>" if ratio >= lim - 1e-9 else "<b>⚠</b>"))
+    return ("<h3>幹元の低木 — 帯ごとの被覆率</h3><div class='tw'><table><thead><tr>"
+            "<th>帯</th><th>高木の本数</th><th>%.1fm以内に低木がある本数</th><th>割合</th>"
+            "<th>判定</th></tr></thead><tbody>%s</tbody></table></div>"
+            "<p class='cap'>要る割合 <b>%.0f%%以上</b>(帯ごとの内訳。合否は全帯の合算で見る)。</p>"
+            % (reach, rows, lim * 100))
+
+
+def border_clump_check(d, dem):
+    """**境の標示**(`borderClump`) — 叢の本数が奇数3〜5か、実際に境界線の近くへ
+    立っているか。⭐ 2026-09-06(庭方 設計3・E・確度U)。装飾則なので、
+    見るのは**幾何的に成立しているか**だけ。⚠ 「近く」の許容は `within + 2.0m` —
+    `within`(既定3.0)自体が `_border_pool` の内挿(0.25〜1.0倍の複数深さ)と
+    叢内のばらけ(半径 spacing×1.2 前後)を含むゆるい指定なので、判定もそれに合わせて緩める。"""
+    bad = []
+    gr = RGrid(d)
+    for lay in d.get("slopePlanting", []):
+        bc = lay.get("borderClump")
+        if not bc:
+            continue
+        plan = [int(x) for x in bc.get("clump", [])]
+        if any(c % 2 == 0 for c in plan):
+            bad.append("層 %s の境の標示の叢が偶数を含む(%s)— 奇数でなければならない"
+                       % (lay["layer"], plan))
+        if any(c < 3 or c > 5 for c in plan):
+            bad.append("層 %s の境の標示の叢が3〜5本の範囲外(%s)" % (lay["layer"], plan))
+        want = sum(plan)
+        within = float(bc.get("within", 3.0))
+        edges_bc = [int(x) for x in bc.get("edges", [])]
+        P = d["polygon"]
+        pts = scatter_slope(d, dem).get(lay["layer"], [])
+        near = 0
+        for (u, v, _p) in pts:
+            wx, wz = gr.W(u, v)
+            dmin = min(_seg_dist((wx, wz), P[ei], P[(ei + 1) % len(P)]) for ei in edges_bc)
+            if dmin <= within + 2.0:
+                near += 1
+        if near < want - _fill_tol(d, want):
+            bad.append("層 %s の境の標示が %d/%d本しか境界線 %.1fm 以内に立っていない"
+                       % (lay["layer"], near, want, within))
+    return bad
+
+
+def border_clump_table(d, dem):
+    """境の標示の実測。⛔ `borderClump` を持たない邸は空の表を出す。"""
+    gr = RGrid(d)
+    bad = border_clump_check(d, dem)
+    rows = ""
+    for lay in d.get("slopePlanting", []):
+        bc = lay.get("borderClump")
+        if not bc:
+            continue
+        want = sum(int(x) for x in bc.get("clump", []))
+        within = float(bc.get("within", 3.0))
+        edges_bc = [int(x) for x in bc.get("edges", [])]
+        P = d["polygon"]
+        pts = scatter_slope(d, dem).get(lay["layer"], [])
+        near = 0
+        for (u, v, _p) in pts:
+            wx, wz = gr.W(u, v)
+            dmin = min(_seg_dist((wx, wz), P[ei], P[(ei + 1) % len(P)]) for ei in edges_bc)
+            if dmin <= within + 2.0:
+                near += 1
+        hit = any(lay["layer"] in x for x in bad)
+        rows += ("<tr><td>%s</td><td>%s</td><td>%.1fm</td><td>%d/%d</td><td>%s</td></tr>"
+                 % (inline(lay["layer"]), bc.get("clump"), within, near, want,
+                    "<b>○</b>" if not hit else "<b>⚠</b>"))
+    if not rows:
+        return ""
+    return ("<h3>境の標示(`borderClump`)— 確度U</h3><div class='tw'><table><thead><tr>"
+            "<th>層</th><th>叢の並び</th><th>境界線からの範囲</th><th>境界線近くの本数</th>"
+            "<th>判定</th></tr></thead><tbody>%s</tbody></table></div>"
+            "<p class='cap'>庭方の裁定(典拠なし・確度U)。既存の低木予算の中からの再配置で、"
+            "層の <code>n</code> は増やしていない。</p>" % rows)
+
+
+def slope_realism_check(d, dem):
+    """**西斜面の生え方のリアリズム4本+境の標示**(2026-09-06 庭方 設計3)をまとめて返す。
+
+    ⭐ 一つの関数へ束ねて `main()`/`_garden_checks` から1回で呼ぶ — `check_wiring_check`
+    (規則19)が個々の検査を「どこからも報告されない」と誤診しないための束ね役。
+    ⭕ `bad += f(d)` の形で積む(`Tools/Sashizu/wiring_gate.py` の「良い形」)。"""
+    bad = []
+    bad += slope_gap_check(d, dem)
+    bad += crest_uniformity_check(d, dem)
+    bad += clump_singleton_check(d)
+    bad += stump_shrub_check(d, dem)
+    bad += border_clump_check(d, dem)
+    return bad
 
 
 def group_box_overlap_check(d):
@@ -10204,7 +10804,9 @@ def _garden_checks(e, dem):
             + slope_canopy_check(e, dem) + slope_bare_check(e, dem) + slope_zone_check(e, dem)
             + group_box_check(e) + plant_height_check(e) + ume_spread_check(e)
             + v1_water_check(e, dem) + v8_ridge_check(e, dem)
-            + band_boundary_check(e, dem))
+            + band_boundary_check(e, dem)
+            # ⭐ **2026-09-06(庭方 設計3)** — 西斜面のリアリズムの4本+境の標示(規則19)
+            + slope_realism_check(e, dem))
 
 
 def _calls(fn):
@@ -14078,11 +14680,14 @@ def main():
     pb1 = planting_stock_check(d)
     pb2 = planting_clearance_check(d, dem)
     pb3 = slope_planting_check(d, dem)
+    # ⭐ **2026-09-06(庭方 設計3)** — 西斜面の生え方のリアリズム4本(規則19)。
+    pb4 = slope_realism_check(d, dem)
     _pn, _ptri = plant_budget(d, dem)
     _area = slope_band_area(d, dem)
-    print("植栽(木・株 %d 点 / %s 三角・斜面 %.0f m²): 在庫 %d 件 / 退避 %d 件 / 斜面の密度と遮蔽 %d 件"
-          % (_pn, "{:,}".format(_ptri), sum(_area.values()), len(pb1), len(pb2), len(pb3)))
-    for b in pb1 + pb2 + pb3:
+    print("植栽(木・株 %d 点 / %s 三角・斜面 %.0f m²): 在庫 %d 件 / 退避 %d 件 / 斜面の密度と遮蔽 %d 件 / "
+          "生え方のリアリズム %d 件"
+          % (_pn, "{:,}".format(_ptri), sum(_area.values()), len(pb1), len(pb2), len(pb3), len(pb4)))
+    for b in pb1 + pb2 + pb3 + pb4:
         print("   ⚠", b)
     pbase, pprobe = planting_sensitivity(d, dem)
     print("  感度試験(素の件数 %d ／ 判定は**素に無かった文言が出たか**):" % pbase)
@@ -14103,7 +14708,8 @@ def main():
             ("隅の腕", kbad),
             ("植栽の在庫(部材が目録に無い)", pb1),
             ("植栽の退避", pb2),
-            ("西斜面の密度と遮蔽", pb3)]
+            ("西斜面の密度と遮蔽", pb3),
+            ("西斜面の生え方のリアリズム(空隙・並木・単木・幹元・境の標示)", pb4)]
     NWARN = sum(len(x) for _t, x in WARN)
 
     css = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "sashizu.css"), encoding="utf-8").read()
@@ -14727,6 +15333,16 @@ def main():
         h.append(band_boundary_table(d, dem))
         h.append(slope_zone_table(d, dem))
         h.append(slope_planting_table(d, dem))
+        # ⭐ **2026-09-06(庭方 設計3)** — 生え方のリアリズム(規則19: 検査は同じ巡で図へ繋ぐ)。
+        h.append(slope_gap_table(d, dem))
+        h.append(crest_uniformity_table(d, dem))
+        _cst = clump_singleton_table(d)
+        if _cst:
+            h.append(_cst)
+        h.append(stump_shrub_table(d, dem))
+        _bct = border_clump_table(d, dem)
+        if _bct:
+            h.append(_bct)
         plate(h, nx(), "西斜面の断面 — 法肩の稜が連続しているか",
               "**垂直・水平とも実寸**(稜の当たりを目で取るため)")
         for vc in (24.0, 40.0, 58.0):

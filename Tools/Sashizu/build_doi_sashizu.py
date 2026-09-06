@@ -6425,6 +6425,69 @@ def niwa_check(d):
     bad = []
     mg = n.mg
     cl = mg.get("clearance", {})
+    # ⭐ **乱杭の天端**(2026-09-06 検図方 中-2)。⚠ 従前 `topAbove` に検査が無く、
+    #   **全没に書き換えても 0 件で歯が無かった**(旧 `topY` 25.87 = 水面 −0.33 の
+    #   「頭が水没する」誤りを、8か月ぶん誰も鳴らせなかったのがまさにこれ)。
+    #   条は二つ: **①水面より上に出ること ②岸を越えないこと**(杭は汀を留める物で、
+    #   岸より高く突き出したら柵になる)。
+    ter9 = load_terrain(os.path.join(DOC, "doi_edo_dem.json"))
+    for rg in g.get("rangui", []):
+        ta = rg.get("topAbove")
+        if not ta or len(ta) != 2:
+            bad.append("乱杭 %s に `topAbove`(水面からの天端の範囲)が無い" % rg["name"])
+            continue
+        if ta[0] <= 0:
+            bad.append("**乱杭 %s の天端の下限が水面 %+.2f** — 頭が水没する。"
+                       "杭は水面より上に出る物(`topAbove[0]` > 0)" % (rg["name"], ta[0]))
+        if ta[1] < ta[0]:
+            bad.append("乱杭 %s の `topAbove` が逆順 [%.2f, %.2f]" % (rg["name"], ta[0], ta[1]))
+        # 岸の面 — 帯に沿った地盤のいちばん低い所と比べる(⛔ 一点で代表しない)
+        bank = None
+        if ter9:
+            i9 = int(rg["frm"]) - 1
+            m9 = len(n.pond)
+            while True:
+                for t9 in (0.25, 0.5, 0.75):
+                    a9, b9 = n.pond[i9], n.pond[(i9 + 1) % m9]
+                    nx9, ny9 = _shore_out(n, i9)
+                    uu = a9[0] + (b9[0] - a9[0]) * t9 + nx9 * 0.5
+                    vv = a9[1] + (b9[1] - a9[1]) * t9 + ny9 * 0.5
+                    q9 = terr_at(ter9, uu, vv)
+                    if q9 is not None:
+                        bank = q9 if bank is None else min(bank, q9)
+                if i9 == int(rg["to"]) - 1:
+                    break
+                i9 = (i9 + 1) % m9
+        if bank is not None and n.waterY + ta[1] > bank + 1e-6:
+            bad.append("**乱杭 %s の天端の上限 %.2f が岸の面 %.2f を越える** — "
+                       "杭は汀を留める物で、岸より高く突き出したら柵になる"
+                       % (rg["name"], n.waterY + ta[1], bank))
+
+    # ⭐ **受け石の露出**(2026-09-06 検図方 中-1)。⚠ 基準天端とジッタが同値だと、
+    #   ジッタの下振れで石の天端が地盤と面一になり「消える」。
+    #   ⇒ **ジッタの最悪側でも露出 0.05m を残す**ことを条にする。
+    ms9 = ((g.get("mizu") or {}).get("mizushiri") or {})
+    uk9 = (ms9.get("otoshimizo") or {}).get("uke")
+    if isinstance(uk9, dict) and ter9:
+        to9 = (ms9.get("otoshimizo") or {}).get("to")
+        gs9 = []
+        for (deg, r9) in uk9.get("at", []):
+            uu = to9[0] + math.cos(math.radians(deg)) * r9 / K
+            vv = to9[1] + math.sin(math.radians(deg)) * r9 / K
+            gs9.append(terr_at(ter9, uu, vv))
+        ok9 = [q for q in gs9 if q is not None]
+        if ok9:
+            base9 = max(ok9) + uk9.get("capBase", 0.0)
+            jit = uk9.get("capJitter", 0.0)
+            for j9, q9 in enumerate(gs9):
+                if q9 is None:
+                    continue
+                expo = base9 - jit - q9          # ジッタの最悪側(下振れ)の露出
+                if expo < 0.05 - 1e-9:
+                    bad.append("**受け石 #%d の露出がジッタの最悪側で %+.2fm**(下限 0.05)— "
+                               "地盤 %.3f に対し基準天端 %.3f。`capBase` を上げる"
+                               % (j9 + 1, expo, q9, base9))
+
     # ① 汀線の頂点が庭の内側・棟の外側
     for i, (u, v) in enumerate(n.pond):
         if not (g["u0"] <= u <= g["u1"] and g["v0"] <= v <= g["v1"]):
@@ -8055,7 +8118,11 @@ def niwa_gogan_table(d):
                      "天端 <b>水面 +%.2f〜+%.2f</b>(= %.2f〜%.2f)"
                      % (x["n"], q["pitch"], q["rMin"], q["rMax"], q["tilt"],
                         q["topAbove"][0], q["topAbove"][1],
-                        n.waterY + q["topAbove"][0], n.waterY + q["topAbove"][1])))
+                        n.waterY + q["topAbove"][0], n.waterY + q["topAbove"][1])
+                     + ("<br>⛔ <b>隣どうしで毎本振らない</b>(白色ノイズは櫛の歯に見える)— "
+                        "<b>%s</b>。時々1本だけ外れ値を入れる。"
+                        "⭕ 傾き ±%.0f° は1本ごとに振ってよい(隣どうしの差が線として見えない)。"
+                        % (q["topWave"], q["tilt"]) if q.get("topWave") else "")))
     tk = g.get("sawatobiTake")
     if tk:
         rows.append(("(素の汀)", "沢飛石の南詰の取付", "#%d–#%d" % (tk["frm"], tk["to"]), "—",
@@ -8562,10 +8629,11 @@ def niwa_toi_table(d):
             caps = ("<br>基準天端 = <b>3点の地盤の最高点 %.3f + %.2f = %.3f</b> ／ "
                     % (max(okg), uk.get("capBase", 0.0), base)
                     + " ・ ".join(
-                        "#%d(地盤 %.3f)→ <b>%.3f</b>%s"
+                        "#%d(地盤 %.3f)→ 天端 <b>%.3f</b> ／ ×<b>%.2f</b>%s"
                         % (j + 1, gs[j] if gs[j] is not None else float("nan"),
                            base + (uk.get("capHigh", 0.0) if j == low else 0.0),
-                           "(下流・止め)" if j == low else "(±%.2f のジッタ)"
+                           (uk.get("scaleEach") or [uk.get("scale", 1.0)] * 3)[j],
+                           "(<b>下流・止め</b>)" if j == low else "(±%.2f のジッタ)"
                            % uk.get("capJitter", 0.0))
                         for (j, deg, r9, _p) in pos))
         tail = ("<p class='cap'>⭕ <b>落とし溝の末端 — %s</b>: <b>%d 個</b>を終点 (%.2f, %.2f) の"
@@ -8586,8 +8654,17 @@ def niwa_toi_table(d):
                    "「+%.2f 高く」しても絶対高では3個中いちばん低くなり、枡が下流へ抜けていた</b>"
                    "(2026-09-06 普請検査の再測)。⛔ <b>地盤からの相対で据えない</b> — "
                    "沈め方(90° 倒して芯を地盤へ)は同じだが、"
-                   "<b>天端がこの値になるよう沈み代を調節する</b>。</p>"
-                   % (uk.get("capMode", "—"), caps, uk.get("capHigh", 0.0))
+                   "<b>天端がこの値になるよう沈み代を調節する</b>。"
+                   "<br>⭐ <b>石の大きさを揃えない</b> — <b>当たりを受ける下流の石をいちばん大きくする</b>"
+                   "のが作庭の作法【U・庭方】(水が最後に当たる石が小さいと、そこから崩れる)。"
+                   "⭐ <b>根入れは見付高の %s 以上</b> — ⛔ <b>景石の 1/3 より深い</b>"
+                   "(景石は立てて見せる石だが、<b>受け石は据わりが要る</b>)。"
+                   "⛔⛔ <b>下流の石の天端を下げて根入れを稼がない</b>(枡が抜ける)。"
+                   "⭕ 石をこれ以上大きくできないときの次善は"
+                   "<b>その1個の床だけ 0.15m 掘り下げて栗石で根固め</b>(天端は動かさず下へ伸ばす)。</p>"
+                   % (uk.get("capMode", "—"), caps, uk.get("capHigh", 0.0),
+                      ("%g/%g" % (uk["buryMin"] * 2, 2) if uk.get("buryMin") == 0.5
+                       else str(uk.get("buryMin", "—"))))
                    if base is not None else ""))
     elif uk is not None:
         tail = ("<p class='cap'>⚠ <b>受け石が語だけで、数も広がりも無い</b> — "

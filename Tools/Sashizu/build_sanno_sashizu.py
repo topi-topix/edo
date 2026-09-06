@@ -487,16 +487,37 @@ def tamagaki_gap_span(d, gd, e, a, b):
     return None if s1 - s0 <= 1e-9 else (s0, s1)
 
 
-def tamagaki_edge_runs(d, gd, e, a, b):
-    """辺の**実際に立つ区間**の列 ((a,b) の列)。開口を抜く。"""
+def tamagaki_gaps(d, gd, e, a, b):
+    """辺の**開口**の沿線区間の列 [(s0,s1)]。井戸の口(`gapFrom`)と**木戸**の両方。
+
+    ⭐ 2026-09-06c 裁定4 — 木戸も辺を割る(開口の両脇に柱が立つ)。⛔ 木戸を引かない実延長を刷らない。
+    """
+    out = []
     gp = tamagaki_gap_span(d, gd, e, a, b)
-    if gp is None: return [(a, b)]
+    if gp is not None: out.append(gp)
+    kd = (gd.get("tamagaki") or {}).get("kido")
+    if kd and kd.get("edge") == e["i"]:
+        ln = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
+        s = ((kd["uv"][0] - a[0]) * (b[0] - a[0]) + (kd["uv"][1] - a[1]) * (b[1] - a[1])) / ln
+        hw = kd["wM"] / 2.0 / d["const"]["ken"]
+        s0, s1 = max(0.0, s - hw), min(ln, s + hw)
+        if s1 - s0 > 1e-9: out.append((s0, s1))
+    return sorted(out)
+
+
+def tamagaki_edge_runs(d, gd, e, a, b):
+    """辺の**実際に立つ区間**の列 ((a,b) の列)。開口(井戸の口・木戸)を抜く。"""
+    gaps = tamagaki_gaps(d, gd, e, a, b)
+    if not gaps: return [(a, b)]
     ln = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
     tx, tz = (b[0] - a[0]) / ln, (b[1] - a[1]) / ln
     P = lambda s: (a[0] + tx * s, a[1] + tz * s)
     out = []
-    if gp[0] > 1e-9: out.append((a, P(gp[0])))
-    if gp[1] < ln - 1e-9: out.append((P(gp[1]), b))
+    s = 0.0
+    for g0, g1 in gaps:
+        if g0 - s > 1e-9: out.append((P(s), P(g0)))
+        s = max(s, g1)
+    if ln - s > 1e-9: out.append((P(s), b))
     return out
 
 
@@ -573,28 +594,138 @@ def kido_rect(gd, ken):
 
 
 def kido_bay_check(d):
-    """木戸の開口が**柱間の中に納まっているか**(柱に乗っていないか)。
+    """木戸の開口が**辺の中に納まっているか**(端からはみ出さず・他の開口と重ならないか)。
 
     ⚠ 2026-09-06 検図4巡目 中4: 島の木戸の芯が柱の割付の柱に乗っていた。
+    ⭐ 2026-09-06c 裁定4 — 木戸は辺を割るようになった(`tamagaki_gaps`)ので、
+    **柱に乗るか**ではなく **辺の端・井戸の口と食い合わないか**を測る。
+    残った一枚が垣として成り立つかは検査『玉垣の一枚の内法』が受け持つ。
     """
     bad = []
     for gd in d["gardens"]:
         tg = gd.get("tamagaki") or {}
         kd = tg.get("kido")
         if not kd: continue
-        bays = tamagaki_bays(gd, kd["edge"])
-        a = bays[0]
-        ln = math.hypot(bays[-1][0] - a[0], bays[-1][1] - a[1]) or 1.0
-        def s(p): return ((p[0] - a[0]) * (bays[-1][0] - a[0]) + (p[1] - a[1]) * (bays[-1][1] - a[1])) / ln
+        P = [(q[0], q[1]) for q in (gd.get("poly") or [])]
+        if not P: continue
+        e = [q for q in tg["edges"] if q["i"] == kd["edge"]]
+        if not e:
+            bad.append("%s の%s が辺 %s を指すが、その辺の宣言が無い" % (gd["name"], kd["name"], kd["edge"]))
+            continue
+        e = e[0]
+        if not e.get("fence"):
+            bad.append("%s の%s が『%s』に開くが、この辺には玉垣を立てない宣言"
+                       % (gd["name"], kd["name"], e["name"]))
+            continue
+        a, b = P[kd["edge"]], P[(kd["edge"] + 1) % len(P)]
+        ln = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
+        s = ((kd["uv"][0] - a[0]) * (b[0] - a[0]) + (kd["uv"][1] - a[1]) * (b[1] - a[1])) / ln
         hw = kd["wM"] / 2.0 / d["const"]["ken"]
-        s0, s1 = s(kd["uv"]) - hw, s(kd["uv"]) + hw
-        posts = [s(p) for p in bays]
-        hit = [i for i, q in enumerate(posts) if s0 - 1e-9 < q < s1 + 1e-9]
-        if hit:
-            bad.append("%s の%s(芯 %.4f・幅 %.2f m)が柱に乗る — 柱の位置 %s"
-                       % (gd["name"], kd["name"], kd["uv"][0], kd["wM"],
-                          "・".join("%.4f" % posts[i] for i in hit)))
+        if s - hw < -1e-9 or s + hw > ln + 1e-9:
+            bad.append("%s の%s(芯 %.4f 間・幅 %.2f m)が辺『%s』(%.4f 間)からはみ出す"
+                       % (gd["name"], kd["name"], s, kd["wM"], e["name"], ln))
+            continue
+        gp = tamagaki_gap_span(d, gd, e, a, b)
+        if gp and gp[0] - 1e-9 < s + hw and s - hw < gp[1] + 1e-9:
+            bad.append("%s の%s(%.4f〜%.4f 間)が辺『%s』の開口(`gapFrom`)%.4f〜%.4f 間 と重なる"
+                       % (gd["name"], kd["name"], s - hw, s + hw, e["name"], gp[0], gp[1]))
     return bad
+
+
+def tamagaki_bay_check(d):
+    """玉垣の**一枚**(柱と柱の間)の内法が `tamagaki.uchinoriMinM` 以上か。
+
+    ⭐ 2026-09-06c 裁定4(庭方)— 内法 = 柱の芯々 − `postDiaM`。立子が1本も入らない一枚は
+    垣ではなく詰め物になる。⛔ 止める — 開口の位置を動かすか区間を統合するかで必ず直る。
+    戻り値 (⛔止める, 〔記録〕)。
+    """
+    bad, note = [], []
+    ken = d["const"]["ken"]
+    for gd in d["gardens"]:
+        tg = gd.get("tamagaki") or {}
+        lo = tg.get("uchinoriMinM")
+        if lo is None: continue
+        worst = None
+        for nm, _a, _b, fence, _ln, rs in tamagaki_edges(d, gd):
+            if not fence: continue
+            for rn in rs:
+                bays = tamagaki_bays(gd, None, rn)
+                for i in range(len(bays) - 1):
+                    p, q = bays[i], bays[i + 1]
+                    uchi = math.hypot(q[0] - p[0], q[1] - p[1]) * ken - tg["postDiaM"]
+                    ntate = int(math.floor(max(0.0, uchi) / tg["tatekoPitchM"]))
+                    if worst is None or uchi < worst[0]: worst = (uchi, nm, ntate)
+                    if uchi < lo - 1e-9:
+                        bad.append("%s の玉垣『%s』の一枚が内法 %.3f m(立子 %d 本)— 下限 %.2f m を割る"
+                                   % (gd["name"], nm, uchi, ntate, lo))
+        if worst:
+            note.append("%s の玉垣の一枚の**最小の内法** %.3f m(辺『%s』・立子 %d 本／下限 %.2f m)"
+                        % (gd["name"], worst[0], worst[1], worst[2], lo))
+    return bad, note
+
+
+def zentei_plane_dev_check(d, g):
+    """前庭に載る**門・棟・井戸屋形**の Δ = 前庭の天端 − 造成前の地形【§B-1】。
+
+    ⭐ 2026-09-06c 参考3(庭方)— 井戸屋形の盛土だけを裁くのは片手落ちで、**仁王門は切土の側で
+    もっと深い**。⛔ 止めない・⛔ 天端も棟も動かさない — 規則3を前庭へ当てるかは
+    **ユーザーの裁定**(→ `_pending`「前庭の切盛と仁王門」)。〔記録〕として毎回刷る。
+    """
+    note = []
+    top = d["terraces"][1]["y"]
+    ken = d["const"]["ken"]
+    items = []
+    for gt in d["gates"]:
+        hu, hv = gt["plan"]["du"] / 2.0, gt["plan"]["dv"] / 2.0
+        items.append((gt["name"].split("(")[0], gt["u"] - hu, gt["v"] - hv, gt["u"] + hu, gt["v"] + hv))
+    R_ = ido_rects(d)
+    if R_: items.append(("井戸屋形の石敷", ) + tuple(R_["石敷"]))
+    ZP = terrace_poly(d["terraces"][1], g)
+    for nm, u0, v0, u1, v1 in items:
+        ds = []
+        n = 7
+        for i in range(n + 1):
+            for j in range(n + 1):
+                u = u0 + (u1 - u0) * i / float(n); v = v0 + (v1 - v0) * j / float(n)
+                x, z = g.W(u, v)
+                if not in_poly((x, z), ZP): continue
+                hh = dem_h(x, z)
+                if hh is not None: ds.append(top - hh)
+        if not ds: continue
+        note.append("%s の Δ(前庭の天端 %.2f − 造成前の地形)= %+.2f 〜 %+.2f m"
+                    "(正=盛土/負=切土。目安 ±0.50 m)【算出 P】"
+                    % (nm, top, min(ds), max(ds)))
+    return [], note
+
+
+def shisen_check(d):
+    """前庭の**視線の抜き** ── 参道の芯から `shisenNukiKen` の帯に玉垣より高い物を置かない。
+
+    ⭐ 2026-09-06c 裁定3(庭方)— 男坂の退避のキャップを外した代わりに効かせる宣言。
+    u の範囲は**前庭の西縁 → 帯の東縁**(⛔ 素の数を json に置かない)。
+    ⭕ 低木(`shrubs.hM`)は除く — 麓から男坂と仁王門を見せる抜きは低木の丈では塞がらない。
+    """
+    bad, note = [], []
+    cz = (d["planting"]["clearance"] or {}).get("zentei") or {}
+    hk = cz.get("shisenNukiKen")
+    gd = obi_garden(d)
+    if hk is None or not gd: return bad, note
+    hlim = gd["tamagaki"]["hM"]
+    u0 = min(q[0] for q in terrace_poly_uv(d["terraces"][1]))
+    u1 = max(q[0] for q in gd["poly"])
+    for g2 in d["gardens"]:
+        if (g2.get("clearance") or "") != "zentei": continue
+        for sg in g2.get("singles", []):
+            u, v = sg["uv"]
+            if not (u0 - 1e-9 <= u <= u1 + 1e-9 and abs(v) <= hk + 1e-9): continue
+            if (sg.get("h") or 0.0) <= hlim + 1e-9: continue
+            bad.append("『%s』(丈 %.1f m・(%.3f, %.3f))が視線の抜き(参道の芯から %.1f 間・"
+                       "u %.3f〜%.3f)の中で玉垣 %.1f m を越える"
+                       % (sg["name"], sg["h"], u, v, hk, u0, u1, hlim))
+    note.append("視線の抜き = 参道の芯から %.1f 間(%.2f m)・u %.3f〜%.3f に 玉垣 %.1f m より高い物を置かない"
+                "(低木は除く)【算出 — u は前庭の西縁と帯の東縁から】"
+                % (hk, hk * d["const"]["ken"], u0, u1, hlim))
+    return bad, note
 
 
 def shrub_box(gd):
@@ -1025,6 +1156,27 @@ def _shape_seg(a, b, r, nm):
             (min(a[0], b[0]) - r, min(a[1], b[1]) - r, max(a[0], b[0]) + r, max(a[1], b[1]) + r))
 
 
+def _shape_band(a, b, r, nm):
+    """**線分の区間だけ**の帯(端に半円のキャップを付けない)。
+
+    ⭐ 2026-09-06c 裁定3(庭方)— 石段の退避はこれで当てる。退避の趣旨は「坂の**両側**を空ける」
+    (=法線方向)であって、坂の端から先へ張り出すことではない。キャップを付けると男坂の上端が
+    楼門を・下端が仁王門を呑む(構造物を2つ食う退避は形が誤っている徴候)。
+    ⛔ 面の総当たり(`_ovl_shapes` の石段)も端に丸みを付けない矩形なので、**形はこれで揃う**。
+    """
+    return ("band", (a[0], a[1]), (b[0], b[1]), r, nm,
+            (min(a[0], b[0]) - r, min(a[1], b[1]) - r, max(a[0], b[0]) + r, max(a[1], b[1]) + r))
+
+
+def _pt_line_t(p, a, b):
+    """点から**直線**への距離と、線分上の助変数 t(クランプしない)。"""
+    dx, dz = b[0] - a[0], b[1] - a[1]
+    L2 = dx * dx + dz * dz
+    if L2 < 1e-12: return math.hypot(p[0] - a[0], p[1] - a[1]), 0.0
+    t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / L2
+    return math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dz), t
+
+
 def avoid_shapes(d, g, scope):
     """**退避の宣言から障害物の buffer を組み立てる。**⛔ ここに数を書かない — 宣言が正典。
 
@@ -1064,7 +1216,7 @@ def avoid_shapes(d, g, scope):
             rr = (k.get("wKen") or k["w"] / ken) / 2.0 + ck["kaidanHalfPlus"]
             pts = [tuple(q) for q in (k.get("pts") or [k["a"], k["b"]])]
             for i in range(len(pts) - 1):
-                out.append(_shape_seg(pts[i], pts[i + 1], rr, "石段:" + k["name"]))
+                out.append(_shape_band(pts[i], pts[i + 1], rr, "石段:" + k["name"]))
         return out
     if scope == "zentei":
         cz = d["planting"]["clearance"]["zentei"]
@@ -1075,18 +1227,27 @@ def avoid_shapes(d, g, scope):
             for i in range(len(pts) - 1):
                 out.append(_shape_seg(pts[i], pts[i + 1], rr, "動線:" + rt["name"]))
         for k in d["kaidans"]:
+            # ⭐ **端にキャップを付けない**(2026-09-06c 裁定3・庭方)— 坂の側方だけを空ける
             rr = (k.get("wKen") or k["w"] / ken) / 2.0 + cz["kaidanHalfPlus"]
             pts = [tuple(q) for q in (k.get("pts") or [k["a"], k["b"]])]
             for i in range(len(pts) - 1):
-                out.append(_shape_seg(pts[i], pts[i + 1], rr, "石段:" + k["name"]))
+                out.append(_shape_band(pts[i], pts[i + 1], rr, "石段:" + k["name"]))
         p = cz["gate"]
         for gt in d["gates"]:
             hu, hv = gt["plan"]["du"] / 2.0, gt["plan"]["dv"] / 2.0
             out.append(_shape_rect(gt["u"] - hu - p, gt["v"] - hv - p,
                                    gt["u"] + hu + p, gt["v"] + hv + p, "門:" + gt["name"]))
         zp = terrace_poly_uv(d["terraces"][1])
+        # ⭐ **西の辺だけ犬走りで受ける**(2026-09-06c 裁定2・庭方)— 帯の西縁を腰石垣 `TW_Zentei_W`
+        #    の天端まで出したので、`terraceEdge`(縁の退避)ではなく `inuBashiriM` が当たる。
+        #    西の辺 = **u が最小の南北の辺**として同定する(⛔ 辺の番号を json に書かない)
+        uw = min(q[0] for q in zp)
+        inu = cz.get("inuBashiriM")
         for i in range(len(zp)):
-            out.append(_shape_seg(zp[i], zp[(i + 1) % len(zp)], cz["terraceEdge"], "前庭の縁"))
+            a, b = zp[i], zp[(i + 1) % len(zp)]
+            west = abs(a[0] - uw) < 1e-9 and abs(b[0] - uw) < 1e-9
+            r = (inu / ken) if (west and inu is not None) else cz["terraceEdge"]
+            out.append(_shape_seg(a, b, r, "前庭の縁" + ("(西=犬走り)" if west and inu is not None else "")))
         # ⭐ **2026-09-06 検図5巡目 中5 で足した実体** — 井戸屋形の石敷・玉垣・縁台・空地(供待)が
         #    一つも入っておらず、前庭の合法域が実際より広く出ていた。
         #    ⛔ 退避の余白は宣言が無いので**実体の輪郭そのもの**(余白 0)で当てる。
@@ -1136,6 +1297,10 @@ def shape_hit(p, shapes):
         if not (bb[0] <= p[0] <= bb[2] and bb[1] <= p[1] <= bb[3]): continue
         if sh[0] == "rect":
             if sh[1] < p[0] < sh[3] and sh[2] < p[1] < sh[4]: return sh[-2]
+        elif sh[0] == "band":
+            # ⭐ 端に半円を付けない — 線分の**区間の中**だけ、法線方向に r
+            dd, t = _pt_line_t(p, sh[1], sh[2])
+            if 0.0 <= t <= 1.0 and dd < sh[3]: return sh[-2]
         elif _pt_seg(p, sh[1], sh[2]) < sh[3]:
             return sh[-2]
     return None
@@ -1528,20 +1693,43 @@ def svg_tail_check(htm):
 
 
 def crown_rule_check(d):
-    """(e) **高木の枝下**が `plantRule.crownRule.takagi.edaShitaMinM` 以上か。
+    """(e) **高木・中木の枝下**が層ごとの `edaShitaMinM` 以上か。
 
     ⭐ 高木の退避を「幹の芯 + 枝下」で取ると決めた以上(2026-09-06 庭方 A-0)、
     枝下は**仕立ての条件**であって飾りではない — 割ると樹冠が縁台と動線に降りてくる。
+    ⭐ 2026-09-06c 参考1(庭方)— **中木も同じ扱いへ移した**(`crownRule.chuboku`)。
+    中木の樹冠が縁台・玉垣に掛かるのは可だが、**幹の芯が玉垣から `tamagakiFromTrunkKen` 以内**に
+    来てはいけない(幹の肥大が柱を押す)。
     """
     cr = d["planting"]["plantRule"].get("crownRule") or {}
     tk = cr.get("takagi") or {}
+    ch = cr.get("chuboku") or {}
     lo = tk.get("edaShitaMinM")
+    lo_ch = ch.get("edaShitaMinM")
     bad, note = [], []
+    ken0 = d["const"]["ken"]
     for gd in d["gardens"] + d["slopeBands"]:
         for sg in gd.get("singles", []):
             e = sg.get("edaShita")
-            if lo is not None and e is not None and e < lo:
-                bad.append("%s の枝下 %.2f m が下限 %.2f m を割る" % (sg["name"], e, lo))
+            lim = lo_ch if (sg.get("layer") == "中木") else lo
+            if lim is not None and e is not None and e < lim:
+                bad.append("%s の枝下 %.2f m が下限 %.2f m を割る" % (sg["name"], e, lim))
+            if sg.get("layer") == "中木" and e is None and lo_ch is not None:
+                note.append("%s(%s)は中木だが枝下の宣言が無い — 仕立ての条件 %.2f m は"
+                            "部材表『常緑中木』の行が受ける" % (sg["name"], gd["name"], lo_ch))
+    # ⛔ **中木の幹の芯 → 玉垣の離れ**(2026-09-06c 参考1)。⛔ 止める — 幹が柱を押す位置には植えない
+    tk_lo = ch.get("tamagakiFromTrunkKen")
+    if tk_lo is not None:
+        for gd in d["gardens"]:
+            if not gd.get("tamagaki"): continue
+            runs = [rn for _nm, _a, _b, fence, _ln, rs in tamagaki_edges(d, gd) if fence for rn in rs]
+            if not runs: continue
+            for sg in gd.get("singles", []):
+                if sg.get("layer") != "中木": continue
+                dd = min(_pt_seg(tuple(sg["uv"]), rn[0], rn[1]) for rn in runs)
+                if dd < tk_lo - 1e-9:
+                    bad.append("%s の幹の芯が玉垣から %.3f m(%.3f 間)— 下限 %.3f 間(%.2f m)を割る"
+                               % (sg["name"], dd * ken0, dd, tk_lo, tk_lo * ken0))
     # ⭐ **中木・低木は樹冠の外周で退避を測る規約**(`crownRule.roles`)なのに、一本立ちには
     #    当たっていなかった(2026-09-06 検図4巡目 高3)。⛔ **止めない** — 本数を減らすか部材を
     #    替えるか `scaleXZ` を下げるかは庭方の意匠。〔記録〕として毎回刷る(→ `_pending`)。
@@ -3423,13 +3611,159 @@ def section_marks(d, g, key, prof):
     return out
 
 
+def ido_jiyama(d, g):
+    """井戸屋形の**石敷4隅の地山標高**と**盛土の厚み** ── `sanno_dem.json` からの従属値。
+
+    ⛔ 数を json に書かない(規則4)。戻り値 [(隅の名, 世界(x,z), 地山h, 盛土厚)] と 天端。
+    """
+    R_ = ido_rects(d)
+    if not R_: return [], None
+    u0, v0, u1, v1 = R_["石敷"]
+    top = d["terraces"][1]["y"]
+    out = []
+    for nm, (u, v) in (("南西", (u0, v0)), ("南東", (u1, v0)), ("北東", (u1, v1)), ("北西", (u0, v1))):
+        x, z = g.W(u, v)
+        hh = dem_h(x, z)
+        if hh is None: continue
+        out.append((nm, (x, z), hh, top - hh))
+    return out, top
+
+
+def ido_section_layer(d, g, key, X, Y, y0):
+    """井戸屋形を切る断面へ〈地山線〉〈盛土層の厚み〉〈井筒が地山へ入る点〉を描き足す。
+
+    ⭐ **2026-09-06c 裁定1(b)(庭方)** — 井戸屋形は動かさない代わりに、盛土層と井筒を図に出して
+    「なぜ盛土を貫いてよいか」を読ませる。⛔ 数を json に置かない — 宣言は層の厚み
+    (`ido.moriLayers`)と井筒(`ido.izutsu`)だけで、地山標高も盛土の厚みも `sanno_dem.json` の従属値。
+    ⛔ 深さは持たないので、井筒は地山へ入った先を破線で落として切る。
+    """
+    io = d.get("ido")
+    R_ = ido_rects(d)
+    if not io or not R_ or not io.get("moriLayers"): return []
+    p = d["profiles"][key]
+    ax = p.get("axis")
+    if ax not in ("EW", "NS"): return []
+    at = p["at"]
+    ken = d["const"]["ken"]
+    u0, v0, u1, v1 = R_["石敷"]
+    A, B = g.W(u0, v0), g.W(u1, v1)
+    x0, x1 = sorted([A[0], B[0]]); z0, z1 = sorted([A[1], B[1]])
+    C = g.W(io["uv"][0], io["uv"][1])
+    if ax == "EW":
+        if not (z0 - 1e-6 <= at <= z1 + 1e-6): return []
+        ca, cb, cc = x0, x1, C[0]
+    else:
+        if not (x0 - 1e-6 <= at <= x1 + 1e-6): return []
+        ca, cb, cc = z0, z1, C[1]
+    wpos = prof_pos(d, key)
+    top = d["terraces"][1]["y"]
+    o = []
+    # 〈地山線〉── 石敷の下だけ太い実線で強調(図全体の破線は現地形)
+    N = 24
+    gl = []
+    for i in range(N + 1):
+        c = ca + (cb - ca) * i / float(N)
+        hh = dem_h(*wpos(c))
+        if hh is not None: gl.append((X(c), Y(hh)))
+    if len(gl) < 2: return []
+    o.append(PL(gl, stroke="var(--ishi)", sw=2.4, op=0.95))
+    o.append(T(X(ca) - 5, gl[0][1] + 12, "地山線", fs=10.5, anchor="end", fill="var(--ishi)"))
+    # 〈盛土層の厚み〉── 天端から下へ 板石 / 敷砂 / 割栗、その下が締固めた盛土
+    yy = top
+    for L in io["moriLayers"]:
+        yb = yy - L["tM"]
+        o.append(PL([(X(ca), Y(yy)), (X(cb), Y(yy)), (X(cb), Y(yb)), (X(ca), Y(yb))],
+                    stroke="var(--ishi)", sw=0.8, fill="var(--dan3)", op=0.85, close=True))
+        yy = yb
+    o.append(T(X(cb) + 6, Y(top) - 2, "板石/敷砂/割栗", fs=9.5, fill="var(--ishi)"))
+    o.append(PL([(X(ca), Y(yy)), (X(cb), Y(yy))] + list(reversed(gl)),
+                stroke="none", fill=_fill(), op=0.9, close=True))
+    o.append(T((X(ca) + X(cb)) / 2.0, Y(yy) + 13, "締固めた盛土(厚みは地山線との差)",
+               fs=9.5, anchor="middle", fill="var(--take)"))
+    # 〈井筒〉と〈井筒が地山へ入る点〉
+    iz = io.get("izutsu") or {}
+    r = iz.get("naikeiShaku", 3) / 6.0 * ken / 2.0            # 内径の半分[m]
+    nend = iz.get("nendoMakiTM", 0.0)
+    hc = dem_h(*wpos(cc))
+    if hc is not None:
+        # 練り粘土の巻き(地山線 → 天端 の区間だけ・筒の両脇)
+        for sgn in (-1, 1):
+            a_, b_ = cc + sgn * r, cc + sgn * (r + nend)
+            o.append(PL([(X(a_), Y(top)), (X(b_), Y(top)), (X(b_), Y(hc)), (X(a_), Y(hc))],
+                        stroke="var(--niwa)", sw=0.8, fill="var(--niwa)", op=0.35, close=True))
+        o.append(T(X(cc + r + nend) + 5, Y((top + hc) / 2.0), "練り粘土の巻き",
+                   fs=9.5, fill="var(--niwa)"))
+        for sgn in (-1, 1):
+            c_ = cc + sgn * r
+            o.append(LN(X(c_), Y(top), X(c_), Y(hc), stroke="var(--ishi)", sw=2.0))
+            o.append(LN(X(c_), Y(hc), X(c_), Y(max(y0, hc - 2.4)), stroke="var(--ishi)",
+                        sw=2.0, dash="4 3"))
+        o.append(LN(X(cc - r), Y(hc), X(cc + r), Y(hc), stroke="var(--shu)", sw=1.6))
+        o.append(T(X(cc + r) + 5, Y(hc) - 4, "井筒が地山へ入る点", fs=10, fill="var(--shu)"))
+        o.append(T(X(cc), Y(max(y0, hc - 2.4)) + 12, "井筒(深さは従属値)",
+                   fs=9.5, anchor="middle", fill="var(--ishi)"))
+    return o
+
+
+def tree_section_items(d, g, key, c0, c1):
+    """断面の切断線が**樹冠を切る**一本立ち ── (断面座標, 見えがかりの半幅, 枝下, 丈, 天端, 名)。
+
+    ⭐ 2026-09-06c 参考2(庭方)— 断面レは「木陰が縁台に落ちているか」を読ませる図なので、
+    **枝下(樹冠の下端)と座面高が同じ一本に出ていなければならない**。
+    ⛔ 数を持たない — 丈・樹冠・枝下は `gardens[].singles[]` の宣言と部材の実寸からの従属値。
+    """
+    p = d["profiles"][key]
+    ax = p.get("axis")
+    if ax not in ("EW", "NS"): return []
+    at = p["at"]
+    ken = d["const"]["ken"]
+    top = d["terraces"][1]["y"]
+    cr = d["planting"]["plantRule"].get("crownRule") or {}
+    out = []
+    for gd in d["gardens"]:
+        if (gd.get("clearance") or "") != "zentei": continue
+        for sg in gd.get("singles", []):
+            r = single_crown(d, sg)
+            if not r or not sg.get("h"): continue
+            wx, wz = g.W(sg["uv"][0], sg["uv"][1])
+            off = abs((wz if ax == "EW" else wx) - at)
+            if off > r * ken - 1e-6: continue          # 樹冠を切らない
+            c = wx if ax == "EW" else wz
+            if c < c0 - 1e-6 or c > c1 + 1e-6: continue
+            half = math.sqrt(max(0.0, (r * ken) ** 2 - off ** 2))   # 切断線上の樹冠の見えがかりの半幅
+            eda, decl = sg.get("edaShita"), True
+            if eda is None:
+                # ⛔ 宣言が無い木に枝下を発明しない — **層の下限**を描き、図に「以上」と断る
+                decl = False
+                eda = ((cr.get("chuboku") or {}) if sg.get("layer") == "中木"
+                       else (cr.get("takagi") or {})).get("edaShitaMinM")
+            out.append((c, half, eda or 0.0, sg["h"], top,
+                        "%s(枝下 %s%.1f m)" % (sg["name"], "" if decl else "≧ ", eda or 0.0)))
+    return out
+
+
+def tree_section_layer(items, X, Y):
+    """`tree_section_items` の一本立ちを断面へ描く(幹・枝下の線・樹冠の見えがかり)。"""
+    o = []
+    for c, half, eda, hh, top, nm in items:
+        o.append(LN(X(c), Y(top), X(c), Y(top + hh), stroke="var(--niwa)", sw=1.6))
+        o.append(PL([(X(c - half), Y(top + eda)), (X(c), Y(top + hh)), (X(c + half), Y(top + eda))],
+                    stroke="var(--niwa)", sw=1.2, fill="var(--niwa)", op=0.28, close=True))
+        o.append(LN(X(c - half), Y(top + eda), X(c + half), Y(top + eda),
+                    stroke="var(--niwa)", sw=1.0, dash="4 3"))
+        o.append(T(X(c), Y(top + hh) - 5, nm, fs=9.5, anchor="middle", fill="var(--niwa)"))
+    return o
+
+
 def section_svg(d, key, design, marks, title, flip=False, viewtxt="", flats=(), stairs=()):
     """design = [(coord, y), ...] 設計地盤 / marks = [(coord0, coord1, y, ラベル, 種別)]"""
     g = G(d)
     prof = _profile(d, key)
     walls = wall_steps(d, g, key, prof, design)
     c0, c1 = prof[0][0], prof[-1][0]
-    ys = [h for _, h in prof] + [y for _, y in design]
+    trees = tree_section_items(d, g, key, c0, c1)
+    ys = ([h for _, h in prof] + [y for _, y in design]
+          + [t[4] + t[3] for t in trees])           # ⭐ 木の梢まで窓へ入れる(⛔ 切らない)
     y0, y1 = min(ys) - 2.0, max(ys) + 6.0
     W = 900.0
     s = W / (c1 - c0)
@@ -3516,6 +3850,11 @@ def section_svg(d, key, design, marks, title, flip=False, viewtxt="", flats=(), 
         hpx = max(9.0, min(46.0, hgt * vs))
         o.append(R(xa, Y(yb) - hpx, xb - xa, hpx, fill=col, op=0.55, stroke="var(--ink)", sw=0.8))
         o.append(T((xa + xb) / 2, Y(yb) - hpx - 4, lab, fs=fit(lab, xb - xa, 10.5), anchor="middle"))
+    # ⭐ **井戸屋形を切る断面**は盛土層と井筒を描き足す(2026-09-06c 裁定1(b)・庭方)
+    o.extend(ido_section_layer(d, g, key, X, Y, y0))
+    # ⭐ **一本立ちを切る断面**は幹と枝下を描く(2026-09-06c 参考2 — 断面レが『木陰が縁台に
+    #    落ちているか』を読ませるには、樹冠の下端(枝下)と座面が同じ一本に出ていなければならない)
+    o.extend(tree_section_layer(trees, X, Y))
     o.append(T(6, 15, title, fs=12.5, fill="var(--dim)"))
     o.append(T(W - 6, 15, "垂直 %.1f 倍" % (vs / s), fs=11, anchor="end", fill="var(--dim)"))
     o.append(T(W - 6, 30, viewtxt, fs=10.5, anchor="end", fill="var(--shu)"))
@@ -4349,15 +4688,20 @@ def tachiki_table(d, g):
             rows.append("<tr><td>%s</td><td>%s</td><td>玉垣(腰高の木柵)</td>"
                         "<td class='note'>立てる辺 %s ／ ⛔ %s</td><td>柱 %d 本</td>"
                         "<td>%g 間</td><td>高 %.2f m ／ 柱 φ%.3f ／ 貫 %d 段 ／ 立子 φ%.3f を %.2f m 間隔</td>"
-                        "<td class='note'>延長 %.2f 間【算出】%s</td></tr>"
+                        "<td class='note'>延長 %.2f 間【算出】%s ／ 辺ごとの割り【算出】%s</td></tr>"
                         % (_gname(gd) if first else "", ar if first else "",
                            "・".join(q[0] for q in eg if q[3]),
                            "・".join(q[0] + "は立てない" for q in eg if not q[3]),
                            tgs[1], tg["postPitchKen"], tg["hM"], tg["postDiaM"], tg["nuki"],
                            tg["tatekoDiaM"], tg["tatekoPitchM"], tgs[0],
-                           (" ／ %s 幅 %.2f m を (%g, %g) に開ける"
+                           (" ／ %s 幅 %.2f m を (%g, %g)・辺『%s』に開ける"
                             % (tg["kido"]["name"], tg["kido"]["wM"],
-                               tg["kido"]["uv"][0], tg["kido"]["uv"][1])) if tg.get("kido") else ""))
+                               tg["kido"]["uv"][0], tg["kido"]["uv"][1],
+                               [q["name"] for q in tg["edges"]
+                                if q["i"] == tg["kido"]["edge"]][0])) if tg.get("kido") else "",
+                           " ／ ".join("『%s』%s m" % (nm, "+".join(
+                               "%.3f" % (math.hypot(rn[1][0] - rn[0][0], rn[1][1] - rn[0][1]) * ken)
+                               for rn in rs)) for nm, _a, _b, fence, _ln, rs in eg if fence)))
             first = False
         if gd.get("shrubs"):
             sh = gd["shrubs"]
@@ -4582,6 +4926,29 @@ def ido_table(d, g):
              "⛔ 上水は引けない(青山上水は享保7年に廃止【A】／玉川上水の木樋が坂下へ達した史料は無い【?】)"
              " ／ 汲み溢れは浸透枡から東縁の下へ"
              % ((d["terraces"][1]["y"],) + tuple(io["gwBoundsM"][::-1])))]
+    # ⭐ **盛土層と井筒**(2026-09-06c 裁定1(b)・庭方)。⛔ 地山標高も盛土の厚みも json に書かない
+    jy, top = ido_jiyama(d, g)
+    if io.get("moriLayers"):
+        rows.append(("石敷の下の層", " / ".join("%s %.2f m" % (L["name"], L["tM"]) for L in io["moriLayers"]),
+                     "計 %.2f m【算出】。その下は締固めた盛土で、厚みは 天端 − 地山線 の差から出る"
+                     % sum(L["tM"] for L in io["moriLayers"])))
+    if jy:
+        rows.append(("石敷4隅の地山標高【算出 P】",
+                     "・".join("%s %.3f" % (nm, hh) for nm, _q, hh, _t in jy),
+                     "正本 `sanno_dem.json`(造成前)からの従属値。⛔ 数を指図に書かない"))
+        rows.append(("盛土の厚み(天端 %.2f − 地山)【算出】" % top,
+                     "・".join("%s %.3f m" % (nm, tt) for nm, _q, _h, tt in jy),
+                     "平均 %.3f m ／ 最大 %.3f m。⭕ <b>裁定1(b) — 屋形は動かさない。</b>"
+                     "荷は礎石4個で、井筒(<code>ido.izutsu</code>)は<b>地山線より下から積み上げる</b>"
+                     % (sum(q[3] for q in jy) / len(jy), max(q[3] for q in jy))))
+    iz = io.get("izutsu")
+    if iz:
+        rows.append(("井筒(%s)" % iz["kind"],
+                     "内径 %g 尺(%.3f m)・据え始め=%s・練り粘土の巻き 厚 %.2f m"
+                     % (iz["naikeiShaku"], iz["naikeiShaku"] / 6.0 * ken, iz["base"], iz["nendoMakiTM"]),
+                     "⛔ 盛土の中で積み始めない。地山より上の区間だけ外周に練り粘土を巻き、"
+                     "地表水が筒に沿って落ちるのを止める【B 常法】。断面ヨ・タが"
+                     "〈地山線〉〈盛土層の厚み〉〈井筒が地山へ入る点〉を描く"))
     for nm, m in ido_clearances(d, g):
         rows.append(("離隔【算出】", nm, "%.2f m" % m))
     gd = obi_garden(d)
@@ -4916,6 +5283,9 @@ def run_checks():
     ps = path_shape_check(d)
     cw = crown_rule_check(d)
     kb = kido_bay_check(d)
+    tb = tamagaki_bay_check(d)
+    sn = shisen_check(d)
+    pd_ = zentei_plane_dev_check(d, g)
     io = ido_check(d)
     ed = endai_check(d, g)
     rp = ["%s が %s を貫く" % q for q in route_pierce(d, g)]
@@ -4930,7 +5300,10 @@ def run_checks():
     rows.append(("社叢の帯の不変条件 ①②③", bi, []))
     rows.append(("道の形(道幅より短い脚・引き返し・迷い点)", ps[0], ps[1]))
     rows.append(("樹冠の規約(高木の枝下・中木/低木の樹冠)", cw[0], cw[1]))
-    rows.append(("玉垣の木戸が柱間に納まるか", kb, []))
+    rows.append(("玉垣の木戸が辺に納まるか(端・井戸の口と食い合わないか)", kb, []))
+    rows.append(("玉垣の一枚の内法(立子が入る寸法か)", tb[0], tb[1]))
+    rows.append(("前庭の視線の抜き(玉垣より高い物を置かない)", sn[0], sn[1]))
+    rows.append(("前庭に載る門・棟の Δ(§B-1・ユーザー裁定待ち)", pd_[0], pd_[1]))
     rows.append(("井戸屋形の取り合い(軒先≡石敷・石敷が帯の内・玉垣の開口)", io[0], io[1]))
     rows.append(("茶店の縁台が玉垣の東・通行帯の外か", ed[0], ed[1]))
     rows.append(("動線が構造物を貫通しないか", rp, []))
@@ -5087,6 +5460,13 @@ def main():
             "<b>仁王門から北へ 袖塀 → 玉垣の植込み → 井戸屋形</b> の順に並ぶ"
             "【S 並びの順=名所図会 コマ7 実見 / U 向き=北・ユーザー裁定 2026-09-06】。"
             "縁台4基は<b>玉垣の前・かつ玉垣の東</b>(広場の側)。"
+            "⭐ <b>帯の西面に玉垣は立てない</b>【裁定2(c) 庭方 2026-09-06c】 — "
+            "西縁の腰石垣 TW_Zentei_W の天端に<b>犬走り</b>だけ残して植込みが取り付く。"
+            "⭐ <b>木戸は『東面 上』の、縁台の二つの塊の間</b>に開く【裁定4(c) 同】 — "
+            "⛔ 返しには開けない(一径間しか無い辺を割ると立子の入らない切れ端になる)。"
+            "⭐ <b>坂の足元は『視線の抜き』が受け持つ</b>【裁定3 同】 — "
+            "参道の芯から <code>planting.clearance.zentei.shisenNukiKen</code> の帯には"
+            "玉垣より高い物を置かない(低木は可)。⛔ 石段の退避は端に半円を付けない。"
             "<b>表参は門口の芯を通って男坂の足へ真西から取り付く</b>。"
             "前庭の中は<b>路面幅 2.0 間</b>(門口の倍)で、<b>門をくぐる区間だけ門口の 1 間</b>。"
             "<b>北縁の中央(参道の芯線の下端)の開口が参道の入り</b>で、"
@@ -5190,6 +5570,12 @@ def main():
                 "この線上に無かった)。線上は切盛が混在し、単純な盛土の支配断面ではない(数値は本図で読む)。"),
       "EW905": ("<b>左が西・右が東で、北を見る断面</b>。<b>境内の北寄り</b>を切る。"
                 "北東の小丘を切った跡と、北縁の法面が読める。"),
+      "ZENTEI_EW2": ("<b>左が西・右が東で、北を見る断面</b>。<b>縁台 甲2 と落葉高木(エノキ)の通り</b>を切る"
+                "(2026-09-06c 参考2・庭方)。西から <b>腰石垣 TW_Zentei_W → 犬走り → 低木を撒く面 → "
+                "エノキの幹と枝下 → 玉垣『東面 上』 → 縁台 甲2 の座面 → 表参の通行帯 → 腰石垣 TW_Zentei_E</b>。"
+                "<b>枝下と座面高が同じ一本に出る</b>ので、<b>木陰が縁台に落ちているか</b>を図で検められる"
+                "(樹冠の三角は<b>切断線の上での見えがかり</b>で、幹から離れるほど痩せる)。"
+                "数値は表と本図で読む。"),
       "ZENTEI_E": ("<b>左が南・右が北で、西を見る断面</b>。<b>前庭の東縁の腰石垣 TW_Zentei_E の支配断面</b>。"
                 "<b>地形都合の構造物で史料の裏づけは無い</b>【U】。北端 v6.2 から北は参道の入りとして開ける。"
                 "露出高は図から読む(数値を文章に写さない)。"),
@@ -5362,7 +5748,12 @@ def main():
              '⭐ <b>井戸屋形は建てる</b>【S 存在=名所図会 コマ7 実見 / U 採否=ユーザー裁定 2026-09-06】'
              ' — 軒先が石敷の縁と一致して'
              '<b>雨落ちが石敷に落ちる</b>。⚠ <b>北端は盛土の側</b>なので、'
-             '<b>井戸側の石積の筒は盛土層を貫いて地山まで下ろす</b>(石敷は突き固めの上)。'
+             '<b>井戸側の石積の筒(井筒)は盛土層を貫いて地山まで下ろす</b>(石敷は突き固めの上)。'
+             '⭕ <b>裁定1(b)</b>【庭方 2026-09-06c】 — <b>屋形は動かさない</b>。'
+             '四本柱の覆いで荷は礎石4個、掘井戸は地山から積み上げる筒なので'
+             '<b>盛土を貫くのは構法上あたりまえ</b>。地山より上の区間だけ筒の外周に'
+             '<b>練り粘土を巻く</b>(地表水が筒に沿って落ちるのを止める常法【B】)。'
+             '⭐ <b>断面ヨ・タ</b>が〈地山線〉〈盛土層の厚み〉〈井筒が地山へ入る点〉を描く。'
              '⛔ <b>上水は引けない</b> — 青山上水は享保7年に廃止【A】。'
              '玉川上水は四谷大木戸から石樋・木樋で四谷・麹町・<b>赤坂の高台</b>へ配水するが【A】、'
              '⛔ <b>その木樋が当社の坂下へ達していたことを示す史料は無い</b>【?】ので、'

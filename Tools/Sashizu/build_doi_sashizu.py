@@ -6479,7 +6479,6 @@ def niwa_check(d):
         if ok9:
             base9 = max(ok9) + uk9.get("capBase", 0.0)
             jit = uk9.get("capJitter", 0.0)
-            dig9 = uk9.get("digEach") or [0.0] * len(gs9)
             # 下流(止め)の石 — 天端が `capHigh` で上に釘付けになる1個
             fx9 = to9[0] - ((ms9.get("umeToi") or {}).get("pts") or [[0, 0]])[-1][0]
             fz9 = to9[1] - ((ms9.get("umeToi") or {}).get("pts") or [[0, 0]])[-1][1]
@@ -6498,23 +6497,26 @@ def niwa_check(d):
                     bad.append("**受け石 #%d の露出がジッタの最悪側で %+.2fm**(下限 0.05)— "
                                "地盤 %.3f に対し基準天端 %.3f。`capBase` を上げる"
                                % (j9 + 1, expo, q9, base9))
-                # ⭐ **根入れ率**(2026-09-06 検図方)。⚠ `buryMin` はどの検査も評価しておらず、
-                #   `digEach` を消しても 0 件だった。⇒ (地盤 − 床)/(天端 − 床) ≥ `buryMin`。
-                #   ⚠⚠ **床の決まり方は石で分かれる**(`uke.seat`):
-                #     ・止めでない石 = **芯を地盤へ沈める**ので **埋まり = 露出**(50% ちょうど)
-                #       ⇒ 掘らずに済む(庭方の「他の2石は掘らない」と矛盾しない)。
-                #     ・止めの石 = `capHigh` で**天端が上に釘付け**なので芯を下ろせず、
-                #       **掘った分だけが埋まり**になる。⇒ `dig ≥ 露出` が要る。
+                # ⭐ **根入れ**(2026-09-06 棟梁の第4回で式を改めた)。
+                #   ⛔ **掘り下げでは根入れは増えない** — 天端が絶対高で石が剛体なら、
+                #   床を掘っても**見付が増えるだけ**で 埋まり = `石丈 − 露出` のまま。
+                #   ⇒ 満たすのは**石丈**。`buryMin` は「**根入れ ≥ 見付高(露出)の 1/2**」なので
+                #   **石丈 ≥ (1 + buryMin) × 露出**。
+                #   ⚠⚠ **`takeEach`(伏せたときの鉛直の丈)は目録から引けない** —
+                #   `Own.Tateishi` は**長軸**を 1.0 に正規化しており、伏せた向きの丈は別物。
+                #   ⛔ **無いのに「合格」と数えない**(規則19)。`_pending.uke2` が持ち、
+                #   表には ⚠ 未測として出す。
                 top9 = base9 + (uk9.get("capHigh", 0.0) if j9 == low9 else 0.0)
                 expo0 = top9 - q9                                   # 元の地盤からの露出
-                umari = (dig9[j9] if j9 < len(dig9) else 0.0) if j9 == low9 else expo0
-                take = expo0 + umari                                # 丈 = 露出 + 埋まり
-                if take > 1e-9 and umari / take < uk9.get("buryMin", 0.0) - 1e-9:
-                    bad.append("**受け石 #%d の根入れ率が %.1f%%**(下限 %.0f%%)— "
-                               "埋まり %.3f / 丈 %.3f。⛔ 天端は下げられない"
-                               "(枡が抜ける)ので `digEach` を %.2f 以上にする"
-                               % (j9 + 1, 100.0 * umari / take,
-                                  100.0 * uk9.get("buryMin", 0.0), umari, take, expo0))
+                tk9 = (uk9.get("takeEach") or [None] * len(gs9))[j9]
+                need = (1.0 + uk9.get("buryMin", 0.0)) * expo0
+                if tk9 is not None and tk9 < need - 1e-9:
+                    bad.append("**受け石 #%d の石丈が %.3fm**(要 %.3f = (1+%.2f)×露出 %.3f)— "
+                               "根入れが見付高の %.0f%% に足りない。"
+                               "⛔ **掘り下げでは増えない**(天端が絶対高・石は剛体)ので"
+                               "**石を大きくする**ほかない"
+                               % (j9 + 1, tk9, need, uk9.get("buryMin", 0.0), expo0,
+                                  100.0 * uk9.get("buryMin", 0.0)))
 
     # ① 汀線の頂点が庭の内側・棟の外側
     for i, (u, v) in enumerate(n.pond):
@@ -8611,15 +8613,28 @@ def niwa_karikomi_table(d):
         "<b>飛石の着地点と主路に掛かる</b>ため — <b>飛石が汀に降りる所は開けておく</b>。</p>")
 
 
+def _se(uk, j):
+    """受け石の `scaleEach[j]`。⚠ **null は「まだ決まっていない」** — ⛔ 1.0 で埋めない。"""
+    q = (uk.get("scaleEach") or [uk.get("scale")] * 9)
+    return q[j] if j < len(q) else None
+
+
 def _uk_bury(uk, gs, base, low, j):
-    """受け石の**根入れ率**。⚠ 床の決まり方は石で分かれる(`uke.seat`)—
-    止めでない石は「芯を地盤へ沈める」ので埋まり=露出、止めの石は天端が釘付けなので
-    掘った分だけが埋まり。⛔ 二つを同じ式で丸めない(2026-09-06 検図方)。"""
+    """受け石の**根入れ**の一行。⛔ **掘り下げでは根入れは増えない**(天端が絶対高・石は剛体)
+    ので、満たすのは**石丈** — `石丈 ≥ (1 + buryMin) × 露出`(2026-09-06 棟梁の第4回)。
+    ⚠ `takeEach` は**目録から引けない**(`Own.Tateishi` は長軸を 1.0 に正規化しており、
+    伏せた向きの丈は別物)ので、無いうちは **⚠ 未測**と出す。⛔ 黙って合格にしない。"""
+    if gs[j] is None:
+        return ""
     top = base + (uk.get("capHigh", 0.0) if j == low else 0.0)
     expo0 = top - gs[j]
-    umari = ((uk.get("digEach") or [0.0])[j] if j == low else expo0)
-    take = expo0 + umari
-    return (umari / take) if take > 1e-9 else 0.0
+    need = (1.0 + uk.get("buryMin", 0.0)) * expo0
+    tk = (uk.get("takeEach") or [None] * 9)[j] if uk.get("takeEach") else None
+    if tk is None:
+        return ("・露出 %.3f ⇒ <b>要る石丈 %.3f</b> 以上(⚠ <b>石丈が未測</b>・"
+                "<code>_pending.uke2</code>)" % (expo0, need))
+    return ("・露出 %.3f / 石丈 %.3f(要 %.3f)%s"
+            % (expo0, tk, need, " ⭕" if tk >= need - 1e-9 else " ⚠"))
 
 
 def niwa_toi_table(d):
@@ -8668,19 +8683,18 @@ def niwa_toi_table(d):
             caps = ("<br>基準天端 = <b>3点の地盤の最高点 %.3f + %.2f = %.3f</b> ／ "
                     % (max(okg), uk.get("capBase", 0.0), base)
                     + " ・ ".join(
-                        "#%d(地盤 %.3f)→ 天端 <b>%.3f</b> ／ ×<b>%.2f</b>%s"
+                        "#%d(地盤 %.3f)→ 天端 <b>%.3f</b> ／ %s%s"
                         % (j + 1, gs[j] if gs[j] is not None else float("nan"),
                            base + (uk.get("capHigh", 0.0) if j == low else 0.0),
-                           (uk.get("scaleEach") or [uk.get("scale", 1.0)] * 3)[j],
+                           # ⚠ `scale` が未定(⛔ 目録に `Tateishi` が無い)なら数字を捏造しない
+                           ("×<b>%.2f</b>" % _se(uk, j)) if _se(uk, j) is not None
+                           else "×<b>⚠ 未定</b>",
                            ("(<b>下流・止め</b>)" if j == low else "(±%.2f のジッタ)"
                             % uk.get("capJitter", 0.0))
-                           + ("・<b>床を %.2fm 掘り下げ+%s で根固め</b>"
-                              % ((uk.get("digEach") or [0])[j], uk.get("nekatame", "栗石"))
-                              if (uk.get("digEach") or [0])[j] > 0 else "")
-                           # ⭐ 根入れ率も刷る(⛔ 検査で測って図に出さない、をしない)
-                           + ("・根入れ <b>%.0f%%</b>"
-                              % (100.0 * _uk_bury(uk, gs, base, low, j)))
-                           if gs[j] is not None else "")
+                           + (" <code>%s</code>" % (uk.get("assetEach") or ["—"] * 9)[j]
+                              if uk.get("assetEach") else "")
+                           + (" ・<b>%s</b>" % uk["axis"] if j == low and uk.get("axis") else "")
+                           + _uk_bury(uk, gs, base, low, j))
                         for (j, deg, r9, _p) in pos))
         tail = ("<p class='cap'>⭕ <b>落とし溝の末端 — %s</b>: <b>%d 個</b>を終点 (%.2f, %.2f) の"
                 "まわりへ、<code>%s</code> を <b>90° 倒して</b>据え(`scale` %.2f)、"

@@ -2255,6 +2255,49 @@ def program_table(d):
     return "".join(rows)
 
 
+def komon_step_check(d, dem):
+    """**門の敷居と街路の差を、段が受けているか。**
+
+    ⚠ 2026-09-06 検図方 中-1: 通用門の敷居を基壇の天端(21.90)へ揃えた結果、
+    **街路(21.32)より 0.58m 高くなったのに登る段が図に無かった** — 勝手の門で
+    荷を担いで上がる所である。⚠ `route_check` の 3m 窓では**均されて見えなかった**
+    (動線が門の位置に折れ点を持っていなかったため)。
+
+    ⭐ **閾値は `const.keri`(蹴上 0.30)**。⛔ 新しい閾値を発明していない — 理屈は
+    **「一蹴上に満たない差は段では受けられない」**(そこは跨ぐ敷居であって段ではない)。
+    ⇒ 表門 +0.15 / 裏木戸 +0.21 は段の要らない敷居、通用門 +0.58 は段が要る。
+    ⚠ **差の実測は3門とも「小門の部材」の表に刷る**(閾値で隠さない=規則19)。
+    """
+    if dem is None:
+        return _unmeasured("komon_step_check", "doi_dem.json")
+    P = d["polygon"]
+    lim = d["const"]["keri"]
+    bad = []
+    for k in (d.get("komon") or []) + [dict(d["gate"], name="表門",
+                                            w=d["gate"]["plan"]["monW"])]:
+        x, z = edge_pt(P, k["edge"], k["s"])
+        g9 = dem_bilinear(dem, x, z)
+        if g9 is None:
+            continue
+        dz = k["sill"] - g9
+        fi = k.get("fumiishi")
+        if dz > lim + 1e-6 and not fi:
+            bad.append("門 %s の敷居が街路より %+.2fm 高い(蹴上 %.2f を超える)のに"
+                       "登る段が無い — `fumiishi` を立てるか敷居を下げる"
+                       % (k["name"], dz, lim))
+        if fi:
+            n9 = int(fi.get("n", 0))
+            if n9 < 1:
+                bad.append("門 %s の `fumiishi.n` が %r" % (k["name"], fi.get("n")))
+            elif dz <= 1e-6:
+                bad.append("門 %s に踏石があるが敷居が街路より高くない(%+.2fm)"
+                           % (k["name"], dz))
+            elif dz / n9 > lim + 1e-6:
+                bad.append("門 %s の踏石 %d段 では蹴上が %.2fm になる(上限 %.2f)— 段を増やす"
+                           % (k["name"], n9, dz / n9, lim))
+    return bad
+
+
 def route_check(d, dem):
     """**動線の縦断勾配**と、**段の縁をどこで越えるか**。
 
@@ -5359,6 +5402,21 @@ def gate_parts_table(d):
             arg = ("開口 <b>%.2f m</b> / 扉丈 %.2f ／ ⚠ 部材の走り方向の実寸は開口より"
                    "方立柱2本ぶん広い — <b>塀の run はその実寸の外側に取り付く</b>(規則5)"
                    % (k["w"], (k.get("leaf") or {}).get("h", float("nan"))))
+        # ⭐ **敷居と街路の差は3門とも刷る**(⛔ 閾値で隠さない=規則19)。
+        dem9 = load_terrain(os.path.join(DOC, "doi_dem.json"))
+        x9, z9 = edge_pt(P, k["edge"], k["s"])
+        g9 = dem_bilinear(dem9, x9, z9) if dem9 else None
+        fi = k.get("fumiishi")
+        if g9 is None:
+            eff += "<br>⚠ 街路の地盤が測れない"
+        else:
+            dz = k["sill"] - g9
+            eff += ("<br>街路 %.2f に対し敷居 %.2f = <b>%+.2f m</b> ／ %s"
+                    % (g9, k["sill"], dz,
+                       ("<b>門外に踏石 %d段</b>(蹴上 <b>%.3f</b>・踏面 %.2f・幅 %.2f)"
+                        % (fi["n"], dz / fi["n"], d["const"]["fumi"], k["w"])) if fi
+                       else ("段は不要(蹴上 %.2f 未満の敷居)" % d["const"]["keri"]
+                             if dz <= d["const"]["keri"] else "⚠ <b>段が無い</b>")))
         kr.append((k["name"], (k.get("leaf") or {}).get("kind", "小門"),
                    "<code>%s</code>" % k.get("asset", "⚠ 未解決"),
                    k.get("assetState", "—"), arg, eff))
@@ -5369,10 +5427,15 @@ def gate_parts_table(d):
             + _tw(("小門", "種", "部材", "調達", "引数(設計値から算出)",
                    "開口の有効高(敷居基準)"), kr)
             + "<p class='cap'>⭐ <b>開口の有効高は「敷居」から測る</b>(2026-09-06 部材方)。"
-              "⚠ <code>komon[].sill</code>(道なり+0.20)と run の <code>seat</code>"
-              "(躯体の据え付け面)は<b>同じ高さではない</b> — その差は<b>部材側で吸収する</b>ので、"
-              "焼くときの有効高は<b>土台の底から</b>測った値になる。"
-              "⛔ <b><code>leaf.h</code> をそのまま部材へ渡さない</b>(渡すと差のぶん門口が低く出る)。</p>"
+              "⚠ <b>敷居の採り方は門の型で分かれる</b>(<code>doi_kosho.md</code> の確度U一覧)— "
+              "<b>run に抜いた潜り(通用門)は基壇の天端(<code>seat</code>)に揃え</b>、"
+              "<b>独立門(裏木戸)は道なり+0.20</b>。"
+              "⭕ <b>通用門は 2026-09-06 の裁定で <code>sill</code> = <code>seat</code> になったので、"
+              "部材が差を吸う造り(<code>--gate-drop</code>)は要らなくなった</b> — "
+              "焼き直し版は H 5.509・ピボットより下へ出る頂点 0 で、"
+              "<code>runs.E_Nagaya_N.seat</code> をそのまま <code>position.y</code> に渡せる。"
+              "⛔ <b><code>leaf.h</code> をそのまま部材へ渡さない</b> — あれは<b>開口の内法</b>で、"
+              "部材の丈(裏木戸なら 3.45)とは別物。</p>"
             + "<p class='cap'>⛔ <b>引数を指図に手で書かない</b> — "
               "<code>runs</code> と <code>komon</code> を動かせば変わる従属値なので毎回ここで測る。"
               "⚠ <b>通用門は独立した門ではない</b> — 表長屋(北)の run ごと"
@@ -5382,7 +5445,18 @@ def gate_parts_table(d):
               "⚠ <b>裏木戸の X の実寸は開口より方立柱2本ぶん広い</b>"
               "(岡部の実測で 2.727 → 3.197 / 2.909 → 3.379)。"
               "<b>練塀の run は据えた木戸の OBB の実寸の外側に取り付く</b>(可動側は練塀)— "
-              "⛔ 開口の呼び寸法で継ぐと 0.47m 食い込む(規則5)。</p>")
+              "⛔ 開口の呼び寸法で継ぐと 0.47m 食い込む(規則5)。</p>"
+            + "<p class='cap'>⭐ <b>門の敷居と街路の差は3門とも刷る</b>(⛔ 閾値で隠さない)。"
+              "⚠ <b>通用門は敷居を基壇の天端へ揃えた結果 街路より 0.58m 高い</b> — "
+              "<b>勝手の門で荷を担いで上がる</b>ので<b>門外に踏石2段</b>を置く"
+              "(⛔ 敷居を街路へ下げて解かない=基壇に揃える裁定と衝突する)。"
+              "⭕ <b>蹴上は書かない</b> — <code>(敷居 − 街路の地盤) ÷ 段数</code> の従属値で"
+              "毎回ここで出す(街路が動けば蹴上も動く)。踏面は <code>const.fumi</code>、"
+              "幅は門口に揃える。"
+              "⭕ <b>表門(+0.15)と裏木戸(+0.21)は段が要らない</b> — "
+              "<b>一蹴上(<code>const.keri</code> %.2f)に満たない差は段では受けられない</b>"
+              "(跨ぐ敷居であって段ではない)。⚠ 裏木戸の設計は「道+0.20」で、"
+              "実測 +0.21 の差 0.01 は DEM の読み取り差。</p>" % d["const"]["keri"])
 
 
 def bom_measure(d, kind):
@@ -6912,6 +6986,7 @@ def shitakusa_table(d):
                      "⚠ " + o["err"] if o["err"]
                      else ("⭕" if (o["land"] > 0 and o["outPct"] <= 0
                                    and o["wetPct"] <= 50.0) else "⚠")))
+    sk9 = (n.g.get("shitakusa") or {}).get("shida") or {}
     mz = (n.g.get("shitakusa") or {}).get("mizugiwa") or {}
     tail = ("<p class='cap'>⭐ <b>散布域は言葉でなく幾何で持つ。</b>"
             "築山の面は <code>tsukiyama</code> の中心と径から、樹下は "
@@ -6924,13 +6999,25 @@ def shitakusa_table(d):
             "モミジの樹冠も汀へ差し掛けるので、半楕円・樹冠の円をそのまま採ると池に掛かる。"
             "⛔ <b>域を縮めて意匠を変えるのではない</b>(撒く所が陸に限られるだけ)。"
             "⚠ ただし<b>過半が水面なら域の取り方が間違っている</b>ので、そこは検査が鳴らす。"
+            "⭐ <b>撒き方</b>: 芯々 <b>%s m</b>(下限 <b>%s m</b>)・向きは<b>乱数</b>%s・"
+            "株の大小は <b>×%s〜%s</b>。⚠ <b>下限は貫通よけ</b> — 芯々を ±25%% で散らすと"
+            "下振れが株の径に届いて<b>株どうしが貫通する</b>。"
+            "⛔ <b>格子に置かない</b>(機械で並べた列に見える)・"
+            "⛔ 一律の大きさ・一律の向きにしない。"
+            "⭕ 芯々は<b>部材の実寸から出す</b>(<code>JG.Fern</code> の幅の大きい方)"
+            "— ⛔ 決め打ちしない【U】。"
             "⭐ <b>2026-09-06 庭方の検め直しで、州浜の砂利帯も水面と同じ扱いで抜いた</b> — "
             "砂利帯は <code>bare</code>(そこの草は消す)と宣言している所なので下草は撒けない。"
             "⚠ 実際に<b>常緑広葉 Small (−0.45, 67.75) の樹冠が州浜と重なる</b>。"
             "⛔ 樹も帯も動かさない — <b>重なった分に撒かないだけ</b>。"
             "帯の形は <code>suhama</code> の <code>frm</code>/<code>to</code> と "
             "<code>toLand</code> から <code>karikomi</code> の「帯」と同じ器で組む。</p>"
-            % (mz.get("y0", 0.0), mz.get("y1", 0.0)))
+            % (mz.get("y0", 0.0), mz.get("y1", 0.0),
+               ("%.2f" % sk9["pitch"]) if sk9.get("pitch") else "⚠ 無い",
+               ("%.2f" % sk9["pitchMin"]) if sk9.get("pitchMin") else "⚠ 無い",
+               "" if sk9.get("yawRandom") else "(⚠ <b>`yawRandom` が無い</b>)",
+               ("%.2f" % sk9["scaleJitter"][0]) if sk9.get("scaleJitter") else "⚠",
+               ("%.2f" % sk9["scaleJitter"][1]) if sk9.get("scaleJitter") else "⚠"))
     return _tw(("散布域", "名", "形", "定義(幾何から)", "公称", "撒く所",
                 "水面で切った割合", "砂利帯で切った割合", "判定"), rows) + tail
 
@@ -7962,8 +8049,13 @@ def niwa_gogan_table(d):
     for x in o["rangui"]:
         q = next(y for y in g["rangui"] if y["name"] == x["name"])
         rows.append(("乱杭", q["label"], "#%d–#%d" % (q["frm"], q["to"]), "%.1f m" % x["L"],
-                     "杭 %d 本(芯々 %.3fm)・径 %.3f〜%.3f・傾±%.0f°・天端 %.2f"
-                     % (x["n"], q["pitch"], q["rMin"], q["rMax"], q["tilt"], q["topY"])))
+                     # ⭐ 天端は**水面からの相対の範囲**(⛔ 頭を揃えない=乱杭の作法)。
+                     #   ⚠ 旧 `topY` 25.87 は水面 −0.33 で**頭が水没**していた(2026-09-06 是正)。
+                     "杭 %d 本(芯々 %.3fm)・径 %.3f〜%.3f・傾±%.0f°・"
+                     "天端 <b>水面 +%.2f〜+%.2f</b>(= %.2f〜%.2f)"
+                     % (x["n"], q["pitch"], q["rMin"], q["rMax"], q["tilt"],
+                        q["topAbove"][0], q["topAbove"][1],
+                        n.waterY + q["topAbove"][0], n.waterY + q["topAbove"][1])))
     tk = g.get("sawatobiTake")
     if tk:
         rows.append(("(素の汀)", "沢飛石の南詰の取付", "#%d–#%d" % (tk["frm"], tk["to"]), "—",
@@ -8317,7 +8409,32 @@ def niwa_impl_table(d):
             for k in ORDER if k in im]
     rows += [(JA.get(k, k) + "<br><code>%s</code>" % k, im[k])
              for k in im if k not in ORDER]
-    return _tw(("申し合わせ", "中身"), rows) + (
+    # ⭐ **実装の報告値(`mizu.jissoku`)も同じ節に出す。**⚠ 2026-09-06 まで欄は在るのに
+    #   どこにも描かれていなかった(規則19: 測った値は成果物に載せる)。
+    jt = ""
+    jj = ((n.g.get("mizu") or {}).get("jissoku") or {})
+    if jj:
+        mg = n.g["migiwa"]
+        jr = [("地形のセル", "%.2f m" % jj.get("cellM", 0.0), "—"),
+              ("池の深さ", "<b>設計 %.2f m</b>(<code>migiwa.depthMax</code>)"
+               % mg["depthMax"], "格子上 <b>%.2f m</b>" % jj.get("depthMaxGrid", 0.0)),
+              ("汀の内側で水面より上に残ったセル", "設計 0%", "<b>%.1f%%</b>"
+               % jj.get("aboveWaterPct", 0.0))]
+        for k9, l9 in (("minakuchiCells", "水口"), ("sawatobiCells", "沢飛石")):
+            if jj.get(k9):
+                jr.append(("%s(水面より上に残ったセル)" % l9, "設計 0", "<b>%s</b>" % jj[k9]))
+        jt = ("<h3>格子の上でどう掘れたか — 実装の報告値【%s】</h3>" % jj.get("cert", "?")
+              + _tw(("項", "設計", "格子上の実測"), jr)
+              + "<p class='cap'>⛔ <b>これは設計値ではない</b> — 設計は "
+                "<code>migiwa.waterY</code> / <code>depthMax</code> が正典で、"
+                "ここは<b>そこからどれだけ離れたか</b>の記録(実測 %s)。"
+                "⭐ <b>格子上の最深は、設計の椀の最深点を「最寄りのセル中心」で標本した値</b>。"
+                "⛔ <b>設計が浅くなったのではない</b>(<code>depthMax</code> は %.2f のまま)。"
+                "⚠ 第2回の 0.93 より<b>小さい</b>のは、<b>平床をやめて椀形を焼いたぶん"
+                "最深点が一点に絞られた</b>ため — ⛔ <b>悪くなったと読まない</b>。"
+                "⚠ 値は棟梁が据え直すたびに更新する。</p>"
+              % (jj.get("at", "—"), mg["depthMax"]))
+    return _tw(("申し合わせ", "中身"), rows) + jt + (
         "<p class='cap'>⭐ <b>これは棟梁への指示であって、意匠でも寸法でもない。</b>"
         "⚠ 2026-09-06 まで<b>この5項はどこにも描かれていなかった</b> — "
         "正典にだけ在って、指図の文書には一行も出ていなかった。"
@@ -8430,6 +8547,27 @@ def niwa_toi_table(d):
             dv = math.sin(math.radians(deg)) * r9 / d["const"]["ken"]
             pos.append((j, deg, r9, (du * fx + dv * fz) / fl))
         low = max(pos, key=lambda q: q[3])[0] if pos else -1
+        # ⭐ **天端は絶対高で出す**(2026-09-06 普請検査の再測)。⚠ 地盤基準だと、
+        #   下流側の地盤が低いぶん「+0.05 高く」しても**絶対高では最低**になり枡が抜ける。
+        ter9 = load_terrain(os.path.join(DOC, "doi_edo_dem.json"))
+        gs = []
+        for (j, deg, r9, _p) in pos:
+            uu = to9[0] + math.cos(math.radians(deg)) * r9 / d["const"]["ken"]
+            vv = to9[1] + math.sin(math.radians(deg)) * r9 / d["const"]["ken"]
+            gs.append(terr_at(ter9, uu, vv) if ter9 else None)
+        okg = [q for q in gs if q is not None]
+        base = (max(okg) + uk.get("capBase", 0.0)) if okg else None
+        caps = ""
+        if base is not None:
+            caps = ("<br>基準天端 = <b>3点の地盤の最高点 %.3f + %.2f = %.3f</b> ／ "
+                    % (max(okg), uk.get("capBase", 0.0), base)
+                    + " ・ ".join(
+                        "#%d(地盤 %.3f)→ <b>%.3f</b>%s"
+                        % (j + 1, gs[j] if gs[j] is not None else float("nan"),
+                           base + (uk.get("capHigh", 0.0) if j == low else 0.0),
+                           "(下流・止め)" if j == low else "(±%.2f のジッタ)"
+                           % uk.get("capJitter", 0.0))
+                        for (j, deg, r9, _p) in pos))
         tail = ("<p class='cap'>⭕ <b>落とし溝の末端 — %s</b>: <b>%d 個</b>を終点 (%.2f, %.2f) の"
                 "まわりへ、<code>%s</code> を <b>90° 倒して</b>据え(`scale` %.2f)、"
                 "<b>芯を地盤の高さに沈める</b>(半分埋め)。"
@@ -8442,7 +8580,15 @@ def niwa_toi_table(d):
                 % (uk.get("kata", "受け石"), uk["n"], to9[0], to9[1],
                    uk.get("asset", "—"), uk.get("scale", 1.0),
                    " / ".join("%.0f°･%.2fm" % (q[1], q[2]) for q in pos),
-                   uk.get("capJitter", 0.0), low + 1, uk.get("capHigh", 0.0)))
+                   uk.get("capJitter", 0.0), low + 1, uk.get("capHigh", 0.0))
+                + ("<p class='cap'>⭐ <b>天端は絶対高で指定する</b>(%s)。%s"
+                   "<br>⚠ 従前は<b>地盤基準</b>だったので、<b>下流側の地盤が低いぶん"
+                   "「+%.2f 高く」しても絶対高では3個中いちばん低くなり、枡が下流へ抜けていた</b>"
+                   "(2026-09-06 普請検査の再測)。⛔ <b>地盤からの相対で据えない</b> — "
+                   "沈め方(90° 倒して芯を地盤へ)は同じだが、"
+                   "<b>天端がこの値になるよう沈み代を調節する</b>。</p>"
+                   % (uk.get("capMode", "—"), caps, uk.get("capHigh", 0.0))
+                   if base is not None else ""))
     elif uk is not None:
         tail = ("<p class='cap'>⚠ <b>受け石が語だけで、数も広がりも無い</b> — "
                 "このままでは実装が発明する(<code>mizushiri.otoshimizo.uke</code>)。</p>")
@@ -8759,6 +8905,7 @@ def main():
             + wall_profile_check(d)
             + recon_reach_check(d)
             + niwa_check(d) + akichi_check(d) + shitakusa_check(d)
+            + komon_step_check(d, load_terrain(os.path.join(DOC, "doi_dem.json")))
             + wall_needed_check(d, load_terrain(os.path.join(DOC, "doi_dem.json"))))
     # ⛔ **庭方へ差し戻す点は別枠。** 指図方は意匠を動かせないので、面のはみ出し検査と混ぜない
     #   (混ぜると「指図が不成立」に見える)。隣家の宿題と同じ扱い。

@@ -413,16 +413,18 @@ def fumiishi_rects(d):
     return out
 
 
-def plant_rows(d):
+def plant_rows(d, g):
     """高木の本数の内訳。**図と表が同じ関数から数える**(総数を文章に写さない)。"""
     rows = []
-    for b in d["slopeBands"]:
-        n = b.get("takagi") if b.get("takagi") is not None else b.get("takagiApprox")
-        rows.append(("社叢 帯%d %s" % (b["band"], b["name"]), n,
-                     "概算" if b.get("takagi") is None else "採用密度から"))
+    for r in band_stats(d, g):
+        if "b" not in r: continue
+        rows.append(("社叢 帯%d %s" % (r["b"]["band"], r["b"]["name"]), int(round(r["takagi"])),
+                     "有効面 × 採用密度" + ("(視線の塊 %g 本を差し引く)" % r["cut"] if r["cut"] else "")))
     for gd in d["gardens"]:
         n = sum(cluster_n(c) for c in gd.get("clusters", [])) + len(gd.get("singles", []))
         if n: rows.append((gd["name"], int(round(n)), "塊+一本立ち"))
+    for c in d["planting"].get("viewClusters", []):
+        rows.append(("視線の塊 " + c["name"], int(cluster_n(c)), "帯1〜3から差し引き済み"))
     return rows
 
 
@@ -548,6 +550,599 @@ def draw_edge_understory(d, lp):
         o.append(PL([(lp.X(u), lp.Y(v)) for u, v in q], stroke="var(--take)", sw=0.6,
                     dash="2 4", op=0.9, close=True))
     return o
+
+
+# ================================================================ 植栽の幾何(2026-09-06)
+# ⛔ 数値の正典は json(設計値)と docs/asset-index.tsv(部材の実寸・三角数)。
+#    ここには**式と作図と検査だけ**を置き、寸法も本数も書かない(CLAUDE.md 規則4)。
+_AIDX = {}
+
+
+def asset_index():
+    """`docs/asset-index.tsv` を読む。**樹の実寸(幅×丈×奥行)・三角数の正典**。
+
+    ⚠ 指図(json)には写さない — 部材を差し替えたら目録が変わり、写した値だけが古く残る。
+    ⚠ **fbx も読む**(自作の木は prefab を持たず `EdoAssets.Own.*` が fbx を直に指す)。
+    """
+    if _AIDX: return _AIDX
+    with open(os.path.join(ROOT, "docs/asset-index.tsv"), encoding="utf-8") as f:
+        for ln in f:
+            if ln.startswith("#"): continue
+            c = ln.rstrip("\n").split("\t")
+            if len(c) < 12 or c[0] == "path" or c[3] not in ("prefab", "fbx"): continue
+            if c[3] == "fbx" and c[1] in _AIDX: continue
+            try:
+                rec = {"sx": float(c[4]), "sy": float(c[5]), "sz": float(c[6]), "tris": int(c[9])}
+            except ValueError:
+                continue
+            if c[3] == "prefab" or c[1] not in _AIDX: _AIDX[c[1]] = rec
+    return _AIDX
+
+
+def part_geom(pt):
+    """部材1点の素の見え寸 (樹冠径 m, 丈 m, 三角数)。目録に無ければ None。"""
+    rec = asset_index().get(pt.get("prefab"))
+    if rec is None: return None
+    return (max(rec["sx"], rec["sz"]), rec["sy"], rec["tris"])
+
+
+def crown_of(d, kind, prefab, h):
+    """据えたあとの樹冠径[m]。目録に無ければ None(=**測れていない**。合格ではない)。"""
+    g0 = part_geom({"prefab": prefab})
+    if g0 is None: return None
+    xz = (d["planting"]["scaleRule"].get(kind) or {}).get("scaleXZ") or [1.0, 1.0]
+    return (g0[0] * xz[0], g0[0] * xz[1])
+
+
+# ---------------------------------------------------------------- 退避(木を植えない所)
+def _pt_seg(p, a, b):
+    dx, dz = b[0] - a[0], b[1] - a[1]
+    L2 = dx * dx + dz * dz
+    t = 0.0 if L2 < 1e-12 else max(0.0, min(1.0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / L2))
+    return math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dz)
+
+
+def _shape_rect(u0, v0, u1, v1, nm):
+    return ("rect", min(u0, u1), min(v0, v1), max(u0, u1), max(v0, v1), nm,
+            (min(u0, u1), min(v0, v1), max(u0, u1), max(v0, v1)))
+
+
+def _shape_seg(a, b, r, nm):
+    return ("seg", (a[0], a[1]), (b[0], b[1]), r, nm,
+            (min(a[0], b[0]) - r, min(a[1], b[1]) - r, max(a[0], b[0]) + r, max(a[1], b[1]) + r))
+
+
+def avoid_shapes(d, g, scope):
+    """**退避の宣言から障害物の buffer を組み立てる。**⛔ ここに数を書かない — 宣言が正典。
+
+    scope="keidai" … 境内の立木3区に効く(`planting.clearance.keidai`)
+    scope="obi4"   … 社叢 帯4 に効く(`slopeBands[3].avoid`)
+    """
+    ken = d["const"]["ken"]
+    out = []
+    if scope == "keidai":
+        ck = d["planting"]["clearance"]["keidai"]
+        p = ck["do"]
+        for m in d["munes"]:
+            if m["yaku"] == "接続": continue
+            out.append(_shape_rect(m["u0"] - p, m["v0"] - p,
+                                   m["u0"] + m["du"] + p, m["v0"] + m["dv"] + p, "棟:" + m["name"]))
+        p = ck["sukibeiKairo"]
+        for r in d["runs"]:
+            if r["kind"] not in ("透塀", "回廊"): continue
+            out.append(_shape_seg(r["a"], r["b"], p + r.get("bari", 0) / 2.0,
+                                  r["kind"] + ":" + r["name"]))
+        for gd in d["gardens"]:
+            if gd["name"] == "白洲":
+                out.append(_shape_rect(gd["u0"], gd["v0"], gd["u1"],
+                                       ck["shirasuNorthFromV"] + ck["shirasuNorthKen"], "白洲(+北の退がり)"))
+            elif gd["name"] == "中庭":
+                out.append(_shape_rect(gd["u0"], gd["v0"], gd["u1"], gd["v1"], "中庭"))
+        for rt in d.get("routes", []):
+            rr = rt["w"] / 2.0 / ken + ck["routeHalfPlus"]
+            pts = [(g.U(q[0]), g.V(q[1])) if rt.get("world") else (q[0], q[1]) for q in rt["pts"]]
+            for i in range(len(pts) - 1):
+                out.append(_shape_seg(pts[i], pts[i + 1], rr, "動線:" + rt["name"]))
+        for k in d["kaidans"]:
+            rr = (k.get("wKen") or k["w"] / ken) / 2.0 + ck["kaidanHalfPlus"]
+            pts = [tuple(q) for q in (k.get("pts") or [k["a"], k["b"]])]
+            for i in range(len(pts) - 1):
+                out.append(_shape_seg(pts[i], pts[i + 1], rr, "石段:" + k["name"]))
+        return out
+    av = [b["avoid"] for b in d["slopeBands"] if b.get("avoid")][0]
+    ot = [k for k in d["kaidans"] if k["name"] == "男坂"][0]
+    out.append(_shape_seg(ot["a"], ot["b"], av["otokozakaFromAxis"], "男坂"))
+    on = [k for k in d["kaidans"] if k["name"].startswith("女坂")][0]
+    rr = (on.get("wKen") or on["w"] / ken) / 2.0 + av["onnazakaFromShoulder"]
+    op = [tuple(q) for q in on["pts"]]
+    for i in range(len(op) - 1):
+        out.append(_shape_seg(op[i], op[i + 1], rr, "女坂"))
+    sp = [(g.U(x), g.V(z)) for x, z in d["sando"]["pts"]]
+    for i in range(len(sp) - 1):
+        out.append(_shape_seg(sp[i], sp[i + 1], av["sandoFromAxis"], "参道"))
+    zp = terrace_poly_uv(d["terraces"][1])
+    for i in range(len(zp)):
+        a, b = zp[i], zp[(i + 1) % len(zp)]
+        out.append(_shape_seg(a, b, av["zenteiFromEdge"], "前庭の縁"))
+    return out
+
+
+def shape_hit(p, shapes):
+    """点が退避に載っていれば障害物の名、載っていなければ None。"""
+    for sh in shapes:
+        bb = sh[-1]                                  # ⚠ 末尾が bbox・その前が名(rect と seg で長さが違う)
+        if not (bb[0] <= p[0] <= bb[2] and bb[1] <= p[1] <= bb[3]): continue
+        if sh[0] == "rect":
+            if sh[1] < p[0] < sh[3] and sh[2] < p[1] < sh[4]: return sh[-2]
+        elif _pt_seg(p, sh[1], sh[2]) < sh[3]:
+            return sh[-2]
+    return None
+
+
+def poly_scan(P, step):
+    """多角形の中のセルの中心を走査する(セルは step[間] 角)。"""
+    us = [q[0] for q in P]; vs = [q[1] for q in P]
+    u = min(us) + step / 2.0
+    while u < max(us):
+        v = min(vs) + step / 2.0
+        while v < max(vs):
+            if in_poly((u, v), P): yield (u, v)
+            v += step
+        u += step
+
+
+def cell_tsubo(d, step):
+    return step * step * d["const"]["ken"] ** 2 / TSUBO
+
+
+# ---------------------------------------------------------------- 社叢の帯(面と本数)
+_BANDS = {}
+
+
+def band_scan(d, g):
+    """**帯1〜3の面を走査する**(`planting.bandDef` の規約)。⛔ 面積も本数も定数で持たない。
+
+    法肩 = 平場の天端、法尻 = 社地の境(東〜北東は帯4の西縁)。各セルで
+    t = (天端 − 現地形h) / (天端 − 最寄りの法尻のh) を出し、帯の `from`/`to` で切る。
+    戻り値: ({帯番号: [(u,v)…]}, 未分類のセル数)
+    """
+    if _BANDS: return _BANDS["cells"], _BANDS["skip"]
+    bd = d["planting"]["bandDef"]
+    step = bd["stepKen"]
+    top = d["terraces"][0]["y"]
+    soch = [(g.U(x), g.V(z)) for x, z in d["polygon"]]
+    keidai = terrace_poly_uv(d["terraces"][0])
+    zentei = terrace_poly_uv(d["terraces"][1])
+    obi4 = [(q[0], q[1]) for q in d["slopeBands"][3]["uv"]]
+
+    def ring(P): return [(P[i], P[(i + 1) % len(P)]) for i in range(len(P))]
+    toe = ring(soch) + ring(obi4)
+    cells = {1: [], 2: [], 3: []}
+    skip = 0
+    for p in poly_scan(soch, step):
+        if in_poly(p, keidai) or in_poly(p, zentei) or in_poly(p, obi4): continue
+        x, z = g.W(p[0], p[1])
+        h = dem_h(x, z)
+        if h is None: skip += 1; continue
+        best, bq = 1e9, None
+        for a, b in toe:
+            dx, dz = b[0] - a[0], b[1] - a[1]
+            L2 = dx * dx + dz * dz
+            t = 0.0 if L2 < 1e-12 else max(0.0, min(1.0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / L2))
+            q = (a[0] + dx * t, a[1] + dz * t)
+            dd = math.hypot(p[0] - q[0], p[1] - q[1])
+            if dd < best: best, bq = dd, q
+        ht = dem_h(*g.W(bq[0], bq[1]))
+        if ht is None or top - ht <= 0.5: skip += 1; continue
+        t = (top - h) / (top - ht)
+        for b in d["slopeBands"][:3]:
+            if b["from"] <= t < b["to"] or (b["to"] >= 1.0 and t >= b["from"]):
+                cells[b["band"]].append(p); break
+        else:
+            skip += 1
+    _BANDS["cells"], _BANDS["skip"] = cells, skip
+    return cells, skip
+
+
+def band_density(b):
+    """採用密度[本/100m²]。`takagiAdopted` があればそれ、無ければ `takagiPer100` の中央。"""
+    if b.get("takagiAdopted"): return b["takagiAdopted"]
+    r = b.get("takagiPer100") or [0, 0]
+    return (r[0] + r[1]) / 2.0
+
+
+def view_cluster_cut(d, g):
+    """視線が決める塊(`planting.viewClusters`)の本数を、箱の中心が落ちる帯から差し引く。"""
+    cells, _ = band_scan(d, g)
+    own = {}
+    for k, ps in cells.items():
+        for p in ps: own[(round(p[0] * 2), round(p[1] * 2))] = k
+    cut = {1: 0, 2: 0, 3: 0}
+    for c in d["planting"].get("viewClusters", []):
+        bx = cluster_boxes(c)
+        per = cluster_n(c) / max(1, len(bx))
+        for u0, v0, u1, v1 in bx:
+            cu, cv = (u0 + u1) / 2.0, (v0 + v1) / 2.0
+            k = own.get((round(cu * 2), round(cv * 2)))
+            if k is None:
+                k = min(cut, key=lambda q: -len(cells[q]))
+            cut[k] += per
+    return cut
+
+
+_BSTAT = []
+
+
+def band_stats(d, g):
+    """帯1〜4 の 面[坪]・退避[坪]・有効面[坪]・採用密度・高木/落葉/中木/低木の本数。"""
+    if _BSTAT: return _BSTAT
+    ken = d["const"]["ken"]
+    cells, skip = band_scan(d, g)
+    ct = cell_tsubo(d, d["planting"]["bandDef"]["stepKen"])
+    cut = view_cluster_cut(d, g)
+    for b in d["slopeBands"]:
+        if b.get("uv"):
+            P = [(q[0], q[1]) for q in b["uv"]]
+            sh = avoid_shapes(d, g, "obi4")
+            st = 0.25
+            c2 = cell_tsubo(d, st)
+            tot = av = rn = 0
+            soch = [(g.U(x), g.V(z)) for x, z in d["polygon"]]
+            rin = b.get("rinen") or {}
+            for p in poly_scan(P, st):
+                tot += 1
+                if shape_hit(p, sh): av += 1; continue
+                if rin:
+                    dd = min(_pt_seg(p, soch[i], soch[(i + 1) % len(soch)]) for i in range(len(soch)))
+                    if rin["fromKen"] <= dd <= rin["toKen"]: rn += 1
+            row = {"b": b, "tsubo": tot * c2, "avoid": av * c2, "rinen": rn * c2,
+                   "usable": (tot - av) * c2, "cut": 0.0}
+        else:
+            n = len(cells[b["band"]])
+            row = {"b": b, "tsubo": n * ct, "avoid": 0.0, "rinen": 0.0,
+                   "usable": n * ct, "cut": cut.get(b["band"], 0.0)}
+        row["dens"] = band_density(b)
+        row["takagi"] = row["usable"] * TSUBO * row["dens"] / 100.0 - row["cut"]
+        row["rakuyo"] = row["takagi"] * (b.get("rakuyoRatio") or 0.0)
+        for k, key in (("chuboku", "chubokuPer100"), ("teiboku", "teibokuPer100")):
+            r = b.get(key) or [0, 0]
+            row[k] = row["usable"] * TSUBO * (r[0] + r[1]) / 2.0 / 100.0
+        _BSTAT.append(row)
+    _BSTAT.append({"skip": skip * ct})
+    return _BSTAT
+
+
+def band_accept(d, g):
+    """受入検査 — 帯1〜3 の坪数が `bandDef.accept` の ±tol に入るか。⛔ 合わせに行かない。"""
+    bd = d["planting"]["bandDef"]["accept"]
+    out = []
+    for r in band_stats(d, g)[:3]:
+        want = bd.get("帯%d" % r["b"]["band"])
+        if not want: continue
+        dv = r["tsubo"] / want - 1.0
+        out.append((r["b"]["band"], r["tsubo"], want, dv, abs(dv) <= bd["tol"]))
+    return out
+
+
+# ---------------------------------------------------------------- 境内の立木3区
+_MIXRE = re.compile(r"(松|欅|椋|榎)\s*(\d+)")
+_MIXSP = {"欅": "ケヤキ", "椋": "ムクノキ", "榎": "エノキ"}
+
+
+def cluster_mix(c):
+    """塊の `mix`(「松4・欅1」)を [(種, 本数)] へ。⛔ 本数を二重に持たない。"""
+    return [(k, int(n)) for k, n in _MIXRE.findall(c.get("mix") or "")]
+
+
+def zone_h(d, gd):
+    """区の松・落葉高木の丈[m](`hBand` の帯から引く)。"""
+    b = [q for q in d["slopeBands"] if q["band"] == gd.get("hBand")]
+    if not b: return None, None
+    return b[0].get("matsuH"), b[0].get("rakuyoH")
+
+
+def cluster_parts(d, gd, c):
+    """塊の部材 — `mix` の割り前 × `planting.parts` の palette。(種, 部材, 本数, 丈, 樹冠) の列。"""
+    pal = d["planting"]["parts"]
+    mH, rH = zone_h(d, gd)
+    out = []
+    for kind, n in cluster_mix(c):
+        if kind == "松":
+            src, h, sk = pal["松"], mH, "matsu"
+        else:
+            src = [q for q in pal["落葉"] if q.get("species") == _MIXSP[kind]]
+            h, sk = rH, "rakuyo"
+        if not src: continue
+        wt = sum(q.get("w", 1) for q in src)
+        rest = n
+        for i, pt in enumerate(src):
+            k = n - rest if i == len(src) - 1 else int(round(n * pt.get("w", 1) / float(wt)))
+            k = min(k, rest) if i < len(src) - 1 else rest
+            rest -= k
+            if k <= 0: continue
+            out.append((kind, pt, k, h, crown_of(d, sk, pt["prefab"], h)))
+    return out
+
+
+def overhang_range(d):
+    """参道の林縁が道へ張り出す量[m] — **樹冠からの従属値**。引けなければ None。"""
+    tl = (d["sando"].get("roadside") or {}).get("takagiEdgeLine") or {}
+    ins = tl.get("insetKen")
+    if ins is None: return None
+    b4 = d["slopeBands"][3]
+    lo = hi = None
+    for kind, key in (("matsu", "松"), ("rakuyo", "落葉")):
+        for pt in d["planting"]["parts"][key]:
+            cr = crown_of(d, kind, pt["prefab"], (b4.get("matsuH") or [0, 0])[1])
+            if cr is None: continue
+            for r in cr:
+                o = r / 2.0 - ins * d["const"]["ken"]
+                if o <= 0: continue
+                lo = o if lo is None else min(lo, o)
+                hi = o if hi is None else max(hi, o)
+    return None if lo is None else (lo, hi)
+
+
+# ---------------------------------------------------------------- 見所と主景
+def shukei_rows(d, g):
+    """★主景 — 楼門の眼から見た 木・棟の仰角[°]。⛔ 数を文章に写さない。"""
+    ken = d["const"]["ken"]
+    gr = d["terraces"][0]["y"]
+    out = []
+    for gd in d["gardens"]:
+        sk = gd.get("shukei")
+        if not sk: continue
+        fu, fv = sk["from"]; eye = sk["eyeY"]
+        tu, tv = sk["tree"]["uv"]
+        L = math.hypot(tu - fu, tv - fv) * ken
+        top = gr + sk["tree"]["hMin"]
+        out.append(("★主景の木(%s 丈%.0fm)" % (sk["tree"]["kind"], sk["tree"]["hMin"]),
+                    L, top, math.degrees(math.atan2(top - eye, L))))
+        for nm in sk.get("munes", []):
+            m = [q for q in d["munes"] if q["name"] == nm]
+            if not m or m[0].get("h") is None:
+                out.append((nm + " の棟", None, None, None)); continue
+            m = m[0]
+            cu, cv = m["u0"] + m["du"] / 2.0, m["v0"] + m["dv"] / 2.0
+            L2 = math.hypot(cu - fu, cv - fv) * ken
+            t2 = gr + m["h"]
+            out.append((nm + " の棟(丈 %.1f m)" % m["h"], L2, t2,
+                        math.degrees(math.atan2(t2 - eye, L2))))
+    return out
+
+
+def viewpoint_rows(d, g):
+    """見所 V1〜V3 — 眼高(従属)と、`shows` に挙げた塊の見込み角[°]。"""
+    ken = d["const"]["ken"]
+    rows = []
+    for vp in d.get("viewpoints", []):
+        u, v = vp["uv"]
+        eye = vp.get("eye")
+        src = "設計値"
+        if eye is None:
+            h = dem_h(*g.W(u, v))
+            eye = (h or 0.0) + vp.get("eyeOver", 0.0)
+            src = "現地形 %.2f m + %.1f m" % (h or 0.0, vp.get("eyeOver", 0.0))
+        shows = []
+        for nm in vp.get("shows", []):
+            for holder in d["gardens"] + d["slopeBands"] + [d["planting"]]:
+                for c in holder.get("clusters", []) + holder.get("viewClusters", []):
+                    if c["name"] != nm: continue
+                    bx = cluster_boxes(c)
+                    for j, (u0, v0, u1, v1) in enumerate(bx):
+                        az = [math.degrees(math.atan2(cv - v, -(cu - u)))
+                              for cu, cv in ((u0, v0), (u1, v0), (u1, v1), (u0, v1))]
+                        shows.append((nm + ("" if len(bx) == 1 else "(其%d)" % (j + 1)),
+                                      min(az), max(az), max(az) - min(az)))
+        rows.append((vp, eye, src, shows))
+    return rows
+
+
+# ---------------------------------------------------------------- 三角数の見積り
+def plant_budget(d, g):
+    """置く物の総数と三角数。**在庫の木は1本1万〜2万三角**なので目に見えるコスト。"""
+    pal = d["planting"]["parts"]
+    st = band_stats(d, g)
+    n = {"松": 0.0, "落葉": 0.0, "中木": 0.0, "低木": 0.0}
+    for r in st:
+        if "b" not in r: continue
+        n["落葉"] += r["rakuyo"]; n["松"] += r["takagi"] - r["rakuyo"]
+        n["中木"] += r["chuboku"]; n["低木"] += r["teiboku"]
+    for gd in d["gardens"]:
+        for c in gd.get("clusters", []):
+            for kind, _n in cluster_mix(c):
+                n["松" if kind == "松" else "落葉"] += _n
+        for sg in gd.get("singles", []):
+            n["松" if "マツ" in (sg.get("kind") or "") else "落葉"] += 1
+    for c in d["planting"].get("viewClusters", []):
+        n["松"] += cluster_n(c)
+    rows = []
+    for key in ("松", "落葉", "中木", "低木"):
+        tri = [part_geom(pt) for pt in pal[key]]
+        wt = sum(pt.get("w", 1) for pt in pal[key])
+        avg = None
+        if all(t is not None for t in tri) and tri:
+            avg = sum(t[2] * pal[key][i].get("w", 1) for i, t in enumerate(tri)) / float(wt)
+        det = all(pt.get("detail") for pt in pal[key])
+        rows.append((key, int(round(n[key])), avg, det))
+    return rows
+
+
+# ---------------------------------------------------------------- 検査(2026-09-06 検図の3本)
+_FIGRE = re.compile(r'<div class="fig">(.*?)</div>', re.S)
+
+
+def svg_tail_check(htm):
+    """(a) **図版ごとに `</g></svg>` が末尾か。**⛔ `</svg>` の後に要素を足さない。
+
+    ⚠ 2026-09-06 の検図で、参道と鳥居が `</svg>` の**後**に足されていて5面で描かれていなかった。
+    目で見えない欠陥(ブラウザが黙って捨てる)なので、機械で押さえる。
+    """
+    bad = []
+    for i, body in enumerate(_FIGRE.findall(htm), 1):
+        b = body.strip()
+        if not b.startswith("<svg"):
+            bad.append("図版 %d が <svg で始まっていない" % i); continue
+        if not b.endswith(ENDSVG):
+            bad.append("図版 %d の末尾が `%s` でない(末尾 60字: %s)"
+                       % (i, ENDSVG, b[-60:].replace("\n", " "))); continue
+        if b.count("</svg>") != 1:
+            bad.append("図版 %d に </svg> が %d 個ある" % (i, b.count("</svg>")))
+        if b.index("</svg>") != len(b) - len("</svg>"):
+            bad.append("図版 %d は </svg> の後に要素が残る" % i)
+    return bad
+
+
+def planting_avoid_check(d, g):
+    """(b) **植栽の多角形 ∩ 障害物 buffer = 0**、塊の箱が本数を置ける広さか、帯が社地の中か。
+
+    ⚠ 2026-09-06 の検図で、立木3区の多角形が6棟と2動線を覆っていた(南区は面の47%)。
+    ⛔ 面積だけを別に持って辻褄を合わせない — **輪郭そのもの**が植えられる面である。
+    戻り値 (⛔止める, 〔記録〕)。**塊の箱が本数を置ける広さか**は〔記録〕— 箱の広さは庭方の意匠で、
+    ⛔ 指図方が箱を広げて黙らせない。
+    """
+    bad, note = [], []
+    ken = d["const"]["ken"]
+    sh = avoid_shapes(d, g, "keidai")
+    st = 0.25
+    ct = cell_tsubo(d, st)
+    soch = [(g.U(x), g.V(z)) for x, z in d["polygon"]]
+    pack = d["planting"]["plantRule"]["packRatio"]
+    for gd in d["gardens"]:
+        P = garden_poly(gd)
+        if not P or not gd.get("poly"): continue
+        hit = {}
+        for p in poly_scan(P, st):
+            nm = shape_hit(p, sh)
+            if nm: hit[nm] = hit.get(nm, 0) + 1
+        if hit:
+            bad.append("%s の多角形が退避に載る — %s(合計 %.1f 坪)"
+                       % (gd["name"], "・".join("%s %.1f坪" % (k, v * ct) for k, v in
+                                                sorted(hit.items(), key=lambda q: -q[1])[:6]),
+                          sum(hit.values()) * ct))
+        for c in gd.get("clusters", []):
+            n = cluster_n(c)
+            sp = (c.get("spacing") or 0.0) * pack
+            need = n * sp * sp
+            got = 0
+            for u0, v0, u1, v1 in cluster_boxes(c):
+                for p in poly_scan([(u0, v0), (u1, v0), (u1, v1), (u0, v1)], st):
+                    if in_poly(p, P): got += 1
+            got *= st * st
+            if need > 0 and got < need:
+                note.append("%s の塊「%s」は 箱 ∩ 区 が %.1f 間²(=%.1f坪)しか無く、"
+                           "%g 本 × 芯々 %.1f 間(packRatio %.2f)に要る %.1f 間² に足りない"
+                           % (gd["name"], c["name"], got, got * ken * ken / TSUBO, n,
+                              c.get("spacing") or 0, pack, need))
+    for b in d["slopeBands"]:
+        if not b.get("uv"): continue
+        out = sum(1 for p in poly_scan([(q[0], q[1]) for q in b["uv"]], st)
+                  if not in_poly(p, soch))
+        if out * ct > 0.05:
+            bad.append("社叢 帯%d の多角形が社地の外へ %.2f 坪 出ている(社地 `polygon` でクリップすること)"
+                       % (b["band"], out * ct))
+    return bad, note
+
+
+# **意図された接合**の白名簿。⛔ ここを増やすときは理由を書く(黙って消さない)。
+_OVL_OK = [
+    ("門:中門", "白洲"), ("門:中門", "中庭"),                      # 門は塀の線に立ち、庭の縁を噛む
+    ("門:隨身門(楼門)", "白洲"),                                   # 同上
+    ("石段:向拝の階", "中庭"), ("石段:向拝の階", "棟:向拝"),        # 階は向拝から中庭へ降りる
+    ("石段:男坂", "帯4"), ("石段:女坂(御成坂)", "帯4"),             # 帯4は坂を含む裾。空けるのは avoid
+    ("石段:参道の階(前庭へ)", "帯4"), ("門:坂下の門(仁王門)", "帯4"),
+    ("棟:本殿", "棟:作り合い"), ("棟:作り合い", "棟:幣殿"),          # 権現造の継ぎ(接する)
+    ("棟:幣殿", "棟:拝殿"), ("棟:拝殿", "棟:向拝"),
+]
+
+
+def _ovl_shapes(d, g):
+    """総当たりに載せる面 — 棟・門・庭/区・帯4・石段・塊。(名, 判定関数, bbox) の列。"""
+    ken = d["const"]["ken"]
+    out = []
+
+    def poly_item(nm, P):
+        us = [q[0] for q in P]; vs = [q[1] for q in P]
+        out.append((nm, (lambda P: (lambda p: in_poly(p, P)))(P),
+                    (min(us), min(vs), max(us), max(vs))))
+
+    def corr_item(nm, pts, hw):
+        # ⚠ **端に丸みを付けない。**踏面の帯は矩形で、坂の上下の端から先は坂ではない
+        #   (キャップを付けると男坂が楼門と坂下の門を 4.75 坪ずつ噛む・2026-09-06)
+        def f(p):
+            for i in range(len(pts) - 1):
+                a, b = pts[i], pts[i + 1]
+                dx, dz = b[0] - a[0], b[1] - a[1]
+                L2 = dx * dx + dz * dz
+                if L2 < 1e-12: continue
+                t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / L2
+                if not (0.0 <= t <= 1.0): continue
+                if math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dz) < hw: return True
+            return False
+        us = [q[0] for q in pts]; vs = [q[1] for q in pts]
+        out.append((nm, f, (min(us) - hw, min(vs) - hw, max(us) + hw, max(vs) + hw)))
+
+    for m in d["munes"]:
+        poly_item("棟:" + m["name"], [(m["u0"], m["v0"]), (m["u0"] + m["du"], m["v0"]),
+                                      (m["u0"] + m["du"], m["v0"] + m["dv"]), (m["u0"], m["v0"] + m["dv"])])
+    for gt in d["gates"]:
+        hu, hv = gt["plan"]["du"] / 2.0, gt["plan"]["dv"] / 2.0
+        poly_item("門:" + gt["name"], [(gt["u"] - hu, gt["v"] - hv), (gt["u"] + hu, gt["v"] - hv),
+                                       (gt["u"] + hu, gt["v"] + hv), (gt["u"] - hu, gt["v"] + hv)])
+    for gd in d["gardens"]:
+        P = garden_poly(gd)
+        if P: poly_item(gd["name"].split("(")[0], P)
+    for b in d["slopeBands"]:
+        if b.get("uv"): poly_item("帯%d" % b["band"], [(q[0], q[1]) for q in b["uv"]])
+    for k in d["kaidans"]:
+        pts = [tuple(q) for q in (k.get("pts") or [k["a"], k["b"]])]
+        corr_item("石段:" + k["name"], pts, (k.get("wKen") or k["w"] / ken) / 2.0)
+    for holder in d["gardens"] + d["slopeBands"] + [d["planting"]]:
+        for c in holder.get("clusters", []) + holder.get("viewClusters", []):
+            for j, (u0, v0, u1, v1) in enumerate(cluster_boxes(c)):
+                poly_item("塊:%s%s" % (c["name"], "" if j == 0 else "(其%d)" % (j + 1)),
+                          [(u0, v0), (u1, v0), (u1, v1), (u0, v1)])
+    return out
+
+
+def rect_overlap_check(d, g, minTsubo=0.05):
+    """(c) **面の総当たり** — 棟・門・庭/区・帯4・石段・塊で真の重なりが無いか。
+
+    ⚠ 2026-09-06 の検図「矩形総当たりが生成器に無い」。意図された接合は `_OVL_OK` で除く。
+    戻り値 (⛔止める, 〔記録〕)。**実体どうし(棟・門・庭・帯・石段)の重なりは止める**が、
+    **塊が絡む重なりは〔記録〕**にする — 塊の箱は実体ではなく「撒く定義域」で、
+    その始末は庭方の意匠(⛔ 指図方が箱を動かして黙らせない)。
+    """
+    it = _ovl_shapes(d, g)
+    ok = set(tuple(sorted(q)) for q in _OVL_OK)
+    st = 0.25
+    ct = cell_tsubo(d, st)
+    bad, note = [], []
+    for i in range(len(it)):
+        for j in range(i + 1, len(it)):
+            (na, fa, ba), (nb, fb, bb) = it[i], it[j]
+            if tuple(sorted((na, nb))) in ok: continue
+            if na.startswith("塊:") and nb.startswith("塊:"):
+                pass                                   # 塊どうしは重なってはいけない
+            elif na.startswith("塊:") and (nb.startswith("境内の立木") or nb.startswith("帯")):
+                continue                               # 塊は区・帯の中に置く定義域
+            elif nb.startswith("塊:") and (na.startswith("境内の立木") or na.startswith("帯")):
+                continue
+            u0, v0 = max(ba[0], bb[0]), max(ba[1], bb[1])
+            u1, v1 = min(ba[2], bb[2]), min(ba[3], bb[3])
+            if u1 - u0 <= 0 or v1 - v0 <= 0: continue
+            n = 0
+            u = u0 + st / 2.0
+            while u < u1:
+                v = v0 + st / 2.0
+                while v < v1:
+                    if fa((u, v)) and fb((u, v)): n += 1
+                    v += st
+                u += st
+            if n * ct > minTsubo:
+                (note if (na.startswith("塊:") or nb.startswith("塊:")) else bad).append(
+                    "%s と %s が %.2f 坪 重なる" % (na, nb, n * ct))
+    return bad, note
 
 
 def segs(o):
@@ -1279,6 +1874,41 @@ def routes_table(rows):
             "<th>越える段</th><th class='note'>注記</th></tr></thead><tbody>" + tr + "</tbody></table></div>")
 
 
+def draw_bands(d, g, PX, PY):
+    """社叢 帯1〜3 の**面**を社地の全図へ落とす(『帯の面が図に無い』— 庭方2巡目 高3)。
+
+    ⛔ セルを一つずつ描かない — 行ごとに走りを束ねる(図版が肥る)。
+    戻り値 (塗り, 銘)。**銘は後から重ねる** — 平場や帯4の塗りに隠れるため。
+    """
+    cells, _ = band_scan(d, g)
+    step = d["planting"]["bandDef"]["stepKen"]
+    op = {1: 0.34, 2: 0.22, 3: 0.12}
+    o, lab = [], []
+    for b in sorted(cells):
+        rows = {}
+        for u, v in cells[b]: rows.setdefault(int(round(v / step)), []).append(u)
+        for j, us in rows.items():
+            us.sort()
+            a = prev = us[0]
+            for u in us[1:] + [None]:
+                if u is not None and abs(u - prev - step) < 1e-6:
+                    prev = u; continue
+                x0, z0 = g.W(a - step / 2.0, j * step - step / 2.0)
+                x1, z1 = g.W(prev + step / 2.0, j * step + step / 2.0)
+                o.append(R(PX(min(x0, x1)), PY(max(z0, z1)),
+                           abs(PX(x1) - PX(x0)) + 0.4, abs(PY(z0) - PY(z1)) + 0.4,
+                           fill="var(--take)", op=op.get(b, 0.2)))
+                if u is not None: a = prev = u
+        if cells[b]:
+            cu = sum(q[0] for q in cells[b]) / len(cells[b])
+            cv = sum(q[1] for q in cells[b]) / len(cells[b])
+            # ⚠ 帯は三日月形なので重心が帯の外に出る。**帯の中で重心に最も近いセル**へ置く
+            nu, nv = min(cells[b], key=lambda q: (q[0] - cu) ** 2 + (q[1] - cv) ** 2)
+            x, z = g.W(nu, nv)
+            lab.append(T(PX(x), PY(z), "社叢 帯%d" % b, fs=10.5, anchor="middle", fill="var(--ink)"))
+    return o, lab
+
+
 # ---------------------------------------------------------------- 其一 社地
 def shachi_svg(d, kan="其一"):
     g = G(d)
@@ -1295,6 +1925,9 @@ def shachi_svg(d, kan="其一"):
                 fill="var(--pl-slope)", op=0.55, close=True))
     # 社叢の帯(社地の内側を薄く)
     o.append(T(pr.X(-600), pr.Y(760), "社叢(造成しない)", fs=11, fill="var(--take)"))
+    # 社叢 帯1〜3 の面(法肩からの下りの割合で切る。走査は band_scan)
+    _bfill, _blab = draw_bands(d, g, pr.X, pr.Y)
+    o += _bfill
     # 社叢 帯4(多角形を持つ帯)と 境内の立木3区・前庭の木を**面**で(2026-09-06 庭方の設計)
     for _b in d["slopeBands"]:
         if not _b.get("uv"): continue
@@ -1417,6 +2050,7 @@ def shachi_svg(d, kan="其一"):
         cx = sum(p[0] for p in Q) / len(Q); cz = sum(p[1] for p in Q) / len(Q)
         o.append(T(pr.X(cx), pr.Y(cz), nb["name"].split(" ")[-1], fs=11, anchor="middle", fill="var(--dim)"))
 
+    o += _blab                                    # 帯の銘は塗りの後から重ねる
     # 断面の切断線
     o += cut_lines(d, pr.X, pr.Y, pr.L,
                    clip=(14.0, pr.top + 10.0, pr.W - 14.0, pr.top + pr.zh - 6.0))
@@ -2599,63 +3233,80 @@ def _rng(v, unit="", fmt="%g"):
     return (fmt % v) + unit
 
 
-def shaso_table(d):
-    """社叢の帯 ── 密度・芯々・樹高・層。⛔ 数値を文章に写さない(この表が唯一の出口)。"""
+def shaso_table(d, g):
+    """社叢の帯 ── 面・密度・芯々・樹高・層。⛔ 数値を文章に写さない(この表が唯一の出口)。
+
+    ⭐ **面積も本数も定数では持たない** — 帯1〜3 は `planting.bandDef` の走査、帯4 は多角形と
+    `avoid` の宣言から算出する(2026-09-06 庭方 高3・検図 中5)。
+    """
     rows = []
-    for b in d["slopeBands"]:
+    for r in band_stats(d, g):
+        if "b" not in r: continue
+        b = r["b"]
         if b.get("uv"):
-            ar = poly_area([tuple(q) for q in b["uv"]]) * d["const"]["ken"] ** 2 / TSUBO
-            area = "%s 坪【算出】" % format(int(round(ar)), ",")
-            if b.get("tsuboAvoid"):
-                area += "(退避 %s → 有効 %s)" % (format(int(b["tsuboAvoid"]), ","),
-                                                 format(int(b["tsuboUsable"]), ","))
             rge = "多角形(uv %d点)" % len(b["uv"])
             if b.get("yRange"): rge += " ／ 標高 %g〜%g m" % tuple(b["yRange"])
         else:
-            area = "約 %s 坪【概算】" % format(int(round(b.get("tsuboApprox") or 0)), ",")
             rge = "法肩からの下り %.0f〜%.0f%%" % (b["from"] * 100, b["to"] * 100)
-        n = b.get("takagi") if b.get("takagi") is not None else b.get("takagiApprox")
+        area = "%s 坪【算出】" % format(int(round(r["tsubo"])), ",")
+        if r["avoid"] > 0.05:
+            area += "(退避 %s → 有効 %s)" % (format(int(round(r["avoid"])), ","),
+                                             format(int(round(r["usable"])), ","))
+        if r["rinen"] > 0.05:
+            area += " ／ うち林縁 %s 坪(高木0)" % format(int(round(r["rinen"])), ",")
+        n = "%d 本" % int(round(r["takagi"]))
+        if r["cut"]:
+            n += "(視線の塊 %g 本を差し引き済み)" % r["cut"]
         dens = _rng(b.get("takagiPer100"))
-        if b.get("takagiAdopted"): dens += "(採用 %g)" % b["takagiAdopted"]
-        rows.append("<tr><td>帯%d %s</td><td class='note'>%s</td><td>%s</td><td>%s 本</td>"
-                    "<td>%s</td><td>%s m</td><td>%s m</td><td>%s / %s m</td>"
+        dens += "(採用 %g)" % r["dens"]
+        rows.append("<tr><td>帯%d %s</td><td class='note'>%s</td><td>%s</td><td>%s</td>"
+                    "<td>%s</td><td>%s m</td><td>%s m</td><td>%s</td>"
                     "<td>%s / %s m</td><td>%s</td><td>%s</td><td class='note'>%s</td></tr>"
                     % (b["band"], b["name"], rge, area, n, dens,
                        _rng(b.get("spacing")), _rng(b.get("matsuH")),
-                       (("%.1f割" % (b["rakuyoRatio"] * 10)) +
-                        (" (%d 本)" % b["rakuyo"] if b.get("rakuyo") else "")) if b.get("rakuyoRatio") else "—",
-                       _rng(b.get("rakuyoH")),
+                       (("%.1f割 (%d 本)" % (b["rakuyoRatio"] * 10, int(round(r["rakuyo"]))))
+                        + " ／ 丈 " + _rng(b.get("rakuyoH")) + " m") if b.get("rakuyoRatio") else "—",
                        _rng(b.get("chubokuPer100")), _rng(b.get("chubokuH")),
                        _rng(b.get("teibokuPer100")) + (" / %s m" % _rng(b.get("teibokuH"))
                                                        if b.get("teibokuH") else ""),
                        b.get("shitakusa", "—"), b.get("acc", "—")))
-    rn = [b.get("rinen") for b in d["slopeBands"] if b.get("rinen")]
-    for r in rn:
+    for b in d["slopeBands"]:
+        r = b.get("rinen")
+        if not r: continue
         rows.append("<tr><td>└ 林縁の帯</td><td class='note'>社地の境から %g〜%g 間</td><td>—</td>"
                     "<td>0 本(高木を置かない)</td><td>%g</td><td>—</td><td>—</td><td>—</td>"
                     "<td>—</td><td>%s</td><td>%s</td><td class='note'>帯4の規定</td></tr>"
                     % (r["fromKen"], r["toKen"], r["takagiPer100"],
                        _rng(r.get("teibokuPer100")), r.get("shitakusa", "—")))
+    ac = "".join("<tr><td>帯%d</td><td>%s 坪【算出】</td><td>%s 坪</td><td>%+.1f%%</td><td>%s</td></tr>"
+                 % (b, format(int(round(got)), ","), format(want, ","), dv * 100,
+                    "⭕ 合" if ok else "⚠ 外れる")
+                 for b, got, want, dv, ok in band_accept(d, g))
+    acc = ('<div class="tw"><table><thead><tr><th>受入検査</th><th>算出</th><th>庭方の実測</th>'
+           "<th>差</th><th>判定</th></tr></thead><tbody>%s</tbody></table></div>" % ac)
     return ('<div class="tw"><table><thead><tr><th>帯</th><th class="note">範囲</th><th>面積</th>'
-            "<th>高木</th><th>密度 本/100m²</th><th>芯々</th><th>松の丈</th><th>落葉 割合／丈</th>"
+            "<th>高木</th><th>密度 本/100m²</th><th>芯々</th><th>松の丈</th><th>落葉 割合・本数／丈</th>"
             "<th>中木 密度／丈</th><th>低木 密度</th><th>下草</th><th class='note'>確度</th>"
-            "</tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>")
+            "</tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>" + acc)
 
 
 def _gname(gd):
     return ("社叢 帯%d %s" % (gd["band"], gd["name"])) if gd.get("band") else gd["name"]
 
 
-def tachiki_table(d):
-    """境内の立木3区と前庭の木 ── 面・合法域・塊・一本立ち。"""
-    ken2 = d["const"]["ken"] ** 2
+def tachiki_table(d, g):
+    """境内の立木3区と前庭の木 ── 面・塊・部材・樹冠・一本立ち。
+
+    ⭐ **`tsuboUsable` は持たない** — 退避は輪郭に焼き込んであるので、面積そのものが植えられる面。
+    ⭐ 樹冠は部材と丈からの**従属値**(`planting.scaleRule`・目録)。
+    """
+    ken = d["const"]["ken"]
     rows = []
     src = list(d["gardens"]) + [b for b in d["slopeBands"] if b.get("clusters")]
     for gd in src:
         P = garden_poly(gd)
         if not (gd.get("clusters") or gd.get("singles")): continue
-        ar = ("%s 坪" % format(int(round(poly_area(P) * ken2 / TSUBO)), ",")) if P else "前庭の中"
-        us = ("%s 坪" % format(int(round(gd["tsuboUsable"])), ",")) if gd.get("tsuboUsable") else "—"
+        ar = ("%s 坪【算出】" % format(int(round(poly_area(P) * ken * ken / TSUBO)), ",")) if P else "前庭の中"
         first = True
         for c in gd.get("clusters", []):
             bx = " / ".join("(%g,%g)〜(%g,%g)" % q for q in cluster_boxes(c))
@@ -2665,17 +3316,33 @@ def tachiki_table(d):
             if c.get("fromAxisKen"): bx += " ／ 坂の芯から %s 間" % _rng(c["fromAxisKen"])
             if c.get("split"): bx += " ／ " + c["split"]
             rl = c.get("role", "")
-            if c.get("overhang"): rl += "(道への張り出し %s m)" % _rng(c["overhang"])
-            rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td class='note'>%s</td>"
+            if c.get("overhangFrom"):
+                oh = overhang_range(d)
+                rl += ("(道への張り出し %.1f〜%.1f m【従属】)" % oh) if oh \
+                    else "(道への張り出しは**部材が目録に無く測れない**)"
+            pt = ""
+            if gd.get("hBand"):
+                seg = []
+                for kind, part, n, h, cr in cluster_parts(d, gd, c):
+                    hh = ("丈 %s m" % _rng(h)) if h else "丈—"
+                    cc = ("樹冠 %.1f〜%.1f m" % cr) if cr else "樹冠—(目録に無い)"
+                    ov = ""
+                    if cr and c.get("spacing"):
+                        gp = c["spacing"] * ken - (cr[0] + cr[1]) / 2.0
+                        ov = "／ 芯々−樹冠 %+.1f m" % gp
+                    seg.append("%s×%d <span class='note'>%s・%s・%s %s</span>"
+                               % (part["prefab"], n, hh, cc, part["api"], ov))
+                pt = "<br>".join(seg)
+            rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td class='note'>%s</td>"
                         "<td>%s</td><td>%s 間</td><td>%s</td><td class='note'>%s</td></tr>"
-                        % (_gname(gd) if first else "", ar if first else "", us if first else "",
-                           c["name"], bx, cluster_label(c).split(" ")[-1],
-                           _rng(c.get("spacing")), c.get("mix", "—"), rl))
+                        % (_gname(gd) if first else "", ar if first else "", c["name"], bx,
+                           cluster_label(c).split(" ")[-1], _rng(c.get("spacing")),
+                           pt or c.get("mix", "—"), rl))
             first = False
         for sg in gd.get("singles", []):
-            rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td class='note'>(%g, %g)</td>"
+            rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td class='note'>(%g, %g)</td>"
                         "<td>1本</td><td>—</td><td>%s%s</td><td class='note'>%s</td></tr>"
-                        % (_gname(gd) if first else "", ar if first else "", us if first else "",
+                        % (_gname(gd) if first else "", ar if first else "",
                            sg["name"], sg["uv"][0], sg["uv"][1], sg.get("kind", "—"),
                            (" 丈%.1fm・樹冠%.2fm" % (sg["h"], sg["crown"]))
                            if sg.get("crown") else ("" if not sg.get("h") else " 丈%.1fm" % sg["h"]),
@@ -2683,41 +3350,130 @@ def tachiki_table(d):
             first = False
         sb = gd.get("shrubBand")
         if sb:
-            rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>東縁の低木の帯</td>"
+            rows.append("<tr><td>%s</td><td>%s</td><td>東縁の低木の帯</td>"
                         "<td class='note'>u %g(内側へ幅 %g 間)・v %g〜%g</td><td>—</td>"
                         "<td>%g 間</td><td>%s</td><td class='note'>%s</td></tr>"
-                        % (_gname(gd) if first else "", ar if first else "", us if first else "",
+                        % (_gname(gd) if first else "", ar if first else "",
                            sb["u"], sb["widthKen"], sb["v"][0], sb["v"][1], sb["spacing"],
                            sb["veg"], "板塀が無い区間(崖の肩)を低木で塞ぐ"))
             first = False
         if gd.get("clusterGapMin"):
-            rows.append("<tr><td></td><td></td><td></td><td>塊間の下限</td>"
+            rows.append("<tr><td></td><td></td><td>塊間の下限</td>"
                         "<td class='note'>—</td><td>—</td><td>%g 間</td><td>—</td>"
                         "<td class='note'>塊どうしを近づけすぎない目安</td></tr>" % gd["clusterGapMin"])
+    for gd in d["gardens"]:
         sk = gd.get("shukei")
-        if sk:
-            rows.append("<tr><td></td><td></td><td></td><td>★主景の木(%s)</td>"
-                        "<td class='note'>(%g, %g)・眼高 %.1f m の楼門から</td><td>1本</td><td>—</td>"
-                        "<td>%s 丈 %.0f m 以上</td><td class='note'>%s</td></tr>"
-                        % (sk["tree"]["cluster"], sk["tree"]["uv"][0], sk["tree"]["uv"][1],
-                           sk["eyeY"], sk["tree"]["kind"], sk["tree"]["hMin"],
-                           "松の丈では梢が本殿の棟に隠れる ─ 位置を固定する"))
+        if not sk: continue
+        rows.append("<tr><td></td><td></td><td>★主景の木(%s)</td>"
+                    "<td class='note'>(%g, %g)・眼高 %.1f m の楼門から</td><td>1本</td><td>—</td>"
+                    "<td>%s 丈 %.0f m 以上 ／ %s</td><td class='note'>%s</td></tr>"
+                    % (sk["tree"]["cluster"], sk["tree"]["uv"][0], sk["tree"]["uv"][1],
+                       sk["eyeY"], sk["tree"]["kind"], sk["tree"]["hMin"],
+                       sk["tree"].get("part", "—"),
+                       "松の丈では梢が本殿の棟に隠れる ─ 位置を固定する"))
     pl = d.get("planting", {}).get("edgeUnderstory")
     if pl:
-        rows.append("<tr><td>平場の縁の下層</td><td>—</td><td>—</td><td>低木の帯</td>"
+        rows.append("<tr><td>平場の縁の下層</td><td>—</td><td>低木の帯</td>"
                     "<td class='note'>縁のオフセット線から内側 %g 間</td><td>—</td><td>%g 間</td>"
                     "<td>%s</td><td class='note'>3区が共有する辺なので一度だけ定める</td></tr>"
                     % (pl["insetKen"], pl["spacing"], pl["veg"]))
-    tot = sum(n for _, n, _ in plant_rows(d) if n)
+    tot = sum(n for _, n, _ in plant_rows(d, g) if n)
     br = "".join("<tr><td class='note'>%s</td><td class='note'>%s</td><td class='note'>%s 本</td></tr>"
-                 % (a, c, b) for a, b, c in plant_rows(d))
+                 % (a, c, b) for a, b, c in plant_rows(d, g))
     tally = ('<div class="tw"><table><thead><tr><th>高木の内訳</th><th>出どころ</th><th>本数</th>'
              "</tr></thead><tbody>%s<tr><td><b>計</b></td><td></td><td><b>%d 本</b></td></tr>"
              "</tbody></table></div>" % (br, tot))
-    return ('<div class="tw"><table><thead><tr><th>区</th><th>面積</th><th>退避後</th><th>塊</th>'
-            "<th class='note'>箱 (u,v)</th><th>本数</th><th>塊内芯々</th><th>樹種・寸法</th>"
+    return ('<div class="tw"><table><thead><tr><th>区</th><th>面積</th><th>塊</th>'
+            "<th class='note'>箱 (u,v)</th><th>本数</th><th>塊内芯々</th><th>部材・丈・樹冠</th>"
             "<th class='note'>役</th></tr></thead><tbody>" + "".join(rows)
             + "</tbody></table></div>" + tally)
+
+
+def shukei_table(d, g):
+    """★主景の検算 ── 楼門の眼から見た 木と棟の仰角。⛔ 数を文章に写さない。"""
+    rows = ""
+    for nm, L, top, ang in shukei_rows(d, g):
+        rows += ("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>"
+                 % (nm, "%.1f m" % L if L else "—",
+                    "%.1f m" % top if top else "—(棟高が未記載)",
+                    "<b>%.2f°</b>" % ang if ang is not None else "—"))
+    R2 = shukei_rows(d, g)
+    tree = R2[0] if R2 else None
+    ver = ""
+    for nm, L, top, ang in R2[1:]:
+        if ang is None or tree is None: continue
+        dv = tree[3] - ang
+        ver += ("<tr><td>%s を越えるか</td><td>%s %+.2f°</td><td class='note'>%s</td></tr>"
+                % (nm, "⭕ 越える" if dv > 0 else "⚠ 越えない", dv,
+                   "梢が棟の稜より上に出て背景が立つ" if dv > 0
+                   else "**梢が棟に隠れる** — 丈を上げるか木を東へ寄せるかは庭方の判断"))
+    return ('<div class="tw"><table><thead><tr><th>見る物</th><th>楼門からの距離</th>'
+            "<th>頂の標高</th><th>仰角</th></tr></thead><tbody>" + rows + "</tbody></table></div>"
+            + ('<div class="tw"><table><thead><tr><th>判定</th><th>主景の木 − 棟</th>'
+               "<th class='note'>意味</th></tr></thead><tbody>%s</tbody></table></div>" % ver
+               if ver else ""))
+
+
+def viewpoints_table(d, g):
+    """見所 V1〜V3 ── 眼高(従属)と、`shows` に挙げた塊の見込み角。"""
+    rows = ""
+    for vp, eye, src, shows in viewpoint_rows(d, g):
+        sh = "／".join("%s 方位 %+.1f°〜%+.1f°(見込み %.1f°)" % q for q in shows) or "—"
+        rows += ("<tr><td><b>%s</b> %s</td><td class='note'>(%g, %g)</td><td>%.2f m"
+                 "<span class='note'>(%s)</span></td><td>%s</td><td class='note'>%s</td>"
+                 "<td class='note'>%s</td></tr>"
+                 % (vp["name"], vp["label"], vp["uv"][0], vp["uv"][1], eye, src,
+                    vp["dir"], sh, vp.get("cert", "—")))
+    return ('<div class="tw"><table><thead><tr><th>見所</th><th class="note">位置 (u,v)</th>'
+            "<th>眼高</th><th>向き</th><th class='note'>見込み角(方位は西を 0° とする)</th>"
+            "<th class='note'>確度</th></tr></thead><tbody>" + rows + "</tbody></table></div>")
+
+
+def budget_table(d, g):
+    """三角数の見積り ── 本数 × 部材の三角数。⛔ 目録に無い部材は「測れない」と書く。"""
+    rows = ""
+    tot = 0
+    for key, n, avg, det in plant_budget(d, g):
+        pend = any(pt.get("pending") for pt in d["planting"]["parts"][key])
+        t = None if avg is None else n * avg
+        if t: tot += t
+        rows += ("<tr><td>%s</td><td>%s 本</td><td>%s</td><td>%s</td><td class='note'>%s</td></tr>"
+                 % (key, format(n, ","),
+                    ("—(**新造待ち**)" if pend else "—(**目録に無い**)")
+                    if avg is None else "%s 三角/本" % format(int(avg), ","),
+                    "—" if t is None else "%s 三角" % format(int(t), ","),
+                    "Terrain の Detail Mesh" if det else "GameObject"))
+    rows += ("<tr><td><b>計(測れた分)</b></td><td></td><td></td><td><b>%s 三角</b></td>"
+             "<td class='note'>⚠ 落葉高木3種は目録に無く**この計に入っていない**</td></tr>"
+             % format(int(tot), ","))
+    return ('<div class="tw"><table><thead><tr><th>層</th><th>本数</th><th>部材の三角数</th>'
+            "<th>小計</th><th class='note'>据え方</th></tr></thead><tbody>" + rows
+            + "</tbody></table></div>")
+
+
+def joints_table(d):
+    """取り合い ── どの面がどの面に接するか(CLAUDE.md 規則5)。"""
+    rows = ""
+    for j in d.get("joints", []):
+        rows += ("<tr><td>%s<br><span class='note'>%s</span></td>"
+                 "<td>%s<br><span class='note'>%s</span></td><td>%s</td><td>%.2f m</td>"
+                 "<td>%+.2f / %+.2f m</td><td>%s</td><td class='note'>%s</td></tr>"
+                 % (j["a"], j["aFace"], j["b"], j["bFace"], j["kind"], j["gap"],
+                    j["tol"][0], j["tol"][1], j["moves"], inline(j["_"])))
+    return ('<div class="tw"><table><thead><tr><th>甲</th><th>乙</th><th>納め</th><th>目標の隙</th>'
+            "<th>許容</th><th>動かす側</th><th class='note'>なぜ</th></tr></thead><tbody>"
+            + rows + "</tbody></table></div>")
+
+
+def plant_note_table(d, g):
+    """〔記録〕 ── 止めはしないが庭方の判断を待つ検査の結果。⛔ 黙って消さない。"""
+    note = planting_avoid_check(d, g)[1] + rect_overlap_check(d, g)[1]
+    if not note:
+        return "<p class='cap'>⭕ 〔記録〕は 0 件。</p>"
+    return ('<div class="tw"><table><thead><tr><th>#</th><th class="note">〔記録〕'
+            "— 実体の欠陥ではないが、庭方の判断が要る</th></tr></thead><tbody>"
+            + "".join("<tr><td>%d</td><td class='note'>%s</td></tr>" % (i, html.escape(q))
+                      for i, q in enumerate(note, 1)) + "</tbody></table></div>")
 
 
 def sando_roadside_table(d):
@@ -2844,8 +3600,12 @@ def run_checks():
     以後、検査を足すときはここへ並べること。
     """
     bad = []
+    d = json.load(open(JSON, encoding="utf-8"))
+    g = G(d)
     bad += terrain_provenance_check()
-    bad += sando_offset_check(json.load(open(JSON, encoding="utf-8")))
+    bad += sando_offset_check(d)
+    bad += planting_avoid_check(d, g)[0]        # (b) 植栽の多角形 ∩ 退避 = 0
+    bad += rect_overlap_check(d, g)[0]          # (c) 面の総当たり(実体どうし)
     return bad
 
 
@@ -2900,7 +3660,8 @@ def main():
         legend='<span style="color:var(--shu)">■ 社殿・透塀・参道</span>'
                '<span style="color:var(--roka)">■ 回廊</span>'
                '<span style="color:var(--ishi)">■ 石段</span>'
-               '<span>■ 境内(山上)</span><span>■ 前庭</span><span>■ 社叢(造成しない)</span>',
+               '<span>■ 境内(山上)</span><span>■ 前庭</span>'
+               '<span style="color:var(--take)">■ 社叢 帯1(濃)／帯2／帯3(淡)／帯4(破線)</span>',
         cap="<b>社叢が境内の実体で、建物は樹林の中の明地に建つ。</b>切絵図は境内全体を"
             "「緑=山林土手馬場原」一筆で塗り、御宮絵図も外周をぐるりと濃緑で塗る【S】。"
             "石段は東へ二本だけで、<b>南西(溜池側)には降りていない</b>【S】。")
@@ -3172,6 +3933,10 @@ def main():
             "これはちょうど八十一間で、設計の矩形はこの周長に合わせてある。")
     h.append(runs_table(d))
     h.append(walls_table(d))
+    h.append("<h3>取り合い</h3>")
+    h.append(joints_table(d))
+    h.append('<p class="cap">⛔ <b>芯やピボットで位置を決めない</b>(CLAUDE.md 規則5)。'
+             '<b>どの面がどの面に接するか</b>と、<b>どちらが動くか</b>を書く。')
     h.append("</div>")
 
     plate(h, nx(), "回廊の基壇の展開", "天端は一定・法尻は地形なり ── 平面では読めない露出高")
@@ -3213,22 +3978,50 @@ def main():
 
     plate(h, nx(), "社叢と植栽", "面は境内の平面図と前庭の附図に描いてある(帯4と立木3区は社地の全図にも) ／ 数値の出口はこの表だけ")
     h.append("<h3>社叢の帯</h3>")
-    h.append(shaso_table(d))
+    h.append(shaso_table(d, g))
     h.append('<p class="cap"><b>社叢が境内の実体である。</b>帯1〜3は法肩からの下りの割合で切り、'
              '<b>帯4「東〜北東の裾」だけが多角形</b>を持つ — 東〜北東は幅の広い緩い棚なので、'
              '割合で切ると最下部の帯に落ちて<b>町から見える前面が薄くなる</b>。'
              '⛔ <b>杉・檜は落とした</b>(典拠無し・在庫無し)。⛔ 竹林にしない【A 橋本・堀1998 が竹薮を79例中1例の例外とする】。'
              '⛔ <b>男坂と仁王門は下から見えなければならない</b>【S 名所図会】ので、坂の両側は帯4の退避で空ける。'
-             '⚠ <b>帯1〜3は面積・本数とも概算</b> — 帯を当てる幾何(法肩線・法尻線)をまだ持っていない(「未解決」の節)。')
+             '⭐ <b>面積も本数も定数では持たない。</b>帯1〜3 は '
+             '<b>法肩(平場の天端)から法尻(社地の境。東〜北東は帯4の西縁)までの下りの割合</b>を'
+             '0.5 間の格子で走査して切り、帯4 は多角形と <code>avoid</code> の宣言から'
+             '退避の面を引いて出す。本数は<b>有効面 × 採用密度</b>から従属する。'
+             '⚠ <b>受入検査は上の表で読む</b> — 庭方の実測と ±5% で合わない帯があるが、'
+             '⛔ <b>定義を実測に合わせて動かしていない</b>(合わせに行くと検査が意味を失う)。')
     h.append("<h3>境内の立木と前庭の木</h3>")
-    h.append(tachiki_table(d))
+    h.append(tachiki_table(d, g))
     h.append('<p class="cap"><b>建物は樹林の中の明地に建つ</b>【S】。'
              '境内の立木は平場の輪郭を内へ寄せた線を共有辺とする三つの多角形で、'
              '<b>白洲と中庭は開けたまま</b>(砂利敷【S】)。'
              '★<b>主景</b>は楼門から西へ〈白洲 → 石灯籠 → 中門 → 向拝 → 拝殿 → 本殿 → 背後の林〉で、'
              '松の丈では梢が本殿の棟に隠れてしまうため<b>落葉高木を一本、位置を決めて据える</b>。'
              '前庭の木は<b>茶店の縁台に木陰を落とすため</b>で、'
-             '<b>木陰を作るのは榎</b>(松は影を落とさない)。⛔ 刈込・灯籠・蹲踞を置かない。')
+             '<b>木陰を作るのは榎</b>(松は影を落とさない)。⛔ 刈込・灯籠・蹲踞を置かない。'
+             '⭐ <b>退避は輪郭に焼き込んである</b>ので、<b>面積そのものが植えられる面</b>である'
+             '(2026-09-06 — 旧図は堂と動線の上を覆ったまま「使える坪」を別に持っていた)。'
+             '⭐ <b>松は等方に伸ばさない</b> — 在庫の黒松は丈 ≒ 樹冠の開放樹形で、丈へ等方に合わせると'
+             '林冠が閉じきる。丈は Y だけ、樹冠は XZ をわずかに広げる(<code>planting.scaleRule</code>)。'
+             '⚠ 前庭の点景(縁台・植込みの島・井戸屋形)は<b>庭方が別途設計中</b>で当図にはまだ無い。')
+    h.append("<h3>★主景の検算 ─ 楼門から西を見る</h3>")
+    h.append(shukei_table(d, g))
+    h.append('<p class="cap">⛔ <b>棟高は本殿・拝殿の2棟しか持っていない</b>'
+             '【U 類型 — 本殿9〜11m/拝殿10〜12m の中央】。他の14棟は類型の根拠が無いので'
+             '<b>数で埋めていない</b>。棟の頂は棟の平面の中央の真上にあるものとして仰角を出す。')
+    h.append("<h3>見所</h3>")
+    h.append(viewpoints_table(d, g))
+    h.append('<p class="cap">⛔ 仰角・見込み角は設計値ではなく<b>図が算出する従属値</b>。'
+             '⚠ V1 の眼高だけは設計面が無いので<b>現地形 + 1.5 m</b>。')
+    h.append("<h3>部材と三角数の見積り</h3>")
+    h.append(budget_table(d, g))
+    h.append('<p class="cap">⚠ <b>常緑低木は在庫0件</b>(在庫方 2026-09-06)で、部材名は仮である — '
+             '<b>社叢の下層・林縁・前庭の東縁・平場の縁の下層のすべてがこれ待ち</b>。'
+             '⚠ <b>落葉高木3種(欅・椋・榎)は <code>docs/asset-index.tsv</code> に載っていない</b>ので、'
+             '樹冠も三角数も<b>引けない</b> — 目録の再生成が要る。'
+             '⛔ 低木・下草は GameObject にせず <b>Terrain の Detail Mesh</b> に載せる。')
+    h.append("<h3>〔記録〕</h3>")
+    h.append(plant_note_table(d, g))
     h.append("<h3>参道沿いと前庭の地表</h3>")
     h.append(sando_roadside_table(d))
     h.append('<p class="cap"><b>参道は公道である。</b>植えられるのは<b>社地の側(西)だけ</b>で、'
@@ -3272,6 +4065,13 @@ def main():
              % subprocess.check_output(["date", "+%Y-%m-%d %H:%M"]).decode().strip())
     h.append("</div>")
     html_out = "\n".join(h)
+    tail = svg_tail_check(html_out)                  # (a) </svg> の後に要素を残さない
+    # ⛔ **0件でも必ず刷る** — 件数が出ない検査は「回っていない」のと見分けが付かない(結線の門番)
+    print("図版の末尾(</g></svg>)の検査: %d 件" % len(tail))
+    if tail:
+        sys.stderr.write("⛔ 図版が壊れている — %d 件:\n" % len(tail))
+        for t in tail: sys.stderr.write("   ・%s\n" % t)
+        sys.exit(1)
     nsvg = html_out.count("<svg")
     # ⚠ 章の数ではなく **SVG の数**を数える(2026-08-23 検図 — 章を数えても落図を検出できない)
     html_out = html_out.replace("@@PLATES@@", "章 %d ／ 図版(SVG) %d 面" % (n[0], nsvg))

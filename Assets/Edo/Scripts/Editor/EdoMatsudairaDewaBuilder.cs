@@ -1376,14 +1376,15 @@ public static partial class EdoMatsudairaDewaBuilder
                 // 在庫の冠木門を開口幅へ合わせて据える【確度B — 庭木戸そのものの在庫は無い】
                 // ⚠ **2026-09-06 ユーザー指摘の是正**(ブックマーク#3・#5「木戸と板塀の位置がずれている/中心で
                 //    測っていないか」)。旧実装の欠陥は 2 つ:
-                //    ① yaw が `Atan2(dir.y, -dir.x)` で**走りから 90° 転んでいた**(正しくは `Atan2(dir.x, dir.y)`)。
+                //    ① **yaw は元のまま**(`Atan2(dir.y, -dir.x)`)。2026-09-06 に一度 `Atan2(dir.x, dir.y)` へ
+                //       変えたが、冠木門は棟が走りに直交して見える姿になった(レンダで確認)ので戻した。
                 //    ② 冠木門のメッシュは**ピボットから 2.3m 離れて**おり、ピボットを開口の中心へ置くと
                 //       実体が塀の走りから外れる。⇒ CLAUDE.md 規則5「中心で合わせない・実メッシュの面で寄せる」に従い、
                 //       据えたあと**実メッシュの外接箱の中心**が開口の中心に来るよう平面で寄せ直す。
                 Vector2 c = (A2 + B2) * 0.5f;
                 Vector2 dir = (B2 - A2).normalized;
                 var go = EdoNishiTameikeBuilder.Place(EdoAssets.Eg.Kabukimon,
-                    new Vector3(c.x, DesignY(c), c.y), Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg,
+                    new Vector3(c.x, DesignY(c), c.y), Mathf.Atan2(dir.y, -dir.x) * Mathf.Rad2Deg,
                     Vector3.one * EdoSannoKitaBuilder.ES, njGrp, nm);
                 if (go != null)
                 {
@@ -1818,14 +1819,17 @@ public static partial class EdoMatsudairaDewaBuilder
         float sy = h / rawH;                                  // 指図の高さ(2.4m)に立てる
         float yaw = Mathf.Atan2(nrm.x, nrm.y) * Mathf.Rad2Deg;
 
-        // 1) 木戸の開口を t(=A2 からの距離)の区間へ変換し、パディングして合体する
-        //    (パディング 0.6m は旧実装の DistSeg 判定と同じ値を引き継ぐ — 新規の値ではない)
+        // 1) 木戸の開口を t(=A2 からの距離)の区間へ変換して合体する。
+        //    ⛔ **余白を足さない**(2026-09-06 ユーザー指摘 ブックマーク#3・#5「木戸と板塀の位置がずれている」)。
+        //    旧実装は左右へ 0.6m のパディングを足しており、木戸の実メッシュとの間に 0.593m の隙間が残っていた。
+        //    `skip` の区間は**据えた木戸の実メッシュの走り方向の伸び**(Stage6 で書き戻す)なので、
+        //    そのまま突き付ければ面と面が接する(CLAUDE.md 規則5)。
         var holes = new List<Vector2>();
         foreach (var sg in skip)
         {
             float ta = Vector2.Dot(sg[0] - A2, dir), tb = Vector2.Dot(sg[1] - A2, dir);
-            float t0h = Mathf.Clamp(Mathf.Min(ta, tb) - 0.6f, 0f, len);
-            float t1h = Mathf.Clamp(Mathf.Max(ta, tb) + 0.6f, 0f, len);
+            float t0h = Mathf.Clamp(Mathf.Min(ta, tb), 0f, len);
+            float t1h = Mathf.Clamp(Mathf.Max(ta, tb), 0f, len);
             if (t1h > t0h) holes.Add(new Vector2(t0h, t1h));
         }
         holes.Sort((x, y) => x.x.CompareTo(y.x));

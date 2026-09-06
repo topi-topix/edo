@@ -305,6 +305,251 @@ def sando_band(d, PX, PY, LEN):
     return o
 
 
+# ---------------------------------------------------------------- 植栽(社叢・境内の立木・参道沿い・前庭)
+def garden_poly(gd):
+    """gardens の面(uv)。多角形 `poly` があればそれ、無ければ矩形。面を持たない項(社叢)は None。
+
+    ⚠ 2026-09-06 — 境内の立木3区が矩形から多角形になったので、`lp.rect` 決め打ちをやめた。
+    """
+    if gd.get("poly"):
+        return [(q[0], q[1]) for q in gd["poly"]]
+    if gd.get("uv"):                      # 社叢の帯4(多角形を持つ帯)も同じ形で読める
+        return [(q[0], q[1]) for q in gd["uv"]]
+    if gd.get("u0") is None:
+        return None
+    return [(gd["u0"], gd["v0"]), (gd["u1"], gd["v0"]),
+            (gd["u1"], gd["v1"]), (gd["u0"], gd["v1"])]
+
+
+def cluster_boxes(c):
+    """塊の箱(uv の [u0,v0,u1,v1])。`box` 単数と `boxes` 複数の両方に対応。"""
+    if c.get("boxes"): return [tuple(q) for q in c["boxes"]]
+    if c.get("box"):   return [tuple(c["box"])]
+    return []
+
+
+def cluster_n(c):
+    """塊の本数。範囲 [lo,hi] で書かれていれば中央を採る。"""
+    n = c.get("n")
+    if isinstance(n, (list, tuple)): return sum(n) / 2.0
+    return float(n or 0)
+
+
+def cluster_label(c):
+    n = c.get("n")
+    if isinstance(n, (list, tuple)): return "%s %d〜%d本" % (c["name"], n[0], n[1])
+    return "%s %d本" % (c["name"], n or 0)
+
+
+def edge_offset(d, idx, ins_ken):
+    """`polygon` の辺 idx=[i,j] を内側へ ins_ken[間] 寄せた線分(uv)。参道の柵・高木の縁の線の正典。"""
+    g = G(d)
+    a, b = d["polygon"][idx[0]], d["polygon"][idx[1]]
+    dx, dz = b[0] - a[0], b[1] - a[1]
+    L = math.hypot(dx, dz) or 1.0
+    nx, nz = dz / L, -dx / L                       # 社地は辺の西 = 内向き
+    t = ins_ken * d["const"]["ken"]
+    return [(g.U(a[0] + nx * t), g.V(a[1] + nz * t)),
+            (g.U(b[0] + nx * t), g.V(b[1] + nz * t))]
+
+
+def sando_offset_check(d):
+    """参道の柵と高木の縁の線が、宣言どおり社地の辺のオフセットになっているか。
+
+    ⭐ 座標をベタで持たせた代わりに**辺との食い違いを組む前に鳴らす**(辺を動かした日に黙って取り残される)。
+    """
+    bad = []
+    rs = d.get("sando", {}).get("roadside") or {}
+    tgt = [(r.get("fromEdge"), r.get("insetKen"), [tuple(r["a"]), tuple(r["b"])], r["name"])
+           for r in d["runs"] if r.get("fromEdge")]
+    tl = rs.get("takagiEdgeLine")
+    if tl and tl.get("fromEdge"):
+        tgt.append((tl["fromEdge"], tl["insetKen"], [tuple(q) for q in tl["uv"]], "高木の縁の線"))
+    for idx, ins, got, nm in tgt:
+        want = edge_offset(d, idx, ins)
+        for q in got:
+            dd = min(math.hypot(q[0] - w[0], q[1] - w[1]) for w in want)
+            if dd > 0.02:
+                bad.append("%s の端点 (%.3f, %.3f) が 辺%s を %.1f間 寄せた線から %.3f間 ずれる"
+                           % (nm, q[0], q[1], idx, ins, dd))
+    return bad
+
+
+def fumiishi_rects(d):
+    """踏石の矩形(uv)。**`from` から従属して算出する** — 座標を二重に持たない(規則5)。"""
+    g = G(d)
+    ken = d["const"]["ken"]
+    src = list((d["sando"].get("roadside") or {}).get("fumiishi", []))
+    src += list((d["terraces"][1].get("surface") or {}).get("fumiishi", []))
+    out = []
+    for f in src:
+        kind, _, nm = f.get("from", "").partition(":")
+        dp = f.get("depthKen", 1.0)
+        if kind == "torii":
+            t = [q for q in d["torii"] if q["name"] == nm and q.get("pos")]
+            if not t: continue
+            u, v = g.U(t[0]["pos"][0]), g.V(t[0]["pos"][1])
+            h = f.get("squareKen", 1.0) / 2.0
+            out.append((f["name"], u - h, v - h, u + h, v + h))
+        elif kind == "gate":
+            gt = [q for q in d["gates"] if q["name"] == nm]
+            if not gt: continue
+            gt = gt[0]; pl = gt["plan"]
+            hu, hv = pl["du"] / 2.0, pl["dv"] / 2.0
+            if f.get("side") == "E":
+                out.append((f["name"], gt["u"] + hu, gt["v"] - hv, gt["u"] + hu + dp, gt["v"] + hv))
+            else:
+                out.append((f["name"], gt["u"] - hu - dp, gt["v"] - hv, gt["u"] - hu, gt["v"] + hv))
+        elif kind == "kaidan":
+            k = [q for q in d["kaidans"] if q["name"] == nm]
+            if not k: continue
+            k = k[0]
+            hw = (k.get("wKen") or k["w"] / ken) / 2.0
+            u, v = k["a"]
+            if f.get("side") == "S":
+                out.append((f["name"], u - hw, v - dp, u + hw, v))
+            else:
+                out.append((f["name"], u - hw, v, u + hw, v + dp))
+    return out
+
+
+def plant_rows(d):
+    """高木の本数の内訳。**図と表が同じ関数から数える**(総数を文章に写さない)。"""
+    rows = []
+    for b in d["slopeBands"]:
+        n = b.get("takagi") if b.get("takagi") is not None else b.get("takagiApprox")
+        rows.append(("社叢 帯%d %s" % (b["band"], b["name"]), n,
+                     "概算" if b.get("takagi") is None else "採用密度から"))
+    for gd in d["gardens"]:
+        n = sum(cluster_n(c) for c in gd.get("clusters", [])) + len(gd.get("singles", []))
+        if n: rows.append((gd["name"], int(round(n)), "塊+一本立ち"))
+    return rows
+
+
+def draw_planting(d, lp, inwin, kan_forest=True):
+    """境内の平面図へ植栽を落とす(社叢の帯4・立木の面・塊・一本立ち・参道沿い・踏石)。
+
+    ⛔ **図に出ない設計値を残さない**(規則19) — json に入れた面・塊・線はここで必ず描く。
+    """
+    o = []
+    # 社叢 帯4(多角形を持つ帯だけ面で描ける。帯1〜3 は幾何が無い → `_pending`)
+    for b in d["slopeBands"]:
+        if not b.get("uv"): continue
+        o.append(PL([(lp.X(u), lp.Y(v)) for u, v in b["uv"]], fill="var(--take)", op=0.16,
+                    stroke="var(--take)", sw=1.1, dash="9 4", close=True))
+        cu = sum(q[0] for q in b["uv"]) / len(b["uv"]); cv = sum(q[1] for q in b["uv"]) / len(b["uv"])
+        o.append(T(lp.X(cu), lp.Y(cv), "社叢 帯%d %s" % (b["band"], b["name"]),
+                   fs=10.5, anchor="middle", fill="var(--take)"))
+    return o
+
+
+def draw_clusters(d, lp, inwin):
+    """立木の塊(細線の箱)と一本立ち(点)、主景の固定木。"""
+    o = []
+    for gd in d["gardens"] + d["slopeBands"]:
+        for c in gd.get("clusters", []):
+            for u0, v0, u1, v1 in cluster_boxes(c):
+                if not inwin([u0, v0], [u1, v1]): continue
+                o.append(lp.rect(u0, v0, u1, v1, fill="none", stroke="var(--take)", sw=0.7, dash="3 3"))
+                o.append(T(lp.X((u0 + u1) / 2.0), lp.Y(v1) - 3, cluster_label(c),
+                           fs=9, anchor="middle", fill="var(--take)"))
+            if c.get("alongTakagiEdgeLine"):
+                tl = (d["sando"].get("roadside") or {}).get("takagiEdgeLine")
+                if not tl: continue
+                (au, av), (bu, bv) = edge_offset(d, tl["fromEdge"], tl["insetKen"])
+                w = c.get("widthKen", 1.5)
+                dx, dv = bu - au, bv - av
+                L = math.hypot(dx, dv) or 1.0
+                nx, nz = dv / L, -dx / L            # 内側(西)へ
+                ring = [(au, av), (bu, bv), (bu + nx * w, bv + nz * w), (au + nx * w, av + nz * w)]
+                o.append(PL([(lp.X(u), lp.Y(v)) for u, v in ring], fill="var(--take)", op=0.28,
+                            stroke="var(--take)", sw=0.7, close=True))
+                o.append(T(lp.X((au + bu) / 2.0 + nx * w), lp.Y((av + bv) / 2.0 + nz * w) - 3,
+                           cluster_label(c), fs=9, anchor="middle", fill="var(--take)"))
+        for sg in gd.get("singles", []):
+            u, v = sg["uv"]
+            if not inwin([u, v], [u, v]): continue
+            if sg.get("crown"):
+                o.append('<circle cx="%.1f" cy="%.1f" r="%.1f" fill="var(--take)" opacity="0.18" '
+                         'stroke="var(--take)" stroke-width="0.7" stroke-dasharray="3 3"/>'
+                         % (lp.X(u), lp.Y(v), lp.L(sg["crown"] / 2.0 / d["const"]["ken"])))
+            o.append('<circle cx="%.1f" cy="%.1f" r="2.6" fill="var(--take)"/>' % (lp.X(u), lp.Y(v)))
+            lab = sg["name"] + (" %.1fm" % sg["h"] if sg.get("h") else "")
+            o.append(T(lp.X(u) + 4, lp.Y(v) - 4, lab, fs=9, fill="var(--take)"))
+        sb = gd.get("shrubBand")
+        if sb and inwin([sb["u"] - sb["widthKen"], sb["v"][0]], [sb["u"], sb["v"][1]]):
+            o.append(lp.rect(sb["u"] - sb["widthKen"], sb["v"][0], sb["u"], sb["v"][1],
+                             fill="var(--niwa)", op=0.75, stroke="var(--take)", sw=0.7))
+            o.append(T(lp.X(sb["u"] - sb["widthKen"] / 2.0),
+                       lp.Y((sb["v"][0] + sb["v"][1]) / 2.0), "低木の帯",
+                       fs=9, anchor="middle", fill="var(--take)"))
+        sk = gd.get("shukei")
+        if sk:
+            tu, tv = sk["tree"]["uv"]
+            fu, fv = sk["from"]
+            if inwin([tu, tv], [fu, fv]):
+                o.append(LN(lp.X(fu), lp.Y(fv), lp.X(tu), lp.Y(tv),
+                            stroke="var(--shu)", sw=0.8, dash="10 4", op=0.7))
+                o.append('<circle cx="%.1f" cy="%.1f" r="3.4" fill="none" stroke="var(--shu)" '
+                         'stroke-width="1.6"/>' % (lp.X(tu), lp.Y(tv)))
+                o.append(T(lp.X(tu), lp.Y(tv) + 12, "★主景の木 丈%.0fm以上" % sk["tree"]["hMin"],
+                           fs=9, anchor="middle", fill="var(--shu)"))
+    return o
+
+
+def draw_sando_side(d, lp, inwin):
+    """参道沿い ── 柵・林縁の帯・高木の縁の線。"""
+    rs = d["sando"].get("roadside")
+    if not rs: return []
+    o = []
+    w = rs["west"]
+    r0 = edge_offset(d, rs["takagiEdgeLine"]["fromEdge"], w["rinenKen"][0])
+    r1 = edge_offset(d, rs["takagiEdgeLine"]["fromEdge"], w["rinenKen"][1])
+    ring = [r0[0], r0[1], r1[1], r1[0]]
+    o.append(PL([(lp.X(u), lp.Y(v)) for u, v in ring], fill="var(--niwa)", op=0.55,
+                stroke="var(--take)", sw=0.6, close=True))
+    o.append(T(lp.X((r1[0][0] + r1[1][0]) / 2.0), lp.Y((r1[0][1] + r1[1][1]) / 2.0), "林縁",
+               fs=9, anchor="middle", fill="var(--take)"))
+    tl = rs["takagiEdgeLine"]
+    (au, av), (bu, bv) = [(q[0], q[1]) for q in tl["uv"]]
+    o.append(LN(lp.X(au), lp.Y(av), lp.X(bu), lp.Y(bv), stroke="var(--take)", sw=1.2, dash="8 3"))
+    o.append(T(lp.X(bu) + 4, lp.Y(bv) + 10, "高木の縁の線", fs=9, fill="var(--take)"))
+    for r in d["runs"]:
+        if r["kind"] != "柵" or not r.get("fromEdge"): continue
+        a, b = r["a"], r["b"]
+        o.append(LN(lp.X(a[0]), lp.Y(a[1]), lp.X(b[0]), lp.Y(b[1]),
+                    stroke="var(--hei)", sw=1.6, dash="2 2"))
+        o.append(T(lp.X((a[0] + b[0]) / 2.0) - 4, lp.Y((a[1] + b[1]) / 2.0), r["name"],
+                   fs=9, anchor="end", fill="var(--hei)"))
+    return o
+
+
+def draw_fumiishi(d, lp, inwin):
+    """踏石(門の敷居前・石段の頭・鳥居の足元)。"""
+    o = []
+    for nm, u0, v0, u1, v1 in fumiishi_rects(d):
+        if not inwin([u0, v0], [u1, v1]): continue
+        o.append(lp.rect(u0, v0, u1, v1, fill="url(#pi%d)" % _SVN[0],
+                         stroke="var(--ishi)", sw=0.9))
+        o.append(T(lp.X((u0 + u1) / 2.0), lp.Y(v0) + 10, "踏石", fs=8.5,
+                   anchor="middle", fill="var(--ishi)"))
+    return o
+
+
+def draw_edge_understory(d, lp):
+    """平場の縁の下層(低木の帯)。**オフセット線から内側 insetKen** の帯を二本の細線で示す。"""
+    pl = d.get("planting", {}).get("edgeUnderstory")
+    if not pl: return []
+    e = d["planting"]["clearance"]["keidai"]["terraceEdge"]
+    a = offset_poly_in(d["terraces"][0]["uv"], e)
+    b = offset_poly_in(d["terraces"][0]["uv"], e + pl["insetKen"])
+    o = []
+    for q in (a, b):
+        o.append(PL([(lp.X(u), lp.Y(v)) for u, v in q], stroke="var(--take)", sw=0.6,
+                    dash="2 4", op=0.9, close=True))
+    return o
+
+
 def segs(o):
     """石段・土留めの区間。`pts`(折れ線)があればそれ、無ければ a→b の1区間。
 
@@ -1050,6 +1295,20 @@ def shachi_svg(d, kan="其一"):
                 fill="var(--pl-slope)", op=0.55, close=True))
     # 社叢の帯(社地の内側を薄く)
     o.append(T(pr.X(-600), pr.Y(760), "社叢(造成しない)", fs=11, fill="var(--take)"))
+    # 社叢 帯4(多角形を持つ帯)と 境内の立木3区・前庭の木を**面**で(2026-09-06 庭方の設計)
+    for _b in d["slopeBands"]:
+        if not _b.get("uv"): continue
+        _w = [g.W(u, v) for u, v in _b["uv"]]
+        o.append(PL([(pr.X(x), pr.Y(z)) for x, z in _w], fill="var(--take)", op=0.18,
+                    stroke="var(--take)", sw=1.0, dash="9 4", close=True))
+        o.append(T(pr.X(sum(q[0] for q in _w) / len(_w)), pr.Y(sum(q[1] for q in _w) / len(_w)),
+                   "社叢 帯%d" % _b["band"], fs=10, anchor="middle", fill="var(--take)"))
+    for _gd in d["gardens"]:
+        _P = garden_poly(_gd)
+        if not _P or "林" not in _gd.get("kind", ""): continue
+        _w = [g.W(u, v) for u, v in _P]
+        o.append(PL([(pr.X(x), pr.Y(z)) for x, z in _w], fill="var(--niwa)", op=0.75,
+                    stroke="var(--take)", sw=0.8, close=True))
 
     # 境内の平場
     kp = [g.W(u, v) for u, v in d["terraces"][0]["uv"]]
@@ -1116,6 +1375,39 @@ def shachi_svg(d, kan="其一"):
         o.append(LN(pr.X(x) + 4, pr.Y(z) + 4, pr.X(x) + 4, pr.Y(z) - 4, stroke="var(--shu)", sw=1.6))
         o.append(T(pr.X(x) + 9, pr.Y(z) + 3, t["name"], fs=10.5, fill="var(--shu)"))
 
+    # 参道沿い(柵・林縁・高木の縁の線)と 点景(立札)
+    _rs = d["sando"].get("roadside")
+    if _rs:
+        _w = _rs["west"]; _fe = _rs["takagiEdgeLine"]["fromEdge"]
+        _r0 = edge_offset(d, _fe, _w["rinenKen"][0]); _r1 = edge_offset(d, _fe, _w["rinenKen"][1])
+        _ring = [g.W(*q) for q in (_r0[0], _r0[1], _r1[1], _r1[0])]
+        o.append(PL([(pr.X(x), pr.Y(z)) for x, z in _ring], fill="var(--niwa)", op=0.85,
+                    stroke="var(--take)", sw=0.7, close=True))
+        _tl = [g.W(q[0], q[1]) for q in _rs["takagiEdgeLine"]["uv"]]
+        o.append(LN(pr.X(_tl[0][0]), pr.Y(_tl[0][1]), pr.X(_tl[1][0]), pr.Y(_tl[1][1]),
+                    stroke="var(--take)", sw=1.1, dash="8 3"))
+        o.append(T(pr.X(_tl[1][0]) + 5, pr.Y(_tl[1][1]) - 4, "高木の縁の線", fs=9.5, fill="var(--take)"))
+    for _r in d["runs"]:
+        if _r["kind"] != "柵" or not _r.get("fromEdge"): continue
+        _a = g.W(*_r["a"]); _b2 = g.W(*_r["b"])
+        o.append(LN(pr.X(_a[0]), pr.Y(_a[1]), pr.X(_b2[0]), pr.Y(_b2[1]),
+                    stroke="var(--hei)", sw=1.6, dash="2 2"))
+        o.append(T(pr.X((_a[0] + _b2[0]) / 2) - 5, pr.Y((_a[1] + _b2[1]) / 2), _r["name"],
+                   fs=9.5, anchor="end", fill="var(--hei)"))
+    for _nm, _u0, _v0, _u1, _v1 in fumiishi_rects(d):
+        _q = [g.W(_u0, _v0), g.W(_u1, _v1)]
+        o.append(R(pr.X(min(_q[0][0], _q[1][0])), pr.Y(max(_q[0][1], _q[1][1])),
+                   abs(pr.X(_q[1][0]) - pr.X(_q[0][0])), abs(pr.Y(_q[0][1]) - pr.Y(_q[1][1])),
+                   fill="none", stroke="var(--ishi)", sw=1.0))
+    for _pp in d["props"]:
+        if not _pp.get("uv") or "立札" not in _pp["name"]: continue
+        for _u, _v in _pp["uv"]:
+            _x, _z = g.W(_u, _v)
+            o.append(LN(pr.X(_x), pr.Y(_z), pr.X(_x), pr.Y(_z) - 8, stroke="var(--ink)", sw=1.2))
+            o.append(R(pr.X(_x) - 1.5, pr.Y(_z) - 11, 6.0, 4.0, fill="var(--paper)",
+                       stroke="var(--ink)", sw=0.8))
+            o.append(T(pr.X(_x) + 8, pr.Y(_z) - 8, _pp["name"], fs=9.5, fill="var(--ink)"))
+
     # 隣地
     for nb in d["neighbors"]:
         if "polygon" not in nb: continue
@@ -1164,6 +1456,8 @@ def keidai_svg(d, u0, u1, v0, v1, title, W=900.0):
         if v % 5: continue
         o.append(LN(0, lp.Y(v), lp.W, lp.Y(v), stroke="var(--grid)", sw=0.5, op=0.7))
 
+    # 社叢(多角形を持つ帯)── 平場より下に敷く
+    o += draw_planting(d, lp, inwin)
     # 境内の平場
     o.append(PL([(lp.X(u), lp.Y(v)) for u, v in d["terraces"][0]["uv"]],
                 stroke="var(--ink)", sw=1.3, fill="var(--pl-main)", op=0.55, close=True))
@@ -1176,14 +1470,18 @@ def keidai_svg(d, u0, u1, v0, v1, title, W=900.0):
     # 白洲・中庭・境内の立木(2026-09-01 是正 — 立木の帯を白洲と同じ砂利色で塗っていたため
     #   検図で「庭の種別が見分けられない」と指摘された。kind に「林」が付くものは緑系で塗り分ける)
     for gd in d["gardens"]:
-        if gd["u0"] is None: continue
-        if not inwin([gd["u0"], gd["v0"]], [gd["u1"], gd["v1"]]): continue
-        is_forest = "林" in gd.get("kind", "")
-        o.append(lp.rect(gd["u0"], gd["v0"], gd["u1"], gd["v1"],
-                          fill="var(--niwa)" if is_forest else "var(--shirasu)",
-                          op=0.45 if is_forest else 0.9))
-        o.append(T(lp.X((gd["u0"] + gd["u1"]) / 2), lp.Y((gd["v0"] + gd["v1"]) / 2) + 4,
+        Pg = garden_poly(gd)
+        if not Pg: continue
+        us = [q[0] for q in Pg]; vs = [q[1] for q in Pg]
+        if not inwin([min(us), min(vs)], [max(us), max(vs)]): continue
+        is_forest = "林" in gd.get("kind", "") or "木" in gd.get("kind", "")
+        o.append(PL([(lp.X(u), lp.Y(v)) for u, v in Pg], close=True,
+                    fill="var(--niwa)" if is_forest else "var(--shirasu)",
+                    stroke="var(--take)" if is_forest else "var(--dim)", sw=0.8,
+                    op=0.45 if is_forest else 0.9))
+        o.append(T(lp.X(sum(us) / len(us)), lp.Y(sum(vs) / len(vs)) + 4,
                    gd["name"], fs=11, anchor="middle", fill="var(--dim)"))
+    o += draw_edge_understory(d, lp)
     # 板塀 ── **開口で切る**(2026-08-24 検図 高-1: 宣言した開口が図に一つも出ていなかった)
     for r in d["runs"]:
         if r["kind"] != "板塀": continue
@@ -1298,11 +1596,15 @@ def keidai_svg(d, u0, u1, v0, v1, title, W=900.0):
             x, y = lp.X(u), lp.Y(v)
             if p["name"] == "石灯籠":
                 o.append('<circle cx="%.1f" cy="%.1f" r="3.4" fill="none" stroke="var(--ink)" stroke-width="1.1"/>' % (x, y))
-            elif p["name"] == "白洲の△":
+            elif "△" in p["name"]:
                 o.append(PL([(x, y - 4), (x + 3.6, y + 2.6), (x - 3.6, y + 2.6)],
                             stroke="var(--ink)", sw=1.1, close=True))
             else:
                 o.append(R(x - 3.0, y - 1.6, 6.0, 3.2, fill="none", stroke="var(--dim)", sw=0.9))
+    # 植栽の塊・一本立ち・主景 / 参道沿い / 踏石(⛔ 図に出ない設計値を残さない・規則19)
+    o += draw_sando_side(d, lp, inwin)
+    o += draw_clusters(d, lp, inwin)
+    o += draw_fumiishi(d, lp, inwin)
     # 断面の切断線
     def _win(a, b):
         ua, va = g.U(a[0]), g.V(a[1])
@@ -2290,6 +2592,175 @@ def bom_table(d):
             "<th>優先</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>")
 
 
+def _rng(v, unit="", fmt="%g"):
+    """[lo,hi] は「lo〜hi」、単値はそのまま、無ければ「—」。"""
+    if v is None: return "—"
+    if isinstance(v, (list, tuple)): return "%s〜%s%s" % (fmt % v[0], fmt % v[1], unit)
+    return (fmt % v) + unit
+
+
+def shaso_table(d):
+    """社叢の帯 ── 密度・芯々・樹高・層。⛔ 数値を文章に写さない(この表が唯一の出口)。"""
+    rows = []
+    for b in d["slopeBands"]:
+        if b.get("uv"):
+            ar = poly_area([tuple(q) for q in b["uv"]]) * d["const"]["ken"] ** 2 / TSUBO
+            area = "%s 坪【算出】" % format(int(round(ar)), ",")
+            if b.get("tsuboAvoid"):
+                area += "(退避 %s → 有効 %s)" % (format(int(b["tsuboAvoid"]), ","),
+                                                 format(int(b["tsuboUsable"]), ","))
+            rge = "多角形(uv %d点)" % len(b["uv"])
+            if b.get("yRange"): rge += " ／ 標高 %g〜%g m" % tuple(b["yRange"])
+        else:
+            area = "約 %s 坪【概算】" % format(int(round(b.get("tsuboApprox") or 0)), ",")
+            rge = "法肩からの下り %.0f〜%.0f%%" % (b["from"] * 100, b["to"] * 100)
+        n = b.get("takagi") if b.get("takagi") is not None else b.get("takagiApprox")
+        dens = _rng(b.get("takagiPer100"))
+        if b.get("takagiAdopted"): dens += "(採用 %g)" % b["takagiAdopted"]
+        rows.append("<tr><td>帯%d %s</td><td class='note'>%s</td><td>%s</td><td>%s 本</td>"
+                    "<td>%s</td><td>%s m</td><td>%s m</td><td>%s / %s m</td>"
+                    "<td>%s / %s m</td><td>%s</td><td>%s</td><td class='note'>%s</td></tr>"
+                    % (b["band"], b["name"], rge, area, n, dens,
+                       _rng(b.get("spacing")), _rng(b.get("matsuH")),
+                       (("%.1f割" % (b["rakuyoRatio"] * 10)) +
+                        (" (%d 本)" % b["rakuyo"] if b.get("rakuyo") else "")) if b.get("rakuyoRatio") else "—",
+                       _rng(b.get("rakuyoH")),
+                       _rng(b.get("chubokuPer100")), _rng(b.get("chubokuH")),
+                       _rng(b.get("teibokuPer100")) + (" / %s m" % _rng(b.get("teibokuH"))
+                                                       if b.get("teibokuH") else ""),
+                       b.get("shitakusa", "—"), b.get("acc", "—")))
+    rn = [b.get("rinen") for b in d["slopeBands"] if b.get("rinen")]
+    for r in rn:
+        rows.append("<tr><td>└ 林縁の帯</td><td class='note'>社地の境から %g〜%g 間</td><td>—</td>"
+                    "<td>0 本(高木を置かない)</td><td>%g</td><td>—</td><td>—</td><td>—</td>"
+                    "<td>—</td><td>%s</td><td>%s</td><td class='note'>帯4の規定</td></tr>"
+                    % (r["fromKen"], r["toKen"], r["takagiPer100"],
+                       _rng(r.get("teibokuPer100")), r.get("shitakusa", "—")))
+    return ('<div class="tw"><table><thead><tr><th>帯</th><th class="note">範囲</th><th>面積</th>'
+            "<th>高木</th><th>密度 本/100m²</th><th>芯々</th><th>松の丈</th><th>落葉 割合／丈</th>"
+            "<th>中木 密度／丈</th><th>低木 密度</th><th>下草</th><th class='note'>確度</th>"
+            "</tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>")
+
+
+def _gname(gd):
+    return ("社叢 帯%d %s" % (gd["band"], gd["name"])) if gd.get("band") else gd["name"]
+
+
+def tachiki_table(d):
+    """境内の立木3区と前庭の木 ── 面・合法域・塊・一本立ち。"""
+    ken2 = d["const"]["ken"] ** 2
+    rows = []
+    src = list(d["gardens"]) + [b for b in d["slopeBands"] if b.get("clusters")]
+    for gd in src:
+        P = garden_poly(gd)
+        if not (gd.get("clusters") or gd.get("singles")): continue
+        ar = ("%s 坪" % format(int(round(poly_area(P) * ken2 / TSUBO)), ",")) if P else "前庭の中"
+        us = ("%s 坪" % format(int(round(gd["tsuboUsable"])), ",")) if gd.get("tsuboUsable") else "—"
+        first = True
+        for c in gd.get("clusters", []):
+            bx = " / ".join("(%g,%g)〜(%g,%g)" % q for q in cluster_boxes(c))
+            if not bx:
+                bx = "高木の縁の線に沿う 幅%g間の帯 ／ v %g〜%g" % (
+                    c.get("widthKen", 0), c["vRange"][0], c["vRange"][1])
+            if c.get("fromAxisKen"): bx += " ／ 坂の芯から %s 間" % _rng(c["fromAxisKen"])
+            if c.get("split"): bx += " ／ " + c["split"]
+            rl = c.get("role", "")
+            if c.get("overhang"): rl += "(道への張り出し %s m)" % _rng(c["overhang"])
+            rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td class='note'>%s</td>"
+                        "<td>%s</td><td>%s 間</td><td>%s</td><td class='note'>%s</td></tr>"
+                        % (_gname(gd) if first else "", ar if first else "", us if first else "",
+                           c["name"], bx, cluster_label(c).split(" ")[-1],
+                           _rng(c.get("spacing")), c.get("mix", "—"), rl))
+            first = False
+        for sg in gd.get("singles", []):
+            rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td class='note'>(%g, %g)</td>"
+                        "<td>1本</td><td>—</td><td>%s%s</td><td class='note'>%s</td></tr>"
+                        % (_gname(gd) if first else "", ar if first else "", us if first else "",
+                           sg["name"], sg["uv"][0], sg["uv"][1], sg.get("kind", "—"),
+                           (" 丈%.1fm・樹冠%.2fm" % (sg["h"], sg["crown"]))
+                           if sg.get("crown") else ("" if not sg.get("h") else " 丈%.1fm" % sg["h"]),
+                           sg.get("role", "")))
+            first = False
+        sb = gd.get("shrubBand")
+        if sb:
+            rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>東縁の低木の帯</td>"
+                        "<td class='note'>u %g(内側へ幅 %g 間)・v %g〜%g</td><td>—</td>"
+                        "<td>%g 間</td><td>%s</td><td class='note'>%s</td></tr>"
+                        % (_gname(gd) if first else "", ar if first else "", us if first else "",
+                           sb["u"], sb["widthKen"], sb["v"][0], sb["v"][1], sb["spacing"],
+                           sb["veg"], "板塀が無い区間(崖の肩)を低木で塞ぐ"))
+            first = False
+        if gd.get("clusterGapMin"):
+            rows.append("<tr><td></td><td></td><td></td><td>塊間の下限</td>"
+                        "<td class='note'>—</td><td>—</td><td>%g 間</td><td>—</td>"
+                        "<td class='note'>塊どうしを近づけすぎない目安</td></tr>" % gd["clusterGapMin"])
+        sk = gd.get("shukei")
+        if sk:
+            rows.append("<tr><td></td><td></td><td></td><td>★主景の木(%s)</td>"
+                        "<td class='note'>(%g, %g)・眼高 %.1f m の楼門から</td><td>1本</td><td>—</td>"
+                        "<td>%s 丈 %.0f m 以上</td><td class='note'>%s</td></tr>"
+                        % (sk["tree"]["cluster"], sk["tree"]["uv"][0], sk["tree"]["uv"][1],
+                           sk["eyeY"], sk["tree"]["kind"], sk["tree"]["hMin"],
+                           "松の丈では梢が本殿の棟に隠れる ─ 位置を固定する"))
+    pl = d.get("planting", {}).get("edgeUnderstory")
+    if pl:
+        rows.append("<tr><td>平場の縁の下層</td><td>—</td><td>—</td><td>低木の帯</td>"
+                    "<td class='note'>縁のオフセット線から内側 %g 間</td><td>—</td><td>%g 間</td>"
+                    "<td>%s</td><td class='note'>3区が共有する辺なので一度だけ定める</td></tr>"
+                    % (pl["insetKen"], pl["spacing"], pl["veg"]))
+    tot = sum(n for _, n, _ in plant_rows(d) if n)
+    br = "".join("<tr><td class='note'>%s</td><td class='note'>%s</td><td class='note'>%s 本</td></tr>"
+                 % (a, c, b) for a, b, c in plant_rows(d))
+    tally = ('<div class="tw"><table><thead><tr><th>高木の内訳</th><th>出どころ</th><th>本数</th>'
+             "</tr></thead><tbody>%s<tr><td><b>計</b></td><td></td><td><b>%d 本</b></td></tr>"
+             "</tbody></table></div>" % (br, tot))
+    return ('<div class="tw"><table><thead><tr><th>区</th><th>面積</th><th>退避後</th><th>塊</th>'
+            "<th class='note'>箱 (u,v)</th><th>本数</th><th>塊内芯々</th><th>樹種・寸法</th>"
+            "<th class='note'>役</th></tr></thead><tbody>" + "".join(rows)
+            + "</tbody></table></div>" + tally)
+
+
+def sando_roadside_table(d):
+    """参道沿いと前庭の地表 ── 路面・側溝・路肩・柵・林縁・踏石。"""
+    rs = d["sando"].get("roadside")
+    if not rs: return ""
+    w = rs["west"]; tl = rs["takagiEdgeLine"]
+    r = []
+    def row(a, b):
+        r.append("<tr><td>%s</td><td class='note'>%s</td></tr>" % (a, inline(b)))
+    row("路面", "幅 %g m ／ 仕上げ %s【?】" % (rs["roadWidth"], rs["surface"]))
+    row("側溝", "素掘り 幅 %g 間 ／ 両側" % rs["sokkoKen"])
+    row("路肩", "土。片側 約 %g m(東西の帯の代表値。**道敷の幅は場所で変わるので従属値**)" % rs["rokataOneSide"])
+    for sec in rs["sections"]:
+        row(sec["name"], "延長 %.1f m ／ 植栽 %s" % (sec["len"], sec.get("planting", "—")))
+    row("柵(社地側)", "境から %g 間 ／ run `%s`(部材は Saku_SW と同じ)"
+        % (w["sakuKen"], [q["name"] for q in d["runs"] if q.get("fromEdge")][0]))
+    row("林縁", "境から %g〜%g 間 ／ 低木+下草" % (w["rinenKen"][0], w["rinenKen"][1]))
+    row("高木の縁の線", "境の辺 %s を内側へ %g 間 ／ (%g, %g)〜(%g, %g) ／ 第一列 芯々 %s 間(不等間隔)・内側 %s 間"
+        % (tl["fromEdge"], tl["insetKen"], tl["uv"][0][0], tl["uv"][0][1], tl["uv"][1][0], tl["uv"][1][1],
+           _rng(tl["firstRowSpacing"]), _rng(tl["innerSpacing"])))
+    for nm, u0, v0, u1, v1 in fumiishi_rects(d):
+        row("踏石 " + nm, "(%.2f, %.2f)〜(%.2f, %.2f)" % (u0, v0, u1, v1))
+    row("置かない物", rs["ban"])
+    sf = d["terraces"][1].get("surface")
+    if sf:
+        row("前庭の地表", "%s ／ スプラット `%s` 重み %g〜%g。⛔ 砂利敷にしない"
+            % (sf["kind"], sf["splat"], sf["weight"][0], sf["weight"][1]))
+    cz = d["planting"]["clearance"]["zentei"]
+    row("前庭の退避", "動線=幅の半分+%g 間(**ユーザー裁定 2026-09-06**)／ 石段=半分+%g 間 ／ 門から %g 間 ／ 縁から %g 間"
+        % (cz["routeHalfPlus"], cz["kaidanHalfPlus"], cz["gate"], cz["terraceEdge"]))
+    ck = d["planting"]["clearance"]["keidai"]
+    row("境内の退避", "堂 %g 間 ／ 透塀・回廊 %g 間 ／ 白洲は北縁 v%g から %g 間 ／ 平場の縁 %g 間 ／ 動線=半幅+%g 間 ／ 石段=半幅+%g 間"
+        % (ck["do"], ck["sukibeiKairo"], ck["shirasuNorthFromV"], ck["shirasuNorthKen"],
+           ck["terraceEdge"], ck["routeHalfPlus"], ck["kaidanHalfPlus"]))
+    av = [b["avoid"] for b in d["slopeBands"] if b.get("avoid")]
+    for a in av:
+        row("帯4の退避", "男坂の芯から %g 間 ／ 女坂の路肩から %g 間 ／ 参道の芯から %g 間 ／ 前庭の縁から %g 間"
+            % (a["otokozakaFromAxis"], a["onnazakaFromShoulder"], a["sandoFromAxis"], a["zenteiFromEdge"]))
+    return ('<div class="tw"><table><thead><tr><th>項</th><th class="note">設計値</th></tr></thead>'
+            "<tbody>" + "".join(r) + "</tbody></table></div>")
+
+
 def sections_table(d):
     rows = []
     for s in d["sections"]:
@@ -2374,6 +2845,7 @@ def run_checks():
     """
     bad = []
     bad += terrain_provenance_check()
+    bad += sando_offset_check(json.load(open(JSON, encoding="utf-8")))
     return bad
 
 
@@ -2737,6 +3209,34 @@ def main():
             "参道はそこで折れて前庭へ入る — 名所図会の「鳥居から左折して参道が進む」と整合【S】。"
             "<b>一ノ鳥居は存在が確度Sだがシーン座標は未確定</b>【?】(切絵図は非等尺で px/m 換算が効かない)。")
     h.append(neighbors_table(d))
+    h.append("</div>")
+
+    plate(h, nx(), "社叢と植栽", "面は其一・其五に描いてある ／ 数値の出口はこの表だけ")
+    h.append("<h3>社叢の帯</h3>")
+    h.append(shaso_table(d))
+    h.append('<p class="cap"><b>社叢が境内の実体である。</b>帯1〜3は法肩からの下りの割合で切り、'
+             '<b>帯4「東〜北東の裾」だけが多角形</b>を持つ — 東〜北東は幅の広い緩い棚なので、'
+             '割合で切ると最下部の帯に落ちて<b>町から見える前面が薄くなる</b>。'
+             '⛔ <b>杉・檜は落とした</b>(典拠無し・在庫無し)。⛔ 竹林にしない【A 橋本・堀1998 が竹薮を79例中1例の例外とする】。'
+             '⛔ <b>男坂と仁王門は下から見えなければならない</b>【S 名所図会】ので、坂の両側は帯4の退避で空ける。'
+             '⚠ <b>帯1〜3は面積・本数とも概算</b> — 帯を当てる幾何(法肩線・法尻線)をまだ持っていない(「未解決」の節)。')
+    h.append("<h3>境内の立木と前庭の木</h3>")
+    h.append(tachiki_table(d))
+    h.append('<p class="cap"><b>建物は樹林の中の明地に建つ</b>【S】。'
+             '境内の立木は平場の輪郭を内へ寄せた線を共有辺とする三つの多角形で、'
+             '<b>白洲と中庭は開けたまま</b>(砂利敷【S】)。'
+             '★<b>主景</b>は楼門から西へ〈白洲 → 石灯籠 → 中門 → 向拝 → 拝殿 → 本殿 → 背後の林〉で、'
+             '松の丈では梢が本殿の棟に隠れてしまうため<b>落葉高木を一本、位置を決めて据える</b>。'
+             '前庭の木は<b>茶店の縁台に木陰を落とすため</b>で、'
+             '<b>木陰を作るのは榎</b>(松は影を落とさない)。⛔ 刈込・灯籠・蹲踞を置かない。')
+    h.append("<h3>参道沿いと前庭の地表</h3>")
+    h.append(sando_roadside_table(d))
+    h.append('<p class="cap"><b>参道は公道である。</b>植えられるのは<b>社地の側(西)だけ</b>で、'
+             '觀理院の側は側溝と路肩にとどまる。⛔ <b>玉垣・並木・石灯籠の列・丁石を置かない</b> — '
+             'どれも典拠が無く、置けば社の格が上がってしまう。'
+             '⛔ <b>前庭を砂利敷にしない</b>(砂利は白洲の格)。'
+             '⚠ <b>前庭だけ動線の退避を緩めてある</b>【ユーザー裁定 2026-09-06】 — '
+             '境内と同じ退避では表参・御成・男坂が前庭を覆い尽くして植えられる場所が残らない。')
     h.append("</div>")
 
     plate(h, nx(), "部材", "神社建築は在庫にゼロ")

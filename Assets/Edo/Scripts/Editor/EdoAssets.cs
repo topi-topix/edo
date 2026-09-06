@@ -169,6 +169,68 @@ public static class EdoAssets
             return RoofDir + "Goten_Roof_Yosemune_" + wKen + "x" + dKen + "ken.fbx";
         }
 
+        /// <summary>**帯割りの入母屋**。身舎を帯(2〜5間)に割り、帯ごとに入母屋を架けて
+        /// 境を**水平の谷**にした屋根。梁間が10間を超えて**一枚の小屋組で飛ばせない**棟に使う
+        /// (2026-09-06 ユーザー裁定=案C)。外周1間の入側は**身舎の屋根がそのまま延びた一枚の流れ**で
+        /// 覆う — ⛔ 段のある「下屋」ではない(同日、語ごと撤回)。立面で入側と身舎の境は見えない。
+        ///
+        /// <para>⛔⛔ **z=0 は「床」。<see cref="RoofIrimoya_"/> / <see cref="RoofYosemune_"/> と違う。**
+        /// あちらは z=0 が**軒先**で <c>EdoGotenKit</c> が <c>floor + H − 0.15f</c> へ据えるが、
+        /// これは <c>new Vector3(cx, floor, cz)</c> に**そのまま置く**。
+        /// ⛔ <c>gotenFloor</c> を足さない・軒先高を足さない — **足すと 3.4m 浮く**。
+        /// <c>floor</c>(= FBX の z=0 を置く Unity Y)= **郭の面 + <c>gotenFloor</c>(0.62)**。</para>
+        ///
+        /// <para>⚠ **向きは「モデル局所 +X = 江戸間格子の +u」。**大棟が u に架かる棟は
+        /// <paramref name="alongV"/>=false、v に架かる棟は **true(`_v` の別体を焼いてある)**。
+        /// ⇒ 棟梁が振るのは**江戸間格子の yaw だけ**。⛔ **90° を足さない**(2026-09-06 部材方の判断)。</para>
+        ///
+        /// <para>⭐⭐ **<paramref name="bands"/> の先頭 = across 軸(帯の並ぶ向き)の小さい側。**
+        /// <paramref name="alongV"/> が true でも false でも変わらない。across は along の直交軸なので、
+        /// **`alongV`=false(大棟が u)なら across は v / `alongV`=true(大棟が v)なら across は u**。
+        /// ⇒ **指図の `ws` をそのまま渡してよい。**
+        /// ⭕ 奥棟の実測(FBX から): 4間帯の大棟が **u=4.00**、5間帯が **u=8.51**、谷が **u=5.98**。
+        /// 指図(`ws=[4,5]` / `at=[4, 8.5]` / 谷 u=6・身舎 u 2〜11)と一致。
+        /// ⚠ **これは棟梁が yaw −20.604° を振ったあとでは読み取れない情報**なので、
+        /// 「どちらの端が先頭か」は必ずここを見ること。
+        /// ⚠ 生成器の中身は逆(帯を +Y に並べ v なら +90° 回すので並びが裏返る)だが、
+        /// **2026-09-06 に `make_banded` が受け取った時点で反転して打ち消す**ようにした。
+        /// ⛔ それ以前に焼いた `5-4x10ken_v` は**同じ幾何の別名**。消してあるので使わない。</para>
+        ///
+        /// <para>高さは**すべて床上**(⛔ 地盤上と取り違えない): 軒高 3.400 /
+        /// 入側外の柱通り 2.408 / **軒先の先端 1.917** / 大棟の天端(座とも) 4間帯 6.066・5間帯 6.562。
+        /// 棟高(座を除く)は 4間帯 **5.384**・5間帯 **5.880**。足形は身舎の各辺に **+2.718**
+        /// (入側1間 1.818 + 軒の出 0.90)が四周に付く。
+        /// ⚠ 棟ごとの**世界座標(郭の面・床Y・足形の中心・棟高の絶対値)は
+        /// `docs/Sashizu/doi_sashizu.json` が正典**。CLAUDE.md 規則4によりここへは写さない。</para>
+        ///
+        /// <para>⚠⚠ **H はピボット(=床・z=0)から天端まで**であって、**メッシュの丈ではない**。
+        /// 一番低い点(軒先の先端)が床から **1.790** 上にあるので、**bbox の丈は 4.275(4間帯)/
+        /// 4.771(5間帯)**しかない。⛔ bbox の丈から棟高を出さない・接地の判定に使わない。</para>
+        ///
+        /// <para>焼いてあるもの(W(X) × H(Y) × D(Z)・Unity 座標・素通し検査すべて 0px。
+        /// 谷の位置はモデル局所・ピボット基準):
+        /// <list type="bullet">
+        /// <item>{4,4} x8  u  … 表役所・玄関 — 20.323 × 6.066 × 20.323(谷1本 y=0)</item>
+        /// <item>{4}   x12 v  … 書院       — 13.051 × 6.066 × 27.595(谷なし)</item>
+        /// <item>{5,5} x14 u  … 居間       — 31.231 × 6.562 × 23.959(谷1本 y=0)</item>
+        /// <item>{4,5} x10 v  … 奥         — 22.141 × 6.562 × 23.959(谷1本 x=−0.909)</item>
+        /// <item>{4,4} x10 v  … 台所       — 20.323 × 6.066 × 23.959(谷1本 x=0)</item>
+        /// </list></para>
+        ///
+        /// <para>⛔ <c>fukizai</c> は桟瓦のみ(本瓦は生成器が例外で止まる)。
+        /// 入側1 / 軒の出0.90 / 勾配0.5456 / 妻の出0.30 / gable_frac 0.45 は**部材の既定値**で摘みにしない。
+        /// 無い寸法は:
+        ///   blender --background --python Tools/Blender/build_goten_roof.py -- banded &lt;帯 4,5&gt; &lt;桁行間数&gt; [--along u|v]</para></summary>
+        public static string RoofBanded(int[] bands, int spanKen, bool alongV = false)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            string b = "";
+            for (int i = 0; i < bands.Length; i++)
+                b += (i > 0 ? "-" : "") + bands[i].ToString(inv);
+            return RoofDir + "Goten_Roof_Banded_" + b + "x" + spanKen.ToString(inv)
+                 + "ken" + (alongV ? "_v" : "") + ".fbx";
+        }
+
         /// <summary>渡廊下の切妻屋根。幅1間・長さ<see cref="RoofKirizumaKen"/>間の定尺で作ってある
         /// (瓦の繰り返し 1.785/2.004m は江戸間と割り切れないので1間モジュールにはできない)。
         /// 無い長さが要るときは build_goten_roof.py -- kirizuma &lt;間数&gt; で足す。

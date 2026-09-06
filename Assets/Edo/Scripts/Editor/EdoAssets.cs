@@ -1043,10 +1043,18 @@ public static class EdoAssets
         /// <para>材質: ⛔⛔ **依頼(JG_Rock_A_01 の材質名を保つ)はそのまま実装していない。**
         /// `JG_Rock_A_01_LOD0.fbx` の材質名は Blender から見て `Test` で、この名前の .mat は
         /// プロジェクトに存在せず remap が当たらない(2026-09-04 に岡部庭の景石で踏まれた地雷と
-        /// 同じ — `Ishigumi`/`Tobiishi`/`Kutsunugi` のコメント参照)。⭕ 代わりに**同じ岩石景の
-        /// 部材が既に使っている** `M_photoscanned_rocks_01`(NatureManufacture・写真計測の実肌)を
-        /// そのまま運んだ。新規マテリアルは作っていない。UV は同じアトラスの1枚岩ぶんの矩形を
-        /// 密度そのまま(0.30 uv/m)で使うので、丈2.1mでも引き伸ばされない。</para>
+        /// 同じ — `Ishigumi`/`Tobiishi`/`Kutsunugi` のコメント参照)。
+        /// 【2026-09-06 ユーザー裁定1=案②(護岸と同じ材)】護岸の転石(<see cref="JG.Rock01"/> 系列の実体
+        /// `JG_Rock_A_01..03.prefab`)と材を揃えるため、`M_photoscanned_rocks_01`(旧)から
+        /// <b>`M_FJG_Rock_001`</b>(`Assets/Waldemarst/FreeJapaneseGarden/Materials/Misc/
+        /// M_FJG_Rock_001.mat`。護岸の転石が実際に使う .mat)へ材質名を切り替えた。
+        /// ⭕ 問題は元から「FBX 内の材質名が `Test`」だったことで、.mat 自体は実在する —
+        /// FBX 側の材質名を最初から `M_FJG_Rock_001` にして書き出せば Search&amp;Remap は
+        /// 当たる(`build_tateishi._borrow_rock_material` は `vklib.named_material` で
+        /// 名前だけの入れ物を作る。FBX 由来では**借りない**)。UV は実測すると
+        /// `M_FJG_Rock_001` のテクスチャも「個体ごとの矩形アイランド」アトラスだったので
+        /// (`FJG_Rock_A_01..03` がそれぞれ別の象限を専有)、矩形選定+密度実測(0.32 uv/m)を
+        /// やり直した(旧 0.30 uv/m から微修正)。新規マテリアルは作っていない。</para>
         ///
         /// <para>LOD1 を同梱(Decimate 40%・約500三角)。Unity 側は `Tateishi_&lt;size&gt;_&lt;variant&gt;_LOD0`/`_LOD1`
         /// の命名から自動で LODGroup を作る(README の命名規則どおり。ただしこのビルドで
@@ -1054,6 +1062,51 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_tateishi.py -- all --render</summary>
         public static string Tateishi(string size, int variant)
         { return NiwaDir + "Tateishi_" + size + "_" + variant + ".fbx"; }
+
+        /// <summary>**大型の平石2種**(天井石・伏石)。松江松平上屋敷の庭向け。
+        /// ユーザー裁定2=案①(新造)(2026-09-06)。在庫の丸い転石(`JG.Rock01..03`)には
+        /// 「架ける/伏せる」扁平な大型石が無いため新造。材質は立石と同じ
+        /// `M_FJG_Rock_001`(裁定1=案②(護岸と同じ材) と揃えた石材)。
+        ///
+        /// <para>⚠⚠ **2026-09-06 三度目の差し戻しで作り方を全面変更した。**
+        /// 当初は bmesh の輪切りロフト(手続き生成)で作っていたが、5回のUV差し戻しの後も
+        /// 天端が cos(2θ)の鞍型に凹む・胴に継ぎ目線が一周見える、という「パラメトリックな
+        /// 輪切り」特有の人工物が抜けなかった。⭕ **在庫の転石メッシュ
+        /// `JG_Rock_A_03_LOD0.fbx`(実肌・`M_FJG_Rock_001` のアトラスUVを個体ごとの
+        /// 矩形アイランドとして既に持つ)を土台に、変形だけで目標寸法へ持っていく**方式に
+        /// 切り替えた。UV・トポロジーは無傷(スケール・非一様な低周波伸長は頂点位置しか
+        /// 動かさないので、在庫メッシュのアトラスUVはそのまま正しく貼られる)。
+        /// ⚠ 素の FBX 取り込みは「置いた姿」ではない — `JG_Rock_A_03.prefab` の Transform
+        /// は回転・一様スケール0.5込みで扁平に見えるよう置いている。Blenderの取り込み軸は
+        /// Unityと同一ではないので、**姿を実見して**Blender側でX軸+90°回すのが正しいと
+        /// 確認した(build_hiraishi.py._load_donor 参照)。</para>
+        ///
+        /// <para>実寸(Unity座標) W(X)×H(Y)×D(Z)、ピボット = <b>底面中央</b>:
+        /// <list type="bullet">
+        /// <item><paramref name="kind"/> = <b>"Tenjo"</b>(天井石)… 1.050 × 0.450 × 0.550。
+        /// 岩屋の脇石2本の上に<b>架ける</b>水平な梁石。</item>
+        /// <item><paramref name="kind"/> = <b>"Fuse"</b>(伏石)… 1.200 × <b>0.280</b> × 0.850。
+        /// 築山の裾に<b>伏せる</b>扁平な転石。⚠ H は当初 0.42 だったが、庭方裁定
+        /// 「伏せる石は埋め0」で見え丈がそのまま全丈になり 0.28 へ変更(2026-09-06)。</item>
+        /// </list>
+        /// 各 variant 1 個体のみ(裁定どおり)。軸ごとの直接スケールは 1.25倍まで、
+        /// 超える軸(Fuse の W・D)だけ低周波の非一様な追加伸長(閉じた式
+        /// `T(t)=t+1.5(k-1)(t-t³/3)`。Lattice/Proportional Edit 相当)で補う。</para>
+        /// 生成: blender --background --python Tools/Blender/build_hiraishi.py -- Tenjo Fuse --render</summary>
+        public static string Hiraishi(string kind)
+        { return NiwaDir + "Hiraishi_" + kind + "_1.fbx"; }
+
+        /// <summary>**切石橋**(切石の一枚物の橋)。松江松平上屋敷の庭向け。
+        /// ユーザー裁定2=案①(新造)(2026-09-06)。<see cref="Hiraishi"/> と違い**加工石**なので
+        /// bmesh のロフトではなく箱(bmesh box)+全辺 1〜2cm の面取りで作る — 自然石の
+        /// 割れ肌ノイズは掛けず、上面・下面・小口は完全な平面のまま、側面・小口の
+        /// 法線がほぼ水平な頂点だけに矢穴跡程度の弱いノイズ(振幅4mm)を乗せた。
+        /// 材質は <see cref="Hiraishi"/> / <see cref="Tateishi"/> と同じ `M_FJG_Rock_001`。
+        ///
+        /// <para>実寸(Unity座標) W(X)×H(Y)×D(Z) = <b>2.200 × 0.250 × 0.900</b>、
+        /// ピボット = 底面中央。variant 1 個体のみ。</para>
+        /// 生成: blender --background --python Tools/Blender/build_hiraishi.py -- Ishibashi --render</summary>
+        public static string Ishibashi() { return NiwaDir + "Ishibashi_Kiri_1.fbx"; }
 
         /// <summary>**四つ目垣 1スパン(1間)**。親柱1 + 立子5 + 胴縁(h1.2 で4段 / h0.9 で3段)+
         /// 棕櫚縄の結び。⭕ 竹の断面・アトラスの帯・**結びの実体**は在庫の

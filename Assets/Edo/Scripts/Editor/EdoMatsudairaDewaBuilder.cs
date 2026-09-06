@@ -736,7 +736,142 @@ public static partial class EdoMatsudairaDewaBuilder
         sb.AppendLine("木柵: " + posts + "枚(" + A(D["fences"]).Count + " run)");
         // 石垣の法肩から犬走りを残して据え直す(石垣は Stage3 だが法肩＝区画線なので順序に依らない)
         sb.AppendLine(AlignInubashiri());
+        sb.AppendLine(CloseKadoSeams(kak));
         return sb.ToString();
+    }
+
+    /// <summary>**隅部材と、隣り合う run の端の駒の隙間を、駒を伸ばして塞ぐ。**
+    ///
+    /// ⚠ 2026-09-06 にユーザーが「練塀が隣の塀と隙間が残っている」と指摘して発覚(ブックマーク#4)。
+    ///   実測すると入隅 `Kado_J_P2` の壁体と隣の練塀の壁体が **0.176〜0.455m** 空いていた。
+    ///   ⛔ 外接箱でも、屋根まで含めた最短距離でも見えない — **軒が張り出して先に触れる**ので
+    ///   「接している」と誤診する(私が一度そう報告した)。⭕ **壁体の高さ帯だけを取り出して測る**。
+    ///
+    /// 直し方は CLAUDE.md 規則5 のとおり「置いた駒の実メッシュから面を測って寄せる」:
+    /// 隅の腕の端の面と、隣の駒の端の面の距離だけ、**駒を走り方向へ伸ばす**(伸ばす向きは隅側)。
+    /// ⛔ 隅部材そのものは伸ばさない(留め継ぎの角度が崩れる)。⚠ 伸び代の上限は 1 駒の 25%。</summary>
+    static string CloseKadoSeams(Transform kak)
+    {
+        var sb = new System.Text.StringBuilder();
+        var kados = new List<Transform>(); var runs = new List<Transform>();
+        foreach (Transform ch in kak) { if (ch.name.StartsWith("Kado_")) kados.Add(ch); else runs.Add(ch); }
+        int nFix = 0; float worst = 0f; string worstName = "";
+        foreach (var kado in kados)
+        {
+            var kb = MeshBody(kado); if (kb.Count == 0) continue;
+            float ky0 = 1e9f, ky1 = -1e9f; foreach (var v in kb) { if (v.y < ky0) ky0 = v.y; if (v.y > ky1) ky1 = v.y; }
+            float lo = ky0 + (ky1 - ky0) * 0.15f, hi = ky0 + (ky1 - ky0) * 0.80f;   // 壁体の帯
+            foreach (var run in runs)
+            {
+                var rb = MeshBody(run); if (rb.Count == 0) continue;
+                float best = 1e9f; Vector3 pa = Vector3.zero, pb = Vector3.zero;
+                foreach (var a in kb) { if (a.y < lo || a.y > hi) continue;
+                    foreach (var b in rb) { if (b.y < lo || b.y > hi) continue;
+                        float d = (a - b).sqrMagnitude; if (d < best) { best = d; pa = a; pb = b; } } }
+                if (best > 1e8f) continue;
+                float gap = Mathf.Sqrt(best);
+                if (gap < 0.02f || gap > 1.0f) continue;             // 接している / 隣ではない
+                // ⛔ 走り方向を「局所 +X」と決め打ちしない — 練塀の駒は**外向き法線**で yaw を取っており、
+                //   +X が走りとは限らない。⭕ **駒の実メッシュを局所 X と局所 Z へ投影して長い方**を走りに採る。
+                float exX = LocalSpan(run, Vector3.right), exZ = LocalSpan(run, Vector3.forward);
+                bool useX = exX >= exZ; float len = useX ? exX : exZ;
+                Vector3 ax = run.rotation * (useX ? Vector3.right : Vector3.forward);
+                float sgn = Vector3.Dot(pa - pb, ax) >= 0 ? 1f : -1f;
+                // ⛔ **走り方向で既に重なっている継ぎ目は伸ばしても詰まらない** — 隙間は横(法線)方向にある。
+                //   2026-09-06 実測: 入隅 Kado_J_P2 と S_Hei_C_23f は走りで 0.414m 重なりながら壁体が 0.486m 空く。
+                //   原因は `AlignInubashiri` が run だけを犬走りに合わせ、**隅部材を動かしていない**こと(横のずれ)。
+                //   ⇒ ここでは触らず、そのまま報告する(直しは隅部材の横合わせ・棟梁へ)。
+                float kA = EdgeAlong(kado, ax, -1f), kB = EdgeAlong(kado, ax, 1f);
+                float rA = EdgeAlong(run, ax, -1f), rB = EdgeAlong(run, ax, 1f);
+                if (Mathf.Min(kB, rB) - Mathf.Max(kA, rA) > 0.02f)
+                { sb.AppendLine(string.Format("⚠ {0} ⇔ {1}: 壁体が {2:F3}m 空くが走りでは重なっている — **横のずれ**(隅部材が犬走りに合っていない)。棟梁へ", kado.name, run.name, gap)); continue; }
+                // 伸ばしてよい上限: 駒の 35%、ただし 0.60m までは絶対に許す(隅の腕の長さの差はこの程度)
+                float cap = Mathf.Max(0.60f, len * 0.35f);
+                if (len < 0.2f || gap > cap) { sb.AppendLine(string.Format("⚠ {0} ⇔ {1}: 隙間 {2:F3}m > 上限 {3:F2}m — 伸ばさず(指図方へ)", kado.name, run.name, gap, cap)); continue; }
+                // ⛔ ピボットが駒の中心とは限らないので「伸ばして半分ずらす」では詰まらない(2026-09-06 実測)。
+                // ⭕ 伸ばした**あとに実測**し、隅側の端が目標へ来るまで平行移動する(規則5: 実メッシュで測る)。
+                float nearBefore = EdgeAlong(run, ax, sgn);
+                float target = nearBefore + sgn * gap;
+                var ls = run.localScale; float k = (len + gap) / len;
+                run.localScale = useX ? new Vector3(ls.x * k, ls.y, ls.z) : new Vector3(ls.x, ls.y, ls.z * k);
+                float nearAfter = EdgeAlong(run, ax, sgn);
+                run.position += ax * (target - nearAfter);
+                nFix++; if (gap > worst) { worst = gap; worstName = kado.name + " ⇔ " + run.name; }
+            }
+        }
+        sb.AppendLine(string.Format("隅の継ぎ目を詰めた: {0} 駒(最大 {1:F3}m {2})", nFix, worst, worstName));
+        return sb.ToString().TrimEnd();
+    }
+
+
+
+
+    /// <summary>指図の「点」を格子座標へ。⭐ **`[u, v]` の配列だけでなく `{"ref": "&lt;中仕切/門の名&gt;"}` を解く**
+    /// (2026-09-06: 段や道の端が木戸に取り付くとき、literal を書かず木戸の芯に従属させるため。
+    ///  ユーザー指摘「飛石が木戸とずれている」— 段の起点が木戸の芯から 1.1 間ずれていた)。
+    /// ⛔ ref の相手が見つからなければ例外(黙って 0,0 に置かない)。</summary>
+    static Vector2 GridPt(object o)
+    {
+        var arr = o as List<object>;
+        if (arr != null) return new Vector2(F(arr[0]), F(arr[1]));
+        var dic = o as Dictionary<string, object>;
+        if (dic != null && dic.ContainsKey("ref"))
+        {
+            string rn = (string)dic["ref"];
+            foreach (var w in A(D["nakajikiri"]))
+            {
+                var ww = O(w); if ((string)ww["name"] != rn) continue;
+                var a = A(ww["a"]); var b = A(ww["b"]);
+                var mid = new Vector2((F(a[0]) + F(b[0])) * 0.5f, (F(a[1]) + F(b[1])) * 0.5f);
+                if (dic.ContainsKey("add")) { var ad = A(dic["add"]); mid += new Vector2(F(ad[0]), F(ad[1])); }
+                return mid;
+            }
+            throw new Exception("指図の点の ref『" + rn + "』が nakajikiri に無い");
+        }
+        throw new Exception("指図の点が [u,v] でも {ref} でもない");
+    }
+
+    /// <summary>駒の**壁体**の、軸 <paramref name="ax"/> 方向の端の座標(<paramref name="sgn"/> が +1 なら最大側)。</summary>
+    static float EdgeAlong(Transform tr, Vector3 ax, float sgn)
+    {
+        float mn = 1e9f, mx = -1e9f;
+        foreach (var v in MeshBody(tr)) { float q = Vector3.Dot(v, ax); if (q < mn) mn = q; if (q > mx) mx = q; }
+        return sgn >= 0 ? mx : mn;
+    }
+
+    /// <summary>駒の**実メッシュ**を、駒の局所軸 <paramref name="localAxis"/> へ投影した伸び[m](世界の尺度)。</summary>
+    static float LocalSpan(Transform tr, Vector3 localAxis)
+    {
+        Vector3 ax = tr.rotation * localAxis;
+        float mn = 1e9f, mx = -1e9f;
+        foreach (var v in MeshBody(tr)) { float q = Vector3.Dot(v, ax); if (q < mn) mn = q; if (q > mx) mx = q; }
+        return mx > mn ? mx - mn : 0f;
+    }
+
+    /// <summary>**壁体**(屋根・軒・垂木・棟・桁を除く)の頂点を世界座標で。⛔ 軒は先に触れるので継ぎ目の判定に使わない。</summary>
+    static List<Vector3> MeshBody(Transform tr)
+    {
+        var L = new List<Vector3>();
+        foreach (var mf in tr.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var rr = mf.GetComponent<Renderer>(); if (rr == null || !rr.enabled) continue;
+            string n = mf.name.ToLower();
+            if (n.Contains("yane") || n.Contains("noki") || n.Contains("taruki") || n.Contains("mune") || n.Contains("keta")) continue;
+            var l2w = mf.transform.localToWorldMatrix; var vs = mf.sharedMesh.vertices;
+            int step = Mathf.Max(1, vs.Length / 900);
+            for (int i = 0; i < vs.Length; i += step) L.Add(l2w.MultiplyPoint3x4(vs[i]));
+        }
+        return L;
+    }
+
+    static Bounds RendBounds(Transform tr)
+    {
+        var rs = tr.GetComponentsInChildren<Renderer>();
+        var b = new Bounds(tr.position, Vector3.zero);
+        bool first = true;
+        foreach (var r in rs) { if (!r.enabled) continue; if (first) { b = r.bounds; first = false; } else b.Encapsulate(r.bounds); }
+        return b;
     }
 
     /// <summary>犬走り ≒ 1尺。石垣の法肩と囲いの外面の距離(スキル `perimeter.md` ★★・裁定U/B)。</summary>
@@ -1469,9 +1604,9 @@ public static partial class EdoMatsudairaDewaBuilder
                 if (!Has(k, "a") || !Has(k, "b"))
                 { sb.AppendLine("⚠ 庭の段 " + nm + ": 指図に a/b が無い"); continue; }
                 var gpath = new List<Vector2>();
-                var ga = A(k["a"]); gpath.Add(f.W(F(ga[0]), F(ga[1])));
+                gpath.Add(f.W(GridPt(k["a"]).x, GridPt(k["a"]).y));
                 if (Has(k, "via")) foreach (var q in A(k["via"])) { var pq = A(q); gpath.Add(f.W(F(pq[0]), F(pq[1]))); }   // ⚠ `pv` は同じ関数の後段(pos の v)で宣言されるので別名(CS0136)
-                var gb = A(k["b"]); gpath.Add(f.W(F(gb[0]), F(gb[1])));
+                gpath.Add(f.W(GridPt(k["b"]).x, GridPt(k["b"]).y));
                 float ghor = 0f;
                 for (int i = 1; i < gpath.Count; i++) ghor += Vector2.Distance(gpath[i - 1], gpath[i]);
                 int gn = Mathf.Max(1, (int)F(k["steps"]));

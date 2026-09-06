@@ -1457,6 +1457,8 @@ def plane_check(d):
     bad += band_overlap_check(d)
     bad += route_connect_check(d)
     bad += viewpoint_fov_check(d)
+    # ⭐ **2026-09-06 に新設して同じ巡で配線した**(規則19・ユーザー指摘=書き起こしの取り違え)。
+    bad += kido_approach_check(d)
     bad += niwa_stone_check(d)
     bad += rail_ground_check(d)
     # ⭐ **2026-09-02(第5次)に新設して同じ巡で配線した**(規則19・庭方 設計1 の検査4本)
@@ -10404,6 +10406,91 @@ def _stone_bedY(t, st):
     return float(b)
 
 
+def _ref_point(d, val):
+    """**平面点(u,v)を木戸・門などの『芯』に従属させる。**`_stone_bedY` と同じ作法。
+
+    ⛔ literal を書かない — 値が dict なら `{"ref": <木戸・露地口の名>}` として、参照先の
+      **芯**(a/b の中点。点景なら u,v そのもの)を返す。⚠ 2026-09-06 ユーザー指摘: 奥庭の
+      滝見の段 `K_Takimi` の起点が滝見口 `NJ_Taki_Kido` の芯から1.1間(2.0m)ずれていた
+      — literal で二重に(たまたま一致する形で)書いていたので、木戸が動いても段が追随しなかった。"""
+    if not isinstance(val, dict):
+        return val
+    name = val["ref"]
+    for n in d.get("nakajikiri", []):
+        if n.get("name") == name and n.get("a") and n.get("b"):
+            a, b = n["a"], n["b"]
+            return [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0]
+    for t in d.get("tenkei", []):
+        if t.get("name") == name and "u" in t:
+            return [t["u"], t["v"]]
+    raise SystemExit("⛔ ref『%s』が nakajikiri にも tenkei にも見つからない" % name)
+
+
+def _resolve_refs(d):
+    """**`{"ref":...}` の平面点を実座標へ解いて `d` を書き換える。**⛔ `d` を読む一番最初に
+    一度だけ回す(以降のどの検査・どの図も、実装が読むのと同じ値を見る。`sync_shoreidx` と同じ考え方)。
+    ⚠ 対象は `kaidans[].a/b/via[]` と `routes[].pts[]` — 木戸・露地口に取り付く段・道の**現に
+    従属値で書かれている点だけ**を解く(他の点は literal のまま)。"""
+    for k in d.get("kaidans", []):
+        if isinstance(k.get("a"), dict):
+            k["a"] = _ref_point(d, k["a"])
+        if isinstance(k.get("b"), dict):
+            k["b"] = _ref_point(d, k["b"])
+        if k.get("via"):
+            k["via"] = [_ref_point(d, p) if isinstance(p, dict) else p for p in k["via"]]
+    for r in d.get("routes", []):
+        if r.get("pts"):
+            r["pts"] = [_ref_point(d, p) if isinstance(p, dict) else p for p in r["pts"]]
+
+
+def kido_approach_check(d, tol=0.3, detect=3.0):
+    """**木戸・露地口に取り付く段・道は、その芯へちゃんと寄せてあるか。**
+
+    ⭐ 2026-09-06 ユーザー指摘(規則19 — 木戸の位置は動いたのに段の起点が追随していなかった)。
+    `detect`[m] より近い所を通る段・道は『その木戸へ取り付くつもり』とみなし、実際の最短距離
+    (点ではなく**折れ線の辺**からの距離。線がちょうど木戸の口を貫く設計は違反ではない)が
+    `tol`[m] を超えていたら鳴らす。⛔ 数値は作らない — `_resolve_refs` が解いた後の実座標を見るので、
+    ここで検査が甘くなることはない(参照が外れていても literal がずれていても両方拾う)。"""
+    ES = d["const"]["ken"]
+    kidos = []
+    for n in d.get("nakajikiri", []):
+        if "木戸" in n.get("kind", "") and n.get("a") and n.get("b"):
+            a, b = n["a"], n["b"]
+            kidos.append((n["name"], ((a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0)))
+    for t in d.get("tenkei", []):
+        if "露地口" in t.get("kind", "") and "u" in t:
+            kidos.append((t["name"], (t["u"], t["v"])))
+    if not kidos:
+        return []
+
+    def path_min(pts):
+        pts = [p for p in pts if p]
+        out = {}
+        for nm, kc in kidos:
+            if len(pts) == 0:
+                continue
+            elif len(pts) == 1:
+                dd = math.hypot(pts[0][0] - kc[0], pts[0][1] - kc[1])
+            else:
+                dd = min(_seg_dist(kc, pts[i], pts[i + 1]) for i in range(len(pts) - 1))
+            out[nm] = dd * ES
+        return out
+
+    bad = []
+    for k in d.get("kaidans", []):
+        pts = [k.get("a")] + list(k.get("via") or []) + [k.get("b")]
+        for nm, dist in path_min(pts).items():
+            if tol < dist < detect:
+                bad.append("段 %s が木戸 %s の芯から %.2fm(敷居 %.2fm)"
+                           % (k["name"], nm, dist, tol))
+    for r in d.get("routes", []):
+        for nm, dist in path_min(r.get("pts") or []).items():
+            if tol < dist < detect:
+                bad.append("道 %s が木戸 %s の芯から %.2fm(敷居 %.2fm)"
+                           % (r["name"], nm, dist, tol))
+    return sorted(set(bad))
+
+
 def niwa_stone_check(d):
     """**庭方の決定を実際に測る。**⭐ 2026-09-02(第4次・庭方【高1】)新設。
     ⛔ 値だけ書かれて誰も読んでいなかった5件を、ここで初めて幾何に当てる。"""
@@ -14711,6 +14798,9 @@ def main():
         print("    %s %s → %s %s" % ("★" if ch else " ", wh, idx,
                                      "(書き戻した)" if ch else ""))
     d = json.load(open(JSON, encoding="utf-8"))
+    # ⛔ `d` を読んだ直後・他の何より前に回す(§`_resolve_refs`)— 以降の検査も図も、
+    #   実装が読むのと同じ実座標を見る。
+    _resolve_refs(d)
     prose = md2html(open(MD, encoding="utf-8").read())
     # 造成前の地盤 = 江戸期の復元地盤。**生成器はこれを読む — 実装は読まない**(§3a/§3b)
     dem = _dem_json()

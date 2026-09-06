@@ -3695,15 +3695,21 @@ def _corner_joints(d):
     return out
 
 
+_NO_STRUCT = "—(法面・地物なし)"
+
+
 def _kado_scope(d, j):
     """隅部材の採否の規則が効く隅か。**木柵の隅と隅櫓の隅は規則の外。**
     ⚠ kind の文字列(「重ね」)で判定すると、隅部材を使わない練塀の隅(P4/P5)まで
       規則の外へ落ちて検査が素通りする(2026-08-29 に感度試験で発覚)。
-      **何が接しているか**で判定する。"""
+      **何が接しているか**で判定する。
+    ⭐ **2026-09-06(庭方 設計4・F)**: 木柵(`fences`)を撤去した辺(6〜11)は、
+      地物の無い側を `_NO_STRUCT` の名で持つ。⛔ 地物が無い隅に隅部材を要求しない —
+      木柵の隅と同じ理由(据える相手が無い)。"""
     if "置き換え" in j["kind"]:
         return False                                   # 隅櫓が隅を置き換える
-    fen = set(f["name"] for f in d.get("fences", []))
-    return not (j["a"] in fen or j["b"] in fen)        # 木柵は互いに越えて敷く
+    fen = set(f["name"] for f in d.get("fences", [])) | {_NO_STRUCT}
+    return not (j["a"] in fen or j["b"] in fen)        # 木柵・地物なしは互いに越えて敷く/接しない
 
 
 def kado_measure_table(d):
@@ -5768,7 +5774,8 @@ def slope_samples(d, dem, step=1.0):
             if ok and _pip_world(w, P):
                 reg = _region_of(d, crest_near(uv)[2])
                 toes = REGT.get(reg, TOE)
-                if near_edge(w)[1] in toes:
+                ne_edge = near_edge(w)[1]
+                if ne_edge in toes:
                     yc = _dem_at(dem, *gr.W(qc[0], qc[1]))
                     dt, qt = toe_near(w, toes)
                     yt = _dem_at(dem, qt[0], qt[1])
@@ -5778,21 +5785,40 @@ def slope_samples(d, dem, step=1.0):
                         t = max(0.0, min(1.0, (yc - y) / H))
                         mineb = [b for b in bands if b.get("region", reg) == reg] or bands
                         bn = mineb[-1]["name"]
-                        for b in mineb:
-                            # ⭐ **標高で切る帯**(`yRange`)は t を使わない(2026-09-03 庭方 N5)
-                            if b.get("yRange"):
-                                lo9, hi9 = [_slope_y(d, k) for k in b["yRange"]]
-                                if (lo9 is None or y >= lo9) and (hi9 is None or y < hi9):
+                        # ⭐ **2026-09-06(庭方 設計4・F)**: 法尻の帯 `minAbs`[m] — 絶対最小幅の保証。
+                        #   ⛔ t だけで切ると、落差 H が小さい列(例: 北西の登りに近い浅い列)で
+                        #   帯の物理幅が数十cmまで潰れる(『層として見える厚み』が消える)。
+                        #   ⭕ その列だけ、帯の下端を「toe からの実高さ」で押し上げて厚みを保証する
+                        #   — この列の弱い方に合わせて全体の t は動かさない。
+                        mb = next((b for b in mineb if b.get("minAbs")), None)
+                        forced = False
+                        if mb is not None and (1.0 - t) * H < float(mb["minAbs"]):
+                            bn = mb["name"]
+                            forced = True
+                        if not forced:
+                            for b in mineb:
+                                # ⭐ **標高で切る帯**(`yRange`)は t を使わない(2026-09-03 庭方 N5)
+                                if b.get("yRange"):
+                                    lo9, hi9 = [_slope_y(d, k) for k in b["yRange"]]
+                                    if (lo9 is None or y >= lo9) and (hi9 is None or y < hi9):
+                                        bn = b["name"]
+                                        break
+                                elif b["from"] <= t < b["to"]:
                                     bn = b["name"]
                                     break
-                            elif b["from"] <= t < b["to"]:
-                                bn = b["name"]
-                                break
                         # ⭐ **谷の口**(2026-09-03・庭方 設計2)— 域S でも溜池へ開く口は
                         #   法尻の草地と同じ扱い(草のみ・高木なし)。⛔ 域は書き換えない。
                         tg = sa.get("taniguchi")
                         if tg and uv[0] <= tg["u"] and uv[1] >= tg["v"]:
                             bn = tg["band"]
+                        # ⭐ **2026-09-06(庭方 追加裁定・北西の登り 辺11)**: 辺11 は落差が浅く、
+                        #   同じ t 範囲でも密度は域Wの主部より疎くする。⛔ 別域は作らない
+                        #   (`region` は域Wのまま)— 辺11 が最寄りの toe になった標本だけ、
+                        #   帯名を差し替える(`slopeArea.shallowSpans`)。
+                        for sp9 in sa.get("shallowSpans", []):
+                            if ne_edge == sp9["edge"] and bn == sp9["replace"]:
+                                bn = sp9["with"]
+                                break
                         out.append((x, z, uv[0], uv[1], y, t, bn, dc * gr.ken, yc, yt,
                                     reg, dt * gr.ken))
             z += step
@@ -5935,27 +5961,68 @@ def slope_band_area(d, dem, step=1.0):
     return a
 
 
-def grass_layer_min(d, dem):
-    """**草地の層(下層)の落差の下限**[m] を実測する。→ (層の下端 t, 最小落差 m, その u)
+def _grass_widths(d, dem):
+    """**法尻の草地の帯(帯W3)の幅[m]を u 列ごとに実測する。**→ [(u, 幅m, 標本数)]
 
-    [名所図会・溜池]S の「上=樹林 / 下=草地」の二層は、⛔ **どの u でも草地が消えない**
-    ことで初めて成り立つ。帯を**落差の割合 t** で切ってあるので原理的に消えないが、
-    ⭕ その「消えない」を**数で見せる**のがこの値(層の下端 t は樹林の帯の t の終わりから引く)。"""
+    ⭐ **2026-09-06(庭方 設計4・E)**: 幅は**法尻までの距離 `dt`(斜距離)の張り**で測る
+    (`max(dt) − min(dt)`、帯W3 に分類された標本だけ)。⛔ **標高の張りでは測らない** —
+    法肩が折れ線で軸に平行でないため、同じ u 列でも標本の標高は法肩からの奥行きで散らばり、
+    『標高の張り』は帯の物理幅を過小に見せる(u−91〜−66 の19列が偽陽性で鳴った・
+    実際に狭いのは u−91 の1列だけ)。`dt` は法尻の辺そのものからの距離なので、
+    帯の縁 → 法尻という**断面の実距離**に一致する。"""
     bands = d["slopeBands"]
     t0 = max([float(b["to"]) for b in bands
               if b.get("region") == "域W 西の崖" and "樹林" in b["name"]] or [0.0])
+    grass = next((b["name"] for b in bands
+                  if b.get("region") == "域W 西の崖" and b.get("minAbs")), None)
     col = {}
     for sm in slope_samples(d, dem):
         if sm[10] != "域W 西の崖":
             continue
-        col.setdefault(round(sm[2]), []).append(sm[8] - sm[9])
-    best = (1e18, None)
-    for u, fs in col.items():
-        fs.sort()
-        f = fs[len(fs) // 2] * (1.0 - t0)
-        if f < best[0]:
-            best = (f, u)
-    return t0, best[0], best[1]
+        col.setdefault(round(sm[2]), []).append(sm)
+    out = []
+    for u, pts in sorted(col.items()):
+        w3 = [p for p in pts if grass is None or p[6] == grass]
+        if not w3:
+            continue
+        dts = [p[11] for p in w3]
+        out.append((u, max(dts) - min(dts), len(w3)))
+    return t0, out
+
+
+def grass_layer_min(d, dem):
+    """**草地の層(下層)の幅の下限**[m] を実測する。→ (層の下端 t, 最小幅 m, その u)
+
+    [名所図会・溜池]S の「上=樹林 / 下=草地」の二層は、⛔ **どの u でも草地が消えない**
+    ことで初めて成り立つ。帯を**落差の割合 t** で切ってあるので原理的に消えないが、
+    ⭕ その「消えない」を**数で見せる**のがこの値。"""
+    t0, widths = _grass_widths(d, dem)
+    if not widths:
+        return t0, 0.0, None
+    u, w, _n = min(widths, key=lambda r: r[1])
+    return t0, w, u
+
+
+def grass_layer_check(d, dem):
+    """**法尻の草地の帯が『層として見える厚み』を持つか**(2026-09-06 庭方 設計4・E)。
+
+    各 u 列で帯W3 の幅(`dt` の張り)が `minAbs`[m] を満たすこと。⛔ **満たさない列を
+    隠さず列挙する**(考証方の条件は『無理に埋める』ではなく『満たさない区間を記録する』)。
+    ⚠ 標本数が極小の列(域の隅で帯そのものが数m²しかない)は、`minAbs` を満たす物理的な
+    余地が無い場合がある — その旨を注記して区別する。"""
+    bands = d["slopeBands"]
+    grass = next((b for b in bands
+                  if b.get("region") == "域W 西の崖" and b.get("minAbs")), None)
+    if grass is None:
+        return []
+    minAbs = float(grass["minAbs"])
+    _t0, widths = _grass_widths(d, dem)
+    bad = []
+    for u, w, n in widths:
+        if w + 1e-6 < minAbs:
+            bad.append("u%+.0f 列: 法尻の草地の幅 %.2fm(標本 %d 点)— minAbs %.1fm を満たさない"
+                       % (u, w, n, minAbs))
+    return bad
 
 
 def crest_stations(d, dem, step):
@@ -7382,7 +7449,7 @@ def border_clump_table(d, dem):
 
 
 def slope_realism_check(d, dem):
-    """**西斜面の生え方のリアリズム4本+境の標示**(2026-09-06 庭方 設計3)をまとめて返す。
+    """**西斜面の生え方のリアリズム5本+境の標示**(2026-09-06 庭方 設計3/4)をまとめて返す。
 
     ⭐ 一つの関数へ束ねて `main()`/`_garden_checks` から1回で呼ぶ — `check_wiring_check`
     (規則19)が個々の検査を「どこからも報告されない」と誤診しないための束ね役。
@@ -7393,6 +7460,8 @@ def slope_realism_check(d, dem):
     bad += clump_singleton_check(d)
     bad += stump_shrub_check(d, dem)
     bad += border_clump_check(d, dem)
+    # ⭐ **2026-09-06(庭方 設計4・E)**: 法尻の草地の帯が層として見える厚みを持つか。
+    bad += grass_layer_check(d, dem)
     return bad
 
 
@@ -14703,7 +14772,7 @@ def main():
     pb1 = planting_stock_check(d)
     pb2 = planting_clearance_check(d, dem)
     pb3 = slope_planting_check(d, dem)
-    # ⭐ **2026-09-06(庭方 設計3)** — 西斜面の生え方のリアリズム4本(規則19)。
+    # ⭐ **2026-09-06(庭方 設計3/4)** — 西斜面の生え方のリアリズム5本(規則19)。
     pb4 = slope_realism_check(d, dem)
     _pn, _ptri = plant_budget(d, dem)
     _area = slope_band_area(d, dem)
@@ -14732,7 +14801,7 @@ def main():
             ("植栽の在庫(部材が目録に無い)", pb1),
             ("植栽の退避", pb2),
             ("西斜面の密度と遮蔽", pb3),
-            ("西斜面の生え方のリアリズム(空隙・並木・単木・幹元・境の標示)", pb4)]
+            ("西斜面の生え方のリアリズム(空隙・並木・単木・幹元・境の標示・法尻の厚み)", pb4)]
     NWARN = sum(len(x) for _t, x in WARN)
 
     css = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "sashizu.css"), encoding="utf-8").read()

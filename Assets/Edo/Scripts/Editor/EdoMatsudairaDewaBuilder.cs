@@ -991,7 +991,15 @@ public static partial class EdoMatsudairaDewaBuilder
         }
         sb.Append("犬走りを揃えた: " + moved + "駒 / " + byRun.Count + " run");
 
-        // ---- 隅部材(留め継ぎ)を**両辺**の犬走りへ合わせる(横のずれ)。
+        // ---- 隅部材(留め継ぎ)の横合わせ — ⛔ **2026-09-07 に無効化**。
+        //   実装は入れたが、**入隅(凹)で外面の取り違えが起き Kado_J_P2 が 5.9m 動いた**
+        //   (レンダで隅の塀が消えた)。凸の隅では「その辺の外向き法線への最大投影＝外面」でよいが、
+        //   **入隅ではもう一方の腕がその方向へ более 出る**ので、最大投影が別の腕の面になる。
+        //   ⇒ 腕ごとに頂点を選り分ける(相手の辺の法線方向で、隅の点から壁厚の内側にある物だけ)
+        //     直しが要る。それまでは**隅を動かさない**(横のずれ 0.18〜0.78m は残るが、
+        //     部材が消えるより害が小さい)。CloseKadoSeams が実測して列挙する。
+        int movedKado = 0;
+#if EDO_KADO_LATERAL_ALIGN
         //   2026-09-07(棟梁): 上の run のループは `Kado_*` を素通りしていた(名前が Runs[] に
         //   マッチしない)ため、隅は据えたまま横にずれていた(実測 0.31〜0.78m — 走り方向は
         //   `CloseKadoSeams` が詰めるが、横は解いていなかった)。
@@ -1049,8 +1057,8 @@ public static partial class EdoMatsudairaDewaBuilder
             movedKado += movedThisPass;
             if (movedThisPass == 0) break;
         }
-        sb.Append(" / 隅を両辺の犬走りへ合わせた: " + movedKado + " 基(のべ)");
-        if (kadoNote.Count > 0) sb.Append(" / ★ 未解決 " + kadoNote.Count + " — " + string.Join(" / ", kadoNote.ToArray()));
+#endif
+        sb.Append(" / 隅の横合わせ: 無効(入隅で外面を取り違える — 棟梁へ)");
         return sb.ToString();
     }
 

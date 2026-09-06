@@ -42,6 +42,15 @@ class Mesh(object):
         self.uv += list(uvs)
         self.mi.append(mat)
 
+    def tri_uvs(self, pts, uvs, mat=0):
+        """3隅の UV を直に与える三角形(`quad_uvs` の三角版)。ファン三角形の中心のように
+        4隅の式(`tri`)に収まらない UV が要るときに使う。"""
+        i = len(self.v)
+        self.v += [Vector((p[0], p[2], p[1])) for p in pts]
+        self.f.append([i, i + 1, i + 2])
+        self.uv += list(uvs)
+        self.mi.append(mat)
+
     def tri(self, pts, uv, mat=0):
         i = len(self.v)
         self.v += [Vector((p[0], p[2], p[1])) for p in pts]

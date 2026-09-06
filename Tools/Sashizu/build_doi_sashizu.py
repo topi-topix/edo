@@ -6479,9 +6479,13 @@ def niwa_check(d):
         if ok9:
             base9 = max(ok9) + uk9.get("capBase", 0.0)
             jit = uk9.get("capJitter", 0.0)
+            dig9 = uk9.get("digEach") or [0.0] * len(gs9)
             for j9, q9 in enumerate(gs9):
                 if q9 is None:
                     continue
+                # ⭕ **掘り下げ後の地盤で評価する**(2026-09-06 庭方)— `digEach` の分だけ
+                #   床が下がるので、そのぶん根入れが深くなり露出の分母が変わる。
+                q9 = q9 - (dig9[j9] if j9 < len(dig9) else 0.0)
                 expo = base9 - jit - q9          # ジッタの最悪側(下振れ)の露出
                 if expo < 0.05 - 1e-9:
                     bad.append("**受け石 #%d の露出がジッタの最悪側で %+.2fm**(下限 0.05)— "
@@ -8633,8 +8637,11 @@ def niwa_toi_table(d):
                         % (j + 1, gs[j] if gs[j] is not None else float("nan"),
                            base + (uk.get("capHigh", 0.0) if j == low else 0.0),
                            (uk.get("scaleEach") or [uk.get("scale", 1.0)] * 3)[j],
-                           "(<b>下流・止め</b>)" if j == low else "(±%.2f のジッタ)"
-                           % uk.get("capJitter", 0.0))
+                           ("(<b>下流・止め</b>)" if j == low else "(±%.2f のジッタ)"
+                            % uk.get("capJitter", 0.0))
+                           + ("・<b>床を %.2fm 掘り下げ+%s で根固め</b>"
+                              % ((uk.get("digEach") or [0])[j], uk.get("nekatame", "栗石"))
+                              if (uk.get("digEach") or [0])[j] > 0 else ""))
                         for (j, deg, r9, _p) in pos))
         tail = ("<p class='cap'>⭕ <b>落とし溝の末端 — %s</b>: <b>%d 個</b>を終点 (%.2f, %.2f) の"
                 "まわりへ、<code>%s</code> を <b>90° 倒して</b>据え(`scale` %.2f)、"
@@ -8661,7 +8668,12 @@ def niwa_toi_table(d):
                    "(景石は立てて見せる石だが、<b>受け石は据わりが要る</b>)。"
                    "⛔⛔ <b>下流の石の天端を下げて根入れを稼がない</b>(枡が抜ける)。"
                    "⭕ 石をこれ以上大きくできないときの次善は"
-                   "<b>その1個の床だけ 0.15m 掘り下げて栗石で根固め</b>(天端は動かさず下へ伸ばす)。</p>"
+                   "<b>その1個の床だけ掘り下げて栗石で根固め</b>(天端は動かさず下へ伸ばす)。"
+                   "⚠ <b>当図では #2 がそれに当たり、掘り下げは必須</b> — "
+                   "<code>capBase</code> を 0.12 に上げた結果 #2 の露出が伸び、"
+                   "根入れ率が <code>buryMin</code> を割るため。"
+                   "⛔ <b>他の石は掘らない</b>・⛔ <b>天端は下げない</b>(枡が抜ける)。"
+                   "⭕ <b>露出の検査は掘り下げ後の地盤で評価する</b>。</p>"
                    % (uk.get("capMode", "—"), caps, uk.get("capHigh", 0.0),
                       ("%g/%g" % (uk["buryMin"] * 2, 2) if uk.get("buryMin") == 0.5
                        else str(uk.get("buryMin", "—"))))

@@ -1145,6 +1145,12 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_hiraishi.py -- Ishibashi --render</summary>
         public static string Ishibashi() { return NiwaDir + "Ishibashi_Kiri_1.fbx"; }
 
+        /// <summary>刈込の生垣モジュール(ツゲ・マサキの見立て・1 間 × 1.90m × 0.80m、葉カード・材 M_FJG_Plant_Boxwood_01_Spring・LOD1)。
+        /// <c>end</c> は小口が葉で閉じた端部(+X が突き付け面)。ピボットは 1 間の中心・床レベル、前後対称。
+        /// 実寸(葉の持ち出し込み)1.908×2.02×1.09。Blender: <c>blender --background --python Tools/Blender/build_ikegaki.py</c>(2026-09-06 部材方)。</summary>
+        public static string Ikegaki(bool end)
+        { return NiwaDir + (end ? "Ikegaki_End_1.818.fbx" : "Ikegaki_1.818.fbx"); }
+
         /// <summary>**四つ目垣 1スパン(1間)**。親柱1 + 立子5 + 胴縁(h1.2 で4段 / h0.9 で3段)+
         /// 棕櫚縄の結び。⭕ 竹の断面・アトラスの帯・**結びの実体**は在庫の
         /// `Japanese Village Kit/Meshes/Fences/Bamboo garden fence`(本物の四つ目垣)から借りた。

@@ -63,9 +63,14 @@ public static class EdoSashizuExport
         { "matsudaira_dewa", new Yashiki { label = "MatsudairaDewa", doc = EdoMatsudairaDewaBuilder.SashizuRel,
                                       root = EdoMatsudairaDewaBuilder.Grp,
                                       parcel = EdoMatsudairaDewaBuilder.ParcelId } },
-        // 土井のルート名は EdoSannoKitaBuilder.Stage2_Doi が建てた実物(2026-08-26 実機確認)
-        { "doi", new Yashiki { label = "Doi", doc = "docs/Sashizu/doi_sashizu.json",
-                               root = "Edo_Yashiki_DoiOsumi", parcel = "doi" } },
+        // 土井のルート名は EdoSannoKitaBuilder.Stage2_Doi が建てた実物(2026-08-26 実機確認)。
+        // ⭐ 2026-09-06 に EdoDoiBuilder(棟梁)を新造して gradeQA / pivot を結線した。
+        //   ⚠ pivot を渡さないと既定の松平式(桁行が u の棟だけ)になり、当邸の**桁行が v の3棟**
+        //   (書院・奥・台所)が毎回「ずれている」と出る。検査だけが式を持たない(規則19)。
+        { "doi", new Yashiki { label = "Doi", doc = EdoDoiBuilder.SashizuRel,
+                               root = EdoDoiBuilder.Grp, parcel = EdoDoiBuilder.ParcelId,
+                               gradeQA = EdoDoiBuilder.GradeQA,
+                               pivot = EdoDoiBuilder.Pivot } },
     };
     static string DOC { get { return Houses["okabe"].doc; } }
     static readonly CultureInfo IC = CultureInfo.InvariantCulture;

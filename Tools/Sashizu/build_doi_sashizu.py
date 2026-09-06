@@ -3066,6 +3066,24 @@ def _strip_history(body):
     return body if i < 0 else body[:i]
 
 
+def mune_ridge_above(d, m, eave):
+    """棟の**大棟の高さ**(床からの m)を**設計値から導く**。
+
+    ⭐ 2026-09-06 検図方 中-1。⚠ 従前は `sections[].ridgeAbove` の定数 5.8 を全20面が共有して
+    いたが、`munes[].roof.ridge` と `const.kawaraKobai` が入って**設計値から導けるようになった**
+    ので、定数で持つのは二重管理(規則4)。⛔ 定数を手で書き換えない。
+
+    起り = **梁間 ÷ 2 × 瓦勾配**。梁間 = 大棟と直交する側(正方形の棟は方形造/入母屋とも
+    頂が一点なので**辺そのもの**が梁間)。⛔ **これは図示のための見込み【P】** —
+    屋根部材の実測(`bom` の `Goten_Roof_*` の実寸 H)があるときはそちらが正。
+    """
+    a, b = m["u1"] - m["u0"], m["v1"] - m["v0"]
+    r = (m.get("roof") or {}).get("ridge")
+    beam = (b if r == "u" else a) if r in ("u", "v") else min(a, b)
+    kb = d["const"].get("kawaraKobai")
+    return eave + (beam * d["const"]["ken"] / 2.0 * kb if kb else 0.0)
+
+
 def retracted_check(d, texts):
     """**撤回した説の語が、設計値・生成器・図のどこかに生き残っていないか**を機械で照合する。
 
@@ -3578,7 +3596,7 @@ def section_svg(d, sec):
     for m in d["munes"] + d["service"]:
         if (sec["axis"] == "u" and m["u0"] <= at <= m["u1"]) or \
            (sec["axis"] == "v" and m["v0"] <= at <= m["v1"]):
-            tops.append(m["y"] + fl0 + sec["ridgeAbove"])
+            tops.append(m["y"] + fl0 + mune_ridge_above(d, m, sec["eaveAbove"]))
     ys = [p[1] for p in prof]
     y1 = max(ys + tops + [d["gate"]["sill"] + d["gate"]["plan"]["monH"]
                           if (sec["axis"] == "u" and abs(sec["at"]) < 2) else -99]) + 1.6
@@ -3744,7 +3762,10 @@ def section_svg(d, sec):
                    "anG", "middle"))
 
     # 棟・付属屋(切り線に掛かるもの)
-    eave, ridge = sec["eaveAbove"], sec["ridgeAbove"]
+    # ⭐ **大棟の高さは棟ごとに設計値から導く**(2026-09-06 検図方 中-1)。
+    #   ⛔ `sections[].ridgeAbove` の定数(5.8)は廃した — `roof.ridge` と
+    #   `const.kawaraKobai` から出るようになった以上、定数で持つのは二重管理(規則4)。
+    eave = sec["eaveAbove"]
     fl = d["const"]["gotenFloor"]
     for m in d["munes"] + d["service"]:
         if sec["axis"] == "u":
@@ -3765,7 +3786,7 @@ def section_svg(d, sec):
         g.append('<polygon points="%s" fill="var(--ink-mid)" stroke="var(--ink)" stroke-width="1.2"/>'
                  % " ".join("%.1f,%.1f" % p for p in
                             [(X(a), Y(f)), (X(a), Y(f + eave)),
-                             ((X(a) + X(b)) / 2, Y(f + ridge)),
+                             ((X(a) + X(b)) / 2, Y(f + mune_ridge_above(d, m, eave))),
                              (X(b), Y(f + eave)), (X(b), Y(f))]))
         g.append(T((X(a) + X(b)) / 2, Y(f + eave) + 12, nm, "rmS", "middle",
                    fit(nm, sx * (b - a) - 4, 10.5)))
@@ -3880,7 +3901,7 @@ def section_svg(d, sec):
         return "素地(造成しない)"
     g.append(T(4, 15, endlab(w0) + " →", "anS"))
     g.append(T(W - 4, 15, "→ " + endlab(w1), "anS", "end"))
-    g.append(T(4, H - 34, "水平は間グリッド沿い/垂直は %.1f 倍に強調。屋根は図示のための概略。"
+    g.append(T(4, H - 34, "水平は間グリッド沿い/垂直は %.1f 倍に強調。屋根の起りは設計値からの見込み【P】(梁間÷2×瓦勾配)・実装の高さは部材が正。"
                "視線は %s" % (ex, "南を向く(左=東の道／右=西の奥)" if sec["axis"] == "u"
                               else "西を向く(左=南の岡部境／右=北の松平境)"), "anS2", "start"))
     g.append(T(4, H - 20, "── 実線=造成後の地盤　┄┄ 破線=<b>江戸期の復元地盤</b>(手順U / 根拠A+B)。"
@@ -5416,6 +5437,16 @@ def bom_table(d):
             % (tot, nb))
 
 
+# ⚠ **梁間がこれ以上の棟には「一枚屋根は類型外」の印を出す**(2026-09-06 考証方の判定)。
+#   台帳にある梁間の実数は [西川1959]A の長屋(身舎 2.5間 + 庇 1間 = 3.5間)だけで、
+#   12間 はその 3.4倍。⛔ **閾値そのものに典拠は無い【U】** — 印を出すためだけの目安で、
+#   ⚠ **10.0 に採ったのは、考証方が名指しした3棟(Ima/Oku/Daidokoro)を拾う下限だから**。
+#   ⚠ ただし大棟の向きを正した後の梁間は Ima 12 / Oku 11 / Daidokoro 10 で **12間 ではなく**、
+#   同じ下限だと **玄関・表役所(10×10)も掛かる**。範囲は普請奉行の確認待ち。
+#   合否は付けない(処方=身舎+下屋 は【B】だが、身舎の割り付けは意匠=ユーザー裁定)。
+MOYA_WARN = 10.0
+
+
 def roof_table(d):
     """御殿の入母屋屋根の**要る寸法を棟から機械で出す**。
 
@@ -5452,6 +5483,12 @@ def roof_table(d):
         b = int(round(m["v1"] - m["v0"]))
         w, dd = max(a, b), min(a, b)
         rg, ri, _ok = _ridge(m, a, b)
+        # ⚠ **梁間が類型の実数を大きく超える棟に印を出す**(2026-09-06 考証方)。
+        #   台帳にある梁間の実数は [西川1959]A の長屋(身舎2.5間+庇1間)だけで、
+        #   12間 はその 3.4倍。⛔ 幾何は動かさない — **ユーザー裁定待ち**。
+        if dd >= MOYA_WARN:
+            ri += ("<br>⚠ <b>一枚屋根は類型外【B】・裁定待ち</b>"
+                   "(<code>_pending.yane_moya</code>)")
         rows.append((m["name"], "u %g間 × v %g間" % (a, b),
                      "<b>%d × %d 間</b>" % (w, dd), rg, ri,
                      "<code>Own.GotenRoofIrimoya(%d, %d)</code>" % (w, dd)))
@@ -5475,6 +5512,11 @@ def roof_table(d):
         else:
             ht = "⚠ 入母屋なら <code>Goten_Roof_Irimoya_%dx%dken.fbx</code>" % (w, dd)
         rg, ri, _ok = _ridge(m, a, b)
+        # ⚠ 印は御殿の棟だけでなく**梁間で決める** — 表役所(10×10)も同じ situation なので、
+        #   ここにも出す(⛔ 表と `_pending.yane_moya` の書きぶりを食い違わせない)。
+        if dd >= MOYA_WARN and rf.get("ridgeH") is None:
+            ri += ("<br>⚠ <b>一枚屋根は類型外【B】・裁定待ち</b>"
+                   "(<code>_pending.yane_moya</code>)")
         rows.append((m["name"] + "(<b>御殿でない</b>)", "u %g間 × v %g間" % (a, b),
                      "<b>%d × %d 間</b>" % (w, dd), rg,
                      ri if rf.get("ridgeH") is None else
@@ -5494,6 +5536,19 @@ def roof_table(d):
         "⛔ <b>焼けた屋根部材の実測があるときはそちらが正</b>(軒高を含まない値なので棟高そのものではない)。"
         "⭕ 正方形の棟(玄関 10×10・表役所 10×10)は大棟が長さ 0 に潰れるので<b>該当なし</b>。</p>"
         % (("%.4f" % kb) if kb else "⚠ const に無い")) + (
+        "<p class='cap'>⚠⚠ <b>梁間 %g間 以上を一枚の小屋組で飛ばすのは類型外【B】</b>"
+        "(2026-09-06 考証方)— 台帳にある梁間の実数は [西川1959]A の長屋"
+        "(<b>身舎 2.5間 + 庇 1間</b>)だけで、12間 はその 3.4倍。"
+        "[二条城大広間]A の一棟平均 166坪 に対し居間棟は 192坪。"
+        "<b>屋根の高さは格の表示</b>なので、梁間を飛ばして棟を高くすると格が跳ねる。"
+        "⭕ 処方は<b>「身舎+下屋」</b>(入側を下屋で架けて梁間を割る)【B】。"
+        "⛔⛔ <b>身舎を何間に取るか・雁行で割るか中庭を抱くかは意匠【?】= ユーザー裁定</b>"
+        "(<code>_pending.yane_moya</code>)。"
+        "⛔ <b>いまは棟も屋根も動かさない</b> — 現行の実装との突き合わせを保つため。"
+        "⚠⚠ <b>印の範囲は確認待ち</b> — 考証方が名指ししたのは<b>3棟</b>(居間・奥・台所)だが、"
+        "<b>大棟の向きを正した後の梁間は 居間 12 / 奥 11 / 台所 10 間で「12間」ではなく</b>、"
+        "同じ下限では<b>玄関・表役所(10×10)も掛かる</b>。⛔ 指図方では範囲を決めない。</p>"
+        % MOYA_WARN) + (
         "<p class='cap'>⭐ <b>`goten: false` の棟(表役所・厩)の屋根は `munes[].roof` に持つ。</b>"
         "<b>表役所は寄棟(方形造)【U】</b> — 足形が 10×10間 の正方形なので寄棟は幾何的に"
         "大棟を持てず方形造(宝形)になり、頂点は露盤(2026-09-06 考証方)。"
@@ -9045,7 +9100,7 @@ def main():
                  '<b>破線=江戸期の復元地盤</b>(手順U / 根拠A+B)なので、実線との差がそのまま切土/盛土。'
                  '区画線上には当家所有の囲い(表長屋/練塀)だけを天端と基壇石垣つきで示す — '
                  '南北の境は隣家所有のため空けてある。基壇は境界線上に垂直に立ち、道・隣地の地形には触れない。'
-                 '屋根は図示のための概略で、実装の高さは部材が決める(突き合わせの対象外)。</p>')
+                 '屋根の起りは設計値からの見込み【P】(梁間÷2×瓦勾配)・実装の高さは部材が正で、実装の高さは部材が決める(突き合わせの対象外)。</p>')
         h.append("</div>")
 
     plate(h, nx(), "外周の展開", "天端は辺ごとに一本。段は門・頂点・郭境の延長線でのみ落とす")
@@ -9249,7 +9304,11 @@ def main():
     def _collect(o):
         if isinstance(o, dict):
             for k, v in o.items():
-                if k == "retracted":
+                # ⛔ **検分役の覚え書き(`reviews`)は指図の主張ではない。**
+                #   ⚠ 2026-09-06、考証方の note の略記 `[山脇][西澄寺]` を「台帳に無い ID」と
+                #   誤検出した。あれは**検分の記録**で、⛔ 呼んだ側が書き換えてよい物ではない
+                #   (git のコミット件名を照合から外したのと同じ理屈)。
+                if k in ("retracted", "reviews"):
                     continue
                 _collect(v)
         elif isinstance(o, list):

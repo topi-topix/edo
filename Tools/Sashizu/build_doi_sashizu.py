@@ -171,6 +171,7 @@ def sources_block(md):
 def neighbour_block(d, ter, dem):
     """隣家の埋没を**毎回測って**表にする。手で書いた表は測り方を変えた瞬間に嘘になる。"""
     rows = ["| 隣家の塀 | 埋没 | 当家側の地盤 |", "|---|---|---|"]
+    _margins = []                      # ⭐ run ごとの余裕(2026-09-06 検図方 中8)
     gr = RGrid(d)
     we = dict((t["name"], walled_edges(d, t)) for t in d["terraces"])
     n = 0
@@ -218,6 +219,9 @@ def neighbour_block(d, ter, dem):
                 seat = s0v + (s1v - s0v) * max(0.0, min(1.0, tr))
                 if worst is None or g - seat > worst[0]:
                     worst = (g - seat, sq, g, nat)
+            if worst is not None:
+                # 余裕 = 相手の据え付け面 − 当家の地盤(＋=空き)。⛔ 埋没の有無に関わらず記録する
+                _margins.append((who, r["name"], -worst[0], worst[2], worst[2] - worst[0]))
             if worst is None or worst[0] <= 0.05:
                 continue
             n += 1
@@ -225,7 +229,24 @@ def neighbour_block(d, ter, dem):
             rows.append("| %s `%s`(相手の s=%.1f) | **%.2fm** | %.2f(%s) |"
                         % (who, r["name"], worst[1], worst[0], worst[2], kind))
     if n == 0:
-        return "**埋まる箇所は無い。**"
+        # ⭐⭐ **0件でも run ごとの余裕を刷る**(2026-09-06 検図方 中8)。
+        #   ⚠ 岡部 `N_Hei3b` の余裕は **0.075m** しかなく、閾値 0.05 まで **0.025m**。
+        #   ⛔ 「埋まる箇所は無い」だけだと、**誰かが `Kachu_Y` の面を 0.1m 上げれば
+        #   黙って隣家に食い込む**。⭕ 薄い所が見えていれば止められる。
+        rows = ["| 隣家の run | 余裕(＋=空き) | 当家の地盤 | 相手の据え付け面 |",
+                "|---|---|---|---|"]
+        worst = None
+        for who, nm9, mg9, g9, s9 in sorted(_margins, key=lambda q: q[2]):
+            rows.append("| %s `%s` | **%+.3f m** | %.2f | %.2f |" % (who, nm9, mg9, g9, s9))
+            if worst is None or mg9 < worst[1]:
+                worst = (nm9, mg9)
+        rows.append("")
+        rows.append("⭕ **埋まる箇所は無い**(判定は 0.05m 超)。"
+                    "⚠⚠ **いちばん薄いのは `%s` の %+.3fm** で、閾値まで **%.3fm** しかない。"
+                    "⛔ **この run の側で当家の面を上げない** — 上げれば黙って隣家に食い込む。"
+                    "測り方は境界から**当家側へ 0.3m**、`doi_dem.json` を**双一次**で引く。"
+                    % (worst[0], worst[1], worst[1] - 0.05) if worst else "")
+        return "\n".join(rows)
     rows.append("")
     rows.append("測り方: 境界から**土井側へ 0.3m**(塀の足元)、`doi_dem.json` を**双一次**で引く。"
                 "天端は **run の中**で `seat0→seat1` を按分(相手の生成器の `rseat` が正典)。"
@@ -3431,25 +3452,46 @@ def retracted_check(d, texts):
     3巡続けて「文章だけ直って図と正典に撤回済みの説が残る」再発をした(2026-08-24 考証第5巡)。
     禁句は設計値の `retracted` に置く。撤回の記録そのもの(「〜は反証された」の文脈)は
     別の語で書くこと。
+
+    ⭐⭐ **2026-09-06 検図方 高2 で免除の粒度を段落から「禁句のすぐ前」へ狭めた。**
+    ⚠⚠ **段落に印が1つでもあれば段落中の禁句を全部見逃していた** — `_pending` や `roof._` は
+    **一つの巨大な段落**で、無関係な「⛔ ここに数字を写さない」が必ず入るため、
+    **現行の主張として書かれた禁句が丸ごと赦されていた**(実測: 禁句の出る11段落が
+    **免除11・報告0**、うち正当な撤回記録は3段落だけ)。
+    ⇒ ① **免除は印が禁句を直接修飾しているときだけ**(直前 `MARK_NEAR` 文字の窓)
+       ② **文(`。`)でも割る**(1項=1段落にしない)
+       ③ **免除した件数を必ず刷る**(0件と未実行を見分ける=規則19)。
     """
-    # ⚠ **除外リストを作らない。判定そのものを極性で見る。**
-    #   「語が在るか」だと、**撤回の記録そのもの**(「⛔ 旧記〜は誤り。撤回する」)が
-    #   偽陽性になり、台帳とメモリを網に入れられなかった(2026-08-25 考証第11巡)。
-    #   **段落**(空行区切り)を単位に、同じ段落に**撤回の印**があれば見逃す。
-    #   実測: 段落単位なら台帳・メモリ・実装とも偽陽性 0、印の無い素の禁句には発火する。
-    MARK = ("⛔", "撤回", "誤り", "反証", "旧記", "採らない", "採用しない", "禁句")
+    MARK = ("⛔", "撤回", "誤り", "反証", "旧記", "採らない", "採用しない", "禁句",
+            "落とした", "廃した", "訂正", "失効", "二次資料", "決め直した", "改めた", "置き直した",
+            "岡部筑前守の条")   # ⭐ 帰属を明記した文は「当家の説」ではない(禁句表の作法)
+    MARK_NEAR = 80                      # 禁句の**直前**この文字数に印があれば撤回の記録とみなす
+    # ⚠⚠ **厳しい方の物差しは当邸の成果物にだけ当てる。**
+    #   ⛔ `台帳`(`sources.md`)と`メモリ`は**別の役の正典**で、当方は書き換えられない
+    #   (規則: 検分役の覚え書きと同じ理屈)。そこは従来どおり**段落**単位で免除する。
+    #   ⭕ 当邸の 設計値 / 図 / 文章 / 実装 は**文**で割り、**印が禁句を直接修飾するときだけ**赦す。
+    OWN = ("設計値", "図", "文章", "実装")
     bad = []
     marked = 0
     for label, t in texts:
-        for para in re.split(r"\n\s*\n", t):
-            hit = [w for w in d.get("retracted", []) if w in para]
-            if not hit:
-                continue
-            if any(m in para for m in MARK):
-                marked += len(hit)                  # 撤回の記録として許す
-                continue
-            for w in hit:
-                bad.append("撤回済みの語「%s」が %s に残っている(撤回の印が無い段落)" % (w, label))
+        strict = label in OWN
+        # ⛔ 空行だけで割らない — 句点でも割る(⚠ 巨大な一段落に免除が効いてしまう)
+        parts = re.split(r"\n\s*\n|(?<=。)", t) if strict else re.split(r"\n\s*\n", t)
+        for para in parts:
+            for w in d.get("retracted", []):
+                i = para.find(w)
+                while i >= 0:
+                    win = (para[max(0, i - MARK_NEAR):i] + para[i + len(w):i + len(w) + 24]
+                           if strict else para)
+                    if any(mk in win for mk in MARK):
+                        marked += 1     # 撤回の記録として許す
+                    else:
+                        bad.append("撤回済みの語「%s」が %s に残っている"
+                                   "(%s に撤回の印が無い)— …%s…"
+                                   % (w, label,
+                                      ("直前 %d 文字" % MARK_NEAR) if strict else "同じ段落",
+                                      re.sub(r"\s+", " ", para[max(0, i - 40):i + len(w) + 20])))
+                    i = para.find(w, i + 1)
     d["_retractedMarked"] = marked                  # 印つき出現の数。増減だけ見張る
     return sorted(set(bad))
 
@@ -6031,6 +6073,49 @@ def band_check(d):
             bad.append("**格式の逆転**: 帯に割った棟の最低 %s の棟高(地盤上)%.3fm が"
                        "表長屋 %.3fm を下回る — 御殿の棟が外周の長屋より低い姿になる"
                        % (nm9, h9, nr))
+    # ⭐⭐ ⑧ **絶対高でも逆転を見る**(2026-09-06 検図方 中7)。
+    #   ⚠ ⑦ は `nagayaRidge` と**地盤上の値だけ**を見ており、`const.kachuEave` を 6.00 にして
+    #   **家中長屋の絶対棟 34.94 > 御殿 33.10** にしても **0件**だった。
+    #   ⛔ 図自身が「地盤上と絶対で順が変わる」と書いている以上、**両方**要る。
+    #   ⭕ **蔵だけは名指しの例外**(2階建て・御殿は平屋。2026-09-06 普請奉行の裁定=このまま)。
+    KURA = ("Komegura", "Kura1", "Kura2")
+    ab = []
+    for m in d["munes"]:
+        rf = m.get("roof") or {}
+        if (rf.get("bands") or {}).get("ridgeY"):
+            ab.append(("御殿", m["name"], min(rf["bands"]["ridgeY"])))
+        elif rf.get("ridgeH") is not None:
+            ab.append(("他", m["name"], m["y"] + rf["ridgeH"]))
+    for o in d.get("service", []):
+        if o["name"] in KURA:
+            continue
+        _e, rg9 = svc_roof(d, o)
+        if rg9 is not None:
+            ab.append(("他", o.get("label", o["name"]), o["y"] + rg9))
+    #   ⚠ **比べるのは「御殿の最高」と「附属屋の最高」** — ⛔ 最低と比べない。
+    #     面の高さが棟ごとに違うので(表役所は下段 19.2)、**最低との比較は面の差を測ってしまう**。
+    #     図自身が「地盤上と絶対で順が変わる。⛔ 混ぜて語らない」と書いているとおり。
+    lo9 = max([q for q in ab if q[0] == "御殿"], key=lambda q: q[2], default=None)
+    hi9 = max([q for q in ab if q[0] == "他"], key=lambda q: q[2], default=None)
+    if lo9 and hi9 and hi9[2] > lo9[2] + 1e-9:
+        bad.append("**格式の逆転(絶対高)**: %s の棟が %.3fm で、御殿の最高 %s %.3fm を上回る"
+                   " — 御殿より高く見える附属屋は蔵だけ(2階建て)という裁定に反する"
+                   % (hi9[1], hi9[2], lo9[1], lo9[2]))
+    # ⭐ ⑨ **軒の出が 0 の物を黙って通さない**(同 中7)。⛔ `noki` を 0/0 にしても 0件だった。
+    #   ⭕ 例外は**足形=部材の外形**である稲荷だけ(名指し)。
+    for o in d["munes"] + d.get("service", []):
+        nk = o.get("noki")
+        if nk is not None and o["name"] not in ("Inari",) \
+                and (nk.get("de", 1) <= 1e-9 or nk.get("tsuma", 1) <= 1e-9):
+            bad.append("%s の `noki` が 0 — 屋根が足形の外へ出ない建物は稲荷(足形=部材の外形)だけ"
+                       % o.get("label", o["name"]))
+    # ⭐ ⑩ **入側の勾配は母屋と同値**(同 中7)。⛔ `gesyaKobai` を 0.1 にしても 0件だった。
+    #   ⭕ 設計の宣言(「母屋と同じ瓦勾配に採る」)そのものを測る。
+    gk9, kb9 = C.get("gesyaKobai"), C.get("kawaraKobai")
+    if gk9 is not None and kb9 is not None and abs(gk9 - kb9) > 1e-9:
+        bad.append("`const.gesyaKobai` %.4f が `kawaraKobai` %.4f と違う — "
+                   "入側は身舎の屋根がそのまま延びた一枚の流れなので**同じ勾配**でなければならない"
+                   % (gk9, kb9))
     return bad
 
 
@@ -6234,9 +6319,9 @@ def roof_table(d):
         "帯の境は谷で受ける。</b>対象は<b>6棟</b>"
         "(御殿複合=玄関・書院・居間・奥・台所 ＋ 表役所)【線引きもU】。"
         "⛔ <b>足形・室割り・廊下・御錠口は一つも動いていない</b> — 動いたのは屋根の層だけ。"
-        "⭕ 割り付けは <b>帯の身舎が %.4g間 に最も近くなる帯数</b>を採り"
-        "(許容 %.4g〜%.4g間)、<b>その帯数で均等割り</b>する"
-        "(<code>const.moyaBand</code>・⛔ 同値なら帯数の少ない側)。"
+        "⭕ 割り付けは <b>帯の身舎を %s間 の整数</b>に採り、<b>%g間 を基本</b>として"
+        "<b>割り切れない棟は %g間 で吸う</b>(⛔ 5間の帯は端側へ)。<b>帯数は最小</b>"
+        "(⛔ 谷を増やさない)。<code>const.moyaBand</code> が正典。"
         "帯数・帯の身舎・棟高・谷の位置は<b>すべて足形からの従属値</b>(⛔ 手で書かない)。"
         "⭕ <b>身舎 = 足形 − 入側 %.4g間 × 2</b>(2026-08-14 ユーザー裁定=外周に1間)。"
         "⛔ <b>帯の境に入側を作らない</b> — 背中合わせの2間廊下になるので、境は谷。"
@@ -6244,8 +6329,9 @@ def roof_table(d):
         "最小の整数だと身舎8間の3棟(台所・玄関・表役所)が <b>4.0間</b> になり、"
         "⛔ <b>台帳の実測(本体 2.5〜3間)をすべて上回って</b>案Cの目的"
         "(類型に近づける)を損なう。⭕ 身舎10間・9間の棟はこの改めで変わらない。</p>"
-        % (mb.get("target", 0), mb.get("min", 0), mb.get("max", 0), mb.get("irikawa", 0))) + (
-        "<p class='cap'>⚠⚠ <b>帯幅 %.4g間 は恒久的に【確度U】。</b>"
+        % ("〜".join("%g" % w for w in mb["widths"]), mb["base"], max(mb["widths"]),
+           mb["irikawa"])) + (
+        "<p class='cap'>⚠⚠ <b>帯幅 %s間 は恒久的に【確度U】。</b>"
         "⛔ <b>ユーザーに照会済みで、御殿の差図の心当たりは無い(2026-09-06)。</b>"
         "台帳にある梁間の実測は<b>門・長屋の4件だけ</b> — [西川1959]A「三間梁以下+庇一間」/ "
         "[根岸家長屋門修理報告書]A 3間 / [西澄寺武家屋敷門]A 2.5間 / [山脇武家屋敷門]A 4.7m で、"
@@ -6255,7 +6341,7 @@ def roof_table(d):
         "⚠ 前巡の「3〜5間なら類型と矛盾しない【B】」は<b>考証方自身が【U】へ訂正した</b> — "
         "確度Bで読まないこと。"
         "⚠ [西川1959]A の原文は<b>「片側に入側」</b>で、<b>四周に1間回すのは裁定であって"
-        "史料ではない</b>【U】。</p>" % mb.get("target", 0)) + (
+        "史料ではない</b>【U】。</p>" % "〜".join("%g" % w for w in mb["widths"])) + (
         "<p class='cap'>⭐ <b>棟高は「軒高 %.4g + 帯の身舎 ÷ 2 × 江戸間 × 瓦勾配 %s」</b>。"
         "⛔ <b>足形の梁間で計算しない</b> — 帯に割った意味(棟を高くしない)が消える。"
         "⚠ <b>軒高 %.4g は設計値から導けない</b>【U・図示のための概略】ので "
@@ -6710,6 +6796,9 @@ def niwa_stats(d):
             if q < best:
                 best, bnm = q, m["name"]
     o["clrMune"], o["clrMuneBy"] = best, bnm
+    # ⭐ **軒先までの値も持つ**(2026-09-06 庭方 低2)。⛔ 躯体までの値だけを刷らない。
+    _bm = next((m for m in d["munes"] + d["service"] if m["name"] == bnm), None)
+    o["clrMuneEave"] = best - ((_bm or {}).get("noki", {}).get("de", d["const"]["nokiDe"])) / K
     # 水面と岸の高さ関係(**余裕高**)。⭐ 2026-09-04 検図方 中-5。
     # ⚠ 従前は水面の高さを見る検査が一つも無く、`waterY` を 27.40(面 26.60 より 0.8m 高い)に
     #   しても「水面が 100% 見える」しか鳴らなかった。⛔ 水は陸より高い所には溜まらない。
@@ -7877,6 +7966,31 @@ def niwa_plant_check(d):
     g, K = n.g, n.ken
     out = []
     cr = _crowns(d)
+    # ⭐⭐ **樹どうしの隙**(2026-09-06 庭方 高2 の物差し)。
+    #   ⛔ **樹冠は交わってよいが、半分より深く重ねない** — **芯々 ≥ (r_a + r_b) ÷ 2**【庭方の意匠・U】。
+    #   ⚠ 8m級の Big 2本が**幹の隙 0.15m**で立ち、樹冠が **96% 同心**だった(其八でも点と破線円が
+    #   二重に刷られていた)のに、**どの検査も鳴らなかった**。
+    for i9 in range(len(cr)):
+        for j9 in range(i9 + 1, len(cr)):
+            a9, b9 = cr[i9], cr[j9]
+            dd = math.hypot((a9["u"] - b9["u"]) * K, (a9["v"] - b9["v"]) * K)
+            need = (a9["r"] + b9["r"]) / 2.0
+            if dd < need - 1e-6:
+                out.append("**%s %s と %s %s の芯々が %.2fm**(下限 %.2fm = 樹冠 %.2f + %.2f の半分)"
+                           " — 樹冠を半分より深く重ねない【庭方の物差し・U】"
+                           % (a9["sp"], a9["sz"], b9["sp"], b9["sz"], dd, need, a9["r"] * 2, b9["r"] * 2))
+    # ⭐ **平場に幹を掛けない**(同上)。⛔ 床几の平場に木が生えている図にしない。
+    for t9 in g.get("tsukiyama", []):
+        da = t9.get("daira")
+        if not da:
+            continue
+        hu, hv = da["dU"] / 2.0, da["dV"] / 2.0
+        for c in cr:
+            if (abs(c["u"] - t9["u"]) <= hu + c.get("trunk", 0.0) / K
+                    and abs(c["v"] - t9["v"]) <= hv + c.get("trunk", 0.0) / K):
+                out.append("**%s %s の幹が %s の平場(%.2f × %.2f間)に掛かる** — "
+                           "⛔ 床几の平場に木を生やさない【庭方の物差し・U】"
+                           % (c["sp"], c["sz"], t9["label"], da["dU"], da["dV"]))
     # 6-① 据え位置が池の内側でない。⛔ 例外は**名指し**で持つ(`inpondExempt`)。
     ex = set(g.get("inpondExempt", []))
     pts = [("%s %s" % (c["sp"], c["sz"]), "植栽", c["u"], c["v"]) for c in cr]
@@ -8066,15 +8180,19 @@ def _mustsee_one(d, n, K, v1):
         hit = []
         for c in cr:
             s = ((c["u"] - v1["u"]) * du + (c["v"] - v1["v"]) * dv) / L2
-            if not (0.0 < s < 1.0):
+            # ⭐⭐ **眼が樹冠の円の中にある場合を落とさない**(2026-09-06 庭方 高1)。
+            #   ⚠ 最近点が眼の後ろ(s ≤ 0)になるので `0 < s < 1` で切ると**素通り**した。
+            #   ⛔ 眼が円の中なら、どちらを向いても樹冠に切られる。
+            eye_in = math.hypot((v1["u"] - c["u"]) * K, (v1["v"] - c["v"]) * K) < c["r"]
+            if not eye_in and not (0.0 < s < 1.0):
                 continue
-            if math.hypot((v1["u"] + du * s - c["u"]) * K,
-                          (v1["v"] + dv * s - c["v"]) * K) >= c["r"]:
+            if not eye_in and math.hypot((v1["u"] + du * s - c["u"]) * K,
+                                         (v1["v"] + dv * s - c["v"]) * K) >= c["r"]:
                 continue
             gy = n.ground(c["u"], c["v"])
-            ly = e1 + (ty - e1) * s
+            ly = e1 if eye_in else e1 + (ty - e1) * s
             if gy + c["crownFrom"] <= ly <= gy + c["h"]:
-                hit.append("%s %s" % (c["sp"], c["sz"]))
+                hit.append("%s %s%s" % (c["sp"], c["sz"], "(眼が樹冠の中)" if eye_in else ""))
         if hit:
             out.append("**見所%s(%s)から名指しした「%s」(%.2f, %.2f・天端 %.2f)が "
                        "%s の樹冠に隠れる** — 見えると書いたものが見えない【庭方の検査】"
@@ -8800,8 +8918,11 @@ def niwa_pond_table(d):
          "沢飛石が渡る"),
         ("汀 → 庭の境", "%.2f 間(%s)" % (o["clrBound"], o["clrBoundBy"]),
          "下限 %.2f 間" % n.mg["clearance"]["gardenBound"]),
-        ("汀 → 最寄りの棟", "%.2f 間(%s)" % (o["clrMune"], o["clrMuneBy"]),
-         "下限 %.2f 間(稲荷の小祠は庭の点景なので除く)" % n.mg["clearance"]["mune"]),
+        ("汀 → 最寄りの棟", "躯体まで %.2f 間(%s)<br><b>軒先まで %.2f 間</b>"
+         % (o["clrMune"], o["clrMuneBy"], o["clrMuneEave"]),
+         "下限 %.2f 間(稲荷の小祠は庭の点景なので除く)。"
+         "⚠ <b>軒が %.2fm 出る</b>ので、⛔ 躯体までの値だけで読まない"
+         "(2026-09-06 庭方 低2)" % (n.mg["clearance"]["mune"], d["const"]["nokiDe"])),
         ("水面 → 岸の余裕高(最小)", "<b>%+.2f m</b>(汀 #%d の外 %.1f間)"
          % (o["fbMin"], o["fbMinAt"][0], o["fbMinAt"][1]),
          "水面 %.2f。⭕ <b>正=水面が岸より低い</b>(汀線 %d 辺 × 外へ 0.3/0.6間 を実測)"
@@ -10567,6 +10688,7 @@ def main():
         ("台帳", re.sub(r"[*~`]", "", _ledger_text())),
         ("メモリ", re.sub(r"[*~`]", "", _memo_text())),
     ])
+    print("── 撤回の印つきで見逃した数: %d 件" % d.get("_retractedMarked", -1))
     print("── 撤回済みの説の残り: %s"
           % ("**0 件**" if not rbad else "⚠ %d 件 — **図は書き出したが要修正**" % len(rbad)))
     for b in rbad:

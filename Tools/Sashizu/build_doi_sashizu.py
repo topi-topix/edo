@@ -5400,9 +5400,13 @@ def roof_table(d):
                                          ("・頂点は" + rf["chodai"]) if rf.get("chodai") else "")
         else:
             call = "⚠ 型が指図に無い【?】 — <code>_pending.yanekata</code>"
-        ht = ("棟高 <b>%.2f</b> / 軒高 %.2f【%s】" % (rf["ridgeH"], rf["eaveH"], rf.get("cert", "?"))
-              if rf.get("ridgeH") is not None else
-              ("⚠ 入母屋なら <code>Goten_Roof_Irimoya_%dx%dken.fbx</code>" % (w, dd)))
+        if rf.get("ridgeH") is not None:
+            ht = "棟高 <b>%.2f</b> / 軒高 %.2f【%s】" % (rf["ridgeH"], rf["eaveH"],
+                                                       rf.get("cert", "?"))
+        elif "寄棟" in str(rf.get("kata", "")):
+            ht = ("<code>Goten.RoofYosemune_(%d, %d)</code> ⭕ 焼成済(staging)" % (w, dd))
+        else:
+            ht = "⚠ 入母屋なら <code>Goten_Roof_Irimoya_%dx%dken.fbx</code>" % (w, dd)
         rows.append((m["name"] + "(<b>御殿でない</b>)", "u %g間 × v %g間" % (a, b),
                      "<b>%d × %d 間</b>" % (w, dd), call, ht))
     return _tw(("棟", "足形", "桁行 × 梁間", "呼び出し / 屋根の型", "焼く名 / 高さ"), rows) + (
@@ -5437,14 +5441,16 @@ def buzai_table(d):
     if not rows:
         return "<p class='cap'>⭕ <b>新造を要する部材: 0 件。</b></p>"
     nh = sum(1 for b in d.get("bom", []) if b.get("build") and not b.get("how"))
+    st = sum(1 for b in d.get("bom", []) if str(b.get("how", "")).startswith("焼成済"))
     return _tw(("要る物", "手当て", "名", "宿題", "断り"), rows) + (
-        "<p class='cap'>⚠ <b>手当てが未定の行: %d。</b>2026-09-06 の部材方の第1段は"
-        "「焼成済9・在庫で組む2・C#(棟梁)1」という<b>内訳だけ</b>で、"
-        "<b>どの行がどれか・焼いた部材の名と実寸が来ていない</b>。"
-        "⛔ <b>指図方で割り当てを推測しない</b> — 推測で <code>asset</code> を書くと "
-        "<code>LoadAssetAtPath</code> が null を返して静かに壊れる(規則12)。"
-        "⭕ 確実に紐づいたのは<b>蔵</b>(実寸 → <code>const.kuraRidge</code>)と"
-        "<b>渡廊下1.5間</b>(→ C#・棟梁)の2件(<code>_pending.buzai1</code>)。</p>" % nh) + (
+        "<p class='cap'>⭐ <b>2026-09-06 部材方の第1段で全行に手当てが付いた</b>"
+        "(手当て未定 <b>%d 行</b>)。うち <b>%d 行が焼成済</b>。"
+        "⚠⚠ <b>実体はまだ <code>Assets/</code> に無く、部材方の staging に在るだけ</b> — "
+        "配置と <code>EdoAssets</code> への登録は<b>第2段</b>(<code>_pending.buzai2</code>)で、"
+        "⛔ <b>それまで棟梁は据えられない</b>(<code>LoadAssetAtPath</code> は例外を投げず "
+        "null を返すので、無い物を指しても静かに壊れる=規則12)。"
+        "⚠ <b>FBX を入れたらマテリアルを remap する</b>(やらないと全部真っ白になる)。</p>"
+        % (nh, st)) + (
         "<p class='cap'>⭐ <b>これは `bom` の「新造」の行をそのまま並べた view で、別の名簿ではない</b>"
         "(⛔ 同じ事実を二重に書かない=規則4)。新造が済んだら <code>bom[].build</code> を "
         "<code>false</code> にし、<code>asset</code> を <code>EdoAssets</code> の名へ差し替える。"

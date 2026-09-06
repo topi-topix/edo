@@ -8122,7 +8122,26 @@ def niwa_toi_table(d):
                      ("%.2f" % q) if q is not None else "—",
                      ("<b>%+.2f m</b>%s" % (q - y, "" if q - y >= 0.30 else " ⚠"))
                      if q is not None else "—"))
-    return _tw(("折れ点(u,v)", "樋の底", "復元地盤(P)", "土被り(下限 0.30m)"), rows)
+    # ⭐ **水尻の末端(受け石)も刷る。**⚠ 2026-09-06 まで `uke` は「玉石の浸透枡(受け石)」の
+    #   **一語**で、数も広がりも無く、**棟梁が第2回で発明するほかなかった**(3個・0.45m)。
+    #   その値を正典へ引き取ったので、⛔ 表に出さないまま持たない(規則19)。
+    ms = ((n.g.get("mizu") or {}).get("mizushiri") or {})
+    uk = (ms.get("otoshimizo") or {}).get("uke")
+    tail = ""
+    if isinstance(uk, dict):
+        tail = ("<p class='cap'>⭕ <b>落とし溝の末端 — %s</b>: <b>%d 個</b>を終点 (%.2f, %.2f) の"
+                "まわり<b>半径 %.2fm</b> へ、<code>%s</code> を <b>90° 倒して</b>据え"
+                "(`scale` %.2f)、<b>芯を地盤の高さに沈める</b>(半分ほど埋まる)。"
+                "⛔ <b>1種で並べない・等間隔の円に見せない</b>(variant を3種混ぜ、yaw は乱数)。"
+                "⛔ <b>隣家へ流し込まない</b> — ここで止めて谷頭の草地へ浸透させる【数・広がりとも U】。</p>"
+                % (uk.get("kata", "受け石"), uk["n"],
+                   (ms.get("otoshimizo") or {}).get("to", [0, 0])[0],
+                   (ms.get("otoshimizo") or {}).get("to", [0, 0])[1],
+                   uk["r"], uk.get("asset", "—"), uk.get("scale", 1.0)))
+    elif uk is not None:
+        tail = ("<p class='cap'>⚠ <b>受け石が語だけで、数も広がりも無い</b> — "
+                "このままでは実装が発明する(<code>mizushiri.otoshimizo.uke</code>)。</p>")
+    return _tw(("折れ点(u,v)", "樋の底", "復元地盤(P)", "土被り(下限 0.30m)"), rows) + tail
 
 
 def akichi_table(d):

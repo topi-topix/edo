@@ -72,7 +72,7 @@ import vklib as V
 import vkmesh as VM
 import build_maruta as M
 
-OUT  = os.path.join(V.REPO, "Assets", "Edo", "Models", "Niwa")
+OUT  = V.out_dir(os.path.join(V.REPO, "Assets", "Edo", "Models", "Niwa"))
 SHOT = os.path.join(V.REPO, "Screenshots")
 NMR  = os.path.join(V.REPO, "Assets", "NatureManufacture Assets",
                     "Meadow Environment Dynamic Nature", "Rocks", "Rocks", "Models")
@@ -642,7 +642,9 @@ def _emit(o, name, key, do_render, extra=None):
 
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    want = [a for a in argv if not a.startswith("--")] or list(PARTS.keys())
+    taken = {argv[argv.index("--h") + 1]} if "--h" in argv else set()
+    want = [a for a in argv if not a.startswith("--") and a not in taken] \
+        or list(PARTS.keys())
     do_render = "--render" in argv
     for key in want:
         if key not in PARTS:
@@ -661,6 +663,10 @@ def main():
             # ⚠ **0.6 は `nishi.mado.railH`(視軸の区間 u−0.92〜2.92・庭方 K210)**。
             #   竹垣 h0.9 は床几の視線を切る(余裕 −0.08m)ので、その区間だけ 0.6 に落とす
             hs = (1.2, 0.9, 0.6) if key == "yotsume" else (1.5,)
+            # `--h <丈m>` で丈を名指しする(土井邸は建仁寺垣 h1.8 が要る)。
+            # ⚠ ここで言う丈は**垣そのもの**で、部材の bbox は玉縁(笠竹)ぶん高く出る
+            if "--h" in argv:
+                hs = tuple(float(a) for a in argv[argv.index("--h") + 1].split(","))
             for h in hs:
                 V.reset(); o, n = fn(h); _emit(o, n, "%s%.1f" % (key, h), do_render)
                 V.reset(); o, n = fp(h); _emit(o, n, "%s%.1f_post" % (key, h), do_render)

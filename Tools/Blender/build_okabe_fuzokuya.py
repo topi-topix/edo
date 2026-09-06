@@ -37,7 +37,7 @@ import build_goten_roof as R
 import build_obi_nagaya as N
 
 KEN = 1.818
-OUT = os.path.join(V.REPO, "Assets", "Edo", "Models", "Fuzokuya")
+OUT = V.out_dir(os.path.join(V.REPO, "Assets", "Edo", "Models", "Fuzokuya"))
 SHOT = os.path.join(V.REPO, "Screenshots")
 WOOD, WALL, STONE = N.WOOD, N.WALL, N.STONE
 
@@ -46,7 +46,15 @@ POST = 0.16          # 柱【U】
 
 
 def frame(m, P, W, D, eaveH, nx, nz, base=BASE, post=POST):
-    """礎石 + 通し柱 + 桁 + 妻梁。小屋の骨は共通なので関数にする"""
+    """礎石 + 通し柱 + 桁 + 妻梁。小屋の骨は共通なので関数にする
+
+    ⚠ **`nx`/`nz` は柱の割付の本数なので必ず整数にする。**間数に端数がある棟
+    (土井の厩 5.5 × 7間)を素で渡すと `range()` が `TypeError` で落ちる。
+    ⭕ 四捨五入して**1間に最も近い等間隔**へ丸める — 端数を半間の柱間として残すと、
+      礎石も桁の割りもそこだけずれて小屋の骨が歪む。⚠ 丸めた結果、柱間は
+      厳密な江戸間 1間 ではなくなる(5.5間 → 6等分 = 0.917間)。板壁の小屋なので
+      外からは読めないが、**柱間を測る検査に掛けるならこの丸めを申告すること**。"""
+    nx, nz = max(1, int(round(nx))), max(1, int(round(nz)))
     hw, hd = W / 2.0, D / 2.0
     m.box(-hw - 0.13, hw + 0.13, 0.0, base, -hd - 0.13, hd + 0.13,
           VM.sub(P['suv'], 0, 0, 1, 0.5), STONE)
@@ -88,12 +96,27 @@ def finish(name, m, P, W, D, eaveH, noki, end, ridge_show, extra=None):
 
 
 # ================================================================ 厩
-def umaya(uKen=4, vKen=9, name="Okabe_Umaya"):
+def umaya(uKen=4, vKen=9, name="Okabe_Umaya", eaveH=2.85, frontH=1.35, noki=0.85):
     """厩 4×9間。長手 = v。**前面(+Z)は開けて足元に半高の板壁**、馬房を4つに仕切る。
-    ⚠ 型・馬房数は【U】— 指図は位置と間数だけを持ち、姿の典拠は無い。"""
+    ⚠ 型・馬房数は【U】— 指図は位置と間数だけを持ち、姿の典拠は無い。
+
+    ⚠⚠ **梁間が深いほど棟が高くなる。**瓦の勾配 0.5456(5.5寸)は動かせないので
+      棟 = `eaveH` + 梁間/2 × 0.5456 + 0.34 が従属して決まる。⇒ **軒高は「棟を
+      どこに納めたいか」から逆算する値**であって、型ごとの定数ではない。
+      土井の厩(5.5 × 7間)は既定の 2.85 だと棟 5.918 になり、**表長屋の 5.509 を
+      超えて格が逆転した**(2026-09-06 ユーザー裁定=B で 2.35 へ下げ、棟 5.42 に納めた)。
+
+    ⛔⛔ **軒高だけを下げると厩でなくなる。**吹き放ちの帯 =
+      `eaveH − noki×0.5456 − (frontH+0.09)` で、軒を 2.85→2.35 に下げると
+      **0.95m → 0.45m に半減し、しかも軒先の鼻隠しに隠れて立面から消える**
+      (2026-09-06 に実見 — 馬房も馬も見えない「大屋根の物置」になった)。
+      ⭕ ⇒ 軒を下げるときは **`frontH`(馬房前の半高壁)と `noki`(軒の出)も一緒に**
+      下げて帯を取り戻すこと。土井は 2.35 / 1.00 / 0.55 で帯 0.96m(岡部の 0.95 と同等)。
+      ⚠ `noki` は棟高に効かない(`apex = eaveH + 梁間/2 × 0.5456`)ので、
+        軒の出を詰めても棟は上がらない。"""
     P = N.palette()
     W, D = vKen * KEN, uKen * KEN          # ローカル X = 長手(v)
-    EAVE, NOKI, END = 2.85, 0.85, 0.32
+    EAVE, NOKI, END = eaveH, noki, 0.32
     hw, hd = W / 2.0, D / 2.0
     m = VM.Mesh()
     xs, zs = frame(m, P, W, D, EAVE, vKen, uKen)
@@ -103,8 +126,8 @@ def umaya(uKen=4, vKen=9, name="Okabe_Umaya"):
     for sx, s in ((-hw, -1), (hw, 1)):
         N.shitami(m, P, -hd, hd, BASE, EAVE - 0.20, sx, s, 'z')
     # 前面(+Z)= 吹き放ち。足元に半高の板壁(馬が出ないように)
-    N.shitami(m, P, -hw, hw, BASE, 1.35, hd, 1, 'x')
-    m.box(-hw, hw, 1.35, 1.44, hd - 0.03, hd + 0.09,
+    N.shitami(m, P, -hw, hw, BASE, frontH, hd, 1, 'x')
+    m.box(-hw, hw, frontH, frontH + 0.09, hd - 0.03, hd + 0.09,
           VM.sub(P['wuv'], 0.30, 0.55, 0.85, 0.80), WOOD)          # 天端の笠木
     # 馬房の仕切り(4房)。前面から 2/3 だけ入れる
     for i in range(1, 4):
@@ -117,6 +140,9 @@ def umaya(uKen=4, vKen=9, name="Okabe_Umaya"):
     m.box(-hw, hw, 0.95, 1.10, -hd + 0.10, -hd + 0.36,
           VM.sub(P['wuv'], 0.35, 0.20, 0.90, 0.50), WOOD)
     N.gable_set(m, P, hw, hd, EAVE, EAVE - NOKI * R.RATIO, apex, NOKI, end=END)
+    print("[okfuz] %s 軒 %.2f / 軒の出 %.2f / 馬房前の半高壁 %.2f → **吹き放ちの帯 %.3fm** "
+          "/ 棟 %.3f" % (name, EAVE, NOKI, frontH,
+                        EAVE - NOKI * R.RATIO - (frontH + 0.09), apex))
     return finish(name, m, P, W, D, EAVE, NOKI, END, 0.34), name
 
 
@@ -690,6 +716,18 @@ def main():
         return float(argv[argv.index(flag) + 1]) if flag in argv else None
     kw = {"at_v": opt("--at-v"), "above_y": opt("--above-y")}
     skip = {argv[argv.index(f) + 1] for f in ("--at-v", "--above-y") if f in argv}
+    # `--ken <u間> <v間>` / `--name <名前>` — 別邸で同じ型を別寸法で焼くための上書き。
+    # ⚠ 名前を必ず一緒に渡すこと(既定の名前は岡部の寸法を指しているので上書きすると
+    #   別寸法の部材が同じファイルを潰す)
+    ken = None
+    if "--ken" in argv:
+        i = argv.index("--ken")
+        ken = (float(argv[i + 1]), float(argv[i + 2]))
+        skip |= {argv[i + 1], argv[i + 2]}
+    nm = None
+    if "--name" in argv:
+        nm = argv[argv.index("--name") + 1]
+        skip.add(nm)
     want = [a for a in argv if not a.startswith("--") and a not in skip] or list(PARTS.keys())
     if "sashikomi" in want:                # ⛔ 書き出さない検証だけの枝
         V.reset()
@@ -700,7 +738,15 @@ def main():
             print("[okfuz] ⚠ 知らない部材: %s (%s)" % (key, "/".join(PARTS)))
             continue
         V.reset()
-        o, name = PARTS[key](**kw) if key == "kurumayose_cut" else PARTS[key]()
+        if key == "kurumayose_cut":
+            o, name = PARTS[key](**kw)
+        elif ken or nm:
+            kw2 = {} if ken is None else {"uKen": ken[0], "vKen": ken[1]}
+            if nm:
+                kw2["name"] = nm
+            o, name = PARTS[key](**kw2)
+        else:
+            o, name = PARTS[key]()
         mn, mx = V.bbox([o])
         print("[okfuz] %-20s Unity実寸 W(X)=%.3f  H(Y)=%.3f  D(Z)=%.3f  底=%.3f  面=%d"
               % (name, mx.x - mn.x, mx.z - mn.z, mx.y - mn.y, mn.z, len(o.data.polygons)))

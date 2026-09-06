@@ -963,6 +963,23 @@ public static partial class EdoMatsudairaDewaBuilder
             var k = O(o); float s = F(k["s"]), w = F(k["w"]);
             komon.Add(new float[] { F(k["edge"]), s - w / 2f, s + w / 2f });
         }
+        // 隅の留め継ぎ(kado)は run の s0/s1 の外側に「腕」を持つ(直線材はそのぶん手前で止まる —
+        // 例: J_P2 は S_Hei_C の s1=74.82 より隅 s=78.92 まで4.1m 先)。直線材は止まっても
+        // **基壇(石垣)は頂点まで通す**(J_P14 の注記どおり「石垣基壇は開口を作らず通す」)。
+        // 腕の区間の天端は隅部材の座(joints[].kado.seat)を採る — run 自身の SeatAt(clamp)は
+        // run 内側の座であって腕の座と一致するとは限らない
+        // (2026-09-06 EDO-0147 実測: 隅 Kado_J_P2 が基壇なしで 1.25m 浮いていた)。
+        var armEnd = new Dictionary<string, Vector2>();     // run名(joints[].a)→(頂点s, 隅の座)
+        var armStart = new Dictionary<string, float>();     // run名(joints[].b)→隅の座(頂点=0扱い)
+        foreach (var o in A(D["joints"]))
+        {
+            var j = O(o);
+            if (!Has(j, "kado")) continue;
+            float armSeat = F(O(j["kado"])["seat"]);
+            if (Has(j, "a")) armEnd[(string)j["a"]] = new Vector2(F(j["s"]), armSeat);
+            if (Has(j, "b")) armStart[(string)j["b"]] = armSeat;
+        }
+
         int made = 0, runs = 0;
         foreach (var r in Runs)
         {
@@ -981,17 +998,26 @@ public static partial class EdoMatsudairaDewaBuilder
                 cur = Mathf.Max(cur, c[1]);
             }
             if (cur < r.s1) segs.Add(new float[] { cur, r.s1 });
+            var segSeat = new List<float>();                  // NaN = r.SeatAt(mid) を使う
+            foreach (var _s in segs) segSeat.Add(float.NaN);
+            // 隅の腕ぶんを追加区間として足す(直線材の s0/s1 の外)
+            if (armEnd.TryGetValue(r.name, out Vector2 ae) && ae.x > r.s1 + 0.01f)
+            { segs.Add(new float[] { r.s1, ae.x }); segSeat.Add(ae.y); }
+            if (armStart.TryGetValue(r.name, out float asSeat) && r.s0 > 0.01f)
+            { segs.Insert(0, new float[] { 0f, r.s0 }); segSeat.Insert(0, asSeat); }
 
             Vector2 n = OutNormal(r.edge);
             // ローカル +X を外向きに、+Z を s の増える向きに合わせる
             float psi = Mathf.Atan2(-n.y, n.x) * Mathf.Rad2Deg;
-            // ⚠ 天端は駒ごとに r.SeatAt(t) から取る。r.seat は斜面 run の**中点**で、
-            //   これで平らに据えると一本の run の中で埋没と過大露出が同時に起きる(2026-08-23)。
-            //   石垣そのものは水平が正典(unity-modular-stonewall §3)なので、**斜面では
-            //   run が2m刻みに割られた単位ごとに水平**にし、run 全体では階段状に下る。
-            foreach (var sg in segs)
+            // ⚠ 天端は駒ごとに r.SeatAt(t) から取る(腕の区間は上の segSeat が優先)。r.seat は
+            //   斜面 run の**中点**で、これで平らに据えると一本の run の中で埋没と過大露出が
+            //   同時に起きる(2026-08-23)。石垣そのものは水平が正典(unity-modular-stonewall §3)
+            //   なので、**斜面では run が2m刻みに割られた単位ごとに水平**にし、run 全体では
+            //   階段状に下る。
+            for (int si = 0; si < segs.Count; si++)
             {
-                float t0 = sg[0], t1 = sg[1], L = t1 - t0;
+                float t0 = segs[si][0], t1 = segs[si][1], L = t1 - t0;
+                if (L < 0.05f) continue;
                 // 何枚で覆うか。pitch は必ず IG_PITCH_MAX 以下になるので**重なりは 0.20m 以上**、
                 // つまり隙間は原理的に出ない(閉じは「隙間 > めり込み」)。
                 int N = (L <= IG_RUN) ? 1 : Mathf.CeilToInt((L - IG_RUN) / IG_PITCH_MAX) + 1;
@@ -1000,9 +1026,10 @@ public static partial class EdoMatsudairaDewaBuilder
                 {
                     float t = t0 + pitch * i;                 // 駒の箱は [t, t + IG_RUN]
                     float mid = Mathf.Min(t + IG_RUN * 0.5f, t1);
+                    float seat = float.IsNaN(segSeat[si]) ? r.SeatAt(mid) : segSeat[si];
                     Vector2 p = EdgePt(r.edge, t);
                     var go = EdoNishiTameikeBuilder.Place(EdoAssets.JC.CastleWall,
-                        new Vector3(p.x, r.SeatAt(mid) - IG_H, p.y), psi,
+                        new Vector3(p.x, seat - IG_H, p.y), psi,
                         Vector3.one, grp, "IG_" + r.name + "_" + made);
                     if (go != null) made++;
                 }
@@ -1720,7 +1747,15 @@ public static partial class EdoMatsudairaDewaBuilder
         return p + bis * inset;
     }
 
-    /// <summary>板塀を A→B に実寸ピッチで通す。skip の区間(庭木戸)は空ける。表裏2枚組。</summary>
+    /// <summary>板塀を A→B に実寸ピッチで通す。skip の区間(庭木戸)は**丸ごと落とさず**、
+    /// 木戸の両側を短い駒で埋める。表裏2枚組。
+    /// 【普請奉行の指示・2026-09-06 EDO-0147(実測 15:50・掲示板)】:
+    ///   ⚠ 端の駒の縮め率は下限 0.85倍。それ未満になるなら1駒足す(下の PlaceItabeiSpan と同じ
+    ///   round()+0.85チェックへ吸収させている — 短い残区間ほど自然にこの分岐へ落ちる)。
+    ///   ⚠ 各駒の両端で地盤を取り、低い端に合わせて座る。段差が0.3mを超えたら駒を分ける
+    ///   (PlaceItabeiSpan が中点で再帰的に割る)。
+    /// 現況(是正前): NJ_Oku_S_W_11(6.8m)・NJ_Oku_N_W_2/3(7.2m×2)のように、木戸と重なる
+    /// bay を丸ごと落としていたため木戸の両側に 2.3m/5m の素通しの隙間ができていた。</summary>
     static int ItabeiRun(Transform parent, Vector2 A2, Vector2 B2, float h, string prefix,
                          List<Vector2[]> skip)
     {
@@ -1735,37 +1770,86 @@ public static partial class EdoMatsudairaDewaBuilder
         float len = (B2 - A2).magnitude;
         Vector2 dir = (B2 - A2) / len;
         Vector2 nrm = new Vector2(-dir.y, dir.x);
-        int n = Mathf.Max(1, Mathf.RoundToInt(len / (spanES - 0.15f)));
-        float pitch = len / n;
-        float sx = EdoSannoKitaBuilder.ES * pitch / spanES;
         float sy = h / rawH;                                  // 指図の高さ(2.4m)に立てる
         float yaw = Mathf.Atan2(nrm.x, nrm.y) * Mathf.Rad2Deg;
-        int made = 0;
-        for (int k = 0; k < n; k++)
+
+        // 1) 木戸の開口を t(=A2 からの距離)の区間へ変換し、パディングして合体する
+        //    (パディング 0.6m は旧実装の DistSeg 判定と同じ値を引き継ぐ — 新規の値ではない)
+        var holes = new List<Vector2>();
+        foreach (var sg in skip)
         {
-            Vector2 c = A2 + dir * (pitch * (k + 0.5f));
-            bool skipped = false;
-            foreach (var sg in skip)
+            float ta = Vector2.Dot(sg[0] - A2, dir), tb = Vector2.Dot(sg[1] - A2, dir);
+            float t0h = Mathf.Clamp(Mathf.Min(ta, tb) - 0.6f, 0f, len);
+            float t1h = Mathf.Clamp(Mathf.Max(ta, tb) + 0.6f, 0f, len);
+            if (t1h > t0h) holes.Add(new Vector2(t0h, t1h));
+        }
+        holes.Sort((x, y) => x.x.CompareTo(y.x));
+        var merged = new List<Vector2>();
+        foreach (var hh in holes)
+        {
+            if (merged.Count > 0 && hh.x <= merged[merged.Count - 1].y)
+                merged[merged.Count - 1] = new Vector2(merged[merged.Count - 1].x, Mathf.Max(merged[merged.Count - 1].y, hh.y));
+            else merged.Add(hh);
+        }
+
+        // 2) 木戸を除いた区間(seg)を集める
+        var segs = new List<Vector2>();
+        float cursor = 0f;
+        foreach (var hh in merged)
+        {
+            if (hh.x > cursor) segs.Add(new Vector2(cursor, hh.x));
+            cursor = Mathf.Max(cursor, hh.y);
+        }
+        if (len - cursor > 0.02f) segs.Add(new Vector2(cursor, len));
+
+        int made = 0, idx = 0;
+        foreach (var seg in segs)
+        {
+            float segLen = seg.y - seg.x;
+            if (segLen < 0.3f) continue;                      // 木戸の際の端数(パディング内)は無視できる幅
+            int n = Mathf.Max(1, Mathf.RoundToInt(segLen / (spanES - 0.15f)));
+            float pitch = segLen / n;
+            if (pitch / spanES < 0.85f) { n += 1; pitch = segLen / n; }   // 下限0.85倍 → それ未満なら1駒足す
+            for (int k = 0; k < n; k++)
             {
-                // 木戸の区間と重なる bay は置かない(門の幅ぶん確実に空ける)
-                float t = Vector2.Dot(c - sg[0], (sg[1] - sg[0]).normalized);
-                float gl = (sg[1] - sg[0]).magnitude;
-                if (DistSeg(c, sg[0], sg[1]) < pitch * 0.5f + 0.6f && t > -pitch && t < gl + pitch)
-                { skipped = true; break; }
+                float t0 = seg.x + pitch * k, t1 = t0 + pitch;
+                made += PlaceItabeiSpan(parent, A2, dir, nrm, t0, t1, spanES, sy, yaw,
+                                        prefix + "_" + (idx++), 0);
             }
-            if (skipped) continue;
-            float y = Mathf.Max(DesignY(c - dir * pitch * 0.5f), DesignY(c + dir * pitch * 0.5f));
-            for (int side = 0; side < 2; side++)
-            {
-                var go = EdoNishiTameikeBuilder.Place(EdoAssets.Eg.Itabei5, Vector3.zero,
-                    side == 0 ? yaw : yaw + 180f, new Vector3(sx, sy, EdoSannoKitaBuilder.ES),
-                    parent, prefix + "_" + k + (side == 0 ? "f" : "b"));
-                if (go == null) continue;
-                var b = EdoNishiTameikeBuilder.RB(go);
-                Vector2 tgt = c + nrm * (side == 0 ? 0.06f : -0.06f);
-                go.transform.position += new Vector3(tgt.x - b.center.x, y - 0.08f - b.min.y, tgt.y - b.center.z);
-                made++;
-            }
+        }
+        return made;
+    }
+
+    /// <summary>板塀の1区間 [t0,t1](A2 からの距離)に駒(表裏2枚)を据える。
+    /// 両端の地盤差が 0.3m を超えたら中点で分ける(普請奉行の指示)。低い端に合わせて座る
+    /// (旧実装は高い端に合わせていたため低い端が 0.6〜0.75m 浮いていた)。</summary>
+    static int PlaceItabeiSpan(Transform parent, Vector2 A2, Vector2 dir, Vector2 nrm,
+                                float t0, float t1, float spanES, float sy, float yaw,
+                                string name, int depth)
+    {
+        Vector2 pL = A2 + dir * t0, pR = A2 + dir * t1;
+        float gL = DesignY(pL), gR = DesignY(pR);
+        if (depth < 4 && Mathf.Abs(gL - gR) > 0.3f && (t1 - t0) > 0.3f)
+        {
+            float tm = (t0 + t1) * 0.5f;
+            return PlaceItabeiSpan(parent, A2, dir, nrm, t0, tm, spanES, sy, yaw, name + "a", depth + 1)
+                 + PlaceItabeiSpan(parent, A2, dir, nrm, tm, t1, spanES, sy, yaw, name + "b", depth + 1);
+        }
+        float pitch = t1 - t0;
+        float sx = EdoSannoKitaBuilder.ES * pitch / spanES;
+        Vector2 c = (pL + pR) * 0.5f;
+        float y = Mathf.Min(gL, gR);                          // 低い端に合わせて座る
+        int made = 0;
+        for (int side = 0; side < 2; side++)
+        {
+            var go = EdoNishiTameikeBuilder.Place(EdoAssets.Eg.Itabei5, Vector3.zero,
+                side == 0 ? yaw : yaw + 180f, new Vector3(sx, sy, EdoSannoKitaBuilder.ES),
+                parent, name + (side == 0 ? "f" : "b"));
+            if (go == null) continue;
+            var b = EdoNishiTameikeBuilder.RB(go);
+            Vector2 tgt = c + nrm * (side == 0 ? 0.06f : -0.06f);
+            go.transform.position += new Vector3(tgt.x - b.center.x, y - 0.08f - b.min.y, tgt.y - b.center.z);
+            made++;
         }
         return made;
     }

@@ -454,10 +454,54 @@ public static partial class EdoMatsudairaDewaBuilder
         var sb = new System.Text.StringBuilder(); var f = Grid; var rnd = new System.Random(1856);
         var grp = Group("Niwa/Tenkei"); Clear(grp);
         int placed = 0; var missing = new Dictionary<string, int>();
+        // 生垣が木戸に接して立つための、木戸(庭木戸)の世界中心(名で決め打ちせず指図から引く)
+        var gateCenters = new List<Vector2>();
+        foreach (var go0 in A(D["nakajikiri"]))
+        {
+            var w0 = O(go0); if (StrOf(w0, "kind") != "庭木戸") continue;
+            var ga = A(w0["a"]); var gb = A(w0["b"]);
+            gateCenters.Add((f.W(F(ga[0]), F(ga[1])) + f.W(F(gb[0]), F(gb[1]))) * 0.5f);
+        }
         foreach (var o in A(D["tenkei"]))
         {
             var t = O(o); if (HasKey(t, "stones")) continue;                  // 石組は 6c
             string kind = StrOf(t, "kind") ?? ""; string name = StrOf(t, "name");
+            if (kind.Contains("生垣"))
+            {
+                // ⭐ 普請奉行の指示(2026-09-06 EDO-0147・依頼書B-8): 1間モジュール・両端は
+                //   End 駒(EdoAssets.Own.Ikegaki(end))・区間長÷1.818で駒数(端数は駒を増減して
+                //   最も近い長さ・**縮めない**=scale Vector3.one 固定)・ピボットは1間の中心・床。
+                //   木戸に接する側から敷き詰め、端数は反対側へ逃がす(木戸の位置は nakajikiri から
+                //   幾何で引く。どちらの端かを名で決め打ちしない)。
+                if (!(HasKey(t, "a") && HasKey(t, "b")))
+                { missing[kind] = missing.ContainsKey(kind) ? missing[kind] + 1 : 1; continue; }
+                var ia = A(t["a"]); var ib = A(t["b"]);
+                Vector2 iwa = f.W(F(ia[0]), F(ia[1])), iwb = f.W(F(ib[0]), F(ib[1]));
+                float iL = Vector2.Distance(iwa, iwb);
+                if (iL < 0.1f) continue;
+                const float BAY = 1.818f;                           // 1間(縮めない実寸モジュール)
+                int nBay = Mathf.Max(1, Mathf.RoundToInt(iL / BAY));
+                Vector2 dir = (iwb - iwa) / iL;
+                float yaw = Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg;
+                float distA = float.MaxValue, distB = float.MaxValue;
+                foreach (var gc in gateCenters)
+                { distA = Mathf.Min(distA, Vector2.Distance(iwa, gc)); distB = Mathf.Min(distB, Vector2.Distance(iwb, gc)); }
+                bool anchorAtB = distB < distA;
+                Vector2 origin = anchorAtB ? iwb - dir * (BAY * nBay) : iwa;
+                int madeIk = 0;
+                for (int i = 0; i < nBay; i++)
+                {
+                    bool end = (i == 0 || i == nBay - 1);
+                    string ikPath = EdoAssets.Own.Ikegaki(end);
+                    Vector2 c = origin + dir * (BAY * (i + 0.5f));
+                    var goIk = EdoNishiTameikeBuilder.Place(ikPath, new Vector3(c.x, TerrainY(c.x, c.y), c.y),
+                        yaw, Vector3.one, grp, name + "_" + i);
+                    if (goIk != null) madeIk++;
+                }
+                if (madeIk == 0) missing[kind] = missing.ContainsKey(kind) ? missing[kind] + 1 : 1;
+                placed += madeIk;
+                continue;
+            }
             // 種別 → 在庫。⛔ 指図の `api` が最優先。無ければ種別の既定(在庫にあるものだけ)
             string api = ResolveApi(StrOf(t, "api"));
             if (api == null)

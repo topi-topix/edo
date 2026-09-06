@@ -3,7 +3,17 @@ guid: 3306f6cd46a654800ad15dd7a41a1ed3
 ModelImporter:
   serializedVersion: 24501
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: M_FJG_Plant_Boxwood_01_Fall
+    second: {fileID: 2100000, guid: df9183dd0898a9d9ea02415a65195950, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: M_FJG_Plant_Boxwood_01_Spring
+    second: {fileID: 2100000, guid: ab146c181d88b641bbb55e06fdda2703, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0

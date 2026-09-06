@@ -2686,6 +2686,30 @@ def norms_check(d):
                     bad.append("%s の室「%s」と「%s」が %.2f×%.2f間 重なる"
                                % (m["name"], a9["name"], b9["name"], iu, iv))
 
+    # ⭐ **大棟の向き**(2026-09-06 普請検査の差し戻し)。⚠ 向きが指図に無かったため、
+    #   実装が居間棟(16×12間)の大棟を**12間側**に架け、16間 を梁間で飛ばして
+    #   棟高 10.3m にしていた(奥 9.8・玄関 9.3・書院 7.3 より高い＝中奥が御殿でいちばん高い姿)。
+    #   ⛔ **向きを実装に選ばせない。**規範は「大棟は桁行=長辺方向、棟高は梁間から」【U】。
+    for m in d["munes"]:
+        rf = m.get("roof") or {}
+        a9, b9 = m["u1"] - m["u0"], m["v1"] - m["v0"]
+        if "roof" not in m or "ridge" not in rf:
+            bad.append("%s に `roof.ridge`(大棟の向き)が無い — "
+                       "無いと実装が短辺に架けて棟高が跳ねる" % m["name"])
+            continue
+        if abs(a9 - b9) < 1e-9:
+            if rf["ridge"] is not None:
+                bad.append("%s は正方形(%g × %g間)なので大棟の向きは該当なし — "
+                           "`ridge` は null にする" % (m["name"], a9, b9))
+        elif rf["ridge"] not in ("u", "v"):
+            bad.append("%s の `roof.ridge` が %r — `\"u\"` か `\"v\"` で書く"
+                       % (m["name"], rf["ridge"]))
+        elif (rf["ridge"] == "u") != (a9 > b9):
+            bad.append("%s の大棟が**短辺**(%s 方向 %g間)に架かっている — "
+                       "大棟は桁行=長辺(%s 方向 %g間)に架け、棟高は梁間から決まる"
+                       % (m["name"], rf["ridge"], min(a9, b9),
+                          "u" if a9 > b9 else "v", max(a9, b9)))
+
     # 御錠口は表向・中奥と奥を分かつ**結界**なので一つだけ
     goj = [l for l in d.get("links", []) if l.get("kind") == "御錠口"]
     if len(goj) != 1:
@@ -5399,6 +5423,27 @@ def roof_table(d):
     ⚠ `EdoAssets.Own.GotenRoofIrimoya(wKen, dKen)` は **桁行 ≥ 梁間** で呼ぶ規約
     (足りない向きで呼ぶと大棟が短辺に架かる)。
     """
+    K = d["const"]["ken"]
+    kb = d["const"].get("kawaraKobai")
+
+    def _ridge(m, a, b):
+        """**大棟の向きと、そこから決まる棟の起り。**⛔ 実装に選ばせない(規則5と同じ理屈)。
+
+        ⚠ 2026-09-06 の普請検査で、居間棟(16×12間)の大棟が**12間側**に架かり
+        16間 を梁間で飛ばして棟高 10.3m になっていた(中奥が御殿でいちばん高い姿)。
+        向きが指図に無かったのが原因なので、`munes[].roof.ridge` を正典に立てた。
+        """
+        rf = m.get("roof") or {}
+        r = rf.get("ridge")
+        if r is None:
+            return ("<b>該当なし</b>(正方形)", "—", None)
+        beam = b if r == "u" else a                    # 梁間 = 大棟と直交する側
+        rise = beam * K / 2.0 * kb if kb else None
+        ok = abs(a - b) < 1e-9 or (r == "u") == (a > b)
+        return ("<b>%s 方向</b>【%s】%s" % (r, rf.get("cert", "?"), "" if ok else " ⚠ 短辺に架かる"),
+                ("梁間 %g間 = %.2fm → 起り <b>%.2fm</b>" % (beam, beam * K, rise))
+                if rise is not None else "梁間 %g間" % beam, ok)
+
     rows = []
     for m in d["munes"]:
         if not m.get("goten"):
@@ -5406,10 +5451,10 @@ def roof_table(d):
         a = int(round(m["u1"] - m["u0"]))
         b = int(round(m["v1"] - m["v0"]))
         w, dd = max(a, b), min(a, b)
+        rg, ri, _ok = _ridge(m, a, b)
         rows.append((m["name"], "u %g間 × v %g間" % (a, b),
-                     "<b>%d × %d 間</b>" % (w, dd),
-                     "<code>Own.GotenRoofIrimoya(%d, %d)</code>" % (w, dd),
-                     "<code>Goten_Roof_Irimoya_%dx%dken.fbx</code>" % (w, dd)))
+                     "<b>%d × %d 間</b>" % (w, dd), rg, ri,
+                     "<code>Own.GotenRoofIrimoya(%d, %d)</code>" % (w, dd)))
     for m in d["munes"]:
         if m.get("goten"):
             continue
@@ -5429,9 +5474,26 @@ def roof_table(d):
             ht = ("<code>Goten.RoofYosemune_(%d, %d)</code> ⭕ 焼成済(staging)" % (w, dd))
         else:
             ht = "⚠ 入母屋なら <code>Goten_Roof_Irimoya_%dx%dken.fbx</code>" % (w, dd)
+        rg, ri, _ok = _ridge(m, a, b)
         rows.append((m["name"] + "(<b>御殿でない</b>)", "u %g間 × v %g間" % (a, b),
-                     "<b>%d × %d 間</b>" % (w, dd), call, ht))
-    return _tw(("棟", "足形", "桁行 × 梁間", "呼び出し / 屋根の型", "焼く名 / 高さ"), rows) + (
+                     "<b>%d × %d 間</b>" % (w, dd), rg,
+                     ri if rf.get("ridgeH") is None else
+                     ("棟高 <b>%.2f</b> / 軒高 %.2f【%s】"
+                      % (rf["ridgeH"], rf["eaveH"], rf.get("cert", "?"))), call))
+    return _tw(("棟", "足形", "桁行 × 梁間", "<b>大棟の向き</b>", "梁間 → 棟の起り",
+                "呼び出し / 屋根の型"), rows) + (
+        "<p class='cap'>⭐ <b>大棟は桁行(長辺)方向に架け、棟高は梁間から決まる</b>【確度U】。"
+        "⚠ <b>典拠台帳に ID は無い</b> — 部材キットの規約"
+        "(<code>GotenRoofIrimoya</code> の「<code>wKen</code> は桁行(大棟の走る側)/ "
+        "<b>wKen ≥ dKen で呼ぶ</b>」)が同じことを言うが、それは部材の作法であって史料ではない。"
+        "⚠ <b>2026-09-06 の普請検査で、居間棟(16×12間)の大棟が 12間 側に架かり、"
+        "16間 を梁間で飛ばして棟高 10.3m になっていた</b>(奥 9.8・玄関 9.3・書院 7.3 より高い＝"
+        "中奥が御殿でいちばん高い姿)。⛔ <b>向きを実装に選ばせない</b> — "
+        "<code>munes[].roof.ridge</code> が正典。"
+        "⭕ 起りは <b>梁間 ÷ 2 × 瓦勾配 %s</b> の見込み【P】で、"
+        "⛔ <b>焼けた屋根部材の実測があるときはそちらが正</b>(軒高を含まない値なので棟高そのものではない)。"
+        "⭕ 正方形の棟(玄関 10×10・表役所 10×10)は大棟が長さ 0 に潰れるので<b>該当なし</b>。</p>"
+        % (("%.4f" % kb) if kb else "⚠ const に無い")) + (
         "<p class='cap'>⭐ <b>`goten: false` の棟(表役所・厩)の屋根は `munes[].roof` に持つ。</b>"
         "<b>表役所は寄棟(方形造)【U】</b> — 足形が 10×10間 の正方形なので寄棟は幾何的に"
         "大棟を持てず方形造(宝形)になり、頂点は露盤(2026-09-06 考証方)。"

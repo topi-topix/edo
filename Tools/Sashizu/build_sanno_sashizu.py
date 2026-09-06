@@ -40,6 +40,22 @@ def inline(s):
     return sashizu_lib.inline(s, cert=sashizu_lib.CERT_LEADING)
 
 
+def tsubo_table(d, md):
+    """kosho.md の @@TSUBO_TABLE@@ を、parcels.json から算出した坪数表で置き換える(規則4・考証 2026-09-06)。"""
+    if "@@TSUBO_TABLE@@" not in md: return md
+    P = {q["id"]: q["pts"] for q in json.load(open(os.path.join(DOC, "parcels.json"), encoding="utf-8"))["parcels"]}
+    tsubo = d["const"]["tsubo"]; kisai = d["const"]["keidai_kisai_tsubo"]
+    def A(ids): return sum(poly_area(P[i]) for i in ids) / tsubo
+    base = ["sannosha_prec"] + ["sannojubo_parcels_%d" % i for i in range(10)] + ["sannosha_kanri"]
+    rows = [("社地+十坊+観理院", base), ("+樹下邸", base + ["sannobuke_juge"]),
+            ("+樹下邸+社人八家", base + ["sannobuke_juge", "sannobuke_shanin"]),
+            ("+樹下邸+社人八家+門前町", base + ["sannobuke_juge", "sannobuke_shanin"] + ["sanno_monzen_%d" % i for i in range(1, 5)])]
+    out = ["  | 読み | 坪 | 記載値比 |", "  |---|---|---|"]
+    for nm, ids in rows:
+        a = A(ids); out.append("  | %s | %s | %+.1f%% |" % (nm, format(int(round(a)), ","), (a / kisai - 1) * 100))
+    return md.replace("@@TSUBO_TABLE@@", "\n".join(out))
+
+
 def md2html(text):
     # indent_tables は既定(=拾う)。sanno_kosho.md「拝領坪数」の字下げ表が
     # 旧変換では素の | の段落で出ていたのを、統一で表として描くようになった(実測1箇所)。
@@ -283,8 +299,8 @@ def sando_band(d, PX, PY, LEN):
         o = band(sd["pts"], PX, PY, LEN, sd.get("w") or 5.5, "var(--michi)", "var(--shu)", op=0.45)
     x, z = sd["pts"][-1]
     L, gr = path_stats(sd["pts"])
-    g5, g20 = path_max_grade(sd["pts"], 5.0), path_max_grade(sd["pts"], 20.0)
-    o.append(T(PX(x) - 6, PY(z) - 6, "参道 %.0f m ／ 平均 %.1f%% ／ 最大 5m窓 %.0f%%・20m窓 %.0f%%" % (L, gr, g5, g20),
+    g2, g5, g20 = path_max_grade(sd["pts"], 2.0), path_max_grade(sd["pts"], 5.0), path_max_grade(sd["pts"], 20.0)
+    o.append(T(PX(x) - 6, PY(z) - 6, "参道 %.0f m ／ 平均 %.1f%% ／ 最大 2m窓 %.0f%%・5m窓 %.0f%%・20m窓 %.0f%%" % (L, gr, g2, g5, g20),
                fs=10, anchor="end", fill="var(--shu)"))
     return o
 
@@ -332,7 +348,10 @@ def cut_lines(d, PX, PY, LEN, inwin=None, clip=None):
             if t0 >= t1: continue
             ax, ay, bx, by = (ax + dx0 * t0, ay + dy0 * t0, ax + dx0 * t1, ay + dy0 * t1)
         # 一点鎖線
-        o.append(LN(ax, ay, bx, by, stroke="var(--shu)", sw=1.0, dash="12 3 2 3", op=0.85))
+        if len(ln) > 2:               # 折れ線の切断線は全点で引く(弦だと觀理院を横切って見えた・検図 2026-09-06)
+            o.append(PL([(PX(x), PY(z)) for x, z in ln], stroke="var(--shu)", sw=1.0, dash="12 3 2 3", op=0.85))
+        else:
+            o.append(LN(ax, ay, bx, by, stroke="var(--shu)", sw=1.0, dash="12 3 2 3", op=0.85))
         vx, vz = sec["view"]
         nv = math.hypot(vx, vz) or 1.0
         # 矢視の向き(px 空間。z は上下反転するので Y 成分の符号に注意)
@@ -492,6 +511,26 @@ def dansai(hh):
     return DANSAI[max(0, min(len(DANSAI) - 1, int((hh - 6.0) // 2.0)))]
 
 
+def torii_marks(d, PX, PY):
+    """鳥居の記号(位置のある物だけ)。"""
+    o = []
+    for t in d["torii"]:
+        if not t.get("pos"): continue
+        x, z = t["pos"]
+        o.append('<circle cx="%.1f" cy="%.1f" r="4" fill="var(--shu)" stroke="var(--paper)" stroke-width="1"/>' % (PX(x), PY(z)))
+        o.append(T(PX(x) + 6, PY(z) - 5, t["name"], fs=10, fill="var(--shu)"))
+    return o
+
+
+def road_draw(seg, PX, PY, LEN):
+    """麓道。`area`(区画間の領域)があれば面で、無ければ実幅の帯で描く(2026-09-06)。"""
+    if seg.get("area"):
+        return [PL([(PX(x), PY(z)) for x, z in seg["area"]], fill="var(--michi)", op=0.45,
+                   stroke="var(--michi)", sw=0.8, close=True),
+                PL([(PX(x), PY(z)) for x, z in seg["pts"]], stroke="var(--ink)", sw=0.6, dash="2 4", op=0.5)]
+    return band(seg["pts"], PX, PY, LEN, seg.get("w") or 4.5, "var(--michi)", "var(--michi)", op=0.6)
+
+
 def _widen(d, x0, x1, z0, z1, pad=12.0):
     """現況図・切盛図の窓に参道と鳥居を入れる(辻と参道の一部が図の外だった・検図 2026-09-06)。"""
     ext = list(d["sando"]["pts"]) + [t["pos"] for t in d["torii"] if t.get("pos")]
@@ -544,6 +583,7 @@ def genkyo_svg(d, kan, x0, x1, z0, z1, W=900.0):
     o.append(LN(14, y, 14 + pr.L(100), y, stroke="var(--dim)", sw=1.2))
     o.append(T(14 + pr.L(100) / 2, y - 4, "100 m", fs=10.5, anchor="middle"))
     o.append(ENDSVG)
+    o += sando_band(d, pr.X, pr.Y, pr.L); o += torii_marks(d, pr.X, pr.Y)   # 参道と鳥居(検図 2026-09-06)
     return "\n".join(o)
 
 
@@ -858,7 +898,7 @@ def kirimori_svg(d, kan, x0, x1, z0, z1, W=900.0):
                 col = "#EFD9C8" if dv > 0.3 else ("#D4DEE6" if dv < -0.3 else "#E9E5D6")
             o.append(R(pr.X(x), pr.Y(z + stp), pr.L(stp) + 0.6, pr.L(stp) + 0.6, fill=col))
             sy = _stair_y(d, g, cx, cz)
-            if sy is not None: nm = "石段(男坂・女坂)"
+            if sy is not None: nm = "石段(男坂・女坂・参道の階)"
             else: nm = "境内(山上)" if y > 20 else "前庭(男坂下)"
             t_ = tally.setdefault(nm, [0, 0.0, 0.0, 0.0, 0.0])
             t_[0] += stp * stp
@@ -877,6 +917,7 @@ def kirimori_svg(d, kan, x0, x1, z0, z1, W=900.0):
     o.append(T(pr.W - 6, yy, "差引 %+.0f m³(正なら客土が要る／負なら残土が出る)" % tot, fs=10.5,
                anchor="end", fill="var(--shu)"))
     o.append(ENDSVG)
+    o += sando_band(d, pr.X, pr.Y, pr.L); o += torii_marks(d, pr.X, pr.Y)   # 参道と鳥居(検図 2026-09-06)
     return "\n".join(o)
 
 
@@ -884,8 +925,9 @@ def dousen_svg(d, kan, W=900.0):
     """§3d 動線図 — 系統別に色を変え、延長・昇り・越える段数を出す。"""
     g = G(d)
     P = d["polygon"]
-    pr = Proj(min(q[0] for q in P), max(q[0] for q in P),
-              min(q[1] for q in P), max(q[1] for q in P), W=W, pad=20.0, top=26.0, bottom=30.0)
+    ext = P + [tuple(q) if rt.get("world") else g.W(q[0], q[1]) for rt in d.get("routes", []) for q in rt["pts"]]
+    pr = Proj(min(q[0] for q in ext), max(q[0] for q in ext),           # 起点(二ノ鳥居)まで窓に入れる(検図 2026-09-06)
+              min(q[1] for q in ext), max(q[1] for q in ext), W=W, pad=20.0, top=26.0, bottom=30.0)
     o = _sv(pr.W, pr.H, "動線図")
     o.append(R(0, 0, pr.W, pr.H, fill="var(--paper2)"))
     o.append(PL([(pr.X(x), pr.Y(z)) for x, z in P], stroke="var(--ink)", sw=1.4,
@@ -1054,7 +1096,7 @@ def shachi_svg(d, kan="其一"):
     # 麓道(山裾を回る小道。**一周しない** — 常明院で行き止まり)
     for seg in d.get("fumotomichi", []):
         fp = [(pr.X(x), pr.Y(z)) for x, z in seg["pts"]]
-        o += band(seg["pts"], pr.X, pr.Y, pr.L, seg.get("w") or 4.5, "var(--michi)", "var(--michi)", op=0.6)  # 実幅(検図 2026-09-06)
+        o += road_draw(seg, pr.X, pr.Y, pr.L)
         o.append(PL(fp, stroke="var(--ink)", sw=0.6, dash="2 4", op=0.5))
     # 行き止まりの印
     fz = [s2 for s2 in d.get("fumotomichi", []) if "終端" in s2["name"]]
@@ -1277,6 +1319,11 @@ def keidai_svg(d, u0, u1, v0, v1, title, W=900.0):
     o.append(LN(14, y, 14 + lp.L(10), y, stroke="var(--dim)", sw=1.2))
     o.append(T(14 + lp.L(10) / 2, y - 4, "10 間 (18.18 m)", fs=10.5, anchor="middle"))
     o.append(ENDSVG)
+    sd = d["sando"]                                # 参道(道の領域と芯線)を境内図・附図にも(検図 2026-09-06)
+    if sd.get("area"):
+        o.append(PL([(lp.X(g.U(x)), lp.Y(g.V(z))) for x, z in sd["area"]], fill="var(--michi)", op=0.35,
+                    stroke="var(--shu)", sw=0.8, close=True))
+        o.append(PL([(lp.X(g.U(x)), lp.Y(g.V(z))) for x, z in sd["pts"]], stroke="var(--shu)", sw=0.7, dash="6 4", op=0.9))
     return "\n".join(o)
 
 
@@ -2084,7 +2131,7 @@ def sanroku_svg(d, kan="其十一"):
     # 麓道(山裾を回る小道。**一周しない** — 常明院で行き止まり)
     for seg in d.get("fumotomichi", []):
         fp = [(pr.X(x), pr.Y(z)) for x, z in seg["pts"]]
-        o += band(seg["pts"], pr.X, pr.Y, pr.L, seg.get("w") or 4.5, "var(--michi)", "var(--michi)", op=0.6)  # 実幅(検図 2026-09-06)
+        o += road_draw(seg, pr.X, pr.Y, pr.L)
         o.append(PL(fp, stroke="var(--ink)", sw=0.6, dash="2 4", op=0.5))
     # 行き止まりの印
     fz = [s2 for s2 in d.get("fumotomichi", []) if "終端" in s2["name"]]
@@ -2338,7 +2385,7 @@ def main():
             sys.stderr.write("   ・%s\n" % b)
         sys.exit(1)
     d = json.load(open(JSON, encoding="utf-8"))
-    prose = md2html(open(MD, encoding="utf-8").read())
+    prose = md2html(tsubo_table(d, open(MD, encoding="utf-8").read()))
     g = G(d)
     derive_runs(d, g)          # 板塀は平場の輪郭から生成する(独立の座標を持たせない)
     ken = d["const"]["ken"]
@@ -2450,9 +2497,8 @@ def main():
                '<span style="color:var(--hei)">┄ 板塀</span><span>○ 石灯籠</span>',
         cap="<b>軸は一直線の東西。</b>東から 坂下の門 → 男坂 → 楼門 → 白洲 → 中門 → 向拝 → 拝殿 → 幣殿 → 本殿。"
             "<b>山上の門は楼門一基</b>で、南北に長い御廻廊二棟の中央に立ち、回廊が境内の東frontを成す【S】。"
-            "社殿を囲うのは透塀で、その正面に中門【S/A】。<b>附属堂・御厩・御蔵10棟のうち7棟は銘を判読済み""(未判読は附属堂 其一・其五・其八の3棟)</b>【S/?】(2026-09-01 是正)— "
-            "名所図会の題箋(薬師・不動・庚申・鐘楼・鼓楼・宝蔵)のどれかである見込みだが、推定で名を与えない。")
-    fig(h, keidai_svg(d, 9, 35, -13, 13, "%s 附図　前庭 平面" % KAN[n[0] - 1]),
+            "社殿を囲うのは透塀で、その正面に中門【S/A】。<b>附属堂・御厩・御蔵10棟は銘をすべて判読済み</b>【S】(其一=薬師堂)。其五『カリウ堂』・其八『コマ堂』は建物としての同定が未確定【U】で、名所図会の題箋の候補では埋めない。")
+    fig(h, keidai_svg(d, 9, 35, -13, 15, "%s 附図　前庭 平面" % KAN[n[0] - 1]),
         cap="<b>附図 前庭 平面。</b>前庭に囲い" + _zentei_kakoi(d) + "・坂下の門・茶店の縁台4・"
             "参道の取り合いが集まる面。<b>北縁の中央(参道の芯線の下端)の開口が参道の入り</b>で、"
             "そこに参道の階(段数は石段の表)が取り付く。<b>南縁は女坂の口で段違い</b>になり、"
@@ -2513,7 +2559,7 @@ def main():
                 "それらより11.9〜20.1m西(本殿11.92m・観音堂17.82m・御供所20.10m)で、この線上には無かった)。"
                 "⚠ この線上の盛土は最大+1.13mにとどまる(2026-09-01 是正 — 旧文『3m級の盛土』は線から"
                 "離れた地点(平場西端付近)の値が混入していた)。西肩の3m級盛土は本図・切盛図で読む。"),
-      "SANDO": ("<b>二ノ鳥居から前庭の石段まで、道の領域の中心線に沿って展開した縦断</b>。段は前庭へ上がる石段だけで、途中の急な所は造成しない前提の現地形のまま(要裁定)。"),
+      "SANDO": ("<b>二ノ鳥居から前庭の中まで、道の領域の中心線に沿って展開した縦断</b>。段は前庭へ上がる石段だけ。途中の局所の起伏は段を設けず路面の摺り付け(±0.3m)で吸収する — 緩い坂を土のまま置くのが近世の常態で、公道に社が石段を築く典拠は無い(考証方の推奨・ユーザー確認待ち)。"),
       "ONNA2": ("<b>左が前庭(北東)・右が山上(南西→西)で、展開して描いた断面</b>。"
                 "<b>女坂は男坂の南で屈曲しながら登る</b>(12区間の連続カーブ・展開長55.15m。2026-09-01 是正 — "
                 "旧文『南西へ34m上り、折れて西へ28m』は明治16年実測図の値で、当図の設計線(2026-08-23に"
@@ -2526,7 +2572,7 @@ def main():
       "NS4827": ("<b>回廊は直線で通るが、平坦面の東縁は北へ退く。</b>差は石垣の基壇(天端29.0)で受ける。"
                 "名所図会は<b>両翼とも</b>石垣基壇の上に描く【S 実見 2026-08-23】。"
                 "回廊を明治16年実測図の<b>29間(東面総長52.72m)</b>へ伸ばした結果、北端の基壇の露出は"
-                "<b>この図と其二十三(基壇の展開)で読む</b>(2026-09-01 是正 — 旧文の『54m』『約7m』は"
+                "<b>この図と回廊の基壇の展開の節で読む</b>(2026-09-01 是正 — 旧文の『54m』『約7m』は"
                 "実測(52.72m・最大5.08m)と食い違っていたため削除)。この深さは未決(`_pending`)。"),
       "OTOKO_X": ("<b>男坂の横断(通路幅 7.0 m)。</b>⚠ 2026-08-23 改訂 — 石段が現地形の自然勾配に乗ったので"
                 "<b>切通しではなくなり</b>、路肩の土留めだけになった。旧図はここに3m級のU字を掘っていた。"
@@ -2582,6 +2628,14 @@ def main():
             stairs = [(sx0, sx1, yk, yz, st)]
         elif key == "ONNA2":
             stairs = [(0.0, L_on, yz, yk, on)]
+        elif key == "SANDO":                      # 参道の階を踏面/蹴上で描く(検図 2026-09-06)
+            _k = [q for q in d["kaidans"] if q["name"].startswith("参道の階")][0]
+            _pp = d["profiles"]["SANDO"]["pts"]; _bw = g.W(*_k["b"]); _s = 0.0; _sb = None
+            for _i in range(len(_pp) - 1):
+                if abs(_pp[_i][0] - _bw[0]) < 0.06 and abs(_pp[_i][1] - _bw[1]) < 0.06: _sb = _s
+                _s += math.hypot(_pp[_i + 1][0] - _pp[_i][0], _pp[_i + 1][1] - _pp[_i][1])
+            if _sb is not None:
+                stairs = [(_sb, _sb + _k["planeLen"], _k["yBot"], _k["yTop"], _k["name"])]
         elif key == "NS4827":
             # 回廊の基壇。天端は境内面ではなく **coping**(2026-08-23 検図 中-1)
             over = [(kz0, kz1, kcop)]

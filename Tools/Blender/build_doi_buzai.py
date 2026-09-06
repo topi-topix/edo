@@ -34,11 +34,13 @@
   ピボットは部材ごとに下の docstring が明示する(⛔ 「だいたい中心」で済ませない)。
 """
 import bpy, sys, os
+from mathutils import Matrix
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import vklib as V
 import build_matsudaira_dewa_fuzokuya as F      # Mesh / palette / dozo / ido
 import build_okabe_fuzokuya as OF               # umaya(板壁・桟瓦)
+import build_okabe_niwa as ON                   # 沓脱石(在庫の実岩を切る型)
 
 KEN = 1.818
 OUT = V.out_dir(os.path.join(V.REPO, "Assets", "Edo", "Models", "Fuzokuya"))
@@ -129,6 +131,57 @@ def chozu():
                                           (hx - 0.07, hx, -hz + 0.07, hz - 0.07))):
         m.box(a0, a1, H - 0.05, H, b0, b1, one_stone(suv, k + 1), F.STONE)
     return F._finish("Doi_Chozu", m, [wm, sm, pm], []), "Doi_Chozu"
+
+
+# ================================================================ 沓脱石
+KUTSU_MIZUKIRI = 0.01     # 天端の水切り 1/100(庭方指定 2026-09-06)
+
+
+def kutsunugi():
+    """**沓脱石**(`gardens.G_Okuniwa.kutsunugi.Kutsunugi_Oku`)。奥棟の南入側の前、
+    主視点の真正面に据わる**一枚石**。足形 **1.40(X) × 0.95(Z)**・厚み 0.48。
+    天端 26.92 / 地表 26.60 ⇒ **見付 0.32・根 0.16**(1/3 埋め)。
+
+    ⛔ **`Own.Tateishi` を非一様スケールで伸ばして代用しない** — 石肌の斑が流れる
+      (指図 `asset` 欄の `Own.Tateishi("Big",1..3)` は在庫での仮の当てで、当図の実物ではない)。
+    ⛔ **`Foundation_A_01` の箱で作らない** — 玉石積みの**壁**のアトラスなので目地が何段も
+      入り、1.4m の沓脱石が**石垣の箱**に見える(手水石で実見・`one_stone` の項)。
+    ⭕ **在庫の実岩を切る**(規則1)。`build_okabe_niwa.kutsunugi` と**同じ型**を呼び直す。
+
+    【元石を `m_rock_03` から `Rock_05_cut` へ替えた理由(2026-09-06 に4個体を実見)】
+      ⚠ 岡部の既定 `m_rock_03` は平面比こそ 1.51:1 で近いが、**俯瞰の足形が鋭い楔**で、
+        天端の平らな面が足形の **31%(cut0.60)** しか無い。踏む石にならない。
+      ⭕ `Rock_05_cut` は足形が**広い矩形に近く**、`cut=0.40` で天端が **76%**。
+        肌も暗灰〜緑灰の柱状で、指図の **伊豆硬石(安山岩)**【確度U】に読める
+        (`m_rock_03` は淡桃色で花崗岩に見える)。平面比 1.58:1 → 目標 1.47:1 で
+        **XY の非一様は 7%** に収まる(⛔ 平面比 1.1 前後の個体は 30〜40% 歪むので不可)。
+
+    【庭方の追加指定 2026-09-06】
+      ① 厚み **0.45〜0.55** に納める(露出 0.32 の倍を地中へ)。⇒ 実寸は下の print が申告。
+      ② 天端は水平だが **入側と反対側へ 1/100 の水切り**。⛔ 内側(入側)へ傾けない。
+         ⇒ **ローカル +Z(Unity)が下がる** = 見え面 = 庭側 = 入側の反対。
+           Blender は +Y が Unity −Z なので、剪断は **z += 0.01·y_blender**。
+           0.95m の見込みで **落差 9.5mm**。ピボット(足形の芯)は水切りの**中立点**なので
+           `position.y = topY` はそのまま入る。
+      ③ ⛔ **面(chamfer)を立てない** — 稜線を付けた化粧石にしない。
+         ⭕ 作りは「**自然石の上面だけを均す**」= 水平面1枚で落とすだけ。縁・肩・下部は
+           元石の肌のまま(鈍い肩・据わりの広い根)。⛔ 根固めの栗石は部材に含めない
+           (棟梁が地表で扱う)。
+
+    ピボット = **足形の芯・天端(水切りの中立点)**。⇒ `position.y = topY`(26.92)を直に。
+    材 = `M_photoscanned_rocks_01`。⛔ 新規マテリアルを作らない。"""
+    # ⛔⛔ `cap_uv` を外さない。切り口は `holes_fill` の**UV 無し**で焼かれ、岩アトラスの
+    #   (0,0) = 島間の dilation の帯に落ちて、天端が**草と砂利の横筋の縞**になる
+    #   (2026-09-06 に真俯瞰で実見)。0.110 = UV/m の密度 — 石目が実寸で流れる値。
+    o, _ = ON.kutsunugi(name="Doi_Kutsunugi", L=1.40, W=0.95, H=0.48,
+                        cut=0.40, stem="Rock_05_cut", cap_uv=0.110)
+    # 水切り。⚠ **回転でなく剪断**で入れる — 回すと足形 1.40 × 0.95 が縮む。
+    o.data.transform(Matrix(((1.0, 0.0, 0.0, 0.0),
+                             (0.0, 1.0, 0.0, 0.0),
+                             (0.0, KUTSU_MIZUKIRI, 1.0, 0.0),
+                             (0.0, 0.0, 0.0, 1.0))))
+    o.data.update()
+    return o, "Doi_Kutsunugi"
 
 
 # ================================================================ 水尻(余水吐)
@@ -229,6 +282,7 @@ PARTS = {
     "kura33":     kura33,
     "ido":        ido,
     "chozu":      chozu,
+    "kutsunugi":  kutsunugi,
     "shiki":      mizushiri_shiki,
     "hakiguchi":  mizushiri_hakiguchi,
     "otoshimizo": otoshimizo,
@@ -237,16 +291,59 @@ GROUPS = {"kura": ["kura38", "kura33"],
           "mizushiri": ["shiki", "hakiguchi", "otoshimizo"]}
 
 
-def shots(o, key, box):
+def _kutsunugi_check(o, mn, mx):
+    """沓脱石の検査。⛔ **目視だけで通さない** — 「天端が平らに見える」は肌の斑に
+    だまされる(元石を選ぶとき実際に 2 度誤読した)。⭕ 数値で3件出す。
+      ① 厚み 0.45〜0.55(庭方 ①)/ ② 水切りが **入側と反対へ** 1/100(庭方 ②)/
+      ③ 天端(踏み面)が足形の何 % か。⚠ 6 割を切ったら踏む石にならない。"""
+    L, W = mx.x - mn.x, mx.y - mn.y
+    th = mx.z - mn.z
+    # 天端 = 上向きで、剪断後の理論天端 z = 0.01·y から 6mm 以内にある面
+    tread = [f for f in o.data.polygons
+             if f.normal.z > 0.85 and abs(f.center.z - KUTSU_MIZUKIRI * f.center.y) < 0.006]
+    area = sum(f.area for f in tread)
+    zs = [(o.data.vertices[i].co.y, o.data.vertices[i].co.z) for f in tread for i in f.vertices]
+    # Unity +Z(= Blender −Y)側の天端が低いこと = 入側の反対へ水を切っている。
+    # ⚠ **落差を足形の見込み 0.95 で割らない** — 天端は足形いっぱいには広がっていないので
+    #   勾配が緩く出る(1/100 が 1/138 と申告された)。⭕ **両帯の重心の y 間隔**で割る。
+    lo = [(y, z) for y, z in zs if y < -W * 0.25]
+    hi = [(y, z) for y, z in zs if y > W * 0.25]
+    if lo and hi:
+        ylo, zlo = sum(y for y, _ in lo) / len(lo), sum(z for _, z in lo) / len(lo)
+        yhi, zhi = sum(y for y, _ in hi) / len(hi), sum(z for _, z in hi) / len(hi)
+        drop, base = zhi - zlo, yhi - ylo
+    else:
+        drop, base = 0.0, 1.0
+    grad = drop / base if base > 1e-9 else 0.0
+    print("[doi] 検査① 厚み %.3f m  → %s (庭方 0.45〜0.55)"
+          % (th, "OK" if 0.45 <= th <= 0.55 else "⚠ 範囲外"))
+    print("[doi] 検査② 水切り 落差 %+.4f m / 天端の実見込み %.3f m = **1/%.0f**  向き=%s → %s"
+          % (drop, base, (1.0 / grad if grad > 1e-9 else 0),
+             "ローカル +Z(Unity)= 入側の反対へ下がる" if grad > 0 else "⛔ 内側へ傾いている",
+             "OK" if grad > 0 and abs(1.0 / max(grad, 1e-9) - 100) < 20 else "⚠"))
+    print("[doi] 検査③ 天端(踏み面)%.3f m2 = 足形 %.2f×%.2f の %.0f%% → %s"
+          % (area, L, W, 100 * area / (L * W), "OK" if area / (L * W) >= 0.60 else "⚠ 狭い"))
+
+
+def shots(o, key, box, ground=None):
     """⚠ **書き出しの前に撮る** — `export_fbx` を通した後は bbox が 0 に潰れて
-    画角が壊れ、無地の灰色1枚が出る(README 2026-09-04 の項)。"""
-    V.hook_textures()
+    画角が壊れ、無地の灰色1枚が出る(README 2026-09-04 の項)。
+
+    ⚠ 結線は **`build_okabe_niwa.hook()`** を通す(`V.hook_textures()` の上位互換)。
+      Village Kit の材に加えて **NatureManufacture の岩**(`M_photoscanned_rocks_01`)も
+      当たる。⛔ `V.hook_textures()` だけだと岩が**無地の灰色**で写り、材質の不具合と
+      紛らわしい(沓脱石で踏む)。
+    ⚠ `ground` を渡すと**その高さに地面を敷く** — 埋める部材(沓脱石)の
+      **見付高**を目で検めるため。⛔ 底に敷くと露出高が読めない。"""
+    ON.hook()
     os.makedirs(SHOT, exist_ok=True)
     mn, mx = box
     c = (mn + mx) * 0.5
     W, H, D = mx.x - mn.x, mx.z - mn.z, mx.y - mn.y
     r = max(W, H, D)
-    bpy.ops.mesh.primitive_plane_add(size=max(60.0, r * 20), location=(c.x, c.y, mn.z - 0.02))
+    bpy.ops.mesh.primitive_plane_add(
+        size=max(60.0, r * 20),
+        location=(c.x, c.y, mn.z - 0.02 if ground is None else ground))
     # ① 立面(表 = Blender −Y から)。ortho_scale は画像の長辺に効くので縦横を見て渡す
     wpx, hpx = 1500, 1500 * (H * 1.25) / max(1e-6, W * 1.15)
     if hpx > 1150:
@@ -259,6 +356,16 @@ def shots(o, key, box):
     V.studio((c.x - r * 1.3, mn.y - r * 1.7, mn.z + r * 1.0),
              (c.x, c.y, mn.z + H * 0.42), res=(1500, 1050))
     V.render(os.path.join(SHOT, "doi_%s_3d.png" % key))
+    if ground is not None:
+        # ③ 真俯瞰(踏む石の**天端の広さ**を検める)。⛔ 斜めだけでは平らさが読めない
+        V.studio((c.x, c.y + 1e-4, mx.z + r * 6.0), (c.x, c.y, mx.z),
+                 ortho_scale=max(W, D) * 1.15, res=(1400, int(1400 * D / W)))
+        V.render(os.path.join(SHOT, "doi_%s_top.png" % key))
+        # ④ **据え付けの姿** — 地表を敷いた上に、庭からの立ち位置(目の高さ 1.5m)で見る。
+        #   ⛔ 部材単体の立面では**見付高**が読めない(埋まる部材はここまで見て初めて可否が出る)
+        V.studio((c.x + W * 0.55, mn.y - 2.6, ground + 1.5),
+                 (c.x, c.y, ground + H * 0.3), res=(1500, 1000))
+        V.render(os.path.join(SHOT, "doi_%s_sueru.png" % key))
 
 
 def main():
@@ -279,8 +386,11 @@ def main():
         print("[doi] %-26s Unity実寸 W(X)=%6.3f  H(Y)=%6.3f  D(Z)=%6.3f  底=%+.3f  面=%d"
               % (name, mx.x - mn.x, mx.z - mn.z, mx.y - mn.y, mn.z, len(o.data.polygons)))
         print("[doi] %-26s 材質=%s" % (name, [mm.name for mm in o.data.materials]))
+        if key == "kutsunugi":
+            _kutsunugi_check(o, mn, mx)
         if "--render" in argv:
-            shots(o, key, (mn, mx))
+            # 沓脱石は地表(天端 −0.32)を敷いて**見付高**ごと撮る
+            shots(o, key, (mn, mx), ground=(-0.32 if key == "kutsunugi" else None))
         V.export_fbx([o], os.path.join(OUT, name + ".fbx"))
         print("[doi] 書き出し " + os.path.join(OUT, name + ".fbx"))
 

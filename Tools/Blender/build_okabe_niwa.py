@@ -224,24 +224,73 @@ def tobiishi(i=0):
     return o, name
 
 
-def kutsunugi(name="Kutsunugi"):
+# **岩アトラスの「無地の石肌」の矩形**(`T_Photoscanned_rocks_01_BC` 4096² を実見して採った)。
+#   ⚠ このアトラスは 20 個体の写真の島を敷き詰めた物で、**島と島のあいだは dilation の
+#     引き伸ばし**(草・砂利が横筋に流れた帯)。⛔ そこへ落ちた面は**縞の板**に見える。
+#   ⭕ 下は左中の**大きな灰色の岩**の内側 — 均質な灰色で草も継ぎ目も入らない。
+#     暗灰の肌なので **安山岩(伊豆硬石)** の見えに合う。
+ROCK_PLAIN_UV = (0.107, 0.531, 0.273, 0.688)
+
+
+def _cap_uv(o, u0, v0, d, ntol=0.9, ztol=0.004):
+    """**切り口(`holes_fill` が塞いだ面)の UV を貼り直す。**
+
+    ⛔⛔ `bmesh.ops.holes_fill` が作る面は **UV を持たない(すべて 0,0 近傍)**。
+      岩アトラスの (0,0) は島と島のあいだの **dilation の帯**なので、天端に
+      **草と砂利が横筋に流れた縞**が出る(2026-09-06 に土井の沓脱石の真俯瞰で実見。
+      ⚠ 斜めのレンダと立面では**気づけなかった** — 平らな面は真上から見ないと分からない)。
+    ⭕ 切り口だけを選んで、`ROCK_PLAIN_UV` の無地の石肌へ **XY 平面投影**で貼る。
+      `d` は UV/m の密度。⛔ 矩形へ引き伸ばさない — 縦横で密度を変えると石目が流れる。
+    ⚠ 既定は `None`(貼り直さない)。岡部の既存 FBX を黙って変えないため。"""
+    me = o.data
+    uvs = me.uv_layers.active
+    if uvs is None:
+        return 0
+    mx_z = max(v.co.z for v in me.vertices)
+    faces = [f for f in me.polygons
+             if f.normal.z > ntol and f.center.z > mx_z - ztol]
+    if not faces:
+        return 0
+    xs = [me.vertices[i].co.x for f in faces for i in f.vertices]
+    ys = [me.vertices[i].co.y for f in faces for i in f.vertices]
+    x0, y0 = min(xs), min(ys)
+    for f in faces:
+        for li in f.loop_indices:
+            c = me.vertices[me.loops[li].vertex_index].co
+            uvs.data[li].uv = (u0 + (c.x - x0) * d, v0 + (c.y - y0) * d)
+    return len(faces)
+
+
+def kutsunugi(name="Kutsunugi", L=1.2, W=0.75, H=0.50, cut=0.60, stem="m_rock_03",
+              cap_uv=None):
     """**沓脱石**(根府川石 1.2 × 0.75)。天端を平らに落とし、平面の縦横だけ寸法へ合わせる。
     ピボット = **天端の芯**。天端から下へ 0.50(露出 0.35 + 根 0.15)。
-    ⇒ Unity は `y = 天端の高さ`、寸法違いは `scale = L/1.2` の一様で(0.9→W0.56 / 1.0→W0.63)。"""
-    L, W, H = 1.2, 0.75, 0.50
-    o = _rock("m_rock_03", name)          # 平面の比 1.51:1 が 1.2:0.75 = 1.6:1 に近い
+    ⇒ Unity は `y = 天端の高さ`、寸法違いは `scale = L/1.2` の一様で(0.9→W0.56 / 1.0→W0.63)。
+
+    ⭕ **L/W/H は他邸から呼び直せる**(2026-09-06。土井の奥庭 1.4 × 0.95 × 0.48)。
+      ⛔ **同じ型を別の実装で二度書かない**(CLAUDE.md 規則1・直しが片方にしか入らない)。
+      ⚠ 元石 `m_rock_03` の平面比は **1.51 : 1**。ここから離れた縦横比を渡すと
+        XY が非一様に伸びて**石肌の斑が流れる** — 1.4:0.95 = 1.47:1 なら実質一様。
+      ⚠ `cut` は天端を落とす高さの割合。⛔ 高く切ると丸い転石のまま(README 2026-09-04)。
+      ⭕ `cap_uv=<UV/m の密度>` を渡すと**切り口の UV を無地の石肌へ貼り直す**
+        (`_cap_uv` の項)。⚠ **踏む石は必ず渡すこと** — 既定の None は
+        `holes_fill` の UV 無しのまま = 天端が**横筋の縞**になる。
+        既定を None にしてあるのは岡部の既存 FBX を黙って変えないため
+        (⚠ 岡部の `Kutsunugi`/`Tobiishi` にも同じ縞が出ているはず。要・焼き直し)。"""
+    o = _rock(stem, name)                 # 既定 `m_rock_03` は平面比 1.51:1(≒1.2:0.75)
     _center_xy(o, z_at='bottom')
     mn, mx = M.bounds([o])
-    _cut_z(o, mn.z + (mx.z - mn.z) * 0.60, keep_below=True)
+    _cut_z(o, mn.z + (mx.z - mn.z) * cut, keep_below=True)
     mn, mx = M.bounds([o])
     o.data.transform(Matrix.Diagonal((L / (mx.x - mn.x), W / (mx.y - mn.y),
                                       H / (mx.z - mn.z), 1.0)))
     o.data.update()
     _center_xy(o, z_top=True)
+    ncap = _cap_uv(o, ROCK_PLAIN_UV[0], ROCK_PLAIN_UV[1], cap_uv) if cap_uv else 0
     V.set_origin(o, (0.0, 0.0, 0.0))
     mn, mx = M.bounds([o])
-    print("[niwa] %-12s 沓脱石(根府川石)      %.3f × %.3f / 丈 %.3f(天端0・底 %.3f) 面%d"
-          % (name, mx.x - mn.x, mx.y - mn.y, mx.z - mn.z, mn.z, len(o.data.polygons)))
+    print("[niwa] %-12s 沓脱石(根府川石)      %.3f × %.3f / 丈 %.3f(天端0・底 %.3f) 面%d 天端UV貼直%d面"
+          % (name, mx.x - mn.x, mx.y - mn.y, mx.z - mn.z, mn.z, len(o.data.polygons), ncap))
     return o, name
 
 

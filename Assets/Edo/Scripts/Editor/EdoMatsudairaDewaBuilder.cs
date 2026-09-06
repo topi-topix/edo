@@ -990,6 +990,67 @@ public static partial class EdoMatsudairaDewaBuilder
             byRun[r.name].Add(best + shift);
         }
         sb.Append("犬走りを揃えた: " + moved + "駒 / " + byRun.Count + " run");
+
+        // ---- 隅部材(留め継ぎ)を**両辺**の犬走りへ合わせる(横のずれ)。
+        //   2026-09-07(棟梁): 上の run のループは `Kado_*` を素通りしていた(名前が Runs[] に
+        //   マッチしない)ため、隅は据えたまま横にずれていた(実測 0.31〜0.78m — 走り方向は
+        //   `CloseKadoSeams` が詰めるが、横は解いていなかった)。
+        //   隅は2辺に属するので、**留め継ぎの折れ角(yaw)は動かさず**、両辺それぞれの外向き法線方向に
+        //   外面が -INUBASHIRI へ来るよう平行移動だけを解く(2本の直線までの距離=2元1次方程式)。
+        // ⚠ 壁体頂点の腕への振り分け(下の d1<=d2)は据えた位置に依存するので、頂点が腕の付け根
+        //   付近にあると一回の平行移動では収束しないことがある(実測: 1回目で3基動き、2回目で
+        //   1基だけ再度動いた)。**内部で収束するまで数回繰り返す**(外側の呼び出し回数に頼らない)。
+        int movedKado = 0; var kadoNote = new List<string>();
+        for (int pass = 0; pass < 4; pass++)
+        {
+            int movedThisPass = 0; kadoNote.Clear();
+            foreach (var o in A(D["joints"]))
+            {
+                var j = O(o);
+                if (!Has(j, "kado")) continue;
+                string id = (string)j["id"];
+                var kc = kak.Find("Kado_" + id);
+                if (kc == null) continue;
+                int e1 = (int)F(j["edge"]);
+                int e2 = (e1 + 1) % Poly.Length;
+                Vector2 a1 = Poly[e1 % Poly.Length], a2 = Poly[e2 % Poly.Length];
+                Vector2 kn1 = OutNormal(e1), kn2 = OutNormal(e2);
+                var body = MeshBody(kc);
+                if (body.Count == 0) { kadoNote.Add(id + ": メッシュ無し"); continue; }
+                // Kado の FBX は単一メッシュ(run のように hei/namako で分かれていない)。
+                // run と同じ「壁体の帯」(高さの15〜80%, `CloseKadoSeams` と同じ帯)で屋根を除く。
+                float ky0 = 1e9f, ky1 = -1e9f;
+                foreach (var v in body) { if (v.y < ky0) ky0 = v.y; if (v.y > ky1) ky1 = v.y; }
+                float lo = ky0 + (ky1 - ky0) * 0.15f, hi = ky0 + (ky1 - ky0) * 0.80f;
+                // 各壁体頂点を、辺 e1 の直線・辺 e2 の直線のどちらに近いかで腕へ振り分け、
+                // それぞれの腕で外向き法線方向の最大値(=外面)を取る。
+                float best1 = float.MinValue, best2 = float.MinValue;
+                foreach (var w in body)
+                {
+                    if (w.y < lo || w.y > hi) continue;
+                    Vector2 wp = new Vector2(w.x, w.z);
+                    float d1 = Mathf.Abs(Vector2.Dot(wp - a1, kn1));
+                    float d2 = Mathf.Abs(Vector2.Dot(wp - a2, kn2));
+                    if (d1 <= d2) best1 = Mathf.Max(best1, Vector2.Dot(wp - a1, kn1));
+                    else best2 = Mathf.Max(best2, Vector2.Dot(wp - a2, kn2));
+                }
+                if (best1 == float.MinValue || best2 == float.MinValue) { kadoNote.Add(id + ": 両辺の壁体を判別できず"); continue; }
+                float det = kn1.x * kn2.y - kn1.y * kn2.x;
+                if (Mathf.Abs(det) < 0.05f) { kadoNote.Add(id + ": 両辺がほぼ平行(det=" + det.ToString("F3") + ") — 解けず(棟梁へ)"); continue; }
+                float r1 = (-INUBASHIRI) - best1, r2 = (-INUBASHIRI) - best2;
+                float dx = (r1 * kn2.y - r2 * kn1.y) / det;
+                float dz = (kn1.x * r2 - kn2.x * r1) / det;
+                if (Mathf.Abs(dx) > 0.02f || Mathf.Abs(dz) > 0.02f)
+                {
+                    kc.position += new Vector3(dx, 0f, dz);
+                    movedThisPass++;
+                }
+            }
+            movedKado += movedThisPass;
+            if (movedThisPass == 0) break;
+        }
+        sb.Append(" / 隅を両辺の犬走りへ合わせた: " + movedKado + " 基(のべ)");
+        if (kadoNote.Count > 0) sb.Append(" / ★ 未解決 " + kadoNote.Count + " — " + string.Join(" / ", kadoNote.ToArray()));
         return sb.ToString();
     }
 
@@ -2787,6 +2848,37 @@ public static partial class EdoMatsudairaDewaBuilder
         gather(kak, kakSpan, true);
         gather(ig, igSpan, false);
 
+        // ---- 石垣(igSpan)だけ、隅の腕ぶん期待範囲を広げる。
+        //   2026-09-06 実装が入隅の浮きを消すため、`joints[].kado` の隅の腕の下まで石垣の基壇を
+        //   延ばした(囲いの run は s0/s1 ちょうどで止まるのが正 — 隅部材が腕を兼ねる)。
+        //   腕の長さは **`kado.parts[<part>].armRaw × kado.scale`** が正典(数値を複製しない。
+        //   `_pending.runEndQAIshigakiArm` の申し送り)。`a` 側の run は s1 を、`b` 側の run は
+        //   s0 を、その分だけ広げる(`_joints` の入り腕/出り腕の記法と対応)。
+        var armHi = new Dictionary<string, float>();   // a側: 期待 s1 を広げる
+        var armLo = new Dictionary<string, float>();   // b側: 期待 s0 を狭める(下げる)
+        {
+            var kadoTop = O(D["kado"]);
+            float kScale = F(kadoTop["scale"]);
+            var parts = O(kadoTop["parts"]);
+            foreach (var o in A(D["joints"]))
+            {
+                var j = O(o);
+                if (!Has(j, "kado")) continue;
+                string suf = ((string)j["id"]).Replace("J_", "");
+                float armLen = -1f;
+                foreach (var kv in parts)
+                {
+                    var pd = O(kv.Value);
+                    bool hit = false;
+                    foreach (var u in A(pd["use"])) if ((string)u == suf) { hit = true; break; }
+                    if (hit) { armLen = F(pd["armRaw"]) * kScale; break; }
+                }
+                if (armLen < 0f) continue;
+                if (Has(j, "a")) armHi[(string)j["a"]] = armLen;
+                if (Has(j, "b")) armLo[(string)j["b"]] = armLen;
+            }
+        }
+
         // (1) 各層の端が指図の s0/s1 に乗っているか
         int nk = 0, ni = 0;
         foreach (var r in Runs)
@@ -2805,9 +2897,13 @@ public static partial class EdoMatsudairaDewaBuilder
                 // 駒は切れないので、run が駒1枚より短い区間は**はみ出す側で納める**
                 // (裁定「run の長さは石垣の重なり具合で調整する」。隙間は不可・重なりは可)
                 float tolHi = (r.s1 - r.s0 < IG_RUN) ? (IG_RUN - (r.s1 - r.s0)) + 0.10f : 0.10f;
-                if (v[0] - r.s0 < -0.10f || v[0] - r.s0 > 0.10f || v[1] - r.s1 < -0.10f || v[1] - r.s1 > tolHi)
+                float lo0, hi0;
+                float expS0 = r.s0 - (armLo.TryGetValue(r.name, out lo0) ? lo0 : 0f);
+                float expS1 = r.s1 + (armHi.TryGetValue(r.name, out hi0) ? hi0 : 0f);
+                if (v[0] - expS0 < -0.10f || v[0] - expS0 > 0.10f || v[1] - expS1 < -0.10f || v[1] - expS1 > tolHi)
                     bad.Add("石垣 " + r.name + " 辺" + r.edge + " " + v[0].ToString("F2") + "〜" + v[1].ToString("F2")
-                            + "(指図 " + r.s0.ToString("F2") + "〜" + r.s1.ToString("F2") + ")");
+                            + "(指図 " + expS0.ToString("F2") + "〜" + expS1.ToString("F2")
+                            + (lo0 != 0f || hi0 != 0f ? "・腕込み" : "") + ")");
             }
         }
         // (2) 同じ辺で隣り合う run の端面どうし。隙間は不可・めり込みは 1.0m まで可

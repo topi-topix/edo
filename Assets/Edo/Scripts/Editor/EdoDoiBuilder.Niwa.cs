@@ -536,6 +536,12 @@ public static partial class EdoDoiBuilder
             float capMin = F(gg["capMin"]), capMax = F(gg["capMax"]);
             float pitchRatio = F(gg["pitchRatio"]), jag = F(gg["jag"]);
             float ken = Grid.ken;
+            // ⛔⛔ **駒の選びは庭方の意匠で、指図が持つ**(2026-09-06 `_pending.ishigumikoma`)。
+            //   ⚠ 下の `i % 2` の交互は**規則的な繰り返し**で、庭方は「**乱数で 2 と 4 を引く**」と裁定した。
+            //   ⛔ 指図が `ishiPick` を持つのにここが読んでいないと、**指図と反対の物を置く**。
+            if (Has(gg, "ishiPick"))
+                Wait("護岸『" + S(gg["name"]) + "』: 指図に `ishiPick`(" + S(gg["ishiPick"])
+                   + ")があるのに実装が読んでいない — **交互のまま置くと指図と食い違う**。棟梁へ");
             // ⚠ **汀線の長さは間、石の寸法は m。**混ぜると本数が 1.818 倍ずれる
             //   (2026-09-06 に踏んだ)。個数は生成器 `niwa_stats` と同じ式で決める:
             //   n = round(弧長[m] / (平均長軸 × pitchRatio))。
@@ -569,6 +575,12 @@ public static partial class EdoDoiBuilder
                 var ar = O(gg["araiso"]);
                 Vector2 gp = Sh((int)F(ar["at"]));
                 Vector2 wpt = Wu(gp.x, gp.y);
+                // ⛔⛔ **指図は荒磯に「立石(板状)」= `Ishigumi(0)` を指定している**(2026-09-06 庭方)。
+                //   ⚠ ここの `(3)` は塊石で、`scale` 1.9 の一様倍だと**平面 2.92m の巨岩**になり、
+                //   100m² の池の岬に過大。そもそも「荒磯の**立石**」である。
+                if (Has(ar, "asset"))
+                    Wait("荒磯: 指図に `asset`(" + S(ar["asset"]) + ")があるのに実装が `Ishigumi(3)` "
+                       + "を置いている — **指図と反対の駒**。棟梁へ");
                 string path = EdoAssets.Own.Ishigumi(3);
                 float sc = F(ar["scale"]);
                 var go = EdoBuild.Place(path, new Vector3(wpt.x, n.waterY - sc * 0.33f, wpt.y),
@@ -1009,6 +1021,13 @@ public static partial class EdoDoiBuilder
         foreach (var o in A(n.g["iwajima"]))
         {
             var iw = O(o);
+            // ⛔⛔ **岩島は「大石1 + 肩石1」の2基**(2026-09-06 庭方)。実装は1基しか置いておらず、
+            //   ⚠ **`hShoulder` が一度も使われていない**。しかも駒が逆 — 水から立つ大石は
+            //   **塊石 `Ishigumi(3)`**、肩石が**小塊 `(4)`。**いまは大石に (4) を当てている。
+            if (Has(iw, "asset") || Has(iw, "assetShoulder"))
+                Wait("岩島『" + S(iw["name"]) + "』: 指図に `asset`/`assetShoulder` があるのに実装が "
+                   + "`Ishigumi(4)` 1基しか置いていない — **駒が逆・肩石が未実装**(`hShoulder` "
+                   + F(iw["hShoulder"]).ToString("F2") + " が未使用)。棟梁へ");
             string path = EdoAssets.Own.Ishigumi(4);           // 小塊 = 岩島の肩石向き
             if (!Exists(path)) { Wait("庭石の部材が無い: " + path); break; }
             Vector2 w = Wu(F(iw["u"]), F(iw["v"]));

@@ -91,8 +91,13 @@ class Mesh(object):
         k = 0
         for fi, f in enumerate(self.f):
             n = len(f)
-            faces.append(list(reversed(f)))
-            uvs += list(reversed(self.uv[k:k + n]))
+        # ⛔ **巻き順は反転しない。** 反転が1回多くなり、**面が全部裏返る**。
+        #   `quad` の軸の入れ替え `(x, z, y)` が鏡映1回、下の Y 反転が2回目。
+        #   ここで巻きも戻すと3回=奇数になり、裏面は描画されないので
+        #   **閉じた箱なのに中が透けて見える**(2026-08-31 に番所で実測・
+        #   背面 4/4・出格子の表 60/60 が裏返っていた。ブックマーク #3 の正体)。
+            faces.append(list(f))
+            uvs += list(self.uv[k:k + n])
             mi.append(self.mi[fi])
             k += n
         me = bpy.data.meshes.new(name)

@@ -3,11 +3,16 @@ guid: 52b9a7f968c6d4a28b7b1964f7fe3fd9
 ModelImporter:
   serializedVersion: 24501
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: s_heimap
+    second: {fileID: -3481131008871277802, guid: 8838f97c8ed5b4dbb80dec7663f0bcb0, type: 3}
   materials:
     materialImportMode: 2
-    materialName: 0
-    materialSearch: 1
+    materialName: 1
+    materialSearch: 2
     materialLocation: 1
     searchTexturesGlobally: 0
   animations:

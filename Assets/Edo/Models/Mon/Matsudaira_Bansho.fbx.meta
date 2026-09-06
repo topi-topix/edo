@@ -12,6 +12,11 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
+      name: Roof B
+    second: {fileID: 2100000, guid: e66ba4c7e0fc31a4288a38b4c6fce9a0, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
       name: Wall Exterior Defence
     second: {fileID: 2100000, guid: e17ab15db40da9e46b7b8ffb232ff8de, type: 2}
   - first:

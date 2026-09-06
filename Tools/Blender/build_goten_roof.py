@@ -32,7 +32,7 @@ RATIO = MOD_RISE / MOD_RUN          # 0.5456 ≒ 5.5寸勾配
 COURSE = 0.357                      # 瓦の段ピッチ(流れ方向)
 STEP_RUN = COURSE * 5               # 1.785 = 5段。1段分重ねて葺くと段が通る
 STEP_RISE = STEP_RUN * RATIO
-OUT = os.path.join(V.REPO, "Assets", "Edo", "Models", "Goten", "Roofs")
+OUT = V.out_dir(os.path.join(V.REPO, "Assets", "Edo", "Models", "Goten", "Roofs"))
 
 KEN = 1.818                         # 江戸間。渡廊下は幅1間
 ROKA_EAVE = 0.60                    # 渡廊下の軒の出(棟の 0.90 より浅い)
@@ -455,6 +455,77 @@ def make_irimoya(W, D, name="Goten_Roof", eave=0.90, gable_frac=0.45):
     return o
 
 
+def make_yosemune(W, D, name="Goten_Roof_Yosemune", eave=0.90):
+    """**寄棟(四方に流れる)。** W=桁行(X) D=梁間(Y)。返り値=1メッシュ。
+
+    【なぜ入母屋と別に要るか】土井邸の表役所 `Yakusho`(10×10間)は**役所であって御殿ではない**
+      ので、御殿の入母屋より一段下げた寄棟・瓦葺とする(2026-09-06 考証方の判定【U】)。
+      ⛔ **入母屋の妻を潰した代用にしない** — 妻壁・破風・木連格子・懸魚・袖瓦は
+        **そもそも作らない**。四流れの瓦場と、大棟1本 + 隅棟4本だけで組む。
+
+    【作図】軒の出 eave を四周に取った外周 W'×D'。四面とも同じ勾配 RATIO なので、
+      隅の稜線は平面で **45°**、大棟の高さは h=(D'/2)·RATIO、大棟の長さは **W'−D'**。
+      ⇒ 入母屋の `gable_frac` を 1.0 まで振り切った形と同じ骨格になるが、**妻が無いので
+        軒先の台形2枚と三角2枚**で閉じる(入母屋の「妻から上の矩形」は現れない)。
+
+    ⚠⚠ **正方形の平面(W=D)では大棟の長さが 0 になり、寄棟は必然的に方形造(宝形)になる。**
+      これは作図の都合ではなく幾何の帰結 — 四面の勾配が等しい限り、正方形の寄棟は必ず
+      隅棟4本が頂点で交わる四角錐になる。⇒ 頂点は **露盤**(方形造の常法)で塞ぐ。
+      ⛔ 大棟が要るなら平面を長方形にするか入母屋に戻すしかない。**普請奉行の裁定事項。**
+    """
+    Wp, Dp = W + 2 * eave, D + 2 * eave
+    if Dp > Wp:
+        raise SystemExit("[yosemune] 桁行 %.3f < 梁間 %.3f — 桁行 ≧ 梁間 で呼ぶこと" % (W, D))
+    cy = Dp / 2.0
+    h = cy * RATIO                      # 大棟(=隅棟の頂点)の高さ
+    a = cy                              # 隅の平面上の入り込み(45°なので梁間の半分)
+    x0, y0 = -eave, -eave
+
+    def P(px, py):
+        return (x0 + px, y0 + py)
+
+    pieces = []
+    # 長手の二面 = 軒先の台形。短手の二面 = 三角(隅)
+    pieces.append(tile_field([[P(0, 0), P(Wp, 0), P(Wp - a, a), P(a, a)]],
+                             P(0, 0), 90, 0.0, name + "_S"))
+    pieces.append(tile_field([[P(Wp, Dp), P(0, Dp), P(a, Dp - a), P(Wp - a, Dp - a)]],
+                             P(0, Dp), 270, 0.0, name + "_N"))
+    pieces.append(tile_field([[P(0, 0), P(a, a), P(a, Dp - a), P(0, Dp)]],
+                             P(0, 0), 0, 0.0, name + "_W"))
+    pieces.append(tile_field([[P(Wp, Dp), P(Wp - a, Dp - a), P(Wp - a, a), P(Wp, 0)]],
+                             P(Wp, 0), 180, 0.0, name + "_E"))
+
+    p = palette()
+    r0, r1 = (x0 + a, y0 + cy, h), (x0 + Wp - a, y0 + cy, h)
+    ridge_len = Wp - Dp
+    if ridge_len > 0.35:
+        pieces += ridge(r0, r1, name + "_omune", w=0.50, h=0.42)
+        pieces += oni(r0, (-1, 0), name + "_oni0", scale=1.15)
+        pieces += oni(r1, (1, 0), name + "_oni1", scale=1.15)
+    # 隅棟4本。頂点は大棟の端(正方形なら1点に集まる)
+    for (cx, cyy, tx, ty) in [(0, 0, a, a), (Wp, 0, Wp - a, a),
+                              (0, Dp, a, Dp - a), (Wp, Dp, Wp - a, Dp - a)]:
+        pieces += ridge((x0 + cx, y0 + cyy, 0.02), (x0 + tx, y0 + ty, h),
+                        name + "_sumi", w=0.40, h=0.33)
+    if ridge_len <= 0.35:
+        # 方形造の頂点 — **露盤**で塞ぐ。⛔ 開けたままにしない(隅棟4本の小口が透ける)
+        # ⚠ 材は瓦(`roof`)のまま。⛔ 新規マテリアルを作らない
+        cxp, cyp = (r0[0] + r1[0]) / 2.0, r0[1]
+        for (s, hgt, zb) in ((0.72, 0.16, h - 0.10), (0.52, 0.20, h + 0.06)):
+            b = V.box(name + "_roban", (s, s, hgt), (cxp, cyp, zb + hgt / 2.0),
+                      p['roof'], p['uv_roof'])
+            pieces.append(b)
+
+    pieces = [q for q in pieces if q]
+    V.dedup_materials()
+    o = V.join(pieces, name)
+    V.set_origin(o, (W / 2, D / 2, 0.0))
+    print("[yosemune] %s 桁行%.3f × 梁間%.3f / 軒の出%.2f / 大棟長 %.3f%s / 棟高 %.3f"
+          % (name, W, D, eave, max(0.0, ridge_len),
+             "(=0 → 方形造・露盤で納めた)" if ridge_len <= 0.35 else "", h))
+    return o
+
+
 def make_kirizuma(W, D=KEN, name="Goten_Roof_Kirizuma", eave=ROKA_EAVE,
                   end=ROKA_END, tsuma=False):
     """W=桁行(X・大棟の方向) D=梁間(Y) の低い切妻。渡廊下の屋根。返り値=1メッシュ
@@ -511,6 +582,362 @@ def make_kirizuma(W, D=KEN, name="Goten_Roof_Kirizuma", eave=ROKA_EAVE,
     o = V.join(pieces, name)
     V.set_origin(o, (W / 2, D / 2, 0.0))
     return o
+
+
+# ---------------------------------------------------------------------------
+# 帯割りの入母屋(make_banded)
+# ---------------------------------------------------------------------------
+# 【なぜ要るか】土井邸の御殿は **梁間10間超(18m超)を一枚の小屋組で飛ばして**いた。
+#   現存例で最大の山脇武家屋敷門ですら梁間 4.7m で、**存在しない型**(2026-09-06 ユーザー裁定=案C)。
+#   ⇒ 足形・室割り・廊下は動かさず、**身舎を帯に割って帯ごとに入母屋を架け、帯の境を谷にする**。
+#
+# 【幾何の要点 — ここを取り違えると全部おかしくなる】
+#   ⭐ **下屋は「別の屋根」ではなく、身舎の流れの延長**になる。2026-09-06 裁定で
+#     「下屋も同じ勾配」と決まったので、身舎の軒桁(z=eave)から入側の上を通って軒先まで
+#     **一枚の平面**が続く。⇒ 実装上は「帯の入母屋に、外周側だけ軒の出
+#     `E = irikawa×1.818 + noki_de` を付けた物」と等価。段は付かない。
+#     ⭕ **欠陥ではなく裁定の帰結。2026-09-06 に「一枚の流れのままにする」で確定した。**
+#     ⛔ **直さない** — 立面で入側と身舎の境が見えなくても勾配を変えないこと。
+#     ⚠ 御殿の庇の勾配は【U】。[西川1959]A の「庇 4寸5分」は**長屋の構造の節**の値で、
+#       御殿の庇へ当てるのは外挿。⛔ 手掛かり止まりにする。
+#   ⭐ **谷は水平**。隣り合う帯はどちらも境で z=eave まで下りてくるので、谷線は
+#     z=eave の水平線になる(帯の境=柱通りなので必ず整数間に乗る)。谷樋は両端で
+#     妻側の下屋(x方向の流れ)へ落ちる。⛔ 谷を勾配で下げない — 帯の棟が傾く。
+#   ⚠ **妻側(x方向)の下屋は、隣り合う帯どうしで完全に同一平面**なので、帯ごとに切って
+#     並べても継ぎ目は出ない。ただし **瓦の格子の原点を帯ごとに取ると桁行方向にズレる**
+#     (帯幅 4間=7.272 は瓦の桁行ピッチ 2.004 の整数倍でない)。⇒ 妻側の瓦場だけ
+#     **全帯で共通の原点 (x0, 0)** から葺く。
+VALLEY_GAP = 0.10        # 谷の左右で瓦場を引く量(谷樋の縁を瓦の下へ潜らせる代)
+VALLEY_HALF = 0.30       # 谷樋の半幅
+
+
+def _tile_field_fast(convex_polys, eave_origin, yaw_deg, z_eave, name):
+    """`tile_field` と同じ物を作るが、瓦モジュールの **FBX 取り込みを1回だけ**にした版。
+
+    ⚠ `tile_field` は格子の升ごとに `import_scene.fbx` を呼ぶ。帯割りの屋根は
+      27×22m 級で1体あたり 500 升を超えるので、取り込みが律速になる。
+      ⛔ 共有の `tile_field` は他邸(入母屋・寄棟・切妻)が使っているので触らない —
+        同じ手順を写して、格子の複製だけ `o.copy()`(メッシュデータ共有)に替える。
+    """
+    c, s = math.cos(math.radians(-yaw_deg)), math.sin(math.radians(-yaw_deg))
+    us, vs = [], []
+    for poly in convex_polys:
+        for q in poly:
+            dx, dy = q[0] - eave_origin[0], q[1] - eave_origin[1]
+            us.append(dx * c - dy * s)
+            vs.append(dx * s + dy * c)
+    i0 = int(math.floor(min(us) / STEP_RUN)) - 1
+    i1 = int(math.ceil(max(us) / STEP_RUN)) + 1
+    j0 = int(math.floor(min(vs) / MOD_LEN)) - 1
+    j1 = int(math.ceil(max(vs) / MOD_LEN)) + 1
+
+    unit = V.join(V.place(MOD, 0, 0, 0, scale=1.0), name + "_unit")
+    objs = []
+    for i in range(i0, i1 + 1):
+        for j in range(j0, j1 + 1):
+            o = unit.copy()                       # メッシュデータは共有(join で実体化される)
+            bpy.context.scene.collection.objects.link(o)
+            o.location = Vector((i * STEP_RUN, j * MOD_LEN, i * STEP_RISE))
+            objs.append(o)
+    bpy.data.objects.remove(unit, do_unlink=True)
+    field = V.join(objs, name + "_field")
+    V.rotate_z([field], yaw_deg)
+    field.location = Vector((eave_origin[0], eave_origin[1], z_eave))
+    V.sel([field])
+    bpy.ops.object.transform_apply(location=True)
+
+    out = []
+    for n, poly in enumerate(convex_polys):
+        V.sel([field])
+        bpy.ops.object.duplicate()
+        dup = bpy.context.view_layer.objects.active
+        dup.name = "%s_%d" % (name, n)
+        clip_convex(dup, poly)
+        if len(dup.data.polygons) == 0:
+            bpy.data.objects.remove(dup, do_unlink=True)
+        else:
+            out.append(dup)
+    bpy.data.objects.remove(field, do_unlink=True)
+    return V.join(out, name) if out else None
+
+
+def _valley_gutter(y_v, x_a, x_b, z_eave, kobai, p, name):
+    """谷樋。(y,z) 断面を X へ押し出した実体の樋。
+
+    断面の天端は **瓦の実体の下**へ潜らせる(瓦は名目平面より −0.03〜+0.15 でうねるので、
+    名目平面から 0.04 下げた所に縁を置くと、瓦の小口が樋に食い込んで隙が出ない)。
+    ⛔ 板を1枚渡すだけにしない — 瓦の切り口と樋のあいだに光の筋が出る。実体で埋める。
+
+    ⛔ **材は木で決着(2026-09-06 裁定)。銅にしない** — 2.3万石の御殿には過ぎる
+      (葺材を桟瓦に決めたのと同じ理由)。⛔ 樋・雨落ちの意匠はこれ以上決めない —
+      見えない部位に確度を積まない。"""
+    top = kobai * VALLEY_HALF - 0.04
+    pts = [(-VALLEY_HALF, top), (0.0, -0.07), (VALLEY_HALF, top),
+           (VALLEY_HALF, -0.40), (-VALLEY_HALF, -0.40)]
+    g = plaque(name, pts, x_a, x_b, p['wood'], None, sc=1.0, oy=y_v, oz=z_eave)
+    # 木理は樋の走り(x)へ流す。⚠ WOOD_UV は v が長手なので x→v に取る
+    V.set_uv_rect(g, WOOD_UV, axes=('y', 'x'))
+    return g
+
+
+def make_banded(bands, span, along="u", irikawa=1.0, eave=3.4, kobai=RATIO,
+                noki_de=0.90, tsuma_end=0.30, fukizai="sangawara",
+                gable_frac=0.45, name=None):
+    """**身舎を帯に割り、帯ごとに入母屋を架けて境を谷にした屋根**を1メッシュで焼く。
+
+    ⭐ **単位: `bands` / `span` / `irikawa` は「間」(整数間)。それ以外は m。**
+      中で 1間 = 1.818m を掛ける。⛔ Village Kit の 2.0m/間 と混ぜない。
+
+    引数:
+      bands      帯の**身舎**の幅の配列(間・整数)。例 [4,4] [4,5] [5,5] [4]。**1〜3 帯**
+                 ⭐⭐ **並びは常に「across 軸(帯の並ぶ向き)の小さい側から」**。
+                    `along` が u でも v でも変わらない(2026-09-06 に生成器側で正規化した)。
+                    ⇒ 指図の `ws` をそのまま渡してよい。例) 土井の奥棟は across=u で
+                    **u の小さい側から 4 → 5** なので `[4,5]`(名も `4-5x10ken_v`)。
+      span       長手方向の**身舎**の長さ(間)。大棟はこの向きに架かる
+      along      "u" = 大棟が Blender +X(= Unity +X)/ "v" = Blender +Y(= Unity −Z)。
+                 ⚠ 帯は長手に**直交**する方向へ並ぶ(along="u" なら across は v、逆も同様)。
+                 ⚠ 中身は常に「帯を +Y へ並べ、"v" なら最後に +90° 回す」で組む。その回転は
+                    `(x,y) → (−y,x)` で並びを裏返すので、**"v" のとき `bands` を受け取った時点で
+                    反転して打ち消している**(`name` を決めた後に反転する)。
+                 ⛔ この正規化を外すと `--along v` で帯が左右そっくり入れ替わる。
+      irikawa    入側(=下屋)の幅(間・既定 1)。身舎の四周に付く
+      eave       **軒高**(m・既定 3.4)= 身舎の軒桁の高さ。**床レベルからの値**
+      kobai      瓦勾配(既定 0.5456)。⛔ **これ以外は受け付けない** —
+                 瓦は `roof 2x2` の実ジオメトリで、立上りがモジュールに彫り込まれている
+      noki_de    軒の出(m・既定 0.90)。入側の外の柱通りから先へ出る量
+      tsuma_end  妻の出(m・既定 0.30)= **破風板の見付が妻壁面から外へ出る量**。
+                 ⚠ 瓦場は妻壁面で切る(既存の入母屋と同じ)。板だけが外へ出る
+      fukizai    "sangawara"(桟瓦)| "hongawara"(本瓦)。**格の出し分け**。⛔ 懸魚では分けない
+      gable_frac 妻の立上りが棟高に占める割合(既定 0.45)。既存の入母屋と同じ。
+                 ⛔ **指図の欄にしない**(2026-09-06 裁定)— 御殿の妻を強調する典拠が無く、
+                    摘みにすると根拠なくいじれる値が増える。**部材の既定値のまま**
+
+    高さ(既定値・帯 4間 のとき。**すべて床上**):
+      床 0 → 軒高 3.4 → 入側の外の柱通り 3.4 − 1.818×0.5456 = **2.408**
+           → 軒先(0.90 先)**1.917** → 帯の棟 3.4 + 2×1.818×0.5456 = **5.384**
+      ⚠ 「軒先高 2.408」は入側の外の柱通りの高さで、軒の出の先端はさらに 0.491 下がる。
+        流れが同じ勾配で続く以上これは幾何の帰結。
+      ⛔⛔ **床上と地盤上を取り違えない。** 御殿の床は地盤より `const.gotenFloor` = **0.62m**
+        高いので、軒先の先端は **地盤上 2.537m**。立位の眼高 `const.eyeStand` = 1.45 に対し
+        1.09m の余裕があり、**江戸の軒として低くない**。2026-09-06 に部材方も普請奉行も
+        床上のまま読んで「低いのでは」と誤読した。⇒ **軒の出も軒高も動かさない**(同日裁定)。
+
+    ピボット = **足形の中心・床レベル(z=0)**。
+      ⚠⚠ **既存の `make_irimoya` / `make_yosemune` は z=0 が「軒先」**で、Unity 側が
+        軒先高に置いている。**この関数だけ z=0 が床**。軒高を引数に取る以上そうするしかない。
+        据えるときは棟の**床の高さ**に置く(軒先高を足さない)。
+    """
+    if fukizai not in ("sangawara", "hongawara"):
+        raise SystemExit("[banded] fukizai は sangawara / hongawara のいずれか: %r" % fukizai)
+    if fukizai == "hongawara":
+        # ⛔ 黙って桟瓦で焼かない。キットの瓦材は `roof`(桟瓦)**1種だけ**で、
+        #    もう1つの `Roof B` は瓦ではなく**板葺・茅のアトラス**(実測 2026-09-06)。
+        #    本瓦の当てがあるのは Japanese Castle の `Roof Castle 6x8.fbx`
+        #    (材 `Roof Castle A` / 8×6 キット単位 / **勾配 0.500**)で、
+        #    勾配が 0.5456 と違うので **RATIO まわりを葺材ごとに分ける改修が要る**。
+        raise SystemExit(
+            "[banded] 本瓦はまだ焼けない。キットの瓦材は `roof`(桟瓦)1種のみ。\n"
+            "  本瓦の候補 = Japanese Castle/Meshes/Exterior/Roof Castle 6x8.fbx\n"
+            "  (材 `Roof Castle A` / 勾配 0.500 ≠ RATIO 0.5456)。\n"
+            "  ⇒ 葺材ごとに勾配とモジュール寸法を持たせる改修が要る。部材方へ差し戻すこと。")
+    if abs(kobai - RATIO) > 1e-3:
+        raise SystemExit("[banded] 勾配は %.4f 固定(`roof 2x2` の実ジオメトリの立上り)。"
+                         "変えると瓦モジュールが平面に乗らない。指定=%.4f" % (RATIO, kobai))
+    bands = [int(b) for b in bands]
+    if not 1 <= len(bands) <= 3:
+        raise SystemExit("[banded] 帯数は 1〜3。指定=%d" % len(bands))
+    if any(b < 2 for b in bands):
+        raise SystemExit("[banded] 帯の身舎は 2間 以上(1間だと妻が破綻する)。指定=%s" % bands)
+    span = int(span)
+    name = name or banded_name(bands, span, along, fukizai)
+
+    # ⭐⭐ **`bands` の先頭は、`along` が u でも v でも「across 軸の小さい側」**。
+    #   中身は常に「帯を +Y へ並べて、along=="v" なら最後に +90° 回す」で組む。
+    #   +90° は (x,y) → (−y,x) なので **+Y に並べた先頭が +X(across の大きい側)へ行ってしまう**。
+    #   ⇒ ここで **受け取った時点で反転**して打ち消す。これで呼ぶ側は向きを気にしなくてよい。
+    #   ⛔ **`name` を先に決めてから反転する** — ファイル名は**呼び出し側の並び**
+    #     (= 指図の `ws`)で綴りたいので、反転後の内部順で名を作らないこと。
+    #   ⚠ 2026-09-06 に入れた。それ以前は `--along v` で帯が左右そっくり入れ替わり、
+    #     土井の奥棟を `5,4` と書いて焼く羽目になっていた(指図の記述は `4,5`)。
+    if along == "v":
+        bands = bands[::-1]
+
+    W = span * KEN
+    ys = [0.0]
+    for b in bands:
+        ys.append(ys[-1] + b * KEN)
+    D = ys[-1]
+    E = irikawa * KEN + noki_de          # 身舎から外への出(下屋 + 軒の出)
+    x0, x1 = -E, W + E
+    N = len(bands)
+
+    pieces = []
+    info = []
+    for i, b in enumerate(bands):
+        ya, yb = ys[i], ys[i + 1]
+        bw = yb - ya
+        ym = (ya + yb) / 2.0
+        zr = eave + (bw / 2.0) * kobai            # 大棟の天端(座を除く)
+        a = gable_frac * (bw / 2.0)               # 妻の平面上の入り込み
+        zg = eave + a * kobai                     # 妻の足元
+        if W - 2 * a < 0.35:
+            raise SystemExit("[banded] 帯%d: 大棟が残らない(桁行 %.2fm・妻の入り %.2fm)。"
+                             "span を増やすこと" % (i, W, a))
+        ey0 = E if i == 0 else 0.0
+        ey1 = E if i == N - 1 else 0.0
+        # 谷側は瓦場を VALLEY_GAP だけ引いて、谷樋の縁を瓦の下へ潜らせる
+        gy0 = 0.0 if ey0 > 0 else VALLEY_GAP
+        gy1 = 0.0 if ey1 > 0 else VALLEY_GAP
+        ylo, yhi = ya - ey0 + gy0, yb + ey1 - gy1
+        tag = "%s_b%d" % (name, i)
+
+        # --- 平の二面(±Y)。軒先の台形 + 妻から上の矩形 -------------------
+        # 軒先線 y=ylo における隅棟の足元は、外周側なら x0/x1(軒の出の隅)、
+        # 谷側なら x = ±VALLEY_GAP(隅棟は谷の端から立ち上がる)
+        sl, sr = (x0, x1) if ey0 else (gy0, W - gy0)
+        south = [[(sl, ylo), (sr, ylo), (W - a, ya + a), (a, ya + a)],
+                 [(a, ya + a), (W - a, ya + a), (W - a, ym), (a, ym)]]
+        pieces.append(_tile_field_fast(south, (x0, ya), 90, eave, tag + "_S"))
+
+        nl, nr = (x0, x1) if ey1 else (gy1, W - gy1)
+        north = [[(nr, yhi), (nl, yhi), (a, yb - a), (W - a, yb - a)],
+                 [(W - a, yb - a), (a, yb - a), (a, ym), (W - a, ym)]]
+        pieces.append(_tile_field_fast(north, (x0, yb), 270, eave, tag + "_N"))
+
+        # --- 妻の二面(±X)= 隅(寄棟面)+ そのまま妻側の下屋 ---------------
+        # ⚠ 瓦の格子の原点は **全帯で共通の (x0, 0)**。帯ごとに取ると桁行方向にズレる
+        wp = ([(x0, ya - E)] if ey0 else [(x0, ya), (0.0, ya)])
+        wp += [(a, ya + a), (a, yb - a)]
+        wp += ([(x0, yb + E)] if ey1 else [(0.0, yb), (x0, yb)])
+        pieces.append(_tile_field_fast([wp], (x0, 0.0), 0, eave + kobai * x0, tag + "_W"))
+
+        ep = ([(x1, ya - E)] if ey0 else [(x1, ya), (W, ya)])
+        ep += [(W - a, ya + a), (W - a, yb - a)]
+        ep += ([(x1, yb + E)] if ey1 else [(W, yb), (x1, yb)])
+        pieces.append(_tile_field_fast([ep], (x1, 0.0), 180, eave + kobai * x0, tag + "_E"))
+
+        info.append(dict(i=i, ken=b, ya=ya, yb=yb, ym=ym, zr=zr, a=a, zg=zg,
+                         ridge_len=W - 2 * a))
+
+    p = palette()
+
+    for d in info:
+        ya, yb, ym, zr, a, zg = d['ya'], d['yb'], d['ym'], d['zr'], d['a'], d['zg']
+        i = d['i']
+        ey0 = E if i == 0 else 0.0
+        ey1 = E if i == N - 1 else 0.0
+        tag = "%s_b%d" % (name, i)
+        # 大棟 + 鬼
+        pieces += ridge((a, ym, zr), (W - a, ym, zr), tag + "_omune", w=0.50, h=0.42)
+        pieces += oni((a, ym, zr), (-1, 0), tag + "_oni0", scale=1.15)
+        pieces += oni((W - a, ym, zr), (1, 0), tag + "_oni1", scale=1.15)
+        # 隅棟4本。外周側は軒先の隅(z = 軒先高)から、
+        # 谷側は **谷の端**(x=0 / x=W・z=eave)から立ち上がる
+        z_tip = eave - kobai * E
+        for s_pt, t_pt in [
+                (((x0, ya - E), z_tip) if ey0 else ((0.0, ya), eave), (a, ya + a)),
+                (((x1, ya - E), z_tip) if ey0 else ((W, ya), eave), (W - a, ya + a)),
+                (((x0, yb + E), z_tip) if ey1 else ((0.0, yb), eave), (a, yb - a)),
+                (((x1, yb + E), z_tip) if ey1 else ((W, yb), eave), (W - a, yb - a))]:
+            (sx, sy), zs = s_pt
+            pieces += ridge((sx, sy, zs + 0.02), (t_pt[0], t_pt[1], zg),
+                            tag + "_sumi", w=0.40, h=0.33)
+
+        # 妻(妻壁+木連格子+破風+懸魚)。破風の見付の出 = tsuma_end
+        bt = tsuma_end / 1.15
+        new_geo = gable(a, +1, ya + a, yb - a, zg, ym, zr, tag + "_gW", p,
+                        bw=0.62, bt=bt, drop=0.55)
+        new_geo += gable(W - a, -1, ya + a, yb - a, zg, ym, zr, tag + "_gE", p,
+                         bw=0.62, bt=bt, drop=0.55)
+        # 袖瓦(破風の天端に被る瓦)。瓦の実体は名目平面より上にあるので 0.22 持ち上げる
+        for gx, inward in ((a, +1), (W - a, -1)):
+            sx2 = gx - inward * 0.06
+            for uy in (ya + a, yb - a):
+                pieces += ridge((sx2, uy, zg + 0.22), (sx2, ym, zr + 0.22),
+                                tag + "_sode", w=0.36, h=0.28)
+        for o, uv in new_geo:
+            if o:
+                if uv:
+                    V.set_uv(o, uv)
+                pieces.append(o)
+
+    # --- 谷樋。帯の境 = 柱通りに乗る -----------------------------------------
+    valleys = []
+    for i in range(1, N):
+        yv = ys[i]
+        pieces.append(_valley_gutter(yv, -0.05, W + 0.05, eave, kobai, p,
+                                     "%s_tani%d" % (name, i)))
+        valleys.append(yv)
+
+    pieces = [q for q in pieces if q]
+    V.dedup_materials()
+    o = V.join(pieces, name)
+    if along == "v":
+        V.rotate_z([o], 90)                 # 大棟を Blender +Y(= Unity −Z)へ
+        V.set_origin(o, (-D / 2.0, W / 2.0, 0.0))
+    else:
+        V.set_origin(o, (W / 2.0, D / 2.0, 0.0))
+
+    print("[banded] %s 帯=%s 桁行=%d間(%.3f) 入側=%g間 軒の出=%.2f 葺材=%s along=%s"
+          % (name, bands, span, W, irikawa, noki_de, fukizai, along))
+    print("[banded]   足形(身舎+入側+軒の出) %.3f × %.3f m / 身舎 %.3f × %.3f m"
+          % (W + 2 * E, D + 2 * E, W, D))
+    print("[banded]   軒高 %.3f / 入側外の柱通り %.3f / 軒先の先端 %.3f"
+          % (eave, eave - irikawa * KEN * kobai, eave - E * kobai))
+    for d in info:
+        print("[banded]   帯%d %d間: 棟高 %.3f(座を除く) 大棟長 %.3f 妻の入り %.3f 妻の足元 %.3f"
+              % (d['i'], d['ken'], d['zr'], d['ridge_len'], d['a'], d['zg']))
+    print("[banded]   谷 %d本: y = %s(身舎の南端から・柱通りに乗る)"
+          % (len(valleys), ", ".join("%.3f(%g間)" % (v, v / KEN) for v in valleys)))
+    return o
+
+
+def banded_name(bands, span, along="u", fukizai="sangawara"):
+    """規約名: Goten_Roof_Banded_<帯>x<桁行>ken[_v][_hon]
+    例: [4,5] span12 → `Goten_Roof_Banded_4-5x12ken`"""
+    s = "Goten_Roof_Banded_%sx%dken" % ("-".join(str(int(b)) for b in bands), int(span))
+    if along == "v":
+        s += "_v"
+    if fukizai == "hongawara":
+        s += "_hon"
+    return s
+
+
+def render_banded(o, path_dir, tag, eave=3.4):
+    """帯割りの屋根の検証レンダ。⭕ **見るのは4点** —
+    谷が通っているか / 下屋が身舎に噛んでいるか / 軒先が水平か / 妻が破綻していないか。
+    ⚠ `export_fbx` を通すと bbox が 0 に潰れるので、**書き出しの前に**呼ぶこと。"""
+    V.hook_textures()
+    mn, mx = V.bbox([o])
+    cx, cy = (mn.x + mx.x) / 2.0, (mn.y + mx.y) / 2.0
+    W, D, H = mx.x - mn.x, mx.y - mn.y, mx.z
+    r = max(W, D)
+    os.makedirs(path_dir, exist_ok=True)
+    out = []
+
+    def shot(sub, cam, look, ortho=None, res=(1600, 1000)):
+        for c in [c for c in bpy.data.objects if c.type in ('CAMERA', 'LIGHT')]:
+            bpy.data.objects.remove(c, do_unlink=True)
+        for pl in [c for c in bpy.data.objects if c.name.startswith("Plane")]:
+            bpy.data.objects.remove(pl, do_unlink=True)
+        bpy.ops.mesh.primitive_plane_add(size=r * 6, location=(cx, cy, 0.0))
+        V.studio(cam, look, ortho_scale=ortho, res=res)
+        f = os.path.join(path_dir, "%s_%s.png" % (tag, sub))
+        V.render(f)
+        out.append(f)
+
+    # 1) 俯瞰 — 谷と帯の並びを見る
+    shot("01_fukan", (cx - r * 0.75, cy - r * 1.0, mx.z + r * 0.95), (cx, cy, eave * 0.6))
+    # 2) 妻側の立面(正射影)— 妻・下屋・軒先の水平を見る
+    shot("02_tsuma", (cx - r * 3.0, cy, eave * 0.75), (cx, cy, eave * 0.75),
+         ortho=max(D, mx.z) * 1.25)
+    # 3) 平側の立面(正射影)— 軒先が一直線か・下屋の取り付きを見る
+    shot("03_hira", (cx, cy - r * 3.0, eave * 0.75), (cx, cy, eave * 0.75),
+         ortho=max(W, mx.z) * 1.15)
+    # 4) 谷の寄り(俯瞰)— 谷樋が通っているか、瓦の小口が透けないか
+    shot("04_tani", (cx - W * 0.30, cy - D * 0.10, mx.z + 3.2), (cx + W * 0.10, cy, eave))
+    return out
 
 
 def report(o, name):
@@ -570,11 +997,56 @@ if __name__ == "__main__":
         mn, mx = report(o, name)
         V.export_fbx(o, os.path.join(OUT, name + ".fbx"))
         raise SystemExit(0)
-    if argv and argv[0] == "kirizuma":
-        if len(argv) > 1:                       # 単発: -- kirizuma <間数>
-            n = int(argv[1])
+    if argv and argv[0] == "banded":
+        # 帯割りの入母屋 — `-- banded <帯(例 4,4)> <桁行間数> [名前] [旗...]`
+        #   --along u|v / --irikawa <間> / --eave <m> / --noki <m> / --tsuma <m>
+        #   --fukizai sangawara|hongawara / --render <出力ディレクトリ>
+        bands = [int(t) for t in argv[1].split(",") if t.strip()]
+        span = int(argv[2])
+        rest = argv[3:]
+        nm = rest[0] if rest and not rest[0].startswith("--") else None
+        kw = dict(along="u", irikawa=1.0, eave=3.4, noki_de=0.90,
+                  tsuma_end=0.30, fukizai="sangawara")
+        rdir = None
+        i = 0
+        while i < len(rest):
+            t = rest[i]
+            if t == "--along":   kw['along'] = rest[i + 1]; i += 2
+            elif t == "--irikawa": kw['irikawa'] = float(rest[i + 1]); i += 2
+            elif t == "--eave":  kw['eave'] = float(rest[i + 1]); i += 2
+            elif t == "--noki":  kw['noki_de'] = float(rest[i + 1]); i += 2
+            elif t == "--tsuma": kw['tsuma_end'] = float(rest[i + 1]); i += 2
+            elif t == "--fukizai": kw['fukizai'] = rest[i + 1]; i += 2
+            elif t == "--render":
+                if i + 1 < len(rest) and not rest[i + 1].startswith("--"):
+                    rdir = rest[i + 1]; i += 2
+                else:
+                    rdir = os.path.join(V.REPO, "Screenshots"); i += 1
+            else: i += 1
+        V.reset()
+        o = make_banded(bands, span, name=nm, **kw)
+        name = o.name
+        mn, mx = report(o, name)
+        # ⚠ 検証レンダは **書き出しの前**に撮る(export_fbx を通すと bbox が 0 に潰れる)
+        if rdir:
+            for f in render_banded(o, rdir, name, eave=kw['eave']):
+                print("RENDER %s" % f)
+        V.export_fbx(o, os.path.join(OUT, name + ".fbx"))
+        raise SystemExit(0)
+    if argv and argv[0] == "yosemune":
+        # 寄棟 — `-- yosemune <桁行m> <梁間m> [名前]`。⚠ 桁行 ≧ 梁間 で呼ぶ
+        W = float(argv[1]); D = float(argv[2])
+        name = argv[3] if len(argv) > 3 else "Goten_Roof_Yosemune"
+        V.reset()
+        o = make_yosemune(W, D, name)
+        mn, mx = report(o, name)
+        V.export_fbx(o, os.path.join(OUT, name + ".fbx"))
+    elif argv and argv[0] == "kirizuma":
+        if len(argv) > 1:                       # 単発: -- kirizuma <間数(端数可)>
+            n = float(argv[1])
             V.reset()
-            name = "Goten_Roof_Kirizuma_%dken" % n
+            # ⚠ 端数の間数(渡廊下 1.5間など)は `1.5ken` と刷る。整数は従来どおり `3ken`
+            name = "Goten_Roof_Kirizuma_%sken" % (("%g" % n) if n != int(n) else "%d" % int(n))
             o = make_kirizuma(n * KEN, KEN, name)
             mn, mx = report(o, name)
             V.export_fbx(o, os.path.join(OUT, name + ".fbx"))

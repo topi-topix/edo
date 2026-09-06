@@ -14,6 +14,17 @@ VK_KEN = 2.0          # Village Kit の1間相当
 S    = KEN / VK_KEN   # 0.909
 
 
+def out_dir(default):
+    """書き出し先。環境変数 **`BUZAI_OUT`** が立っていればそちらへ出す。
+
+    ⚠ **Unity が走っている最中に `Assets/Edo/Models/` へ書くとドメインリロードが起きる**
+    (検査中の `execute_code` が壊れる)。部材方は第1段で staging へ焼いて実寸とレンダを
+    検め、呼び出し元の合図で第2段に `Assets/` へ移す。⛔ 既定を staging にしない —
+    合図なしで staging に落ちると、誰も Assets を見に行かなくなる。"""
+    d = os.environ.get("BUZAI_OUT")
+    return d if d else default
+
+
 def reset():
     bpy.ops.wm.read_factory_settings(use_empty=True)
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""作事奉行ダッシュボードの生成器 — 掲示板・_pending・git log・claim を1枚の HTML に焼く。
+"""普請場ダッシュボードの生成器 — 掲示板・_pending・git log・claim を1枚の HTML に焼く。
 
 指図の html が json から決定的に組まれるのと同じ思想。手で書かない。
 入力(すべて読み取りのみ):
@@ -11,7 +11,7 @@
   - docs/Sashizu/README.md         … 状態列(正典は README のまま。パースして表示するだけ)
 出力:
   - .git/edo-board/_pm/dashboard.html … Artifact に公開する1枚
-  - .git/edo-board/_pm/summary.json   … 作事奉行の巡回用の機械可読サマリ(巡数・最終活動など)
+  - .git/edo-board/_pm/summary.json   … 機械可読サマリ(巡数・最終活動など)
 
 2026-08-29 改訂: 「邸」だけでなく溜池・外堀のような邸に属さない敷地も同格の
 グループとして扱えるよう SITES を導入(ユーザー指摘)。あわせてクライアント側の
@@ -128,8 +128,32 @@ def load_pending():
     return out
 
 
+def load_reviews():
+    """検図関門(Tools/Sashizu/review_gate.py)の結果を敷地ごとに拾う。
+    ⚠ 判定のロジックは持たない — review_gate を import して**同じ関数**を呼ぶ。
+    ここで判定を書き写すと、関門の改訂に追随せず二重管理になる。"""
+    out = {}
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "review_gate", os.path.join(ROOT, "Tools", "Sashizu", "review_gate.py"))
+        rg = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(rg)
+    except Exception:
+        return out
+    for e in SITES:
+        try:
+            red, rows = rg.gate(e)
+            out[e] = {"red": red, "rows": [{"mark": r[0], "label": r[2], "state": r[3]}
+                                           for r in rows]}
+        except Exception:
+            pass
+    return out
+
+
 def load_junsu_baseline():
-    """前回ユーザー裁定時点の巡数(作事奉行の巡回状態から)。無ければ空。"""
+    """前回ユーザー裁定時点の巡数。⚠ これを書き足す巡回役は 2026-09-06 に廃止したので、
+    いまは常に空(ファイルも消した)。巡数の見張りは各普請奉行が自分で行う。"""
     fp = os.path.join(OUT, "state.json")
     try:
         return json.load(open(fp, encoding="utf-8")).get("junsu_baseline", {})
@@ -139,17 +163,32 @@ def load_junsu_baseline():
 
 def load_readme_states():
     """README の表から敷地ごとの状態と、公開済み指図 Artifact の URL を拾う。
-    URL は表の5列目(素の https://claude.ai/code/artifact/... 行末)。
+    2026-08-31 に「屋敷・社ごとの設計図」表が状態1列(5列)から**指図/実装の2列(6列)**へ
+    改訂された(1軸だと「指図はレビュー待ちだが実装は進んでいる」邸を表せなかったため)。
+    「土木の指図」表は5列(状態1列)のまま — 両方に当たる。
+    URL は行末の素の https://claude.ai/code/artifact/... 。
     敷地が worktree 止まりで README にまだ載っていなければ単に出ない(それが実情)。"""
     out = {}
     fp = os.path.join(ROOT, "docs", "Sashizu", "README.md")
+    pat6 = re.compile(r"\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|"
+                      r"\s*\[(\w+)_sashizu\.html\][^|]*\|\s*(https://\S+)?\s*\|")
+    pat5 = re.compile(r"\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*\[(\w+)_sashizu\.html\]"
+                      r"[^|]*\|\s*(https://\S+)?\s*\|")
     try:
         for ln in open(fp, encoding="utf-8"):
-            m = re.match(r"\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*\[(\w+)_sashizu\.html\]"
-                        r"[^|]*\|\s*(https://\S+)?\s*\|", ln)
-            if m and m.group(4) in SITES:
-                out[m.group(4)] = {"name": m.group(1), "area": m.group(2),
-                                   "state": m.group(3).strip("* "), "url": m.group(5)}
+            m6 = pat6.match(ln)
+            if m6 and m6.group(5) in SITES:
+                out[m6.group(5)] = {"name": m6.group(1), "area": m6.group(2),
+                                    "sashizu_state": m6.group(3).strip("* "),
+                                    "impl_state": m6.group(4).strip("* "),
+                                    "state": "%s / %s" % (m6.group(3).strip("* "),
+                                                          m6.group(4).strip("* ")),
+                                    "url": m6.group(6)}
+                continue
+            m5 = pat5.match(ln)
+            if m5 and m5.group(4) in SITES and m5.group(4) not in out:
+                out[m5.group(4)] = {"name": m5.group(1), "area": m5.group(2),
+                                    "state": m5.group(3).strip("* "), "url": m5.group(5)}
     except Exception:
         pass
     return out
@@ -336,6 +375,15 @@ h2{font-family:'Shippori Mincho',serif;font-weight:600;font-size:17px;
 .lane .area{color:var(--muted);font-size:11.5px;margin-bottom:8px}
 .state{font-size:12.5px;background:var(--ai-soft);color:var(--ai);
   border-radius:4px;padding:2px 8px;display:inline-block;margin:4px 0}
+.statepair{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
+.statepair .tag{font-size:11px;color:var(--muted);align-self:center}
+.gate{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0;align-items:center}
+.gate .tag{font-size:11px;color:var(--muted)}
+.gitem{font-size:11.5px;border-radius:4px;padding:1px 7px;border:1px solid var(--line);
+  background:var(--card);cursor:help}
+.gitem.g-ng{background:var(--shu-soft);border-color:var(--shu);color:var(--shu);font-weight:600}
+.gitem.g-ok{background:var(--matsu-soft);border-color:var(--matsu);color:var(--matsu)}
+.state.impl-wait{background:var(--oud-soft);color:var(--oud);font-weight:600}
 .kv{font-size:12.5px;color:var(--muted);margin:3px 0}
 .kv b{color:var(--ink);font-weight:500}
 .kv .n{font-family:var(--mono)}
@@ -957,7 +1005,7 @@ def filterbar_html():
     return "".join(p)
 
 
-def build_html(issues, pending, commits, claims, states, summary):
+def build_html(issues, pending, commits, claims, states, summary, reviews):
     live = [i for i in issues if i["status"] not in ("done", "dropped")]
     waits = [i for i in live if i["status"] == "awaiting-user"]
     blks = [i for i in live if i["type"] == "blocker"]
@@ -967,13 +1015,13 @@ def build_html(issues, pending, commits, claims, states, summary):
     junsu_base = load_junsu_baseline()
 
     p = []
-    p.append("<title>赤坂普請 作事奉行</title>")
+    p.append("<title>赤坂普請 普請場</title>")
     p.append('<link rel="stylesheet" href="https://fonts.googleapis.com/css2?'
              'family=Shippori+Mincho:wght@600&family=Noto+Sans+JP:wght@400;500;700&'
              'family=IBM+Plex+Mono:wght@400;500&display=swap">')
     p.append("<style>%s</style>" % CSS)
     p.append('<div class="wrap">')
-    p.append('<header><h1>赤坂普請 作事奉行</h1><span class="gen">巡回 %s</span></header>'
+    p.append('<header><h1>赤坂普請 普請場</h1><span class="gen">生成 %s</span></header>'
              % esc(time.strftime("%m-%d %H:%M")))
     p.append('<div class="chips">')
     p.append('<span class="chip %s">要裁定 <b>%d</b></span>' % ("wait" if waits else "ok", len(waits)))
@@ -1036,8 +1084,29 @@ def build_html(issues, pending, commits, claims, states, summary):
             % esc(st["url"]) if st.get("url") else ""))
         if st.get("area"):
             p.append('<div class="area">%s</div>' % esc(st["area"]))
-        if st.get("state"):
+        if st.get("sashizu_state") is not None:
+            # 指図/実装の2軸(2026-08-31 改訂)。指図が済んで実装が未着手の邸は
+            # 「いま着手してよい屋敷」なので目立たせる(規則: ユーザーが一目で拾えること)。
+            impl = st.get("impl_state", "")
+            waiting = "未着手" in impl or "未着手" in st.get("sashizu_state", "")
+            p.append('<div class="statepair">'
+                     '<span class="tag">指図</span><span class="state">%s</span>'
+                     '<span class="tag">実装</span><span class="state%s">%s</span>'
+                     '</div>' % (esc(st["sashizu_state"]),
+                                " impl-wait" if waiting else "",
+                                esc(impl)))
+        elif st.get("state"):
             p.append('<span class="state">%s</span>' % esc(st["state"]))
+        # 検図関門(2026-09-01 新設)。⛔ 赤の指図は実装しない・ユーザーに見せない。
+        rv = reviews.get(e)
+        if rv and rv.get("rows"):
+            p.append('<div class="gate%s">' % (" gate-red" if rv["red"] else ""))
+            p.append('<span class="tag">検分</span>')
+            for r in rv["rows"]:
+                cls = "g-ng" if r["mark"] in ("⛔", "⚠") else "g-ok"
+                p.append('<span class="gitem %s" title="%s">%s %s</span>'
+                         % (cls, esc(r["state"]), r["mark"], esc(r["label"].split("(")[0])))
+            p.append("</div>")
         if cl:
             for c in cl:
                 p.append('<div class="kv">担当: <b class="n">%s</b>(心拍 %.0f分前)%s</div>'
@@ -1119,12 +1188,13 @@ def main():
     commits = load_commits()
     claims = load_claims()
     states = load_readme_states()
+    reviews = load_reviews()
     summary = build_summary(issues, pending, commits, claims)
     os.makedirs(OUT, exist_ok=True)
     json.dump(summary, open(os.path.join(OUT, "summary.json"), "w", encoding="utf-8"),
               ensure_ascii=False, indent=1)
     open(os.path.join(OUT, "dashboard.html"), "w", encoding="utf-8").write(
-        build_html(issues, pending, commits, claims, states, summary))
+        build_html(issues, pending, commits, claims, states, summary, reviews))
     print("dashboard: %s\nsummary:   %s" % (os.path.join(OUT, "dashboard.html"),
                                             os.path.join(OUT, "summary.json")))
 

@@ -248,7 +248,13 @@ def path_stats(pts):
 
 def sando_band(d, PX, PY, LEN):
     sd = d["sando"]
-    o = band(sd["pts"], PX, PY, LEN, sd.get("w", 5.5), "var(--michi)", "var(--shu)", op=0.45)
+    if sd.get("area"):
+        # 2026-09-06 — 参道は敷地割の間に残った道の**領域そのもの**。帯を自分の幅で置かない(ユーザー指摘)。
+        o = [PL([(PX(x), PY(z)) for x, z in sd["area"]], fill="var(--michi)", op=0.45,
+                stroke="var(--shu)", sw=0.8, close=True),
+             PL([(PX(x), PY(z)) for x, z in sd["pts"]], stroke="var(--shu)", sw=0.7, dash="6 4", op=0.9)]
+    else:
+        o = band(sd["pts"], PX, PY, LEN, sd.get("w") or 5.5, "var(--michi)", "var(--shu)", op=0.45)
     x, z = sd["pts"][-1]
     L, gr = path_stats(sd["pts"])
     o.append(T(PX(x) - 6, PY(z) - 6, "参道 %.0f m ／ 平均 %.1f%%" % (L, gr),

@@ -8153,6 +8153,101 @@ def niwa_kura_table(d):
         "載せた刈込①が受ける(2026-09-04 庭方の第3巡・決定 中9)。</p>")
 
 
+def edge_step_qa_table(d, dem):
+    """**実装の `EdgeStepQA` が鳴らす縁を、指図の側から仕分ける。**
+
+    ⚠ 2026-09-06、棟梁が「段の境で土留めが無く落差が残る 33区間は**指図の欠落**」と
+    差し戻した。⛔ **大半は指図の欠落ではない** — 同名の検査 `edge_step_check` と
+    **測り方が違う**ためである。⚠⚠ いちばん効くのは **probe の距離**:
+    指図は縁から **±0.06間(0.11m)**、実装は **±0.5間(0.909m)**。
+    ⇒ 0.909m 離れた点では**法面が正当に落ちている**(盛 1:1.5 で 0.61m / 切 1:1.0 で 0.91m)。
+    そこへ `stepAbsorbMax`(0.45 = **段の縁で摺り付けられる落差**)を当てるのは
+    **単位の取り違え**で、法面が在る縁はほぼ全部鳴る。
+
+    ⛔ **ここで壁を足さない**(設計判断)。仕分けて返すところまでが指図方の仕事。
+    """
+    if dem is None:
+        return "<p class='cap'>⚠ <code>doi_dem.json</code> が無いので仕分けられない。</p>"
+    gr = RGrid(d)
+    we = {t["name"]: walled_edges(d, t) for t in d["terraces"]}
+    lim = d["const"]["stepAbsorbMax"]
+    K = d["const"]["ken"]
+    fill = 0.5 * K / d["const"]["batterFill"]      # 0.5間 の走りで盛の法が落ちる量
+    cut = 0.5 * K / d["const"]["batterCut"]        # 同・切
+
+    def gy(u, v):
+        q = design_y(d, u, v)
+        if q is not None:
+            return q
+        wx, wz = gr.W(u, v)
+        nat = dem_bilinear(dem, wx, wz)
+        return None if nat is None else graded_y(d, u, v, nat, we)
+
+    rows, tally = [], {}
+    for t in d["terraces"]:
+        if t.get("yaw"):
+            continue                               # 回転する段は別の作法
+        for e, edge in enumerate(("u0", "u1", "v0", "v1")):
+            vert = e < 2
+            fix = t[edge]
+            sgn = -1.0 if edge in ("u0", "v0") else 1.0
+            q0, q1 = (t["v0"], t["v1"]) if vert else (t["u0"], t["u1"])
+            run = None
+            q = q0
+            while q <= q1 + 1e-6:
+                ui, vi = (fix - sgn * 0.5, q) if vert else (q, fix - sgn * 0.5)
+                uo, vo = (fix + sgn * 0.5, q) if vert else (q, fix + sgn * 0.5)
+                yi, yo = gy(ui, vi), gy(uo, vo)
+                cov = _walled(we[t["name"]], edge, q)
+                hit = (yi is not None and yo is not None
+                       and abs(yi - yo) > lim + 1e-4 and not cov)
+                if hit:
+                    if design_y(d, uo, vo) is not None:
+                        cls = "A 外が別の段"
+                    elif not in_parcel(d, uo, vo):
+                        cls = "B 区画の外"
+                    elif abs(yi - yo) <= max(fill, cut) + 1e-9:
+                        cls = "D 素地=法面"
+                    else:
+                        cls = "E 法面で説明できない"
+                    if run is None:
+                        run = [q, q, yi - yo, cls]
+                    else:
+                        run[1] = q
+                        if abs(yi - yo) > abs(run[2]):
+                            run[2], run[3] = yi - yo, cls
+                else:
+                    if run:
+                        rows.append((t["name"], edge, run[0], run[1], run[2], run[3]))
+                        run = None
+                q += 0.5
+            if run:
+                rows.append((t["name"], edge, run[0], run[1], run[2], run[3]))
+    for r in rows:
+        tally[r[5]] = tally.get(r[5], 0) + 1
+    rows.sort(key=lambda r: -abs(r[4]))
+    out = [(r[0], "<code>%s</code>" % r[1], "%.1f 〜 %.1f" % (r[2], r[3]),
+            "<b>%+.2f m</b>" % r[4],
+            ("⚠ <b>%s</b>" % r[5]) if r[5].startswith("E") else r[5]) for r in rows]
+    return _tw(("段", "縁", "走り q[間]", "最大の落差", "指図の側の扱い"), out) + (
+        "<p class='cap'>⚠⚠ <b>実装の <code>EdgeStepQA</code> と指図の <code>edge_step_check</code> は"
+        "測り方が違う。</b>指図は縁から <b>±0.06間(0.11m)</b>、実装は <b>±0.5間(0.909m)</b> で測る。"
+        "⇒ <b>0.909m 離れた点では法面が正当に落ちている</b>(盛 1:%.1f で %.2fm / 切 1:%.1f で %.2fm)。"
+        "そこへ <code>stepAbsorbMax</code>(%.2f = <b>段の縁で摺り付けられる落差</b>)を当てるのは"
+        "<b>単位の取り違え</b>で、法面が在る縁はほぼ全部鳴る。</p>"
+        "<p class='cap'><b>仕分け %s(計 %d 区間)。</b>"
+        "<b>A 外が別の段</b>=<code>adjacency_check</code> の担当(指図の網の中・⛔ 二重に鳴っている)/ "
+        "<b>B 区画の外</b>=隣家・道で <code>runs</code> の基壇石垣か隣家の塀が受ける"
+        "(<code>edge_step_check</code> は <code>in_parcel</code> で外している)/ "
+        "<b>D 素地=法面</b>=<b>指図が法面と定めた縁</b>・設計どおり / "
+        "<b>E 法面で説明できない</b>=<b>実質の検討はここだけ</b>。"
+        "⛔ <b>壁はまだ足さない</b>(設計判断)。⇒ 実装側は ①区画の外を除く ②外が別の段を除く "
+        "③probe を縁ぎわに寄せるか法面の許容(走り × 勾配)と比べる、の3つを直すこと。</p>"
+        % (1.0 / d["const"]["batterFill"] * 1.0, fill, 1.0 / d["const"]["batterCut"] * 1.0, cut,
+           lim,
+           " / ".join("%s %d" % (k, v) for k, v in sorted(tally.items())), len(rows)))
+
+
 def niwa_impl_table(d):
     """**実装の申し合わせ**(`gardens[].impl`)を図に出す。
 
@@ -9195,6 +9290,11 @@ def main():
             "<b>番所と潜戸の形式</b>だけで、それも<b>型式をまたぐ移植なので確度 B/U</b>。"
             "桁行・梁間・門戸部の間数は<b>いまも確度U</b>(下丸子門の実測は Web に無く館内閲覧が要る)。"
             "長屋門は在庫に無いので新造(部材表参照)。石垣畳出は使わない(設計判断)。")
+    h.append("</div>")
+
+    plate(h, nx(), "段の縁の落差 — 実装の検査との仕分け",
+          "実装の `EdgeStepQA` が鳴らす縁を指図の側から仕分ける。⛔ ここで壁を足さない(設計判断)")
+    h.append(edge_step_qa_table(d, load_terrain(os.path.join(DOC, "doi_dem.json"))))
     h.append("</div>")
 
     plate(h, nx(), "郭の土留めと竹垣")

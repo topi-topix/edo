@@ -169,6 +169,27 @@ def sources_block(md):
     return "\n".join(out), miss
 
 
+def neighbour_blob(fn_):
+    """隣家の指図を **`git show main:` から**読む(⛔ ディスク上の実物ではない)。
+
+    ⭐⭐ 2026-09-06 検図方。**隣家の正典は「コミット済みの姿」である。**
+    ⛔ ディスクを読むと、**他邸が編集中に保存しただけで当邸の数字と関門が動く** — いま3邸が
+    同時に動いており、相手は revert するかもしれないので**待っても揃わない**。
+    ⚠ **`neighbour_hash_check` と同じ物を読むこと** — 片方がディスク、片方が main だと
+    「変わっていない」と言いながら図が動く。
+    ⭕ main のチェックアウトでも同じ物を返すので**どの木でも挙動は同じ**。
+    ⛔ 読めないときだけディスクへ落ちる(取り込み前の枝など)。
+    """
+    rel = "docs/Sashizu/" + fn_
+    root = os.path.dirname(os.path.dirname(DOC))
+    try:
+        return json.loads(subprocess.check_output(
+            ["git", "show", "main:" + rel], cwd=root, stderr=subprocess.DEVNULL))
+    except Exception:
+        path = os.path.join(DOC, fn_)
+        return json.load(open(path, encoding="utf-8")) if os.path.exists(path) else None
+
+
 def neighbour_block(d, ter, dem):
     """隣家の埋没を**毎回測って**表にする。手で書いた表は測り方を変えた瞬間に嘘になる。"""
     rows = ["| 隣家の塀 | 埋没 | 当家側の地盤 |", "|---|---|---|"]
@@ -177,10 +198,9 @@ def neighbour_block(d, ter, dem):
     we = dict((t["name"], walled_edges(d, t)) for t in d["terraces"])
     n = 0
     for who, (fn_, edges) in NEIGHBOUR.items():
-        path = os.path.join(DOC, fn_)
-        if not os.path.exists(path):
+        nb = neighbour_blob(fn_)
+        if nb is None:
             continue
-        nb = json.load(open(path, encoding="utf-8"))
         P = nb["polygon"]
         for r in nb.get("runs", []):
             if r.get("edge") not in edges:
@@ -2315,14 +2335,27 @@ def cert_rulings_table(d):
     正典に書いても、**読む人の目には届かないまま**だった。
     """
     rows = []
+    nu = 0
     for r in d.get("certRulings", []):
-        rows.append((r.get("role", "?"), r.get("what", "?"),
-                     "<b>%s</b>" % r.get("cert", "?"), r.get("when", "—"),
+        usr = bool(r.get("user"))
+        nu += 1 if usr else 0
+        rows.append((("⭐ " if usr else "") + r.get("role", "?"), r.get("what", "?"),
+                     "<b>%s</b>" % r.get("cert", "?"),
+                     ("<b>⭐ ユーザー裁定</b><br>" if usr else "") + r.get("decidedBy", "⚠ 未記録"),
+                     r.get("certBy", "⚠ 未記録"),
                      " / ".join("[%s]" % q for q in r.get("src", [])) or "—",
                      r.get("why", "")))
     if not rows:
         return "<p class='cap'>⚠ <b>裁定の記録が 0 件。</b></p>"
-    return _tw(("役割", "側面", "確度", "いつ・誰が", "典拠", "理由"), rows) + (
+    return _tw(("役割", "側面", "確度", "<b>決めた者</b>", "確度を裁定した者", "典拠", "理由"),
+               rows) + (
+        "<p class='cap'>⭐ <b>⭐ 印は<b>ユーザー裁定</b>の行(%d 件)</b> — "
+        "⛔ <b>覆すのに普請奉行の一存では足りない</b>。</p>" % nu) + (
+        "<p class='cap'>⚠⚠ <b>2026-09-06: 「いつ・誰が」の1列を2列に割った</b>(考証方 中1)— "
+        "⛔ <b>同じ列が「決めた者(出自)」と「確度を裁定した者」の2つの意味で使われていた</b>。"
+        "⚠ <b>池の行だけ直っていたので、かえって他の行が『出自』として読まれた</b> — "
+        "<b>半分だけ直った表がいちばん危険</b>。"
+        "⭕ <b>巻き戻すときに問うべきは「誰の決定を覆すのか」</b>なので、表には両方が要る。</p>"
         "<p class='cap'>⛔ <b>一度下した裁定を黙って巻き戻さない。</b>"
         "確度の妥当さは機械では測れないが、<b>裁定と食い違っていることは測れる</b> — "
         "<code>program_check</code> が「役割 × 側面」で <code>program</code> と突き合わせ、"
@@ -5207,10 +5240,9 @@ def neighbour_wall_check(d, ter, dem=None):
     we = {t["name"]: walled_edges(d, t) for t in d["terraces"]}
     bad = []
     for who, (fn, edges) in NEIGHBOUR.items():
-        path = os.path.join(DOC, fn)
-        if not os.path.exists(path):
+        nb = neighbour_blob(fn)
+        if nb is None:
             continue
-        nb = json.load(open(path, encoding="utf-8"))
         P = nb["polygon"]
         for r in nb.get("runs", []):
             if r.get("edge") not in edges:
@@ -5992,14 +6024,29 @@ def neighbour_hash_check(d):
     ⚠ commit 済みの図に、既に消えた松平の run(`S_Hei_Doi_S1` +1.680m)が載ったままだった。
     ⛔ **生成器がハッシュを書き戻してはいけない** — 書き戻すと二度と鳴らない。
     ⇒ 鳴ったら **①回し直す ②`neighbours[].sha` を書き直す ③図を commit する**。
+
+    ⭐⭐ **2026-09-06: 比べる先を「ディスク上の実物」から `git show main:` へ改めた**(検図方)。
+    ⛔ **他邸が編集中に保存しただけで当邸の関門が赤くなってはいけない** — いま3邸が同時に
+    動いており、相手の在飛行の保存に振り回されると**待っても永久に揃わない**(相手は revert
+    するかもしれない)。⭕ **隣家の正典はコミット済みの姿である**、というのが元々の意図で、
+    ⛔ それを検査に言わせていなかっただけ。
+    ⚠ **比べる先は `HEAD` ではなく `main`。**⛔ worktree の `HEAD` にある隣家の写しは
+    **当邸が main を取り込んだ時の姿**なので、宣言と常に一致して**永久に鳴らない**(検査が死ぬ)。
+    ⭕ `main` と比べれば「**隣家の正典が、当邸が取り込んだ姿より先へ進んだ**」が検出できる。
+    ⭕ main のチェックアウトで走らせても `git show main:` は同じ物を返すので**挙動は同じ**。
     """
     bad = []
+    root = os.path.dirname(os.path.dirname(DOC))
     for pid, q in (d.get("neighbours") or {}).items():
-        fp = os.path.join(DOC, q["file"])
-        if not os.path.exists(fp):
-            bad.append("隣家の指図 `%s` が無い — `neighbours.%s` の宣言と食い違う" % (q["file"], pid))
+        rel = "docs/Sashizu/" + q["file"]
+        try:
+            blob = subprocess.check_output(["git", "show", "main:" + rel],
+                                           cwd=root, stderr=subprocess.DEVNULL)
+        except Exception:
+            bad.append("隣家の指図 `%s` を `git show main:` から読めない — "
+                       "`neighbours.%s` の宣言と食い違う" % (rel, pid))
             continue
-        cur = hashlib.sha256(open(fp, "rb").read()).hexdigest()[:16]
+        cur = hashlib.sha256(blob).hexdigest()[:16]
         if cur != q.get("sha"):
             bad.append("**隣家が動いた — 図を回し直せ**: `%s` の sha が %s → %s。"
                        "⛔ 当図の隣家の表(埋没・余裕)は古い可能性がある。"

@@ -228,6 +228,29 @@ def run_segs(o):
     return out
 
 
+def run_len_ken(o):
+    """run/wall の **開口を抜いた実長**[間]。⛔ **発注量はこちら**(節点間の総和ではない)。
+
+    ⚠ 2026-09-07 検図10巡目 中1 — 図と run の表が刷っていたのは `ken`(節点間の総和)で、
+    **石段の頭・勝手口・中門・潜りの開口を一つも抜いていなかった**。`bom`「境内の外周の柵」は
+    『延長は図が算出する(開口を抜いた実長)』と宣言しており、**この数がそのまま新造の発注量になる**。
+    ⛔ 二本の物差しを混ぜない — 史料拘束(透塀の周長)は `run_nodes_ken` の側で読む。
+    """
+    if not o.get("pts") and (o.get("a") is None or o.get("b") is None): return 0.0
+    return sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in run_segs(o))
+
+
+def run_nodes_ken(o):
+    """run の **節点間の総和**[間](開口を含む)。⛔ **発注量ではない。**
+
+    透塀だけはこちらが史料拘束(周長 486.01尺 = 147.28 m【S】)と突き合わせる数で、
+    宣言 `ken` があればそれを、無ければ折れ線 a→b の総和を採る。
+    """
+    if o.get("ken"): return float(o["ken"])
+    if not o.get("pts") and (o.get("a") is None or o.get("b") is None): return 0.0
+    return sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in segs(o))
+
+
 def band(pts, PX, PY, LEN, w, fill, stroke, op=0.55, sw=0.8):
     """折れ線を実幅の帯として描く。角は法線の二等分(留め)で継ぐ。
 
@@ -455,9 +478,10 @@ def section_cut_check(d, g):
 def keidai_inubashiri_check(d, g):
     """境内の外周の囲い(**腰高の柵**)が**平場の輪郭から犬走り** `const.inubashiri` を残しているか。
 
-    ⭐ 2026-09-07 のユーザー裁定で囲いが**板塀から柵**へ替わった。⚠ 寄せ幅 `const.inubashiri` は
-    **板塀を前提に置いた値**のままで、柵に対して妥当かは未検討(→ `_pending`
-    「境内の囲いの犬走りの見直し」)。⛔ 指図方は値を動かさない。
+    ⭐ 2026-09-07 のユーザー裁定で囲いが**板塀から柵**へ替わった。寄せ幅 `const.inubashiri` は
+    板塀を前提に置いた値のままだが、**柵に替えたことによる目減りは無い**(下の〔記録〕が毎回算出する
+    ── 柵は線=立子の内面で柱が `postDiaM` だけ外へ出るのに対し、板塀は `itabeiThickM` ぶん出る)。
+    ⛔ 指図方は値を動かさない。
 
     ⭐ **2026-09-07 検図9巡目 中3 で起こした。**指図の中に犬走りは四種あるのに
     (`const._inubashiri` が四つを並べる)、この一つだけが**註も確度も検査も持たず**、
@@ -502,11 +526,64 @@ def keidai_inubashiri_check(d, g):
                 "寄せた生成物)。⭕ 読むのは**角**で、宣言を下回る標本 %d 点・最小 %.3f m は"
                 "鋭角の隅で隣の辺のほうが近くなる分【算出】" % (lo[0], hi[0], len(ds), ins,
                                                             len(short), lo[0]))
+    # ⭕ **柵に替えたことによる目減りが無いこと**を毎回算出する【検図10巡目 ⭕8 の実測を検査へ結んだ】。
+    #    ⛔ 数を文章に写さない(規則4)— 寄せ幅・柱の径・板塀の厚みからの従属値。
+    tg = run_tamagaki(d, r)
+    if tg is not None:
+        eff_s = ins - tg[0]["postDiaM"]                 # 柵: 線=立子の内面。柱が外へ出る
+        eff_i = ins - d["const"]["itabeiThickM"]        # 旧・板塀: 線=内法。厚みぶん外へ出る
+        mn = (((d.get("planting") or {}).get("clearance") or {}).get("zentei") or {}).get("inuBashiriM")
+        note.append("**輪郭から躯体の外面までの実効の犬走り** ── 柵 %.3f m(寄せ幅 %.3f − 柱 "
+                    "`tamagaki.postDiaM`)／ 旧・板塀 %.3f m(− `const.itabeiThickM`)。"
+                    "⭕ **柵のほうが %.3f m 広い**ので、板塀から柵への差し替えで犬走りは痩せない%s【算出】"
+                    % (eff_s, ins, eff_i, eff_s - eff_i,
+                       ("(スキル `perimeter.md` の既定 = `planting.clearance.zentei.inuBashiriM` "
+                        "%.2f m を%s)" % (mn, "下回らない" if eff_s >= mn - 1e-9 else
+                                         "⚠ **下回る** — 寸法の判断は普請奉行"))
+                       if mn else ""))
     if short:
         note.append("最も痩せる隅は u %.2f, v %.2f(離れ %.3f m = 宣言の %.0f%%)"
                     "── ⛔ 直すには輪郭か寸法を動かすことになるので指図方は動かさない"
                     "(→ `_pending`「境内の囲いの留めの隅が犬走りを割る」)【算出】"
                     % (lo[1][0], lo[1][1], lo[0], 100.0 * lo[0] / ins))
+    return bad, note
+
+
+def saku_decl_check(d):
+    """**柵の宣言** ── `kind` と丈の出所(`hFrom`)が食い違っていないか。
+
+    ⚠ 2026-09-07 検図10巡目 中3/中4。二つの穴が同じ根から出ていた。
+    (a) 囲いの展開が姿を **`hFrom` の有無**で分岐していたので、平面図(`kind` で分岐)と
+        **物差しが二本**あり、丈を宣言しない `Saku_SW`・`Saku_Sando` が塗り潰しの塀の姿で出ていた。
+    (b) `hFrom` は**指し先が壊れれば止まる**が、**宣言ごと消すと止まらない**
+        (`run_tamagaki` の `if not hf: return None`)。丈が黙って「—」に落ち、展開図が塀の姿へ戻り、
+        `bom` の「丈は `tamagaki` が正典」だけが宙に浮く。
+    ⚠ 破壊試験でも `runs[Ita_Keidai].kind` を板塀へ戻して**検査が1本も鳴らなかった**。
+
+    ⛔ **裁定を検査で受ける**(規則19)── 境内の外周は 2026-09-07 のユーザー裁定で**腰高の柵**に
+    定まり、丈は前庭の玉垣 `tamagaki.hM` からの従属値である。`const.inubashiri`・`sectionsUncut`・
+    `terrainCheck.saichiGai.roster` と同じ作法で、**宣言が消えたら止める**。
+    戻り値 (⛔止める, 〔記録〕)。
+    """
+    bad, note = [], []
+    by = {r["name"]: r for r in d["runs"]}
+    r = by.get("Ita_Keidai")
+    if r is None:
+        bad.append("境内の外周の囲い `runs[Ita_Keidai]` が指図に無い")
+    else:
+        if r.get("kind") != "柵":
+            bad.append("`runs[Ita_Keidai].kind` が『%s』── 2026-09-07 のユーザー裁定は**腰高の柵**"
+                       "(⛔ 板塀にも築地塀にも戻さない)。種別を替えると平面図の姿・囲いの展開の姿・"
+                       "断面・`bom` の行が黙って入れ替わる" % r.get("kind"))
+        if not r.get("hFrom"):
+            bad.append("`runs[Ita_Keidai].hFrom` の宣言が無い ── 丈が黙って「—」に落ち、"
+                       "囲いの展開が姿を失い、`bom`「丈は `tamagaki` が正典」が宙に浮く(規則19)")
+    saku = [q for q in d["runs"] if q["kind"] == "柵"]
+    nod = [q["name"] for q in saku if not q.get("hFrom")]
+    note.append("柵 %d 本(%s)── うち丈を宣言(`hFrom` → `gardens[].tamagaki`)する %d 本。"
+                "⚠ 宣言の無い %s は図が丈「—」を刷り、柱の刻みを引かない(⛔ 刻みを発明しない)【算出】"
+                % (len(saku), "・".join(q["name"] for q in saku), len(saku) - len(nod),
+                   "・".join(nod) or "無し"))
     return bad, note
 
 
@@ -5118,58 +5195,66 @@ def kakoi_svg(d, kan="其九"):
     W = 900.0
     rows = [r for r in d["runs"] if r["kind"] in ("透塀", "回廊", "板塀", "柵")]
 
-    def run_ken(r):
-        if r.get("ken"):
-            return r["ken"]
-        pts = r.get("pts") or ([r["a"], r["b"]] if r.get("a") and r.get("b") else None)
-        if not pts:
-            return 0.0
-        return sum(math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1])
-                   for i in range(len(pts) - 1))
-
-    rows = [r for r in rows if run_ken(r) > 0]
-    H = 60.0 + len(rows) * 46.0
+    # ⛔ **長さは開口を抜いた実長**(`run_len_ken`)— これが発注量になる(検図10巡目 中1)。
+    #    節点間の総和(`run_nodes_ken`)は**史料拘束を読むためだけ**に別に刷る。
+    rows = [r for r in rows if run_len_ken(r) > 0]
+    H = 76.0 + len(rows) * 46.0
     o = _sv(W, H, "囲いの展開")
     o.append(R(0, 0, W, H, fill="var(--paper2)"))
-    maxk = max(run_ken(r) for r in rows)
+    maxk = max(run_len_ken(r) for r in rows)
     for i, r in enumerate(rows):
         y = 52.0 + i * 46.0
-        rk = run_ken(r)
+        rk = run_len_ken(r)                             # 開口を抜いた実長[間]
+        nk = run_nodes_ken(r)                           # 節点間の総和[間](開口を含む)
         L = 470.0 * rk / maxk
         col = {"透塀": "var(--shu)", "回廊": "var(--roka)"}.get(r["kind"], "var(--hei)")
         tg = run_tamagaki(d, r)
-        if tg is not None:
-            # ⭐ **腰高の柵は姿で描き分ける**【ユーザー裁定 2026-09-07 — 境内の囲い】。
-            #    塗り潰しの塀ではなく **柱 + 貫二段**(作りは前庭の玉垣と同一・`tamagaki` が正典)。
+        if r["kind"] == "柵":
+            # ⭐ **姿は `kind` で決める**【検図10巡目 中3】— 旧版は `hFrom` の有無で分岐していたので、
+            #    同じ柵でも丈を宣言しない `Saku_SW`・`Saku_Sando` が**塗り潰しの塀の姿**で出ていた
+            #    (平面図は `kind` で分岐しており物差しが二本あった)。
+            #    腰高の柵は塗り潰しの塀ではなく **柱 + 貫二段**(作りは前庭の玉垣と同一)。
             #    ⛔ 丈も柱の芯々も此処に持たない — `hFrom` からの従属値。
             bh = 12.0
             for f in (0.32, 0.74):                      # 貫二段(`tamagaki.nuki`)
                 o.append(LN(200, y + 20 - bh * f, 200 + L, y + 20 - bh * f,
                             stroke=col, sw=1.4, op=0.9))
             o.append(LN(200, y + 20, 200 + L, y + 20, stroke="var(--ink)", sw=0.6, op=0.5))
-            npst = max(2, int(round(rk / tg[0]["postPitchKen"])) + 1)
-            # ⚠ 柱は**実数ぶん**引く(⛔ 間引かない)。紙の上で詰まる行は線を細くして潰れを避ける
-            psw, pop = (1.1, 0.9) if L / (npst - 1.0) >= 4.0 else (0.4, 0.5)
-            for j in range(npst):                       # 柱(芯々 `tamagaki.postPitchKen`)
-                px = 200 + L * j / (npst - 1.0)
-                o.append(LN(px, y + 20 - bh, px, y + 20, stroke=col, sw=psw, op=pop))
+            if tg is not None:
+                npst = max(2, int(round(rk / tg[0]["postPitchKen"])) + 1)
+                # ⚠ 柱は**実数ぶん**引く(⛔ 間引かない)。紙の上で詰まる行は線を細くして潰れを避ける
+                psw, pop = (1.1, 0.9) if L / (npst - 1.0) >= 4.0 else (0.4, 0.5)
+                for j in range(npst):                   # 柱(芯々 `tamagaki.postPitchKen`)
+                    px = 200 + L * j / (npst - 1.0)
+                    o.append(LN(px, y + 20 - bh, px, y + 20, stroke=col, sw=psw, op=pop))
+            # ⛔ 丈も柱の芯々も宣言しない柵は**柱を引かない**(刻みを発明しない)。
+            #    宣言が無いことは丈の欄の「—」と検査「柵の宣言」が申告する。
         else:
             o.append(R(200, y, L, 20, fill=col, op=0.5, stroke="var(--ink)", sw=0.8))
-            # 柱の刻み(1間ごと。折れ線の板塀・柵は展開長で刻む)
+            # 柱の刻み(1間ごと。折れ線の板塀は実長で刻む)
             for j in range(1, int(rk) + 1):
                 o.append(LN(200 + L * j / rk, y, 200 + L * j / rk, y + 20,
                             stroke="var(--ink)", sw=0.4, op=0.5))
         o.append(T(194, y + 14, r["name"], fs=11, anchor="end"))
         seat = ("天端 %.1f m" % r["seat"]) if isinstance(r.get("seat"), (int, float)) else "地形なり"
-        take = ("　丈 %.2f m(前庭の玉垣と同じ作り)" % tg[1]) if tg is not None else ""
-        o.append(T(212 + L, y + 14, "%.1f 間 = %.2f m　%s%s" % (rk, rk * ken, seat, take), fs=10.5))
+        if tg is not None:
+            take = "　丈 %.2f m(前庭の玉垣と同じ作り)" % tg[1]
+        elif r["kind"] == "柵":
+            take = "　丈 —(宣言が無い)"
+        else:
+            take = ""
+        ext = ("　節点間 %.1f 間" % nk) if abs(nk - rk) > 5e-3 else ""
+        o.append(T(212 + L, y + 14, "%.1f 間 = %.2f m%s　%s%s" % (rk, rk * ken, ext, seat, take),
+                   fs=10.5))
         if r.get("gate"):
             o.append(T(200 + L / 2, y - 3, "◇ " + r["gate"], fs=10, anchor="middle", fill="var(--shu)"))
-    tot = sum(r["ken"] for r in rows if r["kind"] == "透塀")
-    o.append(T(6, 15, kan + "　囲いの展開 ─ 透塀の延長は史料値がそのまま設計拘束", fs=12.5, fill="var(--dim)"))
+    tot = sum(run_nodes_ken(r) for r in rows if r["kind"] == "透塀")
+    o.append(T(6, 15, kan + "　囲いの展開 ─ 長さは開口を抜いた実長(= 発注量)", fs=12.5, fill="var(--dim)"))
     o.append(T(W - 6, 15, "透塀 計 %.0f 間 = %.3f m" % (tot, tot * ken), fs=11.5, anchor="end", fill="var(--shu)"))
-    o.append(T(W - 6, H - 10, "史料値 147.28 m(486.01尺)との差 %.3f m" % abs(tot * ken - 147.28),
-               fs=10.5, anchor="end", fill="var(--dim)"))
+    o.append(T(6, H - 26, "⛔ 発注量は棒の長さ(開口を抜いた実長)。「節点間」は開口を含む総和で、"
+               "透塀の史料拘束だけがこちらで読む値", fs=10.5, fill="var(--dim)"))
+    o.append(T(W - 6, H - 10, "透塀の史料値 147.28 m(486.01尺)との差 %.3f m(節点間で比べる)"
+               % abs(tot * ken - 147.28), fs=10.5, anchor="end", fill="var(--dim)"))
     o.append(ENDSVG)
     return "\n".join(o)
 
@@ -5622,27 +5707,35 @@ def runs_table(d):
     ken = d["const"]["ken"]
     rows = []
     for r in d["runs"]:
-        if r.get("ken"):
-            L = "%.1f 間 / %.2f m" % (r["ken"], r["ken"] * ken)
-        elif r.get("pts"):
-            pl = sum(math.hypot(r["pts"][i + 1][0] - r["pts"][i][0], r["pts"][i + 1][1] - r["pts"][i][1])
-                     for i in range(len(r["pts"]) - 1))
-            L = "%.1f 間 / %.2f m" % (pl, pl * ken)
-        else:
-            L = "—"
+        # ⭐ **長さは開口を抜いた実長**【検図10巡目 中1】— 旧版は `ken`(節点間の総和)を刷っており、
+        #    石段の頭・勝手口・中門・潜りを一つも抜いていなかった。⛔ 発注量はこちらの欄で読む。
+        rl, nk = run_len_ken(r), run_nodes_ken(r)
+        L = ("%.1f 間 / %.2f m" % (rl, rl * ken)) if rl > 0 else "—"
+        # ⭐ **節点間**は開口を含む総和。透塀の史料拘束(周長 147.28 m【S】)だけがこちらの数と比べる
+        NK = ("%.1f 間 / %.2f m" % (nk, nk * ken)) if nk > 0 else "—"
         seat = ("%.1f m" % r["seat"]) if r.get("seat") else "地形なり"
         # ⭐ **厚み**は `const.itabeiThickM`(在庫 itabei5 の実寸 × ES)。板塀だけが持つ
         #    (2026-09-06 検図5巡目 低16 — `joints` が「塀の厚みは門より薄い」と定めるのに値が無かった)
-        th = ("%.3f m" % d["const"]["itabeiThickM"]) if r["kind"] == "板塀" else "—"
+        # ⭐ **柵は立子の径と柱の径**を刷る【検図10巡目 軽微7】— `_runs` が「柵は立子の径
+        #    `tamagaki.tatekoDiaM`」と書くのに表が「—」で、実装が面で寄せる(規則5)ための数が引けなかった。
+        tg = run_tamagaki(d, r)
+        if r["kind"] == "板塀":
+            th = "%.3f m" % d["const"]["itabeiThickM"]
+        elif r["kind"] == "柵" and tg is not None:
+            th = "立子 φ%.3f ／ 柱 φ%.3f m" % (tg[0]["tatekoDiaM"], tg[0]["postDiaM"])
+        else:
+            th = "—"
         # ⭐ **丈**は宣言(`hFrom`)を持つ物だけが持つ従属値【ユーザー裁定 2026-09-07 — 境内の柵】。
         #    ⛔ 数を json に置かない — 前庭の玉垣 `tamagaki.hM` から毎回引く(規則4)。
         tk = run_take_m(d, r)
         tk = ("%.2f m" % tk) if tk is not None else "—"
-        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>"
+        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td class='note'>%s</td><td>%s</td>"
+                    "<td>%s</td><td>%s</td><td>%s</td>"
                     "<td class='note'>%s</td><td class='note'>%s</td></tr>"
-                    % (r["name"], r["kind"], L, th, tk, seat, r.get("base", "—"),
+                    % (r["name"], r["kind"], L, NK, th, tk, seat, r.get("base", "—"),
                        html.escape(r.get("gate", "") or "—"), r.get("acc", "—")))
-    return ('<div class="tw"><table><thead><tr><th>run</th><th>種別</th><th>長さ</th><th>厚み</th>'
+    return ('<div class="tw"><table><thead><tr><th>run</th><th>種別</th>'
+            "<th>長さ(開口を抜いた実長)</th><th class='note'>節点間(開口を含む)</th><th>厚み</th>"
             "<th>丈</th><th>天端</th><th>基壇</th><th class='note'>開口</th><th class='note'>確度</th>"
             "</tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>")
 
@@ -5888,7 +5981,11 @@ def tachiki_table(d, g):
         if tgs:
             tg = gd["tamagaki"]
             eg = tamagaki_edges(d, gd)
-            rows.append("<tr><td>%s</td><td>%s</td><td>玉垣(木柵。⛔『腰高』とは呼ばない)</td>"
+            # ⭐ **呼称は「腰高柵」に一本化した**【ユーザー裁定 2026-09-07・検図10巡目 中2】—
+            #    同じ丈・同じ作りの物を、境内では「腰高の柵」、前庭では「⛔『腰高』とは呼ばない」と
+            #    書いており、相反する呼称規則が二つ立っていた。⚠ 考証の指摘は註として残す。
+            rows.append("<tr><td>%s</td><td>%s</td><td>玉垣(腰高柵。⚠『腰高』は形の呼び名で"
+                        "寸法の主張ではない)</td>"
                         "<td class='note'>立てる辺 %s ／ ⛔ %s</td><td>柱 %d 本</td>"
                         "<td>%g 間</td><td>高 %.2f m ／ 柱 φ%.3f ／ 貫 %d 段 ／ 立子 φ%.3f を %.2f m 間隔</td>"
                         "<td class='note'>延長 %.2f 間【算出】%s ／ 辺ごとの割り【算出】%s</td></tr>"
@@ -6693,6 +6790,7 @@ def run_checks():
     pd_ = plane_dev_check(d, g)
     ib = inubashiri_check(d, g)
     kib = keidai_inubashiri_check(d, g)   # 境内の囲いの犬走り(検図9巡目 中3)
+    sd = saku_decl_check(d)               # 柵の宣言(kind と hFrom の整合。検図10巡目 中3/中4)
     sc = section_cut_check(d, g)          # 断面が切る棟(検図9巡目 中2)
     sg_ = saichigai_check(d, g)           # 造成が社地の外へ出ていないか(検図9巡目 低5)
     io = ido_check(d)
@@ -6720,6 +6818,7 @@ def run_checks():
                  pd_[0], pd_[1]))
     rows.append(("前庭の西縁の犬走り(西縁に取り付く物すべて)", ib[0], ib[1]))
     rows.append(("境内の囲いの犬走り(平場の輪郭からの寄せ)", kib[0], kib[1]))
+    rows.append(("柵の宣言(`kind`=柵 と丈の出所 `hFrom` の整合)", sd[0], sd[1]))
     rows.append(("断面が切る棟(⛔ 切られない棟は名簿で宣言する)", sc[0], sc[1]))
     rows.append(("造成が社地の外へ出ていないか(名簿つき)", sg_[0], sg_[1]))
     rows.append(("井戸屋形の取り合い(軒先≡石敷・石敷が帯の内・玉垣の開口)", io[0], io[1]))
@@ -7112,11 +7211,18 @@ def main():
 
     plate(h, nx(), "囲いの展開", "透塀 = 旧国宝五件のうちの一件")
     fig(h, kakoi_svg(d, KAN[n[0] - 1]),
-        cap="刻みは一間ごとの柱。<b>透塀の延長 147.28 m(486.01尺)は[国宝建造物目録1941]の指定値で確度S(麹町区史はこの転記)</b>。"
-            "これはちょうど八十一間で、設計の矩形はこの周長に合わせてある。"
-            "<br>⭐ <b>境内の外周の <code>Ita_Keidai</code> だけは姿が違う</b> — 塗り潰しの塀ではなく"
-            "<b>柱+貫二段の腰高の柵</b>で描いてある【ユーザー裁定 2026-09-07】。丈と柱の芯々は"
-            "<b>前庭の玉垣と同じ物</b>を引いており(⛔ 独立の数を持たない)、run の表の「丈」の欄も同じ値である。")
+        cap="塀の刻みは一間ごとの柱。<b>透塀の延長 147.28 m(486.01尺)は[国宝建造物目録1941]の指定値で"
+            "確度S(麹町区史はこの転記)</b>。これはちょうど八十一間で、設計の矩形はこの周長に合わせてある。"
+            "<br>⛔ <b>棒の長さは開口を抜いた実長で、これが発注量である</b>【検図10巡目 中1】 — "
+            "石段の頭・勝手口・中門・潜りを抜いてある。<b>史料値と比べる数は「節点間」の側</b>で、"
+            "混ぜて読まない。"
+            "<br>⭐ <b>柵は姿が違う</b> — 塗り潰しの塀ではなく<b>柱+貫二段の腰高柵</b>で描く"
+            "【ユーザー裁定 2026-09-07】。⛔ <b>姿は種別(<code>kind</code>)で決める</b>ので、"
+            "丈を宣言しない <code>Saku_SW</code>・<code>Saku_Sando</code> も同じ姿で出る"
+            "(検図10巡目 中3 — 旧版は丈の宣言の有無で分岐しており、平面図と物差しが二本あった)。"
+            "<b>境内の外周 <code>Ita_Keidai</code> の丈と柱の芯々は前庭の玉垣と同じ物</b>を引いており"
+            "(⛔ 独立の数を持たない)、run の表の「丈」の欄も同じ値である。柱の刻みを宣言しない柵は"
+            "<b>柱を引かない</b>(⛔ 刻みを発明しない)。")
     h.append(runs_table(d))
     h.append(walls_table(d))
     h.append("<h3>取り合い</h3>")

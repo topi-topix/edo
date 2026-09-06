@@ -8153,6 +8153,39 @@ def niwa_kura_table(d):
         "載せた刈込①が受ける(2026-09-04 庭方の第3巡・決定 中9)。</p>")
 
 
+def niwa_impl_table(d):
+    """**実装の申し合わせ**(`gardens[].impl`)を図に出す。
+
+    ⚠⚠ 2026-09-06 まで `impl` の5項は**どこにも描かれていなかった** — ⛔ `WaterBaker.Create`
+    を使わない / ⛔ `Recarve` しない / ⛔ 据え位置を発明しない / Stage の順序 / 格子の3条 が
+    **正典にだけ在って、指図の文書には一行も出ていなかった**。
+    ⇒ 棟梁が `WaterBaker.Create` で掘った(第1回)のも、`shitakusa` を言葉のまま読んだのも、
+    **読める所に無かったから**である。⛔ 実装への指示こそ図に出す(規則19)。
+    """
+    n = NI(d)
+    if n is None:
+        return ""
+    im = n.g.get("impl") or {}
+    if not im:
+        return ""
+    JA = {"waterBaker": "池を掘る手",
+          "noRecarve": "⛔ `Recarve` / `RestoreTerrain` を実行しない",
+          "terrainGrid": "地形の格子と池の深さ",
+          "noInvent": "⛔ 据え位置を実装で発明しない",
+          "stage": "Stage と順序"}
+    ORDER = ["stage", "waterBaker", "terrainGrid", "noRecarve", "noInvent"]
+    rows = [(JA.get(k, k) + "<br><code>%s</code>" % k, im[k])
+            for k in ORDER if k in im]
+    rows += [(JA.get(k, k) + "<br><code>%s</code>" % k, im[k])
+             for k in im if k not in ORDER]
+    return _tw(("申し合わせ", "中身"), rows) + (
+        "<p class='cap'>⭐ <b>これは棟梁への指示であって、意匠でも寸法でもない。</b>"
+        "⚠ 2026-09-06 まで<b>この5項はどこにも描かれていなかった</b> — "
+        "正典にだけ在って、指図の文書には一行も出ていなかった。"
+        "⛔ <b>実装への指示こそ図に出す</b>(規則19)— 読める所に無ければ、"
+        "実装は自分の判断で埋めるほかない。</p>")
+
+
 def niwa_tenkei_table(d):
     """**点景(灯籠・沓脱石・稲荷の祠と鳥居と手水石)の据え位置・部材・据え向き。**
 
@@ -8951,6 +8984,8 @@ def main():
                  '<b>指図には写さない</b>。個体(01〜03)を混ぜること。</p>')
         h.append("<h3>刈込 — 汀に沿うものは矩形でなく帯</h3>")
         h.append(niwa_karikomi_table(d))
+        h.append("<h3>実装の申し合わせ — 棟梁への指示</h3>")
+        h.append(niwa_impl_table(d))
         h.append("<h3>点景 — 据え位置・部材・据え向き</h3>")
         h.append(niwa_tenkei_table(d))
         h.append("<h3>下草の散布域 — 言葉でなく幾何で持つ</h3>")

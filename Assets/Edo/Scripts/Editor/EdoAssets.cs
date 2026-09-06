@@ -148,14 +148,51 @@ public static class EdoAssets
             return RoofDir + "Goten_Roof_Irimoya_" + wKen + "x" + dKen + "ken.fbx";
         }
 
+        /// <summary>棟の外形(身舎+入側)の間数で引く**寄棟**。<paramref name="wKen"/>=桁行。
+        /// ⛔ **御殿の棟には使わない** — 入母屋より一段格が下で、**役所・附属の棟**に充てる
+        /// (土井の表役所 = 2026-09-06 ユーザー裁定)。
+        ///
+        /// <para>⚠⚠ **正方形の平面では必ず方形造(宝形)になる。** 四面の勾配が等しい限り
+        /// **大棟の長さ = 桁行 − 梁間** なので、正方形では 0 になり隅棟4本が一点で交わる
+        /// 四角錐にしかならない(生成器は大棟 0.35m 以下で**露盤**を載せて頂点を塞ぐ)。
+        /// 「大棟のある寄棟」が要るなら**平面を長方形にする**しかない = **設計側の裁定事項**
+        /// (土井の表役所 10×10間は 2026-09-06 ユーザー裁定=方形造のままでよい)。</para>
+        ///
+        /// <para>⛔ **入母屋の妻を潰した物で代用しない** — 妻壁・破風・木連格子・懸魚・袖瓦は
+        /// そもそも作らないのが寄棟で、潰すと使われない頂点と z-fighting する板が残る。
+        /// ⚠ 入母屋と同じく**外形は間数より 2.14m 大きい**(軒の出 0.90 が四周に付く)。
+        /// 焼いてあるもの: **10x10ken(実寸 20.32 × 5.89 × 20.32)**。</para>
+        /// 無い寸法は:
+        ///   blender --background --python Tools/Blender/build_goten_roof.py -- yosemune &lt;桁行m&gt; &lt;梁間m&gt; Goten_Roof_Yosemune_&lt;w&gt;x&lt;d&gt;ken</summary>
+        public static string RoofYosemune_(int wKen, int dKen)
+        {
+            return RoofDir + "Goten_Roof_Yosemune_" + wKen + "x" + dKen + "ken.fbx";
+        }
+
         /// <summary>渡廊下の切妻屋根。幅1間・長さ<see cref="RoofKirizumaKen"/>間の定尺で作ってある
         /// (瓦の繰り返し 1.785/2.004m は江戸間と割り切れないので1間モジュールにはできない)。
         /// 無い長さが要るときは build_goten_roof.py -- kirizuma &lt;間数&gt; で足す。
-        /// ピボット = 廊下の中心・軒先レベル。大棟の天端は軒先から 0.953。</summary>
-        public static readonly int[] RoofKirizumaKen = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12 };
-        public static string RoofKirizuma(int nKen)
+        /// ピボット = 廊下の中心・軒先レベル。大棟の天端は軒先から 0.953。
+        ///
+        /// <para>⚠⚠ **間数は整数とはかぎらない。** 土井の `L_ImaDaidokoro` は **1.5間**で、
+        /// 整数へ丸めて 2間で据えると居間棟へ **0.909m 食い込む**(2026-09-06)。
+        /// ⇒ 引数は `float` で、名前は Python の `("%g")` と同じく**末尾の 0 を落とす**
+        /// (1.5 → `1.5ken` / 2 → `2ken`)。⛔ `ToString("0.#")` はロケールで小数点が
+        /// 変わるので使わない(InvariantCulture で書く)。</para></summary>
+        public static readonly float[] RoofKirizumaKen = { 1f, 1.5f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f, 10f, 12f };
+        public static string RoofKirizuma(float nKen)
         {
-            return RoofDir + "Goten_Roof_Kirizuma_" + nKen + "ken.fbx";
+            return RoofDir + "Goten_Roof_Kirizuma_" + KenTag(nKen) + "ken.fbx";
+        }
+        /// <summary>間数をファイル名の綴りへ。整数はそのまま、端数は小数第2位まで(末尾の0を落とす)。</summary>
+        public static string KenTag(float nKen)
+        {
+            long h = (long)System.Math.Floor((double)nKen * 100.0 + 0.5);
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            string t = (h / 100L).ToString(inv);
+            long f = h % 100L;
+            if (f != 0L) t += "." + (f % 10L == 0L ? (f / 10L).ToString(inv) : f.ToString("00", inv));
+            return t;
         }
 
         /// <summary>登廊(階段廊下)の屋根。切妻を斜長ぶん通し、幅は石段の平場ぶん取ったもの。
@@ -1162,6 +1199,98 @@ public static class EdoAssets
         /// 実寸 0.064 × (h + 0.150) × 0.064。</summary>
         public static string KenninjiGakiPost(float h)
         { return NiwaDir + "KenninjiGakiPost_" + h.ToString("0.0") + ".fbx"; }
+
+
+        // ---------------------------------------------------------------- 土井大隅守上屋敷の新造部材
+        // 2026-09-06 に部材方が焼いた。⛔ **新規マテリアルは1つも作っていない** — 材質名は
+        // すべて在庫キット(Village Kit / edogoyomi)のままなので、Unity 側の Search&Remap が当たる。
+        // remap のメニュー: 表長屋・長屋門は **`Edo/長屋/表長屋のマテリアルをremap`**、
+        //   それ以外(附属屋・木戸・垣・屋根)は **`Edo/岡部筑前守上屋敷/新造部材のマテリアルをremap`**
+        //   (⚠ メニュー名に岡部と入っているが、**名前一致で当てるので邸に依らない**)。
+
+        /// <summary>**土井邸の表門 = 長屋門**(片番所 格子付・片潜門)。表長屋の躯体を門の上まで
+        /// 通し、その足元に門口を抜いた版。**扉(両開きの板戸)は部材に作り付け**。
+        ///
+        /// <para>実寸 **11.820(X) × 5.509(Y) × 4.381(Z)**。桁行は指図 `gate.plan.monW` と一致。
+        /// 内訳: 門口 3.636 × 有効高 3.300 / 板戸 3.000 + 小壁 0.300 / 冠木 0.300 /
+        /// 片潜門 0.900 × 1.900 の一枚戸 / 出格子 1.251 × 1.637(出 0.500)。
+        /// **番所と潜門はともに向かって左**。
+        /// ピボット = **走りの中心 / 土台の底 / 壁の外面**、**見え面 = +Z(街路側)**。</para>
+        ///
+        /// <para>⚠⚠ **棟高 5.509 は `gate.plan.monH`(5.40)と 0.109 食い違う。**
+        /// `gate.plan.assembly` が「棟高・梁間は隣接の表長屋の実測に合わせる」と宣言していて、
+        /// その表長屋が 5.509 で焼けた ⇒ **宣言に従うなら 5.509 が正**(`_pending.monh`)。
+        /// ⚠ **潜門と主扉の間の壁は 0.46m しかない** — 据えてから目で見て確かめること(図では読めない)。
+        /// ⚠ **門戸部の間数そのものは確度 U**(`_pending.monsun` の史料待ち)。部材が焼けたことは
+        /// 寸法の典拠にならない。</para>
+        /// 生成: blender --background --python Tools/Blender/build_nagaya_omote.py -- 11.82 --name Doi_Nagayamon --gate 5.91 3.636 3.30 --doorh 3.0 --kuguri 8.637 0.90 1.90 --bansho 1 --bansho-out 0.5 --kabuki 0.30 --render</summary>
+        public const string DoiNagayamon = NagayaDir + "Doi_Nagayamon.fbx";
+
+        /// <summary>**厩** 5.5×7間(土井邸 `munes.Umaya`)。実寸 **13.506(X) × 5.418(Y) × 11.291(Z)**。
+        /// ⭕ 棟高 5.418 は `munes.Umaya.roof.ridgeH`(5.42)と一致し、**表長屋(5.509)より低い**
+        /// — 格を分ける狙いどおり。
+        ///
+        /// <para>⚠⚠ **部材の X(13.506)は桁行 7間、Z(11.291)は梁間 5.5間。**
+        /// `munes.Umaya` は **u が 5.5間・v が 7間** なので、**据えるとき ローカル +X を +v へ**向ける。
+        /// 取り違えると 90° 転ぶ(2026-09-06 普請奉行の裁定でこの断りのまま棟梁へ申し送る)。
+        /// ピボット = footprint の中心・地盤レベル。⚠ 屋根の**型**は未定のまま(`_pending.yanekata`)。</para>
+        /// 生成: blender --background --python Tools/Blender/build_doi_buzai.py -- umaya --render</summary>
+        public const string DoiUmaya = FuzokuyaDir + "Doi_Umaya_5.5x7ken.fbx";
+
+        /// <summary>**土蔵**(土井邸 `service` の `Komegura` / `Kura1` / `Kura2`)。置屋根・海鼠腰。
+        /// ⛔ 在庫の <see cref="Eg.Kura"/> は梁間 3.65間で、当図の足形のどれとも一致しないので使わない。
+        ///
+        /// <para>焼いてあるもの — **3×8間 = 15.582(X) × 6.867(Y) × 7.071(Z)** /
+        /// **3×3間 = 6.492(X) × 6.867(Y) × 7.071(Z)**。ピボット = footprint の中心・地盤レベル。</para>
+        ///
+        /// <para>⚠⚠ **引数の順は <see cref="Goten.RoofIrimoya_"/> と逆。**
+        /// <paramref name="hariKen"/> = 梁間(短辺 = ローカル Z)、<paramref name="ketaKen"/> = 桁行
+        /// (長辺 = ローカル X)で、ファイル名の "3x8" がそのまま (3, 8)。
+        /// ⚠⚠ **割り当ては足形で決めること** — `service` の矩形が正典で、
+        /// **3×8 → `Kura1` と `Komegura` の2棟 / 3×3 → `Kura2` の1棟**(2026-09-06 普請奉行の裁定)。
+        /// ⛔ 部材方の対応表の文言(3×8 を「Kura1/Kura2」)で据えない。
+        /// ⚠ `const.kuraWallTop`(妻壁の頂 6.02)は旧部材由来のまま【確度 ?】(`_pending.kurabuzai`)。
+        /// 見切りの合否は地盤〜棟で立つのでそこは動かない。</para>
+        /// 生成: blender --background --python Tools/Blender/build_doi_buzai.py -- kura --render</summary>
+        public static string DoiKura(int hariKen, int ketaKen)
+        {
+            return FuzokuyaDir + "Doi_Kura_" + hariKen + "x" + ketaKen + "ken.fbx";
+        }
+
+        /// <summary>**井戸**(土井邸 `wells` の5口とも同じ部材)。石の角井戸枠 + 木の桁2本 + 梁 + 釣瓶。
+        /// 実寸 **1.900(X) × 2.210(Y) × 1.900(Z)**。石枠の丈は `_pending.ido` の 0.35m
+        /// (⚠ 松江松平の <see cref="Matsudaira.Ido"/> の 0.62 より低い — 別部材である)。
+        /// ⛔ **井戸屋形(屋根)は付けていない** — 当図に無い【確度 U】。
+        /// ピボット = **井戸の芯・地盤レベル**なので `wells[].u,v` をそのまま使える。
+        /// 生成: blender --background --python Tools/Blender/build_doi_buzai.py -- ido --render</summary>
+        public const string DoiIdo = FuzokuyaDir + "Doi_Ido.fbx";
+
+        /// <summary>**手水石(水盤)** — 稲荷の社前・参道の西(`yashiro.chozu`)。
+        /// 実寸 **0.700(X) × 0.480(Y) × 0.500(Z)**。
+        /// ⚠⚠ **指図の呼び寸法(`yashiro.chozu` 0.6 × 0.4)は水盤の内法**で、部材の外形は
+        /// 縁の出のぶん 0.70 × 0.50 になる。⛔ **呼び寸法を部材へ渡さない**(規則5)。
+        /// ⛔ 蹲踞・手水鉢(茶庭の露地の要素)にしていない — 当屋敷に茶室・露地は無い。
+        /// ピボット = **水盤の芯・地盤レベル**(⚠ 底は −0.06 = 根石が地中へ入る)。
+        /// 生成: blender --background --python Tools/Blender/build_doi_buzai.py -- chozu --render</summary>
+        public const string DoiChozu = FuzokuyaDir + "Doi_Chozu.fbx";
+
+        /// <summary>**水尻の石の閾(余水吐)**。汀 #14(西端)、天端は `mizu.mizushiri.shiki.sill`
+        /// (水面 +0.05)。実寸 **1.200(X) × 0.490(Y) × 0.890(Z)**。数量1。
+        /// 生成: blender --background --python Tools/Blender/build_doi_buzai.py -- shiki --render</summary>
+        public const string DoiMizushiriShiki = FuzokuyaDir + "Doi_Mizushiri_Shiki.fbx";
+
+        /// <summary>**水尻の石組の吐き口**(埋樋の終点)。実寸 **0.950(X) × 0.740(Y) × 0.820(Z)**。
+        /// ⭕ **埋樋(石樋 φ0.24)の本体は焼いていない** — 土被り 0.30m 以上で埋まり地上から見えない。
+        /// 指図の延長は `mizu.mizushiri.umeToi.pts` から測った設計値の記録で、部材の数量ではない。
+        /// 生成: blender --background --python Tools/Blender/build_doi_buzai.py -- hakiguchi --render</summary>
+        public const string DoiMizushiriHakiguchi = FuzokuyaDir + "Doi_Mizushiri_Hakiguchi.fbx";
+
+        /// <summary>**水尻の石敷きの落とし溝** — **1m モジュール**。実寸 **1.000(X) × 0.240(Y) × 0.700(Z)**。
+        /// 吐き口から `mizu.mizushiri.otoshimizo.to` まで法面を下る。
+        /// ⭕ **走りを 1m 刻みで並べ、端数は端の1本を切って吸う**。
+        /// ⛔ **全体を伸縮させて溝の石を引き伸ばさない。**
+        /// 生成: blender --background --python Tools/Blender/build_doi_buzai.py -- otoshimizo --render</summary>
+        public const string DoiOtoshimizo = FuzokuyaDir + "Doi_Otoshimizo_1m.fbx";
 
         /// <summary>**乱杭1本**(汀を留める細い杭。`gardens[].rangui`)。
         /// ⭕ 在庫の**細丸太**(NatureManufacture `wood_log_06/08/09`・径 0.062〜0.069)を

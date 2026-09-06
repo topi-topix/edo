@@ -274,9 +274,15 @@ public static class EdoSashizuExport
                 // ⚠ 小門は**部材を持たない邸がある**(松平: 門口・板戸・小壁は長屋の躯体に Blender が彫り込む
                 //   `build_nagaya_omote.py --gate`。置くと屋根が二重になる)。⇒ `asset`/`api` を持つ小門だけを
                 //   部材として期待する。⛔ 持たない小門を期待すると「一つも無い」と嘘をつく(2026-09-06 棟梁 報告4)。
+                // ⚠ **`inRun` を持つ小門も独立した部材にならない**(土井の通用門)。あちらは
+                //   「門口を抜いた表長屋」を **run ごと一体で焼いてある**ので、据わるのは run の名。
+                //   ⛔ 教えないと「囲い Tsuyo_Mon の部材が実装に一つも無い」と嘘をつく
+                //   (2026-09-06 棟梁・実装第2回)。指図自身が `komon._asset` に
+                //   「**この門は独立した部材ではない**」と明記している。
                 foreach (var o in Get2(doc, "komon"))
                 {
                     var km = o as Dictionary<string, object>; if (km == null) continue;
+                    if (km.ContainsKey("inRun") && km["inRun"] != null) continue;
                     if (km.ContainsKey("asset") || km.ContainsKey("api")) names.Add(Str(km, "name"));
                 }
                 // ⚠ **表門と汀の潜りは名前を持たない**(`gate` は単数・潜りは `nishi.saku.kuguri`)。

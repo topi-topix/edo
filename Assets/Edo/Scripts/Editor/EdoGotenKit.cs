@@ -53,6 +53,19 @@ public static class EdoGotenKit
         return go;
     }
 
+    /// <summary>走り(local X)を縮めて据える版。⚠ 半間の端数を吸うためだけに使う
+    /// (⛔ 部材を伸ばす向きには使わない)。</summary>
+    static GameObject Put(string path, Transform parent, Vector3 lp, float ry, Vector3 scale)
+    {
+        var src = Load(path);
+        if (src == null) return null;
+        var go = (GameObject)PrefabUtility.InstantiatePrefab(src, parent);
+        go.transform.localPosition = lp;
+        go.transform.localRotation = Quaternion.Euler(0f, ry, 0f);
+        go.transform.localScale = scale;
+        return go;
+    }
+
     /// <summary>棟を1つ組む。
     /// nx = 身舎の桁行の間数(X) / nzZashiki = 身舎の間数(Z) / iri = 梁間(Z)方向の入側の間数。
     /// iriX = 桁行(X)方向の入側の間数。**1 にすると入側が四方に回る**(既定 0 = 前後だけ)。
@@ -270,8 +283,13 @@ public static class EdoGotenKit
     ///
     /// koranS/koranN = 桁行に沿う両縁の高欄(z=0 側 / z=K 側)。棟に接する側は false にする。
     /// colStart/colEnd = 両端の柱通り。**棟の柱と重なるので、棟に突き付ける側は false にする**
-    /// (同じ柱を二重に置くと面が z-fighting する)。</summary>
-    public static GameObject Roka(string name, Transform parent, Vector3 pos, float yaw, int nx,
+    /// (同じ柱を二重に置くと面が z-fighting する)。
+    ///
+    /// ⚠⚠ **`nx` は整数とはかぎらない。** 土井の `L_ImaDaidokoro` は **1.5間**で、
+    /// 整数へ丸めて 2間で組むと居間棟へ **0.909m 食い込む**(2026-09-06 に踏んだ)。
+    /// ⇒ **端数は最後の一駒を走り方向へ縮めて吸う**(床板・桁・高欄の X を rem 倍する)。
+    /// 屋根は <see cref="EdoAssets.Goten.RoofKirizuma(float)"/> が端数の定尺を引く。</summary>
+    public static GameObject Roka(string name, Transform parent, Vector3 pos, float yaw, float nx,
                                   float floor = 0.62f, bool koranS = true, bool koranN = true,
                                   bool roof = true, bool colStart = true, bool colEnd = true)
     {
@@ -288,30 +306,38 @@ public static class EdoGotenKit
         float colH = ROKA_EAVE + ROKA_KETA;                 // 柱・桁の天端(床から)
         float colS = colH / H;                              // 柱は建具丈のものを詰めて使う
 
-        for (int i = 0; i < nx; i++)
+        // 一間の駒を並べ、**端数は最後の一駒を走り方向へ縮めて吸う**(⛔ 全長を丸めない)
+        int nFull = Mathf.FloorToInt(nx + 1e-4f);
+        float rem = nx - nFull;                          // 端数[間] 0..1
+        int nBay = nFull + (rem > 1e-3f ? 1 : 0);
+        for (int i = 0; i < nBay; i++)
         {
+            float bw = (i < nFull) ? 1f : rem;           // この駒の間数
+            float xc = i * K + bw * K / 2f;
+            var sc = new Vector3(bw, 1f, 1f);
             Put(EdoAssets.Goten.FloorBoard, g.transform,
-                new Vector3(i * K + K / 2f, floor, K / 2f), 0f);
+                new Vector3(xc, floor, K / 2f), 0f, sc);
             // 桁 — 柱の天端に渡す。屋根の裏に隠れる高さ
             Put(EdoAssets.Goten.Beam, g.transform,
-                new Vector3(i * K + K / 2f, floor + colH - EdoAssets.Goten.BeamH, 0f), 0f);
+                new Vector3(xc, floor + colH - EdoAssets.Goten.BeamH, 0f), 0f, sc);
             Put(EdoAssets.Goten.Beam, g.transform,
-                new Vector3(i * K + K / 2f, floor + colH - EdoAssets.Goten.BeamH, K), 180f);
+                new Vector3(xc, floor + colH - EdoAssets.Goten.BeamH, K), 180f, sc);
             if (koranS)
                 Put(EdoAssets.Goten.Koran, g.transform,
-                    new Vector3(i * K + K / 2f, floor, 0f), 0f);
+                    new Vector3(xc, floor, 0f), 0f, sc);
             if (koranN)
                 Put(EdoAssets.Goten.Koran, g.transform,
-                    new Vector3(i * K + K / 2f, floor, K), 180f);
+                    new Vector3(xc, floor, K), 180f, sc);
         }
 
-        for (int i = 0; i <= nx; i++)
+        for (int i = 0; i <= nBay; i++)
         {
             if (i == 0 && !colStart) continue;
-            if (i == nx && !colEnd) continue;
+            if (i == nBay && !colEnd) continue;
+            float xl = Mathf.Min(i, nFull) * K + (i > nFull ? rem * K : 0f);
             for (int j = 0; j < 2; j++)
                 Put(EdoAssets.Goten.Column, g.transform,
-                    new Vector3(i * K, floor, j * K), 0f, colS);
+                    new Vector3(xl, floor, j * K), 0f, colS);
         }
 
         if (roof)
@@ -321,7 +347,7 @@ public static class EdoGotenKit
                 Debug.LogWarning(string.Format(
                     "[GotenKit] {0}: {1}間の切妻屋根が無い。" +
                     "blender --background --python Tools/Blender/build_goten_roof.py -- kirizuma {1}",
-                    name, nx));
+                    name, EdoAssets.Goten.KenTag(nx)));
             else
                 Put(asset, g.transform, new Vector3(nx * K / 2f, floor + ROKA_EAVE, K / 2f), 0f);
         }

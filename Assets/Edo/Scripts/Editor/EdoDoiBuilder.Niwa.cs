@@ -418,7 +418,11 @@ public static partial class EdoDoiBuilder
         return "護岸: 石 " + stones + " / 州浜の平石 " + su + " / 乱杭 " + ran;
     }
 
-    // ---- ③水尻(埋樋・落とし溝)
+    // ---- ③水尻(閾・吐き口・落とし溝・受け石)
+    /// <summary>水尻。⭐ 2026-09-06 に部材が焼けた。ピボットは部材ごとに違う(部材方の docstring):
+    ///   閾 = **閾の芯・天端**(⇒ `position.y = shiki.sill`)/ 吐き口 = **樋の芯・吐き口の面**
+    ///   (⇒ `position.y = umeToi.outY`・**+Z = 流れの下流**)/ 落とし溝 = **スパンの中心・地盤**
+    ///   (**+X = 流れの向き**)。⛔ **埋樋の本体は焼いていない**(土被り 0.30 以上で地上から見えない)。</summary>
     static string Niwa_C_Mizushiri()
     {
         var n = NiwaModel;
@@ -426,11 +430,115 @@ public static partial class EdoDoiBuilder
         var mz = O(n.g["mizu"]);
         if (!Has(mz, "mizushiri")) return "水尻: 指図に mizushiri が無い";
         var ms = O(mz["mizushiri"]);
-        Wait("水尻(石の閾 sill " + F(O(ms["shiki"])["sill"]).ToString("F2")
-           + " / 石樋の埋樋 径 " + F(O(ms["umeToi"])["dia"]).ToString("F2")
-           + "m / 石敷きの落とし溝 + 玉石の浸透枡)— **部材が指図にも在庫にも無い**"
-           + "(`bom` に項目が無い)。⛔ 代用品を置かない → 指図方・部材方へ");
-        return "水尻: 0(部材待ち)";
+        var grp = Group("Niwa/Mizushiri"); Clear(grp);
+        var sb = new System.Text.StringBuilder();
+        int made = 0;
+        var rnd = new System.Random(20260909);
+
+        // ① 石の閾(余水吐)— 汀 #14。**幅 1.20 は汀に沿う**(local +X = 汀の走り)
+        if (Has(ms, "shiki"))
+        {
+            var sk = O(ms["shiki"]);
+            string path = EdoAssets.Own.DoiMizushiriShiki;
+            if (!Exists(path)) Wait("水尻の石の閾の部材が無い: " + path);
+            else
+            {
+                int at = (int)F(sk["at"]);
+                Vector2 gp = Sh(at);
+                Vector2 nxt = Sh(at + 1), prv = Sh(at - 1);
+                Vector2 sd = (Wu(nxt.x, nxt.y) - Wu(prv.x, prv.y)).normalized;   // 汀の走り
+                Vector2 w = Wu(gp.x, gp.y);
+                var go = EdoBuild.Place(path, new Vector3(w.x, F(sk["sill"]), w.y), YawFor(sd),
+                                        Vector3.one, grp, "Shiki");
+                if (go != null) { made++; sb.Append("閾1 "); }
+            }
+        }
+
+        // ② 石組の吐き口(埋樋の終点)。**+Z = 流れの下流**、天端でなく**吐き口の面**が `outY`
+        Vector2 outPt = Vector2.zero, flow = Vector2.right;
+        bool haveOut = false;
+        if (Has(ms, "umeToi"))
+        {
+            var ut = O(ms["umeToi"]);
+            var pts = A(ut["pts"]);
+            if (pts != null && pts.Count >= 2)
+            {
+                var pa = A(pts[pts.Count - 2]); var pb = A(pts[pts.Count - 1]);
+                Vector2 wa = Wu(F(pa[0]), F(pa[1])), wb = Wu(F(pb[0]), F(pb[1]));
+                outPt = wb; flow = (wb - wa).normalized; haveOut = true;
+                string path = EdoAssets.Own.DoiMizushiriHakiguchi;
+                if (!Exists(path)) Wait("水尻の吐き口の部材が無い: " + path);
+                else
+                {
+                    var go = EdoBuild.Place(path, new Vector3(wb.x, F(ut["outY"]), wb.y), YawFace(flow),
+                                            Vector3.one, grp, "Hakiguchi");
+                    if (go != null) { made++; sb.Append("吐き口1 "); }
+                }
+            }
+            sb.Append("(埋樋 φ" + F(ut["dia"]).ToString("F2") + " は地中なので焼かない) ");
+        }
+
+        // ③ 石敷きの落とし溝。**1m モジュールを流れに沿って並べ、端数は端の1本を切って吸う**
+        //    (⛔ 全体を伸縮させて溝の石を引き伸ばさない)
+        Vector2 endPt = Vector2.zero; bool haveEnd = false;
+        if (Has(ms, "otoshimizo") && haveOut)
+        {
+            var om = O(ms["otoshimizo"]);
+            var to = A(om["to"]);
+            Vector2 wt = Wu(F(to[0]), F(to[1]));
+            endPt = wt; haveEnd = true;
+            string path = EdoAssets.Own.DoiOtoshimizo;
+            if (!Exists(path)) Wait("水尻の落とし溝の部材が無い: " + path);
+            else
+            {
+                float len = Vector2.Distance(outPt, wt);
+                Vector2 dir = (wt - outPt) / Mathf.Max(1e-5f, len);
+                float yaw = YawFor(dir);                       // 部材の +X = 流れの向き
+                int full = Mathf.FloorToInt(len + 1e-4f);
+                float rem = len - full;
+                int k = full + (rem > 0.02f ? 1 : 0);
+                for (int i = 0; i < k; i++)
+                {
+                    float wmod = (i < full) ? 1f : rem;        // 端の1本だけ切る
+                    Vector2 c = outPt + dir * (i + wmod * 0.5f);
+                    var go = EdoBuild.Place(path, new Vector3(c.x, GroundY(c.x, c.y), c.y), yaw,
+                                            Vector3.one, grp, "Otoshimizo_" + i);
+                    if (go == null) continue;
+                    if (wmod < 0.999f) go.transform.localScale = new Vector3(wmod, 1f, 1f);
+                    made++;
+                }
+                sb.Append("落とし溝" + k + "本(走り " + len.ToString("F2") + "m・端の1本を "
+                        + (rem > 0.02f ? rem.ToString("F2") : "1.00") + "m に切る) ");
+            }
+        }
+
+        // ④ 受け石(玉石の浸透枡)。⛔ 新造せず在庫の小径の立石を**伏せて**3種混ぜる。
+        //    ⚠ **個数と配置は指図に無い**(`uke` は「玉石の浸透枡(受け石)」の一語)。
+        //      部材方の申し送りが名指しした variant 1..3 のとおり 3個だけ据えた【U】。
+        if (haveEnd)
+        {
+            for (int i = 1; i <= 3; i++)
+            {
+                string path = EdoAssets.Own.Tateishi("S", i);
+                if (!Exists(path)) { Wait("受け石の部材が無い: " + path); break; }
+                float ang = (i - 1) * 120f + 20f;
+                Vector2 c = endPt + new Vector2(Mathf.Cos(ang * Mathf.Deg2Rad), Mathf.Sin(ang * Mathf.Deg2Rad)) * 0.45f;
+                float gy = GroundY(c.x, c.y);
+                var go = EdoBuild.Place(path, new Vector3(c.x, gy, c.y),
+                                        (float)rnd.NextDouble() * 360f, Vector3.one * 0.55f, grp, "Ukeishi_" + i);
+                if (go == null) continue;
+                // **伏せる** — 丈 1.0 に正規化した立石を寝かせ、半分ほど埋める
+                go.transform.rotation = go.transform.rotation * Quaternion.Euler(90f, 0f, 0f);
+                var bb = EdoBuild.RB(go);
+                go.transform.position += new Vector3(0f, gy - bb.center.y, 0f);
+                made++;
+            }
+            sb.Append("受け石3 ");
+            Wait("水尻の受け石(玉石の浸透枡)— **個数と配置が指図に無い**"
+               + "(`mizushiri.otoshimizo.uke` は語だけ)。部材方の申し送りの variant 1..3 に合わせて"
+               + " 3個を終点のまわり 0.45m へ伏せた【U】→ 数と広がりは指図方へ差し戻し");
+        }
+        return "水尻: " + made + " 基 " + sb.ToString();
     }
 
     // ---- ④石組・灯籠・沓脱・飛石・沢飛石
@@ -474,23 +582,36 @@ public static partial class EdoDoiBuilder
             var go = EdoBuild.Place(path, new Vector3(w.x, GroundY(w.x, w.y), w.y),
                                     (float)rnd.NextDouble() * 360f, Vector3.one * sc, grp, S(tr["name"]));
             if (go != null) { EdoBuild.SeatBottom(go, GroundY(w.x, w.y)); made++; }
-            if (api != null && api.Contains("Own.YukimiLantern"))
-                Wait("雪見灯籠: 指図は `EdoAssets.Own.YukimiLantern` を名指しするが、"
-                   + "`EdoAssets` の註は「材質 M_LanternStone がテクスチャを1枚も持たない(べた塗り)」"
-                   + "として在庫の `Eg.ToroYukimi` を薦めている。⛔ 実装で選び替えず指図のまま据えた → 指図方へ差し戻し");
         }
 
-        // 沓脱石(ピボット=天端の芯。⇒ position.y = topY)
+        // 沓脱石。⚠⚠ **指図が名指しする丈の呼び名が部材に無い。**
+        //   `kutsunugi[].asset` は `Own.Tateishi("Big", 1..3)` だが、立石の丈は **S / M / L** の3種で
+        //   "Big" は**樹木の呼び名**(`Own.Jouryoku("Big", i)`)。⇒ どの丈を寝かせ、
+        //   1.4 × 0.95m の足形へどう当てるかは**設計判断**なので、⛔ 決め打ちせず据えない。
         foreach (var o in A(n.g["kutsunugi"]))
         {
             var kg = O(o);
-            string path = EdoAssets.Own.Kutsunugi;
-            if (!Exists(path)) { Wait("沓脱石の部材が無い: " + path); break; }
+            string api2 = Has(kg, "asset") ? S(kg["asset"]) : null;
+            string path = ResolveNiwaApi(api2, 1);
+            if (path == null || !Exists(path))
+            {
+                Wait("沓脱石 " + S(kg["name"]) + "(" + F(kg["L"]).ToString("F2") + "×"
+                   + F(kg["W"]).ToString("F2") + "m・天端 " + F(kg["topY"]).ToString("F2")
+                   + ")の部材が引けない: " + (api2 ?? "(asset 無し)")
+                   + " — 立石の丈は **S(0.60×1.00×0.45)/ M(0.70×1.40×0.50)/ L(0.80×2.10×0.60)** の3種で、"
+                   + "\"Big\" は樹木の呼び名。⛔ どれを寝かせて 1.4×0.95 に当てるかは設計判断なので据えない"
+                   + " → 呼び出し元(普請奉行)の裁定へ");
+                continue;
+            }
+            // ⛔ 「石は立てる」を沓脱石に当てない — **寝かせて天端を水平に**据える(topY)。
             Vector2 w = Wu(F(kg["u"]), F(kg["v"]));
-            float sc = F(kg["L"]) / 1.2f;                      // 一様スケール(⛔ X/Z を別々に伸ばさない)
             var go = EdoBuild.Place(path, new Vector3(w.x, F(kg["topY"]), w.y), YawAlongU(),
-                                    Vector3.one * sc, grp, S(kg["name"]));
-            if (go != null) made++;
+                                    Vector3.one, grp, S(kg["name"]));
+            if (go == null) continue;
+            go.transform.rotation = go.transform.rotation * Quaternion.Euler(90f, 0f, 0f);
+            var bb0 = EdoBuild.RB(go);
+            go.transform.position += new Vector3(0f, F(kg["topY"]) - bb0.max.y, 0f);
+            made++;
         }
 
         // 飛石(ピボット=天端の芯)
@@ -585,15 +706,29 @@ public static partial class EdoDoiBuilder
                 if (go != null) { EdoBuild.SeatBottom(go, GroundY(w.x, w.y)); made++; }
             }
         }
+        // 手水石。⭐ 2026-09-06 に `Own.DoiChozu` が焼けた。ピボット = **水盤の芯・地盤レベル**
+        //   (底 −0.06 は根石が地中へ入る意図なので ⛔ `SeatBottom` で持ち上げない)。
+        // ⚠ **指図の 0.6 × 0.4 は水盤の内法**で部材の外形は 0.70 × 0.50 — ⛔ 呼び寸法を渡さない。
+        // ⭐ 据え向きは庭方の検め直しが決めた: **長辺(部材の X = 0.700)を参道の軸と平行**
+        //   (直交させると路縁までの空きが +0.018m しか残らない)。参道の軸は u 方向。
         if (Has(ys, "chozu"))
         {
             var ch = O(ys["chozu"]);
-            Wait("手水石(水盤 " + F(ch["L"]).ToString("F1") + "×" + F(ch["W"]).ToString("F1")
-               + "m)— 在庫に無い(`_pending.chozu`「小物で合成する」)。⛔ 代用品を置かない");
+            string path = EdoAssets.Own.DoiChozu;
+            if (!Exists(path)) Wait("手水石の部材が無い: " + path);
+            else
+            {
+                Vector2 w = Wu(F(ch["u"]), F(ch["v"]));
+                var f2 = Grid;
+                Vector2 uDir = (f2.W(1f, 0f) - f2.W(0f, 0f)).normalized;
+                var go = EdoBuild.Place(path, new Vector3(w.x, GroundY(w.x, w.y), w.y), YawFor(uDir),
+                                        Vector3.one, grp, "Chozu");
+                if (go != null) made++;
+            }
         }
         if (Has(ys, "sando"))
             Wait("稲荷の参道(玉砂利敷き)— **地表のスプラット**で部材では表せない");
-        return "稲荷: 鳥居 " + made + " 基(祠は Stage5 の service.Inari)";
+        return "稲荷: 鳥居・手水 " + made + " 基(祠は Stage5 の service.Inari)";
     }
 
     // ---- ⑦垣
@@ -639,33 +774,14 @@ public static partial class EdoDoiBuilder
                 lines.Add(new Vector2[] { new Vector2(F(kk["u0"]), F(kk["v"])), new Vector2(F(kk["u1"]), F(kk["v"])) });
             else { Wait("垣 " + S(kk["name"]) + ": 走りが読めない"); continue; }
 
-            const float SPAN = 1.818f;
+            // ⭕ 1スパン = 1間ちょうど。端数は **端の駒を run の端に合わせて内側で重ねて吸う**
+            //   (⛔ 等ピッチで中央寄せにすると端の駒が run の外へ出る)。`LayGaki` が正典。
             int idx = 0;
             foreach (var seg in lines)
             {
                 Vector2 A0 = Wu(seg[0].x, seg[0].y), B0 = Wu(seg[1].x, seg[1].y);
-                float len = Vector2.Distance(A0, B0);
-                if (len < 0.05f) continue;
-                Vector2 dir = (B0 - A0) / len;
-                // 垣の**幅は local X(走り)**。⛔ `Atan2(dir.x, dir.y)`(+Z を走りへ向ける式)にすると
-                //   垣が走りに直交して並ぶ(2026-09-06 に踏んだ)
-                float yaw = YawFor(dir);
-                int k = Mathf.Max(1, Mathf.CeilToInt(len / SPAN - 0.02f));
-                float pitch = len / k;
-                for (int q = 0; q < k; q++)
-                {
-                    Vector2 c = A0 + dir * (pitch * (q + 0.5f));
-                    // ⛔ SeatBottom を使わない(根入れ −0.15 のぶん浮く)
-                    var go = EdoBuild.Place(span, new Vector3(c.x, GroundY(c.x, c.y), c.y), yaw,
-                                            Vector3.one, grp, S(kk["name"]) + "_" + idx);
-                    if (go != null) { made++; idx++; }
-                }
-                if (Exists(post))
-                {
-                    var go = EdoBuild.Place(post, new Vector3(B0.x, GroundY(B0.x, B0.y), B0.y), yaw,
-                                            Vector3.one, grp, S(kk["name"]) + "_Post" + idx);
-                    if (go != null) made++;
-                }
+                int nmade = LayGaki(grp, S(kk["name"]), span, post, A0, B0, idx);
+                idx += nmade; made += nmade;
             }
         }
         return "垣: " + made + " 枚";
@@ -826,8 +942,14 @@ public static partial class EdoDoiBuilder
         if (a.StartsWith("Own.Jouryoku")) return EdoAssets.Own.Jouryoku(ArgSize(api), variant);
         if (a.StartsWith("Own.Momiji")) return EdoAssets.Own.Momiji(ArgSize(api), variant);
         if (a.StartsWith("Own.Ume")) return EdoAssets.Own.Ume(ArgSize(api), variant);
+        // ⭐ 雪見灯籠は在庫の edogoyomi `t_yukimi`(2026-09-06 に指図が自作プレハブから差し替えた)。
+        //   ⛔ `Own.YukimiLantern`(自作)は材質がべた塗りなので使わない。
+        if (a.StartsWith("Eg.ToroYukimi")) return EdoAssets.Eg.ToroYukimi;
         if (a.StartsWith("Own.YukimiLantern")) return EdoAssets.Own.YukimiLantern;
         if (a.StartsWith("Own.Toro")) return EdoAssets.Own.Toro;
+        // ⚠ 立石の丈は **S / M / L**。⛔ 樹木の呼び名("Big"/"Mid"/"Small")を当てない —
+        //   解けない丈は null を返し、呼び側が「未据え付け」へ積む(⛔ 近い丈へ寄せない)。
+        if (a.StartsWith("Own.Tateishi")) return EdoAssets.Own.Tateishi(ArgSize(api), variant);
         if (a.StartsWith("KasugaLantern") || a.StartsWith("Own.KasugaLantern")) return EdoAssets.Own.KasugaLantern;
         if (a.StartsWith("Okabe.Inari15")) return EdoAssets.Own.Inari15;
         if (a.StartsWith("Okabe.Torii")) return EdoAssets.Own.Torii;

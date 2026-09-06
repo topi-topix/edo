@@ -5235,6 +5235,25 @@ def gate_parts_table(d):
     kr = []
     for k in d["komon"]:
         r = next((q for q in d["runs"] if q["name"] == k.get("inRun")), None)
+        # ⭐ **開口の有効高は敷居から測る**(2026-09-06 部材方)。`komon[].sill`(道なり+0.20)と
+        #   run の `seat`(躯体の据え付け面)は同じ高さではなく、その差は部材側で吸収する。
+        #   ⛔ `leaf.h` をそのまま部材へ渡すと、run の座と敷居の差だけ門口が低く出る。
+        #   run が名指しされていない木戸は、**同じ辺で開口の両肩に継ぐ run** を幾何で拾う。
+        adj = [q for q in d["runs"] if q["edge"] == k["edge"]
+               and (abs(q["s1"] - (k["s"] - k["w"] / 2.0)) < 0.05
+                    or abs(q["s0"] - (k["s"] + k["w"] / 2.0)) < 0.05)]
+        seats = sorted(set(round(q["seat"], 3) for q in ([r] if r is not None else adj)))
+        lh = (k.get("leaf") or {}).get("h")
+        if seats and lh is not None:
+            eff = ("run の座 %s − 敷居 %.2f = <b>%+.2f</b> を部材側で吸収 ⇒ "
+                   "<b>有効高は土台の底から %.2f</b>"
+                   % ("/".join("%.2f" % s for s in seats), k["sill"],
+                      seats[0] - k["sill"], lh + (seats[0] - k["sill"])))
+            if len(seats) > 1:
+                eff += " ⚠ <b>両肩の run の座が揃っていない</b>(%s)" % "・".join(
+                    "%s %.2f" % (q["name"], q["seat"]) for q in adj)
+        else:
+            eff = "⚠ 継ぐ run が見つからない — 有効高が出せない"
         arg = "—"
         if r is not None:
             L0, G0 = r["s1"] - r["s0"], k["s"] - r["s0"]
@@ -5251,12 +5270,18 @@ def gate_parts_table(d):
                    % (k["w"], (k.get("leaf") or {}).get("h", float("nan"))))
         kr.append((k["name"], (k.get("leaf") or {}).get("kind", "小門"),
                    "<code>%s</code>" % k.get("asset", "⚠ 未解決"),
-                   k.get("assetState", "—"), arg))
+                   k.get("assetState", "—"), arg, eff))
     return ("<h3>門構えの部材位置</h3><div class='tw'><table><thead><tr><th>部材</th><th>芯の世界座標 (x,z)</th>"
             "<th>敷居</th><th>yaw</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>"
             "<p class='cap'>長屋門は袖塀を介さず**両袖がそのまま表長屋へ連続**する(番所は躯体内・格子付)。</p>"
             "<h3>小門の部材と、焼くのに要る引数</h3>"
-            + _tw(("小門", "種", "部材", "調達", "引数(設計値から算出)"), kr)
+            + _tw(("小門", "種", "部材", "調達", "引数(設計値から算出)",
+                   "開口の有効高(敷居基準)"), kr)
+            + "<p class='cap'>⭐ <b>開口の有効高は「敷居」から測る</b>(2026-09-06 部材方)。"
+              "⚠ <code>komon[].sill</code>(道なり+0.20)と run の <code>seat</code>"
+              "(躯体の据え付け面)は<b>同じ高さではない</b> — その差は<b>部材側で吸収する</b>ので、"
+              "焼くときの有効高は<b>土台の底から</b>測った値になる。"
+              "⛔ <b><code>leaf.h</code> をそのまま部材へ渡さない</b>(渡すと差のぶん門口が低く出る)。</p>"
             + "<p class='cap'>⛔ <b>引数を指図に手で書かない</b> — "
               "<code>runs</code> と <code>komon</code> を動かせば変わる従属値なので毎回ここで測る。"
               "⚠ <b>通用門は独立した門ではない</b> — 表長屋(北)の run ごと"
@@ -5317,9 +5342,13 @@ def bom_table(d):
             tot += ln
         if b.get("build"):
             nb += 1
+        # ⭐ `how` = 部材方の第1段の結果(焼成済 / 在庫で組む / C#(棟梁))。
+        #   ⛔ 未着の行を「新造(Blender)」のまま黙って通さない — ⚠ を出す。
+        proc = (("<b>%s</b>" % b["how"]) if b.get("how")
+                else ("<b>新造</b> ⚠ 手当て未定" if b.get("build") else "在庫"))
         rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td class='note'>%s</td>"
                     "<td class='note'>%s</td><td class='note'>%s</td></tr>"
-                    % (b["item"], "<b>新造(Blender)</b>" if b.get("build") else "在庫",
+                    % (b["item"], proc,
                        ("%.1f m" % ln) if ln is not None else "—",
                        ("<code>%s</code>" % stock) if stock else "—",
                        ("<code>_pending.%s</code>" % b["ask"]) if b.get("ask") else "—",
@@ -5365,16 +5394,27 @@ def roof_table(d):
         a = int(round(m["u1"] - m["u0"]))
         b = int(round(m["v1"] - m["v0"]))
         w, dd = max(a, b), min(a, b)
+        rf = m.get("roof") or {}
+        if rf.get("kata"):
+            call = "<b>%s</b>【%s】%s" % (rf["kata"], rf.get("cert", "?"),
+                                         ("・頂点は" + rf["chodai"]) if rf.get("chodai") else "")
+        else:
+            call = "⚠ 型が指図に無い【?】 — <code>_pending.yanekata</code>"
+        ht = ("棟高 <b>%.2f</b> / 軒高 %.2f【%s】" % (rf["ridgeH"], rf["eaveH"], rf.get("cert", "?"))
+              if rf.get("ridgeH") is not None else
+              ("⚠ 入母屋なら <code>Goten_Roof_Irimoya_%dx%dken.fbx</code>" % (w, dd)))
         rows.append((m["name"] + "(<b>御殿でない</b>)", "u %g間 × v %g間" % (a, b),
-                     "<b>%d × %d 間</b>" % (w, dd),
-                     "⚠ 型が指図に無い【?】",
-                     "⚠ 入母屋なら <code>Goten_Roof_Irimoya_%dx%dken.fbx</code>"
-                     " — <code>_pending.yanekata</code>" % (w, dd)))
-    return _tw(("棟", "足形", "桁行 × 梁間", "呼び出し", "焼く名"), rows) + (
-        "<p class='cap'>⚠ <b>`goten: false` の棟(表役所・厩)は屋根の型が指図に無い【確度?】。</b>"
-        "2026-09-04 の実装は表役所に <b>入母屋 10×10</b> を当てたが、"
-        "<b>それは指図に無い判断</b>である(<code>_pending.yanekata</code>)。"
-        "⛔ 実装で型を決めない — 普請奉行・考証方が決めること。</p>") + (
+                     "<b>%d × %d 間</b>" % (w, dd), call, ht))
+    return _tw(("棟", "足形", "桁行 × 梁間", "呼び出し / 屋根の型", "焼く名 / 高さ"), rows) + (
+        "<p class='cap'>⭐ <b>`goten: false` の棟(表役所・厩)の屋根は `munes[].roof` に持つ。</b>"
+        "<b>表役所は寄棟(方形造)【U】</b> — 足形が 10×10間 の正方形なので寄棟は幾何的に"
+        "大棟を持てず方形造(宝形)になり、頂点は露盤(2026-09-06 考証方)。"
+        "⚠ <b>2026-09-04 の実装は入母屋 10×10 を当てていた</b> — 指図に無い判断だったので"
+        "実装の側を直すこと。<b>厩は棟高 5.42 / 軒高 2.35</b>(2026-09-06 部材方の案B)で、"
+        "⭕ <b>格を分けるため表長屋(棟高 5.509)より低い</b>。"
+        "⚠ 厩の<b>型</b>はまだ「板壁・桟瓦」【型=B / 姿=U】までで、"
+        "切妻か寄棟かは決まっていない(<code>_pending.yanekata</code>)。"
+        "⛔ 実装で型を決めない。</p>") + (
         "<p class='cap'>⛔ <b>寸法を指図に手で並べない</b> — 棟を動かせば屋根も変わるので、"
         "この表は <code>munes</code> から毎回組む。⚠ <b>桁行 ≥ 梁間 で呼ぶ</b>"
         "(足りない向きで呼ぶと大棟が短辺に架かる)。⚠ <b>屋根の外形は間数より 2.14m 大きい</b>"
@@ -5389,12 +5429,22 @@ def buzai_table(d):
     for b in d.get("bom", []):
         if not b.get("build"):
             continue
-        rows.append((b["item"], "<code>%s</code>" % b.get("asset", "—"),
+        rows.append((b["item"],
+                     ("<b>%s</b>" % b["how"]) if b.get("how") else "⚠ <b>手当て未定</b>",
+                     "<code>%s</code>" % b.get("asset", "—"),
                      ("<code>_pending.%s</code>" % b["ask"]) if b.get("ask") else "—",
                      b.get("note", "")))
     if not rows:
         return "<p class='cap'>⭕ <b>新造を要する部材: 0 件。</b></p>"
-    return _tw(("要る物", "名", "宿題", "断り"), rows) + (
+    nh = sum(1 for b in d.get("bom", []) if b.get("build") and not b.get("how"))
+    return _tw(("要る物", "手当て", "名", "宿題", "断り"), rows) + (
+        "<p class='cap'>⚠ <b>手当てが未定の行: %d。</b>2026-09-06 の部材方の第1段は"
+        "「焼成済9・在庫で組む2・C#(棟梁)1」という<b>内訳だけ</b>で、"
+        "<b>どの行がどれか・焼いた部材の名と実寸が来ていない</b>。"
+        "⛔ <b>指図方で割り当てを推測しない</b> — 推測で <code>asset</code> を書くと "
+        "<code>LoadAssetAtPath</code> が null を返して静かに壊れる(規則12)。"
+        "⭕ 確実に紐づいたのは<b>蔵</b>(実寸 → <code>const.kuraRidge</code>)と"
+        "<b>渡廊下1.5間</b>(→ C#・棟梁)の2件(<code>_pending.buzai1</code>)。</p>" % nh) + (
         "<p class='cap'>⭐ <b>これは `bom` の「新造」の行をそのまま並べた view で、別の名簿ではない</b>"
         "(⛔ 同じ事実を二重に書かない=規則4)。新造が済んだら <code>bom[].build</code> を "
         "<code>false</code> にし、<code>asset</code> を <code>EdoAssets</code> の名へ差し替える。"
@@ -8669,16 +8719,26 @@ def main():
                  '⚠ <b>この表は木ごとの参考で、合否は上の「蔵の見える面」で決める。</b></p>')
         _ku = _no.get("kura")
         h.append('<p class="cap">⚠ <b>御土蔵の高さは部材の実寸で置き直した。</b>'
-                 '庭方の仮置き(棟 32.10 / 軒下端 30.00)に対し、<code>EdoAssets.Eg.Kura</code>'
-                 '(edogoyomi の蔵を ES=1.818 倍)の実測は<b>棟 %.2f / 妻壁の頂 %.2f / '
-                 '軒下端 %.2f</b> で、<b>1m 余り高い</b> — 塞ぐべき帯もそのぶん上がる。'
-                 '内訳は obj の材質で割った実測(白壁 0.000〜%.3fm / 屋根 %.3f〜%.3fm)。'
-                 '⚠ <b>足形は合っていない</b>(等倍の部材は %.2f×%.2f間、御土蔵の矩形は '
-                 '%d×%d間)— 高さだけ等倍を採り、平面の並べ方は '
-                 '<code>_pending.kurabuzai</code> で在庫方・部材方へ回す。</p>'
-                 % (_ku["ridge"], _ku["wall"], _ku["eave"],
+                 '庭方の仮置き(棟 32.10 / 軒下端 30.00)に対し、実測は'
+                 '<b>棟 %.2f / 妻壁の頂 %.2f / 軒下端 %.2f</b>(地盤 %.2f からの内訳は'
+                 '白壁 0.000〜%.3fm / 屋根 %.3f〜%.3fm)。'
+                 '⭐ <b>2026-09-06 に棟高を部材方の第1段の実測へ置き直した</b> — '
+                 '<code>const.kuraRidge</code> <b>6.51 → %.3f</b>。'
+                 '⚠ <b>6.51 は在庫 <code>EdoAssets.Eg.Kura</code>(梁間 3.65間)の実測で、'
+                 '当図の御土蔵(梁間 %d間)とは別の建物の数字だった。</b>'
+                 '新しい値は梁間3間・軒下端 %.2f・瓦勾配 0.5456 からの従属値で、'
+                 '部材方が焼いた 3×8間 の蔵の実寸 <b>15.582 × 6.867 × 7.071m</b> と一致する。'
+                 '⛔ <b><code>kuraWallTop</code>(妻壁の頂)は据え置き</b> — '
+                 'これも旧部材由来の数字だが、第1段の報告は bbox しか来ておらず、'
+                 '棟高との差を持ち越すのは<b>推測であって実測ではない</b>ので置かない'
+                 '(<code>_pending.kurabuzai</code>)。'
+                 '⭕ <b>見切りの合否は地盤〜棟で立つ</b>ので、この一件で上の表は動かない。'
+                 '⚠ <b>足形はまだ照合できていない</b>(御土蔵の矩形は %d×%d間 / '
+                 '`Kura2` は 3×3間 で、焼かれた版と accessor 名が未着)。</p>'
+                 % (_ku["ridge"], _ku["wall"], _ku["eave"], _ku["o"]["y"],
                     d["const"]["kuraWallTop"], d["const"]["kuraEave"], d["const"]["kuraRidge"],
-                    (asset_dim("kura") or (0, 0, 0))[0], (asset_dim("kura") or (0, 0, 0))[2],
+                    d["const"]["kuraRidge"],
+                    _ku["o"]["u1"] - _ku["o"]["u0"], d["const"]["kuraEave"],
                     _ku["o"]["u1"] - _ku["o"]["u0"], _ku["o"]["v1"] - _ku["o"]["v0"])
                  if _ku else "")
         h.append("<h3>水尻(余水吐)の縦断</h3>")

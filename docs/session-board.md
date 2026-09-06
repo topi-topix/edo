@@ -98,7 +98,9 @@ Artifact(file_path="docs/Sashizu/<屋敷>_sashizu.html",
 
 ### 6. セッション開始時
 
-greet フックが board の digest(裁定待ち・ブロッカー・open)を自動表示する。
+greet フックが board の digest を自動表示する — **裁定待ち → ブロッカー → 宿題(新しい順6件)
+→ 節目(3件)**の順で、7日動いていない宿題があれば1行で鳴る。⛔ 宿題は前任の手仕舞い(§1)なので
+必ず拾う。全部見るなら `edo_board.py list --type task`。
 `edo_session.py start <屋敷>` もその邸+横断の open issue を出す。
 **自分宛(owner=自邸)と cross の issue を読んでから作業に入る。**
 

@@ -238,6 +238,8 @@ def cmd_close(a):
 
 def cmd_list(a):
     cs = load_all()
+    if getattr(a, "type", None):
+        cs = [c for c in cs if c["type"] == a.type]
     if a.estate:
         cs = [c for c in cs if c["estate"] == a.estate or
               (a.estate != "cross" and c["estate"] == "cross")]
@@ -278,22 +280,45 @@ def cmd_show(a):
 
 
 def cmd_digest(a):
-    """greet 用の圧縮表示(≤12行)。裁定待ちとブロッカーを優先。"""
+    """greet 用の圧縮表示。裁定待ち → ブロッカー → 宿題(task)→ 節目(info・新しい順)。
+
+    ⛔ 2026-09-06 まで「裁定待ち・ブロッカー・その他」を**古い順に10行**出していたため、
+    11日前の info が枠を埋め、**手仕舞いで残した宿題が一件も出ていなかった**
+    (EDO-0137〜0139 を起票した直後の digest に出ないことをユーザーが見抜いた)。
+    引き継ぎを書いても誰の目にも入らないなら、書いていないのと同じ(CLAUDE.md 規則19)。
+    ⛔ **答えるべき物(裁定待ち・ブロッカー)と引き継ぎ(宿題)は省略しない。**
+    省略してよいのは節目(info)だけ。"""
     cs = [c for c in load_all() if c["status"] in LIVE]
     if not cs:
         return 0  # 静かに(greet に空行を足さない)
     wait = [c for c in cs if c["status"] == "awaiting-user"]
-    blk = [c for c in cs if c["type"] == "blocker"]
-    rest = [c for c in cs if c not in wait and c not in blk]
-    print("掲示板 — open %d 件(裁定待ち %d・ブロッカー %d)。詳細: python3 Tools/Session/edo_board.py show <ID>"
-          % (len(cs), len(wait), len(blk)))
-    lines = 0
-    for c in wait + blk + rest:
-        if lines >= 10:
-            print("  …ほか %d 件(`edo_board.py list`)" % (len(cs) - lines))
-            break
+    blk = [c for c in cs if c["type"] == "blocker" and c not in wait]
+    task = [c for c in cs if c["type"] == "task" and c not in wait]
+    rest = sorted([c for c in cs if c not in wait + blk + task],
+                  key=lambda c: c.get("updated", 0), reverse=True)
+    print("掲示板 — open %d 件(裁定待ち %d・ブロッカー %d・宿題 %d)。"
+          "詳細: python3 Tools/Session/edo_board.py show <ID>"
+          % (len(cs), len(wait), len(blk), len(task)))
+    task.sort(key=lambda c: c.get("updated", 0), reverse=True)
+    shown = 0
+    for c in wait + blk:                      # ⛔ 答えるべき物は省略しない
         print("  %s" % fmt_line(c))
-        lines += 1
+        shown += 1
+    for c in task[:6]:                        # 引き継ぎは新しい順に6件
+        print("  %s" % fmt_line(c))
+        shown += 1
+    if len(task) > 6:
+        print("  ・ …宿題ほか %d 件(`edo_board.py list --type task`)" % (len(task) - 6))
+    # 滞留の見張り(旧・差配役の異常検知の代わり。7日動いていない宿題を1行で鳴らす)
+    old_task = [c for c in task if (now() - c.get("updated", 0)) > 7 * 86400]
+    if old_task:
+        print("  ⚠ 宿題 %d 件が7日以上動いていない — 済んだ物は "
+              "`edo_board.py close <ID>`、生きている物は自邸へ引き取ること" % len(old_task))
+    for c in rest[:3]:                        # 節目は新しい順に3件
+        print("  %s" % fmt_line(c))
+        shown += 1
+    if shown < len(cs):
+        print("  …ほか %d 件(`edo_board.py list`)" % (len(cs) - shown))
     return 0
 
 
@@ -341,6 +366,7 @@ def main():
     p.add_argument("--dropped", action="store_true"); p.add_argument("--msg", default="")
     p.set_defaults(fn=cmd_close)
     p = sub.add_parser("list"); p.add_argument("--estate", choices=ESTATES)
+    p.add_argument("--type", choices=TYPES, help="種別で絞る(宿題だけ見るなら --type task)")
     p.add_argument("--all", action="store_true", help="done/dropped も含める")
     p.add_argument("--json", action="store_true")
     p.set_defaults(fn=cmd_list)

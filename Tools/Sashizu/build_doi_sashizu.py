@@ -8129,15 +8129,31 @@ def niwa_toi_table(d):
     uk = (ms.get("otoshimizo") or {}).get("uke")
     tail = ""
     if isinstance(uk, dict):
+        to9 = (ms.get("otoshimizo") or {}).get("to", [0.0, 0.0])
+        # ⭐ **どれが「下流側の1個」かは幾何で決まる** — 落とし溝の流れ(吐き口 → 終点)への
+        #   射影が最大の石。⛔ 指図に番号を書かない(石を動かせば入れ替わる)。
+        fx = to9[0] - (ms.get("umeToi") or {}).get("pts", [[0, 0]])[-1][0]
+        fz = to9[1] - (ms.get("umeToi") or {}).get("pts", [[0, 0]])[-1][1]
+        fl = math.hypot(fx, fz) or 1.0
+        pos = []
+        for j, (deg, r9) in enumerate(uk.get("at", [])):
+            du = math.cos(math.radians(deg)) * r9 / d["const"]["ken"]
+            dv = math.sin(math.radians(deg)) * r9 / d["const"]["ken"]
+            pos.append((j, deg, r9, (du * fx + dv * fz) / fl))
+        low = max(pos, key=lambda q: q[3])[0] if pos else -1
         tail = ("<p class='cap'>⭕ <b>落とし溝の末端 — %s</b>: <b>%d 個</b>を終点 (%.2f, %.2f) の"
-                "まわり<b>半径 %.2fm</b> へ、<code>%s</code> を <b>90° 倒して</b>据え"
-                "(`scale` %.2f)、<b>芯を地盤の高さに沈める</b>(半分ほど埋まる)。"
-                "⛔ <b>1種で並べない・等間隔の円に見せない</b>(variant を3種混ぜ、yaw は乱数)。"
-                "⛔ <b>隣家へ流し込まない</b> — ここで止めて谷頭の草地へ浸透させる【数・広がりとも U】。</p>"
-                % (uk.get("kata", "受け石"), uk["n"],
-                   (ms.get("otoshimizo") or {}).get("to", [0, 0])[0],
-                   (ms.get("otoshimizo") or {}).get("to", [0, 0])[1],
-                   uk["r"], uk.get("asset", "—"), uk.get("scale", 1.0)))
+                "まわりへ、<code>%s</code> を <b>90° 倒して</b>据え(`scale` %.2f)、"
+                "<b>芯を地盤の高さに沈める</b>(半分埋め)。"
+                "⛔ <b>等配・等半径にしない</b> — 方位と半径は %s の<b>不等辺三角</b>。"
+                "⭕ 天端も揃えず出入り <b>±%.2fm</b>、うち<b>下流側の1個(%d番)だけ +%.2fm 高く</b>して"
+                "水を止める(全部同高だと水が抜けて枡にならない)。"
+                "⛔ <b>1種で並べない</b>(variant を3種混ぜ、yaw は乱数)。"
+                "⛔ <b>「石は立てる」の条はここに当てない</b> — 受け石は<b>伏せる</b>のが役目。"
+                "⛔ <b>隣家へ流し込まない</b>【数・広がり・高さの出入りとも U】。</p>"
+                % (uk.get("kata", "受け石"), uk["n"], to9[0], to9[1],
+                   uk.get("asset", "—"), uk.get("scale", 1.0),
+                   " / ".join("%.0f°･%.2fm" % (q[1], q[2]) for q in pos),
+                   uk.get("capJitter", 0.0), low + 1, uk.get("capHigh", 0.0)))
     elif uk is not None:
         tail = ("<p class='cap'>⚠ <b>受け石が語だけで、数も広がりも無い</b> — "
                 "このままでは実装が発明する(<code>mizushiri.otoshimizo.uke</code>)。</p>")

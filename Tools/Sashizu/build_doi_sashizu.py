@@ -605,8 +605,24 @@ def goten_plan(d, u0, u1, v0, v1, label, note):
         if m.get("ita"):
             mu0, mv0, mu1, mv1 = m["u0"], m["v0"], m["u1"], m["v1"]
         else:
-            mu0, mv0, mu1, mv1 = m["u0"] + 1, m["v0"] + 1, m["u1"] - 1, m["v1"] - 1
+            # ⛔ 入側の幅を直書きしない — `const.moyaBand.irikawa` が正典(規則4)
+            mu0, mv0, mu1, mv1 = moya_rect(d, m)
         g.append(pr.rect(mu0, mv0, mu1, mv1, fill="var(--ink-mid)", stroke="var(--ink)", sw=1.6))
+        # ⭐ **身舎の帯 — 大棟(朱の破線)と谷(太い実線)**(2026-09-06 ユーザー裁定=案C)。
+        #   ⛔ 設計値を入れて図に描かない、をしない(規則19)。⚠ 向きが未決の棟(正方形)は
+        #   位置が出ないので何も描かない — 表と差し戻しの一覧に ⚠ で出る。
+        _bd = (m.get("roof") or {}).get("bands") or {}
+        _tn = (m.get("roof") or {}).get("tani") or {}
+        for _c in (_bd.get("at") or []):
+            if _bd.get("along") == "u":
+                g.append(LN(pr.X(mu0), pr.Y(_c), pr.X(mu1), pr.Y(_c), "var(--shu)", 1.4, dash="8 4"))
+            elif _bd.get("along") == "v":
+                g.append(LN(pr.X(_c), pr.Y(mv0), pr.X(_c), pr.Y(mv1), "var(--shu)", 1.4, dash="8 4"))
+        for _c in (_tn.get("at") or []):
+            if _tn.get("dir") == "u":
+                g.append(LN(pr.X(mu0), pr.Y(_c), pr.X(mu1), pr.Y(_c), "var(--take)", 2.4))
+            elif _tn.get("dir") == "v":
+                g.append(LN(pr.X(_c), pr.Y(mv0), pr.X(_c), pr.Y(mv1), "var(--take)", 2.4))
         seen = set()
         for r in m["rooms"]:
             for u in (r["u0"], r["u1"]):
@@ -3109,6 +3125,126 @@ def _strip_history(body):
     return body if i < 0 else body[:i]
 
 
+def moya_rect(d, m):
+    """棟の**身舎**の矩形 (u0, v0, u1, v1)[間]。⛔ 足形ではない — 外周に入側 1間 を取った内側。
+
+    ⭕ 入側の幅は `const.moyaBand.irikawa`(2026-08-14 ユーザー裁定=外周に1間)。
+    ⚠ **[西川1959]A の原文は『片側に入側』**であって四周入側ではない — 四周に回すのは裁定【U】。
+    """
+    ir = (d["const"].get("moyaBand") or {}).get("irikawa", 1.0)
+    return (m["u0"] + ir, m["v0"] + ir, m["u1"] - ir, m["v1"] - ir)
+
+
+def fix_bands(x):
+    """**身舎を平行な帯に割る**(2026-09-06 ユーザー裁定=案C)。⛔ 従属値なので毎回組み直す。
+
+    規則は `const.moyaBand` — 身舎で `target` 3.0間 を目標に**均等割り**、許容
+    `min` 2.5 〜 `max` 4.0間、**帯数は許容に収まる最小の整数**。
+    ⭕ 帯は**大棟と平行**に走り(`bandAlong`)、**境ごとに谷を1本**通す。
+    ⚠ 正方形の棟は `bandAlong` が未決(`_pending.bandmuki`)だが、
+    **帯数・帯の身舎・棟高は向きに依らない**ので、そこまでは確定させる。
+    ⛔ **座標は 0.001間・寸法は 0.0001間 で丸める** — 平坦な数値配列は書き戻しで
+    有効数字6桁に落ちるので、丸めておかないと往復試験が毎回鳴る。
+    """
+    C = x["const"]
+    mb = C.get("moyaBand")
+    if not mb:
+        return x
+    K, kb, eave = C["ken"], C.get("kawaraKobai"), C.get("gotenEave")
+    fl = C.get("gotenFloor", 0.0)
+    for m in x["munes"]:
+        rf = m.get("roof")
+        if not isinstance(rf, dict):
+            continue
+        rf.pop("bands", None)
+        rf.pop("tani", None)
+        if not rf.get("banded"):
+            continue
+        u0, v0, u1, v1 = moya_rect(x, m)
+        mu, mv = u1 - u0, v1 - v0
+        along = rf.get("bandAlong")                  # None = 未決(正方形)
+        across = {"u": "v", "v": "u"}.get(along)
+        span = mv if along == "u" else (mu if along == "v" else min(mu, mv))
+        alng = mu if along == "u" else (mv if along == "v" else max(mu, mv))
+        n = None
+        for k in range(1, 41):                       # 許容に収まる**最小の**整数
+            if mb["min"] - 1e-9 <= span / k <= mb["max"] + 1e-9:
+                n = k
+                break
+        if n is None or span <= 0:
+            rf["bands"] = {"n": None, "along": along, "across": across,
+                           "moyaAcross": round(span, 4), "moyaAlong": round(alng, 4)}
+            continue
+        w = round(span / n, 4)
+        rise = (w * K / 2.0 * kb) if kb else 0.0
+        b0 = (v0 if along == "u" else u0) if along else None
+        at = ([round(b0 + span * (i + 0.5) / n, 3) for i in range(n)]
+              if b0 is not None else None)
+        tani = ([round(b0 + span * (i + 1) / n, 3) for i in range(n - 1)]
+                if b0 is not None else None)
+        rf["bands"] = {"n": n, "along": along, "across": across, "w": w,
+                       "moyaAcross": round(span, 4), "moyaAlong": round(alng, 4),
+                       "eaveH": eave, "ridgeH": round((eave or 0.0) + rise, 4),
+                       "ridgeY": round(m["y"] + fl + (eave or 0.0) + rise, 4),
+                       "at": at}
+        rf["tani"] = {"n": n - 1, "dir": along, "at": tani,
+                      "fall": C.get("taniFall"), "cert": "P",
+                      "drain": "中央から両端の軒先へ振り分けて落とす(縦樋を立てない)"}
+    return x
+
+
+def mune_roof_pts(d, m, coord, eave):
+    """断面に描く**屋根の折れ線**[(横軸の座標[間], 床からの高さ[m])]。
+
+    ⭐ 2026-09-06 ユーザー裁定=案C。帯に割った棟は、**切り口が帯を横切る面**では
+    **帯の数だけ頂**が立ち、**境ごとに谷**が落ちる。**切り口が帯に沿う面**では
+    稜線が身舎の上を平らに走る。⛔ 足形の中央に一つだけ頂を立てない。
+    ⚠ **帯の向きが未決の棟(正方形)は、稜線の高さの平ら(包絡)で描く** — 頂と谷を
+    描き分けられないため。向きが決まれば横切る面は帯の数だけ頂になる(`_pending.bandmuki`)。
+    ⛔ 入側(外周1間)の下屋は**軒高で平ら**に描く【図示のための概略P】— 下屋の軒高は
+    設計値に無い(⛔ 発明しない)。
+    """
+    rf = m.get("roof") or {}
+    bd = rf.get("bands") or {}
+    a0 = m["u0"] if coord == "u" else m["v0"]
+    b0 = m["u1"] if coord == "u" else m["v1"]
+    ridge = mune_ridge_above(d, m, eave)
+    if not bd.get("n"):
+        return [(a0, eave), ((a0 + b0) / 2.0, ridge), (b0, eave)]
+    r0, s0, r1, s1 = moya_rect(d, m)
+    m0, m1 = (r0, r1) if coord == "u" else (s0, s1)
+    if bd.get("across") == coord and bd.get("at"):
+        pts = [(a0, eave), (m0, eave)]
+        n = bd["n"]
+        for i, c in enumerate(bd["at"]):
+            pts.append((c, ridge))
+            if i < n - 1:
+                pts.append((m0 + (m1 - m0) * (i + 1) / float(n), eave))     # 谷
+        return pts + [(m1, eave), (b0, eave)]
+    return [(a0, eave), (m0, ridge), (m1, ridge), (b0, eave)]
+
+
+def _clipx(pts, w0, w1):
+    """折れ線(**横軸について単調増加**)を [w0, w1] に切り詰める。境では線形に内挿する。"""
+    out = []
+    for (x1, y1), (x2, y2) in zip(pts, pts[1:]):
+        if x2 < w0 or x1 > w1:
+            continue
+
+        def _y(xq, x1=x1, y1=y1, x2=x2, y2=y2):
+            return y1 if abs(x2 - x1) < 1e-12 else y1 + (y2 - y1) * (xq - x1) / (x2 - x1)
+
+        xa = max(x1, w0)
+        xb = min(x2, w1)
+        for xq in (xa, xb):
+            q = (xq, _y(xq))
+            if not out or abs(out[-1][0] - q[0]) > 1e-9 or abs(out[-1][1] - q[1]) > 1e-9:
+                out.append(q)
+    if not out:
+        out = [(max(w0, min(w1, pts[0][0])), pts[0][1])]
+    return out
+
+
 def mune_ridge_above(d, m, eave):
     """棟の**大棟の高さ**(床からの m)を**設計値から導く**。
 
@@ -3116,14 +3252,22 @@ def mune_ridge_above(d, m, eave):
     いたが、`munes[].roof.ridge` と `const.kawaraKobai` が入って**設計値から導けるようになった**
     ので、定数で持つのは二重管理(規則4)。⛔ 定数を手で書き換えない。
 
-    起り = **梁間 ÷ 2 × 瓦勾配**。梁間 = 大棟と直交する側(正方形の棟は方形造/入母屋とも
-    頂が一点なので**辺そのもの**が梁間)。⛔ **これは図示のための見込み【P】** —
-    屋根部材の実測(`bom` の `Goten_Roof_*` の実寸 H)があるときはそちらが正。
+    起り = **梁間 ÷ 2 × 瓦勾配**。⭐ **2026-09-06 ユーザー裁定=案C から、帯に割った棟の
+    梁間は「帯の身舎」**(`roof.bands.w`)であって足形の辺ではない。⛔ 足形で計算しない —
+    帯に割った意味(棟を高くしない)が消える。帯に割らない棟は従来どおり
+    大棟と直交する側(正方形の棟は辺そのもの)。
+    ⛔ **これは図示のための見込み【P】** — 屋根部材の実測(`bom` の `Goten_Roof_*` の実寸 H)が
+    あるときはそちらが正。
     """
-    a, b = m["u1"] - m["u0"], m["v1"] - m["v0"]
-    r = (m.get("roof") or {}).get("ridge")
-    beam = (b if r == "u" else a) if r in ("u", "v") else min(a, b)
+    rf = m.get("roof") or {}
+    bd = rf.get("bands") or {}
     kb = d["const"].get("kawaraKobai")
+    if bd.get("w"):
+        beam = bd["w"]
+    else:
+        a, b = m["u1"] - m["u0"], m["v1"] - m["v0"]
+        r = rf.get("ridge")
+        beam = (b if r == "u" else a) if r in ("u", "v") else min(a, b)
     return eave + (beam * d["const"]["ken"] / 2.0 * kb if kb else 0.0)
 
 
@@ -3821,16 +3965,19 @@ def section_svg(d, sec):
             a, b = m["u0"], m["u1"]
         if b <= w0 or a >= w1:
             continue                          # 画枠の外(検図 H-2)
-        a, b = max(a, w0), min(b, w1)
         f = m["y"] + fl
         nm = MUNE_JA.get(m.get("name"), m.get("label", m.get("name", "")))
         if "label" in m and m["name"] not in MUNE_JA:
             nm = m["label"]
+        # ⭐ **屋根の見え掛かりは帯に従う**(2026-09-06 ユーザー裁定=案C)。
+        #   ⛔ 足形の中央に一つだけ頂を立てない — 帯に割った棟は**帯の数だけ頂と谷**が出る。
+        prof = _clipx(mune_roof_pts(d, m, "v" if sec["axis"] == "u" else "u", eave), w0, w1)
+        a, b = max(a, w0), min(b, w1)
         g.append('<polygon points="%s" fill="var(--ink-mid)" stroke="var(--ink)" stroke-width="1.2"/>'
-                 % " ".join("%.1f,%.1f" % p for p in
-                            [(X(a), Y(f)), (X(a), Y(f + eave)),
-                             ((X(a) + X(b)) / 2, Y(f + mune_ridge_above(d, m, eave))),
-                             (X(b), Y(f + eave)), (X(b), Y(f))]))
+                 % " ".join("%.1f,%.1f" % q for q in
+                            [(X(prof[0][0]), Y(f))]
+                            + [(X(px), Y(f + py)) for px, py in prof]
+                            + [(X(prof[-1][0]), Y(f))]))
         g.append(T((X(a) + X(b)) / 2, Y(f + eave) + 12, nm, "rmS", "middle",
                    fit(nm, sx * (b - a) - 4, 10.5)))
     # 御錠口
@@ -5535,28 +5682,165 @@ def bom_table(d):
             % (tot, nb))
 
 
-# ⚠ **梁間がこれ以上の棟には「一枚屋根は類型外」の印を出す**(2026-09-06 考証方の判定)。
-#   台帳にある梁間の実数は [西川1959]A の長屋(身舎 2.5間 + 庇 1間 = 3.5間)だけで、
-#   12間 はその 3.4倍。⛔ **閾値そのものに典拠は無い【U】** — 印を出すためだけの目安で、
-#   ⚠ **10.0 に採ったのは、考証方が名指しした3棟(Ima/Oku/Daidokoro)を拾う下限だから**。
-#   ⚠ ただし大棟の向きを正した後の梁間は Ima 12 / Oku 11 / Daidokoro 10 で **12間 ではなく**、
-#   同じ下限だと **玄関・表役所(10×10)も掛かる**。範囲は普請奉行の確認待ち。
-#   合否は付けない(処方=身舎+下屋 は【B】だが、身舎の割り付けは意匠=ユーザー裁定)。
-MOYA_WARN = 10.0
+def _band_desc(d, m):
+    """棟の**帯の割り付け**を人の読める一行に。⛔ 数字は `roof.bands` から引く(写さない)。"""
+    rf = m.get("roof") or {}
+    bd = rf.get("bands")
+    K = d["const"]["ken"]
+    if not rf.get("banded"):
+        why = "書院(身舎 4 × 12間 = 帯1本ぶん)" if m["name"] == "Shoin" else "御殿の棟ではない"
+        return "<b>帯に割らない</b>【例外・名指し】<br>%s" % why
+    if not bd or bd.get("n") is None:
+        return ("⚠ <b>帯が組めない</b> — 身舎 %.4g間 を許容 %.4g〜%.4g間 に割れない"
+                % (bd.get("moyaAcross", 0.0) if bd else 0.0,
+                   d["const"]["moyaBand"]["min"], d["const"]["moyaBand"]["max"]))
+    s = ("<b>%d本 × 身舎 %.4g間</b>(%.2fm)" % (bd["n"], bd["w"], bd["w"] * K))
+    if bd["along"] is None:
+        s += "<br>⚠ <b>向きは未決</b>(<code>_pending.bandmuki</code>)"
+    else:
+        s += "<br>帯の長手 <b>%s 方向</b> ／ 割る向き %s" % (bd["along"], bd["across"])
+    return s
+
+
+def _tani_desc(d, m):
+    """**谷**(帯の境)の本数・向き・位置。"""
+    rf = m.get("roof") or {}
+    tn = rf.get("tani")
+    if not rf.get("banded") or not tn:
+        return "—"
+    if not tn.get("n"):
+        return "<b>0本</b>(帯1本)"
+    at = tn.get("at")
+    return ("<b>%d本</b> ／ %s<br>%s"
+            % (tn["n"],
+               ("<b>%s 方向</b>(大棟と平行)" % tn["dir"]) if tn["dir"]
+               else "⚠ <b>向きは未決</b>",
+               ("位置 %s" % " / ".join("%.4g" % q for q in at)) if at
+               else "位置は向きが決まってから"))
+
+
+def band_check(d):
+    """**身舎の帯の割り付けが規則どおりか。**(2026-09-06 ユーザー裁定=案C)
+
+    ⛔ **意匠は測らない** — 測るのは ①どの棟も「帯に割る」か「名指しの例外」かのどちらかであること
+    ②帯の身舎が許容に収まること ③帯の長手が大棟と一致すること ④室が身舎の中に収まること
+    ⑤**御殿の棟を切る断面の軒高が `const.gotenEave` と一致すること**(同じ数字を二箇所に
+    持っているので、輪に入れる=規則19)。
+    """
+    C = d["const"]
+    mb = C.get("moyaBand")
+    if not mb:
+        return ["`const.moyaBand`(帯の割り付けの規則)が無い"]
+    bad = []
+    names = set(m["name"] for m in d["munes"])
+    for nm in mb.get("exempt", []):
+        if nm not in names:
+            bad.append("`moyaBand.exempt` の %s という棟が無い" % nm)
+    banded = []
+    for m in d["munes"]:
+        rf = m.get("roof") or {}
+        if not rf.get("banded"):
+            if m["name"] not in mb.get("exempt", []):
+                bad.append("%s が帯にも例外表にも無い — `roof.banded` を立てるか "
+                           "`const.moyaBand.exempt` に理由つきで名指しする"
+                           "(⛔ 無名の例外を作らない)" % m["name"])
+            continue
+        banded.append(m)
+        bd = rf.get("bands") or {}
+        if bd.get("n") is None:
+            bad.append("%s の身舎 %.4g間 を許容 %.4g〜%.4g間 に均等割りできない"
+                       % (m["name"], bd.get("moyaAcross", 0.0), mb["min"], mb["max"]))
+            continue
+        if not (mb["min"] - 1e-9 <= bd["w"] <= mb["max"] + 1e-9):
+            bad.append("%s の帯の身舎が %.4g間 — 許容 %.4g〜%.4g間 の外"
+                       % (m["name"], bd["w"], mb["min"], mb["max"]))
+        a9, b9 = m["u1"] - m["u0"], m["v1"] - m["v0"]
+        sq = abs(a9 - b9) < 1e-9
+        al = rf.get("bandAlong")
+        if sq:
+            if al is not None:
+                bad.append("%s は正方形(%g × %g間)なのに `bandAlong` が %r — "
+                           "向きは幾何では決まらないので `null`(裁定待ち)にする"
+                           % (m["name"], a9, b9, al))
+        elif al != rf.get("ridge"):
+            bad.append("%s の `bandAlong` が %r で `roof.ridge` %r と食い違う — "
+                       "谷は大棟と平行なので帯も大棟の向きに走る"
+                       % (m["name"], al, rf.get("ridge")))
+        # 室は身舎の中に収まること(入側 1間 の帯を室が食っていたら帯の割りが成り立たない)
+        r0, s0, r1, s1 = moya_rect(d, m)
+        for r in m.get("rooms", []):
+            if not (r0 - 1e-9 <= r["u0"] and r["u1"] <= r1 + 1e-9
+                    and s0 - 1e-9 <= r["v0"] and r["v1"] <= s1 + 1e-9):
+                bad.append("%s の室「%s」が身舎(%.4g,%.4g)–(%.4g,%.4g)からはみ出す — "
+                           "外周 %.4g間 は入側で、帯に割れる身舎ではない"
+                           % (m["name"], r["name"], r0, s0, r1, s1, mb["irikawa"]))
+    # ⑤ 軒高 — `const.gotenEave` と `sections[].eaveAbove` の二重管理を輪に入れる
+    ge = C.get("gotenEave")
+    if ge is not None:
+        for sec in d.get("sections", []):
+            hit = [m["name"] for m in banded
+                   if (sec["axis"] == "u" and m["u0"] <= sec["at"] <= m["u1"])
+                   or (sec["axis"] == "v" and m["v0"] <= sec["at"] <= m["v1"])]
+            if hit and abs(sec.get("eaveAbove", ge) - ge) > 1e-9:
+                bad.append("%s の `eaveAbove` %.4g が `const.gotenEave` %.4g と違う"
+                           "(%s を切る面)" % (sec["name"], sec["eaveAbove"], ge, "・".join(hit)))
+    return bad
+
+
+def band_todo(d):
+    """**普請奉行/ユーザーへ差し戻す点**(意匠なので指図方では決められない)。
+
+    ⛔ 面のはみ出しの検査と混ぜない — 混ぜると「指図が不成立」に見える(庭方の差し戻しと同じ扱い)。
+    ⛔ **0件でも件数を出す**(0件と未実行を見分けられなくしない)。
+    """
+    out = []
+    for m in d["munes"]:
+        rf = m.get("roof") or {}
+        if rf.get("banded") and (rf.get("bands") or {}).get("along") is None:
+            out.append("**%s の帯の向きが未決** — 足形が正方形で、帯数(%s本)・帯の身舎"
+                       "(%.4g間)・棟高(%.4gm)は向きに依らず確定している。"
+                       "平面の向きだけが意匠(`_pending.bandmuki`)"
+                       % (m["name"], (rf.get("bands") or {}).get("n"),
+                          (rf.get("bands") or {}).get("w", 0.0),
+                          (rf.get("bands") or {}).get("ridgeH", 0.0)))
+    yk = [m for m in d["munes"] if m["name"] == "Yakusho"]
+    if yk and (yk[0].get("roof") or {}).get("banded"):
+        out.append("**表役所の格を何で分けるかが未決** — 帯に割ると御殿の棟と同じ入母屋の並びに"
+                   "なり、棟高も帯の従属値なので揃う。破風・懸魚・軒高・棟数のどれで分けるかは"
+                   "意匠(`_pending.kakusa`)")
+    sh = [m for m in d["munes"] if m["name"] == "Shoin"]
+    C = d["const"]
+    if sh and C.get("moyaBand") and C.get("gotenEave") is not None and C.get("kawaraKobai"):
+        m = sh[0]
+        r0, s0, r1, s1 = moya_rect(d, m)
+        mo = min(r1 - r0, s1 - s0)
+        be = min(m["u1"] - m["u0"], m["v1"] - m["v0"])
+        K, kb, ge = C["ken"], C["kawaraKobai"], C["gotenEave"]
+        h1 = ge + be * K / 2.0 * kb
+        h2 = ge + mo * K / 2.0 * kb
+        out.append("**書院の棟高をどこから取るかが未決** — 足形の梁間 %.4g間 なら %.2fm、"
+                   "身舎 %.4g間 なら %.2fm で **%.2fm 違う**。前者だと書院が御殿でいちばん"
+                   "高い棟になる。⛔ 格の付け方そのものなので指図方では選べない"
+                   "(`_pending.kakusa`)" % (be, h1, mo, h2, h1 - h2))
+    return out
 
 
 def roof_table(d):
-    """御殿の入母屋屋根の**要る寸法を棟から機械で出す**。
+    """御殿の屋根 — **帯の割り付けと、焼くのに要る寸法を棟から機械で出す**。
 
-    ⛔ 寸法を指図に手で並べない — 棟を動かせば屋根も変わる。
+    ⛔ 寸法を指図に手で並べない — 棟を動かせば帯も屋根も変わる。
     ⚠ `EdoAssets.Own.GotenRoofIrimoya(wKen, dKen)` は **桁行 ≥ 梁間** で呼ぶ規約
     (足りない向きで呼ぶと大棟が短辺に架かる)。
     """
-    K = d["const"]["ken"]
-    kb = d["const"].get("kawaraKobai")
+    C = d["const"]
+    K = C["ken"]
+    kb = C.get("kawaraKobai")
+    ge = C.get("gotenEave")
+    fl = C.get("gotenFloor", 0.0)
+    mb = C.get("moyaBand") or {}
 
     def _ridge(m, a, b):
-        """**大棟の向きと、そこから決まる棟の起り。**⛔ 実装に選ばせない(規則5と同じ理屈)。
+        """**大棟の向き。**⛔ 実装に選ばせない(規則5と同じ理屈)。
 
         ⚠ 2026-09-06 の普請検査で、居間棟(16×12間)の大棟が**12間側**に架かり
         16間 を梁間で飛ばして棟高 10.3m になっていた(中奥が御殿でいちばん高い姿)。
@@ -5565,103 +5849,111 @@ def roof_table(d):
         rf = m.get("roof") or {}
         r = rf.get("ridge")
         if r is None:
-            return ("<b>該当なし</b>(正方形)", "—", None)
-        beam = b if r == "u" else a                    # 梁間 = 大棟と直交する側
-        rise = beam * K / 2.0 * kb if kb else None
+            return "<b>該当なし</b>(正方形)"
         ok = abs(a - b) < 1e-9 or (r == "u") == (a > b)
-        return ("<b>%s 方向</b>【%s】%s" % (r, rf.get("cert", "?"), "" if ok else " ⚠ 短辺に架かる"),
-                ("梁間 %g間 = %.2fm → 起り <b>%.2fm</b>" % (beam, beam * K, rise))
-                if rise is not None else "梁間 %g間" % beam, ok)
+        return "<b>%s 方向</b>【%s】%s" % (r, rf.get("cert", "?"), "" if ok else " ⚠ 短辺に架かる")
+
+    def _h(m):
+        """**棟高**(床上 m と絶対高)。帯に割った棟は**帯の身舎**から、割らない棟は梁間から。"""
+        if kb is None or ge is None:
+            return "⚠ `const` に軒高か瓦勾配が無い"
+        h = mune_ridge_above(d, m, ge)
+        rf = m.get("roof") or {}
+        if rf.get("ridgeH") is not None:                   # 部材方の実測がある棟(厩)
+            return ("棟高 <b>%.2f</b> / 軒高 %.2f【%s】(部材方の実測)"
+                    % (rf["ridgeH"], rf["eaveH"], rf.get("cert", "?")))
+        bd = rf.get("bands") or {}
+        src = ("帯の身舎 %.4g間" % bd["w"]) if bd.get("w") else (
+            "梁間 %.4g間" % ((m["v1"] - m["v0"]) if rf.get("ridge") == "u"
+                             else (m["u1"] - m["u0"]) if rf.get("ridge") == "v"
+                             else min(m["u1"] - m["u0"], m["v1"] - m["v0"])))
+        return ("床上 <b>%.2fm</b>(軒高 %.2f + 起り %.2f)<br>絶対 <b>%.2fm</b><br>%s より"
+                % (h, ge, h - ge, m["y"] + fl + h, src))
+
+    def _call(m):
+        rf = m.get("roof") or {}
+        bd = rf.get("bands") or {}
+        if bd.get("n"):
+            al, w = bd.get("moyaAlong"), bd.get("w")
+            return ("帯 <b>%d枚</b> × <code>Irimoya(%.4g間 × %.4g間)</code><br>"
+                    "= %.2f × %.2fm ＋ 入側 %.4g間 の下屋<br>"
+                    "⛔ <b>一枚屋根の FBX は使えない</b>(<code>_pending.yane</code>)"
+                    % (bd["n"], al, w, al * K, w * K, mb.get("irikawa", 1.0)))
+        if rf.get("kata"):
+            return "<b>%s</b>【%s】" % (rf["kata"], rf.get("cert", "?"))
+        a, b = m["u1"] - m["u0"], m["v1"] - m["v0"]
+        if not m.get("goten"):
+            # ⛔ **型が指図に無い棟に呼び出しを書かない**(厩)。⚠ 間数を丸めると
+            #   5.5間 が 6間 に化けて、指図に無い寸法の部材を名指ししてしまう。
+            return ("⚠ <b>型が指図に無い</b>【?】 — <code>_pending.yanekata</code><br>"
+                    "足形 %.4g × %.4g間(⛔ 実装で型を決めない)" % (max(a, b), min(a, b)))
+        if abs(a - round(a)) > 1e-9 or abs(b - round(b)) > 1e-9:
+            return "⚠ <b>足形が整数の間数でない</b>(%.4g × %.4g間)" % (max(a, b), min(a, b))
+        return ("<code>Own.GotenRoofIrimoya(%d, %d)</code>"
+                % (int(round(max(a, b))), int(round(min(a, b)))))
 
     rows = []
-    for m in d["munes"]:
-        if not m.get("goten"):
-            continue
-        a = int(round(m["u1"] - m["u0"]))
-        b = int(round(m["v1"] - m["v0"]))
-        w, dd = max(a, b), min(a, b)
-        rg, ri, _ok = _ridge(m, a, b)
-        # ⚠ **梁間が類型の実数を大きく超える棟に印を出す**(2026-09-06 考証方)。
-        #   台帳にある梁間の実数は [西川1959]A の長屋(身舎2.5間+庇1間)だけで、
-        #   12間 はその 3.4倍。⛔ 幾何は動かさない — **ユーザー裁定待ち**。
-        if dd >= MOYA_WARN:
-            ri += ("<br>⚠ <b>一枚屋根は類型外【B】・裁定待ち</b>"
-                   "(<code>_pending.yane_moya</code>)")
-        rows.append((m["name"], "u %g間 × v %g間" % (a, b),
-                     "<b>%d × %d 間</b>" % (w, dd), rg, ri,
-                     "<code>Own.GotenRoofIrimoya(%d, %d)</code>" % (w, dd)))
-    for m in d["munes"]:
-        if m.get("goten"):
-            continue
-        a = int(round(m["u1"] - m["u0"]))
-        b = int(round(m["v1"] - m["v0"]))
-        w, dd = max(a, b), min(a, b)
-        rf = m.get("roof") or {}
-        if rf.get("kata"):
-            call = "<b>%s</b>【%s】%s" % (rf["kata"], rf.get("cert", "?"),
-                                         ("・頂点は" + rf["chodai"]) if rf.get("chodai") else "")
-        else:
-            call = "⚠ 型が指図に無い【?】 — <code>_pending.yanekata</code>"
-        if rf.get("ridgeH") is not None:
-            ht = "棟高 <b>%.2f</b> / 軒高 %.2f【%s】" % (rf["ridgeH"], rf["eaveH"],
-                                                       rf.get("cert", "?"))
-        elif "寄棟" in str(rf.get("kata", "")):
-            ht = ("<code>Goten.RoofYosemune_(%d, %d)</code> ⭕ 焼成済(staging)" % (w, dd))
-        else:
-            ht = "⚠ 入母屋なら <code>Goten_Roof_Irimoya_%dx%dken.fbx</code>" % (w, dd)
-        rg, ri, _ok = _ridge(m, a, b)
-        # ⚠ 印は御殿の棟だけでなく**梁間で決める** — 表役所(10×10)も同じ situation なので、
-        #   ここにも出す(⛔ 表と `_pending.yane_moya` の書きぶりを食い違わせない)。
-        if dd >= MOYA_WARN and rf.get("ridgeH") is None:
-            ri += ("<br>⚠ <b>一枚屋根は類型外【B】・裁定待ち</b>"
-                   "(<code>_pending.yane_moya</code>)")
-        rows.append((m["name"] + "(<b>御殿でない</b>)", "u %g間 × v %g間" % (a, b),
-                     "<b>%d × %d 間</b>" % (w, dd), rg,
-                     ri if rf.get("ridgeH") is None else
-                     ("棟高 <b>%.2f</b> / 軒高 %.2f【%s】"
-                      % (rf["ridgeH"], rf["eaveH"], rf.get("cert", "?"))), call))
-    return _tw(("棟", "足形", "桁行 × 梁間", "<b>大棟の向き</b>", "梁間 → 棟の起り",
-                "呼び出し / 屋根の型"), rows) + (
-        "<p class='cap'>⭐ <b>大棟は桁行(長辺)方向に架け、棟高は梁間から決まる</b>【確度U】。"
-        "⚠ <b>典拠台帳に ID は無い</b> — 部材キットの規約"
-        "(<code>GotenRoofIrimoya</code> の「<code>wKen</code> は桁行(大棟の走る側)/ "
-        "<b>wKen ≥ dKen で呼ぶ</b>」)が同じことを言うが、それは部材の作法であって史料ではない。"
-        "⚠ <b>2026-09-06 の普請検査で、居間棟(16×12間)の大棟が 12間 側に架かり、"
-        "16間 を梁間で飛ばして棟高 10.3m になっていた</b>(奥 9.8・玄関 9.3・書院 7.3 より高い＝"
-        "中奥が御殿でいちばん高い姿)。⛔ <b>向きを実装に選ばせない</b> — "
-        "<code>munes[].roof.ridge</code> が正典。"
-        "⭕ 起りは <b>梁間 ÷ 2 × 瓦勾配 %s</b> の見込み【P】で、"
-        "⛔ <b>焼けた屋根部材の実測があるときはそちらが正</b>(軒高を含まない値なので棟高そのものではない)。"
-        "⭕ 正方形の棟(玄関 10×10・表役所 10×10)は大棟が長さ 0 に潰れるので<b>該当なし</b>。</p>"
-        % (("%.4f" % kb) if kb else "⚠ const に無い")) + (
-        "<p class='cap'>⚠⚠ <b>梁間 %g間 以上を一枚の小屋組で飛ばすのは類型外【B】</b>"
-        "(2026-09-06 考証方)— 台帳にある梁間の実数は [西川1959]A の長屋"
-        "(<b>身舎 2.5間 + 庇 1間</b>)だけで、12間 はその 3.4倍。"
-        "[二条城大広間]A の一棟平均 166坪 に対し居間棟は 192坪。"
-        "<b>屋根の高さは格の表示</b>なので、梁間を飛ばして棟を高くすると格が跳ねる。"
-        "⭕ 処方は<b>「身舎+下屋」</b>(入側を下屋で架けて梁間を割る)【B】。"
-        "⛔⛔ <b>身舎を何間に取るか・雁行で割るか中庭を抱くかは意匠【?】= ユーザー裁定</b>"
-        "(<code>_pending.yane_moya</code>)。"
-        "⛔ <b>いまは棟も屋根も動かさない</b> — 現行の実装との突き合わせを保つため。"
-        "⚠⚠ <b>印の範囲は確認待ち</b> — 考証方が名指ししたのは<b>3棟</b>(居間・奥・台所)だが、"
-        "<b>大棟の向きを正した後の梁間は 居間 12 / 奥 11 / 台所 10 間で「12間」ではなく</b>、"
-        "同じ下限では<b>玄関・表役所(10×10)も掛かる</b>。⛔ 指図方では範囲を決めない。</p>"
-        % MOYA_WARN) + (
-        "<p class='cap'>⭐ <b>`goten: false` の棟(表役所・厩)の屋根は `munes[].roof` に持つ。</b>"
-        "<b>表役所は寄棟(方形造)【U】</b> — 足形が 10×10間 の正方形なので寄棟は幾何的に"
-        "大棟を持てず方形造(宝形)になり、頂点は露盤(2026-09-06 考証方)。"
-        "⚠ <b>2026-09-04 の実装は入母屋 10×10 を当てていた</b> — 指図に無い判断だったので"
-        "実装の側を直すこと。<b>厩は棟高 5.42 / 軒高 2.35</b>(2026-09-06 部材方の案B)で、"
-        "⭕ <b>格を分けるため表長屋(棟高 5.509)より低い</b>。"
-        "⚠ 厩の<b>型</b>はまだ「板壁・桟瓦」【型=B / 姿=U】までで、"
-        "切妻か寄棟かは決まっていない(<code>_pending.yanekata</code>)。"
-        "⛔ 実装で型を決めない。</p>") + (
+    for m in sorted(d["munes"], key=lambda q: (not q.get("goten"), q["name"])):
+        a = m["u1"] - m["u0"]
+        b = m["v1"] - m["v0"]
+        r0, s0, r1, s1 = moya_rect(d, m)
+        nm = m["name"] + ("" if m.get("goten") else "(<b>御殿でない</b>)")
+        # ⚠ 入側を持たない棟(厩)に身舎を出さない — 引き算しただけの数字は意味を持たない
+        moya = ("%.4g × %.4g間" % (r1 - r0, s1 - s0)
+                if (m.get("goten") or (m.get("roof") or {}).get("banded"))
+                else "—(<b>入側を持たない</b>)")
+        rows.append((nm, "u %.4g間 × v %.4g間" % (a, b), moya,
+                     _band_desc(d, m), _tani_desc(d, m), _ridge(m, a, b), _h(m), _call(m)))
+    return _tw(("棟", "足形", "身舎", "<b>帯</b>", "<b>谷</b>", "大棟の向き",
+                "<b>棟高</b>", "屋根の型 / 呼び出し"), rows) + (
+        "<p class='cap'>⭐⭐ <b>2026-09-06 ユーザー裁定=案C — 身舎を平行な帯に割り、"
+        "帯の境は谷で受ける。</b>対象は5棟(居間・奥・台所・玄関・表役所)。"
+        "⛔ <b>足形・室割り・廊下・御錠口は一つも動いていない</b> — 動いたのは屋根の層だけ。"
+        "⭕ 割り付けは <b>身舎で %.4g間 を目標に均等割り・許容 %.4g〜%.4g間・"
+        "帯数は許容に収まる最小の整数</b>(<code>const.moyaBand</code>)で、"
+        "帯数・帯の身舎・棟高・谷の位置は<b>すべて足形からの従属値</b>(⛔ 手で書かない)。"
+        "⭕ <b>身舎 = 足形 − 入側 %.4g間 × 2</b>(2026-08-14 ユーザー裁定=外周に1間)。"
+        "⛔ <b>帯の境に入側を作らない</b> — 背中合わせの2間廊下になるので、境は谷。</p>"
+        % (mb.get("target", 0), mb.get("min", 0), mb.get("max", 0), mb.get("irikawa", 0))) + (
+        "<p class='cap'>⚠⚠ <b>帯幅 %.4g間 は恒久的に【確度U】。</b>"
+        "⛔ <b>ユーザーに照会済みで、御殿の差図の心当たりは無い(2026-09-06)。</b>"
+        "台帳にある梁間の実測は<b>門・長屋の4件だけ</b> — [西川1959]A「三間梁以下+庇一間」/ "
+        "[根岸家長屋門修理報告書]A 3間 / [西澄寺武家屋敷門]A 2.5間 / [山脇武家屋敷門]A 4.7m で、"
+        "<b>本体 2.5〜3間・3間を超える例はゼロ</b>。"
+        "<b>御殿の身舎の梁間は台帳にもユーザーの手元にも無い</b>ので、"
+        "⛔ <b>U から上がる見込みは無い(再照会しない)</b>。"
+        "⚠ 前巡の「3〜5間なら類型と矛盾しない【B】」は<b>考証方自身が【U】へ訂正した</b> — "
+        "確度Bで読まないこと。"
+        "⚠ [西川1959]A の原文は<b>「片側に入側」</b>で、<b>四周に1間回すのは裁定であって"
+        "史料ではない</b>【U】。</p>" % mb.get("target", 0)) + (
+        "<p class='cap'>⭐ <b>棟高は「軒高 %.4g + 帯の身舎 ÷ 2 × 江戸間 × 瓦勾配 %s」</b>。"
+        "⛔ <b>足形の梁間で計算しない</b> — 帯に割った意味(棟を高くしない)が消える。"
+        "⚠ <b>軒高 %.4g は設計値から導けない</b>【U・図示のための概略】ので "
+        "<code>const.gotenEave</code> に置き、<b>同じ数字を持つ断面の <code>eaveAbove</code> と"
+        "一致するかを <code>band_check</code> が毎回測る</b>(規則19)。"
+        "⚠ <code>kawaraKobai</code> %s 自体も【U】 — [西川1959] の6寸は<b>長屋</b>の値で、"
+        "御殿の屋根へそのまま外挿できない。"
+        "⛔ <b>焼けた屋根部材の実測があるときはそちらが正</b>。</p>"
+        % (ge or 0, ("%.4f" % kb) if kb else "⚠ const に無い", ge or 0,
+           ("%.4f" % kb) if kb else "—")) + (
+        "<p class='cap'>⭕ <b>谷は帯の境ごとに1本、大棟と平行</b>(松江松平の「軒谷」型)。"
+        "谷樋は<b>中央から両端の軒先へ %s で振り分けて落とし、縦樋を立てない</b>。"
+        "⚠⚠ <b>谷樋の作法は【P=一般類型】で、典拠台帳に ID は無い</b> — "
+        "⛔ 史料の裏づけがあるかのように書かない。</p>"
+        % (("1/%d" % round(1.0 / C["taniFall"])) if C.get("taniFall") else "⚠ 未定")) + (
+        "<p class='cap'>⛔ <b>帯に割らない棟は名指しの例外だけ</b>"
+        "(<code>const.moyaBand.exempt</code>): <b>%s</b>。"
+        "⚠ <b>厩は棟高 5.42 / 軒高 2.35</b>(2026-09-06 部材方の案B)で、"
+        "⭕ 格を分けるため表長屋(棟高 5.509)より低い。"
+        "⚠ 厩の<b>型</b>はまだ「板壁・桟瓦」【型=B / 姿=U】までで、切妻か寄棟かは"
+        "決まっていない(<code>_pending.yanekata</code>)。⛔ 実装で型を決めない。</p>"
+        % " / ".join(mb.get("exempt", []) or ["—"])) + (
         "<p class='cap'>⛔ <b>寸法を指図に手で並べない</b> — 棟を動かせば屋根も変わるので、"
-        "この表は <code>munes</code> から毎回組む。⚠ <b>桁行 ≥ 梁間 で呼ぶ</b>"
-        "(足りない向きで呼ぶと大棟が短辺に架かる)。⚠ <b>屋根の外形は間数より 2.14m 大きい</b>"
-        "(軒の出 0.90 が四周に付く)— <b>棟の壁面で合わせない</b>。"
+        "この表は <code>munes</code> から毎回組む。⚠ <b>桁行 ≥ 梁間 で呼ぶ</b>。"
+        "⚠ <b>屋根の外形は間数より 2.14m 大きい</b>(軒の出 0.90 が四周に付く)— "
+        "<b>棟の壁面で合わせない</b>。⛔ <b>隣り合う帯の軒どうしを重ねない</b> — 境は谷で受ける。"
         "無い寸法は <code>blender --background --python Tools/Blender/build_goten_roof.py -- "
-        "&lt;桁行m&gt; &lt;梁間m&gt; Goten_Roof_Irimoya_&lt;w&gt;x&lt;d&gt;ken</code>。</p>")
+        "&lt;桁行m&gt; &lt;梁間m&gt; &lt;名&gt;</code>。</p>")
 
 
 def buzai_table(d):
@@ -8500,8 +8792,11 @@ def niwa_impl_table(d):
           "noRecarve": "⛔ `Recarve` / `RestoreTerrain` を実行しない",
           "terrainGrid": "地形の格子と池の深さ",
           "noInvent": "⛔ 据え位置を実装で発明しない",
-          "stage": "Stage と順序"}
-    ORDER = ["stage", "waterBaker", "terrainGrid", "noRecarve", "noInvent"]
+          "stage": "Stage と順序",
+          # ⭐ 2026-09-06: 街路・門外の地盤をどちらの正本から読むか(棟梁の第4回の差し戻し)。
+          #   ⛔ 生の鍵名を出さない — 何の申し合わせか一行で読めるようにする(規則16)。
+          "demSource": "⚠ 街路・門外の地盤は現地形 `doi_dem.json` から読む"}
+    ORDER = ["stage", "waterBaker", "terrainGrid", "noRecarve", "noInvent", "demSource"]
     rows = [(JA.get(k, k) + "<br><code>%s</code>" % k, im[k])
             for k in ORDER if k in im]
     rows += [(JA.get(k, k) + "<br><code>%s</code>" % k, im[k])
@@ -8826,6 +9121,9 @@ GEN_FIELDS_IF = {
 #   掛からない。⛔ 「生成器が上書きするから腐らない」で済ませない — 往復で突き合わせる。
 GEN_FIELDS_NEST = {
     "gardens": {"migiwa": ("bedY",)},
+    # ⭐ **身舎の帯**(2026-09-06 ユーザー裁定=案C)。⛔ 帯数・帯の身舎・棟高・谷の位置は
+    #   すべて `const.moyaBand` と足形からの従属値。手で書いた値が残っていたら往復試験が拾う。
+    "munes": {"roof": ("bands", "tani")},
 }
 
 
@@ -8837,6 +9135,7 @@ def pipeline(x):
     (2026-08-25 検図14巡)。**同じ手順を二箇所に書かない** — 台本はこれを import する。
     """
     x = fix_obb_aabb(x)
+    x = fix_bands(x)                # 身舎の帯(帯数・帯の身舎・棟高・谷)
     x = fix_gardens(x)              # 庭の従属値(池床)
     x = fix_kaidans(x)
     x = fix_walls(x, load_terrain(os.path.join(DOC, "doi_edo_dem.json")))
@@ -8850,6 +9149,23 @@ def pipeline(x):
     # ⚠ 露出の分布は**開口が確定した後**に測る(gapHalf が同じパスで決まるため)
     x = fix_wall_exposure(x, load_terrain(os.path.join(DOC, "doi_edo_dem.json")))
     return x
+
+
+def _numnorm(q):
+    """比較のために **int と float を同じ物に揃える**(入れ子も辿る)。
+
+    ⚠ 書き戻しの `dump` は平坦な数値配列を `%g` で刷るので、`58.0` は `58` として
+    読み直される。⛔ 型の違いだけで往復試験が鳴る状態にしない。
+    """
+    if isinstance(q, bool):
+        return q
+    if isinstance(q, (int, float)):
+        return round(float(q), 6)
+    if isinstance(q, list):
+        return [_numnorm(x) for x in q]
+    if isinstance(q, dict):
+        return dict((k, _numnorm(v)) for k, v in q.items())
+    return q
 
 
 def roundtrip_check(raw, pipeline):
@@ -8920,9 +9236,20 @@ def roundtrip_check(raw, pipeline):
                     continue
                 for k in keys:
                     a9, b9 = o[sk].get(k), r9[sk].get(k)
-                    if a9 is None or b9 is None or abs(float(a9) - float(b9)) > 1e-6:
+                    # ⭐ **数でない欄も突き合わせる**(2026-09-06)。⚠ 従前は `float()` 一本で、
+                    #   `bands` / `tani` のような**入れ子の辞書**を持たせた瞬間に例外か
+                    #   偽の不一致になった。⛔ 数だけを比べる前提を残さない。
+                    if isinstance(a9, (int, float)) and isinstance(b9, (int, float)) \
+                            and not isinstance(a9, bool) and not isinstance(b9, bool):
+                        if abs(float(a9) - float(b9)) > 1e-6:
+                            bad.append("%s %s.%s.%s 正典=%s 組み直し=%s"
+                                       % (coll, o["name"], sk, k, a9, b9))
+                    elif json.dumps(_numnorm(a9), sort_keys=True, ensure_ascii=False) != \
+                            json.dumps(_numnorm(b9), sort_keys=True, ensure_ascii=False):
                         bad.append("%s %s.%s.%s 正典=%s 組み直し=%s"
-                                   % (coll, o["name"], sk, k, a9, b9))
+                                   % (coll, o["name"], sk, k,
+                                      json.dumps(a9, ensure_ascii=False)[:80],
+                                      json.dumps(b9, ensure_ascii=False)[:80]))
     checks = list(GEN_FIELDS.items()) + [(c, k) for c, (p, k) in GEN_FIELDS_IF.items()]
     for coll, keys in checks:
         by = dict((o["name"], o) for o in rebuilt.get(coll, []))
@@ -9030,7 +9357,7 @@ def main():
         print("   ", b)
     pbad = (plane_check(d) + inubashiri_check(d) + opening_fit_check(d) + refs_check(d)
             + norms_check(d) + perimeter_check(d) + perimeter_closure_check(d)
-            + mune_gap_check(d)
+            + mune_gap_check(d) + band_check(d)
             + clearance_check(d) + rails_check(d)
             + ramp_check(d) + completeness_check(d) + program_check(d) + gate_overlap_check(d) + vocab_check(d)
             + terrace_overhang_check(d) + setchin_check(d)
@@ -9056,6 +9383,14 @@ def main():
     print("── 庭方へ差し戻す点(指図方では直せない): %s"
           % ("**0 件**" if not tbad else "⚠ %d 件" % len(tbad)))
     for b in tbad:
+        print("   ", b)
+    # ⭐ **屋根の意匠の差し戻しも同じ扱い**(2026-09-06 ユーザー裁定=案C)。
+    #   ⛔ 面のはみ出し検査と混ぜない — 混ぜると「指図が不成立」に見える。
+    #   ⛔ 0件でも件数を出す(0件と未実行を見分けられなくしない)。
+    rbad = band_todo(d)
+    print("── 屋根で普請奉行/ユーザーの裁定を待つ点(指図方では決められない): %s"
+          % ("**0 件**" if not rbad else "⚠ %d 件" % len(rbad)))
+    for b in rbad:
         print("   ", b)
     nbad = (neighbour_wall_check(d, load_terrain(os.path.join(DOC, "doi_edo_dem.json")),
                                  load_terrain(os.path.join(DOC, "doi_dem.json")))
@@ -9134,6 +9469,8 @@ def main():
                '<span style="color:var(--take)">┄ 竹垣(法肩)</span>'
                '<span style="color:var(--ishi)">┄ 郭の土留め</span>'
                '<span>▪ 御殿の棟 ／ ▫ 付属屋</span>'
+               '<span style="color:var(--shu)">┅ 帯の大棟</span>'
+               '<span style="color:var(--take)">━ 谷(帯の境)</span>'
                '<span style="color:var(--shu)">● 表門 ／ ○ 御成門 ／ ■ 隅櫓 ／ ┄ 断面</span>',
         cap="<b>敷地の面は自然の平場から採る。</b>造成も囲いも面から決め、囲いの天端=面の高さ。"
             "面の高さは自然地形の段(ベンチ)に載せて盛土を抑える。"
@@ -9659,8 +9996,18 @@ def main():
     if "bom" in d:
         plate(h, nx(), "部材表", "在庫は docs/asset-catalog.md 照会済み。新造は edo-buzai(Blender)")
         h.append(bom_table(d))
-        h.append("<h3>御殿の屋根 — 要る寸法(棟から機械で出す)</h3>")
+        h.append("<h3>御殿の屋根 — 帯の割り付けと要る寸法(棟から機械で出す)</h3>")
         h.append(roof_table(d))
+        # ⭐ **意匠の差し戻しは図に出す**(規則19)。⛔ stdout に閉じ込めない。
+        _bt = band_todo(d)
+        h.append('<div class="box" style="border-color:var(--shu)"><h3>'
+                 '⚠ 屋根について普請奉行/ユーザーの裁定を待っている点: %s</h3>%s</div>'
+                 % (("<b>0 件</b>" if not _bt else "<b>%d 件</b>" % len(_bt)),
+                    ("<p class='cap'>⭕ 無し。</p>" if not _bt else
+                     "<ol>" + "".join("<li>%s</li>" % inline(q) for q in _bt) + "</ol>"
+                     + "<p class='cap'>⛔ <b>これらは意匠なので指図方では決められない</b>"
+                     "(規則17)。⛔ <b>実装で埋めない。</b>⭕ 裁定が付くまで"
+                     "<b>屋根部材を焼かない</b> — 割り付けが動くと寸法がやり直しになる。</p>")))
         h.append("<h3>部材方(edo-buzai)への依頼票</h3>")
         h.append(buzai_table(d))
         h.append("</div>")

@@ -2256,7 +2256,7 @@ def sumi_spikes(d, o):
     """**隅の飛び出し**を線分[(軒先線の隅, 先端)] ×4 で返す[間]。無ければ空。
 
     ⚠ `noki.sumi` は**局所の軸ごとの増分**。⭐ **先端の向きは `noki.sumiKata` が決める**
-      (2026-09-07 検図方の裁定=型で分ける):
+      (2026-09-07 検図方の起案=型で分ける・採用=普請奉行):
         `"隅棟"`   … 桁行へ `sumi`・梁間へ `sumi`(対角の実長は `sumi`×√2)。入母屋・寄棟
         `"破風板"` … **梁間へ `sumi` だけ**。⛔ 切妻の桁行へは出ない(妻は破風板で納まる)
       ⛔ 対角の長さとして読まない — bbox が片側 `sumi` だけ大きくなる、という実測に合わせてある。
@@ -2363,7 +2363,7 @@ def floor_abs(d, o):
     return o["y"] + d["const"]["gotenFloor"]
 
 
-def mune_nokisaki(d):
+def mune_nokisaki(d, m=None, coord=None):
     """**帯割りの棟の軒先の高さ(床上)**[m] — **従属値**。⛔ 欄で持たない。
 
     ⛔⛔ **`const.gotenEave` 3.400 は棟の軒先ではない。**あれは**帯の軒桁**(谷が載る高さ)で、
@@ -2372,10 +2372,32 @@ def mune_nokisaki(d):
     ⭕ 入側と軒の出は**一枚の流れ**が覆う(`const._gesyaKobai`)ので勾配は `gesyaKobai`。
       ⚠ 部材方の式は `kawaraKobai` と書いたが、いま両者は同値なので数値は変わらない。
     ⭕ **部材の実測**(`const.muneNokisaki`)との一致は `roka_roof_check` が毎回測る。
+
+    ⭐⭐ **軒の出は辺の向きごとに違う**(2026-09-08 検図方 低3)。⛔⛔ **`const.nokiDe` の
+      スカラーで全周を測らない** — ⚠ **断面(`mune_roof_pts`)は辺ごとの `noki_side` で
+      描いている**ので、スカラーで条を立てると**図と条が別々の物差し**になり、
+      ⛔ **照合相手もスカラーなので構造的に鳴らない**。
+    ⇒ `m`(棟)と `coord`(**廊下が突き付く面の軸**)を渡すと、**その面の軒の出**で測る。
+      ⛔ 省いたときの `const.nokiDe` は**棟を特定しない場面の呼び値**であって、
+      条や表では**必ず面を指定して呼ぶ**こと。
     """
     C = d["const"]
     mb = C.get("moyaBand") or {}
-    return C["gotenEave"] - (mb["irikawa"] * C["ken"] + C["nokiDe"]) * C["gesyaKobai"]
+    de = C["nokiDe"] if (m is None or coord is None) else noki_side(d, m, coord)
+    return C["gotenEave"] - (mb["irikawa"] * C["ken"] + de) * C["gesyaKobai"]
+
+
+def butt_axis(a, b):
+    """`a` と `b` が**どの軸の面で突き付いているか**(`"u"` / `"v"`)。⛔ 芯で決めない。
+
+    ⭐ 接している(`obb_gap` = 0)二つの矩形について、**重なりの無いほうの軸**が接触面の法線。
+      ⛔ 両軸とも重なる(=めり込み)ときは `None`。
+    """
+    for ax, (a0, a1, b0, b1) in (("u", (a["u0"], a["u1"], b["u0"], b["u1"])),
+                                 ("v", (a["v0"], a["v1"], b["v0"], b["v1"]))):
+        if a1 <= b0 + 1e-9 or b1 <= a0 + 1e-9:
+            return ax
+    return None
 
 
 def link_floor_abs(d, l, other):
@@ -2411,7 +2433,11 @@ def tani_pair(d, a, b, st=None):
       ① **谷が閉じる**  … 廊下の軒先 ≧ 棟の軒先 + `const.taniSagari`
          ⛔ 割ると廊下の瓦が**棟の軒先の瓦へ食い込む**(C# の現行値 1.55 がこれ)。
       ② **大棟が低い**  … 廊下の軒先 + `const.rokaOmuneRise` < **帯の軒桁**
-         ⛔ 超えると谷が棟の入側の内で閉じず、廊下の軒が棟の軒より高く見える。
+         ⛔ 超えると**谷が棟の入側の内で閉じない**。
+    ⛔⛔ **「廊下の軒が棟の軒より高く見えるのを避ける」は条②の理由ではない** —
+      **条①が「廊下の軒先 ≧ 棟の軒先 + 谷の下がり」を要求する**以上、**成立範囲のどの値でも
+      廊下の軒先は棟の軒先より高い**(2026-09-08 検図方)。⛔ 二つを混ぜて語らない。
+    ⭐ **棟の軒先は突き付く面の軒の出で測る**(⛔ `const.nokiDe` のスカラーで測らない)。
     ⚠ **廊下の床は突き付く相手ごとに違う**(階段廊下は段で切って2枚)⇒ `link_floor_abs`。
     ⛔ **値の入らない組は 0 件で素通りさせず**、理由つきで名指しで積む(`st["taniPend"]`)。
     """
@@ -2435,7 +2461,8 @@ def tani_pair(d, a, b, st=None):
                                       "`const.rokaEave` / `taniSagari` / `rokaOmuneRise` が未決"))
             continue
         ev = fl + rev                                       # 廊下の軒先(絶対)
-        ns = hi["y"] + C["gotenFloor"] + mune_nokisaki(d)   # 棟の軒先(絶対)
+        bx = butt_axis(lo, hi)                              # 突き付く面の軸
+        ns = hi["y"] + C["gotenFloor"] + mune_nokisaki(d, hi, bx)   # 棟の軒先(絶対)
         kt = hi["y"] + C["gotenFloor"] + C["gotenEave"]     # 帯の軒桁(絶対)
         if ev < ns + sg - 1e-9:
             out.append("[谷が閉じない] **%s の軒先 %.3f が、%s の軒先 %.3f + 谷の下がり %.3f "
@@ -2443,9 +2470,67 @@ def tani_pair(d, a, b, st=None):
                        "【`const._rokaEave`】" % (nl, ev, nh, ns, sg, ns + sg))
         if ev + rr >= kt - 1e-9:
             out.append("[大棟が高い] **%s の大棟の天端 %.3f が、%s の帯の軒桁 %.3f を"
-                       "下回らない** — 谷が棟の入側の内で閉じず、廊下の軒が棟の軒より"
-                       "高く見える【`const._rokaEave`】" % (nl, ev + rr, nh, kt))
+                       "下回らない** — **谷が棟の入側の内で閉じない**"
+                       "【`const._rokaEave`】" % (nl, ev + rr, nh, kt))
     return out
+
+
+def tani_window(d):
+    """**廊下の軒先が採りうる範囲**(下限, 上限)[床上 m]。決まらなければ `(None, None)`。
+
+    ⭐⭐ **母集団から出す**(2026-09-08)。⛔⛔ **スカラーの `const.nokiDe` で一つの数を出さない** —
+      棟の軒先は**突き付く面の軒の出**で決まるので、⭕ **下限は「いちばん高い棟の軒先 + 谷の下がり」**。
+    ⭕ 上限は **帯の軒桁 − 廊下の大棟の立ち上がり**(棟によらない)。
+    """
+    C = d["const"]
+    sg, rr = C.get("taniSagari"), C.get("rokaOmuneRise")
+    if None in (sg, rr) or C.get("gotenEave") is None:
+        return (None, None)
+    ns = []
+    M = roof_objs(d)
+    for i in range(len(M)):
+        for j in range(len(M)):
+            lo, hi = M[i], M[j]
+            if i == j or lo.get("roofRef") != "roka" or hi.get("roofRef") == "roka":
+                continue
+            if obb_gap(lo, hi) > 1e-9 or not (hi.get("roof") or {}).get("banded"):
+                continue
+            ns.append(mune_nokisaki(d, hi, butt_axis(lo, hi)))
+    if not ns:
+        return (None, None)
+    return (max(ns) + sg, C["gotenEave"] - rr)
+
+
+def tani_margin_check(d):
+    """**中点を採ったことが効いているか**(2026-09-08 検図方 中2)。
+
+    ⛔⛔ **下限を決める `const.taniSagari` は P→U の外挿**である(斜めに下る谷の樋の実物が無い
+      ⇒ `_pending.buzaijissoku` ⑷)。⚠ **実測が入った瞬間に下限が動く**ので、
+      ⛔ **下限ぎりぎりの値を「成立している」と読まない**。
+    ⭕ 二条:
+      ① **`const.rokaEave` が範囲の中点**であること(左右の余裕が `tol` の内で等しい)。
+      ② **谷の下がりが倍になっても条①を割らない**こと(=下限側の余裕 ≧ `taniSagari`)。
+    ⛔ **文章で「余裕がある」と書かない** — ここが毎回測る。
+    """
+    C = d["const"]
+    rev, sg = C.get("rokaEave"), C.get("taniSagari")
+    lo, hi = tani_window(d)
+    if None in (rev, sg, lo, hi):
+        return ["廊下の軒先の成立範囲が出せない — ⛔ 0件で素通りさせない"
+                "(`const.rokaEave` / `taniSagari` / `rokaOmuneRise` / `gotenEave`)"]
+    bad = []
+    if lo >= hi:
+        return ["**廊下の軒先の成立範囲が空** — 下限 %.4f ≧ 上限 %.4f" % (lo, hi)]
+    mid = (lo + hi) / 2.0
+    if abs(rev - mid) > 0.001:
+        bad.append("**`const.rokaEave` %.4f が成立範囲の中点 %.4f から %.4f ずれている** — "
+                   "⭕ 中点にすると条①側 %.4f / 条②側 %.4f の余裕が等しくなる"
+                   "【`const._rokaEave`】" % (rev, mid, abs(rev - mid), rev - lo, hi - rev))
+    if rev - lo < sg - 1e-9:
+        bad.append("**谷の下がり `const.taniSagari` %.4f が倍になると条①を割る** — "
+                   "いまの下限側の余裕は %.4f しかない。⛔ **P→U の外挿の値**に"
+                   "ぎりぎりで寄りかからない(`_pending.buzaijissoku` ⑷)" % (sg, rev - lo))
+    return bad
 
 
 def roka_roof_check(d):
@@ -2469,7 +2554,16 @@ def roka_roof_check(d):
                        "(⛔ 0件で素通りさせない)" % k)
     ms = C.get("muneNokisaki") or {}
     if ms and C.get("gotenEave") is not None:
-        der = mune_nokisaki(d)
+        # ⭐ **帯に割る棟の四周**で測る(⛔ `const.nokiDe` のスカラー1点で済ませない)。
+        ders = sorted(set(round(mune_nokisaki(d, m, ax), 6)
+                          for m in d["munes"] if (m.get("roof") or {}).get("banded")
+                          for ax in ("u", "v")))
+        der = max(ders) if ders else mune_nokisaki(d)
+        if len(ders) > 1:
+            bad.append("**棟の軒先が面ごとに違う** — %s。⭕ 条は面ごとに測っているが、"
+                       "**部材の実測 `const.muneNokisaki` は1値**なので、"
+                       "⛔ どの面の実測かを `const._muneNokisaki` に書くこと"
+                       % " / ".join("%.4f" % q for q in ders))
         jis = ms["kawaraBottom"] + ms["tarekomi"]
         if abs(der - jis) > ms["tol"] + 1e-12:
             bad.append("**棟の軒先が設計と部材で食い違う** — 従属値 %.4f"
@@ -2567,12 +2661,16 @@ def roka_cut_check(d):
 
     ⭐⭐ **`roofSheets.cutAt` は「屋根を切る柱通り」= 段の上端**(高い側の踏面の縁)で、
       段はそこから**低い端(`u0`/`v0`)へ向かって降りる**。⛔ 芯や中央で持たない(規則5)。
-    ⭕ **三条**(裁定の前から `_roofSheets` に書いてあった制約をそのまま機械にした):
+    ⭕ **四条**(①〜③は裁定の前から `_roofSheets` に書いてあった制約をそのまま機械にした):
       ① **柱通りの上** … 端からの間数が整数(⛔ 半間の位置で垂木を切らない)
       ② **両端の棟から1間以上内** … 割ると枚が消える
       ③ **段の走りが収まる** … `steps` × `const.fumi` が**切れ目と低い端のあいだ**に入る
          (⛔ 収まらないと段が低い側の棟へ食い込む)
-    ⛔ **段の無い廊下に位置を書かない**(第4の条)— 谷を増やすことになる。
+      ④ **頭が通る** … **段の上端の踏面から、低い側の枚の桁の天端まで ≧ `const.rokaZukou`**
+         ⭐⭐ 2026-09-08 検図方 低1。⚠ **切れ目は段の上端**なので、**段の全長は低い側の枚の下に
+         入る** — ⛔ そこの有効高を誰も測っていなかった。⚠⚠ **部材方が「潜り」を棄却した基準
+         (かがまないと通れない)が、当図に一本も無かった**(⇒ 次に同じ案が出ても数で返せない)。
+    ⛔ **段の無い廊下に位置を書かない**(第5の条)— 谷を増やすことになる。
     ⚠ **位置が未決の廊下はここでは鳴らさない** — 行き先は `band_todo`(`_pending.rokakaidan`)。
     """
     C = d["const"]
@@ -2603,21 +2701,48 @@ def roka_cut_check(d):
                        "切れ目 %s=%.4g と低い端 %.4g のあいだ %.3f間 に収まらない** — "
                        "⛔ 段が低い側の棟へ食い込む"
                        % (nm, run, l.get("steps") or 0, C["fumi"], ax, cut, lo, cut - lo))
+        zk = roka_zukou(d, l)
+        lim = C.get("rokaZukou")
+        if lim is None:
+            bad.append("[頭上] `const.rokaZukou`(頭上の下限)が未決 — ⛔ 0件で素通りさせない")
+        elif zk is not None and zk < lim - 1e-9:
+            bad.append("[頭上] **%s の段の上端で頭が通らない** — 踏面から低い側の枚の"
+                       "**桁の天端まで %.3fm** で、下限 %.3fm を %.3fm 割る"
+                       "(⛔ かがまないと通れない)【`const._rokaZukou`】"
+                       % (nm, zk, lim, lim - zk))
     return bad
+
+
+def roka_zukou(d, l):
+    """**段の上端での有効高**[m] — 踏面から**低い側の枚の桁の天端**まで。無ければ `None`。
+
+    ⭐ **桁の天端 = 廊下の軒先 + 平の軒の出 × `const.kawaraKobai`**(軒の出のぶん内へ入ると
+      その勾配だけ屋根が上がる)。⛔ **軒先そのものは柱の外**なので通り道の頭上ではない。
+    ⭐ 低い側の枚の床は高い側より `drop` 低いので、**有効高 = 軒先 + 桁の起り − `drop`**。
+    """
+    C = d["const"]
+    ev, kb = C.get("rokaEave"), C.get("kawaraKobai")
+    dr = l.get("drop") or 0.0
+    if None in (ev, kb) or dr <= 1e-9:
+        return None
+    de, _ke, _su = noki_of(d, l)
+    return ev + de * kb - dr
 
 
 def roka_cut_sensitivity(d):
     """**感度試験** — 段の位置を壊して三条が鳴るか。⛔ 検査を書いただけで塞いだと名乗らない。
 
-    束は5つ — ① いまの指図 → 鳴らない ② 柱通りを半間外す → **条①** ③ 高い端の棟へ寄せる →
+    束は6つ — ① いまの指図 → 鳴らない ② 柱通りを半間外す → **条①** ③ 高い端の棟へ寄せる →
     **条②** ④ 段を増やして走りを伸ばし切れ目を低い端から1間へ → **条③**
-    ⑤ 位置を消す → 三条は鳴らず、**`band_todo` が未決として2件鳴る**(⛔ 0件で素通りしない)。
+    ⑤ 位置を消す → 四条は鳴らず、**`band_todo` が未決として2件鳴る**(⛔ 0件で素通りしない)
+    ⑥ 軒先を「潜り」の時代の値へ落とす → **条④(頭上)**。
     """
     def count(e):
         out = roka_cut_check(e)
         return (len([x for x in out if x.startswith("[柱通り]")]),
                 len([x for x in out if x.startswith("[端から]")]),
                 len([x for x in out if x.startswith("[走り]")]),
+                len([x for x in out if x.startswith("[頭上]")]),
                 len([x for x in band_todo(e) if "段の位置が未決" in x]))
 
     def tweak(fn):
@@ -2641,18 +2766,25 @@ def roka_cut_sensitivity(d):
     def _none(l, sh):
         sh["cutAt"] = None
 
-    probes = [("① いまの指図", count(copy.deepcopy(d)), (0, 0, 0, 0)),
-              ("② 柱通りを半間外す", count(tweak(_half)), (2, 0, 0, 0)),
-              ("③ 高い端の棟へ寄せる", count(tweak(_hi)), (0, 2, 0, 0)),
-              ("④ 段を5段にして切れ目を低い端から1間へ", count(tweak(_long)), (0, 0, 2, 0)),
-              ("⑤ 位置を消す(未決へ戻す)", count(tweak(_none)), (0, 0, 0, 2))]
+    def _low(e):
+        # ⑥ 廊下の軒先を「潜り」の時代の値へ落とす → **条④(頭上)**が鳴る
+        e["const"]["rokaEave"] = 1.20
+        return e
+
+    probes = [("① いまの指図", count(copy.deepcopy(d)), (0, 0, 0, 0, 0)),
+              ("② 柱通りを半間外す", count(tweak(_half)), (2, 0, 0, 0, 0)),
+              ("③ 高い端の棟へ寄せる", count(tweak(_hi)), (0, 2, 0, 0, 0)),
+              ("④ 段を5段にして切れ目を低い端から1間へ", count(tweak(_long)), (0, 0, 2, 0, 0)),
+              ("⑤ 位置を消す(未決へ戻す)", count(tweak(_none)), (0, 0, 0, 0, 2)),
+              ("⑥ 軒先を「潜り」の値(1.200)へ落とす", count(_low(copy.deepcopy(d))),
+               (0, 0, 0, 2, 0))]
     bad = []
     for nm, got, want in probes:
         if [q > 0 for q in got] != [q > 0 for q in want]:
-            bad.append("%s: 条①%d件 / 条②%d件 / 条③%d件 / 未決%d件 — 期待は %s"
+            bad.append("%s: 条①%d件 / 条②%d件 / 条③%d件 / 条④%d件 / 未決%d件 — 期待は %s"
                        % ((nm,) + got + ("・".join(
                            "%s%s" % (t, "鳴る" if w else "鳴らない")
-                           for t, w in zip(("条①", "条②", "条③", "未決"), want)),)))
+                           for t, w in zip(("条①", "条②", "条③", "条④", "未決"), want)),)))
     return probes, bad
 
 
@@ -3029,15 +3161,26 @@ def rails_check(d):
     return sorted(set(bad))
 
 
+# ⭐⭐ **「欄なし」の字は一本にする**(2026-09-08 考証方 低2)。⛔⛔ **欄が無いときの既定に
+#   `?` を使わない** — `?` は「まだ主張していない(未定)」という**第6の値**で、
+#   ⚠ 既定に使うと **「欄が無い」と「未定と宣言した」が同じ字で刷られる**。
+#   ⚠ 2026-09-08 まで **`program_table` だけが `"—"`** で、同じ状態が2通りの字で出ていた。
+CERT_VOCAB = ("S", "A", "B", "P", "U", "?")
+NOFIELD = "⚠ 欄なし"
+
+
 def _certcell(o):
-    """確度の欄を刷る。⛔⛔ **欄が無いときの既定に `?` を使わない**(2026-09-07 考証方の裁定=推奨C)。
+    """確度の欄を刷る。⛔⛔ **欄が無いときの既定に `?` を使わない**(2026-09-07 考証方の推奨C(採用=普請奉行))。
 
     ⚠⚠ `?` は **「まだ主張していない(未定)」**という第6の値である。既定値に `?` を使うと、
       **「欄が無い」と「未定と宣言した」が同じ字で刷られる** — 前者は指図の欠落、
       後者は正当な状態で、⛔ **見分けが付かなくなる**。⇒ 欄が無いときは **⚠ 欄なし**。
     """
     q = (o or {}).get("cert")
-    return "⚠ 欄なし" if q in (None, "") else str(q)
+    if isinstance(q, dict):
+        # ⭕ **軸ごとの確度**(庭の点景)。⛔ 1値へ潰して刷らない
+        return "・".join("%s <b>%s</b>" % (k, v) for k, v in q.items())
+    return NOFIELD if q in (None, "") else str(q)
 
 
 def cert_rulings_table(d):
@@ -3060,11 +3203,12 @@ def cert_rulings_table(d):
                      ("<b>⭐ ユーザー裁定</b><br>" if usr else "") + r.get("decidedBy", "⚠ 未記録"),
                      r.get("certBy", "⚠ 未記録"),
                      " / ".join("[%s]" % q for q in r.get("src", [])) or "—",
+                     " / ".join("[%s]" % q for q in r.get("srcAgainst", [])) or "—",
                      r.get("why", "")))
     if not rows:
         return "<p class='cap'>⚠ <b>裁定の記録が 0 件。</b></p>"
-    return _tw(("役割", "側面", "確度", "<b>決めた者</b>", "確度を裁定した者", "典拠", "理由"),
-               rows) + (
+    return _tw(("役割", "側面", "確度", "<b>決めた者</b>", "確度を裁定した者",
+                "典拠(支え)", "⛔ 反証", "理由"), rows) + (
         "<p class='cap'>⭐ <b>⭐ 印は<b>ユーザー裁定</b>の行(<b>この表の中で %d 件</b>)</b> — "
         "⛔ <b>覆すのに普請奉行の一存では足りない</b>。"
         "⚠⚠ <b>これは邸のユーザー裁定の総数ではない</b>(2026-09-06 考証方 低2)— "
@@ -3096,21 +3240,38 @@ def program_table(d):
     CC = {"S": "var(--cut1)", "A": "var(--shu)", "B": "var(--ink-mid)",
           "P": "var(--take)", "U": "var(--fill1)", "?": "var(--ink-lo)"}
     rows = ["<table><thead><tr><th>役割</th><th>満たす物</th><th>側面</th>"
-            "<th>確度</th><th>典拠</th><th class='note'>断り</th></tr></thead><tbody>"]
+            "<th>確度</th><th>典拠(支え)</th><th>⛔ 反証</th>"
+            "<th class='note'>断り</th></tr></thead><tbody>"]
+    nag = 0
     for pg in d.get("program", []):
         asp = pg.get("aspects", [])
         for i, a in enumerate(asp):
             head = ("<td rowspan='%d'><b>%s</b></td><td rowspan='%d'><code>%s</code></td>"
                     % (len(asp), pg["role"], len(asp),
                        "</code> <code>".join(pg["by"]))) if i == 0 else ""
+            ag = a.get("srcAgainst") or []
+            nag += 1 if ag else 0
             rows.append("<tr>%s<td>%s</td>"
                         "<td style='color:%s'><b>%s</b></td><td><code>%s</code></td>"
+                        "<td><code>%s</code></td>"
                         "<td class='note'>%s</td></tr>"
                         % (head, a.get("what", ""), CC.get(a.get("cert"), "var(--note)"),
-                           a.get("cert", "—"),
+                           a.get("cert", NOFIELD),
                            "</code> <code>".join(a.get("src") or []) or "—",
+                           "</code> <code>".join(ag) or "—",
                            a.get("_", "")))
     rows.append("</tbody></table>")
+    # ⭐⭐ **支えと反証を同じ列に入れない**(2026-09-08 考証方 中2)。
+    #   ⛔⛔ 「入側を四周に1間 回すこと」は **3件の史料が反証している**のに、
+    #   その3件が「典拠」の見出しの下に刷られており、**支える典拠3件に見えていた**。
+    rows.append("<p class='cap'>⛔⛔ <b>「典拠(支え)」と「反証」を分けた</b>"
+                "(2026-09-08 考証方 中2・<b>反証を持つ側面は %d 件</b>)。"
+                "⚠⚠ <b>従前は反証も「典拠」の列に刷っていた</b> — "
+                "同じ行の断りが「3件とも取れない」と書いているのに、"
+                "<b>列の見出しが『典拠』なので支える史料3件に見えていた</b>。"
+                "⚠ <b>裁定の表の対の行は <code>src</code> を持たず「—」だった</b>ので、"
+                "<b>同じ事項が2つの表で逆に見えていた</b>。⛔ 支えと反証を同じ欄に入れない。</p>"
+                % nag)
     nt = d.get("_採らなかった役割") or {}
     if nt:
         rows.append("<h3>採らなかった役割</h3><table><thead><tr><th>役割</th>"
@@ -3462,10 +3623,15 @@ def program_check(d):
         for a in asp:
             if a.get("cert") not in CERT:
                 bad.append("役割「%s」の側面「%s」に確度が無い(規則6)" % (pg["role"], a.get("what")))
-            for sid in a.get("src", []):
+            for sid in list(a.get("src", [])) + list(a.get("srcAgainst", [])):
                 if sid not in known:
                     bad.append("役割「%s」の側面「%s」が引く `[%s]` が台帳に無い"
                                % (pg["role"], a.get("what"), sid))
+            # ⛔⛔ **支えと反証を同じ典拠で兼ねない**(2026-09-08 考証方 中2)
+            both = set(a.get("src", [])) & set(a.get("srcAgainst", []))
+            if both:
+                bad.append("役割「%s」の側面「%s」が `[%s]` を**支えと反証の両方**に置いている"
+                           % (pg["role"], a.get("what"), "] / [".join(sorted(both))))
             # ⛔ **典拠を引きながら S/A を名乗るのは、その典拠が当屋敷を直接指すときだけ**
             if a.get("cert") in ("S", "A") and not a.get("src"):
                 bad.append("役割「%s」の側面「%s」が確度 %s なのに典拠IDが無い"
@@ -3473,10 +3639,11 @@ def program_check(d):
     # ⛔ **過去の裁定を黙って巻き戻さない。** 確度が妥当かは機械では測れないが、
     #   一度下した裁定と食い違っていることは測れる(2026-08-25 考証13巡 高-1:
     #   台帳が U と裁定済みの米蔵の存在を [高知2000]A へ戻していた)。
-    idx = {}
+    idx, _ag = {}, {}
     for pg in d.get("program", []):
         for a in pg.get("aspects", []):
             idx[(pg["role"], a.get("what"))] = a.get("cert")
+            _ag[(pg["role"], a.get("what"))] = a.get("srcAgainst") or []
     # ⚠⚠ **2026-09-06 に `when` の1列を `decidedBy` / `certBy` の2列へ割ったとき、
     #   この検査の文面だけが `rl["when"]` を読んだままだった。**⛔ 食い違いを**見つけた瞬間に
     #   KeyError で落ちる**ので、鳴っても**指摘の文が出ない**(2026-09-07 の感度試験で発覚)。
@@ -3490,6 +3657,12 @@ def program_check(d):
         if key not in idx:
             bad.append("裁定「%s / %s」に対応する側面が `program` に無い(%s)"
                        % (rl["role"], rl["what"], _who(rl)))
+        elif set(rl.get("srcAgainst") or []) != set(_ag.get(key) or []):
+            bad.append("裁定「%s / %s」の**反証**が `program` の側面と食い違う — "
+                       "裁定 %s / 役割 %s(⛔ 同じ事項が2つの表で逆に見える)"
+                       % (rl["role"], rl["what"],
+                          sorted(rl.get("srcAgainst") or []) or "—",
+                          sorted(_ag.get(key) or []) or "—"))
         elif idx[key] != rl["cert"]:
             bad.append("役割「%s」の側面「%s」が確度 %s だが、裁定は %s(%s)— "
                        "巻き戻すなら `certRulings` を書き換えること"
@@ -4351,6 +4524,76 @@ def retracted_check(d, texts):
     return sorted(set(bad))
 
 
+def _kinku_scan(words, texts, strict_faces):
+    """禁句の照合の共通部。**印(⛔・撤回・…)が禁句を直接修飾しているときだけ赦す。**
+
+    ⭐ `retracted_check` と `yaku_kotoba_check` で同じ物差しを使う — ⛔ 二つ書かない。
+    """
+    MARK = ("⛔", "撤回", "誤り", "反証", "旧記", "採らない", "採用しない", "禁句",
+            "落とした", "廃した", "訂正", "失効", "二次資料", "決め直した", "改めた", "置き直した",
+            "岡部筑前守の条")
+    MARK_NEAR = 80
+    bad, marked = [], 0
+    for label, txt in texts:
+        strict = label in strict_faces
+        parts = re.split(r"\n\s*\n|(?<=。)", txt) if strict else re.split(r"\n\s*\n", txt)
+        for para in parts:
+            for w in words:
+                i = para.find(w)
+                while i >= 0:
+                    win = (para[max(0, i - MARK_NEAR):i] + para[i + len(w):i + len(w) + 24]
+                           if strict else para)
+                    if any(mk in win for mk in MARK):
+                        marked += 1
+                    else:
+                        bad.append((w, label,
+                                    ("直前 %d 文字" % MARK_NEAR) if strict else "同じ段落",
+                                    re.sub(r"\s+", " ", para[max(0, i - 40):i + len(w) + 20])))
+                    i = para.find(w, i + 1)
+    return bad, marked
+
+
+def yaku_kotoba_check(d, texts):
+    """**役の言葉づかい**の禁句照合(2026-09-08 考証方 中1)。正典は `const.yakuNoKotoba`。
+
+    ⛔⛔ **「裁定」は普請奉行/ユーザーの語**である。庭方・部材方・検図方・考証方・在庫方は
+      **「起案」**し、**採用は普請奉行**。⇒ 図と正典では「◯◯方の起案(採用=普請奉行)」と書く。
+    ⚠⚠ **語形を役名で塞ぐ網は必ず抜けられる** — ⛔ **撤回済みの言い方**「庭方の裁定」を
+      2026-09-07 に31箇所直した**その巡に、同じ形が考証方の名で入り直した**(10箇所)。
+      ⇒ ⛔ **役名を列挙しない。**
+      ⭕ **語幹1本**(`const.yakuNoKotoba.kinku`)で張る。
+    ⚠ **面は当邸の成果物だけ**(`scope`)。⛔ **台帳・メモリは別の役の正典**で当方は
+      書き換えられないので入れない(撤回の照合が台帳を段落単位でしか見ないのと同じ理屈)。
+      ⛔ **だから「この網が 0 件」を「どこにも残っていない」と読まない。**
+    ⭐⭐ **実装(`Assets/`)は棟梁の持ち場**なので、鳴っても**差し戻し枠**へ回す
+      (`handoff` の面)。⛔ **指図方が書けない面の赤で図を止めない** — ⛔ ただし
+      **黙って外しもしない**(件数は毎回刷り、行き先は `_pending.yakukotoba`)。
+    ⇒ 返り値は **(当方で直す分, 棟梁へ差し戻す分)** の2本。
+    """
+    yk = (d["const"].get("yakuNoKotoba") or {})
+    words = yk.get("kinku") or []
+    if not words:
+        return ["`const.yakuNoKotoba.kinku`(役の言葉づかいの禁句)が空 — "
+                "⛔ 0件で素通りさせない"]
+    scope = set(yk.get("scope") or [])
+    hand = set(yk.get("handoff") or [])
+    use = [(lb, tx) for lb, tx in texts if lb in scope or lb in hand]
+    if not use:
+        return (["役の言葉づかいの照合面が 0 面 — `const.yakuNoKotoba.scope` と"
+                 "照合面の名が食い違っている(⛔ 未測定を 0 件と読まない)"], [])
+    bad, marked = _kinku_scan(words, use, scope | hand)
+    d["_yakuKotobaMarked"] = marked
+
+    def _msg(w, lb, nr, ex, tail):
+        return ("役の言葉づかいの禁句「%s」が %s に残っている(%s に撤回の印が無い)— …%s…"
+                "⇒ ⭕ 「%s」へ%s"
+                % (w, lb, nr, ex, yk.get("iikae", "◯◯方の起案(採用=普請奉行)"), tail))
+    own = sorted(set(_msg(*q, "") for q in bad if q[1] in scope))
+    imp = sorted(set(_msg(*q, "(⛔ `Assets/` は棟梁の持ち場 — 指図方では直せない"
+                          "【`_pending.yakukotoba`】)") for q in bad if q[1] in hand))
+    return (own, imp)
+
+
 def declutter(items, dy=13.0, dx=90.0):
     """(x, y, text) のラベルが重ならないよう縦にずらす。
     近い段が斜めに並ぶ帯(家中長屋)で名が団子になって読めなくなる — 2026-08-23 の目視で発覚。"""
@@ -5098,35 +5341,77 @@ def section_svg(d, sec):
             sh9 = l.get("roofSheets") or {}
             cut9 = sh9.get("cutAt")
             if (cut9 is not None and abs(a3 - lo9) < 1e-9 and abs(b3 - hi9) < 1e-9):
+                # ⭐ **床は棟と同じ基準(`gotenFloor`)で描く。**⛔ 廊下だけ地盤で描かない —
+                #   ⚠ 谷は**棟の軒先と廊下の軒先の差**なので、基準がずれると図が嘘になる。
                 tr9 = d["const"]["fumi"] / d["const"]["ken"]
                 ke9 = l.get("keriActual") or 0.0
-                pts9, x9, h9 = [(b3, l["y"]), (cut9, l["y"])], cut9, l["y"]
+                y9 = l["y"] + fl
+                pts9, x9, h9 = [(b3, y9), (cut9, y9)], cut9, y9
                 for _i9 in range(l.get("steps") or 0):
                     h9 -= ke9
                     pts9.append((x9, h9))
                     x9 -= tr9
                     pts9.append((x9, h9))
-                pts9.append((a3, l["y"] - l["drop"]))
+                pts9.append((a3, y9 - l["drop"]))
                 g.append('<polyline points="%s" fill="none" stroke="var(--roka)" '
                          'stroke-width="3.2"/>'
                          % " ".join("%.1f,%.1f" % (X(q), Y(w) - 3) for q, w in pts9))
-                # 2枚の屋根(大棟の高さ)と、切れ目の位置
-                rh9 = (d["const"].get("rokaEave") or 0.0) + (d["const"].get("rokaOmuneRise") or 0.0)
-                for q0, q1, f9 in ((cut9, b3, l["y"]), (a3, cut9, l["y"] - l["drop"])):
-                    g.append(LN(X(q0), Y(f9 + rh9), X(q1), Y(f9 + rh9), "var(--roka)", 1.6))
-                g.append(LN(X(cut9), Y(l["y"] - l["drop"]), X(cut9),
-                            Y(l["y"] - l["drop"] + rh9), "var(--roka)", 1.2, dash="4 3"))
-                g.append(T(X(cut9), Y(l["y"] - l["drop"] + rh9) - 4,
+                # ⭐⭐ **2枚の屋根を「軒先 → 大棟」で描く**(2026-09-08 検図方 低4)。
+                #   ⛔⛔ **従前は大棟の水平線しか無く、軒先も谷も1本も描かれていなかった** —
+                #   ⚠ **本巡の本体は谷なのに、谷を持つ唯一の図にその谷が無かった。**
+                #   ⭕ 切り線は走りに沿う=**大棟に沿う**ので、枚の見えは
+                #   **軒先から大棟までの帯**(両端はけらばの出だけ外へ延びる)。
+                ev9 = d["const"].get("rokaEave") or 0.0
+                rr9 = ev9 + (d["const"].get("rokaOmuneRise") or 0.0)
+                _de9, ke_9, _su9 = noki_of(d, l)
+                kk9 = ke_9 / d["const"]["ken"]
+                for q0, q1, f9, e0, e1 in ((cut9, b3, y9, 0.0, kk9),
+                                           (a3, cut9, y9 - l["drop"], kk9, 0.0)):
+                    g.append('<polygon points="%s" fill="var(--ink-lo)" '
+                             'fill-opacity="0.35" stroke="var(--roka)" stroke-width="1.4"/>'
+                             % " ".join("%.1f,%.1f" % q for q in
+                                        [(X(q0 - e0), Y(f9 + ev9)), (X(q1 + e1), Y(f9 + ev9)),
+                                         (X(q1 + e1), Y(f9 + rr9)), (X(q0 - e0), Y(f9 + rr9))]))
+                    g.append(LN(X(q0 - e0), Y(f9 + ev9), X(q1 + e1), Y(f9 + ev9),
+                                "var(--roka)", 1.0, dash="3 2"))
+                g.append(T(X((cut9 + b3) / 2), Y(y9 + ev9) - 3, "軒先", "anG", "middle"))
+                g.append(LN(X(cut9), Y(y9 - l["drop"]), X(cut9),
+                            Y(y9 - l["drop"] + rr9), "var(--roka)", 1.2, dash="4 3"))
+                g.append(T(X(cut9), Y(y9 - l["drop"] + rr9) - 4,
                            "屋根の切れ目 %s=%.4g" % (ax9, cut9), "anG", "middle"))
-                g.append(T(X((a3 + b3) / 2), Y(l["y"]) - 12,
+                # ⭐⭐ **突き付けの境の谷**を両端に描く。⛔ 数字は設計値から出す(⛔ 直書きしない)。
+                sg9 = d["const"].get("taniSagari")
+                for m9 in d["munes"]:
+                    if obb_gap(l, m9) > 1e-9 or not (m9.get("roof") or {}).get("banded"):
+                        continue
+                    if m9[ax9 + "0"] >= b3 - 1e-6:
+                        xe9, f9 = b3, y9
+                    elif m9[ax9 + "1"] <= a3 + 1e-6:
+                        xe9, f9 = a3, y9 - l["drop"]
+                    else:
+                        continue
+                    ns9 = m9["y"] + fl + mune_nokisaki(d, m9, butt_axis(l, m9))
+                    sd9 = -1.0 if xe9 == a3 else 1.0
+                    g.append(LN(X(xe9), Y(ns9), X(xe9 + sd9 * 1.2), Y(ns9),
+                                "var(--shu)", 1.2, dash="3 2"))
+                    g.append(LN(X(xe9), Y(ns9), X(xe9), Y(f9 + ev9), "var(--shu)", 2.0))
+                    g.append('<circle cx="%.1f" cy="%.1f" r="3.2" fill="var(--shu)"/>'
+                             % (X(xe9), Y(f9 + ev9)))
+                    g.append(T(X(xe9 + sd9 * 1.3), Y(f9 + ev9) - 2,
+                               "谷(%s の軒先 +%.3f / 余裕 %.3f)"
+                               % (MUNE_JA.get(m9["name"], m9["name"]), sg9 or 0.0,
+                                  (f9 + ev9) - ns9 - (sg9 or 0.0)),
+                               "anG", "start" if sd9 > 0 else "end"))
+                g.append(T(X((a3 + b3) / 2), Y(y9) - 12,
                            "%s %d段(屋根 %d枚)" % (l["name"], l["steps"], sh9.get("n") or 1),
                            "anG", "middle"))
                 continue
             g.append('<polyline points="%s" fill="none" stroke="var(--roka)" stroke-width="3.2"/>'
                      % " ".join("%.1f,%.1f" % (X(a3 + (b3 - a3) * k / 8.0),
-                                               Y(l["y"] - l["drop"] + l["drop"] * k / 8.0) - 3)
+                                               Y(l["y"] + fl - l["drop"]
+                                                 + l["drop"] * k / 8.0) - 3)
                                 for k in range(9)))
-            g.append(T(X((a3 + b3) / 2), Y(l["y"]) - 12,
+            g.append(T(X((a3 + b3) / 2), Y(l["y"] + fl) - 12,
                        "%s %d段 ⚠ 段の位置が未決" % (l["name"], l["steps"]), "anG", "middle"))
             continue
         if l["kind"] != "御錠口":
@@ -7177,6 +7462,11 @@ def buzai_jissoku_check(d):
                        "『切妻に隅棟』が書けてしまう(⛔ 文章にだけ書かない)" % f)
         elif rk9[f].get("kata") in (None, "", "?") and not rk9[f].get("pending"):
             bad.append("屋根の家族 `%s` の型が未決(`?`)なのに `pending`(宿題の行き先)が無い" % f)
+        # ⛔ **家族の典拠も台帳と突き合わせる**(2026-09-08)— ⛔ 綴り違いを静かに通さない
+        _h9, _t9 = sources_index()
+        for _sid in ((rk9.get(f) or {}).get("src") or []):
+            if _sid not in (set(_h9) | _t9):
+                bad.append("屋根の家族 `%s` が引く `[%s]` が台帳に無い" % (f, _sid))
     for f in sorted(set(rk9) - set(fam9)):
         bad.append("`const.roofKata` の家族 `%s` を持つ建物が無い" % f)
     # ⭕ **帯に割る棟は入母屋の並び** — 型と `roof.banded` を機械で結ぶ(⛔ 文章で結ばない)。
@@ -7755,7 +8045,7 @@ def tani_table(d):
                                  "⚠ <b>未測</b>(<code>_pending.rokakaidan</code>)"))
                     continue
                 ev = fl + rev
-                ns = hi["y"] + C["gotenFloor"] + mune_nokisaki(d)
+                ns = hi["y"] + C["gotenFloor"] + mune_nokisaki(d, hi, butt_axis(lo, hi))
                 kt = hi["y"] + C["gotenFloor"] + C["gotenEave"]
                 rows.append((
                     "%s(廊下)" % nl, nh,
@@ -7773,17 +8063,26 @@ def tani_table(d):
         return ""
     nn = sum(1 for r in rows if "未測" in r[7])
     rng = ""
-    if None not in (sg, rev, rr) and C.get("gotenEave") is not None:
-        rng = ("⭕⭕ <b>成立範囲は実測からの従属値</b> — 下限 <b>%.3f</b>(棟の軒先 %.3f + "
-               "谷の下がり %.3f)/ 上限 <b>%.3f</b>(帯の軒桁 %.3f − 廊下の大棟の立ち上がり "
-               "%.3f)。いまの <code>const.rokaEave</code> = <b>%.3f</b> は下限に "
-               "<b>%.3f</b>・上限に <b>%.3f</b> の余裕"
-               "(⚠ <b>棟の軒先そのものから測れば %.3f</b> — 谷の下がりを含めるかで数が違う。"
-               "⛔ 混ぜて語らない)。"
-               % (mune_nokisaki(d) + sg, mune_nokisaki(d), sg,
-                  C["gotenEave"] - rr, C["gotenEave"], rr, rev,
-                  rev - mune_nokisaki(d) - sg, C["gotenEave"] - rr - rev,
-                  rev - mune_nokisaki(d)))
+    lo9, hi9 = tani_window(d)
+    if None not in (sg, rev, rr, lo9, hi9):
+        rng = ("⭕⭕ <b>成立範囲は実測からの従属値</b>(⛔ 指図の文章に写さない)— "
+               "下限 <b>%.4f</b>(<b>母集団でいちばん高い棟の軒先</b> %.4f + 谷の下がり %.4f)/ "
+               "上限 <b>%.4f</b>(帯の軒桁 %.4f − 廊下の大棟の立ち上がり %.4f)。<br>"
+               "⭕⭕ いまの <code>const.rokaEave</code> = <b>%.3f</b> は"
+               "<b>この範囲の中点</b>で、<b>条①に %.4f・条②に %.4f</b> の余裕がある"
+               "(中点 <b>%.4f</b> との差 %.4f)。"
+               "⛔⛔ <b>「棟の軒先そのものからの余裕 %.4f」と混ぜて語らない</b> — "
+               "<b>谷の下がりを含めるかで数が違う</b>(⚠ 2026-09-08 に実際に混ざり、"
+               "<b>13mm の余裕を 83mm と読んでいた</b>)。<br>"
+               "⭐ <b>中点を採る理由</b>: 下限を決める <code>const.taniSagari</code> は"
+               "<b>P→U の外挿</b>(斜めに下る谷の樋の実物が無い ⇒ "
+               "<code>_pending.buzaijissoku</code> ⑷)なので、"
+               "⛔ <b>下限ぎりぎりへ寄せると実測が入った瞬間に禁止帯へ落ちる</b>。"
+               "⭕ 中点なら<b>谷の下がりが倍になっても条①を割らない</b>"
+               "(<code>tani_margin_check</code> が毎回検算する)。"
+               % (lo9, lo9 - sg, sg, hi9, C["gotenEave"], rr, rev,
+                  rev - lo9, hi9 - rev, (lo9 + hi9) / 2.0,
+                  abs(rev - (lo9 + hi9) / 2.0), rev - (lo9 - sg)))
     return _tw(("廊下", "突き付く相手", "廊下の床(絶対)", "廊下の軒先(絶対)",
                 "棟の軒先(絶対)", "条① 谷が閉じる(廊下 ≧ 棟の軒先 + 下がり)",
                 "廊下の大棟の天端", "条② 大棟 &lt; 帯の軒桁"), rows) + (
@@ -7793,7 +8092,8 @@ def tani_table(d):
         "⛔⛔ <b>2026-09-08 まで、この条は恒真だった</b> — ①棟の側に当てていた "
         "<code>const.gotenEave</code> 3.400 は<b>軒先ではなく『帯の軒桁』</b>で、"
         "<b>廊下が実際にぶつかる面より 1.483 高かった</b> ②<b>不等号の向きも逆</b>"
-        "(2026-08-14 の「軒下へ潜らせる」時代の式)。⇒ <b>1.55 も候補値も全部が通った。</b><br>"
+        "(⛔ <b>撤回済み</b>の 2026-08-14 の「軒下へ潜らせる」時代の式)。"
+        "⇒ <b>1.55 も候補値も全部が通った。</b><br>"
         "⭕ いまは二条 — ① <b>谷が閉じる</b>(廊下の軒先が棟の軒先 + 谷の下がりに届く)"
         "② <b>大棟が低い</b>(廊下の大棟の天端が帯の軒桁を下回る=谷が棟の入側の内で閉じる)。"
         "⚠ <b>廊下の床は突き付く相手ごとに違う</b> — <b>階段廊下は段に従って屋根を下げ、"
@@ -7823,7 +8123,7 @@ def roka_cut_table(d):
             rows.append((nm, "%.4g間(%s %.4g→%.4g)" % (hi - lo, ax, lo, hi),
                          "%d段 / 蹴上 %.3f" % (l.get("steps") or 0, l.get("keriActual") or 0.0),
                          "⚠ <b>未決</b>(<code>_pending.rokakaidan</code>)",
-                         "—", "—", "—", _certcell(sh)))
+                         "—", "—", "—", "—", _certcell(sh)))
             continue
         rows.append((
             nm, "%.4g間(%s %.4g→%.4g)" % (hi - lo, ax, lo, hi),
@@ -7835,6 +8135,12 @@ def roka_cut_table(d):
             "%.3f間(%.3fm)を %s %.4g → %.4g で使う — 残る踊り場 <b>%.3f間</b>"
             % (run, run * C["ken"], ax, cut, cut - run, cut - lo - run),
             "低い枚 <b>%.4g間</b> / 高い枚 <b>%.4g間</b>" % (cut - lo, hi - cut),
+            (lambda z, q: ("⚠ <b>未測</b>" if z is None else
+                           ("⭕ <b>%.3fm</b> ≧ %.3f(余裕 %.3f)" % (z, q, z - q)
+                            if q is not None and z >= q - 1e-9 else
+                            "⚠ <b>%.3fm</b> &lt; %.3f(<b>%.3f 割る</b>)" % (z, q, q - z)
+                            if q is not None else "⚠ 下限が未決")))(
+                roka_zukou(d, l), C.get("rokaZukou")),
             _certcell(sh)))
     if not rows:
         return "<p class='cap'>⚠ <b>段で切る廊下が 0 本。</b></p>"
@@ -7842,17 +8148,26 @@ def roka_cut_table(d):
     rr = C.get("rokaOmuneRise")
     dr = max([l.get("drop") or 0.0 for l in d.get("links", [])] or [0.0])
     return _tw(("階段廊下", "走り", "段(蹴上・踏面)", "<b>切れ目 <code>cutAt</code></b>",
-                "両端の棟から", "段の走りが使う区間", "枚の長さ", "確度"), rows) + (
+                "両端の棟から", "段の走りが使う区間", "枚の長さ",
+                "<b>条④ 頭が通る</b>(段の上端 → 低い枚の桁の天端)", "確度"), rows) + (
         "<p class='cap'>⭐⭐ <b>切れ目は「屋根を切る柱通り」であって芯ではない</b>(規則5)— "
         "<b>段の上端(高い側の踏面の縁)</b>に取り、段はそこから<b>低い端へ降りる</b>。"
         "⛔ <b>棟梁は中央で切らない。</b><br>"
-        "⭕ <b>三条を <code>roka_cut_check</code> が毎回測る</b> — "
-        "① 柱通りの上 ② 両端の棟から1間以上内 ③ 段の走りが切れ目と低い端のあいだに収まる。<br>"
-        "⚠ <b>頭上</b>(合否ではない・参考): 段の上端の踏面から、低い枚の<b>大棟の天端まで "
-        "%.3fm</b> / <b>軒先まで %.3fm</b>(<code>const.rokaEave</code> %.3f "
-        "+ <code>rokaOmuneRise</code> %.4f − 段の落差 %.3f)。"
-        "⛔ <b>軒先は柱の外</b>なので通り道の頭上ではない。桁の実寸は部材方の持ち場。<br>"
-        "⛔ <b>史料は無い</b>【U・2026-09-08 普請奉行の裁定】— "
+        "⭕ <b>四条を <code>roka_cut_check</code> が毎回測る</b> — "
+        "① 柱通りの上 ② 両端の棟から1間以上内 ③ 段の走りが切れ目と低い端のあいだに収まる "
+        "④ <b>頭が通る</b>(段の上端の踏面 → 低い側の枚の<b>桁の天端</b> ≧ "
+        "<code>const.rokaZukou</code>)。<br>"
+        "⭐⭐ <b>条④は 2026-09-08 に足した</b>(検図方 低1)。⛔⛔ <b>それまで、部材方が"
+        "「軒下へ潜らせる」案を棄却した基準(かがまないと通れない)が当図に一本も無かった</b> — "
+        "⚠ <b>切れ目は段の上端</b>なので<b>段の全長は低い側の枚の下に入る</b>のに、"
+        "そこの有効高を誰も測っていなかった。⭕ <b>桁の天端 = 軒先 + 平の軒の出 × 瓦勾配</b>で、"
+        "⛔ <b>軒先そのものは柱の外</b>だから通り道の頭上ではない。<br>"
+        "⚠ 参考(合否ではない): 段の上端の踏面から低い枚の<b>大棟の天端まで %.3fm</b> / "
+        "<b>軒先まで %.3fm</b>(<code>const.rokaEave</code> %.3f "
+        "+ <code>rokaOmuneRise</code> %.4f − 段の落差 %.3f)。<br>"
+        "⛔ <b>史料は無い</b>【U・2026-09-08 <b>普請奉行の裁定</b>。"
+        "⛔ <b>ユーザー裁定ではない</b> — 出自は <code>certRulings</code> の"
+        "「廊下の屋根 / 階段廊下を段の位置で切って2枚に架けること」が持つ】— "
         "<b>段を表向側へ寄せた</b>ので、<b>中奥(居間)側の長い枚が一枚で通り</b>、"
         "<b>段を降りた先が表向</b>という動線の読みになる。"
         "⚠ <b>御錠口は別の廊下</b>なので、この2本は帯の境ではない。</p>"
@@ -7884,9 +8199,12 @@ def roof_kata_table(d):
                      else "<b>?</b>(まだ主張していない)",
                      "<b>%s</b>" % (su or "—(型が決まるまで出せない)"),
                      _certcell(q) + (("<br><code>_pending.%s</code>" % pd) if pd else ""),
+                     ("<code>" + "</code> <code>".join(q["src"]) + "</code>")
+                     if q.get("src") else ("—" if "src" in q else NOFIELD),
                      q.get("why", "")))
     return _tw(("屋根の家族", "その家族の建物", "<b>屋根の型</b>",
-                "隅の飛び出しの向き(<b>導出</b>)", "確度・宿題の行き先", "由来"), rows) + (
+                "隅の飛び出しの向き(<b>導出</b>)", "確度・宿題の行き先",
+                "典拠(⚠ <b>長屋門=外挿</b>)", "由来"), rows) + (
         "<p class='cap'>⭐⭐ <b>屋根の型を機械可読な欄にした</b>"
         "(2026-09-07 検図方 中1・正典 <code>const.roofKata</code>)。"
         "⛔⛔ <b>従前、型は json のどこにも欄として無かった</b> — 切妻/入母屋の語を持つのは "
@@ -8147,25 +8465,116 @@ def buzai_table(d):
         "(規則12)。⛔ パスの literal を指図に書かない。</p>")
 
 
+PEND_STATE = ("open", "closed")
+
+
+def pend_note(v):
+    """`_pending` の本文。⛔ 欄の形を呼び手ごとに書かない(2026-09-08 検図方 高1-⑵)。"""
+    if isinstance(v, dict):
+        return v.get("note", "")
+    return v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)
+
+
+def pend_state(v):
+    """`_pending` の**明示の状態**。⛔ 文言から推し量らない。無ければ `None`(検査が鳴る)。"""
+    return v.get("state") if isinstance(v, dict) else None
+
+
+def pending_state_check(d):
+    """**宿題は明示の `state` で開閉する**(2026-09-08 検図方 高1-⑵)。
+
+    ⛔⛔ **従前は本文の先頭40字に「閉じた」が在るかで仕分けていた** — ⚠ そのため
+      `_pending.rokakaidan` のように **「指図の側は閉じた/実装は残る」**と書いた項が
+      **『閉じた宿題』の表へ落ち**、⛔ **棟梁への申し送りがユーザーの目から消えていた**。
+    ⛔ **文言で仕分けない。**⭕ 欄は `state: "open" | "closed"` の2値だけ。
+    """
+    bad = []
+    for k, v in (d.get("_pending") or {}).items():
+        st = pend_state(v)
+        if st is None:
+            bad.append("`_pending.%s` に `state` が無い — ⛔ 本文の文言で開閉を推し量らない" % k)
+        elif st not in PEND_STATE:
+            bad.append("`_pending.%s` の `state` = %r が語彙(%s)に無い"
+                       % (k, st, " / ".join(PEND_STATE)))
+        elif not pend_note(v).strip():
+            bad.append("`_pending.%s` に `note`(中身)が無い" % k)
+    return bad
+
+
+def pending_roster_check(d):
+    """**`pending` を持つ側と、行き先の本文の名簿が一致するか**(2026-09-08 検図方 中1)。
+
+    ⛔⛔ **行き先が、自分に来る家族を否認していた** — `_pending.yanekata` の本文は
+      「残るのは厩だけ」と書いていたのに、機械可読では **5家族**が指していた。
+      ⇒ ⛔ **数を文章へ写さない**(生成器が名簿を刷る)。⭕ **名は本文に出す**
+      (出さないと、来ているのに誰も見ない項ができる)。
+    ⭕ 見るのは `const.roofKata`(家族)/ `program[].aspects`(側面)/ `akichi[]`(枠)。
+      ⛔ **行き先が `_pending` に無いこと**は `cert_pending_check` が別に測る。
+    """
+    pend = d.get("_pending") or {}
+    who = {}
+    for f, q in (d["const"].get("roofKata") or {}).items():
+        if q.get("pending"):
+            who.setdefault(q["pending"], []).append(("屋根の家族", "`%s`" % f, f))
+    for pg in d.get("program", []):
+        for a in pg.get("aspects", []):
+            if a.get("pending"):
+                who.setdefault(a["pending"], []).append(
+                    ("役割「%s」の側面" % pg["role"], a.get("what", "?"), a.get("what", "")))
+    for a in d.get("akichi", []):
+        if a.get("pending"):
+            who.setdefault(a["pending"], []).append(("明地", a["name"], a["name"]))
+    bad = []
+    for k in sorted(who):
+        note = pend_note(pend.get(k, ""))
+        for kind, label, needle in who[k]:
+            if needle and needle not in note:
+                bad.append("**`_pending.%s` の本文が、そこへ来ている %s「%s」を名指していない**"
+                           " — ⛔ 行き先が自分に来る項を否認しない(⛔ 数ではなく名を書く)"
+                           % (k, kind, label))
+    return bad
+
+
 def pending_table(d):
-    """**未決の宿題を図に出す。**⛔ 正典に持つだけでは誰の目にも入らない(規則19)。"""
+    """**未決の宿題を図に出す。**⛔ 正典に持つだけでは誰の目にも入らない(規則19)。
+
+    ⭐⭐ **仕分けは明示の `state` で行う**(2026-09-08 検図方 高1-⑵)。⛔⛔ **本文の先頭40字に
+      「閉じた」が在るかで仕分けない** — ⚠ 「指図の側は閉じた/実装は残る」と書いた項が
+      **閉じた表へ落ち、棟梁への申し送りが読む人の目から消える**。
+    """
     p = d.get("_pending") or {}
     if not p:
         return ""
     live, done = [], []
+    who = collections.defaultdict(list)
+    for f, q in (d["const"].get("roofKata") or {}).items():
+        if q.get("pending"):
+            who[q["pending"]].append("屋根の家族 <code>%s</code>" % f)
+    for pg in d.get("program", []):
+        for a in pg.get("aspects", []):
+            if a.get("pending"):
+                who[a["pending"]].append("%s / %s" % (pg["role"], a.get("what", "?")))
+    for a in d.get("akichi", []):
+        if a.get("pending"):
+            who[a["pending"]].append("明地 <code>%s</code>" % a["name"])
     for k, v in p.items():
-        t = v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)
-        (done if ("閉じた" in t[:40] or "追わない" in t[:40] or "輪に入った" in t[:40])
-         else live).append((k, t))
-    rows = [("<code>%s</code>" % k, t) for k, t in live]
+        row = (k, pend_note(v),
+               ("<br>⭐ <b>ここへ来ている %d 件</b>: %s" % (len(who[k]), "、".join(who[k])))
+               if who.get(k) else "")
+        (done if pend_state(v) == "closed" else live).append(row)
+    rows = [("<code>%s</code>" % k, t + w) for k, t, w in live]
     out = ("<p class='cap'><b>開いている宿題 %d 件 / 閉じた %d 件。</b>"
            "⛔ <b>閉じたものも消さない</b> — 消すと同じ問いが再び立つ。"
+           "⭐⭐ <b>仕分けは明示の <code>state</code> 欄</b>(2026-09-08 検図方 高1)— "
+           "⛔⛔ <b>本文の文言で仕分けない</b>。⚠ 従前は<b>先頭40字に「閉じた」が在るか</b>で"
+           "分けており、<b>「指図の側は閉じた/実装は残る」と書いた申し送りが"
+           "『閉じた』表へ落ちて読む人の目から消えていた</b>。"
            "⚠ 2026-09-06 まで <code>_pending</code> は生成器が一度も読んでおらず、"
            "<b>宿題がユーザーの見る文書に一行も出ていなかった</b>"
            "(部材の新造依頼もここに埋もれていた)。</p>" % (len(live), len(done)))
     out += _tw(("宿題", "中身"), rows)
     out += "<h3>閉じた宿題(記録として残す)</h3>"
-    out += _tw(("宿題", "顛末"), [("<code>%s</code>" % k, t) for k, t in done])
+    out += _tw(("宿題", "顛末"), [("<code>%s</code>" % k, t + w) for k, t, w in done])
     return out
 
 
@@ -11016,9 +11425,7 @@ def niwa_todo_dest_check(d):
     #   消したときに `_pending.mune_gap` の名指しが宙に浮いた(⚠ どの検査も鳴らなかった)。
     #   ⇒ **宿題を閉じるたびに、そこを指していた宿題が迷子になる**。
     for k9 in sorted(pend):
-        v9 = pend[k9]
-        if not isinstance(v9, str):
-            continue
+        v9 = pend_note(pend[k9])
         for k8 in sorted(set(_TODO_DST.findall(v9))):
             if k8 not in pend:
                 bad.append("**`_pending.%s` が名指す行き先 `_pending.%s` が正典に無い** — "
@@ -11028,7 +11435,7 @@ def niwa_todo_dest_check(d):
 
 
 def cert_pending_check(d):
-    """**確度 `?` の行は宿題の行き先を持つ**(2026-09-07 考証方の裁定=推奨C の2)。
+    """**確度 `?` の行は宿題の行き先を持つ**(2026-09-07 考証方の推奨C(採用=普請奉行) の2)。
 
     ⭐⭐ **`?` は akichi の方言ではなく、3コレクション(`akichi` / `program[].aspects` /
       `munes[].roof.certs`)に定着した第6の値**である。⛔ 語彙も欄名も変えない。
@@ -12043,57 +12450,206 @@ def niwa_gogan_table(d):
 
 
 def _shokusai_cert(s):
-    """植栽の**要素ごとの確度**。⛔ 欄が無いとき `?` へ落とさない(考証方の裁定=推奨C の3)。"""
+    """植栽の**要素ごとの確度**。⛔ 欄が無いとき `?` へ落とさない(考証方の推奨C(採用=普請奉行) の3)。"""
     c = s.get("cert")
     if not isinstance(c, dict):
         return None
     return c
 
 
-def shokusai_cert_check(d):
-    """**植栽の確度が要素ごとに在り、`_certShokusai` の一文と合うか**(2026-09-07 考証方 高1)。
+def cert_axes(d):
+    """庭の点景の**確度の軸の正典** `gardens.G_Okuniwa.certAxes`。⛔ 生成器に無名の表を置かない。"""
+    g = niwa(d)
+    return (g or {}).get("certAxes") or {}
 
-    ⛔⛔ **従前は `cert: "B"` の1値**で、地の文が「樹種の型は B・本数と位置は U」と書いて
-      いるのに機械可読は B のままだった — ⚠ **動いたのはまさに位置(U)**である。
-      `certSig: "B/U"` は**生成器も html も一度も読まない死んだ欄**だったので廃した。
-    ⭕ ここでは **① 3欄(`shu`/`at`/`n`)が揃うこと ② 値が S/A/B/P/U/? のどれかであること
-      ③ 層をまたいで同じ組であること ④ 正典の一文(`_certShokusai`)がその組を言っていること**
-      を測る。⛔ **文章と機械可読の食い違いを二度と作らない。**
+
+def _cert_items(d, key, spec):
+    """その群の(名, 物)の並び。`kind` は `list`(要素ごと)/ `one`(その物に一つ)。"""
+    g = niwa(d) or {}
+    o = g.get(key)
+    if o is None:
+        return []
+    if spec.get("kind") == "one":
+        return [(spec.get("label", key), o)]
+    out = []
+    for x in (o or []):
+        nm = (x.get("label")
+              or ("%s %s" % (x.get("species", ""), x.get("size", ""))).strip()
+              or x.get("name") or key)
+        out.append((nm, x))
+    return out
+
+
+def point_cert_check(d):
+    """**庭の点景の確度が要素ごとに在り、地の文と合うか**(2026-09-07 考証方 高1 → 09-08 高1)。
+
+    ⛔⛔ **従前は植栽しか回っていなかった** — ⚠ **同じ defect が灯籠2基と社の3行で生きていた**
+      (`cert: "B"` の1値なのに地の文は「形式=B / 位置=U」)。**四度目の再発**である。
+      ⇒ ⭕ **正典 `certAxes` に群を並べ、群ごとに回す**(⛔ 広げないと五度目が来る)。
+    ⭕ 測るのは ① **軸が過不足なく揃うこと** ② **値が S/A/B/P/U/? のどれかであること**
+      ③ **`certSig` のような死んだ欄が残っていないこと** ④ **群の中で組が揃うこと**
+      ⑤ **その群の地の文が軸の名と値に触れていること**
+      ⑥ **S/A/B を名乗る軸は `src` に台帳の典拠 ID を名指すか `pending` で行き先を持つこと**
+         (⛔ **名指せない B は「一般類型」の言い換えでしかない** — 規則7)。
     """
     g = niwa(d)
+    ax = cert_axes(d)
     if not g:
         return []
-    bad, seen = [], {}
-    for s in g.get("shokusai", []):
-        nm = "%s %s" % (s.get("species", "?"), s.get("size", ""))
-        if s.get("certSig") is not None:
-            bad.append("**%s に `certSig` が残っている** — 誰も読まない死んだ欄なので廃した" % nm)
-        c = _shokusai_cert(s)
-        if c is None:
-            bad.append("**%s の `cert` が要素ごとの辞書でない** — "
-                       "⛔ 一つの確度を層に置かない(樹種の型と据え位置は別の確度)" % nm)
+    if not ax:
+        return ["`gardens.G_Okuniwa.certAxes`(確度の軸の正典)が無い — "
+                "⛔ 生成器に無名の対応表を置かない"]
+    head, tbl = sources_index()
+    known = set(head) | set(tbl)
+    pend = d.get("_pending") or {}
+    bad = []
+    for key in sorted(ax):
+        spec = ax[key]
+        axes = spec.get("axes") or {}
+        items = _cert_items(d, key, spec)
+        if not items:
+            bad.append("`certAxes.%s` に当たる物が指図に無い" % key)
             continue
-        for k in ("shu", "at", "n"):
-            if k not in c:
-                bad.append("**%s の `cert.%s` が無い**" % (nm, k))
-            elif c[k] not in ("S", "A", "B", "P", "U", "?"):
-                bad.append("**%s の `cert.%s` = `%s` が確度の符号でない**" % (nm, k, c[k]))
-        seen.setdefault(tuple(sorted(c.items())), []).append(nm)
-    if len(seen) > 1:
-        bad.append("**植栽の確度の組が層ごとに違う** — %s。⛔ 違えるなら正典の一文も分けること"
-                   % " / ".join("(%s)= %s" % (", ".join(v), dict(k)) for k, v in seen.items()))
-    elif seen:
-        c = dict(next(iter(seen)))
-        note = g.get("_certShokusai") or ""
-        for k, ja in (("shu", "樹種の型"), ("at", "据え位置"), ("n", "本数")):
-            if ja not in note:
-                bad.append("**正典の一文 `_certShokusai` が「%s」に触れていない** — "
-                           "⛔ 機械可読と地の文を食い違わせない" % ja)
-        for v in set(c.values()):
-            if ("= %s" % v) not in note and ("**%s**" % v) not in note and (" %s**" % v) not in note:
-                bad.append("**正典の一文 `_certShokusai` に確度 `%s` が出てこない** — "
-                           "機械可読は `%s` を名乗っている" % (v, v))
+        note = g.get(spec.get("note") or "", "")
+        if not note:
+            bad.append("`certAxes.%s` の地の文 `%s` が無い — "
+                       "⛔ 機械可読だけ在って読む人に届かない状態を作らない"
+                       % (key, spec.get("note")))
+        seen = {}
+        for nm, o in items:
+            if o.get("certSig") is not None:
+                bad.append("**%s(%s)に `certSig` が残っている** — "
+                           "⛔ 生成器も html も読まない**死んだ欄**なので廃した"
+                           "(⚠ 『廃した』と宣言したあとも生きていた=四度目)" % (nm, key))
+            c = o.get("cert")
+            if not isinstance(c, dict):
+                bad.append("**%s(%s)の `cert` が要素ごとの辞書でない** — "
+                           "⛔ 一つの確度に潰さない(%s は別の確度)"
+                           % (nm, key, " と ".join(axes.values())))
+                continue
+            for k in axes:
+                if k not in c:
+                    bad.append("**%s(%s)の `cert.%s`(%s)が無い**" % (nm, key, k, axes[k]))
+                elif c[k] not in CERT_VOCAB:
+                    bad.append("**%s(%s)の `cert.%s` = `%s` が確度の符号でない**"
+                               % (nm, key, k, c[k]))
+            for k in c:
+                if k not in axes:
+                    bad.append("**%s(%s)に知らない確度の軸 `%s`** — 正典は `certAxes.%s.axes`"
+                               % (nm, key, k, key))
+            src = o.get("src")
+            for sid in (src or []):
+                if sid not in known:
+                    bad.append("**%s(%s)が引く `[%s]` が台帳に無い**" % (nm, key, sid))
+            if any(c.get(k) in ("S", "A", "B") for k in axes):
+                if src is None:
+                    bad.append("**%s(%s)が S/A/B を名乗るのに `src` の欄が無い** — "
+                               "⛔ 空でよいが**欄は立てる**(⛔ 沈黙は情報を持たない)" % (nm, key))
+                elif not src and not o.get("pending"):
+                    bad.append("**%s(%s)が S/A/B を名乗るのに支えを名指せていない** — "
+                               "⛔ **名指せない B は「一般類型」の言い換え**(規則7)。"
+                               "台帳の典拠 ID を書くか、`pending` で行き先を持つこと" % (nm, key))
+                if o.get("pending") and o["pending"] not in pend:
+                    bad.append("**%s(%s)が名指す `_pending.%s` が正典に無い**"
+                               % (nm, key, o["pending"]))
+            seen.setdefault(tuple(sorted(c.items())), []).append(nm)
+        if len(seen) > 1:
+            bad.append("**%s の確度の組が物ごとに違う** — %s。⛔ 違えるなら地の文も分けること"
+                       % (key, " / ".join("(%s)= %s" % ("、".join(v), dict(k))
+                                          for k, v in seen.items())))
+        elif seen and note:
+            c = dict(next(iter(seen)))
+            for k, ja in axes.items():
+                if ja not in note:
+                    bad.append("**地の文 `%s` が「%s」に触れていない** — "
+                               "⛔ 機械可読と地の文を食い違わせない" % (spec.get("note"), ja))
+            for v in set(c.values()):
+                if ("= %s" % v) not in note and ("**%s**" % v) not in note \
+                        and (" %s**" % v) not in note and ("=%s" % v) not in note:
+                    bad.append("**地の文 `%s` に確度 `%s` が出てこない** — "
+                               "機械可読は `%s` を名乗っている" % (spec.get("note"), v, v))
     return bad
+
+
+def point_cert_sensitivity(d):
+    """**破壊試験** — 要素別の確度の網を壊すと `point_cert_check` が鳴るか。⛔ 恒真を通さない。
+
+    ⭐ 2026-09-08 考証方 高1。⚠ **同じ defect が四度再発した**ので、
+      ⛔ 「広げた」ではなく**「広げた先で鳴る」**ことを毎回刷る。
+    """
+    def probe(fn):
+        e = copy.deepcopy(d)
+        fn(niwa(e))
+        return len(point_cert_check(e))
+
+    def p1(g):     # 灯籠を1値の cert へ戻す
+        g["toro"][0]["cert"] = "B"
+
+    def p2(g):     # 社を1値の cert へ戻す
+        g["yashiro"]["cert"] = "B"
+
+    def p3(g):     # 廃したはずの certSig を戻す
+        g["toro"][1]["certSig"] = "B/U"
+        g["yashiro"]["certSig"] = "B/U"
+
+    def p4(g):     # 植栽の軸を1本落とす
+        for s in g["shokusai"]:
+            s["cert"].pop("at", None)
+
+    def p5(g):     # 支えも行き先も無い B を名乗らせる
+        g["yashiro"]["cert"] = {"aru": "B", "at": "U", "kata": "U"}
+        g["yashiro"].pop("pending", None)
+        g["yashiro"]["src"] = []
+
+    def p6(g):     # 軸の正典そのものを消す
+        g.pop("certAxes", None)
+
+    probes = [("① 灯籠の `cert` を1値へ戻す", probe(p1)),
+              ("② 社の `cert` を1値へ戻す", probe(p2)),
+              ("③ 廃した `certSig` を戻す", probe(p3)),
+              ("④ 植栽の軸「据え位置」を落とす", probe(p4)),
+              ("⑤ 支えも行き先も無い `B` を名乗らせる", probe(p5)),
+              ("⑥ `certAxes`(軸の正典)を消す", probe(p6)),
+              ("⑦ いまの図(基準)", probe(lambda g: None))]
+    bad = []
+    for nm, n9 in probes[:-1]:
+        if n9 == 0:
+            bad.append("**%s で 0 件** — 要素別の確度の網が素通りしている(⛔ 恒真を通さない)" % nm)
+    if probes[-1][1] != 0:
+        bad.append("**いまの図で %d 件** — 基準が鳴っている" % probes[-1][1])
+    return probes, bad
+
+
+def point_cert_table(d):
+    """**庭の点景の確度 — 軸ごと**(2026-09-08 考証方 高1)。⛔ 確度を文章にだけ書かない。"""
+    ax = cert_axes(d)
+    if not ax:
+        return ""
+    rows = []
+    for key in sorted(ax):
+        spec = ax[key]
+        axes = spec.get("axes") or {}
+        for nm, o in _cert_items(d, key, spec):
+            c = o.get("cert")
+            cell = ("⚠ <b>辞書でない</b>(%s)" % c) if not isinstance(c, dict) else "・".join(
+                "%s <b>%s</b>" % (ja, c.get(k, NOFIELD)) for k, ja in axes.items())
+            src = o.get("src")
+            rows.append(("<code>%s</code> %s" % (key, spec.get("label", "")), nm, cell,
+                         ("<code>" + "</code> <code>".join(src) + "</code>") if src
+                         else (NOFIELD if src is None else "—"),
+                         ("<code>_pending.%s</code>" % o["pending"]) if o.get("pending") else "—"))
+    return _tw(("群", "物", "<b>確度(軸ごと)</b>", "典拠", "宿題の行き先"), rows) + (
+        "<p class='cap'>⭐⭐ <b>確度は軸ごとに持つ</b>"
+        "(正典 <code>gardens.G_Okuniwa.certAxes</code>)。"
+        "⛔⛔ <b>一つの <code>cert</code> を物に置かない</b> — "
+        "⚠⚠ <b>同じ欠け方が四度出た</b>(棟の屋根の確度 / 軒の実測 / 植栽 / <b>灯籠と社</b>)。"
+        "<b>1値の確度</b>を置きながら地の文は"
+        "「<b>形式=B / 位置=U</b>」と書いており、⚠ <b>動いたのはいつも位置(U)のほう</b>である。"
+        "⛔ <code>certSig</code> は<b>生成器も html も一度も読まない死んだ欄</b>なので"
+        "<b>廃した</b>(⚠ 『廃した』と宣言したあとも3行で生きていた)。<br>"
+        "⛔ <b>S/A/B を名乗る軸は台帳の典拠 ID を名指すか、宿題の行き先を持つ</b> — "
+        "⚠ <b>名指せない B は「一般類型」の言い換えでしかない</b>(規則7)。"
+        "⭕ 決めた者は<b>裁定の表</b>(役割「奥庭の植栽」ほか)が持つ。</p>")
 
 
 def niwa_plant_table(d):
@@ -12112,8 +12668,8 @@ def niwa_plant_table(d):
         #   「樹種の型は B・据え位置と本数は U」という区別が読む側へ届かない。
         c9 = _shokusai_cert(s)
         cc = ("樹種 <b>%s</b> / 位置 <b>%s</b> / 本数 <b>%s</b>"
-              % (c9.get("shu", "⚠ 欄なし"), c9.get("at", "⚠ 欄なし"), c9.get("n", "⚠ 欄なし"))
-              if c9 else "⚠ <b>欄なし</b>")
+              % (c9.get("shu", NOFIELD), c9.get("at", NOFIELD), c9.get("n", NOFIELD))
+              if c9 else "<b>%s</b>" % NOFIELD)
         rows.append((s["layer"], s["species"], s["size"], str(s["n"]), h, w,
                      ("×%.2f " % sc if abs(sc - 1.0) > 1e-9 else "")
                      + html.escape(str(s.get("asset", "")))
@@ -12128,7 +12684,7 @@ def niwa_plant_table(d):
         "<code>certSig</code>(生成器も html も一度も読まない死んだ欄)は<b>廃した</b>。"
         "⭕ 正典は <code>gardens.G_Okuniwa._certShokusai</code> で、"
         "<b>この表と地の文が食い違わないことを機械が毎回測る</b>"
-        "(<code>shokusai_cert_check</code>)。</p>")
+        "(<code>point_cert_check</code>)。</p>")
 
 
 def niwa_cover_table(d):
@@ -12732,7 +13288,7 @@ def niwa_iwajima_table(d):
                     "<b>確度 %s</b>(据え位置・丈・倒し)"
                     % (a["at"], a["scale"], a["top"],
                        "—" if a.get("planW") is None else "%.3f m" % a["planW"],
-                       a.get("cert") or "⚠ 欄なし")
+                       _certcell(a))
                     for a in o.get("araiso", [])) or "—",
          "—", "—"),
         ("長軸の向き",
@@ -13051,7 +13607,7 @@ def akichi_table(d):
     rows, tot, rest = akichi_stats(d)
     a1 = 0.25 * d["const"]["ken"] ** 2 / TSUBO
     out = []
-    # ⭐ **`?` の行は宿題の行き先を並べて刷る**(2026-09-07 考証方の裁定=推奨C の2)。
+    # ⭐ **`?` の行は宿題の行き先を並べて刷る**(2026-09-07 考証方の推奨C(採用=普請奉行) の2)。
     #   ⛔ 「まだ主張していない」を、行き先の無いまま表に置かない。
     for a in rows:
         out.append((a["label"], "u[%.1f, %.1f] v[%.1f, %.1f]" % (a["u0"], a["u1"], a["v0"], a["v1"]),
@@ -13066,7 +13622,7 @@ def akichi_table(d):
     return _tw(("明地の枠", "範囲", "坪数(0.5間格子の実測)", "確度", "宿題の行き先"), out) + (
         "<p class='cap'>⭐⭐ <b><code>?</code> = まだ主張していない(未定)</b> — "
         "S/A/B/P/U のどれでもない第6の値で、<b>凡例は冒頭の箱が一度だけ定義する</b>"
-        "(2026-09-07 考証方の裁定=推奨C)。⛔ <b><code>?</code> の行は宿題の行き先を必ず持つ</b> — "
+        "(2026-09-07 考証方の推奨C(採用=普請奉行))。⛔ <b><code>?</code> の行は宿題の行き先を必ず持つ</b> — "
         "<code>cert_pending_check</code> が毎回測る。"
         "⚠ <b><code>certRulings</code> の「明地(用途未定)」の行の U とは別の量</b>: "
         "あちらは<b>「用途を決めない」という判断の確度</b>、こちらは"
@@ -13389,7 +13945,8 @@ def main():
             + mune_gap_check(d, _GAPST) + roof_parcel_check(d)
             + band_check(d) + neighbour_hash_check(d)
             + buzai_jissoku_check(d) + kachu_kata_check(d) + roka_roof_check(d)
-            + roka_cut_check(d)
+            + roka_cut_check(d) + tani_margin_check(d)
+            + pending_state_check(d) + pending_roster_check(d)
             + clearance_check(d) + rails_check(d)
             + ramp_check(d) + completeness_check(d) + program_check(d) + gate_overlap_check(d) + vocab_check(d)
             + terrace_overhang_check(d) + setchin_check(d)
@@ -13407,7 +13964,7 @@ def main():
             + recon_reach_check(d)
             + niwa_check(d) + akichi_check(d) + shitakusa_check(d)
             + niwa_todo_dest_check(d) + cert_pending_check(d) + impl_scan_check(d)
-            + shokusai_cert_check(d)
+            + point_cert_check(d)
             + garden_section_check(d)
             + komon_step_check(d, load_terrain(os.path.join(DOC, "doi_dem.json")))
             + wall_needed_check(d, load_terrain(os.path.join(DOC, "doi_dem.json"))))
@@ -13459,6 +14016,14 @@ def main():
              % len(_tp)))
     for _q in _tp:
         print("    ", _q)
+    _ppr, _psb = point_cert_sensitivity(d)
+    print("── 破壊試験(庭の点景の要素別の確度): %s"
+          % ("**%d束/%d束 期待どおり**" % (len(_ppr) - len(_psb), len(_ppr))
+             if not _psb else "⚠ %d束が期待と違う" % len(_psb)))
+    for _nm, _n9 in _ppr:
+        print("    %s → %d 件" % (_nm, _n9))
+    for _b in _psb:
+        print("   ", _b)
     _tpr, _tsb = tani_sensitivity(d)
     print("── 感度試験(廊下の谷): %s"
           % ("**%d束/%d束 期待どおり**" % (len(_tpr) - len(_tsb), len(_tpr))
@@ -13473,8 +14038,8 @@ def main():
           % ("**%d束/%d束 期待どおり**" % (len(_cpr) - len(_cbd), len(_cpr))
              if not _cbd else "⚠ %d束が期待と違う" % len(_cbd)))
     for _nm, _got, _w in _cpr:
-        print("    %s → 条①(柱通り)%d件 / 条②(端から)%d件 / 条③(走り)%d件 / 未決 %d件"
-              % ((_nm,) + _got))
+        print("    %s → 条①(柱通り)%d件 / 条②(端から)%d件 / 条③(走り)%d件 / "
+              "条④(頭上)%d件 / 未決 %d件" % ((_nm,) + _got))
     for _b in _cbd:
         print("   ", _b)
     probes, sbad = mune_gap_sensitivity(d)
@@ -13509,7 +14074,7 @@ def main():
              '書院は<b>雁間詰の城主</b>で作り、帝鑑間格へ上げない'
              '(殿席=雁間は [安政地震被害書上]S・岡本家文書が雁間の部に列挙)。'
              '区画多角形はユーザーのブックマーク角(U)。</p>'
-             # ⭐⭐ **確度の凡例はここで一度だけ定義する**(2026-09-07 考証方の裁定=推奨C)。
+             # ⭐⭐ **確度の凡例はここで一度だけ定義する**(2026-09-07 考証方の推奨C(採用=普請奉行))。
              #   ⛔ 各所に書き写さない(規則4)。
              '<p class="cap"><b>確度の凡例</b> — '
              '<b>S</b>=当屋敷の一次記録が直接言う / <b>A</b>=典拠の原文が直接言う / '
@@ -13855,6 +14420,10 @@ def main():
                  '⭕ <b>主路の頭は沓脱石の庭側の縁へ釘付け</b>(⛔ 芯に戻さない=規則5)。</p>')
         h.append("<h3>見所</h3>")
         h.append(niwa_mikoro_table(d))
+        # ⭐⭐ **庭の点景の確度は軸ごと**(2026-09-08 考証方 高1)。
+        #   ⛔ 書いたのに誰の目にも入らない産物を作らない(規則19)。
+        h.append("<h3>庭の点景の確度 — 軸ごと(植栽・灯籠・社)</h3>")
+        h.append(point_cert_table(d))
         h.append("<h3>植栽 — 常緑を骨格に、落葉を景に</h3>")
         h.append(niwa_plant_table(d))
         h.append('<p class="cap">⛔ <b>ソメイヨシノ・桜(開花木)・孟宗竹の竹叢・幕末以降の外来種を'
@@ -14179,22 +14748,25 @@ def main():
                     "⭕ <b>壊して鳴ることを毎回刷る</b>(規則19)。</p>" % len(_tp9)
                     if not _tb9 else
                     "<p class='cap'>⚠ " + "<br>".join(inline(q) for q in _tb9) + "</p>"))
-        h.append("<h3>階段廊下の段と屋根の切れ目 — 位置(<code>cutAt</code>)と三条</h3>")
+        h.append("<h3>階段廊下の段と屋根の切れ目 — 位置(<code>cutAt</code>)と四条</h3>")
         h.append(roka_cut_table(d))
         # ⭐⭐ **裁定で入れた値は、同じ巡で「壊すと鳴る」ことまで刷る**(規則19)。
         _cp9, _cb9 = roka_cut_sensitivity(d)
         h.append("<div class='tw'><table><thead><tr><th>感度試験(段の位置)</th>"
                  "<th>条①(柱通り)</th><th>条②(端から)</th><th>条③(走り)</th>"
+                 "<th>条④(頭上)</th>"
                  "<th>未決(<code>band_todo</code>)</th><th>期待</th>"
                  "</tr></thead><tbody>"
                  + "".join("<tr><td>%s</td><td><b>%d 件</b></td><td><b>%d 件</b></td>"
-                           "<td><b>%d 件</b></td><td><b>%d 件</b></td><td>%s</td></tr>"
+                           "<td><b>%d 件</b></td><td><b>%d 件</b></td>"
+                           "<td><b>%d 件</b></td><td>%s</td></tr>"
                            % ((inline(a),) + b
                               + ("・".join("%s%s" % (t, "鳴る" if w else "鳴らない")
-                                           for t, w in zip(("条①", "条②", "条③", "未決"), wv)),))
+                                           for t, w in zip(("条①", "条②", "条③", "条④", "未決"),
+                                                           wv)),))
                            for a, b, wv in _cp9) + "</tbody></table></div>"
                  + ("<p class='cap'>⭕ <b>%d 束すべて期待どおり。</b>"
-                    "⛔ <b>位置を消した束(⑤)で三条が鳴らず、代わりに未決が2件鳴る</b> — "
+                    "⛔ <b>位置を消した束(⑤)で四条が鳴らず、代わりに未決が2件鳴る</b> — "
                     "⭕ <b>未決の道が塞がっていないこと</b>まで毎回示す(規則19)。</p>" % len(_cp9)
                     if not _cb9 else
                     "<p class='cap'>⚠ " + "<br>".join(inline(q) for q in _cb9) + "</p>"))
@@ -14262,18 +14834,25 @@ def main():
     #   当邸の現況の記述ではなく、⛔ **後から書き換えない**(規則18「遡って書かない」)。
     #   撤回を扱った巡の報告は**必ず禁句を引用する**ので、外さないと
     #   **撤回を済ませた瞬間に検査が赤くなる**(git のコミット件名を外したのと同じ理屈)。
-    def _leaf(o):
-        if isinstance(o, dict):
-            for k, v in o.items():
-                if k not in ("retracted", "_retracted", "reviews", "_reviews"):
-                    _leaf(v)
-        elif isinstance(o, list):
-            for v in o:
-                _leaf(v)
-        elif isinstance(o, str):
-            _leaves.append(o)
-    _leaf(d)
-    flat = re.sub(r"[*~`]", "", "\n\n".join(_leaves))
+    def _flat(skip):
+        out = []
+
+        def _go(o):
+            if isinstance(o, dict):
+                for k, v in o.items():
+                    if k not in skip:
+                        _go(v)
+            elif isinstance(o, list):
+                for v in o:
+                    _go(v)
+            elif isinstance(o, str):
+                out.append(o)
+        _go(d)
+        return re.sub(r"[*~`]", "", "\n\n".join(out))
+    flat = _flat(("retracted", "_retracted", "reviews", "_reviews"))
+    # ⛔ **禁句の定義そのものを照合に掛けない**(⛔ 自分の定義で自分が鳴る)。
+    #   ⚠ `reviews` は検分役の報告の転記なので同じく外す(規則18「遡って書かない」)。
+    flat_yk = _flat(("yakuNoKotoba", "_yakuNoKotoba", "reviews", "_reviews"))
     rbad = retracted_check(d, [
         ("設計値", flat),
         ("文章", re.sub(r"[*~`]", "", open(MD, encoding="utf-8").read())),
@@ -14305,6 +14884,29 @@ def main():
         ("台帳", re.sub(r"[*~`]", "", _ledger_text())),
         ("メモリ", re.sub(r"[*~`]", "", _memo_text())),
     ])
+    # ⭐⭐ **役の言葉づかいの網**(2026-09-08 考証方 中1)。⛔ 面は当邸の成果物だけ。
+    ybad, yimp = yaku_kotoba_check(d, [
+        ("設計値", flat_yk),
+        ("文章", re.sub(r"[*~`]", "", open(MD, encoding="utf-8").read())),
+        ("生成器", re.sub(r"[*~`]", "", open(__file__, encoding="utf-8").read())),
+        ("図", re.sub(r"[*~`]", "",
+                      re.sub(r"</?(p|td|th|li|h[1-6]|div|tr|table|ul|ol|section|"
+                             r"figcaption|caption|svg|g|text|tspan)\b[^>]*>", "\n\n",
+                             _strip_history(body)))),
+        ("実装", re.sub(r"[*~`]", "", _impl_text())),
+    ])
+    print("── 役の言葉づかいの禁句(`const.yakuNoKotoba`)の残り: %s"
+          % ("**0 件**(⚠ 面は当邸が書ける成果物だけ — 台帳・メモリ・`Assets/` は別の役の持ち場)"
+             if not ybad else "⚠ %d 件" % len(ybad)))
+    for b in ybad:
+        print("   ", b)
+    # ⛔ **棟梁へ差し戻す点は別枠**(`Assets/` は棟梁の持ち場で指図方は書けない)。
+    #   ⛔ 0件でも件数を出す(0件と未実行を見分けられなくしない=規則19)。
+    print("── 棟梁へ差し戻す点(指図方では直せない): %s"
+          % ("**0 件**" if not yimp else "⚠ %d 件" % len(yimp)))
+    for b in yimp:
+        print("   ", b)
+    rbad = rbad + ybad
     print("── 撤回の印つきで見逃した数: %d 件" % d.get("_retractedMarked", -1))
     print("── 撤回済みの説の残り: %s"
           % ("**0 件**" if not rbad else "⚠ %d 件 — **図は書き出したが要修正**" % len(rbad)))
@@ -14347,11 +14949,16 @@ def main():
     #   ⚠ **当て直すと C# の添字が偽の「台帳に無い ID」で鳴る** — 実測で3件
     #   (`["doi"]` / `[Tsuyo_Mon]` / `=[両端の落差]`)。⛔ **網は緩めない・除外の名簿も作らない。**
     #   ⇒ **形で絞る**: ① **バッククォートで囲んだコードは落とす**(`` `komon[Tsuyo_Mon].sill` ``)
-    #                  ② **直前が `=`・英数字・`_`・`.`・`"` の `[...]` は添字**なので落とす。
+    #                  ② **直前が `=`・**ASCII の**英数字・`_`・`.`・`"` の `[...]` は添字**なので落とす。
     #   ⭕ 典拠 ID は空白・句読点・行頭の後に立つので、この形では落ちない。
+    # ⛔⛔ **後読みを `\w` で書かない**(2026-09-08 検図方 中3)。⚠ Python の `\w` は
+    #   **Unicode 対応**なので**漢字・かなにも当たり**、「…であ**る**[山脇武家屋敷門]」のように
+    #   **和文の直後に立つ典拠 ID が黙って消える**(⚠ いまは該当0件の潜在の穴)。
+    #   ⇒ **ASCII に限る。**⭕ 検図方が実験済み — 偽陽性3件はこれでも全部落ちる
+    #   (`Houses["doi"]` は `s` の後・`komon[Tsuyo_Mon]` はバッククォート・`=[両端の落差]` は `=`)。
     _impl_cmt = "\n".join(m.group(1) for m in re.finditer(r"//(.*)", _impl_text()))
     _impl_cmt = re.sub(r"`[^`\n]*`", " ", _impl_cmt)            # ① コードを落とす
-    _impl_cmt = re.sub(r'(?<=[=\w_."])\[[^\]\n]*\]', " ", _impl_cmt)   # ② 添字を落とす
+    _impl_cmt = re.sub(r'(?<=[=A-Za-z0-9_."])\[[^\]\n]*\]', " ", _impl_cmt)   # ② 添字を落とす
     # ⛔ **値どうしを地続きに繋がない。**⚠ 素の "\n" で連結すると、ある値の末尾
     #   (`src` の `[西川1959]`)と次の値の先頭(`certs` の `"B"`)が `[ID]\s*確度` の形に
     #   化けて**偽の不一致**になる(2026-09-06、`roof.certs` を要素別に分けた巡で発覚)。

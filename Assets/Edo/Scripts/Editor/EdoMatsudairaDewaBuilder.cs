@@ -763,6 +763,12 @@ public static partial class EdoMatsudairaDewaBuilder
             float lo = ky0 + (ky1 - ky0) * 0.15f, hi = ky0 + (ky1 - ky0) * 0.80f;   // 壁体の帯
             foreach (var run in runs)
             {
+                // ⛔ **隅(Kado)は単一メッシュで裏面が無い**(実測: run 側の裏面 `_0b` との隙間
+                //   0.33〜0.38m は「相手が無い」だけで実体の欠陥ではない)。練塀 run は前後2枚
+                //   (`_0f` 表 / `_0b` 裏)で厚みを作るが、隅にはこの裏面に対応する駒が無いので、
+                //   裏面との隙間を数え続けても直しようが無い警告にしかならない。表面(`_0f` /
+                //   末尾が f/b で終わらない棟=長屋)だけを隅の相手として数える。
+                if (run.name.EndsWith("_0b")) continue;
                 var rb = MeshBody(run); if (rb.Count == 0) continue;
                 float best = 1e9f; Vector3 pa = Vector3.zero, pb = Vector3.zero;
                 foreach (var a in kb) { if (a.y < lo || a.y > hi) continue;
@@ -991,76 +997,74 @@ public static partial class EdoMatsudairaDewaBuilder
         }
         sb.Append("犬走りを揃えた: " + moved + "駒 / " + byRun.Count + " run");
 
-        // ---- 隅部材(留め継ぎ)の横合わせ — ⛔ **2026-09-07 に無効化**。
-        //   実装は入れたが、**入隅(凹)で外面の取り違えが起き Kado_J_P2 が 5.9m 動いた**
-        //   (レンダで隅の塀が消えた)。凸の隅では「その辺の外向き法線への最大投影＝外面」でよいが、
-        //   **入隅ではもう一方の腕がその方向へ более 出る**ので、最大投影が別の腕の面になる。
-        //   ⇒ 腕ごとに頂点を選り分ける(相手の辺の法線方向で、隅の点から壁厚の内側にある物だけ)
-        //     直しが要る。それまでは**隅を動かさない**(横のずれ 0.18〜0.78m は残るが、
-        //     部材が消えるより害が小さい)。CloseKadoSeams が実測して列挙する。
-        int movedKado = 0;
-#if EDO_KADO_LATERAL_ALIGN
-        //   2026-09-07(棟梁): 上の run のループは `Kado_*` を素通りしていた(名前が Runs[] に
-        //   マッチしない)ため、隅は据えたまま横にずれていた(実測 0.31〜0.78m — 走り方向は
-        //   `CloseKadoSeams` が詰めるが、横は解いていなかった)。
+        // ---- 隅部材(留め継ぎ)の横合わせ。
         //   隅は2辺に属するので、**留め継ぎの折れ角(yaw)は動かさず**、両辺それぞれの外向き法線方向に
         //   外面が -INUBASHIRI へ来るよう平行移動だけを解く(2本の直線までの距離=2元1次方程式)。
-        // ⚠ 壁体頂点の腕への振り分け(下の d1<=d2)は据えた位置に依存するので、頂点が腕の付け根
-        //   付近にあると一回の平行移動では収束しないことがある(実測: 1回目で3基動き、2回目で
-        //   1基だけ再度動いた)。**内部で収束するまで数回繰り返す**(外側の呼び出し回数に頼らない)。
+        //
+        // ⛔ **2026-09-07 に一度無効化した版の欠陥**: 「辺 e の外向き法線への最大投影＝その辺の外面」を
+        //   腕の選り分け無しに全頂点へ適用すると、入隅(凹)ではもう一方の腕がその方向へ余計に張り出すため
+        //   最大投影が別の腕の面になり、Kado_J_P2 が 5.9m 動いた(レンダで隅の練塀が消えた)。
+        // ⭕ **直し: 腕ごとに頂点を選り分けてから測る。** 隅の折れ点 P(= 辺 e1 の終点 = 辺 e2 の始点)から、
+        //   辺 e の**腕の走り方向**(隅から外へ)を t_e とすると、辺 e の腕に属する頂点は
+        //   「(v−P)·t_e ≥ 0(その腕の外向きにある)かつ |(v−P)·t_other| ≤ KADO_ARM_THRESH
+        //   (相手の腕の走りへはみ出していない)」の物だけ。この部分集合の中で n_e への最大投影を取れば、
+        //   入隅でも出隅でも正しく「その腕の外面」になる(実測で検証済 — scratchpad の sim.py)。
+        // ⚠ **選り分けは呼び出し時点の(まだ動かす前の)頂点位置で一度だけ行う。** 動かした後の位置で
+        //   毎回選り直すと、選り分けの基準(P からの相対位置)自体が補正でずれて発散する
+        //   (実測: 1回目の大きな補正の後、2回目の選り分けで「両辺とも該当頂点なし」になり暴走した)。
+        //   選り分けを固定すれば dot 積は補正量に対して線形なので**平行移動は一発の連立方程式で解ける**
+        //   (2元1次方程式の解が exact — 反復は不要。実際 2 回目に再計算しても残差は浮動小数点誤差のみ)。
         int movedKado = 0; var kadoNote = new List<string>();
-        for (int pass = 0; pass < 4; pass++)
+        foreach (var o in A(D["joints"]))
         {
-            int movedThisPass = 0; kadoNote.Clear();
-            foreach (var o in A(D["joints"]))
+            var j = O(o);
+            if (!Has(j, "kado")) continue;
+            string id = (string)j["id"];
+            var kc = kak.Find("Kado_" + id);
+            if (kc == null) continue;
+            int e1 = (int)F(j["edge"]);
+            int e2 = (e1 + 1) % Poly.Length;
+            Vector2 a1 = Poly[e1 % Poly.Length];             // 辺 e1 の遠端(隅の反対側)
+            Vector2 P = Poly[e2 % Poly.Length];               // 隅の折れ点(= 辺 e1 の終点 = 辺 e2 の始点)
+            Vector2 a3 = Poly[(e2 + 1) % Poly.Length];        // 辺 e2 の遠端
+            Vector2 t1 = (a1 - P).normalized, t2 = (a3 - P).normalized;   // 隅から外への腕の走り方向
+            Vector2 kn1 = OutNormal(e1), kn2 = OutNormal(e2);
+            float det = kn1.x * kn2.y - kn1.y * kn2.x;
+            if (Mathf.Abs(det) < 0.05f) { kadoNote.Add(id + ": 両辺がほぼ平行(det=" + det.ToString("F3") + ") — 解けず(棟梁へ)"); continue; }
+            var body = MeshBody(kc);
+            if (body.Count == 0) { kadoNote.Add(id + ": メッシュ無し"); continue; }
+            // Kado の FBX は単一メッシュ(run のように hei/namako で分かれていない)。
+            // run と同じ「壁体の帯」(高さの15〜80%, `CloseKadoSeams` と同じ帯)で屋根を除く。
+            float ky0 = 1e9f, ky1 = -1e9f;
+            foreach (var v in body) { if (v.y < ky0) ky0 = v.y; if (v.y > ky1) ky1 = v.y; }
+            float lo = ky0 + (ky1 - ky0) * 0.15f, hi = ky0 + (ky1 - ky0) * 0.80f;
+            float best1 = float.MinValue, best2 = float.MinValue;
+            foreach (var w in body)
             {
-                var j = O(o);
-                if (!Has(j, "kado")) continue;
-                string id = (string)j["id"];
-                var kc = kak.Find("Kado_" + id);
-                if (kc == null) continue;
-                int e1 = (int)F(j["edge"]);
-                int e2 = (e1 + 1) % Poly.Length;
-                Vector2 a1 = Poly[e1 % Poly.Length], a2 = Poly[e2 % Poly.Length];
-                Vector2 kn1 = OutNormal(e1), kn2 = OutNormal(e2);
-                var body = MeshBody(kc);
-                if (body.Count == 0) { kadoNote.Add(id + ": メッシュ無し"); continue; }
-                // Kado の FBX は単一メッシュ(run のように hei/namako で分かれていない)。
-                // run と同じ「壁体の帯」(高さの15〜80%, `CloseKadoSeams` と同じ帯)で屋根を除く。
-                float ky0 = 1e9f, ky1 = -1e9f;
-                foreach (var v in body) { if (v.y < ky0) ky0 = v.y; if (v.y > ky1) ky1 = v.y; }
-                float lo = ky0 + (ky1 - ky0) * 0.15f, hi = ky0 + (ky1 - ky0) * 0.80f;
-                // 各壁体頂点を、辺 e1 の直線・辺 e2 の直線のどちらに近いかで腕へ振り分け、
-                // それぞれの腕で外向き法線方向の最大値(=外面)を取る。
-                float best1 = float.MinValue, best2 = float.MinValue;
-                foreach (var w in body)
-                {
-                    if (w.y < lo || w.y > hi) continue;
-                    Vector2 wp = new Vector2(w.x, w.z);
-                    float d1 = Mathf.Abs(Vector2.Dot(wp - a1, kn1));
-                    float d2 = Mathf.Abs(Vector2.Dot(wp - a2, kn2));
-                    if (d1 <= d2) best1 = Mathf.Max(best1, Vector2.Dot(wp - a1, kn1));
-                    else best2 = Mathf.Max(best2, Vector2.Dot(wp - a2, kn2));
-                }
-                if (best1 == float.MinValue || best2 == float.MinValue) { kadoNote.Add(id + ": 両辺の壁体を判別できず"); continue; }
-                float det = kn1.x * kn2.y - kn1.y * kn2.x;
-                if (Mathf.Abs(det) < 0.05f) { kadoNote.Add(id + ": 両辺がほぼ平行(det=" + det.ToString("F3") + ") — 解けず(棟梁へ)"); continue; }
-                float r1 = (-INUBASHIRI) - best1, r2 = (-INUBASHIRI) - best2;
-                float dx = (r1 * kn2.y - r2 * kn1.y) / det;
-                float dz = (kn1.x * r2 - kn2.x * r1) / det;
-                if (Mathf.Abs(dx) > 0.02f || Mathf.Abs(dz) > 0.02f)
-                {
-                    kc.position += new Vector3(dx, 0f, dz);
-                    movedThisPass++;
-                }
+                if (w.y < lo || w.y > hi) continue;
+                Vector2 rel = new Vector2(w.x, w.z) - P;
+                float d1 = Vector2.Dot(rel, t1), d2 = Vector2.Dot(rel, t2);
+                if (d1 >= 0f && Mathf.Abs(d2) <= KADO_ARM_THRESH) best1 = Mathf.Max(best1, Vector2.Dot(rel, kn1));
+                if (d2 >= 0f && Mathf.Abs(d1) <= KADO_ARM_THRESH) best2 = Mathf.Max(best2, Vector2.Dot(rel, kn2));
             }
-            movedKado += movedThisPass;
-            if (movedThisPass == 0) break;
+            if (best1 == float.MinValue || best2 == float.MinValue) { kadoNote.Add(id + ": 両辺の壁体を判別できず"); continue; }
+            float r1 = (-INUBASHIRI) - best1, r2 = (-INUBASHIRI) - best2;
+            float dx = (r1 * kn2.y - r2 * kn1.y) / det;
+            float dz = (kn1.x * r2 - kn2.x * r1) / det;
+            if (Mathf.Abs(dx) > 0.02f || Mathf.Abs(dz) > 0.02f)
+            {
+                kc.position += new Vector3(dx, 0f, dz);
+                movedKado++;
+            }
         }
-#endif
-        sb.Append(" / 隅の横合わせ: 無効(入隅で外面を取り違える — 棟梁へ)");
+        sb.Append(" / 隅の横合わせ: " + movedKado + " 基");
+        if (kadoNote.Count > 0) sb.Append(" / ★ " + string.Join(" / ", kadoNote.ToArray()));
         return sb.ToString();
     }
+
+    /// <summary>隅部材の腕への選り分けで「相手の腕へはみ出していない」とみなす上限[m]。
+    /// 壁厚の程度(実測でスキャンし 0.4〜0.8m の範囲で安定することを確認 — scratchpad の sim.py)。</summary>
+    const float KADO_ARM_THRESH = 0.6f;
 
     /// <summary>**門と扉の面を囲いの面へ揃える。**
     /// ⚠ 2026-08-29(EDO-0053)にユーザーが「門と長屋が面一になっていないので門や塀の意味を成さない」

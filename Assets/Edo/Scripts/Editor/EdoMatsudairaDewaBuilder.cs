@@ -1374,8 +1374,47 @@ public static partial class EdoMatsudairaDewaBuilder
             }
             float y = F(m["y"]);
             var w = f.W(u0, v1);                          // local(0,0) の角
-            string roof = EdoAssets.Goten.RoofIrimoya_(kw, kd);
-            if (AssetDatabase.LoadAssetAtPath<GameObject>(roof) == null)
+            // EDO-0149: 指図に munes[].roof(帯割り)があれば RoofBanded へ差し替える。
+            // 無い棟(御湯殿・長局北・奥台所・厩=長屋型)は帯割りの部材が無いので、
+            // 従来の入母屋(RoofIrimoya_)のまま残す(⛔ 発明しない・指図どおり)。
+            string roof; bool roofAtFloor = false; float roofYaw = 0f;
+            var roofSpec = Has(m, "roof") ? O(m["roof"]) : null;
+            if (roofSpec != null)
+            {
+                var bandsL = A(roofSpec["bands"]);
+                int[] bands = new int[bandsL.Count];
+                for (int bi = 0; bi < bandsL.Count; bi++) bands[bi] = Mathf.RoundToInt(F(bandsL[bi]));
+                int spanKen = Mathf.RoundToInt(F(roofSpec["spanKen"]));
+                bool alongV = Has(roofSpec, "alongV") && (bool)roofSpec["alongV"];
+                string fukizai = Has(roofSpec, "fukizai") ? (string)roofSpec["fukizai"] : "sangawara";
+                if (fukizai != "sangawara")
+                {
+                    sb.AppendLine("⛔ " + name + ": fukizai=" + fukizai + " は未対応(桟瓦以外)。差し戻し — 現状の入母屋のまま残す");
+                    roof = EdoAssets.Goten.RoofIrimoya_(kw, kd);
+                }
+                else
+                {
+                    string banded = EdoAssets.Goten.RoofBanded(bands, spanKen, alongV);
+                    if (AssetDatabase.LoadAssetAtPath<GameObject>(banded) != null)
+                    {
+                        roof = banded; roofAtFloor = true; roofYaw = 0f;
+                    }
+                    else
+                    {
+                        sb.AppendLine("⛔ " + name + ": 帯割り屋根が無い " + banded +
+                                      " — edo-buzai へ照会(build_goten_roof.py -- banded " +
+                                      string.Join(",", System.Array.ConvertAll(bands, x => x.ToString())) +
+                                      " " + spanKen + (alongV ? " --along v" : " --along u") +
+                                      ")。現状の入母屋のまま残す");
+                        roof = EdoAssets.Goten.RoofIrimoya_(kw, kd);
+                    }
+                }
+            }
+            else
+            {
+                roof = EdoAssets.Goten.RoofIrimoya_(kw, kd);   // 帯割り部材が無い長屋型4棟(_pending.gotenRoofNagayaGata)
+            }
+            if (roof != null && AssetDatabase.LoadAssetAtPath<GameObject>(roof) == null)
             {
                 sb.AppendLine("⚠ " + name + ": 屋根が無い " + kw + "x" + kd +
                               "ken — build_goten_roof.py -- " + (kw * f.ken) + " " + (kd * f.ken) +
@@ -1383,7 +1422,8 @@ public static partial class EdoMatsudairaDewaBuilder
                 roof = null;
             }
             var g = EdoGotenKit.Mune(name, grp, new Vector3(w.x, y, w.y), yawU,
-                                     kw - 2, kd - 2, 1, GOTEN_FLOOR, roof, iriX: 1);
+                                     kw - 2, kd - 2, 1, GOTEN_FLOOR, roof, iriX: 1,
+                                     roofAtFloor: roofAtFloor, roofYaw: roofYaw);
             Undo.RegisterCreatedObjectUndo(g, "mune");
             nm++;
         }

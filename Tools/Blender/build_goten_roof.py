@@ -680,6 +680,49 @@ def _valley_gutter(y_v, x_a, x_b, z_eave, kobai, p, name):
     return g
 
 
+def _verify_band_order(o, bands_in, D, along, name):
+    """⭐⭐ **焼いた直後に、帯が本当に across の小さい側から並んでいるかを実測する。**
+
+    ⛔⛔ **非対称の帯では必ず通すこと。** 帯の並びは**立面からは見えない**
+      (上から見ないと帯が見えない)ので、`--render` の立面でも、Unity 側の
+      足形・棟高の数値QAでも**素通りする** — 足形も棟高も左右対称で合ってしまう。
+      2026-09-07 に `4-5x10ken_v` が鏡像のまま Unity へ据わったのはこれが無かったから。
+
+    やること: **天端から 0.02m 以内の頂点を集めて across 座標へ落とす**。
+      across 座標(across の芯からの相対・m)は `along` によらず
+        along=="v": u = −(局所 X) /  along=="u": v = +(局所 Y)
+      ⛔⛔ **期待値は `bands_in`(呼び出し側=指図の `ws` の並び)から独立に立てる。**
+        ⛔ 中で組んだ `info` から立てない — 中で並べ替えが復活しても検算が一緒にズレて
+        素通りしてしまう(検査が測る集合を実装と同じ物にしない。CLAUDE.md 規則19)。
+    """
+    zmax = max(v.co.z for v in o.data.vertices)
+    acc = [(-v.co.x if along == "v" else v.co.y)
+           for v in o.data.vertices if v.co.z > zmax - 0.02]
+    if not acc:
+        raise SystemExit("[banded] 検算: 天端の頂点が拾えない(%s)" % name)
+    lo, hi = min(acc), max(acc)
+    mid = (lo + hi) / 2.0
+    # いちばん幅の広い帯 = いちばん棟の高い帯。呼び出し側の並びでの across の芯
+    wmax = max(bands_in)
+    k = bands_in.index(wmax)
+    want = (sum(bands_in[:k]) + wmax / 2.0) * KEN - D / 2.0
+    print("[banded]   ⭕ 帯の並びの検算: 最高の大棟の across = %+.3f m"
+          "(実測 %+.3f‥%+.3f)/ 期待 %+.3f m(`ws` の %d 番目・%d間)"
+          % (mid, lo, hi, want, k, wmax))
+    if bands_in.count(wmax) > 1:
+        print("[banded]   ⚠ 帯幅が同値で並びが対称 — **鏡像は無害だが「対称だから正しい」ではない**。"
+              "大棟の向きと谷の位置は別に測ること")
+        return mid
+    if abs(mid - want) > 0.10:
+        raise SystemExit(
+            "[banded] ⛔ **帯が across の逆側に焼けている**(%s)。\n"
+            "  最高の大棟 across 実測 %+.3f / 期待 %+.3f(差 %+.3f m = %+.2f間)。\n"
+            "  ⇒ `bands` の並べ替えか回転の符号を疑うこと。⛔ 据え付け側で 180° 回して"
+            "辻褄を合わせない — 部材の不良は部材で直す。"
+            % (name, mid, want, mid - want, (mid - want) / KEN))
+    return mid
+
+
 def make_banded(bands, span, along="u", irikawa=1.0, eave=3.4, kobai=RATIO,
                 noki_de=0.90, tsuma_end=0.30, fukizai="sangawara",
                 gable_frac=0.45, name=None):
@@ -691,16 +734,17 @@ def make_banded(bands, span, along="u", irikawa=1.0, eave=3.4, kobai=RATIO,
     引数:
       bands      帯の**身舎**の幅の配列(間・整数)。例 [4,4] [4,5] [5,5] [4]。**1〜3 帯**
                  ⭐⭐ **並びは常に「across 軸(帯の並ぶ向き)の小さい側から」**。
-                    `along` が u でも v でも変わらない(2026-09-06 に生成器側で正規化した)。
+                    `along` が u でも v でも変わらない(軸の鎖の帰結。下の註を読むこと)。
                     ⇒ 指図の `ws` をそのまま渡してよい。例) 土井の奥棟は across=u で
                     **u の小さい側から 4 → 5** なので `[4,5]`(名も `4-5x10ken_v`)。
       span       長手方向の**身舎**の長さ(間)。大棟はこの向きに架かる
       along      "u" = 大棟が Blender +X(= Unity +X)/ "v" = Blender +Y(= Unity −Z)。
                  ⚠ 帯は長手に**直交**する方向へ並ぶ(along="u" なら across は v、逆も同様)。
-                 ⚠ 中身は常に「帯を +Y へ並べ、"v" なら最後に +90° 回す」で組む。その回転は
-                    `(x,y) → (−y,x)` で並びを裏返すので、**"v" のとき `bands` を受け取った時点で
-                    反転して打ち消している**(`name` を決めた後に反転する)。
-                 ⛔ この正規化を外すと `--along v` で帯が左右そっくり入れ替わる。
+                 ⚠ 中身は常に「帯を Blender +Y へ並べ、"v" なら最後に +90° 回す」で組む。
+                    ⛔ **`bands` を並べ替えてはいけない** — +90° の裏返しは
+                    書き出しの `Unity X = −(Blender X)` がちょうど打ち消す(下の軸の鎖の註)。
+                    2026-09-06 に入れた `bands[::-1]` は Blender 空間しか見ておらず、
+                    `4-5x10ken_v` を鏡像で焼いた(2026-09-07 撤去)。
       irikawa    入側(=下屋)の幅(間・既定 1)。身舎の四周に付く
       eave       **軒高**(m・既定 3.4)= 身舎の軒桁の高さ。**床レベルからの値**
       kobai      瓦勾配(既定 0.5456)。⛔ **これ以外は受け付けない** —
@@ -745,6 +789,7 @@ def make_banded(bands, span, along="u", irikawa=1.0, eave=3.4, kobai=RATIO,
         raise SystemExit("[banded] 勾配は %.4f 固定(`roof 2x2` の実ジオメトリの立上り)。"
                          "変えると瓦モジュールが平面に乗らない。指定=%.4f" % (RATIO, kobai))
     bands = [int(b) for b in bands]
+    bands_in = list(bands)              # ⭐ 検算の期待値はここから立てる(中の並びを見ない)
     if not 1 <= len(bands) <= 3:
         raise SystemExit("[banded] 帯数は 1〜3。指定=%d" % len(bands))
     if any(b < 2 for b in bands):
@@ -753,15 +798,26 @@ def make_banded(bands, span, along="u", irikawa=1.0, eave=3.4, kobai=RATIO,
     name = name or banded_name(bands, span, along, fukizai)
 
     # ⭐⭐ **`bands` の先頭は、`along` が u でも v でも「across 軸の小さい側」**。
-    #   中身は常に「帯を +Y へ並べて、along=="v" なら最後に +90° 回す」で組む。
-    #   +90° は (x,y) → (−y,x) なので **+Y に並べた先頭が +X(across の大きい側)へ行ってしまう**。
-    #   ⇒ ここで **受け取った時点で反転**して打ち消す。これで呼ぶ側は向きを気にしなくてよい。
-    #   ⛔ **`name` を先に決めてから反転する** — ファイル名は**呼び出し側の並び**
-    #     (= 指図の `ws`)で綴りたいので、反転後の内部順で名を作らないこと。
-    #   ⚠ 2026-09-06 に入れた。それ以前は `--along v` で帯が左右そっくり入れ替わり、
-    #     土井の奥棟を `5,4` と書いて焼く羽目になっていた(指図の記述は `4,5`)。
-    if along == "v":
-        bands = bands[::-1]
+    #   中身は常に「帯を Blender +Y へ並べ、along=="v" なら最後に +90° 回す」で組む。
+    #   ⛔⛔ **並べ替えは要らない。** 2026-09-06 に「+90° で並びが裏返る」と見て
+    #     `bands[::-1]` を入れたが、それは **Blender 空間だけを見た誤り**で、
+    #     `Goten_Roof_Banded_4-5x10ken_v` が鏡像で焼かれた(2026-09-07 実測で判明)。
+    #     ⇒ **軸の鎖を最後まで辿ること。**
+    #
+    #   【軸の鎖 — ここを端折ると必ず鏡像になる】
+    #     (1) 書き出し: `V.export_fbx` は axis_up='Y' / axis_forward='-Z' なので
+    #         **Unity X = −(Blender X) / Unity Y = Blender Z / Unity Z = −(Blender Y)**。
+    #         ⚠ 右手系→左手系は行列式 −1 でしか繋がらない。「Blender +X = Unity +X」は誤り。
+    #         典拠: `build_ishigaki_saka.py` の「Blender の +Y が Unity の −Z へ落ちる」
+    #         (実装済み・実測済みの非対称部材)。
+    #     (2) 据え付け: 屋根は `roofYaw = DeltaAngle(muneYaw, yawU)` で格子へ戻すので
+    #         **モデル局所 +X = 格子の +u / 局所 +Z = 格子の −v**(EdoDoiBuilder の註)。
+    #
+    #   【帰結】内部で +Y に並べた先頭 i=0 は、along が u でも v でも across の小さい側に落ちる:
+    #     ・along=="v": 内部 y=ym → +90° で Blender x=−ym → Unity x=+ym → u は ym の昇順。✓
+    #     ・along=="u": 内部 y=ym → Unity z=−ym → v = −(局所 z) = +ym の昇順。✓
+    #     ⇒ **どちらも `across 座標(across の芯からの相対) = ym − D/2`**。反転は不要。
+    #   ⭕ 焼いた後に `_verify_band_order()` が実測で検算する(⛔ この註だけに頼らない)。
 
     W = span * KEN
     ys = [0.0]
@@ -890,6 +946,7 @@ def make_banded(bands, span, along="u", irikawa=1.0, eave=3.4, kobai=RATIO,
               % (d['i'], d['ken'], d['zr'], d['ridge_len'], d['a'], d['zg']))
     print("[banded]   谷 %d本: y = %s(身舎の南端から・柱通りに乗る)"
           % (len(valleys), ", ".join("%.3f(%g間)" % (v, v / KEN) for v in valleys)))
+    _verify_band_order(o, bands_in, D, along, name)
     return o
 
 

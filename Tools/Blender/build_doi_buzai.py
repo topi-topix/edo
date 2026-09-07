@@ -2,6 +2,7 @@
 
     blender --background --python Tools/Blender/build_doi_buzai.py -- umaya kura ido chozu mizushiri
     blender --background --python Tools/Blender/build_doi_buzai.py -- ido --render
+    blender --background --python Tools/Blender/build_doi_buzai.py -- kachu --render   # 家中長屋 8/9/10間
     BUZAI_OUT=/path/staging blender --background --python Tools/Blender/build_doi_buzai.py --
 
 【方針】**ゼロから起こさない。**既に在る生成器の型を土井の寸法で呼び直すだけにする —
@@ -17,6 +18,11 @@
   ・井戸     `wells` 5口。**5口とも同じ部材**。石枠 1.30 角 × 丈 0.35(`_pending.ido`)
   ・手水石   `gardens[].yashiro.chozu` = 水盤 0.6 × 0.4m
   ・水尻     `gardens[].mizu.mizushiri` = 石の閾 / 埋樋 φ0.24 / 石敷きの落とし溝 / 受け石
+  ・家中長屋 `service.Kachu_N1/N2/N3/S1/Y` = 桁行 10/8/9/8/8間 × 梁間 2.5間。
+             軒桁は `const.kachuEave` = 2.80m【U】。⛔ **平家**(`_service` / `const._kachuEave`)—
+             表長屋(二階建)の `const.nagayaRidge` 5.509 を流用しない。
+             ⭕ **桁行ごとに一体で焼く**(3種)。⛔ モジュールを並べない — 継ぎ目と端部材の小口を
+             新たに抱えることになる(表長屋の 2026-09-04 裁定=案A と同じ判断)。
 
 【⚠ 蔵の棟高は従属値】瓦モジュールの勾配 0.5456(5.5寸)は動かせないので、
   **軒高を合わせると棟高は梁間から自動的に決まる**。指図の `const.kuraRidge` 6.51 は
@@ -41,12 +47,15 @@ import vklib as V
 import build_matsudaira_dewa_fuzokuya as F      # Mesh / palette / dozo / ido
 import build_okabe_fuzokuya as OF               # umaya(板壁・桟瓦)
 import build_okabe_niwa as ON                   # 沓脱石(在庫の実岩を切る型)
+import build_obi_nagaya as OB                   # 平屋・桟瓦・下見板腰の長屋(家中長屋の型)
 
 KEN = 1.818
 OUT = V.out_dir(os.path.join(V.REPO, "Assets", "Edo", "Models", "Fuzokuya"))
+OUT_NAGAYA = V.out_dir(os.path.join(V.REPO, "Assets", "Edo", "Models", "Nagaya"))
 SHOT = os.path.join(V.REPO, "Screenshots")
 
 KURA_EAVE = 4.84        # 指図 const.kuraEave(地盤から軒の下端 m)
+KACHU_EAVE = 2.80       # 指図 const.kachuEave(地盤から軒桁 m)【⚠ 全体が確度U】
 
 
 def one_stone(suv, i=0):
@@ -276,6 +285,63 @@ def otoshimizo():
     return o, "Doi_Otoshimizo_1m"
 
 
+# ================================================================ 家中長屋(邸内・平家)
+def kachu(wKen):
+    """**家中長屋** 桁行 wKen間 × 梁間 2.5間(`service.Kachu_*` の5棟)。**平家・桟瓦・下見板腰**。
+
+    ⛔⛔ **表長屋で代用しない**(`Eg.KnagayaC` / `Own.NagayaOmote*`)。[西川1959]**A** の原文は
+      「外周部は、**二階瓦葺窓付の長屋**がめぐらされ、**邸内には平家建の長屋が密接して建並んで
+      いた**」— **外周=二階建 / 邸内=平家建**で別物。指図 `_service` と `const._kachuEave` が
+      その読みを正典にしており、`const.nagayaRidge`(5.509・二階建の表長屋の部材実測)の流用は
+      2026-09-06 考証方 高2 で明示的に禁じられている。
+
+    ⭕ **型は岡部の崖下の詰人長屋(`build_obi_nagaya.build`)をそのまま呼ぶ。**
+      ⛔ 同じ型を別の実装で二度書かない(このファイルの方針)— 梁間 2.5間・平家・桟瓦・
+      下見板の腰・**片面だけ開口**という条件がそのまま重なる。
+    ⚠ **家中(侍)と詰人(足軽・中間)で作りを分ける欄が指図に無い**ので、
+      **格の作り分けはしていない**【U】。⛔ 実装で勝手に格を足さない。
+
+    【高さ】軒桁 = `const.kachuEave` **2.80**【U】。⭕ 瓦面の大棟は従属値で
+      2.80 + (2.5間/2)×`ken`×`kawaraKobai` = **4.040** ⇒ 指図が刷る棟高とちょうど一致する。
+      ⚠ **その上に大棟(熨斗+冠瓦)が 0.36 見え掛かる**ので **実測の天端は 4.400**。
+      ⇒ 指図の 4.040 は**瓦面の頂**であって天端ではない(岡部の詰人長屋と同じ 0.36 の見せ掛かり)。
+      ⛔ 天端を 4.04 に合わせるために軒桁を下げない — 格は軒高で読む(厩 2.35 < 家中 2.80 < 御殿 3.40)。
+
+    【軒の出】平 **0.90** / けらば **0.30** — 岡部の同型と同値で、指図が借りていた
+      `const.nokiDe`/`tsumaEnd` と一致する。⛔ **「指図に合わせて作った」ので独立の典拠ではない。**
+
+    【向き】ローカル **+X = 桁行**(`service[].L` の側)/ **+Z = 開口面** / −Z = 背面(開口なし)。
+      ⚠ **開口をどちらへ向けるかの欄が指図に無い**【U】⇒ 棟梁は **郭の内側(境界と反対)** へ
+      +Z を向けること。境界側は犬走りしか無く、そちらへ開けると隣家へ向いて開くことになる。
+    """
+    w = int(round(wKen))
+    name = "Doi_Kachu_%dx2.5ken" % w
+    return OB.build(w, 2.5, name, eaveH=KACHU_EAVE, ridge_show=0.36,
+                    plan=OB.sumai_plan(w, 2.5)), name
+
+
+def _kachu_check(o, name):
+    """**軒の出・けらばの出・軒桁・棟天端を実メッシュから測る**(`_pending.kachu_noki` の宿題)。
+
+    ⛔⛔ **bbox で測らない。** 妻の破風板は屋根面の法線方向へ出るので **厚み(Z)へ 0.08 はみ出す**
+      — README の「入母屋屋根 FBX の bbox から軒の出を出さない」と同じ罠が切妻でも出る。
+      ⭐ 台所棟 × 家中長屋(南一)の余裕は **0.032m** しかないので、0.08 の誤差で判定が転ぶ。
+    ⭕ **軒先線** = 走りの中ほど(中央 ±35%)の最外 Y。**けらば** = 梁間の中ほど(±60%)の最外 X。
+    """
+    W = int(name.split("_")[2].split("x")[0]) * KEN     # 足形の桁行
+    D = 2.5 * KEN                                       # 足形の梁間
+    pts = [o.matrix_world @ v.co for v in o.data.vertices]
+    mid = [p for p in pts if abs(p.x) < (W / 2.0) * 0.35]
+    de = max(max(p.y for p in mid), -min(p.y for p in mid)) - D / 2.0
+    tm = [p for p in pts if abs(p.y) < (D / 2.0) * 0.60]
+    ts = max(max(p.x for p in tm), -min(p.x for p in tm)) - W / 2.0
+    zs = [p.z for p in pts]
+    print("[doi] %-26s ⭐軒先線の出(平・片側)=%.4f  けらばの出(妻・片側)=%.4f" % (name, de, ts))
+    print("[doi] %-26s   足形 %.3f × %.3f m / 棟天端 %.4f / 底 %+.4f"
+          % (name, W, D, max(zs), min(zs)))
+    return de, ts
+
+
 PARTS = {
     "umaya":      lambda: umaya(),
     "kura38":     kura38,
@@ -286,9 +352,20 @@ PARTS = {
     "shiki":      mizushiri_shiki,
     "hakiguchi":  mizushiri_hakiguchi,
     "otoshimizo": otoshimizo,
+    # 家中長屋 — 桁行ごとに一体で焼く(⛔ モジュールを並べない。下の断り参照)
+    "kachu8":     lambda: kachu(8),
+    "kachu9":     lambda: kachu(9),
+    "kachu10":    lambda: kachu(10),
 }
+# 部材ごとの書き出し先。⛔ 既定(`OUT` = Fuzokuya)に長屋を混ぜない
+OUTDIR = {"kachu8": OUT_NAGAYA, "kachu9": OUT_NAGAYA, "kachu10": OUT_NAGAYA}
 GROUPS = {"kura": ["kura38", "kura33"],
-          "mizushiri": ["shiki", "hakiguchi", "otoshimizo"]}
+          "mizushiri": ["shiki", "hakiguchi", "otoshimizo"],
+          # ⭐ **桁行ごとに焼く**(モジュール式にしない)。指図 `service.Kachu_*` の桁行は
+          #   10 / 8 / 9 / 8 / 8間 の**3種**しかなく、モジュールにすると継ぎ目と端部材
+          #   (小口が透ける)を新たに抱える。表長屋も 2026-09-04 の裁定=案A で
+          #   **run ごとに一体**にしてある — 同じ判断に揃えた。
+          "kachu": ["kachu8", "kachu9", "kachu10"]}
 
 
 def _kutsunugi_check(o, mn, mx):
@@ -388,11 +465,19 @@ def main():
         print("[doi] %-26s 材質=%s" % (name, [mm.name for mm in o.data.materials]))
         if key == "kutsunugi":
             _kutsunugi_check(o, mn, mx)
+        if key.startswith("kachu"):
+            _kachu_check(o, name)
         if "--render" in argv:
-            # 沓脱石は地表(天端 −0.32)を敷いて**見付高**ごと撮る
-            shots(o, key, (mn, mx), ground=(-0.32 if key == "kutsunugi" else None))
-        V.export_fbx([o], os.path.join(OUT, name + ".fbx"))
-        print("[doi] 書き出し " + os.path.join(OUT, name + ".fbx"))
+            if key.startswith("kachu"):
+                # 長屋は立面・妻・背面・窓口・棟の7枚(`build_obi_nagaya.shots`)で見る。
+                # ⛔ 附属屋用の3枚では**背面と窓口が写らない**
+                OB.shots(o, key, prefix="doi")
+            else:
+                # 沓脱石は地表(天端 −0.32)を敷いて**見付高**ごと撮る
+                shots(o, key, (mn, mx), ground=(-0.32 if key == "kutsunugi" else None))
+        odir = OUTDIR.get(key, OUT)
+        V.export_fbx([o], os.path.join(odir, name + ".fbx"))
+        print("[doi] 書き出し " + os.path.join(odir, name + ".fbx"))
 
 
 main()

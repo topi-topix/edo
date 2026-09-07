@@ -588,6 +588,31 @@ public static partial class EdoDoiBuilder
     /// <summary>据えられなかった部材の控え。⛔ 仮の代用品を置かずここへ積み、報告に出す。</summary>
     static readonly List<string> _wait = new List<string>();
     static void Wait(string s) { if (!_wait.Contains(s)) _wait.Add(s); }
+
+    /// <summary>**指図の欄のうち実装が知らない物**を「未据え付け」へ積む守り。
+    ///
+    /// ⛔⛔ **指図に欄があるのに実装が読まない、という食い違いは黙って通る。**
+    /// 2026-09-06 に護岸の `ishiPick`・荒磯の `asset`・岩島の `assetShoulder` の3か所で起き、
+    /// **指図と反対の駒**が据わったまま検図関門を抜けた(見つけたのは人の目)。
+    /// ⇒ 据える側が「知っている欄」を名指しし、指図がそれ以外を持っていたらここで鳴らす。
+    /// ⚠ **読まない欄も名指しに入れてよい**(石材・確度・註のような、部材では表せない欄)。
+    /// 名指しに入れる = 「見て、読まないと決めた」ことの記録であって、⛔ 黙って落とすのとは違う。
+    /// ⚠ `_` で始まる欄は註なので数えない。</summary>
+    static void AuditKeys(Dictionary<string, object> o, string what, params string[] known)
+    {
+        if (o == null) return;
+        var extra = new List<string>();
+        foreach (var k in o.Keys)
+        {
+            if (string.IsNullOrEmpty(k) || k[0] == '_') continue;
+            bool hit = false;
+            foreach (var kn in known) if (kn == k) { hit = true; break; }
+            if (!hit) extra.Add(k);
+        }
+        if (extra.Count > 0)
+            Wait(what + ": 指図に**実装が読んでいない欄**がある — " + string.Join(", ", extra.ToArray())
+               + "(読むか、読まない欄として実装の名指しに加えるか。⛔ 黙って落とさない)");
+    }
     static string WaitReport()
     {
         if (_wait.Count == 0) return "未据え付け: 0 件";
@@ -717,6 +742,37 @@ public static partial class EdoDoiBuilder
             }
         }
         return hi > lo;
+    }
+
+    /// <summary>棟の**いちばん高い大棟**が、江戸間格子のどこに載っているかを実測する。
+    /// 屋根が棟でいちばん高いので、天端から 0.02m 以内の頂点=最高の帯の大棟の稜線。
+    /// <paramref name="acrossIsU"/> = 帯の並ぶ向きが u(=大棟が v に架かる)。</summary>
+    static bool TopRidgeGrid(GameObject go, bool acrossIsU, out float lo, out float hi, out float topY)
+    {
+        lo = 9999f; hi = -9999f; topY = -9999f;
+        var mfs = go.GetComponentsInChildren<MeshFilter>();
+        foreach (var mf in mfs)
+        {
+            var m = mf.sharedMesh; if (m == null) continue;
+            var vs = m.vertices; var t = mf.transform;
+            for (int i = 0; i < vs.Length; i++) { float y = t.TransformPoint(vs[i]).y; if (y > topY) topY = y; }
+        }
+        if (topY < -9998f) return false;
+        var f = Grid;
+        foreach (var mf in mfs)
+        {
+            var m = mf.sharedMesh; if (m == null) continue;
+            var vs = m.vertices; var t = mf.transform;
+            for (int i = 0; i < vs.Length; i++)
+            {
+                Vector3 p = t.TransformPoint(vs[i]);
+                if (p.y < topY - 0.02f) continue;
+                Vector2 uv = f.L(new Vector2(p.x, p.z));
+                float a = acrossIsU ? uv.x : uv.y;
+                if (a < lo) lo = a; if (a > hi) hi = a;
+            }
+        }
+        return hi >= lo;
     }
 
     /// <summary>据えた囲いの駒が run の丁場に収まっているかを**実測して**報告する。</summary>
@@ -1768,29 +1824,109 @@ public static partial class EdoDoiBuilder
             // 大棟は桁行に架かる。桁行が v の棟は yawV で据え、原点は (u0, v0)
             bool alongU = ku >= kv;
             int kw = alongU ? ku : kv, kd = alongU ? kv : ku;
-            // ⭐ **屋根の型は指図が持つ**(`munes[].roof.kata`)。⛔ 実装で入母屋に決め打ちしない —
-            //   表役所は 2026-09-06 の考証で**寄棟(10×10間なので方形造)**に決まった。
-            //   ⚠ 2026-09-04 の実装は指図に無い判断で入母屋を当てていた。
+            float muneYaw = alongU ? yawU : yawV;
+            // ⭐⭐ **屋根は帯割り**(2026-09-06 ユーザー裁定=案C)。身舎を平行な帯に割り、帯ごとに
+            //   入母屋を架けて境を谷で受ける。⛔ **梁間10間超を一枚の小屋組で飛ばす入母屋・寄棟は
+            //   引かない** — 現存最大の [山脇武家屋敷門]A ですら梁間 4.7m で、**存在しない型**だった。
+            //   ⭕ 帯の割り付け(`ws`・`along`・`moyaAcross`・`moyaAlong`)は **指図
+            //   `munes[].roof.bands` が正典**(生成器が `const.moyaBand` と足形から書き戻す)。
+            //   ⛔ 実装で帯を数え直さない・端数を丸めない。帯に割らない棟は
+            //   `const.moyaBand.exempt` に名指しがあるものだけ(厩は上で分岐済み)。
             var rspec = Has(m, "roof") ? O(m["roof"]) : null;
-            string kata = (rspec != null && Has(rspec, "kata")) ? S(rspec["kata"]) : null;
-            bool yosemune = kata != null && (kata.StartsWith("寄棟") || kata.StartsWith("方形"));
-            string roof = yosemune ? EdoAssets.Goten.RoofYosemune_(kw, kd)
-                                   : EdoAssets.Goten.RoofIrimoya_(kw, kd);
-            if (!Exists(roof))
+            var bspec = (rspec != null && Has(rspec, "bands")) ? O(rspec["bands"]) : null;
+            string roof = null; float roofYaw = 0f; float ridgeYSpec = float.NaN;
+            if (bspec == null)
             {
-                Wait("棟 " + name + " の" + (yosemune ? "寄棟" : "入母屋") + "屋根が無い: "
-                   + kw + "x" + kd + "間 → "
-                   + "blender --background --python Tools/Blender/build_goten_roof.py -- "
-                   + (yosemune ? "yosemune " : "")
-                   + (kw * f.ken).ToString("0.###") + " " + (kd * f.ken).ToString("0.###")
-                   + " Goten_Roof_" + (yosemune ? "Yosemune_" : "Irimoya_") + kw + "x" + kd + "ken");
-                roof = null;
+                Wait("棟 " + name + ": 指図 `roof.bands` が無い。⛔ 帯に割らない棟は "
+                   + "`const.moyaBand.exempt` に名指しが要る(⛔ 入母屋・寄棟の一枚屋根へ倒さない)— 指図方へ");
             }
-            else if (yosemune) sb.AppendLine("  (" + name + " の屋根 = " + kata + ")");
+            else
+            {
+                AuditKeys(bspec, "棟 " + name + " の `roof.bands`",
+                          "n", "along", "across", "ws", "moyaAcross", "moyaAlong",
+                          "eaveH", "ridgeH", "ridgeG", "ridgeY", "at");
+                var wsA = A(bspec["ws"]);
+                int[] ws = new int[wsA.Count];
+                float wsum = 0f;
+                for (int i = 0; i < wsA.Count; i++) { ws[i] = Mathf.RoundToInt(F(wsA[i])); wsum += ws[i]; }
+                bool alongVRoof = S(bspec["along"]) == "v";
+                float spanF = F(bspec["moyaAlong"]), across = F(bspec["moyaAcross"]);
+                int spanKen = Mathf.RoundToInt(spanF);
+                var mb = O(O(D["const"])["moyaBand"]);
+                float iriB = Has(mb, "irikawa") ? F(mb["irikawa"]) : float.NaN;
+                float acrossKen = alongVRoof ? (fu1 - fu0) : (fv1 - fv0);
+                float alongKen = alongVRoof ? (fv1 - fv0) : (fu1 - fu0);
+                if (Has(bspec, "ridgeY"))
+                    foreach (var ry in A(bspec["ridgeY"]))
+                        if (float.IsNaN(ridgeYSpec) || F(ry) > ridgeYSpec) ridgeYSpec = F(ry);
+                if (float.IsNaN(iriB))
+                    Wait("指図 `const.moyaBand.irikawa` が無い(⛔ 1間で埋めない)— 指図方へ");
+                else if (Mathf.Abs(wsum - across) > 0.01f
+                      || Mathf.Abs(across + 2f * iriB - acrossKen) > 0.01f
+                      || Mathf.Abs(spanF + 2f * iriB - alongKen) > 0.01f
+                      || Mathf.Abs(spanF - spanKen) > 0.01f
+                      || (Has(bspec, "n") && Mathf.RoundToInt(F(bspec["n"])) != ws.Length))
+                    Wait("棟 " + name + ": 指図の帯の割り付けが足形と合わない(帯の和 " + wsum
+                       + " / moyaAcross " + across + " / moyaAlong " + spanF + " / 足形 "
+                       + acrossKen + "×" + alongKen + "間・入側 " + iriB + ")— 指図方へ");
+                else
+                {
+                    string wsTag = "";
+                    for (int i = 0; i < ws.Length; i++) wsTag += (i > 0 ? "," : "") + ws[i];
+                    roof = EdoAssets.Goten.RoofBanded(ws, spanKen, alongVRoof);
+                    if (!Exists(roof))
+                    {
+                        Wait("棟 " + name + " の帯割り屋根が無い: " + roof + " → blender --background "
+                           + "--python Tools/Blender/build_goten_roof.py -- banded " + wsTag + " "
+                           + spanKen + " --along " + (alongVRoof ? "v" : "u"));
+                        roof = null;
+                    }
+                    // ⚠ 帯割りの部材は**モデル局所 +X = 格子の +u**(部材方の註)。桁行が v の棟は
+                    //   棟の local が 90° 回っているので、**世界の yaw が格子の yaw ちょうど**に
+                    //   なる差ぶんだけ屋根を戻す。⛔ 「_v だから 90° 足す」ではない。
+                    roofYaw = Mathf.DeltaAngle(muneYaw, yawU);
+                }
+            }
             var w = alongU ? f.W(fu0, fv0) : f.W(fu1, fv0);
-            var g = EdoGotenKit.Mune(name, grp, new Vector3(w.x, y, w.y), alongU ? yawU : yawV,
-                                     kw - 2, kd - 2, 1, floor, roof, iriX: 1);
+            var g = EdoGotenKit.Mune(name, grp, new Vector3(w.x, y, w.y), muneYaw,
+                                     kw - 2, kd - 2, 1, floor, roof, iriX: 1,
+                                     roofAtFloor: true, roofYaw: roofYaw);
             Undo.RegisterCreatedObjectUndo(g, "mune");
+            // 実測で検算 — ⛔ 帯割りは FBX の z=0 が床なので、据え損なうと 3.4m 浮く。
+            //   ⚠ 天端は**棟瓦の座とも**の実測で、指図 `ridgeY`(座を除く棟高の絶対値)より座のぶん高い。
+            {
+                float mlo, mhi;
+                if (roof != null && ProjMesh(g, Vector3.up, out mlo, out mhi))
+                    sb.AppendLine("  " + name + ": 床Y " + (y + floor).ToString("F3")
+                                + "(面 " + y.ToString("F2") + " + gotenFloor " + floor.ToString("F2")
+                                + ")/ 実測の天端Y " + mhi.ToString("F3")
+                                + (float.IsNaN(ridgeYSpec) ? ""
+                                   : "(指図の棟高Y " + ridgeYSpec.ToString("F3") + " + 棟瓦の座 "
+                                     + (mhi - ridgeYSpec).ToString("F3") + ")"));
+                // ⭐⭐ **帯が指図の位置に載っているかを実測で検める**(規則19)。
+                //   ⛔ 帯の並びは立面からは見えない(上から見ないと分からない)ので、目視では捕まらない。
+                //   ⚠ 2026-09-07 にこの検査で `Banded_4-5x10ken_v` の**帯が名前と逆に焼かれている**
+                //     のを捕まえた(5間帯が across の小さい側に来ていた)。
+                if (roof != null && bspec != null && Has(bspec, "at") && Has(bspec, "ridgeH"))
+                {
+                    var atA = A(bspec["at"]); var rhA = A(bspec["ridgeH"]);
+                    float hMax = -9999f;
+                    for (int i = 0; i < rhA.Count; i++) if (F(rhA[i]) > hMax) hMax = F(rhA[i]);
+                    float eLo = 9999f, eHi = -9999f;
+                    for (int i = 0; i < rhA.Count && i < atA.Count; i++)
+                        if (Mathf.Abs(F(rhA[i]) - hMax) < 0.01f)
+                        { if (F(atA[i]) < eLo) eLo = F(atA[i]); if (F(atA[i]) > eHi) eHi = F(atA[i]); }
+                    bool acrossIsU = S(bspec["along"]) == "v";
+                    float rlo, rhi, rtop;
+                    if (eHi > -9998f && TopRidgeGrid(g, acrossIsU, out rlo, out rhi, out rtop)
+                        && (Mathf.Abs(rlo - eLo) > 0.06f || Mathf.Abs(rhi - eHi) > 0.06f))
+                        Wait("棟 " + name + ": **いちばん高い帯の大棟が指図の位置に無い** — 実測 "
+                           + (acrossIsU ? "u " : "v ") + rlo.ToString("F2") + "‥" + rhi.ToString("F2")
+                           + " / 指図 `bands.at` " + eLo.ToString("F2") + "‥" + eHi.ToString("F2")
+                           + "(棟高 " + hMax.ToString("F3") + " の帯)。⚠ 部材 " + roof.Substring(roof.LastIndexOf('/') + 1)
+                           + " の**帯の並びが名前と逆**でないか(据え付けは格子の yaw ちょうど)— 部材方へ");
+                }
+            }
             nm++;
             if (!goten) sb.AppendLine("  (" + name + " は goten=false — 独立棟)");
         }

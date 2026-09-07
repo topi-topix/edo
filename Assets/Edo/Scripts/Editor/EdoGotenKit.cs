@@ -77,14 +77,22 @@ public static class EdoGotenKit
     /// ⚠ 四方に回すのはユーザー裁定(2026-08-14)。指図が「入側が各棟の外周を巡り、隣の棟の
     /// 入側と辺を共有して直に繋がる/二条城で六棟を取り囲む廊下が一周」と書いているため。
     /// 前後だけにすると妻側が白壁のまま廊下に面し、Village Kit のプレハブを捨てた理由
-    /// (廊下から壁が見える)がそのまま再現される。</summary>
+    /// (廊下から壁が見える)がそのまま再現される。
+    ///
+    /// <para>⛔⛔ <paramref name="roofAtFloor"/> = **帯割りの屋根**(<see cref="EdoAssets.Goten.RoofBanded"/>)
+    /// を載せるときだけ true。あちらは **FBX の z=0 が「床」**で、入母屋・寄棟の FBX(z=0 が軒先)と
+    /// 基準が違う。⛔ 取り違えると **3.4m(軒高ぶん)浮く**。
+    /// <paramref name="roofYaw"/> は棟の local に対する屋根の回し(度)— 帯割りの部材は
+    /// **モデル局所 +X = 江戸間格子の +u** に焼いてあるので、桁行が v の棟では
+    /// 「世界の yaw が格子の yaw ちょうどになる」差ぶんをここへ渡す(⛔ 呼び側で 90° を足さない)。</para></summary>
     public static GameObject Mune(string name, Transform parent, Vector3 pos, float yaw,
                                   int nx, int nzZashiki, int iri = 1,
                                   float floor = 0.62f, string roofAsset = null,
                                   bool nureen = true, bool ceiling = true,
                                   int[] openBaysWest = null, int[] openBaysEast = null,
                                   int jodanFromIx = -1, int iriX = 0, int moyaBay = 3,
-                                  bool partition = true)
+                                  bool partition = true,
+                                  bool roofAtFloor = false, float roofYaw = 0f)
     {
         if (moyaBay < 1) moyaBay = 1;
         // 妻側の建具を省く区画(床の間・違い棚・帳台構が入る所)。塞いだままだと飾りが壁の裏に隠れる
@@ -247,7 +255,9 @@ public static class EdoGotenKit
 
         if (!string.IsNullOrEmpty(roofAsset))
         {
-            var r = Put(roofAsset, g.transform, new Vector3(W / 2f, floor + H - 0.15f, D / 2f), 0f);
+            // ⛔ 帯割り(roofAtFloor)は FBX の z=0 が**床**。入母屋・寄棟(z=0 が軒先)と足す高さが違う
+            var r = Put(roofAsset, g.transform,
+                        new Vector3(W / 2f, roofAtFloor ? floor : floor + H - 0.15f, D / 2f), roofYaw);
             if (r != null)
             {
                 // 屋根の寸法が棟に合っているか確かめる(軒の出0.9m×2を見込む)
@@ -256,7 +266,10 @@ public static class EdoGotenKit
                 {
                     // 許容 0.45 — 隅棟が軒先の角で棟幅の半分(0.20)だけ外へ出るため、
                     // 外形は「軒の出×2」よりいつも 0.35 ほど大きく出る
-                    var s = mf.sharedMesh.bounds.size;
+                    // ⚠ 屋根を回して据える(帯割り)ときは、棟の local から見た差し渡しで比べる
+                    var s0 = mf.sharedMesh.bounds.size;
+                    bool swap = Mathf.Abs(Mathf.Sin(roofYaw * Mathf.Deg2Rad)) > 0.5f;
+                    var s = swap ? new Vector3(s0.z, s0.y, s0.x) : s0;
                     if (Mathf.Abs(s.x - (W + 1.8f)) > 0.45f || Mathf.Abs(s.z - (D + 1.8f)) > 0.45f)
                         Debug.LogWarning(string.Format(
                             "[GotenKit] {0}: 屋根が棟に合っていない。屋根 {1:F2}x{2:F2} / 棟 {3:F2}x{4:F2}。" +

@@ -528,6 +528,12 @@ public static partial class EdoDoiBuilder
         foreach (var o in A(n.g["gogan"]))
         {
             var gg = O(o);
+            // ⛔ 指図の欄を落とさないための守り(⚠ 読まない欄も名指しに入れて「見た」ことを残す)。
+            //   `kata`(呼び名)`ishi`(石材)`label` `cert` は部材では表せないので読まない欄。
+            AuditKeys(gg, "護岸『" + S(gg["name"]) + "』",
+                      "name", "label", "frm", "to", "kata", "ishi", "lenMin", "lenMax",
+                      "yakuMin", "yakuMax", "yakuEvery", "buryRatio", "capMin", "capMax",
+                      "jag", "pitchRatio", "araiso", "ishiPick", "cert");
             var line = ShoreWalk((int)F(gg["frm"]), (int)F(gg["to"]));
             float L = LineLen(line);
             float lenMin = F(gg["lenMin"]), lenMax = F(gg["lenMax"]);
@@ -536,12 +542,23 @@ public static partial class EdoDoiBuilder
             float capMin = F(gg["capMin"]), capMax = F(gg["capMax"]);
             float pitchRatio = F(gg["pitchRatio"]), jag = F(gg["jag"]);
             float ken = Grid.ken;
-            // ⛔⛔ **駒の選びは庭方の意匠で、指図が持つ**(2026-09-06 `_pending.ishigumikoma`)。
-            //   ⚠ 下の `i % 2` の交互は**規則的な繰り返し**で、庭方は「**乱数で 2 と 4 を引く**」と裁定した。
-            //   ⛔ 指図が `ishiPick` を持つのにここが読んでいないと、**指図と反対の物を置く**。
+            // ⛔⛔ **駒の選びは庭方の意匠で、指図 `ishiPick` が正典**(2026-09-06 の裁定)。
+            //   ⚠ `i % 2` の交互は**規則的な繰り返し**で、庭方は「**乱数で 2 と 4 を引く**」と裁定した。
+            //   ⇒ 指図の欄を読んで引く。⛔ 読めない綴りを既定へ倒さない(据えるのをやめて差し戻す)。
+            //   ⚠ **欄が無い護岸は指図の書き起こし漏れ**として鳴らし、旧来の交互で仮に据える
+            //     (⛔ ここを黙って既定にすると、また「指図と反対の物」が黙って建つ)。
+            int[] pick = null;
             if (Has(gg, "ishiPick"))
-                Wait("護岸『" + S(gg["name"]) + "』: 指図に `ishiPick`(" + S(gg["ishiPick"])
-                   + ")があるのに実装が読んでいない — **交互のまま置くと指図と食い違う**。棟梁へ");
+            {
+                pick = ParseIshiPick(S(gg["ishiPick"]));
+                if (pick == null)
+                { Wait("護岸『" + S(gg["name"]) + "』: `ishiPick`「" + S(gg["ishiPick"])
+                     + "」の綴りが実装の読み方(「乱数(a と b)」)に合わない — 指図方へ"); continue; }
+            }
+            else
+                Wait("護岸『" + S(gg["name"]) + "』: 指図に `ishiPick` の欄が無い — 庭方の裁定"
+                   + "(乱数で 2 と 4)は `Gogan_S` にしか書き起こされていない。⚠ この巡は**旧来の交互**で"
+                   + "仮に据えた(**庭方が退けた規則的な繰り返し**)。指図方へ");
             // ⚠ **汀線の長さは間、石の寸法は m。**混ぜると本数が 1.818 倍ずれる
             //   (2026-09-06 に踏んだ)。個数は生成器 `niwa_stats` と同じ式で決める:
             //   n = round(弧長[m] / (平均長軸 × pitchRatio))。
@@ -552,7 +569,9 @@ public static partial class EdoDoiBuilder
                 bool yaku = (ykEvery > 0 && i % ykEvery == 0);
                 float axis = yaku ? Mathf.Lerp(ykMin, ykMax, (float)rnd.NextDouble())
                                   : Mathf.Lerp(lenMin, lenMax, (float)rnd.NextDouble());
-                int variant = yaku ? 3 : (i % 2 == 0 ? 2 : 4);
+                // 役石は `Ishigumi(3)`(塊石)のまま — 庭方の裁定は**地の石**の駒だけを替えた
+                int variant = yaku ? 3 : (pick != null ? pick[rnd.Next(pick.Length)]
+                                                       : (i % 2 == 0 ? 2 : 4));
                 string path = EdoAssets.Own.Ishigumi(variant);
                 if (!Exists(path)) { Wait("庭石の部材が無い: " + path); break; }
                 Vector2 dir;
@@ -573,23 +592,35 @@ public static partial class EdoDoiBuilder
             if (Has(gg, "araiso"))
             {
                 var ar = O(gg["araiso"]);
+                AuditKeys(ar, "荒磯(護岸『" + S(gg["name"]) + "』)", "at", "scale", "tilt", "asset");
                 Vector2 gp = Sh((int)F(ar["at"]));
                 Vector2 wpt = Wu(gp.x, gp.y);
-                // ⛔⛔ **指図は荒磯に「立石(板状)」= `Ishigumi(0)` を指定している**(2026-09-06 庭方)。
-                //   ⚠ ここの `(3)` は塊石で、`scale` 1.9 の一様倍だと**平面 2.92m の巨岩**になり、
-                //   100m² の池の岬に過大。そもそも「荒磯の**立石**」である。
-                if (Has(ar, "asset"))
-                    Wait("荒磯: 指図に `asset`(" + S(ar["asset"]) + ")があるのに実装が `Ishigumi(3)` "
-                       + "を置いている — **指図と反対の駒**。棟梁へ");
-                string path = EdoAssets.Own.Ishigumi(3);
-                float sc = F(ar["scale"]);
-                var go = EdoBuild.Place(path, new Vector3(wpt.x, n.waterY - sc * 0.33f, wpt.y),
-                                        (float)rnd.NextDouble() * 360f, Vector3.one * sc, grp,
-                                        S(gg["name"]) + "_Araiso");
-                if (go != null)
+                // ⛔⛔ **駒は指図 `araiso.asset` が正典**(2026-09-06 庭方 = 立石(板状)`Ishigumi(0)`)。
+                //   ⚠ 従前の実装は `Ishigumi(3)`(塊石)を決め打ちしており、`scale` 1.9 の一様倍で
+                //   **平面 2.92m の巨岩**になっていた — 100m² の池の岬に過大。そもそも「荒磯の**立石**」。
+                //   ⭕ `scale` は**丈**(部材は丈 1.000 に正規化)なので、平面は駒に従属して決まる。
+                string apath = Has(ar, "asset") ? ResolveNiwaApi(S(ar["asset"]), 1) : null;
+                if (apath == null || !Exists(apath))
+                    Wait("荒磯の立石の部材が引けない: " + (Has(ar, "asset") ? S(ar["asset"]) : "(`asset` の欄が無い)")
+                       + " — ⛔ 代わりの駒を当てない。指図方/部材方へ");
+                else
                 {
-                    go.transform.rotation *= Quaternion.Euler(F(ar["tilt"]), 0, 0);
-                    stones++;
+                    float sc = F(ar["scale"]);
+                    // 埋め代は護岸の `buryRatio`(⛔ 0.33 を実装に書かない)
+                    float bury = Has(gg, "buryRatio") ? F(gg["buryRatio"]) : float.NaN;
+                    if (float.IsNaN(bury))
+                        Wait("荒磯: 護岸『" + S(gg["name"]) + "』に `buryRatio` が無い(⛔ 既定値で埋めない)");
+                    else
+                    {
+                        var go = EdoBuild.Place(apath, new Vector3(wpt.x, n.waterY - sc * bury, wpt.y),
+                                                (float)rnd.NextDouble() * 360f, Vector3.one * sc, grp,
+                                                S(gg["name"]) + "_Araiso");
+                        if (go != null)
+                        {
+                            go.transform.rotation *= Quaternion.Euler(F(ar["tilt"]), 0, 0);
+                            stones++;
+                        }
+                    }
                 }
             }
         }
@@ -890,7 +921,7 @@ public static partial class EdoDoiBuilder
     }
 
     // ---- ④石組・灯籠・沓脱・飛石・沢飛石
-    static string Niwa_D_Tenkei()
+    public static string Niwa_D_Tenkei()
     {
         var n = NiwaModel;
         var grp = Group("Niwa/Tenkei"); Clear(grp);
@@ -1021,20 +1052,28 @@ public static partial class EdoDoiBuilder
         foreach (var o in A(n.g["iwajima"]))
         {
             var iw = O(o);
-            // ⛔⛔ **岩島は「大石1 + 肩石1」の2基**(2026-09-06 庭方)。実装は1基しか置いておらず、
-            //   ⚠ **`hShoulder` が一度も使われていない**。しかも駒が逆 — 水から立つ大石は
-            //   **塊石 `Ishigumi(3)`**、肩石が**小塊 `(4)`。**いまは大石に (4) を当てている。
-            if (Has(iw, "asset") || Has(iw, "assetShoulder"))
-                Wait("岩島『" + S(iw["name"]) + "』: 指図に `asset`/`assetShoulder` があるのに実装が "
-                   + "`Ishigumi(4)` 1基しか置いていない — **駒が逆・肩石が未実装**(`hShoulder` "
-                   + F(iw["hShoulder"]).ToString("F2") + " が未使用)。棟梁へ");
-            string path = EdoAssets.Own.Ishigumi(4);           // 小塊 = 岩島の肩石向き
-            if (!Exists(path)) { Wait("庭石の部材が無い: " + path); break; }
+            AuditKeys(iw, "岩島『" + S(iw["name"]) + "』", "name", "label", "u", "v",
+                      "hMain", "hShoulder", "sink", "ishi", "asset", "assetShoulder", "cert");
+            // ⛔⛔ **駒は指図が正典**(2026-09-06 庭方)。水から立つ大石は `asset`、肩石は `assetShoulder`。
+            //   ⚠ 従前の実装は大石に小塊 `Ishigumi(4)` を決め打ちしており、**役が逆**だった。
+            string path = Has(iw, "asset") ? ResolveNiwaApi(S(iw["asset"]), 1) : null;
+            if (path == null || !Exists(path))
+            { Wait("岩島の大石の部材が引けない: " + (Has(iw, "asset") ? S(iw["asset"]) : "(`asset` の欄が無い)")
+                 + " — ⛔ 代わりの駒を当てない。指図方/部材方へ"); continue; }
             Vector2 w = Wu(F(iw["u"]), F(iw["v"]));
             float H = F(iw["hMain"]);
             var go = EdoBuild.Place(path, new Vector3(w.x, n.waterY - F(iw["sink"]), w.y),
                                     (float)rnd.NextDouble() * 360f, Vector3.one * H, grp, S(iw["name"]));
             if (go != null) made++;
+            // ⛔⛔ **肩石は据えていない。**指図は「大石1+肩石1」と駒(`assetShoulder`)と丈
+            //   (`hShoulder`)を持つが、**据え位置が無い** — 座標は大石の (u,v) 一組しかなく、
+            //   大石のどちら側へどれだけ寄せるか・どれだけ沈めるかは**庭方の意匠**であって
+            //   実装が決める物ではない(規則17)。⛔ 適当な向きへ置かない。
+            if (Has(iw, "assetShoulder"))
+                Wait("岩島『" + S(iw["name"]) + "』の**肩石**が据わっていない — 指図に駒("
+                   + S(iw["assetShoulder"]) + ")と丈(`hShoulder` " + F(iw["hShoulder"]).ToString("F2")
+                   + ")はあるが**据え位置が無い**。⛔ 発明しない。肩石の `u,v`(または大石からの"
+                   + "方位と寄せ)と `sink` を起こしてもらう — 庭方の裁定 → 指図方へ");
         }
         return "点景: " + made + " 基";
     }
@@ -1580,6 +1619,8 @@ public static partial class EdoDoiBuilder
         if (a.StartsWith("Eg.ToroYukimi")) return EdoAssets.Eg.ToroYukimi;
         if (a.StartsWith("Own.YukimiLantern")) return EdoAssets.Own.YukimiLantern;
         if (a.StartsWith("Own.Toro")) return EdoAssets.Own.Toro;
+        // 庭石(景石・護岸石・岩島・荒磯の立石)。個体の番号は括弧から読む
+        if (a.StartsWith("Own.Ishigumi")) return EdoAssets.Own.Ishigumi(Mathf.RoundToInt(ArgNum(api, -1f)));
         // ⭐ 沓脱石は**専用部材**(2026-09-06 部材方が焼いた)。⛔ 立石を非一様スケールで代用しない。
         if (a.StartsWith("Own.DoiKutsunugi")) return EdoAssets.Own.DoiKutsunugi;
         // ⭐ 木戸・竹垣は寸法で焼き分ける。⚠ 数の引数は括弧から読む
@@ -1607,6 +1648,27 @@ public static partial class EdoDoiBuilder
         if (size == "Big") return i == 1 ? EdoAssets.JG.PineBig01 : (i == 2 ? EdoAssets.JG.PineBig02 : EdoAssets.JG.PineBig03);
         return EdoAssets.JG.PineMid01.Replace("Mid_Green_01", "Mid_Green_0" + i);
     }
+    /// <summary>護岸の**地の石の駒の選び方**(指図 `gogan[].ishiPick`。例「乱数(2 と 4)」)を
+    /// 個体番号の集合へ。⛔ **読めなければ null**を返し、呼び側は据えるのをやめて差し戻す —
+    /// 既定の駒へ倒すと「指図と反対の物」が黙って建つ(2026-09-06 にそれで交互のまま建っていた)。
+    /// ⚠ 「乱数」以外の指定(交互・順送りなど)は**別の据え方**なのでここでは解かない。
+    /// ⚠ 個体は 0..4 の5体しか無いので、範囲の外の数を含む綴りも読めないものとして返す。</summary>
+    static int[] ParseIshiPick(string s)
+    {
+        if (string.IsNullOrEmpty(s) || s.IndexOf("乱数") < 0) return null;
+        var nums = new List<int>();
+        int i = 0;
+        while (i < s.Length)
+        {
+            if (s[i] < '0' || s[i] > '9') { i++; continue; }
+            int v = 0;
+            while (i < s.Length && s[i] >= '0' && s[i] <= '9') { v = v * 10 + (s[i] - '0'); i++; }
+            if (v < 0 || v > 4) return null;
+            if (!nums.Contains(v)) nums.Add(v);
+        }
+        return nums.Count > 0 ? nums.ToArray() : null;
+    }
+
     /// <summary>`Own.Kido(1.8)` の 1.8 を取り出す。⛔ 読めなければ既定へ倒さず呼び側へ返す
     /// ため、既定値は呼び側が明示して渡す。</summary>
     static float ArgNum(string api, float dflt)

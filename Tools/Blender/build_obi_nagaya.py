@@ -450,7 +450,7 @@ PARTS = {"nagaya": nagaya, "monooki": monooki, "kawaya": kawaya}
 
 
 # ---------------------------------------------------------------- レンダ
-def shots(o, key):
+def shots(o, key, prefix="obi"):
     V.hook_textures()
     os.makedirs(SHOT, exist_ok=True)
     mn, mx = V.bbox([o])
@@ -462,29 +462,29 @@ def shots(o, key):
     #   1間角の小屋のように背の高い部材が枠から溢れる(2026-09-04 に踏んだ)
     V.studio((c.x, mn.y - r * 2.2, c.z), (c.x, c.y, c.z),
              ortho_scale=max(mx.x - mn.x, H) * 1.18, res=(1700, 1100))
-    V.render(os.path.join(SHOT, "obi_%s_elev.png" % key))
+    V.render(os.path.join(SHOT, "%s_%s_elev.png" % (prefix, key)))
     # ①' 妻の正面立面 — **妻壁が塞がっているか**をここで見る(斜めだと判断できない)
     V.studio((mn.x - r * 2.2, c.y, c.z), (c.x, c.y, c.z),
              ortho_scale=max(mx.y - mn.y, H) * 1.18, res=(1400, 1100))
-    V.render(os.path.join(SHOT, "obi_%s_gable.png" % key))
+    V.render(os.path.join(SHOT, "%s_%s_gable.png" % (prefix, key)))
     # ② 開口面を斜め前から(人の目の高さ)— 建具・下見板・軒の出を見る
     V.studio((mn.x - r * 0.6, mn.y - r * 1.1, 1.65), (c.x, c.y, H * 0.45), res=(1700, 1000))
-    V.render(os.path.join(SHOT, "obi_%s_3d.png" % key))
+    V.render(os.path.join(SHOT, "%s_%s_3d.png" % (prefix, key)))
     # ③ 盲面(水側)を斜めから — **開口が漏れていないか**をここで見る
     V.studio((mx.x + r * 0.6, mx.y + r * 1.1, 1.9), (c.x, c.y, H * 0.45), res=(1700, 1000))
-    V.render(os.path.join(SHOT, "obi_%s_ura.png" % key))
+    V.render(os.path.join(SHOT, "%s_%s_ura.png" % (prefix, key)))
     # ④ 妻の寄り — 破風・袖瓦・けらば裏板・妻壁の納まり
     V.studio((mn.x - r * 0.75, mn.y - r * 0.75, H * 1.05), (mn.x + r * 0.25, c.y, H * 0.72),
              res=(1500, 1100))
-    V.render(os.path.join(SHOT, "obi_%s_tsuma.png" % key))
+    V.render(os.path.join(SHOT, "%s_%s_tsuma.png" % (prefix, key)))
     # ④' 開口の寄り(戸1つ+窓1つ)— 建具・敷居・鴨居・腰の納まりをここで見る
     V.studio((c.x - (mx.x - mn.x) * 0.18, mn.y - 6.5, 1.6),
              (c.x - (mx.x - mn.x) * 0.18, c.y, 1.35),
              ortho_scale=5.6, res=(1500, 1000))
-    V.render(os.path.join(SHOT, "obi_%s_madoguchi.png" % key))
+    V.render(os.path.join(SHOT, "%s_%s_madoguchi.png" % (prefix, key)))
     # ⑤ 棟の寄り(上から)— 大棟・鬼・瓦の段が通っているか
     V.studio((c.x, mn.y - r * 0.55, H + r * 0.5), (c.x, c.y, H * 0.9), res=(1500, 900))
-    V.render(os.path.join(SHOT, "obi_%s_mune.png" % key))
+    V.render(os.path.join(SHOT, "%s_%s_mune.png" % (prefix, key)))
 
 
 def main():

@@ -1305,6 +1305,44 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_doi_buzai.py -- umaya --render</summary>
         public const string DoiUmaya = FuzokuyaDir + "Doi_Umaya_5.5x7ken.fbx";
 
+        /// <summary>**家中長屋**(邸内の長屋・土井邸 `service.Kachu_N1/N2/N3/S1/Y` の5棟)。
+        /// **平家・桟瓦・下見板の腰・真壁漆喰・片面だけ開口**。桁行 <paramref name="ketaKen"/>間 × 梁間 2.5間。
+        ///
+        /// <para>⛔⛔ **表長屋で代用しない。** [西川1959]A の原文は「外周部は、**二階瓦葺窓付の長屋**が
+        /// めぐらされ、**邸内には平家建の長屋が密接して建並んでいた**」— **外周=二階建 / 邸内=平家建**で
+        /// 別の建物である。⛔ <see cref="Eg.KnagayaC"/> も <see cref="NagayaOmote(float)"/> も当てないこと
+        /// (2026-09-06 考証方 高2 で `const.nagayaRidge` 5.509 の流用は明示的に禁じられた)。</para>
+        ///
+        /// <para>**焼いてあるのは 8 / 9 / 10間 の3種**(`service` の桁行は 10/8/9/8/8間)。
+        /// 実寸(Unity) — 8間 **15.284(X) × 4.400(Y) × 6.537(Z)** / 9間 **17.102 × 4.400 × 6.537** /
+        /// 10間 **18.920 × 4.400 × 6.537**。⭕ **モジュールを並べず桁行ごとに一体で焼いてある**
+        /// (表長屋の 2026-09-04 裁定=案A と同じ判断。継ぎ目と端部材の小口を持ち込まないため)。</para>
+        ///
+        /// <para>⭐ **ピボット = 足形(桁行×梁間)の中心・地盤レベル**(底 Y=0.000)。
+        /// ⇒ `service[].uc, vc` をそのまま XZ に、段の面の高さ `service[].y` をそのまま `position.y` に入れる。
+        /// ⛔ **軒先高でも棟高でもない**(`Goten.RoofBanded` の z と取り違えない)。
+        /// ⚠ **屋根は足形の外へ出る** — 平(±Z)へ **0.900m**・けらば(±X)へ **0.370m**。
+        /// **ピボットの矩形には含まれない**ので、隣との空きは足形でなく軒先線で見ること。</para>
+        ///
+        /// <para>⭐ **向き**: ローカル **+X = 桁行**(`service[].L` の側)/ **+Z = 開口面**(戸と格子窓)/
+        /// **−Z = 背面**(開口なしの壁)。`service[].yaw` は **v 軸から測った桁行の角**なので、
+        /// 郭グリッドの向きに `yaw` を足した角で振ること(⛔ 部材の側は 90° を持たない)。
+        /// ⚠⚠ **開口をどちらへ向けるかは指図に欄が無い**【U】⇒ **+Z を郭の内側(境界と反対)へ**向けること。
+        /// 境界側は犬走りしか無く、そちらへ開けると隣家へ向かって開くことになる。</para>
+        ///
+        /// <para>**実測(部材実測 P・`_pending.kachu_noki` の宿題への回答)**: 軒桁 **2.800**
+        /// (= `const.kachuEave`)/ 瓦面の大棟 **4.040**(= 指図が刷る棟高と一致)/
+        /// ⚠ **棟天端は 4.400** — 瓦面の上に大棟(熨斗+冠瓦)が 0.360 見え掛かるため。
+        /// ⇒ 指図の 4.04 は**瓦面の頂**であって天端ではない。⛔ 天端を 4.04 に合わせるために
+        /// 軒桁を下げないこと(格は軒高で読む: 厩 2.35 &lt; 家中 2.80 &lt; 御殿 3.40)。</para>
+        ///
+        /// 材 = `wood` / `wall C` / `Foundation_A_01` / `wall A` / `roof` / `roof ornaments`(すべてキット由来)。
+        /// 生成: blender --background --python Tools/Blender/build_doi_buzai.py -- kachu --render</summary>
+        public static string DoiKachu(int ketaKen)
+        {
+            return NagayaDir + "Doi_Kachu_" + ketaKen + "x2.5ken.fbx";
+        }
+
         /// <summary>**土蔵**(土井邸 `service` の `Komegura` / `Kura1` / `Kura2`)。置屋根・海鼠腰。
         /// ⛔ 在庫の <see cref="Eg.Kura"/> は梁間 3.65間で、当図の足形のどれとも一致しないので使わない。
         ///

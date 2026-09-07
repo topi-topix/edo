@@ -4427,22 +4427,25 @@ def _view_cluster_rows(d):
                 v2, _a, _b = pick_variants_over(d, pt, h) if h else ([], None, None)
                 vs += v2
             if vs:
-                r = max(part_geom({"prefab": q[1]})[0] for q in vs)
-                xz = (d["planting"]["scaleRule"]["matsu"].get("scaleXZ") or [1.0, 1.0])[1]
-                cr = (r * xz, r * xz)
+                xz = d["planting"]["scaleRule"]["matsu"].get("scaleXZ") or [1.0, 1.0]
+                w = [part_geom({"prefab": q[1]})[0] for q in vs]
+                cr = (min(w) * xz[0], max(w) * xz[1])
         rr = (cr[1] / 2.0) if cr else None
         seg = ("塊『%s』── 跨ぐ帯 %s ／ 丈 %s m【従属 — 跨ぐ帯の `matsuH` の共通部分】"
                % (c["name"], "・".join("帯%d" % q for q in (c.get("_bands") or [])) or "—",
                   _rng(h)))
         seg += " ／ 幹は軸から %.2f〜%.2f m" % (vmin, vmax)
         if rr is not None:
-            seg += " ／ 樹冠の半径 ≤ %.2f m ／ 樹冠の内縁は軸から %.2f m" % (rr, vmin - rr)
+            seg += (" ／ 樹冠の半径 %.2f〜%.2f m(変種で振れる)／ 樹冠の内縁は軸から "
+                    "%.2f〜%.2f m" % (cr[0] / 2.0, rr, vmin - rr, vmin - cr[0] / 2.0))
             if hw is not None:
-                seg += "(石段『%s』の縁 半幅 %.2f m から **%+.2f m**)" % (ax, hw, vmin - rr - hw)
+                seg += ("(石段『%s』の縁 半幅 %.2f m から **%+.2f〜%+.2f m**。⛔ 最も広い変種でも"
+                        "正でなければ額縁が踏面へ被る)" % (ax, hw, vmin - rr - hw,
+                                                        vmin - cr[0] / 2.0 - hw))
         if c.get("spacing"):
             pk = d["planting"]["plantRule"].get("packRatio", 1.0)
             seg += " ／ 塊内の芯々(packRatio 後) %.2f m" % (c["spacing"] * ken * pk)
-            if cr: seg += " ＜ 樹冠径 %.2f〜%.2f m = **一続きの側壁**" % cr
+            if cr: seg += " ＜ 樹冠径 %.2f〜%.2f m = **一続きの側壁**" % (cr[0], cr[1])
         out.append(seg + "【算出】")
     return out
 

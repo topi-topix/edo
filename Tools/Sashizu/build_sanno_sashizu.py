@@ -1855,11 +1855,20 @@ def _single_dims(d, sg):
     if sg.get("crown"):
         out += "・樹冠%.2fm%s" % (sg["crown"],
                                  "<b>(⚠ 部材未計測の仮値)</b>" if sg.get("crownProvisional") else "")
-    elif sg.get("layer") == "中木":
-        xz = crown_scale_xz(d, "chuboku", single_prefab(d, sg), sg["h"])
+    else:
+        # ⛔ **層を問わず樹冠を刷る**(2026-09-07)── 旧式は中木しか刷らず、落葉高木が
+        #    仮値 `crown` を外した日に**樹冠が図から消えた**(規則19: 図に出ない値は検められない)。
+        lay = sg.get("layer")
         r = single_crown(d, sg)
-        out += ("・樹冠%.2fm【従属 樹冠÷丈】" % (r * 2.0 * d["const"]["ken"])) if r else ""
-        out += ("・scaleXZ %.3f【従属】" % xz) if xz else ""
+        if r is None:
+            out += "・樹冠—(**部材が目録に無い**)"
+        elif lay == "中木":
+            xz = crown_scale_xz(d, "chuboku", single_prefab(d, sg), sg["h"])
+            out += "・樹冠%.2fm【従属 樹冠÷丈】" % (r * 2.0 * d["const"]["ken"])
+            out += ("・scaleXZ %.3f【従属】" % xz) if xz else ""
+        else:
+            out += ("・樹冠%.2fm【従属 部材『%s』の素の樹冠 × `scaleXZ`】"
+                    % (r * 2.0 * d["const"]["ken"], single_prefab(d, sg) or "—"))
     return out
 
 
@@ -2278,10 +2287,15 @@ def draw_clusters(d, lp, inwin):
         for sg in gd.get("singles", []):
             u, v = sg["uv"]
             if not inwin([u, v], [u, v]): continue
-            if sg.get("crown"):
+            # ⛔ **樹冠は `single_crown` から描く**(2026-09-07)── 旧式は個体の `crown`(手値)が
+            #    あるときだけ円を描いており、落葉高木が仮値を外して**従属値へ戻った日に、
+            #    図から樹冠の円が丸ごと消えた**(規則19: 図に出ない値は誰も検められない)。
+            #    ⭕ 中木・松の樹冠もこれで初めて図に出る(検査は前から測っていた)。
+            _r = single_crown(d, sg)
+            if _r:
                 o.append('<circle cx="%.1f" cy="%.1f" r="%.1f" fill="var(--take)" opacity="0.18" '
                          'stroke="var(--take)" stroke-width="0.7" stroke-dasharray="3 3"/>'
-                         % (lp.X(u), lp.Y(v), lp.L(sg["crown"] / 2.0 / d["const"]["ken"])))
+                         % (lp.X(u), lp.Y(v), lp.L(_r)))
             o.append('<circle cx="%.1f" cy="%.1f" r="2.6" fill="var(--take)"/>' % (lp.X(u), lp.Y(v)))
             lab = sg["name"] + (" %.1fm" % sg["h"] if sg.get("h") else "")
             o.append(T(lp.X(u) + 4, lp.Y(v) - 4, lab, fs=9, fill="var(--take)"))
@@ -7441,10 +7455,13 @@ def budget_table(d, g):
     """
     rows = ""
     tot = 0
+    miss = []
     for key, n, ns, avg, place, place_sg in plant_budget(d, g):
         pend = any(pt.get("pending") for pt in d["planting"]["parts"][key])
         t = None if avg is None else (n + ns) * avg
         if t: tot += t
+        if avg is None:
+            miss.append("%s(%s)" % (key, "新造待ち" if pend else "目録に無い"))
         rows += ("<tr><td>%s</td><td>%s 本</td><td>%s 本</td><td>%s</td><td>%s</td>"
                  "<td class='note'>%s</td></tr>"
                  % (key, format(n, ","), format(ns, ","),
@@ -7453,9 +7470,13 @@ def budget_table(d, g):
                     "—" if t is None else "%s 三角" % format(int(t), ","),
                     "%s ／ 一本立ちは %s" % (PLACE_JA.get(place, place or "**宣言が無い**"),
                                             PLACE_JA.get(place_sg, place_sg or "**宣言が無い**"))))
+    # ⛔ **どの層が計に入っていないかを数え直して刷る**(⛔ 名を書き写さない・2026-09-07)。
+    #   落葉高木3種が目録に入った日に、この行が「落葉は入っていない」と嘘を刷り続けた。
     rows += ("<tr><td><b>計(測れた分)</b></td><td></td><td></td><td></td><td><b>%s 三角</b></td>"
-             "<td class='note'>⚠ 落葉高木3種は目録に無く**この計に入っていない**</td></tr>"
-             % format(int(tot), ","))
+             "<td class='note'>%s</td></tr>"
+             % (format(int(tot), ","),
+                ("⚠ **この計に入っていない層** — " + "・".join(miss)) if miss
+                else "⭕ **すべての層が目録から引けている**(計に入っていない層は無い)"))
     return ('<div class="tw"><table><thead><tr><th>層</th><th>撒く本数</th><th>一本立ち</th>'
             "<th>部材の三角数</th><th>小計</th><th class='note'>据え方【従属】</th>"
             "</tr></thead><tbody>" + rows + "</tbody></table></div>")
@@ -8345,8 +8366,10 @@ def main():
     h.append(budget_table(d, g))
     h.append('<p class="cap">⚠ <b>常緑低木は在庫0件</b>(在庫方 2026-09-06)で、部材名は仮である — '
              '<b>社叢の下層・林縁・前庭の帯・平場の縁の下層のすべてがこれ待ち</b>。'
-             '⚠ <b>落葉高木3種(欅・椋・榎)は <code>docs/asset-index.tsv</code> に載っていない</b>ので、'
-             '樹冠も三角数も<b>引けない</b> — 目録の再生成が要る。'
+             '⭕ <b>落葉高木3種(欅・椋・榎)は 2026-09-07 に <code>docs/asset-index.tsv</code> へ入った</b>'
+             '(EDO-0150)ので、樹冠も三角数も部材から引ける — ⛔ 手値の樹冠へ戻さない。'
+             '⚠ <b>仮値のときより樹冠は広い</b>ので、木陰・井戸屋形・木戸の裏・'
+             '<b>参道への林縁の張り出し</b>の数は入れ替わった(⛔ 旧い数を引かない)。'
              '⭐ <b>据え方は <code>planting.plantRule.placement</code> からの従属値</b>'
              '【中4 庭方 2026-09-07】。⛔ <b>帯・区に撒く松・落葉・中木を GameObject で置かない</b> — '
              '本数が千の桁で三角数が千万の桁になる(上の表が算出する)。'

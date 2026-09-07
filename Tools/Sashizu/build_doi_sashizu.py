@@ -3353,7 +3353,39 @@ def user_rulings_table(d):
                "⚠⚠ <b>2026-09-08 に実例が出た</b> — 「軒の当たりの物差し(案A)」は"
                "<b>同じ図の中で二通りに名乗っていた</b>ので、検図方の指摘どおり"
                "<b>普請奉行の裁定(検図方の起案)</b>へ一本化し、"
-               "<b>この台帳からは落とした</b>。</p>" % (len(led), nin, nv)))
+               "<b>この台帳からは落とした</b>"
+               "(⭕ <b>2026-09-08 に普請奉行が『戻さない』と確定した</b> — "
+               "⛔ <b>ユーザー裁定ではない</b>)。<br>"
+               "⛔⛔ <b>日付が同じでも裁定者は同じとは限らない</b> — "
+               "⚠ <b>2026-09-07 には普請奉行の裁定と、その起案をした検図方が"
+               "同居している</b>。⇒ ⛔ <b>日付から出自を推し量らない。</b><br>"
+               "⛔⛔ <b>裏取りの済んでいない行を残したまま、行き先の宿題を"
+               "閉じない</b> — <code>userrulings_tsuke_check</code> が"
+               "<b>⑴ 未検分の行が <code>_pending</code> を名指すこと ⑵ そのキーが"
+               "実在すること ⑶ その宿題が <code>open</code> であること</b>を"
+               "毎回測る(規則19)。</p>" % (len(led), nin, nv))
+            + _userrulings_probe_table(d))
+
+
+def _userrulings_probe_table(d):
+    """**破壊試験を図にも出す**(⛔ stdout に閉じ込めない=規則19)。"""
+    pr, sb = userrulings_tsuke_sensitivity(d)
+    return ("<div class='tw'><table><thead><tr>"
+            "<th>破壊試験(<code>const.userRulings</code> の行き先)</th>"
+            "<th>鳴った件数</th><th>期待</th></tr></thead><tbody>"
+            + "".join("<tr><td>%s</td><td><b>%d 件</b></td><td>%s</td></tr>"
+                      % (inline(a), b,
+                         "0 件" if a.startswith(("④", "⑤")) else "1 件以上")
+                      for a, b in pr) + "</tbody></table></div>"
+            + ("<p class='cap'>⭕ <b>%d 束すべて期待どおり。</b>"
+               "⛔ <b>検査を書いただけで「塞いだ」と名乗らない</b> — "
+               "<b>壊して鳴ることを毎回刷る</b>(規則19)。<br>"
+               "⚠⚠ <b>束④が示すとおり、この網が測れるのは「行き先が生きているか」までで、"
+               "<b>裏取りそのものの真偽は測れない</b> — ⛔ <b>一括で ⭕ にすれば"
+               "黙って畳める</b>。⇒ <b>行ごとに検めるのは人の仕事</b>"
+               "(⭕ 普請奉行と考証方の持ち場)。</p>" % len(pr)
+               if not sb else
+               "<p class='cap'>⚠ " + "<br>".join(inline(q) for q in sb) + "</p>"))
 
 
 def src_role_check(d):
@@ -8814,6 +8846,92 @@ def pending_state_check(d):
         elif not pend_note(v).strip():
             bad.append("`_pending.%s` に `note`(中身)が無い" % k)
     return bad
+
+
+def userrulings_tsuke_check(d):
+    r"""**裏取りの済んでいない台帳の行は、開いている宿題を名指しているか**
+    (2026-09-08 普請奉行の答え=指図方の件7)。
+
+    ⛔⛔ **宿題を「閉じた」にするだけで、行が宙に浮くのを止める。**⚠⚠ 当巡、普請奉行から
+      `_pending.userrulings` を閉じよという指示が来たが、**台帳の 8 行がその宿題を
+      `tsuke` で名指したまま**だった — ⛔ 閉じれば **8 行の裏取りが誰の手元にも残らない**
+      (規則19「輪に入っていない値は未検査であって合格ではない」)。⚠ その判断が
+      **人の目でしか捕まらなかった**のが欠陥なので、機械へ落とす。
+    ⭕ 見るのは `const.userRulings[].tsuke` **だけ** — ⛔ `where` は見ない
+      (⚠ あちらは**その裁定が効いている場所**であって行き先ではなく、
+      現に `_pending.kaiten`(閉じた宿題)を指している行がある)。
+    ⭕ 条は三つ — ⑴ **`tsuke` が ⭕ で始まらない行は `_pending.<キー>` を名指す**こと
+      ⑵ 名指したキーが **`_pending` に実在する**こと ⑶ その宿題が **`open` である**こと。
+    ⛔ **裏取りの済んだ行(⭕)に宿題を求めない** — 済んだ物に行き先は要らない。
+    """
+    led = d["const"].get("userRulings") or []
+    pend = d.get("_pending") or {}
+    bad = []
+    for i, r in enumerate(led, 1):
+        tsu = str(r.get("tsuke", ""))
+        what = r.get("what", "?")
+        if tsu.startswith("⭕"):
+            continue
+        keys = re.findall(r"`_pending\.([A-Za-z0-9_]+)`", tsu)
+        if not keys:
+            bad.append("**`const.userRulings` の台帳 #%d「%s」の裏取りが済んでいないのに、"
+                       "行き先の宿題を名指していない** — ⛔ 行き先の無い項は誰の手元にも"
+                       "残らない(規則19)。⇒ `tsuke` に `_pending.<キー>` を書くか、"
+                       "裏を取って ⭕ にするか、行を落とす" % (i, what))
+            continue
+        for k in keys:
+            if k not in pend:
+                bad.append("**台帳 #%d「%s」が名指す `_pending.%s` が実在しない**"
+                           " — ⛔ 死んだ行き先(規則19)" % (i, what, k))
+            elif pend_state(pend[k]) != "open":
+                bad.append("**台帳 #%d「%s」の裏取りが済んでいないのに、行き先の "
+                           "`_pending.%s` が `%s` になっている** — ⛔⛔ **行を残したまま"
+                           "宿題を閉じない**(⭕ 行ごとに `tsuke` を ⭕ にするか、行を落として"
+                           "から閉じる)" % (i, what, k, pend_state(pend[k])))
+    return bad
+
+
+def userrulings_tsuke_sensitivity(d):
+    """**破壊試験** — 台帳の行き先の網を壊すと `userrulings_tsuke_check` が鳴るか。
+
+    ⛔ **恒真を通さない。**⚠ この網は「宿題を閉じる」という**一手で全部が無効になる**形なので、
+      ⭕ **その一手を毎回わざと打って、鳴ることを刷る**(規則19)。
+    """
+    def probe(fn):
+        e = copy.deepcopy(d)
+        fn(e)
+        return len(userrulings_tsuke_check(e))
+
+    def q1(e):     # 行き先の宿題を閉じる(⛔ 行を残したまま)
+        e["_pending"]["userrulings"]["state"] = "closed"
+
+    def q2(e):     # 行き先の宿題をキーごと消す
+        e["_pending"].pop("userrulings", None)
+
+    def q3(e):     # 未検分の行から行き先の名指しを落とす
+        for r in e["const"]["userRulings"]:
+            if not str(r.get("tsuke", "")).startswith("⭕"):
+                r["tsuke"] = "⚠ 未検分"
+
+    probes = [("① 行き先の宿題を**閉じる**(⛔ 行を残したまま)", probe(q1)),
+              ("② 行き先の宿題を**キーごと消す**", probe(q2)),
+              ("③ 未検分の行から**行き先の名指しを落とす**", probe(q3)),
+              ("④ **一括で ⭕ にする**(⛔ 裏を取らずに畳む) → ⚠ **鳴らない**"
+               "(⛔ この網は裏取りの真偽を測れない — 行ごとに検めるのは人の仕事)",
+               probe(lambda e: [r.__setitem__("tsuke", "⭕ 検めた")
+                                for r in e["const"]["userRulings"]])),
+              ("⑤ いまの図(基準)", probe(lambda e: None))]
+    bad = []
+    for nm, n9 in probes[:3]:
+        if n9 == 0:
+            bad.append("**%s で 0 件** — 台帳の行き先の網が素通りしている(⛔ 恒真を通さない)"
+                       % nm)
+    if probes[3][1] != 0:
+        bad.append("**④ で %d 件** — ⛔ この網は裏取りの真偽を測らない約束が崩れている"
+                   % probes[3][1])
+    if probes[-1][1] != 0:
+        bad.append("**いまの図で %d 件** — 基準が鳴っている" % probes[-1][1])
+    return probes, bad
 
 
 def pending_roster_check(d):
@@ -14394,6 +14512,7 @@ def main():
             + buzai_jissoku_check(d) + kachu_kata_check(d) + roka_roof_check(d)
             + roka_cut_check(d) + tani_margin_check(d)
             + pending_state_check(d) + pending_roster_check(d)
+            + userrulings_tsuke_check(d)
             + clearance_check(d) + rails_check(d)
             + ramp_check(d) + completeness_check(d) + program_check(d) + gate_overlap_check(d) + vocab_check(d)
             + terrace_overhang_check(d) + setchin_check(d)
@@ -14463,6 +14582,14 @@ def main():
              % len(_tp)))
     for _q in _tp:
         print("    ", _q)
+    _upr, _usb = userrulings_tsuke_sensitivity(d)
+    print("── 破壊試験(`const.userRulings` の行き先): %s"
+          % ("**%d束/%d束 期待どおり**" % (len(_upr) - len(_usb), len(_upr))
+             if not _usb else "⚠ %d束が期待と違う" % len(_usb)))
+    for _nm, _n9 in _upr:
+        print("    %s → %d 件" % (_nm, _n9))
+    for _b in _usb:
+        print("   ", _b)
     _ppr, _psb = point_cert_sensitivity(d)
     print("── 破壊試験(庭の点景の要素別の確度): %s"
           % ("**%d束/%d束 期待どおり**" % (len(_ppr) - len(_psb), len(_ppr))

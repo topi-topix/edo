@@ -14750,17 +14750,20 @@ def _roof_section_rows(d):
 
 
 def roof_annex_eave_check(d):
-    """断面(`roof_section_svg`)が長屋型(ROOF_NAGAYA_GATA_MUNES)を御殿の軒高(概略の軒先
-    `_nokisaki_eave`)で描いていないか。kind(御殿/長屋)ごとに軒・棟を引き分けているかの検査。"""
+    """長屋型(ROOF_NAGAYA_GATA_MUNES)の棟が `munes[].roof`(帯割り)を持ってしまって
+    いないかを見る。
+
+    ⛔ **2026-09-07(第23次・検図【高9】)で書き直した** — 旧実装は `_roof_section_rows()` が
+    最初から ROOF_NAGAYA_GATA_MUNES を除いて作る `drawn` に、同じ集合の要素が入っているかを
+    問う恒真式(A ∩ (Universe−A) = ∅)で、感度試験に一度も反応しなかった。
+    ⭕ 見るのは「長屋型の棟が roof フィールドを持ってしまっていないか」という実データそのもの
+    (`_roof_section_rows` の描画対象集合は参照しない)。"""
     bad = []
-    drawn = set()
-    for _label, ms in _roof_section_rows(d):
-        drawn.update(m["name"] for m in ms)
     for name in ROOF_NAGAYA_GATA_MUNES:
-        if name in drawn:
-            bad.append("%s: 断面 roof_section_svg の描画対象に含まれ、"
-                       "御殿の軒高(概略の軒先=%.3f)で描かれている(長屋型は別軒高が要る)"
-                       % (name, _nokisaki_eave(d)))
+        m = next((q for q in d["munes"] if q["name"] == name), None)
+        if m is not None and m.get("roof"):
+            bad.append("%s: 長屋型(ROOF_NAGAYA_GATA_MUNES)なのに `roof`(帯割り)を持っている"
+                       "— 御殿の軒高で断面に描かれる(長屋型は別軒高が要る)" % name)
     return bad
 
 
@@ -14937,10 +14940,20 @@ def roof_bands_table(d):
             "<th>大棟の向き</th><th>葺材</th><th>棟高(床上)</th><th class='note'>確度</th>"
             "</tr></thead><tbody>%s</tbody></table></div>"
             "<p class='cap'>⭕ <b>棟高は `const.gotenEave`(3.4)・`kawaraKobai`(0.5456)からの"
-            "従属値</b>(2026-09-07・第22次)。⚠ 軒高そのものの典拠は無いまま【確度U】なので、"
-            "断面の「屋根は概略・突き合わせ対象外」の断りは外さない。⛔ <b>格(厩<長屋類<御殿)は"
+            "従属値</b>(2026-09-07・第22次)。"
+            "⭐ <b>2026-09-07(第23次・普請奉行裁定)</b> — 帯割りが確定した上表の8棟は"
+            "断面の「屋根は概略・突き合わせ対象外」の断りを<b>外す</b>"
+            "(『決まった』=値の確定であって確度がA/Bへ上がることではない。"
+            "⛔ 軒高そのものの典拠は無いまま【確度U】なのは変わらない — 確度欄はこの表のとおり)。"
+            "⛔ <b>帯割りを持たない長屋型4棟</b>(下段・`ROOF_NAGAYA_GATA_MUNES`)は"
+            "断りを残す。⛔ <b>格(厩<長屋類<御殿)は"
             "この棟高では読まない</b> — <code>roof_eave_order_check</code>(`_pending.eaveOrder`)"
-            "参照。</p>" % rows)
+            "参照。<br>⚠⚠ <b>[二条城二の丸御殿]A との乖離を承知の上で採る</b>"
+            "(2026-09-07・第23次・考証方指摘) — 同項は「雁行して、大小の破風や屋根が重なり合って"
+            "相ならぶ…等幅・等高の帯を正方形の足形に反復した形ではない」と明記する。"
+            "上表の等幅の帯割りは在庫部材(<code>RoofBanded</code>)の制約による意匠の簡略化で、"
+            "現存御殿の雁行・大小の破風の重なりとは異なる【確度U・意匠判断】。"
+            "詳細は `_roofCommon` 参照。</p>" % rows)
 
 
 def fig(h, svg, cap=None, legend=None):

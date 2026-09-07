@@ -2351,51 +2351,199 @@ def roof_objs(d):
     return d["munes"] + d.get("service", []) + d.get("links", [])
 
 
-def abs_eave(d, o):
-    """その建物の**軒高の絶対高**[m]。未決なら `None`。⛔ 床上・地盤上と混ぜない。"""
+def floor_abs(d, o):
+    """その建物の**床の絶対高**[m]。⛔ 面(`y`)と床を混ぜない。
+
+    ⭐⭐ **2026-09-08 に基準を揃えた。**⛔⛔ 従前の `abs_eave` は `o["y"] + gotenEave` で
+      足していたが、`const._gotenEave` 自身が「**床からの m**」と断っている —
+      **面から足していた**ので `const.gotenFloor` 0.62 のぶん低く出ていた。
+      ⚠ **部材方の値はすべて床上**なので、比べる前にここで基準を揃える。
+    ⛔ **附属屋(`roofRef` が `kura`/`kachu`/…)の軒高は地盤上**なので、この床を足さない。
+    """
+    return o["y"] + d["const"]["gotenFloor"]
+
+
+def mune_nokisaki(d):
+    """**帯割りの棟の軒先の高さ(床上)**[m] — **従属値**。⛔ 欄で持たない。
+
+    ⛔⛔ **`const.gotenEave` 3.400 は棟の軒先ではない。**あれは**帯の軒桁**(谷が載る高さ)で、
+      **軒先はそこから 入側1間 + 軒の出 のぶん下った所**にある(2026-09-08 部材方の実測)。
+      ⚠ この取り違えのせいで、2026-09-07 に立てた谷の条は**基準が 1.483 高く恒真**だった。
+    ⭕ 入側と軒の出は**一枚の流れ**が覆う(`const._gesyaKobai`)ので勾配は `gesyaKobai`。
+      ⚠ 部材方の式は `kawaraKobai` と書いたが、いま両者は同値なので数値は変わらない。
+    ⭕ **部材の実測**(`const.muneNokisaki`)との一致は `roka_roof_check` が毎回測る。
+    """
     C = d["const"]
-    rf = o.get("roof") or {}
-    if rf.get("eaveH") is not None:
-        return o["y"] + rf["eaveH"]
-    if o.get("roofRef") == "roka":
-        e = C.get("rokaEave")
-        return None if e is None else o["y"] + e
-    ev, _rg = svc_roof(d, o)
-    if ev is not None:
-        return o["y"] + ev
-    return o["y"] + C["gotenEave"] if o in d["munes"] else None
+    mb = C.get("moyaBand") or {}
+    return C["gotenEave"] - (mb["irikawa"] * C["ken"] + C["nokiDe"]) * C["gesyaKobai"]
+
+
+def link_floor_abs(d, l, other):
+    """廊下が `other` へ突き付く所の**床の絶対高**[m]。決まらなければ `None`。
+
+    ⭐⭐ **2026-09-08 ユーザー裁定: 階段廊下の屋根は段に従って下げる**(段の位置で切って2枚)。
+      ⇒ **相手の側の枚の床は、突き付く相手の棟の面に従う**。
+    ⛔⛔ **一枚で架けると成立しない** — 低い側の棟の所で廊下の大棟が**帯の軒桁を超える**
+      (`L_GenkanIma` / `L_ShoinIma1` は端の面だけが 0.600 低い)。⚠ **`rokaEave` を
+      どう選んでも解けない**ので、枚数のほうを裁定した。
+    ⛔ **枚数を黙って 1 と見ない** — `roofSheets` の無い廊下は `None`(未測)にする。
+    """
+    fl = d["const"]["gotenFloor"]
+    dr = l.get("drop") or 0.0
+    n = ((l.get("roofSheets") or {}).get("n")) or 0
+    if n < 1:
+        return None
+    if dr <= 1e-9 or n < 2:
+        return l["y"] + fl                       # 一枚 — 全長がこの廊下の面に載る
+    for q in (l["y"] - dr, l["y"]):              # 段で切った2枚の面
+        if abs(q - other["y"]) < 1e-6:
+            return q + fl
+    return None
 
 
 def tani_pair(d, a, b, st=None):
-    """**条③ 突き付けの境を谷が受けられるか**(2026-09-07 検図方 中3)。
+    """**条③ 突き付けの境を谷が受けられるか**(2026-09-07 検図方 中3 / 2026-09-08 に書き直し)。
 
-    ⛔⛔ **`mune_gap_check` は突き付けの組を「境は谷が受ける」と書いて除外していたが、
-      谷が受けられるか(廊下の軒高が棟の軒高より下か)は一度も測っていなかった。**
-      ⚠ 除外に落ちる組は**全部が 棟 × 廊下**で、**廊下の実リスクはちょうどそこにしかない**。
-    ⭕ 条は「**廊下の軒高 < 相手の棟の軒高 − `const.taniSagari`(谷の下がり)**」。
-    ⛔⛔ **値が入るまでこの条は回らない** — `const.rokaEave` / `const.taniSagari` が
-      未決(`_pending.rokatani`)なので、**0 件で素通りさせず**組を名指しで積む
-      (`qa-and-pitfalls.md`「測れないものは 0 件になる」)。
+    ⛔⛔ **2026-09-08 まで、この条は恒真だった。**⚠ ①棟の側に当てていた `const.gotenEave`
+      3.400 は**軒先ではなく帯の軒桁**で、**廊下が実際にぶつかる面より 1.483 高かった**
+      ②**不等号の向きも逆**(「軒下へ潜らせる」時代の式)。⇒ **1.55 も候補値も全部通った。**
+    ⭕⭕ **正しい二条**(2026-09-08 部材方 / ユーザー裁定=案B):
+      ① **谷が閉じる**  … 廊下の軒先 ≧ 棟の軒先 + `const.taniSagari`
+         ⛔ 割ると廊下の瓦が**棟の軒先の瓦へ食い込む**(C# の現行値 1.55 がこれ)。
+      ② **大棟が低い**  … 廊下の軒先 + `const.rokaOmuneRise` < **帯の軒桁**
+         ⛔ 超えると谷が棟の入側の内で閉じず、廊下の軒が棟の軒より高く見える。
+    ⚠ **廊下の床は突き付く相手ごとに違う**(階段廊下は段で切って2枚)⇒ `link_floor_abs`。
+    ⛔ **値の入らない組は 0 件で素通りさせず**、理由つきで名指しで積む(`st["taniPend"]`)。
     """
     C = d["const"]
-    sg = C.get("taniSagari")
+    sg, rev, rr = C.get("taniSagari"), C.get("rokaEave"), C.get("rokaOmuneRise")
     out = []
     for lo, hi in ((a, b), (b, a)):
         if lo.get("roofRef") != "roka" or hi.get("roofRef") == "roka":
             continue
-        nl = lo.get("label", lo["name"])
-        nh = hi.get("label", hi["name"])
-        el, eh = abs_eave(d, lo), abs_eave(d, hi)
-        if el is None or eh is None or sg is None:
+        nl = MUNE_JA.get(lo["name"], lo.get("label", lo["name"]))
+        nh = MUNE_JA.get(hi["name"], hi.get("label", hi["name"]))
+        fl = link_floor_abs(d, lo, hi)
+        banded = bool((hi.get("roof") or {}).get("banded"))
+        if None in (sg, rev, rr) or fl is None or not banded:
             if st is not None:
-                st.setdefault("taniPend", []).append("%s × %s" % (nl, nh))
+                st.setdefault("taniPend", []).append(
+                    "%s × %s — %s" % (nl, nh,
+                                      "相手が帯に割らない棟なので軒桁が引けない" if not banded
+                                      else "段で切った枚の面が相手の棟の面と合わない"
+                                      if fl is None else
+                                      "`const.rokaEave` / `taniSagari` / `rokaOmuneRise` が未決"))
             continue
-        if el >= eh - sg - 1e-9:
-            out.append("[谷] **%s の軒高 %.3f が %s の軒高 %.3f − 谷の下がり %.3f を"
-                       "下回らない** — 突き付けの境は谷が受ける設計なのに、"
-                       "**谷が受けられない**【`const._rokaTani`】"
-                       % (nl, el, nh, eh, sg))
+        ev = fl + rev                                       # 廊下の軒先(絶対)
+        ns = hi["y"] + C["gotenFloor"] + mune_nokisaki(d)   # 棟の軒先(絶対)
+        kt = hi["y"] + C["gotenFloor"] + C["gotenEave"]     # 帯の軒桁(絶対)
+        if ev < ns + sg - 1e-9:
+            out.append("[谷が閉じない] **%s の軒先 %.3f が、%s の軒先 %.3f + 谷の下がり %.3f "
+                       "= %.3f に届かない** — 廊下の瓦が**棟の軒先の瓦へ食い込む**"
+                       "【`const._rokaEave`】" % (nl, ev, nh, ns, sg, ns + sg))
+        if ev + rr >= kt - 1e-9:
+            out.append("[大棟が高い] **%s の大棟の天端 %.3f が、%s の帯の軒桁 %.3f を"
+                       "下回らない** — 谷が棟の入側の内で閉じず、廊下の軒が棟の軒より"
+                       "高く見える【`const._rokaEave`】" % (nl, ev + rr, nh, kt))
     return out
+
+
+def roka_roof_check(d):
+    """**廊下の屋根の設計値が輪に入っているか**(2026-09-08)。
+
+    ① 谷の三値(`rokaEave` / `taniSagari` / `rokaOmuneRise`)が在ること。
+       ⛔ 欠けると `tani_pair` が丸ごと未測へ落ちる。
+    ② **設計の従属値と部材の実測が合うこと** — 棟の軒先(床上)は
+       `gotenEave` − (入側 + 軒の出) × `gesyaKobai` の従属値だが、部材方は
+       **瓦の実体の最下端 + 垂れ込み**で同じ面を実測している(`const.muneNokisaki`)。
+       ⛔ **片方だけ動かして黙って食い違わせない**(規則19: 写した値は輪に入れる)。
+    ③ **廊下は全部 `roofSheets` を持つ**こと。⛔ **枚数を黙って 1 と見ない。**
+       ⭕ 段のある廊下は **2枚以上**で、**枚の面が突き付く両端の棟の面と一致する**こと。
+       ⛔ 段の無い廊下に 2枚を書かない。
+    """
+    C = d["const"]
+    bad = []
+    for k in ("rokaEave", "taniSagari", "rokaOmuneRise"):
+        if C.get(k) is None:
+            bad.append("`const.%s` が未決 — 廊下の谷の条が丸ごと回らない"
+                       "(⛔ 0件で素通りさせない)" % k)
+    ms = C.get("muneNokisaki") or {}
+    if ms and C.get("gotenEave") is not None:
+        der = mune_nokisaki(d)
+        jis = ms["kawaraBottom"] + ms["tarekomi"]
+        if abs(der - jis) > ms["tol"] + 1e-12:
+            bad.append("**棟の軒先が設計と部材で食い違う** — 従属値 %.4f"
+                       "(`gotenEave` − (入側 + 軒の出) × `gesyaKobai`)に対し、"
+                       "部材の実測は %.4f(瓦の実体の最下端 %.4f + 垂れ込み %.4f)。"
+                       "差 %.4f が許容 %.4f を超える【`const._muneNokisaki`】"
+                       % (der, jis, ms["kawaraBottom"], ms["tarekomi"],
+                          abs(der - jis), ms["tol"]))
+    for l in d.get("links", []):
+        nm = MUNE_JA.get(l["name"], l.get("label", l["name"]))
+        sh = l.get("roofSheets")
+        dr = l.get("drop") or 0.0
+        if not isinstance(sh, dict) or sh.get("n") is None:
+            bad.append("%s に `roofSheets`(屋根の枚数)が無い — "
+                       "⛔ **枚数を黙って 1 と見て通す**ことになる【`_pending.rokakaidan`】" % nm)
+            continue
+        n = sh["n"]
+        if dr > 1e-9 and n < 2:
+            bad.append("%s は段(%.3fm)を持つのに屋根が %d 枚 — ⭕ **段に従って下げる**"
+                       "(2026-09-08 ユーザー裁定)。⛔ 一枚で架けると大棟が帯の軒桁を超える"
+                       % (nm, dr, n))
+        if dr <= 1e-9 and n > 1:
+            bad.append("%s は段が無いのに屋根が %d 枚 — ⛔ 谷を増やさない" % (nm, n))
+        if dr > 1e-9 and n >= 2:
+            want = set((round(l["y"] - dr, 6), round(l["y"], 6)))
+            got = set(round(m["y"], 6) for m in d["munes"] if obb_gap(l, m) <= 1e-9)
+            if got != want:
+                bad.append("%s の段で切った枚の面 %s が、突き付く棟の面 %s と合わない — "
+                           "⛔ 枚の床は**相手の棟の面**に従う(`link_floor_abs`)"
+                           % (nm, sorted(want), sorted(got)))
+    return bad
+
+
+def tani_sensitivity(d):
+    """**感度試験** — 廊下の軒先を動かして谷の二条が鳴るか。⛔ 恒真の検査を通さない。
+
+    ⭐⭐ 2026-09-08。⚠⚠ **前の版の条は恒真で、C# の現行値 1.55 も候補値も全部が通った** —
+      ⛔ **入れ替えた検査は件数だけでは「緩くなった」のか「正しくなった」のか見分けられない**
+      (規則19)。⇒ **束ごとに期待どおり鳴る/鳴らないを毎回刷る。**
+    束は5つ — ① C# の現行値 1.550 → **条①が鳴る**(潜れず、谷も閉じない)
+             ② いまの指図 → 鳴らない
+             ③ 上限ぎりぎり 2.408 → **条②が鳴らない**(余裕 0.039)
+             ④ 上限を超える 2.500 → **条②が鳴る**
+             ⑤ 階段廊下を一枚屋根へ → **条②が鳴る**(面の 0.600 が効く)
+    """
+    def count(e):
+        out = mune_gap_check(e)
+        return (len([x for x in out if x.startswith("[谷が閉じない]")]),
+                len([x for x in out if x.startswith("[大棟が高い]")]))
+
+    def with_eave(v):
+        e = copy.deepcopy(d)
+        e["const"]["rokaEave"] = v
+        return e
+
+    def one_sheet():
+        e = copy.deepcopy(d)
+        for l in e["links"]:
+            if ((l.get("roofSheets") or {}).get("n") or 1) > 1:
+                l["roofSheets"]["n"] = 1
+        return e
+
+    probes = [("① C# の現行値 1.550(潜らせる時代の値)", count(with_eave(1.55)), (1, 0)),
+              ("② いまの指図 %.3f" % d["const"]["rokaEave"], count(copy.deepcopy(d)), (0, 0)),
+              ("③ 上限ぎりぎり 2.408", count(with_eave(2.408)), (0, 0)),
+              ("④ 上限を超える 2.500", count(with_eave(2.500)), (0, 1)),
+              ("⑤ 階段廊下を一枚屋根へ", count(one_sheet()), (0, 1))]
+    bad = []
+    for nm, got, want in probes:
+        if (got[0] > 0) != (want[0] > 0) or (got[1] > 0) != (want[1] > 0):
+            bad.append("%s: 条①%d件 / 条②%d件 — 期待は 条①%s / 条②%s"
+                       % (nm, got[0], got[1], "鳴る" if want[0] else "鳴らない",
+                          "鳴る" if want[1] else "鳴らない"))
+    return probes, bad
 
 
 def mune_gap_check(d, st=None):
@@ -7093,6 +7241,18 @@ def band_todo(d):
         if not rf.get("fukizai"):
             out.append("**%s の葺材(格の表示)が未決** — 案Cで屋根の型でも棟高でも格を"
                        "分けられなくなったので、葺材で分ける(`_pending.kakusa`)" % m["name"])
+    # ⭐ **階段廊下の段の位置**(2026-09-08 ユーザー裁定=段に従って屋根を下げる)。
+    #   ⛔ **決まったのは枚数だけ** — 段が走りのどこに来るかは意匠で、指図方では決めない。
+    #   ⚠ 谷の条は枚数だけで閉じるが、**棟梁は位置が無いと切れない**。
+    for l in d.get("links", []):
+        sh = l.get("roofSheets") or {}
+        if (sh.get("n") or 1) > 1 and sh.get("cutAt") is None:
+            out.append("**%s の段の位置が未決** — 屋根は段で切って %d 枚と決まった"
+                       "(2026-09-08 ユーザー裁定)が、段が走り %.4g間 のどこに来るかは"
+                       "指図に無い。⛔ 棟梁は位置が無いと切れない(`_pending.%s`)"
+                       % (MUNE_JA.get(l["name"], l.get("label", l["name"])), sh["n"],
+                          max(l["u1"] - l["u0"], l["v1"] - l["v0"]),
+                          sh.get("pending", "rokakaidan")))
     return out
 
 
@@ -7425,14 +7585,14 @@ def roof_table(d):
 
 
 def tani_table(d):
-    """**突き付けの境を谷が受けられるか**(条③)。⛔ 除外した組を「見た」ことにしない。
+    """**突き付けの境を谷が受けられるか**(条③の二条)。⛔ 除外した組を「見た」ことにしない。
 
-    ⭐⭐ 2026-09-07 検図方 中3。⛔⛔ **`mune_gap_check` は突き付けの組を「境は谷が受ける」と
-      書いて除外していたが、谷が受けられるかは一度も測っていなかった** — 除外に落ちる組は
-      **全部が 棟 × 廊下**で、廊下の実リスクはちょうどそこにしかない。
+    ⭐⭐ 2026-09-07 検図方 中3 で立て、**2026-09-08 に二条へ書き直した**。
+      ⛔⛔ **前の版は恒真だった** — 棟の側に当てていた `gotenEave` は**軒先ではなく帯の軒桁**で、
+      **廊下が実際にぶつかる面より 1.483 高かった**(しかも不等号の向きが逆)。
     """
     C = d["const"]
-    sg = C.get("taniSagari")
+    sg, rev, rr = C.get("taniSagari"), C.get("rokaEave"), C.get("rokaOmuneRise")
     M = roof_objs(d)
     rows = []
     for i in range(len(M)):
@@ -7443,34 +7603,61 @@ def tani_table(d):
             for lo, hi in ((a, b), (b, a)):
                 if lo.get("roofRef") != "roka" or hi.get("roofRef") == "roka":
                     continue
-                el, eh = abs_eave(d, lo), abs_eave(d, hi)
-                need = None if (eh is None or sg is None) else eh - sg
+                nl = MUNE_JA.get(lo["name"], lo.get("label", lo["name"]))
+                nh = MUNE_JA.get(hi["name"], hi.get("label", hi["name"]))
+                fl = link_floor_abs(d, lo, hi)
+                banded = bool((hi.get("roof") or {}).get("banded"))
+                if None in (sg, rev, rr) or fl is None or not banded:
+                    rows.append(("%s(廊下)" % nl, nh, "⚠ <b>未測</b>", "—", "—", "—", "—",
+                                 "⚠ <b>未測</b>(<code>_pending.rokakaidan</code>)"))
+                    continue
+                ev = fl + rev
+                ns = hi["y"] + C["gotenFloor"] + mune_nokisaki(d)
+                kt = hi["y"] + C["gotenFloor"] + C["gotenEave"]
                 rows.append((
-                    "%s(廊下)" % MUNE_JA.get(lo["name"], lo.get("label", lo["name"])),
-                    MUNE_JA.get(hi["name"], hi.get("label", hi["name"])),
-                    "⚠ <b>未決</b>(<code>const.rokaEave</code>)" if el is None
-                    else "%.3f" % el,
-                    "—" if eh is None else "%.3f" % eh,
-                    "⚠ <b>未決</b>(<code>const.taniSagari</code>)" if sg is None
-                    else "%.3f" % sg,
-                    "⚠ <b>未測</b>(<code>_pending.rokatani</code>)" if need is None
-                    else ("⭕ %.3f &lt; %.3f" % (el, need) if el < need - 1e-9
-                          else "⚠ %.3f ≧ %.3f" % (el, need))))
+                    "%s(廊下)" % nl, nh,
+                    "%.3f" % fl, "<b>%.3f</b>" % ev, "%.3f" % ns,
+                    ("⭕ %.3f ≧ %.3f(余裕 %.3f)" % (ev, ns + sg, ev - ns - sg)
+                     if ev >= ns + sg - 1e-9
+                     else "⚠ %.3f &lt; %.3f(<b>%.3f 足りない</b>)"
+                     % (ev, ns + sg, ns + sg - ev)),
+                    "<b>%.3f</b>" % (ev + rr),
+                    ("⭕ %.3f &lt; %.3f(余裕 %.3f)" % (ev + rr, kt, kt - ev - rr)
+                     if ev + rr < kt - 1e-9
+                     else "⚠ %.3f ≧ %.3f(<b>%.3f 超える</b>)"
+                     % (ev + rr, kt, ev + rr - kt))))
     if not rows:
         return ""
-    nn = sum(1 for r in rows if "未測" in r[5])
-    return _tw(("廊下", "突き付く相手", "廊下の軒高(絶対)", "相手の軒高(絶対)",
-                "谷の下がり", "条③ 廊下 &lt; 相手 − 谷の下がり"), rows) + (
+    nn = sum(1 for r in rows if "未測" in r[7])
+    rng = ""
+    if None not in (sg, rev, rr) and C.get("gotenEave") is not None:
+        rng = ("⭕⭕ <b>成立範囲は実測からの従属値</b> — 下限 <b>%.3f</b>(棟の軒先 %.3f + "
+               "谷の下がり %.3f)/ 上限 <b>%.3f</b>(帯の軒桁 %.3f − 廊下の大棟の立ち上がり "
+               "%.3f)。いまの <code>const.rokaEave</code> = <b>%.3f</b> は下限に "
+               "<b>%.3f</b>・上限に <b>%.3f</b> の余裕"
+               "(⚠ <b>棟の軒先そのものから測れば %.3f</b> — 谷の下がりを含めるかで数が違う。"
+               "⛔ 混ぜて語らない)。"
+               % (mune_nokisaki(d) + sg, mune_nokisaki(d), sg,
+                  C["gotenEave"] - rr, C["gotenEave"], rr, rev,
+                  rev - mune_nokisaki(d) - sg, C["gotenEave"] - rr - rev,
+                  rev - mune_nokisaki(d)))
+    return _tw(("廊下", "突き付く相手", "廊下の床(絶対)", "廊下の軒先(絶対)",
+                "棟の軒先(絶対)", "条① 谷が閉じる(廊下 ≧ 棟の軒先 + 下がり)",
+                "廊下の大棟の天端", "条② 大棟 &lt; 帯の軒桁"), rows) + (
         "<p class='cap'>⭐⭐ <b>突き付けの組を「見た」ことにしない</b>"
         "(2026-09-07 検図方 中3)。⛔⛔ <b>屋根の当たりの母集団から突き付けで除外した組は"
-        "全部が 棟 × 廊下</b>で、<b>廊下の実リスクはちょうどそこにしかない</b> — "
-        "docstring は「境は谷が受ける」と書くのに、<b>谷が受けられるかは測っていなかった</b>。"
-        "⚠⚠ <b>いま %d 組が未測</b> — <code>const.rokaEave</code>(廊下の軒高)と "
-        "<code>const.taniSagari</code>(谷の下がり)が指図に無い"
-        "(<code>const._svcRoof</code> に <code>roka</code> の行が無く、"
-        "軒高は一度も決まっていない)。⛔ <b>これは「0件」ではなく「未測」である</b>。"
-        "⭕ 行き先は <code>_pending.rokatani</code> — <b>廊下の軒高は御殿の軒高との差で"
-        "格と納まりが決まる</b>ので、⛔ <b>指図方では決めない</b>(規則17)。</p>" % nn)
+        "全部が 棟 × 廊下</b>で、<b>廊下の実リスクはちょうどそこにしかない</b>。"
+        "⛔⛔ <b>2026-09-08 まで、この条は恒真だった</b> — ①棟の側に当てていた "
+        "<code>const.gotenEave</code> 3.400 は<b>軒先ではなく『帯の軒桁』</b>で、"
+        "<b>廊下が実際にぶつかる面より 1.483 高かった</b> ②<b>不等号の向きも逆</b>"
+        "(2026-08-14 の「軒下へ潜らせる」時代の式)。⇒ <b>1.55 も候補値も全部が通った。</b><br>"
+        "⭕ いまは二条 — ① <b>谷が閉じる</b>(廊下の軒先が棟の軒先 + 谷の下がりに届く)"
+        "② <b>大棟が低い</b>(廊下の大棟の天端が帯の軒桁を下回る=谷が棟の入側の内で閉じる)。"
+        "⚠ <b>廊下の床は突き付く相手ごとに違う</b> — <b>階段廊下は段に従って屋根を下げ、"
+        "段の位置で切って2枚にする</b>【2026-09-08 ユーザー裁定】。<br>%s"
+        "%s</p>" % (rng,
+                    "" if not nn else
+                    " ⚠⚠ <b>%d 組が未測</b>(⛔ 「0件」ではない)。" % nn))
 
 
 def roof_kata_table(d):
@@ -7567,12 +7754,22 @@ def roof_kata_sensitivity(d):
 
 
 def _abs_ridge(d, o):
-    """その建物の**棟高(瓦面の頂)の絶対高**[m]。⛔ 床上・地盤上と混ぜない。"""
+    """その建物の**棟高(瓦面の頂)の絶対高**[m]。⛔ 床上・地盤上と混ぜない。
+
+    ⭐ 2026-09-08: **廊下**を足した。⚠ `const.rokaOmuneRise` は**大棟の天端**まで(見え掛かりを
+      含む)なので、⛔ **`omuneCap.roka` を引いて瓦面の頂へ戻す** — 当図が刷る棟高は瓦面の頂で、
+      表がそこへ `omuneCap` を足して天端を出す(⛔ 二重に足さない)。
+    """
     rf = o.get("roof") or {}
     if (rf.get("bands") or {}).get("ridgeY"):
         return max(rf["bands"]["ridgeY"])
     if rf.get("ridgeH") is not None:
         return o["y"] + rf["ridgeH"]
+    if o.get("roofRef") == "roka":
+        C = d["const"]
+        rev, rr = C.get("rokaEave"), C.get("rokaOmuneRise")
+        cp = (C.get("omuneCap") or {}).get("roka") or 0.0
+        return None if None in (rev, rr) else floor_abs(d, o) + rev + rr - cp
     _e, rg = svc_roof(d, o)
     return None if rg is None else o["y"] + rg
 
@@ -7586,18 +7783,24 @@ def noki_table(d):
     C = d["const"]
     cap = C.get("omuneCap") or {}
     FAM = {"goten": "御殿(帯割り入母屋)", "kachu": "家中長屋(平家)", "kura": "土蔵",
-           "umaya": "厩", "inari": "稲荷(小祠)", "nagaya": "表長屋(二階)"}
+           "umaya": "厩", "inari": "稲荷(小祠)", "nagaya": "表長屋(二階)",
+           "roka": "廊下(渡・階段・御錠口)"}
     rows = []
-    for o in d["munes"] + d.get("service", []):
+    # ⭐ 2026-09-08: **廊下**を足した(`roof_objs`)。⚠ 廊下は屋根を持つのに、
+    #   部材の実測の表に一度も載っていなかった — 実測は入っても**誰も見られなかった**。
+    for o in roof_objs(d):
         de, ke, su = noki_of(d, o)
         fam = roof_family(d, o)
         cp = cap.get(fam)
         rg = _abs_ridge(d, o)
         nm = MUNE_JA.get(o["name"], o.get("label", o["name"]))
+        kw = (o.get("noki") or {}).get("kawara") or {}
         rows.append((
             nm, FAM.get(fam, fam),
-            "<b>%.4f</b>" % de,
-            ("<b>%.4f</b>" % ke) + ("" if abs(ke - de) < 1e-9 else " <span class='note'>(平と違う)</span>"),
+            ("<b>%.4f</b>" % de)
+            + ("" if "de" not in kw else " <span class='note'>瓦 %.3f</span>" % kw["de"]),
+            ("<b>%.4f</b>" % ke) + ("" if abs(ke - de) < 1e-9 else " <span class='note'>(平と違う)</span>")
+            + ("" if "tsuma" not in kw else " <span class='note'>瓦 %.3f</span>" % kw["tsuma"]),
             ("<b>%.4f</b>" % su) if o["name"] in (C.get("sumiMeasured") or []) else
             "⚠ <b>未実測</b>(`_pending.buzaijissoku`)",
             ("%.3f" % cp) if cp is not None else "⚠ <b>未実測</b>",
@@ -7627,6 +7830,15 @@ def noki_table(d):
         "順は変わらない。⛔ 基準を混ぜない。"
         "⚠ 御殿の値は<b>部材の生成器の指定値</b>であって焼いた実物の実測ではない"
         "(<code>_pending.buzaijissoku</code>)。</p>"
+        "<p class='cap'>⭐⭐ <b>当たりは破風板の先で測るのが正しく、瓦の軒先線はそれより内側</b>"
+        "(2026-09-08 部材方)。⇒ <b>平・けらばの太字は破風板の先</b>で、"
+        "その脇の細字が<b>瓦の軒先線</b>(<code>links[].noki.kawara</code>)。"
+        "⛔ <b>二つを取り違えない</b> — <b>隣との離れは破風板</b>、"
+        "<b>見え掛かり(谷・雨落ち)は瓦</b>。"
+        "⚠ 廊下5本の値は <b>2026-09-07 に 2.5mm ずれていた</b> — "
+        "<b>丸めた bbox から引き算していた</b>ため。⛔ 丸めた外形から引き算しない。"
+        "⭕ <b>廊下の隅の飛び出しは 0.0000</b> だが<b>「測って 0」であって「未測」ではない</b> — "
+        "材の内訳で <code>roof ornaments</code> は大棟だけで、<b>隅棟のジオメトリが存在しない</b>。</p>"
         "<p class='cap'>⭕ <b>戸割は従属値</b> = 桁行 ÷ 1戸の間口 の四捨五入"
         "(<code>const.togiri</code>)。⛔ <b>棟ごとに戸数を書かない</b>(規則4)。"
         "⛔⛔ <b>戸数を史実として名乗らせない</b> — 桁行そのものが「外周に回した結果」であって"
@@ -10599,6 +10811,19 @@ def niwa_todo_dest_check(d):
             if k not in pend:
                 bad.append("**差し戻しの行き先 `_pending.%s` が正典に無い** — 綴りか、"
                            "立て忘れ: %s" % (k, x[:60]))
+    # ⭐⭐ **宿題どうしの参照も切れる**(2026-09-08)。⛔⛔ **`_pending` の本文が名指す
+    #   `_pending.<鍵>` は、これまで誰も突き合わせていなかった** — 実際、閉じた `rokatani` を
+    #   消したときに `_pending.mune_gap` の名指しが宙に浮いた(⚠ どの検査も鳴らなかった)。
+    #   ⇒ **宿題を閉じるたびに、そこを指していた宿題が迷子になる**。
+    for k9 in sorted(pend):
+        v9 = pend[k9]
+        if not isinstance(v9, str):
+            continue
+        for k8 in sorted(set(_TODO_DST.findall(v9))):
+            if k8 not in pend:
+                bad.append("**`_pending.%s` が名指す行き先 `_pending.%s` が正典に無い** — "
+                           "⛔ 宿題を閉じたときに、そこを指していた宿題が迷子になる"
+                           % (k9, k8))
     return bad
 
 
@@ -12963,7 +13188,7 @@ def main():
             + norms_check(d) + perimeter_check(d) + perimeter_closure_check(d)
             + mune_gap_check(d, _GAPST) + roof_parcel_check(d)
             + band_check(d) + neighbour_hash_check(d)
-            + buzai_jissoku_check(d) + kachu_kata_check(d)
+            + buzai_jissoku_check(d) + kachu_kata_check(d) + roka_roof_check(d)
             + clearance_check(d) + rails_check(d)
             + ramp_check(d) + completeness_check(d) + program_check(d) + gate_overlap_check(d) + vocab_check(d)
             + terrace_overhang_check(d) + setchin_check(d)
@@ -13023,15 +13248,25 @@ def main():
           % (_GAPST.get("n", 0), _GAPST.get("pairs", 0),
              _GAPST.get("butted", 0), _GAPST.get("measured", 0)))
     # ⛔⛔ **除外した組を「見た」ことにしない**(2026-09-07 検図方 中3)。
-    #   突き付けの境は谷が受ける設計だが、**谷が受けられるかは `const.rokaEave` /
-    #   `const.taniSagari` が入るまで測れない** ⇒ **組を名指しで残す**。
+    #   ⭐⭐ **2026-09-08 に条を二条へ書き直した**(前の版は恒真)。⛔ 件数だけでは
+    #   「緩くなった」のか「正しくなった」のか見分けられないので、**感度試験も並べて刷る**。
     _tp = _GAPST.get("taniPend") or []
     print("── 廊下の谷の条(突き付けの境): %s"
-          % ("**%d 組すべて測った**" % _GAPST.get("butted", 0) if not _tp else
-             "⚠ **%d 組が未測** — `const.rokaEave` / `const.taniSagari` が未決"
-             "(`_pending.rokatani`)。⛔ 0件ではなく**未測**である" % len(_tp)))
+          % ("**%d 組すべて測った**(条① 谷が閉じる / 条② 大棟が帯の軒桁より低い)"
+             % _GAPST.get("butted", 0) if not _tp else
+             "⚠ **%d 組が未測**(`_pending.rokakaidan`)。⛔ 0件ではなく**未測**である"
+             % len(_tp)))
     for _q in _tp:
         print("    ", _q)
+    _tpr, _tsb = tani_sensitivity(d)
+    print("── 感度試験(廊下の谷): %s"
+          % ("**%d束/%d束 期待どおり**" % (len(_tpr) - len(_tsb), len(_tpr))
+             if not _tsb else "⚠ %d束が期待と違う" % len(_tsb)))
+    for _nm, _got, _w in _tpr:
+        print("    %s → 条①(谷が閉じない)%d件 / 条②(大棟が高い)%d件"
+              % (_nm, _got[0], _got[1]))
+    for _b in _tsb:
+        print("   ", _b)
     probes, sbad = mune_gap_sensitivity(d)
     print("── 感度試験(`mune_gap_check`): %s"
           % ("**%d束/%d束 期待どおり**" % (len(probes) - len(sbad), len(probes))
@@ -13716,6 +13951,24 @@ def main():
         h.append(roof_clearance_table(d))
         h.append("<h3>突き付けの境 — 条③(谷が受けられるか)</h3>")
         h.append(tani_table(d))
+        # ⭐⭐ **入れ替えた条は感度試験まで図に出す**(規則19)。⛔ stdout に閉じ込めない。
+        #   ⚠ **前の版は恒真で、件数だけを見ていたら「0件=通った」と読めてしまった。**
+        _tp9, _tb9 = tani_sensitivity(d)
+        h.append("<div class='tw'><table><thead><tr><th>感度試験(廊下の谷)</th>"
+                 "<th>条①(谷が閉じない)</th><th>条②(大棟が高い)</th><th>期待</th>"
+                 "</tr></thead><tbody>"
+                 + "".join("<tr><td>%s</td><td><b>%d 件</b></td><td><b>%d 件</b></td>"
+                           "<td>条①%s / 条②%s</td></tr>"
+                           % (inline(a), b[0], b[1],
+                              "鳴る" if w[0] else "鳴らない",
+                              "鳴る" if w[1] else "鳴らない")
+                           for a, b, w in _tp9) + "</tbody></table></div>"
+                 + ("<p class='cap'>⭕ <b>%d 束すべて期待どおり。</b>"
+                    "⛔⛔ <b>件数だけでは「緩くなった」のか「正しくなった」のか見分けられない</b>"
+                    " — <b>前の版は恒真で、C# の現行値 1.55 すら通した</b>。"
+                    "⭕ <b>壊して鳴ることを毎回刷る</b>(規則19)。</p>" % len(_tp9)
+                    if not _tb9 else
+                    "<p class='cap'>⚠ " + "<br>".join(inline(q) for q in _tb9) + "</p>"))
         # ⭐ **意匠の差し戻しは図に出す**(規則19)。⛔ stdout に閉じ込めない。
         _bt = band_todo(d)
         h.append('<div class="box" style="border-color:var(--shu)"><h3>'

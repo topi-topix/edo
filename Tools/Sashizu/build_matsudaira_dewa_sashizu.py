@@ -11505,7 +11505,7 @@ def slope_section_svg(d, dem, vcut, half=6.0):
     ridge = 0.0
     if mune:
         ru0, ru1, rv0, rv1, a, hh = _roof_geom(d, mune)
-        ridge = mune["y"] + C["gotenFloor"] + C["muneEave"] + hh
+        ridge = mune["y"] + C["gotenFloor"] + _nokisaki_eave(d) + hh
     ytop = max(max(ys), ridge) + 4
     ybot = min(ys) - 2
     W = 940.0
@@ -11554,7 +11554,7 @@ def slope_section_svg(d, dem, vcut, half=6.0):
                    "anS", "middle", 8.5, "var(--shu)"))
     # 御殿(西面)
     if mune:
-        eave = mune["y"] + C["gotenFloor"] + C["muneEave"]
+        eave = mune["y"] + C["gotenFloor"] + _nokisaki_eave(d)
         mu = mune["u0"]
         g.append(R(X(mu), Y(eave), X(u1) - X(mu), (eave - mune["y"]) * s,
                    fill="var(--ink-mid)", stroke="var(--ink)", sw=0.8))
@@ -11579,7 +11579,7 @@ def slope_section_svg(d, dem, vcut, half=6.0):
                                 0.55 + 0.45 * (1.0 - abs(v - vcut) * K / max(half, 0.1))))
     # 見通し線 — 対岸から御殿の軒が見えるか
     if mune:
-        eave = mune["y"] + C["gotenFloor"] + C["muneEave"]
+        eave = mune["y"] + C["gotenFloor"] + _nokisaki_eave(d)
         mu = mune["u0"]
         toe_u = prof[0][0]
         need = []
@@ -14632,6 +14632,131 @@ def mune_grading_table(d, step=0.5):
 # ---------------------------------------------------------------- 屋根伏図と谷
 GABLE_FRAC = 0.45          # 破風の立上り比(Tools/Blender/build_goten_roof.py の make_irimoya)
 
+# ⚠ **短辺 outer 6間の4棟は帯割り(4/5の和)が作れない**【考証 2026-09-07・EDO-0149 訂正便】。
+#   実体は御殿ではなく [西川1959]A系統(長屋の構造=三間梁+庇一間)。`munes[].roof` を持たない。
+#   ⇒ 断面(`roof_section_svg`)で御殿の軒高(概略の軒先=`_nokisaki_eave`)を使って描かせない
+#     (`_pending.gotenRoofNagayaGata`)。
+ROOF_NAGAYA_GATA_MUNES = {"OkuYudono", "NagatsuboneN", "OkuDaidokoro", "Umaya"}
+
+
+def _nokisaki_eave(d):
+    """概略図(`roof_section_svg`・西斜面の遮蔽計算 `slope_section_svg`)専用の**軒先**の高さ
+    (床上・m)。⛔ 2026-09-07(第22次)まで独立の定数 `const.muneEave`(2.577)を持っていたが、
+    `const.gotenEave`/`gesyaKobai` と同じ量の二重管理だったので廃した(規則4)。
+
+    ⭕ 身舎の軒桁(`gotenEave`)から、入側1間ぶん `gesyaKobai` の勾配で下がった高さ
+    (`const._gesyaKobai` の従属値の式そのもの)。⚠ 部材の実寸が入ればそちらが正 — これは
+    あくまで**概略・突き合わせ対象外**の図のための値。"""
+    C = d["const"]
+    return C["gotenEave"] - 1.0 * C["ken"] * C["gesyaKobai"]
+
+
+def _band_ridge_h(d, band_ken):
+    """帯の身舎(ken)から大棟の高さ(床上・m)を出す — `const._gotenEave` に書いた式そのもの。
+    ⛔ ここで数値を作らない(`gotenEave`/`kawaraKobai` が正典)。"""
+    C = d["const"]
+    return C["gotenEave"] + band_ken / 2.0 * C["ken"] * C["kawaraKobai"]
+
+
+def _mune_takasa(d, m):
+    """棟(`munes[]`)の**いちばん高い帯の大棟**(床上・m)。`roof` を持たない棟は None。
+    ⛔ `roof.muneTakasa`(json では常に null)を読まない — ここで毎回算出する
+    (`_gotenEave` の断り「生成器が算出。数字はここに写さない」)。"""
+    roof = m.get("roof")
+    if not roof or not roof.get("bands") or "gotenEave" not in d["const"]:
+        return None
+    return max(_band_ridge_h(d, b) for b in roof["bands"])
+
+
+def roof_band_span_check(d):
+    """帯割り(`munes[].roof.bands`)の各帯が上限(5間)・下限(2間)を外れていないか、
+    かつ `roof` を持たない棟(単一の小屋組)の身舎(across・短い方)が上限を超えていないかを見る。
+    ⛔ ROOF_NAGAYA_GATA_MUNES は対象外(長屋型と判定済み・帯割りしない)。"""
+    bad = []
+    for m in d["munes"]:
+        name = m["name"]
+        roof = m.get("roof")
+        if roof:
+            for b in roof.get("bands", []):
+                if b > 5 or b < 2:
+                    bad.append("%s: 帯 %g間 が範囲外(2〜5間)。bands=%s"
+                               % (name, b, roof.get("bands")))
+            continue
+        if name in ROOF_NAGAYA_GATA_MUNES:
+            continue
+        rooms = m.get("rooms", [])
+        if not rooms:
+            continue
+        ru0 = min(r["u0"] for r in rooms); ru1 = max(r["u1"] for r in rooms)
+        rv0 = min(r["v0"] for r in rooms); rv1 = max(r["v1"] for r in rooms)
+        span_across = min(ru1 - ru0, rv1 - rv0)
+        if span_across > 5:
+            bad.append("%s: roof 未設定のまま身舎の短辺 %.2f間 が単一小屋組の上限(5間)を超える"
+                       % (name, span_across))
+    return bad
+
+
+def roof_eave_order_check(d):
+    """**格は軒高で読む: 厩 < 長屋類 < 御殿**(2026-09-07・第22次・普請奉行の裁定=土井の実例
+    「厩2.35<家中長屋2.80<御殿3.40」を踏襲)。
+
+    ⛔ **棟高(muneTakasa)で格を読まない** — 棟高は梁間の従属値なので、梁間の広い棟のほうが
+    格に関わらず高く出る(土井 2026-09-06 の共有・第21次で見た副作用と同じ穴)。
+    ⭕ 見るのは kind ごとの**軒高**だけ。当邸は `const.gotenEave` は確定したが、長屋類(厩を除く
+    `ROOF_NAGAYA_GATA_MUNES`)と厩(zone=厩)の軒高がまだ無い。0件を返さない —
+    `_pending.eaveOrder` が解けるまで、未定の kind を1件として持つ(0件=偽の合格を避ける)。"""
+    C = d["const"]
+    eaves = {}
+    missing = []
+    if any(m.get("roof") for m in d["munes"]):
+        if "gotenEave" in C:
+            eaves["御殿"] = C["gotenEave"]
+        else:
+            missing.append("御殿")
+    nagaya_munes = [n for n in sorted(ROOF_NAGAYA_GATA_MUNES)
+                    if next((m for m in d["munes"] if m["name"] == n), {}).get("zone") != "厩"]
+    if nagaya_munes:
+        missing.append("長屋類(%s)" % "・".join(MUNE_JA.get(n, n) for n in nagaya_munes))
+    if any(m.get("zone") == "厩" for m in d["munes"]):
+        missing.append("厩")
+    bad = []
+    if missing:
+        bad.append("軒高が未定の kind: %s — 決まるまで序列(厩<長屋類<御殿)は判定不可"
+                   "(`_pending.eaveOrder`)" % "・".join(missing))
+    order = ["厩", "長屋類", "御殿"]
+    known = [(k, eaves[k]) for k in order if k in eaves]
+    for i in range(len(known) - 1):
+        if known[i][1] >= known[i + 1][1]:
+            bad.append("軒高の序列が逆転: %s %.3fm ≥ %s %.3fm"
+                       % (known[i][0], known[i][1], known[i + 1][0], known[i + 1][1]))
+    return bad
+
+
+def _roof_section_rows(d):
+    """`roof_section_svg` が描く行そのもの(検査と実装が同じ集合を見るための共有ヘルパー)。
+    ⛔ ここを直したら `roof_section_svg` 側の ROWS もこの関数に差し替えること
+    (別々に持つと「検査は直したが実装は直っていない」を検出できない)。"""
+    return [("表向", [m for m in d["munes"]
+                     if m.get("zone") in ("表向", "表役所")
+                     and m["name"] not in ROOF_NAGAYA_GATA_MUNES]),
+            ("奥向", [m for m in d["munes"] if m.get("zone") == "奥向"
+                     and m["name"] not in ROOF_NAGAYA_GATA_MUNES])]
+
+
+def roof_annex_eave_check(d):
+    """断面(`roof_section_svg`)が長屋型(ROOF_NAGAYA_GATA_MUNES)を御殿の軒高(概略の軒先
+    `_nokisaki_eave`)で描いていないか。kind(御殿/長屋)ごとに軒・棟を引き分けているかの検査。"""
+    bad = []
+    drawn = set()
+    for _label, ms in _roof_section_rows(d):
+        drawn.update(m["name"] for m in ms)
+    for name in ROOF_NAGAYA_GATA_MUNES:
+        if name in drawn:
+            bad.append("%s: 断面 roof_section_svg の描画対象に含まれ、"
+                       "御殿の軒高(概略の軒先=%.3f)で描かれている(長屋型は別軒高が要る)"
+                       % (name, _nokisaki_eave(d)))
+    return bad
+
 
 def _roof_geom(d, m):
     """棟の屋根の平面。谷になる辺には軒を出さない。→ (ru0, ru1, rv0, rv1, a, h)"""
@@ -14643,7 +14768,7 @@ def _roof_geom(d, m):
     ru1 = m["u1"] + (0.0 if m["name"] in noE else E)
     rv0, rv1 = m["v0"] - E, m["v1"] + E
     a = GABLE_FRAC * (rv1 - rv0) / 2.0                          # 破風の入り込み[間]
-    h = (rv1 - rv0) / 2.0 * d["const"]["ken"] * d["const"]["roofRatio"]   # 軒先→大棟[m]
+    h = (rv1 - rv0) / 2.0 * d["const"]["ken"] * d["const"]["kawaraKobai"]   # 軒先→大棟[m]
     return ru0, ru1, rv0, rv1, a, h
 
 
@@ -14713,10 +14838,11 @@ def roof_plan_svg(d):
 def roof_section_svg(d):
     """屋根の縦断面(桁行) — 各棟の大棟通りで切って一列に展開。谷は軒先の高さで出会う。"""
     KEN = d["const"]["ken"]
-    EAVE = d["const"]["gotenFloor"] + d["const"]["muneEave"]      # 面から軒先[m]
-    ROWS = [("表向", [m for m in d["munes"]
-                     if m.get("zone") in ("表向", "表役所") and m["name"] != "Umaya"]),
-            ("奥向", [m for m in d["munes"] if m.get("zone") == "奥向" and m["name"] != "NagatsuboneS"])]
+    EAVE = d["const"]["gotenFloor"] + _nokisaki_eave(d)      # 面から軒先(概略)[m]
+    # ⚠ 2026-09-07 `_roof_section_rows` に切り出した(ROOF_NAGAYA_GATA_MUNES の4棟は
+    #   帯割りの対象外=長屋型で、御殿の軒高(概略の軒先)で描かせない。`roof_annex_eave_check` と
+    #   同じ集合を見る)。
+    ROWS = _roof_section_rows(d)
     su0, su1 = -48, 14
     s = 900.0 / (su1 - su0)                                      # px/間(水平・垂直とも実寸)
     mpx = s / KEN                                                # px/m
@@ -14777,6 +14903,38 @@ def valleys_table(d):
             "<th>樋の長さ</th><th>両側の大棟(軒先から)</th><th class='note'>水の落とし方</th>"
             "</tr></thead><tbody>%s</tbody></table></div>" % r)
 
+
+
+def roof_bands_table(d):
+    """`munes[].roof` の帯割り一覧(2026-09-07 EDO-0149 訂正便)。⛔ 帯・桁行・向き・葺材・確度は
+    json の `roof` をそのまま並べる。**棟高だけは `_mune_takasa` が毎回算出する**
+    (json の `roof.muneTakasa` は常に null — 規則4「生成器が算出。数字は写さない」)。"""
+    rows = ""
+    for m in d["munes"]:
+        roof = m.get("roof")
+        nm = MUNE_JA.get(m["name"], m["name"])
+        if roof:
+            mt = _mune_takasa(d, m)
+            rows += ("<tr><td>%s</td><td>%s</td><td>%d間</td><td>%s</td><td>%s</td>"
+                     "<td>%s</td><td class='note'>%s</td></tr>"
+                     % (nm, "-".join(str(b) for b in roof["bands"]), roof["spanKen"],
+                        "v(桁行 v)" if roof["alongV"] else "u(桁行 u)",
+                        roof["fukizai"],
+                        "%.3fm" % mt if mt is not None else "未定",
+                        roof["confidence"]))
+        elif m["name"] in ROOF_NAGAYA_GATA_MUNES:
+            rows += ("<tr><td>%s</td><td colspan='5' class='note'>帯割りの対象外"
+                     "(短辺 outer 6間・[西川1959]A系統=長屋型。`_pending.gotenRoofNagayaGata`)"
+                     "</td><td>?</td></tr>" % nm)
+    return ("<h3>屋根の帯割り(帯・桁行・大棟の向き・葺材・棟高・確度)</h3>"
+            "<div class='tw'><table><thead><tr><th>棟</th><th>帯</th><th>桁行(span)</th>"
+            "<th>大棟の向き</th><th>葺材</th><th>棟高(床上)</th><th class='note'>確度</th>"
+            "</tr></thead><tbody>%s</tbody></table></div>"
+            "<p class='cap'>⭕ <b>棟高は `const.gotenEave`(3.4)・`kawaraKobai`(0.5456)からの"
+            "従属値</b>(2026-09-07・第22次)。⚠ 軒高そのものの典拠は無いまま【確度U】なので、"
+            "断面の「屋根は概略・突き合わせ対象外」の断りは外さない。⛔ <b>格(厩<長屋類<御殿)は"
+            "この棟高では読まない</b> — <code>roof_eave_order_check</code>(`_pending.eaveOrder`)"
+            "参照。</p>" % rows)
 
 
 def fig(h, svg, cap=None, legend=None):
@@ -14893,6 +15051,15 @@ def main():
     if any(delta <= 0 for _, delta in pprobe):
         print("    ⛔ 鳴らない probe がある = その壊れ方は検査で捕まらない。検査を直すこと")
 
+    # 屋根の帯割り(EDO-0149 訂正便・2026-09-07)も**件数を無条件に出す**。
+    rb1 = roof_band_span_check(d)
+    rb2 = roof_eave_order_check(d)
+    rb3 = roof_annex_eave_check(d)
+    print("屋根の帯割り: 帯の上限超え %d 件 / 軒高の序列(厩<長屋類<御殿) %d 件 / "
+          "断面の附属屋 誤軒高 %d 件" % (len(rb1), len(rb2), len(rb3)))
+    for b in rb1 + rb2 + rb3:
+        print("   ⚠", b)
+
     # ⭐ **⚠ を一箇所に集めて HTML にも載せる**【検図 2026-09-01 の指摘】。
     #   ⛔ 従前は stdout にしか出ておらず、**指図が自分の検査結果を持っていない図**だった
     #   (65行の ⚠ が artifact のどこにも無かった)。
@@ -14906,7 +15073,10 @@ def main():
             ("植栽の在庫(部材が目録に無い)", pb1),
             ("植栽の退避", pb2),
             ("西斜面の密度と遮蔽", pb3),
-            ("西斜面の生え方のリアリズム(空隙・並木・単木・幹元・境の標示・法尻の厚み)", pb4)]
+            ("西斜面の生え方のリアリズム(空隙・並木・単木・幹元・境の標示・法尻の厚み)", pb4),
+            ("屋根の帯の上限超え(帯割り・単一小屋組とも)", rb1),
+            ("軒高の序列(厩 < 長屋類 < 御殿)", rb2),
+            ("断面の附属屋が御殿の軒高で描かれていないか", rb3)]
     NWARN = sum(len(x) for _t, x in WARN)
 
     css = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "sashizu.css"), encoding="utf-8").read()
@@ -15150,6 +15320,7 @@ def main():
             "大棟の高さは梁間で決まるので、奥行 14間 と 12間 が交互に並ぶ表向は"
             "<b>大棟が約 1m 上下する</b>。")
     h.append(valleys_table(d))
+    h.append(roof_bands_table(d))
     h.append("<p class='cap'><b>谷樋は縦樋を立てず、両端の軒先へ落とす</b>【確度P=一般類型】。"
              "勾配は中央から両端へ 1/100。屋根部材は<b>辺ごとに軒の出を落とせる版</b>が要る"
              "(現行の <code>build_goten_roof.py</code> は W'=W+2E の対称生成) — 部材表を参照。</p>")

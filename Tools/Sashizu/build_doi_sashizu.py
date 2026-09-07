@@ -24,6 +24,7 @@
         組んだら「図版 N 面」を数えること(図版が黙って落ちた前科がある)。
 """
 import json, math, os, re, subprocess, html, sys
+import copy
 import collections
 import hashlib
 
@@ -702,6 +703,21 @@ def goten_plan(d, u0, u1, v0, v1, label, note):
             g.append(pr.rect(s["u0"], s["v0"], s["u1"], s["v1"], fill="var(--ink-lo)", stroke="var(--ink)", sw=1.2))
             g.append(T((pr.X(s["u0"]) + pr.X(s["u1"])) / 2, (pr.Y(s["v0"]) + pr.Y(s["v1"])) / 2 + 4,
                        s["label"], "rmS", "middle", fit(s["label"], pr.L(s["u1"] - s["u0"]) + 16, 11.0)))
+    # ⭐⭐ **軒先線を描く**(2026-09-07 部材方の実測を図へ = 規則19)。
+    #   ⛔ 足形だけを描いて隣との離れを読ませない — **屋根は足形より外へ出る**。
+    #   ⚠ **平とけらばで出が違う**ので、一律に膨らませた線を描かない。
+    #   ⭕ 隅(隅棟・破風板)の飛び出しは**隅だけ**の短い線で描く(⛔ 辺を膨らませない)。
+    for o9 in d["munes"] + d.get("service", []):
+        bb9 = obb_pts(o9)
+        if not vis(min(q[1] for q in bb9), max(q[1] for q in bb9),
+                   min(q[0] for q in bb9), max(q[0] for q in bb9)):
+            continue
+        rp9 = roof_poly(d, o9)
+        g.append('<polygon points="%s" fill="none" stroke="var(--shu)" stroke-width="0.9" '
+                 'stroke-dasharray="6 3" opacity="0.85"/>'
+                 % " ".join("%.1f,%.1f" % (pr.X(a9), pr.Y(b9)) for a9, b9 in rp9))
+        for r9, t9 in sumi_spikes(d, o9):
+            g.append(LN(pr.X(r9[0]), pr.Y(r9[1]), pr.X(t9[0]), pr.Y(t9[1]), "var(--shu)", 1.6))
     for w in d["wells"]:
         if not vis(w["v"], w["v"], w["u"], w["u"]):
             continue
@@ -2067,55 +2083,281 @@ def obb_gap(a, b):
                for i in range(n) for j in range(m))
 
 
-def _overhang(d, o):
-    """その建物の屋根が**足形の外へ出る量**[m](軒の出 + 妻の出)。
+def noki_of(d, o):
+    """その建物の屋根が**足形の外へ出る量**[m]を、**辺の向きごとに**返す。
 
-    ⚠ 2026-09-06 検図方 高3: **軒の出は建物ごとに違う**。閾値を一律 2.40m に固定すると、
-    ⛔ 祠のように**足形=部材の外形**の物まで 1.20m 出ていることにして、要らない空きを求める。
-    ⭕ 正典は物の `noki`(`de` / `tsuma`)で、無ければ `const` の既定。
+    返り値 (de, kera, sumi):
+      `de`   **平**(桁行側)の軒の出 — **梁間の向き**へ出る
+      `kera` **けらば**(妻側)の出   — **桁行の向きへ**出る(`noki.tsuma`)
+      `sumi` **隅**で軒先線よりさらに先へ出る量(隅棟・破風板の先端)。**局所の軸ごと**
+
+    ⛔⛔ **軒の出はスカラーではない。**⚠ 2026-09-07 の部材方の実測で、
+      **平 0.900 / けらば 0.370**(家中長屋)のように**辺の向きで違う**ことが確かめられた。
+      ⇒ **`de + kera` の和を「必要な空き」として距離と比べてはいけない** — 和は方向を持たない。
+      ⭕ 正しくは**辺ごとに膨らませた軒先線どうしの最短距離**(`roof_poly` / `mune_gap_check`)。
+    ⛔ **`const` の既定へ静かに落とさない** — 名簿は `const.nokiMeasured`。
     """
     C = d["const"]
     nk = o.get("noki") or {}
-    return nk.get("de", C["nokiDe"]) + nk.get("tsuma", C["tsumaEnd"])
+    return (nk.get("de", C["nokiDe"]), nk.get("tsuma", C["tsumaEnd"]), nk.get("sumi", 0.0))
+
+
+def roof_family(d, o):
+    """屋根の**部材の家族**(`const.omuneCap` の引き先)。⛔ 生成器に無名の対応表を置かない。"""
+    if o.get("roofRef"):
+        return o["roofRef"]
+    return "umaya" if o["name"] == "Umaya" else "goten"
+
+
+def omune_cap(d, o):
+    """**大棟(熨斗+冠瓦)が瓦面の頂より上へ見え掛かる量**[m]。未実測の家族は None。
+
+    ⭐ **棟高の定義の別**(2026-09-07 部材方): 当図が刷る**棟高は「瓦面の頂」**で、
+      **実測の天端はそれより `omuneCap` だけ高い**。⛔ 天端を棟高に合わせて軒桁を下げない。
+    """
+    return (d["const"].get("omuneCap") or {}).get(roof_family(d, o))
+
+
+def _munaki(d, o):
+    """**桁行(大棟)の向き**。回転物は `yaw`(長手)、軸平行は `roof.ridge`、無ければ長辺。
+
+    ⛔ 平とけらばを取り違えると、膨らませる向きが 90° 狂う。
+    """
+    if "yaw" in o:
+        return "yaw"
+    r = (o.get("roof") or {}).get("ridge")
+    if r in ("u", "v"):
+        return r
+    return "u" if (o["u1"] - o["u0"]) >= (o["v1"] - o["v0"]) else "v"
+
+
+def roof_frame(d, o):
+    """(中心u, 中心v, 桁行の単位ベクトル, 梁間の単位ベクトル, 桁行の半長, 梁間の半長)[間]。"""
+    if "yaw" in o:
+        r = math.radians(o["yaw"])
+        return (o["uc"], o["vc"], (math.sin(r), math.cos(r)), (math.cos(r), -math.sin(r)),
+                o["L"] / 2.0, o["D"] / 2.0)
+    cu, cv = (o["u0"] + o["u1"]) / 2.0, (o["v0"] + o["v1"]) / 2.0
+    hu, hv = (o["u1"] - o["u0"]) / 2.0, (o["v1"] - o["v0"]) / 2.0
+    if _munaki(d, o) == "u":
+        return (cu, cv, (1.0, 0.0), (0.0, 1.0), hu, hv)
+    return (cu, cv, (0.0, 1.0), (1.0, 0.0), hv, hu)
+
+
+def roof_poly(d, o):
+    """**軒先線**の平面形[間]。⛔ 一律に膨らませない — 平は `de`、けらばは `kera`。
+
+    ⭐⭐ **2026-09-07 裁定A の物差しの正典。**足形を**辺の向きごとに**膨らませた矩形で、
+      この多角形どうしが重ならないことが「屋根が成立する」の定義。
+    """
+    K = d["const"]["ken"]
+    de, ke, _ = noki_of(d, o)
+    cu, cv, L, D, l2, d2 = roof_frame(d, o)
+    a2, b2 = l2 + ke / K, d2 + de / K
+    return [(cu + L[0] * a2 * s + D[0] * b2 * t, cv + L[1] * a2 * s + D[1] * b2 * t)
+            for s, t in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+
+
+def noki_side(d, o, coord):
+    """切り線が `coord` 軸に沿うとき、**その両端で屋根が足形の外へ出る量**[m]。
+
+    ⭐ 2026-09-07: 断面は従前 **四周に同じ軒の出**を描いていた(`_overhang − tsumaEnd`)。
+      ⛔ 平とけらばで値が違う以上それは嘘になる — 切妻の妻側は平より浅い。
+    ⚠ **回転物は切り線がどちらの向きでもない**ので、軒先線の外接の増分で採る(近似)。
+    """
+    de, ke, _su = noki_of(d, o)
+    if "yaw" not in o:
+        return ke if _munaki(d, o) == coord else de
+    i = 0 if coord == "u" else 1
+    P, Q = roof_poly(d, o), obb_pts(o)
+    return (max(q[i] for q in P) - max(q[i] for q in Q)) * d["const"]["ken"]
+
+
+def sumi_spikes(d, o):
+    """**隅の飛び出し**を線分[(軒先線の隅, 先端)] ×4 で返す[間]。無ければ空。
+
+    ⚠ `noki.sumi` は**局所の軸ごとの増分**なので、先端は軒先線の隅から
+      **桁行へ `sumi`・梁間へ `sumi`** 出た点(対角の実長は `sumi`×√2)。
+      ⛔ 対角の長さとして読まない — bbox が片側 `sumi` だけ大きくなる、という実測に合わせてある。
+    ⛔ **辺ごと膨らませない** — 隅棟・破風板が出るのは**隅だけ**で、辺の中ほどは軒先線のまま。
+    """
+    K = d["const"]["ken"]
+    _de, _ke, su = noki_of(d, o)
+    if su <= 1e-12:
+        return []
+    cu, cv, L, D, _l2, _d2 = roof_frame(d, o)
+    out = []
+    for p, (s, t) in zip(roof_poly(d, o), ((-1, -1), (1, -1), (1, 1), (-1, 1))):
+        out.append((p, (p[0] + (L[0] * s + D[0] * t) * su / K,
+                        p[1] + (L[1] * s + D[1] * t) * su / K)))
+    return out
+
+
+def _cvx_sep(P, Q):
+    """凸多角形どうしの**符号つき離れ**[間]。正=最短距離 / 負=食い込み量。
+
+    ⛔ 分離軸の隙間の最大値を「距離」と読まない — 対角に離れた矩形では過小になる。
+    ⭕ **符号は分離軸で、離れているときの値は辺どうしで**測る。
+    """
+    best = -1e18
+    for poly in (P, Q):
+        n = len(poly)
+        for i in range(n):
+            ax = poly[(i + 1) % n][0] - poly[i][0]
+            az = poly[(i + 1) % n][1] - poly[i][1]
+            ln = math.hypot(ax, az)
+            if ln < 1e-12:
+                continue
+            nx, nz = -az / ln, ax / ln
+            la = [q[0] * nx + q[1] * nz for q in P]
+            lb = [q[0] * nx + q[1] * nz for q in Q]
+            best = max(best, max(min(la) - max(lb), min(lb) - max(la)))
+    if best <= 0.0:
+        return best
+    n, m = len(P), len(Q)
+    return min(_seg_seg_dist(P[i], P[(i + 1) % n], Q[j], Q[(j + 1) % m])
+               for i in range(n) for j in range(m))
+
+
+def roof_sep(d, a, b, sumi=False):
+    """二つの建物の**屋根の離れ**[m]。正=空いている / 負=食い込んでいる。
+
+    `sumi=False` … **軒先線どうし**(条①)。`sumi=True` … **隅の飛び出しまで**(条②)。
+    ⛔ 隅を辺の膨らみとして混ぜない(2026-09-07 裁定A)— 隅は**別の条**で見る。
+    """
+    K = d["const"]["ken"]
+    PA, PB = roof_poly(d, a), roof_poly(d, b)
+    s = _cvx_sep(PA, PB)
+    if not sumi:
+        return s * K
+    SA, SB = sumi_spikes(d, a), sumi_spikes(d, b)
+    for tips, P in ((SA, PB), (SB, PA)):
+        for _root, tip in tips:
+            if _pip(tip, P):                       # 先端が相手の屋根の中へ入っている
+                n = len(P)
+                s = min(s, -min(_seg_seg_dist(tip, tip, P[i], P[(i + 1) % n]) for i in range(n)))
+    if s > 0.0:
+        for x in SA:
+            for y in list(SB) + [(PB[i], PB[(i + 1) % len(PB)]) for i in range(len(PB))]:
+                s = min(s, _seg_seg_dist(x[0], x[1], y[0], y[1]))
+        for x in SB:
+            for y in [(PA[i], PA[(i + 1) % len(PA)]) for i in range(len(PA))]:
+                s = min(s, _seg_seg_dist(x[0], x[1], y[0], y[1]))
+    return s * K
 
 
 def mune_gap_check(d):
-    """**隣り合う建物の空きが、屋根として成立するか。**
+    """**隣り合う建物の屋根が食い込んでいないか。**⛔ 方向を持たない目安で測らない。
 
     ⚠ 2026-08-27(EDO-0049)に松平が実装で踏み、他邸へ申し送った。当家では
       当たっていた — にもかかわらず**20本以上ある検査のどれも鳴らなかった**。
       棟の矩形が重なっていないことは `overlap_check` が見ているが、
       **「重なっていない」と「屋根が成立する」は別**。
 
-    切妻屋根は桁行方向へ両端が `tsumaEnd` 長く、両隣の棟の軒の出 `nokiDe` と重なる。
-    重なりの合計が棟間の空きを超えると、瓦が隣の棟の屋根を突き抜ける。
-    処方は正典 `buildings.md`「渡廊下は1間では成立しない」の2択 —
-      (a) 空きを必要量まで広げる  (b) 空きを詰めて入側どうしを直に継ぐ(突き付け)。
-    ⛔ **中途半端な空きを残さない** — 0 か 必要量以上か、のどちらか。
+    ⭐⭐ **2026-09-07 ユーザー裁定=A で物差しを方向つきに直した。**
+      ⛔ **従前は `need = 軒の出 + 妻の出` というスカラーを空きと比べていた** — これは
+      **方向を持たない目安であって幾何量ではない**。部材方が家中長屋を焼いて実測すると、
+      台所棟 × 南一の**軒先線どうしは実際には空いている**のに、実測値を入れると
+      **「必要 2.470 > 空き 2.432」で鳴った**。⛔ **重なっていない物を「鳴ったから」と
+      動かすのは、欠陥でない所を動かすことになる。**
+      ⭕ いまは **①足形を辺の向きごとに(平=`de` / けらば=`kera`)膨らませた多角形の
+      最短距離**(条①)**②隅の飛び出し(隅棟・破風板)まで含めた最短距離**(条②)の二条。
+      ⛔ **一緒くたにしない** — 隅は辺の中ほどには無い。
 
-    ⭐⭐ **2026-09-06 検図方 高3 で三つ直した**:
-      ① 対象を **`munes` + `service`** へ広げた(⛔ 棟どうしだけを見ない)。
-      ② **OBB で測る**(回転した家中長屋を外接矩形で測ると空きを過大に読む)。
-      ③ 必要量を**建物ごとの軒の出+妻の出の和**から出す(⛔ 一律 2.40m に固定しない)。
+    ⭕ **突き付け(足形が接している/重なっている)は対象外** — 屋根は継ぐ設計で、
+      境は谷が受ける。処方は正典 `buildings.md`「渡廊下は1間では成立しない」の2択 —
+      (a) 空きを広げて軒先線を離す (b) 詰めて入側どうしを直に継ぐ。
+      ⛔ **中途半端な空きを残さない。**
+    ⚠ **余裕の下限は置いていない**(判定は「重ならないこと」)。⛔ 「0件」を「余裕がある」と読まない。
     """
-    K = d["const"]["ken"]
     M = d["munes"] + d.get("service", [])
     bad = []
     for i in range(len(M)):
         for j in range(i + 1, len(M)):
             a, b = M[i], M[j]
-            need = _overhang(d, a) + _overhang(d, b)
-            sep = obb_gap(a, b) * K
-            if sep <= 1e-9 or sep >= need - 1e-9:
-                continue                       # 突き付け か 十分な空き
-            bad.append("%s と %s の空きが %.3fm(%.2f間)しかない — "
-                       "屋根が %.2fm(%s %.2f + %s %.2f)出るので瓦が突き抜ける。"
-                       "広げるか突き付けるか"
-                       % (a.get("label", a["name"]), b.get("label", b["name"]),
-                          sep, sep / K, need,
-                          a.get("label", a["name"]), _overhang(d, a),
-                          b.get("label", b["name"]), _overhang(d, b)))
+            if obb_gap(a, b) <= 1e-9:
+                continue                       # 突き付け(足形が接する)
+            na, nb = a.get("label", a["name"]), b.get("label", b["name"])
+            s1 = roof_sep(d, a, b, sumi=False)
+            if s1 < -1e-9:
+                de1, ke1, _ = noki_of(d, a)
+                de2, ke2, _ = noki_of(d, b)
+                bad.append("[軒先線] %s と %s の**軒先線が %.3fm 食い込む** — "
+                           "%s(平 %.3f / けらば %.3f)と %s(平 %.3f / けらば %.3f)。"
+                           "空きを広げるか、突き付けて谷で受けるか"
+                           % (na, nb, -s1, na, de1, ke1, nb, de2, ke2))
+                continue                       # ⛔ 同じ欠陥を隅の条で二度数えない
+            s2 = roof_sep(d, a, b, sumi=True)
+            if s2 < -1e-9:
+                bad.append("[隅] %s と %s は**軒先線どうしは %.3fm 空いている**のに、"
+                           "**隅の飛び出し(隅棟・破風板)が %.3fm 食い込む** — "
+                           "隅 %s %.3f / %s %.3f。⛔ 軒先線だけで離れを読まない"
+                           % (na, nb, s1, -s2, na, noki_of(d, a)[2], nb, noki_of(d, b)[2]))
     return bad
+
+
+def mune_gap_sensitivity(d):
+    """**感度試験** — わざと壊して `mune_gap_check` が鳴るか。⛔ 恒真の検査を通さない。
+
+    ⚠ 2026-09-07: 物差しを入れ替えた巡で必ず回す。**入れ替えた検査は、緩くなったのか
+      正しくなったのかが件数だけでは見分けられない**(規則19「輪に入っていない値は未検査」)。
+    束は3つ — ①**本当に重なる配置**(軒先線が食い込む)→ 条①が鳴る
+             ②**いまの配置** → 鳴らない
+             ③**隅だけが当たる配置**(軒先線は空いている)→ 条②だけが鳴る
+    ⭕ 台所棟 × 家中長屋(南一)を**南一だけ平行移動**して作る(⛔ 正典は書き換えない)。
+    """
+    A, B = "Daidokoro", "Kachu_S1"
+    a = next(m for m in d["munes"] if m["name"] == A)
+    b0 = next(m for m in d.get("service", []) if m["name"] == B)
+
+    def moved(t):
+        """南一を **A へ向かう向き**へ t 間 動かした指図の写し。"""
+        e = copy.deepcopy(d)
+        b = next(m for m in e["service"] if m["name"] == B)
+        du = (a["u0"] + a["u1"]) / 2.0 - b0["uc"]
+        dv = (a["v0"] + a["v1"]) / 2.0 - b0["vc"]
+        ln = math.hypot(du, dv) or 1.0
+        b["uc"] += du / ln * t
+        b["vc"] += dv / ln * t
+        for k, dq in (("u0", du), ("u1", du), ("v0", dv), ("v1", dv)):
+            b[k] += dq / ln * t
+        return e, b
+
+    def solve(target):
+        """条① の離れが `target` [m] になる移動量を二分法で解く(決定的)。"""
+        lo, hi = 0.0, 3.0
+        for _ in range(80):
+            mid = (lo + hi) / 2.0
+            e, b = moved(mid)
+            if roof_sep(e, next(m for m in e["munes"] if m["name"] == A), b) > target:
+                lo = mid
+            else:
+                hi = mid
+        return (lo + hi) / 2.0
+
+    def count(e):
+        """(条①の件数, 条②の件数)。⛔ **件数だけを見ない** — 台所棟 × 南一を名指しした行だけ数える
+        (別の組がたまたま鳴っても「効いた」ことにしない)。"""
+        na = a.get("label", a["name"])
+        nb = b0.get("label", b0["name"])
+        out = [x for x in mune_gap_check(e)
+               if (MUNE_JA.get(A, na) in x or na in x) and nb in x]
+        return (len([x for x in out if x.startswith("[軒先線]")]),
+                len([x for x in out if x.startswith("[隅]")]))
+
+    probes = []
+    e1, _ = moved(solve(-0.20))
+    probes.append(("① 本当に重なる配置(軒先線が 0.20m 食い込む)", count(e1), (1, 0)))
+    probes.append(("② いまの配置", count(copy.deepcopy(d)), (0, 0)))
+    e3, _ = moved(solve(0.05))
+    probes.append(("③ 隅だけが当たる配置(軒先線は 0.05m 空く)", count(e3), (0, 1)))
+    bad = []
+    for nm, got, want in probes:
+        if (got[0] > 0) != (want[0] > 0) or (got[1] > 0) != (want[1] > 0):
+            bad.append("%s: 条①%d件 / 条②%d件 — 期待は 条①%s / 条②%s"
+                       % (nm, got[0], got[1], "鳴る" if want[0] else "鳴らない",
+                          "鳴る" if want[1] else "鳴らない"))
+    return probes, bad
 
 
 def _quad(cx, cz, ux, uz, hl, ht):
@@ -3452,7 +3694,9 @@ def mune_roof_pts(d, m, coord, eave):
     K = C["ken"]
     ir = (C.get("moyaBand") or {}).get("irikawa", 1.0)
     gk = C.get("gesyaKobai") or 0.0
-    nk = _overhang(d, m) - C.get("tsumaEnd", 0.0)      # 軒の出だけ(妻の出は桁行の話)
+    # ⭐ **切り線の向きで平とけらばを選ぶ**(2026-09-07 部材方の実測)。
+    #   ⛔ 四周に同じ値を描かない — 切妻の妻側は平より浅い。
+    nk = noki_side(d, m, coord)
     ridge = mune_ridge_above(d, m, eave)
     if not bd.get("n"):
         # 帯に割らない棟 — 一枚の屋根。⛔ 軒の出は描く(低6)
@@ -3483,7 +3727,7 @@ def svc_roof_pts(d, o, coord, a0, b0):
     if ev is None:
         return None
     C = d["const"]
-    nk = _overhang(d, o) - C.get("tsumaEnd", 0.0)
+    nk = noki_side(d, o, coord)
     gk = C.get("gesyaKobai") or 0.0
     return [(a0 - nk / C["ken"], ev - nk * gk), (a0, ev),
             ((a0 + b0) / 2.0, rg), (b0, ev), (b0 + nk / C["ken"], ev - nk * gk)]
@@ -4273,7 +4517,7 @@ def section_svg(d, sec):
         elif (m.get("roof") or {}).get("ridgeH") is not None:
             f = m["y"]                        # 部材実測の棟(厩)も地盤から
             rf9 = m["roof"]
-            nk9 = _overhang(d, m) - d["const"].get("tsumaEnd", 0.0)
+            nk9 = noki_side(d, m, cd)
             gk9 = d["const"].get("gesyaKobai") or 0.0
             prof = [(a - nk9 / d["const"]["ken"], rf9["eaveH"] - nk9 * gk9), (a, rf9["eaveH"]),
                     ((a + b) / 2.0, rf9["ridgeH"]), (b, rf9["eaveH"]),
@@ -4290,6 +4534,23 @@ def section_svg(d, sec):
                             [(X(prof[0][0]), Y(f))]
                             + [(X(px), Y(f + py)) for px, py in prof]
                             + [(X(prof[-1][0]), Y(f))]))
+        # ⭐⭐ **大棟の見え掛かりを描く**(2026-09-07 部材方の実測 = 規則19)。
+        #   ⛔ 瓦面の頂で切って「これが天端」と読ませない — **熨斗+冠瓦がその上に載る**。
+        #   ⚠ 帯に割った棟は**帯の数だけ大棟が立つ**ので、稜線の頂すべてに載せる。
+        cp9 = omune_cap(d, m)
+        if cp9:
+            for i9 in range(1, len(prof) - 1):
+                if not (prof[i9][1] > prof[i9 - 1][1] + 1e-9
+                        and prof[i9][1] > prof[i9 + 1][1] + 1e-9):
+                    continue                  # 稜線の頂だけ(谷と軒先には載せない)
+                hw9 = 0.25 / d["const"]["ken"]
+                g.append('<polygon points="%s" fill="var(--shu-lo)" stroke="var(--shu)" '
+                         'stroke-width="1.0"/>'
+                         % " ".join("%.1f,%.1f" % q for q in
+                                    [(X(prof[i9][0] - hw9), Y(f + prof[i9][1])),
+                                     (X(prof[i9][0] + hw9), Y(f + prof[i9][1])),
+                                     (X(prof[i9][0] + hw9), Y(f + prof[i9][1] + cp9)),
+                                     (X(prof[i9][0] - hw9), Y(f + prof[i9][1] + cp9))]))
         g.append(T((X(a) + X(b)) / 2, Y(f + eave) + 12, nm, "rmS", "middle",
                    fit(nm, sx * (b - a) - 4, 10.5)))
     # 御錠口
@@ -6263,13 +6524,11 @@ def band_check(d):
     for o in d["munes"] + d.get("service", []):
         if o["name"] in ("Inari",):        # ⭕ 足形=部材の外形(名指しの例外)
             continue
-        nk = o.get("noki") or {}
-        de9 = nk.get("de", C.get("nokiDe", 0.0))
-        tm9 = nk.get("tsuma", C.get("tsumaEnd", 0.0))
-        if de9 <= 1e-9 or tm9 <= 1e-9:
-            bad.append("%s の軒の出/妻の出が 0(軒 %.3f / 妻 %.3f)— "
+        de9, ke9, _su9 = noki_of(d, o)
+        if de9 <= 1e-9 or ke9 <= 1e-9:
+            bad.append("%s の軒の出が 0(平 %.3f / けらば %.3f)— "
                        "屋根が足形の外へ出ない建物は稲荷(足形=部材の外形)だけ"
-                       % (o.get("label", o["name"]), de9, tm9))
+                       % (o.get("label", o["name"]), de9, ke9))
     # ⭐ ⑩ **入側の勾配は母屋と同値**(同 中7)。⛔ `gesyaKobai` を 0.1 にしても 0件だった。
     #   ⭕ 設計の宣言(「母屋と同じ瓦勾配に採る」)そのものを測る。
     gk9, kb9 = C.get("gesyaKobai"), C.get("kawaraKobai")
@@ -6278,6 +6537,178 @@ def band_check(d):
                    "入側は身舎の屋根がそのまま延びた一枚の流れなので**同じ勾配**でなければならない"
                    % (gk9, kb9))
     return bad
+
+
+def buzai_jissoku_check(d):
+    """**部材の実測が、名簿どおりに入っているか。**⛔ 空欄を黙って既定・0 へ落とさない。
+
+    ⭐⭐ 2026-09-07。部材方が家中長屋と御殿の屋根を焼いて軒の出を実測した巡で立てた。
+      ⚠ **実測の欄は「消せば静かに既定へ落ちる」** — 確度P の値が黙って消えるので、
+      **名簿(`const.*Measured`)と未実測の名簿(`const.*Pending`)の両方**を突き合わせ、
+      **どの物もどちらか一方にちょうど一度だけ載る**ことを測る。
+      ⛔ 建物を足したときに「どちらにも載っていない」まま通さない。
+    測るのは
+      ① `nokiMeasured` の物が実在し、`noki` の欄(平・けらば)を持つこと
+      ② **棟・附属屋が全部** `nokiMeasured` に載ること(既定へ落ちる物を作らない)
+      ③ `sumiMeasured` の物が `noki.sumi` を持ち、`sumiPending` と**重ならない**こと
+      ④ 隅の名簿の**和が全物と一致**すること
+      ⑤ `omuneCap` の家族と `omuneCapPending` が、**実在する屋根の家族を漏れなく覆う**こと
+      ⑥ 未実測の名簿が空でないなら、⑦ **`_pending.buzaijissoku` が在る**こと(宿題の行き先)
+      ⑦ **附属屋の葺材と開口面**が、欄か「未決の名簿」のどちらかに必ずあること
+    """
+    C = d["const"]
+    objs = d["munes"] + d.get("service", [])
+    have = dict((o["name"], o) for o in objs)
+    allnm = set(have)
+    bad = []
+
+    def named(key):
+        out = list(C.get(key) or [])
+        for nm in out:
+            if nm not in have:
+                bad.append("`const.%s` の %s という物が無い" % (key, nm))
+        return set(out)
+
+    nm9 = named("nokiMeasured")
+    for n in sorted(nm9):
+        nk = have[n].get("noki")
+        if not isinstance(nk, dict) or "de" not in nk or "tsuma" not in nk:
+            bad.append("%s に部材実測の `noki`(平 `de` / けらば `tsuma`)が無い — "
+                       "欄を消すと `const` の既定へ静かに落ちて**確度P の実測値が黙って消える**"
+                       % have[n].get("label", n))
+    for n in sorted(allnm - nm9):
+        bad.append("%s が `const.nokiMeasured` に無い — **既定へ静かに落ちる物**を作らない。"
+                   "実測を入れて名簿へ足すか、未実測であることを指図に書くこと"
+                   % have[n].get("label", n))
+
+    sm, sp = named("sumiMeasured"), named("sumiPending")
+    for n in sorted(sm & sp):
+        bad.append("%s が `sumiMeasured` と `sumiPending` の両方に載っている" % n)
+    for n in sorted(sm):
+        if "sumi" not in (have[n].get("noki") or {}):
+            bad.append("%s に隅の飛び出し `noki.sumi` が無い(`sumiMeasured` の名簿にある)"
+                       % have[n].get("label", n))
+    for n in sorted(sp):
+        if "sumi" in (have[n].get("noki") or {}):
+            bad.append("%s は隅の実測を持つのに `sumiPending`(未実測)に載っている"
+                       % have[n].get("label", n))
+    for n in sorted(allnm - sm - sp):
+        bad.append("%s が隅の名簿(`sumiMeasured` / `sumiPending`)のどちらにも無い — "
+                   "**隅を黙って 0 と見て通す**ことになる" % have[n].get("label", n))
+
+    cap = C.get("omuneCap") or {}
+    pend = set(C.get("omuneCapPending") or [])
+    fam = set(roof_family(d, o) for o in objs)
+    for f in sorted(fam - set(cap) - pend):
+        bad.append("屋根の家族 `%s` が `const.omuneCap` にも `omuneCapPending` にも無い — "
+                   "**大棟の見え掛かりを黙って 0 と見る**ことになる" % f)
+    for f in sorted(set(cap) & pend):
+        bad.append("屋根の家族 `%s` が `omuneCap` と `omuneCapPending` の両方に載っている" % f)
+    for f in sorted((set(cap) | pend) - fam):
+        bad.append("`omuneCap` の家族 `%s` を持つ建物が無い" % f)
+    for f, v in sorted(cap.items()):
+        if v <= 1e-9:
+            bad.append("`const.omuneCap.%s` が 0 — 大棟は瓦面の頂より上に見え掛かる" % f)
+
+    if (sp or pend) and "buzaijissoku" not in (d.get("_pending") or {}):
+        bad.append("未実測の名簿があるのに `_pending.buzaijissoku`(宿題の行き先)が無い")
+
+    # ⑦ **附属屋の葺材と開口面** — 欄か「未決の名簿」のどちらかに必ずある(2026-09-07 部材方)
+    for key, pk, ja, ask in (("fukizai", "fukizaiPending", "葺材", "kaikoumen"),
+                             ("openFace", "openFacePending", "開口面の向き", "kaikoumen")):
+        pn = named(pk)
+        for o in d.get("service", []):
+            has = o.get(key) not in (None, "")
+            if has and o["name"] in pn:
+                bad.append("%s は `%s` の欄を持つのに `const.%s`(未決)に載っている"
+                           % (o.get("label", o["name"]), key, pk))
+            if not has and o["name"] not in pn:
+                bad.append("%s の**%s の欄が無い** — 欄が無いと部材方・棟梁が発明する。"
+                           "決まっていないなら `const.%s` に名を置いて `_pending.%s` へ繋ぐこと"
+                           % (o.get("label", o["name"]), ja, pk, ask))
+        if pn and ask not in (d.get("_pending") or {}):
+            bad.append("`const.%s` に未決の物があるのに `_pending.%s` が無い" % (pk, ask))
+    return bad
+
+
+def kachu_kata_check(d):
+    """**家中長屋5棟が「同じ型」であること。**⛔ 実装が勝手に格を足さないように。
+
+    ⭐ 2026-09-07 部材方の申し送り: 「**家中(侍)と詰人(足軽・中間)の格の作り分け**の欄が
+      無かったので、**作り分けずに焼いた**」。⭕ 当家に住み分けの史料は無い(`_pending.kachu`)
+      ので **⛔ 分けない**が決め(`const._kachuKata`)。⚠ **決めを書くだけでは輪に入らない** —
+      ここで**5棟の型が同値であること**を毎回測る(規則19)。
+    測るのは 梁間 `D` / 屋根の引き先 / 軒の出(平・けらば・隅)/ 葺材 / 開口面 の5点。
+    ⛔ **桁行(`L`)は型ではない** — 棟ごとに違う(外周に回した結果)。
+    """
+    K = d["const"]["ken"]
+    kachu = [o for o in d.get("service", []) if o.get("roofRef") == "kachu"]
+    if len(kachu) < 2:
+        return []
+    bad = []
+    ref = kachu[0]
+    for o in kachu[1:]:
+        for ja, got, want in (("梁間", o.get("D"), ref.get("D")),
+                              ("葺材", o.get("fukizai"), ref.get("fukizai")),
+                              ("開口面", o.get("openFace"), ref.get("openFace")),
+                              ("軒の出", noki_of(d, o), noki_of(d, ref))):
+            if got != want:
+                bad.append("家中長屋の**型が揃っていない** — %s の %s が %s で、"
+                           "%s の %s と違う。⛔ **家中と詰人の格は作り分けない**"
+                           "(`const._kachuKata`)"
+                           % (o.get("label", o["name"]), ja, got,
+                              ref.get("label", ref["name"]), want))
+    tg = d["const"].get("togiri") or {}
+    if tg.get("maguchiKen", 0.0) <= 1e-9:
+        bad.append("`const.togiri.maguchiKen`(1戸の間口)が 0 — 戸割が出せない")
+    for o in kachu:
+        if togiri_n(d, o) < 1:
+            bad.append("%s の戸数が 1 未満(桁行 %.4g間 ÷ 間口 %.4g間)"
+                       % (o.get("label", o["name"]), o.get("L", 0.0), tg.get("maguchiKen", 0.0)))
+    return bad
+
+
+def togiri_n(d, o):
+    """**戸数**(桁行 ÷ 1戸の間口 の四捨五入)。⛔ 棟ごとに手で書かない(規則4)。
+
+    ⛔ **史実として名乗らせない** — 桁行そのものが「外周に回した結果」で、
+      定員から出した数ではない(`const._togiri`)。
+    """
+    tg = d["const"].get("togiri") or {}
+    w = tg.get("maguchiKen") or 0.0
+    if w <= 1e-9 or o.get("roofRef") != tg.get("roofRef"):
+        return 0
+    return int(round(o.get("L", o.get("u1", 0) - o.get("u0", 0)) / w))
+
+
+def open_face_dir(d, o):
+    """**開口面の外向き**(u,v)。⛔ 方位を指図に手で書かない — 生成器が算出する。
+
+    ⭕ `openFace == "内"` … その棟がいちばん近い**区画の辺**の外向き法線の**逆**(郭の内側)。
+    ⚠ 家中長屋は長軸を境界に平行に置いてあるので、これは**桁行に直交する二面のどちらか**になる。
+    """
+    if o.get("openFace") != "内":
+        return None
+    P = d["polygon"]
+    gr = RGrid(d)
+    cu, cv = roof_frame(d, o)[0], roof_frame(d, o)[1]
+    cx, cz = gr.W(cu, cv)
+    best = None
+    n = len(P)
+    for i in range(n):
+        a, b = P[i], P[(i + 1) % n]
+        dx, dz = b[0] - a[0], b[1] - a[1]
+        ln = math.hypot(dx, dz) or 1.0
+        t = max(0.0, min(1.0, ((cx - a[0]) * dx + (cz - a[1]) * dz) / (ln * ln)))
+        px, pz = a[0] + dx * t, a[1] + dz * t
+        q = math.hypot(cx - px, cz - pz)
+        if best is None or q < best[0]:
+            best = (q, px, pz)
+    _q, px, pz = best
+    du, dv = gr.L(px, pz)
+    vu, vv = cu - du, cv - dv                       # 境界 → 棟 の向き = 郭の内側
+    ln = math.hypot(vu, vv) or 1.0
+    return (vu / ln, vv / ln)
 
 
 def band_todo(d):
@@ -6406,6 +6837,16 @@ def roof_table(d):
         return ("<b>%s 方向</b>【%s】%s"
                 % (r, _cert(rf, "ridge"), "" if ok else " ⚠ 短辺に架かる"))
 
+    def _cap(m):
+        """**棟高は「瓦面の頂」** — その上に大棟(熨斗+冠瓦)が見え掛かる、という定義の別。
+
+        ⛔ **天端を棟高に合わせるために軒桁を下げない**(2026-09-07 部材方)。
+        """
+        c = omune_cap(d, m)
+        return ("" if c is None else
+                "<br>⚠ <b>これは瓦面の頂</b> — <b>大棟が %.2fm 見え掛かる</b>ので"
+                "<b>実測の天端は +%.2f</b>" % (c, c))
+
     def _h(m):
         """**棟高**(床上 m と絶対高)。帯に割った棟は**帯の身舎**から、割らない棟は梁間から。"""
         if kb is None or ge is None:
@@ -6413,22 +6854,22 @@ def roof_table(d):
         h = mune_ridge_above(d, m, ge)
         rf = m.get("roof") or {}
         if rf.get("ridgeH") is not None:                   # 部材方の実測がある棟(厩)
-            return ("棟高 <b>%.2f</b>(地盤上)/ 軒高 %.2f【%s】(部材方の実測)"
-                    % (rf["ridgeH"], rf["eaveH"], _cert(rf, "height")))
+            return ("棟高 <b>%.2f</b>(地盤上)/ 軒高 %.2f【%s】(部材方の実測)%s"
+                    % (rf["ridgeH"], rf["eaveH"], _cert(rf, "height"), _cap(m)))
         bd = rf.get("bands") or {}
         if bd.get("ridgeH"):
             # ⚠ **帯ごとに高さが違う**(4間帯と5間帯が混ざる)。⛔ 代表値ひとつに丸めない。
             return ("床上 <b>%s</b>m<br>地盤上 <b>%s</b>m<br>絶対 <b>%s</b>m<br>"
-                    "帯の身舎 %s間 より【%s】"
+                    "帯の身舎 %s間 より【%s】%s"
                     % (" / ".join("%.2f" % q for q in bd["ridgeH"]),
                        " / ".join("%.2f" % q for q in bd["ridgeG"]),
                        " / ".join("%.2f" % q for q in bd["ridgeY"]),
-                       "+".join("%g" % w for w in bd["ws"]), _cert(rf, "height")))
+                       "+".join("%g" % w for w in bd["ws"]), _cert(rf, "height"), _cap(m)))
         src = ("梁間 %.4g間" % ((m["v1"] - m["v0"]) if rf.get("ridge") == "u"
                                 else (m["u1"] - m["u0"]) if rf.get("ridge") == "v"
                                 else min(m["u1"] - m["u0"], m["v1"] - m["v0"])))
-        return ("床上 <b>%.2fm</b>(軒高 %.2f + 起り %.2f)<br>絶対 <b>%.2fm</b><br>%s より"
-                % (h, ge, h - ge, m["y"] + fl + h, src))
+        return ("床上 <b>%.2fm</b>(軒高 %.2f + 起り %.2f)<br>絶対 <b>%.2fm</b><br>%s より%s"
+                % (h, ge, h - ge, m["y"] + fl + h, src, _cap(m)))
 
     def _call(m):
         rf = m.get("roof") or {}
@@ -6602,10 +7043,153 @@ def roof_table(d):
         % " / ".join(mb.get("exempt", []) or ["—"]))) + (
         "<p class='cap'>⛔ <b>寸法を指図に手で並べない</b> — 棟を動かせば屋根も変わるので、"
         "この表は <code>munes</code> から毎回組む。⚠ <b>桁行 ≥ 梁間 で呼ぶ</b>。"
-        "⚠ <b>屋根の外形は間数より 2.14m 大きい</b>(軒の出 0.90 が四周に付く)— "
-        "<b>棟の壁面で合わせない</b>。⛔ <b>隣り合う帯の軒どうしを重ねない</b> — 境は谷で受ける。"
+        "⚠ <b>屋根は足形より大きい</b> — <b>軒先線で %.3fm</b>(軒の出が四周に付く)/ "
+        "<b>bbox では %.3fm</b>(隅棟が軒先線よりさらに出る)。<b>棟の壁面で合わせない</b>。"
+        "⛔ <b>bbox から軒の出を読まない</b>(<code>Tools/Blender/README.md</code>)。"
+        "⛔ <b>隣り合う帯の軒どうしを重ねない</b> — 境は谷で受ける。"
         "無い寸法は <code>blender --background --python Tools/Blender/build_goten_roof.py -- "
-        "&lt;桁行m&gt; &lt;梁間m&gt; &lt;名&gt;</code>。</p>")
+        "&lt;桁行m&gt; &lt;梁間m&gt; &lt;名&gt;</code>。</p>"
+        % tuple(2.0 * q for q in
+                (lambda n: (n[0], n[0] + n[2]))(
+                    noki_of(d, next(m for m in d["munes"]
+                                    if (m.get("roof") or {}).get("banded"))))))
+
+
+def _abs_ridge(d, o):
+    """その建物の**棟高(瓦面の頂)の絶対高**[m]。⛔ 床上・地盤上と混ぜない。"""
+    rf = o.get("roof") or {}
+    if (rf.get("bands") or {}).get("ridgeY"):
+        return max(rf["bands"]["ridgeY"])
+    if rf.get("ridgeH") is not None:
+        return o["y"] + rf["ridgeH"]
+    _e, rg = svc_roof(d, o)
+    return None if rg is None else o["y"] + rg
+
+
+def noki_table(d):
+    """**部材の実測 — 軒の出・隅・大棟**。⛔ 数字は `noki` / `const` から毎回引く(写さない)。
+
+    ⭐⭐ 2026-09-07 部材方の実測を入れた巡で立てた。**軒の出はスカラーではない**ので、
+      **平とけらばを別の列**で刷る。⛔ 一つの数にまとめない。
+    """
+    C = d["const"]
+    cap = C.get("omuneCap") or {}
+    FAM = {"goten": "御殿(帯割り入母屋)", "kachu": "家中長屋(平家)", "kura": "土蔵",
+           "umaya": "厩", "inari": "稲荷(小祠)", "nagaya": "表長屋(二階)"}
+    rows = []
+    for o in d["munes"] + d.get("service", []):
+        de, ke, su = noki_of(d, o)
+        fam = roof_family(d, o)
+        cp = cap.get(fam)
+        rg = _abs_ridge(d, o)
+        nm = MUNE_JA.get(o["name"], o.get("label", o["name"]))
+        rows.append((
+            nm, FAM.get(fam, fam),
+            "<b>%.4f</b>" % de,
+            ("<b>%.4f</b>" % ke) + ("" if abs(ke - de) < 1e-9 else " <span class='note'>(平と違う)</span>"),
+            ("<b>%.4f</b>" % su) if o["name"] in (C.get("sumiMeasured") or []) else
+            "⚠ <b>未実測</b>(`_pending.buzaijissoku`)",
+            ("%.3f" % cp) if cp is not None else "⚠ <b>未実測</b>",
+            "—" if rg is None else ("%.3f" % rg),
+            "—" if (rg is None or cp is None) else ("<b>%.3f</b>" % (rg + cp)),
+            (o.get("fukizai") or (o.get("roof") or {}).get("fukizai") or "⚠ <b>未決</b>"),
+            (("<b>%s</b>(%s)" % (o["openFace"], _open_face_ja(d, o))) if o.get("openFace")
+             else ("⚠ <b>未決</b>" if o in d.get("service", []) else "—")),
+            ("<b>%d戸</b> × 間口 %.4g間" % (togiri_n(d, o), (C.get("togiri") or {}).get("maguchiKen", 0))
+             if togiri_n(d, o) else "—")))
+    return _tw(("建物", "屋根の家族", "<b>平の軒の出</b>", "<b>けらばの出</b>", "<b>隅の飛び出し</b>",
+                "大棟の見え掛かり", "棟高=瓦面の頂(絶対)", "<b>実測の天端</b>", "葺材",
+                "開口面", "戸割"), rows) + (
+        "<p class='cap'>⭐⭐ <b>軒の出は辺の向きで違う</b>(2026-09-07 部材方の実測)。"
+        "<b>平</b>=桁行側で梁間の向きへ、<b>けらば</b>=妻側で桁行の向きへ出る。"
+        "⛔⛔ <b>二つを足した和を『必要な空き』として距離と比べてはいけない</b> — "
+        "<b>和は方向を持たない</b>。<code>mune_gap_check</code> は"
+        "<b>辺ごとに膨らませた軒先線どうしの最短距離</b>で測る(下表)。"
+        "⭕ <b>帯割り入母屋は四周とも軒</b>なので御殿は平＝けらば — "
+        "⛔ 指図が仮に置いていた妻の出 0.30 は<b>破風板の見付の出</b>"
+        "(<code>const.tsumaEnd</code>・Blender の引数)であって、<b>足形の外への出ではない</b>。</p>"
+        "<p class='cap'>⭐⭐ <b>棟高と天端は別の量。</b>当図が刷る<b>棟高は「瓦面の頂」</b>"
+        "(= 軒高 + 梁間 ÷ 2 × 瓦勾配)で、その上に<b>大棟(熨斗+冠瓦)が見え掛かる</b>ので"
+        "<b>実測の天端はそのぶん高い</b>。⛔⛔ <b>天端を棟高に合わせるために軒桁を下げない</b>"
+        "(2026-09-07 部材方)— ⭕ <b>格は軒高で読む</b>(厩 &lt; 家中長屋 &lt; 御殿)。"
+        "⚠ <b>格式の逆転の検査は棟高(瓦面の頂)で測る</b> — 見え掛かりはどの家族にも付くので"
+        "順は変わらない。⛔ 基準を混ぜない。"
+        "⚠ 御殿の値は<b>部材の生成器の指定値</b>であって焼いた実物の実測ではない"
+        "(<code>_pending.buzaijissoku</code>)。</p>"
+        "<p class='cap'>⭕ <b>戸割は従属値</b> = 桁行 ÷ 1戸の間口 の四捨五入"
+        "(<code>const.togiri</code>)。⛔ <b>棟ごとに戸数を書かない</b>(規則4)。"
+        "⛔⛔ <b>戸数を史実として名乗らせない</b> — 桁行そのものが「外周に回した結果」であって"
+        "定員から出した数ではない(<code>_pending.kachu</code>「規模は未検算」)。"
+        "間口 2.5間 は<b>岡部邸の詰人長屋に倣った</b>もので当家の史料ではない【U】。"
+        "⛔ <b>自分の成果物を基準に norm を作らない</b>(規則8)ので、類型のように書かない。</p>"
+        "<p class='cap'>⭕ <b>開口面(戸口・窓の並ぶ面)は指図が決める</b>【U】 — "
+        "<code>内</code> = <b>郭の内側</b>(境界と反対)。⛔ 境界側には犬走りしか無く戸を開けられない。"
+        "⚠ <b>方位は生成器が算出する</b>(いちばん近い区画の辺の外向き法線の逆)。"
+        "⛔ 手で方位を書かない・⛔ 実装に選ばせない(規則5)。"
+        "⚠ <b>蔵3棟と稲荷は未決</b>(<code>_pending.kaikoumen</code>)。</p>"
+        "<p class='cap'>⛔⛔ <b>家中(侍)と詰人(足軽・中間)の格は作り分けていない</b>【U】 — "
+        "当家に住み分けの史料が無いので<b>5棟は同じ型</b>(梁間・軒の出・葺材・開口面・戸割の規則が"
+        "すべて同値)。⛔ <b>実装が勝手に格を足さないこと</b>。"
+        "<code>kachu_kata_check</code> が5棟の型の同一を毎回測る。</p>")
+
+
+def _open_face_ja(d, o):
+    """開口面の向きを**方位の言葉**に(生成器が算出。⛔ 指図に手で書かない)。"""
+    v = open_face_dir(d, o)
+    if v is None:
+        return "—"
+    gr = RGrid(d)
+    cu, cv = roof_frame(d, o)[0], roof_frame(d, o)[1]
+    x0, z0 = gr.W(cu, cv)
+    x1, z1 = gr.W(cu + v[0], cv + v[1])
+    a = math.degrees(math.atan2(x1 - x0, z1 - z0)) % 360.0
+    return "%s・方位 %.0f°" % (["北", "北東", "東", "南東", "南", "南西", "西", "北西"]
+                              [int((a + 22.5) // 45) % 8], a)
+
+
+def roof_clearance_table(d, n=10):
+    """**隣り合う屋根の離れ** — 条①(軒先線)と条②(隅)を、狭い順に。
+
+    ⭐⭐ **2026-09-07 裁定A の物差しを図へ出す**(規則19)。⛔ 検査を stdout に閉じ込めない。
+    """
+    M = d["munes"] + d.get("service", [])
+    rows = []
+    for i in range(len(M)):
+        for j in range(i + 1, len(M)):
+            a, b = M[i], M[j]
+            fp = obb_gap(a, b) * d["const"]["ken"]
+            if fp <= 1e-9:
+                continue
+            s1 = roof_sep(d, a, b, sumi=False)
+            s2 = roof_sep(d, a, b, sumi=True)
+            un = [x.get("label", x["name"]) for x in (a, b)
+                  if x["name"] in (d["const"].get("sumiPending") or [])]
+            rows.append((s1, s2, fp,
+                         MUNE_JA.get(a["name"], a.get("label", a["name"])),
+                         MUNE_JA.get(b["name"], b.get("label", b["name"])), un))
+    rows.sort()
+    out = []
+    for s1, s2, fp, na, nb, un in rows[:n]:
+        out.append((na, nb, "%.3f" % fp, "<b>%+.3f</b>" % s1,
+                    ("<b>%+.3f</b>" % s2) + ("" if not un else
+                     " <span class='note'>(%s の隅が未実測)</span>" % "・".join(un)),
+                    "⭕ 空く" if min(s1, s2) > 0 else "⚠ <b>食い込む</b>"))
+    return _tw(("建物", "建物", "足形どうし", "<b>条① 軒先線</b>", "<b>条② 隅まで</b>", "判定"),
+               out) + (
+        "<p class='cap'>狭い順に %d 組(足形が接している組=突き付けは屋根を継ぐ設計なので除く)。"
+        "⭐⭐ <b>2026-09-07 ユーザー裁定=A で物差しを方向つきに直した。</b>"
+        "⛔ 従前は <b>「軒の出 + 妻の出」というスカラー</b>を足形どうしの空きと比べており、"
+        "<b>方向を持たない目安であって幾何量ではなかった</b> — "
+        "部材方の実測を入れると<b>実際には空いている組が鳴った</b>。"
+        "⛔⛔ <b>重なっていない物を「鳴ったから」と動かすのは、欠陥でない所を動かすこと</b>。"
+        "⭕ いまは <b>①足形を辺の向きごとに膨らませた軒先線どうしの最短距離</b>(条①)"
+        "<b>②隅の飛び出し(隅棟・破風板)まで含めた最短距離</b>(条②)の二条で測る。"
+        "⛔ <b>一緒くたにしない</b> — 隅棟が出るのは<b>隅だけ</b>で、辺の中ほどは軒先線のまま。"
+        "⚠ <b>余裕の下限は置いていない</b>(判定は「重ならないこと」)ので、"
+        "⛔ <b>0件を「余裕がある」と読まない</b>。"
+        "⚠ <b>隅が未実測の建物</b>(米蔵・土蔵2・厩)では<b>条②は条①と同じ厳しさにしかならない</b> — "
+        "⛔ その組の「⭕」を「隅まで見て通った」と読まない(<code>_pending.buzaijissoku</code>)。</p>"
+        % len(out))
 
 
 def buzai_table(d):
@@ -6960,9 +7544,34 @@ def niwa_stats(d):
             if q < best:
                 best, bnm = q, m["name"]
     o["clrMune"], o["clrMuneBy"] = best, bnm
-    # ⭐ **軒先までの値も持つ**(2026-09-06 庭方 低2)。⛔ 躯体までの値だけを刷らない。
-    _bm = next((m for m in d["munes"] + d["service"] if m["name"] == bnm), None)
-    o["clrMuneEave"] = best - ((_bm or {}).get("noki", {}).get("de", d["const"]["nokiDe"])) / K
+    # ⭐ **軒先・隅までの値も持つ**(2026-09-06 庭方 低2 / 2026-09-07 部材方の実測)。
+    #   ⛔ **「躯体までの距離 − 軒の出」で済ませない** — **軒の出は辺の向きで違う**ので、
+    #   引き算では平とけらばのどちらを引いたのか分からなくなる。
+    #   ⭕ **軒先線の多角形と隅の飛び出しへ直に測る**(`roof_poly` / `sumi_spikes`)。
+    bE, bS, ov, ovby = 9e9, 9e9, 0.0, "—"
+    for m in d["munes"] + d["service"]:
+        if "yaw" in m or m["name"] in ex:
+            continue
+        rp = roof_poly(d, m)
+        sp = sumi_spikes(d, m)
+        nr = len(rp)
+        for (u, v) in P:
+            q = min(_seg_seg_dist((u, v), (u, v), rp[i], rp[(i + 1) % nr]) for i in range(nr))
+            if _pip((u, v), rp):
+                q = -q
+            bE = min(bE, q)
+            for r9, t9 in sp:
+                q = min(q, _seg_seg_dist((u, v), (u, v), r9, t9))
+            bS = min(bS, q)
+        # **庭の矩形を屋根がどれだけ越えるか**(⛔ 越える量を手で書かない)
+        for (pu, pv) in rp + [t9 for _r9, t9 in sp]:
+            if not (g["u0"] <= pu <= g["u1"] and g["v0"] <= pv <= g["v1"]):
+                continue
+            dep = min(pu - g["u0"], g["u1"] - pu, pv - g["v0"], g["v1"] - pv) * K
+            if dep > ov:
+                ov, ovby = dep, MUNE_JA.get(m["name"], m.get("label", m["name"]))
+    o["clrMuneEave"], o["clrMuneSumi"] = bE, bS
+    o["muneIntoNiwa"], o["muneIntoNiwaBy"] = ov, ovby
     # 水面と岸の高さ関係(**余裕高**)。⭐ 2026-09-04 検図方 中-5。
     # ⚠ 従前は水面の高さを見る検査が一つも無く、`waterY` を 27.40(面 26.60 より 0.8m 高い)に
     #   しても「水面が 100% 見える」しか鳴らなかった。⛔ 水は陸より高い所には溜まらない。
@@ -9098,11 +9707,6 @@ def _tw(head, rows):
             + "</tbody></table></div>")
 
 
-# ⚠ **入母屋の隅棟は軒先線よりさらに出る**(部材方の実測: 呼び 19.998 に対し bbox 20.323)。
-#   ⛔ 軒先線だけで離れを読まない(2026-09-06 庭方 低3)。片側 **0.171m**。
-SUMI = 0.171
-
-
 def niwa_pond_table(d):
     o = niwa_stats(d)
     n = NI(d)
@@ -9120,13 +9724,16 @@ def niwa_pond_table(d):
         ("汀 → 最寄りの棟", "躯体まで %.2f 間(%s)<br><b>軒先まで %.2f 間</b>"
          % (o["clrMune"], o["clrMuneBy"], o["clrMuneEave"]),
          "下限 %.2f 間(稲荷の小祠は庭の点景なので除く)。"
-         "⚠ <b>軒が %.2fm 出る</b>ので、⛔ 躯体までの値だけで読まない"
-         "(2026-09-06 庭方 低2)。<br>⚠⚠ <b>軒先線には隅棟の飛び出し %.3fm が入っていない</b> — "
-         "<b>隅まで含めると %.2f 間</b>(⭕ 下限は満たす)。"
-         "⚠ 奥棟の南の両隅で庭の矩形を <b>%.2fm 越える</b>が、"
+         "⚠ <b>軒が出る</b>ので、⛔ 躯体までの値だけで読まない(2026-09-06 庭方 低2)。"
+         "<br>⚠⚠ <b>隅棟・破風板は軒先線よりさらに出る</b> — <b>隅まで含めると %.2f 間</b>"
+         "(⭕ 下限は満たす。⚠ <b>軒先までと同値なら最短点が辺の中ほど</b>にあって隅が効いていない、"
+         "というだけのこと)。⛔ <b>軒先線だけで離れを読まない</b>(2026-09-06 庭方 低3)。"
+         "⭕ 2026-09-07: <b>軒先線にも隅にも直に測る</b>ようにした — "
+         "⛔ <b>「躯体まで − 軒の出」の引き算で出さない</b>(軒の出は辺の向きで違う)。"
+         "<br>⚠ <b>%s の屋根が庭の矩形を %.2fm 越える</b>が、"
          "⭕ そこは<b>犬走り</b>なので当たりは無い(2026-09-06 庭方 低3)。"
-         % (n.mg["clearance"]["mune"], d["const"]["nokiDe"], SUMI,
-            o["clrMuneEave"] - SUMI / d["const"]["ken"], 0.16)),
+         % (n.mg["clearance"]["mune"], o["clrMuneSumi"],
+            o["muneIntoNiwaBy"], o["muneIntoNiwa"])),
         ("水面 → 岸の余裕高(最小)", "<b>%+.2f m</b>(汀 #%d の外 %.1f間)"
          % (o["fbMin"], o["fbMinAt"][0], o["fbMinAt"][1]),
          "水面 %.2f。⭕ <b>正=水面が岸より低い</b>(汀線 %d 辺 × 外へ 0.3/0.6間 を実測)"
@@ -10148,6 +10755,7 @@ def main():
     pbad = (plane_check(d) + inubashiri_check(d) + opening_fit_check(d) + refs_check(d)
             + norms_check(d) + perimeter_check(d) + perimeter_closure_check(d)
             + mune_gap_check(d) + band_check(d) + neighbour_hash_check(d)
+            + buzai_jissoku_check(d) + kachu_kata_check(d)
             + clearance_check(d) + rails_check(d)
             + ramp_check(d) + completeness_check(d) + program_check(d) + gate_overlap_check(d) + vocab_check(d)
             + terrace_overhang_check(d) + setchin_check(d)
@@ -10195,6 +10803,16 @@ def main():
     print("── 指図方の機械検査(30本余りの束): %s"
           % ("**0 件**" if not pbad else "⚠ %d 件" % len(pbad)))
     for b in pbad:
+        print("   ", b)
+    # ⛔ **入れ替えた検査は件数だけでは緩くなったのか正しくなったのか見分けられない**(規則19)。
+    #   ⇒ **束ごとに感度試験を回して、期待どおり鳴る/鳴らないを毎回刷る**。
+    probes, sbad = mune_gap_sensitivity(d)
+    print("── 感度試験(`mune_gap_check`): %s"
+          % ("**%d束/%d束 期待どおり**" % (len(probes) - len(sbad), len(probes))
+             if not sbad else "⚠ %d束が期待と違う" % len(sbad)))
+    for nm9, got9, _w9 in probes:
+        print("    %s → 条①(軒先線)%d件 / 条②(隅)%d件" % (nm9, got9[0], got9[1]))
+    for b in sbad:
         print("   ", b)
     wbad = wall_check(d)
     print("── 土留めの高さ: %s" % ("**0 件**" if not wbad else "⚠ %d 件" % len(wbad)))
@@ -10791,6 +11409,10 @@ def main():
         h.append(bom_table(d))
         h.append("<h3>御殿の屋根 — 帯の割り付けと要る寸法(棟から機械で出す)</h3>")
         h.append(roof_table(d))
+        h.append("<h3>部材の実測 — 軒の出(平・けらば)・隅の飛び出し・大棟の見え掛かり</h3>")
+        h.append(noki_table(d))
+        h.append("<h3>隣り合う屋根の離れ — 条①(軒先線)と条②(隅)</h3>")
+        h.append(roof_clearance_table(d))
         # ⭐ **意匠の差し戻しは図に出す**(規則19)。⛔ stdout に閉じ込めない。
         _bt = band_todo(d)
         h.append('<div class="box" style="border-color:var(--shu)"><h3>'

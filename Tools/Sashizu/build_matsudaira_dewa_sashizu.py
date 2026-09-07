@@ -1855,6 +1855,22 @@ def section_crossings(d, sec):
     return [h[2] for h in hit]
 
 
+def section_roof_status(d, sec):
+    """断面が実際に切る棟を、帯割りが確定した棟(突き合わせ対象)と
+    長屋型で概略のままの棟(`ROOF_NAGAYA_GATA_MUNES`・突き合わせ対象外)に分けて返す。
+    **手で書いた棟名リストは持たない** — section_crossings と同じく棟の u/v から算出する
+    (2026-09-07・考証方 高・第25次: 断面キャプションの断りが12面すべて同文のまま残っていた)。"""
+    ax, at = sec["axis"], sec["at"]
+    confirmed, pending = [], []
+    for m in d["munes"]:
+        hit = (m["u0"] <= at <= m["u1"]) if ax == "u" else (m["v0"] <= at <= m["v1"])
+        if not hit:
+            continue
+        ja = MUNE_JA.get(m["name"], m["name"])
+        (pending if m["name"] in ROOF_NAGAYA_GATA_MUNES else confirmed).append(ja)
+    return confirmed, pending
+
+
 # 附属屋・井戸・隅櫓・中仕切塀の実寸(m)。**軒の出を含む外形**。
 # 部材を作り直して寸法が変わったら、ここも直す(build_matsudaira_dewa_fuzokuya.py の報告値)。
 FUZOKU_SIZE = {
@@ -15349,6 +15365,21 @@ def main():
         plate(h, nx(), s["name"], "%s = %g ／ 垂直%.1f倍 ／ 切るもの: %s"
               % (s["axis"], s["at"], s["vExag"],
                  " → ".join(section_crossings(d, s)) or "(無し)"))
+        _cf, _pd = section_roof_status(d, s)
+        if _cf and _pd:
+            _roof_note = ("屋根高さが突き合わせの対象になるのは<b>%s</b>(帯割り確定)。"
+                          "<b>%s</b>は長屋型で帯割りを持たず、屋根は図示のための概略"
+                          "(<code>_pending.gotenRoofNagayaGata</code>・突き合わせの対象外)。"
+                          % ("・".join(_cf), "・".join(_pd)))
+        elif _cf:
+            _roof_note = ("この断面が切る棟(<b>%s</b>)は帯割りが確定しているので、"
+                          "屋根高さは突き合わせの対象。" % "・".join(_cf))
+        elif _pd:
+            _roof_note = ("この断面が切る棟(<b>%s</b>)は長屋型で帯割りを持たず、"
+                          "屋根は図示のための概略(<code>_pending.gotenRoofNagayaGata</code>・"
+                          "突き合わせの対象外)。" % "・".join(_pd))
+        else:
+            _roof_note = "この断面は御殿の棟を切らない(屋根高さの突き合わせは対象外)。"
         fig(h, section_svg(d, s),
             legend='<span style="color:var(--shu)">▨ 切土 — 削り取ってなくなる土</span>'
                    '<span style="color:var(--nagaya)">▨ 盛土 — 足す土</span>'
@@ -15363,7 +15394,7 @@ def main():
                 "足元の緑の帯は<b>造成せず現地形のまま残す区間</b>(斜面・明地)。"
                 "地表下の色帯=面({{図:敷地}} と同じ色分け)。両端には区画線上の囲いを天端と基壇石垣つきで示す — "
                 "基壇は境界線上に垂直に立ち、道・隣地の地形には触れない。"
-                "屋根は図示のための概略で、実装の高さは部材が決める(突き合わせの対象外)。"
+                + _roof_note
             + ("<br>" + inline(s["_"]) if s.get("_") else ""))
         h.append(cutfill_table(d, s))
         h.append("</div>")

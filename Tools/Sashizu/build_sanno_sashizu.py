@@ -549,6 +549,29 @@ def keidai_inubashiri_check(d, g):
     return bad, note
 
 
+def saku_order_rows(d):
+    """**腰高の柵(玉垣と同じ部材)の発注量**[m]の内訳 ── ⛔ 数を json に持たない。
+
+    ⭐ 2026-09-07 庭方4巡目 裁き1 ── 法尻の柵2本(`Saku_SW`・`Saku_Sando`)に丈の宣言も
+    部材の行も無く、**発注量から丸ごと抜けていた**。玉垣・境内の外周の柵・法尻の柵は
+    **同じ部材**なので、`fence: true` の辺と柵 run の**開口を抜いた実長**(`run_len_ken`)から
+    ここで合算する。⛔ `bom` にベタ書きしない。
+    """
+    ken = d["const"]["ken"]
+    rows = []
+    for gd in d["gardens"]:
+        if not gd.get("tamagaki"): continue
+        s = 0.0
+        for _nm, _a, _b, fence, _ln, rs in tamagaki_edges(d, gd):
+            if not fence: continue
+            s += sum(math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]) for q in rs)
+        if s > 1e-9: rows.append(("玉垣(%s)" % gd["name"], s * ken))
+    for r in d["runs"]:
+        if r["kind"] != "柵" or run_tamagaki(d, r) is None: continue
+        rows.append((r["name"], run_len_ken(r) * ken))
+    return rows
+
+
 def saku_decl_check(d):
     """**柵の宣言** ── `kind` と丈の出所(`hFrom`)が食い違っていないか。
 
@@ -563,6 +586,14 @@ def saku_decl_check(d):
     ⛔ **裁定を検査で受ける**(規則19)── 境内の外周は 2026-09-07 のユーザー裁定で**腰高の柵**に
     定まり、丈は前庭の玉垣 `tamagaki.hM` からの従属値である。`const.inubashiri`・`sectionsUncut`・
     `terrainCheck.saichiGai.roster` と同じ作法で、**宣言が消えたら止める**。
+
+    ⭐ **2026-09-07 庭方4巡目 裁き1 で三方へ広げた。**
+    (c) **柵はすべて丈を宣言する** ── `Saku_SW`・`Saku_Sando` は丈も部材の行も持たず、
+        合わせて 200 m を超える延長が**発注量から丸ごと抜けていた**。
+    (d) **丈を玉垣から引く run は `kind`=柵でなければならない** ── 破壊試験で
+        `Saku_Sando` を板塀へ書き換えたら**一本も鳴らなかった**(名指しで守っていたのは
+        `Ita_Keidai` だけだった)。
+    (e) **発注量の合計を刷る** ── 玉垣・境内の外周・法尻の柵は同じ部材で、新造は一度で足りる。
     戻り値 (⛔止める, 〔記録〕)。
     """
     bad, note = [], []
@@ -578,12 +609,33 @@ def saku_decl_check(d):
         if not r.get("hFrom"):
             bad.append("`runs[Ita_Keidai].hFrom` の宣言が無い ── 丈が黙って「—」に落ち、"
                        "囲いの展開が姿を失い、`bom`「丈は `tamagaki` が正典」が宙に浮く(規則19)")
+    # ⛔ **丈を玉垣から引く run は柵でなければならない**【裁き1 の破壊試験 (3) で開いた穴を塞ぐ】
+    #    ── `Ita_Keidai` だけを名指しで守っていたので、`Saku_SW`・`Saku_Sando` の `kind` を
+    #    板塀へ書き換えても**検査が1本も鳴らず、発注量が黙って痩せた**。
+    for q in d["runs"]:
+        if q.get("hFrom") and q["kind"] != "柵":
+            bad.append("`runs[%s]` が丈を玉垣(`hFrom`)から引くのに `kind` が『%s』── "
+                       "玉垣と同じ丈・同じ作りの物は**腰高の柵**である【裁き1 庭方 2026-09-07】。"
+                       "種別を替えると平面図の姿・囲いの展開の姿・`bom` の行・**発注量**が黙って入れ替わる"
+                       % (q["name"], q["kind"]))
     saku = [q for q in d["runs"] if q["kind"] == "柵"]
     nod = [q["name"] for q in saku if not q.get("hFrom")]
-    note.append("柵 %d 本(%s)── うち丈を宣言(`hFrom` → `gardens[].tamagaki`)する %d 本。"
-                "⚠ 宣言の無い %s は図が丈「—」を刷り、柱の刻みを引かない(⛔ 刻みを発明しない)【算出】"
+    # ⛔ **柵はすべて丈を宣言する**【裁き1 庭方 2026-09-07】── 宣言の無い柵は図が丈「—」を刷り、
+    #    柱の刻みを引かず、`bom` の行にも載らないので**発注量から丸ごと抜ける**(規則19)。
+    for q in nod:
+        bad.append("`runs[%s].hFrom` の宣言が無い ── 柵は玉垣と同じ部材なので丈は "
+                   "`gardens[].tamagaki.hM` からの従属値で持つ【裁き1 庭方 2026-09-07】。"
+                   "宣言が無いと図が丈「—」を刷り、柱の刻みを引かず、**発注量から抜ける**" % q)
+    note.append("柵 %d 本(%s)── うち丈を宣言(`hFrom` → `gardens[].tamagaki`)する %d 本"
+                "(⛔ 宣言の無い柵: %s)【算出】"
                 % (len(saku), "・".join(q["name"] for q in saku), len(saku) - len(nod),
                    "・".join(nod) or "無し"))
+    ordr = saku_order_rows(d)
+    if ordr:
+        note.append("**腰高の柵(玉垣と同じ部材)の発注量 計 %.2f m** ── %s。⛔ この数を `bom` に"
+                    "書かない — `fence: true` の辺と柵 run の**開口を抜いた実長**からの従属値で、"
+                    "新造(edo-buzai)は一度で足りる【算出】"
+                    % (sum(q[1] for q in ordr), " ＋ ".join("%s %.2f" % q for q in ordr)))
     return bad, note
 
 
@@ -811,14 +863,21 @@ def kido_rect(gd, ken):
 
 
 def kido_bay_check(d):
-    """木戸の開口が**辺の中に納まっているか**(端からはみ出さず・他の開口と重ならないか)。
+    """木戸の開口が**辺の中に納まっているか**(端からはみ出さず・他の開口と重ならないか)、
+    および **裏 `insideKen` へ入る樹冠と、その所の枝下**。
 
     ⚠ 2026-09-06 検図4巡目 中4: 島の木戸の芯が柱の割付の柱に乗っていた。
     ⭐ 2026-09-06c 裁定4 — 木戸は辺を割るようになった(`tamagaki_gaps`)ので、
     **柱に乗るか**ではなく **辺の端・井戸の口と食い合わないか**を測る。
     残った一枚が垣として成り立つかは検査『玉垣の一枚の内法』が受け持つ。
+    ⭐ **2026-09-07 庭方4巡目 低2 — `insideKen` の射程を樹冠まで広げた。**
+    旧版の宣言は『低木を植えない奥行』だけで**樹冠には効いておらず、検査も測っていなかった**
+    (規則19 の欠陥の形)。⛔ 樹冠も裏へ入れない、**ただし枝下が
+    `plantRule.crownRule.chuboku.edaShitaMinM` 以上なら可**(頭上を抜けるので出入りを妨げない)。
+    ⚠ **測り方は「樹冠の円 ∩ 裏の矩形」**。⛔ u の張り出しだけで測らない — それでは
+    円が矩形へ届かない木(門被りのクロマツ)まで数えてしまう。戻り値 (⛔止める, 〔記録〕)。
     """
-    bad = []
+    bad, note = [], []
     for gd in d["gardens"]:
         tg = gd.get("tamagaki") or {}
         kd = tg.get("kido")
@@ -846,7 +905,49 @@ def kido_bay_check(d):
         if gp and gp[0] - 1e-9 < s + hw and s - hw < gp[1] + 1e-9:
             bad.append("%s の%s(%.4f〜%.4f 間)が辺『%s』の開口(`gapFrom`)%.4f〜%.4f 間 と重なる"
                        % (gd["name"], kd["name"], s - hw, s + hw, e["name"], gp[0], gp[1]))
-    return bad
+    # ⭐ **裏 `insideKen` へ入る樹冠と枝下**【低2 庭方 2026-09-07】
+    cr = d["planting"]["plantRule"].get("crownRule") or {}
+    lo_ch = (cr.get("chuboku") or {}).get("edaShitaMinM")
+    lo_tk = (cr.get("takagi") or {}).get("edaShitaMinM")
+    ken0 = d["const"]["ken"]
+    for gd in d["gardens"]:
+        tg = gd.get("tamagaki") or {}
+        kd = tg.get("kido")
+        if not kd: continue
+        # ⛔ **矩形を二度作らない**(規則4)── 低木を空ける矩形 `kido_rect` がそのまま射程の面
+        R = kido_rect(gd, ken0)
+        if R is None or kd.get("insideKen") is None: continue
+        hit = 0
+        for sg in gd.get("singles", []):
+            r = single_crown(d, sg)
+            if r is None: continue
+            dd = 0.0 if in_poly(tuple(sg["uv"]), R) else \
+                min(_pt_seg(tuple(sg["uv"]), R[i], R[(i + 1) % 4]) for i in range(4))
+            if dd >= r - 1e-9: continue
+            hit += 1
+            eda, src = sg.get("edaShita"), "宣言"
+            if eda is None:
+                eda = lo_ch if sg.get("layer") == "中木" else lo_tk
+                src = "仕立ての条件(`crownRule`)"
+            if lo_ch is None or eda is None:
+                bad.append("%s の樹冠が%sの裏(`insideKen` %g 間)へ %.3f m 入るが、枝下の条件"
+                           "(`plantRule.crownRule.chuboku.edaShitaMinM`)が引けない — "
+                           "宣言の無い条件は検査にならない(規則19)"
+                           % (sg["name"], kd["name"], kd["insideKen"], (r - dd) * ken0))
+            elif eda < lo_ch - 1e-9:
+                bad.append("%s の樹冠が%sの裏(`insideKen` %g 間)へ %.3f m 入り、枝下 %.2f m が"
+                           "下限 %.2f m を割る — ⛔ 木戸の出入りを樹冠が塞ぐ【低2 庭方 2026-09-07】"
+                           % (sg["name"], kd["name"], kd["insideKen"], (r - dd) * ken0, eda, lo_ch))
+            else:
+                note.append("%s の樹冠が%sの裏(`insideKen` %g 間)へ **%.3f m 入る**(樹冠の半径 %.3f m)"
+                            "── ⭕ **可** 枝下 %.2f m【%s】≥ 下限 %.2f m で頭上を抜ける"
+                            "【算出 — 測り方は樹冠の円 ∩ 裏の矩形。⛔ u の張り出しだけで測らない】"
+                            % (sg["name"], kd["name"], kd["insideKen"], (r - dd) * ken0,
+                               r * ken0, eda, src, lo_ch))
+        note.append("%s の%sの裏(`insideKen` %g 間)へ樹冠が入る一本立ち %d / %d 本"
+                    "(⛔ 低木だけでなく樹冠にも効く射程。枝下が下限以上なら可)【算出】"
+                    % (gd["name"], kd["name"], kd["insideKen"], hit, len(gd.get("singles", []))))
+    return bad, note
 
 
 def tamagaki_bay_check(d):
@@ -1309,6 +1410,27 @@ def sekitoro_rows(d):
     return []
 
 
+def route_narrowest(d, rt, pts, terrace=None, step=0.05):
+    """動線の**最狭部**の路面幅[m]と、そこを決めている物の名。⛔ 数で持たない(門口からの従属値)。
+
+    ⭐ 裁き2(庭方 2026-09-07)── **固定物**が通行帯へ出てよいかは「掛かるか」ではなく
+    **「その動線の最狭部より狭くしないか」**で測る。通行帯は動線の帯であって物理の縁ではない。
+    """
+    best = None
+    for i in range(len(pts) - 1):
+        a, c = pts[i], pts[i + 1]
+        L = math.hypot(c[0] - a[0], c[1] - a[1])
+        n = max(2, int(L / step))
+        for j in range(n + 1):
+            t = j / float(n)
+            q = (a[0] + (c[0] - a[0]) * t, a[1] + (c[1] - a[1]) * t)
+            w = route_w(d, rt, terrace, at=q)
+            if best is None or w < best[0] - 1e-12:
+                gt = gate_at(d, q)
+                best = (w, ("門『%s』の門口" % gt["name"]) if gt else "路面(`routes[].w`)")
+    return best
+
+
 def sekitoro_check(d, g=None):
     """石灯籠が**寸分たがわぬ等間隔**になっていないか【低1 庭方 2026-09-07】。
 
@@ -1339,12 +1461,37 @@ def sekitoro_check(d, g=None):
                 pts = [(g.U(q[0]), g.V(q[1])) if rt.get("world") else (q[0], q[1]) for q in rt["pts"]]
                 dm = min(_pt_seg(q, pts[i], pts[i + 1])
                          for q in Q for i in range(len(pts) - 1)) * ken
-                hw = route_w(d, rt, te) / 2.0
-                if dm < hw:
+                w = route_w(d, rt, te)
+                hw = w / 2.0
+                if dm >= hw: continue
+                # ⭕ **裁き2(庭方 2026-09-07)— 据置。物差しは「最狭部より狭くしないか」**。
+                #   ⛔ 石を動かして数字を合わせに行かない(数と一列は【S】)。
+                eff = w - (hw - dm)                       # 台座を差し引いて残る有効幅
+                nw, nwnm = route_narrowest(d, rt, pts, te)
+                if eff < nw - 1e-9:
+                    bad.append("『%s』の台座が動線『%s』を**最狭部より狭くする** — 残る有効幅 "
+                               "%.3f m < 最狭部 %.3f m(%s)。⛔ 通行帯へ出ること自体ではなく"
+                               "**律速になること**を止める【裁き2 庭方 2026-09-07 の物差し】"
+                               % (nm, rt["name"], eff, nw, nwnm))
+                else:
                     note.append("『%s』の台座が動線『%s』の**通行帯へ %.3f m 出る**"
-                                "(外形の隅 → 芯 %.3f m ／ 通行帯の半幅 %.3f m)【算出 — "
-                                "⛔ 退けるかは庭方の意匠。→ `_pending`「石灯籠 其4 が御成の通行帯へ出る」】"
-                                % (nm, rt["name"], hw - dm, dm, hw))
+                                "(外形の隅 → 芯 %.3f m ／ 通行帯の半幅 %.3f m)── ⭕ **据置**"
+                                "【裁き2 庭方 2026-09-07】: 通行帯は動線の帯であって物理の縁ではないので、"
+                                "**固定物**は『掛かるか』でなく**『その動線の最狭部より狭くしないか』**で測る。"
+                                "残る有効幅 %.3f m ＞ 最狭部 %.3f m(%s)・余裕 %+.3f m【算出】"
+                                % (nm, rt["name"], hw - dm, dm, hw, eff, nw, nwnm, eff - nw))
+    # ⛔ **一般化しない**【裁き2 庭方 2026-09-07】── **可動の物と固定の物で物差しが違う**。
+    #    どちらも現況で成り立つことを、それぞれの実測から刷る(⛔ 言葉だけで宣言しない)。
+    if g is not None:
+        _vm, yo = zentei_yochi(d, g)
+        lim = yo[0][2] if len(yo) > 1 else None           # 通行帯の西縁
+        mg = [(lim - east) * d["const"]["ken"]
+              for _l, _u, _v, _y, _bk, east, _pv in endai_rows(d)] if lim is not None else []
+        if mg:
+            note.append("⛔ **一般化しない** — **可動の物**(縁台(床几) %d 基)は『掛からないこと』で測り"
+                        "最小の余裕 %+.3f m、**固定の物**(石灯籠)は『その動線の最狭部より狭くしないこと』"
+                        "で測る。**物差しが違うのは退けられるかどうかが違うから**で、"
+                        "⭕ 両方とも現況で成り立つ【算出 — 裁き2 庭方 2026-09-07】" % (len(mg), min(mg)))
     return bad, note
 
 
@@ -2489,6 +2636,41 @@ def crown_rule_check(d):
             note.append("%s の `scaleXZ` %s【従属 — 樹冠÷丈 %.2f × 丈 %.1f m ÷ 部材『%s』の素の樹冠】"
                         % (sg["name"], ("%.3f" % xz) if xz else "—(部材が目録に無い)",
                            cph, sg.get("h") or 0.0, pf or "—"))
+    # ⭐ **中木の丈を動かした日に鳴る二つ**【低1 庭方 2026-09-07 に丈を落としたので結線した】
+    #   (a) **中景の塊** — 帯の中木どうしの樹冠が重なって初めて「二本で一つの塊」に読める。
+    #   (b) **段(低木 → 中木 → 高木)** — 層の丈の順が崩れたら塊も段も読めない。⛔ 止める。
+    for gd in d["gardens"]:
+        ch_sg = [q for q in gd.get("singles", []) if q.get("layer") == "中木"]
+        for i in range(len(ch_sg)):
+            for j in range(i + 1, len(ch_sg)):
+                a, b_ = ch_sg[i], ch_sg[j]
+                ra, rb = single_crown(d, a), single_crown(d, b_)
+                if ra is None or rb is None: continue
+                dd = math.hypot(a["uv"][0] - b_["uv"][0], a["uv"][1] - b_["uv"][1])
+                note.append("%s の中木 %s–%s の芯々 %.3f m ／ 樹冠の重なり %+.3f m"
+                            "(⭕ 正なら**二本で一つの塊**に読める。⛔ 下限は置かない — 塊の姿は庭方の意匠)"
+                            "【算出 — 丈を動かすと従属で動く】"
+                            % (gd["name"], a["name"], b_["name"], dd * ken0,
+                               (ra + rb - dd) * ken0))
+        sh = (gd.get("shrubs") or {}).get("hM")
+        if not sh or not ch_sg: continue
+        sh_hi = sh[1] if isinstance(sh, (list, tuple)) else sh
+        ch_lo = min(q["h"] for q in ch_sg if q.get("h"))
+        tk = [q["h"] for q in gd.get("singles", [])
+              if q.get("layer") in ("落葉", "松") and q.get("h")]
+        tk_lo = min(tk) if tk else None
+        ch_hi = max(q["h"] for q in ch_sg if q.get("h"))
+        if ch_lo <= sh_hi + 1e-9:
+            bad.append("%s の段が崩れる — 中木の最低の丈 %.2f m が低木の上限 %.2f m を上回らない"
+                       "(低木 → 中木 → 高木の段が読めなくなる)" % (gd["name"], ch_lo, sh_hi))
+        if tk_lo is not None and tk_lo <= ch_hi + 1e-9:
+            bad.append("%s の段が崩れる — 高木の最低の丈 %.2f m が中木の最高 %.2f m を上回らない"
+                       % (gd["name"], tk_lo, ch_hi))
+        note.append("%s の段(丈) 低木 %.2f 〜 %.2f ／ 中木 %.2f 〜 %.2f ／ 高木 %s m ── "
+                    "⭕ 低木 → 中木 → 高木の順【算出】"
+                    % (gd["name"], sh[0] if isinstance(sh, (list, tuple)) else sh, sh_hi,
+                       ch_lo, ch_hi,
+                       ("%.2f 〜 %.2f" % (tk_lo, max(tk))) if tk_lo is not None else "無し"))
     # ⚠ **仮値の樹冠**【中1 庭方 2026-09-07】── 目録に入った日に⛔で止める(自ら閉じる印)
     for gd in d["gardens"] + d["slopeBands"]:
         for sg in gd.get("singles", []):
@@ -5272,7 +5454,7 @@ def kakoi_svg(d, kan="其九"):
     # ⛔ **長さは開口を抜いた実長**(`run_len_ken`)— これが発注量になる(検図10巡目 中1)。
     #    節点間の総和(`run_nodes_ken`)は**史料拘束を読むためだけ**に別に刷る。
     rows = [r for r in rows if run_len_ken(r) > 0]
-    H = 76.0 + len(rows) * 46.0
+    H = 92.0 + len(rows) * 46.0
     o = _sv(W, H, "囲いの展開")
     o.append(R(0, 0, W, H, fill="var(--paper2)"))
     maxk = max(run_len_ken(r) for r in rows)
@@ -5325,10 +5507,18 @@ def kakoi_svg(d, kan="其九"):
     tot = sum(run_nodes_ken(r) for r in rows if r["kind"] == "透塀")
     o.append(T(6, 15, kan + "　囲いの展開 ─ 長さは開口を抜いた実長(= 発注量)", fs=12.5, fill="var(--dim)"))
     o.append(T(W - 6, 15, "透塀 計 %.0f 間 = %.3f m" % (tot, tot * ken), fs=11.5, anchor="end", fill="var(--shu)"))
-    o.append(T(6, H - 26, "⛔ 発注量は棒の長さ(開口を抜いた実長)。「節点間」は開口を含む総和で、"
+    o.append(T(6, H - 42, "⛔ 発注量は棒の長さ(開口を抜いた実長)。「節点間」は開口を含む総和で、"
                "透塀の史料拘束だけがこちらで読む値", fs=10.5, fill="var(--dim)"))
-    o.append(T(W - 6, H - 10, "透塀の史料値 147.28 m(486.01尺)との差 %.3f m(節点間で比べる)"
+    o.append(T(W - 6, H - 26, "透塀の史料値 147.28 m(486.01尺)との差 %.3f m(節点間で比べる)"
                % abs(tot * ken - 147.28), fs=10.5, anchor="end", fill="var(--dim)"))
+    # ⭐ **腰高の柵(玉垣と同じ部材)の発注量**【裁き1 庭方 2026-09-07】── 玉垣・境内の外周・
+    #    法尻の2本は同じ部材で、新造(edo-buzai)は一度で足りる。⛔ `bom` にベタ書きしない。
+    ordr = saku_order_rows(d)
+    if ordr:
+        o.append(T(6, H - 10, "腰高の柵(玉垣と同じ部材)の発注量 計 %.2f m ＝ %s ── ⛔ 数は `bom` に"
+                   "持たず、この図が算出する(新造は一度で足りる)"
+                   % (sum(q[1] for q in ordr), " ＋ ".join("%s %.2f" % q for q in ordr)),
+                   fs=10.5, fill="var(--shu)"))
     o.append(ENDSVG)
     return "\n".join(o)
 
@@ -6887,7 +7077,7 @@ def run_checks():
     rows.append(("社叢の帯の不変条件 ①②③", bi, []))
     rows.append(("道の形(道幅より短い脚・引き返し・迷い点)", ps[0], ps[1]))
     rows.append(("樹冠の規約(高木の枝下・中木/低木の樹冠)", cw[0], cw[1]))
-    rows.append(("玉垣の木戸が辺に納まるか(端・井戸の口と食い合わないか)", kb, []))
+    rows.append(("玉垣の木戸(辺に納まるか・裏 `insideKen` へ入る樹冠と枝下)", kb[0], kb[1]))
     rows.append(("玉垣の一枚の内法(立子が入る寸法か)", tb[0], tb[1]))
     rows.append(("前庭の視線の抜き(玉垣より高い物を置かない)", sn[0], sn[1]))
     rows.append(("面の天端の出所(`terraces[].y` 一本・面と名簿の宣言)", py, []))
@@ -7297,12 +7487,15 @@ def main():
             "石段の頭・勝手口・中門・潜りを抜いてある。<b>史料値と比べる数は「節点間」の側</b>で、"
             "混ぜて読まない。"
             "<br>⭐ <b>柵は姿が違う</b> — 塗り潰しの塀ではなく<b>柱+貫二段の腰高柵</b>で描く"
-            "【ユーザー裁定 2026-09-07】。⛔ <b>姿は種別(<code>kind</code>)で決める</b>ので、"
-            "丈を宣言しない <code>Saku_SW</code>・<code>Saku_Sando</code> も同じ姿で出る"
+            "【ユーザー裁定 2026-09-07】。⛔ <b>姿は種別(<code>kind</code>)で決める</b>"
             "(検図10巡目 中3 — 旧版は丈の宣言の有無で分岐しており、平面図と物差しが二本あった)。"
-            "<b>境内の外周 <code>Ita_Keidai</code> の丈と柱の芯々は前庭の玉垣と同じ物</b>を引いており"
-            "(⛔ 独立の数を持たない)、run の表の「丈」の欄も同じ値である。柱の刻みを宣言しない柵は"
-            "<b>柱を引かない</b>(⛔ 刻みを発明しない)。")
+            "<br>⭐ <b>柵三本とも丈を宣言する</b>【裁き1 庭方 2026-09-07】 — "
+            "<code>Ita_Keidai</code>(境内の外周)に加え、<code>Saku_SW</code>(社叢の法尻)と "
+            "<code>Saku_Sando</code>(参道の楔形)も前庭の玉垣と同じ丈・同じ柱の芯々を引く"
+            "(⛔ 独立の数を持たない)。それまで二本は丈も部材の行も持たず、<b>発注量から丸ごと"
+            "抜けていた</b>。⭕ <b>玉垣・境内の外周・法尻の三者は同じ部材</b>なので、"
+            "図の末尾に出る合計がそのまま<b>新造(edo-buzai)の発注量</b>で、⛔ この数は "
+            "<code>bom</code> に持たない。")
     h.append(runs_table(d))
     h.append(walls_table(d))
     h.append("<h3>取り合い</h3>")

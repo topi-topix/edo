@@ -218,14 +218,20 @@ def clip_gaps(a, b, gaps):
     return out
 
 
+# 口の縁に残る**切れ端**の下限[間](1.8 mm)。⛔ 設計値ではなく数値の残りかすを落とす閾値。
+# ⚠ 2026-09-07 検図11巡目 高1 の後始末 — 口の芯と半幅を丸めると、抜いたはずの区間の端に
+#   0.1 mm 級の断片が残り、**そこだけが透塀の 0.149 m 隣に立っている**ように測れた。
+SEG_MIN_KEN = 0.001
+
+
 def run_segs(o):
-    """run/wall を開口で割った描画区間。折れ線にも対応。"""
+    """run/wall を開口で割った描画区間。折れ線にも対応。⛔ 1 mm 級の切れ端は run ではない。"""
     out = []
     for a, b in segs(o):
         horiz = abs(b[0] - a[0]) >= abs(b[1] - a[1])
         for p, q in gap_split(a, b, o, horiz):
             out += clip_gaps(p, q, o.get("gaps") or [])
-    return out
+    return [(a, b) for a, b in out if math.hypot(b[0] - a[0], b[1] - a[1]) > SEG_MIN_KEN]
 
 
 def run_len_ken(o):
@@ -637,6 +643,211 @@ def saku_decl_check(d):
                     "新造(edo-buzai)は一度で足りる【算出】"
                     % (sum(q[1] for q in ordr), " ＋ ".join("%s %.2f" % q for q in ordr)))
     return bad, note
+
+
+def _kakoi_items(d):
+    """**線でできている物**(囲い・土留め)と、**帯を持つ物**(回廊の屋根・石段の踏面)の名簿。
+
+    戻り (線の列, 帯の列)。線は (呼び名, 開口を抜いた区間)、帯は (呼び名, 区間, 半幅[間])。
+    ⛔ 半幅を数で持たない ── 回廊は `runs[].bari`、石段は `kaidans[].wKen` からの従属値。
+    """
+    lines = [(r["kind"] + ":" + r["name"], run_segs(r)) for r in d["runs"]]
+    lines += [("土留め:" + w["name"], run_segs(w)) for w in d["terraceWalls"]]
+    lines = [q for q in lines if q[1]]
+    bands = [("回廊の屋根:" + r["name"], run_segs(r), r.get("bari", 2) / 2.0)
+             for r in d["runs"] if r.get("mune")]
+    for k in d["kaidans"]:
+        pt = [tuple(q) for q in (k.get("pts") or [k["a"], k["b"]])]
+        bands.append(("石段:" + k["name"], [(pt[i], pt[i + 1]) for i in range(len(pt) - 1)],
+                      kaidan_wken(d, k) / 2.0))
+    return lines, [q for q in bands if q[1]]
+
+
+def _band_rects(sgs, hw):
+    """帯を**区間ごとの矩形**にする。⛔ 端に丸みを付けない(坂の上下の先は坂ではない)。"""
+    out = []
+    for a, b in sgs:
+        dx, dz = b[0] - a[0], b[1] - a[1]
+        L = math.hypot(dx, dz)
+        if L < 1e-12: continue
+        nx, nz = -dz / L * hw, dx / L * hw
+        out.append([(a[0] + nx, a[1] + nz), (b[0] + nx, b[1] + nz),
+                    (b[0] - nx, b[1] - nz), (a[0] - nx, a[1] - nz)])
+    return out
+
+
+# 交点が折れ線の「途中」か「端」かを分ける許容[間]。⛔ 設計値ではなく判別の物差し。
+KAKOI_END_KEN = 0.02
+
+
+def kakoi_cross_check(d, g):
+    """**囲い・土留め・屋根の帯どうしの交差と離れ**【検図11巡目 中1 → 2026-09-07】。
+
+    ⭐ **なぜ要るか。** 面の総当たり `rect_overlap_check` の集合は棟・門・区・帯・石段・塊・
+    玉垣・低木の面・踏石・点景まで広げてあるが、**囲い(`runs`)・土留め(`terraceWalls`)・
+    回廊の屋根の帯は一つも入っていない**。検査名はその集合を正直に名乗っているので偽陽性は
+    無いが、⛔ **この class は誰も測っておらず、境内の柵が透塀を2回横切る欠陥がそこへ落ちた**。
+
+    **物差しは三つ。**
+    ① **真の交差** ── 芯線どうしの交点が**両方の折れ線の途中**(端から `KAKOI_END_KEN` 超)に
+       ある組。端で交わる組は**隅の突き付け**(塀は門・棟・土留めに取り付くのが正しい姿)で、
+       〔記録〕に数だけ刷る。
+    ② **帯の重なり** ── 回廊の屋根・石段の踏面は**幅を持つ**ので、区間ごとの矩形どうしの
+       離れ(SAT)が負なら重なり。⛔ 芯線の距離で測らない(直交する帯で嘘が出る)。
+    ③ **離れ** ── 交差しない組の芯線どうしの最小の離れが犬走り `const.inubashiri` を割る組。
+    ⛔ **どれも名簿 `kakoiCross.roster` に無ければ止める。**名簿は `_pending` を指し、
+       `roster_guard` が**両方向**に突き合わせる(死んだ名簿も⛔・規則19)。
+    ⛔ 名簿そのものの宣言が無ければ止める ── 宣言を消せば何が起きても鳴らなくなる。
+    """
+    ken = d["const"]["ken"]
+    ins = d["const"]["inubashiri"] / ken
+    sp = d.get("kakoiCross") or {}
+    bad, note = [], []
+    if sp.get("roster") is None:
+        bad.append("囲い・土留め・屋根の帯の**許した交差と近接の名簿** `kakoiCross.roster` の"
+                   "宣言が無い — 宣言が無ければ何が交わっても鳴らない(規則19)")
+    ros = {}
+    for q in sp.get("roster") or []:
+        if not q.get("pending"):
+            bad.append("`kakoiCross.roster` の『%s × %s』に `pending`(差し戻し先)が無い — "
+                       "許した交差は必ず宿題として名指す" % (q.get("a"), q.get("b")))
+        elif q["pending"] not in (d.get("_pending") or {}):
+            bad.append("`kakoiCross.roster` の『%s × %s』が `_pending`「%s」を指すが、"
+                       "その項が無い(指し先の無いポインタ)" % (q.get("a"), q.get("b"), q["pending"]))
+        ros["|".join(sorted((q["a"], q["b"])))] = q
+    # ⭐ **柵を回さない区間**(`derive_runs` が透塀との離れから決める従属値)を刷る。
+    #    ⛔ 「回さないと決めた」ことが図と数のどちらにも出ないと、宣言だけの決めごとになる(規則19)。
+    for r in d["runs"]:
+        for q in r.get("skips") or []:
+            note.append("『%s』は uv(%.3f, %.3f) を中心に **%.3f m を回さない** ── "
+                        "他の囲いへ犬走り %.2f m より近く並走する区間【算出 — "
+                        "`derive_runs` が輪郭と他の囲いの離れから決める従属値。⛔ 数で持たない】"
+                        % (r["name"], q[0], q[1], 2 * q[2] * ken, d["const"]["inubashiri"]))
+    lines, bands = _kakoi_items(d)
+    got, corner, near = [], 0, []
+    for i in range(len(lines)):
+        for j in range(i + 1, len(lines)):
+            ni, si = lines[i]; nj, sj = lines[j]
+            Li = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in si)
+            Lj = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in sj)
+            xs, tip, best = [], False, None
+            ai = 0.0
+            for a, b in si:
+                La = math.hypot(b[0] - a[0], b[1] - a[1]); aj = 0.0
+                for c, e in sj:
+                    Lb = math.hypot(e[0] - c[0], e[1] - c[1])
+                    r_ = _seg_cross(a, b, c, e)
+                    if r_:
+                        _x, t, u = r_
+                        mid_i = KAKOI_END_KEN < ai + t * La < Li - KAKOI_END_KEN
+                        mid_j = KAKOI_END_KEN < aj + u * Lb < Lj - KAKOI_END_KEN
+                        (xs.append(_x) if (mid_i and mid_j) else None)
+                        if not (mid_i and mid_j): tip = True
+                    dd = _seg_seg_dist(a, b, c, e)
+                    best = dd if best is None else min(best, dd)
+                    aj += Lb
+                ai += La
+            key = "|".join(sorted((ni, nj)))
+            if xs:
+                got.append(key)
+                if key not in ros:
+                    bad.append("『%s』と『%s』が**平面で交差する**(交点 %s)── 二つの囲いが"
+                               "交わる図は成立しない。⛔ 名簿 `kakoiCross.roster` に無い"
+                               % (ni, nj, "／".join("uv(%.3f, %.3f)" % q for q in xs)))
+                else:
+                    note.append("『%s』×『%s』の**真の交差** %d 点(%s)── ⭕ 名簿ずみ"
+                                "(→ `_pending`「%s」)【算出】"
+                                % (ni, nj, len(xs), "／".join("uv(%.3f, %.3f)" % q for q in xs),
+                                   ros[key].get("pending", "—")))
+            elif tip:
+                corner += 1
+            elif best is not None and best < ins - 1e-9:
+                got.append(key)
+                if key not in ros:
+                    bad.append("『%s』と『%s』の離れ %.3f m が犬走り %.2f m を割る — "
+                               "二つの囲いの間に人の通れない溝が残る。⛔ 名簿に無い"
+                               % (ni, nj, best * ken, d["const"]["inubashiri"]))
+                else:
+                    note.append("『%s』×『%s』の離れ %.3f m(犬走り %.2f m 未満)── ⭕ 名簿ずみ"
+                                "(→ `_pending`「%s」)【算出】"
+                                % (ni, nj, best * ken, d["const"]["inubashiri"],
+                                   ros[key].get("pending", "—")))
+            elif best is not None and best * ken < 0.60:
+                near.append((ni, nj, best * ken))
+    # ② 帯どうし(回廊の屋根 × 石段の踏面 ほか)── 矩形で測る
+    for i in range(len(bands)):
+        for j in range(i + 1, len(bands)):
+            ni, si, hi = bands[i]; nj, sj, hj = bands[j]
+            A, gapm = 0.0, None
+            for Ra in _band_rects(si, hi):
+                for Rb in _band_rects(sj, hj):
+                    gp = obb_gap(Ra, Rb)
+                    gapm = gp if gapm is None else min(gapm, gp)
+                    if gp < 0: A += poly_area(_poly_clip(Ra, Rb))
+            if A <= 1e-12: continue
+            key = "|".join(sorted((ni, nj)))
+            got.append(key)
+            if key not in ros:
+                bad.append("帯『%s』と『%s』が %.4f m² 重なる(食い込み %.3f m)── ⛔ 名簿に無い"
+                           % (ni, nj, A * ken * ken, -gapm * ken))
+            else:
+                note.append("帯『%s』×『%s』の重なり %.4f m²(食い込み %.3f m)── ⭕ 名簿ずみ"
+                            "(→ `_pending`「%s」)【算出】"
+                            % (ni, nj, A * ken * ken, -gapm * ken, ros[key].get("pending", "—")))
+    # ④ 囲い・土留めが棟の矩形を貫いていないか(⛔ 名簿を置かない — 貫いてよい理由が無い)
+    npier = 0
+    for m in d["munes"]:
+        R = [(m["u0"], m["v0"]), (m["u0"] + m["du"], m["v0"]),
+             (m["u0"] + m["du"], m["v0"] + m["dv"]), (m["u0"], m["v0"] + m["dv"])]
+        for nm, sgs in lines:
+            for a, b in sgs:
+                if any(_seg_cross(a, b, R[k], R[(k + 1) % 4]) for k in range(4)) \
+                   or in_poly(a, R) or in_poly(b, R):
+                    npier += 1
+                    bad.append("囲い『%s』が棟『%s』の平面を貫く" % (nm, m["name"]))
+                    break
+    bad += roster_guard([q for q in ros], sorted(set(got)),
+                        "許した交差・近接の名簿", "`kakoiCross.roster`")
+    tal = {}
+    for k in set(got):
+        kd = ros[k]["kind"] if k in ros else "⛔ 名簿の外"
+        tal[kd] = tal.get(kd, 0) + 1
+    note.append("囲い %d 本・土留め %d 本の**総当たり** %d 組 ＋ 帯 %d 本の総当たり %d 組 ── "
+                "真の交差 %d 組 ／ 帯の重なり %d 組 ／ 犬走り %.2f m 未満 %d 組(合わせて名簿 %d 件・"
+                "⛔ 名簿の外は 0 でなければ組めない)／ 隅の突き付け(端点で接する)%d 組 ／ "
+                "囲い×棟の貫通 %d 件【算出 — 交点が端か途中かで分ける。物差しは %.2f 間】"
+                % (len(d["runs"]), len(d["terraceWalls"]), len(lines) * (len(lines) - 1) // 2,
+                   len(bands), len(bands) * (len(bands) - 1) // 2,
+                   tal.get("交差", 0), tal.get("帯の重なり", 0), d["const"]["inubashiri"],
+                   tal.get("離れ", 0), len(ros), corner, npier, KAKOI_END_KEN))
+    if tal.get("⛔ 名簿の外"):
+        note.append("**名簿の外** %d 組 ── ⛔ 上の⛔で止まっている【算出】" % tal["⛔ 名簿の外"])
+    for ni, nj, dd in sorted(near, key=lambda q: q[2]):
+        note.append("『%s』×『%s』の離れ %.3f m(⭕ 犬走り %.2f m 以上)【算出】"
+                    % (ni, nj, dd, d["const"]["inubashiri"]))
+    return bad, note
+
+
+def _poly_clip(sub, clip):
+    """凸多角形どうしの共通部分(Sutherland–Hodgman)。⛔ 面積のためだけに使う。"""
+    def ccw(P):
+        s2 = sum((P[(i + 1) % len(P)][0] - P[i][0]) * (P[(i + 1) % len(P)][1] + P[i][1])
+                 for i in range(len(P)))
+        return P if s2 < 0 else P[::-1]
+    out, clip = ccw(list(sub)), ccw(list(clip))
+    for i in range(len(clip)):
+        a, b = clip[i], clip[(i + 1) % len(clip)]
+        if not out: return []
+        inp, out = out, []
+        side = lambda p: (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])
+        for j in range(len(inp)):
+            c, e = inp[j], inp[(j + 1) % len(inp)]
+            sc, se = side(c), side(e)
+            if sc >= 0: out.append(c)
+            if (sc >= 0) != (se >= 0):
+                t = sc / (sc - se)
+                out.append((c[0] + (e[0] - c[0]) * t, c[1] + (e[1] - c[1]) * t))
+    return out
 
 
 def ido_check(d):
@@ -1431,6 +1642,38 @@ def route_narrowest(d, rt, pts, terrace=None, step=0.05):
     return best
 
 
+def _obj_vs_route(Q, pts, hw, ken):
+    """固定物の外形 `Q`[uv] が動線の通行帯(芯線 `pts`・半幅 `hw`[m])をどれだけ塞ぐか。
+
+    戻り (`dm`, `eff`)[m]。
+    ・`dm` = **物と芯線の距離。⛔ 跨いだら負**(跨いだ側の食い込みの深さ)
+    ・`eff` = **残る有効幅** = 芯線の左右に残る帯のうち**広いほう**
+
+    ⚠ **2026-09-07 検図11巡目 中2 で入れ替えた物差し。**旧式は `dm` を「外形の4隅から芯線までの
+    **最小距離**」で採っていたので、⛔ **物が芯線を跨いだ瞬間に `dm` がまた増え、有効幅が
+    大きく出た**(破壊試験で台座を芯へ載せても 3.0 m 角にしても一本も鳴らなかった)。
+    ⛔ また `eff = w −(片側の食い込み)` も誤り — 物は**通り抜けられない**ので、残るのは
+    塞がれた側を除いた**片側の帯**であって、両側の合計ではない。
+    """
+    dm, eff = None, None
+    for i in range(len(pts) - 1):
+        a, b = pts[i], pts[i + 1]
+        dx, dz = b[0] - a[0], b[1] - a[1]
+        L = math.hypot(dx, dz)
+        if L < 1e-12: continue
+        ux, uz = dx / L, dz / L
+        ts = [((q[0] - a[0]) * ux + (q[1] - a[1]) * uz) for q in Q]      # 芯線に沿う位置
+        ss = [(-(q[0] - a[0]) * uz + (q[1] - a[1]) * ux) for q in Q]     # 芯線からの符号つき離れ
+        if max(ts) < 0.0 or min(ts) > L: continue                        # 区間の外(縦に外れる)
+        s0, s1 = min(ss) * ken, max(ss) * ken
+        d_ = s0 if s0 >= 0 else (-s1 if s1 <= 0 else -max(-s0, s1))      # ⛔ 跨いだら負
+        e_ = max(min(2 * hw, s0 + hw), min(2 * hw, hw - s1), 0.0)        # 残る広いほうの帯
+        if dm is None or d_ < dm: dm = d_
+        if eff is None or e_ < eff: eff = e_
+    if dm is None: return (hw, 2 * hw)
+    return (dm, eff)
+
+
 def sekitoro_check(d, g=None):
     """石灯籠が**寸分たがわぬ等間隔**になっていないか【低1 庭方 2026-09-07】。
 
@@ -1459,14 +1702,12 @@ def sekitoro_check(d, g=None):
             if not nm.startswith("石灯籠"): continue
             for rt in d.get("routes", []):
                 pts = [(g.U(q[0]), g.V(q[1])) if rt.get("world") else (q[0], q[1]) for q in rt["pts"]]
-                dm = min(_pt_seg(q, pts[i], pts[i + 1])
-                         for q in Q for i in range(len(pts) - 1)) * ken
                 w = route_w(d, rt, te)
                 hw = w / 2.0
+                dm, eff = _obj_vs_route(Q, pts, hw, ken)
                 if dm >= hw: continue
                 # ⭕ **裁き2(庭方 2026-09-07)— 据置。物差しは「最狭部より狭くしないか」**。
                 #   ⛔ 石を動かして数字を合わせに行かない(数と一列は【S】)。
-                eff = w - (hw - dm)                       # 台座を差し引いて残る有効幅
                 nw, nwnm = route_narrowest(d, rt, pts, te)
                 if eff < nw - 1e-9:
                     bad.append("『%s』の台座が動線『%s』を**最狭部より狭くする** — 残る有効幅 "
@@ -1549,6 +1790,9 @@ def sando_suritsuke_check(d):
     **拘束するのは `suritsukeWinM` の窓だけ。** `suritsukeRefWinM`(20m)は〔記録〕に刷るだけで
     ⛔ 拘束しない — 20m の起伏は「局所」ではなく**道の線形そのもの**で、これを摺り付けで均すのは
     造成に当たり「参道は公道なので社が造成しない」に反する。
+    ⚠ **この切り分け自体は【U 当方の読み】**(考証9巡目 2026-09-07 裁き2 で拘束しない参考値と裁いた)。
+    ⛔ **ユーザー裁定3から導かれたものとして書かない** — 裁定は「段を入れない／±0.3 m で吸収する」
+    までで、**窓の長さを定めていない**。
 
     ⛔ **越えたら段を入れて黙らせない — 裁定へ差し戻す。** 段を入れれば【S 記号の不在】
     (御宮絵図は男坂・女坂を梯子状の記号で描き分けるのに、参道の帯には梯子が一本も無い)に反し、
@@ -1598,8 +1842,21 @@ def sando_suritsuke_check(d):
                        "造成=『参道は公道』に反する。どちらを崩すかはユーザーの裁定)" % (win, dv, lim))
     for win in c.get("suritsukeRefWinM") or []:
         dv, at_s = worst(win)
-        note.append("(参考・⛔ 拘束しない)%.0f m 窓では %+.3f m ── これは『局所』ではなく"
-                    "**道の線形そのもの**で、均せば造成に当たる(参道は公道)【算出 P】" % (win, dv))
+        note.append("(参考・**⛔ 拘束しない**)%.0f m 窓では %+.3f m ── これは『局所』ではなく"
+                    "**道の線形そのもの**で、均せば造成に当たる(参道は公道)"
+                    "【算出 P ／ ⛔ **拘束しないという切り分けは【U 当方の読み — 考証9巡目 "
+                    "2026-09-07 裁き2】**。⛔ ユーザー裁定3から導かれたものとして読まない — "
+                    "裁定は『段を入れない/±0.3 m で吸収』までで、窓の長さを定めていない】"
+                    % (win, dv))
+    # ⭐ **「段が無い」ことの直接の証拠**【検図11巡目 低2 → 2026-09-07】── 摺り付け量は
+    #    「窓の尺度で路面を通すのに要る量」であって、**段(不連続)が無いこと自体は言っていない**。
+    #    隣り合う標本(`ds`)の高さ差の最大がその直接の証拠で、⛔ これが蹴上級なら段が在る。
+    dj = max(((abs(hs[i + 1] - hs[i]), hs[i + 1] - hs[i], i * ds) for i in range(n - 1)))
+    note.append("参道の縦断の**隣り合う標本(%.1f m)の高さ差の最大** %+.3f m(芯線の下端から "
+                "%.1f m)── ⭕ **段(不連続)は存在しない**(蹴上の既定 %.2f m の %.0f%%)。"
+                "⚠ 摺り付け量は『窓の尺度で路面を通すのに要る量』であって、"
+                "**段が無いことはこの数が言う**【算出 P — 造成前の地盤の正本から】"
+                % (ds, dj[1], dj[2], d["const"]["keri"], 100.0 * dj[0] / d["const"]["keri"]))
     note.append("最大勾配(現況図が刷るのと同じ物差し)2m窓 %.0f%% ／ 5m窓 %.0f%% ／ 20m窓 %.0f%% ── "
                 "⭕ 裁定3 の文言『2m窓で2割超の段』はこの 2m窓の値を指す【算出 P】"
                 % (path_max_grade(pts, 2.0), path_max_grade(pts, 5.0), path_max_grade(pts, 20.0)))
@@ -1954,6 +2211,28 @@ def _pt_seg(p, a, b):
     L2 = dx * dx + dz * dz
     t = 0.0 if L2 < 1e-12 else max(0.0, min(1.0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / L2))
     return math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dz)
+
+
+def _seg_cross(a, b, c, e):
+    """線分 a→b と c→e の交点(**パラメタ付き**)。交わらなければ None。戻り (点, t, u)。
+
+    ⚠ `_seg_x` とは別物 — あちらは点だけを返す(交差の有無を見る用)。こちらは交点が
+    それぞれの折れ線の**端か途中か**を判じるために t / u が要る(検図11巡目 中1)。
+    """
+    d1 = (b[0] - a[0], b[1] - a[1]); d2 = (e[0] - c[0], e[1] - c[1])
+    den = d1[0] * d2[1] - d1[1] * d2[0]
+    if abs(den) < 1e-12: return None
+    t = ((c[0] - a[0]) * d2[1] - (c[1] - a[1]) * d2[0]) / den
+    u = ((c[0] - a[0]) * d1[1] - (c[1] - a[1]) * d1[0]) / den
+    if -1e-9 <= t <= 1 + 1e-9 and -1e-9 <= u <= 1 + 1e-9:
+        return ((a[0] + d1[0] * t, a[1] + d1[1] * t), t, u)
+    return None
+
+
+def _seg_seg_dist(a, b, c, e):
+    """線分どうしの最小距離[間]。交われば 0。"""
+    if _seg_cross(a, b, c, e): return 0.0
+    return min(_pt_seg(a, c, e), _pt_seg(b, c, e), _pt_seg(c, a, b), _pt_seg(e, a, b))
 
 
 def _shape_rect(u0, v0, u1, v1, nm):
@@ -2613,6 +2892,51 @@ def crown_rule_check(d):
                     else:
                         note.append("%s の樹冠の外周 → 井戸屋形の軒先の外形 %.3f m【算出】"
                                     % (sg["name"], (dd - r) * ken0))
+    # ⭐ **高木は `idoNokiCrownClear` の射程の外**【中1 庭方 2026-09-07】。
+    #    ⛔ 除外していること**だけ**を宣言して終わらせない — 樹冠が井戸屋形へ掛かってよいのは
+    #    **枝下が屋形の棟高を越える**からで、そこは誰も測っていなかった(10 m の椋の下枝が
+    #    下がれば屋形の棟に当たる)。⛔ 宣言(`idoMuneClear`)が消えたら止める(規則19)。
+    if tk.get("idoMuneClear") is None:
+        bad.append("`planting.plantRule.crownRule.takagi.idoMuneClear` の宣言が無い — "
+                   "**高木を `idoNokiCrownClear` から外している理由**(枝下が棟高を越える)が"
+                   "どこにも書かれず、条件も測られない(規則19)")
+    elif tk.get("idoMuneClear"):
+        R_ = ido_rects(d)
+        io_ = d.get("ido") or {}
+        if R_ and io_.get("muneH") is not None:
+            u0, v0, u1, v1 = R_["軒先"]
+            C = [(u0, v0), (u1, v0), (u1, v1), (u0, v1)]
+            for gd in d["gardens"]:
+                for sg in gd.get("singles", []):
+                    if sg.get("layer") not in ("落葉", "松"): continue
+                    r = single_crown(d, sg)
+                    if r is None:
+                        note.append("%s の樹冠が引けない(部材が目録に無い)— 井戸屋形の軒先との"
+                                    "関係を測れていない" % sg["name"])
+                        continue
+                    dd = 0.0 if in_poly(tuple(sg["uv"]), C) else \
+                        min(_pt_seg(tuple(sg["uv"]), C[i], C[(i + 1) % 4]) for i in range(4))
+                    if dd >= r - 1e-9:
+                        note.append("%s の樹冠の外周 → 井戸屋形の軒先の外形 %.3f m(⭕ 掛からない)"
+                                    "【算出】" % (sg["name"], (dd - r) * ken0))
+                        continue
+                    e = sg.get("edaShita")
+                    if e is None:
+                        bad.append("%s の樹冠が井戸屋形の軒先へ %.3f m 掛かるのに枝下の宣言が無い — "
+                                   "高木が屋形に掛かってよいのは枝下が棟高を越えるからで、"
+                                   "宣言が無ければその条件を測れない" % (sg["name"], (r - dd) * ken0))
+                    elif e <= io_["muneH"] + 1e-9:
+                        bad.append("%s の枝下 %.2f m が井戸屋形の棟高 %.2f m を越えない — "
+                                   "樹冠が軒先へ %.3f m 掛かっているので、下枝が棟に当たる。"
+                                   "⛔ 樹冠を絞って黙らせない(位置か仕立てで解く)"
+                                   % (sg["name"], e, io_["muneH"], (r - dd) * ken0))
+                    else:
+                        note.append("%s の樹冠が井戸屋形の軒先の外形へ %.3f m 掛かる ── ⭕ **可**"
+                                    "(枝下 %.2f m ＞ 屋形の棟高 %.2f m・余裕 %+.2f m)"
+                                    "【中1 庭方 2026-09-07 — 社頭の井戸が大樹の下に在るのは常態。"
+                                    "⛔ 余裕はこれだけしか無い】"
+                                    % (sg["name"], (r - dd) * ken0, e, io_["muneH"],
+                                       e - io_["muneH"]))
     # ⭐ **中木の樹形の規約**【裁き2 庭方 2026-09-07】── 倍率は `crownPerH` からの従属値。
     #    ⛔ 宣言が無ければ止める(規約を消せば手値の倍率へ戻る・規則19)。
     #    ⛔ 個体が `scaleXZ` を持ったら止める(規約の上から手で押し戻す道を塞ぐ)。
@@ -3711,14 +4035,47 @@ def derive_runs(d, g):
     #   芯のままでは半幅が届かず開口が切れない(2026-08-24 検図 高-1 の後始末)
     gaps = [[round(q[0], 3), round(q[1], 3), hw] for q, hw in
             ((_proj_poly(gq[:2], pts), gq[2]) for gq in gaps)]
+    # ⛔ **他の囲いへ犬走りより近く並走する区間には柵を回さない**【検図11巡目 高1 → 2026-09-07】。
+    #    平場の南西の縁は社殿を囲う透塀のすぐ外を通るので、輪郭を `ins` だけ内へ寄せた線が
+    #    透塀と 0.15 m まで寄り、**二本の囲いの間に人の通れない溝**が残る。
+    #    ⛔ 輪郭を南へ出して犬走りを取らない — 造成の量が動き、面を動かさないという裁定に触れる。
+    #    ⭕ **回廊の前の東側と同じ作法**で、その区間だけ柵を回さない(⛔ 弦で結ばない)。
+    #    ⛔ 区間を数で持たない — **節点間の区間ごとに他の囲いとの離れを測って決める従属値**。
+    #    ⛔ **区間を「節点から節点まで」で落とさない** — 隅で一点だけ寄る辺まで丸ごと消える。
+    #    ⭕ **近い所だけを落とす**(0.01 間で歩き、`ins` を割る連続した範囲をそのまま口にする)。
+    osegs = [s for q in d["runs"] if q["name"] != "Ita_Keidai" for s in run_segs(q)]
+    skips = []
+    for i in range(len(pts) - 1):
+        a, b_ = pts[i], pts[i + 1]
+        L = math.hypot(b_[0] - a[0], b_[1] - a[1])
+        if L < 1e-9: continue
+        n = max(2, int(L / 0.01))
+        at = lambda t: (a[0] + (b_[0] - a[0]) * t, a[1] + (b_[1] - a[1]) * t)
+        #    ⛔ **点で測らない** — 相手の端が柵の線の脇に来る所は点どうしでは拾えない。
+        #    刻みの小片と相手の区間の**線分どうしの距離**で測り、口は前後へ一刻み広げる
+        #    (⛔ 口の縁ぎりぎりに 0.44 m の切れ端を残さない)。
+        near = [min(_seg_seg_dist(at(j / float(n)), at((j + 1) / float(n)), c, e)
+                    for c, e in osegs) < ins - 1e-9 for j in range(n)]
+        j = 0
+        while j < n:
+            if not near[j]: j += 1; continue
+            k = j
+            while k + 1 < n and near[k + 1]: k += 1
+            j0, k1 = max(0, j - 1), min(n, k + 2)
+            cm = at((j0 + k1) / 2.0 / n)
+            skips.append([cm[0], cm[1], L * (k1 - j0) / 2.0 / n])
+            j = k + 1
     by["Ita_Keidai"]["pts"] = [[round(u, 3), round(v, 3)] for u, v in pts]
-    by["Ita_Keidai"]["gaps"] = gaps
+    by["Ita_Keidai"]["gaps"] = gaps + skips
+    by["Ita_Keidai"]["skips"] = skips
     by["Ita_Keidai"].pop("gapU", None); by["Ita_Keidai"].pop("gapHalf", None)
     by["Ita_Keidai"]["_"] = ("境内の外周の**腰高の柵**【U ユーザー裁定 2026-09-07】。"
                              "**平場の輪郭から犬走り(`const.inubashiri`)ぶん内へ寄せて機械生成する** — "
                              "独立の座標を持たない(2026-08-23 検図 中-5)。"
                              "⚠ **回廊の基壇が東front なので東の張り出しには回さない**。"
-                             "**開口は石段の頭と勝手口で自動に開く**(2026-08-24 検図 高-1)")
+                             "**開口は石段の頭と勝手口で自動に開く**(2026-08-24 検図 高-1)。"
+                             "⚠ **他の囲いへ犬走りより近く並走する区間には回さない**"
+                             "(南西の透塀の外・検図11巡目 高1)")
 
 
 def derive_routes(d):
@@ -7056,6 +7413,7 @@ def run_checks():
     ib = inubashiri_check(d, g)
     kib = keidai_inubashiri_check(d, g)   # 境内の囲いの犬走り(検図9巡目 中3)
     sd = saku_decl_check(d)               # 柵の宣言(kind と hFrom の整合。検図10巡目 中3/中4)
+    kx = kakoi_cross_check(d, g)          # 囲い・土留め・屋根の帯どうしの交差と離れ(検図11巡目 中1)
     sc = section_cut_check(d, g)          # 断面が切る棟(検図9巡目 中2)
     sg_ = saichigai_check(d, g)           # 造成が社地の外へ出ていないか(検図9巡目 低5)
     io = ido_check(d)
@@ -7086,6 +7444,7 @@ def run_checks():
     rows.append(("前庭の西縁の犬走り(西縁に取り付く物すべて)", ib[0], ib[1]))
     rows.append(("境内の囲いの犬走り(平場の輪郭からの寄せ)", kib[0], kib[1]))
     rows.append(("柵の宣言(`kind`=柵 と丈の出所 `hFrom` の整合)", sd[0], sd[1]))
+    rows.append(("囲い・土留め・屋根の帯どうしの交差と離れ", kx[0], kx[1]))
     rows.append(("断面が切る棟(⛔ 切られない棟は名簿で宣言する)", sc[0], sc[1]))
     rows.append(("造成が社地の外へ出ていないか(名簿つき)", sg_[0], sg_[1]))
     rows.append(("井戸屋形の取り合い(軒先≡石敷・石敷が帯の内・玉垣の開口)", io[0], io[1]))
@@ -7219,7 +7578,7 @@ def main():
         cap="<b>どこを盛り、どこを切るか。</b>地の色のままの所は<b>造成しない</b>(社叢・山麓の通り・坂の外)。"
             "<br>⭕ <b>造成の許容はこのまま — 面の高さは取り直さず、棟も動かさない</b>【ユーザー裁定 2026-09-07】。"
             "⛔ <b>CLAUDE.md 規則3(|設計面 − 自然地形| ≤ 0.5m)は屋敷の敷地内の目安で、山上の社地には当てない</b> — "
-            "①社殿の位置は絵図が縛る ②山頂の平坦面は<b>万治元年に松平主殿頭忠房の邸地を上収した</b>もので【A】"
+            "①社殿の位置は絵図が縛る ②山頂の平坦面は<b>松平主殿頭忠房の邸地を上収した</b>もので【B Web二次・原典未確認／<b>年次は【?】</b> — 市史稿の目次は万治元年4月11日「山王社営造」、遷座は万治2年4月25日とされ1年ずれる】"
             "<b>先行する大名屋敷の造成面である公算が高く</b>、Δ は社の普請の土工事の量を測っていない "
             "③Δ には近代の削平との差が混じる。"
             "⭕ <b>但し書きの実体は「外れている量を図に明記すること」</b> — 目安を超える棟と門は"
@@ -7255,7 +7614,7 @@ def main():
             "丈は玉垣からの従属値。⛔ 板塀にも築地塀にもしない(どちらも典拠がゼロ)。"
             "⛔ <b>前庭の囲いと袖塀は板塀のまま</b>(裁定は『前庭以外』が対象)。"
             "⚠ 実装は築地塀を回したままで、指図と食い違う(「未解決」の節)。"
-            "社殿を囲うのは透塀で、その正面に中門【S/A】。<b>附属堂・御厩・御蔵10棟は銘をすべて判読済み</b>【S】(其一=薬師堂)。其五『カリウ堂』・其八『コマ堂』は建物としての同定が未確定【U】で、名所図会の題箋の候補では埋めない。")
+            "社殿を囲うのは透塀で、その正面に中門【S/A】。<b>10棟すべての銘に字が当たった</b>【S 字】(其一=薬師堂)。⚠ <b>鼓楼は上字が読めていない</b>【?】／<b>其五『カリウ堂』・其八『コマ堂』は建物としての同定が未確定</b>【U】で、名所図会の題箋の候補では埋めない。")
     fig(h, keidai_svg(d, 9, 35, -13, 15, "%s 附図　前庭 平面" % KAN[n[0] - 1]),
         cap="<b>附図 前庭 平面。</b>前庭に囲い" + _zentei_kakoi(d) + "・坂下の門・縁台(床几)4・"
             "<b>玉垣で囲う植込みの帯</b>【S 名所図会 コマ7 実見】・"
@@ -7331,7 +7690,7 @@ def main():
       "NS560": ("<b>左が南・右が北で、西を見る断面</b>。実際に切るのは<b>薬師堂(旧・附属堂其一)</b>1棟のみ"
                 "(⚠ 本殿・観音堂・御供所はこの線より 11.9〜20.1m 東で、<b>この線上には無い</b>)。"
                 "⚠ この線上の盛土は最大+1.13mにとどまる — 西肩の3m級盛土は本図・切盛図で読む。"),
-      "SANDO": ("<b>二ノ鳥居から前庭の中まで、道の領域の中心線に沿って展開した縦断</b>。段は前庭へ上がる石段だけ。⭕ <b>参道の急な区間に段は入れない</b>【ユーザー裁定 2026-09-07】 — 局所の起伏は<b>路面の摺り付け(±0.3m 以内)</b>で吸収する。根拠は三つ: ①御宮絵図は男坂・女坂を梯子状の記号で描き分けるのに<b>参道の帯には梯子が一本も無い</b>【S 記号の不在】、②参道は切絵図で黄=道路に塗られた<b>公道</b>で社が石段を築く根拠が無い、③摺り付けは切盛図の無彩(±0.3m)の枠内なので『造成しない』と両立する。⭕ <b>摺り付け量そのものは検査「参道の縦断の局所段差」が毎回刷る</b>【考証8巡目 低10 → 2026-09-07】 — ⛔ 数をここに写さない(許容と窓は `const.suritsukeM` / `const.suritsukeWinM` が正典)。⚠ <b>図に残る『参道の階』は別件</b> — 前庭の天端が作った段差で、同日の造成の裁定で面が一枚のままと決まったのでそのまま残る。"),
+      "SANDO": ("<b>二ノ鳥居から前庭の中まで、道の領域の中心線に沿って展開した縦断</b>。段は前庭へ上がる石段だけ。⭕ <b>参道の急な区間に段は入れない</b>【ユーザー裁定 2026-09-07】 — 局所の起伏は<b>路面の摺り付け(±0.3m 以内)</b>で吸収する。根拠は三つ: ①御宮絵図は男坂・女坂を梯子状の記号で描き分けるのに<b>参道の帯には梯子が一本も無い</b>【S 記号の不在】、②参道は切絵図で黄=道路に塗られた<b>公道</b>であり【S 切絵図の彩色】、<b>だから社が石段を築かない</b>【U 当方の読み — 公道の普請の主体を言う史料は無い】、③摺り付けは切盛図の無彩(±0.3m)の枠内なので『造成しない』と両立する【U 当方の読み — 『造成しない』の外延を当方が定めている】。⭕ <b>摺り付け量そのものは検査「参道の縦断の局所段差」が毎回刷る</b>【考証8巡目 低10 → 2026-09-07】 — ⛔ 数をここに写さない(許容と窓は `const.suritsukeM` / `const.suritsukeWinM` が正典)。⚠ <b>図に残る『参道の階』は別件</b> — 前庭の天端が作った段差で、同日の造成の裁定で面が一枚のままと決まったのでそのまま残る。"),
       "ONNA2": ("<b>左が前庭(北東)・右が山上(南西→西)で、展開して描いた断面</b>。"
                 "<b>女坂は男坂の南で屈曲しながら登る</b>(12区間の連続カーブ・展開長55.15m)。⚠ 御宮絵図(文政3)が直線に描くのは<b>絵図が軸平行に整える作図法</b>による。"
                 "『新撰東京名所図会』が「昔時将軍家御成の節、峻坂を避け、此坂のみ御通行遊ばされしにより、"
@@ -7528,8 +7887,11 @@ def main():
              + "".join(rows) + "</tbody></table></div>")
     h.append('<p class="cap">⛔ <b>現行実装の「境内に仁王門と随身門の二基」は誤り。</b>'
              '絵図の銘は「樓門」、名所図会の題箋は「随身門」で、同一の門の別称と読む【S】。'
-             'もう一基は男坂の下にあり、名所図会では「仁王門」と読める【S(読みは要確認)】が、'
-             '<b>形式も名も確定していない</b>【?】。<b>中門は[国宝建造物目録1941]の指定に'
+             'もう一基は男坂の下にあり、名所図会の題箋は「◯王門」=仁王門と読める【S 実見】。'
+             '<b>実装名は「仁王門」</b>【U ユーザー判読 2026-09-01】だが、'
+             '<b>御宮絵図の銘「二天門」(⚠ 上字はユーザー判読で自信なし)との食い違いは未決</b>【?】 — '
+             '文政3と天保では年代が違い名が変わった可能性を潰せないので<b>両論のまま残す</b>'
+             '(→ 未決の表「坂下の門の名」)。<b>形式も確定していない</b>【?】。<b>中門は[国宝建造物目録1941]の指定に'
              '「一間平唐門・屋根銅瓦葺」とあり確度S(麹町区史はこの転記)</b>。</p>')
     h.append("</div>")
 

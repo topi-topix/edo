@@ -4020,27 +4020,24 @@ def _kaidan_band_clauses(d, g):
                         "【算出 — 退避は 敷きの半幅 + 肩 %s 間】"
                         % (b["band"], row[0]["tsubo"], row[0]["avoid"], row[0]["usable"],
                            "—" if shk is None else ("%g" % shk)))
-    # 〔記録〕**敷きの上に立っていたはずの本数**(= 落とした面 × 採用密度)
+    # 〔記録〕**敷きの上に立っていたはずの本数**(= 落とした面 × 採用密度)。帯ごとに出す。
+    kaic = _BANDS.get("kaic") or {}
     if kai_cells:
-        tot = {}
+        seg, T = [], [0.0, 0.0, 0.0]
         for b in d["slopeBands"][:3]:
-            # 敷きのセルはもう帯に属さないので、帯ごとの内訳は出せない。⛔ 誤魔化さず全帯合算で刷る
-            pass
-        ka = kai_cells * ct
-        dens = [band_density(b) for b in d["slopeBands"][:3]]
-        chu = [((b.get("chubokuPer100") or [0, 0])[0] + (b.get("chubokuPer100") or [0, 0])[1]) / 2.0
-               for b in d["slopeBands"][:3]]
-        tei = [((b.get("teibokuPer100") or [0, 0])[0] + (b.get("teibokuPer100") or [0, 0])[1]) / 2.0
-               for b in d["slopeBands"][:3]]
-        m2 = ka * TSUBO
-        note.append("**石段の敷き %.1f 坪 = %.0f m²** を帯1〜3 の面から落とした ── "
-                    "旧図はここを林床として数えており、採用密度で **高木 %.1f〜%.1f 本・"
-                    "中木 %.1f〜%.1f 本・低木 %.1f〜%.1f 本**(帯1〜3 の密度の幅)が"
-                    "**男坂・女坂の踏面の上に立っていた**【算出 — ⛔ この行を消さない。"
-                    "消すと戻ったときに誰も気づけない(規則19)】"
-                    % (ka, m2, m2 * min(dens) / 100.0, m2 * max(dens) / 100.0,
-                       m2 * min(chu) / 100.0, m2 * max(chu) / 100.0,
-                       m2 * min(tei) / 100.0, m2 * max(tei) / 100.0))
+            m2 = len(kaic.get(b["band"]) or []) * ct * TSUBO
+            if m2 <= 0: continue
+            r_ = lambda k: sum(b.get(k) or [0, 0]) / 2.0
+            q = (m2 * band_density(b) / 100.0, m2 * r_("chubokuPer100") / 100.0,
+                 m2 * r_("teibokuPer100") / 100.0)
+            for i in range(3): T[i] += q[i]
+            seg.append("帯%d %.0f m²(高木 %.1f ／ 中木 %.1f ／ 低木 %.1f)" % ((b["band"], m2) + q))
+        note.append("**石段の敷き %.1f 坪 = %.0f m²** を帯1〜3 の面から落とした ── %s。"
+                    "旧図はここを林床として数えており、採用密度で **高木 %.1f 本・中木 %.1f 本・"
+                    "低木 %.1f 本 = 計 %.0f 本**が**男坂・女坂の踏面の上に立っていた**"
+                    "【算出 — ⛔ この行を消さない。消すと戻ったときに誰も気づけない(規則19)】"
+                    % (kai_cells * ct, kai_cells * ct * TSUBO, " ／ ".join(seg),
+                       T[0], T[1], T[2], sum(T)))
     return bad, note
 
 
@@ -4193,13 +4190,13 @@ def tree_size_check(d):
                 q2 = _rinen_layer_n(b, rin)
                 if q2: n_ += q2
         note.append("層『%s』── 撒き木 %d 本 ／ palette %d 点(目録に在る %d 点・`pending` %d 点)／ "
-                    "**%s**【算出 — 大きさの照合が効くのは `sizeRule.layers` の層だけ】"
+                    "%s【算出 — 大きさの照合が効くのは `sizeRule.layers` の層だけ】"
                     % (lay, int(round(n_)), len(d["planting"]["parts"].get(lay, [])),
                        sum(1 for pt in d["planting"]["parts"].get(lay, [])
                            if (part_geom(pt) is not None) or part_variants(d, pt)),
                        sum(1 for pt in d["planting"]["parts"].get(lay, []) if pt.get("pending")),
                        ("条項④(`scaleY` の照合)を受ける" if lay in lays_sz
-                        else "`sizeRule` の対象外 — `scaleY` は刷るが**選び分けは効かない**")))
+                        else "`sizeRule` の対象外 ── `scaleY` は刷るが選び分けは効かない")))
     sr = d["planting"]["scaleRule"]
     rk = sr.get("rakuyo") or {}
     if rk.get("crownPerH") is None:
@@ -4524,6 +4521,20 @@ def cluster_pack_check(d, g):
                             "%.3f m ／ 差 %+.3f m ／ 芯々÷樹冠 %.2f【算出 — ⛔ 下限は置かない】"
                             % (nm, "松" if sk == "matsu" else "落葉", tot, sp, cw, sp - cw,
                                sp / cw if cw else 0.0))
+            # ⭐ **頭が一つになるか**【2026-09-08】── 二本の塊は「箱の隅と隅に落ちても樹冠が触れる」
+            #    ことで役が成り立つ(庭方9巡目 中1 が `widthKen` を半分にしたのはこの理屈)。
+            #    ⛔ ⛔にしない ── 箱を縮めるかどうかは庭方の意匠。⭕ 数を毎回刷って見えるようにする。
+            if int(round(n)) == 2 and len(bx) == 1 and lay:
+                u0, v0, u1, v1 = bx[0]
+                diag = math.hypot(u1 - u0, v1 - v0) * ken
+                rs = sorted((q[2] / 2.0 for qs in lay.values() for q in qs), reverse=True)
+                if len(rs) >= 2:
+                    note.append("%s の**頭が一つになるか** ── 箱の対角 %.2f m ／ 樹冠の半径の和 "
+                                "%.2f + %.2f = %.2f m ／ **差 %+.2f m**(正=隅と隅に落ちても"
+                                "樹冠が触れて頭が一つになる)【算出 — ⛔ 合否に使わない。"
+                                "箱を縮めるかどうかは庭方の意匠(→ `_pending`"
+                                "「目録の樹の幅がビルボードの板の寸法である疑い」)】"
+                                % (nm, diag, rs[0], rs[1], rs[0] + rs[1], rs[0] + rs[1] - diag))
             if sig > 0 and A > 0:
                 note.append("%s の**林冠閉鎖度** %.0f%%(Σπr² %.1f m² ÷ 箱 %.1f m²)"
                             "【〔記録〕— ⛔ 合否に使わない。箱は**幹の定義域**であって樹冠の"

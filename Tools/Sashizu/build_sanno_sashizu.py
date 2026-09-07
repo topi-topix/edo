@@ -55,6 +55,51 @@ def tsubo_table(d, md):
     return md.replace("@@TSUBO_TABLE@@", "\n".join(out))
 
 
+_NOTE_TD = re.compile(r"(<t[dh][^>]*>)(.*?)(</t[dh]>)", re.S)
+
+
+def note_cells(html_out):
+    """**註のセルの行内記法を html へ直す**【検図12巡目 低4 → 2026-09-07】。
+
+    ⚠ 公開 html の `**` の大半は表のセル(とくに `<td class='note'>`)の中に居た ── 読者は
+    `**輪郭からの離れ**` や `` `const.inubashiri` `` を**生のまま**読まされていた。
+    ⛔ `inline()` は使えない ── あちらは html を escape するので、`<b>`/`<br>`/`<code>` を
+    既に含む註のセル(`inline()` を通した producer が在る)を壊す。
+    ⭕ ここで直すのは**マークダウンの取りこぼしだけ**で、html には触れない。
+    ⛔ 図形にも数値にも影響しない(セルの中身の綴りだけ)。
+    ⭐ **註のセルだけでなく表のセル全部に掛ける** ── 確度の欄(`<td>`)にも `**U 要改訂…**` が
+    生のまま出ていた。同じ欠陥なので同じ所で直す。⛔ `md2html` が組んだ表のセルは既に
+    `inline()` を通っているので、ここでは何も当たらない(取りこぼしだけを拾う)。
+    """
+    def one(m):
+        t = m.group(2)
+        t = re.sub(r"`([^`\n]+)`", r"<code>\1</code>", t)
+        t = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", t, flags=re.S)
+        t = re.sub(r"~~([^~\n]+)~~", r"<s>\1</s>", t)
+        return m.group(1) + t + m.group(3)
+    return _NOTE_TD.sub(one, html_out)
+
+
+def note_md_check(html_out):
+    """組んだ後 ── **表のセルに未変換のマークダウンが残っていないか**(検図12巡目 低4)。
+
+    ⛔ `**…**` の**対**が残っていたら止める(`note_cells` が届いていないセルが在る)。
+    ⭕ 対になっていない `**` は〔記録〕 ── 本文が記号そのものを引いている行(git log の
+    コミット題など)で、変換できないし、してはいけない。戻り値 (⛔止める, 〔記録〕)。
+    """
+    bad, note, odd = [], [], 0
+    for m in _NOTE_TD.finditer(html_out):
+        t = m.group(2)
+        if re.search(r"\*\*(.+?)\*\*", t, flags=re.S):
+            bad.append("表のセルに未変換の太字記法(アスタリスク二つの対)が残る: %s" % t[:60])
+        odd += t.count("**")
+    note.append("表のセル %d 個 ── 未変換の太字記法(アスタリスク二つの対)%d 件 ／ "
+                "対になっていないアスタリスク二つ %d 個"
+                "(記号そのものを引いている行。⛔ 変換しない)【算出】"
+                % (len(_NOTE_TD.findall(html_out)), len(bad), odd))
+    return bad, note
+
+
 def md2html(text):
     # indent_tables は既定(=拾う)。sanno_kosho.md「拝領坪数」の字下げ表が
     # 旧変換では素の | の段落で出ていたのを、統一で表として描くようになった(実測1箇所)。
@@ -244,6 +289,27 @@ def run_len_ken(o):
     """
     if not o.get("pts") and (o.get("a") is None or o.get("b") is None): return 0.0
     return sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in run_segs(o))
+
+
+def gap_ledger(o):
+    """run の**切れ目の内訳**[間] ── 折れ線 / 宣言した口 / 宣言していない切れ目(`skips`)。
+
+    ⭐ **2026-09-07 検図12巡目 低1 で起こした。**口は**芯まわりの円**で切るので、平場の折れ返しに
+    載った口は**複数の区間をまとめて食う**。⛔ そのため「折れ線 − 宣言した開口幅 − skip」は実長に
+    ならず、**読者が足し算で検算できない**。⛔ 宣言幅と**実際に抜けた長さ**の両方を刷る。
+    ⛔ 数を json に持たない — すべて折れ線と口の半幅からの従属値。
+    """
+    gs = o.get("gaps") or []
+    sk = o.get("skips") or []
+    dec = [q for q in gs if q not in sk]
+
+    def L(g2):
+        q = dict(o); q["gaps"] = g2
+        return sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in run_segs(q))
+    L0 = L([])
+    return {"折れ線": L0, "実長": L(gs),
+            "口の宣言幅": sum(2 * q[2] for q in dec), "口が抜いた": L0 - L(dec), "口の数": len(dec),
+            "skip の宣言幅": sum(2 * q[2] for q in sk), "skip が抜いた": L0 - L(sk), "skip の数": len(sk)}
 
 
 def run_nodes_ken(o):
@@ -495,6 +561,10 @@ def keidai_inubashiri_check(d, g):
     ⛔ 宣言が無ければ止める(規則19)。⛔ 値は動かさない — 動かすと板塀の全長と開口が動く。
     ⚠ **辺の上では恒真**(検図8巡目 低5 と同じ形)— 囲いは `derive_runs` が
     `offset_poly_in(輪郭, const.inubashiri)` で作るので、辺の途中の離れは宣言と一致するほかない。
+    ⛔ **標本は `run_segs`(開口と skip を抜いた実体)から採る**【検図12巡目 中1 → 2026-09-07】。
+    ⚠ 旧版は `pts`(開口を抜く前の生の折れ線)を標本しており、**柵が一本も立っていない開口の中**を
+    「最も痩せる隅」として刷っていた(女坂の頭の口の内側)。⛔ 同じ図の中に二本の物差しを置かない —
+    同じ巡に入れた `kakoi_cross_check` は最初から `run_segs` を使っていた。
     ⭕ **恒真でないのは角**: 鋭角の隅では隣の辺のほうが近くなり、留めの頭打ち
     (`cosh` を 0.35 で止める)と相まって離れが宣言を下回る。⛔ 止めるのは
     **塀が平場の外へ出たとき**(= 犬走りが消えたとき)だけで、角の目減りは〔記録〕にする —
@@ -510,10 +580,12 @@ def keidai_inubashiri_check(d, g):
     if not r or not r.get("pts"):
         return ["境内の外周の囲い `runs[Ita_Keidai]` に折れ線が無い — 輪郭からの生成が回っていない"], []
     P = [(q[0], q[1]) for q in d["terraces"][0]["uv"]]
-    pts = [(q[0], q[1]) for q in r["pts"]]
+    # ⛔ **`pts`(開口を抜く前の生の折れ線)を標本しない**【検図12巡目 中1 → 2026-09-07】。
+    #    旧版は生の折れ線を測っていたので、**柵が一本も立っていない開口の中**を最も痩せる隅として
+    #    刷り、その幻の値が公開 html に 11 箇所と `_pending` の本文へ回っていた。
+    #    ⭕ 測るのは **`run_segs`(開口と skip を抜いた、実際に建つ区間)**。
     ds, outside = [], []
-    for i in range(len(pts) - 1):
-        a, b = pts[i], pts[i + 1]
+    for a, b in run_segs(r):
         L = math.hypot(b[0] - a[0], b[1] - a[1])
         n = max(1, int(L / 0.25))
         for k in range(n + 1):
@@ -528,10 +600,11 @@ def keidai_inubashiri_check(d, g):
                    "犬走りが消える" % (len(outside), outside[0][0], outside[0][1]))
     short = [q for q in ds if q[0] < ins - 1e-6]
     note.append("境内の外周の囲い(腰高の柵)の**輪郭からの離れ** %.3f 〜 %.3f m(標本 %d 点／宣言 "
-                "`const.inubashiri` %.2f m)── ⚠ **辺の上では恒真**(柵は輪郭をこの幅だけ内へ"
-                "寄せた生成物)。⭕ 読むのは**角**で、宣言を下回る標本 %d 点・最小 %.3f m は"
-                "鋭角の隅で隣の辺のほうが近くなる分【算出】" % (lo[0], hi[0], len(ds), ins,
-                                                            len(short), lo[0]))
+                "`const.inubashiri` %.2f m)── ⛔ 標本は **`run_segs`(開口と skip を抜いた、"
+                "実際に建つ区間)**から採る(⛔ 生の折れ線 `pts` を測らない・検図12巡目 中1)。"
+                "⚠ **辺の上では恒真**(柵は輪郭をこの幅だけ内へ寄せた生成物)。⭕ 読むのは**角**で、"
+                "宣言を下回る標本 %d 点・最小 %.3f m は鋭角の隅で隣の辺のほうが近くなる分【算出】"
+                % (lo[0], hi[0], len(ds), ins, len(short), lo[0]))
     # ⭕ **柵に替えたことによる目減りが無いこと**を毎回算出する【検図10巡目 ⭕8 の実測を検査へ結んだ】。
     #    ⛔ 数を文章に写さない(規則4)— 寄せ幅・柱の径・板塀の厚みからの従属値。
     tg = run_tamagaki(d, r)
@@ -548,10 +621,76 @@ def keidai_inubashiri_check(d, g):
                                          "⚠ **下回る** — 寸法の判断は普請奉行"))
                        if mn else ""))
     if short:
-        note.append("最も痩せる隅は u %.2f, v %.2f(離れ %.3f m = 宣言の %.0f%%)"
+        note.append("**柵が実際に立っている所**で最も痩せる隅は u %.2f, v %.2f"
+                    "(離れ %.3f m = 宣言の %.0f%% ／ 不足 %.3f m)"
                     "── ⛔ 直すには輪郭か寸法を動かすことになるので指図方は動かさない"
                     "(→ `_pending`「境内の囲いの留めの隅が犬走りを割る」)【算出】"
-                    % (lo[1][0], lo[1][1], lo[0], 100.0 * lo[0] / ins))
+                    % (lo[1][0], lo[1][1], lo[0], 100.0 * lo[0] / ins, ins - lo[0]))
+    return bad, note
+
+
+def terrace_shape_check(d):
+    """**平場の輪郭の健全性** ── ⛔ 重複頂点 / 零長辺 / 自己交差。〔記録〕に最鋭の内角。
+
+    ⭐ **2026-09-07 検図12巡目 中2 で起こした。**検図11巡目 高1(平場の南縁の**作図の縮退** ──
+    同じ点が二つ並び、幅 0.22 間の外部スリットを作っていた)は**検図が手で総当たりして見つけた**
+    もので、⛔ **輪郭の縮退という原因を見ている検査は一本も無かった**。破壊試験(重複頂点を戻す)
+    でも ⛔ は一件も鳴らず、柵の実長だけが黙って変わった ── 症状が消えて原因が見えなくなった形。
+    ⛔ **全ての `terraces` に掛ける**(矩形の段も 4 頂点の輪郭として測る)。
+    ⛔ **内角は⛔にしない** ── 鋭いこと自体は欠陥ではない。⭕ **痩せの源を名指すための〔記録〕**で、
+    境内の囲いの犬走りが隅で宣言を下回るのはここから来る(→ `_pending`
+    「境内の囲いの留めの隅が犬走りを割る」)。
+    戻り値 (⛔止める, 〔記録〕)。
+    """
+    bad, note = [], []
+    for te in d["terraces"]:
+        nm = te.get("name", "?")
+        P = [(q[0], q[1]) for q in terrace_poly_uv(te)]
+        n = len(P)
+        if n < 3:
+            bad.append("平場『%s』の輪郭が %d 頂点 — 多角形にならない" % (nm, n))
+            continue
+        # ⛔ 零長辺(隣り合う二点が重なる)
+        zero = [i for i in range(n)
+                if math.hypot(P[(i + 1) % n][0] - P[i][0], P[(i + 1) % n][1] - P[i][1])
+                < TERRACE_DEGEN_KEN]
+        for i in zero:
+            bad.append("平場『%s』の輪郭に**零長辺** — 頂点 %d と %d が uv(%.3f, %.3f) で重なる。"
+                       "⛔ 輪郭からの生成物(囲い・犬走り)がここで暴れる"
+                       % (nm, i, (i + 1) % n, P[i][0], P[i][1]))
+        # ⛔ 重複頂点(隣り合っていない二点が同じ所に来る)
+        for i in range(n):
+            for j in range(i + 1, n):
+                if (j - i) % n in (1, n - 1): continue
+                if math.hypot(P[j][0] - P[i][0], P[j][1] - P[i][1]) < TERRACE_DEGEN_KEN:
+                    bad.append("平場『%s』の輪郭に**重複頂点** — 頂点 %d と %d が "
+                               "uv(%.3f, %.3f) で重なる。⛔ 輪郭が自分自身に触れている"
+                               % (nm, i, j, P[i][0], P[i][1]))
+        # ⛔ 自己交差(隣り合わない辺どうし)
+        for i in range(n):
+            for j in range(i + 1, n):
+                if (j - i) % n in (1, n - 1): continue
+                x = _seg_cross(P[i], P[(i + 1) % n], P[j], P[(j + 1) % n])
+                if x:
+                    bad.append("平場『%s』の輪郭が**自己交差する** — 辺 %d-%d と 辺 %d-%d が "
+                               "uv(%.3f, %.3f) で交わる"
+                               % (nm, i, (i + 1) % n, j, (j + 1) % n, x[0][0], x[0][1]))
+        ang = []
+        for i in range(n):
+            p0, p1, p2 = P[i - 1], P[i], P[(i + 1) % n]
+            v1 = (p0[0] - p1[0], p0[1] - p1[1]); v2 = (p2[0] - p1[0], p2[1] - p1[1])
+            l1, l2 = math.hypot(*v1), math.hypot(*v2)
+            if l1 < 1e-12 or l2 < 1e-12: continue
+            c = max(-1.0, min(1.0, (v1[0] * v2[0] + v1[1] * v2[1]) / (l1 * l2)))
+            ang.append((math.degrees(math.acos(c)), i, p1))
+        if ang:
+            ang.sort()
+            note.append("平場『%s』── 頂点 %d ／ 零長辺 %d ／ 最も鋭い角 %s"
+                        "【算出 — ⛔ 鋭いこと自体は欠陥ではない。⭕ **境内の囲いの犬走りが隅で"
+                        "宣言を下回るのはここが源**(→ 検査『境内の囲いの犬走り』)】"
+                        % (nm, n, len(zero),
+                           "／".join("%.1f° 頂点%d uv(%.3f, %.3f)" % (a_, i_, q[0], q[1])
+                                     for a_, i_, q in ang[:3])))
     return bad, note
 
 
@@ -603,6 +742,7 @@ def saku_decl_check(d):
     戻り値 (⛔止める, 〔記録〕)。
     """
     bad, note = [], []
+    ken = d["const"]["ken"]
     by = {r["name"]: r for r in d["runs"]}
     r = by.get("Ita_Keidai")
     if r is None:
@@ -642,6 +782,41 @@ def saku_decl_check(d):
                     "書かない — `fence: true` の辺と柵 run の**開口を抜いた実長**からの従属値で、"
                     "新造(edo-buzai)は一度で足りる【算出】"
                     % (sum(q[1] for q in ordr), " ＋ ".join("%s %.2f" % q for q in ordr)))
+    # ⭐ **切れ目の内訳を刷る**【検図12巡目 低1 → 2026-09-07】── 口は**芯まわりの円**で切るので、
+    #    折れ返しに載った口は複数の区間をまとめて食う。⛔ 「折れ線 − 宣言幅 − skip」は実長にならず、
+    #    **読者が上の発注量を足し算で検算できない**。⛔ 発注量の側は正しい(実体の長さだから)。
+    for q in d["runs"]:
+        if not (q.get("gaps") or q.get("skips")): continue
+        lg = gap_ledger(q)
+        note.append("『%s』の**切れ目の内訳** ── 折れ線 %.3f m ／ 宣言した口 %d 箇所"
+                    "(宣言幅 計 %.3f m ／ **実際に抜けた長さ 計 %.3f m**)／ "
+                    "宣言していない切れ目 `skips` %d 箇所(宣言幅 計 %.3f m ／ 実際に抜けた %.3f m)"
+                    "→ **実長 %.3f m**。⚠ **宣言幅と実際に抜けた長さは一致しない** — 口は芯まわりの"
+                    "円で切るので、平場の折れ返しに載った口は複数の区間をまとめて食う"
+                    "【算出 — ⛔ 数を json に持たない】"
+                    % (q["name"], lg["折れ線"] * ken, lg["口の数"], lg["口の宣言幅"] * ken,
+                       lg["口が抜いた"] * ken, lg["skip の数"], lg["skip の宣言幅"] * ken,
+                       lg["skip が抜いた"] * ken, lg["実長"] * ken))
+    # ⭐ **部材として建たない長さの区間が残っていないか**【庭方6巡目 低2 → 2026-09-07】。
+    #    ⛔ ⛔にしない — いま 1 本あるので止めると図が組めず、直すには口の寸法(石段の幅からの
+    #    従属値)が動く。⛔ 下限を数で持たない — **立子の割付 `tamagaki.tatekoPitchM` からの従属値**。
+    for q in saku:
+        tg = run_tamagaki(d, q)
+        if tg is None: continue
+        lim = tg[0].get("tatekoPitchM")
+        if lim is None: continue
+        stub = [(a, b) for a, b in run_segs(q)
+                if math.hypot(b[0] - a[0], b[1] - a[1]) * ken < lim - 1e-9]
+        note.append("『%s』の区間 %d 本のうち、**立子の割付 %.2f m(`tamagaki.tatekoPitchM`)より"
+                    "短い区間 %d 本**%s ── ⛔ 柵一枚より短い区間は部材として建たない"
+                    "【算出 — ⛔ 下限を数で持たない。⚠ ⛔にはしない(直すには口の寸法が動く)"
+                    "→ `_pending`「境内の外周の柵に部材として建たない切れ端が1本残る」】"
+                    % (q["name"], len(run_segs(q)), lim, len(stub),
+                       ("(最短 %.3f m ／ uv(%.3f, %.3f)→(%.3f, %.3f))"
+                        % ((lambda t: (math.hypot(t[1][0] - t[0][0], t[1][1] - t[0][1]) * ken,
+                                       t[0][0], t[0][1], t[1][0], t[1][1]))
+                           (min(stub, key=lambda t: math.hypot(t[1][0] - t[0][0],
+                                                               t[1][1] - t[0][1]))))) if stub else ""))
     return bad, note
 
 
@@ -676,8 +851,40 @@ def _band_rects(sgs, hw):
     return out
 
 
+def _line_band_gap(sgs, rects):
+    """線と帯の**符号つきの離れ**[間]。負なら線が帯へ**食い込む**(深さ)。
+
+    ⭐ **2026-09-07 検図12巡目 低3 で起こした。**⛔ 芯線どうしの距離では測れない ── 帯は幅を持つ。
+    ⚠ **測っているのは「線の点が帯の内へどれだけ入るか」**で、⛔ 端点が帯の外のまま帯を真横に
+    突き抜ける線は 0.000(接する)と読む(そう決めている・規則19)。当図にその形は無い。
+    """
+    best = None
+    for a, b in sgs:
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        for R in rects:
+            dd = min(_seg_seg_dist(a, b, R[k], R[(k + 1) % 4]) for k in range(4))
+            if dd <= BAND_TOUCH_KEN:
+                n = max(1, int(L / 0.05))
+                pen = 0.0
+                for i in range(n + 1):
+                    t = i / float(n)
+                    q = (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
+                    if in_poly(q, R):
+                        pen = max(pen, min(_pt_seg(q, R[k], R[(k + 1) % 4]) for k in range(4)))
+                if pen > BAND_TOUCH_KEN: dd = -pen
+            best = dd if best is None else min(best, dd)
+    return best
+
+
 # 交点が折れ線の「途中」か「端」かを分ける許容[間]。⛔ 設計値ではなく判別の物差し。
 KAKOI_END_KEN = 0.02
+
+# 線が帯の縁に**接する**のか**食い込む**のかを分ける許容[間](1.8 mm)。⛔ 設計値ではなく判別の物差し。
+# ⚠ 石段の側壁は自分の踏面の帯の縁の上に立つのが正しい姿で、そこは 0.000 で接する(検図12巡目 低3)。
+BAND_TOUCH_KEN = 0.001
+
+# 平場の輪郭の**縮退**(同じ点・零長辺)を判別する許容[間](1.8 mm)。⛔ 設計値ではなく判別の物差し。
+TERRACE_DEGEN_KEN = 0.001
 
 
 def kakoi_cross_check(d, g):
@@ -688,13 +895,17 @@ def kakoi_cross_check(d, g):
     回廊の屋根の帯は一つも入っていない**。検査名はその集合を正直に名乗っているので偽陽性は
     無いが、⛔ **この class は誰も測っておらず、境内の柵が透塀を2回横切る欠陥がそこへ落ちた**。
 
-    **物差しは三つ。**
+    **物差しは四つ。**
     ① **真の交差** ── 芯線どうしの交点が**両方の折れ線の途中**(端から `KAKOI_END_KEN` 超)に
        ある組。端で交わる組は**隅の突き付け**(塀は門・棟・土留めに取り付くのが正しい姿)で、
        〔記録〕に数だけ刷る。
     ② **帯の重なり** ── 回廊の屋根・石段の踏面は**幅を持つ**ので、区間ごとの矩形どうしの
        離れ(SAT)が負なら重なり。⛔ 芯線の距離で測らない(直交する帯で嘘が出る)。
     ③ **離れ** ── 交差しない組の芯線どうしの最小の離れが犬走り `const.inubashiri` を割る組。
+    ④ **線 × 帯** ── 囲い・土留め(線)と 回廊の屋根・石段の踏面(帯)の**積**
+       【検図12巡目 低3 → 2026-09-07】。⛔ **旧版はこの積を誰も測っていなかった**(線×線 と
+       帯×帯 だけ)。⭕ 石段の側壁が自分の踏面の帯の縁に立つ 0.000 m の接触は**設計上の姿**なので
+       数だけ刷り、⛔ 食い込みと犬走り割れは名簿を要求する。
     ⛔ **どれも名簿 `kakoiCross.roster` に無ければ止める。**名簿は `_pending` を指し、
        `roster_guard` が**両方向**に突き合わせる(死んだ名簿も⛔・規則19)。
     ⛔ 名簿そのものの宣言が無ければ止める ── 宣言を消せば何が起きても鳴らなくなる。
@@ -722,7 +933,31 @@ def kakoi_cross_check(d, g):
             note.append("『%s』は uv(%.3f, %.3f) を中心に **%.3f m を回さない** ── "
                         "他の囲いへ犬走り %.2f m より近く並走する区間【算出 — "
                         "`derive_runs` が輪郭と他の囲いの離れから決める従属値。⛔ 数で持たない】"
+                        "【U 設計判断 — 図の姿としてそう決めた。⚠ 柵の存在自体が `U(設計値)` である"
+                        "以上、切れ目も設計判断である(考証10巡目 軽微3)】"
                         % (r["name"], q[0], q[1], 2 * q[2] * ken, d["const"]["inubashiri"]))
+    # ⛔ **`skips` の合計に頭打ちを置く**【検図12巡目 中2 → 2026-09-07】。
+    #    ⚠ skip 規則には**上限も ⛔ で止まる条件も無かった**ので、他の囲いが寄れば任意の長さが
+    #    〔記録〕1行だけで消える形だった。
+    #    ⭐ **頭打ちは宣言の意味から出す。**囲いの切れ目には二種ある ──
+    #    ① **口**(`gapFrom` で石段の幅・門口から従属する、**何を通すかという理由を持つ**切れ目)
+    #    ② **skip**(相手の囲いが寄ったという**成り行き**で決まり、〔記録〕1行しか残らない切れ目)。
+    #    ⛔ **理由を持たない切れ目が、理由を持つ切れ目より長い囲いは、もう宣言どおりの姿ではない。**
+    #    ⛔ 現況の比(2.7%)からは決めていない ── 両辺とも算出値で、⛔ 数を持たない。
+    #    ⛔ 両辺は**同じ物差し**(折れ線から実際に抜けた長さ)で測る(検図12巡目 低1 と同じ)。
+    for r in d["runs"]:
+        if not (r.get("skips")): continue
+        lg = gap_ledger(r)
+        if lg["skip が抜いた"] > lg["口が抜いた"] + 1e-9:
+            bad.append("『%s』の**宣言していない切れ目(`skips`)の合計 %.3f m** が、"
+                       "**宣言した口の合計 %.3f m** を超える ── 成り行きで消える長さが、"
+                       "何を通すかという理由を持つ口より長い。⛔ この柵はもう宣言どおりの姿ではない"
+                       % (r["name"], lg["skip が抜いた"] * ken, lg["口が抜いた"] * ken))
+        note.append("『%s』の **`skips` の頭打ち** ── 宣言していない切れ目 %.3f m ／ "
+                    "宣言した口 %.3f m(**この比が 1 を超えたら⛔**)／ 折れ線に対して %.2f%%"
+                    "【算出 — ⛔ 両辺とも従属値。⛔ 現況の比を根拠に閾値を置いていない】"
+                    % (r["name"], lg["skip が抜いた"] * ken, lg["口が抜いた"] * ken,
+                       100.0 * lg["skip が抜いた"] / (lg["折れ線"] or 1.0)))
     lines, bands = _kakoi_items(d)
     got, corner, near = [], 0, []
     for i in range(len(lines)):
@@ -794,6 +1029,33 @@ def kakoi_cross_check(d, g):
                 note.append("帯『%s』×『%s』の重なり %.4f m²(食い込み %.3f m)── ⭕ 名簿ずみ"
                             "(→ `_pending`「%s」)【算出】"
                             % (ni, nj, A * ken * ken, -gapm * ken, ros[key].get("pending", "—")))
+    # ③ 線 × 帯(囲い・土留め × 回廊の屋根・石段の踏面)── ⛔ **積を黙って抜かない**
+    #    【検図12巡目 低3 → 2026-09-07】。旧版は 線×線 と 帯×帯 だけを測り、**その積は誰も
+    #    測っていなかった**(黙って抜けているのが規則19 の欠陥の形)。
+    #    ⭕ **石段の側壁が自分の踏面の帯の縁の上に立つ 0.000 m の接触は設計上の姿**なので
+    #    〔記録〕に数だけ刷る(⛔ 名簿で1件ずつ許さない — 名簿が接触の一覧に化ける)。
+    lb_touch, lb_far = 0, []
+    for ni, si in lines:
+        for nj, sj, hj in bands:
+            if ni.split(":", 1)[-1] == nj.split(":", 1)[-1]: continue   # run とその屋根は同じ物
+            gp = _line_band_gap(si, _band_rects(sj, hj))
+            if gp is None: continue
+            key = "|".join(sorted((ni, nj)))
+            if abs(gp) <= BAND_TOUCH_KEN:
+                lb_touch += 1
+                continue
+            if gp >= ins - 1e-9:
+                if gp * ken < 0.60: lb_far.append((ni, nj, gp * ken))
+                continue
+            got.append(key)
+            kd = "食い込み %.3f m" % (-gp * ken) if gp < 0 else "離れ %.3f m" % (gp * ken)
+            if key not in ros:
+                bad.append("線『%s』と帯『%s』の%s ── 帯は幅を持つので芯線では測れない。"
+                           "⛔ 名簿 `kakoiCross.roster` に無い" % (ni, nj, kd))
+            else:
+                note.append("線『%s』×帯『%s』の%s(犬走り %.2f m 未満)── ⭕ 名簿ずみ"
+                            "(→ `_pending`「%s」)【算出】"
+                            % (ni, nj, kd, d["const"]["inubashiri"], ros[key].get("pending", "—")))
     # ④ 囲い・土留めが棟の矩形を貫いていないか(⛔ 名簿を置かない — 貫いてよい理由が無い)
     npier = 0
     for m in d["munes"]:
@@ -812,14 +1074,22 @@ def kakoi_cross_check(d, g):
     for k in set(got):
         kd = ros[k]["kind"] if k in ros else "⛔ 名簿の外"
         tal[kd] = tal.get(kd, 0) + 1
-    note.append("囲い %d 本・土留め %d 本の**総当たり** %d 組 ＋ 帯 %d 本の総当たり %d 組 ── "
-                "真の交差 %d 組 ／ 帯の重なり %d 組 ／ 犬走り %.2f m 未満 %d 組(合わせて名簿 %d 件・"
+    note.append("囲い %d 本・土留め %d 本の**総当たり** %d 組 ＋ 帯 %d 本の総当たり %d 組 "
+                "＋ **線 × 帯 %d 組**(検図12巡目 低3 で足した)── "
+                "真の交差 %d 組 ／ 帯の重なり %d 組 ／ 犬走り %.2f m 未満 %d 組 ／ "
+                "**線 × 帯 の食い込み %d 組・離れ %d 組**(合わせて名簿 %d 件・"
                 "⛔ 名簿の外は 0 でなければ組めない)／ 隅の突き付け(端点で接する)%d 組 ／ "
-                "囲い×棟の貫通 %d 件【算出 — 交点が端か途中かで分ける。物差しは %.2f 間】"
+                "**線が帯の縁に接する(0.000 m)%d 組 — 石段の側壁が自分の踏面の帯の縁に立つ"
+                "設計上の姿** ／ 囲い×棟の貫通 %d 件"
+                "【算出 — 交点が端か途中かで分ける。物差しは %.2f 間・帯の接触は %.3f 間】"
                 % (len(d["runs"]), len(d["terraceWalls"]), len(lines) * (len(lines) - 1) // 2,
-                   len(bands), len(bands) * (len(bands) - 1) // 2,
+                   len(bands), len(bands) * (len(bands) - 1) // 2, len(lines) * len(bands),
                    tal.get("交差", 0), tal.get("帯の重なり", 0), d["const"]["inubashiri"],
-                   tal.get("離れ", 0), len(ros), corner, npier, KAKOI_END_KEN))
+                   tal.get("離れ", 0), tal.get("線と帯の重なり", 0), tal.get("線と帯の離れ", 0),
+                   len(ros), corner, lb_touch, npier, KAKOI_END_KEN, BAND_TOUCH_KEN))
+    for ni, nj, dd in sorted(lb_far, key=lambda q: q[2]):
+        note.append("線『%s』×帯『%s』の離れ %.3f m(⭕ 犬走り %.2f m 以上)【算出】"
+                    % (ni, nj, dd, d["const"]["inubashiri"]))
     if tal.get("⛔ 名簿の外"):
         note.append("**名簿の外** %d 組 ── ⛔ 上の⛔で止まっている【算出】" % tal["⛔ 名簿の外"])
     for ni, nj, dd in sorted(near, key=lambda q: q[2]):
@@ -861,6 +1131,18 @@ def ido_check(d):
     if R is None: return bad, note
     ken = d["const"]["ken"]
     si, no = R["石敷"], R["軒先"]
+    # ⚠ **測るのは平側(西・東)の二辺だけ**【庭方6巡目 低1 → 2026-09-07】── 妻側(南北)の軒先は
+    #    `hashiraPitchKen`/2 + `hafuDeKen` で石敷の半幅 `ishikiKen`/2 より内に入る。
+    #    ⭕ **切妻は妻側に雨落ちが無い**ので、石敷が破風より出るのは屋根の作法として正しい。
+    #    ⛔ 妻側を測る検査を足さない。⛔ 黙って抜かない — 下の〔記録〕が毎回そう名乗る。
+    note.append("**軒先 ≡ 石敷** を測るのは**平側(西・東)の二辺だけ** ── 妻側(南北)は "
+                "軒先の半幅 %.3f m(`hashiraPitchKen`/2 + `hafuDeKen`)＜ 石敷の半幅 %.3f m"
+                "(`ishikiKen`/2)で %.3f m 内に入るが、⭕ **切妻は妻側に雨落ちが無い**ので"
+                "石敷が破風より出るのは正しい【算出 — 庭方6巡目 低1】"
+                % ((d["ido"]["hashiraPitchKen"] / 2.0 + d["ido"]["hafuDeKen"]) * ken,
+                   d["ido"]["ishikiKen"] / 2.0 * ken,
+                   (d["ido"]["ishikiKen"] / 2.0
+                    - (d["ido"]["hashiraPitchKen"] / 2.0 + d["ido"]["hafuDeKen"])) * ken))
     for i, nm in ((0, "西"), (2, "東")):
         if abs(si[i] - no[i]) > 1e-6:
             bad.append("井戸屋形の軒先の%sの出が石敷の縁と %.3f m 食い違う(雨落ちが石敷から外れる)"
@@ -2894,7 +3176,8 @@ def crown_rule_check(d):
                                     % (sg["name"], (dd - r) * ken0))
     # ⭐ **高木は `idoNokiCrownClear` の射程の外**【中1 庭方 2026-09-07】。
     #    ⛔ 除外していること**だけ**を宣言して終わらせない — 樹冠が井戸屋形へ掛かってよいのは
-    #    **枝下が屋形の棟高を越える**からで、そこは誰も測っていなかった(10 m の椋の下枝が
+    #    **枝下が屋形の棟高を越える**からで(⛔ 一般則ではない・考証10巡目 中3)、
+    #    そこは誰も測っていなかった(10 m の椋の下枝が
     #    下がれば屋形の棟に当たる)。⛔ 宣言(`idoMuneClear`)が消えたら止める(規則19)。
     if tk.get("idoMuneClear") is None:
         bad.append("`planting.plantRule.crownRule.takagi.idoMuneClear` の宣言が無い — "
@@ -2933,7 +3216,9 @@ def crown_rule_check(d):
                     else:
                         note.append("%s の樹冠が井戸屋形の軒先の外形へ %.3f m 掛かる ── ⭕ **可**"
                                     "(枝下 %.2f m ＞ 屋形の棟高 %.2f m・余裕 %+.2f m)"
-                                    "【中1 庭方 2026-09-07 — 社頭の井戸が大樹の下に在るのは常態。"
+                                    "【U 設計判断 — ⛔ 根拠は幾何のこの一行だけで、"
+                                    "『社頭の井戸が大樹の下に在るのは常態』という一般則は "
+                                    "2026-09-07 考証10巡目 中3 で落とした(典拠が無い)。"
                                     "⛔ 余裕はこれだけしか無い】"
                                     % (sg["name"], (r - dd) * ken0, e, io_["muneH"],
                                        e - io_["muneH"]))
@@ -3441,7 +3726,7 @@ def rect_overlap_check(d, g, minTsubo=None):
     # ⭐ **足切りは部材の見付から出す絶対値**(検図9巡目 中1)。⛔ 刻みに従属させない —
     #    従属させると刻みを下げるたびに下限も下がり、「一段下げて⛔0」が収束の証拠にならない
     if minTsubo is None: minTsubo = ovl_min_tsubo(d)
-    bad, note = _ovl_scan(it, ok, st, d, minTsubo)
+    bad, note, okarea = _ovl_scan(it, ok, st, d, minTsubo)
     # ⭐ **収束の判定 ── 二段連続で⛔の件数が変わらないこと**(検図9巡目 中1)。
     #    ⛔ 一段だけ見て収束と言わない。足切りが絶対値になったので、件数が動くのは
     #    「粗すぎて見えていなかった当たりが見えた」ときだけになる
@@ -3449,7 +3734,7 @@ def rect_overlap_check(d, g, minTsubo=None):
     fine = st
     for _k in range(2):
         fine /= 2.0
-        b2, _n2 = _ovl_scan(it, ok, fine, d, minTsubo)
+        b2, _n2, _o2 = _ovl_scan(it, ok, fine, d, minTsubo)
         cnt.append(len(b2))
         if len(b2) != len(bad):
             for q in b2:
@@ -3467,6 +3752,31 @@ def rect_overlap_check(d, g, minTsubo=None):
                 "意図された接合の白名簿 %d 組【算出】"
                 % (len(it) * (len(it) - 1) // 2, st, st * d["const"]["ken"],
                    ovl_min_dia(d), minTsubo, len(ok)))
+    # ⭐ **白名簿にも両方向の見張りを掛ける**【検図12巡目 低2 → 2026-09-07】。
+    #    ⚠ `kakoiCross.roster` は `pending` の指し先を要求し `roster_guard` が両方向で見張るのに、
+    #    `_OVL_OK` は**コード内のベタ列で片方向の見張りも無かった**。
+    #    ⛔ **名の消えた許可**(指す面が図から無くなった組)と **死んだ許可**(幾何として一点も
+    #    重ならない組)は⛔で止める。⭕ **足切りの下の空振り**は〔記録〕で名指す ── ⛔ ⛔にすると
+    #    「足切りを下げた日にだけ通る」という逆立ちした条件になる(足切りは部材の見付から出る絶対値)。
+    nms = set(q[0] for q in it)
+    gone = [q for q in sorted(ok) if q[0] not in nms or q[1] not in nms]
+    for q in gone:
+        bad.append("意図された接合の白名簿 `_OVL_OK` の『%s × %s』が指す面が図に無い — "
+                   "名が変わったか消えた(死んだポインタ)" % q)
+    live = ["%s × %s" % q for q in sorted(ok) if okarea.get(q, 0.0) > 0.0]
+    bad += roster_guard(["%s × %s" % q for q in sorted(ok) if q not in gone], live,
+                        "意図された接合の白名簿", "`_OVL_OK`")
+    karaburi = [(q, okarea.get(q, 0.0)) for q in sorted(ok)
+                if q not in gone and 0.0 < okarea.get(q, 0.0) <= minTsubo]
+    note.append("**意図された接合の白名簿 `_OVL_OK` の実測** %d 組 ── 走査で坪が立つ %d 組 ／ "
+                "**足切り %.4f 坪(%.5f m²)の下で空振り %d 組**%s ／ 幾何として一点も重ならない"
+                "(死んだ許可)%d 組【算出 — ⛔ 許可は『重なってよい』という宣言なので、重なって"
+                "いない組を許可しておくと、そこが本当に重なった日に黙って通る】"
+                % (len(ok), sum(1 for q in sorted(ok) if okarea.get(q, 0.0) > minTsubo),
+                   minTsubo, minTsubo * TSUBO, len(karaburi),
+                   (" — " + "／".join("『%s × %s』%.5f m²" % (q[0], q[1], a_ * TSUBO)
+                                      for q, a_ in karaburi)) if karaburi else "",
+                   sum(1 for q in sorted(ok) if q not in gone and okarea.get(q, 0.0) <= 0.0)))
     note.append("**収束の確認** — 刻みを二段(%s 間)下げて⛔の件数は %s%s【算出 — "
                 "⛔ 一段だけ見て収束と言わない(検図9巡目 中1)】"
                 % ("・".join("%.6f" % (st / (2.0 ** (i + 1))) for i in range(len(cnt) - 1)),
@@ -3474,6 +3784,34 @@ def rect_overlap_check(d, g, minTsubo=None):
                    "(**二段連続で変わらない = 収束**)" if len(set(cnt)) == 1
                    else "(⛔ **動いている = 収束していない**)"))
     return bad, note
+
+
+def _ovl_pair_area(A_, B_, st, d):
+    """二つの面の重なり[坪]。⛔ 判定則は `_ovl_scan` と一字一句同じ(刻みだけ引数)。"""
+    (na, fa, ba, Pa), (nb, fb, bb, Pb) = A_, B_
+    u0, v0 = max(ba[0], bb[0]), max(ba[1], bb[1])
+    u1, v1 = min(ba[2], bb[2]), min(ba[3], bb[3])
+    if u1 - u0 <= 0 or v1 - v0 <= 0: return 0.0
+    ct = cell_tsubo(d, st)
+    n = 0
+    v = v0 + st / 2.0
+    while v < v1:
+        xa = _poly_row(Pa, v) if Pa is not None else None
+        xb = _poly_row(Pb, v) if Pb is not None else None
+        if (xa is None or xa) and (xb is None or xb):
+            u = u0 + st / 2.0
+            while u < u1:
+                if (_row_in(xa, u) if xa is not None else fa((u, v))) and \
+                   (_row_in(xb, u) if xb is not None else fb((u, v))): n += 1
+                u += st
+        v += st
+    return n * ct
+
+
+def _ovl_bbox_side(A_, B_):
+    """二つの面の bbox の共通部分の短辺[間]。⛔ 白名簿を測り直す刻みを出すためだけ。"""
+    ba, bb = A_[2], B_[2]
+    return min(min(ba[2], bb[2]) - max(ba[0], bb[0]), min(ba[3], bb[3]) - max(ba[1], bb[1]))
 
 
 def _ovl_scan(it, ok, st, d, minTsubo):
@@ -3484,11 +3822,25 @@ def _ovl_scan(it, ok, st, d, minTsubo):
     素の点内外判定のままでは組み上げが数分に伸びる。
     """
     ct = cell_tsubo(d, st)
-    bad, note = [], []
+    bad, note, okarea = [], [], {}
     for i in range(len(it)):
         for j in range(i + 1, len(it)):
             (na, fa, ba, Pa), (nb, fb, bb, Pb) = it[i], it[j]
-            if tuple(sorted((na, nb))) in ok: continue
+            if tuple(sorted((na, nb))) in ok:
+                # ⭐ **白名簿の組も測る**【検図12巡目 低2 → 2026-09-07】── 旧版は走査ごと飛ばして
+                #    いたので、⛔ **死んだ許可**(重なっていない組を許可したまま)が見張られていなかった。
+                #    ⚠ 足切りの下でも**幾何としては重なっている**組があるので、0 と出たら
+                #    **共通 bbox の短辺から刻みを取り直して**測る(⛔ 判定則は変えない)。
+                A_ = _ovl_pair_area(it[i], it[j], st, d)
+                if A_ <= 0.0:
+                    side = _ovl_bbox_side(it[i], it[j])
+                    if side > 0:
+                        A_ = _ovl_pair_area(it[i], it[j], min(st, side / 64.0), d)
+                # ⚠ **同じ名の面が複数ある**(玉垣は口で分かれるので『東面 上』が3片)。
+                #    ⛔ 上書きしない — 一片でも重なっていればその許可は生きている。
+                k_ = tuple(sorted((na, nb)))
+                okarea[k_] = max(okarea.get(k_, 0.0), A_)
+                continue
             if na.startswith("塊:") and nb.startswith("塊:"):
                 pass                                   # 塊どうしは重なってはいけない
             elif na.startswith("塊:") and (nb.startswith("境内の立木") or nb.startswith("帯")):
@@ -3520,7 +3872,7 @@ def _ovl_scan(it, ok, st, d, minTsubo):
                 (note if (na.startswith(dom) or nb.startswith(dom)) else bad).append(
                     "%s と %s が %.4f 坪(%.4f m²)重なる"
                     % (na, nb, n * ct, n * ct * TSUBO))
-    return bad, note
+    return bad, note, okarea
 
 
 def _poly_row(P, z):
@@ -6911,7 +7263,9 @@ def ido_depth(d):
     ⚠ 2026-09-06 考証検分4巡目 中4: 指図が 5〜8 m を直に持っていたが、前庭の天端と東の麓道は
     ほぼ同高で「麓道以下」からは数十cmしか出ず、8m を出す一歩(溜池の水面を下限に置く)が
     図にも指図にも無かった。⛔ 数を持たず、`ido.gwBoundsM` からの引き算で出す。
-    ⛔ 記号 P(プロジェクト内実測)を地下水位の推定に使わない — 確度は【U 設計値 / B 常態】。
+    ⛔ 記号 P(プロジェクト内実測)を地下水位の推定に使わない — 確度は【U 設計値】。
+    ⚠ 旧版はここに【B 常態】と書いていたが、『台地の縁の掘井戸は江戸の常態【B】』は
+    2026-09-07 考証7巡目 中1 で取り下げられている(掃き残し・検図12巡目 の巡で直した)。
     """
     lo, hi = d["ido"]["gwBoundsM"]
     y = d["terraces"][1]["y"]
@@ -7412,6 +7766,7 @@ def run_checks():
     pd_ = plane_dev_check(d, g)
     ib = inubashiri_check(d, g)
     kib = keidai_inubashiri_check(d, g)   # 境内の囲いの犬走り(検図9巡目 中3)
+    ts = terrace_shape_check(d)           # 平場の輪郭の健全性(検図12巡目 中2)
     sd = saku_decl_check(d)               # 柵の宣言(kind と hFrom の整合。検図10巡目 中3/中4)
     kx = kakoi_cross_check(d, g)          # 囲い・土留め・屋根の帯どうしの交差と離れ(検図11巡目 中1)
     sc = section_cut_check(d, g)          # 断面が切る棟(検図9巡目 中2)
@@ -7443,6 +7798,7 @@ def run_checks():
                  pd_[0], pd_[1]))
     rows.append(("前庭の西縁の犬走り(西縁に取り付く物すべて)", ib[0], ib[1]))
     rows.append(("境内の囲いの犬走り(平場の輪郭からの寄せ)", kib[0], kib[1]))
+    rows.append(("平場の輪郭の健全性(重複頂点・零長辺・自己交差／最鋭の内角)", ts[0], ts[1]))
     rows.append(("柵の宣言(`kind`=柵 と丈の出所 `hFrom` の整合)", sd[0], sd[1]))
     rows.append(("囲い・土留め・屋根の帯どうしの交差と離れ", kx[0], kx[1]))
     rows.append(("断面が切る棟(⛔ 切られない棟は名簿で宣言する)", sc[0], sc[1]))
@@ -7886,7 +8242,9 @@ def main():
              "<th>外形</th><th class='note'>形式</th><th>確度</th></tr></thead><tbody>"
              + "".join(rows) + "</tbody></table></div>")
     h.append('<p class="cap">⛔ <b>現行実装の「境内に仁王門と随身門の二基」は誤り。</b>'
-             '絵図の銘は「樓門」、名所図会の題箋は「随身門」で、同一の門の別称と読む【S】。'
+             '絵図の銘は「樓門」【S 字 — 原図実見】、名所図会の題箋は「随身門」【S 字 — 原図実見】で、'
+             '<b>この二つを同一の門の別称と読むのは当方の同定</b>【U】'
+             '(位置が同一なので同定は堅いが、別称であると述べる史料は無い)。'
              'もう一基は男坂の下にあり、名所図会の題箋は「◯王門」=仁王門と読める【S 実見】。'
              '<b>実装名は「仁王門」</b>【U ユーザー判読 2026-09-01】だが、'
              '<b>御宮絵図の銘「二天門」(⚠ 上字はユーザー判読で自信なし)との食い違いは未決</b>【?】 — '
@@ -8051,19 +8409,35 @@ def main():
              '⚠ <b>分母は社地単体(十坊・観理院を含まない。2026-08-26 のユーザーの敷地割)</b>。十坊の建物はもとより本図の対象外。記載値18,570坪の原典は考証中(「未解決」の節)。</p></div>'
              % (area, area / TSUBO, kei, _ma, _ma / area * 100))
     h.append('<p class="cap" style="margin-top:44px">@@PLATES@@。'
-             '<b>組み直すときは図を落としていないか必ず数える</b>(過去に16図版→1図版へ落ちた前科がある)。</p>')
+             '<b>組み直すときは図を落としていないか必ず数える</b>(過去に16図版→1図版へ落ちた前科がある)。'
+             '<br>@@NOTEMD@@</p>')
     h.append('<div class="foot">組んだ日 %s ／ 設計値 <code>sanno_sashizu.json</code> ／ '
              '文章 <code>sanno_kosho.md</code>。Y は海抜 m(Unity の Y がそのまま標高)。</div>'
              % subprocess.check_output(["date", "+%Y-%m-%d %H:%M"]).decode().strip())
     h.append("</div>")
-    html_out = "\n".join(h)
+    html_out = note_cells("\n".join(h))          # 表のセルの行内記法(検図12巡目 低4)
+    nmd = note_md_check(html_out)                # 通し残しが無いか
     tail = svg_tail_check(html_out)                  # (a) </svg> の後に要素を残さない
     # ⛔ **0件でも必ず刷る** — 件数が出ない検査は「回っていない」のと見分けが付かない(結線の門番)
-    print("── 検査 1 本(組んだ後)──\n  図版の末尾(</g></svg>) ⛔ %d 件 ／ 〔記録〕 0 件" % len(tail))
+    print("── 検査 2 本(組んだ後)──\n  図版の末尾(</g></svg>) ⛔ %d 件 ／ 〔記録〕 0 件\n"
+          "  表のセルの行内記法(未変換のマークダウン)  ⛔ %d 件 ／ 〔記録〕 %d 件"
+          % (len(tail), len(nmd[0]), len(nmd[1])))
+    for q in nmd[1]: print("  〔記録〕[表のセルの行内記法] %s" % q)
+    for q in nmd[0]: sys.stderr.write("  ⛔ [表のセルの行内記法] %s\n" % q)
+    if nmd[0]:
+        sys.stderr.write("⛔ 表のセルに未変換のマークダウンが残っている — %d 件\n" % len(nmd[0]))
+        sys.exit(1)
     if tail:
         sys.stderr.write("⛔ 図版が壊れている — %d 件:\n" % len(tail))
         for t in tail: sys.stderr.write("   ・%s\n" % t)
         sys.exit(1)
+    # ⛔ **組んだ後の検査も図に出す**(規則19・`wiring_gate --surfaced`)── stdout にしか無い
+    #    検査結果は、読む人にとって存在しない。⚠ 註の変換は html を組んでからでないと測れないので、
+    #    差し込み口(`@@NOTEMD@@`)を置いて後から埋める(`@@PLATES@@` と同じ作法)。
+    html_out = html_out.replace(
+        "@@NOTEMD@@",
+        "組んだ後の検査(2本)── 図版の末尾(&lt;/g&gt;&lt;/svg&gt;)の残り <b>%d 件</b> ／ %s"
+        % (len(tail), html.escape(nmd[1][0]).replace("`", "")))
     nsvg = html_out.count("<svg")
     # ⚠ 章の数ではなく **SVG の数**を数える(2026-08-23 検図 — 章を数えても落図を検出できない)
     html_out = html_out.replace("@@PLATES@@", "章 %d ／ 図版(SVG) %d 面" % (n[0], nsvg))

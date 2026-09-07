@@ -2546,6 +2546,116 @@ def tani_sensitivity(d):
     return probes, bad
 
 
+def link_axis(l):
+    """廊下の**走りの軸**と、**低い端・高い端**の走り座標(間)。
+
+    ⭕ 正典の書き方は **`u0`/`v0` が低い側**(床 = `y` − `drop`)で、`u1`/`v1` が高い側。
+      ⛔ ここを取り違えると段が裏返る — **断面もこの向きで刷っている**。
+    """
+    if abs(l["v1"] - l["v0"]) >= abs(l["u1"] - l["u0"]):
+        return "v", float(l["v0"]), float(l["v1"])
+    return "u", float(l["u0"]), float(l["u1"])
+
+
+def stair_run_ken(d, l):
+    """段の**走り**(間)= `steps` × `const.fumi` ÷ `const.ken`。⛔ 踏面を直書きしない。"""
+    return (l.get("steps") or 0) * d["const"]["fumi"] / d["const"]["ken"]
+
+
+def roka_cut_check(d):
+    """**階段廊下の段(=屋根の切れ目)の位置**が三条を満たすか(2026-09-08 普請奉行の裁定)。
+
+    ⭐⭐ **`roofSheets.cutAt` は「屋根を切る柱通り」= 段の上端**(高い側の踏面の縁)で、
+      段はそこから**低い端(`u0`/`v0`)へ向かって降りる**。⛔ 芯や中央で持たない(規則5)。
+    ⭕ **三条**(裁定の前から `_roofSheets` に書いてあった制約をそのまま機械にした):
+      ① **柱通りの上** … 端からの間数が整数(⛔ 半間の位置で垂木を切らない)
+      ② **両端の棟から1間以上内** … 割ると枚が消える
+      ③ **段の走りが収まる** … `steps` × `const.fumi` が**切れ目と低い端のあいだ**に入る
+         (⛔ 収まらないと段が低い側の棟へ食い込む)
+    ⛔ **段の無い廊下に位置を書かない**(第4の条)— 谷を増やすことになる。
+    ⚠ **位置が未決の廊下はここでは鳴らさない** — 行き先は `band_todo`(`_pending.rokakaidan`)。
+    """
+    C = d["const"]
+    bad = []
+    for l in d.get("links", []):
+        sh = l.get("roofSheets") or {}
+        cut = sh.get("cutAt")
+        n = sh.get("n") or 1
+        nm = MUNE_JA.get(l["name"], l.get("label", l["name"]))
+        if cut is None:
+            continue                       # 未決は band_todo の持ち場(0件で素通りさせない)
+        if n < 2:
+            bad.append("[枚数] **%s は屋根が %d 枚なのに段の位置 %.4g が書いてある** — "
+                       "⛔ 段の無い廊下に切れ目を書かない(谷を増やすことになる)" % (nm, n, cut))
+            continue
+        ax, lo, hi = link_axis(l)
+        run = stair_run_ken(d, l)
+        if abs((cut - lo) - round(cut - lo)) > 1e-9:
+            bad.append("[柱通り] **%s の切れ目 %s=%.4g が柱通りに乗らない** — "
+                       "低い端 %.4g から %.4g間 で、整数の間になっていない"
+                       % (nm, ax, cut, lo, cut - lo))
+        if cut < lo + 1.0 - 1e-9 or cut > hi - 1.0 + 1e-9:
+            bad.append("[端から] **%s の切れ目 %s=%.4g が端の棟へ寄りすぎ** — "
+                       "低い端から %.4g間 / 高い端から %.4g間 で、1間の内に入る"
+                       "(⛔ 枚が消える)" % (nm, ax, cut, cut - lo, hi - cut))
+        if cut - lo < run - 1e-9:
+            bad.append("[走り] **%s の段の走り %.3f間(%d段 × 踏面 %.3fm)が、"
+                       "切れ目 %s=%.4g と低い端 %.4g のあいだ %.3f間 に収まらない** — "
+                       "⛔ 段が低い側の棟へ食い込む"
+                       % (nm, run, l.get("steps") or 0, C["fumi"], ax, cut, lo, cut - lo))
+    return bad
+
+
+def roka_cut_sensitivity(d):
+    """**感度試験** — 段の位置を壊して三条が鳴るか。⛔ 検査を書いただけで塞いだと名乗らない。
+
+    束は5つ — ① いまの指図 → 鳴らない ② 柱通りを半間外す → **条①** ③ 高い端の棟へ寄せる →
+    **条②** ④ 段を増やして走りを伸ばし切れ目を低い端から1間へ → **条③**
+    ⑤ 位置を消す → 三条は鳴らず、**`band_todo` が未決として2件鳴る**(⛔ 0件で素通りしない)。
+    """
+    def count(e):
+        out = roka_cut_check(e)
+        return (len([x for x in out if x.startswith("[柱通り]")]),
+                len([x for x in out if x.startswith("[端から]")]),
+                len([x for x in out if x.startswith("[走り]")]),
+                len([x for x in band_todo(e) if "段の位置が未決" in x]))
+
+    def tweak(fn):
+        e = copy.deepcopy(d)
+        for l in e["links"]:
+            sh = l.get("roofSheets") or {}
+            if (sh.get("n") or 1) > 1:
+                fn(l, sh)
+        return e
+
+    def _half(l, sh):
+        sh["cutAt"] = sh["cutAt"] + 0.5
+
+    def _hi(l, sh):
+        sh["cutAt"] = link_axis(l)[2]
+
+    def _long(l, sh):
+        l["steps"] = 5
+        sh["cutAt"] = link_axis(l)[1] + 1.0
+
+    def _none(l, sh):
+        sh["cutAt"] = None
+
+    probes = [("① いまの指図", count(copy.deepcopy(d)), (0, 0, 0, 0)),
+              ("② 柱通りを半間外す", count(tweak(_half)), (2, 0, 0, 0)),
+              ("③ 高い端の棟へ寄せる", count(tweak(_hi)), (0, 2, 0, 0)),
+              ("④ 段を5段にして切れ目を低い端から1間へ", count(tweak(_long)), (0, 0, 2, 0)),
+              ("⑤ 位置を消す(未決へ戻す)", count(tweak(_none)), (0, 0, 0, 2))]
+    bad = []
+    for nm, got, want in probes:
+        if [q > 0 for q in got] != [q > 0 for q in want]:
+            bad.append("%s: 条①%d件 / 条②%d件 / 条③%d件 / 未決%d件 — 期待は %s"
+                       % ((nm,) + got + ("・".join(
+                           "%s%s" % (t, "鳴る" if w else "鳴らない")
+                           for t, w in zip(("条①", "条②", "条③", "未決"), want)),)))
+    return probes, bad
+
+
 def mune_gap_check(d, st=None):
     """**隣り合う建物の屋根が食い込んでいないか。**⛔ 方向を持たない目安で測らない。
 
@@ -4979,12 +5089,45 @@ def section_svg(d, sec):
                 a3, b3 = l["u0"], l["u1"]
             else:
                 continue
+            # ⭐⭐ **段は一箇所に立つ**(2026-09-08 普請奉行の裁定=`roofSheets.cutAt`)。
+            #   ⛔⛔ **走り全体を一様な斜路として描かない** — 従前ここは 8等分の直線で、
+            #   **図が「8間かけて緩やかに下る廊下」を示していた**(実際は段が1箇所)。
+            #   ⭕ 切れ目は**段の上端**で、段はそこから**低い端(a3)へ降りる**。
+            #   ⭕ **屋根も同じ所で切れて2枚**になる — 両枚の大棟をこの断面に描く。
+            ax9, lo9, hi9 = link_axis(l)
+            sh9 = l.get("roofSheets") or {}
+            cut9 = sh9.get("cutAt")
+            if (cut9 is not None and abs(a3 - lo9) < 1e-9 and abs(b3 - hi9) < 1e-9):
+                tr9 = d["const"]["fumi"] / d["const"]["ken"]
+                ke9 = l.get("keriActual") or 0.0
+                pts9, x9, h9 = [(b3, l["y"]), (cut9, l["y"])], cut9, l["y"]
+                for _i9 in range(l.get("steps") or 0):
+                    h9 -= ke9
+                    pts9.append((x9, h9))
+                    x9 -= tr9
+                    pts9.append((x9, h9))
+                pts9.append((a3, l["y"] - l["drop"]))
+                g.append('<polyline points="%s" fill="none" stroke="var(--roka)" '
+                         'stroke-width="3.2"/>'
+                         % " ".join("%.1f,%.1f" % (X(q), Y(w) - 3) for q, w in pts9))
+                # 2枚の屋根(大棟の高さ)と、切れ目の位置
+                rh9 = (d["const"].get("rokaEave") or 0.0) + (d["const"].get("rokaOmuneRise") or 0.0)
+                for q0, q1, f9 in ((cut9, b3, l["y"]), (a3, cut9, l["y"] - l["drop"])):
+                    g.append(LN(X(q0), Y(f9 + rh9), X(q1), Y(f9 + rh9), "var(--roka)", 1.6))
+                g.append(LN(X(cut9), Y(l["y"] - l["drop"]), X(cut9),
+                            Y(l["y"] - l["drop"] + rh9), "var(--roka)", 1.2, dash="4 3"))
+                g.append(T(X(cut9), Y(l["y"] - l["drop"] + rh9) - 4,
+                           "屋根の切れ目 %s=%.4g" % (ax9, cut9), "anG", "middle"))
+                g.append(T(X((a3 + b3) / 2), Y(l["y"]) - 12,
+                           "%s %d段(屋根 %d枚)" % (l["name"], l["steps"], sh9.get("n") or 1),
+                           "anG", "middle"))
+                continue
             g.append('<polyline points="%s" fill="none" stroke="var(--roka)" stroke-width="3.2"/>'
                      % " ".join("%.1f,%.1f" % (X(a3 + (b3 - a3) * k / 8.0),
                                                Y(l["y"] - l["drop"] + l["drop"] * k / 8.0) - 3)
                                 for k in range(9)))
             g.append(T(X((a3 + b3) / 2), Y(l["y"]) - 12,
-                       "%s %d段" % (l["name"], l["steps"]), "anG", "middle"))
+                       "%s %d段 ⚠ 段の位置が未決" % (l["name"], l["steps"]), "anG", "middle"))
             continue
         if l["kind"] != "御錠口":
             continue
@@ -7658,6 +7801,63 @@ def tani_table(d):
         "%s</p>" % (rng,
                     "" if not nn else
                     " ⚠⚠ <b>%d 組が未測</b>(⛔ 「0件」ではない)。" % nn))
+
+
+def roka_cut_table(d):
+    """**階段廊下の段と屋根の切れ目**(2026-09-08 普請奉行の裁定)。⛔ 値を正典に置くだけにしない。
+
+    ⭐ `roofSheets.cutAt` = **屋根を切る柱通り**(= 段の上端)。段はそこから**低い端へ降りる**。
+    ⚠ 頭上の2値は**段の上端の踏面から低い枚の屋根までの高さ** — ⛔ **合否ではない**
+      (桁の実寸は部材方の持ち場)。⭕ 軒先は柱の外なので通り道の頭上ではない。
+    """
+    C = d["const"]
+    rows = []
+    for l in d.get("links", []):
+        sh = l.get("roofSheets") or {}
+        if (sh.get("n") or 1) < 2:
+            continue
+        nm = MUNE_JA.get(l["name"], l.get("label", l["name"]))
+        ax, lo, hi = link_axis(l)
+        cut, run = sh.get("cutAt"), stair_run_ken(d, l)
+        if cut is None:
+            rows.append((nm, "%.4g間(%s %.4g→%.4g)" % (hi - lo, ax, lo, hi),
+                         "%d段 / 蹴上 %.3f" % (l.get("steps") or 0, l.get("keriActual") or 0.0),
+                         "⚠ <b>未決</b>(<code>_pending.rokakaidan</code>)",
+                         "—", "—", "—", _certcell(sh)))
+            continue
+        rows.append((
+            nm, "%.4g間(%s %.4g→%.4g)" % (hi - lo, ax, lo, hi),
+            "%d段 / 蹴上 %.3f / 踏面 %.3f" % (l.get("steps") or 0,
+                                              l.get("keriActual") or 0.0, C["fumi"]),
+            "<b>%s = %.4g</b>" % (ax, cut),
+            "低い端(%.4g)から <b>%.4g間</b> / 高い端(%.4g)から <b>%.4g間</b>"
+            % (lo, cut - lo, hi, hi - cut),
+            "%.3f間(%.3fm)を %s %.4g → %.4g で使う — 残る踊り場 <b>%.3f間</b>"
+            % (run, run * C["ken"], ax, cut, cut - run, cut - lo - run),
+            "低い枚 <b>%.4g間</b> / 高い枚 <b>%.4g間</b>" % (cut - lo, hi - cut),
+            _certcell(sh)))
+    if not rows:
+        return "<p class='cap'>⚠ <b>段で切る廊下が 0 本。</b></p>"
+    ev = C.get("rokaEave")
+    rr = C.get("rokaOmuneRise")
+    dr = max([l.get("drop") or 0.0 for l in d.get("links", [])] or [0.0])
+    return _tw(("階段廊下", "走り", "段(蹴上・踏面)", "<b>切れ目 <code>cutAt</code></b>",
+                "両端の棟から", "段の走りが使う区間", "枚の長さ", "確度"), rows) + (
+        "<p class='cap'>⭐⭐ <b>切れ目は「屋根を切る柱通り」であって芯ではない</b>(規則5)— "
+        "<b>段の上端(高い側の踏面の縁)</b>に取り、段はそこから<b>低い端へ降りる</b>。"
+        "⛔ <b>棟梁は中央で切らない。</b><br>"
+        "⭕ <b>三条を <code>roka_cut_check</code> が毎回測る</b> — "
+        "① 柱通りの上 ② 両端の棟から1間以上内 ③ 段の走りが切れ目と低い端のあいだに収まる。<br>"
+        "⚠ <b>頭上</b>(合否ではない・参考): 段の上端の踏面から、低い枚の<b>大棟の天端まで "
+        "%.3fm</b> / <b>軒先まで %.3fm</b>(<code>const.rokaEave</code> %.3f "
+        "+ <code>rokaOmuneRise</code> %.4f − 段の落差 %.3f)。"
+        "⛔ <b>軒先は柱の外</b>なので通り道の頭上ではない。桁の実寸は部材方の持ち場。<br>"
+        "⛔ <b>史料は無い</b>【U・2026-09-08 普請奉行の裁定】— "
+        "<b>段を表向側へ寄せた</b>ので、<b>中奥(居間)側の長い枚が一枚で通り</b>、"
+        "<b>段を降りた先が表向</b>という動線の読みになる。"
+        "⚠ <b>御錠口は別の廊下</b>なので、この2本は帯の境ではない。</p>"
+        % ((ev + rr - dr) if None not in (ev, rr) else 0.0,
+           (ev - dr) if ev is not None else 0.0, ev or 0.0, rr or 0.0, dr))
 
 
 def roof_kata_table(d):
@@ -13189,6 +13389,7 @@ def main():
             + mune_gap_check(d, _GAPST) + roof_parcel_check(d)
             + band_check(d) + neighbour_hash_check(d)
             + buzai_jissoku_check(d) + kachu_kata_check(d) + roka_roof_check(d)
+            + roka_cut_check(d)
             + clearance_check(d) + rails_check(d)
             + ramp_check(d) + completeness_check(d) + program_check(d) + gate_overlap_check(d) + vocab_check(d)
             + terrace_overhang_check(d) + setchin_check(d)
@@ -13266,6 +13467,15 @@ def main():
         print("    %s → 条①(谷が閉じない)%d件 / 条②(大棟が高い)%d件"
               % (_nm, _got[0], _got[1]))
     for _b in _tsb:
+        print("   ", _b)
+    _cpr, _cbd = roka_cut_sensitivity(d)
+    print("── 感度試験(階段廊下の段の位置): %s"
+          % ("**%d束/%d束 期待どおり**" % (len(_cpr) - len(_cbd), len(_cpr))
+             if not _cbd else "⚠ %d束が期待と違う" % len(_cbd)))
+    for _nm, _got, _w in _cpr:
+        print("    %s → 条①(柱通り)%d件 / 条②(端から)%d件 / 条③(走り)%d件 / 未決 %d件"
+              % ((_nm,) + _got))
+    for _b in _cbd:
         print("   ", _b)
     probes, sbad = mune_gap_sensitivity(d)
     print("── 感度試験(`mune_gap_check`): %s"
@@ -13969,6 +14179,25 @@ def main():
                     "⭕ <b>壊して鳴ることを毎回刷る</b>(規則19)。</p>" % len(_tp9)
                     if not _tb9 else
                     "<p class='cap'>⚠ " + "<br>".join(inline(q) for q in _tb9) + "</p>"))
+        h.append("<h3>階段廊下の段と屋根の切れ目 — 位置(<code>cutAt</code>)と三条</h3>")
+        h.append(roka_cut_table(d))
+        # ⭐⭐ **裁定で入れた値は、同じ巡で「壊すと鳴る」ことまで刷る**(規則19)。
+        _cp9, _cb9 = roka_cut_sensitivity(d)
+        h.append("<div class='tw'><table><thead><tr><th>感度試験(段の位置)</th>"
+                 "<th>条①(柱通り)</th><th>条②(端から)</th><th>条③(走り)</th>"
+                 "<th>未決(<code>band_todo</code>)</th><th>期待</th>"
+                 "</tr></thead><tbody>"
+                 + "".join("<tr><td>%s</td><td><b>%d 件</b></td><td><b>%d 件</b></td>"
+                           "<td><b>%d 件</b></td><td><b>%d 件</b></td><td>%s</td></tr>"
+                           % ((inline(a),) + b
+                              + ("・".join("%s%s" % (t, "鳴る" if w else "鳴らない")
+                                           for t, w in zip(("条①", "条②", "条③", "未決"), wv)),))
+                           for a, b, wv in _cp9) + "</tbody></table></div>"
+                 + ("<p class='cap'>⭕ <b>%d 束すべて期待どおり。</b>"
+                    "⛔ <b>位置を消した束(⑤)で三条が鳴らず、代わりに未決が2件鳴る</b> — "
+                    "⭕ <b>未決の道が塞がっていないこと</b>まで毎回示す(規則19)。</p>" % len(_cp9)
+                    if not _cb9 else
+                    "<p class='cap'>⚠ " + "<br>".join(inline(q) for q in _cb9) + "</p>"))
         # ⭐ **意匠の差し戻しは図に出す**(規則19)。⛔ stdout に閉じ込めない。
         _bt = band_todo(d)
         h.append('<div class="box" style="border-color:var(--shu)"><h3>'

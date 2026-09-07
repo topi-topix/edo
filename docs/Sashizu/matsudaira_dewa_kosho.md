@@ -448,6 +448,10 @@
 (現行の `build_goten_roof.py` は W'=W+2E の対称生成)。谷樋 6本(表向 23.6m×3 / 奥向 12.7m×3)。
 谷の位置・長さ・両側の大棟の高さは json の `valleys` を正とする。
 
+**格は軒高で読む(厩<長屋類<御殿)**【普請奉行の裁定U・第23次 2026-09-07】。⛔ **棟高では格を
+読まない** — 棟高は梁間の従属値なので、梁間の広い棟のほうが格に関わらず高く出る。数値は
+`const.gotenEave` / `const.nagayaGataEave` / `const.umayaEave`(json正典)。
+
 ## 植栽と西斜面の林 — 部材は在庫の実物を名指しする【2026-08-30】
 
 **⛔ 自作の低ポリゴンの木 `Assets/Edo/Terrain/details/BroadleafTree.prefab` は使用禁止**

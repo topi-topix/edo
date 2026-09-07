@@ -14697,14 +14697,14 @@ def roof_band_span_check(d):
 
 
 def roof_eave_order_check(d):
-    """**格は軒高で読む: 厩 < 長屋類 < 御殿**(2026-09-07・第22次・普請奉行の裁定=土井の実例
-    「厩2.35<家中長屋2.80<御殿3.40」を踏襲)。
+    """**格は軒高で読む: 厩 < 長屋類 < 御殿**(2026-09-07・第22次で立て、第23次で決着=普請奉行の
+    裁定。土井の実例「厩2.35<家中長屋2.80<御殿3.40」と同じ置き方を採った)。
 
     ⛔ **棟高(muneTakasa)で格を読まない** — 棟高は梁間の従属値なので、梁間の広い棟のほうが
     格に関わらず高く出る(土井 2026-09-06 の共有・第21次で見た副作用と同じ穴)。
-    ⭕ 見るのは kind ごとの**軒高**だけ。当邸は `const.gotenEave` は確定したが、長屋類(厩を除く
-    `ROOF_NAGAYA_GATA_MUNES`)と厩(zone=厩)の軒高がまだ無い。0件を返さない —
-    `_pending.eaveOrder` が解けるまで、未定の kind を1件として持つ(0件=偽の合格を避ける)。"""
+    ⭕ 見るのは kind ごとの**軒高**だけ。`const.gotenEave` / `const.nagayaGataEave` /
+    `const.umayaEave` の3値(第23次で立てた)を突き合わせる。⛔ 数字はここに書かない —
+    `const` から読む(規則4)。どれかが欠けている間は 0件を返さない(`_pending.eaveOrder`)。"""
     C = d["const"]
     eaves = {}
     missing = []
@@ -14716,9 +14716,15 @@ def roof_eave_order_check(d):
     nagaya_munes = [n for n in sorted(ROOF_NAGAYA_GATA_MUNES)
                     if next((m for m in d["munes"] if m["name"] == n), {}).get("zone") != "厩"]
     if nagaya_munes:
-        missing.append("長屋類(%s)" % "・".join(MUNE_JA.get(n, n) for n in nagaya_munes))
+        if "nagayaGataEave" in C:
+            eaves["長屋類"] = C["nagayaGataEave"]
+        else:
+            missing.append("長屋類(%s)" % "・".join(MUNE_JA.get(n, n) for n in nagaya_munes))
     if any(m.get("zone") == "厩" for m in d["munes"]):
-        missing.append("厩")
+        if "umayaEave" in C:
+            eaves["厩"] = C["umayaEave"]
+        else:
+            missing.append("厩")
     bad = []
     if missing:
         bad.append("軒高が未定の kind: %s — 決まるまで序列(厩<長屋類<御殿)は判定不可"

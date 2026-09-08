@@ -1700,32 +1700,38 @@ def karahafu_hafu(name, ue, eaveZ, p, ka, n=40, bw=0.34, bt=0.14):
 # ==========================================================================
 # 棟ごとの組み立て
 # ==========================================================================
-MUNE_TOP = {}       # 棟名 → (大棟の上端, 部材の Y 上端)。⭐ 裁3 の物差しを部材の側で持つ
-
-
 def finish(objs, name, pivot_h=0.0):
     """join → **銅瓦へ寄せ** → ピボットを **区画の中心・地盤レベル**へ。
     ⚠ 測るのは書き出しの前。"""
     V.dedup_materials()
     o = V.join([x for x in objs if x], name)
-    # ⭐⭐ **大棟の上端**を、銅瓦へ寄せる**前**に測る(裁3 = 棟高は大棟の上端まで。
-    #   ⛔ 鬼板・置千木などの棟飾りは含まない)。⚠ `to_copper` を通すと鬼板の材
-    #   `roof ornaments` が `Doukawara` に溶けて**もう見分けられない**。
-    #   ⇒ 目録 `docs/asset-index.tsv` の丈(= 部材の Y 上端 = 鬼の頂)との差を
-    #     **棟飾りの丈**として毎回刷る。指図方はこれを引いて `muneHeightRule` を建てる。
-    orn = {i for i, m in enumerate(o.data.materials)
-           if m and m.name.split('.')[0] in COPPER_FROM and "ornament" in m.name}
-    zs_all, zs_tile = [], []
-    for pg in o.data.polygons:
-        zz = max(o.data.vertices[i].co.z for i in pg.vertices)
-        zs_all.append(zz)
-        if pg.material_index not in orn:
-            zs_tile.append(zz)
-    if zs_all:
-        MUNE_TOP[name] = (max(zs_tile) if zs_tile else max(zs_all), max(zs_all))
     to_copper(o)                       # ⭐ 瓦・棟・鬼は銅瓦葺【S】。灰の本瓦では出さない
     V.set_origin(o, (0.0, 0.0, pivot_h))
     return o
+
+
+def mune_top(o, axis, end=0.60):
+    """⭐⭐ **(大棟の上端, 部材の Y 上端, 棟飾りの丈)** を焼いたメッシュから測る。
+
+    ⭐ 裁3(2026-09-09): **棟高 = 平場の設計面 → 大棟の上端。⛔ 鬼板・置千木は含まない。**
+      ⚠ 目録 `docs/asset-index.tsv` が測っているのは **鬼の頂**(= 部材の Y 上端)なので、
+      指図方は `muneHeightRule` を「目録の丈 − **棟飾りの丈**」の従属値として立てられる。
+    ⛔⛔ **材で切り分けられない。**`roof top x1`(大棟・隅棟のモジュール)も
+      `roof ornaments L`(鬼板)も **材質名は同じ `roof ornaments`**(2026-09-09 に実測)。
+      材で外すと**大棟ごと落ちて瓦場の頂を「大棟の上端」と読み違える**(実際にそうなった)。
+    ⭕ ⇒ **幾何で切る** — 鬼は大棟の**両端**に載る。⇒ **棟の中央 ±`end` [m] の帯**の
+      最高点が大棟の上端(棟は走り方向に一様なので、中央を見れば端の飾りが混ざらない)。
+      `axis` = 大棟の走る軸(Unity の 'x' か 'z')。両下造は鬼が無いので値は変わらない。
+    ⛔ **「天端付近の頂点の走り座標の両端を捨てる」ではいけない** — その両端は
+      **鬼そのもの**が決めるので、窓が鬼ごと外へずれて丸ごと拾ってしまう(2026-09-09 に実見)。"""
+    pts = _roof_verts(o)
+    if not pts:
+        return (None, None, None)
+    ytop = max(p[1] for p in pts)
+    ax = 0 if axis == 'x' else 2
+    core = [p[1] for p in pts if abs(p[ax]) <= end]
+    mt = max(core) if core else ytop
+    return (mt, ytop, ytop - mt)
 
 
 def report(o, name, note=""):
@@ -2396,6 +2402,9 @@ SORI_WIN = dict(
 # ⭐ 軒反り(隅の跳ね上がり)を **入れた棟**と、⛔ **入れていない棟とその理由**。
 #   ⛔ 「入っていない」を黙らない — 0件は合格ではなく未測定(規則19)。
 NOKI_CHECK = ("honden", "haiden")
+# 大棟の走る軸(Unity ローカル)。⚠ 入母屋は南北(Z)・両下造は東西(X)。
+#   向拝は大棟を持たない(軒唐破風の稜)ので 'z' を入れて**稜の頂**を刷るだけにする。
+MUNE_AXIS = dict(honden='z', haiden='z', heiden='x', tsukuriai='x', kohai='z')
 NOKI_NONE = dict(
     heiden="両下造で、東西の端は隣の棟の軒下へ潜る ⇒ **自由な隅が無い**",
     tsukuriai="両下造で、東西の端は隣の棟の軒下へ潜る ⇒ **自由な隅が無い**",
@@ -2436,10 +2445,11 @@ def build_one(R, key, do_render):
         print("  検算 軒反り        %-20s ⚠ **未検査 = 入れていない**(%s)"
               % (o.name, NOKI_NONE[key]))
     # ⭐⭐ 棟飾りの丈(裁3)。目録 `docs/asset-index.tsv` の丈は**鬼の頂**を測っている
-    if o.name in MUNE_TOP:
-        mt, at = MUNE_TOP[o.name]
-        print("  棟高の内訳         %-20s 大棟の上端 %.3f / 部材の Y 上端(鬼の頂) %.3f "
-              "⇒ **棟飾りの丈 %.3f**" % (o.name, mt, at, at - mt))
+    mt, at, orn = mune_top(o, MUNE_AXIS[key])
+    if mt is not None:
+        print("  棟高の内訳         %-20s 瓦場の頂 %.3f / **大棟の上端 %.3f** / "
+              "部材の Y 上端 %.3f ⇒ **棟飾りの丈 %.3f**"
+              % (o.name, top, mt, at, orn))
     V.export_fbx([o], os.path.join(OUT, o.name + ".fbx"))
     print("[shaden] 書き出し " + os.path.join(OUT, o.name + ".fbx"))
     _ = do_render

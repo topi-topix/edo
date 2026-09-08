@@ -876,9 +876,12 @@ public static class EdoAssets
         /// 引数: <paramref name="len"/> = 走りの実長[m](指図 gate.plan.sPos.sodeW / sodeE の**従属値**)。
         /// <paramref name="kuguri"/> = **潜り戸の中心**を走りの起点から測った距離[m]。負なら潜り戸なし。
         /// 潜り戸は幅 **0.95** × 有効高 **1.85**(従前の一体部材の実測をそのまま運んだ値)の**一枚戸**。
-        /// ⚠⚠ **焼いてあるのは 4.25(潜り戸なし)と 4.25 / 中心 2.125 の 2 本だけで、どちらも仮**。
-        /// 長さは指図方が決め直している最中(`_pending.omotemonZuKaishaku`)で、
-        /// 潜り戸が西・東どちらの袖に付くかも【U】。⛔ **決まるまで本据えしない。**
+        /// ⭕ **焼いてあるのは `Sodebei_5.5.fbx`(潜り戸なし)** — 長さは指図 第29次の
+        /// `gate.plan.sPos.sodeW`/`sodeE`(111.8‥117.3 / 130.3‥135.8)の従属値 5.5m。
+        /// ⚠ 4.25 の 2 本(`Sodebei_4.25` / `Sodebei_4.25_K2.13`)は第28次の仮値で**もう使わない**。
+        /// ⛔ **潜り戸つきは焼いていない** — 走りのどこに開くかも、西・東どちらの袖に付くかも
+        /// 指図が持っていない【U】(`_pending.omotemonSodeKuguri`)。⛔ 部材方は発明しない。
+        /// ⇒ 指図が中心を持ったら `--kuguri &lt;中心m&gt;` で焼き足す。
         /// 生成: blender --background --python Tools/Blender/build_sodebei.py -- &lt;長さm&gt; [--kuguri &lt;中心m&gt;] [--render]</summary>
         public static string Sodebei(float len, float kuguri = -1f)
         {

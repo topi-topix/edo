@@ -16,6 +16,7 @@
   ① **潜り(覆われた銘)** — `text` より**後ろ**に、その字面と交わる**不透明な塗り**があるか。
      ⛔ 再レンダは要らない — **描画順の照合**で出る。⭕ 直しは `relayout` が
      **銘を面の末尾へまとめて送る**(= 常に最後に描く)。
+     ⚠ 「塗り」は**線の帯・`style` の fill・曲線 path・`use`** まで含む(下記 第6巡)。
   ② **字送りの下限** — 和字を含む字面の**実効 px**(基準の窓での見え方)が `MIN_EFF` 未満。
      ⛔ 「書いてある」と「読める」は別物で、⚠ **字を小さくするほど重なりの検査には
      当たらなくなる**(宣言された寸法で箱を組むため)= 検査の向きが読めなさを罰していない。
@@ -31,11 +32,30 @@
 ⭕ 裏は検図方がレンダして目で取る。⭐ **道具の非対称**(機械は全面を網羅できるが精度が粗い /
 目は精度が高いが 43 面を毎巡は見られない)を、そのまま役の分担にしてある。
 
+⛔⛔ **2026-09-08 第6巡: 「墨が乗っている」は「読める」ではなかった。**
+検図方が**宣言色 × 直下の地色**の WCAG コントラスト比を測ったところ、
+**229 件が和文の下限(4.5:1)を割り、最悪は 1.04**(ほぼ同色)。⚠⚠ **前巡に「潜り」から
+救い出した銘が、そのまま最悪側に着地していた** — ⛔ 救い出す先の色を測っていなかった。
+⇒ ⭕ ⑤ **銘のコントラスト**を足し、直しは `haloize` が**自動で白フチを回す**
+(⛔ 一つずつ手で色を選ばない — 色を手で選ぶと、地色が動いた次の巡でまた沈む)。
+
+⛔⛔ **同じ巡で分かったこと: 潜りの検査には抜け道が6通りあった**(検図方 中1)。
+**うち2通りは当図に現に在る形**(`stroke-width` 62.7px の道の帯 95 本・曲線を含む塗り)。
+⚠⚠ 検図方の診断が重い — 「**0 件を保証していたのは検査ではなく `relayout` の
+『銘を末尾へ送る』直しのほうで、検査は構造的に 0 しか返せない位置にいた**」。
+⇒ `paint_layers` を **「紙を塗り得る全要素」**(太い線・`style` の fill・曲線 path・`use`)
+へ広げ、**その4通りを破壊試験の束⑥〜⑨で毎回鳴らす**。
+⚠ **それでもなお、この図で 0 件が続くのは末尾送りのおかげ**である(検査が効くのは
+`transform`/`opacity`/`mask` の群に残った銘と、末尾送りが壊れた巡)。⛔ 混同しない。
+
 【この版でも測っていないこと(⛔ 次の巡へそのまま渡す)】
 ⛔ **窓の幅**: 実効 px は `VIEW_W`(基準の窓)での値。⚠ 窓を狭めれば svg は縮み、
    字はそのぶん小さくなる(`.fig svg{width:100%}`)。⇒ **狭い窓での読めなさは測っていない**。
-⛔ **塗りの色**: 潜りは「不透明な塗りが後ろに在るか」しか見ない。⚠ **薄い色の上の薄い字**
-   (低いコントラスト)は鳴らない。
+⛔ **半透明の重ね掛け**: 1枚ずつが `ALPHA_MIN` 未満なら「覆い」と数えない(束⑪が実証)。
+⛔ **字の一部だけの覆い**: 1字の `COVER_FR` 未満は数えない(束⑫が実証)。
+⛔ **円弧(`A`)と `transform` を持つ群**: 座標を解いていない(当図には 0 個)。
+⛔ **コントラストは「宣言色 × 合成した地色」**であって**画素ではない** — ⚠ アンチエイリアス・
+   フチの太さ・字画の細さは見ていない。⭕ 裏は検図方がレンダして目で取る。
 ⛔ **字の形**: 字送りは幅だけで、⚠ **合字・縦組み・約物の詰め**は見ていない。
 
 【字の大きさと寄せは `sashizu.css` が正典】
@@ -56,7 +76,10 @@ CSS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sashizu.css")
 
 _RE_SVG = re.compile(r'(<svg\b[^>]*viewBox="0 0 ([\d.]+) ([\d.]+)"[^>]*>)(.*?)(</svg>)', re.S)
 _RE_TXT = re.compile(r'<text\b([^>]*)>(.*?)</text>', re.S)
-_RE_ATT = re.compile(r'([a-zA-Z-]+)="([^"]*)"')
+# ⛔⛔ **属性名に数字と `:` が入る**(`x1` `y2` `xlink:href`)。⚠ 2026-09-08 まで
+#   `[a-zA-Z-]+` で拾っており、**線の端点 `x1…y2` が一つも取れていなかった** —
+#   ⚠ 線を「覆わない物」として外していたので**誰も気づかなかった**(検図方 中1)。
+_RE_ATT = re.compile(r'([a-zA-Z][\w:.-]*)="([^"]*)"')
 _RE_RULE = re.compile(r'\.([A-Za-z][\w-]*)\s*\{([^}]*)\}')
 
 TOL = 0.5          # px。この物差しの粗さより小さい当たりは数えない
@@ -76,6 +99,16 @@ MIN_EFF = 8.5      # px。和字を含む字面の実効 px の下限(これ未�
 # ⭐ 覆いの判定。⛔ 半透明の薄掛けは「覆い」と呼ばない
 ALPHA_MIN = 0.5    # 塗りの実効不透明度がこれ以上なら覆う物とみなす
 COVER_FR = 0.6     # 1字の箱のこれだけが塗りの下なら、その字は乗っていない
+STROKE_MIN = 1.5   # px。⭐ これ以上の太さの線は**紙を塗る**(⛔ 線を「塗りでない」と見ない)
+
+# ⭐⭐ **銘のコントラストの下限**(2026-09-08 検図方 高2)。WCAG 2.x の**和文の通常字**の下限。
+#   ⛔ **「墨が乗っている」は「読める」ではない** — 潜りから救い出した銘が
+#   `#615C4E` on `#505B64`(比 1.04 = ほぼ同色)に着地していた。
+CR_MIN = 4.5
+# ⭐ 白フチ(`paint-order:stroke`)の太さ。字の大きさに従わせる(⛔ 一つずつ選ばない)。
+HALO_W = (2.4, 3.5)     # px。下限・上限
+HALO_FS = 0.30          # 字の大きさに対する割合
+REF_NEAR = 24.0    # px。⭐ **拾い上げてよいのは、元の位置の近くに物が描かれている銘だけ**
 
 
 # ---------------------------------------------------------------- 字の物差し
@@ -93,6 +126,77 @@ def css_classes(path=CSS):
                                an.group(1) if an else None,
                                float(ls.group(1)) if ls else 0.0)
     return out
+
+
+def css_fills(path=CSS):
+    """`sashizu.css` → {クラス名: fill の宣言}。⛔ 色をここに書き写さない(CSS が正典)。"""
+    t = open(path, encoding="utf-8").read()
+    out = {}
+    for m in _RE_RULE.finditer(t):
+        f = re.search(r"fill:\s*([^;}]+)", m.group(2))
+        if f:
+            out[m.group(1)] = f.group(1).strip()
+    return out
+
+
+def css_vars(path=CSS):
+    """`:root` の `--token` → 値。⛔ 図の色は CSS の変数で書かれているので、まずこれを解く。"""
+    t = open(path, encoding="utf-8").read()
+    m = re.search(r":root\s*\{([^}]*)\}", t, re.S)
+    return {k: v.strip() for k, v in re.findall(r"--([\w-]+):\s*([^;]+);", m.group(1))} if m else {}
+
+
+_VARS = [None]
+
+
+def rgb(c, depth=0):
+    """色の宣言 → (r, g, b)。⛔ **測れない色は None を返す**(⚠ 既定値へ倒さない)。
+
+    ⚠ `url(#…)`(パターン)と `none` は **None** = 「色が無い/測れない」。
+    """
+    if _VARS[0] is None:
+        _VARS[0] = css_vars()
+    c = (c or "").strip()
+    if not c or depth > 4:
+        return None
+    m = re.match(r"var\(--([\w-]+)\s*(?:,[^)]*)?\)", c)
+    if m:
+        return rgb(_VARS[0].get(m.group(1)), depth + 1)
+    if c.startswith("#"):
+        h = c[1:]
+        if len(h) == 3:
+            h = "".join(ch * 2 for ch in h)
+        if len(h) != 6 or re.search(r"[^0-9a-fA-F]", h):
+            return None
+        return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+    m = re.match(r"rgba?\(([^)]*)\)", c)
+    if m:
+        v = [q.strip() for q in m.group(1).split(",")]
+        if len(v) >= 3:
+            try:
+                return tuple(int(round(float(q))) for q in v[:3])
+            except ValueError:
+                return None
+    return {"white": (255, 255, 255), "black": (0, 0, 0)}.get(c.lower())
+
+
+def lum(c):
+    """相対輝度(WCAG 2.x)。"""
+    def f(v):
+        v = v / 255.0
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+    return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2])
+
+
+def cratio(a, b):
+    """コントラスト比(1.0〜21.0)。"""
+    la, lb = lum(a), lum(b)
+    return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+
+
+def _over(c, base, a):
+    """`c` を不透明度 `a` で `base` の上へ重ねた色。"""
+    return tuple(a * c[k] + (1.0 - a) * base[k] for k in range(3))
 
 
 def _adv(ch):
@@ -141,10 +245,15 @@ class Tx(object):
     """1個の `<text>`。"""
 
     __slots__ = ("i", "span", "att", "s", "cls", "fs", "an", "ls", "x", "y",
-                 "lines", "drop", "moved", "x0", "y0", "par", "kept")
+                 "lines", "drop", "moved", "x0", "y0", "par", "kept", "pin")
 
     def __init__(self, i, span, att, s, cls, fs, an, ls, x, y, par=-1):
         self.i, self.span, self.att, self.s = i, span, att, s
+        # ⭐⭐ **`data-pin="1"` は「動かしてはいけない銘」**(2026-09-08 庭方 ⑵)。
+        #   ⛔⛔ **丸の中の数字を寄せると、数字だけが丸から離れて浮く** — ⚠ 庭の主図で
+        #   汀 #5 が**バッジ半径の 1.8 倍**離れ、空の白丸に別の銘が重なっていた。
+        #   ⇒ ⭕ **先に置いて場所を主張し、当たった相手のほうを動かす。**
+        self.pin = att.get("data-pin") == "1"
         self.cls, self.fs, self.an, self.ls = cls, fs, an, ls
         self.x, self.y = x, y
         self.x0, self.y0 = x, y      # ⭐ **もとの位置**(寄せた量はここからの差で数える)
@@ -216,7 +325,7 @@ def parse(body, cls_tab, parents=None):
 
 
 # ---------------------------------------------------------------- 図形の読み取り
-_RE_EL = re.compile(r'<(text|rect|polygon|polyline|path|circle|line|g|/g|defs|/defs'
+_RE_EL = re.compile(r'<(text|rect|polygon|polyline|path|circle|line|use|g|/g|defs|/defs'
                     r'|clipPath|/clipPath|pattern|/pattern)\b([^>]*?)(/?)>', re.S)
 _RE_NUM = re.compile(r'-?[\d.]+(?:[eE]-?\d+)?')
 
@@ -263,11 +372,34 @@ def _clip_box(poly, box):
     return p
 
 
+_BEZ_N = 12        # 曲線を折る数。⛔ 曲線を「測れない」で見逃さない(2026-09-08 検図方 中1)
+
+
+def _bez(p, n=_BEZ_N):
+    """de Casteljau で曲線を折線へ。`p` = 制御点(3点=2次 / 4点=3次)。⛔ 乱数を使わない。"""
+    out = []
+    for k in range(1, n + 1):
+        t = k / float(n)
+        q = list(p)
+        while len(q) > 1:
+            q = [((1 - t) * q[i][0] + t * q[i + 1][0], (1 - t) * q[i][1] + t * q[i + 1][1])
+                 for i in range(len(q) - 1)]
+        out.append(q[0])
+    return out
+
+
 def _path_polys(d):
-    """`M/L/H/V/Z` だけの path を多角形へ。⛔ 曲線が出たら **None**(= 測れないと申告)。"""
+    """path を多角形へ。⭐ **曲線(C/S/Q/T)も折って測る**(2026-09-08 検図方 中1)。
+
+    ⛔⛔ 従前は曲線が出たら **None**(=測れない)を返し、⚠ 呼び側が `or []` で
+    **「覆わない」に倒していた** — ⇒ **曲線を1つ含む塗りは検査を素通りできた**
+    (検図方が変異 (d) で実証: 画素 0.00 = 完全に消えるのに 0 件)。
+    ⚠ **円弧(A)だけはまだ測れない** — ⛔ 出たら None を返して申告する(当図には 0 本)。
+    """
     toks = re.findall(r'[A-Za-z]|-?[\d.]+(?:[eE]-?\d+)?', d)
     polys, cur = [], []
     x = y = sx = sy = 0.0
+    px = py = None                  # 直前の制御点(S/T の鏡像に要る)
     i, cmd = 0, None
     while i < len(toks):
         t = toks[i]
@@ -280,10 +412,40 @@ def _path_polys(d):
                     cur = []
                 x, y = sx, sy
                 continue
-            if cmd not in ("M", "m", "L", "l", "H", "h", "V", "v"):
+            if cmd in ("A", "a"):
+                return None         # ⛔ 円弧は測れない — **黙って通さない**
+            if cmd not in ("M", "m", "L", "l", "H", "h", "V", "v",
+                           "C", "c", "S", "s", "Q", "q", "T", "t"):
                 return None
             if i >= len(toks):
                 break
+        if cmd in ("C", "c", "S", "s", "Q", "q", "T", "t"):
+            rel = cmd.islower()
+            need = {"C": 6, "S": 4, "Q": 4, "T": 2}[cmd.upper()]
+            v = [float(q) for q in toks[i:i + need]]
+            if len(v) < need:
+                break
+            i += need
+            pts = [(v[k], v[k + 1]) for k in range(0, need, 2)]
+            if rel:
+                pts = [(x + a, y + b) for a, b in pts]
+            mirror = (2 * x - px, 2 * y - py) if px is not None else (x, y)
+            if cmd.upper() == "C":
+                c1, c2, e = pts
+            elif cmd.upper() == "S":
+                c1, (c2, e) = mirror, pts
+            elif cmd.upper() == "Q":
+                (c1, e), c2 = pts, None
+            else:                                   # T = 2次の鏡像(制御点なし)
+                c1, c2, e = mirror, None, pts[0]
+            seg = ([(x, y), c1, c2, e] if c2 is not None else [(x, y), c1, e])
+            if not cur:
+                cur = [(x, y)]
+            cur.extend(_bez(seg))
+            px, py = (c2 or c1)
+            x, y = e
+            continue
+        px = py = None
         if cmd in ("M", "m"):
             if cur:
                 polys.append(cur)
@@ -341,6 +503,215 @@ def _shape_polys(tag, a):
     if tag == "path":
         return _path_polys(a.get("d", "")) or []
     return []
+
+
+def _outline(tag, a):
+    """輪郭の頂点列(**線を帯にする**ため)。⛔ 閉じた図形は最後の辺も閉じる。"""
+    if tag == "line":
+        try:
+            return [[(float(a.get("x1", 0)), float(a.get("y1", 0))),
+                     (float(a.get("x2", 0)), float(a.get("y2", 0)))]]
+        except ValueError:
+            return []
+    if tag == "polyline":
+        v = [float(q) for q in _RE_NUM.findall(a.get("points", ""))]
+        p = list(zip(v[0::2], v[1::2]))
+        return [p] if len(p) >= 2 else []
+    if tag == "path":
+        return [p + [p[0]] if a.get("d", "").rstrip()[-1:] in ("Z", "z") else p
+                for p in (_path_polys(a.get("d", "")) or [])]
+    ps = _shape_polys(tag, a)
+    return [p + [p[0]] for p in ps]
+
+
+def _stroke_polys(tag, a):
+    """**線が塗る帯**。⭐⭐ 2026-09-08 検図方 中1 — ⛔⛔ 従前は `line` を「覆わない物」として
+    無条件に外しており、⚠ **当図に現に在る `stroke-width` 62.7px の道の帯**(95本)は
+    銘を丸ごと消しても 0 件だった(検図方の変異 (a) は画素 0.00 = 完全に消えた)。
+    ⇒ **太さを持つ線は紙を塗る。**⛔ 「線だから」で外さない。
+
+    ⚠ 継ぎ目(join)は**頂点に一辺 `w` の正方形**を置いて塞ぐ(近似・安全側)。
+    ⚠ **破線も帯として数える**(⛔ 「隙間があるから読める」とは言えない)= 安全側。
+    """
+    st = a.get("stroke", "")
+    stl = a.get("style", "")
+    m = re.search(r"(?:^|[;\s])stroke:\s*([^;\"]+)", stl)
+    if m:
+        st = m.group(1).strip()
+    if st in ("", "none"):
+        return []
+    try:
+        w = float(a.get("stroke-width", 1.0))
+    except ValueError:
+        w = 1.0
+    if w < STROKE_MIN:
+        return []
+    out = []
+    h = w / 2.0
+    for pts in _outline(tag, a):
+        for (x1, y1), (x2, y2) in zip(pts, pts[1:]):
+            dx, dy = x2 - x1, y2 - y1
+            n = math.hypot(dx, dy)
+            if n < 1e-9:
+                continue
+            ux, uy = -dy / n * h, dx / n * h
+            out.append([(x1 + ux, y1 + uy), (x2 + ux, y2 + uy),
+                        (x2 - ux, y2 - uy), (x1 - ux, y1 - uy)])
+        for (qx, qy) in pts[1:-1]:                  # 継ぎ目を塞ぐ
+            out.append([(qx - h, qy - h), (qx + h, qy - h), (qx + h, qy + h), (qx - h, qy + h)])
+    return out
+
+
+def _stroke_alpha(a):
+    try:
+        return float(a.get("opacity", 1.0) or 1.0) * float(a.get("stroke-opacity", 1.0) or 1.0)
+    except ValueError:
+        return 1.0
+
+
+def _decl_fill(a):
+    """`fill` の宣言。⭐ **`style` の中の `fill:` も拾う**(2026-09-08 検図方 中1 の変異 (c))。
+
+    ⛔⛔ 従前は `fill` **属性**しか見ておらず、⚠ `style="fill:…"` で塗った矩形は
+    銘を完全に消しても 0 件だった。
+    """
+    st = a.get("style", "")
+    m = re.search(r"(?:^|[;\s])fill:\s*([^;\"]+)", st)
+    return (m.group(1) if m else a.get("fill", "")).strip()
+
+
+def _defs_els(body):
+    """`id` を持つ図形(`<defs>` の中も外も)→ (tag, 属性)。⭐ `<use>` の解決に要る。"""
+    out = {}
+    for m in re.finditer(r'<(rect|polygon|polyline|path|circle|line)\b([^>]*?)/?>', body, re.S):
+        a = dict(_RE_ATT.findall(m.group(2)))
+        if a.get("id"):
+            out[a["id"]] = (m.group(1), a)
+    return out
+
+
+def _shift(polys, dx, dy):
+    return [[(x + dx, y + dy) for x, y in p] for p in polys]
+
+
+def _signed_area(p):
+    s = 0.0
+    for i in range(len(p)):
+        x1, y1 = p[i]
+        x2, y2 = p[(i + 1) % len(p)]
+        s += x1 * y2 - x2 * y1
+    return s / 2.0
+
+
+def _wind(pt, ring):
+    """巻き数(nonzero 判定用)。"""
+    x, y = pt
+    w = 0
+    n = len(ring)
+    for i in range(n):
+        x1, y1 = ring[i]
+        x2, y2 = ring[(i + 1) % n]
+        if y1 <= y < y2 or y2 <= y < y1:
+            xx = x1 + (y - y1) * (x2 - x1) / (y2 - y1)
+            if xx > x:
+                w += 1 if y2 > y1 else -1
+    return w
+
+
+def in_shape(pt, rings, rule="nonzero"):
+    """⭐⭐ **穴のある図形を「塗ってある」と誤らない**(2026-09-08)。
+
+    ⛔⛔ **1つの `path` の副輪郭(subpath)を別々の図形として数えていた** — ⚠ 当図の
+    **区画の外を隠す面**は「外枠 + 逆回りの敷地」の 2 輪郭・`fill-rule="evenodd"` で、
+    **敷地の中まで塗ってあることになっていた**。⇒ 銘の地色が紙色に見え、
+    ⚠ **実際には濃い地の上に在る銘が「読める」と判定されていた**(其五「厩の郭 17.9」)。
+    """
+    if rule == "evenodd":
+        return sum(1 for r in rings if _pip(pt, r)) % 2 == 1
+    return sum(_wind(pt, r) for r in rings) != 0
+
+
+def shape_clip_area(rings, box):
+    """箱に掛かる塗りの面積。⚠ **穴は逆回り**なので符号つきで足して打ち消す。"""
+    if len(rings) == 1:
+        cp = _clip_box(rings[0], box)
+        return _poly_area(cp) if cp else 0.0
+    tot = 0.0
+    for r in rings:
+        cp = _clip_box(r, box)
+        if cp:
+            tot += _signed_area(cp)
+    return abs(tot)
+
+
+def paint_layers(els, defs=None):
+    """**紙を塗り得る全要素**を描画順で返す — `[(描画順, 図形の列, 色 or None, 不透明度, 塗り規則)]`。
+
+    ⚠ 1つの図形は**輪郭の列**(外と穴)を持つ — ⛔ 副輪郭をばらして別の図形にしない。
+
+    ⭐⭐ 2026-09-08 検図方 中1 への答え。⛔⛔ 従前の条件は「`fill` **属性**を持つ非 `line` 要素」で、
+    検図方が**抜け道を6通り実証**した(うち2通りは当図に現に在る形)。⇒ 口を4つ広げた:
+      ⑴ **太い線**(`line`/`polyline`/輪郭)を帯として数える
+      ⑵ **`style="fill:…"`** の塗り
+      ⑶ **曲線(C/S/Q/T)を含む `path`** の塗り
+      ⑷ **`<use>`** で貼った図形(`x`/`y` の平行移動まで)
+    ⚠ **残る穴は正直に書く** — ⛔ 半透明の重ね掛け(1枚ずつは `ALPHA_MIN` 未満)と
+      ⛔ 字の一部だけを覆う帯(`COVER_FR` 未満)、⛔ 円弧(`A`)、⛔ `transform` の群。
+    """
+    out = []
+
+    def _put(i9, shapes, col, al, rule):
+        sh = []
+        for rings in shapes:
+            xs = [q[0] for r in rings for q in r]
+            ys = [q[1] for r in rings for q in r]
+            if not xs:
+                continue
+            sh.append((rings, (min(xs), min(ys), max(xs), max(ys))))
+        if sh:
+            out.append((i9, sh, col, al, rule))
+
+    for i9, e in enumerate(els):
+        tag, _pos, a, _g = e
+        if tag == "text":
+            continue
+        if tag == "use":
+            ref = re.sub(r"^#", "", a.get("href", "") or a.get("xlink:href", ""))
+            src = (defs or {}).get(ref)
+            if not src:
+                continue
+            tag2, a2 = src
+            try:
+                dx, dy = float(a.get("x", 0)), float(a.get("y", 0))
+            except ValueError:
+                dx = dy = 0.0
+            for shapes, col, al, rule in _one_layer(tag2, a2):
+                _put(i9, [_shift(r, dx, dy) for r in shapes], col,
+                     al * (float(a.get("opacity", 1.0) or 1.0)), rule)
+            continue
+        for shapes, col, al, rule in _one_layer(tag, a):
+            _put(i9, shapes, col, al, rule)
+    return out
+
+
+def _one_layer(tag, a):
+    """1要素が紙へ置く層 — `[(図形の列, 色, 不透明度, 塗り規則)]`。
+
+    ⚠ **塗りは1図形(輪郭の列)**、⚠ **線の帯は1本ずつ別の図形**(重なりを打ち消さないため)。
+    """
+    lay = []
+    f = _decl_fill(a)
+    if f not in ("", "none") and tag != "line":
+        pg = _shape_polys(tag, a)
+        if pg:
+            lay.append(([pg], rgb(f), _alpha(a), a.get("fill-rule", "nonzero")))
+    sp = _stroke_polys(tag, a)
+    if sp:
+        st = a.get("stroke", "")
+        m = re.search(r"(?:^|[;\s])stroke:\s*([^;\"]+)", a.get("style", ""))
+        lay.append(([[q] for q in sp], rgb(m.group(1) if m else st),
+                    _stroke_alpha(a), "nonzero"))
+    return lay
 
 
 def _scan_els(body):
@@ -492,7 +863,10 @@ def deoverlap(ts, W, H):
     先に置かれた短い銘に阻まれて**動く先を失う** — 動かすべきは短い銘のほうである。
     """
     placed = []
-    for t in sorted([q for q in ts if not q.drop],
+    for t in ts:                     # ⭐ **釘付けの銘が先に場所を取る**(⛔ 動かさない)
+        if not t.drop and t.pin:
+            placed.extend(t.boxes())
+    for t in sorted([q for q in ts if not q.drop and not q.pin],
                     key=lambda q: (-max(b[2] - b[0] for b in q.boxes()), q.i)):
         if not _hits(t.boxes(), placed):
             placed.extend(t.boxes())
@@ -552,34 +926,70 @@ def _fig_strings(doc, tab):
     return out
 
 
+def _near_shape(box, boxes, r=REF_NEAR):
+    """箱の近く(距離 `r` 以内)に**何か描かれている**か。⭐ 銘は指す物の脇に置かれる。"""
+    for b in boxes:
+        dx = max(b[0] - box[2], box[0] - b[2], 0.0)
+        dy = max(b[1] - box[3], box[1] - b[3], 0.0)
+        if math.hypot(dx, dy) <= r:
+            return True
+    return False
+
+
 def relayout(doc, cls_tab=None):
-    """重なり・枠外・潜りを潰した文書を返す。⭕ 冪等(2度掛けても同じ)。"""
+    """重なり・枠外・潜り・**読めない色**を潰した文書を返す。⭕ 冪等(2度掛けても同じ)。"""
     tab = cls_tab or css_classes()
     figstr = _fig_strings(doc, tab)
     rep = {"dropped": 0, "wrapped": 0, "moved": 0, "grown": 0, "figs": 0,
            "droppedList": [], "movedMax": 0.0, "movedFar": 0,
            "kept": 0, "keptList": [], "keptMoveMax": 0.0,
-           "reordered": 0, "reordFigs": 0}
+           "reordered": 0, "reordFigs": 0,
+           "orphan": 0, "orphanList": [],
+           "halo": 0, "haloFigs": 0, "haloResid": 0, "haloResidList": []}
     out, at = [], 0
     for m in _RE_SVG.finditer(doc):
         W, H = float(m.group(2)), float(m.group(3))
         body = m.group(4)
-        _els, parents, groups = _scan_els(body)
+        els, parents, groups = _scan_els(body)
         clips = _clip_defs(body)
         ts = parse(body, tab, parents)
+        # ⭐ **この面に物が描かれている所**(= 銘の指す先が在り得る所)。
+        #   ⛔⛔ **紙の外へ出た図形は「描かれている」に数えない** — ⚠ svg は枠で切るので、
+        #   枠外の図形は**読者には見えない**。⇒ **枠と交わる分だけを、枠で切って持つ。**
+        #   (⚠ これを入れないと、枠外へ落ちた銘のすぐ隣に**同じく枠外の図形**が在るせいで
+        #    「指す物が在る」と誤判定する。)
+        drawn = []
+        for _i9, shapes, _c, _al, _rule in paint_layers(els, _defs_els(body)):
+            for _rings, bb in shapes:
+                if bb[2] < 0 or bb[0] > W or bb[3] < 0 or bb[1] > H:
+                    continue
+                drawn.append((max(bb[0], 0.0), max(bb[1], 0.0),
+                              min(bb[2], W), min(bb[3], H)))
         rep["figs"] += 1
         fi = rep["figs"] - 1
         for t in ts:
             b = t.box_of(t.s, t.y)
             if b[2] < 0 or b[0] > W or b[3] < 0 or b[1] > H:
-                # ⭐⭐ **落としてよいのは「同じ銘が他の面に残っている」ときだけ**
-                #   (2026-09-08 検図方)。⛔ 従前の規則(枠外なら落とす)には
-                #   その条件が入っておらず、**情報の喪失を検査していなかった**。
+                # ⭐⭐ **枝は三つ**(2026-09-08 検図方 中2)。⛔⛔ 「落とすか拾うか」の二択が
+                #   誤りだった — ⚠ **拾い上げた銘が、指す物の無い白紙の上に朱で浮いていた**
+                #   (其十二 断面⑲: 面に描かれていない棟の谷の銘が地盤の 500 単位上に着地)。
+                #   ⚠ 朱は指摘色なので、**白紙の上の朱は「ここに問題がある」と読まれる**。
+                #   ⇒ ① 他の面に同じ銘が在れば落とす(情報は消えない)
+                #      ② **拾う前に、元の位置の近くに物が描かれているかを見る** —
+                #        何も描かれていなければ**指す物がこの面に無い**ので、拾わずに落とす(誤配)
+                #      ③ どちらでもなければ枠内へ拾う。
+                #   ⚠ **順は「落とす条件が先」** — ⛔ 誤配の枝を先に置くと、
+                #     ①で落ちるはずの銘まで誤配に数えてしまい、二つの壊れ方が混ざる。
                 elsewhere = any(t.s in s for j, s in enumerate(figstr) if j != fi)
                 if elsewhere:
                     t.drop = True
                     rep["dropped"] += 1
                     rep["droppedList"].append((rep["figs"], t.s))
+                    continue
+                if not _near_shape(b, drawn):
+                    t.drop = True
+                    rep["orphan"] += 1
+                    rep["orphanList"].append((rep["figs"], t.s))
                     continue
                 t.kept = True
                 rep["kept"] += 1
@@ -658,17 +1068,94 @@ def relayout(doc, cls_tab=None):
         out.append(head + "".join(nb) + m.group(5))
         at = m.end()
     out.append(doc[at:])
-    return "".join(out), rep
+    return haloize("".join(out), tab, rep), rep
+
+
+# ---------------------------------------------------------------- 読めない色を直す
+_RE_HALO = re.compile(r"paint-order:stroke;stroke:[^;\"]+;stroke-width:[\d.]+px;?")
+_RE_TAG = re.compile(r'<text\b[^>]*>')
+
+
+def _strip_halo(body):
+    """**この道具が当てたフチ**(`data-halo`)だけ外す。⛔ 作図が手で入れたフチは触らない。"""
+    def f(mm):
+        s = mm.group(0)
+        if 'data-halo="1"' not in s:
+            return s
+        s = s.replace(' data-halo="1"', '')
+        s = _RE_HALO.sub("", s)
+        return s.replace(' style=""', '').replace(';"', '"')
+    return _RE_TAG.sub(f, body)
+
+
+def haloize(doc, tab=None, rep=None):
+    """⭐⭐ **地色に沈んだ銘へ白フチを回す**(2026-09-08 検図方 高2)。
+
+    ⛔⛔ **前巡「潜り」から救い出した銘が、読めない色に着地していた** — 宣言色 × 直下の地色の
+    コントラスト比が **1.04**(ほぼ同色)の銘まで在った。⚠ **「墨が乗っている」は「読める」ではない。**
+    ⭐ 直しは**一つずつ色を選ばない** — ⛔ 手で選んだ色は次に地色が動けばまた沈む。
+    ⇒ **下限(`CR_MIN`)を割った銘に、字の色から見て遠いほうの地(紙 or 墨)でフチを回す。**
+    ⚠ フチは**字を囲って地から切り離す**ので、以後その銘の地色は**フチの色**になる
+    (`text_contrast` はそう読む)。⛔ 下の塗りの色を変えたのではない。
+    ⭕ 冪等 — 当てたフチには `data-halo="1"` の印が付き、次の巡で外してから測り直す。
+    """
+    tab = tab or css_classes()
+    fills = css_fills()
+    cands = [c for c in (rgb("var(--paper)"), rgb("var(--ink)")) if c]
+    out, at = [], 0
+    for m in _RE_SVG.finditer(doc):
+        body = _strip_halo(m.group(4))
+        els, parents, _g = _scan_els(body)
+        ts = parse(body, tab, parents)
+        layers = paint_layers(els, _defs_els(body))
+        order = {e[1]: i9 for i9, e in enumerate(els) if e[0] == "text"}
+        edits, n9 = [], 0
+        for t in ts:
+            if halo_of(t) is not None:              # 作図が手で入れたフチ
+                continue
+            w9 = text_contrast(t, order.get(t.span[0], 0), layers, fills)
+            if w9 is None or w9[0] >= CR_MIN - 1e-9:
+                continue
+            col = w9[1]
+            hl = max(cands, key=lambda c: cratio(col, c)) if cands else (255, 255, 255)
+            wpx = min(HALO_W[1], max(HALO_W[0], t.fs * HALO_FS))
+            frag = "paint-order:stroke;stroke:#%02X%02X%02X;stroke-width:%.1fpx" % (
+                hl[0], hl[1], hl[2], wpx)
+            tag = body[t.span[0]:t.span[1]]
+            head = tag[:tag.index(">") + 1]
+            if 'style="' in head:
+                nh = head.replace('style="', 'style="%s;' % frag, 1)
+            else:
+                nh = head[:-1].rstrip("/") + ' style="%s"' % frag + head[-1:]
+            nh = nh[:-1].rstrip("/") + ' data-halo="1"' + nh[-1:]
+            edits.append((t.span[0], t.span[0] + len(head), nh))
+            n9 += 1
+            if rep is not None and cratio(col, hl) < CR_MIN - 1e-9:
+                rep["haloResid"] += 1
+                rep["haloResidList"].append((cratio(col, hl), t.s))
+        for a0, a1, s in sorted(edits, reverse=True):
+            body = body[:a0] + s + body[a1:]
+        if rep is not None:
+            rep["halo"] += n9
+            rep["haloFigs"] += 1 if n9 else 0
+        out.append(doc[at:m.start()])
+        out.append(m.group(1) + body + m.group(5))
+        at = m.end()
+    out.append(doc[at:])
+    return "".join(out)
 
 
 # ---------------------------------------------------------------- 検査
 def check(doc, cls_tab=None):
     """⛔ 直した後の文書を測る。返すのは**件数と実例**。
 
-    測るのは四つ — ⑴ 字どうしの重なり ⑵ 枠の外 ⑶ **塗りに潜った銘** ⑷ **小さすぎる字**。
+    測るのは五つ — ⑴ 字どうしの重なり ⑵ 枠の外 ⑶ **塗りに潜った銘** ⑷ **小さすぎる字**
+    ⑸ **地色との コントラストが下限を割る銘**(2026-09-08 検図方 高2)。
     """
     tab = cls_tab or css_classes()
-    ov, of, cv, tn, figs, nt = [], [], [], [], 0, 0
+    fills = css_fills()
+    ov, of, cv, tn, lc, figs, nt = [], [], [], [], [], 0, 0
+    unmeas = ami = 0
     for m in _RE_SVG.finditer(doc):
         figs += 1
         W, H = float(m.group(2)), float(m.group(3))
@@ -676,6 +1163,7 @@ def check(doc, cls_tab=None):
         els, parents, groups = _scan_els(body)
         ts = parse(body, tab, parents)
         tpos = {t.span[0]: t for t in ts}
+        layers = paint_layers(els, _defs_els(body))
         bs = []
         for t in ts:
             for b in t.boxes():
@@ -694,10 +1182,7 @@ def check(doc, cls_tab=None):
                 of.append((figs, d, s))
         # ⑶ **潜り** — 描画順で自分より後ろにある不透明な塗りが、字の箱を覆っているか。
         #   ⛔ **z 順は文書順**(親の群は関係ない)ので、群の中の銘も外の塗りに覆われる。
-        paints = [(i9, e) for i9, e in enumerate(els)
-                  if e[0] not in ("text", "line")
-                  and e[2].get("fill", "") not in ("", "none")
-                  and _alpha(e[2]) >= ALPHA_MIN]
+        paints = [(i9, sh, rule) for i9, sh, _c, al, rule in layers if al >= ALPHA_MIN]
         for i9, e in enumerate(els):
             if e[0] != "text":
                 continue
@@ -707,14 +1192,12 @@ def check(doc, cls_tab=None):
             for line, y in zip(t.lines, t.ys()):
                 cb = t.char_boxes(line, y)
                 hit = []
-                for j9, e2 in paints:
+                for j9, shapes, _rule in paints:
                     if j9 <= i9:
                         continue
-                    for pg in _shape_polys(e2[0], e2[2]):
-                        xs = [q[0] for q in pg]
-                        ys = [q[1] for q in pg]
-                        if (max(xs) < cb[0][1][0] or min(xs) > cb[-1][1][2]
-                                or max(ys) < cb[0][1][1] or min(ys) > cb[0][1][3]):
+                    for rings, bb in shapes:
+                        if (bb[2] < cb[0][1][0] or bb[0] > cb[-1][1][2]
+                                or bb[3] < cb[0][1][1] or bb[1] > cb[0][1][3]):
                             continue
                         for k9, (ch, box) in enumerate(cb):
                             if k9 in hit or ch == " ":
@@ -722,23 +1205,121 @@ def check(doc, cls_tab=None):
                             ar = (box[2] - box[0]) * (box[3] - box[1])
                             if ar <= 0:
                                 continue
-                            cp = _clip_box(pg, box)
-                            if cp and _poly_area(cp) / ar >= COVER_FR:
+                            if shape_clip_area(rings, box) / ar >= COVER_FR:
                                 hit.append(k9)
                 if hit:
                     cv.append((figs, line, len(hit), len(line),
                                "".join(cb[k9][0] for k9 in sorted(set(hit)))))
+            # ⑸ **コントラスト** — 宣言色 × **その字の直下の地色**(重ねを合成して解く)。
+            w9 = text_contrast(t, i9, layers, fills)
+            if w9 is None:
+                unmeas += 1                    # ⛔ 宣言色そのものが解けない(0 件のはず)
+                continue
+            if w9[3]:
+                ami += 1                       # ⚠ 網掛けの下の色で測った
+            if w9[0] < CR_MIN - 1e-9:
+                lc.append((figs, w9[0], t.s, w9[1], w9[2]))
     return {"figs": figs, "texts": nt, "overlap": ov, "outframe": of,
-            "covered": cv, "tiny": tn,
+            "covered": cv, "tiny": tn, "lowcr": lc, "unmeas": unmeas, "ami": ami,
             "ovFigs": len(set(x[0] for x in ov)),
             "ofFigs": len(set(x[0] for x in of)),
             "cvFigs": len(set(x[0] for x in cv)),
-            "tnFigs": len(set(x[0] for x in tn))}
+            "tnFigs": len(set(x[0] for x in tn)),
+            "lcFigs": len(set(x[0] for x in lc))}
+
+
+def text_fill(t, fills):
+    """その銘の**宣言色**。⛔ 既定へ倒さない — 解けなければ None(=測れないと申告)。"""
+    st = t.att.get("style", "")
+    m = re.search(r"(?:^|[;\s])fill:\s*([^;\"]+)", st)
+    c = (m.group(1).strip() if m else t.att.get("fill") or fills.get(t.cls) or "#000000")
+    return rgb(c)
+
+
+def halo_of(t):
+    """白フチ(`paint-order:stroke`)の色。⛔ 細い縁取りは「フチ」と呼ばない。"""
+    st = t.att.get("style", "")
+    if "paint-order" not in st or "stroke" not in st:
+        return None
+    m = re.search(r"(?:^|[;\s])stroke:\s*([^;\"]+)", st)
+    w = re.search(r"stroke-width:\s*([\d.]+)", st)
+    if not m or (w and float(w.group(1)) < 2.0):
+        return None
+    return rgb(m.group(1).strip())
+
+
+def backdrop(box, i9, layers, base=None):
+    """箱の中心の**直下の地色** → `(色, 網掛けが掛かっていたか)`。
+
+    描画順で自分より前の層を**合成**して解く。⛔ 不透明な層で打ち切らない —
+    ⚠ 半透明の重ねは実際に地色を変える。
+    ⭐ **色の解けない層(`url(#…)` の網掛け)は「地色」に数えず、下の色をそのまま採る** —
+      ⚠ 当図の網掛けは **0.8px の線を 9px 間隔で引いた疎な刻み**(石垣・斜路)なので、
+      **下の色が透ける**。⛔ ただし**測れなかったことは隠さない** — 第2の戻り値で申告し、
+      図がその件数を刷る。
+    """
+    px, py = (box[0] + box[2]) / 2.0, (box[1] + box[3]) / 2.0
+    cur = base if base is not None else rgb("var(--paper2)") or (255, 255, 255)
+    amimi = False
+    for j9, shapes, col, al, rule in layers:
+        if j9 >= i9 or al <= 0.004:
+            continue
+        for rings, bb in shapes:
+            if px < bb[0] or px > bb[2] or py < bb[1] or py > bb[3]:
+                continue
+            if not in_shape((px, py), rings, rule):
+                continue
+            if col is None:
+                amimi = True
+                break
+            cur = _over(col, cur, min(1.0, al))
+            break
+    return cur, amimi
+
+
+def _pip(pt, poly):
+    x, y = pt
+    inside = False
+    n = len(poly)
+    for i in range(n):
+        x1, y1 = poly[i]
+        x2, y2 = poly[(i + 1) % n]
+        if (y1 > y) != (y2 > y):
+            if x1 + (y - y1) * (x2 - x1) / (y2 - y1) > x:
+                inside = not inside
+    return inside
+
+
+def text_contrast(t, i9, layers, fills):
+    """その銘の**いちばん悪い**コントラスト比 → `(比, 宣言色, 地色)`。⛔ 平均で均さない。
+
+    ⭐ **字ごとに測る** — ⚠ 「厩の郭 17.9」の『厩の郭』だけが暗い塗りに乗る、という沈み方をする。
+    ⭐ **白フチが在れば地色はフチの色** — フチが字を紙色で囲うので、下の塗りには依らない。
+    ⚠ 第4の値は「**網掛けの下の色で測った**」の印(⛔ 測れなかったことを隠さない)。
+    """
+    col = text_fill(t, fills)
+    if col is None:
+        return None
+    hl = halo_of(t)
+    if hl is not None:
+        return (cratio(col, hl), col, hl, False)
+    worst, ami = None, False
+    for line, y in zip(t.lines, t.ys()):
+        for ch, b in t.char_boxes(line, y):
+            if ch == " ":
+                continue
+            bg, a9 = backdrop(b, i9, layers)
+            ami = ami or a9
+            v = cratio(col, bg)
+            if worst is None or v < worst[0]:
+                worst = (v, col, tuple(int(round(q)) for q in bg))
+    return None if worst is None else (worst + (ami,))
 
 
 def counts(r):
-    """`check` の四つの件数。⛔ 順を他所で並べ替えない。"""
-    return (len(r["overlap"]), len(r["outframe"]), len(r["covered"]), len(r["tiny"]))
+    """`check` の五つの件数。⛔ 順を他所で並べ替えない。"""
+    return (len(r["overlap"]), len(r["outframe"]), len(r["covered"]), len(r["tiny"]),
+            len(r.get("lowcr", ())))
 
 
 # ---------------------------------------------------------------- 破壊試験
@@ -756,13 +1337,13 @@ def probes(doc, raw=None, cls_tab=None):
     out = []
     m = _RE_SVG.search(doc)
     if m is None:
-        return [("⛔ 図版が1面も無い — **この検査は回っていない**", (-1, -1, -1, -1),
-                 ("0", "0", "0", "0"))]
+        return [("⛔ 図版が1面も無い — **この検査は回っていない**", (-1, -1, -1, -1, -1),
+                 ("0", "0", "0", "0", "0"))]
     W, H, body = float(m.group(2)), float(m.group(3)), m.group(4)
     ts = parse(body, tab)
     if len(ts) < 2:
-        return [("⛔ 1面目の字面が2つ未満 — **試験を差し込めない**", (-1, -1, -1, -1),
-                 ("0", "0", "0", "0"))]
+        return [("⛔ 1面目の字面が2つ未満 — **試験を差し込めない**", (-1, -1, -1, -1, -1),
+                 ("0", "0", "0", "0", "0"))]
     a, b = ts[0], ts[1]
 
     def _mut(nb):
@@ -777,13 +1358,13 @@ def probes(doc, raw=None, cls_tab=None):
                 _mut(_repl(a.span, '<text class="%s" x="%.1f" y="%.1f" style="%s">%s</text>'
                            % (b.cls, b.x, b.y, "text-anchor:%s" % b.an,
                               _html.escape(b.s, quote=False)))),
-                ("≥1", "0", "0", "0")))
+                ("≥1", "0", "0", "0", "—")))
     # ② 1つ目の字面を**枠の外へ出す** ⇒ 枠外が鳴る
     out.append(("② ⭐ 1つ目の字面を**枠の外へ出す** — ⚠ **枠外が鳴る**",
                 _mut(_repl(a.span, '<text class="%s" x="%.1f" y="%.1f" style="%s">%s</text>'
                            % (a.cls, W + 40.0, a.y, "text-anchor:start",
                               _html.escape(a.s, quote=False)))),
-                ("0", "≥1", "0", "0")))
+                ("0", "≥1", "0", "0", "—")))
     # ③ ⭐⭐ 1つ目の銘の上へ**不透明な塗りを後から被せる** ⇒ 潜りが鳴る
     ab = a.box_of(a.s, a.y)
     out.append(("③ ⭐⭐ 1つ目の銘の上へ**不透明な塗りを後から被せる**"
@@ -791,13 +1372,13 @@ def probes(doc, raw=None, cls_tab=None):
                 _mut(body + '<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" '
                             'fill="var(--paper)" opacity="1.00"/>'
                             % (ab[0] - 1, ab[1] - 1, (ab[2] - ab[0]) + 2, (ab[3] - ab[1]) + 2)),
-                ("0", "0", "≥1", "0")))
+                ("0", "0", "≥1", "0", "—")))
     # ④ ⭐⭐ 1つ目の銘を**下限より小さく**する ⇒ 小字が鳴る
     out.append(("④ ⭐⭐ 1つ目の銘を**字送りの下限より小さく**する — ⚠ **小字が鳴る**",
                 _mut(_repl(a.span, '<text class="%s" x="%.1f" y="%.1f" style="font-size:%.1fpx">'
                            '%s</text>' % (a.cls, a.x, a.y, MIN_EFF * W / VIEW_W * 0.5,
                                           _html.escape("室名の見本", quote=False)))),
-                ("0", "0", "0", "≥1")))
+                ("0", "0", "0", "≥1", "—")))
     # ⑤ ⭐⭐ **推定幅を 0.95 倍して組み直す** ⇒ 枠外が鳴る
     #    ⛔⛔ この巡に実際に残った régime(幅を 5% 見誤る)を鳴らす束が一つも無かった。
     if raw is not None:
@@ -808,10 +1389,62 @@ def probes(doc, raw=None, cls_tab=None):
             _WS[0] = 1.0
         out.append(("⑤ ⭐⭐ **推定幅を 0.95 倍して組み直す**"
                     "(=一般約物を 0.5em と見誤っていた régime)— ⚠ **枠外が鳴る**",
-                    counts(check(d95, tab)), ("—", "≥1", "0", "0")))
-    # ⑥ 触らない ⇒ 鳴らない
-    out.append(("⑥ いまの図(基準)— ⛔ **鳴らない**", counts(check(doc, tab)),
-                ("0", "0", "0", "0")))
+                    counts(check(d95, tab)), ("—", "≥1", "0", "0", "—")))
+    # ⑥〜⑨ ⭐⭐⭐ **検図方が実証した「潜りの抜け道」**(2026-09-08 中1)。
+    #   ⛔⛔ 従前の `paints` は「`fill` 属性を持つ非 `line` 要素」だけを見ており、
+    #   ⚠ **6通りのうち4通りは画素で 0.00(=銘が完全に消える)のに 0 件**だった。
+    #   ⚠⚠ そのうち **2通りは当図に現に在る形**(太い線 95本・曲線を含む塗り 1本)。
+    #   ⇒ ここで**その4通りを毎回差す**。⛔ 鳴らなくなったら口が閉じている。
+    R = (ab[0] - 1, ab[1] - 1, (ab[2] - ab[0]) + 2, (ab[3] - ab[1]) + 2)
+    out.append(("⑥ ⭐⭐ **太い線で銘を塗りつぶす**(検図方の変異 (a)・当図に 95 本ある形)"
+                "— ⚠ **潜りが鳴る**",
+                _mut(body + '<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="var(--paper)"'
+                            ' stroke-width="%.1f"/>'
+                            % (R[0], (ab[1] + ab[3]) / 2.0, R[0] + R[2],
+                               (ab[1] + ab[3]) / 2.0, R[3] + 2)),
+                ("0", "0", "≥1", "0", "—")))
+    out.append(("⑦ ⭐⭐ **`style=\"fill:…\"` の矩形で覆う**(変異 (c))— ⚠ **潜りが鳴る**",
+                _mut(body + '<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" '
+                            'style="fill:#FBFAF6"/>' % R),
+                ("0", "0", "≥1", "0", "—")))
+    out.append(("⑧ ⭐⭐ **曲線(`C`)を含む `path` の塗りで覆う**(変異 (d)・当図に 1 本ある形)"
+                "— ⚠ **潜りが鳴る**",
+                _mut(body + '<path d="M%.1f,%.1f H%.1f C%.1f,%.1f %.1f,%.1f %.1f,%.1f Z" '
+                            'fill="var(--paper)"/>'
+                            % (R[0], R[1], R[0] + R[2], R[0] + R[2], R[1] + R[3],
+                               R[0], R[1] + R[3], R[0], R[1])),
+                ("0", "0", "≥1", "0", "—")))
+    out.append(("⑨ ⭐⭐ **`<use>` で矩形を貼る**(変異 (f))— ⚠ **潜りが鳴る**",
+                _mut(body + '<defs><rect id="pz9" x="0" y="0" width="%.1f" height="%.1f" '
+                            'fill="var(--paper)"/></defs><use href="#pz9" x="%.1f" y="%.1f"/>'
+                            % (R[2], R[3], R[0], R[1])),
+                ("0", "0", "≥1", "0", "—")))
+    # ⑩ ⭐⭐ **地色に沈んだ銘** ⇒ コントラストが鳴る
+    out.append(("⑩ ⭐⭐ 1つ目の銘を**地色とほぼ同じ色**にする(⛔ フチ無し)"
+                "— ⚠ **コントラストが鳴る**",
+                counts(check(_strip_halo(doc[:m.start()] + m.group(1) + body + m.group(5)
+                                         + doc[m.end():]).replace(
+                    body[a.span[0]:a.span[1]],
+                    '<text class="%s" x="%.1f" y="%.1f" style="fill:#F2F0E8">%s</text>'
+                    % (a.cls, a.x, a.y, _html.escape(a.s, quote=False)), 1), tab)),
+                ("—", "—", "—", "—", "≥1")))
+    # ⑪⑫ ⛔⛔ **この物差しが鳴らないと分かっている形**(= 限界の明示。検図方の変異 (b)(e))。
+    #   ⛔ 「0 件」を合格と読ませないために、**鳴らないことを期待値として刷る**。
+    out.append(("⑪ ⛔⛔ **半透明(0.45)を3枚重ねて覆う**(変異 (b)・画素では 0.43 まで薄まる)"
+                "— ⛔ **この物差しでは鳴らない(既知の穴)**",
+                _mut(body + ('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" '
+                             'fill="var(--paper)" opacity="0.45"/>' % R) * 3),
+                ("0", "0", "0", "0", "—")))
+    out.append(("⑫ ⛔⛔ **字の中央 55%% だけを帯で覆う**(変異 (e)・画素では 0.41)"
+                "— ⛔ **この物差しでは鳴らない(既知の穴・`COVER_FR` 未満)**",
+                _mut(body + '<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" '
+                            'fill="var(--paper)"/>'
+                            % (R[0], ab[1] + (ab[3] - ab[1]) * 0.225, R[2],
+                               (ab[3] - ab[1]) * 0.55)),
+                ("0", "0", "0", "0", "—")))
+    # ⑬ 触らない ⇒ 鳴らない
+    out.append(("⑬ いまの図(基準)— ⛔ **鳴らない**", counts(check(doc, tab)),
+                ("0", "0", "0", "0", "0")))
     return out
 
 
@@ -833,11 +1466,15 @@ if __name__ == "__main__":
     import sys
     doc = open(sys.argv[1], encoding="utf-8").read()
     r0 = check(doc)
-    print("直す前: 重なり %d 組 / 枠外 %d 件 / 潜り %d 件 / 小字 %d 件" % counts(r0))
+    print("直す前: 重なり %d 組 / 枠外 %d 件 / 潜り %d 件 / 小字 %d 件 / 低コントラスト %d 件"
+          % counts(r0))
     doc2, rep = relayout(doc)
     r1 = check(doc2)
-    print("直した後: 重なり %d 組 / 枠外 %d 件 / 潜り %d 件 / 小字 %d 件 ・ %s"
+    print("直した後: 重なり %d 組 / 枠外 %d 件 / 潜り %d 件 / 小字 %d 件 / 低コントラスト %d 件 ・ %s"
           % (counts(r1) + (rep,)))
+    for x in sorted(r1.get("lowcr", []))[:15]:
+        print("  CR  f%02d %.2f  %s  (字 #%02X%02X%02X / 地 #%02X%02X%02X)"
+              % ((x[0], x[1], x[2][:30]) + tuple(x[3]) + tuple(x[4])))
     for x in sorted(r1["overlap"], key=lambda z: -z[1])[:15]:
         print("  OV f%02d %8.1f  %s || %s" % (x[0], x[1], x[2][:30], x[3][:30]))
     for x in sorted(r1["outframe"], key=lambda z: -z[1])[:15]:

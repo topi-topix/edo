@@ -325,9 +325,14 @@ class LProj(object):
                  abs(self.X(u1) - self.X(u0)), abs(self.Y(v1) - self.Y(v0)), **kw)
 
 
-def T(x, y, s, cls="sl", anchor=None, fs=None, fill=None):
-    """text-anchor は style で出す(クラスの CSS 規則が presentation attribute に勝つため)。"""
-    a = '<text class="%s" x="%.1f" y="%.1f"' % (cls, x, y)
+def T(x, y, s, cls="sl", anchor=None, fs=None, fill=None, pin=False):
+    """text-anchor は style で出す(クラスの CSS 規則が presentation attribute に勝つため)。
+
+    ⭐⭐ **`pin=True` は「丸の中の数字」など動かしてはいけない銘**(2026-09-08 庭方 ⑵)。
+      ⛔ 寄せの物差しが動かすと**数字だけが丸から離れて浮く**(汀 #5 が実例)。
+      ⇒ `svg_layout` が**先に場所を取らせ、当たった相手のほうを動かす**。
+    """
+    a = '<text class="%s" x="%.1f" y="%.1f"%s' % (cls, x, y, ' data-pin="1"' if pin else "")
     st = []
     if anchor:
         st.append("text-anchor:%s" % anchor)
@@ -3631,7 +3636,7 @@ def _user_claim_probe_table(d):
                "変わったか)では当否を測れない</b>ので、"
                "<b>赦しを外した素の網で同じ文を走らせて確かめる</b>。<br>"
                "⭐⭐⭐ <b>束⑧⑨は 2026-09-08 に足した</b>【考証方 高1】— "
-               "⛔⛔ <b>従前の網は `印 or 台帳照合` の論理和</b>で、⚠⚠ "
+               "⛔⛔ <b>従前の禁句の網は `印 or 台帳照合` の論理和</b>で、⚠⚠ "
                "<b>MARK 語(⛔・撤回・改めた…)が同じ窓に在るだけで台帳照合に一度も"
                "届かなかった</b>(⇒ 実測で名乗りの<b>4割強</b>がこの穴を通っており、"
                "<b>宣言した母集団の6割弱しか回っていなかった</b>)。"
@@ -5082,8 +5087,48 @@ def retracted_check(d, texts):
     return sorted(set(bad))
 
 
-def _kinku_scan(words, texts, strict_faces, ok=None, ok_only=False):
+# ⭐⭐⭐ **「撤回」と書いてよいのは、それが効いているときだけ**
+#   【2026-09-08 普請奉行の裁定4(検図方 低4 × 考証方の要求)】。
+#   ⚠ 検図方: 図の本文に「撤回」が 33 箇所あり、CLAUDE.md 規則4(⛔ 経緯は `git log`・
+#     図には現況だけ)と正面から当たっている。⚠ 一方で考証方は「撤回として記録し、消すな」。
+#   ⇒ ⭕ **残してよいのは「禁句表の語」か「鳴る検査」に結び付いている撤回だけ**
+#     (= 撤回した説が戻ってきたら**機械が止める**)。それは経緯ではなく**現況の仕掛け**である。
+#   ⇒ ⛔ **何にも結び付いていない撤回の散文は経緯**なので `git log` へ落とす。
+#   ⚠ **この条自身を検査にする** — 名指していない件数を図に刷り、⛔ 0 でなければ鳴らす。
+RETRACT_NEAR = 160          # 「撤回」の前後この文字数を見る
+RETRACT_CHECK = ("禁句", "破壊試験", "感度試験", "掃引", "鳴る", "鳴らない", "鳴らす",
+                 "毎回刷る", "毎回測る", "毎回照合", "_check")
+
+
+def retract_link_check(d, txt):
+    """**「撤回」の各出現が、禁句表の語か鳴る検査を名指しているか。**
+
+    ⛔ 面は**図**(読者が読む面)。⚠ 改訂(git のコミット件名)は経緯そのものなので外す。
+    ⭐ 「名指す」の物差しは二つだけ — ⑴ 前後 `RETRACT_NEAR` 字に **`retracted` の語**が
+      逐語で在る ⑵ 同じ窓に**鳴る検査の名**(`RETRACT_CHECK`)が在る。
+    ⛔ **窓を広げて通さない** — 広げるほど「近くに検査の話が在るだけ」で通る。
+    """
+    words = d.get("retracted") or []
+    bad, ok = [], 0
+    for m9 in re.finditer("撤回", txt):
+        win = txt[max(0, m9.start() - RETRACT_NEAR):m9.end() + RETRACT_NEAR]
+        if any(w in win for w in words) or any(k in win for k in RETRACT_CHECK):
+            ok += 1
+        else:
+            bad.append("「撤回」が禁句表の語も鳴る検査も名指していない — …%s…"
+                       % re.sub(r"\s+", " ", txt[max(0, m9.start() - 60):m9.end() + 60]))
+    return sorted(set(bad)), ok
+
+
+def _kinku_scan(words, texts, strict_faces, ok=None, ok_only=False, rx=False):
     """禁句の照合の共通部。**印(⛔・撤回・…)が禁句を直接修飾しているときだけ赦す。**
+
+    ⭐⭐⭐ **`rx=True` は語幹を正規表現で張る**【2026-09-08 考証方 中3(採用=普請奉行)】。
+      ⛔⛔ **語形を literal で塞ぐ網は必ず抜けられる** — ⚠ 「方の裁定」を塞いだ網を
+      **助詞を落とした「庭方 裁定7」が素通り**した(設計値6件・図4件・生成器1件)。
+      ⚠⚠ `const._yakuNoKotoba` 自身が「語形を名指しで塞ぐ網は必ず抜けられる」と
+      **予告していた、その三度目**(懸魚・家格に続く)。
+      ⇒ ⛔ **語形を1本ずつ足さない**(⚠ 四度目を招く)。**語幹を式で張る。**
 
     ⭐ `retracted_check` と `yaku_kotoba_check` で同じ物差しを使う — ⛔ 二つ書かない。
     ⭐⭐ `ok(para, i, w)` は**語幹ごとの第二の赦し**(2026-09-08 考証方 高2)。
@@ -5103,13 +5148,14 @@ def _kinku_scan(words, texts, strict_faces, ok=None, ok_only=False):
             "岡部筑前守の条")
     MARK_NEAR = 80
     bad, marked = [], 0
+    pats = [re.compile(w if rx else re.escape(w)) for w in words]
     for label, txt in texts:
         strict = label in strict_faces
         parts = re.split(r"\n\s*\n|(?<=。)", txt) if strict else re.split(r"\n\s*\n", txt)
         for para in parts:
-            for w in words:
-                i = para.find(w)
-                while i >= 0:
+            for pat in pats:
+                for m9 in pat.finditer(para):
+                    i, w = m9.start(), m9.group(0)
                     win = (para[max(0, i - MARK_NEAR):i] + para[i + len(w):i + len(w) + 24]
                            if strict else para)
                     if (ok(para, i, w) if (ok_only and ok is not None)
@@ -5120,7 +5166,6 @@ def _kinku_scan(words, texts, strict_faces, ok=None, ok_only=False):
                         bad.append((w, label,
                                     ("直前 %d 文字" % MARK_NEAR) if strict else "同じ段落",
                                     re.sub(r"\s+", " ", para[max(0, i - 40):i + len(w) + 20])))
-                    i = para.find(w, i + 1)
     return bad, marked
 
 
@@ -5301,7 +5346,7 @@ def yaku_kotoba_check(d, texts, textsUser=None):
     if not use:
         return (["役の言葉づかいの照合面が 0 面 — `const.yakuNoKotoba.scope` と"
                  "照合面の名が食い違っている(⛔ 未測定を 0 件と読まない)"], [])
-    bad, marked = _kinku_scan(words, use, scope | hand)
+    bad, marked = _kinku_scan(words, use, scope | hand, rx=True)
 
     # ⭐⭐ **語幹②(出自の名乗り)は `const.userRulings` の台帳と突き合わせる**(考証方 高2)。
     #   ⛔ **役名の網だけでは同じ穴が三度開く** — 役名を替えずに「ユーザー」を騙る形が残る。
@@ -5314,7 +5359,8 @@ def yaku_kotoba_check(d, texts, textsUser=None):
                      "⛔ 台帳が無いまま語幹②を張ると全部が鳴る/全部が通るのどちらかになる"], [])
         uu = [(lb, tx) for lb, tx in (textsUser or texts) if lb in scope or lb in hand]
         # ⭐⭐ **`ok_only=True`** — ⛔⛔ **印では赦さない**【2026-09-08 考証方 高1】。
-        ubad, umarked = _kinku_scan(uw, uu, scope | hand, ok=_user_claim_ok(d), ok_only=True)
+        ubad, umarked = _kinku_scan(uw, uu, scope | hand, ok=_user_claim_ok(d),
+                                    ok_only=True, rx=True)
         marked += umarked
     d["_yakuKotobaMarked"] = marked
 
@@ -6140,7 +6186,7 @@ def section_svg(d, sec):
                     g.append('<circle cx="%.1f" cy="%.1f" r="3.2" fill="var(--shu)"/>'
                              % (X(xe9), Y(f9 + ev9)))
                     g.append(T(X(xe9 + sd9 * 1.3), Y(f9 + ev9) - 2,
-                               "谷(%s の軒先 +%.3f / 余裕 %.3f)"
+                               "谷(%sの軒先 +%.3f / 余裕 %.3f)"
                                % (MUNE_JA.get(m9["name"], m9["name"]), sg9 or 0.0,
                                   (f9 + ev9) - ns9 - (sg9 or 0.0)),
                                "anG", "start" if sd9 > 0 else "end"))
@@ -8628,7 +8674,7 @@ def roof_table(d):
         "⭕ [西川1959]A の 2.5〜3間 は原文が<b>「長屋の構造をみると」</b>と限定した値で、"
         "<b>御殿の身舎に当てる根拠が無い</b>(2026-09-06 考証方)。"
         "⭕ [二条城二の丸御殿]A の梁間 3〜8間・中央値6間(棟全体)とも<b>矛盾しない範囲</b>。"
-        "⛔ <b>経緯は書かない</b> — 途中で採った目標幅の案は撤回済み(`git log` が持つ)。</p>"
+        "⛔ <b>経緯は書かない</b>(`git log` が持つ)。</p>"
         % ("〜".join("%g" % w for w in mb["widths"]), mb["base"], max(mb["widths"]),
            mb["irikawa"])) + (
         "<p class='cap'>⚠⚠ <b>帯幅 %s間 は恒久的に【確度U】。</b>"
@@ -12452,7 +12498,7 @@ def niwa_plant_check(d):
                 out.append("**%s %s と %s %s の芯々が %.2fm**(下限 %.2fm = 樹冠 %.2f + %.2f の半分)"
                            " — 樹冠を半分より深く重ねない【庭方の物差し・U】"
                            % (a9["sp"], a9["sz"], b9["sp"], b9["sz"], dd, need, a9["r"] * 2, b9["r"] * 2))
-    # ⭐⭐⭐ **幹は他の木の雨落ちの内側に立たない**【2026-09-08 庭方 裁定6(採用=普請奉行)】。
+    # ⭐⭐⭐ **幹は他の木の雨落ちの内側に立たない**【2026-09-08 庭方の起案6(採用=普請奉行)】。
     #   ⛔⛔ **上の「半分より深く重ねない」では捕まらない** — ⚠ 芯々の下限が
     #   **(r_a + r_b) ÷ 2** なので、**径の違う二本**では小さいほうが大きいほうの
     #   **雨落ち(樹冠の縁)の内側**に立てる。⭕ 条は **芯々 ≥ 相手の樹冠半径**(両向き)。
@@ -14131,10 +14177,17 @@ def niwa_plan_svg(d, W=760.0):
         if "(沢飛石の取付)" in who:
             kata = "(沢飛石の取付)"
         sv.append(line([P[i], P[(i + 1) % len(P)]], GOGAN_COL.get(kata, "#C0392B"), 4.0))
+    # ⭐⭐ **汀の番号のバッジは面の最後に描く**(2026-09-08 庭方 ⑴)。
+    #   ⛔⛔ **従前はここで描いていたので、後から描く州浜の帯・石・沢飛石が白丸を塗り潰し**、
+    #   ⚠ **#9 と #17 だけ下地の白丸が消えて、灰色の石の上に数字が直に乗っていた**
+    #   (⇒ 他の16点と見え方が違い、「汀の頂点」でなく「飛石の番号」に見える)。
+    #   ⚠ **銘(文字)は `svg_layout` が末尾へ送るが、その下地の丸は送られない** —
+    #   ⇒ **下地も一緒に末尾へ送る**。⛔ 丸だけを後から描き足す形にしない(順が二手に割れる)。
+    late = []
     for i, (u, v) in enumerate(P):
-        sv.append('<circle cx="%.1f" cy="%.1f" r="7" fill="var(--paper)" stroke="#5B8296" stroke-width="1"/>'
-                  % (X(u), Y(v)))
-        sv.append(T(X(u), Y(v) + 3.5, str(i + 1), "jo", "middle", 9.0))
+        late.append('<circle cx="%.1f" cy="%.1f" r="7" fill="var(--paper)" '
+                    'stroke="#5B8296" stroke-width="1"/>' % (X(u), Y(v)))
+        late.append(T(X(u), Y(v) + 3.5, str(i + 1), "jo", "middle", 9.0, pin=True))
     # 州浜の帯
     for s in g.get("suhama", []):
         i = s["frm"] - 1
@@ -14327,7 +14380,7 @@ def niwa_plan_svg(d, W=760.0):
         col = "var(--shu)" if m.get("main") else "#7A6A50"
         sv.append('<circle cx="%.1f" cy="%.1f" r="9" fill="%s"/>' % (X(m["u"]), Y(m["v"]), col))
         sv.append(T(X(m["u"]), Y(m["v"]) + 4, str(m["no"]), "jo", "middle", 11.0,
-                    fill="var(--paper)"))
+                    fill="var(--paper)", pin=True))
         if m.get("dir") == "-u":
             sv.append(LN(X(m["u"]) + 10, Y(m["v"]), X(m["u"]) + 42, Y(m["v"]), col, 1.6, dash="5 3"))
         elif m.get("dir") == "+v":
@@ -14338,6 +14391,7 @@ def niwa_plan_svg(d, W=760.0):
                 "anS2", "start"))
     sv.append(T(4, pr.H - 6, "朱の丸=主視点 / 茶の丸=その他の見所 / 朱の破線=野面の石段を切る区間 / "
                 "青の破線=水尻の埋樋 / 緑の実線=四つ目垣(三方・南開き)", "anS2", "start"))
+    sv.extend(late)                 # ⭐ 汀のバッジ(丸+数字)は最後に描く
     sv.append("</svg>")
     return "\n".join(sv)
 
@@ -16788,7 +16842,8 @@ def niwa_iwajima_table(d):
         "⛔ <b>①を満たす行に②の帯を並べない</b> — 従前は「①で足りる」と書きながら"
         "<b>条を満たしていない伏角の隣に ⭕ を刷って</b>いた(2026-09-07 庭方 低3)。"
         "⭐⭐ <b>二段の条</b>は — ⛔ <b>前巡の「絶対高で荒磯 &lt; 大石」は"
-        "庭方が自ら撤回した</b>。差が<b>目で追えない量</b>しか無く、"
+        "庭方が自ら撤回した</b>(⭕ いまの二段の条は <code>iwajima_check</code> が"
+        "毎回鳴らす)。差が<b>目で追えない量</b>しか無く、"
         "<b>15m 先では見えない</b>ので<b>意図(見た目の主従)を表していなかった</b>。"
         "⇒ ①<b>主視点①から見た方位差</b>で横へずれて見えれば足り、"
         "②足りないときだけ<b>伏角</b>で見る。"
@@ -17007,7 +17062,7 @@ def niwa_toi_table(d):
                    "⛔⛔ <b>下流の石の天端を下げて根入れを稼がない</b>(枡が抜ける)。"
                    "⛔⛔ <b>床を掘って稼ぐ手も使えない</b> — 天端が絶対高で石は剛体なので、"
                    "掘っても<b>見付が増えるだけ</b>で埋まりは <b>石丈 − 露出</b> のまま"
-                   "(2026-09-06 棟梁の第4回で撤回した)。"
+                   "(⛔ 禁句表「床だけ掘り下げ」。2026-09-06 棟梁の第4回で撤回した)。"
                    "⇒ ⭕ <b>満たすのは石丈</b>: <b>石丈 ≥ (1 + %s) × 露出</b>。"
                    # ⭐⭐ **caption は欄から組み立てる**【2026-09-08 検図方 中3】—
                    #   ⛔⛔ **ベタ書きの断りは必ず古びる**(⚠ ここは「石丈は目録から引けない・
@@ -17085,8 +17140,8 @@ def jizura_html(a, b, rep):
         return len(r[k])
 
     def _f(r, k):
-        return r[{"overlap": "ovFigs", "outframe": "ofFigs",
-                  "covered": "cvFigs", "tiny": "tnFigs"}[k]]
+        return r[{"overlap": "ovFigs", "outframe": "ofFigs", "covered": "cvFigs",
+                  "tiny": "tnFigs", "lowcr": "lcFigs"}[k]]
 
     rows = [("文字どうしの重なり(面積 &gt; %.1f px²)" % svg_layout.MIN_AREA, "overlap", "組"),
             ("枠の外へ出る文字(はみ出し &gt; %.1f px)" % svg_layout.TOL, "outframe", "件"),
@@ -17094,7 +17149,10 @@ def jizura_html(a, b, rep):
              "(1字の %.0f%% 以上が、描画順で後ろの不透明な塗りの下)" % (svg_layout.COVER_FR * 100),
              "covered", "件"),
             ("<b>字送りが下限を割る和字</b>(基準の窓での実効 &lt; %.1f px)" % svg_layout.MIN_EFF,
-             "tiny", "件")]
+             "tiny", "件"),
+            ("<b>地色とのコントラストが下限を割る銘</b>"
+             "(宣言色 × 直下の地色の比 &lt; %.1f:1・字ごとの最悪値)" % svg_layout.CR_MIN,
+             "lowcr", "件")]
     t = ['<div class="tw"><table><tr><th class="note">測った物</th>'
          '<th>直す前</th><th>直した後(これが刷る値)</th></tr>']
     for nm, k, unit in rows:
@@ -17104,7 +17162,17 @@ def jizura_html(a, b, rep):
     t.append('<tr><td class="note">測った面 / 文字</td><td>%d 面</td><td>%d 面 %d 字面</td></tr>'
              % (a["figs"], b["figs"], b["texts"]))
     t.append("</table></div>")
-    t.append('<p class="cap">⭐⭐ <b>下2行は 2026-09-08 の第5巡で足した</b>。'
+    t.append('<p class="cap">⭐ <b>下の「面ごと」の <code>f06</code> は、各図の右下に'
+             '刷ってある通番</b>(2026-09-08 検図方 低1)。⛔⛔ <b>従前はこの表だけが'
+             '<code>f06:3</code> と刷り、<b>その札が図のどこにも出ていなかった</b> — '
+             '⚠ 読者はどの面のことか引けなかった。</p>')
+    t.append('<p class="cap">⭐⭐⭐ <b>いちばん下の行は 2026-09-08 の第6巡で足した</b>。'
+             '⛔⛔ <b>第5巡で「潜り」から救い出した銘が、読めない色に着地していた</b> — '
+             '検図方が<b>宣言色 × 直下の地色</b>の比を測ると<b>229 件が和文の下限を割り、'
+             '最悪は 1.04</b>(ほぼ同色)。⚠ <b>救い出す先の色を測っていなかった。</b>'
+             '⇒ <b>直しは自動で白フチを回す</b>(下の内訳)— ⛔ 一つずつ手で色を選ばない。'
+             '⚠ <b>手で選んだ色は、地色が動いた次の巡でまた沈む。</b></p>')
+    t.append('<p class="cap">⭐⭐ <b>その上の2行は 2026-09-08 の第5巡で足した</b>。'
              '⛔⛔ <b>それまでの「重なり 0 組・枠外 0 件」は「読める」ではなかった</b> — '
              '検図方がブラウザへ渡し、<b>字あり／字なしの2枚を画素で引き算</b>したところ、'
              '<b>銘が10件そもそも紙に乗っていなかった</b>(⚠ 後から描く塗りに上塗りされていた。'
@@ -17124,6 +17192,24 @@ def jizura_html(a, b, rep):
              % (rep["dropped"],
                 " ".join("f%02d:%d" % (k, v) for k, v in sorted(drops.items())) or "—",
                 html.escape("、".join(sorted(set(x[1] for x in rep["droppedList"]))[:4]) or "—")))
+    orph = collections.Counter(x[0] for x in rep["orphanList"])
+    t.append('<tr><td class="note"><b>指す物が描かれていない銘を落とした</b>'
+             '(⚠ 誤配)</td><td>%d</td><td class="note">面ごと %s ／ 例: %s<br>'
+             '⭐⭐⭐ <b>2026-09-08 に第3の枝を足した</b>(検図方 中2)— ⛔⛔ 従前は'
+             '<b>「落とすか拾うか」の二択</b>で、⚠ <b>拾い上げた銘が、指す物の無い白紙の上に'
+             '朱で浮いていた</b>(其十二の断面で、その面に描かれていない棟の谷の銘が'
+             '地盤の 500 単位上へ着地)。⚠ <b>朱は指摘色なので、白紙の上の朱は'
+             '「ここに問題がある」と読まれる。</b>⇒ <b>元の位置から %.0f px 以内に'
+             '何も描かれていない銘は、拾わずに落とす</b>(⚠ <b>紙の外へ出た図形は'
+             '「描かれている」に数えない</b> — svg は枠で切るので読者には見えない)。'
+             '⚠ <b>枝の順は「落とす条件が先」</b> — ⛔ 誤配の枝を先に置くと、'
+             '他の面に同じ銘が在って落ちるはずの銘まで誤配に数える。⛔ 従前の規則'
+             '(他の面に同じ銘があれば落とす)は<b>情報の喪失しか見ておらず、誤配を見ていなかった</b>。'
+             '</td></tr>'
+             % (rep["orphan"],
+                " ".join("f%02d:%d" % (k, v) for k, v in sorted(orph.items())) or "—",
+                html.escape("、".join(sorted(set(x[1] for x in rep["orphanList"]))[:4]) or "—"),
+                svg_layout.REF_NEAR))
     t.append('<tr><td class="note">枠の外へ出ていたが<b>他の面に同じ銘が無いので落とさずに'
              '枠内へ寄せた</b></td><td>%d</td><td class="note">面ごと %s ／ 例: %s<br>'
              '⚠ <b>拾い上げた銘は枠の縁へ %.0f px も動く</b>ので、'
@@ -17141,6 +17227,17 @@ def jizura_html(a, b, rep):
              '⛔ 一つずつ描画順を直さない。⚠ <b>紙の見え方を変える群</b>'
              '(transform / opacity / mask を持つ <code>&lt;g&gt;</code>)からは出さない。</td></tr>'
              % (rep["reordered"], rep["reordFigs"]))
+    t.append('<tr><td class="note"><b>地色に沈んだ銘へ白フチを回した</b>'
+             '(<code>paint-order:stroke</code>)</td><td>%d</td>'
+             '<td class="note">%d 面。フチの色は<b>字の色から見て遠いほう</b>'
+             '(紙 <code>--paper</code> か墨 <code>--ink</code>)を機械が選ぶ — '
+             '⛔ <b>一つずつ手で選ばない</b>。太さは字の大きさの %.0f%%(%.1f〜%.1f px)。<br>'
+             '⚠ <b>フチが届かなかった銘 %d 件</b> — ⛔ 0 でなければ'
+             '<b>字の色そのものを直す</b>(フチでは下限に届かない中間の明るさの色)。<br>'
+             '⚠ 以後その銘の地色は<b>フチの色</b>として測る(⛔ 下の塗りの色を変えたのではない)。'
+             '</td></tr>'
+             % (rep["halo"], rep["haloFigs"], svg_layout.HALO_FS * 100,
+                svg_layout.HALO_W[0], svg_layout.HALO_W[1], rep["haloResid"]))
     t.append('<tr><td class="note">当たった字を寄せた(縦を先に、次に横)</td><td>%d</td>'
              '<td class="note">いちばん動いた字で <b>%.1f px</b>／'
              '<b>40 px を超えて動いた字 %d</b> — ⚠ <b>大きく動いた字は指す物から離れている</b>ので、'
@@ -17164,14 +17261,35 @@ def jizura_html(a, b, rep):
              '機械は %d 面を毎巡すべて見られるが精度が粗く、目は精度が高いが毎巡は見られない。'
              'この非対称を、そのまま役の分担にしてある。</p>'
              % (svg_layout.SAFE, b["figs"]))
+    t.append('<p class="cap">⛔⛔ <b>この「潜り 0 件」を保証しているのは、検査ではなく'
+             '「銘を末尾へ送る」直しのほうである</b>(2026-09-08 検図方 中1 の診断)。'
+             '⚠ 末尾へ送った銘の後ろには塗りが無いので、<b>この面では検査は構造的に 0 しか返せない</b>。'
+             '⭕ <b>検査が実際に働くのは</b>、⑴ <code>transform</code>/<code>opacity</code>/'
+             '<code>mask</code> を持つ群に残さざるを得ない銘、⑵ 末尾送りが壊れた巡 — の二つ。'
+             '⭐ そこで<b>塗りの口を「紙を塗り得る全要素」へ広げた</b>(太い線・'
+             '<code>style</code> の fill・曲線を含む <code>path</code>・<code>use</code>)。'
+             '⛔⛔ 従前の口は「<code>fill</code> <b>属性</b>を持つ非 <code>line</code> 要素」で、'
+             '⚠ <b>検図方が抜け道を6通り実証し、うち2通りは当図に現に在る形だった</b>'
+             '(<code>stroke-width</code> 62.7px の道の帯 95 本・曲線を含む塗り 1 本)。'
+             '⇒ その4通りを<b>下の破壊試験 ⑥〜⑨ で毎回鳴らす</b>。</p>')
     t.append('<p class="cap">⛔ <b>この版でもまだ測っていないこと</b>(⇒ 次の巡へそのまま渡す)。'
              '⑴ <b>窓の幅</b> — 実効 px は <b>基準の窓(<code>.wrap</code> の max-width から'
              '導く %.0f px)</b> での値で、⚠ <b>窓を狭めれば svg は縮み、字はそのぶん小さくなる</b>'
              '(<code>.fig svg{width:100%%}</code>)。⇒ <b>狭い窓での読めなさは測っていない。</b> '
-             '⑵ <b>塗りの色</b> — 潜りは「不透明な塗りが描画順で後ろに在るか」しか見ない。'
-             '⚠ <b>薄い色の上の薄い字</b>(低いコントラスト)は鳴らない。 '
-             '⑶ <b>字の形</b> — 幅だけで、⚠ 合字・約物の詰めは見ていない。</p>'
-             % svg_layout.VIEW_W)
+             '⑵ <b>半透明の重ね掛け</b>(1枚ずつが不透明度 %.2f 未満)と'
+             '<b>字の一部だけを覆う帯</b>(1字の %.0f%% 未満)は「覆い」と数えない — '
+             '⚠ <b>下の束⑪⑫がその穴を毎回実演する</b>(⛔ 鳴らないことが期待値)。 '
+             '⑶ <b>コントラストは宣言色 × 合成した地色</b>であって<b>画素ではない</b> — '
+             '⚠ アンチエイリアス・フチの太さ・字画の細さは見ていない。'
+             '⭕ <b>裏は検図方がレンダして目で取る。</b> '
+             '⚠ <b>網掛け(石垣・斜路の刻み)の上の銘 %d 件は、網を地色に数えず'
+             '「下の色」で測った</b> — 0.8px の線を 9px 間隔で引いた疎な刻みなので'
+             '下の色が透ける。⛔ <b>測り方を変えたことは隠さない。</b> '
+             '⑷ <b>円弧(<code>A</code>)と <code>transform</code> を持つ群</b>は座標を解いていない'
+             '(当図には 0 個)。 '
+             '⑸ <b>字の形</b> — 幅だけで、⚠ 合字・約物の詰めは見ていない。</p>'
+             % (svg_layout.VIEW_W, svg_layout.ALPHA_MIN, svg_layout.COVER_FR * 100,
+                b.get("ami", 0)))
     t.append('<div class="tw"><table><tr><th class="note">破壊試験(この検査が生きているか)</th>'
              '<th>実測(重なり, 枠外, 潜り, 小字)</th><th>期待</th><th>合否</th></tr>')
     for title, got, want, ok in rep["probes"]:
@@ -17989,7 +18107,7 @@ def main():
                  '⭕ 沓脱石からの第1区間には<b>飛石が乗る</b>(沓脱から飛石で路に入る作りで、'
                  '重なりは意図。⛔ 石数を文章に写さない — 設計値が正典)。'
                  '⭐ 芯々は台帳の目安 0.40〜0.55m に全部入る — '
-                 '⛔ <b>「降り口だから歩幅が大きくなる」という旧の断りは撤回</b>'
+                 '⛔ <b>降り口でも歩幅を広げない</b>'
                  '(<b>降りながら踏むので歩幅はむしろ縮む</b>)。'
                  '⛔⛔ <b>2026-09-07 高1: この一歩には上限が無かった。</b>'
                  '沓脱石を雨落ち線へ寄せた巡に<b>飛石列の頭と主路の頭が置き去りになり</b>、'
@@ -18496,6 +18614,20 @@ def main():
     rest = re.sub(r"\*\*(.{1,200}?)\*\*", r"<b>\1</b>", rest, flags=re.S)
     rest = re.sub(r"~~(.{1,200}?)~~", r"<s>\1</s>", rest, flags=re.S)
     doc = head + css + rest
+    # ⭐⭐ **面に通番を刷る**(2026-09-08 検図方 低1)。⛔⛔ 字面の検査の表は
+    #   「面ごと f06:3」と刷るのに、**`f06` という札が図のどこにも出ていなかった**
+    #   (⚠ html の id は `pi6` で、読者はどの面のことか引けない)。
+    #   ⇒ **面の右下に通番を刷る。**⛔ 番号を別の表に二重に持たない — 図が自分で名乗る。
+    _fn9 = [0]
+
+    def _stamp(m9):
+        _fn9[0] += 1
+        return (m9.group(1) + m9.group(4)
+                + '<text class="jo" x="%.1f" y="%.1f" style="text-anchor:end" '
+                  'data-pin="1">f%02d</text>'
+                % (float(m9.group(2)) - 4.0, float(m9.group(3)) - 5.0, _fn9[0])
+                + m9.group(5))
+    doc = svg_layout._RE_SVG.sub(_stamp, doc)
     # ⭐⭐ **図の字面を機械で測り、重なりと枠外を潰す**(2026-09-08 検図方 主題2)。
     #   ⛔ 目で潰さない — 図版は毎巡ふえ、文字は設計値から組むので**値が動けば幅も動く**。
     #   ⚠ **順は「測る → 直す → もう一度測る」**。刷るのは**直した後**の値だが、
@@ -18614,17 +18746,25 @@ def main():
     rbad = rbad + ybad
     if JIZURA:
         _a, _b, _r = JIZURA
-        print("── 図の字面(重なり/枠外/**塗りに覆われた銘**/**小さすぎる和字**): "
-              "直す前 %d 組 / %d 件 / %d 件 / %d 件 → "
-              "**直した後 %d 組 / %d 件 / %d 件 / %d 件**"
+        print("── 図の字面(重なり/枠外/**塗りに覆われた銘**/**小さすぎる和字**/"
+              "**コントラストが下限を割る銘**): "
+              "直す前 %d 組 / %d 件 / %d 件 / %d 件 / %d 件 → "
+              "**直した後 %d 組 / %d 件 / %d 件 / %d 件 / %d 件**"
               % (svg_layout.counts(_a) + svg_layout.counts(_b)))
         print("   直しの内訳: 落とした %d(⭐ 他の面に同じ銘が在るものだけ)・"
-              "落とさず枠内へ寄せた %d・折った %d・**銘を面の末尾へ送った %d(%d 面)**・"
+              "**指す物が無いので落とした %d**・落とさず枠内へ寄せた %d・折った %d・"
+              "**銘を面の末尾へ送った %d(%d 面)**・**白フチを回した %d(%d 面・届かなかった %d)**・"
               "寄せた %d(最大 %.1fpx・40px超 %d)・枠を伸ばした %d 面"
               "(⚠ 拾い上げた銘の移動 最大 %.0fpx は別勘定)"
-              % (_r["dropped"], _r["kept"], _r["wrapped"], _r["reordered"], _r["reordFigs"],
+              % (_r["dropped"], _r["orphan"], _r["kept"], _r["wrapped"],
+                 _r["reordered"], _r["reordFigs"],
+                 _r["halo"], _r["haloFigs"], _r["haloResid"],
                  _r["moved"], _r["movedMax"], _r["movedFar"], _r["grown"],
                  _r["keptMoveMax"]))
+        for x in _r["orphanList"][:8]:
+            print("    ⚠ 指す物が無いので落とした f%02d 「%s」" % (x[0], x[1][:40]))
+        for x in _r["haloResidList"][:8]:
+            print("    ⛔ 白フチでも下限に届かない cr %.2f 「%s」" % (x[0], x[1][:40]))
         _pb = [q for q in _r.get("probes", []) if not q[3]]
         print("   破壊試験(この検査の生死): %d束/%d束 期待どおり"
               % (len(_r.get("probes", [])) - len(_pb), len(_r.get("probes", []))))
@@ -18642,8 +18782,22 @@ def main():
                       % (x[0], x[2], x[3], x[1][:30], x[4][:20]))
             for x in sorted(_b["tiny"])[:8]:
                 print("    ⛔ 字送りが下限を割る f%02d 実効 %.2fpx 「%s」" % (x[0], x[1], x[2][:30]))
+            for x in sorted(_b["lowcr"])[:8]:
+                print("    ⛔ コントラストが下限を割る f%02d 比 %.2f 「%s」"
+                      "(字 #%02X%02X%02X / 地 #%02X%02X%02X)"
+                      % ((x[0], x[1], x[2][:26]) + tuple(x[3]) + tuple(x[4])))
             rbad = rbad + ["図の字面が 0 件でない — **ユーザーに見せない**"]
     print("── 撤回の印つきで見逃した数: %d 件" % d.get("_retractedMarked", -1))
+    # ⭐⭐ **裁定4(2026-09-08 普請奉行): 効いていない撤回は経緯なので図に残さない。**
+    #   ⛔ 面は**図**(読者が読む面)。⚠ 改訂の章は経緯そのものなので外す。
+    _rtxt = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", _strip_history(body)))
+    _rlink, _rok = retract_link_check(d, _rtxt)
+    print("── 「撤回」の結線(禁句表の語か鳴る検査を名指しているか): "
+          "名指している %d 件 / **名指していない %d 件**" % (_rok, len(_rlink)))
+    for b in _rlink[:40]:
+        print("   ", b)
+    _nres = len(rbad)                 # ⛔ 「撤回済みの説の残り」と混ぜない(別の壊れ方)
+    rbad = rbad + _rlink
     # ⭐⭐ **撤回の照合の実測を図へ入れる**(規則19)。⚠ この照合は図を組んだ**後**でしか
     #   回せない(図そのものを面に含むため)⇒ **印を残しておいて差し替える。**
     if DOC_HOLD:
@@ -18656,8 +18810,26 @@ def main():
                '</td><td><b>%d</b></td></tr>'
                '<tr><td class="note">照合した面</td>'
                '<td class="note">設計値・文章・生成器・図・実装・台帳・メモリ の 7 面</td></tr>'
+               '<tr><td class="note"><b>図の本文に「撤回」と書いた箇所</b>'
+               '(⚠ 改訂の章を除く)</td><td>%d</td></tr>'
+               '<tr><td class="note"><b>うち、禁句表の語も鳴る検査も名指していない</b>'
+               '(⛔ 0 でなければ図を出さない)</td><td><b>%d</b></td></tr>'
                '</table></div>'
-               % (len(d.get("retracted", [])), d.get("_retractedMarked", -1), len(rbad)))
+               '<p class="cap">⭐⭐⭐ <b>下2行は 2026-09-08 の裁定4</b>'
+               '(検図方 低4 × 考証方の要求)。⚠ 検図方が正しく指摘した — '
+               '<b>図の本文の「撤回」は CLAUDE.md 規則4(⛔ 経緯は <code>git log</code>・'
+               '図には現況だけ)と正面から当たる</b>。⚠ 一方で考証方は'
+               '「撤回として記録し、消すな」と要求している。⇒ <b>普請奉行の裁定: '
+               '残してよいのは「禁句表の語」か「鳴る検査」に結び付いている撤回だけ</b> — '
+               'それは<b>撤回した説が戻ってきたら機械が止める仕掛け</b>であって、'
+               '<b>経緯ではなく現況</b>である。⛔ 何にも結び付いていない撤回の散文は'
+               '<b>経緯なので <code>git log</code> へ落とす</b>。'
+               '⚠ 物差しは「前後 %d 字に <code>retracted</code> の語が逐語で在る」か'
+               '「同じ窓に鳴る検査の名(%s)が在る」の二つだけ — '
+               '⛔ <b>窓を広げて通さない</b>(広げるほど「近くに検査の話が在るだけ」で通る)。</p>'
+               % (len(d.get("retracted", [])), d.get("_retractedMarked", -1), _nres,
+                  _rok + len(_rlink), len(_rlink), RETRACT_NEAR,
+                  "・".join("<code>%s</code>" % q for q in RETRACT_CHECK)))
         open(OUT, "w", encoding="utf-8").write(DOC_HOLD[0].replace(RETRACT_MARK, _rh))
     print("── 撤回済みの説の残り: %s"
           % ("**0 件**" if not rbad else "⚠ %d 件 — **図は書き出したが要修正**" % len(rbad)))

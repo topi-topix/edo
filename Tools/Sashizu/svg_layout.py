@@ -172,6 +172,9 @@ def markup_hits(s):
 #     字として出るのは**エスケープされた形** `&lt;b&gt;` のほう。
 #   ・実体参照も同じで、字として出るのは `&amp;nbsp;` のほう。
 #   ・`\n` `\t` は json の注記が2文字のまま流れてくる形(⚠ 図の字面には出ない口)。
+# ⭐ 典拠記法をリンクに数えないための一対(⛔ 添字 `_MK_DOC[5]` で持たない)。
+_RE_DOC_LINK = re.compile(r'\[[^\[\]\n]*\]\((?:[a-zA-Z][a-zA-Z0-9+.-]*:|\.{0,2}/)[^()\s]*\)')
+
 _MK_DOC = (
     ("タグ", re.compile(r'&lt;/?[a-zA-Z][a-zA-Z0-9]*(?:\s[^&<>]{0,80}?)?/?&gt;')),
     ("実体参照", re.compile(r'&amp;(?:[a-zA-Z][a-zA-Z0-9]{1,9}|#\d{1,6}|#[xX][0-9a-fA-F]{1,6});')),
@@ -180,7 +183,14 @@ _MK_DOC = (
     ("引用符", re.compile(r'`')),
     # ⛔ **家の典拠記法 `[西川1959](A)` をリンクに数えない**(⚠ 当図に 17 出現)。
     #   ⇒ 括弧の中が **URL か path に見える物だけ**を「刷られたリンク」と読む。
-    ("リンク", re.compile(r'\[[^\[\]\n]*\]\((?:[a-zA-Z][a-zA-Z0-9+.-]*:|\.{0,2}/)[^()\s]*\)')),
+    ("リンク", _RE_DOC_LINK),
+    # ⭐⭐ **2026-09-09 第9巡・検図方 低2 — 山括弧の見張りが片側だけだった。**
+    #   ⚠ 紙に**裸の `<` が2つ**(「厩 2.35 < 家中長屋 2.80 < 御殿 3.40」)在ったのに、
+    #   ⛔ **どの腕も見ていなかった**(見ていたのは `&lt;b&gt;` の側だけ)。
+    #   ⚠⚠ **いまは「2つの `<` の間に `>` が無い」ことに救われているだけ** —
+    #   `A < B > C` の形なら `_RE_DOC_TAG` が `< B >` をタグとして食い、
+    #   **散文が母集団から黙って消える**。⇒ その口は下の `eaten` が見張る。
+    ("裸の山括弧", re.compile(r'<')),
 )
 
 # ⭐ **リンクに数えなかった「家の典拠記法」の数**。⛔ 除いた物の数も手で書かない —
@@ -198,6 +208,19 @@ _RE_DOC_TAG = re.compile(r'<!--.*?-->|<[^<>]*>', re.S)
 _DOC_SKIP = ("svg", "style", "script")      # 中の字は紙の本文ではない
 _DOC_CELL = ("td", "th")                    # 面の仕分け(表 / 本文)
 
+# ⭐⭐ **属性の中も歩く**(2026-09-09 第9巡・検図方 低3)。⛔ 従前の紙は
+#   「`title=` / `aria-label=` は紙に出るのに測っていない」と**未結線として名乗って**いたが、
+#   ⚠ **名指しが実体とずれていた** — 検図方の独立実測で `title=` は **0 本**、
+#   `aria-label` が **43 本**(記法0)。⇒ ⭕ **名乗るより歩く。**歩けば数も現況も古びない。
+DOC_ATTR = "属性"
+_RE_DOC_ATTR = re.compile(r'\b(aria-label|title|alt)\s*=\s*"([^"]*)"')
+
+# ⛔⛔ **散文がタグとして食われる口**。⚠ `_RE_DOC_TAG` は `<[^<>]*>` なので
+#   「厩 2.35 `<` 家中長屋 2.80 `>` 御殿」の `< 家中長屋 2.80 >` を**タグとして飲む** —
+#   飲まれた散文は**母集団から黙って消える**(⛔ 減った字数は誰にも見えない)。
+#   ⇒ **要素の名で立っていないタグ**を数え、0 でなければ鳴らす。
+_RE_DOC_ELEM = re.compile(r'<\s*/?\s*[a-zA-Z][\w-]*')
+
 
 def doc_markup(doc):
     """**文書全体**(html の本文と表)に、記法が字として残っていないか。
@@ -210,14 +233,30 @@ def doc_markup(doc):
 
     返すのは {面: {腕: [(記法, 前後)]}} と、測った母集団の大きさ。
     """
-    face = {"本文": {}, "表": {}, DOC_QUOTE: {}}
-    nodes = chars = code_spans = code_chars = cite = 0
+    face = {"本文": {}, "表": {}, DOC_ATTR: {}, DOC_QUOTE: {}}
+    nodes = chars = code_spans = code_chars = cite = attr_chars = 0
+    attrs, eaten = {}, []
     _open = _skip = 0
     for txt, _tag, st in _doc_scan(doc):
         _open, _skip = st["code"], st["skip"]
-        if txt is None or not txt.strip() or st["skip"]:
-            if txt is None and _tag is not None and st["opened"] == "code":
+        if txt is None and _tag is not None:
+            if st["opened"] == "code":
                 code_spans += 1
+            # ⭐ **属性の中**(⛔ `<svg>` の中でも歩く — `aria-label` は svg に載る)
+            if not _tag.startswith("<!--"):
+                for a9 in _RE_DOC_ATTR.finditer(_tag):
+                    nm9, v9 = a9.group(1), a9.group(2)
+                    attrs[nm9] = attrs.get(nm9, 0) + 1
+                    attr_chars += len(v9)
+                    for nm, rx in _MK_DOC:
+                        for h in rx.finditer(v9):
+                            face[DOC_ATTR].setdefault(nm, []).append(
+                                (h.group(0), "%s=%s" % (nm9, v9[:60])))
+                # ⛔ 要素の名で立っていない「タグ」= 食われた散文
+                if not _tag.startswith("<!") and not _tag.startswith("<?") \
+                        and not _RE_DOC_ELEM.match(_tag) and not st["skip"]:
+                    eaten.append((_tag[:60], ""))
+        if txt is None or not txt.strip() or st["skip"]:
             continue
         if st["code"]:
             code_chars += len(txt)
@@ -232,16 +271,18 @@ def doc_markup(doc):
                     (h.group(0), txt[max(0, h.start() - 34):h.end() + 26]))
         if fc is not face[DOC_QUOTE]:
             cite += sum(1 for h in _RE_CITE.finditer(txt)
-                        if not _MK_DOC[5][1].match(h.group(0)))
+                        if not _RE_DOC_LINK.match(h.group(0)))
     return {"cite": cite, "face": face, "nodes": nodes, "chars": chars,
             "codeSpans": code_spans, "codeChars": code_chars,
+            "attrs": attrs, "attrChars": attr_chars, "eaten": eaten,
             # ⛔⛔ **閉じていない `<code>` は母集団を静かに飲み込む**(2026-09-08 第8巡に踏んだ)。
             #   ⚠ `_pending` の注記へ生の `<code>` を1つ書いただけで、⚠⚠ **以降の紙が
             #   まるごと「引用の面」に落ち**、本文の字面が 16,942 → 10,421 へ減った。
             #   ⭐ 束①〜④が鳴って捕まったが、⛔ **名前の付いた失敗にしておく。**
             "codeOpen": _open, "skipOpen": _skip,
             "quoted": sum(len(v) for v in face[DOC_QUOTE].values()),
-            "n": sum(len(v) for f in ("本文", "表") for v in face[f].values())}
+            "n": (sum(len(v) for f in ("本文", "表", DOC_ATTR)
+                      for v in face[f].values()) + len(eaten))}
 
 
 def _doc_scan(doc):
@@ -305,7 +346,7 @@ def docify(doc):
     return "".join(out), n
 
 
-def doc_markup_counts(r, faces=("本文", "表")):
+def doc_markup_counts(r, faces=("本文", "表", DOC_ATTR)):
     """面ごと・腕ごとの件数。⛔ 順を他所で並べ替えない。"""
     return [(f, [(nm, len(r["face"][f].get(nm, ()))) for nm, _rx in _MK_DOC])
             for f in faces]
@@ -325,35 +366,120 @@ def doc_markup_probes(doc):
     def _n(dc):
         r = doc_markup(dc)
         return (sum(len(v) for v in r["face"]["本文"].values()),
-                sum(len(v) for v in r["face"]["表"].values()), r["quoted"])
+                sum(len(v) for v in r["face"]["表"].values()),
+                sum(len(v) for v in r["face"][DOC_ATTR].values()),
+                r["quoted"], len(r["eaten"]))
     base = _n(doc)
 
     def _d(dc):
         g = _n(dc)
-        return (g[0] - base[0], g[1] - base[1], g[2] - base[2])
+        return tuple(a - b for a, b in zip(g, base))
 
     six = "".join(_DOC_PROBE)
     out = [("① ⭐⭐ **6通りの記法(タグ/実体参照/行送り/太字/引用符/リンク)を"
             "本文の段落へ刷る** — ⚠ **本文で6件鳴る**",
-            _d(doc + "<p>" + six + "</p>"), ("≥6", "0", "0")),
+            _d(doc + "<p>" + six + "</p>"), ("≥6", "0", "0", "0", "0")),
            ("② ⭐⭐ **同じ6通りを表のセルへ刷る** — ⚠ **表で6件鳴る**"
             "(⛔ 本文では鳴らない=面の仕分けが生きている)",
-            _d(doc + "<table><tr><td>" + six + "</td></tr></table>"), ("0", "≥6", "0")),
+            _d(doc + "<table><tr><td>" + six + "</td></tr></table>"),
+            ("0", "≥6", "0", "0", "0")),
            ("③ ⭐ **`\\n` を1つだけ本文へ刷る**(=第7巡が `_pending` の注記へ入れた形)"
             " — ⚠ **1件鳴る**",
-            _d(doc + "<p>…恒真にした。\\n⛔ 次の文</p>"), ("1", "0", "0")),
+            _d(doc + "<p>…恒真にした。\\n⛔ 次の文</p>"), ("1", "0", "0", "0", "0")),
            ("④ ⭐ **生のバッククォートを1対だけ本文へ刷る**(=本文 1,916 個の形)"
             " — ⚠ **2件鳴る**",
-            _d(doc + "<p>正典は `svg_layout.plain()` である</p>"), ("2", "0", "0")),
+            _d(doc + "<p>正典は `svg_layout.plain()` である</p>"), ("2", "0", "0", "0", "0")),
            ("⑤ ⛔ **家の典拠記法 `[西川1959](A)` を刷る** — "
             "⛔ **鳴らない**(⚠ リンクに数えない・当図に 17 出現)",
-            _d(doc + "<p>[西川1959](A) と [福井図](B・図の目測)</p>"), ("0", "0", "0")),
+            _d(doc + "<p>[西川1959](A) と [福井図](B・図の目測)</p>"),
+            ("0", "0", "0", "0", "0")),
            ("⑥ ⛔⛔ **同じ6通りを `<code>` の中へ刷る** — ⛔ **欠陥としては鳴らない"
             "(既知の穴)**。⭕ ただし**引用の面では6件数える** — "
             "⚠ **除いた面を「数えていない」で済ませない**",
-            _d(doc + "<p><code>" + six + "</code></p>"), ("0", "0", "≥6")),
-           ("⑦ いまの紙(基準)— ⛔ **鳴らない**", _d(doc), ("0", "0", "0"))]
+            _d(doc + "<p><code>" + six + "</code></p>"), ("0", "0", "0", "≥6", "0")),
+           # ⭐⭐ **2026-09-09 第9巡・検図方 低2: 山括弧の見張りは片側だけだった。**
+           ("⑦ ⭐⭐ **裸の `<` を1つ本文へ刷る**(=紙に現に在った「厩 2.35 < 家中長屋」の形)"
+            " — ⚠ **本文で1件鳴る**",
+            _d(doc + "<p>厩 2.35 < 家中長屋</p>"), ("1", "0", "0", "0", "0")),
+           ("⑧ ⛔⛔ **`A < B > C` の形で散文をタグとして食わせる** — "
+            "⚠ **本文の腕は鳴らない**(食われた字はもう本文に無い)。"
+            "⭕ **食われた口のほうが1件鳴る**",
+            _d(doc + "<p>厩 2.35 < 家中長屋 2.80 > 御殿 3.40</p>"),
+            ("0", "0", "0", "0", "1")),
+           ("⑨ ⭐⭐ **属性(`aria-label`)へ字になったタグを刷る** — "
+            "⚠ **属性の面で2件鳴る**(⛔ 従前はこの面を歩いていなかった)",
+            _d(doc + '<p aria-label="&lt;b&gt;凡例&lt;/b&gt;">x</p>'),
+            ("0", "0", "≥2", "0", "0")),
+           ("⑩ いまの紙(基準)— ⛔ **鳴らない**", _d(doc), ("0", "0", "0", "0", "0"))]
     return out
+
+
+# ---------------------------------------------------------------- 母集団そのものの条
+# ⭐⭐⭐ **2026-09-09 第9巡・検図方 中2 — 「母集団が生きている」ことは束では証明できない。**
+#   ⛔⛔ 束は**紙の末尾に差す**ので、⚠ **紙の本体がまるごと `<code>` に呑まれても
+#   7/7 ⭕ のまま**である。実測: 釣り合った `<code>…</code>` で本文を呑むと
+#   nodes **16,998 → 65** / chars **220,441 → 1,006** でも `codeOpen`=0・`n`=0・
+#   束 7/7 ⭕ で**何も鳴らなかった**(⛔ 呑まれた面へ本物の欠陥を差しても鳴らない)。
+#   ⭐ 検図方の言葉:「**束は『腕が生きている』ことしか証明しない。『母集団が生きている』
+#   ことを証明できるのは母集団の数だけで、その数は誰とも比べられていない。**」
+#   ⇒ ⭕ **母集団の数そのものに条を立てる。**
+POP_DROP = 0.05      # 前巡比の下限。⛔ この数を各所へ書き写さない
+
+
+def pop_floor(r, base, floor=None, drop=POP_DROP):
+    """母集団(`nodes` / `chars`)が前巡と絶対の下限を割っていないか。
+
+    ⑴ **前巡比** — `base` より `drop` を超えて減ったら鳴る(呑み込み・切り落とし)。
+    ⑵ **絶対の下限** — `floor` を割ったら鳴る(⚠ **毎巡 4% ずつ削るじわ漏れは ⑴ では
+       永久に鳴らない** — 前巡が既に痩せているから)。
+    ⛔ どちらも「増える」ほうは咎めない。⚠ `base`/`floor` が無ければその条は立たない。
+    """
+    bad = []
+    for k, lab in (("nodes", "字面"), ("chars", "字数")):
+        got = r.get(k) or 0
+        if base and base.get(k):
+            lim = base[k] * (1.0 - drop)
+            if got < lim:
+                bad.append("**紙の母集団(%s)が前巡より %.1f%% 減った**"
+                           "(%s → %s ・下限 %s)— ⛔⛔ **`<code>` の呑み込みを疑え**"
+                           % (lab, (1.0 - got / float(base[k])) * 100.0,
+                              "{:,}".format(base[k]), "{:,}".format(got),
+                              "{:,}".format(int(lim))))
+        if floor and floor.get(k) and got < floor[k]:
+            bad.append("**紙の母集団(%s)が絶対の下限を割った**(%s < %s)"
+                       % (lab, "{:,}".format(got), "{:,}".format(floor[k])))
+    return bad
+
+
+def _pop_swallow(doc):
+    """⛔ **釣り合った `<code>` で紙の本体を呑む**(=検図方が実演した ⒝ の形)。"""
+    i = doc.find("</style>")
+    if i < 0:
+        return doc
+    i += len("</style>")
+    return doc[:i] + "<code>" + doc[i:] + "</code>"
+
+
+def doc_pop_probes(doc, base, floor=None):
+    """⭐⭐ **母集団の条が生きていることを毎回見せる**(規則19)。⛔ 乱数を使わない。
+
+    返すのは `[(題, 実測(字面, 字数, 鳴った件数), 期待)]`。
+    """
+    def _run(dc):
+        r = doc_markup(dc)
+        return (r["nodes"], r["chars"], len(pop_floor(r, base, floor)))
+
+    return [("ⓐ いまの紙(⚠ この章を差す前)— ⛔ **鳴らない**", _run(doc), ("—", "—", "0")),
+            ("ⓑ ⛔⛔ **釣り合った `<code>` で紙の本体を呑む** — "
+             "⚠ `codeOpen` は 0 のまま・記法の束は 7/7 ⭕ のまま。"
+             "⭕ **母集団の条だけが鳴る**(これが第9巡に開いていた扉)",
+             _run(_pop_swallow(doc)), ("—", "—", "≥2")),
+            ("ⓒ ⛔ **開きっぱなしの `<code>` を1つ入れる**(=第8巡に踏んだ形)— ⭕ **鳴る**",
+             _run(doc.replace("</style>", "</style><code>", 1)), ("—", "—", "≥1")),
+            ("ⓓ ⛔ **紙の末尾を1割落とす**(じわ漏れ・切り落としの形)— ⭕ **鳴る**",
+             _run(doc[:int(len(doc) * 0.88)]), ("—", "—", "≥1")),
+            ("ⓔ ⭕ **紙をふやす** — ⛔ **鳴らない**(⚠ 増えるほうは咎めない)",
+             _run(doc + "<p>" + ("土" * 500) + "</p>" * 1), ("—", "—", "0"))]
 
 
 # ---------------------------------------------------------------- 字の物差し

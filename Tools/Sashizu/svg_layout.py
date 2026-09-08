@@ -158,6 +158,204 @@ def markup_hits(s):
     return [nm for nm, rx in _MK if rx.search(s)]
 
 
+# ---------------------------------------------------------------- 記法が本文へ漏れる
+# ⭐⭐⭐ **2026-09-08 第8巡・検図方。⛔⛔ 上の第6項の母集団は `svg > text` の字面だけで、
+#   html の本文と表は1字も入っていなかった。**⚠⚠ そのため「記法を紙へ刷らない」と掲げた
+#   当の巡が、同じ紙へ **literal な `\n` を 21・生のバッククォートを +40・字になった
+#   `<b>` を 8** ふやして通った。⛔ **限界の明示でも断っていない第三の面**だった
+#   (明示していたのは「`T()` を通る銘は恒真 / 効くのは生の `<text>`」まで)。
+# ⇒ ⭕ **母集団を文書全体へ広げる。**⛔ 個別に3つ潰して終わりにしない —
+#   広げれば ⑴`\n` も ⑵バッククォートも ⑶タグ漏れも**毎巡自動で捕まる**。
+#
+# ⚠ **図の字面とは腕が違う**(同じ物差しを両面へ当てない)。html では:
+#   ・生の `<b>` は**正しい記法**(紙には出ない)⇒ 数えない。
+#     字として出るのは**エスケープされた形** `&lt;b&gt;` のほう。
+#   ・実体参照も同じで、字として出るのは `&amp;nbsp;` のほう。
+#   ・`\n` `\t` は json の注記が2文字のまま流れてくる形(⚠ 図の字面には出ない口)。
+_MK_DOC = (
+    ("タグ", re.compile(r'&lt;/?[a-zA-Z][a-zA-Z0-9]*(?:\s[^&<>]{0,80}?)?/?&gt;')),
+    ("実体参照", re.compile(r'&amp;(?:[a-zA-Z][a-zA-Z0-9]{1,9}|#\d{1,6}|#[xX][0-9a-fA-F]{1,6});')),
+    ("行送り", re.compile(r'\\[nrt]')),
+    ("太字", re.compile(r'\*\*|~~')),
+    ("引用符", re.compile(r'`')),
+    # ⛔ **家の典拠記法 `[西川1959](A)` をリンクに数えない**(⚠ 当図に 17 出現)。
+    #   ⇒ 括弧の中が **URL か path に見える物だけ**を「刷られたリンク」と読む。
+    ("リンク", re.compile(r'\[[^\[\]\n]*\]\((?:[a-zA-Z][a-zA-Z0-9+.-]*:|\.{0,2}/)[^()\s]*\)')),
+)
+
+# ⭐ **リンクに数えなかった「家の典拠記法」の数**。⛔ 除いた物の数も手で書かない —
+#   ⚠ 「当図に 17 出現」と地の文へ書くと、次の巡に古びる(規則19)。
+_RE_CITE = re.compile(r'\[[^\[\]\n]*\]\([^()\s]*\)')
+
+# ⭐⭐ **`<code>` の中も「別枠として」数える**(2026-09-08 第8巡)。⛔⛔ **除いた面を
+#   「数えていない」で済ませない** — ⚠ 当図の紙には `<code>` の中に**生の引用符 12・
+#   literal な `\n` 3・`**` 2・字になったタグ 21** が現に在る。⭕ それは**欠陥ではなく
+#   記法そのものの引用**だが、⛔ **0 でない物を 0 と読ませない**ので件数を刷る。
+#   ⚠⚠ **同時にこれは穴でもある** — 欠陥がこの面へ入り込めば、欠陥として鳴らない。
+DOC_QUOTE = "引用(<code> の中)"
+
+_RE_DOC_TAG = re.compile(r'<!--.*?-->|<[^<>]*>', re.S)
+_DOC_SKIP = ("svg", "style", "script")      # 中の字は紙の本文ではない
+_DOC_CELL = ("td", "th")                    # 面の仕分け(表 / 本文)
+
+
+def doc_markup(doc):
+    """**文書全体**(html の本文と表)に、記法が字として残っていないか。
+
+    ⛔ **`<code>` の中は数えない** — ⚠ そこは**記法そのものを引用している**面で、
+      `<code>&lt;b&gt;</code>` は欠陥ではなく説明である。
+    ⛔⛔ **これは穴でもある** — 欠陥が `<code>` の中に入り込めば見えない。
+      ⇒ 除いた span と字数を**必ず一緒に刷る**(下の束⑥が毎回この穴を実演する)。
+    ⚠ **`<svg>` の中は見ない** — そちらは `check()` の第6項(`plain()` と対)が測る。
+
+    返すのは {面: {腕: [(記法, 前後)]}} と、測った母集団の大きさ。
+    """
+    face = {"本文": {}, "表": {}, DOC_QUOTE: {}}
+    nodes = chars = code_spans = code_chars = cite = 0
+    _open = _skip = 0
+    for txt, _tag, st in _doc_scan(doc):
+        _open, _skip = st["code"], st["skip"]
+        if txt is None or not txt.strip() or st["skip"]:
+            if txt is None and _tag is not None and st["opened"] == "code":
+                code_spans += 1
+            continue
+        if st["code"]:
+            code_chars += len(txt)
+            fc = face[DOC_QUOTE]          # ⭐ **引用の面も数える**(⛔ 欠陥には数えない)
+        else:
+            nodes += 1
+            chars += len(txt)
+            fc = face["表" if st["cell"] else "本文"]
+        for nm, rx in _MK_DOC:
+            for h in rx.finditer(txt):
+                fc.setdefault(nm, []).append(
+                    (h.group(0), txt[max(0, h.start() - 34):h.end() + 26]))
+        if fc is not face[DOC_QUOTE]:
+            cite += sum(1 for h in _RE_CITE.finditer(txt)
+                        if not _MK_DOC[5][1].match(h.group(0)))
+    return {"cite": cite, "face": face, "nodes": nodes, "chars": chars,
+            "codeSpans": code_spans, "codeChars": code_chars,
+            # ⛔⛔ **閉じていない `<code>` は母集団を静かに飲み込む**(2026-09-08 第8巡に踏んだ)。
+            #   ⚠ `_pending` の注記へ生の `<code>` を1つ書いただけで、⚠⚠ **以降の紙が
+            #   まるごと「引用の面」に落ち**、本文の字面が 16,942 → 10,421 へ減った。
+            #   ⭐ 束①〜④が鳴って捕まったが、⛔ **名前の付いた失敗にしておく。**
+            "codeOpen": _open, "skipOpen": _skip,
+            "quoted": sum(len(v) for v in face[DOC_QUOTE].values()),
+            "n": sum(len(v) for f in ("本文", "表") for v in face[f].values())}
+
+
+def _doc_scan(doc):
+    """html を「タグの外の字」と「タグ」に割って歩く。⛔ 物差しと直しで**同じ歩き方**を使う。
+
+    ⚠ 産むのは `(字 or None, タグ or None, 状態)`。状態は `<svg>/<style>/<script>` の
+    深さ `skip`・`<code>` の深さ `code`・`<td>/<th>` の深さ `cell`。
+    """
+    st = {"skip": 0, "code": 0, "cell": 0, "opened": None}
+    pos = 0
+    for m in _RE_DOC_TAG.finditer(doc):
+        if m.start() > pos:
+            yield doc[pos:m.start()], None, st
+        pos = m.end()
+        tag = m.group(0)
+        st["opened"] = None
+        if not tag.startswith("<!--"):
+            nm9 = re.match(r'<\s*(/?)\s*([a-zA-Z][\w-]*)', tag)
+            if nm9 and not (nm9.group(1) != "/" and tag.rstrip().endswith("/>")):
+                shut, el = nm9.group(1) == "/", nm9.group(2).lower()
+                d9 = -1 if shut else 1
+                if el in _DOC_SKIP:
+                    st["skip"] = max(0, st["skip"] + d9)
+                elif not st["skip"]:
+                    if el == "code":
+                        st["code"] = max(0, st["code"] + d9)
+                        st["opened"] = "code" if not shut else None
+                    elif el in _DOC_CELL:
+                        st["cell"] = max(0, st["cell"] + d9)
+        yield None, tag, st
+    if pos < len(doc):
+        yield doc[pos:], None, st
+
+
+_RE_DOC_CODE = re.compile(r'`([^`\n]+)`')
+
+
+def docify(doc):
+    """⭐⭐ **本文の `名` を `<code>名</code>` へ替える**(2026-09-08 第8巡・裁定1)。
+
+    ⛔⛔ **図の側だけ記法を剥がして、本文は生のまま刷る、をやめる** — ⚠ 第7巡まで
+      本文には**生のバッククォートが 1,916 個**あり、⭐ 考証方は「従前からの家の書き方」と
+      証言した。⇒ ⭕ **禁じるのでも見逃すのでもなく、html の正しい器へ移す。**
+      これで引用の約物が**図は〈 〉/ 本文は `<code>`** の一対になり、
+      ⛔ **どちらの面にも生の記法が出ない**(第7巡の低3)。
+    ⛔ **`<svg>` と `<code>` の中は触らない** — 前者は `plain()` の持ち場、
+      後者は**記法そのものを引用している面**(``` `名` ``` を字として見せている所がある)。
+    ⚠ 対になっていない裸のバッククォートは替えられない ⇒ **物差しの側が鳴る**(それでよい)。
+    """
+    out, n = [], 0
+    for txt, tag, st in _doc_scan(doc):
+        if tag is not None:
+            out.append(tag)
+            continue
+        if st["skip"] or st["code"]:
+            out.append(txt)
+            continue
+        t2, k = _RE_DOC_CODE.subn(r'<code>\1</code>', txt)
+        out.append(t2)
+        n += k
+    return "".join(out), n
+
+
+def doc_markup_counts(r, faces=("本文", "表")):
+    """面ごと・腕ごとの件数。⛔ 順を他所で並べ替えない。"""
+    return [(f, [(nm, len(r["face"][f].get(nm, ()))) for nm, _rx in _MK_DOC])
+            for f in faces]
+
+
+_DOC_PROBE = ("凡例=&lt;b&gt;江戸期の復元地盤&lt;/b&gt;", "余白 &amp;nbsp; 100 m",
+              "一行目。\\n二行目。", "**太い字**", "点線の円=`at` の半径の帯",
+              "[題](http://x/y)")
+
+
+def doc_markup_probes(doc):
+    """⭐⭐ **広げた母集団が生きていることを毎回見せる**(規則19)。⛔ 乱数を使わない。
+
+    ⚠ 差し込むのは**紙のいちばん後ろ**(⛔ 既存の要素を書き換えない=冪等)。
+    返すのは `[(題, 実測(本文, 表, `<code>` の中), 期待)]`。
+    """
+    def _n(dc):
+        r = doc_markup(dc)
+        return (sum(len(v) for v in r["face"]["本文"].values()),
+                sum(len(v) for v in r["face"]["表"].values()), r["quoted"])
+    base = _n(doc)
+
+    def _d(dc):
+        g = _n(dc)
+        return (g[0] - base[0], g[1] - base[1], g[2] - base[2])
+
+    six = "".join(_DOC_PROBE)
+    out = [("① ⭐⭐ **6通りの記法(タグ/実体参照/行送り/太字/引用符/リンク)を"
+            "本文の段落へ刷る** — ⚠ **本文で6件鳴る**",
+            _d(doc + "<p>" + six + "</p>"), ("≥6", "0", "0")),
+           ("② ⭐⭐ **同じ6通りを表のセルへ刷る** — ⚠ **表で6件鳴る**"
+            "(⛔ 本文では鳴らない=面の仕分けが生きている)",
+            _d(doc + "<table><tr><td>" + six + "</td></tr></table>"), ("0", "≥6", "0")),
+           ("③ ⭐ **`\\n` を1つだけ本文へ刷る**(=第7巡が `_pending` の注記へ入れた形)"
+            " — ⚠ **1件鳴る**",
+            _d(doc + "<p>…恒真にした。\\n⛔ 次の文</p>"), ("1", "0", "0")),
+           ("④ ⭐ **生のバッククォートを1対だけ本文へ刷る**(=本文 1,916 個の形)"
+            " — ⚠ **2件鳴る**",
+            _d(doc + "<p>正典は `svg_layout.plain()` である</p>"), ("2", "0", "0")),
+           ("⑤ ⛔ **家の典拠記法 `[西川1959](A)` を刷る** — "
+            "⛔ **鳴らない**(⚠ リンクに数えない・当図に 17 出現)",
+            _d(doc + "<p>[西川1959](A) と [福井図](B・図の目測)</p>"), ("0", "0", "0")),
+           ("⑥ ⛔⛔ **同じ6通りを `<code>` の中へ刷る** — ⛔ **欠陥としては鳴らない"
+            "(既知の穴)**。⭕ ただし**引用の面では6件数える** — "
+            "⚠ **除いた面を「数えていない」で済ませない**",
+            _d(doc + "<p><code>" + six + "</code></p>"), ("0", "0", "≥6")),
+           ("⑦ いまの紙(基準)— ⛔ **鳴らない**", _d(doc), ("0", "0", "0"))]
+    return out
+
+
 # ---------------------------------------------------------------- 字の物差し
 def css_classes(path=CSS):
     """`sashizu.css` → {クラス名: (font-size, text-anchor, letter-spacing[em])}。"""
@@ -1509,21 +1707,41 @@ def probes(doc, raw=None, cls_tab=None):
             '<text class="%s" x="%.1f" y="%.1f" style="text-anchor:start">%s</text>'
             % (a.cls, PAD, PAD + 12.0 * (k + 1), _html.escape(q, quote=False))
             for k, q in enumerate(ss))
-    out.append(("⑬ ⭐⭐⭐ **記法(タグ/実体参照/太字/引用符/リンク)の5通りを"
+
+    def _inject_raw(ss):
+        """⛔ **escape せずに差す** — ⚠ 実体参照の腕は「生の口がそのまま出した形」でしか
+        試せない(`escape` を通すと `&` が `&amp;` になって別の形になってしまう)。"""
+        return body + "".join(
+            '<text class="%s" x="%.1f" y="%.1f" style="text-anchor:start">%s</text>'
+            % (a.cls, PAD, PAD + 12.0 * (k + 1), q) for k, q in enumerate(ss))
+    out.append(("⑬ ⭐⭐⭐ **記法(タグ/実体参照/太字/引用符/リンク)の5通りを "
                 "`plain()` を通さずに紙へ刷る** — ⚠ **記法が5件鳴る**",
                 _mut(_inject(_MKS)), ("—", "—", "—", "—", "—", "≥5")))
     out.append(("⑭ ⭐⭐⭐ **同じ5通りを `plain()` に通して刷る** — "
                 "⛔ **鳴らない(鳴ったら変換のほうが壊れている)**",
                 _mut(_inject([plain(q) for q in _MKS])),
                 ("—", "—", "—", "—", "—", "0")))
-    # ⑮ 触らない ⇒ 鳴らない
-    out.append(("⑮ いまの図(基準)— ⛔ **鳴らない**", counts(check(doc, tab)),
+    # ⑮⑯ ⭐⭐⭐ **「実体参照」の腕は、限界の明示が「ほんとうに働く」と言った場所では
+    #   働かない**(2026-09-08 第7巡・検図方 低1)。⛔⛔ `parse()` は字面を `unescape()` して
+    #   から測るので、⚠ **生の口が正しく出した実体参照は解決され、腕に当たらない**。
+    #   ⚠⚠ 第7巡に `&lt;b&gt;` が鳴ったのは**タグの腕**であって、この腕ではなかった
+    #   = **1腕ぶん過大に申告していた。**⇒ ⭕ **この一対で口を名指す** —
+    #   この腕がほんとうに捕まえるのは**二重にエスケープされた**実体参照だけである。
+    out.append(("⑮ ⛔⛔ **正しい実体参照 `&nbsp;` を生のまま紙へ刷る** — "
+                "⛔ **鳴らない(既知の穴)**。⚠ `parse()` の `unescape()` が解いてしまう",
+                _mut(_inject_raw(["余白&nbsp;100 m"])), ("—", "—", "—", "—", "—", "0")))
+    out.append(("⑯ ⭐⭐ **二重にエスケープした `&amp;nbsp;` を生のまま紙へ刷る** — "
+                "⚠ **鳴る**(⇒ ⭕ この腕が捕まえるのは**この形だけ**である)",
+                _mut(_inject_raw(["余白&amp;nbsp;100 m"])), ("—", "—", "—", "—", "—", "≥1")))
+    # ⑰ 触らない ⇒ 鳴らない
+    out.append(("⑰ いまの図(基準)— ⛔ **鳴らない**", counts(check(doc, tab)),
                 ("0", "0", "0", "0", "0", "0")))
     return out
 
 
 def probe_ok(rows):
-    """`probes` の各行が期待どおりか。⛔ 期待は「≥N」「0」「—」(不問)の語で持つ。
+    """`probes` / `doc_markup_probes` の各行が期待どおりか(⚠ 列の数には依らない)。
+    ⛔ 期待は「≥N」「0」「—」(不問)の語で持つ。
 
     ⚠ **「—」は逃げ道ではない** — その束が**その筋では鳴ると言い切れない**ときだけ使う
     (例: 幅を 0.95 倍して組み直すと、枠外だけでなく重なりも副次的に出る)。

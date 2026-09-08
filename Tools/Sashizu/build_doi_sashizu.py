@@ -2720,6 +2720,7 @@ def probe_roster(d):
                    ("見所→主景の視線(幹と樹冠)", mustsee_sensitivity),
                    ("園路の頭上", zukou_sensitivity),
                    ("御土蔵の見切り(白壁の帯)", mikiri_sensitivity),
+                   ("陰の樹下の受け", juka_uke_sens),
                    ("受け石の平面の当たり", uke_atari_sens),
                    ("沓脱石の従属", kutsunugi_deps_sens)):
         pr, vd = fn(d)
@@ -11694,34 +11695,124 @@ def crown_hit_part(c, K, v1, e1, tu, tv, ty, gy, ns=24):
     return None
 
 
+def _poly_area(pts):
+    """多角形の符号付き面積[間²]。⛔ 呼び手で台形則を書き写さない(規則4)。"""
+    a = 0.0
+    for (u0, v0), (u1, v1) in zip(pts, pts[1:] + pts[:1]):
+        a += u0 * v1 - u1 * v0
+    return a / 2.0
+
+
+def _enro_edge_v(e, u, sg, K):
+    """路 `e` の **`u` における路縁の v**(路の芯から半幅ぶん `-sg` 側へ退がった線)。
+
+    ⭐ **路縁で測る**(⛔ 芯までで測らない)— 幅は `_enro_halfwidth` が持つ区間値。
+    ⚠ 路が `u` を跨がない(範囲の外)なら `None`。⛔ 外挿しない。
+    """
+    got = None
+    for a, b in zip(e["pts"], e["pts"][1:]):
+        lo, hi = sorted((a[0], b[0]))
+        if not (lo - 1e-9 <= u <= hi + 1e-9) or abs(b[0] - a[0]) < 1e-12:
+            continue
+        t = (u - a[0]) / (b[0] - a[0])
+        v = a[1] + (b[1] - a[1]) * t
+        # 路縁は芯から半幅ぶん `sg` の逆側へ。⚠ 半幅[m] は `K` で間へ直す。
+        hw = _enro_halfwidth(e, u, v) / K
+        q = v - sg * hw
+        got = q if got is None else (min(got, q) if sg > 0 else max(got, q))
+    return got
+
+
+def _shitakusa_wheres(d):
+    """**下草の散布域の母集団** — シダ(`shitakusa.shida.where`)＋**苔**(`shitakusa.koke.where`)。
+
+    ⭐⭐ **2026-09-08(第3巡)、苔を同じ器に入れた**【庭方の起案(採用=普請奉行)】。
+      ⛔⛔ **2026-09-08 まで `shitakusa.koke` は生成器が一度も読んでいなかった** —
+      ⚠ 「コケ・芝はスプラット」と宣言だけが在って、**図にも表にも検査にも出ていなかった**
+      (規則19。⚠ `shida` が 2026-09-06 に踏んだのとまったく同じ形が二度目)。
+    ⛔ **母集団を関数の外に二度書かない**(規則4)— 図も表も検査もここ一本から採る。
+    """
+    g = niwa(d) or {}
+    out = []
+    for key, kusa in (("shida", "シダ"), ("koke", "苔")):
+        blk = (g.get("shitakusa") or {}).get(key)
+        if not isinstance(blk, dict):
+            continue
+        for w in blk.get("where", []):
+            out.append((kusa, w))
+    return out
+
+
 def shitakusa_regions(d):
-    """**下草の散布域を言葉でなく幾何で組む**(`shitakusa.shida.where`)。
+    """**下草の散布域を言葉でなく幾何で組む**(`shitakusa.shida` / `shitakusa.koke` の `where`)。
 
     ⚠ 2026-09-06 まで `where` は「築山A1の北面」「モミジの根方」「稲荷の社叢」という
     **文字列3つ**で、`shitakusa` は生成器が一度も読んでいなかった —
     設計値だけ在って図にも表にも検査にも出ていない状態だった(棟梁の差し戻し③)。
 
-    ⛔ **意匠を足していない。**築山の中心と径、樹の位置と部材の実寸はすべて既に正典に在り、
-    ここはそこから機械で導くだけ:
-      `kata: 築山の面` … 名指した築山の楕円 footprint の **`side` 側の半分**(稜線 → 裾)
-      `kata: 樹下`     … 名指した `shokusai` の層の全個体の**樹冠の円**
-                         (半径は `docs/asset-index.tsv` の実測 ÷2 × `scale`。⛔ 指図に写さない)
+    ⛔ **意匠を足していない。**築山の中心と径、樹の位置と部材の実寸、垣の社地の矩形、
+    路の線形と幅はすべて既に正典に在り、ここはそこから機械で導くだけ:
+      `kata: 築山の面`   … 名指した築山の楕円 footprint の **`side` 側の半分**(稜線 → 裾)
+      `kata: 樹下`       … 名指した `shokusai` の層の全個体の**樹冠の円**
+                           (半径は `docs/asset-index.tsv` の実測 ÷2 × `scale`。⛔ 指図に写さない)
+      `kata: 垣の内`     … 名指した `kaki` の **社地の矩形**から `minus` の躯体を抜いた所
+      `kata: 垣の外〜路縁` … 社地の矩形の `side` の面から、名指した路の**路縁**まで
+                           (⭕ 路縁 = 路の芯からその位置の半幅を退がった線。⛔ 芯で測らない)
     """
     n = NI(d)
     if n is None:
         return []
     K = d["const"]["ken"]
     tk = {t["name"]: t for t in n.g.get("tsukiyama", [])}
+    kk = {k["name"]: k for k in n.g.get("kaki", [])}
+    ee = {e["name"]: e for e in n.g.get("enro", [])}
+    fr = {m["name"]: m for m in (d.get("munes", []) + d.get("service", []))}
     cr = _crowns(d)
     out = []
-    for w in ((n.g.get("shitakusa") or {}).get("shida") or {}).get("where", []):
+    for kusa, w in _shitakusa_wheres(d):
         if not isinstance(w, dict):
-            out.append(dict(w=w, name=str(w), label=str(w), kata="?", poly=[], circ=[],
-                            m2=0.0, err="散布域が文字列のまま — 幾何へ落としていない"))
+            out.append(dict(w=w, kusa=kusa, name=str(w), label=str(w), kata="?", poly=[],
+                            circ=[], holes=[], m2=0.0,
+                            err="散布域が文字列のまま — 幾何へ落としていない"))
             continue
-        o = dict(w=w, name=w.get("name", "?"), label=w.get("label", "?"),
-                 kata=w.get("kata"), poly=[], circ=[], m2=0.0, err=None)
-        if w.get("kata") == "築山の面":
+        o = dict(w=w, kusa=kusa, name=w.get("name", "?"), label=w.get("label", "?"),
+                 kata=w.get("kata"), poly=[], circ=[], holes=[], m2=0.0, err=None)
+        if w.get("kata") == "垣の内":
+            k9 = kk.get(w.get("of"))
+            sh = (k9 or {}).get("shachi")
+            if sh is None:
+                o["err"] = "垣 %r が `kaki` に無い(または社地の矩形が無い)" % w.get("of")
+            else:
+                o["poly"] = [(sh["u0"], sh["v0"]), (sh["u1"], sh["v0"]),
+                             (sh["u1"], sh["v1"]), (sh["u0"], sh["v1"])]
+                o["m2"] = (sh["u1"] - sh["u0"]) * (sh["v1"] - sh["v0"]) * K * K
+                m9 = fr.get(w.get("minus"))
+                if w.get("minus") and m9 is None:
+                    o["err"] = "抜く躯体 %r が `munes`/`service` に無い" % w.get("minus")
+                elif m9 is not None:
+                    o["holes"] = [[(m9["u0"], m9["v0"]), (m9["u1"], m9["v0"]),
+                                   (m9["u1"], m9["v1"]), (m9["u0"], m9["v1"])]]
+                    o["m2"] -= (m9["u1"] - m9["u0"]) * (m9["v1"] - m9["v0"]) * K * K
+        elif w.get("kata") == "垣の外〜路縁":
+            k9 = kk.get(w.get("of"))
+            sh = (k9 or {}).get("shachi")
+            e9 = ee.get(w.get("to"))
+            if sh is None:
+                o["err"] = "垣 %r が `kaki` に無い(または社地の矩形が無い)" % w.get("of")
+            elif e9 is None:
+                o["err"] = "路 %r が `enro` に無い" % w.get("to")
+            else:
+                sg = 1.0 if str(w.get("side", "+v")).startswith("+") else -1.0
+                v_k = sh["v1"] if sg > 0 else sh["v0"]
+                edge = []
+                for i in range(21):                     # 社地の u の範囲を刻む
+                    u9 = sh["u0"] + (sh["u1"] - sh["u0"]) * i / 20.0
+                    q = _enro_edge_v(e9, u9, sg, K)
+                    edge.append((u9, v_k if q is None else q))
+                o["poly"] = ([(sh["u0"], v_k), (sh["u1"], v_k)]
+                             + list(reversed(edge)))
+                o["m2"] = abs(_poly_area(o["poly"])) * K * K
+        elif w.get("kata") == "築山の面":
             t = tk.get(w.get("of"))
             if t is None or t.get("dU") is None:
                 o["err"] = "築山 %r が `tsukiyama` に無い(または楕円でない)" % w.get("of")
@@ -11750,14 +11841,15 @@ def shitakusa_regions(d):
 
 
 def _shitakusa_pts(o, st=0.1):
-    """散布域を 0.1間 格子で刻む(内外の判定用)。"""
+    """散布域を 0.1間 格子で刻む(内外の判定用)。⭕ `holes` は抜く(躯体の footprint)。"""
     if o["poly"]:
         us = [p[0] for p in o["poly"]]; vs = [p[1] for p in o["poly"]]
         u = min(us)
         while u <= max(us) + 1e-9:
             v = min(vs)
             while v <= max(vs) + 1e-9:
-                if _pip((u, v), o["poly"]):
+                if _pip((u, v), o["poly"]) and not any(_pip((u, v), h)
+                                                       for h in o.get("holes") or []):
                     yield (u, v)
                 v += st
             u += st
@@ -11873,7 +11965,91 @@ def shitakusa_check(d):
     if not ((niwa(d).get("shitakusa") or {}).get("shida") or {}).get("where"):
         bad.append("**下草の散布域 `shitakusa.shida.where` が無い** — "
                    "「樹下に散布」だけでは実装が範囲を発明する")
+    # ⭐⭐ **苔も同じ器で持つ**(2026-09-08 第3巡)。⛔⛔ **宣言だけの語を残さない** —
+    #   ⚠ `koke` は 2026-09-08 まで**文字列1行**で、生成器が一度も読んでいなかった。
+    kk9 = (niwa(d).get("shitakusa") or {}).get("koke")
+    if not isinstance(kk9, dict) or not kk9.get("where"):
+        bad.append("**苔の散布域 `shitakusa.koke.where` が無い** — ⛔ 「コケはスプラット」と"
+                   "宣言するだけでは**実装が範囲を発明する**(⚠ `shida` と同じ形)"
+                   "【`_pending.sosoushitakusa`】")
     return bad
+
+
+def juka_uke_check(d):
+    """⭐⭐⭐ **『裸地を残さない』の物差し** — **陰になる樹下が受かっているか**。
+
+    ⛔⛔ **散布域の数で測らない**【2026-09-08 第3巡・庭方の起案(採用=普請奉行)】。
+      ⚠⚠ 前巡は `Shida_Sosou` が落ちて域が 3 → 2 に減ったことを欠陥として扱ったが、
+      ⛔ **数は物差しではない** — ⚠ **数を戻すためだけの散布域**が生まれる
+      (⭐ しかも当の域は**陰生のシダを日向へ撒く**という技法の誤りだった)。
+    ⭕ 条は二つ:
+      ⑴ **`shokusai` の全部の層が `shitakusa.hikage` の `kage`/`hinata` のどちらかに載る**
+         — ⛔ **層を足して黙って物差しの外へ落ちるのを防ぐ**(規則19)。
+      ⑵ **`kage` の層の各個体の幹が、いずれかの散布域(シダ・苔)の中に在る**。
+    ⛔ **日向(松の根方・ウメの帯)は受からなくて正しい** — ⚠ 松は乾いた根方に据えるもの。
+    ⛔ **生成器の側で陰陽を判じない**(規則17)— 正典は `shitakusa.hikage`。
+    ⛔⛔ **⑵ の実測(裸地の残り)はここでは返さない** — ⭕ **直す手(域を広げる/木を寄せる)は
+      どちらも意匠**なので `juka_uke_todo` → `niwa_todo`(庭方へ差し戻す枠)へ回す。
+      ⚠ ここに混ぜると**指図方の機械検査が意匠待ちで赤のままになる**。
+    """
+    g = niwa(d) or {}
+    hk = (g.get("shitakusa") or {}).get("hikage")
+    if not isinstance(hk, dict):
+        return ["**`shitakusa.hikage`(陰/日向の名簿)が無い** — ⛔ 陰生かどうかを"
+                "生成器の側で判じない(規則17)。⚠ 名簿が無いと「裸地を残さない」は"
+                "**散布域の数**でしか測れない【`_pending.sosoushitakusa`】"]
+    kage = {(q.get("species"), q.get("size")) for q in hk.get("kage") or []}
+    hina = {(q.get("species"), q.get("size")) for q in hk.get("hinata") or []}
+    bad = []
+    for q in (list(kage) + list(hina)):
+        if not any((s.get("species"), s.get("size")) == q for s in g.get("shokusai", [])):
+            bad.append("**`shitakusa.hikage` が名指す「%s %s」の層が `shokusai` に無い** — "
+                       "⛔ 落とした層を名簿に残さない(⚠ 誰も測らない行になる)" % q)
+    for s in g.get("shokusai", []):
+        key = (s.get("species"), s.get("size"))
+        if key not in kage and key not in hina:
+            bad.append("**%s %s が `shitakusa.hikage` のどちらの列にも無い** — "
+                       "⛔ **陰か日向かを名乗らない層を通さない**(⚠ 名乗らなければ"
+                       "『樹下が受かっているか』の母集団から静かに落ちる=規則19)。"
+                       "⇒ **陰生かどうかは作庭の判断**【`_pending.jukauke`】" % key)
+    return bad
+
+
+def _juka_uke_rows(d):
+    """**陰の層の個体ごとの受け** — (層, u, v, 受けている散布域の名) の並び。
+
+    ⛔ **母集団と判定をここ一本から採る**(規則4)— 表も検査も同じここを呼ぶ。
+    ⭕ **『受ける』は根方(幹の芯)が散布域に入ること**で測る — ⚠ 樹冠の重なりではない
+      (⭕ 撒くのは根方であって梢ではない)。
+    """
+    g = niwa(d) or {}
+    hk = (g.get("shitakusa") or {}).get("hikage")
+    if not isinstance(hk, dict):
+        return []
+    kage = {(q.get("species"), q.get("size")) for q in hk.get("kage") or []}
+    regs = [o for o in shitakusa_regions(d) if not o["err"]]
+    out = []
+    for s in g.get("shokusai", []):
+        key = (s.get("species"), s.get("size"))
+        if key not in kage:
+            continue
+        for (u, v) in s.get("at", []):
+            hit = [o["label"] for o in regs
+                   if (o["poly"] and _pip((u, v), o["poly"])
+                       and not any(_pip((u, v), h) for h in o.get("holes") or []))
+                   or any((u - cu) ** 2 + (v - cv) ** 2 <= r * r
+                          for (cu, cv, r) in o["circ"])]
+            out.append((key, u, v, hit))
+    return out
+
+
+def juka_uke_todo(d):
+    """**陰の樹下に残った裸地** — ⛔ 指図方では直せない(域を広げるのも木を寄せるのも意匠)。"""
+    return ["**陰を作る %s %s (%.2f, %.2f) の根方がどの散布域にも入っていない** — "
+            "⛔ **陰の樹下に裸地を残さない**【庭方の物差し・U】。⭕ 受け方は"
+            "**苔の域を伸ばす / シダの域を足す / 木を寄せる**のどれか"
+            "(⛔ どれも作庭の意匠なので指図方では選べない=規則17)"
+            % (k[0], k[1], u, v) for (k, u, v, hit) in _juka_uke_rows(d) if not hit]
 
 
 def shitakusa_table(d):
@@ -11883,7 +12059,14 @@ def shitakusa_table(d):
         return ""
     rows = []
     for o in shitakusa_stats(d):
-        if o["poly"]:
+        if o["kata"] == "垣の内":
+            df = ("垣 <code>%s</code> の<b>社地の矩形</b>から <code>%s</code> の躯体を抜いた所"
+                  % (o["w"].get("of"), o["w"].get("minus")))
+        elif o["kata"] == "垣の外〜路縁":
+            df = ("垣 <code>%s</code> の社地の矩形の <b>%s の面</b>から "
+                  "<code>%s</code> の<b>路縁</b>まで(⛔ 芯までで測らない)"
+                  % (o["w"].get("of"), o["w"].get("side"), o["w"].get("to")))
+        elif o["poly"]:
             df = ("築山 <code>%s</code> の楕円の <b>%s 側の半分</b>(稜線 → 裾)"
                   % (o["w"].get("of"), o["w"].get("side")))
         elif o["circ"]:
@@ -11897,7 +12080,8 @@ def shitakusa_table(d):
         #   ⭕ 判定は `const.shitakusaOutMax` / `WetMax`、**はみ出しは差し戻しの印**として別に刷る。
         om8 = d["const"]["shitakusaOutMax"]
         wm8 = d["const"]["shitakusaWetMax"]
-        rows.append((o["label"], "<code>%s</code>" % o["name"], o["kata"] or "?", df,
+        rows.append((o["label"], "<code>%s</code>" % o["name"], o.get("kusa") or "?",
+                     o["kata"] or "?", df,
                      "%.1f m²" % o["m2"], "<b>%.1f m²</b>" % o["land"],
                      "%.1f%%" % o["wetPct"], "%.1f%%" % o.get("gvlPct", 0.0),
                      ("%.1f%%" % o["outPct"]) + ("" if o["outPct"] <= 1e-9 else
@@ -11933,19 +12117,103 @@ def shitakusa_table(d):
             "— ⛔ 決め打ちしない【U】。"
             "⭐ <b>2026-09-06 庭方の検め直しで、州浜の砂利帯も水面と同じ扱いで抜いた</b> — "
             "砂利帯は <code>bare</code>(そこの草は消す)と宣言している所なので下草は撒けない。"
-            "⚠ 実際に<b>常緑広葉 Small (−0.45, 67.75) の樹冠が州浜と重なる</b>。"
             "⛔ 樹も帯も動かさない — <b>重なった分に撒かないだけ</b>。"
+            "⚠⚠ <b>この条を立てた当時に重なっていた木(常緑広葉 Small)は案乙5 で廃した</b>ので、"
+            "⛔ <b>その一本を例に挙げたままにしない</b>(=落とした物を指さない)。"
+            "⭕ <b>条そのものは残す</b> — <b>いま切っている量はこの表の「砂利帯で切った割合」の列</b>"
+            "が毎回刷る(⛔ 文章で例を挙げない)。"
             "帯の形は <code>suhama</code> の <code>frm</code>/<code>to</code> と "
             "<code>toLand</code> から <code>karikomi</code> の「帯」と同じ器で組む。</p>"
+            "<p class='cap'>⭐⭐⭐ <b>2026-09-08(第3巡)、苔をこの表へ入れた</b>"
+            "【庭方の起案(採用=普請奉行)・確度U】— ⛔⛔ <b>それまで "
+            "<code>shitakusa.koke</code> は「コケ・芝はスプラット」という<u>宣言1行</u>だけで、"
+            "生成器が一度も読んでいなかった</b>(⚠ 図にも表にも検査にも出ていない=規則19。"
+            "<b>シダが 2026-09-06 に踏んだのとまったく同じ形が二度目</b>)。<br>"
+            "⭕ <b>社地(四つ目垣の内と、垣の西外〜主路の路縁)を苔で受ける。</b>"
+            "⛔ <b><code>Shida_Sosou</code>(社前のシダ)は復活させない</b> — "
+            "⭐ <b>シダは陰生</b>なので、樹を落として日向になった社地へ撒くのは"
+            "<b>技法として誤り</b>(⚠ 数を戻すためだけの散布域になる)。"
+            "⛔ <b>白砂も敷かない</b> — ⚠ <b>すぐ西に州浜の砂利帯がある</b>ので、"
+            "<b>砂の面が二つ並ぶと主景の前景がざらつく</b>。<br>"
+            "⭕ <b>苔もシダとまったく同じ器で測る</b>(水面・砂利帯・庭の外で切り、"
+            "判定は同じ <code>const</code> の上限)— ⛔ <b>下草ごとに物差しを分けない</b>。</p>"
             % (mz.get("y0", 0.0), mz.get("y1", 0.0),
                ("%.2f" % sk9["pitch"]) if sk9.get("pitch") else "⚠ 無い",
                ("%.2f" % sk9["pitchMin"]) if sk9.get("pitchMin") else "⚠ 無い",
                "" if sk9.get("yawRandom") else "(⚠ <b>`yawRandom` が無い</b>)",
                ("%.2f" % sk9["scaleJitter"][0]) if sk9.get("scaleJitter") else "⚠",
                ("%.2f" % sk9["scaleJitter"][1]) if sk9.get("scaleJitter") else "⚠"))
-    return _tw(("散布域", "名", "形", "定義(幾何から)", "公称", "撒く所",
+    return _tw(("散布域", "名", "<b>下草</b>", "形", "定義(幾何から)", "公称", "撒く所",
                 "水面で切った割合", "砂利帯で切った割合", "<b>庭の外で切った割合</b>",
                 "判定"), rows) + tail
+
+
+def _inl(t):
+    """正典の `_`(注記)を**そのまま図へ出すための最小の変換** — `**` → 太字 / `` ` `` → code。
+
+    ⛔ **注記を図の側へ書き写さない**(規則4)ためには正典から引くしかなく、⇒ ⭕ **引くなら
+      読める形にする**(⚠ 生の `**` が図に出ていると、読み手は「書きかけ」と取る)。
+    """
+    t = re.sub(r"`([^`]+)`", r"<code>\1</code>", str(t or ""))
+    return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", t, flags=re.S)
+
+
+def juka_uke_table(d):
+    """⭐⭐⭐ **『裸地を残さない』の物差しを刷る** — 層ごとに**陰か日向か**と、**個体ごとの受け**。
+
+    ⛔⛔ **散布域の数を刷らない**(2026-09-08 第3巡)— ⚠ 数は物差しではない。
+    """
+    g = niwa(d) or {}
+    hk = (g.get("shitakusa") or {}).get("hikage")
+    if not isinstance(hk, dict):
+        return ("<p class='cap'>⚠ <b><code>shitakusa.hikage</code>(陰/日向の名簿)が"
+                "無いので刷れない。</b></p>")
+    kage = {(q.get("species"), q.get("size")): q for q in hk.get("kage") or []}
+    hina = {(q.get("species"), q.get("size")): q for q in hk.get("hinata") or []}
+    # ⛔ **母集団と判定を表の側で書き直さない**(規則4)— 正典は `_juka_uke_rows` 一本。
+    per = {}
+    for (k9, u9, v9, h9) in _juka_uke_rows(d):
+        per.setdefault(k9, []).append((u9, v9, h9))
+    rows = []
+    for s in g.get("shokusai", []):
+        key = (s.get("species"), s.get("size"))
+        q = kage.get(key) or hina.get(key)
+        why = (q or {}).get("_", "—")
+        got = per.get(key, [(u, v, []) for (u, v) in (s.get("at") or [])]
+                      if key in kage else [])
+        n_in = sum(1 for _u, _v, h in got if h)
+        if key in kage:
+            kd, jd = "<b>陰</b>(受ける)", ("⭕" if n_in == len(got)
+                                          else "⚠ <b>%d本が裸地</b>(⇒ 庭方へ差し戻し"
+                                          "・<code>_pending.jukauke</code>)"
+                                          % (len(got) - n_in))
+        elif key in hina:
+            kd, jd = "日向(受けない)", "⭕ <b>受からなくて正しい</b>"
+        else:
+            kd, jd = ("⚠ <b>どちらにも名乗っていない</b>",
+                      "⚠ <b>物差しの母集団の外</b>【`_pending.sosoushitakusa`】")
+        rows.append(("<b>%s %s</b>" % key, s.get("layer", "?"), kd,
+                     "%d 本" % len(s.get("at") or []),
+                     ("%d 本" % n_in) if got else "—",
+                     "／".join(sorted({x for _u, _v, h in got for x in h})) or "—",
+                     jd, _inl(why)))
+    return _tw(("層", "層の別", "<b>陰 / 日向</b>", "本数", "散布域に根方が入る本数",
+                "受けている散布域", "判定", "そう決めた理由(正典 `shitakusa.hikage`)"),
+               rows) + (
+        "<p class='cap'>⭐⭐⭐ <b>『裸地を残さない』を散布域の<u>数</u>で測らない</b>"
+        "【2026-09-08 第3巡・庭方の起案(採用=普請奉行)・確度U】。<br>"
+        "⚠⚠ <b>前巡はこれを数で測って宙に浮いた</b> — 社前の木を廃したときに"
+        "<b>その樹下のシダの散布域が行き場を失って落ち</b>、⛔ <b>域が 3 → 2 に減ったこと"
+        "そのものを欠陥として扱った</b>。⚠ その読み方は<b>数を戻すためだけの散布域</b>を生む "
+        "— ⭐ しかも当の域は<b>陰生のシダを日向へ撒く</b>という技法の誤りだった。<br>"
+        "⭕ ⇒ <b>測るのは「陰になる樹下が受かっているか」</b>。"
+        "⛔ <b>日向の根方(松・ウメ)は受からなくて正しい</b> — ⭐ <b>松は乾いた根方に"
+        "据えるもの</b>である。<br>"
+        "⛔⛔ <b>陰生かどうかを生成器の側で判じない</b>(規則17)— <b>正典は "
+        "<code>shitakusa.hikage</code></b>で、⭕ <b>どちらの列にも載っていない層が在れば"
+        "機械が鳴らす</b>(⚠ 層を足して黙って母集団の外へ落ちるのを防ぐ=規則19)。<br>"
+        "⛔ <b>『受ける』は根方(幹の芯)が散布域に入ること</b>で測る — "
+        "⚠ 樹冠の重なりの割合ではない(⭕ 撒くのは根方であって梢ではない)。</p>")
 
 
 def _niwa_frames(d, pad=12.0):
@@ -12634,16 +12902,84 @@ def mikiri_sensitivity(d):
                 k9["hMin"] = round(k9["hMin"] + 0.60, 3)
                 k9["hMax"] = round(k9["hMax"] + 0.60, 3)
 
-    probes = [probe("① ⭐ **刈込①を大刈込にする前(1.30/1.85)へ戻す** — ⚠ **鳴る**",
-                    q1, 1, pick=niwa),
-              probe("② 下限を 0 にする — ⛔ **鳴らない**(下限が効いている証拠)", q2, 0),
-              probe("③ ⭐⭐ **撤回した 100% を下限に戻す** — ⚠ **鳴る**", q3, 1),
+    def q6(g9):     # ⭐⭐⭐ **尾根の林を蔵の長さへ合わせる前(西へ振れた姿)へ戻す** ⇒ **鳴る**
+        # ⛔ **これは試験の摘み**であって設計値ではない — ⭕ **見切りを支えているのが
+        #   「林の v の範囲が蔵の v の範囲に載っていること」だ**と示すためだけに振る。
+        #   ⭕ 振り幅は**この層の樹冠の径**(目録の実測からの従属値)= 衝立を1枚ぶん横へずらす。
+        #   ⛔ **かつての座標を写さない**(規則4 — 撤回した配置を生成器に残さない)。
+        cr9 = [c for c in _crowns(d) if c["sp"] == "常緑広葉"]
+        dv = (2.0 * cr9[0]["r"] / d["const"]["ken"]) if cr9 else 3.0
+        for s9 in g9.get("shokusai", []):
+            if s9.get("kabu") == "onene":
+                s9["at"] = [[p[0], round(p[1] + dv, 3)] for p in s9["at"]]
+
+    probes = [probe("① ⭐ **刈込①を大刈込にする前(1.30/1.85)へ戻す** — ⛔ **鳴らない**"
+                    "(⇒ ⚠⚠ **抜けていた帯は刈込の高さでは受かっていなかった**)",
+                    q1, 0, pick=niwa),
+              probe("② 下限を 0 にする — ⛔ **鳴らない**(⚠ いまの図は下限に拘束されていない)",
+                    q2, 0),
+              probe("③ ⭐⭐ **撤回した 100% を下限に戻す** — ⛔ **鳴らない**"
+                    "(⇒ ⭕ **いまの図は撤回前の下限でも通る**)", q3, 0),
               probe("④ 下限の欄そのものを落とす — ⚠ **鳴る**(⛔ 既定値で黙らない)", q4, 1),
-              probe("⑤ ⭐⭐ **刈込①をさらに 0.60 上げる** — ⛔ **鳴らない**"
-                    "(⇒ 不足は刈込の高さで閉じる)", q5, 0, pick=niwa),
-              ("⑥ いまの図(基準)— ⚠⚠ **鳴る**(⇒ 庭方へ差し戻す。"
-               "⛔ 指図方が高さを上げて辻褄を合わせない=規則17)",
-               len(kura_mikiri_todo(d)), 1, None)]
+              probe("⑤ ⭐⭐ **刈込①をさらに 0.60 上げる** — ⛔ **鳴らない**", q5, 0, pick=niwa),
+              probe("⑥ ⭐⭐⭐ **尾根の林を樹冠1枚ぶん西へずらす**(=蔵の長さに合わせる前の姿)"
+                    " — ⚠⚠ **鳴る**(⇒ ⭕ **見切りを支えているのは林の位置である**)",
+                    q6, 1, pick=niwa),
+              ("⑦ いまの図(基準)— ⛔ **鳴らない**",
+               len(kura_mikiri_todo(d)), 0, None)]
+    return probes, _probe_verdict(probes)
+
+
+def juka_uke_sens(d):
+    """**破壊試験** — 『裸地を残さない』の**新しい物差し**がほんとうに載っているか。
+
+    ⛔⛔ **物差しを取り替えた巡は、新しい物差しが生きていることを同じ巡で見せる**(規則19)。
+      ⚠⚠ 取り替える前の物差し(**散布域の数**)は、⛔ **何を壊しても鳴らなかった** —
+      ⭐ だから「域が 3 → 2 に減った」を欠陥と読むしかなかった。
+    """
+    def probe(title, fn, want, pick=None):
+        # ⭕ 三つ並べる — **構造の条 / 裸地の差し戻し / 散布域そのものの条**。
+        #   ⛔ 一本だけ見ると「苔を落としても何も起きない」を空振りと取り違える。
+        e, mv = _probe(d, fn, pick=pick)
+        return (title, (len(juka_uke_check(e)), len(juka_uke_todo(e)),
+                        len(shitakusa_check(e))), want, mv)
+
+    def q1(g9):     # 陰の名簿から常緑広葉を落とす ⇒ **構造の条が鳴る**(母集団の外へ落ちる)
+        hk = (g9.get("shitakusa") or {}).get("hikage") or {}
+        hk["kage"] = [q for q in hk.get("kage", []) if q.get("species") != "常緑広葉"]
+
+    def q2(g9):     # ⭐ 陰の層を**日向へ移す** ⇒ 裸地は消えるが**技法の誤り**は図に出る
+        hk = (g9.get("shitakusa") or {}).get("hikage") or {}
+        mv9 = [q for q in hk.get("kage", []) if q.get("species") == "常緑広葉"]
+        hk["kage"] = [q for q in hk.get("kage", []) if q.get("species") != "常緑広葉"]
+        hk["hinata"] = list(hk.get("hinata", [])) + mv9
+
+    def q3(g9):     # 散布域(シダ)を全部落とす ⇒ **裸地の差し戻しが増える**
+        (g9.get("shitakusa") or {}).get("shida", {})["where"] = []
+
+    def q4(g9):     # ⭐⭐ **苔の域を落とす** ⇒ 苔が受けている木があれば鳴る
+        (g9.get("shitakusa") or {}).get("koke", {})["where"] = []
+
+    def q5(g9):     # 名簿そのものを消す ⇒ **構造の条が鳴る**(⛔ 既定値で黙らない)
+        (g9.get("shitakusa") or {}).pop("hikage", None)
+
+    probes = [probe("① 陰の名簿から **常緑広葉 Mid** を落とす — ⚠ **構造の条が鳴る**"
+                    "(⛔ 名乗らない層を母集団の外へ落とさない)", q1, (1, 0, 0), pick=niwa),
+              probe("② ⭐ **常緑広葉 Mid を日向へ移す** — ⛔ **構造は鳴らない**が"
+                    "⭕ **裸地の差し戻しが消える**(⇒ ⚠ **陰陽の名乗りが合否を動かす**"
+                    "=名簿は飾りではない)", q2, (0, 0, 0), pick=niwa),
+              probe("③ **シダの散布域を全部落とす** — ⚠ **裸地の差し戻しが増え、"
+                    "散布域の条も鳴る**", q3, (0, 1, 1), pick=niwa),
+              probe("④ ⭐⭐ **苔の散布域を落とす** — ⚠ **散布域の条が鳴る**。"
+                    "⛔ **裸地の数は動かない** — ⭕ <b>社地に陰の木は一本も立っていない</b>"
+                    "から(⇒ ⭐ **苔が受けているのは<u>日向</u>の裸地**であって樹下ではない。"
+                    "⛔ 樹下の物差しで苔の要否を測らない)", q4, (0, 1, 1), pick=niwa),
+              probe("⑤ **名簿 `shitakusa.hikage` ごと消す** — ⚠ **構造の条が鳴る**"
+                    "(⛔ 生成器の側で陰陽を判じない)", q5, (1, 0, 0), pick=niwa),
+              ("⑦ いまの図(基準)— ⛔ 構造と散布域の条は**鳴らない** / "
+               "⚠ **裸地は庭方へ差し戻し中**",
+               (len(juka_uke_check(d)), len(juka_uke_todo(d)), len(shitakusa_check(d))),
+               (0, 1, 0), None)]
     return probes, _probe_verdict(probes)
 
 
@@ -12938,6 +13274,9 @@ def niwa_todo(d):
     # ⭐⭐ **奇数の作法は「一つの株として植える群」に当たる**(2026-09-08 庭方の起案)。
     #   ⛔ **単木の総数には当たらない。**⛔ **木を足して数を合わせない。**
     out += kabu_check(d)
+    # ⭐⭐ **陰の樹下に残った裸地**【2026-09-08 第3巡の物差し】。⛔ 域を広げるのも
+    #   木を寄せるのも意匠なので、⛔ **指図方では直せない**(規則17)。
+    out += _todo_dst(juka_uke_todo(d), "jukauke")
     # ⭐ **受け石を伏せたときの平面の当たり**(2026-09-07 庭方の起案3 の帰結)。
     #   ⛔ 根入れを石丈で稼ぐ以上、大きくした石が隣に触りうる。
     #   ⚠⚠ **2026-09-08 の裁定3 まで、ここには「yaw は乱数なので外接円で見るほかない」と
@@ -13721,16 +14060,28 @@ def niwa_plan_svg(d, W=760.0):
                             [(g["u0"], g["v0"]), (g["u1"], g["v0"]),
                              (g["u1"], g["v1"]), (g["u0"], g["v1"])]),
                  " L ".join("%.1f %.1f" % (X(u), Y(v)) for u, v in n.pond)))
+    # ⭐⭐ **苔は網掛けで区別する**(2026-09-08 第3巡)— ⛔ シダと同じベタ塗りにしない
+    #   (⚠ 「どちらの下草か」が図から読めないと、実装は一種類だと思って撒く)。
+    _hat = "kk%d" % _SVN[0]
+    sv.append('<defs><pattern id="%s" width="6" height="6" patternUnits="userSpaceOnUse" '
+              'patternTransform="rotate(45)"><rect width="6" height="6" fill="#8FA86B" '
+              'opacity="0.30"/><line x1="0" y1="0" x2="0" y2="6" stroke="#4E6B36" '
+              'stroke-width="1.3" opacity="0.75"/></pattern></defs>' % _hat)
     sv.append('<g clip-path="url(#%s)">' % _clip)
     for _sk in shitakusa_regions(d):
+        _fl = ("url(#%s)" % _hat) if _sk.get("kusa") == "苔" else "#9BB07A"
+        _op = 0.85 if _sk.get("kusa") == "苔" else 0.42
         if _sk["poly"]:
-            sv.append('<polygon points="%s" fill="#9BB07A" stroke="#6E8C4E" '
-                      'stroke-width="0.7" stroke-dasharray="2 3" opacity="0.42"/>'
-                      % " ".join("%.1f,%.1f" % (X(p[0]), Y(p[1])) for p in _sk["poly"]))
+            # ⭕ 抜き(祠の躯体)は even-odd の穴で持つ ⇒ **面積の算出と図が同じ形**
+            _pth = " ".join("M " + " L ".join("%.1f %.1f" % (X(p[0]), Y(p[1])) for p in q) + " Z"
+                            for q in [_sk["poly"]] + list(_sk.get("holes") or []))
+            sv.append('<path d="%s" fill="%s" fill-rule="evenodd" stroke="#6E8C4E" '
+                      'stroke-width="0.7" stroke-dasharray="2 3" opacity="%.2f"/>'
+                      % (_pth, _fl, _op))
         for (cu, cv, cr) in _sk["circ"]:
-            sv.append('<circle cx="%.1f" cy="%.1f" r="%.1f" fill="#9BB07A" '
+            sv.append('<circle cx="%.1f" cy="%.1f" r="%.1f" fill="%s" '
                       'stroke="#6E8C4E" stroke-width="0.7" stroke-dasharray="2 3" '
-                      'opacity="0.42"/>' % (X(cu), Y(cv), L(cr)))
+                      'opacity="%.2f"/>' % (X(cu), Y(cv), L(cr), _fl, _op))
     sv.append('</g>')
     # 植栽
     for s in g.get("shokusai", []):
@@ -15458,19 +15809,32 @@ def niwa_kura_table(d):
         "⚠ 撤回した説の語が図・正典・生成器に生き残っていないかを毎回機械が照合する。<br>"
         "⛔ <b>「緩めたから通った」で終わらせない</b> — <b>下限が生きていること</b>は"
         "破壊試験の束(「御土蔵の見切り(白壁の帯)」)が毎回鳴らして見せる(規則19)。</p>"
-        "<p class='cap'>⛔⛔⛔ <b>そして、緩めた下限にも当図はまだ届いていない。</b>"
-        "⚠ 判定の列を見よ — <b>差し戻し枠に一行出ている</b>"
-        "(<code>_pending.kuramikiri</code> は<b>開いたまま</b>)。<br>"
-        "⚠⚠ <b>原因は数え方である</b>: <b>庭方が下限を選んだときに見ていた「塞ぎの割合」は、"
-        "<u>v を 0.1・標高を 0.01 に丸めて重複を潰した点数</u>で数えた値</b>だった — "
-        "⚠ ところが<b>同じ文の中で並んでいた「面の全高」の割合は生の格子点</b>(120×28)である。"
-        "⛔ <b>一つの判断の中に二通りの物差しが混ざっていた。</b><br>"
-        "⭕ ⇒ <b>当図は割合も点数も生の格子点に統一した</b>(丸めた集合は上の表の"
-        "<b>例示にだけ</b>使う)。⛔ <b>丸めは表示の都合であって面積の重みではない。</b>"
-        "⚠ 従前この表は<b>同じ行の中で、生の格子点の割合と丸めた点数を並べて刷っていた</b>。<br>"
-        "⛔⛔ <b>指図方は刈込を上げても下限を下げても辻褄を合わせない</b>(規則17)— "
-        "<b>天端をもう一段上げるか、下限を実測に合わせて置き直すかは作庭の意匠</b>である。"
-        "⭕ <b>どの天端で下限を越えるかは次の表が刷る。</b></p>"
+        "<p class='cap'>⭐⭐⭐ <b>2026-09-08(第3巡)、林を蔵の長さへ合わせて東へ振り直した</b>"
+        "【庭方の起案(案C)・採用=普請奉行】。⛔⛔ <b>それまで足りなかったのは"
+        "<u>割合ではなく衝立の長さ</u>だった</b> — ⚠ <b>林の v の範囲が御土蔵の v の範囲より"
+        "西へずれており</b>、⭕ <b>蔵の東端の前は刈込①だけで上が素通し</b>になっていた"
+        "(⚠ 素通しはすべて白壁の<b>上端寄り</b>に出ていた)。<br>"
+        "⭐⭐ <b>衝立は、隠すものと同じ長さだけ要る。</b>"
+        "⛔ <b>木を足して数で押すのでも、刈込を塀にするのでもなく、同じ5本を役目の位置へ"
+        "据え直した</b>(⛔ 本数・部材・層は一つも動かしていない)。<br>"
+        "⛔ <b>下限 <code>const.kuraMikiriMin</code> は据え置いた</b> — ⚠⚠ "
+        "<b>『届かないから下げる』をしていない</b>(規則17)。⭕ <b>いまの図は"
+        "<u>撤回した 100%% の下限でも通る</u></b>ので、⛔ <b>下限に寄りかかっていない</b>"
+        "(⇒ 破壊試験の束の②③がそれを毎回刷る)。<br>"
+        "⛔ <b>刈込①を上げる案(A)も採らなかった</b> — ⚠ <b>抜けていたのは白壁の"
+        "<u>上端</u></b>で、そこを通る視線は刈込の位置では地表からはるか上を走る"
+        "(⇒ <b>天端をどれだけ上げても素通しは 0 にならない</b>。掃引は次の表が刷る)。<br>"
+        "⛔⛔⛔ <b>そしてこの 100%% は<u>模型の上の値</u>である。</b>"
+        "⚠⚠ <b>「緑の壁になる」という意味ではない</b> — ⭕ この表が測っているのは"
+        "<b>樹冠を円錐台+円柱の<u>不透明な立体</u>と見たときに視線が当たるか</b>で、"
+        "⚠ <b>実装の葉は透ける</b>(枝の隙から白壁は覗く)。"
+        "⭕ <b>模型で 100%% は「白壁の帯の前に樹冠が<u>ある</u>」までを保証する</b>のであって、"
+        "⛔ <b>「見えない」を保証しない。</b>"
+        "⇒ ⭕ <b>実装後の見え方は <code>edo-fushin-qa</code> の検証レンダで別に検める</b>"
+        "(⛔ この数字を根拠に検証レンダを省かない)。<br>"
+        "⭕ <b>数え方は生の格子点に統一している</b>(丸めた集合は上の表の<b>例示にだけ</b>使う)"
+        "— ⛔ <b>丸めは表示の都合であって面積の重みではない</b>"
+        "(⚠ 従前は一つの判断の中に二通りの物差しが混ざっていた)。</p>"
         % (lim, d["const"].get("enroZukou") or 0.0))
 
 
@@ -15531,13 +15895,25 @@ def mikiri_karikomi_table(d):
         "しかも<u>丸めて重複を潰した点数</u>で測った値</b>である — "
         "⭕ <b>この表は当図の現況(案乙5)を、生の格子点で測り直した値</b>なので数字は一致しない"
         "(⛔ 起案の数字を写して並べない=規則4)。<br>"
-        "⛔⛔ <b>いまの天端は下限に届いていない。</b>"
-        + ("⭕ <b>この振り幅の中で下限を越える最小の天端は %.2f m</b>"
-           "(⇒ いまの図から <b>+%.2f m</b>)— ⚠ <b>これは差し戻しのための実測であって、"
-           "指図方が採る値ではない</b>(規則17)。"
-           % (ok9[0]["h"], ok9[0]["h"] - next(q["h"] for q in sw if q["cur"]))
-           if ok9 and not next((q for q in sw if q["cur"]), {"wall": 0})["wall"] >= lim
-           else "") +
+        + (("⛔⛔ <b>いまの天端は下限に届いていない。</b>"
+            + ("⭕ <b>この振り幅の中で下限を越える最小の天端は %.2f m</b>"
+               "(⇒ いまの図から <b>+%.2f m</b>)— ⚠ <b>これは差し戻しのための実測であって、"
+               "指図方が採る値ではない</b>(規則17)。"
+               % (ok9[0]["h"], ok9[0]["h"] - next(q["h"] for q in sw if q["cur"]))
+               if ok9 else ""))
+           if not next((q for q in sw if q["cur"]), {"wall": 0.0})["wall"] >= lim else
+           # ⭐⭐⭐ **2026-09-08 第3巡: 天端では解かなかった。**
+           #   ⛔ **この表は「上げれば通る」を示す表ではない** — ⭕ 見せているのは
+           #   **どこで頭打ちになるか**である(⇒ 上げ続けても素通しは 0 にならない)。
+           ("⭐⭐⭐ <b>2026-09-08(第3巡)、<u>天端では解かなかった</u>。</b>"
+            "⭕ <b>足りなかったのは刈込の高さではなく<u>衝立(尾根の林)の長さ</u></b>で、"
+            "⇒ <b>林を御土蔵の v の範囲へ合わせて据え直した</b>(⛔ 天端は一寸も上げていない)。<br>"
+            "⚠⚠ <b>そのぶん、この表のいまの行は<u>刈込①が見切りを支えていないこと</u>を"
+            "示している</b> — ⛔ <b>刈込①を下げてよいという意味ではない</b>"
+            "(⭕ 刈込は白壁の<u>下</u>の帯と土手の見切りを受ける物で、"
+            "⛔ <b>その役はこの表では測っていない</b>=未測定であって『不要』ではない)。"
+            "⇒ <b>大刈込の丈を据え置くか戻すかは作庭の意匠</b>【<code>_pending.kuramikiri</code>"
+            "は閉じたので、改めるなら庭方の新しい起案として】。")) +
         "</p>")
 
 
@@ -16649,6 +17025,7 @@ def main():
             + wall_profile_check(d)
             + recon_reach_check(d)
             + niwa_check(d) + akichi_check(d) + shitakusa_check(d)
+            + juka_uke_check(d)
             + niwa_todo_dest_check(d) + cert_pending_check(d) + impl_scan_check(d)
             + enro_zukou_check(d)
             + point_cert_check(d) + cert_support_check(d) + src_role_check(d)
@@ -17048,11 +17425,20 @@ def main():
                              for k, c in LAYER_COL.items())
                    + '<span style="color:#7E9A5E">■ 刈込</span>'
                      '<span style="color:#9BB07A">▨ 下草(シダ・破線の縁)</span>'
+                     '<span style="color:#4E6B36">▨ 下草(<b>苔</b>・網掛け)</span>'
                      '<span style="color:var(--tsuki)">■ 築山(等高線 0.25m)</span>'
                      '<span style="color:var(--ike)">■ 池</span>',
             cap="<b>主景は一点=見所①(奥御広間の入側)。</b>他はすべてこれに従わせる。"
-                "前景=沓脱石・飛石・州浜の汀／中景=東の池・岩島・北東の岬の雪見灯籠／"
-                "遠景=築山A1の尾根とその上のクロマツ・常緑広葉。"
+                # ⛔ **見え物を文章へ写さない**(規則4)— 正典は `mikoro` の `sees`。
+                #   ⚠⚠ 2026-09-08 第3巡まで、ここには**居ない木**(築山A1 の上のクロマツ)が
+                #   ベタ書きで残っていた。⇒ ⭕ **正典から毎回引く。**
+                + "／".join((next((q for q in _ng["mikoro"] if q.get("main")),
+                                  _ng["mikoro"][0]).get("sees") or [])) + "。"
+                "⭐⭐ <b>社地(四つ目垣の内と、垣の西外〜主路の路縁)は苔で受ける</b> — "
+                "⛔ <b>白砂は敷かない</b>(⚠ すぐ西に州浜の砂利帯があり、"
+                "<b>砂の面が二つ並ぶと主景の前景がざらつく</b>)。"
+                "⛔ <b>シダを社地へ戻さない</b> — ⭐ <b>シダは陰生</b>で、"
+                "樹を落として日向になった社地へ撒くのは技法として誤り。"
                 "<b>池は掘り込み</b>(水面 %.2f・最深 %.2fm)で、⛔ 滝も遣水も置かない — "
                 "主面の台地に落差の源が無いため<b>天水の止水池</b>にする。"
                 "<b>園路は同心円にしない</b> — 東の帯 → 築山の稜線(上り)→ 西の池の外 → "
@@ -17179,6 +17565,8 @@ def main():
         h.append(niwa_iwajima_table(d))
         h.append("<h3>下草の散布域 — 言葉でなく幾何で持つ</h3>")
         h.append(shitakusa_table(d))
+        h.append("<h3>陰の樹下が受かっているか — ⛔ 散布域の<u>数</u>で測らない</h3>")
+        h.append(juka_uke_table(d))
         h.append("<h3>樹冠の被覆率(庭方の検査 6-④)</h3>")
         h.append(niwa_cover_table(d))
         h.append("</div>")

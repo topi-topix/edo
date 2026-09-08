@@ -74,6 +74,11 @@ def _pat(): return "url(#pi%d)" % _SVN[0]
 
 
 def R(x, y, w, h, fill="none", stroke="none", sw=1.0, dash=None, op=None):
+    # ⭐ **幅か高さが 0 の矩形は出さない**(2026-09-08 検図方 低4)。⛔ 退化した図形を紙へ
+    #   置かない — ⚠ 何も描かれないのに要素だけが残り、**読み手には「在る」と見える**。
+    #   ⚠ 呼び側は「描いたつもり」になるので、**黙って落とすのはここだけ**にする。
+    if not (w > 0.05 and h > 0.05):
+        return ""
     a = '<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s"' % (x, y, w, h, fill)
     if stroke != "none":
         a += ' stroke="%s" stroke-width="%.2f"' % (stroke, sw)

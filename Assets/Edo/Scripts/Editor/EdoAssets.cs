@@ -828,14 +828,47 @@ public static class EdoAssets
         // 自作マテリアルの名前引き(規則11: パスの literal はここ以外に書かない)
         public static string Mat(string name) { return "Assets/Edo/Materials/" + name + ".mat"; }
 
-        /// <summary>松江松平邸の表門 — **屋根なしの冠木門**(角柱・冠木・内開き扉・潜り戸・袖塀の一体物)。
+        /// <summary>松江松平邸の表門 — **屋根なしの冠木門**(角柱・冠木・内開きの板戸)。
         /// 姿は温古写真集11(88005761・明治初撮影)の実見【A】+『日本案内記 関東篇』昭和5年【A】。
         /// ⚠ 切妻小屋根を載せる前案は 2026-08-23 に撤回済み。**屋根なしが正**。
         /// 在庫の es_kmon は薬医門(小屋根あり)、es_kabukimon は柱高3.74mで指図の5.2mに足りない。
-        /// 実寸 W13.12 × D0.52 × H5.30(開口13.0m=五千分一図の実測)。
+        /// ⭐⭐ **2026-09-08(指図 第28次)で袖塀をこの部材から外した。** 並びが
+        /// 表長屋 → 袖塀 → 番所 → 門柱 → 門柱 → 番所 → 袖塀 → 表長屋 に改まり、
+        /// **番所が門柱へ直付け**([松江上屋敷門写真]A)になったため。袖塀は <see cref="Sodebei(float,float)"/>。
+        /// ⇒ **実寸が W13.12 → W5.20 に変わった**(D0.52 → D0.50 / H5.30 は不変)。
+        /// 門そのものの寸法は動いていない: 門柱の外面どうし **4.50**(= 指図 gate.plan.monW)/
+        /// 内法 **3.66**(柱 0.42 角 ×2)/ 柱高 **5.20**(+銅冠 0.10)/ 冠木の出 0.35×2。
+        /// ⚠ **躯体が両開きの板戸(内法 3.66・丈 4.45)を持っている。**指図 `gate.plan.leaf._` は
+        /// 「躯体が扉を持たないので別部材の扉を据える」と書いていて食い違う — Stage5_Mon の
+        /// `Leaves(...)` と二重になっていないか据えたときに確かめること(2026-09-08 部材方)。
         /// **ピボット = 門の芯・敷居レベル**なので gate.pos と gate.sill をそのまま使える。
         /// 生成: blender --background --python Tools/Blender/build_matsudaira_omotemon.py -- [--render]</summary>
         public const string MatsudairaOmotemon = "Assets/Edo/Models/Mon/Matsudaira_Omotemon.fbx";
+
+        /// <summary>**袖塀**(長さ可変・潜り戸つき)— 表門の脇で外周を塞ぐ練塀。
+        /// 断面は外周の練塀(`Tools/Blender/build_dobei.py` = `Assets/Edo/Models/Dobei/Dobei2m.fbx`)と
+        /// 同じ生成器から起こす:下見板の腰 → 貫 → 白漆喰 → **本瓦の両流れ**
+        /// (キットの実ジオメトリ)→ 熨斗の大棟。両端は**袖瓦**で塞ぐ(⛔ 木の破風は付かない)。
+        /// 全高 **2.65**(= 指図 const.dobeiH)/ 屋根の総幅(厚み)**1.00** / 壁の厚み 0.36。
+        ///
+        /// ⭐ **ピボット = 走りの起点(ローカル x=0)の小口面・厚みの芯・地盤レベル。**
+        /// ⛔ 中心ピボットではない(CLAUDE.md 規則5 — 据える側は**面**で寄せる)。
+        /// ⇒ x=0 の小口を番所の外側の妻面へ突き付ければ、反対の小口が x=len に来る。
+        /// ローカル +X = 走り / +Y = 高さ / +Z・−Z = 厚み(表裏は同じ作り)。scale = Vector3.one。
+        ///
+        /// 引数: <paramref name="len"/> = 走りの実長[m](指図 gate.plan.sPos.sodeW / sodeE の**従属値**)。
+        /// <paramref name="kuguri"/> = **潜り戸の中心**を走りの起点から測った距離[m]。負なら潜り戸なし。
+        /// 潜り戸は幅 **0.95** × 有効高 **1.85**(従前の一体部材の実測をそのまま運んだ値)の**一枚戸**。
+        /// ⚠⚠ **焼いてあるのは 4.25(潜り戸なし)と 4.25 / 中心 2.125 の 2 本だけで、どちらも仮**。
+        /// 長さは指図方が決め直している最中(`_pending.omotemonZuKaishaku`)で、
+        /// 潜り戸が西・東どちらの袖に付くかも【U】。⛔ **決まるまで本据えしない。**
+        /// 生成: blender --background --python Tools/Blender/build_sodebei.py -- &lt;長さm&gt; [--kuguri &lt;中心m&gt;] [--render]</summary>
+        public static string Sodebei(float len, float kuguri = -1f)
+        {
+            string s = "Assets/Edo/Models/Hei/Sodebei_" + len.ToString("0.##");
+            if (kuguri >= 0f) s += "_K" + kuguri.ToString("0.##");
+            return s + ".fbx";
+        }
 
         /// <summary>松江松平邸の表門の番所 — **向唐破風・出格子・切石畳出の基壇**。左右に2棟。
         /// 姿は温古写真集11【A】+『日本案内記 関東篇』昭和5年「両側に唐破風造の番所」【A】。

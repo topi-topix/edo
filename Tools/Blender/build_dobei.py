@@ -200,12 +200,18 @@ T_FLANGE = 0.05                   # 袖垂れの見付
 W_SODE = 0.13                     # 袖瓦の幅(走り方向)
 
 
-def sode_gawara(m, mat, rect, x_in, x_out, e, z_eave, z_ridge):
+def sode_gawara(m, mat, rect, x_in, x_out, e, z_eave, z_ridge, stop=None):
     """袖瓦 — ケラバの最端に葺く役物。他の瓦と同じ向きに葺き、外側に **袖垂れ** が
     下がって屋根下地の木口を覆う。断面は L 形。
     【典拠】袖瓦=けらば瓦・妻瓦。袖垂れが外側になるように葺き、垂れが下地の断面を守る
       (屋根業者の役物瓦解説より。一般類型・確度B。築地塀の一次図面は未入手)
-    ⚠ 木の破風板は誤り。築地塀は土と瓦だけで、木の破風は付かない(2026-08-16 に改めた)。"""
+    ⚠ 木の破風板は誤り。築地塀は土と瓦だけで、木の破風は付かない(2026-08-16 に改めた)。
+
+    ⭐ `stop`(厚み方向の絶対値[m])を渡すと、**大棟の脇でいったん止めて棟を跨がない**。
+      ⛔ 跨がせると棟の冠瓦を突き抜けて空へ飛び出す(README の岡部・帯長屋の落とし穴と同型。
+      2026-09-08 に袖塀の小口レンダで実見)。⚠ **既定は None = 従前どおり跨ぐ** —
+      `Dobei2m_End` の姿を勝手に変えないため。
+    """
     u0, v0, u1, v1 = rect
     sgn = 1.0 if x_out > x_in else -1.0
     xf = x_out - sgn * T_FLANGE
@@ -213,21 +219,26 @@ def sode_gawara(m, mat, rect, x_in, x_out, e, z_eave, z_ridge):
     sec = [(x_in, 0.0), (x_out, 0.0), (x_out, -D_SODE),
            (xf, -D_SODE), (xf, -T_TILE), (x_in, -T_TILE)]
     ns = len(sec)
-    path = [(-e, z_eave), (0.0, z_ridge), (e, z_eave)]
-    for k in range(len(path) - 1):
-        (t0, z0), (t1, z1) = path[k], path[k + 1]
-        for i in range(ns):
-            a, b = sec[i], sec[(i + 1) % ns]
-            pts = [(a[0], z0 + a[1], t0), (b[0], z0 + b[1], t0),
-                   (b[0], z1 + b[1], t1), (a[0], z1 + a[1], t1)]
-            uvs = [(u0, v0), (u1, v0), (u1, v1), (u0, v1)]
-            m.quad(pts, uvs, mat)
-    # 両端(軒先)の小口を塞ぐ
-    for (t, z), flip in ((path[0], True), (path[-1], False)):
-        for q in ([sec[0], sec[1], sec[4], sec[5]], [sec[1], sec[2], sec[3], sec[4]]):
-            pts = [(w[0], z + w[1], t) for w in q]
-            uvs = [(u0, v0), (u1, v0), (u1, v1), (u0, v1)]
-            m.quad(pts[::-1] if flip else pts, uvs[::-1] if flip else uvs, mat)
+    zt = lambda t: z_eave + (e - abs(t)) * RATIO
+    if stop is None:
+        paths = [[(-e, z_eave), (0.0, z_ridge), (e, z_eave)]]
+    else:
+        paths = [[(-e, z_eave), (-stop, zt(stop))], [(stop, zt(stop)), (e, z_eave)]]
+    for path in paths:
+        for k in range(len(path) - 1):
+            (t0, z0), (t1, z1) = path[k], path[k + 1]
+            for i in range(ns):
+                a, b = sec[i], sec[(i + 1) % ns]
+                pts = [(a[0], z0 + a[1], t0), (b[0], z0 + b[1], t0),
+                       (b[0], z1 + b[1], t1), (a[0], z1 + a[1], t1)]
+                uvs = [(u0, v0), (u1, v0), (u1, v1), (u0, v1)]
+                m.quad(pts, uvs, mat)
+        # 両端の小口を塞ぐ(⚠ stop を使うと棟側にも小口ができる)
+        for (t, z), flip in ((path[0], True), (path[-1], False)):
+            for q in ([sec[0], sec[1], sec[4], sec[5]], [sec[1], sec[2], sec[3], sec[4]]):
+                pts = [(w[0], z + w[1], t) for w in q]
+                uvs = [(u0, v0), (u1, v0), (u1, v1), (u0, v1)]
+                m.quad(pts[::-1] if flip else pts, uvs[::-1] if flip else uvs, mat)
 
 
 def clip_convex(obj, poly2d):
@@ -503,4 +514,5 @@ def main():
         V.render(os.path.join(SH, "dobei_joint_b.png"))
 
 
-main()
+if __name__ == "__main__":      # ⚠ 生成器として import されるので裸で呼ばない
+    main()

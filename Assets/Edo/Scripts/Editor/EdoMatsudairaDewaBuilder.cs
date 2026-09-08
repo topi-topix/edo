@@ -2271,8 +2271,12 @@ public static partial class EdoMatsudairaDewaBuilder
         // ⚠ 門・番所(Models/Mon)も同じ借り先を使う。2026-08-31 に番所の瓦を
         //   Village Kit の `Roof B` へ替えたとき、ここが Fuzokuya しか見ていなかったため
         //   材質名が変わった番所が真っ白になった。**FBX を焼いた folder は必ずここに足す。**
+        //   ⭐ 2026-09-08: 表門の**袖塀**(`Own.Sodebei`)を独立部材にして `Models/Hei` へ焼いたので
+        //   このフォルダを足した。⚠ `Models/Hei` には岡部邸の のし塀・木戸も居るが、材質名で
+        //   引き直すだけなので同名の同じ .mat に当たる(冪等)。
         string[] modelDirs = { "Assets/Edo/Models/Fuzokuya", "Assets/Edo/Models/Mon",
-                               "Assets/Edo/Models/Trees", "Assets/Edo/Models/Niwa" };
+                               "Assets/Edo/Models/Trees", "Assets/Edo/Models/Niwa",
+                               "Assets/Edo/Models/Hei" };
         foreach (var guid in AssetDatabase.FindAssets("t:Model", modelDirs))
         {
             string path = AssetDatabase.GUIDToAssetPath(guid);

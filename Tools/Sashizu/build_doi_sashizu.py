@@ -2719,6 +2719,7 @@ def probe_roster(d):
                    ("出自の名乗り", user_claim_sensitivity),
                    ("見所→主景の視線(幹と樹冠)", mustsee_sensitivity),
                    ("園路の頭上", zukou_sensitivity),
+                   ("御土蔵の見切り(白壁の帯)", mikiri_sensitivity),
                    ("受け石の平面の当たり", uke_atari_sens),
                    ("沓脱石の従属", kutsunugi_deps_sens)):
         pr, vd = fn(d)
@@ -10133,9 +10134,15 @@ def niwa_stats(d):
             continue
         face = m["u1"]                              # 主視点側の面(+u が北・眼は +u 側)
         y0, y1 = m["y"], m["y"] + cst["kuraRidge"]
+        # ⭐⭐ **合否の的は「白壁の帯」**(地盤 〜 軒の下端 `kuraEave`)【2026-09-08 庭方の
+        #   起案(採用=普請奉行)】。⛔⛔ **その上の瓦屋根が樹越しに覗くのは自然なので問わない。**
+        #   ⛔ **帯の高さをここで発明しない** — `const.kuraEave` は軒の当たりが使っている実寸。
+        wallTop = y0 + cst["kuraEave"]
         NV, NH = 120, 28
         tot = 0
+        wtot = 0
         miss = []
+        wmiss = []
         first = collections.Counter()               # 最初に塞いだ物
         solo = collections.Counter()                # ⭕ **これを落とすと素通しになる**点
         for i in range(NV):
@@ -10143,9 +10150,14 @@ def niwa_stats(d):
             for k in range(NH):
                 Y = y0 + (y1 - y0) * (k + 0.5) / NH
                 tot += 1
+                wall = Y <= wallTop + 1e-9
+                if wall:
+                    wtot += 1
                 b9 = _blocked(face, vv, Y)
                 if b9 is None:
                     miss.append((round(vv, 1), round(Y, 2)))
+                    if wall:
+                        wmiss.append((round(vv, 1), round(Y, 2)))
                     continue
                 first[b9] += 1
                 if b9 == "地形" or not any(b9 == "%s %s" % (c["sp"], c["sz"]) for c in cr9):
@@ -10153,9 +10165,17 @@ def niwa_stats(d):
                 hh = _crowns_on(face, vv, Y)        # ⛔ 先着で打ち切らない
                 if len(hh) == 1:
                     solo[next(iter(hh))] += 1
+        # ⛔⛔ **割合と点数を別の数え方で出さない**【2026-09-08(第2巡)】。⚠⚠ 従前は
+        #   **割合が生の格子点**(120×28)、**刷る点数が丸めて重複を潰した数**(v を 0.1・
+        #   標高を 0.01 に丸めた集合)で、⚠ **同じ行の中で 87.4% と「素通し 294/3360」が
+        #   並んでいた**(⇒ 素直に割ると 91.3%)。⛔ **読み手はどちらとも取れる。**
+        #   ⇒ ⭕ **合否も点数も生の格子点で数える**。丸めた集合は**例示にだけ**使う。
         o["kuraFace"].append(dict(name=m["name"], v0=m["v0"], v1=m["v1"], y0=y0, y1=y1,
                               pct=100.0 * (tot - len(miss)) / tot if tot else 100.0,
-                              miss=sorted(set(miss)), tot=tot,
+                              miss=sorted(set(miss)), missN=len(miss), tot=tot,
+                              wallTop=wallTop, wallTot=wtot, wallMiss=sorted(set(wmiss)),
+                              wallMissN=len(wmiss),
+                              wallPct=100.0 * (wtot - len(wmiss)) / wtot if wtot else 100.0,
                               first=dict(first), solo=dict(solo)))
     if ku:
         dk = (v1["u"] - ku["face"]) * K
@@ -11382,8 +11402,11 @@ def kuramae_sens(d):
     def m3(g):                                   # 高木の幹を刈込の足形の芯へ入れる
         if ce is None:
             return
+        # ⛔ **層の寸(Big)で探さない** — ⚠⚠ 2026-09-08(第2巡)に **Big の層ごと廃した**ので
+        #   **一本もマッチせず空振り**になった(⚠ この束は前にも同じ理由で死んでいる)。
+        #   ⇒ ⭕ **役(高木)で探す**(⛔ 寸も座標も試験の側へ書き写さない)。
         for sp in g["shokusai"]:
-            if sp.get("size") == "Big":
+            if sp.get("layer") == "高木" and sp.get("at"):
                 sp["at"][0] = [round(ce[0], 4), round(ce[1], 4)]
                 return
     probe("④ 高木の幹を刈込④の足形の芯へ入れる(条6 幹)", m3, 1)
@@ -12252,6 +12275,27 @@ def _mustsee_pts(d, v1=None):
             p = min(k9["pts"], key=lambda t: math.hypot(t[0] - v1["u"], t[1] - v1["v"]))
             out.append((q["label"], p[0], p[1], n.ground(p[0], p[1]) + float(k9.get("h", 0.0))))
             continue
+        if "karikomi" in q:
+            # ⭐⭐ **刈込の天端**【2026-09-08 庭方の申し送り2(採用=普請奉行)】。
+            #   ⛔⛔ **物を落としたら、それを指していた物を連れて行く** — 見所⑥の的は
+            #   **落とす木の座標をじかに指していた**(前巡の沓脱石とまったく同じ型)。
+            #   ⛔ **高さを指図へ書かない** — **足形の芯の地表 + `hMax`** を毎回導く
+            #   (⭕ 玉刈込は芯がいちばん高い。⛔ 縁で測ると天端より高く見積もる)。
+            k9 = next((x for x in (g.get("karikomi") or [])
+                       if x.get("name") == q["karikomi"]), None)
+            if k9 is None:
+                bad.append("見所%s の `mustSee` が引く刈込 `%s` が指図に無い"
+                           % (v1.get("no"), q["karikomi"]))
+                continue
+            pk = karikomi_poly(d, k9)
+            if not pk:
+                bad.append("見所%s の `mustSee` が引く刈込 `%s` の足形が組めない"
+                           % (v1.get("no"), q["karikomi"]))
+                continue
+            uc = sum(p[0] for p in pk) / len(pk)
+            vc = sum(p[1] for p in pk) / len(pk)
+            out.append((q["label"], uc, vc, n.ground(uc, vc) + float(k9.get("hMax", 0.0))))
+            continue
         if "tree" in q:
             c9 = next((c for c in _crowns(d)
                        if abs(c["u"] - q["tree"][0]) < 1e-9
@@ -12349,9 +12393,16 @@ def mustsee_sensitivity(d):
         for s9 in g["shokusai"]:
             s9["trunkR"] = 0.0
 
+    def q3(g):     # ⭐⭐ **的が指している物そのものを落とす**(⛔ 名を書き写さない)
+        nm9 = {q9["karikomi"] for m9 in g.get("mikoro", [])
+               for q9 in (m9.get("mustSee") or []) if "karikomi" in q9}
+        g["karikomi"] = [k9 for k9 in g.get("karikomi", []) if k9.get("name") not in nm9]
+
     probes = [probe("① 幹を樹冠より太くする(幹が視線の検査に載っているか)", q1),
               probe("② ⚠ **幹を消す**(2026-09-08 までの姿)— ⛔ **鳴らない**", q2, want=0),
-              ("③ いまの図(基準)", len(mustsee_check(d)), 0, None)]
+              probe("③ ⭐⭐ **的が指している物(社前の玉刈込)を落とす** — ⚠ **鳴る**"
+                    "(⛔ **物を落としたら、それを指していた物を連れて行く**)", q3),
+              ("④ いまの図(基準)", len(mustsee_check(d)), 0, None)]
     return probes, _probe_verdict(probes)
 
 
@@ -12380,6 +12431,28 @@ def _enro_halfwidth(e, u, v):
     return w / 2.0
 
 
+def _walkways(d):
+    """**人が歩く路の母集団** — 園路(`enro`)＋ **参道**(`yashiro.sando`)。
+
+    ⭐⭐ **2026-09-08 庭方の申し送り1(採用=普請奉行): 参道を頭上の母集団へ入れた。**
+    ⛔⛔ **参道は人が歩く路なのに `enro` でないというだけで一度も測られていなかった** —
+      ⚠⚠ **「宣言した母集団 ≠ 実際に回った母集団」の同じ型が四度目**である(規則19)。
+      ⚠ 実際に**ウメと鳥居のまわりで枝が掛かる**帯で、⛔ **『0 件』ではなく未測定**だった。
+    ⛔ **母集団を関数の外に二度書かない**(規則4)— 頭上の実測も、母集団の宣言の検査も、
+      ここ一本から採る。⭕ 路の資格は「**`pts` を持ち、幅 `w` を持ち、人が歩く**」こと。
+    ⚠ **`sando` は `enro` と同じ欄を持たなければならない**(`name`/`label`/`w`)—
+      持たない路は `enro_zukou_check` が鳴らす(⛔ ここで名を発明して埋めない)。
+    """
+    n = NI(d)
+    if n is None:
+        return []
+    out = list(n.g.get("enro", []))
+    sd = (n.g.get("yashiro") or {}).get("sando")
+    if isinstance(sd, dict) and sd.get("pts"):
+        out.append(sd)
+    return out
+
+
 def enro_zukou_stats(d, step=0.25):
     """**園路の頭上**[m] — 路のどこがどれだけの高さまで空いているか。
 
@@ -12399,7 +12472,7 @@ def enro_zukou_stats(d, step=0.25):
     cr = _crowns(d)
     lim = float((d.get("const") or {}).get("enroZukou") or 0.0)
     out = []
-    for e in g.get("enro", []):
+    for e in _walkways(d):
         tot, bad, mn, cnt = 0.0, 0.0, (9e9, None, None), collections.Counter()
         for a, b in zip(e["pts"], e["pts"][1:]):
             L = math.hypot(b[0] - a[0], b[1] - a[1]) * K
@@ -12428,7 +12501,7 @@ def enro_zukou_stats(d, step=0.25):
                     cnt[who] += 1
                 if seg < mn[0]:
                     mn = (seg, (round(u, 2), round(v, 2)), who)
-        out.append(dict(name=e["name"], label=e["label"], L=tot, badL=bad,
+        out.append(dict(name=e.get("name", "?"), label=e.get("label", "?"), L=tot, badL=bad,
                         pct=(100.0 * bad / tot) if tot else 0.0,
                         low=(None if mn[1] is None else mn[0]), at=mn[1], who=mn[2],
                         by=dict(cnt), lim=lim))
@@ -12439,7 +12512,11 @@ def enro_zukou_check(d):
     """**園路の頭上を測れているか**(⛔ 合否は差し戻し枠が持つ=受け方は意匠)。
 
     ⛔⛔ **「0 件」を測らずに刷らない**(規則19)— ⭕ ここで見るのは**書き漏らし**だけ:
-      ⑴ 下限 `const.enroZukou` が立っているか ⑵ 園路が母集団に入っているか。
+      ⑴ 下限 `const.enroZukou` が立っているか ⑵ **人が歩く路が一本残らず母集団に入っているか**。
+    ⭐⭐ **2026-09-08: 母集団を `_walkways` へ一本化した**(庭方の申し送り1)。⛔⛔ 従前は
+      **`enro` を宣言し `enro` を回していた**ので恒真で、⚠⚠ **`enro` でない路(参道)は
+      名乗りごと存在しなかった**。⇒ ⭕ **路の資格を `pts` + `w` で決め**、資格を満たす
+      物が母集団に入っていることと、**入った物が名と札を持つ**ことを測る。
     """
     n = NI(d)
     if n is None:
@@ -12449,11 +12526,22 @@ def enro_zukou_check(d):
     if not (d.get("const") or {}).get("enroZukou"):
         bad.append("**`const.enroZukou`(園路の頭上の下限)が指図に無い** — "
                    "⛔ 下限が無ければ頭上は**測っても合否が付かない**(規則19)")
+    wk = _walkways(d)
     got = {q["name"] for q in enro_zukou_stats(d)}
-    for e in g.get("enro", []):
-        if e["name"] not in got:
-            bad.append("**園路 %s の頭上を測っていない** — ⛔ 母集団から落ちた路がある"
+    for e in wk:
+        if not e.get("name") or not e.get("label"):
+            bad.append("**人の歩く路に名か札が無い**(`pts` %d 点)— "
+                       "⛔ 名の無い路は表でも差し戻し枠でも指させない(規則16)"
+                       % len(e.get("pts") or []))
+        elif e["name"] not in got:
+            bad.append("**路 %s の頭上を測っていない** — ⛔ 母集団から落ちた路がある"
                        % e["name"])
+    # ⭕ **資格を満たすのに母集団へ来ていない物**を探す(⛔ 名簿を手で持たない)。
+    #   ⚠ 参道が四年目まで落ちていたのは「`enro` に入っていない」の一点だけだった。
+    for nm9, o9 in sorted((g.get("yashiro") or {}).items()):
+        if isinstance(o9, dict) and o9.get("pts") and o9.get("w") and o9 not in wk:
+            bad.append("**`yashiro.%s` は `pts` と幅 `w` を持つのに頭上の母集団に無い** — "
+                       "⛔ 人が歩く路を `enro` かどうかで選り分けない(規則19)" % nm9)
     return bad
 
 
@@ -12473,28 +12561,90 @@ def enro_zukou_todo(d):
 
 
 def kura_mikiri_todo(d):
-    """**庭方へ差し戻す** — 御土蔵の見切りに抜けた帯。⛔ 受け方は意匠(規則17)。
+    """**庭方へ差し戻す** — 御土蔵の**白壁の帯**の見切りが下限に届かない分。⛔ 受け方は意匠。
 
     ⚠⚠ **2026-09-08 まで この項は `niwa_check`(機械検査)に在った** — ⛔ **検査を緩めた
       のではなく、行き先を変えた**。⭕ 従前は「樹冠が円柱で下まで張り出す」前提でだけ
       100% が立っており、⭐ **模型を正した(円錐台+円柱)ことで、意匠の判断が要る欠陥が
       現れた**。⇒ ⛔ **指図方が刈込を上げたり中木を足したりして辻褄を合わせない。**
+
+    ⭐⭐⭐ **2026-09-08 庭方の起案(採用=普請奉行)で「的」と「下限」を改めた** —
+      ⑴ **的は白壁の帯だけ**(地盤 〜 軒の下端 `const.kuraEave`)。⛔ **その上の瓦屋根が
+         樹越しに覗くのは自然なので問わない。**
+      ⑵ **下限は `const.kuraMikiriMin`**。⛔⛔ **従前の 100% は撤回した**(⛔ 「値が無かった」
+         のではない — **現に立っていた値**を、⭕ **円柱模型の産物**だったので下げた)。
+      ⛔ **これは基準の緩和である。**⭕ 緩めた理由と、緩めた後も残る素通しの点は
+        図(其九)が毎回刷る(⛔ 文章で言い訳しない=規則19)。
+    ⛔ **下限が無ければ合否は付かない** — 立っていなければここで鳴らす(⛔ 100 を既定にしない)。
     """
     o = niwa_stats(d)
+    lim = (d.get("const") or {}).get("kuraMikiriMin")
     out = []
+    if lim is None:
+        return ["**`const.kuraMikiriMin`(御土蔵の白壁の帯の見切りの下限)が指図に無い** — "
+                "⛔ 下限が無ければ見切りは**測っても合否が付かない**(規則19)"
+                "【`_pending.kuramikiri`】"]
+    lim = float(lim)
     for q in o.get("kuraFace", []):
-        if not q["miss"]:
+        if q["wallPct"] >= lim - 1e-9:
             continue
-        vs = [p[0] for p in q["miss"]]
-        ys = [p[1] for p in q["miss"]]
-        out.append("**%s の見える面が %.1f%% しか塞がらない** — 抜けた帯は "
-                   "**v %.1f〜%.1f・標高 %.2f〜%.2f**(素通し %d 点 / 全 %d 点)。"
+        vs = [p[0] for p in q["wallMiss"]]
+        ys = [p[1] for p in q["wallMiss"]]
+        out.append("**%s の白壁の帯が %.2f%% しか塞がらない**(下限 %.1f%%)— 抜けた帯は "
+                   "**v %.1f〜%.1f・標高 %.2f〜%.2f**(素通し %d 点 / 帯 %d 点。"
+                   "⛔ 割合も点数も**生の格子点**で数える)。"
                    "主景の対岸に御土蔵の白壁が残る。⇒ **`Dote_Kuramae` の刈込①を上げるか・"
                    "蔵前に中木を足すか**(刈込 → 中木 → 高木の三層)は**作庭の意匠**"
                    "【`_pending.kuramikiri`】"
-                   % (q["name"], q["pct"], min(vs), max(vs), min(ys), max(ys),
-                      len(q["miss"]), q["tot"]))
+                   % (q["name"], q["wallPct"], lim, min(vs), max(vs), min(ys), max(ys),
+                      q["wallMissN"], q["wallTot"]))
     return out
+
+
+def mikiri_sensitivity(d):
+    """**破壊試験** — 見切りの合否が**ほんとうに載っているか**(2026-09-08)。
+
+    ⛔⛔ **基準を緩めた巡は、緩めた検査が生きていることを同じ巡で見せる**(規則19)。
+      ⚠⚠ 100% → 95% は**下限を下げた**のだから、⛔ **「0 件」だけを刷ると
+      「通った」のか「死んだ」のか見分けられない。**
+    """
+    def probe(title, fn, want, pick=None):
+        e, mv = _probe(d, fn, pick=pick)
+        return (title, len(kura_mikiri_todo(e)), want, mv)
+
+    def q1(g9):     # ⭐ 刈込①を大刈込にする前の高さへ戻す ⇒ **鳴る**
+        for k9 in g9["karikomi"]:
+            if k9["name"] == "Karikomi_Kuramae":
+                k9["hMin"], k9["hMax"] = 1.30, 1.85
+
+    def q2(e):      # 下限を 0 にする ⇒ **鳴らない**(下限が効いている証拠)
+        e["const"]["kuraMikiriMin"] = 0.0
+
+    def q3(e):      # ⭐ **撤回した 100% を戻す** ⇒ **鳴る**(緩和の幅が図に出る)
+        e["const"]["kuraMikiriMin"] = 100.0
+
+    def q4(e):      # 下限そのものを落とす ⇒ **鳴る**(⛔ 既定値で黙らない)
+        e["const"].pop("kuraMikiriMin", None)
+
+    def q5(g9):     # ⭐⭐ **刈込①をさらに 0.60 上げる** ⇒ **鳴らない**
+        # ⛔ **これは試験の摘み**であって設計値ではない — ⭕ **不足が刈込の高さで閉じる**
+        #   ことを示すためだけに振る(⛔ ここで決めた高さを正典へ持ち込まない=規則17)。
+        for k9 in g9["karikomi"]:
+            if k9["name"] == "Karikomi_Kuramae":
+                k9["hMin"] = round(k9["hMin"] + 0.60, 3)
+                k9["hMax"] = round(k9["hMax"] + 0.60, 3)
+
+    probes = [probe("① ⭐ **刈込①を大刈込にする前(1.30/1.85)へ戻す** — ⚠ **鳴る**",
+                    q1, 1, pick=niwa),
+              probe("② 下限を 0 にする — ⛔ **鳴らない**(下限が効いている証拠)", q2, 0),
+              probe("③ ⭐⭐ **撤回した 100% を下限に戻す** — ⚠ **鳴る**", q3, 1),
+              probe("④ 下限の欄そのものを落とす — ⚠ **鳴る**(⛔ 既定値で黙らない)", q4, 1),
+              probe("⑤ ⭐⭐ **刈込①をさらに 0.60 上げる** — ⛔ **鳴らない**"
+                    "(⇒ 不足は刈込の高さで閉じる)", q5, 0, pick=niwa),
+              ("⑥ いまの図(基準)— ⚠⚠ **鳴る**(⇒ 庭方へ差し戻す。"
+               "⛔ 指図方が高さを上げて辻褄を合わせない=規則17)",
+               len(kura_mikiri_todo(d)), 1, None)]
+    return probes, _probe_verdict(probes)
 
 
 def zukou_sensitivity(d):
@@ -12520,11 +12670,27 @@ def zukou_sensitivity(d):
     def q3(e):     # ⭐ **下限を 0 にする**(⛔ 下限が効いていなければ変わらない)
         e["const"]["enroZukou"] = 0.0
 
+    def q4(g9):    # ⭐⭐ **下枝を地面まで下ろす**(`crownFrom` = 0)⇒ **鳴る**
+        for s9 in g9["shokusai"]:
+            if s9.get("crownFrom") is not None:
+                s9["crownFrom"] = 0.0
+
+    def q5(e):     # ⭐⭐ **撤回した円柱の模型へ戻す** ⇒ **鳴る**(裾が下まで張り出す)
+        e["const"]["crownSkirt"] = 0.0
+
+    # ⭐⭐⭐ **2026-09-08(第2巡): 基準の束が「鳴らない」側へ移った。**
+    #   ⚠⚠ **④が『いまの図で鳴る』ままだと、植栽を直した瞬間に束が全部 0 件で並び、
+    #     恒真の試験になる**(⛔ 検査が死んでも「期待どおり」と刷る=規則19)。
+    #   ⇒ ⭕ **壊すと鳴る束を二つ足した**(⑤下枝を落とす / ⑥円柱へ戻す)。
     probes = [probe("① ⭐ **木を全部消す** — ⛔ **鳴らない**(木が頭上を決めている証拠)",
                     q1, want=0),
               probe("② 枝下を 4.0m へ上げる — ⛔ **鳴らない**", q2, want=0),
               probe3("③ ⭐ **下限 `enroZukou` を 0 にする** — ⛔ **鳴らない**", q3),
-              ("④ いまの図(基準)— ⚠ **鳴る**", len(enro_zukou_todo(d)), 1, None)]
+              probe("④ ⭐⭐ **下枝を地面まで下ろす**(`crownFrom`=0)— ⚠ **鳴る**",
+                    q4, want=1),
+              probe3("⑤ ⭐⭐ **撤回した円柱の模型へ戻す**(`crownSkirt`=0)— ⚠ **鳴る**",
+                     q5, want=1),
+              ("⑥ いまの図(基準)— ⛔ **鳴らない**", len(enro_zukou_todo(d)), 0, None)]
     return probes, _probe_verdict(probes)
 
 
@@ -12553,7 +12719,9 @@ def crown_model_sweep(d, vals=(0.0, 0.25, 0.5, 0.75, 1.0), dcf=(0.0,)):
                             badPct=max([q["pct"] for q in zk] or [0.0]),
                             low=min([q["low"] for q in zk if q["low"] is not None] or [0.0]),
                             kura=min([q["pct"] for q in ku] or [100.0]),
-                            miss=sum(len(q["miss"]) for q in ku)))
+                            wall=min([q["wallPct"] for q in ku] or [100.0]),
+                            wmiss=sum(q["wallMissN"] for q in ku),
+                            miss=sum(q["missN"] for q in ku)))
     _NIWA_CACHE[0] = None
     _STATS_CACHE[0] = None
     return out
@@ -15091,7 +15259,8 @@ def niwa_zukou_table(d):
         rows.append((q["label"], "%.1f m" % q["L"],
                      ("<b>%.1f m(%.0f%%)</b>" % (q["badL"], q["pct"])) if q["badL"] > 1e-9
                      else "<b>0.0 m</b>",
-                     "<b>%.3f m</b>" % (q["low"] if q["low"] is not None else float("nan")),
+                     ("<b>%.3f m</b>" % q["low"]) if q["low"] is not None
+                     else "<b>—</b>(⭕ 樹冠が一つも掛からない)",
                      "(%.2f, %.2f)" % q["at"] if q["at"] else "—",
                      q["who"] or "—", by or "—",
                      "⭕" if q["badL"] <= 1e-9 else "⚠⚠ <b>歩けない</b>"))
@@ -15111,7 +15280,93 @@ def niwa_zukou_table(d):
         "⛔⛔ <b>合否はここでは出さない</b> — 受け方(<b>木を路から離す/路の線形を振る/"
         "下枝を払う</b>)はいずれも<b>作庭の意匠</b>なので、"
         "<b>差し戻し枠</b>へ出す(<code>_pending.enrozukou</code>・規則17)。</p>"
+        "<p class='cap'>⭐⭐⭐ <b>2026-09-08(第2巡): 母集団に<u>参道</u>を入れた</b>"
+        "【庭方の申し送り1・採用=普請奉行】。"
+        "⛔⛔ <b>参道は人が歩く路なのに、<code>enro</code> でないというだけで"
+        "一度も測られていなかった</b> — ⚠ <b>『0 件』ではなく未測定</b>であり、"
+        "⚠⚠ <b>「宣言した母集団 ≠ 実際に回った母集団」の同じ型が当邸で四度目</b>である"
+        "(規則19)。⚠ 実際、<b>ウメと鳥居のまわりで枝が掛かる</b>帯だった。<br>"
+        "⭕ ⇒ <b>路の資格を「<code>pts</code> と幅 <code>w</code> を持つこと」で決め</b>、"
+        "母集団を関数一本(<code>_walkways</code>)に畳んだ — "
+        "⛔ <b>宣言と実測を二箇所に書かない</b>(規則4)。"
+        "⭕ 資格を満たすのに母集団へ来ていない物が現れたら "
+        "<code>enro_zukou_check</code> が鳴らす。</p>"
         % (d["const"].get("rokaZukou") or 0.0))
+
+
+def crown_setback_stats(d, dys=(-0.5, 0.0, 0.5)):
+    """**路の芯からの退がり**[m] — 「これだけ退がれば頭上 `enroZukou` が立つ」。
+
+    ⭐⭐ **2026-09-08 庭方の起案(採用=普請奉行)。**⛔ **数値を指図へ書かない** —
+      **樹冠の実寸(目録)と `const.crownSkirt` と路の半幅**から毎回導く従属値である。
+    ⭕ 退がり = **幹軸から樹冠の裾が下限に届く距離** ＋ **路の半幅**(⛔ 路の芯で測らない)。
+    ⚠ `dy` = **木の地盤 − 路の地盤**。⭕ 木が路より低ければ**同じ木でも余計に退がる**
+      (⛔ 木の足元で測ると通ってしまう=其八の条と同じ)。
+    """
+    lim = float((d.get("const") or {}).get("enroZukou") or 0.0)
+    cr = _crowns(d)
+    if not cr:
+        return [], 0.0
+    # ⛔ **路の半幅を書き写さない** — 母集団の路のうち**いちばん広い**幅から採る。
+    hw = 0.0
+    for e in _walkways(d):
+        for w9 in [e.get("w", 0.0)] + [s.get("w", 0.0) for s in e.get("wSeg", [])]:
+            hw = max(hw, float(w9) / 2.0)
+    seen, rows = {}, []
+    for c in cr:
+        seen.setdefault((c["sp"], c["sz"]), [c, 0])
+        seen[(c["sp"], c["sz"])][1] += 1
+    for (sp, sz), (c, n9) in seen.items():
+        got = []
+        for dy in dys:
+            need = lim - dy
+            lo, hi = 0.0, c["r"]
+            for _ in range(60):                     # ⭕ 二分法(⛔ 式を解いて写さない)
+                mm = (lo + hi) / 2.0
+                y9 = crown_low(c, mm)
+                if y9 is None or y9 >= need:
+                    hi = mm
+                else:
+                    lo = mm
+            got.append(hi + hw)
+        rows.append(dict(sp=sp, sz=sz, n=n9, r=c["r"], h=c["h"], c0=c["crownFrom"],
+                         skirt=c["skirt"], trunk=c["trunk"], dys=list(dys), back=got))
+    rows.sort(key=lambda q: -q["back"][len(dys) // 2])
+    return rows, hw
+
+
+def crown_setback_table(d):
+    """⭐⭐ **退がりの表** — 「路の芯からこれだけ退がれば頭上が立つ」【2026-09-08 庭方】。
+
+    ⭐⭐⭐ **骨は「小さい木ほど大きく退がる」** — ⛔ **直感に反するので図に書く。**
+    """
+    rows, hw = crown_setback_stats(d)
+    if not rows:
+        return ""
+    lim = d["const"].get("enroZukou") or 0.0
+    body = [("<b>%s %s</b>" % (q["sp"], q["sz"]), "%d 本" % q["n"],
+             "%.2f m" % q["h"], "%.2f m" % (q["r"] * 2), "%.2f m" % q["c0"],
+             "%.2f m" % q["skirt"],
+             "%.2f m" % q["back"][0], "<b>%.2f m</b>" % q["back"][1],
+             "%.2f m" % q["back"][2]) for q in rows]
+    return _tw(("層", "本数", "樹高", "樹冠の径", "枝下(幹際)", "裾の立ち上がり",
+                "退がり(木が路より 0.50 低い)", "退がり(同高)",
+                "退がり(木が路より 0.50 高い)"), body) + (
+        "<p class='cap'>⭐⭐ <b>「路の芯からこれだけ退がれば頭上 %.2f m が立つ」</b>"
+        "【2026-09-08 庭方の起案(採用=普請奉行)・確度U】。"
+        "退がり = <b>幹軸から樹冠の裾が下限に届く距離</b> ＋ <b>路の半幅 %.2f m</b>"
+        "(⛔ 路の芯までで測らない — 肩が枝の中なら歩けない)。<br>"
+        "⭐⭐⭐ <b>この表の骨は「小さい木ほど大きく退がる」</b> — "
+        "⛔ <b>直感に反するので言葉で書く</b>: 樹高 3.6 m の木は"
+        "<b>裾の立ち上がりが樹冠の深さに比例して短い</b>ので、"
+        "<b>自分の樹冠の縁の下に %.2f m を作れるのが縁のすぐ際だけ</b>になる。"
+        "⇒ <b>幹を樹冠の径いっぱいまで離さないと路が通らない</b>。"
+        "逆に 8 m 級の木は裾が長く寝るので、<b>樹冠の内側で早く %.2f m に達する</b>。<br>"
+        "⚠ <b>地盤差で前後する</b>(左右の列)— <b>木が路より低い斜面に立てば余計に退がる</b>。"
+        "⛔ 木の足元で測ると通ってしまう。<br>"
+        "⛔ <b>この表の数字を指図へ書き写さない</b>(規則4)— "
+        "<b>樹冠の実寸(目録)・<code>const.crownSkirt</code>・路の幅</b>からの従属値で、"
+        "部材を差し替えれば動く。</p>" % (lim, hw, lim, lim))
 
 
 def crown_model_table(d):
@@ -15127,11 +15382,13 @@ def crown_model_table(d):
                                 else ("(⚠ <b>2026-09-08 までの円柱</b>)"
                                       if q["fr"] == 0 and not q["dc"] else "")),
              ("<b>+%.2f m</b>(下枝を払う)" % q["dc"]) if q["dc"] else "—",
+             "<b>%.2f%%</b>" % q["wall"], "%d 点" % q["wmiss"],
              "%.1f%%" % q["kura"], "%d 点" % q["miss"],
              "<b>%.1f%%</b>" % q["badPct"], "%.3f m" % q["low"]) for q in sw]
     return _tw(("<code>const.crownSkirt</code>(裾の立ち上がり / 樹冠の深さ)",
                 "<code>crownFrom</code>(枝下)への上乗せ",
-                "御土蔵の見切り(塞げる割合)", "素通しの点",
+                "<b>白壁の帯</b>の見切り(⭕ 合否の的)", "素通しの点",
+                "面の全高(⚠ 瓦屋根まで含む・参考)", "素通しの点",
                 "園路が下限に届かない割合(最悪の路)", "園路の頭上の最小"), rows) + (
         "<p class='cap'>⭐⭐⭐ <b>樹冠は円柱ではない</b>【2026-09-08 庭方 高1・案イ"
         "(採用=普請奉行)】— <b>枝下は幹際の値</b>で、<b>裾は外へ行くほど上がる</b>"
@@ -15160,19 +15417,128 @@ def niwa_kura_table(d):
     q = o.get("kuraFace")
     if not q:
         return ""
+    lim = float(d["const"].get("kuraMikiriMin") or 0.0)
     rows = []
     for k in q:
         rows.append((k["name"], "v %.1f〜%.1f(%.1f間)" % (k["v0"], k["v1"], k["v1"] - k["v0"]),
-                     "%.2f〜%.2f m" % (k["y0"], k["y1"]),
-                     "<b>%.0f%%</b>" % k["pct"],
-                     "⭕" if not k["miss"] else "⚠ 素通し %d 点(例 %s)"
-                     % (len(k["miss"]), "、".join("v%.1f/標高%.2f" % p for p in k["miss"][:3]))))
-    return _tw(("御土蔵", "見える面の長さ", "高さの範囲", "塞げる割合", "判定"), rows) + (
+                     "%.2f〜%.2f m(うち白壁 〜%.2f)" % (k["y0"], k["y1"], k["wallTop"]),
+                     "<b>%.2f%%</b>" % k["wallPct"],
+                     ("⭕" if k["wallPct"] >= lim - 1e-9 else "⚠ <b>下限 %.1f%% を割る</b>" % lim)
+                     + ("" if not k["wallMiss"] else "(素通し %d / %d 点・例 %s)"
+                        % (k["wallMissN"], k["wallTot"],
+                           "、".join("v%.1f/標高%.2f" % p for p in k["wallMiss"][:3]))),
+                     "%.2f%%" % k["pct"],
+                     "—" if not k["miss"] else "素通し %d / %d 点" % (k["missN"], k["tot"])))
+    return _tw(("御土蔵", "見える面の長さ", "高さの範囲", "<b>白壁の帯</b>を塞げる割合",
+                "判定(下限 %.1f%%)" % lim,
+                "面の全高(参考)", "全高の素通し"), rows) + (
         "<p class='cap'>⭐ 面を <b>長さ120 × 高さ28 の格子</b>に刻み、主視点からの視線を1本ずつ "
         "<b>地形 → 刈込の天端 → 樹冠</b>の順に当てた実測。⛔ <b>木を足して解かない</b> — "
-        "眼から見て地形の見切り線と樹冠の下端のあいだに残る 1.2〜1.8m の低い帯は"
+        "眼から見て地形の見切り線と樹冠の下端のあいだに残る低い帯は"
         "<b>枝下より下なので木では塞げない</b>。そこは <code>Dote_Kuramae</code> に"
-        "載せた刈込①が受ける(2026-09-04 庭方の第3巡・決定 中9)。</p>")
+        "載せた刈込①が受ける(2026-09-04 庭方の第3巡・決定 中9)。</p>"
+        "<p class='cap'>⭐⭐⭐ <b>2026-09-08(第2巡)、合否の的と下限を改めた</b>"
+        "【庭方の起案・採用=普請奉行】。<br>"
+        "⑴ <b>的は白壁の帯だけ</b> — 見えてはいけないのは<b>地盤から軒の下端 "
+        "<code>const.kuraEave</code> までの白い壁</b>である。"
+        "⛔ <b>その上の瓦屋根が樹越しに覗くのは自然なので問わない</b>"
+        "(⚠ 従前は棟まで含めた面の全高を的にしていた)。<br>"
+        "⑵ <b>下限は <code>const.kuraMikiriMin</code> = %.1f%%</b>。<br>"
+        "⛔⛔⛔ <b>これは基準の緩和である。隠さない。</b>"
+        "⚠⚠ <b>従前この欄は 100%% だった</b> — ⛔ <b>「下限が無かった」のではない。"
+        "現に立っていた値を下げた。</b>"
+        "⭕ <b>下げてよい理由は一つだけ</b>: ⚠⚠ <b>その 100%% は円柱模型の産物だった</b>。"
+        "樹冠を<b>枝下から下まで真っ直ぐ張り出す円柱</b>として測っていたあいだは"
+        "面が全部塞がって見えたが、⭐ <b>2026-09-08 に模型を実際の姿(円錐台+円柱)へ"
+        "正した</b>ところ、<b>裾の下に帯が開いた</b>(⇒ 上の「樹冠の模型の効き」の表の "
+        "<code>crownSkirt</code>=0 の行が、その円柱の姿である)。"
+        "⛔ <b>正しい模型の上で 100%% を求めると、庭を塞ぐか園路を潰すかしかなくなる</b> — "
+        "⚠ 実際、円柱の前提のままだと<b>主路の 44.8%% が頭上 %.2f m を割っていた</b>。<br>"
+        "⛔ <b>撤回として記録した</b>(<code>retracted</code>)— "
+        "⚠ 撤回した説の語が図・正典・生成器に生き残っていないかを毎回機械が照合する。<br>"
+        "⛔ <b>「緩めたから通った」で終わらせない</b> — <b>下限が生きていること</b>は"
+        "破壊試験の束(「御土蔵の見切り(白壁の帯)」)が毎回鳴らして見せる(規則19)。</p>"
+        "<p class='cap'>⛔⛔⛔ <b>そして、緩めた下限にも当図はまだ届いていない。</b>"
+        "⚠ 判定の列を見よ — <b>差し戻し枠に一行出ている</b>"
+        "(<code>_pending.kuramikiri</code> は<b>開いたまま</b>)。<br>"
+        "⚠⚠ <b>原因は数え方である</b>: <b>庭方が下限を選んだときに見ていた「塞ぎの割合」は、"
+        "<u>v を 0.1・標高を 0.01 に丸めて重複を潰した点数</u>で数えた値</b>だった — "
+        "⚠ ところが<b>同じ文の中で並んでいた「面の全高」の割合は生の格子点</b>(120×28)である。"
+        "⛔ <b>一つの判断の中に二通りの物差しが混ざっていた。</b><br>"
+        "⭕ ⇒ <b>当図は割合も点数も生の格子点に統一した</b>(丸めた集合は上の表の"
+        "<b>例示にだけ</b>使う)。⛔ <b>丸めは表示の都合であって面積の重みではない。</b>"
+        "⚠ 従前この表は<b>同じ行の中で、生の格子点の割合と丸めた点数を並べて刷っていた</b>。<br>"
+        "⛔⛔ <b>指図方は刈込を上げても下限を下げても辻褄を合わせない</b>(規則17)— "
+        "<b>天端をもう一段上げるか、下限を実測に合わせて置き直すかは作庭の意匠</b>である。"
+        "⭕ <b>どの天端で下限を越えるかは次の表が刷る。</b></p>"
+        % (lim, d["const"].get("enroZukou") or 0.0))
+
+
+def mikiri_karikomi_sweep(d, vals=(1.85, 2.20, 2.40, 2.60, 2.80, 3.00)):
+    """**刈込①の天端を振ったときの見切り** — ⛔ 「2.60 にした」と書くだけにしない。
+
+    ⭐⭐ **2026-09-08 庭方の起案(採用=普請奉行)で刈込①を大刈込へ上げた。**
+      ⛔ **どこで頭打ちになるかを見ずに高さを選ばない** — ⭕ 釣り合いを毎回刷る。
+    ⚠ **`hMin` は `hMax` との差(刈り込んだ塊の起伏)を保って動かす。**
+    """
+    g0 = niwa(d) or {}
+    k0 = next((k for k in g0.get("karikomi", []) if k.get("name") == "Karikomi_Kuramae"), None)
+    if k0 is None:
+        return []
+    dh = k0["hMax"] - k0["hMin"]
+    out = []
+    for hm in vals:
+        e = copy.deepcopy(d)
+        for k9 in (niwa(e) or {}).get("karikomi", []):
+            if k9.get("name") == "Karikomi_Kuramae":
+                k9["hMax"], k9["hMin"] = hm, round(hm - dh, 3)
+        _NIWA_CACHE[0] = None
+        _STATS_CACHE[0] = None
+        _KARI_CACHE[0] = None
+        ku = niwa_stats(e).get("kuraFace") or []
+        out.append(dict(h=hm, cur=abs(hm - k0["hMax"]) < 1e-9,
+                        wall=min([q["wallPct"] for q in ku] or [100.0]),
+                        pct=min([q["pct"] for q in ku] or [100.0])))
+    _NIWA_CACHE[0] = None
+    _STATS_CACHE[0] = None
+    _KARI_CACHE[0] = None
+    return out
+
+
+def mikiri_karikomi_table(d):
+    """**刈込①の天端 ⟷ 見切り**の表。"""
+    sw = mikiri_karikomi_sweep(d)
+    if not sw:
+        return ""
+    lim = float(d["const"].get("kuraMikiriMin") or 0.0)
+    rows = [("<b>%.2f m</b>%s" % (q["h"], "(<b>いまの図</b>)" if q["cur"] else ""),
+             "<b>%.2f%%</b>" % q["wall"], "%.2f%%" % q["pct"],
+             "⭕" if q["wall"] >= lim - 1e-9 else "⚠ 下限を割る") for q in sw]
+    ok9 = [q for q in sw if q["wall"] >= lim - 1e-9]
+    return _tw(("刈込①の天端 <code>hMax</code>(蔵前の土手の上)",
+                "<b>白壁の帯</b>を塞げる割合", "面の全高(参考)",
+                "下限 %.1f%%" % lim), rows) + (
+        "<p class='cap'>⭐⭐ <b>刈込①を「帯」から「大刈込」へ上げた</b>"
+        "【2026-09-08 庭方の起案(採用=普請奉行)】— 技法としての大刈込は "
+        "[築山庭造伝]の範囲【B】だが、<b>寸法は当庭の見切りから決めた従属値【U】</b>。"
+        "⚠ <b>蔵前の土手(+0.65 m)の上に載る</b>ので、庭の地盤から見た緑の壁の高さは"
+        "この表の値より高い(⛔ その合計をここへ書き写さない — 断面が刷る)。<br>"
+        "⭐ <b>この表が「どこで頭打ちになるか」を見せる</b> — "
+        "⛔ <b>高さを上げ続けても素通しは 0 にならない</b>(⚠ 面の端と、"
+        "刈込の届かない高い帯が残る)。⇒ <b>塀に見えるところまで上げる意味は無い</b>。"
+        "⛔ <b>庭方の起案は「刈込は塊であって塀ではない」</b>(規則17・意匠)。<br>"
+        "⚠ <b>庭方が起案時に添えた実測は、植栽を作り直す前(案乙5 以前)の配置を、"
+        "しかも<u>丸めて重複を潰した点数</u>で測った値</b>である — "
+        "⭕ <b>この表は当図の現況(案乙5)を、生の格子点で測り直した値</b>なので数字は一致しない"
+        "(⛔ 起案の数字を写して並べない=規則4)。<br>"
+        "⛔⛔ <b>いまの天端は下限に届いていない。</b>"
+        + ("⭕ <b>この振り幅の中で下限を越える最小の天端は %.2f m</b>"
+           "(⇒ いまの図から <b>+%.2f m</b>)— ⚠ <b>これは差し戻しのための実測であって、"
+           "指図方が採る値ではない</b>(規則17)。"
+           % (ok9[0]["h"], ok9[0]["h"] - next(q["h"] for q in sw if q["cur"]))
+           if ok9 and not next((q for q in sw if q["cur"]), {"wall": 0})["wall"] >= lim
+           else "") +
+        "</p>")
 
 
 def niwa_kura_blocker_table(d):
@@ -16826,8 +17192,12 @@ def main():
         h.append(crown_model_table(d))
         h.append("<h3>園路の頭上</h3>")
         h.append(niwa_zukou_table(d))
-        h.append("<h3>見切りの合否 — 蔵の見える面(全長 × 全高)</h3>")
+        h.append("<h3>路の芯からの退がり — 「これだけ退がれば頭上が立つ」</h3>")
+        h.append(crown_setback_table(d))
+        h.append("<h3>見切りの合否 — 蔵の白壁の帯</h3>")
         h.append(niwa_kura_table(d))
+        h.append("<h3>刈込①の天端 ⟷ 見切り(どこで頭打ちになるか)</h3>")
+        h.append(mikiri_karikomi_table(d))
         h.append("<h3>見切りを塞ぐ物の内訳(除去法)</h3>")
         h.append(niwa_kura_blocker_table(d))
         h.append("<h3>見切りの検算(参考)— 樹冠が塞ぐべき帯</h3>")

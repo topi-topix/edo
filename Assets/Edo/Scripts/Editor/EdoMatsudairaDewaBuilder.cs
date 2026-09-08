@@ -758,7 +758,7 @@ public static partial class EdoMatsudairaDewaBuilder
         int nFix = 0; float worst = 0f; string worstName = "";
         foreach (var kado in kados)
         {
-            var kb = MeshBody(kado); if (kb.Count == 0) continue;
+            var kb = MeshBody(kado, 999999); if (kb.Count == 0) continue;   // 隅は全頂点(間引かない・上のコメント参照)
             float ky0 = 1e9f, ky1 = -1e9f; foreach (var v in kb) { if (v.y < ky0) ky0 = v.y; if (v.y > ky1) ky1 = v.y; }
             float lo = ky0 + (ky1 - ky0) * 0.15f, hi = ky0 + (ky1 - ky0) * 0.80f;   // 壁体の帯
             foreach (var run in runs)
@@ -787,6 +787,16 @@ public static partial class EdoMatsudairaDewaBuilder
                 //   2026-09-06 実測: 入隅 Kado_J_P2 と S_Hei_C_23f は走りで 0.414m 重なりながら壁体が 0.486m 空く。
                 //   原因は `AlignInubashiri` が run だけを犬走りに合わせ、**隅部材を動かしていない**こと(横のずれ)。
                 //   ⇒ ここでは触らず、そのまま報告する(直しは隅部材の横合わせ・棟梁へ)。
+                // ⚠ 2026-09-08(棟梁差戻し・検証して撤回): 「間引き(900点)が隅部材の極値頂点を
+                //   取りこぼし、`AlignInubashiri` の横合わせ自体の残差を過大にしていた」のは実証済み
+                //   (`MeshBody(tr, 999999)` で間引きを止めたら、隅の外面が -0.30±0.02 まで揃った —
+                //   これは残す)。⛔ しかし**「揃ったなら重なり判定を無視して伸ばしてよい」は誤りだった**
+                //   — P0/P1/P3/P13 は角度のある留め継ぎ(直角でない)なので、run を**自身の走り軸に
+                //   沿って**伸ばしても、隅の断面に対して斜めにしか近づかず、3D最短距離の隙間
+                //   (0.02〜0.13m)はほぼ変化しなかった(実測: 伸縮の前後で隙間が小数点以下まで同じ)。
+                //   ⇒ 判定は元に戻す。この残差(0.02〜0.13m)は**壁面どうしが別メッシュで角度を持って
+                //   接する継ぎ目に残る限界**として棟梁から普請奉行へ報告する(run の軸方向伸縮では解けない
+                //   — 隅部材側の断面形状を直すか、指図側で許容差を見直すかの二択)。
                 float kA = EdgeAlong(kado, ax, -1f), kB = EdgeAlong(kado, ax, 1f);
                 float rA = EdgeAlong(run, ax, -1f), rB = EdgeAlong(run, ax, 1f);
                 if (Mathf.Min(kB, rB) - Mathf.Max(kA, rA) > 0.02f)
@@ -876,8 +886,14 @@ public static partial class EdoMatsudairaDewaBuilder
         return mx > mn ? mx - mn : 0f;
     }
 
-    /// <summary>**壁体**(屋根・軒・垂木・棟・桁を除く)の頂点を世界座標で。⛔ 軒は先に触れるので継ぎ目の判定に使わない。</summary>
-    static List<Vector3> MeshBody(Transform tr)
+    /// <summary>**壁体**(屋根・軒・垂木・棟・桁を除く)の頂点を世界座標で。⛔ 軒は先に触れるので継ぎ目の判定に使わない。
+    /// <paramref name="maxSamples"/> 既定 900(従来どおり・性能優先)。
+    /// ⚠ 2026-09-08(棟梁差戻し): **一様な添字間引きは極値(最小/最大)を落とすことがある** — 隅部材
+    /// (`Kado_*`、単一メッシュ 1.6〜1.8万頂点)を 900 点に間引くと、留め継ぎの先端の疎な頂点が
+    /// 選ばれず、実測で「壁体が 0.07〜0.46m 空く」の**過大な偽陽性**を出した(実際は全頂点で測ると
+    /// 0.01〜0.24m — 半分以下)。⇒ **隅部材の頂点を測る側(呼び出し元)は `maxSamples` を大きく渡し、
+    /// 相手側(長い run/長屋)は間引いたままにする**(隅×長屋の全頂点同士だと O(n・m) が重い)。</summary>
+    static List<Vector3> MeshBody(Transform tr, int maxSamples = 900)
     {
         var L = new List<Vector3>();
         foreach (var mf in tr.GetComponentsInChildren<MeshFilter>())
@@ -887,7 +903,7 @@ public static partial class EdoMatsudairaDewaBuilder
             string n = mf.name.ToLower();
             if (n.Contains("yane") || n.Contains("noki") || n.Contains("taruki") || n.Contains("mune") || n.Contains("keta")) continue;
             var l2w = mf.transform.localToWorldMatrix; var vs = mf.sharedMesh.vertices;
-            int step = Mathf.Max(1, vs.Length / 900);
+            int step = Mathf.Max(1, vs.Length / Mathf.Max(1, maxSamples));
             for (int i = 0; i < vs.Length; i += step) L.Add(l2w.MultiplyPoint3x4(vs[i]));
         }
         return L;
@@ -1028,9 +1044,15 @@ public static partial class EdoMatsudairaDewaBuilder
         //   最大投影が別の腕の面になり、Kado_J_P2 が 5.9m 動いた(レンダで隅の練塀が消えた)。
         // ⭕ **直し: 腕ごとに頂点を選り分けてから測る。** 隅の折れ点 P(= 辺 e1 の終点 = 辺 e2 の始点)から、
         //   辺 e の**腕の走り方向**(隅から外へ)を t_e とすると、辺 e の腕に属する頂点は
-        //   「(v−P)·t_e ≥ 0(その腕の外向きにある)かつ |(v−P)·t_other| ≤ KADO_ARM_THRESH
-        //   (相手の腕の走りへはみ出していない)」の物だけ。この部分集合の中で n_e への最大投影を取れば、
-        //   入隅でも出隅でも正しく「その腕の外面」になる(実測で検証済 — scratchpad の sim.py)。
+        //   「(v−P)·t_e ≥ 0(その腕の外向きにある)かつ |(v−P)·t_other − (v−P)·t_e・cosθ| ≤ armThresh
+        //   (相手の腕の中心線からのはみ出しが小さい。θ=t1,t2 のなす角)」の物だけ。この部分集合の中で
+        //   n_e への最大投影を取れば、入隅でも出隅でも正しく「その腕の外面」になる
+        //   (実測で検証済 — scratchpad の sim.py)。
+        // ⚠ 2026-09-08(棟梁差戻し): 当初は |(v−P)·t_other| ≤ 定数0.6 という**絶対窓**だったが、
+        //   折れ角が浅い隅(t1,t2 がほぼ反対向き)では d_other が d_e にほぼ比例して増えるため、
+        //   腕の長さぶん窓が効かなくなる(P1/P13 で実測: d1=1.26m の壁面点が d_other=-0.98 となり
+        //   絶対窓 0.6 を割った)。⇒ 窓を「中心線 d_e・cosθ からの残差」に直し、しきい値も
+        //   壁厚の実寸(dobeiWallT)から導く(0.6 という決め打ちの値を保守しない)。
         // ⚠ **選り分けは呼び出し時点の(まだ動かす前の)頂点位置で一度だけ行う。** 動かした後の位置で
         //   毎回選り直すと、選り分けの基準(P からの相対位置)自体が補正でずれて発散する
         //   (実測: 1回目の大きな補正の後、2回目の選り分けで「両辺とも該当頂点なし」になり暴走した)。
@@ -1053,21 +1075,31 @@ public static partial class EdoMatsudairaDewaBuilder
             Vector2 kn1 = OutNormal(e1), kn2 = OutNormal(e2);
             float det = kn1.x * kn2.y - kn1.y * kn2.x;
             if (Mathf.Abs(det) < 0.05f) { kadoNote.Add(id + ": 両辺がほぼ平行(det=" + det.ToString("F3") + ") — 解けず(棟梁へ)"); continue; }
-            var body = MeshBody(kc);
+            var body = MeshBody(kc, 999999);   // 隅は全頂点(間引かない・MeshBody のコメント参照)
             if (body.Count == 0) { kadoNote.Add(id + ": メッシュ無し"); continue; }
             // Kado の FBX は単一メッシュ(run のように hei/namako で分かれていない)。
             // run と同じ「壁体の帯」(高さの15〜80%, `CloseKadoSeams` と同じ帯)で屋根を除く。
             float ky0 = 1e9f, ky1 = -1e9f;
             foreach (var v in body) { if (v.y < ky0) ky0 = v.y; if (v.y > ky1) ky1 = v.y; }
             float lo = ky0 + (ky1 - ky0) * 0.15f, hi = ky0 + (ky1 - ky0) * 0.80f;
+            // ⭐ 2026-09-08(棟梁差戻し): 折れ角が浅い隅(t1・t2 がほぼ反対向き。例 P1/P13 の 18.5°)では
+            //   腕1の実の壁面上の点でも d2(相手の腕への射影)が d1 にほぼ比例して大きくなる
+            //   (d2 ≒ d1・cosθ, θ=t1,t2 のなす角)ため、**絶対値の窓 |d2|≤定数 は腕が長いほど
+            //   すぐに外れる**(実測: P1 で d1=1.26m の壁面点が d2=-0.98 になり 0.6 の窓を割る)。
+            //   ⇒ 窓は「腕の中心線からのはみ出し」= d2 と d1・cosθ の**差**で測る(実際の折れ角=腕の
+            //   実寸から導く。決め打ちの絶対窓をやめる)。しきい値そのものも壁厚の実寸(dobeiWallT)から
+            //   導く — 0.6 という値を保守しない。
+            float cosT = Vector2.Dot(t1, t2);
+            float dobeiWallT = F(O(D["const"])["dobeiWallT"]);
+            float armThresh = dobeiWallT * 1.5f;   // 壁厚+留め継ぎの面取り分の余裕(実寸由来)
             float best1 = float.MinValue, best2 = float.MinValue;
             foreach (var w in body)
             {
                 if (w.y < lo || w.y > hi) continue;
                 Vector2 rel = new Vector2(w.x, w.z) - P;
                 float d1 = Vector2.Dot(rel, t1), d2 = Vector2.Dot(rel, t2);
-                if (d1 >= 0f && Mathf.Abs(d2) <= KADO_ARM_THRESH) best1 = Mathf.Max(best1, Vector2.Dot(rel, kn1));
-                if (d2 >= 0f && Mathf.Abs(d1) <= KADO_ARM_THRESH) best2 = Mathf.Max(best2, Vector2.Dot(rel, kn2));
+                if (d1 >= 0f && Mathf.Abs(d2 - d1 * cosT) <= armThresh) best1 = Mathf.Max(best1, Vector2.Dot(rel, kn1));
+                if (d2 >= 0f && Mathf.Abs(d1 - d2 * cosT) <= armThresh) best2 = Mathf.Max(best2, Vector2.Dot(rel, kn2));
             }
             if (best1 == float.MinValue || best2 == float.MinValue) { kadoNote.Add(id + ": 両辺の壁体を判別できず"); continue; }
             float r1 = (-INUBASHIRI) - best1, r2 = (-INUBASHIRI) - best2;
@@ -1083,10 +1115,6 @@ public static partial class EdoMatsudairaDewaBuilder
         if (kadoNote.Count > 0) sb.Append(" / ★ " + string.Join(" / ", kadoNote.ToArray()));
         return sb.ToString();
     }
-
-    /// <summary>隅部材の腕への選り分けで「相手の腕へはみ出していない」とみなす上限[m]。
-    /// 壁厚の程度(実測でスキャンし 0.4〜0.8m の範囲で安定することを確認 — scratchpad の sim.py)。</summary>
-    const float KADO_ARM_THRESH = 0.6f;
 
     /// <summary>**門と扉の面を囲いの面へ揃える。**
     /// ⚠ 2026-08-29(EDO-0053)にユーザーが「門と長屋が面一になっていないので門や塀の意味を成さない」
@@ -1451,21 +1479,26 @@ public static partial class EdoMatsudairaDewaBuilder
                               " Goten_Roof_Irimoya_" + kw + "x" + kd + "ken");
                 roof = null;
             }
-            // ⚠ 2026-09-08(普請検査差戻し): 帯割りが無い(=roofSpec が無い)長屋型4棟
-            //   (御湯殿・長局北・奥台所・厩。`_pending.gotenRoofNagayaGata`)は、EdoGotenKit.Mune の
-            //   既定(floor+H−0.15=3.197・建具高 H に従属)のまま置かれていたため、
-            //   帯割り棟(gotenEave=3.4 で焼いた屋根)より軒が高くなり、格の序列
-            //   (厩2.35 < 長屋類2.80 < 御殿3.40。const の umayaEave/nagayaGataEave/gotenEave)が
-            //   崩れていた。`munes[].kind` は json に無いので、`zone`(json 既存の値)で判別する
-            //   — 厩は zone="厩"、御湯殿・長局北・奥台所は zone="奥向"(いずれも roofSpec が無い
-            //   ことで初めて「長屋型4棟」の集合に絞られるので、他の奥向の棟と混同しない)。
-            //   ⛔ 帯割り(roofAtFloor)側は z=0=床で、屋根 FBX 自体が gotenEave で焼いてあるので触らない。
-            float roofEaveLocalY = float.NaN;
-            if (roofSpec == null)
+            // ⭐ 2026-09-08(普請奉行の裁定): 軒高 const(gotenEave/nagayaGataEave/umayaEave)は
+            //   「軒下端の濡縁上高さ」— 部材の系列(帯割り/入母屋)ごとにピボット基準が食い違うので、
+            //   `EdoGotenKit.Mune` 側で実メッシュの軒下端を測って寄せる(定数オフセットは決め打ちしない)。
+            //   ここでは棟の種別に応じた「指図の軒高」を選ぶだけ — 帯割り(roofSpec あり)は
+            //   gotenEave、長屋型4棟(御湯殿・長局北・奥台所・厩。roofSpec 無し)は
+            //   zone で umayaEave/nagayaGataEave を選ぶ(`munes[].kind` が json に無いための代用。
+            //   厩は zone="厩"、御湯殿・長局北・奥台所は zone="奥向")。
+            //   序列: 厩(umayaEave)2.35 < 長屋類(nagayaGataEave)2.80 < 御殿(gotenEave)3.40。
+            float roofEaveLocalY;
             {
                 var c = O(D["const"]);
-                string zone = Has(m, "zone") ? (string)m["zone"] : null;
-                roofEaveLocalY = (zone == "厩") ? F(c["umayaEave"]) : F(c["nagayaGataEave"]);
+                if (roofSpec != null)
+                {
+                    roofEaveLocalY = F(c["gotenEave"]);
+                }
+                else
+                {
+                    string zone = Has(m, "zone") ? (string)m["zone"] : null;
+                    roofEaveLocalY = (zone == "厩") ? F(c["umayaEave"]) : F(c["nagayaGataEave"]);
+                }
             }
             var g = EdoGotenKit.Mune(name, grp, new Vector3(w.x, y, w.y), yawU,
                                      kw - 2, kd - 2, 1, GOTEN_FLOOR, roof, iriX: 1,

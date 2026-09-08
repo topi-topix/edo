@@ -342,7 +342,17 @@ def T(x, y, s, cls="sl", anchor=None, fs=None, fill=None, pin=False):
         st.append("fill:%s" % fill)
     if st:
         a += ' style="%s"' % ";".join(st)
-    return a + ">%s</text>" % html.escape(s.replace("**", ""), quote=False)
+    # ⭐⭐ **文書の記法は紙へ刷らない**(2026-09-08 検図方 中1)。⛔⛔ 従前ここは
+    #   `**` だけを落としており、⚠ **`<b>` `</b>` が断面 20 面の凡例に字として出ていた**。
+    #   ⇒ ⭕ 正典は `svg_layout.plain()`(⛔ 剥がす式をここに二重に持たない)。
+    return a + ">%s</text>" % html.escape(svg_layout.plain(s), quote=False)
+
+
+# ⭐⭐ **`T()` を通らずに紙へ字を出している箇所の数。**⛔ 数を手で書かない — 自分の
+#   ソースを数える(規則19: 図に刷る数は測った数)。⚠ **記法の検査がほんとうに働くのは
+#   この箇所だけ**(`T()` を通る銘は `plain()` が先に剥がしてしまうため)。
+_RAW_TEXT_SITES = len(re.findall(
+    r"""['"]<text\b""", open(os.path.abspath(__file__), encoding="utf-8").read())) - 1
 
 
 def LN(x1, y1, x2, y2, stroke="var(--ink)", sw=1.0, dash=None, op=None, cap=None):
@@ -17141,7 +17151,7 @@ def jizura_html(a, b, rep):
 
     def _f(r, k):
         return r[{"overlap": "ovFigs", "outframe": "ofFigs", "covered": "cvFigs",
-                  "tiny": "tnFigs", "lowcr": "lcFigs"}[k]]
+                  "tiny": "tnFigs", "lowcr": "lcFigs", "markup": "mkFigs"}[k]]
 
     rows = [("文字どうしの重なり(面積 &gt; %.1f px²)" % svg_layout.MIN_AREA, "overlap", "組"),
             ("枠の外へ出る文字(はみ出し &gt; %.1f px)" % svg_layout.TOL, "outframe", "件"),
@@ -17152,7 +17162,10 @@ def jizura_html(a, b, rep):
              "tiny", "件"),
             ("<b>地色とのコントラストが下限を割る銘</b>"
              "(宣言色 × 直下の地色の比 &lt; %.1f:1・字ごとの最悪値)" % svg_layout.CR_MIN,
-             "lowcr", "件")]
+             "lowcr", "件"),
+            ("<b>文書の記法が字になって刷られた銘</b>"
+             "(タグ <code>&lt;b&gt;</code> / 実体参照 / <code>**</code> / "
+             "引用符 / リンク)", "markup", "件")]
     t = ['<div class="tw"><table><tr><th class="note">測った物</th>'
          '<th>直す前</th><th>直した後(これが刷る値)</th></tr>']
     for nm, k, unit in rows:
@@ -17272,6 +17285,17 @@ def jizura_html(a, b, rep):
              '⚠ <b>検図方が抜け道を6通り実証し、うち2通りは当図に現に在る形だった</b>'
              '(<code>stroke-width</code> 62.7px の道の帯 95 本・曲線を含む塗り 1 本)。'
              '⇒ その4通りを<b>下の破壊試験 ⑥〜⑨ で毎回鳴らす</b>。</p>')
+    t.append('<p class="cap">⭐⭐⭐ <b>いちばん下の行(記法)は 2026-09-08 の第7巡で足した</b>。'
+             '⛔⛔ <b>断面 20 面の凡例が <code>破線=&lt;b&gt;江戸期の復元地盤&lt;/b&gt;</code> と、'
+             'タグを字として刷っていた</b>(43 面中 20 面)— ⚠⚠ <b>断面の読み方を説明する'
+             '当の一行</b>で、しかも<b>「字面を機械で 0 件にした」と名乗る図</b>である。'
+             '⇒ 上の5項目は<b>どれもこれを見ていなかった</b> — 重なり・枠外・潜り・小字・'
+             'コントラストは、どれも<b>字の置き場所と色</b>の物差しで、'
+             '<b>字そのものが何であるか</b>は一度も見ていない。'
+             '⭕ 直しは <code>svg_layout.plain()</code> に集約した — '
+             'タグ・実体参照・<code>**</code>・リンクは<b>落とし</b>、'
+             '<code>`名`</code> は<b>〈名〉へ替える</b>(⛔ 引用符をただ落とすと'
+             '「どこまでが名前か」が消える)。</p>')
     t.append('<p class="cap">⛔ <b>この版でもまだ測っていないこと</b>(⇒ 次の巡へそのまま渡す)。'
              '⑴ <b>窓の幅</b> — 実効 px は <b>基準の窓(<code>.wrap</code> の max-width から'
              '導く %.0f px)</b> での値で、⚠ <b>窓を狭めれば svg は縮み、字はそのぶん小さくなる</b>'
@@ -17287,14 +17311,28 @@ def jizura_html(a, b, rep):
              '下の色が透ける。⛔ <b>測り方を変えたことは隠さない。</b> '
              '⑷ <b>円弧(<code>A</code>)と <code>transform</code> を持つ群</b>は座標を解いていない'
              '(当図には 0 個)。 '
-             '⑸ <b>字の形</b> — 幅だけで、⚠ 合字・約物の詰めは見ていない。</p>'
+             '⑸ <b>字の形</b> — 幅だけで、⚠ 合字・約物の詰めは見ていない。 '
+             '⑹ <b>記法の 0 件は、<code>T()</code> を通る銘については恒真に近い</b> — '
+             '⛔ <b>剥がしているのは検査ではなく <code>plain()</code> のほう</b>で、'
+             'この物差しが<b>ほんとうに働くのは <code>T()</code> を通らない生の '
+             '<code>&lt;text&gt;</code></b>(生成器に %d 箇所)である。'
+             '⚠ <b>これは「コントラストが白フチで恒真になった」のと同じ形</b>なので、'
+             '⭕ <b>下の束⑬⑭が口と変換を別々に鳴らす</b> — '
+             '⑬ は <code>plain()</code> を通さずに5通りを差して<b>5件鳴ること</b>を、'
+             '⑭ は同じ5通りを通して<b>鳴らないこと</b>を、毎巡見せる。 '
+             '⑺ <b>裸の <code>&lt;</code> <code>&gt;</code> は数えない</b> — '
+             '⚠「梁間 &lt; 3.0」は正しい字なので、<b>タグの形</b>だけを拾う。</p>'
              % (svg_layout.VIEW_W, svg_layout.ALPHA_MIN, svg_layout.COVER_FR * 100,
-                b.get("ami", 0)))
+                b.get("ami", 0), _RAW_TEXT_SITES))
     t.append('<div class="tw"><table><tr><th class="note">破壊試験(この検査が生きているか)</th>'
-             '<th>実測(重なり, 枠外, 潜り, 小字)</th><th>期待</th><th>合否</th></tr>')
+             '<th>実測(重なり, 枠外, 潜り, 小字, コントラスト, 記法)</th>'
+             '<th>期待</th><th>合否</th></tr>')
     for title, got, want, ok in rep["probes"]:
+        # ⛔ **束の題を生の HTML として流さない** — ⚠ 束⑨の題の `<use>` が
+        #   **ブラウザに食われて空欄になっていた**(2026-09-08。⑹ の記法漏れの html 側の同型)。
         t.append('<tr><td class="note">%s</td><td>%s</td><td>%s</td><td><b>%s</b></td></tr>'
-                 % (title.replace("**", ""), got, want, "⭕" if ok else "⛔"))
+                 % (html.escape(title.replace("**", ""), quote=False), got, want,
+                    "⭕" if ok else "⛔"))
     t.append("</table></div>")
     t.append('<p class="cap">⭐ <b>直す前の値を並べて刷る理由。</b>0 だけを刷ると'
              '<b>検査が死んでいても 0 と読める</b>(破壊試験と同じ理屈)。'
@@ -18747,9 +18785,9 @@ def main():
     if JIZURA:
         _a, _b, _r = JIZURA
         print("── 図の字面(重なり/枠外/**塗りに覆われた銘**/**小さすぎる和字**/"
-              "**コントラストが下限を割る銘**): "
-              "直す前 %d 組 / %d 件 / %d 件 / %d 件 / %d 件 → "
-              "**直した後 %d 組 / %d 件 / %d 件 / %d 件 / %d 件**"
+              "**コントラストが下限を割る銘**/**記法が字になった銘**): "
+              "直す前 %d 組 / %d 件 / %d 件 / %d 件 / %d 件 / %d 件 → "
+              "**直した後 %d 組 / %d 件 / %d 件 / %d 件 / %d 件 / %d 件**"
               % (svg_layout.counts(_a) + svg_layout.counts(_b)))
         print("   直しの内訳: 落とした %d(⭐ 他の面に同じ銘が在るものだけ)・"
               "**指す物が無いので落とした %d**・落とさず枠内へ寄せた %d・折った %d・"
@@ -18786,6 +18824,8 @@ def main():
                 print("    ⛔ コントラストが下限を割る f%02d 比 %.2f 「%s」"
                       "(字 #%02X%02X%02X / 地 #%02X%02X%02X)"
                       % ((x[0], x[1], x[2][:26]) + tuple(x[3]) + tuple(x[4])))
+            for x in _b["markup"][:8]:
+                print("    ⛔ 記法が字になった f%02d %s 「%s」" % (x[0], x[1], x[2][:40]))
             rbad = rbad + ["図の字面が 0 件でない — **ユーザーに見せない**"]
     print("── 撤回の印つきで見逃した数: %d 件" % d.get("_retractedMarked", -1))
     # ⭐⭐ **裁定4(2026-09-08 普請奉行): 効いていない撤回は経緯なので図に残さない。**

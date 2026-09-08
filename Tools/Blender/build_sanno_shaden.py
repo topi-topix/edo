@@ -31,12 +31,17 @@
      **メッシュそのものから**立てる。陰性試験は `-- selftest`(X を鏡映すると必ず止まる)。
 
 ━━━ 材 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-木部・壁・建具・基壇は Village Kit の材質**名**をそのまま運ぶ: `wood` / `wall C` /
-`door wall` / `Foundation_A_01`。⇒ Unity 側の Search & Remap が既存 `.mat` を当てる。
+木部・壁・建具は Village Kit の材質**名**をそのまま運ぶ: `wood` / `wall C` / `door wall`。
+石(**石造亀腹・礎盤**)は `M_FJG_Rock_001` — 同じ山王の段石・切石橋・立石と同じ**加工石**の材。
+⇒ Unity 側の Search & Remap が既存 `.mat` を当てる。
+⛔⛔ **`Foundation_A_01` は使わない**(2026-09-09 に落とした)。あのアトラスは 2048² 全面が
+  **丸い野面石の乱積み**で、石造亀腹【A 加藤2018 6-1】にも礎盤にも当たらない(考証19巡目 中6)。
 ⭐ **屋根だけ例外** — `Doukawara`(緑青の銅瓦)を **1枚だけ**新造した。理由と確度は
   下の `DOU_NAME` の章。⛔ 【A】【S】を名乗らせない(色は【U 普請奉行の裁定 2026-09-09】)。
-⚠ `Edo/山王社/新造部材のマテリアルをremap` の `donorDirs` に
-  **`Assets/Edo/Materials/Sanno`** を足すこと(足し忘れると屋根が真っ白)。→ 報告に行を書いた。
+⭕ `Edo/山王社/新造部材のマテリアルをremap` の `donorDirs` は **既に4つとも足りている**
+  (`Waldemarst/FreeJapaneseGarden/Materials` = 岩 / `Japanese Village Kit/Materials` = 木・壁・建具 /
+  `Edo/Materials/Sanno` = 銅瓦)。`modelDirs` にも `Assets/Edo/Models/Sanno` が入っている。
+  ⇒ **足す行は無い**(2026-09-09 に確かめた)。
 
 ⛔⛔ **未決(普請奉行へ返す)**:
   ・**朱塗か素木か**。山王権現社は朱塗の類型だが、在庫に朱の材が無い。いまは `wood`(素木)。
@@ -59,9 +64,13 @@
 ・⚠ `export_fbx` を通した後は bbox が 0 に潰れる。**測るのもレンダも書き出しの前に。**
 ・⚠ 同じ FBX を2度読むと `wood.001` ができる。join の前に `V.dedup_materials()`。
 ・⚠ 瓦場のクリップは平面 bisect(`GR.clip_convex`)。⛔ ブーリアンは瓦場に効かない。
-・⚠ **反りは走り(u)の関数の鉛直ずらしで入れる**(`sori_shear`)。瓦は流れ方向に 0.31m
-  重なっているので、同じ u で同じだけ動く限り重ね代は保たれる。⛔ **桁行(v)の関数で
-  ずらすと重ね代を超えて剪断され瓦場が千切れる** — 2026-09-09 に軒唐破風で実見した破綻。
+・⚠ **反りは走り(u)の関数の鉛直ずらしで入れる**(`sori_shear`)。⭐ **軒反り(隅の
+  跳ね上がり)は水平位置 (x,y) の関数**で入れる(`Nokizori`)。⭕ どちらも
+  **位置の連続関数**なので継ぎ目は開かない — 隣り合う瓦は同じ (x,y) の頂点を共有する。
+  ⛔⛔ 破綻するのは **走り方向の勾配が折り返す**とき(2026-09-09 の軒唐破風の破綻は
+  A/dk = 0.72 が瓦の勾配 0.5456 を超えたもので、桁行の関数だからではない)。
+  ⇒ `Nokizori` は隅の傾き `A·2/L < K_EAVE` を構築時にアサートする。
+  ⛔ 逆に **段(不連続)で起こしてはいけない** — 桁行の重ねはゼロ(`MOD_LEN` = 瓦の実長)。
 ・⚠ 反った屋根面は **凸**(奥ほど急)。⇒ 垂木・海老虹梁を軒先と奥の2点で結ぶと弦が
   曲線の上を通り、**木の棒が瓦を突き抜けて屋根の上に並ぶ**。必ず折れ線にする。
 """
@@ -172,8 +181,10 @@ def sori_shear(obj, eave_xy, up_xy, sori):
     ⭕ なぜ千切れないか: `_tile_field_fast` の瓦は流れ方向に 0.31m 重ねてある。
       ずらし量が **走り座標 d のみの関数**なので、重なった上下の瓦は同じ d で同じだけ
       動く ⇒ 重ね代が保たれたまま面全体が反る。
-    ⛔ **桁行(v)の関数でずらすと千切れる** — 2026-09-09 に軒唐破風(`bend`)で実見した
-      破綻はそちら。唐破風は v の関数なので振幅を欲張れない。反りは u の関数なので安全。
+    ⚠ **桁行(v)の関数でも、位置の連続関数なら継ぎ目は開かない**(2026-09-09 に是正)。
+      唐破風(`bend`)で瓦場が破れたのは v の関数だからではなく、**走り方向の勾配が
+      折り返した**から(A/dk = 0.72 > 瓦の勾配 0.5456)。⇒ 見るべきは軸ではなく**傾き**。
+      ⛔ ただし **段(不連続)は必ず穴が開く** — 桁行の重ねはゼロ(`MOD_LEN` = 瓦の実長)。
     ⚠ 切り取り(`clip_convex`)は**鉛直面**の bisect なので、切る前でも後でも結果は同じ。
       ここでは切った後に掛ける(GR 側に手を入れないため)。"""
     ox, oy = eave_xy
@@ -182,6 +193,73 @@ def sori_shear(obj, eave_xy, up_xy, sori):
     for vt in me.vertices:
         d = (vt.co.x - ox) * dx + (vt.co.y - oy) * dy
         vt.co.z += sori.z(d) - d * RATIO
+    me.update()
+    return obj
+
+
+# ==========================================================================
+# 軒反り(のきぞり)— ⭐ **隅で軒先の稜線を持ち上げる**
+# ==========================================================================
+# 【なぜ要るか】`Sori` は**流れ方向**の照りしか入れない。⇒ 軒先の稜線は全幅で水平のまま
+#   だった(2026-09-09 考証19巡目 中4 の実測: 東立面 1800px で 左端519 / 中央515 /
+#   右端520 = 振れ 8px)。焼失前写真【S】・名所図会【S】が一致して示すのは
+#   **「強い反りと跳ね上がる隅」**という定性で、隅が上がらない屋根は写真と違う。
+# 【⛔ 量の典拠は無い】⚠⚠ **軒反りの量は誰も測っていない**【?】。考証方が測ったのは
+#   根津 Fig.7 の**断面**だけで、断面からは隅の跳ね上がりは取れない。
+#   ⇒ 下の `NOKI_A` / `NOKI_L` は **【U 設計値】**。⛔ 【A】【S】を名乗らせない。
+# 【作り】⭐ **水平位置 (x,y) だけの関数**として鉛直に持ち上げる:
+#     dz(x,y) = A · φ(dx) · φ(dy)      φ(t) = (1 − t/L)²(t ≥ L で 0)
+#     dx = 東西の軒先線までの最短距離 / dy = 南北の軒先線までの最短距離
+#   ⭕ **なぜ瓦場が千切れないか**(前回の知見がここに効く):
+#     ① 隣り合う瓦は **同じ (x,y) の頂点を共有**するので、位置だけの連続関数で動かす限り
+#        どの継ぎ目も開かない(流れ方向の重ね 0.31m も、桁行の突き付けも保たれる)。
+#        ⛔ **段(不連続)で起こすと桁行に重ね代が無い**(`MOD_LEN` 2.004 = 瓦の実長で、
+#        横の重ねはゼロ)ので、段の高さぶんそのまま**素通しの隙が開く**。⇒ 段にしない。
+#     ② 破綻するのは **走り方向の勾配が負に折り返す**とき(2026-09-09 の軒唐破風の
+#        破綻はこれ。A/dk = 0.72 が瓦の勾配 0.5456 を超えて折れた)。⇒ 隅での走り方向の
+#        傾き `A·2/L` を軒先の勾配 `K_EAVE` より小さく取る(下でアサートする)。
+#     ③ 同じ関数を**屋根の全部材**(瓦場・隅棟・袖瓦・破風・鬼)へ後から一括で掛けるので、
+#        部材どうしがズレようがない。
+#   ⭕ 隅で dx=dy=0 ⇒ **両方の流れの軒先が同じだけ上がる** ⇒ 隅棟の根も同じだけ上がる。
+NOKI_A = 0.40       # 隅の持ち上げ[m]【U 設計値。⛔ 典拠なし】
+NOKI_L = 4.00       # 効く長さ[m]。隅から内へこの距離で 0 に戻る【U 設計値】
+FLAT_NOKI = False   # ⛔ 陰性試験専用(`-- selftest`)。⛔ 本番で立てない
+
+
+class Nokizori:
+    """屋根の平面 (x,y) → 隅で持ち上げる量 dz。**軒先の矩形**を渡して作る。"""
+
+    def __init__(self, x0, x1, y0, y1, amp=NOKI_A, L=NOKI_L):
+        self.x0, self.x1, self.y0, self.y1 = x0, x1, y0, y1
+        self.amp = 0.0 if FLAT_NOKI else float(amp)
+        self.L = float(L)
+        # ⛔ 走り方向の勾配が折り返すと瓦場が千切れる(上の②)。隅での傾きは A·2/L。
+        if self.amp * 2.0 / self.L >= K_EAVE:
+            raise SystemExit("[nokizori] ⛔ 隅の傾き %.3f が軒先の勾配 %.3f 以上 "
+                             "— 瓦場が折り返して千切れる。A を下げるか L を伸ばすこと"
+                             % (self.amp * 2.0 / self.L, K_EAVE))
+
+    def phi(self, t):
+        if t >= self.L:
+            return 0.0
+        s = 1.0 - max(0.0, t) / self.L
+        return s * s
+
+    def __call__(self, x, y):
+        if self.amp <= 0.0:
+            return 0.0
+        dx = min(x - self.x0, self.x1 - x)
+        dy = min(y - self.y0, self.y1 - y)
+        return self.amp * self.phi(dx) * self.phi(dy)
+
+
+def nokizori_apply(obj, nz):
+    """屋根1体の全頂点へ軒反りを掛ける。⛔ 部材ごとに違う関数を掛けない。"""
+    if nz is None:
+        return obj
+    me = obj.data
+    for vt in me.vertices:
+        vt.co.z += nz(vt.co.x, vt.co.y)
     me.update()
     return obj
 
@@ -213,10 +291,21 @@ def ridge_curve(pts, name, w, h):
 # 【作り】⭐ **1枚だけ**。中門・透塀・回廊も同じ材を使い回す。テクスチャは在庫の瓦の
 #   **法線・粗さを流用し、色だけ差し替える**(Unity 側 `.mat` も同じ作り)。
 DOU_NAME = "Doukawara"      # 銅瓦(緑青)。⚠ Unity 側 `Assets/Edo/Materials/Sanno/Doukawara.mat`
-# 緑青の albedo(**線形**)。sRGB (0.34, 0.50, 0.45) = L≈114/255 ⇒ 在庫の `wood` の
-# albedo(L=73/255)の **1.56 倍**。焼失前写真の 屋根155 / 材木102 の比 **1.52** に
-# 合わせた【U 上記の裁定】。⚠ 彩度は抑える — 純度の高い青緑はプラスチックに見える。
-ROKUSHO_LIN = (0.0953, 0.2140, 0.1714)
+# 緑青の albedo(**線形**)。sRGB (0.343, 0.500, 0.416) = **H 148° / S 31% / V 50%**。
+# ⛔⛔ **測光の比を較正値として引かない**(2026-09-09 考証19巡目 中7 で是正):
+#   焼失前写真の測光の元は大正8年の**網版**で、⚠ **原板の感材が不明**【?】。
+#   オルソクロマチック系なら青緑は明るく褐色は暗く写るので、**画像上の比 1.52 を
+#   アルベドの比へそのまま移せない**。⇒ 測光が支えるのは「屋根は**材木より明るい**」という
+#   **向きだけ**で(この向きは感材によらず立つ ⇒ ⛔ 日光型の黒漆ではない【U 推論】)、
+#   **比の大きさは当方が選んだ【U 設計値】**。数は動かしていない(現レンダの実測比 1.56)。
+# ⛔ 色相は 2026-09-09 に **172〜178° → 158〜165°** へ振った(庭方18巡目 決6):
+#   緑青(塩基性炭酸銅)の色域は **155〜165°** が本筋で、175° は亜鉛引き・酸化青銅の側。
+#   夏の暖かい葉色(H 90〜110°)の中に置くと**冷たい別物**に見えていた。
+#   ⚠ **振ったのは色相だけ** — 明度(V 48〜58%)・彩度(S 20〜28%)は庭方が ⭕ とした値。
+#   ⚠ アルベドの H は **148°** で、レンダの H(158〜165°)より **13° 低い** —
+#     環境光の青みが乗るぶんを見込んで**手前へ振ってある**(実測で合わせた。
+#     ⛔ アルベドの数をそのまま「屋根の色相」と読まない)。
+ROKUSHO_LIN = (0.0964, 0.2140, 0.1446)
 COPPER_FROM = ("roof", "roof ornaments", "roof ornament")
 
 
@@ -231,8 +320,10 @@ def doukawara():
     b = next((n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED'), None)
     if b:
         b.inputs['Base Color'].default_value = ROKUSHO_LIN + (1.0,)
-        b.inputs['Roughness'].default_value = 0.62      # 緑青は艶が引けている
-        b.inputs['Metallic'].default_value = 0.15
+        b.inputs['Roughness'].default_value = 0.66      # 緑青は艶が引けている
+        # ⛔ 金属度を上げない — 鏡面が**空の色**を拾って屋根の色相が青へ流れる
+        #   (2026-09-09: 0.15 でレンダの H が albedo より 14° 青側へ寄っていた)
+        b.inputs['Metallic'].default_value = 0.04
         # ⭐ 在庫の瓦 albedo の **明暗の斑だけ**を借りて色に掛ける。⛔ 単色で焼かない —
         #   一枚一枚の焼きムラが消えて **プラスチックの板**に見える(検証レンダで実見)。
         alb = os.path.join(V.TEX, "roof_AlbedoTransparency.png")
@@ -388,6 +479,13 @@ SPEC = {
 #     註)。深い軒を取ると隣の軒と干渉するだけで、絵には1cmも出ない。
 #   ・向拝: 出一間【U】の庇で、軒の出は身舎のスパンと無関係。
 EAVE_FIX = dict(heiden=0.60, tsukuriai=0.60, kohai=1.00)
+# ⛔⛔ **連結部の軒を深くしても明るくならない**(2026-09-09 に測って確かめた。庭方18巡目 決6)。
+#   `_nomikomi` の実測: 幣殿・作り合いの屋根は**両隣の大屋根に 96.1% 呑まれる**。
+#   呑まれの向きは**東西**(本殿の軒 1.72 と拝殿の軒 1.72 が二間 3.636m をほぼ埋める)で、
+#   `EAVE_FIX` が効くのは**南北**。⇒ 0.60 → 1.00 へ深くしても
+#   **呑まれ率は 96.1% のまま・露出は 0.67 → 0.75 m²(+0.08)しか増えない**。
+#   ⇒ ⭕ 0.60 のまま置く。屋根が暗い(V 46 対 大屋根 52)のは**権現造の構えの帰結**で欠陥ではない。
+#   ⚠ 反り自体は入っている(`check_sori` 実測 軒寄り 0.345 < 棟寄り 0.569)。
 HONDEN_STEP = 0.90   # 幣殿の床 → 本殿の床【A 相当・根津断面の実測から外挿】
 
 
@@ -401,6 +499,15 @@ def apply_floor(R):
 UCHINORI = 2.35      # 内法(床から)【U】。⛔ 幣殿は柱高が足りないので下で詰める
 EN_W = 0.90          # 縁の出【U】
 KORAN_H = 0.78       # 高欄の丈(縁から)【U】
+# ⭐ **腰組の懐** = 亀腹の天端 → 床。⛔ 0 にすると腰組が組めない(束立てへ戻る)。
+#   ⚠ 床高は指図 `const.shadenFloor` が正典なので、亀腹の天端を**下げて**懐を作る。
+#   拝殿・幣殿は床 0.95 しかないので比で頭打ちにする(床の 55%)。
+KOSHI_H = 0.70       # 【U 設計値】
+
+
+def kame_top(floor):
+    """亀腹の天端。⭐ 床との差が腰組の懐になる。"""
+    return floor - min(KOSHI_H, floor * 0.55)
 # 千鳥破風【U 設計値】: b=半幅 / ug=破風面の位置(棟の芯からの u) / zde=破風の軒の高さ
 # ⚠ **zde は主屋根の面より 0.5m 以上上に置くこと** — 瓦の実体は名目平面より 0.15 上に
 #   うねるので、僅かに上げただけだと破風が主屋根に**埋まって三角の板だけが浮く**
@@ -565,30 +672,163 @@ def kouryou(M, u0, u1, v, h0, h1, w, t, uv, mat=0, n=8, sag=0.32):
 # ==========================================================================
 # 躯体の部位
 # ==========================================================================
-def kamebara(M, hu, hv, top, uv, mat, batter=0.22, skirt=0.16):
-    """**石造亀腹**(社殿を載せる石の基壇)。上小・下大の勾配を付ける。"""
-    u1, v1 = hu + skirt, hv + skirt
-    u0, v0 = u1 + batter, v1 + batter
-    ru0, rv0, ru1, rv1 = uv
-    ring = [((u0, v0), (u1, v1)), ]
-    _ = ring
-    corners_b = [(-u0, -v0), (u0, -v0), (u0, v0), (-u0, v0)]
-    corners_t = [(-u1, -v1), (u1, -v1), (u1, v1), (-u1, v1)]
-    for i in range(4):
-        a, b = corners_b[i], corners_b[(i + 1) % 4]
-        c, d = corners_t[(i + 1) % 4], corners_t[i]
-        M.quad_uvs([q(a[0], a[1], 0.0), q(b[0], b[1], 0.0),
-                    q(c[0], c[1], top), q(d[0], d[1], top)],
-                   [(ru0, rv0), (ru1, rv0), (ru1, rv1), (ru0, rv1)], mat)
-    # 天端
-    M.quad_uvs([q(-u1, -v1, top), q(u1, -v1, top), q(u1, v1, top), q(-u1, v1, top)],
-               [(ru0, rv0), (ru1, rv0), (ru1, rv1), (ru0, rv1)], mat)
+def _joints(L, target, stagger=False):
+    """長さ L を目安 `target` で割った目地の位置。⭕ **0 について左右対称**に割る
+    (EDO-0161 — 対称に割れば Unity X/Z の符号反転が幾何へ影響しないことが保証できる)。
+    `stagger` は段ごとに目地を半枚ずらすため(⛔ 目地を縦に通さない)。"""
+    k = max(1, int(round(L / target)))
+    if stagger and k >= 2:
+        pts = [-L / 2.0] + [-L / 2.0 + L * (i - 0.5) / k for i in range(1, k + 1)] \
+              + [L / 2.0]
+    else:
+        pts = [-L / 2.0 + L * i / k for i in range(k + 1)]
+    out = []
+    for x in pts:                                   # 重複を落とす(端の半枚が潰れた場合)
+        if not out or x - out[-1] > 1e-4:
+            out.append(x)
+    return out
+
+
+def kamebara(hu, hv, top, name, batter=0.16, skirt=0.16, course=0.46, th=0.42):
+    """**石造亀腹** — 社殿を載せる **切石の低い台**。返り値 = オブジェクト列。
+
+    ⛔⛔ **玉石の乱積みにしない**(2026-09-09 考証19巡目 中6)。指定説明の裏づけは
+      「**石造**亀腹に土台立てとし、縁を腰組で支持する」【A 加藤重枝2018 6-1】で、
+      石造亀腹は日光・上野・紅葉山東照宮と同じ格の作り。承応期以前の幣殿型権現造の
+      「切石積+漆喰亀腹」と**対比して**挙げられる部位なので、材は**加工した切石**。
+      ⚠ 2026-09-09 以前は Village Kit の `Foundation_A_01` を貼っていたが、
+      **あのアトラスは 2048² 全面が丸い野面石の乱積み**(実測)で切石の領域は1画素も無い。
+      ⇒ 材そのものを替える必要がある。⛔ 矩形を選び直すだけでは直らない。
+    【材】`M_FJG_Rock_001` — ⛔ **新規マテリアルではない**。同じ山王の
+      `Own.DanishiSanno`(段石)・`Own.Ishibashi`(切石橋)・`Own.Tateishi` が使う
+      **加工石**の材で、`build_sanno_buzai._stone` がそのまま切石1枚を焼く道具を持つ。
+    【作り】段(course)ごとに目地を半枚ずらして積み、上へ行くほど `batter` ぶん引く。
+      ⭕ 稜は `_stone` の面取り(15mm)、**天端の稜だけ倍**にして丸みを取る。"""
+    import build_sanno_buzai as SB
+    mat = SB.BT._borrow_rock_material()
+    nc = max(2, int(round(top / course)))
+    objs = []
+    for c in range(nc):
+        z0, z1 = top * c / float(nc), top * (c + 1) / float(nc)
+        f = 1.0 - c / float(nc)                     # 下ほど外へ出る(バッター)
+        ou, ov = hu + skirt + batter * f, hv + skirt + batter * f
+        rng = SB.rng_of("kamebara", name, c)
+        stag = (c % 2 == 1)
+        for k, sg in enumerate((-1, +1)):            # 南北の面(u へ走る帯)
+            v0, v1 = (-ov, -ov + th) if sg < 0 else (ov - th, ov)
+            js = _joints(2 * ou, 1.05, stag)
+            for i in range(len(js) - 1):
+                objs.append(SB._stone(js[i], js[i + 1], v0, v1, z0, z1, mat, rng,
+                                      "%s_c%d_ns%d_%d" % (name, c, k, i)))
+        for k, sg in enumerate((-1, +1)):            # 東西の面(南北の石に挟まれる)
+            u0, u1 = (-ou, -ou + th) if sg < 0 else (ou - th, ou)
+            js = _joints(2 * (ov - th), 1.05, not stag)
+            for i in range(len(js) - 1):
+                objs.append(SB._stone(u0, u1, js[i], js[i + 1], z0, z1, mat, rng,
+                                      "%s_c%d_ew%d_%d" % (name, c, k, i)))
+    # 天端の中(石の輪の内側)を1枚で塞ぐ。⛔ 抜けたままにすると床下から空が見える
+    ou, ov = hu + skirt, hv + skirt
+    objs.append(SB._stone(-(ou - th), ou - th, -(ov - th), ov - th,
+                          top - 0.22, top, mat, SB.rng_of("kamebara", name, "cap"),
+                          "%s_cap" % name))
+    # ⭕ 論理 (u,v,h) → Blender (−u, −v, h)。**Rz(180°) = 行列式 +1** なので
+    #   巻き順も法線も動かない(⛔ `flip_normals` を足さない)。亀腹は左右対称なので
+    #   実際には姿が変わらないが、写像を明示して置くことで規約の外へ出ない。
+    for o in objs:
+        o.data.transform(Matrix.Diagonal((-1.0, -1.0, 1.0, 1.0)))
+        o.data.update()
+    return objs
+
+
+def soban(pts, z0, z1, half, name):
+    """**礎盤**(柱の下に据える切石)。返り値 = オブジェクト列。
+    ⛔ `Foundation_A_01`(玉石の乱積み)を貼らない — 加工した石なので `kamebara` と同じ材。"""
+    import build_sanno_buzai as SB
+    mat = SB.BT._borrow_rock_material()
+    objs = []
+    for i, (uu, vv) in enumerate(pts):
+        objs.append(SB._stone(uu - half, uu + half, vv - half, vv + half, z0, z1,
+                              mat, SB.rng_of("soban", name, i), "%s_%d" % (name, i)))
+    for o in objs:
+        o.data.transform(Matrix.Diagonal((-1.0, -1.0, 1.0, 1.0)))   # 論理→Blender(det +1)
+        o.data.update()
+    return objs
+
+
+def koshigumi(M, us, vs, floor, base, uv, mat, sides=("n", "s", "e", "w"), w=EN_W):
+    """**腰組** — 身舎の柱から**床の高さで組物を出して縁を持ち出す**作り。
+
+    ⭐ 【A 加藤重枝2018 6-1】「石造亀腹に土台立てとし、**縁を腰組で支持する**」。
+    ⛔⛔ **床下から地面まで縁束を立てない**(2026-09-09 考証19巡目 中5)。束立ては民家の
+      作りで、腰組とは**格が違う** — 日光・上野の東照宮系が腰組を採るのはそのため。
+    ⚠ **確度**: 【A】が言うのは**本殿**について。拝殿・幣殿・作り合いに同じ作りを回すのは
+      **【U 設計判断 — 本殿に倣う】**。⛔ 一般類型を既成事実にしない(規則7)。"""
+    zt = base + 0.16                                # 土台の天端
+    H = floor - zt                                  # 腰組の懐
+    if H < 0.30:
+        return
+    hu, hv = us[-1], vs[-1]
+    # --- 土台(亀腹の天端に据える横材。⭐「土台立て」の土台)---
+    for vv in (vs[0], vs[-1]):
+        box3(M, us[0] - 0.14, us[-1] + 0.14, vv - 0.13, vv + 0.13, base, zt,
+             uv, mat, grain="u")
+    for uu in (us[0], us[-1]):
+        box3(M, uu - 0.13, uu + 0.13, vs[0] - 0.14, vs[-1] + 0.14, base, zt,
+             uv, mat, grain="v")
+
+    def unit(uu, vv, ou, ov):
+        """1組の腰組。(ou,ov) = 縁の出る向き(単位)。"""
+        # 大斗
+        box3(M, uu - 0.17, uu + 0.17, vv - 0.17, vv + 0.17, zt, zt + 0.30 * H,
+             uv, mat, grain="h")
+        z1 = zt + 0.30 * H
+        # 壁通りの肘木
+        if ov:
+            box3(M, uu - 0.40, uu + 0.40, vv - 0.10, vv + 0.10, z1, z1 + 0.22 * H,
+                 uv, mat, grain="u")
+        else:
+            box3(M, uu - 0.10, uu + 0.10, vv - 0.40, vv + 0.40, z1, z1 + 0.22 * H,
+                 uv, mat, grain="v")
+        # 手先の肘木 — 縁の外端まで持ち出す(これが「持ち出し」の実体)
+        tu, tv = uu + ou * (w - 0.10), vv + ov * (w - 0.10)
+        box3(M, min(uu, tu) - 0.10, max(uu, tu) + 0.10,
+             min(vv, tv) - 0.10, max(vv, tv) + 0.10, z1, z1 + 0.22 * H,
+             uv, mat, grain=("u" if ou else "v"))
+        # 手先の巻斗(縁葛を受ける)
+        z2 = z1 + 0.22 * H
+        for (cu, cv) in ((uu, vv), (tu, tv)):
+            box3(M, cu - 0.13, cu + 0.13, cv - 0.13, cv + 0.13, z2, floor - 0.16,
+                 uv, mat, grain="h")
+
+    nodes = []
+    if "s" in sides:
+        nodes += [(uu, vs[0], 0, -1) for uu in us]
+    if "n" in sides:
+        nodes += [(uu, vs[-1], 0, +1) for uu in us]
+    if "w" in sides:
+        nodes += [(us[0], vv, -1, 0) for vv in vs[1:-1]]
+    if "e" in sides:
+        nodes += [(us[-1], vv, +1, 0) for vv in vs[1:-1]]
+    for (uu, vv, ou, ov) in nodes:
+        unit(uu, vv, ou, ov)
+    # --- 縁葛(腰組の手先を繋いで縁の外端を通す横材)---
+    ou_, ov_ = hu + w, hv + w
+    if "s" in sides:
+        box3(M, -ou_, ou_, -ov_, -ov_ + 0.16, floor - 0.16, floor - 0.02, uv, mat, grain="u")
+    if "n" in sides:
+        box3(M, -ou_, ou_, ov_ - 0.16, ov_, floor - 0.16, floor - 0.02, uv, mat, grain="u")
+    if "e" in sides:
+        box3(M, ou_ - 0.16, ou_, -ov_, ov_, floor - 0.16, floor - 0.02, uv, mat, grain="v")
+    if "w" in sides:
+        box3(M, -ou_, -ou_ + 0.16, -ov_, ov_, floor - 0.16, floor - 0.02, uv, mat, grain="v")
 
 
 def en_koran(M, hu, hv, floor, uv_wood, m_wood, sides=("n", "s", "e", "w"),
-             w=EN_W, kh=KORAN_H):
+             w=EN_W, kh=KORAN_H, tsuka=True):
     """**縁 + 高欄**。⭐ 「床が地面から浮いて、まわりに縁と高欄が回る」姿は
-    民家と社殿を分ける一番大きい合図なので必ず入れる。"""
+    民家と社殿を分ける一番大きい合図なので必ず入れる。
+
+    ⚠ `tsuka=False` で **縁束を立てない** — 縁は `koshigumi` が持ち出す【A】。"""
     ou, ov = hu + w, hv + w
     T = 0.10                       # 縁板の厚み
     # 縁板(四周の帯)。⛔ 面を一枚で貼らない — 板を並べて目地を出す
@@ -610,12 +850,14 @@ def en_koran(M, hu, hv, floor, uv_wood, m_wood, sides=("n", "s", "e", "w"),
         band(hu, ou, -hv, hv, "v")
     if "w" in sides:
         band(-ou, -hu, -hv, hv, "v")
-    # 縁束(縁を支える束)
-    for (uu, vv) in _perimeter_nodes(ou, ov, 1.818):
-        if not _on_side(uu, vv, ou, ov, hu, hv, sides):
-            continue
-        box3(M, uu - 0.06, uu + 0.06, vv - 0.06, vv + 0.06, 0.0, floor - T,
-             uv_wood, m_wood, grain="h")
+    # 縁束(縁を支える束)。⛔ **腰組を組むときは立てない** — 束立ては民家の作りで、
+    #   【A 加藤2018 6-1】の「縁を腰組で支持する」と両立しない(考証19巡目 中5)。
+    if tsuka:
+        for (uu, vv) in _perimeter_nodes(ou, ov, 1.818):
+            if not _on_side(uu, vv, ou, ov, hu, hv, sides):
+                continue
+            box3(M, uu - 0.06, uu + 0.06, vv - 0.06, vv + 0.06, 0.0, floor - T,
+                 uv_wood, m_wood, grain="h")
     # 高欄 — 地覆 / 束 / 平桁 / 架木
     for (a, b, along, uu, vv) in _koran_runs(ou, ov, sides):
         if along == "u":
@@ -732,8 +974,11 @@ def bay_lines(half, n):
     return [-half + 2 * half * i / float(n) for i in range(n + 1)]
 
 
-def columns(M, hu, hv, nu, nv, floor, colH, r, uv, mat):
-    """**総円柱**。四周の柱間の交点に立てる(内部の柱は見えないので立てない)。"""
+def columns(M, hu, hv, nu, nv, floor, colH, r, uv, mat, base=None):
+    """**総円柱**。四周の柱間の交点に立てる(内部の柱は見えないので立てない)。
+
+    ⚠ `base` = 柱の**足元**(既定 = 床)。腰組を組む棟では**亀腹の天端**まで下ろす —
+      「石造亀腹に**土台立て**」【A 加藤2018 6-1】は、柱が床より下の土台から立つ姿。"""
     us = bay_lines(hu, nu)
     vs = bay_lines(hv, nv)
     pts = []
@@ -742,7 +987,8 @@ def columns(M, hu, hv, nu, nv, floor, colH, r, uv, mat):
     for vv in vs[1:-1]:
         pts.append((us[0], vv)); pts.append((us[-1], vv))
     for (uu, vv) in pts:
-        cyl(M, uu, vv, floor, floor + colH, r / 2.0, uv, mat, n=12, taper=0.94)
+        cyl(M, uu, vv, floor if base is None else base, floor + colH, r / 2.0,
+            uv, mat, n=12, taper=0.94)
     return us, vs
 
 
@@ -898,30 +1144,43 @@ def panel_ita(M, a0, a1, along, w, z0, z1, uv, mat, t=0.05):
             box3(M, w - t, w + t, s0, s1, z0, z1, uv, mat, grain="h")
 
 
-def panel_mairado(M, a0, a1, along, w, z0, z1, uv, mat, t=0.05):
-    """**舞良戸** — 板戸に細い横桟(舞良子)を打つ。"""
+def panel_mairado(M, a0, a1, along, w, z0, z1, uv, mat, t=0.05, out=+1):
+    """**舞良戸** — 板戸に細い横桟(舞良子)を打つ。
+
+    ⚠ `out` = **外(見え側)がどちらか**(±1)。⛔ 決め打ちにしない — 舞良子は外面に打つ物で、
+      南面(v が負の側)で `+` に決め打ちすると桟が室内側へ回る。"""
     if along == "u":
         box3(M, a0, a1, w - t, w + t, z0, z1, uv, mat, grain="u")
     else:
         box3(M, w - t, w + t, a0, a1, z0, z1, uv, mat, grain="v")
     n = max(4, int((z1 - z0) / 0.19))
+    o0, o1 = (w + out * t, w + out * (t + 0.022))
+    lo, hi = min(o0, o1), max(o0, o1)
     for i in range(1, n):
         z = z0 + (z1 - z0) * i / float(n)
         if along == "u":
-            box3(M, a0 + 0.03, a1 - 0.03, w + t, w + t + 0.022, z - 0.022, z + 0.022,
+            box3(M, a0 + 0.03, a1 - 0.03, lo, hi, z - 0.022, z + 0.022,
                  uv, mat, grain="u")
         else:
-            box3(M, w + t, w + t + 0.022, a0 + 0.03, a1 - 0.03, z - 0.022, z + 0.022,
+            box3(M, lo, hi, a0 + 0.03, a1 - 0.03, z - 0.022, z + 0.022,
                  uv, mat, grain="v")
 
 
-def panel_koshi(M, a0, a1, along, w, z0, z1, uv, mat, uvb, matb, pitch=0.115, t=0.035):
-    """**格子戸 / 蔀戸** — 竪子を実体で並べ、裏に明かり障子(板)を入れる。
-    ⛔ 格子だけにしない — 素通しになって建物の中と反対側の壁の裏面が見える。"""
+def panel_koshi(M, a0, a1, along, w, z0, z1, uv, mat, uvb, matb, pitch=0.115,
+                t=0.035, out=+1):
+    """**格子戸 / 蔀戸** — 竪子を実体で並べ、**裏に**明かり障子(板)を入れる。
+    ⛔ 格子だけにしない — 素通しになって建物の中と反対側の壁の裏面が見える。
+
+    ⛔⛔ `out` = **外(見え側)がどちらか**(±1)。⚠ 2026-09-09 まで裏板を
+      **常に `w − t − 0.03`(= 論理の負側)**へ置いていたので、**南面と西面では裏板が
+      格子の外側**へ出て、竪子を隠した**白い無地の板**になっていた
+      (考証19巡目 軽微2「左側面に白い無地の板が数枚」の正体。⛔ remap 漏れではない)。"""
+    b0, b1 = w - out * t, w - out * (t + 0.03)
+    lo, hi = min(b0, b1), max(b0, b1)
     if along == "u":
-        box3(M, a0, a1, w - t - 0.03, w - t, z0, z1, uvb, matb, grain="u")
+        box3(M, a0, a1, lo, hi, z0, z1, uvb, matb, grain="u")
     else:
-        box3(M, w - t - 0.03, w - t, a0, a1, z0, z1, uvb, matb, grain="v")
+        box3(M, lo, hi, a0, a1, z0, z1, uvb, matb, grain="v")
     n = max(3, int((a1 - a0) / pitch))
     for i in range(n):
         c = a0 + (a1 - a0) * (i + 0.5) / n
@@ -983,25 +1242,26 @@ def kokabe(M, us, vs, floor, colH, uvw, mw, uc=UCHINORI, renji=None):
 # 材(⛔ 新規マテリアルを作らない)
 # ==========================================================================
 def mats():
-    """(材質のリスト, UV矩形の辞書)。索引 0=wood 1=wall C 2=door wall 3=Foundation_A_01"""
+    """(材質のリスト, UV矩形の辞書)。索引 0=wood 1=wall C 2=door wall
+
+    ⛔⛔ **`Foundation_A_01` を持たない**(2026-09-09 に落とした)。あのアトラスは
+      2048² 全面が**丸い野面石の乱積み**で、石造亀腹にも礎盤にも当たらない(考証19巡目 中6)。
+      ⇒ 石の部位は `M_FJG_Rock_001`(加工石)を `kamebara` / `soban` が別体で焼く。"""
     m_wood, uv_wood = VM.vk_mat(V, "Walls and floors/column A.fbx", "wood", GR.WOOD_UV)
     m_wall, uv_wall = VM.vk_mat(V, "Walls and floors/wall C.fbx", "wall C", GR.WALLC_UV)
     m_door, uv_door = VM.vk_mat(V, "Walls and floors/door wall A.fbx", "door wall",
                                 (0.05, 0.05, 0.45, 0.95))
-    m_fnd, uv_fnd = VM.vk_mat(V, "Foundations/Foundation_A_01_2x2.fbx", "Foundation_A_01",
-                              (0.05, 0.05, 0.95, 0.95))
     uv = dict(
         wood=GR.WOOD_UV,                       # 縦木理の一枚(柱・板)
         wood_h=VM.sub(uv_wood, 0.12, 0.06, 0.42, 0.94),
         wall=VM.sub(uv_wall, 0.10, 0.10, 0.90, 0.60),
         door=VM.sub(uv_door, 0.06, 0.10, 0.44, 0.90),
         shoji=VM.sub(uv_door, 0.55, 0.12, 0.95, 0.88),
-        fnd=VM.sub(uv_fnd, 0.05, 0.05, 0.95, 0.60),
     )
-    return [m_wood, m_wall, m_door, m_fnd], uv
+    return [m_wood, m_wall, m_door], uv
 
 
-W, WC, DW, FND = 0, 1, 2, 3
+W, WC, DW = 0, 1, 2
 
 
 # ==========================================================================
@@ -1192,6 +1452,12 @@ def make_irimoya_sori(W, D, name, eave, gf, sori, p):
     pieces = [x for x in pieces if x]
     V.dedup_materials()
     o = V.join(pieces, name)
+    # ⭐ **軒反り** — 屋根が1体になってから、水平位置だけの関数で一括して掛ける。
+    #   ⛔ 部材ごとに掛けない(瓦場・隅棟・袖瓦・破風・鬼がバラバラに動く)。
+    nz = Nokizori(x0, x0 + Wp, y0, y0 + Dp)
+    nokizori_apply(o, nz)
+    print("  軒反り 隅 +%.3f m / 効く長さ %.2f m(⛔ 量は【U 設計値】— 典拠なし)"
+          % (nz.amp, nz.L))
     V.set_origin(o, (W / 2.0, D / 2.0, 0.0))
     return o
 
@@ -1434,11 +1700,29 @@ def karahafu_hafu(name, ue, eaveZ, p, ka, n=40, bw=0.34, bt=0.14):
 # ==========================================================================
 # 棟ごとの組み立て
 # ==========================================================================
+MUNE_TOP = {}       # 棟名 → (大棟の上端, 部材の Y 上端)。⭐ 裁3 の物差しを部材の側で持つ
+
+
 def finish(objs, name, pivot_h=0.0):
     """join → **銅瓦へ寄せ** → ピボットを **区画の中心・地盤レベル**へ。
     ⚠ 測るのは書き出しの前。"""
     V.dedup_materials()
     o = V.join([x for x in objs if x], name)
+    # ⭐⭐ **大棟の上端**を、銅瓦へ寄せる**前**に測る(裁3 = 棟高は大棟の上端まで。
+    #   ⛔ 鬼板・置千木などの棟飾りは含まない)。⚠ `to_copper` を通すと鬼板の材
+    #   `roof ornaments` が `Doukawara` に溶けて**もう見分けられない**。
+    #   ⇒ 目録 `docs/asset-index.tsv` の丈(= 部材の Y 上端 = 鬼の頂)との差を
+    #     **棟飾りの丈**として毎回刷る。指図方はこれを引いて `muneHeightRule` を建てる。
+    orn = {i for i, m in enumerate(o.data.materials)
+           if m and m.name.split('.')[0] in COPPER_FROM and "ornament" in m.name}
+    zs_all, zs_tile = [], []
+    for pg in o.data.polygons:
+        zz = max(o.data.vertices[i].co.z for i in pg.vertices)
+        zs_all.append(zz)
+        if pg.material_index not in orn:
+            zs_tile.append(zz)
+    if zs_all:
+        MUNE_TOP[name] = (max(zs_tile) if zs_tile else max(zs_all), max(zs_all))
     to_copper(o)                       # ⭐ 瓦・棟・鬼は銅瓦葺【S】。灰の本瓦では出さない
     V.set_origin(o, (0.0, 0.0, pivot_h))
     return o
@@ -1459,6 +1743,21 @@ def report(o, name, note=""):
     return mn, mx
 
 
+def _taruki_obj(name, hu, hv, ez, s, uv, ms, sori):
+    """垂木を**別体**で焼いて、屋根と同じ軒反りを掛ける。
+
+    ⛔⛔ 躯体の一部として組むと、軒反りで**瓦だけが隅で 0.40m 上がり、垂木が置いていかれる**
+      (軒裏に空の隙が開く)。⇒ 垂木は屋根と同じ `Nokizori` を通す。
+    ⚠ 組物・丸桁・高欄には掛けない — あれは軒先線より内で、上げると高欄が傾く。"""
+    MT = VM.Mesh()
+    taruki(MT, hu, hv, ez, s["eave"], uv["wood_h"], W, sori,
+           hip=hip_depth(hu, s["eave"], s["gf"]))
+    o = MT.to_object(name + "_taruki", ms)
+    e = s["eave"]
+    nokizori_apply(o, Nokizori(-(hu + e), hu + e, -(hv + e), hv + e))
+    return o
+
+
 def honden(R, name="Sanno_Honden_3x3ken"):
     """**本殿** 桁行三間×梁間三間・単層・入母屋造【S】。石造亀腹・出組・総円柱・脇障子【A】。"""
     r, s = R["honden"], SPEC["honden"]
@@ -1466,23 +1765,24 @@ def honden(R, name="Sanno_Honden_3x3ken"):
     ms, uv = mats()
     p = GR.palette()
     M = VM.Mesh()
-    kamebara(M, hu, hv, s["floor"], uv["fnd"], FND)
+    kb = kamebara(hu, hv, kame_top(s["floor"]), name + "_kame")
     us, vs = columns(M, hu, hv, int(r["du"]), int(r["dv"]), s["floor"], s["colH"],
-                     s["colD"], uv["wood"], W)
+                     s["colD"], uv["wood"], W, base=kame_top(s["floor"]))
     kumimono(M, us, vs, s["floor"], s["colH"], s["kumi"], uv["wood_h"], W, kind="degumi")
     kokabe(M, us, vs, s["floor"], s["colH"], uv["wall"], WC, renji=(uv["wood"], W))
-    # 縁は東(作り合いへ繋ぐ)以外の三方。腰組で支持【A】
-    en_koran(M, hu, hv, s["floor"], uv["wood"], W, sides=("n", "s", "w"))
+    # 縁は東(作り合いへ繋ぐ)以外の三方。⭐ **腰組で支持**【A 加藤2018 6-1】
+    SIDES = ("n", "s", "w")
+    koshigumi(M, us, vs, s["floor"], kame_top(s["floor"]), uv["wood_h"], W, sides=SIDES)
+    en_koran(M, hu, hv, s["floor"], uv["wood"], W, sides=SIDES, tsuka=False)
     z0, z1 = s["floor"], s["floor"] + UCHINORI
     # 側面(南北)は **前方二間を舞良戸・後方一間を板壁**【A】。前方 = 東
     for vv in (vs[0], vs[-1]):
+        og = +1 if vv > 0 else -1                          # ⭐ 外(見え側)の向き
         for i in range(len(us) - 1):
             a, b = us[i], us[i + 1]
-            mid = (a + b) / 2.0
-            if mid > -hu + (2.0 / 3.0) * 2 * hu - 2 * hu:   # 東寄り二間
-                pass
             if i >= 1:                                     # 東側の二間 = i=1,2
-                panel_mairado(M, a + 0.10, b - 0.10, "u", vv, z0, z1, uv["door"], DW)
+                panel_mairado(M, a + 0.10, b - 0.10, "u", vv, z0, z1, uv["door"], DW,
+                              out=og)
             else:
                 panel_ita(M, a + 0.10, b - 0.10, "u", vv, z0, z1, uv["wood"], W)
     # 背面(西)は板壁
@@ -1492,7 +1792,8 @@ def honden(R, name="Sanno_Honden_3x3ken"):
     for j in range(len(vs) - 1):
         a, b = vs[j], vs[j + 1]
         if j == 1:
-            panel_mairado(M, a + 0.10, b - 0.10, "v", us[-1], z0, z1, uv["door"], DW)
+            panel_mairado(M, a + 0.10, b - 0.10, "v", us[-1], z0, z1, uv["door"], DW,
+                          out=+1)
         else:
             panel_ita(M, a + 0.10, b - 0.10, "v", us[-1], z0, z1, uv["wood"], W)
     # **脇障子** — 後方(西)隅柱の左右。縁の上に立つ小さな板の衝立【A】
@@ -1504,11 +1805,10 @@ def honden(R, name="Sanno_Honden_3x3ken"):
              s["floor"], s["floor"] + 1.62, uv["wood"], W, grain="h")
     ez = eave_z("honden")
     sori = Sori(hu + s["eave"])
-    taruki(M, hu, hv, ez, s["eave"], uv["wood_h"], W, sori,
-           hip=hip_depth(hu, s["eave"], s["gf"]))
     body = M.to_object(name + "_body", ms)
+    taru = _taruki_obj(name, hu, hv, ez, s, uv, ms, sori)
     roof = irimoya(name + "_roof", hu, hv, s["eave"], ez, s["gf"], p, sori)
-    o = finish([body, roof], name)
+    o = finish([body, taru, roof] + kb, name)
     return o, ez + sori.z(sori.half)
 
 
@@ -1520,44 +1820,47 @@ def haiden(R, name="Sanno_Haiden_3x7ken"):
     ms, uv = mats()
     p = GR.palette()
     M = VM.Mesh()
-    kamebara(M, hu, hv, s["floor"], uv["fnd"], FND)
+    kb = kamebara(hu, hv, kame_top(s["floor"]), name + "_kame")
     us, vs = columns(M, hu, hv, int(r["du"]), int(r["dv"]), s["floor"], s["colH"],
-                     s["colD"], uv["wood"], W)
+                     s["colD"], uv["wood"], W, base=kame_top(s["floor"]))
     kumimono(M, us, vs, s["floor"], s["colH"], s["kumi"], uv["wood_h"], W,
              kind="hiramitsudo")
     kokabe(M, us, vs, s["floor"], s["colH"], uv["wall"], WC, renji=(uv["wood"], W))
-    en_koran(M, hu, hv, s["floor"], uv["wood"], W, sides=("n", "s", "e"))
+    # ⚠ 腰組は【A】が言うのは**本殿**について。拝殿は**【U 本殿に倣う設計判断】**
+    SIDES = ("n", "s", "e")
+    koshigumi(M, us, vs, s["floor"], kame_top(s["floor"]), uv["wood_h"], W, sides=SIDES)
+    en_koran(M, hu, hv, s["floor"], uv["wood"], W, sides=SIDES, tsuka=False)
     z0, z1 = s["floor"], s["floor"] + UCHINORI
     # 両側面(南北)**前方一間を蔀戸**【A】、残りは板壁
     for vv in (vs[0], vs[-1]):
+        og = +1 if vv > 0 else -1                   # ⭐ 外(見え側)の向き
         for i in range(len(us) - 1):
             a, b = us[i], us[i + 1]
             if i == len(us) - 2:                    # 東端の一間 = 前方
                 panel_koshi(M, a + 0.10, b - 0.10, "u", vv, z0, z1,
-                            uv["wood"], W, uv["shoji"], DW)
+                            uv["wood"], W, uv["shoji"], DW, out=og)
             else:
                 panel_ita(M, a + 0.10, b - 0.10, "u", vv, z0, z1, uv["wood"], W)
     # 背面(西)= 幣殿境。**格子戸**【A】
     for j in range(len(vs) - 1):
         panel_koshi(M, vs[j] + 0.10, vs[j + 1] - 0.10, "v", us[0], z0, z1,
-                    uv["wood"], W, uv["shoji"], DW)
+                    uv["wood"], W, uv["shoji"], DW, out=-1)
     # 正面(東)は中央三間を開け、両脇二間ずつを板壁 + その上に格子欄間
     for j in range(len(vs) - 1):
         a, b = vs[j], vs[j + 1]
         if 2 <= j <= 4:
             panel_koshi(M, a + 0.10, b - 0.10, "v", us[-1], z0, z1,
-                        uv["wood"], W, uv["shoji"], DW)
+                        uv["wood"], W, uv["shoji"], DW, out=+1)
         else:
             panel_ita(M, a + 0.10, b - 0.10, "v", us[-1], z0, z1, uv["wood"], W)
     ez = eave_z("haiden")
     sori = Sori(hu + s["eave"])
-    taruki(M, hu, hv, ez, s["eave"], uv["wood_h"], W, sori,
-           hip=hip_depth(hu, s["eave"], s["gf"]))
     body = M.to_object(name + "_body", ms)
+    taru = _taruki_obj(name, hu, hv, ez, s, uv, ms, sori)
     roof = irimoya(name + "_roof", hu, hv, s["eave"], ez, s["gf"], p, sori)
     ch = chidori_hafu(name + "_chidori", hu, s["eave"], ez, p,
                       CHIDORI["b"], CHIDORI["ug"], CHIDORI["zde"], sori)
-    o = finish([body, roof] + ch, name)
+    o = finish([body, taru, roof] + ch + kb, name)
     return o, ez + sori.z(sori.half)
 
 
@@ -1569,11 +1872,16 @@ def _renketsu(R, key, name, ebi):
     ms, uv = mats()
     p = GR.palette()
     M = VM.Mesh()
-    kamebara(M, hu, hv, s["floor"], uv["fnd"], FND)
+    kb = kamebara(hu, hv, kame_top(s["floor"]), name + "_kame")
     us, vs = columns(M, hu, hv, int(r["du"]), int(r["dv"]), s["floor"], s["colH"],
-                     s["colD"], uv["wood"], W)
+                     s["colD"], uv["wood"], W, base=kame_top(s["floor"]))
     kumimono(M, us, vs, s["floor"], s["colH"], s["kumi"], uv["wood_h"], W,
              kind="hiramitsudo")
+    # ⛔⛔ **連結部に腰組を組まない。**⚠ 幣殿・作り合いには**縁が無い**(本殿の縁と拝殿の縁の
+    #   あいだを繋ぐ室で、外へ回る縁を持たない)ので、腰組は**何も支えない持ち出し**になる。
+    #   2026-09-09 に一度組んで bbox が D 6.654 → 7.314 に膨らみ、宙に浮いた縁葛が出た。
+    #   ⇒ `sides=()` で **土台だけ**を置く(「石造亀腹に土台立て」の土台は縁と無関係に要る)。
+    koshigumi(M, us, vs, s["floor"], kame_top(s["floor"]), uv["wood_h"], W, sides=())
     uc = min(UCHINORI, s["colH"] - 0.45)
     kokabe(M, us, vs, s["floor"], s["colH"], uv["wall"], WC, uc=uc)
     z0, z1 = s["floor"], s["floor"] + uc
@@ -1620,8 +1928,31 @@ def _renketsu(R, key, name, ebi):
                       (uu, sg * (hvE - d1), zeave + sori.z(d1) - 0.10),
                       0.08, 0.10, uv["wood_h"], W)
     taru = M2.to_object(name + "_taruki", ms)
-    o = finish([body, taru] + roof, name)
+    _nomikomi(R, key, we, ee)
+    o = finish([body, taru] + roof + kb, name)
     return o, ridgeZ
+
+
+def _nomikomi(R, key, we, ee):
+    """⭐ 連結部の屋根の平面が、**両隣の大屋根の軒下にどれだけ呑まれるか**[比]。
+
+    ⛔ 「軒の出を深くすれば明るくなる」と決め打ちしない — 呑まれの向きは**東西**で、
+      深くするのは**南北**の軒なので、比が動かなければ何も変わらない(2026-09-09
+      庭方18巡目 決6 への回答は、この数で出す)。"""
+    r, s = R[key], SPEC[key]
+    a0, a1 = r["cu"] - r["hu"] - we, r["cu"] + r["hu"] + ee
+    b0, b1 = r["cv"] - r["hv"] - s["eave"], r["cv"] + r["hv"] + s["eave"]
+    area = (a1 - a0) * (b1 - b0)
+    cov = 0.0
+    for nb in ("honden", "haiden"):
+        rn, sn = R[nb], SPEC[nb]
+        c0, c1 = rn["cu"] - rn["hu"] - sn["eave"], rn["cu"] + rn["hu"] + sn["eave"]
+        d0, d1 = rn["cv"] - rn["hv"] - sn["eave"], rn["cv"] + rn["hv"] + sn["eave"]
+        cov += (max(0.0, min(a1, c1) - max(a0, c0))
+                * max(0.0, min(b1, d1) - max(b0, d0)))
+    print("  %s 屋根の平面 %.2f m²(東西 %.2f × 南北 %.2f)/ 隣の大屋根に呑まれる %.0f%%"
+          % (key, area, a1 - a0, b1 - b0, 100.0 * min(1.0, cov / area)))
+    return cov / area
 
 
 def heiden(R, name="Sanno_Heiden_1x3ken"):
@@ -1643,9 +1974,9 @@ def kohai(R, name="Sanno_Kohai_1x3ken"):
     M = VM.Mesh()
     # 向拝柱(角柱の几帳面取りが常法だが、社殿に揃えて円柱)+ 礎盤
     vs = bay_lines(hv, int(r["dv"]))
+    sb = soban([(hu, vv) for vv in vs], s["floor"] - 0.10, s["floor"] + 0.12,
+               0.26, name + "_soban")
     for vv in vs:
-        box3(M, hu - 0.26, hu + 0.26, vv - 0.26, vv + 0.26, s["floor"] - 0.10,
-             s["floor"] + 0.12, uv["fnd"], FND, grain="h")
         cyl(M, hu, vv, s["floor"] + 0.12, s["floor"] + s["colH"], s["colD"] / 2.0,
             uv["wood"], W, n=12, taper=0.95)
     # 頭貫・台輪・組物(向拝は柱の上に平三斗)
@@ -1702,7 +2033,7 @@ def kohai(R, name="Sanno_Kohai_1x3ken"):
          uv["wood_h"], W, grain="v")
     body = M.to_object(name + "_body", ms)
     roof = hisashi_karahafu(name + "_roof", hu, hv, s["eave"], zeave, -hu, ztop, p, sori)
-    o = finish([body] + roof, name)
+    o = finish([body] + roof + sb, name)
     return o, zeave + kara_g(0.0, KARAHAFU)
 
 
@@ -1923,6 +2254,42 @@ def check_sori(o, name, axis='x', side=1, band=(0.0, 0.9), gap=0.12,
     return ok
 
 
+def check_nokizori(o, name, lift_min=0.18, lip=0.45, nb=26):
+    """⭐⭐ **軒先の稜線が隅で跳ね上がっているか**を、焼いたメッシュそのものから測る。
+
+    ⛔ 期待値を `Nokizori` から作らない(規則19)。⇒ **銅瓦の面のうち最も東の唇**を
+      南北(Unity Z)へ刻み、各刻みの**最下端 Y**(= 軒先の稜線)を拾って、
+      **両端の刻み − 中央の刻み ≥ `lift_min`** を要求する。
+    ⚠ これは考証19巡目が東立面の画素でやった測り方(左端/中央/右端の最下端)と同じ物差しを
+      メッシュの上で回したもの。⛔ 立面の画素だけに頼らない — 立面は撮り方で変わる。"""
+    pts = _roof_verts(o)
+    if not pts:
+        print("  検算 軒反り ⛔ 銅瓦の面が無い: %s" % name)
+        return False
+    xm = max(p[0] for p in pts)
+    band = [p for p in pts if p[0] > xm - lip]          # 東の軒先の唇だけ
+    if len(band) < 40:
+        print("  検算 軒反り ⛔ 軒先の唇に頂点が %d しかない: %s" % (len(band), name))
+        return False
+    z0, z1 = min(p[2] for p in band), max(p[2] for p in band)
+    low = {}
+    for p in band:
+        b = int((p[2] - z0) / (z1 - z0) * (nb - 1e-9))
+        low[b] = min(low.get(b, 1e9), p[1])
+    bs = sorted(low)
+    if len(bs) < nb - 2:
+        print("  検算 軒反り ⛔ 刻みが埋まらない(%d/%d): %s" % (len(bs), nb, name))
+        return False
+    mid = [low[b] for b in bs if abs(b - (nb - 1) / 2.0) <= nb * 0.12]
+    cen = sum(mid) / len(mid)
+    ls, rs = low[bs[0]], low[bs[-1]]
+    ok = (ls - cen) >= lift_min and (rs - cen) >= lift_min
+    print("  検算 軒反り        %-20s %s  南端 %+.3f / 北端 %+.3f(中央 %.3f 比・"
+          "要 ≥ %.2f)" % (name, "⭕" if ok else "⛔ 隅が跳ね上がっていない",
+                          ls - cen, rs - cen, cen, lift_min))
+    return ok
+
+
 def mirror_x(o):
     """陰性試験用: Unity X を鏡映する(= Blender X を鏡映する)。"""
     o.data.transform(Matrix.Diagonal((-1.0, 1.0, 1.0, 1.0)))
@@ -1958,6 +2325,12 @@ def shots(objs, tag="shaden"):
     """⚠ **画角は bbox から決める。**原点を見て固定倍率で撮ると端が切れる
     (2026-09-09 に本殿と木階が枠外へ出た)。"""
     V.hook_textures()
+    # ⛔⛔ **岩の材は `V.hook_textures()` では結線されない** — `M_FJG_Rock_001` は
+    #   `V.named_material` が作った**名前だけの入れ物**で、Village Kit の textures/ にも
+    #   同名の PNG が無い。⇒ 結ばないと亀腹・礎盤が **真っ白**に焼ける
+    #   (2026-09-09 に実見。⚠ 検証レンダだけの話で、FBX は材質名しか運ばない)。
+    import build_tateishi as BT
+    BT.hook()
     os.makedirs(SHOT, exist_ok=True)
     mn, mx = V.bbox(objs)
     cu = -(mn.x + mx.x) / 2.0            # 論理 u の中心(BX は符号反転)
@@ -1986,6 +2359,11 @@ def shots(objs, tag="shaden"):
     ue = -mn.x                                   # 論理 u の東端(BX は符号反転)
     one(BX(ue + 15.0, cv - 10.0) + (3.0,), BX(ue - 4.0, cv) + (5.2,),
         "kohai_near", res=(1700, 1200))
+    # ⭐ **腰まわりの近景** — 石造亀腹(切石)と腰組は引きの立面では読めない。
+    #   ⚠ 2026-09-08 の段石の縦縞は「引きの立面では読めず近景で初めて見えた」。同じ轍。
+    #   ⚠ **拝殿が仮組みの原点**(`assemble` の `ref`)なので、論理座標を直に書ける。
+    one(BX(8.6, -12.8) + (1.35,), BX(-0.4, -7.0) + (1.00,),
+        "koshi_near", res=(1700, 1200))
     # 真上 — ⭐ 左右の別・棟の並びは俯瞰でしか読めない(EDO-0161)
     one(BX(cu, cv) + (top + 40.0,), BX(cu, cv) + (0.0,),
         "plan", ortho=max(du, dv) * 1.08, res=(1500, 1500))
@@ -2015,6 +2393,18 @@ SORI_WIN = dict(
 )
 
 
+# ⭐ 軒反り(隅の跳ね上がり)を **入れた棟**と、⛔ **入れていない棟とその理由**。
+#   ⛔ 「入っていない」を黙らない — 0件は合格ではなく未測定(規則19)。
+NOKI_CHECK = ("honden", "haiden")
+NOKI_NONE = dict(
+    heiden="両下造で、東西の端は隣の棟の軒下へ潜る ⇒ **自由な隅が無い**",
+    tsukuriai="両下造で、東西の端は隣の棟の軒下へ潜る ⇒ **自由な隅が無い**",
+    kohai="庇の軒先には軒唐破風の起り(振幅 0.90m)が既に載っている。"
+          "⚠ 隅を更に起こすと走り方向の勾配が折り返して瓦場が千切れる恐れがあり、"
+          "**まだ試していない**【未検査】",
+)
+
+
 def build_one(R, key, do_render):
     fn = dict(honden=honden, tsukuriai=tsukuriai, heiden=heiden,
               haiden=haiden, kohai=kohai)[key]
@@ -2038,6 +2428,18 @@ def build_one(R, key, do_render):
         print("  検算 反り          %-20s ⚠ **未検査**(測れる窓が無い。SORI_WIN の註)" % o.name)
     elif not check_sori(o, o.name, **win):
         raise SystemExit("[shaden] ⛔ 屋根に反りが無い: %s" % o.name)
+    # ⭐ 軒反り(隅の跳ね上がり)。⛔ 入母屋の2棟だけ — 連結部・向拝には入れていない
+    if key in NOKI_CHECK:
+        if not check_nokizori(o, o.name):
+            raise SystemExit("[shaden] ⛔ 軒先の稜線が隅で跳ね上がっていない: %s" % o.name)
+    else:
+        print("  検算 軒反り        %-20s ⚠ **未検査 = 入れていない**(%s)"
+              % (o.name, NOKI_NONE[key]))
+    # ⭐⭐ 棟飾りの丈(裁3)。目録 `docs/asset-index.tsv` の丈は**鬼の頂**を測っている
+    if o.name in MUNE_TOP:
+        mt, at = MUNE_TOP[o.name]
+        print("  棟高の内訳         %-20s 大棟の上端 %.3f / 部材の Y 上端(鬼の頂) %.3f "
+              "⇒ **棟飾りの丈 %.3f**" % (o.name, mt, at, at - mt))
     V.export_fbx([o], os.path.join(OUT, o.name + ".fbx"))
     print("[shaden] 書き出し " + os.path.join(OUT, o.name + ".fbx"))
     _ = do_render
@@ -2109,6 +2511,24 @@ def selftest(R):
                 bad.append(o.name + " 勾配一定で通ってしまった")
     finally:
         FLAT_TEST = False
+    # ---- 軒反りの陰性試験 ----------------------------------------------
+    # ⛔ 0件は合格ではない。**隅の持ち上げを殺したときに `check_nokizori` が鳴る**まで見る。
+    print("=== 陰性試験: 隅の持ち上げを殺すと軒反りの検算が止まるか ===")
+    global FLAT_NOKI
+    for key in NOKI_CHECK:
+        V.reset()
+        o, _ = dict(honden=honden, haiden=haiden)[key](R)
+        if not check_nokizori(o, o.name + "(軒反りあり)"):
+            bad.append(o.name + " 軒反りが正で落ちた")
+    FLAT_NOKI = True
+    try:
+        for key in NOKI_CHECK:
+            V.reset()
+            o, _ = dict(honden=honden, haiden=haiden)[key](R)
+            if check_nokizori(o, o.name + "(隅を殺した)"):
+                bad.append(o.name + " 隅を殺しても通ってしまった")
+    finally:
+        FLAT_NOKI = False
     # ---- 床の段の検算 --------------------------------------------------
     step = SPEC["honden"]["floor"] - SPEC["haiden"]["floor"]
     ok = step > 0.5 and abs(SPEC["heiden"]["floor"] - SPEC["haiden"]["floor"]) < 1e-6

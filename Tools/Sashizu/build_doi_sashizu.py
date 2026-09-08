@@ -291,6 +291,8 @@ def md2html(text):
 
 def _sv(W, H, label):
     _SVN[0] += 1
+    _FIGW[0] = float(W)     # ⭐ 字送りの下限は**面の幅**で決まる(実効 px = fs × 1044/W)
+    _NUMS[:] = []           # ⭐ 欄外へ逃がした室名は**面ごと**に振り直す
     return ['<svg viewBox="0 0 %.0f %.0f" role="img" aria-label="%s">' % (W, H, label),
             '<defs><pattern id="pi%d" width="9" height="9" patternUnits="userSpaceOnUse">'
             '<path d="M0,4.5 h9 M4.5,0 v9" stroke="var(--ishi)" stroke-width="0.8" opacity="0.65"/>'
@@ -350,8 +352,57 @@ def LN(x1, y1, x2, y2, stroke="var(--ink)", sw=1.0, dash=None, op=None, cap=None
     return a + "/>"
 
 
-def fit(txt, wpx, base=12.0, lo=6.0):
-    return max(lo, min(base, wpx / (len(txt) * 0.62 + 0.8)))
+# ⭐⭐ **字送りの下限**(2026-09-08 検図方 高3)。⛔⛔ 従前の床は 6.0px で、
+#   ⚠ **基準の窓で 6.3〜8.0px** にしかならない室名が 16 件あった(最小 6.26px)。
+#   ⛔ **「書いてある」と「読める」は別物**で、⚠ 字を小さくするほど重なりの検査には
+#   当たらなくなる(宣言された寸法で箱を組むため)= **検査の向きが読めなさを罰していなかった**。
+#   ⇒ ⭕ 床は `svg_layout.MIN_EFF` から**面の幅ごとに**導く。⛔ 数値をここに二重に持たない。
+_FIGW = [900.0]     # いま組んでいる面の viewBox 幅(`_sv` が差す)
+_NUMS = []          # この面で欄外へ逃がした室名 [(記号, 銘)]
+
+
+def _fs_floor():
+    """この面で許す最小の font-size[px]。`svg_layout` の下限を面の幅へ引き戻した値。
+
+    ⚠ **0.1px 上へ丸める** — `T()` は font-size を `%.1f` で刷るので、⛔ 素の値を使うと
+      **刷った時点で下限を割る**(⚠ 8.1418 → "8.1" → 実効 8.46px で下限 8.5 に届かない)。
+    """
+    return math.ceil(svg_layout.MIN_EFF * _FIGW[0] / svg_layout.VIEW_W * 10.0) / 10.0
+
+
+def fit(txt, wpx, base=12.0, lo=None):
+    return max(_fs_floor() if lo is None else lo,
+               min(base, wpx / (len(txt) * 0.62 + 0.8)))
+
+
+def fit_room(txt, wpx, base=11.5):
+    """室名を室へ収める。⛔ **入らないからといって読めない大きさまで縮めない。**
+
+    ⭐ 縮めて床に当たった室は、銘を**丸番号**に替えて**欄外の番号表**へ逃がす
+    (2026-09-08 検図方 高3 の推奨)。⚠ 番号は**その面の中だけ**で通る。
+    戻り値 = (紙に出す字, font-size)。
+    """
+    fs = fit(txt, wpx, base, lo=0.1)
+    if fs >= _fs_floor() - 1e-9:
+        return txt, fs
+    k = len(_NUMS)
+    mark = chr(0x2460 + k) if k < 20 else "[%d]" % (k + 1)
+    _NUMS.append((mark, txt))
+    return mark, _fs_floor()
+
+
+def num_table(g, pr):
+    """欄外の番号表を面の下へ出し、伸ばした高さを返す。⛔ 絵の上へ被せない。"""
+    if not _NUMS:
+        return pr.H
+    nr = (len(_NUMS) + 2) // 3
+    hn = pr.H + 10 + nr * 13 + 16
+    g.append(T(4, pr.H + 4, "室名の番号(この面の中だけで通る)— "
+               "⛔ 読める大きさに入らない室は室名を紙に刷らず、ここへ逃がす", "jo"))
+    for i9, (mk9, nm9) in enumerate(_NUMS):
+        r9, c9 = divmod(i9, 3)
+        g.append(T(4 + c9 * 300, pr.H + 17 + r9 * 13, "%s %s" % (mk9, nm9), "anS2", "start"))
+    return hn
 
 
 def edge_pt(P, e, s):
@@ -683,8 +734,10 @@ def goten_plan(d, u0, u1, v0, v1, label, note):
                 g.append(LN(pr.X(r["u0"]), pr.Y(v), pr.X(r["u1"]), pr.Y(v), "var(--ink)", 0.8, dash="5 3"))
             cx = (pr.X(r["u0"]) + pr.X(r["u1"])) / 2
             cy = (pr.Y(r["v0"]) + pr.Y(r["v1"])) / 2
-            fs = fit(r["name"], pr.L(abs(r["u1"] - r["u0"])) - 4, 11.5)
-            g.append(T(cx, cy - 1, r["name"], "rmS", "middle", fs))
+            # ⭐⭐ **読める大きさに入らない室は欄外の番号表へ逃がす**(2026-09-08 検図方 高3)。
+            #   ⛔ 床まで縮めて紙に刷らない — ⚠ 「書いてある」と「読める」は別物。
+            lbl9, fs = fit_room(r["name"], pr.L(abs(r["u1"] - r["u0"])) - 4, 11.5)
+            g.append(T(cx, cy - 1, lbl9, "rmS", "middle", fs))
             # 土間・板敷に畳数は付けない(考証指摘#17)— 間²で示す
             g.append(T(cx, cy + 11, ("%d間²" % (r["tatami"] // 2)) if r.get("ita") else ("%d畳" % r["tatami"]),
                        "jo", "middle"))
@@ -745,7 +798,12 @@ def goten_plan(d, u0, u1, v0, v1, label, note):
     g.append(T(4, 15, "グリッド座標(u=東辺沿い北+ / v=敷地の奥+)。"
                "**上=東(三べ坂前身の南北道)／左=北／下=西／右=南** — 敷地図(北が上)を反時計回りに90°回した向き",
                "anS"))
-    g.append(T(4, pr.H - 5, note, "anS2", "start"))
+    # ⭐ 欄外の番号表を先に出し、伸びた高さへ注記を置く(⛔ 絵の上へ被せない)
+    hn9 = num_table(g, pr)
+    g.append(T(4, hn9 - 5, note, "anS2", "start"))
+    if hn9 != pr.H:
+        g[0] = re.sub(r'viewBox="0 0 ([\d.]+) [\d.]+"',
+                      lambda m9: 'viewBox="0 0 %s %.0f"' % (m9.group(1), math.ceil(hn9)), g[0])
     g.append("</svg>")
     return "\n".join(g)
 
@@ -1034,11 +1092,14 @@ def cutfill_table(d, ter):
                     "<td>%.0f m³</td><td>%.1f m</td></tr>"
                     % (TERR_JA.get(k, k), "%.1f" % y if y is not None else "—",
                        n * a / TSUBO, f, mf, c, mc))
-    rows.append("<tr><td><b>計</b></td><td></td><td></td><td><b>%.0f m³</b></td><td></td>"
+    # ⭐ 行名に scope を書く(2026-09-08 検図方 低3)。⛔ 其八の庭の土量と同じ土だが
+    #   **範囲も刻みも違う**ので、⚠ **どちらの表の行名にも断りを置く。**
+    rows.append("<tr><td><b>計【敷地全体・1間格子】</b></td><td></td><td></td>"
+                "<td><b>%.0f m³</b></td><td></td>"
                 "<td><b>%.0f m³</b></td><td></td></tr>" % (tf, tc))
     # ⭐ **差引を印字する**(検図方 低-2)。⛔ 符号の向きは**当図で一つ** —
     #   **差引 = 盛土 − 切土 / 正 = 土が足りない(客土)**。其八(奥庭の土量)も同じ向きで刷る。
-    rows.append("<tr><td><b>差引(盛土 − 切土)</b></td><td></td><td></td>"
+    rows.append("<tr><td><b>差引(盛土 − 切土)【敷地全体・1間格子】</b></td><td></td><td></td>"
                 "<td colspan='4'><b>%+.0f m³</b> — %s</td></tr>"
                 % (tf - tc, "客土が要る" if tf - tc > 0 else "土が余る"))
     return ('<div class="tw"><table><thead><tr><th>面</th><th>面の高さ</th><th>面積</th>'
@@ -11644,7 +11705,8 @@ def _crowns(d):
         hh = max(q[1] for q in dims) * sc
         c0 = float(s.get("crownFrom", 0.0))
         for (u, v) in s["at"]:
-            out.append(dict(sp=s["species"], sz=s["size"], u=u, v=v, r=r, h=hh,
+            out.append(dict(sp=s["species"], sz=s["size"], kabu=s.get("kabu"),
+                            u=u, v=v, r=r, h=hh,
                             crownFrom=c0, skirt=max(0.0, fr) * max(0.0, hh - c0),
                             trunk=float(s.get("trunkR", 0.0))))
     return out
@@ -14755,22 +14817,28 @@ def niwa_pond_table(d):
 def niwa_vol_table(d):
     o = niwa_stats(d)
     n = NI(d)
-    rows = [("掘削(池)", "%.0f m³" % o["cut"], "水面 %.0f m²・平均掘り %.2f m"
+    # ⭐ **行名に「どこを・どの刻みで」を書く**(2026-09-08 検図方 低3)。⛔⛔ 同じ奥庭の土量が
+    #   其四の切盛表と別の数字で出ていて、⚠ **どちらの行名にも scope の断りが無かった**
+    #   (⇒ 読み手には矛盾に見える)。⚠ 矛盾ではない — **測っている範囲と刻みが違う。**
+    _sc = "【奥庭のみ・0.1間格子】"
+    rows = [("掘削(池)%s" % _sc, "%.0f m³" % o["cut"], "水面 %.0f m²・平均掘り %.2f m"
              % (o["pondM2"], o["cut"] / o["pondM2"]))]
     ea = o.get("fillEach") or {}
     for t in n.g["tsukiyama"]:
         rows.append(("盛土 %s" % t["label"], "%.0f m³" % ea.get(t["name"], 0.0),
                      "頂 %s / 盛 +%.2f m。⚠ <b>その一基だけを立てたときの体積</b>"
                      % (("%.2f" % t["topY"]) if "topY" in t else "—", t["rise"])))
-    rows.append(("盛土(合計)", "<b>%.0f m³</b>" % o["fill"],
+    rows.append(("盛土(合計)%s" % _sc, "<b>%.0f m³</b>" % o["fill"],
                  "⚠ <b>上の6行の和(%.0f m³)とは一致しない</b> — 盛りは <code>max</code> で"
                  "合成するので、<b>基と基が重なる所は一度しか数えない</b>"
                  "(差 %.0f m³ が重なりぶん)。⛔ 内訳の和を合計として刷らない"
                  % (sum(ea.values()), sum(ea.values()) - o["fill"])))
     # ⛔ **符号の向きは当図で一つ**(検図方 低-1)。其四の切盛表と同じく
     #   **差引 = 盛土 − 切土 / 正 = 土が足りない**で刷る。⛔ ここだけ逆向きにしない。
-    rows.append(("差引(盛土 − 切土)", "<b>%+.0f m³</b>" % (-o["diff"]),
-                 "正=土が足りない(其四の切盛表と同じ向き)。⭐ <b>読み下すと %s</b>"
+    rows.append(("差引(盛土 − 切土)%s" % _sc, "<b>%+.0f m³</b>" % (-o["diff"]),
+                 "正=土が足りない(其四の切盛表と同じ向き)。"
+                 "⚠ <b>其四は敷地全体を 1間格子で積む</b>ので同じ土でも数字は一致しない"
+                 "(⭕ 庭の土量は<b>細かいこの表</b>を読む)。⭐ <b>読み下すと %s</b>"
                  % ("%.0f m³ 余る" % o["diff"] if o["diff"] > 0 else
                     "%.0f m³ 足りない" % -o["diff"])))
     rows.append(("庭の陸地に均すと", "<b>%+.3f m</b>" % o["level"],
@@ -15943,21 +16011,47 @@ def crown_model_table(d):
 
 
 def _rin_kura_v(d):
-    """**尾根の林の v の範囲**と**御土蔵の見える面の v の範囲**、およびそのはみ出し[間]。
+    """**尾根の林**(樹冠の外縁)の v の範囲と、**御土蔵ごと**の見える面の v の範囲、
+    および両端の掛かり[間]。
 
-    ⛔ 言い方を数字と合わせるための実測(2026-09-08 検図方 低2)。⚠ **「一致させた」とは
-      書けない** — 林は蔵より北へ延び、南は蔵の内側で止まっている。⭕ 成立しているのは
-      **掛かっていること**であって**等しいこと**ではない。
+    ⛔⛔ **v を「北/南」と呼ばない**(2026-09-08 検図方 中3)。⚠ **v は東西軸**である —
+      `grid.shukaku` は u=北+ / v=敷地の奥(西)+ で、断面の名も
+      「断面① <b>東西</b> u=−19」「断面⑥ <b>南北</b> v=6」。⭕ 同じ章の別の文は正しく
+      「蔵の東端の前は…」と言っており、⛔ **章の中で 90° ずれていた。**
+    ⛔ **蔵を1枚の面に丸めない** — `Kura1` と `Kura2` のあいだには空きがあり、
+      両端だけを取ると**その空きごと1枚**の面になる。⇒ **蔵ごとに分ける。**
+    ⛔ **片側だけを名乗らない** — 東西どちらの端も**符号つき**で返す(⚠ 従前は
+      `max(0, …)` で不足を 0 に潰しており、**足りない側が図に出なかった**)。
+    ⚠ **測るのは樹冠の外縁**(芯ではない)— 掛かるかどうかを決めるのは冠の縁である。
+    戻り: (林の外縁 v0, v1, [(蔵の名, 面の v0, v1, 東端の掛かり, 西端の掛かり)])
     """
-    g = niwa(d) or {}
-    vs = [v for s in g.get("shokusai", [])
-          if s.get("kabu") == "onene" for (_u, v) in s["at"]]
-    ks = [m for m in d.get("service", []) if m["name"].startswith("Kura")]
-    if not vs or not ks:
-        return (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-    kv0 = min(m["v0"] for m in ks)
-    kv1 = max(m["v1"] for m in ks)
-    return (min(vs), max(vs), kv0, kv1, max(0.0, max(vs) - kv1), max(0.0, min(vs) - kv0))
+    ken = d["const"]["ken"]
+    cs = [c for c in _crowns(d) if c.get("kabu") == "onene"]
+    ks = [m for m in d.get("service", []) if str(m.get("name", "")).startswith("Kura")]
+    if not cs or not ks:
+        return (0.0, 0.0, [])
+    r0 = min(c["v"] - c["r"] / ken for c in cs)
+    r1 = max(c["v"] + c["r"] / ken for c in cs)
+    return (r0, r1, [(m["name"], m["v0"], m["v1"], m["v0"] - r0, r1 - m["v1"])
+                     for m in sorted(ks, key=lambda q: q["v0"])])
+
+
+def _rin_kura_phrase(d):
+    """上の実測を言葉にする。⛔ 数字を生成器へ書き写さない(毎回測る)。"""
+    r0, r1, ks = _rin_kura_v(d)
+    if not ks:
+        return "⚠ <b>測れない</b>(林か御土蔵が正典に無い)"
+
+    def _c(x):
+        return ("%.2f間 掛かる" % x) if x >= 0 else ("<b>%.2f間 足りない</b>" % -x)
+
+    return ("<b>林の樹冠の外縁 v %.2f〜%.2f</b>(⚠ 芯ではなく冠の縁)" % (r0, r1)
+            + "".join("<br>　<b>%s</b> 見える面 v %.2f〜%.2f — 東端(v の小さい側)%s ／ "
+                      "西端(v の大きい側)%s" % (nm, v0, v1, _c(de), _c(dw))
+                      for nm, v0, v1, de, dw in ks)
+            + "<br>　⚠ <b>数は「その蔵の端から林の端までの距離」</b>であって余りの量ではない — "
+              "⭕ 林の内側に丸ごと入る蔵は<b>両端とも大きな正</b>になる"
+              "(⇒ 効いているのは<b>足りない側</b>だけ)。")
 
 
 def _kura_min_args(d):
@@ -16045,8 +16139,10 @@ def niwa_kura_table(d):
         "載っていなかった</b>ので、⭕ <b>蔵の東端の前は刈込①だけで上が素通し</b>に"
         "なっていた(⚠ 素通しはすべて白壁の<b>上端寄り</b>に出ていた)。<br>"
         "⛔ <b>「v の範囲を一致させた」とは書かない</b>(2026-09-08 検図方 低2)— "
-        "⚠ <b>実測は一致していない</b>: <b>林 v %.2f〜%.2f / 蔵の見える面 v %.2f〜%.2f</b>"
-        "(北へ %.2f間 はみ出し・南は %.2f間 内側)。"
+        "⚠ <b>実測は一致していない</b>。⛔⛔ <b>そして v は東西軸である</b>"
+        "(2026-09-08 検図方 中3。⚠ 従前ここは v の端を「北 / 南」と呼んでおり"
+        "<b>章の中で 90° ずれていた</b>)。⛔ <b>蔵は1枚に丸めない</b> — "
+        "<code>Kura1</code> と <code>Kura2</code> のあいだには空きがある:<br>　%s。"
         "⭕ <b>成立しているのは「掛かっていること」であって「等しいこと」ではない</b> — "
         "⛔ <b>合否は上の表の割合で決まる。</b><br>"
         "⭐⭐ <b>衝立は、隠すものと同じ長さだけ要る。</b>"
@@ -16070,10 +16166,10 @@ def niwa_kura_table(d):
         "⭕ <b>数え方は生の格子点に統一している</b>(丸めた集合は上の表の<b>例示にだけ</b>使う)"
         "— ⛔ <b>丸めは表示の都合であって面積の重みではない</b>"
         "(⚠ 従前は一つの判断の中に二通りの物差しが混ざっていた)。</p>"
-        % ((lim,) + _kura_min_args(d) + _rin_kura_v(d)))
+        % ((lim,) + _kura_min_args(d) + (_rin_kura_phrase(d),)))
 
 
-def mikiri_karikomi_sweep(d, vals=(1.85, 2.20, 2.40, 2.60, 2.80, 3.00)):
+def mikiri_karikomi_sweep(d, vals=(None, 1.85, 2.20, 2.40, 2.60, 2.80, 3.00)):
     """**刈込①の天端を振ったときの見切り** — ⛔ 「2.60 にした」と書くだけにしない。
 
     ⭐⭐ **2026-09-08 庭方の起案(採用=普請奉行)で刈込①を大刈込へ上げた。**
@@ -16088,14 +16184,25 @@ def mikiri_karikomi_sweep(d, vals=(1.85, 2.20, 2.40, 2.60, 2.80, 3.00)):
     out = []
     for hm in vals:
         e = copy.deepcopy(d)
-        for k9 in (niwa(e) or {}).get("karikomi", []):
-            if k9.get("name") == "Karikomi_Kuramae":
-                k9["hMax"], k9["hMin"] = hm, round(hm - dh, 3)
+        # ⭐⭐ **`None` = 撤去(この帯を外す)**(2026-09-08 検図方 中1)。
+        #   ⛔⛔ **「下げる」と「外す」を同じ語で語らない** — 従前この表は掃引(下げる)だけを
+        #   刷り、すぐ下の除去法の表(同巡の新設)は「①蔵前の帯を落とすと素通しになる」と
+        #   出していて、⚠ **隣り合う2つの表が刈込①について逆のことを言っていた**。
+        #   ⇒ ⭕ **同じ表の中に撤去の行を置いて、2表を突き合わせる。**
+        gg9 = (niwa(e) or {})
+        if hm is None:
+            gg9["karikomi"] = [k9 for k9 in gg9.get("karikomi", [])
+                               if k9.get("name") != "Karikomi_Kuramae"]
+        else:
+            for k9 in gg9.get("karikomi", []):
+                if k9.get("name") == "Karikomi_Kuramae":
+                    k9["hMax"], k9["hMin"] = hm, round(hm - dh, 3)
         _NIWA_CACHE[0] = None
         _STATS_CACHE[0] = None
         _KARI_CACHE[0] = None
         ku = niwa_stats(e).get("kuraFace") or []
-        out.append(dict(h=hm, cur=abs(hm - k0["hMax"]) < 1e-9,
+        out.append(dict(h=hm, cur=(hm is not None and abs(hm - k0["hMax"]) < 1e-9),
+                        gone=(hm is None),
                         wall=min([q["wallPct"] for q in ku] or [100.0]),
                         pct=min([q["pct"] for q in ku] or [100.0])))
     _NIWA_CACHE[0] = None
@@ -16110,16 +16217,43 @@ def mikiri_karikomi_table(d):
     if not sw:
         return ""
     lim = float(d["const"].get("kuraMikiriMin") or 0.0)
-    rows = [("<b>%.2f m</b>%s" % (q["h"], "(<b>いまの図</b>)" if q["cur"] else ""),
+    rows = [("<b>撤去</b>(この帯を外す)" if q["gone"] else
+             ("<b>%.2f m</b>%s" % (q["h"], "(<b>いまの図</b>)" if q["cur"] else "")),
              "<b>%.2f%%</b>" % q["wall"], "%.2f%%" % q["pct"],
-             "⭕" if q["wall"] >= lim - 1e-9 else "⚠ 下限を割る") for q in sw]
-    ok9 = [q for q in sw if q["wall"] >= lim - 1e-9]
+             "⭕" if q["wall"] >= lim - 1e-9 else "⚠ <b>下限を割る</b>") for q in sw]
+    ok9 = [q for q in sw if not q["gone"] and q["wall"] >= lim - 1e-9]
+    gone9 = next((q for q in sw if q["gone"]), None)
+    low9 = min((q for q in sw if not q["gone"]), key=lambda q: q["h"], default=None)
     return _tw(("刈込①の天端 <code>hMax</code>(蔵前の土手の上)",
                 "<b>白壁の帯</b>を塞げる割合", "面の全高(参考)",
                 "下限 %.1f%%" % lim), rows) + (
-        "<p class='cap'>⭐⭐ <b>刈込①を「帯」から「大刈込」へ上げた</b>"
+        ("<p class='cap'>⭐⭐⭐ <b>この表は「下げても通る／外すと通らない」を分けて読む</b>"
+           "【2026-09-08 検図方 中1】。⛔⛔ <b>従前この表は「下げる」しか刷らず、"
+           "すぐ下の除去法の表は「外す」を刷っていた</b>ので、⚠ <b>隣り合う2つの表が"
+           "刈込①について逆のことを言っていた</b>(掃引の全行が ⭕ なので"
+           "「刈込①は見切りを支えていない」と読め、除去法は「落とすと下限を割る」と出る)。"
+           "⇒ ⭕ <b>撤去の行を同じ表に置いた。</b><br>"
+           "⭕ <b>下げても通る</b>: 振り幅の下端 <b>%.2f m でも白壁の見切り %.2f%%</b>"
+           "(下限 %.1f%% を%s)。<br>"
+           "⛔ <b>外すと通らない</b>: 撤去すると <b>%.2f%%</b> — "
+           "<b>下限を %.1f ポイント割る</b>。<br>"
+           "⇒ ⭐ <b>刈込①は「高さで効いている」のではなく「在ることで効いている」。</b>"
+           "⚠ だから掃引が平らでも「不要」ではない。</p>"
+           % (low9["h"], low9["wall"], lim,
+              "保つ" if low9["wall"] >= lim - 1e-9 else "割る",
+              gone9["wall"], lim - gone9["wall"])
+           if (gone9 and low9) else "")
+        + "<p class='cap'>⭐⭐ <b>刈込①を「帯」から「大刈込」へ上げた</b>"
         "【2026-09-08 庭方の起案(採用=普請奉行)】— 技法としての大刈込は "
-        "[築山庭造伝]の範囲【B】だが、<b>寸法は当庭の見切りから決めた従属値【U】</b>。"
+        "[築山庭造伝]の範囲【B】だが、⛔ <b>寸法は「従属値」とは名乗らない</b>"
+        "(2026-09-08 検図方 中2。⚠ 従前ここは<b>従属値【U】</b>と刷っていたが、"
+        "<b>その従属先の規則がどこにも書かれておらず</b>、掃引の全行が ⭕ なので"
+        "<b>値が一意に定まらなかった</b>)。⭕ <b>名乗れるのは「掃引の膝の位置に置いた値」まで</b> — "
+        "⚠ 掃引の刻みは 0.20 m なので<b>真の最小ではなく</b>、⚠ 的の 100% そのものが"
+        "下限 <code>const.kuraMikiriMin</code> より上の値である"
+        "(⛔ 二重に書かない — 正典は <code>gardens[].karikomi[].cert</code> と"
+        "その <code>_</code> で、そこには既にこう書いてある)。⇒ <b>据え置くか戻すかは"
+        "作庭の意匠【U】</b>で、⛔ <b>従属値と意匠を両方名乗らない。</b>"
         "⚠ <b>蔵前の土手(+0.65 m)の上に載る</b>ので、庭の地盤から見た緑の壁の高さは"
         "この表の値より高い(⛔ その合計をここへ書き写さない — 断面が刷る)。<br>"
         "⭐ <b>この表が「どこで頭打ちになるか」を見せる</b> — "
@@ -16947,48 +17081,99 @@ DOC_HOLD = []        # 書き出した文書。⚠ 撤回の照合は書き出�
 
 def jizura_html(a, b, rep):
     """⭐ **図の字面の検査。** ⛔ `**` は使わない(この文字列は太字変換の後に差す)。"""
-    def _c(r, unit):
-        return "%d %s / %d 面" % (len(r["overlap"] if unit == "組" else r["outframe"]),
-                                  unit, r["ovFigs"] if unit == "組" else r["ofFigs"])
-    rows = [("文字どうしの重なり(面積 &gt; %.1f px²)" % svg_layout.MIN_AREA,
-             _c(a, "組"), _c(b, "組")),
-            ("枠の外へ出る文字(はみ出し &gt; %.1f px)" % svg_layout.TOL,
-             _c(a, "件"), _c(b, "件"))]
+    def _n(r, k):
+        return len(r[k])
+
+    def _f(r, k):
+        return r[{"overlap": "ovFigs", "outframe": "ofFigs",
+                  "covered": "cvFigs", "tiny": "tnFigs"}[k]]
+
+    rows = [("文字どうしの重なり(面積 &gt; %.1f px²)" % svg_layout.MIN_AREA, "overlap", "組"),
+            ("枠の外へ出る文字(はみ出し &gt; %.1f px)" % svg_layout.TOL, "outframe", "件"),
+            ("<b>後から描く塗りに覆われて紙に乗っていない銘</b>"
+             "(1字の %.0f%% 以上が、描画順で後ろの不透明な塗りの下)" % (svg_layout.COVER_FR * 100),
+             "covered", "件"),
+            ("<b>字送りが下限を割る和字</b>(基準の窓での実効 &lt; %.1f px)" % svg_layout.MIN_EFF,
+             "tiny", "件")]
     t = ['<div class="tw"><table><tr><th class="note">測った物</th>'
          '<th>直す前</th><th>直した後(これが刷る値)</th></tr>']
-    for nm, x, y in rows:
-        t.append('<tr><td class="note">%s</td><td>%s</td><td><b>%s</b></td></tr>'
-                 % (nm, x, y))
+    for nm, k, unit in rows:
+        t.append('<tr><td class="note">%s</td><td>%d %s / %d 面</td>'
+                 '<td><b>%d %s / %d 面</b></td></tr>'
+                 % (nm, _n(a, k), unit, _f(a, k), _n(b, k), unit, _f(b, k)))
     t.append('<tr><td class="note">測った面 / 文字</td><td>%d 面</td><td>%d 面 %d 字面</td></tr>'
              % (a["figs"], b["figs"], b["texts"]))
     t.append("</table></div>")
+    t.append('<p class="cap">⭐⭐ <b>下2行は 2026-09-08 の第5巡で足した</b>。'
+             '⛔⛔ <b>それまでの「重なり 0 組・枠外 0 件」は「読める」ではなかった</b> — '
+             '検図方がブラウザへ渡し、<b>字あり／字なしの2枚を画素で引き算</b>したところ、'
+             '<b>銘が10件そもそも紙に乗っていなかった</b>(⚠ 後から描く塗りに上塗りされていた。'
+             '其八は面の高さの銘が5つまるごと不可視)。⭐ 原因の形は同じで、'
+             '<b><code>text</code> × <code>text</code> しか測らない物差しには'
+             '「文字が塗りに覆われる」が構造的に見えない</b>。'
+             '⇒ <b>0 件は「無い」ではなく「探していない」。</b></p>')
     drops = collections.Counter(x[0] for x in rep["droppedList"])
+    keeps = collections.Counter(x[0] for x in rep["keptList"])
     t.append('<div class="tw"><table><tr><th class="note">直しの内訳(この巡で機械が動かした分)</th>'
              '<th>件</th><th class="note">中身</th></tr>')
-    t.append('<tr><td class="note">枠の外へ<b>丸ごと</b>出ていた字を落とした'
-             '(見えていない字なので落として害が無い)</td><td>%d</td>'
-             '<td class="note">面ごと %s ／ 例: %s</td></tr>'
+    t.append('<tr><td class="note">枠の外へ<b>丸ごと</b>出ていた字を落とした</td><td>%d</td>'
+             '<td class="note">面ごと %s ／ 例: %s<br>'
+             '⭐⭐ <b>落とす条件に「同じ銘が他の面に残っていること」を入れた</b>'
+             '(2026-09-08 検図方)— ⛔ 従前の規則(枠外なら落とす)には'
+             '<b>情報が消えないことの条件が入っていなかった</b>。</td></tr>'
              % (rep["dropped"],
-                " ".join("其%d:%d" % (k, v) for k, v in sorted(drops.items())) or "—",
-                html.escape("、".join(sorted(set(x[1] for x in rep["droppedList"]))[:4]))))
+                " ".join("f%02d:%d" % (k, v) for k, v in sorted(drops.items())) or "—",
+                html.escape("、".join(sorted(set(x[1] for x in rep["droppedList"]))[:4]) or "—")))
+    t.append('<tr><td class="note">枠の外へ出ていたが<b>他の面に同じ銘が無いので落とさずに'
+             '枠内へ寄せた</b></td><td>%d</td><td class="note">面ごと %s ／ 例: %s<br>'
+             '⚠ <b>拾い上げた銘は枠の縁へ %.0f px も動く</b>ので、'
+             '<b>指す物から離れている</b> — ⭕ そこは作図の側で逃がすのが本筋。'
+             '(⛔ 下の「寄せた」の最大には混ぜない — 別の壊れ方なので別に数える。)</td></tr>'
+             % (rep["kept"],
+                " ".join("f%02d:%d" % (k, v) for k, v in sorted(keeps.items())) or "—",
+                html.escape("、".join(sorted(set(x[1] for x in rep["keptList"]))[:4]) or "—"),
+                rep["keptMoveMax"]))
     t.append('<tr><td class="note">枠幅を超える注記を折り返した</td><td>%d</td>'
              '<td class="note">折った分だけ枠を下へ伸ばした面 %d(⛔ 絵の上へ被せない)</td></tr>'
              % (rep["wrapped"], rep["grown"]))
+    t.append('<tr><td class="note"><b>銘を面の末尾へ送った</b>(= 常に最後に描く)</td>'
+             '<td>%d</td><td class="note">%d 面。⭐⭐ <b>これが「塗りに覆われた銘」の直し</b> — '
+             '⛔ 一つずつ描画順を直さない。⚠ <b>紙の見え方を変える群</b>'
+             '(transform / opacity / mask を持つ <code>&lt;g&gt;</code>)からは出さない。</td></tr>'
+             % (rep["reordered"], rep["reordFigs"]))
     t.append('<tr><td class="note">当たった字を寄せた(縦を先に、次に横)</td><td>%d</td>'
              '<td class="note">いちばん動いた字で <b>%.1f px</b>／'
              '<b>40 px を超えて動いた字 %d</b> — ⚠ <b>大きく動いた字は指す物から離れている</b>ので、'
-             '⭕ そこは<b>作図の側で逃がす</b>のが本筋(⛔ 寄せで恒久に済ませない)</td></tr>'
+             '⭕ そこは<b>作図の側で逃がす</b>のが本筋(⛔ 寄せで恒久に済ませない)。<br>'
+             '⭐⭐ <b>2026-09-08、数え方を直した</b>(検図方 中4)— ⛔⛔ 従前は'
+             '<b>当たりを避けた移動だけを数え、枠内へ押し込んだ横移動を数えていなかった</b>。'
+             '⚠ <b>押し込みのほうが「銘が指す物から離れる」危険は大きい</b>。'
+             '⇒ いまは<b>もとの位置からの実移動</b>で数える'
+             '(⚠ 枠を下へ伸ばした分は含めない — それは寄せではない)。</td></tr>'
              % (rep["moved"], rep["movedMax"], rep["movedFar"]))
     t.append("</table></div>")
-    t.append('<p class="cap">⚠ <b>この物差しは近似である。</b>生成器はフォントを持たないので、'
-             '字送りを「和字・記号=1.0em / 欧大文字=0.68 / 数字=0.556 / 欧小文字=0.56 / '
-             '約物=0.32 / 空白=0.28」で見積もる(字の大きさと寄せは <code>sashizu.css</code> が正典で、'
-             'そこから読む — ⛔ 表を二重に書かない)。⇒ 名乗れるのは「<b>この物差しで 0 件</b>」であって'
-             '「重なっていない」ではない。⭕ <b>裏は検図方が実際にレンダして目で取る</b> — '
-             '機械は 43 面を毎巡すべて見られるが精度が粗く、目は精度が高いが毎巡は見られない。'
-             'この非対称を、そのまま役の分担にしてある。</p>')
+    t.append('<p class="cap">⚠ <b>この物差しは近似である。</b>生成器はフォントを持たないので'
+             '字送りを見積もる。⭐ <b>2026-09-08、検図方が 1,012 字面の実測から解き直した</b> — '
+             '⛔⛔ <b>一般約物(— … )を 0.5em と見誤っており、+92%% の過小</b>で'
+             '<b>8件/5面が枠から出ていた</b>(⚠ レンダで「…指図方が点を手で選ばない」が'
+             '右端で 5.9 字ぶん切れていた)。⇒ 実測 <b>和字/記号 0.984 / 数字 0.569 / '
+             '一般約物 0.962 / 空白 0.376 em</b> を入れ、残る 1〜3%% は'
+             '<b>安全率 %.2f 倍</b>で吸う(字の大きさと寄せは <code>sashizu.css</code> が正典で、'
+             'そこから読む — ⛔ 表を二重に書かない)。⇒ 名乗れるのは「<b>この物差しで 0 件</b>」で'
+             'あって「重なっていない」ではない。⭕ <b>裏は検図方が実際にレンダして目で取る</b> — '
+             '機械は %d 面を毎巡すべて見られるが精度が粗く、目は精度が高いが毎巡は見られない。'
+             'この非対称を、そのまま役の分担にしてある。</p>'
+             % (svg_layout.SAFE, b["figs"]))
+    t.append('<p class="cap">⛔ <b>この版でもまだ測っていないこと</b>(⇒ 次の巡へそのまま渡す)。'
+             '⑴ <b>窓の幅</b> — 実効 px は <b>基準の窓(<code>.wrap</code> の max-width から'
+             '導く %.0f px)</b> での値で、⚠ <b>窓を狭めれば svg は縮み、字はそのぶん小さくなる</b>'
+             '(<code>.fig svg{width:100%%}</code>)。⇒ <b>狭い窓での読めなさは測っていない。</b> '
+             '⑵ <b>塗りの色</b> — 潜りは「不透明な塗りが描画順で後ろに在るか」しか見ない。'
+             '⚠ <b>薄い色の上の薄い字</b>(低いコントラスト)は鳴らない。 '
+             '⑶ <b>字の形</b> — 幅だけで、⚠ 合字・約物の詰めは見ていない。</p>'
+             % svg_layout.VIEW_W)
     t.append('<div class="tw"><table><tr><th class="note">破壊試験(この検査が生きているか)</th>'
-             '<th>実測(重なり, 枠外)</th><th>期待</th><th>合否</th></tr>')
+             '<th>実測(重なり, 枠外, 潜り, 小字)</th><th>期待</th><th>合否</th></tr>')
     for title, got, want, ok in rep["probes"]:
         t.append('<tr><td class="note">%s</td><td>%s</td><td>%s</td><td><b>%s</b></td></tr>'
                  % (title.replace("**", ""), got, want, "⭕" if ok else "⛔"))
@@ -16998,7 +17183,11 @@ def jizura_html(a, b, rep):
              'この2列が「60 組 → 0 組」のように動いているあいだ、この検査は生きている。'
              '⚠ 逆に<b>直す前が 0 になったら</b>、それは生成器の作図が直ったのか'
              '検査が壊れたのか区別が付かないので、そのときは <code>svg_layout.py</code> の'
-             '<code>check()</code> に変異を入れて鳴ることを確かめること。</p>')
+             '<code>check()</code> に変異を入れて鳴ることを確かめること。<br>'
+             '⭐⭐ <b>束⑤「推定幅を 0.95 倍して組み直す」は、この巡に実際に残った欠陥の'
+             'régime をそのまま鳴らす</b>ために足した — ⛔⛔ 従前の3束は'
+             '<b>「真上に重ねる／枠の外へ出す」の極端しか差しておらず</b>、'
+             '⚠ <b>「幅を数%% 見誤る」という現に起きた壊れ方を鳴らす束が一つも無かった。</b></p>')
     return "\n".join(t)
 
 
@@ -18312,11 +18501,14 @@ def main():
     #   ⚠ **順は「測る → 直す → もう一度測る」**。刷るのは**直した後**の値だが、
     #   ⛔ **直す前の値も並べて刷る** — 0 だけを刷ると**検査が死んでいても 0 と読める**
     #   (破壊試験と同じ理屈)。
+    _raw = doc
     _lay0 = svg_layout.check(doc)
     doc, _layrep = svg_layout.relayout(doc)
     _lay1 = svg_layout.check(doc)
     # ⭐⭐ **検査そのものへ変異を差す**(規則19)— ⛔ 「0 件」だけでは検査の生死が分からない。
-    _layrep["probes"] = svg_layout.probe_ok(svg_layout.probes(doc))
+    #   ⚠ **直す前の文書も渡す** — 「推定幅を 0.95 倍する」束は、直した後の図では鳴らない
+    #   (`clamp` は内へしか押さない)。⇒ **組み直しからやり直させる。**
+    _layrep["probes"] = svg_layout.probe_ok(svg_layout.probes(doc, _raw))
     JIZURA[:] = [_lay0, _lay1, _layrep]
     doc = doc.replace(JIZURA_MARK, jizura_html(_lay0, _lay1, _layrep))
     open(OUT, "w", encoding="utf-8").write(doc)
@@ -18422,11 +18614,17 @@ def main():
     rbad = rbad + ybad
     if JIZURA:
         _a, _b, _r = JIZURA
-        print("── 図の字面(重なり/枠外): 直す前 %d 組 %d 面 / %d 件 %d 面 → "
-              "**直した後 %d 組 / %d 件**(落とした %d・折った %d・寄せた %d・枠を伸ばした %d 面)"
-              % (len(_a["overlap"]), _a["ovFigs"], len(_a["outframe"]), _a["ofFigs"],
-                 len(_b["overlap"]), len(_b["outframe"]),
-                 _r["dropped"], _r["wrapped"], _r["moved"], _r["grown"]))
+        print("── 図の字面(重なり/枠外/**塗りに覆われた銘**/**小さすぎる和字**): "
+              "直す前 %d 組 / %d 件 / %d 件 / %d 件 → "
+              "**直した後 %d 組 / %d 件 / %d 件 / %d 件**"
+              % (svg_layout.counts(_a) + svg_layout.counts(_b)))
+        print("   直しの内訳: 落とした %d(⭐ 他の面に同じ銘が在るものだけ)・"
+              "落とさず枠内へ寄せた %d・折った %d・**銘を面の末尾へ送った %d(%d 面)**・"
+              "寄せた %d(最大 %.1fpx・40px超 %d)・枠を伸ばした %d 面"
+              "(⚠ 拾い上げた銘の移動 最大 %.0fpx は別勘定)"
+              % (_r["dropped"], _r["kept"], _r["wrapped"], _r["reordered"], _r["reordFigs"],
+                 _r["moved"], _r["movedMax"], _r["movedFar"], _r["grown"],
+                 _r["keptMoveMax"]))
         _pb = [q for q in _r.get("probes", []) if not q[3]]
         print("   破壊試験(この検査の生死): %d束/%d束 期待どおり"
               % (len(_r.get("probes", [])) - len(_pb), len(_r.get("probes", []))))
@@ -18434,11 +18632,16 @@ def main():
             print("    ⛔ %s — 実測 %s / 期待 %s" % (q[0].replace("**", ""), q[1], q[2]))
         if _pb:
             rbad = rbad + ["図の字面の検査が死んでいる — **ユーザーに見せない**"]
-        if _b["overlap"] or _b["outframe"]:
+        if any(svg_layout.counts(_b)):
             for x in sorted(_b["overlap"], key=lambda z: -z[1])[:8]:
-                print("    ⛔ 重なり 其%d %.0fpx² 「%s」×「%s」" % (x[0], x[1], x[2][:26], x[3][:26]))
+                print("    ⛔ 重なり f%02d %.0fpx² 「%s」×「%s」" % (x[0], x[1], x[2][:26], x[3][:26]))
             for x in sorted(_b["outframe"], key=lambda z: -z[1])[:8]:
-                print("    ⛔ 枠外 其%d %.0fpx 「%s」" % (x[0], x[1], x[2][:34]))
+                print("    ⛔ 枠外 f%02d %.0fpx 「%s」" % (x[0], x[1], x[2][:34]))
+            for x in _b["covered"][:8]:
+                print("    ⛔ 塗りに覆われた銘 f%02d %d/%d字 「%s」→ 覆われた「%s」"
+                      % (x[0], x[2], x[3], x[1][:30], x[4][:20]))
+            for x in sorted(_b["tiny"])[:8]:
+                print("    ⛔ 字送りが下限を割る f%02d 実効 %.2fpx 「%s」" % (x[0], x[1], x[2][:30]))
             rbad = rbad + ["図の字面が 0 件でない — **ユーザーに見せない**"]
     print("── 撤回の印つきで見逃した数: %d 件" % d.get("_retractedMarked", -1))
     # ⭐⭐ **撤回の照合の実測を図へ入れる**(規則19)。⚠ この照合は図を組んだ**後**でしか

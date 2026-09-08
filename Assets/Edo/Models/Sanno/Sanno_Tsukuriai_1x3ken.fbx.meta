@@ -17,6 +17,11 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
+      name: M_FJG_Rock_001
+    second: {fileID: 2100000, guid: dbf74aa0daf52c4e6ae327befe85b158, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
       name: roof
     second: {fileID: 2100000, guid: 46aea8a32dec24843adef3ad15ec2f3e, type: 2}
   - first:

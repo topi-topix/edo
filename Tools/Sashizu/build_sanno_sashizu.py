@@ -18,7 +18,7 @@
         章の題と番号は `nx()` の出力が正典で、組んだら末尾の「図版 N 面」を数えること
         (図版が黙って落ちた前科がある)。
 """
-import json, sys, math, os, re, subprocess, html, bisect
+import json, sys, math, os, re, subprocess, html, bisect, collections
 
 import sashizu_lib
 from sashizu_lib import R, _pat, _SVN, Proj  # バイト同一を実証済みの共通部(_SVN は共有カウンタ)
@@ -2048,7 +2048,10 @@ def island_shrubs(gd, ken):
     #    ⛔ 面も芯々も変えない(⛔ ずらし量を json に持たない — `spacingM` の半分)。
     #    ⚠ 旧式は u 3 列 × v 1.2 m ちょうど刻みの**直交格子**で、⛔ 図の中で唯一、目に格子と映った。
     stag = st / 2.0 if sh.get("stagger") else 0.0
-    scan = (lambda Q: _stagger_scan(Q, st, stag)) if stag else (lambda Q: poly_scan(Q, st))
+    # ⭐ **正三角の格子**【中7 庭方 2026-09-09 十七巡目】── ⛔ 行の間隔を数で持たない
+    vst = (st * math.sqrt(3.0) / 2.0) if "正三角" in (sh.get("lattice") or "") else None
+    scan = ((lambda Q: _stagger_scan(Q, st, stag, vst)) if (stag or vst)
+            else (lambda Q: poly_scan(Q, st)))
     if B:
         # ⭐ **輪郭から樹冠半径以上**(2026-09-06 検図5巡目 中12 — 帯が v3.5 で折れるのを枠が見ておらず、
         #    低木1本が袖塀 `Ita_Niou_N` へ 0.546m めり込んでいた)
@@ -2060,17 +2063,23 @@ def island_shrubs(gd, ken):
     return [q for q in src if not (kr and in_poly(q, kr))]
 
 
-def _stagger_scan(P, step, shift):
-    """**千鳥の走査** ── v の一列おきに u を `shift` だけずらす(⛔ 面も芯々も変えない)。"""
+def _stagger_scan(P, step, shift, vstep=None):
+    """**千鳥の走査** ── v の一列おきに u を `shift` だけずらす(⛔ 面も芯々も変えない)。
+
+    ⭐ **行の間隔 `vstep`**【中7 庭方 2026-09-09 十七巡目】── 宣言が `正三角` なら
+      芯々 × √3/2(⛔ 数を json に持たない)。⚠ 旧式は行の間隔も芯々のままだったので、
+      斜めの芯々が芯々の 1.12 倍あり(√(1 + 1/4))、**塊にならなかった**。
+    """
     us = [q[0] for q in P]; vs = [q[1] for q in P]
-    v = min(vs) + step / 2.0
+    vs9 = vstep or step
+    v = min(vs) + vs9 / 2.0
     row = 0
     while v < max(vs):
         u = min(us) + step / 2.0 + (shift if row % 2 else 0.0)
         while u < max(us):
             if in_poly((u, v), P): yield (u, v)
             u += step
-        v += step
+        v += vs9
         row += 1
 
 
@@ -2976,6 +2985,65 @@ def part_tris(d, pt):
     if g0 is not None: return float(g0[2])
     vs = part_variants(d, pt)
     return (sum(q[5] for q in vs) / float(len(vs))) if vs else None
+
+
+_GRP = {}
+
+
+def derive_cluster_groups(d):
+    """**`groups` を持つ塊を、弧長の割り付けから兄弟の塊へ展開する**
+    【中6 庭方 2026-09-09 十七巡目】。
+
+    ⭐ **一列を三塊に割る。**⛔ 位置の数を json に持たない ── 塊の中の芯々
+      (`groupSpacingKen` の中央)から各塊の弧長を出し、残りを塊と塊で等分する。
+    ⛔ 展開した兄弟は親の宣言(`alongTakagiEdgeLine` / `widthKen` / `layers` / `hFrom` /
+      `variantRule` / `overhangFrom` / `edaShitaOverRoadM`)をそのまま引き継ぐ。
+    〔記録〕割り付けた離れは `_gapKen` に載せ、検査『塊が塊として組めるか』が刷る。
+    """
+    tl = (d.get("sando", {}).get("roadside") or {}).get("takagiEdgeLine") or {}
+    for gd in d["gardens"] + d["slopeBands"]:
+        cs = gd.get("clusters")
+        if not cs: continue
+        out = []
+        for c in cs:
+            gp = c.get("groups")
+            if not gp or not c.get("vRange"):
+                out.append(c); continue
+            v0, v1 = c["vRange"]
+            V = float(v1 - v0)
+            # 弧長 → v の換算(線の向きから・⛔ 数を持たない)
+            kv = 1.0
+            if tl.get("fromEdge") and tl.get("insetKen") is not None:
+                A, B = edge_offset(d, tl["fromEdge"], tl["insetKen"])
+                L9 = math.hypot(B[0] - A[0], B[1] - A[1]) or 1.0
+                kv = abs(B[1] - A[1]) / L9
+            sp = c.get("groupSpacingKen") or [0.0, 0.0]
+            # ⭐ **幅は上端・下限は下端**【中6 庭方 2026-09-09 十七巡目】── 塊の弧長は
+            #   `groupSpacingKen` の**上端**で取り(⛔ 詰めて置くと貪欲な配りが下限を割る)、
+            #   芯々の下限は**下端 × `packRatio`** に採る(`spacingFrom` の旧規約と同じ形)。
+            #   ⛔ どちらも新しい数ではない ── 宣言の範囲の両端そのものである。
+            s9, sx9 = sp[0], sp[1]
+            ext = [(len(cluster_mix(q)) and float(sum(k for _k, k in cluster_mix(q))) - 1.0
+                    or 0.0) * sx9 * kv for q in gp]
+            gap = ((V - sum(ext)) / (len(gp) - 1)) if len(gp) > 1 else 0.0
+            at = v0
+            for i, q in enumerate(gp):
+                ch = collections.OrderedDict()
+                ch["name"] = "%s %s" % (c["name"], q.get("name") or (i + 1))
+                for k9 in ("alongTakagiEdgeLine", "shape", "layers", "widthKen", "hFrom",
+                           "variantRule", "overhangFrom", "role", "edaShitaOverRoadM"):
+                    if c.get(k9) is not None: ch[k9] = c[k9]
+                ch["mix"] = q["mix"]
+                ch["spacing"] = s9
+                ch["vRange"] = [round(at, 4), round(at + ext[i], 4)]
+                ch["_"] = ("**親の塊『%s』の `groups` からの展開**(⛔ 位置も芯々も数で持たない)。"
+                           "⚠ 兄弟との離れは残りの等分で、下限は親の `groupGapKen`。" % c["name"])
+                ch["_ofGroup"] = c["name"]
+                ch["_gapKen"] = round(gap / (kv or 1.0), 4)
+                ch["_gapMinKen"] = c.get("groupGapKen")
+                out.append(ch)
+                at += ext[i] + gap
+        gd["clusters"] = out
 
 
 def derive_clusters(d):
@@ -4230,6 +4298,18 @@ def cluster_parts(d, gd, c):
     """
     pal = d["planting"]["parts"]
     mH, rH = zone_h(d, gd)
+    # ⭐ **塊が棟高からの下限を宣言していれば松の丈の下端を上げる**
+    #    【中8 庭方 2026-09-09 十七巡目 / 書き方は裁4】── ⛔ 数を持たない。
+    mf = c.get("matsuHMinFrom")
+    if mf and mH:
+        m9 = ([q for q in d["munes"] if q["name"] == mf.get("mune")] or [None])[0]
+        h9 = mune_h(d, m9) if m9 else None
+        if h9 is not None:
+            lo9 = h9 * float(mf.get("factor") or 1.0)
+            a9, b9 = _h_pair(mH)
+            # ⛔ **上端は越えない** ── 越えるなら帯の丈の宣言と衝突しているということで、
+            #    検査『塊の松の丈の下限(棟高からの従属)』が⛔で名指しする(⛔ 黙って伸ばさない)。
+            if a9 is not None: mH = [min(max(a9, lo9), b9), b9]
     out = []
     for kind, n in cluster_mix(c):
         if kind == "松":
@@ -4249,6 +4329,155 @@ def cluster_parts(d, gd, c):
             pf = vs[0][1] if vs else pt.get("prefab")
             out.append((kind, pt, k, h, crown_of(d, sk, pf, h), sk, vs, ylo, yhi))
     return out
+
+
+_CPH_KEY = {"落葉": "rakuyo", "中木": "chuboku"}
+
+
+def crown_per_h_check(d, g):
+    """**社叢の中の 樹冠 ÷ 丈 の上限**【低9/低10 庭方 2026-09-09 十七巡目】。
+
+    ⛔ **旧 `crownPerH`(樹冠を丈から作る規約)の復活ではない** ── 樹冠は
+      `部材の素の樹冠 × scaleXZ` から出る(規則4)。ここが測るのは**上限**だけである。
+    ⛔ **一本立ち・`isolatedCrown` の塊には当てない** ── 孤立木は開いた形が正しい。
+    ⛔ 密度は動かさない(低10)。始末は `_pending`「社叢の落葉と中木の 樹冠 ÷ 丈 の超過」へ。
+    """
+    if not os.path.exists(IMPL_OUT): return ([], [])
+    im = json.load(open(IMPL_OUT, encoding="utf-8"))
+    sr = d["planting"]["scaleRule"]
+    bad, note = [], []
+    # 一本立ち・差し掛け・`isolatedCrown` の塊の群は測らない(⛔ 孤立木の形は別)
+    iso = set()
+    for gd in d["gardens"] + d["slopeBands"] + view_holders(d):
+        for c in gd.get("clusters", []):
+            if c.get("isolatedCrown"): iso.add("%s／%s" % (gd["name"], c["name"]))
+    for lay, key in sorted(_CPH_KEY.items()):
+        cap = (sr.get(key) or {}).get("crownPerHMax")
+        if cap is None:
+            bad.append("`scaleRule.%s.crownPerHMax`(社叢の中の 樹冠 ÷ 丈 の上限)の宣言が無い — "
+                       "⛔ 宣言の無い縛りは必ず破られる(規則19)" % key)
+            continue
+        rows = []
+        for q in ((im.get("planting") or {}).get("points") or []):
+            if q.get("layer") != lay or not q.get("crownM") or not q.get("h"): continue
+            gn = q.get("group") or ""
+            if gn.endswith("(一本立ち)") or gn.startswith("差し掛け(") or gn in iso: continue
+            rows.append((q["crownM"] / float(q["h"]), q))
+        if not rows:
+            note.append("%s の 樹冠 ÷ 丈 ── 測れる点が 0(⛔ 0 件は合格ではなく未測定)【算出】"
+                        % lay)
+            continue
+        over = [q for q in rows if q[0] > cap + 1e-9]
+        rs = sorted(r[0] for r in rows)
+        if over:
+            sp9 = {}
+            for r9, q9 in over: sp9[q9.get("species")] = sp9.get(q9.get("species"), 0) + 1
+            m9 = ("%s の **樹冠 ÷ 丈 が上限 %.2f を超える点 %d / %d 本**(最大 %.2f・"
+                  "樹種の内訳 %s)— ⛔ 上限を上げて黙らせない・⛔ 密度を動かして逃げない"
+                  "(低9/低10 庭方 2026-09-09)"
+                  % (lay, cap, len(over), len(rows), max(r[0] for r in over),
+                     "・".join("%s %d" % (k9, v9) for k9, v9 in sorted(sp9.items()))))
+            pr9 = (sr.get(key) or {}).get("crownPerHMaxPendingRef")
+            if pr9 and pr9 in (d.get("_pending") or {}):
+                note.append("⚠ " + m9 + "。⭕ **猶予**『%s』の内(当たり先は庭方・部材方)【算出】"
+                            % pr9)
+            else:
+                bad.append(m9)
+        note.append("%s の 樹冠 ÷ 丈 ── 中央 **%.2f** ／ 最大 **%.2f** ／ 上限 %.2f ／ "
+                    "超過 **%d / %d 本**(⛔ 一本立ち・差し掛け・`isolatedCrown` の塊は測らない ── "
+                    "孤立木は開いた形が正しい)【算出 — 低9/低10 庭方 2026-09-09。⛔ 0 件は"
+                    "合格ではなく未測定】"
+                    % (lay, rs[len(rs) // 2], rs[-1], cap, len(over), len(rows)))
+    return bad, note
+
+
+def single_gap_check(d):
+    """**同じ層の一本立ちどうしが対に見えないか**(奇数の作法)【低13 庭方 2026-09-09 十七巡目】。
+
+    ⛔ 受入値は `planting.singleGapKen`(層ごと)。⛔ 始末(離すか片方を落とすか)は意匠なので
+      `_pending`「境内の南の一本立ちの松が対になっている」へ。
+    """
+    gk = d["planting"].get("singleGapKen") or {}
+    if not gk:
+        return (["`planting.singleGapKen`(一本立ちどうしの離れの下限)の宣言が無い — "
+                 "⛔ 宣言の無い縛りは必ず破られる(規則19)"], [])
+    ken = d["const"]["ken"]
+    S = []
+    for gd in d["gardens"] + d["slopeBands"]:
+        for sg in gd.get("singles", []):
+            S.append((sg.get("layer"), sg["name"], tuple(sg["uv"]), gd["name"]))
+    bad, note = [], []
+    for lay, lim in sorted(gk.items()):
+        P = [q for q in S if q[0] == lay]
+        pairs = []
+        for i in range(len(P)):
+            for j in range(i + 1, len(P)):
+                dd = math.hypot(P[i][2][0] - P[j][2][0], P[i][2][1] - P[j][2][1])
+                pairs.append((dd, P[i][1], P[j][1]))
+        if not pairs:
+            note.append("一本立ち『%s』── 対が作れない(1 本以下)【算出】" % lay); continue
+        pairs.sort()
+        pr9 = (d["planting"].get("singleGapPendingRef") or None)
+        for dd, a9, b9 in pairs:
+            if dd >= lim - 1e-9: break
+            m9 = ("一本立ちの『%s』と『%s』(層 %s)が **%.2f 間 = %.2f m** しか離れておらず、"
+                  "受入値 %g 間を割る — ⛔ **対に見える**(奇数の作法)。"
+                  "⛔ 受入値を下げて黙らせない ── 離すか片方を落とすかは意匠"
+                  % (a9, b9, lay, dd, dd * ken, lim))
+            if pr9 and pr9 in (d.get("_pending") or {}):
+                note.append("⚠ " + m9 + "(⭕ **猶予**『%s』の内・当たり先は庭方)【算出】" % pr9)
+            else:
+                bad.append(m9)
+        note.append("一本立ち『%s』%d 本 ── 最も近い対 **%.2f 間 = %.2f m**(『%s』×『%s』)／ "
+                    "受入値 %g 間【算出 — 低13 庭方 2026-09-09。⛔ 0 件は合格ではなく未測定】"
+                    % (lay, len(P), pairs[0][0], pairs[0][0] * ken, pairs[0][1], pairs[0][2], lim))
+    return bad, note
+
+
+def cluster_hmin_check(d):
+    """**塊の松の丈の下限(棟高からの従属)が帯の丈に納まるか**【中8 庭方 2026-09-09 十七巡目】。
+
+    ⛔ 役が『棟の背後の背景』である塊は、⛔ **棟に競ってはならない**ので下限を棟高から起こす。
+    ⚠ **棟高は部材の丈からの従属値**(裁4)なので、⛔ **部材が変われば下限も動く** ──
+      下限が帯の丈の上端を越えたら、それは『棟が高くなりすぎた』か『帯の丈が低すぎる』かで、
+      ⛔ **どちらを直すかは意匠**である(⛔ 指図方が黙って伸ばさない/縮めない)。
+    """
+    bad, note = [], []
+    for gd in d["gardens"] + d["slopeBands"] + view_holders(d):
+        for c in gd.get("clusters", []):
+            mf = c.get("matsuHMinFrom")
+            if not mf: continue
+            m9 = ([q for q in d["munes"] if q["name"] == mf.get("mune")] or [None])[0]
+            if m9 is None:
+                bad.append("塊『%s』の `matsuHMinFrom.mune`『%s』が引けない — **死んだポインタ**"
+                           % (c["name"], mf.get("mune"))); continue
+            h9 = mune_h(d, m9)
+            if h9 is None:
+                bad.append("塊『%s』の下限が引けない — 棟『%s』の棟高が引けない"
+                           "(`h` も `partFrom` も無い/目録に無い)" % (c["name"], m9["name"]))
+                continue
+            lo9 = h9 * float(mf.get("factor") or 1.0)
+            mH, _rH = zone_h(d, gd)
+            a9, b9 = _h_pair(mH)
+            if b9 is None: continue
+            msg = ("塊『%s』の松の丈の下限 **%.2f m**(= 棟『%s』の棟高 %.2f m × %g)が、"
+                   "区の `matsuH` の上端 %.2f m を**越える**" % (c["name"], lo9, m9["name"],
+                                                                h9, mf.get("factor"), b9))
+            if lo9 > b9 + 1e-9:
+                pr9 = mf.get("pendingRef")
+                if pr9 and pr9 in (d.get("_pending") or {}):
+                    note.append("⚠ " + msg + "。⭕ **猶予**『%s』の内(⛔ 下限を下げて"
+                                "黙らせない ── 当たり先は庭方)。図は上端で頭打ちにして刷る"
+                                "【算出】" % pr9)
+                else:
+                    bad.append(msg + " — ⛔ 下限を下げて黙らせない(⛔ 帯の丈を伸ばすのも意匠)")
+            else:
+                note.append("塊『%s』の松 ── 丈 **%.2f〜%.2f m**(下限は棟『%s』の棟高 %.2f m × "
+                            "%g からの従属値)【算出 — ⛔ 数を json に書かない。⚠ 部材方が屋根を"
+                            "作り直しているので、棟が変われば下限も追随する】"
+                            % (c["name"], max(a9 or 0.0, lo9), b9, m9["name"], h9,
+                               mf.get("factor")))
+    return bad, note
 
 
 def cluster_part_label(pt, vs):
@@ -6323,6 +6552,21 @@ def cluster_pack_check(d, g):
                     else:
                         note.append("%s ── `mix` の和 %d 本 = `nFrom` の従属値(%s)⭕【算出】"
                                     % (nm, got, ln))
+            # ⭐ **塊と塊の離れ**(`groups` から展開した兄弟)【中6 庭方 2026-09-09 十七巡目】
+            if c.get("_gapMinKen") is not None:
+                gk9, gm9 = c.get("_gapKen"), c["_gapMinKen"]
+                if gk9 is None or gk9 < gm9 - 1e-9:
+                    bad.append("%s ── 親『%s』の `groups` を弧長へ割り付けた結果、塊と塊の離れが "
+                               "**%s 間** で下限 `groupGapKen` %g 間 を割る。⛔ 離れを詰めると"
+                               "**一列に戻る**(中6 庭方 2026-09-09)── `vRange` を伸ばすか、"
+                               "塊の中の芯々(`groupSpacingKen`)を詰めるかは意匠"
+                               % (nm, c.get("_ofGroup"),
+                                  ("%.2f" % gk9) if gk9 is not None else "引けない", gm9))
+                else:
+                    note.append("%s ── 親『%s』の `groups` からの展開。塊と塊の離れ **%.2f 間 = "
+                                "%.2f m**(下限 %g 間)／ 塊の中の芯々 %.2f 間【算出 — "
+                                "⛔ 位置も芯々も数で持たない(中6 庭方 2026-09-09)】"
+                                % (nm, c.get("_ofGroup"), gk9, gk9 * ken, gm9, sp_ or 0.0))
             # ③ 落葉高木は一塊に一本
             nrk = sum(k for kd, k in cluster_mix(c) if kd != "松")
             if nrk > 1:
@@ -6373,6 +6617,48 @@ def cluster_pack_check(d, g):
                             "**期待される**姿』であり、丈は範囲に一様に現れるのだから中央が正しい"
                             "統計である。上端で採った値は**上界**にすぎない(低8 庭方 2026-09-07)】"
                             % (nm, 100.0 * sig / A, sig, A))
+    # ⭐ **塊を「またぐ」同層の芯々**【中6 検図21巡目 → 2026-09-09】── ⛔ 塊の中だけを測る版では
+    #    継ぎ目が見えない。実測で『辻の留め 松01』と『参道の林縁 松02』が芯々 3.24 m(樹冠の
+    #    半径の和 9.77 m)で**完全に一つの塊に融合**しており、⛔ 『主景は一点』(辻の留め)と
+    #    『林縁は一列』(参道の林縁)がこの継ぎ目で**同時に**破れていた。
+    #    ⛔ **⛔にしない** ── 始末(箱を切るか役を分けるか)は庭方の意匠。検査は**鳴らすまで**。
+    if os.path.exists(IMPL_OUT):
+        im9 = json.load(open(IMPL_OUT, encoding="utf-8"))
+        own9 = {}
+        for gd in d["gardens"] + d["slopeBands"] + view_holders(d):
+            for c in gd.get("clusters", []):
+                own9["%s／%s" % (gd["name"], c["name"])] = cluster_spacing(d, c)
+        P9 = [q for q in ((im9.get("planting") or {}).get("points") or [])
+              if q.get("group") in own9 and q.get("layer") in ("松", "落葉")]
+        worst9, npair9 = None, 0
+        for i in range(len(P9)):
+            for j in range(i + 1, len(P9)):
+                a9, b9 = P9[i], P9[j]
+                if a9["group"] == b9["group"]: continue      # 塊の中は上で測っている
+                dd = math.hypot(a9["world"][0] - b9["world"][0],
+                                a9["world"][1] - b9["world"][1])
+                # 二つの塊の宣言のうち**厳しいほう**(芯々 × packRatio)を閾に採る
+                lim9 = min(q for q in (own9[a9["group"]], own9[b9["group"]]) if q) * pack * ken
+                if dd < lim9 - 1e-9:
+                    npair9 += 1
+                    if worst9 is None or (lim9 - dd) > (worst9[0] - worst9[1]):
+                        worst9 = (lim9, dd, a9, b9)
+        if worst9 is not None:
+            a9, b9 = worst9[2], worst9[3]
+            note.append("⚠ **塊をまたぐ同層の芯々が宣言を割る対 %d 組** ── 最も辛いのは"
+                        "『%s』(%s)×『%s』(%s)で 芯々 **%.2f m** ＜ 閾 %.2f m"
+                        "(二つの塊の `spacing` の厳しいほう × `packRatio`)／ "
+                        "樹冠の半径の和 %.2f m【算出 — 中6 検図21巡目。⛔ ⛔にしない ── "
+                        "始末(箱を切るか役を分けるか)は庭方の意匠なので `_pending`"
+                        "「塊どうしが継ぎ目で融合している」へ。⛔ 閾を緩めて黙らせない】"
+                        % (npair9, a9["name"], a9["group"], b9["name"], b9["group"],
+                           worst9[1], worst9[0],
+                           ((a9.get("crownM") or 0.0) + (b9.get("crownM") or 0.0)) / 2.0))
+        else:
+            note.append("塊をまたぐ同層の芯々 ── 宣言を割る対 **0 組**(測った点 %d・"
+                        "総当たり %d 対)【算出 — 中6 検図21巡目。⛔ 0 件は合格ではなく未測定"
+                        "なので、測った数を必ず添える】"
+                        % (len(P9), len(P9) * (len(P9) - 1) // 2))
     return bad, note
 
 
@@ -11970,6 +12256,10 @@ def scatter_pts(d, g):
             cap = cluster_crown_cap(d, c)                   # `variantRule` の上限[m]
             iso = bool(c.get("isolatedCrown"))              # 孤立木の樹冠(⛔ 林の形にしない)
             got = []
+            # ⛔ **通し番号は塊 × 樹種で一本** ── ⚠ 2026-09-09: palette の点ごとに `i` を
+            #   振り直していたので、塊が小さいと**同じ名が二本**出た(『参道の林縁 中 松01』が
+            #   二つ)。⛔ 名が衝突すると実装が木を指せず、検査の対も潰れる。
+            seq9 = {}
             for kind, pt, k, hh, _cr, sk, _vs, _lo, _hi in parts:
                 lay = "松" if kind == "松" else "落葉"
                 rnd, _key = rnd_of(nm, lay)
@@ -11977,9 +12267,10 @@ def scatter_pts(d, g):
                 zn = cluster_zone(c, kind)
                 cz = [p for p in cand if zn[0] <= p[1] <= zn[1]] if zn else cand
                 pts, r_, rx = _scatter_take(rnd, cz, k, rmin, seeded=got)
-                for i, (u9, v9) in enumerate(pts):
+                for (u9, v9) in pts:
                     got.append((u9, v9))
-                    q = _tree_row(d, g, rnd, "%s %s%02d" % (c["name"], kind, i + 1),
+                    seq9[kind] = seq9.get(kind, 0) + 1
+                    q = _tree_row(d, g, rnd, "%s %s%02d" % (c["name"], kind, seq9[kind]),
                                   nm, lay, [pt], hh, u9, v9, iso=iso, rmax=cap)
                     cl_pts.append(q)
                 if len(pts) < k:
@@ -13138,21 +13429,47 @@ def impl_planting_check(d, g):
         r = rmin_of(p)
         if r is None: continue
         grp.setdefault(bucket(p["layer"]), []).append((uv[i], r, p["name"]))
-    n2, w2 = 0, None
+    # ⭐ **設計された塊どうしの対は別に数える**【中6 検図21巡目 → 2026-09-09】── ⛔ どちらも
+    #   意匠が箱を置いた塊なので、⛔ 撒き方(`_scatter_take`)では直せない ── 直すのは箱か役で、
+    #   それは庭方の意匠である。⛔ **黙って除かない**:別の欄で数え、猶予の指し先を要求する。
+    own9 = set()
+    for gd in d["gardens"] + d["slopeBands"] + view_holders(d):
+        for c in gd.get("clusters", []): own9.add("%s／%s" % (gd["name"], c["name"]))
+    gof = dict((p["name"], p["group"]) for p in P)
+    n2, w2, n2c, w2c = 0, None, 0, None
     for bk, ps in grp.items():
         for i in range(len(ps)):
             for j in range(i + 1, len(ps)):
                 dd = math.hypot(ps[i][0][0] - ps[j][0][0], ps[i][0][1] - ps[j][0][1])
                 th = min(ps[i][1], ps[j][1])
-                if dd < th - 1e-9:
+                if dd >= th - 1e-9: continue
+                ga, gb = gof.get(ps[i][2]), gof.get(ps[j][2])
+                if ga in own9 and gb in own9 and ga != gb:
+                    n2c += 1
+                    if w2c is None or dd < w2c[0]: w2c = (dd, ps[i][2], ps[j][2], th, ga, gb)
+                else:
                     n2 += 1
                     if w2 is None or dd < w2[0]: w2 = (dd, ps[i][2], ps[j][2], th)
     (bad if n2 else note).append(
         "**芯々の下限を割る対 %d**%s【算出 — 群は『松+落葉(同じ林冠)』『中木』『低木』の三つ。"
         "⛔ 帯どうし・帯と塊が互いを知らないまま撒かない(A-2 庭方 2026-09-08。旧図は 229 対・"
-        "最短 0.37 m で、10〜12 m の松が二本同じ株から生えて見えた)】"
+        "最短 0.37 m で、10〜12 m の松が二本同じ株から生えて見えた)。"
+        "⚠ **設計された塊どうしの対はこの数に入れない**(下の欄で数える)】"
         % (n2, ("── 最短 %.2f m(『%s』×『%s』／ 下限 %.2f m)"
                 % (w2[0] * ken, w2[1], w2[2], w2[3] * ken)) if w2 else ""))
+    if n2c:
+        m9 = ("**設計された塊どうしが継ぎ目で融合している対 %d** ── 最短 %.2f m"
+              "(『%s』(%s)×『%s』(%s)／ 下限 %.2f m)。⛔ 撒き方では直せない ── "
+              "どちらも意匠が箱を置いた塊なので、直すのは**箱か役**である(中6 検図21巡目)"
+              % (n2c, w2c[0] * ken, w2c[1], w2c[4], w2c[2], w2c[5], w2c[3] * ken))
+        pr9 = (d["planting"]["plantRule"].get("clusterOverlapPendingRef") or None)
+        if pr9 and pr9 in (d.get("_pending") or {}):
+            note.append("⚠ " + m9 + "。⭕ **猶予**『%s』の内(当たり先は庭方)【算出】" % pr9)
+        else:
+            bad.append(m9)
+    else:
+        note.append("設計された塊どうしが継ぎ目で融合している対 **0**(測った塊 %d)"
+                    "【算出 — 中6 検図21巡目。⛔ 0 件は合格ではなく未測定】" % len(own9))
     # ③ 塊の輪郭の中の撒き木
     n3 = {}
     for gd in d["gardens"] + d["slopeBands"] + view_holders(d):
@@ -13511,15 +13828,22 @@ def impl_graded_check(d, g):
         dv9 = max(abs(q9["world"][0] - x8), abs(q9["world"][1] - z8))
         nw += 1
         if dv9 > wmax: wmax, wat9 = dv9, q9["name"]
-    if wmax > IMPL_EXPORT_TOL:
-        bad.append("撒いた木の **`world` が `u`/`v` から引き直した世界座標と %.3f m 食い違う**"
-                   "(許容 `exportTol` %.3f m・例『%s』・測った %d 本)— ⛔ 実装が読むのは "
-                   "`world` であって `u`/`v` ではない(高1 検図21巡目)"
-                   % (wmax, IMPL_EXPORT_TOL, wat9, nw))
+    # ⚠ **ここだけは丸めが二重に乗る** ── 焼き出しの `world` は生の (u,v) から出して 3 桁で
+    #   丸めた値、引き直しは **4 桁で丸めた `u`/`v`** から出して 3 桁で丸めた値なので、
+    #   両者は最大『世界座標の丸め 1 mm + `u`/`v` の丸め 0.2 mm』だけ離れうる。
+    #   ⛔ 設計の余裕ではない(丸めの幅そのもの)。⛔ これ以上広げない。
+    _tol9 = IMPL_EXPORT_TOL + 0.001 + BAKE_ROUND_KEN * d["const"]["ken"]
+    if wmax > _tol9:
+        bad.append("撒いた木の **`world` が `u`/`v` から引き直した世界座標と %.4f m 食い違う**"
+                   "(許容 %.4f m = `exportTol` + 二重の丸め・例『%s』・測った %d 本)— "
+                   "⛔ 実装が読むのは `world` であって `u`/`v` ではない(高1 検図21巡目)"
+                   % (wmax, _tol9, wat9, nw))
     note.append("撒いた木 **%s 本**の `world` を `_w(g, (u, v))` で**全点**引き直して突き合わせ、"
-                "最大の差 **%.4f m**(許容 `exportTol` %.3f m)【算出 — 高1 検図21巡目。"
-                "⚠ 旧図は `u`/`v` だけが輪に入っており、`world` が別でも鳴らなかった】"
-                % (format(nw, ","), wmax, IMPL_EXPORT_TOL))
+                "最大の差 **%.4f m**(許容 %.4f m = `exportTol` + **二重の丸め**"
+                "(世界座標 1 mm + `u`/`v` 0.2 mm))【算出 — 高1 検図21巡目。"
+                "⚠ 旧図は `u`/`v` だけが輪に入っており、`world` が別でも鳴らなかった。"
+                "⛔ 許容を丸めの幅より広げない】"
+                % (format(nw, ","), wmax, _tol9))
     # ⭕ **名指しで据えた木**(一本立ち・差し掛け)は位置が宣言からの従属値なので、
     #    ⛔ **一本ずつ引き直して突き合わせる**【高1/高2 2026-09-09】── 撒き木と違って
     #    座標が決定論的に出るので、ここが黙ると「意匠が決めた木」が黙って別の所へ動く。
@@ -13608,6 +13932,7 @@ def main_export_impl():
     derive_gates(d, g)
     derive_runs(d, g)
     derive_zentei(d, g)
+    derive_cluster_groups(d)    # ⭐ 塊の `groups` を兄弟へ展開(中6 庭方 2026-09-09)
     derive_clusters(d)
     derive_view_clusters(d, g)
     derive_view_eda(d)
@@ -13638,6 +13963,7 @@ def run_checks():
     derive_gates(d, g)         # 門の芯と、その面に取り付く物の通り(⛔ 面の u を二重に持たない)
     derive_runs(d, g)          # 板塀は輪郭からの生成物。⛔ 生成前の run を検査に掛けない
     derive_zentei(d, g)        # 木戸の芯・供待の北辺は従属値(⛔ 丸めた値を持たない)
+    derive_cluster_groups(d)   # 塊の `groups` を兄弟へ展開(中6 庭方 2026-09-09)
     derive_clusters(d)         # 塊の箱は宣言(`boxFrom`)からの従属値(2026-09-07 中3)
     derive_view_clusters(d, g)  # 視線の塊の丈は跨ぐ帯の共通部分(2026-09-08)
     derive_view_eda(d)          # 視線の塊の枝下は `edaShitaFrom` の従属値(2026-09-08 中2)
@@ -13682,11 +14008,14 @@ def run_checks():
     kp = kenpei_bottom_area(d)
     pp = pending_pointer_check(d)
     mh = mune_height_check(d)          # 棟高の物差しと部材の丈(高3 検図21巡目 → 裁3/裁4)
+    sgp = single_gap_check(d)          # 一本立ちの離れ(低13 庭方17巡目)
+    chm = cluster_hmin_check(d)        # 塊の松の丈の下限(中8 庭方17巡目)
     ifr = impl_fresh_check(d)          # 実装が読む算出物の鮮度(2026-09-08 棟梁の診断)
     igc = impl_graded_check(d, g) if not ifr[0] else ([], [])  # ⛔ 無い焼きを測らない
     ipc = impl_planting_check(d, g) if not ifr[0] else ([], [])  # 撒いた木の面と離れ(2026-09-08)
     iwp = impl_wall_profile_check(d, g) if not ifr[0] else ([], [])  # 土留めの縦断(中4 20巡目)
     kwc = keepout_wiring_check(d, g) if not ifr[0] else ([], [])     # 退避の表の結線(中2 20巡目)
+    cph = crown_per_h_check(d, g) if not ifr[0] else ([], [])  # 樹冠÷丈(低9/低10 庭方17巡目)
     ccv = crown_cover_check(d, g) if not ifr[0] else ([], [])  # 芯線の樹冠被覆(高1/高2 庭方17巡目)
     # ⛔ **件数のまま運ぶ**(⛔ 文字列へ埋めない)— `rows` が print と return の両方へ届く形
     rows = []
@@ -13706,7 +14035,11 @@ def run_checks():
                  ft[0], ft[1]))
     rows.append(("同じ部材の一本立ちが近すぎないか(閾は `clusterGapMin` の最小値)", sr[0], sr[1]))
     rows.append(("松の縦伸ばしの箍(`scaleRule.matsu.scaleYMax` ／ 猶予は `_pending`)", ms[0], ms[1]))
-    rows.append(("塊が塊として組めるか(箱の広さ・落葉は一塊に一本・同層の芯々)", cp[0], cp[1]))
+    rows.append(("塊が塊として組めるか(箱の広さ・落葉は一塊に一本・同層の芯々・塊をまたぐ芯々)",
+                 cp[0], cp[1]))
+    rows.append(("樹冠 ÷ 丈 の上限(社叢の中)", cph[0], cph[1]))
+    rows.append(("一本立ちの離れ(奇数の作法)", sgp[0], sgp[1]))
+    rows.append(("塊の松の丈の下限(棟高からの従属)", chm[0], chm[1]))
     rows.append(("参道への林縁の張り出し(⛔ 上限だけ・局所の道敷幅から)", ro_[0], ro_[1]))
     rows.append(("玉垣の木戸(辺に納まるか・裏 `insideKen` へ入る樹冠と枝下)", kb[0], kb[1]))
     rows.append(("玉垣の一枚の内法(立子が入る寸法か)", tb[0], tb[1]))
@@ -13782,6 +14115,7 @@ def main():
     derive_gates(d, g)         # 門の芯と、その面に取り付く物の通り(⛔ 面の u を二重に持たない)
     derive_runs(d, g)          # 板塀は平場の輪郭から生成する(独立の座標を持たせない)
     derive_zentei(d, g)        # 木戸の芯・供待の北辺は従属値(⛔ 丸めた値を持たない)
+    derive_cluster_groups(d)   # 塊の `groups` を兄弟へ展開(中6 庭方 2026-09-09)
     derive_clusters(d)         # 塊の箱は宣言(`boxFrom`)からの従属値(2026-09-07 中3)
     derive_view_clusters(d, g)  # 視線の塊の丈は跨ぐ帯の共通部分(2026-09-08)
     derive_view_eda(d)          # 視線の塊の枝下は `edaShitaFrom` の従属値(2026-09-08 中2)

@@ -2802,6 +2802,98 @@ def part_geom(pt):
 _SIZE_HOLE = "{size}"
 
 
+def mune_h(d, m):
+    """棟高[m]。⛔ **測り方の正典は `const.muneHeightRule` 一本**(裁定 2026-09-09)。
+
+    ⭐ 出所は二つだけ ── ① `munes[].h`(実測が返って**数で決まった**棟)
+    ② `munes[].partFrom` が指す**目録の部材の丈**(⛔ 図が写さない・規則4)。
+    どちらも無ければ None(= 棟高が引けない)。⛔ 類型で埋めない(規則7)。
+    """
+    if m.get("h") is not None: return float(m["h"])
+    pf = m.get("partFrom")
+    if not pf: return None
+    g0 = part_geom({"prefab": pf})
+    return g0[1] if g0 else None
+
+
+def mune_height_check(d):
+    """**棟高の物差しと、部材の丈との突き合わせ**【高3 検図21巡目 → 裁3/裁4 2026-09-09】。
+
+    ⛔ 止める三つ:
+      ① `const.muneHeightRule`(測り方)の宣言が無い ── 同じ棟高に三つの数ができる出所
+      ② `partFrom` の指し先が**目録 `docs/asset-index.tsv` で解けない** ──
+         ⚠ **解けないのが正しい状態のこともある**(目録の再生成は Unity が要る)。
+         ⛔ それでも黙らせない ── 図が現物を説明していないことは⛔で出す。
+      ③ `h` と `partFrom` の**両方**を持つ棟で、二つが食い違う(= 正典が二つ)
+    〔記録〕棟ごとの丈と出所。⛔ 数を文章にも json にも写さない(規則4)。
+    """
+    bad, note = [], []
+    if not (d["const"].get("muneHeightRule")):
+        bad.append("`const.muneHeightRule`(棟高の測り方)の宣言が無い — ⛔ 『棟高とは何を測るか』"
+                   "が書かれていないと、同じ棟高に**三つの数**ができる(高3 検図21巡目 — "
+                   "検図の測りと普請奉行の測りが 0.68 m 食い違った)")
+    # ⭕ **社殿の床高**【⑥ 考証18巡目 中9 → 2026-09-09】── `shadenHondenFloor` は式なので、
+    #    ⛔ **解けることを測る**(規則19 — 宣言だけで誰も読まない値を作らない)。
+    c9 = d["const"]
+    fr9 = c9.get("shadenHondenFloor")
+    if fr9 is None:
+        bad.append("`const.shadenHondenFloor`(本殿の床高)の宣言が無い — 本殿は『石造亀腹に"
+                   "土台立てとし、縁を腰組で支持する』【A 加藤2018 6-1】ので、⛔ 幣殿・拝殿と"
+                   "同床高では誤り(考証18巡目 中9)")
+    elif isinstance(fr9, str):
+        try:
+            hv9 = eval(fr9, {"__builtins__": {}},                     # noqa: S307
+                       dict((k8, v8) for k8, v8 in c9.items() if isinstance(v8, (int, float))))
+        except Exception:
+            hv9 = None
+        if hv9 is None:
+            bad.append("`const.shadenHondenFloor` の式『%s』が解けない — 指し先の無い従属は"
+                       "誰も辿れない(規則19)" % fr9)
+        else:
+            note.append("社殿の床高 ── 幣殿・拝殿・向拝 **%.2f m**(`shadenFloor`)／ "
+                        "**本殿 %.2f m**(`shadenHondenFloor` = %s ＝ 幣殿の床 + 段 %.2f m)"
+                        "【⑥ 考証18巡目 中9 → 2026-09-09。⭕ 本殿は『石造亀腹に土台立て』"
+                        "【A 加藤2018 6-1】で幣殿・拝殿より高い。段は根津断面の実測からの外挿"
+                        "【A 相当】。⛔ 数を文章に写さない(規則4)】"
+                        % (c9.get("shadenFloor") or 0.0, hv9, fr9,
+                           c9.get("shadenHondenStepM") or 0.0))
+    n9 = 0
+    for m in d["munes"]:
+        pf = m.get("partFrom")
+        if not pf:
+            # ⛔ **社殿は必ず部材を指す** ── 5棟とも新造済みなので、指し先が落ちれば
+            #    棟高が引けなくなり、主景の仰角が黙って欠ける(規則19)。
+            if m.get("yaku") == "社殿":
+                bad.append("棟『%s』(社殿)が `partFrom`(部材への指し先)を持たない — "
+                           "棟高が引けず、主景の仰角の行が黙って落ちる(⛔ 0 件は合格ではなく"
+                           "未測定・規則19)" % m["name"])
+            if m.get("h") is not None:
+                note.append("棟『%s』── 丈 %.2f m(出所 `munes[].h` の宣言・⛔ 部材への指し先が"
+                            "無いので現物と照合できない)【算出】" % (m["name"], m["h"]))
+            continue
+        n9 += 1
+        g0 = part_geom({"prefab": pf})
+        if g0 is None:
+            bad.append("棟『%s』の `partFrom`『%s』が**目録 `docs/asset-index.tsv` で解けない** — "
+                       "⛔ 図が現物を説明していない(高3 検図21巡目)。⚠ 目録の再生成は Unity が"
+                       "要るので普請奉行の手当てを待つ状態だが、⛔ 待っている間も黙らせない"
+                       % (m["name"], pf))
+            continue
+        h9 = m.get("h")
+        if h9 is not None and abs(float(h9) - g0[1]) > 0.05:
+            bad.append("棟『%s』── 宣言 `h` %.2f m と部材『%s』の丈 %.2f m が **%.2f m 食い違う**"
+                       "(物差しは `const.muneHeightRule`)。⛔ 同じ棟高に正典を二つ持たない(規則4)"
+                       % (m["name"], float(h9), pf, g0[1], abs(float(h9) - g0[1])))
+        note.append("棟『%s』── 部材『%s』の丈 **%.2f m**(桁行 %.2f m × 三角数 %s)／ "
+                    "出所 %s【算出 — 物差しは `const.muneHeightRule`(平場の設計面 → 大棟の上端・"
+                    "⛔ 棟飾りを含まない)。⛔ 実寸を図にも json にも写さない(規則4)】"
+                    % (m["name"], pf, g0[1], g0[0], format(g0[2], ","),
+                       ("宣言 `h` と一致" if h9 is not None else "**目録**(`h` は撤回・裁4)")))
+    note.append("`partFrom` を持つ棟 **%d**(社殿)／ 持たない棟 %d(⛔ 類型の根拠が無い所を数で"
+                "埋めない・規則7)【算出 — 裁4 2026-09-09】" % (n9, len(d["munes"]) - n9))
+    return bad, note
+
+
 def part_is_tpl(pt):
     """palette の一点が**大きさを持たない雛形**か(`{size}` を含む)。"""
     return _SIZE_HOLE in (pt.get("prefab") or "") or _SIZE_HOLE in (pt.get("api") or "")
@@ -4314,14 +4406,18 @@ def shukei_rows(d, g):
                     L, top, math.degrees(math.atan2(top - eye, L))))
         for nm in sk.get("munes", []):
             m = [q for q in d["munes"] if q["name"] == nm]
-            if not m or m[0].get("h") is None:
-                out.append((nm + " の棟", None, None, None)); continue
+            # ⭐ **棟高は `mune_h`**(宣言 `h` か `partFrom` の指す目録の丈)【裁3/裁4 2026-09-09】
+            h9 = mune_h(d, m[0]) if m else None
+            if h9 is None:
+                out.append((nm + " の棟(⛔ 棟高が引けない — `h` も `partFrom` も無い/目録に無い)",
+                            None, None, None)); continue
             m = m[0]
             cu, cv = m["u0"] + m["du"] / 2.0, m["v0"] + m["dv"] / 2.0
             L2 = math.hypot(cu - fu, cv - fv) * ken
-            t2 = gr + m["h"]
-            out.append((nm + " の棟(丈 %.1f m)" % m["h"], L2, t2,
-                        math.degrees(math.atan2(t2 - eye, L2))))
+            t2 = gr + h9
+            out.append((nm + " の棟(丈 %.1f m【従属 — %s】)"
+                        % (h9, "宣言 `h`" if m.get("h") is not None else "目録の部材の丈"),
+                        L2, t2, math.degrees(math.atan2(t2 - eye, L2))))
     return out
 
 
@@ -13575,6 +13671,7 @@ def run_checks():
     rp = ["%s が %s を貫く" % q for q in route_pierce(d, g)]
     kp = kenpei_bottom_area(d)
     pp = pending_pointer_check(d)
+    mh = mune_height_check(d)          # 棟高の物差しと部材の丈(高3 検図21巡目 → 裁3/裁4)
     ifr = impl_fresh_check(d)          # 実装が読む算出物の鮮度(2026-09-08 棟梁の診断)
     igc = impl_graded_check(d, g) if not ifr[0] else ([], [])  # ⛔ 無い焼きを測らない
     ipc = impl_planting_check(d, g) if not ifr[0] else ([], [])  # 撒いた木の面と離れ(2026-09-08)
@@ -13627,6 +13724,8 @@ def run_checks():
     rows.append(("動線が構造物を貫通しないか", rp, []))
     rows.append(("宣言したポインタの指し先が実在するか(`_pending`・`bom`/`parts` の鍵)",
                  pp[0], pp[1]))
+    rows.append(("棟高の物差し(`const.muneHeightRule`)と `partFrom` の指す部材の丈",
+                 mh[0], mh[1]))
     rows.append(("実装が読む算出物の鮮度(`sanno_impl.json` の `src`/`dem` の sha256)",
                  ifr[0], ifr[1]))
     rows.append(("焼き出しの造成後の地盤と**世界座標**が図の算出と一致するか",

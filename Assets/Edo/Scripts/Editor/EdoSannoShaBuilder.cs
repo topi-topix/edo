@@ -857,4 +857,70 @@ public static class EdoSannoShaBuilder
         sb.AppendLine(Stage7_Keidairin());
         return sb.ToString();
     }
+
+    // =====================================================================
+    // 新造部材のマテリアル remap(2026-09-08 部材方)
+    // =====================================================================
+    /// <summary>山王社のために新造した部材(段石 `Models/Kaidan` / 腰高柵 `Models/Hei`)の
+    /// マテリアルを、**借り先を名指しして**結び直す。
+    /// ⚠ FBX は材質「名」しか運ばないので、これを打たないと段石も柵も**真っ白**で出る。
+    /// ⚠ `SearchAndRemapMaterials(..., Everywhere)` はプロジェクト全体(6.9GB)を舐めて
+    ///   ユーザーの PC を固めた前例があるので使わない。借り先は下の3フォルダだけ見る。
+    /// ⚠ **FBX を焼いたフォルダは必ず `modelDirs` に足すこと**(足し忘れが真っ白の常習原因)。
+    /// ・段石 `Dan_*` … `M_FJG_Rock_001`(Waldemarst FreeJapaneseGarden。立石・平石・切石橋と同じ加工石の材)
+    /// ・腰高柵 `Saku_Koshidaka*` … `M_Wood_fence`(NatureManufacture の丸太)
+    /// ・社殿 `Sanno_*` … `roof` / `roof ornaments` / `wood` / `wall C` / `door wall` /
+    ///   `Foundation_A_01`(Japanese Village Kit)。⚠ `Edo/御殿/新しい御殿FBXのマテリアルをremap` は
+    ///   `Assets/Edo/Models/Goten` しか見ないので**社殿には当たらない**。</summary>
+    [MenuItem("Edo/山王社/新造部材のマテリアルをremap")]
+    public static void RemapSannoShinzoMenu() { Debug.Log("[Sanno] " + RemapSannoShinzo()); }
+    public static string RemapSannoShinzo()
+    {
+        string[] donorDirs = {
+            "Assets/Waldemarst/FreeJapaneseGarden/Materials",
+            "Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Fence/Models",
+            "Assets/Japanese Village Kit/Materials",
+        };
+        var byName = new Dictionary<string, Material>();
+        foreach (var dir in donorDirs)
+        {
+            if (!AssetDatabase.IsValidFolder(dir)) continue;
+            foreach (var guid in AssetDatabase.FindAssets("t:Material", new[] { dir }))
+            {
+                var m = AssetDatabase.LoadAssetAtPath<Material>(AssetDatabase.GUIDToAssetPath(guid));
+                if (m != null && !byName.ContainsKey(m.name)) byName[m.name] = m;
+            }
+        }
+        string[] modelDirs = { "Assets/Edo/Models/Kaidan", "Assets/Edo/Models/Hei",
+                               "Assets/Edo/Models/Sanno" };
+        modelDirs = System.Array.FindAll(modelDirs, AssetDatabase.IsValidFolder);
+        if (modelDirs.Length == 0) return "対象フォルダが無い";
+        int n = 0; var miss = new List<string>();
+        foreach (var guid in AssetDatabase.FindAssets("t:Model", modelDirs))
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            var imp = AssetImporter.GetAtPath(path) as ModelImporter; if (imp == null) continue;
+            var go = AssetDatabase.LoadAssetAtPath<GameObject>(path); if (go == null) continue;
+            bool touched = false;
+            foreach (var r in go.GetComponentsInChildren<MeshRenderer>())
+                foreach (var m in r.sharedMaterials)
+                {
+                    if (m == null) continue;
+                    Material donor;
+                    if (!byName.TryGetValue(m.name, out donor)) { if (!miss.Contains(m.name)) miss.Add(m.name); continue; }
+                    if (donor == m) continue;
+                    imp.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), m.name), donor);
+                    touched = true;
+                }
+            if (touched)
+            {
+                AssetDatabase.WriteImportSettingsIfDirty(path);
+                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+                n++;
+            }
+        }
+        AssetDatabase.SaveAssets();
+        return "新造部材の remap " + n + " 本"
+             + (miss.Count > 0 ? " / 借り先が見つからない材: " + string.Join(", ", miss.ToArray()) : "");
+    }
 }

@@ -2124,8 +2124,11 @@ def _single_dims(d, sg):
     kd = _SG_LAYER[lay][1]
     xz = crown_scale_xz(d, kd, pf, sg.get("h"), iso=True)
     out += ("・樹冠%.2fm【従属 部材の素の樹冠 × `scaleXZ`】" % (r * 2.0 * d["const"]["ken"]))
-    # ⭕ **一本立ちは孤立木なので `isolatedXZ`**(2026-09-08 十六巡目 中6・庭方)
-    out += ("・scaleXZ %.3f【従属 — 孤立木】" % xz) if xz else ""
+    # ⭕ **一本立ちは孤立木なので `isolatedXZ`**(2026-09-08 十六巡目 中6・庭方)。
+    #    ⛔ 松はこの規約の外(範囲がもともと部材寄り)なので、そう刷り分ける。
+    out += (("・scaleXZ %.3f【従属 — %s】"
+             % (xz, "松は `scaleRule.matsu.scaleXZ` の中央(孤立木の規約の外)"
+                if kd == "matsu" else "孤立木 `isolatedXZ`")) if xz else "")
     q = pick_variant(d, (single_parts(d, sg) or [{}])[0], sg.get("h"))
     if q and q[3]: out += "・scaleY %.3f【従属】" % q[3]
     return out

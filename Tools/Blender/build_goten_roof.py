@@ -695,32 +695,47 @@ def _verify_band_order(o, bands_in, D, along, name):
         ⛔ 中で組んだ `info` から立てない — 中で並べ替えが復活しても検算が一緒にズレて
         素通りしてしまう(検査が測る集合を実装と同じ物にしない。CLAUDE.md 規則19)。
     """
-    zmax = max(v.co.z for v in o.data.vertices)
-    acc = [(-v.co.x if along == "v" else v.co.y)
-           for v in o.data.vertices if v.co.z > zmax - 0.02]
-    if not acc:
-        raise SystemExit("[banded] 検算: 天端の頂点が拾えない(%s)" % name)
-    lo, hi = min(acc), max(acc)
-    mid = (lo + hi) / 2.0
-    # いちばん幅の広い帯 = いちばん棟の高い帯。呼び出し側の並びでの across の芯
+    verts = o.data.vertices
+    if not verts:
+        raise SystemExit("[banded] 検算: 頂点が無い(%s)" % name)
+    zmax = max(v.co.z for v in verts)
+
+    def _across(v):
+        return (-v.co.x if along == "v" else v.co.y)
+
+    # 呼び出し側の並びから独立に「どの across にどの高さの大棟が来るはずか」を立てる
+    edges = [0.0]
+    for b in bands_in:
+        edges.append(edges[-1] + b * KEN)
+    cen = [(edges[i] + edges[i + 1]) / 2.0 - D / 2.0 for i in range(len(bands_in))]
     wmax = max(bands_in)
-    k = bands_in.index(wmax)
-    want = (sum(bands_in[:k]) + wmax / 2.0) * KEN - D / 2.0
-    print("[banded]   ⭕ 帯の並びの検算: 最高の大棟の across = %+.3f m"
-          "(実測 %+.3f‥%+.3f)/ 期待 %+.3f m(`ws` の %d 番目・%d間)"
-          % (mid, lo, hi, want, k, wmax))
-    if bands_in.count(wmax) > 1:
-        print("[banded]   ⚠ 帯幅が同値で並びが対称 — **鏡像は無害だが「対称だから正しい」ではない**。"
-              "大棟の向きと谷の位置は別に測ること")
-        return mid
-    if abs(mid - want) > 0.10:
+    # 帯の棟の高さの差は幅の差だけで決まる。天端(座・鬼とも)が同じだけ下がる
+    dz = [(b - wmax) / 2.0 * KEN * RATIO for b in bands_in]
+
+    # ⭐ **帯ごとに「その大棟の芯で屋根の頂がいくつか」を測る。**
+    #   ⛔ 高さで頂点を拾って across を見る作りにしない — 広い帯の斜面や隅棟が
+    #     狭い帯の棟高を通過するので、余計な塊を拾って偽陽性になる(2026-09-08 実測)。
+    #   ⇒ across で切って高さを見る。並びが入れ替われば必ず高さが食い違う。
+    ok = True
+    for i, b in enumerate(bands_in):
+        sel = [v.co.z for v in verts if abs(_across(v) - cen[i]) <= 0.25]
+        if not sel:
+            raise SystemExit("[banded] 検算: 帯%d の大棟の芯(across %+.3f)に頂点が無い(%s)"
+                             % (i, cen[i], name))
+        got, want = max(sel), zmax + dz[i]
+        bad = abs(got - want) > 0.05
+        print("[banded]   %s 帯%d(%d間・大棟の芯 across %+.3f): 頂の高さ 実測 %.3f / 期待 %.3f"
+              % ("⛔" if bad else "⭕", i, b, cen[i], got, want))
+        ok = ok and not bad
+    if not ok:
         raise SystemExit(
-            "[banded] ⛔ **帯が across の逆側に焼けている**(%s)。\n"
-            "  最高の大棟 across 実測 %+.3f / 期待 %+.3f(差 %+.3f m = %+.2f間)。\n"
+            "[banded] ⛔ **帯が across の逆側(または違う並び)に焼けている**(%s)。\n"
             "  ⇒ `bands` の並べ替えか回転の符号を疑うこと。⛔ 据え付け側で 180° 回して"
-            "辻褄を合わせない — 部材の不良は部材で直す。"
-            % (name, mid, want, mid - want, (mid - want) / KEN))
-    return mid
+            "辻褄を合わせない — 部材の不良は部材で直す。" % name)
+    if len(set(bands_in)) == 1:
+        print("[banded]   ⚠ 全帯が同幅で並びが対称 — **鏡像は無害だが「対称だから正しい」ではない**。"
+              "大棟の向きと谷の位置は別に測ること")
+    return cen[bands_in.index(wmax)]
 
 
 def make_banded(bands, span, along="u", irikawa=1.0, eave=3.4, kobai=RATIO,
@@ -732,7 +747,7 @@ def make_banded(bands, span, along="u", irikawa=1.0, eave=3.4, kobai=RATIO,
       中で 1間 = 1.818m を掛ける。⛔ Village Kit の 2.0m/間 と混ぜない。
 
     引数:
-      bands      帯の**身舎**の幅の配列(間・整数)。例 [4,4] [4,5] [5,5] [4]。**1〜3 帯**
+      bands      帯の**身舎**の幅の配列(間・整数)。例 [4,4] [4,5] [5,5] [4] [3,3,4,4]。**1〜4 帯**
                  ⭐⭐ **並びは常に「across 軸(帯の並ぶ向き)の小さい側から」**。
                     `along` が u でも v でも変わらない(軸の鎖の帰結。下の註を読むこと)。
                     ⇒ 指図の `ws` をそのまま渡してよい。例) 土井の奥棟は across=u で
@@ -790,8 +805,12 @@ def make_banded(bands, span, along="u", irikawa=1.0, eave=3.4, kobai=RATIO,
                          "変えると瓦モジュールが平面に乗らない。指定=%.4f" % (RATIO, kobai))
     bands = [int(b) for b in bands]
     bands_in = list(bands)              # ⭐ 検算の期待値はここから立てる(中の並びを見ない)
-    if not 1 <= len(bands) <= 3:
-        raise SystemExit("[banded] 帯数は 1〜3。指定=%d" % len(bands))
+    if not 1 <= len(bands) <= 4:
+        # ⚠ 上限は「谷が増えすぎて屋根が櫛になる」ことへの歯止めであって幾何の限界ではない
+        #   (帯のループも谷のループも N 一般で書いてある)。2026-09-08 に松江松平の
+        #   表役所 3-3-4-4 / 大台所 3-3-4-4 のために 3 → 4 へ広げた。⛔ さらに広げない —
+        #   5帯だと谷が4本になり、御殿の小屋組として説明が付かない。
+        raise SystemExit("[banded] 帯数は 1〜4。指定=%d" % len(bands))
     if any(b < 2 for b in bands):
         raise SystemExit("[banded] 帯の身舎は 2間 以上(1間だと妻が破綻する)。指定=%s" % bands)
     span = int(span)
@@ -994,6 +1013,11 @@ def render_banded(o, path_dir, tag, eave=3.4):
          ortho=max(W, mx.z) * 1.15)
     # 4) 谷の寄り(俯瞰)— 谷樋が通っているか、瓦の小口が透けないか
     shot("04_tani", (cx - W * 0.30, cy - D * 0.10, mx.z + 3.2), (cx + W * 0.10, cy, eave))
+    # 5) 真上(正射影)— ⭐ **帯の並びと大棟の向きはここでしか読めない。**
+    #    立面(02/03)も俯瞰(01)も左右対称に見えるので、非対称の帯の並び違いが素通りする
+    #    (2026-09-07 の `4-5x10ken_v` の鏡像はこれが無かったのが一因)。
+    shot("05_shinjo", (cx, cy, mx.z + r * 1.2), (cx, cy, 0.0),
+         ortho=max(W, D) * 1.06, res=(1400, 1400))
     return out
 
 

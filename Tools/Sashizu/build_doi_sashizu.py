@@ -351,8 +351,19 @@ def T(x, y, s, cls="sl", anchor=None, fs=None, fill=None, pin=False):
 # ⭐⭐ **`T()` を通らずに紙へ字を出している箇所の数。**⛔ 数を手で書かない — 自分の
 #   ソースを数える(規則19: 図に刷る数は測った数)。⚠ **記法の検査がほんとうに働くのは
 #   この箇所だけ**(`T()` を通る銘は `plain()` が先に剥がしてしまうため)。
-_RAW_TEXT_SITES = len(re.findall(
-    r"""['"]<text\b""", open(os.path.abspath(__file__), encoding="utf-8").read())) - 1
+def _raw_text_sites():
+    """⛔ **除外も手で書かない**【2026-09-08 第7巡・検図方 低2】— ⚠ 従前は末尾の `- 1` で
+    **`T()` 自身の1行を暗黙に引いて**おり、⛔ **何を引いているのかが読めなかった**
+    (⚠ `T()` の書き方が変わったら黙って 1 ずれる)。⇒ ⭕ **除外条件で名指す** =
+    「`T()` の本体に在る出現」。
+    """
+    src = open(os.path.abspath(__file__), encoding="utf-8").read()
+    rx = re.compile(r"""['"]<text\b""")
+    own = re.search(r"\ndef T\(.*?\n\ndef ", src, re.S)      # ⚠ `T()` 自身の本体
+    return len(rx.findall(src)) - (len(rx.findall(own.group(0))) if own else 0)
+
+
+_RAW_TEXT_SITES = _raw_text_sites()
 
 
 def LN(x1, y1, x2, y2, stroke="var(--ink)", sw=1.0, dash=None, op=None, cap=None):
@@ -13170,9 +13181,9 @@ def juka_uke_sens(d):
 
     probes = [probe("① 陰の名簿から **常緑広葉 Mid** を落とす — ⚠ **構造の条が鳴る**"
                     "(⛔ 名乗らない層を母集団の外へ落とさない)", q1, (1, 0, 0), pick=niwa),
-              probe("② ⭐⭐⭐ **受けている当の域 <code>Shida_Onene</code>(尾根の林の樹下)"
+              probe("② ⭐⭐⭐ **受けている当の域 `Shida_Onene`(尾根の林の樹下)"
                     "だけを落とす** — ⚠⚠ **裸地が 5 件鳴る**"
-                    "(⇒ ⭕ <b>いま陰の樹下を受けているのはこの域である</b>ことが数で出る。"
+                    "(⇒ ⭕ **いま陰の樹下を受けているのはこの域である**ことが数で出る。"
                     "⛔ 「域が在る」ではなく「域が受けている」を測る)", q2, (0, 5, 0), pick=niwa),
               probe("③ ⭐⭐ **常緑広葉 Mid を日向へ移してから同じ域を落とす** — "
                     "⛔ **鳴らない**(⇒ ⚠ **陰陽の名乗りが合否を動かす**=名簿は飾りではない。"
@@ -13180,13 +13191,13 @@ def juka_uke_sens(d):
               probe("④ **シダの散布域を全部落とす** — ⚠ **裸地の差し戻しが増え、"
                     "散布域の条も鳴る**", q4, (0, 7, 1), pick=niwa),
               probe("⑤ ⭐⭐ **苔の散布域を落とす** — ⚠ **散布域の条が鳴る**。"
-                    "⛔ **裸地の数は動かない** — ⭕ <b>社地に陰の木は一本も立っていない</b>"
-                    "から(⇒ ⭐ **苔が受けているのは<u>日向</u>の裸地**であって樹下ではない。"
+                    "⛔ **裸地の数は動かない** — ⭕ **社地に陰の木は一本も立っていない**"
+                    "から(⇒ ⭐ **苔が受けているのは日向の裸地**であって樹下ではない。"
                     "⛔ 樹下の物差しで苔の要否を測らない)", q5, (0, 0, 1), pick=niwa),
               probe("⑥ **名簿 `shitakusa.hikage` ごと消す** — ⚠ **構造の条が鳴る**"
                     "(⛔ 生成器の側で陰陽を判じない)", q6, (1, 0, 0), pick=niwa),
               ("⑦ いまの図(基準)— ⛔ **どの条も鳴らない**"
-               "(⭕ <b>陰の樹下の裸地は 2026-09-08 第4巡で <code>Shida_Onene</code> が受けた</b>"
+               "(⭕ **陰の樹下の裸地は 2026-09-08 第4巡で `Shida_Onene` が受けた**"
                " — ⚠ 前巡までこの行は「裸地は庭方へ差し戻し中」で 1 件だった)",
                (len(juka_uke_check(d)), len(juka_uke_todo(d)), len(shitakusa_check(d))),
                (0, 0, 0), None)]
@@ -17139,9 +17150,16 @@ _PLATES = {}
 
 JIZURA_MARK = "<!--JIZURA-->"
 RETRACT_MARK = "<!--RETRACT-->"
+DOCMK_MARK = "<!--DOCMK-->"     # ⭐ 本文と表の記法。⚠ 紙が全部組み上がった後でしか測れない
 JIZURA = []          # [直す前, 直した後, 直しの内訳] — 末尾の総覧が読む
+NCODE = [0]          # `docify` が `<code>` へ移した引用符の対の数(⛔ 手で書かない)
 DOC_HOLD = []        # 書き出した文書。⚠ 撤回の照合は書き出しの**後**に回るので、
                      #   その実測を図へ入れるには**印を残して後から差し替える**ほかない。
+
+
+# ⛔ **「直す前」の列で測れない項目**(= `plain()` が紙へ出す前に剥がしてしまう物)。
+#   ⛔ 数を手で 0 と書かない・0 を刷らない(2026-09-08 第7巡・検図方 中2)。
+_NOPRE = ("markup",)
 
 
 def jizura_html(a, b, rep):
@@ -17169,9 +17187,17 @@ def jizura_html(a, b, rep):
     t = ['<div class="tw"><table><tr><th class="note">測った物</th>'
          '<th>直す前</th><th>直した後(これが刷る値)</th></tr>']
     for nm, k, unit in rows:
-        t.append('<tr><td class="note">%s</td><td>%d %s / %d 面</td>'
+        # ⭐⭐ **「直す前」の列が構造的に 0 しか返せない行は、0 を刷らない**
+        #   【2026-09-08 第7巡・検図方 中2】。⛔⛔ 記法の行は `T()` が **紙へ出す前に**
+        #   `plain()` を通すので、⚠ **`check(直す前)` が見るのは既に剥がした後の文書**である。
+        #   ⇒ この列の 0 は「直す前は無かった」ではなく「この列では測れない」。
+        #   ⚠⚠ **すぐ下の caption 自身が「0 だけを刷ると検査が死んでいても 0 と読める」と
+        #   書いており、表の上でこの行だけが自分の警句に当たっていた。**
+        t.append('<tr><td class="note">%s</td><td>%s</td>'
                  '<td><b>%d %s / %d 面</b></td></tr>'
-                 % (nm, _n(a, k), unit, _f(a, k), _n(b, k), unit, _f(b, k)))
+                 % (nm, ("<b>—</b>(<code>plain()</code> の後なのでこの列は測れない)"
+                         if k in _NOPRE else "%d %s / %d 面" % (_n(a, k), unit, _f(a, k))),
+                    _n(b, k), unit, _f(b, k)))
     t.append('<tr><td class="note">測った面 / 文字</td><td>%d 面</td><td>%d 面 %d 字面</td></tr>'
              % (a["figs"], b["figs"], b["texts"]))
     t.append("</table></div>")
@@ -17330,9 +17356,11 @@ def jizura_html(a, b, rep):
     for title, got, want, ok in rep["probes"]:
         # ⛔ **束の題を生の HTML として流さない** — ⚠ 束⑨の題の `<use>` が
         #   **ブラウザに食われて空欄になっていた**(2026-09-08。⑹ の記法漏れの html 側の同型)。
+        # ⭐⭐ **変換は正典の `inline()` 一本**【2026-09-08 第8巡】— ⛔⛔ 従前は
+        #   `escape` して `**` を**捨てて**いたので、⚠ **太字は消え、`` ` `` は生のまま、
+        #   `<use>` は `&lt;use&gt;` と字になって**刷られていた(= 半端な経路)。
         t.append('<tr><td class="note">%s</td><td>%s</td><td>%s</td><td><b>%s</b></td></tr>'
-                 % (html.escape(title.replace("**", ""), quote=False), got, want,
-                    "⭕" if ok else "⛔"))
+                 % (inline(title), got, want, "⭕" if ok else "⛔"))
     t.append("</table></div>")
     t.append('<p class="cap">⭐ <b>直す前の値を並べて刷る理由。</b>0 だけを刷ると'
              '<b>検査が死んでいても 0 と読める</b>(破壊試験と同じ理屈)。'
@@ -17344,6 +17372,100 @@ def jizura_html(a, b, rep):
              'régime をそのまま鳴らす</b>ために足した — ⛔⛔ 従前の3束は'
              '<b>「真上に重ねる／枠の外へ出す」の極端しか差しておらず</b>、'
              '⚠ <b>「幅を数%% 見誤る」という現に起きた壊れ方を鳴らす束が一つも無かった。</b></p>')
+    return "\n".join(t)
+
+
+def docmk_html(mk, ncode, probes):
+    """⭐⭐⭐ **記法が「本文」と「表」へ漏れていないか**(2026-09-08 第8巡・裁定1)。
+
+    ⛔ この文字列は**太字変換と <code>docify()</code> の後**に差すので、
+      ⛔ <code>**</code> も生のバッククォートも使わない(⚠ 使うと自分が鳴る)。
+    """
+    t = ['<p class="cap">⭐⭐⭐ <b>この章は 2026-09-08 の第8巡で足した</b>。'
+         '⛔⛔ <b>前の章の「記法 0 件」の母集団は <code>svg &gt; text</code> の字面だけで、'
+         'html の本文と表は1字も入っていなかった</b> — ⚠⚠ そのため'
+         '<b>「記法を紙へ刷らない」と掲げた当の巡が、同じ紙へ記法を 55 箇所ふやして通った</b>'
+         '(literal な <code>\\n</code> 21・生の引用符 +40・字になったタグ 8)。'
+         '⚠ <b>これは「限界の明示」で断ってあった穴ではない</b> — 明示していたのは'
+         '「<code>T()</code> を通る銘は恒真／効くのは生の <code>&lt;text&gt;</code>」までで、'
+         '<b>本文という第三の面には一言も触れていなかった</b>。'
+         '⇒ ⭕ <b>個別に潰すのではなく、母集団を文書全体へ広げた</b> — '
+         'これで <code>\\n</code> も引用符もタグ漏れも<b>毎巡自動で捕まる</b>。</p>',
+         '<div class="tw"><table><tr><th class="note">面</th>']
+    arms = [nm for nm, _ in svg_layout._MK_DOC]
+    for nm in arms:
+        t.append("<th>%s</th>" % nm)
+    t.append("<th>計</th></tr>")
+    tot = 0
+    for f, row in svg_layout.doc_markup_counts(mk):
+        n = sum(c for _, c in row)
+        tot += n
+        t.append('<tr><td class="note"><b>%s</b>%s</td>%s<td><b>%d</b></td></tr>'
+                 % (f, "(<code>td</code>/<code>th</code> の中)" if f == "表" else
+                    "(<code>p</code>・見出し・箇条)",
+                    "".join("<td>%s</td>" % (("<b>%d</b>" % c) if c else "0")
+                            for _, c in row), n))
+    t.append('<tr><td class="note">図の字面(<code>svg &gt; text</code>)</td>'
+             '<td class="note" colspan="%d">前の章が測る(<code>plain()</code> と対)</td>'
+             '<td><b>%d</b></td></tr>' % (len(arms), len(JIZURA[1]["markup"]) if JIZURA else -1))
+    t.append("</table></div>")
+    t.append('<p class="cap">⭕ <b>測った母集団</b>: <b>%d</b> の字面 / <b>%s</b> 字'
+             '(<code>svg</code>・<code>style</code> の中は除く)。'
+             '⛔ <b>上の 2 面が欠陥の数</b>で、<b>下の 1 面は別枠</b>である。</p>'
+             % (mk["nodes"], "{:,}".format(mk["chars"])))
+    t.append('<div class="tw"><table><tr>'
+             '<th class="note">別枠(欠陥に数えない面)</th>%s<th>計</th></tr>'
+             % "".join("<th>%s</th>" % nm for nm in arms))
+    qrow = svg_layout.doc_markup_counts(mk, (svg_layout.DOC_QUOTE,))[0][1]
+    t.append('<tr><td class="note"><b>記法そのものを引用している面</b>'
+             '(<code>&lt;code&gt;</code> の中・%d span / %s 字)</td>%s<td><b>%d</b></td></tr>'
+             '</table></div>'
+             % (mk["codeSpans"], "{:,}".format(mk["codeChars"]),
+                "".join("<td>%s</td>" % (("<b>%d</b>" % c) if c else "0") for _, c in qrow),
+                mk["quoted"]))
+    t.append('<p class="cap">⭐⭐ <b>除いた面を「数えていない」で済ませない</b> — '
+             '⛔⛔ <b>0 でない物を 0 と読ませない</b>のがこの章の趣旨だから、'
+             '<b>除いた面こそ件数を刷る</b>。⚠ <code>&lt;code&gt;</code> の中の'
+             '<code>&amp;lt;b&amp;gt;</code> は<b>欠陥ではなく説明</b>で、'
+             'この章がまさに<b>タグを字として見せなければ書けない</b>。'
+             '⛔⛔ <b>同時にこれは穴である</b> — <b>ほんとうの欠陥がこの面へ入り込めば、'
+             '欠陥としては鳴らない</b>。⭕ 下の束⑥が毎巡その穴を実演する'
+             '(⛔ 「鳴らない」だけでなく<b>「引用の面では数える」まで</b>期待値にしてある)。</p>')
+    t.append('<p class="cap">⭐⭐ <b>本文の生の引用符(第7巡の実測 1,916 個)は'
+             '「禁じた」のではなく「器へ移した」</b>【2026-09-08 第8巡・裁定1】。⚠ 考証方の証言のとおり'
+             '<b>生の <code>`名`</code> は従前からの家の書き方</b>なので、'
+             '⛔ <b>一斉に禁じれば全部が鳴る</b>。⇒ ⭕ <b>この巡で '
+             '<code>%d</code> 箇所を <code>&lt;code&gt;名&lt;/code&gt;</code> へ替えた</b>'
+             '(<code>svg_layout.docify()</code>)。'
+             '⚠ <b><code>&lt;svg&gt;</code> と <code>&lt;code&gt;</code> の中は触らない</b> — '
+             '前者は <code>plain()</code> の持ち場、後者は引用の面である。'
+             '⭐ <b>これで引用の約物が「図は〈 〉／本文は <code>&lt;code&gt;</code>」の一対</b>に'
+             'なった(第7巡 低3「約物が二本立て」)— ⛔ <b>どちらの面にも生の記法は出ない。</b></p>'
+             % ncode)
+    t.append('<p class="cap">⛔ <b>この物差しがまだ測っていないこと</b>(⇒ 次の巡へ渡す)。'
+             '⑴ <b><code>&lt;code&gt;</code> の中</b>(上のとおり・束⑥)。'
+             '⑵ <b>家の典拠記法 <code>[西川1959](A)</code> をリンクに数えない</b> — '
+             '⚠ 当図に <b>%d 出現</b>あり(⛔ この数も手で書かない)、'
+             '括弧の中が URL か path に見える物だけを「刷られたリンク」と読む'
+             '(束⑤が毎巡それを見せる)。'
+             '⑶ <b>生の <code>&lt;b&gt;</code> は数えない</b> — html では正しい記法で、'
+             '紙には出ない。字として出るのは <code>&amp;lt;b&amp;gt;</code> のほうである。'
+             '⑷ <b>属性の中は見ていない</b>(<code>title=</code>・<code>aria-label=</code> は'
+             '紙に出るのに、この物差しはタグの外の字しか歩かない)。'
+             '⑸ <b>ブラウザが実際に何を描くかは見ていない</b> — '
+             '⭕ <b>裏は検図方が画素で取る。</b></p>' % mk["cite"])
+    t.append('<div class="tw"><table><tr><th class="note">破壊試験(この検査が生きているか)</th>'
+             '<th>実測(本文, 表, 引用の面)</th><th>期待</th><th>合否</th></tr>')
+    for title, got, want, ok in probes:
+        t.append('<tr><td class="note">%s</td><td>%s</td><td>%s</td><td><b>%s</b></td></tr>'
+                 % (inline(title), got, want, "⭕" if ok else "⛔"))
+    t.append("</table></div>")
+    t.append('<p class="cap">⚠ <b>この表は自分自身も母集団に入っている</b> — '
+             '⭕ 上の件数は<b>この表を紙へ差した後に測り直した値</b>で、'
+             '<b>差す前の値と一致することまで見て</b>から刷ってある'
+             '(⛔ 一致しなければ図を出さない)。'
+             '⭐ <b>検査が自分の刷る紙を測らないなら、それは母集団をまた1面'
+             '取りこぼしている。</b></p>')
     return "\n".join(t)
 
 
@@ -18631,6 +18753,12 @@ def main():
     h.append(JIZURA_MARK)
     h.append("</div>")
 
+    plate(h, nx(), "紙の字面 — 記法が本文と表へ漏れていないか",
+          "⛔ **図の字面だけを測って本文を測らない、をやめる** ／ "
+          "⛔ **0 件は「無い」ではなく「探していない」**")
+    h.append(DOCMK_MARK)
+    h.append("</div>")
+
     plate(h, nx(), "考証と決めごと")
     h.append('<div class="prose">%s</div>' % prose)
     h.append("</div>")
@@ -18681,6 +18809,11 @@ def main():
     _layrep["probes"] = svg_layout.probe_ok(svg_layout.probes(doc, _raw))
     JIZURA[:] = [_lay0, _lay1, _layrep]
     doc = doc.replace(JIZURA_MARK, jizura_html(_lay0, _lay1, _layrep))
+    # ⭐⭐⭐ **本文の `名` を `<code>名</code>` へ移す**(2026-09-08 第8巡・裁定1)。
+    #   ⛔ ここで初めて回す — ⚠ 上の表も差し終えた後でないと、表の中の引用符が残る。
+    #   ⛔ `<svg>` と `<code>` の中は触らない(`docify` の持ち場の分け方)。
+    doc, _n9 = svg_layout.docify(doc)
+    NCODE[:] = [_n9]
     open(OUT, "w", encoding="utf-8").write(doc)
     DOC_HOLD[:] = [doc]
     # ⚠ 検査の穴を3つ塞いだ(2026-08-24 考証第6巡):
@@ -18870,7 +19003,54 @@ def main():
                % (len(d.get("retracted", [])), d.get("_retractedMarked", -1), _nres,
                   _rok + len(_rlink), len(_rlink), RETRACT_NEAR,
                   "・".join("<code>%s</code>" % q for q in RETRACT_CHECK)))
-        open(OUT, "w", encoding="utf-8").write(DOC_HOLD[0].replace(RETRACT_MARK, _rh))
+        # ⭐⭐⭐ **記法の母集団を文書全体へ広げる**(2026-09-08 第8巡・裁定1)。
+        #   ⛔⛔ 第7巡までの母集団は `svg > text` の字面だけで、⚠ **html の本文と表は
+        #   1字も入っていなかった** — だから「記法を紙へ刷らない」と掲げた巡が
+        #   同じ紙へ記法を 55 箇所ふやして通った。⇒ ⭕ **紙が全部組み上がった後で測る。**
+        _fin, _nc2 = svg_layout.docify(DOC_HOLD[0].replace(RETRACT_MARK, _rh))
+        NCODE[0] += _nc2
+        _mkp = svg_layout.probe_ok(svg_layout.doc_markup_probes(_fin))
+        # ⚠ **この表は自分自身も母集団に入る。**⇒ 一度差してから測り直し、
+        #   ⭕ **その値を刷る**(⛔ 差す前の値を刷って「0 件」と名乗らない)。
+        _mk0 = svg_layout.doc_markup(_fin)
+        _mk1 = svg_layout.doc_markup(
+            _fin.replace(DOCMK_MARK, docmk_html(_mk0, NCODE[0], _mkp)))
+        _fin = _fin.replace(DOCMK_MARK, docmk_html(_mk1, NCODE[0], _mkp))
+        _mk2 = svg_layout.doc_markup(_fin)
+        open(OUT, "w", encoding="utf-8").write(_fin)
+        print("── 紙の字面(**記法が本文と表へ漏れていないか**・母集団=文書全体): "
+              "%s ／ 測った字面 %d・%s 字 ／ **別枠(`<code>` の中=記法の引用)"
+              " %d 件**(%s ・%d span・%s 字)・**`名` を `<code>` へ移した %d 対**"
+              % (" / ".join("**%s %d 件**(%s)" % (f, sum(c for _, c in row),
+                                                  " ".join("%s%d" % (nm, c) for nm, c in row))
+                            for f, row in svg_layout.doc_markup_counts(_mk2)),
+                 _mk2["nodes"], "{:,}".format(_mk2["chars"]), _mk2["quoted"],
+                 " ".join("%s%d" % (nm, c) for nm, c in svg_layout.doc_markup_counts(
+                     _mk2, (svg_layout.DOC_QUOTE,))[0][1]),
+                 _mk2["codeSpans"], "{:,}".format(_mk2["codeChars"]), NCODE[0]))
+        for f9 in ("本文", "表"):
+            for nm9, lst9 in sorted(_mk2["face"][f9].items()):
+                for g9, cx9 in lst9[:6]:
+                    print("    ⛔ 記法が %s へ漏れた [%s] %r … %s"
+                          % (f9, nm9, g9, cx9.replace("\n", " ")[:70]))
+        _mpb = [q for q in _mkp if not q[3]]
+        print("   破壊試験(この検査の生死): %d束/%d束 期待どおり"
+              % (len(_mkp) - len(_mpb), len(_mkp)))
+        for q in _mpb:
+            print("    ⛔ %s — 実測 %s / 期待 %s" % (q[0].replace("**", ""), q[1], q[2]))
+        if _mk2["n"]:
+            rbad = rbad + ["**紙の本文と表に記法が %d 件残っている** — "
+                           "⛔ **ユーザーに見せない**" % _mk2["n"]]
+        if _mpb:
+            rbad = rbad + ["紙の字面の検査が死んでいる — **ユーザーに見せない**"]
+        if _mk2["codeOpen"] or _mk2["skipOpen"]:
+            rbad = rbad + ["**紙の `<code>`/`<svg>` が閉じていない**"
+                           "(`<code>` %d / `<svg>` %d)— ⛔⛔ **閉じない器は母集団を"
+                           "静かに飲み込む**(⚠ 以降の紙がまるごと「引用の面」に落ちる)"
+                           % (_mk2["codeOpen"], _mk2["skipOpen"])]
+        if _mk2["n"] != _mk1["n"]:
+            rbad = rbad + ["**記法の表が自分を数え切れていない**(差す前 %d / 差した後 %d)"
+                           " — ⛔ 刷る数が不動点でない" % (_mk1["n"], _mk2["n"])]
     print("── 撤回済みの説の残り: %s"
           % ("**0 件**" if not rbad else "⚠ %d 件 — **図は書き出したが要修正**" % len(rbad)))
     for b in rbad:

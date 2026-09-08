@@ -167,8 +167,22 @@ def _plain(html):
     return _WS.sub(" ", _TAG.sub(" ", html))
 
 
+# ⭐ **拾う印**【山王 2026-09-08・検図17巡目 中1】── 旧版は ⚠/WARN/⛔ しか見ておらず、
+#   **⭕ で始まる集計行(「効いていること自体」を示すカナリヤ)を丸ごと見逃していた。**
+#   山王の『⭕ 樹種ごとの頭打ちが効いた行 N』は、生成器の標準出力にだけ在って図から落ちており、
+#   ⛔ 本ツールが第3型として捕まえるべき当のものだったのに鳴らなかった。
+#   ⚠ **⭕ の行こそ「規約が生きている証拠」**なので、図に出ていなければ規約が死んでも誰も
+#   気づかない(CLAUDE.md 規則19)。
+#   ⭕ **他邸への影響を実測した**(2026-09-08): doi / kyogoku_bitchu / okabe(指図・裁定図)/
+#   sotobori のいずれも**新たな「見当たらない」は 0 件**(⭕ の行は既に ⚠/⛔ を含むか、
+#   数値がすべて図に出ている)。⚠ `matsudaira_dewa` だけは生成に 25 分超かかるため**未実測**
+#   ── そこで鳴った場合、それは本ツールの誤報ではなく**第3型の指摘**として読むこと。
+#   ⛔ 戻したいときはこの一行だけを戻す。
+SURFACED_MARKS = ("⚠", "WARN", "⛔", "⭕")
+
+
 def surfaced(log_path, html_path):
-    """実行ログの ⚠ 行が成果物へ載っているかを突き合わせる。
+    """実行ログの ⚠/⛔/⭕ の行が成果物へ載っているかを突き合わせる。
 
     ⭐ 判定は**行に出てくる数値**で行う(文言は図の側で言い換えられるため)。
     行の数値がすべて成果物の地の文に現れれば「載っている」とみなす。
@@ -177,7 +191,7 @@ def surfaced(log_path, html_path):
     body = _plain(open(html_path, encoding="utf-8", errors="replace").read())
     hits = set(_NUM.findall(body))
     miss = []
-    warn_lines = [ln for ln in log if ("⚠" in ln or "WARN" in ln or "⛔" in ln)]
+    warn_lines = [ln for ln in log if any(k in ln for k in SURFACED_MARKS)]
     for ln in warn_lines:
         nums = [x for x in _NUM.findall(ln) if len(x) > 1]
         if not nums:
@@ -482,7 +496,7 @@ def main():
     ap.add_argument("paths", nargs="*")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--surfaced", nargs=2, metavar=("RUN.LOG", "OUT.HTML"),
-                    help="実行ログの ⚠ 行が成果物 HTML に載っているかを突き合わせる")
+                    help="実行ログの ⚠/⛔/⭕ の行が成果物 HTML に載っているかを突き合わせる")
     ap.add_argument("--selftest", action="store_true",
                     help="既知の欠陥を仕込んだ版で必ず鳴ることを確かめる(検出が死んでいないか)")
     a = ap.parse_args()
@@ -492,7 +506,8 @@ def main():
 
     if a.surfaced:
         warn_lines, miss = surfaced(*a.surfaced)
-        print("実行ログの警告行 %d 件 / 成果物に見当たらない %d 件" % (len(warn_lines), len(miss)))
+        print("実行ログの印つきの行(%s)%d 件 / 成果物に見当たらない %d 件"
+              % ("".join(SURFACED_MARKS[:1] + SURFACED_MARKS[2:]), len(warn_lines), len(miss)))
         for m in miss:
             print("    ⚠ %s" % m)
         if miss:

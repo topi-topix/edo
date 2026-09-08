@@ -4,7 +4,7 @@
 # root_scale: ルート自身の補正スケール(1 でなければ共通ヘルパに Vector3.one を渡すと化ける)
 # shader: BUILTIN = URP でピンクになる。use: S=シーンで使用中 / B=ビルダーが参照
 path	name	pack	kind	sx	sy	sz	pivot_bottom	root_scale	tris	renderers	shader	use
-Assets/Edo/Models/Dobei/Dobei2m.fbx	Dobei2m	Edo	fbx	2	2.5	1	0	1	404	1	URP	-
+Assets/Edo/Models/Dobei/Dobei2m.fbx	Dobei2m	Edo	fbx	2	2.5	1	0	1	404	1	URP	B
 Assets/Edo/Models/Dobei/Dobei2m_End.fbx	Dobei2m_End	Edo	fbx	2	2.5	1	0	1	436	1	URP	-
 Assets/Edo/Models/Fuzokuya/Doi_Chozu.fbx	Doi_Chozu	Edo	fbx	0.7	0.48	0.5	-0.06	1	120	1	URP	-
 Assets/Edo/Models/Fuzokuya/Doi_Ido.fbx	Doi_Ido	Edo	fbx	1.9	2.21	1.9	-0.06	1	216	1	URP	-
@@ -51,11 +51,15 @@ Assets/Edo/Models/Goten/Parts/Goten_Tatami_1ken.fbx	Goten_Tatami_1ken	Edo	fbx	1.
 Assets/Edo/Models/Goten/Parts/Goten_Tokonoma_1ken.fbx	Goten_Tokonoma_1ken	Edo	fbx	1.82	2.73	0.98	0	1	120	1	URP	-
 Assets/Edo/Models/Goten/Parts/Goten_WallPlaster_1ken.fbx	Goten_WallPlaster_1ken	Edo	fbx	1.82	2.73	0.04	0	1	80	1	URP	-
 Assets/Edo/Models/Goten/Parts/Goten_WallRenji_1ken.fbx	Goten_WallRenji_1ken	Edo	fbx	1.82	2.73	0.04	0	1	192	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Banded_3-3-4-4x12ken_v.fbx	Goten_Roof_Banded_3-3-4-4x12ken_v	Edo	fbx	31.23	4.28	27.59	1.79	1	66363	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Banded_3-3-4-4x16ken.fbx	Goten_Roof_Banded_3-3-4-4x16ken	Edo	fbx	34.87	4.28	31.23	1.79	1	82774	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Banded_4-4-4x10ken_v.fbx	Goten_Roof_Banded_4-4-4x10ken_v	Edo	fbx	27.59	4.28	23.96	1.79	1	50183	1	URP	-
 Assets/Edo/Models/Goten/Roofs/Goten_Roof_Banded_4-4-4x14ken.fbx	Goten_Roof_Banded_4-4-4x14ken	Edo	fbx	31.23	4.28	27.59	1.79	1	64491	1	URP	-
 Assets/Edo/Models/Goten/Roofs/Goten_Roof_Banded_4-4-4x18ken.fbx	Goten_Roof_Banded_4-4-4x18ken	Edo	fbx	38.5	4.28	27.59	1.79	1	78456	1	URP	-
 Assets/Edo/Models/Goten/Roofs/Goten_Roof_Banded_4-4-4x20ken.fbx	Goten_Roof_Banded_4-4-4x20ken	Edo	fbx	42.14	4.28	27.59	1.79	1	85600	1	URP	-
 Assets/Edo/Models/Goten/Roofs/Goten_Roof_Banded_4-4x10ken_v.fbx	Goten_Roof_Banded_4-4x10ken_v	Edo	fbx	20.32	4.28	23.96	1.79	1	35845	1	URP	-
 Assets/Edo/Models/Goten/Roofs/Goten_Roof_Banded_4-4x8ken.fbx	Goten_Roof_Banded_4-4x8ken	Edo	fbx	20.32	4.28	20.32	1.79	1	30718	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Banded_4-5-5x12ken_v.fbx	Goten_Roof_Banded_4-5-5x12ken_v	Edo	fbx	31.23	4.77	27.59	1.79	1	60258	1	URP	-
 Assets/Edo/Models/Goten/Roofs/Goten_Roof_Banded_4-5-5x16ken.fbx	Goten_Roof_Banded_4-5-5x16ken	Edo	fbx	34.87	4.77	31.23	1.79	1	74615	1	URP	-
 Assets/Edo/Models/Goten/Roofs/Goten_Roof_Banded_4-5x10ken_v.fbx	Goten_Roof_Banded_4-5x10ken_v	Edo	fbx	22.14	4.77	23.96	1.79	1	37251	1	URP	-
 Assets/Edo/Models/Goten/Roofs/Goten_Roof_Banded_4x12ken_v.fbx	Goten_Roof_Banded_4x12ken_v	Edo	fbx	13.05	4.28	27.59	1.79	1	24472	1	URP	-
@@ -125,6 +129,9 @@ Assets/Edo/Models/Hei/Noshibei_45.19.fbx	Noshibei_45.19	Edo	fbx	45.19	1.8	0.47	0
 Assets/Edo/Models/Hei/Noshibei_5.45.fbx	Noshibei_5.45	Edo	fbx	5.45	1.8	0.47	0	1	228	1	URP	-
 Assets/Edo/Models/Hei/Noshibei_53.45.fbx	Noshibei_53.45	Edo	fbx	53.45	1.8	0.47	0	1	1444	1	URP	-
 Assets/Edo/Models/Hei/Noshibei_53.67.fbx	Noshibei_53.67	Edo	fbx	53.67	1.8	0.47	0	1	1444	1	URP	-
+Assets/Edo/Models/Hei/Saku_Koshidaka_1.818.fbx	Saku_Koshidaka_1.818	Edo	fbx	1.82	1.35	0.12	-0.15	1	1460	1	URP	-
+Assets/Edo/Models/Hei/Saku_Koshidaka_Post.fbx	Saku_Koshidaka_Post	Edo	fbx	0.12	1.35	0.12	-0.15	1	236	1	URP	-
+Assets/Edo/Models/Hei/Sodebei_5.5.fbx	Sodebei_5.5	Edo	fbx	5.5	2.65	1	0	1	1154	1	URP	-
 Assets/Edo/Models/Ishigaki/Ishigaki_Saka_12x8.fbx	Ishigaki_Saka_12x8	Edo	fbx	0.71	8.45	14	0	1	164	1	URP	-
 Assets/Edo/Models/Ishigaki/Ishigaki_Saka_9x6.fbx	Ishigaki_Saka_9x6	Edo	fbx	0.71	6.45	11	0	1	142	1	URP	-
 Assets/Edo/Models/Kado/Dobei_Kado_00M.fbx	Dobei_Kado_00M	Edo	fbx	0.84	1.46	4.51	0	1	9428	1	URP	-
@@ -147,6 +154,12 @@ Assets/Edo/Models/Kado/Ishigaki_Kado_31.fbx	Ishigaki_Kado_31	Edo	fbx	3.44	4	4.96
 Assets/Edo/Models/Kado/Ishigaki_Kado_31M.fbx	Ishigaki_Kado_31M	Edo	fbx	3.09	4	3.71	0	1	102	1	URP	-
 Assets/Edo/Models/Kado/Nagaya_Kado_38M.fbx	Nagaya_Kado_38M	Edo	fbx	5.65	3.01	10.94	0	1	29950	1	URP	-
 Assets/Edo/Models/Kado/Tsuijibei_Kado_31.fbx	Tsuijibei_Kado_31	Edo	fbx	2.9	2.57	4.33	0	1	2336	1	URP	-
+Assets/Edo/Models/Kaidan/Dan_0.250_0.542_5.509_a.fbx	Dan_0.250_0.542_5.509_a	Edo	fbx	5.51	0.43	0.64	-0.43	1	220	1	URP	-
+Assets/Edo/Models/Kaidan/Dan_0.250_0.542_5.509_b.fbx	Dan_0.250_0.542_5.509_b	Edo	fbx	5.51	0.43	0.64	-0.43	1	264	1	URP	-
+Assets/Edo/Models/Kaidan/Dan_0.260_0.693_6.999_a.fbx	Dan_0.260_0.693_6.999_a	Edo	fbx	7	0.44	0.79	-0.44	1	264	1	URP	-
+Assets/Edo/Models/Kaidan/Dan_0.260_0.693_6.999_b.fbx	Dan_0.260_0.693_6.999_b	Edo	fbx	7	0.44	0.79	-0.44	1	308	1	URP	-
+Assets/Edo/Models/Kaidan/Dan_0.300_1.199_6.363_a.fbx	Dan_0.300_1.199_6.363_a	Edo	fbx	6.36	0.48	1.3	-0.48	1	264	1	URP	-
+Assets/Edo/Models/Kaidan/Dan_0.300_1.199_6.363_b.fbx	Dan_0.300_1.199_6.363_b	Edo	fbx	6.36	0.48	1.3	-0.48	1	308	1	URP	-
 Assets/Edo/Models/Maruta/Kui_0.12.fbx	Kui_0.12	Edo	fbx	0.25	1.55	0.11	-1.55	1	296	1	URP	-
 Assets/Edo/Models/Maruta/Kui_0.15.fbx	Kui_0.15	Edo	fbx	0.24	1.55	0.13	-1.55	1	224	1	URP	-
 Assets/Edo/Models/Maruta/Kui_0.18.fbx	Kui_0.18	Edo	fbx	0.29	1.56	0.18	-1.55	1	242	1	URP	-
@@ -154,7 +167,7 @@ Assets/Edo/Models/Maruta/Kui_Nuki_1ken.fbx	Kui_Nuki_1ken	Edo	fbx	1.82	0.08	0.08	
 Assets/Edo/Models/Maruta/Maruta_Tesuri_1ken.fbx	Maruta_Tesuri_1ken	Edo	fbx	1.87	0.92	0.12	0	1	572	1	URP	-
 Assets/Edo/Models/Maruta/Maruta_Tesuri_Post.fbx	Maruta_Tesuri_Post	Edo	fbx	0.11	0.92	0.12	0	1	296	1	URP	-
 Assets/Edo/Models/Mon/Matsudaira_Bansho.fbx	Matsudaira_Bansho	Edo	fbx	5.9	4.66	4.7	0	1	628	1	URP	B
-Assets/Edo/Models/Mon/Matsudaira_Omotemon.fbx	Matsudaira_Omotemon	Edo	fbx	13.12	5.3	0.52	0	1	240	1	URP	B
+Assets/Edo/Models/Mon/Matsudaira_Omotemon.fbx	Matsudaira_Omotemon	Edo	fbx	5.2	5.3	0.5	0	1	156	1	URP	B
 Assets/Edo/Models/Mon/Munamon_2.7.fbx	Munamon_2.7	Edo	fbx	4.6	3.86	2.59	-0.26	1	1976	1	URP	-
 Assets/Edo/Models/Mon/Munamon_2.73.fbx	Munamon_2.73	Edo	fbx	4.63	3.86	2.59	-0.26	1	2024	1	URP	-
 Assets/Edo/Models/Mon/Munamon_2.73_Open.fbx	Munamon_2.73_Open	Edo	fbx	4.63	3.86	2.64	-0.26	1	2024	1	URP	-
@@ -293,12 +306,18 @@ Assets/Edo/Models/Trees/Tree_Mukunoki_Mid_03.fbx	Tree_Mukunoki_Mid_03	Edo	fbx	10
 Assets/Edo/Models/Trees/Tree_Mukunoki_Small.fbx	Tree_Mukunoki_Small	Edo	fbx	9.09	10	9.62	0	1	9976	3	URP	-
 Assets/Edo/Models/Trees/Tree_Mukunoki_Small_02.fbx	Tree_Mukunoki_Small_02	Edo	fbx	9.03	10	8.73	0	1	12770	3	URP	-
 Assets/Edo/Models/Trees/Tree_Mukunoki_Small_03.fbx	Tree_Mukunoki_Small_03	Edo	fbx	9.39	10	9.34	0	1	10176	3	URP	-
-Assets/Edo/Models/Trees/Tree_Teiboku_Mid.fbx	Tree_Teiboku_Mid	Edo	fbx	1.91	2	1.73	0	1	11722	3	URP	-
-Assets/Edo/Models/Trees/Tree_Teiboku_Mid_02.fbx	Tree_Teiboku_Mid_02	Edo	fbx	2.18	2	2.1	0	1	11026	3	URP	-
-Assets/Edo/Models/Trees/Tree_Teiboku_Mid_03.fbx	Tree_Teiboku_Mid_03	Edo	fbx	1.69	2	1.71	0	1	10352	3	URP	-
-Assets/Edo/Models/Trees/Tree_Teiboku_Small.fbx	Tree_Teiboku_Small	Edo	fbx	1.09	1.2	1.04	0	1	11316	3	URP	-
-Assets/Edo/Models/Trees/Tree_Teiboku_Small_02.fbx	Tree_Teiboku_Small_02	Edo	fbx	1.05	1.2	1.02	0	1	10974	3	URP	-
-Assets/Edo/Models/Trees/Tree_Teiboku_Small_03.fbx	Tree_Teiboku_Small_03	Edo	fbx	0.97	1.2	1.16	0	1	10840	3	URP	-
+Assets/Edo/Models/Trees/Tree_Teiboku_H12.fbx	Tree_Teiboku_H12	Edo	fbx	1.09	1.2	1.12	0	1	10386	3	URP	-
+Assets/Edo/Models/Trees/Tree_Teiboku_H12_02.fbx	Tree_Teiboku_H12_02	Edo	fbx	1.06	1.2	1.07	0	1	12610	3	URP	-
+Assets/Edo/Models/Trees/Tree_Teiboku_H12_03.fbx	Tree_Teiboku_H12_03	Edo	fbx	1.09	1.2	1.03	0	1	11768	3	URP	-
+Assets/Edo/Models/Trees/Tree_Teiboku_H16.fbx	Tree_Teiboku_H16	Edo	fbx	1.38	1.6	1.33	0	1	12036	3	URP	-
+Assets/Edo/Models/Trees/Tree_Teiboku_H16_02.fbx	Tree_Teiboku_H16_02	Edo	fbx	1.41	1.6	1.5	0	1	11590	3	URP	-
+Assets/Edo/Models/Trees/Tree_Teiboku_H16_03.fbx	Tree_Teiboku_H16_03	Edo	fbx	1.55	1.6	1.49	0	1	12318	3	URP	-
+Assets/Edo/Models/Trees/Tree_Teiboku_H20.fbx	Tree_Teiboku_H20	Edo	fbx	1.91	2	1.6	0	1	12194	3	URP	-
+Assets/Edo/Models/Trees/Tree_Teiboku_H20_02.fbx	Tree_Teiboku_H20_02	Edo	fbx	1.89	2	1.69	0	1	11304	3	URP	-
+Assets/Edo/Models/Trees/Tree_Teiboku_H20_03.fbx	Tree_Teiboku_H20_03	Edo	fbx	1.8	2	1.86	0	1	11052	3	URP	-
+Assets/Edo/Models/Trees/Tree_Teiboku_H24.fbx	Tree_Teiboku_H24	Edo	fbx	2.3	2.4	2.11	0	1	10916	3	URP	-
+Assets/Edo/Models/Trees/Tree_Teiboku_H24_02.fbx	Tree_Teiboku_H24_02	Edo	fbx	2.15	2.4	2.1	0	1	12258	3	URP	-
+Assets/Edo/Models/Trees/Tree_Teiboku_H24_03.fbx	Tree_Teiboku_H24_03	Edo	fbx	1.93	2.4	2.14	0	1	11146	3	URP	-
 Assets/Edo/Models/Trees/Tree_Ume_Big.fbx	Tree_Ume_Big	Edo	fbx	8.84	8.2	9.06	0	1	5504	3	URP	-
 Assets/Edo/Models/Trees/Tree_Ume_Big_02.fbx	Tree_Ume_Big_02	Edo	fbx	8.93	8.2	9.25	0	1	4892	3	URP	-
 Assets/Edo/Models/Trees/Tree_Ume_Big_03.fbx	Tree_Ume_Big_03	Edo	fbx	9.48	8.2	9.72	0	1	4982	3	URP	-
@@ -375,7 +394,7 @@ Assets/Edo/Prefabs/Scene/Edo_Yashiki_Kano.prefab	Edo_Yashiki_Kano	Edo	prefab	123
 Assets/Edo/Prefabs/Scene/Edo_Yashiki_KatsutaSakyo.prefab	Edo_Yashiki_KatsutaSakyo	Edo	prefab	80.73	16.26	82.25	25.38	1	671662	1575	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Yashiki_KyogokuBitchu.prefab	Edo_Yashiki_KyogokuBitchu	Edo	prefab	173.81	25.96	122.36	13.63	1	567460	1282	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Yashiki_Matsudaira.prefab	Edo_Yashiki_Matsudaira	Edo	prefab	239.39	22.16	201.4	5.5	1	2633496	8250	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Yashiki_MatsudairaDewa.prefab	Edo_Yashiki_MatsudairaDewa	Edo	prefab	287.28	32.62	265.85	6.68	1	7576060	15300	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_MatsudairaDewa.prefab	Edo_Yashiki_MatsudairaDewa	Edo	prefab	287.55	32.09	265.85	6.68	1	7693875	15350	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Yashiki_MatsudairaHyuga.prefab	Edo_Yashiki_MatsudairaHyuga	Edo	prefab	142.67	20.22	134.1	9.52	1	1603707	3558	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Yashiki_MatsudairaMino.prefab	Edo_Yashiki_MatsudairaMino	Edo	prefab	364.72	28.2	450.75	8.94	1	4389086	11221	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Yashiki_MatsudairaMondo.prefab	Edo_Yashiki_MatsudairaMondo	Edo	prefab	120.63	18.77	87.72	23.17	1	1221858	2957	URP	S

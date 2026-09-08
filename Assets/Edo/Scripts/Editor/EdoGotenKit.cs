@@ -34,6 +34,12 @@ public static class EdoGotenKit
     // static readonly にしておく — const 同士だと畳み込まれて下のガードが「到達しないコード」になる
     static readonly float RokaRidgeTop = ROKA_EAVE + ROKA_RIDGE;   // 渡廊下の大棟の天端(床から)= 2.503
 
+    /// <summary>濡縁の踏板は畳床より 0.28 下がる(Nureen 据付と同じ値)。
+    /// ⚠ 2026-09-08(棟梁差戻し): 普請奉行の実測「軒下端(床上)」の基準線はこの濡縁面
+    /// (外から見える唯一の「床」の縁)であって畳面(floor)ではないと判明 — 実測 27.340 は
+    /// floor(0.62)−0.28 と mm 単位で一致した。<see cref="Mune"/> の <c>eaveAboveFloor</c> はこの縁から測る。</summary>
+    public const float NUREEN_DROP = 0.28f;
+
     static GameObject Load(string path)
     {
         var go = AssetDatabase.LoadAssetAtPath<GameObject>(path);
@@ -84,7 +90,19 @@ public static class EdoGotenKit
     /// 基準が違う。⛔ 取り違えると **3.4m(軒高ぶん)浮く**。
     /// <paramref name="roofYaw"/> は棟の local に対する屋根の回し(度)— 帯割りの部材は
     /// **モデル局所 +X = 江戸間格子の +u** に焼いてあるので、桁行が v の棟では
-    /// 「世界の yaw が格子の yaw ちょうどになる」差ぶんをここへ渡す(⛔ 呼び側で 90° を足さない)。</para></summary>
+    /// 「世界の yaw が格子の yaw ちょうどになる」差ぶんをここへ渡す(⛔ 呼び側で 90° を足さない)。</para>
+    ///
+    /// <para>⚠ 2026-09-08(普請検査差戻し→棟梁が実測式に直した): <paramref name="roofAtFloor"/>=false
+    /// (入母屋・寄棟)の既定は `floor + H − 0.15`(=3.197m・棟の建具高 H に従属する値で、指図の軒高
+    /// const とは無関係)。附属屋(厩・長屋類)や帯割り御殿のように**指図が軒高 const を持つ棟**では、
+    /// <paramref name="roofEaveLocalY"/> に **指図の軒高(軒下端の濡縁上高さ・m。`gotenEave`/
+    /// `nagayaGataEave`/`umayaEave`)をそのまま渡す**(既定 NaN=従来どおり)。
+    /// ⛔⛔ **部材の系列(帯割り/入母屋)ごとにピボット基準が違う**(帯割りは z=0=床、入母屋は
+    /// z=0=軒先のはずが実測では系列ごとに一定の食い違いがある)ので、**定数オフセットを決め打ちしない**。
+    /// ここでは <paramref name="roofEaveLocalY"/> が非 NaN のとき、**据えた実メッシュの軒下端
+    /// (`MeshFilter.sharedMesh.bounds.min.y`。ピボットからの実測)を測り**、軒下端が
+    /// `(floor − NUREEN_DROP) + roofEaveLocalY` に来るよう Put 後に鉛直へ寄せ直す
+    /// (roofAtFloor の値に関係なく同じ式が効く — 実測ベースなので系列の差を吸収する)。</para></summary>
     public static GameObject Mune(string name, Transform parent, Vector3 pos, float yaw,
                                   int nx, int nzZashiki, int iri = 1,
                                   float floor = 0.62f, string roofAsset = null,
@@ -92,7 +110,8 @@ public static class EdoGotenKit
                                   int[] openBaysWest = null, int[] openBaysEast = null,
                                   int jodanFromIx = -1, int iriX = 0, int moyaBay = 3,
                                   bool partition = true,
-                                  bool roofAtFloor = false, float roofYaw = 0f)
+                                  bool roofAtFloor = false, float roofYaw = 0f,
+                                  float roofEaveLocalY = float.NaN)
     {
         if (moyaBay < 1) moyaBay = 1;
         // 妻側の建具を省く区画(床の間・違い棚・帳台構が入る所)。塞いだままだと飾りが壁の裏に隠れる
@@ -256,14 +275,30 @@ public static class EdoGotenKit
         if (!string.IsNullOrEmpty(roofAsset))
         {
             // ⛔ 帯割り(roofAtFloor)は FBX の z=0 が**床**。入母屋・寄棟(z=0 が軒先)と足す高さが違う
+            //   ⚠ ただし roofEaveLocalY が指定されているときは、この初期値は仮置きに過ぎない
+            //   (Put 後に実メッシュを測って鉛直へ寄せ直すので roofAtFloor の違いは吸収される)
+            bool haveEaveTarget = !float.IsNaN(roofEaveLocalY);
+            float roofY = roofAtFloor ? floor : (haveEaveTarget ? floor : floor + H - 0.15f);
             var r = Put(roofAsset, g.transform,
-                        new Vector3(W / 2f, roofAtFloor ? floor : floor + H - 0.15f, D / 2f), roofYaw);
+                        new Vector3(W / 2f, roofY, D / 2f), roofYaw);
             if (r != null)
             {
-                // 屋根の寸法が棟に合っているか確かめる(軒の出0.9m×2を見込む)
                 var mf = r.GetComponentInChildren<MeshFilter>();
                 if (mf != null)
                 {
+                    // ⭐ 2026-09-08: 軒高は「軒下端(濡縁上の高さ)」で読む(普請奉行の裁定)。
+                    //   部材の系列(帯割り/入母屋)ごとにピボット基準が食い違うので、**据えた実メッシュの
+                    //   軒下端(bounds.min.y。ピボットからの実測)を測り**、目標の高さへ鉛直に寄せる。
+                    //   ⛔ 系列ごとに定数オフセットを決め打ちしない(実メッシュから測る・規則5)。
+                    if (haveEaveTarget)
+                    {
+                        float meshEaveLocal = mf.sharedMesh.bounds.min.y;         // ピボット→軒下端の実測(mesh空間)
+                        float targetLocalY = (floor - NUREEN_DROP) + roofEaveLocalY;  // 棟の local 空間での目標
+                        float neededPivotY = targetLocalY - meshEaveLocal;
+                        var lp = r.transform.localPosition;
+                        r.transform.localPosition = new Vector3(lp.x, neededPivotY, lp.z);
+                    }
+                    // 屋根の寸法が棟に合っているか確かめる(軒の出0.9m×2を見込む)
                     // 許容 0.45 — 隅棟が軒先の角で棟幅の半分(0.20)だけ外へ出るため、
                     // 外形は「軒の出×2」よりいつも 0.35 ほど大きく出る
                     // ⚠ 屋根を回して据える(帯割り)ときは、棟の local から見た差し渡しで比べる

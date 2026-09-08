@@ -12,16 +12,21 @@
   ・温古写真集11(88005761・明治初撮影)の実見 — **屋根が無く、冠木の上に何も載らない**
   ・『日本案内記 関東篇』昭和5年「冠木門に属し、両側に唐破風造の番所を附属」
   ⚠ 切妻小屋根を載せる前案(2026-08-22)は**撤回済み**。ここで復活させないこと。
-  ⚠ 番所は別部材(`build_matsudaira_bansho.py`)。この門は**門柱と袖塀まで**。
+  ⚠ 番所は別部材(`build_matsudaira_bansho.py`)。この門は**門柱・冠木・扉だけ**。
+  ⭐ **2026-09-08(第28次)で袖塀を外した。** 指図の並びが
+     表長屋 → 袖塀(潜り戸)→ 番所 → 門柱 → 門柱 → 番所 → 袖塀 → 表長屋 に改まり、
+     **番所が門柱へ直付け**([松江上屋敷門写真]A)になったので、袖塀は**番所と表長屋のあいだ**へ移った。
+     ⇒ 袖塀は長さ可変の独立部材 `Tools/Blender/build_sodebei.py`(`EdoAssets.Own.Sodebei`)。
+     ⛔ ここへ戻さない — 門が抱えていると番所を直付けにできない。
 
 【寸法】**指図 `gate.plan` が正典。ここで作り直さない。**
-  monW 4.5 / monH 5.2 / monD 1.2 / sode 4.25 / kuguri true
+  monW 4.5 / monH 5.2 / monD 1.2(⚠ `sode` / `kuguri` は袖塀の部材へ移した)
   ローカル: 走り X ∈ [0, monW]、高さ Y(=Blender Z)、厚み Z(=Blender Y、芯で対称)。
   **ピボットは門の芯・敷居レベル**(据える側が `gate.pos` と `sill` をそのまま使えるように)。
 
 【材と UV — README の規約。新規マテリアルを作らない】
   木部  `Fences/Fence_B_01_x2.fbx` の `Fence_B_01`(build_dobei.py と同じ借り先)
-  漆喰  Japanese Castle の `Wall Exterior Defence`(袖塀の大面。同上)
+  ⚠ 漆喰(`Wall Exterior Defence`)は袖塀と一緒に `build_sodebei.py` へ移した。
   ⚠ UV は一点貼りにしない。木がベタ塗りの茶色になる(2026-08-15 の指摘)。
 """
 import bpy, sys, os, math
@@ -43,13 +48,13 @@ WALLC_UV = (0.55, 0.34, 0.95, 0.62)
 
 # ---- 指図から引く寸法(既定値。--spec で json を読ませる)
 MON_W, MON_H, MON_D = 4.5, 5.2, 1.2      # 門柱の間・柱高・奥行
-SODE = 4.25                              # 袖塀の長さ(片側)
 POST = 0.42                              # 角柱の見付(江戸の大門の柱。1尺4寸相当)
 KANUKI_H = 0.55                          # 冠木の丈
 KANUKI_OUT = 0.35                        # 冠木が柱の外へ出る長さ
 DOOR_H = 4.45                            # 扉の高さ(冠木の下端まで)。冠木の上端が柱頭 5.20 に納まる
-SODE_H = 2.65                            # 袖塀の高さ(指図 const.dobeiH と同じ)
-KUGURI_W, KUGURI_H = 0.95, 1.85          # 潜り戸
+# ⚠ **潜り戸の実測**。袖塀を独立部材へ移した後も、`build_sodebei.py` がこの2値を import して
+#   そのまま運ぶ(⛔ 新しい寸法を作らない・`_pending.omotemonSodeBuzai` の指示)。
+KUGURI_W, KUGURI_H = 0.95, 1.85          # 潜り戸(いまは build_sodebei.py が使う)
 
 
 class Mesh(object):
@@ -176,9 +181,9 @@ def build(name="Matsudaira_Omotemon"):
     wood, W_UV = vk_mat(WOOD_SRC, WOOD_MAT, "wood")
     if wood is None:
         raise SystemExit("木部のマテリアルが取れない")
-    wall, WA_UV = castle_mat(PLASTER_SRC, PLASTER_MAT, "plaster")
-    if wall is None:
-        raise SystemExit("袖塀の漆喰が取れない — 木に落として板塀にしてはいけない")
+    # ⚠ 漆喰は**袖塀を外したこの門では使わない**(門柱・冠木・扉はすべて木)。
+    #   借りると使われないマテリアル枠が FBX に残り、Unity の remap が空振りする。
+    #   ⛔ `castle_mat` は消さない — 袖塀の生成器(build_sodebei.py)が同じ借り方をする典拠。
 
     m = Mesh()
     half = MON_W / 2.0                      # 門の芯を x=0 に置く
@@ -208,25 +213,10 @@ def build(name="Matsudaira_Omotemon"):
         for hy in (0.85, 1.95, 3.05):
             m.box(x0, x1, hy, hy + 0.11, -0.10, 0.10, W_UV, 0)
 
-    # ---- 袖塀(片側 SODE。潜り戸は東側に1つ)
-    for sgn in (-1, 1):
-        sx0 = sgn * half
-        sx1 = sgn * (half + SODE)
-        a, b = (min(sx0, sx1), max(sx0, sx1))
-        if sgn > 0:
-            # 潜り戸を開ける — 袖塀の門寄りに寄せる
-            g0 = a + 0.55
-            g1 = g0 + KUGURI_W
-            m.box(a, g0, 0.0, SODE_H, -0.18, 0.18, WA_UV, 1)
-            m.box(g1, b, 0.0, SODE_H, -0.18, 0.18, WA_UV, 1)
-            m.box(g0, g1, KUGURI_H, SODE_H, -0.18, 0.18, WA_UV, 1)   # 楣
-            m.box(g0, g1, 0.0, KUGURI_H, -0.05, 0.05, W_UV, 0)       # 潜り戸の板
-        else:
-            m.box(a, b, 0.0, SODE_H, -0.18, 0.18, WA_UV, 1)
-        # 袖塀の笠木(木)
-        m.box(a - 0.06, b + 0.06, SODE_H, SODE_H + 0.14, -0.26, 0.26, W_UV, 0)
+    # ⚠ 袖塀はここから外した(2026-09-08・第28次)。`build_sodebei.py` を参照。
+    #   ⛔ 復活させると番所を門柱へ直付けにできない([松江上屋敷門写真]A に反する)。
 
-    o = m.to_object(name, [wood, wall])
+    o = m.to_object(name, [wood])
     # ピボット = 門の芯・敷居レベル(既に x=0, z=0 に組んである)
     V.sel([o])
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
@@ -238,7 +228,9 @@ def main():
     o = build()
     mn, mx = V.bbox([o])
     print("[omotemon] 実寸 W(X)=%.3f  D(Y)=%.3f  H(Z)=%.3f" % (mx.x - mn.x, mx.y - mn.y, mx.z - mn.z))
-    print("[omotemon] 門柱の間 %.2f / 柱高 %.2f / 袖塀 %.2f×2 / 屋根なし" % (MON_W, MON_H, SODE))
+    print("[omotemon] 門柱の間(内法)%.2f / 柱の外面どうし %.2f / 柱高 %.2f / 冠木の出 %.2f×2 / 屋根なし"
+          % (MON_W - 2 * POST, MON_W, MON_H, KANUKI_OUT))
+    print("[omotemon] ⚠ 袖塀は別部材 build_sodebei.py(EdoAssets.Own.Sodebei)")
     out = os.path.join(PROJ, "Assets", "Edo", "Models", "Mon", "Matsudaira_Omotemon.fbx")
     os.makedirs(os.path.dirname(out), exist_ok=True)
     V.export_fbx([o], out)
@@ -250,4 +242,5 @@ def main():
         V.render(os.environ.get("GOTEN_PREVIEW", "/tmp/omotemon.png"))
 
 
-main()
+if __name__ == "__main__":      # ⚠ build_sodebei.py が寸法だけ import する
+    main()

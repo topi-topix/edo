@@ -2,10 +2,10 @@
 
 `Edo ▸ アセット目録 ▸ 目録を再生成` で自動生成。全件は `asset-index.tsv`。
 
-- 総数 **3087** 点 / シーンで使用中 **83** 点 / ビルダーが参照 **84** 点
+- 総数 **3093** 点 / シーンで使用中 **83** 点 / ビルダーが参照 **84** 点
 - URP でピンクになる(BUILTIN) **4** 点
 
-## Edo — 420 点
+## Edo — 426 点
 
 | フォルダ | 点数 | 幅の中央値[m] | 高さの中央値[m] | 使用中 |
 |---|---:|---:|---:|---:|
@@ -22,6 +22,7 @@
 | `Assets/Edo/Models/Mon` | 6 | 4.63 | 3.86 | 2 |
 | `Assets/Edo/Models/Nagaya` | 46 | 17.52 | 5.51 | 0 |
 | `Assets/Edo/Models/Niwa` | 36 | 0.86 | 1 | 0 |
+| `Assets/Edo/Models/Sanno` | 6 | 6.69 | 6.54 | 0 |
 | `Assets/Edo/Models/Shiomizaka` | 4 | 2.09 | 0.59 | 2 |
 | `Assets/Edo/Models/Trees` | 76 | 7.25 | 8.2 | 0 |
 | `Assets/Edo/Models/Tsuijibei` | 1 | 2.1 | 2.57 | 0 |

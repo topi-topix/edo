@@ -865,12 +865,13 @@ public static class EdoSannoShaBuilder
     /// マテリアルを、**借り先を名指しして**結び直す。
     /// ⚠ FBX は材質「名」しか運ばないので、これを打たないと段石も柵も**真っ白**で出る。
     /// ⚠ `SearchAndRemapMaterials(..., Everywhere)` はプロジェクト全体(6.9GB)を舐めて
-    ///   ユーザーの PC を固めた前例があるので使わない。借り先は下の3フォルダだけ見る。
+    ///   ユーザーの PC を固めた前例があるので使わない。借り先は下の4フォルダだけ見る。
     /// ⚠ **FBX を焼いたフォルダは必ず `modelDirs` に足すこと**(足し忘れが真っ白の常習原因)。
     /// ・段石 `Dan_*` … `M_FJG_Rock_001`(Waldemarst FreeJapaneseGarden。立石・平石・切石橋と同じ加工石の材)
     /// ・腰高柵 `Saku_Koshidaka*` … `M_Wood_fence`(NatureManufacture の丸太)
     /// ・社殿 `Sanno_*` … `roof` / `roof ornaments` / `wood` / `wall C` / `door wall` /
-    ///   `Foundation_A_01`(Japanese Village Kit)。⚠ `Edo/御殿/新しい御殿FBXのマテリアルをremap` は
+    ///   `Foundation_A_01`(Japanese Village Kit)+ **`Doukawara`**(銅瓦葺=緑青。2026-09-09 新造・
+    ///   `Assets/Edo/Materials/Sanno/Doukawara.mat`。⛔ 色は【U 普請奉行の裁定】で史料は色を言わない【?】)。⚠ `Edo/御殿/新しい御殿FBXのマテリアルをremap` は
     ///   `Assets/Edo/Models/Goten` しか見ないので**社殿には当たらない**。</summary>
     [MenuItem("Edo/山王社/新造部材のマテリアルをremap")]
     public static void RemapSannoShinzoMenu() { Debug.Log("[Sanno] " + RemapSannoShinzo()); }
@@ -880,6 +881,7 @@ public static class EdoSannoShaBuilder
             "Assets/Waldemarst/FreeJapaneseGarden/Materials",
             "Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Fence/Models",
             "Assets/Japanese Village Kit/Materials",
+            "Assets/Edo/Materials/Sanno",
         };
         var byName = new Dictionary<string, Material>();
         foreach (var dir in donorDirs)

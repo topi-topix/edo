@@ -1,6 +1,6 @@
 """**木の検証レンダ** — 近景で「孤立した葉の房」と「樹冠の透け」を自分の目で確かめる。
 
-    blender --background --python Tools/Blender/check_tree.py -- near Tree_Teiboku_Mid
+    blender --background --python Tools/Blender/check_tree.py -- near Tree_Teiboku_H20
     blender --background --python Tools/Blender/check_tree.py -- cmp
 
 【なぜ要るか】`build_tree.py --render` の studio カメラは**引きの全景**で、丈2mの低木は
@@ -47,9 +47,9 @@ CMP = {
     #   ⛔ 12個体を1枚に入れない — 2400px に 42m 分が入って 1.2m の株が 68px になり、
     #     刈込に見えるか卵形かの判定ができない。⇒ 梯子は1個体ずつ・個体差は `var` で見る。
     "teiboku": [
-        dict(name="Tree_Teiboku_Small", col=(0.9, 0.3, 0.3, 1)),
+        dict(name="Tree_Teiboku_H12",   col=(0.9, 0.3, 0.3, 1)),
         dict(name="Tree_Teiboku_H16",   col=(0.95, 0.55, 0.15, 1)),
-        dict(name="Tree_Teiboku_Mid",   col=(0.3, 0.5, 0.9, 1)),
+        dict(name="Tree_Teiboku_H20",   col=(0.3, 0.5, 0.9, 1)),
         dict(name="Tree_Teiboku_H24",   col=(0.25, 0.7, 0.35, 1)),
         dict(name="Tree_Jouryoku_Small"),          # 上位の刻みへの繋ぎ(常緑広葉樹 3.6m)
     ],
@@ -155,7 +155,7 @@ def main():
     V.reset()
     ground()
     if mode == "near":
-        name = argv[1] if len(argv) > 1 else "Tree_Teiboku_Mid"
+        name = argv[1] if len(argv) > 1 else "Tree_Teiboku_H20"
         load(name)
         hook()
         mn, mx = V.bbox([o for o in bpy.data.objects if o.type == 'MESH'

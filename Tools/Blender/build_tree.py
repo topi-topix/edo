@@ -2,7 +2,7 @@
 
     blender --background --python Tools/Blender/build_tree.py -- jouryoku Mid --render
     blender --background --python Tools/Blender/build_tree.py -- ume Small Mid Big
-    blender --background --python Tools/Blender/build_tree.py -- teiboku Small Mid --render
+    blender --background --python Tools/Blender/build_tree.py -- teiboku H12 H16 H20 H24 --render
     blender --background --python Tools/Blender/build_tree.py -- matsu Mid Big
 
 【なぜ要るか】⛔ **自作の低ポリゴンの木は使用禁止**(2026-08-30 ユーザー指示
@@ -27,7 +27,7 @@
 
 【検証】⛔ `--render` の全景だけで済ませない。**近景**と**在庫との並び**は
 `Tools/Blender/check_tree.py` で焼く(浮いた葉の房と樹冠の透けは引きの絵では読めない)。
-    blender --background --python Tools/Blender/check_tree.py -- near Tree_Teiboku_Mid
+    blender --background --python Tools/Blender/check_tree.py -- near Tree_Teiboku_H20
     blender --background --python Tools/Blender/check_tree.py -- cmp teiboku
     blender --background --python Tools/Blender/check_tree.py -- cmp matsu   # 在庫の黒松と並べる
 """
@@ -155,7 +155,8 @@ SPECIES = {
     #       卵形〜倒卵形の樹冠。⛔ 球にしない(それは刈込の姿)
     # ⚠ **丈は指図が部材の呼び寸として 1.2〜2.0m と書いている**
     #    (`slopeBands[2]._`「部材 teiboku 1.2〜2.0m を ×1.25 まで伸ばす」)。
-    #    ⇒ Small=1.2 / Mid=2.0。⛔ SIZE(桜の同格 3.6/5.8/8.2)は当てない。
+    #    ⇒ 呼び寸は丈をそのまま名乗る H12=1.2 / H20=2.0(間を H16/H24 が埋める)。
+    #    ⛔ SIZE(桜の同格 3.6/5.8/8.2)は当てない。
     # ⚠ 樹冠は指図の `gardens[前庭の帯].shrubs.crownRKen` = 0.33間(半径0.60m)に合わせ、
     #    **樹冠 ÷ 丈 ≒ 0.95** に仕立てる(丈1.25m で直径1.19m)。
     #    ⚠ `wh` は**誘引点の雲の幅**であって出来上がりの幅ではない。必ず**焼いて測る**。
@@ -207,9 +208,16 @@ SPECIES = {
                      #    ⚠ 名は `Own.Teiboku(size, i)` が組む `Tree_Teiboku_<size>[_02]` の
                      #      形に収まること。⛔ `Small2` のような**数字で終わる名は使わない** —
                      #      個体の接尾辞 `_02/_03` と並ぶと `Small2_02` と読めて紛れる。
-                     #      ⇒ 丈を名乗る `H16`/`H24`(⛔ 既存 Small/Mid は指図が6行で
-                     #      名指ししているので改名しない。→ 申し送り)。
-                     sizes=dict(Small=1.2, H16=1.6, Mid=2.0, H24=2.4)),
+                     # ⭐ 2026-09-08 追記 — **4段すべてを丈で名乗らせた**(普請奉行の裁定)。
+                     #    足した2段だけが `H16`/`H24` で、残る2段が `Small`/`Mid` という
+                     #    綴りの混在は「どちらが高いか」を名から読めない。⇒ 丈の物差しで
+                     #    `H12 / H16 / H20 / H24` に揃えた(1.2 / 1.6 / 2.0 / 2.4 m)。
+                     #    指図の `sizeRule.sizes` は旧綴りも並べた過渡措置なので前後どちらでも解ける。
+                     # ⛔ **改名は姿を変える。**種は `zlib.crc32("teiboku/<size>/<個体>")` で、
+                     #    `size` の綴りが種そのもの。⇒ `H12`/`H20` の6点は Small/Mid とは
+                     #    別の骨格に焼き上がる(どの個体も等価に妥当なので姿は問題ない。
+                     #    黙って変えないことが要件)。⚠ `H16`/`H24` は綴りが動かないので不変。
+                     sizes=dict(H12=1.2, H16=1.6, H20=2.0, H24=2.4)),
     # ---- クロマツ(**社叢の松** = 林分の中で競り上がった姿)。山王社の社叢。
     # ⚠ **なぜ在庫では足りないか。**在庫 `Tree_BlackPine_Big_Green_01/02/03` の素の丈は
     #   6.43 / 6.64 / 6.55m が上限で、指図の社叢は 9.5〜13.0m(`slopeBands[*].matsuH`)。
@@ -270,23 +278,31 @@ SPECIES = {
                          top_tuft=0.075),
                      sizes=dict(Mid=10.5, Big=12.5)),
 }
-# ⭐ **照葉低木の実測**(2026-09-08。**書き出した FBX を読み直して**測った LOD0 の bbox と
-#   三角数。Unity 座標 W=X H=Y D=Z ⇒ Blender では W=X H=**Z** D=**Y**)
-#   Tree_Teiboku_Small     W 0.982 × H 1.200 × D 1.030   5796 / 3292 / 2228   幅/丈 0.818
-#   Tree_Teiboku_Small_02  W 1.049 × H 1.200 × D 0.992   5626 / 3188 / 2160   幅/丈 0.875
-#   Tree_Teiboku_Small_03  W 0.969 × H 1.200 × D 1.099   5608 / 3136 / 2096   幅/丈 0.807
+# ⭐ **照葉低木の実測**(2026-09-08 の**改名後**に焼き直して測り直した値。
+#   **書き出した FBX を読み直して**測った LOD0 の bbox と三角数。
+#   Unity 座標 W=X H=Y D=Z ⇒ Blender では W=X H=**Z** D=**Y**)
+#   ⚠ `H12`/`H20` の6点は Small/Mid からの**改名で種が変わった**ので、丈は同じでも
+#     骨格が入れ替わっている(下の W/D と三角数は改名後の値)。`H16`/`H24` は不変。
+#   Tree_Teiboku_H12       W 1.057 × H 1.200 × D 1.120   5370 / 3056 / 1960   幅/丈 0.881
+#   Tree_Teiboku_H12_02    W 0.964 × H 1.200 × D 1.051   6426 / 3684 / 2500   幅/丈 0.803
+#   Tree_Teiboku_H12_03    W 1.061 × H 1.200 × D 1.029   6048 / 3416 / 2304   幅/丈 0.884
 #   Tree_Teiboku_H16       W 1.370 × H 1.600 × D 1.312   6116 / 3544 / 2376   幅/丈 0.856
 #   Tree_Teiboku_H16_02    W 1.389 × H 1.600 × D 1.356   5898 / 3436 / 2256   幅/丈 0.868
 #   Tree_Teiboku_H16_03    W 1.413 × H 1.600 × D 1.379   6282 / 3612 / 2424   幅/丈 0.883
-#   Tree_Teiboku_Mid       W 1.774 × H 2.000 × D 1.668   6050 / 3408 / 2264   幅/丈 0.887
-#   Tree_Teiboku_Mid_02    W 1.866 × H 2.000 × D 1.924   5698 / 3208 / 2120   幅/丈 0.933
-#   Tree_Teiboku_Mid_03    W 1.658 × H 2.000 × D 1.664   5360 / 3020 / 1972   幅/丈 0.829
+#   Tree_Teiboku_H20       W 1.886 × H 2.000 × D 1.566   6242 / 3552 / 2400   幅/丈 0.943
+#   Tree_Teiboku_H20_02    W 1.847 × H 2.000 × D 1.691   5828 / 3312 / 2164   幅/丈 0.924
+#   Tree_Teiboku_H20_03    W 1.796 × H 2.000 × D 1.863   5632 / 3244 / 2176   幅/丈 0.898
 #   Tree_Teiboku_H24       W 2.222 × H 2.400 × D 2.099   5644 / 3172 / 2100   幅/丈 0.926
 #   Tree_Teiboku_H24_02    W 2.038 × H 2.400 × D 2.066   6266 / 3616 / 2376   幅/丈 0.849
 #   Tree_Teiboku_H24_03    W 1.895 × H 2.400 × D 2.140   5750 / 3224 / 2172   幅/丈 0.790
-#   ・幅/丈 = 0.79〜0.93(指図の狙い 0.9。個体差はそのままにしてある)
+#   ・幅/丈 = 0.79〜0.94(指図の狙い 0.9。個体差はそのままにしてある)
 #   ・接地面 min Y = 0.0000(**12点とも**実測)/ ピボットは幹の芯・接地面
-#   ・LOD0 三角数 5,360〜6,282(在庫の同格=Waldemarst 桜 5,960〜6,575 と同じ帯)
+#   ・丈は 1.200 / 1.600 / 2.000 / 2.400 が**そのまま出る** = 四刻みは物差しどおり等間隔
+#   ・LOD0 三角数 5,370〜6,426(在庫の同格=Waldemarst 桜 5,960〜6,575 と同じ帯)
+#   ・葉の房 → 枝の芯 の最大距離 0.078〜0.158m(関門 0.144/0.191/0.239/0.287m)・
+#     **落とした房 0**(12点・LOD0〜2 の 36 通しとも)
+#   ・樹皮の UV(実測)v span 1.022 = 幹の 1.84m ÷ `bark_uv` 1.80。
+#     ⛔ 0.40 なら 4.60 が出るはず ⇒ **竹になっていないことの数の証拠**
 #   ・孤立した葉の房 **0**(葉のカードの中心 → 最寄りの枝の芯 の最大 0.16m。関門 0.14〜0.29m)
 #   ⭐ **H16 / H24 を足したときに Small / Mid の6点が動いていないことは、
 #     書き出した FBX を git HEAD の版と読み比べて確かめた**(LOD_0/1/2 の全18メッシュで
@@ -976,7 +992,10 @@ def main():
         # ⛔ `hash()` を使わない — **str の hash はプロセスごとに乱数化される**(PYTHONHASHSEED)。
         #    上の「⛔ 種は個体番号から決める」は守れておらず、**焼き直すたびに姿が変わって
         #    検証レンダが比較できなかった**(2026-09-07 部材方が実測。同じ引数で2回焼くと
-        #    Tree_Teiboku_Mid の幅が 2.08m → 1.78m になった)。⭕ crc32 は安定。
+        #    Tree_Teiboku_H20(当時の綴りは Mid)の幅が 2.08m → 1.78m になった)。⭕ crc32 は安定。
+        # ⛔ **`size` の綴りは種そのもの。**呼び名を変えると同じ丈でも別の骨格が出る
+        #    (2026-09-08 の Small→H12 / Mid→H20 の改名で6点の姿が入れ替わった)。
+        #    ⚠ `sizes` に鍵を**足す**だけなら既存の鍵の種は動かない — 改名とは別の話。
         seed = zlib.crc32(("%s/%s/%d" % (key, size, vi)).encode()) & 0xffffffff
         lods, stats = [], []
         for i in range(3):

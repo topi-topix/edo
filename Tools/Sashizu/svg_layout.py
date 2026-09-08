@@ -111,6 +111,53 @@ HALO_FS = 0.30          # 字の大きさに対する割合
 REF_NEAR = 24.0    # px。⭐ **拾い上げてよいのは、元の位置の近くに物が描かれている銘だけ**
 
 
+# ---------------------------------------------------------------- 文書の記法が図へ漏れる
+# ⭐⭐⭐ **2026-09-08 検図方 中1。**⛔⛔ **断面 20 面の凡例が
+#   `破線=<b>江戸期の復元地盤</b>` と、`<b>` `</b>` を字として刷っていた** —
+#   ⚠⚠ **断面の読み方を説明する当の一行**で、しかも**「字面を機械で 0 件にした」と
+#   名乗る図**である。⇒ この一行が壊れていると、その名乗り全体が疑われる。
+# ⛔ 従前の字面の5項目は**どれも「タグが字になった」を見ていなかった**
+#   (重なり・枠外・潜り・小字・コントラストは、どれも**字の置き場所と色**の物差し)。
+# ⇒ ⭕ **第6項**として、`svg > text` に**文書の記法**が残っていないかを毎回測る。
+_MK = (
+    ("タグ", re.compile(r'</?[a-zA-Z][a-zA-Z0-9]*(?:\s[^<>]*?)?/?>')),
+    ("実体参照", re.compile(r'&(?:[a-zA-Z][a-zA-Z0-9]{1,9}|#\d{1,6}|#[xX][0-9a-fA-F]{1,6});')),
+    ("太字", re.compile(r'\*\*')),
+    ("引用符", re.compile(r'`')),
+    ("リンク", re.compile(r'\[[^\[\]\n]*\]\([^()\s]*\)')),
+)
+_RE_MK_CODE = re.compile(r'`([^`\n]+)`')
+
+
+def plain(s):
+    """**文書の記法を図の字へ直す。**⛔ `T()` はこれを通してから紙へ刷る。
+
+    ⚠ **剥がすだけにしない** — ``` `frmEnro.pts` ``` の引用符を落とすと
+    「どこまでが名前か」が消える。⇒ ⭕ **〈 〉**(和文の引用の約物)へ替える。
+    ⛔ タグ・実体参照・太字・リンクは**落とす**(図に太字の段もリンクも無い)。
+    ⚠ **不動点まで回す** — 落とした跡が新しい記法の形になることがある(`<b<b>>`)。
+    """
+    for _ in range(4):
+        t = _MK[4][1].sub(lambda m: m.group(0)[1:m.group(0).index("]")], s)
+        t = _RE_MK_CODE.sub('〈\\1〉', t).replace("`", "")
+        t = _MK[0][1].sub("", t)
+        t = _MK[1][1].sub("", t)
+        t = t.replace("**", "")
+        if t == s:
+            return t
+        s = t
+    return s
+
+
+def markup_hits(s):
+    """その字面に残る記法の印。⛔ **裸の `<` `>` は数えない** — ⚠ 「梁間 &lt; 3.0」の
+    ような不等号は正しい字である。⇒ **タグの形**(`</?英字…>`)だけを拾う。
+
+    ⚠ **`plain()` と対で持つ** — `markup_hits(plain(s))` は必ず空(下の束⑮が毎回試す)。
+    """
+    return [nm for nm, rx in _MK if rx.search(s)]
+
+
 # ---------------------------------------------------------------- 字の物差し
 def css_classes(path=CSS):
     """`sashizu.css` → {クラス名: (font-size, text-anchor, letter-spacing[em])}。"""
@@ -1149,12 +1196,13 @@ def haloize(doc, tab=None, rep=None):
 def check(doc, cls_tab=None):
     """⛔ 直した後の文書を測る。返すのは**件数と実例**。
 
-    測るのは五つ — ⑴ 字どうしの重なり ⑵ 枠の外 ⑶ **塗りに潜った銘** ⑷ **小さすぎる字**
-    ⑸ **地色との コントラストが下限を割る銘**(2026-09-08 検図方 高2)。
+    測るのは六つ — ⑴ 字どうしの重なり ⑵ 枠の外 ⑶ **塗りに潜った銘** ⑷ **小さすぎる字**
+    ⑸ **地色との コントラストが下限を割る銘**(2026-09-08 検図方 高2)
+    ⑹ **文書の記法が字になって刷られた銘**(2026-09-08 検図方 中1)。
     """
     tab = cls_tab or css_classes()
     fills = css_fills()
-    ov, of, cv, tn, lc, figs, nt = [], [], [], [], [], 0, 0
+    ov, of, cv, tn, lc, mk, figs, nt = [], [], [], [], [], [], 0, 0
     unmeas = ami = 0
     for m in _RE_SVG.finditer(doc):
         figs += 1
@@ -1170,6 +1218,9 @@ def check(doc, cls_tab=None):
                 bs.append((b, t.s))
             if has_kana(t.s) and t.eff(W) < MIN_EFF - 1e-9:
                 tn.append((figs, t.eff(W), t.s))
+            hm = markup_hits(t.s)          # ⑹ **記法が字になっている**
+            if hm:
+                mk.append((figs, "/".join(hm), t.s))
         nt += len(bs)
         for j in range(len(bs)):
             for k in range(j + 1, len(bs)):
@@ -1220,12 +1271,14 @@ def check(doc, cls_tab=None):
             if w9[0] < CR_MIN - 1e-9:
                 lc.append((figs, w9[0], t.s, w9[1], w9[2]))
     return {"figs": figs, "texts": nt, "overlap": ov, "outframe": of,
-            "covered": cv, "tiny": tn, "lowcr": lc, "unmeas": unmeas, "ami": ami,
+            "covered": cv, "tiny": tn, "lowcr": lc, "markup": mk,
+            "unmeas": unmeas, "ami": ami,
             "ovFigs": len(set(x[0] for x in ov)),
             "ofFigs": len(set(x[0] for x in of)),
             "cvFigs": len(set(x[0] for x in cv)),
             "tnFigs": len(set(x[0] for x in tn)),
-            "lcFigs": len(set(x[0] for x in lc))}
+            "lcFigs": len(set(x[0] for x in lc)),
+            "mkFigs": len(set(x[0] for x in mk))}
 
 
 def text_fill(t, fills):
@@ -1317,9 +1370,9 @@ def text_contrast(t, i9, layers, fills):
 
 
 def counts(r):
-    """`check` の五つの件数。⛔ 順を他所で並べ替えない。"""
+    """`check` の六つの件数。⛔ 順を他所で並べ替えない。"""
     return (len(r["overlap"]), len(r["outframe"]), len(r["covered"]), len(r["tiny"]),
-            len(r.get("lowcr", ())))
+            len(r.get("lowcr", ())), len(r.get("markup", ())))
 
 
 # ---------------------------------------------------------------- 破壊試験
@@ -1337,13 +1390,13 @@ def probes(doc, raw=None, cls_tab=None):
     out = []
     m = _RE_SVG.search(doc)
     if m is None:
-        return [("⛔ 図版が1面も無い — **この検査は回っていない**", (-1, -1, -1, -1, -1),
-                 ("0", "0", "0", "0", "0"))]
+        return [("⛔ 図版が1面も無い — **この検査は回っていない**", (-1, -1, -1, -1, -1, -1),
+                 ("0", "0", "0", "0", "0", "0"))]
     W, H, body = float(m.group(2)), float(m.group(3)), m.group(4)
     ts = parse(body, tab)
     if len(ts) < 2:
-        return [("⛔ 1面目の字面が2つ未満 — **試験を差し込めない**", (-1, -1, -1, -1, -1),
-                 ("0", "0", "0", "0", "0"))]
+        return [("⛔ 1面目の字面が2つ未満 — **試験を差し込めない**", (-1, -1, -1, -1, -1, -1),
+                 ("0", "0", "0", "0", "0", "0"))]
     a, b = ts[0], ts[1]
 
     def _mut(nb):
@@ -1358,13 +1411,13 @@ def probes(doc, raw=None, cls_tab=None):
                 _mut(_repl(a.span, '<text class="%s" x="%.1f" y="%.1f" style="%s">%s</text>'
                            % (b.cls, b.x, b.y, "text-anchor:%s" % b.an,
                               _html.escape(b.s, quote=False)))),
-                ("≥1", "0", "0", "0", "—")))
+                ("≥1", "0", "0", "0", "—", "0")))
     # ② 1つ目の字面を**枠の外へ出す** ⇒ 枠外が鳴る
     out.append(("② ⭐ 1つ目の字面を**枠の外へ出す** — ⚠ **枠外が鳴る**",
                 _mut(_repl(a.span, '<text class="%s" x="%.1f" y="%.1f" style="%s">%s</text>'
                            % (a.cls, W + 40.0, a.y, "text-anchor:start",
                               _html.escape(a.s, quote=False)))),
-                ("0", "≥1", "0", "0", "—")))
+                ("0", "≥1", "0", "0", "—", "0")))
     # ③ ⭐⭐ 1つ目の銘の上へ**不透明な塗りを後から被せる** ⇒ 潜りが鳴る
     ab = a.box_of(a.s, a.y)
     out.append(("③ ⭐⭐ 1つ目の銘の上へ**不透明な塗りを後から被せる**"
@@ -1372,13 +1425,13 @@ def probes(doc, raw=None, cls_tab=None):
                 _mut(body + '<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" '
                             'fill="var(--paper)" opacity="1.00"/>'
                             % (ab[0] - 1, ab[1] - 1, (ab[2] - ab[0]) + 2, (ab[3] - ab[1]) + 2)),
-                ("0", "0", "≥1", "0", "—")))
+                ("0", "0", "≥1", "0", "—", "0")))
     # ④ ⭐⭐ 1つ目の銘を**下限より小さく**する ⇒ 小字が鳴る
     out.append(("④ ⭐⭐ 1つ目の銘を**字送りの下限より小さく**する — ⚠ **小字が鳴る**",
                 _mut(_repl(a.span, '<text class="%s" x="%.1f" y="%.1f" style="font-size:%.1fpx">'
                            '%s</text>' % (a.cls, a.x, a.y, MIN_EFF * W / VIEW_W * 0.5,
                                           _html.escape("室名の見本", quote=False)))),
-                ("0", "0", "0", "≥1", "—")))
+                ("0", "0", "0", "≥1", "—", "0")))
     # ⑤ ⭐⭐ **推定幅を 0.95 倍して組み直す** ⇒ 枠外が鳴る
     #    ⛔⛔ この巡に実際に残った régime(幅を 5% 見誤る)を鳴らす束が一つも無かった。
     if raw is not None:
@@ -1389,7 +1442,7 @@ def probes(doc, raw=None, cls_tab=None):
             _WS[0] = 1.0
         out.append(("⑤ ⭐⭐ **推定幅を 0.95 倍して組み直す**"
                     "(=一般約物を 0.5em と見誤っていた régime)— ⚠ **枠外が鳴る**",
-                    counts(check(d95, tab)), ("—", "≥1", "0", "0", "—")))
+                    counts(check(d95, tab)), ("—", "≥1", "0", "0", "—", "0")))
     # ⑥〜⑨ ⭐⭐⭐ **検図方が実証した「潜りの抜け道」**(2026-09-08 中1)。
     #   ⛔⛔ 従前の `paints` は「`fill` 属性を持つ非 `line` 要素」だけを見ており、
     #   ⚠ **6通りのうち4通りは画素で 0.00(=銘が完全に消える)のに 0 件**だった。
@@ -1402,23 +1455,23 @@ def probes(doc, raw=None, cls_tab=None):
                             ' stroke-width="%.1f"/>'
                             % (R[0], (ab[1] + ab[3]) / 2.0, R[0] + R[2],
                                (ab[1] + ab[3]) / 2.0, R[3] + 2)),
-                ("0", "0", "≥1", "0", "—")))
+                ("0", "0", "≥1", "0", "—", "0")))
     out.append(("⑦ ⭐⭐ **`style=\"fill:…\"` の矩形で覆う**(変異 (c))— ⚠ **潜りが鳴る**",
                 _mut(body + '<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" '
                             'style="fill:#FBFAF6"/>' % R),
-                ("0", "0", "≥1", "0", "—")))
+                ("0", "0", "≥1", "0", "—", "0")))
     out.append(("⑧ ⭐⭐ **曲線(`C`)を含む `path` の塗りで覆う**(変異 (d)・当図に 1 本ある形)"
                 "— ⚠ **潜りが鳴る**",
                 _mut(body + '<path d="M%.1f,%.1f H%.1f C%.1f,%.1f %.1f,%.1f %.1f,%.1f Z" '
                             'fill="var(--paper)"/>'
                             % (R[0], R[1], R[0] + R[2], R[0] + R[2], R[1] + R[3],
                                R[0], R[1] + R[3], R[0], R[1])),
-                ("0", "0", "≥1", "0", "—")))
+                ("0", "0", "≥1", "0", "—", "0")))
     out.append(("⑨ ⭐⭐ **`<use>` で矩形を貼る**(変異 (f))— ⚠ **潜りが鳴る**",
                 _mut(body + '<defs><rect id="pz9" x="0" y="0" width="%.1f" height="%.1f" '
                             'fill="var(--paper)"/></defs><use href="#pz9" x="%.1f" y="%.1f"/>'
                             % (R[2], R[3], R[0], R[1])),
-                ("0", "0", "≥1", "0", "—")))
+                ("0", "0", "≥1", "0", "—", "0")))
     # ⑩ ⭐⭐ **地色に沈んだ銘** ⇒ コントラストが鳴る
     out.append(("⑩ ⭐⭐ 1つ目の銘を**地色とほぼ同じ色**にする(⛔ フチ無し)"
                 "— ⚠ **コントラストが鳴る**",
@@ -1427,36 +1480,61 @@ def probes(doc, raw=None, cls_tab=None):
                     body[a.span[0]:a.span[1]],
                     '<text class="%s" x="%.1f" y="%.1f" style="fill:#F2F0E8">%s</text>'
                     % (a.cls, a.x, a.y, _html.escape(a.s, quote=False)), 1), tab)),
-                ("—", "—", "—", "—", "≥1")))
+                ("—", "—", "—", "—", "≥1", "0")))
     # ⑪⑫ ⛔⛔ **この物差しが鳴らないと分かっている形**(= 限界の明示。検図方の変異 (b)(e))。
     #   ⛔ 「0 件」を合格と読ませないために、**鳴らないことを期待値として刷る**。
     out.append(("⑪ ⛔⛔ **半透明(0.45)を3枚重ねて覆う**(変異 (b)・画素では 0.43 まで薄まる)"
                 "— ⛔ **この物差しでは鳴らない(既知の穴)**",
                 _mut(body + ('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" '
                              'fill="var(--paper)" opacity="0.45"/>' % R) * 3),
-                ("0", "0", "0", "0", "—")))
-    out.append(("⑫ ⛔⛔ **字の中央 55%% だけを帯で覆う**(変異 (e)・画素では 0.41)"
+                ("0", "0", "0", "0", "—", "0")))
+    out.append(("⑫ ⛔⛔ **字の中央 55% だけを帯で覆う**(変異 (e)・画素では 0.41)"
                 "— ⛔ **この物差しでは鳴らない(既知の穴・`COVER_FR` 未満)**",
                 _mut(body + '<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" '
                             'fill="var(--paper)"/>'
                             % (R[0], ab[1] + (ab[3] - ab[1]) * 0.225, R[2],
                                (ab[3] - ab[1]) * 0.55)),
-                ("0", "0", "0", "0", "—")))
-    # ⑬ 触らない ⇒ 鳴らない
-    out.append(("⑬ いまの図(基準)— ⛔ **鳴らない**", counts(check(doc, tab)),
-                ("0", "0", "0", "0", "0")))
+                ("0", "0", "0", "0", "—", "0")))
+    # ⑬⑭ ⭐⭐⭐ **文書の記法が図へ漏れる**(2026-09-08 検図方 中1)。
+    #   ⛔⛔ **この一対が無いと、⑹「記法 0 件」は `plain()` が剥がすからそう出る数**に
+    #   すぎない(= 恒真)。⇒ ⭕ **⑬は `plain()` を通さない生の `<text>`** を差して
+    #   **口が開いていること**を、⭕ **⑭は同じ字を `plain()` に通して**
+    #   **変換が生きていること**を、毎回別々に鳴らす。
+    #   ⚠ 差した銘は場所も色も選んでいないので、**記法の欄以外は不問(「—」)**。
+    _MKS = ["凡例=<b>江戸期の復元地盤</b>", "&lt;b&gt; と &#98;",
+            "**太い字**", "点線の円=`at` の半径の帯", "[題](http://x)"]
+
+    def _inject(ss):
+        return body + "".join(
+            '<text class="%s" x="%.1f" y="%.1f" style="text-anchor:start">%s</text>'
+            % (a.cls, PAD, PAD + 12.0 * (k + 1), _html.escape(q, quote=False))
+            for k, q in enumerate(ss))
+    out.append(("⑬ ⭐⭐⭐ **記法(タグ/実体参照/太字/引用符/リンク)の5通りを"
+                "`plain()` を通さずに紙へ刷る** — ⚠ **記法が5件鳴る**",
+                _mut(_inject(_MKS)), ("—", "—", "—", "—", "—", "≥5")))
+    out.append(("⑭ ⭐⭐⭐ **同じ5通りを `plain()` に通して刷る** — "
+                "⛔ **鳴らない(鳴ったら変換のほうが壊れている)**",
+                _mut(_inject([plain(q) for q in _MKS])),
+                ("—", "—", "—", "—", "—", "0")))
+    # ⑮ 触らない ⇒ 鳴らない
+    out.append(("⑮ いまの図(基準)— ⛔ **鳴らない**", counts(check(doc, tab)),
+                ("0", "0", "0", "0", "0", "0")))
     return out
 
 
 def probe_ok(rows):
-    """`probes` の各行が期待どおりか。⛔ 期待は「≥1」「0」「—」(不問)の語で持つ。
+    """`probes` の各行が期待どおりか。⛔ 期待は「≥N」「0」「—」(不問)の語で持つ。
 
     ⚠ **「—」は逃げ道ではない** — その束が**その筋では鳴ると言い切れない**ときだけ使う
     (例: 幅を 0.95 倍して組み直すと、枠外だけでなく重なりも副次的に出る)。
+    ⭐ **「≥N」は N 件以上**(⛔ 「≥1」で済ませない — 5通りの記法を差す束は
+    **5通りとも鳴ることまで**言い切る。1件だけ鳴って通ると、⚠ 残る4つの口が閉じていても
+    合格に見える)。
     """
     out = []
     for title, got, want in rows:
-        ok = all(True if w == "—" else (g >= 1 if w == "≥1" else g == 0)
+        ok = all(True if w == "—" else
+                 (g >= int(w[1:]) if w.startswith("≥") else g == int(w))
                  for g, w in zip(got, want))
         out.append((title, got, want, ok))
     return out
@@ -1467,11 +1545,11 @@ if __name__ == "__main__":
     doc = open(sys.argv[1], encoding="utf-8").read()
     r0 = check(doc)
     print("直す前: 重なり %d 組 / 枠外 %d 件 / 潜り %d 件 / 小字 %d 件 / 低コントラスト %d 件"
-          % counts(r0))
+          " / 記法 %d 件" % counts(r0))
     doc2, rep = relayout(doc)
     r1 = check(doc2)
-    print("直した後: 重なり %d 組 / 枠外 %d 件 / 潜り %d 件 / 小字 %d 件 / 低コントラスト %d 件 ・ %s"
-          % (counts(r1) + (rep,)))
+    print("直した後: 重なり %d 組 / 枠外 %d 件 / 潜り %d 件 / 小字 %d 件 / 低コントラスト %d 件"
+          " / 記法 %d 件 ・ %s" % (counts(r1) + (rep,)))
     for x in sorted(r1.get("lowcr", []))[:15]:
         print("  CR  f%02d %.2f  %s  (字 #%02X%02X%02X / 地 #%02X%02X%02X)"
               % ((x[0], x[1], x[2][:30]) + tuple(x[3]) + tuple(x[4])))
@@ -1483,6 +1561,8 @@ if __name__ == "__main__":
         print("  COV f%02d %d/%d  %s" % (x[0], x[2], x[3], x[1][:40]))
     for x in sorted(r1["tiny"])[:20]:
         print("  TNY f%02d %.2fpx  %s" % (x[0], x[1], x[2][:40]))
+    for x in r1["markup"][:20]:
+        print("  MRK f%02d %-8s %s" % (x[0], x[1], x[2][:50]))
     doc3, _ = relayout(doc2)
     print("冪等: %s" % ("⭕" if doc3 == doc2 else "⛔ 2度目で変わった"))
     # ⚠ ここでは `raw` に**直した後の図**しか渡せない(この入口は完成した html を読むため)

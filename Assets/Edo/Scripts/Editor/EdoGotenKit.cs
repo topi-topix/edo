@@ -84,7 +84,13 @@ public static class EdoGotenKit
     /// 基準が違う。⛔ 取り違えると **3.4m(軒高ぶん)浮く**。
     /// <paramref name="roofYaw"/> は棟の local に対する屋根の回し(度)— 帯割りの部材は
     /// **モデル局所 +X = 江戸間格子の +u** に焼いてあるので、桁行が v の棟では
-    /// 「世界の yaw が格子の yaw ちょうどになる」差ぶんをここへ渡す(⛔ 呼び側で 90° を足さない)。</para></summary>
+    /// 「世界の yaw が格子の yaw ちょうどになる」差ぶんをここへ渡す(⛔ 呼び側で 90° を足さない)。</para>
+    ///
+    /// <para>⚠ 2026-09-08(普請検査差戻し): <paramref name="roofAtFloor"/>=false(入母屋・寄棟)の既定は
+    /// `floor + H − 0.15`(=3.197m・棟の建具高 H に従属する値で、指図の軒高 const とは無関係)。
+    /// 附属屋(厩・長屋類)のように**指図が別の軒高 const を持つ棟**では、<paramref name="roofEaveLocalY"/>
+    /// に指図の軒高(地盤基準・m)をそのまま渡すと、その値を local Y として使う(既定 NaN =従来どおり)。
+    /// ⛔ 帯割り(roofAtFloor=true)と混同しない — あちらは z=0 が床なので Y は常に floor。</para></summary>
     public static GameObject Mune(string name, Transform parent, Vector3 pos, float yaw,
                                   int nx, int nzZashiki, int iri = 1,
                                   float floor = 0.62f, string roofAsset = null,
@@ -92,7 +98,8 @@ public static class EdoGotenKit
                                   int[] openBaysWest = null, int[] openBaysEast = null,
                                   int jodanFromIx = -1, int iriX = 0, int moyaBay = 3,
                                   bool partition = true,
-                                  bool roofAtFloor = false, float roofYaw = 0f)
+                                  bool roofAtFloor = false, float roofYaw = 0f,
+                                  float roofEaveLocalY = float.NaN)
     {
         if (moyaBay < 1) moyaBay = 1;
         // 妻側の建具を省く区画(床の間・違い棚・帳台構が入る所)。塞いだままだと飾りが壁の裏に隠れる
@@ -256,8 +263,9 @@ public static class EdoGotenKit
         if (!string.IsNullOrEmpty(roofAsset))
         {
             // ⛔ 帯割り(roofAtFloor)は FBX の z=0 が**床**。入母屋・寄棟(z=0 が軒先)と足す高さが違う
+            float roofY = roofAtFloor ? floor : (float.IsNaN(roofEaveLocalY) ? floor + H - 0.15f : roofEaveLocalY);
             var r = Put(roofAsset, g.transform,
-                        new Vector3(W / 2f, roofAtFloor ? floor : floor + H - 0.15f, D / 2f), roofYaw);
+                        new Vector3(W / 2f, roofY, D / 2f), roofYaw);
             if (r != null)
             {
                 // 屋根の寸法が棟に合っているか確かめる(軒の出0.9m×2を見込む)

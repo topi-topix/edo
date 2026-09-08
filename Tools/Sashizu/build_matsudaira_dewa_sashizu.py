@@ -453,11 +453,27 @@ def goten_plan(d, u0, u1, v0, v1, label, note):
                 g.append(LN(pr.X(r["u0"]), pr.Y(v), pr.X(r["u1"]), pr.Y(v), "var(--ink)", 0.8, dash="5 3"))
             cx = (pr.X(r["u0"]) + pr.X(r["u1"])) / 2
             cy = (pr.Y(r["v0"]) + pr.Y(r["v1"])) / 2
+            kz = r.get("zashikiKazari")
+            if kz and kz.get("undecided"):
+                # ⛔ **未決の室は染めも書きもしない** — 図が『在る』とも『無い』とも
+                #   言わないのが正しい(`_pending.zashikiKazariNakaoku`)。破線の枠だけ回す。
+                g.append(pr.rect(r["u0"], r["v0"], r["u1"], r["v1"], fill="none",
+                                 stroke="var(--shu)", sw=1.2, dash="4 3"))
+                kz = None
+            if kz:
+                # ⭐ **座敷飾のある室は地を朱に染める**(2026-09-08・第29次)。
+                #   ⛔ **どの壁面へ据えるかは描かない** — 三点が在ることは [西川1959]A で
+                #     決まったが、面の位置は決まっていない(`_pending.zashikiKazariMenIchi`)。
+                g.append(pr.rect(r["u0"], r["v0"], r["u1"], r["v1"], fill="var(--shu)", op=0.16))
+                cy -= 6
             fs = fit(r["name"], pr.L(abs(r["u1"] - r["u0"])) - 4, 11.5)
             g.append(T(cx, cy - 1, r["name"], "rmS", "middle", fs))
             # 土間・板敷に畳数は付けない(考証指摘#17)— 間²で示す
             g.append(T(cx, cy + 11, ("%d間²" % (r["tatami"] // 2)) if r.get("ita") else ("%d畳" % r["tatami"]),
                        "jo", "middle"))
+            if kz:
+                g.append(T(cx, cy + 23, kazari_label(kz), "sr", "middle",
+                           fit(kazari_label(kz), pr.L(abs(r["u1"] - r["u0"])) - 2, 10.0)))
         nm = MUNE_JA.get(m["name"], m["name"])
         g.append(T((pr.X(m["u0"]) + pr.X(m["u1"])) / 2, pr.Y(m["v0"]) - 4, nm, "mu", "middle",
                    fit(nm, pr.L(m["u1"] - m["u0"]), 12.5)))
@@ -3330,6 +3346,74 @@ def gate_parts_table(d):
 #     0.96m の隙間が同時に起きた。
 
 
+def gate_derive_check(d, tol=1e-6):
+    """**表門の割り付けが「何から導いたか」のとおりに立っているか。**
+
+    ⭐ **2026-09-08(第29次)**。⛔ 表門まわりには**独立した数字を置かない** — 動かせるのは
+      ①`plan.opening`([五千分一東京図31]A の実測)②`plan.monW`(扉の部材から決まる門柱間)
+      ③表長屋の妻面(`runs.N_Nagaya_W.s1` / `N_Nagaya_E1.s0`)の三つだけで、
+      **番所の幅も袖塀の長さもそこからの従属値**。
+    ⚠ 第28次まで `plan.sode` は『開口 − 門柱部を2で割る』という**袖塀が門柱の脇にあった頃の
+      逆算**のまま据え置かれ、袖塀が番所の外へ移っても値が動かない**孤立値**だった
+      (第29次・検図方の指摘)。⇒ 導出を機械で縛る。"""
+    g = d.get("gate") or {}
+    p = g.get("plan") or {}
+    sp = p.get("sPos") or {}
+    bad = []
+    op = p.get("opening")
+    if not op:
+        return ["`gate.plan.opening`(図の実測の開口)が無い — 番所の幅の導出元が指図に無い"]
+    if abs((op["s1"] - op["s0"]) - op["w"]) > 1e-9:
+        bad.append("`gate.plan.opening`: 幅 %.3f が s0..s1 の差 %.3f と合わない"
+                   % (op["w"], op["s1"] - op["s0"]))
+    # ① 番所の幅 = (実測の開口 − 門柱間) ÷ 2
+    want_b = (op["w"] - p["monW"]) / 2.0
+    if abs(p["bansho"]["w"] - want_b) > 1e-4:
+        bad.append("番所の幅 %.3fm が従属値(開口 %.2f − 門柱間 %.2f)÷2 = %.3fm と合わない — "
+                   "⛔ 独立した数字を置かない(`gate.plan.bansho._w`)"
+                   % (p["bansho"]["w"], op["w"], p["monW"], want_b))
+    # ② 走りの割り付けが連続していること(隙間もめり込みも不可)
+    order = [("sodeW", "袖塀(西)"), ("banshoW", "番所(西)"), ("mon", "門柱・冠木"),
+             ("banshoE", "番所(東)"), ("sodeE", "袖塀(東)")]
+    for (a, an), (b, bn) in zip(order, order[1:]):
+        if abs(sp[a][1] - sp[b][0]) > 1e-4:
+            bad.append("%s の東端 %.3f と %s の西端 %.3f が離れている(%.3fm)— "
+                       "門構えの中に隙間もめり込みも作らない"
+                       % (an, sp[a][1], bn, sp[b][0], sp[b][0] - sp[a][1]))
+    # ③ 各駒の長さが plan の値と一致すること
+    for tag, want, nm in (("mon", p["monW"], "門柱間 `plan.monW`"),
+                          ("banshoW", p["bansho"]["w"], "番所の幅 `plan.bansho.w`"),
+                          ("banshoE", p["bansho"]["w"], "番所の幅 `plan.bansho.w`"),
+                          ("sodeW", p["sode"], "袖塀の長さ `plan.sode`"),
+                          ("sodeE", p["sode"], "袖塀の長さ `plan.sode`")):
+        if abs((sp[tag][1] - sp[tag][0]) - want) > 1e-4:
+            bad.append("`sPos.%s` の長さ %.3fm が %s = %.3fm と合わない"
+                       % (tag, sp[tag][1] - sp[tag][0], nm, want))
+    # ④ 門構え一体(番所+門柱部+番所)が実測の開口と同じ幅であること
+    body = sp["banshoE"][1] - sp["banshoW"][0]
+    if abs(body - op["w"]) > 1e-3:
+        bad.append("番所+門柱部+番所の一体 %.3fm が [%s] の実測開口 %.2fm に収まっていない — "
+                   "⛔ 確度Bの推定を確度Aの実測より優先しない(`_pending.omotemonZuKaishaku`)"
+                   % (body, op["src"], op["w"]))
+    # ⑤ 門柱は開口の芯 `gate.s` に対称
+    if abs((sp["mon"][0] + sp["mon"][1]) / 2.0 - g["s"]) > 1e-4:
+        bad.append("門柱間の中心 %.3f が `gate.s` %.3f からずれている"
+                   % ((sp["mon"][0] + sp["mon"][1]) / 2.0, g["s"]))
+    # ⑥ 袖塀の外端 = 表長屋の妻面(=[五千分一東京図31] が読む長屋帯の端)。ここが袖塀の従属元
+    ends = {r["name"]: r for r in d["runs"]}
+    for tag, run, key, nm in (("sodeW", "N_Nagaya_W", "s1", "表長屋(西翼)の東妻面"),
+                              ("sodeE", "N_Nagaya_E1", "s0", "表長屋(東翼)の西妻面")):
+        if run not in ends:
+            bad.append("`runs.%s` が無い — 袖塀の従属元(%s)が消えている" % (run, nm))
+            continue
+        want = ends[run][key]
+        got = sp[tag][0] if tag == "sodeW" else sp[tag][1]
+        if abs(got - want) > 1e-4:
+            bad.append("袖塀の外端 %.3f が %s %.3f と合わない — 外周に %.3fm の口が開く"
+                       % (got, nm, want, abs(got - want)))
+    return bad
+
+
 def _opening_span(d, key):
     """開口の (辺, s0, s1, 名, 部材の並び) を設計値から組む。"""
     g = d["gate"]
@@ -3578,6 +3662,68 @@ def chain_strip_svg(d):
                          "朱の帯=開口。", "anS2", "start"))
     g.append("</svg>")
     return "\n".join(g)
+
+
+def _gate_kazari_nest_checks(d):
+    """第29次で足した3本の束(素の設計と感度試験が**同じ束**を見るための共有ヘルパー)。"""
+    return set(gate_derive_check(d) + zashiki_kazari_check(d) + garden_nest_check(d))
+
+
+def gate_kazari_nest_sensitivity(d):
+    """**感度試験** — わざと壊して第29次の3本が鳴るか。
+    ⛔ 鳴らない probe を残さない(規則19・`qa-and-pitfalls`「測れないものは 0 件になる」)。
+    判定は「**素に無かった文言が出たか**」(⛔ 件数の差で測らない)。"""
+    base = _gate_kazari_nest_checks(d)
+    probes = []
+
+    def run(label, mut):
+        m = copy.deepcopy(d)
+        try:
+            mut(m)
+            got = _gate_kazari_nest_checks(m)
+        except Exception as e:                        # 落ちるのも「鳴った」に数える
+            got = base | {"落ちた: %s" % e}
+        probes.append((label, len(got - base)))
+
+    def _room(m, nm):
+        for mu in m["munes"]:
+            for r in mu.get("rooms", []):
+                if r["name"] == nm:
+                    return r
+        raise KeyError(nm)
+
+    def _g(m, nm):
+        return next(x for x in m["gardens"] if x["name"] == nm)
+
+    # 表門(①〜⑤)
+    run("① 番所の幅を写真比の旧値(5.5m)へ戻す(実測の開口に収まらなくなる)",
+        lambda m: m["gate"]["plan"]["bansho"].__setitem__("w", 5.5))
+    run("② 袖塀の長さを第28次の孤立値(4.25m)へ戻す(長屋の妻面との間に口が開く)",
+        lambda m: m["gate"]["plan"].__setitem__("sode", 4.25))
+    run("③ 西の番所だけ 0.3m 東へずらす(門構えの中に隙間ができる)",
+        lambda m: m["gate"]["plan"]["sPos"].__setitem__(
+            "banshoW", [m["gate"]["plan"]["sPos"]["banshoW"][0] + 0.3,
+                        m["gate"]["plan"]["sPos"]["banshoW"][1] + 0.3]))
+    run("④ 図の実測の開口(`plan.opening`)を消す(番所の幅の導出元が消える)",
+        lambda m: m["gate"]["plan"].pop("opening"))
+    run("⑤ 表長屋(西翼)の妻面を 1.0m 西へ引く(袖塀の従属元が動く)",
+        lambda m: next(r for r in m["runs"] if r["name"] == "N_Nagaya_W")
+                  .__setitem__("s1", 110.8))
+    # 座敷飾(⑥〜⑧)
+    run("⑥ 大広間上段から座敷飾を落とす",
+        lambda m: _room(m, "大広間上段").pop("zashikiKazari"))
+    run("⑦ 上段でない室(黒書院次之間)に座敷飾を付ける",
+        lambda m: _room(m, "黒書院次之間").__setitem__(
+            "zashikiKazari", {"toko": True, "chigaidana": True, "tsukeshoin": True,
+                              "chodaigamae": False, "src": "x", "cert": "x"}))
+    run("⑧ 黒書院上段の座敷飾から典拠を落とす",
+        lambda m: _room(m, "黒書院上段")["zashikiKazari"].pop("src"))
+    # 庭の入れ子(⑨〜⑩)
+    run("⑨ 内露地の `nest` の宣言を消す(西庭と面積が二重に数えられるのが読めなくなる)",
+        lambda m: _g(m, "G_Roji_Uchi").pop("nest"))
+    run("⑩ 梅林の `nest` を別の庭(西庭)へ付け替える",
+        lambda m: _g(m, "G_Ume_Hiroba").__setitem__("nest", "G_NishiNiwa"))
+    return len(base), probes
 
 
 def joints_face_table(d):
@@ -4092,7 +4238,8 @@ def _roof_checks(d):
     """屋根まわりの検査の束(素の設計と感度試験が**同じ束**を見るための共有ヘルパー)。"""
     return set(roof_band_span_check(d) + roof_eave_order_check(d) + roof_annex_eave_check(d)
                + roof_moya_check(d) + roof_kaku_check(d) + roof_along_check(d)
-               + roof_stock_check(d) + section_roof_disclaimer_check(d))
+               + roof_stock_check(d) + section_roof_disclaimer_check(d)
+               + roof_note_check(d))
 
 
 def roof_sensitivity(d):
@@ -4129,14 +4276,25 @@ def roof_sensitivity(d):
             "spanKen", _m(m, "Okugoten")["roof"]["spanKen"] + 2))
     run("⑦ 帯に上限を超える 6間 を入れる",
         lambda m: _m(m, "Daidokoro")["roof"].__setitem__("bands", [6, 4, 4]))
-    run("⑧ 部材の新造依頼(`_pending.gotenRoofShinzo`)を消す",
-        lambda m: m["_pending"].pop("gotenRoofShinzo"))
+    # ⚠ **2026-09-08(第29次)に probe を直した** — 旧 probe は新造依頼を消すだけで、
+    #   **在庫に無い部材が一つも無い今の設計では何も鳴らなかった**(恒真の検査を素通しする
+    #   probe)。⇒ 在庫に無い帯割りを名指しさせ、依頼も消して、両方が抜けた状態を作る。
+    run("⑧ 在庫に無い帯割り(4-4-4-4x12ken)を名指しし、新造依頼(`_pending.gotenRoofShinzo`)も消す",
+        lambda m: (_m(m, "Genkan")["roof"].__setitem__("bands", [4, 4, 4, 4]),
+                   m["_pending"].pop("gotenRoofShinzo")))
     run("⑨ 断面から概略の屋根の高さ(`ridgeAbove`)を落とす",
         lambda m: m["sections"][0].pop("ridgeAbove"))
     run("⑩ 長屋型の棟に帯割りを持たせる",
         lambda m: _m(m, "Umaya").__setitem__(
             "roof", {"bands": [4], "spanKen": 6, "alongV": False, "fukizai": "sangawara",
                      "muneTakasa": None, "confidence": "U"}))
+    # ⭐ **人手の注記が実データから遅れる**壊れ方(2026-09-08・第29次・検図方の指摘の型そのもの)
+    run("⑪ 大広間の `_roof` を対称帯割り時代の旧文へ戻す(帯 4+4+4=12間・桁行14間)",
+        lambda m: _m(m, "Ohiroma").__setitem__(
+            "_roof", "帯 4+4+4=12間(外形 v14間−南北入側2間=身舎12間)・桁行(spanKen)14間"
+                     "=u外形そのまま。共通条件は `_roofCommon` 参照。"))
+    run("⑫ 黒書院の `_roof` を消す",
+        lambda m: _m(m, "Kuroshoin").pop("_roof"))
     return len(base), probes
 
 
@@ -14376,6 +14534,49 @@ def tsukiyama_table(d, dem):
                   % r2)
 
 
+def garden_nest_check(d, thresh=0.99):
+    """**庭の入れ子(親ゾーンの中に丸ごと入る庭)が宣言されているか。**
+
+    ⭐ **2026-09-08(第29次・検図方の指摘)**。⛔ 入れ子の庭は**面積が親と二重に数えられる**が、
+      第28次まで宣言は `gardens[]._` の散文にしかなく、**生成器はどの `_` も読まないので図に
+      一切出なかった**(規則19 第3型=黙り)。⇒ `gardens[].nest` に機械可読で持たせ、
+      庭の面積表の『入れ子(親)』の欄に出す。
+    ⚠ 宣言漏れを実際に1件見つけた — 内露地は西庭の中に丸ごと入っているのに、
+      外露地だけが散文で入れ子を名乗っていた。"""
+    G = d["gardens"]
+    by = {g["name"]: g for g in G}
+    bad = []
+
+    def frac_in(pts, h):
+        return sum(1 for (u, v) in pts if _in_zone(h, u, v)) / float(len(pts))
+
+    def bbox_in(g, h):
+        return (h["u0"] - 1e-6 <= g["u0"] and g["u1"] <= h["u1"] + 1e-6
+                and h["v0"] - 1e-6 <= g["v0"] and g["v1"] <= h["v1"] + 1e-6)
+
+    for g in G:
+        pts = list(_garden_pts(g))
+        if not pts:
+            continue
+        par = g.get("nest")
+        if par is not None:
+            if par not in by:
+                bad.append("庭 %s の `nest` が指す %s が gardens に無い" % (g["name"], par))
+                par = None
+            elif frac_in(pts, by[par]) < thresh:
+                bad.append("庭 %s は `nest` に %s を宣言しているが、面の %.0f%% しかその中に"
+                           "入っていない — 入れ子でないか、輪郭が動いている"
+                           % (g["name"], par, 100.0 * frac_in(pts, by[par])))
+        for h in G:
+            if h is g or h["name"] == par or not bbox_in(g, h):
+                continue
+            if frac_in(pts, h) >= thresh:
+                bad.append("庭 %s は %s の中に丸ごと入っているのに `nest` を宣言していない — "
+                           "面積が二重に数えられていることが図から読めない"
+                           % (g["name"], h["name"]))
+    return bad
+
+
 def garden_access_table(d, lim=20.0):
     """**庭のどこまで道が届くか。**⛔ 2026-09-01 の庭方の不合格の第一項を数で示す表。"""
     K = d["const"]["ken"]
@@ -14401,14 +14602,28 @@ def garden_access_table(d, lim=20.0):
                 far += 1
         if not tot:
             continue
-        rows += ("<tr><td>%s</td><td>%s</td><td>%.0f 坪</td><td>%.1f m</td>"
+        par = z.get("nest")
+        rows += ("<tr><td>%s</td><td>%s</td><td>%.0f 坪</td><td%s>%s</td><td>%.1f m</td>"
                  "<td%s>%.0f%%</td></tr>"
-                 % (z["name"], z["label"], tot * (0.5 ** 2), dmax,
+                 % (z["name"], z["label"], tot * (0.5 ** 2),
+                    ' style="color:var(--shu)"' if par else "",
+                    ("<b>%s</b> の中" % par) if par else "—", dmax,
                     ' style="color:var(--shu)"' if far > tot * 0.15 else "",
                     100.0 * far / tot))
+    nested = [z["name"] for z in d["gardens"] if z.get("nest")]
     return ('<div class="tw"><table><thead><tr><th>庭</th><th>名</th><th>面積</th>'
-            '<th>最寄りの道までの最大</th><th>%.0fm 超の割合</th></tr></thead>'
-            "<tbody>%s</tbody></table></div>" % (lim, rows))
+            '<th>入れ子(親)</th><th>最寄りの道までの最大</th><th>%.0fm 超の割合</th></tr></thead>'
+            "<tbody>%s</tbody></table></div>"
+            "<p class='cap'>⭐ <b>『入れ子』の庭は親ゾーンの中に丸ごと入る</b>"
+            "(%s)。<b>面積は親にも数えられているので、この列を足し合わせない。</b>"
+            "⛔ 従前この宣言は <code>gardens[]._</code> の散文にしか無く、"
+            "<b>生成器はどの <code>_</code> も読まないので図に一切出なかった</b>"
+            "(2026-09-08・第29次・検図方の指摘=規則19 第3型)。いまは "
+            "<code>gardens[].nest</code> が正典で、宣言の漏れと親の取り違えを "
+            "<code>garden_nest_check</code> が見張る。⚠ その最初の1件が"
+            "<b>内露地</b>だった — 西庭の中に丸ごと入っているのに、外露地だけが"
+            "散文で入れ子を名乗っていた。</p>"
+            % (lim, rows, "・".join(nested) if nested else "この図には無い"))
 
 
 def _near_kaidan(d, u, v, r=3.0):
@@ -14899,6 +15114,164 @@ def _irimoya_lines(u0, u1, v0, v1, alongV):
         gables = [((u0 + a, v0 + a), (u0 + a, v1 - a)), ((u1 - a, v0 + a), (u1 - a, v1 - a))]
         ridge = ((u0 + a, c), (u1 - a, c))
     return hips, gables, ridge
+
+
+KAZARI_JA = [("toko", "床"), ("chigaidana", "違棚"),
+             ("tsukeshoin", "付書院"), ("chodaigamae", "帳台構")]
+
+
+def kazari_label(z):
+    """座敷飾の宣言を図に出す文字列にする。⛔ 名を図へ直書きしない — 欄から組む。"""
+    return "・".join(ja for k, ja in KAZARI_JA if z.get(k))
+
+
+def zashiki_kazari_table(d):
+    """上段の座敷飾の一覧。⛔ 有無・典拠・確度は json の `rooms[].zashikiKazari` をそのまま並べる。
+    ⭐ **『置かない』も欄に出す** — 帳台構を置かない判断は「未検査」ではなく**決めごと**なので、
+      空欄にせず ✗ で示す(規則19)。"""
+    rows = ""
+    for m in d["munes"]:
+        for r in m.get("rooms", []):
+            z = r.get("zashikiKazari")
+            if not z:
+                continue
+            if z.get("undecided"):
+                cells = ("<td colspan='%d' style='text-align:center;color:var(--shu)'>"
+                         "<b>未決 — 考証へ差し戻し</b></td>" % len(KAZARI_JA))
+            else:
+                cells = "".join(
+                    "<td style='text-align:center%s'>%s</td>"
+                    % (";color:var(--shu)" if z.get(k) else "", "●" if z.get(k) else "✗")
+                    for k, _ja in KAZARI_JA)
+            rows += ("<tr><td>%s</td><td><b>%s</b></td><td>%d畳</td>%s"
+                     "<td class='note'>%s</td><td class='note'>%s</td></tr>"
+                     % (MUNE_JA.get(m["name"], m["name"]), r["name"], r["tatami"], cells,
+                        z.get("src", "?"), z.get("cert", "?")))
+    if not rows:
+        return ""
+    return ("<h3>座敷飾 — 上段の間の設え</h3><div class='tw'><table><thead><tr>"
+            "<th>棟</th><th>室</th><th>畳</th>%s<th>典拠</th><th class='note'>確度</th>"
+            "</tr></thead><tbody>%s</tbody></table></div>"
+            "<p class='cap'>⭕ <b>典拠は [西川1959]A</b> — <b>江戸の大名屋敷の表向殿舎への直接記述</b>"
+            "「上段の間には付書院・床・棚の座敷飾が施される」。"
+            "⭐ <b>城郭附属御殿からの外挿ではない</b>。"
+            "<br>⛔ <b>帳台構は置かない</b> — 同記述が引く宝永3年甲良向念記録では帳台構は"
+            "<b>御成御殿の構成</b>としてのみ現れ、通常の表向上段の記述に出ない。"
+            "当邸は御成セットを 2026-08-23 に撤去済み(考証の章)。"
+            "確度は<b>A寄りB</b>(『無いことの証明』なので厳密には B)。"
+            "[二条城二の丸御殿]A(床・棚・書院+帳台構)は<b>傍証としてのみ・確度を落として</b>引く"
+            " — 現存御殿は城郭附属で藩邸ではない。"
+            "<br>⛔ <b>どの壁面へ据えるかは決めていない【?】</b> — 図は室の地を朱に染めて"
+            "飾りの別を書くだけで、面の位置は描かない"
+            "(<code>_pending.zashikiKazariMenIchi</code>)。"
+            "⚠ <b>部材は在庫未照会</b>(<code>_pending.zashikiKazari</code> → 在庫方)。"
+            "<br>⚠⚠ <b>中奥『御座之間上段』は未決</b> — 上の典拠は<b>表向殿舎</b>への記述で、"
+            "<b>中奥(藩主の日常の居間)の上段は範囲に入らない</b>。⛔ 指図方は決めない"
+            "(規則17)。空欄にすると『飾りが無い』と読まれるので、<b>未決のまま行に出す</b>"
+            "(規則19: 未検査は合格ではない)。差し戻し先は"
+            "<code>_pending.zashikiKazariNakaoku</code>。"
+            "検査は <code>zashiki_kazari_check</code>。</p>"
+            % ("".join("<th>%s</th>" % ja for _k, ja in KAZARI_JA), rows))
+
+
+def zashiki_kazari_check(d):
+    """**上段の間に座敷飾が宣言されているか。**
+
+    ⭐ **2026-09-08(第29次・考証方の決定=[西川1959]A)**。`_roofCommon` は『格を示す軸は
+      **座敷飾と棟の配置の2つ**』と書いているのに、第28次まで `munes[].rooms` に座敷飾の欄が
+      無く、**前提の半分が空**のまま棟の配置だけで格を語っていた。
+    ⛔ 上段でない室に座敷飾を置かない([西川1959]A は『**上段の間には**付書院・床・棚の
+      座敷飾が施される』)。⛔ 典拠と確度の無い宣言も置かない(規則7)。"""
+    bad = []
+    R = d.get("roofRule") or {}
+    seen = []
+    for m in d["munes"]:
+        for r in m.get("rooms", []):
+            z = r.get("zashikiKazari")
+            jodan = r["name"].endswith("上段")
+            if jodan and not z:
+                bad.append("室『%s』(%s)は上段なのに `zashikiKazari` が無い — "
+                           "`_roofCommon` が立てる『格を示す軸の2つ』の片方が空のまま"
+                           % (r["name"], m["name"]))
+            if z and not jodan:
+                bad.append("室『%s』(%s)は上段でないのに `zashikiKazari` を持つ — "
+                           "座敷飾は上段の間の設え([西川1959]A)" % (r["name"], m["name"]))
+            if not z:
+                continue
+            if z.get("undecided"):
+                # ⭕ **『まだ決まっていない』も宣言**(規則19: 未検査は合格ではない)。
+                #   ⛔ 空欄で放置しない — 空欄は図で『飾りが無い』と読まれる。
+                if len(z.get("_", "")) < 20:
+                    bad.append("室『%s』の `zashikiKazari` は `undecided` だが理由(`_`)が"
+                               "書かれていない — ⛔ 空の未決を置かない" % r["name"])
+                if z.get("cert") != "?":
+                    bad.append("室『%s』の `zashikiKazari` は `undecided` なのに確度が `?` でない"
+                               % r["name"])
+                continue
+            seen.append((m["name"], r["name"]))
+            for k, ja in KAZARI_JA:
+                if k not in z:
+                    bad.append("室『%s』の `zashikiKazari` に `%s`(%s)の欄が無い — "
+                               "**有無を宣言しない飾りは『未検査』であって『無い』ではない"
+                               "**(規則19)" % (r["name"], k, ja))
+            for k, ja in (("src", "典拠"), ("cert", "確度")):
+                if not z.get(k):
+                    bad.append("室『%s』の `zashikiKazari` に %s(`%s`)が無い — "
+                               "⛔ 推定に典拠と確度を付けない物を置かない(絶対規則7)"
+                               % (r["name"], ja, k))
+            if not any(z.get(k) for k, _ja in KAZARI_JA):
+                bad.append("室『%s』の `zashikiKazari` は飾りが一つも立っていない — "
+                           "空の宣言を置かない" % r["name"])
+    if not seen:
+        bad.append("座敷飾を持つ室が一つも無い — 格を示す軸が棟の配置だけになる(`_roofCommon`)")
+    kaku = R.get("kakuMune")
+    if kaku and not any(mn == kaku for mn, _rn in seen):
+        bad.append("格の頂点 `roofRule.kakuMune`(%s)に座敷飾の室が無い — "
+                   "最も格の高い棟だけ設えが空になる" % kaku)
+    return bad
+
+
+def roof_note_check(d):
+    """**人手の注記 `munes[]._roof` が実データと同じことを言っているか。**
+
+    ⛔ **規則19 第3型(黙り)への手当て**(2026-09-08・第29次・検図方の指摘)。
+      `_roof` は生成器がどこからも読まず図にも出ないので、帯割りを組み替えても注記だけが
+      古いまま残る — 実際に **表役所・大広間・玄関・大台所の4件**が、対称帯割り時代の
+      「帯 4+4+4=12間…桁行14間」のまま非対称化に追随していなかった
+      (2棟の外形が偶然同一だったので目でも気づけなかった)。
+    ⭕ そこで**注記の頭の一文を機械で読み**、`roof.bands` / `roof.spanKen` と突き合わせる。
+      ⛔ 文章を検査しない — 検めるのは**数値を語っている部分だけ**。
+      書式は `帯 <帯を+で繋いだ列>=<和>間(…)・桁行(spanKen)<桁行>間(…)`。"""
+    bad = []
+    for m in d["munes"]:
+        r = m.get("roof")
+        if not r:
+            continue
+        note = m.get("_roof") or ""
+        if not note:
+            bad.append("%s: `roof` を持つのに `_roof`(人手の注記)が無い" % m["name"])
+            continue
+        mb = re.match(r"帯 ([0-9+]+)=([0-9.]+)間", note)
+        if not mb:
+            bad.append("%s: `_roof` の頭が読めない — 書式は「帯 4+5+5=14間(…)・"
+                       "桁行(spanKen)12間(…)」(機械で突き合わせるため)。いまの頭=「%s」"
+                       % (m["name"], note[:24]))
+            continue
+        got = [float(x) for x in mb.group(1).split("+")]
+        if got != [float(b) for b in r["bands"]]:
+            bad.append("%s: `_roof` の帯 %s が `roof.bands` %s と違う — 注記が実データに"
+                       "追随していない" % (m["name"], mb.group(1), r["bands"]))
+        if abs(float(mb.group(2)) - sum(r["bands"])) > 1e-6:
+            bad.append("%s: `_roof` の帯の和 %s間 が `roof.bands` の和 %g間 と違う"
+                       % (m["name"], mb.group(2), sum(r["bands"])))
+        ms = re.search(r"桁行\(spanKen\)([0-9.]+)間", note)
+        if not ms:
+            bad.append("%s: `_roof` に「桁行(spanKen)N間」が無い — 桁行を突き合わせられない"
+                       % m["name"])
+        elif abs(float(ms.group(1)) - r["spanKen"]) > 1e-6:
+            bad.append("%s: `_roof` の桁行 %s間 が `roof.spanKen` %g間 と違う"
+                       % (m["name"], ms.group(1), r["spanKen"]))
+    return bad
 
 
 def roof_moya_check(d):
@@ -15394,7 +15767,14 @@ def roof_bands_table(d):
             "考証方指摘) — 同項は「雁行して、大小の破風や屋根が重なり合って相ならぶ…等幅・等高の帯を"
             "正方形の足形に反復した形ではない」と明記する。上表の帯割りは在庫部材"
             "(<code>RoofBanded</code>)の制約による意匠の簡略化で、現存御殿の雁行・大小の破風の"
-            "重なりとは異なる【確度U・意匠判断】。詳細は `_roofCommon` 参照。</p>"
+            "重なりとは異なる【確度U・意匠判断】。"
+            "<br>⚠⚠ <b>[西川1959]A の室格の記述との逆行も承知の上で採る</b>"
+            "(2026-09-08・第29次・考証方指摘) — 同項は「<b>広間はむしろ遠侍的な性格を"
+            "もつていた</b>」と記す。遠侍は書院造の序列で黒書院より<b>格下</b>に置かれるのが"
+            "通例なので、格の頂点に<b>大広間</b>を採った上表の設計判断は、当プロジェクトが"
+            "室名系列の一次典拠に採っているこの記述と<b>方向がずれる</b>"
+            "【確度U・意匠判断】。⛔ 判断そのものは変えない(帯割り・棟高・屋根伏図はどれも"
+            "動かない)。詳細は `_roofCommon` 参照。</p>"
             % (rows, MUNE_JA.get(R.get("kakuMune"), R.get("kakuMune", "?")),
                R.get("kakuBandMax", 4)))
 
@@ -15532,6 +15912,22 @@ def main():
     if any(delta <= 0 for _, delta in kprobe):
         print("    ⛔ 鳴らない probe がある = その壊れ方は検査で捕まらない。検査を直すこと")
 
+    # ⭐ **第29次(2026-09-08)で足した3本**も件数を無条件に出す(0 件を黙って通さない)。
+    gbad = gate_derive_check(d)
+    zbad = zashiki_kazari_check(d)
+    gnbad = garden_nest_check(d)
+    print("表門の割り付けの従属 %d 件 / 上段の座敷飾 %d 件 / 庭の入れ子の宣言 %d 件"
+          % (len(gbad), len(zbad), len(gnbad)))
+    for b in gbad + zbad + gnbad:
+        print("   ⚠", b)
+    _gbase, _gprobe = gate_kazari_nest_sensitivity(d)
+    print("  感度試験(表門・座敷飾・入れ子 — 素の件数 %d ／ "
+          "判定は**素に無かった文言が出たか**):" % _gbase)
+    for label, delta in _gprobe:
+        print("    %s %s → 新しい指摘 %+d 件" % ("○" if delta > 0 else "⛔鳴らない", label, delta))
+    if any(delta <= 0 for _, delta in _gprobe):
+        print("    ⛔ 鳴らない probe がある = その壊れ方は検査で捕まらない。検査を直すこと")
+
     # 植栽も**件数を無条件に出す**(0 件を黙って通さない)。
     pb1 = planting_stock_check(d)
     pb2 = planting_clearance_check(d, dem)
@@ -15561,12 +15957,14 @@ def main():
     rb6 = roof_along_check(d)
     rb7 = roof_stock_check(d)
     rb8 = section_roof_disclaimer_check(d)
+    rb9 = roof_note_check(d)
     print("屋根の帯割り: 帯の上限超え %d 件 / 軒高の序列(厩<長屋類<御殿) %d 件 / "
           "断面の附属屋 誤軒高 %d 件" % (len(rb1), len(rb2), len(rb3)))
     print("屋根の格と向き: 帯の和と足形 %d 件 / 格の頂点が単独最高か %d 件 / "
-          "大棟の向き(列ごと・直交) %d 件 / 部材の在庫 %d 件 / 断面の断り %d 件"
-          % (len(rb4), len(rb5), len(rb6), len(rb7), len(rb8)))
-    for b in rb1 + rb2 + rb3 + rb4 + rb5 + rb6 + rb7 + rb8:
+          "大棟の向き(列ごと・直交) %d 件 / 部材の在庫 %d 件 / 断面の断り %d 件 / "
+          "人手の注記と実データ %d 件"
+          % (len(rb4), len(rb5), len(rb6), len(rb7), len(rb8), len(rb9)))
+    for b in rb1 + rb2 + rb3 + rb4 + rb5 + rb6 + rb7 + rb8 + rb9:
         print("   ⚠", b)
     _rbase, _rprobe = roof_sensitivity(d)
     print("  感度試験(屋根・素の件数 %d ／ 判定は**素に無かった文言が出たか**):" % _rbase)
@@ -15596,7 +15994,11 @@ def main():
             ("格の頂点(大広間)が複合内で単独に最も高いか", rb5),
             ("大棟の向き(列ごと・表向と奥向は直交)", rb6),
             ("屋根部材が在庫に在るか(無いなら新造依頼に挙がっているか)", rb7),
-            ("断面の「屋根は概略」の断りが図の描き方と合っているか", rb8)]
+            ("断面の「屋根は概略」の断りが図の描き方と合っているか", rb8),
+            ("人手の注記(`munes[]._roof`)が実データと同じことを言っているか", rb9),
+            ("表門の割り付けが実測の開口・門柱間・長屋の妻面からの従属になっているか", gbad),
+            ("上段の間に座敷飾が宣言されているか(典拠・確度とも)", zbad),
+            ("庭の入れ子(親ゾーン)が宣言されているか", gnbad)]
     NWARN = sum(len(x) for _t, x in WARN)
 
     css = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "sashizu.css"), encoding="utf-8").read()
@@ -15749,11 +16151,18 @@ def main():
         legend='<span style="color:var(--roka)">■ 入側・渡廊下(幅一間)</span>'
                '<span style="color:var(--niwa)">■ 庭</span>'
                '<span style="color:var(--shirasu)">■ 白洲</span>'
-               '<span>┄ 襖線(続き間の境)</span>',
+               '<span>┄ 襖線(続き間の境)</span>'
+               '<span style="color:var(--shu)">■ 座敷飾のある上段(床・違棚・付書院)</span>'
+               '<span style="color:var(--shu)">┄ 座敷飾が未決の上段</span>',
         cap="<b>表門 → 白洲 → 石段(4段) → 御式台・御玄関</b>。西へ大広間・黒書院・表役所(藩庁)、"
             "東は東肩の帯を経て蔵の帯(主平面と同高)。"
             "御成セット(御成門・御成書院・能舞台)は 2026-08-23 撤去 — 御成の記録なし・"
-            "御成を受けた加賀本郷邸の幕末プランにも御成門は無い(考証の章)。")
+            "御成を受けた加賀本郷邸の幕末プランにも御成門は無い(考証の章)。"
+            "<br>⭐ <b>朱に染めた室=座敷飾のある上段</b>(黒書院上段・大広間上段)。"
+            "床・違棚・付書院の三点を置き、<b>帳台構は置かない</b>【[西川1959]A】。"
+            "⛔ <b>どの壁面へ据えるかは決めていないので描かない</b> — 下の表と"
+            "<code>_pending.zashikiKazariMenIchi</code>。")
+    h.append(zashiki_kazari_table(d))
     h.append("</div>")
 
     plate(h, nx(), "中奥・奥向 平面", "室名・畳数は【確度 ?】/御書物之間・御時計之間は斉貴の嗜好(B)からの想定")
@@ -15761,10 +16170,15 @@ def main():
                       "奥向へ入る廊下は御錠口の一本だけ。奥台所・長局はすべて錠の先にある"),
         legend='<span style="color:var(--roka)">■ 入側・渡廊下</span>'
                '<span style="color:var(--shu)">■ 御錠口</span>'
-               '<span style="color:var(--niwa)">■ 庭</span>',
+               '<span style="color:var(--niwa)">■ 庭</span>'
+               '<span style="color:var(--shu)">┄ 座敷飾が未決の上段(御座之間上段)</span>',
         cap="<b>大台所は敷地のほぼ中心</b>(西川1959)。中奥の御書物之間(鷹書)・御時計之間(西洋文物)は"
             "斉貴の嗜好からの想定の設え【確度 ?】。奥庭の<b>石井戸枠(慶長18年銘・約2m四方)は"
-            "現存する実物</b>【存在=A/奥庭という位置=?】— 家康が駿府で使った物を直政が拝領して移した伝承。")
+            "現存する実物</b>【存在=A/奥庭という位置=?】— 家康が駿府で使った物を直政が拝領して移した伝承。"
+            "<br>⚠ <b>御座之間上段を朱の破線で囲ってある</b> — <b>座敷飾が未決</b>だから。"
+            "表向の2室を決めた [西川1959]A は<b>表向殿舎</b>への記述で、"
+            "中奥(藩主の日常の居間)の上段は範囲に入らない。⛔ 図が『在る』とも『無い』とも"
+            "言わない(<code>_pending.zashikiKazariNakaoku</code> → 考証方)。")
     h.append("</div>")
 
 
@@ -15809,6 +16223,11 @@ def main():
              '参考: 表長屋の外周比 %.1f%%(表長屋 %.0fm / 外周 %.0fm)— [追川2017] の「表長屋の規模比」'
              'は<b>分母が原典未確認のため帯(加賀本郷15%%・小浜28.6%%・尾張市谷47.7%%)との数値比較は'
              'しない</b>(sources.md の警告)。'
+             '<b>分子(建坪)は躯体の平面で数え、軒の出 <code>const.nokiE</code> は算入しない</b>'
+             '【2026-09-08・第28次・普請奉行裁定】 — ⛔ 屋根を含む外接箱の底面で測らない。'
+             '軒の出は全棟に一様に付くので、外接箱で測ると棟の数だけ差が積み上がる'
+             '(実装側の測り方の申し送りは <code>_pending.kenpeiJissokuKijun</code>、'
+             '検算の内訳は考証の章)。'
              '<b>建蔽率は結果であって目標ではない</b> — 数字のために空地へ棟を足さない。</p>'
              % (area / TSUBO, format(d["hairyo"]["tsubo"], ","), d["hairyo"]["cert"],
                 100.0 * (area / TSUBO - d["hairyo"]["tsubo"]) / d["hairyo"]["tsubo"],

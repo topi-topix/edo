@@ -587,6 +587,16 @@ public static partial class EdoMatsudairaDewaBuilder
         var doc = EdoMiniJson.Parse(System.IO.File.ReadAllText(path)) as Dictionary<string, object>;
         if (doc == null || !doc.ContainsKey("points")) return "⛔ planting_out の形が違う(points が無い)";
         var pts = doc["points"] as List<object>;
+        // ⭐ **2026-09-09: 指図 `plantRule.forbidden` を読む。**⛔ 禁じられた部材(自作の低ポリの木)を
+        //   散布点が名指ししていたら**据えずに鳴らす**。CLAUDE.md 規則10 が機械で効くようにする。
+        //   それまで `plantRule` はビルダーが一度も読まない設計値だった(`_pending.jissouShukudai` ①)。
+        var forbidden = new List<string>();
+        if (HasKey(D, "plantRule"))
+        {
+            var pr = O(D["plantRule"]);
+            if (HasKey(pr, "forbidden")) foreach (var o in A(pr["forbidden"])) forbidden.Add(o as string);
+        }
+        int nForbid = 0;
         var f = Grid; var rnd = new System.Random(1856);
         var root = Group("Niwa/Planting"); Clear(root);
         // 主視点(傾ける向きの相手)
@@ -596,8 +606,12 @@ public static partial class EdoMatsudairaDewaBuilder
         foreach (var o in pts)
         {
             var p = O(o); string zone = StrOf(p, "zone") ?? "?";
-            string api = ResolveApi(StrOf(p, "api"));
+            string rawApi = StrOf(p, "api");
+            string api = ResolveApi(rawApi);
             if (api == null) { noPart++; continue; }
+            { bool ng = false;
+              foreach (var fb in forbidden) if (fb != null && (fb == rawApi || fb == api)) ng = true;
+              if (ng) { nForbid++; continue; } }
             float u = F(p["u"]), v = F(p["v"]);
             var sub = Group("Niwa/Planting/" + zone + "/" + (StrOf(p, "layer") ?? "層"));
             float scale = HasKey(p, "scale") ? F(p["scale"]) : 1f;
@@ -629,8 +643,153 @@ public static partial class EdoMatsudairaDewaBuilder
             placed++; byZone[zone] = byZone.ContainsKey(zone) ? byZone[zone] + 1 : 1;
         }
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine(string.Format("植栽 {0} 本を据えた(うち法面=live terrain {1})/ 部材が解けず {2}", placed, nTerrain, noPart));
+        sb.AppendLine(string.Format("植栽 {0} 本を据えた(散布点 {3} 点 / うち法面=live terrain {1})/ 部材が解けず {2}",
+                                    placed, nTerrain, noPart, pts.Count));
+        if (nForbid > 0) sb.AppendLine("★ 指図 plantRule.forbidden の部材を名指しした点 " + nForbid + " 点 — 据えず");
         foreach (var kv in byZone) sb.AppendLine("  " + kv.Key + ": " + kv.Value);
         return sb.ToString();
+    }
+
+    // ------------------------------------------------------------------ 庭の突き合わせ
+    /// <summary>**庭を「指図と実装の突き合わせ」へ載せる**(`_pending.jissouShukudai` ②)。
+    ///
+    /// ⚠ それまで `EdoSashizuExport.CheckScene` は庭を**算出物 `impl.gardens` 経由でしか**見ておらず、
+    ///   算出物を持たない当邸では `zoneNodes` が空になるので庭の照合が**丸ごと素通り**していた。
+    ///   ⇒ 池も点景も植栽も一本も無くても「突き合わせ 0 件」が出る状態だった。
+    ///
+    /// ★(=不一致)にするのは「**指図が物を宣言していて、部材も在庫にあるのに、実装に無い**」場合だけ。
+    /// ⛔ 部材が在庫に無いために据えていない物(石橋・織部灯籠・玉石の根石ほか)は**★にしない** —
+    ///   それは実装の不一致ではなく**部材方への差し戻し**なので、末尾に「申し送り」として別に数える。
+    ///   ⛔ ただし黙って落とさない(0 件を庭の合格の証拠に使わせないため、件数を必ず出す)。</summary>
+    public static string NiwaQA()
+    {
+        var sb = new System.Text.StringBuilder();
+        var bad = new List<string>();
+        var pend = new List<string>();
+        var root = GameObject.Find(Grp);
+        if (root == null) return "★ ルート " + Grp + " が無い";
+        Func<string, Transform> G2 = p => { var t = root.transform; foreach (var s in p.Split('/')) { t = t == null ? null : t.Find(s); } return t; };
+
+        // ---- 池(sensui)。掘削は非冪等なのでマーカーで見る
+        if (HasKey(D, "sensui"))
+        {
+            bool carved = G2("Niwa/_markers/6a_sensui") != null;
+            bool mounds = G2("Niwa/_markers/6a2_mounds") != null;
+            if (!carved) bad.Add("御泉水が掘られていない(マーカー 6a_sensui が無い)");
+            if (!mounds) bad.Add("岬・中島の隆起が済んでいない(マーカー 6a2_mounds が無い)");
+            var gg = G2("Niwa/Ishigumi/Gogan");
+            int nGogan = gg == null ? 0 : gg.childCount;
+            var sen = O(D["sensui"]);
+            int bands = HasKey(sen, "gogan") && HasKey(O(sen["gogan"]), "bands") ? A(O(sen["gogan"])["bands"]).Count : 0;
+            if (bands > 0 && nGogan == 0) bad.Add("護岸石が一つも無い(指図の帯 " + bands + " 本)");
+            sb.AppendLine("  池: 掘削" + (carved ? "済" : "未") + " / 隆起" + (mounds ? "済" : "未")
+                          + " / 護岸石 " + nGogan + " 石(帯 " + bands + " 本)");
+        }
+
+        // ---- 点景・石組(tenkei)。**部材が解ける物だけ**を期待する
+        {
+            var have = new HashSet<string>();
+            foreach (var g in new[] { "Niwa/Tenkei", "Niwa/Ishigumi" })
+            { var t = G2(g); if (t != null) foreach (Transform c in t) have.Add(c.name); }
+            // ⛔ **「部材が引けるか」を先に判じない。**`Stage6d` は指図の `api` が無くても
+            //   `kind`(雪見灯籠・沓脱石・四つ目垣・建仁寺垣・生垣)から在庫の既定へ落として据える。
+            //   ⇒ `ResolveApi(api)` だけで判じると、**実際には据わっている 30 点を
+            //   「部材が無いので据えず」と嘘の申し送り**にする(2026-09-09 に実際にそう出た)。
+            // ⭕ **据わっているかを先に見る**。無いときだけ「部材が引けたはずか」を問い、
+            //   引けたはずなら ★(実装の不一致)、引けないなら ⚠(部材待ち)。
+            int gotN = 0, noPart = 0, all = 0;
+            foreach (var o in A(D["tenkei"]))
+            {
+                var tk = O(o); string nm = StrOf(tk, "name"); if (nm == null) continue;
+                all++;
+                bool ok = false;
+                foreach (var h in have) if (h == nm || h.StartsWith(nm + "_")) { ok = true; break; }
+                if (ok) { gotN++; continue; }
+                bool isStones = HasKey(tk, "stones");
+                string api = HasKey(tk, "api") ? ResolveApi(StrOf(tk, "api")) : null;
+                if (isStones || api != null) bad.Add("点景 " + nm + " が実装に無い(部材は引けるはず)");
+                else { noPart++; pend.Add("点景 " + nm + "(" + (StrOf(tk, "kind") ?? "?") + "): 部材が在庫に無い(据えず)"); }
+            }
+            sb.AppendLine("  点景: 据わっている " + gotN + "/" + all + "(部材が無く据えず " + noPart + ")");
+        }
+
+        // ---- 水の系(mizu)。⛔ `api` を持たない節点は据えないのが指図どおり(★にしない)
+        if (HasKey(D, "mizu"))
+        {
+            var mz = O(D["mizu"]);
+            var t = G2("Niwa/Mizu"); int got = t == null ? 0 : t.childCount;
+            int want = 0, noApi = 0;
+            foreach (var o in A(mz["nodes"]))
+            { var nd = O(o); if (!HasKey(nd, "u")) continue; if (ResolveApi(StrOf(nd, "api")) != null) want++; else noApi++; }
+            if (got < want) bad.Add("水の系の節点が " + got + "/" + want + " しか据わっていない");
+            if (noApi > 0) pend.Add("水の系: 部材の無い節点 " + noApi + " 個(枡・堰・樋。据えず)");
+            sb.AppendLine("  水の系: 節点 " + got + "/" + want + "(部材なし " + noApi + ")");
+        }
+
+        // ---- 植栽。⭐ **散布点の書き出し(planting_out.json)と据えた本数を突き合わせる**
+        {
+            string path = System.IO.Path.Combine(System.IO.Directory.GetParent(Application.dataPath).FullName,
+                                                 "docs/Sashizu/matsudaira_dewa_planting_out.json");
+            int wantPts = -1;
+            if (System.IO.File.Exists(path))
+            {
+                var doc = EdoMiniJson.Parse(System.IO.File.ReadAllText(path)) as Dictionary<string, object>;
+                if (doc != null && doc.ContainsKey("points")) wantPts = (doc["points"] as List<object>).Count;
+            }
+            // ⛔ **「Planting/<庭>/<層>/木」の2段決め打ちで数えない。**`Group()` は名前の "/" で
+            //   さらに掘るので、`zone` に "/" を含む層(西の斜面の「域W 西の崖 / 帯W1 法肩の縁」)は
+            //   もう1段深くなる。2段で数えると 1132 本のうち **569 本しか見えず**、
+            //   差の 563 本を「部材が解けず据えられなかった」と**嘘の申し送り**にしてしまう
+            //   (2026-09-09 に実際にそう出た)。
+            // ⭕ 木そのものは `Stage7b` が `<庭>_<役>_<通し番号>` と名づける ⇒ **末尾が `_数字`**。
+            //   群のノード(庭名・層名)は数字で終わらない。⛔ 部材側の LOD_0/LOD_1 まで潜らないよう、
+            //   木に当たったらそこで打ち切る。
+            int got = 0; var pl = G2("Niwa/Planting");
+            if (pl != null)
+            {
+                var stack = new Stack<Transform>(); stack.Push(pl);
+                while (stack.Count > 0)
+                    foreach (Transform c in stack.Pop())
+                    {
+                        string s2 = c.name; int i2 = s2.Length - 1;
+                        while (i2 >= 0 && s2[i2] >= '0' && s2[i2] <= '9') i2--;
+                        if (i2 >= 0 && i2 < s2.Length - 1 && s2[i2] == '_') got++;
+                        else stack.Push(c);
+                    }
+            }
+            if (wantPts < 0) bad.Add("散布点の書き出し matsudaira_dewa_planting_out.json が無い");
+            else if (got == 0) bad.Add("植栽が一本も据わっていない(散布点 " + wantPts + " 点)");
+            else if (got < wantPts) pend.Add("植栽: 散布点 " + wantPts + " 点のうち " + (wantPts - got) + " 点は部材が解けず据えず");
+            sb.AppendLine("  植栽: " + got + "/" + wantPts + " 本");
+        }
+
+        // ---- 園路・動線(routes)。⛔ **部材を持たない図の持ち物**なので★にしない。読んで数だけ出す
+        if (HasKey(D, "routes"))
+        {
+            int niwa = 0, dosen = 0;
+            foreach (var o in A(D["routes"])) { var r = O(o); if (StrOf(r, "kind") == "niwa") niwa++; else dosen++; }
+            sb.AppendLine("  園路 " + niwa + " 本 / 動線 " + dosen + " 系統(⛔ 部材を持たない — 地表と点景で表す)");
+        }
+        // ---- 断面・視点の規則(gardenSections / viewpointRule)。図と検査の持ち物。数だけ出す
+        if (HasKey(D, "gardenSections"))
+            sb.AppendLine("  斜めの断面 " + A(D["gardenSections"]).Count + " 本(図の持ち物・実装は持たない)");
+
+        // ---- 縁石(fuchi)。指図は物を宣言しているが**部材の名指しが無い**
+        if (HasKey(D, "fuchi"))
+            foreach (var o in A(D["fuchi"]))
+            { var fc = O(o); pend.Add("縁石 " + StrOf(fc, "name") + "(" + StrOf(fc, "kind")
+                + ")— 指図が部材(api)を持たないので据えていない"); }
+
+        // ---- 板塀の根石。Stage6 の NeishiReport と同じ判定(部材待ち)
+        if (HasKey(D, "nakajikiriRule")) pend.Add("板塀の根石(玉石)— **在庫に玉石の部材が無い**ので据えていない"
+            + "(白い束石は世界 0.04m で根石の見え 0.15〜0.20m に隠れるので、玉石さえ焼ければ片づく。NeishiReport 参照)");
+
+        foreach (var b in bad) sb.AppendLine("★ " + b);
+        sb.AppendLine("庭: 不一致 " + bad.Count + " 件 / 部材待ちの申し送り " + pend.Count + " 件");
+        for (int i = 0; i < pend.Count; i++) sb.AppendLine("    ⚠ " + pend[i]);
+        // ⛔ 1行目に結論を置く(CheckScene は FirstLine を部門の見出しに使う)
+        return (bad.Count == 0 ? "庭の不一致 0 件(⚠ 部材待ちの申し送り " + pend.Count + " 件)"
+                               : "★ 庭の不一致 " + bad.Count + " 件(⚠ 部材待ち " + pend.Count + " 件)")
+             + "\n" + sb.ToString();
     }
 }

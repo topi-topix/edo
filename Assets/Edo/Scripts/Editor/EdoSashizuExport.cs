@@ -50,6 +50,11 @@ public static class EdoSashizuExport
         public string label, doc, impl, root, parcel;
         public Func<string> gradeQA;
         public Func<string> implQA;
+        /// <summary>庭の検査(部門「庭」に載せる)。⭐ **2026-09-09 に新設。**
+        /// それまで `CheckScene` は庭を `impl.gardens`(算出物)経由でしか見ておらず、
+        /// **算出物を持たない邸(松江松平)では庭について一言も言わないまま「0 件」を返していた**
+        /// (`_pending.jissouShukudai` ②)。⛔ 0 件を庭の合格の証拠に使わせない。</summary>
+        public Func<string> niwaQA;
         public Func<Dictionary<string, object>, string, Vector2> pivot;
     }
     public static readonly Dictionary<string, Yashiki> Houses = new Dictionary<string, Yashiki>
@@ -62,7 +67,8 @@ public static class EdoSashizuExport
                                  pivot = EdoOkabeYashikiBuilder.Pivot } },
         { "matsudaira_dewa", new Yashiki { label = "MatsudairaDewa", doc = EdoMatsudairaDewaBuilder.SashizuRel,
                                       root = EdoMatsudairaDewaBuilder.Grp,
-                                      parcel = EdoMatsudairaDewaBuilder.ParcelId } },
+                                      parcel = EdoMatsudairaDewaBuilder.ParcelId,
+                                      niwaQA = EdoMatsudairaDewaBuilder.NiwaQA } },
         // 土井のルート名は EdoSannoKitaBuilder.Stage2_Doi が建てた実物(2026-08-26 実機確認)。
         // ⭐ 2026-09-06 に EdoDoiBuilder(棟梁)を新造して gradeQA / pivot を結線した。
         //   ⚠ pivot を渡さないと既定の松平式(桁行が u の棟だけ)になり、当邸の**桁行が v の3棟**
@@ -71,6 +77,14 @@ public static class EdoSashizuExport
                                root = EdoDoiBuilder.Grp, parcel = EdoDoiBuilder.ParcelId,
                                gradeQA = EdoDoiBuilder.GradeQA,
                                pivot = EdoDoiBuilder.Pivot } },
+        // ⭐ 山王社は**屋敷ではない**(社殿・門・鳥居・石段・囲い・造成の面・社叢の名簿を持ち、
+        //   グリッドは回転間ではなく**世界軸に平行**な `grid.keidai`)。⇒ ここへ載せるのは
+        //   **検図関門(ReviewGate)を引くため**で、照合そのものは
+        //   <see cref="EdoSannoSashizuCheck"/> が持つ(CheckScene の入口で振り分ける)。
+        //   ⛔ parcel / pivot / gradeQA は汎用の照合の持ち物なので山王では使わない。
+        { "sanno", new Yashiki { label = "Sanno", doc = EdoSannoShaBuilder.SashizuRel,
+                                 impl = EdoSannoShaBuilder.ImplRel,
+                                 root = EdoSannoShaBuilder.GroupName } },
     };
     static string DOC { get { return Houses["okabe"].doc; } }
     static readonly CultureInfo IC = CultureInfo.InvariantCulture;
@@ -142,6 +156,10 @@ public static class EdoSashizuExport
 
     public static string CheckScene(string id)
     {
+        // ⭐ 山王社は屋敷のスキーマ(grid.shukaku / 棟+廊下 / Fuzoku / 区画の辺+s)を持たない。
+        //   ⛔ 汎用の照合へ流すと、grid.shukaku が無いので原点 (0,0) の格子で全件が「ずれている」に
+        //   なり、**測っていないのに測ったふりの数**が出る。専用の照合へ振り分ける。
+        if (id == "sanno") return EdoSannoSashizuCheck.Check();
         var hs = Houses[id];
         var path = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), hs.doc);
         if (!System.IO.File.Exists(path)) return "指図が無い: " + hs.doc;
@@ -184,18 +202,22 @@ public static class EdoSashizuExport
         // ---- 造成 — 邸が検査を持っていればその結果を部門へ載せる
         // ⭐ **算出物を地形より先に見る。**算出物が古い/欠けていれば、地形の検査は
         //   「合っている」と嘘をつく(比べる相手が古いだけで、差がゼロに出る)。
-        Action<Func<string>, string> runQA = (fn, label) =>
+        Action<Func<string>, string, string> runQA = (fn, sec, label) =>
         {
             if (fn == null) return;
             string q;
             try { q = fn(); }
             catch (Exception ex) { q = "★ " + label + "が走らない: " + ex.Message; }
-            sb.AppendLine("造成/" + label + ": " + FirstLine(q));
+            sb.AppendLine(sec + "/" + label + ": " + FirstLine(q));
+            foreach (var ln in q.Split('\n'))
+                if (ln.Contains("★")) sb.AppendLine("      " + ln.Trim());
             // ⛔ StartsWith で見ない — ★ が2行目以降に出る報告(算出物の検め)を丸ごと取り逃がす
-            if (EdoQaVerdict.Failed(q)) bad("造成", label + ": " + FirstLine(q));
+            if (EdoQaVerdict.Failed(q)) bad(sec, label + ": " + FirstLine(q));
         };
-        runQA(hs.implQA, "算出物");
-        runQA(hs.gradeQA, "地形");
+        runQA(hs.implQA, "造成", "算出物");
+        runQA(hs.gradeQA, "造成", "地形");
+        // ⭐ 庭 — 算出物を持たない邸でも庭を測る(`niwaQA`)。⛔ 無い邸では何も言わない
+        runQA(hs.niwaQA, "庭", "庭の検査");
 
         // ---- 名前 → 部門。**西の斜面の物は指図が名指しで持っている**(nishi.obi)
         var nishiNames = new HashSet<string>();
@@ -295,6 +317,11 @@ public static class EdoSashizuExport
                     var sPos = D(D(D(doc, "gate"), "plan"), "sPos");
                     if (sPos != null && sPos.ContainsKey("banshoW")) names.Add("Bansho_W");
                     if (sPos != null && sPos.ContainsKey("banshoE")) names.Add("Bansho_E");
+                    // ⚠ **袖塀も名前を持たない**(`sPos.sodeW` / `sodeE` の欄。Stage5 は `Sode_W`/`Sode_E` で据える)。
+                    //   ⛔ 教えないと、①据えれば孤児に数えられ ②据えなければ**素通しのまま 0 件で通る**
+                    //   (2026-09-08 の普請検査で門柱↔番所が 4.45/4.67m 開いていたのに突き合わせは黙っていた)。
+                    if (sPos != null && sPos.ContainsKey("sodeW")) names.Add("Sode_W");
+                    if (sPos != null && sPos.ContainsKey("sodeE")) names.Add("Sode_E");
                 }
                 // ⚠ **門外の踏石も名前を持たない**(`komon[].fumiishi` の欄。段の名は `Fumiishi_<門>_<段>_<枚>`)。
                 //   ⛔ 教えないと据えた踏石が「孤児の囲い」になる(2026-09-06 棟梁・実装第4回)。

@@ -12892,7 +12892,10 @@ def pending_table(d):
 
 
 #: 凍結の巡の署名(⛔ 生成器に巡の番号を散らさない。ここ一箇所)
-FREEZE_ROUND = "第31次"
+#: ⭐ **凍結は一巡では終わらない**(2026-09-09・第32次)— 凍結中に決着した巡を**すべて**並べる。
+#: ⛔ 最新の巡だけにすると、前の巡で解いた項が①から落ちて
+#:   「凍結の時点で何を解いたか」が読めなくなる(数だけ `rest` に沈む)。
+FREEZE_ROUNDS = ("第31次", "第32次")
 
 
 def freeze_table(d):
@@ -12900,9 +12903,9 @@ def freeze_table(d):
 
     ⛔ **第二の台帳を作らない**(規則4)— 正典は `_pending` の1本で、この章は
       **そこから機械で仕分ける**だけ。仕分けの手掛かりは項の書き出しの語(`_pending_state`)と
-      巡の署名(`FREEZE_ROUND`)。⛔ 人が別表に書き写したら、次の巡で必ず食い違う。
+      巡の署名(`FREEZE_ROUNDS`)。⛔ 人が別表に書き写したら、次の巡で必ず食い違う。
     仕分けは4つ:
-      ① **この巡で解いたもの** — 凍結の巡に決着した項
+      ① **凍結の巡で解いたもの** — 凍結の巡(`FREEZE_ROUNDS`)に決着した項
       ② **対象外にしたもの** — 理由と**再開する条件**を付けて対象の外へ置いた項
       ③ **実装(棟梁)へ渡すもの** — 指図側は決まっていて、据えるのが残っている項
       ④ **次の設計の巡へ回すもの** — 判断が要る項・調べが残る項
@@ -12919,13 +12922,13 @@ def freeze_table(d):
             B2.append(row)
         elif who.startswith("実装"):
             B3.append(row)
-        elif st == "決着" and FREEZE_ROUND in txt:
+        elif st == "決着" and any(r in txt for r in FREEZE_ROUNDS):
             B1.append(row)
         elif rank in (0, 1):
             B4.append(row)
         else:
             rest += 1
-    HEAD = [("① この巡(%s)で解いたもの" % FREEZE_ROUND, "var(--take)",
+    HEAD = [("① 凍結の巡(%s)で解いたもの" % "・".join(FREEZE_ROUNDS), "var(--take)",
              "⭕ <b>決まった項。</b>何が決まったかだけを残す — 撤回した案は書かない(規則4)。"
              "経緯は <code>git log</code>。", B1),
             ("② 対象外にしたもの(⛔ 済んだのではない)", "#5f7a4e",

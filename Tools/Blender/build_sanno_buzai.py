@@ -5,6 +5,7 @@
     blender --background --python Tools/Blender/build_sanno_buzai.py -- dan  <蹴上> <踏面> <幅m> [--render]
     blender --background --python Tools/Blender/build_sanno_buzai.py -- saku <スパンm> [--render]
     blender --background --python Tools/Blender/build_sanno_buzai.py -- audit     # 既存部材の左右の別を検算
+    blender --background --python Tools/Blender/build_sanno_buzai.py -- mitsuke   # 焼いた柵の FBX から見付けを実測
 
 ━━━ 1. 段石 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -255,8 +256,8 @@ def _cuts(w, variant):
     return [-w / 2.0] + [base[i] + jit[i] for i in range(n)] + [w / 2.0]
 
 
-def _stone(x0, x1, y0, y1, z0, z1, mat, rng, name):
-    """切石1枚。箱 + 全稜 `CHAMFER` の面取り。⛔ 自然石の割れ肌ノイズは掛けない(加工石)。
+def _stone(x0, x1, y0, y1, z0, z1, mat, rng, name, chamfer=None, tile=None):
+    """切石1枚。箱 + 全稜 `chamfer`(既定 `CHAMFER`)の面取り。⛔ 自然石の割れ肌ノイズは掛けない(加工石)。
     ⛔ 天端(踏面)は完全な平面のまま残す — 歩く面なので撫でない。"""
     bm = bmesh.new()
     res = bmesh.ops.create_cube(bm, size=1.0)
@@ -265,7 +266,8 @@ def _stone(x0, x1, y0, y1, z0, z1, mat, rng, name):
     bmesh.ops.translate(bm, verts=vs,
                         vec=((x0 + x1) / 2.0, (y0 + y1) / 2.0, (z0 + z1) / 2.0))
     try:
-        bmesh.ops.bevel(bm, geom=list(bm.verts) + list(bm.edges), offset=CHAMFER,
+        bmesh.ops.bevel(bm, geom=list(bm.verts) + list(bm.edges),
+                        offset=(CHAMFER if chamfer is None else chamfer),
                         offset_type='OFFSET', segments=1, profile=0.5,
                         affect='EDGES', clamp_overlap=True)
     except Exception as ex:
@@ -294,7 +296,17 @@ def _stone(x0, x1, y0, y1, z0, z1, mat, rng, name):
                 a, b = co.x, co.z
             else:
                 a, b = co.y, co.z
-            raw.append((a * BT.DENS_U, b * BT.DENS_V))
+            if tile:
+                raw.append((a / tile, b / tile))
+            else:
+                raw.append((a * BT.DENS_U, b * BT.DENS_V))
+        if tile:
+            # ⭐ **タイル貼り**(`Kirishi` のような継ぎ目の無い1枚もの)。⛔ アトラスの矩形へ
+            #   押し込めない — 押し込めると面の実寸に関係なく1枚が伸縮して、
+            #   0.30m の段石と 1.05m の帯で**粒の大きさが変わる**(叩き肌に見えなくなる)。
+            for loop, (a, b) in zip(f.loops, raw):
+                loop[uvl].uv = (a, b)
+            continue
         u0 = min(q[0] for q in raw); u1 = max(q[0] for q in raw)
         v0 = min(q[1] for q in raw); v1 = max(q[1] for q in raw)
         su = min(1.0, u1 - u0); sv = min(1.0, v1 - v0)
@@ -313,6 +325,60 @@ def _stone(x0, x1, y0, y1, z0, z1, mat, rng, name):
     o = bpy.data.objects.new(name, me)
     bpy.context.scene.collection.objects.link(o)
     return o
+
+
+# ---------------------------------------------------------------- 切石の材(Kirishi)
+KIRISHI = "Kirishi"          # ⚠ Unity 側 `Assets/Edo/Materials/Sanno/Kirishi.mat`
+KIRISHI_TILE = 0.44          # 1枚が受け持つ実寸[m]。⛔ 面ごとに伸縮させない(タイル貼り)。
+                             # ⛔ 段の丈 0.30 と同じにしない(繰り返しが目地と揃って縞になる)
+KIRISHI_DIR = os.path.join(V.REPO, "Assets", "Edo", "Materials", "Sanno")
+
+
+def kirishi_material():
+    """**切石(叩き仕上げ)の材**。⚠ 「新規マテリアルを作らない」規約の 2 例目の例外。
+
+    ⛔⛔ **`M_FJG_Rock_001` を基壇に貼らない**(2026-09-09 庭方19巡目 指3・考証20巡目 高3)。
+      あれは**苔むした暗い写真計測岩**で、アルベド中央 V13.3% ⇒ レンダで V21.6%
+      = 木部 43.1% の**ちょうど半分**。切石の基壇は立面で**いちばん明るい要素**であるべき
+      なのに、いちばん暗かった。⚠ **形は既に切石だった**(`_stone` は箱+面取りで、
+      割れ肌ノイズを一切掛けていない)⇒ **野面に見えた原因は 100% 材**。
+    【出所と確度】⛔ 【U 設計値 — 庭方 2026-09-09 十九巡目 指3。史料は石種・色・目地・段数を
+      言わない【?】】。焼くのは `Tools/Blender/make_kirishi_texture.py`(在庫方が
+      2026-09-09 に「淡灰・平滑の貼れる材は在庫に無い」と判定した記録もそこにある)。
+    ⭕ **Blender 側でも実テクスチャを結ぶ** — `M_FJG_Rock_001` のように名前だけの入れ物に
+      すると検証レンダで**真っ白**に焼け、「明るくなった」と誤読する(2026-09-09 の轍)。"""
+    m = bpy.data.materials.get(KIRISHI)
+    if m:
+        return m
+    m = bpy.data.materials.new(KIRISHI)
+    m.use_nodes = True
+    nt = m.node_tree
+    b = next((n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED'), None)
+    if b is None:
+        return m
+    b.inputs['Alpha'].default_value = 1.0
+    b.inputs['Roughness'].default_value = 0.90       # 艶消し(Unity 側 _Smoothness 0.10)
+    b.inputs['Metallic'].default_value = 0.0
+    alb = os.path.join(KIRISHI_DIR, "T_Kirishi_Albedo.png")
+    if os.path.exists(alb):
+        ai = nt.nodes.new('ShaderNodeTexImage')
+        ai.image = bpy.data.images.load(alb, check_existing=True)
+        ai.location = (-500, 300)
+        nt.links.new(ai.outputs['Color'], b.inputs['Base Color'])
+    nrm = os.path.join(KIRISHI_DIR, "T_Kirishi_Normal.png")
+    if os.path.exists(nrm):
+        ni = nt.nodes.new('ShaderNodeTexImage')
+        ni.image = bpy.data.images.load(nrm, check_existing=True)
+        ni.image.colorspace_settings.name = 'Non-Color'
+        ni.location = (-500, -100)
+        nm = nt.nodes.new('ShaderNodeNormalMap')
+        nm.location = (-260, -100)
+        # ⭐ **叩き仕上げ = 面の凹凸 ≤ 3mm。**⛔ 1.0 にすると割肌の陰が出る
+        #   (Unity 側 `_BumpScale` と同じ数にしてある)
+        nm.inputs['Strength'].default_value = 0.30
+        nt.links.new(ni.outputs['Color'], nm.inputs['Color'])
+        nt.links.new(nm.outputs['Normal'], b.inputs['Normal'])
+    return m
 
 
 def dan(keri, fumi, w, variant="a", name=None):
@@ -495,6 +561,151 @@ def audit():
               % (label, x0, x1, thick, cx, "−X" if cx < 0 else "**+X**"))
 
 
+# ================================================================ 見付の実測
+def _loose_parts(o):
+    """メッシュを**連結成分**に割って Unity ローカルの頂点列で返す。
+    ⭕ 柵は「在庫の丸太を切って並べた」物なので **1本 = 1成分**。⛔ 名前や引数で分けない —
+      測るのは焼き上がった FBX で、そこに部材名は残っていない。"""
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    bm.verts.ensure_lookup_table()
+    seen = set()
+    parts = []
+    for v in bm.verts:
+        if v.index in seen:
+            continue
+        stack = [v]
+        seen.add(v.index)
+        comp = []
+        while stack:
+            x = stack.pop()
+            comp.append((-x.co.x, x.co.z, -x.co.y))     # → Unity ローカル
+            for e in x.link_edges:
+                y = e.other_vert(x)
+                if y.index not in seen:
+                    seen.add(y.index)
+                    stack.append(y)
+        parts.append(comp)
+    bm.free()
+    return parts
+
+
+def _ext(pts):
+    mn = [min(q[i] for q in pts) for i in range(3)]
+    mx = [max(q[i] for q in pts) for i in range(3)]
+    return mn, mx, [mx[i] - mn[i] for i in range(3)]
+
+
+def mitsuke_solidity(o, span, H, px=0.002):
+    """⭐ **見付けの充実率** = 見付け面(Unity の X–Y 平面)へ投影した部材の**影の面積**
+    ÷ (スパン × 丈)。⛔ 部材ごとの面積を足し算しない — 柱と貫、貫と立子が**重なる**ので
+    上振れする(重なりを数えない唯一の方法が、影そのものを刻んで数えること)。
+    ⚠ 根入れ(Y<0)と天端より上は数えない(見付け面は地盤〜丈)。"""
+    import numpy as np
+    me = o.data
+    me.calc_loop_triangles()
+    P = [(-v.co.x, v.co.z) for v in me.vertices]        # Unity (X, Y)
+    xs = [q[0] for q in P]
+    x0, x1 = min(xs), max(xs)
+    nx = max(4, int(round((x1 - x0) / px)))
+    ny = max(4, int(round(H / px)))
+    grid = np.zeros((ny, nx), dtype=bool)
+    gx = x0 + (np.arange(nx) + 0.5) * (x1 - x0) / nx
+    gy = (np.arange(ny) + 0.5) * H / ny
+    for t in me.loop_triangles:
+        a, b, c = (P[i] for i in t.vertices)
+        tx0 = min(a[0], b[0], c[0]); tx1 = max(a[0], b[0], c[0])
+        ty0 = min(a[1], b[1], c[1]); ty1 = max(a[1], b[1], c[1])
+        if ty1 <= 0.0 or ty0 >= H or tx1 <= x0 or tx0 >= x1:
+            continue
+        i0 = max(0, int((tx0 - x0) / (x1 - x0) * nx) - 1)
+        i1 = min(nx, int((tx1 - x0) / (x1 - x0) * nx) + 2)
+        j0 = max(0, int(ty0 / H * ny) - 1)
+        j1 = min(ny, int(ty1 / H * ny) + 2)
+        if i1 <= i0 or j1 <= j0:
+            continue
+        X = gx[i0:i1][None, :]
+        Y = gy[j0:j1][:, None]
+        d = ((b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1]))
+        if abs(d) < 1e-12:
+            continue
+        w0 = ((b[1] - c[1]) * (X - c[0]) + (c[0] - b[0]) * (Y - c[1])) / d
+        w1 = ((c[1] - a[1]) * (X - c[0]) + (a[0] - c[0]) * (Y - c[1])) / d
+        w2 = 1.0 - w0 - w1
+        m = (w0 >= -1e-9) & (w1 >= -1e-9) & (w2 >= -1e-9)
+        grid[j0:j1, i0:i1] |= m
+    filled = float(grid.sum()) / float(nx * ny)
+    return filled, (x1 - x0)
+
+
+def mitsuke():
+    """⭐ **腰高柵の見付けを、焼いた FBX から実測する**(庭方19巡目 指5)。
+    ⛔ 部材を作り直さない。⛔ 宣言(指図 `tamagaki`)を読んで刷るのではなく、
+      **成分に割った丸太の実寸**から柱・貫・立子を立てる。"""
+    import vkmesh as VM
+    t = tamagaki_spec()
+    for (label, rel) in (("Saku_Koshidaka_%.3f" % t["pitch"],
+                          "Assets/Edo/Models/Hei/Saku_Koshidaka_%.3f.fbx" % t["pitch"]),
+                         ("Saku_Koshidaka_Post",
+                          "Assets/Edo/Models/Hei/Saku_Koshidaka_Post.fbx")):
+        path = os.path.join(V.REPO, rel)
+        if not os.path.exists(path):
+            print("[mitsuke] %-24s 見つからない: %s" % (label, rel))
+            continue
+        V.reset()
+        o = V.join(VM.import_fbx_abs(path), label)
+        parts = _loose_parts(o)
+        _mn, _mx, whole = _ext([q for c in parts for q in c])
+        span = whole[0]
+        H = t["h"]
+        rows = []
+        for c in parts:
+            mn, mx, e = _ext(c)
+            vertical = e[1] >= max(e[0], e[2])
+            dia = (e[0] + e[2]) / 2.0 if vertical else (e[1] + e[2]) / 2.0
+            rows.append(dict(vert=vertical, dia=dia, mn=mn, mx=mx, e=e))
+        vert = sorted([r for r in rows if r["vert"]], key=lambda r: -r["dia"])
+        horz = sorted([r for r in rows if not r["vert"]], key=lambda r: r["mn"][1])
+        post = [r for r in vert if r["dia"] > 1.5 * (vert[-1]["dia"] if vert else 0.0)]
+        # ⛔ 「柱は φ0.12」と引数から決めない — **太さの分布の段**で切る
+        dias = [r["dia"] for r in vert]
+        if len(dias) >= 2:
+            gaps = [(dias[i] - dias[i + 1], i) for i in range(len(dias) - 1)]
+            g, gi = max(gaps)
+            post = vert[:gi + 1] if g > 0.5 * dias[-1] else []
+        tateko = [r for r in vert if r not in post]
+        print("[mitsuke] ── %s ── bbox W(X)%.4f × H(Y)%.4f  成分 %d"
+              % (label, whole[0], whole[1], len(parts)))
+        for tag, group in (("柱", post), ("貫", horz), ("立子", tateko)):
+            if not group:
+                print("      %-4s **0本**" % tag)
+                continue
+            ds = [r["dia"] for r in group]
+            print("      %-4s %2d本  径 φ%.4f〜%.4f(平均 φ%.4f)  丈 %.3f〜%.3f  "
+                  "芯高 %s" % (tag, len(group), min(ds), max(ds), sum(ds) / len(ds),
+                               min(r["e"][1] for r in group),
+                               max(r["e"][1] for r in group),
+                               " ".join("%.3f" % ((r["mn"][1] + r["mx"][1]) / 2.0)
+                                        for r in group[:4])))
+        if len(tateko) >= 2:
+            cx = sorted((r["mn"][0] + r["mx"][0]) / 2.0 for r in tateko)
+            pit = [cx[i + 1] - cx[i] for i in range(len(cx) - 1)]
+            print("      立子の芯々 %.4f〜%.4f m(指図 tatekoPitchM ≤ %.3f)"
+                  % (min(pit), max(pit), t["tateko_pitch"]))
+        # ⭐ 影を刻んで数える(⛔ 部材面積の足し算では重なりを二重に数える)
+        fill, w = mitsuke_solidity(o, span, H)
+        naive = 0.0
+        for r in rows:
+            lo = max(0.0, r["mn"][1]); hi = min(H, r["mx"][1])
+            if hi <= lo:
+                continue
+            naive += (hi - lo) * r["e"][0] if not r["vert"] else (hi - lo) * r["e"][0]
+        naive /= (w * H)
+        print("      ⭐ **見付けの充実率 %.1f%%(透け %.1f%%)** ← 影を %dmm 刻みで数えた / "
+              "見付け面 %.3f×%.3f m。⚠ 部材面積の単純和は %.1f%%(重なりを二重に数える)"
+              % (100.0 * fill, 100.0 * (1.0 - fill), 2, w, H, 100.0 * naive))
+
+
 # ================================================================ レンダ
 def shots_dan(objs, key, box):
     BT.hook()
@@ -611,6 +822,8 @@ def main():
     rest = pos[1:]
     if what == "audit":
         audit(); return
+    if what == "mitsuke":
+        mitsuke(); return
     if what in ("dan", "all"):
         if len(rest) >= 3:
             specs = [("手引き", float(rest[0]), float(rest[1]), float(rest[2]))]

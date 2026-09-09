@@ -1521,6 +1521,9 @@ def plane_check(d):
     bad += hedge_pitch_check(d)
     bad += hedge_pattern_check(d)
     bad += group_region_check(d)
+    # ⭐ **2026-09-09(第31次)に新設して同じ巡で配線した**(規則19【庭方 決定5】)—
+    #   `packRatio` の効く範囲の宣言が、生成器の実装と一致しているか
+    bad += pack_scope_check(d)
     # ⭐ **同じ巡で配線**(規則19)— 潜り戸の数値・座敷飾の壁面・注記の通り道
     bad += gate_kuguri_check(d)
     bad += zashiki_kazari_men_check(d)
@@ -5721,7 +5724,21 @@ def _line_pts(d, spec):
                 return [tuple(p) for p in r["pts"]]
     ln = spec.get("line", "")
     if ln.startswith("sensui."):
-        o = d["sensui"][ln.split(".", 1)[1]]
+        # ⭐ **点の並びで綴った道**(2026-09-09・第31次【庭方 決定2】)。
+        #   ⛔ `d["sensui"][<残り全部>]` の一段引きだった — `sensui.pond.outline` のような
+        #   **二段の指し方**は KeyError で落ちた(= 庭方が名指しした汀線を指せなかった)。
+        o = d["sensui"]
+        for _k in ln.split(".")[1:]:
+            if not isinstance(o, dict) or _k not in o:
+                return None
+            o = o[_k]
+        if isinstance(o, list):
+            # ⭐ **輪(池の汀線)は先頭を末尾へ足して閉じる** — `side: "in"/"out"` の
+            #   内外判定が `pts[:-1]` を多角形として読むので、閉じていないと1辺欠ける。
+            pts = [tuple(p) for p in o]
+            if len(pts) >= 3 and pts[0] != pts[-1]:
+                pts = pts + [pts[0]]
+            return pts
         pts = [tuple(p) for p in o["pts"]]
         for nm in o.get("via", []):
             for t in d["tenkei"]:
@@ -5734,13 +5751,37 @@ def _line_pts(d, spec):
     return None
 
 
+def _along_range(pts, al):
+    """`along` が名指しした**区間の辺の番号**(2026-09-09・第31次)。⛔ 空を返しうる。
+
+    ⛔ どちらも**書かれていたのに読まれていなかった**(規則19 第3型=黙り)—
+      群『御泉水の東の汀』の `uMin: -36.0` は第3次から書かれていて、一度も見られていない。
+    ・`segment: [i, j]` = 頂点 i→j のあいだの辺(= 辺 i 〜 j−1)【庭方 決定2】
+    ・`uMin` / `uMax` = **両端がその範囲に入る辺**だけ【庭方 決定1】。⛔ 辺を切り縮めない —
+      切ると帯の端が線の途中で断ち切られ、端の株が半端な所に立つ。
+    ⚠ **空になったことは呼び側が握り潰す**(全辺へ戻す)ので、`group_region_check` が
+      ここを直に呼んで『名指しが何も選ばない』を鳴らす。"""
+    segs = list(range(len(pts) - 1))
+    sg = al.get("segment")
+    if sg:
+        segs = [i for i in segs if int(sg[0]) <= i < int(sg[1])]
+    for k, keep in (("uMin", lambda q, x: q[0] >= x - 1e-9),
+                    ("uMax", lambda q, x: q[0] <= x + 1e-9)):
+        x = al.get(k)
+        if x is None:
+            continue
+        segs = [i for i in segs
+                if keep(pts[i], float(x)) and keep(pts[i + 1], float(x))]
+    return segs
+
+
 def _along_band(d, pts, al, blocked, lo, hi, side, pip=lambda q: True):
     """`along` の**帯の合法域**を、線に沿って刻んで返す(検査と散布で同じ規則を使う)。
 
     ⭐ 折れを名指しする `atVertex`(`vMin`=最も北 / `vMax`=最も南)の解釈も**ここ**に置く。
       ⛔ 検査と散布で別々に書くと、検査が通っても実装で 0本 になる(2026-09-01 検図 高6)。
     → (選んだ区間の index の list, `blocked` を通った点の list)"""
-    segs = list(range(len(pts) - 1))
+    segs = _along_range(pts, al) or list(range(len(pts) - 1))
     av = al.get("atVertex")
     if av in ("vMin", "vMax"):
         cand_i = [i for i in range(len(pts)) if pip(pts[i])] or list(range(len(pts)))
@@ -5781,6 +5822,40 @@ def _band_step(area, step, pitch, cap=4000.0):
     if area > 0:
         st = max(st, math.sqrt(area / cap))
     return st
+
+
+#: `along.offset[0]` に書ける**従属値の合図**。⛔ 指図に数を直書きさせないための語彙。
+#  ⭐ 値そのものは他所(`plantRule` / `sensui`)が正典で、ここは引き方だけを持つ(規則4)。
+_ALONG_LO_TOKENS = ("routeKeepout", "pondKeepout", "nosujiHalf")
+
+
+def _along_lohi(d, al, role, ovr, sp):
+    """`along` の帯の**内縁・外縁**[間]を一箇所で解く(2026-09-09・第31次)。
+
+    ⛔ 散布器・`group_pack_check`・`hedge_pattern_check` の三箇所で別々に書いていた —
+      一つ直し忘れると「検査は通るのに実装で 0 本」になる(2026-09-01 検図 高6 と同型)。
+    ⭐ `offset[0]` は**文字列で書ける** = 他所の値から導く合図【庭方 決定1・決定2】:
+      ・`"routeKeepout"` … その役に効く園路の退避(`route_keepout` — `"routeHalf"` を解く)
+      ・`"pondKeepout"` … 汀線の退避 `sensui.pond.keepout[役]` + `plantRule.keepoutAdd.pond`
+      ・`"nosujiHalf"` … 遣水の野筋の**半幅**(`sensui.yarimizu.nosuji.w` ÷ 2)
+      ⛔ ハードコードしない(帯の内縁の数を指図へ写さない=規則4)。
+    ⭕ `offset` が無いときは従前どおり「園路の退避 〜 +2×`spacing`」。"""
+    of = al.get("offset")
+    if not of:
+        lo = route_keepout(d, al.get("route"), role, ovr)
+        return lo, lo + 2.0 * sp
+    lo = of[0]
+    if isinstance(lo, str):
+        if lo == "nosujiHalf":
+            lo = float(((d.get("sensui") or {}).get("yarimizu") or {})
+                       .get("nosuji", {}).get("w", 0.0)) / 2.0
+        elif lo == "pondKeepout":
+            lo = float(((d.get("sensui") or {}).get("pond") or {})
+                       .get("keepout", {}).get(role or "", 0.0)) \
+                + float((d["plantRule"].get("keepoutAdd") or {}).get("pond", 0.0))
+        else:                                   # "routeKeepout"(未知の語もここへ落ちる)
+            lo = route_keepout(d, al.get("route"), role, ovr)
+    return float(lo), float(of[1])
 
 
 def _along_cells(d, z, pts, al, blocked, lo, hi, step, pitch=0.0):
@@ -5846,6 +5921,174 @@ def _ref_cells(d, z, rf, blocked, step, pitch=0.0):
             if blocked(u, v):
                 continue
             yield (u, v)
+
+
+def _n_allowed(gs):
+    """**その塊で置いてよい本数**を、多い順に返す(2026-09-09・第31次【庭方 決定2/決定4】)。
+
+    ⭐ `n` が**目標**(庭方の言う `n_target`。⛔ 同じ数を `n_target` として二度持たない=規則4)。
+    ・`n_floor` … 切ってよい下限。ここを下回るくらいなら塊を置かない。
+    ・`n_forbid` … 禁じ手の本数。⭐ **塊は奇数**([作庭記])なので 4 は禁じる。
+    ⛔ 目標に届かないときに黙って偶数へ落とさない — 落とし方まで指図が決める。"""
+    n = int(gs["n"])
+    fl = gs.get("n_floor")
+    if fl is None:
+        return [n]
+    bad = set(int(x) for x in (gs.get("n_forbid") or []))
+    return [k for k in range(n, int(fl) - 1, -1) if k not in bad]
+
+
+def _trim_far(cand, keep, ref):
+    """本数を `keep` まで削るとき、**`ref` の点から遠い株を残す**【庭方 決定4】。
+    ⛔ 端から切らない — 石組の際に寄った株から落ちると根締めの意匠が先に消える。"""
+    if keep >= len(cand) or not cand:
+        return cand[:keep]
+    if not ref:
+        return cand[:keep]
+    sc = sorted(cand, key=lambda q: -min(math.hypot(q[0] - r[0], q[1] - r[1]) for r in ref))
+    return [q for q in cand if q in sc[:keep]]
+
+
+def _arc_frame(pts, segs):
+    """選んだ辺を**弧長で一本に綴る**。→ ([(a, b, s0, L, nx, ny)…], 全長)"""
+    fr, s = [], 0.0
+    for i in sorted(segs):
+        a, b = pts[i], pts[i + 1]
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        if L < 1e-9:
+            continue
+        fr.append((a, b, s, L, -(b[1] - a[1]) / L, (b[0] - a[0]) / L))
+        s += L
+    return fr, s
+
+
+def _arc_at(fr, s, off, sgn):
+    """弧長 `s`・法線方向へ `off`(符号 `sgn`)の点。→ (u, v, 線上の点 bx, by)"""
+    for k, (a, b, s0, L, nx, ny) in enumerate(fr):
+        if s <= s0 + L or k == len(fr) - 1:
+            t = min(max((s - s0) / L, 0.0), 1.0)
+            bx, by = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
+            return (bx + nx * sgn * off, by + ny * sgn * off, bx, by)
+    return None
+
+
+def _pitch_ok(P, pit):
+    """**指図の `pitch` どおりか**を、`hedge_pitch_check` と同じ量で見る。
+    ⛔ 散布器と検査で別の量を測らない — 散布器がここを通れば検査も通る。"""
+    if len(P) < 2:
+        return len(P) > 0
+    nn = _nn(P)
+    return (min(nn) >= float(pit[0]) - 1e-9 and max(nn) <= float(pit[1]) + 1e-9
+            and (max(nn) - min(nn)) >= (float(pit[1]) - float(pit[0])) / 2.0 - 1e-9)
+
+
+def _hedge_along_layout(gs, n, lo, hi, pit, fr, S, side_ok, rg, ok, tries=4000):
+    """**線に沿った型どおりの陣**(`単列` / `二列千鳥`)を組む(2026-09-09・第31次)。
+
+    ⛔ **これが第31次の直しの本体。**従前の散布器は塊の成員を `box` の一様散布か
+      芯まわりの環でしか置けず、`along` も `pattern` も**一度も読まなかった**
+      (庭方『二列千鳥の指定が 29 巡ぶん読まれていなかった』)。
+    ⭕ 弧長を `pitch` の刻みで歩き、`二列千鳥` は**辺の左右へ交互**に、`単列` は
+      **片側だけ**へ振る。組めた陣は `_pitch_ok` で**検査と同じ量**を通してから返す。
+    ⚠ 帯の深さ(`offset`)の中で法線方向の位置は揺らす — ⛔ 揺らさないと『生垣』になる。"""
+    two = (gs.get("pattern") == "二列千鳥")
+    lo, hi = float(lo), float(hi)
+    p0, p1 = float(pit[0]), float(pit[1])
+    best, stall = [], 0
+    for _t in range(tries):
+        # ⭐ **伸びなくなったら打ち切る**(2026-09-09・第31次)。⛔ 目標に届かない塊で
+        #   最後まで回すと、感度試験(probe ごとに撒き直す)が現実的な時間で終わらない。
+        #   ⚠ 打ち切ってよいのは**型どおりに組めた陣を既に持っている**ときだけ。
+        if stall > 700 and best and _pitch_ok(best, pit):
+            break
+        s = rg.random() * max(1e-6, S * 0.5)
+        sgn0 = 1.0 if rg.random() < 0.5 else -1.0
+        tight = rg.random() < 0.5          # ⭐ 触れる株から始めるか、離れた株から始めるか
+        P = []
+        for k in range(n):
+            sg = sgn0 * ((-1.0) ** k if two else 1.0)
+            got = None
+            # ⭐ **帯の深さの中で法線位置を振り直す**(⛔ 一発で諦めない)。
+            for _r in range(24):
+                off = lo + rg.random() * (hi - lo)
+                q = _arc_at(fr, s, off, sg)
+                if q is None:
+                    break
+                if not side_ok(q[0], q[1], q[2], q[3]):
+                    q2 = _arc_at(fr, s, off, -sg)
+                    if two or q2 is None or not side_ok(q2[0], q2[1], q2[2], q2[3]):
+                        continue
+                    q = q2
+                if not ok(q[0], q[1]):
+                    continue
+                if P and min(math.hypot(q[0] - a, q[1] - b)
+                             for (a, b) in P) < p0 - 1e-9:
+                    continue                       # ⛔ 株が重なる(芯々の下限)
+                got = (q[0], q[1])
+                break
+            if got is None:
+                break
+            P.append(got)
+            # ⭐ **芯々は指定の帯の中で『触れる/離れる』を交互に混ぜる**
+            #   (⛔ 一定にしない — 『不等』の指定そのもの。等間隔の列は生垣であって塊ではない)。
+            # ⚠ **二列千鳥で交互を1株おきにすると、同列の芯々が一定になる**
+            #   (刻み f と 1−f が足されて必ず真ん中に戻る。2026-09-09 の実測は変動係数 5%)。
+            #   ⭕ 千鳥は**2株ごと**に触れる/離れるを切り替える — 同列の隣が
+            #   「近い・中・遠い」と巡って不等になる。
+            near_far = (0.05 if ((k // 2) % 2 == int(tight)) else 0.95) if two \
+                else (0.10 if (k % 2 == int(tight)) else 0.90)
+            step = (p0 + (near_far + (rg.random() - 0.5) * 0.10) * (p1 - p0)) \
+                / (2.0 if two else 1.0)
+            s += step
+            if s > S + 1e-9:
+                break
+        if len(P) > len(best) or (len(P) == len(best) and _pitch_ok(P, pit)
+                                  and not _pitch_ok(best, pit)):
+            best, stall = P, 0
+        else:
+            stall += 1
+        if len(P) == n and _pitch_ok(P, pit):
+            return P
+    return best
+
+
+def _hedge_arc_layout(gs, n, c, r, win, pit, rg, ok, tries=6000):
+    """**三日月の陣**(`near` の円 ∩ `arcAbout` の窓)を組む(2026-09-09・第31次)。
+
+    ⭐ `near` は**撒き円の中心**、`win` は**傾ける松から見た角度の窓** — 別の点【庭方 決定3】。
+    ⛔ 円の中だけで撒くと窓の外(水側)へ回り込む。⭕ 窓を通ってから `pitch` で検める。"""
+    (cu, cv), (a0, a1) = win
+    best, stall = [], 0
+    for _t in range(tries):
+        if stall > 700 and best and _pitch_ok(best, pit):
+            break                                  # ⭐ 伸びなくなったら打ち切る(上と同じ)
+        P = []
+        for _k in range(n):
+            for _i in range(200):
+                a = rg.random() * 6.2832
+                rr = math.sqrt(rg.random()) * float(r)
+                u, v = c[0] + math.cos(a) * rr, c[1] + math.sin(a) * rr
+                ang = math.degrees(math.atan2(v - cv, u - cu)) % 360.0
+                if ((ang - a0) % 360.0) > ((a1 - a0) % 360.0) + 1e-9:
+                    continue                       # 窓の外(= 水側へ回り込んだ株)
+                if not ok(u, v):
+                    continue
+                if P and min(math.hypot(u - q[0], v - q[1]) for q in P) < float(pit[0]) - 1e-9:
+                    continue
+                if P and min(math.hypot(u - q[0], v - q[1]) for q in P) > float(pit[1]) + 1e-9:
+                    continue                       # 塊が塊に見えなくなる
+                P.append((u, v))
+                break
+            else:
+                break
+        if len(P) > len(best) or (len(P) == len(best) and _pitch_ok(P, pit)
+                                  and not _pitch_ok(best, pit)):
+            best, stall = P, 0
+        else:
+            stall += 1
+        if len(P) == n and _pitch_ok(P, pit):
+            return P
+    return best
 
 
 def scatter_gardens(d):
@@ -5966,15 +6209,14 @@ def scatter_gardens(d):
                 # ⭐ **`offset` があればそれが帯**(2026-09-02 庭方 回答1)。
                 #   ⛔ 既定の「園路の退避 + `clr`」は**園路沿いの塊のための値**で、
                 #   遣水のような線に当てると帯が線から 2〜3.6間 も離れ、庭の外を指す。
-                of = al.get("offset")
                 # ⭐ **帯の内縁は『その役に効く園路の退避』**(2026-09-08・第30次【庭方 D-4】)。
                 #   ⛔ 旧 `ko["route"] + clr`(= 1.2 + 0.8 = 2.0 間)は二重に過大だった —
                 #   ①役の上書きを読んでいない ②`route` は `clrExempt` にあるので
                 #   当たり判定の側は `clr` を足していないのに、帯を引く側だけ足していた。
                 #   ⇒ 幹芯が道から 2.0〜3.6 間も離れ、刈込が道の縁を締めなくなる。
-                lo = float(of[0]) if of else route_keepout(d, al.get("route"), role,
-                                                           gcfg["ovr"])
-                hi = float(of[1]) if of else lo + 2.0 * sp
+                # ⭐ **2026-09-09(第31次)に `_along_lohi` へ一本化**(⛔ 三箇所に同じ式を
+                #   書かない)。`offset[0]` の文字列(従属値の合図)もそこで解く。
+                lo, hi = _along_lohi(d, al, role, gcfg["ovr"], sp)
                 side = al.get("side", "both")
                 # ⭐ **どの折れか**を名指しする指定(庭方 2026-09-01 回答2-④)。
                 #   `vMin` = v がいちばん小さい頂点(= **最も北**)/ `vMax` = 最も南。
@@ -6087,6 +6329,70 @@ def scatter_gardens(d):
                                   sum(q[1] for q in gs["at"]) / len(gs["at"]),
                                   json.dumps(gs.get("at")) + "/" + str(gs.get("where"))))
                     continue
+                # ⭐⭐ **型どおりに組む**(2026-09-09・第31次【庭方 決定1〜4】)。
+                #   ⛔ 従前はここへ来る前に `box` の一様散布か環しか無く、`pattern` も
+                #   `along` も読まれなかった(『二列千鳥』の指定が 29 巡ぶん死んでいた)。
+                #   ⭕ 型を持つ塊は**専用の陣**で組み、`_pitch_ok`(= `hedge_pitch_check`
+                #   と同じ量)を通してから据える。⇒ 指定した型が実出力に出る。
+                if gs.get("pattern") and gs.get("pitch"):
+                    pit = gs["pitch"]
+                    cand = []
+                    if gs.get("pattern") == "三日月" and gs.get("near"):
+                        src = next((x for x in d.get("planting", [])
+                                    if x["layer"] == gs.get("arcAbout")), None)
+                        if src and src.get("at") and gs.get("arc"):
+                            c0 = src["at"][0]      # ⛔ 窓の中心は**松の座標**(near ではない)
+                            win = ((c0[0], c0[1]),
+                                   (_ARC_DIR[gs["arc"][0]], _ARC_DIR[gs["arc"][1]]))
+                            for _k in _n_allowed(gs):
+                                cand = _hedge_arc_layout(gs, _k, gs["near"],
+                                                         float(gs.get("r", 1.0)), win,
+                                                         pit, rg, ok)
+                                if len(cand) == _k and _pitch_ok(cand, pit):
+                                    break
+                    elif gs.get("along"):
+                        al = gs["along"]
+                        pts = _line_pts(d, al)
+                        if pts and len(pts) >= 2:
+                            lo, hi = _along_lohi(d, al, role, gcfg["ovr"], sp)
+                            sid = al.get("side", "both")
+                            segs = _along_band(d, pts, al, blocked, lo, hi, sid,
+                                               lambda q: _in_zone(z, q[0], q[1]))
+                            fr, S = _arc_frame(pts, segs)
+
+                            def side_ok(u, v, bx_, by_, _s=sid, _p=pts):
+                                if _s in ("in", "out"):
+                                    return (_s == "in") == _pip_world((u, v), _p[:-1])
+                                if _s in ("+v", "-v"):
+                                    return (_s == "+v") == (v > by_)
+                                return True
+                            if fr:
+                                for _k in _n_allowed(gs):
+                                    cand = _hedge_along_layout(gs, _k, lo, hi, pit,
+                                                               fr, S, side_ok, rg, ok)
+                                    if len(cand) == _k and _pitch_ok(cand, pit):
+                                        break
+                    # ⭐ **偶数へ落ちたら奇数まで削る**(⛔ 4 本は禁じ手=[作庭記])。
+                    #   削るときは**石組から遠い株を残す**【庭方 決定4】
+                    _al2 = _n_allowed(gs)
+                    if gs.get("n_floor") is not None and cand and len(cand) not in _al2:
+                        _keep = max([k for k in _al2 if k <= len(cand)] or [0])
+                        cand = _trim_far(cand, _keep,
+                                         [(t["u"], t["v"]) for t in d.get("tenkei", [])
+                                          if "石組" in t.get("kind", "")])
+                    for (u, v) in cand:
+                        free_i = [i for i in (pool.get(gi) or range(n)) if i not in used] \
+                            or [i for i in range(n) if i not in used]
+                        if not free_i:
+                            break
+                        used.add(free_i[0])
+                        put(u, v, free_i[0])
+                        made += 1
+                    if cand:
+                        cents.append((sum(q[0] for q in cand) / len(cand),
+                                      sum(q[1] for q in cand) / len(cand),
+                                      json.dumps(gs.get("box")) + "/" + str(gs.get("where"))))
+                    continue
                 spread = math.sqrt(max(g, 1) / 3.0)
                 pick = sampler(gs, g)
                 # ⭐ **これまでで最良の陣**(2026-09-08・第30次)。⛔ 途中で芯が引けなくなると
@@ -6151,6 +6457,15 @@ def scatter_gardens(d):
                         best = cand
                     if len(cand) >= g or _try == 9:
                         cand = best if len(best) > len(cand) else cand
+                        # ⭐ **奇数だけを置く**(2026-09-09・第31次【庭方 決定4】)。
+                        #   ⛔ 目標に届かないとき黙って偶数で据えない — 削るときは
+                        #   **石組から遠い株を残す**(根締めの意匠を先に失わない)。
+                        _al3 = _n_allowed(gs)
+                        if gs.get("n_floor") is not None and cand and len(cand) not in _al3:
+                            _kp = max([k for k in _al3 if k <= len(cand)] or [0])
+                            cand = _trim_far(cand, _kp,
+                                             [(t["u"], t["v"]) for t in d.get("tenkei", [])
+                                              if "石組" in t.get("kind", "")])
                         for (u, v) in cand:
                             idx = None
                             if gi in pool:
@@ -7199,6 +7514,18 @@ def planting_clearance_check(d, dem, extra=None):
         # ⭐ **詰め残りの許容**(2026-09-03 庭方 N15)— `plantRule.fillTolerance`。
         #   ⛔ 貪欲法の 1〜2本の詰め残りを ⚠ に数えると、**本当に置けない層が埋もれる**。
         got_n, want_n = len(gs.get(key, [])), int(pl["n"])
+        # ⭐ **指図が自分で許した減りは『詰め残り』に数えない**(2026-09-09・第31次)。
+        #   `groups[].n_floor` を持つ塊が**許された奇数**で据わったとき、その差は
+        #   庭方の決めた落とし方(⛔ 偶数にしない・下限を死守)そのもの。
+        #   ⛔ これを端数と一緒に数えると、層の合計が許容を超えて**別の欠陥が埋もれる**。
+        sanc = 0
+        for _gi2, _gs2 in enumerate(pl.get("groups") or []):
+            if _gs2.get("n_floor") is None:
+                continue
+            _p2 = [1 for q in own if q == _gi2]
+            if len(_p2) in _n_allowed(_gs2):
+                sanc += int(_gs2["n"]) - len(_p2)
+        want_n -= sanc
         tol_n = _fill_tol(d, want_n, pl.get("role"))
         if want_n - got_n > tol_n:
             bad.append("植栽 %s/%s が %d/%d しか置けない — 庭が狭いか退避が多すぎる"
@@ -9303,11 +9630,8 @@ def group_pack_check(d, step=0.10, trials=400):
                     pts = _line_pts(d, gs["along"])
                     if not pts or len(pts) < 2:
                         return
-                    of = gs["along"].get("offset")   # ⭐ 帯の明示(2026-09-02)
-                    # ⭐ 散布器と**同じ規則**(2026-09-08・第30次)— `route_keepout`
-                    lo = float(of[0]) if of else route_keepout(
-                        d, gs["along"].get("route"), role, g_ovr)
-                    hi = float(of[1]) if of else lo + 2.0 * sp
+                    # ⭐ 散布器と**同じ規則**(2026-09-09・第31次に `_along_lohi` へ一本化)
+                    lo, hi = _along_lohi(d, gs["along"], role, g_ovr, sp)
                     for q in _along_cells(d, z, pts, gs["along"], blocked, lo, hi, step,
                                           sp_m * pk / K):
                         yield q
@@ -9331,12 +9655,21 @@ def group_pack_check(d, step=0.10, trials=400):
             free = len(cells) * cell
             best = _max_pack(cells, pitch0, n, trials,
                              "%s/%s/%s" % (pl["zone"], pl["layer"], gs.get("where")))
-            if best < n:
-                bad.append("植栽 %s/%s の塊『%s』(%d本): 退避を引いた合法域に "
+            # ⭐ **下限まで落として奇数で成り立つなら合格**(2026-09-09・第31次【庭方 決定2/4】)。
+            #   ⛔ 目標に1本届かないだけで「入らない塊」と鳴らすと、庭方が既に
+            #   『目標5・下限3・4本禁止』と決めた塊まで赤で埋まる。⭕ 下限を割ったときだけ鳴る。
+            n_min = min(_n_allowed(gs))
+            if best < n_min:
+                bad.append("植栽 %s/%s の塊『%s』(%d本・下限 %d本): 退避を引いた合法域に "
                            "**芯々 %.2fm で置けるのは最大 %d 本**(合法域 %.1f m²)— "
                            "**置き場所はあるのに入らない塊**"
                            % (pl["zone"], pl["layer"], gs.get("where") or "(場所未指定)",
-                              n, sp_m * pk, best, free))
+                              n, n_min, sp_m * pk, best, free))
+            elif best < n:
+                bad.append("〔記録〕植栽 %s/%s の塊『%s』は目標 %d 本に対し最大 %d 本 — "
+                           "指図の許す本数(%s)へ落として置く。⛔ 偶数へは落とさない"
+                           % (pl["zone"], pl["layer"], gs.get("where") or "(場所未指定)",
+                              n, best, "・".join(str(x) for x in _n_allowed(gs))))
     return bad
 
 
@@ -11528,6 +11861,8 @@ def _garden_checks(e, dem):
             + group_pack_check(e) + crown_fallback_check(e)
             # ⭐ **2026-09-08(第30次)に感度試験の対象へ入れた**(規則19)
             + hedge_pitch_check(e) + hedge_pattern_check(e) + group_region_check(e)
+            # ⭐ **2026-09-09(第31次)に感度試験の対象へ入れた**(規則19【庭方 決定5】)
+            + pack_scope_check(e)
             + [x for x in kaidan_ground_check(e) if "庭の段" in x]
             + garden_access_check(e)
             # ⭐ **2026-09-02(第5次)に法面の3本を感度試験の対象へ入れた**(規則19)
@@ -11747,7 +12082,7 @@ def planting_sensitivity(d, dem):
                      for pt in p["parts"]])
     # ⭐ **2026-09-08(第30次)— 刈込の割り付けの3本**(`hedge_pitch_check` /
     #   `hedge_pattern_check` / `group_region_check`)。⛔ 鳴らない probe を残さない。
-    probe("刈込の塊の詰め率を既定(0.7)へ戻す(芯々の下限 0.8間 を割る)",
+    probe("刈込の塊の詰め率を既定へ戻す(芯々の下限が `pitch[0]` と食い違う)",
           lambda e: [g.pop("packRatio", None)
                      for g in _L(e, "G_Sensui", "低木・刈込")["groups"]])
     probe("園路の退避の恒久化(`keepoutByRole.低木.route`)を外す",
@@ -11763,9 +12098,24 @@ def planting_sensitivity(d, dem):
     probe("三日月の窓を裏返す(陸側の指定が水側を指す)",
           lambda e: _L(e, "G_Sensui", "低木・刈込")["groups"][2]
                     .__setitem__("arc", ["-u", "-v"]))
-    probe("箱だけの塊に帯(`along`)を足す(置き場所の二重宣言)",
+    probe("帯だけの塊に点(`near`)を足す(置き場所の二重宣言)",
           lambda e: _L(e, "G_Sensui", "低木・刈込")["groups"][1]
-                    .__setitem__("along", {"route": "R_Shutei", "side": "both"}))
+                    .__setitem__("near", e["sensui"]["pond"]["outline"][17]))
+    # ⭐ **2026-09-09(第31次)— 型どおりに組む仕掛けの4本**(規則19【庭方 決定1〜5】)。
+    #   ⛔ 鳴らない probe を残さない。
+    probe("帯の区間の名指し(`uMin`)を線の外へ動かす(1辺も選ばない)",
+          lambda e: _L(e, "G_Sensui", "低木・刈込")["groups"][0]["along"]
+                    .__setitem__("uMin", 0.0))
+    probe("帯の内縁を従属値の合図から数の直書きへ戻す",
+          lambda e: _L(e, "G_Sensui", "低木・刈込")["groups"][1]["along"]["offset"]
+                    .__setitem__(0, 0.5))
+    probe("汀線の指し方を綴り違いにする(帯が引けない)",
+          lambda e: _L(e, "G_Sensui", "低木・刈込")["groups"][1]["along"]
+                    .__setitem__("line", "sensui.pond.migiwa"))
+    probe("三日月の塊の下限(`n_floor`)を外す(目標に届かない本数が赤になる)",
+          lambda e: _L(e, "G_Sensui", "低木・刈込")["groups"][2].pop("n_floor", None))
+    probe("`packRatio` の適用範囲の宣言を落とす(次に触る者が退避へも掛けてよいと読む)",
+          lambda e: e["plantRule"].pop("packRatioScope", None))
     probe("築山の段を 12 段へ戻す(踏面が庭の段の帯を外れる)",
           lambda e: [k.__setitem__("steps", 12) for k in e["kaidans"]
                      if k["name"] == "K_Tsukiyama"])
@@ -12316,6 +12666,82 @@ def planting_table(d):
             % rows)
 
 
+def group_layout_table(d):
+    """⭐ **塊の割り付け表 — 型と実出力を並べて刷る**(2026-09-09・第31次)。
+
+    ⛔ **規則19。**`pattern` / `along` / `pitch` / `n_floor` は第30次まで**どの図にも
+      出ていなかった** — だから『二列千鳥』の指定が 29 巡ぶん読まれていなくても、
+      図を見る人にはまったく分からなかった。⭕ ここでは
+      **指定(左半分)と実出力(右半分)を同じ行に並べる** — 型が出ていなければ目で分かる。
+    ⚠ 実出力は `scatter_gardens` の点そのもの(= 実装が据える点)。⛔ 数え直さない。"""
+    rows = ""
+    for pl in d.get("planting", []):
+        for gi, gs in enumerate(pl.get("groups", []) or []):
+            if not (gs.get("pattern") or gs.get("along") or gs.get("n_floor") is not None):
+                continue
+            al = gs.get("along") or {}
+            if gs.get("along"):
+                whr = "帯 `%s`" % (al.get("route") or al.get("line") or "?")
+                for k in ("segment", "uMin", "uMax", "atVertex", "side"):
+                    if k in al:
+                        whr += " / `%s`=%s" % (k, al[k])
+                of = al.get("offset")
+                if of:
+                    lo9, hi9 = _along_lohi(d, al, pl.get("role", ""),
+                                           gs.get("keepoutByLayer")
+                                           or pl.get("keepoutByLayer"),
+                                           float(pl.get("spacing", 2.0)) / d["const"]["ken"])
+                    whr += "<br>帯の深さ %.2f〜%.2f 間" % (lo9, hi9)
+                    if isinstance(of[0], str):
+                        whr += "(内縁は `%s` の従属値)" % of[0]
+            elif gs.get("near"):
+                whr = "円 `near` 半径 %.2f 間" % float(gs.get("r", 0.0))
+            elif gs.get("ref"):
+                whr = "斜面 `ref` t=%s" % (gs["ref"].get("t"))
+            elif gs.get("box"):
+                whr = "箱 `box`"
+            else:
+                whr = "`at`(座標)"
+            al9 = _n_allowed(gs)
+            nsp = "%d" % int(gs["n"])
+            if gs.get("n_floor") is not None:
+                nsp += " <span class='note'>(下限 %s・禁じ手 %s ⇒ 許す本数 %s)</span>" \
+                    % (gs["n_floor"],
+                       "・".join(str(x) for x in (gs.get("n_forbid") or [])) or "—",
+                       "・".join(str(x) for x in al9))
+            P = _group_points(d, pl, gi) or []
+            pit = gs.get("pitch")
+            got = "<b>%d 本</b>" % len(P)
+            if len(P) >= 2:
+                nn = _nn(P)
+                got += "<br>芯々 %.2f〜%.2f 間(幅 %.2f)" % (min(nn), max(nn),
+                                                          max(nn) - min(nn))
+            ok9 = "○" if (len(P) in al9 and (not pit or len(P) < 2
+                                             or _pitch_ok(P, pit))) else "⚠"
+            # ⭐ **塊の注記を図に刷る**(2026-09-09・第31次)。⛔ 第30次まで
+            #   `groups[]._` / `_along` / `_pattern` / `_pitch` / `_n` / `_arcAbout` は
+            #   **どこにも出ていなかった**(`planting_table` が刷るのは層の `_` だけ)—
+            #   旧 `box` の来歴も、型の理由も、図を読む人には見えない注記だった。
+            note = " ".join(gs[k] for k in ("_", "_along", "_pattern", "_pitch",
+                                            "_n", "_arcAbout", "_keepoutByLayer")
+                            if isinstance(gs.get(k), str) and gs[k].strip())
+            rows += ("<tr><td>%s</td><td>%s</td><td class='note'>%s</td><td>%s</td>"
+                     "<td>%s</td><td class='note'>%s</td><td>%s</td>"
+                     "<td class='note'>%s %s</td><td class='note'>%s</td></tr>"
+                     % (pl["zone"], pl["layer"], inline(gs.get("where") or "—"),
+                        inline(gs.get("pattern") or "—"), nsp, whr,
+                        ("%.2f〜%.2f" % (pit[0], pit[1])) if pit else "—", ok9, got,
+                        inline(note) or "—"))
+    if not rows:
+        return ""
+    return ('<div class="tw"><table><thead><tr><th>庭</th><th>層</th>'
+            '<th class="note">塊</th><th>型</th><th>本数(目標)</th>'
+            '<th class="note">置き場所</th><th>芯々[間]</th>'
+            '<th class="note">実出力(撒いた点)</th><th class="note">注記</th>'
+            '</tr></thead><tbody>%s</tbody></table></div>'
+            % rows)
+
+
 def slope_band_table(d, dem):
     area = slope_band_area(d, dem)
     # ⛔ **検査と別々に数えない**(2026-09-05 庭方 報告1)— 立った点の実帰属で数える一本
@@ -12376,14 +12802,21 @@ def _pending_state(txt):
     """`_pending` の1項が**いまどの状態か**を、書き出しの語から機械で読む。
     → (並び順, 状態, 誰の番か)。⛔ 人が別表を持たない(二重の台帳を作らない)。"""
     head = txt[:60]
-    who = ""
+    # ⭐ **誰の番かも「いちばん前に出た語」で決める**(2026-09-09・第31次)。
+    #   ⛔ 表の順で拾っていたため取り違えが2件あった —
+    #   ①『実装(edo-toryo)への申し送り(検図 …)』が**検図方**へ落ち、実装が読む一覧から
+    #     いちばん重い申し送り(`jissouShukudai`)が消えた。
+    #   ②『宿題(考証。⛔ 実装は反転しない)』が**実装**へ落ちた(考証の宿題なのに)。
+    #   ⭕ 状態の側は 2026-09-05 に同じ直しが入っている。同じ規則を両方へ当てる。
+    who, _bw = "", None
     for k, w in (("庭方", "庭方(edo-niwashi)"), ("考証方", "考証方(edo-kosho)"),
+                 ("考証", "考証方(edo-kosho)"),
                  ("検図", "検図方(edo-kenzu)"), ("在庫方", "在庫方(edo-zaiko)"),
                  ("部材方", "部材方(edo-buzai)"), ("実装", "実装(edo-toryo)"),
-                 ("ユーザー裁定", "ユーザー")):
-        if k in head:
-            who = w
-            break
+                 ("普請奉行", "普請奉行"), ("ユーザー裁定", "ユーザー")):
+        p = head.find(k)
+        if p >= 0 and (_bw is None or p < _bw):
+            who, _bw = w, p
     # ⭐ **いちばん前に出た語が状態を決める**(2026-09-05 庭方【第10次】 共有1)。
     #   ⛔ 表の順で拾うと、書き出しが「⭕ 決着」でも後ろに「確認待ち」の一語があるだけで
     #     『判断待ち』へ落ちた(決着した項が『いま判断を待っている』に並んでいた)。
@@ -12396,6 +12829,10 @@ def _pending_state(txt):
                             ("未実施", (1, "未実施")), ("未処理", (1, "未処理")),
                             ("検算待ち", (1, "検算待ち")), ("宿題", (1, "宿題")),
                             ("確認待ち", (0, "確認待ち")), ("へ確認", (0, "確認待ち")),
+                            # ⭐ **2026-09-09(第31次)に `対象外` を足した**(普請奉行裁定)—
+                            #   ⛔ 「済んだ」でも「待っている」でもない第三の閉じ方。
+                            #   理由と**再開する条件**を付けて対象の外へ置いた項。
+                            ("対象外", (2, "対象外")),
                             ("記録", (2, "記録")), ("決着", (3, "決着"))):
         p = head.find(key)
         if p >= 0 and (best is None or p < best[0]):
@@ -12445,6 +12882,74 @@ def pending_table(d):
                    % (col, title, len(rows[rank]), lede))
         tr = ""
         for key, st, who, txt in rows[rank]:
+            tr += ("<tr><td><code>%s</code></td><td><b>%s</b></td><td>%s</td>"
+                   "<td class='note'>%s</td></tr>"
+                   % (key, st, who or "—", inline(txt)))
+        out.append('<div class="tw"><table><thead><tr><th>キー</th><th>状態</th>'
+                   "<th>誰の番か</th><th class='note'>中身</th></tr></thead>"
+                   "<tbody>%s</tbody></table></div>" % tr)
+    return "".join(out)
+
+
+#: 凍結の巡の署名(⛔ 生成器に巡の番号を散らさない。ここ一箇所)
+FREEZE_ROUND = "第31次"
+
+
+def freeze_table(d):
+    """⭐ **凍結時点の宿題の一覧**(2026-09-09・第31次)。**実装(棟梁)が読むのはこの表。**
+
+    ⛔ **第二の台帳を作らない**(規則4)— 正典は `_pending` の1本で、この章は
+      **そこから機械で仕分ける**だけ。仕分けの手掛かりは項の書き出しの語(`_pending_state`)と
+      巡の署名(`FREEZE_ROUND`)。⛔ 人が別表に書き写したら、次の巡で必ず食い違う。
+    仕分けは4つ:
+      ① **この巡で解いたもの** — 凍結の巡に決着した項
+      ② **対象外にしたもの** — 理由と**再開する条件**を付けて対象の外へ置いた項
+      ③ **実装(棟梁)へ渡すもの** — 指図側は決まっていて、据えるのが残っている項
+      ④ **次の設計の巡へ回すもの** — 判断が要る項・調べが残る項
+    ⚠ ①〜④のどれにも入らない項(前の巡までに閉じた決着・記録)は件数だけ数える。"""
+    pd = d.get("_pending") or {}
+    if not pd:
+        return ""
+    B1, B2, B3, B4, rest = [], [], [], [], 0
+    for key, v in pd.items():
+        txt = v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)
+        rank, st, who = _pending_state(txt)
+        row = (key, st, who, txt)
+        if "対象外" in txt[:60]:
+            B2.append(row)
+        elif who.startswith("実装"):
+            B3.append(row)
+        elif st == "決着" and FREEZE_ROUND in txt:
+            B1.append(row)
+        elif rank in (0, 1):
+            B4.append(row)
+        else:
+            rest += 1
+    HEAD = [("① この巡(%s)で解いたもの" % FREEZE_ROUND, "var(--take)",
+             "⭕ <b>決まった項。</b>何が決まったかだけを残す — 撤回した案は書かない(規則4)。"
+             "経緯は <code>git log</code>。", B1),
+            ("② 対象外にしたもの(⛔ 済んだのではない)", "#5f7a4e",
+             "⛔ <b>「解決した」ではない。</b>理由を付けて対象の外へ置いた項で、"
+             "<b>再開する条件</b>が項の中に書いてある。⛔ 済んだことにして忘れない。", B2),
+            ("③ 実装(棟梁)へ渡すもの", "#7a5c3a",
+             "⭕ <b>指図側は決まっている。</b>据えるのが残っている項 — "
+             "⛔ 実装は指図に無い値を発明しない。分からなければ差し戻す。", B3),
+            ("④ 次の設計の巡へ回すもの", "var(--shu)",
+             "⛔ <b>意匠の判断か、まだ済んでいない調べ。</b>指図方は数値を作らない — "
+             "決めるのは名指しした役(庭方・考証方・ユーザー)。", B4)]
+    out = ["<p class='cap'>⛔ <b>正典は <code>_pending</code>(設計値ファイル)の1本。</b>"
+           "この表は生成器がそこから仕分ける — <b>散文で書き写さない</b>(規則4)。"
+           "凍結の時点で <b>①解いた %d 件 / ②対象外 %d 件 / ③実装へ %d 件 / "
+           "④次の設計へ %d 件</b>(前の巡までに閉じた項 %d 件は数のみ)。</p>"
+           % (len(B1), len(B2), len(B3), len(B4), rest)]
+    for title, col, lede, rows in HEAD:
+        out.append('<h3 style="color:%s">%s — %d 件</h3><p class="cap">%s</p>'
+                   % (col, title, len(rows), lede))
+        if not rows:
+            out.append("<p class='cap'>— 無し</p>")
+            continue
+        tr = ""
+        for key, st, who, txt in rows:
             tr += ("<tr><td><code>%s</code></td><td><b>%s</b></td><td>%s</td>"
                    "<td class='note'>%s</td></tr>"
                    % (key, st, who or "—", inline(txt)))
@@ -13300,7 +13805,14 @@ def okuniwa_band_svg(d, U):
         for gg in (pl.get("groups") or []):
             if (gg.get("along") or {}).get("offset"):
                 alng = gg["along"]
-                off = [float(x) for x in alng["offset"]]
+                # ⭐ **帯の内縁は散布器と同じ関数で解く**(2026-09-09・第31次)。
+                #   ⛔ `float(offset[0])` の直読みだった — `offset[0]` は
+                #   **従属値の合図(文字列)**を取れるようになったので、直読みだと落ちる。
+                #   ⭕ `_along_lohi` は散布・検査・図の三者で**同じ帯**を返す。
+                _o = dict(pl.get("keepoutByLayer") or {})
+                _o.update(gg.get("keepoutByLayer") or {})
+                off = list(_along_lohi(d, alng, pl.get("role", ""), _o or None,
+                                       float(pl.get("spacing", 2.0)) / d["const"]["ken"]))
                 break
     if off is None:
         raise SystemExit("⛔ 奥庭の低木の帯 `groups[].along.offset` が指図から拾えない — "
@@ -15773,11 +16285,37 @@ def hedge_pitch_check(d):
                            "食い違っている(生成器の不具合)" % nm)
                 continue
             lo, hi = float(pit[0]), float(pit[1])
-            if len(P) < int(gs["n"]):
-                bad.append("%s は **%d 株の指定に対し %d 株しか置けていない** — "
-                           "芯々を %.2f 間へ締めた結果、退避の残す窓に入り切っていない。"
+            # ⭐ **同じ量を二通りに書いた所は一致を見張る**(2026-09-09・第31次・規則4)。
+            #   `spacing × packRatio` と `pitch[0]` はどちらも「塊の中の芯々の下限」。
+            #   ⛔ 片方だけ動かすと、`group_pack_check`(前者で数える)と実出力(後者で組む)が
+            #   別の設計を見る。丸めは**一寸 = 1/60 間**(⛔ 新しい許容を作らない)。
+            # ⚠ **詰め率は塊 → 層 → 全庭の順で効く** — どれで解いても `pitch[0]` と
+            #   一致していなければならない(⛔ 塊が `packRatio` を書いていないから
+            #   免れる、では検査にならない。`group_pack_check` は既定の率で数えるので、
+            #   食い違えば**検査と実出力が別の設計を見る**)。
+            _pk = float(gs.get("packRatio",
+                               pl.get("packRatio", d["plantRule"].get("packRatio", 0.7))))
+            _eff = float(pl.get("spacing", 2.0)) / d["const"]["ken"] * _pk
+            if abs(_eff - lo) > 1.0 / 60.0:
+                bad.append("%s は芯々の下限を**二通りに書いていて食い違う** — "
+                           "`spacing`×`packRatio`(%.2f) = %.3f 間 / `pitch[0]` = %.2f 間"
+                           "(差 %.3f 間 > 一寸)。⛔ 同じ量を二箇所に持つなら一致させる"
+                           % (nm, _pk, _eff, lo, abs(_eff - lo)))
+            # ⭐ **本数は『指図が許す集合』で見る**(2026-09-09・第31次【庭方 決定2/決定4】)。
+            #   ⛔ 目標に届かないことそのものは欠陥ではない — **偶数で据えた**か、
+            #   **下限を割った**ときだけ赤にする(塊は奇数=[作庭記])。
+            _al = _n_allowed(gs)
+            if len(P) not in _al:
+                bad.append("%s は **%d 株**で据わっている — 指図が許すのは %s 本"
+                           "(目標 %d・下限 %s・禁じ手 %s)。⛔ 偶数の塊にしない=[作庭記]。"
                            "⛔ 本数か芯々か箱のどれを動かすかは**庭方の意匠**(規則17)"
-                           % (nm, int(gs["n"]), len(P), lo))
+                           % (nm, len(P), "・".join(str(x) for x in _al), int(gs["n"]),
+                              gs.get("n_floor", "—"),
+                              "・".join(str(x) for x in (gs.get("n_forbid") or [])) or "—"))
+            elif len(P) < int(gs["n"]):
+                bad.append("〔記録〕%s は目標 %d 株に対し **%d 株**(指図の許す本数)— "
+                           "芯々 %.2f 間を死守した結果、退避の残す窓に入り切らなかった。"
+                           "⛔ 数を揃えるために芯々や窓を緩めない" % (nm, int(gs["n"]), len(P), lo))
             if len(P) < 2:
                 continue
             nn = _nn(P)
@@ -15834,6 +16372,53 @@ def hedge_pattern_check(d):
                     bad.append("%s は型『二列千鳥』だが株が**片側へ寄っている** — "
                                "%d 本 / %d 本(道の両側に振り分けていない)"
                                % (nm, sgn.count(1), sgn.count(-1)))
+            elif pat == "単列" and gs.get("along"):
+                # ⭐ **沿わせる線が曲がっているときは『直線に乗っているか』では測れない**
+                #   (2026-09-09・第31次【庭方 決定2】)。西縁の岸は 16→19 で 124° 折れる
+                #   ので、最良直線からの外れは必ず大きく出る。⭕ 単列 = **線に沿って一列**:
+                #   ①全株が線の同じ側 ②弧長の順に並べて隣どうしが `pitch[0]` 以上離れる
+                #   (= 肩を並べた二列になっていない)③帯 `offset` の中に収まる。
+                #   ⛔ 新しい許容を作らない — どれも指図が既に持つ値からの従属。
+                al = gs.get("along")
+                pts = _line_pts(d, al)
+                if not pts or len(pts) < 2:
+                    bad.append("%s は型『単列』だが**沿わせる線が引けない**" % nm)
+                    continue
+                # ⛔ 帯の内縁は**塊の上書きまで重ねて**解く(散布器と同じ順)
+                _o = dict(pl.get("keepoutByLayer") or {})
+                _o.update(gs.get("keepoutByLayer") or {})
+                lo_o, hi_o = _along_lohi(d, al, pl.get("role", ""), _o or None,
+                                         float(pl.get("spacing", 2.0)) / d["const"]["ken"])
+                sd, arc, off = [], [], []
+                for (u, v) in P:
+                    i = min(range(len(pts) - 1),
+                            key=lambda k: _seg_dist((u, v), pts[k], pts[k + 1]))
+                    a, b = pts[i], pts[i + 1]
+                    dx, dy = b[0] - a[0], b[1] - a[1]
+                    L = math.hypot(dx, dy) or 1e-9
+                    sd.append(1 if (dx * (v - a[1]) - dy * (u - a[0])) > 0 else -1)
+                    t = ((u - a[0]) * dx + (v - a[1]) * dy) / (L * L)
+                    arc.append(sum(math.hypot(pts[k + 1][0] - pts[k][0],
+                                              pts[k + 1][1] - pts[k][1])
+                                   for k in range(i)) + max(0.0, min(1.0, t)) * L)
+                    off.append(_seg_dist((u, v), a, b))
+                if min(sd.count(1), sd.count(-1)) > 0:
+                    bad.append("%s は型『単列』だが株が**線の両側に分かれている** — "
+                               "%d 本 / %d 本(両側に振るのは千鳥の型)"
+                               % (nm, sd.count(1), sd.count(-1)))
+                # ⛔ 芯々の指定が無い塊では**弧長の隔たりの合否を作らない**
+                #   (許容が指図から引けないので、ここで新しい数を作ることになる)
+                lo_p = float(gs["pitch"][0]) if gs.get("pitch") else None
+                sq = sorted(arc)
+                nearp = [b2 - a2 for a2, b2 in zip(sq, sq[1:])]
+                if lo_p is not None and nearp and min(nearp) < lo_p - 1e-9:
+                    bad.append("%s は型『単列』だが**肩を並べた株がある** — 弧長の隔たり "
+                               "%.3f 間 < 芯々の下限 %.2f 間(二列に見える)"
+                               % (nm, min(nearp), lo_p))
+                if off and (min(off) < lo_o - 1e-9 or max(off) > hi_o + 1e-9):
+                    bad.append("%s は型『単列』だが**帯の外へ出た株がある** — 線からの離れ "
+                               "%.3f〜%.3f 間(帯は %.2f〜%.2f 間)"
+                               % (nm, min(off), max(off), lo_o, hi_o))
             elif pat == "単列":
                 if len(P) < 3:
                     continue
@@ -15891,6 +16476,82 @@ def group_region_check(d):
                            "⛔ どれを正典にするかは**庭方の意匠**(規則17)"
                            % (pl["zone"], pl["layer"], gs.get("where", "?"),
                               len(have), "・".join("`%s`" % k for k in have), have[0]))
+            # ⭐ **`along` の名指しが実際に何かを選んでいるか**(2026-09-09・第31次)。
+            #   ⛔ 区間の名指し(`segment` / `uMin`)は空になっても呼び側が全辺へ戻すので、
+            #   **黙って庭じゅうへ帯が伸びる**。⛔ 従属値の合図(`offset[0]` の文字列)も
+            #   語彙に無い綴りだと黙って既定へ落ちる — どちらもここで鳴らす。
+            al = gs.get("along")
+            if not al:
+                continue
+            nm = "%s/%s『%s』" % (pl["zone"], pl["layer"], gs.get("where", "?"))
+            pts = _line_pts(d, al)
+            if not pts or len(pts) < 2:
+                bad.append("%s の `along` が**線を指せていない**(`%s`)— "
+                           "帯が引けないので庭じゅうへ一様に撒かれる"
+                           % (nm, al.get("route") or al.get("line") or "?"))
+                continue
+            if not _along_range(pts, al):
+                bad.append("%s の `along` の区間の名指し(%s)が**1辺も選ばない** — "
+                           "呼び側が全辺へ戻すので、指定が黙って効かなくなる"
+                           % (nm, "・".join("`%s`=%s" % (k, al[k]) for k in
+                                            ("segment", "uMin", "uMax") if k in al) or "—"))
+            of = al.get("offset")
+            if of and isinstance(of[0], str) and of[0] not in _ALONG_LO_TOKENS:
+                bad.append("%s の `offset[0]` が語彙に無い合図(`%s`)— 使えるのは %s。"
+                           "⛔ 綴りが違うと黙って既定の退避へ落ちる"
+                           % (nm, of[0], "・".join("`%s`" % t for t in _ALONG_LO_TOKENS)))
+            if of and not isinstance(of[0], str):
+                bad.append("%s の `offset[0]` に**数を直書き**している(%s)— "
+                           "帯の内縁は退避からの従属値。⛔ 同じ数を二箇所に持たない(規則4)"
+                           % (nm, of[0]))
+    return bad
+
+
+def pack_scope_check(d):
+    """**`packRatio` の効く範囲の宣言が、生成器の実装と一致しているか**
+    (2026-09-09・第31次【庭方 決定5】)。
+
+    ⭕ 庭方の宣言(`plantRule.packRatioScope`)は
+      「`packRatio` はどの群でも**同一 `groups[]` エントリ内の最近傍距離**だけに掛け、
+        `plantRule.keepout*` / `sensui.pond.keepout` / `tenkei[].spread` には掛けない」。
+    ⛔ 宣言を json に書いただけでは規則19 第3型(黙り)— **実装がそう書けているか**を
+      ソースで突き合わせる:
+      ① 宣言そのものが在ること。
+      ② 退避の当たり判定 `free_fn` の本文に詰め率の語が現れないこと
+         (= 退避が詰め率で緩まない)。
+      ③ 散布器 `scatter_gardens` の中で、当たり判定 `hit(...)` / `blocked(...)` の**引数**に
+         詰め率の語が現れないこと(= 詰め率が退避の側へ漏れていない)。
+    ⚠ 数の側は `planting_clearance_check` が受け持つ(据えた株が退避に載っていないこと)。
+      ここが見るのは**書き方**で、両輪でないと「たまたま今は載っていない」を合格と読む。"""
+    bad = []
+    PK = ("packRatio", "packSelf", "pack")
+    if not (d.get("plantRule") or {}).get("packRatioScope"):
+        bad.append("`plantRule.packRatioScope` が無い — **`packRatio` がどこまで効くかの"
+                   "宣言**【庭方 決定5】。⛔ 宣言が無いと、次に触る者が退避へも掛けてよいと読む")
+    try:
+        for ln in textwrap.dedent(inspect.getsource(free_fn)).splitlines():
+            s = ln.split("#")[0]
+            if re.search(r"\b(packRatio|packSelf)\b", s):
+                bad.append("`free_fn`(退避の当たり判定)に詰め率の語がある — "
+                           "`packRatio` は**塊の中の芯々だけ**に掛ける宣言に反する: `%s`"
+                           % ln.strip()[:80])
+        t = ast.parse(textwrap.dedent(inspect.getsource(scatter_gardens)))
+        for nd in ast.walk(t):
+            if not (isinstance(nd, ast.Call) and isinstance(nd.func, ast.Name)
+                    and nd.func.id in ("hit", "blocked")):
+                continue
+            for a in list(nd.args) + [k.value for k in nd.keywords]:
+                for sub in ast.walk(a):
+                    if isinstance(sub, ast.Name) and sub.id in PK:
+                        bad.append("散布器が退避の判定 `%s(...)` へ詰め率 `%s` を渡している — "
+                                   "⛔ 退避は詰め率で緩めない【庭方 決定5】"
+                                   % (nd.func.id, sub.id))
+                    if isinstance(sub, ast.Constant) and sub.value in PK:
+                        bad.append("散布器が退避の判定 `%s(...)` へ詰め率 `%s` を渡している — "
+                                   "⛔ 退避は詰め率で緩めない【庭方 決定5】"
+                                   % (nd.func.id, sub.value))
+    except (OSError, TypeError) as ex:
+        bad.append("`packRatio` の範囲をソースで検められない(%s)— **この検査は回っていない**" % ex)
     return bad
 
 
@@ -17238,6 +17899,22 @@ def main():
                      "自作の木(<code>Own.Jouryoku</code> / <code>Own.Ume</code>)は Unity の "
                      "<code>Edo ▸ アセット目録 ▸ 目録を再生成</code> を回すまで実寸が引けない"
                      "(<code>_pending.mokuroku</code>)。図では「大きさ不明」の破線で描いてある。</p>")
+            _glt = group_layout_table(d)
+            if _glt:
+                h.append("<h3>塊の割り付け — 型と実出力</h3>")
+                h.append("<p class='cap'>⛔ <b>型は書いただけでは出ない。</b>"
+                         "『二列千鳥』『単列』『三日月』は<b>並び方</b>の指定で、"
+                         "均一に撒けば本数を減らしても林のままになる — "
+                         "第30次までこの指定は<b>どの図にも出ておらず</b>、"
+                         "生成器も読んでいなかった(29 巡ぶん死んでいた)。"
+                         "⭕ この表は<b>指定(左)と実出力(右)を同じ行に並べる</b> — "
+                         "型が出ていなければ目で分かる。"
+                         "⚠ 右半分は <code>planting_out</code> に書き出す点そのもの"
+                         "(⛔ 数え直していない)。"
+                         "⚠ <b>本数が目標に届かないこと自体は欠陥ではない</b> — "
+                         "庭方が<b>下限と禁じ手</b>を決めた塊は、その集合の中なら ○。"
+                         "⛔ <b>塊は奇数</b>([作庭記])なので偶数へは落とさない。</p>")
+                h.append(_glt)
             _n9, _t9 = plant_budget(d, dem)
             h.append("<p class='cap'>この指図が置く木・株の合計 <b>%d 点 / %s 三角</b>"
                      "(LOD0。在庫の木はすべて LOD を持つ)。⛔ 使用禁止の自作低ポリ(1本 2,384三角)は"
@@ -17557,6 +18234,12 @@ def main():
     plate(h, nx(), "未解決と申し送り",
           "**判断を待っている項・宿題・記録・決着** ／ 正典は設計値の `_pending`(⛔ 散文で書き写さない)")
     h.append(pending_table(d))
+    h.append("</div>")
+
+    plate(h, nx(), "凍結時点の宿題(実装が読む一覧)",
+          "**①この巡で解いた ②対象外にした ③実装へ渡す ④次の設計の巡へ** ／ "
+          "正典は `_pending` の1本(⛔ 第二の台帳を作らない)")
+    h.append(freeze_table(d))
     h.append("</div>")
 
     plate(h, nx(), "考証と決めごと")

@@ -1671,6 +1671,12 @@ public static partial class EdoMatsudairaDewaBuilder
         var sp = O(plan["sPos"]);
         var bs = O(plan["bansho"]);
         float prot = F(bs["protrude"]);
+        // ⭐ **番所躯体の面の s**(低い側・高い側)を控える。袖塀の小口(J_Sode_*)は
+        //   指図が「番所躯体の妻面」と名指ししているので、据えたあとここへ突き付けて検める。
+        var banshoFace = new Dictionary<string, Vector2>();
+        // 辺の走り方向の単位ベクトルと、投影値 → 辺沿い s の変換
+        Vector2 eDir0 = (EdgePt(ge, 1f) - EdgePt(ge, 0f)).normalized;
+        float sBase = Vector2.Dot(EdgePt(ge, 0f), eDir0);
         foreach (var key in new[] { "banshoW", "banshoE" })
         {
             var a = A(sp[key]);
@@ -1683,20 +1689,101 @@ public static partial class EdoMatsudairaDewaBuilder
             if (go != null)
             {
                 n++;
-                // ⚠ **部材の実幅を指図の枠と突き合わせる**(2026-09-09)。第29次で `bansho.w` が
-                //   5.5 → 4.25 に詰まったが、`Matsudaira_Bansho.fbx` は旧寸のまま焼かれている。
-                //   ⛔ 呼び寸法で「合っている」と言わない — 走り方向へ投影した実メッシュの伸びで測る。
-                Vector2 eD = (EdgePt(ge, 1f) - EdgePt(ge, 0f)).normalized;
-                float have = ProjSpan(go, eD), want = F(bs["w"]);
-                if (Mathf.Abs(have - want) > 0.05f)
-                    sb.AppendLine("⚠ 【申し送り】番所 " + key + " の部材の実幅 " + have.ToString("F2")
-                        + "m が指図 `gate.plan.bansho.w`=" + want.ToString("F2") + "m と "
-                        + (have - want).ToString("+0.00;-0.00") + "m 違う ⇒ 左右へ "
-                        + ((have - want) * 0.5f).ToString("F2") + "m ずつはみ出す(継ぎ目 J_Bansho_"
-                        + key.Substring(6) + " の許容 −0.05‥0 を超える)。部材方へ焼き直しの照会が要る"
-                        + "(⛔ 横だけ縮めない — 出格子と唐破風が潰れる)");
-                sb.AppendLine("番所 " + key + " s=" + mid.ToString("F1") + " 実幅" + have.ToString("F2") + "m");
+                // ⭐⭐ **2026-09-09 普請奉行の裁定 C — 検査を「躯体の面」で測る。**
+                //   指図の継ぎ目 `J_Bansho_*` / `J_Sode_*` が名指しするのは**番所躯体の東端/西端**で、
+                //   部材のメッシュは恒久的に 躯体 + 0.40m(基壇 +0.18 / 側面の出格子 +0.22)。
+                //   ⛔ `ProjSpan`(全メッシュの最大投影)で `w` と比べると**必ず 0.40m 過大**に出て、
+                //      「部材が指図と違う」という誤診になる(今日この邸で3度出た『軒・庇・基壇が
+                //      先に触れる』型と同じ)。⇒ 帯 `MatsudairaBanshoBodyBand` の頂点だけで測る。
+                float yLoB = sill + EdoAssets.Own.MatsudairaBanshoBodyBand[0];
+                float yHiB = sill + EdoAssets.Own.MatsudairaBanshoBodyBand[1];
+                // ⭐ 奥行の窓で**基壇の天端**を外す(同じ高さに並んでいる)。半幅は指図の `d`
+                float bMn, bMx;
+                ProjBand(go, eDir0, yLoB, yHiB, out bMn, out bMx,
+                         outw, new Vector2(go.transform.position.x, go.transform.position.z),
+                         F(bs["d"]) * 0.5f + 0.05f);
+                float whole = ProjSpan(go, eDir0);                    // 参考: 基壇・出格子を含む外接
+                if (bMx <= bMn)
+                {
+                    sb.AppendLine("⛔ 番所 " + key + ": 躯体の帯 y=" + yLoB.ToString("F2") + "‥"
+                        + yHiB.ToString("F2") + "(奥行の窓 ±" + (F(bs["d"]) * 0.5f + 0.05f).ToString("F2")
+                        + ")に頂点が無い — 部材のピボット/丈が変わった疑い。"
+                        + "⛔ 外接で代用して合格にしない(全メッシュ " + whole.ToString("F2") + "m)");
+                }
+                else
+                {
+                    float have = bMx - bMn, want = F(bs["w"]);
+                    float sLo = bMn - sBase, sHi = bMx - sBase;       // 躯体の妻面の辺沿い s
+                    banshoFace[key] = new Vector2(sLo, sHi);
+                    if (Mathf.Abs(have - want) > 0.05f)
+                        sb.AppendLine("⚠ 【申し送り】番所 " + key + " の**躯体**の実幅 " + have.ToString("F2")
+                            + "m が指図 `gate.plan.bansho.w`=" + want.ToString("F2") + "m と "
+                            + (have - want).ToString("+0.00;-0.00") + "m 違う ⇒ 左右へ "
+                            + ((have - want) * 0.5f).ToString("F2") + "m ずつはみ出す(継ぎ目 J_Bansho_"
+                            + key.Substring(6) + " の許容 −0.05‥0 を超える)。部材方へ焼き直しの照会が要る"
+                            + "(⛔ 横だけ縮めない — 出格子と唐破風が潰れる)");
+                    // 継ぎ目: 躯体の妻面 ↔ 指図の枠(`sPos`)。⛔ 外接では測らない
+                    float wantLo = Mathf.Min(F(a[0]), F(a[1])), wantHi = Mathf.Max(F(a[0]), F(a[1]));
+                    float dLo = sLo - wantLo, dHi = sHi - wantHi;
+                    if (Mathf.Abs(dLo) > 0.05f)
+                        sb.AppendLine("⚠ 番所 " + key + " の躯体**西端** s=" + sLo.ToString("F2")
+                            + " が指図 " + wantLo.ToString("F2") + " と "
+                            + dLo.ToString("+0.00;-0.00") + "m 違う");
+                    if (Mathf.Abs(dHi) > 0.05f)
+                        sb.AppendLine("⚠ 番所 " + key + " の躯体**東端** s=" + sHi.ToString("F2")
+                            + " が指図 " + wantHi.ToString("F2") + " と "
+                            + dHi.ToString("+0.00;-0.00") + "m 違う");
+                    sb.AppendLine("番所 " + key + " s=" + mid.ToString("F1") + " **躯体**幅"
+                        + have.ToString("F2") + "m(指図 " + want.ToString("F2") + ")躯体の面 s="
+                        + sLo.ToString("F2") + "‥" + sHi.ToString("F2") + "(指図 " + wantLo.ToString("F2")
+                        + "‥" + wantHi.ToString("F2") + ")/ 参考: 基壇・出格子を含む外接 "
+                        + whole.ToString("F2") + "m");
+                }
             }
+        }
+
+        // ---------------- 継ぎ目 J_Bansho_W / J_Bansho_E(番所躯体の妻面 ↔ 門柱(鏡柱)の外側面・隙間0)
+        //
+        // ⭐⭐ **門柱の面は「冠木より下」で測る**(2026-09-09)。冠木は柱より 0.35m ずつ長く、
+        //   帯を上まで伸ばすと門が 5.20m あることになって継ぎ目が 0.35m の「めり込み」に化ける。
+        // ⛔⛔ **帯の下端を敷居より上に取らない。**柱は箱なので**頂点が上下の縁にしかない** —
+        //   0.5m から測ったら柱の足元が落ちて、扉だけの 3.66m を「柱の外面」と誤読した(実際に踏んだ)。
+        //   ⇒ 帯は **敷居 〜 敷居 + `plan.monH` × 0.6**(冠木の下端 3.5m より下・柱の足元を含む)。
+        if (mon != null)
+        {
+            float mMn, mMx;
+            ProjBand(mon, eDir0, sill, sill + F(plan["monH"]) * 0.6f, out mMn, out mMx);
+            if (mMx > mMn)
+            {
+                float sMonLo = mMn - sBase, sMonHi = mMx - sBase;
+                var mArr = A(sp["mon"]);
+                float wantMonLo = Mathf.Min(F(mArr[0]), F(mArr[1])), wantMonHi = Mathf.Max(F(mArr[0]), F(mArr[1]));
+                sb.AppendLine("門柱(鏡柱)の外側面 s=" + sMonLo.ToString("F2") + "‥" + sMonHi.ToString("F2")
+                    + "(指図 `sPos.mon` " + wantMonLo.ToString("F2") + "‥" + wantMonHi.ToString("F2")
+                    + " / 幅 " + (sMonHi - sMonLo).ToString("F2") + "m ↔ `plan.monW` "
+                    + F(plan["monW"]).ToString("F2") + "m)");
+                // 番所躯体の妻面と突き合わせる。⛔ 許容は指図の `joints[].tol` と同じ −0.05‥0
+                if (banshoFace.ContainsKey("banshoW"))
+                {
+                    float d = banshoFace["banshoW"].y - sMonLo;   // 正 = 番所が門柱へめり込む
+                    sb.AppendLine("継ぎ目 J_Bansho_W: 番所躯体の東端 s="
+                        + banshoFace["banshoW"].y.ToString("F2") + " ↔ 門柱の外側面 s="
+                        + sMonLo.ToString("F2") + " ⇒ " + d.ToString("+0.00;-0.00") + "m"
+                        + (d < -0.001f ? "  ⚠ **すき間**(門の脇が素通しになる)"
+                           : (d > 0.05f ? "  ⚠ めり込みが許容 0.05m を超える" : "  ⭕")));
+                }
+                if (banshoFace.ContainsKey("banshoE"))
+                {
+                    float d = sMonHi - banshoFace["banshoE"].x;
+                    sb.AppendLine("継ぎ目 J_Bansho_E: 門柱の外側面 s=" + sMonHi.ToString("F2")
+                        + " ↔ 番所躯体の西端 s=" + banshoFace["banshoE"].x.ToString("F2")
+                        + " ⇒ " + d.ToString("+0.00;-0.00") + "m"
+                        + (d < -0.001f ? "  ⚠ **すき間**(門の脇が素通しになる)"
+                           : (d > 0.05f ? "  ⚠ めり込みが許容 0.05m を超える" : "  ⭕")));
+                }
+            }
+            else sb.AppendLine("⛔ 門柱の面が測れない(帯 " + sill.ToString("F2") + "‥"
+                    + (sill + F(plan["monH"]) * 0.6f).ToString("F2") + " に頂点が無い)");
         }
 
         // ---------------- 袖塀2枚 — **番所の外側の妻面 ↔ 表長屋の妻面**(指図 第28次で並びが改まった)
@@ -1769,6 +1856,30 @@ public static partial class EdoMatsudairaDewaBuilder
                     }
                 }
                 n++;
+                // ⭐ **継ぎ目 J_Sode_*(袖塀の小口 ↔ 番所躯体の妻面)を実測で検める。**
+                //   ⛔ 屋根の出(0.5)を含む外接で測らない — 壁体の帯(丈の 0.2〜0.6)で測る。
+                //   ⛔ 相手も**番所躯体の面**(上で帯から測った値)。基壇・出格子は当てる面ではない。
+                {
+                    float mnS, mxS;
+                    ProjBand(go, eDir0, sill + dobeiH * 0.20f, sill + dobeiH * 0.60f, out mnS, out mxS);
+                    if (mxS > mnS)
+                    {
+                        float sA = mnS - sBase, sB = mxS - sBase;
+                        // 番所に突き付く側 = 開口の芯に近い小口
+                        float sMeet = Mathf.Abs(sA - gs) < Mathf.Abs(sB - gs) ? sA : sB;
+                        string bkey = "bansho" + side;
+                        if (banshoFace.ContainsKey(bkey))
+                        {
+                            var bf = banshoFace[bkey];
+                            float sFace = Mathf.Abs(bf.x - gs) < Mathf.Abs(bf.y - gs) ? bf.y : bf.x;
+                            float gap = Mathf.Abs(sMeet - sFace);
+                            sb.AppendLine("継ぎ目 J_Sode_" + side + ": 袖塀の小口 s=" + sMeet.ToString("F2")
+                                + " ↔ 番所躯体の妻面 s=" + sFace.ToString("F2") + " ⇒ 差 "
+                                + (sMeet - sFace).ToString("+0.00;-0.00") + "m"
+                                + (gap > 0.05f ? "  ⚠ 許容 0.05m を超える" : "  ⭕"));
+                        }
+                    }
+                }
                 sb.AppendLine("袖塀 " + side + " s=" + a0.ToString("F1") + "‥" + a1.ToString("F1")
                               + " 長" + len.ToString("F2") + "m 起点 s=" + sStart.ToString("F1")
                               + (wantK && path.Contains("_K") ? " 潜り戸 芯" + kOff.ToString("F2") + "m" : " 潜り戸なし"));
@@ -1797,7 +1908,11 @@ public static partial class EdoMatsudairaDewaBuilder
                         + " — 門口・扉とも長屋に作り付け(部材を置かない)");
         }
 
-        // 表門の扉
+        // 表門の扉 — ⭕⭕ **2026-09-09 普請奉行の裁定: 躯体が持っている両開きの板戸を採る。**
+        //   ⛔ **別部材の扉(`JC.GateDoorYaguraL/R` 丈 3.0m)を重ねて据えない。**
+        //   躯体の扉は門柱の丈 `plan.monH` 5.20m と釣り合っており、櫓門の扉 3.0m より整合する。
+        //   ⚠ 指図 `gate.plan.leaf._`(「躯体が扉を持たないので別部材の扉を据える」)は
+        //     **次の設計の巡で直る**(指図方へ差し戻し済み)。⛔ ここで指図の欄を書き換えない。
         if (Has(plan, "leaf"))
         {
             var lf = O(plan["leaf"]);
@@ -1821,14 +1936,18 @@ public static partial class EdoMatsudairaDewaBuilder
                     }
                 }
                 if (inOpen > 0)
-                    sb.AppendLine("⚠ 【申し送り】表門の躯体が開口の内に実体を持っている(頂点 " + inOpen
-                        + " 点・丈 " + dBot.ToString("F2") + "‥" + dTop.ToString("F2")
-                        + "m)。指図 `gate.plan.leaf._`『躯体が扉を持たない』と食い違う ⇒ 別部材の扉と**二重**。"
-                        + " どちらを採るかは指図側の裁定(⛔ 実装は決めない)");
+                    sb.AppendLine("表門の扉: **躯体の両開きの板戸を採る**(開口の内の実体 頂点 " + inOpen
+                        + " 点・丈 " + dBot.ToString("F2") + "‥" + dTop.ToString("F2") + "m = "
+                        + (dTop - dBot).ToString("F2") + "m / 門柱の丈 `plan.monH` "
+                        + F(plan["monH"]).ToString("F2") + "m)。⛔ 別部材の扉は据えない(普請奉行の裁定"
+                        + " 2026-09-09)。⚠ 指図 `gate.plan.leaf`(" + (string)lf["kind"] + "・丈 "
+                        + F(lf["h"]).ToString("F2") + "m・`by`=" + (Has(lf, "by") ? (string)lf["by"] : "—")
+                        + ")は**躯体の扉を指していない** ⇒ 指図方へ差し戻し(⛔ 実装は指図を書き換えない)");
+                else
+                    sb.AppendLine("⛔ 表門の躯体が開口の内に実体を持たない(素通し)— 裁定の前提"
+                        + "『躯体が両開きの板戸を持つ』が崩れる。⇒ 呼び出し元へ差し戻し"
+                        + "(⛔ 実装が勝手に別部材の扉を据えない)");
             }
-            int nl3 = Leaves(grp, "Omotemon", EdoAssets.JC.GateDoorYaguraL, EdoAssets.JC.GateDoorYaguraR,
-                             4.0f, 0f, gp, yaw, F(lf["w"]), sill);
-            if (nl3 > 0) sb.AppendLine("表門の扉 " + (string)lf["kind"] + " 幅" + F(lf["w"]).ToString("F1"));
         }
         sb.AppendLine(AlignGateFace());
         sb.Append("門 " + n + " 基");
@@ -1957,7 +2076,8 @@ public static partial class EdoMatsudairaDewaBuilder
             }
             nHei += ItabeiRun(njGrp, A2, B2, h, nm, kido);
         }
-        sb.AppendLine(NeishiReport());
+        // ⭐ **根石は板塀と木戸を据えたあと**(木戸の穴は据えた実メッシュから取るので順序が要る)
+        sb.AppendLine(NeishiPlace(njGrp, kido));
 
         // ---------------- 竹垣(法肩の転落止め)
         var rlGrp = Group("Fuzoku/Takegaki");
@@ -2323,8 +2443,48 @@ public static partial class EdoMatsudairaDewaBuilder
     /// 現況(是正前): NJ_Oku_S_W_11(6.8m)・NJ_Oku_N_W_2/3(7.2m×2)のように、木戸と重なる
     /// bay を丸ごと落としていたため木戸の両側に 2.3m/5m の素通しの隙間ができていた。</summary>
 
+    /// <summary>置いた駒の**実メッシュ**のうち、**世界の y が [yLo,yHi] の帯にある頂点だけ**を
+    /// 走り方向 <paramref name="dir"/> へ投影した min/max。
+    ///
+    /// <para>⭐⭐ **「指図が名指しした面」を測るための道具**(CLAUDE.md 規則5)。
+    /// 部材には躯体のほかに**基壇・軒・庇・出格子**が付いていて、全メッシュの最大投影は
+    /// それらを拾う。⛔ その値を指図の呼び寸法と比べると、部材が正しくても必ず外れる
+    /// (2026-09-09・番所で 0.40m 過大に出た。同じ型を今日3度踏んでいる)。
+    /// ⇒ 帯は**指図が名指しした面が存在する高さ**から取る(⛔「見た目に妥当な高さ」で決めない)。</para>
+    /// ⛔ 見えないメッシュは数えない(理由は <see cref="ProjSpan"/> と同じ)。</summary>
+    /// <param name="perpDir">奥行(走りに直交)の向き。<paramref name="perpMax"/> が正のとき、
+    /// <paramref name="origin"/> からの奥行が ±perpMax を超える頂点を落とす。
+    /// ⭐ **同じ高さに二つの部位が同居するとき**(番所の y=0.55 には腰壁の底と**基壇の天端**が
+    /// 並ぶ)、帯だけでは切り分けられない。⛔ 0 なら奥行の窓を使わない。</param>
+    static void ProjBand(GameObject go, Vector2 dir, float yLo, float yHi, out float mn, out float mx,
+                         Vector2 perpDir = default(Vector2), Vector2 origin = default(Vector2),
+                         float perpMax = 0f)
+    {
+        mn = float.MaxValue; mx = float.MinValue;
+        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var rr = mf.GetComponent<Renderer>();
+            if (rr == null || !rr.enabled || !mf.gameObject.activeInHierarchy) continue;
+            var l2w = mf.transform.localToWorldMatrix;
+            foreach (var v in mf.sharedMesh.vertices)
+            {
+                var wv = l2w.MultiplyPoint3x4(v);
+                if (wv.y < yLo || wv.y > yHi) continue;
+                if (perpMax > 0f)
+                {
+                    float d = (wv.x - origin.x) * perpDir.x + (wv.z - origin.y) * perpDir.y;
+                    if (Mathf.Abs(d) > perpMax) continue;
+                }
+                float t = wv.x * dir.x + wv.z * dir.y;
+                if (t < mn) mn = t; if (t > mx) mx = t;
+            }
+        }
+    }
+
     /// <summary>置いた駒の**実メッシュ**を走り方向 <paramref name="dir"/> へ投影した伸び[m]。
-    /// ⛔ 外接箱の x/z の大きい方で代用しない — 斜めのグリッドでは箱が膨らむ(2026-08 の偽陽性5件と同じ罠)。</summary>
+    /// ⛔ 外接箱の x/z の大きい方で代用しない — 斜めのグリッドでは箱が膨らむ(2026-08 の偽陽性5件と同じ罠)。
+    /// ⛔ **躯体の面**を測る用途に使わない — 基壇・軒・出格子が混ざる。そちらは <see cref="ProjBand"/>。</summary>
     static float ProjSpan(GameObject go, Vector2 dir)
     {
         float mn = float.MaxValue, mx = float.MinValue;
@@ -2347,22 +2507,37 @@ public static partial class EdoMatsudairaDewaBuilder
         return mx > mn ? mx - mn : 0f;
     }
 
-    /// <summary>**板塀の根石(玉石)— 指図 `nakajikiriRule.neishi` を読み、据えられるかを測って申し送る。**
+    /// <summary>**板塀の根石(玉石)を据える** — 指図 `nakajikiriRule.neishi` が正典。
     ///
-    /// ⭐ 2026-09-09 に新設。`nakajikiriRule` はそれまで**ビルダーが一度も読まない設計値**だった
-    /// (`_pending.jissouShukudai` ① の13キーの1つ)。読ませたうえで、据えない理由を数字で残す。
+    /// <para>⭐ 2026-09-09(第2回)に**申し送りから実装へ**変わった。前の巡は「在庫に玉石が無い」
+    /// ので据えずに数だけ返していた(`NeishiReport`)。部材方が `Neishi_Tamaishi_L*.fbx` を
+    /// 8 個体焼いたので据える。⛔ 代用の庭石(`JG_Rock_A_*`)は今も使わない。</para>
     ///
-    /// ⛔ **据えない**(`_pending.itabeiNeishiJissou` への差し戻し)。理由は2つとも実測:
-    ///   ① 在庫に**玉石(角の丸い河原石)の部材が無い**(`docs/asset-index.tsv` に該当0件)。
-    ///      庭で使っているのは `JG_Rock_A_01..03` = **庭石**で、`neishi.kind`「玉石」とは別の物。
-    ///      ⛔ 代用して据えるのは発明(CLAUDE.md「⛔ 指図に無い値を発明しない」)。
-    ///   ② 白い箱の正体は `itabei5.obj` に焼き込まれた**柱脚の束石**(1 枚につき 5 個・柱の
-    ///      x = −2.93/−2.11/−1.29/−0.47/0.35 に対応)。板(|z| 0.006)や柱(|z| 0.024)より厚い
-    ///      |z| 0.035 の駒で、テクスチャの別の区画(uv u 0.38‥0.53 / v 0.93‥0.97)を引くので白く出る。
-    ///      ⭕ **丈は世界で 0.04m しかない**(生 y 0〜0.0133 × 丈 2.4 ÷ 0.797)ので、
-    ///      根石(見え 0.15〜0.20)を据えれば**中に隠れる** — 板塀の部材を差し替える必要は無い。
-    /// ⇒ 残る blocker は**玉石の部材だけ**。部材方(`edo-buzai`)へ新造を照会すること。</summary>
-    static string NeishiReport()
+    /// 【指図から引く値。⛔ ここで数を作らない】
+    ///   `applyKind` … 根石が付く塀の種別(庭木戸には付かない) / `show` 見え高 / `bury` 埋まり比 /
+    ///   `long` 一石の走り(**乱尺**) / `bay` 柱間[間] / `seatStepMax` 隣の柱間との段の上限 /
+    ///   `seatDevMax` 柱間の中の |座 − 設計地盤| の上限 / `nakajikiri[].seatSpans` 面の縁で切った区間。
+    ///
+    /// <para>⭐⭐ **座(y)は指図が持たない従属値。**区間の中を柱間(`bay` 間)に割り、
+    /// ①その柱間の**設計地盤**の (最大+最小)÷2 を 0.05m に丸め、②隣の柱間との差を
+    /// `seatStepMax` で頭打ちにする(生成器 `_seat_bays` と同じ式)。⛔ 定数の座で埋めない —
+    /// 埋めると検査①が構造的に鳴らなくなる(2026-09-03 に指図側で廃した型)。
+    /// ⛔ 継ぎ目(区間の境)の前後 <see cref="SeatJointHalf"/> 間は測らない(土留めが受ける)。</para>
+    ///
+    /// <para>⚠ 設計地盤は**板塀と同じ <see cref="DesignY"/>** から採る(⛔ 生成器の `_ground_uv` と
+    /// 違って築山の盛土は入らない)。根石は板塀の足元に据わる物なので、**板塀が立っている地盤**に
+    /// 合わせるのが筋。⇒ 生成器の表と 0.0x m 級で食い違うことがあり得るので、
+    /// その差は**この巡の報告に実測で出す**(⛔ どちらかを黙って正としない)。</para>
+    ///
+    /// <para>⭐⭐ **芯々は「地盤線での差し渡し」で詰める。**⛔ 外接で突き付けない —
+    /// 玉石は丸いので地盤線の差し渡しは外接の 92〜96% しかなく、外接どうしを突き付けると
+    /// **地盤線の高さで石のあいだに空が抜ける**(部材方 2026-09-09)。⇒ 据える前に
+    /// **個体を1つずつ仮置きして地盤線(局所 y=0)の帯の伸びを実測**し、その値で詰める
+    /// (CLAUDE.md 規則5「置いた駒の実メッシュから測る」。⛔ 0.93 という比を焼き込まない)。</para>
+    ///
+    /// <para>⭐ 個体は 8 つしかないので、**長さの選びと yaw 180° の反転を run ごとに決まった乱数**で
+    /// 混ぜる(⛔ 実行のたびに変わる乱数にしない — 冪等でなくなる)。</para></summary>
+    static string NeishiPlace(Transform njGrp, List<Vector2[]> kido)
     {
         if (!Has(D, "nakajikiriRule")) return "⚠ 指図 nakajikiriRule が無い(根石の出典)";
         var nr = O(D["nakajikiriRule"]);
@@ -2370,50 +2545,277 @@ public static partial class EdoMatsudairaDewaBuilder
         var ne = O(nr["neishi"]);
         var kinds = new List<string>();
         foreach (var o in A(ne["applyKind"])) kinds.Add(o as string);
-        var lg = A(ne["long"]); var sh = A(ne["show"]);
-        float longAvg = (F(lg[0]) + F(lg[1])) * 0.5f;
-        float total = 0f; int nRun = 0;
-        foreach (var o in A(D["nakajikiri"]))
+        var sh = A(ne["show"]);
+        float bay0 = Has(ne, "bay") ? F(ne["bay"]) : 1f;
+        float stepMax = Has(ne, "seatStepMax") ? F(ne["seatStepMax"]) : 0.15f;
+        float devMax = Has(ne, "seatDevMax") ? F(ne["seatDevMax"]) : 0.08f;
+        var f = Grid;
+        var sb = new System.Text.StringBuilder();
+
+        // ---- 部材: 個体ごとに**地盤線での差し渡し**を実測する(仮置き→測る→消す)
+        float[] LONG = EdoAssets.Own.NeishiLong;
+        var paths = new string[LONG.Length];
+        var gspan = new float[LONG.Length];
+        var bbox = new float[LONG.Length];
+        int haveVar = 0;
+        for (int i = 0; i < LONG.Length; i++)
         {
-            var w = O(o); if (!kinds.Contains((string)w["kind"])) continue;
-            var a = A(w["a"]); var b = A(w["b"]);
-            total += Vector2.Distance(Grid.W(F(a[0]), F(a[1])), Grid.W(F(b[0]), F(b[1])));
-            nRun++;
-        }
-        int wantStones = Mathf.RoundToInt(total / Mathf.Max(0.05f, longAvg));
-        // ⛔ 据えず。実測した「隠せない量」を数字で残す(白い束石の世界高さ)
-        float footing = 0f;
-        {
-            var src = AssetDatabase.LoadAssetAtPath<GameObject>(EdoAssets.Eg.Itabei5);
-            if (src != null)
+            paths[i] = EdoAssets.Own.Neishi(LONG[i]);
+            var probe = EdoNishiTameikeBuilder.Place(paths[i], Vector3.zero, 0f, Vector3.one,
+                                                    njGrp, "probe_neishi");
+            if (probe == null) { gspan[i] = 0f; continue; }
+            float mn = float.MaxValue, mx = float.MinValue, bmn = float.MaxValue, bmx = float.MinValue;
+            foreach (var mf in probe.GetComponentsInChildren<MeshFilter>())
             {
-                var mf = src.GetComponentInChildren<MeshFilter>(true);
-                if (mf != null && mf.sharedMesh != null)
+                if (mf.sharedMesh == null) continue;
+                var l2w = mf.transform.localToWorldMatrix;
+                foreach (var v in mf.sharedMesh.vertices)
                 {
-                    // 束石の帯 = **下から 3 割の高さの中で、板(厚 0.006)より明らかに厚い頂点**の上端。
-                    // ⛔ しきい値を 0.02 にすると笠木(0.021)まで拾って「丈いっぱい」になる(2026-09-09 に踏んだ)。
-                    float rawH = mf.sharedMesh.bounds.size.y, band = 0f, y0 = mf.sharedMesh.bounds.min.y;
-                    foreach (var v in mf.sharedMesh.vertices)
-                        if (Mathf.Abs(v.z) > 0.03f && (v.y - y0) < rawH * 0.3f)
-                            band = Mathf.Max(band, v.y - y0);
-                    float hDesign = 0f;
-                    foreach (var o in A(D["nakajikiri"]))
-                    { var w = O(o); if (kinds.Contains((string)w["kind"])) { hDesign = F(w["h"]); break; } }
-                    if (rawH > 1e-3f) footing = band * hDesign / rawH;
+                    var w = l2w.MultiplyPoint3x4(v);
+                    if (w.x < bmn) bmn = w.x; if (w.x > bmx) bmx = w.x;
+                    // ⛔⛔ **帯を厚く取らない。**玉石は真ん中がいちばん太いので、±0.05m で測ると
+                    //   「地盤線の差し渡し」でなく**近傍の最大**を拾い、最大 0.048m 過大になる
+                    //   (実測: L0.70 は y=0 で 0.644 / ±0.05 で 0.692)。その値で詰めると
+                    //   **地盤線の高さで石のあいだに空が抜ける** — 部材方が警告したその失敗そのもの。
+                    //   ⇒ 頂点の輪が地盤線に在るので ±0.005m で足りる(8 個体とも拾えることを実測で確認)。
+                    if (Mathf.Abs(w.y) > 0.005f) continue;         // 地盤線(ピボットの高さ)の輪
+                    if (w.x < mn) mn = w.x; if (w.x > mx) mx = w.x;
                 }
             }
+            UnityEngine.Object.DestroyImmediate(probe);
+            bbox[i] = (bmx > bmn) ? bmx - bmn : 0f;
+            gspan[i] = (mx > mn) ? mx - mn : bbox[i];
+            if (gspan[i] > 0.05f) haveVar++;
         }
-        bool covers = footing <= F(sh[0]) + 1e-3f;
-        return "★ 板塀の根石: **据えていない**(" + nRun + " run・延長 " + total.ToString("F1")
-             + "m ⇒ 玉石 約" + wantStones + " 石ぶん)。⛔ 理由は**在庫に玉石の部材が無い**の一点"
-             + "(目録に該当0件。庭で使っているのは `JG_Rock_A_01..03` = 庭石で、`neishi.kind`「玉石」とは別物。"
-             + "⛔ 代用は発明)。⭕ 白い束石(`itabei5.obj` に焼き込まれた柱脚の駒・世界で "
-             + footing.ToString("F2") + "m)は" + (covers
-                 ? "根石の見え " + F(sh[0]).ToString("F2") + "〜" + F(sh[1]).ToString("F2")
-                   + "m の**中に隠れる** ⇒ 玉石さえ焼ければ ①②とも一度に片づく"
-                 : "根石の見え " + F(sh[0]).ToString("F2") + "〜" + F(sh[1]).ToString("F2")
-                   + "m を**超えるので隠れない** ⇒ 板塀の部材ごと差し替えが要る")
-             + " ⇒ `_pending.itabeiNeishiJissou` を部材方へ差し戻し";
+        if (haveVar == 0)
+            return "⛔ 板塀の根石: 部材が一つも引けない(" + paths[0] + " ほか)"
+                 + " — 部材方(`edo-buzai`)へ照会。⛔ 庭石で代用しない";
+
+        // ---- 石樋の水抜き(根石を切る区間)。指図 `sensui.yarimizu.kuguri`
+        string kugRun = null; float kugU = 0f, kugSpan = 0f;
+        {
+            var sen = Has(D, "sensui") ? O(D["sensui"]) : null;
+            var yar = (sen != null && Has(sen, "yarimizu")) ? O(sen["yarimizu"]) : null;
+            var kug = (yar != null && Has(yar, "kuguri")) ? O(yar["kuguri"]) : null;
+            if (kug != null && Has(kug, "nakajikiri") && Has(kug, "span"))
+            { kugRun = (string)kug["nakajikiri"]; kugU = F(kug["u"]); kugSpan = F(kug["span"]); }
+        }
+
+        int total = 0, nRun = 0, nDevBad = 0, nStepBad = 0, nNoSeat = 0, nNoSeatJoint = 0;
+        float totalLen = 0f;
+        foreach (var o in A(D["nakajikiri"]))
+        {
+            var w = O(o);
+            if (!kinds.Contains((string)w["kind"])) continue;
+            string nm = (string)w["name"];
+            var aa = A(w["a"]); var bb2 = A(w["b"]);
+            Vector2 gA = new Vector2(F(aa[0]), F(aa[1])), gB = new Vector2(F(bb2[0]), F(bb2[1]));
+            Vector2 A2 = f.W(gA.x, gA.y), B2 = f.W(gB.x, gB.y);
+            float len = (B2 - A2).magnitude;
+            if (len < 0.5f) continue;
+            Vector2 dir = (B2 - A2) / len;
+            nRun++; totalLen += len;
+
+            // 走る向き(生成器 `_nj_axis` と同じ)。fix = 一定側の座標 / lo,hi = 弧長の範囲
+            bool vert = Mathf.Abs(gB.x - gA.x) < Mathf.Abs(gB.y - gA.y);
+            float fix = vert ? gA.x : gA.y;
+            float lo = vert ? Mathf.Min(gA.y, gB.y) : Mathf.Min(gA.x, gB.x);
+            float hi = vert ? Mathf.Max(gA.y, gB.y) : Mathf.Max(gA.x, gB.x);
+            float jh = SeatJointHalf(vert, fix, lo, hi);
+
+            // ---- 柱間ごとの座(従属値)。⛔ 指図は区間の宣言しか持たない
+            var spS0 = new List<float>(); var spS1 = new List<float>();   // 区間そのものの範囲
+            var bw0 = new List<float>(); var bw1 = new List<float>();
+            var bSeat = new List<float>(); var bDev = new List<float>();
+            var bRaw = new List<float>(); var bClamp = new List<bool>();
+            var bSpanName = new List<string>();
+            int nSpan = 0, nClamped = 0;
+            float devWorst = 0f, stepWorst = 0f;
+            var spans = Has(w, "seatSpans") ? A(w["seatSpans"]) : new List<object>();
+            foreach (var so in spans)
+            {
+                var sp2 = O(so);
+                var rng = Has(sp2, "u") ? A(sp2["u"]) : (Has(sp2, "v") ? A(sp2["v"]) : null);
+                if (rng == null) continue;
+                float s0 = Mathf.Max(Mathf.Min(F(rng[0]), F(rng[1])), lo);
+                float s1 = Mathf.Min(Mathf.Max(F(rng[0]), F(rng[1])), hi);
+                if (s1 - s0 <= 1e-6f) continue;
+                nSpan++; spS0.Add(s0); spS1.Add(s1);
+                float bay = Has(sp2, "bay") ? F(sp2["bay"]) : bay0;
+                int nb = Mathf.Max(1, Mathf.RoundToInt((s1 - s0) / Mathf.Max(0.05f, bay)));
+                string spName = s0.ToString("0.##") + "〜" + s1.ToString("0.##");
+                float prev = float.NaN;
+                for (int k = 0; k < nb; k++)
+                {
+                    float w0 = s0 + (s1 - s0) * k / nb, w1 = s0 + (s1 - s0) * (k + 1) / nb;
+                    var ys = new List<float>();
+                    for (float q = w0; q <= w1 + 1e-6f; q += 0.25f)
+                    {
+                        // ⛔ 継ぎ目(区間の境)の前後は測らない — 土留めが受ける
+                        if (Mathf.Min(Mathf.Abs(q - s0), Mathf.Abs(q - s1)) < jh
+                            && (s0 > lo + 1e-6f || s1 < hi - 1e-6f)) continue;
+                        float qu = vert ? fix : q, qv = vert ? q : fix;
+                        // ⭕ 石樋の水口の区間は根石を切るので測らない
+                        if (kugRun == nm && kugSpan > 0f && Mathf.Abs(qu - kugU) <= kugSpan * 0.5f) continue;
+                        ys.Add(DesignY(f.W(qu, qv)));
+                    }
+                    if (ys.Count == 0) continue;
+                    float mnY = float.MaxValue, mxY = float.MinValue;
+                    foreach (var y in ys) { if (y < mnY) mnY = y; if (y > mxY) mxY = y; }
+                    float raw = Mathf.Round(((mxY + mnY) * 0.5f) / 0.05f) * 0.05f;
+                    float seat = raw; bool clamped = false;
+                    if (!float.IsNaN(prev) && Mathf.Abs(raw - prev) > stepMax)
+                    { seat = prev + Mathf.Sign(raw - prev) * stepMax; clamped = true; nClamped++; }
+                    // ⛔ 生の跳びで見る(頭打ち後の座だけを比べると判定②は構造的に鳴らない)
+                    if (!float.IsNaN(prev) && bRaw.Count > 0)
+                        stepWorst = Mathf.Max(stepWorst, Mathf.Abs(raw - bSeat[bSeat.Count - 1]));
+                    prev = seat;
+                    float dev = 0f;
+                    foreach (var y in ys) dev = Mathf.Max(dev, Mathf.Abs(seat - y));
+                    devWorst = Mathf.Max(devWorst, dev);
+                    bw0.Add(w0); bw1.Add(w1); bSeat.Add(seat); bDev.Add(dev);
+                    bRaw.Add(raw); bClamp.Add(clamped); bSpanName.Add(spName);
+                }
+            }
+            if (bSeat.Count == 0)
+            {
+                sb.AppendLine("⛔ 板塀 " + nm + ": `seatSpans` から柱間が一つも取れない ⇒ 根石を据えない"
+                            + "(⛔ 座を発明しない。指図方へ差し戻し)");
+                continue;
+            }
+
+            // ---- 抜く区間(t = A2 からの距離[m])— 庭木戸の開口 と 石樋の水口
+            var holes = new List<Vector2>();
+            foreach (var sg in kido)
+            {
+                float ta = Vector2.Dot(sg[0] - A2, dir), tb = Vector2.Dot(sg[1] - A2, dir);
+                float h0 = Mathf.Clamp(Mathf.Min(ta, tb), 0f, len), h1 = Mathf.Clamp(Mathf.Max(ta, tb), 0f, len);
+                // 走りから外れた木戸(別の run のもの)は拾わない
+                Vector2 mid2 = (sg[0] + sg[1]) * 0.5f;
+                float perp = Mathf.Abs(Vector2.Dot(mid2 - A2, new Vector2(-dir.y, dir.x)));
+                if (h1 > h0 && perp < 1.0f) holes.Add(new Vector2(h0, h1));
+            }
+            int nKidoHole = holes.Count, nKug = 0;
+            if (kugRun == nm && kugSpan > 0f)
+            {
+                // 水口の区間(グリッド u)を t へ。⭕ 根石はここで切れる(枠石が受ける)
+                Vector2 k0 = f.W(kugU - kugSpan * 0.5f, fix), k1 = f.W(kugU + kugSpan * 0.5f, fix);
+                if (vert) { k0 = f.W(fix, kugU - kugSpan * 0.5f); k1 = f.W(fix, kugU + kugSpan * 0.5f); }
+                float ta = Vector2.Dot(k0 - A2, dir), tb = Vector2.Dot(k1 - A2, dir);
+                float h0 = Mathf.Clamp(Mathf.Min(ta, tb), 0f, len), h1 = Mathf.Clamp(Mathf.Max(ta, tb), 0f, len);
+                if (h1 > h0) { holes.Add(new Vector2(h0, h1)); nKug = 1; }
+            }
+
+            // ---- 据える。⛔ 実行のたびに変わる乱数を使わない(run 名から作る)
+            var grp2 = Group("Fuzoku/Nakajikiri/" + nm + "_Neishi");
+            uint rnd = 2166136261u;
+            foreach (var ch in nm) rnd = (rnd ^ (uint)ch) * 16777619u;
+            System.Func<uint> next = () => { rnd ^= rnd << 13; rnd ^= rnd >> 17; rnd ^= rnd << 5; return rnd; };
+            float baseYaw = Mathf.Atan2(-dir.y, dir.x) * Mathf.Rad2Deg;   // 局所 +X を走りへ
+            int made = 0; float t0 = 0f; int guard = 0;
+            while (t0 < len - 0.05f && guard++ < 5000)
+            {
+                int vi = (int)(next() % (uint)LONG.Length);
+                if (gspan[vi] < 0.05f) continue;
+                float span = gspan[vi];
+                if (t0 + span > len)
+                {
+                    // 端の残り: 収まる個体があればそれに替える。無ければ打ち切る(⛔ 縮めない)
+                    int best = -1;
+                    for (int i = 0; i < LONG.Length; i++)
+                        if (gspan[i] > 0.05f && t0 + gspan[i] <= len
+                            && (best < 0 || gspan[i] > gspan[best])) best = i;
+                    if (best < 0) break;
+                    vi = best; span = gspan[vi];
+                }
+                float tc = t0 + span * 0.5f;
+                bool inHole = false; float holeEnd = 0f;
+                foreach (var hh in holes)
+                    if (tc > hh.x && tc < hh.y) { inHole = true; holeEnd = Mathf.Max(holeEnd, hh.y); }
+                if (inHole) { t0 = holeEnd; continue; }
+                Vector2 c = A2 + dir * tc;
+                Vector2 gc = f.L(c);
+                float q2 = vert ? gc.y : gc.x;
+                float y2 = float.NaN;
+                for (int i = 0; i < bSeat.Count; i++)
+                    if (q2 >= bw0[i] - 1e-4f && q2 <= bw1[i] + 1e-4f) { y2 = bSeat[i]; break; }
+                if (float.IsNaN(y2))
+                {
+                    // ⚠ 座が決まらない石。**理由を分けて数える**(⛔ 一つの数にまとめない —
+                    //   ①と②は差し戻し先が違う)。⛔ どちらも座を発明せず設計地盤へ落として申し送る。
+                    bool inSpan = false;
+                    for (int i = 0; i < spS0.Count; i++)
+                        if (q2 >= spS0[i] - 1e-4f && q2 <= spS1[i] + 1e-4f) { inSpan = true; break; }
+                    if (inSpan) nNoSeatJoint++; else nNoSeat++;
+                    y2 = DesignY(c);
+                }
+                float yaw2 = baseYaw + (((next() & 1u) == 1u) ? 180f : 0f);   // 繰り返しを崩す
+                var go2 = EdoNishiTameikeBuilder.Place(paths[vi], new Vector3(c.x, y2, c.y), yaw2,
+                                                       Vector3.one, grp2, nm + "_ne" + made);
+                if (go2 != null) made++;
+                t0 += span;
+            }
+            total += made;
+            if (devWorst > devMax + 1e-4f) nDevBad++;
+            if (stepWorst > stepMax + 1e-4f) nStepBad++;
+            float seatLo = float.MaxValue, seatHi = float.MinValue;
+            foreach (var s3 in bSeat) { seatLo = Mathf.Min(seatLo, s3); seatHi = Mathf.Max(seatHi, s3); }
+            sb.AppendLine("根石 " + nm + ": " + made + " 石 / 延長 " + len.ToString("F1")
+                + "m / 区間 " + nSpan + "・柱間 " + bSeat.Count + "(継ぎ目の除外 ±"
+                + jh.ToString("F2") + " 間)/ 座 " + seatLo.ToString("F2") + "‥" + seatHi.ToString("F2")
+                + " / |座−設計地盤| 最大 " + devWorst.ToString("F3")
+                + (devWorst > devMax + 1e-4f ? " ⚠許容 " + devMax.ToString("F2") + " 超" : " ⭕")
+                + " / 生の跳び 最大 " + stepWorst.ToString("F3")
+                + (stepWorst > stepMax + 1e-4f ? " ⚠許容 " + stepMax.ToString("F2") + " 超" : " ⭕")
+                + " / 頭打ち " + nClamped + " / 抜き 木戸" + nKidoHole + "・水口" + nKug);
+        }
+
+        var meas = new System.Text.StringBuilder();
+        for (int i = 0; i < LONG.Length; i++)
+            meas.Append((i > 0 ? " / " : "") + LONG[i].ToString("0.##") + "→"
+                + gspan[i].ToString("F3") + (bbox[i] > 0.01f
+                    ? "(外接比 " + (gspan[i] / bbox[i]).ToString("P0") + ")" : ""));
+        sb.AppendLine("根石 合計 " + total + " 石 / " + nRun + " run・延長 " + totalLen.ToString("F1")
+            + "m(指図の見え高 " + F(sh[0]).ToString("F2") + "〜" + F(sh[1]).ToString("F2")
+            + "m・埋まり比 " + F(ne["bury"]).ToString("F2") + " ⇒ 丈は部材が持つ)");
+        sb.AppendLine("根石の芯々(**地盤線の差し渡しを実測**。⛔ 外接では詰めない): " + meas);
+        if (nNoSeat > 0)
+            sb.AppendLine("⚠ 【申し送り①】" + nNoSeat + " 石が `seatSpans` の**外**(区間が run の端を覆っていない)"
+                        + " ⇒ 座でなく設計地盤へ落とした。指図方へ");
+        if (nNoSeatJoint > 0)
+            sb.AppendLine("⚠ 【裁定を仰ぐ②】" + nNoSeatJoint + " 石は区間の**中**だが座が決まらない —"
+                        + " その柱間の測点が**継ぎ目の窓(`_seat_joint_half`)と石樋の水口で全部落ちた**。"
+                        + " 指図 `nakajikiriRule.neishi._seat` の『継ぎ目には敷居を当てない』には読みが二つある:"
+                        + " ⓐ **測らないだけ**(根石は据える)/ ⓑ **根石そのものを据えない**(土留めが受ける)。"
+                        + " ⛔ 実装は決めない — 当面 ⓐ とみなし設計地盤へ落としてある。"
+                        + " ⚠ 窓は run によって ±2.85 間(5.2m)にもなるので、ⓑ なら塀の足元が十数 m 素地になる");
+        if (nDevBad > 0 || nStepBad > 0)
+            sb.AppendLine("⚠ 座の判定に外れた run: |座−地盤| " + nDevBad + " 本 / 生の跳び " + nStepBad
+                        + " 本 ⇒ 指図の `seatSpans` を割り直す照会(⛔ 実装で許容を緩めない)");
+        sb.Append("⚠ 座は**板塀と同じ `DesignY`** から採った(生成器 `_ground_uv` は築山の盛土を足すので"
+                + "、築山に掛かる区間では 0.0x m 級の差が出得る。⛔ どちらかを黙って正としない)");
+        return sb.ToString();
+    }
+
+    /// <summary>区間の継ぎ目(面の縁)で**座を測らない**幅[間]の半分 = 従属値。
+    /// 生成器 `_seat_joint_half` と同じ式: (段の高さ − **造成前**の地盤)× `batterFill` ÷ 1間 ÷ 2。
+    /// ⛔ 設計地盤と比べない — 段の上では常に 0 になる。</summary>
+    static float SeatJointHalf(bool vert, float fix, float lo, float hi)
+    {
+        var f = Grid;
+        float drop = 0f;
+        foreach (var t in Terraces)
+        {
+            float e0 = vert ? t.v0 : t.u0, e1 = vert ? t.v1 : t.u1;
+            for (int i = 0; i < 2; i++)
+            {
+                float e = (i == 0) ? e0 : e1;
+                if (!(e > lo + 1e-6f && e < hi - 1e-6f)) continue;
+                Vector2 p = vert ? f.W(fix, e) : f.W(e, fix);
+                drop = Mathf.Max(drop, Mathf.Abs(t.y - NaturalY(p.x, p.y)));
+            }
+        }
+        return drop > 0f ? drop * BatterFill / f.ken / 2f : 0f;
     }
 
     static int ItabeiRun(Transform parent, Vector2 A2, Vector2 B2, float h, string prefix,

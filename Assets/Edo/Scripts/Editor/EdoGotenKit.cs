@@ -443,16 +443,34 @@ public static class EdoGotenKit
 
     /// <summary>Blender が書き出した御殿FBXのマテリアルを Village Kit の既存 .mat へ当てる。
     /// FBX にはマテリアル名しか入っていないので、Unity 側で remap しないと白い模型になる。
-    /// 新しい屋根・部材を生成するたびに走らせる(既に当たっているものは触らない)。</summary>
+    /// 新しい屋根・部材を生成するたびに走らせる(既に当たっているものは触らない)。
+    ///
+    /// <para>⛔⛔ **`Everywhere` は 1 本あたり 5〜20 秒**(プロジェクト全体 6.9GB を舐める)。
+    /// 83 本を無条件に回すと **1 時間** Unity が 90〜100% CPU で埋まり、その間**他のすべての
+    /// MCP 呼び出しが通らなくなる**(2026-09-09 の松江松平で実際に起きた。MCP のタイムアウト
+    /// 再送で 7 本積まれて悪化した)。⇒ 既定は **まだ remap の当たっていない FBX だけ**を回す。
+    /// 焼き直した FBX は新しいパス(寸法が名前に入る)で入るので `GetExternalObjectMap()` は空 =
+    /// 必ず拾われる。⛔ タイムアウトが返っても叩き直さない — 進捗は `Logs/Editor.log` の
+    /// `[GotenKit] マテリアル remap:` で数える。</para>
+    ///
+    /// <para>⚠ 材質名を変えて**同じパスへ**焼き直したときだけ既定では拾えない。そのときは
+    /// 「(全部・時間がかかる)」の方を使う。</para></summary>
     [MenuItem("Edo/御殿/新しい御殿FBXのマテリアルをremap")]
-    public static void RemapGotenMaterials()
+    public static void RemapGotenMaterials() { RemapGotenMaterials(true); }
+
+    [MenuItem("Edo/御殿/御殿FBXのマテリアルをremap(全部・1時間かかる)")]
+    public static void RemapGotenMaterialsAll() { RemapGotenMaterials(false); }
+
+    public static void RemapGotenMaterials(bool onlyUnmapped)
     {
-        int done = 0, still = 0;
+        int done = 0, still = 0, skipped = 0;
         foreach (var guid in AssetDatabase.FindAssets("t:Model", new[] { "Assets/Edo/Models/Goten" }))
         {
             string path = AssetDatabase.GUIDToAssetPath(guid);
             var imp = AssetImporter.GetAtPath(path) as ModelImporter;
             if (imp == null) continue;
+            // ⭐ 既に当たっている FBX は触らない(上の注記 — これが無いと 1 時間かかる)
+            if (onlyUnmapped && imp.GetExternalObjectMap().Count > 0) { skipped++; continue; }
             imp.materialImportMode = ModelImporterMaterialImportMode.ImportViaMaterialDescription;
             // Inspector の「Search and Remap」と同じ。BasedOnMaterialName + Everywhere で
             // Village Kit の Materials/ にある同名 .mat を拾う(同名の .mat は他に無いことを確認済み)
@@ -469,7 +487,8 @@ public static class EdoGotenKit
             }
         }
         AssetDatabase.SaveAssets();
-        Debug.Log(string.Format("[GotenKit] マテリアル remap: {0}件が解決 / 未解決 {1}", done, still));
+        Debug.Log(string.Format("[GotenKit] マテリアル remap: {0}件が解決 / 未解決 {1} / 既に当たっていて触らなかった {2}",
+                                done, still, skipped));
     }
 
     [MenuItem("Edo/御殿/部材テスト棟を建てる (8間x5間)")]

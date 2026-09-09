@@ -14,7 +14,11 @@
     ただし**当門の形式の典拠は帯ではなく写真そのもの**。
 
 【寸法】**指図 `gate.plan.bansho` が正典。ここで作り直さない。**
-  w 5.5 / d 3.6 / protrude 2.0(門の面より前へ張り出す量)
+  w **4.25** / d 3.6 / protrude 2.0(門の面より前へ張り出す量)
+  ⚠ **w は 2026-09-08(第29次)に 5.5 → 4.25 へ詰まった**(考証方 —
+    (`plan.opening.w` 13.0m − `plan.monW` 4.5m) ÷ 2 の従属値。[五千分一東京図31]A の実測開口)。
+  ⭐ 書き出し名に幅を埋める: `Matsudaira_Bansho_W<幅>.fbx`(⛔ 寸法の入らない名で焼かない —
+    旧寸の物が同じ名で居座り、実装が気づかないまま 0.83m ずつはみ出していた)。
   ローカル: 走り X ∈ [0, w]、高さ Y(=Blender Z)、奥行 Z(=Blender Y)。
   **ピボット = 番所の走り方向の芯・基壇の下端**(据える側が s と敷居をそのまま使える)。
 
@@ -48,11 +52,18 @@ WALLC_UV = (0.55, 0.34, 0.95, 0.62)
 ROOF_UV = (0.10, 0.10, 0.90, 0.90)
 ROOF_UPM = 0.1169                      # 借り先 roof B 4x16 の実測 UV/m(4.472m ↔ Δu 0.5226)
 
-W, D, PROTRUDE = 5.5, 3.6, 2.0        # 指図 gate.plan.bansho
+# ⭐ **指図 `gate.plan.bansho` が正典。**⛔ ここで寸法を決めない。
+#   ⚠ **2026-09-09: w は 5.5 → 4.25。**第29次で考証方が
+#     「(`plan.opening.w` 13.0m − `plan.monW`) ÷ 2」の従属値へ改めた([五千分一東京図31]A の実測開口)。
+#     ⛔ 旧寸のまま焼いた `Matsudaira_Bansho.fbx` は左右へ 0.83m ずつはみ出していた。
+#   ⛔ **横だけ縮める乱暴な直しはしない** — 出格子の竪子の間隔・向唐破風の起りは
+#     下で **W から導く**ので、幅を変えても目とむくりの比は保たれる。
+W, D, PROTRUDE = 4.25, 3.6, 2.0       # 指図 gate.plan.bansho(--w で上書き可)
 BASE_H = 0.55                          # 切石畳出の基壇
 BODY_H = 2.45                          # 軸部(基壇の上から桁まで)
 KOSHI_H = 0.85                         # 腰壁(下見板)
-KARA_RISE = 0.78                       # 向唐破風の起り(むくり)の矢高。弦(桁行 5.5m)の 1/7
+KARA_RISE = W / 7.0                    # 向唐破風の起り(むくり)の矢高 = **弦(桁行)の 1/7**
+#   ⭐ 幅から導く従属値。⛔ 定数で置かない — 幅が変わると樽屋根になったり潰れたりする
 EAVE = 0.55                            # 軒の出
 SEG = 12                               # 唐破風の折れ数
 MUNE_H = 1.30                          # 大棟の高さ(桁の上端から)。唐破風の軒先より上に取る
@@ -201,7 +212,10 @@ def build(name="Matsudaira_Bansho"):
     gx0, gx1 = x0 + 0.45, x1 - 0.45
     m.box(gx0 - 0.08, gx1 + 0.08, gy0 - 0.12, gy0, z1, z1 + 0.22, W_UV, 0)   # 出格子の腰(受け)
     m.box(gx0 - 0.08, gx1 + 0.08, gy1, gy1 + 0.14, z1, z1 + 0.22, W_UV, 0)   # 上枠
-    nb = 23                                                                   # 竪子
+    # ⭐ 竪子は **本数でなく芯々**で決める(⛔ 本数を固定して幅だけ縮めると牢格子が簾になる)。
+    #   0.209m = 幅 5.5 版の実測ピッチ(4.60m ÷ 22 間隔)。**この見えを保つ**
+    KOSHI_PITCH = 0.209
+    nb = max(2, int(round((gx1 - gx0) / KOSHI_PITCH)) + 1)                    # 竪子
     for k in range(nb):
         gx = gx0 + (gx1 - gx0) * k / float(nb - 1)
         m.box(gx - 0.022, gx + 0.022, gy0, gy1, z1 + 0.09, z1 + 0.20, W_UV, 0)
@@ -293,19 +307,38 @@ def build(name="Matsudaira_Bansho"):
 
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    # ⭐ `--w <m>` = 指図 `gate.plan.bansho.w`。⛔ 既定値を勝手な数にしない(上の W が指図の現行値)
+    global W, KARA_RISE
+    if "--w" in argv:
+        W = float(argv[argv.index("--w") + 1])
+        KARA_RISE = W / 7.0
     o = build()
     mn, mx = V.bbox([o])
     print("[bansho] 実寸 W(X)=%.3f  D(Y)=%.3f  H(Z)=%.3f" % (mx.x - mn.x, mx.y - mn.y, mx.z - mn.z))
-    print("[bansho] 指図 w=%.1f d=%.1f 張出=%.1f / 向唐破風の起り %.2f" % (W, D, PROTRUDE, KARA_RISE))
-    out = os.path.join(PROJ, "Assets", "Edo", "Models", "Mon", "Matsudaira_Bansho.fbx")
+    print("[bansho] 指図 w=%.2f d=%.2f 張出=%.2f / 向唐破風の起り %.3f(弦の1/7)"
+          % (W, D, PROTRUDE, KARA_RISE))
+    out = os.path.join(V.out_dir(os.path.join(PROJ, "Assets", "Edo", "Models", "Mon")),
+                       "Matsudaira_Bansho_W%s.fbx" % ("%g" % round(W, 2)))
     os.makedirs(os.path.dirname(out), exist_ok=True)
     V.export_fbx([o], out)
     print("[bansho] 書き出し " + out)
     if "--render" in argv:
+        # ⛔ **カメラを決め打ちの座標で置かない** — 幅を 5.5 → 4.25 に詰めた 2026-09-09 に、
+        #   5.5 用の座標のままで焼いて**唐破風と出格子が画面から切れた**(見ずに合格にしかけた)。
+        #   ⇒ **bbox から引く**。正面(向唐破風と出格子)と妻(むくりの輪郭)の2枚。
         V.hook_textures()
         bpy.ops.mesh.primitive_plane_add(size=40, location=(0, 0, -0.02))
-        V.studio((-6.0, 9.5, 4.6), (0.0, 0.6, 1.9), res=(1500, 1000))   # 正面(+Y=論理+Z)から
-        V.render(os.environ.get("GOTEN_PREVIEW", "/tmp/bansho.png"))
+        base = os.environ.get("GOTEN_PREVIEW", "/tmp/bansho.png")
+        stem = base[:-4] if base.endswith(".png") else base
+        r = max(mx.x - mn.x, mx.y - mn.y, mx.z)
+        cz = mx.z * 0.55
+        for sub, cam in (("shomen", (0.0, mn.y - r * 1.9, cz + r * 0.55)),
+                         ("tsuma", (mn.x - r * 2.1, 0.0, cz + r * 0.30)),
+                         ("naname", (mn.x - r * 1.3, mn.y - r * 1.5, cz + r * 0.85))):
+            for c in [c for c in bpy.data.objects if c.type in ('CAMERA', 'LIGHT')]:
+                bpy.data.objects.remove(c, do_unlink=True)
+            V.studio(cam, (0.0, 0.0, cz), res=(1500, 1000))
+            V.render("%s_%s.png" % (stem, sub))
 
 
 main()

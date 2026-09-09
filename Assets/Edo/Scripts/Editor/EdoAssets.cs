@@ -238,14 +238,33 @@ public static class EdoAssets
         /// 入側1 / 軒の出0.90 / 勾配0.5456 / 妻の出0.30 / gable_frac 0.45 は**部材の既定値**で摘みにしない。
         /// 無い寸法は:
         ///   blender --background --python Tools/Blender/build_goten_roof.py -- banded &lt;帯 4,5&gt; &lt;桁行間数&gt; [--along u|v]</para></summary>
-        public static string RoofBanded(int[] bands, int spanKen, bool alongV = false)
+        /// <param name="irikawa">⭐⭐ **入側の間数を郭グリッドの軸ごとに** <c>{u0, u1, v0, v1}</c>
+        /// (指図 <c>munes[].roof.irikawa</c> の <c>u:[u0,u1] / v:[v0,v1]</c> をこの順に並べたもの)。
+        /// <c>null</c> = 四周1間(旧来の既定。土井の帯割り屋根はすべてこれ)。
+        ///
+        /// <para>⛔⛔ **2026-09-09 の差し戻し1。**それまで生成器は入側スカラ1つを四周へ当てていたので、
+        /// <c>irikawa</c> が [1,1] でない軸の屋根が **1間ずつ過大**に焼けていた。松江松平の表向4棟は
+        /// 隣どうし 3.18間(5.78m)重なり、真上から見ると4棟が1枚の巨大な屋根に融けていた。
+        /// ⇒ **総寸 = 身舎 + 入側(辺ごと) + 軒**。⛔ 横に縮める対処は採らない(瓦の目と破風が潰れる)。</para>
+        ///
+        /// <para>⭐ **入側が四周1間でないときだけ名前に <c>_i&lt;u0&gt;&lt;u1&gt;&lt;v0&gt;&lt;v1&gt;</c> が付く**
+        /// (例 `Goten_Roof_Banded_3-3-4-4x12ken_v_i0011`)。⛔ 入側を名前に入れずに焼くと、
+        /// **同じ名前で幾何の違う屋根**が静かに上書きし合う(松江松平の表向 u=[0,0] と
+        /// 土井の四周1間はどちらも `4-4-4x10ken_v` になる)。</para></param>
+        public static string RoofBanded(int[] bands, int spanKen, bool alongV = false,
+                                        int[] irikawa = null)
         {
             var inv = System.Globalization.CultureInfo.InvariantCulture;
             string b = "";
             for (int i = 0; i < bands.Length; i++)
                 b += (i > 0 ? "-" : "") + bands[i].ToString(inv);
+            string suf = "";
+            if (irikawa != null && irikawa.Length == 4
+                && !(irikawa[0] == 1 && irikawa[1] == 1 && irikawa[2] == 1 && irikawa[3] == 1))
+                suf = "_i" + irikawa[0].ToString(inv) + irikawa[1].ToString(inv)
+                            + irikawa[2].ToString(inv) + irikawa[3].ToString(inv);
             return RoofDir + "Goten_Roof_Banded_" + b + "x" + spanKen.ToString(inv)
-                 + "ken" + (alongV ? "_v" : "") + ".fbx";
+                 + "ken" + (alongV ? "_v" : "") + suf + ".fbx";
         }
 
         /// <summary>渡廊下の切妻屋根。幅1間・長さ<see cref="RoofKirizumaKen"/>間の定尺で作ってある
@@ -896,8 +915,60 @@ public static class EdoAssets
         /// ⚠ 唐破風は**中央が起り・両端が照りで反り上がる S 字**。単純な sin にすると樽屋根になる。
         /// ⚠ 出格子は**細い竪子を密に**。太い方立を疎に並べると牢格子に見える。
         /// **ピボット = 走り方向の芯・基壇の下端**。
-        /// 生成: blender --background --python Tools/Blender/build_matsudaira_bansho.py -- [--render]</summary>
-        public const string MatsudairaBansho = "Assets/Edo/Models/Mon/Matsudaira_Bansho.fbx";
+        ///
+        /// <para>⚠⚠ **<paramref name="w"/> は「躯体」の幅であって外形ではない**(2026-09-09 実測)。
+        /// 指図の継ぎ目 <c>J_Bansho_W/E</c> / <c>J_Sode_W/E</c> は当てる面を
+        /// **「番所躯体の東端/西端」**と名指ししているので、<c>gate.plan.bansho.w</c> は躯体。
+        /// **メッシュの走り方向の実寸は 躯体 + 0.40m**(切石基壇が +X 側へ 0.18 /
+        /// 側面の出格子が −X 側へ 0.22 出る)= w 4.25 のとき **4.65m**。
+        /// ⛔ **`Renderer.bounds` の投影幅を <c>w</c> と直に比べない** — 必ず 0.40m 過大に出る。
+        /// 実装側の検査は躯体の面で測ること(2026-09-09 に部材方から実装へ申し送り)。</para>
+        ///
+        /// <para>⚠ **w は 2026-09-08(第29次)に 5.5 → 4.25 へ詰まった**
+        /// ((`plan.opening.w` 13.0 − `plan.monW` 4.5) ÷ 2 の従属値)。旧寸の
+        /// `Matsudaira_Bansho.fbx`(躯体 5.5・メッシュ 5.90)は 2026-09-09 に**削除した** —
+        /// ⛔ 寸法の入らない名で焼くと旧寸が居座って実装が気づけない。
+        /// 実寸(Unity・w=4.25)**4.650(X) × 4.660(Y) × 4.700(Z)**。
+        /// 向唐破風の起り = 弦(桁行)の 1/7 = 0.607m(**幅からの従属値**)、
+        /// 出格子の竪子は芯々 0.209m 固定で本数が従属(⛔ 本数を固定して幅だけ縮めない)。</para>
+        /// 生成: blender --background --python Tools/Blender/build_matsudaira_bansho.py -- --w 4.25 --render</summary>
+        public static string MatsudairaBansho(float w)
+        {
+            return MonDir + "Matsudaira_Bansho_W"
+                 + w.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + ".fbx";
+        }
+
+        /// <summary>**板塀の根石(玉石)** — 松江松平邸の中仕切の板塀 8 run(延長 444.2m・約 800 石)。
+        /// 指図 <c>nakajikiriRule.neishi</c> が正典: 見え <c>show</c> 0.15〜0.20m /
+        /// 埋まり比 <c>bury</c> 0.5 ⇒ **丈 = 2×見え**(0.30〜0.40m)/ 全厚 <c>t</c> 0.35m /
+        /// 一石の走り <c>long</c> 0.40〜0.70m の**乱尺**。
+        ///
+        /// <para>⭐⭐ **ピボット = 走りの芯・厚みの芯・座(地盤線)**。ローカル **+X = 塀の走り** /
+        /// **+Y = 上**(Y=0 が地盤線。メッシュは −見え 〜 +見えの対称)/ **+Z = 厚み**。
+        /// ⇒ <c>neishi_seat_check</c> が柱間ごとに決めた**座**をそのまま <c>position.y</c> へ。
+        /// ⛔ 底でも天端でもない。</para>
+        ///
+        /// <para>⚠⚠ **芯々を外接寸法で詰めない** — 玉石は丸いので **地盤線での差し渡しは外接の 92〜96%**
+        /// (実測: L0.41→0.395 / L0.45→0.414 / L0.5→0.469 / L0.54→0.520 / L0.58→0.534 /
+        /// L0.62→0.582 / L0.66→0.635 / L0.7→0.644)。外接どうしを突き付けると**地盤線の高さで
+        /// 石のあいだに空が抜ける**。⇒ 芯々は「地盤線の差し渡し」で、あるいは外接の 0.93 倍で詰めること。</para>
+        ///
+        /// <para>⭐ **8個体を乱尺で焼いてある**(下の <see cref="NeishiLong"/>)。土台は在庫の実肌の転石
+        /// `FJG_Rock_A_0{1,2,3}_LOD0` を 3 種回してあるので、**柄(アトラスの象限)もシルエットも個体差がある**。
+        /// 繰り返しがまだ目につくなら据える側で **yaw 180° の反転**を混ぜること(⛔ 部材を増やす前に)。
+        /// 丸みは実測済み — 凸の稜の局所半径の下位5%が **0.020〜0.045m**
+        /// (ユーザー指摘「角が鋭すぎませんか?」2026-09-06 の受入 2〜6cm を満たす)。</para>
+        ///
+        /// <para>材質は <c>M_FJG_Rock_001</c>(庭の護岸の転石と同じ .mat)。
+        /// ⛔ <c>JG.Rock01..03</c> を直に置かない(FBX 内の材質名が `Test` で remap が当たらない)。</para>
+        /// 生成: blender --background --python Tools/Blender/build_neishi.py -- all --render</summary>
+        public static readonly float[] NeishiLong =
+            { 0.41f, 0.45f, 0.50f, 0.54f, 0.58f, 0.62f, 0.66f, 0.70f };
+        public static string Neishi(float lng)
+        {
+            return NiwaDir + "Neishi_Tamaishi_L"
+                 + lng.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + ".fbx";
+        }
 
         /// <summary>松江松平邸の附属屋・工作物。すべて `Tools/Blender/build_matsudaira_dewa_fuzokuya.py`
         /// で起こす(在庫照会 `docs/asset-catalog.md` §10「無い物」の結果 — 井戸・鳥居・祠・二層櫓は

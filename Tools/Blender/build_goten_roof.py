@@ -680,7 +680,55 @@ def _valley_gutter(y_v, x_a, x_b, z_eave, kobai, p, name):
     return g
 
 
-def _verify_band_order(o, bands_in, D, along, name):
+def _norm_irikawa(irikawa):
+    """入側の指定を **郭グリッドの (u0, u1, v0, v1)**(単位=間)へ正規化する。
+
+    受け取れる形:
+      ``1``                       … 四周に同じ(旧来の呼び方。土井の帯割り屋根は全部これ)
+      ``{"u":[0,0],"v":[1,1]}``   … ⭐ **指図 `munes[].roof.irikawa` の生の形**。これが正典
+      ``(u0, u1, v0, v1)``        … 平たい4つ組
+    ⛔ 端数は受けない — 入側は柱通りに乗るので整数間。
+    """
+    if isinstance(irikawa, dict):
+        u = irikawa.get("u", [1, 1])
+        v = irikawa.get("v", [1, 1])
+        q = [u[0], u[1], v[0], v[1]]
+    elif isinstance(irikawa, (list, tuple)):
+        if len(irikawa) != 4:
+            raise SystemExit("[banded] irikawa の4つ組は (u0,u1,v0,v1)。指定=%r" % (irikawa,))
+        q = list(irikawa)
+    else:
+        q = [irikawa] * 4
+    out = []
+    for t in q:
+        f = float(t)
+        if abs(f - round(f)) > 1e-9 or not (0 <= f <= 3):
+            raise SystemExit("[banded] 入側は 0〜3 の整数間。指定=%r" % (irikawa,))
+        out.append(int(round(f)))
+    return tuple(out)
+
+
+def _irikawa_sides(irikawa, along):
+    """グリッドの (u0,u1,v0,v1) を **生成器の内部軸**へ写す → (x=0側, x=W側, y=0側, y=D側)。
+
+    ⭐⭐ **ここが 2026-09-09 の差し戻し1の急所。**内部は常に「桁行を Blender +X、
+      帯を Blender +Y に並べ、along=="v" なら最後に +90° 回す」で組む。
+      軸の鎖(`make_banded` の註と同じもの)を辿ると:
+        grid u = −(Blender X の最終値) / grid v = +(Blender Y の最終値)
+      ⇒ along=="v"(+90°: 内部(x,y) → Blender(−y, x)):
+           内部 x = grid v(x=0 が v 小) / 内部 y = grid u(y=0 が u 小)
+         along=="u"(回さない):
+           内部 x = **−grid u**(⛔ x=0 が u の**大きい**側)/ 内部 y = grid v(y=0 が v 小)
+      ⛔ along=="u" で u の順をそのまま渡すと**左右が入れ替わる**。
+        ⚠ 入側が u0==u1 の棟(当邸は全棟そう)では**絶対に気づけない**。
+    """
+    u0, u1, v0, v1 = _norm_irikawa(irikawa)
+    if along == "v":
+        return (v0, v1, u0, u1)
+    return (u1, u0, v0, v1)
+
+
+def _verify_band_order(o, bands_in, acr_c, along, name):
     """⭐⭐ **焼いた直後に、帯が本当に across の小さい側から並んでいるかを実測する。**
 
     ⛔⛔ **非対称の帯では必ず通すこと。** 帯の並びは**立面からは見えない**
@@ -707,7 +755,9 @@ def _verify_band_order(o, bands_in, D, along, name):
     edges = [0.0]
     for b in bands_in:
         edges.append(edges[-1] + b * KEN)
-    cen = [(edges[i] + edges[i + 1]) / 2.0 - D / 2.0 for i in range(len(bands_in))]
+    # ⚠ ピボットは **身舎+入側(=棟の外形)の中心**。入側が辺ごとに違うと
+    #   身舎の中心とはズレるので、`acr_c`(内部 across 座標でのピボット位置)で引く。
+    cen = [(edges[i] + edges[i + 1]) / 2.0 - acr_c for i in range(len(bands_in))]
     wmax = max(bands_in)
     # 帯の棟の高さの差は幅の差だけで決まる。天端(座・鬼とも)が同じだけ下がる
     dz = [(b - wmax) / 2.0 * KEN * RATIO for b in bands_in]
@@ -760,7 +810,11 @@ def make_banded(bands, span, along="u", irikawa=1.0, eave=3.4, kobai=RATIO,
                     書き出しの `Unity X = −(Blender X)` がちょうど打ち消す(下の軸の鎖の註)。
                     2026-09-06 に入れた `bands[::-1]` は Blender 空間しか見ておらず、
                     `4-5x10ken_v` を鏡像で焼いた(2026-09-07 撤去)。
-      irikawa    入側(=下屋)の幅(間・既定 1)。身舎の四周に付く
+      irikawa    入側(=下屋)の幅(間)。⭐ **辺ごとに違ってよい**(2026-09-09)。
+                 受ける形は3つ: `1`(四周同じ)/ `{"u":[u0,u1],"v":[v0,v1]}`(⭐ 指図の生の形)/
+                 `(u0,u1,v0,v1)`。**単位は間・整数**で、**郭グリッドの軸**で数える。
+                 ⛔ 生成器の内部軸で渡さない(`_irikawa_sides` が along を見て写す)。
+                 ⚠ 入側の無い辺でも軒の出 `noki_de` は付く。総寸 = 身舎 + 入側(辺ごと) + 軒。
       eave       **軒高**(m・既定 3.4)= 身舎の軒桁の高さ。**床レベルからの値**
       kobai      瓦勾配(既定 0.5456)。⛔ **これ以外は受け付けない** —
                  瓦は `roof 2x2` の実ジオメトリで、立上りがモジュールに彫り込まれている
@@ -814,7 +868,7 @@ def make_banded(bands, span, along="u", irikawa=1.0, eave=3.4, kobai=RATIO,
     if any(b < 2 for b in bands):
         raise SystemExit("[banded] 帯の身舎は 2間 以上(1間だと妻が破綻する)。指定=%s" % bands)
     span = int(span)
-    name = name or banded_name(bands, span, along, fukizai)
+    name = name or banded_name(bands, span, along, fukizai, irikawa)
 
     # ⭐⭐ **`bands` の先頭は、`along` が u でも v でも「across 軸の小さい側」**。
     #   中身は常に「帯を Blender +Y へ並べ、along=="v" なら最後に +90° 回す」で組む。
@@ -843,8 +897,19 @@ def make_banded(bands, span, along="u", irikawa=1.0, eave=3.4, kobai=RATIO,
     for b in bands:
         ys.append(ys[-1] + b * KEN)
     D = ys[-1]
-    E = irikawa * KEN + noki_de          # 身舎から外への出(下屋 + 軒の出)
-    x0, x1 = -E, W + E
+    # ⭐⭐ **入側は辺ごと**(2026-09-09・松江松平の差し戻し1)。
+    #   ⛔ **以前はスカラ1つを四周に当てていた。**指図の `bands`/`spanKen` は
+    #     `munes[].roof.irikawa`(**軸ごとに [手前, 奥]**)を辺ごとに引いた**身舎**なので、
+    #     `irikawa` が [1,1] でない軸では屋根が **1間ずつ過大**になる。松江松平では
+    #     表向4棟が隣どうし 3.18間(5.78m)重なり、真上から見ると4棟が1枚の巨大な
+    #     屋根に融けていた(棟梁の実測 2026-09-09)。
+    #   ⛔ **横に縮めて辻褄を合わせない** — 瓦の目と破風が潰れる。総寸を作り直す。
+    ir = _irikawa_sides(irikawa, along)       # 内部軸ごとの入側(間)
+    EX0 = ir[0] * KEN + noki_de               # 内部 x=0 の側の出(下屋 + 軒の出)
+    EX1 = ir[1] * KEN + noki_de               # 内部 x=W の側
+    EY0 = ir[2] * KEN + noki_de               # 内部 y=0(帯0)の側
+    EY1 = ir[3] * KEN + noki_de               # 内部 y=D(最終帯)の側
+    x0, x1 = -EX0, W + EX1
     N = len(bands)
 
     pieces = []
@@ -859,8 +924,8 @@ def make_banded(bands, span, along="u", irikawa=1.0, eave=3.4, kobai=RATIO,
         if W - 2 * a < 0.35:
             raise SystemExit("[banded] 帯%d: 大棟が残らない(桁行 %.2fm・妻の入り %.2fm)。"
                              "span を増やすこと" % (i, W, a))
-        ey0 = E if i == 0 else 0.0
-        ey1 = E if i == N - 1 else 0.0
+        ey0 = EY0 if i == 0 else 0.0
+        ey1 = EY1 if i == N - 1 else 0.0
         # 谷側は瓦場を VALLEY_GAP だけ引いて、谷樋の縁を瓦の下へ潜らせる
         gy0 = 0.0 if ey0 > 0 else VALLEY_GAP
         gy1 = 0.0 if ey1 > 0 else VALLEY_GAP
@@ -870,27 +935,59 @@ def make_banded(bands, span, along="u", irikawa=1.0, eave=3.4, kobai=RATIO,
         # --- 平の二面(±Y)。軒先の台形 + 妻から上の矩形 -------------------
         # 軒先線 y=ylo における隅棟の足元は、外周側なら x0/x1(軒の出の隅)、
         # 谷側なら x = ±VALLEY_GAP(隅棟は谷の端から立ち上がる)
-        sl, sr = (x0, x1) if ey0 else (gy0, W - gy0)
-        south = [[(sl, ylo), (sr, ylo), (W - a, ya + a), (a, ya + a)],
+        # ⭐ **隅棟は身舎の隅から 45°** なので、辺ごとに出が違うと隅棟は
+        #   **短い方の軒先線で尽きる**。長い方の面はその先へ張り出す(＝隅で軒先線が折れる)。
+        #   ⛔ 隅を (x0, ya−E) の1点で済ませない — 斜辺が 45° を外れ、
+        #     二つの流れ面が食い違って隅に隙が開く(二平面の交線は必ず 45°)。
+        #   ⭕ 出が四周同じなら下の式は元の1点に潰れる(既存の屋根は1頂点も動かない)。
+        if ey0:
+            t0, t1 = min(EX0, EY0), min(EX1, EY0)
+            sl = [(-t0, ya - t0)] + ([(x0, ylo)] if EX0 < EY0 - 1e-9 else [])
+            sr = ([(x1, ylo)] if EX1 < EY0 - 1e-9 else []) + [(W + t1, ya - t1)]
+        else:
+            sl, sr = [(gy0, ylo)], [(W - gy0, ylo)]
+        south = [sl + sr + [(W - a, ya + a), (a, ya + a)],
                  [(a, ya + a), (W - a, ya + a), (W - a, ym), (a, ym)]]
         pieces.append(_tile_field_fast(south, (x0, ya), 90, eave, tag + "_S"))
 
-        nl, nr = (x0, x1) if ey1 else (gy1, W - gy1)
-        north = [[(nr, yhi), (nl, yhi), (a, yb - a), (W - a, yb - a)],
+        if ey1:
+            t2, t3 = min(EX0, EY1), min(EX1, EY1)
+            nr = [(W + t3, yb + t3)] + ([(x1, yhi)] if EX1 < EY1 - 1e-9 else [])
+            nl = ([(x0, yhi)] if EX0 < EY1 - 1e-9 else []) + [(-t2, yb + t2)]
+        else:
+            nr, nl = [(W - gy1, yhi)], [(gy1, yhi)]
+        north = [nr + nl + [(a, yb - a), (W - a, yb - a)],
                  [(W - a, yb - a), (a, yb - a), (a, ym), (W - a, ym)]]
         pieces.append(_tile_field_fast(north, (x0, yb), 270, eave, tag + "_N"))
 
         # --- 妻の二面(±X)= 隅(寄棟面)+ そのまま妻側の下屋 ---------------
         # ⚠ 瓦の格子の原点は **全帯で共通の (x0, 0)**。帯ごとに取ると桁行方向にズレる
-        wp = ([(x0, ya - E)] if ey0 else [(x0, ya), (0.0, ya)])
-        wp += [(a, ya + a), (a, yb - a)]
-        wp += ([(x0, yb + E)] if ey1 else [(0.0, yb), (x0, yb)])
+        if ey0:
+            wa = ([(x0, ylo), (-min(EX0, EY0), ya - min(EX0, EY0))]
+                  if EY0 < EX0 - 1e-9 else [(x0, ya - EX0)])
+        else:
+            wa = [(x0, ya), (0.0, ya)]
+        if ey1:
+            wb = ([(-min(EX0, EY1), yb + min(EX0, EY1)), (x0, yhi)]
+                  if EY1 < EX0 - 1e-9 else [(x0, yb + EX0)])
+        else:
+            wb = [(0.0, yb), (x0, yb)]
+        wp = wa + [(a, ya + a), (a, yb - a)] + wb
         pieces.append(_tile_field_fast([wp], (x0, 0.0), 0, eave + kobai * x0, tag + "_W"))
 
-        ep = ([(x1, ya - E)] if ey0 else [(x1, ya), (W, ya)])
-        ep += [(W - a, ya + a), (W - a, yb - a)]
-        ep += ([(x1, yb + E)] if ey1 else [(W, yb), (x1, yb)])
-        pieces.append(_tile_field_fast([ep], (x1, 0.0), 180, eave + kobai * x0, tag + "_E"))
+        if ey0:
+            ea = ([(x1, ylo), (W + min(EX1, EY0), ya - min(EX1, EY0))]
+                  if EY0 < EX1 - 1e-9 else [(x1, ya - EX1)])
+        else:
+            ea = [(x1, ya), (W, ya)]
+        if ey1:
+            eb = ([(W + min(EX1, EY1), yb + min(EX1, EY1)), (x1, yhi)]
+                  if EY1 < EX1 - 1e-9 else [(x1, yb + EX1)])
+        else:
+            eb = [(W, yb), (x1, yb)]
+        ep = ea + [(W - a, ya + a), (W - a, yb - a)] + eb
+        # ⚠ 東面の軒先の高さは **EX1** で決まる(⛔ `eave + kobai*x0` は西面の値)
+        pieces.append(_tile_field_fast([ep], (x1, 0.0), 180, eave - kobai * EX1, tag + "_E"))
 
         info.append(dict(i=i, ken=b, ya=ya, yb=yb, ym=ym, zr=zr, a=a, zg=zg,
                          ridge_len=W - 2 * a))
@@ -900,8 +997,8 @@ def make_banded(bands, span, along="u", irikawa=1.0, eave=3.4, kobai=RATIO,
     for d in info:
         ya, yb, ym, zr, a, zg = d['ya'], d['yb'], d['ym'], d['zr'], d['a'], d['zg']
         i = d['i']
-        ey0 = E if i == 0 else 0.0
-        ey1 = E if i == N - 1 else 0.0
+        ey0 = EY0 if i == 0 else 0.0
+        ey1 = EY1 if i == N - 1 else 0.0
         tag = "%s_b%d" % (name, i)
         # 大棟 + 鬼
         pieces += ridge((a, ym, zr), (W - a, ym, zr), tag + "_omune", w=0.50, h=0.42)
@@ -909,12 +1006,14 @@ def make_banded(bands, span, along="u", irikawa=1.0, eave=3.4, kobai=RATIO,
         pieces += oni((W - a, ym, zr), (1, 0), tag + "_oni1", scale=1.15)
         # 隅棟4本。外周側は軒先の隅(z = 軒先高)から、
         # 谷側は **谷の端**(x=0 / x=W・z=eave)から立ち上がる
-        z_tip = eave - kobai * E
+        # ⚠ 隅棟の足元は **短い方の出**で尽きる(z も min の出で決まる)
+        ta, tb = min(EX0, EY0), min(EX1, EY0)
+        tc, td = min(EX0, EY1), min(EX1, EY1)
         for s_pt, t_pt in [
-                (((x0, ya - E), z_tip) if ey0 else ((0.0, ya), eave), (a, ya + a)),
-                (((x1, ya - E), z_tip) if ey0 else ((W, ya), eave), (W - a, ya + a)),
-                (((x0, yb + E), z_tip) if ey1 else ((0.0, yb), eave), (a, yb - a)),
-                (((x1, yb + E), z_tip) if ey1 else ((W, yb), eave), (W - a, yb - a))]:
+                (((-ta, ya - ta), eave - kobai * ta) if ey0 else ((0.0, ya), eave), (a, ya + a)),
+                (((W + tb, ya - tb), eave - kobai * tb) if ey0 else ((W, ya), eave), (W - a, ya + a)),
+                (((-tc, yb + tc), eave - kobai * tc) if ey1 else ((0.0, yb), eave), (a, yb - a)),
+                (((W + td, yb + td), eave - kobai * td) if ey1 else ((W, yb), eave), (W - a, yb - a))]:
             (sx, sy), zs = s_pt
             pieces += ridge((sx, sy, zs + 0.02), (t_pt[0], t_pt[1], zg),
                             tag + "_sumi", w=0.40, h=0.33)
@@ -948,33 +1047,53 @@ def make_banded(bands, span, along="u", irikawa=1.0, eave=3.4, kobai=RATIO,
     pieces = [q for q in pieces if q]
     V.dedup_materials()
     o = V.join(pieces, name)
+    # ⭐⭐ **ピボット = 「身舎 + 入側」= 棟の外形の中心・床レベル。**
+    #   ⛔ 身舎の中心ではない。入側が辺ごとに違うと両者はズレる(長局南 v[1,0] で 0.909m)。
+    #   ⭕ こう採ると屋根の外形は**常にピボットについて対称**(棟の外形の各辺に軒の出
+    #     `noki_de` が一様に付くだけ)なので、据える側は棟の外形の中心へ置けばよい。
+    #   ⚠ 入側が四周同じなら身舎の中心と一致する ⇒ **既存の屋根のピボットは動かない**。
+    xmid = (W + (ir[1] - ir[0]) * KEN) / 2.0
+    ymid = (D + (ir[3] - ir[2]) * KEN) / 2.0
     if along == "v":
         V.rotate_z([o], 90)                 # 大棟を Blender +Y(= Unity −Z)へ
-        V.set_origin(o, (-D / 2.0, W / 2.0, 0.0))
+        V.set_origin(o, (-ymid, xmid, 0.0))
     else:
-        V.set_origin(o, (W / 2.0, D / 2.0, 0.0))
+        V.set_origin(o, (xmid, ymid, 0.0))
 
-    print("[banded] %s 帯=%s 桁行=%d間(%.3f) 入側=%g間 軒の出=%.2f 葺材=%s along=%s"
-          % (name, bands, span, W, irikawa, noki_de, fukizai, along))
+    q = _norm_irikawa(irikawa)
+    print("[banded] %s 帯=%s 桁行=%d間(%.3f) 入側 u=[%d,%d] v=[%d,%d] 軒の出=%.2f 葺材=%s along=%s"
+          % (name, bands, span, W, q[0], q[1], q[2], q[3], noki_de, fukizai, along))
     print("[banded]   足形(身舎+入側+軒の出) %.3f × %.3f m / 身舎 %.3f × %.3f m"
-          % (W + 2 * E, D + 2 * E, W, D))
-    print("[banded]   軒高 %.3f / 入側外の柱通り %.3f / 軒先の先端 %.3f"
-          % (eave, eave - irikawa * KEN * kobai, eave - E * kobai))
+          % (W + EX0 + EX1, D + EY0 + EY1, W, D))
+    print("[banded]   棟の外形(身舎+入側) %.3f × %.3f m ⇒ 屋根はその四周に軒の出 %.2f"
+          % (W + (ir[0] + ir[1]) * KEN, D + (ir[2] + ir[3]) * KEN, noki_de))
+    print("[banded]   軒高 %.3f / 軒先の先端 x0 %.3f x1 %.3f y0 %.3f y1 %.3f"
+          % (eave, eave - EX0 * kobai, eave - EX1 * kobai,
+             eave - EY0 * kobai, eave - EY1 * kobai))
     for d in info:
         print("[banded]   帯%d %d間: 棟高 %.3f(座を除く) 大棟長 %.3f 妻の入り %.3f 妻の足元 %.3f"
               % (d['i'], d['ken'], d['zr'], d['ridge_len'], d['a'], d['zg']))
     print("[banded]   谷 %d本: y = %s(身舎の南端から・柱通りに乗る)"
           % (len(valleys), ", ".join("%.3f(%g間)" % (v, v / KEN) for v in valleys)))
-    _verify_band_order(o, bands_in, D, along, name)
+    _verify_band_order(o, bands_in, ymid, along, name)
     return o
 
 
-def banded_name(bands, span, along="u", fukizai="sangawara"):
-    """規約名: Goten_Roof_Banded_<帯>x<桁行>ken[_v][_hon]
-    例: [4,5] span12 → `Goten_Roof_Banded_4-5x12ken`"""
+def banded_name(bands, span, along="u", fukizai="sangawara", irikawa=1.0):
+    """規約名: Goten_Roof_Banded_<帯>x<桁行>ken[_v][_i<u0><u1><v0><v1>][_hon]
+    例: [4,5] span12 → `Goten_Roof_Banded_4-5x12ken`
+
+    ⭐ **入側が四周1間でないときだけ `_i` の綴りが付く**(2026-09-09)。
+      ⛔ 入側を名前に入れずに焼くと、**同じ名前で幾何の違う屋根**ができて静かに上書きし合う
+        (松江松平の表向は入側 u=[0,0]、土井は四周1間で、どちらも `4-4-4x10ken_v` になる)。
+      ⚠ 綴りは **郭グリッドの順 u0,u1,v0,v1**(指図 `roof.irikawa` の並びそのまま)。
+        ⛔ 生成器の内部軸(x0,x1,y0,y1)の順で綴らない — along で入れ替わる。"""
     s = "Goten_Roof_Banded_%sx%dken" % ("-".join(str(int(b)) for b in bands), int(span))
     if along == "v":
         s += "_v"
+    q = _norm_irikawa(irikawa)
+    if q != (1, 1, 1, 1):
+        s += "_i%d%d%d%d" % q
     if fukizai == "hongawara":
         s += "_hon"
     return s
@@ -1093,7 +1212,12 @@ if __name__ == "__main__":
         while i < len(rest):
             t = rest[i]
             if t == "--along":   kw['along'] = rest[i + 1]; i += 2
-            elif t == "--irikawa": kw['irikawa'] = float(rest[i + 1]); i += 2
+            elif t == "--irikawa":
+                # ⭐ スカラ(四周同じ)か、**グリッド順の4つ組 u0,u1,v0,v1**
+                #   例) --irikawa 0,0,1,1 = 指図 {"u":[0,0],"v":[1,1]}
+                v_ = rest[i + 1]
+                kw['irikawa'] = ([float(t_) for t_ in v_.split(",")]
+                                 if "," in v_ else float(v_)); i += 2
             elif t == "--eave":  kw['eave'] = float(rest[i + 1]); i += 2
             elif t == "--noki":  kw['noki_de'] = float(rest[i + 1]); i += 2
             elif t == "--tsuma": kw['tsuma_end'] = float(rest[i + 1]); i += 2

@@ -1535,7 +1535,19 @@ public static partial class EdoMatsudairaDewaBuilder
                 }
                 else
                 {
-                    string banded = EdoAssets.Goten.RoofBanded(bands, spanKen, alongV);
+                    // ⭐ **入側は辺ごと**(2026-09-09・部材方)。指図 `roof.irikawa` の
+                    //   {"u":[u0,u1],"v":[v0,v1]} を **u0,u1,v0,v1 の順**でそのまま部材名へ渡す。
+                    //   ⛔ 省くと四周1間の部材を引き当てる — それが表向4棟の屋根が
+                    //     1間ずつ過大になって隣と 3.18間 重なっていた原因。
+                    int[] irikawa = null;
+                    if (Has(roofSpec, "irikawa"))
+                    {
+                        var ik = O(roofSpec["irikawa"]);
+                        var iu = A(ik["u"]); var iv = A(ik["v"]);
+                        irikawa = new int[] { Mathf.RoundToInt(F(iu[0])), Mathf.RoundToInt(F(iu[1])),
+                                              Mathf.RoundToInt(F(iv[0])), Mathf.RoundToInt(F(iv[1])) };
+                    }
+                    string banded = EdoAssets.Goten.RoofBanded(bands, spanKen, alongV, irikawa);
                     if (AssetDatabase.LoadAssetAtPath<GameObject>(banded) != null)
                     {
                         roof = banded; roofAtFloor = true; roofYaw = 0f;
@@ -1546,6 +1558,8 @@ public static partial class EdoMatsudairaDewaBuilder
                                       " — edo-buzai へ照会(build_goten_roof.py -- banded " +
                                       string.Join(",", System.Array.ConvertAll(bands, x => x.ToString())) +
                                       " " + spanKen + (alongV ? " --along v" : " --along u") +
+                                      (irikawa == null ? "" : " --irikawa " + irikawa[0] + "," + irikawa[1]
+                                       + "," + irikawa[2] + "," + irikawa[3]) +
                                       ")。現状の入母屋のまま残す");
                         roof = EdoAssets.Goten.RoofIrimoya_(kw, kd);
                     }
@@ -1662,7 +1676,9 @@ public static partial class EdoMatsudairaDewaBuilder
             var a = A(sp[key]);
             float mid = (F(a[0]) + F(a[1])) * 0.5f;
             Vector2 q = EdgePt(ge, mid) + outw * (prot * 0.5f);
-            var go = EdoNishiTameikeBuilder.Place(EdoAssets.Own.MatsudairaBansho,
+            // ⭐ 部材名に**躯体の幅**が入る(2026-09-09)。⛔ 寸法なしの旧名は削除済み —
+            //   指図の `w` を動かしたら「部材が無い」と鳴るのが正。⛔ 旧寸で黙って建てない。
+            var go = EdoNishiTameikeBuilder.Place(EdoAssets.Own.MatsudairaBansho(F(bs["w"])),
                 new Vector3(q.x, sill, q.y), yaw, Vector3.one, grp, "Bansho_" + key.Substring(6));
             if (go != null)
             {

@@ -661,8 +661,13 @@ def _tile_field_fast(convex_polys, eave_origin, yaw_deg, z_eave, name):
     return V.join(out, name) if out else None
 
 
-def _valley_gutter(y_v, x_a, x_b, z_eave, kobai, p, name):
+def _valley_gutter(y_v, x_a, x_b, z_eave, kobai, p, name, half=0):
     """谷樋。(y,z) 断面を X へ押し出した実体の樋。
+
+    ⭐ `half` = 0(全断面・帯どうしの谷)/ +1(+Y 側の半分)/ −1(−Y 側の半分)。
+      **半分は「棟の外形の線で隣の棟と接する辺」のため**(2026-09-10)。両隣がそれぞれ
+      半分を出すと線の上で**一本の樋**になる。⛔ 両方が全断面を出すと重なって
+      z ファイティングになる(見えの面が二枚重なる)。
 
     断面の天端は **瓦の実体の下**へ潜らせる(瓦は名目平面より −0.03〜+0.15 でうねるので、
     名目平面から 0.04 下げた所に縁を置くと、瓦の小口が樋に食い込んで隙が出ない)。
@@ -672,8 +677,13 @@ def _valley_gutter(y_v, x_a, x_b, z_eave, kobai, p, name):
       (葺材を桟瓦に決めたのと同じ理由)。⛔ 樋・雨落ちの意匠はこれ以上決めない —
       見えない部位に確度を積まない。"""
     top = kobai * VALLEY_HALF - 0.04
-    pts = [(-VALLEY_HALF, top), (0.0, -0.07), (VALLEY_HALF, top),
-           (VALLEY_HALF, -0.40), (-VALLEY_HALF, -0.40)]
+    if half > 0:
+        pts = [(0.0, -0.07), (VALLEY_HALF, top), (VALLEY_HALF, -0.40), (0.0, -0.40)]
+    elif half < 0:
+        pts = [(-VALLEY_HALF, top), (0.0, -0.07), (0.0, -0.40), (-VALLEY_HALF, -0.40)]
+    else:
+        pts = [(-VALLEY_HALF, top), (0.0, -0.07), (VALLEY_HALF, top),
+               (VALLEY_HALF, -0.40), (-VALLEY_HALF, -0.40)]
     g = plaque(name, pts, x_a, x_b, p['wood'], None, sc=1.0, oy=y_v, oz=z_eave)
     # 木理は樋の走り(x)へ流す。⚠ WOOD_UV は v が長手なので x→v に取る
     V.set_uv_rect(g, WOOD_UV, axes=('y', 'x'))
@@ -708,6 +718,52 @@ def _norm_irikawa(irikawa):
     return tuple(out)
 
 
+def _map_sides(q, along):
+    """グリッドの4つ組 (u0,u1,v0,v1) を **生成器の内部軸** (x0, x1, y0, y1) へ写す。
+
+    ⭐ 入側も軒の有無も**同じ写像**を通す(⛔ 片方だけ別に書かない — 2026-09-09 に
+      入側でここを取り違えて表向4棟が融けた)。写像の根拠は `_irikawa_sides` の註。
+    """
+    u0, u1, v0, v1 = q
+    if along == "v":
+        return (v0, v1, u0, u1)
+    return (u1, u0, v0, v1)
+
+
+def _norm_noki(noki):
+    """**辺ごとに軒を出すか**の指定を郭グリッドの (u0,u1,v0,v1) の 0/1 へ正規化する。
+    **1 = 軒を出す(既定)/ 0 = その辺は軒を出さない**(⭐ 棟の外形の線で屋根が終わる)。
+
+    受け取れる形: ``1`` / ``{"u":[1,0],"v":[1,1]}`` / ``(1,0,1,1)``。
+
+    ⭐⭐ **なぜ要るか(2026-09-09 普請検査の差し戻し)。** 松江松平の表向4棟は棟の外形が
+      隣どうし**接している**(`munes[].u1` = 次の棟の `u0`)。そこへ四周へ一様に軒
+      `noki_de` を出すと、隣どうしの軒が **2×noki_de = 1.80m 食い込む**。寄りのレンダでは
+      **二つの軒先の間から空が透け、桟瓦の列が空中で途切れ、軒先が何にも載らずに宙に浮き**、
+      目の高さでは軒線が **X 字に交差**して単一の谷線にならなかった。
+      ⭕ 接する辺の軒を落とすと、屋根の面が棟の外形の線でぴたりと終わり、
+        隣の棟の流れと**境界線の上で合わさって本物の谷**になる。
+      ⛔ **屋根の面そのものを短くする(身舎や入側を削る)対処は採らない** — 室割りが変わる。
+        落とすのは**軒の出だけ**で、`bands`/`spanKen`/`irikawa` は 1mm も動かない。
+    """
+    if isinstance(noki, dict):
+        u = noki.get("u", [1, 1]); v = noki.get("v", [1, 1])
+        q = [u[0], u[1], v[0], v[1]]
+    elif isinstance(noki, (list, tuple)):
+        if len(noki) != 4:
+            raise SystemExit("[banded] noki の4つ組は (u0,u1,v0,v1)。指定=%r" % (noki,))
+        q = list(noki)
+    else:
+        q = [noki] * 4
+    out = []
+    for t in q:
+        i = int(t)
+        if i not in (0, 1):
+            raise SystemExit("[banded] noki は辺ごとに 0(落とす)か 1(出す)。指定=%r" % (noki,))
+        out.append(i)
+    return tuple(out)
+
+
 def _irikawa_sides(irikawa, along):
     """グリッドの (u0,u1,v0,v1) を **生成器の内部軸**へ写す → (x=0側, x=W側, y=0側, y=D側)。
 
@@ -722,10 +778,7 @@ def _irikawa_sides(irikawa, along):
       ⛔ along=="u" で u の順をそのまま渡すと**左右が入れ替わる**。
         ⚠ 入側が u0==u1 の棟(当邸は全棟そう)では**絶対に気づけない**。
     """
-    u0, u1, v0, v1 = _norm_irikawa(irikawa)
-    if along == "v":
-        return (v0, v1, u0, u1)
-    return (u1, u0, v0, v1)
+    return _map_sides(_norm_irikawa(irikawa), along)
 
 
 def _verify_band_order(o, bands_in, acr_c, along, name):
@@ -790,7 +843,7 @@ def _verify_band_order(o, bands_in, acr_c, along, name):
 
 def make_banded(bands, span, along="u", irikawa=1.0, eave=3.4, kobai=RATIO,
                 noki_de=0.90, tsuma_end=0.30, fukizai="sangawara",
-                gable_frac=0.45, name=None):
+                gable_frac=0.45, noki=1, name=None):
     """**身舎を帯に割り、帯ごとに入母屋を架けて境を谷にした屋根**を1メッシュで焼く。
 
     ⭐ **単位: `bands` / `span` / `irikawa` は「間」(整数間)。それ以外は m。**
@@ -821,6 +874,13 @@ def make_banded(bands, span, along="u", irikawa=1.0, eave=3.4, kobai=RATIO,
       noki_de    軒の出(m・既定 0.90)。入側の外の柱通りから先へ出る量
       tsuma_end  妻の出(m・既定 0.30)= **破風板の見付が妻壁面から外へ出る量**。
                  ⚠ 瓦場は妻壁面で切る(既存の入母屋と同じ)。板だけが外へ出る
+      noki       ⭐ **辺ごとに軒を出すか**(2026-09-10)。`1`(四周出す・既定)/
+                 `{"u":[1,0],"v":[1,1]}` / `(u0,u1,v0,v1)`。**0 = その辺は軒を出さない**。
+                 ⇒ その辺では屋根の面が**棟の外形の線でぴたりと終わる**ので、外形が接する
+                 隣の棟の流れと**境界線の上で合わさって本物の谷**になる。
+                 ⛔ **妻側(大棟の両端 = `along` の軸の辺)は落とせない** — そこには
+                   破風・懸魚・妻壁が付き、軒だけ落とすと板が宙に浮く。生成器が止める。
+                 ⚠ 落としても `bands`/`span`/`irikawa` は動かない ⇒ **ピボットも棟の外形も不動**。
       fukizai    "sangawara"(桟瓦)| "hongawara"(本瓦)。**格の出し分け**。⛔ 懸魚では分けない
       gable_frac 妻の立上りが棟高に占める割合(既定 0.45)。既存の入母屋と同じ。
                  ⛔ **指図の欄にしない**(2026-09-06 裁定)— 御殿の妻を強調する典拠が無く、
@@ -868,7 +928,8 @@ def make_banded(bands, span, along="u", irikawa=1.0, eave=3.4, kobai=RATIO,
     if any(b < 2 for b in bands):
         raise SystemExit("[banded] 帯の身舎は 2間 以上(1間だと妻が破綻する)。指定=%s" % bands)
     span = int(span)
-    name = name or banded_name(bands, span, along, fukizai, irikawa)
+    nk = _norm_noki(noki)                     # 郭グリッド (u0,u1,v0,v1)。1=軒を出す
+    name = name or banded_name(bands, span, along, fukizai, irikawa, nk)
 
     # ⭐⭐ **`bands` の先頭は、`along` が u でも v でも「across 軸の小さい側」**。
     #   中身は常に「帯を Blender +Y へ並べ、along=="v" なら最後に +90° 回す」で組む。
@@ -905,12 +966,35 @@ def make_banded(bands, span, along="u", irikawa=1.0, eave=3.4, kobai=RATIO,
     #     屋根に融けていた(棟梁の実測 2026-09-09)。
     #   ⛔ **横に縮めて辻褄を合わせない** — 瓦の目と破風が潰れる。総寸を作り直す。
     ir = _irikawa_sides(irikawa, along)       # 内部軸ごとの入側(間)
-    EX0 = ir[0] * KEN + noki_de               # 内部 x=0 の側の出(下屋 + 軒の出)
-    EX1 = ir[1] * KEN + noki_de               # 内部 x=W の側
-    EY0 = ir[2] * KEN + noki_de               # 内部 y=0(帯0)の側
-    EY1 = ir[3] * KEN + noki_de               # 内部 y=D(最終帯)の側
+    # ⭐ **軒は辺ごとに出す/出さない**(2026-09-10・普請検査の差し戻し1)。
+    #   ⛔ 妻側(内部 ±X = 大棟の両端)は落とせない — 破風・懸魚・妻壁が付く辺で、
+    #     軒だけ落とすと板が何にも載らずに宙に浮く。⇒ ここで止める。
+    nks = _map_sides(nk, along)               # 内部軸ごとの 0/1
+    if not (nks[0] and nks[1]):
+        raise SystemExit(
+            "[banded] ⛔ **妻側の軒は落とせない**(along=%r・指定 noki=%s)。\n"
+            "  妻側 = 大棟の両端で、破風・懸魚・妻壁・袖瓦が付く辺。軒だけ落とすと\n"
+            "  破風板が何にも載らずに宙に浮く(2026-09-09 普請検査が画で捕まえた不良と同じ姿)。\n"
+            "  ⇒ 棟の外形が妻側で隣と接するなら、それは屋根の形(両下・招き)の問題なので\n"
+            "     指図方へ差し戻すこと。⛔ ここで軒だけ落として辻褄を合わせない。"
+            % (along, list(nk)))
+    EX0 = ir[0] * KEN + (noki_de if nks[0] else 0.0)   # 内部 x=0 の側の出(下屋 + 軒の出)
+    EX1 = ir[1] * KEN + (noki_de if nks[1] else 0.0)   # 内部 x=W の側
+    EY0 = ir[2] * KEN + (noki_de if nks[2] else 0.0)   # 内部 y=0(帯0)の側
+    EY1 = ir[3] * KEN + (noki_de if nks[3] else 0.0)   # 内部 y=D(最終帯)の側
     x0, x1 = -EX0, W + EX1
     N = len(bands)
+    # ⭐ **軒を落とした平の辺は、隣の棟と一本の谷を作る。**⇒ 帯どうしの谷と同じ作りにする:
+    #   瓦場を `VALLEY_GAP` 引いて、**半分の谷樋**を線の上に出す(両隣が半分ずつ)。
+    #   ⚠ 成立するのは **その辺の入側が 0**(=身舎の縁が外形の縁)のときだけ。
+    #     入側がある辺で軒を落とすと屋根の縁は下屋の途中になり、谷樋の座が定まらない
+    #     ⇒ 樋は出さずに突き付けるだけにして、⚠ を刷って呼び出し元へ返す。
+    drop_y0 = (not nks[2]) and ir[2] == 0
+    drop_y1 = (not nks[3]) and ir[3] == 0
+    for _s, _nk, _ir in (("v0/u0 側", nks[2], ir[2]), ("v1/u1 側", nks[3], ir[3])):
+        if (not _nk) and _ir:
+            print("[banded] ⚠ 軒を落とした %s は入側 %d間 を持つので **谷樋を出さない**"
+                  "(屋根の縁が下屋の途中で、樋の座が定まらない)。突き付けのみ。" % (_s, _ir))
 
     pieces = []
     info = []
@@ -926,9 +1010,15 @@ def make_banded(bands, span, along="u", irikawa=1.0, eave=3.4, kobai=RATIO,
                              "span を増やすこと" % (i, W, a))
         ey0 = EY0 if i == 0 else 0.0
         ey1 = EY1 if i == N - 1 else 0.0
-        # 谷側は瓦場を VALLEY_GAP だけ引いて、谷樋の縁を瓦の下へ潜らせる
-        gy0 = 0.0 if ey0 > 0 else VALLEY_GAP
-        gy1 = 0.0 if ey1 > 0 else VALLEY_GAP
+        # 谷側は瓦場を VALLEY_GAP だけ引いて、谷樋の縁を瓦の下へ潜らせる。
+        # ⭐⭐ **引くのは「帯どうしの境(内側の谷)」だけ。**外周の辺は、軒を落として
+        #   ey が 0 になっても **引かない**(2026-09-10)。引くと隣の棟との境で
+        #   左右 0.10 ずつ = **0.20m の空が抜ける** — 直そうとした不良そのものに戻る。
+        #   ⚠ 内側の谷には `_valley_gutter` が実体で入るが、外周の辺には入らない
+        #     (両隣の棟が同じ線でそれぞれ樋を出すと重なって z ファイティングになる)。
+        inner0, inner1 = (i > 0), (i < N - 1)
+        gy0 = VALLEY_GAP if ((inner0 and ey0 <= 0) or (i == 0 and drop_y0)) else 0.0
+        gy1 = VALLEY_GAP if ((inner1 and ey1 <= 0) or (i == N - 1 and drop_y1)) else 0.0
         ylo, yhi = ya - ey0 + gy0, yb + ey1 - gy1
         tag = "%s_b%d" % (name, i)
 
@@ -1043,6 +1133,13 @@ def make_banded(bands, span, along="u", irikawa=1.0, eave=3.4, kobai=RATIO,
         pieces.append(_valley_gutter(yv, -0.05, W + 0.05, eave, kobai, p,
                                      "%s_tani%d" % (name, i)))
         valleys.append(yv)
+    # ⭐ 外形の線で隣と接する辺の **半分の谷樋**(隣が残りの半分を出す)
+    if drop_y0:
+        pieces.append(_valley_gutter(0.0, -0.05, W + 0.05, eave, kobai, p,
+                                     "%s_tani_soto0" % name, half=+1))
+    if drop_y1:
+        pieces.append(_valley_gutter(D, -0.05, W + 0.05, eave, kobai, p,
+                                     "%s_tani_soto1" % name, half=-1))
 
     pieces = [q for q in pieces if q]
     V.dedup_materials()
@@ -1063,6 +1160,8 @@ def make_banded(bands, span, along="u", irikawa=1.0, eave=3.4, kobai=RATIO,
     q = _norm_irikawa(irikawa)
     print("[banded] %s 帯=%s 桁行=%d間(%.3f) 入側 u=[%d,%d] v=[%d,%d] 軒の出=%.2f 葺材=%s along=%s"
           % (name, bands, span, W, q[0], q[1], q[2], q[3], noki_de, fukizai, along))
+    print("[banded]   軒 u0=%s u1=%s v0=%s v1=%s(0=落とす ⇒ 棟の外形の線で屋根が終わる)"
+          % tuple("出す" if t else "**落とす**" for t in nk))
     print("[banded]   足形(身舎+入側+軒の出) %.3f × %.3f m / 身舎 %.3f × %.3f m"
           % (W + EX0 + EX1, D + EY0 + EY1, W, D))
     print("[banded]   棟の外形(身舎+入側) %.3f × %.3f m ⇒ 屋根はその四周に軒の出 %.2f"
@@ -1076,11 +1175,63 @@ def make_banded(bands, span, along="u", irikawa=1.0, eave=3.4, kobai=RATIO,
     print("[banded]   谷 %d本: y = %s(身舎の南端から・柱通りに乗る)"
           % (len(valleys), ", ".join("%.3f(%g間)" % (v, v / KEN) for v in valleys)))
     _verify_band_order(o, bands_in, ymid, along, name)
+    _verify_eaves(o, bands_in, span, along, _norm_irikawa(irikawa), nk, noki_de, name)
     return o
 
 
-def banded_name(bands, span, along="u", fukizai="sangawara", irikawa=1.0):
-    """規約名: Goten_Roof_Banded_<帯>x<桁行>ken[_v][_i<u0><u1><v0><v1>][_hon]
+# 隅棟(`ridge` の断面 w=0.40)は軒先の隅から 45° で立ち上がるので、**その断面の半幅**が
+# 軒先線の外へ出る。実測 0.171m(2026-09-10・松江松平の 6 本すべてで同じ値)。
+# ⭐ これは不良ではなく隅棟の冠瓦の見付そのもの。⛔ ただし **呼び寸法と混ぜない** —
+#   「四辺とも 1.071 出ている」は「入側が効いていない」ではなく「0.900 + 隅棟の 0.171」。
+SUMI_CAP = 0.18
+
+
+def _verify_eaves(o, bands_in, span, along, ir_grid, nk, noki_de, name):
+    """⭐⭐ **焼いた直後に「辺ごとの軒の出」を実測する**(2026-09-10)。
+
+    ⛔⛔ **これが無かったので、普請検査が「長局南だけ入側が効いていない」と読み違えた。**
+      実測は四辺とも 1.071 で、内訳は **軒 0.900 + 隅棟の冠瓦の見付 0.171**(`SUMI_CAP`)。
+      隅棟は軒先の隅から 45° で立つので、**隣り合う二辺の出が等しい隅**では
+      その断面の半幅が**両方の辺**の外へ出る(出が違う隅では短い方の辺にしか出ない)。
+      ⇒ 「長局南 `_i1110` だけ四辺とも 1.071」は **EX と EY がたまたま等しい**ことの帰結で、
+        入側は正しく効いていた。**測る集合を先に確かめる**(CLAUDE.md 規則19)。
+
+    測り方: 焼いた**ローカル座標**で見る。⛔ `matrix_world` を見ない(`set_origin` を
+      通した部材はノードに location が残る。README「その3」)。
+      写像は `along` によらず **grid u = −(局所 X) / grid v = +(局所 Y)**。
+    """
+    across = sum(bands_in)
+    if along == "v":                      # 大棟が v ⇒ 帯は u へ並ぶ
+        out_u, out_v = across, int(span)
+    else:
+        out_u, out_v = int(span), across
+    out_u += ir_grid[0] + ir_grid[1]      # 棟の外形(身舎 + 入側)
+    out_v += ir_grid[2] + ir_grid[3]
+    hu, hv = out_u * KEN / 2.0, out_v * KEN / 2.0
+
+    us = [-v.co.x for v in o.data.vertices]
+    vs = [v.co.y for v in o.data.vertices]
+    got = (-min(us) - hu, max(us) - hu, -min(vs) - hv, max(vs) - hv)
+    want = tuple(noki_de if t else 0.0 for t in nk)
+    ok = True
+    print("[banded]   棟の外形 u=%d間(%.3f) v=%d間(%.3f)。**辺ごとの軒の出**(ピボット=外形の中心):"
+          % (out_u, out_u * KEN, out_v, out_v * KEN))
+    for k, lbl in enumerate(("u0", "u1", "v0", "v1")):
+        d = got[k] - want[k]
+        bad = not (-0.01 <= d <= SUMI_CAP + 0.01)
+        ok = ok and not bad
+        print("[banded]     %s %s 呼び %.3f / 実測 %.3f(差 %+.3f = 隅棟の冠瓦 ≤ %.3f)%s"
+              % ("⛔" if bad else "⭕", lbl, want[k], got[k], d, SUMI_CAP,
+                 "  ← **軒を落とした辺**" if not nk[k] else ""))
+    if not ok:
+        raise SystemExit(
+            "[banded] ⛔ 辺ごとの軒の出が呼び寸法と合わない(%s)。\n"
+            "  ⇒ `irikawa` / `noki` の軸の写像(`_map_sides`)を疑うこと。\n"
+            "  ⛔ 据え付け側で寄せて辻褄を合わせない — 部材の不良は部材で直す。" % name)
+
+
+def banded_name(bands, span, along="u", fukizai="sangawara", irikawa=1.0, noki=1):
+    """規約名: Goten_Roof_Banded_<帯>x<桁行>ken[_v][_i<u0><u1><v0><v1>][_n<u0><u1><v0><v1>][_hon]
     例: [4,5] span12 → `Goten_Roof_Banded_4-5x12ken`
 
     ⭐ **入側が四周1間でないときだけ `_i` の綴りが付く**(2026-09-09)。
@@ -1094,6 +1245,12 @@ def banded_name(bands, span, along="u", fukizai="sangawara", irikawa=1.0):
     q = _norm_irikawa(irikawa)
     if q != (1, 1, 1, 1):
         s += "_i%d%d%d%d" % q
+    # ⭐ **軒を落とした辺があるときだけ `_n<u0><u1><v0><v1>`(1=出す / 0=落とす)。**
+    #   ⛔ 入れずに焼くと、`_i` と同じ事故が起きる — 松江松平の黒書院(両隣が接する)と
+    #     玄関(片側だけ接する)はどちらも `4-4-4x10ken_v_i0011` になり、静かに上書きし合う。
+    k = _norm_noki(noki)
+    if k != (1, 1, 1, 1):
+        s += "_n%d%d%d%d" % k
     if fukizai == "hongawara":
         s += "_hon"
     return s
@@ -1200,6 +1357,7 @@ if __name__ == "__main__":
     if argv and argv[0] == "banded":
         # 帯割りの入母屋 — `-- banded <帯(例 4,4)> <桁行間数> [名前] [旗...]`
         #   --along u|v / --irikawa <間> / --eave <m> / --noki <m> / --tsuma <m>
+        #   --noki-edges u0,u1,v0,v1(1=軒を出す / 0=落とす。接する辺は 0)
         #   --fukizai sangawara|hongawara / --render <出力ディレクトリ>
         bands = [int(t) for t in argv[1].split(",") if t.strip()]
         span = int(argv[2])
@@ -1218,6 +1376,10 @@ if __name__ == "__main__":
                 v_ = rest[i + 1]
                 kw['irikawa'] = ([float(t_) for t_ in v_.split(",")]
                                  if "," in v_ else float(v_)); i += 2
+            elif t == "--noki-edges":
+                # ⭐ 辺ごとに軒を出すか。**グリッド順 u0,u1,v0,v1**(1=出す / 0=落とす)
+                #   例) --noki-edges 1,0,1,1 = u1 の辺(隣の棟と接する辺)だけ軒を落とす
+                kw['noki'] = [int(t_) for t_ in rest[i + 1].split(",")]; i += 2
             elif t == "--eave":  kw['eave'] = float(rest[i + 1]); i += 2
             elif t == "--noki":  kw['noki_de'] = float(rest[i + 1]); i += 2
             elif t == "--tsuma": kw['tsuma_end'] = float(rest[i + 1]); i += 2

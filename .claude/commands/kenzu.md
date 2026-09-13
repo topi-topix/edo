@@ -8,15 +8,16 @@ argument-hint: "<邸名(doi / matsudaira_dewa / sanno / okabe …)>"
 
 対象: $1(省略されたらこのセッションの claim の `sashizu:<邸>`)
 
-1. `python3 Tools/Sashizu/review_gate.py --rounds <邸>` — 三巡則で止まっていたら**ここで終わり**。
+1. `python3 Tools/Sashizu/review_gate.py --rounds <邸>` — 三巡則で止まっていたら**ここで終わり**(→ `docs/session-board.md` 三巡則 <!-- obl:three-rounds -->)。
    `decision` か `blocker` を post してユーザーの返事を待つ(返事が来たら `--ack <邸> "<引用>"`)。
 2. 材料を 1 本の Bash で集める:
    `python3 Tools/Sashizu/review_gate.py --changed <邸>`(変わった章)と
-   `python3 Tools/Sashizu/review_ledger.py <邸> --open`(前巡の未解決)。
+   `python3 Tools/Sashizu/review_ledger.py <邸> --open`(前巡の未解決)、
+   `python3 Tools/Sashizu/decision_gate.py <邸>`(閉じた決定が図に届いているか。⛔ が出た項は今巡で図へ届かせる)。
 3. **Workflow を名前で起動する**: `Workflow(name: "sashizu-review", args: {estate, changed, ledger, roles})`。
    `roles` は `review_gate.py <邸>` が要るとした役だけ(庭が無い邸は庭方を外す)。
 4. 返り値(役ごとの verdict・findings ≤10・counts・truncated・summary)を見て、
-   `review_gate.py --record <邸> <役> <pass|fail> "<summary の要点 ≤300 字>"` を役ごとに 1 本の Bash で書く。
+   `review_gate.py --record <邸> <役> <pass|fail> "<summary の要点 ≤300 字>"` を役ごとに 1 本の Bash で書く(→ CLAUDE.md 規則18 <!-- obl:review-record -->)。
    新規の指摘は `review_ledger.py <邸> --add` に、解消は `--close` に写し、`--round-end` で巡を締める。
 5. verdict が `stopped`(3 巡で止まった)なら、残る指摘を 1 件ずつ `decision` か `blocker` に起票して
    ユーザーへ(裁定は一通 3 件まで・6 点セット)。

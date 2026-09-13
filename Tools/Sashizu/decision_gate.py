@@ -18,6 +18,7 @@
 【使い方】
     python3 Tools/Sashizu/decision_gate.py okabe
     python3 Tools/Sashizu/decision_gate.py --all
+    python3 Tools/Sashizu/decision_gate.py --selftest   # ⛔ 落ちたらこの関門の検出が死んでいる(docs/verification-loops.md)
 """
 import json
 import os
@@ -44,15 +45,15 @@ PAT = [
 ]
 
 
-def load(name):
-    p = os.path.join(LEDGER, name + ".json")
+def load(name, ledger=None):
+    p = os.path.join(ledger or LEDGER, name + ".json")
     if not os.path.exists(p):
         sys.exit("台帳が無い: %s" % p)
     return json.load(open(p, encoding="utf-8"))
 
 
-def check(name, verbose=True):
-    d = load(name)
+def check(name, verbose=True, ledger=None):
+    d = load(name, ledger)
     bad = []
     n = 0
     for it in d["items"]:
@@ -74,11 +75,43 @@ def check(name, verbose=True):
     return len(bad)
 
 
+def selftest():
+    """⛔ 落ちたら**この関門の検出が死んでいる**。台帳でなく道具を疑うこと(関門には自己検査・2026-09-13)。"""
+    import tempfile
+    import shutil
+    d = tempfile.mkdtemp(prefix="decision-")
+    ng = 0
+    try:
+        def ledger(items):
+            json.dump({"items": items}, open(os.path.join(d, "fx.json"), "w", encoding="utf-8"), ensure_ascii=False)
+            return check("fx", verbose=False, ledger=d)
+        ok = [{"id": "K1", "text": "【裁定】決定: 小径を廃す", "state": "closed", "close_note": "其三から消した"},
+              {"id": "K2", "text": "【決定】棟を置かない", "state": "closed", "close_note": "roof_check を足した"},
+              {"id": "K3", "text": "【決定】窓を扇に", "state": "closed", "close_note": "`nishi.mado.fan` に入れた"},
+              {"id": "K4", "text": "【決定】まだ開いている", "state": "open", "close_note": ""},
+              {"id": "K5", "text": "ただの指摘", "state": "closed", "close_note": "直した"}]
+        n = ledger(ok)
+        print("%s 健全な台帳(其◯ / *_check / json のキー・未決・決定でない項)では鳴らない" % ("⭕" if n == 0 else "⛔"))
+        ng += n != 0
+        cases = [("参照の無い閉じ書き", "直したつもり"), ("空の閉じ書き", ""),
+                 ("バッククォート無しのキー", "nishi.mado.fan に入れた")]
+        for title, note in cases:
+            n = ledger([{"id": "K9", "text": "【決定】x", "state": "closed", "close_note": note}])
+            print("%s %s → %s" % ("⭕" if n == 1 else "⛔", title, "鳴らした" if n == 1 else "**鳴らなかった**"))
+            ng += n != 1
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+    print("⭕ 自己検査 全通" if not ng else "⛔ 自己検査 %d 件失敗 — この関門の検出が死んでいる。台帳が 0 件でも合格の意味を持たない" % ng)
+    return 1 if ng else 0
+
+
 def main():
     a = sys.argv[1:]
     if not a or a[0] in ("-h", "--help"):
         print(__doc__)
         return 0
+    if a[0] == "--selftest":
+        return selftest()
     if a[0] == "--all":
         names = sorted(f[:-5] for f in os.listdir(LEDGER)) if os.path.isdir(LEDGER) else []
         bad = 0

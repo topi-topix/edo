@@ -54,16 +54,16 @@
 16. **一通に一種別。** 【裁定】【質問】【報告】【共有】を見出しに立て、全項目に番号と題、冒頭1行で
     件数を宣言、選択肢は A/B/C、裁定は一通に最大3件・6点セット。符牒(`U12` など)は裸で出さない。
     指図は Artifact の URL で示す(最新版を再公開してから)。⛔ 地の文の末尾に問いを埋めない。
-    → 正典 **`docs/reporting-protocol.md`**。全経路に例外なく効く。
+    → 正典 **`docs/reporting-protocol.md`**。全経路に例外なく効く。<!-- obl:report-protocol -->
 17. **意匠を決める役と書き起こす役を混ぜない。** 庭=`edo-niwashi` / 石垣=`unity-modular-stonewall` /
     部材=`edo-buzai` に**設計させ**、指図方は数値へ書き起こすだけ。
 18. **指図は「誰に検められたか」を持つ。関門が赤なら実装しない・見せない。**
     `docs/Sashizu/<屋敷>_sashizu.json` の `reviews` に記録し、`python3 Tools/Sashizu/review_gate.py` が
-    見張る。検分役は read-only なので**呼んだ側が** `--record <屋敷> <役> <pass|fail>` で書き戻す。
+    見張る。検分役は read-only なので**呼んだ側が** `--record <屋敷> <役> <pass|fail>` で書き戻す。<!-- obl:review-record canon -->
     **【移行期間・2026-09-01 裁定B】** 記録が無い邸は検分を通すまで作業を続けてよいが、**新たに
     ユーザーへ見せる前には必ず通す**。遡って pass を書かない。
     **巡は関門が数える(2026-09-13)**: 検分は `/kenzu <邸>`(差分だけ・指摘 ≤10・3 巡で止まる)。同じ役の fail が
-    ユーザーの発話なしに 3 回続くと門番が止める(`--rounds` / reset は `--ack`)。
+    ユーザーの発話なしに 3 回続くと門番が止める(`--rounds` / reset は `--ack`)。→ `docs/session-board.md` 三巡則 <!-- obl:three-rounds -->
 19. **輪に入っていない値は「未検査」であって「合格」ではない。** 検査を書いたら同じ巡で報告経路へ繋ぎ、
     設計値を入れたら同じ巡でそれを描く図を出す。`python3 Tools/Sashizu/wiring_gate.py` が全邸を見張る。
     欠陥はそれが見える最も安い輪(計算 → 図 → 実装 → ユーザーの目)で捕まえる。→ `docs/verification-loops.md`
@@ -85,7 +85,7 @@
 
 → **`.claude/rules/unity.md`**(`Assets/**` を触るときだけ読み込まれる。排他・プレハブ・地形・コンパイル・MCP の罠)。
 共通の一線だけここに: **Unity は排他**(`edo_session.py start <屋敷> --unity` / 終わったら即 `release --resources unity`)、
-**手組み資産は再生成しない**、**`git add -A` / `git commit -a` は門番が止める**。→ `docs/session-coordination.md`
+**手組み資産は再生成しない**、**`git add -A` / `git commit -a` は門番が止める**。→ `docs/session-coordination.md`・`.claude/rules/unity.md` <!-- obl:unity-release -->
 
 ## ルーティング
 
@@ -94,7 +94,7 @@
 | 置き場所 | 何を | 判定 |
 |---|---|---|
 | メモリ `~/.claude/projects/-Users-toshio-project-edo-unity/memory/` | このシーン固有の状態と決定 | 「別のシーンでも同じか」→ No |
-| スキル `~/.claude/skills/` | 再利用できるやり方 | 同 → Yes |
+| スキル `~/.claude/skills/`(実体は `Tools/Skills/`。symlink で 1 本) | 再利用できるやり方 | 同 → Yes |
 | エージェント `.claude/agents/` | 役割と文脈の隔離。手順は書かず `Skill` で読む | 独立文脈で完結し小さな結論だけ返せるか |
 | CLAUDE.md | 不変則とルーティングのみ | 毎回必ず効いていてほしい1行か |
 
@@ -117,6 +117,7 @@
 | **検査の結線・どの輪で検めるか** | **`docs/verification-loops.md`** |
 | セッション間の報告・裁定要請・情報共有 | `docs/session-board.md` — 節目・ブロッカー・裁定要請は `edo_board.py post`。自己検図・自己考証はユーザー入力なしに3巡まで |
 | 規則の由来・過去の事故 | `docs/lessons.md` |
+| **設定そのもの(規則・役・スキル・フック・メモリ)の手入れ** | **`docs/teire.md`** — 挨拶の道具改めが ⛔ を出したら、設定を触る前に直す。週次は `/teire` |
 
 ### ⭐ あなたは普請奉行(一邸を預かり大方針を決める役)
 
@@ -139,6 +140,7 @@
 
 ⛔ `edo-toryo` / `edo-fushin-qa` を呼ぶ前に Unity の claim を返す(握ったまま呼ぶと待ち行列に回る)。
 ⛔ 指図を見せる前・実装に入る前に `python3 Tools/Sashizu/review_gate.py`。赤は実装しない。
+⛔ `.claude/`・CLAUDE.md・スキル・メモリを触ったら `python3 Tools/Session/config_doctor.py --quick` が無言になるまで直してからコミット。
 ⛔ 裁定を求めるときは**裁定図**(どこ・現況・各案を同じ縮尺で・数値の差・推奨)を出す。名前と数字の羅列で選ばせない。
-⚠ `edo-toryo` は指図に無い値を発明しない。踏んだ罠は `unity-buke-yashiki/references/qa-and-pitfalls.md` へ書き戻す。
+⚠ `edo-toryo` は指図に無い値を発明しない。踏んだ罠は自分の memory へ → 正典は `.claude/agents/edo-toryo.md`「知見の引き継ぎ」<!-- obl:toryo-writeback -->
 ⚠ 巡回する差配役は置かない。ダッシュボードは `Tools/Session/build_board_html.py`、見張りは挨拶フック。

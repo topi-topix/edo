@@ -98,6 +98,17 @@ if os.path.exists(CLI):
                     print("  " + ln.strip())
                 print("  ⛔ 輪に入っていない値は「未検査」であって「合格」ではない(規則19)。"
                       "孤立=一度も走らない / 黙り=件数が要約に届かない。正典: `docs/verification-loops.md`")
+    # 道具改め(2026-09-13) — 設定そのもの(役→スキル・CLAUDE.md の表・フック・索引・義務の正典)の破れ。
+    #   ⛔ だけを最大 6 行(無傷なら無言)+「前回の手入れから N 日」の 1 行。0.4 秒・transcript も git も読まない。
+    #   正典: docs/teire.md。週次の表は /teire。
+    dcli = os.path.join(MAIN_ROOT, "Tools", "Session", "config_doctor.py")
+    if os.path.exists(dcli):
+        try:
+            d = subprocess.run([sys.executable, dcli, "--quick"], capture_output=True, text=True, env=env, timeout=8)
+            if d.stdout.strip():
+                print(d.stdout.strip())
+        except Exception:
+            pass
 # ⛔ worktree の CLAUDE.md は main へマージするまで古いまま(EDO-0077)。
 #   このセッションが読んでいる不変則が最新かどうかを、起動時に一度だけ確かめる。
 if os.path.abspath(ROOT) != os.path.abspath(MAIN_ROOT):

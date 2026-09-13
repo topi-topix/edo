@@ -231,6 +231,8 @@ CLAUDE.md 規則2・5・17・18 / [reporting-protocol.md](reporting-protocol.md)
 (気づけたのは岡部が実物で回したから)。⇒ **検出が死んでいないこと自体を機械で見張る。**
 
     python3 Tools/Sashizu/wiring_gate.py --selftest
+    python3 Tools/Sashizu/decision_gate.py --selftest
+    python3 Tools/Session/config_doctor.py --selftest   # 道具改め(設定そのものの関門・docs/teire.md)
 
 ⭕ 健全な版で鳴らないこと + 4型それぞれの欠陥を仕込んだ版で必ず鳴ることを確かめる。
 ⛔ 落ちたら、邸の生成器が0件でも**それは合格の意味を持たない**。

@@ -10547,7 +10547,8 @@ def wall_ground(d, g, px, pz, nx, nz):
       ・**見付高** `faceH` = 天端 − min(両側) …… 壁が見せる面
       ・**受け高** `backH` = max(両側) − 天端 …… 壁が背に負う土
     ⛔ **判定は焼かない** ── 判定則(擁壁として正常/埋まっている壁/段差が無い)は検査が持つ。
-      ⛔ 「埋まっている壁」を壁を上げて直さない(始末は別の巡・§3c『要らない壁』)。
+      ⛔ 「埋まっている壁」を地形を削って直さない(天端が自然地盤より下 ── スキル
+      `unity-modular-stonewall` terrain-grading。始末は `_pending`「埋まっている土留めの始末」)。
     ⚠ 採る距離は `const.wallProbeM`(⛔ 設計値ではなく物差しの刻み)。
     """
     pr = d["const"]["wallProbeM"]
@@ -13951,8 +13952,8 @@ def impl_runs(d, g):
                          "(`stair_spans`)から引いてある。**地盤は造成後 `design_y` 一本を基準に"
                          "壁の両側で採る**(`const.wallProbeM`)。見付高 = 天端 − 低い側 ／ "
                          "受け高 = 高い側 − 天端【裁定 2026-09-09 普請奉行 = 検図21巡目 A案】。"
-                         "⛔ **見付≦0 かつ 受け>0 の区間は『埋まっている壁』**で、⛔ 壁を上げて"
-                         "直さない(始末は指図の別の巡)。`gapsS` は**建たない区間**(開口)の "
+                         "⛔ **見付≦0 かつ 受け>0 の区間は『埋まっている壁』**で、⛔ 実装が"
+                         "地形を削って直さない(始末は指図が持つ)。`gapsS` は**建たない区間**(開口)の "
                          "s の範囲で、`segs` と同じ出所"})
     return out
 
@@ -14457,8 +14458,8 @@ def impl_wall_profile_check(d, g):
     〔記録〕壁ごとの見付高・受け高の範囲と、**裁定 2026-09-09 の判定則**による仕分け:
       見付>0 かつ 受け≦0 → 擁壁として正常 ／ 見付≦0 かつ 受け>0 → **埋まっている壁** ／
       両方≦0 → 段差が無い ／ 両方>0 → 天端より高い土を背負う区間がある。
-      ⛔ **どれも⛔にしない** ── 始末(撤去・区間短縮・地形を壁に合わせて削る)は意匠の判断で、
-      ⛔ 壁を上げて直さない。
+      ⛔ **どれも⛔にしない** ── 壁の要否は `wall_step_check`(裁定 EDO-0182 (b))、
+      天端の決め方は `_pending`「埋まっている土留めの始末」(同 (a))。⛔ 地形を壁に合わせて削らない。
     """
     if not os.path.exists(IMPL_OUT): return ([], [])
     im = json.load(open(IMPL_OUT, encoding="utf-8"))
@@ -14601,8 +14602,8 @@ def impl_wall_profile_check(d, g):
         "%s **%d** 本%s" % (k8, len(v8), ("(%s)" % "・".join(v8) if v8 else ""))
         for k8, v8 in kind_n.items())
         + "【算出 — 裁定 2026-09-09 普請奉行(検図21巡目 A案)。⛔ ⛔にしない ── "
-          "『埋まっている壁』の始末(撤去・区間短縮・**地形を壁に合わせて削る**)は意匠の判断で、"
-          "⛔ **壁を上げて直さない**。`_pending`「埋まっている土留めの始末」へ】")
+          "壁の要否は検査『埋まっている区間に段差が在るか』、天端の決め方は "
+          "`_pending`「埋まっている土留めの始末」(裁定 EDO-0182)。⛔ 地形を壁に合わせて削らない】")
     # ⭐⭐ **埋没は率と延長で刷る**【B-4 検図22巡目 → 2026-09-09 十九巡目】── ⛔ 多数決の一語では
     #   『全長が埋まる壁』と『一部だけの壁』が同じに見える。⛔ **この数を見てから裁くこと。**
     if buried:
@@ -14612,12 +14613,61 @@ def impl_wall_profile_check(d, g):
                     + " ／ **合計 %.1f m**【算出 — B-4 検図22巡目 → 2026-09-09。"
                       "⛔⛔ **このまま棟梁へ渡すと土に埋まった壁がこの延長ぶん建つ。**"
                       "⛔ 実装の着手前に決着が要る(`_pending`「埋まっている土留めの始末」)── "
-                      "返す先は**普請奉行と `unity-modular-stonewall`**。"
-                      "⛔ 始末(①区間短縮 ②役を改める ③地形を壁に合わせて削る)は指図方が決めない。"
-                      "⛔ **壁を上げて直さない**】" % sum(q[4] for q in buried))
+                      "裁定 EDO-0182 ── (a) 天端 = max(石段の割付, 外側の地盤 + 天端の出)、"
+                      "(b) 段差の無い区間は落とす。⚠ **天端の出が未決のため (a) は未適用**。"
+                      "⛔ 地形を壁に合わせて削らない】" % sum(q[4] for q in buried))
     else:
         note.append("埋まっている区間(見付高 ≦ 0 かつ 受け高 > 0)── **0 本・0.0 m**"
                     "【算出 — ⛔ 0 件は合格ではなく未測定なので、**測った物差し**を刷る】")
+    return bad, note
+
+
+def wall_step_check(d, g):
+    """**埋まっている区間に『段差が在るか』**── 壁の要否の名簿【裁定 EDO-0182 (b) 普請奉行】。
+
+    ⭐ 判定則は裁2 の二量のまま(見付高 = 天端 − 低い側 ／ 受け高 = 高い側 − 天端)。
+      『埋まっている』(見付高 ≦ 0 かつ 受け高 > 0)点を、**両側の地盤のどちらが天端より上か**で割る:
+      ・**両側**(見付高 < 0)── 天端の両側とも地盤が上 = その位置に壁の段差が無い ⇒ **壁は要らない**
+      ・**片側**(見付高 = 0)── 片側だけ地盤が上 = 段差は在る ⇒ 壁は要る。天端の決め方は (a) と同じ
+        (`_pending`「埋まっている土留めの始末」)
+    ⛔ 一括で短縮も削除もしない ── 区間ごとに名簿を刷る。⛔ 地形を壁に合わせて削らない。
+    ⛔ 止める: **数の天端**(`coping` が数)の壁の**建つ区間**に『両側』の点が残る
+      (要らない壁が建つ)。⚠ `coping:"stair"` の側壁は (a) の天端で始末するので〔記録〕。
+    ⭐ 数は `wall_samples` を `wall_profile` と同じ桁で丸めて読む(⛔ 物差しを二つにしない)。
+    """
+    E9 = 1e-6
+    bad, note = [], []
+    tot = {"両側": 0.0, "片側": 0.0}
+    for w in d["terraceWalls"]:
+        sm = wall_samples(d, g, w, IMPL_WALL_STEP)
+        if len(sm) < 2: continue
+        n9 = len(sm)
+        Ls = sm[-1][0]
+        two, one, two_built = 0, 0, 0
+        for q9 in sm:
+            fh, bh = round(q9[4], 3), round(q9[5], 3)
+            if not (fh <= E9 and bh > E9): continue
+            if fh < -E9:
+                two += 1
+                if q9[-1]: two_built += 1
+            else:
+                one += 1
+        if not (two or one): continue
+        Lt, Lo = Ls * two / float(n9), Ls * one / float(n9)
+        tot["両側"] += Lt; tot["片側"] += Lo
+        stair = w.get("coping") == "stair"
+        if two_built and not stair:
+            bad.append("土留め『%s』の**建つ区間**に、天端の両側とも地盤が上の点(= 段差が無い)が "
+                       "%d 点残る ── ⛔ 要らない壁が建つ。区間ごとに落とす【裁定 EDO-0182 (b)】"
+                       % (w["name"], two_built))
+        note.append("土留め『%s』の埋まっている点 %d/%d ── **片側 %d 点・%.1f m**(段差が在る ⇒ 壁は要る・"
+                    "天端は (a) の扱い)／ **両側 %d 点・%.1f m**(段差が無い ⇒ 壁は要らない%s)"
+                    "【算出 — 裁定 EDO-0182 (b)】"
+                    % (w["name"], one + two, n9, one, Lo, two, Lt,
+                       "。⚠ 石段の側壁は (a) の天端で始末するので〔記録〕" if (two and stair) else ""))
+    note.append("埋まっている区間の段差の名簿 ── **片側 %.1f m ／ 両側 %.1f m**"
+                "【算出 — 裁定 EDO-0182 (b)。⛔ 両側の区間だけが『壁が要らない』】"
+                % (tot["片側"], tot["両側"]))
     return bad, note
 
 
@@ -15255,6 +15305,7 @@ def main_export_impl():
 #   ⇒ ⭕ **束ごとに覚え書きを退避 → 消去 → 復元**する(`_probe_caches`)。
 _PROBE_CACHES = ("_BANDS", "_BSTAT", "_VCUT", "_GRP", "_VH", "_LAND", "_EDGE_NOTE",
                  "_WSEG", "_WCOMP", "_STAIR_CF", "_STAIR_CF_N", "_SCAT_N", "_SITE_EDGE_N")
+_PROBE_SLOTS = ("_WSEG", "_WCOMP", "_SCAT_N")   # `[None]` の一枠 ── 退避中は `[None]` に戻す
 
 
 def _probe_caches(fn):
@@ -15264,6 +15315,7 @@ def _probe_caches(fn):
     for k in _PROBE_CACHES:
         o = G.get(k)
         if isinstance(o, dict): save[k] = dict(o); o.clear()
+        elif k in _PROBE_SLOTS: save[k] = list(o); o[:] = [None]   # ⚠ 一枠の覚え書きは空にしない(`[0]` で引く)
         elif isinstance(o, list): save[k] = list(o); del o[:]
     try:
         return fn()
@@ -15463,6 +15515,18 @@ def probe_roster(d, g):
     out.append(("石段の閉合", "`const.shadenHondenStepM` を段の比高と食い違わせる",
                 run1(kaidan_close_check, e15), 1, mv15))
 
+    # ---- ⑨ 埋まっている区間の段差(裁定 EDO-0182 (b))
+    n16 = run(wall_step_check, d)
+    out.append(("埋まっている区間に段差が在るか", "基準(壊さない)", n16, 0, None))
+
+    def m16(e):
+        for w in e["terraceWalls"]:
+            if w["name"] == "TW_Zentei_SE": w["coping"] = w["coping"] - 1.0
+    e16, mv16 = _probe(d, m16)
+    out.append(("埋まっている区間に段差が在るか",
+                "`TW_Zentei_SE` の天端を前庭の面より下げる(両側とも地盤が上になる)",
+                run(wall_step_check, e16), 1, mv16))
+
     bad = _probe_verdict([(nm, got, want, mv) for _ck, nm, got, want, mv in out])
     _PROBE_ROSTER[0], _PROBE_ROSTER[1] = key, (out, bad)
     return out, bad
@@ -15613,6 +15677,7 @@ def run_checks():
     igc = _gated(impl_graded_check)  # ⛔ 無い焼きを測らない
     ipc = _gated(impl_planting_check)  # 撒いた木の面と離れ(2026-09-08)
     iwp = _gated(impl_wall_profile_check)  # 土留めの縦断(中4 20巡目)
+    wsc = wall_step_check(d, g)            # 埋まっている区間の段差(裁定 EDO-0182 (b))
     kwc = _gated(keepout_wiring_check)     # 退避の表の結線(中2 20巡目)
     cph = _gated(crown_per_h_check)  # 樹冠÷丈(低9/低10 庭方17巡目)
     ccv = _gated(crown_cover_check)  # 芯線の樹冠被覆(高1/高2 庭方17巡目)
@@ -15682,6 +15747,8 @@ def run_checks():
                  "石段・囲い・`scaleXZ`)", ipc[0], ipc[1]))
     rows.append(("土留めの縦断が図の算出と一つ残らず同じ数か"
                  "(名簿・節点と区間の座標・6列の縦断・開口)", iwp[0], iwp[1]))
+    rows.append(("埋まっている区間に段差が在るか(両側 = 壁が要らない ／ 片側 = 天端の扱い)",
+                 wsc[0], wsc[1]))
     rows.append(("退避の表 `keepoutFrom` の一項ごとに、指し先が生きて・面になり・"
                  "焼き出しの点が守っているか", kwc[0], kwc[1]))
     rows.append(("道・坂の芯線が樹冠の下を通るか(`planting.crownCover` の受入値・"

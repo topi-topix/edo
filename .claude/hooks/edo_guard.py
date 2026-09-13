@@ -5,6 +5,13 @@
 stdin に PreToolUse の JSON が来る(session_id / tool_name / tool_input)。
 止めるときは **終了コード2 + stderr**(stderr がそのまま Claude に返る)。
 素通りは終了コード0。⚠ **フックが落ちても作業は止めない** — 例外は握りつぶして 0 を返す。
+
+【文脈計】(2026-09-13・計画 A-2)transcript の末尾から最後の assistant の文脈(トークン)を読み、
+300K / 450K / 600K を**初めて**超えたときに一度だけ止めて「手仕舞い→ /compact」を返す。
+同じ段では二度止めない(⛔ 止め続けるとデッドロック — モデルは自分で /compact できない)。
+あわせて最後の**人間の発話**の時刻を `.git/edo-session/<sid>.json` に刻む — `review_gate.py` の
+三巡則(同じ役で fail 3 回)はこの時刻より後の記録だけを数える。
+実測(2026-09-13): 主セッションの読みの 44% が文脈 300K 超だった。散文の天井は守られなかった。
 """
 import json
 import os
@@ -52,16 +59,101 @@ def run(args, sess):
     sys.exit(0)
 
 
+CTX_STAGES = (300000, 450000, 600000)
+SESS_DIR = os.path.join(MAIN_ROOT, ".git", "edo-session")   # claim(.git/edo-locks)・板(.git/edo-board)と同じ前例
+
+
+def context_meter(ev, sess):
+    """文脈の天井(計画 A-2)。超えた段で一度だけ exit 2。人間の発話の時刻も刻む。"""
+    tp = ev.get("transcript_path") or ""
+    if not tp or not os.path.exists(tp):
+        return
+    sys.path.insert(0, os.path.join(MAIN_ROOT, "Tools", "Session"))
+    try:
+        from token_report import last_context, last_user_ts
+    except Exception:
+        return
+    ctx = last_context(tp)
+    if ctx is None:
+        return
+    os.makedirs(SESS_DIR, exist_ok=True)
+    fp = os.path.join(SESS_DIR, sess + ".json")
+    try:
+        st = json.load(open(fp, encoding="utf-8"))
+    except Exception:
+        st = {}
+    ts = last_user_ts(tp)
+    if ts:
+        st["last_user"] = ts
+    st["ctx"] = ctx
+    st["transcript"] = tp
+    stage = sum(1 for t in CTX_STAGES if ctx > t)
+    seen = int(st.get("ctx_stage") or 0)
+    if stage > seen:
+        st["ctx_stage"] = stage
+    tmp = fp + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(st, f, ensure_ascii=False)
+    os.replace(tmp, fp)
+    if stage > seen:
+        sys.stderr.write(
+            "⛔ 文脈計: この会話の文脈が %dK トークンで、天井 %dK を超えた(docs/fushin-bugyo.md「文脈の作法」)。\n"
+            "   費用は「文脈の大きさ × 往復の数」。ここから先の往復は毎回 %dK を読み直す。\n"
+            "   ① 手仕舞い — 畳めなかった残タスクを board へ task で起票し、Unity/main の claim を返す\n"
+            "   ② ユーザーに **`/compact`(定型: 裁定・_pending・claim・次の一手だけ残す)か新セッション**を求める\n"
+            "   この止めは段ごとに一度だけ。次の呼び出しは通る。\n"
+            % (ctx // 1000, CTX_STAGES[stage - 1] // 1000, ctx // 1000))
+        sys.exit(2)
+
+
+def _my_estate(sess):
+    """このセッションの claim の `sashizu:<邸>` から邸名を引く。無ければ None。"""
+    try:
+        r = subprocess.run([sys.executable, CLI, "status"], capture_output=True, text=True,
+                           env=dict(os.environ, EDO_SESSION_ID=sess, CLAUDE_PROJECT_DIR=ROOT), timeout=10)
+        block, hit = r.stdout.split("\n"), None
+        for i, ln in enumerate(block):
+            if ln.strip().startswith("▶"):
+                for ln2 in block[i + 1:i + 12]:
+                    if ln2.strip().startswith(("▶", "・")) and not ln2.strip().startswith("▶ " + sess[:8]):
+                        break
+                    if "sashizu:" in ln2:
+                        hit = ln2.strip().split("sashizu:", 1)[1].split()[0]
+                        break
+                break
+        return hit if hit and hit not in ("infra", "cross") else None
+    except Exception:
+        return None
+
+
 def main():
     try:
         ev = json.load(sys.stdin)
     except Exception:
         sys.exit(0)
+    sess = (ev.get("session_id") or "unknown")[:12]
+    try:
+        context_meter(ev, sess)
+    except SystemExit:
+        raise
+    except Exception:
+        pass
     if not os.path.exists(CLI):
         sys.exit(0)
-    sess = (ev.get("session_id") or "unknown")[:12]
     tool = ev.get("tool_name") or ""
     ti = ev.get("tool_input") or {}
+    if tool == "Agent":
+        # 三巡則(計画 B-1)— 検分役を呼ぶ前に、同じ役の fail がユーザー入力なしに 3 回続いていないか。
+        st = (ti.get("subagent_type") or "")
+        if st in ("edo-kenzu", "edo-kosho", "edo-niwashi"):
+            est = _my_estate(sess)
+            gate = os.path.join(MAIN_ROOT, "Tools", "Sashizu", "review_gate.py")
+            if est and os.path.exists(gate):
+                r = subprocess.run([sys.executable, gate, "--rounds", est], capture_output=True, text=True)
+                if r.returncode == 2:
+                    sys.stderr.write("⛔ 門番(三巡則): %s の検分を止めた。\n%s" % (est, r.stdout))
+                    sys.exit(2)
+        sys.exit(0)
     if tool in ("Write", "Edit", "NotebookEdit"):
         fp = ti.get("file_path") or ti.get("notebook_path")
         if fp:

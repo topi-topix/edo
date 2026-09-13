@@ -11,15 +11,23 @@
   起きない。採番だけ O_EXCL で衝突を避ける。
 - **正典は写さない。** 邸の未決の中身は `docs/Sashizu/<屋敷>_sashizu.json` の `_pending` が
   正典のまま。issue は `refs` で指すだけ(CLAUDE.md「同じ事実を二重に書かない」)。
-- **post する契機は3つだけ**: 節目(info)/ブロッカー(blocker)/裁定要請(decision)。
+- **post する契機は4つ**: 節目(info)/ブロッカー(blocker)/裁定要請(decision)/手仕舞い(task)。
   細かい報告は書かない — コミットが報告を兼ねる。
+- **種別の意味は機械で守る(2026-09-13・計画 D-1)。** 2026-09-13 の実測で生存 142 件のうち
+  教訓 34・完了報告 39・「疑い」を blocker と称する 12 件など 7 割が「誰も次に何もしない」件だった。
+    info    = 記録。**起票と同時に done**(`list --all` で引ける。open 一覧と digest には出ない)
+    lesson  = 教訓。`docs/lessons.md` へ 1 行追記して即 done
+    blocker = **誰かが止まっている**こと。`--blocked <誰が>` と `--until <何で解けるか>` が無ければ受けない
+    task    = 宿題。owner は **1 邸だけ**(複数邸は邸ごとに分けて起票)
+  出口(計画 D-2): コミット本文の `EDO-xxxx` は note に、`closes EDO-xxxx` は close に(post-commit)。
+  齢の見張りは全種別・7 日。同文の note(類似度 0.8 超)は受けない。題の訂正は `retitle`。
 - **decision はテンプレ強制**(背景/選択肢/推奨/影響)。ユーザーが判断できる形で
   しか裁定を仰げないようにする。
 
 置き場所は `.git/edo-board/`(git 管理外・全 worktree 共有)。`.git/edo-locks` と同じ前例。
 使い方の正典: docs/session-board.md
 """
-import argparse, json, os, re, sys, time
+import argparse, difflib, datetime, json, os, re, subprocess, sys, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from edo_session import sid, _common_git_dir, atomic_write_json, estate_names
@@ -33,10 +41,13 @@ BOARD = os.path.join(_common_git_dir(), "edo-board")
 _FIXED = ("cross", "infra")          # 邸ではない置き場(横断・普請場の機構そのもの)
 _LEGACY = ("matsudaira_dewa", "sanno", "okabe", "doi", "sotobori")  # 既存 issue の後方互換
 ESTATES = tuple(sorted(set(estate_names()) | set(_FIXED) | set(_LEGACY)))
-TYPES = ("task", "decision", "blocker", "info")
+TYPES = ("task", "decision", "blocker", "info", "lesson")
 STATUSES = ("open", "awaiting-user", "in-progress", "done", "dropped")
 LIVE = ("open", "awaiting-user", "in-progress")
-MARK = {"decision": "⚖", "blocker": "⛔", "task": "・", "info": "ℹ"}
+MARK = {"decision": "⚖", "blocker": "⛔", "task": "・", "info": "ℹ", "lesson": "📖"}
+TITLE_MAX = 80
+MSG_MAX = 800
+REPO = os.path.dirname(_common_git_dir()) if _common_git_dir().endswith(".git") else os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def now():
@@ -185,6 +196,33 @@ def cmd_post(a):
               "   例: --where '其廿三の左図 / 辺14 s6.8〜12.3(東辺の北端・隅櫓のすぐ南)'",
               file=sys.stderr)
         return 1
+    if a.type == "blocker" and not (a.blocked and a.until):
+        print("⛔ blocker は「誰かが止まっている」こと。--blocked <誰が(邸/セッション)> と "
+              "--until <何が来れば解けるか> が要る。\n"
+              "   見つけた事実・疑い・他邸への注意は blocker ではない → 自邸の宿題なら --type task、"
+              "一般則なら --type lesson。\n"
+              "   実測(2026-09-13): blocker 14 件のうち本物は 2 件だった。", file=sys.stderr)
+        return 1
+    if a.type == "task":
+        owners = [o for o in re.split(r"[,、\s]+", a.owner or "") if o]
+        if len(owners) > 1:
+            print("⛔ task の owner は 1 邸だけ(%s)。邸ごとに分けて起票する — 相乗りの task は"
+                  "片方が済んでも閉じられない(実例 EDO-0099/0102/0111)。" % ", ".join(owners), file=sys.stderr)
+            return 1
+        if not owners and a.estate not in ("cross", "infra"):
+            a.owner = a.estate
+        elif not owners:
+            print("⛔ cross の task には --owner <邸> が要る(担い手の無い宿題は誰も拾わない。"
+                  "生存 142 件の 85% が owner 空だった)。誰の担当でもないなら lesson か info に。", file=sys.stderr)
+            return 1
+    if len(a.title or "") > TITLE_MAX:
+        print("⛔ 題が %d 字(上限 %d)。題は digest の 1 行に載る物。経緯は --msg か --ref へ。"
+              % (len(a.title), TITLE_MAX), file=sys.stderr)
+        return 1
+    if len(a.msg or "") > MSG_MAX:
+        print("⛔ 本文が %d 字(上限 %d)。正典を写さない — 中身は --ref で指す(session-board.md §1)。"
+              % (len(a.msg), MSG_MAX), file=sys.stderr)
+        return 1
     os.makedirs(BOARD, exist_ok=True)
     nums = [int(re.search(r"\d+", c["id"]).group()) for c in load_all()]
     n = max(nums or [0]) + 1
@@ -195,10 +233,12 @@ def cmd_post(a):
             break
         except FileExistsError:
             n += 1
+    closed_on_post = a.type in ("info", "lesson")
     issue = {
         "id": iid, "title": a.title, "estate": a.estate, "type": a.type,
-        "status": "awaiting-user" if a.type == "decision" else "open",
+        "status": ("awaiting-user" if a.type == "decision" else "done" if closed_on_post else "open"),
         "owner": a.owner or "", "refs": a.ref or [], "where": a.where,
+        "blocked": getattr(a, "blocked", "") or "", "until": getattr(a, "until", "") or "",
         "decision": ({"background": a.background, "options": a.options,
                       "recommend": a.recommend, "impact": a.impact}
                      if a.type == "decision" else None),
@@ -207,12 +247,40 @@ def cmd_post(a):
     }
     atomic_write_json(issue, path_of(iid))
     print("post: %s" % fmt_line(issue))
+    if a.type == "lesson":
+        _append_lesson(issue)
+    elif a.type == "info":
+        print("  ℹ info は記録として即 done(open 一覧と digest には出ない。`list --all` で引ける)")
     return 0
+
+
+def _append_lesson(issue):
+    """教訓を docs/lessons.md へ 1 行。板は索引、文書が正典。"""
+    fp = os.path.join(REPO, "docs", "lessons.md")
+    line = "- %s **%s**(%s・%s)%s\n" % (
+        datetime.date.today().isoformat(), issue["title"], issue["id"], issue["estate"],
+        (" — " + issue["refs"][0]) if issue.get("refs") else "")
+    try:
+        with open(fp, "a", encoding="utf-8") as f:
+            f.write(line)
+        print("  📖 docs/lessons.md へ 1 行追記した(正典は文書、板は索引)")
+    except OSError as e:
+        print("  ⚠ docs/lessons.md へ書けなかった: %s" % e, file=sys.stderr)
 
 
 def cmd_note(a):
     c, fp = load_one(a.id)
     if not c:
+        return 1
+    if len(a.msg or "") > MSG_MAX:
+        print("⛔ note が %d 字(上限 %d)。長い経緯は正典(指図の _pending・裁定図)へ書き、ここは --ref で指す。"
+              % (len(a.msg), MSG_MAX), file=sys.stderr)
+        return 1
+    prev = (c["log"][-1]["msg"] if c.get("log") else "")
+    ratio = difflib.SequenceMatcher(None, prev, a.msg or "").ratio()
+    if prev and ratio > 0.8 and not a.force:
+        print("⛔ 直前の note とほぼ同文(類似度 %.2f)。シェルに食われた再掲なら --force。"
+              "(実例 EDO-0149 note7/8・EDO-0151 note1/2)" % ratio, file=sys.stderr)
         return 1
     c["log"].append({"t": now(), "by": sid(a.session), "msg": a.msg})
     if a.status:
@@ -233,6 +301,45 @@ def cmd_close(a):
     c["log"].append({"t": now(), "by": sid(a.session), "msg": a.msg or c["status"]})
     save(c, fp)
     print("close: %s" % fmt_line(c))
+    return 0
+
+
+def cmd_retitle(a):
+    c, fp = load_one(a.id)
+    if not c:
+        return 1
+    if len(a.title) > TITLE_MAX:
+        print("⛔ 題が %d 字(上限 %d)" % (len(a.title), TITLE_MAX), file=sys.stderr)
+        return 1
+    c["log"].append({"t": now(), "by": sid(a.session), "msg": "題を改めた: 「%s」→「%s」" % (c["title"], a.title)})
+    c["title"] = a.title
+    save(c, fp)
+    print("retitle: %s" % fmt_line(c))
+    return 0
+
+
+def cmd_from_commit(a):
+    """post-commit フック用(計画 D-2)。本文の EDO-xxxx を note に、`closes EDO-xxxx` を close に。"""
+    try:
+        body = subprocess.run(["git", "log", "-1", "--format=%B", a.sha], capture_output=True,
+                              text=True, timeout=10).stdout
+    except Exception:
+        return 0
+    if not body:
+        return 0
+    subj = body.strip().split("\n")[0][:80]
+    closes = set(re.findall(r"(?i)\b(?:closes?|fixes|resolves?)\s+(EDO-\d{4})", body))
+    for iid in sorted(set(re.findall(r"EDO-\d{4}", body))):
+        c, fp = load_one(iid)
+        if not c:
+            continue
+        if iid in closes and c["status"] in LIVE:
+            c["status"] = "done"
+            c["log"].append({"t": now(), "by": "post-commit", "msg": "closes @ %s: %s" % (a.sha[:8], subj)})
+        else:
+            c["log"].append({"t": now(), "by": "post-commit", "msg": "commit %s: %s" % (a.sha[:8], subj)})
+        save(c, fp)
+        print("from-commit: %s" % fmt_line(c))
     return 0
 
 
@@ -279,46 +386,57 @@ def cmd_show(a):
     return 0
 
 
-def cmd_digest(a):
-    """greet 用の圧縮表示。裁定待ち → ブロッカー → 宿題(task)→ 節目(info・新しい順)。
+def _my_estate():
+    """このセッションの claim の sashizu:<邸>。無ければ None。"""
+    try:
+        from edo_session import mine, sid as _sid
+        me = _sid(strict=False)
+        if not me:
+            return None
+        c, _ = mine(me)
+        for p in c.get("paths", []):
+            if p.startswith("sashizu:") and p[8:] not in ("infra", "cross"):
+                return p[8:]
+    except Exception:
+        pass
+    return None
 
-    ⛔ 2026-09-06 まで「裁定待ち・ブロッカー・その他」を**古い順に10行**出していたため、
-    11日前の info が枠を埋め、**手仕舞いで残した宿題が一件も出ていなかった**
-    (EDO-0137〜0139 を起票した直後の digest に出ないことをユーザーが見抜いた)。
-    引き継ぎを書いても誰の目にも入らないなら、書いていないのと同じ(CLAUDE.md 規則19)。
-    ⛔ **答えるべき物(裁定待ち・ブロッカー)と引き継ぎ(宿題)は省略しない。**
-    省略してよいのは節目(info)だけ。"""
+
+def cmd_digest(a):
+    """greet 用の圧縮表示 — **予算 15 行**(計画 A-4)。
+    順: 裁定待ち(全件)→ 本物の blocker(--blocked あり・≤5)→ 自邸の宿題(≤5)→ 横断の宿題(≤3)→ 齢の警告 1 行。
+    ⛔ 2026-09-13 まで 34 行・5,648 字を毎起動で刷り、blocker は「疑い」まで無条件に全件出していた。
+    info は起票と同時に done なのでここには出ない(`list --all`)。"""
     cs = [c for c in load_all() if c["status"] in LIVE]
     if not cs:
-        return 0  # 静かに(greet に空行を足さない)
+        return 0
+    est = getattr(a, "estate", None) or _my_estate()
     wait = [c for c in cs if c["status"] == "awaiting-user"]
     blk = [c for c in cs if c["type"] == "blocker" and c not in wait]
-    task = [c for c in cs if c["type"] == "task" and c not in wait]
-    rest = sorted([c for c in cs if c not in wait + blk + task],
+    real = [c for c in blk if c.get("blocked")]
+    task = sorted([c for c in cs if c["type"] == "task" and c not in wait],
                   key=lambda c: c.get("updated", 0), reverse=True)
-    print("掲示板 — open %d 件(裁定待ち %d・ブロッカー %d・宿題 %d)。"
-          "詳細: python3 Tools/Session/edo_board.py show <ID>"
-          % (len(cs), len(wait), len(blk), len(task)))
-    task.sort(key=lambda c: c.get("updated", 0), reverse=True)
-    shown = 0
-    for c in wait + blk:                      # ⛔ 答えるべき物は省略しない
-        print("  %s" % fmt_line(c))
-        shown += 1
-    for c in task[:6]:                        # 引き継ぎは新しい順に6件
-        print("  %s" % fmt_line(c))
-        shown += 1
-    if len(task) > 6:
-        print("  ・ …宿題ほか %d 件(`edo_board.py list --type task`)" % (len(task) - 6))
-    # 滞留の見張り(旧・差配役の異常検知の代わり。7日動いていない宿題を1行で鳴らす)
-    old_task = [c for c in task if (now() - c.get("updated", 0)) > 7 * 86400]
-    if old_task:
-        print("  ⚠ 宿題 %d 件が7日以上動いていない — 済んだ物は "
-              "`edo_board.py close <ID>`、生きている物は自邸へ引き取ること" % len(old_task))
-    for c in rest[:3]:                        # 節目は新しい順に3件
-        print("  %s" % fmt_line(c))
-        shown += 1
-    if shown < len(cs):
-        print("  …ほか %d 件(`edo_board.py list`)" % (len(cs) - shown))
+    own = [c for c in task if est and (c.get("owner") == est or c["estate"] == est)]
+    cross = [c for c in task if c not in own and c["estate"] in ("cross", "infra")]
+    print("掲示板 — open %d 件(裁定待ち %d・ブロッカー %d(本物 %d)・宿題 %d%s)。"
+          "詳細: edo_board.py show <ID> / 全部: edo_board.py list"
+          % (len(cs), len(wait), len(blk), len(real), len(task),
+             ("・自邸 %d" % len(own)) if est else ""))
+    lines = 1
+    for c in wait:
+        print("  %s" % fmt_line(c)); lines += 1
+    for c in real[:5]:
+        print("  %s" % fmt_line(c)); lines += 1
+    if len(blk) - len(real[:5]) > 0:
+        print("  ⛔ …ほか blocker %d 件(--blocked の無い旧式を含む。`list --type blocker`)" % (len(blk) - len(real[:5]))); lines += 1
+    for c in own[:5]:
+        print("  %s" % fmt_line(c)); lines += 1
+    for c in cross[:3]:
+        print("  %s" % fmt_line(c)); lines += 1
+    old = [c for c in cs if c["type"] in ("task", "blocker") and (now() - c.get("updated", 0)) > 7 * 86400]
+    if old:
+        print("  ⚠ %d 件が 7 日以上動いていない — 済んだ物は `edo_board.py close <ID>`(コミット本文に "
+              "`closes EDO-xxxx` でも閉じる)、生きている物は自邸へ引き取る" % len(old)); lines += 1
     return 0
 
 
@@ -343,7 +461,9 @@ def main():
     p.add_argument("--title", required=True)
     p.add_argument("--estate", required=True, choices=ESTATES)
     p.add_argument("--type", required=True, choices=TYPES)
-    p.add_argument("--owner", default="")
+    p.add_argument("--owner", default="", help="task: 担い手の邸(1 邸だけ)")
+    p.add_argument("--blocked", default="", help="blocker 必須: 誰が止まっているか(邸/セッション)")
+    p.add_argument("--until", default="", help="blocker 必須: 何が来れば解けるか")
     p.add_argument("--ref", action="append", help="正典への参照(例: docs/Sashizu/doi_sashizu.json#_pending.monsun)")
     p.add_argument("--msg", default="", help="起票時の一言")
     p.add_argument("--background", default="", help="decision: 背景(2文以内)")
@@ -361,7 +481,11 @@ def main():
     p = sub.add_parser("note", help="log へ1行追記(--status で状態遷移も)")
     p.add_argument("id"); p.add_argument("msg")
     p.add_argument("--status", choices=STATUSES)
+    p.add_argument("--force", action="store_true", help="直前と同文でも足す(再掲の事故用)")
     p.set_defaults(fn=cmd_note)
+    p = sub.add_parser("retitle", help="題を改める(本文で数字を訂正したら題も)"); p.add_argument("id"); p.add_argument("title")
+    p.set_defaults(fn=cmd_retitle)
+    p = sub.add_parser("from-commit", help="post-commit フック用"); p.add_argument("sha"); p.set_defaults(fn=cmd_from_commit)
     p = sub.add_parser("close"); p.add_argument("id")
     p.add_argument("--dropped", action="store_true"); p.add_argument("--msg", default="")
     p.set_defaults(fn=cmd_close)
@@ -371,7 +495,8 @@ def main():
     p.add_argument("--json", action="store_true")
     p.set_defaults(fn=cmd_list)
     p = sub.add_parser("show"); p.add_argument("id"); p.set_defaults(fn=cmd_show)
-    sub.add_parser("digest", help="greet 用の圧縮表示").set_defaults(fn=cmd_digest)
+    p = sub.add_parser("digest", help="greet 用の圧縮表示(予算 15 行)"); p.add_argument("--estate", default=None)
+    p.set_defaults(fn=cmd_digest)
     a = ap.parse_args()
     sys.exit(a.fn(a))
 

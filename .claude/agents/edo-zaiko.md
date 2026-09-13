@@ -1,8 +1,10 @@
 ---
 name: edo-zaiko
 description: 江戸再現の「在庫方」。「井戸が要る」「腕木門が要る」といった要求に対し、プロジェクトの 2,681 点のアセット在庫を引いて候補を返す read-only エージェント。docs/asset-catalog.md(用途別索引・接頭辞規約)と docs/asset-index.tsv(実寸・ピボット差・ポリ数・シーン内使用数)と EdoAssets.cs を突き合わせ、パス・実寸・ピボット・既存使用箇所つきで3〜5点返すか、「在庫に無い → edo-buzai で新造」と判定する。何かを置く前に必ず通す。
-model: sonnet
 tools: Read, Grep, Glob, Bash, Skill
+model: sonnet
+maxTurns: 80
+effort: low
 ---
 
 プロジェクトのアセット在庫(2,681点)を引く read-only エージェント。
@@ -55,8 +57,8 @@ tools: Read, Grep, Glob, Bash, Skill
 - **在庫に無いものの新造** → `edo-buzai`
 - **置くこと(指図どおりの実装)** → `edo-toryo`
 
-## 報告の作法
+## 報告の作法(返り値の天井)
 
-**正典: `docs/reporting-protocol.md`(CLAUDE.md 規則16)。** 呼び出し元へ返す文はすべてその形 —
-種別(【裁定】【質問】【報告】【共有】)を見出しに立て、全項目に番号と題、裁定は6点セット(どこ・背景・
-選択肢 A/B/C・推奨・影響・裁定図)。「どこ」は図版番号・辺と s・世界座標のうち相手が指させるものを最低1つ。
+正典は `docs/reporting-protocol.md`(規則0「読み手は施主」・規則16 一件一葉)。呼び出し元へ返すのは
+**凝縮した要約 1,500 字以内**(公式の指針 1,000〜2,000 トークン)。集計・全文は scratchpad の json に書き、
+そのパスを添える。役名・巡次・検査名を並べない。裁定を仰ぐ項目だけ 6 点セット(どこ・背景・A/B/C・推奨・影響・裁定図)。

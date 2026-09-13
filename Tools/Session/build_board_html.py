@@ -152,13 +152,24 @@ def load_reviews():
 
 
 def load_junsu_baseline():
-    """前回ユーザー裁定時点の巡数。⚠ これを書き足す巡回役は 2026-09-06 に廃止したので、
-    いまは常に空(ファイルも消した)。巡数の見張りは各普請奉行が自分で行う。"""
-    fp = os.path.join(OUT, "state.json")
+    """三巡則のゲージ(2026-09-13 に実体を持たせた)。旧: 巡回役が書く state.json(廃止・常に空で恒偽だった)。
+    新: `review_gate.py` の `reviews.<役>.rounds` から「ユーザーの発話なしに続いた fail の回数」を引き、
+    {邸: {"n": 最新の巡 − 連続 fail}} を返す(= 連続 fail が JUNSU_WARN 以上で赤)。"""
+    out = {}
     try:
-        return json.load(open(fp, encoding="utf-8")).get("junsu_baseline", {})
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "review_gate", os.path.join(ROOT, "Tools", "Sashizu", "review_gate.py"))
+        rg = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(rg)
+        for est in rg.estate_names():
+            doc = json.load(open(rg._doc_path(est), encoding="utf-8"))
+            n = max([rg.consecutive_fails(doc, k) for k in rg.REVIEWERS] or [0])
+            cur = max([len((doc.get("reviews") or {}).get(k, {}).get("rounds") or []) for k in rg.REVIEWERS] or [0])
+            out[est] = {"n": max(0, cur - n), "fails": n}
     except Exception:
-        return {}
+        pass
+    return out
 
 
 def load_readme_states():

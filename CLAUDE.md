@@ -62,9 +62,13 @@
     見張る。検分役は read-only なので**呼んだ側が** `--record <屋敷> <役> <pass|fail>` で書き戻す。
     **【移行期間・2026-09-01 裁定B】** 記録が無い邸は検分を通すまで作業を続けてよいが、**新たに
     ユーザーへ見せる前には必ず通す**。遡って pass を書かない。
+    **巡は関門が数える(2026-09-13)**: 検分は `/kenzu <邸>`(差分だけ・指摘 ≤10・3 巡で止まる)。同じ役の fail が
+    ユーザーの発話なしに 3 回続くと門番が止める(`--rounds` / reset は `--ack`)。
 19. **輪に入っていない値は「未検査」であって「合格」ではない。** 検査を書いたら同じ巡で報告経路へ繋ぎ、
     設計値を入れたら同じ巡でそれを描く図を出す。`python3 Tools/Sashizu/wiring_gate.py` が全邸を見張る。
     欠陥はそれが見える最も安い輪(計算 → 図 → 実装 → ユーザーの目)で捕まえる。→ `docs/verification-loops.md`
+20. **読み手は施主。文脈の天井は 300K。** 報告は `docs/reporting-protocol.md` 規則0(機構語・役名を書かない・
+    一通 800 字)。文脈は `autoCompactWindow` と門番の文脈計が守る。→ `docs/fushin-bugyo.md`「文脈の作法」
 
 ## 制作パイプライン
 
@@ -79,20 +83,9 @@
 
 ## 触ると壊れるもの
 
-- **複数の Claude Code セッションが同時に動く。** 作業は `python3 Tools/Session/edo_session.py start <屋敷>`
-  で始める(指図だけなら worktree、Unity なら `--unity`、Blender なら `--blender`。⛔ Blender は
-  worktree では回せない)。⛔ **Unity は排他**。作業が切れたら即 `release --resources unity`(20分未使用は
-  待っている側が自動で引き取る)。埋まっていれば `wait --resources unity`。返した側は次の人へ SendMessage。
-  ⛔ `git add -A` / `git commit -a` は門番が止める。→ `docs/session-coordination.md`
-- **屋敷は1軒1プレハブ。** ビルダーの前に `Edo/屋敷/編集のためにプレハブを解く`、後に `プレハブへ書き戻す`。
-  **Revert All を押さない。**
-- **地形の編集は Undo の外。** 触る前に heightmap を `.bin` で退避。`TerrainData.asset` と `.unity` も。
-- **2026-08-22 に地形を作り直した。** 屋敷を建てる前に必ず造成ステージを流し直す。→ `docs/terrain-georef-fix.md`
-- **コンパイルが止まっていることがある。** `Library/ScriptAssemblies/Assembly-CSharp-Editor.dll` の mtime が
-  ソースより古ければ実行しない。
-- **MCP タイムアウト後の再送で多重実行が起きる。** 冪等でないステージ(特に造成)は実行済みかを先に確認。
-  ガードのマーカーは active にする。
-- **Blender の FBX を入れたらマテリアルを remap する**(`Edo/御殿/…マテリアルをremap`)。
+→ **`.claude/rules/unity.md`**(`Assets/**` を触るときだけ読み込まれる。排他・プレハブ・地形・コンパイル・MCP の罠)。
+共通の一線だけここに: **Unity は排他**(`edo_session.py start <屋敷> --unity` / 終わったら即 `release --resources unity`)、
+**手組み資産は再生成しない**、**`git add -A` / `git commit -a` は門番が止める**。→ `docs/session-coordination.md`
 
 ## ルーティング
 

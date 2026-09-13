@@ -48,6 +48,14 @@ if os.path.exists(CLI):
         print("作業を始めるには **`python3 Tools/Session/edo_session.py start <屋敷>`**。"
               "指図だけなら worktree を探して(無ければ作って)そこへ回す。"
               "Unity を使うなら `start <屋敷> --unity` でメインに留まり Unity を確保する。")
+    # 文脈計(計画 E-2): このセッションの文脈を 1 行。300K を超えたら /compact(docs/fushin-bugyo.md)。
+    tp = ev.get("transcript_path") or ""
+    tr = os.path.join(MAIN_ROOT, "Tools", "Session", "token_report.py")
+    if tp and os.path.exists(tp) and os.path.exists(tr):
+        t = subprocess.run([sys.executable, tr, "--self"], capture_output=True, text=True,
+                           env=dict(env, EDO_TRANSCRIPT=tp))
+        if t.stdout.strip():
+            print("文脈計: %s(天井 300K。超えたら手仕舞いして /compact — 門番が段ごとに一度止める)" % t.stdout.strip())
     # 掲示板の digest(裁定待ち・ブロッカー・open)。CLI は**メインの checkout の物**を使う
     # (worktree のブランチには main を取り込むまで無いことがある)
     bcli = os.path.join(MAIN_ROOT, "Tools", "Session", "edo_board.py")

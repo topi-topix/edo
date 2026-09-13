@@ -573,10 +573,29 @@ def cmd_claim(a):
     return 0
 
 
+def _open_tasks_of(c):
+    """自邸の open task を列挙(手仕舞いの見張り・計画 D-2)。"""
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from edo_board import load_all, LIVE, fmt_line
+    except Exception:
+        return []
+    ests = [p[8:] for p in c.get("paths", []) if p.startswith("sashizu:")]
+    return [fmt_line(i) for i in load_all()
+            if i["status"] in LIVE and i["type"] == "task" and (i["estate"] in ests or i.get("owner") in ests)]
+
+
 def cmd_release(a):
     me = sid(a.session)
     c, fp = mine(me)
     if not a.paths and not a.resources:
+        tasks = _open_tasks_of(c)
+        if tasks and not getattr(a, "keep", False):
+            print("⚠ 自邸の open task が %d 件ある。済んだ物は `edo_board.py close <ID>`、"
+                  "残す物は `release --keep`(手仕舞い: docs/fushin-bugyo.md)。" % len(tasks), file=sys.stderr)
+            for t in tasks[:8]:
+                print("   " + t, file=sys.stderr)
+            return 2
         if os.path.exists(fp):
             os.remove(fp)
         print("release: %s の claim をすべて解いた" % me)
@@ -947,6 +966,17 @@ def cmd_start(a):
         c["paths"].append(dom)
     if a.note:
         c["note"] = a.note
+    phase = getattr(a, "phase", None)
+    if phase:
+        c["phase"] = phase
+        c["note"] = ("[%s] " % phase) + (c.get("note") or "").replace("[%s] " % phase, "", 1)
+    elif a.name not in ("infra", "cross"):
+        print("⚠ --phase 指図|実装|部材 を名乗ること(2026-09-13)。指図と実装は別セッションで回す —"
+              " 文脈を持ち越すと 1 往復ごとに数百 K を読み直す(実測: 読みの 44% が文脈 300K 超)。", file=sys.stderr)
+    if phase == "指図" and a.unity:
+        print("⛔ 指図の phase では Unity を取らない。実装は `start %s --phase 実装 --unity` を"
+              "**新しいセッション**で。" % a.name, file=sys.stderr)
+        return 2
     if a.unity or a.blender:
         want = ["unity"] if a.unity else ["assets"]
         for w in want:
@@ -1158,7 +1188,8 @@ def main():
     p = sub.add_parser("release", help="claim を返す。⭐ Unity 作業が終わったら "
                                        "`release --resources unity` を必ず打つ")
     p.add_argument("paths", nargs="*")
-    p.add_argument("--resources", nargs="*", default=[]); p.set_defaults(fn=cmd_release)
+    p.add_argument("--resources", nargs="*", default=[]); p.add_argument("--keep", action="store_true", help="自邸の open task を残したまま返す(手仕舞い済みの申告)")
+    p.set_defaults(fn=cmd_release)
     p = sub.add_parser("wait", help="使用中の資源の待ち行列に並ぶ(空けば先頭に予約が出る)")
     p.add_argument("--resources", nargs="+", required=True, choices=RESOURCES)
     p.add_argument("--note", default=""); p.set_defaults(fn=cmd_wait)
@@ -1172,6 +1203,8 @@ def main():
     p = sub.add_parser("steal"); p.add_argument("what", nargs="+")
     p.add_argument("--reason", default=""); p.set_defaults(fn=cmd_steal)
     p = sub.add_parser("start"); p.add_argument("name")
+    p.add_argument("--phase", choices=("指図", "実装", "部材", "基盤"), default=None,
+                   help="工程(計画 A-3)。指図の phase では --unity を取らない。実装は新しいセッションで")
     p.add_argument("--unity", action="store_true", help="Unity を使う(メインに留まる)")
     p.add_argument("--blender", action="store_true", help="Blender で部材を作る(メインに留まる)")
     p.add_argument("--note", default=""); p.set_defaults(fn=cmd_start)

@@ -3,6 +3,13 @@ name: edo-kenzu
 description: 江戸再現の「検図方」。docs/Sashizu/ の指図(設計図)を、ユーザーに出す前に図として成立しているか検める read-only エージェント。矩形の重なりを総当たりで0件確認し、廊下(入側・渡廊下・御錠口)の構成、土木=断面(段差の水平距離・石段の段数・石垣の天端と法尻)、造成の量と敷地外への波及、江戸間1間=1.818mの柱割り、建蔽率、図中座標とUnity世界座標の一致を数値で検査する。python は scratchpad でのみ走らせ、図も実装も書き換えない。指図を描いたら、ユーザーに見せる前に必ず通す。
 model: opus
 tools: Read, Grep, Glob, Bash, Skill
+maxTurns: 200
+hooks:
+  Stop:
+    - hooks:
+        - type: command
+          command: python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/edo_review_stop.py
+          timeout: 10
 ---
 
 指図(設計図)が**図として成立しているか**を検める read-only エージェント。
@@ -13,7 +20,7 @@ tools: Read, Grep, Glob, Bash, Skill
 1. `Skill(unity-buke-yashiki)` — 特に `references/sashizu.md`(**§1 なぜそうなるのか / §1b 棟→続き間 /
    §1f 段差は水平距離を先に確保する / §2 室の粒度 / §3 図面に入れるもの / §4 作図の作法 /
    §5 原図を読む落とし穴**)、`references/buildings.md`、`references/site-grading.md`、
-   `references/qa-and-pitfalls.md`(判断の罠)
+   `references/qa-and-pitfalls.md` は**索引(先頭の目次)だけ**読み、該当節を grep で引く(154KB・丸読み禁止)
 2. `Skill(unity-modular-stonewall)` — 断面に石垣が出るとき。特に `references/terrain-grading.md`
    (地形を壁に合わせて削る。壁を上げない)と `references/corner-and-pivot.md`
 3. `docs/Sashizu/README.md` と `docs/Sashizu/fukui_kamiyashiki.html`(基準図)
@@ -127,6 +134,23 @@ git log --oneline -1 -- docs/Sashizu/X.html                                   # 
 - **勝手(物資)の動線が引かれているか。** 裏門・勝手門の無い屋敷で、米や薪が表門から
   石段を何段も登る設計になっていないか — なっていれば指摘し、ユーザー裁定へ回させる
 
+## 台帳と差分 — 何を見て、何を返すか(2026-09-13・計画 B-3/B-4)
+
+実測(2026-09-13): この役は毎回ゼロから全章を歩き直し、最終回答が平均 10K 字だった。土井 14 巡・山王 19 巡・
+松江松平 29 改訂の直接の原因。⭕ 次の順で動く:
+
+1. **台帳を先に読む**: `python3 Tools/Sashizu/review_ledger.py <屋敷> --open`。前巡の未解決は
+   「解消 / 継続」だけを判定し、言い直して新規に数えない。
+2. **変わった章だけ人の目で検める**: 呼び出しの prompt にある `review_gate.py --changed <屋敷>` の章
+   (無ければ自分で打つ)。変わっていない章は前巡の判定を引き継ぐ。**機械検査(`*_check`)は生成器が
+   全件走らせている** — 結果(0 件 / n 件)は読むだけで、再実装も再実行もしない。
+3. **返り値の天井**: 指摘は重要度順に **最大 10 件・各 200 字**。落とした件数は `truncated` に書く。
+   全文は scratchpad の json `{verdict, findings[], counts{高,中,低}, resolved[], truncated, summary}` に置き、
+   本文は **1,500 字以内**(verdict・件数・上位 5 件の一行・json のパス)。下の「最後に必ず添える」の
+   集計はこの json の `summary`/`counts` に畳む。本文に表を刷らない。Stop フックが 3,000 字超を止める。
+4. **3 巡で止まる**: 同じ役の fail がユーザー入力なしに 3 回続くと門番が呼び出しを止める。
+   4 巡目の観点を溜めない — 3 巡目で出し切れない物は「次回の観点」として json に 1 行ずつ残す。
+
 ## 出力形式
 
 ```
@@ -167,8 +191,8 @@ git log --oneline -1 -- docs/Sashizu/X.html                                   # 
 - **指図どおりに Unity へ実装する** → `edo-toryo`
 - **修正の実施(設計判断が要るもの)** → 呼び出し元(普請奉行)
 
-## 報告の作法
+## 報告の作法(返り値の天井)
 
-**正典: `docs/reporting-protocol.md`(CLAUDE.md 規則16)。** 呼び出し元へ返す文はすべてその形 —
-種別(【裁定】【質問】【報告】【共有】)を見出しに立て、全項目に番号と題、裁定は6点セット(どこ・背景・
-選択肢 A/B/C・推奨・影響・裁定図)。「どこ」は図版番号・辺と s・世界座標のうち相手が指させるものを最低1つ。
+正典は `docs/reporting-protocol.md`(規則0「読み手は施主」・規則16 一件一葉)。呼び出し元へ返すのは
+**凝縮した要約 1,500 字以内**(公式の指針 1,000〜2,000 トークン)。集計・全文は scratchpad の json に書き、
+そのパスを添える。役名・巡次・検査名を並べない。裁定を仰ぐ項目だけ 6 点セット(どこ・背景・A/B/C・推奨・影響・裁定図)。

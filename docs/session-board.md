@@ -35,6 +35,24 @@ python3 /Users/toshio/project/edo-unity/Tools/Session/edo_board.py \
 
 ⛔ **正典を写さない。** 未決の中身は各邸 `_pending` が正典のまま。issue は `--ref` で指す。
 
+### 1b. 種別の意味は機械で守る(2026-09-13・計画 D-1/D-2)
+
+実測(2026-09-13): 生存 142 件のうち教訓 34・完了報告 39・「疑い」を blocker と称する 12 件など 7 割が
+「誰も次に何もしない」件で、close は手動のみ(直近 14 日 起票 125 / close 27)。
+
+| type | 意味 | 機械の検査 |
+|---|---|---|
+| `info` | 記録(節目・ユーザー裁定の写し) | **起票と同時に done**。open 一覧と digest には出ない(`list --all`) |
+| `lesson` | 教訓・一般則 | `docs/lessons.md` へ 1 行追記して即 done。板は索引、文書が正典 |
+| `blocker` | **誰かが止まっている** | `--blocked <誰が>` `--until <何で解けるか>` が無ければ受けない。「見つけた事実・疑い」は task か lesson |
+| `task` | 宿題・手仕舞い | owner は **1 邸だけ**(相乗りは邸ごとに分ける)。cross は `--owner` 必須 |
+| `decision` | 裁定要請 | 6 点セット(従来どおり) |
+
+出口: コミット本文に `EDO-xxxx` を書くと note が付き、`closes EDO-xxxx` で done になる(post-commit)。
+`release` の前に自邸の open task を見る。題の訂正は `retitle <ID> "<題>"`。直前と同文の note(類似度 0.8 超)は
+`--force` 無しには受けない。題 80 字・本文 800 字まで。digest は **15 行**(裁定待ち全件 → 本物の blocker ≤5 →
+自邸の宿題 ≤5 → 横断の宿題 ≤3 → 齢の警告)。
+
 ### 2. decision はテンプレ強制(ユーザーが判断できる形でしか裁定を仰げない)
 
 ```bash
@@ -60,7 +78,9 @@ python3 Tools/Session/edo_board.py post --estate sanno --type decision \
 
 3巡目を終えてなお指摘が出続けるなら、**4巡目に入らない**。`decision` か `blocker` を
 post して手を止める(前例: 裁定なしに検図10→14巡が無停止で回った。巡数を重ねるほど
-自作の関門に最適化していき、本質から離れる)。
+自作の関門に最適化していき、本質から離れる)。**2026-09-13 から機構で守る**: `review_gate.py --rounds`
+(門番が検分役の呼び出し前に打つ)と `--record` の拒否。reset はユーザーの発話か `--ack`。
+`/kenzu` の Workflow `sashizu-review` は 3 巡でコードが止まる。
 
 ### 4. 他邸に効く発見・変更は「起票+直接メッセージ」の両方
 

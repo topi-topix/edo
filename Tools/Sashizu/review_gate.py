@@ -30,6 +30,10 @@ CLAUDE.md のルーティング表に edo-niwashi は載っていたのに、**�
     python3 Tools/Sashizu/review_gate.py matsudaira_dewa
     python3 Tools/Sashizu/review_gate.py --record matsudaira_dewa niwashi fail "庭の主景と園路が無い"
     python3 Tools/Sashizu/review_gate.py --quiet     # 赤の要約だけ(セッション開始の挨拶用)
+    python3 Tools/Sashizu/review_gate.py --changed doi   # 前回の記録以降に変わった章(検分役へ渡す)
+    python3 Tools/Sashizu/review_gate.py --rounds doi    # 三巡則の見張り(門番が呼ぶ・exit 2 で止める)
+    python3 Tools/Sashizu/review_gate.py --ack doi "裁定1=A"   # ユーザーの発話で巡を reset
+    python3 Tools/Sashizu/review_gate.py --checks        # 邸ごとの機械検査の本数(乖離の見える化)
 
 ⛔ **関門が赤の指図を実装しない。赤のシーンをユーザーに見せない。**
 
@@ -42,12 +46,23 @@ CLAUDE.md のルーティング表に edo-niwashi は載っていたのに、**�
   ⛔ 「記録が無い」は「通していない」ではない。⛔ それでも遡って pass を書かない
      (過去の検分はいまの指図を見ていない)
 正典: CLAUDE.md 絶対規則18 / 展開は EDO-0099。
+
+【2026-09-13 追加(計画 B-1/B-2)】
+・**章の指紋** — `reviews.<役>.chapters` に top-level key ごとの指紋を残す。
+  `--changed <屋敷>` が「前回の記録以降に変わった章」を役ごとに刷る。検分役にはこれを渡し、
+  変わった章と前巡の指摘の解消だけを人の目で検めさせる(機械検査は生成器が全件走らせる)。
+・**三巡則を機械で** — `reviews.<役>.rounds` に record の履歴。ユーザーの最後の発話
+  (`.git/edo-session/<sid>.json` の last_user、門番が刻む)より後に同じ役の fail が 3 回続いたら、
+  `--rounds` が exit 2 を返し(門番が検分役の呼び出しを止める)、4 回目の `--record … fail` も拒む。
+  reset はユーザーの発話か `--ack <屋敷> "<発話の引用>"`。
+  実測(2026-09-13): 山王 8 巡・土井 6 巡・松江松平 4 巡がユーザー入力なしに連なっていた。
 """
 import json
 import os
 import sys
 import hashlib
 import collections
+import datetime
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DOC = os.path.join(REPO, "docs", "Sashizu")
@@ -234,6 +249,157 @@ def fingerprint(doc, keys, name=None, path=None, files=()):
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
 
 
+def chapter_prints(doc, keys, name=None, path=None, files=()):
+    """章(top-level key)ごとの指紋。`_` 注記と reviews は除く。生成器・文章は "py"/"md" の擬似章。"""
+    out = collections.OrderedDict()
+    src = [k for k in doc if not k.startswith("_") and k != "reviews"]
+    if keys is not None:
+        src = [k for k in keys if k in doc] or src
+    for k in src:
+        blob = json.dumps(doc[k], ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        out[k] = hashlib.sha256(blob.encode("utf-8")).hexdigest()[:12]
+    if name and path:
+        for item in _side_digest(name, path, files):
+            kind, h = item.split(":", 1)
+            out[kind] = h
+    return out
+
+
+SESS_DIR = os.path.join(REPO, ".git", "edo-session")
+
+
+def _last_user_ts():
+    """ユーザーの最後の発話(ISO)。自分のセッションの刻印を優先し、無ければ全刻印の最新。"""
+    best = ""
+    mine = None
+    try:
+        sys.path.insert(0, os.path.join(REPO, "Tools", "Session"))
+        from edo_session import sid
+        mine = sid(strict=False)
+    except Exception:
+        pass
+    if not os.path.isdir(SESS_DIR):
+        return ""
+    for fn in os.listdir(SESS_DIR):
+        if not fn.endswith(".json"):
+            continue
+        try:
+            ts = json.load(open(os.path.join(SESS_DIR, fn), encoding="utf-8")).get("last_user") or ""
+        except Exception:
+            continue
+        if mine and fn[:-5] == mine:
+            return ts
+        best = max(best, ts)
+    return best
+
+
+def _reset_ts(doc):
+    ack = (doc.get("_rounds_ack") or {}).get("at", "")
+    return max(_last_user_ts(), ack)
+
+
+def consecutive_fails(doc, key):
+    """reset 以降に同じ役の fail が何回続いているか。"""
+    since = _reset_ts(doc)
+    hist = ((doc.get("reviews") or {}).get(key) or {}).get("rounds") or []
+    n = 0
+    for h in reversed(hist):
+        if h.get("at", "") <= since:
+            break
+        if h.get("verdict") == "fail":
+            n += 1
+        else:
+            break
+    return n
+
+
+ROUND_MAX = 3
+
+
+def cmd_rounds(name):
+    """門番用。同じ役の fail が ROUND_MAX 回続いていれば exit 2。"""
+    path = _doc_path(name)
+    doc = json.load(open(path))
+    bad = []
+    for key, spec in REVIEWERS.items():
+        n = consecutive_fails(doc, key)
+        print("  %-22s ユーザー入力なしの fail %d 回" % (spec["label"], n))
+        if n >= ROUND_MAX:
+            bad.append(spec["label"])
+    if bad:
+        print("⛔ 三巡則: %s が %d 巡続けて不合格。4 巡目に入らない — `decision` か `blocker` を post して"
+              "手を止め、ユーザーの返事の後に再開する(reset は発話か `--ack`)。" % ("・".join(bad), ROUND_MAX))
+        return 2
+    return 0
+
+
+def cmd_checks():
+    """邸ごとの機械検査の本数(計画 B-7 の「刷り」)。検査は各生成器の関数として個別に生えており、
+    中央の表が無い(2026-09-13 実測: 松江松平 109 / 土井 72 / 岡部 57 / 山王 56 / 京極 1)。
+    本数の乖離をここで見える化する。横展開の禁止則(verification-loops.md)は変えない。"""
+    import re as _re
+    rows = []
+    for est in estate_names():
+        fp = os.path.join(REPO, "Tools", "Sashizu", "build_%s_sashizu.py" % est)
+        if not os.path.exists(fp):
+            continue
+        src = open(fp, encoding="utf-8", errors="replace").read()
+        n = len(_re.findall(r"^def \w+_check\(", src, _re.M))
+        rows.append((est, n, src.count("\n")))
+    print("機械検査の本数(def *_check)  邸 | 本数 | 生成器の行数")
+    for est, n, ln in sorted(rows, key=lambda r: -r[1]):
+        print("  %-18s %4d | %6d" % (est, n, ln))
+    if rows:
+        ns = [r[1] for r in rows]
+        print("  ⇒ 最多/最少 = %d 倍。検査が多い邸ほど 1 巡の指摘が増え、巡が伸びる。" % (max(ns) // max(1, min(ns))))
+    return 0
+
+
+def cmd_ack(name, quote):
+    path = _doc_path(name)
+    doc = json.load(open(path), object_pairs_hook=collections.OrderedDict)
+    doc["_rounds_ack"] = collections.OrderedDict([
+        ("at", datetime.datetime.now().astimezone().isoformat(timespec="seconds")),
+        ("quote", quote[:200])])
+    with open(path, "w") as fp:
+        fp.write(json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
+    print("ack: %s の巡カウンタを reset(引用: %s)" % (name, quote[:60]))
+    return 0
+
+
+def cmd_changed(name, as_json=False):
+    """前回の記録以降に変わった章を役ごとに刷る(検分役へ渡す)。"""
+    path = _doc_path(name)
+    doc = json.load(open(path))
+    rev = doc.get("reviews") or {}
+    out = collections.OrderedDict()
+    for key, spec in REVIEWERS.items():
+        if not spec["required"](doc):
+            continue
+        now = chapter_prints(doc, spec["keys"], name, path, spec.get("files", ()))
+        old = (rev.get(key) or {}).get("chapters")
+        if not old:
+            out[key] = dict(all=True, changed=list(now), note="章の記録が無い(初回は全章)")
+            continue
+        ch = [k for k, v in now.items() if old.get(k) != v] + [k for k in old if k not in now]
+        out[key] = dict(all=False, changed=ch, unchanged=len([k for k in now if k not in ch]))
+    if as_json:
+        print(json.dumps(out, ensure_ascii=False))
+        return 0
+    print("変わった章 — %s(前回の記録以降)" % name)
+    for key, o in out.items():
+        lab = REVIEWERS[key]["label"]
+        if o.get("all"):
+            print("  %-22s 全章(%s)" % (lab, o["note"]))
+        elif o["changed"]:
+            print("  %-22s %s ／ 変わっていない章 %d" % (lab, ", ".join(o["changed"]), o["unchanged"]))
+        else:
+            print("  %-22s 変更なし(検め直し不要)" % lab)
+    print("  ⭐ 検分役には「変わった章」と前巡の指摘(review_ledger.py)の解消だけを人の目で検めさせる。"
+          "機械検査(*_check)は生成器が全件走らせる。")
+    return 0
+
+
 def estates():
     """互換のための薄い殻。実体は estate_names()(worktree も見る)。"""
     return estate_names()
@@ -293,7 +459,6 @@ def record(name, key, verdict, note):
     path = _doc_path(name)
     with open(path) as fp:
         doc = json.load(fp, object_pairs_hook=collections.OrderedDict)
-    import datetime
     doc.setdefault("_reviews", (
         "**検図関門。**この指図を誰が検めたか。⛔ 呼んだ側(普請奉行)が結果を書き戻す — "
         "検分役は read-only で自分では書けない。`hash` はその検分が見た範囲の指紋で、"
@@ -301,12 +466,24 @@ def record(name, key, verdict, note):
         "見張りは `python3 Tools/Sashizu/review_gate.py`。"
         "⛔ 関門が赤の指図を実装しない・赤のシーンをユーザーに見せない。"))
     rv = doc.setdefault("reviews", collections.OrderedDict())
+    prev = rv.get(key) or {}
+    hist = list(prev.get("rounds") or [])
+    if verdict == "fail" and consecutive_fails(doc, key) >= ROUND_MAX:
+        sys.exit("⛔ 三巡則: %s はユーザー入力なしに fail が %d 回続いている。4 巡目の記録は受けない。\n"
+                 "   `decision` か `blocker` を post して手を止め、ユーザーの返事の後に再開する"
+                 "(reset は発話か `--ack %s \"<発話の引用>\"`)。" % (REVIEWERS[key]["label"], ROUND_MAX, name))
+    hist.append(collections.OrderedDict([
+        ("at", datetime.datetime.now().astimezone().isoformat(timespec="seconds")),
+        ("verdict", verdict)]))
     rv[key] = collections.OrderedDict([
         ("at", datetime.date.today().isoformat()),
         ("verdict", verdict),
         ("hash", fingerprint(doc, REVIEWERS[key]["keys"], name, path,
                              REVIEWERS[key].get("files", ()))),
-        ("note", note or ""),
+        ("note", (note or "")[:1500]),
+        ("chapters", chapter_prints(doc, REVIEWERS[key]["keys"], name, path,
+                                    REVIEWERS[key].get("files", ()))),
+        ("rounds", hist[-12:]),
     ])
     with open(path, "w") as fp:
         fp.write(json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
@@ -315,6 +492,9 @@ def record(name, key, verdict, note):
     where = "worktree" if ".claude/worktrees/" in path else "main"
     print("記録: %s / %s = %s  → %s (%s)"
           % (name, REVIEWERS[key]["label"], verdict, os.path.relpath(path, REPO), where))
+    n = consecutive_fails(doc, key)
+    if verdict == "fail" and n >= 2:
+        print("  ⚠ 三巡則: この役はユーザー入力なしに fail %d 回目。%d 回で止まる。" % (n, ROUND_MAX))
     if where == "worktree":
         print("  ⚠ worktree の指図に書いた。**main へマージするまで main 側には映らない** — "
               "関門は新しい方を見るので赤は消えるが、マージを忘れないこと。")
@@ -327,6 +507,20 @@ def main():
             sys.exit("使い方: --record <屋敷> <検分役> <pass|fail|advisory> [一言]")
         record(argv[1], argv[2], argv[3], " ".join(argv[4:]))
         return
+    if argv and argv[0] == "--changed":
+        if len(argv) < 2:
+            sys.exit("使い方: --changed <屋敷> [--json]")
+        return sys.exit(cmd_changed(argv[1], "--json" in argv))
+    if argv and argv[0] == "--rounds":
+        if len(argv) < 2:
+            sys.exit("使い方: --rounds <屋敷>")
+        return sys.exit(cmd_rounds(argv[1]))
+    if argv and argv[0] == "--checks":
+        return sys.exit(cmd_checks())
+    if argv and argv[0] == "--ack":
+        if len(argv) < 3:
+            sys.exit("使い方: --ack <屋敷> \"<ユーザーの発話の引用>\"")
+        return sys.exit(cmd_ack(argv[1], " ".join(argv[2:])))
     quiet = "--quiet" in argv
     names = [a for a in argv if not a.startswith("--")] or estates()
     total = 0

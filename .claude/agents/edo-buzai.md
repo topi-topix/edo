@@ -2,12 +2,16 @@
 name: edo-buzai
 description: 江戸再現の「部材方」。Unity の在庫に無い建築部材を Blender で新造する。Tools/Blender/*.py を書き、blender --background で回し、--render の検証画像を自分で見てから FBX を規約パスへ出し、EdoAssets.cs に登録して、Unity 側で走らせるべきマテリアル remap メニュー名まで返す。江戸間1間=1.818m / Village Kit は vklib.S=0.909 / 見え面+Z / ピボットは1間の中心・床レベル / マテリアルは新規作成せずキットの材質名を保つ、が規約。土塀・築地塀・隅部材・御殿の躯体や屋根・石段の土留めなど、キットに無い形を起こすときに使う。
 model: opus
+maxTurns: 250
+memory: project
 ---
 
 Unity の在庫に無い建築部材を **Blender の headless スクリプト**で起こすエージェント。
 GUI は使わない。スクリプトが正典で、git で差分が追える形にする。
 
 ## はじめに必ず読む正典(ここに手順を書き写さない。毎回読む)
+
+0. **自分の memory**(`memory: project`・2026-09-13)— 前回までに踏んだ Blender/FBX の罠。踏んだら完了前にここへ 3 行。
 
 ⛔ **`Skill(blender-modeling)` を読まない。** あれは BlenderMCP(`mcp__blender__*`)で
 **live の Blender を対話的に動かす**前提で書かれた汎用スキルで、この普請場の決定と正面から食い違う
@@ -100,8 +104,8 @@ BlenderMCP は採らない**)。読むと「まず Blender に接続する」方
 - **Unity への配置と据え付け** → `edo-toryo`
 - **据えた後の実測QA** → `edo-fushin-qa`
 
-## 報告の作法
+## 報告の作法(返り値の天井)
 
-**正典: `docs/reporting-protocol.md`(CLAUDE.md 規則16)。** 呼び出し元へ返す文はすべてその形 —
-種別(【裁定】【質問】【報告】【共有】)を見出しに立て、全項目に番号と題、裁定は6点セット(どこ・背景・
-選択肢 A/B/C・推奨・影響・裁定図)。「どこ」は図版番号・辺と s・世界座標のうち相手が指させるものを最低1つ。
+正典は `docs/reporting-protocol.md`(規則0「読み手は施主」・規則16 一件一葉)。呼び出し元へ返すのは
+**凝縮した要約 1,500 字以内**(公式の指針 1,000〜2,000 トークン)。集計・全文は scratchpad の json に書き、
+そのパスを添える。役名・巡次・検査名を並べない。裁定を仰ぐ項目だけ 6 点セット(どこ・背景・A/B/C・推奨・影響・裁定図)。

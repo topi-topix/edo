@@ -10696,6 +10696,42 @@ def wall_outward(d, g, w, a, b, k=None):
     return nx, nz
 
 
+def wall_top_ground(d, g, w, k, px, pz, nx, nz):
+    """土留めの一点の **(天端, 低い側の地盤, 高い側の地盤, 犬走り)**。⛔ 天端をここ以外で決めない。
+
+    ⭐ 天端の座 ── `coping` が数ならその値、`"stair"` なら石段の割付 `stair_spans`。
+    ⭐ **`copingRise: "groundHi"`**【裁定 EDO-0182 (a) 普請奉行 2026-09-13】── 天端 =
+      **max(座, 高い側の地盤)**。浅い所は座に従い、地盤が座より上の所は**自然地盤まで**立ち上がる。
+      ・天端の出 = 0(⛔ 自然地盤より上へは上げない ── スキル §3b『露出 0〜駒の丈』の下端)
+      ・外側の地盤 = 両側の高い側(⛔ 外向きの一点で採らない ── 裁定 2026-09-09 の物差しと揃える)
+    ⛔ 地形を壁に合わせて削らない(天端が自然地盤より下 ── スキル terrain-grading)。
+    """
+    base = (stair_y_at(k, stair_sfrac(d, g, k, px, pz))
+            if k is not None else float(w.get("coping")))
+    glo, ghi, ben = wall_ground(d, g, px, pz, nx, nz)
+    top = max(base, ghi) if w.get("copingRise") == "groundHi" else base
+    return top, glo, ghi, ben
+
+
+def wall_top_at(d, g, w, px, pz):
+    """世界の一点に**最も近い走り**での天端(断面の銘が使う)。⛔ 断面が自前で天端を解かない。"""
+    P = [g.W(*q) for q in wall_nodes(d, w)]
+    k = wall_stair(d, w)
+    best = None
+    for i in range(len(P) - 1):
+        ax, az = P[i]; bx, bz = P[i + 1]
+        dx, dz = bx - ax, bz - az
+        LL = dx * dx + dz * dz
+        if LL < 1e-12: continue
+        t = max(0.0, min(1.0, ((px - ax) * dx + (pz - az) * dz) / LL))
+        qx, qz = ax + dx * t, az + dz * t
+        dd = math.hypot(px - qx, pz - qz)
+        if best is None or dd < best[0]: best = (dd, qx, qz, P[i], P[i + 1])
+    _dd, qx, qz, a, b = best
+    nx, nz = wall_outward(d, g, w, a, b, k)
+    return wall_top_ground(d, g, w, k, qx, qz, nx, nz)[0]
+
+
 def wall_samples(d, g, w, step=1.0):
     """土留めの走りを `step`[m] 刻みに歩く。
 
@@ -10714,7 +10750,6 @@ def wall_samples(d, g, w, step=1.0):
     P = [g.W(*q) for q in wall_nodes(d, w)]
     segU = run_segs(w)                                   # uv・開口を抜いた区間
     k = wall_stair(d, w)
-    cop = w.get("coping")
     out, acc = [], 0.0
     for i in range(len(P) - 1):
         ax, az = P[i]; bx, bz = P[i + 1]
@@ -10726,9 +10761,7 @@ def wall_samples(d, g, w, step=1.0):
             if i and j == 0: continue                    # 節点の重複を落とす
             t = min(L, j * L / n)
             px, pz = ax + (bx - ax) * t / L, az + (bz - az) * t / L
-            top = (stair_y_at(k, stair_sfrac(d, g, k, px, pz))
-                   if k is not None else float(cop))
-            glo, ghi, ben = wall_ground(d, g, px, pz, nx, nz)
+            top, glo, ghi, ben = wall_top_ground(d, g, w, k, px, pz, nx, nz)
             u9, v9 = g.U(px), g.V(pz)
             st = any(_pt_seg((u9, v9), q[0], q[1]) < 1e-3 for q in segU) if segU else False
             out.append((acc + t, top, glo, ghi, top - glo, ghi - top, ben, st))
@@ -10880,6 +10913,17 @@ def kidan_svg(d, kan="其十"):
         acc += L
     o.append(LN(X(tot), TOP - 6, X(tot), Y(y0), stroke="var(--shu)", sw=0.8, dash="4 4", op=0.7))
 
+    # ⭐ 段の境(`tiers` ── 裁定 EDO-0182 (a) ③ 訂正)── i 段目の天端 = 天端 − (i−1)×駒の丈。⛔ 数を持たない
+    _HP = d["const"].get("stoneWallPieceHM")
+    for nm9 in order:
+        _nt = ws[nm9].get("tiers", 1)
+        if not isinstance(_HP, (int, float)) or not isinstance(_nt, int) or _nt < 2: continue
+        _cc = [r[0] for r in rows if r[3] == nm9]
+        for i9 in range(1, _nt):
+            _yb = cop - i9 * _HP
+            o.append(LN(X(min(_cc)), Y(_yb), X(max(_cc)), Y(_yb), stroke="var(--shu)", sw=1.0, dash="6 3"))
+            o.append(T(X(max(_cc)) - 4, Y(_yb) - 4, "%s %d 段目の天端(天端 − %d×駒の丈)" % (LAB[nm9], i9 + 1, i9),
+                       fs=10, anchor="end", fill="var(--shu)"))
     # 露出の最大と、面ごとの範囲
     mx = max(rows, key=lambda r: cop - r[1])
     o.append(LN(X(mx[0]), Y(cop), X(mx[0]), Y(mx[1]), stroke="var(--shu)", sw=1.6))
@@ -11230,8 +11274,10 @@ def kaidan_table(d):
 
 def _coping_txt(w):
     c = w.get("coping")
-    if isinstance(c, (int, float)): return "%.1f m" % c
-    return {"stair": "坂なり(石段に従う)"}.get(c, str(c))
+    rise = ("・地盤が上なら地盤まで立ち上げ" if w.get("copingRise") == "groundHi" else "") + \
+        ("・%d 段築" % w["tiers"] if isinstance(w.get("tiers"), int) and w["tiers"] > 1 else "")
+    if isinstance(c, (int, float)): return "%.1f m%s" % (c, rise)
+    return {"stair": "坂なり(石段に従う)"}.get(c, str(c)) + rise
 
 
 def walls_table(d):
@@ -13943,18 +13989,23 @@ def impl_runs(d, g):
                     "profileStep": IMPL_WALL_STEP,
                     "profile": wall_profile(d, g, o, IMPL_WALL_STEP),
                     "gapsS": wall_gaps_s(sm, IMPL_WALL_STEP),
+                    "tiers": int(o.get("tiers", 1)),
+                    "pieceHM": d["const"].get("stoneWallPieceHM"),
+                    "tierSpans": wall_tier_spans(d, g, o),
                     "faceM": [round(min(fh), 3), round(max(fh), 3)],
                     "backM": [round(min(bh), 3), round(max(bh), 3)],
                     "_": "`profile` = **[走り s[m], 天端 y[m], 低い側の地盤 y[m], "
                          "高い側の地盤 y[m], 見付高[m], 受け高[m]]** を `profileStep` 刻みで。"
                          "s は `nodes[0]` からの走り。⛔ 実装が引き直さない ── 天端は `coping` "
                          "が数ならその値、`\"stair\"` なら `copingFrom` が指す石段の割付"
-                         "(`stair_spans`)から引いてある。**地盤は造成後 `design_y` 一本を基準に"
+                         "(`stair_spans`)から引いてある。⭐ 図の `copingRise:\"groundHi\"` の壁は "
+                         "天端 = max(その座, 高い側の地盤)(裁定 EDO-0182 (a))。**地盤は造成後 `design_y` 一本を基準に"
                          "壁の両側で採る**(`const.wallProbeM`)。見付高 = 天端 − 低い側 ／ "
                          "受け高 = 高い側 − 天端【裁定 2026-09-09 普請奉行 = 検図21巡目 A案】。"
                          "⛔ **見付≦0 かつ 受け>0 の区間は『埋まっている壁』**で、⛔ 実装が"
                          "地形を削って直さない(始末は指図が持つ)。`gapsS` は**建たない区間**(開口)の "
-                         "s の範囲で、`segs` と同じ出所"})
+                         "s の範囲で、`segs` と同じ出所。`tiers` は段数(i 段目の駒の天端 = 天端 − (i−1)×`pieceHM`)、"
+                         "`tierSpans[i−2]` は i 段目(2 段目以下)が地上に見える走りの範囲(裁定 EDO-0182 (a) ③)"})
     return out
 
 
@@ -14517,6 +14568,15 @@ def impl_wall_profile_check(d, g):
         if (q.get("gapsS") or []) != gw:
             bad.append("土留め『%s』の開口の走り `gapsS` が焼き %s / 図 %s で食い違う"
                        "(⛔ 実装に開口を切り直させない)" % (w["name"], q.get("gapsS"), gw))
+        # ⑤b 段の割り(裁定 EDO-0182 (a) ③ 訂正)── 段数・駒の丈・下段が見える走り
+        if (q.get("tiers") != int(w.get("tiers", 1))
+                or q.get("pieceHM") != d["const"].get("stoneWallPieceHM")
+                or q.get("tierSpans") != wall_tier_spans(d, g, w)):
+            bad.append("土留め『%s』の段の割り(`tiers` / `pieceHM` / `tierSpans`)が焼き %s / %s / %s ／ 図 %s / %s / %s"
+                       " で食い違う(⛔ 実装に段を割り直させない)"
+                       % (w["name"], q.get("tiers"), q.get("pieceHM"), q.get("tierSpans"),
+                          int(w.get("tiers", 1)), d["const"].get("stoneWallPieceHM"),
+                          wall_tier_spans(d, g, w)))
         k9 = wall_stair(d, w)
         tops = [r[1] for r in pr]
         if w.get("coping") == "stair":
@@ -14531,20 +14591,26 @@ def impl_wall_profile_check(d, g):
             sp9, _t9 = stair_spans(k9)
             lv = set([round(k9["yBot"], 6), round(k9["yTop"], 6)]
                      + [round(y9, 6) for _a, _b, y9 in (sp9 or [])])
-            off = [t9 for t9 in tops if round(t9, 6) not in lv]
+            # ⭐ `copingRise:"groundHi"` の点は**高い側の地盤そのもの**も天端の出所(裁定 EDO-0182 (a))
+            rise9 = w.get("copingRise") == "groundHi"
+            isg = lambda r: rise9 and abs(float(r[1]) - float(r[3])) <= 1e-6
+            off = [r[1] for r in pr if round(r[1], 6) not in lv and not isg(r)]
             if off:
                 bad.append("土留め『%s』の天端 %d 点が石段『%s』の割付(`stair_spans`)に無い値"
                            "(例 %.3f)— ⛔ 段割りの正典を二つ作らない(2026-08-24 検図 高-4 で"
                            "男坂が 1.34 m 食い違った型)" % (w["name"], len(off), k9["name"], off[0]))
             lo9, hi9 = min(k9["yBot"], k9["yTop"]), max(k9["yBot"], k9["yTop"])
-            oob = [t9 for t9 in tops if t9 < lo9 - 1e-6 or t9 > hi9 + 1e-6]
+            oob = [r[1] for r in pr if r[1] < lo9 - 1e-6 or (r[1] > hi9 + 1e-6 and not isg(r))]
             if oob:
                 bad.append("土留め『%s』の天端 %d 点が石段『%s』の [%.2f, %.2f] の外(例 %.3f)"
                            % (w["name"], len(oob), k9["name"], lo9, hi9, oob[0]))
         else:
             # ⑥ 数の天端
             cp9 = float(w.get("coping"))
-            off = [t9 for t9 in tops if abs(t9 - cp9) > 1e-6]
+            rise9 = w.get("copingRise") == "groundHi"
+            off = [r[1] for r in pr
+                   if abs(r[1] - cp9) > 1e-6
+                   and not (rise9 and r[1] > cp9 and abs(float(r[1]) - float(r[3])) <= 1e-6)]
             if off:
                 bad.append("土留め『%s』の天端 %d 点が宣言 `coping` %.3f と違う(例 %.3f)"
                            % (w["name"], len(off), cp9, off[0]))
@@ -14613,9 +14679,8 @@ def impl_wall_profile_check(d, g):
                     + " ／ **合計 %.1f m**【算出 — B-4 検図22巡目 → 2026-09-09。"
                       "⛔⛔ **このまま棟梁へ渡すと土に埋まった壁がこの延長ぶん建つ。**"
                       "⛔ 実装の着手前に決着が要る(`_pending`「埋まっている土留めの始末」)── "
-                      "裁定 EDO-0182 ── (a) 天端 = max(石段の割付, 外側の地盤 + 天端の出)、"
-                      "(b) 段差の無い区間は落とす。⚠ **天端の出が未決のため (a) は未適用**。"
-                      "⛔ 地形を壁に合わせて削らない】" % sum(q[4] for q in buried))
+                      "裁定 EDO-0182 ── (a) `copingRise:\"groundHi\"` の壁は天端 = max(座, 高い側の地盤)、"
+                      "(b) 段差の無い区間は落とす。⛔ 地形を壁に合わせて削らない】" % sum(q[4] for q in buried))
     else:
         note.append("埋まっている区間(見付高 ≦ 0 かつ 受け高 > 0)── **0 本・0.0 m**"
                     "【算出 — ⛔ 0 件は合格ではなく未測定なので、**測った物差し**を刷る】")
@@ -14668,6 +14733,108 @@ def wall_step_check(d, g):
     note.append("埋まっている区間の段差の名簿 ── **片側 %.1f m ／ 両側 %.1f m**"
                 "【算出 — 裁定 EDO-0182 (b)。⛔ 両側の区間だけが『壁が要らない』】"
                 % (tot["片側"], tot["両側"]))
+    return bad, note
+
+
+def wall_tier_spans(d, g, w):
+    """段 i(上から 0 段目・i ≥ 1)が**地上に見える走りの範囲** `[[s0, s1], ...]` を段ごとに並べる。
+
+    ⭐ 段 i の駒の天端 = 天端 − i × 駒の丈(`const.stoneWallPieceHM`)── スキル §3b の閉形式
+      (駒は伸縮させず、高さは埋まりで吸う)をそのまま段に重ねた従属値。⛔ 段の境を数で持たない。
+    ⭐ 段 i が見えるのは **見付高 > i × 駒の丈** の点(建つ区間だけ)。⛔ 実装が引き直さない。
+    """
+    H = d["const"].get("stoneWallPieceHM")
+    nt = w.get("tiers", 1)
+    if not isinstance(H, (int, float)) or H <= 0 or not isinstance(nt, int) or nt < 2:
+        return []
+    sm = wall_samples(d, g, w, IMPL_WALL_STEP)
+    out = []
+    for i9 in range(1, nt):
+        sp, prev = [], None
+        for q9 in sm:
+            if q9[-1] and round(q9[4], 3) > i9 * H + 1e-6:
+                if sp and prev is not None and q9[0] - prev <= IMPL_WALL_STEP * 1.001 + 1e-6:
+                    sp[-1][1] = round(q9[0], 3)
+                else:
+                    sp.append([round(q9[0], 3), round(q9[0], 3)])
+                prev = q9[0]
+            else:
+                prev = None
+        out.append(sp)
+    return out
+
+
+def wall_tier_check(d, g):
+    """**土留めの段の割り** ── 見付高が駒の丈を超える run は段に割って宣言する
+    【裁定 EDO-0182 (a) ③ 訂正 普請奉行 2026-09-13 ／ 回廊の基壇はユーザー裁定 2026-08-26 a】。
+
+    ⭐ スキル `unity-modular-stonewall` §3b『露出(座 − 地盤)が駒の丈を超える区間は **run を割る**』──
+      超えるのは欠陥ではなく**段に割る合図**。段数は閉形式 **ceil(見付高の最大 ÷ 駒の丈)**
+      (土井邸の `tiers` と同じ形)、段の境は **天端 − i × 駒の丈**。⛔ 新しい設計値を持たない。
+    ⛔ 止める:
+      ① `const.stoneWallPieceHM` が無い(⛔ 0 件は合格ではなく未測定)
+      ② `copingRise` が `"groundHi"` 以外
+      ③ 見付高が駒の丈を超えるのに `tiers` の宣言が無い
+      ④ `tiers` が 1 以上の整数でない
+      ⑤ 宣言が閉形式より少ない ── **最下段の露出が駒の丈を超える**
+      ⑥ 宣言が閉形式より多い ── 最下段が全長で地中(要らない段)
+    ⛔ 見付を下げる方向(地形を削る・天端を下げる)で解かない。
+    〔記録〕段に割った壁の段数・段の境・段ごとの露出の最大・下段が見える走り、立ち上げた壁の見付の最大。
+    """
+    bad, note = [], []
+    H = d["const"].get("stoneWallPieceHM")
+    if not isinstance(H, (int, float)) or H <= 0:
+        return (["`const.stoneWallPieceHM`(石垣の駒の丈)が無い ── ⛔ 段の割りが測れない"
+                 "(0 件は合格ではなく未測定)"], [])
+    n_split, n_over = 0, 0
+    for w in d["terraceWalls"]:
+        cr = w.get("copingRise")
+        if cr is not None and cr != "groundHi":
+            bad.append("土留め『%s』の `copingRise` が %r ── 解ける値は `\"groundHi\"` だけ" % (w["name"], cr))
+        sm = wall_samples(d, g, w, IMPL_WALL_STEP)
+        fb = [q for q in sm if q[-1]]
+        if not fb: continue
+        fmax = max(round(q[4], 3) for q in fb)
+        need = max(1, int(math.ceil(fmax / H - 1e-9)))
+        if need > 1: n_over += 1
+        decl = w.get("tiers")
+        if decl is None:
+            nt = 1
+            if need > 1:
+                bad.append("土留め『%s』の見付高が駒の丈 %.2f m を超える(最大 %.2f m)のに段の割り `tiers` の"
+                           "宣言が無い ── ⛔ 一段の駒では受けられない(スキル §3b『露出が駒の丈を超える区間は"
+                           " run を割る』・閉形式 %d 段)" % (w["name"], H, fmax, need))
+        elif isinstance(decl, bool) or not isinstance(decl, int) or decl < 1:
+            bad.append("土留め『%s』の `tiers` が %r ── 1 以上の整数で宣言する" % (w["name"], decl))
+            continue
+        else:
+            nt = decl
+            if nt < need:
+                bad.append("土留め『%s』の最下段(%d 段目)の露出が駒の丈を超える(最大 %.2f m > %.2f m)"
+                           "── 宣言 `tiers` %d ／ 閉形式 ceil(%.2f ÷ %.2f) = %d"
+                           % (w["name"], nt, fmax - (nt - 1) * H, H, nt, fmax, H, need))
+            elif nt > need:
+                bad.append("土留め『%s』の `tiers` %d は閉形式 ceil(見付高の最大 %.2f ÷ 駒の丈 %.2f) = %d より多い"
+                           " ── ⛔ 最下段が全長で地中に埋まる(要らない段)" % (w["name"], nt, fmax, H, need))
+        if nt > 1:
+            n_split += 1
+            cop = w.get("coping")
+            if isinstance(cop, (int, float)) and not cr:
+                bnd = " ／ ".join("%d 段目の天端 %.2f m" % (i9 + 1, cop - i9 * H) for i9 in range(nt))
+            else:
+                bnd = "i 段目の天端 = 天端 − (i−1) × 駒の丈(天端なりに上下)"
+            exp = " ／ ".join("%d 段目 %.2f m" % (i9 + 1, max(min(max(round(q[4], 3) - i9 * H, 0.0), H) for q in fb))
+                              for i9 in range(nt))
+            note.append("土留め『%s』── **%d 段築**(閉形式 %d)／ 見付高の最大 %.2f m(駒の丈 %.2f m)／ %s ／ "
+                        "段ごとの露出の最大 %s ／ 下段が見える走り %s【算出 — スキル §3b の閉形式・"
+                        "⛔ 段の境を数で持たない】"
+                        % (w["name"], nt, need, fmax, H, bnd, exp, wall_tier_spans(d, g, w)))
+        elif cr:
+            note.append("土留め『%s』── 1 段 ／ 見付高の最大 **%.2f m**(駒の丈 %.2f m)／ 天端が高い側の地盤に"
+                        "乗る点 %d/%d【算出 — 裁定 EDO-0182 (a)】"
+                        % (w["name"], fmax, H, len([1 for q in sm if abs(q[1] - q[3]) <= 1e-9]), len(sm)))
+    note.append("見付高が駒の丈を超える壁 **%d** 本 ／ 段に割った壁 **%d** 本(土留め %d 本を測った)"
+                "【算出 — ⛔ 0 件は合格ではない】" % (n_over, n_split, len(d["terraceWalls"])))
     return bad, note
 
 
@@ -15521,11 +15688,30 @@ def probe_roster(d, g):
 
     def m16(e):
         for w in e["terraceWalls"]:
-            if w["name"] == "TW_Zentei_SE": w["coping"] = w["coping"] - 1.0
+            if w["name"] == "TW_Zentei_SE":
+                w["coping"] = w["coping"] - 1.0; w.pop("copingRise", None)
     e16, mv16 = _probe(d, m16)
     out.append(("埋まっている区間に段差が在るか",
-                "`TW_Zentei_SE` の天端を前庭の面より下げる(両側とも地盤が上になる)",
+                "`TW_Zentei_SE` の立ち上げを外し、天端を前庭の面より下げる(両側とも地盤が上になる)",
                 run(wall_step_check, e16), 1, mv16))
+
+    # ---- ⑩ 段の割り(裁定 EDO-0182 (a) ③ 訂正)
+    n17 = run(wall_tier_check, d)
+    out.append(("土留めの段の割り", "基準(壊さない)", n17, 0, None))
+
+    def m17(e):
+        for w in e["terraceWalls"]:
+            if w["name"] == "TW_Kairo_E": w.pop("tiers", None)
+    e17, mv17 = _probe(d, m17)
+    out.append(("土留めの段の割り", "`TW_Kairo_E` の段の割りの宣言 `tiers` を消す",
+                run(wall_tier_check, e17), 1, mv17))
+
+    def m18(e):
+        for w in e["terraceWalls"]:
+            if w["name"] == "TW_Kairo_E": w["tiers"] = w["tiers"] - 1
+    e18, mv18 = _probe(d, m18)
+    out.append(("土留めの段の割り", "`TW_Kairo_E` の段を一つ減らす(最下段の露出が駒の丈を超える)",
+                run(wall_tier_check, e18), 1, mv18))
 
     bad = _probe_verdict([(nm, got, want, mv) for _ck, nm, got, want, mv in out])
     _PROBE_ROSTER[0], _PROBE_ROSTER[1] = key, (out, bad)
@@ -15678,6 +15864,7 @@ def run_checks():
     ipc = _gated(impl_planting_check)  # 撒いた木の面と離れ(2026-09-08)
     iwp = _gated(impl_wall_profile_check)  # 土留めの縦断(中4 20巡目)
     wsc = wall_step_check(d, g)            # 埋まっている区間の段差(裁定 EDO-0182 (b))
+    wtc = wall_tier_check(d, g)            # 段の割り(裁定 EDO-0182 (a) ③ 訂正)
     kwc = _gated(keepout_wiring_check)     # 退避の表の結線(中2 20巡目)
     cph = _gated(crown_per_h_check)  # 樹冠÷丈(低9/低10 庭方17巡目)
     ccv = _gated(crown_cover_check)  # 芯線の樹冠被覆(高1/高2 庭方17巡目)
@@ -15749,6 +15936,8 @@ def run_checks():
                  "(名簿・節点と区間の座標・6列の縦断・開口)", iwp[0], iwp[1]))
     rows.append(("埋まっている区間に段差が在るか(両側 = 壁が要らない ／ 片側 = 天端の扱い)",
                  wsc[0], wsc[1]))
+    rows.append(("土留めの段の割り(見付高が駒の丈を超える run は `tiers` を宣言・段ごとの露出 0〜駒の丈)",
+                 wtc[0], wtc[1]))
     rows.append(("退避の表 `keepoutFrom` の一項ごとに、指し先が生きて・面になり・"
                  "焼き出しの点が守っているか", kwc[0], kwc[1]))
     rows.append(("道・坂の芯線が樹冠の下を通るか(`planting.crownCover` の受入値・"
@@ -16115,9 +16304,13 @@ def main():
         elif key == "OTOKO_X":
             ohw = kaidan_wken(d, st) / 2.0           # 男坂の実幅[間]
             over = [(g.W(0, -ohw)[1], g.W(0, ohw)[1], y_ox)]
+            # ⭐ 側壁の天端は `wall_top_at`(裁定 EDO-0182 (a) の立ち上げを含む)── ⛔ 断面が自前で解かない
+            _xo = g.W(uo, 0)[0]
+            _ow = [w for w in d["terraceWalls"] if w["name"] in ("TW_Otoko_N", "TW_Otoko_S")]
             for v in (-ohw, ohw):
                 z = g.W(0, v)[1]
-                marks.append((z - 0.4, z + 0.4, y_ox, "側壁", "塀"))
+                _w9 = min(_ow, key=lambda w: min(abs(g.W(*q)[1] - z) for q in wall_nodes(d, w)))
+                marks.append((z - 0.4, z + 0.4, wall_top_at(d, g, _w9, _xo, z), "側壁", "塀"))
         elif key == "EW905":
             # ⭐ **窓の東端が何を写しているかを図の上で名指しする**【中2 庭方13巡目 → 2026-09-08】
             #    ── 旧図の SVG の文字は『柵・各層の銘・凡例』だけで、参道が銘を持たなかった

@@ -8508,6 +8508,171 @@ def gate_axis_check(d, g):
     return bad, note
 
 
+def gate_part_col_check(d, g):
+    """**門の平面と部材の柱芯**【K001 2026-09-13】── `gates[].plan`(梁間 du × 桁行 dv 間)の柱芯と、
+    据える部材 `bom[].axis.colPassM` / `colWidthM`(ピボットから柱芯まで[m]・部材方の実測)が一致するか(⛔)。
+    ⛔ 図の平面と部材の柱芯が食い違うと、面で決めた取り合い(袖塀・犬走り・動線の折れ点)が部材の上で破れる。
+    """
+    bad, note = [], []
+    ken = d["const"]["ken"]
+    TOL = 0.005
+    use = {}
+    for gt in d["gates"]:
+        b = gate_bom_row(d, gt)
+        ax = (b or {}).get("axis") or {}
+        if ax.get("colPassM") is None and ax.get("colWidthM") is None: continue
+        use.setdefault(b["部材"], []).append(gt["name"])
+        for key, pk, what in (("colPassM", "du", "梁間(通り抜けの奥行)"), ("colWidthM", "dv", "桁行(門の幅)")):
+            if ax.get(key) is None:
+                bad.append("部材『%s』の柱芯 `axis.%s` の宣言が無い — 門『%s』の%sを突き合わせられない"
+                           % (b["部材"], key, gt["name"], what)); continue
+            want = gt["plan"][pk] * ken / 2.0
+            if abs(float(ax[key]) - want) > TOL:
+                bad.append("門『%s』の%s ── 図 `plan.%s` %g 間 ⇒ 柱芯 ±%.3f m ／ 部材 `bom[%s].axis.%s` ±%.3f m"
+                           "(差 %+.3f m)── 部材の柱芯が図の平面と合わない"
+                           % (gt["name"], what, pk, gt["plan"][pk], want, b["部材"], key, float(ax[key]),
+                              float(ax[key]) - want))
+            else:
+                note.append("門『%s』の%s ── 図 %g 間 = 柱芯 ±%.3f m ／ 部材 ±%.3f m(差 %+.4f m ≤ %.3f)【算出】"
+                            % (gt["name"], what, gt["plan"][pk], want, float(ax[key]), float(ax[key]) - want, TOL))
+    for nm, gs in use.items():
+        note.append("部材『%s』── **兼用 %d 基**(%s)【宣言】" % (nm, len(gs), "・".join(gs)))
+    if not use:
+        bad.append("柱芯を宣言した門の部材が一つも無い — 図の平面と部材の柱芯を突き合わせられない")
+    return bad, note
+
+
+def _clip_box(A, B, box):
+    """線分 A-B(門の軸の座標)が箱 (x0,x1,y0,y1) の内側にある媒介変数の区間 (t0,t1)。無ければ None。"""
+    x0, x1, y0, y1 = box
+    dx, dy = B[0] - A[0], B[1] - A[1]
+    t0, t1 = 0.0, 1.0
+    for pk, qk in ((-dx, A[0] - x0), (dx, x1 - A[0]), (-dy, A[1] - y0), (dy, y1 - A[1])):
+        if abs(pk) < 1e-12:
+            if qk < 0: return None
+            continue
+        r = qk / pk
+        if pk < 0: t0 = max(t0, r)
+        else: t1 = min(t1, r)
+        if t0 > t1 - 1e-12: return None
+    return (t0, t1)
+
+
+def gate_part_outline_check(d, g):
+    """**門の部材の外形が石段・囲いへ食い込まないか**【K001 2026-09-13】── ⛔ 図の平面ではなく**部材の外形**
+    (`bom[].outlineM` の丈の帯・軒を含む)で測る。
+
+    検図の指摘『重なりの検査は図の平面しか見ていない』への対処。帯ごとに平面の箱(門の軸へ回す)と丈を持ち、
+    ① **石段**(直線の区間) ── 箱と石段の帯が平面で重なり、帯の下端が重なる区間の踏面の高さより下なら⛔。
+    ② **囲い**(`runs`)── 線が箱の内を通り(口 `gapFrom` を除く)、帯の下端が座 `seat` より下なら⛔。
+       帯が座より上なら、囲いの丈が図に無いので**未測定**と刷る(⛔ 合格ではない)。
+    ③ **土留め**(`terraceWalls`)── 線が箱の内を通り(口を除く)、帯の下端がその点の天端より下なら⛔。
+    ⛔ 食い込みは部材でも図でも**黙って許さない**(名簿を置かない)── 直し方は門の大きさ・取り合いの意匠。
+    """
+    bad, note = [], []
+    ken = d["const"]["ken"]
+    EPS = 1e-6
+    nm0 = 0
+    for gt in d["gates"]:
+        b = gate_bom_row(d, gt)
+        if gt.get("u") is None or b is None: continue
+        ol = b.get("outlineM")
+        if not ol:
+            note.append("⚠ 門『%s』── 部材『%s』に外形 `outlineM` が無い ⇒ 食い込みは**未測定**(⛔ 合格ではない)"
+                        % (gt["name"], b["部材"])); continue
+        ax = b.get("axis") or {}
+        if gate_pass_az(gt) is None or ax.get("pass") != "X" or ax.get("front") not in ("+X", "-X") \
+                or gt.get("front") not in _FACE_VEC:
+            note.append("⚠ 門『%s』── 正面(`front`)か部材の軸(`axis`)が解けない ⇒ 外形を据えられず**未測定**"
+                        % gt["name"]); continue
+        nm0 += 1
+        p, n = gate_axes_uv(gt)
+        f = _FACE_VEC[gt["front"]]
+        sg = (1.0 if f[0] * p[0] + f[1] * p[1] > 0 else -1.0) * (1.0 if ax["front"] == "+X" else -1.0)
+        hit = 0
+        for bd in ol:
+            x0, x1 = sorted((sg * bd["passM"][0] / ken, sg * bd["passM"][1] / ken))
+            hw = max(abs(bd["widthM"][0]), abs(bd["widthM"][1])) / ken
+            box = (x0, x1, -hw, hw)
+            ylo = gt["sill"] + bd["hM"][0]
+            C = [(gt["u"] + x * p[0] + y * n[0], gt["v"] + x * p[1] + y * n[1])
+                 for x, y in ((x0, -hw), (x1, -hw), (x1, hw), (x0, hw))]
+            # ① 石段(直線の区間ごと)
+            for k in d["kaidans"]:
+                P9 = [tuple(q) for q in (k.get("pts") or [k["a"], k["b"]])]
+                if k.get("yTop") is None or k.get("yBot") is None: continue
+                Ls = [math.hypot(P9[i + 1][0] - P9[i][0], P9[i + 1][1] - P9[i][1]) for i in range(len(P9) - 1)]
+                tot = sum(Ls) or 1.0
+                top_first = stair_first_is_top(d, g, k)
+                hwk = kaidan_wken(d, k) / 2.0
+                acc0 = 0.0
+                for i in range(len(P9) - 1):
+                    L = Ls[i]
+                    if L < EPS: continue
+                    ex, ey = (P9[i + 1][0] - P9[i][0]) / L, (P9[i + 1][1] - P9[i][1]) / L
+                    ss = [(q[0] - P9[i][0]) * ex + (q[1] - P9[i][1]) * ey for q in C]
+                    tt = [-(q[0] - P9[i][0]) * ey + (q[1] - P9[i][1]) * ex for q in C]
+                    s0, s1 = max(0.0, min(ss)), min(L, max(ss))
+                    if s1 - s0 <= EPS or min(hwk, max(tt)) - max(-hwk, min(tt)) <= EPS:
+                        acc0 += L; continue
+                    ys = []
+                    for sx in (s0, s1):
+                        fr = (acc0 + sx) / tot
+                        fb = 1.0 - fr if top_first else fr
+                        ys.append(k["yBot"] + (k["yTop"] - k["yBot"]) * fb)
+                    if ylo < max(ys) - EPS:
+                        hit += 1
+                        bad.append("門『%s』の部材の外形〔%s〕が石段『%s』へ **%.3f m** 食い込む(帯の下端 %.2f ＜ 踏面 %.2f)"
+                                   "── 図の平面では当たらない" % (gt["name"], bd["band"], k["name"], (s1 - s0) * ken,
+                                                                ylo, max(ys)))
+                    acc0 += L
+            # ②③ 囲い・土留め
+            for o, kind in [(r, "囲い") for r in d["runs"]] + [(w, "土留め") for w in d["terraceWalls"]]:
+                P9 = [tuple(q) for q in (o.get("pts") or ([o["a"], o["b"]] if o.get("a") is not None
+                                                          and o.get("b") is not None else []))]
+                for i in range(len(P9) - 1):
+                    A, B = P9[i], P9[i + 1]
+                    cl = _clip_box(gate_local(gt, A), gate_local(gt, B), box)
+                    if cl is None: continue
+                    L = math.hypot(B[0] - A[0], B[1] - A[1])
+                    ivs = [cl]
+                    if o.get("gapHalf") is not None and ("gapU" in o or "gapV" in o):
+                        j = 0 if "gapU" in o else 1
+                        c9 = o["gapU"] if j == 0 else o["gapV"]
+                        dd = B[j] - A[j]
+                        if abs(dd) > 1e-12:
+                            g0, g1 = sorted(((c9 - o["gapHalf"] - A[j]) / dd, (c9 + o["gapHalf"] - A[j]) / dd))
+                            ivs = [q for q in ((cl[0], min(cl[1], g0)), (max(cl[0], g1), cl[1])) if q[1] - q[0] > 1e-9]
+                    for t0, t1 in ivs:
+                        ln = (t1 - t0) * L * ken
+                        if ln <= 1e-4: continue
+                        tm = (t0 + t1) / 2.0
+                        qm = (A[0] + (B[0] - A[0]) * tm, A[1] + (B[1] - A[1]) * tm)
+                        if kind == "囲い":
+                            seat = o.get("seat")
+                            if seat is None or ylo < float(seat) - EPS:
+                                hit += 1
+                                bad.append("門『%s』の部材の外形〔%s〕が囲い『%s』へ **%.3f m** 食い込む(帯の下端 %.2f ＜ 座 %s)"
+                                           "── 図の平面では当たらない" % (gt["name"], bd["band"], o["name"], ln, ylo,
+                                                                        "—" if seat is None else "%.2f" % float(seat)))
+                            else:
+                                note.append("⚠ 門『%s』の外形〔%s〕が囲い『%s』の平面を %.3f m 覆う(帯の下端 %.2f ≥ 座 %.2f)"
+                                            "── 囲いの丈が図に無いので当たるかは**未測定**"
+                                            % (gt["name"], bd["band"], o["name"], ln, ylo, float(seat)))
+                        else:
+                            wx, wz = g.W(qm[0], qm[1])
+                            top = wall_top_at(d, g, o, wx, wz)
+                            if ylo < top - EPS:
+                                hit += 1
+                                bad.append("門『%s』の部材の外形〔%s〕が土留め『%s』へ **%.3f m** 食い込む(帯の下端 %.2f ＜ 天端 %.2f)"
+                                           "── 図の平面では当たらない" % (gt["name"], bd["band"], o["name"], ln, ylo, top))
+        note.append("門『%s』── 部材『%s』の外形 %d 帯(軒を含む)で石段・囲い・土留めを測った ／ 食い込み **%d 件**【算出】"
+                    % (gt["name"], b["部材"], len(ol), hit))
+    if not nm0:
+        bad.append("外形を持つ門の部材が一つも無い — 部材の外形で食い込みを測れない(図の平面だけでは実物を見ていない)")
+    return bad, note
+
+
 def noki_sori_check(d):
     """**軒反りの量**【考証 2026-09-13 中】── `const.nokiSoriCornerM`/`nokiSoriReachM` と、
     部材の生成器 `Tools/Blender/build_sanno_shaden.py` の `NOKI_A`/`NOKI_L` が同じ量か(食い違いは⛔)。"""
@@ -16213,6 +16378,16 @@ def probe_roster(d, g):
     out.append(("門の平面の向き", "楼門を南北に抜ける門へ回す(面の取り付き無し・表参は東西に通ったまま)",
                 run(gate_plan_axis_check, e21), 1, mv21))
 
+    # ---- ⑬ 門の平面と部材の柱芯(K001 2026-09-13)
+    n22 = run(gate_part_col_check, d)
+    out.append(("門の平面と部材の柱芯", "基準(壊さない)", n22, 0, None))
+
+    def m22(e):
+        gate_by_name(e, "隨身門(楼門)")["plan"]["dv"] = 4
+    e22, mv22 = _probe(d, m22)
+    out.append(("門の平面と部材の柱芯", "楼門の桁行を 4 間へ広げる(兼用部材の柱芯は 3 間のまま)",
+                run(gate_part_col_check, e22), 1, mv22))
+
     bad = _probe_verdict([(nm, got, want, mv) for _ck, nm, got, want, mv in out])
     _PROBE_ROSTER[0], _PROBE_ROSTER[1] = key, (out, bad)
     return out, bad
@@ -16358,6 +16533,8 @@ def run_checks():
     skb = shukei_bake_check(d, g)      # ★主景(名指し・焼き出し・仰角の受入値。A-1 庭方19巡目)
     gax = gate_axis_check(d, g)        # 門の向き(検図 2026-09-13 高1)
     gpa = gate_plan_axis_check(d, g)   # 門の平面の向き(K004 検図 2026-09-13)
+    gpc = gate_part_col_check(d, g)    # 門の平面と部材の柱芯(K001 2026-09-13)
+    gpo = gate_part_outline_check(d, g)  # 門の部材の外形の食い込み(K001 2026-09-13)
     nks = noki_sori_check(d)           # 軒反りの量(考証 2026-09-13 中)
     skd = shaden_kidan_check(d)        # 基壇・亀腹の石材(庭方 2026-09-13 中)
     csg = _gated(cluster_shukei_gap_check)  # 西A の松と★主景の幹の離れ(庭方 2026-09-13 中)
@@ -16452,6 +16629,8 @@ def run_checks():
     rows.append(("門の向き(正面・部材の軸から出した yaw・門口を通る動線との平行・実装との突き合わせ)",
                  gax[0], gax[1]))
     rows.append(("門の平面の向き(奥行 du を通り抜けの軸へ回す・面の取り付き・門口を通る長さ)", gpa[0], gpa[1]))
+    rows.append(("門の平面と部材の柱芯(`gates[].plan` × `bom[].axis.colPassM/colWidthM`)", gpc[0], gpc[1]))
+    rows.append(("門の部材の外形が石段・囲い・土留めへ食い込まないか(`bom[].outlineM`・軒を含む)", gpo[0], gpo[1]))
     rows.append(("軒反りの量(指図 `const` と部材の生成器)", nks[0], nks[1]))
     rows.append(("社殿の基壇・亀腹の石材の宣言(`shadenKidan`)", skd[0], skd[1]))
     rows.append(("西A の松と★主景の幹の離れ(`trunkGapFromShukeiKen`・幹の芯)", csg[0], csg[1]))

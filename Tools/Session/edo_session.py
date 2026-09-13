@@ -668,6 +668,9 @@ def cmd_check_write(a):
 
 
 BLENDER = re.compile(r"(?:^|[;&|(\n]\s*)(?:\S*/)?blender\b")
+# Unity 公式プラグインの CLI(~/.unity/bin/unity)。`command`/`pipeline` はエディタそのものを動かし、
+# `open`/`build`/`test` は同じプロジェクトに2つ目のエディタを立てる。`status`/`editors`/`releases` は読むだけ。
+UNITY_CLI = re.compile(CMDPOS + r"(?:\S*/)?unity\s+(?:command|pipeline|open|build|test|job)\b")
 
 # ────────────────────────────── Bash から書かれるファイル(2026-09-01 の点検で塞いだ穴)
 #   ⛔ **Write/Edit だけ見張っても守れない。** 門番は Edit を止めるが、同じファイルへの
@@ -761,6 +764,11 @@ def _check_bash_writes(cmd, me, ttl):
 def cmd_check_bash(a):
     me = sid(a.session)
     cmd = a.command or ""
+    # ── Unity CLI — Unity MCP と同じ実体・同じ排他。入口ごとに規則を変えない(EDO-0076)
+    if UNITY_CLI.search(cmd):
+        r = cmd_check_unity(a)
+        if r:
+            return r
     # ── Blender(部材作り)
     #    ⚠ Blender 同士は競合しない(--background の使い捨て)。効くのは
     #    「worktree では在庫キットも出力先も無い」ことと、出力が共有資産であること。

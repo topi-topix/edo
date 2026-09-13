@@ -118,6 +118,7 @@
 | 在庫に何があるか | `docs/asset-catalog.md` → `docs/asset-index.tsv` |
 | 指図の描き方・組み方 | `docs/Sashizu/README.md` + `unity-buke-yashiki/references/sashizu.md` |
 | 地形の座標・造成の初期化 | `docs/terrain-georef-fix.md` |
+| Unity 公式プラグインのスキル(`unity:*`) | `docs/unity-agent-plugin.md` — 採否表と `eval`→`execute_code` の読み替え。⛔ `unity` CLI でエディタを動かさない |
 | **自分(普請奉行)の権限と境界・文脈の作法** | **`docs/fushin-bugyo.md`** |
 | **報告・裁定・質問・共有の書き方** | **`docs/reporting-protocol.md`** — ⛔ 何かをユーザーに問う前に必ず |
 | **検査の結線・どの輪で検めるか** | **`docs/verification-loops.md`** |

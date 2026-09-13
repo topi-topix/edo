@@ -14,6 +14,13 @@
 ⇒ **FBX は1本**。`main()` が指図から2基の plan と bom を読み、食い違えば止まる
 (⛔ 指図が作り分けへ改まったら黙って兼用しない)。
 
+━━━ 基壇の出は門ごとに作り分ける(2026-09-13 普請奉行の依頼 — 外形の食い込み ⛔16)━━━━━━━━━
+上部(柱芯・平面・軸)は2基共通。**基壇と礎盤だけ**、門が接する面を指図から読んで側ごとに出を決める
+(`faces()`): 通り抜けの両端 = 軸上の石段の端/この門で口を開ける土留めの通り、幅の両脇 = 平面の
+脇の辺に端を持つ囲い(回廊・袖塀)。面の無い側は向かいの側に揃える(部材方の意匠)。面の手前 2 mm。
+⇒ FBX 名に出を mm で埋める: `Sanno_Romon_<du>x<dv>ken_k<+X>-<−X>-<+Z>-<−Z>.fbx`。
+⚠ 出 0 の側でも**柱の半径 0.18 m と同幅の礎盤**は柱芯の面を越える(柱筋へ突き付く囲いの宿命)。
+
 ━━━ 軸(指図 2026-09-13「部材の軸」= `bom[楼門].axis`)━━━━━━━━━━━━━━━━━━━━━━━
 ・**ピボット = 門の芯・敷居の高さ**(Y=0 = 基壇の天端 = 通路の踏み面)。基壇は下へ 0.60 根入れ。
 ・**通り抜け = ローカル X** / **正面 = ローカル +X**(両脇間の連子窓が +X 面、扉は −X へ開く)。
@@ -79,7 +86,8 @@ def sashizu_plan():
     row = next(b for b in d["bom"] if b.get("部材") == BOM_ROW)
     print("[romon] 兼用する門: %s / plan du %s × dv %s / 戸口 %s 間 / 1間 %.3f / axis %s"
           % ([g["name"] for g in gs], du, dv, mk, K, row.get("axis")))
-    if row.get("axis") != {"pass": "X", "front": "+X"}:
+    ax = row.get("axis") or {}
+    if (ax.get("pass"), ax.get("front")) != ("X", "+X"):
         raise SystemExit("[romon] ⛔ bom の axis が宣言と違う: %s" % row.get("axis"))
     return dict(K=K, du=int(du), dv=int(dv), monguchi=float(mk),
                 roof=row.get("屋根", ""), names=[g["name"] for g in gs])
@@ -88,7 +96,69 @@ def sashizu_plan():
 # ==========================================================================
 # 組み立て(論理 u=通り抜け・正面+ / v=幅 / h=上)
 # ==========================================================================
-def build(P, name):
+def kidan(hu, hv, out, depth, name):
+    """**切石の基壇** — 天端 Y0・根入れ `depth`・**側ごとの出** `out`(柱芯から[m])。
+
+    ⭐ 取り合いの面へ納めるため、`SH.kamebara`(四周一様の出・バッター付き)は使わない。
+      ⛔ バッターを付けない — 最下段が出の分だけ外へ出て、石段の端・土留めの通りを越える
+      (2026-09-13 に基壇(根入れ)の帯で 0.095〜0.55 m 食い込んだ)。面は鉛直で `out` に揃える。"""
+    import build_sanno_buzai as SB
+    mat = SB.kirishi_material()
+    u0, u1 = -(hu + out["-X"]), hu + out["+X"]
+    v0, v1 = -(hv + out["-Z"]), hv + out["+Z"]
+    th, course = 0.42, 0.30
+    nc = max(1, int(round(depth / course)))
+
+    def js(a, b, stag):
+        L = b - a
+        return [a + L / 2.0 + x for x in SH._joints(L, 1.05, stag)]
+    objs = []
+    for c in range(nc):
+        z0 = -depth + depth * c / float(nc)
+        z1 = -depth + depth * (c + 1) / float(nc)
+        rng = SB.rng_of("romon_kidan", name, c)
+        stag = (c % 2 == 1)
+        for k, (w0, w1) in enumerate(((v0, v0 + th), (v1 - th, v1))):       # 幅の両側(u へ走る)
+            J = js(u0, u1, stag)
+            for i in range(len(J) - 1):
+                objs.append(SB._stone(J[i], J[i + 1], w0, w1, z0, z1, mat, rng,
+                                      "%s_c%d_z%d_%d" % (name, c, k, i),
+                                      chamfer=SH.KAME_MEJI, tile=SB.KIRISHI_TILE))
+        for k, (w0, w1) in enumerate(((u0, u0 + th), (u1 - th, u1))):       # 通り抜けの両端
+            J = js(v0 + th, v1 - th, not stag)
+            for i in range(len(J) - 1):
+                objs.append(SB._stone(w0, w1, J[i], J[i + 1], z0, z1, mat, rng,
+                                      "%s_c%d_x%d_%d" % (name, c, k, i),
+                                      chamfer=SH.KAME_MEJI, tile=SB.KIRISHI_TILE))
+    objs.append(SB._stone(u0 + th, u1 - th, v0 + th, v1 - th, -0.22, 0.0, mat,
+                          SB.rng_of("romon_kidan", name, "cap"), name + "_cap",
+                          chamfer=SH.KAME_MEJI, tile=SB.KIRISHI_TILE))
+    for o in objs:                                   # 論理 → Blender(Rz180°・det +1)
+        o.data.transform(Matrix.Diagonal((-1.0, -1.0, 1.0, 1.0)))
+        o.data.update()
+    return objs
+
+
+def soban_sided(pts, hu, hv, out, colR, h, half, name):
+    """**礎盤**。⭐ 出が礎盤の半幅より小さい側では、外へは**柱の外面まで**しか出さない
+    (柱筋へ突き付く囲いに、柱そのもの以上を食い込ませない)。"""
+    import build_sanno_buzai as SB
+    mat = SB.kirishi_material()
+    objs = []
+    for i, (uu, vv) in enumerate(pts):
+        def ext(on_edge, side):
+            return min(half, max(out[side], colR)) if on_edge else half
+        a0 = uu - ext(abs(uu + hu) < 1e-6, "-X"); a1 = uu + ext(abs(uu - hu) < 1e-6, "+X")
+        b0 = vv - ext(abs(vv + hv) < 1e-6, "-Z"); b1 = vv + ext(abs(vv - hv) < 1e-6, "+Z")
+        o = SB._stone(a0, a1, b0, b1, 0.0, h, mat, SB.rng_of("soban", name, i),
+                      "%s_%d" % (name, i), chamfer=SH.KAME_MEJI, tile=SB.KIRISHI_TILE)
+        o.data.transform(Matrix.Diagonal((-1.0, -1.0, 1.0, 1.0)))
+        o.data.update()
+        objs.append(o)
+    return objs
+
+
+def build(P, name, out):
     K = P["K"]
     hu, hv = P["du"] * K / 2.0, P["dv"] * K / 2.0
     if abs(P["monguchi"] - 1.0) > 1e-6 or P["dv"] != 3:
@@ -103,15 +173,12 @@ def build(P, name):
     z_sill = 0.24                        # 地覆の天端 / 脇間の床下
 
     # --- 基壇(切石・天端 Y0 から根入れ)+ 礎盤 ---------------------------
-    stones = SH.kamebara(hu, hv, G["kidanDepth"], name + "_kidan",
-                         batter=0.10, skirt=G["kidanSkirt"], course=0.30, th=0.42)
-    for o in stones:
-        o.data.transform(Matrix.Translation((0.0, 0.0, -G["kidanDepth"])))
-        o.data.update()
+    stones = kidan(hu, hv, out, G["kidanDepth"], name + "_kidan")
     us = SH.bay_lines(hu, P["du"])      # [-hu, 0, hu]
     vs = SH.bay_lines(hv, P["dv"])      # [-hv, -b, b, hv]
     pts = [(uu, vv) for uu in us for vv in vs]          # 12本(八脚門の割り)
-    stones += SH.soban(pts, 0.0, G["sobanH"], 0.27, name + "_soban")
+    stones += soban_sided(pts, hu, hv, out, G["colD"] / 2.0, G["sobanH"], 0.27,
+                          name + "_soban")
 
     # --- 柱: 側柱10本(四周)+ 本柱2本(中の通りの内側)---------------------
     SH.columns(M, hu, hv, P["du"], P["dv"], 0.0, colH, G["colD"], uv["wood"], W,
@@ -278,54 +345,184 @@ def selftest(o, info):
 # ==========================================================================
 # 検証レンダ(カメラは bbox から)
 # ==========================================================================
-def shots(o, info):
+def shots(o, info, tag, full=True):
     V.hook_textures()
     os.makedirs(SHOT, exist_ok=True)
     mn, mx = V.bbox([o])
     top = mx.z
     span = max(mx.x - mn.x, mx.y - mn.y)
-    bpy.ops.mesh.primitive_plane_add(size=80, location=(0, 0, -0.02))
+    # ⚠ 地面は基壇の天端より下へ置く(基壇の出が読めるよう、根入れを 0.25 m だけ見せる)
+    bpy.ops.mesh.primitive_plane_add(size=80, location=(0, 0, -0.25))
     out = []
 
     def one(cam, look, fn, ortho=None, res=(1600, 1200)):
         V.studio(cam, look, ortho_scale=ortho, res=res)
-        f = os.path.join(SHOT, "sanno_romon_%s.png" % fn)
+        f = os.path.join(SHOT, "sanno_romon_%s_%s.png" % (tag, fn))
         V.render(f); out.append(f)
 
     # Unity +X(正面)= Blender −X / Unity −Z(南)= Blender +Y
     one((-40.0, 0.0, top * 0.5), (0.0, 0.0, top * 0.5), "front", ortho=top * 1.35)
     one((0.0, 40.0, top * 0.5), (0.0, 0.0, top * 0.5), "side", ortho=top * 1.35)
     one((-span * 1.25, span * 0.95, top * 1.45), (0.0, 0.0, top * 0.35), "oblique")
-    one((-9.0, 2.6, 1.6), (0.0, 0.0, 2.3), "near_front")
-    one((7.5, -3.2, 1.6), (0.0, 0.0, 2.0), "near_back")
-    one((-12.0, 9.0, 1.7), (0.0, 0.0, 3.2), "eye_oblique")
+    # ⭐ 基壇の隅の近景(正面+X と 幅+Z の隅)— 出の違いは引きでは読めない
+    one((-(info["hu"] + 3.2), -(info["hv"] + 3.0), 1.1),
+        (-(info["hu"]), -(info["hv"]), -0.1), "kidan_corner", res=(1500, 1100))
+    if full:
+        one((-12.0, 9.0, 1.7), (0.0, 0.0, 3.2), "eye_oblique")
     return out
+
+
+def band_extents(o, info, out):
+    """⭐ 基壇の帯(Y ≤ 0.30)の外形を**メッシュの頂点**で測り、取り合いの面と比べて刷る。
+    ⚠ 指図の検査は `bom[].outlineM`(頂点の外接)で測るので、同じ物差しで出す。"""
+    U = SH.unity_verts(o)
+    ok = True
+    for lo, hi, band in ((-0.60, 0.0, "基壇(根入れ)"), (0.0, 0.30, "基壇の天端〜礎盤")):
+        B = [t for t in U if lo - 1e-6 <= t[1] <= hi + 1e-6]
+        ext = {"+X": max(t[0] for t in B) - info["hu"], "-X": -min(t[0] for t in B) - info["hu"],
+               "+Z": max(t[2] for t in B) - info["hv"], "-Z": -min(t[2] for t in B) - info["hv"]}
+        row = []
+        for s in ("+X", "-X", "+Z", "-Z"):
+            lim = out["_face"][s]
+            colR = G["colD"] / 2.0
+            if lim is None:
+                row.append("%s %.3f(面なし)" % (s, ext[s])); continue
+            over = ext[s] - lim
+            # 柱筋に突き付く側は柱の半径(と同じ幅の礎盤)が面を越えるのを承知で分けて刷る
+            if over > 1e-4 and not (lim < colR and ext[s] <= colR + 1e-4):
+                ok = False
+            row.append("%s %.3f/面 %.3f%s" % (s, ext[s], lim,
+                       "" if over <= 1e-4 else (" ⚠柱の半径" if ext[s] <= colR + 1e-4 else " ⛔")))
+        print("  外形[%s] 柱芯から %s" % (band, " ／ ".join(row)))
+    return ok
+
+
+# ==========================================================================
+# 基壇の出 — ⭐ 門が接する面を**指図から読む**(⛔ 数を発明しない)
+# ==========================================================================
+MARGIN = 0.002      # 面の手前に残す[m](指図の外形は mm で丸めて測られるので、面ぴったりに置かない)
+
+
+def gate_u(d, g):
+    """門の芯 u[間]。⚠ 坂下の門は `uFrom` の従属値で json の `u` が空 ⇒ 図が組み立てで書く
+    `docs/Sashizu/sanno_impl.json` の `gates[].u` を読む。"""
+    if g.get("u") is not None:
+        return float(g["u"])
+    p = os.path.join(os.path.dirname(SH.SASHIZU), "sanno_impl.json")
+    im = json.load(open(p))
+    for q in im.get("gates", []):
+        if q.get("name") == g["name"] and q.get("u") is not None:
+            return float(q["u"])
+    raise SystemExit("[romon] ⛔ 門『%s』の芯 u が指図にも焼き出しにも無い" % g["name"])
+
+
+def faces(d, g, K):
+    """門の柱芯から、側ごとの**取り合いの面**までの距離[m](面の無い側は None)。
+    ・通り抜けの両端(±X): 軸上の石段の端(`kaidans`)/この門で口を開ける土留めの通り
+      (`terraceWalls[].gapFrom.gate`)。
+    ・幅の両脇(±Z): 門の平面の脇の辺に端を持つ囲い(`runs` — 回廊・袖塀)。
+    ⚠ ローカル +X = 東(u+)・+Z = 北(v+)は `bom.axis` と `gates[].front`=東 の宣言(yaw 0)。"""
+    if g.get("front") != "東":
+        raise SystemExit("[romon] ⛔ 正面が東でない門は面の向きを読み替えていない: %s" % g["name"])
+    gu, gv = gate_u(d, g), float(g["v"])
+    hu, hv = g["plan"]["du"] / 2.0, g["plan"]["dv"] / 2.0
+    F = {"+X": None, "-X": None, "+Z": None, "-Z": None}
+    src = {}
+
+    def put(side, dist_ken, what):
+        m = dist_ken * K
+        if F[side] is None or m < F[side]:
+            F[side] = m; src[side] = what
+    for k in d["kaidans"]:
+        P9 = k.get("pts") or ([k["a"], k["b"]] if k.get("a") is not None and k.get("b") is not None else [])
+        if len(P9) < 2:
+            continue
+        ends = (("始", P9[0], P9[1]), ("終", P9[-1], P9[-2]))
+        for key, e, nb in ends:
+            # 門の軸(v = 門の芯)の上を、軸に沿って走る区間の端だけを見る
+            if abs(e[1] - gv) < 1e-6 and abs(nb[1] - gv) < 1e-6:
+                du_ = e[0] - gu
+                if abs(du_) - hu > -1e-6 and abs(du_) - hu < 2.0:
+                    put("+X" if du_ > 0 else "-X", abs(du_) - hu, "石段『%s』の%s端" % (k["name"], key))
+    for w in d["terraceWalls"]:
+        if w.get("a") is None or w.get("b") is None:
+            continue
+        if (w.get("gapFrom") or {}).get("gate") == g["name"] and abs(w["a"][0] - w["b"][0]) < 1e-6:
+            du_ = w["a"][0] - gu
+            put("+X" if du_ > 0 else "-X", abs(du_) - hu, "土留め『%s』の通り" % w["name"])
+    for r in d["runs"]:
+        if r.get("a") is None or r.get("b") is None:
+            continue
+        for e in (r["a"], r["b"]):
+            if abs(e[0] - gu) <= hu + 1e-6:
+                dv_ = e[1] - gv
+                if abs(dv_) - hv > -1e-6 and abs(dv_) - hv < 0.5:
+                    put("+Z" if dv_ > 0 else "-Z", abs(dv_) - hv, "囲い『%s』の端" % r["name"])
+    return F, src
+
+
+def side_outs(d, g, K):
+    """面 → 基壇の出。⭐ 面の無い側は**向かいの側と同じ出**(部材方の意匠 — 左右・前後を揃える)。
+    坂下の門の南は囲いが図に無いが、名所図会は『左右に板塀』【S】を描くので北と揃えて 0 にする。"""
+    F, src = faces(d, g, K)
+    opp = {"+X": "-X", "-X": "+X", "+Z": "-Z", "-Z": "+Z"}
+    out = {}
+    for s in F:
+        f = F[s] if F[s] is not None else F[opp[s]]
+        if f is None:
+            f = G["kidanSkirt"]
+        out[s] = max(0.0, math.floor((f - MARGIN) * 1000.0) / 1000.0)
+    out["_face"] = F
+    out["_src"] = src
+    return out
+
+
+def variant_name(P, out):
+    mm = lambda s: int(round(out[s] * 1000.0))
+    return "Sanno_Romon_%dx%dken_k%d-%d-%d-%d" % (P["du"], P["dv"], mm("+X"), mm("-X"),
+                                                   mm("+Z"), mm("-Z"))
 
 
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     P = sashizu_plan()
-    name = "Sanno_Romon_%dx%dken" % (P["du"], P["dv"])
+    with open(SH.SASHIZU) as f:
+        d = json.load(f)
     print("[romon] 屋根 = 在庫の本瓦(`roof`)— bom: %s" % P["roof"][:60])
-    V.reset()
-    o, info = build(P, name)
-    tris = report(o, info)
-    if not check_axes(o, info["hu"], info["hv"], info["b"], "正"):
-        raise SystemExit("[romon] ⛔ 軸の検算に落ちた")
-    if not selftest(o, info):
-        raise SystemExit("[romon] ⛔ 陰性試験に失敗")
-    bad = [m.name for m in o.data.materials if m and m.name.split('.')[0]
-           not in ("wood", "wall C", "door wall", "roof", "roof ornaments", "Kirishi")]
-    print("  材 %s %s" % ([m.name for m in o.data.materials], "⭕" if not bad else "⛔ %s" % bad))
-    if bad:
-        raise SystemExit("[romon] ⛔ 想定外の材")
-    if "--render" in argv:
-        for f in shots(o, info):
-            print("RENDER " + f)
-    if "--no-export" not in argv:
-        path = os.path.join(OUT, name + ".fbx")
-        V.export_fbx([o], path)
-        print("[romon] 書き出し %s (tris %d)" % (path, tris))
+    done = {}
+    for g in [q for q in d["gates"] if q.get("bom") == BOM_ROW]:
+        out = side_outs(d, g, P["K"])
+        name = variant_name(P, out)
+        print("[romon] 門『%s』→ %s" % (g["name"], name))
+        for s in ("+X", "-X", "+Z", "-Z"):
+            print("    %s 面 %s ← %s ⇒ 出 %.3f m" % (
+                s, "—" if out["_face"][s] is None else "%.4f" % out["_face"][s],
+                out["_src"].get(s, "面なし(向かいの側に揃える)"), out[s]))
+        if name in done:
+            print("    ⭕ %s と同じ部材" % done[name]); continue
+        done[name] = g["name"]
+        V.reset()
+        o, info = build(P, name, out)
+        tris = report(o, info)
+        if not band_extents(o, info, out):
+            raise SystemExit("[romon] ⛔ 基壇が取り合いの面を越えた")
+        if not check_axes(o, info["hu"], info["hv"], info["b"], "正"):
+            raise SystemExit("[romon] ⛔ 軸の検算に落ちた")
+        if not selftest(o, info):
+            raise SystemExit("[romon] ⛔ 陰性試験に失敗")
+        bad = [m.name for m in o.data.materials if m and m.name.split('.')[0]
+               not in ("wood", "wall C", "door wall", "roof", "roof ornaments", "Kirishi")]
+        print("  材 %s %s" % ([m.name for m in o.data.materials], "⭕" if not bad else "⛔ %s" % bad))
+        if bad:
+            raise SystemExit("[romon] ⛔ 想定外の材")
+        if "--render" in argv:
+            tag = name.split("_k")[-1]
+            for f in shots(o, info, "k" + tag, full=("--full" in argv)):
+                print("RENDER " + f)
+        if "--no-export" not in argv:
+            path = os.path.join(OUT, name + ".fbx")
+            V.export_fbx([o], path)
+            print("[romon] 書き出し %s (tris %d)" % (path, tris))
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ effort: medium
 
 ## はじめに必ず読む正典(ここに手順を書き写さない。毎回読む)
 
-1. `Skill(unity-buke-yashiki)` — **`references/qa-and-pitfalls.md` の10項目チェックリストが本体**(その節だけ読む。154KB の丸読み禁止)。
+1. `Skill(unity-buke-yashiki)` — **`references/qa-and-pitfalls.md` の10項目チェックリストが本体**(その節だけ読む。丸読み禁止)。
    併せて `references/buildings.md`(OBB・クリアランス)、`references/site-grading.md`(造成の副作用)
 2. `Skill(unity-modular-stonewall)` — 石垣があるとき。`references/qa.md` に
    **貼って走らせる `execute_code` の監査スクリプト**がある

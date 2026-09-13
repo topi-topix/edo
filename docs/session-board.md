@@ -74,7 +74,7 @@ python3 Tools/Session/edo_board.py post --estate sanno --type decision \
 `post` が**機械で弾く**: 選択肢の A/B/C 記号・詰め込み(其の一/其の二・丸数字・表題の「+」)。
 → 正典 **[reporting-protocol.md](reporting-protocol.md)** 規則6・規則8
 
-### 3. 三巡則 — 自己検図・自己考証は**ユーザー入力なしに3巡まで**
+### 3. 三巡則 — 自己検図・自己考証は**ユーザー入力なしに3巡まで** <!-- obl:three-rounds canon -->
 
 3巡目を終えてなお指摘が出続けるなら、**4巡目に入らない**。`decision` か `blocker` を
 post して手を止める(前例: 裁定なしに検図10→14巡が無停止で回った。巡数を重ねるほど

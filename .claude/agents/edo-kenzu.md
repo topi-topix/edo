@@ -20,7 +20,7 @@ hooks:
 1. `Skill(unity-buke-yashiki)` — 特に `references/sashizu.md`(**§1 なぜそうなるのか / §1b 棟→続き間 /
    §1f 段差は水平距離を先に確保する / §2 室の粒度 / §3 図面に入れるもの / §4 作図の作法 /
    §5 原図を読む落とし穴**)、`references/buildings.md`、`references/site-grading.md`、
-   `references/qa-and-pitfalls.md` は**索引(先頭の目次)だけ**読み、該当節を grep で引く(154KB・丸読み禁止)
+   `references/qa-and-pitfalls.md` は**索引(先頭の目次)だけ**読み、該当節を grep で引く(丸読み禁止)
 2. `Skill(unity-modular-stonewall)` — 断面に石垣が出るとき。特に `references/terrain-grading.md`
    (地形を壁に合わせて削る。壁を上げない)と `references/corner-and-pivot.md`
 3. `docs/Sashizu/README.md` と `docs/Sashizu/fukui_kamiyashiki.html`(基準図)

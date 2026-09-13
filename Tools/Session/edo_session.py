@@ -286,7 +286,9 @@ def save(c, fp):
 
 
 def rel(p):
-    p = os.path.abspath(os.path.expanduser(p))
+    # ⚠ realpath — スキルは ~/.claude/skills/<名> → Tools/Skills/<名> の symlink(2026-09-13)。
+    #   symlink 越しに編集しても同じ claim に落ちるよう、実体で比べる
+    p = os.path.realpath(os.path.expanduser(p))
     return os.path.relpath(p, ROOT) if p.startswith(ROOT) else p
 
 
@@ -1064,7 +1066,12 @@ SYNC_PATHS = ["Tools/Session", "CLAUDE.md", "docs/session-coordination.md",
               "Tools/Sashizu/review_gate.py", "Tools/Sashizu/review_ledger.py",
               # ⭐ 結線関門(2026-09-02)— 「書いたのに誰の目にも入らない」産物を鳴らす。
               #   ⛔ 各邸の生成器へ写さずに済むよう、外からソースを読む作りにしてある。
-              "Tools/Sashizu/wiring_gate.py", "docs/verification-loops.md"]
+              "Tools/Sashizu/wiring_gate.py", "docs/verification-loops.md",
+              # ⭐ 道具改め(2026-09-13)が見つけた漏れ — rules / workflows / settings.json / 教訓 / 決定関門と、
+              #   CLAUDE.md のルーティング表が指す文書。⛔ Tools/Skills は入れない(スキルは symlink で 1 本)。
+              ".claude/rules", ".claude/workflows", ".claude/settings.json", "docs/lessons.md",
+              "Tools/Sashizu/decision_gate.py", "docs/asset-catalog.md", "docs/terrain-georef-fix.md",
+              "docs/unity-agent-plugin.md", "docs/teire.md"]
 
 
 def cmd_sync_tools(a):
@@ -1099,7 +1106,7 @@ def cmd_sync_tools(a):
                 continue
             if os.path.isdir(src):
                 for fn in sorted(os.listdir(src)):
-                    if not fn.endswith((".py", ".md")):
+                    if not fn.endswith((".py", ".md", ".js", ".json", ".sh")):
                         continue
                     s2, d2 = os.path.join(src, fn), os.path.join(dst, fn)
                     if not os.path.isdir(dst):

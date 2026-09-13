@@ -4638,6 +4638,22 @@ def perimeter_closure_check(d, tol=0.4, step=0.2):
     cx = sum(q[0] for q in P) / n
     cz = sum(q[1] for q in P) / n
     bad = []
+    # ⭐ **`perimeterClosure` の『開放』宣言を読む**(2026-09-13・第35次【検図】)。
+    #   ⛔ 帳簿の検査(`perimeter_ledger_check`)は宣言を読むのに、こちらは読まずに
+    #     宣言済みの辺を毎巡 ⚠ で鳴らしていた — 新しい穴が宣言済みの穴に埋もれる。
+    #   ⭕ 判定は帳簿の検査と同じ(区間 s を持たない宣言は辺の全長に効く)。
+    decl = [k for k in d.get("perimeterClosure", []) if k.get("class") == "開放"]
+
+    def _opened(e, s0, s1):
+        for k in decl:
+            if e not in k.get("edges", []):
+                continue
+            if "s0" not in k and "s1" not in k:
+                return True
+            if k.get("s0", -1e9) - 1e-6 <= s0 and s1 <= k.get("s1", 1e9) + 1e-6:
+                return True
+        return False
+
     for e in range(n):
         a, b = P[e], P[(e + 1) % n]
         L = math.hypot(b[0] - a[0], b[1] - a[1])
@@ -4668,7 +4684,7 @@ def perimeter_closure_check(d, tol=0.4, step=0.2):
         if cur is not None:
             holes.append(tuple(cur))
         for s0, s1 in holes:
-            if s1 - s0 + step >= tol:
+            if s1 - s0 + step >= tol and not _opened(e, s0, s1):
                 bad.append("辺%d の s%.1f〜%.1f(%.2fm)が外周として閉じていない — "
                            "塞ぐ物を指図に書く(門なら扉 leaf、隅なら隅部材)"
                            % (e, s0, s1, s1 - s0 + step))
@@ -7368,7 +7384,15 @@ def scatter_slope(d, dem):
                     #   帯の無い区間(北端の浅い登り・段 `Fukugen` の上)に理想点が落ち、
                     #   全部がまとめて南へずれて**26m の空きが生まれた**。
                     _a0, _a1 = _band_arc_span(d, dem, lay)
-                    _ideal = [_a0 + (k + 1) * (_a1 - _a0) / float(_nem + 1) for k in range(_nem)]
+                    _gp = [float(x) for x in (_emg.get("gaps") or [])]
+                    if len(_gp) == _nem + 1 and sum(_gp) > 1e-6:
+                        # ⭐ **空きの並びを庭方が振った**(2026-09-13・第35次【庭方】)。
+                        #   ⛔ 等分は溜池側から梢が櫛の歯に並んで見える。⭕ `gaps`(両端を含む
+                        #   n+1 個)の比で理想点を置き、帯が載る法肩の弧長へ比例で合わせる。
+                        _f = (_a1 - _a0) / sum(_gp)
+                        _ideal = [_a0 + _f * sum(_gp[:k + 1]) for k in range(_nem)]
+                    else:
+                        _ideal = [_a0 + (k + 1) * (_a1 - _a0) / float(_nem + 1) for k in range(_nem)]
                 # ⭐ **宣言した帯でなく実位置で空隙を測る**(2026-09-06)。⛔ `hi_by_band` は
                 #   層が「宣言した帯」で積むので、法肩の列など帯をまたぐ層の実際の落ち先
                 #   (この帯へのこぼれ)が見えず、空いていない所を「空いている」と誤認する。
@@ -9190,8 +9214,10 @@ def west_edge_check(d, tol=0.05):
                 t = k / 8.0
                 v = a[1] + (b[1] - a[1]) * t
                 u = a[0] + (b[0] - a[0]) * t
-                if abs(b[1] - a[1]) < 1e-9:
+                if abs(b[1] - a[1]) <= abs(b[0] - a[0]):
                     continue                    # 東西に走る辺(北縁・南縁)は西辺ではない
+                    # ⭐ 2026-09-14(第36次・検図)— 竹垣に合わせた斜めの南縁(|Δv| < |Δu|)も
+                    #   東西に走る辺として外す。⛔ 水平な辺だけを外すと南縁を西辺と取り違えた
                 dv = u - cu(v)
                 if worst is None or abs(dv) > abs(worst[0]):
                     worst = (dv, v)
@@ -14982,8 +15008,9 @@ def neishi_check(d, dem):
       板塀の位置では足元より**下**を通る。⭕ 隠さずに**根石**で納める。
     検査は ①根石の規則が有るか ②**護岸石の天端が平場の高さを超えていないか**。
     ⭐ ②は 2026-09-05 に建て替えた【第10次・庭方 回答1】— 従前は「露出が根石の見え高に
-      収まるか」を問うていたが、⛔ **露出は見え高より小さくてよい**(見え高は根石の丈で、
-      露出はそのうち土から出ている分)。⭕ 効くのは**石の天端が平場を超えないこと**で、
+      収まるか」を問うていたが、⛔ 見切り線の余裕(板塀の位置で見切り線が足元より下を通る量)は
+      石の露出ではない。言葉は `nakajikiriRule.neishi` に従う — **見え高 = 地上に見える高さ**・
+      **丈 = 石の全高**(見え高の 2 倍)。⭕ 効くのは**石の天端が平場を超えないこと**で、
       超えた瞬間に護岸が板塀の足元を隠し、根石の設計そのものが要らなくなる。
     ⚠ 石の天端は**丈の帯のぶん振れる**ので、下限・上限も表に出す(判定は上限で行う)。"""
     bad = []
@@ -15015,9 +15042,9 @@ def neishi_check(d, dem):
             bad.append("〔記録〕庭の断面『%s』: 護岸石の天端は上限でも %.3fm で、"
                        "板塀の立つ平場 %.3fm を **%.3fm 下回る** — "
                        "⇒ **遮蔽体なし**(V1 から板塀の足元まで一直線に見える)。"
-                       "見えるのは根石(見え高 %.2f〜%.2fm)の見え面で、"
-                       "露出は %.3fm(⛔ 露出が見え高より小さいのは不良ではない — "
-                       "見え高は根石の丈、露出は土から出ている分)"
+                       "見えるのは根石(見え高 = 地上に見える高さ %.2f〜%.2fm)の見え面。"
+                       "見切り線は板塀の位置で足元より %.3fm 下を通る"
+                       "(⛔ これは見切り線の余裕で、石の露出ではない)"
                        % (gs["name"], up["top"], gm["yHei"], gm["yHei"] - up["top"],
                           lo, hi, av["exp"]))
     bad += neishi_seat_check(d)
@@ -15226,7 +15253,7 @@ def neishi_table(d, dem):
                    "その線が塀の足元より<b>下</b>を通るなら何も遮っていない=<b>遮蔽体なし</b>)。</p>"
                    "<div class='tw'><table><thead><tr><th>護岸石の天端</th><th><code>topAbove</code></th>"
                    "<th>石の天端</th><th>遮蔽体(仰角が最大)</th><th>板塀の位置での見切り線</th>"
-                   "<th>塀の足元(%.3fm)の露出</th></tr></thead><tbody>%s</tbody></table></div>"
+                   "<th>見切り線の余裕(塀の足元 %.3fm − 見切り線。石の露出ではない)</th></tr></thead><tbody>%s</tbody></table></div>"
                    "<p class='cap'>⭐ <b>ここには遮蔽体が無い</b>【庭方 回答1】— "
                    "護岸石の天端は上限でも板塀の立つ平場より低く、"
                    "汀と塀のあいだの地山も塀の足元より上を通らない"
@@ -15297,7 +15324,7 @@ def garden_section_svg(d, dem, gs):
                        "遮っていない" if r.get("by", "").startswith("遮蔽体なし")
                        else "仰角が最大"),
                     fs=8.5, dx=4.0, dy=-6.0)
-        LBS.add(X(sh), Y(r["line"]), "見切り線(遮蔽体=%s)→ 露出 %+.3fm"
+        LBS.add(X(sh), Y(r["line"]), "見切り線(遮蔽体=%s)→ 足元までの余裕 %+.3fm"
                 % (r.get("by", "—"), r["exp"]), fs=8.5, fill=COL[r["lab"]],
                 anchor="end", dx=-4.0, dy=-2.0)
     # --- 御泉水(水面と底)
@@ -17827,6 +17854,15 @@ def slope_emergent_check(d, dem):
             continue
         a0, a1 = _band_arc_span(d, dem, lay)
         total = a1 - a0
+        gp = em.get("gaps")
+        if gp is not None and len(gp) != want + 1:
+            out.append("層 %s の突出木の空きの並び `emergent.gaps` が %d 個で、本数 %d + 1 = %d 個と合わない"
+                       " — ⛔ 並びが読まれず等分に戻る" % (lay["layer"], len(gp), want, want + 1))
+        elif gp and max(float(x) for x in gp) * total / sum(float(x) for x in gp) > gap + 1e-6:
+            out.append("層 %s の突出木の空きの並び `emergent.gaps` を法肩 %.1fm へ比例で合わせると"
+                       "最大 %.1fm で敷居 %.1fm を超える — ⛔ 並びが敷居と両立しない"
+                       % (lay["layer"], total, max(float(x) for x in gp) * total
+                          / sum(float(x) for x in gp), gap))
         if len(pts) != want:
             out.append("層 %s の突出木(%s)が **%d 本**で、宣言の %d 本と違う — "
                        "⛔ 置ききれていないか部材の割りが合っていない"
@@ -17921,16 +17957,30 @@ def slope_doryu_check(d, dem):
                        "登録依頼が無い — 実装がパスの literal を直書きすることになる"
                        % (dr["name"], api))
         got = secs.get(dr["name"], [])
+        # ⭐ **部材数は連続する区間の延長で数える**(2026-09-13・第35次【検図】)。
+        #   ⛔ 断面ごとに ceil(刻み ÷ 有効長) を切り上げて足すと、断面の数だけ端数が積もり
+        #     部材数が約 2 倍に出ていた。⭕ 刻みが隣り合う断面を一続きの区間に束ね、
+        #     区間の延長(断面数 × 刻み)÷ 石 1 個の有効長(走り × 0.85)を区間ごとに切り上げる。
+        stp = float(dr.get("step", 2.0))
+        runs_m = []
+        for (a, _gr, _u, _v) in sorted(got):
+            if runs_m and a - runs_m[-1][1] <= stp * 1.5:
+                runs_m[-1][1] = a
+                runs_m[-1][2] += 1
+            else:
+                runs_m.append([a, a, 1])
+        ext = sum(r[2] * stp for r in runs_m)
         if nm in idx:
             L = max(idx[nm]["sx"], idx[nm]["sz"]) * float(pt.get("scale", 1.0))
-            n = int(math.ceil(float(dr.get("step", 2.0)) / max(0.1, L * 0.85))) * len(got)
+            n = sum(int(math.ceil(r[2] * stp / max(0.1, L * 0.85))) for r in runs_m)
         else:
             n = len(got)
         out.append("〔記録〕土留め %s: 局所勾配 %.0f%% を超える断面が **%d 箇所**"
-                   "(刻み %.1fm)⇒ 部材 %s が **%d 個**(走りの重ね 15%%)。"
+                   "(刻み %.1fm)= 連続する区間 **%d 本・延長 %.1fm** ⇒ 部材 %s が **%d 個**"
+                   "(区間ごとに 延長 ÷ 有効長(走りの 85%%)を切り上げ)。"
                    "⛔ 区間の座標は指図に持たない(地形が動けば動く)"
                    % (dr["name"], 100.0 * float(dr.get("gradeMin", 0.35)), len(got),
-                      float(dr.get("step", 2.0)), nm, n))
+                      stp, len(runs_m), ext, nm, n))
     return out
 
 

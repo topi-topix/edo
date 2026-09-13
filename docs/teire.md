@@ -43,6 +43,8 @@ CLAUDE.md・`.claude/`(役・コマンド・フック・rules・workflows)・ス
 - **スキルの実体は `Tools/Skills/<名>/`、`~/.claude/skills/<名>` は symlink。** リポジトリで版管理し、
   読まれる実体は main の 1 本だけ(`.claude/skills/` に置くと worktree ごとに古い写しが載る)。
   ⛔ `SYNC_PATHS` に入れない。
+  ⚠ `unity-mcp-skill` は上流の同期ツール(MCP for Unity の設定画面)の管理下にある。同期を回すと SKILL.md が
+  上流の版で上書きされ、手で足した発火条件が消える — 回した後は `git diff Tools/Skills/unity-mcp-skill` で確かめて戻す。
 - **フックは `.claude/hooks/` と `.claude/settings.json`。** `~/.claude/settings.json` に edo 用を置かない。
 
 ## 誰が・どこに記録するか

@@ -1,6 +1,16 @@
 ---
 name: unity-mcp-skill
-description: Orchestrate Unity Editor via MCP (Model Context Protocol) tools and resources. Use when working with Unity projects through MCP for Unity - creating/modifying GameObjects, editing scripts, managing scenes, running tests, or any Unity Editor automation. Provides best practices, tool schemas, and workflow patterns for effective Unity-MCP integration.
+description: >-
+  Unity Editor を MCP for Unity(mcp__unityMCP__* のツールと mcpforunity:// のリソース)越しに操作するときの
+  土台の作法 — リソースを先に読む、スクリプトを書いたらコンパイル完了を待って console を確かめる、
+  複数の操作は batch_execute にまとめる、結果はスクリーンショットで確かめる、editor_state の確認、
+  ページング、複数インスタンスの切り替え、エラーからの復旧、各ツールのパラメータ型とスキーマ。
+  mcp__unityMCP__ のツールを呼ぶ場面では、スキル名を言われなくても必ず読むこと — とくに
+  「GameObject を作る/動かす/消す」「コンポーネントやマテリアルを付ける」「C# を書いて反映させる」
+  「シーンやプレハブを開く/保存する」「テストを回す」「console のエラーを見る」
+  「execute_code や batch_execute が失敗した/タイムアウトした」「直したのに反映されない」とき。
+  地表・植栽・検証レンダは unity-surface-authoring、石垣は unity-modular-stonewall、
+  屋敷の中身は unity-buke-yashiki を先に読み、このスキルはその下の土台として併読する。
 ---
 
 # Unity-MCP Operator Guide

@@ -7,12 +7,19 @@
      とは桁が違う。⛔ 汎用フーチングも当てられない(白い箱になる)。
 
 【寸法 — 指図 `nakajikiriRule.neishi` が正典。⛔ ここで数を作らない】
-  `show` [0.15, 0.20]  地上に出る高さ[m]
-  `bury` 0.5           石の丈に対する埋まり比 ⇒ **丈 = show ÷ (1 − bury) = 2×show**
-                       ⇒ 丈 0.30〜0.40m。**地盤線より下 show・上 show の対称**になる
+  ⭐ **値は json から直に読む**(`SASHIZU`)。⛔ literal を写さない。
+  `showMul`      0.45        ⭐ **見え高 = その石の地盤線の差し渡し × showMul**(2026-09-10 第33次で従属値へ)
+  `seatSpanFrac` [0.85, 1.0] 地盤線の差し渡し ÷ 外接の走り の許容帯
+  `bury` 0.5           石の丈に対する埋まり比 ⇒ **丈 = 見え ÷ (1 − bury) = 2×見え**
+                       ⇒ **地盤線より下・上が対称**になる
   `t`    0.35          塀の面から両側へ出る厚み[m] = **走りに直交する全厚**
   `long` [0.40, 0.70]  一石の走り[m]。⭐ **乱尺**(⛔ 同じ長さで並べない)
-  ⚠ **石数は指図に無い従属値**(run の長さ ÷ long の平均)。8 run・延長 444.2m ⇒ 約 800 石。
+  ⚠ **石数は指図に無い従属値**(run の長さ ÷ 地盤線の差し渡しの平均)。延長 444.2m ⇒ 約 910 石。
+
+  ⭐⭐ **丈は収束させて決める。** 差し渡しは焼いた形から測る値で、丈を変えると丸めの効き方が
+     僅かに変わって差し渡しも動く ⇒ `build_converged` が「差し渡しの種 → 丈 → 焼く → 測る」を
+     |Δ丈| ≤ `CONV_TOL` まで回す。`VARIANTS` の種は**前回の収束値**を書き戻してあるので、
+     通常は 1 巡目で止まる。
 
 ━━━ ⛔⛔ 2026-09-10 の差し戻し(普請検査が画で見た不良)━━━━━━━━━━━━━━━━
   据えた 842 石は「**厚み数 cm の黒い三日月**にしか見えず、板塀の足元の汚れ・ひびに読める」
@@ -31,7 +38,8 @@
   ⭕ ② **丸みを強めた**(`SMOOTH_ITERS`)。受入は下位5%の局所半径 **≥ 0.045m**
      (従前 0.020〜0.045 で「角張って見える」と判定された。ユーザー指摘の帯は 2〜6cm)。
 
-  ⚠ **露出(見え高)は動かしていない。** `show` / `bury` は指図の値で、部材方は決めない。
+  ⚠ **露出(見え高)は部材方が決めていない。** 2026-09-10 第33次で指図が `show` の literal を廃し
+    `showMul` × 地盤線の差し渡し にした ⇒ 丈 0.30〜0.40 → 0.36〜0.57 級へ焼き直した。
     ⇒ 焼くたびに **丈といくら見えるかの関係**を刷る(`_show_table`)。判断は指図方へ。
 
 【作り方 — ⛔ ゼロから起こさない】`build_hiraishi` と**同じ流儀**:
@@ -65,10 +73,32 @@ import build_tateishi as BT
 OUT = V.out_dir(os.path.join(V.REPO, "Assets", "Edo", "Models", "Niwa"))
 SHOT = os.path.join(V.REPO, "Screenshots")
 
-# ---- 指図 `nakajikiriRule.neishi`(⛔ ここで作った数ではない) -------------------
-SHOW = (0.15, 0.20)
-BURY = 0.5
-T = 0.35
+# ---- 指図 `nakajikiriRule.neishi`(⛔ ここで作った数ではない。json から直に読む)----
+SASHIZU = os.path.join(V.REPO, "docs", "Sashizu", "matsudaira_dewa_sashizu.json")
+
+
+def _load_rule():
+    import json
+    with open(SASHIZU, encoding="utf-8") as f:
+        ne = json.load(f)["nakajikiriRule"]["neishi"]
+    for k in ("showMul", "seatSpanFrac", "bury", "t", "long"):
+        if k not in ne:
+            raise SystemExit("[neishi] ⛔ 指図 nakajikiriRule.neishi.%s が無い(%s)" % (k, SASHIZU))
+    if "show" in ne:
+        raise SystemExit("[neishi] ⛔ 指図に `show` の literal が残っている — 第33次で廃止のはず")
+    return ne
+
+
+RULE = _load_rule()
+SHOW_MUL = float(RULE["showMul"])
+SEAT_FRAC = tuple(float(x) for x in RULE["seatSpanFrac"])
+BURY = float(RULE["bury"])
+T = float(RULE["t"])
+LONG = tuple(float(x) for x in RULE["long"])
+# ⭐ 見え高の帯は**従属値** = showMul × long × seatSpanFrac(⛔ literal を置かない)
+SHOW_BAND = (SHOW_MUL * LONG[0] * SEAT_FRAC[0], SHOW_MUL * LONG[1] * SEAT_FRAC[1])
+CONV_TOL = 0.005          # 丈の収束判定[m](部材方の測りの刻み。指図の値ではない)
+CONV_MAX = 4
 
 # ---- 土台と材(⛔ どちらも在庫。新規に起こしていない)---------------------------
 NM_DIR = os.path.join(V.REPO, "Assets", "NatureManufacture Assets",
@@ -78,20 +108,22 @@ ROCK_MAT = "M_photoscanned_rocks_01"        # ⭐ FBX が元から持つ材質�
 WOOD_UV = (0.600, 0.03, 0.770, 0.97)        # 板塀の見立て用(build_goten_roof と同じ木理)
 
 # ⭐ **乱尺**の刻み。`long` [0.40, 0.70] を 8 個体に散らす。
-#   ⛔ 等間隔にしない(等間隔だと run 上で周期が読める)。⛔ 長さと丈を相関させない。
+#   ⛔ 等間隔にしない(等間隔だと run 上で周期が読める)。
 #   土台は 6 種を回すので、同じ長さでも柄とシルエットが違う。
-#   (長さ, 丈, 土台番号)。丈は 2×show ⇒ 0.30〜0.40 の範囲に収まっていること。
-#   ⚠ **丈の割り振りは 2026-09-09 版から動かしていない** — `show`/`bury` は指図の値で、
-#     部材方が決める物ではないため(露出が足りないなら指図方が `show` を動かす)。
+#   (長さ, **地盤線の差し渡しの種**[m], 土台番号)。⭐ 丈は種から出す従属値
+#   = 2 × showMul × 差し渡し(bury 0.5)。⚠ 種は焼いて測る値なので `build_converged` が収束させる。
+#   ⚠ 種は**前回の収束値**(焼くたびに刷る「VARIANTS の種へ書き戻す値」をここへ)。
+#     2026-09-10 の実測(旧丈)0.397/0.424/0.467/0.539/0.528/0.529/0.623/0.636 から回して、
+#     2026-09-13 に全個体 1 巡で収束(|Δ丈| ≤ 0.001)。
 VARIANTS = [
-    (0.41, 0.34, 1),
-    (0.45, 0.30, 2),
-    (0.50, 0.38, 3),
-    (0.54, 0.32, 4),
-    (0.58, 0.40, 5),
-    (0.62, 0.31, 6),
-    (0.66, 0.36, 2),
-    (0.70, 0.33, 5),
+    (0.41, 0.397, 1),
+    (0.45, 0.424, 2),
+    (0.50, 0.467, 3),
+    (0.54, 0.539, 4),
+    (0.58, 0.528, 5),
+    (0.62, 0.528, 6),
+    (0.66, 0.622, 2),
+    (0.70, 0.637, 5),
 ]
 # ⭐⭐ **丸めの手順は 3 段**(2026-09-10 に実測で決めた。⛔ 目で決めていない)。
 #   ① `smooth_vert` を 6 回 … 稜を落とす(水に洗われる過程そのもの)
@@ -317,14 +349,14 @@ def build_one(lng, h, donor_i, name):
     return o
 
 
-def _itabei_mock(x0, x1, y_top=1.85):
+def _itabei_mock(x0, x1, y_top=1.85, y_bot=0.16):
     """⭐ **板塀の見立て**(検証レンダ専用。⛔ 書き出さない・在庫にもしない)。
     根石は「板塀の足元に並ぶ物」なので、**塀を立てずに石だけ見ても合否は出せない**
     (2026-09-10 の差し戻しは『板塀の足元の汚れ・ひびに読める』という判定だった)。
     ⇒ 板の厚み 0.12m・裾を根石の天端に載せた板を1枚立てる。材は Village Kit の `wood`。"""
     m = V.named_material("wood")
-    o = V.box("ItabeiMock", (x1 - x0, 0.12, y_top - 0.16),
-              ((x0 + x1) / 2.0, 0.0, 0.16 + (y_top - 0.16) / 2.0), mat=m)
+    o = V.box("ItabeiMock", (x1 - x0, 0.12, y_top - y_bot),
+              ((x0 + x1) / 2.0, 0.0, y_bot + (y_top - y_bot) / 2.0), mat=m)
     V.set_uv_rect(o, WOOD_UV, axes=('x', 'z'))     # ⛔ 一点貼りにしない(のっぺりした板になる)
     return o
 
@@ -355,7 +387,9 @@ def shots(objs):
     mock = None
     for sub, cam, look, res, want_mock in shots_spec:
         if want_mock and mock is None:
-            mock = _itabei_mock(-0.1, x + 0.1)
+            # 板の裾 = いちばん低い根石の天端の 9 割(見え高が従属値になったので固定値にしない)
+            mock = _itabei_mock(-0.1, x + 0.1,
+                                y_bot=0.9 * min(BT.bounds([c])[1].z for c in objs))
             V.hook_textures()
         if (not want_mock) and mock is not None:
             bpy.data.objects.remove(mock, do_unlink=True); mock = None
@@ -382,24 +416,58 @@ def main():
     if not jobs:
         raise SystemExit("[neishi] 該当する長さが無い。焼いてあるのは %s"
                          % ", ".join("%g" % v[0] for v in VARIANTS))
-    for lng, h, d in jobs:
-        show = h * (1.0 - BURY)
-        if not (SHOW[0] - 1e-6 <= show <= SHOW[1] + 1e-6):
-            raise SystemExit("[neishi] ⛔ 見え高 %.3f が指図 `show` %s の外(丈 %.2f)"
-                             % (show, list(SHOW), h))
-        if not (0.40 - 1e-6 <= lng <= 0.70 + 1e-6):
-            raise SystemExit("[neishi] ⛔ 走り %.3f が指図 `long` [0.40,0.70] の外" % lng)
+    for lng, seed, d in jobs:
+        if not (LONG[0] - 1e-6 <= lng <= LONG[1] + 1e-6):
+            raise SystemExit("[neishi] ⛔ 走り %.3f が指図 `long` %s の外" % (lng, list(LONG)))
     made = []
-    for lng, h, d in jobs:
-        V.reset()
-        o = build_one(lng, h, d, asset_name(lng))
+    for lng, seed, d in jobs:
+        o, h, span = build_converged(lng, seed, d)
         V.export_fbx([o], os.path.join(OUT, o.name + ".fbx"))
-        made.append((lng, h, d))
+        made.append((lng, h, d, span))
+    print("[neishi] ━━ 表(棟梁の芯々用。⭐ 見え = 差し渡し × %.2f / 丈 = 2 × 見え)━━" % SHOW_MUL)
+    print("[neishi]  個体  | 外接の走り | 地盤線の差し渡し | 比   | 見え高 | 丈")
+    for lng, h, d, span in made:
+        print("[neishi]  L%-4g | %.3f      | %.3f            | %.3f | %.3f  | %.3f"
+              % (lng, lng, span, span / lng, h * (1.0 - BURY), h))
+    print("[neishi]  VARIANTS の種へ書き戻す値: %s"
+          % ", ".join("(%g, %.3f, %d)" % (l, s, d) for l, h, d, s in made))
     if "--render" in argv:
         V.reset()
-        objs = [build_one(lng, h, d, asset_name(lng)) for lng, h, d in made]
+        objs = [build_one(lng, h, d, asset_name(lng)) for lng, h, d, s in made]
         shots(objs)
     print("[neishi] %d 個体 → %s" % (len(made), OUT))
+
+
+def build_converged(lng, seed, donor_i):
+    """⭐⭐ **丈を収束させて焼く**(指図 `nakajikiriRule.neishi._show`)。
+    差し渡しの種 → 丈 h = 見え ÷ (1−bury) = showMul·span ÷ (1−bury) → 焼く → 地盤線の差し渡しを測る
+    → |Δh| ≤ CONV_TOL まで。⛔ 収束しなければ止める(値を丸めて通さない)。"""
+    span = seed
+    h_prev = None
+    for it in range(1, CONV_MAX + 1):
+        h = SHOW_MUL * span / (1.0 - BURY)
+        V.reset()
+        o = build_one(lng, h, donor_i, asset_name(lng))
+        span_new = _span_at(o.data, 0.0, 'x')
+        h_new = SHOW_MUL * span_new / (1.0 - BURY)
+        print("[neishi]   収束 %d 巡: 種 %.3f → 丈 %.3f → 測った差し渡し %.3f → 丈 %.3f(Δ %+.4f)"
+              % (it, span, h, span_new, h_new, h_new - h))
+        if abs(h_new - h) <= CONV_TOL:
+            show = h * (1.0 - BURY)
+            frac = span_new / lng
+            if not (SEAT_FRAC[0] - 1e-3 <= frac <= SEAT_FRAC[1] + 1e-3):
+                raise SystemExit("[neishi] ⛔ L%g 地盤線の差し渡し %.3f は外接の %.3f — 指図 "
+                                 "`seatSpanFrac` %s の外(指図方へ照会)"
+                                 % (lng, span_new, frac, list(SEAT_FRAC)))
+            if abs(show - SHOW_MUL * span_new) > CONV_TOL * (1.0 - BURY) + 1e-6:
+                raise SystemExit("[neishi] ⛔ L%g 見え高 %.3f ≠ showMul × 差し渡し %.3f"
+                                 % (lng, show, SHOW_MUL * span_new))
+            if not (SHOW_BAND[0] - 1e-3 <= show <= SHOW_BAND[1] + 1e-3):
+                raise SystemExit("[neishi] ⛔ L%g 見え高 %.3f が従属の帯 [%.3f, %.3f] の外"
+                                 % (lng, show, SHOW_BAND[0], SHOW_BAND[1]))
+            return o, h, span_new
+        span = span_new
+    raise SystemExit("[neishi] ⛔ L%g の丈が %d 巡で収束しない" % (lng, CONV_MAX))
 
 
 if __name__ == "__main__":

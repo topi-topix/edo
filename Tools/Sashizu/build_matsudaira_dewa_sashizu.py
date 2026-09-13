@@ -1567,6 +1567,8 @@ def plane_check(d):
     bad += slope_emergent_check(d, _dem_json())  # A-3 突出木の法肩に沿った空き
     bad += slope_doryu_check(d, _dem_json())   # A-3 法尻の土留め
     bad += group_mix_check(d)                  # A-2 刈込の塊の 2 種混在
+    # ⭐ **2026-09-13(第34次)に新設して同じ巡で配線した**(規則19)
+    bad += koran_frame_check(d)                # B-3 主景の前景の高欄(部材から算出)
     bad += design_value_check(d)
     bad += pending_ref_check(d)
     return bad
@@ -4366,9 +4368,13 @@ def roof_sensitivity(d):
     # ⚠ **2026-09-08(第29次)に probe を直した** — 旧 probe は新造依頼を消すだけで、
     #   **在庫に無い部材が一つも無い今の設計では何も鳴らなかった**(恒真の検査を素通しする
     #   probe)。⇒ 在庫に無い帯割りを名指しさせ、依頼も消して、両方が抜けた状態を作る。
-    run("⑧ 在庫に無い帯割り(4-4-4-4x12ken)を名指しし、新造依頼(`_pending.gotenRoofShinzo`)も消す",
-        lambda m: (_m(m, "Genkan")["roof"].__setitem__("bands", [4, 4, 4, 4]),
-                   m["_pending"].pop("gotenRoofShinzo")))
+    run("⑧ 在庫に無い帯割り(4-4-4-4x12ken)を名指しする",
+        lambda m: _m(m, "Genkan")["roof"].__setitem__("bands", [4, 4, 4, 4]))
+    # ⭐ **2026-09-13(第34次)** — 綴りの接尾辞を一つ落とす壊れ方(`EdoAssets.Goten.RoofBanded` との食い違い)
+    run("⑧′ 綴りから入側の接尾辞 `_i` を落とす",
+        lambda m: m.__setitem__("_roofSpellDrop", "i"))
+    run("⑧″ 綴りから軒落としの接尾辞 `_n` を落とす",
+        lambda m: m.__setitem__("_roofSpellDrop", "n"))
     run("⑨ 断面から概略の屋根の高さ(`ridgeAbove`)を落とす",
         lambda m: m["sections"][0].pop("ridgeAbove"))
     run("⑩ 長屋型の棟に帯割りを持たせる",
@@ -16029,17 +16035,59 @@ def _ridge_above_eave(d, band_ken):
     return _band_ridge_h(d, band_ken) - _nokisaki_eave(d)
 
 
-def _roof_part(m):
+def _roof_touching(m, munes):
+    """棟 m の四辺それぞれについて「外形の線を共有する隣の棟」→ {"u0": 棟|None, ...}。
+    ⭐ **部材方の `Tools/Blender/build_matsudaira_dewa_roofs.py` の `_touching()` と同じ判定**
+      (外形の線を共有し、直交方向の重なりが正)。⛔ 人が数えて書き写さない。"""
+    r = {"u0": None, "u1": None, "v0": None, "v1": None}
+    for n in munes:
+        if n is m:
+            continue
+        ov_v = min(m["v1"], n["v1"]) - max(m["v0"], n["v0"])
+        ov_u = min(m["u1"], n["u1"]) - max(m["u0"], n["u0"])
+        if ov_v > 0:
+            if m["u0"] == n["u1"]:
+                r["u0"] = n
+            if m["u1"] == n["u0"]:
+                r["u1"] = n
+        if ov_u > 0:
+            if m["v0"] == n["v1"]:
+                r["v0"] = n
+            if m["v1"] == n["v0"]:
+                r["v1"] = n
+    return r
+
+
+def _roof_noki(m, munes):
+    """軒落としの 4 つ組(u0,u1,v0,v1。1 = 出す / 0 = 落とす)。
+    ⚠ 隣が `roof` を持たない棟のときは落とさない(相手の屋根の形が分からないまま落とすと
+      壁の上が素通しになる — 部材方の `plan()` と同じ)。"""
+    t = _roof_touching(m, munes)
+    return [0 if (t[k] is not None and ((t[k].get("roof") or {}).get("bands"))) else 1
+            for k in ("u0", "u1", "v0", "v1")]
+
+
+def _roof_part(m, munes, drop=None):
     """棟 m の屋根部材のパス。**`EdoAssets.Goten.RoofBanded` と同じ規則**で組む
-    (帯を `-` で継ぎ、`x<桁行>ken`、大棟が v なら末尾 `_v`)。
+    (帯を `-` で継ぎ、`x<桁行>ken`、大棟が v なら `_v`、入側が四辺とも 1 でなければ
+    `_i<u0u1v0v1>`、軒落としが四辺とも 1 でなければ `_n<u0u1v0v1>`)。
     ⛔ ここを実装と違う綴りにしない — `LoadAssetAtPath` は例外を投げず null を返すので、
-      綴りが違うと**屋根だけが黙って建たない**(絶対規則11)。"""
+      綴りが違うと**屋根だけが黙って建たない**(絶対規則11)。
+    ⚠ `drop`("i" / "n")は感度試験だけが使う — その接尾辞を綴りから落とす。"""
     r = m.get("roof")
     if not r:
         return None
-    return ("Assets/Edo/Models/Goten/Roofs/Goten_Roof_Banded_%sx%dken%s.fbx"
+    ir = r.get("irikawa") or {"u": [1, 1], "v": [1, 1]}
+    i4 = [int(ir["u"][0]), int(ir["u"][1]), int(ir["v"][0]), int(ir["v"][1])]
+    n4 = _roof_noki(m, munes)
+    suf = ""
+    if drop != "i" and i4 != [1, 1, 1, 1]:
+        suf += "_i" + "".join(str(x) for x in i4)
+    if drop != "n" and n4 != [1, 1, 1, 1]:
+        suf += "_n" + "".join(str(x) for x in n4)
+    return ("Assets/Edo/Models/Goten/Roofs/Goten_Roof_Banded_%sx%dken%s%s.fbx"
             % ("-".join(str(b) for b in r["bands"]), r["spanKen"],
-               "_v" if r["alongV"] else ""))
+               "_v" if r["alongV"] else "", suf))
 
 
 def _moya_span(m):
@@ -16916,24 +16964,39 @@ def roof_along_check(d):
 
 
 def roof_stock_check(d):
-    """**帯割りが名指しする屋根部材が在庫に在るか。**無いものは
-    `_pending.gotenRoofShinzo`(部材方への新造依頼)に**名前で**挙がっていること。
+    """**帯割りが名指しする屋根部材が在庫に実在するか**(`os.path.exists` だけで判定)。
     ⛔ 名指しした物が無いまま実装へ渡ると、`LoadAssetAtPath` が null を返して
-      屋根だけが黙って建たない(絶対規則11)。"""
-    req = (d.get("_pending") or {}).get("gotenRoofShinzo", "")
+      屋根だけが黙って建たない(絶対規則11)。
+    ⛔ **依頼の文面との名前一致で黙らせない**(2026-09-13・第34次に撤去 — 古い名前に
+      一致して 6 棟が鳴らなかった)。
+    ⭐ **綴りより詳しい名(接尾辞が一つ多い)の部材が在庫にあり、どの棟も名指ししていない**
+      ときも鳴らす — 綴りが接尾辞を落とすと、在庫に残る旧名に当たって存在の判定だけでは
+      捕まらないため。
+    ⚠ `d["_roofSpellDrop"]` は感度試験だけが立てる(綴りから接尾辞を一つ落とす)。"""
+    drop = d.get("_roofSpellDrop")
     bad = []
+    rdir = os.path.join(ROOT, "Assets/Edo/Models/Goten/Roofs")
+    stock = set(f for f in os.listdir(rdir) if f.endswith(".fbx")) if os.path.isdir(rdir) else set()
+    named = set()
+    rows = []
     for m in d["munes"]:
-        pth = _roof_part(m)
+        pth = _roof_part(m, d["munes"], drop)
         if not pth:
             continue
-        if os.path.exists(os.path.join(ROOT, pth)):
-            continue
+        named.add(os.path.basename(pth))
+        rows.append((m, pth))
+    for m, pth in rows:
         nm = os.path.basename(pth)[:-4]
-        if nm not in req:
-            bad.append("%s の屋根部材 %s が**在庫に無く**、`_pending.gotenRoofShinzo`"
-                       "(部材方への新造依頼)にも挙がっていない — "
-                       "黙って建たない屋根になる(絶対規則11)"
+        if not os.path.exists(os.path.join(ROOT, pth)):
+            bad.append("%s の屋根部材 %s が**在庫に無い** — 綴り(入側 `_i` / 軒落とし `_n`)の誤りか"
+                       "部材の焼き忘れ。黙って建たない屋根になる(絶対規則11)"
                        % (MUNE_JA.get(m["name"], m["name"]), nm))
+            continue
+        more = sorted(f for f in stock if f.startswith(nm + "_") and f not in named)
+        if more:
+            bad.append("%s の屋根部材 %s より**接尾辞が多い名** %s が在庫にあり、どの棟も名指ししていない — "
+                       "綴りが入側/軒落としを落としていないか(在庫の旧名を黙って据えることになる)"
+                       % (MUNE_JA.get(m["name"], m["name"]), nm, "・".join(f[:-4] for f in more)))
     return bad
 
 
@@ -17272,7 +17335,7 @@ def roof_bands_table(d):
         nm = MUNE_JA.get(m["name"], m["name"])
         if roof:
             mt = _mune_takasa(d, m)
-            pth = _roof_part(m)
+            pth = _roof_part(m, d["munes"])
             ok = os.path.exists(os.path.join(ROOT, pth))
             ir = roof.get("irikawa", {})
             rows += ("<tr><td>%s%s</td><td><b>%s</b></td><td>%d間</td><td>%s</td>"
@@ -17286,7 +17349,7 @@ def roof_bands_table(d):
                         roof["fukizai"],
                         "%.3fm" % mt if mt is not None else "未定",
                         os.path.basename(pth),
-                        "在る" if ok else "<b>無い(新造依頼)</b>",
+                        "在る" if ok else "<b>無い</b>",
                         roof["confidence"]))
         elif m["name"] in ROOF_NAGAYA_GATA_MUNES:
             rows += ("<tr><td>%s</td><td colspan='7' class='note'>帯割りの対象外"
@@ -17383,22 +17446,29 @@ def neishi_edge_overhang_check(d):
     ⭐ **座は塀の芯線に沿った 1 次元の標本**(`nakajikiriRule.neishi._seat`)。
       ⛔ だからといって厚み方向を見ないままにはしない — 根石は走りに直交して `t` の幅を持ち、
       塀が**段の縁そのもの**に立つと外半分が段の外(法面)へ掛かる。
-    ⚠ **棟梁が差し戻した `NJ_Oku_SE` の 0.087m はこれ**(芯線では 0.000m)。
-      ⇒ 受け方(塀を内へ寄せる/段を外へ延ばす/土留めで受ける)は `_pending.itabeiDanEnNori`。"""
+    ⭕ **2026-09-13(第34次・裁定ⓐ)に受け方を決めた** — 塀の芯を段の内へ
+      `nakajikiriRule.neishi.edgeSetback` 寄せ、**根石の外に土を残す**。⇒ 厚み(±`t`/2)に加えて、
+      **残す土の幅**(±(`t`/2 + (`edgeSetback` − `t`/2) × 0.9))でも段が出ないことを見る。"""
     rule = (d.get("nakajikiriRule") or {}).get("neishi") or {}
     kinds = set(rule.get("applyKind") or [])
     if not kinds:
         return []
     K = d["const"]["ken"]
-    half = float(rule.get("t", 0.35)) / 2.0 / K            # 間
+    tt = float(rule.get("t", 0.35))
+    half = tt / 2.0 / K            # 間
+    sb = rule.get("edgeSetback")
+    soil = ((tt / 2.0 + max(0.0, float(sb) - tt / 2.0) * 0.9) / K) if sb is not None else None
     dev = float(rule.get("seatDevMax", 0.08))
     terr, dm = _terr_json(), _dem_json()
     out = []
+    if sb is None:
+        out.append("`nakajikiriRule.neishi.edgeSetback` が無い — 段の縁に立つ板塀の受け方が指図に無い")
     for nj in d.get("nakajikiri", []):
         if nj.get("kind") not in kinds or not nj.get("seatSpans"):
             continue
         vert, fix, lo, hi = _nj_axis(nj)
         worst, at, nbad, ntot = 0.0, None, 0, 0
+        worst2, at2, nbad2 = 0.0, None, 0
         s = lo
         while s <= hi + 1e-9:
             ys = []
@@ -17414,6 +17484,19 @@ def neishi_edge_overhang_check(d):
                     nbad += 1
                 if dd > worst:
                     worst, at = dd, s
+                if soil is not None:
+                    ys2 = []
+                    for off in (-soil, soil):
+                        u, v = ((fix + off, s) if vert else (s, fix + off))
+                        g = _ground_uv(d, u, v, terr, dm)
+                        if g is not None:
+                            ys2.append(g)
+                    if len(ys2) == 2:
+                        dd2 = max(ys2 + [ys[1]]) - min(ys2 + [ys[1]])
+                        if dd2 > dev + 1e-9:
+                            nbad2 += 1
+                        if dd2 > worst2:
+                            worst2, at2 = dd2, s
             s += 0.25
         if not ntot:
             out.append("板塀 %s の根石の厚み方向を測れない — **この検査は回っていない**" % nj["name"])
@@ -17423,11 +17506,16 @@ def neishi_edge_overhang_check(d):
                        "(許容 %.2fm を超える標本 %d/%d・最悪は弧長 %.1f間)— "
                        "塀が面の縁に立っているので外半分が法面へ掛かる。"
                        "⛔ 芯線の座は合っている(⇒ `seatSpans` を割り直す話ではない)。"
-                       "受け方は `_pending.itabeiDanEnNori`"
-                       % (nj["name"], float(rule.get("t", 0.35)), worst, dev, nbad, ntot, at))
+                       "塀の芯を段の内へ `nakajikiriRule.neishi.edgeSetback` 寄せること"
+                       % (nj["name"], tt, worst, dev, nbad, ntot, at))
+        elif nbad2:
+            out.append("板塀 %s の根石: 厚みは面の中だが、**根石の外に残す土の幅の中で設計地盤が最大 %.3fm 段になる**"
+                       "(許容 %.2fm を超える標本 %d/%d・最悪は弧長 %.1f間)— 法肩の際に塀が立っている。"
+                       "段の縁から芯まで `nakajikiriRule.neishi.edgeSetback` %.2fm を取ること"
+                       % (nj["name"], worst2, dev, nbad2, ntot, at2, float(sb)))
         else:
-            out.append("〔記録〕板塀 %s の根石: 厚みの中の段差は最大 %.3fm(許容 %.2fm)— "
-                       "面の縁に掛かっていない" % (nj["name"], worst, dev))
+            out.append("〔記録〕板塀 %s の根石: 厚みの中の段差は最大 %.3fm・残す土の幅の中は最大 %.3fm"
+                       "(許容 %.2fm)— 面の縁に掛かっていない" % (nj["name"], worst, worst2, dev))
     return out
 
 
@@ -17511,31 +17599,145 @@ def band_governor_check(d, dem):
     """**帯の境を実際に決めているのは t か `minAbs` か**(2026-09-10・第33次)。
 
     ⛔ 宣言した境 t が一度も当たらないまま『帯を縮めた』と思い込まないための検査。
-    ⭕ 帯ごとに**実測の t の最大/最小**を出し、宣言の境に届いていなければ
-      「その境は効いていない」と言う。⇒ `_pending.obiW3Shukusyou`。"""
+    ⭐ **2026-09-13(第34次)** — 下の帯が `borderBy`(`"minAbs"` / 既定 `"t"`)で**どちらが境を
+      決めるかを宣言する**。実測の t が境に届くか(t が支配)/届かないか(`minAbs` が支配)を
+      宣言と突き合わせ、食い違えば鳴らす。"""
     smp = slope_samples(d, dem)
     ts = {}
     for s in smp:
         ts.setdefault(s[6], []).append(s[5])
     out = []
-    for b in d.get("slopeBands", []):
+    bands = d.get("slopeBands", [])
+    for b in bands:
         if b.get("yRange"):
             continue                                    # 標高で切る帯は t を使わない
         v = sorted(ts.get(b["name"], []))
         if not v:
             continue
         lo, hi = float(b["from"]), float(b["to"])
-        if hi < 1.0 - 1e-9 and v[-1] < hi - 0.02:
-            out.append("帯 %s の宣言の下の境 t=%.2f は**効いていない** — 実測の t は最大 %.3f "
-                       "で境に届かない(この帯を切っているのは `minAbs` %s か隣の帯)。"
-                       "⛔ 境 t を動かしても面積は変わらない ⇒ `_pending.obiW3Shukusyou`"
-                       % (b["name"], hi, v[-1],
-                          next((("%.1fm" % float(x["minAbs"])) for x in d["slopeBands"]
-                                if x.get("minAbs") and x.get("region") == b.get("region")), "—")))
+        nxt = next((x for x in bands if x is not b and not x.get("yRange")
+                    and x.get("region") == b.get("region") and abs(float(x["from"]) - hi) < 1e-9), None)
+        if hi >= 1.0 - 1e-9 or nxt is None:
+            out.append("〔記録〕帯 %s: 実測の t は %.3f〜%.3f(宣言 %.2f〜%.2f)" % (b["name"], v[0], v[-1], lo, hi))
+            continue
+        by = nxt.get("borderBy", "t")
+        reached = v[-1] >= hi - 0.02
+        if by == "minAbs" and reached:
+            out.append("帯 %s の下の境は『`minAbs` が決める』と宣言(%s の `borderBy`)したのに、実測の t が"
+                       "境 %.2f まで届く(最大 %.3f)— `minAbs` %.1fm が効いていない"
+                       % (b["name"], nxt["name"], hi, v[-1], float(nxt.get("minAbs") or 0.0)))
+        elif by != "minAbs" and not reached:
+            out.append("帯 %s の宣言の下の境 t=%.2f は**効いていない** — 実測の t は最大 %.3f で境に届かない"
+                       "(切っているのは `minAbs`)。⛔ 境 t を動かしても面積は変わらない"
+                       % (b["name"], hi, v[-1]))
         else:
-            out.append("〔記録〕帯 %s: 実測の t は %.3f〜%.3f(宣言 %.2f〜%.2f)"
-                       % (b["name"], v[0], v[-1], lo, hi))
+            out.append("〔記録〕帯 %s: 実測の t は %.3f〜%.3f(宣言 %.2f〜%.2f)— 下の境を決めているのは **%s**(宣言どおり)"
+                       % (b["name"], v[0], v[-1], lo, hi,
+                          ("`minAbs` %.1fm" % float(nxt["minAbs"])) if by == "minAbs" else "t"))
     return out
+
+
+def _nureen_drop():
+    """`EdoGotenKit.NUREEN_DROP`(濡縁を畳床から下げる量)を C# から読む。⛔ 数を写さない。"""
+    pth = os.path.join(ROOT, "Assets", "Edo", "Scripts", "Editor", "EdoGotenKit.cs")
+    try:
+        mm = re.search(r"NUREEN_DROP\s*=\s*([0-9.]+)f", open(pth, encoding="utf-8").read())
+    except OSError:
+        return None
+    return float(mm.group(1)) if mm else None
+
+
+def v1_koran_frame(d):
+    """**主景の前景を横切る高欄**(濡縁の部材の外縁)の天端・V1 からの水平距離・仰角。
+    → (dict, None) か (None, 理由)。⛔ 数は指図に持たない — 棟の外形・`iri`・`const.gotenFloor`・
+      部材の外接(`docs/asset-index.tsv`: 丈 = 高欄の天端 / 奥行 = 出)・`NUREEN_DROP` から導く。"""
+    rule = (d.get("viewpointRule") or {}).get("koran") or {}
+    if not rule:
+        return None, "`viewpointRule.koran` が無い"
+    vp = next((q for q in d.get("viewpoints", []) if q.get("main")), None)
+    if vp is None:
+        return None, "主景(`main: true`)の主視点が無い"
+    mune = next((m for m in d["munes"]
+                 if m["u0"] <= vp["u"] <= m["u1"] and m["v0"] <= vp["v"] <= m["v1"]), None)
+    if mune is None:
+        return None, "主視点 %s が棟の中に無い(座敷から見る庭ではない)" % vp["name"]
+    side = {"-u": "u0", "+u": "u1", "-v": "v0", "+v": "v1"}.get(vp.get("dir"))
+    if side is None:
+        return None, "主視点 %s の向き %r が読めない" % (vp["name"], vp.get("dir"))
+    if side not in (mune.get("iri") or []):
+        return None, ("棟 %s の %s 辺に入側が無い — 濡縁(高欄)は入側のある辺にだけ付く"
+                      % (mune["name"], side))
+    rec = asset_index().get(rule.get("prefab", ""))
+    if rec is None:
+        return None, "部材 %s が `docs/asset-index.tsv` に無い" % rule.get("prefab")
+    drop = _nureen_drop()
+    if drop is None:
+        return None, "`EdoGotenKit.NUREEN_DROP` が C# から読めない"
+    K = d["const"]["ken"]
+    fl = float(d["const"]["gotenFloor"])
+    axis = side[0]
+    sgn = -1.0 if side.endswith("0") else 1.0
+    edge = float(mune[side])
+    out_m, h_m = float(rec["sz"]), float(rec["sy"])
+    rail = edge + sgn * out_m / K
+    dist = abs(float(vp[axis]) - rail) * K
+    dist_edge = abs(float(vp[axis]) - edge) * K
+    base = float(mune["y"]) + fl - drop
+    top = base + h_m
+    eye = float(vp["eye"])
+    return dict(vp=vp, mune=mune, side=side, part=rule["prefab"], out=out_m, h=h_m, drop=drop,
+                floor=float(mune["y"]) + fl, base=base, top=top, eye=eye, dist=dist,
+                dist_edge=dist_edge, elev=math.degrees(math.atan2(top - eye, dist))), None
+
+
+def koran_frame_check(d):
+    """**V1 の前景の高欄が算出できるか**(2026-09-13・第34次・普請奉行 裁定①)。〔記録〕で値を出す。"""
+    fr, why = v1_koran_frame(d)
+    if fr is None:
+        return ["主景の高欄を算出できない — %s" % why]
+    return ["〔記録〕主景 %s の前景の高欄(棟 %s の %s 辺の濡縁 `%s`): 天端 **Y %.2f**(畳床 %.2f − 下げ %.2f + 丈 %.2f)/ "
+            "V1 から水平 **%.2fm**(外形の線まで %.2fm + 出 %.2fm)/ 眼高 %.2f との差 %+.2fm ⇒ 仰角 **%+.1f°**"
+            % (fr["vp"]["name"], fr["mune"]["name"], fr["side"], fr["part"], fr["top"], fr["floor"],
+               fr["drop"], fr["h"], fr["dist"], fr["dist_edge"], fr["out"], fr["eye"],
+               fr["top"] - fr["eye"], fr["elev"])]
+
+
+def koran_frame_table(d):
+    """主景 V1 の高欄の断面(眼・畳床・濡縁・高欄の天端・天端を掠める視線)。"""
+    fr, why = v1_koran_frame(d)
+    if fr is None:
+        return "<p class='cap'>⚠ 主景の高欄を算出できない — %s</p>" % inline(why)
+    W, H, pad = 640.0, 240.0, 40.0
+    xmax = fr["dist"] * 2.2
+    y0, y1 = fr["base"] - 0.6, fr["eye"] + 0.6
+    X = lambda x: pad + (W - 2 * pad) * x / xmax
+    Y = lambda y: H - pad - (H - 2 * pad) * (y - y0) / (y1 - y0)
+    g = ["<svg viewBox='0 0 %d %d' class='fig' style='max-width:%dpx'>" % (W, H, W)]
+    g.append("<line x1='%.1f' y1='%.1f' x2='%.1f' y2='%.1f' stroke='#8a7f52' stroke-width='2'/>"
+             % (X(-0.3), Y(fr["floor"]), X(fr["dist_edge"]), Y(fr["floor"])))
+    g.append("<rect x='%.1f' y='%.1f' width='%.1f' height='%.1f' fill='none' stroke='#555' stroke-dasharray='4 3'/>"
+             % (X(fr["dist_edge"]), Y(fr["top"]), X(fr["dist"]) - X(fr["dist_edge"]), Y(fr["base"]) - Y(fr["top"])))
+    g.append("<line x1='%.1f' y1='%.1f' x2='%.1f' y2='%.1f' stroke='var(--shu)' stroke-width='3'/>"
+             % (X(fr["dist_edge"]), Y(fr["top"]), X(fr["dist"]), Y(fr["top"])))
+    xe = xmax
+    ye = fr["eye"] + (fr["top"] - fr["eye"]) * xe / fr["dist"]
+    g.append("<line x1='%.1f' y1='%.1f' x2='%.1f' y2='%.1f' stroke='#3B5A3C' stroke-dasharray='6 4'/>"
+             % (X(0), Y(fr["eye"]), X(xe), Y(max(y0, ye))))
+    g.append("<circle cx='%.1f' cy='%.1f' r='4' fill='#3B5A3C'/>" % (X(0), Y(fr["eye"])))
+    g.append("<text x='%.1f' y='%.1f' font-size='11'>V1 眼 %.2f</text>" % (X(0) + 6, Y(fr["eye"]) - 6, fr["eye"]))
+    g.append("<text x='%.1f' y='%.1f' font-size='11'>畳床 %.2f</text>" % (X(-0.3), Y(fr["floor"]) + 14, fr["floor"]))
+    g.append("<text x='%.1f' y='%.1f' font-size='11' fill='var(--shu)'>高欄の天端 %.2f(%.2fm・%+.1f°)</text>"
+             % (X(fr["dist_edge"]), Y(fr["top"]) - 8, fr["top"], fr["dist"], fr["elev"]))
+    g.append("<text x='%.1f' y='%.1f' font-size='10'>濡縁(外接・畳床 − %.2f)</text>"
+             % (X(fr["dist_edge"]), Y(fr["base"]) + 14, fr["drop"]))
+    g.append("</svg>")
+    return ("<h3>主景 V1 の前景の高欄 — 部材の実寸から算出</h3>"
+            "<div class='tw'><table><tbody><tr><td>%s</td></tr></tbody></table></div>%s"
+            "<p class='cap'>⭐ 高欄は濡縁の部材 <code>EdoAssets.Goten.Nureen</code> が外縁に持つ。"
+            "天端 = 面 + <code>const.gotenFloor</code> − <code>EdoGotenKit.NUREEN_DROP</code> + 部材の丈、"
+            "距離 = V1 から棟の外形の線 + 部材の出(<code>docs/asset-index.tsv</code>)。"
+            "⛔ 数は指図に持たない。破線 = 眼から高欄の天端を掠める視線。</p>"
+            % (inline(koran_frame_check(d)[0]), "".join(g)))
 
 
 def band_governor_table(d, dem):
@@ -17544,8 +17746,9 @@ def band_governor_table(d, dem):
             "<div class='tw'><table><tbody>%s</tbody></table></div>"
             "<p class='cap'>⛔ <b>宣言した境が効いているとは限らない。</b>"
             "<code>slope_samples</code> は <code>minAbs</code>(法尻からの鉛直の絶対最小幅)を"
-            "t より<b>先に</b>効かせるので、落差の大きい域W では帯W3 の上端は"
-            "『法尻から鉛直 4.0m』で決まり、宣言の境 0.82 / 0.93 は一度も当たらない。</p>" % rows)
+            "t より<b>先に</b>効かせる。⭐ 帯W3 は <code>borderBy: minAbs</code> — 法尻の草地は堀端通りの"
+            "路肩なので<b>鉛直の絶対高さ</b>で決まり、t の境は極端に高い列の上限(隣邸と揃える値)。"
+            "宣言と実測が食い違えば鳴る。</p>" % rows)
 
 
 def slope_cover_check(d, dem):
@@ -17738,8 +17941,7 @@ def slope_doryu_table(d, dem):
             "<p class='cap'>⭐ 庭方 裁定A-3:『<b>局所勾配 35%% 超の断面にだけ</b>在庫の野面石 1 段の"
             "土留めを置く』。⛔ 帯の全長には置かない。⭕ 置く所は<b>従属値</b> — 法尻の辺に沿って"
             "<code>step</code> m ごとに断面を採り、帯の区間の局所勾配(鉛直差 ÷ 水平距離)で拾う。"
-            "⚠ 部材は在庫の岩棚 <code>cliff_piece_09</code>(2.19×<b>0.30</b>×1.12m)で、"
-            "<code>EdoAssets.cs</code> 未登録のため <code>assetRequests</code> に登録依頼を立てている。</p>"
+            "⭐ 部材は在庫の岩棚(<code>EdoAssets.NM.CliffPiece(i)</code>・丈は目録の実寸)。</p>"
             % rows)
 
 
@@ -18376,6 +18578,7 @@ def main():
                 "(<code>planting_out</code>)。")
         h.append("<h3>主視点【すべて確度 P/B=類型。当屋敷の一次史料は無い】</h3>")
         h.append(viewpoints_table(d))
+        h.append(koran_frame_table(d))
         h.append("<p class='cap'>⭐ <b>真行草</b>: 白洲・前庭=<b>真</b> / 主庭=<b>行</b> / "
                  "露地=<b>草</b>(『築山庭造伝』の三体)。"
                  "方位は grid の回転から出る<b>従属値</b>なので指図には持たせない。"

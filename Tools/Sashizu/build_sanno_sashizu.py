@@ -1894,7 +1894,7 @@ def plane_dev_check(d, g):
         ZP = [terrace_poly(te, g) for te in tes]
         items = []
         for gt in d["gates"]:
-            hu, hv = gt["plan"]["du"] / 2.0, gt["plan"]["dv"] / 2.0
+            hu, hv = gate_half_uv(gt)             # ⭐ 奥行 du を通り抜けの軸へ回した外接(K004)
             items.append((gt["name"].split("(")[0], gt["u"] - hu, gt["v"] - hv,
                           gt["u"] + hu, gt["v"] + hv))
         # ⛔ **`yaku` で棟をふるい落とさない**(検図7巡目 中1)— 「作り合い」は本殿と幣殿を継ぐ
@@ -2001,7 +2001,7 @@ def inubashiri_check(d, g):
     items = []                                        # (名, その物の西端 u)
     dep = set()                                       # 門の面から引いた通り=**恒真**の物
     for gt in d["gates"]:
-        hu, hv = gt["plan"]["du"] / 2.0, gt["plan"]["dv"] / 2.0
+        hu, hv = gate_half_uv(gt)
         if not in_poly(g.W(gt["u"], gt["v"]), ZP): continue
         items.append(("門:" + gt["name"], gt["u"] - hu))
     for gd in d["gardens"]:
@@ -2778,6 +2778,10 @@ def fumiishi_rects(d):
             gt = gt[0]; pl = gt["plan"]
             # ⭐ **踏石の幅は戸口の内法**(`monguchiKen`)。三間一戸は三間の幅に戸口ひとつで、
             #    両脇間は連子。⛔ `plan.dv`(桁行の全幅)を戸口として敷かない(2026-09-06 検図4巡目 中10)
+            # ⛔ 東西の面に敷く踏石は**東西に抜ける門**にしか敷けない(K004)── 黙って東西で敷かない
+            if not gate_face_is_pass(gt, "東" if f.get("side") == "E" else "西"):
+                raise SystemExit("踏石『%s』は門『%s』の東西の面に敷くが、門が東西に抜けていない — "
+                                 "奥行 du を東西に取れない" % (f["name"], nm))
             hu, hv = pl["du"] / 2.0, gt.get("monguchiKen", pl["dv"]) / 2.0
             if f.get("side") == "E":
                 out.append((f["name"], gt["u"] + hu, gt["v"] - hv, gt["u"] + hu + dp, gt["v"] + hv))
@@ -3852,7 +3856,7 @@ def avoid_shapes(d, g, scope):
             out += _band_chain(pts, rr, "石段:" + k["name"])   # ⭐ 内側の節に丸み(A-5)
         p = cz["gate"]
         for gt in d["gates"]:
-            hu, hv = gt["plan"]["du"] / 2.0, gt["plan"]["dv"] / 2.0
+            hu, hv = gate_half_uv(gt)
             out.append(_shape_rect(gt["u"] - hu - p, gt["v"] - hv - p,
                                    gt["u"] + hu + p, gt["v"] + hv + p, "門:" + gt["name"]))
         zp = terrace_poly_uv(d["terraces"][1])
@@ -5646,9 +5650,7 @@ def crown_rule_check(d):
                   and abs(x["u"] - q[1][0]) < 1e-9 and abs(x["v"] - q[1][1]) < 1e-9]
             ov = "—"
             if gt and r is not None:
-                hu, hv = gt[0]["plan"]["du"] / 2.0, gt[0]["plan"]["dv"] / 2.0
-                C = [(gt[0]["u"] - hu, gt[0]["v"] - hv), (gt[0]["u"] + hu, gt[0]["v"] - hv),
-                     (gt[0]["u"] + hu, gt[0]["v"] + hv), (gt[0]["u"] - hu, gt[0]["v"] + hv)]
+                C = gate_rect_uv(gt[0])
                 dd = 0.0 if in_poly((cu, cv), C) else \
                     min(_pt_seg((cu, cv), C[i], C[(i + 1) % 4]) for i in range(4))
                 ov = "%+.3f m" % ((r - dd) * ken0)
@@ -5755,8 +5757,8 @@ def single_crown_center(d, sg):
 def gate_at(d, q):
     """点 (u,v) が門の平面の中なら、その門。無ければ None。"""
     for gt in d["gates"]:
-        hu, hv = gt["plan"]["du"] / 2.0, gt["plan"]["dv"] / 2.0
-        if abs(q[0] - gt["u"]) <= hu and abs(q[1] - gt["v"]) <= hv: return gt
+        s9, t9 = gate_local(gt, q)             # ⭐ 門の軸で測る(K004)
+        if abs(s9) <= gt["plan"]["du"] / 2.0 and abs(t9) <= gt["plan"]["dv"] / 2.0: return gt
     return None
 
 
@@ -6806,12 +6808,11 @@ def _mikomi_half_deg(d, vp, c):
            ("石段『%s』の上端の敷き" % k["name"], far[0], far[1] - hw)]
     for gt in d["gates"]:
         if gt.get("u") is None: continue
-        hu, hv = gt["plan"]["du"] / 2.0, gt["plan"]["dv"] / 2.0
+        hu, hv = gate_half_uv(gt)
         if abs(gt["v"] - ev) > hv + hw: continue          # 軸線の上に立っていない
         if math.hypot(gt["u"] - eu, gt["v"] - ev) < math.hypot(far[0] - eu, far[1] - ev): continue
-        for su in (-1, 1):
-            for sv in (-1, 1):
-                src.append(("門『%s』" % gt["name"], gt["u"] + su * hu, gt["v"] + sv * hv))
+        for cu, cv in gate_rect_uv(gt):
+            src.append(("門『%s』" % gt["name"], cu, cv))
     rows = []
     for nm, u, v in src:
         du = abs(u - eu)
@@ -7278,9 +7279,7 @@ def _ovl_shapes(d, g):
         poly_item("棟:" + m["name"], [(m["u0"], m["v0"]), (m["u0"] + m["du"], m["v0"]),
                                       (m["u0"] + m["du"], m["v0"] + m["dv"]), (m["u0"], m["v0"] + m["dv"])])
     for gt in d["gates"]:
-        hu, hv = gt["plan"]["du"] / 2.0, gt["plan"]["dv"] / 2.0
-        poly_item("門:" + gt["name"], [(gt["u"] - hu, gt["v"] - hv), (gt["u"] + hu, gt["v"] - hv),
-                                       (gt["u"] + hu, gt["v"] + hv), (gt["u"] - hu, gt["v"] + hv)])
+        poly_item("門:" + gt["name"], gate_rect_uv(gt))      # ⭐ 門の軸へ回す(K004)
     for gd in d["gardens"]:
         P = garden_poly(gd)
         if P: poly_item(gd["name"].split("(")[0], P)
@@ -8216,10 +8215,174 @@ def gate_face_u(d, nm, face):
     ⚠ 2026-09-07 検図7巡目 低4 — 門の芯を犬走りからの従属値に改めたのに、その**面の通り**は
     旧値 23.600 / 21.600 のまま4箇所に literal で残り、27.3 mm ずつずれていた。
     面に取り付く物(袖塀・帯の輪郭・動線の折れ点・断面の切断線・見所)は**すべてここから引く**。
+    ⭐ **面は通り抜けの軸の上の面だけ**【K004 検図 2026-09-13】── 東西に抜ける門の東面/西面。
+    ⛔ 南北に抜ける門の「東面」は桁行の側面で、奥行 du の半分では出ない ⇒ 止める(黙って東西で出さない)。
     """
     gt = gate_by_name(d, nm)
+    if face not in ("東", "西") or not gate_face_is_pass(gt, face):
+        raise SystemExit("門『%s』の面『%s』は通り抜けの軸の上の面でない — 奥行 du で面の通りを出せない(K004)"
+                         % (nm, face))
     hu = gt["plan"]["du"] / 2.0
     return gt["u"] + (hu if face == "東" else -hu)
+
+
+_FACE_VEC = {"東": (1.0, 0.0), "西": (-1.0, 0.0), "北": (0.0, 1.0), "南": (0.0, -1.0)}
+
+
+def gate_pass_az(gt):
+    """門の**通り抜けの軸の方位**[°・mod 180](真北から時計回り)。`front` が先、無ければ `pass`。
+    宣言が無ければ None。⛔ 組み立て時の写し `passAz` を読まない ── 変異の図でもその場で出す。"""
+    fr, ps = gt.get("front"), gt.get("pass")
+    if fr in _DIR_DEG: return _DIR_DEG[fr] % 180.0
+    if ps in _PASS_DEG: return _PASS_DEG[ps]
+    return None
+
+
+def gate_axes_uv(gt):
+    """(p, n) ── 通り抜けの単位ベクトル p と桁行の単位ベクトル n [uv](u=東・v=北)。
+
+    ⭐ **奥行 `plan.du` は p、幅 `plan.dv` は n に取る**【K004 検図 2026-09-13】。
+    ⛔ 向きが未宣言の門は、平面が正方形(du = dv)のときに限り東西とみなす(回しても形が同じ)。
+       正方形でなければ止める ── 東西で埋めると南北に抜ける門で黙って崩れる。
+    """
+    az = gate_pass_az(gt)
+    if az is None:
+        pl = gt["plan"]
+        if abs(pl["du"] - pl["dv"]) > 1e-9:
+            raise SystemExit("門『%s』は通り抜けの向き(`front`/`pass`)が未宣言で平面が正方形でない — "
+                             "奥行 du をどちらへ取るか決まらない(⛔ 東西で埋めない)" % gt["name"])
+        az = 90.0
+    a = math.radians(az)
+    px, py = round(math.sin(a), 12) + 0.0, round(math.cos(a), 12) + 0.0
+    return (px, py), (py, -px)
+
+
+def gate_local(gt, q):
+    """点 q[uv] を門の軸の座標 (s = 通り抜けの向き, t = 桁行の向き)[間] へ。"""
+    p, n = gate_axes_uv(gt)
+    x, y = q[0] - gt["u"], q[1] - gt["v"]
+    return (x * p[0] + y * p[1], x * n[0] + y * n[1])
+
+
+def gate_rect_uv(gt):
+    """門の平面の4隅[uv] ── **奥行 du を通り抜けの軸へ回す**(K004)。反時計回りにそろえて返す。"""
+    p, n = gate_axes_uv(gt)
+    hu, hv = gt["plan"]["du"] / 2.0, gt["plan"]["dv"] / 2.0
+    c = (gt["u"], gt["v"])
+    R = [(c[0] + sp * hu * p[0] + sn * hv * n[0], c[1] + sp * hu * p[1] + sn * hv * n[1])
+         for sp, sn in ((-1, 1), (1, 1), (1, -1), (-1, -1))]
+    ar = sum(R[i][0] * R[(i + 1) % 4][1] - R[(i + 1) % 4][0] * R[i][1] for i in range(4))
+    return R if ar > 0 else R[::-1]
+
+
+def gate_half_uv(gt):
+    """門の平面(軸へ回したもの)の**外接矩形の半幅** (hu 東西, hv 南北)[間]。"""
+    R = gate_rect_uv(gt)
+    return (max(q[0] for q in R) - gt["u"], max(q[1] for q in R) - gt["v"])
+
+
+def gate_face_is_pass(gt, face):
+    """面の語 `face`(東/西/北/南)が**通り抜けの軸の上の面**か。向きが未宣言なら False。"""
+    if face not in _FACE_VEC or gate_pass_az(gt) is None: return False
+    p, _n = gate_axes_uv(gt)
+    f = _FACE_VEC[face]
+    return abs(abs(f[0] * p[0] + f[1] * p[1]) - 1.0) < 1e-9
+
+
+def gate_clip_len(gt, a, b):
+    """線分 a-b[uv] が門の平面の**内側**を通る長さ[間](外周をなぞるだけなら 0)。"""
+    A, B = gate_local(gt, a), gate_local(gt, b)
+    hu, hv = gt["plan"]["du"] / 2.0 - 1e-6, gt["plan"]["dv"] / 2.0 - 1e-6
+    dx, dy = B[0] - A[0], B[1] - A[1]
+    t0, t1 = 0.0, 1.0
+    for pk, qk in ((-dx, A[0] + hu), (dx, hu - A[0]), (-dy, A[1] + hv), (dy, hv - A[1])):
+        if abs(pk) < 1e-12:
+            if qk < 0: return 0.0
+            continue
+        r = qk / pk
+        if pk < 0: t0 = max(t0, r)
+        else: t1 = min(t1, r)
+        if t0 > t1: return 0.0
+    return max(0.0, t1 - t0) * math.hypot(dx, dy)
+
+
+def gate_plan_axis_check(d, g):
+    """**門の平面の向き**【K004 検図 2026-09-13】── 奥行 `plan.du` を通り抜けの軸へ回して測る。
+
+    ① 門の面を指す取り付き(`runs[].uFrom`・`gates[].uFrom`・`gardens[].polyFrom`・`routes[].uFrom`・
+       `sections[].atFrom`・`viewpoints[].uFrom`)が**通り抜けの軸の上の面**を指しているか(⛔)。
+       桁行の側の面を指すと、面の通りが奥行でなく幅の半分から出るはずのところを黙って奥行で出す。
+    ② 門口の芯を通る動線が**門の平面の中を通る長さ = 奥行 `plan.du`** か(⛔)。
+       ⚠ 平面を世界の軸で描くと、南北に抜ける門では動線が幅 `plan.dv` を通る。
+    """
+    bad, note = [], []
+    refs = []
+    for r in d.get("runs", []):
+        uf = r.get("uFrom")
+        if uf and uf.get("gate"): refs.append(("runs[%s].uFrom" % r["name"], uf["gate"], [uf.get("face")]))
+    for gt in d["gates"]:
+        uf = gt.get("uFrom")
+        if uf and uf.get("face"): refs.append(("gates[%s].uFrom" % gt["name"], gt["name"], [uf["face"]]))
+    for gd in d.get("gardens", []):
+        pf = gd.get("polyFrom")
+        if pf and pf.get("gate"):
+            refs.append(("gardens[%s].polyFrom" % gd["name"], pf["gate"], [k for k in _FACE_VEC if pf.get(k)]))
+    for rt in d.get("routes", []):
+        uf = rt.get("uFrom")
+        if uf and uf.get("gate"):
+            refs.append(("routes[%s].uFrom" % rt["name"], uf["gate"], [k for k in _FACE_VEC if uf.get(k)]))
+    for sc in d.get("sections", []):
+        af = sc.get("atFrom")
+        if af and af.get("gate"):
+            refs.append(("sections[%s].atFrom" % (sc.get("name") or sc.get("id") or "?"), af["gate"], [af.get("face")]))
+    for vp in d.get("viewpoints", []):
+        uf = vp.get("uFrom")
+        if uf and uf.get("gate"):
+            refs.append(("viewpoints[%s].uFrom" % (vp.get("name") or vp.get("id") or "?"), uf["gate"], [uf.get("face")]))
+    byn = {gt["name"]: gt for gt in d["gates"]}
+    nok = 0
+    for where, gnm, faces in refs:
+        gt = byn.get(gnm)
+        if gt is None:
+            bad.append("`%s` が指す門『%s』が無い" % (where, gnm)); continue
+        for fc in faces:
+            if gate_face_is_pass(gt, fc):
+                nok += 1; continue
+            az = gate_pass_az(gt)
+            bad.append("`%s` が門『%s』の面『%s』を指すが、%s ── 面の通りを奥行 du の半分で出せない"
+                       % (where, gnm, fc, "門の向きが未宣言" if az is None
+                          else "通り抜けの軸は方位 %.0f° で、その面は桁行の側面" % az))
+    note.append("門の面を指す取り付き %d 件(指す面 %d 面)── 通り抜けの軸の上の面を指すもの **%d 面**【算出】"
+                % (len(refs), sum(len(q[2]) for q in refs), nok))
+    segs = {}
+    for rt in d.get("routes", []):
+        pts = rt.get("pts") or []
+        segs[rt["name"]] = [((g.U(q[0]), g.V(q[1])) if rt.get("world") else (q[0], q[1])) for q in pts]
+    for gt in d["gates"]:
+        if gt.get("u") is None: continue
+        az = gate_pass_az(gt)
+        if az is None:
+            note.append("⚠ 門『%s』── 向きが未宣言 ⇒ 平面が門口を通る長さは**未測定**(⛔ 合格ではない)" % gt["name"])
+            continue
+        c = (gt["u"], gt["v"])
+        pl = gt["plan"]
+        n0 = 0
+        for rn, uv in segs.items():
+            sg = list(zip(uv, uv[1:]))
+            if not any(_pt_seg(c, a, b) <= 0.25 for a, b in sg if math.hypot(b[0] - a[0], b[1] - a[1]) > 1e-9):
+                continue
+            L = sum(gate_clip_len(gt, a, b) for a, b in sg)
+            n0 += 1
+            if abs(L - pl["du"]) > 1e-3:
+                bad.append("動線『%s』が門『%s』の平面の中を %.3f 間通る ≠ 奥行 `plan.du` %g 間 ── 平面が通り抜けの軸"
+                           "(方位 %.0f°)へ回っていないか、動線が門口を斜めに通る" % (rn, gt["name"], L, pl["du"], az))
+            else:
+                note.append("門『%s』── 平面 奥行 %g × 幅 %g 間を通り抜けの軸 %.0f° へ回す ／ 動線『%s』が平面の中を "
+                            "%.3f 間通る = 奥行【算出】" % (gt["name"], pl["du"], pl["dv"], az, rn, L))
+        if not n0:
+            note.append("⚠ 門『%s』── 門口の芯を通る動線が無い ⇒ 平面が門口を通る長さは**未測定**(⛔ 合格ではない)"
+                        % gt["name"])
+    return bad, note
 
 
 # 部材のローカル軸 → 真北からの角[°](Unity の Y 回転 0 のとき。+Z=北 / +X=東)。⛔ 設計値ではない — 語の辞書
@@ -8309,13 +8472,15 @@ def gate_axis_check(d, g):
             note.append("門『%s』── 正面 %s ／ 通り抜けの軸の方位 %.0f° ／ **yaw %.0f°**(%s)【算出】"
                         % (nm, gt.get("front") or "—(未宣言)", gt["passAz"], gt["yaw"], gt["yawFrom"]))
         c = (gt["u"], gt["v"])
+        az_g = gate_pass_az(gt)
         hit = []
         for rn, a, b in segs:
             L = math.hypot(b[0] - a[0], b[1] - a[1])
             if L < 1e-6: continue
-            if _pt_seg(c, a, b) > 0.25: continue
+            # ⭐ 門口の芯を通る区間に加えて、**門の平面の中を通る区間もすべて**測る(K003 検図 2026-09-13)
+            if _pt_seg(c, a, b) > 0.25 and gate_clip_len(gt, a, b) <= 1e-6: continue
             az = math.degrees(math.atan2(b[0] - a[0], b[1] - a[1])) % 180.0
-            dif = abs(az - gt["passAz"]) % 180.0
+            dif = abs(az - az_g) % 180.0
             dif = min(dif, 180.0 - dif)
             hit.append((rn, az, dif))
         if not hit:
@@ -8327,12 +8492,13 @@ def gate_axis_check(d, g):
         if not ok:
             # ⛔ 門口を通る動線の**どれとも**平行でなければ、向きの宣言か動線のどちらかが誤っている
             bad.append("門『%s』の通り抜けの軸(方位 %.0f°)が門口を通るどの動線とも食い違う ── %s"
-                       % (nm, gt["passAz"], "・".join("『%s』%.0f°(差 %.1f°)" % q for q in ng)))
+                       % (nm, az_g, "・".join("『%s』%.0f°(差 %.1f°)" % q for q in ng)))
         elif ng:
-            note.append("⚠ 門『%s』── 通り抜けの軸は『%s』と平行だが、%s は門口の芯で折れて斜めに入る"
-                        "【算出 — 動線の線形の問題として刷る(⛔ 向きの宣言は動かさない)】"
-                        % (nm, "』『".join(q[0] for q in ok),
-                           "・".join("『%s』%.0f°(差 %.1f°)" % q for q in ng)))
+            # ⛔ **門口を斜めに通る動線は⛔**【K003 検図 2026-09-13】── 〔記録〕に留めていたので、御成が中門の
+            #    門口に 39° で入って有効幅が痩せても止まらなかった。⭕ 直すのは**動線の折れ点**(門の面より外へ出す)。
+            #    ⛔ 向きの宣言・門・供待の poly は動かさない。
+            bad.append("門『%s』の門口を %s が**斜めに通る**(通り抜けの軸 %.0f°)── 折れ点を門の面より外へ出し、"
+                       "門口は軸に沿って通す" % (nm, "・".join("『%s』%.0f°(差 %.1f°)" % q for q in ng), az_g))
         else:
             note.append("門『%s』── 通り抜けの軸が門口を通る動線 %d 区間と平行(差 ≤ %.0f°)【算出】"
                         % (nm, len(hit), TOL))
@@ -8378,7 +8544,19 @@ def shaden_kidan_check(d):
     miss = [q for q in need if k.get(q) in (None, "", [])]
     if miss:
         return (["`shadenKidan` の鍵が欠ける: %s" % "・".join(miss)], [])
-    return ([], ["基壇・亀腹の石材 ── %s ／ H %g〜%g° S≤%g%% V %g〜%g%% ／ %s ／ 段の丈 %.2f m ／ 目地 ≤%.0f mm ／ %s【U 設計値 — 庭方】"
+    # ⭐ **基壇・亀腹は庭の石の名簿に入り、名簿の色の基準になる**【普請奉行の裁定 2026-09-13/庭方の設計値】
+    iz = d.get("ishizai") or {}
+    bad9 = []
+    if iz.get("colorFrom") != "shadenKidan":
+        bad9.append("庭の石の名簿の色の基準 `ishizai.colorFrom` が `shadenKidan` を指していない(普請奉行の裁定 2026-09-13)")
+    lost = [a for a in k["appliesTo"] if not any(a in r for r in iz.get("roster") or [])]
+    if lost:
+        bad9.append("`shadenKidan.appliesTo` の %s が庭の石の名簿 `ishizai.roster` に無い(普請奉行の裁定 2026-09-13)"
+                    % "・".join(lost))
+    if bad9: return (bad9, [])
+    return ([], ["庭の石の名簿 `ishizai.roster` %d 品目 ── 基壇・亀腹を含み、色の基準は `shadenKidan` の暖灰"
+                 "【普請奉行の裁定 2026-09-13/U 設計値 — 庭方】" % len(iz["roster"]),
+                 "基壇・亀腹の石材 ── %s ／ H %g〜%g° S≤%g%% V %g〜%g%% ／ %s ／ 段の丈 %.2f m ／ 目地 ≤%.0f mm ／ %s【U 設計値 — 庭方】"
                  % ("・".join(k["appliesTo"]), k["hueDeg"][0], k["hueDeg"][1], k["satMaxPct"],
                     k["valPct"][0], k["valPct"][1], k["bond"], k["courseHM"], k["jointMaxM"] * 1000.0,
                     k["finish"]),
@@ -8441,6 +8619,9 @@ def derive_gates(d, g):
         us = [q[0] for q in terrace_poly_uv(te)]
         edge = min(us) if uf["side"] == "西" else max(us)
         cl = ((d["planting"]["clearance"] or {}).get(uf["clearanceOf"]) or {})[uf["clearance"]]
+        if not gate_face_is_pass(gt, uf["face"]):
+            raise SystemExit("門『%s』の `uFrom.face`『%s』が通り抜けの軸の上の面でない — 奥行 du で芯を出せない"
+                             "(K004)" % (gt["name"], uf["face"]))
         hu = gt["plan"]["du"] / 2.0
         gt["u"] = edge + (cl / ken + hu if uf["face"] == "西" else -cl / ken - hu)
 
@@ -9536,8 +9717,9 @@ def keidai_svg(d, u0, u1, v0, v1, title, W=900.0):
         u, v = gt["u"], gt["v"]
         if not inwin([u, v], [u, v]): continue
         pl = gt["plan"]
-        o.append(lp.rect(u - pl["du"] / 2.0, v - pl["dv"] / 2.0, u + pl["du"] / 2.0, v + pl["dv"] / 2.0,
-                         fill="var(--shu)", stroke="var(--ink)", sw=1.1))
+        # ⭐ **奥行 du を通り抜けの軸へ回して描く**【K004 検図 2026-09-13】── ⛔ du を東西に決め打ちしない
+        o.append(PL([(lp.X(q[0]), lp.Y(q[1])) for q in gate_rect_uv(gt)],
+                    fill="var(--shu)", stroke="var(--ink)", sw=1.1, close=True))
         # ⭐ **門口の矢印**【検図 2026-09-13 高1】── 通り抜けの軸(`passAz`)を門の芯に通し、
         #    正面(`front`)の側へ鏃を付ける。⛔ 平面を軸に平行に描くだけで向きを読ませない。
         if gt.get("passAz") is not None:
@@ -9559,7 +9741,7 @@ def keidai_svg(d, u0, u1, v0, v1, title, W=900.0):
                             stroke="var(--ink)", sw=0.8, fill="var(--ink)", close=True))
         lx, la = lp.X(u), "middle"
         if gt["name"] == "中門": lx, la = lp.X(u) - lp.L(1.2), "end"
-        o.append(T(lx, lp.Y(v + pl["dv"] / 2.0) - 5, gt["name"], fs=11, anchor=la, fill="var(--shu)"))
+        o.append(T(lx, lp.Y(v + gate_half_uv(gt)[1]) - 5, gt["name"], fs=11, anchor=la, fill="var(--shu)"))
     # 井戸屋形(⭐ 2026-09-06 ユーザー裁定で採用が確定した)
     o += draw_ido(d, lp, inwin)
     # ⭐ 面を持つ点景(縁台)は**縮尺どおりの矩形**で描き、銘を出す(2026-09-06 検図4巡目 低14)
@@ -9886,7 +10068,8 @@ def section_marks(d, g, key, prof):
                         "縁台" if yq == zy else "点景", (hq.get("planM") or {}).get("h")))
     for gt in d["gates"]:
         q = g.W(gt["u"], gt["v"])
-        du, dv = gt["plan"]["du"] / 2.0 * d["const"]["ken"], gt["plan"]["dv"] / 2.0 * d["const"]["ken"]
+        hu9, hv9 = gate_half_uv(gt)                 # ⭐ 門の軸へ回した外接(K004)
+        du, dv = hu9 * d["const"]["ken"], hv9 * d["const"]["ken"]
         if ax == "EW":
             if abs(q[1] - at) <= dv: out.append((q[0] - du, q[0] + du, gt["sill"], gt["name"].split("(")[0], "門"))
         else:
@@ -12462,8 +12645,15 @@ def ishizai_table(d):
     """庭に使う**石材の系統**【追加 庭方 2026-09-07】。⛔ 産地を典拠なく名指ししない。"""
     iz = d.get("ishizai")
     if not iz: return ""
-    rows = "".join("<tr><td>%s</td><td class='note'>%s</td></tr>" % (q, "同じ系統")
+    rows = "".join("<tr><td>%s</td><td class='note'>%s</td></tr>"
+                   % (inline(q), "同じ系統(色は `%s` の基準にそろえる)" % iz["colorFrom"]
+                      if iz.get("colorFrom") else "同じ系統")
                    for q in iz.get("roster", []))
+    kb = d.get(iz.get("colorFrom") or "") or {}
+    if kb.get("hueDeg"):
+        rows += ("<tr><td><b>色の基準</b>(`%s`)</td><td class='note'><b>%s</b> H %g〜%g° ／ S ≤%g%% ／ V %g〜%g%%"
+                 "【%s】</td></tr>" % (iz["colorFrom"], kb.get("tone", ""), kb["hueDeg"][0], kb["hueDeg"][1],
+                                      kb["satMaxPct"], kb["valPct"][0], kb["valPct"][1], kb.get("acc", "")))
     rows += ("<tr><td><b>系統</b></td><td class='note'><b>%s</b></td></tr>" % inline(iz["togo"]))
     rows += ("<tr><td><b>産地</b></td><td class='note'><b>%s</b></td></tr>"
              % ("**決めていない**【?】" if iz.get("sanchi") is None else inline(iz["sanchi"])))
@@ -15991,6 +16181,38 @@ def probe_roster(d, g):
     out.append(("土留めの段の割り", "`TW_Kairo_E` の段を一つ減らす(最下段の露出が駒の丈を超える)",
                 run(wall_tier_check, e18), 1, mv18))
 
+    # ---- ⑪ 門口を斜めに通る動線(K003 検図 2026-09-13)
+    n19 = run(gate_axis_check, d)
+    out.append(("門の向き", "基準(壊さない)", n19, 0, None))
+
+    def m19(e):
+        gt9 = gate_by_name(e, "中門")
+        cx, cz = g.W(gt9["u"], gt9["v"])
+        for rt in e["routes"]:
+            if rt["name"] != "御成" or not rt.get("world"): continue
+            P9 = rt["pts"]
+            i9 = min(range(len(P9)), key=lambda k: math.hypot(P9[k][0] - cx, P9[k][1] - cz))
+            P9[i9 - 1][1] = P9[i9 - 1][1] - 4.0
+    e19, mv19 = _probe(d, m19)
+    out.append(("門の向き", "御成の中門の手前の折れ点を軸から南へ 4 m 外す(門口に斜めに入る)",
+                run(gate_axis_check, e19), 1, mv19))
+
+    # ---- ⑫ 門の平面の向き(K004 検図 2026-09-13)
+    n20 = run(gate_plan_axis_check, d)
+    out.append(("門の平面の向き", "基準(壊さない)", n20, 0, None))
+
+    def m20(e):
+        gate_by_name(e, "坂下の門(仁王門)")["front"] = "南"
+    e20, mv20 = _probe(d, m20)
+    out.append(("門の平面の向き", "坂下の門を南北に抜ける門へ回す(正面=南・袖塀と断面は東面を指したまま)",
+                run(gate_plan_axis_check, e20), 1, mv20))
+
+    def m21(e):
+        gate_by_name(e, "隨身門(楼門)")["front"] = "南"
+    e21, mv21 = _probe(d, m21)
+    out.append(("門の平面の向き", "楼門を南北に抜ける門へ回す(面の取り付き無し・表参は東西に通ったまま)",
+                run(gate_plan_axis_check, e21), 1, mv21))
+
     bad = _probe_verdict([(nm, got, want, mv) for _ck, nm, got, want, mv in out])
     _PROBE_ROSTER[0], _PROBE_ROSTER[1] = key, (out, bad)
     return out, bad
@@ -16135,6 +16357,7 @@ def run_checks():
     ntc = named_tree_check(d, g)       # 名指しの木(決1③ 庭方18巡目)
     skb = shukei_bake_check(d, g)      # ★主景(名指し・焼き出し・仰角の受入値。A-1 庭方19巡目)
     gax = gate_axis_check(d, g)        # 門の向き(検図 2026-09-13 高1)
+    gpa = gate_plan_axis_check(d, g)   # 門の平面の向き(K004 検図 2026-09-13)
     nks = noki_sori_check(d)           # 軒反りの量(考証 2026-09-13 中)
     skd = shaden_kidan_check(d)        # 基壇・亀腹の石材(庭方 2026-09-13 中)
     csg = _gated(cluster_shukei_gap_check)  # 西A の松と★主景の幹の離れ(庭方 2026-09-13 中)
@@ -16228,6 +16451,7 @@ def run_checks():
     rows.append(("★主景の木(名指しであること・焼き出しに在ること・仰角の受入値)", skb[0], skb[1]))
     rows.append(("門の向き(正面・部材の軸から出した yaw・門口を通る動線との平行・実装との突き合わせ)",
                  gax[0], gax[1]))
+    rows.append(("門の平面の向き(奥行 du を通り抜けの軸へ回す・面の取り付き・門口を通る長さ)", gpa[0], gpa[1]))
     rows.append(("軒反りの量(指図 `const` と部材の生成器)", nks[0], nks[1]))
     rows.append(("社殿の基壇・亀腹の石材の宣言(`shadenKidan`)", skd[0], skd[1]))
     rows.append(("西A の松と★主景の幹の離れ(`trunkGapFromShukeiKen`・幹の芯)", csg[0], csg[1]))

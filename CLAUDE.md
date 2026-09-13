@@ -143,4 +143,4 @@
 ⛔ `.claude/`・CLAUDE.md・スキル・メモリを触ったら `python3 Tools/Session/config_doctor.py --quick` が無言になるまで直してからコミット。
 ⛔ 裁定を求めるときは**裁定図**(どこ・現況・各案を同じ縮尺で・数値の差・推奨)を出す。名前と数字の羅列で選ばせない。
 ⚠ `edo-toryo` は指図に無い値を発明しない。踏んだ罠は自分の memory へ → 正典は `.claude/agents/edo-toryo.md`「知見の引き継ぎ」<!-- obl:toryo-writeback -->
-⚠ 巡回する差配役は置かない。ダッシュボードは `Tools/Session/build_board_html.py`、見張りは挨拶フック。
+⚠ 巡回する差配役は置かない。ダッシュボードは `Tools/Session/build_board_html.py`、見張りは挨拶フックと週次の自動点検(毎週日曜 18 時 → `docs/teire.md`)。

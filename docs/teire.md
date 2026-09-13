@@ -11,7 +11,8 @@ CLAUDE.md・`.claude/`(役・コマンド・フック・rules・workflows)・ス
 | 役目 | 道具 | いつ |
 |---|---|---|
 | **道具改め** — 設定の破れを鳴らす | `python3 Tools/Session/config_doctor.py` | 挨拶(`--quick`)・週次(`--table`)・月次(`--deep`) |
-| **手入れ** — 表を読んで処置する | `/teire` | 週次。挨拶が「前回から N 日」と催促する |
+| **週次の自動点検** — 表と自己検査を取り、掲示板(`infra`)へ起票して通知する。直さない | スケジュール済みタスク `edo-teire-weekly`(本文 `~/.claude/scheduled-tasks/edo-teire-weekly/SKILL.md`) | 毎週日曜 18 時(アプリが閉じていれば次の起動時)。2026-09-13 ユーザー裁定 |
+| **手入れ** — 表を読んで処置する | `/teire` | 週次。自動点検の起票を受けて回す。挨拶も「前回から N 日」と催促する |
 | 自己検査 — 道具の検出が生きているか | `config_doctor.py --selftest` | 月次(`--deep` が回す)と道具を直したとき |
 
 検査の型(鍵の頭 2 文字): **R** 参照の実在(役→スキル・参照節、CLAUDE.md の表→文書・役、コマンド→Workflow・道具、
@@ -49,8 +50,8 @@ CLAUDE.md・`.claude/`(役・コマンド・フック・rules・workflows)・ス
 
 ## 誰が・どこに記録するか
 
-- 回すのはそのセッション(普請奉行)。慣例として `infra` の claim。新しい役・巡回する差配役は置かない。
-- 記録: `.git/edo-teire/last.json`(前回の時刻と件数・催促の元)、`ack.json`(`keep` の理由。対象行が変わるまで)、
+- 検出は週次の自動点検が回し、処置はそのセッション(普請奉行)が回す。慣例として `infra` の claim。新しい役・巡回する差配役は置かない。
+- 記録: `.git/edo-teire/last.json`(前回の時刻と件数・催促の元。⚠ 自動点検の `--table` でも更新されるので、処置が済んでいなくても催促は消える — 残件の見張りは掲示板の起票が担う)、`ack.json`(`keep` の理由。対象行が変わるまで)、
   `worktrees.json`(1 日 cache)。表は `docs/teire-latest.md`(上書き。経緯は git log)。
   意味的な残件は掲示板の `task`(owner `infra`)。新しい種別は作らない。
 - 第 2 期(初回の巡が綺麗に回ってから): transcript の利用実績(呼ばれない役・スキル、読まれない参照、

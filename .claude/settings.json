@@ -22,6 +22,17 @@
             "statusMessage": "門番に照会"
           }
         ]
+      },
+      {
+        "matcher": "mcp__unityMCP__execute_code",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/edo_precheck_assembly.sh",
+            "timeout": 10,
+            "statusMessage": "アセンブリの鮮度"
+          }
+        ]
       }
     ],
     "Stop": [
@@ -32,6 +43,28 @@
             "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/edo_report_lint.py",
             "timeout": 10,
             "statusMessage": "報告の作法を検める"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "mcp__unityMCP__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/edo_capture_lessons.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/edo_blender_done.sh",
+            "timeout": 10
           }
         ]
       }

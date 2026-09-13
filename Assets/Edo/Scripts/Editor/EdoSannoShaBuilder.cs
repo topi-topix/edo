@@ -73,6 +73,12 @@ public static class EdoSannoShaBuilder
     // ---------------------------------------------------------------- 指図の読み込み(EDO-0073)
     // ⛔ **透塀・回廊のような社殿まわりの寸法は社地の区画から導かない。** 指図が正典。
     public const string SashizuRel = "docs/Sashizu/sanno_sashizu.json";
+    /// <summary>生成器が焼いた「実装が読む算出物」。⛔ 指図ではない — **指図から従属して出た値**
+    /// (門の芯の従属値・石段の折れ線の世界座標・撒いた木 1,794本の world など)。
+    /// 岡部の <c>EdoOkabeYashikiBuilder.ImplRel</c> と同じ役どころ。</summary>
+    public const string ImplRel = "docs/Sashizu/sanno_impl.json";
+    /// <summary>シーンのルート。突き合わせ(<see cref="EdoSannoSashizuCheck"/>)が引く。</summary>
+    public const string GroupName = GROUP;
     static Dictionary<string, object> _d;
     static string SashizuPath
     {
@@ -185,6 +191,10 @@ public static class EdoSannoShaBuilder
     // ---------- Stage 1: 山上境内 ----------
     public static string Stage1_Keidai()
     {
+        // ⛔ **検図関門**(規則18)。指図が不合格のまま建てると、直った瞬間に建て直しになる。
+        //   判定は `docs/Sashizu/sanno_sashizu.json` の `reviews` — 記録は
+        //   `python3 Tools/Sashizu/review_gate.py --record sanno <役> <pass|fail>` が書く。
+        var reviewGate = EdoSashizuExport.ReviewGate("sanno"); if (reviewGate != null) return reviewGate;
         var root = GameObject.Find(GROUP);
         if (root != null && root.transform.Find("Keidai") != null) return "SKIP: Keidai exists";
         var kg = Group(GROUP, "Keidai");
@@ -354,6 +364,10 @@ public static class EdoSannoShaBuilder
     // 石段=P_DanishiStep2m(汐見坂の段坂と同じ段石)+P_MichibataIshi2m(両脇の道端石)。
     public static string Stage2_Sando()
     {
+        // ⛔ **検図関門**(規則18)。指図が不合格のまま建てると、直った瞬間に建て直しになる。
+        //   判定は `docs/Sashizu/sanno_sashizu.json` の `reviews` — 記録は
+        //   `python3 Tools/Sashizu/review_gate.py --record sanno <役> <pass|fail>` が書く。
+        var reviewGate = EdoSashizuExport.ReviewGate("sanno"); if (reviewGate != null) return reviewGate;
         var root = GameObject.Find(GROUP);
         if (root != null && root.transform.Find("Sando") != null) return "SKIP: Sando exists";
         var sg = Group(GROUP, "Sando");
@@ -497,6 +511,10 @@ public static class EdoSannoShaBuilder
     // ---------- Stage 3: 観理院 (2026-08-11改訂: 山麓の縦長大区画・表門=参道コリドー側NW辺) ----------
     public static string Stage3_Kanriin()
     {
+        // ⛔ **検図関門**(規則18)。指図が不合格のまま建てると、直った瞬間に建て直しになる。
+        //   判定は `docs/Sashizu/sanno_sashizu.json` の `reviews` — 記録は
+        //   `python3 Tools/Sashizu/review_gate.py --record sanno <役> <pass|fail>` が書く。
+        var reviewGate = EdoSashizuExport.ReviewGate("sanno"); if (reviewGate != null) return reviewGate;
         var root = GameObject.Find(GROUP_K);
         if (root != null && root.transform.childCount > 0) return "SKIP: Kanriin exists";
         var sb = new System.Text.StringBuilder();
@@ -638,12 +656,20 @@ public static class EdoSannoShaBuilder
     // 旧実装(sannosha_juge の4点矩形前提)は git log で追う。
     public static string Stage4_Juge()
     {
+        // ⛔ **検図関門**(規則18)。指図が不合格のまま建てると、直った瞬間に建て直しになる。
+        //   判定は `docs/Sashizu/sanno_sashizu.json` の `reviews` — 記録は
+        //   `python3 Tools/Sashizu/review_gate.py --record sanno <役> <pass|fail>` が書く。
+        var reviewGate = EdoSashizuExport.ReviewGate("sanno"); if (reviewGate != null) return reviewGate;
         return "SKIP: superseded by EdoSannoBukeBuilder.Stage1_Juge(2026-08-26 樹下二重定義解消)";
     }
 
     // ---------- Stage 5: 山王門前町 ----------
     public static string Stage5_Monzencho()
     {
+        // ⛔ **検図関門**(規則18)。指図が不合格のまま建てると、直った瞬間に建て直しになる。
+        //   判定は `docs/Sashizu/sanno_sashizu.json` の `reviews` — 記録は
+        //   `python3 Tools/Sashizu/review_gate.py --record sanno <役> <pass|fail>` が書く。
+        var reviewGate = EdoSashizuExport.ReviewGate("sanno"); if (reviewGate != null) return reviewGate;
         var exist = GameObject.Find(GROUP_M);
         if (exist != null && exist.transform.childCount > 0) return "SKIP: Monzencho exists";
         var root = Group(GROUP_M, null);
@@ -702,6 +728,10 @@ public static class EdoSannoShaBuilder
     // ---------- Stage 6: スプラット(参道広場・山麓の通り・門前町・境内・山の斜面) ----------
     public static string Stage6_Splat()
     {
+        // ⛔ **検図関門**(規則18)。指図が不合格のまま建てると、直った瞬間に建て直しになる。
+        //   判定は `docs/Sashizu/sanno_sashizu.json` の `reviews` — 記録は
+        //   `python3 Tools/Sashizu/review_gate.py --record sanno <役> <pass|fail>` が書く。
+        var reviewGate = EdoSashizuExport.ReviewGate("sanno"); if (reviewGate != null) return reviewGate;
         var t = Terrain.activeTerrain; var td = t.terrainData;
         int res = td.alphamapResolution;
         Vector3 tp = t.transform.position, ts = td.size;
@@ -797,6 +827,10 @@ public static class EdoSannoShaBuilder
     // ---------- Stage 7: 境内林(山の斜面の松・竹) ----------
     public static string Stage7_Keidairin()
     {
+        // ⛔ **検図関門**(規則18)。指図が不合格のまま建てると、直った瞬間に建て直しになる。
+        //   判定は `docs/Sashizu/sanno_sashizu.json` の `reviews` — 記録は
+        //   `python3 Tools/Sashizu/review_gate.py --record sanno <役> <pass|fail>` が書く。
+        var reviewGate = EdoSashizuExport.ReviewGate("sanno"); if (reviewGate != null) return reviewGate;
         var root = GameObject.Find(GROUP);
         if (root != null && root.transform.Find("Keidairin") != null) return "SKIP: Keidairin exists";
         var tg = Group(GROUP, "Keidairin");
@@ -846,6 +880,10 @@ public static class EdoSannoShaBuilder
     // ---------- 一括 ----------
     public static string BuildAll()
     {
+        // ⛔ **検図関門**(規則18)。指図が不合格のまま建てると、直った瞬間に建て直しになる。
+        //   判定は `docs/Sashizu/sanno_sashizu.json` の `reviews` — 記録は
+        //   `python3 Tools/Sashizu/review_gate.py --record sanno <役> <pass|fail>` が書く。
+        var reviewGate = EdoSashizuExport.ReviewGate("sanno"); if (reviewGate != null) return reviewGate;
         EdoNishiTameikeBuilder.NaturalMode = true;
         var sb = new System.Text.StringBuilder();
         sb.AppendLine(Stage1_Keidai());

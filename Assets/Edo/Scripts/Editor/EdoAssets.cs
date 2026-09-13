@@ -527,6 +527,62 @@ public static class EdoAssets
         [System.Obsolete("Own.Jouryoku(size, i) を使う(常緑=Jouryoku)")]
         public static string Jokuroku(string size) { return Jouryoku(size); }
 
+        /// <summary>**常緑の照葉低木**(サカキ・アオキ・ヤブツバキの見立て)。山王社の
+        /// **社叢の下層・林縁・前庭の帯・平場の縁**に撒く。在庫方 2026-09-06 の判定=**在庫0件**で、
+        /// <see cref="Jouryoku"/> と同じ作り(空間占有法の骨格+葉のカード・LOD_0/1/2 の3本入り)で新造した。
+        /// ⭐ **株立ち(地際から4〜7幹)・立ち枝・下がすぼまり上が丸い**卵形の樹冠。
+        /// ⛔ **刈込(玉物)にしない** — 指図 `gardens[前庭の帯].forbidden` に「刈込」が立っている。
+        /// ⛔ 花を付けない・紅葉色にしない(季節は春でも秋でもない)。
+        /// <paramref name="size"/> は**丈をそのまま名乗る 4 段**: **H12 1.2m / H16 1.6m / H20 2.0m / H24 2.4m**
+        /// (`scaleY` 0.75〜1.10 で 0.90〜2.64m を継ぎ目なく覆う)。⛔ 旧綴り Small/Mid は現物に無い。
+        /// ⛔ 桜の同格 3.6/5.8/8.2 は当てない。
+        /// **樹冠 ÷ 丈 = 0.79〜0.94**(実測 W: H12 0.96〜1.06 / H16 1.37〜1.41 / H20 1.80〜1.89 / H24 1.90〜2.22m)。
+        /// ⚠ 指図 `gardens[前庭の帯].shrubs.crownRKen` 0.33間(半径0.60m)に収まるのは **H12 だけ** — 丈で選ぶ前に樹冠を測ること。
+        /// 実寸の正典は `Tools/Blender/build_tree.py` 末尾の実測表。
+        /// <para><paramref name="i"/> は**個体**(1〜3)。⛔ 1本の層を1個体で埋めない。</para>
+        /// ⚠ 材質は在庫の桜のもの(`M_FJG_Tree_Sakura_Bark_A` / `..._Sprout_Summer`)の**名前だけ**を
+        /// 運ぶ=確度U。**Unity で remap する**(`Edo/松平出羽守上屋敷/附属屋・門・木のマテリアルをremap`
+        /// は邸名が付いているが `Models/Trees` 全体を舐める共通のもの)。
+        /// 生成: blender --background --python Tools/Blender/build_tree.py -- teiboku H12 H16 H20 H24 --render</summary>
+        public static string Teiboku(string size, int i = 1)
+        {
+            return "Assets/Edo/Models/Trees/Tree_Teiboku_" + size
+                 + (i <= 1 ? "" : "_" + i.ToString("00")) + ".fbx";
+        }
+
+        /// <summary>**クロマツ(社叢)**。山王社の社叢の高木。⭐ **林の松** — 在庫の
+        /// `JG.Pine` は独立して枝を張った**庭の松**で樹形が別。
+        /// ⚠ **なぜ新造したか**: 在庫の素の丈は 6.43〜6.64m が上限で、指図の社叢は
+        /// `slopeBands[*].matsuH` = 9.5〜13.0m。実装は `scaleY` 1.43〜1.99 で縦に伸ばしており、
+        /// `scaleXZ ≤ 1.15` の規約と合わせて**異方比 最悪 1.99**(針葉の房が縦に2倍)になっていた。
+        /// 庭方 2026-09-07 九巡目 中4 の判定で部材の側を直したもの。
+        /// ⭐ 樹形は**ゆるく曲がる幹・水平に張り出す枝の段・段の上に乗る板状の針葉の房・
+        /// 枝下の枯れ枝の名残**。⛔ **仕立て(門被り・段作り)にしない** — 社叢の松であって庭木ではない。
+        /// 樹高: **Mid 10.5m / Big 12.5m**。⭐ **丈 ≤ 11.5m は Mid・超は Big** を選べば
+        /// `scaleY` は 0.905〜1.095 に収まる。⛔ 桜の同格(3.6/5.8/8.2)も落葉高木の刻みも当てない。
+        /// 樹冠 ÷ 丈 = 0.55〜0.77(在庫の黒松の LOD0 実測 0.681 と同じ帯)。
+        /// <para><paramref name="i"/> は**個体**(1〜3)。⛔ 1本の層を1個体で埋めない。</para>
+        /// ⭕ 材質は**在庫のクロマツの物**の名前だけを運ぶ(`M_FJG_Tree_BlackPine_Bark` /
+        /// `..._Sprout_A_Green`)。**Unity で remap 済**(2026-09-07)。
+        /// 生成: blender --background --python Tools/Blender/build_tree.py -- matsu Mid Big</summary>
+        public static string Matsu(string size, int i = 1)
+        {
+            return "Assets/Edo/Models/Trees/Tree_Matsu_" + size
+                 + (i <= 1 ? "" : "_" + i.ToString("00")) + ".fbx";
+        }
+
+        /// <summary>**山王社の楼門(隨身門)・坂下の門(仁王門)兼用**。三間一戸・単層・入母屋・出組・本瓦葺。
+        /// 在庫方 2026-09-13 の判定=在庫に三間一戸の寺社の門が無い(城郭の櫓門・長屋門のみ)ので新造。
+        /// 柱芯は X ±1.818(梁間2間=通り抜けの奥行)/ Z ±2.727(桁行3間=門の幅)。外形 6.76×7.00×8.58m。
+        /// ⭐ **通り抜け=ローカル X・正面=+X・ピボット=門の芯・敷居の高さ**(基壇は −0.60 まで根入れ)。
+        /// yaw 0° で据えると正面=東・通り抜け=東西。scale は Vector3.one。
+        /// ⚠ 材は名前だけ ⇒ `Edo/山王社/新造部材のマテリアルをremap`。柱高・組物・妻飾り・軒反りは【U 類型】。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_romon.py -- --render</summary>
+        public static string SannoRomon(int duKen = 2, int dvKen = 3)
+        {
+            return "Assets/Edo/Models/Sanno/Sanno_Romon_" + duKen + "x" + dvKen + "ken.fbx";
+        }
+
         /// <summary>**イロハモミジ**。⭐ **株立ち3〜5幹・枝が水平に張る**(幅が高さを上回る)。
         /// ⚠ 在庫の `NM.MapleBush` は**灌木**(丈1.5m)で中木に使えず、桜の夏姿での代用も
         /// 不可(夏でも幹肌が桜と読め、季節の確度が化ける)。庭方の要求で 2026-09-01 に新造。

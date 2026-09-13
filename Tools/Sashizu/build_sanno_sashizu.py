@@ -3141,6 +3141,19 @@ def mune_h(d, m):
     return g0[1] - (orn or 0.0)
 
 
+def mune_visible_top(d, m):
+    """棟の**見える頂**(鬼板の頂)[m] と出所 ── 目録の部材の丈そのもの(`partFrom`)。
+    `h` で決まった棟は 大棟 + 棟飾りの丈。どちらも無ければ (None, None)。"""
+    pf = m.get("partFrom")
+    if m.get("h") is None and pf:
+        g0 = part_geom({"prefab": pf})
+        if g0: return g0[1], "目録の部材の丈 = 鬼の頂"
+    h9 = mune_h(d, m)
+    if h9 is None: return None, None
+    orn, _src = mune_ornament(d, m)
+    return h9 + (orn or 0.0), "大棟 + 棟飾りの丈"
+
+
 def mune_height_check(d):
     """**棟高の物差しと、部材の丈との突き合わせ**【高3 検図21巡目 → 裁3/裁4 2026-09-09】。
 
@@ -5112,9 +5125,11 @@ def shukei_rows(d, g):
             m = m[0]
             cu, cv = m["u0"] + m["du"] / 2.0, m["v0"] + m["dv"] / 2.0
             L2 = math.hypot(cu - fu, cv - fv) * ken
-            t2 = gr + h9
-            out.append((nm + " の棟(丈 %.1f m【従属 — %s】)"
-                        % (h9, "宣言 `h`" if m.get("h") is not None else "目録の部材の丈"),
+            # ⭐ **比べる相手は見える頂(鬼板の頂)**【庭方 2026-09-13 低】── V3 から見える輪郭の頂は
+            #    鬼板で、大棟(`mune_h` = 目録の丈 − 棟飾り)ではない。⛔ 数を持たない(目録の丈)。
+            vt, vsrc = mune_visible_top(d, m)
+            t2 = gr + vt
+            out.append((nm + " の見える頂(鬼の頂 %.1f m【従属 — %s】)" % (vt, vsrc),
                         L2, t2, math.degrees(math.atan2(t2 - eye, L2))))
     return out
 
@@ -8196,7 +8211,7 @@ def gate_by_name(d, nm):
 
 
 def gate_face_u(d, nm, face):
-    """門の**面の通り**[間] ── 芯 ± 桁行の半分。⛔ 面の u を json に書き写さない。
+    """門の**面の通り**[間] ── 芯 ± **梁間(通り抜けの奥行 `plan.du`)の半分**。⛔ 面の u を json に書き写さない。
 
     ⚠ 2026-09-07 検図7巡目 低4 — 門の芯を犬走りからの従属値に改めたのに、その**面の通り**は
     旧値 23.600 / 21.600 のまま4箇所に literal で残り、27.3 mm ずつずれていた。
@@ -8205,6 +8220,208 @@ def gate_face_u(d, nm, face):
     gt = gate_by_name(d, nm)
     hu = gt["plan"]["du"] / 2.0
     return gt["u"] + (hu if face == "東" else -hu)
+
+
+# 部材のローカル軸 → 真北からの角[°](Unity の Y 回転 0 のとき。+Z=北 / +X=東)。⛔ 設計値ではない — 語の辞書
+_LOCAL_AX_DEG = {"+Z": 0.0, "+X": 90.0, "-Z": 180.0, "-X": 270.0, "Z": 0.0, "X": 90.0}
+_PASS_DEG = {"南北": 0.0, "東西": 90.0}
+
+
+def gate_bom_row(d, gt):
+    """門の `bom` が指す部材の行(無ければ None)。"""
+    nm = gt.get("bom")
+    if not nm: return None
+    for b in d["bom"]:
+        if b.get("部材") == nm: return b
+    return None
+
+
+def derive_gate_yaw(d):
+    """**門の yaw は従属値**【検図 2026-09-13 高1・高2/考証 高2】── `front`(無ければ `pass`)と
+    `bom[].axis`(部材のローカル軸)から出す。⛔ 数を json に持たない(`_gates`)。
+
+    物差しは Unity の Y 回転[°](上から見て時計回り)。回転 θ はローカルの向きの方位角に θ を足す
+    ⇒ θ = 正面の方位 − 部材の正面のローカル方位。正面が無い門は通り抜けの軸だけ合わせる(mod 180)。
+    ⛔ 部材の軸が無い門は yaw を出さない(0 で埋めない)。`passAz` = 通り抜けの軸の方位[°](mod 180)。
+    """
+    for gt in d["gates"]:
+        gt["yaw"], gt["passAz"], gt["yawFrom"] = None, None, None
+        fr, ps = gt.get("front"), gt.get("pass")
+        if fr in _DIR_DEG:
+            gt["passAz"] = _DIR_DEG[fr] % 180.0
+        elif ps in _PASS_DEG:
+            gt["passAz"] = _PASS_DEG[ps]
+        ax = (gate_bom_row(d, gt) or {}).get("axis") or {}
+        if fr in _DIR_DEG and ax.get("front") in _LOCAL_AX_DEG:
+            gt["yaw"] = round((_DIR_DEG[fr] - _LOCAL_AX_DEG[ax["front"]]) % 360.0, 6)
+            gt["yawFrom"] = "front=%s × bom.axis.front=%s" % (fr, ax["front"])
+        elif gt["passAz"] is not None and ax.get("pass") in _LOCAL_AX_DEG:
+            gt["yaw"] = round((gt["passAz"] - _LOCAL_AX_DEG[ax["pass"]]) % 180.0, 6)
+            gt["yawFrom"] = "pass × bom.axis.pass=%s(正面は未宣言 — 軸だけ合わせる)" % ax["pass"]
+
+
+def gate_axis_check(d, g):
+    """**門の向き**【検図 2026-09-13 高1/考証 高2/庭方 中3】。
+
+    ① 門ごとに `front` か `pass` の宣言があるか・`bom` の指し先が在るか(⛔)。
+    ② 部材の軸 `bom[].axis` が無い門は yaw を出せない(〔記録〕── ⛔ 0 で埋めない)。
+    ③ **出した通り抜けの軸を、門口の芯を通る動線の区間の向きと比べる**(食い違いは⛔)。
+       門口の芯を通る区間が無い門は**未測定**と刷る(⛔ 合格ではない)。
+    ④ 実装との突き合わせ(位置・向き)の件数が図に入っているか。
+    """
+    bad, note = [], []
+    TOL = 5.0
+    segs = []
+    for rt in d.get("routes", []):
+        pts = rt.get("pts") or []
+        uv = [((g.U(q[0]), g.V(q[1])) if rt.get("world") else (q[0], q[1])) for q in pts]
+        for i in range(len(uv) - 1):
+            segs.append((rt["name"], uv[i], uv[i + 1]))
+    for gt in d["gates"]:
+        nm = gt["name"]
+        if gt.get("front") is None and gt.get("pass") is None:
+            # ⛔ 据える部材の軸が在るのに向きが無ければ yaw の意味が決まらない。部材も向きも
+            #    未解決の門は差し戻し中として刷る(⛔ 合格ではない)。
+            if (gate_bom_row(d, gt) or {}).get("axis"):
+                bad.append("門『%s』に向きの宣言(`front` か `pass`)が無い — yaw の意味が決まらない" % nm)
+            else:
+                note.append("⚠ 門『%s』── **向きが未宣言**(`front`/`pass` とも無い・部材も未解決)⇒ yaw は出ない"
+                            "(→ `_pending`「勝手口の向き」)" % nm)
+            if gt.get("passAz") is None:
+                c0 = (gt["u"], gt["v"])
+                az0 = []
+                for rn, a, b in segs:
+                    if math.hypot(b[0] - a[0], b[1] - a[1]) < 1e-6 or _pt_seg(c0, a, b) > 0.25: continue
+                    az0.append("『%s』%.0f°" % (rn, math.degrees(math.atan2(b[0] - a[0], b[1] - a[1])) % 180.0))
+                if az0:
+                    note.append("門『%s』── 門口の芯を通る動線の区間の方位: %s【算出 — 通り抜けの軸を決める材料】"
+                                % (nm, "・".join(az0)))
+            continue
+        if gt.get("front") is not None and gt["front"] not in _DIR_DEG:
+            bad.append("門『%s』の `front`『%s』が方位の語でない" % (nm, gt["front"]))
+        if gt.get("bom") and gate_bom_row(d, gt) is None:
+            bad.append("門『%s』の `bom`『%s』が部材表に無い" % (nm, gt["bom"]))
+        if gt.get("yaw") is None:
+            note.append("⚠ 門『%s』── **yaw を出せない**(%s)。⛔ 0 で埋めない"
+                        % (nm, "部材が未解決(`bom` が無い)" if not gt.get("bom")
+                           else "部材 `%s` のローカル軸 `axis` が未宣言" % gt["bom"]))
+        else:
+            note.append("門『%s』── 正面 %s ／ 通り抜けの軸の方位 %.0f° ／ **yaw %.0f°**(%s)【算出】"
+                        % (nm, gt.get("front") or "—(未宣言)", gt["passAz"], gt["yaw"], gt["yawFrom"]))
+        c = (gt["u"], gt["v"])
+        hit = []
+        for rn, a, b in segs:
+            L = math.hypot(b[0] - a[0], b[1] - a[1])
+            if L < 1e-6: continue
+            if _pt_seg(c, a, b) > 0.25: continue
+            az = math.degrees(math.atan2(b[0] - a[0], b[1] - a[1])) % 180.0
+            dif = abs(az - gt["passAz"]) % 180.0
+            dif = min(dif, 180.0 - dif)
+            hit.append((rn, az, dif))
+        if not hit:
+            note.append("⚠ 門『%s』── 門口の芯を通る動線の区間が無い ⇒ 通り抜けの軸は**未測定**"
+                        "(⛔ 合格ではない)" % nm)
+            continue
+        ng = [q for q in hit if q[2] > TOL]
+        ok = [q for q in hit if q[2] <= TOL]
+        if not ok:
+            # ⛔ 門口を通る動線の**どれとも**平行でなければ、向きの宣言か動線のどちらかが誤っている
+            bad.append("門『%s』の通り抜けの軸(方位 %.0f°)が門口を通るどの動線とも食い違う ── %s"
+                       % (nm, gt["passAz"], "・".join("『%s』%.0f°(差 %.1f°)" % q for q in ng)))
+        elif ng:
+            note.append("⚠ 門『%s』── 通り抜けの軸は『%s』と平行だが、%s は門口の芯で折れて斜めに入る"
+                        "【算出 — 動線の線形の問題として刷る(⛔ 向きの宣言は動かさない)】"
+                        % (nm, "』『".join(q[0] for q in ok),
+                           "・".join("『%s』%.0f°(差 %.1f°)" % q for q in ng)))
+        else:
+            note.append("門『%s』── 通り抜けの軸が門口を通る動線 %d 区間と平行(差 ≤ %.0f°)【算出】"
+                        % (nm, len(hit), TOL))
+    note.append("⚠ **実装との突き合わせ(門の位置・向き)の件数は図に入っていない** ── "
+                "`Edo/山王社/指図と実装を突き合わせる` は門の**位置だけ**を比べて向きを比べず、"
+                "結果をファイルへ書き出さない ⇒ **未測定**(⛔ 0 件は合格ではない)")
+    return bad, note
+
+
+def noki_sori_check(d):
+    """**軒反りの量**【考証 2026-09-13 中】── `const.nokiSoriCornerM`/`nokiSoriReachM` と、
+    部材の生成器 `Tools/Blender/build_sanno_shaden.py` の `NOKI_A`/`NOKI_L` が同じ量か(食い違いは⛔)。"""
+    c = d["const"]
+    bad, note = [], []
+    if c.get("nokiSoriCornerM") is None or c.get("nokiSoriReachM") is None:
+        return (["軒反りの量 `const.nokiSoriCornerM`/`nokiSoriReachM` の宣言が無い"], [])
+    src = os.path.join(ROOT, "Tools", "Blender", "build_sanno_shaden.py")
+    if not os.path.exists(src):
+        return (["部材の生成器 `Tools/Blender/build_sanno_shaden.py` が無い — 軒反りの量を突き合わせられない"], [])
+    txt = open(src, encoding="utf-8").read()
+    got = {}
+    for k in ("NOKI_A", "NOKI_L"):
+        m = re.search(r"^%s\s*=\s*([0-9.]+)" % k, txt, re.M)
+        got[k] = float(m.group(1)) if m else None
+    for k, ck in (("NOKI_A", "nokiSoriCornerM"), ("NOKI_L", "nokiSoriReachM")):
+        if got[k] is None:
+            bad.append("部材の生成器に `%s` が無い — 軒反りの量を突き合わせられない" % k)
+        elif abs(got[k] - float(c[ck])) > 1e-9:
+            bad.append("軒反りの量が食い違う ── 指図 `const.%s` %.3f ／ 部材の生成器 `%s` %.3f"
+                       % (ck, c[ck], k, got[k]))
+    if not bad:
+        note.append("軒反り ── 隅の持ち上げ **%.2f m** ／ 効く長さ **%.2f m** が指図と部材の生成器で一致"
+                    "【U 設計値 — ⛔ 量の史料は無い】" % (c["nokiSoriCornerM"], c["nokiSoriReachM"]))
+    return bad, note
+
+
+def shaden_kidan_check(d):
+    """**社殿の基壇・亀腹の石材の宣言**【庭方 2026-09-13 中/考証 高】── 鍵が揃っているか(⛔)。"""
+    k = d.get("shadenKidan")
+    need = ("appliesTo", "hueDeg", "satMaxPct", "valPct", "bond", "courseHM", "jointMaxM", "finish", "acc")
+    if not k:
+        return (["社殿の基壇・亀腹の石材 `shadenKidan` の宣言が無い — 暗い割石でもう一度建つ(庭方)"], [])
+    miss = [q for q in need if k.get(q) in (None, "", [])]
+    if miss:
+        return (["`shadenKidan` の鍵が欠ける: %s" % "・".join(miss)], [])
+    return ([], ["基壇・亀腹の石材 ── %s ／ H %g〜%g° S≤%g%% V %g〜%g%% ／ %s ／ 段の丈 %.2f m ／ 目地 ≤%.0f mm ／ %s【U 設計値 — 庭方】"
+                 % ("・".join(k["appliesTo"]), k["hueDeg"][0], k["hueDeg"][1], k["satMaxPct"],
+                    k["valPct"][0], k["valPct"][1], k["bond"], k["courseHM"], k["jointMaxM"] * 1000.0,
+                    k["finish"]),
+                 "⚠ 部材の材(`M_FJG_Rock_001`)の色・積み方との照合は**未測定**(部材方)── ⛔ 合格ではない"])
+
+
+def cluster_shukei_gap_check(d, g):
+    """**西A の松と★主景の幹の離れ**【庭方 2026-09-13 中】── `clusters[].trunkGapFromShukeiKen` を
+    宣言した塊の木の幹が、★主景の木の幹からその距離以上離れているか(焼き出しで測る・⛔ 樹冠では測らない)。"""
+    if not os.path.exists(IMPL_OUT):
+        return ([], ["西A の松と★主景の幹の離れ ── 焼き出しがまだ無いので**未測定**(⛔ 合格ではない)"])
+    im = json.load(open(IMPL_OUT, encoding="utf-8"))
+    P9 = (im.get("planting") or {}).get("points") or []
+    ken = d["const"]["ken"]
+    bad, note = [], []
+    tree = None
+    for gd in d["gardens"]:
+        t9 = (gd.get("shukei") or {}).get("tree")
+        if t9: tree = t9
+    n0 = 0
+    for gd in d["gardens"] + d["slopeBands"]:
+        for c in gd.get("clusters", []) or []:
+            gap = c.get("trunkGapFromShukeiKen")
+            if gap is None: continue
+            n0 += 1
+            if not tree:
+                bad.append("塊『%s』が★主景からの離れを宣言するが★主景の木が無い" % c["name"]); continue
+            grp = "%s／%s" % (gd["name"], c["name"])
+            pts = [q for q in P9 if q.get("group") == grp]
+            if not pts:
+                bad.append("塊『%s』の木が焼き出しに無い(⛔ 0 件は合格ではない)" % c["name"]); continue
+            tu, tv = tree["uv"]
+            ds = [(math.hypot(q["u"] - tu, q["v"] - tv), q["name"]) for q in pts]
+            ng = [q for q in ds if q[0] < gap - 1e-9]
+            if ng:
+                bad.append("塊『%s』の幹が★主景の幹に近すぎる(下限 %.2f 間)── %s"
+                           % (c["name"], gap, "・".join("%s %.2f 間" % (n, x) for x, n in ng)))
+            else:
+                note.append("塊『%s』── %d 本すべて★主景の幹から %.2f 間以上(最短 %.2f 間 = %.2f m)【算出 — U 設計値 庭方 2026-09-13】"
+                            % (c["name"], len(pts), gap, min(ds)[0], min(ds)[0] * ken))
+    if n0 == 0:
+        bad.append("`trunkGapFromShukeiKen` を宣言した塊が無い — 庭方の設計(2026-09-13)が指図に入っていない")
+    return bad, note
 
 
 def derive_gates(d, g):
@@ -8216,6 +8433,7 @@ def derive_gates(d, g):
        `viewpoints[].uFrom` ── どれも門の面の通りを引く宣言。
     """
     ken = d["const"]["ken"]
+    derive_gate_yaw(d)
     for gt in d["gates"]:
         uf = gt.get("uFrom")
         if not uf: continue
@@ -9320,6 +9538,25 @@ def keidai_svg(d, u0, u1, v0, v1, title, W=900.0):
         pl = gt["plan"]
         o.append(lp.rect(u - pl["du"] / 2.0, v - pl["dv"] / 2.0, u + pl["du"] / 2.0, v + pl["dv"] / 2.0,
                          fill="var(--shu)", stroke="var(--ink)", sw=1.1))
+        # ⭐ **門口の矢印**【検図 2026-09-13 高1】── 通り抜けの軸(`passAz`)を門の芯に通し、
+        #    正面(`front`)の側へ鏃を付ける。⛔ 平面を軸に平行に描くだけで向きを読ませない。
+        if gt.get("passAz") is not None:
+            az = math.radians(gt["passAz"])
+            ex, ey = math.sin(az), math.cos(az)
+            if gt.get("front") in _DIR_DEG:
+                fa = math.radians(_DIR_DEG[gt["front"]])
+                ex, ey = math.sin(fa), math.cos(fa)
+            Lk = pl["du"] / 2.0 + 1.2
+            x1, y1 = lp.X(u - ex * Lk), lp.Y(v - ey * Lk)
+            x2, y2 = lp.X(u + ex * Lk), lp.Y(v + ey * Lk)
+            o.append(LN(x1, y1, x2, y2, stroke="var(--ink)", sw=1.3))
+            if gt.get("front") in _DIR_DEG:
+                dx, dy = x2 - x1, y2 - y1
+                Lp = math.hypot(dx, dy) or 1.0
+                dx, dy = dx / Lp, dy / Lp
+                o.append(PL([(x2, y2), (x2 - dx * 8 - dy * 4, y2 - dy * 8 + dx * 4),
+                             (x2 - dx * 8 + dy * 4, y2 - dy * 8 - dx * 4)],
+                            stroke="var(--ink)", sw=0.8, fill="var(--ink)", close=True))
         lx, la = lp.X(u), "middle"
         if gt["name"] == "中門": lx, la = lp.X(u) - lp.L(1.2), "end"
         o.append(T(lx, lp.Y(v + pl["dv"] / 2.0) - 5, gt["name"], fs=11, anchor=la, fill="var(--shu)"))
@@ -11170,7 +11407,7 @@ def mon_svg(d, kan="其十"):
     xs = [W * (i + 0.5) / ng for i in range(ng)]
     for i, gt in enumerate(d["gates"]):
         cx = xs[i]
-        wk, dk = gt["plan"]["dv"], gt["plan"]["du"]      # 桁行(南北) / 梁間(東西)
+        wk, dk = gt["plan"]["dv"], gt["plan"]["du"]      # 桁行(門の幅) / 梁間(通り抜けの奥行)
         s = 20.0
         w = wk * ken * s / ken                            # px/間 = s
         bw = wk * s
@@ -12924,6 +13161,45 @@ def scatter_pts(d, g):
                     cl_pts.append(q)
                 if len(pts) < k:
                     cl_note.append({"name": nm, "short": k - len(pts)})
+            # ⭐ **★主景の幹からの離れ**【庭方 2026-09-13 中】── 割った木だけを箱の `gapRelocate` の
+            #    四分へ据え直す。⛔ ほかの木・丈・部材は動かさない(位置だけ)。⛔ 位置の数を持たない。
+            if c.get("trunkGapFromShukeiKen") is not None:
+                gap9 = float(c["trunkGapFromShukeiKen"])
+                tr9 = [(gd9.get("shukei") or {}).get("tree") for gd9 in d["gardens"]]
+                tr9 = [t for t in tr9 if t and t.get("uv")]
+                if tr9:
+                    tu9, tv9 = tr9[0]["uv"]
+                    bx9 = cluster_boxes(c)[0]
+                    uc9, vc9 = (bx9[0] + bx9[2]) / 2.0, (bx9[1] + bx9[3]) / 2.0
+                    quad9 = {"北西": lambda p: p[0] <= uc9 and p[1] >= vc9,
+                             "北東": lambda p: p[0] >= uc9 and p[1] >= vc9,
+                             "南西": lambda p: p[0] <= uc9 and p[1] <= vc9,
+                             "南東": lambda p: p[0] >= uc9 and p[1] <= vc9}.get(c.get("gapRelocate"))
+                    mine9 = [q for q in cl_pts if q["group"] == nm]
+                    for q in mine9:
+                        if math.hypot(q["u"] - tu9, q["v"] - tv9) >= gap9 - 1e-9: continue
+                        if quad9 is None:
+                            cl_note.append({"name": nm, "gapShukei": q["name"], "relocated": False}); continue
+                        oth9 = [(p["u"], p["v"]) for p in cl_pts if p is not q]
+                        cd9 = [p for p in cand if quad9(p)
+                               and math.hypot(p[0] - tu9, p[1] - tv9) >= gap9]
+                        tk9 = _scatter_take(rnd_of(nm, "松")[0], cd9, 1, rmin, seeded=oth9)
+                        if not tk9[0] or tk9[2]:
+                            cl_note.append({"name": nm, "gapShukei": q["name"], "relocated": False})
+                            continue
+                        u9, v9 = tk9[0][0]
+                        for i9, p9 in enumerate(got):
+                            if abs(p9[0] - q["u"]) < 1e-3 and abs(p9[1] - q["v"]) < 1e-3:
+                                got[i9] = (u9, v9)
+                        x9, z9 = g.W(u9, v9)
+                        dy9 = _design_y_cold(d, g, x9, z9)
+                        nat9 = dem_h(x9, z9)
+                        q.update({"u": round(u9, 4), "v": round(v9, 4),
+                                  "world": [round(x9, 3), round(z9, 3)],
+                                  "y": round(dy9 if dy9 is not None else (nat9 if nat9 is not None else 0.0), 3),
+                                  "ground": "design" if dy9 is not None else "terrain"})
+                        cl_note.append({"name": nm, "gapShukei": q["name"], "relocated": True,
+                                        "to": [round(u9, 4), round(v9, 4)]})
             cl_note.append({"name": nm, "n": cluster_n(c), "boxes": cluster_boxes(c),
                             "points": len(got),
                             "rmin": round(sp if line9 is not None else rmin, 3),
@@ -14034,6 +14310,8 @@ def impl_stairs(d, g):
 def impl_gates(d, g):
     """門の芯 ── **`uFrom` を持つ門は芯が従属値**(仁王門は前庭の西縁+犬走りから)。"""
     return [{"name": gt["name"], "u": gt["u"], "v": gt["v"], "yaw": gt.get("yaw"),
+             "front": gt.get("front"), "passAz": gt.get("passAz"), "yawFrom": gt.get("yawFrom"),
+             "bom": gt.get("bom"),
              "sill": gt.get("sill"), "plan": gt["plan"],
              "monguchiKen": gt.get("monguchiKen"),
              "world": _w(g, (gt["u"], gt["v"]))} for gt in d["gates"]]
@@ -15856,6 +16134,10 @@ def run_checks():
     sgp = _gated(single_gap_check)   # 一本立ちの離れ(指2 庭方18巡目)
     ntc = named_tree_check(d, g)       # 名指しの木(決1③ 庭方18巡目)
     skb = shukei_bake_check(d, g)      # ★主景(名指し・焼き出し・仰角の受入値。A-1 庭方19巡目)
+    gax = gate_axis_check(d, g)        # 門の向き(検図 2026-09-13 高1)
+    nks = noki_sori_check(d)           # 軒反りの量(考証 2026-09-13 中)
+    skd = shaden_kidan_check(d)        # 基壇・亀腹の石材(庭方 2026-09-13 中)
+    csg = _gated(cluster_shukei_gap_check)  # 西A の松と★主景の幹の離れ(庭方 2026-09-13 中)
     nvc = named_vs_cluster_check(d, g)  # 名指しの木 × 設計された塊の余白(A-3 庭方19巡目)
     pmf = probe_misfire_check(d, g)     # 破壊試験の総覧(B-3 検図22巡目)
     kin = _gated(kyoukai_inside_check)   # 幹が社地の内か(A-2 庭方19巡目)
@@ -15944,6 +16226,11 @@ def run_checks():
                  "社地の内だけ・続いた空きの上限・肩ゼロ換算の理論上限)", ccv[0], ccv[1]))
     rows.append(("名指しの木が宣言どおり引けているか(帯の同定・丈・部材・樹冠)", ntc[0], ntc[1]))
     rows.append(("★主景の木(名指しであること・焼き出しに在ること・仰角の受入値)", skb[0], skb[1]))
+    rows.append(("門の向き(正面・部材の軸から出した yaw・門口を通る動線との平行・実装との突き合わせ)",
+                 gax[0], gax[1]))
+    rows.append(("軒反りの量(指図 `const` と部材の生成器)", nks[0], nks[1]))
+    rows.append(("社殿の基壇・亀腹の石材の宣言(`shadenKidan`)", skd[0], skd[1]))
+    rows.append(("西A の松と★主景の幹の離れ(`trunkGapFromShukeiKen`・幹の芯)", csg[0], csg[1]))
     rows.append(("名指しの木が設計された塊の余白に入らないか(⛔ 樹冠では測らない)",
                  nvc[0], nvc[1]))
     rows.append(("破壊試験(変異が図に当たったか・束の合否)", pmf[0], pmf[1]))
@@ -16413,14 +16700,25 @@ def main():
     rows = []
     for gt in d["gates"]:
         w = g.W(gt["u"], gt["v"])
-        rows.append("<tr><td>%s</td><td>(%.1f, %.1f)</td><td>%.1f m</td><td>%d×%d 間</td>"
-                    "<td class='note'>%s</td><td>%s</td></tr>"
-                    % (gt["name"], w[0], w[1], gt["sill"], gt["plan"]["du"], gt["plan"]["dv"],
+        # ⭐ **桁行×梁間は門の軸で刷る**【検図 2026-09-13 低5】── 桁行 = `plan.dv`(門の幅)/
+        #    梁間 = `plan.du`(通り抜けの奥行)。⛔ 世界の軸で「外形」と刷らない(本文と並びが逆になる)。
+        yw = ("%.0f°" % gt["yaw"]) if gt.get("yaw") is not None else "—(部材の軸が未宣言)"
+        fr = gt.get("front") or ("—(通り抜け %s)" % gt.get("pass") if gt.get("pass") else "—")
+        rows.append("<tr><td>%s</td><td>(%.1f, %.1f)</td><td>%.1f m</td><td>%g × %g 間</td>"
+                    "<td>%s</td><td>%s</td><td class='note'>%s</td><td class='note'>%s</td><td>%s</td></tr>"
+                    % (gt["name"], w[0], w[1], gt["sill"], gt["plan"]["dv"], gt["plan"]["du"],
+                       fr, yw, inline(gt.get("bom") or "—(未解決)"),
                        html.escape(gt["kind"]), gt["acc"]))
     h.append('<div class="tw"><table><thead><tr><th>門</th><th>芯の世界座標 (x,z)</th><th>敷居</th>'
-             "<th>外形</th><th class='note'>形式</th><th>確度</th></tr></thead><tbody>"
+             "<th>桁行 × 梁間</th><th>正面</th><th>yaw(従属)</th><th class='note'>部材</th>"
+             "<th class='note'>形式</th><th>確度</th></tr></thead><tbody>"
              + "".join(rows) + "</tbody></table></div>")
-    h.append('<p class="cap">⛔ <b>現行実装の「境内に仁王門と随身門の二基」は誤り。</b>'
+    h.append('<p class="cap"><b>向きは門の軸で読む</b> — 桁行は門の幅、梁間は通り抜けの奥行。'
+             '<b>yaw は数で持たず</b>、正面の向き(<code>gates[].front</code>)と部材のローカル軸'
+             '(<code>bom[].axis</code>)から毎回出す(物差しは Unity の Y 回転・0 でローカル +X が東)。'
+             '平面図の門には通り抜けの軸を矢印で描き、鏃が正面の側。'
+             '同じ yaw でも代用の櫓門はローカル X、木戸はローカル Z が通り抜けで意味が違う。</p>')
+    h.append('<p class="cap"><b>山上の門は楼門一基。</b>'
              '絵図の銘は「樓門」【S 字 — 原図実見】、名所図会の題箋は「随身門」【S 字 — 原図実見】で、'
              '<b>この二つを同一の門の別称と読むのは当方の同定</b>【U】'
              '(位置が同一なので同定は堅いが、別称であると述べる史料は無い)。'
@@ -16589,6 +16887,17 @@ def main():
 
     plate(h, nx(), "部材", "神社建築は在庫にゼロ")
     h.append(bom_table(d))
+    h.append("<h3>社殿の基壇・亀腹の石材</h3>")
+    _k9 = d.get("shadenKidan") or {}
+    if _k9:
+        h.append('<div class="tw"><table><thead><tr><th>当てる所</th><th>色(HSV)</th><th>積み方</th>'
+                 '<th>段の丈</th><th>目地</th><th>仕上げ</th><th>確度</th></tr></thead><tbody>'
+                 "<tr><td>%s</td><td>%s H %g〜%g° ／ S ≤ %g%% ／ V %g〜%g%%</td><td>%s</td>"
+                 "<td>%.2f m</td><td>≤ %.0f mm</td><td>%s</td><td>%s</td></tr></tbody></table></div>"
+                 % ("・".join(_k9["appliesTo"]), _k9.get("tone", ""), _k9["hueDeg"][0], _k9["hueDeg"][1],
+                    _k9["satMaxPct"], _k9["valPct"][0], _k9["valPct"][1], _k9["bond"],
+                    _k9["courseHM"], _k9["jointMaxM"] * 1000.0, _k9["finish"], _k9["acc"]))
+        h.append('<p class="cap">%s</p>' % inline(d.get("_shadenKidan") or ""))
     h.append("<h3>石材の系統</h3>")
     h.append(ishizai_table(d))
     h.append('<p class="cap">edogoyomi / Japanese Castle / Japanese Village Kit / Waldemarst の四パックとも'

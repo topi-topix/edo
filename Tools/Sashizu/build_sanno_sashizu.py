@@ -12806,13 +12806,91 @@ def budget_table(d, g):
             "</tr></thead><tbody>" + rows + "</tbody></table></div>")
 
 
+def ishizai_color_src(d, c):
+    """名簿の品目の色の出所 ── `from` があればその宣言(基準 `shadenKidan`)、無ければ行そのもの。"""
+    return (d.get(c["from"]) or {}) if c.get("from") else c
+
+
+def ishizai_color_check(d):
+    """**庭の石の名簿の色**【庭方 2026-09-13/普請奉行の裁定 2026-09-13】── 品目ごとの H/S/V の設計値と受入値の宣言。
+
+    ① 名簿 `ishizai.roster` と色の表 `ishizai.colors` が**両方向**に一致するか(⛔ 死んだ行も⛔)。
+    ② 品目の設計値が受入値 `colorGate` の中にあるか(S の上限 ≤ `satCapPct`・V が `valAbsPct` の内)(⛔)。
+    ③ 隣り合う品目の組 `adjPairs` の V の中央の差(⛔ > `adjVDiffStopPt`/⚠ ≥ `adjVDiffWarnPt`)。
+    ④ **材の実測とつなぐ検査は未測定**(実装前)── ⛔ 合格ではない。
+    """
+    iz = d.get("ishizai") or {}
+    cg, cols = iz.get("colorGate"), iz.get("colors")
+    if not cg or not cols:
+        return (["庭の石の名簿の色の設計値 `ishizai.colors` / 受入値 `ishizai.colorGate` の宣言が無い(庭方 2026-09-13)"], [])
+    bad, note = [], []
+    ros = iz.get("roster") or []
+    names = [c["item"] for c in cols]
+    for r in ros:
+        if r not in names: bad.append("名簿の品目『%s』に色の設計値(`ishizai.colors`)が無い" % r)
+    for nm in names:
+        if nm not in ros: bad.append("色の設計値『%s』が名簿 `ishizai.roster` に無い(死んだ行)" % nm)
+    cap = cg["satCapPct"]
+    va0, va1 = cg["valAbsPct"]
+    kb = d.get(iz.get("colorFrom") or "") or {}
+    if kb.get("satMaxPct") is None or kb["satMaxPct"] > cap:
+        bad.append("色の基準 `%s.satMaxPct` %s が受入値の上限 `colorGate.satCapPct` %g を超えるか宣言が無い"
+                   % (iz.get("colorFrom"), kb.get("satMaxPct"), cap))
+    got = {}
+    for c in cols:
+        if c.get("inspect") is False:
+            note.append("品目『%s』── **測らない**(%s)【U 設計値 — 庭方 2026-09-13】" % (c["item"], c.get("rel", "")))
+            continue
+        src = ishizai_color_src(d, c)
+        H, S, V = src.get("hueDeg"), src.get("satMaxPct"), src.get("valPct")
+        if H is None or V is None:
+            bad.append("品目『%s』の H か V の設計値が無い" % c["item"]); continue
+        if S is None:
+            note.append("⚠ 品目『%s』── **S の上限が未決**【? → 普請奉行】(`colors[].satMaxPct` が空)" % c["item"])
+        elif S > cap:
+            bad.append("品目『%s』の S の上限 %g が受入値の上限 %g を超える" % (c["item"], S, cap))
+        if V[0] < va0 or V[1] > va1:
+            bad.append("品目『%s』の V %g〜%g が受入値 %g〜%g の外" % (c["item"], V[0], V[1], va0, va1))
+        got[c["item"]] = (H, S, V)
+        note.append("品目『%s』── H %g〜%g° ／ S ≤%s ／ V %g〜%g ／ %s ／ %s%s【U 設計値 — 庭方 2026-09-13】"
+                    % (c["item"], H[0], H[1], "—(未決)" if S is None else "%g" % S, V[0], V[1], c.get("rel", ""),
+                       c.get("finish", ""), "(基準 `%s` から引く)" % c["from"] if c.get("from") else ""))
+    for a, b in cg["adjPairs"]:
+        if a not in got or b not in got:
+            bad.append("隣り合う品目の組『%s × %s』が色の表から引けない" % (a, b)); continue
+        dv = abs(sum(got[a][2]) / 2.0 - sum(got[b][2]) / 2.0)
+        if dv > cg["adjVDiffStopPt"]:
+            bad.append("隣り合う品目『%s × %s』の V の中央の差 %.1f pt > %g pt" % (a, b, dv, cg["adjVDiffStopPt"]))
+        elif dv >= cg["adjVDiffWarnPt"]:
+            note.append("⚠ 隣り合う品目『%s × %s』の V の中央の差 %.1f pt(注意域 %g〜%g pt)【算出】"
+                        % (a, b, dv, cg["adjVDiffWarnPt"], cg["adjVDiffStopPt"]))
+        else:
+            note.append("隣り合う品目『%s × %s』── 設計値の V の中央の差 %.1f pt ＜ %g pt【算出】"
+                        % (a, b, dv, cg["adjVDiffWarnPt"]))
+    note.append("⚠ **材の実測とつなぐ検査は未測定**(実装前 ── Unity の材の平均色・品目内の V のばらつき・切石の目地の模様)"
+                "── ⛔ 合格ではない。受入値 ⛔: 平均 H が帯の外/平均 S が品目の上限(≤%g)を超える/V が %g〜%g の外/"
+                "隣り合う組の V の差 > %g pt/切石に目地の模様 ・ ⚠: V の差 %g〜%g pt/玉石以外で S %g〜%g(⛔ の上限の手前の注意域)/"
+                "品目内 V の幅(上下 %g%% を除く)> %g pt"
+                % (cap, va0, va1, cg["adjVDiffStopPt"], cg["adjVDiffWarnPt"], cg["adjVDiffStopPt"],
+                   cg["satWarnPct"][0], cg["satWarnPct"][1], cg["valSpreadTrimPct"], cg["valSpreadWarnPt"]))
+    return bad, note
+
+
 def ishizai_table(d):
     """庭に使う**石材の系統**【追加 庭方 2026-09-07】。⛔ 産地を典拠なく名指ししない。"""
     iz = d.get("ishizai")
     if not iz: return ""
-    rows = "".join("<tr><td>%s</td><td class='note'>%s</td></tr>"
-                   % (inline(q), "同じ系統(色は `%s` の基準にそろえる)" % iz["colorFrom"]
-                      if iz.get("colorFrom") else "同じ系統")
+    cmap = {c["item"]: c for c in iz.get("colors") or []}
+
+    def _col(q):
+        c = cmap.get(q)
+        if not c: return "同じ系統"
+        if c.get("inspect") is False: return "同じ系統 ／ 色は測らない(%s)" % c.get("rel", "")
+        sc = ishizai_color_src(d, c)
+        return ("H %g〜%g° ／ S ≤%s ／ V %g〜%g ／ %s ／ %s"
+                % (sc["hueDeg"][0], sc["hueDeg"][1], "**未決【?】**" if sc.get("satMaxPct") is None
+                   else "%g" % sc["satMaxPct"], sc["valPct"][0], sc["valPct"][1], c.get("rel", ""), c.get("finish", "")))
+    rows = "".join("<tr><td>%s</td><td class='note'>%s</td></tr>" % (inline(q), inline(_col(q)))
                    for q in iz.get("roster", []))
     kb = d.get(iz.get("colorFrom") or "") or {}
     if kb.get("hueDeg"):
@@ -16378,6 +16456,17 @@ def probe_roster(d, g):
     out.append(("門の平面の向き", "楼門を南北に抜ける門へ回す(面の取り付き無し・表参は東西に通ったまま)",
                 run(gate_plan_axis_check, e21), 1, mv21))
 
+    # ---- ⑬' 庭の石の名簿の色(庭方 2026-09-13)
+    n23 = run1(ishizai_color_check, d)
+    out.append(("庭の石の名簿の色", "基準(壊さない)", n23, 0, None))
+
+    def m23(e):
+        for c in e["ishizai"]["colors"]:
+            if c["item"].startswith("縁石"): c["valPct"] = [30.0, 40.0]
+    e23, mv23 = _probe(d, m23)
+    out.append(("庭の石の名簿の色", "縁石の V を 30〜40 へ落とす(受入値の下限を割る)",
+                run1(ishizai_color_check, e23), 1, mv23))
+
     # ---- ⑬ 門の平面と部材の柱芯(K001 2026-09-13)
     n22 = run(gate_part_col_check, d)
     out.append(("門の平面と部材の柱芯", "基準(壊さない)", n22, 0, None))
@@ -16537,6 +16626,7 @@ def run_checks():
     gpo = gate_part_outline_check(d, g)  # 門の部材の外形の食い込み(K001 2026-09-13)
     nks = noki_sori_check(d)           # 軒反りの量(考証 2026-09-13 中)
     skd = shaden_kidan_check(d)        # 基壇・亀腹の石材(庭方 2026-09-13 中)
+    izc = ishizai_color_check(d)       # 庭の石の名簿の色(庭方 2026-09-13・普請奉行の裁定)
     csg = _gated(cluster_shukei_gap_check)  # 西A の松と★主景の幹の離れ(庭方 2026-09-13 中)
     nvc = named_vs_cluster_check(d, g)  # 名指しの木 × 設計された塊の余白(A-3 庭方19巡目)
     pmf = probe_misfire_check(d, g)     # 破壊試験の総覧(B-3 検図22巡目)
@@ -16633,6 +16723,7 @@ def run_checks():
     rows.append(("門の部材の外形が石段・囲い・土留めへ食い込まないか(`bom[].outlineM`・軒を含む)", gpo[0], gpo[1]))
     rows.append(("軒反りの量(指図 `const` と部材の生成器)", nks[0], nks[1]))
     rows.append(("社殿の基壇・亀腹の石材の宣言(`shadenKidan`)", skd[0], skd[1]))
+    rows.append(("庭の石の名簿の色(`ishizai.colors`・受入値 `colorGate`・材の実測は未測定)", izc[0], izc[1]))
     rows.append(("西A の松と★主景の幹の離れ(`trunkGapFromShukeiKen`・幹の芯)", csg[0], csg[1]))
     rows.append(("名指しの木が設計された塊の余白に入らないか(⛔ 樹冠では測らない)",
                  nvc[0], nvc[1]))

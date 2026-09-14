@@ -9312,7 +9312,12 @@ def fill_slope_planting_check(d, g):
 
     def dtoe(p): return min(_pt_seg(p, toe[i], toe[i + 1]) for i in range(len(toe) - 1))
     # ② 高木・中木の仕分け(法面の中 ＝ 中木 ／ 法尻の外の線 ＝ 高木)
+    tsd = fs.get("toeShrubs")
+    ntoe = sum(1 for q in low if q["group"] == "盛土の法尻(低木)")
+    if tsd and ntoe != int(tsd["n"]):
+        bad.append("法尻の低木が %d 本しか据わらない(宣言 %d 本)── 線の長さが足りない。決めるのは**庭方**" % (ntoe, int(tsd["n"])))
     for q in mids:
+        if "隅" in q["group"]: continue          # 隅の中木は庭方の名指し(法面の中の千鳥ではない)
         if not in_poly((q["u"], q["v"]), P):
             bad.append("法面の中木『%s』(%.3f, %.3f) が盛土の法面の外にある" % (q["name"], q["u"], q["v"]))
     for q in tall:
@@ -9364,17 +9369,30 @@ def fill_slope_planting_check(d, g):
     for p in poly_scan(P, 0.1):
         k9 = min(range(len(S)), key=lambda k: (S[k][0][0] - p[0]) ** 2 + (S[k][0][1] - p[1]) ** 2)
         yy = design_y(d, g, *g.W(p[0], p[1]))
-        if yy is not None: face.append((p, S[k9][1], yy))
+        if yy is not None: face.append((p, S[k9][1], yy, S[k9][3]))
+    # ⭐ 見上げから外す面(`viewExclude` ── 見る人が立つ所が無い面は平面の被覆率だけで検める。理由を名簿に持つ)
+    Ev9 = [list(q) for q in geo["edge"]]
+    excl = set()
+    for ex9 in fs.get("viewExclude") or []:
+        if not ex9.get("reason"):
+            bad.append("見上げから外す面『%s』に理由 `reason` が無い" % ex9.get("face"))
+        vs = [list(q) for q in ex9.get("edge") or []]
+        hit9 = [i for i in range(len(Ev9) - 1) if len(vs) == 2 and sorted([Ev9[i], Ev9[i + 1]]) == sorted(vs)]
+        if not hit9:
+            bad.append("見上げから外す面『%s』の辺 `edge` が法面の縁に無い" % ex9.get("face"))
+        excl.update(hit9)
+        if hit9:
+            note.append("見上げから外す面『%s』── 理由: %s【%s】" % (ex9.get("face"), ex9.get("reason"), ex9.get("acc", "—")))
     for vc in vcs:
         tw = vc["toward"]; L9 = math.hypot(tw[0], tw[1]) or 1.0
         dx, dy = tw[0] / L9, tw[1] / L9
-        F = [(p, yy) for p, n, yy in face if n[0] * dx + n[1] * dy > 0.2]
+        F = [(p, yy) for p, n, yy, i9 in face if n[0] * dx + n[1] * dy > 0.2 and i9 not in excl]
         if not F:
             bad.append("見上げ『%s』── この向きに面する法面の見付けが無い ── 見る向き `toward` は**庭方**が決める" % vc["name"])
             continue
         TR = []
         for q in mids + tall:
-            e9 = eda.get(q["layer"])
+            e9 = q.get("edaShitaM") if q.get("edaShitaM") is not None else eda.get(q["layer"])
             if e9 is None or not q.get("crownM"): continue
             TR.append((q["u"] * dx + q["v"] * dy, -q["u"] * dy + q["v"] * dx, q["crownM"] / 2.0 / ken,
                        q["y"] + float(e9), q["y"] + q["h"], q))
@@ -14445,6 +14463,65 @@ def fill_slope_trees(d, g):
     for j, (u9, v9) in enumerate(pts):
         out.append(_tree_row(d, g, rnd3, "法面_低木%03d" % (j + 1), "盛土の法面(低木)", "低木", pal["低木"],
                              b.get("teibokuH"), u9, v9))
+    # ⑤ 法尻の低木(`toeShrubs`)── 法尻の外 `offsetKen` の線に沿って千鳥。南の面を東から西へ、隅を回り、西の面の `westToV` まで
+    ts = fs.get("toeShrubs")
+    if ts:
+        Ev = [list(q) for q in geo["edge"]]
+
+        def seg_of(vs):
+            for i in range(len(Ev) - 1):
+                if sorted([Ev[i], Ev[i + 1]]) == sorted([list(vs[0]), list(vs[1])]): return i
+            return None
+        top = d["terraces"][0]["y"]; bf = d["const"]["batterFill"]
+
+        def toe_t(pt, nn):
+            t = 0.1
+            while t <= d["const"].get("featherCap", 12.0) + 1e-9:
+                h = dem_h(*g.W(pt[0] + nn[0] * t / ken, pt[1] + nn[1] * t / ken))
+                if h is None: return None
+                if top - t / bf <= h: return t
+                t += 0.1
+            return None
+        o = float(ts["offsetKen"])
+        i_s, i_w = seg_of(ts["southEdge"]), seg_of(ts["westEdge"])
+        south = sorted([(p[0] + n[0] * (tM / ken + o), p[1] + n[1] * (tM / ken + o)) for p, n, tM, ii in S if ii == i_s],
+                       key=lambda q: -q[0])
+        west = sorted([(p[0] + n[0] * (tM / ken + o), p[1] + n[1] * (tM / ken + o)) for p, n, tM, ii in S if ii == i_w],
+                      key=lambda q: q[1])
+        cu = ts["cornerUV"]
+        ns = [s9[1] for s9 in S if s9[3] in (i_s, i_w)]
+        bx, by = (sum(q[0] for q in ns), sum(q[1] for q in ns)) if ns else (0.0, 0.0)
+        Lb = math.hypot(bx, by) or 1.0
+        tc = toe_t(cu, (bx / Lb, by / Lb))
+        corner = [(cu[0] + bx / Lb * (tc / ken + o), cu[1] + by / Lb * (tc / ken + o))] if tc is not None else []
+        path = [q for q in south + corner + west
+                if ts["uRange"][0] - 1e-6 <= q[0] <= ts["uRange"][1] + 1e-6 and q[1] <= ts["westToV"] + 0.5]
+        dist = [0.0]
+        for k in range(1, len(path)):
+            dist.append(dist[-1] + math.hypot(path[k][0] - path[k - 1][0], path[k][1] - path[k - 1][1]) * ken)
+        rnd4, _k = _seed_rnd(d, "盛土の法尻", "低木")
+        sm, j = 0.0, 0
+        while path and j < int(ts["n"]) and sm <= dist[-1] + 1e-9:
+            k = max(i for i in range(len(dist)) if dist[i] <= sm + 1e-9)
+            k2 = min(k + 1, len(path) - 1)
+            seg = (dist[k2] - dist[k]) or 1.0
+            f = min(1.0, (sm - dist[k]) / seg) if k2 != k else 0.0
+            u9 = path[k][0] + (path[k2][0] - path[k][0]) * f
+            v9 = path[k][1] + (path[k2][1] - path[k][1]) * f
+            tx, ty = path[k2][0] - path[k][0], path[k2][1] - path[k][1]
+            Lt = math.hypot(tx, ty) or 1.0
+            sg = (1.0 if j % 2 == 0 else -1.0) * float(ts.get("staggerM", 0.0)) / 2.0 / ken
+            out.append(_tree_row(d, g, rnd4, "法尻_低木%02d" % (j + 1), "盛土の法尻(低木)", "低木", pal["低木"],
+                                 ts["hM"], u9 - ty / Lt * sg, v9 + tx / Lt * sg))
+            j += 1
+            sm += rnd4.uniform(float(ts["spacingM"][0]), float(ts["spacingM"][1]))
+    # ⑥ 隅の中木(`cornerChuboku`)── 位置は庭方の名指し
+    cc = fs.get("cornerChuboku") or {}
+    rnd5, _k = _seed_rnd(d, "盛土の法面の隅", "中木")
+    for j, (u9, v9) in enumerate(cc.get("uv") or []):
+        r9 = _tree_row(d, g, rnd5, "隅_中木%d" % (j + 1), "盛土の法面の隅(中木)", "中木", pal["中木"], ch["hM"], u9, v9)
+        r9["edaShitaM"] = cc.get("edaShitaM")
+        out.append(r9)
     _FILL["trees"] = out
     return out
 

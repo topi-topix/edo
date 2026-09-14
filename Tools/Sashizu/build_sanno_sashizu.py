@@ -3031,7 +3031,146 @@ def draw_fumiishi(d, lp, inwin):
                          stroke="var(--ishi)", sw=0.9))
         o.append(T(lp.X((u0 + u1) / 2.0), lp.Y(v0) + 10, "踏石", fs=8.5,
                    anchor="middle", fill="var(--ishi)"))
+    for nm, P9 in fumitome_polys(d):
+        if not inwin([min(q[0] for q in P9), min(q[1] for q in P9)], [max(q[0] for q in P9), max(q[1] for q in P9)]):
+            continue
+        o.append('<polygon points="%s" fill="url(#pi%d)" stroke="var(--ishi)" stroke-width="0.9"/>'
+                 % (" ".join("%.1f,%.1f" % (lp.X(q[0]), lp.Y(q[1])) for q in P9), _SVN[0]))
+        o.append(T(lp.X(sum(q[0] for q in P9) / len(P9)), lp.Y(max(q[1] for q in P9)) + 10, "踏み止め",
+                   fs=8.5, anchor="middle", fill="var(--ishi)"))
     return o
+
+
+def fumitome_polys(d):
+    """**石段の頭の踏み止めの敷石**(多角形 uv)【石垣の設計 2026-09-14 ①】── `kaidans[].fumitome.poly`。"""
+    return [(k["name"] + "の頭の踏み止め", [(q[0], q[1]) for q in k["fumitome"]["poly"]])
+            for k in d["kaidans"] if (k.get("fumitome") or {}).get("poly")]
+
+
+def romon_kidan_face_check(d, g):
+    """**楼門の基壇の面と石垣・石段の頭の取り合い**【石垣の設計 2026-09-14 ①②④】。
+
+    門の枠(`gate_local`)で、宣言した点が**基壇の面**(最下の帯 `bom[].outlineM` の前面 = 通り抜けの最大 /
+    脇面 = 幅の最大)と**回廊の基壇の東面**(`TW_Kairo_E` の線)に載るかを測る(⛔ 許容 0.005 間)。
+    ① 踏み止めの敷石の西の頂点 → 基壇の前面 ／ 東の頂点 → 石段の頭 `a` の u
+    ② 男坂の側壁 `TW_Otoko_*` の上端 `a` → 基壇の前面(突き付け)
+    ③ 回廊の基壇の妻の石垣 → 基壇の脇面(両端は回廊の基壇の東西の面)
+    ④ 楼門の基壇の腰石垣 → 前面・脇面(脇面の奥の端は回廊の基壇の東面)
+    ⑤ 男坂の平面長・踏面・勾配が a〜b と段数の従属値か
+    """
+    bad, note = [], []
+    ken = d["const"]["ken"]
+    TOL = 0.005
+    gt = gate_by_name(d, "隨身門(楼門)")
+    b = gate_bom_row(d, gt) or {}
+    ol = b.get("outlineM") or []
+    if not ol:
+        return (["楼門の部材に外形 `outlineM` が無い — 基壇の面を出せない"], [])
+    low = min(ol, key=lambda q: q["hM"][0])
+    P = max(abs(low["passM"][0]), abs(low["passM"][1])) / ken
+    Q = max(abs(low["widthM"][0]), abs(low["widthM"][1])) / ken
+    tw = {w["name"]: w for w in d["terraceWalls"]}
+    ke = tw.get("TW_Kairo_E"); kw = tw.get("TW_Kairo_W")
+
+    def on_line(q, w):
+        if w is None: return None
+        A, B = w["a"], w["b"]
+        L = math.hypot(B[0] - A[0], B[1] - A[1])
+        return abs((q[0] - A[0]) * (B[1] - A[1]) - (q[1] - A[1]) * (B[0] - A[0])) / L
+
+    def chk(label, q, want):
+        s9, t9 = gate_local(gt, q)
+        got = []
+        for w9 in want:
+            if w9 == "前面": got.append(("基壇の前面", abs(s9 - P)))
+            elif w9 == "脇面": got.append(("基壇の脇面", abs(abs(t9) - Q)))
+            elif w9 in ("回廊東面", "回廊西面"):
+                dd = on_line(q, ke if w9 == "回廊東面" else kw)
+                got.append(("回廊の基壇の%s" % w9[2:], 1e9 if dd is None else dd))
+        for nm9, dv in got:
+            if dv > TOL:
+                bad.append("%s (%.4f, %.4f) が%sに載らない(離れ %.3f m)── ⛔ 指図方は動かさない。決めるのは**石垣**"
+                           % (label, q[0], q[1], nm9, dv * ken))
+            else:
+                note.append("%s ── %sに載る(離れ %.4f m)【算出】" % (label, nm9, dv * ken))
+
+    for k in d["kaidans"]:
+        ft = k.get("fumitome")
+        if not ft: continue
+        au = k["a"][0]
+        for q in ft["poly"]:
+            if abs(q[0] - au) <= 1e-6: continue
+            chk("%sの踏み止めの頂点" % k["name"], q, ["前面"])
+        if not any(abs(q[0] - au) <= 1e-6 for q in ft["poly"]):
+            bad.append("%sの踏み止めの敷石に石段の頭 u %.4f の辺が無い" % (k["name"], au))
+        L = (k["b"][0] - k["a"][0]) * ken
+        for key, want in (("planeLen", L), ("fumi", L / k["steps"]), ("keri", (k["yTop"] - k["yBot"]) / k["steps"]),
+                          ("grade", (k["yTop"] - k["yBot"]) / L * 100.0),
+                          ("deg", math.degrees(math.atan2(k["yTop"] - k["yBot"], L)))):
+            # 宣言の刻み: planeLen・fumi は 0.01 / keri は 0.001 / grade・deg は 0.1(丸めの半分まで許す)
+            tol9 = {"keri": 0.001, "grade": 0.05, "deg": 0.05}.get(key, 0.01)
+            if abs(float(k[key]) - want) > tol9 + 1e-9:
+                bad.append("石段『%s』の `%s` %.3f が a〜b と段数の従属値 %.3f と違う" % (k["name"], key, float(k[key]), want))
+    for nm in ("TW_Otoko_N", "TW_Otoko_S"):
+        if nm in tw: chk("側壁『%s』の上端" % nm, tw[nm]["a"], ["前面"])
+    for w in d["terraceWalls"]:
+        role = w.get("romonKidan")
+        if not role: continue
+        P9 = w.get("pts") or [w["a"], w["b"]]
+        if role == "妻":
+            chk("妻の石垣『%s』の西端" % w["name"], P9[0], ["脇面", "回廊西面"])
+            chk("妻の石垣『%s』の東端" % w["name"], P9[-1], ["脇面", "回廊東面"])
+        elif role == "腰":
+            for i9, q in enumerate(P9):
+                want = []
+                if abs(abs(gate_local(gt, q)[1]) - Q) * ken <= 0.05: want.append("脇面")
+                if abs(gate_local(gt, q)[0] - P) * ken <= 0.05: want.append("前面")
+                cn = (w.get("corners") or {}).get(str(i9), "")
+                if "入隅" in cn: want.append("回廊東面")
+                if not want:
+                    bad.append("腰石垣『%s』の頂点 %d (%.4f, %.4f) が基壇のどの面にも載らない" % (w["name"], i9, q[0], q[1]))
+                    continue
+                chk("腰石垣『%s』の頂点 %d" % (w["name"], i9), q, want)
+    note.append("楼門の基壇の面 ── 前面 %.3f m ／ 脇面 %.3f m(`bom[%s].outlineM`〔%s〕)で測った【算出】"
+                % (P * ken, Q * ken, b.get("部材"), low["band"]))
+    return bad, note
+
+
+def tier_plan_check(d, g):
+    """**二段築の段の走りの宣言**【石垣の設計 2026-09-14 ③】── `terraceWalls[].tierPlan` と、図が算出する
+    下段の見える走り(`wall_tier_spans`)が一致するか。⛔ 算出の走りが宣言の外へ出れば⛔(宣言が足りない)。
+    段の天端・駒の据え高が閉形式(天端 − i × 駒の丈)と食い違っても⛔。"""
+    bad, note = [], []
+    H = d["const"].get("stoneWallPieceHM")
+    tw = {w["name"]: w for w in d["terraceWalls"]}
+    n0 = 0
+    for w in d["terraceWalls"]:
+        tp = w.get("tierPlan")
+        if not tp: continue
+        n0 += 1
+        for i9, t9 in enumerate(tp.get("tiers") or []):
+            want_c = float(w["coping"]) - i9 * H
+            if abs(float(t9["coping"]) - want_c) > 1e-6 or abs(float(t9["posY"]) - (want_c - H)) > 1e-6:
+                bad.append("土留め『%s』の段 %d の宣言(天端 %.2f・据え %.2f)が閉形式(天端 %.2f・据え %.2f)と違う"
+                           % (w["name"], i9 + 1, t9["coping"], t9["posY"], want_c, want_c - H))
+        A, B = w["a"], w["b"]
+        Lm = math.hypot(B[0] - A[0], B[1] - A[1]) * d["const"]["ken"]
+        rng = tp.get("lowerSpanM")
+        if rng is None: continue
+        s0 = Lm + rng[0] if rng[0] < 0 else rng[0]
+        s1 = Lm if rng[1] == "end" else float(rng[1])
+        spans = wall_tier_spans(d, g, w)
+        low = spans[0] if spans else []
+        out = [q for q in low if q[0] < s0 - 0.05 or q[1] > s1 + 0.05]
+        if out:
+            bad.append("土留め『%s』の下段が宣言の走り %.2f〜%.2f m の外に見える: %s ── ⛔ 決めるのは**石垣**"
+                       % (w["name"], s0, s1, "・".join("%.2f〜%.2f" % tuple(q) for q in out)))
+        else:
+            note.append("土留め『%s』── 下段の見える走り %s は宣言 %.2f〜%.2f m の内【算出】"
+                        % (w["name"], "・".join("%.2f〜%.2f" % tuple(q) for q in low) or "なし", s0, s1))
+    if not n0:
+        bad.append("段の走りを宣言した土留めが無い — 二段築の宣言を測れない")
+    return bad, note
 
 
 def draw_ido(d, lp, inwin):
@@ -3870,7 +4009,14 @@ def avoid_shapes(d, g, scope):
             out.append(_shape_seg(r["a"], r["b"], p + r.get("bari", 0) / 2.0,
                                   r["kind"] + ":" + r["name"]))
         for gd in d["gardens"]:
-            if gd["name"] == "白洲":
+            if gd["name"] == "白洲" and gd.get("poly"):
+                # ⭐ 【庭方の設計 2026-09-14 D2】白洲は多角形。北の退がりは**北縁の頂点**を北へ出して当てる
+                P9 = [(q[0], q[1]) for q in gd["poly"]]
+                vmax = max(q[1] for q in P9)
+                vn = ck["shirasuNorthFromV"] + ck["shirasuNorthKen"]
+                out.append(_shape_poly([(q[0], vn if abs(q[1] - vmax) < 1e-6 else q[1]) for q in P9], 0.0,
+                                       "白洲(+北の退がり)"))
+            elif gd["name"] == "白洲":
                 out.append(_shape_rect(gd["u0"], gd["v0"], gd["u1"],
                                        ck["shirasuNorthFromV"] + ck["shirasuNorthKen"], "白洲(+北の退がり)"))
             elif gd["name"] == "中庭":
@@ -5854,6 +6000,7 @@ def planting_avoid_check(d, g):
         P = garden_poly(gd)
         if not P or not gd.get("poly"): continue
         if gd.get("noPlant"): continue            # 空地(供待)は植えない面なので退避を当てない
+        if gd.get("kind") == "砂利敷": continue   # 白洲・中庭は植えない砂利敷の面(白洲は 2026-09-14b に多角形になった)
         # ⭐ **退避は区が名指しする宣言で当てる**(`gardens[].clearance`)。
         #    ⚠ 前庭の面に境内の退避を当てると、緩めた宣言(ユーザー裁定)が効かない
         sc = gd.get("clearance") or "keidai"
@@ -8102,6 +8249,15 @@ def gap_source(d, gf, owner):
         eg = gf.get("edge")
         if eg is None:
             return (gt["u"], gt["v"]), gt["plan"][gf.get("span", "dv")] / 2.0
+        if eg == "門の基壇の脇面":
+            # ⭐ 【石垣の設計 2026-09-14 ②】口の縁 = 門の部材の**最下の帯(基壇)の幅の脇の面**
+            #    (`bom[].outlineM` の hM が最も低い帯の |widthM| の最大)。⛔ 数を持たない。
+            b9 = gate_bom_row(d, gt) or {}
+            ol9 = b9.get("outlineM") or []
+            if not ol9:
+                raise SystemExit("『%s』── 門『%s』の部材に外形 `outlineM` が無い(基壇の脇面を出せない)" % (owner, gt["name"]))
+            low = min(ol9, key=lambda q: q["hM"][0])
+            return (gt["u"], gt["v"]), max(abs(low["widthM"][0]), abs(low["widthM"][1])) / d["const"]["ken"]
         if eg != "側柱の外面":
             raise SystemExit("『%s』の `gapFrom.edge` が読めない: %s" % (owner, eg))
         _p, n = gate_axes_uv(gt)
@@ -15066,7 +15222,8 @@ def impl_props(d, g):
         "props": [{"name": nm, "world": [_w(g, q) for q in Q]} for nm, Q in prop_rects(d)],
         "fumiishi": [{"name": q[0], "world": [_w(g, (q[1], q[2])), _w(g, (q[3], q[2])),
                                               _w(g, (q[3], q[4])), _w(g, (q[1], q[4]))]}
-                     for q in fumiishi_rects(d)],
+                     for q in fumiishi_rects(d)]
+                    + [{"name": nm, "world": [_w(g, q) for q in P9]} for nm, P9 in fumitome_polys(d)],
         "ido": (None if not io9 else
                 {"rects": dict((k9, ([_w(g, q) for q in v9] if k9 == "柱" else
                                      [_w(g, (v9[0], v9[1])), _w(g, (v9[2], v9[1])),
@@ -16957,6 +17114,8 @@ def run_checks():
     gpc = gate_part_col_check(d, g)    # 門の平面と部材の柱芯(K001 2026-09-13)
     gpo = gate_part_outline_check(d, g)  # 門の部材の外形の食い込み(K001 2026-09-13)
     spc = sode_part_check(d, g)        # 袖塀の部材と楼門・回廊の取り合い(部材方の返り事項 2026-09-14)
+    rkf = romon_kidan_face_check(d, g)  # 楼門の基壇の面と石垣・石段の頭(石垣の設計 2026-09-14)
+    tpc = tier_plan_check(d, g)        # 二段築の段の走りの宣言(石垣の設計 2026-09-14 ③)
     nks = noki_sori_check(d)           # 軒反りの量(考証 2026-09-13 中)
     skd = shaden_kidan_check(d)        # 基壇・亀腹の石材(庭方 2026-09-13 中)
     izc = ishizai_color_check(d)       # 庭の石の名簿の色(庭方 2026-09-13・普請奉行の裁定)
@@ -17055,6 +17214,8 @@ def run_checks():
     rows.append(("門の平面と部材の柱芯(`gates[].plan` × `bom[].axis.colPassM/colWidthM`)", gpc[0], gpc[1]))
     rows.append(("門の部材の外形が石段・囲い・土留めへ食い込まないか(`bom[].outlineM`・軒を含む)", gpo[0], gpo[1]))
     rows.append(("袖塀の部材と楼門・回廊の取り合い(足元の高さ・門の側の木口・`bom[].axis.footAt`)", spc[0], spc[1]))
+    rows.append(("楼門の基壇の面と石垣・石段の頭(踏み止め・側壁・妻の石垣・腰石垣・男坂の従属値)", rkf[0], rkf[1]))
+    rows.append(("二段築の段の走りの宣言(`terraceWalls[].tierPlan` × 下段の見える走り)", tpc[0], tpc[1]))
     rows.append(("軒反りの量(指図 `const` と部材の生成器)", nks[0], nks[1]))
     rows.append(("社殿の基壇・亀腹の石材の宣言(`shadenKidan`)", skd[0], skd[1]))
     rows.append(("庭の石の名簿の色(`ishizai.colors`・受入値 `colorGate`・材の実測は未測定)", izc[0], izc[1]))

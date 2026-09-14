@@ -9392,8 +9392,12 @@ def fill_slope_planting_check(d, g):
     # ② 高木・中木の仕分け(法面の中 ＝ 中木 ／ 法尻の外の線 ＝ 高木)
     tsd = fs.get("toeShrubs")
     ntoe = sum(1 for q in low if q["group"] == "盛土の法尻(低木)")
-    if tsd and ntoe != int(tsd["n"]):
+    if tsd and tsd.get("n") is not None and ntoe != int(tsd["n"]):
         bad.append("法尻の低木が %d 本しか据わらない(宣言 %d 本)── 線の長さが足りない。決めるのは**庭方**" % (ntoe, int(tsd["n"])))
+    elif tsd:
+        if ntoe == 0:
+            bad.append("法尻の低木が 1 本も据わらない ── 線(`toeShrubs.uRange`・`westToV`)が引けない")
+        note.append("法尻の低木 %d 本(線の長さと芯々 %s m からの従属値)【算出】" % (ntoe, tsd["spacingM"]))
     for q in mids:
         if "隅" in q["group"]: continue          # 隅の中木は庭方の名指し(法面の中の千鳥ではない)
         if not in_poly((q["u"], q["v"]), P):
@@ -9508,6 +9512,7 @@ def fill_slope_planting_check(d, g):
     def measure(E, CY, SH):
         vis = hid = 0
         gap = (None, None)
+        seen = set()
         for x, z, yy in cells:
             L9 = math.hypot(x - E[0], z - E[1])
             n9 = max(2, int(L9 / 1.0))
@@ -9530,16 +9535,17 @@ def fill_slope_planting_check(d, g):
                 if ylo <= c[4] and yhi >= c[3]:
                     h9 = True
                     break
+            for ci, c in enumerate(CY):
+                if seg_circle(E, (x, z), c) is not None: seen.add(ci)
             if h9:
                 hid += 1
-                continue
-            for c in CY:
-                iv = seg_circle(E, (x, z), c)
-                if iv is None: continue
-                if max(yat(iv[0]), yat(iv[1])) >= c[3]: continue
-                fr = [sh[4] for sh in SH if (seg_circle(E, (x, z), sh) or (9.0, 9.0))[0] < iv[0]]
-                g9 = c[3] - (max(fr) if fr else c[6])
-                if gap[0] is None or g9 > gap[0]: gap = (g9, c[5])
+        # ⭐ 【庭方 2026-09-15】隙は**木ごと**── その樹冠の下端 − 平面でその樹冠の下に立つ低木の天端の最大(無ければその木の地盤)。
+        #    ⛔ 視線ごとに測らない(隠れない視線は低木を通らないので、隙が枝下のまま消えない形になる)。見える視線が通る木だけを測る
+        for ci in seen:
+            c = CY[ci]
+            under = [sh[4] for sh in SH if math.hypot(sh[0] - c[0], sh[1] - c[1]) <= c[2]]
+            g9 = c[3] - (max(under) if under else c[6])
+            if gap[0] is None or g9 > gap[0]: gap = (g9, c[5])
         return vis, hid, gap
     CY = cyls(mids + tall, True)
     SH = cyls(low, False)
@@ -14659,7 +14665,9 @@ def fill_slope_trees(d, g):
             dist.append(dist[-1] + math.hypot(path[k][0] - path[k - 1][0], path[k][1] - path[k - 1][1]) * ken)
         rnd4, _k = _seed_rnd(d, "盛土の法尻", "低木")
         sm, j = 0.0, 0
-        while path and j < int(ts["n"]) and sm <= dist[-1] + 1e-9:
+        # ⭐ 【庭方 2026-09-15】本数は宣言しない ── 線の長さと芯々からの従属値(`n` があれば上限として効く)
+        nmax = int(ts["n"]) if ts.get("n") is not None else 10 ** 6
+        while path and j < nmax and sm <= dist[-1] + 1e-9:
             k = max(i for i in range(len(dist)) if dist[i] <= sm + 1e-9)
             k2 = min(k + 1, len(path) - 1)
             seg = (dist[k2] - dist[k]) or 1.0

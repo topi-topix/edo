@@ -7107,6 +7107,45 @@ def _band_arc_span(d, dem, lay):
     return (min(aa), max(aa)) if aa else (0.0, f(None, None))
 
 
+def _band_top_offset(d, dem, lay):
+    """層の帯の**上縁から法下への水平距離[m]**を返す関数(2026-09-14【庭方】`emergent.offsets`)。
+
+    `g(u, v)` → (離れ m, 最寄りの標本) / 帯の標本が 2 間以内に無ければ (None, None)。
+    ⭐ 上縁は**標本から測る実際の縁** — 法肩の弧長 1m ごとの升で、その帯の標本の『法肩まで m』の最小
+      (⛔ t の宣言ではない。`minAbs` や境のゆらぎを経た、帯が実際に始まる所)。
+    ⚠ 散布(突出木の割り付け)と検査(`slope_emergent_check`)が**同じ一本**を使う。"""
+    f = _crest_arc(d, lay)
+    if f is None:
+        return None
+    smp = [q for q in slope_samples(d, dem) if q[6] == lay["band"]]
+    if not smp:
+        return None
+    top, cells = {}, {}
+    for q in smp:
+        a = f(q[2], q[3])
+        k = int(math.floor(a))
+        top[k] = min(top.get(k, 1e18), float(q[7]))
+        cells.setdefault((int(math.floor(q[2])), int(math.floor(q[3]))), []).append((q, a))
+
+    def g(u, v):
+        near = []
+        cu, cv = int(math.floor(u)), int(math.floor(v))
+        for du in range(-2, 3):
+            for dv in range(-2, 3):
+                near += cells.get((cu + du, cv + dv), [])
+        if not near:
+            return (None, None)
+        q, a = min(near, key=lambda x: (x[0][2] - u) ** 2 + (x[0][3] - v) ** 2)
+        if math.hypot(q[2] - u, q[3] - v) > 2.0:
+            return (None, None)
+        k = int(math.floor(a))
+        ev = [top[j] for j in (k - 1, k, k + 1) if j in top]
+        if not ev:
+            return (None, None)
+        return (float(q[7]) - min(ev), q)
+    return g
+
+
 def scatter_slope(d, dem):
     """西斜面の植栽を決定論的に散らす。→ {層名: [(u, v, part)]}"""
     if _SPL:
@@ -7393,6 +7432,11 @@ def scatter_slope(d, dem):
                         _ideal = [_a0 + _f * sum(_gp[:k + 1]) for k in range(_nem)]
                     else:
                         _ideal = [_a0 + (k + 1) * (_a1 - _a0) / float(_nem + 1) for k in range(_nem)]
+                # ⭐ **法下への離れも理想点に持たせる**(2026-09-14【庭方】`emergent.offsets`)。
+                #   基準線 = 帯の上縁(`_band_top_offset` が標本から測る実際の縁)。並びは理想点と同じ弧長の順。
+                #   ⛔ 本数と個数が合わなければ離れは読まない(検査が個数の食い違いを鳴らす)。
+                _off = [float(x) for x in (_emg.get("offsets") or [])] if _nem else []
+                _gof = _band_top_offset(d, dem, lay) if (_off and len(_off) == _nem) else None
                 # ⭐ **宣言した帯でなく実位置で空隙を測る**(2026-09-06)。⛔ `hi_by_band` は
                 #   層が「宣言した帯」で積むので、法肩の列など帯をまたぐ層の実際の落ち先
                 #   (この帯へのこぼれ)が見えず、空いていない所を「空いている」と誤認する。
@@ -7401,13 +7445,25 @@ def scatter_slope(d, dem):
                 remain = len(parts) - made
                 cand_all = pool if len(pool) <= 3000 else rg.sample(pool, 3000)
                 for _i in range(remain):
-                    best, best_d = None, -1.0
+                    # ⚠ 離れを持つ突出木は(弧長, 離れ)の二軸の距離で比べるので、初期値 −1(= 1m 以内)で
+                    #   打ち切ると候補がほぼ残らず部材の割りがずれる(2026-09-14 実測)。⛔ 離れの無い経路は変えない
                     tgt = _ideal[_i] if _i < len(_ideal) else None
+                    best, best_d = None, (-1e18 if (tgt is not None and _gof is not None) else -1.0)
                     for q in cand_all:
                         u0, v0 = q[2], q[3]
                         if not ok(u0, v0, clr, sp, lay["band"], lay.get("role"), crown0):
                             continue
-                        if tgt is not None:
+                        if tgt is not None and _gof is not None:
+                            # ⭕ **弧長が先・離れが後**。弧長の理想点から走査の刻みの半分(0.5m)以内の
+                            #   候補のうち離れがいちばん近い物を採る。窓に候補が無ければ弧長のいちばん近い物。
+                            #   ⛔ 二軸を等しく混ぜない — 空きの敷居 `maxGap` が破れる(2026-09-14 実測 17.8m)。
+                            #   ⛔ 窓を 1m にしても空きが敷居に達した(実測 15.0m)
+                            _o9 = _gof(u0, v0)[0]
+                            if _o9 is None:
+                                continue
+                            _da = abs(_arc(u0, v0) - tgt)
+                            dmin = -(abs(_o9 - _off[_i]) if _da <= 0.5 else 1e6 + _da)
+                        elif tgt is not None:
                             # ⭕ 突出木は**法肩の弧長の理想点に近い**ほど良い(符号を反転して同じ比較へ)
                             dmin = -abs(_arc(u0, v0) - tgt)
                         elif band_pts:
@@ -12340,8 +12396,11 @@ def planting_sensitivity(d, dem):
     probe("汀線の指し方を綴り違いにする(帯が引けない)",
           lambda e: _L(e, "G_Sensui", "低木・刈込")["groups"][1]["along"]
                     .__setitem__("line", "sensui.pond.migiwa"))
-    probe("三日月の塊の下限(`n_floor`)を外す(目標に届かない本数が赤になる)",
+    probe("三日月の塊の下限(`n_floor`)を外す(禁じ手 `n_forbid` が読まれなくなる)",
           lambda e: _L(e, "G_Sensui", "低木・刈込")["groups"][2].pop("n_floor", None))
+    probe("突出木の法下への離れを帯の上縁より上(負)へ振る(`emergent.offsets`)",
+          lambda e: [x["emergent"].__setitem__("offsets", [-1.0] * len(x["emergent"]["offsets"]))
+                     for x in e["slopePlanting"] if (x.get("emergent") or {}).get("offsets")])
     probe("`packRatio` の適用範囲の宣言を落とす(次に触る者が退避へも掛けてよいと読む)",
           lambda e: e["plantRule"].pop("packRatioScope", None))
     probe("築山の段を 12 段へ戻す(踏面が庭の段の帯を外れる)",
@@ -16575,6 +16634,15 @@ def hedge_pitch_check(d):
     bad = []
     for pl in d.get("planting", []):
         for gi, gs in enumerate(pl.get("groups", []) or []):
+            # ⭐ **落とし方の宣言が半分だけの塊を鳴らす**(2026-09-14)。⛔ `_n_allowed` は
+            #   `n_floor` が無いと `n_forbid` を読まない — 禁じ手を書いたのに下限を落とすと、
+            #   その塊が目標に届いているあいだは何も鳴らず、届かなくなった日に落とし方が無い。
+            #   (第36次まで probe『`n_floor` を外す』が +0 件だった穴)
+            if gs.get("n_forbid") and gs.get("n_floor") is None:
+                bad.append("植栽 %s/%s の塊『%s』は禁じ手 `n_forbid` %s を持つのに下限 `n_floor` が無い — "
+                           "⛔ 禁じ手が読まれない(落とし方の宣言が半分欠けている)"
+                           % (pl["zone"], pl["layer"], gs.get("where") or gi,
+                              "・".join(str(x) for x in gs["n_forbid"])))
             pit = gs.get("pitch")
             if not pit:
                 continue
@@ -17844,7 +17912,8 @@ def slope_emergent_check(d, dem):
         if not em:
             continue
         mt = em.get("match", "")
-        pts = [(u, v) for (u, v, pt) in sp.get(lay["layer"], []) if mt in pt.get("prefab", "")]
+        trees = [(u, v, pt) for (u, v, pt) in sp.get(lay["layer"], []) if mt in pt.get("prefab", "")]
+        pts = [(u, v) for (u, v, pt) in trees]
         want = int(em.get("n", 0))
         gap = float(em.get("maxGap", 15.0))
         f = _crest_arc(d, lay)
@@ -17884,6 +17953,53 @@ def slope_emergent_check(d, dem):
                        "(敷居 %.1fm・空き %s)"
                        % (lay["layer"], len(pts), total, worst, gap,
                           "/".join("%.1f" % g for g in gaps)))
+        # ⭐ **法下への離れ**(2026-09-14【庭方】`emergent.offsets` / `offsetMax`)。
+        #   ① 宣言の個数と範囲 ② 実出力の離れ(帯の上縁 = `_band_top_offset` から)と宣言の食い違い
+        #   ③ **断面** — 梢(据えた点の地盤 + 部材の樹高)が稜(法肩の標高)を越えるか。上限の確かめ【P】。
+        offs = em.get("offsets")
+        if offs is None:
+            continue
+        omax = em.get("offsetMax")
+        if len(offs) != want:
+            out.append("層 %s の突出木の離れ `emergent.offsets` が %d 個で、本数 %d と合わない — "
+                       "⛔ 離れが読まれず弧長だけで割り付く" % (lay["layer"], len(offs), want))
+        if any(float(x) < 0 or (omax is not None and float(x) > float(omax) + 1e-9) for x in offs):
+            out.append("層 %s の突出木の離れ `emergent.offsets` に 0〜`offsetMax` %s m の外の値がある(%s)— "
+                       "⛔ 帯の上縁より上(帯の外)か、上限を越えて法下へ出る"
+                       % (lay["layer"], omax, "/".join("%.1f" % float(x) for x in offs)))
+        gof = _band_top_offset(d, dem, lay)
+        if gof is None:
+            out.append("層 %s の突出木の離れを測れない(帯の上縁が引けない)— **この検査は回っていない**"
+                       % lay["layer"])
+            continue
+        tr = sorted(trees, key=lambda x: f(x[0], x[1]))
+        got_o, marg = [], []
+        for (u, v, pt) in tr:
+            o9, q9 = gof(u, v)
+            g9 = part_geom(pt)
+            got_o.append(o9)
+            if o9 is None or not g9:
+                continue
+            marg.append(float(q9[4]) + float(g9[1]) - float(q9[8]))
+        if any(o is None for o in got_o):
+            out.append("層 %s の突出木のうち %d 本の離れが測れない(帯の標本から外れて立つ)"
+                       % (lay["layer"], sum(1 for o in got_o if o is None)))
+        # ⚠ 許容は走査の刻み(`slope_samples` の step 1m)— 候補は標本の上にしか立たない
+        if len(offs) == len(tr) and all(o is not None for o in got_o):
+            dev = [abs(o - float(w)) for o, w in zip(got_o, offs)]
+            if max(dev) > 1.0 + 1e-6:
+                out.append("層 %s の突出木の離れが宣言から最大 **%.1fm** 外れる(実出力 %s / 宣言 %s・許容=走査の刻み 1m)"
+                           " — ⛔ その理想点の近くに合法な候補が無い"
+                           % (lay["layer"], max(dev), "/".join("%.1f" % o for o in got_o),
+                              "/".join("%.1f" % float(w) for w in offs)))
+        if marg and min(marg) <= 0:
+            out.append("層 %s の突出木: **梢が稜を越えない木がある**(梢 − 法肩の標高 の最小 %.1fm)— "
+                       "⛔ 離れの上限 `offsetMax` が深すぎる" % (lay["layer"], min(marg)))
+        elif marg:
+            out.append("〔記録〕層 %s の突出木の法下への離れ(帯の上縁から・弧長の順)%s m"
+                       "(宣言 %s)/ 断面: 梢は稜を最小 **%.1fm** 越える"
+                       % (lay["layer"], "/".join("—" if o is None else "%.1f" % o for o in got_o),
+                          "/".join("%.1f" % float(w) for w in offs), min(marg)))
     return out
 
 
@@ -18405,7 +18521,7 @@ def main():
                '<span style="color:var(--niwa)">■ 庭</span>'
                '<span style="color:var(--shu)">┄ 座敷飾が未決の上段(御座之間上段)</span>',
         cap="<b>大台所は敷地のほぼ中心</b>(西川1959)。中奥の御書物之間(鷹書)・御時計之間(西洋文物)は"
-            "斉貴の嗜好からの想定の設え【確度 ?】。奥庭の<b>石井戸枠(慶長18年銘・約2m四方)は"
+            "斉貴の嗜好からの想定の設え【確度 ?】で、基準年次には隠居した斉貴の用の室と推定【確度U】。奥庭の<b>石井戸枠(慶長18年銘・約2m四方)は"
             "現存する実物</b>【存在=A/奥庭という位置=?】— 家康が駿府で使った物を直政が拝領して移した伝承。"
             "<br>⚠ <b>御座之間上段を朱の破線で囲ってある</b> — <b>座敷飾が未決</b>だから。"
             "表向の2室を決めた [西川1959]A は<b>表向殿舎</b>への記述で、"
@@ -18513,7 +18629,7 @@ def main():
     h.append(valley_eave_table(d))
     h.append(roof_bands_table(d))
     h.append(eave_table(d))
-    h.append("<p class='cap'><b>谷樋は縦樋を立てず、両端の軒先へ落とす</b>【確度P=一般類型】。"
+    h.append("<p class='cap'><b>谷樋は縦樋を立てず、両端の軒先へ落とす</b>【確度B=一般類型】。"
              "勾配は中央から両端へ 1/100。屋根部材は<b>辺ごとに軒の出を落とせる版</b>が要る"
              "(現行の <code>build_goten_roof.py</code> は W'=W+2E の対称生成) — 部材表を参照。</p>")
     h.append("</div>")

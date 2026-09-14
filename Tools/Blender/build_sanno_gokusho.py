@@ -52,7 +52,7 @@ NB = dict(   # 隣の棟(指図 munes の u0/v0/du/dv[間] と partFrom)
 PLAN = dict(omoyaU=(-38.9, -35.2), omoyaS=-10.2, wingU=(-35.2, -29.2), wingS=-4.8)   # 考証の読み[間]
 H = dict(omoyaEave=3.3, omoyaRidge=6.3, wingEave=3.0, wingRidge=5.0, tsugiEave=3.0, tsugiRidge=5.0)  # U 考証(継ぎは部材方)
 G = dict(kidanH=0.45, kidanOut=0.30, post=0.18, koshi=0.90, kabeT=0.08, ketaH=0.18,
-         eaveOmoya=0.90, gf=0.45, eaveWing=0.60, eaveTsugi=0.45, keraba=0.35, cap=0.421, capK=0.13)
+         postClear=0.10, eaveOmoya=0.90, gf=0.45, eaveWing=0.60, eaveTsugi=0.45, keraba=0.35, cap=0.421, capK=0.13)
 ALLOWED = ("wood", "wall C", "door wall", "Doukawara", "Kirishi")
 
 
@@ -84,8 +84,11 @@ def plan():
     P = dict(en_h=en_h, en_b=en_b, vN=vN, vB=vB)
     u0, u1 = PLAN["omoyaU"]
     P["omoya"] = dict(u=(u0, u1), v=(PLAN["omoyaS"], vN))
-    P["tsugi"] = dict(u=(u0, u1), v=(vN, vB))
-    P["wing"] = dict(u=PLAN["wingU"], v=(PLAN["wingS"], vN))
+    # ⭐ 北の壁の芯は縁の外面から 0.10 内(柱の外面が縁の手前 0.01)— 普請奉行の裁定 2026-09-15(規則5)。
+    #   ⛔ 壁の芯を縁の外面に置かない — 柱の半分 0.09 が縁へ食い込んだ(本殿の縁と高さ 2.75〜3.00 で −0.069)
+    cl = G["postClear"] / K
+    P["tsugi"] = dict(u=(u0, u1), v=(vN, vB - cl))
+    P["wing"] = dict(u=PLAN["wingU"], v=(PLAN["wingS"], vN - cl))
     for k in ("omoya", "tsugi", "wing"):
         r = P[k]
         r["c"] = ((r["u"][0] + r["u"][1]) / 2.0, (r["v"][0] + r["v"][1]) / 2.0)

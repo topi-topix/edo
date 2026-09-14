@@ -408,14 +408,33 @@ def sukiya(ken=2.5, name="Matsudaira_Sukiya"):
 
 
 # ================================================================ 稲荷社
-def inari(name="Matsudaira_Inari"):
+def inari(name="Matsudaira_Inari", torii=True):
     """邸内稲荷。**明神鳥居 + 一間社流造の小祠 + 台石**を2間角に納める。
     鳥居は朱塗り(スロット `Shu_Torii` → Unity の Assets/Edo/Materials/Shu_Torii.mat)、
-    祠は素木。【確度B=邸内稲荷は常だが、当家の祭神・社殿形式は未確認】"""
+    祠は素木。【確度B=邸内稲荷は常だが、当家の祭神・社殿形式は未確認】
+
+    `torii=False` = **朱の鳥居を外した小祠だけ**(`Matsudaira_Inari_Hokora`)。
+    ⭐ 2026-09-14 松江松平の決定(庭方の案A): 参道の鳥居は素木 `Okabe_Torii` を別に据える。
+    鳥居を外すと footprint の中心が台石の芯へ移るので **ピボットも台石の芯へ寄せる**
+    (元の `Matsudaira_Inari` のピボットから +Z へ 0.62)。⛔ 元の FBX は焼き直さない。"""
     (wm, wuv), (sm, suv), (pm, puv) = palette()
-    shu = shu_mat()
+    shu = shu_mat() if torii else None
     SUV = (0.15, 0.15, 0.85, 0.85)   # 無地の材なので UV は中央の一枚で足りる
     m = Mesh()
+    # ---- 台石の芯。鳥居付きは鳥居の奥(-Z)へ 0.62 下げる / 小祠だけなら芯 = ピボット
+    SZ = -0.62 if torii else 0.0
+    if torii:
+        _inari_torii(m, suv, SUV)
+    _inari_hokora(m, wuv, suv, SZ)
+    return _finish(name, m, [wm, sm, pm, shu] if torii else [wm, sm, pm], [])
+
+
+def inari_hokora(name="Matsudaira_Inari_Hokora"):
+    """稲荷社の**小祠だけ**(朱の鳥居なし)。→ `inari(torii=False)`"""
+    return inari(name=name, torii=False)
+
+
+def _inari_torii(m, suv, SUV):
     # ---- 鳥居(明神系)。**祠の正面(+Z)側に立てる**
     #      ⚠ 2026-08-25 是正: 旧版は鳥居を -Z、祠の扉も +Z に置いたので、
     #        鳥居をくぐると祠の**背面**に出ていた。
@@ -458,8 +477,10 @@ def inari(name="Matsudaira_Inari"):
                SUV, SHU)
     # 額束
     m.box(-0.11, 0.11, th - 0.48, th, TZ - 0.09, TZ + 0.09, SUV, SHU)
+
+
+def _inari_hokora(m, wuv, suv, SZ):
     # ---- 台石(基壇)。祠は鳥居の奥(-Z)に据え、扉を +Z = 鳥居側へ向ける
-    SZ = -0.62
     m.box(-0.95, 0.95, 0.0, 0.42, SZ - 0.80, SZ + 0.80, _sub(suv, 0, 0, 1, .5), STONE)
     # ---- 一間社流造の小祠。前へ長く流れる屋根が特徴
     bw, bd, bh = 0.95, 0.72, 1.05
@@ -502,7 +523,6 @@ def inari(name="Matsudaira_Inari"):
     for sx in (-1, 1):
         m.box(sx * (bw / 2 + 0.24), sx * (bw / 2 + 0.30), ridge_y - 0.10, ridge_y + 0.46,
               zr - 0.06, zr + 0.06, _sub(wuv, .6, .2, .7, .5), WOOD)
-    return _finish(name, m, [wm, sm, pm, shu], [])
 
 
 # ================================================================ 石井戸枠
@@ -607,6 +627,7 @@ PARTS = {
     "koya": (koya, "Matsudaira_Koya"),
     "sukiya": (sukiya, "Matsudaira_Sukiya"),
     "inari": (inari, "Matsudaira_Inari"),
+    "inari_hokora": (inari_hokora, "Matsudaira_Inari_Hokora"),
     "ido": (ido, "Matsudaira_Ido"),
     "yagura": (yagura, "Matsudaira_SumiYagura"),
 }

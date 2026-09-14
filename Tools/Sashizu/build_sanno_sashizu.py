@@ -8536,7 +8536,7 @@ def gate_part_col_check(d, g):
                 note.append("門『%s』の%s ── 図 %g 間 = 柱芯 ±%.3f m ／ 部材 ±%.3f m(差 %+.4f m ≤ %.3f)【算出】"
                             % (gt["name"], what, gt["plan"][pk], want, float(ax[key]), float(ax[key]) - want, TOL))
     for nm, gs in use.items():
-        note.append("部材『%s』── **兼用 %d 基**(%s)【宣言】" % (nm, len(gs), "・".join(gs)))
+        note.append("部材『%s』── 据える門 %d 基(%s)【宣言】" % (nm, len(gs), "・".join(gs)))
     if not use:
         bad.append("柱芯を宣言した門の部材が一つも無い — 図の平面と部材の柱芯を突き合わせられない")
     return bad, note
@@ -12831,6 +12831,9 @@ def ishizai_color_check(d):
     for nm in names:
         if nm not in ros: bad.append("色の設計値『%s』が名簿 `ishizai.roster` に無い(死んだ行)" % nm)
     cap = cg["satCapPct"]
+    capx = cg.get("satCapExcept") or []
+    for nm in capx:
+        if nm not in names: bad.append("S の上限の例外『%s』が色の設計値 `ishizai.colors` に無い(死んだ行)" % nm)
     va0, va1 = cg["valAbsPct"]
     kb = d.get(iz.get("colorFrom") or "") or {}
     if kb.get("satMaxPct") is None or kb["satMaxPct"] > cap:
@@ -12847,8 +12850,15 @@ def ishizai_color_check(d):
             bad.append("品目『%s』の H か V の設計値が無い" % c["item"]); continue
         if S is None:
             note.append("⚠ 品目『%s』── **S の上限が未決**【? → 普請奉行】(`colors[].satMaxPct` が空)" % c["item"])
-        elif S > cap:
+        elif S > cap and c["item"] not in capx:
             bad.append("品目『%s』の S の上限 %g が受入値の上限 %g を超える" % (c["item"], S, cap))
+        elif c["item"] in capx:
+            if S <= cap:
+                bad.append("品目『%s』は S の上限の例外 `colorGate.satCapExcept` に載るが、上限 %g が受入値の上限 %g 以下"
+                           "(例外が死んでいる)" % (c["item"], S, cap))
+            else:
+                note.append("⚠ 品目『%s』── **S の上限 %g は受入値の上限 %g の例外**(`colorGate.satCapExcept`)。"
+                            "⚠ は S %g〜%g【U 設計値 — 庭方 2026-09-13】" % (c["item"], S, cap, cap, S))
         if V[0] < va0 or V[1] > va1:
             bad.append("品目『%s』の V %g〜%g が受入値 %g〜%g の外" % (c["item"], V[0], V[1], va0, va1))
         got[c["item"]] = (H, S, V)
@@ -12869,10 +12879,14 @@ def ishizai_color_check(d):
                         % (a, b, dv, cg["adjVDiffWarnPt"]))
     note.append("⚠ **材の実測とつなぐ検査は未測定**(実装前 ── Unity の材の平均色・品目内の V のばらつき・切石の目地の模様)"
                 "── ⛔ 合格ではない。受入値 ⛔: 平均 H が帯の外/平均 S が品目の上限(≤%g)を超える/V が %g〜%g の外/"
-                "隣り合う組の V の差 > %g pt/切石に目地の模様 ・ ⚠: V の差 %g〜%g pt/玉石以外で S %g〜%g(⛔ の上限の手前の注意域)/"
-                "品目内 V の幅(上下 %g%% を除く)> %g pt"
+                "隣り合う組の V の差 > %g pt/切石に目地の模様 ・ ⚠: V の差 %g〜%g pt/%s以外で S %g〜%g(⛔ の上限の手前の注意域)/"
+                "%s品目内 V の幅(上下 %g%% を除く)> %g pt"
                 % (cap, va0, va1, cg["adjVDiffStopPt"], cg["adjVDiffWarnPt"], cg["adjVDiffStopPt"],
-                   cg["satWarnPct"][0], cg["satWarnPct"][1], cg["valSpreadTrimPct"], cg["valSpreadWarnPt"]))
+                   "・".join(cg.get("satWarnExcept") or []) or "—",
+                   cg["satWarnPct"][0], cg["satWarnPct"][1],
+                   "".join("%s で S %g〜%g(上限の例外)/" % (nm, cap, (got.get(nm) or (None, cap))[1] or cap)
+                           for nm in capx),
+                   cg["valSpreadTrimPct"], cg["valSpreadWarnPt"]))
     return bad, note
 
 
@@ -16474,7 +16488,7 @@ def probe_roster(d, g):
     def m22(e):
         gate_by_name(e, "隨身門(楼門)")["plan"]["dv"] = 4
     e22, mv22 = _probe(d, m22)
-    out.append(("門の平面と部材の柱芯", "楼門の桁行を 4 間へ広げる(兼用部材の柱芯は 3 間のまま)",
+    out.append(("門の平面と部材の柱芯", "楼門の桁行を 4 間へ広げる(部材の柱芯は 3 間のまま)",
                 run(gate_part_col_check, e22), 1, mv22))
 
     bad = _probe_verdict([(nm, got, want, mv) for _ck, nm, got, want, mv in out])

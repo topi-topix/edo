@@ -586,6 +586,45 @@ public static class EdoAssets
                  + pX + "-" + mX + "-" + pZ + "-" + mZ + ".fbx";
         }
 
+        /// <summary>**山王社の楼門(隨身門)— 明治16年実測図の寸法**(ユーザー裁定C 2026-09-14)。三間一戸・単層・入母屋・出組・本瓦葺。
+        /// 柱芯の外形は <paramref name="passMm"/>(通り抜け=X)× <paramref name="widthMm"/>(幅=Z)[mm]、柱間は外形 ÷ 間数
+        /// (5750×7620 ⇒ 2.875 × 2.54)。⭐ 通り抜け=ローカル X・正面=+X・ピボット=門の芯・敷居の高さ・yaw 0 で正面=東・scale one。
+        /// 基壇の出 k は柱芯から +X/−X/+Z/−Z[mm]。⚠ 現行は基壇の全外形 7.9×11.1【A】で四周一様(1075,1075,1740,1740)—
+        /// 取り合いの面で詰めるのは後の裁定。基壇の見え高・前後の石段は持たない(天端=Y0・根入れ 0.60)。
+        /// 外形 W(X)9.70 × H(Y)8.47(−0.60〜7.87)× D(Z)11.57・25.2k tris。柱高 3.8【U】・丸桁の上端 4.75(軒高 4.8【U】)・
+        /// 大棟の上端 7.61(類型の棟高 約9.0【U】に届かない)。材は名前だけ ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: SANNO_SASHIZU=&lt;指図&gt; blender --background --python Tools/Blender/build_sanno_romon.py -- --only 楼門 --kidan 7.9x11.1 --pitch 2.875x2.54 --render</summary>
+        public static string SannoRomon(int duKen, int dvKen, int passMm, int widthMm, int pX, int mX, int pZ, int mZ)
+        {
+            return "Assets/Edo/Models/Sanno/Sanno_Romon_" + duKen + "x" + dvKen + "ken_" + passMm + "x" + widthMm
+                 + "_k" + pX + "-" + mX + "-" + pZ + "-" + mZ + ".fbx";
+        }
+
+        /// <summary>**山王社の社殿(権現造)— 明治16年実測図の寸法**(ユーザー裁定C 2026-09-14)。1棟1FBX・銅瓦葺。
+        /// <paramref name="kind"/> = "Honden" / "Haiden" / "Kohai"(⚠ 幣殿・作り合いは向きの読みが未決で未造)。
+        /// 間数 <paramref name="nuKen"/>(東西=X)×<paramref name="nvKen"/>(南北=Z)、柱芯の外形 <paramref name="ewMm"/>×<paramref name="nsMm"/>[mm]、
+        /// 柱間は外形 ÷ 間数。⭐ ピボット = `munes` の区画の中心・地盤レベル、ローカル +X = 東 = 正面 ⇒ yaw 0・scale one。
+        /// ・本殿 (3,3,9200,7620) 外形 W15.32×H12.68×D13.74・37.9k tris・大棟の上端 12.42
+        /// ・拝殿 (3,7,9200,17800) 外形 W15.32×H11.83×D23.92・57.1k tris・大棟の上端 11.57・千鳥破風は柱間に寄せた
+        /// ・向拝 (1,3,1900,7620) 外形 W3.50×H7.61×D8.90・4.8k tris
+        /// 床高・本殿の段・反り・軒反り・亀腹・腰組は旧部材と同じ規則。軒の出 = 半スパン×0.63 で 2.90m になるので、
+        /// 本殿・拝殿は壁通りに軒小壁を立てて組物の帯を塞いだ。柱高・組物・内法は【U】。材は名前だけ ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: SANNO_SASHIZU=&lt;指図&gt; blender --background --python Tools/Blender/build_sanno_shaden.py -- honden haiden kohai kizahashi --render</summary>
+        public static string SannoShaden(string kind, int nuKen, int nvKen, int ewMm, int nsMm)
+        {
+            return "Assets/Edo/Models/Sanno/Sanno_" + kind + "_" + nuKen + "x" + nvKen + "ken_" + ewMm + "x" + nsMm + ".fbx";
+        }
+
+        /// <summary>**山王社の向拝の木階(三級・登高欄なし)— 明治16年寸法**。幅 <paramref name="wMm"/>(南北=Z)× 出 <paramref name="runMm"/>(東へ=X)
+        /// × 丈 <paramref name="riseMm"/>[mm](`kaidans[向拝の階]` の wKen・a〜b・yTop−yBot)。現行 (7620,1140,950)・252 tris。
+        /// ⭐ ピボット = a〜b の中点・地盤レベル、東(+X)へ降りる ⇒ yaw 0・scale one。⛔ 石段(`Dan_*`)にしない。
+        /// ⚠ 本殿の木階は作り合いの部材に入る(今回は未造)。
+        /// 生成: SANNO_SASHIZU=&lt;指図&gt; blender --background --python Tools/Blender/build_sanno_shaden.py -- kizahashi</summary>
+        public static string SannoKizahashi(int wMm, int runMm, int riseMm)
+        {
+            return "Assets/Edo/Models/Sanno/Sanno_Kizahashi_" + wMm + "x" + runMm + "x" + riseMm + ".fbx";
+        }
+
         /// <summary>**山王社の中門(瑞垣門)**。一間平唐門・四脚(本柱2+控柱4)・銅瓦葺【S [国宝建造物目録1941]】。
         /// 在庫『無い』(指図 `bom[中門(一間平唐門)]`)ので新造。
         /// ⭐ **通り抜け=ローカル X・正面=+X(扉は −X へ開く)・大棟=Z(唐破風は ±Z の妻)・ピボット=門の芯・敷居の高さ**。

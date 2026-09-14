@@ -84,7 +84,10 @@ import build_goten_roof as GR
 
 OUT = V.out_dir(os.path.join(V.REPO, "Assets", "Edo", "Models", "Sanno"))
 SHOT = os.path.join(V.REPO, "Screenshots")
-SASHIZU = os.path.join(V.REPO, "docs", "Sashizu", "sanno_sashizu.json")
+# ⭐ `SANNO_SASHIZU=<path>` で読む指図を差し替えられる(読むだけ)。⚠ 指図の改訂が worktree にだけあり、
+#   Blender は Assets の来る main でしか回らないとき(2026-09-14 裁定C の明治16年寸法)に使う。
+SASHIZU = (os.environ.get("SANNO_SASHIZU")
+           or os.path.join(V.REPO, "docs", "Sashizu", "sanno_sashizu.json"))
 
 RATIO = GR.RATIO            # 0.5456 = 瓦モジュール **自身**の勾配。反りを載せる基準面でしかない
                             # ⛔ これを屋根の勾配として使わない(下の `Sori` が正典)
@@ -442,8 +445,17 @@ def rects():
     for m in d["munes"]:
         k = want.get(m["name"])
         if k:
+            # ⭐ **柱間の引数**(2026-09-14 裁定C)。間数は `munes[].bays`、柱間は外形 ÷ 間数の従属値。
+            #   ⛔ 間数を `int(du)` で出さない — 外形が実測[間]になった今は 5.0605 → 5 間に化ける。
+            #   `bays` の無い旧い指図だけ du/dv を間数と読む(柱間 = 1間 ⇒ 旧名のまま焼ける)。
+            bays = m.get("bays") or {}
+            nu = int(bays["du"]) if bays.get("du") else int(round(float(m["du"])))
+            nv = int(bays["dv"]) if bays.get("dv") else int(round(float(m["dv"])))
+            pu, pv = float(m["du"]) * K / nu, float(m["dv"]) * K / nv
             out[k] = dict(u0=float(m["u0"]), v0=float(m["v0"]),
                           du=float(m["du"]), dv=float(m["dv"]),
+                          nu=nu, nv=nv, pu=pu, pv=pv,
+                          legacy=(abs(pu - K) < 1e-6 and abs(pv - K) < 1e-6),
                           h=(float(m["h"]) if "h" in m else None), name=m["name"])
     missing = [n for n, k in want.items() if k not in out]
     if missing:
@@ -475,6 +487,30 @@ def rects():
         r["hu"] = r["du"] * K / 2.0                 # 半幅(東西)
         r["hv"] = r["dv"] * K / 2.0                 # 半幅(南北)
     return out
+
+
+PART_BASE = dict(honden="Sanno_Honden", haiden="Sanno_Haiden", heiden="Sanno_Heiden",
+                 tsukuriai="Sanno_Tsukuriai", kohai="Sanno_Kohai")
+
+
+def mm(x):
+    """[m] → FBX 名の mm。⚠ **round**(実測[間]× 1.818 は 9.19999 のように下へ落ちる — floor にしない)。"""
+    return int(round(x * 1000.0))
+
+
+def part_name(R, key):
+    """`Sanno_<棟>_<梁間>x<桁行>ken`(柱間 1間 = 旧名のまま)/ 柱間が 1間でなければ
+    `…ken_<東西 mm>x<南北 mm>`(柱芯の外形)を足す ⇒ C# `EdoAssets.Own.SannoShaden` が綴りを計算できる。"""
+    r = R[key]
+    nm = "%s_%dx%dken" % (PART_BASE[key], r["nu"], r["nv"])
+    return nm if r["legacy"] else nm + "_%dx%d" % (mm(2 * r["hu"]), mm(2 * r["hv"]))
+
+
+def kizahashi_name(k, K):
+    """旧 = `Sanno_Kizahashi_3ken`(幅3間)/ 新 = `Sanno_Kizahashi_<幅>x<出>x<丈>`(mm)。"""
+    if abs(k["w"] - 3 * K) < 1e-6:
+        return "Sanno_Kizahashi_3ken"
+    return "Sanno_Kizahashi_%dx%dx%d" % (mm(k["w"]), mm(abs(k["b"] - k["a"])), mm(k["rise"]))
 
 
 def kizahashi_spec():
@@ -1839,15 +1875,16 @@ def _taruki_obj(name, hu, hv, ez, s, uv, ms, sori):
     return o
 
 
-def honden(R, name="Sanno_Honden_3x3ken"):
+def honden(R, name=None):
     """**本殿** 桁行三間×梁間三間・単層・入母屋造【S】。石造亀腹・出組・総円柱・脇障子【A】。"""
+    name = name or part_name(R, "honden")
     r, s = R["honden"], SPEC["honden"]
     hu, hv = r["hu"], r["hv"]
     ms, uv = mats()
     p = GR.palette()
     M = VM.Mesh()
     kb = kamebara(hu, hv, kame_top(s["floor"]), name + "_kame")
-    us, vs = columns(M, hu, hv, int(r["du"]), int(r["dv"]), s["floor"], s["colH"],
+    us, vs = columns(M, hu, hv, r["nu"], r["nv"], s["floor"], s["colH"],
                      s["colD"], uv["wood"], W, base=kame_top(s["floor"]))
     kumimono(M, us, vs, s["floor"], s["colH"], s["kumi"], uv["wood_h"], W, kind="degumi")
     kokabe(M, us, vs, s["floor"], s["colH"], uv["wall"], WC, renji=(uv["wood"], W))
@@ -1889,6 +1926,7 @@ def honden(R, name="Sanno_Honden_3x3ken"):
              s["floor"], s["floor"] + 1.62, uv["wood"], W, grain="h")
     ez = eave_z("honden")
     sori = Sori(hu + s["eave"])
+    noki_kokabe(M, r, s, us, vs, ez, sori, uv["wall"], WC)
     body = M.to_object(name + "_body", ms)
     taru = _taruki_obj(name, hu, hv, ez, s, uv, ms, sori)
     roof = irimoya(name + "_roof", hu, hv, s["eave"], ez, s["gf"], p, sori)
@@ -1896,16 +1934,17 @@ def honden(R, name="Sanno_Honden_3x3ken"):
     return o, ez + sori.z(sori.half)
 
 
-def haiden(R, name="Sanno_Haiden_3x7ken"):
+def haiden(R, name=None):
     """**拝殿** 桁行七間×梁間三間・入母屋造・**千鳥破風及軒唐破風附**【S】。
     ⚠ 軒唐破風は `munes[向拝]` の側に載る(この棟には千鳥破風だけ)。"""
+    name = name or part_name(R, "haiden")
     r, s = R["haiden"], SPEC["haiden"]
     hu, hv = r["hu"], r["hv"]
     ms, uv = mats()
     p = GR.palette()
     M = VM.Mesh()
     kb = kamebara(hu, hv, kame_top(s["floor"]), name + "_kame")
-    us, vs = columns(M, hu, hv, int(r["du"]), int(r["dv"]), s["floor"], s["colH"],
+    us, vs = columns(M, hu, hv, r["nu"], r["nv"], s["floor"], s["colH"],
                      s["colD"], uv["wood"], W, base=kame_top(s["floor"]))
     kumimono(M, us, vs, s["floor"], s["colH"], s["kumi"], uv["wood_h"], W,
              kind="hiramitsudo")
@@ -1939,13 +1978,63 @@ def haiden(R, name="Sanno_Haiden_3x7ken"):
             panel_ita(M, a + 0.10, b - 0.10, "v", us[-1], z0, z1, uv["wood"], W)
     ez = eave_z("haiden")
     sori = Sori(hu + s["eave"])
+    noki_kokabe(M, r, s, us, vs, ez, sori, uv["wall"], WC)
     body = M.to_object(name + "_body", ms)
     taru = _taruki_obj(name, hu, hv, ez, s, uv, ms, sori)
     roof = irimoya(name + "_roof", hu, hv, s["eave"], ez, s["gf"], p, sori)
-    ch = chidori_hafu(name + "_chidori", hu, s["eave"], ez, p,
-                      CHIDORI["b"], CHIDORI["ug"], CHIDORI["zde"], sori)
+    cb, cug, czde = chidori_params(R)
+    ch = chidori_hafu(name + "_chidori", hu, s["eave"], ez, p, cb, cug, czde, sori)
     o = finish([body, taru, roof] + ch + kb, name)
     return o, ez + sori.z(sori.half)
+
+
+def noki_kokabe(M, r, s, us, vs, ez, sori, uv, mat):
+    """⭐ **軒小壁**(台輪の上 → 垂木の下端の少し下、壁通りの板)。**柱間が 1間でない棟だけ**。
+
+    ⛔ 軒の出 = 半スパン × EAVE_RATIO は、梁間 9.2m の棟で 2.90m になり、丸桁(頭貫上端 +0.95)の
+      上に**垂木の下端まで約 1.5m の帯**が開く。壁通りに板が無いと、組物の間から**瓦場の裏(緑)**が
+      素通しで見える(2026-09-14 `sanno_shaden_kohai_near.png` で実見。部材方 memory
+      「社殿の組物と反り屋根を別寸へ流用すると空が抜ける」)。⭕ 高さを動かさず板で塞ぐ
+      (楼門の軒小壁と同じ手)。旧 1間の棟は旧の姿を保つため足さない。"""
+    if r["legacy"]:
+        return None
+    z0 = s["floor"] + s["colH"] + 0.10
+    z1 = ez + sori.z(s["eave"]) - 0.24          # 壁通りの屋根面 − 瓦の懐と垂木の丈
+    if z1 <= z0 + 0.05:
+        return None
+    for vv in (vs[0], vs[-1]):
+        box3(M, us[0], us[-1], vv - 0.04, vv + 0.04, z0, z1, uv, mat, grain="u")
+    for uu in (us[0], us[-1]):
+        box3(M, uu - 0.04, uu + 0.04, vs[0], vs[-1], z0, z1, uv, mat, grain="v")
+    print("  軒小壁 %.3f → %.3f(丈 %.3f)壁通り四周" % (z0, z1, z1 - z0))
+    return z1 - z0
+
+
+def chidori_params(R):
+    """千鳥破風の (半幅 b, 破風の面 ug, 破風の軒 zde)。⭐ 柱間 1間(旧)は `CHIDORI` のまま。
+
+    柱間が変わったら**旧い納まりの比を保って**寄せる(⛔ 絶対値のまま使わない — 軒の出 2.9m の
+    拝殿では主屋根が破風の軒 6.90 を 1.3m 越えて破風が埋まる):
+      ・軒先から破風の面までの距離 = 旧の比(÷ 軒の出)× 新しい軒の出
+      ・破風の軒の浮き(主屋根の面から)= 旧の浮きのまま
+      ・半幅 = 旧の半幅 × 桁行の柱間 / 1間(破風は柱間に掛かる)"""
+    r, s = R["haiden"], SPEC["haiden"]
+    if r["legacy"]:
+        return CHIDORI["b"], CHIDORI["ug"], CHIDORI["zde"]
+    K = R["_ken"]
+    ez = eave_z("haiden")
+    hu0 = r["nu"] * K / 2.0
+    e0 = hu0 * EAVE_RATIO
+    d0 = hu0 + e0 - CHIDORI["ug"]
+    clear0 = CHIDORI["zde"] - (ez + Sori(hu0 + e0).z(d0))
+    hu, e = r["hu"], s["eave"]
+    d = d0 / e0 * e
+    ug = hu + e - d
+    zde = ez + Sori(hu + e).z(d) + clear0
+    b = CHIDORI["b"] * r["pv"] / K
+    print("  千鳥破風(柱間 %.3f に寄せた)半幅 %.3f / 面 u %.3f(軒先から %.3f)/ 軒 %.3f(浮き %.3f)"
+          % (r["pv"], b, ug, d, zde, clear0))
+    return b, ug, zde
 
 
 def _renketsu(R, key, name, ebi):
@@ -1957,7 +2046,7 @@ def _renketsu(R, key, name, ebi):
     p = GR.palette()
     M = VM.Mesh()
     kb = kamebara(hu, hv, kame_top(s["floor"]), name + "_kame")
-    us, vs = columns(M, hu, hv, int(r["du"]), int(r["dv"]), s["floor"], s["colH"],
+    us, vs = columns(M, hu, hv, r["nu"], r["nv"], s["floor"], s["colH"],
                      s["colD"], uv["wood"], W, base=kame_top(s["floor"]))
     kumimono(M, us, vs, s["floor"], s["colH"], s["kumi"], uv["wood_h"], W,
              kind="hiramitsudo")
@@ -2046,17 +2135,18 @@ def _nomikomi(R, key, we, ee):
     return cov / area
 
 
-def heiden(R, name="Sanno_Heiden_1x3ken"):
-    return _renketsu(R, "heiden", name, ebi=False)
+def heiden(R, name=None):
+    return _renketsu(R, "heiden", name or part_name(R, "heiden"), ebi=False)
 
 
-def tsukuriai(R, name="Sanno_Tsukuriai_1x3ken"):
-    return _renketsu(R, "tsukuriai", name, ebi=True)
+def tsukuriai(R, name=None):
+    return _renketsu(R, "tsukuriai", name or part_name(R, "tsukuriai"), ebi=True)
 
 
-def kohai(R, name="Sanno_Kohai_1x3ken"):
+def kohai(R, name=None):
     """**向拝三間・出一間・軒唐破風**【S/U】。⛔ 木階は別部材(`kaidans[向拝の階]`)。"""
     global KARA_B
+    name = name or part_name(R, "kohai")
     r, s = R["kohai"], SPEC["kohai"]
     hu, hv = r["hu"], r["hv"]
     KARA_B = hv                                 # 唐破風の半幅 = 向拝三間の半分
@@ -2064,7 +2154,7 @@ def kohai(R, name="Sanno_Kohai_1x3ken"):
     p = GR.palette()
     M = VM.Mesh()
     # 向拝柱(角柱の几帳面取りが常法だが、社殿に揃えて円柱)+ 礎盤
-    vs = bay_lines(hv, int(r["dv"]))
+    vs = bay_lines(hv, r["nv"])
     sb = soban([(hu, vv) for vv in vs], s["floor"] - 0.10, s["floor"] + 0.12,
                0.26, name + "_soban")
     for vv in vs:
@@ -2128,9 +2218,10 @@ def kohai(R, name="Sanno_Kohai_1x3ken"):
     return o, zeave + kara_g(0.0, KARAHAFU)
 
 
-def kizahashi(R, name="Sanno_Kizahashi_3ken"):
+def kizahashi(R, name=None):
     """**木階三級**【A 加藤重枝2018】。⛔ 石段にしない — 在庫の段石(`Dan_*`)を当てない。"""
     k = kizahashi_spec()
+    name = name or kizahashi_name(k, R["_ken"])
     ms, uv = mats()
     M = VM.Mesh()
     du = abs(k["b"] - k["a"])                    # 東へ出る長さ
@@ -2396,8 +2487,9 @@ def place(o, du, dv):
     o.data.update()
 
 
-def assemble(R):
-    """5棟 + 木階を指図の区画へ仮組みする(レンダ専用)。
+def assemble(R, keys=("honden", "tsukuriai", "heiden", "haiden", "kohai"), kiza=True):
+    """5棟 + 木階を指図の区画へ仮組みする(レンダ専用)。⭐ `keys` で焼いた棟だけに絞れる
+    (2026-09-14 は幣殿・作り合いを起こさないので、その 8m は空いたまま写る)。
     返り値 = (オブジェクト列, 棟ごとの論理オフセット)。⭐ オフセットを返すのは、
     **棟を名指しで近景に撮る**ため(⛔ 画角を bbox の比だけで決めると軒の中へ入る)。"""
     objs = []
@@ -2405,15 +2497,18 @@ def assemble(R):
     ref = R["haiden"]
     for key, fn in (("honden", honden), ("tsukuriai", tsukuriai), ("heiden", heiden),
                     ("haiden", haiden), ("kohai", kohai)):
+        if key not in keys:
+            continue
         o, _top = fn(R)
         du, dv = R[key]["cu"] - ref["cu"], R[key]["cv"] - ref["cv"]
         place(o, du, dv)
         ctr[key] = (du, dv, R[key]["hu"], R[key]["hv"])
         objs.append(o)
-    k = kizahashi_spec()
-    o, _ = kizahashi(R)
-    place(o, (k["a"] + k["b"]) / 2.0 - ref["cu"], k["v"] - ref["cv"])
-    objs.append(o)
+    if kiza:
+        k = kizahashi_spec()
+        o, _ = kizahashi(R)
+        place(o, (k["a"] + k["b"]) / 2.0 - ref["cu"], k["v"] - ref["cv"])
+        objs.append(o)
     return objs, ctr
 
 
@@ -2574,13 +2669,16 @@ def build_kizahashi(R):
     print("[shaden] 書き出し " + os.path.join(OUT, o.name + ".fbx"))
 
 
-def selftest(R):
-    """⛔ 0件は合格ではない。**鳴ることまで**確かめる(陰性試験)。"""
-    print("=== 陰性試験: X を鏡映すると検算が止まるか ===")
+def selftest(R, keys=("honden", "tsukuriai", "heiden", "haiden", "kohai", "kizahashi")):
+    """⛔ 0件は合格ではない。**鳴ることまで**確かめる(陰性試験)。
+    ⭐ `keys` で焼いた棟だけに絞れる(`-- selftest honden haiden kohai kizahashi`)。"""
+    print("=== 陰性試験: X を鏡映すると検算が止まるか === %s" % (list(keys),))
     bad = []
     for key, kind in (("haiden", "chidori"), ("kohai", "downhill_east"),
                       ("honden", "door_east"), ("tsukuriai", "tuck_west"),
                       ("heiden", "tuck_east")):
+        if key not in keys:
+            continue
         V.reset()
         o, _ = dict(honden=honden, haiden=haiden, kohai=kohai,
                     tsukuriai=tsukuriai, heiden=heiden)[key](R)
@@ -2589,13 +2687,14 @@ def selftest(R):
         mirror_x(o)
         if check_front_east(o, o.name + "(鏡映)", kind):
             bad.append(o.name + " 鏡映で通ってしまった")
-    V.reset()
-    o, _ = kizahashi(R)
-    if not check_front_east(o, o.name + "(正)", "steps_down_east"):
-        bad.append(o.name + " 正で落ちた")
-    mirror_x(o)
-    if check_front_east(o, o.name + "(鏡映)", "steps_down_east"):
-        bad.append(o.name + " 鏡映で通ってしまった")
+    if "kizahashi" in keys:
+        V.reset()
+        o, _ = kizahashi(R)
+        if not check_front_east(o, o.name + "(正)", "steps_down_east"):
+            bad.append(o.name + " 正で落ちた")
+        mirror_x(o)
+        if check_front_east(o, o.name + "(鏡映)", "steps_down_east"):
+            bad.append(o.name + " 鏡映で通ってしまった")
     if bad:
         raise SystemExit("[shaden] ⛔ 陰性試験に失敗: %s" % bad)
     print("=== 陰性試験 ⭕ 全て鏡映で止まった ===")
@@ -2605,7 +2704,7 @@ def selftest(R):
     print("=== 陰性試験: 勾配を一定にすると反りの検算が止まるか ===")
     global FLAT_TEST
     bad = []
-    for key in ("haiden", "honden", "heiden", "kohai"):
+    for key in [k for k in ("haiden", "honden", "heiden", "kohai") if k in keys]:
         V.reset()
         o, _ = dict(honden=honden, haiden=haiden, heiden=heiden, kohai=kohai)[key](R)
         if SORI_WIN[key] and not check_sori(o, o.name + "(反りあり)", **SORI_WIN[key]):
@@ -2614,7 +2713,7 @@ def selftest(R):
             bad.append(o.name + " 銅瓦の検算が正で落ちた")
     FLAT_TEST = True
     try:
-        for key in ("haiden", "honden", "heiden", "kohai"):
+        for key in [k for k in ("haiden", "honden", "heiden", "kohai") if k in keys]:
             V.reset()
             try:
                 o, _ = dict(honden=honden, haiden=haiden, heiden=heiden,
@@ -2633,14 +2732,14 @@ def selftest(R):
     # ⛔ 0件は合格ではない。**隅の持ち上げを殺したときに `check_nokizori` が鳴る**まで見る。
     print("=== 陰性試験: 隅の持ち上げを殺すと軒反りの検算が止まるか ===")
     global FLAT_NOKI
-    for key in NOKI_CHECK:
+    for key in [k for k in NOKI_CHECK if k in keys]:
         V.reset()
         o, _ = dict(honden=honden, haiden=haiden)[key](R)
         if not check_nokizori(o, o.name + "(軒反りあり)"):
             bad.append(o.name + " 軒反りが正で落ちた")
     FLAT_NOKI = True
     try:
-        for key in NOKI_CHECK:
+        for key in [k for k in NOKI_CHECK if k in keys]:
             V.reset()
             o, _ = dict(honden=honden, haiden=haiden)[key](R)
             if check_nokizori(o, o.name + "(隅を殺した)"):
@@ -2674,7 +2773,9 @@ def main():
           "/ 軒の出 = 身舎半スパン × %.2f 【P 根津の実測】"
           % (s0.kr, s0.kr * 10, s0.ke, s0.ke * 10, s0.mean(), EAVE_RATIO))
     if what == "selftest":
-        selftest(R); return
+        ks = [w for w in pos[1:]]
+        selftest(R, keys=ks) if ks else selftest(R)
+        return
     if what == "render":
         V.reset()
         objs, ctr = assemble(R)
@@ -2682,17 +2783,24 @@ def main():
             print("RENDER " + f)
         return
     keys = ["honden", "tsukuriai", "heiden", "haiden", "kohai"]
-    if what in keys:
-        build_one(R, what, do_render)
-    elif what == "kizahashi":
-        build_kizahashi(R)
-    else:
-        for k in keys:
+    # ⭐ 複数の棟を並べて渡せる(`-- honden haiden kohai kizahashi`)。`all` は5棟+木階
+    want = [w for w in pos if w in keys + ["kizahashi"]] if what != "all" else keys + ["kizahashi"]
+    if not want:
+        raise SystemExit("[shaden] ⛔ 棟の名が無い: %s" % pos)
+    for key in R:
+        if key in keys:
+            r = R[key]
+            print("[shaden] %-9s %d×%d間 柱間 東西 %.4f × 南北 %.4f m%s → %s"
+                  % (key, r["nu"], r["nv"], r["pu"], r["pv"], "(旧 1間)" if r["legacy"] else "",
+                     part_name(R, key)))
+    for k in keys:
+        if k in want:
             build_one(R, k, do_render)
+    if "kizahashi" in want:
         build_kizahashi(R)
     if do_render:
         V.reset()
-        objs, ctr = assemble(R)
+        objs, ctr = assemble(R, keys=[k for k in keys if k in want], kiza=("kizahashi" in want))
         for f in shots(objs, ctr=ctr):
             print("RENDER " + f)
 

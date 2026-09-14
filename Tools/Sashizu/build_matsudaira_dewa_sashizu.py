@@ -122,15 +122,26 @@ class LabelSet(object):
 
     def __init__(self, step=10.5, pad=1.5):
         self.q = []
+        self.fixed = []
         self.step = step
         self.pad = pad
+
+    def block(self, x0, y0, x1, y1):
+        """**動かせない文字や印の場所**を先に塞ぐ(建物の名・視点の印など)。`out()` はそこを避けて送る。"""
+        self.fixed.append((x0, y0, x1, y1))
+
+    def hits(self, box):
+        """`box`(x0, y0, x1, y1)が塞がった場所に掛かるか。"""
+        x0, y0, x1, y1 = box
+        return any(not (x1 + self.pad < r[0] or r[2] + self.pad < x0
+                        or y1 + self.pad < r[1] or r[3] + self.pad < y0) for r in self.fixed)
 
     def add(self, ax, ay, text, fs=9.0, fill=None, dx=6.0, dy=-3.0, anchor="start"):
         if text:
             self.q.append((ax, ay, text, fs, fill, dx, dy, anchor))
 
     def out(self, leader="var(--ink-lo)"):
-        g, placed = [], []
+        g, placed = [], list(self.fixed)
         for (ax, ay, tx, fs, fill, dx, dy, anchor) in sorted(self.q, key=lambda z: (z[1], z[0])):
             w = len(tx) * fs * 0.86 + 2.0
             x, y = ax + dx, ay + dy
@@ -1414,6 +1425,21 @@ def kenpei(d, area):
         ban_label="番所・隅櫓・門の躯体")
 
 
+def _triage(items):
+    """検査の出力を **欠陥 / 〔宿題〕(振り分け済み)/ 〔記録〕(不良ではない)** に分ける。
+    ⛔ 〔記録〕を ⚠ の件数に混ぜて読ませない — 測った事実の記録であって穴ではない。"""
+    out = {"欠陥": [], "宿題": [], "記録": []}
+    for x in items:
+        q = str(x)
+        out["記録" if q.startswith("〔記録〕") else "宿題" if q.startswith("〔宿題〕") else "欠陥"].append(x)
+    return out
+
+
+def _triage_txt(items):
+    k = _triage(items)
+    return "欠陥 %d / 〔宿題〕%d / 〔記録〕%d" % (len(k["欠陥"]), len(k["宿題"]), len(k["記録"]))
+
+
 def plane_check(d):
     """面のはみ出し検査。棟・付属屋・廊下が「自分の y の面の段」の中に完全に載っているか、
     0.5間刻みの被覆で機械検査する。庭は y を持たないので全段の合併で見る(slope=true は
@@ -2006,8 +2032,8 @@ def section_roof_disclaimer_check(d):
 # 部材を作り直して寸法が変わったら、ここも直す(build_matsudaira_dewa_fuzokuya.py の報告値)。
 FUZOKU_SIZE = {
     "Kura1": (13.76, 8.89), "Kura2": (13.76, 8.89), "Kura3": (13.76, 8.89),
-    "Sakuji": (19.32, 8.99), "Chatei": (6.55, 6.55), "Inari": (3.34, 2.50),
-}
+    "Sakuji": (19.32, 8.99), "Chatei": (6.55, 6.55),
+}   # ⭐ 稲荷社は指図の `service[Inari].buhin`(部材方の実測)が正典 — ここに写さない
 IDO_SIZE = (1.90, 1.90)
 YAGURA_OUTER = 7.394        # 隅櫓の軒の出を含む外形(build_matsudaira_dewa_fuzokuya.py の報告値)
 NJ_THICK = 0.25
@@ -2025,8 +2051,13 @@ def fuzoku_overlap_check(d):
     for s in d["service"]:
         ku, kv = s["u1"] - s["u0"], s["v1"] - s["v0"]
         cu, cv = (s["u0"] + s["u1"]) / 2.0, (s["v0"] + s["v1"]) / 2.0
-        L, S = FUZOKU_SIZE.get(s["name"], (ku * ken, kv * ken))
-        au, av = (S, L) if kv >= ku else (L, S)
+        bz, fvz = s.get("buhin"), _facing_vec(s.get("facing"))
+        if bz and fvz is not None and all(k in bz for k in ("w", "d")):
+            along, across = (bz["d"], bz["w"]) if bz.get("front") in ("+Z", "-Z") else (bz["w"], bz["d"])
+            au, av = (along, across) if fvz[0] else (across, along)
+        else:
+            L, S = FUZOKU_SIZE.get(s["name"], (ku * ken, kv * ken))
+            au, av = (S, L) if kv >= ku else (L, S)
         boxes.append((s["name"], "附属屋", cu - au / 2 / ken, cv - av / 2 / ken,
                       cu + au / 2 / ken, cv + av / 2 / ken))
     for w in d["wells"]:
@@ -9659,7 +9690,7 @@ def band_boundary_check(d, dem):
         bad.append("帯の境を突き合わせる隣邸が `parcels.json` から一つも引けない — "
                    "**この検査は回っていない**(空で黙らない)")
     for p, why in miss:
-        bad.append("帯の境の標高を隣邸 %s と突き合わせられない — **回っていない**(%s)。"
+        bad.append("〔宿題〕帯の境の標高を隣邸 %s と突き合わせられない — **回っていない**(%s)。"
                    "⛔ 0 件は合格ではない: その邸が `slopeArea`(法肩の線 `crest` と"
                    "法尻の辺 `toeEdges`)を持てば同じ式で引ける。⇒ 掲示板へ"
                    "(境 t=%s は溜池の同じ岸を持つ邸で共有している)"
@@ -11958,7 +11989,7 @@ DESIGN_WATCH = [
     ("tenkei[T_Torii_2].facing", "二の鳥居の正面の向き(庭方 設計 D2)", True),
     ("tenkei[T_Torii_1].route", "一の鳥居が載る参道(庭方 設計 D2)", True),
     # ⭐ **2026-09-14(第39次)**(規則19)
-    ("const.toriiRule.innerW", "鳥居の内法の実測(参道の半幅の上限・庭方)", True),
+    ("const.toriiRule.innerW", "鳥居の内法(柱の内々)の実測(参道の半幅の上限・部材方)", True),
     ("service[Inari].facing", "社の正面の向き(検図)", True),
     ("slopePlanting[*].emergent.thin", "突出木の周りを透かす(庭方)", True),
     ("tenkei[T_Torii_2].route", "二の鳥居が載る参道(庭方 設計 D2)", True),
@@ -14321,6 +14352,27 @@ def garden_east_svg(d):
     def vis(z):
         return not (z["u1"] < u0 or z["u0"] > u1 or z["v1"] < v0 or z["v0"] > v1)
 
+    # ⭐ **文字どうしを重ねない** — 視点の印・点景の印・建物の名を先に塞がった場所として登録し、
+    #   庭の名がそこへ掛かるなら引き出し線つきで逃がす(稲荷社/鳥居/宴の平場/視点の印/据石が団子になっていた)。
+    #   ⛔ 動かすのは文字だけで、座標の値は動かさない。
+    def _tbox(x, y, text, fs):
+        w = len(text) * fs * 0.86 + 2.0
+        return (x - w / 2.0, y + 4 - fs, x + w / 2.0, y + 6)
+
+    for vp in d.get("viewpoints", []):
+        if u0 <= vp["u"] <= u1 and v0 <= vp["v"] <= v1:
+            x, y = P(vp["u"], vp["v"])
+            LBE.block(x - 8.5, y - 6.0, x + 8.5, y + 7.0)
+    for t in d.get("tenkei", []):
+        if "u" in t and "pts" not in t and "a" not in t and u0 <= t["u"] <= u1 and v0 <= t["v"] <= v1:
+            x, y = P(t["u"], t["v"])
+            LBE.block(x - 3.0, y - 3.0, x + 3.0, y + 3.0)
+    for m in d["munes"] + d["service"]:
+        if vis(m):
+            x, y = P((m["u0"] + m["u1"]) / 2.0, (m["v0"] + m["v1"]) / 2.0)
+            lb2 = MUNE_JA.get(m["name"], m.get("label", m["name"]))
+            LBE.block(*_tbox(x, y, lb2, fit(lb2, pr.L((m["u1"] - m["u0"]) * K), 11.0)))
+
     for t in d["terraces"]:
         if vis(t):
             g.append(rect(t, "var(--pl-main)", 0.45))
@@ -14332,8 +14384,13 @@ def garden_east_svg(d):
         col = "var(--shirasu)" if n.get("kind") == "shirasu" else "var(--niwa)"
         g.append(poly(pts, col, 0.9, "var(--ink-lo)", 1.0))
         x, y = P((n["u0"] + n["u1"]) / 2.0, (n["v0"] + n["v1"]) / 2.0)
-        g.append(T(x, y + 4, n["label"], "rmS", "middle",
-                   fit(n["label"], pr.L((n["u1"] - n["u0"]) * K), 12.0)))
+        fsz = fit(n["label"], pr.L((n["u1"] - n["u0"]) * K), 12.0)
+        bx = _tbox(x, y, n["label"], fsz)
+        if LBE.hits(bx):
+            LBE.add(x, y, n["label"], fs=min(fsz, 11.0), dx=8.0, dy=14.0)
+        else:
+            g.append(T(x, y + 4, n["label"], "rmS", "middle", fsz))
+            LBE.block(*bx)
     for m in d["munes"] + d["service"]:
         if not vis(m):
             continue
@@ -14413,7 +14470,7 @@ def garden_east_svg(d):
         g.append('<circle cx="%.1f" cy="%.1f" r="5" fill="var(--paper)" stroke="var(--shu)" '
                  'stroke-width="2.2"/>' % (x, y))
         g.append(T(x, y + 4, vp["name"], "rmS", "middle", 10.0, "var(--shu)"))
-        LBE.add(x, y, vp["label"], dx=9.0, dy=-7.0)
+        LBE.add(x, y, vp["label"], dx=10.5, dy=-7.0)
     draw_mizu(d, g, P, pr, poly, LBE)
     g.extend(LBE.out())
     g.append(T(4, 16, "奥庭 → 梅林 → 稲荷の杜。北 ↑　左=西", "anS", "start"))
@@ -16652,7 +16709,7 @@ def zashiki_kazari_men_check(d):
                 #   続く」と宣言している。⇒ 室の壁が棟の外形と一致し、そこに別の棟が
                 #   接しているなら、その壁は**襖**であって床を背負える壁ではない。
                 if k in ("toko", "chigaidana") and _mune_seam(d, m, r, f):
-                    bad.append("室『%s』の %s を **棟の境(襖の通り)**`%s`(%s)へ"
+                    bad.append("〔宿題〕室『%s』の %s を **棟の境(襖の通り)**`%s`(%s)へ"
                                "据えている — 隣は棟 `%s`。⛔ 襖の壁は床を背負えない"
                                "(`_munes`「棟の境は襖の通りで続く」)。"
                                "⇒ 壁面か室の並びのどちらを直すかは**考証・意匠の判断**"
@@ -18209,6 +18266,15 @@ def torii_route_check(d):
         return ["鳥居の検査の許容 `const.toriiRule` が無い — **鳥居が参道に載るかの検査は回っていない**"]
     tol, atol = float(rule["onRouteTol"]), float(rule["facingTolDeg"])
     inner, iclr = rule.get("innerW"), rule.get("innerClr")
+    # ⭐ 部材の実測どうしの並び — 根巻石の内々 < 内法(柱の内々)< 芯々 < 外幅。⛔ 芯々を内法に取り違えると崩れる
+    seq = [(k, rule.get(k)) for k in ("nemakiInnerW", "innerW", "postCC", "outerW")]
+    if all(isinstance(v, (int, float)) for _k, v in seq):
+        if not all(seq[i][1] < seq[i + 1][1] for i in range(3)):
+            out.append("鳥居の部材の実測 `const.toriiRule` の並びが崩れている(%s)— ⛔ 内法と芯々の取り違え"
+                       % " < ".join("%s %.2f" % (k, v) for k, v in seq))
+    else:
+        out.append("鳥居の部材の実測 `const.toriiRule`(nemakiInnerW/innerW/postCC/outerW)が揃っていない — "
+                   "**内法の取り違えは検めていない**")
     routes = {r["name"]: r for r in d.get("routes", [])}
     for t in tor:
         nm = t.get("name")
@@ -18230,10 +18296,15 @@ def torii_route_check(d):
             wtxt = "内法 未検査"
         else:
             half, lim = float(r.get("w", 0.0)) * K / 2.0, float(inner) / 2.0 - float(iclr)
+            nk = rule.get("nemakiInnerW")
             if half > lim + 1e-9:
-                out.append("鳥居 %s: 参道 %s の半幅 **%.2fm** が内法の半分 − 離れ %.2fm を超える — ⛔ 柱が玉砂利の中に立つ"
-                           % (nm, r["name"], half, lim))
-            wtxt = "参道の半幅 %.2fm ≤ %.2fm" % (half, lim)
+                out.append("鳥居 %s: 参道 %s の半幅 **%.3fm** が内法 %.2fm の半分 − 離れ %.2fm = %.3fm を超える — "
+                           "⛔ 柱が玉砂利の中に立つ。⇒ 幅は庭方の設計 = `_pending.sandoHabaNaiho`(差し戻し)"
+                           % (nm, r["name"], half, float(inner), float(iclr), lim))
+            wtxt = "参道の半幅 %.3fm %s %.3fm(内法 %.2fm・芯々 %s・根巻石の内々の半分 %s)" % (
+                half, ">" if half > lim + 1e-9 else "≤", lim, float(inner),
+                ("%.2fm" % float(rule["postCC"])) if "postCC" in rule else "?",
+                ("%.2fm" % (float(nk) / 2.0)) if nk is not None else "?")
         if fv is None:
             out.append("鳥居 %s の正面の向き `facing`(%s)が読めない — **向きの検査は回っていない**" % (nm, t.get("facing")))
             continue
@@ -18284,6 +18355,24 @@ def torii_route_check(d):
         else:
             out.append("〔記録〕社 %s: 参道 %s の終点は正面 `%s` の面の上(離れ %.2f間)・終いの区間との角 %.1f°"
                        % (nm, r["name"], sv.get("facing"), off, ang))
+        # ⭐ 社の部材の外形が矩形に収まり、正面の軸が `facing` へ向くか(`service[].buhin`)
+        bz = sv.get("buhin")
+        if bz:
+            fr = bz.get("front")
+            if fr not in ("+Z", "-Z", "+X", "-X") or not all(k in bz for k in ("w", "d")):
+                out.append("社 %s の部材 `buhin` の正面の軸 `front`(%s)か外形 `w`/`d` が読めない — "
+                           "**部材の収まりは検めていない**" % (nm, fr))
+            else:
+                along, across = (bz["d"], bz["w"]) if fr in ("+Z", "-Z") else (bz["w"], bz["d"])
+                du, dv_ = (along, across) if fv[0] else (across, along)
+                ru, rv = (sv["u1"] - sv["u0"]) * K, (sv["v1"] - sv["v0"]) * K
+                if du > ru + 1e-9 or dv_ > rv + 1e-9:
+                    out.append("社 %s の部材 `%s` の外形 %.2f×%.2fm(u×v)が矩形 %.2f×%.2fm からはみ出す"
+                               % (nm, bz.get("part"), du, dv_, ru, rv))
+                else:
+                    out.append("〔記録〕社 %s の部材 `%s`: 外形 %.2f×%.2fm(u×v)は矩形 %.2f×%.2fm の内・"
+                               "正面ローカル `%s` を `%s` へ向ける"
+                               % (nm, bz.get("part"), du, dv_, ru, rv, fr, sv.get("facing")))
     return out
 
 
@@ -18538,10 +18627,10 @@ def main():
     for b in nbad:
         print("   ", b)
     pbad = plane_check(d)
-    if pbad:
-        print("⚠ 面のはみ出し %d 件:" % len(pbad))
-        for b in pbad:
-            print("   ", b)
+    print("面のはみ出しほか(`plane_check` の束) %d 件 = %s(〔宿題〕= 振り分け済み・〔記録〕= 不良ではない)"
+          % (len(pbad), _triage_txt(pbad)))
+    for b in pbad:
+        print("   ", b)
     # 外周の閉じは**件数を必ず出す。**0 件でないなら理由を添える(黙って通さない)。
     cbad = perimeter_closure_check(d)
     lbad = perimeter_ledger_check(d)
@@ -18751,7 +18840,7 @@ def main():
              '(造成しない斜面に載る庭=西庭の斜面部だけ除外)。'
              '<b>矩形の総当たり重なり: %s。</b>'
              '<b>中仕切塀の区画はみ出し(線分の途中も0.5%%刻みで測る): %s。</b></p>'
-             % ("<b>0 件</b>" if not pbad else "⚠ %d 件 — %s" % (len(pbad), " / ".join(pbad)),
+             % ("<b>0 件</b>" if not pbad else "%d 件(%s)— %s" % (len(pbad), _triage_txt(pbad), " / ".join(pbad)),
                 "<b>0 件</b>" if not bad else "⚠ %d 件" % len(bad),
                 "<b>0 件</b>" if not nbad else "⚠ %d 件 — %s" % (len(nbad), " / ".join(nbad))))
     h.append("</div>")
@@ -19614,15 +19703,16 @@ def main():
     for _t, _x in WARN:
         if not _x:
             continue
-        _wb.append("<h4>%s — %d 件</h4><ul>%s</ul>"
-                   % (inline(_t), len(_x), "".join("<li>%s</li>" % inline(str(q)) for q in _x)))
-    h[_WARNPOS] = ('<div class="box" style="border-color:%s"><h3>この指図の検査結果 — ⚠ %d 件</h3><p>'
+        _wb.append("<h4>%s — %d 件(%s)</h4><ul>%s</ul>"
+                   % (inline(_t), len(_x), _triage_txt(_x), "".join("<li>%s</li>" % inline(str(q)) for q in _x)))
+    _all = [q for _t, _x in WARN for q in _x]
+    h[_WARNPOS] = ('<div class="box" style="border-color:%s"><h3>この指図の検査結果 — %d 件(%s)</h3><p>'
                    '生成器が組むたびに走る検査の<b>すべての ⚠ をここに載せる</b>。'
                    '⛔ <b>従前は stdout にしか出ておらず、artifact のどこにも無かった</b> — '
                    '検図方の言葉で「<b>いまの指図は自分の検査結果を持っていない図</b>」だった'
                    '(2026-09-01)。⭕ 0 件でないなら、下の一覧が<b>いま指図に残っている穴の全部</b>。'
                    '⚠ 個々の検査の合否と内訳は、それぞれの図版の下の表にも出る。</p>%s</div>'
-                   % ("var(--shu)" if NWARN else "var(--take)", NWARN,
+                   % ("var(--shu)" if _triage(_all)["欠陥"] else "var(--take)", NWARN, _triage_txt(_all),
                       "".join(_wb) or "<p><b>0 件</b>。</p>"))
     for _t, _x in WARN[-1:]:
         for _q in _x:

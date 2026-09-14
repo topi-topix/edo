@@ -14700,6 +14700,11 @@ def fill_slope_trees(d, g):
         r9 = _tree_row(d, g, rnd5, "隅_中木%d" % (j + 1), "盛土の法面の隅(中木)", "中木", pal["中木"], ch["hM"], u9, v9)
         r9["edaShitaM"] = cc.get("edaShitaM")
         out.append(r9)
+    # ⑦ 隅の名指しの低木(`cornerTeiboku`)── 位置は庭方の名指し(塊に属させない ── 撒く木の退避を当てない)
+    ct = fs.get("cornerTeiboku") or {}
+    rnd6, _k = _seed_rnd(d, "盛土の法面の隅", "低木")
+    for j, (u9, v9) in enumerate(ct.get("uv") or []):
+        out.append(_tree_row(d, g, rnd6, "隅_低木%d" % (j + 1), "盛土の法面の隅(低木)", "低木", pal["低木"], ct["hM"], u9, v9))
     _FILL["trees"] = out
     return out
 

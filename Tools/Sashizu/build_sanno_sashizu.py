@@ -3132,7 +3132,14 @@ def mune_part_pending(d, m):
     nm = m.get("partPending") if m else None
     if not nm: return None
     for b in d.get("bom", []):
-        if b.get("部材") == nm and "未造" in str(b.get("在庫", "")): return b
+        if b.get("部材") != nm: continue
+        if "未造" in str(b.get("在庫", "")): return b
+        # ⭐ 【2026-09-14 部材が入った】部材は `bom[].parts[<棟名>].path` に在るが**目録に行が無い**ときも未測定。
+        #   ⛔ 目録で解ける部材を `partPending` のまま置けば None を返す(⇒ `partFrom` へ戻せと⛔)。
+        pt = (b.get("parts") or {}).get(m.get("name")) or {}
+        if pt.get("path"):
+            stem = os.path.splitext(os.path.basename(pt["path"]))[0]
+            if part_geom({"prefab": stem}) is None: return b
     return None
 
 
@@ -3273,8 +3280,8 @@ def mune_height_check(d):
             # ⛔ **社殿は必ず部材を指す** ── 5棟とも新造済みなので、指し先が落ちれば
             #    棟高が引けなくなり、主景の仰角が黙って欠ける(規則19)。
             if m.get("yaku") == "社殿" and mune_part_pending(d, m) is not None:
-                note.append("⚠ 棟『%s』(社殿)── 部材は**起こし直し待ち**(`partPending` → `bom[%s]`)⇒ 棟高は"
-                            "**未測定**(⛔ 合格ではない)" % (m["name"], m["partPending"]))
+                note.append("⚠ 棟『%s』(社殿)── 部材が**目録で引けない**(未造か目録の再生成待ち ── `partPending` → "
+                            "`bom[%s]`)⇒ 棟高は**未測定**(⛔ 合格ではない)" % (m["name"], m["partPending"]))
             elif m.get("yaku") == "社殿":
                 bad.append("棟『%s』(社殿)が `partFrom`(部材への指し先)を持たない — "
                            "棟高が引けず、主景の仰角の行が黙って落ちる(⛔ 0 件は合格ではなく"
@@ -8813,6 +8820,80 @@ def gate_part_outline_check(d, g):
                     % (gt["name"], b["部材"], len(ol), hit))
     if not nm0:
         bad.append("外形を持つ門の部材が一つも無い — 部材の外形で食い込みを測れない(図の平面だけでは実物を見ていない)")
+    return bad, note
+
+
+def sode_part_check(d, g):
+    """**袖塀の部材と楼門・回廊の取り合い**【部材方の返り事項 2026-09-14】── 部材 `bom[].outlineM` と
+    部材の前提 `bom[].axis.footAt`(足元をどの高さに取って起こしたか)で測る。
+
+    ① **足元の高さ** ── 図の座 `runs[].seat` と部材の前提(門の敷居)が食い違えば⛔(足元が二つ)。
+       あわせて翼の側の回廊の座(`runs[].endFrom` で袖塀を指す回廊の `seat`)との段を刷る。
+    ② **門の側の木口** ── 足元を座と前提の両方に置き、門の部材の外形の帯(丈が重なるもの)が側柱の外面
+       (木口 = `gate_col_face_dist`)より外へ出れば、その足元での食い込みとして⛔。
+    ⛔ 足元の高さも納め方も**指図方は決めない**(→ `_pending`「袖塀の丈と形」)── 数を刷って止めるのが役。
+    """
+    bad, note = [], []
+    ken = d["const"]["ken"]
+    EPS = 1e-6
+    n0 = 0
+    for r in d["runs"]:
+        if r.get("kind") != "袖塀": continue
+        ef = r.get("endFrom") or {}
+        gt = gate_by_name(d, ef["gate"]) if ef.get("gate") else None
+        if gt is None: continue
+        n0 += 1
+        b = next((q for q in d["bom"] if q.get("部材") == r.get("bom")), None)
+        if b is None:
+            bad.append("袖塀『%s』の部材 `bom` の指し先が無い — 部材の外形で取り合いを測れない" % r["name"]); continue
+        ol, ax = b.get("outlineM"), b.get("axis") or {}
+        fa = ax.get("footAt") or {}
+        if not ol or fa.get("at") != "sill" or fa.get("gate") != gt["name"]:
+            bad.append("袖塀『%s』── 部材『%s』に外形 `outlineM` か足元の前提 `axis.footAt` が無い ⇒ 取り合いは"
+                       "**未測定**(⛔ 合格ではない)" % (r["name"], b["部材"])); continue
+        H = max(bd["hM"][1] for bd in ol)
+        seat, prem = r.get("seat"), float(gt["sill"])
+        kai = [q for q in d["runs"] if (q.get("endFrom") or {}).get("run") == r["name"]]
+        ktxt = "・".join("回廊『%s』の座 %.2f(足元の前提より %+.2f m)" % (q["name"], float(q["seat"]), float(q["seat"]) - prem)
+                         for q in kai if q.get("seat") is not None) or "翼の側の座は図に無い"
+        if seat is None or abs(float(seat) - prem) > EPS:
+            bad.append("袖塀『%s』の**足元が二つ** ── 図の座 `seat` %s ／ 部材の前提 = 門『%s』の敷居 %.2f(差 %s)。%s。"
+                       "⛔ 足元の高さと回廊の床との段の納めは未決 ── 決めるのは**部材方**(袖塀の足元)と"
+                       "**石垣**(回廊の基壇の口の段 → `_pending`「回廊の基壇の門側の妻の段」)"
+                       "(→ `_pending`「袖塀の丈と形」④)"
+                       % (r["name"], "—" if seat is None else "%.2f" % float(seat), gt["name"], prem,
+                          "—" if seat is None else "%+.2f m" % (float(seat) - prem), ktxt))
+        else:
+            note.append("袖塀『%s』── 図の座と部材の前提(門の敷居)が一致 %.2f。%s【算出】" % (r["name"], prem, ktxt))
+        gb = gate_bom_row(d, gt)
+        gol = (gb or {}).get("outlineM")
+        if not gol:
+            bad.append("袖塀『%s』── 門『%s』の部材に外形 `outlineM` が無い ⇒ 木口の取り合いは**未測定**" % (r["name"], gt["name"]))
+            continue
+        fm = gate_col_face_dist(d, gt, ef["face"])[0] * ken
+        feet = [("部材の前提(門の敷居)", prem)]
+        if seat is not None and abs(float(seat) - prem) > EPS:
+            feet.insert(0, ("図の座", float(seat)))
+        for lab, fy in feet:
+            hits = []
+            for bd in gol:
+                y0, y1 = gt["sill"] + bd["hM"][0], gt["sill"] + bd["hM"][1]
+                if min(y1, fy + H) - max(y0, fy) <= EPS: continue
+                over = max(abs(bd["widthM"][0]), abs(bd["widthM"][1])) - fm
+                if over > 1e-4: hits.append((bd["band"], over, max(y0, fy), min(y1, fy + H)))
+            if hits:
+                bad.append("袖塀『%s』の門の側の木口 ── 足元を%s %.2f に置くと、門『%s』の外形%sが木口(%sの側柱の外面)を越えて"
+                           "塀へ入る。⛔ 木口の納め(欠き込むか・礎盤の外面で止めるか)は未決 ── 決めるのは**部材方**"
+                           "(→ `_pending`「袖塀の丈と形」④)"
+                           % (r["name"], lab, fy, gt["name"],
+                              "・".join("〔%s〕**%.3f m**(丈 %.2f〜%.2f)" % q for q in hits), ef["face"]))
+            else:
+                note.append("袖塀『%s』── 足元を%s %.2f に置くと、門『%s』の外形は木口(%sの側柱の外面・芯から %.3f m)の内に納まる"
+                            "(塀の丈 %.2f〜%.2f)【算出】" % (r["name"], lab, fy, gt["name"], ef["face"], fm, fy, fy + H))
+        note.append("袖塀『%s』── 部材『%s』の丈 %.3f m(`outlineM`)・門『%s』の外形 %d 帯で測った【算出】"
+                    % (r["name"], b["部材"], H, gt["name"], len(gol)))
+    if not n0:
+        bad.append("門に木口を突き付ける袖塀が一つも無い — 袖塀の部材の取り合いを測れない")
     return bad, note
 
 
@@ -16875,6 +16956,7 @@ def run_checks():
     gpa = gate_plan_axis_check(d, g)   # 門の平面の向き(K004 検図 2026-09-13)
     gpc = gate_part_col_check(d, g)    # 門の平面と部材の柱芯(K001 2026-09-13)
     gpo = gate_part_outline_check(d, g)  # 門の部材の外形の食い込み(K001 2026-09-13)
+    spc = sode_part_check(d, g)        # 袖塀の部材と楼門・回廊の取り合い(部材方の返り事項 2026-09-14)
     nks = noki_sori_check(d)           # 軒反りの量(考証 2026-09-13 中)
     skd = shaden_kidan_check(d)        # 基壇・亀腹の石材(庭方 2026-09-13 中)
     izc = ishizai_color_check(d)       # 庭の石の名簿の色(庭方 2026-09-13・普請奉行の裁定)
@@ -16972,6 +17054,7 @@ def run_checks():
     rows.append(("門の平面の向き(奥行 du を通り抜けの軸へ回す・面の取り付き・門口を通る長さ)", gpa[0], gpa[1]))
     rows.append(("門の平面と部材の柱芯(`gates[].plan` × `bom[].axis.colPassM/colWidthM`)", gpc[0], gpc[1]))
     rows.append(("門の部材の外形が石段・囲い・土留めへ食い込まないか(`bom[].outlineM`・軒を含む)", gpo[0], gpo[1]))
+    rows.append(("袖塀の部材と楼門・回廊の取り合い(足元の高さ・門の側の木口・`bom[].axis.footAt`)", spc[0], spc[1]))
     rows.append(("軒反りの量(指図 `const` と部材の生成器)", nks[0], nks[1]))
     rows.append(("社殿の基壇・亀腹の石材の宣言(`shadenKidan`)", skd[0], skd[1]))
     rows.append(("庭の石の名簿の色(`ishizai.colors`・受入値 `colorGate`・材の実測は未測定)", izc[0], izc[1]))

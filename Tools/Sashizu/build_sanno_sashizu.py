@@ -8400,6 +8400,21 @@ def derive_garden_vertex_from(d):
         for q in gp.get("vFrom") or []:
             mm = byname[q["of"]]
             gp["poly"][q["i"]][1] = round(float(mm["v0"]) + float(mm["dv"]), 4)
+    # ⭐ 【部材方 2026-09-15】建物へ突き付く囲いの端 = その棟の**柱の外面**(柱芯の矩形の辺 + `endButt.faceOffsetM`)
+    for r in d["runs"]:
+        eb = r.get("endButt") or {}
+        if eb.get("faceOffsetM") is None: continue
+        m = byname.get(eb.get("mune"))
+        if m is None: continue
+        ff = mune_face_uv(m, eb.get("face"), float(eb["faceOffsetM"]) / ken)
+        if ff is None: continue
+        r[eb["end"]][ff[0]] = round(ff[1], 4)
+
+
+def mune_face_uv(m, face, off_ken=0.0):
+    """棟の面の (軸 0=u/1=v, 座標[間]) ── 柱芯の矩形の辺から外へ `off_ken`。読めない面は None。"""
+    return {"西面": (0, m["u0"] - off_ken), "東面": (0, m["u0"] + m["du"] + off_ken),
+            "南面": (1, m["v0"] - off_ken), "北面": (1, m["v0"] + m["dv"] + off_ken)}.get(face)
 
 
 def derive_runs(d, g):
@@ -9269,9 +9284,10 @@ def mune_group_poly_check(d, g):
         E = r["a"] if eb.get("end") == "a" else r["b"]
         if m is None:
             bad.append("囲い『%s』の `endButt` の棟『%s』が無い" % (r["name"], eb.get("mune"))); continue
-        fx = {"西面": ("u", m["u0"]), "東面": ("u", m["u0"] + m["du"]), "南面": ("v", m["v0"]), "北面": ("v", m["v0"] + m["dv"])}.get(eb.get("face"))
-        if fx is None:
+        ff = mune_face_uv(m, eb.get("face"), float(eb.get("faceOffsetM") or 0.0) / d["const"]["ken"])
+        if ff is None:
             bad.append("囲い『%s』の `endButt.face`『%s』が読めない" % (r["name"], eb.get("face"))); continue
+        fx = ("u" if ff[0] == 0 else "v", ff[1])
         j = 0 if fx[0] == "u" else 1
         k = 1 - j
         lo, hi = (m["v0"], m["v0"] + m["dv"]) if j == 0 else (m["u0"], m["u0"] + m["du"])
@@ -9281,6 +9297,63 @@ def mune_group_poly_check(d, g):
             note.append("囲い『%s』の端は棟『%s』の%sに突き付く【算出】" % (r["name"], m["name"], eb["face"]))
     if not n0:
         bad.append("輪郭 `groupPoly` を持つ建物が無い ── 御供所の L 字(施主の裁定2)が図に入っていない")
+    return bad, note
+
+
+def mune_part_outline(d, name):
+    """棟 `name` の部材の外形の帯(`bom[].parts[棟名].outlineM`)を、平面の箱[uv]つきで返す。
+    ⭐ ピボット = 柱芯の矩形の中心・地盤、X = 東(`passM`)・Z = 北(`widthM`)。無ければ None。"""
+    m = next((q for q in d["munes"] if q["name"] == name), None)
+    pt = None
+    for b in d["bom"]:
+        pt = (b.get("parts") or {}).get(name) or pt
+    ol = (pt or {}).get("outlineFineM") or (pt or {}).get("outlineM")   # ⭐ 細かい丈の帯(0.25 m)があればそれで測る
+    if m is None or not ol: return None
+    ken = d["const"]["ken"]
+    cu, cv = m["u0"] + m["du"] / 2.0, m["v0"] + m["dv"] / 2.0
+    return [(bd["band"], bd["hM"], (cu + bd["passM"][0] / ken, cv + bd["widthM"][0] / ken,
+                                    cu + bd["passM"][1] / ken, cv + bd["widthM"][1] / ken)) for bd in ol]
+
+
+def mune_part_clearance_check(d, g):
+    """**隣り合う棟の部材の離れ**【部材方 2026-09-15 ── 御供所の北の継ぎ × 作り合い・幣殿・本殿】── `bom[].clearances` の組ごとに、
+    丈の帯が重なる帯どうしの**平面の箱の離れ**の最小[m](負 = 食い込み)を出し、部材方の実測 `expectM` と突き合わせる。
+    ⛔ 食い込み(負)と、部材方の実測との食い違い(> `tolM`)は⛔。⚠ 同じ平場の上の棟どうし(丈は地盤から)に限る。"""
+    bad, note = [], []
+    ken = d["const"]["ken"]
+    n0 = 0
+    for b in d["bom"]:
+        for c in b.get("clearances") or []:
+            n0 += 1
+            A, B = mune_part_outline(d, c["a"]), mune_part_outline(d, c["b"])
+            if A is None or B is None:
+                bad.append("部材の離れ『%s』×『%s』── どちらかの部材の外形 `bom[].parts[棟].outlineM` が無い ⇒ **未測定**" % (c["a"], c["b"]))
+                continue
+            best = None
+            for na, ha, ba in A:
+                for nb, hb, bb in B:
+                    if min(ha[1], hb[1]) <= max(ha[0], hb[0]) + 1e-9: continue
+                    gu = max(ba[0] - bb[2], bb[0] - ba[2])
+                    gv = max(ba[1] - bb[3], bb[1] - ba[3])
+                    if gu < 0 and gv < 0: dist = max(gu, gv)
+                    elif gu < 0: dist = gv
+                    elif gv < 0: dist = gu
+                    else: dist = math.hypot(gu, gv)
+                    if best is None or dist < best[0]: best = (dist, na, nb)
+            if best is None:
+                note.append("部材の離れ『%s』×『%s』── 丈の帯が重ならない(当たらない)【算出】" % (c["a"], c["b"])); continue
+            got = best[0] * ken
+            ex, tol = c.get("expectM"), float(c.get("tolM", 0.03))
+            line = ("部材の離れ『%s』〔%s〕×『%s』〔%s〕── 平面 **%.3f m**%s【算出】"
+                    % (c["a"], best[1], c["b"], best[2], got, ("(部材方の実測 %.3f m)" % ex) if ex is not None else ""))
+            if got < -1e-4:
+                bad.append(line + " ── ⛔ 食い込む ── 決めるのは**部材方**")
+            elif ex is not None and abs(got - float(ex)) > tol:
+                bad.append(line + " ── ⛔ 部材方の実測と %.3f m 食い違う(図の外形の帯か実測のどちらかが違う)" % (got - float(ex)))
+            else:
+                note.append(line)
+    if not n0:
+        bad.append("部材の離れを宣言した組が無い(`bom[].clearances`)── 御供所の北の継ぎの取り合いが図に入っていない")
     return bad, note
 
 
@@ -17848,6 +17921,7 @@ def run_checks():
     ckc = chumon_kabuki_check(d, g)    # 中門の冠木と透塀の棟の離れ(部材方 2026-09-14)
     mgp = mune_group_poly_check(d, g)  # 御供所の L 字と透塀の突き付け(施主の裁定2 2026-09-15)
     fsp = fill_slope_planting_check(d, g)  # 盛土の法面の植栽の宣言(庭方 2026-09-15)
+    mpc = mune_part_clearance_check(d, g)  # 隣り合う棟の部材の離れ(部材方 2026-09-15)
     nks = noki_sori_check(d)           # 軒反りの量(考証 2026-09-13 中)
     skd = shaden_kidan_check(d)        # 基壇・亀腹の石材(庭方 2026-09-13 中)
     izc = ishizai_color_check(d)       # 庭の石の名簿の色(庭方 2026-09-13・普請奉行の裁定)
@@ -17952,6 +18026,7 @@ def run_checks():
     rows.append(("中門の冠木と透塀の棟の離れ(`bom[中門].axis.kabukiM` × `bom[透塀].outlineM`)", ckc[0], ckc[1]))
     rows.append(("建物の輪郭と棟の矩形の和・囲いの建物への突き付け(`groupPoly`・`endButt`)", mgp[0], mgp[1]))
     rows.append(("盛土の法面の植栽の宣言(`planting.fillSlopePlanting`)", fsp[0], fsp[1]))
+    rows.append(("隣り合う棟の部材の離れ(`bom[].clearances` × `parts[].outlineM` の丈の帯)", mpc[0], mpc[1]))
     rows.append(("軒反りの量(指図 `const` と部材の生成器)", nks[0], nks[1]))
     rows.append(("社殿の基壇・亀腹の石材の宣言(`shadenKidan`)", skd[0], skd[1]))
     rows.append(("庭の石の名簿の色(`ishizai.colors`・受入値 `colorGate`・材の実測は未測定)", izc[0], izc[1]))

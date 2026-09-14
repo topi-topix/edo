@@ -3322,7 +3322,10 @@ def mune_h(d, m):
     g0 = part_geom({"prefab": pf})
     if not g0: return None
     orn, _src = mune_ornament(d, m)
-    return g0[1] - (orn or 0.0)
+    # ⭐ 【部材方の実測 2026-09-14】目録の丈が屋根の頂でない部材(向拝 ── 背面の木部の頂が最も高い)は
+    #    `roofTopM`(屋根の最高点)を頂に採る。⛔ 部材への指し先 `partFrom` が解けることは据え置きで要る
+    top = float(m["roofTopM"]) if m.get("roofTopM") is not None else g0[1]
+    return top - (orn or 0.0)
 
 
 def mune_visible_top(d, m):
@@ -3331,6 +3334,8 @@ def mune_visible_top(d, m):
     pf = m.get("partFrom")
     if m.get("h") is None and pf:
         g0 = part_geom({"prefab": pf})
+        if g0 and m.get("roofTopM") is not None:
+            return float(m["roofTopM"]), "部材方の実測 `roofTopM` = 屋根の最高点(目録の丈は屋根の頂でない)"
         if g0: return g0[1], "目録の部材の丈 = 鬼の頂"
     h9 = mune_h(d, m)
     if h9 is None: return None, None
@@ -3446,14 +3451,19 @@ def mune_height_check(d):
         # ⭐ **目録の丈の呼び名は棟による**【B-1 検図22巡目 → 2026-09-09 十九巡目】── ⛔ 鬼を
         #    持たない棟(両下造)・大棟を持たない棟(向拝)の丈を『鬼の頂』と呼ぶのは**名前も誤り**。
         top9 = "**鬼の頂**" if (o9 or 0.0) > 1e-9 else "**棟の頂**(鬼板・置千木を持たない)"
+        # ⭐ 目録の丈が屋根の頂でない部材は `roofTopM`(部材方の実測)を頂に採る ── `mune_h` と同じ値を刷る
+        tv9 = float(m["roofTopM"]) if m.get("roofTopM") is not None else g0[1]
+        if m.get("roofTopM") is not None:
+            top9 = "**屋根の頂**(部材方の実測 `roofTopM` ── 目録の丈 %.2f m は屋根の頂でない)" % g0[1]
         note.append("棟『%s』── 部材『%s』の丈(%s)%.2f m − 棟飾り %s = "
                     "**棟高 %.2f m**(桁行 %.2f m × 三角数 %s)／ 棟飾りの出所 %s ／ 丈の出所 %s"
                     "【算出 — 物差しは `const.muneHeightRule`(平場の設計面 → 大棟の上端・"
                     "⛔ 棟飾りを含まない)。⛔ 実寸を図にも json にも写さない(規則4)】"
-                    % (m["name"], pf, top9, g0[1],
+                    % (m["name"], pf, top9, tv9,
                        ("%.3f m" % o9) if o9 is not None else "**引けない**",
-                       g0[1] - (o9 or 0.0), g0[0], format(g0[2], ","), os9 or "—",
-                       ("宣言 `h` と一致" if h9 is not None else "**目録**(`h` は撤回・裁4)")))
+                       tv9 - (o9 or 0.0), g0[0], format(g0[2], ","), os9 or "—",
+                       ("宣言 `h` と一致" if h9 is not None else
+                        ("**部材方の実測**(`roofTopM`)" if m.get("roofTopM") is not None else "**目録**(`h` は撤回・裁4)"))))
     note.append("`partFrom` を持つ棟 **%d**(社殿)／ 持たない棟 %d(⛔ 類型の根拠が無い所を数で"
                 "埋めない・規則7)【算出 — 裁4 2026-09-09】" % (n9, len(d["munes"]) - n9))
     return bad, note

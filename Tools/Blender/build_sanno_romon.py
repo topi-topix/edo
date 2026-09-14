@@ -2,6 +2,19 @@
 """山王権現社の**楼門(隨身門)と坂下の門(仁王門)** — 三間一戸・単層・入母屋造・組物付き。
 
     blender --background --python Tools/Blender/build_sanno_romon.py -- [--render] [--no-export]
+    SANNO_SASHIZU=<指図> blender --background --python Tools/Blender/build_sanno_romon.py -- \
+        --only 楼門 --kidan 7.9x11.1 [--pitch 2.875x2.54] [--render --full]     # 明治16年寸法(裁定C)
+
+━━━ 明治16年実測図の寸法(2026-09-14 ユーザー裁定C「歴史に近いほうを採る」)━━━━━━━━━━━━━━━━━━
+・**柱間の引数** — 平面の外形 `gates[].plan`[間] ÷ 間数 `gates[].bays` = 柱間(通り抜け `pu` / 幅 `pv`)。
+  `--pitch <pu>x<pv>` を渡すと指図の従属値と 1 mm で突き合わせる(食い違えば止まる)。
+  柱間が 1間でないとき名前に柱芯の外形を足す: `Sanno_Romon_<du>x<dv>ken_<通り抜けmm>x<幅mm>_k…`。
+・**基壇** `--kidan <通り抜けm>x<幅m>` = 基壇の**全外形**(実測図の外側の線【A】)。四周を同じ出で
+  取る(取り合いの面から側ごとに詰めるのは後の裁定 — `_pending`「楼門の平面と回廊の基壇・男坂の頭」)。
+  ⛔ 基壇の見え高と前後の石段は指図に無いので作らない(天端 = 敷居 = Y0 から根入れ 0.60 のまま)。
+・高さは `G_MEIJI`(【U 類型 — 考証 2026-09-14】柱高 3.8 / 軒高 4.8)。⭐ **軒高 = 丸桁の上端**と読み、
+  組物の丈 `kumi` は軒の出と反りからの従属値にする(⛔ 軒先を 4.8 に置くと垂木の下端が丸桁から浮き、
+  組物と屋根の間に空が抜ける — 部材方 memory 2026-09-13)。棟高は反りから出る従属値として**測って刷る**。
 
 ━━━ なぜ新造するか ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 指図 `docs/Sashizu/sanno_sashizu.json` の `bom`「楼門(三間一戸)」は Japanese Castle の
@@ -69,6 +82,33 @@ G = dict(
     kidanDepth=0.60,  # 基壇の根入れ(天端 = Y0 から下へ)
     kidanSkirt=0.45,  # 基壇の出(側柱の芯から)
 )
+G_LEGACY = dict(G)
+
+# 明治16年寸法の門(柱間 2.875 × 2.54)。⛔ すべて【U】。数でない類型(出組・総円柱…)は G のまま
+G_MEIJI = dict(
+    colH=3.80,      # 【U 類型 — 考証 2026-09-14】柱高(基壇天端 → 頭貫上端)
+    eaveH=4.80,     # 【U 類型 — 考証 2026-09-14】軒高 = **丸桁の上端**と読む(`SH.kumimono` は頭貫上端 +0.95)
+    ridgeH=9.00,    # 【U 類型 — 考証 2026-09-14】棟高「約」— ⛔ 合わせ込まない。反りから出た値と並べて刷る
+    uchinori=2.95,  # 【U 部材方】旧 2.40 を柱高の比(3.8/3.1)で伸ばした
+    koshi=0.95,     # 【U】旧のまま(窓台は人の目の高さに効くので伸ばさない)
+    eaveRatio=None, # 軒の出 = 半スパン × `SH.EAVE_RATIO`【P 根津】(社殿と同じ規則)
+)
+
+
+def plan_of(d, g, K):
+    """門1基の平面。⭐ **柱間の引数**: 外形 `plan`[間] ÷ 間数 `bays` = 柱間 `pu`(通り抜け)/ `pv`(幅)。
+    `bays` の無い旧い指図は `plan` を間数と読む(柱間 1間)。"""
+    pl = g["plan"]
+    bays = g.get("bays") or {"du": pl["du"], "dv": pl["dv"]}
+    nu, nv = int(round(float(bays["du"]))), int(round(float(bays["dv"])))
+    hu, hv = float(pl["du"]) * K / 2.0, float(pl["dv"]) * K / 2.0
+    pu, pv = 2 * hu / nu, 2 * hv / nv
+    mon = float(g.get("monguchiKen") or 1.0) * K
+    if nv != 3 or abs(mon - pv) > 1e-3:
+        raise SystemExit("[romon] ⛔ 三間一戸・中央一間の戸口しか組めない(%s: 幅 %d 間・戸口 %.3f m・柱間 %.3f m)"
+                         % (g["name"], nv, mon, pv))
+    return dict(K=K, du=nu, dv=nv, hu=hu, hv=hv, pu=pu, pv=pv, monguchi=mon / pv,
+                legacy=(abs(pu - K) < 1e-6 and abs(pv - K) < 1e-6), name=g["name"], gate=g)
 
 
 def sashizu_plan():
@@ -170,11 +210,12 @@ def soban_sided(pts, hu, hv, out, colR, h, half, name):
 
 def build(P, name, out):
     K = P["K"]
-    hu, hv = P["du"] * K / 2.0, P["dv"] * K / 2.0
-    if abs(P["monguchi"] - 1.0) > 1e-6 or P["dv"] != 3:
+    hu, hv = P.get("hu", P["du"] * K / 2.0), P.get("hv", P["dv"] * K / 2.0)
+    # ⚠ 許容は 1 mm 相当(戸口 1.3971 間 × 1.818 = 2.53993 と柱間 7.62/3 の差 0.02 mm で止まった)
+    if abs(P["monguchi"] - 1.0) > 1e-3 or P["dv"] != 3:
         raise SystemExit("[romon] ⛔ 三間一戸・中央一間の戸口しか組めない(dv=%s 戸口=%s)"
                          % (P["dv"], P["monguchi"]))
-    b = hv / 3.0                         # 中の間の半幅(= 本柱の v)
+    b = hv / 3.0                         # 中の間の半幅(= 本柱の v)= 幅の柱間の半分
     ms, uv = SH.mats()
     W, WC, DW = SH.W, SH.WC, SH.DW
     p = GR.palette()
@@ -274,7 +315,8 @@ def build(P, name, out):
     V.dedup_materials()
     o = V.join([body, taru, roof] + stones, name)
     V.set_origin(o, (0.0, 0.0, 0.0))                    # 門の芯・敷居の高さ
-    return o, dict(hu=hu, hv=hv, b=b, ez=ez, ridge=ez + sori.z(sori.half))
+    return o, dict(hu=hu, hv=hv, b=b, ez=ez, ridge=ez + sori.z(sori.half),
+                   marugeta=colH + 0.10 + 0.65 + 0.20)   # `SH.kumimono` の丸桁の上端
 
 
 # ==========================================================================
@@ -321,6 +363,21 @@ def check_axes(o, hu, hv, b, label, quiet=False):
     return ok and door_long_x
 
 
+def mune_top_roof(o, end=0.60):
+    """(大棟の上端, 鬼の頂)。⚠ `SH.mune_top` は銅瓦(`Doukawara`)しか見ない — 楼門は本瓦(`roof` /
+    `roof ornaments`)なので同じ物差し(大棟の中央 ±0.60 の帯の最高点)を材名だけ替えて回す。"""
+    U = SH.unity_verts(o)
+    idx = [i for i, m in enumerate(o.data.materials)
+           if m and m.name.split('.')[0] in ("roof", "roof ornaments")]
+    vids = set()
+    for pg in o.data.polygons:
+        if pg.material_index in idx:
+            vids.update(pg.vertices)
+    pts = [U[i] for i in vids]
+    core = [p[1] for p in pts if abs(p[2]) <= end]
+    return (max(core) if core else None), (max(p[1] for p in pts) if pts else None)
+
+
 def report(o, info):
     uvw = SH.unity_verts(o)
     xs = [t[0] for t in uvw]; ys = [t[1] for t in uvw]; zs = [t[2] for t in uvw]
@@ -334,8 +391,13 @@ def report(o, info):
     print("  柱の外面まで(内法の帯) X[%.3f,%.3f] Z[%.3f,%.3f] / 柱芯 X ±%.3f Z ±%.3f"
           % (min(t[0] for t in body), max(t[0] for t in body),
              min(t[2] for t in body), max(t[2] for t in body), info["hu"], info["hv"]))
-    print("  軒高(名目)%.3f / 大棟(瓦場の頂)%.3f / 上端 %.3f / 基壇の根入れ下端 %.3f"
-          % (info["ez"], info["ridge"], max(ys), min(ys)))
+    print("  軒先(名目)%.3f / 丸桁の上端 %.3f / 大棟(瓦場の頂)%.3f / 上端 %.3f / 基壇の根入れ下端 %.3f"
+          % (info["ez"], info["marugeta"], info["ridge"], max(ys), min(ys)))
+    if G.get("eaveH") is not None:
+        mt, at = mune_top_roof(o)
+        print("  ⭐ 類型との並べ(【U】)柱高 %.3f(類型 %.2f)/ 軒高=丸桁の上端 %.3f(類型 %.2f)/ "
+              "大棟の上端 %.3f・鬼の頂 %.3f(類型の棟高 約 %.2f)"
+              % (G["colH"], G["colH"], info["marugeta"], G["eaveH"], mt, at, G["ridgeH"]))
     print("  指紋 %s" % SH.fingerprint(o))
     return tris
 
@@ -522,20 +584,76 @@ def side_outs(d, g, K):
 
 def variant_name(P, out):
     mm = lambda s: int(round(out[s] * 1000.0))
-    return "Sanno_Romon_%dx%dken_k%d-%d-%d-%d" % (P["du"], P["dv"], mm("+X"), mm("-X"),
-                                                   mm("+Z"), mm("-Z"))
+    k = "k%d-%d-%d-%d" % (mm("+X"), mm("-X"), mm("+Z"), mm("-Z"))
+    if P.get("legacy", True):
+        return "Sanno_Romon_%dx%dken_%s" % (P["du"], P["dv"], k)
+    return "Sanno_Romon_%dx%dken_%dx%d_%s" % (P["du"], P["dv"], int(round(2 * P["hu"] * 1000.0)),
+                                               int(round(2 * P["hv"] * 1000.0)), k)
+
+
+def kidan_outs(P, spec):
+    """`--kidan <通り抜けm>x<幅m>` → 四周の出(柱芯から・mm に丸める)。⛔ 取り合いの面は見ない(後の裁定)。"""
+    a, b = (float(x) for x in spec.lower().split("x"))
+    ox, oz = round((a - 2 * P["hu"]) / 2.0, 3), round((b - 2 * P["hv"]) / 2.0, 3)
+    if ox < G["colD"] / 2.0 or oz < G["colD"] / 2.0:
+        raise SystemExit("[romon] ⛔ 基壇 %s が側柱の外面より内に入る(出 X %.3f / Z %.3f)" % (spec, ox, oz))
+    src = "--kidan %s(基壇の全外形【A 明治16年実測図の外側の線】)" % spec
+    return {"+X": ox, "-X": ox, "+Z": oz, "-Z": oz,
+            "_face": {"+X": None, "-X": None, "+Z": None, "-Z": None},
+            "_src": {s: src for s in ("+X", "-X", "+Z", "-Z")}}
+
+
+def meiji_heights(P):
+    """`G_MEIJI` を G へ入れる。軒の出 = 半スパン × EAVE_RATIO / kumi = 丸桁に垂木を載せる従属値。"""
+    G.clear(); G.update(G_LEGACY); G.update(G_MEIJI)
+    G["eave"] = round(P["hu"] * SH.EAVE_RATIO, 3)
+    sori = SH.Sori(P["hu"] + G["eave"])
+    # ⭐ 丸桁(頭貫上端 +0.95)の外 0.30 で垂木の下端が丸桁に載る高さ(memory の式・旧 G.kumi 0.47 もこれ)
+    G["kumi"] = round(0.95 - sori.z(G["eave"] - 0.30) + 0.105 - 0.02, 3)
+    print("[romon] 高さ(明治16年寸法)柱高 %.2f / 軒の出 %.3f(半スパン %.3f × %.2f)/ kumi %.3f(従属値)"
+          % (G["colH"], G["eave"], P["hu"], SH.EAVE_RATIO, G["kumi"]))
+
+
+def _opt(argv, key):
+    return argv[argv.index(key) + 1] if key in argv and argv.index(key) + 1 < len(argv) else None
 
 
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    P = sashizu_plan()
     with open(SH.SASHIZU) as f:
         d = json.load(f)
+    K = float(d["const"]["ken"])
+    only, kspec, pspec = _opt(argv, "--only"), _opt(argv, "--kidan"), _opt(argv, "--pitch")
+    gates = [q for q in d["gates"] if q.get("bom") in BOM_ROWS
+             and (only is None or only in q.get("bom", "") or only in q.get("name", ""))]
+    if not gates:
+        raise SystemExit("[romon] ⛔ 門が無い(--only %s)" % only)
+    P = None if kspec else sashizu_plan()       # 旧: 2基の上部を共通にして面から出を決める
     for br in BOM_ROWS:
-        print("[romon] 屋根 = 在庫の本瓦(`roof`)— bom『%s』: %s" % (br, P["roof"][br][:60]))
+        row = next((b for b in d["bom"] if b.get("部材") == br), {})
+        print("[romon] 屋根 = 在庫の本瓦(`roof`)— bom『%s』: %s" % (br, row.get("屋根", "")[:60]))
     done = {}
-    for g in [q for q in d["gates"] if q.get("bom") in BOM_ROWS]:
-        out = side_outs(d, g, P["K"])
+    for g in gates:
+        if kspec:
+            P = plan_of(d, g, K)
+            if P["legacy"]:
+                raise SystemExit("[romon] ⛔ --kidan は柱間が 1間でない門(明治16年寸法)にだけ使う: %s" % g["name"])
+            row = next(b for b in d["bom"] if b.get("部材") == g["bom"])
+            meiji_heights(P)
+            if abs(G["colD"] / 2.0 - float(row["axis"]["colRadiusM"])) > 1e-6:
+                raise SystemExit("[romon] ⛔ 側柱の半径 %.3f が axis.colRadiusM %s と違う"
+                                 % (G["colD"] / 2.0, row["axis"]["colRadiusM"]))
+            print("[romon] 門『%s』柱間 通り抜け %.4f × 幅 %.4f m(%d×%d間)/ 柱芯の外形 %.4f × %.4f / 戸口 %.4f"
+                  % (g["name"], P["pu"], P["pv"], P["du"], P["dv"], 2 * P["hu"], 2 * P["hv"], P["pv"]))
+            if pspec:
+                a, b = (float(x) for x in pspec.lower().split("x"))
+                if abs(a - P["pu"]) > 0.001 or abs(b - P["pv"]) > 0.001:
+                    raise SystemExit("[romon] ⛔ --pitch %s と指図の柱間 %.4f×%.4f が 1 mm を越えて違う"
+                                     % (pspec, P["pu"], P["pv"]))
+            out = kidan_outs(P, kspec)
+        else:
+            G.clear(); G.update(G_LEGACY)
+            out = side_outs(d, g, P["K"])
         name = variant_name(P, out)
         print("[romon] 門『%s』→ %s" % (g["name"], name))
         for s in ("+X", "-X", "+Z", "-Z"):

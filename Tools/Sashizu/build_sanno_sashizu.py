@@ -289,6 +289,14 @@ def run_segs(o):
     return [(a, b) for a, b in out if math.hypot(b[0] - a[0], b[1] - a[1]) > SEG_MIN_KEN]
 
 
+def run_band_uv(r, bw):
+    """run(a→b)の両側へ半幅 bw[間]の四隅[uv]。⭐ 斜めの run でも向きに沿う(2026-09-14)。"""
+    a, b = r["a"], r["b"]
+    L = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
+    nx, ny = -(b[1] - a[1]) / L * bw, (b[0] - a[0]) / L * bw
+    return [(a[0] + nx, a[1] + ny), (b[0] + nx, b[1] + ny), (b[0] - nx, b[1] - ny), (a[0] - nx, a[1] - ny)]
+
+
 def run_len_ken(o):
     """run/wall の **開口を抜いた実長**[間]。⛔ **発注量はこちら**(節点間の総和ではない)。
 
@@ -1245,9 +1253,21 @@ def kakoi_cross_check(d, g):
                        100.0 * lg["skip が抜いた"] / (lg["折れ線"] or 1.0)))
     lines, bands = _kakoi_items(d)
     got, corner, near = [], 0, []
+    # ⭐ **端を継いだ組は一本の囲い**(`runs[].endFrom.run` ── 回廊の翼の妻 ≡ 袖塀の先の木口 2026-09-14)。
+    #    ⛔ 継ぎ目を『二つの囲いの間の溝』として測らない。取り合いは `joints` が面で持つ。
+    _rk = {r["name"]: r["kind"] for r in d["runs"]}
+    _chain = set()
+    for r in d["runs"]:
+        ef = r.get("endFrom") or {}
+        if ef.get("run") in _rk:
+            _chain.add("|".join(sorted((r["kind"] + ":" + r["name"], _rk[ef["run"]] + ":" + ef["run"]))))
+    if _chain:
+        note.append("端を継いだ組 %d(%s)── 一本の囲いとして交差・離れを測らない(取り合いは `joints`)【算出】"
+                    % (len(_chain), "・".join(sorted(_chain))))
     for i in range(len(lines)):
         for j in range(i + 1, len(lines)):
             ni, si = lines[i]; nj, sj = lines[j]
+            if "|".join(sorted((ni, nj))) in _chain: continue
             Li = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in si)
             Lj = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in sj)
             xs, tip, best = [], False, None
@@ -3839,7 +3859,7 @@ def avoid_shapes(d, g, scope):
                                    m["u0"] + m["du"] + p, m["v0"] + m["dv"] + p, "棟:" + m["name"]))
         p = ck["sukibeiKairo"]
         for r in d["runs"]:
-            if r["kind"] not in ("透塀", "回廊"): continue
+            if r["kind"] not in ("透塀", "回廊", "袖塀"): continue
             out.append(_shape_seg(r["a"], r["b"], p + r.get("bari", 0) / 2.0,
                                   r["kind"] + ":" + r["name"]))
         for gd in d["gardens"]:
@@ -8101,6 +8121,19 @@ def derive_gaps(d):
         (cu, cv), hw = gap_source(d, gf, o["name"])
         o["gapHalf"] = hw
         a, b = o.get("a"), o.get("b")
+        if a is not None and b is not None and abs(a[0] - b[0]) > 1e-9 and abs(a[1] - b[1]) > 1e-9:
+            # ⭐ **斜めの辺**(回した枠の基壇 — 2026-09-14)── 口の芯は通す物の芯から辺へ下ろした足、
+            #    半幅は**辺に沿って** hw。`gap_split` は走る軸の座標で割るので、その軸への射影で持つ。
+            #    ⛔ 芯の v(または u)をそのまま使わない ── 枠の角のぶん口が片側へずれる。
+            L9 = math.hypot(b[0] - a[0], b[1] - a[1])
+            ex, ey = (b[0] - a[0]) / L9, (b[1] - a[1]) / L9
+            t9 = (cu - a[0]) * ex + (cv - a[1]) * ey
+            fu, fv = a[0] + ex * t9, a[1] + ey * t9
+            if abs(ex) < abs(ey):
+                o["gapV"] = fv; o.pop("gapU", None); o["gapHalf"] = hw * abs(ey)
+            else:
+                o["gapU"] = fu; o.pop("gapV", None); o["gapHalf"] = hw * abs(ex)
+            continue
         if a is not None and b is not None and abs(a[0] - b[0]) < abs(a[1] - b[1]):
             o["gapV"] = cv; o.pop("gapU", None)    # v に走る辺 → 口は v で開く
         else:
@@ -8267,9 +8300,24 @@ def gate_pass_az(gt):
     """門の**通り抜けの軸の方位**[°・mod 180](真北から時計回り)。`front` が先、無ければ `pass`。
     宣言が無ければ None。⛔ 組み立て時の写し `passAz` を読まない ── 変異の図でもその場で出す。"""
     fr, ps = gt.get("front"), gt.get("pass")
-    if fr in _DIR_DEG: return _DIR_DEG[fr] % 180.0
-    if ps in _PASS_DEG: return _PASS_DEG[ps]
+    fd = gate_frame_deg(gt)
+    if fr in _DIR_DEG: return (_DIR_DEG[fr] + fd) % 180.0
+    if ps in _PASS_DEG: return (_PASS_DEG[ps] + fd) % 180.0
     return None
+
+
+def gate_frame_deg(gt):
+    """門が載る**回した枠**の角[°・上から見て時計回り]。`gates[].frame` が `grid.frames` を名指す。
+
+    ⭐ 明治16年実測図の読み【A】── 回廊の東面(北翼・楼門・南翼)は一直線のまま傾く(2026-09-14)。
+    ⛔ 角を門ごとに数で持たない ── `grid.frames[].deg` 一本。⛔ 名指したのに組み立て前で角が解けて
+    いなければ止める(0 で埋めると回した門が黙って真東西へ戻る)。
+    """
+    if not gt.get("frame"): return 0.0
+    if gt.get("frameDeg") is None:
+        raise SystemExit("門『%s』の枠『%s』の角が解けていない(`derive_gate_yaw` の前に読んだ)"
+                         % (gt["name"], gt["frame"]))
+    return float(gt["frameDeg"])
 
 
 def gate_axes_uv(gt):
@@ -8473,17 +8521,28 @@ def derive_gate_yaw(d):
     ⇒ θ = 正面の方位 − 部材の正面のローカル方位。正面が無い門は通り抜けの軸だけ合わせる(mod 180)。
     ⛔ 部材の軸が無い門は yaw を出さない(0 で埋めない)。`passAz` = 通り抜けの軸の方位[°](mod 180)。
     """
+    frames = (d.get("grid") or {}).get("frames") or {}
     for gt in d["gates"]:
         gt["yaw"], gt["passAz"], gt["yawFrom"] = None, None, None
+        if gt.get("frame"):
+            fm = frames.get(gt["frame"])
+            if fm is None or not isinstance(fm.get("deg"), (int, float)):
+                raise SystemExit("門『%s』の `frame`『%s』が `grid.frames` に無い(角 `deg` が引けない)"
+                                 % (gt["name"], gt["frame"]))
+            gt["frameDeg"] = float(fm["deg"])
+        else:
+            gt.pop("frameDeg", None)
+        fd = gate_frame_deg(gt)
         fr, ps = gt.get("front"), gt.get("pass")
         if fr in _DIR_DEG:
-            gt["passAz"] = _DIR_DEG[fr] % 180.0
+            gt["passAz"] = (_DIR_DEG[fr] + fd) % 180.0
         elif ps in _PASS_DEG:
-            gt["passAz"] = _PASS_DEG[ps]
+            gt["passAz"] = (_PASS_DEG[ps] + fd) % 180.0
         ax = (gate_bom_row(d, gt) or {}).get("axis") or {}
         if fr in _DIR_DEG and ax.get("front") in _LOCAL_AX_DEG:
-            gt["yaw"] = round((_DIR_DEG[fr] - _LOCAL_AX_DEG[ax["front"]]) % 360.0, 6)
-            gt["yawFrom"] = "front=%s × bom.axis.front=%s" % (fr, ax["front"])
+            gt["yaw"] = round((_DIR_DEG[fr] + fd - _LOCAL_AX_DEG[ax["front"]]) % 360.0, 6)
+            gt["yawFrom"] = "front=%s%s × bom.axis.front=%s" % (
+                fr, (" + 枠『%s』%+.1f°" % (gt["frame"], fd)) if fd else "", ax["front"])
         elif gt["passAz"] is not None and ax.get("pass") in _LOCAL_AX_DEG:
             gt["yaw"] = round((gt["passAz"] - _LOCAL_AX_DEG[ax["pass"]]) % 180.0, 6)
             gt["yawFrom"] = "pass × bom.axis.pass=%s(正面は未宣言 — 軸だけ合わせる)" % ax["pass"]
@@ -8884,8 +8943,34 @@ def derive_gates(d, g):
         r["a"][0] = r["b"][0] = face_u(uf)
     for r in d["runs"]:
         ef = r.get("endFrom")
-        if not ef: continue
-        r[ef["end"]] = gate_col_face_end(d, r, ef)
+        if not ef or not ef.get("gate"): continue
+        if ef.get("fromCentre"):
+            # ⭐ **門の芯を通る線の上の run**(回廊の東面が楼門の芯を通る一直線 — 明治16年実測図【A】)。
+            #    端 = 芯 + 外向き × 側柱の外面までの距離。⛔ json の a/b の向きを読まない。
+            gt9 = gate_by_name(d, ef["gate"])
+            dist, m = gate_col_face_dist(d, gt9, ef["face"])
+            r[ef["end"]] = [gt9["u"] + m[0] * dist, gt9["v"] + m[1] * dist]
+            r["_outward"] = [m[0], m[1]]
+        else:
+            r[ef["end"]] = gate_col_face_end(d, r, ef)
+    by9 = {q["name"]: q for q in d["runs"]}
+    for r in d["runs"]:
+        ef = r.get("endFrom")
+        if not ef or not ef.get("run"): continue
+        # ⭐ **run の端から継ぐ**(回廊の翼の妻 ≡ 袖塀の先の木口 — 2026-09-14)。向きは相手の run の向き。
+        q = by9.get(ef["run"])
+        if q is None or q.get("_outward") is None:
+            raise SystemExit("run『%s』の `endFrom.run`『%s』が引けない(門から出した run でない)" % (r["name"], ef["run"]))
+        r[ef["end"]] = list(q[ef["runEnd"]])
+        r["_outward"] = list(q["_outward"])
+    for r in d["runs"]:
+        ef = r.get("endFrom")
+        if not ef or not r.get("farByKen"): continue
+        if r.get("_outward") is None or not r.get("ken"):
+            raise SystemExit("run『%s』の `farByKen` に向きか長さ `ken` が無い" % r["name"])
+        far = "b" if ef["end"] == "a" else "a"
+        m = r["_outward"]
+        r[far] = [r[ef["end"]][0] + m[0] * float(r["ken"]), r[ef["end"]][1] + m[1] * float(r["ken"])]
     for gd in d["gardens"]:
         pf = gd.get("polyFrom")
         if not pf: continue
@@ -9441,7 +9526,7 @@ def route_pierce(d, g):
     """
     obs = []
     for r in d["runs"]:
-        if r["kind"] in ("透塀", "板塀", "柵", "回廊"):
+        if r["kind"] in ("透塀", "板塀", "柵", "回廊", "袖塀"):
             for a, b in run_segs(r):
                 obs.append((r["name"], g.W(*a), g.W(*b)))
     for w in d["terraceWalls"]:
@@ -9579,7 +9664,7 @@ def shachi_svg(d, kan="其一"):
 
     # 透塀・回廊・社殿
     for r in d["runs"]:
-        if r["kind"] not in ("透塀", "回廊"): continue
+        if r["kind"] not in ("透塀", "回廊", "袖塀"): continue
         w0 = g.W(*r["a"]); w1 = g.W(*r["b"])
         col = "var(--shu)" if r["kind"] == "透塀" else "var(--roka)"
         o.append(LN(pr.X(w0[0]), pr.Y(w0[1]), pr.X(w1[0]), pr.Y(w1[1]), stroke=col, sw=2.0))
@@ -9591,10 +9676,10 @@ def shachi_svg(d, kan="其一"):
     for r in d["runs"]:                                  # 回廊(run が正典)
         if not r.get("mune"): continue
         bw = r.get("bari", 2) / 2.0
-        w0 = g.W(r["a"][0] - bw, r["a"][1]); w1 = g.W(r["b"][0] + bw, r["b"][1])
-        o.append(R(pr.X(min(w0[0], w1[0])), pr.Y(max(w0[1], w1[1])),
-                   abs(pr.X(w1[0]) - pr.X(w0[0])), abs(pr.Y(w0[1]) - pr.Y(w1[1])),
-                   fill="var(--roka)", op=0.85))
+        # ⭐ 帯は run の向きに沿う四角(回した枠の回廊 — 2026-09-14)。⛔ 世界軸の矩形で描かない
+        _q = run_band_uv(r, bw)
+        o.append(PL([(pr.X(g.W(*c9)[0]), pr.Y(g.W(*c9)[1])) for c9 in _q], stroke="none", sw=0.0,
+                    fill="var(--roka)", op=0.85, close=True))
 
     # 石段(折れ線対応)
     for k in d["kaidans"]:
@@ -9949,8 +10034,9 @@ def keidai_svg(d, u0, u1, v0, v1, title, W=900.0):
         if not r.get("mune"): continue
         bw = r.get("bari", 2) / 2.0
         ua, va = r["a"]; ub, vb = r["b"]
-        o.append(lp.rect(ua - bw, va, ub + bw, vb, fill="var(--roka)",
-                         stroke="var(--ink)", sw=0.9, op=0.85))
+        _q = run_band_uv(r, bw)
+        o.append(PL([(lp.X(c9[0]), lp.Y(c9[1])) for c9 in _q], fill="var(--roka)",
+                    stroke="var(--ink)", sw=0.9, op=0.85, close=True))
         o.append(T(lp.X((ua + ub) / 2.0), lp.Y((va + vb) / 2.0) + 4, "廻廊",
                    fs=10.5, anchor="middle", fill="var(--paper)"))
 
@@ -10267,7 +10353,7 @@ def section_marks(d, g, key, prof):
     #    種別で拾っていた断面から黙って落ちるところだった(規則19)。⛔ 天端を持たない柵
     #    (麓道・参道の柵。地形なり)は面の断面に載らないので入れない。
     for r in d["runs"]:
-        if r["kind"] not in ("透塀", "板塀", "回廊") and \
+        if r["kind"] not in ("透塀", "板塀", "回廊", "袖塀") and \
            not (r["kind"] == "柵" and isinstance(r.get("seat"), (int, float))): continue
         for a, b in run_segs(r):
             A, B = g.W(*a), g.W(*b)
@@ -11134,7 +11220,7 @@ def _zentei_kakoi(d):
 def kakoi_svg(d, kan="其九"):
     ken = d["const"]["ken"]
     W = 900.0
-    rows = [r for r in d["runs"] if r["kind"] in ("透塀", "回廊", "板塀", "柵")]
+    rows = [r for r in d["runs"] if r["kind"] in ("透塀", "回廊", "袖塀", "板塀", "柵")]
 
     # ⛔ **長さは開口を抜いた実長**(`run_len_ken`)— これが発注量になる(検図10巡目 中1)。
     #    節点間の総和(`run_nodes_ken`)は**史料拘束を読むためだけ**に別に刷る。
@@ -11770,7 +11856,7 @@ def sanroku_svg(d, kan="其十一"):
     o.append(PL([(pr.X(x), pr.Y(z)) for x, z in kp], stroke="var(--ink)", sw=1.0,
                 fill="var(--pl-main)", op=0.7, close=True))
     for r in d["runs"]:
-        if r["kind"] not in ("透塀", "回廊"): continue
+        if r["kind"] not in ("透塀", "回廊", "袖塀"): continue
         w0 = g.W(*r["a"]); w1 = g.W(*r["b"])
         o.append(LN(pr.X(w0[0]), pr.Y(w0[1]), pr.X(w1[0]), pr.Y(w1[1]),
                     stroke="var(--shu)" if r["kind"] == "透塀" else "var(--roka)", sw=2.0))
@@ -17090,12 +17176,12 @@ def main():
     h.append("</div>")
 
     # 其三 社殿 平面
-    plate(h, nx(), "社殿 平面", "透塀 東西23.5間 × 南北17間 = 周長 81 間 ／ 東線 = 袖8+中門1+袖8")
-    fig(h, keidai_svg(d, -49, -19, -12, 12, "%s　社殿 平面(拡大)" % KAN[n[0] - 1]),
+    plate(h, nx(), "社殿 平面", "透塀 凸形(T字)8辺 ／ 中門と社殿の軸は楼門の軸の北 ／ 辺の長さは囲いの展開")
+    fig(h, keidai_svg(d, -46, -14, -10, 13, "%s　社殿 平面(拡大)" % KAN[n[0] - 1]),
         cap="<b>幣殿型権現造・本殿入母屋造。</b>本殿(方三間)—作り合い(一間・海老虹梁)—幣殿(三間×一間)"
             "—拝殿(七間×三間)—向拝(三間)。<b>幣殿型は向拝一間が通例だが、日枝は石の間型と同格の三間を採る</b>【A】。"
             "囲いは瑞垣のタイプX(正面に瑞垣門=中門を構え、門の両側から瑞垣=透塀が社殿を一周する)【A】。"
-            "<b>透塀の矩形は史料の延長 147.28 m にちょうど合わせてある</b> — 周長が設計拘束になっている。")
+            "<b>透塀は凸形(T字)</b>【A 明治16年実測図/S 御宮絵図】で、延長 147.28 m【S】との差は囲いの展開が刷る。")
     h.append(munes_table(d))
     h.append("</div>")
 

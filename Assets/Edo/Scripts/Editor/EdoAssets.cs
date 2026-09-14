@@ -604,12 +604,13 @@ public static class EdoAssets
 
         /// <summary>**山王社の坂下の門(仁王門)— 明治16年実測図 第2稿の読み**(2026-09-14)。三間一戸・単層・**切妻・組物なし**・本瓦葺。
         /// 明治図には写っていない(撤去済み)ので外形 <paramref name="passMm"/>(通り抜け=X)× <paramref name="widthMm"/>(幅=Z)は【U】
-        /// (御宮絵図の楼門比)、姿は【S 名所図会】。現行 (2,3,3000,6000,300,300,300,300) = 柱間 1.5 × 2.0・戸口 2.0。
+        /// (御宮絵図の楼門比)、姿は【S 名所図会】。現行 (2,3,3000,6000,298,298,178,178) = 柱間 1.5 × 2.0・戸口 2.0。
         /// ⭐ 楼門と同じ規約: 通り抜け=ローカル X・正面=+X(扉は −X へ開く)・大棟=Z・ピボット=門の芯・敷居の高さ・yaw 0 で正面=東・scale one。
-        /// 基壇の出 k は柱芯から +X/−X/+Z/−Z[mm] — ⚠ 0.30 四周は取り合いの面が決まるまでの仮【U】。
+        /// 基壇の出 k は柱芯から +X/−X/+Z/−Z[mm]。取り合いの面の 2 mm 手前: +Z = 袖塀 `Ita_Niou_N` の木口(北の側柱の外面 0.18)、
+        /// −X = 前庭の西縁の腰石垣の面(犬走り 0.30)。面の無い +X・−Z は向かいの側に揃える(旧 300 四周は Ita_Niou_N を 0.120 越えた)。
         /// 外形 W(X)5.62 × H(Y)5.86(−0.60〜5.26)× D(Z)8.31・12.3k tris。柱高 3.10・軒の出 1.20・妻の出 0.90・軒桁の上端 3.40・
         /// 軒先の名目 2.89(従属値)・大棟の瓦場 4.69【すべて U 類型】。材は名前だけ ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
-        /// 生成: blender --background --python Tools/Blender/build_sanno_romon.py -- --only 坂下 --kidan 3.6x6.6 --plan 3.0x6.0 --bays 2x3 --kirizuma --render --full</summary>
+        /// 生成: SANNO_SASHIZU=&lt;指図&gt; blender --background --python Tools/Blender/build_sanno_romon.py -- --only 坂下 --kidan 3.6x6.6 --plan 3.0x6.0 --bays 2x3 --kirizuma --faces -,0.30,0.18,- --render --full</summary>
         public static string SannoSakashitamon(int duKen, int dvKen, int passMm, int widthMm, int pX, int mX, int pZ, int mZ)
         {
             return "Assets/Edo/Models/Sanno/Sanno_Sakashitamon_" + duKen + "x" + dvKen + "ken_" + passMm + "x" + widthMm

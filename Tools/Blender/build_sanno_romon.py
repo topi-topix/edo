@@ -826,6 +826,31 @@ def kidan_outs(P, spec):
             "_src": {s: src for s in ("+X", "-X", "+Z", "-Z")}}
 
 
+def faces_outs(P, spec):
+    """`--faces <+X>,<−X>,<+Z>,<−Z>` = 柱芯から**取り合いの面**までの距離[m](`-` = 面なし)。
+    `side_outs` と同じ規則: 面の 2 mm 手前(`MARGIN`)まで・面の無い側は向かいの側に揃える。
+    ⚠ 坂下の門は `uFrom` の従属値で `sanno_impl.json` が古いことがあるので、面は指図 json から読んで引数で渡す
+    (2026-09-14 普請奉行の依頼 — 基壇が `Ita_Niou_N` の木口を 0.120 越えた ⛔2)。"""
+    keys = ("+X", "-X", "+Z", "-Z")
+    vals = [x.strip() for x in spec.split(",")]
+    if len(vals) != 4:
+        raise SystemExit("[romon] ⛔ --faces は4つ(+X,-X,+Z,-Z): %s" % spec)
+    F = {k: (None if v in ("-", "") else float(v)) for k, v in zip(keys, vals)}
+    opp = {"+X": "-X", "-X": "+X", "+Z": "-Z", "-Z": "+Z"}
+    out = {}
+    for k in keys:
+        f = F[k] if F[k] is not None else F[opp[k]]
+        if f is None:
+            raise SystemExit("[romon] ⛔ --faces %s: %s と向かいの側の両方に面が無い" % (spec, k))
+        out[k] = max(0.0, math.floor((f - MARGIN) * 1000.0) / 1000.0)
+        if out[k] < G["colD"] / 2.0 - MARGIN - 0.001:     # ⭐ 面が側柱の外面なら 2 mm 手前(楼門の ±Z 178 と同じ)は許す
+            raise SystemExit("[romon] ⛔ 基壇の出 %s %.3f が側柱の外面より内に入る" % (k, out[k]))
+    out["_face"] = F
+    out["_src"] = {k: ("--faces 取り合いの面 %.3f" % F[k]) if F[k] is not None else "面なし(向かいの側に揃える)"
+                   for k in keys}
+    return out
+
+
 def meiji_heights(P):
     """`G_MEIJI` を G へ入れる。軒の出 = 半スパン × EAVE_RATIO / kumi = 丸桁に垂木を載せる従属値。"""
     G.clear(); G.update(G_LEGACY); G.update(G_MEIJI)
@@ -872,7 +897,8 @@ def main():
                 meiji_heights(P)
             print("[romon] 門『%s』外形(引数)通り抜け %.3f × 幅 %.3f / %d×%d間 / 柱間 %.4f × %.4f / 戸口 %.4f / 屋根 %s"
                   % (g["name"], a, b, nu, nv, P["pu"], P["pv"], P["pv"], G.get("roofKind", "入母屋")))
-            out = kidan_outs(P, kspec)
+            fspec = _opt(argv, "--faces")
+            out = faces_outs(P, fspec) if fspec else kidan_outs(P, kspec)
         elif kspec:
             P = plan_of(d, g, K)
             if P["legacy"]:

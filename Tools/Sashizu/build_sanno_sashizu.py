@@ -5515,6 +5515,9 @@ def plant_budget(d, g):
         lay9 = r9.get("layer") or "落葉"
         sn[lay9] = sn.get(lay9, 0.0) + 1
         if r9.get("band"): nm_cut[lay9] = nm_cut.get(lay9, 0) + 1
+    # ⭐ **盛土の法面の植栽**(庭方 2026-09-15)── 図が据えて焼き出しの点に入れる木なので予算表にも数える(層ごと)
+    for q9 in fill_slope_trees(d, g):
+        if q9["layer"] in n: n[q9["layer"]] += 1
     place = d["planting"]["plantRule"].get("placement") or {}
     rows = []
     for key in ("松", "落葉", "中木", "低木"):
@@ -14568,6 +14571,8 @@ def fill_slope_trees(d, g):
         acc.append(acc[-1] + math.hypot(S[k][0][0] - S[k - 1][0][0], S[k][0][1] - S[k - 1][0][1]) * ken)
 
     def near(sm): return min(range(len(S)), key=lambda k: abs(acc[k] - sm))
+    # ⛔ 撒く木は勝手道の敷きと設計された塊の箱を避ける(帯の撒き木と同じ退避 ── 動線を塞がない・塊を埋めない)
+    avoid9 = kattemichi_apron_shapes(d, g, 0.0) + cluster_keepout_shapes(d)
     ch = fs["chuboku"]
     rows = ch.get("rowFrac") or [0.4, 0.6]
     rnd, _k = _seed_rnd(d, "盛土の法面", "中木")
@@ -14575,6 +14580,9 @@ def fill_slope_trees(d, g):
     while sm <= acc[-1]:
         p, n, tM, _i = S[near(sm)]
         f = rows[j % len(rows)]
+        if shape_hit((p[0] + n[0] * tM * f / ken, p[1] + n[1] * tM * f / ken), avoid9):
+            sm += 0.5
+            continue
         out.append(_tree_row(d, g, rnd, "法面_中木%03d" % (j + 1), "盛土の法面(中木)", "中木", pal["中木"],
                              ch["hM"], p[0] + n[0] * tM * f / ken, p[1] + n[1] * tM * f / ken))
         j += 1
@@ -14592,7 +14600,7 @@ def fill_slope_trees(d, g):
         # ⭐ 入隅(東の端 ── 既存の法面と谷)では法尻の外の線が折り返して法面・平場の上へ落ちる ⇒ 線に沿って先へ送る
         q9 = (p[0] + n[0] * o9, p[1] + n[1] * o9)
         T9 = geo["toe"]
-        if in_poly(q9, P_in) or in_poly(q9, K_in) \
+        if in_poly(q9, P_in) or in_poly(q9, K_in) or shape_hit(q9, avoid9) \
                 or min(_pt_seg(q9, T9[i], T9[i + 1]) for i in range(len(T9) - 1)) < off - 0.15:
             sm += 0.5
             continue
@@ -14623,7 +14631,8 @@ def fill_slope_trees(d, g):
     dm = (float(tb[0]) + float(tb[1])) / 2.0
     nlow = int(round(geo["areaM2"] * dm / 100.0))
     rnd3, _k = _seed_rnd(d, "盛土の法面", "低木")
-    pts, _r, _x = _scatter_take(rnd3, list(poly_scan(geo["poly"], 0.25)), nlow, math.sqrt(100.0 / dm) * pack / ken)
+    pts, _r, _x = _scatter_take(rnd3, [p for p in poly_scan(geo["poly"], 0.25) if not shape_hit(p, avoid9)],
+                                nlow, math.sqrt(100.0 / dm) * pack / ken)
     for j, (u9, v9) in enumerate(pts):
         out.append(_tree_row(d, g, rnd3, "法面_低木%03d" % (j + 1), "盛土の法面(低木)", "低木", pal["低木"],
                              b.get("teibokuH"), u9, v9))
@@ -14677,6 +14686,9 @@ def fill_slope_trees(d, g):
             tx, ty = path[k2][0] - path[k][0], path[k2][1] - path[k][1]
             Lt = math.hypot(tx, ty) or 1.0
             sg = (1.0 if j % 2 == 0 else -1.0) * float(ts.get("staggerM", 0.0)) / 2.0 / ken
+            if shape_hit((u9 - ty / Lt * sg, v9 + tx / Lt * sg), avoid9):
+                sm += 0.5
+                continue
             out.append(_tree_row(d, g, rnd4, "法尻_低木%02d" % (j + 1), "盛土の法尻(低木)", "低木", pal["低木"],
                                  ts["hM"], u9 - ty / Lt * sg, v9 + tx / Lt * sg))
             j += 1
@@ -16262,6 +16274,7 @@ def keepout_wiring_check(d, g):
             ("棟", [m for m in d["munes"] if m.get("yaku") != "接続"]),
             ("透塀", [r for r in d["runs"] if r.get("kind") == "透塀"]),
             ("回廊", [r for r in d["runs"] if r.get("kind") == "回廊"]),
+            ("袖塀", [r for r in d["runs"] if r.get("kind") == "袖塀"]),
             ("白洲", [gd for gd in d["gardens"] if gd["name"] == "白洲"]),
             ("中庭", [gd for gd in d["gardens"] if gd["name"] == "中庭"]),
             ("動線", d.get("routes") or []),
@@ -17312,7 +17325,7 @@ def impl_graded_check(d, g):
     se = im.get("setae") or {}
     _fu = fumiishi_rects(d)
     for key, want in (("props", [nm for nm, _Q in prop_rects(d)]),
-                      ("fumiishi", [q[0] for q in _fu]),
+                      ("fumiishi", [q[0] for q in _fu] + [nm9 for nm9, _P9 in fumitome_polys(d)]),
                       ("gardens", [gd["name"] for gd in d["gardens"]]),
                       ("viewpoints", [vp["name"] for vp in d.get("viewpoints", [])])):
         got = [q.get("name") for q in (se.get(key) or [])]

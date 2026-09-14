@@ -80,6 +80,8 @@
    "postCC": 1.3,
    "innerW": 1.16,
    "nemakiInnerW": 1.0,
+   "nemakiOuterW": 1.6,
+   "nemakiD": 0.3,
    "nemakiTop": 0.14,
    "height": 2.22,
    "bottomY": -0.1,
@@ -88,9 +90,10 @@
    "faceAxis": "±Z",
    "faceSymmetric": true,
    "gaku": false,
-   "innerClr": 0.05
+   "innerClr": 0.05,
+   "nemakiClr": 0.08
   },
-  "_toriiRule": "**鳥居が参道に載るかの許容と、鳥居の部材 `EdoAssets.Own.Torii`(Okabe_Torii.fbx)の実測**。\n⭐ 許容【指図方・確度P】— `onRouteTol` = 据え点から参道の折れ線までの距離の許容[間](据え点を参道の頂点に置く設計なので丸めの誤差だけを許す)/ `facingTolDeg` = 正面の向きと据え点に掛かる参道の区間の接線との角の許容[度](折れの上に立てると鳴る)/ `innerClr` = 柱の内面から玉砂利の縁までの離れの下限[m]【庭方】。\n⭐ 部材の実測【部材方】— `outerW` = 外幅(笠木)/ `postCC` = 柱の芯々 / `innerW` = **柱の内々(内法)**/ `nemakiInnerW` = 根巻石の内々 / `nemakiTop` = 根巻石の天端(地盤から)/ `height` = 地盤からの高さ / `bottomY` = 部材の底(地盤から)/ `heightTotal` = 底を含めた丈 / `postH` = 柱高(いずれも m)/ `faceAxis` = 表の法線のローカル軸 / `faceSymmetric` = 表裏同形 / `gaku` = 額の有無。\n⭕ 参道の半幅 ≤ `innerW`/2 − `innerClr`。⛔ 芯々 `postCC` で測らない(柱の太さぶん内法より広い)。⇒ 検査 `torii_route_check`"
+  "_toriiRule": "**鳥居が参道に載るかの許容と、鳥居の部材 `EdoAssets.Own.Torii`(Okabe_Torii.fbx)の実測**。\n⭐ 許容【指図方・確度P】— `onRouteTol` = 据え点から参道の折れ線までの距離の許容[間](据え点を参道の頂点に置く設計なので丸めの誤差だけを許す)/ `facingTolDeg` = 正面の向きと据え点に掛かる参道の区間の接線との角の許容[度](折れの上に立てると鳴る)/ `innerClr` = 柱の内面から玉砂利の縁までの離れの下限[m]【庭方】/ `nemakiClr` = **根巻石の内面**から玉砂利の縁までの離れの下限[m]【庭方・U 設計値】。\n⭐ 部材の実測【部材方】— `outerW` = 外幅(笠木)/ `postCC` = 柱の芯々 / `innerW` = **柱の内々(内法)**/ `nemakiInnerW` = 根巻石の内々 / `nemakiOuterW` = 根巻石の外々 / `nemakiD` = 根巻石の奥行(参道の向き)/ `nemakiTop` = 根巻石の天端(地盤から)/ `height` = 地盤からの高さ / `bottomY` = 部材の底(地盤から)/ `heightTotal` = 底を含めた丈 / `postH` = 柱高(いずれも m)/ `faceAxis` = 表の法線のローカル軸 / `faceSymmetric` = 表裏同形 / `gaku` = 額の有無。\n⚠ `nemakiOuterW`・`nemakiD` は部材の生成スクリプト `Tools/Blender/build_okabe_fuzokuya.py` の `torii()` の寸法から読んだ値(メッシュの実測ではない)。\n⭕ 参道の半幅 ≤ `nemakiInnerW`/2 − `nemakiClr` — 見えて当たるのは根巻石(地盤から `nemakiTop` 立つ)。柱の内面は根巻石の内面より外にあるので、根巻石で測れば柱の式 `innerW`/2 − `innerClr` も満たす(従属として併せて検める)。⛔ 芯々 `postCC` で測らない(柱の太さぶん内法より広い)。⇒ 検査 `torii_route_check`"
  },
  "_ishigaki": "石垣基壇の作法。**駒は伸縮させない**【ユーザー裁定U 2026-08-29】 — ①1つの石垣オブジェクトの XYZ の長さは変えない ②run の長さは駒の**重なり**で合わせる ③石垣の高さは地面への**埋まり具合**で合わせる。`runs[].base:\"Ishigaki\"` は『この run に石垣基壇が付く』という宣言だけで、**駒の規模は run が持たない**(run ごとに `s` を持って等倍で拡大縮小していた作りを 2026-08-29 に廃した — 隣り合う run で石の大きさが 7.3 倍ちがい、ずれ量が駒の大きさに比例して継ぎ目に隙間と食い込みが同時に出ていた)。\npart=在庫の駒(定数名。EdoAssets.cs が正典)。piece=[厚み(内向き), 丈, 走り] の実寸[m](scale=1 で実測)。ピボットは**外向きの面・底・走りの始端**の角で、箱はローカル X −piece[0]..0 / Y 0..piece[1] / Z −piece[2]..0。\n**横の割り付け**: run の s0..s1 を N 枚で覆う。L=s1−s0、W=piece[2] として L≤W なら N=1(駒が s1 を越えてはみ出す=可。隣と重なるのは可)、そうでなければ N=ceil((L−W)/pitchMax)+1、pitch=(L−W)/(N−1)。i 枚目のピボットは s=s0+i·pitch(箱は [s, s+W])で、最後の駒の端が s1 にちょうど乗る。pitch≤pitchMax が保証されるので重なりは常に overlapMin 以上 — ⛔ 隙間は出ない。N は覆える最小枚数(1枚減らすと届かない)。\n**縦の合わせ**: position.y = 天端(seat) − piece[1]。駒の天端が run の座に来て、残りは地中に埋まる。露出高さ = seat − 地盤(edgeProfiles【P】)で、0 以下の区間は完全に地中でよい。露出が exposeSplit を超える手前で run を割る(岡部の作法と同じ)。piece[1] を超えたら駒が地面に届かないので不可。\n検算は生成器の `ishigaki_layout_check`(覆い・重なり・枚数の最小性・露出の三本立て+感度試験)。",
  "ishigaki": {
@@ -4579,7 +4582,7 @@
   "inariSando": "⭕ **決着(2026-09-14・庭方 設計・U 設計値)。**参道 `R_Inari` は社の芯の通りを来て社の西面で止まり、鳥居2基 `T_Torii_1`/`T_Torii_2` は線上に据えて正面を参道へ向ける(`facing`)。梅の東の塊は V7 からの視線の北に置く。値は json の各欄が正典。⇒ 鳥居の芯ずれと向きは `torii_route_check`、参道と板塀・杜・梅の離れは植栽の退避の検査が出す",
   "inariShaBuhin": "⭕ **案A を採用(2026-09-14・普請奉行が庭方の推奨を採用)— 社から付属の朱の鳥居を外す。**鳥居は素木の2基 `EdoAssets.Own.Torii` のまま。\n⭕ **部材は起こした** — 部材方が `Tools/Blender/build_matsudaira_dewa_fuzokuya.py` に `inari(torii=False)` / 部材名 `inari_hokora` を足した(在庫の `Matsudaira_Inari.fbx` は鳥居と祠の一体メッシュで分けられない)。寸法・ピボット・正面の軸は `service[Inari].buhin`。\n⚠ **残り** — ① FBX `Matsudaira_Inari_Hokora.fbx` の書き出し(資源の枠待ち・部材方)② `EdoAssets.Own.Matsudaira.InariHokora` = `FuzokuyaDir + \"Matsudaira_Inari_Hokora.fbx\"` の登録(**未登録**。`service.Inari.api` は登録後の名を先に指している)③ ビルダーが `service.Inari.facing` を読んで正面(ローカル +Z)を向ける直し(棟梁)",
   "toriiOmoteJiku": "⭕ **測った(部材方の実測)** — `EdoAssets.Own.Torii` は**表裏同形**で、表の法線はローカル **±Z**、額なし。値は `const.toriiRule`(`faceAxis`・`faceSymmetric`・`gaku`)。⇒ `tenkei[T_Torii_1/2].facing` の向きに ±Z のどちらを当てても姿は変わらない",
-  "sandoHabaNaiho": "⛔ **差し戻し(庭方)— 参道 `R_Inari` の幅が鳥居の内法に収まらない。**内法 `const.toriiRule.innerW` を柱の内々の実測に直して再判定すると、参道の半幅が `innerW`/2 − `innerClr` を超える(量は `torii_route_check` が出す)。⛔ 指図方は幅 `w` を動かさない(幅は庭方の設計)。\n⚠ **あわせて判断が要る** — 根巻石の内々 `nemakiInnerW` は内法より狭く、根巻石は地盤から `nemakiTop` 立つ。いまの式(離れを柱の内面から測る)では上限いっぱいの参道でも玉砂利が根巻石に掛かる。離れを柱から測るか根巻石から測るかも庭方の判断"
+  "sandoHabaNaiho": "⭕ **決着【第41次・庭方 設計】。**参道 `R_Inari` の幅 `w` は全線一律。半幅は根巻石の内々から `const.toriiRule.nemakiClr` 離す(柱の内面の式 `innerClr` は従属で残す)。鳥居の足元の納めは `routes[R_Inari].toriiFoot`。⇒ `torii_route_check`"
  },
  "_const_feather": "batterFill/batterCut=段の縁を現地形へ落とす法面の勾配(盛土1:1.5・切土1:1)。featherCap=法面を延ばす上限[m]。wallNear=土留めが縁を覆っているとみなす距離[間]。**土留めのある縁は垂直(石垣が受ける)。無い縁は法面で現地形に着地させるが、featherCap 先でも着地しないなら法面では納まらない = 崖のままにする**(西斜面のように急な崖では法面が宙に伸びて土手になる。2026-08-23 実装で最大9mの土手が出て発覚)。",
  "_routes": "動線(§3d)。門を入ってから人がどう動く想定かを図と表で示す。折れ線はグリッド座標(u,v)。生成器が延長・昇り・越える石段の段数を算出する。系統: 表向(客・使者)/役方(日勤)/勝手(賄・物資)/奥向。**折れ線は入側(棟の外形の一間帯)・渡廊下・棟間の白洲に載せる** — 室の中を斜めに突っ切らない(2026-08-23 検図で、勝手が御土蔵一を10.3m貫通し、奥向が奥御殿の中でUターンしていた)。**勝手の動線を引くと、裏門の無い屋敷では米も薪も表門から入ることが図に出る**。\n⭐ **2026-09-01 に園路(`kind=\"niwa\"`)を4本足した。**動線(表向・役方・勝手・奥向)は『人がどこへ用があって歩くか』、園路は『庭をどう見せるか』で、別の物。⛔ 同心円にしない。**中仕切塀 v47.5 で回遊は二系統**(人の出入りは御錠口だけ、の原則を壊さない)。庭木戸 `NJ_Oku_Kido` は手入れの木戸なので回遊路はそこで折り返さず**環**にする。",
@@ -5068,8 +5071,19 @@
    "name": "R_Inari",
    "label": "稲荷の参道",
    "kind": "niwa",
-   "w": 0.6,
+   "w": 0.44,
    "finish": "玉砂利敷(⛔ 飛石にしない=参道の作法)",
+   "toriiFoot": {
+    "gravelEdge": "縁石なし",
+    "gravelTop": [
+     0.0,
+     0.03
+    ],
+    "soilBand": 0.1,
+    "fernClr": 0.15,
+    "cert": "U 設計値",
+    "_": "**鳥居の足元の納め**【庭方 設計・U 設計値】。`gravelEdge` = 玉砂利の縁の見切り(縁石を立てない)/ `gravelTop` = 玉砂利の天端の地盤からの高さの帯[m](地盤と面一)— ⛔ 根巻石の天端 `const.toriiRule.nemakiTop` を埋めない / `soilBand` = 根巻石の内面から玉砂利の縁までの土の見切りの幅[m](= 根巻石の内々の半分 − 参道の半幅)/ `fernClr` = 下草(シダ)の芯を根巻石の外面から離す距離[m]。⇒ 検査 `torii_route_check`"
+   },
    "pts": [
     [
      20.0,
@@ -5112,7 +5126,7 @@
      70.3
     ]
    ],
-   "_": "石井戸 `Ido_Oku`(既存 `R_OkuNiwa` の終点)から継ぐ → 宴の平場(V7)→**一の鳥居 `T_Torii_1`**→ **二の鳥居 `T_Torii_2`**→ 社前【庭方 設計・U 設計値】。\n⭐ 梅林の区間は v 一定で通し(参道が梅林の中で振れると宴の平場と梅の塊の帯が取り合う)、梅を参道の北に二列の千鳥で残す。その先で社の芯の通り(社 `service.Inari` の v の中央)へ振り、**一の鳥居の手前で真っ直ぐに入る**。⭕ 一の鳥居は折れの先の直線の頭、二の鳥居は社の西面から下げて拝む足場を残す。終点は**社の西面**で止める(⛔ 社の外形の中へ入れない)。鳥居の座標は `tenkei` が正典(⛔ ここへ写さない)。\n⭐ 参道の幅は鳥居の内法の内に収め、鳥居の柱脇は**土の見切り**として残す(⛔ 鳥居は拡大しない)。\n⇒ 鳥居が線上に載り正面が参道を向くか・参道の半幅 ≤ 鳥居の内法/2 − `const.toriiRule.innerClr` は `torii_route_check`、道と塀・杜・梅の退避は植栽の退避の検査が測る。"
+   "_": "石井戸 `Ido_Oku`(既存 `R_OkuNiwa` の終点)から継ぐ → 宴の平場(V7)→**一の鳥居 `T_Torii_1`**→ **二の鳥居 `T_Torii_2`**→ 社前【庭方 設計・U 設計値】。\n⭐ 梅林の区間は v 一定で通し(参道が梅林の中で振れると宴の平場と梅の塊の帯が取り合う)、梅を参道の北に二列の千鳥で残す。その先で社の芯の通り(社 `service.Inari` の v の中央)へ振り、**一の鳥居の手前で真っ直ぐに入る**。⭕ 一の鳥居は折れの先の直線の頭、二の鳥居は社の西面から下げて拝む足場を残す。終点は**社の西面**で止める(⛔ 社の外形の中へ入れない)。鳥居の座標は `tenkei` が正典(⛔ ここへ写さない)。\n⭐ 参道の幅 `w` は**全線一律**【庭方 設計・U 設計値】— 鳥居ごとに絞らない(二基の間が近く、くびれが景を刻む)。邸内社の参道の格は玉砂利で示し、幅では示さない。鳥居の柱脇は**土の見切り**として残す(⛔ 鳥居は拡大しない)。足元の納めは `toriiFoot`。\n⇒ 鳥居が線上に載り正面が参道を向くか・参道の半幅 ≤ 根巻石の内々/2 − `const.toriiRule.nemakiClr`(従属 = 内法/2 − `innerClr`)と足元の納めは `torii_route_check`、道と塀・杜・梅の退避は植栽の退避の検査が測る。"
   },
   {
    "name": "R_Takimi",

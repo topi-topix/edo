@@ -11994,6 +11994,15 @@ DESIGN_WATCH = [
     ("slopePlanting[*].emergent.thin", "突出木の周りを透かす(庭方)", True),
     ("tenkei[T_Torii_2].route", "二の鳥居が載る参道(庭方 設計 D2)", True),
     ("const.toriiRule", "鳥居が参道に載るかの許容(指図方)", True),
+    # ⭐ **2026-09-15(第41次)**(規則19・庭方 設計)
+    ("routes[R_Inari].w", "稲荷の参道の幅(全線一律・庭方)", True),
+    ("const.toriiRule.nemakiClr", "根巻石の内面から玉砂利の縁までの離れ(庭方)", True),
+    ("const.toriiRule.nemakiOuterW", "根巻石の外々(部材の生成スクリプトの寸法)", True),
+    ("const.toriiRule.nemakiD", "根巻石の奥行(部材の生成スクリプトの寸法)", True),
+    ("routes[R_Inari].toriiFoot.gravelTop", "鳥居の足元の玉砂利の天端(庭方)", True),
+    ("routes[R_Inari].toriiFoot.soilBand", "根巻石と玉砂利の間の土の見切り(庭方)", True),
+    ("routes[R_Inari].toriiFoot.fernClr", "下草を根巻石の外面から離す距離(庭方)", True),
+    ("routes[R_Inari].toriiFoot.gravelEdge", "玉砂利の縁の見切り(庭方)", False),
 ]
 
 
@@ -12501,6 +12510,9 @@ def planting_sensitivity(d, dem):
           lambda e: [t.__setitem__("facing", "+u") for t in e["tenkei"] if t["name"] == "T_Torii_1"])
     probe("稲荷の参道の幅を 1.2間 へ戻す(柱が玉砂利の中に立つ)",
           lambda e: [r.__setitem__("w", 1.2) for r in e["routes"] if r["name"] == "R_Inari"])
+    # ⭐ **2026-09-15(第41次)— 根巻石の内々から測る上限**(規則19・庭方)
+    probe("稲荷の参道の幅を 0.6間 へ戻す(玉砂利が根巻石に掛かる)",
+          lambda e: [r.__setitem__("w", 0.6) for r in e["routes"] if r["name"] == "R_Inari"])
     probe("社の正面を -v へ回す(参道の終点が正面に当たらない)",
           lambda e: [x.__setitem__("facing", "-v") for x in e["service"] if x["name"] == "Inari"])
     probe("梅の東の塊の箱を社の外形へ食い込ませる(部分重なり)",
@@ -18253,7 +18265,10 @@ def torii_route_check(d):
     ⭕ 芯ずれ = 鳥居の据え点から `route` の折れ線までの最短距離。
     ⭕ 向き = `facing` は**正面(表)の面の外向きの法線**。参道の区間の向き(`pts` の順 = 起点 → 社)の**逆**との角で測る
       (⛔ abs で比べない — 表裏を取り違えても鳴らなくなる)。折れの上に立てると区間が二本掛かって鳴る。
-    ⭕ 内法 = 参道の半幅 ≤ `toriiRule.innerW`/2 − `innerClr`(⛔ 柱が玉砂利の中に立つ)。
+    ⭕ 内法 = 参道の半幅 ≤ `toriiRule.nemakiInnerW`/2 − `nemakiClr`(⛔ 玉砂利が根巻石に掛かる)。
+      従属として 半幅 ≤ `innerW`/2 − `innerClr`(⛔ 柱が玉砂利の中に立つ)も検める。
+    ⭕ 足元 = `routes[].toriiFoot` — 玉砂利の天端 < 根巻石の天端・土の見切り = 根巻石の内々/2 − 半幅・
+      下草の芯と根巻石の外形の距離 ≥ `fernClr`。
     ⭕ 社 = `service[]` の `facing`/`route` — 参道の終点が正面の面の上にあり、終いの区間が正面へ真っ直ぐ入るか。
     ⛔ 参道の名指し `route` か向き `facing` が無ければ「回っていない」と出す。"""
     rule = (d.get("const") or {}).get("toriiRule")
@@ -18266,15 +18281,22 @@ def torii_route_check(d):
         return ["鳥居の検査の許容 `const.toriiRule` が無い — **鳥居が参道に載るかの検査は回っていない**"]
     tol, atol = float(rule["onRouteTol"]), float(rule["facingTolDeg"])
     inner, iclr = rule.get("innerW"), rule.get("innerClr")
-    # ⭐ 部材の実測どうしの並び — 根巻石の内々 < 内法(柱の内々)< 芯々 < 外幅。⛔ 芯々を内法に取り違えると崩れる
-    seq = [(k, rule.get(k)) for k in ("nemakiInnerW", "innerW", "postCC", "outerW")]
+    # ⭐ 部材の実測どうしの並び — 根巻石の内々 < 内法(柱の内々)< 芯々 < 根巻石の外々 < 外幅。
+    #   ⛔ 芯々を内法に取り違えると崩れる
+    seq = [(k, rule.get(k)) for k in ("nemakiInnerW", "innerW", "postCC", "nemakiOuterW", "outerW")]
     if all(isinstance(v, (int, float)) for _k, v in seq):
-        if not all(seq[i][1] < seq[i + 1][1] for i in range(3)):
+        if not all(seq[i][1] < seq[i + 1][1] for i in range(len(seq) - 1)):
             out.append("鳥居の部材の実測 `const.toriiRule` の並びが崩れている(%s)— ⛔ 内法と芯々の取り違え"
                        % " < ".join("%s %.2f" % (k, v) for k, v in seq))
     else:
-        out.append("鳥居の部材の実測 `const.toriiRule`(nemakiInnerW/innerW/postCC/outerW)が揃っていない — "
+        out.append("鳥居の部材の実測 `const.toriiRule`(nemakiInnerW/innerW/postCC/nemakiOuterW/outerW)が揃っていない — "
                    "**内法の取り違えは検めていない**")
+    nclr, nkD, nkO, nkTop = (rule.get("nemakiClr"), rule.get("nemakiD"), rule.get("nemakiOuterW"),
+                             rule.get("nemakiTop"))
+    # ⭐ 下草の点(足元の納めの `fernClr` を測る)— 散布器が撒いたのと同じ点
+    _roles = {(pl["zone"], pl["layer"]): pl.get("role", "") for pl in d.get("planting", [])}
+    ferns = [(u, v) for key, got in scatter_gardens(d).items() if _roles.get(key) == "下草"
+             for (u, v, _pt) in got]
     routes = {r["name"]: r for r in d.get("routes", [])}
     for t in tor:
         nm = t.get("name")
@@ -18299,12 +18321,69 @@ def torii_route_check(d):
             nk = rule.get("nemakiInnerW")
             if half > lim + 1e-9:
                 out.append("鳥居 %s: 参道 %s の半幅 **%.3fm** が内法 %.2fm の半分 − 離れ %.2fm = %.3fm を超える — "
-                           "⛔ 柱が玉砂利の中に立つ。⇒ 幅は庭方の設計 = `_pending.sandoHabaNaiho`(差し戻し)"
-                           % (nm, r["name"], half, float(inner), float(iclr), lim))
-            wtxt = "参道の半幅 %.3fm %s %.3fm(内法 %.2fm・芯々 %s・根巻石の内々の半分 %s)" % (
-                half, ">" if half > lim + 1e-9 else "≤", lim, float(inner),
-                ("%.2fm" % float(rule["postCC"])) if "postCC" in rule else "?",
-                ("%.2fm" % (float(nk) / 2.0)) if nk is not None else "?")
+                           "⛔ 柱が玉砂利の中に立つ。⇒ 幅 `routes[%s].w` は庭方の設計(差し戻し)"
+                           % (nm, r["name"], half, float(inner), float(iclr), lim, r["name"]))
+            # ⭐ 根巻石の内々から測る上限(第41次・庭方)— 見えて当たるのは根巻石
+            if nk is None or nclr is None:
+                out.append("鳥居の根巻石の内々 `nemakiInnerW` か離れ `nemakiClr` が無い — "
+                           "**玉砂利が根巻石に掛かるかの検査は回っていない**")
+                nlim = None
+            else:
+                nlim = float(nk) / 2.0 - float(nclr)
+                if half > nlim + 1e-9:
+                    out.append("鳥居 %s: 参道 %s の半幅 **%.3fm** が根巻石の内々 %.2fm の半分 − 離れ %.2fm = %.3fm を超える — "
+                               "⛔ 玉砂利が根巻石に掛かる。⇒ 幅 `routes[%s].w` は庭方の設計(差し戻し)"
+                               % (nm, r["name"], half, float(nk), float(nclr), nlim, r["name"]))
+            wtxt = "参道の半幅 %.3fm %s 根巻石の内々の半分 − 離れ %s(柱の式 %s %.3fm・内法 %.2fm・芯々 %s)" % (
+                half, ">" if (nlim is not None and half > nlim + 1e-9) else "≤",
+                ("%.3fm" % nlim) if nlim is not None else "?",
+                ">" if half > lim + 1e-9 else "≤", lim, float(inner),
+                ("%.2fm" % float(rule["postCC"])) if "postCC" in rule else "?")
+            # ⭐ 足元の納め `routes[].toriiFoot`(第41次・庭方)— 玉砂利の天端・土の見切り・下草の離れ
+            ft = r.get("toriiFoot")
+            if not isinstance(ft, dict):
+                out.append("鳥居 %s: 参道 %s の足元の納め `toriiFoot` が無い — **足元の納めは検めていない**"
+                           % (nm, r["name"]))
+            else:
+                gt, sb, fc = ft.get("gravelTop"), ft.get("soilBand"), ft.get("fernClr")
+                ftxt = ["見切り %s" % ft.get("gravelEdge", "?")]
+                if not (isinstance(gt, list) and len(gt) == 2) or nkTop is None:
+                    out.append("鳥居 %s: 玉砂利の天端 `gravelTop` か根巻石の天端 `nemakiTop` が読めない — "
+                               "**根巻石を埋めるかは検めていない**" % nm)
+                elif float(gt[1]) >= float(nkTop) - 1e-9 or float(gt[0]) > float(gt[1]):
+                    out.append("鳥居 %s: 玉砂利の天端 %.2f〜%.2fm が根巻石の天端 %.2fm に届く — ⛔ 根巻石を埋める"
+                               % (nm, float(gt[0]), float(gt[1]), float(nkTop)))
+                else:
+                    ftxt.append("玉砂利の天端 +%.2f〜%.2fm < 根巻石の天端 %.2fm" % (float(gt[0]), float(gt[1]), float(nkTop)))
+                if sb is None or nk is None:
+                    out.append("鳥居 %s: 土の見切り `soilBand` が読めない — **根巻石と玉砂利の間は検めていない**" % nm)
+                else:
+                    gap = float(nk) / 2.0 - half
+                    if abs(gap - float(sb)) > 0.005:
+                        out.append("鳥居 %s: 根巻石の内面から玉砂利の縁まで %.3fm が土の見切り `soilBand` %.2fm と合わない"
+                                   "(参道の幅と足元の納めが食い違う)" % (nm, gap, float(sb)))
+                    else:
+                        ftxt.append("土の見切り %.3fm = `soilBand` %.2fm" % (gap, float(sb)))
+                if fc is None or nkD is None or nkO is None or nk is None or fv is None:
+                    out.append("鳥居 %s: 下草の離れ `fernClr` か根巻石の外形(`nemakiOuterW`/`nemakiD`)が読めない — "
+                               "**下草が根巻石に寄るかは検めていない**" % nm)
+                else:
+                    best = None
+                    for (fu, fvv) in ferns:
+                        du, dv = (fu - p[0]) * K, (fvv - p[1]) * K
+                        a = abs(du * fv[0] + dv * fv[1])
+                        lat = abs(-du * fv[1] + dv * fv[0])
+                        da = max(0.0, a - float(nkD) / 2.0)
+                        dl = max(0.0, float(nk) / 2.0 - lat, lat - float(nkO) / 2.0)
+                        dd = math.hypot(da, dl)
+                        best = dd if best is None else min(best, dd)
+                    if best is not None and best < float(fc) - 1e-9:
+                        out.append("鳥居 %s: 下草の芯が根巻石の外形から **%.2fm** — 離れ `fernClr` %.2fm に足りない"
+                                   % (nm, best, float(fc)))
+                    else:
+                        ftxt.append("最寄りの下草 %s ≥ `fernClr` %.2fm"
+                                    % (("%.2fm" % best) if best is not None else "なし", float(fc)))
+                wtxt += "・足元 " + "・".join(ftxt)
         if fv is None:
             out.append("鳥居 %s の正面の向き `facing`(%s)が読めない — **向きの検査は回っていない**" % (nm, t.get("facing")))
             continue

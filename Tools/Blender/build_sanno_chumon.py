@@ -2,6 +2,17 @@
 """山王権現社の**中門(瑞垣門)** — 一間平唐門・四脚・銅瓦葺。
 
     blender --background --python Tools/Blender/build_sanno_chumon.py -- [--render] [--no-export]
+    SANNO_SASHIZU=<指図> blender --background --python Tools/Blender/build_sanno_chumon.py -- \
+        --pitch 2.54x2.54 [--render]                    # 明治16年寸法(裁定C)
+
+━━━ 明治16年寸法(2026-09-14 ユーザー裁定C「一番史実に近いもの」)━━━━━━━━━━━━━━━━━━━━
+・`--pitch <通り抜けm>x<幅m>` = 柱間。考証方の結論: 中門の柱芯間は社殿群で揃う **2.54**(拝殿・本殿・楼門)【U 当て】。
+  ⇒ 本柱の芯 Z ±1.27(`axis.colWidthM`)。⭐ 通り抜け(本柱 → 控柱 前後各半間)も**同じ 2.54 の一間**で取る
+  (本殿は 3×3 間とも 2.54 — 部材方の判断【U】)⇒ 控柱の芯 X ±1.27。
+  名前に柱芯の外形を足す: `Sanno_Chumon_1x1ken_<通り抜けmm>x<幅mm>_k…`(楼門と同じ順)。
+・指図 json は改訂中なので柱間は引数で受ける(json の `axis.colWidthM` と違えば ⚠ を刷るだけ)。
+・高さ・柱の太さ・唐破風の断面 `KARA`・軒と妻の出・基壇の根入れ/±X の出は**柱間に比例させず据え置き**【U 類型】。
+・基壇の ±Z の面 = 透塀『Sukibei_E』の `gapFrom.edge` = **本柱の外面**(柱芯 + 本柱の半径)⇒ 面の 2 mm 手前。
 
 ━━━ なぜ新造するか ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 指図 `bom[中門(一間平唐門)]` = 在庫『無い』・手当『新造』。形式は【S [国宝建造物目録1941]】
@@ -20,7 +31,8 @@
 ・平面 = `gates[中門].plan`(du 1 = 本柱 → 控柱の前後各半間 / dv 1 = 本柱の芯々 = 戸口)、
   1間 = `const.ken`、戸口 = `monguchiKen`。⛔ ここに書かない。
 ・⚠ 1間 = 1.818 の換算は【U 要改訂】(`_pending`「境内の柱間モジュール」)。
-・基壇の ±Z の面 = 透塀 `runs[gate=中門].gapHalf`(門口の縁)。±X は取り合う面が無いので `G.kidanSkirt`。
+・基壇の ±Z の面 = 透塀 `runs[gate=中門]` の門口の縁(`gapFrom` = 本柱の外面、旧い指図は `gapHalf`)。
+  ±X は取り合う面が無いので `G.kidanSkirt`。
 ・下の `G` と唐破風の断面 `KARA` は**すべて【U 類型で埋めた設計値】**。
 """
 import bpy, sys, os, math, json
@@ -88,7 +100,7 @@ class KaraProfile(object):
         return self.tab[i] + (self.tab[i + 1] - self.tab[i]) * (x - i)
 
 
-def sashizu_plan():
+def sashizu_plan(pitch=None):
     with open(SH.SASHIZU) as f:
         d = json.load(f)
     K = float(d["const"]["ken"])
@@ -104,11 +116,21 @@ def sashizu_plan():
     if g.get("front") != "東":
         raise SystemExit("[chumon] ⛔ 正面が東でない門は軸を読み替えていない")
     P = dict(K=K, du=int(g["plan"]["du"]), dv=int(g["plan"]["dv"]),
-             monguchi=float(g["monguchiKen"]), sill=g.get("sill"), gate=g, d=d)
+             monguchi=float(g["monguchiKen"]), sill=g.get("sill"), gate=g, d=d, row=row)
     if P["du"] != 1 or P["dv"] != 1 or abs(P["monguchi"] - 1.0) > 1e-6:
         raise SystemExit("[chumon] ⛔ 一間一戸(plan 1×1・戸口1間)しか組めない: %s" % g["plan"])
-    print("[chumon] 門『%s』 plan du %d × dv %d / 戸口 %.1f 間 / 1間 %.3f / sill %s / 屋根 %s"
-          % (g["name"], P["du"], P["dv"], P["monguchi"], K, P["sill"], row["屋根"][:24]))
+    # 柱間: 既定 = 1間(旧名)/ `--pitch` = 明治16年寸法(名前に柱芯の外形を足す)
+    pu, pv = (K, K) if pitch is None else pitch
+    P.update(pu=pu, pv=pv, hu=P["du"] * pu / 2.0, hv=P["dv"] * pv / 2.0,
+             legacy=(pitch is None))
+    ax = row.get("axis") or {}
+    if abs(float(ax.get("colRadiusM", G["honD"] / 2.0)) - G["honD"] / 2.0) > 1e-6:
+        raise SystemExit("[chumon] ⛔ 本柱の半径 %.3f が axis.colRadiusM %s と違う" % (G["honD"] / 2.0, ax.get("colRadiusM")))
+    for key, val in (("colPassM", P["hu"]), ("colWidthM", P["hv"])):
+        if ax.get(key) is not None and abs(float(ax[key]) - val) > 1e-3:
+            print("[chumon] ⚠ 指図 axis.%s = %s ≠ 部材 %.4f(指図の改訂待ち — 引数を採る)" % (key, ax[key], val))
+    print("[chumon] 門『%s』 plan du %d × dv %d / 戸口 %.1f 間 / 柱間 %.4f × %.4f / 柱芯 X ±%.4f・Z ±%.4f / sill %s / 屋根 %s"
+          % (g["name"], P["du"], P["dv"], P["monguchi"], pu, pv, P["hu"], P["hv"], P["sill"], row["屋根"][:24]))
     return P
 
 
@@ -117,16 +139,32 @@ def sashizu_plan():
 # ==========================================================================
 def side_outs(P):
     d, g, K = P["d"], P["gate"], P["K"]
-    F, src = RM.faces(d, g, K)                  # 石段・土留め・囲いの端(楼門と同じ読み)
-    hv = g["plan"]["dv"] / 2.0
+    # ⭐ 平面は実寸の柱芯(`P.hu/hv`)を間へ戻して渡す(明治16年寸法では 1間 ≠ 柱間)
+    gk = dict(g, plan={"du": 2 * P["hu"] / K, "dv": 2 * P["hv"] / K})
+    # ⚠ 他の門・run に従属する端(`endFrom`/`uFrom`)は焼き出し待ちで解けないことがある(2026-09-14 楼門の袖塀)。
+    #   中門から数十 m 離れた run なので、この門を指さない従属 run は面の読みから外す
+    dk = dict(d, runs=[r for r in d["runs"] if not (r.get("endFrom") or r.get("uFrom"))
+                       or (r.get("endFrom") or {}).get("gate") == g["name"]])
+    F, src = RM.faces(dk, gk, K)                # 石段・土留め・囲いの端(楼門と同じ読み)
+    hv = gk["plan"]["dv"] / 2.0
     for r in d["runs"]:                         # ⭐ 透塀の門口の縁(gap)は run の端ではないので別に読む
         if r.get("gate") != g["name"]:
             continue
-        gv = float(r.get("gapV", 0.0)) - float(g["v"])
-        for sg, side in ((+1, "+Z"), (-1, "-Z")):
-            m = (sg * gv + float(r["gapHalf"]) - hv) * K
+        gf = r.get("gapFrom") or {}
+        if gf.get("gate") == g["name"]:
+            # 口の縁 = 本柱の外面(柱芯 + `axis.colRadiusM`)── 指図の従属値をそのまま解く
+            if gf.get("edge") != "側柱の外面":
+                raise SystemExit("[chumon] ⛔ 透塀『%s』の gapFrom.edge『%s』を読み替えていない" % (r["name"], gf.get("edge")))
+            m = float(P["row"]["axis"]["colRadiusM"])
+            what = "透塀『%s』の口の縁 = 本柱の外面(gapFrom)" % r["name"]
+            per = {"+Z": m, "-Z": m}
+        else:
+            gv = float(r.get("gapV", 0.0)) - float(g["v"])
+            per = {side: (sg * gv + float(r["gapHalf"]) - hv) * K for sg, side in ((+1, "+Z"), (-1, "-Z"))}
+            what = "透塀『%s』の門口の縁" % r["name"]
+        for side, m in per.items():
             if F[side] is None or m < F[side]:
-                F[side] = m; src[side] = "透塀『%s』の門口の縁" % r["name"]
+                F[side] = m; src[side] = what
     out = {}
     for s in F:
         if F[s] is not None:
@@ -139,8 +177,11 @@ def side_outs(P):
 
 def variant_name(P, out):
     mm = lambda s: int(round(out[s] * 1000.0))
-    return "Sanno_Chumon_%dx%dken_k%d-%d-%d-%d" % (P["du"], P["dv"], mm("+X"), mm("-X"),
-                                                    mm("+Z"), mm("-Z"))
+    k = "k%d-%d-%d-%d" % (mm("+X"), mm("-X"), mm("+Z"), mm("-Z"))
+    if P.get("legacy", True):
+        return "Sanno_Chumon_%dx%dken_%s" % (P["du"], P["dv"], k)
+    return "Sanno_Chumon_%dx%dken_%dx%d_%s" % (P["du"], P["dv"], int(round(2 * P["hu"] * 1000.0)),
+                                              int(round(2 * P["hv"] * 1000.0)), k)
 
 
 # ==========================================================================
@@ -191,8 +232,7 @@ def slice_run(o, x0, x1, step):
 # 組み立て
 # ==========================================================================
 def build(P, name, out):
-    K = P["K"]
-    hu, hv = P["du"] * K / 2.0, P["dv"] * K / 2.0     # 控柱の u / 本柱の v
+    hu, hv = P["hu"], P["hv"]                        # 控柱の u / 本柱の v(柱間 × 間数 / 2)
     ms, uv = SH.mats()
     W, DW = SH.W, SH.DW
     p = GR.palette()
@@ -475,6 +515,23 @@ def report(o, info, out):
     print("  軸部(内法の帯)X[%.3f,%.3f] Z[%.3f,%.3f] / 柱芯 控柱 X ±%.3f・本柱 Z ±%.3f"
           % (min(t[0] for t in body), max(t[0] for t in body), min(t[2] for t in body),
              max(t[2] for t in body), info["hu"], info["hv"]))
+    # 口の寸法を**メッシュから**: 門の芯の通り(u=0)・丈 1.0 で ±Z へ水平の光線
+    from mathutils import Vector
+    from mathutils.bvhtree import BVHTree
+    bvh = BVHTree.FromObject(o, bpy.context.evaluated_depsgraph_get())
+    def ray(v0, sgn):
+        a, b = SH.BX(0.0, v0), SH.BX(0.0, v0 + sgn)
+        loc, _, _, _ = bvh.ray_cast(Vector((a[0], a[1], 1.0)), Vector((b[0] - a[0], b[1] - a[1], 0.0)), 20.0)
+        return None if loc is None else -loc.y          # Blender −Y = Unity +Z
+    zin_p, zin_m = ray(0.0, +1), ray(0.0, -1)
+    zout_p, zout_m = ray(8.0, -1), ray(-8.0, +1)
+    info["clear"] = zin_p - zin_m
+    info["mouth"] = zout_p - zout_m
+    info["ext"] = (max(xs) - min(xs), max(ys) - min(ys), max(zs) - min(zs), min(ys), max(ys))
+    dk = [t for t in U if t[1] > 2.0]
+    info["eaveX"] = max(abs(t[0]) for t in dk)
+    print("  口(丈 1.0・u=0)本柱の内面の間 %.3f(Z %+.3f〜%+.3f)/ 本柱の外面の間 %.3f(Z %+.3f〜%+.3f)"
+          % (info["clear"], zin_m, zin_p, info["mouth"], zout_m, zout_p))
     print("  上端 %.3f / 根入れ下端 %.3f / 指紋 %s" % (max(ys), min(ys), SH.fingerprint(o)))
     return tris, ok
 
@@ -507,7 +564,10 @@ def shots(o, info, tag):
 
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    P = sashizu_plan()
+    pitch = None
+    if "--pitch" in argv:
+        pitch = tuple(float(x) for x in argv[argv.index("--pitch") + 1].lower().split("x"))
+    P = sashizu_plan(pitch)
     out = side_outs(P)
     name = variant_name(P, out)
     print("[chumon] → %s" % name)

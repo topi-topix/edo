@@ -671,6 +671,21 @@ public static class EdoAssets
                  + pX + "-" + mX + "-" + pZ + "-" + mZ + ".fbx";
         }
 
+        /// <summary>**山王社の中門(瑞垣門)— 明治16年寸法**(ユーザー裁定C 2026-09-14)。一間平唐門・四脚・銅瓦葺【S 目録1941】。
+        /// 柱芯の外形は <paramref name="passMm"/>(通り抜け=X)× <paramref name="widthMm"/>(幅=Z)[mm]。柱間は社殿群で揃う 2.54【U 考証方の当て】
+        /// ⇒ 本柱の芯 Z ±1.27(`axis.colWidthM`)・控柱の芯 X ±1.27(通り抜けも同じ一間【U 部材方】)。
+        /// ⭐ 通り抜け=ローカル X・正面=+X(扉は −X へ開く)・大棟=Z(唐破風は ±Z の妻)・ピボット=門の芯・敷居の高さ・yaw 0 で正面=東・scale one。
+        /// 口: 本柱の外面の間 2.84(礎盤の帯。丈 1.0 で 2.828 — 柱の転び)/ 本柱の内面の間 2.25。
+        /// 基壇の出 k(柱芯から +X/−X/+Z/−Z・mm): ±X = 面なしの設計値 0.40・±Z = 透塀の口の縁(本柱の外面)の 2 mm 手前。
+        /// 外形 W(X)4.62 × H(Y)4.74(−0.30〜4.44)× D(Z)4.08・21.1k tris。高さ・柱の太さ・唐破風・軒の出 0.90・妻の出 0.60 は旧と同じ【U 類型】。
+        /// 材は名前だけ ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: SANNO_SASHIZU=&lt;指図&gt; blender --background --python Tools/Blender/build_sanno_chumon.py -- --pitch 2.54x2.54 --render</summary>
+        public static string SannoChumon(int duKen, int dvKen, int passMm, int widthMm, int pX, int mX, int pZ, int mZ)
+        {
+            return "Assets/Edo/Models/Sanno/Sanno_Chumon_" + duKen + "x" + dvKen + "ken_" + passMm + "x" + widthMm
+                 + "_k" + pX + "-" + mX + "-" + pZ + "-" + mZ + ".fbx";
+        }
+
         /// <summary>**イロハモミジ**。⭐ **株立ち3〜5幹・枝が水平に張る**(幅が高さを上回る)。
         /// ⚠ 在庫の `NM.MapleBush` は**灌木**(丈1.5m)で中木に使えず、桜の夏姿での代用も
         /// 不可(夏でも幹肌が桜と読め、季節の確度が化ける)。庭方の要求で 2026-09-01 に新造。

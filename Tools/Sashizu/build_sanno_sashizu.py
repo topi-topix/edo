@@ -9290,13 +9290,65 @@ def fill_slope_planting_check(d, g):
     fs = (d.get("planting") or {}).get("fillSlopePlanting")
     if not fs:
         return (["盛土の法面の植栽 `planting.fillSlopePlanting` の宣言が無い"], [])
-    need = ("where", "rule", "chuboku", "takagiLine", "teibokuPer100", "shitakusa", "acc")
+    need = ("where", "rule", "edgeFrom", "chuboku", "takagiLine", "teibokuPer100", "shitakusa", "acc")
     miss = [k for k in need if fs.get(k) in (None, "", [])]
     if miss:
         return (["`planting.fillSlopePlanting` の鍵が欠ける: %s" % "・".join(miss)], [])
-    return ([], ["盛土の法面(%s)── 帯の宣言『%s』・中木 %s 丈 %s m 芯々 %s m ／ 高木の線 法尻の外 %s 間 芯々 %s m ／ 低木 %s 本/100m²【宣言 ── ⚠ 焼き出しの植栽へは未結線(未測定)】"
-                 % (fs["where"], fs["rule"], fs["chuboku"]["asset"], fs["chuboku"]["hM"], fs["chuboku"]["spacingM"],
-                    fs["takagiLine"]["offsetKen"], fs["takagiLine"]["spacingM"], fs["teibokuPer100"])])
+    bad, note = [], []
+    geo = fill_slope_geom(d, g)
+    if not geo:
+        return (["盛土の法面の縁 `fillSlopePlanting.edgeFrom` が平場の頂点で引けない ── 法面の木を据えられない"], [])
+    ken = d["const"]["ken"]
+    T = fill_slope_trees(d, g)
+    mids = [q for q in T if q["layer"] == "中木"]
+    tall = [q for q in T if q["layer"] in ("松", "落葉")]
+    low = [q for q in T if q["layer"] == "低木"]
+    if not mids or not tall:
+        bad.append("盛土の法面に中木 %d 本・高木 %d 本 ── 据わっていない" % (len(mids), len(tall)))
+    P = geo["poly"]
+    keidai = terrace_poly_uv(d["terraces"][0])
+    toe = geo["toe"]
+    off = float(fs["takagiLine"]["offsetKen"])
+
+    def dtoe(p): return min(_pt_seg(p, toe[i], toe[i + 1]) for i in range(len(toe) - 1))
+    # ② 高木・中木の仕分け(法面の中 ＝ 中木 ／ 法尻の外の線 ＝ 高木)
+    for q in mids:
+        if not in_poly((q["u"], q["v"]), P):
+            bad.append("法面の中木『%s』(%.3f, %.3f) が盛土の法面の外にある" % (q["name"], q["u"], q["v"]))
+    for q in tall:
+        p = (q["u"], q["v"])
+        if in_poly(p, P) or in_poly(p, keidai):
+            bad.append("法尻の外の高木『%s』(%.3f, %.3f) が法面か平場の上にある ── 法面は中木のみ" % (q["name"], p[0], p[1]))
+        elif "隅" not in q["name"] and dtoe(p) < off - 0.15:
+            bad.append("法尻の外の高木『%s』が法尻の外の線より法尻に近い(%.2f 間 ＜ %.2f 間)" % (q["name"], dtoe(p), off))
+    note.append("盛土の法面 ── 面積 %.1f m² ／ 中木 %d 本(法面の中)・高木 %d 本(法尻の外の線・隅の松を含む)・低木 %d 本【算出】"
+                % (geo["areaM2"], len(mids), len(tall), len(low)))
+    # ① 樹冠が覆う割合(法面の平面のうち、高木・中木の樹冠の円が覆うセル)
+    cells = list(poly_scan(P, 0.1))
+    discs = [(q["u"], q["v"], (q.get("crownM") or 0.0) / 2.0 / ken) for q in mids + tall]
+    discs2 = discs + [(q["u"], q["v"], (q.get("crownM") or 0.0) / 2.0 / ken) for q in low]
+
+    def cov(DS):
+        if not cells: return 0.0
+        n = 0
+        for p in cells:
+            for u9, v9, r9 in DS:
+                if r9 > 0 and (p[0] - u9) ** 2 + (p[1] - v9) ** 2 < r9 * r9:
+                    n += 1
+                    break
+        return 100.0 * n / len(cells)
+    c1, c2 = cov(discs), cov(discs2)
+    nocrown = sum(1 for q in mids + tall if not q.get("crownM"))
+    if nocrown:
+        bad.append("法面の高木・中木 %d 本の樹冠が引けない(部材が目録に無い)── 覆う割合は**未測定**" % nocrown)
+    mn = fs.get("coverMinPct")
+    msg = ("盛土の法面の樹冠が覆う割合 ── 高木・中木 **%.0f%%** ／ 低木を含めて %.0f%%(平面 %d セル)【算出 ── 施主の基準『斜面は木でしっかり覆う』】"
+           % (c1, c2, len(cells)))
+    if mn is not None and c1 < float(mn):
+        bad.append(msg + " ── 受入値 %s%% を割る ── 決めるのは**庭方**" % mn)
+    else:
+        note.append(msg + (" ── 受入値 %s%% の内" % mn if mn is not None else " ── ⚠ 受入値の宣言なし(`coverMinPct` ── 庭方)"))
+    return bad, note
 
 
 SUKIBEI_ROW = "透塀(連子窓の塀)"
@@ -14212,6 +14264,149 @@ def cluster_zone(c, kind):
     return (v0, v0 + (v1 - v0) * f) if m.group(1) == "南" else (v1 - (v1 - v0) * f, v1)
 
 
+_FILL = {}
+
+
+def fill_slope_geom(d, g):
+    """**盛土の法面の平面**【庭方 2026-09-15 ── 施主の裁定2 の南西の平場】── 縁(`fillSlopePlanting.edgeFrom` が
+    名指す平場の頂点の区間)を 0.25 間ごとに歩き、外向きに 1:`const.batterFill` の法面が現地形に着く点(法尻)を
+    `dem_h` で求める。⛔ 数を json に持たない。戻り {edge, samples[(点, 外向きの単位, 法尻までの水平距離[m], 辺)], toe, poly, areaM2}。"""
+    if "geom" in _FILL: return _FILL["geom"]
+    fs = (d.get("planting") or {}).get("fillSlopePlanting") or {}
+    ef = fs.get("edgeFrom") or {}
+    te = next((t for t in d["terraces"] if t["name"] == ef.get("terrace")), None)
+    uv = [list(q) for q in (te or {}).get("uv", [])]
+    if te is None or list(ef.get("from") or []) not in uv or list(ef.get("to") or []) not in uv:
+        _FILL["geom"] = None
+        return None
+    ia, ib = uv.index(list(ef["from"])), uv.index(list(ef["to"]))
+    E = [tuple(q) for q in uv[min(ia, ib):max(ia, ib) + 1]]
+    ken = d["const"]["ken"]; top = te["y"]; bf = d["const"]["batterFill"]
+    cap = d["const"].get("featherCap", 12.0)
+    P_te = terrace_poly_uv(te)
+    samples = []
+    for i in range(len(E) - 1):
+        a, b = E[i], E[i + 1]
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        if L < 1e-9: continue
+        ex, ey = (b[0] - a[0]) / L, (b[1] - a[1]) / L
+        nx, ny = ey, -ex
+        if in_poly(((a[0] + b[0]) / 2.0 + nx * 0.05, (a[1] + b[1]) / 2.0 + ny * 0.05), P_te): nx, ny = -nx, -ny
+        k = max(1, int(math.ceil(L / 0.25)))
+        for j in range(k + (1 if i == len(E) - 2 else 0)):
+            s = min(L, j * L / k)
+            p = (a[0] + ex * s, a[1] + ey * s)
+            tM, t = None, 0.1
+            while t <= cap + 1e-9:
+                h = dem_h(*g.W(p[0] + nx * t / ken, p[1] + ny * t / ken))
+                if h is None: break
+                if top - t / bf <= h: tM = t; break
+                t += 0.1
+            samples.append((p, (nx, ny), cap if tM is None else tM, i))
+    toe = [(p[0] + n[0] * tM / ken, p[1] + n[1] * tM / ken) for p, n, tM, _i in samples]
+    poly = [s[0] for s in samples] + toe[::-1]
+    _FILL["geom"] = {"edge": E, "samples": samples, "toe": toe, "poly": poly,
+                     "areaM2": abs(poly_area(poly)) * ken * ken}
+    return _FILL["geom"]
+
+
+def fill_slope_trees(d, g):
+    """**盛土の法面の木を据える**【庭方 2026-09-15】── 宣言 `planting.fillSlopePlanting` から決定論的に。
+    ① 中木 = 法の中ほどの千鳥(`chuboku.rowFrac` の二列を交互・芯々は `spacingM` の範囲から引く)
+    ② 高木 = 法尻の外 `takagiLine.offsetKen` の線(芯々 `spacingM`・樹種の割り前と丈は `takagiLine.band` の帯)
+    ③ 隅の松 = `takagiLine.matsuCornerUV` の出隅の二等分線の上、法尻の外の線
+    ④ 低木 = 法面の面積 × `teibokuPer100` の中央(丈は同じ帯の `teibokuH`)。⛔ 種は `plantRule.seed` の作法。"""
+    if "trees" in _FILL: return _FILL["trees"]
+    geo = fill_slope_geom(d, g)
+    fs = (d.get("planting") or {}).get("fillSlopePlanting") or {}
+    out = []
+    if not geo or not geo["samples"]:
+        _FILL["trees"] = out
+        return out
+    ken = d["const"]["ken"]
+    pal = d["planting"]["parts"]
+    pack = d["planting"]["plantRule"]["packRatio"]
+    S = geo["samples"]
+    acc = [0.0]
+    for k in range(1, len(S)):
+        acc.append(acc[-1] + math.hypot(S[k][0][0] - S[k - 1][0][0], S[k][0][1] - S[k - 1][0][1]) * ken)
+
+    def near(sm): return min(range(len(S)), key=lambda k: abs(acc[k] - sm))
+    ch = fs["chuboku"]
+    rows = ch.get("rowFrac") or [0.4, 0.6]
+    rnd, _k = _seed_rnd(d, "盛土の法面", "中木")
+    sm, j = rnd.uniform(0.0, float(ch["spacingM"][0])), 0
+    while sm <= acc[-1]:
+        p, n, tM, _i = S[near(sm)]
+        f = rows[j % len(rows)]
+        out.append(_tree_row(d, g, rnd, "法面_中木%03d" % (j + 1), "盛土の法面(中木)", "中木", pal["中木"],
+                             ch["hM"], p[0] + n[0] * tM * f / ken, p[1] + n[1] * tM * f / ken))
+        j += 1
+        sm += rnd.uniform(float(ch["spacingM"][0]), float(ch["spacingM"][1]))
+    tl = fs["takagiLine"]
+    b = next((q for q in d["slopeBands"] if q.get("band") == tl.get("band")), d["slopeBands"][0])
+    rnd2, _k = _seed_rnd(d, "盛土の法面", "高木")
+    off = float(tl["offsetKen"])
+    sm, j = rnd2.uniform(0.0, float(tl["spacingM"][0])), 0
+    P_in = geo["poly"]
+    K_in = terrace_poly_uv(d["terraces"][0])
+    while sm <= acc[-1]:
+        p, n, tM, _i = S[near(sm)]
+        o9 = tM / ken + off
+        # ⭐ 入隅(東の端 ── 既存の法面と谷)では法尻の外の線が折り返して法面・平場の上へ落ちる ⇒ 線に沿って先へ送る
+        q9 = (p[0] + n[0] * o9, p[1] + n[1] * o9)
+        T9 = geo["toe"]
+        if in_poly(q9, P_in) or in_poly(q9, K_in) \
+                or min(_pt_seg(q9, T9[i], T9[i + 1]) for i in range(len(T9) - 1)) < off - 0.15:
+            sm += 0.5
+            continue
+        lay = "落葉" if rnd2.random() < float(b.get("rakuyoRatio") or 0.0) else "松"
+        out.append(_tree_row(d, g, rnd2, "法尻の外_%s%03d" % (lay, j + 1), "盛土の法尻の外(高木)", lay, pal[lay],
+                             b.get("rakuyoH" if lay == "落葉" else "matsuH"), p[0] + n[0] * o9, p[1] + n[1] * o9))
+        j += 1
+        sm += rnd2.uniform(float(tl["spacingM"][0]), float(tl["spacingM"][1]))
+    cu = tl.get("matsuCornerUV")
+    if cu:
+        ns = [s[1] for s in S if s[3] in [i for i in range(len(geo["edge"]) - 1)
+                                         if list(geo["edge"][i + 1]) == list(cu) or list(geo["edge"][i]) == list(cu)]]
+        if ns:
+            bx, by = sum(q[0] for q in ns), sum(q[1] for q in ns)
+            L9 = math.hypot(bx, by) or 1.0
+            bx, by = bx / L9, by / L9
+            top = d["terraces"][0]["y"]; bf = d["const"]["batterFill"]; t, tM = 0.1, None
+            while t <= d["const"].get("featherCap", 12.0) + 1e-9:
+                h = dem_h(*g.W(cu[0] + bx * t / ken, cu[1] + by * t / ken))
+                if h is None: break
+                if top - t / bf <= h: tM = t; break
+                t += 0.1
+            if tM is not None:
+                o9 = tM / ken + off
+                out.append(_tree_row(d, g, rnd2, "法尻の外_隅の松", "盛土の法尻の外(隅の松)", "松", pal["松"],
+                                     b.get("matsuH"), cu[0] + bx * o9, cu[1] + by * o9))
+    tb = fs["teibokuPer100"]
+    dm = (float(tb[0]) + float(tb[1])) / 2.0
+    nlow = int(round(geo["areaM2"] * dm / 100.0))
+    rnd3, _k = _seed_rnd(d, "盛土の法面", "低木")
+    pts, _r, _x = _scatter_take(rnd3, list(poly_scan(geo["poly"], 0.25)), nlow, math.sqrt(100.0 / dm) * pack / ken)
+    for j, (u9, v9) in enumerate(pts):
+        out.append(_tree_row(d, g, rnd3, "法面_低木%03d" % (j + 1), "盛土の法面(低木)", "低木", pal["低木"],
+                             b.get("teibokuH"), u9, v9))
+    _FILL["trees"] = out
+    return out
+
+
+def fill_slope_exclude(d, g, lay):
+    """社叢の帯の木を盛土の法面から外す形 ── 高木は法尻の外の線まで(`takagiLine.offsetKen`)、中木・低木は法面の内。"""
+    geo = fill_slope_geom(d, g)
+    if not geo: return []
+    fs = d["planting"]["fillSlopePlanting"]
+    if lay in ("松", "落葉"):
+        return [_shape_poly(geo["poly"], float(fs["takagiLine"]["offsetKen"]), "盛土の法面(+法尻の外の線)")]
+    if lay in ("中木", "低木"):
+        return [_shape_poly(geo["poly"], 0.0, "盛土の法面")]
+    return []
+
+
 def scatter_pts(d, g):
     """**撒いた木の点**。実装(棟梁)はこれをそのまま置く。
 
@@ -14455,6 +14650,10 @@ def scatter_pts(d, g):
     # ⭐ **名指しの木も位置が決まっている**(決1③ 庭方 2026-09-09 十八巡目)
     for r9 in _NT9:
         seeded.setdefault(_bucket(r9.get("layer") or "落葉"), []).append((r9["u"], r9["v"]))
+    # ⭐ **盛土の法面の木も位置が決まっている**(庭方 2026-09-15)── 帯の木はこれを避けて撒く
+    _FS9 = fill_slope_trees(d, g)
+    for q9 in _FS9:
+        seeded.setdefault(_bucket(q9["layer"]), []).append((q9["u"], q9["v"]))
     bd_note, out = [], []
     HK = {"松": "matsuH", "落葉": "rakuyoH", "中木": "chubokuH", "低木": "teibokuH"}
     for lay in _LAYS:
@@ -14470,7 +14669,9 @@ def scatter_pts(d, g):
                 step = d["planting"]["bandDef"]["stepKen"]
                 src = list(cells[bn])
             sh = avoid_shapes(d, g, "obi4" if b.get("uv") else ("obi123:" + lay))
-            cand = [p for p in src if not (sh and shape_hit(p, sh)) and not shape_hit(p, keep)]
+            fx9 = fill_slope_exclude(d, g, lay)      # 盛土の法面は法面の植栽が持つ(帯の木を入れない)
+            cand = [p for p in src if not (sh and shape_hit(p, sh)) and not shape_hit(p, keep)
+                    and not (fx9 and shape_hit(p, fx9))]
             # ⭐ **間合いは高木にだけ効く**【指1 庭方 2026-09-09 十八巡目】── 測っているのは
             #    『同じ頭が二つ並ばないこと』なので、下層(中木・低木)は入ってよい。
             if lay in ("松", "落葉"): cand = [p for p in cand if not _in_gap(p)]
@@ -14613,7 +14814,7 @@ def scatter_pts(d, g):
                     "ground": "design" if dy is not None else "terrain",
                     "place": (d["planting"]["plantRule"].get("placement") or {}).get("singles"),
                     "kaidan": sk.get("kaidan"), "sM": sk.get("sM"), "side": sk.get("side")})
-    return out + cl_pts, bd_note, cl_note
+    return out + cl_pts + _FS9, bd_note, cl_note
 
 
 def sashikake_offset(d, sk, k):

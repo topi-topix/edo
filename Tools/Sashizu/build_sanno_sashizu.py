@@ -15281,6 +15281,55 @@ def keepout_wiring_check(d, g):
     return bad, note
 
 
+def impl_gaps_from_segs(q, tol=2e-3):
+    """焼き出しの土留め1本 `q` の**開口の走り**を `segs` の端点から出す【K015 検図 2026-09-14】。
+
+    ⛔ `wall_samples` / `wall_gaps_s` を通さない ── 条項⑤の**独立の道**。
+    ① 端点を `nodes` の折れ線へ落として走り s[m] を出す(折れ線から `tol` より離れた端点は None)。
+    ② 建つ区間 [s0,s1] の**補集合**を [0, 全長] の中で取る(= 開口の縁)。
+    ③ 開口ごとに、縦断の刻み `profile[].s` のうち**開口の内**(縁から `tol` より内)に落ちる最初と
+       最後の点を [s_first, s_last] とする ── `gapsS` は刻みの点で持つ約束なので、縁そのものではなく
+       縁の内側の刻みと比べる。内に刻みが一つも無い開口は出さない(`wall_gaps_s` と同じ約束)。
+    """
+    P = q.get("nodes") or []
+    if len(P) < 2: return []
+    acc = [0.0]
+    for a, b in zip(P, P[1:]):
+        acc.append(acc[-1] + math.hypot(b[0] - a[0], b[1] - a[1]))
+    tot = acc[-1]
+
+    def s_of(p):
+        best = None
+        for i, (a, b) in enumerate(zip(P, P[1:])):
+            L = math.hypot(b[0] - a[0], b[1] - a[1])
+            if L < 1e-9: continue
+            t = ((p[0] - a[0]) * (b[0] - a[0]) + (p[1] - a[1]) * (b[1] - a[1])) / L
+            t = max(0.0, min(L, t))
+            e = math.hypot(p[0] - (a[0] + (b[0] - a[0]) * t / L), p[1] - (a[1] + (b[1] - a[1]) * t / L))
+            if best is None or e < best[0] - 1e-9: best = (e, acc[i] + t)
+        return best
+
+    built = []
+    for sg in q.get("segs") or []:
+        e0 = s_of(sg[0]); e1 = s_of(sg[-1])
+        if e0 is None or e1 is None or e0[0] > tol or e1[0] > tol: return None
+        built.append(tuple(sorted((e0[1], e1[1]))))
+    built.sort()
+    holes, cur = [], 0.0
+    for a, b in built:
+        if a - cur > tol: holes.append((cur, a))
+        cur = max(cur, b)
+    if tot - cur > tol: holes.append((cur, tot))
+    ss = [float(r[0]) for r in (q.get("profile") or [])]
+    out = []
+    for h0, h1 in holes:
+        lo = h0 + tol if h0 > tol else -1.0          # 走りの始端の開口は s=0 の刻みも開口の内
+        hi = h1 - tol if h1 < tot - tol else tot + 1.0
+        inn = [s9 for s9 in ss if lo < s9 < hi]
+        if inn: out.append([round(min(inn), 3), round(max(inn), 3)])
+    return out
+
+
 def impl_wall_profile_check(d, g):
     """**土留めの縦断が焼かれ、その一つ一つが図の算出と同じ数か**
     【中4 検図20巡目 → 高2 検図21巡目 → 裁定 2026-09-09(A案)】。
@@ -15295,7 +15344,7 @@ def impl_wall_profile_check(d, g):
       ② 節点・**建つ区間**の座標が図と一致(⛔ 実長のスカラだけで済ませない)
       ③ 縦断が空でない・刻みが `profileStep` どおり・**列が6列**
       ④ 縦断の**全点 × 全列**が `wall_profile` の引き直しと一致(許容 `exportTol`)
-      ⑤ `gapsS`(開口の走り)が `wall_gaps_s` の引き直しと一致
+      ⑤ `gapsS`(開口の走り)が **`segs` の端点から出した開口**の内の刻みと一致(⛔ `wall_gaps_s` を通さない)
       ⑥ `coping` が数の壁 ── 天端が**全点でその数**
       ⑦ `coping:"stair"` の壁 ── 指し先の石段が解け、天端が**その石段の割付の値そのもの**
          (`stair_spans` の踏面の高さの集合に入る)かつ [`yBot`, `yTop`] の内
@@ -15356,10 +15405,17 @@ def impl_wall_profile_check(d, g):
                 bad.append("土留め『%s』の縦断が図の算出と **%.3f m** 食い違う"
                            "(許容 `exportTol` %.3f m・走り %.1f m の『%s』欄 焼き %.3f / 図 %.3f)"
                            % (w["name"], wc, IMPL_EXPORT_TOL, wat[0], wat[1], wat[2], wat[3]))
-        # ⑤ 開口の走り
-        gw = wall_gaps_s(wall_samples(d, g, w, IMPL_WALL_STEP), IMPL_WALL_STEP)
-        if (q.get("gapsS") or []) != gw:
-            bad.append("土留め『%s』の開口の走り `gapsS` が焼き %s / 図 %s で食い違う"
+        # ⑤ 開口の走り ⭐ **`wall_gaps_s` を通さない独立の道**【K015 検図 2026-09-14】──
+        #    旧版は生成器と同じ `wall_gaps_s` を引き直して比べていたので、その関数が壊れても
+        #    焼きと照合が同じ誤りを出して**無音**だった。⇒ 焼いた `segs`(建つ区間)の端点を
+        #    焼いた `nodes` の折れ線へ落として走り s を出し、その**補集合**(= 開口の縁)と、
+        #    縦断の刻み `profile[].s` のうち開口の内に落ちる最初と最後の点を `gapsS` と突き合わせる。
+        gw = impl_gaps_from_segs(q)
+        if gw is None:
+            bad.append("土留め『%s』の建つ区間 `segs` の端点が節点 `nodes` の折れ線に載らない"
+                       "(開口の縁を走りへ落とせない)" % w["name"])
+        elif (q.get("gapsS") or []) != gw:
+            bad.append("土留め『%s』の開口の走り `gapsS` が焼き %s / `segs` の端点から %s で食い違う"
                        "(⛔ 実装に開口を切り直させない)" % (w["name"], q.get("gapsS"), gw))
         # ⑤b 段の割り(裁定 EDO-0182 (a) ③ 訂正)── 段数・駒の丈・下段が見える走り
         if (q.get("tiers") != int(w.get("tiers", 1))

@@ -2,6 +2,16 @@
 """山王権現社の**袖塀(回廊の翼 ↔ 楼門の側面)** — 瓦葺の築地塀(土塀)・長さ 4.2 m・両端を袖瓦で塞ぐ。
 
     blender --background --python Tools/Blender/build_sanno_sodebei.py -- [--len 4.2] [--render] [--no-export]
+    blender --background --python Tools/Blender/build_sanno_sodebei.py -- --len 4.2 --step 1.56x0.70 --render
+
+━━━ 足元の段(2026-09-14 普請奉行の裁定 案A)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+・`--step <門側の端からm>x<段の高さm>` = **足元を二段**にする。門側(ローカル −X)は楼門の基壇の天端 28.3(Y0)、
+  段より先(回廊の側)は回廊の基壇の妻の石垣の天端 29.0(Y +0.70)に載る。段の位置 = 楼門の基壇の脇面
+  (楼門の芯から 5.55 = 側柱の外面 3.99 から 1.56)。⭐ **屋根は一直線のまま**・腰板と貫の帯は足元に沿って上がる
+  (土壁が段の先で 0.70 短くなる)。段の小口は板で塞ぐ。
+・あわせて**門側の木口の足元を楼門の礎盤の形に欠く**(礎盤の外面 3.81+0.27 から 5 mm の逃げ・丈 0.15 + 5 mm)。
+  ⛔ 塀を短くして逃げない(側柱との間に空が抜ける)。
+・FBX 名 `Sanno_Sodebei_<長さmm>_d<段の位置mm>-<段の高さmm>`(旧 `Sanno_Sodebei_4200` は残す)。
 
 ━━━ なぜ新造するか ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 明治16年実測図 第2稿の読み(考証 2026-09-14): 回廊の翼は楼門に**取り付かない**。翼の妻と楼門の側面の間に
@@ -45,6 +55,9 @@ SHOT = os.path.join(V.REPO, "Screenshots")
 ROMON = os.path.join(V.REPO, "Assets", "Edo", "Models", "Sanno",
                      "Sanno_Romon_2x3ken_5750x7620_k1075-1075-1740-1740.fbx")
 ROMON_FACE_Z = 3.81 + 0.18     # 楼門の側柱の外面(柱芯 7.62/2 + 側柱の半径)
+ROMON_SOBAN_Z = 3.81 + 0.27    # 楼門の側柱の礎盤の外面(礎盤の半幅 0.27)
+ROMON_SOBAN_H = 0.15           # 同 丈
+NOTCH_GAP = 0.005              # 礎盤の欠き込みの逃げ(隙間 > めり込み)
 KAIRO_UP = 0.70                # 回廊の床 29.0 − 楼門の敷居 28.3
 KAIRO = dict(noki=2.10, keta=2.60, mune=4.02, half=2.10)   # 設計値(床から)。half = 梁間 4.2 の半分
 KAIRO_KERABA = 0.60            # 【U】回廊の妻の出(翼の妻から袖塀の上へ)
@@ -52,7 +65,37 @@ KAIRO_ROOF_T = 0.35            # 【U】回廊の屋根の懐(瓦の面 → 垂�
 ALLOWED = ("Wall Exterior Defence", "Fence_B_01", "roof", "roof ornaments")
 
 
-def build(name, LEN):
+def step_foot(o, LEN, at, rise):
+    """足元の段と礎盤の欠き込み。⭐ 面を捨てずに**頂点を動かす**(開口を作らない)。
+    Blender X = 走り 0..LEN、**門側 = X LEN**(set_origin の前・Unity X = −(X − LEN/2))。Z = 高さ。
+    ・段: X ≤ LEN − at の頂点のうち腰板・貫の帯(Z ≤ 貫の上端)を +rise。段の 1 mm 手前にも切れ目を入れて、
+      その 1 mm の面が段の立ち上がりになる。
+    ・欠き込み: X ≥ LEN − nl の頂点のうち Z < nh を nh へ持ち上げる(同じく 1 mm の面が欠きの内面)。"""
+    import bmesh
+    nl = ROMON_SOBAN_Z - ROMON_FACE_Z + NOTCH_GAP
+    nh = ROMON_SOBAN_H + NOTCH_GAP
+    zt = DB.H_SHITAMI + DB.H_NUKI
+    xs = LEN - at
+    bm = bmesh.new(); bm.from_mesh(o.data)
+    for co, no in (((xs, 0, 0), (1, 0, 0)), ((xs - 0.001, 0, 0), (1, 0, 0)),
+                   ((LEN - nl, 0, 0), (1, 0, 0)), ((LEN - nl - 0.001, 0, 0), (1, 0, 0)),
+                   ((0, 0, nh), (0, 0, 1))):
+        bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], dist=1e-6,
+                               plane_co=Vector(co), plane_no=Vector(no))
+    nn = ns = 0
+    for v in bm.verts:
+        if v.co.x >= LEN - nl - 1e-6 and v.co.z < nh - 1e-6:
+            v.co.z = nh; nn += 1
+    for v in bm.verts:
+        if v.co.x <= xs - 0.001 + 1e-6 and v.co.z <= zt + 1e-6:
+            v.co.z += rise; ns += 1
+    bm.to_mesh(o.data); bm.free(); o.data.update()
+    print("[sodebei] 段 X=%.3f(門側の端から %.2f)+%.2f・動かした頂点 %d / 欠き込み %.3f × %.3f・%d 頂点"
+          % (xs, at, rise, ns, nl, nh, nn))
+    return xs, zt
+
+
+def build(name, LEN, step=None):
     DB.L = LEN                           # ⭐ `slab` / `wall_cap` は走りをモジュール変数 L で読む
     nk = LEN / DB.MOD_LEN
     V.reset()
@@ -71,6 +114,8 @@ def build(name, LEN):
     DB.slab(m, DB.H_SHITAMI + DB.H_NUKI, h_wall_top, DB.T_WALL, WALL_UV, 1, int(round(2 * nk)), cap_top=False)
     DB.wall_cap(m, 1, WALL_UV, e, DB.T_WALL / 2.0, DB.H_KETA)
     body = m.build(name + "_body", [wood, wall])
+    if step:
+        xs, zt = step_foot(body, LEN, step[0], step[1])
     z_ridge = DB.H_KETA + e * DB.RATIO
     off = (LEN - DB.MOD_LEN * math.floor(LEN / DB.MOD_LEN + 1e-9)) / 2.0   # 割付を中心に対称へ
     pieces = [body]
@@ -103,6 +148,11 @@ def build(name, LEN):
                       (x, 0.0, (h0 + h1) / 2.0), wall)
             V.set_uv_rect(c, WALL_UV, axes=('y', 'z'))
             pieces.append(c)
+    if step:
+        # 段の小口(腰板・貫の端)を板で塞ぐ — 段の先の腰板は土壁より厚いので端が開く
+        cap = V.box(name + "_stepcap", (0.012, DB.T_NUKI + 0.004, zt), (xs - 0.0005, 0.0, step[1] + zt / 2.0), wood)
+        V.set_uv_rect(cap, W_UV, axes=('y', 'z'))
+        pieces.append(cap)
     V.dedup_materials()
     o = V.join(pieces, name)
     V.set_origin(o, (LEN / 2.0, 0.0, 0.0))            # 走りの中心・足元
@@ -170,7 +220,7 @@ def selftest(o, LEN):
     return not hit
 
 
-def clearances(o, LEN):
+def clearances(o, LEN, step=None):
     """塀の頂点から真上へ — 楼門の実 FBX の最初の材までの離れ、回廊の設計値の屋根裏までの離れ。"""
     objs = VM.import_fbx_abs(ROMON)
     rm = V.join(objs, "romon_check") if len(objs) > 1 else objs[0]
@@ -200,6 +250,12 @@ def clearances(o, LEN):
             pen.append((Xr, Yr, Zr))
     bpy.data.objects.remove(rm, do_unlink=True)
     top = max(t[1] for t in U)
+    if step:
+        xu = -LEN / 2.0 + step[0]                   # 段の Unity x(門側 = −X)
+        lo = [t[1] for t in U if t[0] < xu - 0.003 and abs(t[2]) < 0.30]
+        hi = [t[1] for t in U if t[0] > xu + 0.003 and abs(t[2]) < 0.30]
+        print("  足元 門側(楼門の基壇の上・q %.2f〜%.2f)最低 Y %.3f ／ 回廊の側(q %.2f〜%.2f)最低 Y %.3f(期待 0 / %.2f)"
+              % (ROMON_FACE_Z, ROMON_FACE_Z + step[0], min(lo), ROMON_FACE_Z + step[0], ROMON_FACE_Z + LEN, min(hi), step[1]))
     print("  当たり 楼門(実 FBX・真上の光線)最小の離れ %.3f m — 塀の点 X %.2f Y %.3f Z %.2f → 楼門の材 Y %.3f"
           % worst_r if worst_r else "  当たり 楼門 — 真上に材なし")
     print("  当たり 回廊(設計値・妻の出 %.2f・懐 %.2f【U】)最小の離れ %.3f m — 塀の点 X %.2f Y %.3f Z %.2f → 屋根裏 Y %.3f"
@@ -249,8 +305,11 @@ def shots(o, LEN):
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     LEN = float(argv[argv.index("--len") + 1]) if "--len" in argv else 4.2
+    step = tuple(float(x) for x in argv[argv.index("--step") + 1].lower().split("x")) if "--step" in argv else None
     name = "Sanno_Sodebei_%d" % int(round(LEN * 1000.0))
-    o = build(name, LEN)
+    if step:
+        name += "_d%d-%d" % (int(round(step[0] * 1000.0)), int(round(step[1] * 1000.0)))
+    o = build(name, LEN, step)
     ok, tris, top = report(o, LEN)
     if not ok:
         raise SystemExit("[sodebei] ⛔ 検算に落ちた")
@@ -258,14 +317,14 @@ def main():
         raise SystemExit("[sodebei] ⛔ 陰性試験に失敗")
     print("[sodebei] 断面 = build_dobei(土壁 %.2f / 腰板 %.2f / 軒 %.2f / 屋根の総幅 %.2f / 棟の瓦場 %.3f)【U 類型】"
           % (DB.T_WALL, DB.H_SHITAMI, DB.H_KETA, DB.T_ROOF, DB.H_KETA + DB.T_ROOF / 2.0 * DB.RATIO))
-    clearances(o, LEN)
+    clearances(o, LEN, step)
     if "--no-export" not in argv:
         path = os.path.join(OUT, name + ".fbx")
         V.export_fbx([o], path)
         print("[sodebei] 書き出し %s (tris %d)" % (path, tris))
     if "--render" in argv:
         # ⚠ export の後は bbox が潰れることがある — レンダは組み直した物で撮る
-        o = build(name, LEN)
+        o = build(name, LEN, step)
         for f in shots(o, LEN):
             print("RENDER " + f)
 

@@ -578,7 +578,7 @@ public static class EdoAssets
         /// yaw 0° で据えると正面=東・通り抜け=東西。scale は Vector3.one。
         /// ⚠ 材は名前だけ ⇒ `Edo/山王社/新造部材のマテリアルをremap`。柱高・組物・妻飾り・軒反りは【U 類型】。
         /// ⭐ 基壇の出だけ門ごとに作り分ける(柱芯から +X/−X/+Z/−Z・mm)。出は指図の取り合いの面から生成器が決める
-        ///   — 楼門 452,452,0,0/坂下の門 297,297,0,0。側面(±Z)は柱の筋で止める。
+        ///   — 楼門 452,452,178,178/坂下の門 297,297,178,178。±Z は側柱の外面(面の2mm手前)まで。
         /// 生成: blender --background --python Tools/Blender/build_sanno_romon.py -- --render</summary>
         public static string SannoRomon(int duKen, int dvKen, int pX, int mX, int pZ, int mZ)
         {

@@ -8257,6 +8257,38 @@ def gate_axes_uv(gt):
     return (px, py), (py, -px)
 
 
+def gate_col_face_dist(d, gt, face):
+    """門の芯から**幅の脇(桁行の側)の側柱の外面**までの距離[間]と、その向きの単位ベクトル[uv]。
+
+    ⭐ 面 = 柱芯(`plan.dv`/2)+ 部材の側柱の半径 `bom[].axis.colRadiusM`【普請奉行の裁定 2026-09-14 案A】。
+    ⛔ 半径の宣言が無ければ止める(0 で埋めると柱芯へ戻り、柱と礎盤が黙って囲いへ食い込む)。
+    ⛔ 通り抜けの軸の上の面(`gate_face_u` の側)をここで出さない。
+    """
+    b = gate_bom_row(d, gt)
+    rad = ((b or {}).get("axis") or {}).get("colRadiusM")
+    if rad is None:
+        raise SystemExit("門『%s』の部材に側柱の半径 `axis.colRadiusM` の宣言が無い — 側柱の外面を出せない" % gt["name"])
+    p, n = gate_axes_uv(gt)
+    fv = _FACE_VEC.get(face)
+    if fv is None or abs(fv[0] * n[0] + fv[1] * n[1]) < 0.99:
+        raise SystemExit("門『%s』の面『%s』は幅の脇(桁行の側)の面でない — 側柱の外面を出せない" % (gt["name"], face))
+    sg = 1.0 if fv[0] * n[0] + fv[1] * n[1] > 0 else -1.0
+    return gt["plan"]["dv"] / 2.0 + float(rad) / d["const"]["ken"], (sg * n[0], sg * n[1])
+
+
+def gate_col_face_end(d, r, ef):
+    """run `r` の端 `ef.end` を、門 `ef.gate` の `ef.face` の側柱の外面の通りと run の線の交点へ[uv]。"""
+    gt = gate_by_name(d, ef["gate"])
+    dist, m = gate_col_face_dist(d, gt, ef["face"])
+    A, B = r["a"], r["b"]
+    dx, dy = B[0] - A[0], B[1] - A[1]
+    den = dx * m[0] + dy * m[1]
+    if abs(den) < 1e-9:
+        raise SystemExit("run『%s』の線が門『%s』の%sの側柱の外面と平行 — 端を面へ出せない" % (r["name"], gt["name"], ef["face"]))
+    t = ((gt["u"] + dist * m[0] - A[0]) * m[0] + (gt["v"] + dist * m[1] - A[1]) * m[1]) / den
+    return [A[0] + dx * t, A[1] + dy * t]
+
+
 def gate_local(gt, q):
     """点 q[uv] を門の軸の座標 (s = 通り抜けの向き, t = 桁行の向き)[間] へ。"""
     p, n = gate_axes_uv(gt)
@@ -8666,6 +8698,24 @@ def gate_part_outline_check(d, g):
                                 hit += 1
                                 bad.append("門『%s』の部材の外形〔%s〕が土留め『%s』へ **%.3f m** 食い込む(帯の下端 %.2f ＜ 天端 %.2f)"
                                            "── 図の平面では当たらない" % (gt["name"], bd["band"], o["name"], ln, ylo, top))
+        # ④ 側柱の外面に端を突き付ける囲い(`runs[].endFrom`)── 座より下の帯が**外面の内側に納まるか**(裁定 2026-09-14 案A)
+        for r in d["runs"]:
+            ef = r.get("endFrom")
+            if not ef or ef.get("gate") != gt["name"]: continue
+            dist, _m = gate_col_face_dist(d, gt, ef["face"])
+            fm = dist * ken
+            for bd in ol:
+                ylo = gt["sill"] + bd["hM"][0]
+                if r.get("seat") is not None and ylo >= float(r["seat"]) - EPS: continue
+                hw = max(abs(bd["widthM"][0]), abs(bd["widthM"][1]))
+                mg = fm - hw
+                if mg < -1e-4:
+                    hit += 1
+                    bad.append("門『%s』の外形〔%s〕が%sの側柱の外面(囲い『%s』の端)を **%.3f m** 越える"
+                               % (gt["name"], bd["band"], ef["face"], r["name"], -mg))
+                else:
+                    note.append("門『%s』の外形〔%s〕── %sの側柱の外面(囲い『%s』の端・芯から %.3f m)の内側に **%.3f m** 残して納まる【算出】"
+                                % (gt["name"], bd["band"], ef["face"], r["name"], fm, mg))
         note.append("門『%s』── 部材『%s』の外形 %d 帯(軒を含む)で石段・囲い・土留めを測った ／ 食い込み **%d 件**【算出】"
                     % (gt["name"], b["部材"], len(ol), hit))
     if not nm0:
@@ -8797,6 +8847,10 @@ def derive_gates(d, g):
         uf = r.get("uFrom")
         if not uf: continue
         r["a"][0] = r["b"][0] = face_u(uf)
+    for r in d["runs"]:
+        ef = r.get("endFrom")
+        if not ef: continue
+        r[ef["end"]] = gate_col_face_end(d, r, ef)
     for gd in d["gardens"]:
         pf = gd.get("polyFrom")
         if not pf: continue

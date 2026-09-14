@@ -1367,7 +1367,17 @@ def kakoi_cross_check(d, g):
         R = [(m["u0"], m["v0"]), (m["u0"] + m["du"], m["v0"]),
              (m["u0"] + m["du"], m["v0"] + m["dv"]), (m["u0"], m["v0"] + m["dv"])]
         for nm, sgs in lines:
+            # ⭐ 【施主の裁定2 2026-09-15】`runs[].endButt` で**この棟の面へ突き付けた端**は、面の上の接触であって貫きではない
+            #    ── その端だけを 0.001 間 手前へ縮めてから測る(⛔ 名簿を置かない・中を通る線は従来どおり⛔)
+            rr9 = next((q for q in d["runs"] if q["name"] == nm.split(":", 1)[-1]), None) or {}
+            eb9 = rr9.get("endButt") or {}
+            E9 = rr9.get(eb9.get("end")) if eb9.get("mune") == m["name"] else None
             for a, b in sgs:
+                if E9 is not None:
+                    L9 = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
+                    ux, uy = (b[0] - a[0]) / L9, (b[1] - a[1]) / L9
+                    if math.hypot(a[0] - E9[0], a[1] - E9[1]) < 1e-6: a = (a[0] + ux * 1e-3, a[1] + uy * 1e-3)
+                    if math.hypot(b[0] - E9[0], b[1] - E9[1]) < 1e-6: b = (b[0] - ux * 1e-3, b[1] - uy * 1e-3)
                 if any(_seg_cross(a, b, R[k], R[(k + 1) % 4]) for k in range(4)) \
                    or in_poly(a, R) or in_poly(b, R):
                     npier += 1
@@ -8358,6 +8368,38 @@ def derive_garden_vertex_from(d):
             if vf.get("v"): P[1] = coord(vf["v"], "v")
         tr = (gd.get("shukei") or {}).get("tree") or {}
         if tr.get("uFrom"): tr["uv"][0] = coord(tr["uFrom"], "u")
+    # ⭐ 【施主の裁定2 2026-09-15】棟の北面を別の棟の面へ従属させる(`munes[].v1From` ── 御供所の L 字)
+    #    ⭐ 面 = 従属元の棟の**部材の縁の外面**(規則5 ── 部材方の実測 2026-09-15)= 棟の芯(v0 + dv/2)から、
+    #      部材の外形 `bom[].parts[棟].outlineM` の**屋根より下の帯**の南北の最大の半幅だけ南。⛔ 数で持たない
+    byname = {m["name"]: m for m in d["munes"]}
+    ken = d["const"]["ken"]
+    # ⭐ 二段で回す: ① `v0From` を持たない棟の北面 → ② `v0From`(南面 = 別の棟の北面)を持つ棟の南面と北面
+    for m in sorted(d["munes"], key=lambda q: 1 if q.get("v0From") else 0):
+        v0f = m.get("v0From")
+        if v0f:
+            rm = byname.get(v0f.get("of"))
+            if rm is None:
+                raise SystemExit("棟『%s』の `v0From` の棟『%s』が無い" % (m["name"], v0f.get("of")))
+            m["v0"] = round(float(rm["v0"]) + float(rm["dv"]), 4)
+        vf = m.get("v1From")
+        if not vf: continue
+        t9 = byname.get(vf.get("mune"))
+        pt = None
+        for b in d["bom"]:
+            pt = (b.get("parts") or {}).get(vf.get("mune")) or pt
+        if t9 is None or not pt or not pt.get("outlineM"):
+            raise SystemExit("棟『%s』の `v1From` ── 棟『%s』か、その部材の外形 `bom[].parts[%s].outlineM` が無い"
+                             % (m["name"], vf.get("mune"), vf.get("mune")))
+        hw = max(max(abs(q["widthM"][0]), abs(q["widthM"][1])) for q in pt["outlineM"] if "屋根" not in q["band"])
+        face = float(t9["v0"]) + float(t9["dv"]) / 2.0 - hw / ken
+        m["dv"] = round(face - float(m["v0"]), 4)
+    # 建物の輪郭も従属させる(北面の頂点 = その棟の北面)
+    for m in d["munes"]:
+        gp = m.get("groupPoly")
+        if not gp: continue
+        for q in gp.get("vFrom") or []:
+            mm = byname[q["of"]]
+            gp["poly"][q["i"]][1] = round(float(mm["v0"]) + float(mm["dv"]), 4)
 
 
 def derive_runs(d, g):
@@ -9195,6 +9237,68 @@ def sode_part_check(d, g):
     return bad, note
 
 
+def mune_group_poly_check(d, g):
+    """**一つの建物を複数の矩形の棟で持つときの輪郭**【施主の裁定2 2026-09-15 ── 御供所の L 字】。
+    `munes[].groupPoly`(輪郭の多角形)と、同じ `group` の棟の矩形の和が一致するか(面積と頂点)を測る。
+    あわせて `endButt` で建物へ突き付く囲いの端が、その棟の面の上にあるかを測る(⛔ 建物の中を通さない)。"""
+    bad, note = [], []
+    groups = {}
+    for m in d["munes"]:
+        if m.get("group"): groups.setdefault(m["group"], []).append(m)
+    n0 = 0
+    for m in d["munes"]:
+        gp = m.get("groupPoly")
+        if not gp: continue
+        n0 += 1
+        P = gp["poly"]
+        ms = groups.get(m.get("group"), [])
+        a_rect = sum(q["du"] * q["dv"] for q in ms)
+        a_poly = abs(poly_area(P))
+        if abs(a_rect - a_poly) > 1e-3:
+            bad.append("建物『%s』── 棟の矩形の和 %.3f 間² と輪郭 `groupPoly` %.3f 間² が合わない(矩形が重なるか欠ける)" % (m["group"], a_rect, a_poly))
+        else:
+            note.append("建物『%s』── 棟 %d 本の矩形の和 %.3f 間² = 輪郭の多角形(%d 頂点)【算出】" % (m["group"], len(ms), a_rect, len(P)))
+        for q in P:
+            if not any(abs(q[0] - x) < 1e-6 or abs(q[1] - y) < 1e-6
+                       for mm in ms for x in (mm["u0"], mm["u0"] + mm["du"]) for y in (mm["v0"], mm["v0"] + mm["dv"])):
+                bad.append("建物『%s』の輪郭の頂点 (%.4f, %.4f) がどの棟の辺にも載らない" % (m["group"], q[0], q[1]))
+    for r in d["runs"]:
+        eb = r.get("endButt")
+        if not eb: continue
+        m = next((q for q in d["munes"] if q["name"] == eb.get("mune")), None)
+        E = r["a"] if eb.get("end") == "a" else r["b"]
+        if m is None:
+            bad.append("囲い『%s』の `endButt` の棟『%s』が無い" % (r["name"], eb.get("mune"))); continue
+        fx = {"西面": ("u", m["u0"]), "東面": ("u", m["u0"] + m["du"]), "南面": ("v", m["v0"]), "北面": ("v", m["v0"] + m["dv"])}.get(eb.get("face"))
+        if fx is None:
+            bad.append("囲い『%s』の `endButt.face`『%s』が読めない" % (r["name"], eb.get("face"))); continue
+        j = 0 if fx[0] == "u" else 1
+        k = 1 - j
+        lo, hi = (m["v0"], m["v0"] + m["dv"]) if j == 0 else (m["u0"], m["u0"] + m["du"])
+        if abs(E[j] - fx[1]) > 1e-4 or not (lo - 1e-6 <= E[k] <= hi + 1e-6):
+            bad.append("囲い『%s』の端 (%.4f, %.4f) が棟『%s』の%sに載らない ── ⛔ 建物の中を通さない" % (r["name"], E[0], E[1], m["name"], eb["face"]))
+        else:
+            note.append("囲い『%s』の端は棟『%s』の%sに突き付く【算出】" % (r["name"], m["name"], eb["face"]))
+    if not n0:
+        bad.append("輪郭 `groupPoly` を持つ建物が無い ── 御供所の L 字(施主の裁定2)が図に入っていない")
+    return bad, note
+
+
+def fill_slope_planting_check(d, g):
+    """**盛土の法面の植栽の宣言**【庭方 2026-09-15 ── 施主の基準『斜面は木でしっかり覆う』】── 鍵が揃っているか。
+    ⚠ 焼き出しの植栽への結線は未(宣言を検めるだけ ── ⛔ 0 件は合格ではない)。"""
+    fs = (d.get("planting") or {}).get("fillSlopePlanting")
+    if not fs:
+        return (["盛土の法面の植栽 `planting.fillSlopePlanting` の宣言が無い"], [])
+    need = ("where", "rule", "chuboku", "takagiLine", "teibokuPer100", "shitakusa", "acc")
+    miss = [k for k in need if fs.get(k) in (None, "", [])]
+    if miss:
+        return (["`planting.fillSlopePlanting` の鍵が欠ける: %s" % "・".join(miss)], [])
+    return ([], ["盛土の法面(%s)── 帯の宣言『%s』・中木 %s 丈 %s m 芯々 %s m ／ 高木の線 法尻の外 %s 間 芯々 %s m ／ 低木 %s 本/100m²【宣言 ── ⚠ 焼き出しの植栽へは未結線(未測定)】"
+                 % (fs["where"], fs["rule"], fs["chuboku"]["asset"], fs["chuboku"]["hM"], fs["chuboku"]["spacingM"],
+                    fs["takagiLine"]["offsetKen"], fs["takagiLine"]["spacingM"], fs["teibokuPer100"])])
+
+
 SUKIBEI_ROW = "透塀(連子窓の塀)"
 
 
@@ -9211,7 +9315,8 @@ def sukibei_span_plan(d):
         if r.get("kind") != "透塀": continue
         A, B = r["a"], r["b"]
         L = math.hypot(B[0] - A[0], B[1] - A[1]) * ken
-        segs = [(0.0, L, "c", "c", "全長")]
+        eb = r.get("endButt") or {}
+        segs = [(0.0, L, "t" if eb.get("end") == "a" else "c", "t" if eb.get("end") == "b" else "c", "全長")]
         gv = r.get("gapV") if r.get("gapV") is not None else r.get("gapU")
         if gv is not None and r.get("gapHalf") is not None:
             j = 1 if r.get("gapV") is not None else 0
@@ -17341,6 +17446,8 @@ def run_checks():
     tpc = tier_plan_check(d, g)        # 二段築の段の走りの宣言(石垣の設計 2026-09-14 ③)
     ssc = sukibei_span_check(d, g)     # 透塀のスパンの割り付けと部材(部材方 2026-09-14)
     ckc = chumon_kabuki_check(d, g)    # 中門の冠木と透塀の棟の離れ(部材方 2026-09-14)
+    mgp = mune_group_poly_check(d, g)  # 御供所の L 字と透塀の突き付け(施主の裁定2 2026-09-15)
+    fsp = fill_slope_planting_check(d, g)  # 盛土の法面の植栽の宣言(庭方 2026-09-15)
     nks = noki_sori_check(d)           # 軒反りの量(考証 2026-09-13 中)
     skd = shaden_kidan_check(d)        # 基壇・亀腹の石材(庭方 2026-09-13 中)
     izc = ishizai_color_check(d)       # 庭の石の名簿の色(庭方 2026-09-13・普請奉行の裁定)
@@ -17443,6 +17550,8 @@ def run_checks():
     rows.append(("二段築の段の走りの宣言(`terraceWalls[].tierPlan` × 下段の見える走り)", tpc[0], tpc[1]))
     rows.append(("透塀のスパンの割り付けと部材(辺の等分・端の種類・`bom[透塀].baked`)", ssc[0], ssc[1]))
     rows.append(("中門の冠木と透塀の棟の離れ(`bom[中門].axis.kabukiM` × `bom[透塀].outlineM`)", ckc[0], ckc[1]))
+    rows.append(("建物の輪郭と棟の矩形の和・囲いの建物への突き付け(`groupPoly`・`endButt`)", mgp[0], mgp[1]))
+    rows.append(("盛土の法面の植栽の宣言(`planting.fillSlopePlanting`)", fsp[0], fsp[1]))
     rows.append(("軒反りの量(指図 `const` と部材の生成器)", nks[0], nks[1]))
     rows.append(("社殿の基壇・亀腹の石材の宣言(`shadenKidan`)", skd[0], skd[1]))
     rows.append(("庭の石の名簿の色(`ishizai.colors`・受入値 `colorGate`・材の実測は未測定)", izc[0], izc[1]))

@@ -9353,11 +9353,13 @@ def fill_slope_planting_check(d, g):
         bad.append(msg + " ── 受入値 %s%% を割る ── 決めるのは**庭方**" % mn)
     else:
         note.append(msg + (" ── 受入値 %s%% の内" % mn if mn is not None else " ── ⚠ 受入値の宣言なし(`coverMinPct` ── 庭方)"))
-    # ③ **見上げ**(`viewChecks`)── 断面の図版は足さず、正射影の計算だけで測る(指図方の判断 2026-09-15)。
-    #    見る向き `toward`(見る人の側への単位ベクトル[uv])に面する法面のセルが**見付け**。セルの (横 s, 高さ y) を、
-    #    見る人の側にある高木・中木の樹冠の帯(横 ±樹冠の半径 × 高さ 枝下〜丈)が覆えば隠れる。
-    #    枝下は層ごとの `plantRule.crownRule.<層>.edaShitaMinM`(⚠ 目録に部材の枝下が無いので下限で測る)。
-    #    隙 = 枝下の高さ − その樹冠の下の低木の天端(低木が無ければ地盤)の最大。
+    # ③ **見上げ**(`viewChecks`)【庭方の宣言 2026-09-15 ── 透視で測る】── 断面の図版は足さず計算だけで測る。
+    #    見る位置 `eyeWorld` の地盤 + `eyeHM` の目から、法面のセル(0.1 間)の地表の点へ線を引く。
+    #    ・分母 = 手前の地形(`design_y`)に遮られないセル ── ⛔ 見えないセルを数えない
+    #    ・隠れる = その線が木の円柱を通る(高木・中木 = 枝下〜丈 ／ 低木 = 地盤〜丈)── 低木も隠す物に数える
+    #    ・隙 = 隠れない線が高木・中木の円柱の下を抜けるとき、樹冠の下端 − その手前で線が通る低木の天端(無ければその木の地盤)の最大
+    #    ・陰性試験 = 木を全部抜いて同じ計算をし、隠れる割合が ≤ 1% でなければ⛔(検査が黙って通していないか)
+    #    枝下は木ごとの `edaShitaM` か `plantRule.crownRule.<層>.edaShitaMinM`(⚠ 目録に部材の枝下が無いので下限)。
     vcs = fs.get("viewChecks") or []
     crw = d["planting"]["plantRule"].get("crownRule") or {}
     eda = {"松": (crw.get("takagi") or {}).get("edaShitaMinM"), "落葉": (crw.get("takagi") or {}).get("edaShitaMinM"),
@@ -9365,12 +9367,6 @@ def fill_slope_planting_check(d, g):
     if not vcs:
         bad.append("盛土の法面の見上げ `fillSlopePlanting.viewChecks` の宣言が無い ── 見付けの隠れと隙を測れない")
     S = geo["samples"]
-    face = []
-    for p in poly_scan(P, 0.1):
-        k9 = min(range(len(S)), key=lambda k: (S[k][0][0] - p[0]) ** 2 + (S[k][0][1] - p[1]) ** 2)
-        yy = design_y(d, g, *g.W(p[0], p[1]))
-        if yy is not None: face.append((p, S[k9][1], yy, S[k9][3]))
-    # ⭐ 見上げから外す面(`viewExclude` ── 見る人が立つ所が無い面は平面の被覆率だけで検める。理由を名簿に持つ)
     Ev9 = [list(q) for q in geo["edge"]]
     excl = set()
     for ex9 in fs.get("viewExclude") or []:
@@ -9383,39 +9379,111 @@ def fill_slope_planting_check(d, g):
         excl.update(hit9)
         if hit9:
             note.append("見上げから外す面『%s』── 理由: %s【%s】" % (ex9.get("face"), ex9.get("reason"), ex9.get("acc", "—")))
-    for vc in vcs:
-        tw = vc["toward"]; L9 = math.hypot(tw[0], tw[1]) or 1.0
-        dx, dy = tw[0] / L9, tw[1] / L9
-        F = [(p, yy) for p, n, yy, i9 in face if n[0] * dx + n[1] * dy > 0.2 and i9 not in excl]
-        if not F:
-            bad.append("見上げ『%s』── この向きに面する法面の見付けが無い ── 見る向き `toward` は**庭方**が決める" % vc["name"])
-            continue
-        TR = []
-        for q in mids + tall:
-            e9 = q.get("edaShitaM") if q.get("edaShitaM") is not None else eda.get(q["layer"])
-            if e9 is None or not q.get("crownM"): continue
-            TR.append((q["u"] * dx + q["v"] * dy, -q["u"] * dy + q["v"] * dx, q["crownM"] / 2.0 / ken,
-                       q["y"] + float(e9), q["y"] + q["h"], q))
-        hid = 0
-        for p, yy in F:
-            w, s = p[0] * dx + p[1] * dy, -p[0] * dy + p[1] * dx
-            if any(tw9 >= w - r9 and abs(ts - s) <= r9 and yb <= yy <= yt for tw9, ts, r9, yb, yt, _q in TR):
+    _gy = {}
+
+    def gy(x, z):
+        k = (round(x * 2.0), round(z * 2.0))
+        if k not in _gy:
+            y9 = design_y(d, g, x, z)
+            _gy[k] = y9 if y9 is not None else dem_h(x, z)
+        return _gy[k]
+    cells = []
+    for p in poly_scan(P, 0.1):
+        k9 = min(range(len(S)), key=lambda k: (S[k][0][0] - p[0]) ** 2 + (S[k][0][1] - p[1]) ** 2)
+        if S[k9][3] in excl: continue
+        x, z = g.W(p[0], p[1])
+        yy = design_y(d, g, x, z)
+        if yy is not None: cells.append((x, z, yy))
+
+    def cyls(TT, crown):
+        out9 = []
+        for q in TT:
+            if not q.get("crownM"): continue
+            x, z = g.W(q["u"], q["v"])
+            if crown:
+                e9 = q.get("edaShitaM") if q.get("edaShitaM") is not None else eda.get(q["layer"])
+                if e9 is None: continue
+                out9.append((x, z, q["crownM"] / 2.0, q["y"] + float(e9), q["y"] + q["h"], q["name"], q["y"]))
+            else:
+                out9.append((x, z, q["crownM"] / 2.0, q["y"], q["y"] + q["h"], q["name"], q["y"]))
+        return out9
+
+    def seg_circle(E, T, c):
+        """線 E→T(平面)が円 c を通る助変数の区間 [s1, s2](無ければ None)。"""
+        dx9, dz9 = T[0] - E[0], T[1] - E[1]
+        fx9, fz9 = E[0] - c[0], E[1] - c[1]
+        a9 = dx9 * dx9 + dz9 * dz9
+        if a9 < 1e-12: return None
+        b9 = 2.0 * (fx9 * dx9 + fz9 * dz9)
+        c9 = fx9 * fx9 + fz9 * fz9 - c[2] * c[2]
+        disc = b9 * b9 - 4.0 * a9 * c9
+        if disc < 0: return None
+        r0 = math.sqrt(disc)
+        s1, s2 = max(0.0, (-b9 - r0) / (2.0 * a9)), min(1.0, (-b9 + r0) / (2.0 * a9))
+        return (s1, s2) if s2 > s1 else None
+
+    def measure(E, CY, SH):
+        vis = hid = 0
+        gap = (None, None)
+        for x, z, yy in cells:
+            L9 = math.hypot(x - E[0], z - E[1])
+            n9 = max(2, int(L9 / 1.0))
+            blocked = False
+            for k in range(1, n9):
+                s9 = k / float(n9)
+                if s9 > 1.0 - 0.3 / max(L9, 0.3): break
+                if E[2] + (yy - E[2]) * s9 < gy(E[0] + (x - E[0]) * s9, E[1] + (z - E[1]) * s9) - 0.05:
+                    blocked = True
+                    break
+            if blocked: continue
+            vis += 1
+
+            def yat(s9): return E[2] + (yy - E[2]) * s9
+            h9 = False
+            for c in CY + SH:
+                iv = seg_circle(E, (x, z), c)
+                if iv is None: continue
+                ylo, yhi = sorted((yat(iv[0]), yat(iv[1])))
+                if ylo <= c[4] and yhi >= c[3]:
+                    h9 = True
+                    break
+            if h9:
                 hid += 1
-        pct = 100.0 * hid / len(F)
-        smin = min(-p[0] * dy + p[1] * dx for p, _y in F); smax = max(-p[0] * dy + p[1] * dx for p, _y in F)
-        gaps = []
-        for tw9, ts, r9, yb, yt, q in TR:
-            if ts + r9 < smin or ts - r9 > smax: continue
-            under = [lw["y"] + lw["h"] for lw in low if math.hypot(lw["u"] - q["u"], lw["v"] - q["v"]) <= r9]
-            gaps.append((yb - (max(under) if under else q["y"]), q["name"]))
-        gmax = max(gaps) if gaps else (None, None)
+                continue
+            for c in CY:
+                iv = seg_circle(E, (x, z), c)
+                if iv is None: continue
+                if max(yat(iv[0]), yat(iv[1])) >= c[3]: continue
+                fr = [sh[4] for sh in SH if (seg_circle(E, (x, z), sh) or (9.0, 9.0))[0] < iv[0]]
+                g9 = c[3] - (max(fr) if fr else c[6])
+                if gap[0] is None or g9 > gap[0]: gap = (g9, c[5])
+        return vis, hid, gap
+    CY = cyls(mids + tall, True)
+    SH = cyls(low, False)
+    for vc in vcs:
+        ew = vc.get("eyeWorld")
+        if not ew or vc.get("eyeHM") is None:
+            bad.append("見上げ『%s』に見る位置 `eyeWorld` か目の高さ `eyeHM` の宣言が無い" % vc.get("name")); continue
+        gy0 = gy(ew[0], ew[1])
+        if gy0 is None:
+            bad.append("見上げ『%s』の見る位置の地盤が引けない" % vc["name"]); continue
+        E = (float(ew[0]), float(ew[1]), gy0 + float(vc["eyeHM"]))
+        vis, hid, gap = measure(E, CY, SH)
+        if not vis:
+            bad.append("見上げ『%s』── 目から見える法面のセルが無い(手前の地形に遮られる)── 見る位置は**庭方**が決める" % vc["name"]); continue
+        pct = 100.0 * hid / vis
+        v0, h0, _g0 = measure(E, [], [])
+        neg = 100.0 * h0 / v0 if v0 else 0.0
         hmn, gmx = vc.get("hiddenMinPct", fs.get("hiddenMinPct")), vc.get("gapMaxM", fs.get("gapMaxM"))
-        line = ("見上げ『%s』── 法面の見付け %d セルのうち樹冠に隠れる **%.0f%%**(受入値 %s%% 以上)／ 樹冠の下端と低木の天端の隙の最大 **%s**(受入値 %s m 以下%s)【算出】"
-                % (vc["name"], len(F), pct, hmn, ("%.2f m" % gmax[0]) if gmax[0] is not None else "—", gmx,
-                   (" ── 『%s』" % gmax[1]) if gmax[1] else ""))
+        line = ("見上げ『%s』(目 %.2f m)── 目から見える法面 %d セル(全 %d)のうち木に隠れる **%.0f%%**(受入値 %s%% 以上)／ 隙の最大 **%s**(受入値 %s m 以下%s)"
+                "／ 陰性試験(木を全部抜く)%.1f%%【算出 ── 透視】"
+                % (vc["name"], E[2], vis, len(cells), pct, hmn, ("%.2f m" % gap[0]) if gap[0] is not None else "—", gmx,
+                   (" ── 『%s』" % gap[1]) if gap[1] else "", neg))
+        if neg > 1.0:
+            bad.append("見上げ『%s』の陰性試験が落ちた ── 木を全部抜いても %.1f%% が隠れる(検査が黙って通している)" % (vc["name"], neg))
         fails = []
         if hmn is not None and pct < float(hmn): fails.append("隠れる割合")
-        if gmx is not None and gmax[0] is not None and gmax[0] > float(gmx) + 1e-9: fails.append("隙")
+        if gmx is not None and gap[0] is not None and gap[0] > float(gmx) + 1e-9: fails.append("隙")
         if fails:
             bad.append(line + " ── ⛔ %s が受入値を割る ── 値は動かさない。決めるのは**庭方**" % "・".join(fails))
         else:

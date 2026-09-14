@@ -9005,6 +9005,13 @@ def gate_part_outline_check(d, g):
                 if r.get("seat") is not None and ylo >= float(r["seat"]) - EPS: continue
                 hw = max(abs(bd["widthM"][0]), abs(bd["widthM"][1]))
                 mg = fm - hw
+                rb9 = next((q for q in d["bom"] if q.get("部材") == r.get("bom")), None) or {}
+                nt9 = ((rb9.get("axis") or {}).get("footAt") or {}).get("notchM")
+                if mg < -1e-4 and r.get("footStep") and nt9 and -mg <= float(nt9[0]) + 1e-4 \
+                        and bd["hM"][0] >= -EPS and bd["hM"][1] <= float(nt9[1]) + 1e-4:
+                    note.append("門『%s』の外形〔%s〕が%sの側柱の外面を %.3f m 越えるが、囲い『%s』の部材の木口の欠き込み %.3f × %.3f m に納まる【算出】"
+                                % (gt["name"], bd["band"], ef["face"], -mg, r["name"], float(nt9[0]), float(nt9[1])))
+                    continue
                 if mg < -1e-4:
                     hit += 1
                     bad.append("門『%s』の外形〔%s〕が%sの側柱の外面(囲い『%s』の端)を **%.3f m** 越える"
@@ -9100,7 +9107,19 @@ def sode_part_check(d, g):
                 if seat is None or abs(float(seat) - float(w9["coping"])) > EPS:
                     bad.append("袖塀『%s』の翼の側の足元(座 %s)が妻の石垣『%s』の天端 %.2f と違う"
                                % (r["name"], seat, w9["name"], float(w9["coping"])))
-            if fa.get("step") is None:
+            stp = fa.get("step")
+            if stp is not None and X is not None:
+                E9 = r["a"] if ef.get("end") == "a" else r["b"]
+                dm = math.hypot(X[0] - E9[0], X[1] - E9[1]) * ken
+                if abs(dm - float(stp["atM"])) > 0.05:
+                    bad.append("袖塀『%s』── 部材の足元の段 %.3f m(門側の端から)が図の段の点 %.3f m と %.3f m 違う ── 決めるのは**部材方**"
+                               % (r["name"], float(stp["atM"]), dm, float(stp["atM"]) - dm))
+                else:
+                    note.append("袖塀『%s』── 部材の足元の段 %.3f m が図の段の点(門側の端から %.3f m)と一致【算出】"
+                                % (r["name"], float(stp["atM"]), dm))
+                if seat is None or abs((float(seat) - prem) - float(stp["riseM"])) > 1e-6:
+                    bad.append("袖塀『%s』── 部材の段の丈 %.2f m が図の足元の差(座 − 門の敷居)と違う" % (r["name"], float(stp["riseM"])))
+            if stp is None:
                 bad.append("袖塀『%s』── 図は足元を二段(門の側 %.2f ／ 翼の側 %s)に置くが、部材『%s』は一段(足元 = 門の敷居)のまま ⇒ "
                            "部材の二段の焼き直し待ち ── 決めるのは**部材方**(→ `_pending`「袖塀の丈と形」)"
                            % (r["name"], prem, "—" if seat is None else "%.2f" % float(seat), b["部材"]))
@@ -9128,6 +9147,12 @@ def sode_part_check(d, g):
                 y0, y1 = gt["sill"] + bd["hM"][0], gt["sill"] + bd["hM"][1]
                 if min(y1, fy + H) - max(y0, fy) <= EPS: continue
                 over = max(abs(bd["widthM"][0]), abs(bd["widthM"][1])) - fm
+                nt9 = fa.get("notchM")
+                if over > 1e-4 and nt9 and abs(fy - prem) < EPS and over <= float(nt9[0]) + 1e-4 \
+                        and min(y1, fy + H) - fy <= float(nt9[1]) + 1e-4:
+                    note.append("袖塀『%s』── 門『%s』の外形〔%s〕%.3f m(丈 %.2f〜%.2f)は部材の木口の欠き込み %.3f × %.3f m に納まる【算出】"
+                                % (r["name"], gt["name"], bd["band"], over, max(y0, fy), min(y1, fy + H), float(nt9[0]), float(nt9[1])))
+                    continue
                 if over > 1e-4: hits.append((bd["band"], over, max(y0, fy), min(y1, fy + H)))
             if hits:
                 bad.append("袖塀『%s』の門の側の木口 ── 足元を%s %.2f に置くと、門『%s』の外形%sが木口(%sの側柱の外面)を越えて"
@@ -9142,6 +9167,87 @@ def sode_part_check(d, g):
                     % (r["name"], b["部材"], H, gt["name"], len(gol)))
     if not n0:
         bad.append("門に木口を突き付ける袖塀が一つも無い — 袖塀の部材の取り合いを測れない")
+    return bad, note
+
+
+SUKIBEI_ROW = "透塀(連子窓の塀)"
+
+
+def sukibei_span_plan(d):
+    """**透塀のスパンの割り付け**【部材方 2026-09-14】── 辺(隅の柱芯から、中門の側は本柱の外面から)を
+    run の側で**等分**する: 本数 = round(辺長 / 基準スパン)・スパン = 辺長 / 本数。⛔ 数を json に持たない。
+    端の種類(−X, +X — run の a → b の向き): n = 次のスパンへ続く / t = 中門へ突き付け / c = 隅部材へ続く /
+    ? = 部材が決まっていない口(南の潜り)。戻り [(run 名, 区間の名, 辺長 m, 本数, スパン mm, [端の種類…])]。"""
+    ken = d["const"]["ken"]
+    row = next((b for b in d["bom"] if b.get("部材") == SUKIBEI_ROW), {}) or {}
+    base = float(row.get("spanBaseM") or 2.54)
+    out = []
+    for r in d["runs"]:
+        if r.get("kind") != "透塀": continue
+        A, B = r["a"], r["b"]
+        L = math.hypot(B[0] - A[0], B[1] - A[1]) * ken
+        segs = [(0.0, L, "c", "c", "全長")]
+        gv = r.get("gapV") if r.get("gapV") is not None else r.get("gapU")
+        if gv is not None and r.get("gapHalf") is not None:
+            j = 1 if r.get("gapV") is not None else 0
+            sc = abs(gv - A[j]) * ken
+            h = float(r["gapHalf"]) * ken
+            eg = "t" if r.get("gapFrom") else "?"
+            segs = [(0.0, sc - h, "c", eg, "口の手前"), (sc + h, L, eg, "c", "口の先")]
+        for s0, s1, e0, e1, nm in segs:
+            ln = s1 - s0
+            n = max(1, int(round(ln / base)))
+            mm = int(round(ln / n * 1000.0))
+            ends = [e0 + e1] if n == 1 else [e0 + "n"] + ["nn"] * (n - 2) + ["n" + e1]
+            out.append((r["name"], nm, ln, n, mm, ends))
+    return out
+
+
+def sukibei_span_check(d, g):
+    """**透塀のスパン部材が焼けているか**── 割り付け(`sukibei_span_plan`)が要る `<スパン mm>_<端>` と、
+    部材表の焼いた一覧 `bom[透塀].baked` を突き合わせる。⛔ 焼けていない物・端の決まらない口(`?`)は⛔。"""
+    bad, note = [], []
+    row = next((b for b in d["bom"] if b.get("部材") == SUKIBEI_ROW), None)
+    if row is None:
+        return (["部材表に透塀の行が無い"], [])
+    baked = set(row.get("baked") or [])
+    need = {}
+    for rn, nm, ln, n, mm, ends in sukibei_span_plan(d):
+        note.append("透塀『%s』%s ── 辺長 %.3f m ÷ %d 本 = スパン %d mm ／ 端 %s【算出】" % (rn, nm, ln, n, mm, "・".join(ends)))
+        for e in ends:
+            need.setdefault("%d_%s" % (mm, e), []).append(rn)
+    q9 = sorted(k for k in need if "?" in k)
+    if q9:
+        bad.append("透塀の口の端の部材が決まっていない ── %s(`runs[%s]` の口 ── 南の潜り)。決めるのは**普請奉行**(潜りの形)と**部材方**"
+                   % ("・".join(q9), "・".join(sorted(set(x for k in q9 for x in need[k])))))
+    miss = sorted(k for k in need if k not in baked and "?" not in k)
+    if miss:
+        bad.append("透塀のスパン部材が **%d 点** 焼けていない ── %s ── 決めるのは**部材方**(`build_sanno_sukibei.py --span`)"
+                   % (len(miss), "・".join(miss)))
+    note.append("透塀のスパン部材 ── 要る %d 点 ／ 焼いた %d 点(`bom[%s].baked`)【算出】" % (len(need), len(baked), SUKIBEI_ROW))
+    return bad, note
+
+
+def chumon_kabuki_check(d, g):
+    """**中門の冠木と透塀の棟の離れ**【部材方 2026-09-14】── 冠木の下端(`bom[中門].axis.kabukiM`)と
+    透塀の部材の棟の天端(`bom[透塀].outlineM` の最上)が同じ床(中門の敷居 = 透塀の座)から測って離れるか(⛔ 当たれば)。"""
+    bad, note = [], []
+    cm = next((b for b in d["bom"] if b.get("部材") == "中門(一間平唐門)"), {}) or {}
+    sk = next((b for b in d["bom"] if b.get("部材") == SUKIBEI_ROW), {}) or {}
+    kb = (cm.get("axis") or {}).get("kabukiM")
+    ol = sk.get("outlineM") or []
+    if not kb or not ol:
+        return (["中門の冠木 `axis.kabukiM` か透塀の外形 `outlineM` が無い ── 冠木と棟の離れを測れない"], [])
+    gt = gate_by_name(d, "中門")
+    ru = next((r for r in d["runs"] if r.get("gapFrom", {}).get("gate") == "中門"), None)
+    if ru is None or abs(float(ru["seat"]) - float(gt["sill"])) > 1e-6:
+        bad.append("中門の敷居と透塀の座が同じ高さでない ── 冠木と棟の離れの物差しが揃わない")
+    top = max(b["hM"][1] for b in ol)
+    eave = min(b["hM"][0] for b in ol if "軒" in b["band"]) if any("軒" in b["band"] for b in ol) else None
+    gap = float(kb[0]) - top
+    (bad if gap < 0 else note).append("中門の冠木の下端 %.3f m ／ 透塀の棟の天端 %.3f m ⇒ 離れ **%.3f m**%s%s"
+                                      % (float(kb[0]), top, gap, "" if eave is None else "(透塀の軒先の最低 %.2f m)" % eave,
+                                         "【算出】" if gap >= 0 else " ── 当たる。決めるのは**部材方**"))
     return bad, note
 
 
@@ -17208,6 +17314,8 @@ def run_checks():
     spc = sode_part_check(d, g)        # 袖塀の部材と楼門・回廊の取り合い(部材方の返り事項 2026-09-14)
     rkf = romon_kidan_face_check(d, g)  # 楼門の基壇の面と石垣・石段の頭(石垣の設計 2026-09-14)
     tpc = tier_plan_check(d, g)        # 二段築の段の走りの宣言(石垣の設計 2026-09-14 ③)
+    ssc = sukibei_span_check(d, g)     # 透塀のスパンの割り付けと部材(部材方 2026-09-14)
+    ckc = chumon_kabuki_check(d, g)    # 中門の冠木と透塀の棟の離れ(部材方 2026-09-14)
     nks = noki_sori_check(d)           # 軒反りの量(考証 2026-09-13 中)
     skd = shaden_kidan_check(d)        # 基壇・亀腹の石材(庭方 2026-09-13 中)
     izc = ishizai_color_check(d)       # 庭の石の名簿の色(庭方 2026-09-13・普請奉行の裁定)
@@ -17308,6 +17416,8 @@ def run_checks():
     rows.append(("袖塀の部材と楼門・回廊の取り合い(足元の高さ・門の側の木口・`bom[].axis.footAt`)", spc[0], spc[1]))
     rows.append(("楼門の基壇の面と石垣・石段の頭(踏み止め・側壁・妻の石垣・腰石垣・男坂の従属値)", rkf[0], rkf[1]))
     rows.append(("二段築の段の走りの宣言(`terraceWalls[].tierPlan` × 下段の見える走り)", tpc[0], tpc[1]))
+    rows.append(("透塀のスパンの割り付けと部材(辺の等分・端の種類・`bom[透塀].baked`)", ssc[0], ssc[1]))
+    rows.append(("中門の冠木と透塀の棟の離れ(`bom[中門].axis.kabukiM` × `bom[透塀].outlineM`)", ckc[0], ckc[1]))
     rows.append(("軒反りの量(指図 `const` と部材の生成器)", nks[0], nks[1]))
     rows.append(("社殿の基壇・亀腹の石材の宣言(`shadenKidan`)", skd[0], skd[1]))
     rows.append(("庭の石の名簿の色(`ishizai.colors`・受入値 `colorGate`・材の実測は未測定)", izc[0], izc[1]))

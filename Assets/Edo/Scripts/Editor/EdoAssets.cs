@@ -586,6 +586,21 @@ public static class EdoAssets
                  + pX + "-" + mX + "-" + pZ + "-" + mZ + ".fbx";
         }
 
+        /// <summary>**山王社の中門(瑞垣門)**。一間平唐門・四脚(本柱2+控柱4)・銅瓦葺【S [国宝建造物目録1941]】。
+        /// 在庫『無い』(指図 `bom[中門(一間平唐門)]`)ので新造。
+        /// ⭐ **通り抜け=ローカル X・正面=+X(扉は −X へ開く)・大棟=Z(唐破風は ±Z の妻)・ピボット=門の芯・敷居の高さ**。
+        /// yaw 0° で据えると正面=東・通り抜け=東西。scale は Vector3.one。
+        /// 柱芯: 本柱 Z ±0.909(戸口1間)/ 控柱 X ±0.909・Z ±0.909。外形 W(X)3.90 × H(Y)4.45(−0.30〜4.15)× D(Z)3.36・15.9k tris。
+        /// 基壇は敷居と面一の切石(根入れ 0.30)。出は柱芯から +X/−X/+Z/−Z(mm)で、±Z は透塀の門口の縁(=本柱の芯)
+        /// ⇒ 0。礎盤だけ柱の半径 0.15 まで出る。材 `wood` / `door wall` / `Kirishi` / `Doukawara` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 柱の太さ・高さ・冠木・軒と妻の出・唐破風の断面・基壇は【U 類型】。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_chumon.py -- --render</summary>
+        public static string SannoChumon(int duKen, int dvKen, int pX, int mX, int pZ, int mZ)
+        {
+            return "Assets/Edo/Models/Sanno/Sanno_Chumon_" + duKen + "x" + dvKen + "ken_k"
+                 + pX + "-" + mX + "-" + pZ + "-" + mZ + ".fbx";
+        }
+
         /// <summary>**イロハモミジ**。⭐ **株立ち3〜5幹・枝が水平に張る**(幅が高さを上回る)。
         /// ⚠ 在庫の `NM.MapleBush` は**灌木**(丈1.5m)で中木に使えず、桜の夏姿での代用も
         /// 不可(夏でも幹肌が桜と読め、季節の確度が化ける)。庭方の要求で 2026-09-01 に新造。
@@ -946,6 +961,14 @@ public static class EdoAssets
         public const string MShop02     = "Assets/Edo/Materials/M_Shop02.mat";
         public const string MKido       = "Assets/Edo/Materials/M_Kido.mat";
         public const string MKidobanya  = "Assets/Edo/Materials/M_Kidobanya.mat";
+
+        /// <summary>**山王社の段石の材**(`Danishi`)。切石の基壇 `Kirishi.mat` と**同じテクスチャ**
+        /// (`T_Kirishi_Albedo` / `T_Kirishi_Normal`)で、`_BaseColor` の灰だけを 0.936 に落とした物。
+        /// 受入値(庭方): H 25〜50° / S ≤ 12 / V 44〜54・平均 V 49±3。
+        /// 実測(物差し = albedo × _BaseColor の sRGB 平均色の HSV。Kirishi の H36/S11.2/V52.4 と同じ測り方):
+        /// **H 36.0 / S 11.2 / V 49.0**(V p10〜p90 45.5〜52.5)。線形合成で測っても H36.0/S11.3/V48.8。
+        /// 【U 設計値】— 史料は石の色を言わない。2026-09-14 部材方。</summary>
+        public const string MSannoDanishi = "Assets/Edo/Materials/Sanno/Danishi.mat";
         public const string MJishinban  = "Assets/Edo/Materials/M_Jishinban.mat";
         public const string MGateStone  = "Assets/Edo/Materials/GateStone.mat";
         // 自作マテリアルの名前引き(規則11: パスの literal はここ以外に書かない)

@@ -8309,6 +8309,32 @@ def derive_gaps(d):
         w["a"][1] = w["b"][1] = cv + (hw if vf["side"] == "北" else -hw)
 
 
+def derive_garden_vertex_from(d):
+    """**区の頂点・名指しの木を囲いの辺から従属させる**【庭方 2026-09-14c】── `gardens[].vertexFrom` と
+    `gardens[].shukei.tree.uFrom`。辺は軸に平行な run(`a`/`b` のその座標が等しい)に限る。
+    値 = 辺の座標 + `offKen` + `side` × (退避 `planting.clearance.keidai[clearance]` + `marginKen`)。⛔ json の数を読まない。"""
+    runs = {r["name"]: r for r in d["runs"]}
+    ck = d["planting"]["clearance"]["keidai"]
+
+    def coord(sp, ax):
+        r = runs.get(sp.get("run"))
+        j = 0 if ax == "u" else 1
+        if r is None or abs(r["a"][j] - r["b"][j]) > 1e-9:
+            raise SystemExit("`vertexFrom` の辺『%s』が無いか、%s に平行でない" % (sp.get("run"), ax))
+        off = float(sp.get("offKen", 0.0))
+        if sp.get("clearance"):
+            off += float(sp.get("side", 1)) * (float(ck[sp["clearance"]]) + float(sp.get("marginKen", 0.0)))
+        return round(r["a"][j] + off, 4)
+
+    for gd in d["gardens"]:
+        for vf in gd.get("vertexFrom") or []:
+            P = gd["poly"][vf["i"]]
+            if vf.get("u"): P[0] = coord(vf["u"], "u")
+            if vf.get("v"): P[1] = coord(vf["v"], "v")
+        tr = (gd.get("shukei") or {}).get("tree") or {}
+        if tr.get("uFrom"): tr["uv"][0] = coord(tr["uFrom"], "u")
+
+
 def derive_runs(d, g):
     """平場の輪郭に従う囲いを**その場で生成する**(2026-08-23 検図 中-5)。
 
@@ -8318,6 +8344,7 @@ def derive_runs(d, g):
     ⛔ 生成の仕方は変わらない — 種別が替わっても輪郭からの従属値である。
     """
     derive_gaps(d)             # 口は通す物の幅からの従属値(囲い・土留めの両方・検図8巡目 中3)
+    derive_garden_vertex_from(d)   # 立木・西の東縁と★主景の欅は透塀の辺からの従属値(庭方 2026-09-14c)
     # ⛔ **宣言が無ければ止める**(検図9巡目 中3)— 既定値で黙って埋めると、
     #    `const.inubashiri` を消しても板塀が同じ所に立ち、検査も鳴らない
     if d["const"].get("inubashiri") is None:
@@ -8936,7 +8963,19 @@ def gate_part_outline_check(d, g):
                         if ln <= 1e-4: continue
                         tm = (t0 + t1) / 2.0
                         qm = (A[0] + (B[0] - A[0]) * tm, A[1] + (B[1] - A[1]) * tm)
-                        if kind == "囲い":
+                        if kind == "囲い" and o.get("footStep") and run_foot_at(d, o, qm) is not None:
+                            # ⭐ 足元が二段の囲い(袖塀 ── 裁定 2026-09-14 部材方の案A)── その点の足元で測る。
+                            #    帯が足元の高さを**またぐ**ときだけ食い込み(足元より下の帯は塀が載る台)
+                            ft9 = run_foot_at(d, o, qm)
+                            yhi = gt["sill"] + bd["hM"][1]
+                            if ylo < ft9 - EPS and yhi > ft9 + EPS:
+                                hit += 1
+                                bad.append("門『%s』の部材の外形〔%s〕が囲い『%s』の足元 %.2f をまたいで **%.3f m** 食い込む"
+                                           "── 図の平面では当たらない" % (gt["name"], bd["band"], o["name"], ft9, ln))
+                            elif ylo >= ft9 - EPS:
+                                note.append("⚠ 門『%s』の外形〔%s〕が囲い『%s』の平面を %.3f m 覆う(帯の下端 %.2f ≥ 足元 %.2f)"
+                                            "── 囲いの丈が図に無いので当たるかは**未測定**" % (gt["name"], bd["band"], o["name"], ln, ylo, ft9))
+                        elif kind == "囲い":
                             seat = o.get("seat")
                             if seat is None or ylo < float(seat) - EPS:
                                 hit += 1
@@ -8962,6 +9001,7 @@ def gate_part_outline_check(d, g):
             fm = dist * ken
             for bd in ol:
                 ylo = gt["sill"] + bd["hM"][0]
+                if r.get("footStep") and gt["sill"] + bd["hM"][1] <= gt["sill"] + EPS: continue   # 門の側の足元(敷居)より下の帯は塀の台
                 if r.get("seat") is not None and ylo >= float(r["seat"]) - EPS: continue
                 hw = max(abs(bd["widthM"][0]), abs(bd["widthM"][1]))
                 mg = fm - hw
@@ -8977,6 +9017,32 @@ def gate_part_outline_check(d, g):
     if not nm0:
         bad.append("外形を持つ門の部材が一つも無い — 部材の外形で食い込みを測れない(図の平面だけでは実物を見ていない)")
     return bad, note
+
+
+def run_step_point(d, r):
+    """足元が二段の囲い `r` の**段の点**[uv] ── `footStep.at` の土留めの線と塀の線の交点(無ければ None)。"""
+    fs = r.get("footStep") or {}
+    w = next((q for q in d["terraceWalls"] if q["name"] == fs.get("at")), None)
+    if w is None: return None
+    A, B = r["a"], r["b"]
+    C, D = (w.get("pts") or [w["a"], w["b"]])[0], (w.get("pts") or [w["a"], w["b"]])[-1]
+    den = (B[0] - A[0]) * (D[1] - C[1]) - (B[1] - A[1]) * (D[0] - C[0])
+    if abs(den) < 1e-12: return None
+    t = ((C[0] - A[0]) * (D[1] - C[1]) - (C[1] - A[1]) * (D[0] - C[0])) / den
+    s = ((C[0] - A[0]) * (B[1] - A[1]) - (C[1] - A[1]) * (B[0] - A[0])) / den
+    if not (-1e-9 <= t <= 1 + 1e-9 and -1e-9 <= s <= 1 + 1e-9): return None
+    return (A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t)
+
+
+def run_foot_at(d, r, q):
+    """足元が二段の囲い `r` の点 q での足元の高さ[m]。門の側(`endFrom.end`)= 門の敷居・段より先 = 座。"""
+    ef = r.get("endFrom") or {}
+    X = run_step_point(d, r)
+    gt = gate_by_name(d, ef["gate"]) if ef.get("gate") else None
+    if X is None or gt is None or r.get("seat") is None: return None
+    E = r["a"] if ef.get("end") == "a" else r["b"]
+    dq = math.hypot(q[0] - E[0], q[1] - E[1]); dx = math.hypot(X[0] - E[0], X[1] - E[1])
+    return float(gt["sill"]) if dq < dx else float(r["seat"])
 
 
 def sode_part_check(d, g):
@@ -9012,7 +9078,33 @@ def sode_part_check(d, g):
         kai = [q for q in d["runs"] if (q.get("endFrom") or {}).get("run") == r["name"]]
         ktxt = "・".join("回廊『%s』の座 %.2f(足元の前提より %+.2f m)" % (q["name"], float(q["seat"]), float(q["seat"]) - prem)
                          for q in kai if q.get("seat") is not None) or "翼の側の座は図に無い"
-        if seat is None or abs(float(seat) - prem) > EPS:
+        fs = r.get("footStep")
+        if fs:
+            # ⭐ 【普請奉行の裁定 2026-09-14 ── 部材方の案A】足元は二段: 門の側 = 門の敷居(楼門の基壇の天端)・
+            #    翼の側 = 座(回廊の基壇の天端)。段の位置 = 妻の石垣の面。⛔ 交差を黙らせず、段が妻の面にあるかを測る
+            X = run_step_point(d, r)
+            w9 = next((q for q in d["terraceWalls"] if q["name"] == fs.get("at")), None)
+            gb9 = gate_bom_row(d, gt) or {}
+            low9 = min(gb9.get("outlineM") or [{"hM": [0, 0], "widthM": [0, 0]}], key=lambda q: q["hM"][0])
+            Qm = max(abs(low9["widthM"][0]), abs(low9["widthM"][1]))
+            if X is None or w9 is None:
+                bad.append("袖塀『%s』の足元の段 `footStep.at`『%s』が引けないか、塀の線と交わらない" % (r["name"], fs.get("at")))
+            else:
+                tq = abs(gate_local(gt, X)[1]) * ken
+                if abs(tq - Qm) > 0.005 * ken:
+                    bad.append("袖塀『%s』の足元の段 uv(%.3f, %.3f) が妻の石垣の面(門の基壇の脇面 %.3f m)から %.3f m ずれる ── 決めるのは**石垣**"
+                               % (r["name"], X[0], X[1], Qm, tq - Qm))
+                else:
+                    note.append("袖塀『%s』── 足元の段 uv(%.3f, %.3f) は妻の石垣『%s』の面(門の基壇の脇面・芯から %.3f m)に一致【算出】"
+                                % (r["name"], X[0], X[1], w9["name"], tq))
+                if seat is None or abs(float(seat) - float(w9["coping"])) > EPS:
+                    bad.append("袖塀『%s』の翼の側の足元(座 %s)が妻の石垣『%s』の天端 %.2f と違う"
+                               % (r["name"], seat, w9["name"], float(w9["coping"])))
+            if fa.get("step") is None:
+                bad.append("袖塀『%s』── 図は足元を二段(門の側 %.2f ／ 翼の側 %s)に置くが、部材『%s』は一段(足元 = 門の敷居)のまま ⇒ "
+                           "部材の二段の焼き直し待ち ── 決めるのは**部材方**(→ `_pending`「袖塀の丈と形」)"
+                           % (r["name"], prem, "—" if seat is None else "%.2f" % float(seat), b["部材"]))
+        elif seat is None or abs(float(seat) - prem) > EPS:
             bad.append("袖塀『%s』の**足元が二つ** ── 図の座 `seat` %s ／ 部材の前提 = 門『%s』の敷居 %.2f(差 %s)。%s。"
                        "⛔ 足元の高さと回廊の床との段の納めは未決 ── 決めるのは**部材方**(袖塀の足元)と"
                        "**石垣**(回廊の基壇の口の段 → `_pending`「回廊の基壇の門側の妻の段」)"
@@ -9028,7 +9120,7 @@ def sode_part_check(d, g):
             continue
         fm = gate_col_face_dist(d, gt, ef["face"])[0] * ken
         feet = [("部材の前提(門の敷居)", prem)]
-        if seat is not None and abs(float(seat) - prem) > EPS:
+        if seat is not None and abs(float(seat) - prem) > EPS and not fs:
             feet.insert(0, ("図の座", float(seat)))
         for lab, fy in feet:
             hits = []

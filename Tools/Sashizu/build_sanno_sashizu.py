@@ -9348,6 +9348,60 @@ def fill_slope_planting_check(d, g):
         bad.append(msg + " ── 受入値 %s%% を割る ── 決めるのは**庭方**" % mn)
     else:
         note.append(msg + (" ── 受入値 %s%% の内" % mn if mn is not None else " ── ⚠ 受入値の宣言なし(`coverMinPct` ── 庭方)"))
+    # ③ **見上げ**(`viewChecks`)── 断面の図版は足さず、正射影の計算だけで測る(指図方の判断 2026-09-15)。
+    #    見る向き `toward`(見る人の側への単位ベクトル[uv])に面する法面のセルが**見付け**。セルの (横 s, 高さ y) を、
+    #    見る人の側にある高木・中木の樹冠の帯(横 ±樹冠の半径 × 高さ 枝下〜丈)が覆えば隠れる。
+    #    枝下は層ごとの `plantRule.crownRule.<層>.edaShitaMinM`(⚠ 目録に部材の枝下が無いので下限で測る)。
+    #    隙 = 枝下の高さ − その樹冠の下の低木の天端(低木が無ければ地盤)の最大。
+    vcs = fs.get("viewChecks") or []
+    crw = d["planting"]["plantRule"].get("crownRule") or {}
+    eda = {"松": (crw.get("takagi") or {}).get("edaShitaMinM"), "落葉": (crw.get("takagi") or {}).get("edaShitaMinM"),
+           "中木": (crw.get("chuboku") or {}).get("edaShitaMinM")}
+    if not vcs:
+        bad.append("盛土の法面の見上げ `fillSlopePlanting.viewChecks` の宣言が無い ── 見付けの隠れと隙を測れない")
+    S = geo["samples"]
+    face = []
+    for p in poly_scan(P, 0.1):
+        k9 = min(range(len(S)), key=lambda k: (S[k][0][0] - p[0]) ** 2 + (S[k][0][1] - p[1]) ** 2)
+        yy = design_y(d, g, *g.W(p[0], p[1]))
+        if yy is not None: face.append((p, S[k9][1], yy))
+    for vc in vcs:
+        tw = vc["toward"]; L9 = math.hypot(tw[0], tw[1]) or 1.0
+        dx, dy = tw[0] / L9, tw[1] / L9
+        F = [(p, yy) for p, n, yy in face if n[0] * dx + n[1] * dy > 0.2]
+        if not F:
+            bad.append("見上げ『%s』── この向きに面する法面の見付けが無い ── 見る向き `toward` は**庭方**が決める" % vc["name"])
+            continue
+        TR = []
+        for q in mids + tall:
+            e9 = eda.get(q["layer"])
+            if e9 is None or not q.get("crownM"): continue
+            TR.append((q["u"] * dx + q["v"] * dy, -q["u"] * dy + q["v"] * dx, q["crownM"] / 2.0 / ken,
+                       q["y"] + float(e9), q["y"] + q["h"], q))
+        hid = 0
+        for p, yy in F:
+            w, s = p[0] * dx + p[1] * dy, -p[0] * dy + p[1] * dx
+            if any(tw9 >= w - r9 and abs(ts - s) <= r9 and yb <= yy <= yt for tw9, ts, r9, yb, yt, _q in TR):
+                hid += 1
+        pct = 100.0 * hid / len(F)
+        smin = min(-p[0] * dy + p[1] * dx for p, _y in F); smax = max(-p[0] * dy + p[1] * dx for p, _y in F)
+        gaps = []
+        for tw9, ts, r9, yb, yt, q in TR:
+            if ts + r9 < smin or ts - r9 > smax: continue
+            under = [lw["y"] + lw["h"] for lw in low if math.hypot(lw["u"] - q["u"], lw["v"] - q["v"]) <= r9]
+            gaps.append((yb - (max(under) if under else q["y"]), q["name"]))
+        gmax = max(gaps) if gaps else (None, None)
+        hmn, gmx = vc.get("hiddenMinPct", fs.get("hiddenMinPct")), vc.get("gapMaxM", fs.get("gapMaxM"))
+        line = ("見上げ『%s』── 法面の見付け %d セルのうち樹冠に隠れる **%.0f%%**(受入値 %s%% 以上)／ 樹冠の下端と低木の天端の隙の最大 **%s**(受入値 %s m 以下%s)【算出】"
+                % (vc["name"], len(F), pct, hmn, ("%.2f m" % gmax[0]) if gmax[0] is not None else "—", gmx,
+                   (" ── 『%s』" % gmax[1]) if gmax[1] else ""))
+        fails = []
+        if hmn is not None and pct < float(hmn): fails.append("隠れる割合")
+        if gmx is not None and gmax[0] is not None and gmax[0] > float(gmx) + 1e-9: fails.append("隙")
+        if fails:
+            bad.append(line + " ── ⛔ %s が受入値を割る ── 値は動かさない。決めるのは**庭方**" % "・".join(fails))
+        else:
+            note.append(line)
     return bad, note
 
 

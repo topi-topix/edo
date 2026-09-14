@@ -1958,6 +1958,21 @@ def plane_dev_check(d, g):
                            ("%.2f" % env) if env is not None else "—(**未宣言**)",
                            "　⚠ **目安を超える**" if ex else "",
                            "　⛔ **包絡を超える**" if oe else ""))
+        # ⭐ 【施主の裁定 2026-09-15 案A】包絡を超える物は**例外の名簿** `planes[].devEnvelopeExceptions` で宣言する
+        #    (理由と確度を持つ)。名簿にある物は〔記録〕へ落とし、量は毎回刷る。⛔ 名簿に無い物が超えたら⛔のまま。
+        #    ⛔ 名簿にあるのに超えていない物も⛔(名簿が古い ── 例外を黙って残さない)。⛔ 包絡の値は緩めない。
+        exc = {q["name"]: q for q in (pl.get("devEnvelopeExceptions") or [])}
+        for nm, amax in sorted(outenv, key=lambda r: -r[1]):
+            if nm in exc:
+                note.append("面『%s』── 『%s』の Δ %.2f m は包絡 %.2f m を超えるが**宣言済みの例外**(`devEnvelopeExceptions`)── "
+                            "理由: %s【%s】" % (pl["name"], nm, amax, env, exc[nm].get("reason", "—"), exc[nm].get("acc", "—")))
+        for nm in exc:
+            if exc[nm].get("reason") in (None, "") or exc[nm].get("acc") in (None, ""):
+                bad.append("面『%s』の例外『%s』に理由 `reason` か確度 `acc` が無い" % (pl["name"], nm))
+            if nm not in [q[0] for q in outenv]:
+                bad.append("面『%s』の例外の名簿に『%s』があるが、包絡を超えていない ── 名簿が古い(⛔ 例外を黙って残さない)"
+                           % (pl["name"], nm))
+        outenv = [q for q in outenv if q[0] not in exc]
         if outenv:
             bad.append("面『%s』── **Δ が包絡 `devEnvelopeM` %.2f m を超える %d 件** ── %s。"
                        "⛔ 数を緩めて黙らせない ── 面の天端か棟の位置を**普請奉行が裁く**"

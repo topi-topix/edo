@@ -577,10 +577,13 @@ public static class EdoAssets
         /// ⭐ **通り抜け=ローカル X・正面=+X・ピボット=門の芯・敷居の高さ**(基壇は −0.60 まで根入れ)。
         /// yaw 0° で据えると正面=東・通り抜け=東西。scale は Vector3.one。
         /// ⚠ 材は名前だけ ⇒ `Edo/山王社/新造部材のマテリアルをremap`。柱高・組物・妻飾り・軒反りは【U 類型】。
+        /// ⭐ 基壇の出だけ門ごとに作り分ける(柱芯から +X/−X/+Z/−Z・mm)。出は指図の取り合いの面から生成器が決める
+        ///   — 楼門 452,452,0,0/坂下の門 297,297,0,0。側面(±Z)は柱の筋で止める。
         /// 生成: blender --background --python Tools/Blender/build_sanno_romon.py -- --render</summary>
-        public static string SannoRomon(int duKen = 2, int dvKen = 3)
+        public static string SannoRomon(int duKen, int dvKen, int pX, int mX, int pZ, int mZ)
         {
-            return "Assets/Edo/Models/Sanno/Sanno_Romon_" + duKen + "x" + dvKen + "ken.fbx";
+            return "Assets/Edo/Models/Sanno/Sanno_Romon_" + duKen + "x" + dvKen + "ken_k"
+                 + pX + "-" + mX + "-" + pZ + "-" + mZ + ".fbx";
         }
 
         /// <summary>**イロハモミジ**。⭐ **株立ち3〜5幹・枝が水平に張る**(幅が高さを上回る)。

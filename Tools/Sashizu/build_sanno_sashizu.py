@@ -8039,6 +8039,9 @@ def gap_source(d, gf, owner):
 
     ・`kaidan` ── 石段。半幅 = `wKen`/2、芯 = 折れ線の第1点(平場の縁に取り付く端)
     ・`gate`   ── 門。半幅 = `plan[span]`/2(既定は桁行 `dv` の半分)、芯 = 門の芯
+      ⭐ `edge: "側柱の外面"` なら半幅 = 芯から幅の脇の側柱の外面まで(`gate_col_face_dist`)
+      【普請奉行の裁定 2026-09-14 案A を回廊の基壇の口へ及ぼす — 回廊の端 `endFrom` と同じ面】。
+      ⛔ 柱芯のまま開けると、門の基壇・礎盤が基壇の石垣の口の縁へ食い込む(検図 2026-09-14 高)
     """
     if gf.get("kaidan"):
         k = [q for q in d["kaidans"] if q["name"] == gf["kaidan"]]
@@ -8048,7 +8051,17 @@ def gap_source(d, gf, owner):
         return (p[0], p[1]), kaidan_wken(d, k) / 2.0
     if gf.get("gate"):
         gt = gate_by_name(d, gf["gate"])
-        return (gt["u"], gt["v"]), gt["plan"][gf.get("span", "dv")] / 2.0
+        eg = gf.get("edge")
+        if eg is None:
+            return (gt["u"], gt["v"]), gt["plan"][gf.get("span", "dv")] / 2.0
+        if eg != "側柱の外面":
+            raise SystemExit("『%s』の `gapFrom.edge` が読めない: %s" % (owner, eg))
+        _p, n = gate_axes_uv(gt)
+        fc = [f for f, v in _FACE_VEC.items() if abs(v[0] * n[0] + v[1] * n[1]) >= 0.99]
+        if not fc:
+            raise SystemExit("『%s』── 門『%s』の幅の脇の面が東西南北に揃わない(側柱の外面を出せない)"
+                             % (owner, gt["name"]))
+        return (gt["u"], gt["v"]), gate_col_face_dist(d, gt, fc[0])[0]
     raise SystemExit("『%s』の `gapFrom` が何を指すのか読めない" % owner)
 
 
@@ -8775,7 +8788,8 @@ def shaden_kidan_check(d):
                  % ("・".join(k["appliesTo"]), k["hueDeg"][0], k["hueDeg"][1], k["satMaxPct"],
                     k["valPct"][0], k["valPct"][1], k["bond"], k["courseHM"], k["jointMaxM"] * 1000.0,
                     k["finish"]),
-                 "⚠ 部材の材(`M_FJG_Rock_001`)の色・積み方との照合は**未測定**(部材方)── ⛔ 合格ではない"])
+                 "⚠ 基壇の材(`Kirishi` ── `build_sanno_buzai.py` の切石の材)の H・V・積み方との照合は**未測定**"
+                 "(部材方。S の実測だけが `shadenKidan.acc` にある)── ⛔ 合格ではない"])
 
 
 def cluster_shukei_gap_check(d, g):

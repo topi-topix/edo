@@ -3102,6 +3102,20 @@ def part_geom(pt):
 _SIZE_HOLE = "{size}"
 
 
+def mune_part_pending(d, m):
+    """棟 `m` の部材が**起こし直し待ち**なら、その `bom` の行を返す(無ければ None)。
+
+    ⭐ 【寸法の改訂 2026-09-14】社殿5棟は外形を明治16年実測図の読みへ改めたので、旧部材の丈を
+    棟高に使えない。`munes[].partPending` が `bom[].部材` を指し、その行の `在庫` が『未造』を名乗る
+    ときだけ**未測定**として刷る(⛔ 合格ではない)。⛔ 指し先が無い・未造を名乗らない ⇒ None(⛔ で止める側へ)。
+    """
+    nm = m.get("partPending") if m else None
+    if not nm: return None
+    for b in d.get("bom", []):
+        if b.get("部材") == nm and "未造" in str(b.get("在庫", "")): return b
+    return None
+
+
 def mune_ornament(d, m=None):
     """**棟飾り(鬼板・置千木)の丈**[m] と その出所。⛔ 数を図に写さない(規則4)。
 
@@ -3238,7 +3252,10 @@ def mune_height_check(d):
         if not pf:
             # ⛔ **社殿は必ず部材を指す** ── 5棟とも新造済みなので、指し先が落ちれば
             #    棟高が引けなくなり、主景の仰角が黙って欠ける(規則19)。
-            if m.get("yaku") == "社殿":
+            if m.get("yaku") == "社殿" and mune_part_pending(d, m) is not None:
+                note.append("⚠ 棟『%s』(社殿)── 部材は**起こし直し待ち**(`partPending` → `bom[%s]`)⇒ 棟高は"
+                            "**未測定**(⛔ 合格ではない)" % (m["name"], m["partPending"]))
+            elif m.get("yaku") == "社殿":
                 bad.append("棟『%s』(社殿)が `partFrom`(部材への指し先)を持たない — "
                            "棟高が引けず、主景の仰角の行が黙って落ちる(⛔ 0 件は合格ではなく"
                            "未測定・規則19)" % m["name"])
@@ -4922,6 +4939,10 @@ def cluster_hmin_check(d):
                 bad.append("塊『%s』の `matsuHMinFrom.mune`『%s』が引けない — **死んだポインタ**"
                            % (c["name"], mf.get("mune"))); continue
             h9 = mune_h(d, m9)
+            if h9 is None and mune_part_pending(d, m9) is not None:
+                note.append("⚠ 塊『%s』の下限は**未測定** — 棟『%s』の部材が起こし直し待ち(`partPending`)"
+                            "で棟高が引けない(⛔ 合格ではない)" % (c["name"], m9["name"]))
+                continue
             if h9 is None:
                 bad.append("塊『%s』の下限が引けない — 棟『%s』の棟高が引けない"
                            "(`h` も `partFrom` も無い/目録に無い)" % (c["name"], m9["name"]))
@@ -11864,9 +11885,15 @@ def munes_table(d):
     rows = []
     for m in d["munes"]:
         w = m["du"] * ken; dpt = m["dv"] * ken
-        rows.append("<tr><td>%s</td><td>%s</td><td>%g 間</td><td>%g 間</td><td>%.2f×%.2f m</td>"
+        # ⭐ **間数は `bays`、`du`/`dv` は実長を間で割った値**【寸法の改訂 2026-09-14】── `bays` の無い棟は
+        #    `du`/`dv` がそのまま間数(江戸間の格子)。⛔ 実長を間数として刷らない。
+        bays = m.get("bays") or {}
+        def _bay(k, L):
+            if k not in bays: return "%g 間" % m[k]
+            return "%d 間(柱間 %.2f m)" % (bays[k], L / bays[k])
+        rows.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%.2f×%.2f m</td>"
                     "<td>%.0f m²</td><td class='note'>%s</td><td class='note'>%s</td></tr>"
-                    % (m["name"], m["yaku"], m["dv"], m["du"], w, dpt, w * dpt,
+                    % (m["name"], m["yaku"], _bay("dv", dpt), _bay("du", w), w, dpt, w * dpt,
                        html.escape(m["roof"]), m["acc"]))
     return ('<div class="tw"><table><thead><tr><th>棟</th><th>役</th><th>桁行(南北)</th><th>梁間(東西)</th>'
             "<th>外形 東西×南北</th><th>面積</th><th class='note'>屋根</th><th class='note'>確度</th></tr></thead><tbody>"
@@ -17336,9 +17363,15 @@ def main():
         #    梁間 = `plan.du`(通り抜けの奥行)。⛔ 世界の軸で「外形」と刷らない(本文と並びが逆になる)。
         yw = ("%.0f°" % gt["yaw"]) if gt.get("yaw") is not None else "—(部材の軸が未宣言)"
         fr = gt.get("front") or ("—(通り抜け %s)" % gt.get("pass") if gt.get("pass") else "—")
-        rows.append("<tr><td>%s</td><td>(%.1f, %.1f)</td><td>%.1f m</td><td>%g × %g 間</td>"
+        _gb = gt.get("bays") or {}
+        _gk = d["const"]["ken"]
+        if _gb:      # ⭐ `plan` は実長を間で割った値・間数は `bays`【寸法の改訂 2026-09-14】
+            _gsz = "%d × %d 間(%.2f × %.2f m)" % (_gb["dv"], _gb["du"], gt["plan"]["dv"] * _gk, gt["plan"]["du"] * _gk)
+        else:
+            _gsz = "%g × %g 間" % (gt["plan"]["dv"], gt["plan"]["du"])
+        rows.append("<tr><td>%s</td><td>(%.1f, %.1f)</td><td>%.1f m</td><td>%s</td>"
                     "<td>%s</td><td>%s</td><td class='note'>%s</td><td class='note'>%s</td><td>%s</td></tr>"
-                    % (gt["name"], w[0], w[1], gt["sill"], gt["plan"]["dv"], gt["plan"]["du"],
+                    % (gt["name"], w[0], w[1], gt["sill"], _gsz,
                        fr, yw, inline(gt.get("bom") or "—(未解決)"),
                        html.escape(gt["kind"]), gt["acc"]))
     h.append('<div class="tw"><table><thead><tr><th>門</th><th>芯の世界座標 (x,z)</th><th>敷居</th>'

@@ -7327,45 +7327,49 @@
  "_reviews": "**検図関門。**この指図を誰が検めたか。⛔ 呼んだ側(本文脈)が結果を書き戻す — 検分役は read-only で自分では書けない。`hash` はその検分が見た範囲の指紋で、指図を書き換えるとずれ、検分は自動で『検め直しが要る』になる。見張りは `python3 Tools/Sashizu/review_gate.py`。⛔ 関門が赤の指図を実装しない・赤のシーンをユーザーに見せない。 ⭐ **`items` に件ごとの (n 番号・sev 軽重・title 件名・status 状態) を持てる**(2026-09-06 検図4巡目 低12)。`status` は `open`(未解決)／`closed`(閉じた)／`pending`(意匠の判断待ち=`_pending` 送り)。生成器が読んで「未解決」の章に**閉じていない件だけ**を出す。⛔ 中身を書くのは呼んだ側(普請奉行) — 検分役は read-only で自分では書けない。⛔ 遡って `closed` にしない。 ⚠ `note` は**その巡の要約**であって件ごとの生死ではない — 閉じた件も含んだまま残る。生きている指摘の正典は `items[]` の `status` で、生成器は**閉じていない件だけ**を「未解決の件」として刷る(考証検分4巡目 軽微)。",
  "reviews": {
   "niwashi": {
-   "at": "2026-09-13",
+   "at": "2026-09-14",
    "verdict": "pass",
-   "hash": "023a940e0e1f67e5",
-   "note": "20巡目 advisory(高0・中1・低2)— 前巡5件中4件解消。社叢は山を途切れず覆い、西Aの松は主景の欅の傘の外へ。残(台帳K001/K009): 代用の櫓門は通り抜けが長辺で正面が細く図の平面と逆/基壇の石材と部材の材の照合が未/基壇を庭石の名簿に入れるか",
+   "hash": "c04c5c99f3d9afec",
+   "note": "検分3巡(2026-09-14)advisory 高0中1低3。K001・K003 解消(門の正面+X・動線と平行、御成は軸上の折れ点)。残: K022 御成の末尾が楼門裏で鉤形/K010 踏石は部材で直す(図側の手当て済)/K011 JG_Rock V15/K023 玉石の設計下限38が受入下限と同値",
    "chapters": {
-    "gardens": "2fca8e8c6ca0",
+    "gardens": "003ecf2b76d4",
     "planting": "b48d6db841e7",
-    "routes": "a01c0a61f789",
+    "routes": "f70f9ce3a713",
     "viewpoints": "8712e21af0bb",
-    "py": "5a74f37b24c9d68f"
+    "py": "a0cca3a07e8a1293"
    },
    "rounds": [
     {
      "at": "2026-09-13T22:16:07+09:00",
      "verdict": "pass"
+    },
+    {
+     "at": "2026-09-14T15:57:35+09:00",
+     "verdict": "pass"
     }
    ]
   },
   "kosho": {
-   "at": "2026-09-13",
+   "at": "2026-09-14",
    "verdict": "pass",
-   "hash": "09bed6efab516ccf",
-   "note": "21巡目 advisory(高0・中2・低4)— 前巡10件すべて解消。門の向きの史料の格、御成=女坂と朱線=男坂の食い違いの並記とも妥当。残(台帳K006〜K008): 明和5年の墨書を二度扱い確度が矛盾/_pending の古い『不要と確認済み』と解消済みの項/正面の確度の並び・桟瓦の起源の格",
+   "hash": "55d81df196bb9fb3",
+   "note": "検分3巡(2026-09-14)advisory 高0中4低3。新造の門の倍率・向き、御成の駕籠の確度、明和5年の墨書、桟瓦の起源、石の色の上限の書き方は解消。残(台帳K017〜K021)は文言と確度: 坂下の門の形を【U 類型】へ/国宝目録は『載らない』へ/出組は当方の同定【U】/柱間モジュールの波及先に新造部材と endFrom/ruikei の出典・朱の約束・sources 追記",
    "chapters": {
     "const": "bad959b2b686",
     "polygon": "49fb62c4c6dd",
     "grid": "530e31d2447e",
     "planes": "d355dd3088b9",
     "terraces": "e47629f9e291",
-    "terraceWalls": "90a61d8773b6",
+    "terraceWalls": "8da80273b368",
     "slopeBands": "5086eb63c7f8",
     "munes": "7fda1355602e",
     "links": "aa2e46c039f7",
-    "runs": "c08d6c037deb",
-    "gates": "20461f917641",
+    "runs": "b14ed2773b7e",
+    "gates": "17f243e54428",
     "torii": "764c99eb4bb9",
     "kaidans": "4fac2c36a89a",
     "sando": "23c65c822b73",
-    "gardens": "2fca8e8c6ca0",
+    "gardens": "003ecf2b76d4",
     "planting": "b48d6db841e7",
     "props": "d1133c30a9dd",
     "sections": "be8f18d888f9",
@@ -7373,47 +7377,51 @@
     "profiles": "21f7c613090b",
     "terrainCheck": "53096ecb2044",
     "neighbors": "d86717b09456",
-    "bom": "656f1610f0d6",
+    "bom": "caa4fd76cc06",
     "fumotomichi": "a8e548e2eb85",
-    "routes": "a01c0a61f789",
+    "routes": "f70f9ce3a713",
     "kattemichi": "5328eecfc37e",
     "viewpoints": "8712e21af0bb",
-    "joints": "a6dbfb46ab5a",
+    "joints": "594e7878298e",
     "ido": "3932c013b9f1",
-    "shadenKidan": "bbcccb7487d6",
-    "ishizai": "11b0a5bdb19d",
+    "shadenKidan": "84320877fb92",
+    "ishizai": "bb5ae115c5eb",
     "kakoiCross": "3e41e1d37005",
-    "py": "5a74f37b24c9d68f",
-    "md": "e66ea6a1649ead44"
+    "py": "a0cca3a07e8a1293",
+    "md": "5e9e3c1747fc1485"
    },
    "rounds": [
     {
      "at": "2026-09-13T22:16:06+09:00",
+     "verdict": "pass"
+    },
+    {
+     "at": "2026-09-14T15:57:35+09:00",
      "verdict": "pass"
     }
    ]
   },
   "kenzu": {
-   "at": "2026-09-13",
-   "verdict": "pass",
-   "hash": "09bed6efab516ccf",
-   "note": "23巡目 advisory(高0・中3・低3)— 検分の輪の2巡目で通し。門の向きを正面×部材の軸から出す形になり前巡の高2件解消。残(台帳K001〜K005): 代用の櫓門の倍率が指図に無く外形が図の約2倍で男坂に約1m食い込む/突き合わせの門の向きが未測定/御成が中門の門口に39°斜めに入る/作図が奥行を常に東西に取る/中門・勝手口の向き未出",
+   "at": "2026-09-14",
+   "verdict": "fail",
+   "hash": "55d81df196bb9fb3",
+   "note": "検分3巡で停止(2026-09-14)高1中3低4。解消: 回廊の基壇の門口の縁=segs 端点(土留め13本 別計算0件)/K001 新造の門の外形で食い込み0件。残: K012【高】門口の南北の妻で基壇天端29.0と敷居28.3の段差0.7mに土留め無し・側柱の足元0.18mの載り先未定/K013【中】軒と回廊・袖塀の被り(回廊の丈が図に無い)/K005【中】中門の軸・外形、勝手口/K014【中】段石を名簿に入れるか/K015・K002・K011・K016【低】",
    "chapters": {
     "const": "bad959b2b686",
     "polygon": "49fb62c4c6dd",
     "grid": "530e31d2447e",
     "planes": "d355dd3088b9",
     "terraces": "e47629f9e291",
-    "terraceWalls": "90a61d8773b6",
+    "terraceWalls": "8da80273b368",
     "slopeBands": "5086eb63c7f8",
     "munes": "7fda1355602e",
     "links": "aa2e46c039f7",
-    "runs": "c08d6c037deb",
-    "gates": "20461f917641",
+    "runs": "b14ed2773b7e",
+    "gates": "17f243e54428",
     "torii": "764c99eb4bb9",
     "kaidans": "4fac2c36a89a",
     "sando": "23c65c822b73",
-    "gardens": "2fca8e8c6ca0",
+    "gardens": "003ecf2b76d4",
     "planting": "b48d6db841e7",
     "props": "d1133c30a9dd",
     "sections": "be8f18d888f9",
@@ -7421,23 +7429,27 @@
     "profiles": "21f7c613090b",
     "terrainCheck": "53096ecb2044",
     "neighbors": "d86717b09456",
-    "bom": "656f1610f0d6",
+    "bom": "caa4fd76cc06",
     "fumotomichi": "a8e548e2eb85",
-    "routes": "a01c0a61f789",
+    "routes": "f70f9ce3a713",
     "kattemichi": "5328eecfc37e",
     "viewpoints": "8712e21af0bb",
-    "joints": "a6dbfb46ab5a",
+    "joints": "594e7878298e",
     "ido": "3932c013b9f1",
-    "shadenKidan": "bbcccb7487d6",
-    "ishizai": "11b0a5bdb19d",
+    "shadenKidan": "84320877fb92",
+    "ishizai": "bb5ae115c5eb",
     "kakoiCross": "3e41e1d37005",
-    "py": "5a74f37b24c9d68f",
-    "md": "e66ea6a1649ead44"
+    "py": "a0cca3a07e8a1293",
+    "md": "5e9e3c1747fc1485"
    },
    "rounds": [
     {
      "at": "2026-09-13T22:16:06+09:00",
      "verdict": "pass"
+    },
+    {
+     "at": "2026-09-14T15:57:35+09:00",
+     "verdict": "fail"
     }
    ]
   }

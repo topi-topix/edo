@@ -8391,7 +8391,8 @@ def derive_garden_vertex_from(d):
             raise SystemExit("棟『%s』の `v1From` ── 棟『%s』か、その部材の外形 `bom[].parts[%s].outlineM` が無い"
                              % (m["name"], vf.get("mune"), vf.get("mune")))
         hw = max(max(abs(q["widthM"][0]), abs(q["widthM"][1])) for q in pt["outlineM"] if "屋根" not in q["band"])
-        face = float(t9["v0"]) + float(t9["dv"]) / 2.0 - hw / ken
+        # ⭐ `insetM` = 縁の外面から内へ入れる量(普請奉行の裁定 2026-09-15 ── 本殿の縁への食い込みを部材の側で直す)
+        face = float(t9["v0"]) + float(t9["dv"]) / 2.0 - hw / ken - float(vf.get("insetM") or 0.0) / ken
         m["dv"] = round(face - float(m["v0"]), 4)
     # 建物の輪郭も従属させる(北面の頂点 = その棟の北面)
     for m in d["munes"]:
@@ -9311,8 +9312,12 @@ def mune_part_outline(d, name):
     if m is None or not ol: return None
     ken = d["const"]["ken"]
     cu, cv = m["u0"] + m["du"] / 2.0, m["v0"] + m["dv"] / 2.0
+    vn = m["v0"] + m["dv"]                     # 北の壁の芯(柱芯の矩形の北の辺)
+    # ⭐ `northFromWallM` を持つ帯は、北の端を**北の壁の芯から**測る(部材方 2026-09-15)── 棟の長さが動いても追随する
     return [(bd["band"], bd["hM"], (cu + bd["passM"][0] / ken, cv + bd["widthM"][0] / ken,
-                                    cu + bd["passM"][1] / ken, cv + bd["widthM"][1] / ken)) for bd in ol]
+                                    cu + bd["passM"][1] / ken,
+                                    (vn + bd["northFromWallM"] / ken) if bd.get("northFromWallM") is not None
+                                    else cv + bd["widthM"][1] / ken)) for bd in ol]
 
 
 def mune_part_clearance_check(d, g):
@@ -9471,11 +9476,16 @@ def fill_slope_planting_check(d, g):
     def cyls(TT, crown):
         out9 = []
         for q in TT:
-            if not q.get("crownM"): continue
+            if not q.get("crownM"):
+                # ⛔ 【庭方 2026-09-15 結線漏れ】樹冠が引けない木を黙って飛ばさない ── 隠す物から抜けるので未測定
+                bad.append("見上げ ── 木『%s』(%s)の樹冠 `crownM` が引けない ⇒ 隠す物に数えられず見上げは**未測定**" % (q["name"], q["layer"]))
+                continue
             x, z = g.W(q["u"], q["v"])
             if crown:
                 e9 = q.get("edaShitaM") if q.get("edaShitaM") is not None else eda.get(q["layer"])
-                if e9 is None: continue
+                if e9 is None:
+                    bad.append("見上げ ── 木『%s』(%s)の枝下が引けない ⇒ 見上げは**未測定**" % (q["name"], q["layer"]))
+                    continue
                 out9.append((x, z, q["crownM"] / 2.0, q["y"] + float(e9), q["y"] + q["h"], q["name"], q["y"]))
             else:
                 out9.append((x, z, q["crownM"] / 2.0, q["y"], q["y"] + q["h"], q["name"], q["y"]))
@@ -9547,11 +9557,16 @@ def fill_slope_planting_check(d, g):
         pct = 100.0 * hid / vis
         v0, h0, _g0 = measure(E, [], [])
         neg = 100.0 * h0 / v0 if v0 else 0.0
+        # ⭐ 陽性試験【庭方 2026-09-15】── 低木だけを残して測る。0% を超えなければ低木が隠す物に効いていない
+        v1, h1, _g1 = measure(E, [], SH)
+        pos = 100.0 * h1 / v1 if v1 else 0.0
+        if pos <= 0.0:
+            bad.append("見上げ『%s』の陽性試験が落ちた ── 低木だけを残しても隠れる割合が 0%%(低木 %d 本が隠す物に効いていない)" % (vc["name"], len(SH)))
         hmn, gmx = vc.get("hiddenMinPct", fs.get("hiddenMinPct")), vc.get("gapMaxM", fs.get("gapMaxM"))
         line = ("見上げ『%s』(目 %.2f m)── 目から見える法面 %d セル(全 %d)のうち木に隠れる **%.0f%%**(受入値 %s%% 以上)／ 隙の最大 **%s**(受入値 %s m 以下%s)"
-                "／ 陰性試験(木を全部抜く)%.1f%%【算出 ── 透視】"
+                "／ 陰性試験(木を全部抜く)%.1f%% ／ 陽性試験(低木だけ %d 本)%.1f%%【算出 ── 透視】"
                 % (vc["name"], E[2], vis, len(cells), pct, hmn, ("%.2f m" % gap[0]) if gap[0] is not None else "—", gmx,
-                   (" ── 『%s』" % gap[1]) if gap[1] else "", neg))
+                   (" ── 『%s』" % gap[1]) if gap[1] else "", neg, len(SH), pos))
         if neg > 1.0:
             bad.append("見上げ『%s』の陰性試験が落ちた ── 木を全部抜いても %.1f%% が隠れる(検査が黙って通している)" % (vc["name"], neg))
         fails = []
@@ -14444,7 +14459,9 @@ def _tree_row(d, g, rnd, name, group, lay, pal, hrng, u, v, iso=False, rmax=None
             "prefab": (q[1] if q else pt.get("prefab")), "size": (q[0] if q else None),
             "h": round(h, 3), "scaleY": (round(q[3], 4) if q and q[3] else None),
             "scaleXZ": (round(xz, 4) if xz is not None else None),
-            "crownM": (round(g0[0] * xz, 3) if (g0 and xz is not None) else None),
+            # ⭐ 【庭方 2026-09-15】低木は `scaleXZ` が引けなくても樹冠を作る(部材の樹冠径 × 1.0)── 見上げの隠す物に数えるため
+            "crownM": (round(g0[0] * xz, 3) if (g0 and xz is not None) else
+                       (round(g0[0], 3) if (g0 and lay == "低木") else None)),
             "u": round(u, 4), "v": round(v, 4),
             "world": [round(x, 3), round(z, 3)],
             "y": round(dy if dy is not None else (nat if nat is not None else 0.0), 3),

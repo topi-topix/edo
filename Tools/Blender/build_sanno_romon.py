@@ -8,18 +8,18 @@
 `Yaguramon A` で代用中。⛔ 城郭の櫓門で、据わる外形が `gates[].plan` の約2倍・通り抜けが
 長辺側(在庫方 2026-09-13「在庫に適う物なし・新造」)。
 
-━━━ 1点で2基を兼ねる ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-`gates[]` の楼門と坂下の門は **`bom` が同じ行**(楼門(三間一戸))・**`plan` が同じ**(du 2 × dv 3)・
-`monguchiKen` も同じ。違いは**安置像**(随身/仁王・二天の両論)だけで、像は作らない ⇒ 幾何が同じ。
-⇒ **FBX は1本**。`main()` が指図から2基の plan と bom を読み、食い違えば止まる
-(⛔ 指図が作り分けへ改まったら黙って兼用しない)。
+━━━ 上部は2基共通・行は門ごと ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`bom` は門ごとに行を持つ(`BOM_ROWS` = 楼門(三間一戸)/坂下の門(三間一戸)— 902a0f9d)。
+上部(`plan` du 2 × dv 3・`monguchiKen`・`axis`)は同じで、違いは**安置像**(像は作らない)と基壇の出。
+`sashizu_plan()` が両行の plan・戸口・軸を突き合わせ、食い違えば止まる(⛔ 黙って兼用しない)。
 
 ━━━ 基壇の出は門ごとに作り分ける(2026-09-13 普請奉行の依頼 — 外形の食い込み ⛔16)━━━━━━━━━
 上部(柱芯・平面・軸)は2基共通。**基壇と礎盤だけ**、門が接する面を指図から読んで側ごとに出を決める
 (`faces()`): 通り抜けの両端 = 軸上の石段の端/この門で口を開ける土留めの通り、幅の両脇 = 平面の
 脇の辺に端を持つ囲い(回廊・袖塀)。面の無い側は向かいの側に揃える(部材方の意匠)。面の手前 2 mm。
 ⇒ FBX 名に出を mm で埋める: `Sanno_Romon_<du>x<dv>ken_k<+X>-<−X>-<+Z>-<−Z>.fbx`。
-⚠ 出 0 の側でも**柱の半径 0.18 m と同幅の礎盤**は柱芯の面を越える(柱筋へ突き付く囲いの宿命)。
+⚠ 囲いの門側の端は `runs[].endFrom` の従属値 = **側柱の外面**(柱芯 + `bom[].axis.colRadiusM`、
+  裁定 2026-09-14 案A)。⛔ json の `a`/`b` の数(旧い柱芯の値)を読まず、`sanno_impl.json` の焼き出しを読む。
 
 ━━━ 軸(指図 2026-09-13「部材の軸」= `bom[楼門].axis`)━━━━━━━━━━━━━━━━━━━━━━━
 ・**ピボット = 門の芯・敷居の高さ**(Y=0 = 基壇の天端 = 通路の踏み面)。基壇は下へ 0.60 根入れ。
@@ -47,7 +47,7 @@ import build_sanno_shaden as SH
 
 OUT = V.out_dir(os.path.join(V.REPO, "Assets", "Edo", "Models", "Sanno"))
 SHOT = os.path.join(V.REPO, "Screenshots")
-BOM_ROW = "楼門(三間一戸)"
+BOM_ROWS = ("楼門(三間一戸)", "坂下の門(三間一戸)")   # 門ごとの行(上部は共通)
 
 # ==========================================================================
 # 高さ・部材の丈 — ⛔ すべて【U 類型で埋めた設計値】(史料は数を言わない)
@@ -75,22 +75,32 @@ def sashizu_plan():
     with open(SH.SASHIZU) as f:
         d = json.load(f)
     K = float(d["const"]["ken"])
-    gs = [g for g in d["gates"] if g.get("bom") == BOM_ROW]
-    if len(gs) < 2:
-        raise SystemExit("[romon] ⛔ bom『%s』の門が %d 基しかない" % (BOM_ROW, len(gs)))
+    gs = []
+    for br in BOM_ROWS:
+        row = next((b for b in d["bom"] if b.get("部材") == br), None)
+        if row is None:
+            raise SystemExit("[romon] ⛔ bom に行『%s』が無い" % br)
+        hit = [g for g in d["gates"] if g.get("bom") == br]
+        if len(hit) != 1:
+            raise SystemExit("[romon] ⛔ bom『%s』を指す門が %d 基(1基のはず)" % (br, len(hit)))
+        ax = row.get("axis") or {}
+        if (ax.get("pass"), ax.get("front")) != ("X", "+X"):
+            raise SystemExit("[romon] ⛔ bom『%s』の axis が宣言と違う: %s" % (br, ax))
+        if ax.get("colRadiusM") is None:
+            raise SystemExit("[romon] ⛔ bom『%s』に axis.colRadiusM が無い — 側柱の外面を出せない" % br)
+        gs.append(hit[0])
     keys = {(g["plan"]["du"], g["plan"]["dv"], g.get("monguchiKen")) for g in gs}
     if len(keys) != 1:
-        raise SystemExit("[romon] ⛔ 同じ bom の門で plan/monguchiKen が違う — 兼用できない: %s"
+        raise SystemExit("[romon] ⛔ 門で plan/monguchiKen が違う — 上部を共通にできない: %s"
                          % [(g["name"], g["plan"], g.get("monguchiKen")) for g in gs])
     du, dv, mk = keys.pop()
-    row = next(b for b in d["bom"] if b.get("部材") == BOM_ROW)
-    print("[romon] 兼用する門: %s / plan du %s × dv %s / 戸口 %s 間 / 1間 %.3f / axis %s"
-          % ([g["name"] for g in gs], du, dv, mk, K, row.get("axis")))
-    ax = row.get("axis") or {}
-    if (ax.get("pass"), ax.get("front")) != ("X", "+X"):
-        raise SystemExit("[romon] ⛔ bom の axis が宣言と違う: %s" % row.get("axis"))
+    rows = {b["部材"]: b for b in d["bom"] if b.get("部材") in BOM_ROWS}
+    print("[romon] 門: %s / plan du %s × dv %s / 戸口 %s 間 / 1間 %.3f / axis %s"
+          % ([g["name"] for g in gs], du, dv, mk, K,
+             [rows[br].get("axis") for br in BOM_ROWS]))
     return dict(K=K, du=int(du), dv=int(dv), monguchi=float(mk),
-                roof=row.get("屋根", ""), names=[g["name"] for g in gs])
+                roof={br: rows[br].get("屋根", "") for br in BOM_ROWS},
+                names=[g["name"] for g in gs], gates=gs)
 
 
 # ==========================================================================
@@ -403,13 +413,45 @@ def band_extents(o, info, out):
 MARGIN = 0.002      # 面の手前に残す[m](指図の外形は mm で丸めて測られるので、面ぴったりに置かない)
 
 
+def impl_json():
+    """図が組み立て時に焼き出す `docs/Sashizu/sanno_impl.json`(従属値の解決済みの値)。"""
+    return json.load(open(os.path.join(os.path.dirname(SH.SASHIZU), "sanno_impl.json")))
+
+
+def run_ends(d, r, g, K):
+    """run の両端[uv 間]。⭐ 従属値(`endFrom` / `uFrom`)を持つ run は json の `a`/`b` の数を読まず、
+    `sanno_impl.json` の `runs[].nodes`(世界座標)を `grid` で uv へ戻す。
+    `endFrom` がこの門を指すなら、その端を**自前でも解いて**(柱芯 `plan.dv`/2 + `bom[].axis.colRadiusM`)
+    突き合わせる — 1 mm を越えて食い違えば焼き出しが古いので止まる。"""
+    if not (r.get("endFrom") or r.get("uFrom")):
+        return [r["a"], r["b"]]
+    im = impl_json()
+    gr = im["grid"]
+    q = next((x for x in im.get("runs", []) if x.get("name") == r["name"]), None)
+    if q is None or len(q.get("nodes") or []) < 2:
+        raise SystemExit("[romon] ⛔ run『%s』の解決済みの端が sanno_impl.json に無い" % r["name"])
+    to_uv = lambda p: [(p[0] - gr["x0"]) / gr["ken"], (p[1] - gr["z0"]) / gr["ken"]]
+    A, B = to_uv(q["nodes"][0]), to_uv(q["nodes"][-1])
+    ef = r.get("endFrom")
+    if ef and ef.get("gate") == g["name"]:
+        if ef.get("face") not in ("北", "南"):
+            raise SystemExit("[romon] ⛔ run『%s』の endFrom の面『%s』を読み替えていない" % (r["name"], ef.get("face")))
+        row = next(b for b in d["bom"] if b.get("部材") == g["bom"])
+        dist = g["plan"]["dv"] / 2.0 + float(row["axis"]["colRadiusM"]) / K
+        v_self = float(g["v"]) + (dist if ef["face"] == "北" else -dist)
+        v_impl = (A if ef["end"] == "a" else B)[1]
+        if abs(v_self - v_impl) * K > 0.001:
+            raise SystemExit("[romon] ⛔ run『%s』の端: 自前の解決 v=%.5f と sanno_impl.json v=%.5f が食い違う"
+                             " — 図を焼き直してから回す" % (r["name"], v_self, v_impl))
+    return [A, B]
+
+
 def gate_u(d, g):
     """門の芯 u[間]。⚠ 坂下の門は `uFrom` の従属値で json の `u` が空 ⇒ 図が組み立てで書く
     `docs/Sashizu/sanno_impl.json` の `gates[].u` を読む。"""
     if g.get("u") is not None:
         return float(g["u"])
-    p = os.path.join(os.path.dirname(SH.SASHIZU), "sanno_impl.json")
-    im = json.load(open(p))
+    im = impl_json()
     for q in im.get("gates", []):
         if q.get("name") == g["name"] and q.get("u") is not None:
             return float(q["u"])
@@ -420,7 +462,8 @@ def faces(d, g, K):
     """門の柱芯から、側ごとの**取り合いの面**までの距離[m](面の無い側は None)。
     ・通り抜けの両端(±X): 軸上の石段の端(`kaidans`)/この門で口を開ける土留めの通り
       (`terraceWalls[].gapFrom.gate`)。
-    ・幅の両脇(±Z): 門の平面の脇の辺に端を持つ囲い(`runs` — 回廊・袖塀)。
+    ・幅の両脇(±Z): 門の脇に端を持つ囲い(`runs` — 回廊・袖塀)。端は `run_ends()` の解決済みの値
+      (案A 以後は側柱の外面 ⇒ 柱芯から `colRadiusM`)。
     ⚠ ローカル +X = 東(u+)・+Z = 北(v+)は `bom.axis` と `gates[].front`=東 の宣言(yaw 0)。"""
     if g.get("front") != "東":
         raise SystemExit("[romon] ⛔ 正面が東でない門は面の向きを読み替えていない: %s" % g["name"])
@@ -453,7 +496,7 @@ def faces(d, g, K):
     for r in d["runs"]:
         if r.get("a") is None or r.get("b") is None:
             continue
-        for e in (r["a"], r["b"]):
+        for e in run_ends(d, r, g, K):
             if abs(e[0] - gu) <= hu + 1e-6:
                 dv_ = e[1] - gv
                 if abs(dv_) - hv > -1e-6 and abs(dv_) - hv < 0.5:
@@ -488,9 +531,10 @@ def main():
     P = sashizu_plan()
     with open(SH.SASHIZU) as f:
         d = json.load(f)
-    print("[romon] 屋根 = 在庫の本瓦(`roof`)— bom: %s" % P["roof"][:60])
+    for br in BOM_ROWS:
+        print("[romon] 屋根 = 在庫の本瓦(`roof`)— bom『%s』: %s" % (br, P["roof"][br][:60]))
     done = {}
-    for g in [q for q in d["gates"] if q.get("bom") == BOM_ROW]:
+    for g in [q for q in d["gates"] if q.get("bom") in BOM_ROWS]:
         out = side_outs(d, g, P["K"])
         name = variant_name(P, out)
         print("[romon] 門『%s』→ %s" % (g["name"], name))

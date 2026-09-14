@@ -600,16 +600,47 @@ public static class EdoAssets
                  + "_k" + pX + "-" + mX + "-" + pZ + "-" + mZ + ".fbx";
         }
 
+        /// <summary>**山王社の坂下の門(仁王門)— 明治16年実測図 第2稿の読み**(2026-09-14)。三間一戸・単層・**切妻・組物なし**・本瓦葺。
+        /// 明治図には写っていない(撤去済み)ので外形 <paramref name="passMm"/>(通り抜け=X)× <paramref name="widthMm"/>(幅=Z)は【U】
+        /// (御宮絵図の楼門比)、姿は【S 名所図会】。現行 (2,3,3000,6000,300,300,300,300) = 柱間 1.5 × 2.0・戸口 2.0。
+        /// ⭐ 楼門と同じ規約: 通り抜け=ローカル X・正面=+X(扉は −X へ開く)・大棟=Z・ピボット=門の芯・敷居の高さ・yaw 0 で正面=東・scale one。
+        /// 基壇の出 k は柱芯から +X/−X/+Z/−Z[mm] — ⚠ 0.30 四周は取り合いの面が決まるまでの仮【U】。
+        /// 外形 W(X)5.62 × H(Y)5.86(−0.60〜5.26)× D(Z)8.31・12.3k tris。柱高 3.10・軒の出 1.20・妻の出 0.90・軒桁の上端 3.40・
+        /// 軒先の名目 2.89(従属値)・大棟の瓦場 4.69【すべて U 類型】。材は名前だけ ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_romon.py -- --only 坂下 --kidan 3.6x6.6 --plan 3.0x6.0 --bays 2x3 --kirizuma --render --full</summary>
+        public static string SannoSakashitamon(int duKen, int dvKen, int passMm, int widthMm, int pX, int mX, int pZ, int mZ)
+        {
+            return "Assets/Edo/Models/Sanno/Sanno_Sakashitamon_" + duKen + "x" + dvKen + "ken_" + passMm + "x" + widthMm
+                 + "_k" + pX + "-" + mX + "-" + pZ + "-" + mZ + ".fbx";
+        }
+
+        /// <summary>**山王社の袖塀(回廊の翼の妻 ↔ 楼門の側面)** — 瓦葺の築地塀・長さ <paramref name="lenMm"/>[mm]・両端を袖瓦と漆喰で塞ぐ。
+        /// 形は【S 名所図会「低い屋根付きの袖塀」/ S 御宮絵図「細い一本の部材」】から瓦葺の築地塀と読んだ【U】、丈・断面は練塀 `Dobei2m` のまま【U 類型】。
+        /// 現行 4200(離れ 4.2 ± 0.5【A 明治16年図】)。外形 W(X)4.20 × H(Y)2.51 × D(Z)1.00・928 tris。
+        /// ⭐ 走り=ローカル X・高さ=Y・厚み=Z(表裏なし)・ピボット=走りの中心・足元(楼門の敷居の高さ)。南北に走らせるなら yaw 90・scale one。
+        /// ⚠ 楼門の芯の通り(X=0)で側柱の外面から走らせると、足元が礎盤に 0.09 食い込む(礎盤の丈 0.15)。
+        /// ⚠ 材 `Wall Exterior Defence`(Japanese Castle)を持つので `Edo/岡部筑前守上屋敷/新造部材のマテリアルをremap` で結ぶ
+        ///   (山王社の remap は Japanese Castle の材を見ない)。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_sodebei.py -- --len 4.2 --render</summary>
+        public static string SannoSodebei(int lenMm)
+        {
+            return "Assets/Edo/Models/Hei/Sanno_Sodebei_" + lenMm + ".fbx";
+        }
+
         /// <summary>**山王社の社殿(権現造)— 明治16年実測図の寸法**(ユーザー裁定C 2026-09-14)。1棟1FBX・銅瓦葺。
-        /// <paramref name="kind"/> = "Honden" / "Haiden" / "Kohai"(⚠ 幣殿・作り合いは向きの読みが未決で未造)。
+        /// <paramref name="kind"/> = "Honden" / "Heiden" / "Tsukuriai" / "Haiden" / "Kohai"。
         /// 間数 <paramref name="nuKen"/>(東西=X)×<paramref name="nvKen"/>(南北=Z)、柱芯の外形 <paramref name="ewMm"/>×<paramref name="nsMm"/>[mm]、
         /// 柱間は外形 ÷ 間数。⭐ ピボット = `munes` の区画の中心・地盤レベル、ローカル +X = 東 = 正面 ⇒ yaw 0・scale one。
-        /// ・本殿 (3,3,9200,7620) 外形 W15.32×H12.68×D13.74・37.9k tris・大棟の上端 12.42
+        /// ・本殿 (3,3,7620,7620) 外形 W12.75×H11.82×D12.75・33.6k tris・大棟の上端 11.56【S 目録 三間×三間 / A 帯の南北 / U 柱間 2.54】
+        ///   ⛔ (3,3,9200,7620) は東西を拝殿の梁間で読んだ誤り(2026-09-14 考証 第2稿で撤回)。旧 FBX はシーンが参照中なので残す — 据えない
+        /// ・幣殿 (3,1,7620,7620) 外形 W8.94×H6.10×D8.82・11.6k tris。桁行三間=軸(東西)・梁間一間=本殿の中央三間幅・兩下造【S 目録 / A 加藤2018 §5-2】。舞良戸は柱間ごと
+        /// ・作り合い (1,1,2000,7620) 外形 W3.32×H6.10×D8.82・5.7k tris。軸方向 2.0【P 残差】・幅は幣殿に揃えた。本殿への木階を内に持つ
+        ///   幣殿・作り合いの棟は隣の軒の 0.25 下(5.90)に頭打ち — 屋根は本殿・拝殿の軒下へ 0.75 潜る
         /// ・拝殿 (3,7,9200,17800) 外形 W15.32×H11.83×D23.92・57.1k tris・大棟の上端 11.57・千鳥破風は柱間に寄せた
         /// ・向拝 (1,3,1900,7620) 外形 W3.50×H7.61×D8.90・4.8k tris
         /// 床高・本殿の段・反り・軒反り・亀腹・腰組は旧部材と同じ規則。軒の出 = 半スパン×0.63 で 2.90m になるので、
         /// 本殿・拝殿は壁通りに軒小壁を立てて組物の帯を塞いだ。柱高・組物・内法は【U】。材は名前だけ ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
-        /// 生成: SANNO_SASHIZU=&lt;指図&gt; blender --background --python Tools/Blender/build_sanno_shaden.py -- honden haiden kohai kizahashi --render</summary>
+        /// 生成: SANNO_SASHIZU=&lt;指図&gt; blender --background --python Tools/Blender/build_sanno_shaden.py -- honden tsukuriai heiden haiden kohai kizahashi --render</summary>
         public static string SannoShaden(string kind, int nuKen, int nvKen, int ewMm, int nsMm)
         {
             return "Assets/Edo/Models/Sanno/Sanno_" + kind + "_" + nuKen + "x" + nvKen + "ken_" + ewMm + "x" + nsMm + ".fbx";

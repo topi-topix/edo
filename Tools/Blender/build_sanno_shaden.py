@@ -2065,13 +2065,23 @@ def _renketsu(R, key, name, ebi):
         #   `panel_ita`(板壁)で焼いていたので、**指図の【A】の文と実物が別物**だった
         #   (考証20巡目 中6。19巡目 中5「腰組で支持する【A】に対し現物は縁束」と同型)。
         # ⚠ `out` = 外(見え側)。⛔ 決め打ちにすると南面で舞良子が室内側へ回る。
+        # ⭐ 柱間ごとに入れる(2026-09-14 明治16年第2稿で幣殿が桁行三間=軸方向になり、
+        #   柱が側面の中に2本立つ。⛔ 一枚で通すと舞良戸が柱を貫く)
         for vv in (vs[0], vs[-1]):
             og = +1 if vv > 0 else -1
-            panel_mairado(M, us[0] + 0.08, us[-1] - 0.08, "u", vv, z0, z1,
-                          uv["itado"], DW, out=og)
+            for i in range(len(us) - 1):
+                panel_mairado(M, us[i] + 0.08, us[i + 1] - 0.08, "u", vv, z0, z1,
+                              uv["itado"], DW, out=og)
         # **大虹梁** — 後方(西)柱上の組物から梁間方向に渡す【A】
-        kouryou(M, us[0], us[-1], vs[1], s["floor"] + s["colH"] - 0.42,
-                s["floor"] + s["colH"] - 0.42, 0.20, 0.34, uv["wood_h"], W, sag=0.26)
+        if len(vs) > 2:
+            kouryou(M, us[0], us[-1], vs[1], s["floor"] + s["colH"] - 0.42,
+                    s["floor"] + s["colH"] - 0.42, 0.20, 0.34, uv["wood_h"], W, sag=0.26)
+        else:
+            # ⭐ 梁間一間(軸に直交・本殿の中央三間幅)⇒ 梁は v へ一本で飛ぶ。桁行の各柱の上に渡す
+            #   (⛔ `kouryou` は u へしか走らないので、v=vs[1] に置くと側面の壁の中へ埋まる)
+            zb = s["floor"] + s["colH"] - 0.42
+            for uu in us:
+                stick(M, (uu, vs[0], zb), (uu, vs[-1], zb), 0.20, 0.34, uv["wood_h"], W)
     if ebi:
         # **海老虹梁** — 本殿(西・高い)と幣殿(東・低い)を繋ぐ【A 日光・紅葉山東照宮に倣う】
         # ⛔ 作り合いは「壁で囲われた室ではない」ので壁を張らない

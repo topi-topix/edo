@@ -94,6 +94,20 @@ G_MEIJI = dict(
     eaveRatio=None, # 軒の出 = 半スパン × `SH.EAVE_RATIO`【P 根津】(社殿と同じ規則)
 )
 
+# ⭐ **坂下の門(仁王門)— 明治16年実測図 第2稿の読み**(2026-09-14 考証)。明治図には写っていない
+#   (神仏分離で撤去済み)ので、外形は【U】(御宮絵図の楼門比【S図/P】)、姿は【S 名所図会】
+#   「単層・三間一戸・切妻に近い・組物の帯を描かない」。⇒ **切妻・組物なし**(舟肘木も付けない)。
+#   `--kirizuma --plan 3.0x6.0 --bays 2x3 --kidan 3.6x6.6` で焼く。⛔ 下の数はすべて【U 類型】。
+G_SAKASHITA = dict(
+    roofKind="kirizuma",
+    colH=3.10,      # 【U】旧 坂下の門(柱間 1.818)の柱高のまま — 柱間 2.0 の門でも人の丈に効く値は伸ばさない
+    uchinori=2.40,  # 【U】同
+    koshi=0.95,     # 【U】同
+    eave=1.20,      # 【U 類型】軒の出(側柱の芯から)。⛔ 半スパン×0.63 だと 0.95 で門の軒には浅い
+    keraba=0.90,    # 【U 類型】妻の出(側柱の芯から破風板の内面まで)
+    ketaH=0.30,     # 【U】軒桁の丈(頭貫の上に載せ、垂木の下端を受ける)
+)
+
 
 def plan_of(d, g, K):
     """門1基の平面。⭐ **柱間の引数**: 外形 `plan`[間] ÷ 間数 `bays` = 柱間 `pu`(通り抜け)/ `pv`(幅)。
@@ -208,8 +222,84 @@ def soban_sided(pts, hu, hv, out, colR, h, half, name):
     return objs
 
 
+def kirizuma_sori(W, D, name, eave, keraba, sori, p, zb_tsuma):
+    """**反りを持つ切妻**(W = 桁行 = 大棟の向き / D = 梁間)。組み立て系は `SH.make_irimoya_sori` と同じ
+    (+X = 桁行, 軒先の名目 z=0)で、`SH.irimoya` と同じく `rotate_z(-90)` で大棟を論理 v へ倒す。
+    ・瓦場は在庫の本瓦(`GR._tile_field_fast`)を `SH.sori_shear` で反らす(⛔ 自作の瓦にしない)
+    ・妻 = 破風板(`SH._board_run`・反りに沿う折れ線)+ 懸魚 + 袖瓦(`SH.ridge_curve`)を**瓦の端**に、
+      妻壁(漆喰の板)を**側柱の通り**に立てる(妻の出の下で小屋の中が素通しにならないように)
+    `zb_tsuma` = 妻壁の下端(頭貫の上端)の、軒先の名目からの高さ。"""
+    Wp, Dp = W + 2 * keraba, D + 2 * eave
+    cy = Dp / 2.0
+    if abs(sori.half - cy) > 1e-6:
+        raise SystemExit("[kirizuma] 反りの半スパン %.3f が屋根の %.3f と違う" % (sori.half, cy))
+    h = sori.z(cy)
+    x0, y0 = -keraba, -eave
+
+    def P_(px, py):
+        return (x0 + px, y0 + py)
+    pieces = []
+    for polys, org, yaw, up, tag in (
+            ([[P_(0, 0), P_(Wp, 0), P_(Wp, cy), P_(0, cy)]], P_(0, 0), 90, (0.0, 1.0), "_S"),
+            ([[P_(Wp, Dp), P_(0, Dp), P_(0, cy), P_(Wp, cy)]], P_(0, Dp), 270, (0.0, -1.0), "_N")):
+        f = GR._tile_field_fast(polys, org, yaw, 0.0, name + tag)
+        if f is None:
+            raise SystemExit("[kirizuma] 瓦場が空: %s" % tag)
+        pieces.append(SH.sori_shear(f, org, up, sori))
+    pieces += GR.ridge((x0, y0 + cy, h), (x0 + Wp, y0 + cy, h), name + "_omune", w=0.46, h=0.38)
+    pieces += GR.oni((x0, y0 + cy, h), (-1, 0), name + "_oni0", scale=0.95)
+    pieces += GR.oni((x0 + Wp, y0 + cy, h), (1, 0), name + "_oni1", scale=0.95)
+
+    def zfun(yy):
+        return sori.z(SH._clamp(min(yy - y0, y0 + Dp - yy), 0.0, cy))
+    n = 18
+    prof = [(y0 + Dp * i / float(n), zfun(y0 + Dp * i / float(n))) for i in range(n + 1)]
+    bw, bt = 0.46, 0.16
+    for gx, inward in ((x0, +1), (x0 + Wp, -1)):
+        tg = "_gW" if inward > 0 else "_gE"
+        pieces += SH._board_run(name + tg + "a", gx, inward, prof[:n // 2 + 1], p['wood'], bw, bt, 0.55)
+        pieces += SH._board_run(name + tg + "b", gx, inward, prof[n // 2:], p['wood'], bw, bt, 0.55)
+        xout = gx - inward * (bt * 1.15)
+        g = GR.plaque(name + tg + "_gegyo", GR.GEGYO, xout - inward * 0.07, xout, p['wood'], None,
+                      sc=0.75, oy=y0 + cy, oz=zfun(y0 + cy) - 0.03)
+        V.set_uv_rect(g, GR.WOOD_UV, axes=('y', 'z'))
+        pieces.append(g)
+        sx = gx + inward * 0.12
+        for sg in (-1, +1):              # 拝みから両裾へ、反りに沿う袖瓦(⛔ 大棟を跨がない)
+            pts = [(sx, y0 + cy + sg * (0.26 + (cy - 0.26) * i / 8.0),
+                    zfun(y0 + cy + sg * (0.26 + (cy - 0.26) * i / 8.0)) + 0.22) for i in range(9)]
+            pieces += SH.ridge_curve(pts, "%s_sode%d%d" % (name, int(inward), sg), 0.34, 0.26)
+    # 妻壁(側柱の通り)— 頭貫の上端 → 屋根面の 0.28 下(垂木と瓦の懐)
+    for gx in (0.0, W):
+        top = [(0.0 + D * i / 12.0, zfun(D * i / 12.0) - 0.28) for i in range(13)]
+        poly = [(0.0, zb_tsuma)] + top + [(D, zb_tsuma)]
+        tw = GR.plaque(name + "_tsuma%d" % int(gx > 0), poly, gx - 0.04, gx + 0.04, p['wall'], None)
+        V.set_uv_rect(tw, GR.WALLC_UV, axes=('y', 'z'))
+        pieces.append(tw)
+    pieces = [x for x in pieces if x]
+    V.dedup_materials()
+    o = V.join(pieces, name)
+    V.set_origin(o, (W / 2.0, D / 2.0, 0.0))
+    return o
+
+
+def kirizuma(name, hu, hv, eave, keraba, eaveZ, colH, p, sori):
+    """切妻(大棟 = 門の幅 v)。`SH.irimoya` と同じ回転(行列式 +1)で論理系へ落とす。"""
+    o = kirizuma_sori(2 * hv, 2 * hu, name, eave, keraba, sori, p, colH - eaveZ)
+    o.location = (0.0, 0.0, 0.0)
+    V.sel([o])
+    bpy.ops.object.transform_apply(location=True, rotation=False, scale=False)
+    V.rotate_z([o], -90)
+    o.location = (0.0, 0.0, eaveZ)
+    V.sel([o])
+    bpy.ops.object.transform_apply(location=True, rotation=False, scale=False)
+    return o
+
+
 def build(P, name, out):
     K = P["K"]
+    if G.get("roofKind") == "kirizuma":
+        return build_kirizuma(P, name, out)
     hu, hv = P.get("hu", P["du"] * K / 2.0), P.get("hv", P["dv"] * K / 2.0)
     # ⚠ 許容は 1 mm 相当(戸口 1.3971 間 × 1.818 = 2.53993 と柱間 7.62/3 の差 0.02 mm で止まった)
     if abs(P["monguchi"] - 1.0) > 1e-3 or P["dv"] != 3:
@@ -317,6 +407,99 @@ def build(P, name, out):
     V.set_origin(o, (0.0, 0.0, 0.0))                    # 門の芯・敷居の高さ
     return o, dict(hu=hu, hv=hv, b=b, ez=ez, ridge=ez + sori.z(sori.half),
                    marugeta=colH + 0.10 + 0.65 + 0.20)   # `SH.kumimono` の丸桁の上端
+
+
+def build_kirizuma(P, name, out):
+    """**坂下の門(明治16年第2稿)** — 三間一戸・単層・**切妻・組物なし**。
+    軸部・扉・脇間・基壇は楼門(`build`)と同じ作り(同じ検算が効く)。違いは上だけ:
+    ・組物・軒小壁を置かず、頭貫(四周)の上に**軒桁**を載せ、垂木の下端を軒桁の上端に落とす
+      (⇒ 軒先の名目 `ez` は軒の出と反りからの従属値。⛔ 軒先を決め打ちして垂木を浮かせない)
+    ・屋根は反り切妻(`kirizuma`)。大棟 = 幅 v、妻 = ±v(破風・懸魚・袖瓦)、妻壁は側柱の通り。"""
+    K = P["K"]
+    hu, hv = P["hu"], P["hv"]
+    if abs(P["monguchi"] - 1.0) > 1e-3 or P["dv"] != 3:
+        raise SystemExit("[romon] ⛔ 三間一戸・中央一間の戸口しか組めない")
+    b = hv / 3.0
+    ms, uv = SH.mats()
+    W, WC, DW = SH.W, SH.WC, SH.DW
+    p = GR.palette()
+    M = VM.Mesh()
+    colH, UC = G["colH"], G["uchinori"]
+    z_sill = 0.24
+    stones = kidan(hu, hv, out, G["kidanDepth"], name + "_kidan")
+    us = SH.bay_lines(hu, P["du"])
+    vs = SH.bay_lines(hv, P["dv"])
+    pts = [(uu, vv) for uu in us for vv in vs]
+    stones += soban_sided(pts, hu, hv, out, G["colD"] / 2.0, G["sobanH"], 0.27, name + "_soban")
+    SH.columns(M, hu, hv, P["du"], P["dv"], 0.0, colH, G["colD"], uv["wood"], W, base=G["sobanH"])
+    for sg in (-1, +1):
+        SH.cyl(M, 0.0, sg * b, G["sobanH"], colH, G["honD"] / 2.0, uv["wood"], W, n=12, taper=0.94)
+    # 頭貫 — 四周 + 中の通り(⛔ 組物が無いので `SH.kumimono` の頭貫に頼れない)
+    for uu in (us[0], 0.0, us[-1]):
+        SH.box3(M, uu - 0.09, uu + 0.09, -hv - 0.12, hv + 0.12, colH - 0.30, colH, uv["wood_h"], W, grain="v")
+    for vv in (vs[0], vs[-1]):
+        SH.box3(M, -hu - 0.12, hu + 0.12, vv - 0.09, vv + 0.09, colH - 0.30, colH, uv["wood_h"], W, grain="u")
+    eave, keraba = G["eave"], G["keraba"]
+    huE, hvK = hu + eave, hv + keraba
+    sori = SH.Sori(huE)
+    kt = colH + G["ketaH"]                               # 軒桁の上端
+    ez = round(kt + 0.15 - sori.z(eave), 3)              # 垂木(丈 0.10・面の 0.10 下が芯)の下端 = 軒桁の上端
+    for sg in (-1, +1):                                  # 軒桁(前後の通り・妻の出の手前まで)
+        a0, a1 = sorted((sg * hu - 0.13, sg * hu + 0.13))
+        SH.box3(M, a0, a1, -(hvK - 0.20), hvK - 0.20, colH, kt, uv["wood_h"], W, grain="v")
+    for sg in (-1, +1):                                  # 繋ぎ虹梁(通路の両側)
+        SH.kouryou(M, -hu, hu, sg * b, colH - 0.62, colH - 0.62, 0.20, 0.30, uv["wood_h"], W, n=10, sag=0.10)
+    SH.kokabe(M, us, vs, 0.0, colH, uv["wall"], WC, uc=UC, renji=(uv["wood"], W))
+    SH.box3(M, -hu + 0.10, hu - 0.10, -hv + 0.10, hv - 0.10, colH + 0.02, colH + 0.06,
+            uv["wood_h"], W, grain="u")                  # 鏡天井
+    r_s, r_h = G["colD"] / 2.0, G["honD"] / 2.0
+    for sg in (-1, +1):                                  # 両脇間(楼門と同じ)
+        v_in, v_out = sg * b, sg * hv
+        a0, a1 = sorted((v_in + sg * r_h, v_out - sg * r_s))
+        SH.box3(M, -hu, hu, v_out - 0.09, v_out + 0.09, 0.0, z_sill, uv["wood_h"], W, grain="u")
+        SH.box3(M, -hu, hu, v_in - 0.09, v_in + 0.09, 0.0, z_sill, uv["wood_h"], W, grain="u")
+        for uu in (-hu, hu):
+            SH.box3(M, uu - 0.09, uu + 0.09, a0, a1, 0.0, z_sill, uv["wood_h"], W, grain="v")
+        SH.box3(M, -hu + 0.09, hu - 0.09, a0, a1, z_sill - 0.06, z_sill + 0.06, uv["wood_h"], W, grain="u")
+        SH.panel_ita(M, a0, a1, "v", hu, z_sill, G["koshi"], uv["wood"], W)
+        SH.box3(M, hu - 0.08, hu + 0.08, a0, a1, G["koshi"], G["koshi"] + 0.10, uv["wood_h"], W, grain="v")
+        z_r0, z_r1 = G["koshi"] + 0.10, UC - 0.13
+        n = max(6, int(round((a1 - a0) / 0.115)))
+        for i in range(1, n):
+            c = a0 + (a1 - a0) * i / float(n)
+            SH.box3(M, hu - 0.035, hu + 0.035, c - 0.028, c + 0.028, z_r0, z_r1, uv["wood"], W, grain="h")
+        SH.panel_ita(M, a0, a1, "v", -hu, z_sill, UC, uv["wood"], W)
+        for (u0, u1) in ((-hu + r_s, -r_h), (r_h, hu - r_s)):
+            SH.panel_ita(M, u0, u1, "u", v_out, z_sill, UC, uv["wood"], W)
+            SH.panel_ita(M, u0, u1, "u", v_in, z_sill, UC, uv["wood"], W)
+    leaf = b - r_h - 0.03
+    for sg in (-1, +1):                                  # 板扉 — 背面(−u)へ開く
+        vv = sg * (b - r_h - 0.04)
+        u0, u1 = -0.08 - leaf, -0.08
+        SH.box3(M, u0, u1, vv - 0.025, vv + 0.025, 0.05, UC - 0.16, uv["itado"], DW, grain="h")
+        vin = vv - sg * 0.025
+        for zz in (0.30, (UC - 0.16) / 2.0, UC - 0.40):
+            lo, hi = sorted((vin, vin - sg * 0.035))
+            SH.box3(M, u0 + 0.03, u1 - 0.03, lo, hi, zz, zz + 0.09, uv["wood_h"], W, grain="u")
+    SH.box3(M, -0.10, 0.10, -b, b, UC - 0.16, UC, uv["wood_h"], W, grain="v")
+    # 垂木(前後の軒・妻の出まで)。⛔ 直材1本で結ばない(反った面は凸)
+    nt = max(2, int(round(2 * (hvK - 0.12) / 0.36)))
+    for sg in (-1, +1):
+        for i in range(nt + 1):
+            vv = -(hvK - 0.12) + 2 * (hvK - 0.12) * i / float(nt)
+            for j in range(3):
+                d0 = (eave + 0.45) * j / 3.0
+                d1 = (eave + 0.45) * (j + 1) / 3.0
+                SH.stick(M, (sg * (huE - d0), vv, ez + sori.z(d0) - 0.10),
+                         (sg * (huE - d1), vv, ez + sori.z(d1) - 0.10), 0.08, 0.10, uv["wood_h"], W)
+    body = M.to_object(name + "_body", ms)
+    roof = kirizuma(name + "_roof", hu, hv, eave, keraba, ez, colH, p, sori)
+    V.dedup_materials()
+    o = V.join([body, roof] + stones, name)
+    V.set_origin(o, (0.0, 0.0, 0.0))
+    print("[romon] 切妻 軒の出 %.2f / 妻の出 %.2f / 軒桁の上端 %.3f / 軒先の名目 %.3f(従属値)/ 大棟の瓦場 %.3f"
+          % (eave, keraba, kt, ez, ez + sori.z(sori.half)))
+    return o, dict(hu=hu, hv=hv, b=b, ez=ez, ridge=ez + sori.z(sori.half), marugeta=kt)
 
 
 # ==========================================================================
@@ -587,7 +770,7 @@ def variant_name(P, out):
     k = "k%d-%d-%d-%d" % (mm("+X"), mm("-X"), mm("+Z"), mm("-Z"))
     if P.get("legacy", True):
         return "Sanno_Romon_%dx%dken_%s" % (P["du"], P["dv"], k)
-    return "Sanno_Romon_%dx%dken_%dx%d_%s" % (P["du"], P["dv"], int(round(2 * P["hu"] * 1000.0)),
+    return "%s_%dx%dken_%dx%d_%s" % (P.get("base", "Sanno_Romon"), P["du"], P["dv"], int(round(2 * P["hu"] * 1000.0)),
                                                int(round(2 * P["hv"] * 1000.0)), k)
 
 
@@ -624,6 +807,7 @@ def main():
         d = json.load(f)
     K = float(d["const"]["ken"])
     only, kspec, pspec = _opt(argv, "--only"), _opt(argv, "--kidan"), _opt(argv, "--pitch")
+    plspec, bspec = _opt(argv, "--plan"), _opt(argv, "--bays")
     gates = [q for q in d["gates"] if q.get("bom") in BOM_ROWS
              and (only is None or only in q.get("bom", "") or only in q.get("name", ""))]
     if not gates:
@@ -634,7 +818,22 @@ def main():
         print("[romon] 屋根 = 在庫の本瓦(`roof`)— bom『%s』: %s" % (br, row.get("屋根", "")[:60]))
     done = {}
     for g in gates:
-        if kspec:
+        if kspec and plspec:
+            # ⭐ 外形を引数で受ける(坂下の門は明治16年図に写らず、外形は考証の【U】— 指図 json は改訂中で読まない)
+            a, b = (float(x) for x in plspec.lower().split("x"))
+            nu, nv = (int(x) for x in (bspec or "2x3").lower().split("x"))
+            P = dict(K=K, du=nu, dv=nv, hu=a / 2.0, hv=b / 2.0, pu=a / nu, pv=b / nv, monguchi=1.0,
+                     legacy=False, name=g["name"], gate=g,
+                     base=("Sanno_Sakashitamon" if "--kirizuma" in argv else "Sanno_Romon"))
+            G.clear(); G.update(G_LEGACY)
+            if "--kirizuma" in argv:
+                G.update(G_SAKASHITA)
+            else:
+                meiji_heights(P)
+            print("[romon] 門『%s』外形(引数)通り抜け %.3f × 幅 %.3f / %d×%d間 / 柱間 %.4f × %.4f / 戸口 %.4f / 屋根 %s"
+                  % (g["name"], a, b, nu, nv, P["pu"], P["pv"], P["pv"], G.get("roofKind", "入母屋")))
+            out = kidan_outs(P, kspec)
+        elif kspec:
             P = plan_of(d, g, K)
             if P["legacy"]:
                 raise SystemExit("[romon] ⛔ --kidan は柱間が 1間でない門(明治16年寸法)にだけ使う: %s" % g["name"])
@@ -679,7 +878,8 @@ def main():
             raise SystemExit("[romon] ⛔ 想定外の材")
         if "--render" in argv:
             tag = name.split("_k")[-1]
-            for f in shots(o, info, "k" + tag, full=("--full" in argv)):
+            pre = "sakashita_k" if G.get("roofKind") == "kirizuma" else "k"
+            for f in shots(o, info, pre + tag, full=("--full" in argv)):
                 print("RENDER " + f)
         if "--no-export" not in argv:
             path = os.path.join(OUT, name + ".fbx")

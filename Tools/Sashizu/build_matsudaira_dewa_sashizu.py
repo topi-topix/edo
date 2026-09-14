@@ -1571,6 +1571,8 @@ def plane_check(d):
     bad += koran_frame_check(d)                # B-3 主景の前景の高欄(部材から算出)
     # ⭐ **2026-09-14(第38次)に新設して同じ巡で配線した**(規則19・庭方 設計 D2)
     bad += torii_route_check(d)                # 鳥居が参道の線上に載り正面が参道を向くか
+    # ⭐ **2026-09-14(第39次)に新設して同じ巡で配線した**(規則19・検図)
+    bad += planting_box_service_check(d)       # 植栽の箱 × 棟・渡廊下・附属屋の外形の部分重なり
     bad += design_value_check(d)
     bad += pending_ref_check(d)
     return bad
@@ -4401,7 +4403,8 @@ def bom_table(d):
         stock = b.get("asset", "")
         rows.append("<tr><td>%s</td><td>%s</td><td class='note'>%s</td><td class='note'>%s</td></tr>"
                     % (b["item"], "<b>新造(Blender)</b>" if b.get("build") else "在庫",
-                       ("<code>%s</code>" % stock) if stock else "—", b.get("note", "")))
+                       ("<code>%s</code>" % stock) if stock else "—",
+                       (("幅 %.2fm。" % float(b["w"])) if b.get("w") is not None else "") + b.get("note", "")))
     return ('<div class="tw"><table><thead><tr><th>部材</th><th>調達</th><th class="note">在庫パス/新造名</th>'
             "<th class='note'>備考</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>")
 
@@ -7016,6 +7019,7 @@ def crest_stations(d, dem, step):
 
 
 _SPL = {}
+_THIN = []          # ⭐ 突出木の周りを透かした記録 [(突出木の層, 替えた木の u, v, 元の部材)](2026-09-14 第39次)
 
 
 def _band_region(d, band):
@@ -7576,6 +7580,35 @@ def scatter_slope(d, dem):
                         pt2 = dict(pt)
                         pt2["scale"] = float(pt.get("scale", 1.0)) * mul
                         lst[i] = (u, v, pt2)
+    # ⭐ **突出木の周りを透かす**(2026-09-14 第39次【庭方】`emergent.thin`)。
+    #   突出木の樹冠半径の内に立つ `thin.layers` の木で、梢(地盤 + 樹高)が突出木の梢 − `leadMin` を超える物だけを
+    #   `thin.prefab` へ替える。⛔ 本数は変えない。⛔ 物差しは検査 `slope_emergent_check` と同じ(`_slope_ground_fn`・樹冠半径の内)。
+    del _THIN[:]
+    for lay in d.get("slopePlanting", []):
+        em = lay.get("emergent") or {}
+        th = em.get("thin")
+        if not th or em.get("leadMin") is None:
+            continue
+        gy = _slope_ground_fn(d, dem)
+        mt = em.get("match", "")
+        lead = float(em["leadMin"])
+        to = {"api": th["api"], "prefab": th["prefab"], "scale": float(th.get("scale", 1.0)), "n": 1}
+        for (u, v, pt) in _SPL.get(lay["layer"], []):
+            if mt not in pt.get("prefab", ""):
+                continue
+            g, y0 = part_geom(pt), gy(u, v)
+            if not g or y0 is None:
+                continue
+            top, R = y0 + float(g[1]), float(g[0]) / 2.0
+            for ln in th.get("layers", []):
+                lst = _SPL.get(ln) or []
+                for i, (uu, vv, pp) in enumerate(lst):
+                    if pp.get("prefab") == to["prefab"] or math.hypot(uu - u, vv - v) * K > R:
+                        continue
+                    gg, yy = part_geom(pp), gy(uu, vv)
+                    if gg and yy is not None and yy + float(gg[1]) > top - lead + 1e-9:
+                        lst[i] = (uu, vv, dict(to))
+                        _THIN.append((lay["layer"], uu, vv, pp.get("prefab")))   # ⚠ 検査は突出木の層の名で引く
     return _SPL
 
 
@@ -11279,6 +11312,7 @@ def _plant_cache_clear():
     _GSG.clear()
     _GCENT.clear()
     _SPL.clear()
+    del _THIN[:]
     _CVH.clear()
     _TBAND.clear()
     _GZ.clear()
@@ -11923,6 +11957,10 @@ DESIGN_WATCH = [
     ("tenkei[T_Torii_1].facing", "一の鳥居の正面の向き(庭方 設計 D2)", True),
     ("tenkei[T_Torii_2].facing", "二の鳥居の正面の向き(庭方 設計 D2)", True),
     ("tenkei[T_Torii_1].route", "一の鳥居が載る参道(庭方 設計 D2)", True),
+    # ⭐ **2026-09-14(第39次)**(規則19)
+    ("const.toriiRule.innerW", "鳥居の内法の実測(参道の半幅の上限・庭方)", True),
+    ("service[Inari].facing", "社の正面の向き(検図)", True),
+    ("slopePlanting[*].emergent.thin", "突出木の周りを透かす(庭方)", True),
     ("tenkei[T_Torii_2].route", "二の鳥居が載る参道(庭方 設計 D2)", True),
     ("const.toriiRule", "鳥居が参道に載るかの許容(指図方)", True),
 ]
@@ -11941,7 +11979,8 @@ def _dv_checks(e):
         | set(slope_doryu_check(e, dem)) | set(band_governor_check(e, dem)) \
         | set(group_mix_check(e)) | set(bansho_parcel_out_check(e)) \
         | set(valley_eave_check(e)) | set(neishi_edge_overhang_check(e)) \
-        | set(slope_planting_check(e, dem)) | set(torii_route_check(e))
+        | set(slope_planting_check(e, dem)) | set(torii_route_check(e)) \
+        | set(planting_box_service_check(e))
 
 
 def _dv_bogus(v, way):
@@ -12165,7 +12204,9 @@ def _garden_checks(e, dem):
             + band_governor_check(e, dem) + neishi_edge_overhang_check(e)
             + valley_eave_check(e) + bansho_parcel_out_check(e)
             # ⭐ **2026-09-14(第38次)に感度試験の対象へ入れた**(規則19・庭方 設計 D2)
-            + torii_route_check(e))
+            + torii_route_check(e)
+            # ⭐ **2026-09-14(第39次)**(規則19・検図)
+            + planting_box_service_check(e))
 
 
 def _calls(fn):
@@ -12424,6 +12465,19 @@ def planting_sensitivity(d, dem):
           lambda e: [t.__setitem__("facing", "+v") for t in e["tenkei"] if t["name"] == "T_Torii_2"])
     probe("一の鳥居を参道の折れ(u34)の上へ移す(接線が二本に割れる)",
           lambda e: [t.update({"u": 34.0, "v": 70.3}) for t in e["tenkei"] if t["name"] == "T_Torii_1"])
+    # ⭐ **2026-09-14(第39次)— 表裏・内法・社の正面・植栽の箱**(規則19・検図/庭方)
+    probe("一の鳥居の表裏を返す(正面が社を向く)",
+          lambda e: [t.__setitem__("facing", "+u") for t in e["tenkei"] if t["name"] == "T_Torii_1"])
+    probe("稲荷の参道の幅を 1.2間 へ戻す(柱が玉砂利の中に立つ)",
+          lambda e: [r.__setitem__("w", 1.2) for r in e["routes"] if r["name"] == "R_Inari"])
+    probe("社の正面を -v へ回す(参道の終点が正面に当たらない)",
+          lambda e: [x.__setitem__("facing", "-v") for x in e["service"] if x["name"] == "Inari"])
+    probe("梅の東の塊の箱を社の外形へ食い込ませる(部分重なり)",
+          lambda e: [g.__setitem__("box", [29.5, 67.0, 40.0, 70.0]) for pl in e["planting"]
+                     if pl.get("zone") == "G_OkuNiwaSE" and pl.get("layer") == "花木"
+                     for g in pl["groups"] if g["where"] == "東の塊"])
+    probe("突出木の周りの透かしを外す(`emergent.thin`)",
+          lambda e: [x["emergent"].pop("thin", None) for x in e["slopePlanting"] if x.get("emergent")])
     probe("`packRatio` の適用範囲の宣言を落とす(次に触る者が退避へも掛けてよいと読む)",
           lambda e: e["plantRule"].pop("packRatioScope", None))
     probe("築山の段を 12 段へ戻す(踏面が庭の段の帯を外れる)",
@@ -17933,6 +17987,27 @@ def slope_cover_table(d, dem):
             "草地の帯に林冠は求めないが、<b>地被は求める</b>。</p>" % rows)
 
 
+def _slope_ground_fn(d, dem):
+    """法面の標本から (u, v) → 地盤の標高[m](いちばん近い標本)。標本が無ければ None を返す関数。
+    ⭐ 2026-09-14(第39次)に検査から切り出した — 散布の透かし(`emergent.thin`)と検査が同じ物差しを使う。"""
+    K9 = RGrid(d).ken
+    buck = {}
+    for q in slope_samples(d, dem):
+        buck.setdefault((int(math.floor(q[2] * K9)), int(math.floor(q[3] * K9))), []).append(q)
+
+    def _gy9(u, v):
+        i0, j0 = int(math.floor(u * K9)), int(math.floor(v * K9))
+        best = None
+        for di in (-1, 0, 1):
+            for dj in (-1, 0, 1):
+                for q in buck.get((i0 + di, j0 + dj), []):
+                    dd = math.hypot(q[2] - u, q[3] - v)
+                    if best is None or dd < best[0]:
+                        best = (dd, q[4])
+        return None if best is None else best[1]
+    return _gy9
+
+
 def slope_emergent_check(d, dem):
     """**林冠を抜けて突出する松が `maxGap` ごとに立っているか**(2026-09-10・第33次)。
 
@@ -18050,20 +18125,7 @@ def slope_emergent_check(d, dem):
                        % lay["layer"])
             continue
         K9 = RGrid(d).ken
-        buck = {}
-        for q in slope_samples(d, dem):
-            buck.setdefault((int(math.floor(q[2] * K9)), int(math.floor(q[3] * K9))), []).append(q)
-
-        def _gy9(u, v):
-            i0, j0 = int(math.floor(u * K9)), int(math.floor(v * K9))
-            best = None
-            for di in (-1, 0, 1):
-                for dj in (-1, 0, 1):
-                    for q in buck.get((i0 + di, j0 + dj), []):
-                        dd = math.hypot(q[2] - u, q[3] - v)
-                        if best is None or dd < best[0]:
-                            best = (dd, q[4])
-            return None if best is None else best[1]
+        _gy9 = _slope_ground_fn(d, dem)
 
         byname = {L["layer"]: L for L in d.get("slopePlanting", [])}
         leads, weak, lone = [], [], 0
@@ -18098,6 +18160,28 @@ def slope_emergent_check(d, dem):
         elif leads:
             out.append("〔記録〕層 %s の突出木: 梢は周りの林冠の梢より最小 **%.1fm** 抜ける(下限 `leadMin` %.1fm・"
                        "樹冠半径の内に林冠の無い木 %d 本)" % (lay["layer"], min(leads), float(lmin), lone))
+        # ⭐ **透かし**(2026-09-14 第39次・庭方)— 替えた本数を黙らせない。⛔ 帯W1 は相手に数えない(`_offsets` の宣言)
+        th = em.get("thin")
+        if th:
+            nth = [x for x in _THIN if x[0] == lay["layer"]]
+            out.append("〔記録〕層 %s の突出木の周りを透かした: %s の %d 本を `%s` へ替えた(%s)"
+                       % (lay["layer"], "・".join(th.get("layers", [])), len(nth), th.get("prefab"),
+                          " / ".join("%s→(%.1f,%.1f)" % (x[3], x[1], x[2]) for x in nth) or "替える木なし"))
+            # ⭐ 透かした後の内訳(従属値・`planting_out` の正典)を宣言の `parts` と並べて出す(2026-09-14 検図)
+            for ln in th.get("layers", []):
+                src = next((s for s in d.get("slopePlanting", []) if s.get("layer") == ln), None)
+                if not src:
+                    continue
+                decl = {p.get("prefab"): int(p.get("n", 0)) for p in src.get("parts", [])}
+                got = {}
+                for (_u, _v, pp) in _SPL.get(ln, []):
+                    got[pp.get("prefab")] = got.get(pp.get("prefab"), 0) + 1
+                if got and got != decl:
+                    out.append("〔記録〕層 %s の部材の内訳: 宣言 `parts`(散布の入力)%s → 据える内訳(透かし後・`planting_out`)%s"
+                               "(本数 %d / %d)" % (
+                                   ln, " ".join("%s×%d" % kv for kv in sorted(decl.items())),
+                                   " ".join("%s×%d" % kv for kv in sorted(got.items())),
+                                   sum(decl.values()), sum(got.values())))
     return out
 
 
@@ -18107,10 +18191,13 @@ def _facing_vec(s):
 
 
 def torii_route_check(d):
-    """**鳥居が参道の線上に載り、正面が参道を向いているか**(2026-09-14 第38次・庭方 設計 D2)。
+    """**鳥居が参道の線上に載り、正面が参拝者の来る側を向き、柱が参道の外に立つか**(2026-09-14 第38次・庭方 設計 D2 / 第39次)。
 
     ⭕ 芯ずれ = 鳥居の据え点から `route` の折れ線までの最短距離。
-    ⭕ 向き = `facing` と、据え点から許容の内にある**すべての区間**の接線との角(折れの上に立てると鳴る)。
+    ⭕ 向き = `facing` は**正面(表)の面の外向きの法線**。参道の区間の向き(`pts` の順 = 起点 → 社)の**逆**との角で測る
+      (⛔ abs で比べない — 表裏を取り違えても鳴らなくなる)。折れの上に立てると区間が二本掛かって鳴る。
+    ⭕ 内法 = 参道の半幅 ≤ `toriiRule.innerW`/2 − `innerClr`(⛔ 柱が玉砂利の中に立つ)。
+    ⭕ 社 = `service[]` の `facing`/`route` — 参道の終点が正面の面の上にあり、終いの区間が正面へ真っ直ぐ入るか。
     ⛔ 参道の名指し `route` か向き `facing` が無ければ「回っていない」と出す。"""
     rule = (d.get("const") or {}).get("toriiRule")
     K = d["const"]["ken"]
@@ -18121,6 +18208,7 @@ def torii_route_check(d):
     if not rule:
         return ["鳥居の検査の許容 `const.toriiRule` が無い — **鳥居が参道に載るかの検査は回っていない**"]
     tol, atol = float(rule["onRouteTol"]), float(rule["facingTolDeg"])
+    inner, iclr = rule.get("innerW"), rule.get("innerClr")
     routes = {r["name"]: r for r in d.get("routes", [])}
     for t in tor:
         nm = t.get("name")
@@ -18136,6 +18224,16 @@ def torii_route_check(d):
         if dmin > tol + 1e-9:
             out.append("鳥居 %s が参道 %s の芯から **%.2f間(%.2fm)** 外れる(許容 %.2f間)— ⛔ 柱が参道の線から外れて立つ"
                        % (nm, r["name"], dmin, dmin * K, tol))
+        # ⭐ 内法(第39次・庭方)
+        if inner is None or iclr is None:
+            out.append("鳥居の内法 `const.toriiRule.innerW`/`innerClr` が無い — **柱が参道の外に立つかの検査は回っていない**")
+            wtxt = "内法 未検査"
+        else:
+            half, lim = float(r.get("w", 0.0)) * K / 2.0, float(inner) / 2.0 - float(iclr)
+            if half > lim + 1e-9:
+                out.append("鳥居 %s: 参道 %s の半幅 **%.2fm** が内法の半分 − 離れ %.2fm を超える — ⛔ 柱が玉砂利の中に立つ"
+                           % (nm, r["name"], half, lim))
+            wtxt = "参道の半幅 %.2fm ≤ %.2fm" % (half, lim)
         if fv is None:
             out.append("鳥居 %s の正面の向き `facing`(%s)が読めない — **向きの検査は回っていない**" % (nm, t.get("facing")))
             continue
@@ -18147,14 +18245,79 @@ def torii_route_check(d):
             L = math.hypot(b[0] - a[0], b[1] - a[1])
             if L < 1e-9:
                 continue
-            cs = abs(((b[0] - a[0]) * fv[0] + (b[1] - a[1]) * fv[1]) / L)
+            cs = -((b[0] - a[0]) * fv[0] + (b[1] - a[1]) * fv[1]) / L
             worst = max(worst, math.degrees(math.acos(max(-1.0, min(1.0, cs)))))
         if worst > atol + 1e-9:
-            out.append("鳥居 %s の正面 `%s` が参道 %s の接線と **%.1f°** ずれる(許容 %.1f°)— ⛔ 笠木が参道に直交しないか、折れの上に立つ"
-                       % (nm, t.get("facing"), r["name"], worst, atol))
+            out.append("鳥居 %s の正面 `%s` が参拝者の来る側(参道の区間の逆向き)と **%.1f°** ずれる(許容 %.1f°)"
+                       "— ⛔ 表裏が逆か、笠木が参道に直交しないか、折れの上に立つ"
+                       % (nm, t.get("facing"), worst, atol))
         elif dmin <= tol + 1e-9:
-            out.append("〔記録〕鳥居 %s: 参道 %s の芯から %.2fm・正面 `%s` と接線の角 %.1f°(許容 %.2f間・%.1f°)"
-                       % (nm, r["name"], dmin * K, t.get("facing"), worst, tol, atol))
+            out.append("〔記録〕鳥居 %s: 参道 %s の芯から %.2fm・正面 `%s` と参拝者の来る向きの角 %.1f°(許容 %.2f間・%.1f°)・%s"
+                       % (nm, r["name"], dmin * K, t.get("facing"), worst, tol, atol, wtxt))
+    # ⭐ 社の正面(第39次・検図)— 参道の終点が正面の面に載り、終いの区間が正面へ入るか
+    for sv in d.get("service", []):
+        if "facing" not in sv and "route" not in sv:
+            continue
+        nm = sv.get("name")
+        fv = _facing_vec(sv.get("facing"))
+        r = routes.get(sv.get("route"))
+        if fv is None or r is None or len(r.get("pts", [])) < 2:
+            out.append("社 %s の正面 `facing`(%s)か参道 `route`(%s)が読めない — **社の正面の検査は回っていない**"
+                       % (nm, sv.get("facing"), sv.get("route")))
+            continue
+        e0, e1 = r["pts"][-2], r["pts"][-1]
+        if fv[0]:
+            face = sv["u1"] if fv[0] > 0 else sv["u0"]
+            off, lat, lo, hi = abs(e1[0] - face), e1[1], sv["v0"], sv["v1"]
+        else:
+            face = sv["v1"] if fv[1] > 0 else sv["v0"]
+            off, lat, lo, hi = abs(e1[1] - face), e1[0], sv["u0"], sv["u1"]
+        L = math.hypot(e1[0] - e0[0], e1[1] - e0[1])
+        ang = 180.0 if L < 1e-9 else math.degrees(math.acos(max(-1.0, min(1.0,
+              -((e1[0] - e0[0]) * fv[0] + (e1[1] - e0[1]) * fv[1]) / L))))
+        if off > tol + 1e-9 or not (lo - 1e-9 <= lat <= hi + 1e-9):
+            out.append("社 %s: 参道 %s の終点が正面 `%s` の面から %.2f間 外れるか、面の幅の外にある — ⛔ 参道が社の正面で止まらない"
+                       % (nm, r["name"], sv.get("facing"), off))
+        elif ang > atol + 1e-9:
+            out.append("社 %s: 参道 %s の終いの区間が正面 `%s` へ **%.1f°** 斜めに入る(許容 %.1f°)— ⛔ 正面に真っ直ぐ入らない"
+                       % (nm, r["name"], sv.get("facing"), ang, atol))
+        else:
+            out.append("〔記録〕社 %s: 参道 %s の終点は正面 `%s` の面の上(離れ %.2f間)・終いの区間との角 %.1f°"
+                       % (nm, r["name"], sv.get("facing"), off, ang))
+    return out
+
+
+def planting_box_service_check(d):
+    """**植栽の塊の箱が建物(棟・渡廊下・附属屋)の外形に部分的に食い込んでいないか**(2026-09-14 検図)。
+
+    ⛔ 矩形の総当たり重なり(`fuzoku_overlap_check`)は植栽の箱を数えていなかった。
+    ⭕ 包含(箱が建物を丸ごと含む/建物が箱を含む)は可 — 幹は植栽の退避で避ける。部分重なりだけを出す。
+    ⚠ **相手は屋根の架かる外形だけ**(棟 `munes`・渡廊下 `links`・附属屋 `service`)。
+      ⛔ 井戸・中仕切塀は数えない — 塀は箱の縁を芯に揃える作り(`_gardens`)で、跨ぎが正になるため。
+      井戸と塀からの幹の離れは植栽の退避の検査が測る。"""
+    K = d["const"]["ken"]
+    rects = ([dict(m, _k="棟") for m in d.get("munes", [])]
+             + [dict(l, _k="渡廊下") for l in d.get("links", [])]
+             + [dict(s, _k="附属屋") for s in d.get("service", [])])
+    out = []
+    for pl in d.get("planting", []):
+        for g in pl.get("groups") or []:
+            b = g.get("box")
+            if not b:
+                continue
+            for sv in rects:
+                ou = min(b[2], sv["u1"]) - max(b[0], sv["u0"])
+                ov = min(b[3], sv["v1"]) - max(b[1], sv["v0"])
+                if ou <= 1e-9 or ov <= 1e-9:
+                    continue
+                inside = (b[0] <= sv["u0"] and b[2] >= sv["u1"] and b[1] <= sv["v0"] and b[3] >= sv["v1"]) \
+                    or (sv["u0"] <= b[0] and sv["u1"] >= b[2] and sv["v0"] <= b[1] and sv["v1"] >= b[3])
+                if inside:
+                    continue
+                out.append("植栽の箱 %s/%s『%s』が%s %s の外形と **%.2f×%.2f 間(%.1fm²)** 部分的に重なる(包含ではない)"
+                           "— 幹は退避で避けるが、箱の縁が建物の面を跨ぐ"
+                           % (pl.get("zone"), pl.get("layer"), g.get("where"), sv["_k"], sv["name"],
+                              ou, ov, ou * ov * K * K))
     return out
 
 

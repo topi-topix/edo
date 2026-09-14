@@ -88,7 +88,10 @@ G_LEGACY = dict(G)
 G_MEIJI = dict(
     colH=3.80,      # 【U 類型 — 考証 2026-09-14】柱高(基壇天端 → 頭貫上端)
     eaveH=4.80,     # 【U 類型 — 考証 2026-09-14】軒高 = **丸桁の上端**と読む(`SH.kumimono` は頭貫上端 +0.95)
-    ridgeH=9.00,    # 【U 類型 — 考証 2026-09-14】棟高「約」— ⛔ 合わせ込まない。反りから出た値と並べて刷る
+    ridgeH=9.00,    # 目安・出典なし・考証が撤回(2026-09-14)。⛔ 合わせ込まない — 棟高は勾配規則(`Sori`)の従属値
+                    #   (大棟の上端 約 7.6)のまま・入母屋【S】。並べて刷るだけ
+    kidanFinish=("+X", "+Z", "-Z"),   # 【U 部材方 2026-09-14】基壇の根入れ帯を見え掛りに仕上げる面
+                    #   (下を腰石垣 天端 27.7 = 基壇の下端 で受ける ⇒ 前面と両脇が見える。背面 −X は据え置き)
     uchinori=2.95,  # 【U 部材方】旧 2.40 を柱高の比(3.8/3.1)で伸ばした
     koshi=0.95,     # 【U】旧のまま(窓台は人の目の高さに効くので伸ばさない)
     eaveRatio=None, # 軒の出 = 半スパン × `SH.EAVE_RATIO`【P 根津】(社殿と同じ規則)
@@ -160,12 +163,17 @@ def sashizu_plan():
 # ==========================================================================
 # 組み立て(論理 u=通り抜け・正面+ / v=幅 / h=上)
 # ==========================================================================
-def kidan(hu, hv, out, depth, name):
+def kidan(hu, hv, out, depth, name, finish=()):
     """**切石の基壇** — 天端 Y0・根入れ `depth`・**側ごとの出** `out`(柱芯から[m])。
 
     ⭐ 取り合いの面へ納めるため、`SH.kamebara`(四周一様の出・バッター付き)は使わない。
       ⛔ バッターを付けない — 最下段が出の分だけ外へ出て、石段の端・土留めの通りを越える
-      (2026-09-13 に基壇(根入れ)の帯で 0.095〜0.55 m 食い込んだ)。面は鉛直で `out` に揃える。"""
+      (2026-09-13 に基壇(根入れ)の帯で 0.095〜0.55 m 食い込んだ)。面は鉛直で `out` に揃える。
+
+    ⭐ `finish` に挙げた面(`+X`/`+Z`/`-Z`)は**見え掛りの切石+葛石の縁**に仕上げる【U 部材方 2026-09-14】:
+      天端の一段 0.20 を**長い葛石**(目地 約 1.8・稜の面取り 0.02)で通し、その下を**羽目石**(目地 約 0.95)
+      一段で受ける。羽目石の面は葛石の面から 0.015 内へ引いて**縁の影の線**を出す。
+      ⛔ 外形は変えない(葛石の面 = `out` の面・下端 = −depth)。"""
     import build_sanno_buzai as SB
     mat = SB.kirishi_material()
     u0, u1 = -(hu + out["-X"]), hu + out["+X"]
@@ -177,18 +185,49 @@ def kidan(hu, hv, out, depth, name):
         L = b - a
         return [a + L / 2.0 + x for x in SH._joints(L, 1.05, stag)]
     objs = []
+    KAZURA_H, KAZURA_J, KAZURA_CH = 0.20, 1.80, 0.02
+    HAME_J, HAME_IN = 0.95, 0.015
+    fin = set(finish)
+
+    def dressed(side, a0, a1, w0, w1, along_u):
+        """見え掛りの面1本。`a0..a1` = 走り、`w0..w1` = 奥行(外の面は +側なら w1・−側なら w0)。"""
+        rngd = SB.rng_of("romon_kidan_fin", name, side)
+        hi = side in ("+X", "+Z")
+        wh0, wh1 = (w0, w1 - HAME_IN) if hi else (w0 + HAME_IN, w1)
+        for tag, z0, z1, wa, wb, jt, ch, stg in (
+                ("hame", -depth, -KAZURA_H, wh0, wh1, HAME_J, SH.KAME_MEJI, False),
+                ("kazura", -KAZURA_H, 0.0, w0, w1, KAZURA_J, KAZURA_CH, True)):
+            k = max(1, int(round((a1 - a0) / jt)))
+            J = [a0 + (a1 - a0) * i / float(k) for i in range(k + 1)]
+            if stg and k >= 2:                       # 葛石の目地を羽目石の目地と縦に通さない
+                J = [a0] + [a0 + (a1 - a0) * (i - 0.5) / float(k) for i in range(1, k + 1)] + [a1]
+            for i in range(len(J) - 1):
+                x0_, x1_, y0_, y1_ = ((J[i], J[i + 1], wa, wb) if along_u else (wa, wb, J[i], J[i + 1]))
+                objs.append(SB._stone(x0_, x1_, y0_, y1_, z0, z1, mat, rngd,
+                                      "%s_%s%s_%d" % (name, tag, side, i), chamfer=ch, tile=SB.KIRISHI_TILE))
+    # 見え掛りの面(幅の両側 ±Z は走り u の全長、正面 +X は ±Z の石の内側)
+    if "+Z" in fin:
+        dressed("+Z", u0, u1, v1 - th, v1, True)
+    if "-Z" in fin:
+        dressed("-Z", u0, u1, v0, v0 + th, True)
+    if "+X" in fin:
+        dressed("+X", v0 + th, v1 - th, u1 - th, u1, False)
     for c in range(nc):
         z0 = -depth + depth * c / float(nc)
         z1 = -depth + depth * (c + 1) / float(nc)
         rng = SB.rng_of("romon_kidan", name, c)
         stag = (c % 2 == 1)
         for k, (w0, w1) in enumerate(((v0, v0 + th), (v1 - th, v1))):       # 幅の両側(u へ走る)
+            if ("-Z", "+Z")[k] in fin:
+                continue
             J = js(u0, u1, stag)
             for i in range(len(J) - 1):
                 objs.append(SB._stone(J[i], J[i + 1], w0, w1, z0, z1, mat, rng,
                                       "%s_c%d_z%d_%d" % (name, c, k, i),
                                       chamfer=SH.KAME_MEJI, tile=SB.KIRISHI_TILE))
         for k, (w0, w1) in enumerate(((u0, u0 + th), (u1 - th, u1))):       # 通り抜けの両端
+            if ("-X", "+X")[k] in fin:
+                continue
             J = js(v0 + th, v1 - th, not stag)
             for i in range(len(J) - 1):
                 objs.append(SB._stone(w0, w1, J[i], J[i + 1], z0, z1, mat, rng,
@@ -314,7 +353,7 @@ def build(P, name, out):
     z_sill = 0.24                        # 地覆の天端 / 脇間の床下
 
     # --- 基壇(切石・天端 Y0 から根入れ)+ 礎盤 ---------------------------
-    stones = kidan(hu, hv, out, G["kidanDepth"], name + "_kidan")
+    stones = kidan(hu, hv, out, G["kidanDepth"], name + "_kidan", finish=G.get("kidanFinish", ()))
     us = SH.bay_lines(hu, P["du"])      # [-hu, 0, hu]
     vs = SH.bay_lines(hv, P["dv"])      # [-hv, -b, b, hv]
     pts = [(uu, vv) for uu in us for vv in vs]          # 12本(八脚門の割り)
@@ -426,7 +465,7 @@ def build_kirizuma(P, name, out):
     M = VM.Mesh()
     colH, UC = G["colH"], G["uchinori"]
     z_sill = 0.24
-    stones = kidan(hu, hv, out, G["kidanDepth"], name + "_kidan")
+    stones = kidan(hu, hv, out, G["kidanDepth"], name + "_kidan", finish=G.get("kidanFinish", ()))
     us = SH.bay_lines(hu, P["du"])
     vs = SH.bay_lines(hv, P["dv"])
     pts = [(uu, vv) for uu in us for vv in vs]
@@ -579,7 +618,7 @@ def report(o, info):
     if G.get("eaveH") is not None:
         mt, at = mune_top_roof(o)
         print("  ⭐ 類型との並べ(【U】)柱高 %.3f(類型 %.2f)/ 軒高=丸桁の上端 %.3f(類型 %.2f)/ "
-              "大棟の上端 %.3f・鬼の頂 %.3f(類型の棟高 約 %.2f)"
+              "大棟の上端 %.3f・鬼の頂 %.3f(棟高の目安 %.2f は出典なし・考証が撤回)"
               % (G["colH"], G["colH"], info["marugeta"], G["eaveH"], mt, at, G["ridgeH"]))
     print("  指紋 %s" % SH.fingerprint(o))
     return tris
@@ -607,7 +646,8 @@ def shots(o, info, tag, full=True):
     top = mx.z
     span = max(mx.x - mn.x, mx.y - mn.y)
     # ⚠ 地面は基壇の天端より下へ置く(基壇の出が読めるよう、根入れを 0.25 m だけ見せる)
-    bpy.ops.mesh.primitive_plane_add(size=80, location=(0, 0, -0.25))
+    # ⭐ 見え掛りに仕上げた基壇(下を腰石垣で受ける)は根入れの帯を丸ごと見せる
+    bpy.ops.mesh.primitive_plane_add(size=80, location=(0, 0, -0.62 if G.get("kidanFinish") else -0.25))
     out = []
 
     def one(cam, look, fn, ortho=None, res=(1600, 1200)):
@@ -786,6 +826,31 @@ def kidan_outs(P, spec):
             "_src": {s: src for s in ("+X", "-X", "+Z", "-Z")}}
 
 
+def faces_outs(P, spec):
+    """`--faces <+X>,<−X>,<+Z>,<−Z>` = 柱芯から**取り合いの面**までの距離[m](`-` = 面なし)。
+    `side_outs` と同じ規則: 面の 2 mm 手前(`MARGIN`)まで・面の無い側は向かいの側に揃える。
+    ⚠ 坂下の門は `uFrom` の従属値で `sanno_impl.json` が古いことがあるので、面は指図 json から読んで引数で渡す
+    (2026-09-14 普請奉行の依頼 — 基壇が `Ita_Niou_N` の木口を 0.120 越えた ⛔2)。"""
+    keys = ("+X", "-X", "+Z", "-Z")
+    vals = [x.strip() for x in spec.split(",")]
+    if len(vals) != 4:
+        raise SystemExit("[romon] ⛔ --faces は4つ(+X,-X,+Z,-Z): %s" % spec)
+    F = {k: (None if v in ("-", "") else float(v)) for k, v in zip(keys, vals)}
+    opp = {"+X": "-X", "-X": "+X", "+Z": "-Z", "-Z": "+Z"}
+    out = {}
+    for k in keys:
+        f = F[k] if F[k] is not None else F[opp[k]]
+        if f is None:
+            raise SystemExit("[romon] ⛔ --faces %s: %s と向かいの側の両方に面が無い" % (spec, k))
+        out[k] = max(0.0, math.floor((f - MARGIN) * 1000.0) / 1000.0)
+        if out[k] < G["colD"] / 2.0 - MARGIN - 0.001:     # ⭐ 面が側柱の外面なら 2 mm 手前(楼門の ±Z 178 と同じ)は許す
+            raise SystemExit("[romon] ⛔ 基壇の出 %s %.3f が側柱の外面より内に入る" % (k, out[k]))
+    out["_face"] = F
+    out["_src"] = {k: ("--faces 取り合いの面 %.3f" % F[k]) if F[k] is not None else "面なし(向かいの側に揃える)"
+                   for k in keys}
+    return out
+
+
 def meiji_heights(P):
     """`G_MEIJI` を G へ入れる。軒の出 = 半スパン × EAVE_RATIO / kumi = 丸桁に垂木を載せる従属値。"""
     G.clear(); G.update(G_LEGACY); G.update(G_MEIJI)
@@ -832,7 +897,8 @@ def main():
                 meiji_heights(P)
             print("[romon] 門『%s』外形(引数)通り抜け %.3f × 幅 %.3f / %d×%d間 / 柱間 %.4f × %.4f / 戸口 %.4f / 屋根 %s"
                   % (g["name"], a, b, nu, nv, P["pu"], P["pv"], P["pv"], G.get("roofKind", "入母屋")))
-            out = kidan_outs(P, kspec)
+            fspec = _opt(argv, "--faces")
+            out = faces_outs(P, fspec) if fspec else kidan_outs(P, kspec)
         elif kspec:
             P = plan_of(d, g, K)
             if P["legacy"]:

@@ -590,9 +590,11 @@ public static class EdoAssets
         /// 柱芯の外形は <paramref name="passMm"/>(通り抜け=X)× <paramref name="widthMm"/>(幅=Z)[mm]、柱間は外形 ÷ 間数
         /// (5750×7620 ⇒ 2.875 × 2.54)。⭐ 通り抜け=ローカル X・正面=+X・ピボット=門の芯・敷居の高さ・yaw 0 で正面=東・scale one。
         /// 基壇の出 k は柱芯から +X/−X/+Z/−Z[mm]。⚠ 現行は基壇の全外形 7.9×11.1【A】で四周一様(1075,1075,1740,1740)—
-        /// 取り合いの面で詰めるのは後の裁定。基壇の見え高・前後の石段は持たない(天端=Y0・根入れ 0.60)。
-        /// 外形 W(X)9.70 × H(Y)8.47(−0.60〜7.87)× D(Z)11.57・25.2k tris。柱高 3.8【U】・丸桁の上端 4.75(軒高 4.8【U】)・
-        /// 大棟の上端 7.61(類型の棟高 約9.0【U】に届かない)。材は名前だけ ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 基壇は詰めずに下を腰石垣(天端 = 基壇の下端)で受ける。前面(+X)と両脇(±Z)の根入れ帯 0.60 は**見え掛りの切石+葛石の縁**
+        /// (葛石 0.20・羽目石 0.40 を 0.015 引く【U 部材方 2026-09-14】)、背面 −X は据え置き。前後の石段は持たない(天端=Y0)。
+        /// 外形 W(X)9.70 × H(Y)8.47(−0.60〜7.87)× D(Z)11.57・24.7k tris。柱高 3.8【U】・丸桁の上端 4.75(軒高 4.8【U】)・
+        /// 軒の出 側柱芯から 中央 1.81 / 隅(軒反り込み)1.97。大棟の上端 7.61 = 勾配規則の従属値・入母屋【S】(棟高 9.0 の目安は出典なし・考証が撤回)。
+        /// 材は名前だけ ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
         /// 生成: SANNO_SASHIZU=&lt;指図&gt; blender --background --python Tools/Blender/build_sanno_romon.py -- --only 楼門 --kidan 7.9x11.1 --pitch 2.875x2.54 --render</summary>
         public static string SannoRomon(int duKen, int dvKen, int passMm, int widthMm, int pX, int mX, int pZ, int mZ)
         {
@@ -602,12 +604,13 @@ public static class EdoAssets
 
         /// <summary>**山王社の坂下の門(仁王門)— 明治16年実測図 第2稿の読み**(2026-09-14)。三間一戸・単層・**切妻・組物なし**・本瓦葺。
         /// 明治図には写っていない(撤去済み)ので外形 <paramref name="passMm"/>(通り抜け=X)× <paramref name="widthMm"/>(幅=Z)は【U】
-        /// (御宮絵図の楼門比)、姿は【S 名所図会】。現行 (2,3,3000,6000,300,300,300,300) = 柱間 1.5 × 2.0・戸口 2.0。
+        /// (御宮絵図の楼門比)、姿は【S 名所図会】。現行 (2,3,3000,6000,298,298,178,178) = 柱間 1.5 × 2.0・戸口 2.0。
         /// ⭐ 楼門と同じ規約: 通り抜け=ローカル X・正面=+X(扉は −X へ開く)・大棟=Z・ピボット=門の芯・敷居の高さ・yaw 0 で正面=東・scale one。
-        /// 基壇の出 k は柱芯から +X/−X/+Z/−Z[mm] — ⚠ 0.30 四周は取り合いの面が決まるまでの仮【U】。
+        /// 基壇の出 k は柱芯から +X/−X/+Z/−Z[mm]。取り合いの面の 2 mm 手前: +Z = 袖塀 `Ita_Niou_N` の木口(北の側柱の外面 0.18)、
+        /// −X = 前庭の西縁の腰石垣の面(犬走り 0.30)。面の無い +X・−Z は向かいの側に揃える(旧 300 四周は Ita_Niou_N を 0.120 越えた)。
         /// 外形 W(X)5.62 × H(Y)5.86(−0.60〜5.26)× D(Z)8.31・12.3k tris。柱高 3.10・軒の出 1.20・妻の出 0.90・軒桁の上端 3.40・
         /// 軒先の名目 2.89(従属値)・大棟の瓦場 4.69【すべて U 類型】。材は名前だけ ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
-        /// 生成: blender --background --python Tools/Blender/build_sanno_romon.py -- --only 坂下 --kidan 3.6x6.6 --plan 3.0x6.0 --bays 2x3 --kirizuma --render --full</summary>
+        /// 生成: SANNO_SASHIZU=&lt;指図&gt; blender --background --python Tools/Blender/build_sanno_romon.py -- --only 坂下 --kidan 3.6x6.6 --plan 3.0x6.0 --bays 2x3 --kirizuma --faces -,0.30,0.18,- --render --full</summary>
         public static string SannoSakashitamon(int duKen, int dvKen, int passMm, int widthMm, int pX, int mX, int pZ, int mZ)
         {
             return "Assets/Edo/Models/Sanno/Sanno_Sakashitamon_" + duKen + "x" + dvKen + "ken_" + passMm + "x" + widthMm
@@ -625,6 +628,42 @@ public static class EdoAssets
         public static string SannoSodebei(int lenMm)
         {
             return "Assets/Edo/Models/Hei/Sanno_Sodebei_" + lenMm + ".fbx";
+        }
+
+        /// <summary>**山王社の袖塀 — 足元二段**(普請奉行の裁定 案A 2026-09-14)。断面・屋根は <see cref="SannoSodebei(int)"/> と同じ(屋根は一直線)。
+        /// ⭐ **門側 = ローカル −X**。門側の端から <paramref name="stepAtMm"/> までは足元 Y0(楼門の基壇の天端 28.3)、その先は Y +<paramref name="stepRiseMm"/>
+        /// (回廊の基壇の妻の石垣の天端 29.0)に載る。腰板と貫の帯は足元に沿って上がり、段の小口は板で塞ぐ。
+        /// 門側の木口の足元は楼門の礎盤の形に 0.095 × 0.155 欠く(礎盤への食い込み 0)。現行 (4200, 1560, 700)。
+        /// 外形 W(X)4.20 × H(Y)2.51 × D(Z)1.00・1.1k tris。ピボット=走りの中心・Y0(楼門の敷居の高さ)。
+        /// ⚠ 材 `Wall Exterior Defence` ⇒ `Edo/岡部筑前守上屋敷/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_sodebei.py -- --len 4.2 --step 1.56x0.70 --render</summary>
+        public static string SannoSodebei(int lenMm, int stepAtMm, int stepRiseMm)
+        {
+            return "Assets/Edo/Models/Hei/Sanno_Sodebei_" + lenMm + "_d" + stepAtMm + "-" + stepRiseMm + ".fbx";
+        }
+
+        /// <summary>**山王社の透塀(瑞垣)— 1スパン**。屋根銅瓦葺【S 目録1941】・腰板+連子格子+小壁。丈は【U 考証】
+        /// 腰の天端 0.75 / 透かし 0.75〜1.65 / 小壁 1.65〜1.95 / 軒先 1.95 / 棟の天端 2.25(実測 2.250)。
+        /// <paramref name="spanMm"/> = 柱芯間(中門側は本柱の外面から)[mm]。<paramref name="ends"/> = 端の種類 2 文字(−X, +X):
+        /// n = 次のスパンへ続く(⭐ 柱は +X の端にだけ持つ)/ t = 中門の本柱の外面へ突き付け(柱なし・破風板で閉じる)/ c = 隅部材へ続く(柱なし・屋根を 0.40 手前で止める)。
+        /// ⭐ 走り=ローカル X・高さ=Y・厚み=Z(見え面 +Z・断面は表裏対称)・ピボット=スパンの中心・床(基壇の天端)。scale one。
+        /// 外形(2540_nn)W(X)2.63(−1.27〜+1.36・柱の半分が +X へ出る)× H(Y)2.55(−0.30〜2.25)× D(Z)0.80・1.7k tris。基壇の根入れ 0.30・幅 0.60。
+        /// ⚠ 辺は run 側で**等分**して焼く(n = round(辺長 / 2.54)、スパン = 辺長 / n)。瓦はスパンに瓦モジュールが整数枚になる縮尺。
+        /// 材 `wood` / `wall C` / `Doukawara` / `Kirishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_sukibei.py -- --span 2.54 --ends nn,tn,nt,nc,cn --render</summary>
+        public static string SannoSukibei(int spanMm, string ends)
+        {
+            return "Assets/Edo/Models/Sanno/Sanno_Sukibei_" + spanMm + "_" + ends + ".fbx";
+        }
+
+        /// <summary>**山王社の透塀の隅**。<paramref name="part"/> = "Dezumi"(出隅: 脚が −X と −Z、見え面 +Z の側が隅棟)/
+        /// "Irizumi"(入隅: 脚が −X と +Z、見え面の側が谷)。ピボット=隅の柱の芯・床。隅の柱・隅の瓦場(隅棟と谷の銅板)・野地・基壇の升を持つ。
+        /// 隣のスパンは端 `c` を使う。<paramref name="refSpanMm"/> = 瓦の縮尺を合わせた基準スパン。外形 W 0.97 × H 2.55 × D 0.97・581 tris。
+        /// 材 ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_sukibei.py -- --span 2.54 --render</summary>
+        public static string SannoSukibeiKado(string part, int refSpanMm = 2540)
+        {
+            return "Assets/Edo/Models/Sanno/Sanno_Sukibei_Kado_" + part + "_" + refSpanMm + ".fbx";
         }
 
         /// <summary>**山王社の社殿(権現造)— 明治16年実測図の寸法**(ユーザー裁定C 2026-09-14)。1棟1FBX・銅瓦葺。

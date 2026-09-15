@@ -4007,6 +4007,15 @@ def min_matsu_crown_r(d):
 
 
 def avoid_shapes(d, g, scope):
+    """退避の形 + **木を植えない面**(`gardens[].noTrees`・庭方 2026-09-15)── どの撒く面にも当てる。"""
+    out = _avoid_shapes_base(d, g, scope)
+    for gd in d["gardens"]:
+        if gd.get("noTrees") and garden_poly(gd):
+            out.append(_shape_poly(garden_poly(gd), 0.0, "植えない面:" + gd["name"]))
+    return out
+
+
+def _avoid_shapes_base(d, g, scope):
     """**退避の宣言から障害物の buffer を組み立てる。**⛔ ここに数を書かない — 宣言が正典。
 
     scope="keidai" … 境内の立木3区に効く(`planting.clearance.keidai`)
@@ -6157,9 +6166,12 @@ def _shoulder_tsubo_from_decl(d, g, ps, lay):
     ⛔ 二つの道の答えが違えば、どちらかの結線が切れている。
     """
     chains = _decl_chains(d, g, lay)
-    if not chains: return 0
+    # ⭐ 木を植えない面(`gardens[].noTrees`・庭方 2026-09-15)も宣言から直に数える(⛔ `avoid_shapes` を通さない)
+    nt9 = [garden_poly(gd) for gd in d["gardens"] if gd.get("noTrees") and garden_poly(gd)]
+    if not chains and not nt9: return 0
 
     def on(p):
+        if any(in_poly(p, Q) for Q in nt9): return True
         for pt, rr in chains:
             for i in range(len(pt) - 1):
                 a, b = pt[i], pt[i + 1]
@@ -7443,6 +7455,8 @@ def noplant_overlap_check(d, g):
 _OVL_OK = [
     ("門:中門", "白洲"), ("門:中門", "中庭"),                      # 門は塀の線に立ち、庭の縁を噛む
     # ⛔ (石段:向拝の階, 中庭) は外した ── 中庭の砂利敷は向拝の階の敷きを抜く(`gardens[中庭].holesFrom` 庭方 2026-09-15)
+    ("御供所の勝手口の叩き", "御供所の犬走り・南"),                 # 叩きが勝手口の前で犬走りの南の端を覆う(庭方 2026-09-15)
+    ("御供所の勝手口の叩き", "御供所の雨落ち・東"),                 # 同じく東の雨落ちの南の端を覆う
     ("石段:男坂", "帯4"), ("石段:女坂(御成坂)", "帯4"),             # 帯4は坂を含む裾。空けるのは avoid
     ("井戸:石敷", "前庭の帯"),                                     # 井戸屋形は帯の北の端に建つ
     # ⭐ **2026-09-07 検図7巡目 中2 で2件足した。**標本を最細の見付以下へ下げて初めて立った組で、
@@ -8529,6 +8543,50 @@ def derive_garden_strips(d):
     for dr in d.get("drains", []):
         vf = dr["vFrom"]
         dr["v"] = round(fv(M[vf["mune"]], vf["face"], float(vf.get("offKen") or 0.0)), 4)
+    D = dict((q["name"], q) for q in d.get("drains", []))
+    te = terrace_poly_uv(d["terraces"][0])
+    for gd in d["gardens"]:
+        cf = gd.get("chuteFrom")
+        if not cf: continue
+        dr = D[cf["drain"]]
+        v = dr["v"]; ou = dr["outlet"]["u"]
+        # ⭐ 上端 = 平場の縁と溝の通りの交点のうち、吐口の西で最も近い点(⛔ 数を持たない)
+        xs = []
+        for i in range(len(te)):
+            a, c = te[i], te[(i + 1) % len(te)]
+            if (a[1] - v) * (c[1] - v) <= 0 and abs(c[1] - a[1]) > 1e-12:
+                xs.append(a[0] + (v - a[1]) * (c[0] - a[0]) / (c[1] - a[1]))
+        xs = [x for x in xs if x <= ou + 1e-6]
+        if not xs:
+            raise SystemExit("『%s』── 平場の縁が溝の通り v %.3f で吐口の西に無い" % (gd["name"], v))
+        u0 = max(xs); u1 = float(cf["uTo"]); hw = float(cf["widthKen"]) / 2.0
+        gd["poly"] = [[round(u1, 4), round(v - hw, 4)], [round(u0, 4), round(v - hw, 4)],
+                      [round(u0, 4), round(v + hw, 4)], [round(u1, 4), round(v + hw, 4)]]
+        if gd.get("sueishi"):
+            gd["sueishi"]["uv"] = [round(u1, 4), round(v, 4)]
+
+
+def kakoi_segs(d, gd):
+    """囲い(`gardens[].kakoi`)の立つ区間[uv]── 矩形の四辺から口(`gate`: 辺・端・幅[間])を抜く。"""
+    P = garden_poly(gd)
+    us = [q[0] for q in P]; vs = [q[1] for q in P]
+    u0, u1, v0, v1 = min(us), max(us), min(vs), max(vs)
+    E = {"南": ((u0, v0), (u1, v0)), "東": ((u1, v0), (u1, v1)), "北": ((u1, v1), (u0, v1)), "西": ((u0, v1), (u0, v0))}
+    gt = (gd.get("kakoi") or {}).get("gate") or {}
+    out = []
+    for nm, (a, b) in E.items():
+        if nm != gt.get("edge"):
+            out.append((a, b)); continue
+        w = float(gt["wKen"])
+        if nm == "南":
+            out.append(((u0, v0), (u1 - w, v0)) if gt.get("end") == "東" else ((u0 + w, v0), (u1, v0)))
+        elif nm == "北":
+            out.append(((u1, v1), (u0 + w, v1)) if gt.get("end") == "西" else ((u1 - w, v1), (u0, v1)))
+        elif nm == "東":
+            out.append(((u1, v0), (u1, v1 - w)) if gt.get("end") == "北" else ((u1, v0 + w), (u1, v1)))
+        else:
+            out.append(((u0, v1), (u0, v0 + w)) if gt.get("end") == "南" else ((u0, v1 - w), (u0, v0)))
+    return out
 
 
 def garden_holes(d, gd):
@@ -8618,8 +8676,34 @@ def gokusho_torigai_check(d, g):
         ins = in_poly((ou, v), te)
         (note if ins else bad).append("溝『%s』── v %.3f ・ u %.2f → %.2f(%.2f m・勾配 %s ⇒ 落差 %.3f m)／ 道を横切る所 %d(蓋石)／ 吐口 (%.2f, %.3f) は平場の%s【算出】"
                                      % (dr["name"], v, u0, u1, ln, dr["slope"], ln * float(dr["slope"]), lids, ou, v, "内" if ins else "外 ── ⛔"))
-    ref = next((q for q in pend if q.startswith("御供所の北西の小区画")), None)
-    note.append("御供所の北西の小区画 ── %s" % ("⚠ 図に入れていない(差し戻し中 → `_pending`「%s」)" % ref if ref else "宣言なし"))
+    for gd in d["gardens"]:
+        if gd.get("kind") == "叩き" and gd.get("lids"):
+            P9 = garden_poly(gd)
+            for dr in d.get("drains", []):
+                us = [q[0] for q in P9]; vs = [q[1] for q in P9]
+                if min(vs) < dr["v"] < max(vs) and max(us) > min(dr["u"]) and min(us) < max(dr["u"]):
+                    note.append("『%s』は溝『%s』をまたぐ(u %.2f〜%.2f)── 蓋石【算出】" % (gd["name"], dr["name"], max(min(us), min(dr["u"])), min(max(us), max(dr["u"]))))
+        if gd.get("kakoi"):
+            P9 = garden_poly(gd)
+            vmin = min(q[1] for q in P9); umin = min(q[0] for q in P9); umax = max(q[0] for q in P9)
+            fz = ((row.get("faceZM") or {}).get("北面") or {})
+            kv = cv + float(fz.get("kidan", 0.0)) / ken
+            ov = min(umax, m["u0"] + m["du"]) - max(umin, m["u0"])
+            gap = vmin - kv
+            line = ("『%s』の南の辺 v %.3f ／ 御供所の北の基壇の面 v %.3f ── 離れ **%.3f 間 = %.3f m**(東西の重なり %.2f 間)／ 囲い %s 丈 %.1f m・口 %s の辺の%sの端 %.1f 間【算出】"
+                    % (gd["name"], vmin, kv, gap, gap * ken, ov, gd["kakoi"]["kind"], gd["kakoi"]["hM"],
+                       gd["kakoi"]["gate"]["edge"], gd["kakoi"]["gate"]["end"], gd["kakoi"]["gate"]["wKen"]))
+            (bad if (ov > 0 and gap < 0) else note).append(line + (" ── ⛔ 御供所の基壇と重なる" if (ov > 0 and gap < 0) else ""))
+        if gd.get("chuteFrom"):
+            P9 = garden_poly(gd)
+            us = [q[0] for q in P9]; vs = [q[1] for q in P9]
+            vc = (min(vs) + max(vs)) / 2.0
+            ya = dem_h(*g.W(max(us), vc)); yb = dem_h(*g.W(min(us), vc))
+            note.append("『%s』── u %.3f → %.3f(長さ %.3f 間 = %.3f m・幅 %.2f 間)／ 造成前の地盤 %s → %s m(落差 %s)／ 据え石 %s【算出 P】"
+                        % (gd["name"], max(us), min(us), max(us) - min(us), (max(us) - min(us)) * ken, max(vs) - min(vs),
+                           ("%.2f" % ya) if ya is not None else "—", ("%.2f" % yb) if yb is not None else "—",
+                           ("%.2f m" % (ya - yb)) if (ya is not None and yb is not None) else "—",
+                           ("(%.3f, %.3f)" % tuple(gd["sueishi"]["uv"])) if (gd.get("sueishi") or {}).get("uv") else "—"))
     return bad, note
 
 
@@ -10551,10 +10635,21 @@ def keidai_svg(d, u0, u1, v0, v1, title, W=900.0):
         us = [q[0] for q in Pg]; vs = [q[1] for q in Pg]
         if not inwin([min(us), min(vs)], [max(us), max(vs)]): continue
         is_forest = "林" in gd.get("kind", "") or "木" in gd.get("kind", "")
-        if gd.get("kind") in ("玉石の雨落ち", "叩きの犬走り"):   # 棟の足元の帯(庭方 2026-09-15)── 銘は出さない
+        if gd.get("kind") in ("玉石の雨落ち", "叩きの犬走り", "叩き", "張り石(中窪み)", "玉石の水叩き"):
+            # 棟の足元・溝の落とし(庭方 2026-09-15)── 銘は出さない
             o.append(PL([(lp.X(u), lp.Y(v)) for u, v in Pg], close=True,
-                        fill="var(--ishi)" if gd["kind"] == "玉石の雨落ち" else "var(--paper)",
+                        fill="var(--ishi)" if gd["kind"] in ("玉石の雨落ち", "張り石(中窪み)", "玉石の水叩き") else "var(--paper)",
                         stroke="var(--dim)", sw=0.5, op=0.8))
+            if (gd.get("sueishi") or {}).get("uv"):
+                su = gd["sueishi"]["uv"]
+                o.append('<circle cx="%.1f" cy="%.1f" r="2.6" fill="var(--ishi)" stroke="var(--ink)" stroke-width="0.8"/>'
+                         % (lp.X(su[0]), lp.Y(su[1])))
+            continue
+        if gd.get("kakoi"):
+            # 竹の四つ目垣(庭方 2026-09-15)── 口の半間を空けて辺を引く
+            for a9, b9 in kakoi_segs(d, gd):
+                o.append(LN(lp.X(a9[0]), lp.Y(a9[1]), lp.X(b9[0]), lp.Y(b9[1]), stroke="var(--take)", sw=1.4, dash="5 2 1 2"))
+            o.append(T(lp.X(sum(us) / len(us)), lp.Y(sum(vs) / len(vs)) + 4, gd["name"], fs=9, anchor="middle", fill="var(--dim)"))
             continue
         if gd.get("noPlant"):                     # 空地(供待)── 塗らない・破線で囲うだけ
             o.append(PL([(lp.X(u), lp.Y(v)) for u, v in Pg], close=True, fill="none",
@@ -15636,6 +15731,10 @@ def impl_props(d, g):
                     "world": [_w(g, (dr["u"][0], dr["v"])), _w(g, (dr["u"][1], dr["v"]))],
                     "outlet": _w(g, (dr["outlet"]["u"], dr["v"]))} for dr in d.get("drains", [])],
         "gardens": [{"name": gd["name"], "kind": gd.get("kind"),
+                     "kakoi": ({"spec": gd["kakoi"], "segs": [[_w(g, a9), _w(g, b9)] for a9, b9 in kakoi_segs(d, gd)]}
+                               if gd.get("kakoi") else None),
+                     "sueishi": (_w(g, gd["sueishi"]["uv"]) if (gd.get("sueishi") or {}).get("uv") else None),
+                     "noTrees": bool(gd.get("noTrees")),
                      "holes": [[_w(g, q) for q in H9] for H9 in garden_holes(d, gd)] or None,
                      "world": [_w(g, q) for q in (gd.get("poly") or [])],
                      "rect": ([gd.get("u0"), gd.get("v0"), gd.get("u1"), gd.get("v1")]
@@ -15837,6 +15936,7 @@ def keepout_wiring_check(d, g):
               for _n, _a, _b, f9, _l, _r in tamagaki_edges(d, gd) if f9]
     src = {
         "境内の立木3区": [
+            ("植えない面", [gd9 for gd9 in d["gardens"] if gd9.get("noTrees")]),   # 庭方 2026-09-15 ── `gardens[].noTrees`
             ("棟", [m for m in d["munes"] if m.get("yaku") != "接続"]),
             ("透塀", [r for r in d["runs"] if r.get("kind") == "透塀"]),
             ("回廊", [r for r in d["runs"] if r.get("kind") == "回廊"]),
@@ -15847,6 +15947,7 @@ def keepout_wiring_check(d, g):
             ("石段", d["kaidans"]),
         ],
         "前庭": [
+            ("植えない面", [gd9 for gd9 in d["gardens"] if gd9.get("noTrees")]),   # 庭方 2026-09-15 ── `gardens[].noTrees`
             ("動線", d.get("routes") or []),
             ("石段", d["kaidans"]),
             ("門", d["gates"]),
@@ -15857,6 +15958,7 @@ def keepout_wiring_check(d, g):
             ("点景", prop_rects(d)),
         ],
         "社叢 帯4": [
+            ("植えない面", [gd9 for gd9 in d["gardens"] if gd9.get("noTrees")]),   # 庭方 2026-09-15 ── `gardens[].noTrees`
             ("男坂", [k for k in d["kaidans"] if k["name"] == "男坂"]),
             ("女坂", [k for k in d["kaidans"] if k["name"].startswith("女坂")]),
             ("参道", [d["sando"]] if d.get("sando") else []),

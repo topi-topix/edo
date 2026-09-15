@@ -11440,16 +11440,16 @@
  "_reviews": "**検図関門。**この指図を誰が検めたか。⛔ 呼んだ側(本文脈)が結果を書き戻す — 検分役は read-only で自分では書けない。`hash` はその検分が見た範囲の指紋で、指図を書き換えるとずれ、検分は自動で『検め直しが要る』になる。見張りは `python3 Tools/Sashizu/review_gate.py`。⛔ 関門が赤の指図を実装しない・赤のシーンをユーザーに見せない。 ⭐ **`items` に件ごとの (n 番号・sev 軽重・title 件名・status 状態) を持てる**(2026-09-06 検図4巡目 低12)。`status` は `open`(未解決)／`closed`(閉じた)／`pending`(意匠の判断待ち=`_pending` 送り)。生成器が読んで「未解決」の章に**閉じていない件だけ**を出す。⛔ 中身を書くのは呼んだ側(普請奉行) — 検分役は read-only で自分では書けない。⛔ 遡って `closed` にしない。 ⚠ `note` は**その巡の要約**であって件ごとの生死ではない — 閉じた件も含んだまま残る。生きている指摘の正典は `items[]` の `status` で、生成器は**閉じていない件だけ**を「未解決の件」として刷る(考証検分4巡目 軽微)。",
  "reviews": {
   "niwashi": {
-   "at": "2026-09-14",
-   "verdict": "pass",
-   "hash": "c04c5c99f3d9afec",
-   "note": "検分3巡(2026-09-14)advisory 高0中1低3。K001・K003 解消(門の正面+X・動線と平行、御成は軸上の折れ点)。残: K022 御成の末尾が楼門裏で鉤形/K010 踏石は部材で直す(図側の手当て済)/K011 JG_Rock V15/K023 玉石の設計下限38が受入下限と同値",
+   "at": "2026-09-15",
+   "verdict": "advisory",
+   "hash": "c70e417fe01b3efa",
+   "note": "第1巡で高0中3低4。残る中: 賄の道の帯が観音堂の東面に0.43m食い込む/透塀の内の砂利敷が島になる(全面を一枚の砂利に)/御供所の小庭に出入口と雨水の行き先が無い。法面の植栽は被覆95%・見上げ96/97%で解消",
    "chapters": {
-    "gardens": "003ecf2b76d4",
-    "planting": "b48d6db841e7",
-    "routes": "f70f9ce3a713",
+    "gardens": "5021e39ac7da",
+    "planting": "6745c0eb0a31",
+    "routes": "b9d1e6b277ad",
     "viewpoints": "8712e21af0bb",
-    "py": "a0cca3a07e8a1293"
+    "py": "32de31dc59bd9b09"
    },
    "rounds": [
     {
@@ -11459,49 +11459,53 @@
     {
      "at": "2026-09-14T15:57:35+09:00",
      "verdict": "pass"
+    },
+    {
+     "at": "2026-09-15T20:32:16+09:00",
+     "verdict": "advisory"
     }
    ]
   },
   "kosho": {
-   "at": "2026-09-14",
-   "verdict": "pass",
-   "hash": "55d81df196bb9fb3",
-   "note": "検分3巡(2026-09-14)advisory 高0中4低3。新造の門の倍率・向き、御成の駕籠の確度、明和5年の墨書、桟瓦の起源、石の色の上限の書き方は解消。残(台帳K017〜K021)は文言と確度: 坂下の門の形を【U 類型】へ/国宝目録は『載らない』へ/出組は当方の同定【U】/柱間モジュールの波及先に新造部材と endFrom/ruikei の出典・朱の約束・sources 追記",
+   "at": "2026-09-15",
+   "verdict": "fail",
+   "hash": "b8ad1eee6ac1d8a0",
+   "note": "3巡で停止。高1: 御供所の形 — 文政3年御宮絵図は南北に長い単独の箱+細い渡廊下(形S)、明治16年図のL字は安政3年への当てはめがU。9/15の裁定図に文政3年の形が無く施主の再裁定が要る。中: 葺材(9/9本瓦葺と今の銅瓦葺が食い違う)/撤回済みの棟高の文が図と考証文に残る。低3",
    "chapters": {
-    "const": "bad959b2b686",
+    "const": "ddc5b22d2b88",
     "polygon": "49fb62c4c6dd",
-    "grid": "530e31d2447e",
-    "planes": "d355dd3088b9",
-    "terraces": "e47629f9e291",
-    "terraceWalls": "8da80273b368",
+    "grid": "50537714a109",
+    "planes": "8f9b1ad833e5",
+    "terraces": "a966290cc357",
+    "terraceWalls": "8bf60213e955",
     "slopeBands": "5086eb63c7f8",
-    "munes": "7fda1355602e",
-    "links": "aa2e46c039f7",
-    "runs": "b14ed2773b7e",
-    "gates": "17f243e54428",
+    "munes": "71c5fa0ed202",
+    "links": "4f53cda18c2b",
+    "runs": "bf338c2b1d9a",
+    "gates": "ce84edfd7eaf",
     "torii": "764c99eb4bb9",
-    "kaidans": "4fac2c36a89a",
+    "kaidans": "665fecb92e2b",
     "sando": "23c65c822b73",
-    "gardens": "003ecf2b76d4",
-    "planting": "b48d6db841e7",
-    "props": "d1133c30a9dd",
-    "sections": "be8f18d888f9",
-    "sectionsUncut": "707a6b8ea5a2",
+    "gardens": "5021e39ac7da",
+    "planting": "6745c0eb0a31",
+    "props": "26b3edf8bcac",
+    "sections": "7c4a1858a23d",
+    "sectionsUncut": "d8dcfde491be",
     "profiles": "21f7c613090b",
     "terrainCheck": "53096ecb2044",
     "neighbors": "d86717b09456",
-    "bom": "caa4fd76cc06",
+    "bom": "e06092039e6e",
     "fumotomichi": "a8e548e2eb85",
-    "routes": "f70f9ce3a713",
+    "routes": "b9d1e6b277ad",
     "kattemichi": "5328eecfc37e",
     "viewpoints": "8712e21af0bb",
-    "joints": "594e7878298e",
+    "joints": "cff9af378578",
     "ido": "3932c013b9f1",
     "shadenKidan": "84320877fb92",
-    "ishizai": "bb5ae115c5eb",
-    "kakoiCross": "3e41e1d37005",
-    "py": "a0cca3a07e8a1293",
-    "md": "5e9e3c1747fc1485"
+    "ishizai": "ff014cc9a8fd",
+    "kakoiCross": "08f6c40a3d5d",
+    "py": "32de31dc59bd9b09",
+    "md": "4daa8c4c047c8c6a"
    },
    "rounds": [
     {
@@ -11511,49 +11515,53 @@
     {
      "at": "2026-09-14T15:57:35+09:00",
      "verdict": "pass"
+    },
+    {
+     "at": "2026-09-15T20:32:16+09:00",
+     "verdict": "fail"
     }
    ]
   },
   "kenzu": {
-   "at": "2026-09-14",
-   "verdict": "fail",
-   "hash": "55d81df196bb9fb3",
-   "note": "検分3巡で停止(2026-09-14)高1中3低4。解消: 回廊の基壇の門口の縁=segs 端点(土留め13本 別計算0件)/K001 新造の門の外形で食い込み0件。残: K012【高】門口の南北の妻で基壇天端29.0と敷居28.3の段差0.7mに土留め無し・側柱の足元0.18mの載り先未定/K013【中】軒と回廊・袖塀の被り(回廊の丈が図に無い)/K005【中】中門の軸・外形、勝手口/K014【中】段石を名簿に入れるか/K015・K002・K011・K016【低】",
+   "at": "2026-09-15",
+   "verdict": "advisory",
+   "hash": "b8ad1eee6ac1d8a0",
+   "note": "第1巡(直しの前の版)で高0中4低3。重なり0件・検査73本の止め0件。残る中: 御供所の主屋を切る断面が無い/御供所まわりの空地3つに平場の指定が無い/回廊と門の丈の検査が未接続(K013)/勝手口の向き・軸・外形(K005)。K012・K022・K015・K014・K016・K023 は解消",
    "chapters": {
-    "const": "bad959b2b686",
+    "const": "ddc5b22d2b88",
     "polygon": "49fb62c4c6dd",
-    "grid": "530e31d2447e",
-    "planes": "d355dd3088b9",
-    "terraces": "e47629f9e291",
-    "terraceWalls": "8da80273b368",
+    "grid": "50537714a109",
+    "planes": "8f9b1ad833e5",
+    "terraces": "a966290cc357",
+    "terraceWalls": "8bf60213e955",
     "slopeBands": "5086eb63c7f8",
-    "munes": "7fda1355602e",
-    "links": "aa2e46c039f7",
-    "runs": "b14ed2773b7e",
-    "gates": "17f243e54428",
+    "munes": "71c5fa0ed202",
+    "links": "4f53cda18c2b",
+    "runs": "bf338c2b1d9a",
+    "gates": "ce84edfd7eaf",
     "torii": "764c99eb4bb9",
-    "kaidans": "4fac2c36a89a",
+    "kaidans": "665fecb92e2b",
     "sando": "23c65c822b73",
-    "gardens": "003ecf2b76d4",
-    "planting": "b48d6db841e7",
-    "props": "d1133c30a9dd",
-    "sections": "be8f18d888f9",
-    "sectionsUncut": "707a6b8ea5a2",
+    "gardens": "5021e39ac7da",
+    "planting": "6745c0eb0a31",
+    "props": "26b3edf8bcac",
+    "sections": "7c4a1858a23d",
+    "sectionsUncut": "d8dcfde491be",
     "profiles": "21f7c613090b",
     "terrainCheck": "53096ecb2044",
     "neighbors": "d86717b09456",
-    "bom": "caa4fd76cc06",
+    "bom": "e06092039e6e",
     "fumotomichi": "a8e548e2eb85",
-    "routes": "f70f9ce3a713",
+    "routes": "b9d1e6b277ad",
     "kattemichi": "5328eecfc37e",
     "viewpoints": "8712e21af0bb",
-    "joints": "594e7878298e",
+    "joints": "cff9af378578",
     "ido": "3932c013b9f1",
     "shadenKidan": "84320877fb92",
-    "ishizai": "bb5ae115c5eb",
-    "kakoiCross": "3e41e1d37005",
-    "py": "a0cca3a07e8a1293",
-    "md": "5e9e3c1747fc1485"
+    "ishizai": "ff014cc9a8fd",
+    "kakoiCross": "08f6c40a3d5d",
+    "py": "32de31dc59bd9b09",
+    "md": "4daa8c4c047c8c6a"
    },
    "rounds": [
     {
@@ -11563,6 +11571,10 @@
     {
      "at": "2026-09-14T15:57:35+09:00",
      "verdict": "fail"
+    },
+    {
+     "at": "2026-09-15T20:32:16+09:00",
+     "verdict": "advisory"
     }
    ]
   }

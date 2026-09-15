@@ -4045,7 +4045,7 @@ def avoid_shapes(d, g, scope):
                 out.append(_shape_rect(gd["u0"], gd["v0"], gd["u1"],
                                        ck["shirasuNorthFromV"] + ck["shirasuNorthKen"], "白洲(+北の退がり)"))
             elif gd["name"] == "中庭":
-                out.append(_shape_rect(gd["u0"], gd["v0"], gd["u1"], gd["v1"], "中庭"))
+                out.append(_shape_poly(garden_poly(gd), 0.0, "中庭"))
         for rt in d.get("routes", []):
             rr = rt["w"] / 2.0 / ken + ck["routeHalfPlus"]
             pts = [(g.U(q[0]), g.V(q[1])) if rt.get("world") else (q[0], q[1]) for q in rt["pts"]]
@@ -6003,6 +6003,14 @@ def route_w(d, rt, terrace=None, at=None):
             return gt["monguchiKen"] * d["const"]["ken"]
     if terrace and (rt.get("wByTerrace") or {}).get(terrace) is not None:
         return rt["wByTerrace"][terrace]
+    tw = rt.get("tailW")
+    if tw and at is not None and rt.get("world") and rt.get("tail"):
+        # ⭐ `tail` の頂点 `fromVertex` から先の脚は細い(庭方 2026-09-15)── 測る点がその脚に載るか
+        kd = d["grid"]["keidai"]; ken = d["const"]["ken"]
+        tl = [((q[0] - kd["x0"]) / ken, (q[1] - kd["z0"]) / ken) for q in rt["tail"]]
+        for k in range(int(tw["fromVertex"]), len(tl) - 1):
+            if _pt_seg(at, tl[k], tl[k + 1]) < 1e-6:
+                return float(tw["wKen"]) * ken
     return rt["w"]
 
 
@@ -7434,7 +7442,7 @@ def noplant_overlap_check(d, g):
 #    ⛔ これらは**接する**のが正しい姿なので、重なりが出たら鳴ってよい。
 _OVL_OK = [
     ("門:中門", "白洲"), ("門:中門", "中庭"),                      # 門は塀の線に立ち、庭の縁を噛む
-    ("石段:向拝の階", "中庭"),                                     # 階は向拝から中庭へ降りる
+    # ⛔ (石段:向拝の階, 中庭) は外した ── 中庭の砂利敷は向拝の階の敷きを抜く(`gardens[中庭].holesFrom` 庭方 2026-09-15)
     ("石段:男坂", "帯4"), ("石段:女坂(御成坂)", "帯4"),             # 帯4は坂を含む裾。空けるのは avoid
     ("井戸:石敷", "前庭の帯"),                                     # 井戸屋形は帯の北の端に建つ
     # ⭐ **2026-09-07 検図7巡目 中2 で2件足した。**標本を最細の見付以下へ下げて初めて立った組で、
@@ -7502,7 +7510,16 @@ def _ovl_shapes(d, g):
         poly_item("門:" + gt["name"], gate_rect_uv(gt))      # ⭐ 門の軸へ回す(K004)
     for gd in d["gardens"]:
         P = garden_poly(gd)
-        if P: poly_item(gd["name"].split("(")[0], P)
+        if not P: continue
+        if gd.get("holesFrom"):
+            # ⭐ 抜きのある面(砂利敷の雨落ち)── 多角形の早道を使わず判定関数で測る
+            H9 = garden_holes(d, gd)
+            us = [q[0] for q in P]; vs = [q[1] for q in P]
+            out.append((gd["name"].split("(")[0],
+                        (lambda P, H9: (lambda p: in_poly(p, P) and not any(in_poly(p, h) for h in H9)))(P, H9),
+                        (min(us), min(vs), max(us), max(vs)), None))
+        else:
+            poly_item(gd["name"].split("(")[0], P)
     for b in d["slopeBands"]:
         if b.get("uv"): poly_item("帯%d" % b["band"], [(q[0], q[1]) for q in b["uv"]])
     for k in d["kaidans"]:
@@ -8461,9 +8478,149 @@ def derive_routes(d):
         base = src.get(kind, {}).get(nm)
         if base is None:
             raise SystemExit("動線『%s』の from が引けない: %s" % (rt["name"], rt["from"]))
+        te = rt.get("tailEndFrom")
+        if te and rt.get("tail"):
+            # ⭐ 末尾 = 棟の面の外 `offKen`(庭方 2026-09-15)── ⛔ 世界座標の数を手で持たない
+            mm = next((q for q in d["munes"] if q["name"] == te["mune"]), None)
+            if mm is None:
+                raise SystemExit("動線『%s』の `tailEndFrom` の棟『%s』が無い" % (rt["name"], te["mune"]))
+            kd = d["grid"]["keidai"]; ken = d["const"]["ken"]
+            off = float(te.get("offKen") or 0.0)
+            ax, val = {"南面": (1, mm["v0"] - off), "北面": (1, mm["v0"] + mm["dv"] + off),
+                       "西面": (0, mm["u0"] - off), "東面": (0, mm["u0"] + mm["du"] + off)}[te["face"]]
+            rt["tail"][-1][ax] = round((kd["z0"] if ax == 1 else kd["x0"]) + val * ken, 3)
         rt["pts"] = [list(q) for q in base["pts"]] + [list(q) for q in rt.get("tail", [])]
         # 折返しの宣言も引き継ぐ(`tail` は末尾に継ぐので頂点の番号は変わらない)
         rt["switchbacks"] = list(base.get("switchbacks", []))
+
+
+def derive_garden_strips(d):
+    """**棟・渡廊下に沿う帯**(`gardens[].stripFrom`)の輪郭を書き込む【庭方 2026-09-15】。
+    ⛔ 数を json に持たない ── 棟の柱芯の矩形の辺・渡廊下の芯と幅からの従属値。"""
+    M = dict((m["name"], m) for m in d["munes"])
+    L = dict((q["name"], q) for q in d.get("links", []))
+
+    def fv(m, face, off=0.0):
+        return {"南面": m["v0"] - off, "北面": m["v0"] + m["dv"] + off,
+                "西面": m["u0"] - off, "東面": m["u0"] + m["du"] + off}[face]
+    for gd in d["gardens"]:
+        sf = gd.get("stripFrom")
+        if not sf: continue
+        w = float(sf["widthKen"])
+        if sf.get("mune"):
+            m = M[sf["mune"]]
+            sp = sf.get("span") or {}
+            if sf["face"] in ("東面", "西面"):
+                u0, u1 = ((fv(m, "東面"), fv(m, "東面") + w) if sf["face"] == "東面" else (fv(m, "西面") - w, fv(m, "西面")))
+                v0 = fv(m, sp.get("from", "南面")) + float(sp.get("fromOffKen") or 0.0)
+                v1 = fv(m, sp.get("to", "北面"))
+            else:
+                v0, v1 = ((fv(m, "北面"), fv(m, "北面") + w) if sf["face"] == "北面" else (fv(m, "南面") - w, fv(m, "南面")))
+                u0, u1 = fv(m, sp.get("from", "西面")), fv(m, sp.get("to", "東面"))
+        else:
+            lk = L[sf["link"]]
+            c = float(lk["from"][0]); hw = float(lk["w"]) / 2.0
+            u0, u1 = ((c + hw, c + hw + w) if sf["side"] == "東" else (c - hw - w, c - hw))
+            mf = sf["fromMuneFace"]
+            v0 = fv(M[mf["mune"]], mf["face"], float(mf.get("offKen") or 0.0))
+            v1 = float(lk["to"][1])
+        gd["poly"] = [[round(u0, 4), round(v0, 4)], [round(u1, 4), round(v0, 4)],
+                      [round(u1, 4), round(v1, 4)], [round(u0, 4), round(v1, 4)]]
+    for dr in d.get("drains", []):
+        vf = dr["vFrom"]
+        dr["v"] = round(fv(M[vf["mune"]], vf["face"], float(vf.get("offKen") or 0.0)), 4)
+
+
+def garden_holes(d, gd):
+    """砂利敷から抜く面(`gardens[].holesFrom`)の多角形の列[uv]。棟 = 柱芯の矩形 + `offKen`・石段 = 敷きの帯。"""
+    hf = gd.get("holesFrom")
+    if not hf: return []
+    out = []
+    off = float(hf.get("offKen") or 0.0)
+    for m in d["munes"]:
+        if m["name"] not in (hf.get("munes") or []): continue
+        out.append([(m["u0"] - off, m["v0"] - off), (m["u0"] + m["du"] + off, m["v0"] - off),
+                    (m["u0"] + m["du"] + off, m["v0"] + m["dv"] + off), (m["u0"] - off, m["v0"] + m["dv"] + off)])
+    for k in d["kaidans"]:
+        if k["name"] not in (hf.get("kaidans") or []): continue
+        pts = [tuple(q) for q in (k.get("pts") or [k["a"], k["b"]])]
+        hw = kaidan_wken(d, k) / 2.0
+        for i in range(len(pts) - 1):
+            a, b = pts[i], pts[i + 1]
+            L9 = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
+            nx, ny = -(b[1] - a[1]) / L9 * hw, (b[0] - a[0]) / L9 * hw
+            out.append([(a[0] + nx, a[1] + ny), (b[0] + nx, b[1] + ny), (b[0] - nx, b[1] - ny), (a[0] - nx, a[1] - ny)])
+    return out
+
+
+def gokusho_torigai_check(d, g):
+    """**御供所の取り合い**【普請奉行の配置 2026-09-15 / 部材方 d2e9de85 / 庭方 2026-09-15】──
+    観音堂の北面との離れ・賄の道の末尾が勝手口に載るか・渡廊下の芯が口に載るか・渡廊下の南の端と部材の北の壁の面・
+    部材の口の柱間と `munes[御供所].doors`・溝の吐口と蓋石。⛔ 部材と庭方の口の食い違いは `_pending` が持つ間だけ〔記録〕。"""
+    bad, note = [], []
+    ken = d["const"]["ken"]
+    M = dict((m["name"], m) for m in d["munes"])
+    m = M.get("御供所")
+    if m is None: return (["棟『御供所』が無い"], [])
+    doors = dict((q["name"], q) for q in m.get("doors") or [])
+    k = M.get("観音堂")
+    if k:
+        gap = m["v0"] - (k["v0"] + k["dv"])
+        ov = min(m["u0"] + m["du"], k["u0"] + k["du"]) - max(m["u0"], k["u0"])
+        line = "御供所の南面 × 観音堂の北面 ── 離れ **%.2f 間 = %.3f m**(東西の重なり %.2f 間)【算出】" % (gap, gap * ken, ov)
+        (bad if gap < 1.0 - 1e-6 and ov > 0 else note).append(line + (" ── ⛔ 1 間を割る" if gap < 1.0 - 1e-6 and ov > 0 else ""))
+    rt = next((q for q in d.get("routes", []) if q.get("tailEndFrom", {}).get("mune") == "御供所"), None)
+    dk = doors.get("勝手口")
+    if rt and dk:
+        e = rt["pts"][-1]
+        eu, ev = g.U(e[0]), g.V(e[1])
+        if not (dk["u"][0] - 1e-6 <= eu <= dk["u"][1] + 1e-6):
+            bad.append("賄の道の末尾 u %.3f が御供所の勝手口 u %.2f〜%.2f に載らない" % (eu, dk["u"][0], dk["u"][1]))
+        else:
+            note.append("賄の道の末尾 (u %.3f, v %.3f) ── 勝手口 u %.2f〜%.2f の内・南面の手前 %.3f 間【算出】" % (eu, ev, dk["u"][0], dk["u"][1], m["v0"] - ev))
+    lk = next((q for q in d.get("links", []) if q["name"] == "L_Gusho"), None)
+    dl = doors.get("渡廊下の口")
+    row = next((b for b in d["bom"] if b.get("部材") == "御供所(供の棟)"), {}) or {}
+    cu, cv = m["u0"] + m["du"] / 2.0, m["v0"] + m["dv"] / 2.0
+    if lk and dl:
+        c = lk["from"][0]
+        if not (dl["u"][0] - 1e-6 <= c - lk["w"] / 2.0 and c + lk["w"] / 2.0 <= dl["u"][1] + 1e-6):
+            bad.append("渡廊下 L_Gusho(u %.3f ± %.2f)が御供所の渡廊下の口 u %.2f〜%.2f に収まらない" % (c, lk["w"] / 2.0, dl["u"][0], dl["u"][1]))
+        fz = ((row.get("faceZM") or {}).get("北面") or {})
+        if fz.get("wall") is None:
+            bad.append("部材の北の壁の面 `bom[御供所(供の棟)].faceZM.北面.wall` が無い ⇒ 渡廊下の南の端は**未測定**")
+        else:
+            wv = cv + fz["wall"] / ken
+            note.append("渡廊下の南の端 v %.4f ／ 御供所の北の壁の面 v %.4f(柱の外面 %.4f・基壇の面 %.4f)── 木口を寄せる量 **%.3f m**(`joints`)【算出】"
+                        % (lk["from"][1], wv, cv + fz["colOuter"] / ken, cv + fz["kidan"] / ken, (wv - lk["from"][1]) * ken))
+    pend = d.get("_pending") or {}
+    for face, nm in (("北面", "渡廊下の口"), ("南面", "勝手口")):
+        px = ((row.get("doorsM") or {}).get(face) or {}).get("x")
+        dq = doors.get(nm)
+        if not px or not dq: continue
+        pu = (round(cu + px[0] / ken, 3), round(cu + px[1] / ken, 3))
+        if abs(pu[0] - dq["u"][0]) < 0.02 and abs(pu[1] - dq["u"][1]) < 0.02:
+            note.append("御供所の%s ── 部材の口 u %.3f〜%.3f = 指図の口【算出】" % (nm, pu[0], pu[1]))
+        else:
+            ref = next((q for q in pend if q.startswith("御供所の勝手口の柱間")), None)
+            line = "御供所の%s ── 部材の口 u %.3f〜%.3f ≠ 指図の口 u %.2f〜%.2f" % (nm, pu[0], pu[1], dq["u"][0], dq["u"][1])
+            (note if ref else bad).append(line + (" ── ⚠ 差し戻し中 → `_pending`「%s」" % ref if ref else " ── ⛔ `_pending` に項が無い"))
+    te = terrace_poly_uv(d["terraces"][0])
+    for dr in d.get("drains", []):
+        v = dr["v"]; u0, u1 = dr["u"]
+        ln = abs(u1 - u0) * ken
+        lids = 0
+        for r9 in d.get("routes", []):
+            pts = [(g.U(q[0]), g.V(q[1])) if r9.get("world") else (q[0], q[1]) for q in r9["pts"]]
+            for i in range(len(pts) - 1):
+                if _seg_cross((u0, v), (u1, v), pts[i], pts[i + 1]): lids += 1
+        ou = dr["outlet"]["u"]
+        ins = in_poly((ou, v), te)
+        (note if ins else bad).append("溝『%s』── v %.3f ・ u %.2f → %.2f(%.2f m・勾配 %s ⇒ 落差 %.3f m)／ 道を横切る所 %d(蓋石)／ 吐口 (%.2f, %.3f) は平場の%s【算出】"
+                                     % (dr["name"], v, u0, u1, ln, dr["slope"], ln * float(dr["slope"]), lids, ou, v, "内" if ins else "外 ── ⛔"))
+    ref = next((q for q in pend if q.startswith("御供所の北西の小区画")), None)
+    note.append("御供所の北西の小区画 ── %s" % ("⚠ 図に入れていない(差し戻し中 → `_pending`「%s」)" % ref if ref else "宣言なし"))
+    return bad, note
 
 
 def route_fork(d, na, nb):
@@ -9218,7 +9375,7 @@ def sukibei_span_plan(d):
             j = 1 if r.get("gapV") is not None else 0
             sc = abs(gv - A[j]) * ken
             h = float(r["gapHalf"]) * ken
-            eg = "t" if r.get("gapFrom") else "?"
+            eg = "t" if r.get("gapFrom") else (r.get("gapEnd") or "?")   # ⭐ 潜りの口の端(`gapEnd`・部材方 d2e9de85)
             segs = [(0.0, sc - h, "c", eg, "口の手前"), (sc + h, L, eg, "c", "口の先")]
         for s0, s1, e0, e1, nm in segs:
             ln = s1 - s0
@@ -10394,6 +10551,11 @@ def keidai_svg(d, u0, u1, v0, v1, title, W=900.0):
         us = [q[0] for q in Pg]; vs = [q[1] for q in Pg]
         if not inwin([min(us), min(vs)], [max(us), max(vs)]): continue
         is_forest = "林" in gd.get("kind", "") or "木" in gd.get("kind", "")
+        if gd.get("kind") in ("玉石の雨落ち", "叩きの犬走り"):   # 棟の足元の帯(庭方 2026-09-15)── 銘は出さない
+            o.append(PL([(lp.X(u), lp.Y(v)) for u, v in Pg], close=True,
+                        fill="var(--ishi)" if gd["kind"] == "玉石の雨落ち" else "var(--paper)",
+                        stroke="var(--dim)", sw=0.5, op=0.8))
+            continue
         if gd.get("noPlant"):                     # 空地(供待)── 塗らない・破線で囲うだけ
             o.append(PL([(lp.X(u), lp.Y(v)) for u, v in Pg], close=True, fill="none",
                         stroke="var(--dim)", sw=1.0, dash="6 4"))
@@ -10402,6 +10564,9 @@ def keidai_svg(d, u0, u1, v0, v1, title, W=900.0):
                         fill="var(--niwa)" if is_forest else "var(--shirasu)",
                         stroke="var(--take)" if is_forest else "var(--dim)", sw=0.8,
                         op=0.45 if is_forest else 0.9))
+        for H9 in garden_holes(d, gd):             # 砂利敷の抜き = 玉石の雨落ち(庭方 2026-09-15)
+            o.append(PL([(lp.X(u), lp.Y(v)) for u, v in H9], close=True, fill="var(--ishi)",
+                        stroke="none", op=0.55))
         o.append(T(lp.X(sum(us) / len(us)), lp.Y(sum(vs) / len(vs)) + 4,
                    gd["name"], fs=11, anchor="middle", fill="var(--dim)"))
     o += draw_edge_understory(d, lp)
@@ -10490,6 +10655,15 @@ def keidai_svg(d, u0, u1, v0, v1, title, W=900.0):
         hw = lk["w"] / 2.0
         o.append(lp.rect(a[0], a[1] - hw, b[0], b[1] + hw, fill="var(--roka)",
                          stroke="var(--ink)", sw=0.8, op=0.7))
+    # 溝(庭方 2026-09-15)── 石組の溝の通りと吐口
+    for dr in d.get("drains", []):
+        if dr.get("v") is None: continue
+        u0, u1 = dr["u"]
+        if not inwin([min(u0, u1), dr["v"]], [max(u0, u1), dr["v"]]): continue
+        o.append(LN(lp.X(u0), lp.Y(dr["v"]), lp.X(u1), lp.Y(dr["v"]), stroke="var(--ishi)", sw=2.2))
+        o.append(LN(lp.X(u0), lp.Y(dr["v"]), lp.X(u1), lp.Y(dr["v"]), stroke="var(--paper)", sw=0.6, dash="3 2"))
+        o.append('<circle cx="%.1f" cy="%.1f" r="3" fill="none" stroke="var(--ishi)" stroke-width="1.2"/>'
+                 % (lp.X(dr["outlet"]["u"]), lp.Y(dr["v"])))
     # 回廊(runs を正典にしたので、棟と同じ帯で描く。2026-08-23)
     for r in d["runs"]:
         if not r.get("mune"): continue
@@ -14684,7 +14858,7 @@ def named_tree_rows(d, g):
                     "shukei": bool(t.get("hMinFrom")),
                     "zone": t.get("zone"), "band": (b or {}).get("band"),
                     "hSrc": ("`hMinFrom`(落葉の最も高い変種の素の丈 × 箍)"
-                             if t.get("hMinFrom") else "帯の `rakuyoH` の上端"),
+                             if t.get("hMinFrom") else "帯の `%s` の上端" % hk),
                     "u": u9, "v": v9, "layer": lay, "kind": t.get("kind"),
                     "h": (round(h9, 3) if h9 else None), "scaleXZ": xz,
                     "part": (q[2] if q else (pt or {}).get("api")),
@@ -15458,7 +15632,11 @@ def impl_props(d, g):
                  "depthM": [round(q, 3) for q in ido_depth(d)],
                  "igetaRise": igeta_rise(d), "soishiR": soishi_radii(d),
                  "izutsuR": izutsu_radii(d)}),
-        "gardens": [{"name": gd["name"],
+        "drains": [{"name": dr["name"], "kind": dr.get("kind"), "slope": dr.get("slope"),
+                    "world": [_w(g, (dr["u"][0], dr["v"])), _w(g, (dr["u"][1], dr["v"]))],
+                    "outlet": _w(g, (dr["outlet"]["u"], dr["v"]))} for dr in d.get("drains", [])],
+        "gardens": [{"name": gd["name"], "kind": gd.get("kind"),
+                     "holes": [[_w(g, q) for q in H9] for H9 in garden_holes(d, gd)] or None,
                      "world": [_w(g, q) for q in (gd.get("poly") or [])],
                      "rect": ([gd.get("u0"), gd.get("v0"), gd.get("u1"), gd.get("v1")]
                               if gd.get("u0") is not None else None)}
@@ -16864,6 +17042,7 @@ def main_export_impl():
     """
     d = json.load(open(JSON, encoding="utf-8"))
     derive_routes(d)
+    derive_garden_strips(d)
     g = G(d)
     derive_edges(d)             # ⭐ 道敷に接する辺を毎回同定(決4 庭方 2026-09-09 十八巡目)
     derive_gates(d, g)
@@ -17264,6 +17443,7 @@ def run_checks():
     """
     d = json.load(open(JSON, encoding="utf-8"))
     derive_routes(d)
+    derive_garden_strips(d)
     g = G(d)
     derive_edges(d)            # 道敷に接する辺を毎回同定(⛔ 辺の番号を json に書かない・決4)
     derive_gates(d, g)         # 門の芯と、その面に取り付く物の通り(⛔ 面の u を二重に持たない)
@@ -17344,7 +17524,8 @@ def run_checks():
     rkf = romon_kidan_face_check(d, g)  # 楼門の基壇の面と石垣・石段の頭(石垣の設計 2026-09-14)
     tpc = tier_plan_check(d, g)        # 二段築の段の走りの宣言(石垣の設計 2026-09-14 ③)
     ssc = sukibei_span_check(d, g)     # 透塀のスパンの割り付けと部材(部材方 2026-09-14)
-    ckc = chumon_kabuki_check(d, g)    # 中門の冠木と透塀の棟の離れ(部材方 2026-09-14)
+    ckc = chumon_kabuki_check(d, g)
+    gtc = gokusho_torigai_check(d, g)  # 御供所の取り合い(普請奉行・部材方・庭方 2026-09-15)    # 中門の冠木と透塀の棟の離れ(部材方 2026-09-14)
     nks = noki_sori_check(d)           # 軒反りの量(考証 2026-09-13 中)
     skd = shaden_kidan_check(d)        # 基壇・亀腹の石材(庭方 2026-09-13 中)
     izc = ishizai_color_check(d)       # 庭の石の名簿の色(庭方 2026-09-13・普請奉行の裁定)
@@ -17447,6 +17628,7 @@ def run_checks():
     rows.append(("二段築の段の走りの宣言(`terraceWalls[].tierPlan` × 下段の見える走り)", tpc[0], tpc[1]))
     rows.append(("透塀のスパンの割り付けと部材(辺の等分・端の種類・`bom[透塀].baked`)", ssc[0], ssc[1]))
     rows.append(("中門の冠木と透塀の棟の離れ(`bom[中門].axis.kabukiM` × `bom[透塀].outlineM`)", ckc[0], ckc[1]))
+    rows.append(("御供所の取り合い(観音堂の離れ・勝手口・渡廊下の口と北の壁の面・溝)", gtc[0], gtc[1]))
     rows.append(("軒反りの量(指図 `const` と部材の生成器)", nks[0], nks[1]))
     rows.append(("社殿の基壇・亀腹の石材の宣言(`shadenKidan`)", skd[0], skd[1]))
     rows.append(("庭の石の名簿の色(`ishizai.colors`・受入値 `colorGate`・材の実測は未測定)", izc[0], izc[1]))
@@ -17486,6 +17668,7 @@ def main():
         sys.exit(1)
     d = json.load(open(JSON, encoding="utf-8"))
     derive_routes(d)
+    derive_garden_strips(d)
     prose = md2html(tsubo_table(d, open(MD, encoding="utf-8").read()))
     g = G(d)
     derive_edges(d)            # 道敷に接する辺を毎回同定(⛔ 辺の番号を json に書かない・決4)

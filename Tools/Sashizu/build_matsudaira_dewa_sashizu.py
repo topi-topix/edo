@@ -4456,11 +4456,37 @@ KEII_WORDS = [("改めた", r"改めた"), ("以前は", r"以前は"), ("以前
               ("従前", r"従前"), ("撤回", r"撤回"), ("前巡", r"前巡"),
               ("第N次", r"第[0-9一二三四五六七八九十]+次"),
               ("〜から〜へ直した", r"から[^。、\n]{0,24}?へ直した"),
-              ("日付+に+動作", r"20\d\d-\d\d-\d\d ?に")]
+              ("日付+に+動作", r"20\d\d-\d\d-\d\d ?に"),
+              # ⭐ ここから下は**言い換えで逃げた形**を塞ぐ組(2026-09-16 検図 中1・庭方 中1)。
+              #   ⛔ 「以前は」だけ見ていたので「以前この指定は…」「2026-09-01 以前」が抜けた。
+              ("以前", r"以前"), ("取り下げ", r"取り下げ"), ("解消していた", r"解消していた"),
+              ("廃止", r"廃止"), ("死んでいた", r"死んでいた"), ("改称", r"改称"),
+              ("だったが", r"だったが"),
+              # ⛔ **裸の「移設」「新設」は数えない** — 移設は史実の語(家康拝領を直政が移した伝承)、
+              #   新設は実装へ渡す段の印(「Stage 6a 御泉水を掘る(新設)」)。
+              #   図の編集としての移設・新設は下の「日付+図の編集」「案の符牒+編集」が捕まえる。
+              ("旧+空き", r"旧[ 　]"),
+              # ⭐ **巡の番号**(「29 巡ぶん」「検図 高4」)— 何巡目でどう言われたかは git log の領分
+              ("巡の番号", r"[0-9０-９]+ ?巡"), ("検分の番号", r"(検図|考証|庭方) ?[高中低][0-9]"),
+              # ⭐ **案の符牒 + 図の編集**(「B案で新設」「A案の診断は…取り下げた」)。
+              #   ⛔ `[A-C]案` を丸ごと数えない — **裁定を仰ぐ項の選択肢**(規則16 の A/B/C)は現況の記述である
+              ("案の符牒+編集", r"[A-C]案[^。\n]{0,20}?(新設|取り下げ|廃止|改称|移設|へ改めた|に直した)"),
+              # ⭐ **日付 + 図の編集**。⛔ 「2026-09-06 追記 — n 5→8」は「に」が無いので前の形では抜けた。
+              #   ⭕ 日付の**直後**に編集の語が来る形だけを数える(⛔ 宿題の起票日「(2026-09-06・検査の直し)」は経緯ではない)
+              ("日付+図の編集", r"20\d\d-\d\d-\d\d ?(追記|直し|直した|新設|移設|改称|統合|取り下げ)"),
+              # ⭐ **数値の変化**(「17→12」「n 5→8」)。⛔ **文脈で縛る** —
+              #   縦断表の「25.75 → 27.00 m」や汀の頂点「16→17→18」は現況の値で経緯ではない。
+              #   ⭕ 編集の語(追記・裁定・直し…)か日付が前に付く形、または「…に上がった」が後に付く形だけを数える
+              ("数値の変化", r"(20\d\d-\d\d-\d\d|追記|裁定|直し|改め|替え|減らし|増やし|詰めた)"
+                           r"[^。\n]{0,30}?[0-9０-９][0-9０-９.]* ?(→|⇒) ?[0-9０-９]"),
+              ("数値の変化(後置)", r"[0-9０-９][0-9０-９.]* ?(→|⇒) ?[0-9０-９][0-9０-９.]*[^。\n]{0,14}?"
+                                r"(に上がった|に下がった|へ直した|に直した|へ改めた|に縮んだ|へ替えた|に詰めた)")]
 # ⭐ **語ごとの許容リスト**(誤検知の除外)。⛔ 件数は黙って捨てず、記録に出す。
 KEII_ALLOW = {"撤回": [r"撤回した説・過去の案は本文に残さない", r"過去の案・撤回した説は書かない",
                       r"撤回した案は書かない", r"撤回の札"],
-              "旧版": [], "当初": []}
+              "旧版": [], "当初": [],
+              # ⭕ **史実の廃止は経緯ではない**(青山上水は実際に廃止された)
+              "廃止": [r"青山上水"]}
 
 
 def _keii_text(src, md=False):
@@ -5552,7 +5578,16 @@ def keepout_shapes(d):
 
 def _ko_value(d, v):
     """退避の値。数なら間、文字列なら `const` の欄を**間に直して**使う
-    (`\"nokiE\"` → 軒の出 0.90m ÷ 1間)。⛔ 間に直した数を指図へ書き写さない。"""
+    (`\"nokiE\"` → 軒の出 0.90m ÷ 1間)。⛔ 間に直した数を指図へ書き写さない。
+
+    ⭐ `\"toriiFoot\"` は**鳥居の足元の下草の離れ**【庭方 設計】=
+      `const.toriiRule.nemakiOuterW`/2 + `routes[].toriiFoot.fernClr`(根巻石の外面 + 下草の離れ)。
+      ⛔ ここで数を作らない — 根巻石の実測と `fernClr` が正典で、どちらかが動けば退避も動く。"""
+    if v == "toriiFoot":
+        tr = d["const"]["toriiRule"]
+        fcs = [float((r.get("toriiFoot") or {}).get("fernClr", 0.0))
+               for r in d.get("routes", []) if isinstance(r.get("toriiFoot"), dict)]
+        return (float(tr["nemakiOuterW"]) / 2.0 + (max(fcs) if fcs else 0.0)) / float(d["const"]["ken"])
     if isinstance(v, str):
         return float(d["const"][v]) / float(d["const"]["ken"])
     return float(v)
@@ -10714,7 +10749,7 @@ def gogan_check(d):
                        "(`gogan.bands`)" % key)
     if go.get("buryFrom") != "据え付け面(汀の棚)":
         bad.append("`gogan.buryFrom` が『据え付け面(汀の棚)』でない — "
-                   "⛔ A案の『枯池の床から』は B案で廃止した(池底は水の下で見えない)")
+                   "⛔ 池底からは数えない(水の下で見えない)")
     if not go.get("seatRule"):
         bad.append("`gogan.seatRule` が無い — **据え付け位置が輪郭点そのものになる**。"
                    "掘削は被覆率で丸まるので、輪郭点の真上が水面より下のことがある")
@@ -10792,7 +10827,7 @@ def gogan_table(d):
     note = ("<p class='cap'>⭐ <b>天端は設計値</b>(<code>bands[].topAbove</code> = 水面 %.2fm からの高さ)。"
             "⛔ 石の丈から導かない・⛔ <code>topJitter</code> の独立乱数は使わない。<br>"
             "⭐ <b>据え付け面 <code>seatY</code>(汀の棚)から 1/3(<code>bury</code> %.4f)が埋まる</b> — "
-            "⛔ A案の『枯池の床から』は廃止。据え付け位置は <code>seatRule</code>「%s」。<br>"
+            "⛔ 池底からは数えない(水の下で見えない)。据え付け位置は <code>seatRule</code>「%s」。<br>"
             "%s"
             "石数は <code>effL ÷(天端石の平均の長軸 × gapRatio %.2f)</code>の導出値 — "
             "<b>合計 %d 個</b>(立石を含む)。"
@@ -11288,7 +11323,7 @@ def sensui_check(d):
         bad.append("`sensui.pond.dig` が残っている — A案(枯池)の欄。"
                    "B案は `waterY` / `depth` / `floorY` で持つ")
     if "surface" in pd:
-        bad.append("`sensui.pond.surface`(白砂利の州)が残っている — 水面になるので廃止した")
+        bad.append("`sensui.pond.surface`(白砂利の州)が残っている — ⛔ 水面になるので持たない")
     if all(k in pd for k in ("waterY", "depth", "floorY")):
         if abs(float(pd["waterY"]) - float(pd["depth"]) - float(pd["floorY"])) > 1e-9:
             bad.append("`waterY` − `depth` ≠ `floorY`(%.2f − %.2f ≠ %.2f)"
@@ -13357,7 +13392,7 @@ def pending_table(d):
     n_open = len(rows[0])
     out.append("<p class='cap'>⛔ <b>正典は <code>_pending</code>(設計値ファイル)の1本。</b>"
                "この章は生成器がそこから組む — <b>散文で書き写さない</b>"
-               "(検図 低9)。"
+               "。"
                "いま<b>判断を待っている項が %d 件</b>。</p>" % n_open)
     for rank in (0, 1, 2, 3):
         if not rows[rank]:
@@ -15061,7 +15096,7 @@ def taki_table(d):
             "<th>Δ(下端 − 設計地盤)</th>"
             "<th class='note'>造成前 DEM(参考)</th></tr></thead><tbody>%s</tbody></table></div>"
             "<p class='cap'>⭐ <b>三段は 1:1.5 の設計盛土法面の中に組み、滝石組がそのまま"
-            "法面の土留めを兼ねる</b>(庭方 中7)。⛔ 盛土を張ると決めた場所で造成前 DEM と比べても意味が無い。"
+            "法面の土留めを兼ねる</b>(庭方)。⛔ 盛土を張ると決めた場所で造成前 DEM と比べても意味が無い。"
             "検査 <code>taki_check</code> は <b>|下端 − 設計地盤| ≤ 0.30m を全段</b>に回す"
             "。<br>"
             "⭐ <b>滝壺の位置は次の段の位置</b>(次の段の天端がそこに座る)。最下段だけは"
@@ -17709,14 +17744,14 @@ def roof_bands_table(d):
             "<p class='cap'>⭕ <b>棟高は `const.gotenEave`・`kawaraKobai` からの従属値</b> = "
             "軒高 + 帯÷2×`ken`×勾配。⛔ 数字を json へ写さない。"
             "⭐ <b>帯割りと大棟の向き</b>(普請奉行裁定=考証方 B案)"
-            "【確度 P・設計判断。⛔ 史料は無い】 — ①<b>格の頂点(%s)だけが上限 %g間 を超える帯</b>を"
+            "【確度 U・設計判断。⛔ 史料は無い】 — ①<b>格の頂点(%s)だけが上限 %g間 を超える帯</b>を"
             "持ち、複合内で単独に最も高い(⛔ <b>最も格の高い大広間を黒書院より低くしない</b>)。"
             "②<b>表向の列と奥向の列で大棟を直交</b>させる(⛔ 全棟を同じ向きにすると、"
             "真上から見て同じ帯の繰り返し=倉庫の姿になる)。規則は `_roofRule`、"
             "検査は <code>roof_kaku_check</code> / <code>roof_along_check</code> / "
             "<code>roof_moya_check</code>。"
             "<br>⛔ <b>入側は動かしていない</b> — 大棟が v へ回った表向の四棟では、"
-            "入側は南北のまま=<b>妻側</b>に来る【確度 P・意匠判断】。"
+            "入側は南北のまま=<b>妻側</b>に来る【確度 U・意匠判断】。"
             "帯の和は『外形 − その軸の入側』(=身舎の梁間)に一致する。"
             "<br>⛔ <b>格を軒高で読むのはこの表ではない</b> — 三段(厩 &lt; 長屋類 &lt; 御殿)は"
             "下の軒高の表。⛔ <b>棟高で格を読まない</b>(棟高は梁間の従属値)。"
@@ -18486,14 +18521,28 @@ def torii_route_check(d):
                         dl = max(0.0, float(nk) / 2.0 - lat, lat - float(nkO) / 2.0)
                         dd = math.hypot(da, dl)
                         best = dd if best is None else min(best, dd)
+                    # ⭐ **足元に下草を置く鳥居は指図が名指しする**(`toriiFoot.fernFrom`・庭方 設計)。
+                    #   ⛔ 「下草がある/ない」だけで宿題を出さない — 手前の鳥居は
+                    #   **掃き清めた土のまま残すのが設計**で、株が無いことが正しい。
+                    ff = ft.get("fernFrom")
+                    near = float(rule.get("nemakiOuterW", 0.0))      # この鳥居の足元とみなす範囲[m]
+                    mine_f = [1 for (fu, fvv) in ferns
+                              if math.hypot((fu - p[0]) * K, (fvv - p[1]) * K) <= near * 2.0]
                     if best is not None and best < float(fc) - 1e-9:
                         out.append("鳥居 %s: 下草の芯が根巻石の外形から **%.2fm** — 離れ `fernClr` %.2fm に足りない"
                                    % (nm, best, float(fc)))
-                    else:
-                        out.append("〔宿題〕鳥居 %s: 足元に下草(シダ)を置くかが未定 — `planting` に足元の下草が無い。"
+                    elif ff is None:
+                        out.append("〔宿題〕鳥居 %s: 足元に下草(シダ)を置くかが未定 — "
+                                   "`toriiFoot.fernFrom`(どの鳥居から社側に置くか)が無い。"
                                    "`fernClr` %.2fm は置くと決めたときの離れで、合否は出していない(最寄りの下草 %s)"
-                                   "・`_pending.toriiAshimotoMaeUshiro`"
                                    % (nm, float(fc), ("%.2fm" % best) if best is not None else "なし"))
+                    elif nm == ff or mine_f:
+                        out.append("〔記録〕鳥居 %s: 足元の下草 %d株が根巻石の外形から最小 %.2fm(離れ `fernClr` %.2fm 以上)"
+                                   % (nm, len(mine_f), best if best is not None else 0.0, float(fc)))
+                    else:
+                        out.append("〔記録〕鳥居 %s: 足元に下草を置かない(`toriiFoot.fernFrom` = %s より手前)— "
+                                   "掃き清めた土のまま。最寄りの下草は %s"
+                                   % (nm, ff, ("%.2fm" % best) if best is not None else "なし"))
                 wtxt += "・足元 " + "・".join(ftxt)
         if fv is None:
             out.append("鳥居 %s の正面の向き `facing`(%s)が読めない — **向きの検査は回っていない**" % (nm, t.get("facing")))
@@ -18574,30 +18623,52 @@ def torii_route_check(d):
                 if fr not in ("+Z", "-Z") or not (isinstance(zl, list) and len(zl) == 2):
                     out.append("社 %s の部材 `buhin.zLocal`(正面の軸 %s)が読めない — **正面の面の位置は測っていない**" % (nm, fr))
                 else:
+                    # ⭐ **据えは「背面を矩形の奥の面から `gap` だけ離す」**(2026-09-16【庭方 設計】)。
+                    #   ⛔ 正面(軒先)を参道の終点へ突き付けると社が前へ寄り、
+                    #   **奥に空きが出て二の鳥居からの拝み代が足りない**。
+                    #   ⭕ 芯・正面・背面・拝所・拝み代は**ここで測る従属値**(⛔ 指図に数を持たせない)。
                     fext = float(zl[1]) if fr == "+Z" else -float(zl[0])
                     bext = -float(zl[0]) if fr == "+Z" else float(zl[1])
+                    zdai = bz.get("zDaiishi")
+                    dext = (float(zdai[1]) if fr == "+Z" else -float(zdai[0])) \
+                        if (isinstance(zdai, list) and len(zdai) == 2) else None
                     cen = (lo_a + hi_a) / 2.0 * K
                     gap_c = sg * (endp - (cen + sg * fext))
                     if not isinstance(st, dict):
-                        out.append("社 %s の据え `seat`(正面の面をどの面へ突き付けるか)が無い — ⛔ ピボットを矩形の中心に置くと"
+                        out.append("社 %s の据え `seat`(どの面をどの面から離すか)が無い — ⛔ ピボットを矩形の中心に置くと"
                                    "正面の面は参道 %s の終点から **%.2fm** 離れる" % (nm, r["name"], gap_c))
                     else:
                         tl = st.get("tol") or [0.0, 0.0]
-                        face_m = face * K
-                        piv = face_m - sg * fext
-                        gap = sg * (endp - (piv + sg * fext))
-                        back = piv - sg * bext
-                        inside = lo_a * K - 1e-6 <= back <= hi_a * K + 1e-6
-                        if not (float(tl[0]) - 1e-6 <= gap <= float(tl[1]) + 1e-6):
-                            out.append("社 %s: 正面の面(芯から %.2fm 前)と参道 %s の終点の離れ **%.2fm** が許容 %+.2f〜%+.2fm の外 — "
-                                       "⛔ 参道が社の正面で止まらない" % (nm, fext, r["name"], gap, float(tl[0]), float(tl[1])))
-                        elif not inside:
-                            out.append("社 %s: 正面を突き付けると奥の面(芯から %.2fm 後ろ)が矩形の外へ出る — ⛔ 社が矩形に収まらない"
-                                       % (nm, bext))
+                        gsp = float(st.get("gap", 0.0))
+                        rear_m = (hi_a if sg < 0 else lo_a) * K      # 矩形の**奥**の面(`facing` の逆側)
+                        back = rear_m + sg * gsp
+                        piv = back + sg * bext
+                        front = piv + sg * fext
+                        haisho = sg * (endp - front)                  # 拝所 = 参道の終点 → 正面の面[m]
+                        f_in = lo_a * K - 1e-6 <= front <= hi_a * K + 1e-6
+                        # ⭐ **拝み代** = 社に最も近い鳥居 → 正面の面[m](⛔ 芯から測らない)
+                        _t2 = [t for t in tor if t.get("route") == r["name"]]
+                        ogami = None
+                        if _t2:
+                            _tp = [sg * ((t["u"] if fv[0] else t["v"]) * K - front) for t in _t2]
+                            ogami = min(x for x in _tp) if _tp else None
+                        if not f_in:
+                            out.append("社 %s: 背面を矩形の奥の面から %.2fm 離すと、正面の面(芯から %.2fm 前)が"
+                                       "矩形の外へ出る — ⛔ 社が矩形に収まらない" % (nm, gsp, fext))
+                        elif haisho < -1e-6:
+                            out.append("社 %s: 参道 %s の終点が正面の面より奥にある(拝所 **%.2fm**)— "
+                                       "⛔ 参道が社の中へ入る" % (nm, r["name"], haisho))
                         else:
-                            out.append("〔記録〕社 %s: 正面の面(ローカル `%s` の端・芯から %.2fm)を参道 %s の終点へ突き付け、離れ %.2fm"
-                                       "(許容 %+.2f〜%+.2fm)・芯は矩形の面から %.3f間・奥の面は矩形の内 ⛔ 芯を矩形の中心に置くと離れ %.2fm"
-                                       % (nm, fr, fext, r["name"], gap, float(tl[0]), float(tl[1]), fext / K, gap_c))
+                            out.append("〔記録〕社 %s: 背面(ローカル `%s` の逆の端・芯から %.2fm 後ろ)を矩形の奥の面から "
+                                       "**%.2fm**(許容 %+.2f〜%+.2fm)離して据える・動く側 %s ⇒ "
+                                       "芯 %.3f間 / 正面の面 %.3f間 / 背面 %.3f間・**拝所 %.2fm**(参道の終点 → 正面)・"
+                                       "**拝み代 %s**(社に最も近い鳥居 → 正面)・雨落ちの帯 %s"
+                                       "(⛔ 芯を矩形の中心に置くと正面は終点から %.2fm)"
+                                       % (nm, fr, bext, gsp, float(tl[0]), float(tl[1]), st.get("moves", "?"),
+                                          piv / K, front / K, back / K, haisho,
+                                          ("%.2fm" % ogami) if ogami is not None else "鳥居なし",
+                                          ("%.2fm" % (fext - dext)) if dext is not None else "`zDaiishi` 未記載",
+                                          gap_c))
     return out
 
 
@@ -19308,7 +19379,7 @@ def main():
     fig(h, routes_svg(d),
         legend='<span style="color:#a8452c">━ 表向(客・使者)</span><span style="color:#3d6ea8">━ 役方(日勤)</span>'
                '<span style="color:#7a5c3a">━ 勝手(賄・物資)</span><span style="color:#5f7a4e">━ 奥向</span>'
-               '<span style="color:#7a6a3d">╌ 園路(庭道・2026-09-01 新設)</span>',
+               '<span style="color:#7a6a3d">╌ 園路(庭道)</span>',
         cap="平面と断面だけでは<b>建てた後に人がどう動くか</b>が読めない。"
             "<b>勝手の動線は御蔵門から引いた</b> — これが無いと米も薪も表門から入ることになる。"
             "奥向へ入る経路は<b>御錠口ただ一本</b>で、表・勝手とは交わらない。")
@@ -19371,13 +19442,13 @@ def main():
                 "⚠ 木の<b>位置は設計値ではない</b>(規則・本数・部材・退避・<b>塊の置き場所</b>が設計値)。"
                 "⭕ ただし<b>実装は撒き直さない</b> — この点をそのまま据える"
                 "(<code>planting_out</code>)。")
-        h.append("<h3>主視点【すべて確度 P/B=類型。当屋敷の一次史料は無い】</h3>")
+        h.append("<h3>主視点【すべて確度 B=類型。当屋敷の一次史料は無い】</h3>")
         h.append(viewpoints_table(d))
         h.append(koran_frame_table(d))
         h.append("<p class='cap'>⭐ <b>真行草</b>: 白洲・前庭=<b>真</b> / 主庭=<b>行</b> / "
                  "露地=<b>草</b>(『築山庭造伝』の三体)。"
                  "方位は grid の回転から出る<b>従属値</b>なので指図には持たせない。"
-                 "⭐ <b>V8(滝見の床几)は B案で新設</b> — 台地端の滝を見る場所で、"
+                 "⭐ <b>V8 = 滝見の床几</b> — 台地端の滝を見る場所で、"
                  "中仕切塀に開けた滝見口 <code>NJ_Taki_Kido</code> から降りる。</p>")
         h.append("<h3>庭の姿の代理指標 — <b>すべて生成器の実測</b>(⛔ 指図に書かない)</h3>")
         _inb, _tb = group_box_rate(d)
@@ -19439,11 +19510,10 @@ def main():
                  "⛔ 注記に法の数値を書き写さない(規則4)。</p>")
         h.append("<h3>御泉水の護岸 — <b>天端は設計値・見え面は水面から測る</b></h3>")
         h.append(gogan_table(d))
-        h.append("<p class='cap'>⭐ <b>A案の診断『遠い対岸ほど石を大きく』は B案で取り下げた</b>"
-                 "(庭方 2026-09-01 設計4)— 枯池では見え面が掘り下げ 0.45m しか無かったので"
-                 "石を大きくするしか手が無かったが、"
-                 "<b>水の池は汀の立ち上がりが 0.95m あり、23m 先の俯角 2.3° でも 2.4°分の帯として"
-                 "読める(枯池 0.45m の 2.1倍)。加えて水面が対岸の石を映して見かけの量を倍にする。</b>"
+        h.append("<p class='cap'>⭐ <b>石の大きさは発掘の寸法帯の内に収める</b>"
+                 "(庭方 2026-09-01 設計4)— "
+                 "<b>汀の立ち上がりは 0.95m あり、23m 先の俯角 2.3° でも 2.4°分の帯として"
+                 "読める。加えて水面が対岸の石を映して見かけの量を倍にする。</b>"
                  "⛔ <b>したがって発掘の寸法帯(常石 1.20 / 役石 1.50m)を超えて大きくする必要は"
                  "もう無く、超えてはいけない</b>(検査が鳴る)。<br>"
                  "⭕ <b>A案から残したのは二つ</b> — ①汀を「対岸 #11→#21 / 手前 #21→#11」に割ること "
@@ -19480,9 +19550,7 @@ def main():
             h.append(neishi_overhang_table(d))
             h.append("<p class='cap'>⛔ <b>この判定は主庭の V1 断面(−u 真西)ではできない</b> — "
                      "板塀は真西の断面に<b>最初から載らない</b>(2026-09-01 庭方 6-①)。"
-                     "⚠ この図と表は 2026-09-01 以前<b>書かれていたのに "
-                     "<code>main()</code> から呼ばれておらず</b>、判定の図が artifact に"
-                     "存在しなかった(検図 高5)。</p>")
+                     "⭕ 判定は板塀の面に直交する断面(上の図と表)で出す。</p>")
             h.append("</div>")
 
         plate(h, nx(), "水の系 — 取入口から溜池まで(縦断)",
@@ -19556,8 +19624,8 @@ def main():
                 h.append("<p class='cap'>⛔ <b>型は書いただけでは出ない。</b>"
                          "『二列千鳥』『単列』『三日月』は<b>並び方</b>の指定で、"
                          "均一に撒けば本数を減らしても林のままになる — "
-                         "以前この指定は<b>どの図にも出ておらず</b>、"
-                         "生成器も読んでいなかった(29 巡ぶん死んでいた)。"
+                         "⛔ <b>指定は生成器が読んで初めて図に出る</b> — "
+                         "書いただけの型は図にも実装にも現れない。"
                          "⭕ この表は<b>指定(左)と実出力(右)を同じ行に並べる</b> — "
                          "型が出ていなければ目で分かる。"
                          "⚠ 右半分は <code>planting_out</code> に書き出す点そのもの"
@@ -19593,10 +19661,8 @@ def main():
                    '<span style="color:var(--shu)">━ 庭木戸 ／ ● 点景 ／ ○ 主視点</span>'
                    '<span style="color:#7a6a3d">╌ 園路(庭道)</span>'
                    '<span style="color:#3B5A3C">○ 樹冠の実寸</span>',
-            cap="⚠ <b>この図は 2026-09-01 以前書かれていたのに "
-                "<code>main()</code> から呼ばれていなかった</b>(検図 高4)。"
-                "そのため<b>東の庭に平面図が1枚も無く</b>、奥庭・梅林・宴の平場・"
-                "稲荷の杜と鳥居2基・台地端の滝が全部この穴に落ちていた。<br>"
+            cap="⭕ <b>東の庭の平面</b> — 奥庭・梅林・宴の平場・"
+                "稲荷の杜と鳥居2基・台地端の滝はこの1枚が受ける。<br>"
                 "<b>奥庭は平庭(ひらにわ)</b> — 高木を用いず、石・刈込・苔・下草で構成する"
                 "([築山庭造伝]。奥御殿の座敷 <b>V2</b> から見る庭の形式)。"
                 "<b>梅林は正月の宴の場</b>で、床几の据石から東へ稲荷の鳥居2基を見る(<b>V7</b>)。"
@@ -19785,7 +19851,7 @@ def main():
             "昭和14年時点の現存5大名門の一つで、東京大空襲で焼失。"
             "<b>屋根なしを担うのは門そのものを見た確度A が2つ</b> — 明治初撮影の本写真と、"
             "昭和5年『日本案内記 関東篇』(官製)の「<b>冠木門に属し、両側に唐破風造の番所を附属</b>」。"
-            "⛔ <b>焼失規定([焼失規定と冠木門] は参考文献の無い二次記述で確度 B/?)を根拠にしない。</b>"
+            "⛔ <b>焼失規定([焼失規定と冠木門] は参考文献の記載が無い個人ブログで確度 ?)を根拠にしない。</b>"
             "⛔ 「基準年次より後に屋根が失われた記録」も「その前は屋根付きだった記録」も無いので、"
             "<b>年次の宿題が片付いても実装は反転しない</b>(<code>_pending.monShoushitsuNenji</code>)。<br>"
             "両唐破風番所は<b>写真A(温古写真集11)で実見できる当門そのものの姿</b>。"
@@ -19829,7 +19895,7 @@ def main():
                    (1, "<b>隅 P1(南辺の折れ)。</b>両側とも練塀。折れ角が浅く、小口どうしを"
                        "突き付けると外面に口が開くので留め継ぎで回す。"),
                    (2, "<b>隅 P2(土井境の南東の角)。</b>ここだけ<b>入隅</b>(区画が内へ切れ込む)で、"
-                       "部材は鏡像。腕が旧 S_Hei_W0 を丸ごと兼ねるので、その run は廃した。"),
+                       "部材は鏡像。腕が S_Hei_W0 の区間を丸ごと兼ねるので、この辺に別の run は起こさない。"),
                    (3, "<b>隅 P3(土井境の折れ)。</b>入りの練塀が斜面を下るので、隅部材の座は"
                        "腕の付け根の天端を採る。段は腕の端に落ちる。"),
                    (13, "<b>隅 P13(北の隅)。</b>折れ角が浅いので<b>留め継ぎの隅部材</b>が要る — "

@@ -23,6 +23,10 @@ Unity ローカル: 走り = X / 高さ = Y / 厚み = Z(見え面 +Z。⚠ 断�
     n = 次のスパンへ続く。⭐ **柱は +X の端にだけ持つ**(b = n のとき)。−X の端は前のスパンの柱の面から始まる。
     t = 中門の本柱の外面(口の縁)へ**突き付け**。柱を持たず、屋根を破風板と袖の稜で閉じ、棟の端に小さな鬼。
     c = 隅部材へ続く。柱を持たず、屋根・土台・基壇を隅の芯から手前で止める(隅部材が受ける)。
+    h = **口の縁の柱で止める**(南の潜り・渡廊下の取り付く口)。柱芯 = スパンの端(n と同じ通り)で、柱を棟の天端まで
+        立てて頭に銅の笠。屋根は柱の塀側の面で破風板・袖の稜・小さな鬼に閉じ、基壇は柱の外面まで。
+        ⭐ 渡廊下は屋根を塀の棟より上に通し、北の木口を**この柱の南の面**へ突き付ける(指図 joints)。
+        `-- --kuchi <西のスパンm>,<東のスパンm> --render` で口の組み上がり(御供所と渡廊下の模型)を焼く。
 ・**隅** `Sanno_Sukibei_Kado_<Dezumi|Irizumi>_<基準スパンmm>` — 芯 = 隅の柱の芯 = ピボット。
     出隅 = 脚が −X と −Z(見え面の側 = 外の角が隅棟)/ 入隅 = 脚が −X と +Z(見え面の側が谷)。
     隅の柱・隅の瓦場(隅棟と谷)・野地・基壇の升を持つ。
@@ -62,7 +66,11 @@ G = dict(
     kidanW=0.30, kidanDepth=0.30,               # 基壇(半幅・根入れ。天端 = Y0)
     tileSc=0.634,       # 瓦の縮尺の目安(実際はスパンに整数枚へ合わせる)
     taruP=0.30, taruW=0.05, taruT=0.06,         # 垂木
+    capT=0.04,          # 口の柱(h)の銅の笠の厚み(笠の天端 = 棟の天端)
 )
+KUCHI_HALF = 0.5 * 1.818           # 南の潜りの口の半幅 = 指図 runs[Sukibei_S].gapHalf[間](柱芯 = 口の縁)
+GOKUSHO = os.path.join(V.REPO, "Assets", "Edo", "Models", "Sanno", "Sanno_Gokusho_3x4.5ken_5454x8181.fbx")
+GOKUSHO_AT = ((-30.75 + 1.5 - (-28.25)) * 1.818, (-13.0 + 2.25 - (-6.3889)) * 1.818)   # 口の芯から御供所の芯(X 東, Z 北)
 K_ROOF = (HT["ridgeTop"] - (G["ridgeH"] - G["ridgeSeat"]) - HT["eave"]) / G["D"]
 ALLOWED = ("wood", "wall C", "Kirishi", "Doukawara")
 
@@ -200,16 +208,17 @@ def finish(name, body, parts, stones):
 # ==========================================================================
 def build_span(s, ends, name, sc=None):
     a, b = ends[0], ends[1]
-    if a not in "ntc" or b not in "ntc":
-        raise SystemExit("[sukibei] ⛔ 端の種類は n/t/c: %s" % ends)
+    if a not in "ntch" or b not in "ntch":
+        raise SystemExit("[sukibei] ⛔ 端の種類は n/t/c/h: %s" % ends)
     hs, pr, D = s / 2.0, G["post"] / 2.0, G["D"]
     ms, uv = SH.mats()
     W, WC = SH.W, SH.WC
     M = VM.Mesh()
+    # h = 口の縁の柱で止める: 柱芯 = スパンの端(n と同じ位置)・屋根は柱の塀側の面で破風に閉じる・基壇は柱の外面まで
     m_lo = -hs + (0.0 if a == "t" else pr); m_hi = hs - (0.0 if b == "t" else pr)
     d_lo = -hs + (pr if a == "c" else 0.0); d_hi = hs - (pr if b == "c" else 0.0)
-    r_lo = -hs + (D if a == "c" else 0.0); r_hi = hs - (D if b == "c" else 0.0)
-    k_lo = -hs + (G["kidanW"] if a == "c" else 0.0); k_hi = hs - (G["kidanW"] if b == "c" else 0.0)
+    r_lo = -hs + {"c": D, "h": pr}.get(a, 0.0); r_hi = hs - {"c": D, "h": pr}.get(b, 0.0)
+    k_lo = -hs + {"c": G["kidanW"], "h": -pr}.get(a, 0.0); k_hi = hs - {"c": G["kidanW"], "h": -pr}.get(b, 0.0)
     sc = sc or tile_scale(s)
 
     # --- 瓦場(先に焼いて谷の深さを測る)-------------------------------------
@@ -245,6 +254,17 @@ def build_span(s, ends, name, sc=None):
     vstrip(M, m_lo, m_hi, [-kw, 0.0, kw], lambda v: kbot, under, uv["wood_h"], W)       # 桁(上端は野地なり)
     if b == "n":
         SH.box3(M, hs - pr, hs + pr, -pr, pr, G["dodaiH"], under(pr), uv["wood"], W, grain="h")
+    # --- 口の縁の柱(h)— 棟の天端まで立て、頭に銅の笠。⭐ 渡廊下の北の木口はこの柱の南の面へ突き付く ---
+    caps = []
+    for end, sgn in ((a, -1), (b, +1)):
+        if end != "h":
+            continue
+        uc0 = sgn * hs
+        SH.box3(M, uc0 - pr, uc0 + pr, -pr, pr, 0.0, HT["ridgeTop"] - G["capT"], uv["wood"], W, grain="h")
+        cw = pr + 0.03
+        caps.append(prism("%s_kasa%d" % (name, sgn), [(uc0 - cw, -cw), (uc0 + cw, -cw), (uc0 + cw, cw), (uc0 - cw, cw)],
+                          lambda u, v: HT["ridgeTop"] - G["capT"], lambda u, v: HT["ridgeTop"],
+                          bpy.data.materials.get("roof") or V.borrow_material(GR.MOD, "roof"), roof_rect()))
     # --- 野地・垂木 -----------------------------------------------------------
     vstrip(M, r_lo, r_hi, [-D, 0.0, D], lambda v: zr(v) + noji_bot, lambda v: zr(v) + noji_top, uv["wood_h"], W)
     nt = max(1, int(round((r_hi - r_lo) / G["taruP"])))
@@ -254,11 +274,11 @@ def build_span(s, ends, name, sc=None):
             vv = sg * (D - 0.02)
             SH.stick(M, (uu, vv, zr(vv) + noji_bot - G["taruT"] / 2), (uu, 0.0, zr(0.0) + noji_bot - G["taruT"] / 2),
                      G["taruW"], G["taruT"], uv["wood_h"], W)
-    # --- 突き付けの端(t)= 破風板 ------------------------------------------------
+    # --- 突き付けの端(t)・柱止めの端(h)= 破風板 ---------------------------------------
     for end, sgn in ((a, -1), (b, +1)):
-        if end != "t":
+        if end not in "th":
             continue
-        ue = sgn * hs
+        ue = sgn * (hs if end == "t" else hs - pr)
         u0, u1 = sorted((ue, ue - sgn * 0.035))
         vstrip(M, u0, u1, [-D - 0.02, 0.0, D + 0.02], lambda v: zr(v) + noji_bot - 0.08,
                lambda v: zr(v) + 0.02, uv["wood_h"], W)
@@ -270,23 +290,25 @@ def build_span(s, ends, name, sc=None):
     p0, p1 = SH.BX(r_lo, 0.0), SH.BX(r_hi, 0.0)
     parts += GR.ridge((p0[0], p0[1], zR), (p1[0], p1[1], zR), name + "_mune", w=G["ridgeW"], h=G["ridgeH"])
     for end, sgn in ((a, -1), (b, +1)):
-        if end != "t":
+        if end not in "th":
             continue
-        uc = sgn * (hs - 0.07)
+        he = hs if end == "t" else hs - pr          # 屋根の端 = 中門の本柱の外面(t)/ 口の柱の塀側の面(h)
+        uc = sgn * (he - 0.07)
         for sv in (-1, 1):
             q0, q1 = SH.BX(uc, sv * (D + 0.02)), SH.BX(uc, 0.0)
             parts += GR.ridge((q0[0], q0[1], zr(D + 0.02) - 0.01), (q1[0], q1[1], zr(0.0) - 0.01),
                               "%s_sode%d%d" % (name, sgn, sv), w=0.14, h=0.10)
-        pc = SH.BX(sgn * (hs - 0.20), 0.0)
+        pc = SH.BX(sgn * (he - 0.20), 0.0)
         oni = GR.oni((pc[0], pc[1], zr(0.0) - 0.04), (-float(sgn), 0.0), "%s_oni%d" % (name, sgn), scale=0.30)
-        for g in oni:                                # ⛔ 本柱の面を越えさせない
+        for g in oni:                                # ⛔ 本柱・口の柱の面を越えさせない
             V.sel([g]); bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
             us = [-vt.co.x for vt in g.data.vertices]
-            over = (max(us) - (hs - 0.005)) if sgn > 0 else ((-hs + 0.005) - min(us))
+            over = (max(us) - (he - 0.005)) if sgn > 0 else ((-he + 0.005) - min(us))
             if over > 0:
                 g.data.transform(Matrix.Translation((sgn * over, 0.0, 0.0)))   # Blender X = −u
                 g.data.update()
         parts += oni
+    parts += caps
     stones = to_blender(stones_run(k_lo, k_hi, name))
     o = finish(name, body, parts, stones)
     info = dict(kind="span", s=s, ends=ends, hs=hs, foot=(r_lo + 0.02, r_hi - 0.02, -D + 0.02, D - 0.02),
@@ -488,8 +510,83 @@ def assembly(s, render):
     return ok, out
 
 
+def _bvh_world(o):
+    bm = bmesh.new(); bm.from_object(o, bpy.context.evaluated_depsgraph_get()); bm.transform(o.matrix_world)
+    t = BVHTree.FromBMesh(bm); bm.free()
+    return t
+
+
+def assembly_kuchi(sw, se, render):
+    """**南の潜りの口**: 西の 2 スパン(nn・nh)+ 口(柱芯 1 間)+ 東の 2 スパン(hn・nn)。
+    御供所(焼いてあれば)と、**検証専用の渡廊下の模型**(柱・桁・切妻。⛔ 書き出さない)を重ねて当たりを数える。"""
+    V.reset()
+    g = KUCHI_HALF
+    lay = [(build_span(sw, "nn", "W_nn")[0], -(g + sw + sw / 2.0)), (build_span(sw, "nh", "W_nh")[0], -(g + sw / 2.0)),
+           (build_span(se, "hn", "E_hn")[0], g + se / 2.0), (build_span(se, "nn", "E_nn")[0], g + se + se / 2.0)]
+    for ob, X in lay:
+        ob.location = (-X, 0.0, 0.0)
+    bpy.context.view_layer.update()
+    fence = [ob for ob, _ in lay]
+    # 口の柱の内面の離れ(= 通れる幅)と、塀の屋根の端(銅瓦・破風・鬼)が柱の塀側の面を越えないか
+    wv = [(-(ob.matrix_world @ vt.co).x, (ob.matrix_world @ vt.co).z) for ob in fence[1:3] for vt in ob.data.vertices]
+    roofW = max(x for x, y in wv if x < 0 and y > HT["koshi"] + 0.05 and not (abs(x + g) <= G["post"] / 2 + 0.031))
+    roofE = min(x for x, y in wv if x > 0 and y > HT["koshi"] + 0.05 and not (abs(x - g) <= G["post"] / 2 + 0.031))
+    print("  口: 柱芯 X %.3f / %.3f(芯々 %.3f)・柱の内面の離れ %.3f / 塀の軸部と屋根の端 X %.3f / %.3f(柱の塀側の面 %.3f / %.3f)"
+          % (-g, g, 2 * g, 2 * g - G["post"], roofW, roofE, -g - G["post"] / 2, g + G["post"] / 2))
+    out = []
+    if render:
+        V.hook_textures()
+        os.makedirs(SHOT, exist_ok=True)
+        bpy.ops.mesh.primitive_plane_add(size=60, location=(0, 4.0, -0.005))
+
+        def one(cam, look, fn, res=(1500, 1100)):
+            V.studio(cam, look, res=res)
+            f = os.path.join(SHOT, "sanno_sukibei_kuchi_%s.png" % fn)
+            V.render(f); out.append(f)
+        one((-4.2, 5.2, 2.6), (0.0, 0.0, 1.6), "south")            # 南東の外から(Blender +Y = Unity 南)
+        one((3.0, -4.8, 2.4), (0.0, 0.0, 1.5), "north")            # 北西の内から
+        one((0.2, 1.7, 1.9), (0.95, 0.0, 1.95), "post_w")          # 西の口の柱と屋根の端の寄り
+    # --- 御供所と渡廊下の模型 ---
+    hits = {}
+    gk = None
+    if os.path.exists(GOKUSHO):
+        objs = VM.import_fbx_abs(GOKUSHO)
+        gk = V.join(objs, "gokusho") if len(objs) > 1 else objs[0]
+        gk.location = (-GOKUSHO_AT[0], -GOKUSHO_AT[1], 0.0)
+    zN = GOKUSHO_AT[1] + 4.0905 + 0.09                              # 御供所の北面の柱の外面(Unity Z)
+    zS = -G["post"] / 2.0                                          # 口の柱の南の面
+    L = zS - zN
+    pw, eh = 0.075, 2.55
+    M = VM.Mesh()
+    ms, uv = SH.mats()
+    for X in (-g, g):
+        for Z in (zN + pw, zS - pw):
+            SH.box3(M, X - pw, X + pw, Z - pw, Z + pw, 0.0, eh, uv["wood"], SH.W, grain="h")
+        SH.box3(M, X - 0.07, X + 0.07, zN, zS, eh - 0.15, eh, uv["wood_h"], SH.W, grain="v")
+    rou = M.to_object("rouka_mock", ms)
+    rr = GR.make_kirizuma(L, 2 * g, name="rouka_mock_roof", eave=0.45, end=0.30, tsuma=False)
+    rr.location = (0.0, -(zN + zS) / 2.0, eh)
+    rr.rotation_euler = (0.0, 0.0, math.radians(90.0))
+    bpy.context.view_layer.update()
+    tr, tp = _bvh_world(rr), _bvh_world(rou)
+    for ob in fence + ([gk] if gk else []):
+        tb = _bvh_world(ob)
+        hits[ob.name] = (len(tb.overlap(tp)), len(tb.overlap(tr)))
+    for k2, (hp, hr) in hits.items():
+        print("  当たり(検証の模型)%s ↔ 渡廊下の柱・桁 %d 面対 / 屋根 %d 面対" % (k2, hp, hr))
+    if render:
+        one((-5.5, 7.5, 3.6), (0.0, 0.5, 2.0), "rouka")
+        one((-11.0, 17.0, 10.0), (0.5, 4.5, 2.0), "overview", res=(1600, 1100))
+    return out
+
+
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    if "--kuchi" in argv:
+        sw, se = (float(x) for x in argv[argv.index("--kuchi") + 1].split(","))
+        for f in assembly_kuchi(sw, se, "--render" in argv):
+            print("RENDER " + f)
+        return
     opt = lambda k, d: argv[argv.index(k) + 1] if k in argv else d
     s = float(opt("--span", "2.54"))
     ends = opt("--ends", "nn,tn,nt,nc,cn").split(",")

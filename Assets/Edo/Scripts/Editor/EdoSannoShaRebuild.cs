@@ -548,7 +548,9 @@ public static class EdoSannoShaRebuild
     /// ⛔ 実装が辺を割り直さない。
     ///   ・`kind=="柵"` … 腰高の柵(⛔ 土塀ではない。2026-09-07 の裁定)
     ///   ・`kind=="板塀"` … edogoyomi の板塀 ×ES
-    ///   ・`kind=="透塀"/"回廊"` … **部材が無い**(`bom` が「無い/新造」)⇒ 建てずに数える</summary>
+    ///   ・`kind=="透塀"` … 新造のスパン + 隅部材(⭐ 2026-09-16 に部材が揃ったので建てる)
+    ///   ・`kind=="袖塀"` … 新造の袖塀(足元二段。⛔ 柵で代用しない)
+    ///   ・`kind=="回廊"` … **部材が無い**(`bom[回廊…]`「無い/新造依頼」)⇒ 建てずに数える</summary>
     public static string Stage4_Kakoi()
     {
         var gate = Gate(); if (gate != null) return gate;
@@ -558,14 +560,16 @@ public static class EdoSannoShaRebuild
         {
             var r = o as Dictionary<string, object>; if (r == null || S(r, "of") != "run") continue;
             string name = S(r, "name"), kind = S(r, "kind");
-            if (kind == "透塀" || kind == "回廊")
+            if (kind == "回廊")
             { pending += F(r, "lenM"); pendNames.Add(name + "(" + kind + " " + F(r, "lenM").ToString("F1") + "m)"); continue; }
 
             var grp = Group("Kakoi/" + name); Clear(grp);
             bool hasSeat = HasNum(r, "seat");
             float seat = F(r, "seat");
             int made = 0;
-            foreach (var so in L(r, "segs"))
+            if (kind == "透塀") { made = Sukibei(r, name, grp, sb); }
+            else if (kind == "袖塀") { made = Sodebei(r, name, grp, sb); }
+            else foreach (var so in L(r, "segs"))
             {
                 var seg = so as List<object>; if (seg == null || seg.Count < 2) continue;
                 Vector2 a = P2(seg[0]), b = P2(seg[1]);
@@ -609,10 +613,211 @@ public static class EdoSannoShaRebuild
             sb.AppendLine("  " + name + "(" + kind + " " + F(r, "lenM").ToString("F1") + "m): 部材 " + made + " 枚" +
                           (hasSeat ? " / 天端 " + seat.ToString("F2") : " / 天端は地形なり"));
         }
+        pieces += SukibeiKado(sb);
         if (pendNames.Count > 0)
             sb.AppendLine("  ★ 部材が無いので建てなかった(bom が「無い/新造」): " +
                           string.Join(" / ", pendNames.ToArray()) + " = 計 " + pending.ToString("F1") + "m");
         return "囲い: 部材 " + pieces + " 枚\n" + sb;
+    }
+
+    // ---------------------------------------------------------------- 透塀
+    /// <summary>部材表の行を名で引く。⛔ 寸法をここに写さない。</summary>
+    static Dictionary<string, object> FindBom(string label)
+    {
+        foreach (var o in L(Doc, "bom"))
+        { var b = o as Dictionary<string, object>; if (b != null && S(b, "部材") == label) return b; }
+        return null;
+    }
+    const string BOM_SUKIBEI = "透塀(連子窓の塀)";
+    /// <summary>透塀の一辺を据える。**割り付けは指図の規約**(`bom[透塀].spanBaseM` で辺を等分 ──
+    /// 本数 = round(辺長 / 基準スパン)・スパン = 辺長 / 本数)で、⛔ 実装は数を持たない。
+    /// 端の種類は −X, +X の順: c = 隅部材へ続く / n = 次のスパンへ / t = 中門へ突き付け /
+    /// h = 口の縁の柱(南の潜り)。⚠ 部材の原点 = スパンの中心・床(= 基壇の天端 = `seat`)。</summary>
+    static int Sukibei(Dictionary<string, object> r, string name, Transform grp, StringBuilder sb)
+    {
+        var bom = FindBom(BOM_SUKIBEI);
+        if (bom == null || !HasNum(bom, "spanBaseM"))
+        { sb.AppendLine("  ★ " + name + ": `bom[" + BOM_SUKIBEI + "].spanBaseM` が無い(割り付けを決められない)"); return 0; }
+        float baseM = F(bom, "spanBaseM");
+        var dr = FindByName(Doc, "runs", name);
+        // 口の端の種類 ── 中門へ突き付けるなら "t"(`gapFrom`)、宣言があれば `gapEnd`。⛔ 無ければ据えない。
+        string eg = (dr != null && D(dr, "gapFrom") != null) ? "t" : (dr == null ? null : S(dr, "gapEnd"));
+        var segs = L(r, "segs");
+        float seat = F(r, "seat");
+        int made = 0;
+        for (int si = 0; si < segs.Count; si++)
+        {
+            var seg = segs[si] as List<object>; if (seg == null || seg.Count < 2) continue;
+            Vector2 a = P2(seg[0]), b = P2(seg[1]);
+            float len = Vector2.Distance(a, b); if (len < 0.2f) continue;
+            Vector2 dir = (b - a) / len;
+            string e0 = (si == 0) ? "c" : eg, e1 = (si == segs.Count - 1) ? "c" : eg;
+            if (e0 == null || e1 == null)
+            { sb.AppendLine("  ★ " + name + ": 口の端の種類(`gapEnd`)が指図に無い — この辺は据えない"); continue; }
+            int N = Mathf.Max(1, Mathf.RoundToInt(len / baseM));
+            float span = len / N;
+            for (int k = 0; k < N; k++)
+            {
+                string ends = (N == 1) ? (e0 + e1) : (k == 0 ? e0 + "n" : (k == N - 1 ? "n" + e1 : "nn"));
+                string part = SukibeiPart(span, ends, name, sb);
+                if (part == null) continue;
+                Vector2 c = a + dir * (span * (k + 0.5f));
+                EdoBuild.Place(part, new Vector3(c.x, seat, c.y), YawX(dir), Vector3.one, grp,
+                               name + "_" + made.ToString("000") + "f");
+                made++;
+            }
+        }
+        return made;
+    }
+    /// <summary>スパンの呼び寸[m]と端の種類から部材を引く。⚠ 算出物の座標は小数4桁で丸まっているので
+    /// **1mm 級の食い違いが出る**(`Sukibei_S` の 2530 ⇔ 焼いた 2531)。⇒ ±2mm まで探し、
+    /// 拾ったら**そう名乗る**。⛔ 似た寸法の別部材で代用しない(見つからなければ据えない)。</summary>
+    static string SukibeiPart(float spanM, string ends, string name, StringBuilder sb)
+    {
+        int mm = Mathf.RoundToInt(spanM * 1000f);
+        int[] cand = new int[] { mm, mm + 1, mm - 1, mm + 2, mm - 2 };
+        for (int i = 0; i < cand.Length; i++)
+        {
+            string p = EdoAssets.Own.SannoSukibei(cand[i], ends);
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(p) == null) continue;
+            if (i > 0) sb.AppendLine("  ⚠ " + name + ": スパン " + mm + "mm の部材が無いので " + cand[i] +
+                                     "mm(端 " + ends + ")を据えた ── 差 " + (cand[i] - mm) + "mm(算出物の丸め)");
+            return p;
+        }
+        sb.AppendLine("  ★ " + name + ": 透塀のスパン部材 " + mm + "_" + ends + " が無い(部材方へ)");
+        return null;
+    }
+    /// <summary>透塀の隅部材を据える。**隅は `joints` が名指す run の対**(8箇所)で、
+    /// 出隅・入隅の別は**折れ線の凹凸から測る**(⛔ 決め打ちしない)。
+    /// 部材の註: 出隅 = 脚が −X と −Z / 入隅 = 脚が −X と +Z・ピボット = 隅の柱の芯・床。
+    /// ⚠ `joints` の呼び名(「北の段の入隅」など)と折れ線の凹凸が食い違う隅は**名指しで刷る**
+    /// (⛔ 黙って直さない — 指図方へ差し戻す材料)。</summary>
+    static int SukibeiKado(StringBuilder sb)
+    {
+        // 透塀の折れ線の向き(反時計回りか)を測る ── 凹凸の符号の基準。
+        float area = 0f; Vector2 prev = Vector2.zero; bool first = true; Vector2 head = Vector2.zero;
+        foreach (var o in L(Impl, "runs"))
+        {
+            var r = o as Dictionary<string, object>; if (r == null || S(r, "kind") != "透塀") continue;
+            var nd = Pts(L(r, "nodes")); if (nd.Count < 2) continue;
+            if (first) { head = nd[0]; prev = nd[0]; first = false; }
+            for (int i = 1; i < nd.Count; i++) { area += prev.x * nd[i].y - nd[i].x * prev.y; prev = nd[i]; }
+        }
+        if (first) return 0;
+        area += prev.x * head.y - head.x * prev.y;
+        float orient = Mathf.Sign(area);
+
+        var bom = FindBom(BOM_SUKIBEI);
+        int made = 0, flipped = 0;
+        foreach (var o in L(Doc, "joints"))
+        {
+            var j = o as Dictionary<string, object>; if (j == null) continue;
+            string kind = S(j, "kind"); if (kind == null || kind.IndexOf('隅') < 0) continue;
+            string an = RunRef(S(j, "a")), bn = RunRef(S(j, "b"));
+            if (an == null || bn == null) continue;
+            var ra = FindByName(Impl, "runs", an); var rb = FindByName(Impl, "runs", bn);
+            if (ra == null || rb == null || S(ra, "kind") != "透塀") continue;
+            var na = Pts(L(ra, "nodes")); var nb = Pts(L(rb, "nodes"));
+            if (na.Count < 2 || nb.Count < 2) continue;
+            Vector2 node = na[na.Count - 1];
+            if (Vector2.Distance(node, nb[0]) > 0.05f)
+            { sb.AppendLine("  ★ 隅 " + an + "→" + bn + ": 折れ線の端が一致しない — 据えない"); continue; }
+            Vector2 e1 = (na[na.Count - 2] - node).normalized;   // 隅から a の辺へ
+            Vector2 e2 = (nb[1] - node).normalized;              // 隅から b の辺へ
+            float turn = ((-e1.x) * e2.y - (-e1.y) * e2.x) * orient;   // > 0 なら出隅(凸)
+            bool dezumi = turn > 0f;
+            if (dezumi != (kind.IndexOf("出隅") >= 0))
+            {
+                flipped++;
+                sb.AppendLine("  ⚠ 隅 " + an + "→" + bn + ": `joints` は「" + kind + "」だが、折れ線の凹凸は **" +
+                              (dezumi ? "出隅" : "入隅") + "** ── 折れ線に従って据えた(⛔ 指図方へ差し戻す)");
+            }
+            // 脚を辺へ合わせる: 出隅は Z = rot(X)・入隅は Z = −rot(X)(rot(v) = (−v.y, v.x))。
+            //   ⇒ −X = f・(出隅) −Z = g / (入隅) +Z = g となる (f, g) の組を二通りから選ぶ。
+            Vector2 f = e1, g = e2;
+            Vector2 want = dezumi ? new Vector2(-e1.y, e1.x) : new Vector2(e1.y, -e1.x);
+            if (Vector2.Dot(want, e2) < 0.9f)
+            {
+                f = e2; g = e1;
+                Vector2 want2 = dezumi ? new Vector2(-e2.y, e2.x) : new Vector2(e2.y, -e2.x);
+                if (Vector2.Dot(want2, e1) < 0.9f)
+                { sb.AppendLine("  ★ 隅 " + an + "→" + bn + ": 直角でないので隅部材を向けられない — 据えない"); continue; }
+            }
+            string part = EdoAssets.Own.SannoSukibeiKado(dezumi ? "Dezumi" : "Irizumi");
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(part) == null)
+            { sb.AppendLine("  ★ 隅 " + an + "→" + bn + ": 隅部材 " + part + " が無い(部材方へ)"); continue; }
+            float seat = F(ra, "seat");
+            var grp = Group("Kakoi/" + an);
+            EdoBuild.Place(part, new Vector3(node.x, seat, node.y), YawX(-f), Vector3.one, grp,
+                           an + "_" + (900 + made).ToString("000") + "f");
+            made++;
+        }
+        sb.AppendLine("  透塀の隅: " + made + " 箇所(出隅・入隅は折れ線の凹凸から)" +
+                      (flipped > 0 ? " / ⚠ `joints` の呼び名と食い違った隅 " + flipped + " 箇所" : ""));
+        return made;
+    }
+    /// <summary>`joints` の「透塀 Sukibei_E(北袖)」のような綴りから run 名を取り出す。</summary>
+    static string RunRef(string s)
+    {
+        if (string.IsNullOrEmpty(s)) return null;
+        int p = s.IndexOf('(');
+        if (p > 0) s = s.Substring(0, p);
+        var tok = s.Trim().Split(' ');
+        string last = tok[tok.Length - 1].Trim();
+        return last.StartsWith("Sukibei_") ? last : null;
+    }
+
+    // ---------------------------------------------------------------- 袖塀
+    /// <summary>袖塀(楼門と回廊の翼の間)を据える。部材の註: 走り = X・**門側 = −X**・
+    /// ピボット = 走りの中心・門側の足元(= 楼門の敷居)。⛔ 柵や築地塀で代用しない。
+    /// ⚠ **門側の木口は据えた楼門の側柱の外面へ寄せる**のが `joints` の指定だが、
+    /// 門はこの巡の範囲外(Stage 5)なので**設計の線のまま**据えてある(→ 報告)。</summary>
+    static int Sodebei(Dictionary<string, object> r, string name, Transform grp, StringBuilder sb)
+    {
+        var dr = FindByName(Doc, "runs", name);
+        var bom = dr == null ? null : FindBom(S(dr, "bom"));
+        var ax = bom == null ? null : D(bom, "axis");
+        var fa = ax == null ? null : D(ax, "footAt");
+        var st = fa == null ? null : D(fa, "step");
+        if (st == null) { sb.AppendLine("  ★ " + name + ": `bom[…].axis.footAt.step` が無い(部材を引けない)"); return 0; }
+        if (S(ax, "gateSide") != "-X")
+        { sb.AppendLine("  ★ " + name + ": 部材の門側が `-X` でない(" + S(ax, "gateSide") + ")— 向きを決められない"); return 0; }
+        var nodes = Pts(L(r, "nodes")); if (nodes.Count < 2) return 0;
+        Vector2 a = nodes[0], b = nodes[nodes.Count - 1];
+        float len = Vector2.Distance(a, b);
+        // ⚠ 算出物の座標は小数4桁で丸まっているので**1mm 級の食い違いが出る**(4201 ⇔ 焼いた 4200)。
+        //   ⇒ 透塀のスパンと同じく ±2mm まで探し、拾ったらそう名乗る。⛔ 別寸法で代用しない。
+        int lenMm = Mathf.RoundToInt(len * 1000f);
+        int atMm = Mathf.RoundToInt(F(st, "atM") * 1000f), riseMm = Mathf.RoundToInt(F(st, "riseM") * 1000f);
+        int[] cand = new int[] { lenMm, lenMm + 1, lenMm - 1, lenMm + 2, lenMm - 2 };
+        string part = null;
+        for (int i = 0; i < cand.Length; i++)
+        {
+            string p = EdoAssets.Own.SannoSodebei(cand[i], atMm, riseMm);
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(p) == null) continue;
+            if (i > 0) sb.AppendLine("  ⚠ " + name + ": 長さ " + lenMm + "mm の部材が無いので " + cand[i] +
+                                     "mm を据えた ── 差 " + (cand[i] - lenMm) + "mm(算出物の丸め)");
+            part = p; break;
+        }
+        if (part == null)
+        { sb.AppendLine("  ★ " + name + ": 袖塀の部材 " + EdoAssets.Own.SannoSodebei(lenMm, atMm, riseMm) + " が無い(部材方へ)"); return 0; }
+        // 門側の端 = `runs[].endFrom.end`(門を指す側)。
+        var ef = D(dr, "endFrom");
+        string gateEnd = ef == null ? null : S(ef, "end");
+        if (gateEnd != "a" && gateEnd != "b")
+        { sb.AppendLine("  ★ " + name + ": `endFrom.end` が無い — 門側を決められない"); return 0; }
+        Vector2 gp = (gateEnd == "a") ? a : b, fp = (gateEnd == "a") ? b : a;
+        // 足元 Y0 = 門の敷居(`bom.axis.footAt.gate` / `at`)。⛔ run の座(= 回廊の基壇)ではない。
+        var gt = FindByName(Impl, "gates", S(fa, "gate"));
+        if (gt == null || S(fa, "at") != "sill")
+        { sb.AppendLine("  ★ " + name + ": 門 " + S(fa, "gate") + " の敷居が引けない"); return 0; }
+        float y0 = F(gt, "sill");
+        Vector2 c = (a + b) * 0.5f;
+        EdoBuild.Place(part, new Vector3(c.x, y0, c.y), YawX((fp - gp).normalized), Vector3.one, grp,
+                       name + "_000f");
+        sb.AppendLine("  ⚠ " + name + ": 門側の木口は**楼門の実メッシュへ寄せていない**(門はこの巡の範囲外)" +
+                      " ── 足元 Y0 = " + y0.ToString("F2") + "(" + S(fa, "gate") + " の敷居)");
+        return 1;
     }
     /// <summary>設計面(算出物)を優先し、無ければ live terrain。⚠ 造成の後に呼ぶこと。</summary>
     static float SurfaceY(Vector2 p)

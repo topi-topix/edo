@@ -40,11 +40,14 @@ public static class EdoSannoSashizuCheck
 {
     public const string Id = "sanno";
 
-    // ---- 物差し(⛔ 設計値ではない。二つだけ)-------------------------------
+    // ---- 物差し(⛔ 設計値ではない。位置・向きの二つと、算出物が持つ地形の一つ)----
     /// <summary>位置・寸法の許容差[m]。**汎用の器 `EdoSashizuExport.CheckScene` と同じ 0.02m**
     /// を借りる(⛔ 山王のためだけの緩い数を新しく作らない)。</summary>
     const float POS_TOL_M = 0.02f;
     /// <summary>地形と設計面の許容差[m]は**算出物が持つ**(`checks.gradeTol`)。⛔ ここに写さない。</summary>
+    /// <summary>向き(駒の Y 回転)の許容差[度]。⛔ 設計値ではない — 駒は度で直に据わるので、
+    /// **丸めの幅**として 0.5° を採る(指図の yaw は 0.1° 刻みで出る)。</summary>
+    const float YAW_TOL_DEG = 0.5f;
 
     static readonly string[] SECTIONS = { "社殿", "門・鳥居", "石段", "囲い", "造成の面", "社叢" };
 
@@ -221,10 +224,27 @@ public static class EdoSannoSashizuCheck
         // =====================================================================
         // 門・鳥居
         // =====================================================================
+        // ⭐ 向きを測る(2026-09-16・台帳 K002)。位置だけ比べて向きを比べないので、
+        //   実装の yaw 90° 直書きと指図の 4.6°/0° の差が **17巡ぶん 0 件のまま**通っていた。
+        //   ⛔ 測っているのは**据えた駒の Y 回転**であって「正面がどちらを向くか」ではない —
+        //   指図の yaw は `bom.axis.front = +X`(部材の正面がローカル +X)を前提に出た数なので、
+        //   実装が**別の部材で代用**していれば差は「正面が違う」ではなく
+        //   「**代用した部材の軸が宣言されていない**」ことの表れ。読み手が取り違えないよう
+        //   一致・不一致のどちらでも `yawFrom`(指図の側の出どころ)を添える。
+        int yawSeen = 0, yawNone = 0, yawCmp = 0;
         foreach (var o in L(impl, "gates"))
         {
             var gt = o as Dictionary<string, object>; if (gt == null) continue;
             string name = Str(gt, "name"); if (name == null) continue;
+            yawSeen++;
+            // 向きが指図から出ない門は、実装の有無と無関係に1件立つ(台帳 K005)
+            object yawObj = G(gt, "yaw");
+            if (yawObj == null)
+            {
+                yawNone++;
+                bad("門・鳥居", "門 " + name + " の向きが指図から出ない(front / pass が未宣言 ⇒ yaw が null)" +
+                    " — ⛔ 向きの突き合わせが**この門だけ未測定**になる");
+            }
             var wp = A(gt, "world");
             if (wp == null || wp.Length < 2) { bad("門・鳥居", "門 " + name + " の world が算出物に無い"); continue; }
             Vector2 want = new Vector2(wp[0], wp[1]);
@@ -237,7 +257,23 @@ public static class EdoSannoSashizuCheck
             if (dd > POS_TOL_M)
                 bad("門・鳥居", "門 " + name + " が " + dd.ToString("F2") + "m ずれている(指図 " +
                     V(want) + " / 実装 " + V(new Vector2(c.x, c.z)) + ")");
+            if (yawObj != null)
+            {
+                yawCmp++;
+                float wantYaw = Norm360(Cv(yawObj));
+                float gotYaw = Norm360(t.eulerAngles.y);
+                float dYaw = Mathf.Abs(Mathf.DeltaAngle(wantYaw, gotYaw));
+                if (dYaw > YAW_TOL_DEG)
+                    bad("門・鳥居", "門 " + name + " の向きが " + dYaw.ToString("F1") + "° 違う(指図 " +
+                        wantYaw.ToString("F1") + "°〔" + (Str(gt, "yawFrom") ?? "出どころが算出物に無い") +
+                        "〕/ 実装 " + gotYaw.ToString("F1") + "°)" +
+                        " — ⚠ 測ったのは**駒の Y 回転**。指図の yaw は部材の正面が +X である前提なので、" +
+                        "代用の部材で建っているならこの差は『部材の軸が宣言されていない』ことの表れ");
+            }
         }
+        head.AppendLine("  門の向き: 算出物の門 " + yawSeen + " 件 / 指図が yaw を出す " + (yawSeen - yawNone) +
+                        " 件 / 実装と突き合わせた " + yawCmp + " 件(許容 " + YAW_TOL_DEG.ToString("F1") + "°)");
+        head.AppendLine("    ⛔ 突き合わせた件数が門の数より少ないなら、差し引きは**合格ではなく未測定**(規則19)。");
         foreach (var o in L(doc, "torii"))
         {
             var tr = o as Dictionary<string, object>; if (tr == null) continue;
@@ -682,6 +718,8 @@ public static class EdoSannoSashizuCheck
         return p[p.Count - 1];
     }
     static string V(Vector2 v) { return "(" + v.x.ToString("F1") + ", " + v.y.ToString("F1") + ")"; }
+    /// <summary>角を [0,360) へ畳む(⛔ 差の判定は `Mathf.DeltaAngle` — 359° と 1° を 358° 差にしない)。</summary>
+    static float Norm360(float deg) { float d = deg % 360f; return d < 0f ? d + 360f : d; }
     static string FirstLine(string s)
     { if (string.IsNullOrEmpty(s)) return ""; int i = s.IndexOf('\n'); return (i < 0 ? s : s.Substring(0, i)).Trim(); }
 

@@ -1479,6 +1479,56 @@ public static partial class EdoMatsudairaDewaBuilder
     static float YawAlongU() { var f = Grid; return Mathf.Atan2(-f.vx, -f.vz) * Mathf.Rad2Deg; }
     static float YawAlongV() { var f = Grid; return Mathf.Atan2(-f.vz, f.vx) * Mathf.Rad2Deg; }
 
+    /// <summary>棟 <paramref name="m"/> の四辺 {u0, u1, v0, v1} の**軒を出すか**(1 = 出す / 0 = 落とす)。
+    /// 指図は持たない**従属値**で、棟の外形どうしを総当たりで突き合わせて出す
+    /// (⛔ 人が数えて書き写さない — `EdoAssets.Goten.RoofBanded` の <c>noki</c> の注)。
+    ///
+    /// <para>判定は生成器 `Tools/Sashizu/build_matsudaira_dewa_sashizu.py` の `_roof_noki` /
+    /// 部材方 `Tools/Blender/build_matsudaira_dewa_roofs.py` の `_touching()` と**同一** —
+    /// 外形の線を共有し(例: <c>m.u1 == n.u0</c>)、**直交方向の重なりが正**のとき「接している」。</para>
+    ///
+    /// <para>⚠ 隣が `roof.bands` を**持たない**棟(御湯殿・長局北・奥台所・厩=長屋型)のときは
+    /// 落とさない — 相手の屋根の形が分からないまま軒を落とすと**壁の上が素通し**になる。</para>
+    ///
+    /// <para>⚠ 突き合わせは**名**で行う(同じ dict の参照で比べると、指図の読み直しを挟んだ
+    /// ときに静かに全辺「接していない」へ倒れる)。</para></summary>
+    static int[] RoofNoki(Dictionary<string, object> m, List<object> munes)
+    {
+        string mn = (string)m["name"];
+        float mu0 = F(m["u0"]), mu1 = F(m["u1"]), mv0 = F(m["v0"]), mv1 = F(m["v1"]);
+        var tou = new Dictionary<string, object>[4];          // u0, u1, v0, v1
+        foreach (var o in munes)
+        {
+            var n = O(o);
+            if (n == null || (string)n["name"] == mn) continue;
+            float nu0 = F(n["u0"]), nu1 = F(n["u1"]), nv0 = F(n["v0"]), nv1 = F(n["v1"]);
+            float ovV = Mathf.Min(mv1, nv1) - Mathf.Max(mv0, nv0);
+            float ovU = Mathf.Min(mu1, nu1) - Mathf.Max(mu0, nu0);
+            if (ovV > 0f)
+            {
+                if (Mathf.Abs(mu0 - nu1) < 1e-4f) tou[0] = n;
+                if (Mathf.Abs(mu1 - nu0) < 1e-4f) tou[1] = n;
+            }
+            if (ovU > 0f)
+            {
+                if (Mathf.Abs(mv0 - nv1) < 1e-4f) tou[2] = n;
+                if (Mathf.Abs(mv1 - nv0) < 1e-4f) tou[3] = n;
+            }
+        }
+        var r = new int[4];
+        for (int i = 0; i < 4; i++)
+        {
+            bool drop = false;
+            if (tou[i] != null && Has(tou[i], "roof"))
+            {
+                var rf = O(tou[i]["roof"]);
+                drop = rf != null && Has(rf, "bands") && A(rf["bands"]) != null && A(rf["bands"]).Count > 0;
+            }
+            r[i] = drop ? 0 : 1;
+        }
+        return r;
+    }
+
     [MenuItem("Edo/松平出羽守上屋敷/4 御殿複合")]
     public static void Stage4Menu() { Debug.Log("[Matsudaira] " + Stage4_Goten()); }
     public static string Stage4_Goten()
@@ -1547,7 +1597,13 @@ public static partial class EdoMatsudairaDewaBuilder
                         irikawa = new int[] { Mathf.RoundToInt(F(iu[0])), Mathf.RoundToInt(F(iu[1])),
                                               Mathf.RoundToInt(F(iv[0])), Mathf.RoundToInt(F(iv[1])) };
                     }
-                    string banded = EdoAssets.Goten.RoofBanded(bands, spanKen, alongV, irikawa);
+                    // ⭐⭐ **軒落とし(`noki`)も渡す**(2026-09-16 是正)。
+                    //   ⛔ 省くと**四周とも軒を出す部材**を引き当てる — それが表向4棟の
+                    //     隣どうしの軒が 1.80m 食い込み、寄りのレンダで「軒線が X 字に交差 /
+                    //     軒先が宙に浮く」姿になっていた原因(`EdoAssets.Goten.RoofBanded` の
+                    //     noki の注)。⛔ 0/1 を人が数えて書き写さない — 棟の外形の総当たり。
+                    int[] noki = RoofNoki(m, A(D["munes"]));
+                    string banded = EdoAssets.Goten.RoofBanded(bands, spanKen, alongV, irikawa, noki);
                     if (AssetDatabase.LoadAssetAtPath<GameObject>(banded) != null)
                     {
                         roof = banded; roofAtFloor = true; roofYaw = 0f;
@@ -1560,6 +1616,7 @@ public static partial class EdoMatsudairaDewaBuilder
                                       " " + spanKen + (alongV ? " --along v" : " --along u") +
                                       (irikawa == null ? "" : " --irikawa " + irikawa[0] + "," + irikawa[1]
                                        + "," + irikawa[2] + "," + irikawa[3]) +
+                                      " --noki-edges " + noki[0] + "," + noki[1] + "," + noki[2] + "," + noki[3] +
                                       ")。現状の入母屋のまま残す");
                         roof = EdoAssets.Goten.RoofIrimoya_(kw, kd);
                     }
@@ -2307,15 +2364,89 @@ public static partial class EdoMatsudairaDewaBuilder
             float u0 = F(sv["u0"]), v0 = F(sv["v0"]), u1 = F(sv["u1"]), v1 = F(sv["v1"]);
             float ku = u1 - u0, kv = v1 - v0;
             string path; float yaw;
-            if (nm.StartsWith("Kura"))      { path = EdoAssets.Own.Matsudaira.Dozo;   yaw = yawV; }
-            else if (nm == "Sakuji")        { path = EdoAssets.Own.Matsudaira.Koya;   yaw = yawU; }
+            // ⭐ **指図の `api` が最優先**(⛔ ビルダーで部材を決め打ちしない。点景 6d と同じ作法)。
+            //   2026-09-16: 稲荷社の部材が朱の鳥居つき `Matsudaira.Inari` 決め打ちのままで、
+            //   指図が名指しする祠だけの `Matsudaira.InariHokora` を読んでいなかった。
+            string apiRaw = Has(sv, "api") ? (string)sv["api"] : null;
+            string apiPath = apiRaw == null ? null : ResolveApi(apiRaw);
+            if (apiRaw != null && apiPath == null)
+            {
+                sb.AppendLine("⛔ 附属屋 " + nm + ": 指図の api が解けない " + apiRaw +
+                              " — `EdoAssets` への登録(⇒ edo-buzai/edo-zaiko)か指図方へ差し戻し");
+                continue;
+            }
+            if (apiPath != null)            { path = apiPath;                        yaw = yawU; }
+            else if (nm.StartsWith("Kura")) { path = EdoAssets.Own.Matsudaira.Dozo;  yaw = yawV; }
+            else if (nm == "Sakuji")        { path = EdoAssets.Own.Matsudaira.Koya;  yaw = yawU; }
             else if (nm == "Chatei")        { path = EdoAssets.Own.Matsudaira.Sukiya; yaw = yawU; }
-            else if (nm == "Inari")         { path = EdoAssets.Own.Matsudaira.Inari;  yaw = yawU; }
             else { sb.AppendLine("⚠ 附属屋 " + nm + ": 割り当てる部材が決まっていない"); continue; }
+
+            // ⭐ `facing` = **正面(表)の面の外向きの法線**(⛔ 進む向きではない)。
+            //   部材の正面(`buhin.front`)をその向きへ振る。⛔ `yawU` 固定にしない。
+            Vector2 fdir = Vector2.zero; bool hasFacing = false;
+            if (Has(sv, "facing"))
+            {
+                if (!TryGridDir((string)sv["facing"], out fdir))
+                {
+                    sb.AppendLine("⛔ 附属屋 " + nm + ": facing=" + (string)sv["facing"] +
+                                  " が読めない(+u/-u/+v/-v のいずれか)— 指図方へ差し戻し");
+                    continue;
+                }
+                var bh = Has(sv, "buhin") ? O(sv["buhin"]) : null;
+                string front = (bh != null && Has(bh, "front")) ? (string)bh["front"] : null;
+                if (front != "+Z")
+                {
+                    sb.AppendLine("⛔ 附属屋 " + nm + ": 部材の正面 buhin.front=" + (front ?? "(指図に無い)") +
+                                  " は未対応(実装はローカル +Z だけ)— 指図方・部材方へ差し戻し");
+                    continue;
+                }
+                hasFacing = true;
+                yaw = Mathf.Atan2(fdir.x, fdir.y) * Mathf.Rad2Deg;      // ローカル +Z を facing へ
+            }
+
             Vector2 c = f.W((u0 + u1) * 0.5f, (v0 + v1) * 0.5f);
             var go = EdoNishiTameikeBuilder.Place(path, new Vector3(c.x, DesignY(c), c.y),
                 yaw, Vector3.one, svGrp, nm);
             if (go == null) { sb.AppendLine("⚠ 附属屋 " + nm + ": 部材が読めない " + path); continue; }
+
+            // ---- 面で納める(`seat`)。⛔ 中心で合わせない(CLAUDE.md 規則5)
+            //   指図 `service[].seat`: 社の**背面**(ローカル `buhin.front` の逆の端)を
+            //   矩形の `facing` の逆側の面から `gap` だけ**離して**据える。
+            //   ⭐ 背面のローカル Z は**据えた駒の実メッシュから測る**(⛔ 指図の `buhin.zLocal` を
+            //     写して使わない — 部材が焼き直されたときに黙ってズレる)。宣言との差は報告に出す。
+            if (hasFacing && Has(sv, "seat"))
+            {
+                var seat = O(sv["seat"]);
+                if (!Has(seat, "gap"))
+                    sb.AppendLine("⛔ 附属屋 " + nm + ": seat.gap が無い — 指図方へ差し戻し(⛔ 離れを発明しない)");
+                else
+                {
+                    float gap = F(seat["gap"]);
+                    float zmn, zmx; PartLocalZ(go, out zmn, out zmx);
+                    Vector2 back = -fdir;                                  // 背面が向く側
+                    Vector2 faceP = RectFaceCenter(u0, v0, u1, v1, back);  // 矩形の背面側の面の中央
+                    Vector2 piv = faceP + back * (-gap + zmn);
+                    go.transform.position = new Vector3(piv.x, DesignY(piv), piv.y);
+                    // 実測の検算(⛔ 自分で合格と言わない — 数字だけ出す)
+                    float gotGap = Vector2.Dot(faceP - (piv + back * (-zmn)), back);
+                    var bh2 = O(sv["buhin"]);
+                    string decl = "";
+                    if (Has(bh2, "zLocal"))
+                    {
+                        var zl = A(bh2["zLocal"]);
+                        decl = " / 指図 buhin.zLocal " + F(zl[0]).ToString("F2") + "‥" + F(zl[1]).ToString("F2")
+                             + "(差 " + (zmn - F(zl[0])).ToString("F3") + " / " + (zmx - F(zl[1])).ToString("F3") + ")";
+                    }
+                    float tolLo = -0.05f, tolHi = 0.05f;
+                    if (Has(seat, "tol")) { var tl = A(seat["tol"]); tolLo = F(tl[0]); tolHi = F(tl[1]); }
+                    bool ok = (gotGap - gap) >= tolLo - 1e-4f && (gotGap - gap) <= tolHi + 1e-4f;
+                    sb.AppendLine("附属屋 " + nm + " の据え付け: 正面 " + (string)sv["facing"]
+                        + "(yaw " + yaw.ToString("F1") + "°)/ 背面〜矩形の面 実測 " + gotGap.ToString("F3")
+                        + "m(指図 gap " + gap.ToString("F2") + "m・許容 " + tolLo.ToString("F2")
+                        + "‥" + tolHi.ToString("F2") + ")" + (ok ? " ⭕" : " ⚠")
+                        + " / 部材のローカル Z 実測 " + zmn.ToString("F2") + "‥" + zmx.ToString("F2") + decl);
+                }
+            }
             // 指図の間数と部材の実寸が食い違っていないか(黙って伸ばさず、数字で出す)。
             // ⚠ world の AABB で測らない — 回転間グリッドは斜めなので、13.8×8.9 の箱が
             //   16.0×13.1 に見えて誤検知する(2026-08-25)。**部材そのものの寸法**で測る。
@@ -2350,6 +2481,43 @@ public static partial class EdoMatsudairaDewaBuilder
             case "-v": dir = -new Vector2(f.vx, f.vz).normalized; return true;
         }
         dir = Vector2.zero; return false;
+    }
+
+    /// <summary>部材のローカル Z の**符号つきの範囲**[m](回転・位置を除く)。
+    /// <see cref="PartSize"/> は差し渡しだけを返すので、正面/背面のどちらの端かが分からない。
+    /// ⚠ 先頭の MeshFilter だけ見ない(サブメッシュが 30 以上に分かれている部材がある)。</summary>
+    static void PartLocalZ(GameObject go, out float zMin, out float zMax)
+    {
+        var w2l = go.transform.worldToLocalMatrix;
+        zMin = float.MaxValue; zMax = float.MinValue;
+        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var b = mf.sharedMesh.bounds;
+            var m = w2l * mf.transform.localToWorldMatrix;
+            for (int i = 0; i < 8; i++)
+            {
+                var q = m.MultiplyPoint3x4(new Vector3(((i & 1) == 0 ? b.min : b.max).x,
+                                                       ((i & 2) == 0 ? b.min : b.max).y,
+                                                       ((i & 4) == 0 ? b.min : b.max).z));
+                if (q.z < zMin) zMin = q.z;
+                if (q.z > zMax) zMax = q.z;
+            }
+        }
+        if (zMin > zMax) { zMin = 0f; zMax = 0f; }
+    }
+
+    /// <summary>グリッドの矩形(間)の、<paramref name="dir"/> の側の**面の中央**の world 点。
+    /// `dir` はグリッドの軸に沿った単位ベクトル(<see cref="TryGridDir"/> の出力)。
+    /// ⛔ 矩形の中心ではない — 面で納める取り合い(規則5)のための相手の面。</summary>
+    static Vector2 RectFaceCenter(float u0, float v0, float u1, float v1, Vector2 dir)
+    {
+        var f = Grid;
+        Vector2 uu = new Vector2(f.ux, f.uz).normalized, vv = new Vector2(f.vx, f.vz).normalized;
+        float du = Vector2.Dot(dir, uu), dv = Vector2.Dot(dir, vv);
+        if (Mathf.Abs(du) >= Mathf.Abs(dv))
+            return f.W(du > 0f ? Mathf.Max(u0, u1) : Mathf.Min(u0, u1), (v0 + v1) * 0.5f);
+        return f.W((u0 + u1) * 0.5f, dv > 0f ? Mathf.Max(v0, v1) : Mathf.Min(v0, v1));
     }
 
     /// <summary>水平面の OBB どうしの食い込み量[m](分離軸法)。0 なら離れている。</summary>
@@ -2545,7 +2713,13 @@ public static partial class EdoMatsudairaDewaBuilder
         var ne = O(nr["neishi"]);
         var kinds = new List<string>();
         foreach (var o in A(ne["applyKind"])) kinds.Add(o as string);
-        var sh = A(ne["show"]);
+        // ⭐⭐ **見え高は指図が literal で持たない**(2026-09-10 に `show` を廃した)。
+        //   `_show`: 見え高 = **その石の地盤線の差し渡し × `showMul`** — 丸石は上ほど急に細るので、
+        //   比を一定にして「大きい石ほど大きく見える」ようにしてある。丈は部材が持つ(`bury` 0.5)。
+        //   ⛔ 旧実装は `ne["show"]` を読んでいて KeyNotFoundException で Stage6 が落ちていた。
+        if (!Has(ne, "showMul"))
+            return "⚠ 指図 nakajikiriRule.neishi.showMul が無い(見え高の出典)— 指図方へ差し戻し";
+        float showMul = F(ne["showMul"]);
         float bay0 = Has(ne, "bay") ? F(ne["bay"]) : 1f;
         float stepMax = Has(ne, "seatStepMax") ? F(ne["seatStepMax"]) : 0.15f;
         float devMax = Has(ne, "seatDevMax") ? F(ne["seatDevMax"]) : 0.08f;
@@ -2775,8 +2949,13 @@ public static partial class EdoMatsudairaDewaBuilder
             meas.Append((i > 0 ? " / " : "") + LONG[i].ToString("0.##") + "→"
                 + gspan[i].ToString("F3") + (bbox[i] > 0.01f
                     ? "(外接比 " + (gspan[i] / bbox[i]).ToString("P0") + ")" : ""));
+        // 見え高の帯は**従属値** = `showMul` × 据えた個体の地盤線の差し渡しの下限〜上限
+        float gsLo = float.MaxValue, gsHi = 0f;
+        for (int i = 0; i < LONG.Length; i++)
+            if (gspan[i] > 0.05f) { gsLo = Mathf.Min(gsLo, gspan[i]); gsHi = Mathf.Max(gsHi, gspan[i]); }
         sb.AppendLine("根石 合計 " + total + " 石 / " + nRun + " run・延長 " + totalLen.ToString("F1")
-            + "m(指図の見え高 " + F(sh[0]).ToString("F2") + "〜" + F(sh[1]).ToString("F2")
+            + "m(見え高 = 地盤線の差し渡し × `showMul` " + showMul.ToString("F2") + " ⇒ 実測で "
+            + (gsLo * showMul).ToString("F2") + "〜" + (gsHi * showMul).ToString("F2")
             + "m・埋まり比 " + F(ne["bury"]).ToString("F2") + " ⇒ 丈は部材が持つ)");
         sb.AppendLine("根石の芯々(**地盤線の差し渡しを実測**。⛔ 外接では詰めない): " + meas);
         if (nNoSeat > 0)
@@ -3015,6 +3194,16 @@ public static partial class EdoMatsudairaDewaBuilder
     {
         if (string.IsNullOrEmpty(api)) return null;
         api = api.Trim(); if (api.StartsWith("EdoAssets.")) api = api.Substring("EdoAssets.".Length);   // 指図の石は `EdoAssets.Own.Tateishi(...)` と書かれる(2026-09-06 解けずに転石へ落ちていた)
+        // ⭐ **引数を取らない定数の `api`**(関数でなく const フィールド)。下の正規表現は
+        //   `Own.Matsudaira.InariHokora` のような**3節**を通さないので、ここで先に引く。
+        //   ⛔ パスの literal を書かない(規則12)— `EdoAssets` の定数をそのまま返す。
+        //   2026-09-16: 稲荷の祠と鳥居が解けず、6d で「部材なし」に落ちていた。
+        switch (api)
+        {
+            case "Own.Torii":                    return EdoAssets.Own.Torii;
+            case "Own.Matsudaira.InariHokora":   return EdoAssets.Own.Matsudaira.InariHokora;
+            case "Own.Matsudaira.Inari":         return EdoAssets.Own.Matsudaira.Inari;
+        }
         var m = System.Text.RegularExpressions.Regex.Match(api, @"^([A-Za-z]+)\.([A-Za-z0-9_]+)(?:\((.*)\))?$");
         if (!m.Success) return null;
         string cls = m.Groups[1].Value, fn = m.Groups[2].Value, arg = m.Groups[3].Value;

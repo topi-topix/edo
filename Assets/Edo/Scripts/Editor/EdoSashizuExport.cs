@@ -449,9 +449,25 @@ public static class EdoSashizuExport
                 foreach (var o in Get2(doc, "service"))
                 {
                     var s2 = o as Dictionary<string, object>; if (s2 == null) continue;
+                    // ⭐ **`seat` を持つ附属屋は矩形の芯で測らない**(CLAUDE.md 規則5「部材どうしを
+                    //   中心で合わせない」)。指図が面納めを書いている物を芯と比べると、正しく面で
+                    //   据えた現物が「ずれている」と出て、芯へ動かす誤った是正を誘う。
+                    //   ⇒ 期待値は `seat`(`gap`)と `buhin.zLocal`(背面までの出)からの**従属値**。
+                    //   `seat` の無い附属屋はこれまでどおり矩形の芯。
+                    float su = (F(s2, "u0") + F(s2, "u1")) * 0.5f, sv = (F(s2, "v0") + F(s2, "v1")) * 0.5f;
+                    var seat = D(s2, "seat"); var buhin = D(s2, "buhin");
+                    var zl = buhin == null ? null : A(buhin, "zLocal");
+                    if (seat != null && zl != null && zl.Length == 2 && ken > 0f)
+                    {
+                        float back = (F(seat, "gap") + Mathf.Abs(zl[0])) / ken;  // 矩形の面から芯まで[間]
+                        string fc = Str(s2, "facing");
+                        if (fc == "-u") su = F(s2, "u1") - back;
+                        else if (fc == "+u") su = F(s2, "u0") + back;
+                        else if (fc == "-v") sv = F(s2, "v1") - back;
+                        else if (fc == "+v") sv = F(s2, "v0") + back;
+                    }
                     chk(fz == null ? null : fz.Find("Service"), Str(s2, "name"),
-                        W((F(s2, "u0") + F(s2, "u1")) * 0.5f, (F(s2, "v0") + F(s2, "v1")) * 0.5f),
-                        "附属屋", secOf("主郭", Str(s2, "name")));
+                        W(su, sv), "附属屋", secOf("主郭", Str(s2, "name")));
                 }
             }
         }

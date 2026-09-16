@@ -532,8 +532,33 @@ public static partial class EdoMatsudairaDewaBuilder
             else if (HasKey(t, "u") && HasKey(t, "v"))
             {
                 Vector2 w = f.W(F(t["u"]), F(t["v"]));
-                var go = EdoNishiTameikeBuilder.Place(api, new Vector3(w.x, TerrainY(w.x, w.y), w.y), (float)rnd.NextDouble() * 360f, Vector3.one, grp, name);
-                if (go != null) placed++;
+                // ⭐ **`facing` を持つ点景は向きが決まっている**(2026-09-16 是正)。
+                //   `facing` = 正面(表)の面の**外向きの法線**(⛔ 参道を進む向きではない —
+                //   鳥居の正面は社に背を向け、参拝者が来る側を向く)。
+                //   ⛔ 乱数の yaw に落とさない — 鳥居の笠木が参道を斜めに跨いでいた
+                //   (`const.toriiRule.faceAxis` = ±Z なのでローカル +Z を facing へ振る)。
+                float pyaw;
+                if (HasKey(t, "facing"))
+                {
+                    Vector2 fd;
+                    if (!TryGridDir(StrOf(t, "facing"), out fd))
+                    {
+                        sb.AppendLine("⛔ 点景 " + name + ": facing=" + StrOf(t, "facing") +
+                                      " が読めない(+u/-u/+v/-v)— 据えず指図方へ差し戻し");
+                        continue;
+                    }
+                    pyaw = Mathf.Atan2(fd.x, fd.y) * Mathf.Rad2Deg;
+                }
+                else pyaw = (float)rnd.NextDouble() * 360f;      // 石・灯籠は向きを持たない
+                var go = EdoNishiTameikeBuilder.Place(api, new Vector3(w.x, TerrainY(w.x, w.y), w.y), pyaw, Vector3.one, grp, name);
+                if (go != null)
+                {
+                    placed++;
+                    if (HasKey(t, "facing"))
+                        sb.AppendLine("点景 " + name + " を据えた: 正面 " + StrOf(t, "facing")
+                            + "(yaw " + pyaw.ToString("F1") + "°)/ 芯 (u " + F(t["u"]).ToString("0.##")
+                            + ", v " + F(t["v"]).ToString("0.##") + ")");
+                }
             }
         }
         sb.AppendLine("点景 " + placed + " 点を据えた");

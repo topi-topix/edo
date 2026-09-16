@@ -4365,7 +4365,7 @@ def _roof_checks(d):
     return set(roof_band_span_check(d) + roof_eave_order_check(d) + roof_annex_eave_check(d)
                + roof_moya_check(d) + roof_kaku_check(d) + roof_along_check(d)
                + roof_stock_check(d) + section_roof_disclaimer_check(d)
-               + roof_note_check(d))
+               + roof_note_check(d) + roka_clear_check(d))
 
 
 def roof_sensitivity(d):
@@ -4425,6 +4425,13 @@ def roof_sensitivity(d):
                      "=u外形そのまま。共通条件は `_roofCommon` 参照。"))
     run("⑫ 黒書院の `_roof` を消す",
         lambda m: _m(m, "Kuroshoin").pop("_roof"))
+    # ⭐ **渡廊下の軒下潜り**(2026-09-16)— 床下げ(落廊下)を戻すと大棟が主屋の軒へ食い込む
+    run("⑬ 渡廊下の床下げ(`roka.floorDrop`)を 0 に戻す(屋根が主屋の軒へ食い込む)",
+        lambda m: m["roka"].__setitem__("floorDrop", 0.0))
+    run("⑬′ 渡廊下の床を面より下まで下げる(濡縁でなく土間になる)",
+        lambda m: m["roka"].__setitem__("floorDrop", m["const"]["gotenFloor"] + 0.5))
+    run("⑬″ `roka` の欄そのものを落とす(部材キットの定数任せに戻る)",
+        lambda m: m.pop("roka"))
     return len(base), probes
 
 
@@ -12183,6 +12190,11 @@ DESIGN_WATCH = [
     ("routes[R_Inari].toriiFoot.soilBand", "根巻石と玉砂利の間の土の見切り(庭方)", True),
     ("routes[R_Inari].toriiFoot.fernClr", "下草を根巻石の外面から離す距離(庭方)", True),
     ("routes[R_Inari].toriiFoot.gravelEdge", "玉砂利の縁の見切り(庭方)", False),
+    # ⭐ **2026-09-16**(規則19)— 渡廊下の軒下潜り(普請奉行の裁定=案A)
+    ("roka.floorDrop", "渡廊下の床下げ(落廊下・濡縁面に継ぐ)", True),
+    ("roka.eaveAbove", "渡廊下の床からの軒先(部材キットの実測)", True),
+    ("roka.ridgeRise", "渡廊下の軒先から大棟の天端まで(部材の実測)", True),
+    ("roka.clear", "渡廊下の大棟と主屋の軒先の下端の離れの下限", True),
 ]
 
 
@@ -12200,7 +12212,7 @@ def _dv_checks(e):
         | set(group_mix_check(e)) | set(bansho_parcel_out_check(e)) \
         | set(valley_eave_check(e)) | set(neishi_edge_overhang_check(e)) \
         | set(slope_planting_check(e, dem)) | set(torii_route_check(e)) \
-        | set(planting_box_service_check(e))
+        | set(planting_box_service_check(e)) | set(roka_clear_check(e))
 
 
 def _dv_bogus(v, way):
@@ -17547,6 +17559,150 @@ def roof_annex_eave_check(d):
     return bad
 
 
+# ---------------------------------------------------------------- 渡廊下の軒下潜り(落廊下)
+def _roka_geom(d):
+    """渡廊下の高さの**従属値**。⛔ ここで数値を作らない — すべて `roka` と `const` から導く。
+
+    → (床下げ, 床上の軒先, 床上の大棟, 御殿の床基準の大棟, 取り付く棟の軒先の下端,
+       実の離れ, 縛りが要求する床下げ)[m]。`roka` の欄が欠けていれば None。
+    ⛔ 軒先の下端を別に持たない — `_nokisaki_eave`(`const.gotenEave` から入側1間ぶん下がる)。"""
+    rk = d.get("roka") or {}
+    if any(k not in rk for k in ("floorDrop", "eaveAbove", "ridgeRise", "clear")):
+        return None
+    drop = float(rk["floorDrop"])
+    eave = float(rk["eaveAbove"])
+    above = eave + float(rk["ridgeRise"])          # 廊下の床から大棟の天端まで
+    top = above - drop                             # 御殿の床を基準に直した大棟の天端
+    tip = _nokisaki_eave(d)                        # 取り付く棟の軒先の下端(御殿の床上)
+    return drop, eave, above, top, tip, tip - top, above + float(rk["clear"]) - tip
+
+
+def _roka_rows(d):
+    """渡廊下ごとに (link, 取り付く棟, 判定できるか)。⛔ 人が数えて書き写さない —
+    棟の外形に接する/重なるものを毎回総当たりで拾う。
+    ⚠ 判定できるのは**帯割りを持つ御殿の棟**に取り付くものだけ(`_pending.rokaNagayaGata`)—
+      長屋型の棟は軒高が地盤基準なので、御殿の床基準の高さと直に引き算できない。"""
+    out = []
+    for l in d.get("links", []):
+        ms = [m for m in d["munes"]
+              if m["u0"] < l["u1"] + 0.02 and m["u1"] > l["u0"] - 0.02
+              and m["v0"] < l["v1"] + 0.02 and m["v1"] > l["v0"] - 0.02]
+        out.append((l, ms, any(m.get("roof") for m in ms)))
+    return out
+
+
+def roka_clear_check(d):
+    """**渡廊下の大棟の天端が、取り付く棟の軒先の下端を潜るか**(2026-09-16・普請奉行の裁定=案A)。
+
+    ⭕ 近世御殿の型として**渡廊下は主屋の軒下を潜る**【U 当方の推論】。逃げは**床下げ**
+      (落廊下)であって、⛔ 屋根を潰すことでも ⛔ 御殿の軒を上げることでもない。
+    ⭕ 見るのは二つ。① 大棟の天端(御殿の床基準)≤ 軒先の下端 − `roka.clear`
+      ② `roka.floorDrop` ≤ `const.gotenFloor`(床を下げすぎると濡縁でなく土間になる)。
+    ⛔ 数値をここに書かない — `roka` と `const` が正典(`_roka_geom` が導く)。
+    ⚠ 長屋型の棟にしか取り付かない渡廊下は**判定の外**。⛔ それを『通った』と数えない —
+      表に保留として出す(`_pending.rokaNagayaGata`)。"""
+    g = _roka_geom(d)
+    if g is None:
+        return ["`roka`(渡廊下の高さ)の欄が欠けている — 渡廊下が主屋の軒を潜るかを"
+                "判定できない(⛔ 部材キットの定数任せに戻さない)"]
+    drop, eave, above, top, tip, gap, need = g
+    rk = d["roka"]
+    clr = float(rk["clear"])
+    rows = [r for r in _roka_rows(d) if r[2]]
+    bad = []
+    if not rows:
+        bad.append("軒先の高さが決まった棟に取り付く渡廊下が1本も無い — "
+                   "縛りが**何も守っていない**(⛔ 0件を合格と読まない)")
+    if gap < clr - 1e-9:
+        bad.append("渡廊下の大棟が取り付く棟の軒へ食い込む: 大棟の天端 %.3fm / "
+                   "軒先の下端 %.3fm(離れ %+.3fm・下限 %.2fm)。⭕ 屋根を潰さず"
+                   "**床を下げる** — 要る `roka.floorDrop` は %.3fm(いまは %.3fm)。"
+                   "対象 %d 本: %s"
+                   % (top, tip, gap, clr, need, drop, len(rows),
+                      "・".join(r[0]["name"] for r in rows)))
+    gf = d["const"].get("gotenFloor")
+    if gf is not None and drop > float(gf) + 1e-9:
+        bad.append("`roka.floorDrop` %.3fm が `const.gotenFloor` %.3fm を超える — "
+                   "廊下の床が面(地盤)より下になり、濡縁ではなく土間になる"
+                   % (drop, float(gf)))
+    return bad
+
+
+def roka_table(d):
+    """渡廊下ごとの潜りの余裕。⛔ 判定できない行を落とさない(保留として出す)。"""
+    g = _roka_geom(d)
+    if g is None:
+        return ""
+    drop, eave, above, top, tip, gap, need = g
+    clr = float(d["roka"]["clear"])
+    rows = []
+    for l, ms, ok in _roka_rows(d):
+        nm = "・".join(MUNE_JA.get(m["name"], m["name"]) for m in ms) or "—"
+        if ok:
+            rows.append("<tr><td><code>%s</code></td><td>%s</td><td>%s</td>"
+                        "<td>%.3f</td><td>%.3f</td><td>%+.3f</td><td>%s</td></tr>"
+                        % (l["name"], l["kind"], nm, top, tip, gap,
+                           "⭕ 潜る" if gap >= clr - 1e-9 else "⛔ 食い込む"))
+        else:
+            rows.append("<tr><td><code>%s</code></td><td>%s</td><td>%s</td>"
+                        "<td>%.3f</td><td class='note'>—</td><td class='note'>—</td>"
+                        "<td>⚠ 保留</td></tr>" % (l["name"], l["kind"], nm, top))
+    return ('<div class="tw"><table><thead><tr><th>廊下</th><th>種別</th><th>取り付く棟</th>'
+            "<th>大棟の天端(御殿の床上 m)</th><th>軒先の下端(同)</th><th>離れ</th>"
+            "<th>判定</th></tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>")
+
+
+def roka_section_svg(d):
+    """渡廊下の軒下潜り — 取り付く面での断面(廊下の桁行に直交して切る)。"""
+    g = _roka_geom(d)
+    if g is None:
+        return ""
+    drop, eave, above, top, tip, gap, need = g
+    C = d["const"]
+    gf = float(C.get("gotenFloor", 0.0))
+    W, H = 900.0, 330.0
+    mpx = 74.0                                      # px/m(垂直・水平とも実寸)
+    base = H - 46.0                                 # 面(地盤)の線
+    Y = lambda z: base - z * mpx
+    XM = 470.0                                      # 棟の壁の面(ここが取り合いの面)
+    s = _sv(W, H, "松平出羽守上屋敷 渡廊下の軒下潜り")
+    s.append(R(0, 0, W, H, fill="var(--paper2)"))
+    s.append(LN(20, base, W - 20, base, "var(--ink)", 1.0, op=0.55))
+    s.append(T(24, base + 14, "面(地盤)", "anS", "start", 9.0))
+    # ── 取り付く棟(右) ─────────────────────────────────────────────
+    s.append(R(XM, Y(gf + tip), W - 40 - XM, (gf + tip) * mpx,
+               fill="var(--paper)", stroke="var(--ink)", sw=0.9))
+    s.append(LN(XM - 26, Y(gf + tip), W - 40, Y(gf + tip), "var(--ink)", 2.0))
+    s.append(LN(XM - 26, Y(gf + tip), W - 40, Y(gf + tip + 1.6), "var(--ink)", 1.6))
+    s.append(T(W - 44, Y(gf + tip) - 8, "取り付く棟(帯割りの御殿)", "rmS", "end", 10.0))
+    s.append(T(W - 44, Y(gf + tip) + 16, "軒先の下端 %.3f(床上)" % tip, "anS", "end", 9.5))
+    s.append(LN(XM, Y(gf), W - 40, Y(gf), "var(--ink)", 0.9, dash="5 3", op=0.8))
+    s.append(T(W - 44, Y(gf) - 5, "御殿の床(畳面)", "anS", "end", 9.0))
+    # ── 渡廊下(左)— 床を下げ、低い切妻が軒下へ入る ─────────────────
+    rf = gf - drop                                   # 廊下の床(濡縁面)
+    x0 = 90.0
+    s.append(LN(x0, Y(rf), XM, Y(rf), "var(--ink)", 1.6))
+    s.append(T(x0 + 4, Y(rf) + 15, "渡廊下の床(濡縁面)= 御殿の床 − %.2f" % drop,
+               "anS", "start", 9.5))
+    s.append(R(x0, Y(rf + eave), XM - x0, eave * mpx,
+               fill="var(--paper)", stroke="var(--ink)", sw=0.7, op=0.9))
+    xc = (x0 + XM) / 2.0
+    s.append('<polygon points="%.1f,%.1f %.1f,%.1f %.1f,%.1f" '
+             'fill="var(--paper)" stroke="var(--ink)" stroke-width="1.4"/>'
+             % (x0 - 14, Y(rf + eave), xc, Y(rf + above), XM + 14, Y(rf + eave)))
+    s.append(LN(x0 - 30, Y(rf + above), XM + 60, Y(rf + above), "var(--shu)", 1.2, dash="6 4"))
+    s.append(T(xc, Y(rf + above) - 7, "渡廊下の大棟の天端 %.3f(御殿の床上)" % top,
+               "anS", "middle", 9.5, "var(--shu)"))
+    # ── 離れの寸法 ─────────────────────────────────────────────────
+    xd = XM + 44
+    s.append(LN(xd, Y(gf + top), xd, Y(gf + tip), "var(--shu)", 1.8))
+    s.append(T(xd + 6, (Y(gf + top) + Y(gf + tip)) / 2.0 + 3,
+               "離れ %.3f(下限 %.2f)" % (gap, float(d["roka"]["clear"])),
+               "anS", "start", 9.5, "var(--shu)"))
+    s.append("</svg>")
+    return "".join(s)
+
+
 def _roof_geom(d, m):
     """棟の屋根の平面。谷になる辺には軒を出さない。→ (ru0, ru1, rv0, rv1, a, h)"""
     E = d["const"]["nokiE"] / d["const"]["ken"]                 # 軒の出[間]
@@ -19070,13 +19226,20 @@ def main():
     rb7 = roof_stock_check(d)
     rb8 = section_roof_disclaimer_check(d)
     rb9 = roof_note_check(d)
+    rb10 = roka_clear_check(d)
     print("屋根の帯割り: 帯の上限超え %d 件 / 軒高の序列(厩<長屋類<御殿) %d 件 / "
           "断面の附属屋 誤軒高 %d 件" % (len(rb1), len(rb2), len(rb3)))
     print("屋根の格と向き: 帯の和と足形 %d 件 / 格の頂点が単独最高か %d 件 / "
           "大棟の向き(列ごと・直交) %d 件 / 部材の在庫 %d 件 / 断面の断り %d 件 / "
           "人手の注記と実データ %d 件"
           % (len(rb4), len(rb5), len(rb6), len(rb7), len(rb8), len(rb9)))
-    for b in rb1 + rb2 + rb3 + rb4 + rb5 + rb6 + rb7 + rb8 + rb9:
+    _rk = _roka_geom(d)
+    print("渡廊下の軒下潜り: 縛り %d 件%s"
+          % (len(rb10),
+             ("" if _rk is None else
+              " ／ 大棟の天端 %.3f ≤ 軒先の下端 %.3f − 離れの下限 %.2f(実の離れ %+.3f)"
+              % (_rk[3], _rk[4], float(d["roka"]["clear"]), _rk[5]))))
+    for b in rb1 + rb2 + rb3 + rb4 + rb5 + rb6 + rb7 + rb8 + rb9 + rb10:
         print("   ⚠", b)
     _rbase, _rprobe = roof_sensitivity(d)
     print("  感度試験(屋根・素の件数 %d ／ 判定は**素に無かった文言が出たか**):" % _rbase)
@@ -19106,6 +19269,7 @@ def main():
             ("屋根部材が在庫に在るか(無いなら新造依頼に挙がっているか)", rb7),
             ("断面の「屋根は概略」の断りが図の描き方と合っているか", rb8),
             ("人手の注記(`munes[]._roof`)が実データと同じことを言っているか", rb9),
+            ("渡廊下の軒下潜り(落廊下)", rb10),
             ("表門の割り付けが実測の開口・門柱間・長屋の妻面からの従属になっているか", gbad),
             ("上段の間に座敷飾が宣言されているか(典拠・確度とも)", zbad),
             ("庭の入れ子(親ゾーン)が宣言されているか", gnbad)]
@@ -19400,6 +19564,27 @@ def main():
              "勾配は中央から両端へ 1/100。屋根部材は<b>辺ごとに軒の出を落とせる版</b>が要る"
              "(現行の <code>build_goten_roof.py</code> は W'=W+2E の対称生成) — 部材表を参照。</p>")
     h.append("</div>")
+
+    # ------------------------------------------------------- 渡廊下の軒下潜り(落廊下)
+    _rkg = _roka_geom(d)
+    if _rkg:
+        plate(h, nx(), "渡廊下の軒下潜り",
+              "取り付く面の断面 ／ 高さは <code>roka</code> と <code>const</code> からの従属値")
+        fig(h, roka_section_svg(d),
+            legend='<span style="color:var(--shu)">▬ 渡廊下の大棟の天端と、主屋の軒先までの離れ</span>'
+                   '<span>┅ 御殿の床(畳面)</span>',
+            cap=inline(d["_roka"]).replace("\n", "<br>"))
+        h.append(roka_table(d))
+        h.append("<p class='cap'>⭕ <b>逃げは床下げだけ</b> — 軒先が動いたら "
+                 "<code>roka.floorDrop</code> をその分だけ深くする"
+                 "(⛔ 屋根を潰さない・⛔ 主屋の軒を上げない)。"
+                 "⚠ <b>保留</b>の行は長屋型の棟にしか取り付かない渡廊下で、"
+                 "軒高が<b>地盤基準</b>のため御殿の床基準の高さと引き算できない"
+                 "(<code>_pending.rokaNagayaGata</code>)。⛔ 保留を『通った』と数えない。<br>"
+                 "⛔ <b>この図も設計値からの作図</b>であって部材(FBX)の実メッシュではない — "
+                 "部材キットが自前の軒先の定数で屋根を据えている件は "
+                 "<code>_pending.gotenKitMuneEave</code>(実装への申し送り)。</p>")
+        h.append("</div>")
 
     for s in d["sections"]:
         plate(h, nx(), s["name"], "%s = %g ／ 垂直%.1f倍 ／ 切るもの: %s"

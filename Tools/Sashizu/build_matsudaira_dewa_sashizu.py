@@ -1574,6 +1574,8 @@ def plane_check(d):
     bad += cross_scatter_clearance_check(d, _dem_json())
     bad += group_box_check(d)
     bad += group_box_overlap_check(d)
+    # ⭐ **2026-09-16に新設して同じ巡で配線した**(規則19)— 層の `n` と `parts` の和
+    bad += layer_parts_count_check(d)
     bad += plant_height_check(d)
     bad += ume_spread_check(d)
     bad += v1_water_check(d, _dem_json())
@@ -8752,6 +8754,32 @@ def slope_realism_check(d, dem):
     return bad
 
 
+def layer_parts_count_check(d):
+    """**層の `n` と `parts` の本数の和・塊の `n` の和が揃っているか**(2026-09-16)。
+
+    ⛔ **規則19 の型そのもの(第3型=黙り)。**散布器は `layer_parts` が展開した部材の列を
+      使い切ったところで止まるので、`parts` の和が層の `n` に足りないと**足りないぶんの株が
+      黙って置かれない** — 指図の `n` は増えているのに実出力だけが増えず、
+      `group_box_check` には「箱に一点も入らない」としか出ない(原因が読めない)。
+    ⭕ 見るのは指図の中の数どうしの突き合わせだけ(⛔ 新しい数を作らない)。"""
+    bad = []
+    for pl in d.get("planting", []):
+        want = int(pl.get("n", 0))
+        got = sum(int(pt.get("n", 0)) for pt in pl.get("parts", []))
+        if got != want:
+            bad.append("植栽 %s/%s は層の `n` %d に対し `parts` の和が **%d** — "
+                       "差の %d 本は**黙って置かれない**(散布器は部材の列を使い切って止まる)。"
+                       "⛔ どの部材を何本足すかは本数の割り付け(⛔ 樹種を変えるのは庭方の意匠)"
+                       % (pl["zone"], pl["layer"], want, got, abs(want - got)))
+        gs = pl.get("groups") or []
+        gsum = sum(int(g.get("n", 0)) for g in gs)
+        if gs and gsum != want:
+            bad.append("植栽 %s/%s は層の `n` %d に対し塊の `n` の和が **%d** — "
+                       "⛔ 撒く先の宣言と本数が食い違う"
+                       % (pl["zone"], pl["layer"], want, gsum))
+    return bad
+
+
 def group_box_overlap_check(d):
     """**一つの箱に二層を重ねて指定していないか**(2026-09-04 庭方 回答N3)。
 
@@ -11734,11 +11762,43 @@ def _ref_point(d, val):
     raise SystemExit("⛔ ref『%s』が nakajikiri にも tenkei にも見つからない" % name)
 
 
+def _plant_box_edge(d, pl, spec):
+    """**植栽の箱の縁を『棟・附属屋からの退避』へ従属させる。**`_ref_point` と同じ作法。
+
+    ⛔ literal を書かない — 縁の値が dict なら
+      `{"clearOf": <service/munes の名>, "face": <"v0"|"v1"|"u0"|"u1">, "side": <"-v"|"+v"|"-u"|"+u">,
+        "margin": <散布の広がりの余裕[間]>, "kind": <退避の欄。既定 "service">}`
+      として、**その面から層の退避ぶん離れた合法域の縁**を返す。
+    ⭐ 退避は散布器 `hit()` と同じ順で解く — 層の上書き(`planting[].keepoutByLayer`)>
+      役の上書き(`plantRule.keepoutByRole[役]`)> 既定(`plantRule.keepout`)に
+      **max(層の `clr`, 樹冠の半径)** を足す(⛔ 二重計上しない=`crownRule.mode` と同じ考え)。
+    ⚠ 社・棟が動けば箱も動く。⛔ 箱の南縁を数で書くと、社を据え直した日に庭だけが取り残される。"""
+    nm = str(spec["clearOf"]).split(".")[-1]
+    rect = next((x for x in d.get("service", []) if x.get("name") == nm), None) \
+        or next((x for x in d.get("munes", []) if x.get("name") == nm), None)
+    if rect is None:
+        raise SystemExit("⛔ 植栽の箱の `clearOf`『%s』が service にも munes にも無い"
+                          % spec["clearOf"])
+    kind = spec.get("kind", "service")
+    base = _ko_value(d, (d["plantRule"].get("keepout") or {})[kind])
+    byrole = ((d["plantRule"].get("keepoutByRole") or {}).get(pl.get("role") or "", {}))
+    if kind in byrole:
+        base = _ko_value(d, byrole[kind])
+    ovr = pl.get("keepoutByLayer") or {}
+    if kind in ovr:
+        base = _ko_value(d, ovr[kind])
+    r = base + max(float(pl.get("clr", 1.0)), layer_crown_r(d, pl))
+    sign = -1.0 if str(spec.get("side", "-v")).startswith("-") else 1.0
+    return round(float(rect[spec["face"]]) + sign * (r + float(spec.get("margin", 0.0))), 4)
+
+
 def _resolve_refs(d):
     """**`{"ref":...}` の平面点を実座標へ解いて `d` を書き換える。**⛔ `d` を読む一番最初に
     一度だけ回す(以降のどの検査・どの図も、実装が読むのと同じ値を見る。`sync_shoreidx` と同じ考え方)。
     ⚠ 対象は `kaidans[].a/b/via[]` と `routes[].pts[]` — 木戸・露地口に取り付く段・道の**現に
-    従属値で書かれている点だけ**を解く(他の点は literal のまま)。"""
+    従属値で書かれている点だけ**を解く(他の点は literal のまま)。
+    ⭐ **植栽の塊の箱の縁**(`planting[].groups[].box[i]` が dict のとき)も同じ所で解く
+    (`_plant_box_edge`)— 社・棟からの退避で決まる縁を、指図に数で持たせないため。"""
     for k in d.get("kaidans", []):
         if isinstance(k.get("a"), dict):
             k["a"] = _ref_point(d, k["a"])
@@ -11749,6 +11809,12 @@ def _resolve_refs(d):
     for r in d.get("routes", []):
         if r.get("pts"):
             r["pts"] = [_ref_point(d, p) if isinstance(p, dict) else p for p in r["pts"]]
+    for pl in d.get("planting", []):
+        for gs in pl.get("groups") or []:
+            b = gs.get("box")
+            if not b:
+                continue
+            gs["box"] = [_plant_box_edge(d, pl, x) if isinstance(x, dict) else x for x in b]
 
 
 def kido_approach_check(d, tol=0.3, detect=3.0):

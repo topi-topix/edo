@@ -592,6 +592,157 @@ public static partial class EdoMatsudairaDewaBuilder
         return "滝見口: 開口に掛かる板塀の駒 " + off + " を非アクティブにした(⛔ 木戸そのものは部材なし・据えず)";
     }
 
+    // ------------------------------------------------------------------ 6f 参道の玉砂利(冪等)
+    /// <summary>参道 `routes[R_Inari]` に**玉砂利を敷く**(指図 `finish` = 玉砂利敷)。
+    /// ⛔ 値はすべて指図から引く — 幅 `w`[間] / 天端 `toriiFoot.gravelTop`[m](地盤と面一の帯・中央を採る) /
+    /// 鳥居の足元に土を残す前後の範囲(`const.toriiRule.nemakiD`/2 + `toriiFoot.soilBand` の**従属値**) /
+    /// 止め(`service.Inari.seat.gravelEnd` = **軒先の線(雨落ち)で止める**。据えた社の実メッシュから測る)。
+    /// <para>⛔ **地表のスプラットでは敷けない** — alphamap は 4.0 m/px、参道の幅は 0.80m で 1/5 画素。
+    /// ⇒ 折れ線から**帯のメッシュ**を起こし、地形に沿わせて `gravelTop` だけ浮かせる。</para>
+    /// <para>⚠ **敷いたのは `R_Inari` だけ。** 他の園路(`R_Shutei` 土の小径 / `R_Roji` 飛石 /
+    /// `R_OkuNiwa_Endan` 切石の延段 / `R_OkuNiwa2` 土・瓦の見切り / `R_Takimi` 乱れ段)は
+    /// `finish` を持つが**据える駒・材の名指しが無い** ⇒ 指図方・在庫方へ差し戻し(⛔ ここで発明しない)。</para></summary>
+    [MenuItem("Edo/松平出羽守上屋敷/6f 参道の玉砂利(稲荷)")]
+    public static void Stage6fMenu() { Debug.Log("[Matsudaira] " + Stage6f_Tamajari()); }
+    public static string Stage6f_Tamajari()
+    {
+        { var gate = EdoSashizuExport.ReviewGate("matsudaira_dewa"); if (gate != null) return gate; }
+        var sb = new System.Text.StringBuilder(); var f = Grid;
+
+        // ---- 指図を読む(⛔ ここは値を持たない)
+        Dictionary<string, object> rt = null;
+        foreach (var o in A(D["routes"])) { var r = O(o); if (StrOf(r, "name") == "R_Inari") rt = r; }
+        if (rt == null) return "⛔ 指図に routes[R_Inari] が無い — 指図方へ差し戻し";
+        if (!HasKey(rt, "w")) return "⛔ R_Inari に w(幅)が無い — ⛔ 幅を発明しない。指図方へ差し戻し";
+        if (!HasKey(rt, "toriiFoot")) return "⛔ R_Inari に toriiFoot が無い — 指図方へ差し戻し";
+        var tf = O(rt["toriiFoot"]);
+        var gt = A(tf["gravelTop"]);
+        float half = F(rt["w"]) * f.ken * 0.5f;                       // 参道の半幅[m]
+        float lift = (F(gt[0]) + F(gt[1])) * 0.5f;                    // 地盤からの天端[m](帯の中央)
+        var tr = O(O(D["const"])["toriiRule"]);
+        float soilAlong = F(tr["nemakiD"]) * 0.5f + F(tf["soilBand"]);  // 鳥居の芯から前後に土を残す[m](従属値)
+        var line = UVLine(rt["pts"]);
+        if (line.Count < 2) return "⛔ R_Inari の pts が足りない";
+
+        // ---- 鳥居の芯(指図の tenkei が正典。⛔ 座標をここへ写さない)
+        var torii = new List<Vector2>();
+        foreach (var o in A(D["tenkei"]))
+        {
+            var t = O(o);
+            if (!(StrOf(t, "kind") ?? "").Contains("鳥居")) continue;
+            if (HasKey(t, "route") && StrOf(t, "route") != "R_Inari") continue;
+            if (!HasKey(t, "u") || !HasKey(t, "v")) continue;
+            torii.Add(f.W(F(t["u"]), F(t["v"])));
+        }
+
+        // ---- 玉砂利の止め(`service.Inari.seat.gravelEnd`)。**据えた社の実メッシュの軒先**で測る
+        bool haveDrip = false; Vector2 drip = Vector2.zero, front = Vector2.zero;
+        {
+            var svc = Group("Fuzoku/Service"); var sha = svc.Find("Inari");
+            if (sha == null)
+                sb.AppendLine("⚠ 社 Inari が据わっていないので雨落ちの止めを測れない — Stage6 を先に流す");
+            else
+            {
+                float zmn, zmx; PartLocalZ(sha.gameObject, out zmn, out zmx);
+                Vector3 fw = sha.forward;                              // ローカル +Z = 社の正面
+                front = new Vector2(fw.x, fw.z).normalized;
+                drip = new Vector2(sha.position.x, sha.position.z) + front * zmx;
+                haveDrip = true;
+                sb.AppendLine("雨落ちの線: 社の正面の軒先(ローカル +Z の実測 " + zmx.ToString("F2") + "m)で止める");
+            }
+        }
+
+        // ---- 折れ線を刻んで帯を張る。頂点の高さは**地形をそのまま拾う**(規則9)
+        const float STEP = 0.25f;                                      // 刻み[m](曲がりの内側が割れない程度)
+        var segLen = new List<float>(); float total = 0f;
+        for (int i = 0; i + 1 < line.Count; i++)
+        { float L = Vector2.Distance(line[i], line[i + 1]); segLen.Add(L); total += L; }
+        // ⭐ 刻みの位置は**走り[m]**で決め、**土の見切りの境(鳥居の芯 ± soilAlong)と折れ点は
+        //    刻みに関わらずちょうどその位置へ足す**(⛔ 丸めて見切りを刻み1つぶん広げない)
+        var svals = new List<float>();
+        for (float s0 = 0f; s0 < total; s0 += STEP) svals.Add(s0);
+        svals.Add(total);
+        { float accSeg = 0f; for (int i = 0; i + 1 < line.Count; i++) { accSeg += segLen[i]; svals.Add(accSeg); } }
+        foreach (var tc in torii)
+        {
+            float sa; DistLine(line, tc, false, out sa);
+            svals.Add(Mathf.Clamp(sa - soilAlong, 0f, total));
+            svals.Add(Mathf.Clamp(sa + soilAlong, 0f, total));
+        }
+        svals.Sort();
+        var samp = new List<Vector2>(); float sPrev = -1f;
+        foreach (var s0 in svals)
+        {
+            if (s0 - sPrev < 1e-3f) continue; sPrev = s0;
+            float rem = s0;
+            int si = 0; while (si < segLen.Count - 1 && rem > segLen[si]) { rem -= segLen[si]; si++; }
+            samp.Add(Vector2.Lerp(line[si], line[si + 1], Mathf.Clamp01(rem / Mathf.Max(1e-5f, segLen[si]))));
+        }
+
+        var verts = new List<Vector3>(); var uvs = new List<Vector2>(); var tris = new List<int>();
+        int[] idx = new int[samp.Count];                                // 各刻みの左端の頂点番号(-1 = 敷かない)
+        float acc = 0f; int nSkipTorii = 0, nSkipEave = 0;
+        for (int i = 0; i < samp.Count; i++)
+        {
+            if (i > 0) acc += Vector2.Distance(samp[i - 1], samp[i]);
+            // 接線は中央差分(折れの内外で帯が割れないように)
+            Vector2 p0 = samp[Mathf.Max(0, i - 1)], p1 = samp[Mathf.Min(samp.Count - 1, i + 1)];
+            Vector2 tg = (p1 - p0); if (tg.sqrMagnitude < 1e-8f) tg = Vector2.right;
+            tg.Normalize();
+            Vector2 nm2 = new Vector2(-tg.y, tg.x);
+            bool ok = true;
+            foreach (var tc in torii) if (Vector2.Distance(samp[i], tc) < soilAlong - 1e-3f) { ok = false; nSkipTorii++; break; }
+            if (ok && haveDrip && Vector2.Dot(samp[i] - drip, front) < 0f) { ok = false; nSkipEave++; }
+            if (!ok) { idx[i] = -1; continue; }
+            Vector2 lp = samp[i] - nm2 * half, rp = samp[i] + nm2 * half;
+            idx[i] = verts.Count;
+            verts.Add(new Vector3(lp.x, TerrainY(lp.x, lp.y) + lift, lp.y));
+            verts.Add(new Vector3(rp.x, TerrainY(rp.x, rp.y) + lift, rp.y));
+            uvs.Add(new Vector2(acc, 0f));                              // UV は m 単位(材のタイリングは 1×1)
+            uvs.Add(new Vector2(acc, half * 2f));
+        }
+        int quads = 0;
+        for (int i = 0; i + 1 < samp.Count; i++)
+        {
+            if (idx[i] < 0 || idx[i + 1] < 0) continue;
+            int a0 = idx[i], a1 = idx[i] + 1, b0 = idx[i + 1], b1 = idx[i + 1] + 1;
+            // ⚠ 巻きは**上から見て時計回り**が表(Unity は左手系)。逆に張ると法線が下を向き、
+            //   材は付いているのに**上から見て消える**(2026-09-16 に実測 法線 上向き0/下向き284)。
+            tris.Add(a0); tris.Add(a1); tris.Add(b0);
+            tris.Add(a1); tris.Add(b1); tris.Add(b0);
+            quads++;
+        }
+        if (quads == 0) return "⛔ 玉砂利を張る面が残らなかった(刻み/止めの条件を疑う)";
+
+        var mesh = new Mesh { name = "Matsudaira_R_Inari_Tamajari" };
+        mesh.SetVertices(verts); mesh.SetUVs(0, uvs); mesh.SetTriangles(tris, 0);
+        mesh.RecalculateNormals(); mesh.RecalculateTangents(); mesh.RecalculateBounds();
+
+        string dir = EdoAssets.Own.Matsudaira.GenMeshDir.TrimEnd('/');
+        if (!AssetDatabase.IsValidFolder(dir))
+            AssetDatabase.CreateFolder(dir.Substring(0, dir.LastIndexOf('/')), dir.Substring(dir.LastIndexOf('/') + 1));
+        string mp = dir + "/" + mesh.name + ".asset";
+        var old = AssetDatabase.LoadAssetAtPath<Mesh>(mp);
+        if (old != null) { EditorUtility.CopySerialized(mesh, old); mesh = old; }
+        else AssetDatabase.CreateAsset(mesh, mp);
+        AssetDatabase.SaveAssets();
+
+        var mat = AssetDatabase.LoadAssetAtPath<Material>(EdoAssets.JG.GravelMat);
+        if (mat == null) return "⛔ 玉砂利の材が読めない " + EdoAssets.JG.GravelMat + " — edo-zaiko へ照会";
+
+        var grp = Group("Niwa/Sando"); Clear(grp);
+        var go2 = new GameObject("R_Inari_Tamajari");
+        go2.transform.SetParent(grp, false);
+        go2.AddComponent<MeshFilter>().sharedMesh = mesh;
+        go2.AddComponent<MeshRenderer>().sharedMaterial = mat;
+        Undo.RegisterCreatedObjectUndo(go2, "tamajari");
+
+        sb.Append("玉砂利 " + quads + " 区画(幅 " + (half * 2f).ToString("F2") + "m・天端 地盤+"
+                  + lift.ToString("F3") + "m・全長 " + acc.ToString("F1") + "m)/ 鳥居の足元で土を残した刻み "
+                  + nSkipTorii + "(前後 ±" + soilAlong.ToString("F2") + "m)/ 雨落ちより社側で止めた刻み " + nSkipEave);
+        return sb.ToString();
+    }
+
     // ------------------------------------------------------------------ 7' 植栽(指図の生成器が撒いた点を据える・冪等)
     // ⭐ **検査と実装で置き方を別々に書かない。**生成器 `scatter_gardens` が撒いた点(`group_pack_check` ほかが
     //   検査したのと同じ点)を `docs/Sashizu/matsudaira_dewa_planting_out.json` に書き出させ、ここは**据えるだけ**。

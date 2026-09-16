@@ -390,6 +390,11 @@ public static class EdoAssets
         public const string Boxwood01 = "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/Boxwood/Plant_Boxwood_Spring_01.prefab";
         public const string Fern01    = "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Plants/PaintedFern/Plant_PaintedFern_Spring_01.prefab";
 
+        /// <summary>**玉砂利**(参道・敷き)の材。URP/Lit(パックの URP パッチ済み)。
+        /// ⚠ パックは再配布不可・gitignore。⚠ terrain 用に焼かれた材なので **_BaseMap のタイリングは 1×1** —
+        /// 敷く側が UV を m 単位で張る(1m で1周)。⚠ 在庫にこれ以外の玉砂利は無い(2026-09-16 照会)。</summary>
+        public const string GravelMat = "Assets/Waldemarst/FreeJapaneseGarden/Materials/Terrain/M_FJG_Terrain_Ground_Gravel_01.mat";
+
         public const string Rock01    = "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_Rock_A_01.prefab";
         public const string Rock02    = "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_Rock_A_02.prefab";
         public const string Rock03    = "Assets/Waldemarst/FreeJapaneseGarden/Prefabs/Misc/Rocks/JG_Rock_A_03.prefab";
@@ -479,6 +484,23 @@ public static class EdoAssets
                 return new[] { 1, 2, 3, 4 };
             }
             return new int[0];
+        }
+
+        const string CliffDir = "Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/"
+                              + "Rocks/Cliffs/Models/";
+
+        /// <summary>**実肌の岩棚(野面石 1 段の土留め)**。松江松平邸 `slopeDoryu`(法尻の土留め)に使う。
+        /// i = 8〜10。実寸(目録 `docs/asset-index.tsv`・Unity W×H×D):
+        /// <c>cliff_piece_08</c> 3.63×0.44×1.74m / <c>cliff_piece_09</c> **2.19×0.30×1.12m**(指図の既定)/
+        /// <c>cliff_piece_10</c> 1.76×0.42×0.92m。ピボットは底からの差 −0.01〜−0.05m(ほぼ底)。
+        /// ⚠ **FBX(拡張子は大文字 `.FBX`)を返す。** プレハブは `prefab_cliff_piece_10` しか無い
+        /// (08/09 は Prefabs に無い — 2026-09-13 に `ls` で確認)ので揃えて Models を指す。
+        /// ⚠ パックは再配布不可・gitignore。材は FBX が持つ NatureManufacture の .mat で remap 不要。</summary>
+        public static string CliffPiece(int i)
+        {
+            if (i < 8 || i > 10)
+                throw new System.ArgumentOutOfRangeException("i", i, "NM.CliffPiece は 8〜10(登録済みのみ)");
+            return CliffDir + "cliff_piece_" + i.ToString("00") + ".FBX";
         }
     }
 
@@ -856,7 +878,10 @@ public static class EdoAssets
         /// ローカル: 幅=X(=len) / 高さ=Y / 厚み=Z、**見え面(街路側)= +Z**。
         /// ピボット = **走りの中心・土台の底・壁の外面**。外周線の上に
         /// `position = 区間の中点 / yaw = 外向き法線の方位 / scale = Vector3.one` で置ける。
-        /// 軒は +Z へ 0.63m 出て、躯体は −Z へ 3.73m 入る。高さ 5.51m(妻の鬼まで)。
+        /// 奥行(Z)は語を分けて読む: **軒の出 +Z 0.58m** / **躯体 3.11〜3.12m**(壁の外面 → 内壁面。
+        /// 生成器 3.12・普請検査の実測 3.11。指図 `const.nagayaD` はこれ)/ **内側の軒 0.6m 級**を含む
+        /// **外接の内端 −Z 3.73m** / 外接の奥行 4.35m。⛔ 3.73 を「躯体」と呼ばない(2026-09-13 に直した)。
+        /// 高さ 5.51m(妻の鬼まで)。
         /// 直線材と同じく **`SeatBottom(seat − 0.10)`** で沈めること(隅部材と段差が出る)。
         ///
         /// len は m。**任意の長さを 1cm 単位でそのまま作れる**(窓割りの本数 k と無地の壁の
@@ -1207,8 +1232,8 @@ public static class EdoAssets
         /// ⛔ 底でも天端でもない。</para>
         ///
         /// <para>⚠⚠ **芯々を外接寸法で詰めない** — 玉石は丸いので **地盤線での差し渡しは外接の 85〜100%**
-        /// (2026-09-10 実測: L0.41→0.397 / L0.45→0.424 / L0.5→0.467 / L0.54→0.539 / L0.58→0.528 /
-        /// L0.62→0.529 / L0.66→0.623 / L0.7→0.636)。外接どうしを突き付けると**地盤線の高さで
+        /// (2026-09-13 焼き直し後の実測: L0.41→0.397 / L0.45→0.424 / L0.5→0.467 / L0.54→0.539 /
+        /// L0.58→0.528 / L0.62→0.528 / L0.66→0.622 / L0.7→0.637)。外接どうしを突き付けると**地盤線の高さで
         /// 石のあいだに空が抜ける**。⇒ 芯々は「地盤線の差し渡し」で詰めること。</para>
         ///
         /// <para>⭐ **8個体を乱尺で焼いてある**(下の <see cref="NeishiLong"/>)。土台は在庫の実肌の小石
@@ -1228,9 +1253,11 @@ public static class EdoAssets
         /// (従前 0.020〜0.045。ユーザー指摘「角が鋭すぎませんか?」2026-09-06 の帯 2〜6cm の上半分)。
         /// 面数は 407〜855(従前 284)。</para>
         ///
-        /// <para>⚠ **露出(見え高)は部材方が決めていない。** 指図 <c>show</c> 0.15〜0.20 / <c>bury</c> 0.5
-        /// のまま。実測の「見え面の差し渡し」は **地盤線 0.40〜0.64m → 見えの中ほど 0.31〜0.61m →
-        /// 天端9割 0.11〜0.35m**(丸い石なので上ほど細る)。露出を増やすなら指図方が <c>show</c> を動かす。</para>
+        /// <para>⭐ **見え高 = 地盤線の差し渡し × 指図 <c>showMul</c>(0.45)/ 丈 = 2 × 見え**(<c>bury</c> 0.5)。
+        /// 2026-09-13 に焼き直し、生成器が丈を収束させる(全個体 1 巡・|Δ丈| ≤ 0.001)。
+        /// 見え高 / 丈 [m]: L0.41 0.179/0.357 ・ L0.45 0.191/0.382 ・ L0.5 0.210/0.420 ・ L0.54 0.243/0.485 ・
+        /// L0.58 0.238/0.475 ・ L0.62 0.238/0.476 ・ L0.66 0.280/0.561 ・ L0.7 0.286/0.572。
+        /// ⚠ 指図に <c>show</c> キーはもう無い(従属値)。</para>
         /// 生成: blender --background --python Tools/Blender/build_neishi.py -- all --render</summary>
         public static readonly float[] NeishiLong =
             { 0.41f, 0.45f, 0.50f, 0.54f, 0.58f, 0.62f, 0.66f, 0.70f };
@@ -1257,6 +1284,11 @@ public static class EdoAssets
             /// <summary>稲荷社(明神鳥居+一間社流造の小祠)。実寸 2.50 × 2.76 × 3.34。
             /// 鳥居は +Z 側 = 祠の正面。据えるときは参道を +Z へ向ける</summary>
             public const string Inari  = FuzokuyaDir + "Matsudaira_Inari.fbx";
+            public const string InariHokora = FuzokuyaDir + "Matsudaira_Inari_Hokora.fbx";
+            /// <summary>**生成メッシュの保存先**(参道の玉砂利の帯など、指図の折れ線から起こす面)。
+            /// ⚠ ランタイム生成の Mesh は**アセットに保存しないとシーン保存で消える**ので、
+            /// ビルダーは `AssetDatabase.CreateAsset` でここへ焼く(再実行は CopySerialized で上書き)。</summary>
+            public const string GenMeshDir = "Assets/Edo/Models/Niwa/Generated/";
             /// <summary>石井戸枠+釣瓶の桁。実寸 1.90 × 2.21 × 1.90。**枠の天端は地盤+0.72**</summary>
             public const string Ido    = FuzokuyaDir + "Matsudaira_Ido.fbx";
             /// <summary>二重の隅櫓 3間角。実寸 7.39 × 8.64 × 7.39。据えは石垣の天端</summary>

@@ -1569,6 +1569,7 @@ public static partial class EdoMatsudairaDewaBuilder
             // 無い棟(御湯殿・長局北・奥台所・厩=長屋型)は帯割りの部材が無いので、
             // 従来の入母屋(RoofIrimoya_)のまま残す(⛔ 発明しない・指図どおり)。
             string roof; bool roofAtFloor = false; float roofYaw = 0f;
+            int[] irikawaEdges = null, nokiEdges = null;   // 据えた後の検算に使う(辺ごとの入側[間]・軒の有無)
             var roofSpec = Has(m, "roof") ? O(m["roof"]) : null;
             if (roofSpec != null)
             {
@@ -1603,6 +1604,7 @@ public static partial class EdoMatsudairaDewaBuilder
                     //     軒先が宙に浮く」姿になっていた原因(`EdoAssets.Goten.RoofBanded` の
                     //     noki の注)。⛔ 0/1 を人が数えて書き写さない — 棟の外形の総当たり。
                     int[] noki = RoofNoki(m, A(D["munes"]));
+                    irikawaEdges = irikawa; nokiEdges = noki;
                     string banded = EdoAssets.Goten.RoofBanded(bands, spanKen, alongV, irikawa, noki);
                     if (AssetDatabase.LoadAssetAtPath<GameObject>(banded) != null)
                     {
@@ -1633,20 +1635,27 @@ public static partial class EdoMatsudairaDewaBuilder
                               " Goten_Roof_Irimoya_" + kw + "x" + kd + "ken");
                 roof = null;
             }
-            // ⭐ 2026-09-08(普請奉行の裁定): 軒高 const(gotenEave/nagayaGataEave/umayaEave)は
-            //   「軒下端の濡縁上高さ」— 部材の系列(帯割り/入母屋)ごとにピボット基準が食い違うので、
+            // ⭐ 2026-09-08(普請奉行の裁定): 軒高 const(nagayaGataEave/umayaEave)は
+            //   「軒下端の濡縁上高さ」— 部材の系列ごとにピボット基準が食い違うので、
             //   `EdoGotenKit.Mune` 側で実メッシュの軒下端を測って寄せる(定数オフセットは決め打ちしない)。
-            //   ここでは棟の種別に応じた「指図の軒高」を選ぶだけ — 帯割り(roofSpec あり)は
-            //   gotenEave、長屋型4棟(御湯殿・長局北・奥台所・厩。roofSpec 無し)は
-            //   zone で umayaEave/nagayaGataEave を選ぶ(`munes[].kind` が json に無いための代用。
-            //   厩は zone="厩"、御湯殿・長局北・奥台所は zone="奥向")。
+            //   ここでは棟の種別に応じた「指図の軒高」を選ぶだけ。長屋型4棟(御湯殿・長局北・
+            //   奥台所・厩。roofSpec 無し)は zone で umayaEave/nagayaGataEave を選ぶ
+            //   (`munes[].kind` が json に無いための代用。厩は zone="厩")。
             //   序列: 厩(umayaEave)2.35 < 長屋類(nagayaGataEave)2.80 < 御殿(gotenEave)3.40。
+            //
+            // ⛔⛔ **帯割り(roofSpec あり)はここで寄せ直さない**(2026-09-16・普請検査【高1】の是正)。
+            //   `Tools/Blender/build_goten_roof.py:make_banded` は **z=0 = 床**で、引数 `eave` に
+            //   指図 `const.gotenEave`(**床上の身舎の軒桁**の高さ)を焼き込んである
+            //   ⇒ **床へ据えれば指図どおり**(土井の帯割りと同じ据え方)。
+            //   `gotenEave` を「軒下端(濡縁上)の高さ」と読んで実メッシュの最下端をそこへ寄せると、
+            //   **屋根が 0.712m 浮く** = 入側1間+軒の出の下がり 0.992 − 濡縁 datum の差 0.28。
+            //   それが全周 0.39m の空き帯(屋根底 30.74 / 柱天端 30.35・8棟)の正体だった。
             float roofEaveLocalY;
             {
                 var c = O(D["const"]);
                 if (roofSpec != null)
                 {
-                    roofEaveLocalY = F(c["gotenEave"]);
+                    roofEaveLocalY = float.NaN;   // 帯割り = 床へ据える(部材が指図の軒高を持っている)
                 }
                 else
                 {
@@ -1659,6 +1668,38 @@ public static partial class EdoMatsudairaDewaBuilder
                                      roofAtFloor: roofAtFloor, roofYaw: roofYaw,
                                      roofEaveLocalY: roofEaveLocalY);
             Undo.RegisterCreatedObjectUndo(g, "mune");
+            // ⭐ 帯割りは**据えた実メッシュで検算する**(規則5。⛔ 目分量で下げない)。
+            //   軒先の下端の床上高さは指図の従属値 =
+            //     min(辺) [ gotenEave − (入側[間]×ken + 軒の出) × 瓦勾配 ](軒を落とした辺は軒の出 0)。
+            //   実測はそこから**軒先瓦の垂れ**のぶんだけ下がる(⛔ 垂れは部材の持ち物で指図は持たない)。
+            if (roofSpec != null && g != null)
+            {
+                var c3 = O(D["const"]);
+                float kenM = c3.ContainsKey("ken") ? F(c3["ken"]) : f.ken;
+                float eaveH = F(c3["gotenEave"]), kobai = F(c3["gesyaKobai"]), nokiDe = F(c3["nokiE"]);
+                int[] ik3 = irikawaEdges ?? new int[] { 1, 1, 1, 1 };
+                int[] nk3 = nokiEdges ?? new int[] { 1, 1, 1, 1 };
+                float want = float.MaxValue;
+                for (int e = 0; e < 4; e++)
+                {
+                    float run = ik3[e] * kenM + (nk3[e] == 1 ? nokiDe : 0f);
+                    float h3 = eaveH - run * kobai;
+                    if (h3 < want) want = h3;
+                }
+                float got = float.NaN; string rnm = null;
+                foreach (Transform ch in g.transform)
+                {
+                    var mf3 = ch.GetComponent<MeshFilter>();
+                    if (mf3 == null || mf3.sharedMesh == null || !ch.name.Contains("Roof")) continue;
+                    got = ch.localPosition.y + mf3.sharedMesh.bounds.min.y - GOTEN_FLOOR; rnm = ch.name;
+                }
+                if (rnm == null) sb.AppendLine("⚠ " + name + ": 据えた屋根が見つからず軒先を検算できない");
+                else if (got > want + 0.02f || got < want - 0.25f)
+                    sb.AppendLine("★ " + name + ": 軒先の下端 床上 " + got.ToString("F3") +
+                                  "m — 指図の従属値 " + want.ToString("F3") +
+                                  "m(gotenEave − (入側+軒の出)×瓦勾配)から外れる。" +
+                                  "部材 " + rnm + " の焼き直しか指図の const を疑う");
+            }
             nm++;
         }
 

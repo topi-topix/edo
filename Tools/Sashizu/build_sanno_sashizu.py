@@ -9648,6 +9648,116 @@ def sukibei_span_check(d, g):
     return bad, note
 
 
+# ---------------------------------------------------------------- 透塀の隅(凹凸は折れ線の従属値)
+#   ⛔ **出隅/入隅を手で書かない**【K059 2026-09-16 棟梁の差し戻し】── 旧図は 8 隅のうち
+#   **4 箇所で凹凸が折れ線と逆**だった(総数 出隅6・入隅2 は合っていたので数では鳴らない)。
+#   棟梁は図を信じず折れ線の凹凸から測って据えた。⇒ 凹凸・隅柱のどちらの面・動かす側を
+#   すべて折れ線からの従属値にして、同じ取り違えが二度と起きない形にする。
+KADO_PART = {"出隅": "Dezumi", "入隅": "Irizumi"}
+
+
+def sukibei_kado_plan(d):
+    """**透塀の隅の凹凸**── 折れ線そのものから決める。⛔ json の宣言を読まない。
+
+    隣り合う 2 run の向きの外積の符号を、**折れ線全体の回り(靴紐の符号)**と突き合わせて
+    出隅(内角 < 180°)か入隅(> 180°)かを決める。並べ替えは端点の一致でつなぐので
+    ⛔ json の並び順にも頼らない。戻り [(前の run, 次の run, 隅の uv, "出隅"/"入隅")]。
+    """
+    rs = [r for r in d["runs"] if r.get("kind") == "透塀" and r.get("a") and r.get("b")]
+    if len(rs) < 3: return None
+    def _k(p): return (round(p[0], 4), round(p[1], 4))
+    chain = [rs[0]]
+    used = {rs[0]["name"]}
+    while len(chain) < len(rs):
+        nx9 = [q for q in rs if q["name"] not in used and _k(q["a"]) == _k(chain[-1]["b"])]
+        if len(nx9) != 1: return None                  # 数珠がつながらない(⛔ は検査が出す)
+        chain.append(nx9[0]); used.add(nx9[0]["name"])
+    if _k(chain[-1]["b"]) != _k(chain[0]["a"]): return None
+    area2 = sum(chain[i]["a"][0] * chain[i]["b"][1] - chain[i]["b"][0] * chain[i]["a"][1]
+                for i in range(len(chain)))
+    sgn = 1.0 if area2 > 0 else -1.0
+    out = []
+    for i, r in enumerate(chain):
+        n9 = chain[(i + 1) % len(chain)]
+        ux, uz = r["b"][0] - r["a"][0], r["b"][1] - r["a"][1]
+        vx, vz = n9["b"][0] - n9["a"][0], n9["b"][1] - n9["a"][1]
+        cr = (ux * vz - uz * vx) * sgn
+        if abs(cr) < 1e-9: continue                    # 折れていない(隅ではない)
+        out.append((r, n9, list(r["b"]), "出隅" if cr > 0 else "入隅"))
+    return out
+
+
+def derive_sukibei_kado(d):
+    """`joints[].kadoFrom` の行へ、折れ線から算出した `kind`/`bFace`/`moves` を書き込む。
+
+    ⭐ **動かす側は短いほうの辺**(端数を短い辺で吸う。⛔ 中門を挟む東線=周長の拘束が効く辺は
+      動かさない)── これも辺長からの従属値で、⛔ 手で書かない。
+    ⚠ 長短は**節点の間の長さ**(`run_nodes_ken`)で較べる ── `run_len_ken` は口(中門・南の潜り)を
+      引いた**建つ長さ**なので、口の大きい東線が「短い辺」に化けて動かす側が入れ替わる。
+    """
+    pl = sukibei_kado_plan(d) or []
+    by = dict(((a["name"], b["name"]), (a, b, uv, t)) for a, b, uv, t in pl)
+    for j in d.get("joints", []):
+        kf = j.get("kadoFrom")
+        if not kf: continue
+        # ⛔ **手で書いた凹凸を黙って上書きしない** ── 書いてあったことを残して検査が⛔で拾う
+        j["_byHand"] = [q9 for q9 in ("kind", "bFace", "moves") if j.get(q9) is not None]
+        q = by.get((kf.get("in"), kf.get("out")))
+        if q is None: continue                          # 検査が⛔で拾う
+        a9, b9, uv, t9 = q
+        mv = a9 if run_nodes_ken(a9) <= run_nodes_ken(b9) else b9
+        j["kind"] = "突き付け(%sの%s)" % (kf.get("name", ""), t9)
+        j["bFace"] = "隅柱(%s と共有)の%sの面" % (a9["name"], "外側" if t9 == "出隅" else "内側")
+        j["moves"] = "透塀(%s ── 短い側の辺で端数を吸う)" % mv["name"]
+        j["kado"] = t9
+    return pl
+
+
+def sukibei_kado_check(d, g):
+    """**透塀の隅の凹凸が折れ線と合っているか**【K059 2026-09-16 棟梁の差し戻し → 規則19】。
+
+    ⛔ 手で書いた出隅/入隅を残さない ── `joints` の隅の行は `kadoFrom` だけを持ち、
+      凹凸・隅柱の面・動かす側は図が算出する。⛔ 隅が一つでも `joints` に無ければ⛔、
+      `joints` が折れ線に無い組を名乗っていても⛔(両方向に突き合わせる)。
+    """
+    bad, note = [], []
+    pl = sukibei_kado_plan(d)
+    if pl is None:
+        return (["透塀の折れ線が閉じていない(端点で数珠つなぎにできない) — 隅の凹凸を決められない"], [])
+    js = [j for j in d.get("joints", []) if j.get("kadoFrom")]
+    seen = set()
+    for j in js:
+        kf = j["kadoFrom"]
+        k9 = (kf.get("in"), kf.get("out"))
+        if k9 in seen:
+            bad.append("透塀の隅『%s → %s』の取り合いが二重に宣言されている" % k9)
+        seen.add(k9)
+        if not any((a["name"], b["name"]) == k9 for a, b, _u, _t in pl):
+            bad.append("`joints` が折れ線に無い隅『%s → %s』を名乗っている(端点がつながっていない)" % k9)
+        if j.get("_byHand"):
+            bad.append("透塀の隅『%s → %s』の `%s` が指図に手で書かれている ── 凹凸・隅柱の面・"
+                       "動かす側は折れ線からの従属値(`kadoFrom` だけを持つこと)"
+                       % (k9[0], k9[1], "`・`".join(j["_byHand"])))
+    n9 = {"出隅": 0, "入隅": 0}
+    for a9, b9, uv, t9 in pl:
+        n9[t9] += 1
+        k9 = (a9["name"], b9["name"])
+        if k9 not in seen:
+            bad.append("透塀の隅『%s → %s』(%s)が `joints` に無い ── 取り合いの空欄を残さない" % (k9 + (t9,)))
+        mv = a9 if run_nodes_ken(a9) <= run_nodes_ken(b9) else b9
+        note.append("透塀の隅『%s → %s』── uv (%.4f, %.4f) ／ **%s**(部材 `%s`)／ "
+                    "木口を寄せる面 = 隅柱(%s と共有)の%sの面 ／ 動かす側 **%s**(辺長 %.3f m ＜ %.3f m)"
+                    "【算出 — 折れ線の外積。⛔ 手で書かない】"
+                    % (k9[0], k9[1], uv[0], uv[1], t9, KADO_PART[t9], a9["name"],
+                       "外側" if t9 == "出隅" else "内側", mv["name"],
+                       min(run_nodes_ken(a9), run_nodes_ken(b9)) * d["const"]["ken"],
+                       max(run_nodes_ken(a9), run_nodes_ken(b9)) * d["const"]["ken"]))
+    note.append("透塀の隅 ── 折れ線の頂点 **%d**(出隅 **%d** ／ 入隅 **%d**)／ `joints` の隅の行 **%d**"
+                "【算出 — ⛔ 数を json に持たない(部材表の『手当』もこの検査を指す)】"
+                % (len(pl), n9["出隅"], n9["入隅"], len(js)))
+    return bad, note
+
+
 def chumon_kabuki_check(d, g):
     """**中門の冠木と透塀の棟の離れ**【部材方 2026-09-14】── 冠木の下端(`bom[中門].axis.kabukiM`)と
     透塀の部材の棟の天端(`bom[透塀].outlineM` の最上)が同じ床(中門の敷居 = 透塀の座)から測って離れるか(⛔ 当たれば)。"""
@@ -15800,10 +15910,200 @@ def _design_y_cold(d, g, x, z):
     return design_y(d, g, x, z)
 
 
+# ---------------------------------------------------------------- 格子へ焼くときの縁の作法
+#   ⛔ **面の輪郭が格子の隙に落ちると、その帯は造成されない**【K060 2026-09-16 棟梁の差し戻し】。
+#   実装(`EdoSannoShaRebuild.Graded.Bilinear`)は**四隅がそろった枡の中でしか読まない**ので、
+#   輪郭が最外の節点より外にあると、輪郭沿いの帯が現地形のまま残る(前庭の北の縁で最大 -0.53 m)。
+#   ⇒ **輪郭から格子の刻みぶん外側までの空きの節点を、その面の高さで埋める**。
+#   ⛔ 輪郭そのものを縮めて辻褄を合わせない。⛔ `design_y` が値を持つ節点(法面・石段・別の面)は
+#   上書きしない。⛔ 社地の外へは出さない(`terrainCheck.saichiGai` の名簿に面は載っていない)。
+#   ⚠ この作法は**格子へ焼くときだけ** ── 切盛図・断面・土量が引く `design_y` は動かさない。
+GRADE_REACH = IMPL_STEP
+_GPOLY = {}
+
+
+def _terrace_polys(d, g):
+    """平場の輪郭(世界座標)と外接矩形を覚える。⛔ 55,660 セルの走査で毎回作らない。"""
+    if _GPOLY.get("key") != id(d):
+        v = []
+        for te in d["terraces"]:
+            P = terrace_poly(te, g)
+            xs = [q[0] for q in P]; zs = [q[1] for q in P]
+            v.append((te, P, (min(xs), min(zs), max(xs), max(zs))))
+        _GPOLY["key"] = id(d); _GPOLY["v"] = v
+    return _GPOLY["v"]
+
+
+def _seg_hits_box(ax, az, bx, bz, x0, z0, x1, z1):
+    """線分が軸平行の箱に掛かるか(Liang-Barsky)。"""
+    dx, dz = bx - ax, bz - az
+    t0, t1 = 0.0, 1.0
+    for p, q in ((-dx, ax - x0), (dx, x1 - ax), (-dz, az - z0), (dz, z1 - az)):
+        if abs(p) < 1e-12:
+            if q < 0: return False
+            continue
+        r = q / p
+        if p < 0:
+            if r > t1: return False
+            if r > t0: t0 = r
+        else:
+            if r < t0: return False
+            if r < t1: t1 = r
+    return True
+
+
+def _poly_hits_box(P, x0, z0, x1, z1):
+    """多角形が箱に掛かるか(辺が掛かる/箱が丸ごと中に入る)。"""
+    for i in range(len(P)):
+        a, b = P[i], P[(i + 1) % len(P)]
+        if _seg_hits_box(a[0], a[1], b[0], b[1], x0, z0, x1, z1): return True
+    return in_poly(((x0 + x1) / 2.0, (z0 + z1) / 2.0), P)
+
+
+def _poly_dist(x, z, P):
+    """点から多角形の辺までの最短距離。"""
+    best = 1e9
+    for i in range(len(P)):
+        ax, az = P[i]; bx, bz = P[(i + 1) % len(P)]
+        ddx, ddz = bx - ax, bz - az
+        L2 = ddx * ddx + ddz * ddz or 1.0
+        t = max(0.0, min(1.0, ((x - ax) * ddx + (z - az) * ddz) / L2))
+        best = min(best, math.hypot(x - (ax + ddx * t), z - (az + ddz * t)))
+    return best
+
+
+def graded_y(d, g, x, z, cold=True):
+    """**格子へ焼く設計面**── `design_y` に「面の輪郭を覆い切る縁の作法」を重ねた物。
+
+    ⭐ **図と焼き出しは同じこの関数から出る**(規則19)── `graded_grid` が焼き、
+      `impl_graded_check` が全セル引き直して突き合わせるのはどちらもここ。
+    ⛔ `design_y` を動かさない ── 縁の作法が効くのは `design_y` が値を持たない節点だけで、
+      面の輪郭・法面・石段・土量はそのまま。
+    """
+    y = _design_y_cold(d, g, x, z) if cold else design_y(d, g, x, z)
+    if y is not None: return y
+    if not in_poly((x, z), d["polygon"]): return None      # ⛔ 社地の外へ造成を出さない
+    best = None
+    for te, P, bb in _terrace_polys(d, g):
+        if x < bb[0] - GRADE_REACH or x > bb[2] + GRADE_REACH: continue
+        if z < bb[1] - GRADE_REACH or z > bb[3] + GRADE_REACH: continue
+        if not _poly_hits_box(P, x - GRADE_REACH, z - GRADE_REACH,
+                              x + GRADE_REACH, z + GRADE_REACH): continue
+        dd = _poly_dist(x, z, P)
+        if best is None or dd < best[0]: best = (dd, te["y"])
+    if best is None: return None
+    # ⛔ **持ち上げの上限**(`terrainCheck.gradedCover.maxRiseM`)── 超える所は丸めずに空で残す。
+    #   崖の上の縁・丈の高い土留めの前に土の棚を出さないため(⛔ 石垣が埋まる)。
+    rise = (d.get("terrainCheck") or {}).get("gradedCover", {}).get("maxRiseM")
+    if rise is not None:
+        nat = dem_h(x, z)
+        if nat is not None and best[1] - nat > float(rise): return None
+    return best[1]
+
+
+def _why_empty(d, g, x, z, te):
+    """造成の格子のその節点が空である**宣言した理由**(無ければ None = 説明が付かない)。"""
+    if not in_poly((x, z), d["polygon"]): return "社地の外"
+    nat = dem_h(x, z)
+    rise = (d.get("terrainCheck") or {}).get("gradedCover", {}).get("maxRiseM")
+    if nat is not None and rise is not None and te["y"] - nat > float(rise):
+        return "持ち上げの上限(土留め・崖が受ける縁)"
+    return None
+
+
+def graded_cover_check(d, g):
+    """**造成の格子が面の輪郭を覆い切るか**【K060 2026-09-16 棟梁の差し戻し → 規則19】。
+
+    面の輪郭を格子の半刻みで歩き、その点を囲む**枡の四隅**がそろって造成されているかを見る
+    (実装が双一次で読める条件そのもの)。⛔ 欠けていたら⛔ ── ただし**欠けた隅が社地の外**に
+    在る場合だけは、宣言した理由(`terrainCheck.gradedCover` ── 造成は社地の内)で〔記録〕に
+    落とし、⛔ **黙って消さない**。⛔ 面の輪郭を縮めて辻褄を合わせない。
+    """
+    P9 = d["polygon"]
+    cap = d["const"].get("featherCap", 12.0)
+    x0 = math.floor(min(p[0] for p in P9) - cap)
+    z0 = math.floor(min(p[1] for p in P9) - cap)
+    dec = (d.get("terrainCheck") or {}).get("gradedCover")
+    bad, note = [], []
+    if not dec or dec.get("maxRiseM") is None:
+        return (["格子の縁の作法 `terrainCheck.gradedCover`(と持ち上げの上限 `maxRiseM`)の宣言が無い"
+                 " — 覆い切れない縁の理由が図に残らない"], [])
+    memo = {}
+    def _cell(ix, iz):
+        k = (ix, iz)
+        if k not in memo:
+            memo[k] = graded_y(d, g, x0 + ix * IMPL_STEP, z0 + iz * IMPL_STEP)
+        return memo[k]
+    tot = 0
+    for te, P, bb in _terrace_polys(d, g):
+        n9, out9, hole, rsn = 0, 0, [], {}
+        for i in range(len(P)):
+            ax, az = P[i]; bx, bz = P[(i + 1) % len(P)]
+            L = math.hypot(bx - ax, bz - az)
+            m9 = max(1, int(math.ceil(L / (IMPL_STEP / 2.0))))
+            for k in range(m9 + 1):
+                t = k / float(m9)
+                x, z = ax + (bx - ax) * t, az + (bz - az) * t
+                n9 += 1; tot += 1
+                ix = int(math.floor((x - x0) / IMPL_STEP)); iz = int(math.floor((z - z0) / IMPL_STEP))
+                miss = [(ix + a, iz + b) for a in (0, 1) for b in (0, 1) if _cell(ix + a, iz + b) is None]
+                if not miss: continue
+                # ⭐ **欠けた隅の理由を一つずつ言う**(宣言した二つの理由のどちらか / それ以外は⛔)
+                why = [_why_empty(d, g, x0 + q[0] * IMPL_STEP, z0 + q[1] * IMPL_STEP, te)
+                       for q in miss]
+                if all(w is not None for w in why):
+                    out9 += 1
+                    for w in why: rsn[w] = rsn.get(w, 0) + 1
+                else: hole.append((round(x, 2), round(z, 2), len(miss)))
+        if hole:
+            bad.append("面『%s』の輪郭 **%d 点**が造成の格子から外れている(例 (%.2f, %.2f) ── "
+                       "囲む枡の四隅のうち %d 隅が空)。理由は社地の境ではない ⇒ 縁の作法 "
+                       "`graded_y` が届いていない" % (te["name"], len(hole), hole[0][0], hole[0][1], hole[0][2]))
+        note.append("面『%s』の輪郭を半刻みで歩いた **%d 点** ── 枡の四隅がそろう **%d 点** ／ "
+                    "**%d 点**は宣言した理由で覆えない(%s ── `terrainCheck.gradedCover`)／ "
+                    "説明の付かない欠け **%d 点**【算出】"
+                    % (te["name"], n9, n9 - out9 - len(hole), out9,
+                       "・".join("%s %d" % q for q in sorted(rsn.items())) or "—", len(hole)))
+    n8 = sum(1 for v in memo.values() if v is not None)
+    note.append("縁の作法 ── 輪郭の外へ **%g m**(格子の刻み)まで、`design_y` が値を持たず"
+                "**社地の内**にあり、**現地形を %g m 以上持ち上げない**節点を面の高さで埋める。"
+                "⛔ 輪郭は縮めない・⛔ 法面と石段は上書きしない・⛔ 社地の外へは出さない・"
+                "⛔ 崖や丈の高い土留めの前に土の棚を出さない【算出 — 走査した枡の隅 %d 点のうち造成 %d 点】"
+                % (GRADE_REACH, dec.get("maxRiseM"), len(memo), n8))
+    # ⭕ **縁の作法が実際に何節点を足し、上限で何節点を断ったかを刷る**(規則19 — 宣言だけにしない)
+    add, cut, hi = 0, 0, 0.0
+    P8 = d["polygon"]
+    for te, P, bb in _terrace_polys(d, g):
+        i0 = int(math.floor((bb[0] - GRADE_REACH - x0) / IMPL_STEP))
+        i1 = int(math.ceil((bb[2] + GRADE_REACH - x0) / IMPL_STEP))
+        j0 = int(math.floor((bb[1] - GRADE_REACH - z0) / IMPL_STEP))
+        j1 = int(math.ceil((bb[3] + GRADE_REACH - z0) / IMPL_STEP))
+        for j in range(j0, j1 + 1):
+            for i in range(i0, i1 + 1):
+                x, z = x0 + i * IMPL_STEP, z0 + j * IMPL_STEP
+                if not in_poly((x, z), P8): continue
+                # ⚠ 重い順に弾く(枡の判定 → 社地 → `design_y`)── ⛔ 全セルで設計面を引かない
+                if in_poly((x, z), P): continue
+                if not _poly_hits_box(P, x - GRADE_REACH, z - GRADE_REACH,
+                                      x + GRADE_REACH, z + GRADE_REACH): continue
+                if _design_y_cold(d, g, x, z) is not None: continue
+                nat = dem_h(x, z)
+                if nat is not None and te["y"] - nat > float(dec["maxRiseM"]):
+                    cut += 1; hi = max(hi, te["y"] - nat)
+                else:
+                    add += 1
+    note.append("縁の作法が足した節点 **%d** ／ 持ち上げの上限 **%g m** で断った節点 **%d**"
+                "(断った所の持ち上げは最大 **%.2f m** ── そこは図の宣言どおり土留め・崖が受ける)"
+                "【算出 — ⛔ 宣言だけ置いて誰も数えない、をしない】" % (add, dec["maxRiseM"], cut, hi))
+    return bad, note
+
+
 def graded_grid(d, g):
     """造成後の地盤 ── **図の切盛図と同じ `design_y`** を世界座標 1 m 格子へ焼く。
 
     ⛔ 実装側で計算し直さない(段・石段の割付・法面・崖の上の縁の仕分けが全部ここに入る)。
+    ⭐ **引くのは `design_y` ではなく `graded_y`**【K060 2026-09-16】── 面の輪郭が格子の隙に
+      落ちないよう、輪郭の外へ刻みぶんの縁を持たせる(⛔ 輪郭は縮めない)。
     ⚠ `null` は「造成しない」= **現地形のまま**であって、穴ではない
     (この社は面が2枚しかなく、社地の大半は自然の斜面 = 社叢の帯である)。
     """
@@ -15819,7 +16119,7 @@ def graded_grid(d, g):
     for iz in range(nz):
         row = []
         for ix in range(nx):
-            y9 = _design_y_cold(d, g, x0 + ix * IMPL_STEP, z0 + iz * IMPL_STEP)
+            y9 = graded_y(d, g, x0 + ix * IMPL_STEP, z0 + iz * IMPL_STEP)
             row.append(None if y9 is None else round(y9, 3))
             if y9 is not None: n9 += 1
         H.append(row)
@@ -15831,7 +16131,7 @@ def graded_grid(d, g):
     flip, dmax = 0, 0.0
     for iz in range(nz):
         for ix in range(nx):
-            y8 = design_y(d, g, x0 + ix * IMPL_STEP, z0 + iz * IMPL_STEP)
+            y8 = graded_y(d, g, x0 + ix * IMPL_STEP, z0 + iz * IMPL_STEP, cold=False)
             y9 = H[iz][ix]
             if (y8 is None) != (y9 is None): flip += 1
             elif y8 is not None: dmax = max(dmax, abs(round(y8, 3) - y9))
@@ -15864,9 +16164,18 @@ def impl_runs(d, g):
     ⭐ 口(`gaps`)は石段の頭・門の口・並走の切れ(`skips`)からの従属値(`derive_gaps`)。
     """
     out = []
+    # ⭐ **透塀の隅の凹凸を焼く**【K059 2026-09-16】── 棟梁が図を信じられず折れ線から測り直した
+    #   のは、凹凸が指図の中で手書きの銘だったから。⇒ 算出値そのものを実装へ渡す。
+    kado = {}
+    for a9, b9, uv, t9 in (sukibei_kado_plan(d) or []):
+        kado.setdefault(a9["name"], []).append({"at": "b", "with": b9["name"], "type": t9,
+                                                "part": KADO_PART[t9], "world": _w(g, uv)})
+        kado.setdefault(b9["name"], []).append({"at": "a", "with": a9["name"], "type": t9,
+                                                "part": KADO_PART[t9], "world": _w(g, uv)})
     for o in d["runs"]:
         gl = gap_ledger(o)
         out.append({"name": o["name"], "of": "run", "kind": o.get("kind"),
+                    "kado": kado.get(o["name"]),
                     "seat": o.get("seat"), "h": run_take_m(d, o),
                     "nodes": [_w(g, q) for q in (o.get("pts") or
                                                  ([o["a"], o["b"]] if o.get("a") else []))],
@@ -17110,7 +17419,7 @@ def impl_graded_check(d, g):
         row = gr["h"][iz]
         for ix in range(nx):
             was = row[ix]
-            got = _design_y_cold(d, g, gr["x0"] + ix * stp, gr["z0"] + iz * stp)
+            got = graded_y(d, g, gr["x0"] + ix * stp, gr["z0"] + iz * stp)
             n += 1
             if (was is None) != (got is None):
                 nmis += 1
@@ -17420,6 +17729,7 @@ def main_export_impl():
     derive_gates(d, g)
     derive_runs(d, g)
     derive_zentei(d, g)
+    derive_sukibei_kado(d)     # 透塀の隅の凹凸は折れ線からの従属値(K059 2026-09-16)
     derive_cluster_groups(d)    # ⭐ 塊の `groups` を兄弟へ展開(中6 庭方 2026-09-09)
     derive_clusters(d)
     derive_view_clusters(d, g)
@@ -17821,6 +18131,7 @@ def run_checks():
     derive_gates(d, g)         # 門の芯と、その面に取り付く物の通り(⛔ 面の u を二重に持たない)
     derive_runs(d, g)          # 板塀は輪郭からの生成物。⛔ 生成前の run を検査に掛けない
     derive_zentei(d, g)        # 木戸の芯・供待の北辺は従属値(⛔ 丸めた値を持たない)
+    derive_sukibei_kado(d)     # 透塀の隅の凹凸は折れ線からの従属値(K059 2026-09-16)
     derive_cluster_groups(d)   # 塊の `groups` を兄弟へ展開(中6 庭方 2026-09-09)
     derive_clusters(d)         # 塊の箱は宣言(`boxFrom`)からの従属値(2026-09-07 中3)
     derive_view_clusters(d, g)  # 視線の塊の丈は跨ぐ帯の共通部分(2026-09-08)
@@ -17896,6 +18207,7 @@ def run_checks():
     rkf = romon_kidan_face_check(d, g)  # 楼門の基壇の面と石垣・石段の頭(石垣の設計 2026-09-14)
     tpc = tier_plan_check(d, g)        # 二段築の段の走りの宣言(石垣の設計 2026-09-14 ③)
     ssc = sukibei_span_check(d, g)     # 透塀のスパンの割り付けと部材(部材方 2026-09-14)
+    skk = sukibei_kado_check(d, g)     # 透塀の隅の凹凸(K059 2026-09-16 棟梁の差し戻し)
     ckc = chumon_kabuki_check(d, g)
     gtc = gokusho_torigai_check(d, g)  # 御供所の取り合い(普請奉行・部材方・庭方 2026-09-15)    # 中門の冠木と透塀の棟の離れ(部材方 2026-09-14)
     nks = noki_sori_check(d)           # 軒反りの量(考証 2026-09-13 中)
@@ -17907,6 +18219,7 @@ def run_checks():
     kin = _gated(kyoukai_inside_check)   # 幹が社地の内か(A-2 庭方19巡目)
     cpb = _gated(cluster_place_bake_check)  # 塊の据わり(A-2②/A-7)
     igc = _gated(impl_graded_check)  # ⛔ 無い焼きを測らない
+    gcc = graded_cover_check(d, g)   # 面の輪郭を格子が覆い切るか(K060 2026-09-16)
     ipc = _gated(impl_planting_check)  # 撒いた木の面と離れ(2026-09-08)
     iwp = _gated(impl_wall_profile_check)  # 土留めの縦断(中4 20巡目)
     wsc = wall_step_check(d, g)            # 埋まっている区間の段差(裁定 EDO-0182 (b))
@@ -17976,6 +18289,8 @@ def run_checks():
                  ifr[0], ifr[1]))
     rows.append(("焼き出しの造成後の地盤と**世界座標**が図の算出と一致するか",
                  igc[0], igc[1]))
+    rows.append(("造成の格子が面の輪郭を覆い切るか(枡の四隅がそろう所でしか実装は読めない)",
+                 gcc[0], gcc[1]))
     rows.append(("焼き出した木が宣言した面と離れを守っているか(勝手道・芯々・塊・林縁・"
                  "石段・囲い・`scaleXZ`)", ipc[0], ipc[1]))
     rows.append(("土留めの縦断が図の算出と一つ残らず同じ数か"
@@ -17999,6 +18314,7 @@ def run_checks():
     rows.append(("楼門の基壇の面と石垣・石段の頭(踏み止め・側壁・妻の石垣・腰石垣・男坂の従属値)", rkf[0], rkf[1]))
     rows.append(("二段築の段の走りの宣言(`terraceWalls[].tierPlan` × 下段の見える走り)", tpc[0], tpc[1]))
     rows.append(("透塀のスパンの割り付けと部材(辺の等分・端の種類・`bom[透塀].baked`)", ssc[0], ssc[1]))
+    rows.append(("透塀の隅の凹凸(折れ線の外積からの従属値 × `joints[].kadoFrom` の宣言・隅ごとの部材)", skk[0], skk[1]))
     rows.append(("中門の冠木と透塀の棟の離れ(`bom[中門].axis.kabukiM` × `bom[透塀].outlineM`)", ckc[0], ckc[1]))
     rows.append(("御供所の取り合い(観音堂の離れ・勝手口・渡廊下の口と北の壁の面・溝)", gtc[0], gtc[1]))
     rows.append(("軒反りの量(指図 `const` と部材の生成器)", nks[0], nks[1]))
@@ -18047,6 +18363,7 @@ def main():
     derive_gates(d, g)         # 門の芯と、その面に取り付く物の通り(⛔ 面の u を二重に持たない)
     derive_runs(d, g)          # 板塀は平場の輪郭から生成する(独立の座標を持たせない)
     derive_zentei(d, g)        # 木戸の芯・供待の北辺は従属値(⛔ 丸めた値を持たない)
+    derive_sukibei_kado(d)     # 透塀の隅の凹凸は折れ線からの従属値(K059 2026-09-16)
     derive_cluster_groups(d)   # 塊の `groups` を兄弟へ展開(中6 庭方 2026-09-09)
     derive_clusters(d)         # 塊の箱は宣言(`boxFrom`)からの従属値(2026-09-07 中3)
     derive_view_clusters(d, g)  # 視線の塊の丈は跨ぐ帯の共通部分(2026-09-08)

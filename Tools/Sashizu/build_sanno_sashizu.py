@@ -9593,14 +9593,35 @@ def sode_part_check(d, g):
 SUKIBEI_ROW = "透塀(連子窓の塀)"
 
 
+def sukibei_kado_leg(d):
+    """**隅部材が脚へ食い込む長さ**[m]【中2 検図23巡目 → 2026-09-17】── `bom[透塀].kadoOutlineM`
+    の**脚の到達**(ピボット = 隅柱の芯から)。隅部材は隅柱の芯を跨いで両脚へ伸びるので、
+    ⭐ **辺に実際に入るスパンは「節点の間の長さ − この量 ×(隅で終わる端の数)」**。
+    ⛔ 節点間の全長をそのまま等分しない(旧図は両端が隅の辺で 0.99 m 過剰に割り付け、
+    実装で『芯が 0.29 m ずれる』として現れた)。⛔ 手で書かない ── 部材の外形からの従属値。
+    戻り (脚 a, 脚 b)[m]。外形が無ければ None(⛔ は検査が出す)。"""
+    row = next((b for b in d["bom"] if b.get("部材") == SUKIBEI_ROW), {}) or {}
+    ol = row.get("kadoOutlineM") or []
+    if not ol: return None
+    la = max(max(abs(float(q["aM"][0])), abs(float(q["aM"][1]))) for q in ol if q.get("aM"))
+    lb = max(max(abs(float(q["bM"][0])), abs(float(q["bM"][1]))) for q in ol if q.get("bM"))
+    return (la, lb)
+
+
 def sukibei_span_plan(d):
-    """**透塀のスパンの割り付け**【部材方 2026-09-14】── 辺(隅の柱芯から、中門の側は本柱の外面から)を
-    run の側で**等分**する: 本数 = round(辺長 / 基準スパン)・スパン = 辺長 / 本数。⛔ 数を json に持たない。
+    """**透塀のスパンの割り付け**【部材方 2026-09-14 / 中2 検図23巡目 2026-09-17】── 辺を run の側で
+    **等分**する: 本数 = round(建つ長さ / 基準スパン)・スパン = 建つ長さ / 本数。⛔ 数を json に持たない。
+    ⭐ **建つ長さ = 節点の間の長さ − 隅部材の食い込み(`sukibei_kado_leg`)× 隅で終わる端の数**
+      ── 辺の端が隅(`c`)なら、そこは隅部材が占めていてスパン部材は入らない。
+      中門の側(`t`)は本柱の外面まで、潜りの口(`h`)は口の縁の柱までがスパンなので引かない。
     端の種類(−X, +X — run の a → b の向き): n = 次のスパンへ続く / t = 中門へ突き付け / c = 隅部材へ続く /
-    ? = 部材が決まっていない口(南の潜り)。戻り [(run 名, 区間の名, 辺長 m, 本数, スパン mm, [端の種類…])]。"""
+    h = 潜りの口の縁の柱 / ? = 部材が決まっていない口。
+    戻り [(run 名, 区間の名, 建つ長さ m, 本数, スパン mm, [端の種類…], 引いた隅の食い込み m)]。"""
     ken = d["const"]["ken"]
     row = next((b for b in d["bom"] if b.get("部材") == SUKIBEI_ROW), {}) or {}
     base = float(row.get("spanBaseM") or 2.54)
+    leg = sukibei_kado_leg(d)
+    kad = max(leg) if leg else 0.0          # ⛔ 脚の長さが食い違えば検査が⛔で止める(決めるのは部材方)
     out = []
     for r in d["runs"]:
         if r.get("kind") != "透塀": continue
@@ -9615,11 +9636,16 @@ def sukibei_span_plan(d):
             eg = "t" if r.get("gapFrom") else (r.get("gapEnd") or "?")   # ⭐ 潜りの口の端(`gapEnd`・部材方 d2e9de85)
             segs = [(0.0, sc - h, "c", eg, "口の手前"), (sc + h, L, eg, "c", "口の先")]
         for s0, s1, e0, e1, nm in segs:
-            ln = s1 - s0
+            # ⭐ **隅部材の食い込みを先に引く**【中2 検図23巡目 → 2026-09-17】── ⛔ 等分の前に引く
+            #   (あとから木口で吸わせない ── 吸う量が部材一本ぶんに達して納まらない)
+            ded = kad * ((1 if e0 == "c" else 0) + (1 if e1 == "c" else 0))
+            ln = s1 - s0 - ded
             n = max(1, int(round(ln / base)))
-            mm = int(round(ln / n * 1000.0))
+            # ⭐ **mm の丸めはめり込む側へ**(規則『隙間は不可・めり込みは可』)── 切り捨てると
+            #   本数ぶんの端数がそのまま**隙間**になる。切り上げなら重なりは高々 本数 × 1 mm
+            mm = int(math.ceil(ln / n * 1000.0 - 1e-9))
             ends = [e0 + e1] if n == 1 else [e0 + "n"] + ["nn"] * (n - 2) + ["n" + e1]
-            out.append((r["name"], nm, ln, n, mm, ends))
+            out.append((r["name"], nm, ln, n, mm, ends, ded))
     return out
 
 
@@ -9632,8 +9658,23 @@ def sukibei_span_check(d, g):
         return (["部材表に透塀の行が無い"], [])
     baked = set(row.get("baked") or [])
     need = {}
-    for rn, nm, ln, n, mm, ends in sukibei_span_plan(d):
-        note.append("透塀『%s』%s ── 辺長 %.3f m ÷ %d 本 = スパン %d mm ／ 端 %s【算出】" % (rn, nm, ln, n, mm, "・".join(ends)))
+    leg = sukibei_kado_leg(d)
+    if leg is None:
+        bad.append("隅部材の外形 `bom[%s].kadoOutlineM` が無い ── 隅の食い込みを引けない(辺長をそのまま"
+                   "等分すると辺ごとに一本ぶん近い過剰が出る)" % SUKIBEI_ROW)
+    elif abs(leg[0] - leg[1]) > 0.001:
+        bad.append("隅部材の脚の到達が食い違う(脚 a **%.3f m** ／ 脚 b **%.3f m**)── どちらの脚が"
+                   "どの辺へ向くかが決まらないと辺長から引く量が決まらない。決めるのは**部材方**" % leg)
+    else:
+        note.append("隅部材の食い込み **%.3f m**(`bom[%s].kadoOutlineM` の脚の到達 ── 隅柱の芯から)"
+                    "【算出 — 中2 検図23巡目 2026-09-17。⛔ 辺長をそのまま等分しない】" % (leg[0], SUKIBEI_ROW))
+    over9 = []
+    for rn, nm, ln, n, mm, ends, ded in sukibei_span_plan(d):
+        ov = n * mm / 1000.0 - ln
+        over9.append((ov, rn, nm))
+        note.append("透塀『%s』%s ── 節点の間 %.3f m − 隅の食い込み %.3f m = **建つ %.3f m** ÷ %d 本 = "
+                    "スパン %d mm(重なり %+.0f mm)／ 端 %s【算出】"
+                    % (rn, nm, ln + ded, ded, ln, n, mm, ov * 1000.0, "・".join(ends)))
         for e in ends:
             need.setdefault("%d_%s" % (mm, e), []).append(rn)
     q9 = sorted(k for k in need if "?" in k)
@@ -9645,6 +9686,51 @@ def sukibei_span_check(d, g):
         bad.append("透塀のスパン部材が **%d 点** 焼けていない ── %s ── 決めるのは**部材方**(`build_sanno_sukibei.py --span`)"
                    % (len(miss), "・".join(miss)))
     note.append("透塀のスパン部材 ── 要る %d 点 ／ 焼いた %d 点(`bom[%s].baked`)【算出】" % (len(need), len(baked), SUKIBEI_ROW))
+    # ⭐ **端数の行き先を測る**【低5 検図23巡目 → 2026-09-17】── 等分の端数(mm の丸め)は
+    #   隅部材へのめり込みとして出る。⛔ 上限(`joints[].absorb.limitM` = 取り合いの `tol`)を
+    #   宣言しておいて誰も突き合わせない、をしない。
+    lim9 = next((j["absorb"]["limitM"] for j in d.get("joints", [])
+                 if (j.get("absorb") or {}).get("limitM")), [0.05, 0.0])
+    if over9:
+        ov9 = max(over9)
+        if ov9[0] > float(lim9[0]) + 1e-9:
+            bad.append("透塀の等分の端数が取り合いの上限を越える ── 『%s』%s で **%.0f mm**"
+                       "(上限 めり込み %.0f mm ── `joints[].absorb.limitM`)" % (ov9[1], ov9[2], ov9[0] * 1000.0, float(lim9[0]) * 1000.0))
+        if min(over9)[0] < -1e-9:
+            bad.append("透塀の等分が**隙間**を残す ── 『%s』%s で %.0f mm(⛔ 隙間は不可・めり込みは可)"
+                       % (min(over9)[1], min(over9)[2], -min(over9)[0] * 1000.0))
+        note.append("透塀の等分の端数 ── 最大の重なり **%.0f mm**(『%s』%s)／ 上限 めり込み **%.0f mm**・"
+                    "隙間 **%.0f mm**(`joints[].absorb.limitM` = 隅の取り合いの `tol`)"
+                    "【算出 — 低5 検図23巡目 2026-09-17】"
+                    % (ov9[0] * 1000.0, ov9[1], ov9[2], float(lim9[0]) * 1000.0, float(lim9[1]) * 1000.0))
+    # ⭐ **基準スパンからの外れを測る**【低3 検図23巡目 → 2026-09-17】── 等分は `round` だけで
+    #   上下の歯止めが無いので、⛔ **一辺だけ連子の割りが粗く(あるいは細かく)なっても誰も鳴らない**。
+    #   ⇒ 辺ごとに スパン ÷ 基準 を刷り、外れの大きい辺を名指しする。
+    #   ⚠ **許容帯は物差し**(`bom[透塀].spanRatioBand`)── 宣言があれば⛔で止め、無ければ
+    #   〔記録〕に残して普請奉行・部材方の裁定を待つ(→ `_pending`「透塀のスパンの許容帯」)。
+    base9 = float(row.get("spanBaseM") or 2.54)
+    band = row.get("spanRatioBand")
+    rs9 = sorted(((mm / 1000.0 / base9, rn, nm, mm) for rn, nm, ln, n, mm, ends, ded in sukibei_span_plan(d)),
+                 reverse=True)
+    if rs9:
+        if band:
+            out9 = [q for q in rs9 if q[0] < float(band[0]) - 1e-9 or q[0] > float(band[1]) + 1e-9]
+            if out9:
+                bad.append("透塀のスパンが許容帯 %g〜%g 倍(`bom[%s].spanRatioBand`)を外れる **%d 辺** ── %s"
+                           % (float(band[0]), float(band[1]), SUKIBEI_ROW, len(out9),
+                              "・".join("%s %s %d mm(基準の %.2f 倍)" % (q[1], q[2], q[3], q[0]) for q in out9[:4])))
+        note.append("透塀のスパン ── 基準 **%.3f m** に対し **%.2f〜%.2f 倍**(最も粗い辺 %s %s "
+                    "**%d mm** ／ 最も細かい辺 %s %s **%d mm**)／ 許容帯の宣言 **%s**"
+                    "【算出 — 低3 検図23巡目 2026-09-17。⛔ 数を指図の文章に写さない】"
+                    % (base9, rs9[-1][0], rs9[0][0], rs9[0][1], rs9[0][2], rs9[0][3],
+                       rs9[-1][1], rs9[-1][2], rs9[-1][3],
+                       ("%g〜%g 倍" % (float(band[0]), float(band[1]))) if band
+                       else "無い"))
+        if not band:
+            note.append("透塀のスパンの**許容帯の宣言が無い**(`bom[%s].spanRatioBand` = null)── "
+                        "⛔ 等分は `round` だけで上下の歯止めが無く、外れの大きい辺が出ても検査は止まらない。"
+                        "決めるのは**普請奉行**(連子の割りの見え方)と**部材方**(焼き直し)"
+                        "→ `_pending`「透塀のスパンの許容帯」【低3 検図23巡目 2026-09-17】" % SUKIBEI_ROW)
     return bad, note
 
 
@@ -9706,10 +9792,27 @@ def derive_sukibei_kado(d):
         if q is None: continue                          # 検査が⛔で拾う
         a9, b9, uv, t9 = q
         mv = a9 if run_nodes_ken(a9) <= run_nodes_ken(b9) else b9
+        # ⭐ **この隅に向いている木口**(前の辺なら `b` の木口・次の辺なら `a` の木口)。
+        #   ⚠ **これは端数の行き先ではない**【低5 検図23巡目 → 2026-09-17】── 端数は
+        #   `sukibei_span_plan` が**二つの隅柱の面の間で等分し直して**吸う(⛔ 木口へ寄せ集めない)。
+        #   旧版は `moves` が「この木口で吸う」・`absorb` が「等分し直す」と二つの事を言っており、
+        #   実装がどちらを読むか決まらなかった ⇒ ⭕ **等分し直す側へ一本化**し、木口は寄せ先の面としてだけ名乗る。
+        #   ⚠ 上限(丸めの端数が隅部材へめり込む量)は同じ取り合いの `tol`(めり込み可・隙間不可)。
+        end9 = "b" if mv is a9 else "a"
+        tol9 = (j.get("tol") or [0.05, 0.0])
         j["kind"] = "突き付け(%sの%s)" % (kf.get("name", ""), t9)
         j["bFace"] = "隅柱(%s と共有)の%sの面" % (a9["name"], "外側" if t9 == "出隅" else "内側")
-        j["moves"] = "透塀(%s ── 短い側の辺で端数を吸う)" % mv["name"]
+        j["moves"] = ("透塀(%s ── 短い側の辺が動く。この隅では `%s` の木口を上の面へ寄せ、"
+                      "端数は辺の全長を**二つの隅柱の実測した面の間で等分し直して**吸う"
+                      "／めり込みの上限 %.2f m・隙間 %.2f m)" % (mv["name"], end9, tol9[0], tol9[1]))
         j["kado"] = t9
+        j["absorb"] = {"run": mv["name"], "end": end9, "rule": "等分し直す", "limitM": tol9,
+                       "_": "**端数の始末**【算出 — 低2/低5 検図23巡目 2026-09-17】。⛔ 手で書かない。"
+                            "⭐ **端数は木口へ寄せ集めない** ── 動かす側の辺(`run`)を**二つの隅柱の"
+                            "実測した面の間でスパンごと等分し直す**(`bom[透塀].手当` の等分の作法"
+                            "そのもの。割り付けは `sukibei_span_plan` ── 隅部材の食い込みを引いてから等分)。"
+                            "⚠ `end` は**この隅で寄せる木口**(寄せ先は `bFace`)であって、⛔ 端数の"
+                            "行き先ではない。`limitM` は等分の丸めが隅部材へめり込んでよい量 = `tol`"}
     return pl
 
 
@@ -9752,6 +9855,37 @@ def sukibei_kado_check(d, g):
                        "外側" if t9 == "出隅" else "内側", mv["name"],
                        min(run_nodes_ken(a9), run_nodes_ken(b9)) * d["const"]["ken"],
                        max(run_nodes_ken(a9), run_nodes_ken(b9)) * d["const"]["ken"]))
+    # ⭐ **両隅とも「動かす側」に選ばれた辺**【低2 検図23巡目 → 2026-09-17】── 短い辺は両端で端数を
+    #   吸う。⛔ どちらの木口で幾ら吸うかを図にも検査にも残さない、をやめる ⇒ 辺ごとに
+    #   **吸う木口(a / b)・本数・スパン・吸う量の上限(`joints[].tol`)**を刷る。
+    mv9 = {}
+    for a9, b9, uv, t9 in pl:
+        m9 = a9 if run_nodes_ken(a9) <= run_nodes_ken(b9) else b9
+        mv9.setdefault(m9["name"], []).append("b" if m9 is a9 else "a")
+    plan9 = {}
+    for rn, nm, ln, n, mm, ends, ded in sukibei_span_plan(d):
+        plan9.setdefault(rn, []).append((ln + ded, ded, ln, n, mm))
+    tols = [tuple(j.get("tol") or [0.05, 0.0]) for j in js]
+    tol9 = tols[0] if tols and len(set(tols)) == 1 else (0.05, 0.0)
+    if tols and len(set(tols)) > 1:
+        bad.append("透塀の隅の取り合いの `tol` が隅ごとに違う(%d 通り)── 端数を吸う上限が一本に決まらない"
+                   % len(set(tols)))
+    for rn in sorted(mv9):
+        if len(mv9[rn]) < 2: continue
+        pq = plan9.get(rn) or []
+        note.append("透塀『%s』は**両隅とも動かす側** ── この隅に向いた木口 `%s` の二口 ／ 区間 %s ／ "
+                    "端数は**二つの隅柱の実測した面の間でスパンを等分し直して**吸う"
+                    "(⛔ 片方の木口へ寄せ集めない)／ 一口あたりの上限 めり込み **%.2f m**・"
+                    "隙間 **%.2f m**(`joints[].tol`)【算出 — 低2 検図23巡目 2026-09-17】"
+                    % (rn, "`・`".join(sorted(mv9[rn])),
+                       " ／ ".join("節点の間 %.3f m − 隅の食い込み %.3f m = 建つ %.3f m ÷ %d 本 = %d mm" % q
+                                  for q in pq) or "—",
+                       tol9[0], tol9[1]))
+    note.append("透塀 ── 両隅とも動かす側に選ばれた辺 **%d**(%s)／ 片隅だけ **%d**"
+                "【算出 — ⛔ 端数の行き先を空にしない】"
+                % (sum(1 for k in mv9 if len(mv9[k]) >= 2),
+                   "・".join(sorted(k for k in mv9 if len(mv9[k]) >= 2)) or "—",
+                   sum(1 for k in mv9 if len(mv9[k]) == 1)))
     note.append("透塀の隅 ── 折れ線の頂点 **%d**(出隅 **%d** ／ 入隅 **%d**)／ `joints` の隅の行 **%d**"
                 "【算出 — ⛔ 数を json に持たない(部材表の『手当』もこの検査を指す)】"
                 % (len(pl), n9["出隅"], n9["入隅"], len(js)))
@@ -10294,6 +10428,14 @@ def saichigai_check(d, g):
     return bad, note
 
 
+def _cf_col(dv):
+    """切盛の配色(Δ = 設計地盤 − 現況)。⛔ 面の枡と格子の縁で**別の物差しを作らない**
+    【中3 検図23巡目 → 2026-09-17】── 縁も同じこの配色で塗る。"""
+    for c, th in CUTFILL:
+        if (th > 0 and dv >= th) or (th < 0 and dv <= th): return c
+    return "#EFD9C8" if dv > 0.3 else ("#D4DEE6" if dv < -0.3 else "#E9E5D6")
+
+
 def kirimori_svg(d, kan, x0, x1, z0, z1, W=900.0):
     """§3b 切盛図 — Δ = 設計地盤 − 現況。暖色=盛土 / 寒色=切土 / 無彩=±0.3m。
 
@@ -10315,12 +10457,7 @@ def kirimori_svg(d, kan, x0, x1, z0, z1, W=900.0):
             nat = dem_h(cx, cz)
             if nat is None: continue
             dv = y - nat
-            col = "#E9E5D6"
-            for c, th in CUTFILL:
-                if (th > 0 and dv >= th) or (th < 0 and dv <= th): col = c; break
-            else:
-                col = "#EFD9C8" if dv > 0.3 else ("#D4DEE6" if dv < -0.3 else "#E9E5D6")
-            o.append(R(pr.X(x), pr.Y(z + stp), pr.L(stp) + 0.6, pr.L(stp) + 0.6, fill=col))
+            o.append(R(pr.X(x), pr.Y(z + stp), pr.L(stp) + 0.6, pr.L(stp) + 0.6, fill=_cf_col(dv)))
             kn = _stair_hit(d, g, cx, cz)[0] if cutfill_name(d, g, cx, cz, y).startswith("石段") else None
             if kn:
                 q_ = st.setdefault(kn, [0, 0, 0, 0.0, 0.0, 0.0])
@@ -10338,10 +10475,38 @@ def kirimori_svg(d, kan, x0, x1, z0, z1, W=900.0):
                 t_[5] += stp * stp
                 if dv > 0: t_[6] += dv * stp * stp
                 else:      t_[7] += -dv * stp * stp
+    # ⭐ **格子の縁も塗る**【中3 検図23巡目 → 2026-09-17】── 縁の丸めは `design_y` を持たないので
+    #   上の走査に一枡も出ず、⛔ 図では**地の色(= 造成しない)と区別が付かなかった**(帳簿にだけ在る土)。
+    #   ⇒ 同じ配色(`_cf_col`)で塗り、**細枠**で囲って「面の 2 m 格子ではなく造成の格子 1 m の縁」と
+    #   分かるようにする。⛔ 塗り分けの外に置いたまま数だけ書かない。
+    cl = grade_collar_stats(d, g)
+    for cx9, cz9, dv9 in cl["cells"]:
+        if dv9 is None: continue
+        o.append(R(pr.X(cx9 - IMPL_STEP / 2.0), pr.Y(cz9 + IMPL_STEP / 2.0),
+                   pr.L(IMPL_STEP), pr.L(IMPL_STEP),
+                   fill=_cf_col(dv9), stroke="var(--shu)", sw=0.35))
     o.append(PL([(pr.X(x), pr.Y(z)) for x, z in d["polygon"]], stroke="var(--ink)", sw=1.6, close=True))
     o += cut_lines(d, pr.X, pr.Y, pr.L)
+    # ⭐ **外向きの段差の最大点を図に打つ**(⛔ 数だけ書いて図に現れない、をしない)
+    if cl.get("stepAt"):
+        sx9, sz9, snm9 = cl["stepAt"]
+        o.append(LN(pr.X(sx9) - 4.5, pr.Y(sz9) - 4.5, pr.X(sx9) + 4.5, pr.Y(sz9) + 4.5,
+                    stroke="var(--shu)", sw=1.4))
+        o.append(LN(pr.X(sx9) - 4.5, pr.Y(sz9) + 4.5, pr.X(sx9) + 4.5, pr.Y(sz9) - 4.5,
+                    stroke="var(--shu)", sw=1.4))
+        o.append(T(pr.X(sx9) + 8, pr.Y(sz9) + 4, "縁の外向きの段差 最大 %.2f m(%s)" % (cl["step"], snm9),
+                   fs=9.5, fill="var(--shu)"))
     o.append(T(6, 15, kan + "　切盛図 ─ 設計地盤 − 現況(暖色=盛土 ／ 寒色=切土 ／ 無彩=±0.3 m)",
                fs=12.5, fill="var(--dim)"))
+    o.append(T(6, 29, "細枠の枡 = 格子の縁(造成の格子 %g m の節点 ─ `design_y` の外。面の枡は %d m 格子)"
+               % (IMPL_STEP, stp), fs=10, fill="var(--shu)"))
+    # ⭐ **格子の縁の欄**【中1 検図23巡目 → 2026-09-17】── 縁の丸めは `design_y` を動かさないので
+    #   上の 2 m 格子の走査には一切出ない(= 無帳簿の土になっていた)。⭕ 同じ集計
+    #   (`grade_collar_stats` ── 検査『造成の格子が面の輪郭を覆い切るか』が刷る数)から欄を足す。
+    #   ⚠ 刻みは面の側(2 m)と違い**造成の格子の 1 m**(実装が焼く節点そのもの)。
+    tally["格子の縁(造成の格子 %g m の節点・`design_y` の外)" % IMPL_STEP] = [
+        cl["add"] * IMPL_STEP * IMPL_STEP, cl["fillM3"], cl["cutM3"], cl["maxRise"], cl["maxCutD"],
+        cl["outArea"], cl["outFill"], cl["outCut"]]
     yy = 40.0
     for nm, t_ in tally.items():
         o.append(T(pr.W - 6, yy, "%s: %d m²　盛土 %.0f m³(最大 %.2f)　切土 %.0f m³(最大 %.2f)"
@@ -10349,6 +10514,15 @@ def kirimori_svg(d, kan, x0, x1, z0, z1, W=900.0):
                    % (nm, t_[0], t_[1], t_[3], t_[2], t_[4], t_[5], t_[6], t_[7]),
                    fs=10.5, anchor="end", fill="var(--dim)"))
         yy += 15
+    o.append(T(pr.W - 6, yy, "格子の縁は `design_y` を動かさない ─ 断面にも法面にも現れない土"
+               "(外向きの段差 最大 %.2f m ／ 土留めが受けていない節点 %d ／ 上限で断った節点 %d・"
+               "社地の境で断った節点 %d)"
+               % (cl["step"], cl["noWall"], cl["cut"], cl["outN"]), fs=9.5, anchor="end", fill="var(--shu)"))
+    yy += 15
+    o.append(T(pr.W - 6, yy, "面の欄は %d m 格子で数えた面積 ／ 格子の縁の欄は造成の格子 %g m の節点"
+               "(『うち社地外』はどちらも実測 ─ ⛔ 定数ではない)" % (stp, IMPL_STEP),
+               fs=9.5, anchor="end", fill="var(--dim)"))
+    yy += 15
     tot = sum(t_[1] for t_ in tally.values()) - sum(t_[2] for t_ in tally.values())
     o.append(T(pr.W - 6, yy, "差引 %+.0f m³(正なら客土が要る／負なら残土が出る)" % tot, fs=10.5,
                anchor="end", fill="var(--shu)"))
@@ -16011,6 +16185,109 @@ def _why_empty(d, g, x, z, te):
     return None
 
 
+_COLLAR = {}
+
+
+def _wall_dist(d, g, x, z):
+    """その点から**土留めの線**までの最短距離[m](⛔ 受けているか否かの閾は `on_wall` が持つ)。"""
+    best = 1e9
+    for (ax, az), (bx, bz) in wall_segs_world(d, g):
+        ddx, ddz = bx - ax, bz - az
+        L2 = ddx * ddx + ddz * ddz or 1.0
+        t = max(0.0, min(1.0, ((x - ax) * ddx + (z - az) * ddz) / L2))
+        best = min(best, math.hypot(x - (ax + ddx * t), z - (az + ddz * t)))
+    return best
+
+
+def grade_collar_stats(d, g):
+    """**格子の縁が動かす土**を数える【中1 検図23巡目 → 2026-09-17】。
+
+    ⛔ **縁の丸めは `design_y` を動かさないので、切盛図・断面・土量のどれにも出ない** ── 数えなければ
+      無帳簿の土が残る(旧図はここを「足した節点の数」でしか刷らず、m³ も外縁の段差も測っていなかった)。
+    ⇒ ⭕ **足した節点・切った節点・盛/切の土量・外向きの段差・土留めが受けていない節点**を一度に数え、
+      切盛図の欄(`kirimori_svg`)と検査の〔記録〕が**同じこの集計**から刷る(規則4・規則19)。
+    ⚠ 数えるのは縁の作法が値を入れた節点だけ(`design_y` が値を持つ節点は面の側の帳簿に入っている)。
+    ⚠ 外向きの段差 = その節点の面の高さ − **隣の節点(造成しない = 現地形のまま)の現地形**。
+      ⛔ 縁は法面の式を通っていないので、この差はそのまま土の壁として立つ(→ `_pending`
+      「造成の格子の縁の丸めの上限」── 物差しを決めるのは普請奉行)。
+    ⚠ 「土留めが受けていない」の閾は `on_wall` の既定(⛔ ここで新しい物差しを作らない)。
+    ⭕ **図が塗る枡も同じここから出す**【中3 検図23巡目 → 2026-09-17】── `cells` = 縁が値を入れた
+      節点と Δ(設計面 − 現況)。⛔ 切盛図が縁を塗らずに数だけ刷る、をしない。
+    ⭕ **『うち社地外』は実測**【低4 同】── ⛔ 走査から社地の外を外して定数 0 を刷らない。
+      作法が断った理由(社地の境 / 持ち上げの上限)も数えて分ける。
+    戻り値 dict(add, cut, outN, outArea, outFill, outCut, cells, stepM, why, fillM3, cutM3,
+                maxRise, maxCutD, step, stepAt, noWall, noWallRise, noWallDist, maxRiseM, cutMaxRise)。
+    """
+    if _COLLAR.get("key") == id(d): return _COLLAR["v"]
+    dec = (d.get("terrainCheck") or {}).get("gradedCover") or {}
+    lim = dec.get("maxRiseM")
+    P8 = d["polygon"]
+    q = {"add": 0, "cut": 0, "fillM3": 0.0, "cutM3": 0.0, "maxRise": 0.0, "maxCutD": 0.0,
+         "step": 0.0, "stepAt": None, "noWall": 0, "noWallRise": 0.0, "noWallDist": 0.0,
+         "maxRiseM": lim, "cutMaxRise": 0.0, "noWallUp": 0,
+         "outN": 0, "outArea": 0.0, "outFill": 0.0, "outCut": 0.0,
+         "cells": [], "stepM": IMPL_STEP, "why": {}}
+    a9 = IMPL_STEP * IMPL_STEP
+    seen = set()                       # ⛔ 面が二枚届く節点を二度数えない(面積が水増しになる)
+    for te, P, bb in _terrace_polys(d, g):
+        i0 = int(math.floor((bb[0] - GRADE_REACH) / IMPL_STEP)) - 1
+        i1 = int(math.ceil((bb[2] + GRADE_REACH) / IMPL_STEP)) + 1
+        j0 = int(math.floor((bb[1] - GRADE_REACH) / IMPL_STEP)) - 1
+        j1 = int(math.ceil((bb[3] + GRADE_REACH) / IMPL_STEP)) + 1
+        for j in range(j0, j1 + 1):
+            for i in range(i0, i1 + 1):
+                if (i, j) in seen: continue
+                x, z = i * IMPL_STEP, j * IMPL_STEP
+                if in_poly((x, z), P): continue
+                if not _poly_hits_box(P, x - GRADE_REACH, z - GRADE_REACH,
+                                      x + GRADE_REACH, z + GRADE_REACH): continue
+                if _design_y_cold(d, g, x, z) is not None: continue
+                seen.add((i, j))
+                # ⭐ **縁の作法そのものに訊く**【低4 検図23巡目 → 2026-09-17】── ⛔ ここで規則を
+                #   書き直さない(旧版は社地の外を走査から外していたので、欄『うち社地外』が
+                #   **測った値でなく定数 0** になり、縁の規則が変わっても黙って 0 を刷り続けた)。
+                y = graded_y(d, g, x, z)
+                nat = dem_h(x, z)
+                if y is None:
+                    w = _why_empty(d, g, x, z, te) or "説明の付かない欠け"
+                    q["why"][w] = q["why"].get(w, 0) + 1
+                    if w == "社地の外": q["outN"] += 1
+                    else:
+                        q["cut"] += 1
+                        if nat is not None: q["cutMaxRise"] = max(q["cutMaxRise"], te["y"] - nat)
+                    continue
+                q["add"] += 1
+                dv0 = None if nat is None else y - nat
+                q["cells"].append((x, z, None if dv0 is None else round(dv0, 3)))
+                if nat is not None:
+                    dv = dv0
+                    if dv > 0: q["fillM3"] += dv * a9; q["maxRise"] = max(q["maxRise"], dv)
+                    else:      q["cutM3"] += -dv * a9; q["maxCutD"] = max(q["maxCutD"], -dv)
+                # ⭕ **社地の外へ出た縁を測る**(いまの作法では 0 ── ⛔ 定数ではなく `graded_y` の答えから)
+                if not in_poly((x, z), P8):
+                    q["outArea"] += a9
+                    if nat is not None:
+                        if y > nat: q["outFill"] += (y - nat) * a9
+                        else:       q["outCut"] += (nat - y) * a9
+                # ⭐ **外向きの段差** ── 隣が造成されないなら、そこは現地形のまま(= 土の壁が立つ)
+                for dx, dz in ((IMPL_STEP, 0), (-IMPL_STEP, 0), (0, IMPL_STEP), (0, -IMPL_STEP)):
+                    if graded_y(d, g, x + dx, z + dz) is not None: continue
+                    n9 = dem_h(x + dx, z + dz)
+                    if n9 is None: continue
+                    if y - n9 > q["step"]:
+                        q["step"] = y - n9; q["stepAt"] = (round(x, 1), round(z, 1), te["name"])
+                        q["stepDv"] = round(y - n9, 2)
+                # ⭐ **土留めが受けていない縁**(`on_wall` の既定の閾)
+                if not on_wall(d, g, x, z):
+                    q["noWall"] += 1
+                    if nat is not None and y - nat > 0: q["noWallUp"] += 1
+                    if nat is not None and y - nat > q["noWallRise"]:
+                        q["noWallRise"] = y - nat
+                        q["noWallDist"] = _wall_dist(d, g, x, z)
+    _COLLAR["key"] = id(d); _COLLAR["v"] = q
+    return q
+
+
 def graded_cover_check(d, g):
     """**造成の格子が面の輪郭を覆い切るか**【K060 2026-09-16 棟梁の差し戻し → 規則19】。
 
@@ -16071,30 +16348,32 @@ def graded_cover_check(d, g):
                 "⛔ 崖や丈の高い土留めの前に土の棚を出さない【算出 — 走査した枡の隅 %d 点のうち造成 %d 点】"
                 % (GRADE_REACH, dec.get("maxRiseM"), len(memo), n8))
     # ⭕ **縁の作法が実際に何節点を足し、上限で何節点を断ったかを刷る**(規則19 — 宣言だけにしない)
-    add, cut, hi = 0, 0, 0.0
-    P8 = d["polygon"]
-    for te, P, bb in _terrace_polys(d, g):
-        i0 = int(math.floor((bb[0] - GRADE_REACH - x0) / IMPL_STEP))
-        i1 = int(math.ceil((bb[2] + GRADE_REACH - x0) / IMPL_STEP))
-        j0 = int(math.floor((bb[1] - GRADE_REACH - z0) / IMPL_STEP))
-        j1 = int(math.ceil((bb[3] + GRADE_REACH - z0) / IMPL_STEP))
-        for j in range(j0, j1 + 1):
-            for i in range(i0, i1 + 1):
-                x, z = x0 + i * IMPL_STEP, z0 + j * IMPL_STEP
-                if not in_poly((x, z), P8): continue
-                # ⚠ 重い順に弾く(枡の判定 → 社地 → `design_y`)── ⛔ 全セルで設計面を引かない
-                if in_poly((x, z), P): continue
-                if not _poly_hits_box(P, x - GRADE_REACH, z - GRADE_REACH,
-                                      x + GRADE_REACH, z + GRADE_REACH): continue
-                if _design_y_cold(d, g, x, z) is not None: continue
-                nat = dem_h(x, z)
-                if nat is not None and te["y"] - nat > float(dec["maxRiseM"]):
-                    cut += 1; hi = max(hi, te["y"] - nat)
-                else:
-                    add += 1
-    note.append("縁の作法が足した節点 **%d** ／ 持ち上げの上限 **%g m** で断った節点 **%d**"
-                "(断った所の持ち上げは最大 **%.2f m** ── そこは図の宣言どおり土留め・崖が受ける)"
-                "【算出 — ⛔ 宣言だけ置いて誰も数えない、をしない】" % (add, dec["maxRiseM"], cut, hi))
+    # ⭐ **数は切盛図の欄と同じ集計から**【中1 検図23巡目 → 2026-09-17】── `grade_collar_stats`。
+    q = grade_collar_stats(d, g)
+    note.append("縁の作法が足した節点 **%d**(面積 **%d m²** ── 造成の格子 %g m)／ 持ち上げの上限 "
+                "**%g m** で断った節点 **%d**(断った所の持ち上げは最大 **%.2f m** ── そこは図の宣言どおり"
+                "土留め・崖が受ける)／ **社地の境**で断った節点 **%d** ／ 実際に社地の外へ出た縁 "
+                "**%d m²**(盛 %.1f ／ 切 %.1f m³ ── ⛔ 定数 0 ではなく `graded_y` の答えを数えた。"
+                "切盛図の欄『格子の縁』の『うち社地外』と同じ数)【算出 — 低4 検図23巡目 2026-09-17】"
+                % (q["add"], q["add"] * IMPL_STEP * IMPL_STEP, IMPL_STEP, dec["maxRiseM"], q["cut"],
+                   q["cutMaxRise"], q["outN"], q["outArea"], q["outFill"], q["outCut"]))
+    # ⭕ **動いた土と外縁の段差を測る**【中1 検図23巡目 → 2026-09-17】── ⛔ 覆いの有無だけを測って
+    #   「土は動いていない」と読ませない。⚠ この土は `design_y` に出ないので、⭕ **切盛図の
+    #   『格子の縁』の欄**(同じ集計)が帳簿に載せる。
+    note.append("縁の作法が動かす土 ── 盛土 **%.1f m³**(最大 **%.2f m**)／ 切土 **%.1f m³**"
+                "(最大 **%.2f m**)。⛔ `design_y` は動かないので**面の側の切盛には出ない** ⇒ "
+                "切盛図の欄『格子の縁』が同じ集計から刷る【算出 — ⛔ 数を指図の文章に写さない】"
+                % (q["fillM3"], q["maxRise"], q["cutM3"], q["maxCutD"]))
+    st9 = q["stepAt"]
+    note.append("縁の外向きの段差(縁の節点の面の高さ − 隣の造成しない節点の現地形)── 最大 **%.2f m**"
+                "%s。⚠ **縁は法面の式を通っていない**(平置き)ので、この差はそのまま立つ ／ "
+                "土留めが受けていない縁の節点 **%d**(うち現地形を持ち上げる側 **%d** ／ "
+                "`on_wall` の既定の閾 ── そこの最大の持ち上げ "
+                "**%.2f m**・最寄りの土留めまで **%.0f m**)。⚠ **物差し(縁を法面で降ろすか・"
+                "持ち上げの上限を幾らに採るか)は普請奉行の裁定待ち** → `_pending`"
+                "「造成の格子の縁の丸めの上限」【算出 — 中1/高1 検図23巡目 2026-09-17】"
+                % (q["step"], "(%s ── 世界座標 (%.1f, %.1f))" % (st9[2], st9[0], st9[1]) if st9 else "",
+                   q["noWall"], q["noWallUp"], q["noWallRise"], q["noWallDist"]))
     return bad, note
 
 
@@ -17759,7 +18038,8 @@ def main_export_impl():
 #   `_BANDS` ほかの覚え書きが汚染され、**全変異が同じ件数を出す偽陽性**になる。
 #   ⇒ ⭕ **束ごとに覚え書きを退避 → 消去 → 復元**する(`_probe_caches`)。
 _PROBE_CACHES = ("_BANDS", "_BSTAT", "_VCUT", "_GRP", "_VH", "_LAND", "_EDGE_NOTE",
-                 "_WSEG", "_WCOMP", "_STAIR_CF", "_STAIR_CF_N", "_SCAT_N", "_SITE_EDGE_N")
+                 "_WSEG", "_WCOMP", "_STAIR_CF", "_STAIR_CF_N", "_SCAT_N", "_SITE_EDGE_N",
+                 "_GPOLY", "_COLLAR")
 _PROBE_SLOTS = ("_WSEG", "_WCOMP", "_SCAT_N")   # `[None]` の一枠 ── 退避中は `[None]` に戻す
 
 

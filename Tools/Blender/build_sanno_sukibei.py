@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """山王権現社の**透塀(瑞垣)** — 屋根銅瓦葺・腰板+連子格子+小壁。1スパンの run 部材と、出隅・入隅の隅部材。
 
-    blender --background --python Tools/Blender/build_sanno_sukibei.py -- [--span 2.54] [--ends nn,tn,nt,nc,cn]
+    blender --background --python Tools/Blender/build_sanno_sukibei.py -- [--span 1.818] [--ends nn,tn,nt,nc,cn]
                                                                          [--no-kado] [--render] [--no-export]
 
 ━━━ なぜ新造するか ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -588,7 +588,9 @@ def main():
             print("RENDER " + f)
         return
     opt = lambda k, d: argv[argv.index(k) + 1] if k in argv else d
-    s = float(opt("--span", "2.54"))
+    # ⚠ **既定は柱間 6 尺**【施主裁定 2026-09-18 = 案A】── 旧値 2.54 のまま残すと、引数なしで
+    #   焼き直した者が 2540 系(どの辺にも当たらない孤児)をまた作る(K089)。
+    s = float(opt("--span", "1.818"))
     ends = opt("--ends", "nn,tn,nt,nc,cn").split(",")
     smm = int(round(s * 1000.0))
     print("[sukibei] スパン %.3f / 瓦の縮尺 %.4f(モジュール %d 枚)/ 勾配 %.3f / 軒の出 %.2f"

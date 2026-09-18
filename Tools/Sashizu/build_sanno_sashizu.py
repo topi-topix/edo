@@ -316,16 +316,29 @@ def gap_ledger(o):
     載った口は**複数の区間をまとめて食う**。⛔ そのため「折れ線 − 宣言した開口幅 − skip」は実長に
     ならず、**読者が足し算で検算できない**。⛔ 宣言幅と**実際に抜けた長さ**の両方を刷る。
     ⛔ 数を json に持たない — すべて折れ線と口の半幅からの従属値。
+
+    ⭐ **軸の口(`gapU`/`gapV` + `gapHalf`)も帳簿に載せる**【低 検図1巡目 → 2026-09-18】──
+      旧版の「折れ線」は `run_segs` から採っており、**軸の口はすでに抜けた後の長さ**だった。
+      ⇒ 中門の口(`Sukibei_E` 2.840 m)と南の潜り(`Sukibei_S` 1.818 m)は、抜けているのに
+      帳簿の「口が抜いた」が 0.000 と刷られ、⛔ **差が原理的に出ない帳簿**になっていた。
+      ⭕ 「折れ線」は**節点間の総和**(口を一つも抜かない)に改め、軸の口を別の欄で持つ。
     """
     gs = o.get("gaps") or []
     sk = o.get("skips") or []
     dec = [q for q in gs if q not in sk]
 
-    def L(g2):
+    def L(g2, axis=True):
         q = dict(o); q["gaps"] = g2
+        if not axis:
+            for k9 in ("gapU", "gapV", "gapHalf"): q.pop(k9, None)
         return sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in run_segs(q))
-    L0 = L([])
-    return {"折れ線": L0, "実長": L(gs),
+    raw = L([], axis=False)          # 折れ線(口を一つも抜かない = 節点間の総和)
+    L0 = L([])                       # 軸の口(`gapU`/`gapV`)だけ抜いた長さ
+    ax = 1 if (o.get("gapU") is not None or o.get("gapV") is not None) \
+              and o.get("gapHalf") is not None else 0
+    return {"折れ線": raw, "実長": L(gs),
+            "軸の口の宣言幅": 2.0 * float(o.get("gapHalf") or 0.0) * ax,
+            "軸の口が抜いた": raw - L0, "軸の口の数": ax,
             "口の宣言幅": sum(2 * q[2] for q in dec), "口が抜いた": L0 - L(dec), "口の数": len(dec),
             "skip の宣言幅": sum(2 * q[2] for q in sk), "skip が抜いた": L0 - L(sk), "skip の数": len(sk)}
 
@@ -1074,15 +1087,21 @@ def saku_decl_check(d):
     #    折れ返しに載った口は複数の区間をまとめて食う。⛔ 「折れ線 − 宣言幅 − skip」は実長にならず、
     #    **読者が上の発注量を足し算で検算できない**。⛔ 発注量の側は正しい(実体の長さだから)。
     for q in d["runs"]:
-        if not (q.get("gaps") or q.get("skips")): continue
+        # ⭐ **軸の口(`gapHalf`)だけを持つ run も帳簿に載せる**【低 検図1巡目 → 2026-09-18】──
+        #    旧版はここを素通りしており、中門の口・南の潜りは**どの帳簿にも現れなかった**。
+        if not (q.get("gaps") or q.get("skips") or q.get("gapHalf")): continue
         lg = gap_ledger(q)
-        note.append("『%s』の**切れ目の内訳** ── 折れ線 %.3f m ／ 宣言した口 %d 箇所"
+        note.append("『%s』の**切れ目の内訳** ── 折れ線(節点間の総和)%.3f m ／ "
+                    "**軸の口 %d 箇所(宣言幅 計 %.3f m ／ 実際に抜けた %.3f m)** ／ "
+                    "宣言した口 %d 箇所"
                     "(宣言幅 計 %.3f m ／ **実際に抜けた長さ 計 %.3f m**)／ "
                     "宣言していない切れ目 `skips` %d 箇所(宣言幅 計 %.3f m ／ 実際に抜けた %.3f m)"
                     "→ **実長 %.3f m**。⚠ **宣言幅と実際に抜けた長さは一致しない** — 口は芯まわりの"
                     "円で切るので、平場の折れ返しに載った口は複数の区間をまとめて食う"
                     "【算出 — ⛔ 数を json に持たない】"
-                    % (q["name"], lg["折れ線"] * ken, lg["口の数"], lg["口の宣言幅"] * ken,
+                    % (q["name"], lg["折れ線"] * ken,
+                       lg["軸の口の数"], lg["軸の口の宣言幅"] * ken, lg["軸の口が抜いた"] * ken,
+                       lg["口の数"], lg["口の宣言幅"] * ken,
                        lg["口が抜いた"] * ken, lg["skip の数"], lg["skip の宣言幅"] * ken,
                        lg["skip が抜いた"] * ken, lg["実長"] * ken))
     # ⭐ **部材として建たない長さの区間が残っていないか**【庭方6巡目 低2 → 2026-09-07】。
@@ -1108,6 +1127,25 @@ def saku_decl_check(d):
     return bad, note
 
 
+# **透塀の厚みが犬走りを割る組の猶予の宛先**(⛔ 猶予は合格ではない ── 項が消えれば⛔へ戻る)
+SUKIBEI_THK_PENDING = "透塀の厚みと境内の外周の柵の犬走り"
+
+
+def _kakoi_pending_roster(d):
+    """**猶予を与える組の名簿**(`kakoiCross.pendingRoster`)を キー『a|b』で引ける形に。
+
+    ⭐ **猶予は名指しの組にだけ与える**【中 検図2巡目 2026-09-18】── 旧版は帯の名の
+      **部分一致**(「透塀の厚み:」が名に入るか)で猶予していたので、⛔ 名簿に無い別の線が
+      透塀と食い込んでも同じ枝で黙って⚠へ落ちた(猶予が名簿から漏れる = 規則19 の欠陥の形)。
+    ⇒ ① 組を名指しする ② **量の天井**(`maxM`)を添える ③ **離れだけ**を猶予する
+      (⛔ 食い込みは猶予しない ── 部材が重なっている状態を⚠で通さない)。
+    """
+    out = {}
+    for q in ((d.get("kakoiCross") or {}).get("pendingRoster") or []):
+        out["|".join(sorted((q["a"], q["b"])))] = q
+    return out
+
+
 def _kakoi_items(d):
     """**線でできている物**(囲い・土留め)と、**帯を持つ物**(回廊の屋根・石段の踏面)の名簿。
 
@@ -1128,6 +1166,20 @@ def _kakoi_items(d):
     for lk in d.get("links", []):
         bands.append(("渡廊下の屋根:" + lk["name"],
                       [(tuple(lk["from"]), tuple(lk["to"]))], float(lk["w"]) / 2.0))
+    # ⭐ **透塀は厚みを持つ**【中 検図1巡目 → 2026-09-18】── `bom[透塀].outlineM` の厚みと、
+    #    端 `t`/`h` の**袖の稜** `thickAtEndTHM` は宣言だけがあって**消費者が一つも無かった**
+    #    (囲いは芯線だけで総当たりしており、±0.400 どころか厚みが一切入っていなかった)。
+    #    ⇒ 塀そのものを帯として載せ、⛔ 芯線では測れない食い込み・離れを同じ機構で測る。
+    #    ⚠ 半幅は**最も外へ出る稜**(袖の稜 ⊃ 軒 ⊃ 腰)で採る ── ⛔ 一つの帯で代表するので甘い側にしない。
+    row9 = next((b for b in d["bom"] if b.get("部材") == SUKIBEI_ROW), None)
+    if row9:
+        th9 = [abs(float(x)) for q in (row9.get("outlineM") or []) for x in (q.get("thickM") or [])]
+        th9.append(abs(float(row9.get("thickAtEndTHM") or 0.0)))
+        hw9 = max(th9) / d["const"]["ken"] if th9 else 0.0
+        if hw9 > 0:
+            for r in d["runs"]:
+                if r.get("kind") == "透塀":
+                    bands.append(("透塀の厚み:" + r["name"], run_segs(r), hw9))
     return lines, [q for q in bands if q[1]]
 
 
@@ -1323,6 +1375,9 @@ def kakoi_cross_check(d, g):
     for i in range(len(bands)):
         for j in range(i + 1, len(bands)):
             ni, si, hi = bands[i]; nj, sj, hj = bands[j]
+            # ⛔ **同じ一本の塀(透塀)の辺どうしは測らない** ── 隅で必ず重なるが、取り合いは
+            #    `joints` が面で持つ(隅部材の脚の木口 ── ⛔ 帯の重なりとして数えない)
+            if ni.startswith("透塀の厚み:") and nj.startswith("透塀の厚み:"): continue
             A, gapm = 0.0, None
             for Ra in _band_rects(si, hi):
                 for Rb in _band_rects(sj, hj):
@@ -1344,10 +1399,12 @@ def kakoi_cross_check(d, g):
     #    測っていなかった**(黙って抜けているのが規則19 の欠陥の形)。
     #    ⭕ **石段の側壁が自分の踏面の帯の縁の上に立つ 0.000 m の接触は設計上の姿**なので
     #    〔記録〕に数だけ刷る(⛔ 名簿で1件ずつ許さない — 名簿が接触の一覧に化ける)。
-    lb_touch, lb_far = 0, []
+    lb_touch, lb_far, pend_got = 0, [], []
     for ni, si in lines:
         for nj, sj, hj in bands:
             if ni.split(":", 1)[-1] == nj.split(":", 1)[-1]: continue   # run とその屋根は同じ物
+            # ⛔ 透塀の芯線 × 透塀の厚み ── 同じ一本の塀(隅で必ず当たる。取り合いは `joints`)
+            if ni.startswith("透塀:") and nj.startswith("透塀の厚み:"): continue
             gp = _line_band_gap(si, _band_rects(sj, hj))
             if gp is None: continue
             key = "|".join(sorted((ni, nj)))
@@ -1357,8 +1414,33 @@ def kakoi_cross_check(d, g):
             if gp >= ins - 1e-9:
                 if gp * ken < 0.60: lb_far.append((ni, nj, gp * ken))
                 continue
-            got.append(key)
             kd = "食い込み %.3f m" % (-gp * ken) if gp < 0 else "離れ %.3f m" % (gp * ken)
+            # ⭐ **透塀の厚みは今巡はじめて輪に入った**【中 検図1巡目 → 2026-09-18】── 芯線では
+            #   ⭕(離れ 0.478 m)と読めていた組が、塀の厚みを入れると犬走りを割る。
+            #   ⛔ **これは指図方が数で塞ぐ話ではない**(柵の線を動かすか・塀の側を動かすか・
+            #   ここは犬走りを通さないと決めるか ── 決めるのは普請奉行と庭方)。
+            #   ⇒ 宣言された `_pending` の項が在るあいだだけ⚠で通す(⛔ 猶予は合格ではない・規則18)。
+            pq = _kakoi_pending_roster(d).get(key)
+            if key not in ros and pq is not None and gp > 0 \
+               and gp * ken <= float(pq["maxM"]) + 1e-9 \
+               and pq.get("pending") in (d.get("_pending") or {}):
+                pend_got.append(key)
+                note.append("⚠ 線『%s』×帯『%s』の%s(犬走り %.2f m 未満)── **塀の厚みを入れると"
+                            "犬走りが残らない**(帯の半幅 %.3f m = `bom[%s]` の最も外へ出る稜"
+                            "`thickAtEndTHM`)。決めるのは**普請奉行**(柵の線)と**庭方**(見え方)"
+                            "→ `_pending`「%s」【算出 — ⛔ 猶予であって合格ではない。⛔ このまま"
+                            "実装へ回さない(規則18)】"
+                            % (ni, nj, kd, d["const"]["inubashiri"], hj * ken, SUKIBEI_ROW,
+                               pq["pending"]))
+                continue
+            if key not in ros and pq is not None:
+                # ⛔ **名簿に載っていても、天井を越えた量・食い込みは猶予しない**
+                bad.append("線『%s』と帯『%s』の%s ── 猶予の名簿 `kakoiCross.pendingRoster` は"
+                           "この組に**離れ %.3f m まで**しか猶予を与えていない"
+                           "(⛔ 食い込みは猶予しない ── `_pending`「%s」)"
+                           % (ni, nj, kd, float(pq["maxM"]), pq.get("pending")))
+                continue
+            got.append(key)
             if key not in ros:
                 bad.append("線『%s』と帯『%s』の%s ── 帯は幅を持つので芯線では測れない。"
                            "⛔ 名簿 `kakoiCross.roster` に無い" % (ni, nj, kd))
@@ -1380,6 +1462,18 @@ def kakoi_cross_check(d, g):
                     break
     bad += roster_guard([q for q in ros], sorted(set(got)),
                         "許した交差・近接の名簿", "`kakoiCross.roster`")
+    # ⛔ **猶予の名簿も当たらなくなったら落とす**(名簿が古い猶予を抱えたまま残らないように)
+    bad += roster_guard(list(_kakoi_pending_roster(d)), sorted(set(pend_got)),
+                        "猶予を与えた組の名簿", "`kakoiCross.pendingRoster`")
+    if pend_got:
+        note.append("⚠ **猶予で通した組 %d**(`kakoiCross.pendingRoster` ── 名指しの組・"
+                    "離れだけ・量の天井つき)── %s【⛔ 猶予は合格ではない。⛔ このまま実装へ"
+                    "回さない(規則18)】"
+                    % (len(pend_got), " ／ ".join("『%s』(天井 %.3f m・→ `_pending`「%s」)"
+                                                 % (k9.replace("|", "』×『"),
+                                                    float(_kakoi_pending_roster(d)[k9]["maxM"]),
+                                                    _kakoi_pending_roster(d)[k9].get("pending"))
+                                                 for k9 in sorted(set(pend_got)))))
     tal = {}
     for k in set(got):
         kd = ros[k]["kind"] if k in ros else "⛔ 名簿の外"
@@ -8318,9 +8412,13 @@ def gap_source(d, gf, owner):
 
     ・`kaidan` ── 石段。半幅 = `wKen`/2、芯 = 折れ線の第1点(平場の縁に取り付く端)
     ・`gate`   ── 門。半幅 = `plan[span]`/2(既定は桁行 `dv` の半分)、芯 = 門の芯
-      ⭐ `edge: "側柱の外面"` なら半幅 = 芯から幅の脇の側柱の外面まで(`gate_col_face_dist`)
+      ⭐ `edge: "側柱の外面"`(= 一間門なら `"本柱の外面"`。**同じ面の呼び名**で、門の柱の数で
+      名が変わるだけ)なら半幅 = 芯から**幅の脇の柱の外面**まで(`gate_col_face_dist`)
       【普請奉行の裁定 2026-09-14 案A を回廊の基壇の口へ及ぼす — 回廊の端 `endFrom` と同じ面】。
       ⛔ 柱芯のまま開けると、門の基壇・礎盤が基壇の石垣の口の縁へ食い込む(検図 2026-09-14 高)
+      ⚠ **呼び名を一つに揃える**【低 検図1巡目 → 2026-09-18】── 中門(一間平唐門)の口は
+        `gapFrom.edge` / `_gapFrom` / `endSeatM.t` / `joints[].bFace` で「側柱」「本柱」と
+        三様に書かれており、⛔ 実装が別の面を探す余地が残っていた。⇒ 一間門は **`本柱の外面`** 一本。
     """
     if gf.get("kaidan"):
         k = [q for q in d["kaidans"] if q["name"] == gf["kaidan"]]
@@ -8342,12 +8440,12 @@ def gap_source(d, gf, owner):
                 raise SystemExit("『%s』── 門『%s』の部材に外形 `outlineM` が無い(基壇の脇面を出せない)" % (owner, gt["name"]))
             low = min(ol9, key=lambda q: q["hM"][0])
             return (gt["u"], gt["v"]), max(abs(low["widthM"][0]), abs(low["widthM"][1])) / d["const"]["ken"]
-        if eg != "側柱の外面":
+        if eg not in ("側柱の外面", "本柱の外面"):
             raise SystemExit("『%s』の `gapFrom.edge` が読めない: %s" % (owner, eg))
         _p, n = gate_axes_uv(gt)
         fc = [f for f, v in _FACE_VEC.items() if abs(v[0] * n[0] + v[1] * n[1]) >= 0.99]
         if not fc:
-            raise SystemExit("『%s』── 門『%s』の幅の脇の面が東西南北に揃わない(側柱の外面を出せない)"
+            raise SystemExit("『%s』── 門『%s』の幅の脇の面が東西南北に揃わない(幅の脇の柱の外面を出せない)"
                              % (owner, gt["name"]))
         return (gt["u"], gt["v"]), gate_col_face_dist(d, gt, fc[0])[0]
     raise SystemExit("『%s』の `gapFrom` が何を指すのか読めない" % owner)
@@ -9632,7 +9730,9 @@ def sukibei_span_plan(d):
       2026-09-17 に入れた「隅の食い込みを引く」規則は二重の引き算で、誤りとして撤回した。
     端の種類(−X, +X — run の a → b の向き): n = 次のスパンへ続く / t = 中門へ突き付け / c = 隅部材へ続く /
     h = 潜りの口の縁の柱 / ? = 部材が決まっていない口。
-    戻り [(run 名, 区間の名, 建つ長さ m, 本数, スパン mm, [端の種類…])]。"""
+    戻り [(run 名, 区間の名, 建つ長さ m, 本数, スパン mm, [端の種類…], 辺の頭 `a` からの走り m)]。
+    ⭐ **走り `s0` は実装へ渡すために持つ**(K068)── 部材の据わりは「辺の頭から s0 + i×スパン」で
+      決まり、⛔ これが無いと棟梁は図の本文から部材名を読み取るしかない。"""
     ken = d["const"]["ken"]
     row = next((b for b in d["bom"] if b.get("部材") == SUKIBEI_ROW), {}) or {}
     base = float(row.get("spanBaseM") or 2.54)
@@ -9660,22 +9760,31 @@ def sukibei_span_plan(d):
             #   1 mm に満たない(隅の取り合いの許容 `joints[].tol` の 1/50 以下)。
             mm = int(math.ceil(ln / n * 1000.0 - SPAN_EPS_MM))
             ends = [e0 + e1] if n == 1 else [e0 + "n"] + ["nn"] * (n - 2) + ["n" + e1]
-            out.append((r["name"], nm, ln, n, mm, ends))
+            out.append((r["name"], nm, ln, n, mm, ends, s0))
     return out
 
 
-def sukibei_kawara_note(row, cnt):
+def sukibei_kawara_note(row, cnt, plan=None):
     """**透塀の銅瓦の割り**【指図方 2026-09-18 ── ⛔ 是非は決めない。考証方が判定する】── 瓦の縮尺は
     スパンからの従属値(`Tools/Blender/build_sanno_sukibei.py` の `tile_scale`: モジュール
     `kawara.modLenM` が整数枚入るよう一様に掛ける)。⇒ ⛔ 数を json に持たず、ここで毎回算出して刷る。
 
-    柱間を縮めるとモジュールの枚数が落ちて**瓦が大きくなる**ので、桟の実寸を本物の桟瓦の幅
-    (`kawara.sanRealM`)と突き合わせて**考証方が読める形**で出す。戻り [注記…]。"""
+    ⭐ **物差しは本瓦の平瓦の幅**【考証方の判定 K088 → 2026-09-18】── 透塀の屋根は**銅瓦(本瓦形)**
+      【S [国宝建造物目録1941]『透塀 屋根銅瓦葺』】であって桟瓦葺ではない。⛔ **桟瓦(別系統の瓦)の
+      幅を物差しに当てるのは類の取り違え**で、2026-09-18 の前巡まではそれで是非を論じていた。
+      ⇒ 比べる相手は `kawara.hiragawaWidthM`(本瓦の平瓦の幅 ── 一般類型)。
+    ⚠ **分母 `tilePerMod` は【U】**(内部推論)── 一モジュールに瓦が何枚入るかを数えれば【P】になり、
+      是非はその一つに乗る。⛔ 数え直すまでは仮の答えである。
+    ⛔ **外れは本数と区間名まで刷る** ── 「帯を割る」とだけ書いて全点の焼き直しを論じない
+      (低 検図1巡目 2026-09-18)。戻り [注記…]。"""
     kw = row.get("kawara") or {}
     if not kw or not cnt:
         return ["⚠ 透塀の瓦の物差し `bom[%s].kawara` が無い ── 瓦の縮尺を算出できない" % SUKIBEI_ROW]
     mod, nom = float(kw["modLenM"]), float(kw["scaleNominal"])
-    per, real = int(kw["sanPerMod"]), [float(x) for x in kw["sanRealM"]]
+    per, real = int(kw["tilePerMod"]), [float(x) for x in kw["hiragawaWidthM"]]
+    where = {}
+    for q in (plan or []):
+        where.setdefault(q[4], []).append("%s %s(%d 本)" % (q[0], q[1], q[3]))
     rows, out = [], []
     for mm in sorted(cnt):
         s = mm / 1000.0
@@ -9685,22 +9794,44 @@ def sukibei_kawara_note(row, cnt):
     sc9 = [r[2] for r in rows]
     sa9 = [r[3] for r in rows]
     kk9 = sorted(set(r[1] for r in rows))
-    out.append("透塀の銅瓦の割り ── モジュール %.3f m(`bom[%s].kawara.modLenM`)が一スパンに **%s 枚**・"
-               "縮尺 **%.3f〜%.3f**・桟の実寸 **%.3f〜%.3f m/枚**(桟 %d 枚/モジュール)／ 部材 %d 点【算出】"
+    out.append("透塀の**銅瓦(本瓦形)**の割り ── モジュール %.3f m(`bom[%s].kawara.modLenM`)が"
+               "一スパンに **%s 枚**・縮尺 **%.3f〜%.3f**・**平瓦一枚の幅 %.3f〜%.3f m**"
+               "(平瓦 %d 枚/モジュール【U 内部推論 ── 数えれば【P】】)／ 部材 %d 点【算出】"
                % (mod, SUKIBEI_ROW, "・".join(str(x) for x in kk9),
                   min(sc9), max(sc9), min(sa9), max(sa9), per, n9))
     lo9 = [r for r in rows if r[3] < real[0] - 1e-9]
     hi9 = [r for r in rows if r[3] > real[1] + 1e-9]
-    out.append("⚠ **考証方の判定待ち**(→ `_pending`「透塀の瓦の縮尺」)── 柱間を 6 尺へ改めて"
-               "モジュールが %s 枚に落ちたぶん、瓦は旧 2540 系(縮尺 %.3f)の **%.2f〜%.2f 倍**に"
-               "**大きくなった**。桟の実寸は本物の桟瓦 %.3f〜%.3f m の%s。"
-               "⛔ **指図方は是非を決めない** ── 小さく戻す道(一スパンに %d 枚 ⇒ 縮尺 %.3f 前後)を採ると"
-               "**全 28 点が焼き直し**になる(`bom[%s]._kawara`)"
-               % ("・".join(str(x) for x in kk9), nom, min(sc9) / nom, max(sc9) / nom, real[0], real[1],
-                  ("内に収まる" if not lo9 and not hi9 else
-                   "幅から外れる ── %s" % "・".join("%d mm のスパンで %.3f m/枚" % (r[0] * 1000, r[3])
-                                                    for r in (lo9 + hi9))),
-                  max(kk9) + 1, sum(sc9) / len(sc9) / (max(kk9) + 1), SUKIBEI_ROW))
+    nout = sum(r[4] for r in (lo9 + hi9))
+    out.append("**本物の本瓦の平瓦の幅 %.3f〜%.3f m(`bom[%s].kawara.hiragawaWidthM`)との突き合わせ**"
+               "── 柱間を 6 尺へ改めてモジュールが %s 枚に落ちたぶん、瓦は旧 2540 系(縮尺 %.3f)の"
+               " **%.2f〜%.2f 倍**に**大きくなった**(⭕ 旧 %.3f m/枚 は細かすぎた)。%s"
+               "【算出 ── 判定 K088 = **焼き直し不要**(考証方 2026-09-18)。⚠ 分母の枚数が【U】の"
+               "うちは仮の答え】"
+               % (real[0], real[1], SUKIBEI_ROW, "・".join(str(x) for x in kk9), nom,
+                  min(sc9) / nom, max(sc9) / nom, mod * nom / per,
+                  ("全 %d 本が帯の内に収まる" % n9) if not (lo9 + hi9) else
+                  "**帯を外れるのは %d 本(全 %d 本の %.1f%%)**── %s"
+                  % (nout, n9, 100.0 * nout / n9,
+                     "／".join("%d mm のスパン %.3f m/枚 × %d 本(%s)"
+                               % (r[0] * 1000, r[3], r[4],
+                                  "・".join(where.get(int(round(r[0] * 1000)), [])) or "区間の名は不明")
+                               for r in (lo9 + hi9)))))
+    # ⭐ **隅を跨ぐ瓦の目の段を測る**【低 検図1巡目 → 2026-09-18 ── ⛔ 見せ方は決めない】──
+    #   隅部材は**基準スパンの縮尺**一本で焼いてあり(瓦の割りは基準からの従属値)、隣り合う
+    #   スパンの縮尺はそれと違う。⇒ 隅で瓦の目が何 % 段になるかを刷る(⛔ 数を json に持たない)。
+    #   ⛔ **どう見せるか(隅で通すか・目地で切るか)は部材方と普請奉行の領分**(→ `_pending`)。
+    base9 = float(row.get("spanBaseM") or 0.0)
+    if base9 > 0:
+        kb = max(1, int(round(base9 / (mod * nom))))
+        sb = base9 / (kb * mod)                       # 隅部材の縮尺(基準スパンの従属値)
+        wo9 = sorted(((abs(r[2] / sb - 1.0), r[0], r[2]) for r in rows), reverse=True)
+        out.append("**隅を跨ぐ瓦の目の段** ── 隅部材は基準スパン %.3f m の縮尺 **%.3f** で焼いてあり"
+                   "(瓦の割りは基準からの従属値)、隣り合うスパンの縮尺は %.3f〜%.3f。"
+                   "⇒ 隅で瓦の目が最大 **%.1f%%** 食い違う(%d mm のスパン ── 縮尺 %.3f)／ "
+                   "平瓦一枚では %.3f m 対 %.3f m。⛔ **隅で瓦の通りをどう見せるかは図に無い**"
+                   "(決めるのは部材方と普請奉行 → `_pending`「透塀の瓦の縮尺」)【算出】"
+                   % (base9, sb, min(sc9), max(sc9), 100.0 * wo9[0][0], wo9[0][1] * 1000,
+                      wo9[0][2], wo9[0][2] * mod / per, sb * mod / per))
     return out
 
 
@@ -9753,8 +9884,51 @@ def sukibei_span_check(d, g):
         else:
             bad.append("透塀の端の座面 `bom[%s].endSeatM` が無い ── `joints[].bFace` の物差しが引けない"
                        % SUKIBEI_ROW)
+        # ⭐ **同じ一つの面を二つの値が指している ── 突き合わせる**【高 検図2巡目 2026-09-18】──
+        #   `endSeatM.c.inset`(スパンの木口が節点から内へ引く量)と `kadoLegM`(隅部材の脚が
+        #   節点から外へ届く量)は**同じ面**(スパンの木口が座る面)の表と裏である。⛔ 旧版は
+        #   両方を並べて刷るだけで突き合わせておらず、層ごとの食い違いが図の中で眠っていた。
+        #   ⇒ 層ごとに引き算し、`joints` が宣言する許容(隙間不可・めり込み可)と較べる。
+        cseat = ((seat.get("c") or {}).get("inset") or {}) if seat else {}
+        legs2 = dict((k9, float(v9)) for k9, v9 in (legs or {}).items() if "棟" not in k9)
+        tol9 = next((j["tol"] for j in d.get("joints", []) if j.get("kadoFrom") and j.get("tol")),
+                    [0.05, 0.0])
+        cend9 = sum(1 for _r, _n, _l, _c, _m, ends, _s in sukibei_span_plan(d)
+                    for e9 in ends if "c" in e9)
+        dif9, missL = [], []
+        for k9, v9 in sorted(legs2.items()):
+            if k9 not in cseat:
+                missL.append(k9)
+                continue
+            dif9.append((v9 - float(cseat[k9]), k9, v9, float(cseat[k9])))
+        if missL and seat:
+            bad.append("透塀の隅の座面に**層の抜け** ── `bom[%s].kadoLegM` の層『%s』が "
+                       "`endSeatM.c.inset` に無い(同じ面を二つの表で持つなら層は揃える)"
+                       % (SUKIBEI_ROW, "』『".join(missL)))
+        if dif9:
+            ref8 = row.get("seatPendingRef")
+            ov8 = [q for q in dif9 if q[0] > float(tol9[0]) + 1e-9]
+            gp8 = [q for q in dif9 if q[0] < -1e-9]
+            msg8 = ("透塀の隅で**スパンの引き込みと隅の脚の到達が食い違う** ── %s(許容は"
+                    "`joints[].tol` めり込み %.2f m・隙間 %.2f m ── 同じ面を指す二つの値なので"
+                    "**差は 0 であるべき**)。`c` の木口は **%d 口**。⇒ 躯体の食い違いぶんだけ"
+                    "**各辺の隅側の連子の割りが詰まる**(見えがかりに出る)。決めるのは"
+                    "**部材方**(実測し直す・焼き直す)と**普請奉行**(どちらの値を正とするか)"
+                    % (" ／ ".join("%s 脚 %.4g m 対 引き込み %.4g m = **%+.3f m**"
+                                   % (q[1], q[2], q[3], q[0]) for q in dif9),
+                       float(tol9[0]), float(tol9[1]), cend9))
+            if ov8 or gp8:
+                if ref8 and ref8 in (d.get("_pending") or {}):
+                    note.append("⚠ " + msg8 + "(→ `_pending`「%s」)【算出 — ⛔ 猶予であって"
+                                "合格ではない。⛔ このまま実装へ回さない(規則18)】" % ref8)
+                else:
+                    bad.append(msg8)
+            else:
+                note.append("透塀の隅の座面 ── スパンの引き込み(`endSeatM.c.inset`)と隅の脚の"
+                            "到達(`kadoLegM`)は層ごとに %s【算出 — 高 検図2巡目 2026-09-18 の結線】"
+                            % " ／ ".join("%s %+.3f m" % (q[1], q[0]) for q in dif9))
     over9, cnt9 = [], {}
-    for rn, nm, ln, n, mm, ends in sukibei_span_plan(d):
+    for rn, nm, ln, n, mm, ends, _s0 in sukibei_span_plan(d):
         ov = n * mm / 1000.0 - ln
         over9.append((ov, rn, nm))
         cnt9[mm] = cnt9.get(mm, 0) + n
@@ -9783,7 +9957,7 @@ def sukibei_span_check(d, g):
                    "`bom[%s].bakedPendingRef` で `_pending` の項を指すこと(猶予は合格ではない)"
                    % (len(miss), "・".join(miss), SUKIBEI_ROW))
     note.append("透塀のスパン部材 ── 要る %d 点 ／ 焼いた %d 点(`bom[%s].baked`)【算出】" % (len(need), len(baked), SUKIBEI_ROW))
-    note += sukibei_kawara_note(row, cnt9)
+    note += sukibei_kawara_note(row, cnt9, sukibei_span_plan(d))
     # ⭐ **端数の行き先を測る**【低5 検図23巡目 → 2026-09-17】── 等分の端数(mm の丸め)は
     #   隅部材へのめり込みとして出る。⛔ 上限(`joints[].absorb.limitM` = 取り合いの `tol`)を
     #   宣言しておいて誰も突き合わせない、をしない。
@@ -9809,7 +9983,7 @@ def sukibei_span_check(d, g):
     #   〔記録〕に残して普請奉行・部材方の裁定を待つ(→ `_pending`「透塀のスパンの許容帯」)。
     base9 = float(row.get("spanBaseM") or 2.54)
     band = row.get("spanRatioBand")
-    rs9 = sorted(((mm / 1000.0 / base9, rn, nm, mm) for rn, nm, ln, n, mm, ends in sukibei_span_plan(d)),
+    rs9 = sorted(((mm / 1000.0 / base9, rn, nm, mm) for rn, nm, ln, n, mm, ends, _s0 in sukibei_span_plan(d)),
                  reverse=True)
     if rs9:
         if band:
@@ -9924,6 +10098,38 @@ def derive_sukibei_kado(d):
     return pl
 
 
+def sukibei_kado_seat(d, a9, b9, uv, t9):
+    """**隅部材の据え方**(部材名・向き・据える責め)【中 検図2巡目 2026-09-18 → 規則19】。
+
+    ⛔ **凹凸だけ渡して向きを渡さない、をしない** ── 旧版の焼き出しは `{at,with,type,part,world}`
+      だけで、⛔ FBX の名も yaw も無く、同じ隅が両方の run に載って**据える責めが決まらなかった**
+      (二重に据える口 ── K062/K089 の再発口)。
+    ⭐ 向きは**部材の脚の向きの宣言**(`bom[透塀].kadoLegDir` ── 部材方の実測)と折れ線から解く。
+      ⛔ 生成器に脚の向きを焼き込まない(部材を焼き直せば宣言が動く)。
+    ⭐ **据える責めは一つ**(`owner`)── 隅へ**入ってくる辺**(`at == "b"` の側)が据え、
+      出ていく辺は同じ隅を `owner:false` で持つ(取り合いの相手として読むため ── ⛔ 消さない)。
+    戻り dict(`fbx` / `asset` / `yawDeg` / `legM` / `owner`…)。⛔ 向きが解けなければ `yawDeg` は None。
+    """
+    row = next((b for b in d["bom"] if b.get("部材") == SUKIBEI_ROW), {}) or {}
+    dirs = (row.get("kadoLegDir") or {}).get(t9)
+    ref = int(round(float(row.get("spanBaseM") or 0.0) * 1000.0))
+    yaw, how = None, None
+    if dirs and len(dirs) == 2 and all(q in _LOCAL_AX_DEG for q in dirs):
+        want = (_LOCAL_AX_DEG[dirs[1]] - _LOCAL_AX_DEG[dirs[0]]) % 360.0
+        dA = _azim(a9["a"][0] - uv[0], a9["a"][1] - uv[1])       # 入ってくる辺のほうへ
+        dB = _azim(b9["b"][0] - uv[0], b9["b"][1] - uv[1])       # 出ていく辺のほうへ
+        for p9, q9, nm9 in ((dA, dB, a9["name"]), (dB, dA, b9["name"])):
+            if abs(((q9 - p9) % 360.0) - want) < 1e-6:
+                yaw = round((p9 - _LOCAL_AX_DEG[dirs[0]]) % 360.0, 6)
+                how = ("脚 %s を『%s』の向き(方位 %.1f°)へ・脚 %s を残りの辺へ"
+                       % (dirs[0], nm9, p9, dirs[1]))
+                break
+    return {"fbx": ("Sanno_Sukibei_Kado_%s_%d.fbx" % (KADO_PART[t9], ref)) if ref else None,
+            "asset": ('EdoAssets.Own.SannoSukibeiKado("%s", %d)' % (KADO_PART[t9], ref)) if ref else None,
+            "yawDeg": yaw, "yawFrom": how, "legDir": dirs,
+            "legM": row.get("kadoLegM"), "pivot": (row.get("axis") or {}).get("kadoPivot")}
+
+
 def sukibei_kado_check(d, g):
     """**透塀の隅の凹凸が折れ線と合っているか**【K059 2026-09-16 棟梁の差し戻し → 規則19】。
 
@@ -9963,6 +10169,26 @@ def sukibei_kado_check(d, g):
                     % (k9[0], k9[1], uv[0], uv[1], t9, KADO_PART[t9], mv["name"],
                        min(run_nodes_ken(a9), run_nodes_ken(b9)) * d["const"]["ken"],
                        max(run_nodes_ken(a9), run_nodes_ken(b9)) * d["const"]["ken"]))
+        # ⭐ **部材の名・向き・据える責め**【中 検図2巡目 2026-09-18】── ⛔ 凹凸だけ渡さない。
+        st = sukibei_kado_seat(d, a9, b9, uv, t9)
+        if not st.get("legDir"):
+            bad.append("透塀の隅『%s → %s』の**据える向きが解けない** ── 部材の脚の向きの宣言 "
+                       "`bom[%s].kadoLegDir` が無い(⛔ 生成器に焼き込まない ── 部材方の実測を"
+                       "指図が持つこと)" % (k9[0], k9[1], SUKIBEI_ROW))
+        elif st.get("yawDeg") is None:
+            bad.append("透塀の隅『%s → %s』の **yaw を出せない** ── 二辺の開きが部材の脚の開き"
+                       "(`bom[%s].kadoLegDir` %s)と合わない(直角でない隅に直角の部材を据えている)"
+                       "。⛔ 0 で埋めない" % (k9[0], k9[1], SUKIBEI_ROW, "・".join(st["legDir"])))
+        else:
+            note.append("透塀の隅『%s → %s』の据え方 ── 部材 `%s`(`%s`)／ **yaw %.1f°**"
+                        "(%s ── 局所 +Z = 北 = 0°)／ ピボット **%s** ／ 脚の到達 %s ／ "
+                        "**据える責め = 『%s』**(入ってくる辺。出ていく辺は `owner:false` で"
+                        "同じ隅を持つ ── ⛔ 二度据えない)【算出 — `bom[%s].kadoLegDir` と折れ線から。"
+                        "⛔ 手で書かない】"
+                        % (k9[0], k9[1], st["fbx"], st["asset"], st["yawDeg"], st["yawFrom"],
+                           st.get("pivot") or "—", " / ".join("%s %.4g m" % (a9x, float(b9x))
+                                                              for a9x, b9x in (st.get("legM") or {}).items()),
+                           a9["name"], SUKIBEI_ROW))
     # ⭐ **両隅とも「動かす側」に選ばれた辺**【低2 検図23巡目 → 2026-09-17】── 短い辺は両端で端数を
     #   吸う。⛔ どちらの木口で幾ら吸うかを図にも検査にも残さない、をやめる ⇒ 辺ごとに
     #   **吸う木口(a / b)・本数・スパン・吸う量の上限(`joints[].tol`)**を刷る。
@@ -9971,7 +10197,7 @@ def sukibei_kado_check(d, g):
         m9 = a9 if run_nodes_ken(a9) <= run_nodes_ken(b9) else b9
         mv9.setdefault(m9["name"], []).append("b" if m9 is a9 else "a")
     plan9 = {}
-    for rn, nm, ln, n, mm, ends in sukibei_span_plan(d):
+    for rn, nm, ln, n, mm, ends, _s0 in sukibei_span_plan(d):
         plan9.setdefault(rn, []).append((ln, n, mm))
     tols = [tuple(j.get("tol") or [0.05, 0.0]) for j in js]
     tol9 = tols[0] if tols and len(set(tols)) == 1 else (0.05, 0.0)
@@ -12645,9 +12871,25 @@ def kakoi_svg(d, kan="其九"):
                "史料の『延長』と比べる数は **節点間 − 中門の口**(中門は目録の別項目・南の潜りは別項目に立たない)",
                fs=10.5, fill="var(--dim)"))
     o.append(T(W - 6, H - 26, "目録の『延長』の読み = 節点間 − 中門の口 %.3f m = %.3f m(%.2f 間)"
-               "　史料値 147.28 m(486.01尺)との差 %.3f m"
+               "　史料値 147.28 m(486.01尺)との差 %.3f m ← 折れ線は周長に合わせて作ってあるので"
+               "この差は自己整合の確認であって典拠との一致ではない"
                % (mon * ken, ext * ken, ext, abs(ext * ken - 147.28)),
                fs=10.5, anchor="end", fill="var(--dim)"))
+    # ⭐ **実際に建つ棒の長さと本数を刷る**【K078 の閉じ・中 検図1巡目 → 2026-09-18】──
+    #    旧版は「節点間」と「目録比」の二つしか刷らず、⛔ **建つ棒の総和が図に無かった**。
+    #    ⛔ 本数と間数を並べて『81尺=81間の傍証』と読ませない(本数は辺ごとの丸めの和)。
+    _pl9 = sukibei_span_plan(d)
+    _bs9 = float((next((b for b in d["bom"] if b.get("部材") == SUKIBEI_ROW), {}) or {})
+                 .get("spanBaseM") or ken)          # ⛔ 基準スパンを literal で書かない
+    if _pl9:
+        _bl9 = sum(q[2] for q in _pl9)                  # 実際に建つ棒の総和[m]
+        _bn9 = sum(q[3] for q in _pl9)                  # スパン部材の本数
+        o.append(T(6, H - 58, "透塀 **実際に建つ棒の長さ 計 %.3f m**(= 開口を抜いた実長 = "
+                   "スパン部材 %d 本の総和 ／ 一間 %.3f m で割れば %.2f 間ぶん・平均スパンは基準の %.3f 倍)"
+                   "　⛔ **本数と間数は別物** — 本数は辺ごとに端数を丸めた和で、"
+                   "目録の間数(%.2f 間)の傍証ではない【算出】"
+                   % (_bl9, _bn9, ken, _bl9 / ken, (_bl9 / _bn9) / _bs9, ext),
+                   fs=10.5, fill="var(--shu)"))
     # ⭐ **腰高の柵(玉垣と同じ部材)の発注量**【裁き1 庭方 2026-09-07】── 玉垣・境内の外周・
     #    法尻の2本は同じ部材で、新造(edo-buzai)は一度で足りる。⛔ `bom` にベタ書きしない。
     ordr = saku_order_rows(d)
@@ -15013,8 +15255,7 @@ def _tree_row(d, g, rnd, name, group, lay, pal, hrng, u, v, iso=False, rmax=None
     #    ⛔ 密度も部材も動かさず、**倍率の側**で収める。⛔ 下限は範囲の下端のまま。
     xz = _xz_capped(d, kind, xz, xzr, h, g0, iso)
     x, z = g.W(u, v)
-    dy = _design_y_cold(d, g, x, z)
-    nat = dem_h(x, z)
+    py, pg = _plant_y(d, g, x, z)
     return {"name": name, "group": group, "layer": lay,
             "species": pt.get("species"), "part": (q[2] if q else pt.get("api")),
             "prefab": (q[1] if q else pt.get("prefab")), "size": (q[0] if q else None),
@@ -15025,9 +15266,29 @@ def _tree_row(d, g, rnd, name, group, lay, pal, hrng, u, v, iso=False, rmax=None
                        (round(g0[0], 3) if (g0 and lay == "低木") else None)),
             "u": round(u, 4), "v": round(v, 4),
             "world": [round(x, 3), round(z, 3)],
-            "y": round(dy if dy is not None else (nat if nat is not None else 0.0), 3),
-            "ground": "design" if dy is not None else "terrain",
+            "y": round(py, 3),
+            "ground": pg,
             "place": (d["planting"]["plantRule"].get("placement") or {}).get(lay)}
+
+
+def _plant_y(d, g, x, z):
+    """**木の足元の地盤**(y[m], その出所)【中 庭方2巡目 2026-09-18 → 規則19】。
+
+    ⛔ **現地形のままの y を焼かない** ── 実装は**造成した地形**に木を置く(`graded`)ので、
+      面の外の「格子の縁(帯 + 法面)」に落ちた木は図と現物で足元が食い違っていた
+      (旧版は `design_y` が無ければ即 `dem_h` に落ちていた)。
+    ⇒ ① 設計面(`design_y`)② 格子の縁(`graded_y` ── 帯 + 法面)③ 現地形、の順に採る。
+    ⛔ 木の**位置**(u,v)は動かさない ── 動かすのは庭方の領分。⚠ 縁の盛土の上に立つ木が
+      どれだけ在るかは検査『焼き出した木が…』が名指しで刷る(⛔ 数を黙って呑まない)。
+    """
+    dy = _design_y_cold(d, g, x, z)
+    if dy is not None:
+        return dy, "design"
+    gy = graded_y(d, g, x, z)
+    if gy is not None:
+        return gy, "graded"
+    nat = dem_h(x, z)
+    return (nat if nat is not None else 0.0), "terrain"
 
 
 def cluster_crown_cap(d, c):
@@ -15228,12 +15489,10 @@ def scatter_pts(d, g):
                             if abs(p9[0] - q["u"]) < 1e-3 and abs(p9[1] - q["v"]) < 1e-3:
                                 got[i9] = (u9, v9)
                         x9, z9 = g.W(u9, v9)
-                        dy9 = _design_y_cold(d, g, x9, z9)
-                        nat9 = dem_h(x9, z9)
+                        py9, pg9 = _plant_y(d, g, x9, z9)
                         q.update({"u": round(u9, 4), "v": round(v9, 4),
                                   "world": [round(x9, 3), round(z9, 3)],
-                                  "y": round(dy9 if dy9 is not None else (nat9 if nat9 is not None else 0.0), 3),
-                                  "ground": "design" if dy9 is not None else "terrain"})
+                                  "y": round(py9, 3), "ground": pg9})
                         cl_note.append({"name": nm, "gapShukei": q["name"], "relocated": True,
                                         "to": [round(u9, 4), round(v9, 4)]})
             cl_note.append({"name": nm, "n": cluster_n(c), "boxes": cluster_boxes(c),
@@ -16786,6 +17045,76 @@ def _w_segs(g, o):
     return [[_w(g, a), _w(g, b)] for a, b in run_segs(o)]
 
 
+def impl_sukibei_spans(d, g):
+    """**透塀の割り付けを実装が読む形で焼く**【K068 2026-09-16 棟梁の差し戻し → 2026-09-18】。
+
+    ⛔ **割り付けが図の本文にしか無い状態を残さない。**隅の型(`Dezumi`/`Irizumi`)は
+    `impl_runs` の `kado` で渡っていたが、81 本のスパンは**どれがどの FBX か**が検査の
+    〔記録〕の文にしか無く、棟梁は部材名を引けなかった(芯 0.29 m ずれの再発口)。
+    ⇒ 辺ごとに **区間・本数・スパン mm・端の型・部材名・木口の世界座標**を焼く。
+
+    ⭐ **木口は面で渡す** ── 部材の据わりは `aWorld`→`bWorld` の**二つの木口の通り**で、
+      ⛔ 中心を渡さない(規則5)。端の型 `n`/`t`/`c`/`h` はいずれも割り付けの差し引きが 0 なので、
+      この区切りがそのまま節点であり、柱は節点をまたいで ±0.090 出る(`bom[].endSeatM`)。
+    ⛔ 数を json に持たない — すべて折れ線・基準スパン・部材の実測からの従属値。
+    """
+    ken = d["const"]["ken"]
+    row = next((b for b in d["bom"] if b.get("部材") == SUKIBEI_ROW), {}) or {}
+    baked = set(row.get("baked") or [])
+    R = dict((r["name"], r) for r in d["runs"])
+    out = {}
+    for rn, nm, ln, n, mm, ends, s0 in sukibei_span_plan(d):
+        r = R[rn]
+        A, B = r["a"], r["b"]
+        Lm = math.hypot(B[0] - A[0], B[1] - A[1]) * ken
+        if Lm < 1e-9: continue
+        ux, uy = (B[0] - A[0]) / Lm, (B[1] - A[1]) / Lm        # [間 / m]
+        pcs = []
+        for i, e in enumerate(ends):
+            sa, sb = s0 + ln * i / n, s0 + ln * (i + 1) / n
+            key = "%d_%s" % (mm, e)
+            pcs.append({"name": "Sanno_Sukibei_" + key, "spanMm": mm, "ends": e,
+                        "aWorld": _w(g, [A[0] + ux * sa, A[1] + uy * sa]),
+                        "bWorld": _w(g, [A[0] + ux * sb, A[1] + uy * sb]),
+                        "baked": key in baked})
+        o = out.setdefault(rn, {"spanBaseM": row.get("spanBaseM"), "loader":
+                                "EdoAssets.Own.SannoSukibei(spanMm, ends) / "
+                                "EdoAssets.Own.SannoSukibeiKado(part)", "segs": []})
+        o["segs"].append({"seg": nm, "sM": [round(s0, 3), round(s0 + ln, 3)],
+                          "lenM": round(ln, 3), "count": n, "spanMm": mm, "ends": ends,
+                          "pieces": pcs})
+    for o in out.values():
+        o["segs"].sort(key=lambda q: q["sM"][0])
+        o["count"] = sum(q["count"] for q in o["segs"])
+        o["builtM"] = round(sum(q["lenM"] for q in o["segs"]), 3)
+    return out
+
+
+def impl_kado(d, g):
+    """**透塀の隅を実装が読む形で焼く**(辺の名 → その辺に載る隅の列)。
+
+    ⭐ 図の検査(`impl_fresh_check`)と焼き出し(`impl_runs`)が**同じこの一つ**から出る(規則19)
+      ── ⛔ 二か所で組み立てない。
+    """
+    kado = {}
+    for a9, b9, uv, t9 in (sukibei_kado_plan(d) or []):
+        st = sukibei_kado_seat(d, a9, b9, uv, t9)
+        # ⭐ **据える責めは入ってくる辺(`at":"b"`)に一つだけ**【中 検図2巡目 2026-09-18】──
+        #    ⛔ 同じ隅が二つの run に載ったまま `owner` が無いと、実装が**二度据える**
+        #    (K062/K089 の再発口)。⛔ 相手側の行を消さない ── 取り合いの相手として読む。
+        base = dict(st, type=t9, part=KADO_PART[t9], world=_w(g, uv),
+                    ownerRun=a9["name"],
+                    _="`owner` = この隅を**据える責め**(⛔ true の行だけが据える。false の行は"
+                      "取り合いの相手として読む)。`yawDeg` は `bom[透塀].kadoLegDir` と折れ線からの"
+                      "従属値(局所 +Z = 北 = 0°)。`legM` は隅柱の芯から脚が届く量(層ごと)")
+        kado.setdefault(a9["name"], []).append(dict(base, at="b", with_=b9["name"], owner=True))
+        kado.setdefault(b9["name"], []).append(dict(base, at="a", with_=a9["name"], owner=False))
+    for v9 in kado.values():
+        for q9 in v9:
+            q9["with"] = q9.pop("with_")
+    return kado
+
+
 def impl_runs(d, g):
     """囲い(`runs`)と土留め(`terraceWalls`)の**建つ区間**を世界座標で焼く。
 
@@ -16796,16 +17125,13 @@ def impl_runs(d, g):
     out = []
     # ⭐ **透塀の隅の凹凸を焼く**【K059 2026-09-16】── 棟梁が図を信じられず折れ線から測り直した
     #   のは、凹凸が指図の中で手書きの銘だったから。⇒ 算出値そのものを実装へ渡す。
-    kado = {}
-    for a9, b9, uv, t9 in (sukibei_kado_plan(d) or []):
-        kado.setdefault(a9["name"], []).append({"at": "b", "with": b9["name"], "type": t9,
-                                                "part": KADO_PART[t9], "world": _w(g, uv)})
-        kado.setdefault(b9["name"], []).append({"at": "a", "with": a9["name"], "type": t9,
-                                                "part": KADO_PART[t9], "world": _w(g, uv)})
+    kado = impl_kado(d, g)
+    spans = impl_sukibei_spans(d, g)
     for o in d["runs"]:
         gl = gap_ledger(o)
         out.append({"name": o["name"], "of": "run", "kind": o.get("kind"),
                     "kado": kado.get(o["name"]),
+                    "spans": spans.get(o["name"]),
                     "seat": o.get("seat"), "h": run_take_m(d, o),
                     "nodes": [_w(g, q) for q in (o.get("pts") or
                                                  ([o["a"], o["b"]] if o.get("a") else []))],
@@ -17024,7 +17350,7 @@ def export_impl(d, g):
             "bands": len(bd), "clusters": len(cl)}
 
 
-def impl_fresh_check(d):
+def impl_fresh_check(d, g):
     """**焼いた算出物が今の指図・今の地盤から焼かれた物か**【2026-09-08 棟梁の診断 → 規則19】。
 
     ⛔ 古い焼きで建てると、指図では直っているはずの物が現物にだけ残る
@@ -17052,6 +17378,64 @@ def impl_fresh_check(d):
                 % (os.path.getsize(IMPL_OUT) / 1024.0, im.get("at"),
                    str((im.get("src") or {}).get("sha256"))[:12],
                    str((im.get("dem") or {}).get("sha256"))[:12]))
+    # ⭐ **透塀の割り付けが焼き出しへ渡っているか**【K068 ── 中 検図1巡目 2026-09-18】──
+    #    ⛔ 割り付けが図の本文にしか無い状態を「渡した」と読まない(棟梁は部材名を引けない)。
+    # ⭐ **割り付けを丸ごと突き合わせる**【低 検図2巡目 2026-09-18】── 旧版は辺ごとの**本数**しか
+    #   較べておらず、⛔ スパン mm・端の型・木口の世界座標・部材名が変わっても本数さえ同じなら
+    #   鳴らなかった(= 鮮度の照合が形だけ)。⛔ **隅は一切見ていなかった**。
+    #   ⇒ 図の側で今から焼き直した物と**同じ形に畳んで**较べ、食い違う辺・隅を名指しする。
+    def _fold_spans(o9):
+        return dict((rn9, [[sg.get("seg"), sg.get("count"), sg.get("spanMm"),
+                            list(sg.get("ends") or []),
+                            [[pc.get("name"), [round(float(x), 3) for x in (pc.get("aWorld") or [])],
+                              [round(float(x), 3) for x in (pc.get("bWorld") or [])]]
+                             for pc in (sg.get("pieces") or [])]]
+                           for sg in (v9.get("segs") or [])])
+                    for rn9, v9 in o9.items())
+
+    def _fold_kado(rs9):
+        o9 = {}
+        for q9 in (rs9 or []):
+            for k9 in (q9.get("kado") or []):
+                o9.setdefault(q9["name"], []).append(
+                    [k9.get("at"), k9.get("with"), k9.get("type"), k9.get("fbx"),
+                     k9.get("yawDeg"), bool(k9.get("owner")),
+                     [round(float(x), 3) for x in (k9.get("world") or [])]])
+        return o9
+    wantS = _fold_spans(impl_sukibei_spans(d, g))
+    gotS = _fold_spans(dict((q["name"], q["spans"]) for q in (im.get("runs") or []) if q.get("spans")))
+    want = dict((k9, sum(q9[1] for q9 in v9)) for k9, v9 in wantS.items())
+    got = dict((k9, sum(q9[1] for q9 in v9)) for k9, v9 in gotS.items())
+    if wantS != gotS:
+        dif9 = sorted(set(list(wantS) + list(gotS)))
+        dif9 = [k9 for k9 in dif9 if wantS.get(k9) != gotS.get(k9)]
+        bad.append("透塀の割り付けが**今の指図と食い違う** ── 辺 %d 本が違う(%s)。図 辺 %d 本・"
+                   "部材 %d 点 ／ `sanno_impl.json` 辺 %d 本・部材 %d 点。⛔ 本数だけでなく"
+                   "**スパン mm・端の型・部材名・木口の世界座標**まで突き合わせている(K068)"
+                   % (len(dif9), "・".join(dif9[:6]), len(wantS), sum(want.values()),
+                      len(gotS), sum(v9 for v9 in got.values() if v9)))
+    wantK = _fold_kado([{"name": k9, "kado": v9} for k9, v9 in impl_kado(d, g).items()])
+    gotK = _fold_kado(im.get("runs"))
+    if wantK != gotK:
+        dk9 = sorted(k9 for k9 in set(list(wantK) + list(gotK)) if wantK.get(k9) != gotK.get(k9))
+        bad.append("透塀の**隅**が今の指図と食い違う ── 辺 %d 本が違う(%s)。図 %d 件 ／ 算出物 %d 件"
+                   "(凹凸・部材の FBX 名・yaw・据える責め `owner`・世界座標まで突き合わせる ── "
+                   "⛔ 本数だけで済ませない)"
+                   % (len(dk9), "・".join(dk9[:6]), sum(len(v9) for v9 in wantK.values()),
+                      sum(len(v9) for v9 in gotK.values())))
+    else:
+        own9 = sum(1 for v9 in gotK.values() for q9 in v9 if q9[5])
+        note.append("透塀の隅が算出物へ渡っている ── **%d 件**(うち**据える責め `owner:true` %d 件** = "
+                    "隅の数)／ 部材の FBX 名・yaw・脚の到達つき【算出 — ⛔ 同じ隅を二度据えない】"
+                    % (sum(len(v9) for v9 in gotK.values()), own9))
+    parts = set(pc.get("name") for q9 in (im.get("runs") or []) if q9.get("spans")
+                for sg in (q9["spans"].get("segs") or []) for pc in (sg.get("pieces") or []))
+    if wantS == gotS:
+        note.append("透塀の割り付けが算出物へ渡っている ── 辺 **%d** 本 ／ スパン部材 **%d** 本 ／ "
+                    "部材の別 **%d** 種(名は `Sanno_Sukibei_<スパン mm>_<端>`・"
+                    "`EdoAssets.Own.SannoSukibei(spanMm, ends)`)／ 木口は `aWorld`/`bWorld` の"
+                    "二面で渡す(⛔ 中心で渡さない)【算出 — K068 の結線】"
+                    % (len(got), sum(v for v in got.values() if v), len(parts)))
     pl = (im.get("planting") or {})
     note.append("焼いた木の点 **%d** 本 ／ 造成後の地盤 %d セル(格子 %g m・値の入るセル %d)"
                 "【算出 — ⛔ 実装側で撒き直さない・計算し直さない】"
@@ -17980,6 +18364,30 @@ def impl_planting_check(d, g):
         "⛔ 0 件は合格ではなく未測定 — 測った点の数を必ず添える】"
         % (sum(len(v) for v in n8.values()), t8,
            ("── " + " ／ ".join("%s %d本" % (k9, len(v9)) for k9, v9 in n8.items())) if n8 else ""))
+    # ⑨ **造成の縁(帯 + 法面)の上に立つ木**【中 庭方2巡目 2026-09-18 → 規則19】──
+    #    木の足元は `_plant_y` が設計面 → 格子の縁 → 現地形の順に採る(⛔ 現地形のままの y を
+    #    焼かない)。⇒ 図と実装の足元は揃うが、⛔ **縁の盛土の上に立つ木が在ること自体**は
+    #    庭方の判断が要る(根が新しい盛土に載る)。⛔ 数を黙って呑まず、深い順に名指しで刷る。
+    g9 = {}
+    for p9 in P:
+        g9[p9.get("ground")] = g9.get(p9.get("ground"), 0) + 1
+    dp9 = []
+    for p9 in P:
+        if p9.get("ground") != "graded": continue
+        x9, z9 = p9["world"]
+        nat9 = dem_h(x9, z9)
+        if nat9 is None: continue
+        dp9.append((p9["y"] - nat9, p9["name"], x9, z9))
+    dp9.sort(reverse=True)
+    note.append("木の足元の出所 ── %s(⛔ 現地形のままの y を焼かない ── 実装は造成した地形に"
+                "置く)。**格子の縁(帯 + 法面)の上に立つ木 %d 本**%s【算出 — 中 庭方2巡目 "
+                "2026-09-18 の結線。⛔ 是非は決めない ── 新しい盛土に根が載ってよいかは**庭方**、"
+                "縁の法そのものは**普請奉行**(`terrainCheck.gradedCover.slopeRun`)】"
+                % (" ／ ".join("%s %d 本" % (k9, v9) for k9, v9 in sorted(g9.items())),
+                   len(dp9),
+                   ("── 盛りの厚い順 " + " ／ ".join("%s **%+.2f m**(%.1f, %.1f)"
+                                                    % (q9[1], q9[0], q9[2], q9[3])
+                                                    for q9 in dp9[:4])) if dp9 else ""))
     # 〔記録〕B-1 落葉の林冠面積の割合
     A = {"松": 0.0, "落葉": 0.0}
     N = {"松": 0, "落葉": 0}
@@ -18818,7 +19226,7 @@ def run_checks():
     pp = pending_pointer_check(d)
     mh = mune_height_check(d)          # 棟高の物差しと部材の丈(高3 検図21巡目 → 裁3/裁4)
     chm = cluster_hmin_check(d)        # 塊の松の丈の下限(中8 庭方17巡目)
-    ifr = impl_fresh_check(d)          # 実装が読む算出物の鮮度(2026-09-08 棟梁の診断)
+    ifr = impl_fresh_check(d, g)       # 実装が読む算出物の鮮度(2026-09-08 棟梁の診断)
     # ⭐⭐ **焼き出しが古いときは「未測定」と刷る**【B-7 検図22巡目 → 2026-09-09 十九巡目】──
     #   ⛔ `([], [])` を返すと表の上で「**測って綺麗**」と区別が付かない。⚠ `impl_fresh_check` が
     #   ⛔ で止めるので抜け道ではないが、⛔ **0 件は合格ではなく未測定**(規則19)。
@@ -19403,13 +19811,21 @@ def main():
             "原典は<b>メートルが主・尺が括弧</b>の表記で、「486.01尺 = 81間ちょうど」は換算値の"
             "割り切れであって、六尺モジュールの根拠にはならない(<code>sources.md</code> の当該項が明記)。"
             "<br>⚠ <b>同じ数が二つ出るが、指すものが違う</b>(⛔ 混ぜて読まない) — "
-            "①<b>典拠の読みは『塀 + 南の潜り 一間』</b>で、合わせた<b>間数</b>が延長 486.01尺にあたる"
-            "(下の図の右下が毎回引き算して刷る)。"
+            "①<b>典拠の読みは『塀 + 南の潜り 一間』</b>で、合わせた<b>長さ</b>が延長 486.01尺にあたる"
+            "(下の図の右下が毎回引き算して刷る)。⚠ <b>目録の『延長』は長さであって間数ではない</b>"
+            "【考証方 検図1巡目 2026-09-18】 — 同じ目録が中門を『一間平唐門』と書くが、"
+            "その『一間』は当図では口 @@MONKUCHI@@ m で、塀の一間(六尺 = @@KEN@@ m)とは別の量である。"
+            "⛔ <b>間は建物ごとの柱間であって、一定の長さではない。</b>"
             "②<b>六尺で割り直したスパン部材の本数は @@SPANN@@ 本</b>【算出】。⚠ ところが<b>塀そのものの"
             "長さは @@SPANKEN@@ 間ぶん</b>【算出】しかない — 辺ごとに端数を丸めて割るので、"
             "<b>本数は長さの間数と一致しない</b>(どの辺がどちらへ丸まったかは下の検査が毎回刷る)。"
             "⛔ <b>本数と間数を同じ数として読まない。</b>数が近いのは偶然であって、"
             "割り付けが典拠と一致したという意味ではない。"
+            "<br>⚠ <b>史料値との差 0.000 m は自己整合の確認である</b>【考証方 検図1巡目 2026-09-18】 — "
+            "折れ線そのものを周長 147.28 m に合わせて作図してあるので、差が 0 になるのは当然で、"
+            "<b>典拠と一致したことの証明ではない</b>。引く開口の選び(中門は引く・南の潜りは引かない)も"
+            "目録の項立てから導いた読み【S・B】であって、⛔ 0 になる側を後から選んだ順序に見える点は"
+            "留保として残す。"
             "<br>⛔ <b>棒の長さは開口を抜いた実長で、これが発注量である</b>【検図10巡目 中1】 — "
             "石段の頭・勝手口・中門・潜りを抜いてある。<b>史料値と比べる数は「節点間」の側</b>で、"
             "混ぜて読まない。"
@@ -19424,8 +19840,12 @@ def main():
             "図の末尾に出る合計がそのまま<b>新造(edo-buzai)の発注量</b>で、⛔ この数は "
             "<code>bom</code> に持たない。")
     _sp9 = sukibei_span_plan(d)
+    _mon9 = sum(2.0 * float(r.get("gapHalf") or 0.0) * ken for r in d["runs"]
+                if r["kind"] == "透塀" and (r.get("gapFrom") or {}).get("gate") == "中門")
     h[-1] = (h[-1].replace("@@SPANN@@", "%d" % sum(q[3] for q in _sp9))
-                  .replace("@@SPANKEN@@", "%.2f" % (sum(q[2] for q in _sp9) / ken)))
+                  .replace("@@SPANKEN@@", "%.2f" % (sum(q[2] for q in _sp9) / ken))
+                  .replace("@@MONKUCHI@@", "%.3f" % _mon9)      # ⛔ 数を文章へ写さない
+                  .replace("@@KEN@@", "%.3f" % ken))
     h.append(runs_table(d))
     h.append(walls_table(d))
     h.append("<h3>取り合い</h3>")

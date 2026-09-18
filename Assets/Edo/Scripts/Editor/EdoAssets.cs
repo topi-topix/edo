@@ -667,12 +667,16 @@ public static class EdoAssets
         /// <summary>**山王社の透塀(瑞垣)— 1スパン**。屋根銅瓦葺【S 目録1941】・腰板+連子格子+小壁。丈は【U 考証】
         /// 腰の天端 0.75 / 透かし 0.75〜1.65 / 小壁 1.65〜1.95 / 軒先 1.95 / 棟の天端 2.25(実測 2.250)。
         /// <paramref name="spanMm"/> = 柱芯間(中門側は本柱の外面から)[mm]。<paramref name="ends"/> = 端の種類 2 文字(−X, +X):
-        /// n = 次のスパンへ続く(⭐ 柱は +X の端にだけ持つ)/ t = 中門の本柱の外面へ突き付け(柱なし・破風板で閉じる)/ c = 隅部材へ続く(柱なし・屋根を 0.40 手前で止める)。
+        /// n = 次のスパンへ続く(⭐ 柱は +X の端にだけ持つ)/ t = 中門の本柱の外面へ突き付け(柱なし・破風板で閉じる)/ c = 隅部材へ続く(柱なし・屋根を 0.40 手前で止める)/
+        /// h = 潜りの口の縁の柱で止める(柱芯 = スパンの端・棟の天端まで立て頭に銅の笠)。
         /// ⭐ 走り=ローカル X・高さ=Y・厚み=Z(見え面 +Z・断面は表裏対称)・ピボット=スパンの中心・床(基壇の天端)。scale one。
-        /// 外形(2540_nn)W(X)2.63(−1.27〜+1.36・柱の半分が +X へ出る)× H(Y)2.55(−0.30〜2.25)× D(Z)0.80・1.7k tris。基壇の根入れ 0.30・幅 0.60。
-        /// ⚠ 辺は run 側で**等分**して焼く(n = round(辺長 / 2.54)、スパン = 辺長 / n)。瓦はスパンに瓦モジュールが整数枚になる縮尺。
+        /// 外形【実測 2026-09-18・s = spanMm/1000】基壇 X ±s/2(厚み ±0.30)/ 腰 −s/2〜+s/2+0.09(±0.293)/ 透かし・小壁 ±s/2(±0.40)/ 軒・屋根 −s/2〜+s/2+0.09(±0.40)。
+        /// 丈 H(Y)2.55(−0.30〜2.250)。基壇の根入れ 0.30・幅 0.60。端の引き: n = 0(節点ちょうど。柱は節点をまたいで ±0.09)/ t = 0(節点ちょうど・柱なし)/
+        /// c = 基壇 0.300・躯体 0.090・銅瓦 0.400 を内へ引く(残りは隅部材が受ける)/ h = 柱が節点をまたいで ±0.09(銅の笠 ±0.12)。⚠ t・h の端は袖の稜で厚みが ±0.457 に広がる。
+        /// 例 1852_nn: W(X)1.942(−0.926〜+1.016)× H 2.55 × D 0.80・1.1k tris。
+        /// ⚠ 辺は run 側で**等分**して焼く(n = round(辺長 / 1.818)、スパン = 辺長 / n。柱間 6 尺【施主裁定 2026-09-18】)。瓦はスパンに瓦モジュールが整数枚になる縮尺。
         /// 材 `wood` / `wall C` / `Doukawara` / `Kirishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
-        /// 生成: blender --background --python Tools/Blender/build_sanno_sukibei.py -- --span 2.54 --ends nn,tn,nt,nc,cn --render</summary>
+        /// 生成: blender --background --python Tools/Blender/build_sanno_sukibei.py -- --span 1.852 --ends cn,nc,nn --no-kado --render</summary>
         public static string SannoSukibei(int spanMm, string ends)
         {
             return "Assets/Edo/Models/Sanno/Sanno_Sukibei_" + spanMm + "_" + ends + ".fbx";
@@ -680,10 +684,13 @@ public static class EdoAssets
 
         /// <summary>**山王社の透塀の隅**。<paramref name="part"/> = "Dezumi"(出隅: 脚が −X と −Z、見え面 +Z の側が隅棟)/
         /// "Irizumi"(入隅: 脚が −X と +Z、見え面の側が谷)。ピボット=隅の柱の芯・床。隅の柱・隅の瓦場(隅棟と谷の銅板)・野地・基壇の升を持つ。
-        /// 隣のスパンは端 `c` を使う。<paramref name="refSpanMm"/> = 瓦の縮尺を合わせた基準スパン。外形 W 0.97 × H 2.55 × D 0.97・581 tris。
+        /// 隣のスパンは端 `c` を使う。<paramref name="refSpanMm"/> = 瓦の縮尺を合わせた基準スパン(= 柱間 6 尺 1818【施主裁定 2026-09-18】)。
+        /// 外形【実測 2026-09-18】出隅 X[−0.477,+0.493]・Z[−0.477,+0.493] / 入隅 X[−0.477,+0.493]・Z[−0.493,+0.477]、H(Y)2.55(−0.30〜2.250)・489 tris。
+        /// 脚の到達(隅柱の芯から)基壇 0.300 / 躯体 0.400 / 銅瓦 0.4766(外の角の隅棟は 0.4928 出る)⇒ 端 `c` のスパンと基壇が面一・躯体が 0.310・銅瓦が 0.077 重なる。
+        /// ⛔ 隣のスパンの割り付けからこの長さを引かない(スパン部材が端の型ごとに自分の中で引いてある ── 二重の引き算になる)。
         /// 材 ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
-        /// 生成: blender --background --python Tools/Blender/build_sanno_sukibei.py -- --span 2.54 --render</summary>
-        public static string SannoSukibeiKado(string part, int refSpanMm = 2540)
+        /// 生成: blender --background --python Tools/Blender/build_sanno_sukibei.py -- --span 1.818 --ends cn --render</summary>
+        public static string SannoSukibeiKado(string part, int refSpanMm = 1818)
         {
             return "Assets/Edo/Models/Sanno/Sanno_Sukibei_Kado_" + part + "_" + refSpanMm + ".fbx";
         }

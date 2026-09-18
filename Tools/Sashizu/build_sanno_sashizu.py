@@ -9592,13 +9592,24 @@ def sode_part_check(d, g):
 
 SUKIBEI_ROW = "透塀(連子窓の塀)"
 
+# ⭐ **等分の丸めの不感帯**[mm]【指図方 2026-09-18】── uv を四桁(0.0001 間 = 0.18 mm)で持つので、
+#   節点の間の長さ自体がこの桁で揺れる。切り上げ(`ceil`)をそのまま当てると、丸め誤差だけで
+#   一段上がった部材が生まれる(北の段 3.2000436 m ÷ 2 = 1600.02 mm → 1601 mm の部材が一点)。
+#   ⛔ この不感帯は「隙間を許す」ためのものではない ── uv の刻みより細かく、辺ぜんたいでも 1 mm に
+#   満たない(隅の取り合いの許容 `joints[].tol` の 1/50 以下)。
+SPAN_EPS_MM = 0.05
 
-def sukibei_kado_leg(d):
-    """**隅部材が脚へ食い込む長さ**[m]【中2 検図23巡目 → 2026-09-17】── `bom[透塀].kadoOutlineM`
-    の**脚の到達**(ピボット = 隅柱の芯から)。隅部材は隅柱の芯を跨いで両脚へ伸びるので、
-    ⭐ **辺に実際に入るスパンは「節点の間の長さ − この量 ×(隅で終わる端の数)」**。
-    ⛔ 節点間の全長をそのまま等分しない(旧図は両端が隅の辺で 0.99 m 過剰に割り付け、
-    実装で『芯が 0.29 m ずれる』として現れた)。⛔ 手で書かない ── 部材の外形からの従属値。
+
+def sukibei_kado_reach(d):
+    """**隅部材が脚へ伸びる長さ**[m]【部材方の実測 2026-09-18 ── K085 の直し】── `bom[透塀].kadoOutlineM`
+    の**脚の到達**(ピボット = 隅柱の芯から)。
+
+    ⛔ **これを隣の直線部材から引かない。** 引くのは 2026-09-17 に入れた誤りで、
+    `Tools/Blender/build_sanno_sukibei.py` の `build_span` を読み直すと、スパン部材は端の型ごとに
+    **自分の中で**帯を引き込んで焼いてある(`c` の端は 軸部 = 半柱ぶん・屋根 = 隅の軒の出 `D`・
+    基壇 = 石敷の幅ぶん)。⇒ **四つの端の型 n / t / c / h はいずれも割り付けの差し引きが 0** で、
+    スパンは**節点から節点まで丸ごと**割る。この量は**隅部材自身が占める長さ**でしかない
+    (隅部材の据わりは隅柱の芯 = 折れ線の節点)。
     戻り (脚 a, 脚 b)[m]。外形が無ければ None(⛔ は検査が出す)。"""
     row = next((b for b in d["bom"] if b.get("部材") == SUKIBEI_ROW), {}) or {}
     ol = row.get("kadoOutlineM") or []
@@ -9609,19 +9620,18 @@ def sukibei_kado_leg(d):
 
 
 def sukibei_span_plan(d):
-    """**透塀のスパンの割り付け**【部材方 2026-09-14 / 中2 検図23巡目 2026-09-17】── 辺を run の側で
+    """**透塀のスパンの割り付け**【部材方 2026-09-14 / K085 の直し 2026-09-18】── 辺を run の側で
     **等分**する: 本数 = round(建つ長さ / 基準スパン)・スパン = 建つ長さ / 本数。⛔ 数を json に持たない。
-    ⭐ **建つ長さ = 節点の間の長さ − 隅部材の食い込み(`sukibei_kado_leg`)× 隅で終わる端の数**
-      ── 辺の端が隅(`c`)なら、そこは隅部材が占めていてスパン部材は入らない。
-      中門の側(`t`)は本柱の外面まで、潜りの口(`h`)は口の縁の柱までがスパンなので引かない。
+    ⭐ **建つ長さ = 節点の間の長さ**(開口の分を除く)。⛔ **隅のぶんを引かない**
+      ── スパン部材は端の型ごとに自分の中で帯を引き込んで焼いてあり、`n` / `t` / `c` / `h` の
+      四つとも**割り付けの差し引きは 0**(`sukibei_kado_reach` ── 部材方の実測 2026-09-18)。
+      2026-09-17 に入れた「隅の食い込みを引く」規則は二重の引き算で、誤りとして撤回した。
     端の種類(−X, +X — run の a → b の向き): n = 次のスパンへ続く / t = 中門へ突き付け / c = 隅部材へ続く /
     h = 潜りの口の縁の柱 / ? = 部材が決まっていない口。
-    戻り [(run 名, 区間の名, 建つ長さ m, 本数, スパン mm, [端の種類…], 引いた隅の食い込み m)]。"""
+    戻り [(run 名, 区間の名, 建つ長さ m, 本数, スパン mm, [端の種類…])]。"""
     ken = d["const"]["ken"]
     row = next((b for b in d["bom"] if b.get("部材") == SUKIBEI_ROW), {}) or {}
     base = float(row.get("spanBaseM") or 2.54)
-    leg = sukibei_kado_leg(d)
-    kad = max(leg) if leg else 0.0          # ⛔ 脚の長さが食い違えば検査が⛔で止める(決めるのは部材方)
     out = []
     for r in d["runs"]:
         if r.get("kind") != "透塀": continue
@@ -9636,16 +9646,17 @@ def sukibei_span_plan(d):
             eg = "t" if r.get("gapFrom") else (r.get("gapEnd") or "?")   # ⭐ 潜りの口の端(`gapEnd`・部材方 d2e9de85)
             segs = [(0.0, sc - h, "c", eg, "口の手前"), (sc + h, L, eg, "c", "口の先")]
         for s0, s1, e0, e1, nm in segs:
-            # ⭐ **隅部材の食い込みを先に引く**【中2 検図23巡目 → 2026-09-17】── ⛔ 等分の前に引く
-            #   (あとから木口で吸わせない ── 吸う量が部材一本ぶんに達して納まらない)
-            ded = kad * ((1 if e0 == "c" else 0) + (1 if e1 == "c" else 0))
-            ln = s1 - s0 - ded
+            ln = s1 - s0                       # ⛔ 隅のぶんを引かない(K085 ── 差し引きは 0)
             n = max(1, int(round(ln / base)))
             # ⭐ **mm の丸めはめり込む側へ**(規則『隙間は不可・めり込みは可』)── 切り捨てると
             #   本数ぶんの端数がそのまま**隙間**になる。切り上げなら重なりは高々 本数 × 1 mm
-            mm = int(math.ceil(ln / n * 1000.0 - 1e-9))
+            # ⚠ **不感帯 0.05 mm**【指図方 2026-09-18】── uv は四桁(0.0001 間 = 0.18 mm)で持つので、
+            #   切り上げが**丸め誤差だけで**一段上がる。北の段は 3.2000436 m ÷ 2 = 1600.02 mm となり、
+            #   1601 mm の部材が一点だけ増えていた。0.05 mm は uv の刻みより細かく、辺ぜんたいでも
+            #   1 mm に満たない(隅の取り合いの許容 `joints[].tol` の 1/50 以下)。
+            mm = int(math.ceil(ln / n * 1000.0 - SPAN_EPS_MM))
             ends = [e0 + e1] if n == 1 else [e0 + "n"] + ["nn"] * (n - 2) + ["n" + e1]
-            out.append((r["name"], nm, ln, n, mm, ends, ded))
+            out.append((r["name"], nm, ln, n, mm, ends))
     return out
 
 
@@ -9658,33 +9669,44 @@ def sukibei_span_check(d, g):
         return (["部材表に透塀の行が無い"], [])
     baked = set(row.get("baked") or [])
     need = {}
-    leg = sukibei_kado_leg(d)
+    leg = sukibei_kado_reach(d)
     if leg is None:
-        bad.append("隅部材の外形 `bom[%s].kadoOutlineM` が無い ── 隅の食い込みを引けない(辺長をそのまま"
-                   "等分すると辺ごとに一本ぶん近い過剰が出る)" % SUKIBEI_ROW)
-    elif abs(leg[0] - leg[1]) > 0.001:
-        bad.append("隅部材の脚の到達が食い違う(脚 a **%.3f m** ／ 脚 b **%.3f m**)── どちらの脚が"
-                   "どの辺へ向くかが決まらないと辺長から引く量が決まらない。決めるのは**部材方**" % leg)
+        bad.append("隅部材の外形 `bom[%s].kadoOutlineM` が無い ── 隅部材が脚へ伸びる長さを測れない"
+                   % SUKIBEI_ROW)
     else:
-        note.append("隅部材の食い込み **%.3f m**(`bom[%s].kadoOutlineM` の脚の到達 ── 隅柱の芯から)"
-                    "【算出 — 中2 検図23巡目 2026-09-17。⛔ 辺長をそのまま等分しない】" % (leg[0], SUKIBEI_ROW))
+        note.append("隅部材が脚へ伸びる長さ **%.3f m**(`bom[%s].kadoOutlineM` の脚の到達 ── 隅柱の芯から)。"
+                    "⛔ **これを隣のスパンから引かない** ── スパン部材は端の型ごとに自分の中で帯を"
+                    "引き込んで焼いてあり、`n`/`t`/`c`/`h` の四つとも割り付けの差し引きは **0**"
+                    "【部材方の実測 2026-09-18 ── K085。2026-09-17 の『食い込みを引く』は二重の引き算で撤回】"
+                    % (max(leg), SUKIBEI_ROW))
     over9 = []
-    for rn, nm, ln, n, mm, ends, ded in sukibei_span_plan(d):
+    for rn, nm, ln, n, mm, ends in sukibei_span_plan(d):
         ov = n * mm / 1000.0 - ln
         over9.append((ov, rn, nm))
-        note.append("透塀『%s』%s ── 節点の間 %.3f m − 隅の食い込み %.3f m = **建つ %.3f m** ÷ %d 本 = "
-                    "スパン %d mm(重なり %+.0f mm)／ 端 %s【算出】"
-                    % (rn, nm, ln + ded, ded, ln, n, mm, ov * 1000.0, "・".join(ends)))
+        note.append("透塀『%s』%s ── **節点の間 %.3f m**(⛔ 隅のぶんを引かない)÷ %d 本 = "
+                    "スパン %d mm(重なり %+.2f mm)／ 端 %s【算出】"
+                    % (rn, nm, ln, n, mm, ov * 1000.0, "・".join(ends)))
         for e in ends:
             need.setdefault("%d_%s" % (mm, e), []).append(rn)
     q9 = sorted(k for k in need if "?" in k)
     if q9:
         bad.append("透塀の口の端の部材が決まっていない ── %s(`runs[%s]` の口 ── 南の潜り)。決めるのは**普請奉行**(潜りの形)と**部材方**"
                    % ("・".join(q9), "・".join(sorted(set(x for k in q9 for x in need[k])))))
+    # ⭐ **猶予は宣言された `_pending` の項だけが与える**(`sizes` の綴りと同じ作法)。
+    #   ⛔ 猶予は合格ではない ── 図は組めるが**実装へは回せない**(規則18)。項が消えれば⛔へ戻る。
+    ref9 = row.get("bakedPendingRef")
     miss = sorted(k for k in need if k not in baked and "?" not in k)
-    if miss:
-        bad.append("透塀のスパン部材が **%d 点** 焼けていない ── %s ── 決めるのは**部材方**(`build_sanno_sukibei.py --span`)"
-                   % (len(miss), "・".join(miss)))
+    if miss and ref9 and ref9 in (d.get("_pending") or {}):
+        note.append("⚠ 透塀のスパン部材が **%d 点** 焼けていない ── %s ── **部材方待ち**"
+                    "(→ `_pending`「%s」／ `Tools/Blender/build_sanno_sukibei.py --span <m> --ends <端…>`)。"
+                    "⚠ **隅部材 2 点も焼き直しが要る**(`--span 1.818` ── 瓦の割りは基準スパンからの従属値)。"
+                    "【算出 — ⛔ 猶予であって合格ではない。⛔ このまま実装へ回さない(規則18)。項が消えれば⛔】"
+                    % (len(miss), "・".join(miss), ref9))
+    elif miss:
+        bad.append("透塀のスパン部材が **%d 点** 焼けていない ── %s ── 決めるのは**部材方**"
+                   "(`build_sanno_sukibei.py --span`)。⛔ 焼けないまま進めるなら "
+                   "`bom[%s].bakedPendingRef` で `_pending` の項を指すこと(猶予は合格ではない)"
+                   % (len(miss), "・".join(miss), SUKIBEI_ROW))
     note.append("透塀のスパン部材 ── 要る %d 点 ／ 焼いた %d 点(`bom[%s].baked`)【算出】" % (len(need), len(baked), SUKIBEI_ROW))
     # ⭐ **端数の行き先を測る**【低5 検図23巡目 → 2026-09-17】── 等分の端数(mm の丸め)は
     #   隅部材へのめり込みとして出る。⛔ 上限(`joints[].absorb.limitM` = 取り合いの `tol`)を
@@ -9696,10 +9718,11 @@ def sukibei_span_check(d, g):
         if ov9[0] > float(lim9[0]) + 1e-9:
             bad.append("透塀の等分の端数が取り合いの上限を越える ── 『%s』%s で **%.0f mm**"
                        "(上限 めり込み %.0f mm ── `joints[].absorb.limitM`)" % (ov9[1], ov9[2], ov9[0] * 1000.0, float(lim9[0]) * 1000.0))
-        if min(over9)[0] < -1e-9:
-            bad.append("透塀の等分が**隙間**を残す ── 『%s』%s で %.0f mm(⛔ 隙間は不可・めり込みは可)"
+        # ⚠ 隙間の判定も**丸めの不感帯**(`SPAN_EPS_MM`)の外側で見る ── 内側は uv の刻みの揺れ
+        if min(over9)[0] * 1000.0 < -(SPAN_EPS_MM * 1.05):
+            bad.append("透塀の等分が**隙間**を残す ── 『%s』%s で %.2f mm(⛔ 隙間は不可・めり込みは可)"
                        % (min(over9)[1], min(over9)[2], -min(over9)[0] * 1000.0))
-        note.append("透塀の等分の端数 ── 最大の重なり **%.0f mm**(『%s』%s)／ 上限 めり込み **%.0f mm**・"
+        note.append("透塀の等分の端数 ── 最大の重なり **%.2f mm**(『%s』%s)／ 上限 めり込み **%.0f mm**・"
                     "隙間 **%.0f mm**(`joints[].absorb.limitM` = 隅の取り合いの `tol`)"
                     "【算出 — 低5 検図23巡目 2026-09-17】"
                     % (ov9[0] * 1000.0, ov9[1], ov9[2], float(lim9[0]) * 1000.0, float(lim9[1]) * 1000.0))
@@ -9710,7 +9733,7 @@ def sukibei_span_check(d, g):
     #   〔記録〕に残して普請奉行・部材方の裁定を待つ(→ `_pending`「透塀のスパンの許容帯」)。
     base9 = float(row.get("spanBaseM") or 2.54)
     band = row.get("spanRatioBand")
-    rs9 = sorted(((mm / 1000.0 / base9, rn, nm, mm) for rn, nm, ln, n, mm, ends, ded in sukibei_span_plan(d)),
+    rs9 = sorted(((mm / 1000.0 / base9, rn, nm, mm) for rn, nm, ln, n, mm, ends in sukibei_span_plan(d)),
                  reverse=True)
     if rs9:
         if band:
@@ -9801,16 +9824,23 @@ def derive_sukibei_kado(d):
         end9 = "b" if mv is a9 else "a"
         tol9 = (j.get("tol") or [0.05, 0.0])
         j["kind"] = "突き付け(%sの%s)" % (kf.get("name", ""), t9)
-        j["bFace"] = "隅柱(%s と共有)の%sの面" % (a9["name"], "外側" if t9 == "出隅" else "内側")
+        j["bFace"] = ("隅部材(%s ── %s)の脚の木口。帯ごとに ①軸部(土台・腰板・連子・小壁)= **隅柱の側面** "
+                      "②軒・屋根 = **隅部材の軒の端** ③基壇 = **隅の石敷の縁**。⭐ 据える当たりは"
+                      "**隅柱の芯**(= 折れ線の節点・隅部材のピボット `bom[透塀].axis.kadoPivot`)で、"
+                      "スパン部材の `c` の端は帯ごとのこの引き込みを**自分の中に焼き込んである**"
+                      "(`Tools/Blender/build_sanno_sukibei.py` の `build_span`)⇒ ⛔ **辺長から隅のぶんを"
+                      "引かない**(差し引き 0 ── K085 の直し 2026-09-18)"
+                      % (KADO_PART[t9], t9))
         j["moves"] = ("透塀(%s ── 短い側の辺が動く。この隅では `%s` の木口を上の面へ寄せ、"
-                      "端数は辺の全長を**二つの隅柱の実測した面の間で等分し直して**吸う"
-                      "／めり込みの上限 %.2f m・隙間 %.2f m)" % (mv["name"], end9, tol9[0], tol9[1]))
+                      "端数は辺の全長(**据えた隅部材のピボット = 隅柱の芯の間**)を"
+                      "**スパンごと等分し直して**吸う／めり込みの上限 %.2f m・隙間 %.2f m)"
+                      % (mv["name"], end9, tol9[0], tol9[1]))
         j["kado"] = t9
         j["absorb"] = {"run": mv["name"], "end": end9, "rule": "等分し直す", "limitM": tol9,
                        "_": "**端数の始末**【算出 — 低2/低5 検図23巡目 2026-09-17】。⛔ 手で書かない。"
                             "⭐ **端数は木口へ寄せ集めない** ── 動かす側の辺(`run`)を**二つの隅柱の"
-                            "実測した面の間でスパンごと等分し直す**(`bom[透塀].手当` の等分の作法"
-                            "そのもの。割り付けは `sukibei_span_plan` ── 隅部材の食い込みを引いてから等分)。"
+                            "芯(= 折れ線の節点)の間でスパンごと等分し直す**(`bom[透塀].手当` の等分の作法"
+                            "そのもの。割り付けは `sukibei_span_plan` ── ⛔ 隅のぶんを引かない・差し引き 0)。"
                             "⚠ `end` は**この隅で寄せる木口**(寄せ先は `bFace`)であって、⛔ 端数の"
                             "行き先ではない。`limitM` は等分の丸めが隅部材へめり込んでよい量 = `tol`"}
     return pl
@@ -9849,10 +9879,10 @@ def sukibei_kado_check(d, g):
             bad.append("透塀の隅『%s → %s』(%s)が `joints` に無い ── 取り合いの空欄を残さない" % (k9 + (t9,)))
         mv = a9 if run_nodes_ken(a9) <= run_nodes_ken(b9) else b9
         note.append("透塀の隅『%s → %s』── uv (%.4f, %.4f) ／ **%s**(部材 `%s`)／ "
-                    "木口を寄せる面 = 隅柱(%s と共有)の%sの面 ／ 動かす側 **%s**(辺長 %.3f m ＜ %.3f m)"
+                    "木口を寄せる面 = 隅部材の脚の木口(軸部は隅柱の側面・軒は隅の軒の端・基壇は石敷の縁。"
+                    "据える当たりは隅柱の芯 = この節点)／ 動かす側 **%s**(辺長 %.3f m ＜ %.3f m)"
                     "【算出 — 折れ線の外積。⛔ 手で書かない】"
-                    % (k9[0], k9[1], uv[0], uv[1], t9, KADO_PART[t9], a9["name"],
-                       "外側" if t9 == "出隅" else "内側", mv["name"],
+                    % (k9[0], k9[1], uv[0], uv[1], t9, KADO_PART[t9], mv["name"],
                        min(run_nodes_ken(a9), run_nodes_ken(b9)) * d["const"]["ken"],
                        max(run_nodes_ken(a9), run_nodes_ken(b9)) * d["const"]["ken"]))
     # ⭐ **両隅とも「動かす側」に選ばれた辺**【低2 検図23巡目 → 2026-09-17】── 短い辺は両端で端数を
@@ -9863,8 +9893,8 @@ def sukibei_kado_check(d, g):
         m9 = a9 if run_nodes_ken(a9) <= run_nodes_ken(b9) else b9
         mv9.setdefault(m9["name"], []).append("b" if m9 is a9 else "a")
     plan9 = {}
-    for rn, nm, ln, n, mm, ends, ded in sukibei_span_plan(d):
-        plan9.setdefault(rn, []).append((ln + ded, ded, ln, n, mm))
+    for rn, nm, ln, n, mm, ends in sukibei_span_plan(d):
+        plan9.setdefault(rn, []).append((ln, n, mm))
     tols = [tuple(j.get("tol") or [0.05, 0.0]) for j in js]
     tol9 = tols[0] if tols and len(set(tols)) == 1 else (0.05, 0.0)
     if tols and len(set(tols)) > 1:
@@ -9878,8 +9908,7 @@ def sukibei_kado_check(d, g):
                     "(⛔ 片方の木口へ寄せ集めない)／ 一口あたりの上限 めり込み **%.2f m**・"
                     "隙間 **%.2f m**(`joints[].tol`)【算出 — 低2 検図23巡目 2026-09-17】"
                     % (rn, "`・`".join(sorted(mv9[rn])),
-                       " ／ ".join("節点の間 %.3f m − 隅の食い込み %.3f m = 建つ %.3f m ÷ %d 本 = %d mm" % q
-                                  for q in pq) or "—",
+                       " ／ ".join("節点の間 %.3f m ÷ %d 本 = %d mm" % q for q in pq) or "—",
                        tol9[0], tol9[1]))
     note.append("透塀 ── 両隅とも動かす側に選ばれた辺 **%d**(%s)／ 片隅だけ **%d**"
                 "【算出 — ⛔ 端数の行き先を空にしない】"
@@ -12523,12 +12552,24 @@ def kakoi_svg(d, kan="其九"):
         if r.get("gate"):
             o.append(T(200 + L / 2, y - 3, "◇ " + r["gate"], fs=10, anchor="middle", fill="var(--shu)"))
     tot = sum(run_nodes_ken(r) for r in rows if r["kind"] == "透塀")
+    # ⭐ **史料値と比べる数は「節点間 − 中門の口」**【K074/K075 の直し 2026-09-18】── 目録は中門を
+    #   「一間平唐門」として**別項目**に立てるので、透塀の『延長』に中門の口は入らない
+    #   【S [国宝建造物目録1941] / B [根津神社 透塀(唐門西門間)] の『折曲り延長』── `runs[Sukibei_E].acc`】。
+    #   ⛔ 旧版は節点間の総和(= 中門の口を含む)をそのまま 147.28 m と引き算しており、
+    #   **口の幅ぶん(設計どおりの値)が『史料との差』として出ていた**。南の潜りは別項目に立たないので引かない。
+    mon = sum(2.0 * float(r.get("gapHalf") or 0.0) for r in rows
+              if r["kind"] == "透塀" and (r.get("gapFrom") or {}).get("gate") == "中門")
+    ext = tot - mon
     o.append(T(6, 15, kan + "　囲いの展開 ─ 長さは開口を抜いた実長(= 発注量)", fs=12.5, fill="var(--dim)"))
-    o.append(T(W - 6, 15, "透塀 計 %.0f 間 = %.3f m" % (tot, tot * ken), fs=11.5, anchor="end", fill="var(--shu)"))
-    o.append(T(6, H - 42, "⛔ 発注量は棒の長さ(開口を抜いた実長)。「節点間」は開口を含む総和で、"
-               "透塀の史料拘束だけがこちらで読む値", fs=10.5, fill="var(--dim)"))
-    o.append(T(W - 6, H - 26, "透塀の史料値 147.28 m(486.01尺)との差 %.3f m(節点間で比べる)"
-               % abs(tot * ken - 147.28), fs=10.5, anchor="end", fill="var(--dim)"))
+    o.append(T(W - 6, 15, "透塀 節点間 計 %.2f 間 = %.3f m" % (tot, tot * ken),
+               fs=11.5, anchor="end", fill="var(--shu)"))
+    o.append(T(6, H - 42, "⛔ 発注量は棒の長さ(開口を抜いた実長)。「節点間」は開口を含む総和。"
+               "史料の『延長』と比べる数は **節点間 − 中門の口**(中門は目録の別項目・南の潜りは別項目に立たない)",
+               fs=10.5, fill="var(--dim)"))
+    o.append(T(W - 6, H - 26, "目録の『延長』の読み = 節点間 − 中門の口 %.3f m = %.3f m(%.2f 間)"
+               "　史料値 147.28 m(486.01尺)との差 %.3f m"
+               % (mon * ken, ext * ken, ext, abs(ext * ken - 147.28)),
+               fs=10.5, anchor="end", fill="var(--dim)"))
     # ⭐ **腰高の柵(玉垣と同じ部材)の発注量**【裁き1 庭方 2026-09-07】── 玉垣・境内の外周・
     #    法尻の2本は同じ部材で、新造(edo-buzai)は一度で足りる。⛔ `bom` にベタ書きしない。
     ordr = saku_order_rows(d)
@@ -19277,7 +19318,20 @@ def main():
     plate(h, nx(), "囲いの展開", "透塀 = 旧国宝五件のうちの一件")
     fig(h, kakoi_svg(d, KAN[n[0] - 1]),
         cap="塀の刻みは一間ごとの柱。<b>透塀の延長 147.28 m(486.01尺)は[国宝建造物目録1941]の指定値で"
-            "確度S(麹町区史はこの転記)</b>。これはちょうど八十一間で、設計の矩形はこの周長に合わせてある。"
+            "確度S(麹町区史はこの転記)</b>で、設計の折れ線はこの周長に合わせてある。"
+            "<br>⭐ <b>柱間は六尺(一間)</b>【<b>B 推論</b>・施主裁定 2026-09-18 — "
+            "<code>bom[透塀(連子窓の塀)].spanBaseM</code>】 — 旧値 8.4 尺は<b>社殿の柱間を塀へ"
+            "当てはめた推定</b>にすぎず、塀の柱間を記した典拠は無い。⛔ <b>確度はSでもAでもない</b> — "
+            "原典は<b>メートルが主・尺が括弧</b>の表記で、「486.01尺 = 81間ちょうど」は換算値の"
+            "割り切れであって、六尺モジュールの根拠にはならない(<code>sources.md</code> の当該項が明記)。"
+            "<br>⚠ <b>同じ数が二つ出るが、指すものが違う</b>(⛔ 混ぜて読まない) — "
+            "①<b>典拠の読みは『塀 + 南の潜り 一間』</b>で、合わせた<b>間数</b>が延長 486.01尺にあたる"
+            "(下の図の右下が毎回引き算して刷る)。"
+            "②<b>六尺で割り直したスパン部材の本数は @@SPANN@@ 本</b>【算出】。⚠ ところが<b>塀そのものの"
+            "長さは @@SPANKEN@@ 間ぶん</b>【算出】しかない — 辺ごとに端数を丸めて割るので、"
+            "<b>本数は長さの間数と一致しない</b>(どの辺がどちらへ丸まったかは下の検査が毎回刷る)。"
+            "⛔ <b>本数と間数を同じ数として読まない。</b>数が近いのは偶然であって、"
+            "割り付けが典拠と一致したという意味ではない。"
             "<br>⛔ <b>棒の長さは開口を抜いた実長で、これが発注量である</b>【検図10巡目 中1】 — "
             "石段の頭・勝手口・中門・潜りを抜いてある。<b>史料値と比べる数は「節点間」の側</b>で、"
             "混ぜて読まない。"
@@ -19291,6 +19345,9 @@ def main():
             "抜けていた</b>。⭕ <b>玉垣・境内の外周・法尻の三者は同じ部材</b>なので、"
             "図の末尾に出る合計がそのまま<b>新造(edo-buzai)の発注量</b>で、⛔ この数は "
             "<code>bom</code> に持たない。")
+    _sp9 = sukibei_span_plan(d)
+    h[-1] = (h[-1].replace("@@SPANN@@", "%d" % sum(q[3] for q in _sp9))
+                  .replace("@@SPANKEN@@", "%.2f" % (sum(q[2] for q in _sp9) / ken)))
     h.append(runs_table(d))
     h.append(walls_table(d))
     h.append("<h3>取り合い</h3>")

@@ -8217,7 +8217,10 @@ def torii_marks(d, PX, PY):
         if not t.get("pos"): continue
         x, z = t["pos"]
         o.append('<circle cx="%.1f" cy="%.1f" r="4" fill="var(--shu)" stroke="var(--paper)" stroke-width="1"/>' % (PX(x), PY(z)))
-        o.append(T(PX(x) + 6, PY(z) - 5, t["name"], fs=10, fill="var(--shu)"))
+        # ⛔ **`labelOff` は設計値ではない**(px の逃がし)── 鳥居の**位置は動かさない**。
+        #    銘だけをずらす【K100 検図 中 2026-09-19 ── 二ノ鳥居の銘が矢視記号カに食い込んでいた】。
+        lo = t.get("labelOff") or [0, 0]
+        o.append(T(PX(x) + 6 + lo[0], PY(z) - 5 + lo[1], t["name"], fs=10, fill="var(--shu)"))
     return o
 
 
@@ -10780,6 +10783,21 @@ def _cf_col(dv):
     return "#EFD9C8" if dv > 0.3 else ("#D4DEE6" if dv < -0.3 else "#E9E5D6")
 
 
+def _sv_fit(o, bgi, pr, need):
+    """図の丈を**中身に合わせて伸ばす**【K100 検図 中 2026-09-19】── 欄(帳簿の行)を地図の上へ
+    重ねると、銘が凡例や矢視記号と食い合う。⭕ **欄は枠の外(下の帯)へ逃がし**、その分だけ紙を
+    伸ばす。⛔ 字を小さくして誤魔化さない(`svg_layout` の小字の検査が鳴る)。
+
+    `o[0]`(viewBox)・`o[1]`(clipPath)・`o[bgi]`(地色)の三つだけを新しい丈で書き替える。
+    """
+    if need <= pr.H: return
+    a, b = "%.0f" % pr.H, "%.0f" % need
+    o[0] = o[0].replace(' %s"' % a, ' %s"' % b, 1)
+    o[1] = o[1].replace('height="%s"' % a, 'height="%s"' % b, 1)
+    pr.H = need
+    o[bgi] = R(0, 0, pr.W, pr.H, fill="var(--paper2)")
+
+
 def kirimori_svg(d, kan, x0, x1, z0, z1, W=900.0):
     """§3b 切盛図 — Δ = 設計地盤 − 現況。暖色=盛土 / 寒色=切土 / 無彩=±0.3m。
 
@@ -10788,8 +10806,11 @@ def kirimori_svg(d, kan, x0, x1, z0, z1, W=900.0):
     算出して刷る**。⛔ caption に直書きしない(規則4)。⛔ 数を合わせるのでなく算出へ替える。
     """
     g = G(d)
-    pr = Proj(x0, x1, z0, z1, W=W, pad=0.0, top=26.0, bottom=30.0)
+    # ⭐ **凡例は地図の外(上の帯)へ**【K100 検図 中 2026-09-19】── 旧版は top=26 で、二行目の
+    #   凡例が地図の中へ食い込み、右の欄と 90 px 重なっていた。⇒ 帯を二行分に広げる。
+    pr = Proj(x0, x1, z0, z1, W=W, pad=0.0, top=44.0, bottom=30.0)
     o = _sv(pr.W, pr.H, "切盛図")
+    bgi = len(o)                      # ⛔ 地色は丈を伸ばしたら描き直す(`_sv_fit`)
     o.append(R(0, 0, pr.W, pr.H, fill="var(--paper2)"))
     stp = 2
     tally, st = {}, {}
@@ -10838,10 +10859,23 @@ def kirimori_svg(d, kan, x0, x1, z0, z1, W=900.0):
                     stroke="var(--shu)", sw=1.4))
         o.append(LN(pr.X(sx9) - 4.5, pr.Y(sz9) + 4.5, pr.X(sx9) + 4.5, pr.Y(sz9) - 4.5,
                     stroke="var(--shu)", sw=1.4))
-        o.append(T(pr.X(sx9) + 8, pr.Y(sz9) + 4,
-                   "縁の外向きの段差 最大 %.2f m(%s・母数=縁の節点 %d)"
-                   % (cl["step"], snm9, cl["add"]),
-                   fs=9.5, fill="var(--shu)"))
+        # ⛔ **地図の上に長い銘を置かない**【K100 検図 中 2026-09-19】── 同じ文は下の欄が刷るので、
+        #   ここへ重ねると矢視記号と食い合うだけで情報は増えない(⛔ 二重に書かない・規則4)。
+        #   ⭕ 図に残すのは**×印**だけで、位置は欄が名乗る。
+    # ⭐ **畝の連なりを図に描く**【K099 検図 高 2026-09-19】── 欄に数を刷るだけだと、⛔ 施主は
+    #   『どこに・どれだけの長さで』残るのかを図から読めない(旧版は一枡の点として見えていた)。
+    #   ⇒ 畝の枡を朱の枠で囲い、いちばん大きい連なりへ**引出線と銘**を引く。
+    for cx9, cz9, _r9, _f9, _n9 in cl.get("ridgeCells") or []:
+        o.append(R(pr.X(cx9 - IMPL_STEP / 2.0), pr.Y(cz9 + IMPL_STEP / 2.0),
+                   pr.L(IMPL_STEP), pr.L(IMPL_STEP), fill="none", stroke="var(--shu)", sw=1.2))
+    rr9 = (cl.get("ridgeRuns") or [None])[0]
+    if rr9 is not None:
+        mx9 = (rr9[6][0] + rr9[7][0]) / 2.0; mz9 = (rr9[6][1] + rr9[7][1]) / 2.0
+        o.append(LN(pr.X(mx9), pr.Y(mz9), pr.X(mx9) - 46, pr.Y(mz9) - 30,
+                    stroke="var(--shu)", sw=1.0))
+        o.append(T(pr.X(mx9) - 50, pr.Y(mz9) - 33,
+                   "一枡幅の畝(土手)走り %.0f m ／ 土量 %.1f m³" % (rr9[1], rr9[5]),
+                   fs=9.5, anchor="end", fill="var(--shu)"))
     o.append(T(6, 15, kan + "　切盛図 ─ 設計地盤 − 現況(暖色=盛土 ／ 寒色=切土 ／ 無彩=±0.3 m)",
                fs=12.5, fill="var(--dim)"))
     o.append(T(6, 29, "細枠の枡 = 格子の縁 ─ 壁の控え + 平接ぎ(造成の格子 %g m の節点 ─ "
@@ -10854,7 +10888,10 @@ def kirimori_svg(d, kan, x0, x1, z0, z1, W=900.0):
     tally["格子の縁 ─ 壁の控え + 平接ぎ(造成の格子 %g m の節点・`design_y` の外)" % IMPL_STEP] = [
         cl["add"] * IMPL_STEP * IMPL_STEP, cl["fillM3"], cl["cutM3"], cl["maxRise"], cl["maxCutD"],
         cl["outArea"], cl["outFill"], cl["outCut"]]
-    yy = 40.0
+    # ⭐ **帳簿の欄は地図の下へ**【K100 検図 中 2026-09-19】── 旧版は yy=40 から地図の上に
+    #   右寄せで積み、凡例(90 px)と矢視記号イ・ロ・リ・カに食い込んでいた(重なり 5 組)。
+    #   ⇒ 枠の外(地図の下)へ逃がし、紙は `_sv_fit` が中身の分だけ伸ばす。
+    yy = pr.top + pr.zh + 18.0
     for nm, t_ in tally.items():
         o.append(T(pr.W - 6, yy, "%s: %d m²　盛土 %.0f m³(最大 %.2f)　切土 %.0f m³(最大 %.2f)"
                    "　うち社地外 %d m²(盛 %.1f ／ 切 %.1f m³)"
@@ -10863,9 +10900,11 @@ def kirimori_svg(d, kan, x0, x1, z0, z1, W=900.0):
         yy += 15
     o.append(T(pr.W - 6, yy, "格子の縁は `design_y` を動かさない ─ 壁の控え %d 節点(宣言 %g m ／ "
                "石垣の基部の出は最大 %.2f m ─ `_pending`)／ 平接ぎ %d 節点(動いた土 最大 %.3f m・"
-               "⭕ 0 が正)／ **縁の外向きの段差 最大 %.2f m**(母数=縁の節点 %d)"
+               "⭕ 0 が正)／ **縁の外向きの段差 最大 %.2f m**(母数=縁の節点 %d%s)"
                % (cl["wallAdd"], cl["wallCollarM"], cl["wallCollarMax"], cl["apronAdd"],
-                  cl["apronMaxDv"], cl["step"], cl["add"]),
+                  cl["apronMaxDv"], cl["step"], cl["add"],
+                  ("・図の朱の×印 ─ 『%s』(%.1f, %.1f)"
+                   % (cl["stepAt"][2], cl["stepAt"][0], cl["stepAt"][1])) if cl.get("stepAt") else ""),
                fs=9.5, anchor="end", fill="var(--shu)"))
     yy += 15
     o.append(T(pr.W - 6, yy, "うち**縁の法面**(輪郭から直に 1:%g / 1:%g ─ `design_y` の内なので"
@@ -10891,11 +10930,10 @@ def kirimori_svg(d, kan, x0, x1, z0, z1, W=900.0):
                   if cl["footAt"] else "", cl["footCapN"], cl["footNearN"]),
                fs=9.5, anchor="end", fill="var(--shu)"))
     yy += 15
-    o.append(T(pr.W - 6, yy, "うち両隣より高い**一枡幅の畝** %d 点・最大 %.2f m%s ⇒ `_pending`"
-               "「法面の節点に一枡幅の畝が残る」"
-               % (cl["ridgeN"], cl["ridgeMax"],
-                  ("(%s (%.1f, %.1f))" % (cl["ridgeAt"][2], cl["ridgeAt"][0], cl["ridgeAt"][1]))
-                  if cl["ridgeAt"] else ""),
+    # ⭐ **畝の実体で刷る**【K099 検図 高 2026-09-19】── 旧版は「%d 点・最大 %.2f m」とだけ刷り、
+    #   ⛔ 施主が裁く対象を**実寸より小さく**描いていた(実体は一枡幅で連なる土手)。
+    #   ⛔ 図と検査で別の文を作らない ── `_ridge_line` が一本で刷る(規則4)。
+    o.append(T(pr.W - 6, yy, _ridge_line(cl, "うち両隣より高い"),
                fs=9.5, anchor="end", fill="var(--shu)"))
     yy += 15
     o.append(T(pr.W - 6, yy, "面の欄は %d m 格子で数えた面積 ／ 格子の縁の欄は造成の格子 %g m の節点"
@@ -10906,6 +10944,7 @@ def kirimori_svg(d, kan, x0, x1, z0, z1, W=900.0):
     o.append(T(pr.W - 6, yy, "差引 %+.0f m³(正なら客土が要る／負なら残土が出る)" % tot, fs=10.5,
                anchor="end", fill="var(--shu)"))
     o += sando_band(d, pr.X, pr.Y, pr.L); o += torii_marks(d, pr.X, pr.Y)   # 参道と鳥居(検図 2026-09-06)
+    _sv_fit(o, bgi, pr, yy + 12.0)            # ⛔ 欄を紙からはみ出させない(K100)
     o.append(ENDSVG)
     _STAIR_CF.clear(); _STAIR_CF.update(st)   # ⛔ 註は同じ集計から刷る(規則4)
     return ("\n".join(o), st)
@@ -16904,6 +16943,71 @@ def _outward(P, i, x, z):
     return nx, nz
 
 
+def _ridge_runs(cells):
+    """**畝を連なりへ束ねる**【K099 検図 高 2026-09-19】── 畝の枡 (x, z, 畝の高さ, 盛土の厚み, 面名)
+    を**隣り合う枡(斜めを含む 8 近傍)**で連結成分にまとめ、連なりごとに
+
+        (点数, 走り[m], 幅[m], 畝の高さの最大[m], 盛土の厚みの最大[m], 土量[m³], 端[A], 端[B], 面名)
+
+    を**土量の大きい順**で返す。
+
+    ⭐ **なぜ束ねるのか** ── 点の数と最大だけを刷ると、⛔ 施主は『一枡の点がばらばらに残る』と
+      読む。実体は**一枡幅で連なる土手**で、①『均す』はその走りの分の土を落とす工事である。
+    ⭕ **走り** = 点数 × 刻み(一枡幅の列なので枡の数がそのまま延長)。**幅** は行ごと・列ごとの
+      枡数の**少ないほう**の最大(= 一枡幅なら刻みそのもの)。**土量** = Σ 盛土の厚み × 一枡の面積。
+    ⛔ ここで新しい閾を作らない ── 枡を選ぶ条件は呼ぶ側(`grade_collar_stats`)が持つ。
+    """
+    ix = {}
+    for c in cells:
+        ix[(int(round(c[0] / IMPL_STEP)), int(round(c[1] / IMPL_STEP)))] = c
+    seen, out = set(), []
+    for k0 in ix:
+        if k0 in seen: continue
+        stack, comp = [k0], []
+        seen.add(k0)
+        while stack:
+            i, j = stack.pop(); comp.append((i, j))
+            # ⭐ **束ねるのは 8 近傍**【K099 検図 高 2026-09-19】── 畝は法尻に沿って走るので、
+            #   一枡ずつ横へずれながら続く。⛔ 4 近傍で束ねると**一条の土手が三つに切れ**、
+            #   走りも土量も小さく出る(当図の北西で 9 枡 14.0 m³ が 4/3/2 枡に割れていた)。
+            #   ⭕ 斜めに接する枡は**地面の上では続いている**ので一条と数える。
+            for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1),
+                           (1, 1), (1, -1), (-1, 1), (-1, -1)):
+                k = (i + di, j + dj)
+                if k in ix and k not in seen:
+                    seen.add(k); stack.append(k)
+        cs = [ix[k] for k in comp]
+        rows, cols = {}, {}
+        for i, j in comp:
+            rows[j] = rows.get(j, 0) + 1
+            cols[i] = cols.get(i, 0) + 1
+        wid = min(max(rows.values()), max(cols.values())) * IMPL_STEP
+        ends = max(((a, b) for a in cs for b in cs),
+                   key=lambda t: (t[0][0] - t[1][0]) ** 2 + (t[0][1] - t[1][1]) ** 2)
+        out.append((len(cs), len(cs) * IMPL_STEP, wid,
+                    max(c[2] for c in cs), max(c[3] for c in cs),
+                    sum(max(0.0, c[3]) for c in cs) * IMPL_STEP * IMPL_STEP,
+                    (round(ends[0][0], 1), round(ends[0][1], 1)),
+                    (round(ends[1][0], 1), round(ends[1][1], 1)),
+                    sorted(cs, key=lambda c: -c[3])[0][4]))
+    out.sort(key=lambda t: -t[5])
+    return out
+
+
+def _ridge_line(cl, head):
+    """畝の一文(切盛図の欄と検査の註が**同じ文**を刷る ── ⛔ 二本の物差しを作らない・規則4)。"""
+    r9 = (cl.get("ridgeRuns") or [None])[0]
+    if r9 is None:
+        return head + "一枡幅の畝 **0 点**(⛔ 0 を『合格』と読まない ── 母数は法面の節点)"
+    return (head + "一枡幅の畝 **%d 点**を隣り合う枡(斜めを含む)で束ねると **%d 条**の連なり ── 最大は『%s』の"
+            "**走り %.0f m × 幅 %.0f m の土手**(畝の高さ 最大 **%.2f m** ／ 盛土の厚み 最大 "
+            "**%.2f m** ／ 土量 **%.1f m³** ／ (%.1f, %.1f)〜(%.1f, %.1f))。⛔ **点の集まりではない** "
+            "── 案①『均す』はこの走りの土手を落とす工事である ⇒ `_pending`"
+            "「法面の節点に一枡幅の畝が残る」"
+            % (cl["ridgeN"], len(cl["ridgeRuns"]), r9[8], r9[1], r9[2], r9[3], r9[4], r9[5],
+               r9[6][0], r9[6][1], r9[7][0], r9[7][1]))
+
+
 def grade_collar_stats(d, g):
     """**縁が動かす土**を一度に数える【裁定 2026-09-19 = 案A】── ⛔ 帳簿の外に土を作らない。
 
@@ -16939,7 +17043,11 @@ def grade_collar_stats(d, g):
          #   法尻の摺り付けと平接ぎの環の交差である。⇒ 上限で切れた節点か否かで分けて数え、
          #   **両隣より高い一枡幅の畝**も別に数える(⛔ 一つの数に畳まない)。
          "footN": 0, "footStep": 0.0, "footAt": None, "footCapN": 0, "footNearN": 0,
-         "ridgeN": 0, "ridgeMax": 0.0, "ridgeAt": None,
+         # ⭐ **畝は点ではなく連なる土手である**【K099 検図 高 2026-09-19】── 一枡ずつ数えて
+         #   「点 %d・最大 %.2f m」とだけ刷ると、⛔ **施主が裁く対象が実寸より小さく見える**
+         #   (実体は一枡幅で連なる土手で、土量はその走りの分だけ在る)。⇒ 枡を控えて
+         #   `_ridge_runs` が隣り合う枡で束ね、**走り・幅・畝の高さ・盛土の厚み・土量**を出す。
+         "ridgeN": 0, "ridgeMax": 0.0, "ridgeAt": None, "ridgeCells": [], "ridgeRuns": [],
          # ⭐ **法面の厚みの分布**【庭方 中・考証 中 2026-09-19】── 「遠い節点は薄いから土量に
          #   効かない」は**言い過ぎ**だと庭方が実測で差し戻した。⛔ 一つの代表値で語らず、
          #   輪郭からの距離で刻んだ**名簿そのもの**(節点数・厚みの平均と最大・土量)を刷る。
@@ -17018,6 +17126,9 @@ def grade_collar_stats(d, g):
                         r9 = min(y - nb[e1], y - nb[e2])
                         if r9 <= 0.05: continue
                         q["ridgeN"] += 1
+                        # ⛔ 数えるだけにしない ── 束ねて実体(走り・土量)を出すために枡を控える
+                        q["ridgeCells"].append((x, z, r9, (dv if dv is not None else 0.0),
+                                                te["name"]))
                         if r9 > q["ridgeMax"]:
                             q["ridgeMax"] = r9
                             q["ridgeAt"] = (round(x, 1), round(z, 1), te["name"], round(dd9, 1))
@@ -17054,6 +17165,7 @@ def grade_collar_stats(d, g):
                     if n9 is None: continue
                     if y - n9 > q["step"]:
                         q["step"] = y - n9; q["stepAt"] = (round(x, 1), round(z, 1), te["name"])
+    q["ridgeRuns"] = _ridge_runs(q["ridgeCells"])
     _COLLAR["key"] = id(d); _COLLAR["v"] = q
     return q
 
@@ -17105,6 +17217,15 @@ def _stair_edge_walk(d, g, stp=None):
                            on_wall(d, g, x, z), L / m9)
 
 
+def _face_roster(rows):
+    """丈の足りない縁の名簿の一行【K101 検図 中 2026-09-19】。
+    ⛔ 本名簿(石段の口を除いた全数)と別名簿(除いた石段の口)で**別の書式を作らない**(規則4)。
+    ⚠ 輪郭の頂点は隣り合う二辺の歩きで二度当たるので、畳んでから足りなさの大きい順に刷る。"""
+    return "／".join("『%s』(%.1f, %.1f) 受け手『%s』 段差 %.2f m ／ 見付 %.2f m ／ 残り %.2f m"
+                    % (q[2], q[0], q[1], q[3], q[4], q[5], q[6])
+                    for q in sorted(set(rows), key=lambda t: -t[6]))
+
+
 def grade_slope_check(d, g):
     """**縁が受けられているか**【ユーザー裁定1 = 案A・2026-09-19】── 平場の輪郭を半刻みで歩き、
     盛りの縁の一点ずつを **W(土留めが受ける)/ F(土羽で降ろす ── 法が社地の内で現地形に着く)**
@@ -17123,7 +17244,14 @@ def grade_slope_check(d, g):
     # ⭐ **W の点は丈も測る**【検図 高 2026-09-19】── 受け手の**有無**だけを見て見付を見ないと、
     #   同じ図が「受け手の無い点 0」と「法尻の段差 最大 6.75 m」を並べて刷ることになる。
     #   ⛔ 受け手がいる = 受けられている、ではない。⭕ **段差 ≤ その壁の見付**を毎点比べる。
-    wshort, wstair, wmax, wn = [], 0, None, 0
+    # ⭐ **除いた点も名簿に刷る**【K101 検図 中 2026-09-19】── 旧版は石段の口を数(`wstair`)に
+    #   しか残さず、⛔ **『全数の名簿』が最悪の点を落としていた**(足りなさの最大は名簿の外に在った)。
+    #   ⇒ 除いた点も同じ形で控え、別名簿として刷る(規則19 ── 「全数」が全数でない行を残さない)。
+    # ⭐ **閾を振った点数も出す**【K102 検図 中 2026-09-19】── 閾そのもの(法肩の丸み)が裁定待ちの
+    #   従属値なので、⛔ 一つの閾の点数だけで施主に裁かせない。⇒ 全点の足りなさを控えて振り直す。
+    wshort, wstair, wmax, wn = [], [], None, 0
+    wall9 = []          # (足りなさ, 石段の口か, 点の組) ── ⛔ 閾は後から当てる
+    decl9 = ((d.get("terrainCheck") or {}).get("gradedCover") or {}).get("shoulderRoundDeclM")
     for te, P, (x, z), (nx, nz), top, nat, walled, dl in _edge_walk(d, g):
         n9 += 1
         if nat is None: continue
@@ -17140,12 +17268,15 @@ def grade_slope_check(d, g):
                     if wmax is None or short > wmax[0]:
                         wmax = (short, round(x, 1), round(z, 1), te["name"], w9["name"],
                                 round(dv, 2), round(mien, 2))
+                    row9 = (round(x, 1), round(z, 1), te["name"], w9["name"],
+                            round(dv, 2), round(mien, 2), round(short, 2))
+                    st9 = _stair_y(d, g, x, z) is not None
+                    wall9.append((short, st9, row9))
                     if short > lim9:
-                        if _stair_y(d, g, x, z) is not None:
-                            wstair += 1                   # 石段の口 ── 落差は段が受け持つ
+                        if st9:
+                            wstair.append(row9)           # 石段の口 ── 落差は段が受け持つ
                         else:
-                            wshort.append((round(x, 1), round(z, 1), te["name"], w9["name"],
-                                           round(dv, 2), round(mien, 2), round(short, 2)))
+                            wshort.append(row9)
             continue
         if dv <= 0.05:
             seg["C" if dv < -0.05 else "N"] += dl; continue
@@ -17201,20 +17332,48 @@ def grade_slope_check(d, g):
             bad.append(msg9)
         # ⛔ 名簿を畳まない ── 4 点でも全部刷る(規則19)
         # ⚠ 輪郭の頂点は隣り合う二辺の歩きで**二度**当たるので、名簿は同じ点を畳んでから刷る
-        note.append("丈の足りない縁の**全数の名簿**(同じ点は畳む)── %s"
-                    "【算出 ── ⛔ 例だけ刷って残りを隠さない】"
-                    % "／".join("『%s』(%.1f, %.1f) 受け手『%s』 段差 %.2f m ／ 見付 %.2f m ／ "
-                               "残り %.2f m" % (q[2], q[0], q[1], q[3], q[4], q[5], q[6])
-                               for q in sorted(set(wshort), key=lambda t: -t[6])))
+        note.append("丈の足りない縁の**名簿(石段の口を除いた全数)**(同じ点は畳む)── %s"
+                    "【算出 ── ⛔ 例だけ刷って残りを隠さない。⚠ **『全数』は"
+                    "『石段の口を除いた全数』であって、足りなさの最大がこの名簿に在るとは限らない** ── "
+                    "除いた点は次の別名簿(K101 検図 中 2026-09-19)】"
+                    % _face_roster(wshort))
+    # ⭐ **除いた石段の口の別名簿**【K101 検図 中 2026-09-19】── 除外の理由は【U 当方の読み】で
+    #   まだ裁定されていない。⛔ 数だけ残して座標を隠すと、施主は**何を除いたか**を裁けない。
+    if wstair:
+        note.append("**別に除いた石段の口の名簿(全数)**(同じ点は畳む)── %s"
+                    "【算出 ── 除く理由『落差を段が受け持つ』は**【U 当方の読み】**であって算出では"
+                    "ない ⇒ この名簿も `_pending`「%s」の射程に入れる(⛔ 数える前に除いた点を"
+                    "名簿から隠さない・規則19)】"
+                    % (_face_roster(wstair),
+                       ((d.get("terrainCheck") or {}).get("gradedCover") or {})
+                       .get("wallFacePendingRef") or "受け手はいるが丈が足りない縁"))
+    # ⭐ **閾を振った点数**【K102 検図 中 2026-09-19】── 閾 `lim9` は**それ自体が裁定待ちの従属値**
+    #   (`_pending`「法肩の丸みを庭方の宣言(0.2 m)まで詰めるか」)。⛔ 一つの閾の点数だけで
+    #   裁かせると、丸みの裁定の後に点数が黙って増える。⇒ 二つの閾で並べて刷る。
+    sw9 = ""
+    if decl9 is not None:
+        a9 = len([q for q in wall9 if q[0] > lim9 and not q[1]])
+        b9 = len([q for q in wall9 if q[0] > float(decl9) and not q[1]])
+        sa9 = len([q for q in wall9 if q[0] > lim9 and q[1]])
+        sb9 = len([q for q in wall9 if q[0] > float(decl9) and q[1]])
+        sw9 = ("／ **閾を振ると** ── 従属値 **%.3f m** で **%d 点**(石段の口 %d)／ 庭方の宣言 "
+               "**%g m** で **%d 点**(石段の口 %d)。⚠ **二つの裁定は互いに効く** ⇒ `_pending`"
+               "「法肩の丸みを庭方の宣言(0.2 m)まで詰めるか」を先に裁くと、この項の点数が動く"
+               % (lim9, a9, sa9, float(decl9), b9, sb9))
     note.append("**W の丈の列**(段差 ≤ その壁の見付)── 盛りのある W の点 **%d** を一点ずつ、"
                 "その点に**いちばん近い土留めの見付高**(天端 − 低い側の地盤・`wall_tg_at`)と"
                 "比べた ── 丈が**足りない点 %d**(閾は法肩の丸み **%.3f m**)／ **別に除いた"
                 "石段の口 %d 点**(⚠ 『うち』ではない ── 数える前に除いてある。除く理由『落差を段が"
-                "受け持つ』は**【U 当方の読み】**であって算出ではない)／ 足りなさの最大 **%+.2f m**%s"
+                "受け持つ』は**【U 当方の読み】**であって算出ではない ── 名簿は上に刷る)／ "
+                "足りなさの最大 **%+.2f m**%s%s"
                 "【算出 ── ⛔ 受け手の有無だけを数えない(規則19)】"
-                % (wn, len(wshort), lim9, wstair, (wmax[0] if wmax else 0.0),
-                   ("(『%s』 世界座標 (%.1f, %.1f)・受け手『%s』・段差 %.2f m ／ 見付 %.2f m)"
-                    % (wmax[3], wmax[1], wmax[2], wmax[4], wmax[5], wmax[6])) if wmax else ""))
+                % (wn, len(wshort), lim9, len(wstair), (wmax[0] if wmax else 0.0),
+                   ("(『%s』 世界座標 (%.1f, %.1f)・受け手『%s』・段差 %.2f m ／ 見付 %.2f m ── "
+                    "⚠ **石段の口なので上の名簿には無い**"
+                    if any(abs(q[0] - wmax[0]) < 1e-9 and q[1] for q in wall9) else
+                    "(『%s』 世界座標 (%.1f, %.1f)・受け手『%s』・段差 %.2f m ／ 見付 %.2f m")
+                   % (wmax[3], wmax[1], wmax[2], wmax[4], wmax[5], wmax[6])
+                   + ")" if wmax else "", sw9))
     # ⭐ **石段の走りの両側**(検図 中 2026-09-19)── どの平場の輪郭でもないので、
     #    これを歩かないと男坂・女坂・参道の階の脇は**どの輪にも入っていない**(規則19)。
     ksg = {"W": 0.0, "F": 0.0, "N": 0.0, "C": 0.0}
@@ -17378,13 +17537,9 @@ def graded_cover_check(d, g):
     note.append("**残る段の原因**(検図 高 2026-09-19)── 法面の節点の隣に残る段 **%d 点**のうち、"
                 "法尻が上限 `featherCap` %g m で切れた節点は **%d 点**だけで、**%d 点は上限に"
                 "達していない** ⇒ ⛔ 原因を `featherCap` と読ませない(法尻の摺り付けと平接ぎの環の"
-                "交差)。うち**向かい合う両隣より高い一枡幅の畝 %d 点**・最大 **%.2f m**%s"
-                "【算出 ── 始末は `_pending`「法面の節点に一枡幅の畝が残る」】"
-                % (q9["footN"], q9["capM"], q9["footCapN"], q9["footNearN"], q9["ridgeN"],
-                   q9["ridgeMax"],
-                   ("(『%s』 世界座標 (%.1f, %.1f)・輪郭から %.1f m)"
-                    % (q9["ridgeAt"][2], q9["ridgeAt"][0], q9["ridgeAt"][1], q9["ridgeAt"][3]))
-                   if q9["ridgeAt"] else ""))
+                "交差)。%s【算出】"
+                % (q9["footN"], q9["capM"], q9["footCapN"], q9["footNearN"],
+                   _ridge_line(q9, "うち**向かい合う両隣より高い**")))
     return bad, note
 
 

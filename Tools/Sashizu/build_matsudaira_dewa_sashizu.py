@@ -1590,6 +1590,9 @@ def plane_check(d):
     bad += neishi_edge_overhang_check(d)       # C-4/C-5 根石の厚みと面の縁
     bad += bansho_parcel_out_check(d)          # B-3 番所の区画越え(受容)
     bad += valley_eave_check(d)                # C-2 谷の軒を落とせるか
+    # ⭐ **2026-09-18に新設して同じ巡で配線した**(規則19・検図)
+    bad += valley_step_check(d)                # C-2 軒谷は谷か段違いか
+    bad += nagaya_moya_ken_check(d)            # C-2 4棟の屋根の型が足形を覆えているか
     bad += band_governor_check(d, _dem_json())  # A-3 帯の境を決めているのは t か minAbs か
     bad += slope_cover_check(d, _dem_json())   # A-3 法尻の地被の被覆率
     bad += slope_emergent_check(d, _dem_json())  # A-3 突出木の法肩に沿った空き
@@ -1986,7 +1989,7 @@ def _section_uses_bands():
 
 
 def section_roof_status(d, sec):
-    """断面が切る棟を (帯割りを持つ棟, 帯割りを持たない長屋型の棟) に分けて返す。
+    """断面が切る棟を (帯割りを持つ棟, 帯割りを持たない奥向・勝手向の棟) に分けて返す。
     **手で書いた棟名リストは持たない** — section_crossings と同じく棟の u/v から算出する。
 
     ⛔⛔ **2026-09-08: どちらも『屋根は概略・突き合わせ対象外』。**
@@ -4414,7 +4417,7 @@ def roof_sensitivity(d):
         lambda m: m.__setitem__("_roofSpellDrop", "n"))
     run("⑨ 断面から概略の屋根の高さ(`ridgeAbove`)を落とす",
         lambda m: m["sections"][0].pop("ridgeAbove"))
-    run("⑩ 長屋型の棟に帯割りを持たせる",
+    run("⑩ 奥向・勝手向の棟に帯割りを持たせる",
         lambda m: _m(m, "Umaya").__setitem__(
             "roof", {"bands": [4], "spanKen": 6, "alongV": False, "fukizai": "sangawara",
                      "muneTakasa": None, "confidence": "U"}))
@@ -4440,9 +4443,9 @@ def roof_sensitivity(d):
         lambda m: m["roka"].__setitem__("kobaiFrom", "naiKobai"))
     run("⑬⁗ `roka` の欄そのものを落とす(部材キットの定数任せに戻る)",
         lambda m: m.pop("roka"))
-    # ⭐ **長屋型の端の納め①② と 頭上の有効高**(2026-09-17 普請奉行の決定)— 一本ずつ
+    # ⭐ **奥向・勝手向の棟の端の納め①② と 頭上の有効高**(2026-09-17 普請奉行の決定)— 一本ずつ
     #   ⑭ 妻面の判定そのものを潰す(平入りの宣言を落とすと妻面が決まらず、納めが決まらない)
-    run("⑭ 長屋型を平入りでなくする(妻面が決まらず納め①②の振り分けが落ちる)",
+    run("⑭ 4棟の屋根の型を平入りでなくする(妻面が決まらず納め①②の振り分けが落ちる)",
         lambda m: m["const"]["nagayaGataRoof"].__setitem__("hirairi", False))
     # ⑭′ 妻面の当たりの元(身舎の軒桁)を厩の高さまで落とす ⇒ ①の端が潜れなくなる
     run("⑭′ 奥向・勝手向の棟の身舎の軒桁を厩の高さまで落とす(妻面の当たりが下がる)",
@@ -12219,9 +12222,13 @@ DESIGN_WATCH = [
     ("roka.kobaiFrom", "渡廊下の下屋の勾配を引く `const` の欄(全廊下で一本)", True),
     ("roka.floorFrom", "廊下の床が継ぐ面(落縁=濡縁の天端)", True),
     ("roka.ennoshitaMin", "縁の下(縁板の下端〜地盤)の下限", True),
-    ("const.hisashiKobai", "庇(=下屋)の勾配 4寸5分([西川1959]A)", True),
-    ("const.nagayaGataRoof", "長屋型の屋根の型(平入り・三間梁+庇一間・本屋根6寸)", True),
-    # ⭐ **2026-09-17 第49次**(規則19)— 長屋型の端の納め①②と、頭上の有効高の二段の敷居
+    ("const.hisashiKobai",
+     "庇(=下屋)の勾配 4寸5分(数の出どころは [西川1959]A が引く長屋の仕様書だが、"
+     "当4棟は長屋ではないので**一般類型 B** として借りるだけ)", True),
+    ("const.nagayaGataRoof",
+     "奥向・勝手向の棟と厩の屋根の型(平入り・庇一間 + 身舎 + 庇一間 = 外形の短辺"
+     "【2026-09-18 裁定A・型=U 設計値 / 勾配=B 一般類型】)", True),
+    # ⭐ **2026-09-17 第49次**(規則19)— 奥向・勝手向の棟の端の納め①②と、頭上の有効高の二段の敷居
     ("roka.zujoMin", "柱筋の頭上の有効高の下限(内法)", True),
     ("roka.zujoTarget", "柱筋の頭上の有効高の目標(廊下・入側の竿縁天井)", True),
     ("const.sashikakeKobai", "渡廊下の下屋(差し掛け)の勾配 4寸【U 設計値】", True),
@@ -12246,7 +12253,8 @@ def _dv_checks(e):
         | set(valley_eave_check(e)) | set(neishi_edge_overhang_check(e)) \
         | set(slope_planting_check(e, dem)) | set(torii_route_check(e)) \
         | set(planting_box_service_check(e)) | set(roka_clear_check(e)) \
-        | set(kuchi_valley_check(e))
+        | set(kuchi_valley_check(e)) | set(valley_step_check(e)) \
+        | set(nagaya_moya_ken_check(e))
 
 
 def _dv_bogus(v, way):
@@ -12469,6 +12477,8 @@ def _garden_checks(e, dem):
             + slope_emergent_check(e, dem) + slope_doryu_check(e, dem)
             + band_governor_check(e, dem) + neishi_edge_overhang_check(e)
             + valley_eave_check(e) + bansho_parcel_out_check(e)
+            # ⭐ **2026-09-18に感度試験の対象へ入れた**(規則19・検図)
+            + valley_step_check(e) + nagaya_moya_ken_check(e)
             # ⭐ **2026-09-14に感度試験の対象へ入れた**(規則19・庭方 設計 D2)
             + torii_route_check(e)
             # ⭐ **2026-09-14**(規則19・検図)
@@ -16477,7 +16487,11 @@ def mune_grading_table(d, step=0.5):
 GABLE_FRAC = 0.45          # 破風の立上り比(Tools/Blender/build_goten_roof.py の make_irimoya)
 
 # ⚠ **短辺 outer 6間の4棟は帯割り(4/5の和)が作れない**【考証 2026-09-07・EDO-0149 訂正便】。
-#   実体は御殿ではなく [西川1959]A系統(長屋の構造=三間梁+庇一間)。`munes[].roof` を持たない。
+#   ⭐⭐ **2026-09-18 ユーザー裁定A** — この4棟は**図の平面のまま**(庇一間 + 身舎 + 庇一間 =
+#   外形の短辺)で葺く**奥向・勝手向の棟と厩**である。⛔ 長屋の型([西川1959]A の三間梁 + 庇一間)
+#   は当てない(原文は「凡そ三間梁**以下**庇一間」= 上限の書き方)。`munes[].roof` を持たない。
+#   ⚠ 集合の名 `ROOF_NAGAYA_GATA_MUNES` は旧称(長屋型)のまま — 綴りを揃えるための据え置きで、
+#   ⛔ **注と図では「奥向・勝手向の棟」「厩」と呼ぶ**(`const._nagayaGataRoof`)。
 #   ⇒ 断面(`roof_section_svg`)で御殿の軒高(概略の軒先=`_nokisaki_eave`)を使って描かせない
 #     (`_pending.gotenRoofNagayaGata`)。
 ROOF_NAGAYA_GATA_MUNES = {"OkuYudono", "NagatsuboneN", "OkuDaidokoro", "Umaya"}
@@ -17515,7 +17529,8 @@ def roof_stock_check(d):
 def roof_band_span_check(d):
     """帯割り(`munes[].roof.bands`)の各帯が上限(5間)・下限(2間)を外れていないか、
     かつ `roof` を持たない棟(単一の小屋組)の身舎(across・短い方)が上限を超えていないかを見る。
-    ⛔ ROOF_NAGAYA_GATA_MUNES は対象外(長屋型と判定済み・帯割りしない)。"""
+    ⛔ ROOF_NAGAYA_GATA_MUNES は対象外(奥向・勝手向の棟と厩 — 帯割りをしない4棟。
+      型は `const.nagayaGataRoof`【2026-09-18 ユーザー裁定A】)。"""
     bad = []
     lo, hi = (d.get("roofRule") or {}).get("bandKen", [2, 5])   # ⛔ 数値をここに書かない
     for m in d["munes"]:
@@ -17541,6 +17556,74 @@ def roof_band_span_check(d):
     return bad
 
 
+def nagaya_moya_ken_check(d):
+    """**宣言した屋根の型が、当てている4棟の足形とそのまま合うか**の検算
+    【2026-09-18 ユーザー裁定A — 検算する輪が一つも無かった】。
+
+    ⭕⭕ **裁定Aの宣言そのものを毎巡突き合わせる** — **身舎 `moyaKen` + 庇 `hisashiKen` × 2
+      = 棟の外形の短辺**(平入りなので庇は短辺の側に**両側**回る)。⛔ 合わなければ**欠陥**。
+      ⛔ どちらを直すかを検査が決めない — 図(`munes` の矩形)と型(`const`)のどちらかが動いた
+      という事実を出す。
+    ⭕ **合う棟は〔記録〕**として、足形・型・そこから出る**棟高**(従属値)を刷る。
+    ⛔ 数を json へ写さない(`const` と `munes` の矩形が正典・規則4)。
+    ⚠ 壊して鳴るかは感度試験(`DESIGN_WATCH` の `const.nagayaGataRoof`)が毎巡確かめる。"""
+    C = d["const"]
+    ng = C.get("nagayaGataRoof") or {}
+    if "moyaKen" not in ng or "hisashiKen" not in ng:
+        return ["奥向・勝手向の棟と厩の屋根の型(`const.nagayaGataRoof`)に `moyaKen` / "
+                "`hisashiKen` が無く、足形との検算ができない"]
+    moya, hisashi = float(ng["moyaKen"]), float(ng["hisashiKen"])
+    ken, kobai = float(C["ken"]), float(ng.get("honKobai") or 0.0)
+    need = moya + 2 * hisashi                         # 裁定A: 庇は両側に回る
+    out = []
+    for name in sorted(ROOF_NAGAYA_GATA_MUNES):
+        m = next((q for q in d.get("munes", []) if q["name"] == name), None)
+        if m is None:
+            out.append("奥向・勝手向の棟(または厩)%s が `munes` に無い" % name)
+            continue
+        tan = min(float(m["u1"]) - float(m["u0"]), float(m["v1"]) - float(m["v0"]))
+        ja = MUNE_JA.get(name, name)
+        hon, why = _nagaya_hon_eave(d, m)
+        if abs(need - tan) < 1e-6:
+            out.append("〔記録〕%s: 外形の短辺 %g間 = **庇 %g + 身舎 %g + 庇 %g**(宣言の型と"
+                       "**合う**)。⇒ 大棟は身舎の軒桁より %.3fm 高い(= %g/2 × %.3fm × 勾配 %.2f・"
+                       "従属値)⇒ **棟高 %s**(地盤上)"
+                       % (ja, tan, hisashi, moya, hisashi,
+                          moya / 2.0 * ken * kobai, moya, ken, kobai,
+                          ("%.3fm" % (hon + moya / 2.0 * ken * kobai)) if hon is not None
+                          else "図に無い(%s)" % why))
+            continue
+        out.append("**%s: 宣言の型が足形と合わない** — 外形の短辺 %g間 に対し、型は "
+                   "庇 %g + 身舎 %g + 庇 %g = **%g間**(差 %+g間)。⛔ 裁定A(2026-09-18)は"
+                   "**図の平面のまま**(庇一間 + 身舎 + 庇一間 = 外形の短辺)と宣言しているので、"
+                   "`const.nagayaGataRoof` か `munes` の矩形のどちらかが動いている。"
+                   "⇒ 庇の軒桁・平側の当たり・渡廊下の頭上の有効高・棟高はどれもこの型から"
+                   "出るので、**直すまで渡廊下の成立を数えない**"
+                   % (ja, tan, hisashi, moya, hisashi, need, need - tan))
+    return out
+
+
+def nagaya_moya_table(d):
+    rows = "".join("<tr><td>%s</td></tr>" % inline(x) for x in nagaya_moya_ken_check(d))
+    return ("<h3>屋根の型と足形の検算(奥向・勝手向の棟と厩の4棟)</h3>"
+            "<div class='tw'><table><tbody>%s</tbody></table></div>"
+            "<p class='cap'>⭐⭐ <b>2026-09-18 ユーザー裁定A</b> — この4棟は"
+            "<b>図の平面のまま</b>(<b>庇一間 + 身舎 + 庇一間 = 外形の短辺</b>)で葺く。"
+            "⛔ <b>長屋の型([西川1959]A の三間梁 + 庇一間)は当てない</b> — 当4棟は長屋ではなく"
+            "<b>御殿の奥向・勝手向の棟</b>(厩は厩)で、原文は「凡そ三間梁<b>以下</b>庇一間」という"
+            "<b>上限の書き方</b>であり、寸法をそのまま当てる筋ではない【考証方】。"
+            "軒高も同じ理由で当てていない。<br>"
+            "⭕ <b>確度</b> — 型(平入り・身舎 + 両側の庇・梁間)= <b>U 当方の設計値</b> ／ "
+            "勾配(本屋根6寸・庇4寸5分)= <b>B 一般類型</b>。"
+            "⛔ [西川1959]A を寸法の典拠として名乗らない。<br>"
+            "⭕ <b>この表は宣言そのものを毎巡突き合わせる</b>(<code>nagaya_moya_ken_check</code>)— "
+            "合わなければ<b>欠陥</b>として鳴る。⚠ 壊して鳴るかは感度試験"
+            "(<code>const.nagayaGataRoof</code>)が確かめる。<br>"
+            "⚠ この型から<b>庇の軒桁 → 平側の当たり → 渡廊下の頭上の有効高</b>と<b>棟高</b>が"
+            "出ている。⚠ 欄の名(<code>nagayaGataRoof</code>)は旧称(長屋型)のままだが、"
+            "⛔ 注と図では<b>「奥向・勝手向の棟」「厩」</b>と呼ぶ。</p>" % rows)
+
+
 def roof_eave_order_check(d):
     """**格は軒高で読む: 厩 < 長屋類 < 御殿**(2026-09-07・立て、決着=普請奉行の
     裁定。土井の実例「厩2.35<家中長屋2.80<御殿3.40」と同じ置き方を採った)。
@@ -17549,16 +17632,22 @@ def roof_eave_order_check(d):
     格に関わらず高く出る(土井 2026-09-06 の共有・見た副作用と同じ穴)。
     ⭕ 見るのは kind ごとの**軒高**だけ。⛔⛔ **面を揃えて比べる**(2026-09-17)— 比べるのは
     **身舎の軒桁**どうし。`const.gotenEave` / `const.nagayaGataEave` / `const.umayaEave`
-    はいずれも**身舎の軒桁**で、面が揃っている【2026-09-18 普請奉行の決定1・2】。
+    はいずれも**身舎の軒桁**で、**測る面**は揃っている【2026-09-18 普請奉行の決定1・2】。
     ⛔ 庇の軒桁(身舎からの従属値)をここへ混ぜない — 面の違う数を並べることになる。
+
+    ⛔⛔ **面が揃っていても基準面(どこから測るか)は揃わない**【2026-09-18 考証】—
+    `const.gotenEave` は**御殿の床上**からの高さで(幾何側 `_mune_eave_ground`
+    が `const.gotenFloor` を足して使う)、`const.nagayaGataEave` / `const.umayaEave` は
+    **地盤**から。素のまま比べると御殿だけ床高ぶん低く読める。
+    ⭕ **ここでは全部を地盤基準へ直してから比べる**(御殿 = `gotenEave` + `gotenFloor`)。
     ⛔ 数字はここに書かない — `const` から読む(規則4)。どれかが欠けている間は 0件を返さない
     (`_pending.eaveOrder`)。"""
     C = d["const"]
     eaves = {}
     missing = []
     if any(m.get("roof") for m in d["munes"]):
-        if "gotenEave" in C:
-            eaves["御殿"] = C["gotenEave"]
+        if "gotenEave" in C and "gotenFloor" in C:
+            eaves["御殿"] = float(C["gotenEave"]) + float(C["gotenFloor"])
         else:
             missing.append("御殿")
     nagaya_munes = [n for n in sorted(ROOF_NAGAYA_GATA_MUNES)
@@ -17582,10 +17671,24 @@ def roof_eave_order_check(d):
     known = [(k, eaves[k]) for k in order if k in eaves]
     for i in range(len(known) - 1):
         if known[i][1] >= known[i + 1][1]:
-            bad.append("軒高の序列が逆転: %s %.3fm ≥ %s %.3fm(いずれも**身舎の軒桁**)。"
-                       "⇒ 三段はどれも当方の設計値なので、直すのは値のほう(裁定は普請奉行・"
-                       "`_pending.eaveOrder`)" % (known[i][0], known[i][1],
-                                                  known[i + 1][0], known[i + 1][1]))
+            bad.append("軒高の序列が逆転: %s %.3fm ≥ %s %.3fm(いずれも**身舎の軒桁**・"
+                       "**地盤基準**)。⇒ 三段はどれも当方の設計値なので、直すのは値のほう"
+                       "(裁定は普請奉行・`_pending.eaveOrder`)"
+                       % (known[i][0], known[i][1], known[i + 1][0], known[i + 1][1]))
+    if "御殿" in eaves and "奥向・勝手向の棟" in eaves and "gotenFloor" in C:
+        bad.append("〔記録〕**基準面を地盤へ直して比べている**【2026-09-18 考証の是正】"
+                   "— 御殿の `const.gotenEave` %.2fm は**床上**の値で、地盤では + `gotenFloor` "
+                   "%.2fm = **%.3fm**。⛔ 素の %.2fm と奥向・勝手向の棟 %.2fm を並べると差は "
+                   "%.3fm しか無いように見えるが、面を揃えた実差は **%.3fm**。"
+                   "⚠ **『御殿を超えない』拘束は、これまで誤った数で見られていた** — "
+                   "奥向・勝手向の棟には御殿まで %.3fm の余地がある。⛔ この余地を使うかどうかは"
+                   "**格の判断**なので生成器は値を動かさない(普請奉行へ差し戻し・"
+                   "`_pending.eaveOrder`)"
+                   % (C["gotenEave"], C["gotenFloor"], eaves["御殿"], C["gotenEave"],
+                      eaves["奥向・勝手向の棟"],
+                      float(C["gotenEave"]) - eaves["奥向・勝手向の棟"],
+                      eaves["御殿"] - eaves["奥向・勝手向の棟"],
+                      eaves["御殿"] - eaves["奥向・勝手向の棟"]))
     ng, hk = C.get("nagayaGataRoof") or {}, C.get("hisashiKobai")
     if "nagayaGataEave" in C and "hisashiKen" in ng and hk is not None:
         bad.append("〔記録〕**奥向・勝手向の棟の庇の軒桁は従属値** — 身舎の軒桁 %.2fm − 庇 %g間 × "
@@ -17608,26 +17711,28 @@ def _roof_section_rows(d):
 
 
 def roof_annex_eave_check(d):
-    """長屋型(ROOF_NAGAYA_GATA_MUNES)の棟が `munes[].roof`(帯割り)を持ってしまって
+    """奥向・勝手向の棟と厩(ROOF_NAGAYA_GATA_MUNES)の棟が `munes[].roof`(帯割り)を持ってしまって
     いないかを見る。
 
     ⛔ **2026-09-07(検図【高9】)で書き直した** — 旧実装は `_roof_section_rows()` が
     最初から ROOF_NAGAYA_GATA_MUNES を除いて作る `drawn` に、同じ集合の要素が入っているかを
     問う恒真式(A ∩ (Universe−A) = ∅)で、感度試験に一度も反応しなかった。
-    ⭕ 見るのは「長屋型の棟が roof フィールドを持ってしまっていないか」という実データそのもの
+    ⭕ 見るのは「奥向・勝手向の棟が roof フィールドを持ってしまっていないか」という実データそのもの
     (`_roof_section_rows` の描画対象集合は参照しない)。"""
     bad = []
     for name in ROOF_NAGAYA_GATA_MUNES:
         m = next((q for q in d["munes"] if q["name"] == name), None)
         if m is not None and m.get("roof"):
-            bad.append("%s: 長屋型(ROOF_NAGAYA_GATA_MUNES)なのに `roof`(帯割り)を持っている"
-                       "— 御殿の軒高で断面に描かれる(長屋型は別軒高が要る)" % name)
+            bad.append("%s: 奥向・勝手向の棟と厩(ROOF_NAGAYA_GATA_MUNES)なのに `roof`(帯割り)を持っている"
+                       "— 御殿の軒高で断面に描かれる(奥向・勝手向の棟と厩は別軒高が要る)" % name)
     return bad
 
 
 # ---------------------------------------------------------------- 渡廊下の下屋(落棟)
 # ⭐ **納めの名乗り**【2026-09-18 普請奉行の決定5】— ②は**両流れの下屋**である。
 #   ⛔ 「片流れ」と読める語を名乗りに残さない(頭は廊下の芯に通し、幅の両側へ下る)。
+# ⭕ **余裕が薄いと見なす敷居[m]**【2026-09-18 検図】。⛔ 検査と表で別の数を持たない。
+ROKA_YOYU_THIN = 0.02
 OSAME_TSUMA = "①妻取り付き"
 OSAME_SASHIKAKE = "②差し掛けの下屋(両流れ)"
 def _noki_otoshi(d):
@@ -17649,7 +17754,7 @@ def _noki_otoshi(d):
 
 
 def _nagaya_tsuma_sides(d, m):
-    """長屋型の棟の**妻面**の辺の集合 → ({辺}, None) / (None, 決まらない理由)。
+    """奥向・勝手向の棟の**妻面**の辺の集合 → ({辺}, None) / (None, 決まらない理由)。
     ⭕ 平入り(`const.nagayaGataRoof.hirairi` = 大棟は長辺に平行)⇒ **妻面は大棟に直交する
       2辺**(短辺の側)。⛔ 向きをここで決め打ちしない — 足形(`munes` の矩形)から出す。
     ⭕ **`munes[].yosemune` を立てた棟は寄棟**【2026-09-18 普請奉行の決定4】⇒ **妻面を持たない**
@@ -17657,7 +17762,7 @@ def _nagaya_tsuma_sides(d, m):
     ⚠ 足形が正方で `yosemune` も無い棟は大棟の向きが決まらない。"""
     ng = d["const"].get("nagayaGataRoof") or {}
     if not ng.get("hirairi"):
-        return None, ("長屋型の屋根が平入りと宣言されていない(`const.nagayaGataRoof.hirairi`)"
+        return None, ("奥向・勝手向の棟と厩の屋根が平入りと宣言されていない(`const.nagayaGataRoof.hirairi`)"
                       "— 大棟の向きが決まらず妻面が決まらない")
     if m.get("yosemune"):
         return set(), None                            # 寄棟 = 妻面が無い(四方とも平側)
@@ -17669,10 +17774,12 @@ def _nagaya_tsuma_sides(d, m):
 
 
 def _nagaya_hon_eave(d, m):
-    """長屋型の棟の**本屋根(身舎)の軒桁**(地盤・m)→ (高さ or None, 理由)。
+    """奥向・勝手向の棟の**本屋根(身舎)の軒桁**(地盤・m)→ (高さ or None, 理由)。
     ⛔ 数をここで作らない — 奥向・勝手向の棟は `const.nagayaGataEave`、厩は `const.umayaEave`。
     ⛔ **[西川1959]A の長屋の「本家の軒高」をこの面へ当てない**【2026-09-18 普請奉行の決定1】—
-      当4棟は長屋ではなく奥向・勝手向の棟で、その数を当てると格の序列が破れる。"""
+      当3棟(御湯殿・長局北・奥台所)は長屋ではなく奥向・勝手向の棟で、その数を当てると
+      格の序列が破れる。⛔ 厩は `zone` = 厩 で奥向・勝手向ではない — 別系統の
+      `const.umayaEave` を持つ(屋根の**型**の集合は4棟だが、**格**の母集団は3棟)。"""
     C = d["const"]
     if m.get("zone") == "厩" or m["name"] == "Umaya":
         v = C.get("umayaEave")
@@ -17684,15 +17791,15 @@ def _nagaya_hon_eave(d, m):
 
 
 def _nagaya_hisashi_keta(d, m):
-    """長屋型の棟の**庇の軒桁**(納め②の差し掛けが桁を掛ける面。地盤・m)→ (高さ or None, 理由)。
+    """奥向・勝手向の棟の**庇の軒桁**(納め②の差し掛けが桁を掛ける面。地盤・m)→ (高さ or None, 理由)。
     ⭕⭕ **従属値**【2026-09-18 普請奉行の決定2】= **身舎の軒桁** − 庇の間数
       (`const.nagayaGataRoof.hisashiKen` × `const.ken`)× 庇の勾配 `const.hisashiKobai`。
       ⛔ 独立の欄を持たない — 身舎の軒桁と同じ量を二つ持つことになる(規則4)。
-    ⚠ **厩は庇を持たない**(`const.umayaEave` は本屋根の軒桁だけ)⇒ 平側の当たりが出せない。"""
+    ⭐⭐ **厩も庇を両側に持つ**【2026-09-18 ユーザー裁定A】— 4棟とも「庇一間 + 身舎 + 庇一間 =
+      外形の短辺」で宣言するので、厩の庇の軒桁も**同じ式**で出る。⛔ ただし**元の軒桁は別系統**
+      (厩は `const.umayaEave`・奥向・勝手向の3棟は `const.nagayaGataEave`)— `_nagaya_hon_eave`
+      が棟ごとに選ぶ。⚠ いま厩に取り付く渡廊下は無い。"""
     C = d["const"]
-    if m.get("zone") == "厩" or m["name"] == "Umaya":
-        return None, ("厩の**庇の軒桁**が図に無い(`const.umayaEave` は本屋根の軒桁)— "
-                      "平側の当たりが出せない(いま厩に取り付く渡廊下は無い)")
     hon, why = _nagaya_hon_eave(d, m)
     if hon is None:
         return None, why
@@ -17709,11 +17816,11 @@ def _mune_eave_ground(d, m, side):
     ⛔ 数値をここで作らない(`const` が正典)。
 
     ⭕ **辺ごとに違う**(2026-09-17・検図)— ①その辺に入側が回るか(`munes[].roof.irikawa` の
-      辺ごとの 0/1)②その辺の軒を落としているか(`_noki_otoshi`)③長屋型は**妻面か平側か**。
+      辺ごとの 0/1)②その辺の軒を落としているか(`_noki_otoshi`)③奥向・勝手向の棟と厩は**妻面か平側か**。
       ⛔ 全棟・全辺で同じ数を刷らない。
     ⭕ **帯割りの御殿**(面の別=「御殿」)= `const.gotenFloor` + `_nokisaki_shita`
       (入側の間数 + その辺の軒の出)。
-    ⭕ **長屋型**(`ROOF_NAGAYA_GATA_MUNES`)は**妻面と平側で別**【2026-09-17 普請奉行の決定】—
+    ⭕ **奥向・勝手向の棟と厩**(`ROOF_NAGAYA_GATA_MUNES`)は**妻面と平側で別**【2026-09-17 普請奉行の決定】—
       ⭕ **妻面**(庇が無い)= **本屋根の軒桁** − 軒の出 × `const.nagayaGataRoof.honKobai`
         (平入りの妻に降りるケラバの下端)。
       ⭕ **平側**(庇が付く)= **庇の軒桁** − 軒の出 × `const.hisashiKobai`。
@@ -17729,7 +17836,7 @@ def _mune_eave_ground(d, m, side):
     if m["name"] in ROOF_NAGAYA_GATA_MUNES:
         ng, hk = C.get("nagayaGataRoof"), C.get("hisashiKobai")
         if not ng or hk is None or "honKobai" not in ng or "nokiE" not in C:
-            return None, ("長屋型の屋根の型(`const.nagayaGataRoof`)・庇の勾配"
+            return None, ("奥向・勝手向の棟と厩の屋根の型(`const.nagayaGataRoof`)・庇の勾配"
                           "(`const.hisashiKobai`)・軒の出のどれかが図に無い"), None
         tsuma, why = _nagaya_tsuma_sides(d, m)
         if tsuma is None:
@@ -17743,7 +17850,7 @@ def _mune_eave_ground(d, m, side):
         if ket is None:
             return None, why, "平側"
         return ket - float(C["nokiE"]) * float(hk), None, "平側"
-    return None, "軒先の下端の出し方が図に無い(帯割りでも長屋型でもない棟)", None
+    return None, "軒先の下端の出し方が図に無い(帯割りでも4棟の型でもない棟)", None
 
 
 def _link_side(l, m):
@@ -17775,19 +17882,19 @@ def _roka_ends(d, l):
 
 def _roka_osame(d, l):
     """渡廊下 `l` の**納め** → (`OSAME_TSUMA` / `OSAME_SASHIKAKE` / "—" / None, 理由, 端の一覧)。
-    ⭐ **2026-09-17 普請奉行の決定**(考証方の順位づけ)— 長屋型の棟へ取り付く端は
+    ⭐ **2026-09-17 普請奉行の決定**(考証方の順位づけ)— 奥向・勝手向の棟へ取り付く端は
       **①妻側から取り付く**を第一に採り、**①の幾何が許さない端だけ②差し掛けの下屋**にする。
     ⭕ **②は両流れの下屋**【2026-09-18 普請奉行の決定5】— 名乗りに片流れと読める語を残さない。
     ⛔ ここで辺を動かさない — 取り付く辺は `links` の矩形が決める(動かすと動線が壊れる所は
       動かさずに差し戻す、というのが決定の但し書き)。
-    ⚠ 長屋型の端の面の別が決まらない棟が混じったら**納めも決まらない**(None を返す)。"""
+    ⚠ 奥向・勝手向の棟の端の面の別が決まらない棟が混じったら**納めも決まらない**(None を返す)。"""
     ends = _roka_ends(d, l)
     faces = [f for _m, _s, _t, _w, f in ends
              if _m["name"] in ROOF_NAGAYA_GATA_MUNES or f in ("妻面", "平側")]
     if not faces:
-        return "—", None, ends                       # 長屋型に取り付かない(下屋のまま)
+        return "—", None, ends                       # 奥向・勝手向の棟と厩に取り付かない(下屋のまま)
     if any(f is None for f in faces):
-        return None, ("長屋型の端の**妻面か平側か**が決まらない — "
+        return None, ("奥向・勝手向の棟の端の**妻面か平側か**が決まらない — "
                       + "／".join("%s: %s" % (MUNE_JA.get(m["name"], m["name"]), w)
                                   for m, _s, _t, w, f in ends
                                   if f is None and m["name"] in ROOF_NAGAYA_GATA_MUNES and w)), ends
@@ -17853,7 +17960,7 @@ def _roka_geom(d, l):
       決定2の下で決着 = `_pending.rokaNagayaFloor` ②】— 主屋が無いので「どちらから葺き
       下ろすか」の別が無く、下屋は**両端の軒下をどちらも潜らねばならない**。⛔ 高い側を
       元に採ると低い側へ必ず食い込む。⭕ **床は全廊下で一本**(`roka.floorFrom` = 落縁の
-      天端。同 ①)— 渡廊下は一続きの床で、長屋型の棟のための別の床の欄は立てない。
+      天端。同 ①)— 渡廊下は一続きの床で、奥向・勝手向の棟のための別の床の欄は立てない。
     ⭕ **頭上の有効高は三点で出す**【2026-09-17 普請奉行の決定】— **芯**(`headMid`)・
       **柱筋**(`head` = 幅の外端の柱の通り)・**軒先**(`headEave` = 記録のみ)。
       ⛔ 合否は**柱筋**で見る(軒先は必ずそれより低いので下限を課さない)。"""
@@ -17962,6 +18069,27 @@ def _roka_escape_row(d, l, g, zmin, enmin):
                g["head"], g["headEave"], g["head"]))
 
 
+def _hisashi_unsettled(d, m, face):
+    """その端の当たりが**未決の宿題に乗っているか** → 理由 or None
+    【2026-09-18 検図】。
+
+    ⭕ 見るのは一つだけ — 奥向・勝手向の棟の**平側(= 庇の軒桁)**を当たりに採っているのに、
+      その棟が**寄棟**(`munes[].yosemune` = 四方とも平側)で、庇がどの辺に回るかが
+      決まっていない場合(`_pending.yudonoHisashi`)。
+    ⛔ ここで庇の回り方を決めない — **判定を⭕で出さない**だけ。"""
+    if face != "平側" or m["name"] not in ROOF_NAGAYA_GATA_MUNES or not m.get("yosemune"):
+        return None
+    return ("%s は寄棟(四方とも平側)で、庇がどの辺に回るかが未決 — この端の当たりは"
+            "**庇の軒桁**に乗っている(`_pending.yudonoHisashi`)"
+            % MUNE_JA.get(m["name"], m["name"]))
+
+
+def _roka_hisashi_holds(d, g):
+    """渡廊下の端のうち、未決の庇に乗っているものの理由の一覧。"""
+    return [w for w in (_hisashi_unsettled(d, m, f) for m, _s, f, _t, _n in g["atari"])
+            if w]
+
+
 def _nagaya_eave_ok(d, l, zmin, enmin):
     """廊下 `l` が**三本の縛りをすべて満たすか**(端ごとの離れ・縁の下・柱筋の有効高)。
     ⛔ 判定の式をここで作らない — `_roka_geom` と `roka_clear_check` が見るのと同じ量。"""
@@ -17978,7 +18106,7 @@ def _nagaya_eave_ok(d, l, zmin, enmin):
 
 
 def _nagaya_eave_need(d, zmin, enmin):
-    """**長屋型の棟に取り付く渡廊下が要求する `const.nagayaGataEave` の下限**を、図の幾何
+    """**奥向・勝手向の棟に取り付く渡廊下が要求する `const.nagayaGataEave` の下限**を、図の幾何
     そのものを**二分法で逆に解いて**刷る【2026-09-18 普請奉行の決定2の但し書き = 「この値で
     渡廊下の数が成立するかを検査に出させ、成立しなければ差し戻す」】。
     ⛔ 式を人が書き写さない(合否は `_nagaya_eave_ok` = 検査と同じ三本)。
@@ -18025,10 +18153,10 @@ def _nagaya_eave_need(d, zmin, enmin):
         C["nagayaGataEave"] = cur
     if need_all is None and not ng:
         return ["〔記録〕**奥向・勝手向の棟の身舎の軒桁 `const.nagayaGataEave` %.2fm は、"
-                "長屋型に取り付く渡廊下 %d 本のすべてで成立する**(%s)"
+                "奥向・勝手向の棟に取り付く渡廊下 %d 本のすべてで成立する**(%s)"
                 % (cur, len(targets), " ／ ".join(rows))]
     go = C.get("gotenEave")
-    return ["⛔⛔ **身舎の軒桁 `const.nagayaGataEave` %.2fm では長屋型に取り付く渡廊下が"
+    return ["⛔⛔ **身舎の軒桁 `const.nagayaGataEave` %.2fm では奥向・勝手向の棟に取り付く渡廊下が"
             "成立しない** — 廊下ごとに図の幾何から逆に解いた下限: %s。⇒ **全部を満たす最小は "
             "%s**(いま %.2fm・不足 %s)。⭕ 御殿 `const.gotenEave` %s との関係: %s。"
             "⛔ 指図方は値を動かさない — 差し戻し先は普請奉行(`_pending.eaveOrder`)"
@@ -18093,11 +18221,28 @@ def roka_clear_check(d):
                           ("%.3f" % ztgt) if ztgt is not None else "—", g["headEave"],
                           g["kobai"], g["wid"]))
             bad.append(_roka_escape_row(d, l, g, zmin, enmin))
-        elif zmin is not None and ztgt is not None and g["head"] < ztgt - 1e-9:
+        # ⭕ **余裕の薄さそのものを刷る**【2026-09-18 検図】— ⛔ ⭕ の記号だけでは
+        #   「何 mm で通ったか」が読めない。20mm 未満は**部材の実測で消えうる**幅。
+        if zmin is not None and 0 <= g["head"] - zmin < ROKA_YOYU_THIN:
+            bad.append("〔記録〕%s: 柱筋の頭上の有効高の**余裕は %+.3fm しかない**(柱筋 %.3fm・"
+                       "下限 `roka.zujoMin` %.3f)— **%.0fmm 未満は部材の実測で消えうる**"
+                       "(梁・桁の見込み・天井の吊り代・床板の厚みはどれも図に無い)。"
+                       "⛔ 欠陥ではないが『余裕をもって通った』とは読まない"
+                       % (l["name"], g["head"] - zmin, g["head"], zmin, ROKA_YOYU_THIN * 1000))
+        if zmin is not None and ztgt is not None and g["head"] < ztgt - 1e-9 \
+                and g["head"] >= zmin - 1e-9:
             bad.append("〔記録〕%s: 柱筋の頭上の有効高は**下限は満たすが目標に届かない** — "
                        "柱筋 %.3fm(下限 %.3f ⭕ / 目標 %.3f ⚠ 不足 %.3f)・芯 %.3fm。"
                        "⛔ 欠陥ではないが『通り相場の天井高さ』とは言えない"
                        % (l["name"], g["head"], zmin, ztgt, ztgt - g["head"], g["headMid"]))
+    for l, g in judged:
+        # ⭕ **未決の庇に乗る行は『通った』と数えない**【2026-09-18 検図】
+        hold = _roka_hisashi_holds(d, g)
+        if hold:
+            bad.append("〔宿題〕%s: 三本の縛りの数は出ているが、**その端の当たりが未決の宿題に"
+                       "乗っている** — %s。⛔ 判定を⭕で出さない(渡廊下の表も保留で刷る)。"
+                       "⇒ 庇の回り方は史料の読みと意匠の判断で指図方は決めない — "
+                       "考証方・普請奉行へ差し戻し" % (l["name"], "／".join(hold)))
     for l, g in judged:
         # ⭐ **②の屋根の形**【2026-09-18 普請奉行の決定5】= **両流れの下屋**(頭は廊下の芯に
         #   通し、幅の両側へ下る)。⛔ 片流れと読める語を名乗りにも記録にも残さない。
@@ -18136,17 +18281,29 @@ def roka_clear_check(d):
     if ng and hk is not None and "nagayaGataEave" in C and "hisashiKen" in ng:
         hon, nk = float(C["nagayaGataEave"]), float(C["nokiE"])
         hi = hon - float(ng["hisashiKen"]) * float(C["ken"]) * hk
-        bad.append("〔記録〕長屋型の屋根(`const.nagayaGataRoof`)= **%s**・身舎 %g間梁 + 庇 %g間・"
-                   "本屋根の勾配 %.3f / 庇 %.3f。⇒ **妻面の当たり %.3fm**(身舎の軒桁 %.2f − 軒の出)"
-                   " / **平側の当たり %.3fm**(庇の軒桁 %.3f = 身舎からの従属値 − 軒の出)/ "
-                   "棟高 %.3fm(いずれも地盤上・従属値)。⛔ この寸法の屋根部材は在庫に無い"
-                   "(`_pending.gotenRoofNagayaGata`)"
-                   % ("平入り" if ng.get("hirairi") else "妻入り", ng.get("moyaKen", 0),
-                      ng.get("hisashiKen", 0), float(ng.get("honKobai", 0)), hk,
-                      hon - nk * float(ng.get("honKobai", 0)), hon,
-                      hi - nk * hk, hi,
-                      hon + float(ng.get("moyaKen", 0)) / 2.0 * C["ken"]
-                      * float(ng.get("honKobai", 0))))
+        hk2, mk2 = float(ng.get("honKobai", 0)), float(ng.get("moyaKen", 0))
+        hsk = float(ng["hisashiKen"]) * float(C["ken"]) * hk       # 庇の降り(従属値)
+        um = C.get("umayaEave")
+        fm = lambda v: ("%.3fm" % v) if um is not None else "—"
+        bad.append("〔記録〕奥向・勝手向の棟と厩の屋根の型(`const.nagayaGataRoof`)= **%s**・"
+                   "**庇 %g + 身舎 %g間梁 + 庇 %g = 外形の短辺**【2026-09-18 ユーザー裁定A】・"
+                   "本屋根の勾配 %.3f / 庇 %.3f。⇒ **奥向・勝手向の3棟**(御湯殿・長局北・奥台所。"
+                   "身舎の軒桁 `const.nagayaGataEave` %.2f)は 妻面の当たり **%.3fm** / "
+                   "庇の軒桁 %.3f ⇒ 平側の当たり **%.3fm** / 棟高 **%.3fm**。⇒ **厩**(身舎の軒桁 "
+                   "`const.umayaEave` %s の**別系統**)は 妻面の当たり %s / 庇の軒桁 %s ⇒ "
+                   "平側の当たり %s / 棟高 %s(いずれも地盤上・従属値)。"
+                   "⛔ 厩に奥向・勝手向の棟の軒桁を当てない — ⭕ **屋根の型の集合は4棟・"
+                   "格の母集団は3棟**。⚠ いま厩に取り付く渡廊下は無い。"
+                   "⛔ この寸法の屋根部材は在庫に無い(`_pending.gotenRoofNagayaGata`)"
+                   % ("平入り" if ng.get("hirairi") else "妻入り",
+                      ng.get("hisashiKen", 0), mk2, ng.get("hisashiKen", 0), hk2, hk,
+                      hon, hon - nk * hk2, hi, hi - nk * hk,
+                      hon + mk2 / 2.0 * C["ken"] * hk2,
+                      ("%.2f" % um) if um is not None else "図に無い",
+                      fm(um - nk * hk2) if um is not None else "—",
+                      ("%.3f" % (um - hsk)) if um is not None else "—",
+                      fm(um - hsk - nk * hk) if um is not None else "—",
+                      fm(um + mk2 / 2.0 * C["ken"] * hk2) if um is not None else "—"))
         bad += _nagaya_eave_need(d, zmin, enmin)
     for l, _g, hold in rows:
         if not hold:
@@ -18261,6 +18418,20 @@ def kuchi_valley_check(d):
                        % (l["name"], "・".join("%s=%s" % (k, MUNE_JA.get(v, v))
                                                for k, v in sorted(g["pair"].items()))))
     ok = [(l, g) for l, g, h in rows if h is None and g["slot"] >= -1e-9 and g["valley"]]
+    # ⭕ **段違いと判った谷に乗る口は『通った』と数えない**【2026-09-18 検図】—
+    #   ⛔ 同じ図の `valley_step_check` が前提を崩しているのに、口の欄に決着の⭕が残っていた。
+    dan = []
+    for l, g in ok:
+        _hs, dh, why = _valley_step(d, g["valley"])
+        if why is None and dh > VALLEY_STEP_TOL:
+            dan.append("%s(谷 %s・段 %.3fm)" % (l["name"], g["valley"]["name"], dh))
+    if dan:
+        bad.append("〔宿題〕**段違いの軒に乗っている口がある** — %s。⛔ 『軒どうしが合わさる"
+                   "合わせ目の下へ寄せ樋を吊る』という雨仕舞はこの辺では成り立たないので、"
+                   "口の表の『雨仕舞』も**保留**で刷る(⛔ 通ったと数えない)。⇒ 納め"
+                   "(寄せ樋をどちらの軒へ吊るか・段の立ち上がりの塞ぎ)は意匠の判断で"
+                   "指図方は決めない — 普請奉行へ差し戻し(`_pending.nokidaniDan`)"
+                   % "／".join(dan))
     if ok:
         bad.append("〔記録〕**下屋を架けない口の軒谷**(決定3)— %s"
                    % " ／ ".join("%s: 帯 %.3fm・軒の出の和 %.3fm ⇒ **合わせ目 %.3fm**で出会う"
@@ -18290,6 +18461,25 @@ def kuchi_valley_check(d):
     return bad
 
 
+def _kuchi_amajimai(d, g):
+    """口の**雨仕舞の欄**の文字列。⛔ **谷が宣言されているだけで⭕を出さない**
+    【2026-09-18 検図】— 同じ図の『軒谷 — 谷か段違いか』が**段違い**と判じた谷に
+    乗る口は、前提が崩れているので**保留**で出す(`_pending.nokidaniDan` と結ぶ)。
+    ⛔ 段差の判定はここで作らない — `_valley_step` が正典。"""
+    if not g["valley"]:
+        return "⛔ 軒谷の宣言が無い"
+    nm = g["valley"]["name"]
+    _hs, dh, why = _valley_step(d, g["valley"])
+    if why is not None:
+        return ("⚠ 保留 — 谷 <code>%s</code> の両側の軒先が出せず、谷か段違いかが決まらない(%s)"
+                % (nm, inline(why)))
+    if dh > VALLEY_STEP_TOL:
+        return ("⚠ <b>保留</b> — 谷 <code>%s</code> は<b>段違いの軒</b>(段 %.3fm)。"
+                "寄せ樋を合わせ目の下へ吊る納めはこの辺では成り立たず、段違いの納めは図に無い"
+                "(<code>_pending.nokidaniDan</code>)⇒ ⛔ 通ったと数えない" % (nm, dh))
+    return "⭕ 谷 <code>%s</code> が受ける(段 %.0fmm)" % (nm, dh * 1000)
+
+
 def kuchi_table(d):
     """結界の帯の下を通る口(下屋を架けない)の軒谷の表。⛔ 判定できない行を落とさない。"""
     rows = []
@@ -18305,8 +18495,7 @@ def kuchi_table(d):
                     "<td>%.3f</td><td>%.3f</td><td>%s</td></tr>"
                     % (l["name"], l.get("kind", "口"), nm, g["band"], g["slot"],
                        g["clear"] if g["clear"] is not None else float("nan"),
-                       ("⭕ 谷 <code>%s</code> が受ける" % g["valley"]["name"]) if g["valley"]
-                       else "⛔ 軒谷の宣言が無い"))
+                       _kuchi_amajimai(d, g)))
     return ('<div class="tw"><table><thead><tr><th>口</th><th>種別</th>'
             "<th>帯の両側の棟(辺・面の別・軒先の下端 地盤上 m)</th><th>帯の幅</th>"
             "<th>合わせ目</th><th>見上げ(畳面から)</th><th>雨仕舞</th></tr></thead><tbody>"
@@ -18315,7 +18504,7 @@ def kuchi_table(d):
 
 def roka_table(d):
     """渡廊下ごとの下屋の納まり。⛔ 判定できない行を落とさない(保留として数を添えて出す)。
-    ⛔ 高さは**すべて地盤基準**で刷る(御殿は床基準・長屋型は地盤基準で軒高を持つので)。"""
+    ⛔ 高さは**すべて地盤基準**で刷る(御殿は床基準・奥向・勝手向の棟と厩は地盤基準で軒高を持つので)。"""
     rk = d.get("roka") or {}
     zmin = rk.get("zujoMin")
     ztgt = rk.get("zujoTarget")
@@ -18324,21 +18513,31 @@ def roka_table(d):
         osame, _why, ends = _roka_osame(d, l)
         if g is None:
             g2, _w = _roka_geom(d, l)              # 保留でも出せる数は出す
+            # ⭕⭕ **口(渡廊下でないもの)は下屋を架けない**【2026-09-18 普請奉行の決定3】⇒
+            #   ⛔ **下屋の欄を刷らない**(2026-09-18 検図: 「②差し掛けの下屋」と
+            #   「下屋を架けない口」を同じ行が同時に宣言していた)。軒谷の数は下の口の表が出す。
+            kuchi = l.get("kind") != "渡廊下"
             nm = "・".join("%s %s辺 %s %s" % (MUNE_JA.get(m["name"], m["name"]), s, f or "?",
                                              ("%.3f" % t) if t is not None else "—")
                            for m, s, t, _q, f in (g2["ends"] if g2 else ends)) or "—"
+            dash = "—(下屋なし)" if kuchi else "—"
             rows.append("<tr><td><code>%s</code></td><td>%s</td><td>%s</td><td>%s</td>"
                         "<td>%s</td><td>%s</td><td>%s</td><td>%s</td>"
-                        "<td class='note'>%s</td></tr>"
-                        % (l["name"], l["kind"], osame or "⚠ 決まらない", nm,
-                           ("%.3f" % g2["top"]) if g2 else "—",
-                           ("%.3f" % g2["eaveTip"]) if g2 else "—",
-                           ("%.3f / %.3f / %.3f" % (g2["headMid"], g2["head"], g2["headEave"]))
-                           if g2 else "—",
-                           ("%.3f" % g2["en"]) if g2 else "—",
+                        "<td>%s</td><td class='note'>%s</td></tr>"
+                        % (l["name"], l["kind"],
+                           dash if kuchi else (osame or "⚠ 決まらない"), nm,
+                           dash if kuchi else (("%.3f" % g2["top"]) if g2 else "—"),
+                           dash if kuchi else (("%.3f" % g2["eaveTip"]) if g2 else "—"),
+                           dash if kuchi else
+                           (("%.3f / %.3f / %.3f"
+                             % (g2["headMid"], g2["head"], g2["headEave"])) if g2 else "—"),
+                           dash if kuchi else "—",
+                           dash if kuchi else (("%.3f" % g2["en"]) if g2 else "—"),
                            # ⭕ 決着した口は「保留」ではない(決定3)— 記号を出し分ける
-                           ("⭕ " + hold[len("〔記録〕"):]) if hold.startswith("〔記録〕")
-                           else ("⚠ 保留 — " + hold)))
+                           # ⛔ 生の記法をそのまま刷らない(2026-09-18 検図)
+                           ("⭕ " + inline(hold[len("〔記録〕"):]))
+                           if hold.startswith("〔記録〕")
+                           else ("⚠ <b>保留</b> — " + inline(hold))))
             continue
         nm = "・".join("%s %s辺 %s%s %.3f%s" % (MUNE_JA.get(m["name"], m["name"]), s, f or "", anm,
                                               t, "(葺き下ろしの元)" if (m, s, t) == g["omoya"] else
@@ -18347,17 +18546,31 @@ def roka_table(d):
         ok = all(t - g["top"] >= g["clr"] - 1e-9 for _m, _s, _f, t, _n in g["atari"])
         zu = (("⭕" if (zmin is None or g["head"] >= zmin - 1e-9) else "⛔")
               + ("⭕" if (ztgt is None or g["head"] >= ztgt - 1e-9) else "⚠"))
+        # ⭕ **余裕を刷る**(2026-09-18 検図)— ⛔ ⭕/⛔ の記号だけでは
+        #   「何 mm で通ったか」が図から読めない。柱筋の有効高から下限・目標を引いた従属値。
+        yoyu = ("下限 %+.3f" % (g["head"] - float(zmin))) if zmin is not None else "下限 —"
+        yoyu += (" ／ 目標 %+.3f" % (g["head"] - float(ztgt))) if ztgt is not None else " ／ 目標 —"
+        if zmin is not None and 0 <= g["head"] - float(zmin) < ROKA_YOYU_THIN:
+            # ⭕ **〔記録〕であって欠陥ではない**(検査 `roka_clear_check` も同じ敷居で刷る)
+            yoyu = ("<b>⚠ %s</b><br><span class='note'>〔記録〕%.0fmm 未満 — "
+                    "<b>部材の実測で消えうる</b>(梁・桁の見込み・天井の吊り代・床板の厚みは"
+                    "図に無い)</span>" % (yoyu, ROKA_YOYU_THIN * 1000))
         rows.append("<tr><td><code>%s</code></td><td>%s</td><td>%s</td><td>%s</td><td>%.3f</td>"
-                    "<td>%.3f</td><td>%.3f / <b>%.3f</b> %s / %.3f</td><td>%.3f</td>"
+                    "<td>%.3f</td><td>%.3f / <b>%.3f</b> %s / %.3f</td><td>%s</td><td>%.3f</td>"
                     "<td>%s</td></tr>"
                     % (l["name"], l["kind"], g["osame"], nm, g["top"], g["eaveTip"],
-                       g["headMid"], g["head"], zu, g["headEave"], g["en"],
-                       "⭕ 通る(桁行 %.2fm)" % g["span"] if ok else
+                       g["headMid"], g["head"], zu, g["headEave"], yoyu, g["en"],
+                       ("⭕ 通る(桁行 %.2fm)" % g["span"]
+                        if not _roka_hisashi_holds(d, g) else
+                        "⚠ <b>保留</b> — 縛りは満たす(桁行 %.2fm)が %s ⇒ ⛔ 通ったと数えない"
+                        % (g["span"], inline("／".join(_roka_hisashi_holds(d, g)))))
+                       if ok else
                        "⛔ 食い込む(足りない %.3f)"
                        % max(g["clr"] - (t - g["top"]) for _m, _s, _f, t, _n in g["atari"])))
     return ('<div class="tw"><table><thead><tr><th>廊下</th><th>種別</th><th>納め</th>'
             "<th>取り付く棟(辺・面の別・当たり・地盤上 m)</th><th>下屋の頭</th>"
             "<th>下屋の軒先の下端</th><th>頭上の有効高(芯 / <b>柱筋</b> / 軒先)</th>"
+            "<th>余裕(柱筋 − 下限 / 目標)</th>"
             "<th>縁の下</th><th>判定</th></tr></thead><tbody>"
             + "".join(rows) + "</tbody></table></div>")
 
@@ -18481,7 +18694,7 @@ def roof_plan_svg(d):
         bands = _bands_geom(d, m)
         nm = MUNE_JA.get(m["name"], m["name"])
         if not bands:
-            # 帯割りを持たない棟(長屋型)— 一枚の入母屋として概略で描く
+            # 帯割りを持たない棟(奥向・勝手向の棟と厩)— 一枚の入母屋として概略で描く
             hips, gables, ridge = _irimoya_lines(ru0, ru1, rv0, rv1, False)
             for (p0, p1) in hips:
                 g.append(LN(X(p0[0]), Y(p0[1]), X(p1[0]), Y(p1[1]), "var(--ink)", 0.8, op=0.75))
@@ -18556,7 +18769,7 @@ def roof_section_svg(d):
     KEN = d["const"]["ken"]
     EAVE = d["const"]["gotenFloor"] + _nokisaki_eave(d)      # 面から軒先(概略)[m]
     # ⚠ 2026-09-07 `_roof_section_rows` に切り出した(ROOF_NAGAYA_GATA_MUNES の4棟は
-    #   帯割りの対象外=長屋型で、御殿の軒高(概略の軒先)で描かせない。`roof_annex_eave_check` と
+    #   帯割りの対象外=奥向・勝手向の棟と厩で、御殿の軒高(概略の軒先)で描かせない。`roof_annex_eave_check` と
     #   同じ集合を見る)。
     ROWS = _roof_section_rows(d)
     su0, su1 = -48, 14
@@ -18702,8 +18915,12 @@ def roof_bands_table(d):
                         roof["confidence"]))
         elif m["name"] in ROOF_NAGAYA_GATA_MUNES:
             rows += ("<tr><td>%s</td><td colspan='7' class='note'>帯割りの対象外"
-                     "(短辺 outer 6間・[西川1959]A系統=長屋型。`_pending.gotenRoofNagayaGata`)"
-                     "</td><td>?</td></tr>" % nm)
+                     "(短辺 outer 6間・帯割り 4/5 の和が作れない)。⭕ <b>庇一間 + 身舎 + 庇一間 "
+                     "= 外形の短辺</b>で葺く【2026-09-18 ユーザー裁定A】— 型は "
+                     "<code>const.nagayaGataRoof</code>・棟高はその従属値"
+                     "(表『屋根の型と足形の検算』)。部材は "
+                     "<code>_pending.gotenRoofNagayaGata</code>"
+                     "</td><td>U(型)/ B(勾配)</td></tr>" % nm)
     return ("<h3>屋根の帯割り(帯・桁行・大棟の向き・入側・葺材・棟高・部材・確度)</h3>"
             "<div class='tw'><table><thead><tr><th>棟</th><th>帯</th><th>桁行(span)</th>"
             "<th>大棟の向き</th><th>入側 [手前,奥]</th><th>葺材</th><th>棟高(床上)</th>"
@@ -18743,47 +18960,78 @@ def eave_table(d):
     """**軒高の三段(厩 < 長屋類 < 御殿)と、その出自・確度。**
     ⭐ 2026-09-08新設 — ⛔ 従前は出自が `const._*Eave` の長文注記の中にしか無く、
       **図の表の確度欄に現れていなかった**(誰も『この値に史料的根拠が無い』ことを図から読めない)。
-    ⛔ 数値は `const` から読む(ここに書かない)。判定は `roof_eave_order_check`。"""
+    ⛔ 数値は `const` から読む(ここに書かない)。判定は `roof_eave_order_check`。
+
+    ⭐ **2026-09-18(考証)に「基準面」の欄を足した** — 御殿だけ `const.gotenEave` が
+      **床上**の値で、他は**地盤**。欄が無いあいだ、表も検査も面が揃っている前提で三つを並べていた。
+      ⛔ 地盤換算の列は**従属値**(= 床上値 + `const.gotenFloor`)で、`const` に第二の欄は立てない。"""
     C = d["const"]
-    ROWS = [("厩", "本屋根(身舎)の軒桁", "umayaEave",
+    ROWS = [("厩", "本屋根(身舎)の軒桁", "umayaEave", "地盤",
              "他邸(土井)の厩の部材の**実測値を借りている**。当邸に厩の部材が無いあいだの"
              "仮置きで、⛔ **当家の史料ではない**",
              "U(設計判断・借り値)"),
-            ("厩", "庇の軒桁", None,
-             "⛔ **図に無い** — 厩は庇を持たないので**平側の当たりが出せない**。"
+            ("厩", "庇の軒桁", None, "地盤",
+             "⭕ **従属値**【2026-09-18 ユーザー裁定A ⇒ `_pending.umayaHisashi` 決着】— "
+             "厩も**庇を両側**に持つ(庇一間 + 身舎 + 庇一間 = 外形の短辺)ので、庇の軒桁は"
+             "**厩の身舎の軒桁** `const.umayaEave` − 庇の間数(`const.nagayaGataRoof.hisashiKen`)"
+             "× 庇の勾配(`const.hisashiKobai`)。⛔ 独立の欄を持たない(規則4)。"
+             "⛔ 奥向・勝手向の棟の `const.nagayaGataEave` から引かない(**別系統**)。"
              "⚠ いま厩に取り付く渡廊下は無い",
-             "—(未定)"),
-            ("奥向・勝手向の棟(御湯殿・長局北・奥台所)", "身舎の軒桁", "nagayaGataEave",
-             "**この値そのものに史料的根拠は無い。**格の序列(厩 &lt; この棟 &lt; 御殿)を満たす"
+             "従属値(元の確度に従う)"),
+            ("奥向・勝手向の棟(御湯殿・長局北・奥台所)", "身舎の軒桁", "nagayaGataEave", "地盤",
+             "**この値そのものに史料的根拠は無い。**格の序列(厩 < この棟 < 御殿)を満たす"
              "ために当方が置く**設計値**である。根拠は三つ — ①序列を満たす ②渡廊下が取り付いた"
-             "とき柱筋の有効高が下限 <code>roka.zujoMin</code> を満たす ③御殿を超えない。"
+             "とき柱筋の有効高が下限 `roka.zujoMin` を満たす ③**地盤基準へ直した**御殿"
+             "(`const.gotenEave` + `const.gotenFloor`)を超えない。"
              "⛔⛔ **[西川1959]A の長屋『本家の軒高』をここへ当てない** — 当3棟は長屋ではなく"
-             "奥向の棟で、当てると格の序列が破れる【2026-09-18 普請奉行の決定1】",
-             "**U(設計値)**"),
-            ("奥向・勝手向の棟(御湯殿・長局北・奥台所)", "庇の軒桁", None,
-             "⭕ **従属値** — 身舎の軒桁 − 庇の間数(<code>const.nagayaGataRoof.hisashiKen</code>)"
-             "× 庇の勾配(<code>const.hisashiKobai</code>)。⛔ 独立の欄を持たない(規則4)。"
+             "**御殿の奥向・勝手向の棟**で、原文は「凡そ三間梁**以下**庇一間」という上限の"
+             "書き方でもある【2026-09-18 ユーザー裁定A】",
+             "U(設計値)"),
+            ("奥向・勝手向の棟(御湯殿・長局北・奥台所)", "庇の軒桁", None, "地盤",
+             "⭕ **従属値** — 身舎の軒桁 − 庇の間数(`const.nagayaGataRoof.hisashiKen`)"
+             "× 庇の勾配(`const.hisashiKobai`)。⛔ 独立の欄を持たない(規則4)。"
              "⭕ 渡廊下の**差し掛けの下屋が桁を掛ける面**",
              "従属値(元の確度に従う)"),
-            ("御殿(帯割りを持つ8棟)", "本屋根(身舎)の軒桁", "gotenEave",
+            ("外周表長屋(`runs.kind=Nagaya`・二階建)", "身舎の軒桁", None, "—",
+             "⛔ **図に無い** — 『格は軒高で読む』と宣言しながら、表長屋の軒高は"
+             "`const` に無く**三段の外**に置かれている"
+             "【2026-09-18 検図】。⚠ 棟高では平家の御殿を越えている"
+             "(`_pending.nijukai`)。⇒ 三段へ入れるか別の建物種として外に置き"
+             "続けるかは**格の判断**で指図方は決めない(`_pending.eaveOrder`)",
+             "—(未定・差し戻し中)"),
+            ("御殿(帯割りを持つ8棟)", "本屋根(身舎)の軒桁", "gotenEave", "**床上**",
              "**史料的根拠は無い。**邸をまたいで意匠を揃えるために、他邸と**同じ P/U 値を共有**した"
              "というだけの決めごと。到達先は『掛川城御殿修理工事報告書』1976(未入手・"
              "`_pending.kakegawaHokokusho`)",
              "U(設計判断・邸間で共有)")]
     tr = ""
-    for lab, face, key, why, cert in ROWS:
-        tr += ("<tr><td>%s</td><td>%s</td><td><b>%s</b></td><td class='note'>%s</td>"
-               "<td><b>%s</b></td></tr>"
-               % (lab, face,
-                  ("%.2f m" % C[key]) if (key and key in C) else "<b>未定</b>",
-                  inline(why), cert))
+    for lab, face, key, datum, why, cert in ROWS:
+        val = ("%.2f m" % C[key]) if (key and key in C) else "未定"
+        if key and key in C and datum.startswith("**床上"):
+            g = (("%.3f m" % (float(C[key]) + float(C["gotenFloor"])))
+                 if "gotenFloor" in C else "—")
+        elif key and key in C:
+            g = "(同じ)"
+        else:
+            g = "—"
+        # ⛔ **生の `**` を刷らない**(2026-09-18 検図・低)— 欄はすべて `inline()` を通す。
+        tr += ("<tr><td>%s</td><td>%s</td><td>%s</td><td><b>%s</b></td><td><b>%s</b></td>"
+               "<td class='note'>%s</td><td><b>%s</b></td></tr>"
+               % (inline(lab), inline(face), inline(datum), inline(val), inline(g),
+                  inline(why), inline(cert)))
     bad = roof_eave_order_check(d)
     return ("<h3>軒高の三段(格を読む軸)</h3><div class='tw'><table><thead><tr>"
-            "<th>種</th><th>どの面か</th><th>軒高</th><th class='note'>出自</th><th>確度</th>"
+            "<th>種</th><th>どの面か</th><th>基準面</th><th>軒高(図の値)</th>"
+            "<th>地盤基準へ直すと</th><th class='note'>出自</th><th>確度</th>"
             "</tr></thead>"
             "<tbody>%s</tbody></table></div>"
-            "<p class='cap'>⛔⛔ <b>比べるのは面を揃えて — 本屋根(身舎)の軒桁どうし</b>"
-            "(2026-09-17)。長屋型は身舎の軒桁の下に<b>庇の軒桁</b>(従属値)を持ち、別の面である。"
+            "<p class='cap'>⛔⛔ <b>面を揃えるだけでは足りない — 基準面も揃える</b>"
+            "【2026-09-18 考証】。御殿の軒高は<b>床上</b>の値で、厩・奥向は<b>地盤</b>。"
+            "序列を読むときは右の<b>地盤基準</b>の列で比べること"
+            "(御殿 = 図の値 + <code>const.gotenFloor</code>。従属値なので"
+            "<code>const</code> に第二の欄は立てない)。<br>"
+            "⛔⛔ <b>比べるのは面を揃えて — 本屋根(身舎)の軒桁どうし</b>"
+            "(2026-09-17)。奥向・勝手向の棟と厩は身舎の軒桁の下に<b>庇の軒桁</b>(従属値)を持ち、別の面である。"
             "⭕ 渡廊下の当たりは<b>妻面が本屋根から・平側が庇から</b>出る。<br>"
             "⭕ <b>格を読む軸はこの軒高</b>(厩 &lt; 長屋類 &lt; 御殿)。"
             "⛔ <b>棟高で読まない</b> — 棟高は梁間の従属値なので、梁間の広い棟が格に関わらず高く出る。"
@@ -18951,6 +19199,87 @@ def valley_eave_check(d):
             out.append("〔記録〕谷 %s(%s)は**両側とも屋根を持つ** ⇒ この辺の軒を落として谷にする"
                        % (v["name"], v.get("kind")))
     return out
+
+
+VALLEY_STEP_TOL = 0.02          # 軒谷の両側の軒先の下端を「同じ高さ」と見る幅[m]
+
+
+def _valley_step(d, v):
+    """軒谷 `v` の**両側の軒先の下端**(地盤基準)→ (hs, 段差 or None, 決まらない理由 or None)。
+
+    ⛔ **判定の式を二重に持たない**【2026-09-18 検図】— 検査 `valley_step_check` と
+      口の表 `kuchi_table` の**雨仕舞の欄**が**同じここ**を見る(片方だけ直すと、段違いと
+      判った谷に『⭕ 谷が受ける』が残る)。
+    ⭕ `north` = v の小さい側 ⇒ その棟の **v1 辺**、`south` = v の大きい側 ⇒ **v0 辺**。
+    ⛔ 段差の数を json へ写さない(従属値・規則4)。"""
+    hs, why = {}, []
+    for key, side in (("north", "v1"), ("south", "v0")):
+        m = next((q for q in d.get("munes", []) if q["name"] == v.get(key)), None)
+        if m is None:
+            why.append("%s の棟 %s が `munes` に無い" % (key, v.get(key)))
+            continue
+        t, w, face = _mune_eave_ground(d, m, side)
+        if t is None:
+            why.append("%s(%s %s辺)の軒先の下端が出せない — %s"
+                       % (key, MUNE_JA.get(m["name"], m["name"]), side, w))
+        else:
+            hs[key] = (t, MUNE_JA.get(m["name"], m["name"]), face)
+    if why:
+        return hs, None, "／".join(why)
+    return hs, abs(hs["north"][0] - hs["south"][0]), None
+
+
+def valley_step_check(d):
+    """**軒谷は本当に「谷」か — 両側の軒先の下端が同じ高さか**【2026-09-18 検図】。
+
+    ⛔ 軒谷に一律の同じ文(『軒どうしが 18mm で出会う』)が貼られていたが、
+      片側が御殿・片側が奥向・勝手向の棟の辺では**軒先の高さが違う**。高さの違う二枚は谷を作らず
+      **段違いの軒**になる — 寄せ樋は片側にしか吊れない。
+    ⭕ 見るのは `_mune_eave_ground`(**地盤基準の軒先の下端**)だけ。判定は従属値で、
+      ⛔ 段差の数を json へ写さない(規則4)。
+    ⭕ `north` = v の小さい側 ⇒ その棟の **v1 辺**、`south` = v の大きい側 ⇒ **v0 辺**
+      (`roka_kuchi_geom` の向きの読みと同じ)。
+    ⛔ **段違いと出たときの納め(寄せ樋をどちらへ吊るか・段の立ち上がりをどう塞ぐか)は
+      意匠の判断**なので、ここでは鳴らすだけで図を書き換えない(普請奉行へ差し戻し)。"""
+    out = []
+    for v in d.get("valleys", []):
+        if v.get("kind") != "軒谷":
+            continue
+        hs, dh, why = _valley_step(d, v)
+        if why:
+            out.append("谷 %s: %s" % (v["name"], why))
+            continue
+        if dh <= VALLEY_STEP_TOL:
+            out.append("〔記録〕谷 %s は**両側の軒先が同じ高さ**(%s %.3fm ／ %s %.3fm・差 %.0fmm)"
+                       " ⇒ 宣言どおりの**軒谷**。寄せ樋を合わせ目の下へ吊る"
+                       % (v["name"], hs["north"][1], hs["north"][0],
+                          hs["south"][1], hs["south"][0], dh * 1000))
+        else:
+            lo = min(hs.values(), key=lambda x: x[0])
+            hi = max(hs.values(), key=lambda x: x[0])
+            out.append("〔宿題〕谷 %s は**谷ではなく段違いの軒** — %s %.3fm(%s)と %s %.3fm(%s)で "
+                       "**%.3fm の段**。⛔ 同じ高さの二枚が合わさる前提の『軒どうしが %.0fmm で"
+                       "出会う/寄せ樋を合わせ目の下へ吊る』はこの辺では成り立たない。"
+                       "⇒ **段違いの納め(寄せ樋をどちらの軒へ吊るか・段の立ち上がりの塞ぎ)が"
+                       "図に無い**。意匠の判断なので生成器は決めない(普請奉行へ差し戻し・"
+                       "`_pending.nokidaniDan`)"
+                       % (v["name"], hi[1], hi[0], hi[2], lo[1], lo[0], lo[2], dh,
+                          (float(d["const"]["ken"]) - 2 * float(d["const"]["nokiE"])) * 1000))
+    return out
+
+
+def valley_step_table(d):
+    rows = "".join("<tr><td>%s</td></tr>" % inline(x) for x in valley_step_check(d))
+    return ("<h3>軒谷 — 両側の軒先は同じ高さか(谷か、段違いか)</h3>"
+            "<div class='tw'><table><tbody>%s</tbody></table></div>"
+            "<p class='cap'>⛔⛔ <b>『軒谷』と宣言しただけでは谷にならない</b>"
+            "【2026-09-18 検図】。谷は<b>同じ高さの二枚</b>が合わさる所で、"
+            "片側が御殿・片側が奥向・勝手向の棟の辺は<b>軒先の高さが違う=段違いの軒</b>になる。"
+            "高さは <code>_mune_eave_ground</code>(地盤基準の軒先の下端)の従属値で、"
+            "⛔ 段差の数を <code>valleys</code> へ写さない(規則4)。"
+            "⚠ <b>段違いと出た辺の納めは図に無い</b> — 寄せ樋をどちらへ吊るか、段の立ち上がりを"
+            "どう塞ぐかは意匠の判断なので<b>普請奉行へ差し戻し</b>"
+            "(<code>_pending.nokidaniDan</code>)。</p>" % rows)
 
 
 def valley_eave_table(d):
@@ -20328,7 +20657,9 @@ def main():
             "焼いた部材との突き合わせは棟梁の持ち場(`_pending.gotenRoofObiJun`)。")
     h.append(valleys_table(d))
     h.append(valley_eave_table(d))
+    h.append(valley_step_table(d))
     h.append(roof_bands_table(d))
+    h.append(nagaya_moya_table(d))
     h.append(eave_table(d))
     h.append("<p class='cap'><b>谷樋は縦樋を立てず、両端の軒先へ落とす</b>【確度U — 一般類型・典拠IDなし】。"
              "勾配は中央から両端へ 1/100。屋根部材は<b>辺ごとに軒の出を落とせる版</b>が要る"
@@ -20338,8 +20669,7 @@ def main():
     # ------------------------------------------------------- 渡廊下の下屋(落棟)
     if any(g is not None for _l, g, _h in _roka_rows(d)):
         plate(h, nx(), "渡廊下の下屋",
-              "梁間と桁行の断面(垂直も水平も実寸) ／ 高さは <code>roka</code> と "
-              "<code>const</code> からの従属値")
+              "梁間と桁行の断面(垂直も水平も実寸) ／ 高さは `roka` と `const` からの従属値")
         fig(h, roka_section_svg(d),
             legend='<span style="color:var(--shu)">▬ 下屋の頭と、相手の当たりまでの離れ</span>'
                    '<span style="color:var(--shu)">▬ 頭上の有効高(芯と柱筋)</span>'
@@ -20347,7 +20677,7 @@ def main():
                    '<span>▬ 床(落縁=濡縁の天端)と地盤</span>',
             cap=inline(d["_roka"]).replace("\n", "<br>"))
         h.append(roka_table(d))
-        h.append("<p class='cap'>⭕ <b>長屋型の端の納めは二つ</b>【2026-09-17 普請奉行の決定】— "
+        h.append("<p class='cap'>⭕ <b>奥向・勝手向の棟の端の納めは二つ</b>【2026-09-17 普請奉行の決定】— "
                  "<b>①妻取り付き</b>(庇の無い妻面。当たりは<b>身舎の軒桁</b>から)を第一に採り、"
                  "<b>②差し掛けの下屋(両流れ)</b>(平側。<b>庇の軒桁</b>へ桁を掛ける・"
                  "当たりが庇の軒桁になる)は①の幾何が許さない端だけ。"
@@ -20361,7 +20691,7 @@ def main():
                  "⛔ 床を下げる逃げは無い(下屋は床を下げずに納まる)。"
                  "⭕ <b>当たりは辺ごとに違う</b> — 御殿は入側が回る辺"
                  "(<code>munes[].roof.irikawa</code> の 0/1)が入側一間ぶん低く、"
-                 "軒を落とした辺は軒の出ぶんの下がりが無い。長屋型は<b>妻面と平側で別の面</b>。"
+                 "軒を落とした辺は軒の出ぶんの下がりが無い。奥向・勝手向の棟と厩は<b>妻面と平側で別の面</b>。"
                  "⛔ 全棟で同じ数を刷らない。<br>"
                  "⭕ <b>頭上の有効高は柱筋で測る</b>【2026-09-17 考証方【高】= 測る場所の誤り】— "
                  "⛔ <b>軒先で測らない</b>(軒先は必ず柱筋より低い)。下限 <code>roka.zujoMin</code>"
@@ -20370,7 +20700,7 @@ def main():
                  "(<code>_pending.rokaZujoFusoku</code>=決着・決定2)。<br>"
                  "⚠ <b>保留</b>になりうる行は三つ。① 端の当たりが決まらない／② 主屋(帯割りの"
                  "屋根を持つ棟)が端に無い(<code>_pending.rokaNagayaFloor</code>で決着した規則で"
-                 "解く)／③ 長屋型の端の妻面が決まらない"
+                 "解く)／③ 奥向・勝手向の棟の端の妻面が決まらない"
                  "(<code>_pending.nagayaGataMuneMuki</code>)。⛔ 保留を『通った』と数えない。<br>"
                  "⚠ 主屋の軒先と下屋の面の雨仕舞は <code>_pending.rokaAmaochi</code>。<br>"
                  "⛔ <b>この図も設計値からの作図</b>であって部材(FBX)の実メッシュではない — "
@@ -20409,7 +20739,7 @@ def main():
                           "屋根の姿は{{図:屋根伏図と谷}}で見ること"
                           "(そちらは帯割りから描く)。%s"
                           % ("・".join(_cf + _pd),
-                             ("なお<b>%s</b>は帯割り自体を持たない長屋型"
+                             ("なお<b>%s</b>は帯割り自体を持たない奥向・勝手向の棟と厩"
                               "(<code>_pending.gotenRoofNagayaGata</code>)。"
                               % "・".join(_pd)) if _pd else ""))
         else:

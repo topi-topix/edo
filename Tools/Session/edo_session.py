@@ -982,10 +982,46 @@ def _board_open(name):
             print("    " + ln)
 
 
+def _shared_edge_estates(name):
+    """parcels.json で `name` と辺(2 頂点)を共有する区画の id。座標は正典から読む(規則11)。"""
+    fp = os.path.join(ROOT, "docs", "Sashizu", "parcels.json")
+    with open(fp) as f:
+        ps = json.load(f)["parcels"]
+    def edges(pts):
+        pts = [tuple(round(v, 2) for v in q) for q in pts]
+        return {frozenset((pts[i], pts[(i + 1) % len(pts)])) for i in range(len(pts))}
+    mine_ = [q for q in ps if q["id"] == name]
+    if not mine_:
+        return set()
+    e0 = edges(mine_[0]["pts"])
+    return {q["id"] for q in ps if q["id"] != name and edges(q["pts"]) & e0}
+
+
 def cmd_start(a):
     """屋敷の作業を始める。**worktree を探し、無ければ作って**、claim まで済ませる。"""
     me = sid(a.session)
     dom = "sashizu:" + re.sub(r"[^A-Za-z0-9_-]", "-", a.name)
+    # 2026-09-19 施主裁定(EDO-0260): 建てる車線は一本(unity が排他)。設計は区画が隣接しない敷地なら並行してよいが、
+    #   **同じ敷地の 2 本目は止める**(今日、同じ主題が 3 本並んで 2.0h が重複した)。infra/cross は共有の持ち場なので除く。
+    #   共有辺のある敷地どうしは止めずに注意だけ出す(隣家の値を動かすと相手の図が古くなる・EDO-0152)。
+    if a.name not in ("infra", "cross"):
+        others = [c2 for c2 in load_all(a.ttl) if c2["session"] != me and dom in c2.get("paths", [])]
+        if others and not getattr(a, "join", False):
+            o = others[0]
+            print("⛔ 門番: %s は**別のセッション %s** が既に進めている(心拍 %.0f 分前)。\n   %s\n"
+                  "   同じ敷地を 2 本で進めない(2026-09-19 施主裁定)。そのセッションへ SendMessage で頼むか、"
+                  "終わっていれば `release` してもらう。引き継ぐと決めたなら `--join` を付ける(理由を --note に)。"
+                  % (dom, o["session"][:22], (now() - o["heartbeat"]) / 60.0, o.get("note") or ""), file=sys.stderr)
+            return 2
+        try:
+            nb = _shared_edge_estates(a.name)
+            busy = sorted({pth[8:] for c2 in load_all(a.ttl) if c2["session"] != me
+                           for pth in c2.get("paths", []) if pth.startswith("sashizu:") and pth[8:] in nb})
+            if busy:
+                print("⚠ 門番: 共有辺のある敷地 %s が同時に動いている。境の値(面の高さ・塀の所有)を動かすなら相手へ SendMessage。"
+                      % "・".join(busy), file=sys.stderr)
+        except Exception:
+            pass
     c, fp = mine(me)
     if dom not in c["paths"]:
         c["paths"].append(dom)
@@ -1237,7 +1273,9 @@ def main():
                    help="工程(計画 A-3)。指図の phase では --unity を取らない。実装は新しいセッションで")
     p.add_argument("--unity", action="store_true", help="Unity を使う(メインに留まる)")
     p.add_argument("--blender", action="store_true", help="Blender で部材を作る(メインに留まる)")
-    p.add_argument("--note", default=""); p.set_defaults(fn=cmd_start)
+    p.add_argument("--note", default="")
+    p.add_argument("--join", action="store_true", help="同じ敷地を別セッションが進めていても引き継ぐ(理由を --note に)")
+    p.set_defaults(fn=cmd_start)
     p = sub.add_parser("worktree"); p.add_argument("name")
     p.add_argument("--branch"); p.add_argument("--base")
     p.add_argument("--full", action="store_true", help="Assets も含める(Unity を開くなら)")

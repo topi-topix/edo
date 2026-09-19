@@ -175,7 +175,10 @@ def cmd_record(name, key, verdict, value=None, note=None, quote=None, base=None)
     _save(doc, p)
     print("記録: %s / %s = %s  → %s" % (name, ITEMS[key]["label"], verdict, os.path.relpath(p, REPO)))
     if done:
-        print("⭕ **完成** — 5 項目すべて pass。以後の指摘は `edo_board.py post --estate %s --type task` へ。指図は開かない。" % name)
+        print("⭕ **完成** — 5 項目すべて pass。以後の指摘は欄の上書きで直す。指図は開かない。" % ())
+        # 2026-09-19 施主指示: 完成時に**一度だけ**図(html)を最終形へ刷り直す。値は json が常に正で、
+        #   突き合わせ 0 が完成条件に入っているので「図と違う物が建つ」は完成にならない。刷り直しは記録の為。
+        print("   → 最後に一度だけ図を刷り直す: `python3 Tools/Sashizu/build_%s_sashizu.py`(検分は付けない・記録の為)" % name)
     return 0
 
 

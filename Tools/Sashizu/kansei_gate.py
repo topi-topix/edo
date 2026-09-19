@@ -11,8 +11,9 @@
 
     隙 0 ／ 境界侵犯 0 ／ 埋没・浮き 0 ／ 突き合わせ 0 ／ レンダの施主承認
 
-・表が在る = その敷地は**実装の車線**に入った(`phase: built`)。以後 `review_gate.py`(検図関門)は効かず、
-  この表が関門になる。指図へ戻るのは**意図が変わるとき**だけ(`--reopen`)で、戻すと表は白紙に戻る
+・表が在る = その敷地は**建った**(`phase: built`)。以後 `review_gate.py`(検図関門)は効かず、この表が関門になる。
+  ⛔ **建った敷地の直しは欄の上書き**(2026-09-19 施主指示) — 屋根の型・門の型・棟の増減も json の値を直して
+  建て直すだけで、図(html)の組み直しも検分も回さない。`--reopen` は施主が「図から起こし直せ」と言ったときだけ
 ・値を埋めるのは普請検査(edo-fushin-qa)の実測。⛔ 施主承認(render)だけは役が書けない —
   **施主の発話の引用**が要る(`--quote`)。呼んだ側(普請奉行)が書き戻す
 ・実装の車線は**同時に一敷地**。表が全部 pass になるまで次の敷地を実装の車線に入れない
@@ -22,7 +23,7 @@
     python3 Tools/Sashizu/kansei_gate.py --init matsudaira_dewa   # 実装の車線へ入れる(表を起こす)
     python3 Tools/Sashizu/kansei_gate.py --record matsudaira_dewa gap pass --value "隙 0 / めり込み 0 (JointQA 214 組)"
     python3 Tools/Sashizu/kansei_gate.py --record matsudaira_dewa render pass --quote "この見た目でよい(2026-09-20)"
-    python3 Tools/Sashizu/kansei_gate.py --reopen matsudaira_dewa "南辺の門を長屋門から冠木門へ(裁定2=B)"
+    python3 Tools/Sashizu/kansei_gate.py --reopen matsudaira_dewa "図から起こし直す" --quote "<施主の発話>"   # ⛔ 施主の発話が要る
     python3 Tools/Sashizu/kansei_gate.py --quiet                  # 挨拶用(実装の車線にいる敷地だけ 1 行)
     python3 Tools/Sashizu/kansei_gate.py --selftest
 
@@ -178,17 +179,21 @@ def cmd_record(name, key, verdict, value=None, note=None, quote=None, base=None)
     return 0
 
 
-def cmd_reopen(name, reason, base=None):
-    """意図が変わった(棟や門の増減・面の高さ・区域・柱間や屋根の型)ときだけ。表は白紙へ戻る。"""
+def cmd_reopen(name, reason, base=None, quote=None):
+    """⛔ 2026-09-19 施主指示: 建った敷地の直しは**欄の上書き**(json の値を直して建て直す)で、図は開かない。
+    開けるのは施主が「図から起こし直せ」と言ったときだけ — その発話の引用が要る。表は白紙へ戻る。"""
     if not (reason or "").strip():
-        sys.exit("⛔ 理由が要る — 何の意図が変わるのか(棟・門・面・区域・柱間・型のどれか)。")
+        sys.exit("⛔ 理由が要る — 何を起こし直すのか。")
+    if not (quote or "").strip():
+        sys.exit("⛔ 建った敷地の図は役の判断で開けない(CLAUDE.md 規則4)。屋根の型・棟の増減も**欄の上書き**で直す。\n"
+                 "   施主が「図から起こし直せ」と言ったときだけ `--quote \"<施主の発話>\"` を添えて開く。")
     doc, p = _load(name, base)
     doc["phase"] = "design"
     doc["completed"] = None
     doc["items"] = _blank_items()
     doc["history"].append(collections.OrderedDict([
         ("at", datetime.datetime.now().astimezone().isoformat(timespec="seconds")),
-        ("event", "reopen"), ("reason", reason[:600])]))
+        ("event", "reopen"), ("reason", reason[:600]), ("quote", quote[:600])]))
     _save(doc, p)
     print("指図を開いた: %s(phase=design)。変わった章だけ検分 1 巡 → 建て直し → `--built %s` で表を再開。" % (name, name))
     return 0
@@ -281,7 +286,12 @@ def selftest():
         expect(cmd_status(base=td) == 0, "完成しているのに exit 1")
         cmd_record("x", "gap", "fail", value="隙 0.4m ×3", base=td)
         expect(phase("x", td) == "built", "fail で done から built に戻らない")
-        cmd_reopen("x", "門の型を変える", base=td)
+        try:
+            cmd_reopen("x", "門の型を変える", base=td)
+            expect(False, "施主の引用なしの reopen を受けた")
+        except SystemExit:
+            pass
+        cmd_reopen("x", "門の型を変える", base=td, quote="図から起こし直して")
         expect(phase("x", td) == "design", "reopen で design にならない")
         doc, _ = _load("x", td)
         expect(all(v["verdict"] is None for v in doc["items"].values()), "reopen で表が白紙に戻らない")
@@ -324,9 +334,10 @@ def main():
             sys.exit("使い方: --record <敷地> <gap|boundary|ground|match|render> <pass|fail> [--value ..] [--note ..] [--quote ..]")
         return sys.exit(cmd_record(argv[1], argv[2], argv[3], value, note, quote))
     if argv and argv[0] == "--reopen":
+        quote = _opt(argv, "--quote")
         if len(argv) < 3:
-            sys.exit("使い方: --reopen <敷地> \"<何の意図が変わるか>\"")
-        return sys.exit(cmd_reopen(argv[1], " ".join(argv[2:])))
+            sys.exit("使い方: --reopen <敷地> \"<何を起こし直すか>\" --quote \"<施主の発話>\"")
+        return sys.exit(cmd_reopen(argv[1], " ".join(argv[2:]), quote=quote))
     if argv and argv[0] == "--built":
         if len(argv) < 2:
             sys.exit("使い方: --built <敷地>")

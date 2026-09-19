@@ -130,8 +130,10 @@ greet フックが board の digest を自動表示する — **裁定待ち →
 
 `python3 Tools/Session/build_board_html.py` が `.git/edo-board/_pm/dashboard.html` を生成する。
 見たいときに誰でも流してよく、再公開は同一 URL へ上書きする:
-https://claude.ai/code/artifact/cfda75da-234f-4411-9cdb-701904838613
-⚠ 定期に流す担い手は決まっていない(EDO-0138)。
+https://claude.ai/artifact/SffWPZCmVFFBGGiUbCR3NS
+(`…/code/artifact/cfda75da-234f-4411-9cdb-701904838613` は同じ一枚の別綴り)
+**定期の担い手は毎朝の `/nikki`**(2026-09-20 施主裁定)。焼いたら Artifact へ上書きし、
+`build_board_html.py --published <URL>` で判を押す — ⛔ 焼いただけでは施主に届かない。
 
 ---
 

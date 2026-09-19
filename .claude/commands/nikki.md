@@ -25,5 +25,9 @@ argument-hint: "[YYYY-MM-DD]"
 5. `python3 Tools/Session/config_doctor.py --quick` が**無言**になるまで直す(⛔ 0 が合格)。
 6. コミット(⛔ `git add -A` / `-a` は門番が止める。未追跡の日誌は `git commit --` に掛からないので門番の commit を使う):
    `python3 Tools/Session/edo_session.py commit docs/Nikki/<date>.json docs/Nikki/<date>.md <触ったパス> -m "chore(日誌): <date> — 反映 k 件 … closes EDO-xxxx"`。
-7. `python3 Tools/Session/edo_session.py release`。
-8. 【報告】は一件一葉で: 実働と時間の行き先の上位 3・処置した反映(何を・どこへ)・却下した物と理由。800 字以内。
+7. 普請場の一枚を焼き直して**同じ URL へ上げ、判を押す**(2026-09-20 施主裁定 — 定期の担い手はここ):
+   `python3 Tools/Session/build_board_html.py` → `.git/edo-board/_pm/dashboard.html` を `Artifact` に
+   `url=https://claude.ai/artifact/SffWPZCmVFFBGGiUbCR3NS` で上書き → `build_board_html.py --published <URL>`。
+   ⛔ 焼いただけでは施主に届かない(公開だけは手が要る)。
+8. `python3 Tools/Session/edo_session.py release`。
+9. 【報告】は一件一葉で: 実働と時間の行き先の上位 3・処置した反映(何を・どこへ)・却下した物と理由。800 字以内。

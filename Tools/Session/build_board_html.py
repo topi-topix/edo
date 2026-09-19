@@ -172,6 +172,90 @@ def load_junsu_baseline():
     return out
 
 
+def load_typology():
+    """類型の車線(79区画)。⛔ 判定も名札も書き直さない — `build_typology_page.build()` が正典
+    (docs/typology-builder.md)。読めなければ黙って None(普請場の他の欄を道連れにしない)。"""
+    try:
+        import importlib.util
+        fp = os.path.join(ROOT, "Tools", "Sashizu", "build_typology_page.py")
+        spec = importlib.util.spec_from_file_location("build_typology_page", fp)
+        m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        return m.build()
+    except Exception:
+        return None
+
+
+W_CERT = {"S": 4, "A": 3, "B": 2, "P": 1, "U": 0}
+GRADE_JA = [("S", "一次史料"), ("A", "絵図の実見"), ("B", "実見+推論"),
+            ("P", "類型からの推定"), ("U", "未読")]
+
+
+def ty_score(r):
+    """読み具合(0〜100)。⚠ 欄の数が少ない区画は高く出る — 必ず欄の数を併記する。"""
+    if not r["cert"]:
+        return None
+    return sum(W_CERT[g] for _, g in r["cert"]) / len(r["cert"]) / 4 * 100
+
+
+def typology_panel_html(d):
+    if not d:
+        return ('<div class="panel" data-panel="typo" hidden><p class="empty">'
+                "類型表が読めなかった(docs/Sashizu/typology.json)。</p></div>")
+    tot = sum(d["cnt"].values()) or 1
+    rows = [r for r in d["rows"] if not r["hand"]]
+    rows.sort(key=lambda r: -(ty_score(r) or 0))
+    p = ['<div class="panel" data-panel="typo" hidden>']
+    p.append('<p class="sub" style="color:var(--muted);font-size:12.5px;margin:14px 0 4px">'
+             "区画の形と類型表だけから建つ車線。指図も検分の輪も無く、違うのは"
+             "<b>欄ごとにどれだけ史料で裏打ちされたか</b>だけ。"
+             "⛔ 図を起こした %d 敷地はこの物差しでは測れない(確度の欄を持たない) — "
+             "そちらは「敷地別」タブの検分の関門で見る。</p>" % d["hand"])
+    p.append('<div class="tylead">')
+    p.append('<div class="tybox"><div class="k">区画</div><div class="v">%d</div>'
+             '<div class="d">赤坂・溜池の全域 %d のうち、類型で建てる筆</div></div>'
+             % (d["total"] - d["hand"], d["total"]))
+    for key, ja in (("buke", "武家"), ("machiya", "町屋"), ("jisha", "寺社"), ("kouyuu", "明地")):
+        p.append('<div class="tybox"><div class="k">%s</div><div class="v">%d</div>'
+                 '<div class="d">&nbsp;</div></div>' % (ja, d["bytype"].get(key, 0)))
+    p.append("</div>")
+    p.append('<h2>読み具合<span class="h2note">一次史料=4点・絵図の実見=3・実見+推論=2・'
+             "類型からの推定=1・未読=0 の平均</span></h2>")
+    p.append('<div class="tyband">')
+    for g, _ja in GRADE_JA:
+        n = d["cnt"].get(g, 0)
+        pc = 100.0 * n / tot
+        p.append('<span class="ty-%s" style="width:%.2f%%">%s</span>'
+                 % (g, pc, ("%s %d" % (g, n)) if pc > 7 else ""))
+    p.append("</div>")
+    p.append('<div class="tylegend">')
+    for g, ja in GRADE_JA:
+        n = d["cnt"].get(g, 0)
+        p.append('<span><i class="ty-%s"></i>%s <b>%d</b>欄 (%.0f%%)</span>'
+                 % (g, esc(ja), n, 100.0 * n / tot))
+    p.append("</div>")
+    p.append('<p class="fcount">確度の欄 計 %d — <b>未読が %.0f%% 残っている</b>。'
+             "⚠ 欄の数が少ない区画は点が高く出る(追っている項目が2つなら、"
+             "その2つが読めているだけで満点近くになる)ので、点の横に欄の数を添えた。</p>"
+             % (tot, 100.0 * d["cnt"].get("U", 0) / tot))
+    p.append('<div class="scroll"><table class="typ"><thead><tr>'
+             "<th>区画</th><th>類型</th><th>読み具合</th><th>欄ごとの確度</th>"
+             "</tr></thead><tbody>")
+    for r in rows:
+        sc = ty_score(r) or 0
+        chips = "".join('<span class="tychip"><i class="ty-%s">%s</i><span>%s</span></span>'
+                        % (g, g, esc(f)) for f, g in r["cert"])
+        p.append('<tr><td class="nm">%s<i>%s</i></td><td class="ty">%s</td>'
+                 '<td class="sc"><span class="tymeter"><i style="width:%.0f%%"></i></span>'
+                 "<b>%.0f%%</b><em>欄%d</em></td>"
+                 '<td><div class="tyce">%s</div></td></tr>'
+                 % (esc(r["name"]), esc(r["id"]), esc(d["typeja"].get(r["type"], r["type"])),
+                    sc, sc, len(r["cert"]), chips))
+    p.append("</tbody></table></div>")
+    p.append("</div>")
+    return "\n".join(p)
+
+
 def load_readme_states():
     """README の表から敷地ごとの状態と、公開済み指図 Artifact の URL を拾う。
     2026-08-31 に「屋敷・社ごとの設計図」表が状態1列(5列)から**指図/実装の2列(6列)**へ
@@ -565,6 +649,46 @@ h2{font-family:'Shippori Mincho',serif;font-weight:600;font-size:17px;
 .quiet{color:var(--matsu);background:var(--matsu-soft);border:1px solid var(--matsu);
   border-radius:6px;padding:9px 14px;font-size:13.5px}
 footer{margin-top:40px;color:var(--muted);font-size:11.5px}
+
+/* ── 類型の車線(2026-09-19 施主裁定A: 区画表を普請場へ吸収) ──
+   ⛔ タスクの表と同じ物差しで並べない。区画は「未処置の仕事」ではなく
+   「どこまで史料で裏打ちされたか」で測る(docs/typology-builder.md)。 */
+.tylead{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:16px 0 6px}
+.tybox{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:12px 14px}
+.tybox .k{font-size:11px;letter-spacing:.1em;color:var(--muted)}
+.tybox .v{font-family:'Shippori Mincho',serif;font-size:24px;font-weight:600;line-height:1.25}
+.tybox .d{font-size:11.5px;color:var(--muted);line-height:1.6}
+.tyband{display:flex;height:26px;border:1px solid var(--line);border-radius:4px;overflow:hidden;margin:6px 0 4px}
+.tyband span{display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;
+  font-family:var(--mono)}
+.tylegend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:11.5px;color:var(--muted);margin-bottom:14px}
+.tylegend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px}
+.ty-S{background:#1f4e5f}.ty-A{background:#3f7d8c}.ty-B{background:#82aab0}
+.ty-P{background:#b08a4a}.ty-U{background:#c3bdaf}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .ty-S{background:#9fd3e3}
+  :root:not([data-theme="light"]) .ty-A{background:#6fa8b8}
+  :root:not([data-theme="light"]) .ty-B{background:#4d7e86}
+  :root:not([data-theme="light"]) .ty-P{background:#c9a05e}
+  :root:not([data-theme="light"]) .ty-U{background:#55504a}}
+.typ{width:100%;border-collapse:collapse;font-size:13px}
+.typ thead th{text-align:left;font-weight:500;font-size:11px;letter-spacing:.06em;color:var(--muted);
+  padding:8px 12px 8px 0;border-bottom:1px solid var(--line);white-space:nowrap}
+.typ td{padding:9px 12px 9px 0;border-bottom:1px solid var(--line);vertical-align:top}
+.typ .nm{white-space:nowrap;line-height:1.5;font-family:'Shippori Mincho',serif}
+.typ .nm i{display:block;font-family:var(--mono);font-size:10px;color:var(--muted);font-style:normal}
+.typ .ty{white-space:nowrap;font-size:12px;color:var(--muted)}
+.typ .sc{white-space:nowrap;width:120px}
+.typ .sc b{font-family:var(--mono);font-size:12px;font-weight:500}
+.typ .sc em{font-style:normal;font-size:10.5px;color:var(--muted);margin-left:6px}
+.tymeter{display:block;height:6px;background:var(--bg);border:1px solid var(--line);
+  border-radius:3px;overflow:hidden;margin-bottom:3px}
+.tymeter i{display:block;height:100%;background:var(--ai)}
+.tyce{display:flex;flex-wrap:wrap;gap:4px}
+.tychip{display:inline-flex;align-items:stretch;border:1px solid var(--line);border-radius:3px;
+  overflow:hidden;font-size:11px;line-height:1.9;color:var(--muted)}
+.tychip i{font-style:normal;width:15px;text-align:center;color:#fff;font-family:var(--mono);font-size:10px}
+.tychip span{padding:0 6px}
+@media (max-width:680px){ .typ .tyce{display:none} .typ .ty{display:none} }
 """
 
 JS = """
@@ -1016,7 +1140,7 @@ def filterbar_html():
     return "".join(p)
 
 
-def build_html(issues, pending, commits, claims, states, summary, reviews):
+def build_html(issues, pending, commits, claims, states, summary, reviews, typology):
     live = [i for i in issues if i["status"] not in ("done", "dropped")]
     waits = [i for i in live if i["status"] == "awaiting-user"]
     blks = [i for i in live if i["type"] == "blocker"]
@@ -1063,6 +1187,9 @@ def build_html(issues, pending, commits, claims, states, summary, reviews):
              'タスク一覧<span class="n">%d</span></button>' % len(issues))
     p.append('<button class="tab" role="tab" data-tab="sites" aria-selected="false">'
              '敷地別<span class="n">%d</span></button>' % (len(SITES) + 1))
+    p.append('<button class="tab" role="tab" data-tab="typo" aria-selected="false">'
+             '類型の車線<span class="n">%d</span></button>'
+             % ((typology["total"] - typology["hand"]) if typology else 0))
     p.append('<button class="tab" role="tab" data-tab="feed" aria-selected="false">'
              '最近の動き</button>')
     p.append("</div>")
@@ -1171,6 +1298,9 @@ def build_html(issues, pending, commits, claims, states, summary, reviews):
     p.append("</div>")
     p.append("</div>")  # panel sites
 
+    # ── 従タブ: 類型の車線(2026-09-19 施主裁定A)
+    p.append(typology_panel_html(typology))
+
     # ── 従タブ: 最近の動き
     p.append('<div class="panel" data-panel="feed" hidden>')
     p.append("<h2>最近の動き(全ブランチ)</h2><div class='scroll'><table class='feed'>")
@@ -1193,19 +1323,35 @@ def build_html(issues, pending, commits, claims, states, summary, reviews):
     return "\n".join(p)
 
 
+def stamp_published(url):
+    """⛔ **焼いた ≠ 施主に届いた。**2026-09-02 に焼いた一枚が 17 日 Artifact のまま古びて、
+    施主が掲示板を見失った(2026-09-19)。公開した側がここへ判を押し、挨拶フックが
+    「掲示板が動いたのに一枚が古い」を鳴らす。"""
+    os.makedirs(OUT, exist_ok=True)
+    json.dump({"at": time.time(), "url": url},
+              open(os.path.join(OUT, "published.json"), "w", encoding="utf-8"),
+              ensure_ascii=False, indent=1)
+    print("判を押した: %s" % os.path.join(OUT, "published.json"))
+
+
 def main():
+    if "--published" in sys.argv:
+        i = sys.argv.index("--published")
+        stamp_published(sys.argv[i + 1] if len(sys.argv) > i + 1 else "")
+        return
     issues = load_issues()
     pending = load_pending()
     commits = load_commits()
     claims = load_claims()
     states = load_readme_states()
     reviews = load_reviews()
+    typology = load_typology()
     summary = build_summary(issues, pending, commits, claims)
     os.makedirs(OUT, exist_ok=True)
     json.dump(summary, open(os.path.join(OUT, "summary.json"), "w", encoding="utf-8"),
               ensure_ascii=False, indent=1)
     open(os.path.join(OUT, "dashboard.html"), "w", encoding="utf-8").write(
-        build_html(issues, pending, commits, claims, states, summary, reviews))
+        build_html(issues, pending, commits, claims, states, summary, reviews, typology))
     print("dashboard: %s\nsummary:   %s" % (os.path.join(OUT, "dashboard.html"),
                                             os.path.join(OUT, "summary.json")))
 

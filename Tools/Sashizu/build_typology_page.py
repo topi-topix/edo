@@ -121,4 +121,7 @@ def main():
              data["cnt"].get("U", 0), 100.0 * data["cnt"].get("U", 0) / d))
 
 
-main()
+# ⚠ **`main()` を裸で呼ばない。**import しただけで走ってしまう(review_gate.py が同じ罠を
+#   注意書きで残している)。普請場の一枚がこの `build()` を import して使う。
+if __name__ == "__main__":
+    main()

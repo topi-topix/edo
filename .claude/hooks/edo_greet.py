@@ -64,6 +64,29 @@ if os.path.exists(CLI):
         if b.stdout.strip():
             print(b.stdout.strip())
             print("起票の作法は docs/session-board.md(節目・ブロッカー・裁定要請だけ post。自己検図は3巡まで)。")
+        # 普請場の一枚(2026-09-19 施主裁定A) — ⛔ **焼いた ≠ 施主に届いた。**
+        #   9/2 に焼いた一枚が 17 日そのままで、施主が掲示板を見失った。掲示板が動いたのに
+        #   公開の判が古ければ 1 行だけ鳴らす(揃っていれば無言)。
+        try:
+            import glob as _glob
+            bd = os.path.join(MAIN_ROOT, ".git", "edo-board")
+            if not os.path.isdir(bd):
+                bd = None
+            if bd:
+                items = _glob.glob(os.path.join(bd, "EDO-*.json"))
+                newest = max((os.path.getmtime(f) for f in items), default=0)
+                pub = os.path.join(bd, "_pm", "published.json")
+                at = json.load(open(pub, encoding="utf-8")).get("at", 0) if os.path.exists(pub) else 0
+                days = (newest - at) / 86400.0
+                if items and days > 3:
+                    how = ("**まだ一度も公開していない**" if not at
+                           else "**%.0f 日ぶん古い**" % days)
+                    print("⛔ 普請場の一枚が %s(掲示板は動いたのに公開していない)。"
+                          "`python3 Tools/Session/build_board_html.py` で焼き直し、Artifact を"
+                          "更新したら `--published <URL>` で判を押す。"
+                          "⛔ 焼いただけでは施主に届かない。" % how)
+        except Exception:
+            pass
         # 日誌(2026-09-19) — 夜の自動タスクが起票した「日誌(<日付>)」の task が未処置なら 1 行。0 なら無言。
         #   digest の 15 行予算の外。処置は /nikki(docs/teire.md「日誌」)。
         try:

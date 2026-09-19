@@ -1061,6 +1061,12 @@ def detail_html(i, states):
     return "".join(b)
 
 
+def id_num(issue_id):
+    """EDO-0259 → 259。ID 列は文字列でなく番号で並べる(でないと桁で崩れる)。"""
+    m = re.search(r"(\d+)", issue_id or "")
+    return int(m.group(1)) if m else 0
+
+
 def task_row(i, states):
     """タスク一覧(全敷地を1枚)の1行 + 押したら開く詳細行。
     data-* はフィルタと並べ替えが読む。詳細行は同じ data-* を持たないと
@@ -1072,7 +1078,7 @@ def task_row(i, states):
     label, badge_cls = task_state(i)
     row = (
         '<tr id="row-%s" class="%s" data-site="%s" data-type="%s" data-status="%s"'
-        ' data-prio="%d" data-when="%d" data-sitename="%s" data-title="%s"'
+        ' data-id="%d" data-prio="%d" data-when="%d" data-sitename="%s" data-title="%s"'
         ' data-state="%s" tabindex="0" role="button" aria-expanded="false"'
         ' aria-controls="det-%s">'
         '<td class="c-id">%s</td>'
@@ -1082,7 +1088,7 @@ def task_row(i, states):
         '<span class="ttx">%s</span></span></td>'
         '<td class="c-when">%s</td></tr>'
         % (esc(i["id"]), esc(cls), esc(site), esc(i["type"]), esc(i["status"]),
-           task_prio(i), int(i.get("updated") or 0),
+           id_num(i["id"]), task_prio(i), int(i.get("updated") or 0),
            esc(SITES.get(i["estate"], CROSS_LABEL)), esc(i["title"]),
            esc(label), esc(i["id"]),
            esc(i["id"]),
@@ -1098,8 +1104,8 @@ def task_row(i, states):
 
 def tasks_table_html(issues, states):
     rows = sorted(issues, key=lambda i: (task_prio(i), -(i.get("updated") or 0)))
-    head = [("prio", "ID", "sortable"), ("sitename", "敷地", "sortable"),
-            ("state", "状態", "sortable"),
+    head = [("id", "ID", "sortable"), ("sitename", "敷地", "sortable"),
+            ("prio", "状態", "sortable"),
             ("title", "タスク", "sortable"), ("when", "更新", "sortable")]
     th = "".join(
         '<th %sdata-key="%s">%s<span class="ar"></span></th>'

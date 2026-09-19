@@ -100,3 +100,8 @@ __pycache__/
 # (LFS 剥がしで 7.57GB→0.54GB に絞った経緯。共有は Artifact で行う)
 /*.png
 /*.jpg
+
+# 作業場シーン(Edo/普請/作業場を仕立てる が赤坂から起こす使い捨て。EdoKoba.cs)
+# C# を直す間だけ一邸に減らして回すためのもので、中身は毎回変わる。
+/Assets/Edo/Scenes/Koba.unity
+/Assets/Edo/Scenes/Koba.unity.meta

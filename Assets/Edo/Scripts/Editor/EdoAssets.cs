@@ -1893,4 +1893,16 @@ public static class EdoAssets
         public const string GrassLowA   = "Assets/Edo/Terrain/details/GrassLowA.prefab";
         public const string GrassLowB   = "Assets/Edo/Terrain/details/GrassLowB.prefab";
     }
+
+    /// <summary>シーン。</summary>
+    public static class Scenes
+    {
+        /// <summary>本番の一枚。</summary>
+        public const string Akasaka = "Assets/Edo/Scenes/Akasaka.unity";
+
+        /// <summary>作業場 — C# を直している間だけ使う軽いシーン(地形+光+カメラ+一邸)。
+        /// `Edo/普請/作業場を仕立てる` が赤坂から起こす。中身は使い捨てなので gitignore。
+        /// → <see cref="EdoKoba"/></summary>
+        public const string Koba    = "Assets/Edo/Scenes/Koba.unity";
+    }
 }

@@ -1,0 +1,569 @@
+{
+ "date": "2026-09-18",
+ "deltas": {
+  "prev": null
+ },
+ "nikki": 1,
+ "sessions": [
+  {
+   "active_min": 704.5,
+   "board": {
+    "notes": [],
+    "posts": [
+     "EDO-0239"
+    ]
+   },
+   "branch": "main",
+   "commits": [],
+   "compacts": 0,
+   "cwd": "/Users/toshio/project/edo-unity",
+   "ended": null,
+   "estate": "matsudaira_dewa",
+   "estate_src": "claims",
+   "first": "2026-09-15T03:55:27Z",
+   "kind": "work",
+   "last": "2026-09-18T16:58:44Z",
+   "maxctx": 414103,
+   "msgs": [
+    "裁定1件・報告1件です。裁定だけお答えください。\n\n## 【裁定1】奥向の3棟と厩を、どの型の屋根として建てますか\n- **どこ**: 御湯殿・長局北・奥台所・厩の4棟\n- **背景**: この4棟の間口は図で6間(庇1間+身舎4間+庇1間)ですが、屋根の型は岡山藩の長屋の記録「三間梁+庇一間」=5間を名乗っています。型が建物を1間ぶん覆えず、そこから出る軒の高さと廊下の取り付きの数字が揺れています。\n- **A**: 図の平面のまま(身舎4間)と宣言し、長屋の型は当てない — 棟が0.55m高くなり、典拠は当方の設計値になります\n- **B**: 長屋の型のまま6間へ引き伸ばす — 型と平面が合わないまま残ります\n- **C**: 建物を5間に縮めて型に合わせる — 部屋の広さが変わります\n- **推奨**: A — これらは長屋ではなく御殿の奥向・勝手向の棟です。記録の原文は「およそ三間梁**以下**」という上限の書き方で、寸法をそのまま当てる筋のものではありません。軒の高さについては、すでに同じ理由で長屋の値を当てるのをやめています。\n- **影響**: 4棟の棟が0.55m高くなり、渡り廊下の取り付きを計算し直します。\n- **裁定図**: https://claude.ai/artifact/BukVRna7ZqK2vdKf55Jt2u\n\n## 【報告1】渡り廊下そのものは納まりました\n廊下6本とも頭上の高さの下限を満たし、2つの口も軒の谷が成立しています。建物の重なりもありません。上の型が決まれば、取り付きの数字を取り直して建て直しに入れます。"
+   ],
+   "msgs_n": 1,
+   "over300": 17,
+   "phase": "指図",
+   "quality": {
+    "hdr": 1.0,
+    "marks": 0.0,
+    "mean": 689.0,
+    "mech": 0.0,
+    "n": 1,
+    "over2000": 0,
+    "roles": 0.0
+   },
+   "rework": {
+    "agent_repeats": 2,
+    "edits_top": [],
+    "guard_denies": 0,
+    "review_fails": 0,
+    "stop_blocks": 0,
+    "streak_max": 0,
+    "streaks": [],
+    "tool_errors": 0
+   },
+   "sid": "b893bb62-464",
+   "spans": {
+    "next": true,
+    "prev": true
+   },
+   "time": {
+    "agents": {
+     "edo-sashizukata": {
+      "calls": 3,
+      "mean_min": 233.1,
+      "min": 699.3
+     }
+    },
+    "buckets": {
+     "Agent": 699.3,
+     "Bash": 0.5,
+     "other": 0.1,
+     "workflow": 0.1
+    },
+    "labels": {
+     "Agent:edo-sashizukata": 699.3,
+     "Bash:python": 0.1,
+     "Bash:review_gate": 0.2,
+     "Bash:sashizu-build": 0.2,
+     "other:Artifact": 0.1,
+     "workflow:sashizu-review": 0.1
+    },
+    "model_min": 4.6,
+    "tools_min": 699.9,
+    "top": [
+     [
+      "Agent:edo-sashizukata",
+      699.3
+     ],
+     [
+      "Bash:sashizu-build",
+      0.2
+     ],
+     [
+      "Bash:review_gate",
+      0.2
+     ],
+     [
+      "workflow:sashizu-review",
+      0.1
+     ],
+     [
+      "Bash:python",
+      0.1
+     ]
+    ]
+   },
+   "title": "松江松平邸の続き",
+   "tokens": {
+    "out": 22821,
+    "read": 4974544,
+    "write": 1757561
+   },
+   "transcript": "/Users/toshio/.claude/projects/-Users-toshio-project-edo-unity/b893bb62-464d-40fa-9efc-4b6efb6617b5.jsonl",
+   "turns": 17,
+   "user_wait_min": 0.0,
+   "users": 1,
+   "wait": {
+    "calls": 0,
+    "min": 0.0
+   },
+   "wall_min": 1440.0
+  },
+  {
+   "active_min": 189.8,
+   "board": {
+    "notes": [],
+    "posts": [
+     "EDO-0044",
+     "EDO-0236",
+     "EDO-0237",
+     "EDO-0238",
+     "EDO-0240",
+     "EDO-0241"
+    ]
+   },
+   "branch": "main",
+   "commits": [
+    {
+     "link": "refs",
+     "refs": [
+      "EDO-0236",
+      "EDO-0237"
+     ],
+     "sha": "0db9049d",
+     "subject": "fix(山王): 施主の裁定2件を書き起こす ── 格子の縁に法面(1:0.7)を入れ、透塀のスパンの許容帯を宣言する",
+     "t": "2026-09-17T22:26:41Z"
+    },
+    {
+     "link": "bash",
+     "refs": [],
+     "sha": "938ec7a9",
+     "subject": "docs(山王): 透塀のスパン部材の端『h』を EdoAssets の説明に足す",
+     "t": "2026-09-17T22:39:06Z"
+    },
+    {
+     "link": "bash",
+     "refs": [],
+     "sha": "6c15af93",
+     "subject": "fix(山王): 透塀の柱間を六尺に改め、隅の二重引き算を戻す(施主裁定A・K074/K075/K085/K086/K087)",
+     "t": "2026-09-18T09:38:26Z"
+    },
+    {
+     "link": "bash",
+     "refs": [],
+     "sha": "b85413ff",
+     "subject": "Merge branch 'main' into sashizu/sanno",
+     "t": "2026-09-18T09:59:37Z"
+    },
+    {
+     "link": "bash",
+     "refs": [],
+     "sha": "cb4a5e71",
+     "subject": "fix(山王): 透塀の焼き上がりを指図へ書き戻す ── 名簿 26 点・隅 2 点、実測の外形と端の座面、瓦の縮尺を考証方へ",
+     "t": "2026-09-18T10:19:15Z"
+    },
+    {
+     "link": "bash",
+     "refs": [],
+     "sha": "5e10cca5",
+     "subject": "chore(山王): 検分の輪 第6巡の判定を書き戻す ── 検図 pass・考証 advisory・庭方 advisory",
+     "t": "2026-09-18T11:53:38Z"
+    },
+    {
+     "link": "bash",
+     "refs": [],
+     "sha": "e4b1d70b",
+     "subject": "fix(山王): 検分の輪 第6巡の直し ── 隅の座面の食い違いを検査に立て、瓦と猶予の帳簿を刷る",
+     "t": "2026-09-18T11:54:09Z"
+    }
+   ],
+   "compacts": 1,
+   "cwd": "/Users/toshio/project/edo-unity",
+   "ended": null,
+   "estate": "sanno",
+   "estate_src": "bash",
+   "first": "2026-09-15T05:28:01Z",
+   "kind": "work",
+   "last": "2026-09-19T04:30:27Z",
+   "maxctx": 312900,
+   "msgs": [
+    "報告1件・裁定2件です。答えが要るのは裁定2件です。\n\n## 【報告1】見直しは三巡で止まりました\n図として成立しているかを見る側から要修正が残り、規定どおり三巡で手を止めました。史実の側と庭の側は助言のみです。三巡のあいだに直ったのは、塀の割り付けを隅の部材の食い込みを引いた長さから出すようにしたこと(全10区間で重なり最大6mm・隙間0)と、地ならしの縁が動かす土(盛133/切28立方m)を切盛図に載せて帳簿から漏れないようにしたことです。残った一つが下の裁定で、いま図はこの答え待ちで止まっています。\n\n**裁定図はこちら** ── https://claude.ai/artifact/UcNg4gTCfSEE1v5Pd91QRF\n\n## 【裁定1】造成の縁に立つ土をどう納めますか\n- **どこ**: 境内の平場の外まわり1mの帯。いちばん際どいのは北の縁。\n- **現況**: 縁の土が法(のり)を通さず平らに出ており、外へ最大**2.90m**の土の壁が立ちます。何も受けていない縁が119箇所。削る側には歯止めが無く、前庭西の土留め27mが見付0.78mから地面に埋もれます。\n- **A**: 法勾配1対1.5で降ろす。降ろし切れない崖の上は縁を出さない(2年前の夏に輪郭でお決めいただいたのと同じ作法)。\n- **B**: 持ち上げを0.3mまでに抑える。段差は消えるが、地ならしが縁に届かない所が増える。\n- **C**: いまのまま容れる。\n- **推奨 A**。何も受けずに2.9m立つ土は現実にありません。\n- **影響**: 土量が増え、崖の上の縁だけ地ならしが届かなくなります。\n\n## 【裁定2】塀の連子の割りの許容をどこまで採りますか\n- **どこ**: 社殿を囲う塀の10区間。外れるのは凸形の段をつくる北と南の短い二辺だけ。\n- **現況**: 柱間の基準2.540mに対し0.87〜1.12倍。**本数を増減しても基準へ近づく区間は一つもありません**(短辺は2.21mと8.51mしかないため)。\n- **A**: 0.85〜1.15倍を許容と宣言し、いまの割りで部材25点を一度に作る。\n- **B**: 0.95〜1.05倍に絞る。二辺が外れるので、史料で決まっている周長147.28mか段の位置を動かすことになります。\n- **C**: 許容を決めない。\n- **推奨 A**。粗細は史料が輪郭を押さえていることの帰結で、揃えにいくと史料の側を曲げます。\n- **影響**: この答えが出るまで部材は作りません。作れば図が組め、お見せできるようになります。",
+    "裁定1件・質問1件です。答えが要るのは2件です。\n\n## 【裁定1】塀の柱を六尺間にしますか\n- **どこ**: 社殿を囲う塀の全周147.28m。輪郭は史料で決まっており動きません。変わるのは柱の間隔だけです。\n- **裁定図**: https://claude.ai/artifact/UqMv6jETHNMUcviJNMgTTB\n- **なぜいま**: 行き詰まっていた3.20mの一辺を調べるうちに、もっと根の深いことが出てきました。**塀の全長486尺は、六尺で割るとちょうど81間**です。図の南の潜りは元から1.818m=ちょうど一間。そして六尺で割ると、十区間の合計もぴたり81間、割りの幅も0.88〜1.05倍に収まり、**あの3.20mの段が自然に二間**になります。三つが同時に合います。\n- **いまの2.540m(8.4尺)の出どころ**は、社殿の柱間を塀にも当てはめた推定で、塀の柱間を書いた史料ではありません。こちらだと57間で、史料の数字は何も意味しません。\n- **A**: 六尺(1818mm)に改める。\n- **B**: いまの8.4尺のまま通し、3.20mの段だけ別に決める。\n- **推奨A**。ただし**直接の証拠は見つかっておらず、推論**です。塀の長さを「間」で数えるのは文化財の記載の通例(根津神社の透塀は「折曲り延長二十一間」)という傍証までです。\n- **影響**: Aなら**塀の部材は全部作り直し**になります。先日焼いた分も、以前の分も使いません。\n\n## 【質問1】ここで一度、会話を畳ませてください\n- **なぜ**: 会話が長くなりすぎて、往復のたびに全部を読み直す状態です。\n- **A**: `/compact` で要約してから、ご裁定を続ける。\n- **B**: このまま続ける。\n\n**A**をおすすめします。裁定の中身・未決の項目・次の一手は記録に残してあるので、畳んでも失われません。"
+   ],
+   "msgs_n": 2,
+   "over300": 5,
+   "phase": "実装",
+   "quality": {
+    "hdr": 1.0,
+    "marks": 0.0,
+    "mean": 968.0,
+    "mech": 0.0,
+    "n": 2,
+    "over2000": 0,
+    "roles": 0.0
+   },
+   "rework": {
+    "agent_repeats": 0,
+    "edits_top": [],
+    "guard_denies": 1,
+    "review_fails": 0,
+    "stop_blocks": 3,
+    "streak_max": 0,
+    "streaks": [],
+    "tool_errors": 1
+   },
+   "sid": "eb8426e9-095",
+   "spans": {
+    "next": true,
+    "prev": true
+   },
+   "time": {
+    "agents": {
+     "edo-buzai": {
+      "calls": 2,
+      "mean_min": 17.9,
+      "min": 35.9
+     },
+     "edo-kosho": {
+      "calls": 1,
+      "mean_min": 4.2,
+      "min": 4.2
+     },
+     "edo-niwashi": {
+      "calls": 1,
+      "mean_min": 22.4,
+      "min": 22.4
+     },
+     "edo-sashizukata": {
+      "calls": 4,
+      "mean_min": 22.8,
+      "min": 91.0
+     }
+    },
+    "buckets": {
+     "Agent": 153.6,
+     "Bash": 5.0,
+     "other": 0.2,
+     "workflow": 0.0
+    },
+    "labels": {
+     "Agent:edo-buzai": 35.9,
+     "Agent:edo-kosho": 4.2,
+     "Agent:edo-niwashi": 22.4,
+     "Agent:edo-sashizukata": 91.0,
+     "Bash:edo_board": 0.5,
+     "Bash:git": 0.6,
+     "Bash:nikki": 0.1,
+     "Bash:other": 0.2,
+     "Bash:python": 1.5,
+     "Bash:review_gate": 0.3,
+     "Bash:sashizu-build": 1.7,
+     "other:Artifact": 0.1,
+     "other:mcp__Claude_Browser__browser_batch": 0.1,
+     "other:mcp__Claude_Browser__tabs_close": 0.0,
+     "workflow:sashizu-review": 0.0
+    },
+    "model_min": 31.5,
+    "tools_min": 158.3,
+    "top": [
+     [
+      "Agent:edo-sashizukata",
+      91.0
+     ],
+     [
+      "Agent:edo-buzai",
+      35.9
+     ],
+     [
+      "Agent:edo-niwashi",
+      22.4
+     ],
+     [
+      "Agent:edo-kosho",
+      4.2
+     ],
+     [
+      "Bash:sashizu-build",
+      1.7
+     ]
+    ]
+   },
+   "title": "山王社の続き",
+   "tokens": {
+    "out": 143422,
+    "read": 22882880,
+    "write": 571087
+   },
+   "transcript": "/Users/toshio/.claude/projects/-Users-toshio-project-edo-unity/eb8426e9-095f-49c0-a0f4-951f2d5b262d.jsonl",
+   "turns": 117,
+   "user_wait_min": 0.0,
+   "users": 2,
+   "wait": {
+    "calls": 0,
+    "min": 0.0
+   },
+   "wall_min": 1440.0
+  }
+ ],
+ "totals": {
+  "active_min": 894.3,
+  "board_day": [
+   {
+    "by": "eb8426e9-095",
+    "estate": "sanno",
+    "id": "EDO-0236",
+    "msg": "起票",
+    "status": "done",
+    "t": "2026-09-17T15:00:56Z",
+    "title": "山王: 造成の格子の縁の作法 — 縁に立つ土をどう納めるか",
+    "type": "decision"
+   },
+   {
+    "by": "eb8426e9-095",
+    "estate": "sanno",
+    "id": "EDO-0237",
+    "msg": "起票",
+    "status": "done",
+    "t": "2026-09-17T15:01:13Z",
+    "title": "山王: 透塀の連子の割りの許容帯 — 部材25点の焼成がこれ待ち",
+    "type": "decision"
+   },
+   {
+    "by": "eb8426e9-095",
+    "estate": "sanno",
+    "id": "EDO-0236",
+    "msg": "ユーザー裁定=A(法面で降ろす)。⚠ 但し書き ── 『法勾配が現地形より浅いと法尻が現地形と交わらず遠くへ行ってしまう。新規の法面は急勾配にするなどしてほしい。土留め無しで成り立たない角度なら土留めを入れてよい』。⇒ 縁の納めは一律の1:",
+    "status": "done",
+    "t": "2026-09-17T21:51:08Z",
+    "title": "山王: 造成の格子の縁の作法 — 縁に立つ土をどう納めるか",
+    "type": "decision"
+   },
+   {
+    "by": "eb8426e9-095",
+    "estate": "sanno",
+    "id": "EDO-0237",
+    "msg": "ユーザー裁定=A。許容帯 0.85〜1.15 倍を bom[透塀].spanRatioBand に宣言し、いまの割りのまま部材25点を一度で焼く。",
+    "status": "done",
+    "t": "2026-09-17T21:51:08Z",
+    "title": "山王: 透塀の連子の割りの許容帯 — 部材25点の焼成がこれ待ち",
+    "type": "decision"
+   },
+   {
+    "by": "post-commit",
+    "estate": "sanno",
+    "id": "EDO-0236",
+    "msg": "commit 0db9049d: fix(山王): 施主の裁定2件を書き起こす ── 格子の縁に法面(1:0.7)を入れ、透塀のスパンの許容帯を宣言する",
+    "status": "done",
+    "t": "2026-09-17T22:26:41Z",
+    "title": "山王: 造成の格子の縁の作法 — 縁に立つ土をどう納めるか",
+    "type": "decision"
+   },
+   {
+    "by": "post-commit",
+    "estate": "sanno",
+    "id": "EDO-0237",
+    "msg": "commit 0db9049d: fix(山王): 施主の裁定2件を書き起こす ── 格子の縁に法面(1:0.7)を入れ、透塀のスパンの許容帯を宣言する",
+    "status": "done",
+    "t": "2026-09-17T22:26:41Z",
+    "title": "山王: 透塀の連子の割りの許容帯 — 部材25点の焼成がこれ待ち",
+    "type": "decision"
+   },
+   {
+    "by": "eb8426e9-095",
+    "estate": "sanno",
+    "id": "EDO-0238",
+    "msg": "起票",
+    "status": "done",
+    "t": "2026-09-17T23:09:39Z",
+    "title": "山王: 透塀の柱間を6尺に改めるか — 8.4尺のまま通すか",
+    "type": "decision"
+   },
+   {
+    "by": "b893bb62-464",
+    "estate": "matsudaira_dewa",
+    "id": "EDO-0239",
+    "msg": "検分が三巡で停止中。裁定で --ack して先へ進む",
+    "status": "done",
+    "t": "2026-09-18T08:36:03Z",
+    "title": "松江松平: 奥向3棟と厩の屋根の型 — 図の平面のままか長屋の型か",
+    "type": "decision"
+   },
+   {
+    "by": "eb8426e9-095",
+    "estate": "sanno",
+    "id": "EDO-0238",
+    "msg": "施主裁定=A。透塀の柱間を6尺(1818mm)に改める。全長486尺=81間。塀の部材は全部焼き直し。",
+    "status": "done",
+    "t": "2026-09-18T09:07:45Z",
+    "title": "山王: 透塀の柱間を6尺に改めるか — 8.4尺のまま通すか",
+    "type": "decision"
+   },
+   {
+    "by": "b893bb62-464",
+    "estate": "matsudaira_dewa",
+    "id": "EDO-0239",
+    "msg": "ユーザー裁定 A(2026-09-18)— 奥向3棟と厩は図の平面のまま(身舎4間+庇1間×2)。長屋の型は当てない",
+    "status": "done",
+    "t": "2026-09-18T09:08:30Z",
+    "title": "松江松平: 奥向3棟と厩の屋根の型 — 図の平面のままか長屋の型か",
+    "type": "decision"
+   },
+   {
+    "by": "eb8426e9-095",
+    "estate": "sanno",
+    "id": "EDO-0240",
+    "msg": "起票",
+    "status": "done",
+    "t": "2026-09-18T12:24:48Z",
+    "title": "山王: 平場の縁の法 — 帯をやめて1:1.5へ戻すか、いまの1:0.7に土留めを新設するか",
+    "type": "decision"
+   },
+   {
+    "by": "eb8426e9-095",
+    "estate": "sanno",
+    "id": "EDO-0241",
+    "msg": "起票",
+    "status": "done",
+    "t": "2026-09-18T12:24:48Z",
+    "title": "山王: 参道が前庭へ入る口 — 袖の石垣を継ぐか、口を東へ寄せるか",
+    "type": "decision"
+   }
+  ],
+  "buckets": {
+   "Agent": 852.9,
+   "Bash": 5.5,
+   "other": 0.3,
+   "workflow": 0.1
+  },
+  "by_estate": {
+   "matsudaira_dewa": {
+    "active_min": 704.5,
+    "commits": 0,
+    "sessions": 1,
+    "turns": 17
+   },
+   "sanno": {
+    "active_min": 189.8,
+    "commits": 7,
+    "sessions": 1,
+    "turns": 117
+   }
+  },
+  "by_role": {
+   "edo-buzai": {
+    "calls": 2,
+    "mean_min": 17.9,
+    "min": 35.9
+   },
+   "edo-kosho": {
+    "calls": 1,
+    "mean_min": 4.2,
+    "min": 4.2
+   },
+   "edo-niwashi": {
+    "calls": 1,
+    "mean_min": 22.4,
+    "min": 22.4
+   },
+   "edo-sashizukata": {
+    "calls": 7,
+    "mean_min": 112.9,
+    "min": 790.3
+   }
+  },
+  "commits": 7,
+  "commits_unlinked": [
+   {
+    "refs": [],
+    "sha": "bfbd7e15",
+    "subject": "feat(松江松平): 指図 第52次 — 奥向3棟と厩を図の平面のまま(身舎4間)と宣言(ユーザー裁定A)",
+    "t": "2026-09-18T13:54:16Z"
+   },
+   {
+    "refs": [],
+    "sha": "2e61a5ef",
+    "subject": "feat(山王・部材): 透塀を六尺の柱間で焼き直す ── スパン26点・隅2点(施主裁定A 2026-09-18)",
+    "t": "2026-09-18T09:55:22Z"
+   },
+   {
+    "refs": [],
+    "sha": "92f5f4a5",
+    "subject": "feat(松江松平): 指図 第49〜51次 — 渡り廊下を閉じる(妻取り付き・差し掛けの下屋・軒高の三段)",
+    "t": "2026-09-18T00:05:38Z"
+   },
+   {
+    "refs": [],
+    "sha": "2b11319c",
+    "subject": "revert(部材方): agent-memory は git で追わない慣習に戻す",
+    "t": "2026-09-17T22:41:08Z"
+   },
+   {
+    "refs": [],
+    "sha": "743fec14",
+    "subject": "chore(部材方): 焼けているか検査は json の名簿だけを読む、を memory に残す",
+    "t": "2026-09-17T22:40:30Z"
+   },
+   {
+    "refs": [],
+    "sha": "db89e1e1",
+    "subject": "feat(山王・部材): 透塀のスパンを新しい等分どおりに焼く(9 長さ・25 点)",
+    "t": "2026-09-17T22:39:44Z"
+   }
+  ],
+  "compacts": 1,
+  "estate_unknown": 0,
+  "guard_denies": 1,
+  "model_min": 36.1,
+  "review_fails": 0,
+  "rework_top": [],
+  "sessions": 2,
+  "stop_blocks": 3,
+  "streak_max": 0,
+  "time_top": [
+   [
+    "Agent:edo-sashizukata",
+    790.3
+   ],
+   [
+    "Agent:edo-buzai",
+    35.9
+   ],
+   [
+    "Agent:edo-niwashi",
+    22.4
+   ],
+   [
+    "Agent:edo-kosho",
+    4.2
+   ],
+   [
+    "Bash:sashizu-build",
+    1.9
+   ]
+  ],
+  "tokens": {
+   "out": 166243,
+   "read": 27857424,
+   "write": 2328648
+  },
+  "tool_errors": 1,
+  "turns": 134,
+  "users": 3,
+  "wait_min": 0.0,
+  "wall_min": 2880.0,
+  "work_sessions": 2
+ },
+ "tz": "+09:00",
+ "window": {
+  "hi": "2026-09-18T15:00:00Z",
+  "lo": "2026-09-17T15:00:00Z"
+ }
+}

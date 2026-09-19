@@ -108,13 +108,60 @@ def last_user_ts(fp):
     return None
 
 
+class Streaks:
+    """自走の巡 — ユーザー入力なしに「指図方 → 検分役」が何回連なったか(三巡則)。
+    nikki.py と scan_main が共用する。on_agent(役) / on_user(発話) / finish() の順に呼ぶ。"""
+
+    def __init__(self):
+        self.seen_rev, self.rounds, self.last_u = False, 0, ""
+        self.list, self.max = [], 0
+
+    def on_agent(self, st):
+        if st == "edo-sashizukata":
+            if self.seen_rev:
+                self.rounds += 1
+                self.seen_rev = False
+        elif st in REVIEWERS:
+            self.seen_rev = True
+
+    def _flush(self):
+        if self.rounds:
+            self.list.append((self.rounds, self.last_u))
+            self.max = max(self.max, self.rounds)
+        self.rounds, self.seen_rev = 0, False
+
+    def on_user(self, text):
+        self._flush()
+        self.last_u = (text or "")[:30].replace("\n", " ")
+
+    def finish(self):
+        self._flush()
+
+
+def human_text(e):
+    """user entry が**人間の**発話ならその本文、そうでなければ None。
+    isMeta・compact の要約(isCompactSummary)・tool_result・`<` で始まる注入は除く。"""
+    if e.get("type") != "user" or e.get("isMeta") or e.get("isCompactSummary"):
+        return None
+    c = (e.get("message") or {}).get("content")
+    if isinstance(c, list) and any(isinstance(x, dict) and x.get("type") == "tool_result" for x in c):
+        return None
+    s = _text_of(c)
+    if s.strip() and not s.lstrip().startswith("<"):
+        return s
+    return None
+
+
 def scan_main(fp, since):
-    """主セッション 1 本の集計。"""
+    """主セッション 1 本の集計。⚠ assistant は content block ごとに別行で同じ message.id を共有し、
+    各行に usage が付く(途中行は output 0)。message.id で畳まないと往復と cache_read が約 2 倍に膨らむ
+    (2026-09-19 に直した — それ以前の数字は膨らんでいる)。"""
     r = dict(sid=os.path.basename(fp)[:8], title="-", first=None, last=None, turns=0, users=0,
              read=0, write=0, out=0, maxctx=0, over300=0, over400=0, compacts=0,
              agents=collections.Counter(), board_posts=0, msgs=[], streak_max=0, streaks=[])
     last_txt = None
-    seen_rev, rounds, last_u = False, 0, ""
+    st = Streaks()
+    seen_mid = {}
     for e in _iter(fp):
         t = e.get("type")
         if t == "custom-title":
@@ -129,47 +176,45 @@ def scan_main(fp, since):
         elif t == "assistant":
             m = e.get("message") or {}
             u = m.get("usage") or {}
+            mid = m.get("id") or e.get("uuid")
             if u:
-                r["turns"] += 1
-                r["read"] += u.get("cache_read_input_tokens") or 0
-                r["write"] += u.get("cache_creation_input_tokens") or 0
-                r["out"] += u.get("output_tokens") or 0
+                prev = seen_mid.get(mid)
+                if prev is None or (u.get("output_tokens") or 0) > (prev.get("output_tokens") or 0):
+                    seen_mid[mid] = u
                 c = _ctx(u)
                 r["maxctx"] = max(r["maxctx"], c)
-                r["over300"] += c > 300000
-                r["over400"] += c > 400000
             for x in m.get("content") or []:
                 if not isinstance(x, dict):
                     continue
                 if x.get("type") == "tool_use":
                     inp = x.get("input") or {}
                     if x.get("name") == "Agent":
-                        st = inp.get("subagent_type") or "general"
-                        r["agents"][st] += 1
-                        if st == "edo-sashizukata":
-                            if seen_rev:
-                                rounds += 1
-                                seen_rev = False
-                        elif st in REVIEWERS:
-                            seen_rev = True
-                    elif x.get("name") == "Bash" and "edo_board.py post" in (inp.get("command") or ""):
+                        stype = inp.get("subagent_type") or "general"
+                        r["agents"][stype] += 1
+                        st.on_agent(stype)
+                    elif x.get("name") == "Bash" and "edo_board.py" in (inp.get("command") or "") \
+                            and " post " in (inp.get("command") or ""):
                         r["board_posts"] += 1
                 elif x.get("type") == "text" and len(x.get("text") or "") > 200:
                     last_txt = x["text"]
-        elif t == "user" and not e.get("isMeta"):
-            s = _text_of((e.get("message") or {}).get("content"))
-            if s.strip() and not s.lstrip().startswith("<"):
+        elif t == "user":
+            s = human_text(e)
+            if s is not None:
                 r["users"] += 1
-                if rounds:
-                    r["streaks"].append((rounds, last_u))
-                    r["streak_max"] = max(r["streak_max"], rounds)
-                rounds, seen_rev, last_u = 0, False, s[:30].replace("\n", " ")
+                st.on_user(s)
                 if last_txt:
                     r["msgs"].append(last_txt)
                     last_txt = None
-    if rounds:
-        r["streaks"].append((rounds, last_u))
-        r["streak_max"] = max(r["streak_max"], rounds)
+    st.finish()
+    r["streaks"], r["streak_max"] = st.list, st.max
+    for u in seen_mid.values():
+        r["turns"] += 1
+        r["read"] += u.get("cache_read_input_tokens") or 0
+        r["write"] += u.get("cache_creation_input_tokens") or 0
+        r["out"] += u.get("output_tokens") or 0
+        c = _ctx(u)
+        r["over300"] += c > 300000
+        r["over400"] += c > 400000
     return r
 
 
@@ -187,10 +232,17 @@ def report_quality(msgs):
                 mech=mech / n, roles=roles / n)
 
 
-def agent_map():
-    """サブエージェントの transcript(agent-<id>.jsonl)→ subagent_type の対応を主 transcript から引く。"""
+def agent_map(since=None, files=None):
+    """サブエージェントの transcript(agent-<id>.jsonl)→ subagent_type の対応を主 transcript から引く。
+    ⚠ 全主 transcript を舐めるので遅い。`since`(YYYY-MM-DD、mtime で絞る)か `files` で範囲を狭める。
+    正典は subagents/agent-<id>.meta.json の agentType(nikki.py)。これはそれが無い時の fallback。"""
     amap = {}
-    for fp in glob.glob(os.path.join(PROJ, "*.jsonl")):
+    if files is None:
+        files = glob.glob(os.path.join(PROJ, "*.jsonl"))
+        if since:
+            files = [f for f in files
+                     if datetime.datetime.fromtimestamp(os.path.getmtime(f)).date().isoformat() >= since]
+    for fp in files:
         pend = {}
         for e in _iter(fp):
             if e.get("type") == "assistant":
@@ -294,7 +346,7 @@ def main():
             print("   エージェント呼出: %s" % dict(r["agents"]))
     if a.no_sub:
         return 0
-    by = scan_subagents(a.since, agent_map())
+    by = scan_subagents(a.since, agent_map(since=a.since))
     print("\n■ 役ごと(サブエージェント)  呼出 | 往復/呼出(最大) | 読み/呼出 | 最終回答 平均字(最大) | 合計読み")
     for role, b in sorted(by.items(), key=lambda kv: -kv[1]["read"]):
         n = max(1, b["calls"])

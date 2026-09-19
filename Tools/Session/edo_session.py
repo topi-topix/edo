@@ -208,6 +208,23 @@ def sid(default=None, strict=True):
     return "pid-%s" % os.getppid()
 
 
+def _nikki_log(c, reason, by=None):
+    """claim が消える前に、その履歴を日誌の生ログへ 1 行追記する(append-only)。
+    ⚠ claim は release / TTL 失効で削除されるので、これが無いと「誰がいつどの邸を持っていたか」が
+    消える(2026-09-19 日誌の機構)。読む側は Tools/Session/nikki.py。失敗しても黙る。"""
+    try:
+        rec = {"session": c.get("session"), "estate": [p[8:] for p in c.get("paths", []) if p.startswith("sashizu:")],
+               "paths": list(c.get("paths", [])), "phase": c.get("phase"), "resources": list(c.get("resources", [])),
+               "started": c.get("started"), "ended": now(), "reason": reason, "by": by,
+               "note": (c.get("note") or "")[:80], "cwd": c.get("cwd")}
+        d = os.path.join(os.path.dirname(LOCKS), "edo-nikki")
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, "claims.jsonl"), "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
 def load_all(ttl=TTL_MIN):
     """生きている claim だけを返す。死んだものは掃除する。"""
     out = []
@@ -232,6 +249,7 @@ def load_all(ttl=TTL_MIN):
         #   スクリプトの親はその都度のシェルで、セッションの寿命と無関係(2026-08-24 に
         #   これで claim が即死し、事故の再現テストが素通りした)。pid は表示用。
         if (now() - c.get("heartbeat", 0)) / 60.0 > ttl:
+            _nikki_log(c, "expire")
             try:
                 os.remove(fp)
             except OSError:
@@ -599,6 +617,7 @@ def cmd_release(a):
                 print("   " + t, file=sys.stderr)
             return 2
         if os.path.exists(fp):
+            _nikki_log(c, "release")
             os.remove(fp)
         print("release: %s の claim をすべて解いた" % me)
         return 0
@@ -606,6 +625,8 @@ def cmd_release(a):
         k = p if (p.startswith("sashizu:") or "*" in p) else (domain(p) or rel(p).replace(os.sep, "/"))
         if k in c["paths"]:
             c["paths"].remove(k)
+            if k.startswith("sashizu:"):
+                _nikki_log(dict(c, paths=[k]), "release")
     freed = []
     for r in a.resources:
         if r in c["resources"]:
@@ -866,6 +887,8 @@ def cmd_steal(a):
         for k in list(c["paths"]):
             if k in a.what:
                 c["paths"].remove(k); ch = True
+                if k.startswith("sashizu:"):
+                    _nikki_log(dict(c, paths=[k]), "steal", by=me)
         for r in list(c.get("resources", [])):
             if r in a.what:
                 c["resources"].remove(r); ch = True

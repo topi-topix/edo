@@ -64,6 +64,18 @@ if os.path.exists(CLI):
         if b.stdout.strip():
             print(b.stdout.strip())
             print("起票の作法は docs/session-board.md(節目・ブロッカー・裁定要請だけ post。自己検図は3巡まで)。")
+        # 日誌(2026-09-19) — 夜の自動タスクが起票した「日誌(<日付>)」の task が未処置なら 1 行。0 なら無言。
+        #   digest の 15 行予算の外。処置は /nikki(docs/teire.md「日誌」)。
+        try:
+            j = subprocess.run([sys.executable, bcli, "list", "--estate", "infra", "--type", "task", "--json"],
+                               capture_output=True, text=True, env=env, timeout=8)
+            items = json.loads(j.stdout or "[]")
+            n = sum(1 for i in items if str(i.get("title", "")).startswith("日誌(")
+                    and i.get("status") in ("open", "awaiting-user", "in-progress"))
+            if n:
+                print("日誌: 未処置が %d 日ぶん — 朝の普請奉行は `/nikki` で処置する(docs/teire.md「日誌」)。" % n)
+        except Exception:
+            pass
     # 検図関門 — この指図を誰が検めたか。⛔ 2026-09-01、松江松平の庭が**庭方に一度も
     #   検められないまま実装され**、ユーザーに差し戻された。ルーティング表に庭方は載って
     #   いたのに、通さなくても何も起きなかった。散文の規則は破れるので機械で見張る。

@@ -42,6 +42,7 @@ public static class EdoTypologyBuilder
         public int kura, units, koku, houses;
         public int maguchiKen, depthKen;
         public bool twoSided, jishinban, inari;
+        public bool kuri, yagura, shoro, sanmon;
         public Dictionary<string, object> raw;
         public bool Hand { get { return built == "hand"; } }
     }
@@ -88,6 +89,8 @@ public static class EdoTypologyBuilder
                 houses = I(d, "houses", 0), maguchiKen = I(d, "maguchi_ken", 5), depthKen = I(d, "depth_ken", 18),
                 twoSided = Bo(d, "two_sided", false), jishinban = Bo(d, "jishinban", false),
                 inari = Bo(d, "inari", false),
+                kuri = Bo(d, "kuri", true), yagura = Bo(d, "yagura", false),
+                shoro = Bo(d, "shoro", false), sanmon = Bo(d, "sanmon", false),
             };
             _table[kv.Key] = s;
         }
@@ -231,6 +234,18 @@ public static class EdoTypologyBuilder
             default: return EdoAssets.Eg.Kabukimon;
         }
     }
+    /// <summary>門の実幅の概算(m)。⛔ 部材の実メッシュではなく「表門の辺を選ぶための目安」で、
+    /// 据えた後の納めは実メッシュで解く(規則5)。長屋門と高麗門は両翼込み、腕木門級は1間半。</summary>
+    static float GateWidth(Spec s)
+    {
+        switch (s.gate)
+        {
+            case "kmon": case "nagayamon": return 23f;   // 長屋門(門口3間+両翼)
+            case "hmon":                   return 15f;   // 高麗門+袖塀
+            case "sanmon": case "yakuimon": return 9f;    // 山門・薬医門
+            default:                       return 6f;    // 棟門・腕木門・小門
+        }
+    }
     static int BanshoCount(string b) { return b == "ryou" ? 2 : b == "kata" ? 1 : 0; }
 
     // ───────────────────────── Stage 1〜2: 囲いと門 ─────────────────────────
@@ -344,6 +359,15 @@ public static class EdoTypologyBuilder
         float psi = Mathf.Atan2(-front.outward.x, -front.outward.y) * Mathf.Rad2Deg; // 門の方を向く
 
         var plan = Plan(s);
+        // ⭐ units — 1区画を n 戸へ割る筆(山王の社人八家=8戸)。⛔ 表にある欄を読まないと、
+        //    8戸の短冊に主屋が1棟だけ建つ。戸の中身は同じ型を n 回置くだけに留め、
+        //    棟の割り付け(短冊の幅・背割り)は建てた姿を見てから詰める。
+        if (s.units > 1)
+        {
+            var one = new List<KeyValuePair<string, float>>(plan);
+            plan = new List<KeyValuePair<string, float>>();
+            for (int u = 0; u < s.units; u++) plan.AddRange(one);
+        }
         var placed = new List<Bounds>();
         int n = 0;
         foreach (var item in plan)
@@ -357,7 +381,9 @@ public static class EdoTypologyBuilder
             var rb = EdoBuild.RB(go); rb.Expand(MIN_BLDG_GAP); placed.Add(rb);
             n++;
         }
-        return string.Format("  主屋と付属: {0}棟(型={1})", n, s.rank ?? s.kind ?? s.type);
+        string yag = s.yagura ? "・⚠ 隅矢倉は在庫に部材が無いため未建(部材方の宿題)" : "";
+        string un  = s.units > 1 ? string.Format("・{0}戸割り", s.units) : "";
+        return string.Format("  主屋と付属: {0}棟(型={1}{2}){3}", n, s.rank ?? s.kind ?? s.type, un, yag);
     }
 
     /// <summary>型ごとに「何を何棟」。⛔ 在庫の代用が多い — 専用部材は部材方の宿題。</summary>
@@ -384,8 +410,10 @@ public static class EdoTypologyBuilder
         }
         else if (s.type == "jisha")
         {
-            add(s.kind == "bo" ? EdoAssets.VK.House : EdoAssets.VK.BigHouse, 12f, 1); // 主屋/本堂
-            add(EdoAssets.VK.SmallHouse, 8f, 1);                                      // 庫裏
+            // ⛔ 本堂を持つのは temple だけ。坊(住坊)と社家は書院造の主屋で、表の kuri が false の
+            //    区画(山王の社人八家=神職の小屋敷)に庫裏を建てない — 表に無い棟を発明しない。
+            add(s.kind == "temple" ? EdoAssets.VK.BigHouse : EdoAssets.VK.House, 12f, 1);
+            if (s.kuri) add(EdoAssets.VK.SmallHouse, 8f, 1);                          // 庫裏
             add(EdoAssets.Eg.Kura, 6f, Mathf.Clamp(s.kura, 0, 2));
         }
         else if (s.type == "machiya")

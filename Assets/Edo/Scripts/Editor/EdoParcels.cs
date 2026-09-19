@@ -316,13 +316,29 @@ public static class EdoParcels
     /// 拾うのは (a) `Vector2[]` の静的フィールド (b) 配列/List の要素が `Vector2[]` を持つ物
     /// (EdoNishiTameikeBuilder.Estates / EdoSannoJuboBuilder の Parcel[] など)。
     /// 3点未満と、極端に細長い物(道の軸線)は落とす。</summary>
+    /// <summary>ビルダーが入っているエディタアセンブリ。
+    /// ⚠ `typeof(EdoParcels).Assembly` と書いてはいけない — asmdef で分けた日に
+    /// **例外を出さずに拾う区画が減り**、規則11の見張りが黙って盲になる。
+    /// 名前で選び、0本なら声を上げる。</summary>
+    static IEnumerable<Assembly> BuilderAssemblies()
+    {
+        var hit = AppDomain.CurrentDomain.GetAssemblies()
+            .Where(a => { var n = a.GetName().Name; return n == "Assembly-CSharp-Editor" || n.StartsWith("Edo."); })
+            .ToList();
+        if (hit.Count == 0)
+            Debug.LogError("EdoParcels: ビルダーのアセンブリが1本も見つからない。"
+                         + "アセンブリ名の規約(Assembly-CSharp-Editor / Edo.*)が変わっていないか確かめること。"
+                         + "このまま走らせると採取数が黙って0になる");
+        return hit;
+    }
+
     public static List<Harvested> HarvestFromBuilders()
     {
         var outp = new List<Harvested>();
-        var asm = typeof(EdoParcels).Assembly;
         const BindingFlags BF = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
 
-        foreach (var t in asm.GetTypes())
+        foreach (var t in BuilderAssemblies().SelectMany(a =>
+                 { try { return a.GetTypes(); } catch { return new Type[0]; } }))
         {
             if (!t.Name.StartsWith("Edo")) continue;
             if (t == typeof(EdoParcels) || t == typeof(EdoParcelTool)) continue;

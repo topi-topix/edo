@@ -1,0 +1,61 @@
+{
+ "_": "完成条件の表(2026-09-19 施主裁定3=A)。全部 pass で完成。以後の指摘は掲示板へ積み、指図は開かない。値は普請検査の実測、render だけは施主の発話の引用。見張りは python3 Tools/Sashizu/kansei_gate.py",
+ "estate": "matsudaira_dewa",
+ "phase": "built",
+ "since": "2026-09-19",
+ "items": {
+  "gap": {
+   "label": "隙 0",
+   "what": "塀と塀・門と塀・長屋 run の駒どうしの隙・めり込み・裏表(許容 0)",
+   "how": "edo-fushin-qa 項目 6(run の格子)・7(裏表)・8(門の取り合い)、JointQA / GateQA",
+   "value": null,
+   "verdict": null,
+   "at": null,
+   "note": ""
+  },
+  "boundary": {
+   "label": "境界侵犯 0",
+   "what": "棟・塀・木・石が区画 / 庭の区域 / 建物 / 水面 / 道へ入らない",
+   "how": "edo-fushin-qa 項目 1(境界)と区域の点検(EdoGeom.PIP)",
+   "value": null,
+   "verdict": null,
+   "at": null,
+   "note": ""
+  },
+  "ground": {
+   "label": "埋没・浮き 0",
+   "what": "埋 ≤1.0 / 浮 ≤0.7 を超える駒が 0",
+   "how": "edo-fushin-qa 項目 2(接地)と GroundQA",
+   "value": null,
+   "verdict": null,
+   "at": null,
+   "note": ""
+  },
+  "match": {
+   "label": "突き合わせ 0",
+   "what": "指図(意図)と実装の食い違いが 0 件",
+   "how": "Unity メニュー Edo/<敷地>/指図と実装を突き合わせる",
+   "value": null,
+   "verdict": null,
+   "at": null,
+   "note": ""
+  },
+  "render": {
+   "label": "レンダの施主承認",
+   "what": "検証レンダ(真上・門の外・庭の目線)を施主が見て承認",
+   "how": "施主の発話。⛔ 役は書けない — --quote に引用を入れる",
+   "value": null,
+   "verdict": null,
+   "at": null,
+   "note": "",
+   "quote": null
+  }
+ },
+ "completed": null,
+ "history": [
+  {
+   "at": "2026-09-19T19:48:59+09:00",
+   "event": "init"
+  }
+ ]
+}

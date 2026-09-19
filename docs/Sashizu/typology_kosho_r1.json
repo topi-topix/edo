@@ -1,0 +1,141 @@
+{
+ "verdict": "fail",
+ "target": "docs/Sashizu/typology.json (88区画・一括1巡)",
+ "counts": {
+  "高": 4,
+  "中": 4,
+  "低": 2
+ },
+ "findings": [
+  {
+   "id": 1,
+   "sev": "高",
+   "cat": "同定",
+   "where": "sannobuke_naito",
+   "problem": "内藤紀伊守信親邸は安政3年時点で中屋敷。上屋敷は西丸下にあり安政2年10月の地震で皆潰・焼失、当主は永田馬場の中屋敷へ移り住んだ(地震史料集 J1400016/J1400017=確度S)。表は yashiki:kami、source も『上屋敷』で、根拠は嘉永3年の切絵図=基準年次より6年古い。⚠ 当主居住なので表向(玄関・式台・書院)は削らない。門は長屋門+両出番所のままでよい",
+   "fix": "yashiki→naka、cert.yashiki を S で追記、source に『嘉永3図では上屋敷だが安政3は中屋敷』を明記"
+  },
+  {
+   "id": 2,
+   "sev": "高",
+   "cat": "同定",
+   "where": "tameikekita_estates_2",
+   "problem": "相良越前守(人吉藩2.21万石)は中屋敷。切絵図の■=中屋敷で、写し元 EdoTameikeKitaBuilder.cs のヘッダも『相良(中屋敷2.2万)』。表は yashiki:kami(cert欄なし=既成事実化)",
+   "fix": "yashiki→naka・cert A。中屋敷類型(表/奥2核・矢倉なし・蔵2)へ"
+  },
+  {
+   "id": 3,
+   "sev": "高",
+   "cat": "格式",
+   "where": "defaults.buke.daimyo_kami + 7区画",
+   "problem": "1〜5万石の大名に一律 bansho:ryou。『1万石大名=長屋門+格子出両番所』は2026-08-23に撤回済み(historical-layout.md L94-96。現物の官製記録[下丸子武家屋敷門]A=片番所・格子付・片潜門)。なお山口の source はその撤回文を cert A で引用している。写し元ビルダーも水野=1・相良=1(片)で、表が両へ格上げしている",
+   "fix": "既定を石高帯で分ける(1〜5万=kata / 5〜10万=ryou(出番所) / 10万以上=ryou)。該当: nishitameike_estates_2,3・tameikekita_estates_1,2・sanbezaka_abe・sanbezakanishi_torii,watanabe。gate cert A→B"
+  },
+  {
+   "id": 4,
+   "sev": "高",
+   "cat": "格式",
+   "where": "sanbezaka_abe",
+   "problem": "bansho:ryou だが、表門は東の袋小路の突き当りで湾口8m<長屋門幅22.5m。写し元 EdoSanbezakaBuilder.cs L549 は『番所を置く物理的余地が無いため bansho=0』",
+   "fix": "bansho→none(2万石帯としても片が上限)"
+  },
+  {
+   "id": 5,
+   "sev": "中",
+   "cat": "格式",
+   "where": "defaults.buke.daimyo_kami.yagura=true",
+   "problem": "隅矢倉を全大名上屋敷の既定にしている。典拠は福井6,600坪(30万石級)の1例のみで、1〜2万石の小藩上屋敷(山口5,125坪・松平日向3,471坪・渡辺3,619坪)へ広げる根拠がない。既存ビルダーはいずれも矢倉を建てていない",
+   "fix": "既定 false、または5万石以上に限る。src に石高帯を書く"
+  },
+  {
+   "id": 6,
+   "sev": "中",
+   "cat": "類型",
+   "where": "sannobuke_shanin",
+   "problem": "山王社の社人八家を type:buke / rank:gokenin(cert A)。社人は神職(社家6+巫女2)で幕臣御家人ではない。表には jisha/kind:shake の型があり、樹下邸で使っている",
+   "fix": "jisha/shake の小規模版(主屋+板塀+棟門級)へ。rank の A は取り下げ"
+  },
+  {
+   "id": 7,
+   "sev": "中",
+   "cat": "典拠",
+   "where": "azukarichi_w1/w2/w3/w5",
+   "problem": "kind の cert が S。[文政町方書上]が支えるのは『田町二丁目の紺屋・合羽屋が宝暦10年に土手を拝借した』まで。どの筆が紺屋干場/合羽干場かは EdoAzukarichiBuilder.cs 冒頭のとおり施主の色分け下書きで決めた物=U",
+   "fix": "kind の cert を U(施主指示)へ。拝借の事実は別欄で S"
+  },
+  {
+   "id": 8,
+   "sev": "中",
+   "cat": "同定",
+   "where": "toranomonuchi_parcels_3",
+   "problem": "『林図書助』500石 を cert A。写し元は嘉永板「林式部少輔」→万延板「林圖書頭」の代替わりを記録しており、安政3の当主名・受領名は未確定。500石の出どころも役高700石布衣の記述だけで家禄の典拠がない。番所1は布衣の体面(historical-layout L127)と整合するので門は可",
+   "fix": "koku cert A→U、名の欄に年次の割れを明記"
+  },
+  {
+   "id": 9,
+   "sev": "低",
+   "cat": "格式",
+   "where": "hatamoto_large 6筆",
+   "problem": "番所の有無が石高と逆転。五島3,000=kata / 勝田3,000=kata / 井上4,000=none / 村瀬2,500=none / 大岡2,300=none / 横田9,500=kata。交代寄合・寄合・布衣の別で切るなら表にその理由を書かないと、生成器が石高帯から採って上書きしてしまう",
+   "fix": "番所の判定軸を『石高帯+役格』として defaults に明文化"
+  },
+  {
+   "id": 10,
+   "sev": "低",
+   "cat": "類型",
+   "where": "sannosha_kanri / tamachi5east_azukaripoly / 十坊10筆",
+   "problem": "(a)観理院は gate:munemon と sanmon:true を同時に持ち門が2つ建つ(他の寺は gate:sanmon)。実装・考証は練塀+独立門級。(b)町方預地は『用途不明のため建物を置かず』と書きつつ building:monohoshi。(c)十坊は全筆 gate:munemon だが、写し元の考証は『板塀+腕木門(格上の両端は薬医門級)』",
+   "fix": "(a)gate を sanmon へ寄せ enclosure を練塀に (b)建物なしか注記を直す (c)kabukimon 既定+両端 yakuimon"
+  }
+ ],
+ "resolved": [
+  {
+   "id": 1,
+   "how": "yashiki→naka・cert.yashiki=S。表向は残す"
+  },
+  {
+   "id": 2,
+   "how": "yashiki→naka・cert.yashiki=A・蔵3→2"
+  },
+  {
+   "id": 3,
+   "how": "defaults.buke._bansho に石高帯の軸を明文化。該当6区画と既定2件を kata へ。gate cert A→B(山口・松平日向)"
+  },
+  {
+   "id": 4,
+   "how": "bansho→none。湾口8m<門幅22.5m を source に明記"
+  },
+  {
+   "id": 5,
+   "how": "既定 yagura=false。10万石以上の2区画(戸田街区0・松平大和守)だけ明示 cert P"
+  },
+  {
+   "id": 6,
+   "how": "type→jisha / kind→shake(桁行5×3間・庫裏なし・棟門・板塀)。rank と koku の欄を削除"
+  },
+  {
+   "id": 7,
+   "how": "cert.kind→U、拝借の事実を cert.haishaku=S へ分離"
+  },
+  {
+   "id": 8,
+   "how": "cert.koku→U・cert.rank→B。受領名の年次割れを source へ"
+  },
+  {
+   "id": 9,
+   "how": "defaults.buke._bansho_hatamoto に『役格で切る』軸を明文化。勝田(寄合無役)を none へ揃えた"
+  },
+  {
+   "id": 10,
+   "how": "(a)gate→sanmon で二重門を解消・enclosure cert P(練塀の部材が在庫に無い) (b)『棟のある建物は置かず』へ文言を直す(物干は棟ではない) (c)十坊の門を kabukimon(腕木門)へ。⛔『格上の両端は薬医門級』は典拠が見つからず**不採用**"
+  }
+ ],
+ "truncated": 0,
+ "next_round_notes": [
+  "確度の字義が割れている: sources.md は P=プロジェクト内実測・U=ユーザー指示だが、この表では P を『類型からの推定』に使っている。字義を1つに決めるか、類型推定の記号を新設する",
+  "黒田の石高は表高47.3万石/通称52万石の両説。表は520000 cert A",
+  "十坊・門前町・新町の depth_ken/houses が軒並み null+U。P4 の前に文政町方書上の該当丁を当たると U が一気に減る"
+ ],
+ "summary": "同定2件(内藤=中屋敷・相良=中屋敷)と格式2件(1〜5万石の両番所・安部の番所0)が建つ姿を変えるため fail。残りは確度の格上げと類型の取り違え。原図待ちの箇所は無く、既存ビルダーのヘッダとスキルの門格式階梯を読み直せば全件直せる。",
+ "resolved_note": "2026-09-19 一括是正。10件中9件を全部、10(c)は一部不採用(両端の格上げの典拠がsanno_kosho.md にも写し元ビルダーにも無い)。第2巡はビルダーで建てた姿を見てから。"
+}

@@ -1,0 +1,1728 @@
+{
+ "_": "類型表 — 全 88 区画の類型と径数。座標は持たない(区画は docs/Sashizu/parcels.json が正典・規則11)。欄が null のときは defaults から採る。cert は確度 S/A/B/P/U(規則7)。built:hand は図を起こして建てた敷地で、類型ビルダーの生成対象から外れる。設計=docs/typology-builder.md / 検査=Tools/Sashizu/typology_check.py",
+ "_front": "front は8方位(N/NE/E/SE/S/SW/W/NW と NNE などの中間)。null のときはビルダーが接道辺(区画の間に残った領域に面する辺)から採る。⛔ 辺番号も座標も書かない — 取り合いは実メッシュから解く(規則5)",
+ "defaults": {
+  "_": "類型ごとの既定値。区画の欄が null のときビルダーがここから採る。⛔ 出典の無い既定値は U 扱い(規則7)",
+  "buke": {
+   "daimyo_kami": {
+    "gate": "nagayamon",
+    "bansho": "kata",
+    "enclosure": "nagaya",
+    "yagura": false,
+    "omoya": "goten",
+    "kura": 3,
+    "garden": "chisen",
+    "src": "[元文3年 拝領坪数]+福井6,600坪の御殿複合 / 番所は石高帯(`_bansho`) / ⛔ 矢倉は既定 false — 典拠は福井6,600坪(30万石級)の1例のみで、1〜5万石の上屋敷へ広げる根拠がない。10万石以上の区画にだけ yagura:true を明に書く(cert P)"
+   },
+   "daimyo_naka": {
+    "gate": "nagayamon",
+    "bansho": "kata",
+    "enclosure": "nagaya",
+    "yagura": false,
+    "omoya": "omote_oku",
+    "kura": 2,
+    "garden": "small",
+    "src": "加納1,599坪 / 番所は石高帯(`_bansho`)"
+   },
+   "hatamoto_large": {
+    "gate": "hmon",
+    "bansho": "kata",
+    "enclosure": "nagaya_front+ita",
+    "yagura": false,
+    "omoya": "ganko",
+    "kura": 2,
+    "garden": "tsubo",
+    "src": "吉良2,559坪(長屋30軒)"
+   },
+   "hatamoto_mid": {
+    "gate": "kabukimon",
+    "bansho": "none",
+    "enclosure": "ita",
+    "yagura": false,
+    "omoya": "ujigata",
+    "kura": 1,
+    "garden": "ura",
+    "src": "武井412坪"
+   },
+   "gokenin": {
+    "gate": "komon",
+    "bansho": "none",
+    "enclosure": "ita",
+    "yagura": false,
+    "omoya": "tanoji",
+    "kura": 0,
+    "garden": "none",
+    "src": "山本200坪(田の字30坪)"
+   },
+   "_bansho": "⛔ 大名の番所は**石高帯**で分ける — 1〜5万石=kata(片番所・格子付・片潜門)[下丸子武家屋敷門 官製記録 確度A] / 5〜10万石=ryou(出番所) / 10万石以上=ryou。『1万石大名=長屋門+両番所』([青標帋 天保11])は 2026-08-23 に撤回済み(→ historical-layout.md L94-96)。⛔ 旗本は石高で決まらない — `_bansho_hatamoto` を見る。",
+   "_bansho_hatamoto": "⛔ 旗本の番所は**石高では決まらない** — 役格で切る。交代寄合・布衣以上の役職者=kata(片番所) / 無役の寄合・小普請=none。石高帯から採って上書きしない(井上4,000石=なし・五島3,000石=片 は逆転ではなく役格の差)。"
+  },
+  "machiya": {
+   "maguchi_ken": 5,
+   "depth_ken": 18,
+   "two_sided": false,
+   "pattern": "auto",
+   "ura_nagaya": "間口と奥行から割る(専用部材が無く kidobanya 連結のスタンドイン)",
+   "src": "[文政町方書上] 田町の間口5間・裏行18間"
+  },
+  "jisha": {
+   "bo": {
+    "main_hall_ken": [
+     6,
+     4
+    ],
+    "kuri": true,
+    "gate": "munemon",
+    "enclosure": "ita+ikegaki",
+    "shoro": false,
+    "sanmon": false,
+    "graveyard": false,
+    "src": "住坊の類型(本堂・山門・鐘楼・墓地を持たない)"
+   },
+   "temple": {
+    "main_hall_ken": [
+     7,
+     6
+    ],
+    "kuri": true,
+    "gate": "sanmon",
+    "enclosure": "dobei",
+    "shoro": true,
+    "sanmon": true,
+    "graveyard": true,
+    "src": "一般類型"
+   },
+   "shake": {
+    "main_hall_ken": [
+     7,
+     5
+    ],
+    "kuri": true,
+    "gate": "yakuimon",
+    "enclosure": "dobei",
+    "shoro": false,
+    "sanmon": false,
+    "graveyard": false,
+    "src": "神主の屋敷(薬医門+式台玄関)"
+   }
+  },
+  "kouyuu": {
+   "surface": "grass",
+   "fence": "yarai",
+   "building": "none",
+   "src": "草地+矢来"
+  }
+ },
+ "parcels": {
+  "doi": {
+   "built": "hand",
+   "note": "土井大隅守 上屋敷。指図あり(関門3/3)・実装未着手"
+  },
+  "matsudaira_dewa": {
+   "built": "hand",
+   "note": "松平出羽守 上屋敷(松江藩)。指図あり・実装中"
+  },
+  "naito_azukari": {
+   "kind": "azukarichi",
+   "surface": "grass",
+   "fence": "boji",
+   "building": "none",
+   "cert": {
+    "kind": "B"
+   },
+   "source": "内藤上屋敷預領 503坪。内藤能登守邸に隣接する預り明地。建物を置かない。⚠ 区画の category は buke だが実体は明地",
+   "type": "kouyuu"
+  },
+  "nishitameike_estates_0": {
+   "yashiki": "kami",
+   "rank": "hatamoto_large",
+   "koku": 9500,
+   "front": null,
+   "gate": "hmon",
+   "bansho": "kata",
+   "enclosure": "nagaya_front+ita",
+   "garden": "tsubo",
+   "kura": 2,
+   "cert": {
+    "rank": "A",
+    "koku": "A",
+    "front": "U",
+    "gate": "A"
+   },
+   "source": "横田筑後守春松 9,500石=旗本最高禄。門格式は[青標帋 天保11]「旗本=長屋門(h_mon)」。門位置は[切絵図 尾張屋版 赤坂絵図 NDL1286666]の文字向き読取",
+   "type": "buke"
+  },
+  "nishitameike_estates_1": {
+   "yashiki": "kami",
+   "rank": "hatamoto_large",
+   "koku": 3500,
+   "front": null,
+   "gate": "hmon",
+   "bansho": "none",
+   "enclosure": "nagaya_front+ita",
+   "garden": "tsubo",
+   "kura": 2,
+   "cert": {
+    "rank": "A",
+    "koku": "A",
+    "front": "U",
+    "gate": "A"
+   },
+   "source": "土岐丹波守頼旨 寄合3,500石。門格式は[青標帋 天保11]",
+   "type": "buke"
+  },
+  "nishitameike_estates_2": {
+   "yashiki": "kami",
+   "rank": "daimyo",
+   "koku": 10000,
+   "front": null,
+   "gate": "nagayamon",
+   "bansho": "kata",
+   "enclosure": "nagaya",
+   "garden": "small",
+   "kura": 3,
+   "cert": {
+    "rank": "A",
+    "koku": "A",
+    "front": "U",
+    "gate": "B"
+   },
+   "source": "山口筑前守弘敞 牛久藩1万石 上屋敷。門格式は[青標帋 天保11]「1万石大名=長屋門+両番所」 ⚠ 番所は**片**(1〜5万石帯)— 一律両番所の規範は 2026-08-23 撤回。",
+   "type": "buke"
+  },
+  "nishitameike_estates_3": {
+   "yashiki": "kami",
+   "rank": "daimyo",
+   "koku": 10000,
+   "front": null,
+   "gate": "nagayamon",
+   "bansho": "kata",
+   "enclosure": "nagaya",
+   "garden": "small",
+   "kura": 3,
+   "cert": {
+    "rank": "A",
+    "koku": "A",
+    "front": "U",
+    "gate": "B"
+   },
+   "source": "松平日向守直春 糸魚川藩1万石 上屋敷。門格式は[青標帋 天保11] ⚠ 番所は**片**(1〜5万石帯)— 一律両番所の規範は 2026-08-23 撤回。",
+   "type": "buke"
+  },
+  "okabe": {
+   "built": "hand",
+   "note": "岡部内膳正 上屋敷。指図あり・実装 S1〜S5 済"
+  },
+  "sanbezaka_abe": {
+   "yashiki": "kami",
+   "rank": "daimyo",
+   "koku": 20250,
+   "front": "E",
+   "gate": "nagayamon",
+   "bansho": "none",
+   "enclosure": "nagaya",
+   "garden": "tsubo",
+   "kura": 4,
+   "cert": {
+    "rank": "A",
+    "koku": "A",
+    "front": "A",
+    "gate": "P"
+   },
+   "source": "安部摂津守信宝 武蔵岡部藩20,250石・譜代菊間広縁・無城。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見] 家紋(丸に梶の葉)実見=上屋敷。表門=東の袋小路の突き当り。門格は同格の土井大隅守に倣う ⚠ 番所**なし** — 表門は東の袋小路の突き当りで湾口 8m < 長屋門幅 22.5m。写し元 EdoSanbezakaBuilder.cs L549『番所を置く物理的余地が無いため bansho=0』。",
+   "type": "buke"
+  },
+  "sanbezaka_goto": {
+   "yashiki": "kami",
+   "rank": "hatamoto_large",
+   "koku": 3000,
+   "front": "E",
+   "gate": "hmon",
+   "bansho": "kata",
+   "enclosure": "nagaya_front+ita",
+   "garden": "tsubo",
+   "kura": 2,
+   "cert": {
+    "rank": "A",
+    "koku": "A",
+    "front": "A",
+    "gate": "B"
+   },
+   "source": "五島兵部 富江領五島家(福江藩分家3,000石・交代寄合表御礼衆)。「兵部」は世襲通称[国立公文書館 五島兵部江城築立被仰渡]。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見] 永田馬場向き。片番所=交代寄合の体面",
+   "type": "buke"
+  },
+  "sanbezaka_katsuta": {
+   "yashiki": "kami",
+   "rank": "hatamoto_large",
+   "koku": 3000,
+   "front": "E",
+   "gate": "hmon",
+   "bansho": "none",
+   "enclosure": "nagaya_front+ita",
+   "garden": "tsubo",
+   "kura": 2,
+   "cert": {
+    "rank": "A",
+    "koku": "A",
+    "front": "A",
+    "gate": "B"
+   },
+   "source": "勝田左京 月光院実家の旗本勝田家(正徳2年3,000石・寄合)。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見] 永田馬場向き ⚠ 番所**なし** — 寄合・無役(役格で切る軸は `defaults.buke._bansho_hatamoto`)。",
+   "type": "buke"
+  },
+  "sanbezaka_ooka": {
+   "yashiki": "kami",
+   "rank": "hatamoto_large",
+   "koku": 2300,
+   "front": "E",
+   "gate": "hmon",
+   "bansho": "none",
+   "enclosure": "nagaya_front+ita",
+   "garden": "tsubo",
+   "kura": 1,
+   "cert": {
+    "rank": "B",
+    "koku": "P",
+    "front": "A",
+    "gate": "B"
+   },
+   "source": "大岡八十一郎(嘉永版=大岡土佐守)。旗本大岡忠吉家2,300石が候補・推定。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見] 永田馬場向き",
+   "type": "buke"
+  },
+  "sanbezaka_w1": {
+   "yashiki": "kami",
+   "rank": "hatamoto_mid",
+   "koku": null,
+   "front": null,
+   "gate": "kabukimon",
+   "bansho": "none",
+   "enclosure": "ita",
+   "garden": "ura",
+   "kura": 1,
+   "cert": {
+    "rank": "B",
+    "koku": "U",
+    "front": "U",
+    "gate": "B"
+   },
+   "source": "小旗本6筆=数百石級(稲垣安太郎/奥村/佐藤/石井/浅井/満田)。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見] 並びは実見、各筆への割当は推定(角の稲垣のみ確実)。囲い=板塀・門=腕木門。石高は未読=類型の既定値。表門は接道辺からビルダーが採る",
+   "type": "buke"
+  },
+  "sanbezaka_w2": {
+   "yashiki": "kami",
+   "rank": "hatamoto_mid",
+   "koku": null,
+   "front": null,
+   "gate": "kabukimon",
+   "bansho": "none",
+   "enclosure": "ita",
+   "garden": "ura",
+   "kura": 1,
+   "cert": {
+    "rank": "B",
+    "koku": "U",
+    "front": "U",
+    "gate": "B"
+   },
+   "source": "小旗本6筆=数百石級(稲垣安太郎/奥村/佐藤/石井/浅井/満田)。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見] 並びは実見、各筆への割当は推定(角の稲垣のみ確実)。囲い=板塀・門=腕木門。石高は未読=類型の既定値。表門は接道辺からビルダーが採る",
+   "type": "buke"
+  },
+  "sanbezaka_w3": {
+   "yashiki": "kami",
+   "rank": "hatamoto_mid",
+   "koku": null,
+   "front": null,
+   "gate": "kabukimon",
+   "bansho": "none",
+   "enclosure": "ita",
+   "garden": "ura",
+   "kura": 1,
+   "cert": {
+    "rank": "B",
+    "koku": "U",
+    "front": "U",
+    "gate": "B"
+   },
+   "source": "小旗本6筆=数百石級(稲垣安太郎/奥村/佐藤/石井/浅井/満田)。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見] 並びは実見、各筆への割当は推定(角の稲垣のみ確実)。囲い=板塀・門=腕木門。石高は未読=類型の既定値。表門は接道辺からビルダーが採る",
+   "type": "buke"
+  },
+  "sanbezaka_w4": {
+   "yashiki": "kami",
+   "rank": "hatamoto_mid",
+   "koku": null,
+   "front": null,
+   "gate": "kabukimon",
+   "bansho": "none",
+   "enclosure": "ita",
+   "garden": "ura",
+   "kura": 1,
+   "cert": {
+    "rank": "B",
+    "koku": "U",
+    "front": "U",
+    "gate": "B"
+   },
+   "source": "小旗本6筆=数百石級(稲垣安太郎/奥村/佐藤/石井/浅井/満田)。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見] 並びは実見、各筆への割当は推定(角の稲垣のみ確実)。囲い=板塀・門=腕木門。石高は未読=類型の既定値。表門は接道辺からビルダーが採る",
+   "type": "buke"
+  },
+  "sanbezaka_w5": {
+   "yashiki": "kami",
+   "rank": "hatamoto_mid",
+   "koku": null,
+   "front": null,
+   "gate": "kabukimon",
+   "bansho": "none",
+   "enclosure": "ita",
+   "garden": "ura",
+   "kura": 1,
+   "cert": {
+    "rank": "B",
+    "koku": "U",
+    "front": "U",
+    "gate": "B"
+   },
+   "source": "小旗本6筆=数百石級(稲垣安太郎/奥村/佐藤/石井/浅井/満田)。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見] 並びは実見、各筆への割当は推定(角の稲垣のみ確実)。囲い=板塀・門=腕木門。石高は未読=類型の既定値。表門は接道辺からビルダーが採る",
+   "type": "buke"
+  },
+  "sanbezaka_w6": {
+   "yashiki": "kami",
+   "rank": "hatamoto_mid",
+   "koku": null,
+   "front": "E",
+   "gate": "kabukimon",
+   "bansho": "none",
+   "enclosure": "ita",
+   "garden": "ura",
+   "kura": 1,
+   "cert": {
+    "rank": "B",
+    "koku": "U",
+    "front": "B",
+    "gate": "B"
+   },
+   "source": "小旗本6筆=数百石級(稲垣安太郎/奥村/佐藤/石井/浅井/満田)。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見] 並びは実見、各筆への割当は推定(角の稲垣のみ確実)。囲い=板塀・門=腕木門。石高は未読=類型の既定値。表門は接道辺からビルダーが採る ／ W6=稲垣安太郎(永田馬場の角)は確実で、表門は馬場向き",
+   "type": "buke"
+  },
+  "sanbezakanishi_matsu": {
+   "yashiki": "kami",
+   "rank": "hatamoto_large",
+   "koku": 2000,
+   "front": "S",
+   "gate": "hmon",
+   "bansho": "none",
+   "enclosure": "nagaya_front+ita",
+   "garden": "tsubo",
+   "kura": 1,
+   "cert": {
+    "rank": "B",
+    "koku": "B",
+    "front": "A",
+    "gate": "B"
+   },
+   "source": "松平主水正 2,000石旗本。接道が南1面のみで表門=南は確度高",
+   "type": "buke"
+  },
+  "sanbezakanishi_torii": {
+   "yashiki": "kami",
+   "rank": "daimyo",
+   "koku": 30000,
+   "front": "S",
+   "gate": "nagayamon",
+   "bansho": "kata",
+   "enclosure": "nagaya",
+   "garden": "small",
+   "kura": 2,
+   "cert": {
+    "rank": "P",
+    "koku": "A",
+    "front": "P",
+    "gate": "P"
+   },
+   "source": "鳥居丹波守 下野壬生藩3万石・譜代。家紋判読不能で屋敷格は未確定。1〜3万石譜代共通の門格式で建て、御成セットは付けない。表門=北の道(南辺)向きは推定 ⚠ 番所は**片**(1〜5万石帯)— 一律両番所の規範は 2026-08-23 撤回。",
+   "type": "buke"
+  },
+  "sanbezakanishi_watanabe": {
+   "yashiki": "kami",
+   "rank": "daimyo",
+   "koku": 13520,
+   "front": "N",
+   "gate": "nagayamon",
+   "bansho": "kata",
+   "enclosure": "nagaya",
+   "garden": "small",
+   "kura": 2,
+   "cert": {
+    "rank": "A",
+    "koku": "A",
+    "front": "P",
+    "gate": "P"
+   },
+   "source": "渡辺備中守 和泉伯太藩13,520石・譜代。ベイク切絵図で家紋ブロブ実見=上屋敷。表門向きは文字の頭が判読不能で、接道(西=三べ坂/北=北の道)と台地地形からの推定 ⚠ 番所は**片**(1〜5万石帯)— 一律両番所の規範は 2026-08-23 撤回。",
+   "type": "buke"
+  },
+  "sannobuke_kyogoku": {
+   "built": "hand",
+   "note": "京極備中守 上屋敷(峯山藩1万1144石)。指図あり・実装は一般類型のまま"
+  },
+  "sannobuke_naito": {
+   "yashiki": "naka",
+   "rank": "daimyo",
+   "koku": 50090,
+   "front": "N",
+   "gate": "nagayamon",
+   "bansho": "ryou",
+   "enclosure": "nagaya",
+   "garden": "chisen",
+   "kura": 4,
+   "cert": {
+    "rank": "A",
+    "koku": "A",
+    "front": "A",
+    "gate": "P",
+    "yashiki": "S"
+   },
+   "source": "内藤紀伊守信親 村上藩5万90石・譜代(嘉永4〜文久2 老中)上屋敷。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見] 下がり藤紋実見(7-083)。表門=北向き(2026-08-31 再考証)。南東辺は溜池水際に直接面する。跡地=山王パークタワー一帯 ⚠ 安政3の当主居所は**中屋敷**(嘉永3図は上屋敷だが、西丸下の上屋敷は安政2年10月の地震で皆潰・焼失し当主は永田馬場へ移った)[地震史料集 J1400016/J1400017 確度S]。当主居住なので表向(玄関・式台・書院)は残す。",
+   "type": "buke"
+  },
+  "sannobuke_niwa": {
+   "built": "hand",
+   "note": "丹羽左京大夫 上屋敷(二本松藩10万700石)。指図あり(枝)・実装は一般類型のまま"
+  },
+  "sannobuke_shanin": {
+   "front": null,
+   "units": 8,
+   "gate": "munemon",
+   "bansho": "none",
+   "enclosure": "ita",
+   "kura": 0,
+   "cert": {
+    "units": "A",
+    "front": "B",
+    "gate": "P",
+    "kind": "A",
+    "main_hall_ken": "P"
+   },
+   "source": "山王社 社人八家(西宮頼母/千勝隼人/千勝主水/金丸靱負/小川織部/谷左近/遠藤伊賀/伯耆大学)。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見] 短冊8枚を実見。社家6+巫女2=8戸と整合。短冊は小路に面する。1区画を8戸へ割る ⚠ 区画の category は buke だが、社人は**神職**(社家6+巫女2)で幕臣御家人ではない —類型は jisha/shake の小規模版(主屋+板塀+棟門級。庫裏・鐘楼・山門・墓地は持たない)。桁行5×3間は樹下邸に倣った推定。",
+   "type": "jisha",
+   "kind": "shake",
+   "main_hall_ken": [
+    5,
+    3
+   ],
+   "kuri": false,
+   "shoro": false,
+   "sanmon": false,
+   "graveyard": false
+  },
+  "sanyashiki_estates_0": {
+   "built": "hand",
+   "note": "太田邸。石垣・長屋・表門は施主の手組み(規則1)。触らない"
+  },
+  "sanyashiki_estates_1": {
+   "built": "hand",
+   "note": "加納邸(1.3万石)。石垣・長屋・表門は施主の手組み(規則1)。触らない"
+  },
+  "sanyashiki_estates_2": {
+   "built": "hand",
+   "note": "鍋島邸(松平肥前守)。石垣・長屋・表門は施主の手組み(規則1)。触らない"
+  },
+  "tameikekita_estates_0": {
+   "yashiki": "naka",
+   "rank": "daimyo",
+   "koku": 520000,
+   "front": null,
+   "gate": "nagayamon",
+   "bansho": "ryou",
+   "enclosure": "nagaya",
+   "garden": "chisen",
+   "kura": 4,
+   "cert": {
+    "rank": "A",
+    "koku": "A",
+    "yashiki": "A",
+    "front": "U",
+    "gate": "P"
+   },
+   "source": "松平美濃守(筑前福岡藩黒田家52万石)中屋敷 約22,300坪。[切絵図 尾張屋版 赤坂絵図 NDL1286666] 切絵図の■=中屋敷。中屋敷の類型で表/奥の2核・矢倉なし",
+   "type": "buke"
+  },
+  "tameikekita_estates_1": {
+   "yashiki": "kami",
+   "rank": "daimyo",
+   "koku": 18000,
+   "front": null,
+   "gate": "nagayamon",
+   "bansho": "kata",
+   "enclosure": "nagaya",
+   "garden": "small",
+   "kura": 3,
+   "cert": {
+    "rank": "A",
+    "koku": "A",
+    "front": "U",
+    "gate": "P"
+   },
+   "source": "水野日向守 1.8万石。[切絵図 尾張屋版 赤坂絵図 NDL1286666] 門の向きは切絵図の文字の頭 ⚠ 番所は**片**(1〜5万石帯)— 一律両番所の規範は 2026-08-23 撤回。",
+   "type": "buke"
+  },
+  "tameikekita_estates_2": {
+   "yashiki": "naka",
+   "rank": "daimyo",
+   "koku": 22100,
+   "front": null,
+   "gate": "nagayamon",
+   "bansho": "kata",
+   "enclosure": "nagaya",
+   "garden": "small",
+   "kura": 2,
+   "cert": {
+    "rank": "A",
+    "koku": "A",
+    "front": "U",
+    "gate": "P",
+    "yashiki": "A"
+   },
+   "source": "相良越前守 肥後人吉藩2.21万石。[切絵図 尾張屋版 赤坂絵図 NDL1286666] ⚠ 切絵図の■=**中屋敷**。写し元 EdoTameikeKitaBuilder.cs のヘッダも『相良(中屋敷2.2万)』で、表の kami は写し違い。 ⚠ 番所は**片**(1〜5万石帯)— 一律両番所の規範は 2026-08-23 撤回。",
+   "type": "buke"
+  },
+  "todablock_parcels_0": {
+   "yashiki": "kami",
+   "rank": "daimyo",
+   "koku": 100000,
+   "front": "WNW",
+   "gate": "nagayamon",
+   "bansho": "ryou",
+   "enclosure": "nagaya",
+   "garden": "chisen",
+   "kura": 4,
+   "cert": {
+    "rank": "A",
+    "koku": "A",
+    "front": "A",
+    "gate": "P",
+    "yagura": "P"
+   },
+   "source": "戸田采女正氏正 大垣藩10万石 上屋敷(九曜紋)。[切絵図 尾張屋版 赤坂絵図 NDL1286666](NDL1286666 実見)+CODH 9-106〜9-110。表門=西北西 ⚠ 隅矢倉は10万石以上の上屋敷として推定(典拠は福井6,600坪の1例=確度P)。",
+   "type": "buke",
+   "yagura": true
+  },
+  "todablock_parcels_2": {
+   "yashiki": "kami",
+   "rank": "hatamoto_large",
+   "koku": 4000,
+   "front": "ESE",
+   "gate": "hmon",
+   "bansho": "none",
+   "enclosure": "nagaya_front+ita",
+   "garden": "tsubo",
+   "kura": 2,
+   "cert": {
+    "rank": "A",
+    "koku": "A",
+    "front": "A",
+    "gate": "B"
+   },
+   "source": "井上寿一郎 寄合4,000石(安政武鑑「あさふ谷丁 井上寿一郎」)。表門=東南東",
+   "type": "buke"
+  },
+  "toranomonuchi_parcels_0": {
+   "yashiki": "kami",
+   "rank": "daimyo",
+   "koku": 70000,
+   "front": "NE",
+   "gate": "nagayamon",
+   "bansho": "ryou",
+   "enclosure": "nagaya",
+   "garden": "chisen",
+   "kura": 4,
+   "cert": {
+    "rank": "A",
+    "koku": "A",
+    "front": "A",
+    "gate": "P"
+   },
+   "source": "内藤能登守政義 日向延岡藩7万石・譜代帝鑑間 上屋敷。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見]+万延元 NDL8369300 実見(家紋あり)。表門=北東(堀端通り・虎御門側)。一次史料=明治大学博物館蔵「江戸御上屋敷絵図」安永5年(画像未入手)",
+   "type": "buke"
+  },
+  "toranomonuchi_parcels_1": {
+   "yashiki": "kami",
+   "rank": "hatamoto_large",
+   "koku": 2500,
+   "front": "NW",
+   "gate": "hmon",
+   "bansho": "none",
+   "enclosure": "nagaya_front+ita",
+   "garden": "tsubo",
+   "kura": 1,
+   "cert": {
+    "rank": "A",
+    "koku": "A",
+    "front": "A",
+    "gate": "B"
+   },
+   "source": "村瀬平四郎 2,500石=大身旗本→長屋門格。寛政譜に村瀬氏立項(個人未特定)。表門=北西(枡形前街路)",
+   "type": "buke"
+  },
+  "toranomonuchi_parcels_2": {
+   "yashiki": "kami",
+   "rank": "hatamoto_mid",
+   "koku": null,
+   "front": "N",
+   "gate": "kabukimon",
+   "bansho": "none",
+   "enclosure": "ita",
+   "garden": "ura",
+   "kura": 1,
+   "cert": {
+    "rank": "B",
+    "koku": "U",
+    "front": "A",
+    "gate": "B"
+   },
+   "source": "小倉鈴之進(両板では小倉太郎助)御小姓組=両番筋→腕木門格。表門=北(湾曲街路)。石高は未読",
+   "type": "buke"
+  },
+  "toranomonuchi_parcels_3": {
+   "yashiki": "kami",
+   "rank": "hatamoto_mid",
+   "koku": 500,
+   "front": "N",
+   "gate": "kabukimon",
+   "bansho": "kata",
+   "enclosure": "ita",
+   "garden": "ura",
+   "kura": 1,
+   "cert": {
+    "rank": "B",
+    "koku": "U",
+    "front": "A",
+    "gate": "B"
+   },
+   "source": "林図書助 二ノ丸御留守居(役高700石布衣)500石。嘉永板「林式部少輔」万延板「林圖書頭」。表門=北 ⚠ 受領名が年次で割れる(嘉永板『林式部少輔』→万延板『林圖書頭』)ため安政3の当主名は未確定。500石も役高700石布衣の記述からの当てで家禄の典拠が無い=U。番所1は布衣の体面と整合(historical-layout L127)。",
+   "type": "buke"
+  },
+  "sannobuke_juge": {
+   "kind": "shake",
+   "main_hall_ken": [
+    7,
+    5
+   ],
+   "kuri": true,
+   "gate": "yakuimon",
+   "enclosure": "dobei",
+   "front": "W",
+   "kura": 1,
+   "graveyard": false,
+   "shoro": false,
+   "sanmon": false,
+   "cert": {
+    "kind": "A",
+    "gate": "P",
+    "main_hall_ken": "U"
+   },
+   "source": "樹下近江守 — 山王社の神主(祝部氏・代々近江守)。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見] 7-068。二ノ鳥居の右(東)。薬医門級の屋根付き門+式台玄関の母屋+土塀は類型",
+   "type": "jisha"
+  },
+  "sannojubo_parcels_0": {
+   "kind": "bo",
+   "main_hall_ken": [
+    6,
+    4
+   ],
+   "kuri": true,
+   "gate": "kabukimon",
+   "enclosure": "ita+ikegaki",
+   "front": "S",
+   "kura": 1,
+   "graveyard": false,
+   "shoro": false,
+   "sanmon": false,
+   "cert": {
+    "kind": "A",
+    "name": "A",
+    "main_hall_ken": "P",
+    "gate": "P",
+    "front": "B"
+   },
+   "source": "山王社 社僧十坊の 円乗院(東から1番目)。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見]+CODH 7-069〜7-078 で並び順を実見。天台宗・別当観理院配下の住坊で、本堂・山門・鐘楼・墓地は持たない。書院造の主屋(庫裏一体・桁行5〜7間)+下屋+小土蔵+井戸。門=棟門/腕木門級、塀=板塀+生垣(水際は柵)。表門は山側の小道向き。各坊個別の指図は未発見(御府内寺社備考・日枝神社史 原本未参照) ⚠ 門は腕木門級(写し元 EdoSannoJuboBuilder.cs が EdoAssets.Eg.Kabukimon を据える)。『格上の両端は薬医門』は典拠が見つからないので採らない。",
+   "type": "jisha"
+  },
+  "sannojubo_parcels_1": {
+   "kind": "bo",
+   "main_hall_ken": [
+    6,
+    4
+   ],
+   "kuri": true,
+   "gate": "kabukimon",
+   "enclosure": "ita+ikegaki",
+   "front": "S",
+   "kura": 1,
+   "graveyard": false,
+   "shoro": false,
+   "sanmon": false,
+   "cert": {
+    "kind": "A",
+    "name": "A",
+    "main_hall_ken": "P",
+    "gate": "P",
+    "front": "B"
+   },
+   "source": "山王社 社僧十坊の 成就院(東から2番目)。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見]+CODH 7-069〜7-078 で並び順を実見。天台宗・別当観理院配下の住坊で、本堂・山門・鐘楼・墓地は持たない。書院造の主屋(庫裏一体・桁行5〜7間)+下屋+小土蔵+井戸。門=棟門/腕木門級、塀=板塀+生垣(水際は柵)。表門は山側の小道向き。各坊個別の指図は未発見(御府内寺社備考・日枝神社史 原本未参照) ⚠ 門は腕木門級(写し元 EdoSannoJuboBuilder.cs が EdoAssets.Eg.Kabukimon を据える)。『格上の両端は薬医門』は典拠が見つからないので採らない。",
+   "type": "jisha"
+  },
+  "sannojubo_parcels_2": {
+   "kind": "bo",
+   "main_hall_ken": [
+    6,
+    4
+   ],
+   "kuri": true,
+   "gate": "kabukimon",
+   "enclosure": "ita+ikegaki",
+   "front": "S",
+   "kura": 1,
+   "graveyard": false,
+   "shoro": false,
+   "sanmon": false,
+   "cert": {
+    "kind": "A",
+    "name": "A",
+    "main_hall_ken": "P",
+    "gate": "P",
+    "front": "B"
+   },
+   "source": "山王社 社僧十坊の 宝蔵院(東から3番目)。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見]+CODH 7-069〜7-078 で並び順を実見。天台宗・別当観理院配下の住坊で、本堂・山門・鐘楼・墓地は持たない。書院造の主屋(庫裏一体・桁行5〜7間)+下屋+小土蔵+井戸。門=棟門/腕木門級、塀=板塀+生垣(水際は柵)。表門は山側の小道向き。各坊個別の指図は未発見(御府内寺社備考・日枝神社史 原本未参照) ⚠ 門は腕木門級(写し元 EdoSannoJuboBuilder.cs が EdoAssets.Eg.Kabukimon を据える)。『格上の両端は薬医門』は典拠が見つからないので採らない。",
+   "type": "jisha"
+  },
+  "sannojubo_parcels_3": {
+   "kind": "bo",
+   "main_hall_ken": [
+    6,
+    4
+   ],
+   "kuri": true,
+   "gate": "kabukimon",
+   "enclosure": "ita+ikegaki",
+   "front": "S",
+   "kura": 1,
+   "graveyard": false,
+   "shoro": false,
+   "sanmon": false,
+   "cert": {
+    "kind": "A",
+    "name": "A",
+    "main_hall_ken": "P",
+    "gate": "P",
+    "front": "B"
+   },
+   "source": "山王社 社僧十坊の 長明院(東から4番目)。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見]+CODH 7-069〜7-078 で並び順を実見。天台宗・別当観理院配下の住坊で、本堂・山門・鐘楼・墓地は持たない。書院造の主屋(庫裏一体・桁行5〜7間)+下屋+小土蔵+井戸。門=棟門/腕木門級、塀=板塀+生垣(水際は柵)。表門は山側の小道向き。各坊個別の指図は未発見(御府内寺社備考・日枝神社史 原本未参照) ⚠ 門は腕木門級(写し元 EdoSannoJuboBuilder.cs が EdoAssets.Eg.Kabukimon を据える)。『格上の両端は薬医門』は典拠が見つからないので採らない。",
+   "type": "jisha"
+  },
+  "sannojubo_parcels_4": {
+   "kind": "bo",
+   "main_hall_ken": [
+    6,
+    4
+   ],
+   "kuri": true,
+   "gate": "kabukimon",
+   "enclosure": "ita+ikegaki",
+   "front": "S",
+   "kura": 1,
+   "graveyard": false,
+   "shoro": false,
+   "sanmon": false,
+   "cert": {
+    "kind": "A",
+    "name": "A",
+    "main_hall_ken": "P",
+    "gate": "P",
+    "front": "B"
+   },
+   "source": "山王社 社僧十坊の 福寿院(東から5番目)。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見]+CODH 7-069〜7-078 で並び順を実見。天台宗・別当観理院配下の住坊で、本堂・山門・鐘楼・墓地は持たない。書院造の主屋(庫裏一体・桁行5〜7間)+下屋+小土蔵+井戸。門=棟門/腕木門級、塀=板塀+生垣(水際は柵)。表門は山側の小道向き。各坊個別の指図は未発見(御府内寺社備考・日枝神社史 原本未参照) ⚠ 門は腕木門級(写し元 EdoSannoJuboBuilder.cs が EdoAssets.Eg.Kabukimon を据える)。『格上の両端は薬医門』は典拠が見つからないので採らない。",
+   "type": "jisha"
+  },
+  "sannojubo_parcels_5": {
+   "kind": "bo",
+   "main_hall_ken": [
+    6,
+    4
+   ],
+   "kuri": true,
+   "gate": "kabukimon",
+   "enclosure": "ita+ikegaki",
+   "front": "S",
+   "kura": 1,
+   "graveyard": false,
+   "shoro": false,
+   "sanmon": false,
+   "cert": {
+    "kind": "A",
+    "name": "A",
+    "main_hall_ken": "P",
+    "gate": "P",
+    "front": "B"
+   },
+   "source": "山王社 社僧十坊の 智光院(東から6番目)。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見]+CODH 7-069〜7-078 で並び順を実見。天台宗・別当観理院配下の住坊で、本堂・山門・鐘楼・墓地は持たない。書院造の主屋(庫裏一体・桁行5〜7間)+下屋+小土蔵+井戸。門=棟門/腕木門級、塀=板塀+生垣(水際は柵)。表門は山側の小道向き。各坊個別の指図は未発見(御府内寺社備考・日枝神社史 原本未参照) ⚠ 門は腕木門級(写し元 EdoSannoJuboBuilder.cs が EdoAssets.Eg.Kabukimon を据える)。『格上の両端は薬医門』は典拠が見つからないので採らない。",
+   "type": "jisha"
+  },
+  "sannojubo_parcels_6": {
+   "kind": "bo",
+   "main_hall_ken": [
+    6,
+    4
+   ],
+   "kuri": true,
+   "gate": "kabukimon",
+   "enclosure": "ita+ikegaki",
+   "front": "S",
+   "kura": 1,
+   "graveyard": false,
+   "shoro": false,
+   "sanmon": false,
+   "cert": {
+    "kind": "A",
+    "name": "A",
+    "main_hall_ken": "P",
+    "gate": "P",
+    "front": "B"
+   },
+   "source": "山王社 社僧十坊の 宝仙院(東から7番目)。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見]+CODH 7-069〜7-078 で並び順を実見。天台宗・別当観理院配下の住坊で、本堂・山門・鐘楼・墓地は持たない。書院造の主屋(庫裏一体・桁行5〜7間)+下屋+小土蔵+井戸。門=棟門/腕木門級、塀=板塀+生垣(水際は柵)。表門は山側の小道向き。各坊個別の指図は未発見(御府内寺社備考・日枝神社史 原本未参照) ⚠ 門は腕木門級(写し元 EdoSannoJuboBuilder.cs が EdoAssets.Eg.Kabukimon を据える)。『格上の両端は薬医門』は典拠が見つからないので採らない。",
+   "type": "jisha"
+  },
+  "sannojubo_parcels_7": {
+   "kind": "bo",
+   "main_hall_ken": [
+    6,
+    4
+   ],
+   "kuri": true,
+   "gate": "kabukimon",
+   "enclosure": "ita+ikegaki",
+   "front": "S",
+   "kura": 1,
+   "graveyard": false,
+   "shoro": false,
+   "sanmon": false,
+   "cert": {
+    "kind": "A",
+    "name": "A",
+    "main_hall_ken": "P",
+    "gate": "P",
+    "front": "B"
+   },
+   "source": "山王社 社僧十坊の 無量院(東から8番目)。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見]+CODH 7-069〜7-078 で並び順を実見。天台宗・別当観理院配下の住坊で、本堂・山門・鐘楼・墓地は持たない。書院造の主屋(庫裏一体・桁行5〜7間)+下屋+小土蔵+井戸。門=棟門/腕木門級、塀=板塀+生垣(水際は柵)。表門は山側の小道向き。各坊個別の指図は未発見(御府内寺社備考・日枝神社史 原本未参照) ⚠ 門は腕木門級(写し元 EdoSannoJuboBuilder.cs が EdoAssets.Eg.Kabukimon を据える)。『格上の両端は薬医門』は典拠が見つからないので採らない。",
+   "type": "jisha"
+  },
+  "sannojubo_parcels_8": {
+   "kind": "bo",
+   "main_hall_ken": [
+    6,
+    4
+   ],
+   "kuri": true,
+   "gate": "kabukimon",
+   "enclosure": "ita+ikegaki",
+   "front": "S",
+   "kura": 1,
+   "graveyard": false,
+   "shoro": false,
+   "sanmon": false,
+   "cert": {
+    "kind": "A",
+    "name": "A",
+    "main_hall_ken": "P",
+    "gate": "P",
+    "front": "B"
+   },
+   "source": "山王社 社僧十坊の 智乗院(東から9番目)。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見]+CODH 7-069〜7-078 で並び順を実見。天台宗・別当観理院配下の住坊で、本堂・山門・鐘楼・墓地は持たない。書院造の主屋(庫裏一体・桁行5〜7間)+下屋+小土蔵+井戸。門=棟門/腕木門級、塀=板塀+生垣(水際は柵)。表門は山側の小道向き。各坊個別の指図は未発見(御府内寺社備考・日枝神社史 原本未参照) ⚠ 門は腕木門級(写し元 EdoSannoJuboBuilder.cs が EdoAssets.Eg.Kabukimon を据える)。『格上の両端は薬医門』は典拠が見つからないので採らない。",
+   "type": "jisha"
+  },
+  "sannojubo_parcels_9": {
+   "kind": "bo",
+   "main_hall_ken": [
+    6,
+    4
+   ],
+   "kuri": true,
+   "gate": "kabukimon",
+   "enclosure": "ita+ikegaki",
+   "front": "S",
+   "kura": 1,
+   "graveyard": false,
+   "shoro": false,
+   "sanmon": false,
+   "cert": {
+    "kind": "A",
+    "name": "A",
+    "main_hall_ken": "P",
+    "gate": "P",
+    "front": "B"
+   },
+   "source": "山王社 社僧十坊の 常明院(東から10番目)。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見]+CODH 7-069〜7-078 で並び順を実見。天台宗・別当観理院配下の住坊で、本堂・山門・鐘楼・墓地は持たない。書院造の主屋(庫裏一体・桁行5〜7間)+下屋+小土蔵+井戸。門=棟門/腕木門級、塀=板塀+生垣(水際は柵)。表門は山側の小道向き。各坊個別の指図は未発見(御府内寺社備考・日枝神社史 原本未参照) ⚠ 門は腕木門級(写し元 EdoSannoJuboBuilder.cs が EdoAssets.Eg.Kabukimon を据える)。『格上の両端は薬医門』は典拠が見つからないので採らない。",
+   "type": "jisha"
+  },
+  "sannosha_kanri": {
+   "kind": "temple",
+   "main_hall_ken": [
+    7,
+    5
+   ],
+   "kuri": true,
+   "gate": "sanmon",
+   "enclosure": "dobei",
+   "front": "N",
+   "kura": 2,
+   "graveyard": false,
+   "shoro": true,
+   "sanmon": true,
+   "cert": {
+    "kind": "A",
+    "front": "A",
+    "main_hall_ken": "U",
+    "enclosure": "P"
+   },
+   "source": "観理院 — 山王権現の別当寺。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見] 7-080。表参道石段下の正面(現キャピトル東急)[神殿大観←水野家文書「山王絵図」]。十坊を配下に置く別当なので、坊より一格上(山門・鐘楼を持つ) ⚠ 門は**山門ひとつ**(gate:munemon と sanmon:true で二重に建っていた)。囲いは考証では練塀だが、在庫に練塀の部材が無いため土塀で代用(確度P)。",
+   "type": "jisha"
+  },
+  "sannosha_prec": {
+   "built": "hand",
+   "note": "山王社 社地。指図あり・実装済"
+  },
+  "todablock_parcels_3": {
+   "kind": "temple",
+   "main_hall_ken": [
+    7,
+    6
+   ],
+   "kuri": true,
+   "gate": "sanmon",
+   "enclosure": "dobei",
+   "front": "NE",
+   "kura": 1,
+   "graveyard": true,
+   "shoro": true,
+   "sanmon": true,
+   "tacchu": 3,
+   "cert": {
+    "kind": "A",
+    "front": "A",
+    "tacchu": "A",
+    "main_hall_ken": "U"
+   },
+   "source": "澄泉寺 — 真宗高田派触頭・江戸三箇寺・塔頭3寺。[切絵図 尾張屋版 赤坂絵図 NDL1286666](NDL1286666 実見)+CODH 9-106〜9-110。表門=北東(溜池端方面)",
+   "type": "jisha"
+  },
+  "todablock_parcels_4": {
+   "kind": "temple",
+   "main_hall_ken": [
+    6,
+    5
+   ],
+   "kuri": true,
+   "gate": "sanmon",
+   "enclosure": "dobei",
+   "front": "E",
+   "kura": 1,
+   "graveyard": true,
+   "shoro": true,
+   "sanmon": true,
+   "cert": {
+    "kind": "A",
+    "front": "A",
+    "main_hall_ken": "U"
+   },
+   "source": "陽泉寺 — 曹洞宗。門前の俗称「ねぶと町」(東縁の町屋短冊)。[切絵図 尾張屋版 赤坂絵図 NDL1286666] 表門=東(門前町の通り)",
+   "type": "jisha"
+  },
+  "azukarichi_gr": {
+   "kind": "azukarichi",
+   "surface": "grass+kiribatake",
+   "fence": "boji",
+   "building": "none",
+   "cert": {
+    "kind": "A",
+    "azukari": "A"
+   },
+   "source": "御預明地(松平大和守 預り。隣接する川越藩上屋敷)。同上",
+   "type": "kouyuu"
+  },
+  "azukarichi_pu": {
+   "kind": "azukarichi",
+   "surface": "grass+kiribatake",
+   "fence": "boji",
+   "building": "none",
+   "cert": {
+    "kind": "A",
+    "azukari": "A"
+   },
+   "source": "御預明地(戸田采女正 預り)。溜池は江戸城外堀を兼ねる(御府内備考)ため、堤沿いの明地は火除・堤防保全のため建物を置かず大名預りとされた。自邸に隣接する堤明地の預りで整合。刈られた草地+桐畑(広重「名所江戸百景 赤坂桐畑」)+榜示杭",
+   "type": "kouyuu"
+  },
+  "azukarichi_w1": {
+   "kind": "hoshiba",
+   "hoshiba": "konya",
+   "surface": "grass",
+   "fence": "none",
+   "building": "hoshiba",
+   "cert": {
+    "kind": "U",
+    "hoshiba": "A",
+    "haishaku": "S"
+   },
+   "source": "干場拝借地 W1 = 紺屋干場(竿の反物干し+張り板)。[文政町方書上]=田町二丁目の紺屋・合羽屋が宝暦10年(1760)に溜池土手へ拝借した物干場。種別の区画対応は施主の色分け下書きで確定 ⚠ 拝借の事実は[文政町方書上]=S だが、**どの筆が紺屋/合羽か**は施主の色分け下書きで決めた物=U。",
+   "type": "kouyuu"
+  },
+  "azukarichi_w2": {
+   "kind": "hoshiba",
+   "hoshiba": "konya",
+   "surface": "grass",
+   "fence": "none",
+   "building": "hoshiba",
+   "cert": {
+    "kind": "U",
+    "hoshiba": "A",
+    "haishaku": "S"
+   },
+   "source": "干場拝借地 W2 = 紺屋干場(竿の反物干し+張り板)。[文政町方書上]=田町二丁目の紺屋・合羽屋が宝暦10年(1760)に溜池土手へ拝借した物干場。種別の区画対応は施主の色分け下書きで確定 ⚠ 拝借の事実は[文政町方書上]=S だが、**どの筆が紺屋/合羽か**は施主の色分け下書きで決めた物=U。",
+   "type": "kouyuu"
+  },
+  "azukarichi_w3": {
+   "kind": "hoshiba",
+   "hoshiba": "konya",
+   "surface": "grass",
+   "fence": "none",
+   "building": "hoshiba",
+   "cert": {
+    "kind": "U",
+    "hoshiba": "A",
+    "haishaku": "S"
+   },
+   "source": "干場拝借地 W3 = 紺屋干場(竿の反物干し+張り板)。[文政町方書上]=田町二丁目の紺屋・合羽屋が宝暦10年(1760)に溜池土手へ拝借した物干場。種別の区画対応は施主の色分け下書きで確定 ⚠ 拝借の事実は[文政町方書上]=S だが、**どの筆が紺屋/合羽か**は施主の色分け下書きで決めた物=U。",
+   "type": "kouyuu"
+  },
+  "azukarichi_w5": {
+   "kind": "hoshiba",
+   "hoshiba": "kappa",
+   "surface": "grass",
+   "fence": "none",
+   "building": "hoshiba",
+   "cert": {
+    "kind": "U",
+    "hoshiba": "A",
+    "haishaku": "S"
+   },
+   "source": "干場拝借地 W5 = 合羽干場(渋紙の平干し)。[文政町方書上]=田町二丁目の紺屋・合羽屋が宝暦10年(1760)に溜池土手へ拝借した物干場。種別の区画対応は施主の色分け下書きで確定 ⚠ 拝借の事実は[文政町方書上]=S だが、**どの筆が紺屋/合羽か**は施主の色分け下書きで決めた物=U。",
+   "type": "kouyuu"
+  },
+  "azukarichi_yl": {
+   "kind": "yaba",
+   "surface": "dirt",
+   "fence": "yarai",
+   "building": "yaba",
+   "cert": {
+    "kind": "B",
+    "composition": "P"
+   },
+   "source": "大的稽古場。堤明地内の弓術大的稽古の矢場。安土+大的+射小屋+矢来+矢除板塀は矢場の一般類型(推定スタンドイン)。射小屋=kidobanya 代用。⭐ 矢道が要るため唯一の造成許可地(7.5mレベル+外周5mブレンド)",
+   "type": "kouyuu"
+  },
+  "todablock_parcels_1": {
+   "kind": "hikeshi",
+   "surface": "dirt",
+   "fence": "ita",
+   "building": "hikeshi",
+   "koku": 5000,
+   "cert": {
+    "kind": "A",
+    "koku": "A",
+    "front": "A"
+   },
+   "front": "SW",
+   "source": "定火消御役屋敷 小出伊織有義 5,000石(赤坂溜池組・嘉永2〜安政3 在任)。[切絵図 尾張屋版 赤坂絵図 NDL1286666] 表門=南西(谷町へ抜ける小路)。火の見櫓・臥煙長屋・道具蔵。公有地で唯一 建物を持つ類型",
+   "type": "kouyuu"
+  },
+  "daichi_nagaichopoly": {
+   "two_sided": false,
+   "maguchi_ken": 5,
+   "depth_ken": 5,
+   "pattern": "auto",
+   "houses": 33,
+   "ura_nagaya": 0,
+   "front": null,
+   "jishinban": true,
+   "kamiyui": false,
+   "inari": false,
+   "shimatuya": true,
+   "cert": {
+    "depth_ken": "A",
+    "houses": "A",
+    "two_sided": "A",
+    "front": "U"
+   },
+   "source": "芝永井町代地(219坪・14軒)+芝御掃除町代地(177坪・19軒)の2町。いずれも文化8年(1811)の大火で増上寺火除地に召上げられ桐畑明地へ移転。奥行わずか5間(約9m)の片側町で、通りの溜池側に面し裏は物干場拝借地→草花植付地→預地土手→水面。小店・仕舞屋の連なり(豪商の店構えは不適)。水茶屋は天保改革で撤去済=置かない [日本歴史地名大系/港区史通史編近世(上)/CODH 9-091〜093]",
+   "type": "machiya"
+  },
+  "daichi_seiryujipoly": {
+   "two_sided": false,
+   "maguchi_ken": 5,
+   "depth_ken": 5,
+   "pattern": "auto",
+   "houses": 15,
+   "ura_nagaya": 0,
+   "front": null,
+   "jishinban": true,
+   "kamiyui": false,
+   "inari": false,
+   "shimatuya": true,
+   "cert": {
+    "depth_ken": "A",
+    "houses": "A",
+    "two_sided": "A",
+    "front": "U"
+   },
+   "source": "芝青龍寺門前町代地(220坪・15軒)。文化8年の大火で移転。間口44間≒86m は下書き線(83m)とほぼ一致。奥行5間の片側町。⛔「青松寺」は青龍寺の誤読",
+   "type": "machiya"
+  },
+  "daichikita_jm": {
+   "kind": "temple",
+   "main_hall_ken": [
+    7,
+    6
+   ],
+   "kuri": true,
+   "gate": "sanmon",
+   "enclosure": "dobei",
+   "front": null,
+   "kura": 0,
+   "graveyard": true,
+   "shoro": true,
+   "sanmon": true,
+   "tokinokane": true,
+   "cert": {
+    "kind": "A",
+    "tokinokane": "S",
+    "main_hall_ken": "U"
+   },
+   "source": "成満寺(不動山無量院成満寺・真宗大谷派)。寛文12年(1672)赤坂田町二丁目へ。時の鐘=本石町に次ぐ江戸の「二番鐘」、延宝5年6月18日寺社奉行許可・8月28日撞初(寺伝石板)。⚠ 区画の category は machiya だが実体は寺",
+   "type": "jisha"
+  },
+  "daichikita_r1": {
+   "two_sided": false,
+   "maguchi_ken": 5,
+   "depth_ken": null,
+   "pattern": "auto",
+   "houses": null,
+   "ura_nagaya": null,
+   "front": null,
+   "jishinban": false,
+   "kamiyui": false,
+   "inari": false,
+   "cert": {
+    "two_sided": "B",
+    "maguchi_ken": "P",
+    "depth_ken": "U",
+    "houses": "U",
+    "front": "U"
+   },
+   "source": "麻布網代町代地(北)。享保8年(1723)芝新網町二丁目の代地として起立→沼地のため享保17年(1732)麻布坂下町西へさらに代地、「網」「代」を採り網代町と改称。坪数・家数の史料未取得→町屋構成は一般類型。町境に番小屋のみ(推定)",
+   "type": "machiya"
+  },
+  "daichikita_r2": {
+   "two_sided": false,
+   "maguchi_ken": 5,
+   "depth_ken": null,
+   "pattern": "auto",
+   "houses": null,
+   "ura_nagaya": null,
+   "front": null,
+   "jishinban": false,
+   "kamiyui": false,
+   "inari": false,
+   "cert": {
+    "two_sided": "B",
+    "maguchi_ken": "P",
+    "depth_ken": "U",
+    "houses": "U",
+    "front": "U"
+   },
+   "source": "麻布網代町代地(南)。同上。溜池端代地はCODH地名抽出に無く施主の絵図判読を正とする。坪数・家数の史料未取得→町屋構成は一般類型。町境に番小屋のみ(推定)",
+   "type": "machiya"
+  },
+  "daichikita_y1": {
+   "two_sided": false,
+   "maguchi_ken": 5,
+   "depth_ken": null,
+   "pattern": "auto",
+   "houses": null,
+   "ura_nagaya": null,
+   "front": null,
+   "jishinban": false,
+   "kamiyui": false,
+   "inari": false,
+   "cert": {
+    "two_sided": "B",
+    "maguchi_ken": "P",
+    "depth_ken": "U",
+    "houses": "U",
+    "front": "U"
+   },
+   "source": "元赤坂町代地(北)。尾張屋版赤坂絵図 CODH 9-013。元赤坂町=赤坂最古(天正年中起立)、寛永14年(1637)赤坂御門造成のため御門外へ移転。溜池端は飛び代地。坪数・家数の史料未取得→町屋構成は一般類型。町境に番小屋のみ(推定)",
+   "type": "machiya"
+  },
+  "daichikita_y2": {
+   "two_sided": false,
+   "maguchi_ken": 5,
+   "depth_ken": null,
+   "pattern": "auto",
+   "houses": null,
+   "ura_nagaya": null,
+   "front": null,
+   "jishinban": false,
+   "kamiyui": false,
+   "inari": false,
+   "cert": {
+    "two_sided": "B",
+    "maguchi_ken": "P",
+    "depth_ken": "U",
+    "houses": "U",
+    "front": "U"
+   },
+   "source": "元赤坂町代地(南)。同上 CODH 9-014。坪数・家数の史料未取得→町屋構成は一般類型。町境に番小屋のみ(推定)",
+   "type": "machiya"
+  },
+  "sanno_monzen_1": {
+   "two_sided": true,
+   "maguchi_ken": 4,
+   "depth_ken": null,
+   "pattern": "auto",
+   "houses": null,
+   "ura_nagaya": 0,
+   "front": null,
+   "jishinban": false,
+   "kamiyui": false,
+   "inari": false,
+   "cert": {
+    "two_sided": "B",
+    "maguchi_ken": "P",
+    "depth_ken": "U",
+    "houses": "U"
+   },
+   "source": "山王門前町(1/4)。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見] 嘉永版では辻の角の2筆(「山王門前」「町」)のみ実見で、参道両側の帯は施主版(安政2以降)に従う。参道が折れる辻のL字。小店の両側町で、坪が小さく裏長屋は置かない",
+   "type": "machiya"
+  },
+  "sanno_monzen_2": {
+   "two_sided": true,
+   "maguchi_ken": 4,
+   "depth_ken": null,
+   "pattern": "auto",
+   "houses": null,
+   "ura_nagaya": 0,
+   "front": null,
+   "jishinban": false,
+   "kamiyui": false,
+   "inari": false,
+   "cert": {
+    "two_sided": "B",
+    "maguchi_ken": "P",
+    "depth_ken": "U",
+    "houses": "U"
+   },
+   "source": "山王門前町(2/4)。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見] 嘉永版では辻の角の2筆(「山王門前」「町」)のみ実見で、参道両側の帯は施主版(安政2以降)に従う。参道が折れる辻のL字。小店の両側町で、坪が小さく裏長屋は置かない",
+   "type": "machiya"
+  },
+  "sanno_monzen_3": {
+   "two_sided": true,
+   "maguchi_ken": 4,
+   "depth_ken": null,
+   "pattern": "auto",
+   "houses": null,
+   "ura_nagaya": 0,
+   "front": null,
+   "jishinban": false,
+   "kamiyui": false,
+   "inari": false,
+   "cert": {
+    "two_sided": "B",
+    "maguchi_ken": "P",
+    "depth_ken": "U",
+    "houses": "U"
+   },
+   "source": "山王門前町(3/4)。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見] 嘉永版では辻の角の2筆(「山王門前」「町」)のみ実見で、参道両側の帯は施主版(安政2以降)に従う。参道が折れる辻のL字。小店の両側町で、坪が小さく裏長屋は置かない",
+   "type": "machiya"
+  },
+  "sanno_monzen_4": {
+   "two_sided": true,
+   "maguchi_ken": 4,
+   "depth_ken": null,
+   "pattern": "auto",
+   "houses": null,
+   "ura_nagaya": 0,
+   "front": null,
+   "jishinban": false,
+   "kamiyui": false,
+   "inari": false,
+   "cert": {
+    "two_sided": "B",
+    "maguchi_ken": "P",
+    "depth_ken": "U",
+    "houses": "U"
+   },
+   "source": "山王門前町(4/4)。[切絵図 尾張屋版 外桜田永田町絵図 嘉永3 NDL1286657 実見] 嘉永版では辻の角の2筆(「山王門前」「町」)のみ実見で、参道両側の帯は施主版(安政2以降)に従う。参道が折れる辻のL字。小店の両側町で、坪が小さく裏長屋は置かない",
+   "type": "machiya"
+  },
+  "shinmachi_cy": {
+   "two_sided": false,
+   "maguchi_ken": 5,
+   "depth_ken": null,
+   "pattern": "auto",
+   "houses": null,
+   "ura_nagaya": null,
+   "front": null,
+   "jishinban": false,
+   "kamiyui": false,
+   "inari": false,
+   "cert": {
+    "two_sided": "U",
+    "maguchi_ken": "P",
+    "depth_ken": "U",
+    "houses": "U",
+    "front": "U"
+   },
+   "source": "赤坂一ツ木町続元赤坂町代地。元赤坂町(赤坂最古・寛永14年赤坂御門造成で移転)の飛び代地。CODH抽出に無く施主の絵図判読を正とする。坪数・家数・地割の史料未取得→表店列+裏長屋は同時代の一般類型。物産=桐油・合羽・髢・傘・籐細工・足袋。木戸・高札・稲荷は史料未確認のため置かない",
+   "type": "machiya"
+  },
+  "shinmachi_gr": {
+   "two_sided": false,
+   "maguchi_ken": 5,
+   "depth_ken": null,
+   "pattern": "auto",
+   "houses": null,
+   "ura_nagaya": null,
+   "front": null,
+   "jishinban": false,
+   "kamiyui": false,
+   "inari": false,
+   "cert": {
+    "two_sided": "U",
+    "maguchi_ken": "P",
+    "depth_ken": "U",
+    "houses": "U",
+    "front": "U"
+   },
+   "source": "新町一丁目。寛永17年(1640)千代姫付の侍3人拝領→寛文8年(1668)町並家作許可→延宝元年(1673)町奉行支配。CODH 9-023。坪数・家数・地割の史料未取得→表店列+裏長屋は同時代の一般類型。物産=桐油・合羽・髢・傘・籐細工・足袋。木戸・高札・稲荷は史料未確認のため置かない",
+   "type": "machiya"
+  },
+  "shinmachi_pu": {
+   "two_sided": false,
+   "maguchi_ken": 5,
+   "depth_ken": null,
+   "pattern": "auto",
+   "houses": null,
+   "ura_nagaya": null,
+   "front": null,
+   "jishinban": false,
+   "kamiyui": false,
+   "inari": false,
+   "cert": {
+    "two_sided": "U",
+    "maguchi_ken": "P",
+    "depth_ken": "U",
+    "houses": "U",
+    "front": "U"
+   },
+   "source": "新町二丁目。一木村の田地→寛永18年(1641)武家方町並屋敷→元禄9年(1696)拝領町屋敷。CODH 9-024。坪数・家数・地割の史料未取得→表店列+裏長屋は同時代の一般類型。物産=桐油・合羽・髢・傘・籐細工・足袋。木戸・高札・稲荷は史料未確認のため置かない",
+   "type": "machiya"
+  },
+  "shinmachi_ra": {
+   "two_sided": true,
+   "maguchi_ken": 5,
+   "depth_ken": null,
+   "pattern": "auto",
+   "houses": null,
+   "ura_nagaya": null,
+   "front": null,
+   "jishinban": false,
+   "kamiyui": false,
+   "inari": false,
+   "cert": {
+    "two_sided": "B",
+    "maguchi_ken": "P",
+    "depth_ken": "U",
+    "houses": "U",
+    "front": "U"
+   },
+   "source": "新町三丁目(北)。三丁目は通りの三叉路(南西へ上る追分)を囲む両側町の形。CODH 9-026。坪数・家数・地割の史料未取得→表店列+裏長屋は同時代の一般類型。物産=桐油・合羽・髢・傘・籐細工・足袋。木戸・高札・稲荷は史料未確認のため置かない",
+   "type": "machiya"
+  },
+  "shinmachi_rb": {
+   "two_sided": true,
+   "maguchi_ken": 5,
+   "depth_ken": null,
+   "pattern": "auto",
+   "houses": null,
+   "ura_nagaya": null,
+   "front": null,
+   "jishinban": false,
+   "kamiyui": false,
+   "inari": false,
+   "cert": {
+    "two_sided": "B",
+    "maguchi_ken": "P",
+    "depth_ken": "U",
+    "houses": "U",
+    "front": "U"
+   },
+   "source": "新町三丁目(東)。同上。坪数・家数・地割の史料未取得→表店列+裏長屋は同時代の一般類型。物産=桐油・合羽・髢・傘・籐細工・足袋。木戸・高札・稲荷は史料未確認のため置かない",
+   "type": "machiya"
+  },
+  "shinmachi_rc": {
+   "two_sided": true,
+   "maguchi_ken": 5,
+   "depth_ken": null,
+   "pattern": "auto",
+   "houses": null,
+   "ura_nagaya": null,
+   "front": null,
+   "jishinban": false,
+   "kamiyui": false,
+   "inari": false,
+   "cert": {
+    "two_sided": "B",
+    "maguchi_ken": "P",
+    "depth_ken": "U",
+    "houses": "U",
+    "front": "U"
+   },
+   "source": "新町三丁目(南)。同上。坪数・家数・地割の史料未取得→表店列+裏長屋は同時代の一般類型。物産=桐油・合羽・髢・傘・籐細工・足袋。木戸・高札・稲荷は史料未確認のため置かない",
+   "type": "machiya"
+  },
+  "shinmachi_ye": {
+   "two_sided": false,
+   "maguchi_ken": 5,
+   "depth_ken": null,
+   "pattern": "auto",
+   "houses": null,
+   "ura_nagaya": null,
+   "front": null,
+   "jishinban": false,
+   "kamiyui": false,
+   "inari": false,
+   "cert": {
+    "two_sided": "U",
+    "maguchi_ken": "P",
+    "depth_ken": "U",
+    "houses": "U",
+    "front": "U"
+   },
+   "source": "日ヶ窪町代地。麻布日ヶ窪町(現六本木6丁目・麻布十番)の飛び代地。CODH抽出に無く施主の絵図判読を正とする。坪数・家数・地割の史料未取得→表店列+裏長屋は同時代の一般類型。物産=桐油・合羽・髢・傘・籐細工・足袋。木戸・高札・稲荷は史料未確認のため置かない",
+   "type": "machiya"
+  },
+  "tamachi5east_azukaripoly": {
+   "kind": "azukarichi",
+   "surface": "grass",
+   "fence": "kui",
+   "building": "monohoshi",
+   "cert": {
+    "kind": "B"
+   },
+   "source": "絵図の文字「町方?預」(?は判読不能。町方支配預り地か)。用途が読めないので**棟のある建物は置かず**、杭柵+物干+草地の明地として表現する(物干は棟ではない)。⚠ 区画の category は machiya だが実体は明地",
+   "type": "kouyuu"
+  },
+  "tamachi5east_horiguchipoly": {
+   "yashiki": "kami",
+   "rank": "gokenin",
+   "koku": null,
+   "front": null,
+   "gate": "kabukimon",
+   "bansho": "none",
+   "enclosure": "ita",
+   "garden": "none",
+   "kura": 0,
+   "cert": {
+    "name": "A",
+    "rank": "P",
+    "koku": "U",
+    "front": "U"
+   },
+   "source": "絵図の文字「堀口儀八郎」。人名のみ判明。小規模拝領屋敷(板塀+冠木門+小主屋)の推定。⚠ 区画の category は machiya だが実体は武家の小屋敷",
+   "type": "buke"
+  },
+  "tamachi5east_kaishopoly": {
+   "two_sided": false,
+   "kind": "kaisho",
+   "maguchi_ken": null,
+   "depth_ken": null,
+   "pattern": "none",
+   "houses": null,
+   "ura_nagaya": 0,
+   "front": null,
+   "jishinban": false,
+   "kamiyui": false,
+   "inari": false,
+   "cert": {
+    "kind": "B",
+    "composition": "P"
+   },
+   "source": "絵図の文字「拝借地(櫨実会所)」。櫨実(はぜのみ)=木蝋原料の集荷会所と解釈。会所母屋+蔵+筵干し場は一般類型からの推定。文献裏付けは未取得(2026-08-09 Web検索でヒットなし)",
+   "type": "machiya"
+  },
+  "tamachi5east_machiyapoly": {
+   "two_sided": false,
+   "maguchi_ken": 5,
+   "depth_ken": null,
+   "pattern": "auto",
+   "houses": null,
+   "ura_nagaya": 0,
+   "front": null,
+   "jishinban": false,
+   "kamiyui": false,
+   "inari": false,
+   "cert": {
+    "kind": "A",
+    "maguchi_ken": "P",
+    "depth_ken": "U",
+    "front": "U"
+   },
+   "source": "絵図の文字「町屋」のみ判明。堀端通の東側(溜池汀)の権利地。114坪と小さく表店1列のみ",
+   "type": "machiya"
+  },
+  "tamachi_chos_0": {
+   "two_sided": true,
+   "maguchi_ken": 5,
+   "depth_ken": 24,
+   "pattern": "auto",
+   "houses": null,
+   "tanagari": null,
+   "ura_nagaya": null,
+   "front": null,
+   "jishinban": false,
+   "kamiyui": false,
+   "inari": false,
+   "type": "machiya",
+   "cert": {
+    "two_sided": "A",
+    "maguchi_ken": "A",
+    "depth_ken": "A",
+    "houses": "U",
+    "ura_nagaya": "U",
+    "front": "U"
+   },
+   "source": "赤坂田町五丁目。寛永13-15年(1636-38)南伝馬町の伝馬役助成地として溜池端の田地を町割り。一〜四丁目=堀端通の西側だけの片側町(東は土手明地)。各丁 南北60間×裏行18間。表店は間口5間基準。業種=紺屋・合羽屋・髪結床・床店・薬種店。木戸・高札は記録未確認→置かない。裏長屋は専用部材が無く kidobanya 連結のスタンドイン。[文政町方書上] 五丁目のみ「道に囲まれた両面の町屋」。71間×24/18間"
+  },
+  "tamachi_chos_1": {
+   "two_sided": false,
+   "maguchi_ken": 5,
+   "depth_ken": 18,
+   "pattern": "auto",
+   "houses": 109,
+   "tanagari": 82,
+   "ura_nagaya": null,
+   "front": null,
+   "jishinban": true,
+   "kamiyui": true,
+   "inari": true,
+   "type": "machiya",
+   "cert": {
+    "two_sided": "A",
+    "maguchi_ken": "A",
+    "depth_ken": "A",
+    "houses": "A",
+    "ura_nagaya": "U",
+    "front": "U"
+   },
+   "source": "赤坂田町四丁目。寛永13-15年(1636-38)南伝馬町の伝馬役助成地として溜池端の田地を町割り。一〜四丁目=堀端通の西側だけの片側町(東は土手明地)。各丁 南北60間×裏行18間。表店は間口5間基準。業種=紺屋・合羽屋・髪結床・床店・薬種店。木戸・高札は記録未確認→置かない。裏長屋は専用部材が無く kidobanya 連結のスタンドイン。[文政町方書上] 四丁目 家数109・店借82(裏長屋密集)。自身番屋・髪結床番屋・西行稲荷(自身番裏)"
+  },
+  "tamachi_chos_2": {
+   "two_sided": false,
+   "maguchi_ken": 5,
+   "depth_ken": 18,
+   "pattern": "auto",
+   "houses": 72,
+   "tanagari": null,
+   "ura_nagaya": null,
+   "front": null,
+   "jishinban": false,
+   "kamiyui": false,
+   "inari": true,
+   "type": "machiya",
+   "cert": {
+    "two_sided": "A",
+    "maguchi_ken": "A",
+    "depth_ken": "A",
+    "houses": "A",
+    "ura_nagaya": "U",
+    "front": "U"
+   },
+   "source": "赤坂田町三丁目。寛永13-15年(1636-38)南伝馬町の伝馬役助成地として溜池端の田地を町割り。一〜四丁目=堀端通の西側だけの片側町(東は土手明地)。各丁 南北60間×裏行18間。表店は間口5間基準。業種=紺屋・合羽屋・髪結床・床店・薬種店。木戸・高札は記録未確認→置かない。裏長屋は専用部材が無く kidobanya 連結のスタンドイン。[文政町方書上] 三丁目 家数72。三丁目稲荷。三〜四丁目間に床店列(幅1間×50間)"
+  },
+  "tamachi_chos_3": {
+   "two_sided": false,
+   "maguchi_ken": 5,
+   "depth_ken": 18,
+   "pattern": "auto",
+   "houses": 47,
+   "tanagari": null,
+   "ura_nagaya": null,
+   "front": null,
+   "jishinban": true,
+   "kamiyui": true,
+   "inari": false,
+   "type": "machiya",
+   "cert": {
+    "two_sided": "A",
+    "maguchi_ken": "A",
+    "depth_ken": "A",
+    "houses": "A",
+    "ura_nagaya": "U",
+    "front": "U"
+   },
+   "source": "赤坂田町二丁目。寛永13-15年(1636-38)南伝馬町の伝馬役助成地として溜池端の田地を町割り。一〜四丁目=堀端通の西側だけの片側町(東は土手明地)。各丁 南北60間×裏行18間。表店は間口5間基準。業種=紺屋・合羽屋・髪結床・床店・薬種店。木戸・高札は記録未確認→置かない。裏長屋は専用部材が無く kidobanya 連結のスタンドイン。[文政町方書上] 二丁目 家数47。自身番屋・髪結床番屋・成満寺。二〜三丁目間に石橋(7尺×2間)"
+  },
+  "tamachi_chos_4": {
+   "two_sided": false,
+   "maguchi_ken": 5,
+   "depth_ken": 18,
+   "pattern": "auto",
+   "houses": null,
+   "tanagari": null,
+   "ura_nagaya": null,
+   "front": null,
+   "jishinban": false,
+   "kamiyui": false,
+   "inari": false,
+   "type": "machiya",
+   "cert": {
+    "two_sided": "A",
+    "maguchi_ken": "A",
+    "depth_ken": "A",
+    "houses": "U",
+    "ura_nagaya": "U",
+    "front": "U"
+   },
+   "source": "赤坂田町一丁目。寛永13-15年(1636-38)南伝馬町の伝馬役助成地として溜池端の田地を町割り。一〜四丁目=堀端通の西側だけの片側町(東は土手明地)。各丁 南北60間×裏行18間。表店は間口5間基準。業種=紺屋・合羽屋・髪結床・床店・薬種店。木戸・高札は記録未確認→置かない。裏長屋は専用部材が無く kidobanya 連結のスタンドイン。[文政町方書上] 一丁目。家数の記録は未取得"
+  },
+  "matsudaira_yamato": {
+   "yashiki": "kami",
+   "rank": "daimyo",
+   "koku": 170000,
+   "front": null,
+   "gate": "kmon",
+   "bansho": "ryou",
+   "enclosure": "ishigaki+hei",
+   "garden": "chisen",
+   "kura": 4,
+   "cert": {
+    "rank": "A",
+    "koku": "A",
+    "front": "U",
+    "gate": "B",
+    "yagura": "P"
+   },
+   "source": "松平大和守 川越藩17万石(家門)上屋敷 9,661坪。跡地=ホテルオークラ。門=k_mon+両番所(家門17万石)。外周は街路に段追従する石垣+塀、平地は盲長屋 ⚠ 隅矢倉は10万石以上の上屋敷として推定(典拠は福井6,600坪の1例=確度P)。",
+   "type": "buke",
+   "yagura": true
+  }
+ }
+}

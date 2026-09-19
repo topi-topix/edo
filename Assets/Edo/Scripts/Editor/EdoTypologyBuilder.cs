@@ -312,9 +312,32 @@ public static class EdoTypologyBuilder
         if (gateHalf > 0f)
         {
             float psi = Mathf.Atan2(front.outward.x, front.outward.y) * Mathf.Rad2Deg;
+            // ⭐ 門は**塀と同じ線の上**に立つ。⛔ 2026-09-19、三べ坂で門が塀の線より 2.16m 内へ
+            //    引っ込み、塀の切れ目が左右とも開いたままになった(門と塀の閉じは「隙間>めり込み」)。
+            //    原因は部材のピボットが門の芯に無いこと — 中心で合わせず、**据えてから実メッシュで寄せる**(規則5)。
+            float face = FenceFace(encl, front);
             var gp = new Vector3(gateC.x, pad, gateC.y);
             var mon = EdoBuild.Place(GatePath(s.gate), gp, psi, Vector3.one * ES, Group("Mon", root), "Mon_" + s.gate);
-            if (mon != null) EdoBuild.SeatBottom(mon, EdoBuild.Ground(gateC.x, gateC.y));
+            if (mon != null)
+            {
+                // 横は辺の中央へ、奥行は**塀の通り側の面**へ揃える(芯では合わせない)
+                float mnx, mxx, mnz, mxz, mny;
+                EdoBuild.ObbFootprint(mon.transform, out mnx, out mxx, out mnz, out mxz, out mny);
+                var loc = new[] { new Vector3(mnx, mny, mnz), new Vector3(mxx, mny, mnz),
+                                  new Vector3(mnx, mny, mxz), new Vector3(mxx, mny, mxz) };
+                Vector2 ctr = Vector2.zero; float outer = float.MinValue;
+                foreach (var l in loc)
+                {
+                    var w = mon.transform.TransformPoint(l); var p = new Vector2(w.x, w.z);
+                    ctr += p * 0.25f; outer = Mathf.Max(outer, Vector2.Dot(p - front.a, front.outward));
+                }
+                var along = (front.b - front.a).normalized;
+                float dAlong = Vector2.Dot(gateC - ctr, along);
+                var shift = along * dAlong + front.outward * (face - outer);
+                mon.transform.position += new Vector3(shift.x, 0f, shift.y);
+                gateC = ctr + shift;
+                EdoBuild.SeatBottom(mon, EdoBuild.Ground(gateC.x, gateC.y));
+            }
             int nb = BanshoCount(s.bansho);
             if (mon != null && nb > 0)
             {
@@ -338,6 +361,35 @@ public static class EdoTypologyBuilder
         // ── Stage 6: 検査(0件でも刷る・規則19) ──
         log.Add(Inspect(id, root, poly));
         return string.Join("\n", log.ToArray());
+    }
+
+    /// <summary>前辺に建った塀の**通りの側の面**が、区画の境界線からどれだけ外/内にあるか。
+    /// ⭐ 門と塀は芯ではなく**面で合わせる**(規則5)。門の芯を塀の芯に合わせると、
+    /// 厚みの違うぶんだけ門が引っ込むか出っ張る。⛔ 0.20m のような数字を門の側に書かない —
+    /// 塀の作りが変わったら門だけ取り残される(規則8)。</summary>
+    static float FenceFace(Transform encl, Edge front)
+    {
+        var ds = new List<float>();
+        foreach (Transform t in encl)
+        {
+            float mnx, mxx, mnz, mxz, mny;
+            EdoBuild.ObbFootprint(t, out mnx, out mxx, out mnz, out mxz, out mny);
+            if (mnx > mxx) continue;
+            var loc = new[] { new Vector3(mnx, mny, mnz), new Vector3(mxx, mny, mnz),
+                              new Vector3(mnx, mny, mxz), new Vector3(mxx, mny, mxz) };
+            float outer = float.MinValue; Vector2 ctr = Vector2.zero;
+            foreach (var l in loc)
+            {
+                var w = t.TransformPoint(l); var p = new Vector2(w.x, w.z);
+                ctr += p * 0.25f;
+                outer = Mathf.Max(outer, Vector2.Dot(p - front.a, front.outward));
+            }
+            if (EdoGeom.DistToEdge(ctr, front.a, front.b) > 2.0f) continue;   // 前辺に沿う駒だけ
+            ds.Add(outer);
+        }
+        if (ds.Count == 0) return 0f;
+        ds.Sort();
+        return ds[ds.Count / 2];
     }
 
     static string EnclosureFor(Spec s, Edge e, bool isFront)
@@ -397,7 +449,7 @@ public static class EdoTypologyBuilder
                 {
                     UnityEngine.Object.DestroyImmediate(go); go = null; continue;
                 }
-                var rb = EdoBuild.RB(go); rb.Expand(MIN_BLDG_GAP); placed.Add(rb);
+                var rb = EdoBuild.RB(go); rb.Expand(MIN_BLDG_GAP * 2f); placed.Add(rb);  // Expand は片側 1/2
                 n++;
             }
             if (go == null) dropped++;
@@ -527,7 +579,7 @@ public static class EdoTypologyBuilder
         float worstOut = 0f, worstSunk = 0f, worstFloat = 0f;
         foreach (Transform grp in root)
         {
-            float tol = grp.name == "Kakoi" ? 0.6f : 0f;   // 塀の厚みぶん(芯が内側にあればよい)
+            float tol = (grp.name == "Kakoi" || grp.name == "Mon") ? 0.6f : 0f;  // 塀と門は境界線の上に立つ
             foreach (Transform t in grp)                   // 群の直下 = 据えた駒ひとつ
             {
                 var rs = t.GetComponentsInChildren<Renderer>();
@@ -544,10 +596,33 @@ public static class EdoTypologyBuilder
                 if (dy > 0.7f) { floated++; worstFloat = Mathf.Max(worstFloat, dy); }
             }
         }
+        // 棟どうしの離れ — 建つ姿の欠陥ではないが、MIN_BLDG_GAP という数字を書いた以上、
+        // 実際に何 m 離れたかを刷らないと「未検査」を「合格」に見せることになる(規則19)。
+        float minGap = float.MaxValue;
+        var tate = root.Find("Tatemono");
+        if (tate != null)
+        {
+            var bs = new List<Bounds>();
+            foreach (Transform t in tate)
+            {
+                var rs = t.GetComponentsInChildren<Renderer>(); if (rs.Length == 0) continue;
+                var b = rs[0].bounds; for (int i = 1; i < rs.Length; i++) b.Encapsulate(rs[i].bounds);
+                bs.Add(b);
+            }
+            for (int i = 0; i < bs.Count; i++)
+                for (int j = i + 1; j < bs.Count; j++)
+                {
+                    float dx = Mathf.Max(0f, Mathf.Max(bs[i].min.x - bs[j].max.x, bs[j].min.x - bs[i].max.x));
+                    float dz = Mathf.Max(0f, Mathf.Max(bs[i].min.z - bs[j].max.z, bs[j].min.z - bs[i].max.z));
+                    minGap = Mathf.Min(minGap, Mathf.Sqrt(dx * dx + dz * dz));
+                }
+        }
+        string gap = minGap == float.MaxValue ? "" :
+            string.Format(" / 棟間の最小 {0:F2}m{1}", minGap, minGap < MIN_BLDG_GAP ? "(⚠ 目安 " + MIN_BLDG_GAP.ToString("F1") + "m 未満)" : "");
         string mark = (outside + sunk + floated) == 0 ? "⭕" : "⛔";
         return string.Format("  {0} 検査: 駒 {1} — 区画の外 {2}(最悪 {3:F2}m) / 埋没 {4}(最悪 {5:F2}m) / "
-                           + "浮き {6}(最悪 {7:F2}m)", mark, n, outside, worstOut, sunk, worstSunk,
-                             floated, worstFloat);
+                           + "浮き {6}(最悪 {7:F2}m){8}", mark, n, outside, worstOut, sunk, worstSunk,
+                             floated, worstFloat, gap);
     }
 
     // ───────────────────────── メニュー ─────────────────────────

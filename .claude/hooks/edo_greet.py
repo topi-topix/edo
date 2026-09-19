@@ -87,6 +87,13 @@ if os.path.exists(CLI):
             print("  ⚠ 移行期間(2026-09-01 裁定B): 検分を通すまで作業は続けてよいが、"
                   "**ユーザーへ見せる前には必ず通す**。遡って pass を書かない。"
                   "結果は呼んだ側が `review_gate.py --record <屋敷> <役> <pass|fail>`(CLAUDE.md 規則18)")
+    # 完成条件の表(2026-09-19 施主裁定3=A) — 実装の車線にいる敷地の 5 項目の残。
+    #   検図関門は実装前まで、実装後はこの表が関門(CLAUDE.md 規則18)。
+    kcli = os.path.join(MAIN_ROOT, "Tools", "Sashizu", "kansei_gate.py")
+    if os.path.exists(kcli):
+        k = subprocess.run([sys.executable, kcli, "--quiet"], capture_output=True, text=True, env=env)
+        if k.stdout.strip():
+            print(k.stdout.strip())
     # 結線関門(絶対規則19) — **書いたのに誰の目にも入らない産物**を鳴らす。
     #   ⛔ 規則19 は CLAUDE.md に入ったが、**機構としては誰にも鳴っていなかった**。
     #   これは規則18(検図関門)を作った動機そのもの ——「ルーティング表に載っていたが

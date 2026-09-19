@@ -35,6 +35,9 @@ CLAUDE.md のルーティング表に edo-niwashi は載っていたのに、**�
     python3 Tools/Sashizu/review_gate.py --ack doi "裁定1=A"   # ユーザーの発話で巡を reset
     python3 Tools/Sashizu/review_gate.py --checks        # 邸ごとの機械検査の本数(乖離の見える化)
 
+⭐ **効くのは実装前まで(2026-09-19 施主裁定2=A)。** 実装の車線に入った敷地(`kansei_gate.py --init` で
+`<邸>_kansei.json` が在る)ではこの関門は鳴らず、完成条件の表が関門になる。指摘は建つ姿を変える物だけ。
+
 ⛔ **関門が赤の指図を実装しない。赤のシーンをユーザーに見せない。**
 
 ⚠ **【移行期間】2026-09-01 ユーザー裁定(案B)。** この関門は 2026-09-01 の新設で、
@@ -400,6 +403,18 @@ def cmd_changed(name, as_json=False):
     return 0
 
 
+def _kansei_phase(name, sashizu_path):
+    """完成条件の表の phase。表が無ければ design(= この関門が効く)。指図と同じ側(main / worktree)を見る。"""
+    p = os.path.join(os.path.dirname(sashizu_path), "%s_kansei.json" % name)
+    if not os.path.exists(p):
+        return "design"
+    try:
+        with open(p) as fp:
+            return json.load(fp).get("phase") or "built"
+    except Exception:
+        return "design"
+
+
 def estates():
     """互換のための薄い殻。実体は estate_names()(worktree も見る)。"""
     return estate_names()
@@ -411,6 +426,13 @@ def gate(name):
     path = _doc_path(name)
     with open(path) as fp:
         doc = json.load(fp)
+    # 2026-09-19 施主裁定2=A: 検分は**実装前に 1 巡**。実装の車線に入った敷地(<邸>_kansei.json が在り
+    #   phase=built/done)では、この関門は効かない — 関門は完成条件の表(kansei_gate.py)へ移る。
+    #   指図へ戻る(--reopen で phase=design)と再び効く(変わった章だけ)。
+    ph = _kansei_phase(name, path)
+    if ph in ("built", "done"):
+        return 0, [("・", "kansei", "完成条件の表",
+                    "実装後(phase=%s) — 検図関門は効かない。関門は `kansei_gate.py`" % ph, "")]
     rev = doc.get("reviews") or {}
     rows, red = [], 0
     for key, spec in REVIEWERS.items():

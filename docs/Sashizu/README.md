@@ -29,8 +29,13 @@
    ⚠ 正本は**現代**の地面で、近代造成を含む。江戸期の地盤が要るなら**復元レイヤ**を別に持ち、
    **自分の区画でクリップする**(岡部の `okabe_edo_world.json`)。回転間格子の `<屋敷>_terrain.json`
    は各邸の生成器が作るが、種地はこの正本に揃えること。
-6. **順序を守る。**
-   `設計(json/md) → 組む → 検図 → レビュー → 実装 → 指図を更新 → 突き合わせて0件 → コミット`
+6. **順序を守る(2026-09-19 施主裁定で改めた)。**
+   `設計(json/md・意図と制約だけ) → 組む → 検分 1 巡(/kenzu) → kansei_gate.py --init → 実装 → 完成条件の表が全部 pass → 完成`
+   ⛔ **座標と部材の端は指図に書かない** — 取り合いと境界はビルダーが実メッシュから解き、普請検査が測る。
+   ⛔ **実装後は指図を開かない。** 建てて出た欠陥は許容0(隙・めり込み・浮き・埋没・裏表・区域侵犯)ならビルダーと
+   シーンで直し、気にしない物(自由配置物の位置ずれ・書式)は直さない。開くのは意図が変わるときだけ
+   (`kansei_gate.py --reopen`)。完成条件の表は `<屋敷>_kansei.json`(隙0・境界侵犯0・埋没浮き0・突き合わせ0・
+   レンダの施主承認)。**類型の区画には指図を書かない**(→ `docs/typology-builder.md`)。
    **実装から指図を生成しない。** 先に図を描く関門が消える。道具が担ってよいのは突き合わせだけ。
    但し書き: 生成器が実装ソース(C#)を読むのは**突き合わせの表を組む目的に限る** —
    設計値を実装から導いてはならない。生成器から `<屋敷>_sashizu.json` への書き戻しも
@@ -49,6 +54,7 @@
 | `okabe_edo_dem.json` | 江戸期復元地盤の回転間格子 | `Tools/Sashizu/build_okabe_edo_dem.py` |
 | `okabe_edo_world.json` | 江戸期復元地盤(世界座標・区画でクリップ)。**隣家の共有辺検査が読む** | `Tools/Sashizu/build_okabe_edo_dem.py` |
 | — | 指図と実装の突き合わせ | Unity `Edo ▸ 岡部筑前守上屋敷 ▸ 指図と実装を突き合わせる` |
+| `<屋敷>_kansei.json` | **完成条件の表**(隙0・境界侵犯0・埋没浮き0・突き合わせ0・レンダの施主承認)。在る = 実装の車線に入り検図関門は効かない | `Tools/Sashizu/kansei_gate.py --init / --record / --reopen`(普請奉行が書き戻す) |
 | `matsudaira_dewa_edo_recon.json` | 松江松平の江戸期復元レイヤの仕様(1883 の法肩・法尻の点列と確度 `cert`。html の地盤の呼び名はここから引く) | 人(`_calib`/`_datum` は考証方の値) |
 | `matsudaira_dewa_edo_dem.json` / `_edo_world.json` / `_cur_dem.json` | 江戸期復元地盤(回転間格子 / 世界座標・区画でクリップ / 現況)。断面・切盛・法面の検査はすべて `_edo_*` を読む(⛔ `sections[].natural` に写さない) | `Tools/Sashizu/build_matsudaira_dewa_edo_dem.py`(`--check` で陳腐化を見張る) |
 | `matsudaira_dewa_planting_out.json` | ⭐ **実装が据える植栽の点の正典(生成物)** — 生成器が撒き検査した点そのもの(庭+法面・`ground:design|terrain`)。Unity の 7' 植栽はこれを据えるだけで**撒き直さない**(`planting_export_check` が本数一致を見張る) | `Tools/Sashizu/build_matsudaira_dewa_sashizu.py`(毎回) |

@@ -24,14 +24,18 @@
 ## 絶対規則
 
 1. **手組み資産は正典。** `Ishigaki` / `Nagaya` / `Omotemon` ほかは再生成も削除もしない。撤去は `SetActive(false)`。
-2. **指図を先に起こす。** 寸法を動かす前に `docs/Sashizu/` に設計図を描き、レビューを受ける。
-   順序は **設計(指図) → レビュー → 実装 → 指図を更新 → 突き合わせ**。実装から指図を生成しない。
-3. **面の高さは地形が決める。** 造成の前に地形を測り、自然の平場の高さをそのまま面に採る。窪みは
-   一段低い郭にして階段廊下でつなぐ。棟が載る所で |設計面 − 自然地形| ≤ 0.5m。指図には
-   **現況図・切盛図・断面・動線図**を必ず入れる。→ `unity-buke-yashiki` §B-1 / §B-6
-4. **指図は現況だけを載せる。** 経緯は `git log`。数値は `docs/Sashizu/*.json` にのみ置き、文章にも
-   図にも写さない。実装を変えたら指図を更新し、`Edo/<屋敷>/指図と実装を突き合わせる` が 0 件になるまで
-   直す。**突き合わせが 0 件でないシーンをユーザーに見せない。**
+2. **指図は意図と制約だけ。** 手作りの敷地は寸法を動かす前に `docs/Sashizu/` に指図を起こす。書くのは
+   棟・門の種類と関係、面の高さ、区域、柱間と型、典拠。⛔ **座標と部材の端は書かない** — 取り合いと境界は
+   ビルダーが実メッシュから解き、Unity で機械的に測る。順序は **指図 → 検分1巡 → 実装 → 完成条件の表**。
+   実装から指図を生成しない。類型の区画には指図を書かない(→ `docs/typology-builder.md`)。
+3. **面の高さは地形が決める。** 造成の前に地形を測り、自然の平場の高さをそのまま面に採る。窪みは一段低い
+   郭にして階段廊下でつなぐ。棟が載る所で |設計面 − 自然地形| ≤ 0.5m。指図には**現況図・切盛図・断面・
+   動線図**を入れる。→ `unity-buke-yashiki` §B-1 / §B-6
+4. **指図は現況だけを載せ、実装後は開かない。** 経緯は `git log`。数値は `docs/Sashizu/*.json` にのみ置く。
+   建てて出た欠陥は三分類: **許容0**(隙・めり込み・浮き・埋没・裏表・区域侵犯)はビルダーとシーンで直す /
+   **気にしない**(自由配置物の位置ずれ・図の書式・符牒・帳簿)は直さない / **指図を開く**のは意図が変わる
+   とき(棟や門の増減・面の高さ・区域・柱間や屋根の型)だけ。開いたら変わった章だけ検分1巡、
+   `Edo/<屋敷>/指図と実装を突き合わせる` 0 件まで直す。**突き合わせが 0 件でないシーンをユーザーに見せない。**
 5. **部材どうしを中心で合わせない。** どの面がどの面に接するかを指図に書き、実装は置いた駒の実メッシュ
    から面を測って寄せる。全体設計(区画・面・棟の並び)と詳細設計(取り合い)は別の粒度。
    → `unity-buke-yashiki/references/sashizu.md`「取り合いは面で決める」
@@ -40,51 +44,53 @@
 8. **自分の成果物を基準に norm を作らない。** 史料値は `estate-types.md` から取る。
 9. **地形は現地形に従う。** 街路・坂・水系は現地形。敷地内も自然の平場を活かし、造成は最小限(規則3)。
 10. **開花木(Spring 桜)を置かない。** 季節は春ではない。⛔ **自作の低ポリの木も置かない**
-    (`EdoAssets.Own.Broadleaf` は使用禁止)。植栽は在庫のパックから採り、無い樹種は在庫の木の作りを
-    参考にリアルに起こす。
+    (`EdoAssets.Own.Broadleaf` は使用禁止)。植栽は在庫のパックから採り、無い樹種は在庫の木に倣って起こす。
 11. **区画の座標を C# に書かない。** 町割は `docs/Sashizu/parcels.json` が正典、ビルダーは
     `EdoParcels.Get("<id>")`。`Edo/敷地割/ビルダーと突き合わせる` が差分を見張る。
 12. **パスの literal を新規に書かない。** すべて `Assets/Edo/Scripts/Editor/EdoAssets.cs` に置く。
-13. **造成前の地盤を Unity から採らない。** 正典は `docs/Sashizu/base_dem.json`、各邸の `*_dem.json` は
-    `Tools/Sashizu/build_base_dem.py` が切り出す。live terrain は採る時刻で値が変わる。
+13. **造成前の地盤を Unity から採らない。** 正典は `docs/Sashizu/base_dem.json`(切り出しは `Tools/Sashizu/build_base_dem.py`)。
 14. **図には読める分解能がある。** 古地図オーバーレイ(残差 中央値 55m)で数m〜十数mの平面判断をしない。
-    細部は五千分一東京図(0.3175 m/px)と大江戸今昔めぐり。⛔ 縮小した概観で「無い」と判定しない。
-15. **屋敷を苗字だけで呼ばない。** 松平は7家ある。⚠ 裸の `Edo_Yashiki_Matsudaira` は**鍋島邸**。
-    当プロジェクトの「松平邸」は松江藩 `matsudaira_dewa`。識別子は官位まで入れる。
-16. **一通に一種別。** 【裁定】【質問】【報告】【共有】を見出しに立て、全項目に番号と題、冒頭1行で
-    件数を宣言、選択肢は A/B/C、裁定は一通に最大3件・6点セット。符牒(`U12` など)は裸で出さない。
-    指図は Artifact の URL で示す(最新版を再公開してから)。⛔ 地の文の末尾に問いを埋めない。
-    → 正典 **`docs/reporting-protocol.md`**。全経路に例外なく効く。<!-- obl:report-protocol -->
+    細部は五千分一東京図(0.3175 m/px)。⛔ 縮小した概観で「無い」と判定しない。
+15. **屋敷を苗字だけで呼ばない。** 松平は7家ある。裸の `Edo_Yashiki_Matsudaira` は**鍋島邸**、松江藩は `matsudaira_dewa`。
+16. **一通に一種別。** 【裁定】【質問】【報告】【共有】を見出しに立て、番号と題、冒頭1行で件数、選択肢は
+    A/B/C、裁定は一通に最大3件・6点セット。符牒を裸で出さない。指図は Artifact の URL で。⛔ 地の文の末尾に
+    問いを埋めない。→ 正典 **`docs/reporting-protocol.md`**。全経路に例外なく効く。<!-- obl:report-protocol -->
 17. **意匠を決める役と書き起こす役を混ぜない。** 庭=`edo-niwashi` / 石垣=`unity-modular-stonewall` /
     部材=`edo-buzai` に**設計させ**、指図方は数値へ書き起こすだけ。
-18. **指図は「誰に検められたか」を持つ。関門が赤なら実装しない・見せない。**
-    `docs/Sashizu/<屋敷>_sashizu.json` の `reviews` に記録し、`python3 Tools/Sashizu/review_gate.py` が
-    見張る。検分役は read-only なので**呼んだ側が** `--record <屋敷> <役> <pass|fail>` で書き戻す。<!-- obl:review-record canon -->
-    **【移行期間・2026-09-01 裁定B】** 記録が無い邸は検分を通すまで作業を続けてよいが、**新たに
-    ユーザーへ見せる前には必ず通す**。遡って pass を書かない。
-    **巡は関門が数える(2026-09-13)**: 検分は `/kenzu <邸>`(差分だけ・指摘 ≤10・3 巡で止まる)。同じ役の fail が
-    ユーザーの発話なしに 3 回続くと門番が止める(`--rounds` / reset は `--ack`)。→ `docs/session-board.md` 三巡則 <!-- obl:three-rounds -->
+18. **検分は実装前に1巡。関門が赤なら実装しない・見せない。** `docs/Sashizu/<屋敷>_sashizu.json` の
+    `reviews` に記録し `python3 Tools/Sashizu/review_gate.py` が見張る。検分役は read-only なので**呼んだ側が**
+    `--record <屋敷> <役> <pass|fail>` で書き戻す。<!-- obl:review-record canon --> 指摘は**建つ姿を変える物だけ**
+    (書式・符牒・帳簿は対象外)。2巡目に回す前に「建つ姿が変わる指摘か」を問う。検分は `/kenzu <邸>`(差分だけ・
+    指摘 ≤10)、同じ役の fail がユーザーの発話なしに 3 回続くと門番が止める。→ `docs/session-board.md` 三巡則 <!-- obl:three-rounds -->
+    **実装に入るとき `python3 Tools/Sashizu/kansei_gate.py --init <屋敷>`** — 以後この関門は効かず、**完成条件の表**
+    (`<屋敷>_kansei.json`: 隙0・境界侵犯0・埋没浮き0・突き合わせ0・レンダの施主承認)が全部 pass で完成。
+    以後の指摘は掲示板へ積み、指図は開かない(規則4)。
+    【移行期間・2026-09-01 裁定B】記録が無い邸は検分を通すまで作業を続けてよいが、ユーザーへ見せる前には必ず通す。
 19. **輪に入っていない値は「未検査」であって「合格」ではない。** 検査を書いたら同じ巡で報告経路へ繋ぎ、
     設計値を入れたら同じ巡でそれを描く図を出す。`python3 Tools/Sashizu/wiring_gate.py` が全邸を見張る。
-    欠陥はそれが見える最も安い輪(計算 → 図 → 実装 → ユーザーの目)で捕まえる。→ `docs/verification-loops.md`
+    欠陥はそれが見える最も安い輪で捕まえる — ただし**取り合いと境界の正の輪は実装**(Unity で実メッシュを
+    測る)。紙で先回りして座標を書かない。→ `docs/verification-loops.md`
 20. **読み手は施主。文脈の天井は 300K。** 報告は `docs/reporting-protocol.md` 規則0(機構語・役名を書かない・
-    一通 800 字)。文脈は `autoCompactWindow` と門番の文脈計が守る。→ `docs/fushin-bugyo.md`「文脈の作法」
+    一通 800 字)。→ `docs/fushin-bugyo.md`「文脈の作法」
 
 ## 制作パイプライン
 
+**二層(2026-09-19 施主裁定)**: 史料で確かな数敷地だけ**手作り**(どれかは施主が選ぶ)。残りは**類型** — 区画の形と
+類型表からビルダーが生成し、指図も検分の輪も無い(→ `docs/typology-builder.md`)。実装の車線は**同時に一敷地**。
+
 ```
 ① 下書き   EdoSketch(Edo/下書き, %#d)→ UserData/Sketches/*.json
-② 考証+指図 普請奉行がユーザーと大方針 → edo-sashizukata が docs/Sashizu/<屋敷>_sashizu.html まで
-           → 出す前に edo-kosho と edo-kenzu(庭があれば edo-niwashi)を並列で通す
-③ 部材     在庫を先に引く(docs/asset-catalog.md)→ 無ければ Tools/Blender/*.py で新造
+② 考証+指図 普請奉行がユーザーと大方針 → edo-sashizukata が意図と制約を json へ → `/kenzu`(三役並列・実装前に1巡)
+③ 部材     在庫を先に引く(docs/asset-catalog.md)→ 無ければ Tools/Blender/*.py で新造(柱間と型が決まってから)
 ④ 登録     EdoAssets.cs にパスを追加(寸法パラメタ化パスは関数で)
-⑤ 実装     プレハブを解く → Stage を順に実行 → プレハブへ書き戻す(edo-toryo)→ edo-fushin-qa
+⑤ 実装     kansei_gate.py --init → プレハブを解く → Stage → 書き戻す(edo-toryo)→ edo-fushin-qa が表を埋める
+⑥ 完成     表が全部 pass(最後は施主のレンダ承認)。以後の指摘は掲示板へ。指図は開かない
 ```
 
 ## 触ると壊れるもの
 
-→ **`.claude/rules/unity.md`**(`Assets/**` を触るときだけ読み込まれる。排他・プレハブ・地形・コンパイル・MCP の罠)。
-共通の一線だけここに: **Unity は排他**(`edo_session.py start <屋敷> --unity` / 終わったら即 `release --resources unity`)、
+→ **`.claude/rules/unity.md`**(排他・プレハブ・地形・コンパイル・MCP の罠)。共通の一線だけここに:
+**Unity は排他**(`edo_session.py start <屋敷> --unity` / 終わったら即 `release --resources unity`)、
 **手組み資産は再生成しない**、**`git add -A` / `git commit -a` は門番が止める**。→ `docs/session-coordination.md`・`.claude/rules/unity.md` <!-- obl:unity-release -->
 
 ## ルーティング
@@ -111,14 +117,15 @@
 | 在庫に何があるか | `docs/asset-catalog.md` → `docs/asset-index.tsv` |
 | 指図の描き方・組み方 | `docs/Sashizu/README.md` + `unity-buke-yashiki/references/sashizu.md` |
 | 地形の座標・造成の初期化 | `docs/terrain-georef-fix.md` |
-| Unity 公式プラグインのスキル(`unity:*`) | `docs/unity-agent-plugin.md` — 採否表と `eval`→`execute_code` の読み替え。⛔ `unity` CLI でエディタを動かさない |
+| Unity 公式プラグインのスキル(`unity:*`) | `docs/unity-agent-plugin.md`(採否表)。⛔ `unity` CLI でエディタを動かさない |
 | **自分(普請奉行)の権限と境界・文脈の作法** | **`docs/fushin-bugyo.md`** |
 | **報告・裁定・質問・共有の書き方** | **`docs/reporting-protocol.md`** — ⛔ 何かをユーザーに問う前に必ず |
 | **検査の結線・どの輪で検めるか** | **`docs/verification-loops.md`** |
-| セッション間の報告・裁定要請・情報共有 | `docs/session-board.md` — 節目・ブロッカー・裁定要請は `edo_board.py post`。自己検図・自己考証はユーザー入力なしに3巡まで |
+| セッション間の報告・裁定要請・情報共有 | `docs/session-board.md` — 節目・ブロッカー・裁定要請は `edo_board.py post` |
 | 規則の由来・過去の事故 | `docs/lessons.md` |
 | **設定そのもの(規則・役・スキル・フック・メモリ)の手入れ** | **`docs/teire.md`** — 挨拶の道具改めが ⛔ を出したら、設定を触る前に直す。週次は `/teire` |
-| **日誌(各セッションが何をして、どこに時間が掛かったか・振り返り)** | `docs/teire.md` の「日誌」の行。集計は `Tools/Session/nikki.py`、朝の処置は `/nikki`、週の整理は `/teire` |
+| **日誌(各セッションが何をして、どこに時間が掛かったか)** | `docs/teire.md`「日誌」。集計は `Tools/Session/nikki.py`、朝は `/nikki`、週は `/teire` |
+| **類型の区画(手作りしない区画)の作り** | **`docs/typology-builder.md`** — 類型表の schema と類型ビルダーの設計 |
 
 ### ⭐ あなたは普請奉行(一邸を預かり大方針を決める役)
 
@@ -136,12 +143,12 @@
 | 庭が庭として成立しているか。庭の設計 | **`edo-niwashi`**(庭方・read-only) |
 | 在庫に使える物があるか引く | **`edo-zaiko`**(在庫方) |
 | Blender で部材を新造する | **`edo-buzai`**(部材方) |
-| 指図どおりに Unity へ実装する | **`edo-toryo`**(棟梁) |
-| 建てた後の数値QAと検証レンダ | **`edo-fushin-qa`**(普請検査・計測のみ) |
+| 指図どおりに建て、取り合いと境界を実メッシュから解く | **`edo-toryo`**(棟梁) |
+| 建てた後の数値QAと検証レンダ。完成条件の表を埋める | **`edo-fushin-qa`**(普請検査・計測のみ) |
 
 ⛔ `edo-toryo` / `edo-fushin-qa` を呼ぶ前に Unity の claim を返す(握ったまま呼ぶと待ち行列に回る)。
-⛔ 指図を見せる前・実装に入る前に `python3 Tools/Sashizu/review_gate.py`。赤は実装しない。
+⛔ 指図を見せる前・実装に入る前に `python3 Tools/Sashizu/review_gate.py`。赤は実装しない。実装後は `kansei_gate.py`。
 ⛔ `.claude/`・CLAUDE.md・スキル・メモリを触ったら `python3 Tools/Session/config_doctor.py --quick` が無言になるまで直してからコミット。
 ⛔ 裁定を求めるときは**裁定図**(どこ・現況・各案を同じ縮尺で・数値の差・推奨)を出す。名前と数字の羅列で選ばせない。
 ⚠ `edo-toryo` は指図に無い値を発明しない。踏んだ罠は自分の memory へ → 正典は `.claude/agents/edo-toryo.md`「知見の引き継ぎ」<!-- obl:toryo-writeback -->
-⚠ 巡回する差配役は置かない。ダッシュボードは `Tools/Session/build_board_html.py`、見張りは挨拶フックと週次の自動点検(毎週日曜 18 時 → `docs/teire.md`)。
+⚠ 巡回する差配役は置かない。見張りは挨拶フックと週次の自動点検(→ `docs/teire.md`)。

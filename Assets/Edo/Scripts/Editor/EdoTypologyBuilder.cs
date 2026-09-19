@@ -356,6 +356,13 @@ public static class EdoTypologyBuilder
         var g = Group("Tatemono", root);
         var c = Inner(poly, SETBACK);
         if (c.Count == 0) return "  ⛔ 主屋: 区画が狭く、囲いの内側に置ける場所が無い";
+        // ⛔ 候補点は格子の走査順のままにしない。2026-09-19、633坪の区画で 16.6×20.6m の主屋が
+        //    「区画に収まらず未建」になった — 走査順の先頭8点が区画の隅に固まっていて、
+        //    20.6m の余地がある奥へ一度も試されなかった。
+        // ⭐ 奥ほど先に試す: 辺から遠い点を優先し、同じくらいなら門から遠い方(表門→前庭→主屋)。
+        var gate = front.mid;
+        c.Sort((p, q) => (EdoGeom.DistToPolyEdge(poly, q) + 0.15f * Vector2.Distance(q, gate))
+                .CompareTo(EdoGeom.DistToPolyEdge(poly, p) + 0.15f * Vector2.Distance(p, gate)));
         float psi = Mathf.Atan2(-front.outward.x, -front.outward.y) * Mathf.Rad2Deg; // 門の方を向く
 
         var plan = Plan(s);
@@ -369,21 +376,36 @@ public static class EdoTypologyBuilder
             for (int u = 0; u < s.units; u++) plan.AddRange(one);
         }
         var placed = new List<Bounds>();
-        int n = 0;
+        var tried = new HashSet<Vector2>();
+        int n = 0, dropped = 0;
         foreach (var item in plan)
         {
-            var spot = Spot(c, placed, item.Value);
-            if (spot == null) continue;
-            var go = EdoBuild.Place(item.Key, new Vector3(spot.Value.x, pad, spot.Value.y), psi,
+            GameObject go = null;
+            // ⭐ 置いて、実メッシュの底面で検め、はみ出したら退けて次の場所(最大8回)。
+            //    半径は型ごとの当て推量なので、区画の境界は実メッシュでしか決められない(規則5)。
+            for (int attempt = 0; attempt < 8 && go == null; attempt++)
+            {
+                var spot = Spot(poly, c, placed, item.Value, tried);
+                if (spot == null) break;
+                tried.Add(spot.Value);
+                go = EdoBuild.Place(item.Key, new Vector3(spot.Value.x, pad, spot.Value.y), psi,
                                     Vector3.one, g, "B" + n + "_" + Path.GetFileNameWithoutExtension(item.Key));
-            if (go == null) continue;
-            EdoBuild.SeatBottom(go, EdoBuild.Ground(spot.Value.x, spot.Value.y));
-            var rb = EdoBuild.RB(go); rb.Expand(MIN_BLDG_GAP); placed.Add(rb);
-            n++;
+                if (go == null) break;
+                EdoBuild.SeatBottom(go, EdoBuild.Ground(spot.Value.x, spot.Value.y));
+                float over;
+                if (!FootprintInside(poly, go.transform, out over))
+                {
+                    UnityEngine.Object.DestroyImmediate(go); go = null; continue;
+                }
+                var rb = EdoBuild.RB(go); rb.Expand(MIN_BLDG_GAP); placed.Add(rb);
+                n++;
+            }
+            if (go == null) dropped++;
         }
         string yag = s.yagura ? "・⚠ 隅矢倉は在庫に部材が無いため未建(部材方の宿題)" : "";
         string un  = s.units > 1 ? string.Format("・{0}戸割り", s.units) : "";
-        return string.Format("  主屋と付属: {0}棟(型={1}{2}){3}", n, s.rank ?? s.kind ?? s.type, un, yag);
+        string dr  = dropped > 0 ? string.Format("・⚠ {0}棟は区画に収まらず未建", dropped) : "";
+        return string.Format("  主屋と付属: {0}棟(型={1}{2}){3}{4}", n, s.rank ?? s.kind ?? s.type, un, dr, yag);
     }
 
     /// <summary>型ごとに「何を何棟」。⛔ 在庫の代用が多い — 専用部材は部材方の宿題。</summary>
@@ -445,46 +467,87 @@ public static class EdoTypologyBuilder
         return L;
     }
 
-    /// <summary>まだ空いていて、半径 r が区画からはみ出さず、既に置いた棟から MIN_BLDG_GAP 離れる点。</summary>
-    static Vector2? Spot(List<Vector2> cand, List<Bounds> placed, float r)
+    /// <summary>まだ空いていて、半径 r が区画からはみ出さず、既に置いた棟から MIN_BLDG_GAP 離れる点。
+    /// ⛔ 2026-09-19 まで**この関数は r を一度も見ていなかった** — 文言は「はみ出さず」なのに
+    /// 中身は候補点が既存の棟の中かどうかを見るだけで、16.6×20.6m の主屋が区画から 5.47m はみ出した。
+    /// 検査の文言と実装の集合を突き合わせる(規則19)。</summary>
+    static Vector2? Spot(Vector2[] poly, List<Vector2> cand, List<Bounds> placed, float r,
+                         HashSet<Vector2> tried)
     {
         foreach (var p in cand)
         {
+            if (tried != null && tried.Contains(p)) continue;
+            // ⭐ ここは**下読み**。r は型ごとの当て推量なので、半径をそのまま境界に効かせると
+            //    収まる棟まで弾く(620坪の小旗本で主屋が建たなかった)。本当の関門は
+            //    置いた後の FootprintInside(実メッシュの底面)。
+            if (EdoGeom.DistToPolyEdge(poly, p) < r * 0.55f) continue;
             bool ok = true;
             foreach (var b in placed)
-                if (b.Contains(new Vector3(p.x, b.center.y, p.y))) { ok = false; break; }
+            {
+                var q = new Vector2(Mathf.Clamp(p.x, b.min.x, b.max.x), Mathf.Clamp(p.y, b.min.z, b.max.z));
+                if (Vector2.Distance(p, q) < r) { ok = false; break; }
+            }
             if (!ok) continue;
             return p;
         }
         return null;
     }
 
+    /// <summary>据えた駒の**実メッシュの底面**(回転込み)が区画の内に収まっているか。
+    /// ⭐ 半径は当て推量なので、置いてから実メッシュで検め直す(規則5)。</summary>
+    static bool FootprintInside(Vector2[] poly, Transform t, out float over)
+    {
+        float mnx, mxx, mnz, mxz, mny;
+        EdoBuild.ObbFootprint(t, out mnx, out mxx, out mnz, out mxz, out mny);
+        over = 0f;
+        var loc = new[] { new Vector3(mnx, mny, mnz), new Vector3(mxx, mny, mnz),
+                          new Vector3(mnx, mny, mxz), new Vector3(mxx, mny, mxz) };
+        foreach (var l in loc)
+        {
+            var w = t.TransformPoint(l);
+            var p = new Vector2(w.x, w.z);
+            if (!EdoGeom.PIP(poly, p)) over = Mathf.Max(over, EdoGeom.DistToPolyEdge(poly, p));
+        }
+        return over <= 0f;
+    }
+
     // ───────────────────────── Stage 6: 検査 ─────────────────────────
     /// <summary>境界侵犯・埋没・浮きを、建てたその場で測って刷る(0件でも刷る・規則19)。
     /// ⛔ これは「機械で見える型」だけ。部材どうしの隙は建てて見る輪の持ち場。</summary>
+    /// <summary>Stage 6 — 建てた姿を測る。⛔ **数えるのは「据えた駒」ひとつずつ**(群の直下の子)で、
+    /// 部材の中のメッシュ一枚ずつではない。⛔ 2026-09-19、屋根や壁の一枚一枚を数えていて
+    /// 「浮き 1103 / 1388」という**嘘の赤**が出た(屋根は地面から離れているのが正しい姿)。
+    /// 測る物: ①区域侵犯=駒の底面が区画の外へ出た量 ②埋没=駒の底が地面より 1.0m 下
+    /// ③浮き=駒の底が地面より 0.7m 上。⭐ 塀は境界線の**上に**立つので囲いだけ 0.6m の遊びを持つ
+    /// (建物と門は遊び 0 — 規則4「境界侵犯は許容0」)。⛔ 0 件は「この型では捕まらなかった」
+    /// であって合格ではない(規則19)。最悪値を必ず刷り、緩い条件で 0 が出ていないか見えるようにする。</summary>
     public static string Inspect(string id, Transform root, Vector2[] poly)
     {
-        int outside = 0, sunk = 0, floated = 0, n = 0;
-        foreach (var t in root.GetComponentsInChildren<Transform>(true))
+        int n = 0, outside = 0, sunk = 0, floated = 0;
+        float worstOut = 0f, worstSunk = 0f, worstFloat = 0f;
+        foreach (Transform grp in root)
         {
-            var mf = t.GetComponent<MeshFilter>(); if (mf == null || mf.sharedMesh == null) continue;
-            n++;
-            var b = t.GetComponent<Renderer>() != null ? t.GetComponent<Renderer>().bounds : new Bounds(t.position, Vector3.zero);
-            // 境界: OBB の底面 4 隅 + 中心
-            var pts = new[]
+            float tol = grp.name == "Kakoi" ? 0.6f : 0f;   // 塀の厚みぶん(芯が内側にあればよい)
+            foreach (Transform t in grp)                   // 群の直下 = 据えた駒ひとつ
             {
-                new Vector2(b.min.x, b.min.z), new Vector2(b.max.x, b.min.z),
-                new Vector2(b.min.x, b.max.z), new Vector2(b.max.x, b.max.z),
-                new Vector2(b.center.x, b.center.z),
-            };
-            foreach (var p in pts) if (!EdoGeom.PIP(poly, p)) { outside++; break; }
-            float g = EdoBuild.Ground(b.center.x, b.center.z);
-            if (b.min.y < g - 1.0f) sunk++;
-            if (b.min.y > g + 0.7f) floated++;
+                var rs = t.GetComponentsInChildren<Renderer>();
+                if (rs.Length == 0) continue;
+                var b = rs[0].bounds;
+                for (int i = 1; i < rs.Length; i++) b.Encapsulate(rs[i].bounds);
+                n++;
+                // ⛔ AABB の隅で測らない — 斜めの辺に沿う塀は、回っているだけで隅が外へ出る。
+                //    実メッシュの底面(回転込み)で測る(規則5)。
+                float outD; FootprintInside(poly, t, out outD);
+                if (outD > tol) { outside++; worstOut = Mathf.Max(worstOut, outD); }
+                float dy = b.min.y - EdoBuild.Ground(b.center.x, b.center.z);
+                if (dy < -1.0f) { sunk++; worstSunk = Mathf.Max(worstSunk, -dy); }
+                if (dy > 0.7f) { floated++; worstFloat = Mathf.Max(worstFloat, dy); }
+            }
         }
         string mark = (outside + sunk + floated) == 0 ? "⭕" : "⛔";
-        return string.Format("  {0} 検査: 駒 {1} — 区画の外 {2} / 埋没(>1.0m) {3} / 浮き(>0.7m) {4}",
-                             mark, n, outside, sunk, floated);
+        return string.Format("  {0} 検査: 駒 {1} — 区画の外 {2}(最悪 {3:F2}m) / 埋没 {4}(最悪 {5:F2}m) / "
+                           + "浮き {6}(最悪 {7:F2}m)", mark, n, outside, worstOut, sunk, worstSunk,
+                             floated, worstFloat);
     }
 
     // ───────────────────────── メニュー ─────────────────────────

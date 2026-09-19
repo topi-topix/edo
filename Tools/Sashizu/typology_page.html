@@ -1,0 +1,401 @@
+<title>二つの車線</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+  :root{
+    --bg:#f4f1e9; --surface:#fbf9f4; --sunk:#eae5d8;
+    --ink:#1c1a17; --ink-soft:#6e6a63; --rule:#d9d3c5;
+    --accent:#8c3b2e; --deep:#2f4858;
+    --S:#1f4e5f; --A:#3f7d8c; --B:#82aab0; --P:#b08a4a; --U:#c3bdaf;
+    --mincho:"Shippori Mincho","Hiragino Mincho ProN","Yu Mincho",serif;
+    --gothic:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+    --bg:#171513; --surface:#201d1a; --sunk:#100e0d;
+    --ink:#ece7dd; --ink-soft:#a39c90; --rule:#3a352e;
+    --accent:#d1836f; --deep:#8fb0c4;
+    --S:#9fd3e3; --A:#6fa8b8; --B:#4d7e86; --P:#c9a05e; --U:#55504a;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#171513; --surface:#201d1a; --sunk:#100e0d;
+    --ink:#ece7dd; --ink-soft:#a39c90; --rule:#3a352e;
+    --accent:#d1836f; --deep:#8fb0c4;
+    --S:#9fd3e3; --A:#6fa8b8; --B:#4d7e86; --P:#c9a05e; --U:#55504a;
+  }
+
+  body{background:var(--bg);color:var(--ink);font-family:var(--gothic);font-size:15px;line-height:1.85;
+       -webkit-font-smoothing:antialiased}
+  .wrap{max-width:900px;margin:0 auto;padding:56px 22px 110px;display:flex;flex-direction:column;gap:52px}
+  p{margin:0;max-width:62ch}
+  .num{font-variant-numeric:tabular-nums}
+
+  header{display:flex;flex-direction:column;gap:14px}
+  .eyebrow{font-family:var(--mincho);font-size:12px;letter-spacing:.42em;color:var(--accent)}
+  h1{font-family:var(--mincho);font-weight:700;font-size:clamp(30px,5.4vw,44px);margin:0;
+     letter-spacing:.06em;line-height:1.3;text-wrap:balance}
+  .lede{color:var(--ink-soft);max-width:58ch}
+
+  h2{font-family:var(--mincho);font-size:19px;font-weight:700;margin:0;letter-spacing:.08em;
+     display:flex;align-items:baseline;gap:12px}
+  h2::before{content:"";width:22px;height:1px;background:var(--accent);flex:none;transform:translateY(-6px)}
+  section{display:flex;flex-direction:column;gap:20px}
+  h3{font-family:var(--mincho);font-size:15px;font-weight:700;margin:0;letter-spacing:.06em}
+
+  /* ── 分岐 ── */
+  .split{display:grid;gap:14px;grid-template-columns:1fr;align-items:stretch}
+  @media(min-width:700px){.split{grid-template-columns:auto 1fr 1fr}}
+  .box{background:var(--surface);border:1px solid var(--rule);padding:14px 16px;
+       display:flex;flex-direction:column;gap:3px}
+  .box .k{font-family:var(--mincho);font-size:12px;letter-spacing:.14em;color:var(--ink-soft)}
+  .box .v{font-family:var(--mincho);font-size:26px;font-weight:700;line-height:1.2}
+  .box .d{font-size:12.5px;color:var(--ink-soft);line-height:1.7}
+  .box.lit{border-left:3px solid var(--accent)}
+  .box.dim{border-left:3px solid var(--rule)}
+
+  /* ── 車線 ── */
+  .lanes{display:grid;gap:22px;grid-template-columns:1fr}
+  @media(min-width:760px){.lanes{grid-template-columns:1fr 1fr}}
+  .lane{background:var(--surface);border:1px solid var(--rule);padding:22px 22px 24px;
+        display:flex;flex-direction:column;gap:16px}
+  .lane .tag{font-family:var(--mincho);font-size:11.5px;letter-spacing:.24em;color:var(--accent)}
+  .lane .sub{font-size:13px;color:var(--ink-soft);line-height:1.75}
+  ol.steps{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:0}
+  ol.steps li{display:grid;grid-template-columns:auto 1fr;gap:12px;padding:10px 0;
+              border-top:1px solid var(--rule);align-items:baseline}
+  ol.steps li:first-child{border-top:0;padding-top:0}
+  ol.steps .n{font-family:var(--mincho);font-size:12px;color:var(--accent);
+              font-variant-numeric:tabular-nums;white-space:nowrap}
+  ol.steps .t{font-size:13.5px;line-height:1.75}
+  ol.steps .t b{font-weight:700}
+  ol.steps .t small{display:block;color:var(--ink-soft);font-size:12.5px}
+
+  .ramp{display:flex;gap:4px;align-items:flex-end;height:60px}
+  .ramp div{flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:4px;text-align:center}
+  .ramp i{display:block;border-radius:1px}
+  .ramp span{font-size:10.5px;color:var(--ink-soft);font-family:var(--mincho);letter-spacing:.06em}
+
+  .gate{background:var(--sunk);border:1px solid var(--rule);border-left:3px solid var(--deep);
+        padding:16px 20px;display:flex;flex-direction:column;gap:6px}
+  .gate .t{font-family:var(--mincho);font-weight:700;letter-spacing:.06em}
+
+  /* ── 確度の帯 ── */
+  .bar{display:flex;height:34px;border:1px solid var(--rule);overflow:hidden}
+  .bar div{display:flex;align-items:center;justify-content:center;font-size:11.5px;color:#fff;
+           font-variant-numeric:tabular-nums;letter-spacing:.04em}
+  .legend{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:13px}
+  .legend span{display:flex;align-items:center;gap:8px;color:var(--ink-soft)}
+  .legend i{width:11px;height:11px;flex:none;border-radius:1px}
+  .legend b{color:var(--ink);font-weight:500;font-family:var(--mincho)}
+
+  /* ── 表 ── */
+  .tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  button{font:inherit;font-size:12.5px;font-family:var(--mincho);letter-spacing:.08em;
+         background:transparent;color:var(--ink-soft);border:1px solid var(--rule);
+         padding:5px 13px;cursor:pointer;border-radius:1px}
+  button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+  button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .spacer{flex:1}
+  .scroll{overflow-x:auto;border-top:1px solid var(--rule)}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:560px}
+  th,td{text-align:left;padding:9px 14px 9px 0;border-bottom:1px solid var(--rule);vertical-align:top}
+  th{font-family:var(--mincho);font-weight:500;font-size:11.5px;letter-spacing:.14em;
+     color:var(--ink-soft);white-space:nowrap;position:sticky;top:0;background:var(--bg)}
+  td.nm{font-family:var(--mincho);white-space:nowrap;line-height:1.5}
+  td.nm .pid{display:block;font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:10px;
+             color:var(--ink-soft);letter-spacing:0}
+  td.ty{color:var(--ink-soft);white-space:nowrap;font-size:12.5px}
+  td.ce{display:flex;flex-wrap:wrap;gap:4px;padding-right:0}
+  .chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--rule);
+        padding:0 6px 0 0;font-size:11.5px;line-height:1.9;color:var(--ink-soft);border-radius:1px}
+  .chip i{width:14px;text-align:center;color:#fff;font-family:var(--mincho);font-size:10.5px;
+          align-self:stretch;display:flex;align-items:center;justify-content:center}
+  td.sc{white-space:nowrap;width:118px;padding-right:18px}
+  .meter{display:block;height:6px;background:var(--sunk);border:1px solid var(--rule);
+         overflow:hidden;margin-bottom:3px}
+  .meter i{display:block;height:100%;background:var(--A)}
+  .sc .pct{font-variant-numeric:tabular-nums;font-size:12px;color:var(--ink)}
+  .sc .fl{font-size:10.5px;color:var(--ink-soft);margin-left:6px}
+  .hand{color:var(--accent);font-family:var(--mincho);font-size:12px;white-space:nowrap}
+  .rv{display:flex;flex-direction:column;gap:2px;font-size:12.5px}
+  .rv span{display:flex;gap:8px;align-items:baseline}
+  .rv b{font-weight:400;color:var(--ink-soft);min-width:11em;font-family:var(--mincho);font-size:12px}
+  .mk{width:1.2em;text-align:center;flex:none}
+  .mk-pass{color:var(--S)} .mk-red{color:var(--accent)} .mk-stale{color:var(--P)}
+  .mk-advisory{color:var(--ink-soft)}
+  .count{font-size:12.5px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+  .note{border-top:1px solid var(--rule);padding-top:18px;color:var(--ink-soft);font-size:13.5px}
+</style>
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">赤坂・溜池 — 進め方</div>
+  <h1>二つの車線</h1>
+  <p class="lede">区画は「手作り」と「類型」に分かれません。全区画をまず一つのやり方で建て、
+  史料が取れた欄から上書きしていきます。違うのは<strong>欄ごとの確度</strong>だけです。</p>
+</header>
+
+<section>
+  <h2>いまどこに居るか</h2>
+  <div class="split">
+    <div class="box"><span class="k">区画</span><span class="v num">88</span>
+      <span class="d">赤坂・溜池の全域</span></div>
+    <div class="box lit"><span class="k">類型で建てる</span><span class="v num">79</span>
+      <span class="d">区画の形と類型表だけから建つ。指図は起こさない。<br>
+      うち実際に建ったのは<b>1筆</b>(三べ坂西の小旗本)。</span></div>
+    <div class="box dim"><span class="k">図を起こした</span><span class="v num">9</span>
+      <span class="d">指図があり、生成の対象から外れている。<br>
+      岡部・土井・松江松平・山王社・京極・丹羽・三屋敷3筆。</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>進め方 — 速さの違う二本</h2>
+  <div class="lanes">
+
+    <div class="lane">
+      <div>
+        <div class="tag">車線 ①</div>
+        <h3>広げる — 全区画・速い</h3>
+      </div>
+      <p class="sub">残り78区画を「建つ」ところまで持っていく。一筆ずつ睨むのではなく、
+      <b>全部建ててから一望する</b> — 欠陥は並んだときに初めて見えるため。</p>
+      <ol class="steps">
+        <li><span class="n">武家 29</span><span class="t">大名・旗本・御家人の型を埋める<small>試作の1筆はここ。長屋門・高麗門・番所の有無まで</small></span></li>
+        <li><span class="n">町屋 24</span><span class="t">片側町・裏長屋・自身番<small>間口と軒数がまだ軒並み未読</small></span></li>
+        <li><span class="n">寺社 16</span><span class="t">住坊・寺・社家<small>本堂/庫裏/鐘楼の有無を型で分ける</small></span></li>
+        <li><span class="n">明地 10</span><span class="t">御預明地・干場・稽古場<small>建物を置かない型</small></span></li>
+        <li><span class="n">そのあと</span><span class="t"><b>旧来の街区ビルダー21本・約24,000行を外す</b>
+          <small>⛔ 外すのは、類型で建てた姿が今の見え方に並んでから。旧ビルダーは街区ごとに手で調整されていて、先に消すと見た目が後退する</small></span></li>
+      </ol>
+    </div>
+
+    <div class="lane">
+      <div>
+        <div class="tag">車線 ②</div>
+        <h3>深める — 欄ごと・遅い</h3>
+      </div>
+      <p class="sub">史料が読めた欄を表に上書きする。敷地を選ばず<b>欄の単位</b>で進むので、
+      一つの史料が複数の区画をまたいで効く。</p>
+      <div class="ramp" aria-hidden="true">
+        <div><i style="background:var(--U);height:46px"></i><span>未読</span></div>
+        <div><i style="background:var(--P);height:34px"></i><span>類型</span></div>
+        <div><i style="background:var(--B);height:26px"></i><span>推論</span></div>
+        <div><i style="background:var(--A);height:18px"></i><span>実見</span></div>
+        <div><i style="background:var(--S);height:10px"></i><span>一次</span></div>
+      </div>
+      <ol class="steps">
+        <li><span class="n">例</span><span class="t">町方書上の該当丁を当たる<small>町屋24筆の間口・奥行・軒数の未読がまとめて減る</small></span></li>
+        <li><span class="n">例</span><span class="t">地震の御届を読む<small>安政2年の被害と再建が、屋敷の別(上/中/下)を動かす</small></span></li>
+        <li><span class="n">⛔</span><span class="t">推定を既成事実にしない<small>類型で埋めた欄は必ず P か U のまま残す</small></span></li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="gate">
+    <span class="t">車線を乗り換えるとき — 図を起こす</span>
+    <p>ある敷地の史料が「もう類型では表せない」ところまで溜まったら、初めて指図を起こし、
+    生成の対象から外します(<span class="num">9</span> 筆目以降)。⛔ <b>図を起こす車線は同時に一敷地だけ</b>。
+    いまそこに居るのは松江松平邸です。</p>
+  </div>
+</section>
+
+<section>
+  <h2>測り方 — 未読が何%残っているか</h2>
+  <p>「何邸できたか」では測りません。類型で建てる79区画が持つ確度の欄を全部数え、
+  そのうち<strong>未読がどれだけ減ったか</strong>を進捗とします。</p>
+  <div class="gate" style="border-left-color:var(--accent)">
+    <span class="t">「読む」とは</span>
+    <p>その欄について<b>史料に当たり、値と典拠を書き留める</b>ことです。当たる先は、
+    切絵図(国会図書館のデジタル画像を原寸で見る)・武鑑・町方書上・御府内備考・地震の御届・各藩の記録など。
+    読み終えた欄には、どの史料の何ページで読んだかが必ず付きます。</p>
+    <p style="margin-top:6px">⛔ <b>未読(U)は「決めていない」ではありません。</b>
+    値は既に入っていて建物も建ちますが、それは<b>類型表の既定を当てはめただけ</b>で、
+    その敷地について誰も史料を見ていない、という意味です。読めば値が変わることがあります
+    — 実際、内藤紀伊守は読んだ結果<b>上屋敷から中屋敷へ変わりました</b>。</p>
+  </div>
+  <div class="bar" id="bar"></div>
+  <div class="legend" id="legend"></div>
+  <p class="count" id="total"></p>
+</section>
+
+<section>
+  <h2>類型の車線 — 79区画の読み具合</h2>
+  <p>いま表に何が入っていて、どの欄がまだ読めていないか。
+  <b>未読の多い順</b>に並べ替えると、次に当たるべき史料が見えます。</p>
+  <p><b>読み具合</b>は、その区画の欄がどこまで史料で裏打ちされているかの点です
+  (一次史料=4点・絵図の実見=3・実見+推論=2・類型からの推定=1・未読=0 の平均)。
+  ⚠ <b>欄の数が少ない区画は高く出ます</b> — 追っている項目が2つしかなければ、
+  その2つが読めているだけで満点近くになります。点の横に欄の数を添えたのはそのためです。</p>
+  <p class="count">名の下は正典の区画名です。同じ名が並ぶのは、十坊や門前町のように<b>一つの町・寺域が複数の筆に分かれている</b>ため。
+  三べ坂西の小旗本6筆だけは、6名(稲垣安太郎・奥村・佐藤・石井・浅井・満田)が絵図で読めているのに
+  <b>どの名がどの筆かが未確定</b>なので、6行とも同じ名で出ています。</p>
+  <div class="tools" id="tools">
+    <button data-f="all" aria-pressed="true">すべて</button>
+    <button data-f="buke" aria-pressed="false">武家</button>
+    <button data-f="machiya" aria-pressed="false">町屋</button>
+    <button data-f="jisha" aria-pressed="false">寺社</button>
+    <button data-f="kouyuu" aria-pressed="false">明地</button>
+  </div>
+  <div class="tools" id="sorts">
+    <button data-s="block" aria-pressed="true">町ごと</button>
+    <button data-s="desc" aria-pressed="false">読み具合の進んだ順</button>
+    <button data-s="asc" aria-pressed="false">遅れている順</button>
+  </div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>区画</th><th>類型</th><th>読み具合</th><th>欄ごとの確度</th></tr></thead>
+      <tbody id="tb"></tbody>
+    </table>
+  </div>
+  <p class="count" id="shown"></p>
+</section>
+
+<section>
+  <h2>図の車線 — 9敷地</h2>
+  <p>この9敷地は<b>読み具合では測れません</b>。類型表には「図を起こした」という一行しか持たず、
+  調べたことは各敷地の指図の側に入っているからです。⛔ だから読み具合の順に並べると
+  <b>いちばん進んでいる敷地が最後に来ます</b> — 物差しが違うものを一つの順位に混ぜないための作りです。</p>
+  <p>こちらの進み具合は<b>検分の三役</b>(図として成立しているか・史実と典拠・庭)と、
+  実装に入った敷地だけが持つ<b>完成条件の表</b>で測ります。</p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>敷地</th><th>検分の三役</th><th>完成条件の表</th></tr></thead>
+      <tbody id="tbh"></tbody>
+    </table>
+  </div>
+  <p class="count">⚠ 「記録が無い」は「通していない」という意味ではありません。この関門は後から設けたもので、
+  それ以前に通した検分が記録に残っていないだけの敷地があります。ただし<b>いまの図を見た検分が改めて要る</b>
+  ことに変わりはありません。</p>
+</section>
+
+<p class="note">⛔ 類型で建った姿は<strong>尤もらしい江戸であって史実ではありません</strong>。
+それを既成事実にしないための装置がこの確度の欄です。
+正典は <code>docs/Sashizu/typology.json</code> で、この一枚はその写しです。</p>
+
+</div>
+
+<script id="data" type="application/json">__DATA__</script>
+<script>
+(function(){
+  var D = JSON.parse(document.getElementById('data').textContent);
+  var GRADE = [["S","一次史料"],["A","絵図の実見"],["B","実見+推論"],["P","類型からの推定"],["U","未読"]];
+  var tot = GRADE.reduce(function(a,g){return a+(D.cnt[g[0]]||0);},0);
+
+  var bar = document.getElementById('bar'), leg = document.getElementById('legend');
+  GRADE.forEach(function(g){
+    var n = D.cnt[g[0]]||0, pc = n/tot*100;
+    var el = document.createElement('div');
+    el.style.width = pc + '%'; el.style.background = 'var(--'+g[0]+')';
+    el.textContent = pc > 7 ? (g[0] + ' ' + n) : '';
+    el.title = g[1] + ' ' + n + '欄';
+    bar.appendChild(el);
+    var s = document.createElement('span');
+    s.innerHTML = '<i style="background:var(--'+g[0]+')"></i><b>'+g[0]+'</b> '+g[1]+
+                  ' <span class="num">'+n+'</span>欄 ('+pc.toFixed(0)+'%)';
+    leg.appendChild(s);
+  });
+  document.getElementById('total').textContent =
+    '類型で建てる79区画・確度の欄 計' + tot + '。未読は ' +
+    ((D.cnt.U||0)/tot*100).toFixed(0) + '% 残っています。';
+
+  var tb = document.getElementById('tb'), filter = 'all', sortBy = 'block';
+  var W = {S:4, A:3, B:2, P:1, U:0};
+  function score(r){
+    if (!r.cert.length) return null;
+    var s = 0; r.cert.forEach(function(c){ s += W[c[1]]; });
+    return s / r.cert.length / 4 * 100;
+  }
+
+  function draw(){
+    var rows = D.rows.filter(function(r){
+      if (r.hand) return false;              // 図の車線は別の節・別の物差し
+      if (filter === 'all') return true;
+      return r.type === filter;
+    });
+    if (sortBy !== 'block'){
+      var sgn = sortBy === 'desc' ? -1 : 1;
+      rows = rows.slice().sort(function(a,b){
+        var x = score(a), y = score(b);
+        return sgn * (x - y);
+      });
+    }
+    tb.innerHTML = '';
+    rows.forEach(function(r){
+      var tr = document.createElement('tr');
+      var td1 = document.createElement('td'); td1.className='nm';
+      td1.appendChild(document.createTextNode(r.name || r.id));
+      var pid = document.createElement('span'); pid.className='pid'; pid.textContent = r.id;
+      td1.appendChild(pid);
+      var td2 = document.createElement('td'); td2.className='ty';
+      td2.innerHTML = r.hand ? '<span class="hand">図を起こした</span>' : (D.typeja[r.type]||r.type);
+      var sc = score(r);
+      var tdS = document.createElement('td'); tdS.className='sc';
+      if (sc === null) { tdS.innerHTML = '<span class="fl" style="margin:0">—</span>'; }
+      else {
+        tdS.innerHTML = '<span class="meter"><i style="width:' + sc.toFixed(0) + '%"></i></span>' +
+                        '<span class="pct">' + sc.toFixed(0) + '%</span>' +
+                        '<span class="fl">欄' + r.cert.length + '</span>';
+      }
+      var td3 = document.createElement('td'); td3.className='ce';
+      if (!r.cert.length) { td3.innerHTML = '<span class="chip" style="padding:0 8px">—</span>'; }
+      r.cert.forEach(function(c){
+        var sp = document.createElement('span'); sp.className='chip';
+        sp.innerHTML = '<i style="background:var(--'+c[1]+')">'+c[1]+'</i>'+c[0];
+        td3.appendChild(sp);
+      });
+      tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(tdS); tr.appendChild(td3);
+      tb.appendChild(tr);
+    });
+    document.getElementById('shown').textContent = rows.length + ' 区画を表示';
+  }
+
+  function bind(id, key, set){
+    document.getElementById(id).addEventListener('click', function(e){
+      var b = e.target.closest('button'); if (!b) return;
+      set(b.dataset[key]);
+      Array.prototype.forEach.call(this.querySelectorAll('button'), function(x){
+        x.setAttribute('aria-pressed', x === b);
+      });
+      draw();
+    });
+  }
+  // ── 図の車線 ──
+  var MK = {pass:"⭕", red:"⛔", stale:"⚠", advisory:"・"};
+  var tbh = document.getElementById('tbh');
+  D.rows.filter(function(r){ return r.hand; }).forEach(function(r){
+    var tr = document.createElement('tr');
+    var td1 = document.createElement('td'); td1.className='nm';
+    td1.appendChild(document.createTextNode(r.name || r.id));
+    var pid = document.createElement('span'); pid.className='pid'; pid.textContent = r.id;
+    td1.appendChild(pid);
+    var td2 = document.createElement('td');
+    if (!r.draw || !r.draw.reviews.length){
+      td2.innerHTML = '<span class="fl" style="color:var(--ink-soft);font-size:12.5px">'+
+                      '指図なし — 施主の手組み(触らない)</span>';
+    } else {
+      var box = document.createElement('div'); box.className='rv';
+      r.draw.reviews.forEach(function(v){
+        var s = document.createElement('span');
+        s.innerHTML = '<i class="mk mk-'+v[1]+'">'+(MK[v[1]]||'?')+'</i><b>'+v[0]+'</b>'+v[2];
+        box.appendChild(s);
+      });
+      td2.appendChild(box);
+    }
+    var td3 = document.createElement('td'); td3.style.fontSize='12.5px';
+    var k = r.draw && r.draw.kansei;
+    td3.innerHTML = k
+      ? ('<b style="font-weight:700">'+k['pass']+' / '+k.n+'</b> 項目が通った<br>' +
+         '<span style="color:var(--ink-soft)">'+
+         k.labels.map(function(x){ return (x[1]==='pass'?'⭕':'・')+x[0]; }).join(' / ')+'</span>')
+      : '<span style="color:var(--ink-soft)">まだ実装の車線に入っていない</span>';
+    tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+    tbh.appendChild(tr);
+  });
+
+  bind('tools', 'f', function(v){ filter = v; });
+  bind('sorts', 's', function(v){ sortBy = v; });
+  draw();
+})();
+</script>

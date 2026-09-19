@@ -199,3 +199,18 @@
 関連: CLAUDE.md 規則2・4・18(二層と完成条件)/ `docs/Sashizu/parcels.json`(区画の正典)/
 `Tools/Skills/unity-buke-yashiki/references/estate-types.md`(石高帯の史料値)/ `docs/asset-catalog.md`(在庫)/
 `Tools/Sashizu/kansei_gate.py`(手作りの完成条件)/ 裁定の記録 https://claude.ai/artifact/EouMVDWUjrGCaDuZ4tUHVW
+
+## 進め方の一枚(施主向け)
+
+`python3 Tools/Sashizu/build_typology_page.py` が `docs/Sashizu/susumekata.html` を**正典から焼く**。
+台紙は `Tools/Sashizu/typology_page.html`(`__DATA__` に中身が入る)。
+
+⛔ **手で書き直さない。**区画は増えるし、史料を読めば表は書き換わる。2026-09-19 にこの一枚を
+使い捨ての script で書いて施主へ出したが、誰も(書いた本人も)焼き直せない産物だった(規則19)。
+
+⛔ **二つの車線を一つの順位に混ぜない。**
+- 類型の車線(79区画)= **読み具合**(類型表の `cert` の平均。S=4/A=3/B=2/P=1/U=0)
+- 図の車線(9敷地) = **検分の三役と完成条件の表**。`built:hand` の区画は `cert` を持たないので
+  読み具合は出ない — 混ぜると**いちばん進んでいる敷地が最後に来る**(2026-09-19 施主指摘)
+
+判定は `review_gate.gate()` を import して使う。⛔ 指紋の取り方を書き直さない(規則8)。

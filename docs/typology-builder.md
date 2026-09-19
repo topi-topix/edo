@@ -70,7 +70,11 @@
 
 **区画 × 類型 × 径数。** 区画の形は `parcels.json` が正典(規則11)なので**座標は持たない**。
 径数は「史料で読める値」だけで、読めない物は `null` にして**類型の既定値**(§4)で埋め、`cert` に確度を書く
-(規則7。U のまま既成事実にしない)。
+(規則7。U のまま既成事実にしない)。⛔ 表を書いたら `python3 Tools/Sashizu/typology_check.py`(挨拶フックが毎回呼ぶ)。
+
+**表門の向きは `front` に8方位で書く**(`"E"` / `"WNW"`)。`null` なら**ビルダーが接道辺から採る**
+(道は敷地割の間に残った領域そのもの)。⛔ 辺番号も座標も書かない — 取り合いは実メッシュから解く(規則5)。
+1 区画を複数戸に割る場合(社人八家)は `units` に戸数を書く。
 
 ```json
 {
@@ -105,10 +109,10 @@
 
 | type | 径数 | 決めるもの |
 |---|---|---|
-| `buke` | `yashiki`(kami/naka/shimo)・`rank`(daimyo / hatamoto_large / hatamoto_mid / gokenin)・`koku`・`front_edge`・`gate`・`enclosure`・`garden`・`kura` | 門の格式(`estate-types.md` 早見表・[西川1959])、外周(全周長屋 / 前辺長屋+塀 / 塀)、主屋の型(雁行複合 / U字 / 田の字)、蔵の数、庭の有無 |
-| `machiya` | `two_sided`・`front_edge`・`maguchi_ken`・`depth_ken`・`pattern`(auto か並び)・`ura_nagaya`・`jishinban`・`kamiyui`・`inari` | 表店の並び(間口で割る)・裏長屋の棟数・番屋と稲荷の有無 |
-| `jisha` | `kind`(bo / temple / shake)・`main_hall_ken`・`gate`・`enclosure` | 本堂(または坊の主屋)の間数・門・囲い。⛔ 坊を本堂・山門・鐘楼・墓地つきの寺にしない(考証方 (c)) |
-| `kouyuu` | `kind`(azukarichi / hoshiba / hikeshi)・`surface`・`fence` | 地表(草・土)と柵。建物は火消屋敷だけ |
+| `buke` | `yashiki`(kami/naka/shimo)・`rank`(daimyo / hatamoto_large / hatamoto_mid / gokenin)・`koku`・`front`・`gate`(kmon/nagayamon/hmon/kabukimon/komon)・`bansho`(ryou/kata/none)・`enclosure`・`garden`・`kura` | 門の格式(`estate-types.md` 早見表・[西川1959])、外周(全周長屋 / 前辺長屋+塀 / 塀)、主屋の型(雁行複合 / U字 / 田の字)、蔵の数、庭の有無 |
+| `machiya` | `two_sided`・`front`・`maguchi_ken`・`depth_ken`・`pattern`(auto か並び)・`ura_nagaya`・`jishinban`・`kamiyui`・`inari` | 表店の並び(間口で割る)・裏長屋の棟数・番屋と稲荷の有無 |
+| `jisha` | `kind`(bo / temple / shake)・`main_hall_ken`・`gate`(munemon/yakuimon/sanmon)・`enclosure`・`shoro`・`sanmon`・`graveyard` | 本堂(または坊の主屋)の間数・門・囲い。⛔ 坊を本堂・山門・鐘楼・墓地つきの寺にしない(考証方 (c)) |
+| `kouyuu` | `kind`(azukarichi / hoshiba / yaba / hikeshi)・`surface`・`fence`・`building` | 地表(草・土)と柵。建物は火消屋敷だけ |
 
 ---
 
@@ -171,8 +175,10 @@
 
 段取り(各段が 1 セッション・1 コミットの粒度):
 
-1. **P0 類型表** — `typology.json` を 88 区画ぶん起こす。径数は既存ビルダーと切絵図から写し、
-   読めない物は null+既定値+U。すでに建っている 7 敷地は `"built": "hand"` の印だけ。考証方が**一括で 1 巡**。
+1. **P0 類型表** — ⭕ **済(2026-09-19)。**`typology.json` に 88 区画。径数は既存ビルダーの考証ヘッダと
+   切絵図の読みから写し、読めない物は null+既定値+U。`built: hand` は 9 区画(図を起こした 6 敷地 +
+   施主が手で組んだ三屋敷)。関門は `Tools/Sashizu/typology_check.py`(挨拶フックが毎回呼ぶ)。
+   ⛔ 残: 考証方が表ごと**一括で 1 巡**。
 2. **P1 試作** — `buke` の 1 区画で Stage 0〜6 を通し、一括レンダを施主へ。
    ⭐ **どの区画で試すかは普請奉行が決める**(施主に諮らない。2026-09-19)。既定は三べ坂の小旗本六筆の一筆 —
    囲い・門・主屋・蔵・庭木の五系統を全部通せる唯一の類型で、武家は 37 区画と最大勢力。

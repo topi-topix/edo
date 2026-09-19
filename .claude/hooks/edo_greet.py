@@ -94,6 +94,13 @@ if os.path.exists(CLI):
         k = subprocess.run([sys.executable, kcli, "--quiet"], capture_output=True, text=True, env=env)
         if k.stdout.strip():
             print(k.stdout.strip())
+    # 類型表の関門(2026-09-19) — 類型の区画には指図も検分の輪も無い(docs/typology-builder.md §2)ので、
+    #   「区画が増えたのに表に載っていない」「欄が抜けた」を捕まえる目がここにしか無い。
+    tcli = os.path.join(MAIN_ROOT, "Tools", "Sashizu", "typology_check.py")
+    if os.path.exists(tcli):
+        t = subprocess.run([sys.executable, tcli, "--quiet"], capture_output=True, text=True, env=env)
+        if t.stdout.strip():
+            print(t.stdout.strip())
     # 結線関門(絶対規則19) — **書いたのに誰の目にも入らない産物**を鳴らす。
     #   ⛔ 規則19 は CLAUDE.md に入ったが、**機構としては誰にも鳴っていなかった**。
     #   これは規則18(検図関門)を作った動機そのもの ——「ルーティング表に載っていたが

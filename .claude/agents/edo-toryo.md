@@ -64,6 +64,10 @@ memory: project
 3. Builder に無い工程(指図にはあるが C# が未対応)は、**まず指図(`edo-sashizukata` が
    書き起こした部材・納め)が解決済みか確認**してから、対象 `Edo*Builder.cs` に Stage を追記する
    (`create_script`/`apply_text_edits`/`script_apply_edits` を使い、既存 Stage の書式に倣う)
+   ⭐ **据え付けは「置き方の4手」で書く**(2026-09-20 施主指示・スキル `sashizu.md` §3f): 固定側(門構え・隅)を
+   先に置く → 可動側は前の相手の**実メッシュの面**へ `EdoBuild.Abut`/`AlignFace` で突き付ける(連鎖) →
+   高さは下の実物を `EdoBuild.SeatOnCrest`(石垣の天端)/ `EdoBuild.PadY`(段の格子点の中央値)で測って据える →
+   事後に寄せる関数を足さない。⛔ 指図の s・y を座標として置かない。⛔ 検査関数を新設して直さない
 4. **パスの literal を新規に書かない**(CLAUDE.md 絶対規則11)。
    `EdoAssets.cs` に無いパスが要るなら、**先に `edo-buzai`(新造)か `edo-zaiko`(在庫照会)へ
    委ねてから**登録済みの関数経由で参照する

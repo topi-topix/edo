@@ -1,0 +1,3696 @@
+{
+ "_note": "348 本の検査の札(EDO-0266・2026-09-20)。verdict ∈ 共通へ / Unity で測る / 落とす / 欄へ写す。異議は verdict を書き換えるだけ",
+ "date": "2026-09-20",
+ "counts": {
+  "Unity で測る": 65,
+  "共通へ": 162,
+  "欄へ写す": 32,
+  "落とす": 89
+ },
+ "common": {
+  "C01": {
+   "title": "重なり 0",
+   "measures": "棟・附属屋・廊下・門・庭の枠・段・帯を総当たりして真の重なりが無い",
+   "from_checks": [
+    "okabe:garden_alloc_check",
+    "doi:gate_overlap_check",
+    "doi:akichi_check",
+    "sanno:terrace_shape_check",
+    "sanno:kakoi_cross_check",
+    "sanno:noplant_overlap_check",
+    "sanno:rect_overlap_check",
+    "matsudaira:fuzoku_overlap_check",
+    "matsudaira:gate_overlap_check",
+    "matsudaira:group_box_overlap_check",
+    "matsudaira:band_overlap_check"
+   ]
+  },
+  "C02": {
+   "title": "区画の中",
+   "measures": "段・棟・軒・庭・造成が区画線の内側にある(軒先も見る)",
+   "from_checks": [
+    "doi:terrace_overhang_check",
+    "doi:recon_reach_check",
+    "doi:roof_parcel_check",
+    "sanno:kyoukai_inside_check",
+    "matsudaira:nakajikiri_containment_check",
+    "matsudaira:parcel_containment_check",
+    "matsudaira:bansho_parcel_out_check"
+   ]
+  },
+  "C03": {
+   "title": "面に載る",
+   "measures": "棟・附属屋・廊下が自分の面の段に完全に載り、室が棟の中にある",
+   "from_checks": [
+    "okabe:footprint_support_check",
+    "okabe:plane_check",
+    "okabe:rooms_check",
+    "okabe:kidan_check",
+    "doi:inubashiri_check",
+    "doi:plane_check",
+    "sanno:keidai_inubashiri_check",
+    "sanno:plane_y_check",
+    "sanno:inubashiri_check",
+    "matsudaira:plane_check",
+    "matsudaira:room_containment_check"
+   ]
+  },
+  "C04": {
+   "title": "面と地形の差",
+   "measures": "棟の下で |設計面 − 自然地形| ≤ 0.5m(規則3)",
+   "from_checks": [
+    "doi:mune_fit_check",
+    "sanno:plane_dev_check"
+   ]
+  },
+  "C05": {
+   "title": "段差の受け",
+   "measures": "高さの違う段の接線と段の縁に土留めか法面が全長で載る",
+   "from_checks": [
+    "okabe:adjacency_check",
+    "okabe:walls_wired_check",
+    "doi:edge_step_check",
+    "doi:wall_needed_check",
+    "doi:adjacency_check",
+    "sanno:wall_step_check",
+    "matsudaira:edge_treatment_check",
+    "matsudaira:terrace_edge_check"
+   ]
+  },
+  "C06": {
+   "title": "土留め高と法",
+   "measures": "土留めの高さが実落差と釣り合い、法面が許す勾配の内にある",
+   "from_checks": [
+    "okabe:edge_drop_check",
+    "okabe:batter_check",
+    "okabe:wall_check",
+    "doi:stair_bank_check",
+    "doi:wall_profile_check",
+    "doi:wall_end_check",
+    "doi:wall_check",
+    "sanno:grade_slope_check",
+    "sanno:wall_tier_check"
+   ]
+  },
+  "C07": {
+   "title": "外周の閉じ",
+   "measures": "区画線を歩いて外周が塀・長屋・門で閉じ、隅と結界も閉じる",
+   "from_checks": [
+    "okabe:perimeter_closure_check",
+    "okabe:perimeter_corner_check",
+    "okabe:run_reaches_corner_check",
+    "okabe:kekkai_check",
+    "doi:perimeter_check",
+    "doi:perimeter_closure_check",
+    "matsudaira:barrier_check",
+    "matsudaira:perimeter_closure_check",
+    "matsudaira:perimeter_ledger_check"
+   ]
+  },
+  "C08": {
+   "title": "門の割りと段",
+   "measures": "門の柱割りが江戸間で閉じ、向きが動線を向き、敷居と石段が繋がる",
+   "from_checks": [
+    "okabe:gate_module_check",
+    "okabe:gate_vs_sode_check",
+    "doi:komon_step_check",
+    "sanno:kido_bay_check",
+    "sanno:gate_plan_axis_check",
+    "sanno:gate_axis_check",
+    "matsudaira:komon_sill_check",
+    "matsudaira:gate_derive_check",
+    "matsudaira:kido_approach_check"
+   ]
+  },
+  "C09": {
+   "title": "離れ",
+   "measures": "棟どうし・棟と囲い・棟と区画線の離れ(犬走り+基壇)がある",
+   "from_checks": [
+    "okabe:clearance_check",
+    "doi:clearance_check",
+    "matsudaira:outside_bury_check",
+    "matsudaira:mune_wall_clearance_check"
+   ]
+  },
+  "C10": {
+   "title": "屋根の食い込み",
+   "measures": "隣り合う屋根が食い込まず、軒の格の順(厩<長屋<御殿)を守る",
+   "from_checks": [
+    "doi:mune_gap_check",
+    "matsudaira:roof_kaku_check",
+    "matsudaira:roof_along_check",
+    "matsudaira:roof_eave_order_check",
+    "matsudaira:roka_clear_check",
+    "matsudaira:kuchi_valley_check",
+    "matsudaira:valley_eave_check",
+    "matsudaira:valley_step_check"
+   ]
+  },
+  "C11": {
+   "title": "石段",
+   "measures": "段数×蹴上が比高と閉じ、足元と天端が段の宣言に合う",
+   "from_checks": [
+    "okabe:keri_check",
+    "okabe:kaidan_y_check",
+    "sanno:kaidan_close_check",
+    "matsudaira:kaidan_ground_check"
+   ]
+  },
+  "C12": {
+   "title": "道の勾配と繋がり",
+   "measures": "動線が歩ける勾配で、繋がり、室・幹・水を貫かない",
+   "from_checks": [
+    "okabe:ramp_check",
+    "okabe:route_tree_check",
+    "okabe:route_grade_check",
+    "doi:ramp_check",
+    "doi:route_check",
+    "doi:opening_fit_check",
+    "sanno:sando_suritsuke_check",
+    "sanno:path_shape_check",
+    "sanno:crown_cover_check",
+    "matsudaira:route_pierce_check",
+    "matsudaira:garden_access_check",
+    "matsudaira:kaki_crossing_check",
+    "matsudaira:route_connect_check",
+    "matsudaira:route_grade_check"
+   ]
+  },
+  "C13": {
+   "title": "役割の在庫",
+   "measures": "在るべき役割(雪隠・厩・番所…)が区画ごとに在り同居しない",
+   "from_checks": [
+    "okabe:program_check",
+    "doi:completeness_check",
+    "doi:setchin_check",
+    "doi:program_check",
+    "matsudaira:program_check",
+    "matsudaira:zone_separation_check",
+    "matsudaira:setchin_check"
+   ]
+  },
+  "C14": {
+   "title": "水の系",
+   "measures": "水位が上流から単調に下がり、汀線が段の中で棟と重ならない",
+   "from_checks": [
+    "okabe:pond_check",
+    "matsudaira:v1_water_check",
+    "matsudaira:taki_check",
+    "matsudaira:mizu_check",
+    "matsudaira:sensui_check"
+   ]
+  },
+  "C15": {
+   "title": "庭の点景と見所",
+   "measures": "点景が庭の中・水に落ちず、見所からの視線が抜ける",
+   "from_checks": [
+    "okabe:niwa_element_check",
+    "okabe:tsukiyama_check",
+    "okabe:niwa_cross_check",
+    "okabe:niwa_earth_check",
+    "okabe:mikoro_check",
+    "doi:mustsee_check",
+    "sanno:shisen_check",
+    "matsudaira:viewpoint_check",
+    "matsudaira:tsukiyama_check",
+    "matsudaira:gogan_check",
+    "matsudaira:viewpoint_fov_check",
+    "matsudaira:niwa_stone_check"
+   ]
+  },
+  "C16": {
+   "title": "植栽の在庫と本数",
+   "measures": "植栽が在庫の実物を名指しし、宣言した本数と撒いた点が合う",
+   "from_checks": [
+    "okabe:planting_check",
+    "doi:kabu_check",
+    "sanno:size_spelling_check",
+    "sanno:named_tree_check",
+    "matsudaira:planting_stock_check",
+    "matsudaira:layer_parts_count_check",
+    "matsudaira:plant_height_check",
+    "matsudaira:slope_zone_count_check",
+    "matsudaira:roof_stock_check"
+   ]
+  },
+  "C17": {
+   "title": "植栽の退避",
+   "measures": "木が棟・廊下・道・石段・水の上に載らない",
+   "from_checks": [
+    "sanno:planting_avoid_check",
+    "sanno:rinen_overhang_check",
+    "matsudaira:planting_clearance_check",
+    "matsudaira:yakuboku_check",
+    "matsudaira:cross_scatter_clearance_check",
+    "matsudaira:slope_avoid_check",
+    "matsudaira:planting_box_service_check"
+   ]
+  },
+  "C18": {
+   "title": "地盤の出所",
+   "measures": "地形が base_dem.json から来て、隣家の辺と塀の座が正本のまま",
+   "from_checks": [
+    "okabe:plinth_check",
+    "doi:terrain_provenance_check",
+    "doi:terrain_canon_check",
+    "doi:shared_edge_check",
+    "doi:boundary_fill_check",
+    "doi:neighbour_wall_check",
+    "doi:neighbour_hash_check",
+    "sanno:terrain_provenance_check",
+    "matsudaira:run_seat_check",
+    "matsudaira:terrain_provenance_check",
+    "matsudaira:edo_dem_fresh_check",
+    "matsudaira:band_boundary_check"
+   ]
+  },
+  "C19": {
+   "title": "区画の正典一致",
+   "measures": "区画の多角形が parcels.json と一致し辺長が合う",
+   "from_checks": [
+    "okabe:parcel_sync_check",
+    "okabe:edges_len_check"
+   ]
+  },
+  "C20": {
+   "title": "造成の量と波及",
+   "measures": "切盛が区画の外へ及ばず、格子が面の輪郭を覆う",
+   "from_checks": [
+    "sanno:saichigai_check",
+    "sanno:graded_cover_check",
+    "sanno:grade_carry_check"
+   ]
+  },
+  "C21": {
+   "title": "建蔽率",
+   "measures": "敷地全体ベースの建蔽率を刷る(規則6)",
+   "from_checks": []
+  },
+  "C22": {
+   "title": "図の成立",
+   "measures": "断面の切る所が枠内、方位語が図と合う、注記に未変換が無い",
+   "from_checks": [
+    "okabe:compass_check",
+    "doi:garden_section_check",
+    "sanno:note_md_check",
+    "sanno:section_cut_check",
+    "sanno:section_window_check"
+   ]
+  },
+  "C23": {
+   "title": "壊し試し(共通)",
+   "measures": "--deep で共通の変異を掛け、上の検査が鳴るかを記録に残す",
+   "from_checks": [
+    "doi:probe_misfire_check",
+    "doi:population_check",
+    "sanno:probe_misfire_check",
+    "matsudaira:check_wiring_check"
+   ]
+  }
+ },
+ "checks": [
+  {
+   "estate": "okabe",
+   "name": "base_check",
+   "lines": 14,
+   "doc": "基壇石垣の露出が規約の中か。下限は const.baseMin、上限は石垣の丈 4.0×s",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "okabe",
+   "name": "footprint_support_check",
+   "lines": 78,
+   "doc": "外周長屋の足跡が、段か基壇の天端に 100% 載っているか。",
+   "verdict": "共通へ",
+   "common": "C03",
+   "common_title": "面に載る",
+   "reason": "建つ姿を変える。共通版 C03 面に載る が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "perimeter_closure_check",
+   "lines": 83,
+   "doc": "外周が全長で閉じているか — 区画線を歩き、内側が何かで塞がっているかを測る。",
+   "verdict": "共通へ",
+   "common": "C07",
+   "common_title": "外周の閉じ",
+   "reason": "建つ姿を変える。共通版 C07 外周の閉じ が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "perimeter_corner_check",
+   "lines": 50,
+   "doc": "区画の隅で外周が閉じているか — 隣り合う辺の run の実足跡で測る。",
+   "verdict": "共通へ",
+   "common": "C07",
+   "common_title": "外周の閉じ",
+   "reason": "建つ姿を変える。共通版 C07 外周の閉じ が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "seat_fill_check",
+   "lines": 44,
+   "doc": "面の縁と宣言した run の内側が、据面より落ち込んでいないか。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "okabe",
+   "name": "plinth_check",
+   "lines": 19,
+   "doc": "隣家が自分の側に建てている基壇の天端を、当家の塀の据面が下回っていないか。",
+   "verdict": "共通へ",
+   "common": "C18",
+   "common_title": "地盤の出所",
+   "reason": "建つ姿を変える。共通版 C18 地盤の出所 が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "gate_module_check",
+   "lines": 21,
+   "doc": "長屋門の柱割りが江戸間で閉じるか。 桁行9間 = 門戸6間 + 両端の番所 各1.5間、",
+   "verdict": "共通へ",
+   "common": "C08",
+   "common_title": "門の割りと段",
+   "reason": "建つ姿を変える。共通版 C08 門の割りと段 が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "keri_check",
+   "lines": 4,
+   "doc": "石段の蹴上は const.keri を上限とする(実寸は段数の割り付けで決まる)。",
+   "verdict": "共通へ",
+   "common": "C11",
+   "common_title": "石段",
+   "reason": "建つ姿を変える。共通版 C11 石段 が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "compass_check",
+   "lines": 71,
+   "doc": "注記に書いた方位語が、グリッドから算出した方位と合っているか。",
+   "verdict": "共通へ",
+   "common": "C22",
+   "common_title": "図の成立",
+   "reason": "建つ姿を変える。共通版 C22 図の成立 が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "edge_drop_check",
+   "lines": 14,
+   "doc": "盛土が、法面を出せないほど急な自然の斜面の上に載っていないか。",
+   "verdict": "共通へ",
+   "common": "C06",
+   "common_title": "土留め高と法",
+   "reason": "建つ姿を変える。共通版 C06 土留め高と法 が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "program_check",
+   "lines": 68,
+   "doc": "在るべき役割の一覧を、スキルの表(外の錨)から読んで照合する。",
+   "verdict": "共通へ",
+   "common": "C13",
+   "common_title": "役割の在庫",
+   "reason": "建つ姿を変える。共通版 C13 役割の在庫 が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "coping_check",
+   "lines": 14,
+   "doc": "基壇の天端に、犬走りと塀の掛かりが乗るか。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "okabe",
+   "name": "clearance_check",
+   "lines": 47,
+   "doc": "建物どうしの隙間と、外周の囲いからの離隔。",
+   "verdict": "共通へ",
+   "common": "C09",
+   "common_title": "離れ",
+   "reason": "建つ姿を変える。共通版 C09 離れ が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "crossing_check",
+   "lines": 67,
+   "doc": "図で決めた不変条件を機械検査に落とす(§B-5)。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "okabe",
+   "name": "cert_ref_check",
+   "lines": 25,
+   "doc": "確度の本文の写しが復活していないか。 同じ長文を2箇所以上が生で持っていたら、",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "okabe",
+   "name": "certsig_check",
+   "lines": 46,
+   "doc": "確度の記号が宣言され、本文と食い違わないか。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "okabe",
+   "name": "batter_check",
+   "lines": 41,
+   "doc": "法面の検査 — 造成が自然勾配より急にした所で、切土 1:bc を超えていないか。",
+   "verdict": "共通へ",
+   "common": "C06",
+   "common_title": "土留め高と法",
+   "reason": "建つ姿を変える。共通版 C06 土留め高と法 が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "plane_check",
+   "lines": 162,
+   "doc": "面のはみ出し検査。①棟・付属屋・廊下が「自分の y の面の段」の中に完全に載っているか",
+   "verdict": "共通へ",
+   "common": "C03",
+   "common_title": "面に載る",
+   "reason": "建つ姿を変える。共通版 C03 面に載る が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "adjacency_check",
+   "lines": 44,
+   "doc": "高さの違う段どうしが接する辺に、土留めが載っているか総当たりで検める。",
+   "verdict": "共通へ",
+   "common": "C05",
+   "common_title": "段差の受け",
+   "reason": "建つ姿を変える。共通版 C05 段差の受け が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "wall_check",
+   "lines": 23,
+   "doc": "土留めの設計高さ(4s)が、走りに沿った実測落差 drop=[min,max] と釣り合っているか。",
+   "verdict": "共通へ",
+   "common": "C06",
+   "common_title": "土留め高と法",
+   "reason": "建つ姿を変える。共通版 C06 土留め高と法 が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "sashikomi_check",
+   "lines": 61,
+   "doc": "差し込みの寸法が図の中で辻褄が合うか(2026-09-04 裁定10=A)。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "okabe",
+   "name": "gate_vs_sode_check",
+   "lines": 30,
+   "doc": "長屋門が両袖の表長屋より高いか(2026-09-04 ユーザー裁定12=A の眼目)。",
+   "verdict": "共通へ",
+   "common": "C08",
+   "common_title": "門の割りと段",
+   "reason": "建つ姿を変える。共通版 C08 門の割りと段 が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "nagaya_call_check",
+   "lines": 23,
+   "doc": "呼び寸法の合計が、辺の上で占める長さと合うか(2026-09-04 部材方)。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "okabe",
+   "name": "run_reaches_corner_check",
+   "lines": 78,
+   "doc": "辺の末尾の run が隅まで届いているか(2026-09-04 棟梁の ClosureQA)。",
+   "verdict": "共通へ",
+   "common": "C07",
+   "common_title": "外周の閉じ",
+   "reason": "建つ姿を変える。共通版 C07 外周の閉じ が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "rooms_check",
+   "lines": 33,
+   "doc": "室が身舎の中に収まり、互いに重ならないか(2026-09-04 普請奉行の大方針)。",
+   "verdict": "共通へ",
+   "common": "C03",
+   "common_title": "面に載る",
+   "reason": "建つ姿を変える。共通版 C03 面に載る が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "tsuru_check",
+   "lines": 21,
+   "doc": "つるの宿主の幹径が範囲に入っているか(2026-09-04 棟梁の突き合わせ)。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "okabe",
+   "name": "rails_axis_check",
+   "lines": 38,
+   "doc": "視軸の特例が run の割り付けに届いているか(2026-09-04 部材方・規則19)。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "okabe",
+   "name": "niwa_element_check",
+   "lines": 126,
+   "doc": "庭の点景が自分の庭の中にあり、棟・渡廊下と重ならず、水に落ちていないか。",
+   "verdict": "共通へ",
+   "common": "C15",
+   "common_title": "庭の点景と見所",
+   "reason": "建つ姿を変える。共通版 C15 庭の点景と見所 が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "garden_alloc_check",
+   "lines": 20,
+   "doc": "庭の「割り当ての矩形」どうしが重なっていないか。",
+   "verdict": "共通へ",
+   "common": "C01",
+   "common_title": "重なり 0",
+   "reason": "建つ姿を変える。共通版 C01 重なり 0 が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "pond_check",
+   "lines": 108,
+   "doc": "池の不変条件。汀線が段の中にあること／棟・渡廊下と重ならないこと／",
+   "verdict": "共通へ",
+   "common": "C14",
+   "common_title": "水の系",
+   "reason": "建つ姿を変える。共通版 C14 水の系 が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "tsukiyama_check",
+   "lines": 29,
+   "doc": "築山の不変条件。底の自然地盤を実測すること／段の外へ出ないこと／",
+   "verdict": "共通へ",
+   "common": "C15",
+   "common_title": "庭の点景と見所",
+   "reason": "建つ姿を変える。共通版 C15 庭の点景と見所 が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "niwa_cross_check",
+   "lines": 42,
+   "doc": "竹垣・勝手動線・結界塀が庭の点景を横切っていないか。",
+   "verdict": "共通へ",
+   "common": "C15",
+   "common_title": "庭の点景と見所",
+   "reason": "建つ姿を変える。共通版 C15 庭の点景と見所 が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "kekkai_check",
+   "lines": 94,
+   "doc": "結界が閉じているか。三段で見る:",
+   "verdict": "共通へ",
+   "common": "C07",
+   "common_title": "外周の閉じ",
+   "reason": "建つ姿を変える。共通版 C07 外周の閉じ が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "niwa_earth_check",
+   "lines": 32,
+   "doc": "庭の土量の収支が閉じるか。掘削 = 築山 + 余り。余りが負(=土が足りない)なら、",
+   "verdict": "共通へ",
+   "common": "C15",
+   "common_title": "庭の点景と見所",
+   "reason": "建つ姿を変える。共通版 C15 庭の点景と見所 が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "mikoro_check",
+   "lines": 49,
+   "doc": "見所が座敷の入側(または庭の中)にあり、見るものが視線の中にあるか。",
+   "verdict": "共通へ",
+   "common": "C15",
+   "common_title": "庭の点景と見所",
+   "reason": "建つ姿を変える。共通版 C15 庭の点景と見所 が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "parcel_sync_check",
+   "lines": 26,
+   "doc": "区画の多角形が正典(docs/Sashizu/parcels.json の id=okabe)と一致するか",
+   "verdict": "共通へ",
+   "common": "C19",
+   "common_title": "区画の正典一致",
+   "reason": "建つ姿を変える。共通版 C19 区画の正典一致 が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "kidan_check",
+   "lines": 39,
+   "doc": "宣言した面の並びと、図が実際に置く足跡が合っているか。",
+   "verdict": "共通へ",
+   "common": "C03",
+   "common_title": "面に載る",
+   "reason": "建つ姿を変える。共通版 C03 面に載る が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "planting_check",
+   "lines": 25,
+   "doc": "撒いた点が宣言した本数と合っているか(2026-09-03 棟梁 S5-1)。",
+   "verdict": "共通へ",
+   "common": "C16",
+   "common_title": "植栽の在庫と本数",
+   "reason": "建つ姿を変える。共通版 C16 植栽の在庫と本数 が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "kui_check",
+   "lines": 28,
+   "doc": "焼いた杭が算出した本数と合い、芯々が不同不等か。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "okabe",
+   "name": "rangui_check",
+   "lines": 26,
+   "doc": "乱杭が池床へ届き、根入れが足りるか(2026-09-04 部材方の全長 0.660 から)。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "okabe",
+   "name": "garden_impl_check",
+   "lines": 44,
+   "doc": "庭の算出物が空になっていないか(2026-09-04 棟梁 S4)。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "okabe",
+   "name": "impl_fresh_check",
+   "lines": 21,
+   "doc": "焼いた算出物が今の指図のものか(2026-09-03 棟梁の棚卸し 1)。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "okabe",
+   "name": "kaidan_y_check",
+   "lines": 26,
+   "doc": "石段の足元と天端が段の宣言と合っているか(2026-09-04 棟梁 S3-1)。",
+   "verdict": "共通へ",
+   "common": "C11",
+   "common_title": "石段",
+   "reason": "建つ姿を変える。共通版 C11 石段 が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "gap_consistency_check",
+   "lines": 42,
+   "doc": "開口の幅が図の中で1つに揃っているか(2026-09-04 部材方)。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "okabe",
+   "name": "walls_wired_check",
+   "lines": 22,
+   "doc": "郭の土留めの表が図に出ているか(結線)。⛔ 0本でも表は刷る — 「無い」ことは",
+   "verdict": "共通へ",
+   "common": "C05",
+   "common_title": "段差の受け",
+   "reason": "建つ姿を変える。共通版 C05 段差の受け が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "data_wired_check",
+   "lines": 52,
+   "doc": "json に書いたキーが生成器で一度も読まれていないか(2026-09-03 庭方5巡目)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "okabe",
+   "name": "taigan_check",
+   "lines": 14,
+   "doc": "対岸から二層に見えるか。⭕ 合否を開けた【2026-09-03 庭方6巡目 K263 で式が決まった】。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "okabe",
+   "name": "ramp_check",
+   "lines": 40,
+   "doc": "坂の規則(勾配・脚の長さ・折れ角)を実測と突き合わせる。",
+   "verdict": "共通へ",
+   "common": "C12",
+   "common_title": "道の勾配と繋がり",
+   "reason": "建つ姿を変える。共通版 C12 道の勾配と繋がり が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "route_tree_check",
+   "lines": 30,
+   "doc": "動線が樹の芯を横切らないか(2026-09-03 検図5巡目 K245)。",
+   "verdict": "共通へ",
+   "common": "C12",
+   "common_title": "道の勾配と繋がり",
+   "reason": "建つ姿を変える。共通版 C12 道の勾配と繋がり が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "route_grade_check",
+   "lines": 30,
+   "doc": "動線の勾配(2026-09-03 検図6巡目 K290)。⛔ 坂だけ見て動線を見ていなかった。",
+   "verdict": "共通へ",
+   "common": "C12",
+   "common_title": "道の勾配と繋がり",
+   "reason": "建つ姿を変える。共通版 C12 道の勾配と繋がり が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "katte_rail_check",
+   "lines": 74,
+   "doc": "勝手の線が法肩の竹垣の「どちら側」を走るか(2026-09-03 検図6巡目 K291 で作り直した)。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "okabe",
+   "name": "obi_check",
+   "lines": 119,
+   "doc": "崖下の帯の棟の不変条件(2026-09-03 ユーザー裁定8=A)。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "okabe",
+   "name": "hokata_check",
+   "lines": 73,
+   "doc": "法肩の松の割り付け。⛔ 総数だけ見ない — 区間ごとに芯々と両端の隙を検める。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "okabe",
+   "name": "nishi_check",
+   "lines": 390,
+   "doc": "西の斜面と岸の不変条件。⛔ 図で宣言したことを全部ここへ落とす。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "okabe",
+   "name": "edges_len_check",
+   "lines": 14,
+   "doc": "edges[].len が polygon の辺長と一致するか(2026-09-04 棟梁 S1/S2 の①)。",
+   "verdict": "共通へ",
+   "common": "C19",
+   "common_title": "区画の正典一致",
+   "reason": "建つ姿を変える。共通版 C19 区画の正典一致 が受ける"
+  },
+  {
+   "estate": "okabe",
+   "name": "kekkai_run_check",
+   "lines": 30,
+   "doc": "塀の run と駒の和が塀の全長に合うか(2026-09-06 棟梁⑤)。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "okabe",
+   "name": "roundtrip_check",
+   "lines": 77,
+   "doc": "生成器が書く欄を全消去 → 再生成 → 正典と一致するか。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "doi",
+   "name": "terrace_overhang_check",
+   "lines": 31,
+   "doc": "段の矩形が区画からはみ出していないか。",
+   "verdict": "共通へ",
+   "common": "C02",
+   "common_title": "区画の中",
+   "reason": "建つ姿を変える。共通版 C02 区画の中 が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "terrain_provenance_check",
+   "lines": 72,
+   "doc": "回転間格子 doi_terrain.json の種地が、地盤の正本から出ているか。",
+   "verdict": "共通へ",
+   "common": "C18",
+   "common_title": "地盤の出所",
+   "reason": "建つ姿を変える。共通版 C18 地盤の出所 が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "terrain_canon_check",
+   "lines": 42,
+   "doc": "種地が動いていないかを二段で検める。",
+   "verdict": "共通へ",
+   "common": "C18",
+   "common_title": "地盤の出所",
+   "reason": "建つ姿を変える。共通版 C18 地盤の出所 が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "garden_section_check",
+   "lines": 44,
+   "doc": "断面の切る所が枠から外れていないか。⛔ 番が動いて黙って別の所を切らせない。",
+   "verdict": "共通へ",
+   "common": "C22",
+   "common_title": "図の成立",
+   "reason": "建つ姿を変える。共通版 C22 図の成立 が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "completeness_check",
+   "lines": 157,
+   "doc": "在るべき物が在るか。 検図12巡の「第三系統」— 物を消しても誰も気づかない、を塞ぐ。",
+   "verdict": "共通へ",
+   "common": "C13",
+   "common_title": "役割の在庫",
+   "reason": "建つ姿を変える。共通版 C13 役割の在庫 が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "recon_reach_check",
+   "lines": 32,
+   "doc": "当家の復元が区画線に近づいていないか。",
+   "verdict": "共通へ",
+   "common": "C02",
+   "common_title": "区画の中",
+   "reason": "建つ姿を変える。共通版 C02 区画の中 が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "shared_edge_check",
+   "lines": 20,
+   "doc": "共有境界の地盤は、どの家も正本のまま読むこと。",
+   "verdict": "共通へ",
+   "common": "C18",
+   "common_title": "地盤の出所",
+   "reason": "建つ姿を変える。共通版 C18 地盤の出所 が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "ramp_check",
+   "lines": 25,
+   "doc": "土の斜路の勾配。馬と乗物が上がれる勾配か。",
+   "verdict": "共通へ",
+   "common": "C12",
+   "common_title": "道の勾配と繋がり",
+   "reason": "建つ姿を変える。共通版 C12 道の勾配と繋がり が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "boundary_fill_check",
+   "lines": 79,
+   "doc": "隣家が持つ辺へ、当家の造成が垂直面のまま届いていないか。",
+   "verdict": "共通へ",
+   "common": "C18",
+   "common_title": "地盤の出所",
+   "reason": "建つ姿を変える。共通版 C18 地盤の出所 が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "perimeter_check",
+   "lines": 35,
+   "doc": "当家が持つ辺が、塀・長屋と申告した門口で閉じているか。",
+   "verdict": "共通へ",
+   "common": "C07",
+   "common_title": "外周の閉じ",
+   "reason": "建つ姿を変える。共通版 C07 外周の閉じ が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "tani_margin_check",
+   "lines": 34,
+   "doc": "中点を採ったことが効いているか(2026-09-08 検図方 中2)。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "doi",
+   "name": "roka_roof_check",
+   "lines": 61,
+   "doc": "廊下の屋根の設計値が輪に入っているか(2026-09-08)。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "doi",
+   "name": "probe_misfire_check",
+   "lines": 9,
+   "doc": "変異が一つも当たっていない破壊試験が無いか(2026-09-08 庭方 中1)。",
+   "verdict": "共通へ",
+   "common": "C23",
+   "common_title": "壊し試し(共通)",
+   "reason": "建つ姿を変える。共通版 C23 壊し試し(共通) が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "tani_sensitivity",
+   "lines": 47,
+   "doc": "感度試験 — 廊下の軒先を動かして谷の二条が鳴るか。⛔ 恒真の検査を通さない。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "壊し試し",
+   "reason": "邸ごとに手書きした変異は、共通版の --deep(共通の壊し試し)に置き換える"
+  },
+  {
+   "estate": "doi",
+   "name": "roka_cut_check",
+   "lines": 54,
+   "doc": "階段廊下の段(=屋根の切れ目)の位置が三条を満たすか(2026-09-08 普請奉行の裁定)。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "doi",
+   "name": "roka_cut_sensitivity",
+   "lines": 49,
+   "doc": "感度試験 — 段の位置を壊して三条が鳴るか。⛔ 検査を書いただけで塞いだと名乗らない。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "壊し試し",
+   "reason": "邸ごとに手書きした変異は、共通版の --deep(共通の壊し試し)に置き換える"
+  },
+  {
+   "estate": "doi",
+   "name": "mune_gap_check",
+   "lines": 65,
+   "doc": "隣り合う建物の屋根が食い込んでいないか。⛔ 方向を持たない目安で測らない。",
+   "verdict": "共通へ",
+   "common": "C10",
+   "common_title": "屋根の食い込み",
+   "reason": "建つ姿を変える。共通版 C10 屋根の食い込み が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "mune_gap_sensitivity",
+   "lines": 56,
+   "doc": "感度試験 — わざと壊して mune_gap_check が鳴るか。⛔ 恒真の検査を通さない。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "壊し試し",
+   "reason": "邸ごとに手書きした変異は、共通版の --deep(共通の壊し試し)に置き換える"
+  },
+  {
+   "estate": "doi",
+   "name": "perimeter_closure_check",
+   "lines": 52,
+   "doc": "外周が閉じているか — 区画線をまたぐ線が、どこかで外周の物に当たるかを全長で測る。",
+   "verdict": "共通へ",
+   "common": "C07",
+   "common_title": "外周の閉じ",
+   "reason": "建つ姿を変える。共通版 C07 外周の閉じ が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "clearance_check",
+   "lines": 43,
+   "doc": "棟・付属屋から区画線までの離れ。犬走り+基壇厚を確保する。",
+   "verdict": "共通へ",
+   "common": "C09",
+   "common_title": "離れ",
+   "reason": "建つ姿を変える。共通版 C09 離れ が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "roof_parcel_check",
+   "lines": 15,
+   "doc": "軒先が区画線を越えていないか。⛔ 躯体で測った検査を「軒も見ている」と読まない。",
+   "verdict": "共通へ",
+   "common": "C02",
+   "common_title": "区画の中",
+   "reason": "建つ姿を変える。共通版 C02 区画の中 が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "rails_check",
+   "lines": 41,
+   "doc": "竹垣の不変条件。設計値 _rails が自分で宣言している条件を検査に落とす。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "doi",
+   "name": "src_role_check",
+   "lines": 44,
+   "doc": "地の文が呼んでいる役どころと、典拠の欄が一致しているか(2026-09-08 考証方 中1)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "doi",
+   "name": "src_role_sensitivity",
+   "lines": 23,
+   "doc": "破壊試験 — 反証・外挿を「支え」の列へ戻すと src_role_check が鳴るか。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "壊し試し",
+   "reason": "邸ごとに手書きした変異は、共通版の --deep(共通の壊し試し)に置き換える"
+  },
+  {
+   "estate": "doi",
+   "name": "komon_step_check",
+   "lines": 40,
+   "doc": "門の敷居と街路の差を、段が受けているか。",
+   "verdict": "共通へ",
+   "common": "C08",
+   "common_title": "門の割りと段",
+   "reason": "建つ姿を変える。共通版 C08 門の割りと段 が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "route_check",
+   "lines": 100,
+   "doc": "動線の縦断勾配と、段の縁をどこで越えるか。",
+   "verdict": "共通へ",
+   "common": "C12",
+   "common_title": "道の勾配と繋がり",
+   "reason": "建つ姿を変える。共通版 C12 道の勾配と繋がり が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "setchin_check",
+   "lines": 111,
+   "doc": "区画ごとに雪隠が在るか。",
+   "verdict": "共通へ",
+   "common": "C13",
+   "common_title": "役割の在庫",
+   "reason": "建つ姿を変える。共通版 C13 役割の在庫 が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "vocab_check",
+   "lines": 14,
+   "doc": "語彙で振り分ける欄に、知らない値が入っていないか。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "doi",
+   "name": "program_check",
+   "lines": 122,
+   "doc": "在るべき役割が在るか。側面ごとに確度と典拠が付いているか。",
+   "verdict": "共通へ",
+   "common": "C13",
+   "common_title": "役割の在庫",
+   "reason": "建つ姿を変える。共通版 C13 役割の在庫 が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "norms_check",
+   "lines": 138,
+   "doc": "廊下の規範(§1)と柱割り(§4)を機械検査に落とす。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "doi",
+   "name": "refs_check",
+   "lines": 80,
+   "doc": "設計値どうしの参照が切れていないか。切れた参照は生成を止めるか、黙って検査を素通りさせる。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "doi",
+   "name": "opening_fit_check",
+   "lines": 52,
+   "doc": "開口に物が通っているかと、通る物が開口に完全に含まれるかを検める。",
+   "verdict": "共通へ",
+   "common": "C12",
+   "common_title": "道の勾配と繋がり",
+   "reason": "建つ姿を変える。共通版 C12 道の勾配と繋がり が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "impl_scan_check",
+   "lines": 9,
+   "doc": "実装の走査が本当に回っているか(2026-09-07 検図方 中2)。⛔ 空振りを 0 件にしない。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "doi",
+   "name": "retracted_check",
+   "lines": 49,
+   "doc": "撤回した説の語が、設計値・生成器・図のどこかに生き残っていないかを機械で照合する。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "doi",
+   "name": "retract_link_check",
+   "lines": 17,
+   "doc": "「撤回」の各出現が、禁句表の語か鳴る検査を名指しているか。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "doi",
+   "name": "user_claim_sensitivity",
+   "lines": 68,
+   "doc": "破壊試験 — 出自の名乗りの網に偽の名乗りを差すと鳴るか(2026-09-08 考証方 低3)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "壊し試し",
+   "reason": "邸ごとに手書きした変異は、共通版の --deep(共通の壊し試し)に置き換える"
+  },
+  {
+   "estate": "doi",
+   "name": "yaku_kotoba_check",
+   "lines": 61,
+   "doc": "役の言葉づかいの禁句照合(2026-09-08 考証方 中1)。正典は const.yakuNoKotoba。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "doi",
+   "name": "gate_overlap_check",
+   "lines": 12,
+   "doc": "門の躯体と表長屋の run が重なっていないか。重なれば建蔽率が二重に数える。",
+   "verdict": "共通へ",
+   "common": "C01",
+   "common_title": "重なり 0",
+   "reason": "建つ姿を変える。共通版 C01 重なり 0 が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "stair_bank_check",
+   "lines": 73,
+   "doc": "石段の帯の側面に受けがあるか。石段は地山の上に立つ土手になりうる。",
+   "verdict": "共通へ",
+   "common": "C06",
+   "common_title": "土留め高と法",
+   "reason": "建つ姿を変える。共通版 C06 土留め高と法 が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "wall_profile_check",
+   "lines": 26,
+   "doc": "走りに沿った露出で土留めを検める。wall_check は最大落差一点しか見ない。",
+   "verdict": "共通へ",
+   "common": "C06",
+   "common_title": "土留め高と法",
+   "reason": "建つ姿を変える。共通版 C06 土留め高と法 が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "wall_end_check",
+   "lines": 90,
+   "doc": "土留めが尽きる所で、面がまだ地山からどれだけ立っているか。",
+   "verdict": "共通へ",
+   "common": "C06",
+   "common_title": "土留め高と法",
+   "reason": "建つ姿を変える。共通版 C06 土留め高と法 が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "edge_step_check",
+   "lines": 73,
+   "doc": "段の縁に受けの無い垂直段差が残っていないかを測る。_batter の宣言そのものの検査。",
+   "verdict": "共通へ",
+   "common": "C05",
+   "common_title": "段差の受け",
+   "reason": "建つ姿を変える。共通版 C05 段差の受け が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "mune_fit_check",
+   "lines": 12,
+   "doc": "棟の下の |設計面 − 自然地形| ≤ 0.5m(§B-1 の合否)を検査にする。",
+   "verdict": "共通へ",
+   "common": "C04",
+   "common_title": "面と地形の差",
+   "reason": "建つ姿を変える。共通版 C04 面と地形の差 が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "wall_needed_check",
+   "lines": 56,
+   "doc": "土留めが要る所に土留めがあるかを測る。壁を消しても法面が黙って代わりを務めるので、",
+   "verdict": "共通へ",
+   "common": "C05",
+   "common_title": "段差の受け",
+   "reason": "建つ姿を変える。共通版 C05 段差の受け が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "neighbour_wall_check",
+   "lines": 99,
+   "doc": "隣家が持つ辺で、隣家の塀が当家側の地盤に埋まっていないかを毎回測る。",
+   "verdict": "共通へ",
+   "common": "C18",
+   "common_title": "地盤の出所",
+   "reason": "建つ姿を変える。共通版 C18 地盤の出所 が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "inubashiri_check",
+   "lines": 42,
+   "doc": "棟の縁と、それが載る段の縁の離れ(犬走り)を検める。",
+   "verdict": "共通へ",
+   "common": "C03",
+   "common_title": "面に載る",
+   "reason": "建つ姿を変える。共通版 C03 面に載る が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "plane_check",
+   "lines": 122,
+   "doc": "面のはみ出し検査。①棟・付属屋・廊下が「自分の y の面の段」の中に完全に載っているか",
+   "verdict": "共通へ",
+   "common": "C03",
+   "common_title": "面に載る",
+   "reason": "建つ姿を変える。共通版 C03 面に載る が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "adjacency_check",
+   "lines": 83,
+   "doc": "高さの違う段どうしが接する辺に、土留めが載っているか総当たりで検める。",
+   "verdict": "共通へ",
+   "common": "C05",
+   "common_title": "段差の受け",
+   "reason": "建つ姿を変える。共通版 C05 段差の受け が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "wall_check",
+   "lines": 18,
+   "doc": "土留めの設計高さ(4s)が、走りに沿った実測落差 drop=[min,max] と釣り合っているか。",
+   "verdict": "共通へ",
+   "common": "C06",
+   "common_title": "土留め高と法",
+   "reason": "建つ姿を変える。共通版 C06 土留め高と法 が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "neighbour_hash_check",
+   "lines": 35,
+   "doc": "隣家の指図が動いたら鳴らす。⛔ 隣家の json を読む検査があるのに、",
+   "verdict": "共通へ",
+   "common": "C18",
+   "common_title": "地盤の出所",
+   "reason": "建つ姿を変える。共通版 C18 地盤の出所 が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "band_check",
+   "lines": 199,
+   "doc": "身舎の帯の割り付けが規則どおりか。(2026-09-06 ユーザー裁定=案C)",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "doi",
+   "name": "buzai_jissoku_check",
+   "lines": 147,
+   "doc": "部材の実測が、名簿どおりに入っているか。⛔ 空欄を黙って既定・0 へ落とさない。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "doi",
+   "name": "kachu_kata_check",
+   "lines": 72,
+   "doc": "家中長屋5棟が「同じ型」であること。⛔ 実装が勝手に格を足さないように。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "doi",
+   "name": "roof_kata_sensitivity",
+   "lines": 43,
+   "doc": "破壊試験 — 屋根の型を壊すと buzai_jissoku_check が鳴るか。⛔ 恒真を通さない。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "壊し試し",
+   "reason": "邸ごとに手書きした変異は、共通版の --deep(共通の壊し試し)に置き換える"
+  },
+  {
+   "estate": "doi",
+   "name": "pending_state_check",
+   "lines": 18,
+   "doc": "宿題は明示の state で開閉する(2026-09-08 検図方 高1-⑵)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "doi",
+   "name": "user_rulings_count_check",
+   "lines": 21,
+   "doc": "台帳の「⭐ 印の行」の数が、確度の裁定の表の user 印の数と一致するか",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "doi",
+   "name": "userrulings_tsuke_check",
+   "lines": 40,
+   "doc": "裏取りの済んでいない台帳の行は、開いている宿題を名指しているか",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "doi",
+   "name": "userrulings_tsuke_sensitivity",
+   "lines": 29,
+   "doc": "破壊試験 — 台帳の行き先の網を壊すと userrulings_tsuke_check が鳴るか。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "壊し試し",
+   "reason": "邸ごとに手書きした変異は、共通版の --deep(共通の壊し試し)に置き換える"
+  },
+  {
+   "estate": "doi",
+   "name": "pending_roster_check",
+   "lines": 31,
+   "doc": "pending を持つ側と、行き先の本文の名簿が一致するか(2026-09-08 検図方 中1)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "doi",
+   "name": "niwa_check",
+   "lines": 359,
+   "doc": "奥庭の不変条件。⛔ 検査の無い不変条件は必ず壊れる。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "doi",
+   "name": "iwajima_check",
+   "lines": 161,
+   "doc": "岩島(大石+肩石)の12条【2026-09-07 庭方の設計・確度U】。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "doi",
+   "name": "kuramae_mizo_check",
+   "lines": 31,
+   "doc": "溝の中に立つ木は、その位置の実幅を満たす(条H)。⛔ 表を刷るだけにしない(規則19)。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "doi",
+   "name": "kutsunugi_deps_check",
+   "lines": 43,
+   "doc": "沓脱石の従属物を連れて行く輪【2026-09-07 庭方 高1・確度U】。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "doi",
+   "name": "kutsunugi_deps_sens",
+   "lines": 27,
+   "doc": "感度試験 — 「沓脱石を動かすと必ず鳴る」ことを毎回示す。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "壊し試し",
+   "reason": "邸ごとに手書きした変異は、共通版の --deep(共通の壊し試し)に置き換える"
+  },
+  {
+   "estate": "doi",
+   "name": "niwa_joints_check",
+   "lines": 33,
+   "doc": "取り合いの条【2026-09-07 庭方の起案A(採用=普請奉行) から書き起こし】。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "doi",
+   "name": "kuramae_sens",
+   "lines": 48,
+   "doc": "感度試験 — 蔵前の三条(条4 犬走り / 条6 幹 / 条7 突き付け)が壊すと鳴るか。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "壊し試し",
+   "reason": "邸ごとに手書きした変異は、共通版の --deep(共通の壊し試し)に置き換える"
+  },
+  {
+   "estate": "doi",
+   "name": "shitakusa_check",
+   "lines": 38,
+   "doc": "下草の散布域の不変条件。⛔ 参照切れ・庭の外・空の域を黙って通さない。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "doi",
+   "name": "juka_uke_check",
+   "lines": 37,
+   "doc": "⭐⭐⭐ 『裸地を残さない』の物差し — 陰になる樹下が受かっているか。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "doi",
+   "name": "niwa_plant_check",
+   "lines": 200,
+   "doc": "庭方が要求した検査4本(2026-09-04 第2巡の申し送り)。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "doi",
+   "name": "mustsee_check",
+   "lines": 18,
+   "doc": "⛔ 見えると書いたものが見えない図を作らない。見所 → 名指しの点景の視線が",
+   "verdict": "共通へ",
+   "common": "C15",
+   "common_title": "庭の点景と見所",
+   "reason": "建つ姿を変える。共通版 C15 庭の点景と見所 が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "mustsee_sensitivity",
+   "lines": 30,
+   "doc": "破壊試験 — 幹の円柱がほんとうに視線の検査に載っているか(2026-09-08 庭方 高1)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "壊し試し",
+   "reason": "邸ごとに手書きした変異は、共通版の --deep(共通の壊し試し)に置き換える"
+  },
+  {
+   "estate": "doi",
+   "name": "enro_zukou_check",
+   "lines": 34,
+   "doc": "園路の頭上を測れているか(⛔ 合否は差し戻し枠が持つ=受け方は意匠)。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "doi",
+   "name": "mikiri_sensitivity",
+   "lines": 58,
+   "doc": "破壊試験 — 見切りの合否がほんとうに載っているか(2026-09-08)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "壊し試し",
+   "reason": "邸ごとに手書きした変異は、共通版の --deep(共通の壊し試し)に置き換える"
+  },
+  {
+   "estate": "doi",
+   "name": "juka_uke_sens",
+   "lines": 61,
+   "doc": "破壊試験 — 『裸地を残さない』の新しい物差しがほんとうに載っているか。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "壊し試し",
+   "reason": "邸ごとに手書きした変異は、共通版の --deep(共通の壊し試し)に置き換える"
+  },
+  {
+   "estate": "doi",
+   "name": "zukou_sensitivity",
+   "lines": 44,
+   "doc": "破壊試験 — 園路の頭上の検査がほんとうに載っているか(2026-09-08 庭方 高1)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "壊し試し",
+   "reason": "邸ごとに手書きした変異は、共通版の --deep(共通の壊し試し)に置き換える"
+  },
+  {
+   "estate": "doi",
+   "name": "niwa_todo_dest_check",
+   "lines": 30,
+   "doc": "差し戻しの全項が、実在する _pending を名指しているか(2026-09-07 検図方 中4)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "doi",
+   "name": "cert_pending_check",
+   "lines": 53,
+   "doc": "確度 ? の行は宿題の行き先を持つ(2026-09-07 考証方の推奨C(採用=普請奉行) の2)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "doi",
+   "name": "kabu_check",
+   "lines": 43,
+   "doc": "株(群)の名簿と本数(2026-09-08 庭方の起案(採用=普請奉行))。",
+   "verdict": "共通へ",
+   "common": "C16",
+   "common_title": "植栽の在庫と本数",
+   "reason": "建つ姿を変える。共通版 C16 植栽の在庫と本数 が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "uke_atari_sens",
+   "lines": 56,
+   "doc": "感度試験 — 向きの規約を緩めると平面の当たりが鳴るか。⛔ 恒真を通さない。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "壊し試し",
+   "reason": "邸ごとに手書きした変異は、共通版の --deep(共通の壊し試し)に置き換える"
+  },
+  {
+   "estate": "doi",
+   "name": "akichi_check",
+   "lines": 13,
+   "doc": "明地の枠が重なっていないか。⚠ 枠の外に残る空白は失格ではない — 表と図に出す",
+   "verdict": "共通へ",
+   "common": "C01",
+   "common_title": "重なり 0",
+   "reason": "建つ姿を変える。共通版 C01 重なり 0 が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "point_cert_check",
+   "lines": 79,
+   "doc": "庭の点景の確度が要素ごとに在り、地の文と合うか(2026-09-07 考証方 高1 → 09-08 高1)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "doi",
+   "name": "cert_field_check",
+   "lines": 24,
+   "doc": "知らない cert* の欄が黙って母集団の外に居ないか(2026-09-08 考証方 高1)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "doi",
+   "name": "src_id_check",
+   "lines": 35,
+   "doc": "典拠 ID の書式が図の全体で一本か(2026-09-08 検図方 中1)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "doi",
+   "name": "src_id_sensitivity",
+   "lines": 24,
+   "doc": "破壊試験 — 典拠 ID の書式の網を壊すと src_id_check が鳴るか。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "壊し試し",
+   "reason": "邸ごとに手書きした変異は、共通版の --deep(共通の壊し試し)に置き換える"
+  },
+  {
+   "estate": "doi",
+   "name": "cert_support_check",
+   "lines": 90,
+   "doc": "S/A/B を名乗る欄が、支えを名指すか行き先を持つか(2026-09-08 考証方 高1)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "doi",
+   "name": "population_check",
+   "lines": 9,
+   "doc": "宣言した母集団と、実際に回った母集団が一致するか(⭐ 2026-09-08 の主題)。",
+   "verdict": "共通へ",
+   "common": "C23",
+   "common_title": "壊し試し(共通)",
+   "reason": "建つ姿を変える。共通版 C23 壊し試し(共通) が受ける"
+  },
+  {
+   "estate": "doi",
+   "name": "point_cert_sensitivity",
+   "lines": 90,
+   "doc": "破壊試験 — 要素別の確度の網を壊すと point_cert_check が鳴るか。⛔ 恒真を通さない。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "壊し試し",
+   "reason": "邸ごとに手書きした変異は、共通版の --deep(共通の壊し試し)に置き換える"
+  },
+  {
+   "estate": "doi",
+   "name": "roundtrip_check",
+   "lines": 124,
+   "doc": "生成器が書く欄を全消去 → 再生成 → 正典と一致するか。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "sanno",
+   "name": "note_md_check",
+   "lines": 17,
+   "doc": "組んだ後 ── 表のセルに未変換のマークダウンが残っていないか(検図12巡目 低4)。",
+   "verdict": "共通へ",
+   "common": "C22",
+   "common_title": "図の成立",
+   "reason": "建つ姿を変える。共通版 C22 図の成立 が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "section_cut_check",
+   "lines": 27,
+   "doc": "どの断面にも切られない棟が名簿どおりか(⛔ 黙って増えない)。",
+   "verdict": "共通へ",
+   "common": "C22",
+   "common_title": "図の成立",
+   "reason": "建つ姿を変える。共通版 C22 図の成立 が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "size_spelling_check",
+   "lines": 36,
+   "doc": "sizeRule.sizes の綴りが目録で解けるか(⛔ 目録に無い綴りは黙って落ちる)。",
+   "verdict": "共通へ",
+   "common": "C16",
+   "common_title": "植栽の在庫と本数",
+   "reason": "建つ姿を変える。共通版 C16 植栽の在庫と本数 が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "section_window_check",
+   "lines": 115,
+   "doc": "断面の窓が社地の境を跨ぐか(⛔ 片側だけ境まで写して他方を切り落とさない)。",
+   "verdict": "共通へ",
+   "common": "C22",
+   "common_title": "図の成立",
+   "reason": "建つ姿を変える。共通版 C22 図の成立 が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "keidai_inubashiri_check",
+   "lines": 79,
+   "doc": "境内の外周の囲い(腰高の柵)が平場の輪郭から犬走り const.inubashiri を残しているか。",
+   "verdict": "共通へ",
+   "common": "C03",
+   "common_title": "面に載る",
+   "reason": "建つ姿を変える。共通版 C03 面に載る が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "terrace_shape_check",
+   "lines": 77,
+   "doc": "平場の輪郭の健全性 ── ⛔ 重複頂点 / 零長辺 / 自己交差。〔記録〕に最鋭の内角。",
+   "verdict": "共通へ",
+   "common": "C01",
+   "common_title": "重なり 0",
+   "reason": "建つ姿を変える。共通版 C01 重なり 0 が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "kaidan_close_check",
+   "lines": 44,
+   "doc": "石段の閉合〔記録〕 ── 蹴上×段数 と 比高 の差を、どの段が吸うか。",
+   "verdict": "共通へ",
+   "common": "C11",
+   "common_title": "石段",
+   "reason": "建つ姿を変える。共通版 C11 石段 が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "roof_decl_check",
+   "lines": 29,
+   "doc": "屋根を持つ run が葺材を宣言しているか【高1 考証19巡目 → 2026-09-09】。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "sanno",
+   "name": "saku_decl_check",
+   "lines": 106,
+   "doc": "柵の宣言 ── kind と丈の出所(hFrom)が食い違っていないか。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "sanno",
+   "name": "kakoi_cross_check",
+   "lines": 262,
+   "doc": "囲い・土留め・屋根の帯どうしの交差と離れ【検図11巡目 中1 → 2026-09-07】。",
+   "verdict": "共通へ",
+   "common": "C01",
+   "common_title": "重なり 0",
+   "reason": "建つ姿を変える。共通版 C01 重なり 0 が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "ido_check",
+   "lines": 105,
+   "doc": "井戸屋形の取り合い ── 軒先 ≡ 石敷の縁・石敷が帯の輪郭の内・玉垣の開口が引けるか。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "sanno",
+   "name": "kido_bay_check",
+   "lines": 85,
+   "doc": "木戸の開口が辺の中に納まっているか(端からはみ出さず・他の開口と重ならないか)、",
+   "verdict": "共通へ",
+   "common": "C08",
+   "common_title": "門の割りと段",
+   "reason": "建つ姿を変える。共通版 C08 門の割りと段 が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "mitsuke_fill_check",
+   "lines": 42,
+   "doc": "腰高の柵の見付けの充実率【指5 庭方 2026-09-09 十八巡目】。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  },
+  {
+   "estate": "sanno",
+   "name": "tamagaki_bay_check",
+   "lines": 29,
+   "doc": "玉垣の一枚(柱と柱の間)の内法が tamagaki.uchinoriMinM 以上か。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "sanno",
+   "name": "plane_y_check",
+   "lines": 45,
+   "doc": "面の天端の出所(⛔)── 天端を持つ面はすべて terraces[].y から引けること。",
+   "verdict": "共通へ",
+   "common": "C03",
+   "common_title": "面に載る",
+   "reason": "建つ姿を変える。共通版 C03 面に載る が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "plane_dev_check",
+   "lines": 104,
+   "doc": "面に載る門・棟・井戸屋形の Δ = 面の天端 − 造成前の地形【§B-1】。",
+   "verdict": "共通へ",
+   "common": "C04",
+   "common_title": "面と地形の差",
+   "reason": "建つ姿を変える。共通版 C04 面と地形の差 が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "inubashiri_check",
+   "lines": 92,
+   "doc": "前庭の西縁に取り付く物が腰石垣の壁面から犬走り(inuBashiriM)を残しているか。",
+   "verdict": "共通へ",
+   "common": "C03",
+   "common_title": "面に載る",
+   "reason": "建つ姿を変える。共通版 C03 面に載る が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "shisen_check",
+   "lines": 84,
+   "doc": "前庭の視線の抜き ── 参道の芯から shisenNukiKen の帯に玉垣より高い物を置かない。",
+   "verdict": "共通へ",
+   "common": "C15",
+   "common_title": "庭の点景と見所",
+   "reason": "建つ姿を変える。共通版 C15 庭の点景と見所 が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "sankaku_check",
+   "lines": 42,
+   "doc": "前庭の立面の三尊が立面として成り立っているか【A-5 庭方 2026-09-09 十九巡目】。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  },
+  {
+   "estate": "sanno",
+   "name": "sekitoro_check",
+   "lines": 59,
+   "doc": "石灯籠が寸分たがわぬ等間隔になっていないか【低1 庭方 2026-09-07】。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  },
+  {
+   "estate": "sanno",
+   "name": "sando_suritsuke_check",
+   "lines": 87,
+   "doc": "参道の縦断の局所段差が摺り付けで吸収できる範囲に収まっているか【考証8巡目 低10 → 2026-09-07】。",
+   "verdict": "共通へ",
+   "common": "C12",
+   "common_title": "道の勾配と繋がり",
+   "reason": "建つ姿を変える。共通版 C12 道の勾配と繋がり が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "sando_offset_check",
+   "lines": 24,
+   "doc": "参道の柵と高木の縁の線が、宣言どおり社地の辺のオフセットになっているか。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "sanno",
+   "name": "romon_kidan_face_check",
+   "lines": 86,
+   "doc": "楼門の基壇の面と石垣・石段の頭の取り合い【石垣の設計 2026-09-14 ①②④】。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "sanno",
+   "name": "tier_plan_check",
+   "lines": 34,
+   "doc": "二段築の段の走りの宣言【石垣の設計 2026-09-14 ③】── terraceWalls[].tierPlan と、図が算出する",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "sanno",
+   "name": "mune_height_check",
+   "lines": 123,
+   "doc": "棟高の物差しと、部材の丈との突き合わせ【高3 検図21巡目 → 裁3/裁4 2026-09-09】。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "sanno",
+   "name": "band_invariant_check",
+   "lines": 13,
+   "doc": "⛔ 組む条件にした不変条件が破れていたら組ませない(2026-09-06 から①②③の三つとも)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "sanno",
+   "name": "crown_per_h_check",
+   "lines": 60,
+   "doc": "社叢の中の 樹冠 ÷ 丈 の上限【低9/低10 庭方 2026-09-09 十七巡目】。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  },
+  {
+   "estate": "sanno",
+   "name": "single_gap_check",
+   "lines": 56,
+   "doc": "役が『一本で立つ』木どうしが対に見えないか(奇数の作法)【指2 庭方 十八巡目】。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  },
+  {
+   "estate": "sanno",
+   "name": "cluster_hmin_check",
+   "lines": 59,
+   "doc": "塊の松の丈の下限(棟高からの従属)が帯の丈に納まるか【中8 庭方 2026-09-09 十七巡目】。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  },
+  {
+   "estate": "sanno",
+   "name": "label_overlap_check",
+   "lines": 88,
+   "doc": "図版の銘の重なり〔記録〕【2026-09-08 検図12巡目 低・ラベル衝突】。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "sanno",
+   "name": "svg_tail_check",
+   "lines": 18,
+   "doc": "(a) 図版ごとに </g></svg> が末尾か。⛔ </svg> の後に要素を足さない。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "sanno",
+   "name": "crown_rule_check",
+   "lines": 268,
+   "doc": "(e) 高木・中木の枝下が層ごとの edaShitaMinM 以上か。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  },
+  {
+   "estate": "sanno",
+   "name": "planting_avoid_check",
+   "lines": 78,
+   "doc": "(b) 植栽の多角形 ∩ 障害物 buffer = 0、塊の箱が本数を置ける広さか、帯が社地の中か。",
+   "verdict": "共通へ",
+   "common": "C17",
+   "common_title": "植栽の退避",
+   "reason": "建つ姿を変える。共通版 C17 植栽の退避 が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "tree_size_check",
+   "lines": 301,
+   "doc": "樹の大きさの規約(crownPerH と sizeRule)が効いているか【裁定1 庭方 2026-09-07】。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  },
+  {
+   "estate": "sanno",
+   "name": "single_repeat_check",
+   "lines": 58,
+   "doc": "同じ部材の一本立ちが近すぎないか【中2 庭方 2026-09-07 九巡目】。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  },
+  {
+   "estate": "sanno",
+   "name": "matsu_scale_check",
+   "lines": 75,
+   "doc": "松の縦伸ばしの箍【中4 庭方 2026-09-07 九巡目】。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  },
+  {
+   "estate": "sanno",
+   "name": "cluster_pack_check",
+   "lines": 183,
+   "doc": "塊が塊として組めるか【中3 庭方 2026-09-07 八巡目】。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  },
+  {
+   "estate": "sanno",
+   "name": "rinen_overhang_check",
+   "lines": 37,
+   "doc": "参道への林縁の張り出しが路面へ出ていないか【裁定2 庭方 2026-09-07 八巡目】。",
+   "verdict": "共通へ",
+   "common": "C17",
+   "common_title": "植栽の退避",
+   "reason": "建つ姿を変える。共通版 C17 植栽の退避 が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "noplant_overlap_check",
+   "lines": 60,
+   "doc": "空地(gardens[].noPlant)が平場の外へ出ていないか・何と重なっているか。",
+   "verdict": "共通へ",
+   "common": "C01",
+   "common_title": "重なり 0",
+   "reason": "建つ姿を変える。共通版 C01 重なり 0 が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "rect_overlap_check",
+   "lines": 71,
+   "doc": "(c) 面の総当たり — 棟・門・庭/区・帯4・石段・塊で真の重なりが無いか。",
+   "verdict": "共通へ",
+   "common": "C01",
+   "common_title": "重なり 0",
+   "reason": "建つ姿を変える。共通版 C01 重なり 0 が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "terrain_provenance_check",
+   "lines": 92,
+   "doc": "地形の種地が 正本 base_dem.json から来ているかを実測で確かめる(CLAUDE.md 規則13・EDO-0031)。",
+   "verdict": "共通へ",
+   "common": "C18",
+   "common_title": "地盤の出所",
+   "reason": "建つ姿を変える。共通版 C18 地盤の出所 が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "gokusho_torigai_check",
+   "lines": 116,
+   "doc": "御供所の取り合い【普請奉行の配置 2026-09-15 / 部材方 d2e9de85 / 庭方 2026-09-15】──",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "sanno",
+   "name": "gate_plan_axis_check",
+   "lines": 76,
+   "doc": "門の平面の向き【K004 検図 2026-09-13】── 奥行 plan.du を通り抜けの軸へ回して測る。",
+   "verdict": "共通へ",
+   "common": "C08",
+   "common_title": "門の割りと段",
+   "reason": "建つ姿を変える。共通版 C08 門の割りと段 が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "gate_axis_check",
+   "lines": 82,
+   "doc": "門の向き【検図 2026-09-13 高1/考証 高2/庭方 中3】。",
+   "verdict": "共通へ",
+   "common": "C08",
+   "common_title": "門の割りと段",
+   "reason": "建つ姿を変える。共通版 C08 門の割りと段 が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "gate_part_col_check",
+   "lines": 31,
+   "doc": "門の平面と部材の柱芯【K001 2026-09-13】── gates[].plan(梁間 du × 桁行 dv 間)の柱芯と、",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "sanno",
+   "name": "gate_part_outline_check",
+   "lines": 180,
+   "doc": "門の部材の外形が石段・囲いへ食い込まないか【K001 2026-09-13】── ⛔ 図の平面ではなく部材の外形",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "sanno",
+   "name": "sode_part_check",
+   "lines": 115,
+   "doc": "袖塀の部材と楼門・回廊の取り合い【部材方の返り事項 2026-09-14】── 部材 bom[].outlineM と",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "sanno",
+   "name": "sukibei_span_check",
+   "lines": 169,
+   "doc": "透塀のスパン部材が焼けているか── 割り付け(sukibei_span_plan)が要る <スパン mm>_<端> と、",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "sanno",
+   "name": "sukibei_kado_check",
+   "lines": 92,
+   "doc": "透塀の隅の凹凸が折れ線と合っているか【K059 2026-09-16 棟梁の差し戻し → 規則19】。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "sanno",
+   "name": "chumon_kabuki_check",
+   "lines": 20,
+   "doc": "中門の冠木と透塀の棟の離れ【部材方 2026-09-14】── 冠木の下端(bom[中門].axis.kabukiM)と",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "sanno",
+   "name": "noki_sori_check",
+   "lines": 24,
+   "doc": "軒反りの量【考証 2026-09-13 中】── const.nokiSoriCornerM/nokiSoriReachM と、",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "sanno",
+   "name": "shaden_kidan_check",
+   "lines": 26,
+   "doc": "社殿の基壇・亀腹の石材の宣言【庭方 2026-09-13 中/考証 高】── 鍵が揃っているか(⛔)。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "sanno",
+   "name": "cluster_shukei_gap_check",
+   "lines": 36,
+   "doc": "西A の松と★主景の幹の離れ【庭方 2026-09-13 中】── clusters[].trunkGapFromShukeiKen を",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "sanno",
+   "name": "path_shape_check",
+   "lines": 60,
+   "doc": "道の形が建つ形か ── 道幅より短い脚・引き返し・迷い点。",
+   "verdict": "共通へ",
+   "common": "C12",
+   "common_title": "道の勾配と繋がり",
+   "reason": "建つ姿を変える。共通版 C12 道の勾配と繋がり が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "saichigai_check",
+   "lines": 44,
+   "doc": "造成が社地の外へ及んでいないか(名簿つき)。",
+   "verdict": "共通へ",
+   "common": "C20",
+   "common_title": "造成の量と波及",
+   "reason": "建つ姿を変える。共通版 C20 造成の量と波及 が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "forest_tier_wiring_check",
+   "lines": 53,
+   "doc": "丈を宣言した帯 × 層に、その層を描く断面があるか【A-3 庭方11巡目・規則19】。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "sanno",
+   "name": "endai_check",
+   "lines": 64,
+   "doc": "縁台が玉垣の東・通行帯の外に納まっているか(ユーザー裁定 2026-09-06)。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "sanno",
+   "name": "ishizai_color_check",
+   "lines": 103,
+   "doc": "庭の石の名簿の色【庭方 2026-09-13/普請奉行の裁定 2026-09-13】── 品目ごとの H/S/V の設計値と受入値の宣言。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  },
+  {
+   "estate": "sanno",
+   "name": "pending_pointer_check",
+   "lines": 55,
+   "doc": "宣言したポインタの指し先が実在するか(⛔)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "sanno",
+   "name": "named_tree_check",
+   "lines": 24,
+   "doc": "名指しの木が宣言どおり引けているか【決1③ 庭方 2026-09-09 十八巡目・規則19】。",
+   "verdict": "共通へ",
+   "common": "C16",
+   "common_title": "植栽の在庫と本数",
+   "reason": "建つ姿を変える。共通版 C16 植栽の在庫と本数 が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "shukei_bake_check",
+   "lines": 67,
+   "doc": "★主景の木が焼き出しに在り、受入値(仰角)を満たすか【A-1 庭方 2026-09-09 十九巡目】。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "sanno",
+   "name": "kyoukai_inside_check",
+   "lines": 54,
+   "doc": "設計された塊と名指しの木の幹が社地 polygon の内にあるか(符号つき・全数)",
+   "verdict": "共通へ",
+   "common": "C02",
+   "common_title": "区画の中",
+   "reason": "建つ姿を変える。共通版 C02 区画の中 が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "named_vs_cluster_check",
+   "lines": 58,
+   "doc": "名指しの木が設計された塊の余白に入らないか【A-3 庭方 2026-09-09 十九巡目】。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  },
+  {
+   "estate": "sanno",
+   "name": "cluster_place_bake_check",
+   "lines": 88,
+   "doc": "設計した塊が焼き出しで宣言どおり据わったか【A-2②/A-7 庭方 2026-09-09 十九巡目】。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "sanno",
+   "name": "crown_cover_check",
+   "lines": 113,
+   "doc": "道・坂の芯線が樹冠の下を通るか【高1/高2 庭方 2026-09-09 十七巡目 → planting.crownCover】。",
+   "verdict": "共通へ",
+   "common": "C12",
+   "common_title": "道の勾配と繋がり",
+   "reason": "建つ姿を変える。共通版 C12 道の勾配と繋がり が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "grade_slope_check",
+   "lines": 258,
+   "doc": "縁が受けられているか【ユーザー裁定〈造成の縁〉1 = 案A・2026-09-19】── 平場の輪郭を半刻みで歩き、",
+   "verdict": "共通へ",
+   "common": "C06",
+   "common_title": "土留め高と法",
+   "reason": "建つ姿を変える。共通版 C06 土留め高と法 が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "graded_cover_check",
+   "lines": 95,
+   "doc": "造成の格子が面の輪郭を覆い切るか / 法肩の丸み【K060 2026-09-16 → ユーザー裁定〈造成の縁〉1 2026-09-19】。",
+   "verdict": "共通へ",
+   "common": "C20",
+   "common_title": "造成の量と波及",
+   "reason": "建つ姿を変える。共通版 C20 造成の量と波及 が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "grade_carry_check",
+   "lines": 142,
+   "doc": "格子が一枡より外へ土を持ち出していないか(= 土留めの見付を埋めていないか)",
+   "verdict": "共通へ",
+   "common": "C20",
+   "common_title": "造成の量と波及",
+   "reason": "建つ姿を変える。共通版 C20 造成の量と波及 が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "slope_planting_check",
+   "lines": 51,
+   "doc": "法面の上に立つ木が庭方の規約を守っているか【庭方の設計 ④ 2026-09-18 → 裁定1 2026-09-19】。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "sanno",
+   "name": "impl_fresh_check",
+   "lines": 93,
+   "doc": "焼いた算出物が今の指図・今の地盤から焼かれた物か【2026-09-08 棟梁の診断 → 規則19】。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "sanno",
+   "name": "keepout_wiring_check",
+   "lines": 262,
+   "doc": "keepoutFrom の一項ごとに、指し先が生きていて・面になり・焼き出しの点が守っているか",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "sanno",
+   "name": "impl_wall_profile_check",
+   "lines": 203,
+   "doc": "土留めの縦断が焼かれ、その一つ一つが図の算出と同じ数か",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "sanno",
+   "name": "wall_step_check",
+   "lines": 46,
+   "doc": "埋まっている区間に『段差が在るか』── 壁の要否の名簿【裁定 EDO-0182 (b) 普請奉行】。",
+   "verdict": "共通へ",
+   "common": "C05",
+   "common_title": "段差の受け",
+   "reason": "建つ姿を変える。共通版 C05 段差の受け が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "wall_tier_check",
+   "lines": 96,
+   "doc": "土留めの段の割り ── 見付高が駒の丈を超える run は段に割って宣言する",
+   "verdict": "共通へ",
+   "common": "C06",
+   "common_title": "土留め高と法",
+   "reason": "建つ姿を変える。共通版 C06 土留め高と法 が受ける"
+  },
+  {
+   "estate": "sanno",
+   "name": "impl_planting_check",
+   "lines": 294,
+   "doc": "焼き出した木が、指図の宣言した面と離れを守っているか【庭方 2026-09-08 十六巡目】。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "sanno",
+   "name": "impl_graded_check",
+   "lines": 314,
+   "doc": "焼き出しの造成後の地盤が、図の算出(design_y)と同じ物か【規則19 → 2026-09-08】。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "sanno",
+   "name": "probe_misfire_check",
+   "lines": 20,
+   "doc": "変異が一つも当たっていない破壊試験が無いか【B-3 検図22巡目 → 2026-09-09 十九巡目】。",
+   "verdict": "共通へ",
+   "common": "C23",
+   "common_title": "壊し試し(共通)",
+   "reason": "建つ姿を変える。共通版 C23 壊し試し(共通) が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "plane_check",
+   "lines": 169,
+   "doc": "面のはみ出し検査。棟・付属屋・廊下が「自分の y の面の段」の中に完全に載っているか、",
+   "verdict": "共通へ",
+   "common": "C03",
+   "common_title": "面に載る",
+   "reason": "建つ姿を変える。共通版 C03 面に載る が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "route_pierce_check",
+   "lines": 30,
+   "doc": "動線が室の中を通っていないかの検査。入側(外形から一間の帯)・渡廊下・棟間は通路なので許す。",
+   "verdict": "共通へ",
+   "common": "C12",
+   "common_title": "道の勾配と繋がり",
+   "reason": "建つ姿を変える。共通版 C12 道の勾配と繋がり が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "run_seat_check",
+   "lines": 54,
+   "doc": "run の天端と背後の地盤の照合。これが無いと「塀が埋まる/浮く」を図で見逃す",
+   "verdict": "共通へ",
+   "common": "C18",
+   "common_title": "地盤の出所",
+   "reason": "建つ姿を変える。共通版 C18 地盤の出所 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "nakajikiri_containment_check",
+   "lines": 31,
+   "doc": "中仕切塀が区画の外へ出ていないか。線分の端点だけでなく途中も測る。",
+   "verdict": "共通へ",
+   "common": "C02",
+   "common_title": "区画の中",
+   "reason": "建つ姿を変える。共通版 C02 区画の中 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "room_containment_check",
+   "lines": 21,
+   "doc": "室は棟の外形の中にある。棟を動かして室を置き去りにすると、",
+   "verdict": "共通へ",
+   "common": "C03",
+   "common_title": "面に載る",
+   "reason": "建つ姿を変える。共通版 C03 面に載る が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "ishigaki_layout_check",
+   "lines": 103,
+   "doc": "駒の割り付けが run をちょうど覆うか。【ユーザー裁定U 2026-08-29】",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "ishigaki_layout_sensitivity",
+   "lines": 38,
+   "doc": "感度試験 — わざと壊して ishigaki_layout_check が鳴るか。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "壊し試し",
+   "reason": "邸ごとに手書きした変異は、共通版の --deep(共通の壊し試し)に置き換える"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "section_roof_disclaimer_check",
+   "lines": 19,
+   "doc": "断面の「屋根は概略」の断りが、図の描き方と合っているか。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "fuzoku_overlap_check",
+   "lines": 53,
+   "doc": "郭内の造作(附属屋・井戸・中仕切塀)が互いに、また棟・廊下と食い込んでいないか。",
+   "verdict": "共通へ",
+   "common": "C01",
+   "common_title": "重なり 0",
+   "reason": "建つ姿を変える。共通版 C01 重なり 0 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "yagura_opening_check",
+   "lines": 69,
+   "doc": "隅櫓の footprint を両側の辺へ射影し、外周の run がそこを塞いでいないか。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "vocab_check",
+   "lines": 32,
+   "doc": "語彙で振り分ける欄に知らない値が入っていないか。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "program_check",
+   "lines": 86,
+   "doc": "在るべき役割が在るか。外の錨(estate-types.md)と突き合わせる。",
+   "verdict": "共通へ",
+   "common": "C13",
+   "common_title": "役割の在庫",
+   "reason": "建つ姿を変える。共通版 C13 役割の在庫 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "parcel_containment_check",
+   "lines": 82,
+   "doc": "段・庭・棟・附属屋が区画の中に収まっているか。",
+   "verdict": "共通へ",
+   "common": "C02",
+   "common_title": "区画の中",
+   "reason": "建つ姿を変える。共通版 C02 区画の中 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "terrain_provenance_check",
+   "lines": 140,
+   "doc": "地形が 正本 base_dem.json から来ているかを実測で確かめる(CLAUDE.md 規則13)。",
+   "verdict": "共通へ",
+   "common": "C18",
+   "common_title": "地盤の出所",
+   "reason": "建つ姿を変える。共通版 C18 地盤の出所 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "edo_dem_fresh_check",
+   "lines": 26,
+   "doc": "江戸期地盤の派生物が陳腐化していないか。⭐ 2026-09-02(検図 B3)新設。",
+   "verdict": "共通へ",
+   "common": "C18",
+   "common_title": "地盤の出所",
+   "reason": "建つ姿を変える。共通版 C18 地盤の出所 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "outside_bury_check",
+   "lines": 95,
+   "doc": "外側の地盤が外周の座より高くないか(塀・長屋が外から埋まらないか)。",
+   "verdict": "共通へ",
+   "common": "C09",
+   "common_title": "離れ",
+   "reason": "建つ姿を変える。共通版 C09 離れ が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "edge_treatment_check",
+   "lines": 74,
+   "doc": "段どうしが接する線が、全長にわたって何かで納まっているか。",
+   "verdict": "共通へ",
+   "common": "C05",
+   "common_title": "段差の受け",
+   "reason": "建つ姿を変える。共通版 C05 段差の受け が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "zone_separation_check",
+   "lines": 32,
+   "doc": "役割表の別の役割どうしが、同じ区画に同居していないか。",
+   "verdict": "共通へ",
+   "common": "C13",
+   "common_title": "役割の在庫",
+   "reason": "建つ姿を変える。共通版 C13 役割の在庫 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "setchin_check",
+   "lines": 56,
+   "doc": "雪隠が区画ごとに行き渡っているか。土井 EDO-0029 の二段検査に倣う。",
+   "verdict": "共通へ",
+   "common": "C13",
+   "common_title": "役割の在庫",
+   "reason": "建つ姿を変える。共通版 C13 役割の在庫 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "barrier_check",
+   "lines": 67,
+   "doc": "御錠口の結界。廊下だけでなく「面として閉じているか」を見る。",
+   "verdict": "共通へ",
+   "common": "C07",
+   "common_title": "外周の閉じ",
+   "reason": "建つ姿を変える。共通版 C07 外周の閉じ が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "gate_overlap_check",
+   "lines": 27,
+   "doc": "run が門の組立(番所・袖塀・門柱)と重なっていないか。",
+   "verdict": "共通へ",
+   "common": "C01",
+   "common_title": "重なり 0",
+   "reason": "建つ姿を変える。共通版 C01 重なり 0 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "kaidan_ground_check",
+   "lines": 79,
+   "doc": "石段の落差が、その位置の造成前地盤と面の差に合っているか。",
+   "verdict": "共通へ",
+   "common": "C11",
+   "common_title": "石段",
+   "reason": "建つ姿を変える。共通版 C11 石段 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "komon_sill_check",
+   "lines": 53,
+   "doc": "門の敷居と、その門の石段の足元が同じ値か。",
+   "verdict": "共通へ",
+   "common": "C08",
+   "common_title": "門の割りと段",
+   "reason": "建つ姿を変える。共通版 C08 門の割りと段 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "hardcode_check",
+   "lines": 8,
+   "doc": "生成器の legend/caption に数値が直書きされていないか(正典は json)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "gate_derive_check",
+   "lines": 65,
+   "doc": "表門の割り付けが「何から導いたか」のとおりに立っているか。",
+   "verdict": "共通へ",
+   "common": "C08",
+   "common_title": "門の割りと段",
+   "reason": "建つ姿を変える。共通版 C08 門の割りと段 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "gate_kazari_note_sensitivity",
+   "lines": 83,
+   "doc": "感度試験 — わざと壊して3本が鳴るか。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "壊し試し",
+   "reason": "邸ごとに手書きした変異は、共通版の --deep(共通の壊し試し)に置き換える"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "joints_check",
+   "lines": 108,
+   "doc": "開口の両側と隅に取り合いの記述があるか。空欄を残せない形にする。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "kado_stock_check",
+   "lines": 50,
+   "doc": "隅部材の採否が規則どおりかと、名指しした部材が実在するか。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "kado_arm_check",
+   "lines": 99,
+   "doc": "隅の腕の検査。全頂点 P0〜P(n-1) を、三つの観点で検める。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "kado_arm_sensitivity",
+   "lines": 33,
+   "doc": "感度試験 — わざと壊して kado_arm_check が鳴るか。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "壊し試し",
+   "reason": "邸ごとに手書きした変異は、共通版の --deep(共通の壊し試し)に置き換える"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "roof_sensitivity",
+   "lines": 105,
+   "doc": "感度試験 — わざと壊して屋根の検査が鳴るか。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "壊し試し",
+   "reason": "邸ごとに手書きした変異は、共通版の --deep(共通の壊し試し)に置き換える"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "keii_word_check",
+   "lines": 10,
+   "doc": "経緯の語が本文に残っていないか。0 件でなければ欠陥(規則4)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "keii_word_sensitivity",
+   "lines": 11,
+   "doc": "壊して鳴るか。⭕ 経緯の文を1行戻すと鳴り、⛔ 裁定の日付だけでは鳴らない。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "壊し試し",
+   "reason": "邸ごとに手書きした変異は、共通版の --deep(共通の壊し試し)に置き換える"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "schema_check",
+   "lines": 40,
+   "doc": "同じ配列の要素が同じキーを持っているか。欠けたキーは実装を黙って落とす。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "perimeter_closure_check",
+   "lines": 74,
+   "doc": "外周が閉じているか — 区画線をまたぐ線が、どこかで外周の物に当たるかを全長で測る。",
+   "verdict": "共通へ",
+   "common": "C07",
+   "common_title": "外周の閉じ",
+   "reason": "建つ姿を変える。共通版 C07 外周の閉じ が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "perimeter_ledger_check",
+   "lines": 110,
+   "doc": "外周の帳簿検査 — 全ての頂点と全ての辺を、区間の帳簿で検める。",
+   "verdict": "共通へ",
+   "common": "C07",
+   "common_title": "外周の閉じ",
+   "reason": "建つ姿を変える。共通版 C07 外周の閉じ が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "mune_wall_clearance_check",
+   "lines": 33,
+   "doc": "棟の軒先と外周の塀の内面の離れが const wallNear 以上か。",
+   "verdict": "共通へ",
+   "common": "C09",
+   "common_title": "離れ",
+   "reason": "建つ姿を変える。共通版 C09 離れ が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "crown_fallback_check",
+   "lines": 20,
+   "doc": "⛔ 繋ぎの仮値を残さない。plantRule.crownFallback は持たないので、",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "grass_layer_check",
+   "lines": 34,
+   "doc": "法尻の草地の帯が『層として見える厚み』を持つか(2026-09-06 庭方 設計4・E)。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "planting_stock_check",
+   "lines": 80,
+   "doc": "植栽が在庫の実物を名指ししているか。",
+   "verdict": "共通へ",
+   "common": "C16",
+   "common_title": "植栽の在庫と本数",
+   "reason": "建つ姿を変える。共通版 C16 植栽の在庫と本数 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "planting_clearance_check",
+   "lines": 111,
+   "doc": "木が棟・廊下・井戸・石段・園路の上に載っていないか。",
+   "verdict": "共通へ",
+   "common": "C17",
+   "common_title": "植栽の退避",
+   "reason": "建つ姿を変える。共通版 C17 植栽の退避 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "slope_planting_check",
+   "lines": 82,
+   "doc": "斜面の帯ごとの密度と、水から見た稜が連続しているか。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "slope_canopy_check",
+   "lines": 27,
+   "doc": "林冠被覆率 = Σ 高木の樹冠面積 ÷ 帯の面積。⭐ 2026-09-02(庭方 設計1)新設。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "slope_bare_check",
+   "lines": 1,
+   "doc": "",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "slope_gap_check",
+   "lines": 36,
+   "doc": "最大空隙 — placement:\"maxGap\" の帯で、高木の最近傍距離(NN)の",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "crest_uniformity_check",
+   "lines": 27,
+   "doc": "稜列の均一度 — placement:\"crestLine\" の層で、実測した並び順の隣接距離の",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "clump_singleton_check",
+   "lines": 27,
+   "doc": "単木の上限 — clump を持つ層で、実現した群のうち n=1(単木)の割合が",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "stump_shrub_check",
+   "lines": 20,
+   "doc": "幹元の低木 — 高木の何%が、樹冠縁 stumpShrubReach(既定2.5)m 以内に",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "border_clump_check",
+   "lines": 32,
+   "doc": "境の標示(borderClump) — 叢の本数が奇数3〜5か、実際に境界線の近くへ",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "slope_realism_check",
+   "lines": 14,
+   "doc": "西斜面の生え方のリアリズム5本+境の標示(2026-09-06 庭方 設計3/4)をまとめて返す。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "layer_parts_count_check",
+   "lines": 23,
+   "doc": "層の n と parts の本数の和・塊の n の和が揃っているか(2026-09-16)。",
+   "verdict": "共通へ",
+   "common": "C16",
+   "common_title": "植栽の在庫と本数",
+   "reason": "建つ姿を変える。共通版 C16 植栽の在庫と本数 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "group_box_overlap_check",
+   "lines": 19,
+   "doc": "一つの箱に二層を重ねて指定していないか(2026-09-04 庭方 回答N3)。",
+   "verdict": "共通へ",
+   "common": "C01",
+   "common_title": "重なり 0",
+   "reason": "建つ姿を変える。共通版 C01 重なり 0 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "group_box_check",
+   "lines": 13,
+   "doc": "箱を指定した塊は、成員の点も箱の中か(2026-09-04 庭方【高2】N1)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "plant_height_check",
+   "lines": 33,
+   "doc": "役と部材の丈が噛み合っているか(2026-09-04 庭方【中3】N3)。",
+   "verdict": "共通へ",
+   "common": "C16",
+   "common_title": "植栽の在庫と本数",
+   "reason": "建つ姿を変える。共通版 C16 植栽の在庫と本数 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "ume_spread_check",
+   "lines": 19,
+   "doc": "梅の塊が一列に見えていないか(2026-09-04 庭方【中1】N6)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "v1_water_check",
+   "lines": 14,
+   "doc": "V1 から見える水面の割合が帯 viewpointRule.waterView.band の中か(庭方 N4)。",
+   "verdict": "共通へ",
+   "common": "C14",
+   "common_title": "水の系",
+   "reason": "建つ姿を変える。共通版 C14 水の系 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "v8_ridge_check",
+   "lines": 24,
+   "doc": "V8 の正面で塀の上の素通しが敷居より短いか(2026-09-05 検図【中2】D5)。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "yakuboku_check",
+   "lines": 21,
+   "doc": "座標を名指しした役木(groups[].at)が、退避の窓の中にあるか【庭方 2026-09-04 回答N1】。",
+   "verdict": "共通へ",
+   "common": "C17",
+   "common_title": "植栽の退避",
+   "reason": "建つ姿を変える。共通版 C17 植栽の退避 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "terrace_edge_check",
+   "lines": 84,
+   "doc": "段の縁の外に垂直の段差が残っていないか(2026-09-04 検図【高2】D1)。",
+   "verdict": "共通へ",
+   "common": "C05",
+   "common_title": "段差の受け",
+   "reason": "建つ姿を変える。共通版 C05 段差の受け が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "west_edge_check",
+   "lines": 39,
+   "doc": "西庭・内露地の西辺が、法肩 + keepout.rail の折れ線に追随しているか",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "cross_scatter_clearance_check",
+   "lines": 44,
+   "doc": "庭の散布と法面の散布をまたぐ退避(2026-09-05 検図【高1】D1)。",
+   "verdict": "共通へ",
+   "common": "C17",
+   "common_title": "植栽の退避",
+   "reason": "建つ姿を変える。共通版 C17 植栽の退避 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "slope_avoid_check",
+   "lines": 20,
+   "doc": "法面の走査に掛ける箱が、実際に走査域へ掛かっているか(2026-09-03 庭方 N14)。",
+   "verdict": "共通へ",
+   "common": "C17",
+   "common_title": "植栽の退避",
+   "reason": "建つ姿を変える。共通版 C17 植栽の退避 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "slope_zone_count_check",
+   "lines": 33,
+   "doc": "slopePlantingZones の n が実際に箱の中に立っているか(2026-09-04 庭方 申し送り1)。",
+   "verdict": "共通へ",
+   "common": "C16",
+   "common_title": "植栽の在庫と本数",
+   "reason": "建つ姿を変える。共通版 C16 植栽の在庫と本数 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "slope_zone_check",
+   "lines": 73,
+   "doc": "主視点の錐が要求する遠景が、実物で立っているか(slopePlantingZones)。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "band_boundary_check",
+   "lines": 45,
+   "doc": "帯の境が邸をまたいで同じ標高に来ているか(3邸 ±tol m)。",
+   "verdict": "共通へ",
+   "common": "C18",
+   "common_title": "地盤の出所",
+   "reason": "建つ姿を変える。共通版 C18 地盤の出所 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "garden_access_check",
+   "lines": 36,
+   "doc": "庭に道が通っているか。⛔ 庭方の不合格の言『1,638坪の観賞の庭のうち",
+   "verdict": "共通へ",
+   "common": "C12",
+   "common_title": "道の勾配と繋がり",
+   "reason": "建つ姿を変える。共通版 C12 道の勾配と繋がり が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "group_place_check",
+   "lines": 19,
+   "doc": "塊の置き場所が来ているか。⭐ 2026-09-01 の庭方の直しの本体は",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "group_pack_check",
+   "lines": 132,
+   "doc": "⭐ 塊が入るだけの空きが残っているか【庭方 2026-09-01 の要求】。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "kaki_crossing_check",
+   "lines": 20,
+   "doc": "垣が園路と水を塞いでいないか。門の無い垣は道を塞ぎ、切れ目の無い垣は流れを堰き止める。",
+   "verdict": "共通へ",
+   "common": "C12",
+   "common_title": "道の勾配と繋がり",
+   "reason": "建つ姿を変える。共通版 C12 道の勾配と繋がり が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "viewpoint_check",
+   "lines": 38,
+   "doc": "主視点が成り立っているか。⛔ 主景が無い庭は『棟の裏の空地』になる。",
+   "verdict": "共通へ",
+   "common": "C15",
+   "common_title": "庭の点景と見所",
+   "reason": "建つ姿を変える。共通版 C15 庭の点景と見所 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "tsukiyama_check",
+   "lines": 70,
+   "doc": "築山。頂が点景と同じ点か / 裾が庭の中か / 法が輪郭と噛み合うか。",
+   "verdict": "共通へ",
+   "common": "C15",
+   "common_title": "庭の点景と見所",
+   "reason": "建つ姿を変える。共通版 C15 庭の点景と見所 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "mounds_shoreidx_check",
+   "lines": 65,
+   "doc": "岬の隆起が実装へ「数値」で渡っているか(2026-09-04・棟梁 差し戻し1)。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "gogan_check",
+   "lines": 58,
+   "doc": "護岸石の三条件【庭方 2026-09-01(改)・設計4】。",
+   "verdict": "共通へ",
+   "common": "C15",
+   "common_title": "庭の点景と見所",
+   "reason": "建つ姿を変える。共通版 C15 庭の点景と見所 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "taki_check",
+   "lines": 35,
+   "doc": "台地端の滝(三段)。⭐ 各段の下端が「設計地盤」に載っているか(|Δ| ≤ 0.30m)。",
+   "verdict": "共通へ",
+   "common": "C14",
+   "common_title": "水の系",
+   "reason": "建つ姿を変える。共通版 C14 水の系 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "mizu_check",
+   "lines": 211,
+   "doc": "水の系。上流から下流へ水位が単調に下がるか / 節点が指図の物と噛み合うか。",
+   "verdict": "共通へ",
+   "common": "C14",
+   "common_title": "水の系",
+   "reason": "建つ姿を変える。共通版 C14 水の系 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "sensui_check",
+   "lines": 101,
+   "doc": "御泉水。汀線が主庭の中か / 島と岩屋が汀線と噛み合うか / 水を張っているか /",
+   "verdict": "共通へ",
+   "common": "C14",
+   "common_title": "水の系",
+   "reason": "建つ姿を変える。共通版 C14 水の系 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "cert_claim_check",
+   "lines": 58,
+   "doc": "⭐ 確度 A の僭称を見張る(考証方 2026-09-01 の要求)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "band_overlap_check",
+   "lines": 31,
+   "doc": "帯どうしが並走して重なっていないか。lim は許す重なりの長さ[間]。",
+   "verdict": "共通へ",
+   "common": "C01",
+   "common_title": "重なり 0",
+   "reason": "建つ姿を変える。共通版 C01 重なり 0 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "route_connect_check",
+   "lines": 48,
+   "doc": "庭の道が歩いて行き着けるか。tol は繋がっているとみなす離れ[m]。",
+   "verdict": "共通へ",
+   "common": "C12",
+   "common_title": "道の勾配と繋がり",
+   "reason": "建つ姿を変える。共通版 C12 道の勾配と繋がり が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "viewpoint_fov_check",
+   "lines": 42,
+   "doc": "refs に挙げた物が、主視点の画角の中に在るか。",
+   "verdict": "共通へ",
+   "common": "C15",
+   "common_title": "庭の点景と見所",
+   "reason": "建つ姿を変える。共通版 C15 庭の点景と見所 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "kido_approach_check",
+   "lines": 45,
+   "doc": "木戸・露地口に取り付く段・道は、その芯へちゃんと寄せてあるか。",
+   "verdict": "共通へ",
+   "common": "C08",
+   "common_title": "門の割りと段",
+   "reason": "建つ姿を変える。共通版 C08 門の割りと段 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "niwa_stone_check",
+   "lines": 98,
+   "doc": "庭方の決定を実際に測る。⭐ 2026-09-02(庭方【高1】)新設。",
+   "verdict": "共通へ",
+   "common": "C15",
+   "common_title": "庭の点景と見所",
+   "reason": "建つ姿を変える。共通版 C15 庭の点景と見所 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "rail_ground_check",
+   "lines": 39,
+   "doc": "隣り合う柱の足元の段差だけを見る【庭方 2026-09-03 回答5】。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "design_value_check",
+   "lines": 59,
+   "doc": "指図に書いた値を、誰かが読んでいるか。⭐ 2026-09-02(庭方【高1】)新設。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "planting_export_check",
+   "lines": 40,
+   "doc": "実装へ渡す点が、いま検査が見ている点と同じか(再現性)。⭐ 2026-09-02 新設 / 2026-09-03 改。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "check_wiring_check",
+   "lines": 50,
+   "doc": "⭐ 感度試験にしか出てこない検査を鳴らす検査(2026-09-02・検図 高1)。",
+   "verdict": "共通へ",
+   "common": "C23",
+   "common_title": "壊し試し(共通)",
+   "reason": "建つ姿を変える。共通版 C23 壊し試し(共通) が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "planting_sensitivity",
+   "lines": 278,
+   "doc": "感度試験 — わざと壊して検査が鳴るか。鳴らない probe は検査の穴。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "壊し試し",
+   "reason": "邸ごとに手書きした変異は、共通版の --deep(共通の壊し試し)に置き換える"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "plate_ref_check",
+   "lines": 21,
+   "doc": "⭐ 図版番号の直書きを止める検査(2026-09-02 検図 中4。3件が別の図を指していた)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "pending_ref_check",
+   "lines": 24,
+   "doc": "⭐ _pending.◯◯ と ◯◯_check の名指しが実在するか(2026-09-02・検図 B8)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "neishi_check",
+   "lines": 47,
+   "doc": "板塀の足元が納まっているか【庭方 2026-09-01 検分 6-①】。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "neishi_seat_check",
+   "lines": 42,
+   "doc": "板塀の根石の座が地盤を追えているか【庭方 2026-09-03 N2】。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "garden_nest_check",
+   "lines": 40,
+   "doc": "庭の入れ子(親ゾーンの中に丸ごと入る庭)が宣言されているか。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "route_grade_check",
+   "lines": 62,
+   "doc": "歩ける勾配か。⛔ 段の無い区間が役ごとの敷居より急なら、そこは歩けない。",
+   "verdict": "共通へ",
+   "common": "C12",
+   "common_title": "道の勾配と繋がり",
+   "reason": "建つ姿を変える。共通版 C12 道の勾配と繋がり が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "zashiki_kazari_check",
+   "lines": 78,
+   "doc": "上段の間に座敷飾が宣言されているか。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "gate_kuguri_check",
+   "lines": 60,
+   "doc": "表門の袖塀の潜り戸が、部材の制約と動線の導出を守っているか(2026-09-08)。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "zashiki_kazari_men_check",
+   "lines": 59,
+   "doc": "座敷飾を据える壁面の宣言が、棟の作りと矛盾していないか(2026-09-08)。",
+   "verdict": "欄へ写す",
+   "common": null,
+   "reason": "邸固有の条。json の欄(条文と数値)として残し、共通版は欄を刷るだけ。合否は Unity と庭方の目"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "underscore_note_check",
+   "lines": 39,
+   "doc": "注記が「図に刷られる」か「機械が突き合わせる」かのどちらかになっているか",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "hedge_pitch_check",
+   "lines": 81,
+   "doc": "塊の中の芯々が、指図に書いた指定どおりに出ているか【庭方 設計 D-5・2026-09-08】。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "hedge_pattern_check",
+   "lines": 121,
+   "doc": "塊の『型』が実出力に出ているか(2026-09-08)。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "group_region_check",
+   "lines": 46,
+   "doc": "塊が置き場所を二重に宣言していないか(2026-09-08)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "pack_scope_check",
+   "lines": 45,
+   "doc": "packRatio の効く範囲の宣言が、生成器の実装と一致しているか",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "roof_note_check",
+   "lines": 40,
+   "doc": "人手の注記 munes[]._roof が実データと同じことを言っているか。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "roof_moya_check",
+   "lines": 26,
+   "doc": "帯の和と桁行が、棟の足形と入側の宣言から導けるか。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "roof_kaku_check",
+   "lines": 31,
+   "doc": "格の頂点(roofRule.kakuMune)が複合内で単独に最も高いか。",
+   "verdict": "共通へ",
+   "common": "C10",
+   "common_title": "屋根の食い込み",
+   "reason": "建つ姿を変える。共通版 C10 屋根の食い込み が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "roof_along_check",
+   "lines": 26,
+   "doc": "大棟の向きが列ごとの規則(roofRule.alongVByZone)どおりかと、",
+   "verdict": "共通へ",
+   "common": "C10",
+   "common_title": "屋根の食い込み",
+   "reason": "建つ姿を変える。共通版 C10 屋根の食い込み が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "roof_stock_check",
+   "lines": 34,
+   "doc": "帯割りが名指しする屋根部材が在庫に実在するか(os.path.exists だけで判定)。",
+   "verdict": "共通へ",
+   "common": "C16",
+   "common_title": "植栽の在庫と本数",
+   "reason": "建つ姿を変える。共通版 C16 植栽の在庫と本数 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "roof_band_span_check",
+   "lines": 27,
+   "doc": "帯割り(munes[].roof.bands)の各帯が上限(5間)・下限(2間)を外れていないか、",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "nagaya_moya_ken_check",
+   "lines": 127,
+   "doc": "宣言した屋根の型が、当てている棟の足形とそのまま合うかの検算",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "umaya_hisashi_clear_check",
+   "lines": 61,
+   "doc": "厩の庇の下を人と馬が通れるか【2026-09-18 考証方【高】】。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "hisashi_obi_check",
+   "lines": 44,
+   "doc": "身舎の外を回る一間の庇の帯を、何で囲うか【2026-09-19 ユーザー裁定(第2便)2=A】。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "roof_eave_order_check",
+   "lines": 91,
+   "doc": "格は軒高で読む: 厩 < 長屋類 < 御殿(2026-09-07・立て、決着=普請奉行の",
+   "verdict": "共通へ",
+   "common": "C10",
+   "common_title": "屋根の食い込み",
+   "reason": "建つ姿を変える。共通版 C10 屋根の食い込み が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "roof_annex_eave_check",
+   "lines": 15,
+   "doc": "奥向の棟と厩(ROOF_NAGAYA_GATA_MUNES)の棟が munes[].roof(帯割り)を持ってしまって",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "roka_clear_check",
+   "lines": 144,
+   "doc": "渡廊下の下屋が主屋の軒下から葺き下ろせるか(ユーザー裁定 A・2026-09-17)。",
+   "verdict": "共通へ",
+   "common": "C10",
+   "common_title": "屋根の食い込み",
+   "reason": "建つ姿を変える。共通版 C10 屋根の食い込み が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "kuchi_valley_check",
+   "lines": 83,
+   "doc": "結界の帯の下を通る口(御錠口・御膳所口)の軒谷が幾何として成立するか",
+   "verdict": "共通へ",
+   "common": "C10",
+   "common_title": "屋根の食い込み",
+   "reason": "建つ姿を変える。共通版 C10 屋根の食い込み が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "neishi_edge_overhang_check",
+   "lines": 76,
+   "doc": "板塀の根石の厚みが面の縁からはみ出していないか(2026-09-10)。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "bansho_parcel_out_check",
+   "lines": 20,
+   "doc": "番所が区画線を越える量(2026-09-10)。",
+   "verdict": "共通へ",
+   "common": "C02",
+   "common_title": "区画の中",
+   "reason": "建つ姿を変える。共通版 C02 区画の中 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "valley_eave_check",
+   "lines": 39,
+   "doc": "谷の辺で軒を落とせるか(2026-09-10)。",
+   "verdict": "共通へ",
+   "common": "C10",
+   "common_title": "屋根の食い込み",
+   "reason": "建つ姿を変える。共通版 C10 屋根の食い込み が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "valley_step_check",
+   "lines": 44,
+   "doc": "宣言した辺が本当にその納めか — 両側の軒先の下端を測って検める【2026-09-18 検図】。",
+   "verdict": "共通へ",
+   "common": "C10",
+   "common_title": "屋根の食い込み",
+   "reason": "建つ姿を変える。共通版 C10 屋根の食い込み が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "band_governor_check",
+   "lines": 39,
+   "doc": "帯の境を実際に決めているのは t か minAbs か(2026-09-10)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "帳簿",
+   "reason": "書式・符牒・帳簿の整合は気にしない(規則4)。共通版は欄を読むだけで、読まない欄は wiring_gate.py が見張る"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "koran_frame_check",
+   "lines": 9,
+   "doc": "V1 の前景の高欄が算出できるか(2026-09-13・普請奉行 裁定①)。〔記録〕で値を出す。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "slope_cover_check",
+   "lines": 39,
+   "doc": "低木の地被の被覆率(Σ 低木の樹冠面積 ÷ 帯の面積)(2026-09-10)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "slope_emergent_check",
+   "lines": 174,
+   "doc": "林冠を抜けて突出する松が maxGap ごとに立っているか(2026-09-10)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "torii_route_check",
+   "lines": 283,
+   "doc": "鳥居が参道の線上に載り、正面が参拝者の来る側を向き、柱が参道の外に立つか(2026-09-14・庭方 設計 D2 /)。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "planting_box_service_check",
+   "lines": 31,
+   "doc": "植栽の塊の箱が建物(棟・渡廊下・附属屋)の外形に部分的に食い込んでいないか(2026-09-14 検図)。",
+   "verdict": "共通へ",
+   "common": "C17",
+   "common_title": "植栽の退避",
+   "reason": "建つ姿を変える。共通版 C17 植栽の退避 が受ける"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "slope_doryu_check",
+   "lines": 45,
+   "doc": "法尻の土留めが在庫の部材で解決しているか・どの断面に要るか(2026-09-10)。",
+   "verdict": "Unity で測る",
+   "common": null,
+   "reason": "部材の取り合い・焼き出しの照合は実メッシュで測る(規則2・19)。紙では書かない"
+  },
+  {
+   "estate": "matsudaira",
+   "name": "group_mix_check",
+   "lines": 44,
+   "doc": "塊の中で 2 種が混ざっているか(2026-09-10【庭方 裁定A-2】)。",
+   "verdict": "落とす",
+   "common": null,
+   "kind": "統計美学",
+   "reason": "植栽の並びの統計は図では見えない。庭方が Unity のレンダで見る(規則19・造れるかは実装で測る)"
+  }
+ ]
+}

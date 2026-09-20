@@ -42,3 +42,14 @@ metadata:
 **How to apply:** bridge が無いと言われたら、まずプロセスと status ファイル、次に Editor.log。
 
 関連: [[pitfall-writeback-mcp-timeout]] / [[pitfall-sanno-sukibei-kado]]
+
+## 「instances なし」が続くときは古い登録ファイルを退避する(2026-09-20)
+
+`~/.unity-mcp/unity-mcp-port-<hash>.json` に**別プロジェクトの生きていない登録**が残っていると、
+`read_console` も `execute_code` も `No Unity Editor instances found` を返し続ける(再送しても治らない)。
+`unity-mcp-status-<hash>.json` に `"reason":"ready"` が出ている=Unity は生きている、が見分け。
+⇒ 使っていない方の `unity-mcp-port-*.json` を scratchpad へ**退避**すると次の1回で通る。
+⚠ それでも **2回に1回は失敗する**ので、読み取り系は**同じ呼びを素直にもう一度**打つ(待たない)。
+⚠ `manage_scene save` と `プレハブへ書き戻す` は**必ずタイムアウトするが仕事は通っている** —
+   ⛔ 再送しない。`stat` で .unity / .prefab / TerrainData.asset の mtime が動くのを待つ
+   (松江松平は 書き戻し 約2分・シーン保存 約3分)。

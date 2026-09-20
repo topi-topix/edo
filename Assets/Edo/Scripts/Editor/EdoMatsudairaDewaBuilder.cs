@@ -375,7 +375,16 @@ public static partial class EdoMatsudairaDewaBuilder
     // ---------------------------------------------------------------- Stage1 造成
     [MenuItem("Edo/松平出羽守上屋敷/1 造成(指図の面へ)")]
     public static void Stage1Menu() { Debug.Log("[Matsudaira] " + Stage1_Grade()); }
-    public static string Stage1_Grade()
+    public static string Stage1_Grade() { return Stage1_Grade(null); }
+
+    /// <summary>造成を流す範囲を**格子(u,v)の矩形** <paramref name="clipUV"/> = {u0,v0,u1,v1} に限る版。
+    /// 既定(null)は敷地の全部で、⭕ **そちらが正典**。
+    ///
+    /// <para>⚠ **範囲を限ってよいのは、非冪等な地形の Stage が済んだ後に段の高さだけが改まったとき**
+    /// (松江松平 2026-09-20 施主裁定B = 表向の四棟を 27.0→26.7 の郭へ落とす)。
+    /// 1b 築山・6a 御泉水・6a' 隆起はマーカーで二度流せないので、**敷地の全部を流し直すと
+    /// 築山と池が平らに戻り、掘り直せない**。⛔ 範囲の中に築山・池・遣水・滝見口を入れないこと。</para></summary>
+    public static string Stage1_Grade(float[] clipUV)
     {
         // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
         { var reviewGate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
@@ -405,6 +414,11 @@ public static partial class EdoMatsudairaDewaBuilder
         {
             var p = new Vector2(WX(x0 + x), WZ(z0 + z));
             if (!EdoGeom.PIP(P, p)) continue;                             // 敷地の外は一切触らない
+            if (clipUV != null)
+            {
+                Vector2 gq = Grid.L(p);
+                if (gq.x < clipUV[0] || gq.x > clipUV[2] || gq.y < clipUV[1] || gq.y > clipUV[3]) continue;
+            }
             float cur = H[z, x] * ts.y + tp.y;
             float y = DesignY(p);
             if (y < cur) { cmax = Mathf.Max(cmax, cur - y); cutSum += cur - y; }
@@ -414,8 +428,10 @@ public static partial class EdoMatsudairaDewaBuilder
         td.SetHeightsDelayLOD(x0, z0, H); td.SyncHeightmap();
         float cell = ts.x / (hres - 1);
         double a = cell * cell;
-        return string.Format("造成 cells={0} 切土 最大{1:F2}m 体積{2:F0}m³ / 盛土 最大{3:F2}m 体積{4:F0}m³",
-                             n, cmax, cutSum * a, fmax, fillSum * a);
+        return string.Format("造成{5} cells={0} 切土 最大{1:F2}m 体積{2:F0}m³ / 盛土 最大{3:F2}m 体積{4:F0}m³",
+                             n, cmax, cutSum * a, fmax, fillSum * a,
+                             clipUV == null ? "" : string.Format("(範囲 u{0}..{1} v{2}..{3} に限った)",
+                                 clipUV[0], clipUV[2], clipUV[1], clipUV[3]));
     }
 
     // ---------------------------------------------------------------- 造成の検査
@@ -2006,94 +2022,195 @@ public static partial class EdoMatsudairaDewaBuilder
             int u1 = Mathf.RoundToInt(F(l["u1"])), v1 = Mathf.RoundToInt(F(l["v1"]));
             int kw = u1 - u0, kd = v1 - v0;
             bool alongU = kw >= kd;
-            int n = alongU ? kw : kd;
             if ((alongU ? kd : kw) != 1)
                 sb.AppendLine("⚠ " + name + ": 廊下の幅が一間でない(" + kw + "x" + kd + ")");
-            // ⭐ 廊下も棟と同じ段の面へ(EDO-0286)。⛔ `links[].y` を座標として使わない
-            float spreadL; int nPtL;
-            float y = TerraceY(TerraceOf((u0 + u1) * 0.5f, (v0 + v1) * 0.5f), out spreadL, out nPtL);
-            var w = alongU ? f.W(u0, v1) : f.W(u0, v0);
-            GameObject g;
-            if (kind != "渡廊下")
+
+            // ⭐⭐ **段(`links[].dan`)**(2026-09-20 施主裁定B = 掲示板 EDO-0288)。
+            //   表向の郭(低い)と奥向の郭(高い)をつなぐ渡廊下は、**廊下の中で框一段**として受ける。
+            //   ⇒ 段の線で**区間に割り**、区間ごとに 地盤・床・当たり・頭 を解く。
+            //   ⛔ **`links[].y` を一枚の床として読まない**(指図方の申し送り・2026-09-20)—
+            //     27.00 は縁の北(奥向)側の区間の控えで、南側は 26.70。どちらも段の面からの従属値。
+            //   ⛔ **落差を数で持たない** — 両側の段の**実測の面**の差がそのまま框の高さになる。
+            //   ⭕ 屋根も同じ線で折れる(区間ごとに自分の端の当たりから頭を解くので自然に折れ、
+            //     勾配 `const.sashikakeKobai` は各区間で保たれる)。
+            var dan = Has(l, "dan") ? O(l["dan"]) : null;
+            float cut = float.NaN;                        // 段の線(走り方向の格子座標)
+            if (dan != null)
             {
-                // 口 — 下屋も床下げも掛けない(指図 `_roka` 決定3)
-                g = EdoGotenKit.Roka(name, grp, new Vector3(w.x, y, w.y), alongU ? yawU : yawV, n,
-                                     GOTEN_FLOOR, roof: false, colStart: false, colEnd: false);
-                sb.AppendLine("・" + name + "(" + kind + "): 下屋なし・床=畳面 " +
-                              GOTEN_FLOOR.ToString("F3"));
+                bool cutInV = Has(dan, "v");
+                if (cutInV == alongU)
+                    sb.AppendLine("⛔ " + name + ": dan の線が走りと直交しない — 指図方へ差し戻し");
+                else cut = cutInV ? F(dan["v"]) : F(dan["u"]);
             }
-            else
+            int a0 = alongU ? u0 : v0, a1 = alongU ? u1 : v1;
+            var segs = new List<int[]>();                 // 区間 {u0,v0,u1,v1}
+            if (!float.IsNaN(cut) && cut > a0 + 1e-3f && cut < a1 - 1e-3f)
             {
-                // 端ごとの当たり(地盤上[m])を実メッシュから測る
-                float midU = (u0 + u1) * 0.5f, midV = (v0 + v1) * 0.5f;
-                float[] endU = alongU ? new float[] { u0, u1 } : new float[] { midU, midU };
-                float[] endV = alongU ? new float[] { midV, midV } : new float[] { v0, v1 };
-                float[] atari = new float[2];
-                bool[] omoya = new bool[2];
-                string[] endName = new string[2];
-                for (int e = 0; e < 2; e++)
+                int c = Mathf.RoundToInt(cut);
+                segs.Add(alongU ? new int[] { a0, v0, c, v1 } : new int[] { u0, a0, u1, c });
+                segs.Add(alongU ? new int[] { c, v0, a1, v1 } : new int[] { u0, c, u1, a1 });
+            }
+            else segs.Add(new int[] { u0, v0, u1, v1 });
+
+            // 段を持つ廊下は**親を1つ立てて区間をその子にする** — 突き合わせ(`CheckScene`)は
+            // `Buildings` の直下に指図の名前の物を探すので、親の名と平面の位置は指図のまま。
+            Transform host = grp;
+            Vector3 hostPos = Vector3.zero;
+            if (dan != null)
+            {
+                var pw = alongU ? f.W(u0, v1) : f.W(u0, v0);
+                var ho = new GameObject(name);
+                ho.transform.SetParent(grp, false);
+                hostPos = new Vector3(pw.x, 0f, pw.y);
+                ho.transform.localPosition = hostPos;
+                Undo.RegisterCreatedObjectUndo(ho, "roka");
+                host = ho.transform;
+            }
+
+            // 段の線の柱通りは**低い側の区間**が持つ(上の屋根は段を跨いで葺き下ろし、
+            //   その下へ潜る柱は**低い側の屋根の線**で止める)。⛔ 高い側に立てると、
+            //   低い側の屋根の**けらばの出**(実測 0.17m)を **0.34m 突き抜ける**(2026-09-20 実測)。
+            int lowSeg = 0;
+            if (segs.Count > 1)
+            {
+                float sp3; int np3;
+                float yg0 = TerraceY(TerraceOf((segs[0][0] + segs[0][2]) * 0.5f,
+                                               (segs[0][1] + segs[0][3]) * 0.5f), out sp3, out np3);
+                float yg1 = TerraceY(TerraceOf((segs[1][0] + segs[1][2]) * 0.5f,
+                                               (segs[1][1] + segs[1][3]) * 0.5f), out sp3, out np3);
+                lowSeg = yg0 <= yg1 ? 0 : 1;
+            }
+
+            for (int si = 0; si < segs.Count; si++)
+            {
+                var sg = segs[si];
+                int su0 = sg[0], sv0 = sg[1], su1 = sg[2], sv1 = sg[3];
+                int n = alongU ? (su1 - su0) : (sv1 - sv0);
+                // 段を持つ廊下は親(指図の名)の下に区間を吊るす。⛔ 親と同じ名の子を作らない
+                string sname = segs.Count > 1 ? name + (si == 0 ? "_a" : "_b")
+                             : (dan != null ? name + "_run" : name);
+                // ⭐ 廊下も棟と同じ段の面へ(EDO-0286)。⛔ `links[].y` を座標として使わない
+                float spreadL; int nPtL;
+                float y = TerraceY(TerraceOf((su0 + su1) * 0.5f, (sv0 + sv1) * 0.5f), out spreadL, out nPtL);
+                var w = alongU ? f.W(su0, sv1) : f.W(su0, sv0);
+                Vector3 pos = new Vector3(w.x, y, w.y) - hostPos;
+                GameObject g;
+                if (kind != "渡廊下")
                 {
-                    var mm = MuneAt(endU[e], endV[e]);
-                    if (mm == null) { atari[e] = float.NaN; endName[e] = "?"; continue; }
-                    endName[e] = (string)mm["name"];
-                    omoya[e] = Has(mm, "roof");
-                    GameObject mg; _muneGo.TryGetValue(endName[e], out mg);
-                    if (mg == null) { atari[e] = float.NaN; continue; }
-                    // ⭐ **棟から廊下へ向かう向き**。当たりは「廊下の上に張り出している物」なので、
-                    //   外形線より内側にしか無い面(棟の内側の庇の裏)は数に入れない
-                    //   (`RoofPierceMinY` の注。2026-09-20 の是正)。
-                    Vector2 pEnd = f.W(endU[e], endV[e]);
-                    Vector2 outw = (f.W(midU, midV) - pEnd).normalized;
-                    // 廊下の幅を横切って 5 点を測り、中央値を採る(瓦は名目面から ±0.15 うねる)
-                    var hits = new List<float>();
-                    for (int s = -2; s <= 2; s++)
-                    {
-                        float t = s * 0.2f;
-                        Vector2 p = f.W(endU[e] + (alongU ? 0f : t), endV[e] + (alongU ? t : 0f));
-                        float hy = RoofPierceMinY(mg.transform, p, outw);
-                        if (!float.IsNaN(hy)) hits.Add(hy - y);
-                    }
-                    if (hits.Count == 0) { atari[e] = float.NaN; continue; }
-                    hits.Sort();
-                    atari[e] = hits[hits.Count / 2];
-                }
-                if (float.IsNaN(atari[0]) || float.IsNaN(atari[1]))
-                {
-                    sb.AppendLine("⛔ " + name + ": 当たりを実メッシュから測れない(" +
-                                  endName[0] + "/" + endName[1] + ")— 下屋を架けずに残す");
-                    g = EdoGotenKit.Roka(name, grp, new Vector3(w.x, y, w.y), alongU ? yawU : yawV, n,
-                                         rokaFloor, roof: false, colStart: false, colEnd: false);
+                    // 口 — 下屋も床下げも掛けない(指図 `_roka` 決定3)
+                    g = EdoGotenKit.Roka(sname, host, pos, alongU ? yawU : yawV, n,
+                                         GOTEN_FLOOR, roof: false, colStart: false, colEnd: false);
+                    sb.AppendLine("・" + sname + "(" + kind + "): 下屋なし・床=畳面 " +
+                                  GOTEN_FLOOR.ToString("F3"));
                 }
                 else
                 {
-                    // ⭐⭐ 元に採る端 = **当たりの低い端**(全渡廊下で一律。普請奉行の決定
-                    //   EDO-0276・2026-09-20。⛔ 指図 json は書き換えない=規則4、決定は掲示板が正典)。
-                    //   指図 `_roka` は「両端とも御殿なら高い側」と「端ごとに 頭 ≤ 当たり − clear」
-                    //   (縛り①)の二つを持つが、**後者は めり込み = 許容0 を防ぐ縛りなので優先する**。
-                    //   高い側の規則は頭上の有効高を最大に取るための U 推論で、低い側でも頭上 2.100 と
-                    //   目標 `roka.zujoTarget` 1.97 を上回るため失う物がない ⇒ 奥向どうしの規則
-                    //   (低い側)へ揃える。`omoya[]` は残すが選り分けには使わない。
-                    int pick = atari[0] <= atari[1] ? 0 : 1;
-                    float head = atari[pick] - rkClear;
-                    float colTop = head - (EdoGotenKit.K * 0.5f) * rkKobai;
-                    g = EdoGotenKit.Roka(name, grp, new Vector3(w.x, y, w.y), alongU ? yawU : yawV, n,
-                                         rokaFloor, colStart: false, colEnd: false,
-                                         geyaHeadLocalY: head, geyaKobai: rkKobai, enita: true);
-                    sb.AppendLine("・" + name + " " + n + "間: 当たり " +
-                                  endName[0] + "=" + atari[0].ToString("F3") + " / " +
-                                  endName[1] + "=" + atari[1].ToString("F3") +
-                                  " → 元=" + endName[pick] + " 頭 " + head.ToString("F3") +
-                                  " 柱筋の頭上 " + (colTop - rokaFloor).ToString("F3") +
-                                  " 縁の下 " + EnnoshitaY(g).ToString("F3"));
-                    float other = atari[1 - pick];
-                    if (head > other - rkClear + 1e-3f)
-                        sb.AppendLine("★ " + name + ": 頭 " + head.ToString("F3") +
-                                      " が反対の端(" + endName[1 - pick] + ")の当たり " +
-                                      other.ToString("F3") + " − clear " + rkClear.ToString("F2") +
-                                      " を超える — roka_clear_check の縛り①");
+                    // 端ごとの当たり(地盤上[m])を実メッシュから測る
+                    float midU = (su0 + su1) * 0.5f, midV = (sv0 + sv1) * 0.5f;
+                    float[] endU = alongU ? new float[] { su0, su1 } : new float[] { midU, midU };
+                    float[] endV = alongU ? new float[] { midV, midV } : new float[] { sv0, sv1 };
+                    float[] atari = new float[2];
+                    string[] endName = new string[2];
+                    for (int e = 0; e < 2; e++)
+                    {
+                        atari[e] = float.NaN;
+                        // ⭐ 段で割れた区間の**段の側の端**には棟が無い(そこは相手の区間)。
+                        //   当たりを持たない端は数に入れず、⛔ 「測れない」とは見なさない。
+                        var mm = MuneAt(endU[e], endV[e]);
+                        if (mm == null) { endName[e] = (segs.Count > 1 ? "段" : "?"); continue; }
+                        endName[e] = (string)mm["name"];
+                        GameObject mg; _muneGo.TryGetValue(endName[e], out mg);
+                        if (mg == null) continue;
+                        // ⭐ **棟から廊下へ向かう向き**。当たりは「廊下の上に張り出している物」なので、
+                        //   外形線より内側にしか無い面(棟の内側の庇の裏)は数に入れない
+                        //   (`RoofPierceMinY` の注。2026-09-20 の是正)。
+                        Vector2 pEnd = f.W(endU[e], endV[e]);
+                        Vector2 outw = (f.W(midU, midV) - pEnd).normalized;
+                        // 廊下の幅を横切って 5 点を測り、中央値を採る(瓦は名目面から ±0.15 うねる)
+                        var hits = new List<float>();
+                        for (int s = -2; s <= 2; s++)
+                        {
+                            float t = s * 0.2f;
+                            Vector2 p = f.W(endU[e] + (alongU ? 0f : t), endV[e] + (alongU ? t : 0f));
+                            float hy = RoofPierceMinY(mg.transform, p, outw);
+                            if (!float.IsNaN(hy)) hits.Add(hy - y);
+                        }
+                        if (hits.Count == 0) continue;
+                        hits.Sort();
+                        atari[e] = hits[hits.Count / 2];
+                    }
+                    if (float.IsNaN(atari[0]) && float.IsNaN(atari[1]))
+                    {
+                        sb.AppendLine("⛔ " + sname + ": 当たりを実メッシュから測れない(" +
+                                      endName[0] + "/" + endName[1] + ")— 下屋を架けずに残す");
+                        g = EdoGotenKit.Roka(sname, host, pos, alongU ? yawU : yawV, n,
+                                             rokaFloor, roof: false, colStart: false, colEnd: false);
+                    }
+                    else
+                    {
+                        // ⭐⭐ 元に採る端 = **当たりの低い端**(全渡廊下で一律。普請奉行の決定
+                        //   EDO-0276・2026-09-20。⛔ 指図 json は書き換えない=規則4、決定は掲示板が正典)。
+                        //   指図 `_roka` は「端ごとに 頭 ≤ 当たり − clear」(縛り①)を持ち、
+                        //   これは めり込み = 許容0 を防ぐ縛りなので優先する。
+                        //   ⚠ 段で割れた区間は**自分の端の当たり**だけを見る(相手の区間は段のぶん折れる)。
+                        int pick = float.IsNaN(atari[1]) ? 0
+                                 : float.IsNaN(atari[0]) ? 1
+                                 : (atari[0] <= atari[1] ? 0 : 1);
+                        float head = atari[pick] - rkClear;
+                        float colTop = head - (EdoGotenKit.K * 0.5f) * rkKobai;
+                        // 段の線の柱通りは**低い側の区間だけ**が持つ(⛔ 両方に立てると同じ通りに
+                        //   柱が二重に建ち、高い側の柱は低い側の屋根のけらばを突き抜ける)。
+                        bool colAtCut = segs.Count > 1 && si == lowSeg;
+                        g = EdoGotenKit.Roka(sname, host, pos, alongU ? yawU : yawV, n,
+                                             rokaFloor, colStart: colAtCut && si == 1,
+                                             colEnd: colAtCut && si == 0,
+                                             geyaHeadLocalY: head, geyaKobai: rkKobai, enita: true);
+                        sb.AppendLine("・" + sname + " " + n + "間: 当たり " +
+                                      endName[0] + "=" + atari[0].ToString("F3") + " / " +
+                                      endName[1] + "=" + atari[1].ToString("F3") +
+                                      " → 元=" + endName[pick] + " 頭 " + head.ToString("F3") +
+                                      " 柱筋の頭上 " + (colTop - rokaFloor).ToString("F3") +
+                                      " 縁の下 " + EnnoshitaY(g).ToString("F3"));
+                        float other = atari[1 - pick];
+                        if (!float.IsNaN(other) && head > other - rkClear + 1e-3f)
+                            sb.AppendLine("★ " + sname + ": 頭 " + head.ToString("F3") +
+                                          " が反対の端(" + endName[1 - pick] + ")の当たり " +
+                                          other.ToString("F3") + " − clear " + rkClear.ToString("F2") +
+                                          " を超える — roka_clear_check の縛り①");
+                    }
+                }
+                Undo.RegisterCreatedObjectUndo(g, "roka");
+            }
+
+            // ⭐ 框(`dan.kind`)— 段の線で床が段になる。**高さは両側の段の面の差**(従属値)。
+            //   ⛔ 0.30 を書かない。⛔ 区間が片側しか無い(段がちょうど取り付きに出る)ときも同じ。
+            if (dan != null && !float.IsNaN(cut))
+            {
+                float midU2 = (u0 + u1) * 0.5f, midV2 = (v0 + v1) * 0.5f;
+                float sp2; int np2;
+                float qa = alongU ? cut - 0.5f : midU2, qb = alongU ? midV2 : cut - 0.5f;
+                float qc = alongU ? cut + 0.5f : midU2, qd = alongU ? midV2 : cut + 0.5f;
+                float fl0 = TerraceY(TerraceOf(qa, qb), out sp2, out np2) + rokaFloor;
+                float fl1 = TerraceY(TerraceOf(qc, qd), out sp2, out np2) + rokaFloor;
+                float rise = Mathf.Abs(fl1 - fl0);
+                string kamachi = Has(dan, "kind") ? (string)dan["kind"] : "框";
+                if (kamachi != "框")
+                    sb.AppendLine("⛔ " + name + ": dan.kind=" + kamachi + " は未対応 — 指図方へ差し戻し");
+                else if (rise < 0.01f)
+                    sb.AppendLine("〔記録〕" + name + ": 段の線の両側の面が同じ(" + fl0.ToString("F3") +
+                                  ")なので框は立てない");
+                else
+                {
+                    Vector2 pk = f.W(alongU ? cut : midU2, alongU ? midV2 : cut);
+                    var gk = EdoGotenKit.RokaKamachi(name + "_Kamachi", host,
+                                 new Vector3(pk.x, Mathf.Min(fl0, fl1), pk.y) - hostPos,
+                                 alongU ? yawV : yawU, rise);
+                    if (gk != null) Undo.RegisterCreatedObjectUndo(gk, "roka");
+                    sb.AppendLine("・" + name + " 框: 段の線 " + (alongU ? "u=" : "v=") +
+                                  cut.ToString("F0") + " で床 " + fl0.ToString("F3") + " → " +
+                                  fl1.ToString("F3") + "(段 " + rise.ToString("F3") + "m)");
                 }
             }
-            Undo.RegisterCreatedObjectUndo(g, "roka");
             nl++;
         }
 

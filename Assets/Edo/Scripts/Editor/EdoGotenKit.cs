@@ -428,6 +428,24 @@ public static class EdoGotenKit
         return g;
     }
 
+    /// <summary>**渡廊下の床の段(框)。**段の線に一間の材を横たえ、
+    /// **下の床の天端から上の床の天端まで**を塞ぐ(ピボットは材の底・長さは走りと直交する向き)。
+    ///
+    /// <para><paramref name="rise"/> = 両側の床の天端の差。⛔ **定数で持たない** —
+    /// 指図(松江松平 `links[].dan`)は「框一段」としか言わず、落差は両側の段の面の**従属値**。</para>
+    ///
+    /// <para>⚠ **框の専用部材が無いので、桁材(成 <see cref="EdoAssets.Goten.BeamH"/>)を
+    /// 段の高さへ縮めて充てている。**専用部材が焼けたら差し替える(部材方への候補)。
+    /// ⛔ <see cref="EdoAssets.Goten.JodanKamachi"/> は使えない — 上段框は段 0.15 固定で、
+    /// 上の床板(奥行 0.55)を抱いているため廊下の床板と二重になる。</para></summary>
+    public static GameObject RokaKamachi(string name, Transform parent, Vector3 pos, float yaw, float rise)
+    {
+        var go = Put(EdoAssets.Goten.Beam, parent, pos, yaw,
+                     new Vector3(1f, rise / EdoAssets.Goten.BeamH, 1f));
+        if (go != null) go.name = name;
+        return go;
+    }
+
     /// <summary>続き間の仕切り = 襖 + 欄間の一列。棟のローカル座標で
     /// x の柱通りに、z0..z1 間(間数)の範囲へ通す。</summary>
     public static void Partition(Transform mune, float floor, int ix, int jz0, int jz1)

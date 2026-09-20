@@ -11,8 +11,14 @@
 //    既存の街区ビルダーは辺番号を手で振っていて、区画に頂点が1つ増えるたびに総崩れした
 //    (EdoNishiTameikeBuilder の「2026-08-26 json採用で頂点+1、辺indexを再採番」)。
 //
+// ⭐ **置き方はこのファイルに書かない**(規則21・2026-09-20 施主裁定)。部材を置く・測る・突き付ける・
+//    接地箇所を測って据えるのは `EdoBuild` の関数だけ。ここに書くのは「どの類型が何をどこへ」だけで、
+//    据え方の算術(外接箱+定数・底を地面に・ピボットの座)は一切書かない。
+//    順は置き方の4手: ①門構えを先に据える ②塀は門構えの実測の開口へ ③高さは接地箇所を測って
+//    ④事後に寄せる関数を持たない。→ unity-buke-yashiki/references/sashizu.md §3f
+//
 // ⚠ NagayaRun / DobeiRun は既知の欠陥込みで EdoNishiTameikeBuilder に置かれている(EdoBuild の冒頭注記)。
-//    当面はそこを呼ぶ。P2 で同ビルダーが退場するとき EdoBuild へ移す(統一は積み残しの宿題)。
+//    当面はそこを呼ぶ。街区ビルダーが退場するとき EdoBuild へ移す(EDO-0293 の④・積み残し)。
 
 using System;
 using System.Collections.Generic;
@@ -29,6 +35,7 @@ public static class EdoTypologyBuilder
     const float SETBACK = 6.0f;       // 囲いの内側から主屋までの引き(m)
     const float PROBE = 3.0f;         // 辺の外側をどれだけ出て隣を探すか(m)
     const float MIN_BLDG_GAP = 2.0f;  // 棟どうしの最小離れ(m)
+    const int   VERTS = 800;          // 接地箇所を測るときの頂点の間引きの上限(79区画を一度に建てるため)
 
     static string Root { get { return Directory.GetParent(Application.dataPath).FullName; } }
     static string TablePath { get { return Path.Combine(Root, "docs/Sashizu/typology.json"); } }
@@ -197,27 +204,26 @@ public static class EdoTypologyBuilder
         return fit.OrderByDescending(e => e.len).First();
     }
 
+    /// <summary>接地箇所を測って据える(<see cref="EdoBuild.SeatOnGround"/>)。測れない駒
+    /// (全メッシュが屋根名・非表示・MeshFilter 無し)は据えずに**声を上げる** —
+    /// ⛔ 黙ってピボットの座に置き去りにしない(規則21・2026-09-20 施主指摘)。</summary>
+    static bool Seat(GameObject go, List<string> log)
+    {
+        try { EdoBuild.SeatOnGround(go, 0f, VERTS); return true; }
+        catch (Exception ex) { log.Add("    ⛔ " + go.name + " を据えられない: " + ex.Message); return false; }
+    }
+
     // ───────────────────────── Stage 0: 面 ─────────────────────────
-    /// <summary>造成はしない(規則3・9)。区画内の自然地形の中央値を、建物を据える面に採る。</summary>
+    /// <summary>造成はしない(規則3・9)。区画内の**ハイトマップ格子点**の高さの中央値を、据える面に採る。
+    /// ⛔ 自前で標本を撒かない(規則21・2026-09-20) — 測るのは <see cref="EdoBuild.PadY"/> ひとつ。
+    /// 双一次の `Ground` は格子の間で縁の擦り付けを拾い、0.1m が 2m に化ける(岡部 GradeQA)。
+    /// 縁の控え 2m で格子点が拾えない細い短冊は、控えを外してもう一度測る(黙って 0 を返さない)。</summary>
     public static float Pad(string id, out float spread)
     {
         var poly = EdoParcels.Get(id);
-        float mnx = poly.Min(p => p.x), mxx = poly.Max(p => p.x);
-        float mnz = poly.Min(p => p.y), mxz = poly.Max(p => p.y);
-        var hs = new List<float>();
-        int N = 14;
-        for (int i = 0; i <= N; i++)
-            for (int j = 0; j <= N; j++)
-            {
-                var p = new Vector2(Mathf.Lerp(mnx, mxx, i / (float)N), Mathf.Lerp(mnz, mxz, j / (float)N));
-                if (!EdoGeom.PIP(poly, p)) continue;
-                if (EdoGeom.DistToPolyEdge(poly, p) < 2f) continue;
-                hs.Add(EdoBuild.Ground(p.x, p.y));
-            }
-        if (hs.Count == 0) { spread = 0f; return EdoBuild.Ground(poly[0].x, poly[0].y); }
-        hs.Sort();
-        spread = hs[hs.Count - 1] - hs[0];
-        return hs[hs.Count / 2];
+        int n;
+        try { return EdoBuild.PadY(poly, 2f, out spread, out n); }
+        catch (Exception) { return EdoBuild.PadY(poly, 0f, out spread, out n); }
     }
 
     // ───────────────────────── 部材の解決 ─────────────────────────
@@ -270,7 +276,9 @@ public static class EdoTypologyBuilder
 
         var poly = EdoParcels.Get(id);
         if (poly == null || poly.Length < 3) return "⛔ 区画の形が無い: " + id;
-        float spread; float pad = Pad(id, out spread);
+        float spread, pad;
+        try { pad = Pad(id, out spread); }
+        catch (Exception ex) { return "⛔ " + id + ": 面の高さが測れない — " + ex.Message; }
         var edges = Edges(id);
         string frontWarn; var front = FrontEdge(s, edges, out frontWarn);
 
@@ -283,15 +291,69 @@ public static class EdoTypologyBuilder
 
         EdoNishiTameikeBuilder.NaturalMode = true;   // 地形追従(造成しない)
 
-        // ── Stage 1: 囲い ──
-        var encl = Group("Kakoi", root);
-        float gateHalf = 0f; Vector2 gateC = Vector2.zero;
+        // ── Stage 1: 門構え(**固定側を先に置く** — 置き方の4手①) ──
+        // ⭐ 2026-09-20 規則21: 門を塀の切れ目へ後から挿し込まない。**門と番所を先に据え、その実測の妻面から
+        //    塀の開口を採る。**⛔ 以前は GateWidth() の当て推量で塀に穴を開けてから門を入れていたので、
+        //    部材の実幅との差がそのまま左右の隙になった(2026-09-19 三べ坂・門が 2.16m 引っ込んだ)。
+        //    → スキル unity-buke-yashiki/references/sashizu.md §3f「置き方の4手」
+        var monGrp = Group("Mon", root);
+        var gamae = new List<GameObject>();                  // 門構え(門・番所)— 最後に奥行だけ塀へ揃える
+        float psi = Mathf.Atan2(front.outward.x, front.outward.y) * Mathf.Rad2Deg;
+        var along = (front.b - front.a).normalized;
+        float gateHalf = -1f; Vector2 gateC = front.mid;
+        float yLo = 0f, yHi = 0f, gLo = 0f, gHi = 0f;
+        GameObject mon = null;
         if (s.type != "kouyuu" || s.building == "hikeshi")
+            mon = EdoBuild.Place(GatePath(s.gate), new Vector3(gateC.x, pad, gateC.y), psi,
+                                 Vector3.one * ES, monGrp, "Mon_" + s.gate);
+        if (mon != null)
         {
-            gateC = front.mid;
-            gateHalf = GateWidth(s) * 0.5f;
-            gateHalf = Mathf.Min(gateHalf, front.len * 0.40f);
+            Seat(mon, log);           // ⛔ ピボットの座で置かない — 接地箇所を測って据える
+            var rb = EdoBuild.RB(mon);
+            yLo = rb.min.y + 0.30f; yHi = rb.min.y + rb.size.y * 0.60f;   // 躯体の帯(屋根・軒を外す)
+            float mn, mx; EdoBuild.FaceSpan(mon, along, yLo, yHi, out mn, out mx);
+            if (mx >= mn)                                    // 横: 実メッシュの妻面の中点を辺の中央へ
+            {
+                var sh = along * (Vector2.Dot(gateC, along) - (mn + mx) * 0.5f);
+                mon.transform.position += new Vector3(sh.x, 0f, sh.y);
+            }
+            EdoBuild.AlignFace(mon, front.a, front.outward, 0f, yLo, yHi);   // 奥行: 外側の面を境界線へ(仮)
+            Seat(mon, log);           // 動いた先の地面で据え直す
+            EdoBuild.FaceSpan(mon, along, yLo, yHi, out gLo, out gHi);
+            gamae.Add(mon);
+            log.Add(string.Format("  門: {0}(辺{1}・外向き {2:F0}°)— 実測の間口 {3:F2}m(辺を選ぶ目安は {4:F2}m)",
+                                  s.gate, front.i, psi, gHi - gLo, GateWidth(s)));
         }
+
+        // 番所は門の**実測の妻面**へ突き付ける(⛔ 外接箱 + 2.2m の算術で置かない・規則21)
+        int nb = mon != null ? BanshoCount(s.bansho) : 0;
+        float oLo = gLo, oHi = gHi;                          // 門構え全体の開口(塀が避ける幅)
+        for (int k = 0; k < nb; k++)
+        {
+            bool hi = (k == 0);
+            var bp = gateC + along * (hi ? 1f : -1f) * ((gHi - gLo) * 0.5f + 4f);   // 仮置き — 位置は測って決める
+            var bs = EdoBuild.Place(EdoAssets.Eg.Bansho, new Vector3(bp.x, pad, bp.y), psi,
+                                    Vector3.one * ES, monGrp, "Bansho_" + k);
+            if (bs == null) continue;
+            Seat(bs, log);
+            var brb = EdoBuild.RB(bs);
+            float byLo = brb.min.y + 0.30f, byHi = brb.min.y + brb.size.y * 0.60f;
+            float d = EdoBuild.Abut(bs, along, byLo, byHi, !hi, hi ? gHi : gLo, 0f);
+            EdoBuild.AlignFace(bs, front.a, front.outward, 0f, byLo, byHi);
+            Seat(bs, log);
+            float bmn, bmx; EdoBuild.FaceSpan(bs, along, byLo, byHi, out bmn, out bmx);
+            if (bmx >= bmn) { oLo = Mathf.Min(oLo, bmn); oHi = Mathf.Max(oHi, bmx); }
+            gamae.Add(bs);
+            log.Add(string.Format("    番所{0}: 門の妻面へ {1:+0.00;-0.00}m 突き付け", k, d));
+        }
+        if (mon != null)
+        {
+            gateHalf = (oHi - oLo) * 0.5f;                   // ⭐ 塀の開口は門構えの**実測**で決まる
+            gateC = front.a + along * ((oLo + oHi) * 0.5f - Vector2.Dot(front.a, along));
+        }
+
+        // ── Stage 2: 囲い(**可動側** — 開口は門構えの実測 — 置き方の4手②) ──
+        var encl = Group("Kakoi", root);
         foreach (var e in edges)
         {
             if (e.kind == EdgeKind.Shared && !e.mine) continue;         // 隣が持つ辺は建てない
@@ -308,51 +370,20 @@ public static class EdoTypologyBuilder
         log.Add("  囲い: " + string.Join(" / ", edges.Where(e => e.mine).Select(
             e => e.i + "=" + EnclosureFor(s, e, e == front)).ToArray()));
 
-        // ── Stage 2: 門 ──
-        if (gateHalf > 0f)
+        // ── Stage 2b: 門構えの奥行を、建った塀の**通り側の面**へ揃える ──
+        // ⭐ 横はもう決まっている(塀の開口がその実測で開いている)ので、動かすのは奥行だけ。
+        //    ⛔ 0.20m のような数字を門の側に書かない — 塀の作りが変わったら門だけ取り残される(規則8)。
+        if (gamae.Count > 0)
         {
-            float psi = Mathf.Atan2(front.outward.x, front.outward.y) * Mathf.Rad2Deg;
-            // ⭐ 門は**塀と同じ線の上**に立つ。⛔ 2026-09-19、三べ坂で門が塀の線より 2.16m 内へ
-            //    引っ込み、塀の切れ目が左右とも開いたままになった(門と塀の閉じは「隙間>めり込み」)。
-            //    原因は部材のピボットが門の芯に無いこと — 中心で合わせず、**据えてから実メッシュで寄せる**(規則5)。
             float face = FenceFace(encl, front);
-            var gp = new Vector3(gateC.x, pad, gateC.y);
-            var mon = EdoBuild.Place(GatePath(s.gate), gp, psi, Vector3.one * ES, Group("Mon", root), "Mon_" + s.gate);
-            if (mon != null)
+            foreach (var g in gamae)
             {
-                // 横は辺の中央へ、奥行は**塀の通り側の面**へ揃える(芯では合わせない)
-                float mnx, mxx, mnz, mxz, mny;
-                EdoBuild.ObbFootprint(mon.transform, out mnx, out mxx, out mnz, out mxz, out mny);
-                var loc = new[] { new Vector3(mnx, mny, mnz), new Vector3(mxx, mny, mnz),
-                                  new Vector3(mnx, mny, mxz), new Vector3(mxx, mny, mxz) };
-                Vector2 ctr = Vector2.zero; float outer = float.MinValue;
-                foreach (var l in loc)
-                {
-                    var w = mon.transform.TransformPoint(l); var p = new Vector2(w.x, w.z);
-                    ctr += p * 0.25f; outer = Mathf.Max(outer, Vector2.Dot(p - front.a, front.outward));
-                }
-                var along = (front.b - front.a).normalized;
-                float dAlong = Vector2.Dot(gateC - ctr, along);
-                var shift = along * dAlong + front.outward * (face - outer);
-                mon.transform.position += new Vector3(shift.x, 0f, shift.y);
-                gateC = ctr + shift;
-                EdoBuild.SeatBottom(mon, EdoBuild.Ground(gateC.x, gateC.y));
+                var grb = EdoBuild.RB(g);
+                float lo = grb.min.y + 0.30f, hi2 = grb.min.y + grb.size.y * 0.60f;
+                EdoBuild.AlignFace(g, front.a, front.outward, face, lo, hi2);
+                Seat(g, log);
             }
-            int nb = BanshoCount(s.bansho);
-            if (mon != null && nb > 0)
-            {
-                var rb = EdoBuild.RB(mon);
-                var dir = (front.b - front.a).normalized;
-                float half = Mathf.Max(rb.extents.x, rb.extents.z) + 2.2f;
-                for (int k = 0; k < nb; k++)
-                {
-                    var bp = gateC + dir * (k == 0 ? half : -half);
-                    var bs = EdoBuild.Place(EdoAssets.Eg.Bansho, new Vector3(bp.x, pad, bp.y), psi,
-                                            Vector3.one * ES, Group("Mon", root), "Bansho_" + k);
-                    if (bs != null) EdoBuild.SeatBottom(bs, EdoBuild.Ground(bp.x, bp.y));
-                }
-            }
-            log.Add(string.Format("  門: {0}+番所{1}(辺{2}・外向き {3:F0}°)", s.gate, nb, front.i, psi));
+            log.Add(string.Format("    門構えの奥行: 塀の通り側の面 {0:+0.00;-0.00}m へ揃えた(駒 {1})", face, gamae.Count));
         }
 
         // ── Stage 3〜5: 主屋・付属・植栽 ──
@@ -372,20 +403,13 @@ public static class EdoTypologyBuilder
         var ds = new List<float>();
         foreach (Transform t in encl)
         {
-            float mnx, mxx, mnz, mxz, mny;
-            EdoBuild.ObbFootprint(t, out mnx, out mxx, out mnz, out mxz, out mny);
-            if (mnx > mxx) continue;
-            var loc = new[] { new Vector3(mnx, mny, mnz), new Vector3(mxx, mny, mnz),
-                              new Vector3(mnx, mny, mxz), new Vector3(mxx, mny, mxz) };
-            float outer = float.MinValue; Vector2 ctr = Vector2.zero;
-            foreach (var l in loc)
-            {
-                var w = t.TransformPoint(l); var p = new Vector2(w.x, w.z);
-                ctr += p * 0.25f;
-                outer = Mathf.Max(outer, Vector2.Dot(p - front.a, front.outward));
-            }
-            if (EdoGeom.DistToEdge(ctr, front.a, front.b) > 2.0f) continue;   // 前辺に沿う駒だけ
-            ds.Add(outer);
+            var rb = EdoBuild.RB(t.gameObject);
+            if (rb.size.y < 0.01f) continue;
+            if (EdoGeom.DistToEdge(new Vector2(rb.center.x, rb.center.z), front.a, front.b) > 2.0f) continue;
+            // 帯は**壁体のある高さ**から取る(笠木・瓦を拾うと面が 0.1m 外へ出る)
+            float f = EdoBuild.FaceOut(t.gameObject, front.a, front.outward,
+                                       rb.min.y + 0.30f, rb.min.y + rb.size.y * 0.70f);
+            if (!float.IsNaN(f)) ds.Add(f);
         }
         if (ds.Count == 0) return 0f;
         ds.Sort();
@@ -429,7 +453,7 @@ public static class EdoTypologyBuilder
         }
         var placed = new List<Bounds>();
         var tried = new HashSet<Vector2>();
-        int n = 0, dropped = 0;
+        int n = 0, dropped = 0, unseated = 0;
         foreach (var item in plan)
         {
             GameObject go = null;
@@ -443,7 +467,9 @@ public static class EdoTypologyBuilder
                 go = EdoBuild.Place(item.Key, new Vector3(spot.Value.x, pad, spot.Value.y), psi,
                                     Vector3.one, g, "B" + n + "_" + Path.GetFileNameWithoutExtension(item.Key));
                 if (go == null) break;
-                EdoBuild.SeatBottom(go, EdoBuild.Ground(spot.Value.x, spot.Value.y));
+                // ⛔ ピボットの座・底ではなく**接地箇所**で据える(規則21)
+                try { EdoBuild.SeatOnGround(go, 0f, VERTS); }
+                catch (Exception) { unseated++; UnityEngine.Object.DestroyImmediate(go); go = null; continue; }
                 float over;
                 if (!FootprintInside(poly, go.transform, out over))
                 {
@@ -457,6 +483,7 @@ public static class EdoTypologyBuilder
         string yag = s.yagura ? "・⚠ 隅矢倉は在庫に部材が無いため未建(部材方の宿題)" : "";
         string un  = s.units > 1 ? string.Format("・{0}戸割り", s.units) : "";
         string dr  = dropped > 0 ? string.Format("・⚠ {0}棟は区画に収まらず未建", dropped) : "";
+        if (unseated > 0) dr += string.Format("・⛔ {0}棟は接地箇所が測れず未建(部材のメッシュを検める)", unseated);
         return string.Format("  主屋と付属: {0}棟(型={1}{2}){3}{4}", n, s.rank ?? s.kind ?? s.type, un, dr, yag);
     }
 
@@ -575,8 +602,8 @@ public static class EdoTypologyBuilder
     /// であって合格ではない(規則19)。最悪値を必ず刷り、緩い条件で 0 が出ていないか見えるようにする。</summary>
     public static string Inspect(string id, Transform root, Vector2[] poly)
     {
-        int n = 0, outside = 0, sunk = 0, floated = 0;
-        float worstOut = 0f, worstSunk = 0f, worstFloat = 0f;
+        int n = 0, outside = 0, sunk = 0, floated = 0, multi = 0;
+        float worstOut = 0f, worstSunk = 0f, worstFloat = 0f, worstRelief = 0f;
         foreach (Transform grp in root)
         {
             float tol = (grp.name == "Kakoi" || grp.name == "Mon") ? 0.6f : 0f;  // 塀と門は境界線の上に立つ
@@ -591,9 +618,26 @@ public static class EdoTypologyBuilder
                 //    実メッシュの底面(回転込み)で測る(規則5)。
                 float outD; FootprintInside(poly, t, out outD);
                 if (outD > tol) { outside++; worstOut = Mathf.Max(worstOut, outD); }
-                float dy = b.min.y - EdoBuild.Ground(b.center.x, b.center.z);
+                // ⛔ 「底(bounds.min.y) − 中心の真下の地形」で測らない(2026-09-20 施主指摘)。
+                //    接地は底とは限らず(斜面では上手側の頂点が先に着く)、複数あり得る。
+                //    測るのは **接地箇所の隙間** と **接地の数**(EdoBuild.Contact)。
+                Vector3 at; int nc;
+                float dy = EdoBuild.Contact(t.gameObject, out at, out nc, 0.01f, VERTS);
+                if (float.IsNaN(dy)) continue;
                 if (dy < -1.0f) { sunk++; worstSunk = Mathf.Max(worstSunk, -dy); }
                 if (dy > 0.7f) { floated++; worstFloat = Mathf.Max(worstFloat, dy); }
+                if (nc > 1) multi++;
+                // ⭐ 接地箇所が着いていても、**剛体の反対側は足元の地形の起伏ぶん浮く**。
+                //    0 件を「地面に沿っている」と読み違えないため、足元の起伏を必ず刷る(規則19)。
+                float gmn = float.MaxValue, gmx = float.MinValue;
+                foreach (var q in new[] { new Vector2(b.min.x, b.min.z), new Vector2(b.max.x, b.min.z),
+                                          new Vector2(b.min.x, b.max.z), new Vector2(b.max.x, b.max.z),
+                                          new Vector2(b.center.x, b.center.z) })
+                {
+                    float gg = EdoBuild.GroundGrid(q.x, q.y);
+                    gmn = Mathf.Min(gmn, gg); gmx = Mathf.Max(gmx, gg);
+                }
+                worstRelief = Mathf.Max(worstRelief, gmx - gmn);
             }
         }
         // 棟どうしの離れ — 建つ姿の欠陥ではないが、MIN_BLDG_GAP という数字を書いた以上、
@@ -620,9 +664,10 @@ public static class EdoTypologyBuilder
         string gap = minGap == float.MaxValue ? "" :
             string.Format(" / 棟間の最小 {0:F2}m{1}", minGap, minGap < MIN_BLDG_GAP ? "(⚠ 目安 " + MIN_BLDG_GAP.ToString("F1") + "m 未満)" : "");
         string mark = (outside + sunk + floated) == 0 ? "⭕" : "⛔";
-        return string.Format("  {0} 検査: 駒 {1} — 区画の外 {2}(最悪 {3:F2}m) / 埋没 {4}(最悪 {5:F2}m) / "
-                           + "浮き {6}(最悪 {7:F2}m){8}", mark, n, outside, worstOut, sunk, worstSunk,
-                             floated, worstFloat, gap);
+        return string.Format("  {0} 検査: 駒 {1} — 区画の外 {2}(最悪 {3:F2}m) / 接地の埋没 {4}(最悪 {5:F2}m) / "
+                           + "接地の浮き {6}(最悪 {7:F2}m) / 複数接地 {8}駒 / 足元の起伏 最悪 {9:F2}m{10}",
+                             mark, n, outside, worstOut, sunk, worstSunk,
+                             floated, worstFloat, multi, worstRelief, gap);
     }
 
     // ───────────────────────── メニュー ─────────────────────────

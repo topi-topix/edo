@@ -307,12 +307,16 @@ public static class EdoBuild
     /// <paramref name="count"/> = 最小から <paramref name="tol"/> 以内にある頂点の数(**複数接地**の検め)。
     /// 頂点が無ければ NaN。
     ///
+    /// <para>⚠ <paramref name="maxSamples"/> は頂点の間引きの上限。**1 頂点につき地形を 1 回引く**ので、
+    /// 79 区画を一度に建てる類型の車線では 600〜800 に絞る(既定 4000 は一邸を精密に据えるとき)。
+    /// ⛔ 間引きすぎると接地の頂点そのものを落とす — 留め継ぎの隅部材のような疎な先端は 999999 を渡す。</para>
+    ///
     /// <para>⛔ **接地箇所は「底(bounds.min.y)」ではない。**斜面では上手側の頂点が先に着き、据え面のある石はその縁が、
     /// 木は根張りの端が着く。底の一点で据えると、着くべき所が浮くか埋まる。⛔ **部材の基準点(ピボット・原点・
     /// bounds の中心)で位置を決めない。絶対に。**(2026-09-20 施主指摘「実物の底や地面では漏れる。接地箇所を測れ」)</para></summary>
-    public static float Contact(GameObject go, out Vector3 at, out int count, float tol = 0.01f)
+    public static float Contact(GameObject go, out Vector3 at, out int count, float tol = 0.01f, int maxSamples = 4000)
     {
-        var pts = Body(go.transform, 4000);
+        var pts = Body(go.transform, maxSamples);
         float best = float.NaN; at = go.transform.position; count = 0;
         var cl = new List<float>(pts.Count);
         foreach (var p in pts)
@@ -336,9 +340,9 @@ public static class EdoBuild
     ///
     /// <para>⚠ <paramref name="sink"/> は**意図して埋める量**(景石の 1/3 埋め・下草の根元)。
     /// ⛔ 部材のピボットのずれを吸わせる目的で使わない — それは測って消す物で、決め打ちで隠す物ではない。</para></summary>
-    public static float SeatOnGround(GameObject go, float sink = 0f)
+    public static float SeatOnGround(GameObject go, float sink = 0f, int maxSamples = 4000)
     {
-        float c = Contact(go, out _, out _);
+        float c = Contact(go, out _, out _, 0.01f, maxSamples);
         if (float.IsNaN(c)) throw new System.InvalidOperationException($"SeatOnGround: {go.name} に測れる頂点が無い(MeshFilter 無し・全て屋根名・非表示)");
         float dy = -sink - c;
         go.transform.position += new Vector3(0f, dy, 0f);
@@ -349,12 +353,12 @@ public static class EdoBuild
     /// 部材の大きさに比例して沈める据え方。丈は実メッシュの高さから測るので、
     /// 個体差のある石をスケールで散らしても埋まり方が揃う。返り値 = 埋めた量[m]。
     /// ⛔ 決め打ちの沈め量(0.34m など)を全個体へ当てない — 大きい石は浮き、小さい石は沈む。</summary>
-    public static float SeatBuried(GameObject go, float fraction)
+    public static float SeatBuried(GameObject go, float fraction, int maxSamples = 4000)
     {
         var b = RB(go);
         float h = b.size.y;
         float sink = h * Mathf.Clamp01(fraction);
-        SeatOnGround(go, sink);
+        SeatOnGround(go, sink, maxSamples);
         return sink;
     }
 

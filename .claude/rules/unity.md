@@ -20,6 +20,9 @@ paths:
   2026-09-20・5.5倍)。屋敷の実体はプレハブ資産なので保存すれば赤坂は自動で追従する。
   ⛔ 取り合い・区域侵犯・検証レンダは作業場では見えない — 最後に `Edo/普請/赤坂へ戻す` で検める。
   → `Assets/Edo/Scripts/Editor/EdoKoba.cs` の冒頭
+- **C# の誤りは Unity を起こさずに捕まえる。** `zsh Tools/Unity/cs_check.sh` が Editor アセンブリを
+  Unity 同梱の Roslyn で通しで検める(3〜5秒・**Unity の claim が要らない**・他人の Unity を巻き込まない)。
+  何も出なければ通る。⛔ 型の通りを見るだけで、据わり・取り合いは見ない — それは Unity で測る。
 - **コンパイルが止まっていることがある。** `Library/ScriptAssemblies/Assembly-CSharp-Editor.dll` の mtime が
   ソースより古ければ実行しない。
 - **⛔ 編集のたびに `refresh_unity` を投げない。** `create_script` / `script_apply_edits` / Edit は

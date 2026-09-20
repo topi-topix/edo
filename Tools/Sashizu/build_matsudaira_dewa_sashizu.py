@@ -36,6 +36,7 @@ from sashizu_lib import (R, _pat, _SVN, Proj, RGrid, slope_table, links_table,
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DOC = os.path.join(ROOT, "docs/Sashizu")
+EST = "matsudaira_dewa"           # 感度試験の記録のキー(sashizu_lib.sens)
 JSON = os.path.join(DOC, "matsudaira_dewa_sashizu.json")
 MD = os.path.join(DOC, "matsudaira_dewa_kosho.md")
 OUT = os.path.join(DOC, "matsudaira_dewa_sashizu.html")
@@ -1498,115 +1499,117 @@ def plane_check(d):
         pt = covered(w["u"] - 0.5, w["v"] - 0.5, w["u"] + 0.5, w["v"] + 0.5, None)
         if pt:
             bad.append("%s(井戸) が段の外: (%.2f, %.2f)" % (w["name"], pt[0], pt[1]))
-    bad += run_seat_check(d)
-    bad += route_pierce_check(d)
-    bad += route_grade_check(d, _dem_json())
-    bad += room_containment_check(d)
-    bad += barrier_check(d)
-    bad += kaidan_ground_check(d)
-    bad += hardcode_check()
-    bad += komon_sill_check(d)
-    bad += neishi_check(d, _dem_json())
-    bad += gate_overlap_check(d)
-    bad += fuzoku_overlap_check(d)
-    bad += yagura_opening_check(d)
-    bad += program_check(d)
-    bad += setchin_check(d)
-    bad += edge_treatment_check(d)
-    bad += outside_bury_check(d)
-    bad += terrain_provenance_check(d)
-    bad += edo_dem_fresh_check(d)
-    bad += parcel_containment_check(d)
-    bad += vocab_check(d)
-    bad += schema_check(d)
-    bad += perimeter_closure_check(d)
-    bad += perimeter_ledger_check(d)
-    bad += mune_wall_clearance_check(d)
-    bad += joints_check(d)
-    bad += kado_stock_check(d)
-    bad += kado_arm_check(d)
-    bad += ishigaki_layout_check(d)
-    bad += viewpoint_check(d)
-    bad += tsukiyama_check(d)
-    bad += sensui_check(d)
-    bad += gogan_check(d)
+    bad += sashizu_lib.chk("run_seat_check", lambda: run_seat_check(d))
+    bad += sashizu_lib.chk("route_pierce_check", lambda: route_pierce_check(d))
+    bad += sashizu_lib.chk("route_grade_check", lambda: route_grade_check(d, _dem_json()))
+    bad += sashizu_lib.chk("room_containment_check", lambda: room_containment_check(d))
+    bad += sashizu_lib.chk("barrier_check", lambda: barrier_check(d))
+    bad += sashizu_lib.chk("kaidan_ground_check", lambda: kaidan_ground_check(d))
+    bad += sashizu_lib.chk("hardcode_check", lambda: hardcode_check())
+    bad += sashizu_lib.chk("komon_sill_check", lambda: komon_sill_check(d))
+    bad += sashizu_lib.chk("neishi_check", lambda: neishi_check(d, _dem_json()))
+    bad += sashizu_lib.chk("gate_overlap_check", lambda: gate_overlap_check(d))
+    bad += sashizu_lib.chk("fuzoku_overlap_check", lambda: fuzoku_overlap_check(d))
+    bad += sashizu_lib.chk("yagura_opening_check", lambda: yagura_opening_check(d))
+    bad += sashizu_lib.chk("program_check", lambda: program_check(d))
+    bad += sashizu_lib.chk("setchin_check", lambda: setchin_check(d))
+    bad += sashizu_lib.chk("edge_treatment_check", lambda: edge_treatment_check(d))
+    bad += sashizu_lib.chk("outside_bury_check", lambda: outside_bury_check(d))
+    bad += sashizu_lib.chk("terrain_provenance_check", lambda: terrain_provenance_check(d))
+    bad += sashizu_lib.chk("edo_dem_fresh_check", lambda: edo_dem_fresh_check(d))
+    bad += sashizu_lib.chk("parcel_containment_check", lambda: parcel_containment_check(d))
+    bad += sashizu_lib.chk("vocab_check", lambda: vocab_check(d))
+    bad += sashizu_lib.chk("schema_check", lambda: schema_check(d))
+    bad += sashizu_lib.chk("perimeter_closure_check", lambda: perimeter_closure_check(d))
+    bad += sashizu_lib.chk("perimeter_ledger_check", lambda: perimeter_ledger_check(d))
+    bad += sashizu_lib.chk("mune_wall_clearance_check", lambda: mune_wall_clearance_check(d))
+    bad += sashizu_lib.chk("joints_check", lambda: joints_check(d))
+    bad += sashizu_lib.chk("kado_stock_check", lambda: kado_stock_check(d))
+    bad += sashizu_lib.chk("kado_arm_check", lambda: kado_arm_check(d))
+    bad += sashizu_lib.chk("ishigaki_layout_check", lambda: ishigaki_layout_check(d))
+    bad += sashizu_lib.chk("viewpoint_check", lambda: viewpoint_check(d))
+    bad += sashizu_lib.chk("tsukiyama_check", lambda: tsukiyama_check(d))
+    bad += sashizu_lib.chk("sensui_check", lambda: sensui_check(d))
+    bad += sashizu_lib.chk("gogan_check", lambda: gogan_check(d))
     # ⭐ **2026-09-02(検図 高1)に配線した。**⛔ この2本は書かれていたのに
     #   `plane_check` の束にも `main()` の WARN にも入っておらず、**素の設計を報告する経路が
     #   0回**だった(呼ばれるのは `planting_sensitivity` の感度試験の中だけ)。
     #   破壊試験で枝2を落差ゼロに戻しても HTML の ⚠ が動かなかったのはこのため。
     #   → 同型の再発は `check_wiring_check` が見張る。
-    bad += mizu_check(d)
-    bad += taki_check(d)
-    bad += cert_claim_check(d)
-    bad += check_wiring_check()
-    bad += kaki_crossing_check(d)
-    bad += group_place_check(d)
-    bad += group_pack_check(d)
+    bad += sashizu_lib.chk("mizu_check", lambda: mizu_check(d))
+    bad += sashizu_lib.chk("taki_check", lambda: taki_check(d))
+    bad += sashizu_lib.chk("cert_claim_check", lambda: cert_claim_check(d))
+    bad += sashizu_lib.chk("check_wiring_check", lambda: check_wiring_check())
+    bad += sashizu_lib.chk("kaki_crossing_check", lambda: kaki_crossing_check(d))
+    bad += sashizu_lib.chk("group_place_check", lambda: group_place_check(d))
+    bad += sashizu_lib.chk("group_pack_check", lambda: group_pack_check(d))
     # ⭐ **2026-09-08に新設して同じ巡で配線した**(規則19【庭方 設計 D-5】)。
     #   ⛔ 『芯々 0.8〜1.2 間の不等』は 29 巡ぶん**書いてあるだけ**で、実出力を測る輪が無かった。
-    bad += hedge_pitch_check(d)
-    bad += hedge_pattern_check(d)
-    bad += group_region_check(d)
+    bad += sashizu_lib.chk("hedge_pitch_check", lambda: hedge_pitch_check(d))
+    bad += sashizu_lib.chk("hedge_pattern_check", lambda: hedge_pattern_check(d))
+    bad += sashizu_lib.chk("group_region_check", lambda: group_region_check(d))
     # ⭐ **2026-09-09に新設して同じ巡で配線した**(規則19【庭方 決定5】)—
     #   `packRatio` の効く範囲の宣言が、生成器の実装と一致しているか
-    bad += pack_scope_check(d)
+    bad += sashizu_lib.chk("pack_scope_check", lambda: pack_scope_check(d))
     # ⭐ **同じ巡で配線**(規則19)— 潜り戸の数値・座敷飾の壁面・注記の通り道
-    bad += gate_kuguri_check(d)
-    bad += zashiki_kazari_men_check(d)
-    bad += underscore_note_check(d)
-    bad += crown_fallback_check(d)
-    bad += garden_access_check(d)
+    bad += sashizu_lib.chk("gate_kuguri_check", lambda: gate_kuguri_check(d))
+    bad += sashizu_lib.chk("zashiki_kazari_men_check", lambda: zashiki_kazari_men_check(d))
+    bad += sashizu_lib.chk("underscore_note_check", lambda: underscore_note_check(d))
+    bad += sashizu_lib.chk("crown_fallback_check", lambda: crown_fallback_check(d))
+    bad += sashizu_lib.chk("garden_access_check", lambda: garden_access_check(d))
     # ⭐ **2026-09-02に新設して同じ巡で配線した**(規則19)。
     #   ⛔ どれも「直したのに検査が無い」型 — 幾何を直しても次の版でまた入る。
-    bad += band_overlap_check(d)
-    bad += route_connect_check(d)
-    bad += viewpoint_fov_check(d)
+    bad += sashizu_lib.chk("band_overlap_check", lambda: band_overlap_check(d))
+    bad += sashizu_lib.chk("route_connect_check", lambda: route_connect_check(d))
+    bad += sashizu_lib.chk("viewpoint_fov_check", lambda: viewpoint_fov_check(d))
     # ⭐ **2026-09-06 に新設して同じ巡で配線した**(規則19・ユーザー指摘=書き起こしの取り違え)。
-    bad += kido_approach_check(d)
-    bad += niwa_stone_check(d)
-    bad += rail_ground_check(d)
+    bad += sashizu_lib.chk("kido_approach_check", lambda: kido_approach_check(d))
+    bad += sashizu_lib.chk("niwa_stone_check", lambda: niwa_stone_check(d))
+    bad += sashizu_lib.chk("rail_ground_check", lambda: rail_ground_check(d))
     # ⭐ **2026-09-02に新設して同じ巡で配線した**(規則19・庭方 設計1 の検査4本)
-    bad += slope_canopy_check(d, _dem_json())
-    bad += slope_bare_check(d, _dem_json())
-    bad += slope_zone_check(d, _dem_json())
-    bad += slope_zone_count_check(d, _dem_json())
-    bad += slope_avoid_check(d, _dem_json())
-    bad += cross_scatter_clearance_check(d, _dem_json())
-    bad += group_box_check(d)
-    bad += group_box_overlap_check(d)
+    bad += sashizu_lib.chk("slope_canopy_check", lambda: slope_canopy_check(d, _dem_json()))
+    bad += sashizu_lib.chk("slope_bare_check", lambda: slope_bare_check(d, _dem_json()))
+    bad += sashizu_lib.chk("slope_zone_check", lambda: slope_zone_check(d, _dem_json()))
+    bad += sashizu_lib.chk("slope_zone_count_check", lambda: slope_zone_count_check(d, _dem_json()))
+    bad += sashizu_lib.chk("slope_avoid_check", lambda: slope_avoid_check(d, _dem_json()))
+    bad += sashizu_lib.chk("cross_scatter_clearance_check", lambda: cross_scatter_clearance_check(d, _dem_json()))
+    bad += sashizu_lib.chk("group_box_check", lambda: group_box_check(d))
+    bad += sashizu_lib.chk("group_box_overlap_check", lambda: group_box_overlap_check(d))
     # ⭐ **2026-09-16に新設して同じ巡で配線した**(規則19)— 層の `n` と `parts` の和
-    bad += layer_parts_count_check(d)
-    bad += plant_height_check(d)
-    bad += ume_spread_check(d)
-    bad += v1_water_check(d, _dem_json())
-    bad += v8_ridge_check(d, _dem_json())
-    bad += yakuboku_check(d)
-    bad += terrace_edge_check(d)
-    bad += west_edge_check(d)
-    bad += band_boundary_check(d, _dem_json())
-    bad += planting_export_check(d, _dem_json())
+    bad += sashizu_lib.chk("layer_parts_count_check", lambda: layer_parts_count_check(d))
+    bad += sashizu_lib.chk("plant_height_check", lambda: plant_height_check(d))
+    bad += sashizu_lib.chk("ume_spread_check", lambda: ume_spread_check(d))
+    bad += sashizu_lib.chk("v1_water_check", lambda: v1_water_check(d, _dem_json()))
+    bad += sashizu_lib.chk("v8_ridge_check", lambda: v8_ridge_check(d, _dem_json()))
+    bad += sashizu_lib.chk("yakuboku_check", lambda: yakuboku_check(d))
+    bad += sashizu_lib.chk("terrace_edge_check", lambda: terrace_edge_check(d))
+    bad += sashizu_lib.chk("west_edge_check", lambda: west_edge_check(d))
+    bad += sashizu_lib.chk("band_boundary_check", lambda: band_boundary_check(d, _dem_json()))
+    bad += sashizu_lib.chk("planting_export_check", lambda: planting_export_check(d, _dem_json()))
     # ⭐ **2026-09-10に新設して同じ巡で配線した**(規則19)。
     #   ⛔ どれも「裁定を書いたのに測る輪が無い」型 — 書いただけの設計値と区別が付かなくなる。
-    bad += neishi_edge_overhang_check(d)       # C-4/C-5 根石の厚みと面の縁
-    bad += bansho_parcel_out_check(d)          # B-3 番所の区画越え(受容)
-    bad += valley_eave_check(d)                # C-2 谷の軒を落とせるか
+    bad += sashizu_lib.chk("neishi_edge_overhang_check", lambda: neishi_edge_overhang_check(d))       # C-4/C-5 根石の厚みと面の縁
+    bad += sashizu_lib.chk("bansho_parcel_out_check", lambda: bansho_parcel_out_check(d))          # B-3 番所の区画越え(受容)
+    bad += sashizu_lib.chk("valley_eave_check", lambda: valley_eave_check(d))                # C-2 谷の軒を落とせるか
     # ⭐ **2026-09-18に新設して同じ巡で配線した**(規則19・検図)
-    bad += valley_step_check(d)                # C-2 軒谷は谷か段違いか
-    bad += nagaya_moya_ken_check(d)            # C-2 5棟の屋根の型が足形を覆えているか
-    bad += umaya_hisashi_clear_check(d)        # C-2 厩の庇の下の有効高(考証方【高】)
-    bad += band_governor_check(d, _dem_json())  # A-3 帯の境を決めているのは t か minAbs か
-    bad += slope_cover_check(d, _dem_json())   # A-3 法尻の地被の被覆率
-    bad += slope_emergent_check(d, _dem_json())  # A-3 突出木の法肩に沿った空き
-    bad += slope_doryu_check(d, _dem_json())   # A-3 法尻の土留め
-    bad += group_mix_check(d)                  # A-2 刈込の塊の 2 種混在
+    bad += sashizu_lib.chk("valley_step_check", lambda: valley_step_check(d))                # C-2 軒谷は谷か段違いか
+    bad += sashizu_lib.chk("nagaya_moya_ken_check", lambda: nagaya_moya_ken_check(d))            # C-2 5棟の屋根の型が足形を覆えているか
+    bad += sashizu_lib.chk("umaya_hisashi_clear_check", lambda: umaya_hisashi_clear_check(d))        # C-2 厩の庇の下の有効高(考証方【高】)
+    # ⭐ **2026-09-19 ユーザー裁定(第2便)2=A に新設して同じ巡で配線した**(規則19)
+    bad += sashizu_lib.chk("hisashi_obi_check", lambda: hisashi_obi_check(d))                # C-2 庇の帯の囲いの別(濡縁か壁の内か)
+    bad += sashizu_lib.chk("band_governor_check", lambda: band_governor_check(d, _dem_json()))  # A-3 帯の境を決めているのは t か minAbs か
+    bad += sashizu_lib.chk("slope_cover_check", lambda: slope_cover_check(d, _dem_json()))   # A-3 法尻の地被の被覆率
+    bad += sashizu_lib.chk("slope_emergent_check", lambda: slope_emergent_check(d, _dem_json()))  # A-3 突出木の法肩に沿った空き
+    bad += sashizu_lib.chk("slope_doryu_check", lambda: slope_doryu_check(d, _dem_json()))   # A-3 法尻の土留め
+    bad += sashizu_lib.chk("group_mix_check", lambda: group_mix_check(d))                  # A-2 刈込の塊の 2 種混在
     # ⭐ **2026-09-13に新設して同じ巡で配線した**(規則19)
-    bad += koran_frame_check(d)                # B-3 主景の前景の高欄(部材から算出)
+    bad += sashizu_lib.chk("koran_frame_check", lambda: koran_frame_check(d))                # B-3 主景の前景の高欄(部材から算出)
     # ⭐ **2026-09-14に新設して同じ巡で配線した**(規則19・庭方 設計 D2)
-    bad += torii_route_check(d)                # 鳥居が参道の線上に載り正面が参道を向くか
+    bad += sashizu_lib.chk("torii_route_check", lambda: torii_route_check(d))                # 鳥居が参道の線上に載り正面が参道を向くか
     # ⭐ **2026-09-14に新設して同じ巡で配線した**(規則19・検図)
-    bad += planting_box_service_check(d)       # 植栽の箱 × 棟・渡廊下・附属屋の外形の部分重なり
-    bad += design_value_check(d)
-    bad += pending_ref_check(d)
+    bad += sashizu_lib.chk("planting_box_service_check", lambda: planting_box_service_check(d))       # 植栽の箱 × 棟・渡廊下・附属屋の外形の部分重なり
+    bad += sashizu_lib.chk("design_value_check", lambda: design_value_check(d))
+    bad += sashizu_lib.chk("pending_ref_check", lambda: pending_ref_check(d))
     return bad
 
 
@@ -2224,7 +2227,9 @@ VOCAB = [
     ("gardens",    "kind",  {"shirasu"},                               False),
     # ⭐ 2026-09-08: 表向の列の大棟を v へ回したので「流れ谷」を足した。
     #   ⛔ 知らない値を静かに通さない(`_valleys` が三種の定義を持つ)。
-    ("valleys",    "kind",  {"妻谷", "流れ谷", "軒谷"},                  True),
+    # ⭐ 2026-09-19 ユーザー裁定(第2便)1=A: **谷にならない辺**として「差し掛け」を足した。
+    #   ⛔ 語を足さずに `kind` を書き換えると、ここが鳴って図が組み上がらない(それでよい)。
+    ("valleys",    "kind",  {"妻谷", "流れ谷", "軒谷", "差し掛け"},        True),
 ]
 
 
@@ -4369,6 +4374,7 @@ def _roof_checks(d):
     """屋根まわりの検査の束(素の設計と感度試験が**同じ束**を見るための共有ヘルパー)。"""
     return set(roof_band_span_check(d) + roof_eave_order_check(d) + roof_annex_eave_check(d)
                + nagaya_moya_ken_check(d) + umaya_hisashi_clear_check(d)
+               + hisashi_obi_check(d) + valley_step_check(d) + valley_eave_check(d)
                + roof_moya_check(d) + roof_kaku_check(d) + roof_along_check(d)
                + roof_stock_check(d) + section_roof_disclaimer_check(d)
                + roof_note_check(d) + roka_clear_check(d) + kuchi_valley_check(d))
@@ -12269,6 +12275,16 @@ DESIGN_WATCH = [
      "長局(南)だけ**庇を回さない辺**(南)。⛔ 例外を検査から外して黙らせないための宣言で、"
      "`nagaya_moya_ken_check` が『四辺 − これ』を期待値にする"
      "【2026-09-19 普請奉行の決定2・U 設計値】", True),
+    # ⭐ **2026-09-19 ユーザー裁定(第2便)2=A・3=A**(規則19)— 新しい宣言を同じ巡で輪へ入れる
+    ("const.nagayaGataRoof.hisashiObi",
+     "身舎の外を回る一間の庇の帯の**囲いの別**(外に面する辺は濡縁・隣の棟や壁に挟まれた辺は"
+     "壁の内)。⛔ 辺を名指しで持たない=従属値【2026-09-19 裁定(第2便)2=A・U 設計値】", True),
+    ("munes[Umaya].hisashiOmit",
+     "厩だけ**庇を回さない辺**(馬場側=南)。⇒ 馬は本屋根の軒先の下を通る"
+     "【2026-09-19 裁定(第2便)3=A・U 設計値】", True),
+    ("valleys[V_Oku1].amaosae",
+     "差し掛けの継ぎ目に**雨押え**を打つ宣言(奥御殿 ⇔ 御湯殿・u−26)"
+     "【2026-09-19 裁定(第2便)1=A・U 設計値】", True),
 ]
 
 
@@ -12288,7 +12304,8 @@ def _dv_checks(e):
         | set(slope_planting_check(e, dem)) | set(torii_route_check(e)) \
         | set(planting_box_service_check(e)) | set(roka_clear_check(e)) \
         | set(kuchi_valley_check(e)) | set(valley_step_check(e)) \
-        | set(nagaya_moya_ken_check(e)) | set(umaya_hisashi_clear_check(e))
+        | set(nagaya_moya_ken_check(e)) | set(umaya_hisashi_clear_check(e)) \
+        | set(hisashi_obi_check(e))
 
 
 def _dv_bogus(v, way):
@@ -17625,6 +17642,8 @@ def _hisashi_omit(m):
     ⭐⭐ **2026-09-19 普請奉行の決定2 — 長局(南)は南だけ庇なし。**
       ⛔ **南へ一間伸ばさない** — 2026-08-29 ユーザー裁定B で南の一列を落として土井境の塀との
       離れを取った経緯があり、伸ばすとその裁定を覆して塀まで `const.wallNear` を割る所へ戻る。
+    ⭐⭐ **2026-09-19 ユーザー裁定(第2便)3=A — 厩は馬場側(南)だけ庇なしの三方庇。**
+      ⇒ 馬は**本屋根の軒先の下**を通って馬場から入る(他の4棟は四方のまま)。
     ⛔⛔ **例外を検査から外して黙らせない** — 断った辺はここで**宣言として持ち**、
       `nagaya_moya_ken_check` が『四辺 − 例外』を期待値にして毎巡突き合わせる
       (宣言と図がずれたら鳴る)。⭕ 例外であることは〔記録〕の行に**必ず刷る**。"""
@@ -17758,7 +17777,8 @@ def nagaya_moya_ken_check(d):
                        "⛔ 裁定2=A(2026-09-19)は**四辺とも一間の帯を庇として回す**と宣言し、"
                        "例外は棟が `munes[].hisashiOmit` で断る決まりなので、"
                        "**室の矩形か宣言のどちらかが追いついていない**。⇒ 帯の無い辺の軒先は"
-                       "**庇ではなく本屋根のケラバの下端**で出ることになり、当たりの高さが"
+                       "**庇ではなく本屋根の側**(大棟に直交する辺なら**ケラバの下端**、"
+                       "平行な辺なら**軒先**。⛔ 一律に妻と読まない)で出ることになり、当たりの高さが"
                        "変わる ⇒ **直すまでこの辺に取り付く渡廊下・口を数えない**"
                        "(差し戻しの中身 = `_pending.hisashiShihou`)"
                        % (ja,
@@ -17837,7 +17857,7 @@ def umaya_hisashi_clear_check(d):
         if low < zmin - 1e-9:
             out.append("⛔⛔ **%s: 庇の下を人も馬も通れない** — 身舎の軒桁 `const.umayaEave` "
                        "%.3fm から出る**庇の軒桁 %.3fm**・**軒先の下端 %.3fm** は、図が持つ人の通る内法の下限 `roka.zujoMin` %.3fm を "
-                       "**%.3fm 下回る**。⇒ 厩の平側は馬も馬丁もくぐれない。"
+                       "**%.3fm 下回る**。⇒ 庇の回っている辺を馬も馬丁もくぐれない。"
                        "⛔ 〔記録〕ではなく**欠陥** — 裁定1=A(2026-09-19)で上げた "
                        "`const.umayaEave` が下がったか、庇の間数・勾配が動いている。"
                        "⛔ 指図方は値を動かさない — 普請奉行へ差し戻す"
@@ -17847,7 +17867,126 @@ def umaya_hisashi_clear_check(d):
                        "から出る**庇の軒桁 %.3fm**・**軒先の下端 %.3fm** で、人の通る内法の"
                        "下限 `roka.zujoMin` %.3fm を %+.3fm 上回る ⇒ 庇の下を人も馬も通れる"
                        % (ja, hon, ket, tip if tip is not None else ket, zmin, low - zmin))
+        # ⭐⭐ **庇を断った辺(馬場側)も同じ輪に入れる**【2026-09-19 ユーザー裁定(第2便)3=A】—
+        #   ⛔ 庇の下だけ測って済ませない。庇をやめた辺では**馬は本屋根の軒先の下を通る**ので、
+        #   そこが図の持つ内法の下限を満たすかを毎巡刷る(⛔ 数を json へ写さない・規則4)。
+        for sd in sorted(_hisashi_omit(m)):
+            t, w, _f = _mune_eave_ground(d, m, sd)
+            if t is None:
+                out.append("%s の %s辺(庇を断った辺)の軒先の下端が出せない(%s)" % (ja, sd, w))
+                continue
+            face = _moya_face_ja(d, m, sd)
+            if t < zmin - 1e-9:
+                out.append("⛔⛔ **%s: 庇を断った %s辺(馬場側)の下を馬が通れない** — この辺の当たりは"
+                           "**%s %.3fm** で、人の通る内法の下限 `roka.zujoMin` %.3fm を "
+                           "**%.3fm 下回る**。⛔ 指図方は値を動かさない — 普請奉行へ差し戻す"
+                           % (ja, sd, face, t, zmin, zmin - t))
+            else:
+                out.append("〔記録〕%s: **庇を断った %s辺(馬場側)**【2026-09-19 ユーザー裁定(第2便)"
+                           "3=A・三方庇】の当たりは **%s %.3fm** で、人の通る内法の下限 "
+                           "`roka.zujoMin` %.3fm を %+.3fm 上回る ⇒ **馬は本屋根の軒先の下を"
+                           "通って馬場から入れる**" % (ja, sd, face, t, zmin, t - zmin))
     return out
+
+
+def _hisashi_obi_kind(d, m, side):
+    """庇の帯の**囲いの別**を、棟ごとの平面から機械で読む
+    【2026-09-19 ユーザー裁定(第2便)2=A】→ (別, 何がそう決めたか) / (None, 理由)。
+
+    ⭕⭕ **規則は一本**(`const.nagayaGataRoof.hisashiObi`)— **外に面する辺は濡縁**
+      (⛔ 高欄は付けない)、**隣の棟や壁に挟まれた辺は壁の内**。
+    ⛔⛔ **辺を名指しで持たない** — どちらかは**その辺の面に他の物が接しているか**で決まる
+      **従属値**で、⛔ json に辺の一覧を書かない(規則4)。
+    ⭕ 見るのは『**その辺の面に、棟・附属屋の矩形か中仕切塀の線が接しているか**』だけ
+      (芯で見ない・面で見る=規則5)。⛔ 距離の敷居を発明しない — **接している**(同じ面)か否か。"""
+    ob = ((d["const"].get("nagayaGataRoof") or {}).get("hisashiObi") or {})
+    soto, hasa = ob.get("soto"), ob.get("hasamare")
+    if not soto or not hasa:
+        return None, "庇の帯の囲いの別(`const.nagayaGataRoof.hisashiObi`)が図に無い"
+    ax, e = side[0], side[1]
+    val = float(m[side])
+    opp = ax + ("1" if e == "0" else "0")          # 相手はこの辺で当方の面に接する
+    cr = "v" if ax == "u" else "u"
+    lo, hi = float(m[cr + "0"]), float(m[cr + "1"])
+
+    def overlaps(a, b):
+        return min(hi, b) - max(lo, a) > 1e-6
+
+    for q in d.get("munes", []) + d.get("service", []):
+        if q.get("name") == m["name"] or any(k not in q for k in ("u0", "u1", "v0", "v1")):
+            continue
+        if abs(float(q[opp]) - val) < 1e-6 and overlaps(float(q[cr + "0"]), float(q[cr + "1"])):
+            return hasa, "隣の %s の面に接する" % MUNE_JA.get(q["name"], q.get("label", q["name"]))
+    for w in d.get("nakajikiri", []):
+        a, b = w.get("a"), w.get("b")
+        if not a or not b:
+            continue
+        i = 0 if ax == "u" else 1
+        if abs(a[i] - val) < 1e-6 and abs(b[i] - val) < 1e-6 \
+                and overlaps(min(a[1 - i], b[1 - i]), max(a[1 - i], b[1 - i])):
+            return hasa, "中仕切塀 `%s` がこの面に沿う" % w.get("name")
+    return soto, "外に面する(この面に接する棟・附属屋・塀が図に無い)"
+
+
+def hisashi_obi_check(d):
+    """**身舎の外を回る一間の庇の帯を、何で囲うか**【2026-09-19 ユーザー裁定(第2便)2=A】。
+
+    ⭕ **外に面する辺は濡縁**(⛔ **手すり=高欄は付けない**)、**隣の棟や壁に挟まれた辺は壁の内**。
+      ⛔ どの辺がどちらかは**宣言で持たず**、棟ごとの平面から読む(`_hisashi_obi_kind`)。
+    ⭕ **庭へ降りる所には沓脱を置ける**(置く所は庭方の持ち場)。
+    ⛔ 面積も長さもここへ写さない — 帯は `munes` の矩形と `const` からの従属値(規則4)。
+    ⛔ **検査が意匠を作らない** — 規則は裁定で決まっている。ここは**図がその規則と合うか**だけ見る。"""
+    ob = ((d["const"].get("nagayaGataRoof") or {}).get("hisashiObi") or {})
+    if not ob:
+        return ["身舎の外を回る庇の帯の**囲いの別が図に無い**"
+                "(`const.nagayaGataRoof.hisashiObi`)— 壁も建具も決まらない"
+                "【2026-09-19 ユーザー裁定(第2便)2=A】"]
+    SIDE_JA = {"u0": "西", "u1": "東", "v0": "北", "v1": "南"}
+    out = []
+    if ob.get("koran"):
+        out.append("⛔ 庇の帯の濡縁に**高欄を付けると宣言されている**"
+                   "(`const.nagayaGataRoof.hisashiObi.koran`)— 裁定(第2便)2=A は"
+                   "**手すり無しの濡縁**である")
+    for name in sorted(ROOF_NAGAYA_GATA_MUNES):
+        m = next((q for q in d.get("munes", []) if q["name"] == name), None)
+        if m is None:
+            continue
+        ja = MUNE_JA.get(name, name)
+        ridge, why_r = _mune_ridge_axis(d, m)
+        if ridge is None:
+            out.append("**%s: 庇の帯の囲いが決まらない** — %s" % (ja, why_r))
+            continue
+        want, omit = _hisashi_want(d, m, {"u": "v", "v": "u"}[ridge])
+        kinds = []
+        for sd in sorted(want):
+            k, by = _hisashi_obi_kind(d, m, sd)
+            if k is None:
+                out.append("**%s(%s辺): %s**" % (ja, SIDE_JA[sd], by))
+                kinds = None
+                break
+            kinds.append("%s=**%s**(%s)" % (SIDE_JA[sd], k, by))
+        if kinds is None:
+            continue
+        out.append("〔記録〕%s: 庇の帯の囲いは %s%s。⭕ 濡縁に**高欄は付けない**／"
+                   "**庭へ降りる所には沓脱を置ける**(置く所は庭方の持ち場)"
+                   % (ja, " ／ ".join(kinds),
+                      "(⚠ %s は庇を回さない辺)" % "・".join(SIDE_JA[s] for s in sorted(omit))
+                      if omit else ""))
+    return out
+
+
+def hisashi_obi_table(d):
+    rows = "".join("<tr><td>%s</td></tr>" % inline(x) for x in hisashi_obi_check(d))
+    return ("<h3>身舎の外を回る一間の庇の帯 — 何で囲うか(濡縁か、壁の内か)</h3>"
+            "<div class='tw'><table><tbody>%s</tbody></table></div>"
+            "<p class='cap'>⭐⭐ <b>2026-09-19 ユーザー裁定(第2便)2=A</b> — 奥向の4棟"
+            "(御湯殿・長局北・奥台所・長局南)と厩の、身舎の外を回る一間の庇の帯は、"
+            "<b>外に面する辺は濡縁</b>(⛔ <b>手すり=高欄は付けない</b>)、"
+            "<b>隣の棟や壁に挟まれた辺は壁の内</b>(=室として囲い込んだ下屋)とする。"
+            "⭕ <b>庭へ降りる所には沓脱を置ける</b>(どこへ置くかは庭方の持ち場)。<br>"
+            "⛔⛔ <b>どの辺がどちらかを図の欄として持たない</b> — その辺の面に棟・附属屋・"
+            "中仕切塀が接しているかで決まる<b>従属値</b>で、この表が毎巡読み直す(規則4)。"
+            "⛔ 芯で見ない・<b>面で見る</b>(規則5)。確度は <b>U 当方の設計値</b>。</p>" % rows)
 
 
 def nagaya_moya_table(d):
@@ -17860,6 +17999,11 @@ def nagaya_moya_table(d):
             "(<b>庇一間 + 身舎 + 庇一間 = 梁間の外形</b>)で葺き、<b>庇は四辺に回る</b>"
             "(端の一間の帯は<b>庇</b>であって壁の内法でも室の余白でもない)。"
             "長局(南)は<b>裁定3=A</b>で帯割りを落とし、軒高も奥向の格へ揃えた。"
+            "⚠ <b>棟ごとの例外は棟が断る</b>(<code>munes[].hisashiOmit</code>)— "
+            "長局(南)は南だけ庇なし【2026-09-19 普請奉行の決定2】、"
+            "<b>厩は馬場側(南)だけ庇なしの三方庇</b>"
+            "【2026-09-19 ユーザー裁定(第2便)3=A ⇒ 馬は<b>本屋根の軒先の下</b>を通る】。"
+            "⛔ 例外を検査から外して黙らせず、期待値を『四辺 − 断った辺』に組み替えて突き合わせる。"
             "⛔ <b>長屋の型([西川1959]A の三間梁 + 庇一間)は当てない</b> — 当5棟は長屋ではなく"
             "<b>御殿の奥向の棟</b>(厩は厩)で、原文は「凡そ三間梁<b>以下</b>庇一間」という"
             "<b>上限の書き方</b>であり、寸法をそのまま当てる筋ではない【考証方】。"
@@ -18011,13 +18155,25 @@ def _noki_otoshi(d):
     """**軒を落とす(軒の出を出さない)辺**の集合 → {(棟の名, 辺)}。
     ⛔ ここで規則を作らない — `_roof_geom` と `_valleys` の宣言と同じ読みをする:
       ①妻谷・流れ谷(`axis` = v)の辺だけが軒を落とす ②**両側の棟が `roof`(帯割り)を持つ辺だけ**
-      (片側でも持たなければ屋根の面が作れず、落とすと壁の上が素通しになる)。"""
+      (片側でも持たなければ屋根の面が作れず、落とすと壁の上が素通しになる)。
+    ⭐⭐ **差し掛けの辺は別**【2026-09-19 ユーザー裁定(第2便)1=A】— 落とすのは
+      **低い側(`low`)の一辺だけ**。低い側の庇を高い側の壁へ**突き付ける**のが納めなので、
+      その辺に軒の出は無い。⛔ **高い側の軒は切らない**(そのまま出し、落ちを低い側の庇の上で
+      受けるのが裁定の中身)。⛔ 相手が `roof` を持つかは問わない — 突き付けは宣言された納めで、
+      相手の屋根の形に依らない。"""
     have = dict((m["name"], bool(m.get("roof"))) for m in d.get("munes", []))
     out = set()
     for t in d.get("valleys", []):
         if t.get("axis", "v") != "v":
             continue
         w, e = t.get("west"), t.get("east")
+        if t.get("kind") == "差し掛け":
+            low = t.get("low")
+            if low == e:
+                out.add((e, "u0"))               # 低い側が東 ⇒ その西辺を壁へ突き付ける
+            elif low == w:
+                out.add((w, "u1"))               # 低い側が西 ⇒ その東辺を壁へ突き付ける
+            continue
         if not (have.get(w) and have.get(e)):
             continue
         out.add((e, "u0"))                       # 谷の東の棟は西辺の軒を落とす
@@ -18043,6 +18199,21 @@ def _nagaya_tsuma_sides(d, m):
     if ax is None:
         return None, why
     return ({"u0", "u1"} if ax == "u" else {"v0", "v1"}), None
+
+
+def _moya_face_ja(d, m, side):
+    """**庇の無い辺**の面の別を、大棟の軸から機械で読んで日本語にする
+    【2026-09-19 検図 — 長局(南)の南を『ケラバ』と書いていた誤り】→ 文字列。
+
+    ⛔⛔ **庇の無い辺を一律に『妻(ケラバ)』と呼ばない** — 面の別は**大棟の軸からの従属値**で、
+      ⭕ 大棟に**直交**する辺(短辺の側)なら**妻のケラバの下端**、
+      ⭕ 大棟に**平行**な辺(平側。庇を断った辺がここに来る)なら**本屋根の軒先**である。
+      ⚠ 高さの式は同じ(身舎の軒桁 − 軒の出 × 本屋根の勾配)でも、**部材の起こし方が違う** —
+      平側を妻と読むと、三方庇の版を起こす部材方が**妻壁**を作ってしまう。"""
+    tsuma, why = _nagaya_tsuma_sides(d, m)
+    if tsuma is None:
+        return "本屋根の側(大棟の軸が決まらないので妻か平かも決まらない — %s)" % why
+    return "本屋根のケラバの下端(妻)" if side in tsuma else "本屋根の軒先(平側)"
 
 
 def _nagaya_hon_eave(d, m):
@@ -18368,8 +18539,8 @@ def _hisashi_unsettled(d, m, side, face):
     if side in _hisashi_omit(m):
         return None
     return ("%s のこの辺には一間の帯が無く、**裁定2=A(四辺とも庇)に室の矩形が追いついて"
-            "いない** — この端の当たりは庇の軒桁ではなく本屋根のケラバの下端で出ている"
-            "(⛔ `munes[].hisashiOmit` の断りも無い)" % ja)
+            "いない** — この端の当たりは庇の軒桁ではなく **%s** で出ている"
+            "(⛔ `munes[].hisashiOmit` の断りも無い)" % (ja, _moya_face_ja(d, m, side)))
 
 
 def _roka_hisashi_holds(d, g):
@@ -18924,9 +19095,13 @@ def roka_buzai_table(d):
             "⭕ <b>①の元は当たりの低い端</b> — 両端とも奥向の棟の廊下は葺き下ろす向きの別が"
             "無く、下屋は両端の軒下をどちらも潜る【決定2】。<br>"
             "⚠ <b>奥向の棟と厩の5棟の屋根</b>(平入り・<code>const.nagayaGataRoof</code>)の"
-            "新造の要否は <code>_pending.gotenRoofNagayaGata</code> の同じ一通に乗る "
-            "— ⚠ <b>御湯殿は寄棟の版</b>・⚠ <b>長局(南)は三方庇の版</b>"
-            "(南だけ庇なし【2026-09-19 普請奉行の決定2】)が要る。</p>"
+            "新造の要否は <code>_pending.gotenRoofNagayaGata</code> の同じ一通に乗る。"
+            "⛔⛔ <b>『御湯殿は寄棟』の版は発注しない</b> — 2026-09-19 ユーザー裁定2=A で"
+            "寄棟の宣言は<b>撤回済み</b>で、御湯殿も<b>平入り</b>(大棟の軸は"
+            "<code>munes[OkuYudono].muneAxis</code>)である。"
+            "⚠ 要るのは<b>四方庇の版</b>(御湯殿・長局北・奥台所)と"
+            "<b>三方庇の版</b>(長局(南)は南なし【決定2】／厩は馬場側の南なし"
+            "【2026-09-19 ユーザー裁定(第2便)3=A】)の二つ。</p>"
             % ("".join(rows), n))
 
 
@@ -19018,11 +19193,19 @@ def roka_section_svg(d):
 
 
 def _roof_geom(d, m):
-    """棟の屋根の平面。谷になる辺には軒を出さない。→ (ru0, ru1, rv0, rv1, a, h)"""
+    """棟の屋根の平面。谷になる辺には軒を出さない。→ (ru0, ru1, rv0, rv1, a, h)
+
+    ⭐⭐ **差し掛けの辺は低い側だけ軒を落とす**【2026-09-19 ユーザー裁定(第2便)1=A】—
+      低い側の庇を高い側の壁へ突き付けるので、その辺に軒の出は無い。⛔ 高い側の軒は切らない
+      (切ると『御殿の軒はこの辺でも切らずそのまま出す』という裁定と食い違う)。
+      ⛔ 読みを `_noki_otoshi` と二重に持たない — 同じ規則を二か所で書かない(規則4)。"""
     E = d["const"]["nokiE"] / d["const"]["ken"]                 # 軒の出[間]
     V = [t for t in d.get("valleys", []) if t.get("axis", "v") == "v"]   # 妻谷だけが軒を落とす
-    noW = set(t["east"] for t in V)                             # 西辺が谷になる棟
-    noE = set(t["west"] for t in V)                             # 東辺が谷になる棟
+    _ot = _noki_otoshi(d)
+    noW = set(t["east"] for t in V if t.get("kind") != "差し掛け") \
+        | set(nm for nm, sd in _ot if sd == "u0")               # 西辺が谷になる棟
+    noE = set(t["west"] for t in V if t.get("kind") != "差し掛け") \
+        | set(nm for nm, sd in _ot if sd == "u1")               # 東辺が谷になる棟
     ru0 = m["u0"] - (0.0 if m["name"] in noW else E)
     ru1 = m["u1"] + (0.0 if m["name"] in noE else E)
     rv0, rv1 = m["v0"] - E, m["v1"] + E
@@ -19230,9 +19413,12 @@ def valleys_table(d):
             L = (t["u1"] - t["u0"]) * KEN
             rng = "v %g ／ u %.1f 〜 %.1f" % (t["v"], t["u0"], t["u1"])
             side = _side(t["north"], t["south"])
-        r += ("<tr><td>%s</td><td>%s</td><td>%s</td><td>%.1f m</td><td>%s</td>"
+        # ⭐ **差し掛けの辺には樋が走らない**【2026-09-19 ユーザー裁定(第2便)1=A】—
+        #   ⛔ 走らない樋の長さを刷ると、部材表の本数と食い違う。
+        toi = "—(樋なし)" if t["kind"] == "差し掛け" else "%.1f m" % L
+        r += ("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>"
               "<td class='note'>%s</td></tr>"
-              % (t["name"], t["kind"], rng, L, side, t["fall"]))
+              % (t["name"], t["kind"], rng, toi, side, t["fall"]))
     return ("<h3>谷</h3><div class='tw'><table><thead><tr><th>谷</th><th>種</th><th>位置</th>"
             "<th>樋の長さ</th><th>両側の大棟(軒先から)</th><th class='note'>水の落とし方</th>"
             "</tr></thead><tbody>%s</tbody></table></div>" % r)
@@ -19324,15 +19510,22 @@ def eave_table(d):
       ⛔ 地盤換算の列は**従属値**(= 床上値 + `const.gotenFloor`)で、`const` に第二の欄は立てない。"""
     C = d["const"]
     ROWS = [("厩", "本屋根(身舎)の軒桁", "umayaEave", "地盤",
-             "他邸(土井)の厩の部材の**実測値を借りている**。当邸に厩の部材が無いあいだの"
-             "仮置きで、⛔ **当家の史料ではない**",
-             "U(設計判断・借り値)"),
+             "⭐⭐ **当方の設計値(一丈)**【2026-09-19 ユーザー裁定1=A】。"
+             "⛔⛔ **他邸(土井)の厩の部材の実測を借りるのはやめた** — 借り値では"
+             "①庇の下を人も馬も通れず ②当家の史料でもない。⇒ **この値に史料的根拠は無く**、"
+             "置く理由は二つだけ — ①庇の軒先の下端が図の持つ『人の通る内法の下限』"
+             "`roka.zujoMin` を下回らない ②格の序列(厩 &lt; 奥向の棟 &lt; 御殿)を保つ。"
+             "⛔ **他家の実測を典拠のように見せない**(詳細は `const._umayaEave`)",
+             "U(当方の設計値)"),
             ("厩", "庇の軒桁", None, "地盤",
              "⭕ **従属値**【2026-09-18 ユーザー裁定A ⇒ `_pending.umayaHisashi` 決着】— "
-             "厩も**庇を両側**に持つ(庇一間 + 身舎 + 庇一間 = 外形の短辺)ので、庇の軒桁は"
-             "**厩の身舎の軒桁** `const.umayaEave` − 庇の間数(`const.nagayaGataRoof.hisashiKen`)"
-             "× 庇の勾配(`const.hisashiKobai`)。⛔ 独立の欄を持たない(規則4)。"
+             "厩の庇の軒桁は**厩の身舎の軒桁** `const.umayaEave` − 庇の間数"
+             "(`const.nagayaGataRoof.hisashiKen`)× 庇の勾配(`const.hisashiKobai`)。"
+             "⛔ 独立の欄を持たない(規則4)。"
              "⛔ 奥向の棟の `const.nagayaGataEave` から引かない(**別系統**)。"
+             "⭐⭐ **庇は三方(西・東・北)**【2026-09-19 ユーザー裁定(第2便)3=A】— "
+             "**馬場側(南)には庇を回さない**(`munes[Umaya].hisashiOmit`)ので、"
+             "**南の辺の当たりは本屋根の軒先**(南は平側)で出る ⇒ 馬はそこをくぐる。"
              "⚠ いま厩に取り付く渡廊下は無い",
              "従属値(元の確度に従う)"),
             ("奥向の棟(御湯殿・長局北・奥台所・長局南)", "身舎の軒桁", "nagayaGataEave", "地盤",
@@ -19390,7 +19583,10 @@ def eave_table(d):
             "⛔⛔ <b>比べるのは面を揃えて — 本屋根(身舎)の軒桁どうし</b>"
             "(2026-09-17)。奥向の棟と厩は身舎の軒桁の下に<b>庇の軒桁</b>(従属値)を持ち、別の面である。"
             "⭕⭕ <b>2026-09-19 ユーザー裁定2=A で庇は四辺に回る</b> ⇒ 渡廊下の当たりは"
-            "<b>どの辺も庇の軒桁から</b>出る(⛔ 妻面だけ本屋根から降ろす読みは落ちた)。<br>"
+            "<b>庇の帯が立っている辺では庇の軒桁から</b>出る(⛔ 妻面だけ本屋根から降ろす読みは"
+            "落ちた)。⚠ <b>棟が断った辺は別</b> — 長局(南)の南と厩の南(馬場側)は"
+            "<b>庇を回さない</b>(<code>munes[].hisashiOmit</code>)ので、その辺の当たりは"
+            "<b>本屋根の軒先</b>(どちらも<b>平側</b>。⛔ ケラバ=妻と読み違えない)。<br>"
             "⭕ <b>格を読む軸はこの軒高</b>(厩 &lt; 長屋類 &lt; 御殿)。"
             "⛔ <b>棟高で読まない</b> — 棟高は梁間の従属値なので、梁間の広い棟が格に関わらず高く出る。"
             "序列の検査 <code>roof_eave_order_check</code>: <b>%d 件</b>。"
@@ -19535,12 +19731,24 @@ def valley_eave_check(d):
     ⭐ 妻谷・流れ谷 は『この辺には軒を出さない』が設計だが、それが成り立つのは
       **両側の棟が `munes[].roof`(帯割り)を持つ辺だけ**。相手の屋根の形が未定のまま
       軒を落とすと**壁の上が素通しになる**(部材方 2026-09-10)。
-    ⛔ 軒谷 は元から両側の軒を残す辺なので対象外。"""
+    ⛔ 軒谷 は元から両側の軒を残す辺なので対象外。
+    ⭐⭐ **差し掛けの辺も対象外**【2026-09-19 ユーザー裁定(第2便)1=A】— この辺の納めは
+      『高い側の軒は**切らずにそのまま出し**、低い側の庇を壁へ突き付ける』と決まっているので、
+      『両側が屋根を持つまで軒を落とせない』という保留そのものが掛からない。
+      ⛔ 黙って飛ばさない — 〔記録〕として毎巡刷る(規則19・飛ばした辺は未検査に見える)。"""
     roofed = set(m["name"] for m in d.get("munes", []) if m.get("roof"))
     names = set(m["name"] for m in d.get("munes", []))
     out = []
     for v in d.get("valleys", []):
         if v.get("kind") == "軒谷":
+            continue
+        if v.get("kind") == "差し掛け":
+            out.append("〔記録〕辺 `%s`(差し掛け)は**軒を落とすかどうかの辺ではない** — "
+                       "高い側 %s の軒は**切らずにそのまま出し**、低い側 %s の庇を壁へ"
+                       "**突き付けて雨押え**を打つ【2026-09-19 ユーザー裁定(第2便)1=A】。"
+                       "⇒ 段と雨の受けは `valley_step_check` が測る"
+                       % (v["name"], MUNE_JA.get(v.get("high"), v.get("high")),
+                          MUNE_JA.get(v.get("low"), v.get("low"))))
             continue
         sides = [v.get(k) for k in ("west", "east", "north", "south") if v.get(k)]
         unk = [s for s in sides if s not in names]
@@ -19563,15 +19771,20 @@ VALLEY_STEP_TOL = 0.02          # 軒谷の両側の軒先の下端を「同じ�
 
 
 def _valley_step(d, v):
-    """軒谷 `v` の**両側の軒先の下端**(地盤基準)→ (hs, 段差 or None, 決まらない理由 or None)。
+    """辺 `v` の**両側の軒先の下端**(地盤基準)→ (hs, 段差 or None, 決まらない理由 or None)。
 
     ⛔ **判定の式を二重に持たない**【2026-09-18 検図】— 検査 `valley_step_check` と
       口の表 `kuchi_table` の**雨仕舞の欄**が**同じここ**を見る(片方だけ直すと、段違いと
       判った谷に『⭕ 谷が受ける』が残る)。
     ⭕ `north` = v の小さい側 ⇒ その棟の **v1 辺**、`south` = v の大きい側 ⇒ **v0 辺**。
+    ⭐⭐ **u へ走る辺(`axis` = v)も測れるようにした**【2026-09-19 ユーザー裁定(第2便)1=A】—
+      `west` = u の小さい側 ⇒ その棟の **u1 辺**、`east` = u の大きい側 ⇒ **u0 辺**。
+      ⛔ 入口を軒谷だけに絞らない — **絞った外の辺は未検査のまま『合格』に見える**(規則19)。
     ⛔ 段差の数を json へ写さない(従属値・規則4)。"""
+    pair = (("north", "v1"), ("south", "v0")) if v.get("axis", "v") == "u" \
+        else (("west", "u1"), ("east", "u0"))
     hs, why = {}, []
-    for key, side in (("north", "v1"), ("south", "v0")):
+    for key, side in pair:
         m = next((q for q in d.get("munes", []) if q["name"] == v.get(key)), None)
         if m is None:
             why.append("%s の棟 %s が `munes` に無い" % (key, v.get(key)))
@@ -19584,11 +19797,54 @@ def _valley_step(d, v):
             hs[key] = (t, MUNE_JA.get(m["name"], m["name"]), face)
     if why:
         return hs, None, "／".join(why)
-    return hs, abs(hs["north"][0] - hs["south"][0]), None
+    a, b = [hs[k][0] for k, _s in pair]
+    return hs, abs(a - b), None
+
+
+def _sashikake_step(d, v):
+    """**差し掛けの辺**(高い側の軒の下へ低い側の庇を突き付ける辺)を一行で検める
+    【2026-09-19 ユーザー裁定(第2便)1=A】→ 一行の文。
+
+    ⭕ 見るのは四つ — ①`high`/`low` が図の棟を指すか ②**高い側が本当に高いか**
+      (低い側が上ならこの辺の納めは成り立たない)③**段が有るか**(段が消えたらそれは谷で、
+      差し掛けの宣言のほうが誤り)④**雨押え `amaosae` が宣言されているか**
+      (継ぎ目に打つ物が図に無いと、突き付けた線の雨仕舞が誰の持ち場でもなくなる)。
+    ⛔ 高さも段も json へ写さない — `_mune_eave_ground` からの**従属値**(規則4)。
+    ⛔ 納めそのものは決めない — 裁定で決まっている(⛔ 検査が意匠を作らない)。"""
+    hs, dh, why = _valley_step(d, v)
+    if why:
+        return "辺 `%s`(差し掛け): %s" % (v["name"], why)
+    key = dict((v.get(k), k) for k in ("west", "east", "north", "south") if v.get(k))
+    hi_k, lo_k = key.get(v.get("high")), key.get(v.get("low"))
+    if hi_k is None or lo_k is None or hi_k == lo_k:
+        return ("⛔⛔ 辺 `%s`: **差し掛けなのに高い側 `high` / 低い側 `low` が図の棟を指していない** "
+                "— 突き付ける相手と落ちを受ける面が決まらない" % v["name"])
+    hi, lo = hs[hi_k], hs[lo_k]
+    if hi[0] <= lo[0] + 1e-9:
+        return ("⛔⛔ 辺 `%s`: **高い側と宣言した %s(%.3fm)が、低い側 %s(%.3fm)より高くない** "
+                "— 差し掛けの納め(高い側の軒の落ちを低い側の庇の上で受ける)が成り立たない。"
+                "⛔ 指図方は高さを動かさない — 普請奉行へ差し戻し" % (v["name"], hi[1], hi[0], lo[1], lo[0]))
+    if dh <= VALLEY_STEP_TOL:
+        return ("⛔ 辺 `%s`: **段が無い**(%s %.3fm ／ %s %.3fm・差 %.0fmm)— 段が無ければ"
+                "二枚は合わさり、この辺は**差し掛けではなく谷**になる ⇒ `kind` の宣言が図と合わない"
+                % (v["name"], hi[1], hi[0], lo[1], lo[0], dh * 1000))
+    if not v.get("amaosae"):
+        return ("⛔ 辺 `%s`: **雨押えが宣言されていない**(`valleys[].amaosae`)— 突き付けた継ぎ目に"
+                "打つ物が図に無く、段 %.3fm の立ち上がりの雨仕舞が誰の持ち場でもなくなる" % (v["name"], dh))
+    return ("〔記録〕辺 `%s` は**差し掛け**(⛔ 谷ではない)— 高い側 %s **%.3fm**(%s)の軒は"
+            "**切らずにそのまま出し**、低い側 %s **%.3fm**(%s)の庇を壁へ**突き付けて雨押え**を打つ。"
+            "**段 %.3fm** の落ちは低い側の庇の上で受ける(⛔ 谷樋も縦樋も走らない)"
+            "【2026-09-19 ユーザー裁定(第2便)1=A・量はすべて従属値】"
+            % (v["name"], hi[1], hi[0], hi[2] or "", lo[1], lo[0], lo[2] or "", dh))
 
 
 def valley_step_check(d):
-    """**軒谷は本当に「谷」か — 両側の軒先の下端が同じ高さか**【2026-09-18 検図】。
+    """**宣言した辺が本当にその納めか — 両側の軒先の下端を測って検める**【2026-09-18 検図】。
+
+    ⭐⭐ **見る辺を広げた**【2026-09-19 ユーザー裁定(第2便)1=A】— 従前は**軒谷しか見ておらず**、
+      『妻谷』と宣言した辺(奥御殿 ⇔ 御湯殿)が実は段違いであることを図が自分で言えなかった。
+      ⇒ **軒谷**(同じ高さで合わさるはず)と**差し掛け**(段が有るのが正しい)の**両方**を通す。
+      ⛔ 入口で `kind` を絞ると、絞った外の辺は**未検査のまま『合格』に見える**(規則19)。
 
     ⛔ 軒谷に一律の同じ文(『軒どうしが 18mm で出会う』)が貼られていたが、
       片側が御殿・片側が奥向の棟の辺では**軒先の高さが違う**。高さの違う二枚は谷を作らず
@@ -19601,6 +19857,9 @@ def valley_step_check(d):
       意匠の判断**なので、ここでは鳴らすだけで図を書き換えない(普請奉行へ差し戻し)。"""
     out = []
     for v in d.get("valleys", []):
+        if v.get("kind") == "差し掛け":
+            out.append(_sashikake_step(d, v))
+            continue
         if v.get("kind") != "軒谷":
             continue
         hs, dh, why = _valley_step(d, v)
@@ -19628,9 +19887,14 @@ def valley_step_check(d):
 
 def valley_step_table(d):
     rows = "".join("<tr><td>%s</td></tr>" % inline(x) for x in valley_step_check(d))
-    return ("<h3>軒谷 — 両側の軒先は同じ高さか(谷か、段違いか)</h3>"
+    return ("<h3>辺の納め — 両側の軒先を測って検める(軒谷は谷か・差し掛けは段が有るか)</h3>"
             "<div class='tw'><table><tbody>%s</tbody></table></div>"
-            "<p class='cap'>⛔⛔ <b>『軒谷』と宣言しただけでは谷にならない</b>"
+            "<p class='cap'>⭐⭐ <b>2026-09-19 ユーザー裁定(第2便)1=A で見る辺を広げた</b> — "
+            "従前は<b>軒谷しか見ていなかった</b>ので、『妻谷』と宣言した奥御殿 ⇔ 御湯殿の辺が"
+            "実は<b>段違い</b>であることを図が自分で言えなかった。いまは<b>差し掛けの辺</b>も"
+            "同じ表に出て、<b>段が有ること・高い側が宣言どおりであること・雨押えが宣言されて"
+            "いること</b>を毎巡突き合わせる。<br>"
+            "⛔⛔ <b>『軒谷』と宣言しただけでは谷にならない</b>"
             "【2026-09-18 検図】。谷は<b>同じ高さの二枚</b>が合わさる所で、"
             "片側が御殿・片側が奥向の棟の辺は<b>軒先の高さが違う=段違いの軒</b>になる。"
             "高さは <code>_mune_eave_ground</code>(地盤基準の軒先の下端)の従属値で、"
@@ -20613,7 +20877,8 @@ def main():
     print("石垣基壇の割り付け(基壇つき %d run): %d 件" % (nrun, len(ibad)))
     for b in ibad:
         print("   ⚠", b)
-    ibase, iprobe = ishigaki_layout_sensitivity(d)
+    ibase, iprobe = sashizu_lib.sens(EST, "ishigaki",
+                                     lambda: ishigaki_layout_sensitivity(d), (0, []))
     print("  感度試験(素の件数 %d):" % ibase)
     for label, delta in iprobe:
         print("    %s %s → %+d 件" % ("○" if delta > 0 else "⛔鳴らない", label, delta))
@@ -20625,7 +20890,8 @@ def main():
           % (len(d["polygon"]), len(kbad)))
     for b in kbad:
         print("   ⚠", b)
-    kbase, kprobe = kado_arm_sensitivity(d)
+    kbase, kprobe = sashizu_lib.sens(EST, "kado_arm",
+                                     lambda: kado_arm_sensitivity(d), (0, []))
     print("  感度試験(素の件数 %d):" % kbase)
     for label, delta in kprobe:
         print("    %s %s → %+d 件" % ("○" if delta > 0 else "⛔鳴らない", label, delta))
@@ -20640,7 +20906,8 @@ def main():
           % (len(gbad), len(zbad), len(gnbad)))
     for b in gbad + zbad + gnbad:
         print("   ⚠", b)
-    _gbase, _gprobe = gate_kazari_note_sensitivity(d)
+    _gbase, _gprobe = sashizu_lib.sens(EST, "gate_kazari",
+                                       lambda: gate_kazari_note_sensitivity(d), (0, []))
     print("  感度試験(表門・座敷飾・入れ子 — 素の件数 %d ／ "
           "判定は**素に無かった文言が出たか**):" % _gbase)
     for label, delta in _gprobe:
@@ -20661,7 +20928,8 @@ def main():
           % (_pn, "{:,}".format(_ptri), sum(_area.values()), len(pb1), len(pb2), len(pb3), len(pb4)))
     for b in pb1 + pb2 + pb3 + pb4:
         print("   ⚠", b)
-    pbase, pprobe = planting_sensitivity(d, dem)
+    pbase, pprobe = sashizu_lib.sens(EST, "planting",
+                                     lambda: planting_sensitivity(d, dem), (0, []))
     print("  感度試験(素の件数 %d ／ 判定は**素に無かった文言が出たか**):" % pbase)
     for label, delta in pprobe:
         print("    %s %s → 新しい指摘 %+d 件" % ("○" if delta > 0 else "⛔鳴らない", label, delta))
@@ -20697,7 +20965,8 @@ def main():
     print("結界の帯の口の軒谷(下屋を架けない口): %d 件" % len(rb11))
     for b in rb1 + rb2 + rb3 + rb4 + rb5 + rb6 + rb7 + rb8 + rb9 + rb10 + rb11:
         print("   ⚠", b)
-    _rbase, _rprobe = roof_sensitivity(d)
+    _rbase, _rprobe = sashizu_lib.sens(EST, "roof",
+                                       lambda: roof_sensitivity(d), (0, []))
     print("  感度試験(屋根・素の件数 %d ／ 判定は**素に無かった文言が出たか**):" % _rbase)
     for label, delta in _rprobe:
         print("    %s %s → 新しい指摘 %+d 件" % ("○" if delta > 0 else "⛔鳴らない", label, delta))
@@ -20990,20 +21259,28 @@ def main():
             "<b>棟は入側の外縁で接していて、壁は共有しない。</b>"
             "<b>谷の辺には軒を出さない</b>(両棟とも外形の縁で切る) — こうすると屋根面は軒先の高さのまま"
             "突き合い、そこに谷樋が走る。<b>棟の間数は一つも動かない。</b>"
+            "⛔ <b>差し掛けの辺は別</b> — 軒を落とすのは<b>低い側の一辺だけ</b>"
+            "(高い側の軒は切らずに出す)。"
             "⛔ <b>棟を離して渡廊下を挟まない</b>【ユーザー裁定U 2026-08-27】 — "
             "離すと入側1間＋渡廊下＋入側1間で廊下の帯が4間(7.3m)になり廊下として広すぎる。"
             "一間の隙間では渡廊下の屋根が両隣の軒に完全に隠れる"
             "(<code>buildings.md</code>「渡廊下は1間では成立しない」)。"
             "渡廊下は<b>離れた棟をつなぐ部材</b>であって、連なる棟の継ぎ目に使うものではない。<br>"
-            "<b>谷は三種</b>(数は `valleys` から数える)。①<b>妻谷 %d</b>=大棟が谷へ向く所で"
+            "<b>谷は三種 + 差し掛けの辺</b>(数は `valleys` から数える)。"
+            "①<b>妻谷 %d</b>=大棟が谷へ向く所で"
             "妻側の屋根面が向かい合う。②<b>流れ谷 %d</b>=大棟が谷と平行な所で流れ(軒側)の"
             "屋根面が向かい合う。"
             "①②とも軒を出さずに突き合わせる。③<b>軒谷 %d</b>=中奥と奥向が<b>結界の帯(1間)</b>を挟んで"
             "平行な長辺の軒で向かい合う所(5区間・計69m)。ここは軒の出 0.90×2 が帯をほぼ埋めて"
             "<b>18mm で出会う</b>ので、軒はそのままにして合わせ目の下へ樋を寄せて吊る。"
             "帯の下を通るのは御錠口と御膳所口だけで、渡廊下は架けない。<br>"
+            "⭐⭐ <b>④差し掛け %d</b>=<b>谷にならない辺</b>"
+            "【2026-09-19 ユーザー裁定(第2便)1=A】— 低い側の庇を高い側の壁へ<b>突き付け</b>、"
+            "継ぎ目に<b>雨押え</b>を打つ。<b>高い側の軒は切らずにそのまま出し</b>、"
+            "その落ちを低い側の庇の上で受ける(⛔ 谷樋も縦樋も走らない)。<br>"
             "⭐ <b>棟の中にも谷がある</b> — 帯と帯の境(図の赤い破線)。"
-            % (_vk.get("妻谷", 0), _vk.get("流れ谷", 0), _vk.get("軒谷", 0)))
+            % (_vk.get("妻谷", 0), _vk.get("流れ谷", 0), _vk.get("軒谷", 0),
+               _vk.get("差し掛け", 0)))
     fig(h, roof_section_svg(d),
         cap="<b>屋根の縦断面(桁行に沿った展開)。</b>"
             "⭐ <b>帯割りから描く。</b>"
@@ -21019,6 +21296,7 @@ def main():
     h.append(valley_step_table(d))
     h.append(roof_bands_table(d))
     h.append(nagaya_moya_table(d))
+    h.append(hisashi_obi_table(d))
     h.append(eave_table(d))
     h.append("<p class='cap'><b>谷樋は縦樋を立てず、両端の軒先へ落とす</b>【確度U — 一般類型・典拠IDなし】。"
              "勾配は中央から両端へ 1/100。屋根部材は<b>辺ごとに軒の出を落とせる版</b>が要る"
@@ -21741,13 +22019,16 @@ def main():
     print("経緯の語(本文・考証本文): %d 件 = %s" % (len(kebad), _triage_txt(kebad)))
     for b in kebad:
         print("   ⚠", b)
-    _kbase, _kprobe = keii_word_sensitivity(_body, _md_src)
+    _kbase, _kprobe = sashizu_lib.sens(EST, "keii_word",
+                                       lambda: keii_word_sensitivity(_body, _md_src), (0, []))
     print("  感度試験(経緯の語・素の件数 %d):" % _kbase)
     for label, delta, want in _kprobe:
         ok = (delta > 0) if want else (delta == 0)
         print("    %s %s → %+d 件" % ("○" if ok else "⛔", label, delta))
     if any((d_ <= 0) if w else (d_ != 0) for _l, d_, w in _kprobe):
         print("    ⛔ 期待どおりに鳴らない probe がある — 検査を直すこと")
+    print(sashizu_lib.sens_report(EST))
+    print(sashizu_lib.chk_report())
     # ⭐ **図版の採番を見る検査は、図版を全部組んだ後に回す**(2026-09-02 検図 中4)
     WARN.append(("図版番号の直書きと参照(`{{図:題}}`)", plate_ref_check(d)))
     NWARN = sum(len(x) for _t, x in WARN)

@@ -943,6 +943,21 @@ public static class EdoAssets
                  + (i % 2 == 0 ? "a" : "b") + ".fbx";
         }
 
+        /// <summary>**山王社の小庭の井戸 — 井筒(玉石の輪積み)と井桁を一体で**。⛔ 井戸屋形・釣瓶・縁石・板石敷は持たない
+        /// (在庫にも無いので部材方へ。井戸屋形の棟の向きは指図 `_pending` が未決)。
+        /// 在庫の `Doi_Ido` / `Matsudaira_Ido` はどちらも**切石の角井戸枠 + 桁 + 釣瓶**で玉石の輪も井桁も持たない ⇒ 新造【U 庭方 2026-09-15】。
+        /// <paramref name="naikeiMm"/> = 井筒の内径(3尺 = 909)/ <paramref name="igetaTallMm"/> = 井桁の丈(見付 0.15 × 3 段 = 450)[mm]。
+        /// 現行 (909, 450)。指図 `ido`(前庭の井戸と同じ作り)が正典 — 内径 3尺・壁厚 0.24・井桁は内法 3尺 / 見付 0.15 / 3 段。
+        /// ⭐ 高さ = Y / 平面 = X・Z(井筒は円・井桁は X と Z に対称 ⇒ **向きは任意**)。ピボット = 井戸の芯・**地盤レベル**。
+        /// ⛔ `SeatBottom` で据えない(井筒が Y −1.50 まで根入れしている)。
+        /// 井筒 天端 +0.05(地盤から石の輪を覗かせる)〜 −1.50・底は石の円板。井桁 0.05〜0.50、段ごとに向きを互い違いにし木口を 0.06 出す【U 部材方】。
+        /// 材 `Foundation_A_01`(Village Kit のアトラス)/ `wood` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。⛔ 新規マテリアルなし。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_ido.py -- --render</summary>
+        public static string SannoIdoIgeta(int naikeiMm, int igetaTallMm)
+        {
+            return "Assets/Edo/Models/Sanno/Sanno_Ido_Igeta_" + naikeiMm + "x" + igetaTallMm + ".fbx";
+        }
+
         /// <summary>**山王社の中門(瑞垣門)**。一間平唐門・四脚(本柱2+控柱4)・銅瓦葺【S [国宝建造物目録1941]】。
         /// 在庫『無い』(指図 `bom[中門(一間平唐門)]`)ので新造。
         /// ⭐ **通り抜け=ローカル X・正面=+X(扉は −X へ開く)・大棟=Z(唐破風は ±Z の妻)・ピボット=門の芯・敷居の高さ**。

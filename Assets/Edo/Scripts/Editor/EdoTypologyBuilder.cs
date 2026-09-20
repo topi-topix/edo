@@ -264,13 +264,46 @@ public static class EdoTypologyBuilder
         return go.transform;
     }
 
+    /// <summary>シーンのルートを名前で引く。⭐ **寝ているルートも拾う** —
+    /// 撤去は SetActive(false) の決まり(規則1)なので、GameObject.Find だけでは見落とす。</summary>
+    static GameObject FindRoot(string name)
+    {
+        var sc = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+        foreach (var r in sc.GetRootGameObjects()) if (r.name == name) return r;
+        return null;
+    }
+
+    /// <summary>建て終えた類型ルートを **1軒1プレハブ** へ切り出す(EDO-0296)。
+    ///
+    /// <para>なぜ: LFS は1コミットで書き換わったファイルを丸ごと保存するので、全部が
+    /// `Akasaka.unity` に生で載っていると、どの1区画を直しても**シーン全量**が保存量に乗る。
+    /// 79区画を類型で建てると、その全部が1枚のシーンへ直に書き込まれる。屋敷・町・寺社の
+    /// 手組みルート83本は既に `EdoYashikiPrefab` で1軒1ファイルに割ってあり、
+    /// **類型ルートだけがその仕組みに載っていなかった**。</para>
+    ///
+    /// <para>⚠ 切り出しはビルダーの側でやる。`EdoYashikiPrefabAutoSave`(保存時の自動書き戻し)は
+    /// **既にプレハブ資産がある**ルートしか書き戻さないので、新しく生えたルートは何度保存しても
+    /// 生のまま残る。⛔ 逆に「大きい新ルートは全部プレハブにする」を保存側へ入れてはいけない —
+    /// 手組み資産や検分用の仮ルートまで勝手に焼き付く(規則1)。</para></summary>
+    static string Externalize(Transform root)
+    {
+        var f = EdoYashikiPrefab.One(root.gameObject).Split('\t');
+        if (f.Length >= 3 && f[2] == "OK")
+            return string.Format("  プレハブ: {0}/{1}.prefab へ切り出した(駒 {2})— シーンに残るのは参照だけ",
+                                 EdoYashikiPrefab.Dir, f[0], f[1]);
+        return "  ⛔ プレハブへの切り出しに失敗(シーンに生で残る): " + string.Join(" ", f);
+    }
+
     public static string BuildParcel(string id, bool force)
     {
         Spec s; if (!Table.TryGetValue(id, out s)) return "⛔ 類型表に無い区画: " + id;
         if (s.Hand) return "— " + id + " は図を起こして建てた敷地(built:hand)。触らない: " + s.note;
 
         string gname = "Edo_Typo_" + id;
-        var old = GameObject.Find(gname);
+        // ⛔ GameObject.Find は**活きている**ルートしか拾わない。撤去は SetActive(false) の決まり
+        //    (規則1)なので、寝ているルートを見落とすと同名の2本目が生え、プレハブ資産がどちらの
+        //    姿で焼かれたか分からなくなる(EDO-0296)。シーンのルートを直に舐めて拾う。
+        var old = FindRoot(gname);
         if (old != null) { if (!force) return "— " + gname + " は既にある(force で建て直す)"; UnityEngine.Object.DestroyImmediate(old); }
         var root = Group(gname, null);
 
@@ -409,6 +442,9 @@ public static class EdoTypologyBuilder
 
         // ── Stage 6: 検査(0件でも刷る・規則19) ──
         log.Add(Inspect(id, root, poly));
+
+        // ── Stage 7: 1軒1プレハブへ切り出す(EDO-0296) ──
+        log.Add(Externalize(root));
         return string.Join("\n", log.ToArray());
     }
 

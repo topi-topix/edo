@@ -110,7 +110,26 @@ public static class EdoAssets
         public const string Column      = P + "Goten_Column.fbx";
         public const string Beam        = P + "Goten_Beam_1ken.fbx";
         public const string Tatami      = P + "Goten_Tatami_1ken.fbx";   // 一間角=江戸間2畳
-        public const string FloorBoard  = P + "Goten_FloorBoard_1ken.fbx"; // 入側の板敷き
+        public const string FloorBoard  = P + "Goten_FloorBoard_1ken.fbx"; // 入側の板敷き(厚0.0636・ピボット z=0 は**底**)
+
+        /// <summary>**渡廊下の縁板** 一間角(厚 **1寸 0.0303**)。⛔ <see cref="FloorBoard"/> の置き換えではない
+        /// (あちらは入側の板敷きで、他邸が使っている)。
+        ///
+        /// <para>【なぜ別に要るか】廊下の床は落縁(=濡縁)の天端に継ぐので、**縁の下**(縁板の下端〜地盤)は
+        /// 指図 `roka.ennoshitaMin` **0.303** を満たさねばならない。床の面は
+        /// `const.gotenFloor` 0.62 − <c>EdoGotenKit.NUREEN_DROP</c> 0.28 = **0.34** なので
+        /// **板厚は 0.037 以下**。キットの板(0.0636)では縁の下 0.276 で **27mm 割る**
+        /// (2026-09-20 部材方の実測 → 普請奉行の発注)。1寸なら縁の下 **0.3097**。</para>
+        ///
+        /// <para>⚠⚠ **ピボットの z=0 は「板の天端」**(⛔ <see cref="FloorBoard"/> は z=0 が**底**)。
+        /// 廊下の床は面で落縁へ継ぐので、<c>new Vector3(x, floor, z)</c> へ置けば天端が床に揃い、
+        /// 厚は下へ逃げる。⛔ 板厚を足さない・引かない。平面のピボットは一間角の中心。</para>
+        ///
+        /// <para>⭕ 形は**キットの床板を薄くしただけ**(材質名 `floor` と板目を保つ)。走り方向の
+        /// 倍率(<c>EdoGotenKit.Roka</c> の端数の駒)もそのまま効く。
+        /// 松江松平の渡廊下6本で **20枚**(4+6+4+2+2+2)。</para>
+        /// 生成: GOTEN_ONLY=RokaEnita blender --background --python Tools/Blender/build_goten_parts.py</summary>
+        public const string RokaEnita   = P + "Goten_RokaEnita_1ken.fbx";
         public const string Ceiling     = P + "Goten_Ceiling_1ken.fbx";
         public const string Nureen      = P + "Goten_Nureen_1ken.fbx";   // 濡縁+高欄(ピボットは建物側・高欄は外縁)
         public const string NureenCorner= P + "Goten_NureenCorner.fbx";  // 濡縁の入隅(0.891角・高欄が+X面と-Z面)
@@ -319,6 +338,61 @@ public static class EdoAssets
             long f = h % 100L;
             if (f != 0L) t += "." + (f % 10L == 0L ? (f / 10L).ToString(inv) : f.ToString("00", inv));
             return t;
+        }
+
+        /// <summary>**平入り + 庇**の屋根(身舎に切妻を架け、その外を庇一間が回る)。
+        /// 松江松平邸の**奥向の棟4棟と厩**(指図 `const.nagayaGataRoof`)のための型で、
+        /// 梁間の外形が帯割り(4/5 の和)で作れない棟に使う。
+        ///
+        /// <para>⭐⭐ **z=0 は「床」**(<see cref="RoofBanded"/> と同じ。⛔ <see cref="RoofIrimoya_"/> の
+        /// 軒先ではない)。棟梁は <c>new Vector3(cx, floor, cz)</c> へ**そのまま置く**
+        /// (<c>EdoGotenKit.Mune</c> なら <c>roofAtFloor: true</c> / <c>roofEaveLocalY: NaN</c>)。
+        /// 平面のピボットは**足形(庇を含む外形)の中心**、向きは**モデル局所 +X = 江戸間格子の +u**。</para>
+        ///
+        /// <para>⚠ <paramref name="eaveAboveFloor"/> は**床上の身舎の軒桁**[m]。指図
+        /// (`const.nagayaGataEave` / `const.umayaEave`)は**地盤基準**なので
+        /// <c>− const.gotenFloor</c> してから渡す(焼いてあるのは 2.744 と 2.410)。</para>
+        ///
+        /// <para>⚠ **bbox は呼び寸より大きい。** 外形 = 間数×1.818 + 軒の出 0.90×2 だが、
+        /// **隅棟の角が更に片側 0.14 飛び出す**(入母屋の 0.171 と同じ性質)。
+        /// ⛔ 離れを bbox で測ると偽陽性が出る。高さも同じで、**bbox の丈 4.120 は
+        /// ピボットからの高さではない**(部材は z 1.399..5.519 = 軒先より下に破風が垂れる)。</para>
+        ///
+        /// <para><paramref name="omit"/> = 庇を回さない辺(格子の綴り "u0","u1","v0","v1" を
+        /// 並べた物。指図 `munes[].hisashiOmit` をそのまま。⛔ 人が辺を数えない)。
+        /// 焼いてあるもの: 6x6 / 18x6 / 10x6(e2744・四方庇)、22x5 ov1(e2744)、14x5 ov1(e2410)。</para>
+        /// 生成: blender --background --python Tools/Blender/build_matsudaira_dewa_roofs.py -- --hirairi --render
+        /// (単発は build_goten_roof.py -- hirairi &lt;桁行間&gt; &lt;梁間間&gt; &lt;軒桁m&gt; [--omit v1] [--render])</summary>
+        public static string RoofHirairi(int wKen, int dKen, float eaveAboveFloor, string[] omit = null)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            string s = RoofDir + "Goten_Roof_Hirairi_" + wKen + "x" + dKen + "ken";
+            string q = "";
+            foreach (var side in new[] { "u0", "u1", "v0", "v1" })
+                if (omit != null && System.Array.IndexOf(omit, side) >= 0) q += side;
+            if (q.Length > 0) s += "_o" + q;
+            // ⚠ mm は **四捨五入**(floor は浮動小数で 1mm 落ちる)。Python 側と同じ綴りにすること
+            long mm = (long)System.Math.Floor((double)eaveAboveFloor * 1000.0 + 0.5);
+            return s + "_e" + mm.ToString(inv) + ".fbx";
+        }
+
+        /// <summary>**渡廊下の差し掛けの下屋(両流れ)**。主屋の軒下から葺き下ろす下屋で、
+        /// 独立した大棟を持つ <see cref="RoofKirizuma"/> とは別物(松江松平 2026-09-17 ユーザー裁定A)。
+        /// 幅 1間・勾配 `const.sashikakeKobai`(4寸)・軒の出 `const.nokiE`(0.90)。
+        ///
+        /// <para>⭐⭐ **z=0 は「頭」**(= 葺き下ろしの線 = 廊下の芯の屋根面の頂)。⛔ 床でも軒先でもない。
+        /// 頭の高さは廊下ごとの従属値 = **その端の当たり − `roka.clear`** なので、棟梁が
+        /// その値を Y に入れて据える(⛔ 部材は高さを持てない)。大棟の冠瓦はそこから 0.13 上へ出る。</para>
+        ///
+        /// <para>⚠ 両端は主屋の面へ **0.10 差し込んで**焼いてある ⇒ **bbox の桁行は呼び寸 + 0.20**
+        /// (更に大棟の駒が両端で 0.07 ずつ出るので実測は +0.34)。⛔ bbox から桁行を読まない。
+        /// 焼いてあるもの: **2 / 4 / 6間**(指図 `links` の渡廊下6本を覆う)。
+        /// ⛔ 口(御錠口・御膳所口)には架けない。</para>
+        /// 生成: blender --background --python Tools/Blender/build_matsudaira_dewa_roofs.py -- --geya --render
+        /// (単発は build_goten_roof.py -- geya &lt;桁行間&gt; [--width &lt;間&gt;] [--kobai 0.4] [--render])</summary>
+        public static string RoofRokaGeya(float nKen)
+        {
+            return RoofDir + "Goten_Roof_RokaGeya_" + KenTag(nKen) + "ken.fbx";
         }
 
         /// <summary>登廊(階段廊下)の屋根。切妻を斜長ぶん通し、幅は石段の平場ぶん取ったもの。

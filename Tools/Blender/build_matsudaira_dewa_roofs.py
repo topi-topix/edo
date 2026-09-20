@@ -2,6 +2,8 @@
 """**松江松平出羽守上屋敷の、隣の棟と接する棟の屋根** — 接する辺の軒を落として焼く。
 
     blender --background --python Tools/Blender/build_matsudaira_dewa_roofs.py -- [--render] [--only <名>]
+    blender --background --python Tools/Blender/build_matsudaira_dewa_roofs.py -- --hirairi [--render] [--only <棟名>]
+    blender --background --python Tools/Blender/build_matsudaira_dewa_roofs.py -- --geya [--render]
 
 ⭐⭐ **なぜ要るか(2026-09-09 普請検査の差し戻し1)。**
   表向の四棟(表役所・黒書院・大広間・玄関)は**棟の外形が隣どうし接している**
@@ -184,8 +186,114 @@ def shots_pair(pair, tag):
     return out
 
 
+
+# ---------------------------------------------------------------------------
+# 奥向の棟4棟+厩の**平入り+庇**と、渡廊下の**差し掛けの下屋** — 指図から数を取る
+# ---------------------------------------------------------------------------
+# ⛔ **棟も廊下も人が数えて書かない**(規則4)— 集合の定義だけを持つ:
+#     平入り+庇 = `munes[]` のうち **`roof`(帯割り)を持たない**棟(= `ROOF_NAGAYA_GATA_MUNES`)
+#     下屋      = `links[]` のうち **kind が「渡廊下」**のもの(⛔ 御錠口・御膳所口は口で
+#                 下屋を架けない ⇒ 2026-09-18 普請奉行の決定3)
+#   軒桁は zone が「厩」なら `const.umayaEave`、ほかは `const.nagayaGataEave`(C# と同じ規則)。
+# ⚠ **指図の軒桁は地盤基準**(`const._nagayaGataEave`)。部材のピボットは**床**なので、
+#   焼くときに `const.gotenFloor` を引く。⇒ 据えるのは **棟の床**の高さ。
+
+
+def load_doc():
+    with open(SASHIZU, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def plan_hirairi(doc):
+    """[(名前, 桁行間, 梁間間, 軒桁(床上), 庇を断つ辺)] を指図から組む。"""
+    c = doc["const"]
+    ken, floor = c["ken"], c["gotenFloor"]
+    jobs = []
+    for m in doc["munes"]:
+        if m.get("roof"):
+            continue                      # 帯割りの棟(御殿)はこちらではない
+        w = int(round(abs(m["u1"] - m["u0"])))
+        d = int(round(abs(m["v1"] - m["v0"])))
+        eav = (c["umayaEave"] if m.get("zone") == "厩" else c["nagayaGataEave"]) - floor
+        jobs.append((m["name"], w, d, eav, list(m.get("hisashiOmit") or [])))
+    return jobs
+
+
+def plan_geya(doc):
+    """[(名前, 桁行間, 幅間)] を指図から組む。⛔ 口(御錠口・御膳所口)は含めない。"""
+    jobs = []
+    for l in doc.get("links", []):
+        if l.get("kind") != "渡廊下":
+            continue
+        du = abs(l["u1"] - l["u0"])
+        dv = abs(l["v1"] - l["v0"])
+        jobs.append((l["name"], max(du, dv), min(du, dv)))
+    return jobs
+
+
+def main_hirairi(argv):
+    doc = load_doc()
+    c = doc["const"]
+    ken = c["ken"]
+    r = c["nagayaGataRoof"]
+    rdir = SHOT if "--render" in argv else None
+    only = argv[argv.index("--only") + 1] if "--only" in argv else None
+    jobs = plan_hirairi(doc)
+    print("[dewa-hirairi] 平入り+庇の棟 %d(指図から)" % len(jobs))
+    for nm, w, d, eav, omit in jobs:
+        if only and nm != only:
+            continue
+        name = GR.hirairi_name(w, d, eav, omit)
+        V.reset()
+        o = GR.make_hirairi(w * ken, d * ken, eav, omit=omit, name=name,
+                            hon=r["honKobai"], his=c["hisashiKobai"],
+                            noki=c["nokiE"], hken=int(r["hisashiKen"]), ken=ken)
+        mn, mx = GR.report(o, name)
+        hu = 2 - len([q for q in omit if q in ("u0", "u1")])      # 庇の立つ u 側の数
+        print("[dewa-hirairi] %-14s %-38s 身舎 %dx%d間 / 軒桁 床上 %.3f / 大棟 %.3f / z %.3f..%.3f"
+              % (nm, name, w - hu * int(r["hisashiKen"]), int(r["moyaKen"]), eav,
+                 eav + r["moyaKen"] / 2.0 * ken * r["honKobai"], mn.z, mx.z))
+        if rdir:
+            for f in GR.render_hirairi(o, rdir, name, eave=eav):
+                print("RENDER %s" % f)
+        V.export_fbx(o, os.path.join(GR.OUT, name + ".fbx"))
+    print("[dewa-hirairi] → %s" % GR.OUT)
+
+
+def main_geya(argv):
+    doc = load_doc()
+    c = doc["const"]
+    ken = c["ken"]
+    kobai = c[doc["roka"]["kobaiFrom"]]
+    rdir = SHOT if "--render" in argv else None
+    jobs = plan_geya(doc)
+    seen = {}
+    print("[dewa-geya] 下屋を架ける渡廊下 %d 本(指図から・⛔ 口は含めない)" % len(jobs))
+    for nm, lk, wk in jobs:
+        print("[dewa-geya]   %-28s 桁行 %g間 × 幅 %g間" % (nm, lk, wk))
+        seen.setdefault((lk, wk), []).append(nm)
+    for (lk, wk), users in sorted(seen.items()):
+        name = "Goten_Roof_RokaGeya_%sken" % GR.KenTag(lk)
+        if abs(wk - 1.0) > 1e-6:
+            name += "_w%s" % GR.KenTag(wk)
+        V.reset()
+        o = GR.make_rokageya(lk * ken, wk * ken, name=name, kobai=kobai, noki=c["nokiE"])
+        mn, mx = GR.report(o, name)
+        print("[dewa-geya] %-30s 勾配 %.2f / 軒の出 %.2f / z %.3f..%.3f / 使う廊下 %s"
+              % (name, kobai, c["nokiE"], mn.z, mx.z, ", ".join(users)))
+        if rdir:
+            for f in GR.render_hirairi(o, rdir, name, eave=1.0):
+                print("RENDER %s" % f)
+        V.export_fbx(o, os.path.join(GR.OUT, name + ".fbx"))
+    print("[dewa-geya] → %s" % GR.OUT)
+
+
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    if "--hirairi" in argv:
+        return main_hirairi(argv)
+    if "--geya" in argv:
+        return main_geya(argv)
     only = None
     if "--only" in argv:
         only = argv[argv.index("--only") + 1]

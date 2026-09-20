@@ -1337,6 +1337,427 @@ def build_kirizuma_set():
         V.export_fbx(o, os.path.join(OUT, name + ".fbx"))
 
 
+# ---------------------------------------------------------------------------
+# 平入り + 庇(make_hirairi)と 渡廊下の差し掛けの下屋(make_rokageya)
+# ---------------------------------------------------------------------------
+# 【なぜ要るか】松江松平邸の**奥向の棟4棟と厩**(御湯殿・長局北・奥台所・長局南・厩)は
+#   梁間の外形が帯割り(4/5 の和)で作れないので `make_banded` が使えず、入母屋の定尺を
+#   当てると屋根の型そのものが指図と違う物になる(2026-09-18 ユーザー裁定A ／
+#   2026-09-19 裁定2=A・3=A ⇒ `const.nagayaGataRoof`)。
+#   ⇒ **身舎(梁間 `moyaKen`)に平入りの切妻を架け、その外を一間の庇が回る**型を起こす。
+#   渡廊下はユーザー裁定A(2026-09-17)で**独立の大棟を持たない差し掛けの下屋(両流れ)**に
+#   改まったので、`make_kirizuma`(独立の切妻・勾配 5.5寸・軒 0.60)では当たらない。
+#
+# 【勾配】この二つの型は **瓦モジュールの素の勾配 RATIO(5.5寸)を使わない** —
+#   本屋根 6寸 / 庇 4寸5分 / 下屋 4寸(指図の `const`)。⇒ `_tile_field_k` が
+#   **瓦の形を変えずに面ごと傾ける**(⛔ z を縮めて勾配を作らない。README の注も参照)。
+#
+# 【軸の鎖 — ここを取り違えると三方庇が鏡像で焼ける】
+#   書き出し: **Unity X = −(Blender X) / Unity Y = Blender Z / Unity Z = −(Blender Y)**
+#   据え付け(`EdoMatsudairaDewaBuilder.YawAlongU`): **Unity 局所 +X = 格子 +u /
+#   局所 +Z = 格子 −v**。
+#   ⇒ **格子 +u = Blender −X / 格子 +v = Blender +Y**。
+#   ⇒ 辺の対応は  u0 = Blender **+X 端** / u1 = **−X 端** / v0 = **−Y 端** / v1 = **+Y 端**。
+#   ⛔ 左右対称な棟では絶対に気づけないので、非対称(`hisashiOmit` のある棟)を焼いたら
+#     `_verify_hirairi` が**辺ごとの軒先の高さ**で検算する(bbox では見抜けない —
+#     庇を断った辺は本屋根の軒が 0.9 出るので**外形は対称のまま**)。
+
+HIRA_OVER = 0.35        # 庇の瓦場を身舎の屋根の下へ差し込む量[m](光の筋を消す重ね代)
+HIRA_MIZU = 0.18        # 雨押え(水切り)板の見付[m]
+HIRA_SODE = 0.20        # 袖瓦の持ち上げ[m](瓦の実体は名目平面より上にある)
+
+
+def KenTag(n):
+    """間数の綴り。整数は `3`、端数は `1.5`(C# の `EdoAssets.Goten.KenTag` と同じ)"""
+    return ("%g" % n) if abs(n - int(n)) > 1e-6 else "%d" % int(n)
+
+
+def hirairi_name(wk, dk, eave, omit=()):
+    """平入り+庇の部材名。⚠ **mm は `round`**(`floor` は浮動小数で 1mm 落ちる)。
+    `_o<辺>` は庇を断った辺(格子の綴り・並びは u0,u1,v0,v1)、`_e<mm>` は**床上の**身舎の軒桁。"""
+    s = "Goten_Roof_Hirairi_%sx%sken" % (KenTag(wk), KenTag(dk))
+    q = [k for k in ("u0", "u1", "v0", "v1") if k in set(omit or ())]
+    if q:
+        s += "_o" + "".join(q)
+    return s + "_e%d" % int(round(eave * 1000.0))
+
+
+def _tile_field_k(convex_polys, eave_origin, yaw_deg, z_eave, name, kobai):
+    """`_tile_field_fast` の **勾配可変**版。⭕ **瓦の形は一切変えず、葺く面ごと傾ける。**
+
+    ⛔ **z を縮めて勾配を作らない** — 4寸勾配なら桟瓦の起伏が 27% 潰れて、
+      実ジオメトリの瓦を使う意味が無くなる(「自作の瓦はダサい」で却下された道へ戻る)。
+    ⭕ 瓦モジュール `roof 2x2` は**それ自体が 5.5寸勾配の一枚の面**なので、
+      軒先の線(ローカル Y 軸)まわりに Δθ = atan(kobai) − atan(RATIO) だけ回し、
+      葺きの進み `(STEP_RUN, 0, STEP_RISE)` も同じだけ回して送れば、
+      **瓦の形も重なりも保ったまま**別勾配の面になる(実物で瓦を寝かせるのと同じ)。
+    ⚠ 送りは**面に沿った長さが不変**なので、平面上の進みは `step.x = 送り×cosθ` に縮む。
+      格子の枚数はそちらで数えること(`STEP_RUN` で数えると足りない)。
+    ⚠ ⭕ 位置は **`+=`** で置く(⛔ `=` で上書きしない)— 格子の原点は (i0, j0) の駒に
+      あるので、代入すると格子が i0·送り だけずれて**ポリゴンを覆い損ねる**ことがある。"""
+    if abs(kobai - RATIO) < 1e-9:
+        return _tile_field_fast(convex_polys, eave_origin, yaw_deg, z_eave, name)
+    dth = math.atan(kobai) - math.atan(RATIO)
+    R = mathutils.Matrix.Rotation(-dth, 4, 'Y')          # +X が上る向きへ回す
+    step = R @ Vector((STEP_RUN, 0.0, STEP_RISE))
+    pr = step.x                                          # 1段送りの**平面上の**進み
+    c, s = math.cos(math.radians(-yaw_deg)), math.sin(math.radians(-yaw_deg))
+    us, vs = [], []
+    for poly in convex_polys:
+        for q in poly:
+            dx, dy = q[0] - eave_origin[0], q[1] - eave_origin[1]
+            us.append(dx * c - dy * s)
+            vs.append(dx * s + dy * c)
+    i0 = int(math.floor(min(us) / pr)) - 1
+    i1 = int(math.ceil(max(us) / pr)) + 1
+    j0 = int(math.floor(min(vs) / MOD_LEN)) - 1
+    j1 = int(math.ceil(max(vs) / MOD_LEN)) + 1
+
+    unit = V.join(V.place(MOD, 0, 0, 0, scale=1.0), name + "_unit")
+    base = unit.matrix_world.copy()
+    base.translation = Vector((0.0, 0.0, 0.0))
+    objs = []
+    for i in range(i0, i1 + 1):
+        for j in range(j0, j1 + 1):
+            o = unit.copy()                    # メッシュデータは共有(join で実体化される)
+            bpy.context.scene.collection.objects.link(o)
+            t = step * float(i) + Vector((0.0, j * MOD_LEN, 0.0))
+            o.matrix_world = mathutils.Matrix.Translation(t) @ R @ base
+            objs.append(o)
+    bpy.data.objects.remove(unit, do_unlink=True)
+    field = V.join(objs, name + "_field")
+    V.rotate_z([field], yaw_deg)
+    field.location = field.location + Vector((eave_origin[0], eave_origin[1], z_eave))
+    V.sel([field])
+    bpy.ops.object.transform_apply(location=True)
+
+    out = []
+    for n, poly in enumerate(convex_polys):
+        V.sel([field])
+        bpy.ops.object.duplicate()
+        dup = bpy.context.view_layer.objects.active
+        dup.name = "%s_%d" % (name, n)
+        clip_convex(dup, poly)
+        if len(dup.data.polygons) == 0:
+            bpy.data.objects.remove(dup, do_unlink=True)
+        else:
+            out.append(dup)
+    bpy.data.objects.remove(field, do_unlink=True)
+    return V.join(out, name) if out else None
+
+
+def _rake_boards(x, inward, y_end, z_end, apex_y, apex_z, name, p, bw=0.34, bt=0.10):
+    """妻の**片側だけ**の破風板(化粧板 + 眉)。返り値 = [(obj, uv)]。
+
+    ⭐ `gable()` は y0/y1 の**両側**に板を出すが、庇を断った辺では
+      その側だけ軒が 0.9 出て**鼻先が下がる**ので左右で長さも下端も違う。
+      ⇒ 反対側を y_end の鏡像に置いて呼び、**手前の一組だけ残して捨てる**。
+      ⛔ 片側だけ短い板で済ませない(瓦場の小口が 0.9m 剥き出しになる)。"""
+    g = gable(x, inward, y_end, 2.0 * apex_y - y_end, z_end, apex_y, apex_z,
+              name, p, thick=0.12, bw=bw, bt=bt, drop=0.55, lattice=False, gegyo=False)
+    keep = g[1:3]                              # [妻壁, 破風a, 眉a, 破風b, 眉b]
+    for o, _ in [g[0]] + list(g[3:]):
+        if o:
+            bpy.data.objects.remove(o, do_unlink=True)
+    return keep
+
+
+def _hirairi_sides(W, D, omit, hken, ken=KEN):
+    """庇の張り出し[m]を **Blender の四辺** (minx, maxx, miny, maxy) で返す。
+    ⭐ 対応は  minx = 格子 u1 / maxx = u0 / miny = v0 / maxy = v1(軸の鎖は章頭の註)。"""
+    o = set(omit or ())
+    h = hken * ken
+    return (0.0 if "u1" in o else h, 0.0 if "u0" in o else h,
+            0.0 if "v0" in o else h, 0.0 if "v1" in o else h)
+
+
+def make_hirairi(W, D, eave, omit=(), name="Goten_Roof_Hirairi",
+                 hon=0.60, his=0.45, noki=0.90, hken=1, ken=KEN, oni_on=True):
+    """**平入り + 庇**(`const.nagayaGataRoof`)。返り値 = 1メッシュ。
+
+    W = 桁行の外形[m](大棟が走る側)/ D = 梁間の外形[m] / eave = **身舎の軒桁**の高さ
+    (ピボットの面=床から)/ omit = 庇を回さない辺の集合(格子の綴り "u0","u1","v0","v1")。
+
+    ⭐⭐ **ピボットの z=0 は「床」**(`make_banded` と同じ・⛔ `make_irimoya` の軒先ではない)。
+      平面のピボットは**足形(庇を含む外形)の中心**。⇒ 棟梁は `new Vector3(cx, floor, cz)`。
+    ⭐ 高さはすべてこの z=0 から:  身舎の軒桁 = eave /
+      大棟(瓦の頂)= eave + 身舎の梁間/2 × hon / 庇の軒桁 = eave − hken×ken×his /
+      庇の軒先の下端 = eave − (hken×ken + noki)×his /
+      庇を断った辺の軒先の下端 = eave − noki×hon。
+    ⛔ **bbox の丈をピボットからの高さとして使わない**(大棟の座と瓦の起伏が上へ出る)。"""
+    hxm, hxp, hym, hyp = _hirairi_sides(W, D, omit, hken, ken)
+    mx0, mx1 = hxm, W - hxp                     # 身舎の壁の通り
+    my0, my1 = hym, D - hyp
+    if mx1 - mx0 < ken or my1 - my0 < ken:
+        raise SystemExit("⛔ 身舎が残らない: %gx%g ken の外形に庇 %g" % (W / ken, D / ken, hken))
+    ridge_y = (my0 + my1) / 2.0
+    z_ridge = eave + (my1 - my0) / 2.0 * hon
+    # 庇の無い辺だけ本屋根が軒を出す(ある辺は庇が覆うので身舎の壁で終わる)
+    exm = noki if hxm == 0 else 0.0
+    exp = noki if hxp == 0 else 0.0
+    eym = noki if hym == 0 else 0.0
+    eyp = noki if hyp == 0 else 0.0
+    rx0, rx1 = mx0 - exm, mx1 + exp
+    ry0, ry1 = my0 - eym, my1 + eyp
+    z_ry0, z_ry1 = eave - eym * hon, eave - eyp * hon
+
+    p = palette()
+    pieces = []
+
+    # --- 身舎の本屋根(平入りの切妻。両流れ)--------------------------------
+    pieces.append(_tile_field_k([[(rx0, ry0), (rx1, ry0), (rx1, ridge_y), (rx0, ridge_y)]],
+                                (rx0, ry0), 90, z_ry0, name + "_S", hon))
+    pieces.append(_tile_field_k([[(rx1, ry1), (rx0, ry1), (rx0, ridge_y), (rx1, ridge_y)]],
+                                (rx0, ry1), 270, z_ry1, name + "_N", hon))
+    # 大棟 — 庇のある辺は妻壁の面まで、庇を断った辺(ケラバ)は軒先まで通す
+    gx0 = mx0 - 0.02 if hxm > 0 else rx0
+    gx1 = mx1 + 0.02 if hxp > 0 else rx1
+    pieces += ridge((gx0, ridge_y, z_ridge - 0.13), (gx1, ridge_y, z_ridge - 0.13),
+                    name + "_omune", w=0.44, h=0.36)
+    if oni_on:
+        pieces += oni((gx0, ridge_y, z_ridge), (-1, 0), name + "_oni0", scale=1.0)
+        pieces += oni((gx1, ridge_y, z_ridge), (1, 0), name + "_oni1", scale=1.0)
+
+    new_geo = []
+    # --- 妻(身舎の両端)— 妻壁は身舎の柱通りの間だけ・破風は軒先まで -------
+    for gx, inward in ((mx0, +1), (mx1, -1)):
+        g = gable(gx, inward, my0, my1, eave, ridge_y, z_ridge, name + "_g%d" % (gx > mx0),
+                  p, thick=0.14, bw=0.34, bt=0.10, drop=0.55, lattice=False, gegyo=False)
+        new_geo.append(g[0])                       # 妻壁(漆喰)だけ残す
+        for o, _ in g[1:]:
+            if o:
+                bpy.data.objects.remove(o, do_unlink=True)
+        new_geo += _rake_boards(gx, inward, ry0, z_ry0, ridge_y, z_ridge,
+                                name + "_bS%d" % (gx > mx0), p)
+        new_geo += _rake_boards(gx, inward, ry1, z_ry1, ridge_y, z_ridge,
+                                name + "_bN%d" % (gx > mx0), p)
+        # 袖瓦 — 破風の天端に被せる。入れないと瓦場の切り口と板の天端が白い筋になる
+        sx = gx - inward * 0.06
+        for (ye, ze) in ((ry0, z_ry0), (ry1, z_ry1)):
+            pieces += ridge((sx, ye, ze + HIRA_SODE), (sx, ridge_y, z_ridge + HIRA_SODE),
+                            name + "_sode", w=0.34, h=0.26)
+
+    # --- 庇(四辺 − 断った辺)。隅は 45°の隅棟でつなぐ -----------------------
+    run = hken * ken + noki                     # 身舎の壁 → 庇の軒先(平面上)
+    z_tip = eave - run * his
+    # (辺, 内側の線, 外側の線, yaw, 直交方向の両端)
+    if hym > 0:
+        a0 = (mx0 + HIRA_OVER) if hxm > 0 else mx0
+        a1 = (mx1 - HIRA_OVER) if hxp > 0 else mx1
+        b0 = (mx0 - run) if hxm > 0 else mx0
+        b1 = (mx1 + run) if hxp > 0 else mx1
+        pieces.append(_tile_field_k([[(a0, my0 + HIRA_OVER), (a1, my0 + HIRA_OVER),
+                                      (b1, my0 - run), (b0, my0 - run)]],
+                                    (b0, my0 - run), 90, z_tip, name + "_hS", his))
+    if hyp > 0:
+        a0 = (mx0 + HIRA_OVER) if hxm > 0 else mx0
+        a1 = (mx1 - HIRA_OVER) if hxp > 0 else mx1
+        b0 = (mx0 - run) if hxm > 0 else mx0
+        b1 = (mx1 + run) if hxp > 0 else mx1
+        pieces.append(_tile_field_k([[(a1, my1 - HIRA_OVER), (a0, my1 - HIRA_OVER),
+                                      (b0, my1 + run), (b1, my1 + run)]],
+                                    (b0, my1 + run), 270, z_tip, name + "_hN", his))
+    if hxm > 0:
+        c0 = (my0 + HIRA_OVER) if hym > 0 else my0
+        c1 = (my1 - HIRA_OVER) if hyp > 0 else my1
+        d0 = (my0 - run) if hym > 0 else my0
+        d1 = (my1 + run) if hyp > 0 else my1
+        pieces.append(_tile_field_k([[(mx0 + HIRA_OVER, c0), (mx0 + HIRA_OVER, c1),
+                                      (mx0 - run, d1), (mx0 - run, d0)]],
+                                    (mx0 - run, d0), 0, z_tip, name + "_hW", his))
+    if hxp > 0:
+        c0 = (my0 + HIRA_OVER) if hym > 0 else my0
+        c1 = (my1 - HIRA_OVER) if hyp > 0 else my1
+        d0 = (my0 - run) if hym > 0 else my0
+        d1 = (my1 + run) if hyp > 0 else my1
+        pieces.append(_tile_field_k([[(mx1 - HIRA_OVER, c1), (mx1 - HIRA_OVER, c0),
+                                      (mx1 + run, d0), (mx1 + run, d1)]],
+                                    (mx1 + run, d0), 180, z_tip, name + "_hE", his))
+    # 隅棟(庇どうしが出会う隅だけ)
+    for (hx, hy, cx_, cy_, ox, oy) in ((hxm, hym, mx0, my0, mx0 - run, my0 - run),
+                                       (hxp, hym, mx1, my0, mx1 + run, my0 - run),
+                                       (hxm, hyp, mx0, my1, mx0 - run, my1 + run),
+                                       (hxp, hyp, mx1, my1, mx1 + run, my1 + run)):
+        if hx > 0 and hy > 0:
+            pieces += ridge((ox, oy, z_tip + 0.02), (cx_, cy_, eave),
+                            name + "_sumi", w=0.34, h=0.28)
+    # 庇を断った辺で切れる庇の小口 — 袖瓦で塞ぐ(切りっぱなしだと瓦の断面が見える)
+    for (hx, sx_in, sx_out) in ((hxm, mx0, mx0 - run), (hxp, mx1, mx1 + run)):
+        if hx <= 0:
+            continue
+        for (hy, ycut) in ((hym, my0), (hyp, my1)):
+            if hy > 0:
+                continue
+            pieces += ridge((sx_in, ycut, eave + HIRA_SODE * 0.8),
+                            (sx_out, ycut, z_tip + HIRA_SODE * 0.8),
+                            name + "_hsode", w=0.30, h=0.24)
+    for (hy, sy_in, sy_out) in ((hym, my0, my0 - run), (hyp, my1, my1 + run)):
+        if hy <= 0:
+            continue
+        for (hx, xcut) in ((hxm, mx0), (hxp, mx1)):
+            if hx > 0:
+                continue
+            pieces += ridge((xcut, sy_in, eave + HIRA_SODE * 0.8),
+                            (xcut, sy_out, z_tip + HIRA_SODE * 0.8),
+                            name + "_hsode", w=0.30, h=0.24)
+
+    # --- 雨押え(水切り)— 本屋根の軒先の小口と庇の頭の継ぎ目を隠す横一文字の板 ---
+    #   ⛔ 入れないと、本屋根を切った断面が庇の瓦の上に剥き出しで載る(白い筋になる)。
+    #   ⚠ 隅で天端が同一平面で重なると z-fighting するので、x の板は y の板のぶん詰める。
+    for (h_, yb, sgn) in ((hym, my0, -1.0), (hyp, my1, +1.0)):
+        if h_ <= 0:
+            continue
+        o_ = V.box(name + "_mizuY", (mx1 - mx0, HIRA_MIZU, 0.25),
+                   ((mx0 + mx1) / 2.0, yb + sgn * HIRA_MIZU / 2.0, eave + 0.005), p['wood'])
+        V.set_uv_rect(o_, WOOD_UV, axes=('z', 'x'))
+        new_geo.append((o_, None))
+    for (h_, xb, sgn) in ((hxm, mx0, -1.0), (hxp, mx1, +1.0)):
+        if h_ <= 0:
+            continue
+        ya = my0 + (HIRA_MIZU if hym > 0 else 0.0)
+        yb2 = my1 - (HIRA_MIZU if hyp > 0 else 0.0)
+        o_ = V.box(name + "_mizuX", (HIRA_MIZU, yb2 - ya, 0.25),
+                   (xb + sgn * HIRA_MIZU / 2.0, (ya + yb2) / 2.0, eave + 0.005), p['wood'])
+        V.set_uv_rect(o_, WOOD_UV, axes=('z', 'y'))
+        new_geo.append((o_, None))
+
+    for o, uv in new_geo:
+        if o:
+            if uv:
+                V.set_uv(o, uv)
+            pieces.append(o)
+    pieces = [q for q in pieces if q]
+    V.dedup_materials()
+    o = V.join(pieces, name)
+    V.set_origin(o, (W / 2.0, D / 2.0, 0.0))
+    _verify_hirairi(o, W, D, eave, omit, hon, his, noki, hken, ken, name)
+    return o
+
+
+def _verify_hirairi(o, W, D, eave, omit, hon, his, noki, hken, ken, name):
+    """⛔⛔ **非対称(`hisashiOmit` のある)棟を焼いたら必ず回す検算。**
+
+    ⚠ **外形(bbox)では見抜けない** — 庇を断った辺は本屋根の軒が 0.9 出るので、
+      庇のある辺(庇一間 + 軒 0.9)と**外形が対称のまま**になる。
+      ⇒ 辺ごとに**軒先の手前 0.30m の屋根面の高さ**を測る(庇なら深く下がり、
+        本屋根の軒なら浅い)。ピボット基準(z=0 が床)。"""
+    hxm, hxp, hym, hyp = _hirairi_sides(W, D, omit, hken, ken)
+    px, py = W / 2.0, D / 2.0            # ピボット(足形の中心)
+    vs = [(v.co.x + px, v.co.y + py, v.co.z) for v in o.data.vertices]
+    run = hken * ken + noki
+    probe = 0.30
+    rows, bad = [], 0
+    for tag, h_, axis, sgn, inner, outer in (
+            ("v0(-Y)", hym, 1, -1.0, hym, hym - run),
+            ("v1(+Y)", hyp, 1, +1.0, D - hyp, D - hyp + run),
+            ("u1(-X)", hxm, 0, -1.0, hxm, hxm - run),
+            ("u0(+X)", hxp, 0, +1.0, W - hxp, W - hxp + run)):
+        if h_ > 0:
+            line = outer + (probe if sgn < 0 else -probe)
+            want = eave - (run - probe) * his
+        else:
+            line = inner + sgn * (noki - probe)
+            want = eave - (noki - probe) * hon
+        cut = [v for v in vs if abs(v[axis] - line) < 0.06
+               and abs(v[1 - axis] - (py if axis == 0 else px)) < min(W, D) * 0.25]
+        got = max((v[2] for v in cut), default=float('nan'))
+        # ⚠ 瓦の実体は名目平面に対し −0.15〜+0.15 でうねる(位相しだい)。⇒ 下は緩く上は締める。
+        ng = not (want - 0.16 <= got <= want + 0.30)
+        bad += 1 if ng else 0
+        rows.append("    %-8s 庇%s  軒先手前0.3m の天端 %.3f(従属値 %.3f)%s"
+                    % (tag, "有" if h_ > 0 else "無", got, want, "  <<" if ng else ""))
+    print("VERIFY %s  ピボット=足形の中心/床" % name)
+    for r in rows:
+        print(r)
+    if bad:
+        raise SystemExit("⛔ %s: 辺ごとの軒先の高さが従属値と合わない(%d 辺)— 軸の鎖を疑え" % (name, bad))
+
+
+def make_rokageya(L, width=KEN, name="Goten_Roof_RokaGeya",
+                  kobai=0.40, noki=0.90, end=0.10):
+    """**渡廊下の差し掛けの下屋(両流れ)**。返り値 = 1メッシュ。
+
+    L = 桁行[m](`links` の矩形の長辺)/ width = 幅[m](短辺)/ kobai = `const.sashikakeKobai`。
+
+    ⭐⭐ **ピボットの z=0 は「頭」**(= 葺き下ろしの線 = 廊下の芯の屋根面の頂)。
+      ⛔ 床でも軒先でもない — 頭の高さは**相手の棟ごとに違う従属値**(その端の当たり −
+      `roka.clear`)で、部材の中には持てない。⇒ 棟梁は **y = その値**にそのまま置く。
+      大棟(冠瓦)はその上へ 0.13 出る(当たりまでの `clear` 0.1 に収まらない分は、
+      指図④の「庇の軒先を取り付く幅だけ切り詰める」notch の中へ入る)。
+    ⭕ 頭は**廊下の芯**に通し、幅の両側へ下る(2026-09-18 普請奉行の決定5)。
+      ⛔ 片流れにしない — 柱筋の頭上の有効高が下限を大きく割る。
+    ⚠ 両端は主屋の面へ **0.10 差し込む**(`end`)。ピボットは呼び寸 L の中心で、
+      bbox は L + 0.20 になる。⛔ bbox から桁行を読まない。"""
+    x0, x1 = -end, L + end
+    y0, y1 = -noki, width + noki
+    ym = width / 2.0
+    zl = -(ym + noki) * kobai                  # 軒先(頭から下がる量)
+    pieces = []
+    pieces.append(_tile_field_k([[(x0, y0), (x1, y0), (x1, ym), (x0, ym)]],
+                                (x0, y0), 90, zl, name + "_S", kobai))
+    pieces.append(_tile_field_k([[(x1, y1), (x0, y1), (x0, ym), (x1, ym)]],
+                                (x0, y1), 270, zl, name + "_N", kobai))
+    p = palette()
+    # 大棟 — 座を 0.13 下げて瓦へ食い込ませる(浮かせると棟の脇に隙が抜ける)
+    pieces += ridge((x0, ym, -0.13), (x1, ym, -0.13), name + "_omune", w=0.34, h=0.26)
+    new_geo = []
+    for gx, inward in ((x0, +1), (x1, -1)):
+        g = gable(gx, inward, y0, y1, zl, ym, 0.0, name + "_g", p,
+                  thick=0.10, bw=0.22, bt=0.06, drop=0.72, lattice=False, gegyo=False)
+        bpy.data.objects.remove(g[0][0], do_unlink=True)   # 妻壁は捨てる(両端とも主屋へ突き付く)
+        new_geo += g[1:]
+    for o, uv in new_geo:
+        if o:
+            if uv:
+                V.set_uv(o, uv)
+            pieces.append(o)
+    pieces = [q for q in pieces if q]
+    V.dedup_materials()
+    o = V.join(pieces, name)
+    V.set_origin(o, (L / 2.0, ym, 0.0))
+    return o
+
+
+def render_hirairi(o, path_dir, tag, eave=2.744):
+    """平入り+庇の検証レンダ。⭕ **見るのは5点** — 庇が身舎を回っているか /
+    庇と本屋根の継ぎ目(雨押え)が通っているか / 妻が破綻していないか /
+    軒先が一直線か / **どの辺の庇を断ったか(真上)**。
+    ⚠ `export_fbx` を通すと bbox が 0 に潰れるので、**書き出しの前に**呼ぶこと。"""
+    V.hook_textures()
+    mn, mx = V.bbox([o])
+    cx, cy = (mn.x + mx.x) / 2.0, (mn.y + mx.y) / 2.0
+    W, D = mx.x - mn.x, mx.y - mn.y
+    r = max(W, D)
+    os.makedirs(path_dir, exist_ok=True)
+    out = []
+
+    def shot(sub, cam, look, ortho=None, res=(1600, 1000)):
+        for c in [c for c in bpy.data.objects if c.type in ('CAMERA', 'LIGHT')]:
+            bpy.data.objects.remove(c, do_unlink=True)
+        for pl in [c for c in bpy.data.objects if c.name.startswith("Plane")]:
+            bpy.data.objects.remove(pl, do_unlink=True)
+        # ⚠ 地面は **部材の最下端の下**へ置く(⛔ z=0 に置かない)— 下屋はピボットが
+        #   「頭」で本体が z<0 に在るので、z=0 の板が屋根を切って**大棟しか写らない**
+        #   (2026-09-20 に踏んだ。「瓦場が焼けていない」と誤診しかけた)
+        bpy.ops.mesh.primitive_plane_add(size=r * 6, location=(cx, cy, mn.z - 0.05))
+        V.studio(cam, look, ortho_scale=ortho, res=res)
+        f = os.path.join(path_dir, "%s_%s.png" % (tag, sub))
+        V.render(f)
+        out.append(f)
+
+    # ⚠ 画角は**部材の実測から**取る(⛔ 軒高の引数で組まない)— ピボットが「頭」の
+    #   下屋は本体が z<0 に在るので、軒高で組むと被写体が画面の外へ落ちる
+    zc, zh = (mn.z + mx.z) / 2.0, max(0.6, mx.z - mn.z)
+    shot("01_fukan", (cx - r * 0.72, cy - r * 0.95, mx.z + r * 0.85), (cx, cy, zc))
+    shot("02_tsuma", (cx - r * 3.0, cy, zc), (cx, cy, zc), ortho=max(D, zh) * 1.3)
+    shot("03_hira", (cx, cy - r * 3.0, zc), (cx, cy, zc), ortho=max(W, zh) * 1.15)
+    shot("04_yori", (cx - W * 0.22, cy - D * 0.85, mx.z + zh * 0.5),
+         (cx - W * 0.30, cy - D * 0.2, zc), res=(1500, 1000))
+    shot("05_shinjo", (cx, cy, mx.z + r * 1.2), (cx, cy, mn.z),
+         ortho=max(W, D) * 1.06, res=(1400, 1400))
+    return out
+
+
 if __name__ == "__main__":
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     if argv and argv[0] == "rebuild":
@@ -1353,6 +1774,70 @@ if __name__ == "__main__":
         o = make_kirizuma(W, D, name)
         mn, mx = report(o, name)
         V.export_fbx(o, os.path.join(OUT, name + ".fbx"))
+        raise SystemExit(0)
+    if argv and argv[0] == "hirairi":
+        # 平入り + 庇 — `-- hirairi <桁行間数> <梁間間数> <身舎の軒桁m(床上)> [名前]`
+        #   --omit v1[,u0...]  庇を回さない辺(格子の綴り)/ --hon <勾配> / --his <勾配>
+        #   --noki <m> / --hisashi-ken <間> / --render [<出力ディレクトリ>]
+        wk = float(argv[1]); dk = float(argv[2]); ev = float(argv[3])
+        rest = argv[4:]
+        nm = rest[0] if rest and not rest[0].startswith("--") else None
+        kw = dict(hon=0.60, his=0.45, noki=0.90, hken=1)
+        omit, rdir = [], None
+        i = 0
+        while i < len(rest):
+            t = rest[i]
+            if t == "--omit":   omit = [q for q in rest[i + 1].split(",") if q]; i += 2
+            elif t == "--hon":  kw['hon'] = float(rest[i + 1]); i += 2
+            elif t == "--his":  kw['his'] = float(rest[i + 1]); i += 2
+            elif t == "--noki": kw['noki'] = float(rest[i + 1]); i += 2
+            elif t == "--hisashi-ken": kw['hken'] = int(rest[i + 1]); i += 2
+            elif t == "--render":
+                if i + 1 < len(rest) and not rest[i + 1].startswith("--"):
+                    rdir = rest[i + 1]; i += 2
+                else:
+                    rdir = os.path.join(V.REPO, "Screenshots"); i += 1
+            else: i += 1
+        if nm is None:
+            nm = hirairi_name(wk, dk, ev, omit)
+        V.reset()
+        o = make_hirairi(wk * KEN, dk * KEN, ev, omit=omit, name=nm, **kw)
+        report(o, nm)
+        if rdir:
+            for f in render_hirairi(o, rdir, nm, eave=ev):
+                print("RENDER %s" % f)
+        V.export_fbx(o, os.path.join(OUT, nm + ".fbx"))
+        raise SystemExit(0)
+    if argv and argv[0] == "geya":
+        # 渡廊下の差し掛けの下屋(両流れ)— `-- geya <桁行間数> [名前]`
+        #   --width <間> / --kobai <勾配> / --noki <m> / --render [<dir>]
+        nk = float(argv[1])
+        rest = argv[2:]
+        nm = rest[0] if rest and not rest[0].startswith("--") else None
+        kw = dict(kobai=0.40, noki=0.90)
+        wid = 1.0
+        rdir = None
+        i = 0
+        while i < len(rest):
+            t = rest[i]
+            if t == "--width":  wid = float(rest[i + 1]); i += 2
+            elif t == "--kobai": kw['kobai'] = float(rest[i + 1]); i += 2
+            elif t == "--noki":  kw['noki'] = float(rest[i + 1]); i += 2
+            elif t == "--render":
+                if i + 1 < len(rest) and not rest[i + 1].startswith("--"):
+                    rdir = rest[i + 1]; i += 2
+                else:
+                    rdir = os.path.join(V.REPO, "Screenshots"); i += 1
+            else: i += 1
+        if nm is None:
+            nm = "Goten_Roof_RokaGeya_%sken" % KenTag(nk)
+        V.reset()
+        o = make_rokageya(nk * KEN, wid * KEN, name=nm, **kw)
+        report(o, nm)
+        if rdir:
+            for f in render_hirairi(o, rdir, nm, eave=1.2):
+                print("RENDER %s" % f)
+        V.export_fbx(o, os.path.join(OUT, nm + ".fbx"))
         raise SystemExit(0)
     if argv and argv[0] == "banded":
         # 帯割りの入母屋 — `-- banded <帯(例 4,4)> <桁行間数> [名前] [旗...]`

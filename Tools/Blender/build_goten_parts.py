@@ -19,6 +19,7 @@ K = V.KEN
 OUT = os.path.join(V.REPO, "Assets", "Edo", "Models", "Goten", "Parts")
 PREVIEW = os.environ.get("GOTEN_PREVIEW", "")
 ONLY = os.environ.get("GOTEN_ONLY", "")     # 部分文字列で絞る
+ENITA_T = 0.0303                            # 渡廊下の縁板の厚[m] = 1寸(縁の下の下限からの上限内)
 
 # 部材名 -> (組み立て関数, 説明)
 BUILT = []
@@ -127,6 +128,33 @@ def build_all():
         q.matrix_world = R @ o.matrix_world
         objs.append(q)
     made.append(finish(objs, "Goten_NureenCorner", (0.0, 0.0, 0.0)))
+
+    # --- 渡廊下の縁板 一間角(厚 1寸 = 0.0303)------------------------------
+    # ⭐⭐ **`Goten_FloorBoard_1ken`(キット floor.fbx そのまま・厚 0.0636)とは別部材。**
+    #   ⛔ 既存の板を置き換えない(入側の板敷きとして他邸が使っている)。
+    # 【なぜ要るか】渡廊下の床は落縁(=濡縁)の天端へ継ぐ(指図 `roka.floorFrom` = nureen)。
+    #   その面は `const.gotenFloor` 0.62 − `EdoGotenKit.NUREEN_DROP` 0.28 = **0.34**(地盤から)で、
+    #   縁の下(縁板の下端〜地盤)は `roka.ennoshitaMin` **0.303** 以上でなければならない
+    #   ⇒ **板厚は 0.037 以下**。キットの 0.0636 では縁の下 0.276 で **27mm 割る**
+    #   (2026-09-20 部材方の実測 → 普請奉行の発注)。1寸 0.0303 なら縁の下 **0.3097**。
+    # ⚠⚠ **ピボットの z=0 は「板の天端」**(⛔ `Goten_FloorBoard_1ken` は z=0 が**底**)。
+    #   廊下の床は**面で**落縁へ継ぐので、天端を床の高さへ置ければ厚は下へ逃げる。
+    #   ⇒ 据えるのは `new Vector3(x, floor, z)` のまま(`EdoGotenKit.Roka` の Put と同じ)。
+    # ⭕ 形は**キットの床板を薄くしただけ**(板目のテクスチャと材質名 `floor` を保つ)。
+    #   ⛔ 自前の箱に差し替えない — 木理が板の長手へ流れなくなる。
+    V.reset()
+    objs = []
+    for i in range(2):
+        for j in range(2):
+            objs += V.place("Walls and floors/floor.fbx", i * (K / 2), j * (K / 2), 0)
+    mn, mx = V.bbox(objs)
+    t0 = mx.z - mn.z                       # キットの板厚(実測 0.0636)
+    if t0 > 1e-6:
+        V.sel(objs)
+        bpy.ops.transform.resize(value=(1.0, 1.0, ENITA_T / t0), center_override=(0, 0, 0))
+        bpy.ops.object.transform_apply(scale=True)
+    mn, mx = V.bbox(objs)
+    made.append(finish(objs, "Goten_RokaEnita_1ken", ((mn.x + mx.x) / 2, (mn.y + mx.y) / 2, mx.z)))
 
     # --- 高欄 単体(渡廊下の両縁に立てる)---
     # balcony rail は 0.075 x 1.818 x 1.158 でちょうど一間。回して幅を X へ出す

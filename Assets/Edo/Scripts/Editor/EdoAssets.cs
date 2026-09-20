@@ -468,6 +468,56 @@ public static class EdoAssets
             return RoofDir + "Goten_Roof_RokaGeya_" + KenTag(nKen) + "ken.fbx";
         }
 
+        /// <summary>**段違いの下屋の折れ目を塞ぐ雨押え**(小壁 + 面戸の一体物)。
+        /// 渡廊下が <c>links[].dan</c> で段を折ると、<see cref="RoofRokaGeya"/> はピボットが「頭」なので
+        /// 上下の葺き面のあいだに口が開く(松江松平 2026-09-20 棟梁の実測 **0.19m**。許容0の隙)。
+        ///
+        /// <para>⛔⛔ **「口の丈ぶんの板を1枚立てる」では塞がらない。**口は板ではなく**管**で、
+        /// ①走り方向(低い側の空 ↔ 高い屋根の裏)と ②**幅方向(廊下の一方の軒先 ↔ 反対の軒先)**の
+        /// 両方に抜ける。⚠ ②が本体で、**廊下の横から覗くと 3.7m の隙間が素通し**になる。
+        /// ⇒ この部材は口の断面を**埋める**。下端は瓦の谷より 0.01 下・上端は上の屋根の裏板より
+        /// 0.01 上まで差し込んであり、瓦の山は部材の中に隠れる(実物の面戸と同じ納まり)。
+        /// 生成器が下屋2本を実際に重ねて profile を光線で読み、**素通し 0/2502 を確かめてから**焼く。</para>
+        ///
+        /// <para>⭐ 幅 = X(**廊下の幅方向**)/ 高さ = Y / 厚み = Z、**+Z = 見え面 = 段の低い側**。
+        /// ピボット = **廊下の芯・折れ目の線・低い区間の下屋の頭**
+        /// (= 低い側の <see cref="RoofRokaGeya"/> を据えた Y と**同じ値**をそのまま入れる)。
+        /// ⭕ 松江松平の3本は廊下が v 走り・段が u 線なので **<c>YawAlongU</c> でそのまま据わる**
+        /// (局所 +X = 格子 +u = 廊下の幅 / 局所 +Z = 格子 −v = 低い側)。
+        /// ⛔ **下屋の yaw をそのまま使わない** — 下屋は局所 +X が**走り**でこの部材とは 90° 違う。</para>
+        ///
+        /// <para>外形 W(X) **3.618** × H(Y) **1.042** × D(Z) **0.350**(幅 1間 + 軒の出 0.90×2)。
+        /// <paramref name="danMm"/> = 上下の下屋の**頭の高さの差**[mm](⛔ 指図に無い従属値。棟梁が実測して渡す)。
+        /// 焼いてあるもの: **260**。無い段は下のコマンドで足す。材 `wood` ⇒ `Edo/御殿/新しい御殿FBXのマテリアルをremap`。</para>
+        /// 生成: blender --background --python Tools/Blender/build_matsudaira_dewa_buzai.py -- amaosae --dan 0.26 --render</summary>
+        public static string Amaosae(int danMm)
+        {
+            return RoofDir + "Goten_Amaosae_1ken_d" + danMm + ".fbx";
+        }
+
+        /// <summary>**渡廊下の段を受ける框**(框 + 蹴込板 + 地覆)。
+        /// ⛔ <see cref="JodanKamachi"/> は**段 0.15 固定**で、しかも上の床板(見込み 0.55)を
+        /// 抱き込む形なので渡廊下には使えない(2026-09-20 棟梁が桁材を縮めて仮に充てていたのの置き換え)。
+        ///
+        /// <para>⭐ 幅 = X(1間)/ 高さ = Y / 見込み = Z、**+Z = 見え面 = 低い側**。
+        /// ピボット = **幅の中心・低い側の床板の天端・框の見付面**(Z=0)。
+        /// ⇒ 低い区間の <see cref="RokaEnita"/> と**同じ Y** へ置けば天端が段の高さに揃う
+        /// (あちらもピボット z=0 が板の天端)。</para>
+        ///
+        /// <para>⭕ **躯体は Z ∈ [−0.12, 0] = 高い側にしか出ない** — 段の柱は低い側に立つので干渉しない
+        /// (高い側に立てると下屋のけらばを突き抜ける。2026-09-20 棟梁が実測で是正)。
+        /// ⚠ 蹴込板だけ Y −0.020 へ出る(低い側の床板 厚 0.0303 に噛ませて継ぎ目の光を消す)。
+        /// ⛔ <c>SeatBottom</c> で据えない。</para>
+        ///
+        /// <para>外形 W(X) **1.818** × H(Y) **0.321** × D(Z) **0.120**。
+        /// <paramref name="danMm"/> = 両側の落縁の天端の差[mm](⛔ 指図に無い従属値)。焼いてあるもの: **301**。
+        /// 材 `wood` ⇒ `Edo/御殿/新しい御殿FBXのマテリアルをremap`。</para>
+        /// 生成: blender --background --python Tools/Blender/build_matsudaira_dewa_buzai.py -- kamachi --dan 0.301 --render</summary>
+        public static string RokaKamachi(int danMm)
+        {
+            return P + "Goten_RokaKamachi_1ken_d" + danMm + ".fbx";
+        }
+
         /// <summary>登廊(階段廊下)の屋根。切妻を斜長ぶん通し、幅は石段の平場ぶん取ったもの。
         /// **据えるときに勾配ぶん傾ける**ので、屋根そのものは平らに作ってある。
         /// 生成: build_goten_roof.py -- noboriro &lt;斜長&gt; &lt;幅&gt; &lt;名前&gt;</summary>
@@ -1113,6 +1163,32 @@ public static class EdoAssets
         {
             return "Assets/Edo/Models/Ishigaki/Ishigaki_Saka_"
                  + run.ToString("0.##") + "x" + drop.ToString("0.##") + ".fbx";
+        }
+
+        /// <summary>**切石の縁石**(白洲・平場の縁。指図 `fuchi[]`)。在庫に切石の縁石は無い
+        /// (<see cref="SannoDan"/> は石段の一段・<see cref="Ishibashi"/> は橋)ので新造【U 部材方 2026-09-20】。
+        ///
+        /// <para>⭐⭐ **一つの型で落差 0 と落差 0.30 の両方を賄う** — 天端を揃え、**下に隠れる丈を変える**。
+        /// 天端は常に Y=0、躯体は常に **Y −0.480**(= 最大落差 0.30 + 根入れ 0.18)まで垂れる。
+        /// 落差 0 の縁(`F_Omote_N`。両側とも 26.70)は**全丈が地中**で天端だけが砂利留めの見切りとして出、
+        /// 落差 0.30 の縁は低い側に 0.30 が出て残り 0.18 が地中に入る。
+        /// ⛔ **落差が 0 でも縁石を省かない** — 役目は『白洲の砂利を留める』ことで落差の有無とは別。</para>
+        ///
+        /// <para>⭐ 走り = X / 高さ = Y / 見込み = Z、**+Z = 見え面 = 落差の低い側**。
+        /// ピボット = **走りの中心・天端・縁の線(見付面)**。躯体は Z ∈ [−w, 0] = **高い側**に置いてある
+        /// ⇒ <c>position = 縁の線の中点 / position.y = 高い側の面の高さ / yaw = 低い側を向く法線の方位</c>。
+        /// ⛔ <c>SeatBottom</c> で据えない(躯体が Y −0.48 へ垂れている)。
+        /// ⛔ 走りを分割して並べない — **1本で1本の縁**(石の目地は部材の中で約 1.2m ごとに入っている)。</para>
+        ///
+        /// <para><paramref name="runKen"/> = 縁の長さ[間](指図 `fuchi[].b − fuchi[].a`)、
+        /// <paramref name="w"/> = 見込み[m](指図 `fuchi[].w`。既定 0.36)。
+        /// 焼いてあるもの: **5 / 12.52 / 14 / 17 / 52 間**(すべて w 0.36)。外形 H(Y) 0.480 × D(Z) = w。
+        /// 材 `Kirishi` ⇒ `Edo/松平出羽守上屋敷/附属屋・門・木のマテリアルをremap`。</para>
+        /// 生成: blender --background --python Tools/Blender/build_matsudaira_dewa_buzai.py -- fuchi --render</summary>
+        public static string Fuchiishi(float runKen, float w = 0.36f)
+        {
+            return "Assets/Edo/Models/Fuchi/Fuchiishi_" + Goten.KenTag(runKen)
+                 + "ken_w" + (int)System.Math.Floor(w * 1000.0 + 0.5) + ".fbx";
         }
 
         /// <summary>**長さ可変の表長屋**。在庫の `knagaya01c/l/r` を窓割り(bay=2.6874m)で切って

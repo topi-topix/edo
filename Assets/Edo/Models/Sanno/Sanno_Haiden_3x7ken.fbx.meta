@@ -17,6 +17,11 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
+      name: Kirishi
+    second: {fileID: 2100000, guid: 3736144dc0bddef39628311a0b24be5d, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
       name: M_FJG_Rock_001
     second: {fileID: 2100000, guid: dbf74aa0daf52c4e6ae327befe85b158, type: 2}
   - first:

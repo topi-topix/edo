@@ -1,0 +1,91 @@
+diff --git a/Tools/Sashizu/build_sashizu.py b/Tools/Sashizu/build_sashizu.py
+index 58789cdb..7248a589 100644
+--- a/Tools/Sashizu/build_sashizu.py
++++ b/Tools/Sashizu/build_sashizu.py
+@@ -18,6 +18,7 @@ import datetime
+ import itertools
+ import json
+ import math
++import statistics
+ import os
+ import sys
+ import time
+@@ -739,6 +740,9 @@ class Checks(object):
+                  "ok" if not bad else "ng", bad[:12] + (["自前の面: " + "・".join(off)] if off else []))
+ 
+     # C04 面と地形の差
++    # ⭐ 系統差の許容。0.5 の包絡のうち**半分**を偏りに食われたら、面は導かれておらず選ばれている。
++    OFFSET_TOL = 0.25
++
+     def c04(self):
+         M = self.M
+         rows, bad = [], []
+@@ -746,6 +750,7 @@ class Checks(object):
+         # 面ごとの許容(planes[].devEnvelopeM)と名指しの例外(planes[].devEnvelopeExceptions)は欄が持つ
+         env = {}
+         exc = set()
++        exc_raw = []
+         for p in M.planes:
+             if isinstance(p, dict):
+                 for tn in p.get("terraces", []) or []:
+@@ -753,6 +758,7 @@ class Checks(object):
+                         env[tn] = p["devEnvelopeM"]
+                 for x in p.get("devEnvelopeExceptions", []) or []:
+                     exc.add(x if isinstance(x, str) else (x.get("name") if isinstance(x, dict) else None))
++                    exc_raw.append(x)
+         for kind, b in M.buildings():
+             if kind == "廊下":
+                 continue
+@@ -780,12 +786,33 @@ class Checks(object):
+             tol = env.get(t0.name, 0.5) if t0 else 0.5
+             pc = 100.0 * sum(1 for q in ds if abs(q) <= tol) / len(ds)
+             mx = max(abs(min(ds)), abs(max(ds)))
++            # ⭐ **系統差**(この棟の足元の中央値と面の差)と**ばらつき**を分けて出す。
++            #   規則3 は「自然の平場の高さをそのまま面に採る」という**導き方**であって許容ではない。
++            #   面をその面に載る棟の足元から導けば系統差は 0 に近づく — 系統差が残るのは
++            #   **面を選んでしまった印**で、直すのは棟でも土でもなく**面**(§B-1 の 2 に戻る)。
++            #   ばらつき(地面の凹凸)は許容、系統差は許容しない。由来: 施主指摘 2026-09-20(EDO-0290)。
++            med = statistics.median(ds)
++            spread = max(abs(q - med) for q in ds)
+             worst = max(worst, mx)
+-            rows.append((b.label, b.name, min(ds), max(ds), pc))
+-            if pc < 100.0:
+-                bad.append("%s %.0f%%(最大 %.2f)" % (b.name, pc, mx))
++            rows.append((b.label, b.name, min(ds), max(ds), pc, med, spread))
++            if abs(med) > Checks.OFFSET_TOL:
++                bad.append("⛔%s **系統差 %+.2f m**(面の引き方。ばらつきは ±%.2f)"
++                           % (b.name, med, spread))
++            elif pc < 100.0:
++                bad.append("%s ばらつき ±%.2f m が許容 %.2f を超える(%.0f%%)" % (b.name, spread, tol, pc))
++        # ⛔ 検査を緩めた宣言は黙って通さない — 施主の言葉が要る(完成条件の render と同じ作法)
++        for x in exc_raw:
++            if isinstance(x, dict) and (x.get("quote") or "").strip():
++                bad.append("⚠〔受容〕%s — %s" % (x.get("name"), (x.get("quote") or "")[:60]))
++            else:
++                nm = x if isinstance(x, str) else (x.get("name") if isinstance(x, dict) else "?")
++                bad.append("⛔%s を検査から外しているが**施主の言葉が無い**"
++                           "(`devEnvelopeExceptions[].quote` に引用を入れる)" % nm)
++        for tn, ev in env.items():
++            if ev > 0.5:
++                bad.append("⛔ 段 %s の許容を %.2f m へ緩めている(規則3 は 0.5)" % (tn, ev))
+         self.rows_c04 = rows
+-        self.add("C04", "面と地形の差 — 棟・附属屋の下で |設計面 − 自然地形| ≤ 0.5m(規則3)",
++        self.add("C04", "面の引き方 — 棟ごとの**系統差**(規則3 は許容でなく導き方。系統差 > %.2f m は面の誤り)" % Checks.OFFSET_TOL,
+                  "不合格 %d 棟 / 最大 %.2f m" % (len(bad), worst), "ok" if not bad else "ng", bad[:12])
+ 
+     # C05 段差の受け
+@@ -1951,8 +1978,12 @@ def build(est, deep=False, out=None):
+     rows.append(["<b>合計</b>", "—", "<b>{:,.0f}</b>".format(tf), "—", "<b>{:,.0f}</b>".format(tc), "差引 {:+,.0f} m³".format(tf - tc)])
+     h.append(tbl(["段", "面積 m²", "盛土 m³", "最大盛 m", "切土 m³", "最大切 m"], rows))
+     if getattr(C, "rows_c04", None):
+-        h.append(tbl(["棟", "欄", "Δ 最小", "Δ 最大", "|Δ|≤0.5"],
+-                     [[a, b, "%.2f" % lo, "%.2f" % hi, "%.0f%%" % pc] for a, b, lo, hi, pc in C.rows_c04]))
++        # ⭐ **系統差が先**(面の引き方)。ばらつきと |Δ|≤0.5 は従(地面の凹凸)。EDO-0290
++        h.append(tbl(["棟", "欄", "系統差(面の引き方)", "ばらつき ±", "Δ 最小", "Δ 最大", "|Δ|≤0.5"],
++                     [[a, b,
++                       ("<b>%+.2f m</b>" % med) if abs(med) > Checks.OFFSET_TOL else "%+.2f m" % med,
++                       "%.2f m" % sp, "%.2f" % lo, "%.2f" % hi, "%.0f%%" % pc]
++                      for a, b, lo, hi, pc, med, sp in C.rows_c04]))
+     if getattr(C, "rows_c06", None):
+         h.append(tbl(["土留め", "天端 m", "実落差 最小", "最大", "宣言"],
+                      [[a, "%.2f" % b, "%.2f" % lo, "%.2f" % hi, str(dcl) if dcl is not None else "—"] for a, b, lo, hi, dcl in C.rows_c06]))

@@ -11,7 +11,11 @@ paths:
   worktree では回せない)。⛔ **Unity は排他**。作業が切れたら即 `release --resources unity`(20分未使用は
   待っている側が自動で引き取る)。埋まっていれば `wait --resources unity`。返した側は次の人へ SendMessage。<!-- obl:unity-release canon -->
   ⛔ `git add -A` / `git commit -a` は門番が止める。→ `docs/session-coordination.md`
-- **屋敷は1軒1プレハブ。** ビルダーの前に `Edo/屋敷/編集のためにプレハブを解く`、後に `プレハブへ書き戻す`。
+- **屋敷は1軒1プレハブ。** ビルダーの `Group()` が前に自動で解き、保存時に**この巡で触ったルートだけ**が
+  書き戻る(2026-09-21・EDO-0282②。以前は保存のたびに 83 本を舐めて 74 本・128MB を書き直していた)。
+  手で押すなら `Edo/屋敷/プレハブへ書き戻す(触った分だけ)`、`Group()` を通らない手直しは `…(選択中)`。
+  ⛔ `…(全部・強制)` は**解けたままの他邸を巻き込む**ので救出のときだけ。
+  ⚠ 台帳は `SessionState` なので**エディタを再起動すると消える** — 解けたまま離席しない。
   **Revert All を押さない。**
 - **地形の編集は Undo の外。** 触る前に heightmap を `.bin` で退避。`TerrainData.asset` と `.unity` も。
 - **2026-08-22 に地形を作り直した。** 屋敷を建てる前に必ず造成ステージを流し直す。→ `docs/terrain-georef-fix.md`

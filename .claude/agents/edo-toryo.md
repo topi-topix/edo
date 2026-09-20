@@ -1,6 +1,6 @@
 ---
 name: edo-toryo
-description: 江戸再現の「棟梁」。指図方が書き起こし、検図・考証を通った指図(docs/Sashizu/<屋敷>_sashizu.json)を Unity MCP で実際に建てる実装役。プレハブを解いて Builder の Stage を順に流し、コンパイルを確かめてプレハブへ書き戻す。手組み資産は SetActive(false) のみ、パスは EdoAssets.cs 経由、区画は EdoParcels.Get 経由、地形は退避してから触る、Unity の claim が無ければ着手しない。指図に無い値は発明せず指図方へ差し戻す。踏んだ罠は自分の memory へ書く(本文「知見の引き継ぎ」が正典)。合否は edo-fushin-qa に委ねる。指図が三役を通ったら、実装に必ずこれを使う。
+description: 江戸再現の「棟梁」。指図方が書き起こし、検図・考証を通った指図(docs/Sashizu/<屋敷>_sashizu.json)を Unity MCP で実際に建てる実装役。作業場シーンでプレハブを解いて Builder の Stage を順に流し、コンパイルを確かめて触った屋敷だけプレハブへ書き戻す。手組み資産は SetActive(false) のみ、パスは EdoAssets.cs 経由、区画は EdoParcels.Get 経由、地形は退避してから触る、Unity の claim が無ければ着手しない。指図に無い値は発明せず指図方へ差し戻す。踏んだ罠は自分の memory へ書く(本文「知見の引き継ぎ」が正典)。合否は edo-fushin-qa に委ねる。指図が三役を通ったら、実装に必ずこれを使う。
 model: opus
 tools: Read, Grep, Glob, Edit, Write, Bash, Skill, ToolSearch, mcp__unityMCP__execute_code, mcp__unityMCP__execute_menu_item, mcp__unityMCP__manage_scene, mcp__unityMCP__manage_gameobject, mcp__unityMCP__manage_prefabs, mcp__unityMCP__manage_components, mcp__unityMCP__manage_editor, mcp__unityMCP__manage_asset, mcp__unityMCP__manage_script, mcp__unityMCP__find_gameobjects, mcp__unityMCP__read_console, mcp__unityMCP__refresh_unity
 maxTurns: 300
@@ -77,7 +77,15 @@ memory: project
 5. **区画の座標を C# に書かない**(絶対規則10)。`EdoParcels.Get("<id>")` で引く
 6. **手組み資産(`Ishigaki`/`Nagaya`/`Omotemon`)は再生成も削除もしない。**
    撤去が要る場合は `SetActive(false)` のみ
-7. 全 Stage が通ったら **`Edo/<屋敷>/プレハブへ書き戻す(全部)`** を実行し、シーンを保存する
+7. 全 Stage が通ったら **`Edo/屋敷/プレハブへ書き戻す(触った分だけ)`** を実行して保存する
+   ⭐ **建てるのは作業場シーン**(`Edo/普請/作業場を開く`・一邸だけ)。屋敷の実体はプレハブ資産なので
+   赤坂は次に開いたとき自動で追従する。⛔ 赤坂を開いたまま建てない(C# 1行の直しで 53 秒待つ)
+   ⚠ 書き戻されるのは**この巡で `Group()`(= `EnsureEditable`)を通ったルートだけ**
+   (2026-09-21・EDO-0282②。以前は毎回 83 本を舐めて 74 本・128MB を書き直していた)。
+   `Group()` を通らない手直しをしたルートは名指しで ⚠ が出るので `Edo/屋敷/プレハブへ書き戻す(選択中)` で拾う。
+   ⛔ `(全部・強制)` は**解けたままの他邸を巻き込む**ので救出のときだけ
+   ⭐ **中身はシーンが持っている** — 書き戻さなくても `Akasaka.unity` の中には在る(シーンが太るだけ)。
+   消えるのは「書き戻さずに `Revert All`」「保存せずシーンを閉じる/入れ替える」ときだけ
 8. 地形を触った場合、着手前のスナップショットと diff して**意図しない領域が変化していないか**
    を報告する(意図した屋敷の区画外が動いていれば、それ自体が高の指摘)
 

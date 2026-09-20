@@ -656,10 +656,10 @@ class Checks(object):
             self.detail[cid] = detail
 
     def run(self):
-        M = self.M
-        for f in (self.c01, self.c02, self.c03, self.c04, self.c05, self.c06, self.c07, self.c08, self.c09, self.c10,
-                  self.c11, self.c12, self.c13, self.c14, self.c15, self.c16, self.c17, self.c18, self.c19, self.c20,
-                  self.c21, self.c22):
+        # 検査は `cNN` という名のメソッドを足すだけで輪に入る(名簿を二重に持たない・規則19)。
+        # 足したら docs/Sashizu/check_triage.json の common にも意図を 1 行足す
+        fns = [getattr(self, n) for n in sorted(dir(self)) if len(n) == 3 and n[0] == "c" and n[1:].isdigit()]
+        for f in fns:
             t0 = time.time()
             try:
                 f()

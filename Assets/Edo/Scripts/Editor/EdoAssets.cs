@@ -798,6 +798,83 @@ public static class EdoAssets
             return "Assets/Edo/Models/Sanno/Sanno_Kizahashi_" + wMm + "x" + runMm + "x" + riseMm + ".fbx";
         }
 
+        /// <summary>**山王社の御供所(供の棟)— 御宮絵図の形の独立の一棟**(施主の再裁定 2026-09-15)。切妻・棟は南北・本瓦葺【U】。
+        /// 柱芯 <paramref name="nuKen"/>(東西=X)× <paramref name="nvKen"/>(南北=Z)[間]、外形 <paramref name="ewMm"/>×<paramref name="nsMm"/>[mm]。
+        /// 現行 (3, 4.5, 5454, 8181)。柱間は東西 1間×3 / 南北 4.5間を5等分【U 部材方】。
+        /// ⭐ ピボット = 柱芯の矩形の中心・地盤(+X = 東 / +Z = 北)⇒ yaw 0・scale one。
+        /// 外形 W(X)7.204 × H(Y)5.360 × D(Z)9.311。基壇 0.45(出 0.30 四周)・軒先 3.00・軒の出 0.75・ケラバ 0.45・大棟の上端 5.147。
+        /// 口: 北面の東の柱間(X 0.909〜2.727)= 渡廊下の口(戸を立てない)/ 南面の東の柱間 = 勝手口(板戸を半ば引いた姿)。
+        /// ⭕ **勝手口は東の柱間に焼けている**(2026-09-20 に FBX を読み直して実測: 南面の板戸 X 0.999〜1.858)⇒ 焼き直しは済み。
+        /// ⛔ 明治16年の L 字3本(`Sanno_Gokusho_{Omoya,Tsugi,Higashi}_*`)は据えない。
+        /// 材 `wood` / `wall C` / `door wall` / `roof` / `roof ornaments` / `Kirishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_gokusho_ikko.py -- --render</summary>
+        /// <remarks>⚠ 引数は **double**(⛔ float にしない)── 指図 `bom` が予定した綴り
+        /// `SannoGokusho(3, 4.5, 5454, 8181)` の `4.5` は double 定数なので、float では通らない。</remarks>
+        public static string SannoGokusho(double nuKen, double nvKen, int ewMm, int nsMm)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            return "Assets/Edo/Models/Sanno/Sanno_Gokusho_" + nuKen.ToString("0.##", inv) + "x"
+                 + nvKen.ToString("0.##", inv) + "ken_" + ewMm + "x" + nsMm + ".fbx";
+        }
+
+        /// <summary>**山王社の回廊(屋根付きの廊)— 翼1本**。楼門の両脇から社殿へ回る翼で、北・南で長さと間数が違う。
+        /// <paramref name="bays"/> = 走りの間数【U】/ <paramref name="bariBays"/> = 梁間の間数【U】/
+        /// <paramref name="runMm"/> = 走り(北 20650 / 南 17550【A 明治16年実測図】)/ <paramref name="bariMm"/> = 梁間(4200【A】)。
+        /// 現行 北 (8, 2, 20650, 4200) / 南 (7, 2, 17550, 4200)。切妻・**銅瓦葺**【U `runs[Kairo_*].roof`】。
+        /// ⭐ 走り = ローカル X・高さ = Y・梁間 = Z。**見え面(腰板+連子窓の閉じた壁)= +Z = 外(東)**、−Z(中庭の側)は柱だけで開ける。
+        /// ⭐ ピボット = 柱芯の矩形の中心・**床(= 石垣の基壇の天端 `runs[Kairo_*].seat` 29.0)**。⛔ 部材は基壇を持たない(石垣が受ける)。
+        /// ⭕ 走り X について**軸部は鏡像対称**(瓦の位相だけ非対称・袖瓦が隠す)⇒ 門側がどちらの X 端でも据わる。北翼・南翼とも同じ yaw
+        /// (`grid.frames[東面]` 4.6° 込みで +Z が東を向く向き)。scale one。
+        /// 丈【U 部材方 2026-09-20 ── `_pending`「回廊の軒高・棟高…」の①】: 軒先 2.100 / 桁の天端 2.405 / 大棟の上端 3.942 / 鬼の頂 4.116。
+        /// 軒の出 0.909(半間)・ケラバ 0.455・勾配は瓦モジュールの素の 5.5寸 ⇒ 棟高は従属値。
+        /// 上下を挟む実測: 袖塀の屋根の天端(座から 1.805)&lt; 軒先 2.100(余裕 0.295)/ 大棟(絶対 32.942)&lt; 楼門の軒高 33.100(余裕 0.158)。
+        /// 外形 北 W(X)21.789 × H(Y)4.316 × D(Z)6.262・24.9k tris / 南 W(X)18.689・同 H・D・21.7k tris(どちらも Y −0.200〜4.116 = 根入れ 0.20)。
+        /// 腰板 0.75 / 連子窓 0.75〜1.80 / 小壁 1.88〜2.205。門側の妻は**閉じた壁**で袖塀の木口を受ける(`joints` 突き付け・隙間は不可)。
+        /// 材 `wood` / `wall C` / `Doukawara` / `Kirishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_kairo.py -- --render</summary>
+        public static string SannoKairo(int bays, int bariBays, int runMm, int bariMm)
+        {
+            return "Assets/Edo/Models/Sanno/Sanno_Kairo_" + bays + "x" + bariBays + "ken_"
+                 + runMm + "x" + bariMm + ".fbx";
+        }
+
+        /// <summary>**山王社の鳥居 — 石造の明神鳥居**。⭐ **一ノ鳥居・二ノ鳥居に同じ1点を使う**(同形式【A】・
+        /// 駒絵の大小は遠近の誇張なので ⛔ 寸法比を採らない)。座は `torii[].pos`。
+        /// 形式【A 考証 2026-09-20 ── 『江戸名所百人美女』「山王御宮」安政4年の原寸実見】: 笠木に反り・島木あり・
+        /// 貫は柱を貫いて木鼻を出す・額束に扁額(朱地)・足元は八角の段付き台石。⛔ 三角の破風を付けない(山王鳥居にしない)。
+        /// ⛔ 崩れ・欠けを表現しない(安政2年10月に倒れたが石は砕けず、同じ石で起こし直した直後の姿【A】)。
+        /// <paramref name="spanMm"/> = 柱間(柱芯々)/ <paramref name="tallMm"/> = 総高(笠木の上端・中央)[mm]。現行 (5454, 7272) = 3間 × 4間【U 部材方】。
+        /// ⭐ 幅 = ローカル X・高さ = Y・厚み = Z。**正面(扁額のある面)= +Z**。ピボット = 柱芯の中央・地盤(台石は Y −0.35 まで根入れ)。
+        /// ⛔ `SeatBottom` で据えない。⭕ X について左右対称。
+        /// 外形 W(X)7.654 × H(Y)7.922(−0.350〜7.572・反りの頂)× D(Z)1.450・1.1k tris。
+        /// 内法 4.854(柱径 0.60)・笠木の長さ 7.654・木鼻の先 ±3.271・柱頭は ころび 1/40 で 0.154 内へ。
+        /// 道との関係: 二ノ鳥居の辻の路面 5.50 に対し柱が路面の内へ片側 0.323 ／ 笠木 7.654 &lt; 道敷(領域 12〜15m)。
+        /// 材 `Kirishi` / **`Shu_Torii`**(扁額の朱地)⇒ `Edo/山王社/新造部材のマテリアルをremap`
+        /// (⚠ `Shu_Torii.mat` は `Assets/Edo/Materials` に在るので、その借り先を remap に足してある)。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_torii.py -- --render</summary>
+        public static string SannoTorii(int spanMm, int tallMm)
+        {
+            return "Assets/Edo/Models/Sanno/Sanno_Torii_" + spanMm + "x" + tallMm + ".fbx";
+        }
+
+        /// <summary>**山王社の段石(石段の一段)**。蹴上 <paramref name="keri"/> / 踏面 <paramref name="fumi"/> / 幅 <paramref name="w"/>[m]、
+        /// 個体 <paramref name="i"/> の偶奇で a / b を振る(⛔ 片方だけを53段並べない — 目地が一直線に立つ)。
+        /// 寸法は指図 `kaidans` が正典で、**蹴上・踏面は段数と平面長・比高からの従属値**(⛔ CLAUDE.md の 0.30/0.45 は参道の坂に当てない)。
+        /// 焼けている組: 男坂 (0.260, 0.650, 6.999) / 女坂 (0.300, 1.199, 6.363) / 参道の階 (0.250, 0.542, 5.509)。
+        /// ⚠ 旧 (0.260, **0.693**, 6.999) は男坂の平面長を詰める前の組で、**どの階も参照していない**(消していない)。
+        /// ⭐ 幅 = X / 高さ = Y / 走り = Z、**+Z = 見え面 = 坂下(蹴上の面)**。ピボット = 踏面の中心・**踏面の天端**。
+        /// ⇒ 段 i(下から0起点)は position = 下端 + 進行方向 × 踏面×(i+0.5)、position.y = 下端の天端 + 蹴上×(i+1)。
+        /// ⛔ `SeatBottom` で据えない(躯体が Y −0.18 へ垂れている)。走りは Z −(踏面/2+0.10)〜+踏面/2(0.10 は上の段の下へ潜る差し込み)。
+        /// 外形(男坂)W(X)6.999 × H(Y)0.440 × D(Z)0.750。材 `M_FJG_Rock_001` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- dan --only=男坂 --render</summary>
+        public static string SannoDan(float keri, float fumi, float w, int i)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            return "Assets/Edo/Models/Kaidan/Dan_" + keri.ToString("F3", inv) + "_"
+                 + fumi.ToString("F3", inv) + "_" + w.ToString("F3", inv) + "_"
+                 + (i % 2 == 0 ? "a" : "b") + ".fbx";
+        }
+
         /// <summary>**山王社の中門(瑞垣門)**。一間平唐門・四脚(本柱2+控柱4)・銅瓦葺【S [国宝建造物目録1941]】。
         /// 在庫『無い』(指図 `bom[中門(一間平唐門)]`)ので新造。
         /// ⭐ **通り抜け=ローカル X・正面=+X(扉は −X へ開く)・大棟=Z(唐破風は ±Z の妻)・ピボット=門の芯・敷居の高さ**。

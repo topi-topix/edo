@@ -2,6 +2,7 @@
 
     blender --background --python Tools/Blender/build_sanno_buzai.py -- dan  [--render]
     blender --background --python Tools/Blender/build_sanno_buzai.py -- saku [--render]
+    blender --background --python Tools/Blender/build_sanno_buzai.py -- dan --only=男坂 [--render]   # 1本だけ焼く
     blender --background --python Tools/Blender/build_sanno_buzai.py -- dan  <蹴上> <踏面> <幅m> [--render]
     blender --background --python Tools/Blender/build_sanno_buzai.py -- saku <スパンm> [--render]
     blender --background --python Tools/Blender/build_sanno_buzai.py -- audit     # 既存部材の左右の別を検算
@@ -135,17 +136,24 @@ def sashizu():
         return json.load(f)
 
 
-def kaidan_specs():
+def kaidan_specs(only=None):
     """指図 `kaidans` から**石の段**の (名, 蹴上, 踏面, 幅m) を出す。
-    ⛔ 寸法をここに書かない。⛔ **向拝の階は採らない** — `kaidans[向拝の階]` は
-      【A 加藤重枝2018】が**木階三級**と定める木の階で、石の段ではない(→ 呼び出し元へ差し戻す)。"""
+    ⛔ 寸法をここに書かない。⛔ **木階は採らない** — `kaidans[].kizahashi` が立っている段
+      (向拝の階【A 加藤重枝2018 木階三級】・本殿の木階)は木の階で、石の段ではない
+      (→ 社殿の部材。実装側 `EdoSannoShaRebuild.Stage2_Kaidan` も同じ旗で外す)。
+    ⚠ `only` に名(前方一致)を渡すとその1本だけ返す — **既存の FBX を焼き直さずに
+      1本だけ足す**ため(⛔ 寸法を手で打つ道は使わない。値は指図から引く)。"""
     d = sashizu()
     out = []
     for k in d["kaidans"]:
-        if k["name"] == "向拝の階":
+        if k.get("kizahashi"):
+            continue
+        if only and not k["name"].startswith(only):
             continue
         out.append((k["name"], float(k["keri"]), float(k["fumi"]),
                     float(k["wKen"]) * float(d["const"]["ken"])))
+    if only and not out:
+        raise SystemExit("[sanno] ⛔ 指図 kaidans に『%s』で始まる石の段が無い" % only)
     return out
 
 
@@ -825,10 +833,14 @@ def main():
     if what == "mitsuke":
         mitsuke(); return
     if what in ("dan", "all"):
+        only = None
+        for a in argv:
+            if a.startswith("--only="):
+                only = a.split("=", 1)[1]
         if len(rest) >= 3:
             specs = [("手引き", float(rest[0]), float(rest[1]), float(rest[2]))]
         else:
-            specs = kaidan_specs()
+            specs = kaidan_specs(only)
         build_dan_set(specs, do_render)
     if what in ("saku", "all"):
         spans = [float(rest[0])] if rest else [tamagaki_spec()["pitch"]]

@@ -42,16 +42,18 @@ public static class EdoSannoShaRebuild
     // ---------------------------------------------------------------- 部材のパス
     /// <summary>⚠ **規則12 の例外の申し送り。** パスの literal は `EdoAssets.cs` に置くのが正典だが、
     /// 2026-09-10 の時点で `EdoAssets.cs` は**別セッションが門番の claim で押さえて**おり、
-    /// ⛔ steal できなかった。⇒ 暫定でここに置く。**空き次第 `EdoAssets.Own` へ移すこと**
-    /// (Dan / SakuKoshidaka / SannoShaden の3系統)。目録 `docs/asset-index.tsv` に全点載っている。</summary>
+    /// ⛔ steal できなかった。⇒ 暫定でここに置く。**空き次第 `EdoAssets.Own` へ移すこと**。
+    /// ⭕ **Dan は 2026-09-20 に移した**(`EdoAssets.Own.SannoDan`)。**残るは SakuKoshidaka / Shaden の2系統**。
+    /// 目録 `docs/asset-index.tsv` に全点載っている。</summary>
     static class P
     {
         /// <summary>段石。綴りに **蹴上・踏面・幅** が入る(`Tools/Blender/build_sanno_buzai.py -- dan`)。
-        /// ⭐ 個体 a/b の2種を **i%2 で振る**(⛔ 片方だけを53段並べない)。</summary>
+        /// ⭐ 個体 a/b の2種を **i%2 で振る**(⛔ 片方だけを53段並べない)。
+        /// ⭕ **2026-09-20 に正典を `EdoAssets.Own.SannoDan` へ移した**(規則12 ── claim が空いた)。
+        /// ここは呼び出し元を壊さないための受け渡しだけ。⛔ ここに綴りを書き戻さない。</summary>
         public static string Dan(float keri, float fumi, float w, int i)
         {
-            return "Assets/Edo/Models/Kaidan/Dan_" + keri.ToString("F3", IC) + "_" +
-                   fumi.ToString("F3", IC) + "_" + w.ToString("F3", IC) + "_" + (i % 2 == 0 ? "a" : "b") + ".fbx";
+            return EdoAssets.Own.SannoDan(keri, fumi, w, i);
         }
         public const string SakuSpan = "Assets/Edo/Models/Hei/Saku_Koshidaka_1.818.fbx";
         public const string SakuPost = "Assets/Edo/Models/Hei/Saku_Koshidaka_Post.fbx";

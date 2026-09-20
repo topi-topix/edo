@@ -35,19 +35,31 @@ public static class EdoGeom
         return n;
     }
 
-    /// <summary>点 p から線分 ab への最短距離。</summary>
+    /// <summary>点 p から線分 ab への最短距離。
+    /// ⚠ **長さ0の線分では NaN を返してはいけない。**`parcels.json` には頂点が重複した区画があり
+    /// (山王門前の一筆など)、`d /= len` が (NaN,NaN) になって距離が NaN に化けていた。
+    /// NaN は比較が全部 false なので `Mathf.Min(m, NaN)` は **NaN** を返し、以後 m は最小値ではなく
+    /// 「その次の辺までの距離」になる — 区画の縁に載っている駒が「外へ 10.28m」と出た
+    /// (2026-09-21・類型の8区画の赤の主因)。長さ0なら端点までの距離を返す。</summary>
     public static float DistToEdge(Vector2 p, Vector2 a, Vector2 b)
     {
-        var d = b - a; float len = d.magnitude; d /= len;
+        var d = b - a; float len = d.magnitude;
+        if (len < 1e-6f) return (p - a).magnitude;      // 長さ0の辺(頂点の重複)
+        d /= len;
         float t = Mathf.Clamp(Vector2.Dot(p - a, d), 0, len);
         return (p - (a + d * t)).magnitude;
     }
 
-    /// <summary>点 p から多角形の外周(全辺)への最短距離。</summary>
+    /// <summary>点 p から多角形の外周(全辺)への最短距離。
+    /// ⛔ NaN を混ぜない — 混ざると最小値でなくなる(<see cref="DistToEdge"/> の注)。</summary>
     public static float DistToPolyEdge(Vector2[] poly, Vector2 p)
     {
         float m = float.MaxValue;
-        for (int i = 0; i < poly.Length; i++) m = Mathf.Min(m, DistToEdge(p, poly[i], poly[(i + 1) % poly.Length]));
+        for (int i = 0; i < poly.Length; i++)
+        {
+            float e = DistToEdge(p, poly[i], poly[(i + 1) % poly.Length]);
+            if (!float.IsNaN(e) && e < m) m = e;
+        }
         return m;
     }
 }

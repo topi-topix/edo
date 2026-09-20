@@ -322,8 +322,13 @@ public static class EdoNishiTameikeBuilder
     /// 連続グループの端は妻部材 l/r(孤立1棟は c)。gapC/gapHalf は従来同様、開口としてグループを分ける。
     /// (旧実装は屋根幅由来 PITCH=7.81 の span 均等割りで、全継ぎ目が 0.25〜1.47m 食い込んでいた)
     /// 作法は スキル unity-buke-yashiki の references/perimeter.md「ピッチは壁の実寸」。</summary>
+    /// <param name="keepInside">⭐ 収めたい区画(世界 xz)。渡すと、**壁体が区画の外へ出る駒は置かない**
+    /// — 奥行のある長屋は、自分の辺には収まっていても**角が鋭いところで隣の辺を跨ぐ**
+    /// (2026-09-21 実測: 溜池西・三べ坂西・溜池北の5区画で 0.83〜1.88m 外へ)。
+    /// その区間は薄い塀で埋める(置き方の4手④「端数は伸縮側へ流す」・`docs/oki-kata.md`)。
+    /// null なら従来どおり検めない。</param>
     public static List<GameObject> NagayaRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, float baseY,
-        Vector2 gapC, float gapHalf, string prefix)
+        Vector2 gapC, float gapHalf, string prefix, Vector2[] keepInside = null)
     {
         bool followGround = NaturalMode; // 自然地形モードでは各ピースを地面に追従
         var made = new List<GameObject>();
@@ -400,6 +405,14 @@ public static class EdoNishiTameikeBuilder
                 //    (CLAUDE.md 規則21)。地形追従でないとき(天端を run の seat で通すとき)は設計の座のまま。
                 if (followGround) { try { EdoBuild.SeatOnGround(go, 0.10f, 600); } catch (System.Exception) { SeatBottom(go, pieceBase - 0.10f); } }
                 else SeatBottom(go, pieceBase - 0.10f);
+                // ⛔ 壁体が区画の外へ出る駒は置かない(区域侵犯は許容0・規則4)。薄い塀で埋め直す。
+                if (keepInside != null && OutsideParcel(go.transform, keepInside))
+                {
+                    UnityEngine.Object.DestroyImmediate(go);
+                    DobeiRun(parent, sA + rdir * cursor, sA + rdir * (cursor + m.W), outward,
+                             prefix + "_in" + idx, followGround, baseY, Vector2.zero, -1);
+                    idx++; cursor += m.W; continue;
+                }
                 made.Add(go); idx++;
                 cursor += m.W;                         // 継ぎ目は必ず面一
             }
@@ -408,6 +421,19 @@ public static class EdoNishiTameikeBuilder
         if (made.Count > 0) VerifyFlipOutward(made, outward, prefix);
         return made;
     }
+    /// <summary>駒の**壁体**(屋根・軒を外した頂点)が区画の外へ出ているか。
+    /// ⛔ 軒では判定しない — 軒は越えてよい(2026-09-21 施主裁定A・`docs/oki-kata.md` §4)。
+    /// 塀は境界線の上に立つので 0.60m の遊びを持つ。</summary>
+    static bool OutsideParcel(Transform t, Vector2[] poly)
+    {
+        foreach (var w in EdoBuild.Body(t, 300, false))
+        {
+            var q = new Vector2(w.x, w.z);
+            if (!EdoGeom.PIP(poly, q) && EdoGeom.DistToPolyEdge(poly, q) > 0.60f) return true;
+        }
+        return false;
+    }
+
     static void VerifyFlipOutward(List<GameObject> mods, Vector2 outward, string prefix)
     {
         var probe = mods[Mathf.Min(1, mods.Count - 1)];

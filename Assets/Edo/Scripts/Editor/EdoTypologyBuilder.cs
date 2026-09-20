@@ -366,7 +366,7 @@ public static class EdoTypologyBuilder
             string kind = EnclosureFor(s, e, isFront);
             string pre = kind + "_" + e.i;
             if (kind == "nagaya")
-                EdoNishiTameikeBuilder.NagayaRun(encl, e.a, e.b, e.outward, pad, gc, gh, pre);
+                EdoNishiTameikeBuilder.NagayaRun(encl, e.a, e.b, e.outward, pad, gc, gh, pre, poly);
             else
                 EdoNishiTameikeBuilder.DobeiRun(encl, e.a, e.b, e.outward, pre, true, pad, gc, gh);
         }
@@ -614,7 +614,7 @@ public static class EdoTypologyBuilder
     /// <summary>駒が区画の外へ出た量[m]。⭐ **壁体と軒を分けて測る。**
     /// <paramref name="withRoof"/>=false なら屋根・軒・垂木を外した**壁体**の頂点だけ(=区域侵犯の本体)、
     /// true なら軒も含む(=軒の張り出し)。⛔ 外接箱の隅で測らない — 斜めの辺に沿う塀は回っているだけで隅が外へ出る。
-    /// ⚠ 軒が境界を越えることの許容は施主の裁定待ちなので、**混ぜずに別々に刷る**(規則19)。</summary>
+    /// ⚠ 軒が境界を越えるのは**許容**(2026-09-21 施主裁定A)。判定は壁体だけで出し、軒は別の列に刷る(規則19)。</summary>
     static float OutsideBy(Vector2[] poly, Transform t, bool withRoof)
     {
         float over = 0f;
@@ -704,7 +704,7 @@ public static class EdoTypologyBuilder
                 minGap < 0f ? "(⛔ めり込み)" : (minGap < MIN_BLDG_GAP ? "(⚠ 目安 " + MIN_BLDG_GAP.ToString("F1") + "m 未満)" : ""));
         bool clash = minGap != float.MaxValue && minGap < 0f;
         string mark = (outside + sunk + floated) == 0 && !clash ? "⭕" : "⛔";
-        return string.Format("  {0} 検査: 駒 {1} — 壁体が区画の外 {2}(最悪 {3:F2}m) / 軒が区画の外 {11}(最悪 {12:F2}m・許容は裁定待ち) / "
+        return string.Format("  {0} 検査: 駒 {1} — 壁体が区画の外 {2}(最悪 {3:F2}m) / 軒が区画の外 {11}(最悪 {12:F2}m・許容・裁定A) / "
                            + "触れている所の埋没 {4}(最悪 {5:F2}m) / 浮き {6}(最悪 {7:F2}m) / "
                            + "触れている所が複数 {8}駒 / 足元の起伏 最悪 {9:F2}m{10}",
                              mark, n, outside, worstOut, sunk, worstSunk,

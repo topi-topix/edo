@@ -152,3 +152,6 @@ CLAUDE.md は不変則とルーティングだけを載せる(2026-09-06 に減�
 - 2026-09-20 **開発速度 53.4秒→7.7秒(6.9倍)。asmdef は不採用 — 効くのはパッケージ削減と作業場シーン**(EDO-0265・infra) — memory/domain-reload-cost-akasaka.md
 - 2026-09-20 **claim の生死は pid でなく心拍で見る — 山王が生きている松平出羽守から unity を取り上げた**(EDO-0279・cross)
 - 2026-09-20 **⛔ `ps` は他セッションの pid を映さない — 『プロセス表に無い=終了』は必ず誤判定になる。門番が `steal` を拒むようにし、取り上げは相手の `status` に残るようにした**(EDO-0280・infra) — docs/session-coordination.md「引き継ぐとき」
+- 2026-09-20 **規則3は「許容」ではなく「導き方」— 面の高さは段全体でなく『その面に載る棟の足元』から採る(施主指摘 2026-09-20)**(EDO-0290・cross) — docs/Sashizu/matsudaira_dewa_sashizu.json#planes
+- 2026-09-20 **『書き込みました』だけでは施主が効く範囲を判断できない — 書いた・直した・消した場所は必ずパスで添える(施主指摘)** — docs/reporting-protocol.md 規則10・CLAUDE.md 規則16
+- 2026-09-20 **『実物の底を地面に』では漏れる — 接地箇所を測る(底とは限らず複数あり得る)。部材の基準点で位置を決めない(施主指摘)** — CLAUDE.md 規則21・EdoBuild.cs `Contact`・スキル unity-surface-authoring

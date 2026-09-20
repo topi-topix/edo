@@ -302,8 +302,31 @@ public static class EdoBuild
         return crest == float.MinValue ? float.NaN : crest;
     }
 
-    /// <summary>**地面に据える。**駒の**実メッシュの底**を、その真下の地形(格子点)へ置き、
-    /// <paramref name="sink"/> だけ沈める。返り値 = 動かした量[m]。
+    /// <summary>**接地箇所を測る。**駒の実メッシュの全頂点について「頂点の高さ − その真下の地形(格子点)」を取り、
+    /// 最小の物が接地箇所。返り値 = その隙間[m](正=浮き・負=埋没・0=接地)。<paramref name="at"/> = 接地箇所の世界座標、
+    /// <paramref name="count"/> = 最小から <paramref name="tol"/> 以内にある頂点の数(**複数接地**の検め)。
+    /// 頂点が無ければ NaN。
+    ///
+    /// <para>⛔ **接地箇所は「底(bounds.min.y)」ではない。**斜面では上手側の頂点が先に着き、据え面のある石はその縁が、
+    /// 木は根張りの端が着く。底の一点で据えると、着くべき所が浮くか埋まる。⛔ **部材の基準点(ピボット・原点・
+    /// bounds の中心)で位置を決めない。絶対に。**(2026-09-20 施主指摘「実物の底や地面では漏れる。接地箇所を測れ」)</para></summary>
+    public static float Contact(GameObject go, out Vector3 at, out int count, float tol = 0.01f)
+    {
+        var pts = Body(go.transform, 4000);
+        float best = float.NaN; at = go.transform.position; count = 0;
+        var cl = new List<float>(pts.Count);
+        foreach (var p in pts)
+        {
+            float c = p.y - GroundGrid(p.x, p.z); cl.Add(c);
+            if (float.IsNaN(best) || c < best) { best = c; at = p; }
+        }
+        if (float.IsNaN(best)) return best;
+        foreach (var c in cl) if (c - best <= tol) count++;
+        return best;
+    }
+
+    /// <summary>**地面に据える。**<see cref="Contact"/> で測った**接地箇所**が地形(格子点)に着く高さへ動かし、
+    /// <paramref name="sink"/> だけ沈める。返り値 = 動かした量[m]。測れる頂点が無ければ例外(黙って置かない)。
     ///
     /// <para>⛔ **部材の基準点(ピボット)を信用して座標へ置かない。**ピボットの位置は部材ごとに違う
     /// (床 / 軒先 / 小口 / 中心 / 天端)。座標へ直に置くと、メッシュがピボットより下へ伸びている部材は
@@ -315,9 +338,9 @@ public static class EdoBuild
     /// ⛔ 部材のピボットのずれを吸わせる目的で使わない — それは測って消す物で、決め打ちで隠す物ではない。</para></summary>
     public static float SeatOnGround(GameObject go, float sink = 0f)
     {
-        var b = RB(go);
-        float g = GroundGrid(go.transform.position.x, go.transform.position.z);
-        float dy = (g - sink) - b.min.y;
+        float c = Contact(go, out _, out _);
+        if (float.IsNaN(c)) throw new System.InvalidOperationException($"SeatOnGround: {go.name} に測れる頂点が無い(MeshFilter 無し・全て屋根名・非表示)");
+        float dy = -sink - c;
         go.transform.position += new Vector3(0f, dy, 0f);
         return dy;
     }

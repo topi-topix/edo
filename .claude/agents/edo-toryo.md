@@ -66,8 +66,10 @@ memory: project
    (`create_script`/`apply_text_edits`/`script_apply_edits` を使い、既存 Stage の書式に倣う)
    ⭐ **据え付けは「置き方の4手」で書く**(2026-09-20 施主指示・スキル `sashizu.md` §3f): 固定側(門構え・隅)を
    先に置く → 可動側は前の相手の**実メッシュの面**へ `EdoBuild.Abut`/`AlignFace` で突き付ける(連鎖) →
-   高さは下の実物を `EdoBuild.SeatOnCrest`(石垣の天端)/ `EdoBuild.PadY`(段の格子点の中央値)で測って据える →
-   事後に寄せる関数を足さない。⛔ 指図の s・y を座標として置かない。⛔ 検査関数を新設して直さない
+   高さは**接地箇所**を `EdoBuild.SeatOnCrest`(石垣の天端)/ `EdoBuild.PadY`(段の格子点の中央値)/ `EdoBuild.Contact`・
+   `SeatOnGround`(木・石・柵)で測って据える → 事後に寄せる関数を足さない。⛔ **部材の基準点(ピボット・原点・bounds の中心)
+   で位置を決めない。絶対に。**接地は底とは限らず複数あり得る — 「底を地面に」で済ませない。⛔ 指図の s・y を座標として
+   置かない。⛔ 検査関数を新設して直さない
 4. **パスの literal を新規に書かない**(CLAUDE.md 絶対規則11)。
    `EdoAssets.cs` に無いパスが要るなら、**先に `edo-buzai`(新造)か `edo-zaiko`(在庫照会)へ
    委ねてから**登録済みの関数経由で参照する

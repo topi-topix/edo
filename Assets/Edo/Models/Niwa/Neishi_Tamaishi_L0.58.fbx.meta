@@ -9,6 +9,11 @@ ModelImporter:
       assembly: UnityEngine.CoreModule
       name: M_FJG_Rock_001
     second: {fileID: 2100000, guid: dbf74aa0daf52c4e6ae327befe85b158, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: M_photoscanned_rocks_01
+    second: {fileID: 2100000, guid: 854c2a4ac214c8f47939e9fd60886c7c, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0

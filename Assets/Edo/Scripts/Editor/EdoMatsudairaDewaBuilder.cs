@@ -1655,6 +1655,16 @@ public static partial class EdoMatsudairaDewaBuilder
         return best;
     }
 
+    /// <summary>渡廊下の区間に**実際に据わっている下屋の駒**。雨押えの高さと段は
+    /// この駒のピボット(= 葺き下ろしの頭)から採る。⛔ 設計の数から起こさない。</summary>
+    static Transform SegGeya(GameObject seg)
+    {
+        if (seg == null) return null;
+        foreach (Transform ch in seg.transform)
+            if (ch.name.Contains("RokaGeya")) return ch;
+        return null;
+    }
+
     /// <summary>三角形を鉛直線 (p.x, p.y=z) が貫くか。貫けば交点の Y を返す。</summary>
     static bool TriPierceY(Vector3 a, Vector3 b, Vector3 c, Vector2 p, out float y)
     {
@@ -2081,6 +2091,8 @@ public static partial class EdoMatsudairaDewaBuilder
                 lowSeg = yg0 <= yg1 ? 0 : 1;
             }
 
+            // 据えた区間そのもの(雨押えの高さと段は**この実物**から採る。⛔ 紙の数を使わない)
+            var segGo = new GameObject[segs.Count];
             for (int si = 0; si < segs.Count; si++)
             {
                 var sg = segs[si];
@@ -2180,6 +2192,7 @@ public static partial class EdoMatsudairaDewaBuilder
                     }
                 }
                 Undo.RegisterCreatedObjectUndo(g, "roka");
+                segGo[si] = g;
             }
 
             // ⭐ 框(`dan.kind`)— 段の線で床が段になる。**高さは両側の段の面の差**(従属値)。
@@ -2193,6 +2206,13 @@ public static partial class EdoMatsudairaDewaBuilder
                 float fl0 = TerraceY(TerraceOf(qa, qb), out sp2, out np2) + rokaFloor;
                 float fl1 = TerraceY(TerraceOf(qc, qd), out sp2, out np2) + rokaFloor;
                 float rise = Mathf.Abs(fl1 - fl0);
+                // ⭐ 框も雨押えも **局所 +Z(見え面)= 段の低い側**。低い側の向きは**両側の面の実測**で
+                //   決める(⛔ 走りの向きから yaw を決め打ちしない — 段がどちらへ落ちるかは面が決める)。
+                Vector2 pk = f.W(alongU ? cut : midU2, alongU ? midV2 : cut);
+                bool lowIsPlus = fl1 < fl0;
+                Vector2 pLow = f.W(lowIsPlus ? qc : qa, lowIsPlus ? qd : qb);
+                Vector2 nLow = (pLow - pk).normalized;
+                float yawDan = Mathf.Atan2(nLow.x, nLow.y) * Mathf.Rad2Deg;
                 string kamachi = Has(dan, "kind") ? (string)dan["kind"] : "框";
                 if (kamachi != "框")
                     sb.AppendLine("⛔ " + name + ": dan.kind=" + kamachi + " は未対応 — 指図方へ差し戻し");
@@ -2201,14 +2221,42 @@ public static partial class EdoMatsudairaDewaBuilder
                                   ")なので框は立てない");
                 else
                 {
-                    Vector2 pk = f.W(alongU ? cut : midU2, alongU ? midV2 : cut);
                     var gk = EdoGotenKit.RokaKamachi(name + "_Kamachi", host,
-                                 new Vector3(pk.x, Mathf.Min(fl0, fl1), pk.y) - hostPos,
-                                 alongU ? yawV : yawU, rise);
+                                 new Vector3(pk.x, Mathf.Min(fl0, fl1), pk.y) - hostPos, yawDan, rise);
                     if (gk != null) Undo.RegisterCreatedObjectUndo(gk, "roka");
                     sb.AppendLine("・" + name + " 框: 段の線 " + (alongU ? "u=" : "v=") +
                                   cut.ToString("F0") + " で床 " + fl0.ToString("F3") + " → " +
                                   fl1.ToString("F3") + "(段 " + rise.ToString("F3") + "m)");
+                }
+
+                // ⭐ 雨押え — 段で折れた下屋の**折れ目に開く口**を塞ぐ。口は板ではなく**管**で、
+                //   走り方向と**幅方向の両方**へ抜ける(幅方向が本体 — 廊下の横から素通しになる)。
+                //   ピボット = 廊下の芯・折れ目の線・**低い区間の下屋の頭**。高さも段も
+                //   **据えた下屋の実位置**から採る(⛔ 指図の数も `dan` の数も使わない)。
+                if (segs.Count > 1)
+                {
+                    Transform rfLo = SegGeya(segGo[lowSeg]), rfHi = SegGeya(segGo[1 - lowSeg]);
+                    if (rfLo == null || rfHi == null)
+                        sb.AppendLine("⚠ " + name + " 雨押え: 段の両側の下屋が見つからない — 据えない");
+                    else
+                    {
+                        float yLo = rfLo.position.y, yHi = rfHi.position.y;
+                        float danM = Mathf.Abs(yHi - yLo);
+                        string pa = EdoAssets.Goten.Amaosae(Mathf.RoundToInt(danM * 1000f));
+                        if (AssetDatabase.LoadAssetAtPath<GameObject>(pa) == null)
+                            sb.AppendLine("⛔ " + name + " 雨押え: 段 " + danM.ToString("F3") +
+                                "m の部材が無い(" + pa + ")— blender --background --python " +
+                                "Tools/Blender/build_matsudaira_dewa_buzai.py -- amaosae --dan " +
+                                danM.ToString("F3"));
+                        else
+                        {
+                            EdoBuild.Place(pa, new Vector3(pk.x, yLo, pk.y), yawDan,
+                                           Vector3.one, host, name + "_Amaosae");
+                            sb.AppendLine("・" + name + " 雨押え: 折れ目 " + (alongU ? "u=" : "v=") +
+                                cut.ToString("F0") + " 低い頭 " + yLo.ToString("F3") + " / 高い頭 " +
+                                yHi.ToString("F3") + "(段 " + danM.ToString("F3") + "m)");
+                        }
+                    }
                 }
             }
             nl++;
@@ -2746,7 +2794,7 @@ public static partial class EdoMatsudairaDewaBuilder
         var f = Grid;
         float yawU = YawAlongU(), yawV = YawAlongV();
         var sb = new System.Text.StringBuilder();
-        int nHei = 0, nGaki = 0, nDan = 0, nIdo = 0, nYag = 0, nYa = 0;
+        int nHei = 0, nGaki = 0, nDan = 0, nIdo = 0, nYag = 0, nYa = 0, nFu = 0;
 
         // ---------------- 中仕切塀(板塀)と庭木戸
         var kido = new List<Vector2[]>();               // 木戸の world 区間(板塀はここを空ける)
@@ -2987,12 +3035,94 @@ public static partial class EdoMatsudairaDewaBuilder
                           + " (" + baseY.ToString("F2") + "→" + topY.ToString("F2") + ")");
         }
 
+        // ---------------- 切石縁石(`fuchi`)
+        //   ⭐ ピボット = **走りの中心・天端・縁の線(見付面)**。躯体は高い側(Z∈[−w,0])に在り、
+        //      丈 0.48 は天端から下へ垂れる ⇒ 置くのは **高い側の面の高さ**・向きは
+        //      **局所 +Z が低い側を向く方位**。⛔ `SeatBottom` で据えない・⛔ 走りを分割しない。
+        //   ⭕ 落差 0 の区間(`F_Omote_N`)も**同じ部材のまま通す** — 役目は白洲の砂利留めで、
+        //      落差の有無とは別(指図 `_fuchi`)。全丈が地中に隠れ、天端だけが見切りとして出る。
+        var fuGrp = Group("Fuzoku/Fuchi");
+        foreach (var o in A(D["fuchi"]))
+        {
+            var fc = O(o);
+            string fnm = (string)fc["name"];
+            bool lineV = (string)fc["line"] == "v";     // v=at の線(走りは u)
+            float at = F(fc["at"]), a = F(fc["a"]), b = F(fc["b"]);
+            float fw = Has(fc, "w") ? F(fc["w"]) : 0.36f;
+            float runKen = b - a;
+            string fpath = EdoAssets.Own.Fuchiishi(runKen, fw);
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(fpath) == null)
+            {
+                sb.AppendLine("⛔ 縁石 " + fnm + ": " + runKen.ToString("F2") + "間 w" +
+                              fw.ToString("F2") + " の部材が無い(" + fpath + ")— edo-buzai へ");
+                continue;
+            }
+            float fmid = (a + b) * 0.5f;
+            Vector2 fc0 = lineV ? f.W(fmid, at) : f.W(at, fmid);
+            // 両側の**面**を測って高い側・低い側を決める(⛔ `drop` の数を向きに使わない)
+            float spF; int npF;
+            float yMinus = TerraceY(TerraceOf(lineV ? fmid : at - 0.5f,
+                                              lineV ? at - 0.5f : fmid), out spF, out npF);
+            float yPlus  = TerraceY(TerraceOf(lineV ? fmid : at + 0.5f,
+                                              lineV ? at + 0.5f : fmid), out spF, out npF);
+            // 同高(落差 0 の見切り)は −側を見え面に取る — どちらを向いても躯体は地中
+            bool fLowPlus = yPlus < yMinus - 1e-3f;
+            Vector2 fLow = lineV ? f.W(fmid, at + (fLowPlus ? 0.5f : -0.5f))
+                                 : f.W(at + (fLowPlus ? 0.5f : -0.5f), fmid);
+            Vector2 fN = (fLow - fc0).normalized;
+            float fTop = Mathf.Max(yMinus, yPlus);
+            var fgo = EdoBuild.Place(fpath, new Vector3(fc0.x, fTop, fc0.y),
+                                     Mathf.Atan2(fN.x, fN.y) * Mathf.Rad2Deg,
+                                     Vector3.one, fuGrp, fnm);
+            if (fgo == null) continue;
+            nFu++;
+            sb.AppendLine("・縁石 " + fnm + " " + runKen.ToString("F2") + "間: 天端 " +
+                          fTop.ToString("F3") + " 落差 " + Mathf.Abs(yPlus - yMinus).ToString("F3"));
+        }
+
         // ---------------- 井戸
         var idGrp = Group("Fuzoku/Ido");
         foreach (var o in A(D["wells"]))
         {
             var w = O(o);
-            Vector2 c = f.W(F(w["u"]), F(w["v"]));
+            float wu = F(w["u"]), wv = F(w["v"]);
+            // ⭐ 指図 `wells[].constraint` が縁石を名指ししていたら、**その縁を跨がない最寄り**へ
+            //   据える。縁石の躯体は高い側へ `w`、井戸枠は実寸(部材のメッシュ)から測る。
+            //   ⛔ 座標は指図に無い(規則2)— 制約と実寸からの従属値として解く。
+            //   ⛔ 据えてから寄せない・⛔ 縁の側を切り欠かない。
+            string cons = Has(w, "constraint") ? (string)w["constraint"] : null;
+            if (cons != null)
+            {
+                var idoSrc = AssetDatabase.LoadAssetAtPath<GameObject>(EdoAssets.Own.Matsudaira.Ido);
+                Vector3 idoSz = idoSrc == null ? Vector3.zero : PartSize(idoSrc);
+                foreach (var o2 in A(D["fuchi"]))
+                {
+                    var fc = O(o2);
+                    string fnm = (string)fc["name"];
+                    if (idoSz == Vector3.zero || cons.IndexOf(fnm) < 0) continue;
+                    bool lineV = (string)fc["line"] == "v";
+                    float at = F(fc["at"]), fw = Has(fc, "w") ? F(fc["w"]) : 0.36f;
+                    // 井戸枠は yawU で据わる(局所 +Z → 格子 −v)⇒ v 向きの寸は z・u 向きの寸は x
+                    float half = (lineV ? idoSz.z : idoSz.x) * 0.5f;
+                    float spI; int npI;
+                    float yM = TerraceY(TerraceOf(lineV ? wu : at - 0.5f,
+                                                  lineV ? at - 0.5f : wv), out spI, out npI);
+                    float yP = TerraceY(TerraceOf(lineV ? wu : at + 0.5f,
+                                                  lineV ? at + 0.5f : wv), out spI, out npI);
+                    int sgn = yP >= yM ? 1 : -1;                    // 段の上(高い側)の向き
+                    float need = at + sgn * (fw + half) / f.ken;    // 枠の小口が縁石の外へ出る最寄り
+                    float q = lineV ? wv : wu;
+                    if (sgn > 0 ? q < need : q > need)
+                    {
+                        if (lineV) wv = need; else wu = need;
+                        sb.AppendLine("・井戸 " + (string)w["name"] + ": 縁 " + fnm + " を跨がないよう " +
+                                      (lineV ? "v " : "u ") + q.ToString("F2") + " → " +
+                                      need.ToString("F2") + "(縁石 " + fw.ToString("F2") +
+                                      " + 枠の半寸 " + half.ToString("F2") + ")");
+                    }
+                }
+            }
+            Vector2 c = f.W(wu, wv);
             var go = EdoNishiTameikeBuilder.Place(EdoAssets.Own.Matsudaira.Ido,
                 new Vector3(c.x, DesignY(c), c.y), yawU, Vector3.one, idGrp, (string)w["name"]);
             // ⚠ バウンズ中心で寄せない。**自作部材のピボットは footprint の中心・地盤**なので
@@ -3020,16 +3150,26 @@ public static partial class EdoMatsudairaDewaBuilder
             //   膨らみ、離れている駒まで「食い込み」に出る(2026-08-25 に偽陽性5件)。
             //   **水平の OBB を分離軸で測る。**
             {
+                //   ⭐ **2026-09-20: 当たりは「相手が存在する高さの帯」で測る。**平面だけで測ると
+                //   腰屋根の軒(出 0.80m)を拾うが、軒は塀の天端の上を通るので当たっていない。
+                //   平面の量は〔記録〕として毎巡出し、★ は帯の中で本当に当たったときだけ出す。
                 var kak2 = Group("").Find("Kakoi");
-                float worst = 0f; string wn = null;
+                float worst = 0f, worstFlat = 0f; string wn = null, wnFlat = null;
                 if (kak2 != null) foreach (Transform c2 in kak2)
                 {
-                    float ov = ObbOverlap2D(go.transform, c2);
+                    float fl = ObbOverlap2D(go.transform, c2);
+                    if (fl > worstFlat) { worstFlat = fl; wnFlat = c2.name; }
+                    if (fl <= 0.25f) continue;              // 平面で離れていれば帯も当たらない
+                    float ov = ObbOverlapInBand(go.transform, c2);
                     if (ov > worst) { worst = ov; wn = c2.name; }
                 }
+                if (worstFlat > 0.25f)
+                    sb.AppendLine("〔記録〕隅櫓 " + (string)y["name"] + ": 平面の重なり最大 " +
+                                  worstFlat.ToString("F2") + "m(" + wnFlat + ")/ 塀の天端より下の帯では " +
+                                  worst.ToString("F2") + "m");
                 if (worst > 0.25f)
-                    sb.AppendLine("★ 隅櫓 " + (string)y["name"] + " が " + wn + " と水平で " +
-                                  worst.ToString("F2") + "m 食い込む — **指図の開口(gapA/gapB)が足りない**");
+                    sb.AppendLine("★ 隅櫓 " + (string)y["name"] + " が " + wn + " と " +
+                                  worst.ToString("F2") + "m 食い込む(躯体どうし)— **開口を躯体+犬走りで解き直す**");
             }
         }
 
@@ -3140,7 +3280,7 @@ public static partial class EdoMatsudairaDewaBuilder
         }
 
         sb.Append("中仕切 " + nHei + "枚 / 竹垣 " + nGaki + "枚 / 段石 " + nDan + "枚 / 井戸 " +
-                  nIdo + "基 / 隅櫓 " + nYag + "基 / 附属屋 " + nYa + "棟");
+                  nIdo + "基 / 隅櫓 " + nYag + "基 / 附属屋 " + nYa + "棟 / 縁石 " + nFu + "本");
         return sb.ToString();
     }
 
@@ -3199,6 +3339,56 @@ public static partial class EdoMatsudairaDewaBuilder
     }
 
     /// <summary>水平面の OBB どうしの食い込み量[m](分離軸法)。0 なら離れている。</summary>
+    /// <summary>a と b が**本当に当たっている**量[m]。⭐ a の頂点は **b が存在する高さの帯**
+    /// (b のワールド Bounds の y 範囲)だけを採る — 隅櫓の腰屋根の軒(出 0.80m)は塀の天端より
+    /// 上を通るので、平面だけで測ると当たっていない物を「食い込み」に出す(2026-09-20)。
+    /// 同じ隅の `yagura[].parcelOut`(軒は区画線を越える・躯体は内)と同じ取り方。
+    /// 分離していれば 0。⛔ 中心どうしの距離で測らない(水平の OBB を分離軸で測る)。</summary>
+    static float ObbOverlapInBand(Transform a, Transform b)
+    {
+        var bb = EdoBuild.RB(b.gameObject);
+        if (bb.size == Vector3.zero) return 0f;
+        var pa = new List<Vector2>(); var pb = new List<Vector2>();
+        float lo = bb.min.y - 0.01f, hi = bb.max.y + 0.01f;
+        foreach (var mf in a.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var l2w = mf.transform.localToWorldMatrix; var vs = mf.sharedMesh.vertices;
+            int st = Mathf.Max(1, vs.Length / 6000);
+            for (int i = 0; i < vs.Length; i += st)
+            {
+                var q = l2w.MultiplyPoint3x4(vs[i]);
+                if (q.y >= lo && q.y <= hi) pa.Add(new Vector2(q.x, q.z));
+            }
+        }
+        foreach (var mf in b.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var l2w = mf.transform.localToWorldMatrix; var vs = mf.sharedMesh.vertices;
+            int st = Mathf.Max(1, vs.Length / 6000);
+            for (int i = 0; i < vs.Length; i += st)
+            {
+                var q = l2w.MultiplyPoint3x4(vs[i]);
+                pb.Add(new Vector2(q.x, q.z));
+            }
+        }
+        if (pa.Count == 0 || pb.Count == 0) return 0f;
+        float ra = a.eulerAngles.y * Mathf.Deg2Rad, rb = b.eulerAngles.y * Mathf.Deg2Rad;
+        Vector2[] axes = { new Vector2(Mathf.Cos(ra), -Mathf.Sin(ra)), new Vector2(Mathf.Sin(ra), Mathf.Cos(ra)),
+                           new Vector2(Mathf.Cos(rb), -Mathf.Sin(rb)), new Vector2(Mathf.Sin(rb), Mathf.Cos(rb)) };
+        float best = float.MaxValue;
+        foreach (var ax in axes)
+        {
+            float a0 = float.MaxValue, a1 = float.MinValue, b0 = float.MaxValue, b1 = float.MinValue;
+            foreach (var q in pa) { float d = Vector2.Dot(q, ax); if (d < a0) a0 = d; if (d > a1) a1 = d; }
+            foreach (var q in pb) { float d = Vector2.Dot(q, ax); if (d < b0) b0 = d; if (d > b1) b1 = d; }
+            float ov = Mathf.Min(a1, b1) - Mathf.Max(a0, b0);
+            if (ov <= 0f) return 0f;
+            if (ov < best) best = ov;
+        }
+        return best;
+    }
+
     static float ObbOverlap2D(Transform a, Transform b)
     {
         Vector3 sa = PartSize(a.gameObject), sbz = PartSize(b.gameObject);
@@ -3819,9 +4009,15 @@ public static partial class EdoMatsudairaDewaBuilder
         //   ⭐ 2026-09-08: 表門の**袖塀**(`Own.Sodebei`)を独立部材にして `Models/Hei` へ焼いたので
         //   このフォルダを足した。⚠ `Models/Hei` には岡部邸の のし塀・木戸も居るが、材質名で
         //   引き直すだけなので同名の同じ .mat に当たる(冪等)。
+        //   ⭐ 2026-09-20: 切石の縁石(`Own.Fuchiishi`)を `Models/Fuchi` へ焼いたのでこのフォルダを足した。
+        //   材は `Kirishi`(`Assets/Edo/Materials/Sanno/Kirishi.mat`)で、donorDirs の
+        //   `Assets/Edo/Materials` が**再帰的に**拾う。⛔ 足さないと縁石だけ真っ白で出る。
         string[] modelDirs = { "Assets/Edo/Models/Fuzokuya", "Assets/Edo/Models/Mon",
                                "Assets/Edo/Models/Trees", "Assets/Edo/Models/Niwa",
-                               "Assets/Edo/Models/Hei" };
+                               "Assets/Edo/Models/Hei", "Assets/Edo/Models/Fuchi" };
+        // ⚠ まだ Unity が取り込んでいないフォルダを渡すと FindAssets が落ちる
+        modelDirs = System.Array.FindAll(modelDirs, AssetDatabase.IsValidFolder);
+        if (modelDirs.Length == 0) return "対象フォルダが無い";
         foreach (var guid in AssetDatabase.FindAssets("t:Model", modelDirs))
         {
             string path = AssetDatabase.GUIDToAssetPath(guid);

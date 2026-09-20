@@ -434,14 +434,26 @@ public static class EdoGotenKit
     /// <para><paramref name="rise"/> = 両側の床の天端の差。⛔ **定数で持たない** —
     /// 指図(松江松平 `links[].dan`)は「框一段」としか言わず、落差は両側の段の面の**従属値**。</para>
     ///
-    /// <para>⚠ **框の専用部材が無いので、桁材(成 <see cref="EdoAssets.Goten.BeamH"/>)を
-    /// 段の高さへ縮めて充てている。**専用部材が焼けたら差し替える(部材方への候補)。
+    /// <para>⭐ **2026-09-20: 専用部材 <see cref="EdoAssets.Goten.RokaKamachi(int)"/>(框+蹴込板+地覆)へ
+    /// 差し替えた。**それまでは桁材(成 <see cref="EdoAssets.Goten.BeamH"/>)を段の高さへ縮めた仮物。
+    /// ピボット = **幅の中心・低い側の床板(<see cref="EdoAssets.Goten.RokaEnita"/>)の天端・見付面(Z=0)**
+    /// なので <paramref name="pos"/> には**低い側の床の天端**を、<paramref name="yaw"/> には
+    /// **局所 +Z が段の低い側を向く方位**を渡す。⛔ <c>SeatBottom</c> で据えない。
     /// ⛔ <see cref="EdoAssets.Goten.JodanKamachi"/> は使えない — 上段框は段 0.15 固定で、
     /// 上の床板(奥行 0.55)を抱いているため廊下の床板と二重になる。</para></summary>
     public static GameObject RokaKamachi(string name, Transform parent, Vector3 pos, float yaw, float rise)
     {
-        var go = Put(EdoAssets.Goten.Beam, parent, pos, yaw,
-                     new Vector3(1f, rise / EdoAssets.Goten.BeamH, 1f));
+        int mm = Mathf.RoundToInt(rise * 1000f);
+        string path = EdoAssets.Goten.RokaKamachi(mm);
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+        {
+            Debug.LogWarning(string.Format(
+                "[GotenKit] {0}: 段 {1:F3}m の框が焼かれていない({2})。" +
+                "blender --background --python Tools/Blender/build_matsudaira_dewa_buzai.py -- kamachi --dan {1:F3}",
+                name, rise, path));
+            return null;
+        }
+        var go = Put(path, parent, pos, yaw, Vector3.one);
         if (go != null) go.name = name;
         return go;
     }

@@ -458,8 +458,21 @@ public static class EdoSashizuExport
                 foreach (var o in Get2(doc, "wells"))
                 {
                     var w2 = o as Dictionary<string, object>; if (w2 == null) continue;
-                    chk(fz == null ? null : fz.Find("Ido"), Str(w2, "name"),
-                        W(F(w2, "u"), F(w2, "v")), "井戸", secOf("主郭", Str(w2, "name")));
+                    string wn2 = Str(w2, "name");
+                    // ⭐ **`constraint` を持つ井戸は u/v の芯で測らない**(附属屋の `seat` と同じ扱い・
+                    //   CLAUDE.md 規則5)。指図が『縁を跨がない・段の上に載せる』と**制約**で書いた物は、
+                    //   座が実装の解(井戸枠の実寸からの従属値)であって u/v は名目の点にすぎない。
+                    //   ⛔ 芯と比べると、制約どおり寄せた現物が毎回「ずれている」と出て、
+                    //      **縁へ戻す誤った是正**を誘う(松江松平 Ido_Katte・2026-09-21 実測 1.31m)。
+                    if (!string.IsNullOrEmpty(Str(w2, "constraint")))
+                    {
+                        seen.Add(wn2);
+                        var tw = fz == null ? null : (fz.Find("Ido") == null ? null : fz.Find("Ido").Find(wn2));
+                        if (tw == null) bad(secOf("主郭", wn2), "井戸 " + wn2 + " が実装に無い");
+                        continue;
+                    }
+                    chk(fz == null ? null : fz.Find("Ido"), wn2,
+                        W(F(w2, "u"), F(w2, "v")), "井戸", secOf("主郭", wn2));
                 }
                 foreach (var o in Get2(doc, "service"))
                 {

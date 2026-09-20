@@ -390,10 +390,15 @@ public static class EdoTypologyBuilder
                 var brb = EdoBuild.RB(bs);
                 EdoBuild.AlignFace(bs, front.a, front.outward, face,
                                    brb.min.y + 0.30f, brb.min.y + brb.size.y * 0.60f);
-                Vector3 cat; int cn;
-                float d = EdoBuild.Abut(bs, mon, push[k], 0f, out cat, out cn);   // 門と触れる所で止める
-                Seat(bs, log);
-                float cg = EdoBuild.Contact(bs, mon, push[k], out cat, out cn);   // 据え直した後の当たりを刷る
+                // ⭐ 横へ寄せると足元の地形が変わり、据え直すと当たりが少し開く(実測 0.062m)。
+                //    「寄せる → 据える」を2巡してから実測を刷る(⛔ 事後に寄せる関数は作らない)。
+                Vector3 cat; int cn; float d = 0f;
+                for (int r = 0; r < 2; r++)
+                {
+                    d += EdoBuild.Abut(bs, mon, push[k], 0f, out cat, out cn);
+                    Seat(bs, log);
+                }
+                float cg = EdoBuild.Contact(bs, mon, push[k], out cat, out cn);   // 最後に実測を刷る
                 log.Add(string.Format("    番所{0}: 門へ {1:+0.00;-0.00}m 寄せた — 触れている所の隙 {2:F3}m・当たりの筋 {3}",
                                       k, d, cg, cn));
             }
@@ -465,8 +470,10 @@ public static class EdoTypologyBuilder
             for (int u = 0; u < s.units; u++) plan.AddRange(one);
         }
         var placed = new List<Bounds>();
+        var made = new List<GameObject>();            // 棟どうしの当たりを測るための実体
         var tried = new HashSet<Vector2>();
-        int n = 0, dropped = 0, unseated = 0;
+        int n = 0, dropped = 0, unseated = 0, clashed = 0;
+        float worstPair = float.NaN;
         foreach (var item in plan)
         {
             GameObject go = null;
@@ -488,7 +495,24 @@ public static class EdoTypologyBuilder
                 {
                     UnityEngine.Object.DestroyImmediate(go); go = null; continue;
                 }
+                // ⛔ 外接箱の膨らましだけで離れを決めない — 回った棟・L字の棟で必ず外す。
+                //    **既に建った棟と触れている箇所**を測り、めり込むなら退けて次の場所へ(規則21・2026-09-21)。
+                float worst = float.NaN;
+                foreach (var prev in made)
+                {
+                    var d3 = prev.transform.position - go.transform.position; d3.y = 0f;
+                    if (d3.sqrMagnitude < 1e-4f) { worst = -9f; break; }
+                    Vector3 pat; int pn;
+                    float gp = EdoBuild.Contact(go, prev, d3.normalized, out pat, out pn, 0.01f, 0.5f, 800);
+                    if (!float.IsNaN(gp) && (float.IsNaN(worst) || gp < worst)) worst = gp;
+                }
+                if (!float.IsNaN(worst) && worst < 0f)   // めり込み = 許容0(規則4)
+                {
+                    UnityEngine.Object.DestroyImmediate(go); go = null; clashed++; continue;
+                }
+                if (!float.IsNaN(worst) && (float.IsNaN(worstPair) || worst < worstPair)) worstPair = worst;
                 var rb = EdoBuild.RB(go); rb.Expand(MIN_BLDG_GAP * 2f); placed.Add(rb);  // Expand は片側 1/2
+                made.Add(go);
                 n++;
             }
             if (go == null) dropped++;
@@ -497,6 +521,9 @@ public static class EdoTypologyBuilder
         string un  = s.units > 1 ? string.Format("・{0}戸割り", s.units) : "";
         string dr  = dropped > 0 ? string.Format("・⚠ {0}棟は区画に収まらず未建", dropped) : "";
         if (unseated > 0) dr += string.Format("・⛔ {0}棟は接地箇所が測れず未建(部材のメッシュを検める)", unseated);
+        if (clashed > 0) dr += string.Format("・{0}回は先の棟にめり込むので退けて置き直した", clashed);
+        if (!float.IsNaN(worstPair)) dr += string.Format("・棟どうしの当たりの最小 {0:F2}m{1}", worstPair,
+            worstPair < MIN_BLDG_GAP ? "(⚠ 目安 " + MIN_BLDG_GAP.ToString("F1") + "m 未満)" : "");
         return string.Format("  主屋と付属: {0}棟(型={1}{2}){3}{4}", n, s.rank ?? s.kind ?? s.type, un, dr, yag);
     }
 
@@ -655,28 +682,29 @@ public static class EdoTypologyBuilder
         }
         // 棟どうしの離れ — 建つ姿の欠陥ではないが、MIN_BLDG_GAP という数字を書いた以上、
         // 実際に何 m 離れたかを刷らないと「未検査」を「合格」に見せることになる(規則19)。
+        // ⛔ 外接箱の隙で測らない(回った棟で 0 に見える)。**棟どうしの触れている箇所**を測る
+        //    (負 = めり込み = 許容0・規則4。2026-09-21 施主指摘「何かと何かが接する所を測れ」)。
         float minGap = float.MaxValue;
         var tate = root.Find("Tatemono");
         if (tate != null)
         {
-            var bs = new List<Bounds>();
-            foreach (Transform t in tate)
-            {
-                var rs = t.GetComponentsInChildren<Renderer>(); if (rs.Length == 0) continue;
-                var b = rs[0].bounds; for (int i = 1; i < rs.Length; i++) b.Encapsulate(rs[i].bounds);
-                bs.Add(b);
-            }
-            for (int i = 0; i < bs.Count; i++)
-                for (int j = i + 1; j < bs.Count; j++)
+            var gs = new List<GameObject>();
+            foreach (Transform t in tate) if (t.GetComponentsInChildren<Renderer>().Length > 0) gs.Add(t.gameObject);
+            for (int i = 0; i < gs.Count; i++)
+                for (int j = i + 1; j < gs.Count; j++)
                 {
-                    float dx = Mathf.Max(0f, Mathf.Max(bs[i].min.x - bs[j].max.x, bs[j].min.x - bs[i].max.x));
-                    float dz = Mathf.Max(0f, Mathf.Max(bs[i].min.z - bs[j].max.z, bs[j].min.z - bs[i].max.z));
-                    minGap = Mathf.Min(minGap, Mathf.Sqrt(dx * dx + dz * dz));
+                    var d3 = gs[j].transform.position - gs[i].transform.position; d3.y = 0f;
+                    if (d3.sqrMagnitude < 1e-4f) { minGap = Mathf.Min(minGap, -9f); continue; }
+                    Vector3 at2; int n2;
+                    float g = EdoBuild.Contact(gs[i], gs[j], d3.normalized, out at2, out n2, 0.01f, 0.5f, 800);
+                    if (!float.IsNaN(g)) minGap = Mathf.Min(minGap, g);
                 }
         }
         string gap = minGap == float.MaxValue ? "" :
-            string.Format(" / 棟間の最小 {0:F2}m{1}", minGap, minGap < MIN_BLDG_GAP ? "(⚠ 目安 " + MIN_BLDG_GAP.ToString("F1") + "m 未満)" : "");
-        string mark = (outside + sunk + floated) == 0 ? "⭕" : "⛔";
+            string.Format(" / 棟どうしの当たりの最小 {0:F2}m{1}", minGap,
+                minGap < 0f ? "(⛔ めり込み)" : (minGap < MIN_BLDG_GAP ? "(⚠ 目安 " + MIN_BLDG_GAP.ToString("F1") + "m 未満)" : ""));
+        bool clash = minGap != float.MaxValue && minGap < 0f;
+        string mark = (outside + sunk + floated) == 0 && !clash ? "⭕" : "⛔";
         return string.Format("  {0} 検査: 駒 {1} — 区画の外 {2}(最悪 {3:F2}m) / 接地の埋没 {4}(最悪 {5:F2}m) / "
                            + "接地の浮き {6}(最悪 {7:F2}m) / 複数接地 {8}駒 / 足元の起伏 最悪 {9:F2}m{10}",
                              mark, n, outside, worstOut, sunk, worstSunk,

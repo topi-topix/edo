@@ -348,11 +348,24 @@ public static class EdoNishiTameikeBuilder
         var mr = NagayaMeasure(PKnagayaR);
         float Wc = mc.W;                               // 実測 8.065m
         int idx = 0;                                   // 命名は run 通しの prefix_k(従来互換)
+        int fill = 0;
         foreach (var seg in segs)
         {
             float L = seg[1] - seg[0];
-            if (L < 4f) continue;                      // 半棟も入らない区間は塀・隅が受ける
-            int n = Mathf.Max(1, Mathf.RoundToInt(L / Wc));
+            // ⛔ **一棟も入らない区間に丸ごとの長屋を置かない。**長屋は長さが固定なので、置けば
+            //    区間の外へはみ出す(2026-09-21 実測: 三べ坂の五島邸で辺9の一棟が区画の外へ 1.53m。
+            //    区域侵犯は許容0・規則4)。端数は**伸縮する塀**へ流す(置き方の4手④)。
+            if (L < Wc - 0.30f)
+            {
+                if (L >= 1.2f)
+                {
+                    DobeiRun(parent, sA + rdir * seg[0], sA + rdir * seg[1], outward,
+                             prefix + "_fill" + fill, followGround, baseY, Vector2.zero, -1);
+                    fill++;
+                }
+                continue;
+            }
+            int n = Mathf.Max(1, Mathf.FloorToInt(L / Wc));   // ⛔ Round では最後の一棟がはみ出す
             // rdir ∥ ローカル-X に揃えてあるので flip 無し: 低s端=l / 高s端=r。孤立1棟は c。
             Func<int, string> pathAt = k =>
             {
@@ -382,7 +395,11 @@ public static class EdoNishiTameikeBuilder
                     pieceBase = Mathf.Min(g0, Mathf.Min(g1, gc));
                 }
                 var go = Place(path, new Vector3(c2.x, pieceBase, c2.y), psi, new Vector3(ES, ES, ES), parent, prefix + "_" + idx);
-                SeatBottom(go, pieceBase - 0.10f);
+                // ⛔ 底(bounds.min.y)を「足元の地形の最小」へ落とさない — 起伏のある区画で駒が埋まる
+                //    (2026-09-21 実測: 山王の内藤邸で 37 枚・最悪 2.74m)。**触れている箇所**を測って据える
+                //    (CLAUDE.md 規則21)。地形追従でないとき(天端を run の seat で通すとき)は設計の座のまま。
+                if (followGround) { try { EdoBuild.SeatOnGround(go, 0.10f, 600); } catch (System.Exception) { SeatBottom(go, pieceBase - 0.10f); } }
+                else SeatBottom(go, pieceBase - 0.10f);
                 made.Add(go); idx++;
                 cursor += m.W;                         // 継ぎ目は必ず面一
             }
@@ -447,7 +464,9 @@ public static class EdoNishiTameikeBuilder
                 var b = RB(go);
                 var target = new Vector3(c2.x + off2.x, 0, c2.y + off2.y);
                 go.transform.position += new Vector3(target.x - b.center.x, 0, target.z - b.center.z);
-                SeatBottom(go, baseY - 0.10f);
+                // ⛔ 底を「足元の地形」へ落とさない — **触れている箇所**を測って据える(規則21・2026-09-21)
+                if (followGround) { try { EdoBuild.SeatOnGround(go, 0.10f, 600); } catch (System.Exception) { SeatBottom(go, baseY - 0.10f); } }
+                else SeatBottom(go, baseY - 0.10f);
                 made.Add(go);
             }
         }

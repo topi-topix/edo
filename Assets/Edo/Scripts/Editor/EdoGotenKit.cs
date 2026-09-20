@@ -336,12 +336,26 @@ public static class EdoGotenKit
     /// ⚠⚠ **`nx` は整数とはかぎらない。** 土井の `L_ImaDaidokoro` は **1.5間**で、
     /// 整数へ丸めて 2間で組むと居間棟へ **0.909m 食い込む**(2026-09-06 に踏んだ)。
     /// ⇒ **端数は最後の一駒を走り方向へ縮めて吸う**(床板・桁・高欄の X を rem 倍する)。
-    /// 屋根は <see cref="EdoAssets.Goten.RoofKirizuma(float)"/> が端数の定尺を引く。</summary>
+    /// 屋根は <see cref="EdoAssets.Goten.RoofKirizuma(float)"/> が端数の定尺を引く。
+    ///
+    /// <para>⭐⭐ **差し掛けの下屋(両流れ)で葺く**とき(松江松平 2026-09-17 ユーザー裁定A)は
+    /// <paramref name="geyaHeadLocalY"/> に**廊下の頭の高さ**(この GameObject の local Y。
+    /// = その端の当たり − 指図 `roka.clear`)を渡す。独立した切妻(<c>ROKA_EAVE</c>/<c>ROKA_RIDGE</c>)
+    /// ではなく <see cref="EdoAssets.Goten.RoofRokaGeya(float)"/> を据える。
+    /// ⛔ 既定(NaN)は従来どおりの切妻 — 土井・岡部の渡廊下はそのまま。</para>
+    /// <para><paramref name="geyaKobai"/> = 下屋の勾配(指図 `const.sashikakeKobai`)。
+    /// **柱・桁の天端は従属値** = 頭 − 幅の半分 × 勾配(= 柱筋での葺き面)。⛔ 数を決め打ちしない。</para>
+    /// <para><paramref name="enita"/> = 床を <see cref="EdoAssets.Goten.RokaEnita"/>(厚1寸・
+    /// **ピボットが板の天端**)で葺く。⛔ 入側の板敷き <see cref="EdoAssets.Goten.FloorBoard"/>
+    /// (厚0.0636・ピボットが底)の置き換えではない。</para></summary>
     public static GameObject Roka(string name, Transform parent, Vector3 pos, float yaw, float nx,
                                   float floor = 0.62f, bool koranS = true, bool koranN = true,
-                                  bool roof = true, bool colStart = true, bool colEnd = true)
+                                  bool roof = true, bool colStart = true, bool colEnd = true,
+                                  float geyaHeadLocalY = float.NaN, float geyaKobai = 0f,
+                                  bool enita = false)
     {
-        if (RokaRidgeTop > MUNE_EAVE)
+        bool geya = !float.IsNaN(geyaHeadLocalY);
+        if (!geya && RokaRidgeTop > MUNE_EAVE)
             Debug.LogWarning(string.Format(
                 "[GotenKit] 渡廊下の大棟 {0:F3} が棟の軒先 {1:F3} より高い — (a)の取り合いが成立しない",
                 RokaRidgeTop, MUNE_EAVE));
@@ -351,8 +365,15 @@ public static class EdoGotenKit
         g.transform.localPosition = pos;
         g.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
 
-        float colH = ROKA_EAVE + ROKA_KETA;                 // 柱・桁の天端(床から)
+        // 柱・桁の天端(床から)。下屋のときは**柱筋での葺き面**へ従属させる(⛔ 定数で据えない)
+        float colH = geya ? (geyaHeadLocalY - (K * 0.5f) * geyaKobai) - floor
+                          : ROKA_EAVE + ROKA_KETA;
+        if (colH <= EdoAssets.Goten.BeamH)
+            Debug.LogWarning(string.Format(
+                "[GotenKit] {0}: 柱筋の頭上が {1:F3}m しか無い — 下屋の頭({2:F3})か床({3:F3})を疑う",
+                name, colH, geyaHeadLocalY, floor));
         float colS = colH / H;                              // 柱は建具丈のものを詰めて使う
+        string board = enita ? EdoAssets.Goten.RokaEnita : EdoAssets.Goten.FloorBoard;
 
         // 一間の駒を並べ、**端数は最後の一駒を走り方向へ縮めて吸う**(⛔ 全長を丸めない)
         int nFull = Mathf.FloorToInt(nx + 1e-4f);
@@ -363,7 +384,7 @@ public static class EdoGotenKit
             float bw = (i < nFull) ? 1f : rem;           // この駒の間数
             float xc = i * K + bw * K / 2f;
             var sc = new Vector3(bw, 1f, 1f);
-            Put(EdoAssets.Goten.FloorBoard, g.transform,
+            Put(board, g.transform,
                 new Vector3(xc, floor, K / 2f), 0f, sc);
             // 桁 — 柱の天端に渡す。屋根の裏に隠れる高さ
             Put(EdoAssets.Goten.Beam, g.transform,
@@ -390,14 +411,19 @@ public static class EdoGotenKit
 
         if (roof)
         {
-            string asset = EdoAssets.Goten.RoofKirizuma(nx);
+            // ⭐ 下屋はピボットの z=0 が**頭**(葺き下ろしの線)。⛔ 床でも軒先でもないので
+            //   floor を足さない — 渡された頭の高さへそのまま据える。
+            string asset = geya ? EdoAssets.Goten.RoofRokaGeya(nx)
+                                : EdoAssets.Goten.RoofKirizuma(nx);
             if (AssetDatabase.LoadAssetAtPath<GameObject>(asset) == null)
                 Debug.LogWarning(string.Format(
-                    "[GotenKit] {0}: {1}間の切妻屋根が無い。" +
-                    "blender --background --python Tools/Blender/build_goten_roof.py -- kirizuma {1}",
-                    name, EdoAssets.Goten.KenTag(nx)));
+                    "[GotenKit] {0}: {1}間の{2}屋根が無い({3})。" +
+                    "blender --background --python Tools/Blender/build_goten_roof.py -- {4} {1}",
+                    name, EdoAssets.Goten.KenTag(nx), geya ? "下屋" : "切妻", asset,
+                    geya ? "geya" : "kirizuma"));
             else
-                Put(asset, g.transform, new Vector3(nx * K / 2f, floor + ROKA_EAVE, K / 2f), 0f);
+                Put(asset, g.transform,
+                    new Vector3(nx * K / 2f, geya ? geyaHeadLocalY : floor + ROKA_EAVE, K / 2f), 0f);
         }
         return g;
     }

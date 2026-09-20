@@ -125,6 +125,21 @@ public static class EdoSashizuExport
         if (!Houses.ContainsKey(id)) return null;
         var path = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), Houses[id].doc);
         if (!System.IO.File.Exists(path)) return null;
+        // ⭐⭐ **効くのは実装前まで**(2026-09-19 施主裁定2=A)。実装の車線に入った敷地
+        //   (`kansei_gate.py --init` で `<邸>_kansei.json` が在る = phase built/done)では
+        //   この関門は鳴らず、**完成条件の表**(`kansei_gate.py`)が関門になる。
+        //   ⛔ ここを落とすと `Tools/Sashizu/review_gate.py` と C# が反対のことを言う
+        //     (python は ⭕ なのに Stage が止まる — 2026-09-20 に踏んだ)。
+        {
+            var kp = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path), id + "_kansei.json");
+            if (System.IO.File.Exists(kp))
+            {
+                var kd = MiniJson.Parse(System.IO.File.ReadAllText(kp)) as Dictionary<string, object>;
+                string ph = (kd != null && kd.ContainsKey("phase")) ? kd["phase"] as string : "built";
+                if (string.IsNullOrEmpty(ph)) ph = "built";
+                if (ph == "built" || ph == "done") return null;
+            }
+        }
         var doc = MiniJson.Parse(System.IO.File.ReadAllText(path)) as Dictionary<string, object>;
         if (doc == null) return null;
         var rev = doc.ContainsKey("reviews") ? doc["reviews"] as Dictionary<string, object> : null;

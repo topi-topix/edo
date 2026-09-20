@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 33272dbf4241c4e7c94d052c28d6cce6
+guid: 22fd958a554b944fa9d848118631a6ba
 ModelImporter:
   serializedVersion: 24501
   internalIDToNameTable: []
@@ -12,33 +12,8 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
-      name: Foundation_A_01
-    second: {fileID: 2100000, guid: 3ce4a815bce2cce4ba40d7156c957e2f, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
       name: Kirishi
     second: {fileID: 2100000, guid: 3736144dc0bddef39628311a0b24be5d, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: M_FJG_Rock_001
-    second: {fileID: 2100000, guid: dbf74aa0daf52c4e6ae327befe85b158, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: door wall
-    second: {fileID: 2100000, guid: c298f5897e841d74783072254b9f6baf, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: roof
-    second: {fileID: 2100000, guid: 46aea8a32dec24843adef3ad15ec2f3e, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: roof ornaments
-    second: {fileID: 2100000, guid: 2dba1ffbff60ed84194cd5d6c406b790, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule

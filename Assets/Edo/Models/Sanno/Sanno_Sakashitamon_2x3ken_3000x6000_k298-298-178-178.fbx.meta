@@ -1,19 +1,9 @@
 fileFormatVersion: 2
-guid: 4bb9b0f15ac7542ed8e201942dabb76e
+guid: 7853d5372eef94e52982675f12f78a86
 ModelImporter:
   serializedVersion: 24501
   internalIDToNameTable: []
   externalObjects:
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: Doukawara
-    second: {fileID: 2100000, guid: 7c4a1e3b9d2f4a5e8b06d1c3f9a2e470, type: 2}
-  - first:
-      type: UnityEngine:Material
-      assembly: UnityEngine.CoreModule
-      name: Foundation_A_01
-    second: {fileID: 2100000, guid: 3ce4a815bce2cce4ba40d7156c957e2f, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
@@ -22,8 +12,8 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
-      name: M_FJG_Rock_001
-    second: {fileID: 2100000, guid: dbf74aa0daf52c4e6ae327befe85b158, type: 2}
+      name: door wall
+    second: {fileID: 2100000, guid: c298f5897e841d74783072254b9f6baf, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
@@ -34,6 +24,11 @@ ModelImporter:
       assembly: UnityEngine.CoreModule
       name: roof ornaments
     second: {fileID: 2100000, guid: 2dba1ffbff60ed84194cd5d6c406b790, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: wall C
+    second: {fileID: 2100000, guid: 5882125c712caf74a8e76c5ccac460ec, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule

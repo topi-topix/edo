@@ -61,6 +61,9 @@ public static class EdoSannoSashizuCheck
         //   据え忘れなのかが読めなくなる**。⇒ どちらにせよ「指図にあって実装に無い」で1件は立つ。
         { "本殿", "Honden" }, { "作り合い", "Tsukuriai" }, { "幣殿", "Heiden" },
         { "拝殿", "Haiden" }, { "向拝", "Kohai" },
+        // ⭐ **2026-09-20 に `御供所` を足した** ── 部材(`Sanno_Gokusho_…`)が焼けて据わったのに
+        //   名簿に行が無く、「名簿にも載っていない」= ⛔ 位置を一度も測っていなかった(規則19)。
+        { "御供所", "Gokusho" },
     };
     /// <summary>門: 指図の名の先頭 → シーンの名。⭐ **2026-09-20 に名を改めた** ── 楼門・坂下の門は
     /// Japanese Castle の `Yaguramon A` の代用(`Zuijinmon` / `Niomon`)をやめ、指図の

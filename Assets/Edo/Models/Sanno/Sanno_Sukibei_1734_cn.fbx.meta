@@ -1,9 +1,24 @@
 fileFormatVersion: 2
-guid: 95e5caba981a84d33b39d8eed88e68e6
+guid: 8993fd96a92d5433b80634323a32012c
 ModelImporter:
   serializedVersion: 24501
   internalIDToNameTable: []
   externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Doukawara
+    second: {fileID: 2100000, guid: 7c4a1e3b9d2f4a5e8b06d1c3f9a2e470, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kirishi
+    second: {fileID: 2100000, guid: 3736144dc0bddef39628311a0b24be5d, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: wall C
+    second: {fileID: 2100000, guid: 5882125c712caf74a8e76c5ccac460ec, type: 2}
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule

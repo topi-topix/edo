@@ -563,7 +563,14 @@ public static class EdoSannoShaRebuild
             var r = o as Dictionary<string, object>; if (r == null || S(r, "of") != "run") continue;
             string name = S(r, "name"), kind = S(r, "kind");
             if (kind == "回廊")
-            { pending += F(r, "lenM"); pendNames.Add(name + "(" + kind + " " + F(r, "lenM").ToString("F1") + "m)"); continue; }
+            {
+                // ⭐ 2026-09-20: 部材が焼けたので建てる(`bom[回廊(屋根付きの廊)].在庫`)。
+                var kg = Group("Kakoi/" + name); Clear(kg);
+                int nk = Kairo(r, name, kg, sb);
+                if (nk == 0) { pending += F(r, "lenM"); pendNames.Add(name + "(" + kind + " " + F(r, "lenM").ToString("F1") + "m)"); }
+                pieces += nk;
+                continue;
+            }
 
             var grp = Group("Kakoi/" + name); Clear(grp);
             bool hasSeat = HasNum(r, "seat");
@@ -620,6 +627,47 @@ public static class EdoSannoShaRebuild
             sb.AppendLine("  ★ 部材が無いので建てなかった(bom が「無い/新造」): " +
                           string.Join(" / ", pendNames.ToArray()) + " = 計 " + pending.ToString("F1") + "m");
         return "囲い: 部材 " + pieces + " 枚\n" + sb;
+    }
+
+    // ---------------------------------------------------------------- 回廊
+    /// <summary>回廊の翼を1本据える(2026-09-20 に建てはじめた)。
+    /// **部材の規約は `EdoAssets.Own.SannoKairo` の註が正典** ── 走り = ローカル X・高さ = Y・梁間 = Z、
+    /// **見え面(腰板+連子窓の閉じた壁)= +Z = 外(東)**、ピボット = 柱芯の矩形の中心・**床(= 基壇の天端 `seat`)**。
+    /// ⛔ `SeatBottom` しない(部材は基壇を持たない ── 石垣が受ける)。
+    /// ⛔ **実装は寸法を一つも持たない** ── 綴りは 指図 `runs[].bays`/`bariBays`/`bari`(間)と
+    /// 算出物 `runs[].lenM` からの従属値。引けなければ据えずに差し戻す。
+    /// ⭐ 走り X について軸部は鏡像対称なので、+Z を東へ向けるために走りを **−dir** に取ってよい。</summary>
+    static int Kairo(Dictionary<string, object> r, string name, Transform grp, StringBuilder sb)
+    {
+        var doc = FindByName(Doc, "runs", name);
+        if (doc == null) { sb.AppendLine("  ★ " + name + ": 指図の run が引けない"); return 0; }
+        if (!HasNum(doc, "bays") || !HasNum(doc, "bariBays") || !HasNum(doc, "bari"))
+        { sb.AppendLine("  ★ " + name + ": `bays`/`bariBays`/`bari` が指図に無い(⛔ 発明しない)"); return 0; }
+        if (!HasNum(r, "seat")) { sb.AppendLine("  ★ " + name + ": `seat`(基壇の天端)が算出物に無い"); return 0; }
+        float ken = F(D(Impl, "grid"), "ken");
+        string path = EdoAssets.Own.SannoKairo(
+            Mathf.RoundToInt(F(doc, "bays")), Mathf.RoundToInt(F(doc, "bariBays")),
+            Mathf.RoundToInt(F(r, "lenM") * 1000f), Mathf.RoundToInt(F(doc, "bari") * ken * 1000f));
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+        { sb.AppendLine("  ★ " + name + ": 部材 " + path + " が無い(部材方へ)"); return 0; }
+        var pts = Pts(L(r, "nodes"));
+        if (pts.Count < 2) { sb.AppendLine("  ★ " + name + ": nodes が無い"); return 0; }
+        Vector2 a = pts[0], b = pts[pts.Count - 1];
+        Vector2 dir = (b - a).normalized;
+        Vector2 c = (a + b) * 0.5f;
+        float seat = F(r, "seat");
+        // ⭐ YawX(d) はローカル +X を d へ向ける ⇒ そのとき +Z は d の**左手**(−dir を取れば東)。
+        var go = EdoBuild.Place(path, new Vector3(c.x, seat, c.y), YawX(-dir), Vector3.one,
+                                grp, name + "_000f");
+        var bb = EdoBuild.RB(go);
+        sb.AppendLine("  " + name + "(回廊 " + F(r, "lenM").ToString("F2") + "m): " +
+                      System.IO.Path.GetFileNameWithoutExtension(path) +
+                      " 芯 (" + c.x.ToString("F2") + ", " + c.y.ToString("F2") + ") yaw " +
+                      YawX(-dir).ToString("F1") + " 床 " + seat.ToString("F2") +
+                      " / 実メッシュ 芯 (" + bb.center.x.ToString("F2") + ", " + bb.center.z.ToString("F2") +
+                      ") 下端 " + (bb.center.y - bb.extents.y).ToString("F2") +
+                      " 上端 " + (bb.center.y + bb.extents.y).ToString("F2"));
+        return 1;
     }
 
     // ---------------------------------------------------------------- 透塀
@@ -890,14 +938,89 @@ public static class EdoSannoShaRebuild
                           " H" + bb.size.y.ToString("F2") + " D" + bb.size.z.ToString("F2") +
                           " 下端 " + (bb.center.y - bb.extents.y).ToString("F2"));
         }
+        // ---- 鳥居(2026-09-20 に部材が焼けたので建てる)------------------------
         foreach (var o in L(Doc, "torii"))
         {
             var tr = o as Dictionary<string, object>; if (tr == null) continue;
-            pend.Add(S(tr, "name"));
+            string nm = S(tr, "name");
+            string path = ToriiPart();
+            if (path == null) { pend.Add(nm + "(石造明神鳥居の部材が引けない)"); continue; }
+            Vector2 pp = P2(G(tr, "pos"));
+            Vector2 face;
+            if (!ToriiFacing(pp, out face))
+            { pend.Add(nm + "(座が道の芯線に載っていない ── ⛔ 向きを発明しない)"); continue; }
+            float gy = EdoBuild.Ground(pp.x, pp.y);
+            var tg = EdoBuild.Place(path, new Vector3(pp.x, gy, pp.y), YawZ(face), Vector3.one,
+                                    grp, ToriiNameOf(nm));
+            var tb = EdoBuild.RB(tg);
+            made++;
+            sb.AppendLine("  " + nm + " → " + ToriiNameOf(nm) + " 芯 (" + pp.x.ToString("F2") + ", " +
+                          pp.y.ToString("F2") + ") 地盤 " + gy.ToString("F2") + " yaw " +
+                          YawZ(face).ToString("F1") + "(正面 = 道の芯線の境内から遠い側)" +
+                          " / 実メッシュ W" + tb.size.x.ToString("F2") + " H" + tb.size.y.ToString("F2") +
+                          " 下端 " + (tb.center.y - tb.extents.y).ToString("F2"));
         }
         if (pend.Count > 0)
             sb.AppendLine("  ★ 部材が無いので建てなかった(bom「無い/新造」優先2): " + string.Join(" / ", pend.ToArray()));
         return "門・鳥居: " + made + " 基\n" + sb;
+    }
+
+    /// <summary>石造明神鳥居の部材。⭐ まず `bom[鳥居].手当` を見る(正典は指図)。
+    /// ⚠ **2026-09-20 時点で bom の行が「新造依頼」のまま**でパスを名指していないので、
+    /// そのときだけ `Models/Sanno` に焼けている `Sanno_Torii_*.fbx` を引く(**1点だけのとき**)。
+    /// ⛔ 綴りに寸法を書かない・⛔ 2点以上あったらどれか選ばない(差し戻す)。</summary>
+    static string ToriiPart()
+    {
+        string fromBom = BomPartPath("鳥居");
+        if (fromBom != null && AssetDatabase.LoadAssetAtPath<GameObject>(fromBom) != null) return fromBom;
+        string found = null;
+        foreach (var guid in AssetDatabase.FindAssets("Sanno_Torii t:Model", new[] { "Assets/Edo/Models/Sanno" }))
+        {
+            string p = AssetDatabase.GUIDToAssetPath(guid);
+            if (!System.IO.Path.GetFileName(p).StartsWith("Sanno_Torii_")) continue;
+            if (found != null) return null;      // ⛔ 2点あったら選ばない
+            found = p;
+        }
+        return found;
+    }
+    /// <summary>道の芯線(算出物 `routes[].world` と指図 `fumotomichi[].pts`)を集める。</summary>
+    static List<List<Vector2>> Michi()
+    {
+        var r = new List<List<Vector2>>();
+        foreach (var o in L(Impl, "routes"))
+        { var d = o as Dictionary<string, object>; if (d != null) r.Add(Pts(L(d, "world"))); }
+        foreach (var o in L(Doc, "fumotomichi"))
+        { var d = o as Dictionary<string, object>; if (d != null) r.Add(Pts(L(d, "pts"))); }
+        return r;
+    }
+    /// <summary>鳥居の正面(部材の +Z)の向き。⭐ **指図は鳥居の yaw を書かない**(座だけ)ので、
+    /// **鳥居が載っている道の芯線の接線**から引く ── 正面は**境内から遠い側**(参詣者が来る方)。
+    /// ⛔ 角度を実装が持たない。座が道の芯線から 1.0m 以上離れていたら false を返して差し戻す。</summary>
+    static bool ToriiFacing(Vector2 p, out Vector2 face)
+    {
+        face = Vector2.right;
+        float best = float.MaxValue; Vector2 tan = Vector2.right;
+        foreach (var poly in Michi())
+            for (int i = 1; i < poly.Count; i++)
+            {
+                Vector2 a = poly[i - 1], b = poly[i];
+                Vector2 d = b - a; float l2 = d.sqrMagnitude; if (l2 < 1e-6f) continue;
+                float t = Mathf.Clamp01(Vector2.Dot(p - a, d) / l2);
+                float dd = Vector2.Distance(p, a + d * t);
+                if (dd < best) { best = dd; tan = d / Mathf.Sqrt(l2); }
+            }
+        if (best > 1.0f) return false;
+        Vector2 keidai = W(0f, 0f);                       // 境内グリッドの原点(算出物 `grid`)
+        if (Vector2.Dot(tan, p - keidai) < 0f) tan = -tan;
+        face = tan; return true;
+    }
+    /// <summary>鳥居の名 → シーンの名(⛔ 部材のパスではない)。</summary>
+    static string ToriiNameOf(string designName)
+    {
+        if (designName == null) return "Torii";
+        if (designName.StartsWith("一ノ")) return "IchinoTorii";
+        if (designName.StartsWith("二ノ")) return "NinoTorii";
+        return designName;
     }
 
     // ================================================================ Stage 6 社殿
@@ -917,9 +1040,12 @@ public static class EdoSannoShaRebuild
             var m = o as Dictionary<string, object>; if (m == null) continue;
             string name = S(m, "name");
             string part = S(m, "partFrom");
-            if (string.IsNullOrEmpty(part)) { pend.Add(name); continue; }
-            string path = P.Shaden(part);
-            if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null) { pend.Add(name + "(" + part + " が無い)"); continue; }
+            // ⭐ `partFrom` を持たない棟は **`bom` の行が名指す部材**を据える(2026-09-20 ── 御供所)。
+            //   ⛔ 綴りを実装が持たない: 行は「棟の名」か「棟の名(…)」で引く。
+            string path = string.IsNullOrEmpty(part) ? BomPartPath(BomLabelFor(name)) : P.Shaden(part);
+            if (path == null) { pend.Add(name); continue; }
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+            { pend.Add(name + "(" + path + " が無い)"); continue; }
             Vector2 c = W(F(m, "u0") + F(m, "du") * 0.5f, F(m, "v0") + F(m, "dv") * 0.5f);
             float y;
             if (!Gr.Near(c.x, c.y, 3, out y)) y = EdoBuild.Ground(c.x, c.y);
@@ -954,14 +1080,217 @@ public static class EdoSannoShaRebuild
             sb.AppendLine("  ★ 部材が無いので建てなかった(bom「無い/新造」): " + string.Join(" / ", pend.ToArray()));
         return "社殿: " + made + " 棟\n" + sb;
     }
+    /// <summary>棟の名 → `bom` の行の名。⭐ 行は「棟の名」そのものか「棟の名(役)」で立っている
+    /// (例 `御供所` → `御供所(供の棟)`)。⛔ 部材のパスを実装が持たない。</summary>
+    static string BomLabelFor(string mune)
+    {
+        if (mune == null) return null;
+        foreach (var o in L(Doc, "bom"))
+        {
+            var b = o as Dictionary<string, object>; if (b == null) continue;
+            string lbl = S(b, "部材"); if (lbl == null) continue;
+            if (lbl == mune || lbl.StartsWith(mune + "(")) return lbl;
+        }
+        return null;
+    }
     static string ShadenNameOf(string designName)
     {
+        if (designName.StartsWith("御供所")) return "Gokusho";
         if (designName.StartsWith("本殿")) return "Honden";
         if (designName.StartsWith("作り合い")) return "Tsukuriai";
         if (designName.StartsWith("幣殿")) return "Heiden";
         if (designName.StartsWith("拝殿")) return "Haiden";
         if (designName.StartsWith("向拝")) return "Kohai";
         return designName;
+    }
+
+    // ================================================================ Stage 7 社叢
+    /// <summary>旧 `EdoSannoShaBuilder.Stage7_Keidairin` が**直書きで撒いた木**(竹を含む)を退避する。
+    /// ⛔ 削除しない ── `Kyu_Shaso` の下へ移して非活性にする。⭐ **群ごと移す**のが要で、
+    /// `Keidairin` のまま非活性にしても突き合わせは中身を数える(active を見ない)。</summary>
+    public const string GROUP_OLD_SHASO = "Kyu_Shaso";
+    static string RetireKeidairin()
+    {
+        var root = GameObject.Find(GROUP);
+        if (root == null) return "  退避: ルートが無い\n";
+        EdoYashikiPrefab.EnsureEditable(root);
+        var old = root.transform.Find("Keidairin");
+        if (old == null) return "  退避: Keidairin は無い(既に退避済み)\n";
+        var kyu = root.transform.Find(GROUP_OLD_SHASO);
+        if (kyu == null)
+        {
+            var g = new GameObject(GROUP_OLD_SHASO); Undo.RegisterCreatedObjectUndo(g, "kyu");
+            g.transform.SetParent(root.transform, false); kyu = g.transform;
+        }
+        int n = old.childCount, bam = 0;
+        for (int i = 0; i < old.childCount; i++) if (old.GetChild(i).name.StartsWith("Bam_")) bam++;
+        old.SetParent(kyu, true);
+        old.gameObject.SetActive(false);
+        kyu.gameObject.SetActive(false);
+        return "  退避: Keidairin の木 " + n + " 本(うち竹 " + bam + " 本)を " + GROUP_OLD_SHASO +
+               " へ移して非活性(⛔ 削除していない)\n";
+    }
+
+    [MenuItem(MENU + "7 社叢(算出物の点をそのまま置く)")]
+    public static void Stage7Menu() { Debug.Log("[山王] " + Stage7_Shaso()); }
+    /// <summary>社叢。⛔ **撒き直さない・乱数を振らない** ── 算出物 `planting.points` の 1点 1本を
+    /// そのまま置くだけ。⭐ 入れ物は点の `place` が決める:
+    ///   ・`TerrainTree` … 地形の tree instance(GameObject では**ない**)
+    ///   ・`DetailMesh`  … ⚠ Unity の詳細メッシュは**密度の升目**で、点の座標を持てない
+    ///     ⇒ 焼き出しの点をそのまま活かすため **GameObject** で据える(群 `Keidai/Trees`)
+    ///   ・`GameObject`  … 名指しの木(群 `Keidai/Meiboku` ── 突き合わせは名で引く)
+    /// ⭐ 丈は `scaleY` / 太りは `scaleXZ` をそのまま使う。地盤は **地形を実測**して据え、
+    /// 焼き出しの `y` との差は数えて報告する(⛔ 浮き・埋没を作らない)。
+    /// ⛔ **向き(yaw)は焼き出しに無い**ので 0 のまま ── 乱数を振らない(振るなら指図方の持ち分)。</summary>
+    public static string Stage7_Shaso()
+    {
+        var gate = Gate(); if (gate != null) return gate;
+        var sb = new StringBuilder();
+        sb.Append(RetireKeidairin());
+        var pts = L(D(Impl, "planting"), "points");
+        if (pts.Count == 0) return "社叢: 算出物に points が無い\n" + sb;
+
+        var trees = Group("Keidai/Trees"); Clear(trees);
+        var meiboku = Group("Keidai/Meiboku"); Clear(meiboku);
+
+        var ter = EdoBuild.T(); var td = ter.terrainData; Vector3 tp = ter.transform.position, ts = td.size;
+        // 樹種の原型(prototype)を要るだけ足す。⛔ 既にある原型を作り直さない。
+        var protos = new List<TreePrototype>(td.treePrototypes);
+        var idxOf = new Dictionary<string, int>();
+        for (int i = 0; i < protos.Count; i++)
+        {
+            string ap = protos[i].prefab == null ? null : AssetDatabase.GetAssetPath(protos[i].prefab);
+            if (ap != null && !idxOf.ContainsKey(ap)) idxOf[ap] = i;
+        }
+        int addedProto = 0;
+        var missing = new List<string>();
+        float bx0 = float.MaxValue, bx1 = float.MinValue, bz0 = float.MaxValue, bz1 = float.MinValue;
+        foreach (var o in pts)
+        {
+            var q = o as Dictionary<string, object>; if (q == null) continue;
+            var w = L(q, "world"); if (w.Count < 2) continue;
+            float wx = Cv(w[0]), wz = Cv(w[1]);
+            bx0 = Mathf.Min(bx0, wx); bx1 = Mathf.Max(bx1, wx);
+            bz0 = Mathf.Min(bz0, wz); bz1 = Mathf.Max(bz1, wz);
+            if (S(q, "place") != "TerrainTree") continue;
+            string path = TreePath(q); if (path == null) continue;
+            if (idxOf.ContainsKey(path)) continue;
+            var pf = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (pf == null) { if (!missing.Contains(path)) missing.Add(path); continue; }
+            var np = new TreePrototype(); np.prefab = pf; np.bendFactor = 0f;
+            idxOf[path] = protos.Count; protos.Add(np); addedProto++;
+        }
+        if (addedProto > 0) td.treePrototypes = protos.ToArray();
+
+        // 焼き出しの外接矩形の内に在る**自分の原型の**木を外す(⛔ 他の敷地の木を消さない)。
+        var mine = new HashSet<int>(); foreach (var kv in idxOf) if (kv.Key.StartsWith("Assets/Edo/Models/Trees/")) mine.Add(kv.Value);
+        var keep = new List<TreeInstance>(); int removed = 0;
+        foreach (var ti in td.treeInstances)
+        {
+            float wx = tp.x + ti.position.x * ts.x, wz = tp.z + ti.position.z * ts.z;
+            bool inBox = wx >= bx0 && wx <= bx1 && wz >= bz0 && wz <= bz1;
+            if (inBox && mine.Contains(ti.prototypeIndex)) { removed++; continue; }
+            keep.Add(ti);
+        }
+
+        int nTree = 0, nGo = 0, nMei = 0, skipped = 0;
+        float dyMax = 0f; double dySum = 0; int dyN = 0;
+        foreach (var o in pts)
+        {
+            var q = o as Dictionary<string, object>; if (q == null) continue;
+            var w = L(q, "world"); if (w.Count < 2) { skipped++; continue; }
+            float wx = Cv(w[0]), wz = Cv(w[1]);
+            string path = TreePath(q);
+            if (path == null || AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+            { skipped++; if (path != null && !missing.Contains(path)) missing.Add(path); continue; }
+            float sy = HasNum(q, "scaleY") ? F(q, "scaleY") : 1f; if (sy <= 0f) sy = 1f;
+            float sxz = HasNum(q, "scaleXZ") ? F(q, "scaleXZ") : 1f; if (sxz <= 0f) sxz = 1f;
+            float gy = EdoBuild.Ground(wx, wz);
+            if (HasNum(q, "y")) { float d = Mathf.Abs(gy - F(q, "y")); dyMax = Mathf.Max(dyMax, d); dySum += d; dyN++; }
+            string place = S(q, "place");
+            if (place == "TerrainTree")
+            {
+                var ti = new TreeInstance();
+                ti.position = new Vector3((wx - tp.x) / ts.x, 0f, (wz - tp.z) / ts.z);
+                ti.prototypeIndex = idxOf[path];
+                ti.widthScale = sxz; ti.heightScale = sy;
+                ti.color = Color.white; ti.lightmapColor = Color.white;
+                ti.rotation = 0f;
+                keep.Add(ti); nTree++;
+            }
+            else
+            {
+                bool named = place == "GameObject";
+                var g = EdoBuild.Place(path, new Vector3(wx, gy, wz), 0f, new Vector3(sxz, sy, sxz),
+                                       named ? meiboku : trees, S(q, "name"));
+                // ⭐ 傾ける木は `leanDeg`(範囲)と `leanToward`(向き)を持つ ── 範囲の**中**を採る。
+                if (g != null && G(q, "leanDeg") != null)
+                {
+                    var ld = G(q, "leanDeg") as List<object>;
+                    float deg = ld == null ? 0f : (ld.Count >= 2 ? (Cv(ld[0]) + Cv(ld[1])) * 0.5f : Cv(ld[0]));
+                    Vector2 to = P2(G(q, "leanToward"));
+                    if (deg != 0f && to.sqrMagnitude > 1e-6f)
+                    {
+                        to = to.normalized;
+                        g.transform.rotation = Quaternion.AngleAxis(deg, new Vector3(to.y, 0f, -to.x));
+                    }
+                }
+                if (named) nMei++; else nGo++;
+            }
+        }
+        td.SetTreeInstances(keep.ToArray(), true);
+        EditorUtility.SetDirty(td);
+
+        sb.AppendLine("  地形の木 " + nTree + " 本(外した " + removed + " 本 / 原型を " + addedProto + " 足した)");
+        sb.AppendLine("  下層(GameObject・群 Keidai/Trees) " + nGo + " 本 ── ⚠ 焼き出しの `place` は " +
+                      "`DetailMesh` だが、詳細メッシュは密度の升目で**点の座標を持てない**ので GameObject で据えた");
+        sb.AppendLine("  名指しの木(群 Keidai/Meiboku) " + nMei + " 本");
+        if (dyN > 0)
+            sb.AppendLine("  地盤: 実測と焼き出しの `y` の差 平均 " + (dySum / dyN).ToString("F3") +
+                          "m / 最大 " + dyMax.ToString("F3") + "m(据えたのは**実測**の地盤)");
+        if (skipped > 0) sb.AppendLine("  ★ 据えられなかった点 " + skipped + " 点");
+        if (missing.Count > 0) sb.AppendLine("  ★ 部材が無い: " + string.Join(" / ", missing.ToArray()));
+        sb.AppendLine("  ⛔ 向き(yaw)は焼き出しに無いので 0 のまま ── 乱数を振っていない");
+        return "社叢: " + (nTree + nGo + nMei) + " 本 / " + pts.Count + " 点\n" + sb;
+    }
+    /// <summary>点の `part`(例 `Own.Matsu("Mid", 3)`)を部材のパスへ解く。
+    /// ⛔ 綴りを実装が持たない ── `EdoAssets.Own` の関数へ渡すだけ。解けない族は null。</summary>
+    static string TreePath(Dictionary<string, object> q)
+    {
+        string api = S(q, "part"); if (api == null) return null;
+        int lp = api.IndexOf('('), rp = api.LastIndexOf(')');
+        if (lp < 0 || rp < lp) return null;
+        string fn = api.Substring(0, lp);
+        if (fn.StartsWith("Own.")) fn = fn.Substring(4);
+        var args = api.Substring(lp + 1, rp - lp - 1).Split(',');
+        // ⭐ 丈は**点の `size` の欄**が正典(`part` の第1引数は `"{size}"` の差し込みのままの点がある)。
+        string size = S(q, "size");
+        if (string.IsNullOrEmpty(size)) size = args[0].Trim().Trim('"');
+        int i = 1;
+        if (args.Length > 1) int.TryParse(args[1].Trim(), out i);
+        if (i < 1) i = 1;
+        // ⚠ **焼き出しの綻び**(2026-09-20 実測): 一本立ちの 7 点は `part` が `"{size}"` の差し込みのまま
+        //   で `size` の欄も空。⇒ **同じ点の `prefab` の欄**(`Tree_<族>_<丈>[_NN]`)から丈と個体を読む。
+        //   ⛔ 丈を発明しない・⛔ パスの綴りをここに書かない(解いた丈を `EdoAssets.Own` へ渡すだけ)。
+        if (string.IsNullOrEmpty(size) || size.IndexOf('{') >= 0)
+        {
+            string pre = S(q, "prefab");
+            var seg = pre == null ? null : pre.Split('_');
+            if (seg != null && seg.Length >= 3)
+            {
+                size = seg[2];
+                if (seg.Length >= 4) int.TryParse(seg[3], out i);
+                if (i < 1) i = 1;
+            }
+        }
+        if (string.IsNullOrEmpty(size) || size.IndexOf('{') >= 0) return null;
+        if (fn == "Matsu") return EdoAssets.Own.Matsu(size, i);
+        if (fn == "Jouryoku") return EdoAssets.Own.Jouryoku(size, i);
+        if (fn == "Teiboku") return EdoAssets.Own.Teiboku(size, i);
+        if (fn == "Keyaki") return EdoAssets.Own.Keyaki(size, i);
+        if (fn == "Enoki") return EdoAssets.Own.Enoki(size, i);
+        if (fn == "Mukunoki") return EdoAssets.Own.Mukunoki(size, i);
+        return null;
     }
 
     static Dictionary<string, object> FindByName(Dictionary<string, object> src, string key, string name)

@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 3ee6bc10e072d498e88dd3e467b1d643
+guid: 80fd17e6be9144b59958fe4a1d8e485b
 ModelImporter:
   serializedVersion: 24501
   internalIDToNameTable: []
@@ -7,8 +7,23 @@ ModelImporter:
   - first:
       type: UnityEngine:Material
       assembly: UnityEngine.CoreModule
-      name: M_FJG_Rock_001
-    second: {fileID: 2100000, guid: dbf74aa0daf52c4e6ae327befe85b158, type: 2}
+      name: Doukawara
+    second: {fileID: 2100000, guid: 7c4a1e3b9d2f4a5e8b06d1c3f9a2e470, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Kirishi
+    second: {fileID: 2100000, guid: 3736144dc0bddef39628311a0b24be5d, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: wall C
+    second: {fileID: 2100000, guid: 5882125c712caf74a8e76c5ccac460ec, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: wood
+    second: {fileID: 2100000, guid: 6127939ab0b92994fa5506eed0e13a74, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0

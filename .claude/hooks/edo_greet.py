@@ -60,6 +60,12 @@ if os.path.exists(CLI):
     # (worktree のブランチには main を取り込むまで無いことがある)
     bcli = os.path.join(MAIN_ROOT, "Tools", "Session", "edo_board.py")
     if os.path.exists(bcli):
+        # 齢を検める(2026-09-21 施主裁定 EDO-0297=A) — 14 日動かない宿題に「古び」の印、
+        # 30 日で畳む(戻すのは `edo_board.py reopen <ID>`)。何も起きなければ無言。
+        g = subprocess.run([sys.executable, bcli, "age", "--apply", "--quiet"],
+                           capture_output=True, text=True, env=env)
+        if g.stdout.strip():
+            print(g.stdout.strip())
         b = subprocess.run([sys.executable, bcli, "digest"], capture_output=True, text=True, env=env)
         if b.stdout.strip():
             print(b.stdout.strip())
@@ -77,14 +83,16 @@ if os.path.exists(CLI):
                 newest = max((os.path.getmtime(f) for f in items), default=0)
                 pub = os.path.join(bd, "_pm", "published.json")
                 at = json.load(open(pub, encoding="utf-8")).get("at", 0) if os.path.exists(pub) else 0
-                days = (newest - at) / 86400.0
-                if items and days > 3:
+                # 2026-09-21 施主裁定 EDO-0298=A+B: 遅れの上限を「3 日」から「板が動いたら次の手仕舞いまで」へ。
+                #   焼くのは手仕舞いの Stop フック(edo_board_fresh.py)の仕事なので、ここは気付きの 1 行だけ。
+                hours = (newest - at) / 3600.0
+                if items and hours > 0.5:
                     how = ("**まだ一度も公開していない**" if not at
-                           else "**%.0f 日ぶん古い**" % days)
-                    print("⛔ 普請場の一枚が %s(掲示板は動いたのに公開していない)。"
-                          "`python3 Tools/Session/build_board_html.py` で焼き直し、Artifact を"
-                          "更新したら `--published <URL>` で判を押す。"
-                          "⛔ 焼いただけでは施主に届かない。" % how)
+                           else "**%.0f 時間ぶん古い**" % hours if hours < 48
+                           else "**%.0f 日ぶん古い**" % (hours / 24))
+                    print("⚠ 普請場の一枚が %s(掲示板は動いたのに公開していない)。"
+                          "手仕舞いのときに焼いて同じ URL へ上書きする(Stop フックが一度だけ止める)。"
+                          "机の前なら常時の窓 http://127.0.0.1:8787/ が最新。" % how)
         except Exception:
             pass
         # 日誌(2026-09-19) — 夜の自動タスクが起票した「日誌(<日付>)」の task が未処置なら 1 行。0 なら無言。

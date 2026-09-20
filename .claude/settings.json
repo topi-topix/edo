@@ -54,6 +54,12 @@
             "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/edo_report_lint.py",
             "timeout": 10,
             "statusMessage": "報告の作法を検める"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/edo_board_fresh.py",
+            "timeout": 150,
+            "statusMessage": "普請場の一枚を焼き直す"
           }
         ]
       }

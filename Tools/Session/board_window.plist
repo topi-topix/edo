@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- 常時の窓(2026-09-21 施主裁定 EDO-0298=B)。据え方:
+       cp Tools/Session/board_window.plist ~/Library/LaunchAgents/jp.edo.board-window.plist
+       launchctl bootstrap gui/$UID ~/Library/LaunchAgents/jp.edo.board-window.plist
+     外し方:
+       launchctl bootout gui/$UID/jp.edo.board-window && rm ~/Library/LaunchAgents/jp.edo.board-window.plist -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>jp.edo.board-window</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>/Users/toshio/project/edo-unity/Tools/Session/board_window.py</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/toshio/project/edo-unity</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>30</integer>
+  <key>StandardOutPath</key><string>/Users/toshio/Library/Logs/edo-board-window.log</string>
+  <key>StandardErrorPath</key><string>/Users/toshio/Library/Logs/edo-board-window.log</string>
+</dict>
+</plist>

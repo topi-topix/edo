@@ -44,6 +44,14 @@ ESTATES = tuple(sorted(set(estate_names()) | set(_FIXED) | set(_LEGACY)))
 TYPES = ("task", "decision", "blocker", "info", "lesson")
 STATUSES = ("open", "awaiting-user", "in-progress", "done", "dropped")
 LIVE = ("open", "awaiting-user", "in-progress")
+# ── 齢(2026-09-21 施主裁定 EDO-0297=A)
+#   実測(2026-09-21): 生きている 69 件のうち 44 件(64%)が起票以来ひとことも付かず、53 件が 7 日以上停止。
+#   一方セッションの立ち上がりに刷るのは最大 9 件で、板が窓の 7 倍あった。溢れた分はどの目にも触れない。
+#   ⭕ 拾われた件は中央値 6.2 日で閉じている(221 件)ので、足りないのは強制力ではなく
+#      **窓の広さと、古い件を捨てる作法**。→ 古び 14 日・時効 30 日・再開は `reopen`。
+#   ⛔ 施主の返事待ち(decision / awaiting-user)は齢で畳まない。畳んでよいのは task と blocker だけ。
+STALE_DAYS = 14
+EXPIRE_DAYS = 30
 MARK = {"decision": "⚖", "blocker": "⛔", "task": "・", "info": "ℹ", "lesson": "📖"}
 TITLE_MAX = 80
 MSG_MAX = 800
@@ -122,13 +130,24 @@ def save(issue, fp):
     atomic_write_json(issue, fp)
 
 
+def save_raw(issue, fp):
+    """⛔ **齢の検めは `updated` を動かさない。**`save()` は毎回 `updated=now` を打つので、
+    古びの印を付けた瞬間に齢が 0 に戻り、時効が永久に来なくなる(検査が自分の足を撃つ形)。"""
+    atomic_write_json(issue, fp)
+
+
+def age_days(c):
+    return (now() - (c.get("updated") or c.get("created") or now())) / 86400.0
+
+
 def fmt_line(c):
     mins = (now() - c.get("updated", 0)) / 60.0
     age = ("%.0f日前" % (mins / 1440) if mins >= 1440 else
            "%.0f時間前" % (mins / 60) if mins >= 60 else "%.0f分前" % mins)
     own = "(→%s)" % c["owner"] if c.get("owner") else ""
+    mark = "⌛" if c.get("stale") else MARK.get(c["type"], "・")
     return "%s %s [%s/%s] %-13s %s%s %s" % (
-        MARK.get(c["type"], "・"), c["id"], c["estate"], c["type"],
+        mark, c["id"], c["estate"], c["type"],
         c["status"], c["title"], own, age)
 
 
@@ -395,11 +414,79 @@ def _my_estate():
             return None
         c, _ = mine(me)
         for p in c.get("paths", []):
-            if p.startswith("sashizu:") and p[8:] not in ("infra", "cross"):
+            # 「infra」も自邸として扱う(2026-09-21・EDO-0297=A)。基盤の席に座ったセッションに
+            # とって自邸宛は infra の宿題で、それを横断の山に混ぜると窓の 3 件枠で溢れる。
+            if p.startswith("sashizu:") and p[8:] != "cross":
                 return p[8:]
     except Exception:
         pass
     return None
+
+
+def aged(cs=None):
+    """齢で三つに分ける — (古びた, 時効の, 直近で畳んだ)。読むだけ(書かない)。"""
+    cs = cs if cs is not None else load_all()
+    live = [c for c in cs if c["status"] in ("open", "in-progress") and c["type"] in ("task", "blocker")]
+    return ([c for c in live if STALE_DAYS <= age_days(c) < EXPIRE_DAYS],
+            [c for c in live if age_days(c) >= EXPIRE_DAYS],
+            [c for c in cs if c.get("expired") and age_days(c) < 7])
+
+
+def cmd_age(a):
+    """齢を検める(2026-09-21 施主裁定 EDO-0297=A)。挨拶フックが毎回 `--apply --quiet` で打つ。
+
+    ⛔ 畳むのは task と blocker だけ。**施主の返事待ち(decision)は齢で畳まない。**
+    ⛔ 古びの印は `updated` を動かさずに書く(→ save_raw)。動かすと時効が永久に来ない。
+    畳んだ件は消えない — `list --all` に残り、`reopen <ID>` で戻る。翌朝の差配の画面
+    (`board_triage.py --stuck`)にも「直近に畳んだ物」として出る。"""
+    stale, expire, _ = aged()
+    for c in expire:
+        if not a.apply:
+            continue
+        fp = path_of(c["id"])
+        c["status"] = "dropped"
+        c["expired"] = True
+        c["log"].append({"t": now(), "by": "age",
+                         "msg": "時効 — %.0f 日ひとことも付かなかったので畳んだ。"
+                                "まだ生きているなら `edo_board.py reopen %s`" % (age_days(c), c["id"])})
+        save(c, fp)
+    fresh_stale = [c for c in stale if not c.get("stale")]
+    for c in fresh_stale:
+        if not a.apply:
+            continue
+        c["stale"] = True
+        c["stale_at"] = now()
+        save_raw(c, path_of(c["id"]))       # ⛔ updated は動かさない
+    if a.quiet and not (expire or fresh_stale):
+        return 0
+    if expire:
+        print("⌛ 時効で畳んだ %d 件(%d 日動かなかった。戻すなら `edo_board.py reopen <ID>`): %s"
+              % (len(expire), EXPIRE_DAYS, "・".join(c["id"] for c in expire[:8])))
+    if fresh_stale:
+        print("⌛ 古びとした %d 件(%d 日動いていない。あと %d 日で畳む): %s"
+              % (len(fresh_stale), STALE_DAYS, EXPIRE_DAYS - STALE_DAYS,
+                 "・".join(c["id"] for c in fresh_stale[:8])))
+    if not a.apply and (expire or fresh_stale):
+        print("   (検めただけ。書くなら --apply)")
+    return 0
+
+
+def cmd_reopen(a):
+    """時効で畳んだ件・古びた件を生き返らせる。施主の差配の「引き取る」がこれ。"""
+    c, fp = load_one(a.id)
+    if not c:
+        return 1
+    c["status"] = "in-progress" if a.owner else "open"
+    c.pop("stale", None)
+    c.pop("stale_at", None)
+    c.pop("expired", None)
+    if a.owner:
+        c["owner"] = a.owner
+    c["log"].append({"t": now(), "by": sid(a.session),
+                     "msg": a.msg or ("再開(→%s)" % a.owner if a.owner else "再開")})
+    save(c, fp)
+    print("reopen: %s" % fmt_line(c))
+    return 0
 
 
 def cmd_digest(a):
@@ -422,21 +509,27 @@ def cmd_digest(a):
           "詳細: edo_board.py show <ID> / 全部: edo_board.py list"
           % (len(cs), len(wait), len(blk), len(real), len(task),
              ("・自邸 %d" % len(own)) if est else ""))
-    lines = 1
     for c in wait:
-        print("  %s" % fmt_line(c)); lines += 1
+        print("  %s" % fmt_line(c))
     for c in real[:5]:
-        print("  %s" % fmt_line(c)); lines += 1
+        print("  %s" % fmt_line(c))
     if len(blk) - len(real[:5]) > 0:
-        print("  ⛔ …ほか blocker %d 件(--blocked の無い旧式を含む。`list --type blocker`)" % (len(blk) - len(real[:5]))); lines += 1
-    for c in own[:5]:
-        print("  %s" % fmt_line(c)); lines += 1
+        print("  ⛔ …ほか blocker %d 件(--blocked の無い旧式を含む。`list --type blocker`)" % (len(blk) - len(real[:5])))
+    # ⭐ **自邸宛は全件刷る**(2026-09-21 施主裁定 EDO-0297=A)。
+    #   それまでは新しい順に 5 件で切っていたため、板 69 件に対して窓は最大 9 件しかなく、
+    #   自邸宛でも 6 件目から先は**どのセッションの目にも二度と触れなかった**。
+    #   溢れを止めるのは時効(age)の役目で、窓を狭めることではない。
+    for c in own:
+        print("  %s" % fmt_line(c))
     for c in cross[:3]:
-        print("  %s" % fmt_line(c)); lines += 1
-    old = [c for c in cs if c["type"] in ("task", "blocker") and (now() - c.get("updated", 0)) > 7 * 86400]
-    if old:
-        print("  ⚠ %d 件が 7 日以上動いていない — 済んだ物は `edo_board.py close <ID>`(コミット本文に "
-              "`closes EDO-xxxx` でも閉じる)、生きている物は自邸へ引き取る" % len(old)); lines += 1
+        print("  %s" % fmt_line(c))
+    if len(cross) > 3:
+        print("  ・…ほか横断の宿題 %d 件(`list --estate cross`)" % (len(cross) - 3))
+    stale, expire, closed = aged(cs)
+    if stale or expire:
+        print("  ⌛ 古び %d 件・あと少しで時効 %d 件 — 済んだ物は `close <ID>`(コミット本文の "
+              "`closes EDO-xxxx` でも閉じる)、生きている物は `reopen <ID> --owner <邸>` で引き取る。"
+              "%d 日動かない物は自動で畳む" % (len(stale), len(expire), EXPIRE_DAYS))
     return 0
 
 
@@ -495,7 +588,14 @@ def main():
     p.add_argument("--json", action="store_true")
     p.set_defaults(fn=cmd_list)
     p = sub.add_parser("show"); p.add_argument("id"); p.set_defaults(fn=cmd_show)
-    p = sub.add_parser("digest", help="greet 用の圧縮表示(予算 15 行)"); p.add_argument("--estate", default=None)
+    p = sub.add_parser("age", help="齢を検める(古び14日・時効30日。挨拶フックが --apply --quiet で打つ)")
+    p.add_argument("--apply", action="store_true", help="印と時効を実際に書く(既定は検めるだけ)")
+    p.add_argument("--quiet", action="store_true", help="何も起きなければ無言")
+    p.set_defaults(fn=cmd_age)
+    p = sub.add_parser("reopen", help="時効で畳んだ件・古びた件を生き返らせる")
+    p.add_argument("id"); p.add_argument("--owner", default="", help="引き取る邸(付ければ in-progress)")
+    p.add_argument("--msg", default=""); p.set_defaults(fn=cmd_reopen)
+    p = sub.add_parser("digest", help="greet 用の圧縮表示(自邸宛は全件)"); p.add_argument("--estate", default=None)
     p.set_defaults(fn=cmd_digest)
     a = ap.parse_args()
     sys.exit(a.fn(a))

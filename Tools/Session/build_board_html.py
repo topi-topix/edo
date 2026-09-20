@@ -1329,6 +1329,25 @@ def build_html(issues, pending, commits, claims, states, summary, reviews, typol
     return "\n".join(p)
 
 
+# ── 表紙(2026-09-21 施主裁定 EDO-0298=A) ──────────────────────────────
+#   ⛔ **一枚そのものを Artifact の頁にしない。**焼いた一枚は 880KB あり、`url=` を渡して
+#   上書きするには、その conversation が一度その頁を**読んで**いなければならない(読むと
+#   880KB がまるごと文脈に入る)。これが「公開は日に一度」の正体だった。
+#   ⭕ 頁は**二度と変わらない表紙**にして、中身は添え物の board.html として差し替える。
+#   差し替えは `files={"board.html": …}` の publish だけで済み、頁を読む必要がない。
+SHELL = """<title>普請場の一枚</title>
+<style>
+  html,body{height:100%;margin:0;background:#EDEEF0;color:#131820;
+    font:14px/1.7 "Noto Sans JP","Hiragino Sans",system-ui,sans-serif}
+  @media (prefers-color-scheme:dark){html:not([data-theme="light"]) body{background:#12151A;color:#E6E9ED}}
+  html[data-theme="dark"] body{background:#12151A;color:#E6E9ED}
+  iframe{display:block;width:100%;height:100%;border:0;background:inherit}
+  noscript,p.fb{padding:16px}
+</style>
+<iframe src="board.html" title="普請場の一枚"></iframe>
+"""
+
+
 def stamp_published(url):
     """⛔ **焼いた ≠ 施主に届いた。**2026-09-02 に焼いた一枚が 17 日 Artifact のまま古びて、
     施主が掲示板を見失った(2026-09-19)。公開した側がここへ判を押し、挨拶フックが
@@ -1358,6 +1377,7 @@ def main():
               ensure_ascii=False, indent=1)
     open(os.path.join(OUT, "dashboard.html"), "w", encoding="utf-8").write(
         build_html(issues, pending, commits, claims, states, summary, reviews, typology))
+    open(os.path.join(OUT, "index.html"), "w", encoding="utf-8").write(SHELL)
     print("dashboard: %s\nsummary:   %s" % (os.path.join(OUT, "dashboard.html"),
                                             os.path.join(OUT, "summary.json")))
 

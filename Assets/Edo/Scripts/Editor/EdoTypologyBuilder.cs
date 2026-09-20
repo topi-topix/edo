@@ -204,6 +204,32 @@ public static class EdoTypologyBuilder
         return fit.OrderByDescending(e => e.len).First();
     }
 
+    /// <summary>**辺に載らない門構えを敷地の内へ折り込む。**(2026-09-21 施主裁定A)
+    /// 門の位置は史料どおり(接道辺の中央)に置き、辺より広くて両翼が敷地の外へ出る分は、
+    /// **壁体が区画に収まるところまで内向きに下げる**。返り値 = 下げた量[m](0 なら折り込み不要)。
+    ///
+    /// <para>⭐ 由来: 安部摂津守の表門は 8m の袋小路の突き当り(切絵図の実見)で、長屋門 22.5m は載らない。
+    /// 史料どおり門はそこにあるので、⛔ 格式を落として狭い門に替えない・⛔ 敷地の外へ出したままにしない
+    /// (区域侵犯は許容0・規則4)。⛔ 軒では判定しない — 軒は越えてよい(裁定A)。
+    /// → `docs/oki-kata.md` §4</para></summary>
+    static float TuckInside(GameObject go, Vector2[] poly, Vector2 outward, List<string> log)
+    {
+        float moved = 0f;
+        const float STEP = 0.25f, CAP = 14f;
+        while (OutsideBy(poly, go.transform, false) > 0.60f && moved < CAP)
+        {
+            go.transform.position -= new Vector3(outward.x, 0f, outward.y) * STEP;
+            moved += STEP;
+        }
+        if (moved > 0f)
+        {
+            Seat(go, log);
+            log.Add(string.Format("    {0}: 辺に載らないので敷地の内へ {1:F2}m 折り込んだ(裁定A)— 残る壁体の侵犯 {2:F2}m",
+                                  go.name, moved, OutsideBy(poly, go.transform, false)));
+        }
+        return moved;
+    }
+
     /// <summary>接地箇所を測って据える(<see cref="EdoBuild.SeatOnGround"/>)。測れない駒
     /// (全メッシュが屋根名・非表示・MeshFilter 無し)は据えずに**声を上げる** —
     /// ⛔ 黙ってピボットの座に置き去りにしない(規則21・2026-09-20 施主指摘)。</summary>
@@ -434,6 +460,14 @@ public static class EdoTypologyBuilder
                 float cg = EdoBuild.Contact(bs, mon, push[k], out cat, out cn);   // 最後に実測を刷る
                 log.Add(string.Format("    番所{0}: 門へ {1:+0.00;-0.00}m 寄せた — 触れている所の隙 {2:F3}m・当たりの筋 {3}",
                                       k, d, cg, cn));
+            }
+            // 辺に載らない門構えは敷地の内へ折り込む(裁定A)。門を下げたら番所も同じだけ追う
+            float tuck = TuckInside(mon, poly, front.outward, log);
+            foreach (var bs in bansho)
+            {
+                if (tuck > 0f) bs.transform.position -= new Vector3(front.outward.x, 0f, front.outward.y) * tuck;
+                TuckInside(bs, poly, front.outward, log);
+                Seat(bs, log);
             }
         }
 

@@ -417,12 +417,21 @@ def touch(me, paths=(), resources=()):
             c["resources"].append(r)
         # ⚠ 心拍と別に**その資源を使った時刻**を残す。これが無いと放置を検出できない
         c.setdefault("used", {})[r] = now()
+        # 取り上げの記録は読んだら用済み — 取り返したら消す(古い警告を status に残さない)
+        if c.get("taken"):
+            c["taken"] = [t for t in c["taken"] if t.get("resource") != r]
     save(c, fp)
     return c
 
 
-def _force_release(session, resources):
-    """他セッションの claim から資源だけを外す(放置の引き取り用)。"""
+def _force_release(session, resources, by="", why=""):
+    """他セッションの claim から資源だけを外す(放置の引き取り用)。
+
+    ⚠ **取り上げたことを相手の claim に書き残す。**(2026-09-20 EDO-0280)
+    取り上げは黙って起きるので、取られた側は自分の status を見ても資源が「無い」としか
+    分からず、なぜ消えたのかを追えない(実例: 松江松平は unity を取り上げられたことに
+    気づけないまま待ち行列で 38 分待った)。`taken` に誰が・いつ・なぜを残し、
+    `status` の自分の行に出す。"""
     fp = os.path.join(LOCKS, "%s.json" % re.sub(r"[^A-Za-z0-9_.-]", "_", session))
     try:
         c = json.load(open(fp, encoding="utf-8"))
@@ -432,6 +441,10 @@ def _force_release(session, resources):
         if r in c.get("resources", []):
             c["resources"].remove(r)
         (c.get("used") or {}).pop(r, None)
+        c.setdefault("taken", []).append(
+            {"resource": r, "by": by, "at": now(), "why": why})
+    c["taken"] = [t for t in c.get("taken", [])
+                  if (now() - t.get("at", 0)) / 3600.0 < 6][-8:]
     atomic_write_json(c, fp)
 
 
@@ -464,7 +477,8 @@ def take_resource(me, r, ttl=TTL_MIN):
                           hold[0].get("note", ""), n, RESERVE_MIN, r))
     msg = ""
     if hold:      # 掴んだままだが一定時間触っていない → 明け渡させる(心拍では判定できない)
-        _force_release(hold[0]["session"], [r])
+        _force_release(hold[0]["session"], [r], by=me,
+                       why="%.0f 分使われていなかったため引き取り" % res_idle(hold[0], r))
         msg = ("⚠ 門番: %s は %s が握ったままだったが、%.0f 分使われていないので引き取った。\n"
                "   作業が終わったら `edo_session.py release --resources %s` を打つこと。"
                % (r, hold[0]["session"], res_idle(hold[0], r), r))
@@ -501,12 +515,22 @@ def cmd_status(a):
         return 0
     me = sid(a.session, strict=False)
     print("門番 — 生きている claim %d 件(TTL %.0f 分)" % (len(cs), a.ttl))
+    if len(cs) > 1:
+        # ⚠ pid を出すと「ps に無い=終了した」と読まれて資源を取り上げられる(EDO-0280)。
+        #   この環境では他セッションの pid はプロセス表に映らないので、必ず一言添える。
+        print("  ⚠ ここに出ている claim は**すべて生きている**(心拍が TTL 内)。"
+              "pid は表示用 — 他セッションの pid は ps に映らないので\n"
+              "    「プロセス表に無い=終了した」は誤り。生死は心拍だけで見ること(EDO-0280)。")
     for c in cs:
         age = (now() - c["heartbeat"]) / 60.0
         print("  %s %-22s pid%-7s 心拍%4.1f分前" % (
             "▶" if c["session"] == me else " ", c["session"][:22], c.get("pid"), age))
         if c.get("note"):
             print("      %s" % c["note"])
+        for t in c.get("taken", []):
+            print("      ⚠ %s は %s が引き取った(%.0f分前・%s)"
+                  % (t.get("resource"), t.get("by") or "?",
+                     (now() - t.get("at", 0)) / 60.0, t.get("why") or "理由なし"))
         if c.get("resources"):
             rs = []
             for r in c["resources"]:
@@ -577,6 +601,8 @@ def cmd_claim(a):
             return 2
         if r not in c["resources"]:
             c["resources"].append(r)
+        if c.get("taken"):      # 取り返したら古い「引き取られた」警告は消す
+            c["taken"] = [t for t in c["taken"] if t.get("resource") != r]
     # ⚠ **既存の記録へ追記するときは黙って進まない(EDO-0044・土井の要望)。**
     #   取り違えたまま note を上書きすると、相手は自分の claim が化けたことに気づけない。
     if was and (a.note and old_note and a.note != old_note):
@@ -883,8 +909,37 @@ def cmd_check_unity(a):
 
 def cmd_steal(a):
     me = sid(a.session)
+    cs = load_all(a.ttl)
+    # ⛔ **生きている保持者から資源をもぎ取らない。**(2026-09-20 EDO-0280)
+    #   steal はここまで無条件で、心拍が 0 分前の相手からでも unity を外せた。
+    #   実際に山王が「松江松平の pid 42704 がプロセス表に無い=終了した」と見て
+    #   unity を取り上げ、作業中の松江松平は据え直しの2巡目を折られたうえ、
+    #   取り上げられたことに気づけないまま待ち行列で 38 分待った(EDO-0271 の 15:41)。
+    #   ⚠ **ps / pid は生死の判定に使えない** — 各セッションは自分以外の pid が
+    #   プロセス表に見えない環境で走っており、互いを死んだと判定し合う。
+    #   生死は claim の心拍だけで見る(load_all が TTL で落とす)。
+    #   本当に固まった相手は心拍も止まるので、IDLE_MIN 経過後に res_stale が立ち、
+    #   `wait` → 予約か、次の take_resource が正規の手順で引き取る。逃げ道は要らない。
+    for r in [w for w in a.what if w in RESOURCES]:
+        hold = [c for c in cs if c["session"] != me and r in c.get("resources", [])]
+        if hold and not res_stale(hold[0], r):
+            print("⛔ 門番: %s は**セッション %s が使用中**(心拍 %.1f 分前・最終使用 %.0f 分前)。\n"
+                  "   steal では取れない。⚠ 『ps に pid が無い=終了した』は誤り — "
+                  "この環境では他セッションの pid はプロセス表に出ない(EDO-0280)。\n"
+                  "   生死は心拍で見ること。→ `edo_session.py wait --resources %s` で並び、\n"
+                  "   掲示板で相手に release を頼む(`edo_board.py post`)。"
+                  % (r, hold[0]["session"], (now() - hold[0]["heartbeat"]) / 60.0,
+                     res_idle(hold[0], r), r), file=sys.stderr)
+            return 1
+        ok, h = q_may_take(r, me)
+        if not ok:
+            print("⛔ 門番: %s は**待ち行列の先頭 %s** に予約が出ている(残り最大 %.0f 分)。\n"
+                  "   steal で割り込まないこと。`edo_session.py wait --resources %s` で並ぶ。"
+                  % (r, h["session"], RESERVE_MIN - (now() - h["reserved"]) / 60.0, r),
+                  file=sys.stderr)
+            return 1
     n = 0
-    for c in load_all(a.ttl):
+    for c in cs:
         if c["session"] == me:
             continue
         ch = False
@@ -896,6 +951,10 @@ def cmd_steal(a):
         for r in list(c.get("resources", [])):
             if r in a.what:
                 c["resources"].remove(r); ch = True
+                (c.get("used") or {}).pop(r, None)
+                c.setdefault("taken", []).append(
+                    {"resource": r, "by": me, "at": now(),
+                     "why": a.reason or "steal(理由なし)"})
         if ch:
             n += 1
             fp = os.path.join(LOCKS, "%s.json" % re.sub(r"[^A-Za-z0-9_.-]", "_", c["session"]))

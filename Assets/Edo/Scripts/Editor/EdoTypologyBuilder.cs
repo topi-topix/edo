@@ -325,8 +325,11 @@ public static class EdoTypologyBuilder
                                   s.gate, front.i, psi, gHi - gLo, GateWidth(s)));
         }
 
-        // 番所は門の**実測の妻面**へ突き付ける(⛔ 外接箱 + 2.2m の算術で置かない・規則21)
+        // 番所は門と**触れている箇所**で止める(⛔ 外接箱 + 2.2m の算術で置かない・規則21)。
+        // ⭐ 相手に取るのは「門の妻面」ではなく**門の駒そのもの** — 妻面の外(庇の裏・基壇の縁)で
+        //    当たっていればそこで止まる(2026-09-21 施主指摘「何かと何かが接する所を測れ」)。
         int nb = mon != null ? BanshoCount(s.bansho) : 0;
+        var bansho = new List<GameObject>(); var push = new List<Vector3>();
         float oLo = gLo, oHi = gHi;                          // 門構え全体の開口(塀が避ける幅)
         for (int k = 0; k < nb; k++)
         {
@@ -336,15 +339,15 @@ public static class EdoTypologyBuilder
                                     Vector3.one * ES, monGrp, "Bansho_" + k);
             if (bs == null) continue;
             Seat(bs, log);
-            var brb = EdoBuild.RB(bs);
-            float byLo = brb.min.y + 0.30f, byHi = brb.min.y + brb.size.y * 0.60f;
-            float d = EdoBuild.Abut(bs, along, byLo, byHi, !hi, hi ? gHi : gLo, 0f);
-            EdoBuild.AlignFace(bs, front.a, front.outward, 0f, byLo, byHi);
+            var toMon = new Vector3(along.x, 0f, along.y) * (hi ? -1f : 1f);        // 門へ向かって押す向き
+            Vector3 cat; int cn;
+            EdoBuild.Abut(bs, mon, toMon, 0f, out cat, out cn);
             Seat(bs, log);
-            float bmn, bmx; EdoBuild.FaceSpan(bs, along, byLo, byHi, out bmn, out bmx);
+            var brb = EdoBuild.RB(bs);
+            float bmn, bmx;
+            EdoBuild.FaceSpan(bs, along, brb.min.y + 0.30f, brb.min.y + brb.size.y * 0.60f, out bmn, out bmx);
             if (bmx >= bmn) { oLo = Mathf.Min(oLo, bmn); oHi = Mathf.Max(oHi, bmx); }
-            gamae.Add(bs);
-            log.Add(string.Format("    番所{0}: 門の妻面へ {1:+0.00;-0.00}m 突き付け", k, d));
+            bansho.Add(bs); push.Add(toMon); gamae.Add(bs);
         }
         if (mon != null)
         {
@@ -373,17 +376,27 @@ public static class EdoTypologyBuilder
         // ── Stage 2b: 門構えの奥行を、建った塀の**通り側の面**へ揃える ──
         // ⭐ 横はもう決まっている(塀の開口がその実測で開いている)ので、動かすのは奥行だけ。
         //    ⛔ 0.20m のような数字を門の側に書かない — 塀の作りが変わったら門だけ取り残される(規則8)。
-        if (gamae.Count > 0)
+        if (mon != null)
         {
             float face = FenceFace(encl, front);
-            foreach (var g in gamae)
+            var mrb = EdoBuild.RB(mon);
+            float dz = EdoBuild.AlignFace(mon, front.a, front.outward, face,
+                                          mrb.min.y + 0.30f, mrb.min.y + mrb.size.y * 0.60f);
+            Seat(mon, log);
+            log.Add(string.Format("    門の奥行: 塀の通り側の面 {0:+0.00;-0.00}m へ {1:+0.00;-0.00}m 寄せた", face, dz));
+            for (int k = 0; k < bansho.Count; k++)
             {
-                var grb = EdoBuild.RB(g);
-                float lo = grb.min.y + 0.30f, hi2 = grb.min.y + grb.size.y * 0.60f;
-                EdoBuild.AlignFace(g, front.a, front.outward, face, lo, hi2);
-                Seat(g, log);
+                var bs = bansho[k];
+                var brb = EdoBuild.RB(bs);
+                EdoBuild.AlignFace(bs, front.a, front.outward, face,
+                                   brb.min.y + 0.30f, brb.min.y + brb.size.y * 0.60f);
+                Vector3 cat; int cn;
+                float d = EdoBuild.Abut(bs, mon, push[k], 0f, out cat, out cn);   // 門と触れる所で止める
+                Seat(bs, log);
+                float cg = EdoBuild.Contact(bs, mon, push[k], out cat, out cn);   // 据え直した後の当たりを刷る
+                log.Add(string.Format("    番所{0}: 門へ {1:+0.00;-0.00}m 寄せた — 触れている所の隙 {2:F3}m・当たりの筋 {3}",
+                                      k, d, cg, cn));
             }
-            log.Add(string.Format("    門構えの奥行: 塀の通り側の面 {0:+0.00;-0.00}m へ揃えた(駒 {1})", face, gamae.Count));
         }
 
         // ── Stage 3〜5: 主屋・付属・植栽 ──

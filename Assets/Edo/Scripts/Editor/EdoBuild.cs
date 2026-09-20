@@ -98,14 +98,16 @@ public static class EdoBuild
     /// <paramref name="maxSamples"/> は一様な添字間引きの上限(既定 900・性能優先)。
     /// ⚠ 一様な間引きは極値を落とすことがある — 隅部材(単一メッシュ 1.6〜1.8 万頂点)は 999999 を渡して
     /// 間引かない(松江松平 2026-09-08: 留め継ぎの先端の疎な頂点が落ちて隙間を 0.46m と過大に出した)。</summary>
-    public static List<Vector3> Body(Transform tr, int maxSamples = 900)
+    /// <param name="withRoof">true なら屋根系のメッシュも含める。⭐ 屋根と屋根・軒と塀のように
+    /// **屋根そのものが触れる取り合い**を測るときに使う(既定の false は壁の面を測るため)。</param>
+    public static List<Vector3> Body(Transform tr, int maxSamples = 900, bool withRoof = false)
     {
         var L = new List<Vector3>();
         foreach (var mf in tr.GetComponentsInChildren<MeshFilter>())
         {
             if (mf.sharedMesh == null) continue;
             var rr = mf.GetComponent<Renderer>(); if (rr == null || !rr.enabled || !mf.gameObject.activeInHierarchy) continue;
-            if (IsRoofName(mf.name)) continue;
+            if (!withRoof && IsRoofName(mf.name)) continue;
             var l2w = mf.transform.localToWorldMatrix; var vs = mf.sharedMesh.vertices;
             int step = Mathf.Max(1, vs.Length / Mathf.Max(1, maxSamples));
             for (int i = 0; i < vs.Length; i += step) L.Add(l2w.MultiplyPoint3x4(vs[i]));
@@ -302,17 +304,95 @@ public static class EdoBuild
         return crest == float.MinValue ? float.NaN : crest;
     }
 
-    /// <summary>**接地箇所を測る。**駒の実メッシュの全頂点について「頂点の高さ − その真下の地形(格子点)」を取り、
-    /// 最小の物が接地箇所。返り値 = その隙間[m](正=浮き・負=埋没・0=接地)。<paramref name="at"/> = 接地箇所の世界座標、
-    /// <paramref name="count"/> = 最小から <paramref name="tol"/> 以内にある頂点の数(**複数接地**の検め)。
+    /// <summary>**二つの駒が実際に触れている箇所を測る。**<paramref name="dir"/> は
+    /// 「<paramref name="a"/> を押し付ける向き」(a から b へ向かう向き)。返り値 = その取り合いの
+    /// **最小の隙**[m](正 = 隙間 / 負 = めり込み / 0 = 接触)。<paramref name="at"/> = 触れている所の世界座標、
+    /// <paramref name="count"/> = 最小から <paramref name="tol"/> 以内にある筋の数(**接触が複数か**の検め)。
+    /// どちらかに測れる頂点が無ければ NaN。
+    ///
+    /// <para>⭐ **面ではなく、触れている所を測る。**dir に直交する面を <paramref name="cell"/> 角の筋に割り、
+    /// **両方の駒がいる筋だけ**で「a の前面 − b の背面」を取り、その最小を触れている箇所とする。
+    /// こうすると、①名指しした面の外(留め継ぎの先端・庇の裏・沓石の縁)で当たっていても捕まり、
+    /// ②当たりが何筋あるか(1点当たりか、面で当たっているか)が分かる。
+    /// ⛔ 外接箱どうしの差で測らない — 回った駒・斜めの駒で必ず外す。</para>
+    ///
+    /// <para>⛔ **接するのは地面とだけではない**(2026-09-21 施主指摘「何かと何かが接する場合は接触している
+    /// 箇所を測ってほしい」)。部材どうし・屋根と塀・隅と塀・石と土台も同じで、**どこで触れるかは
+    /// 部材の基準点からも名指しした面からも分からない** — 測る。</para></summary>
+    public static float Contact(GameObject a, GameObject b, Vector3 dir, out Vector3 at, out int count,
+                                float tol = 0.01f, float cell = 0.25f, int maxSamples = 4000, bool withRoof = true)
+    {
+        at = a.transform.position; count = 0;
+        var d = dir.normalized;
+        var u = Vector3.Cross(d, Mathf.Abs(d.y) < 0.9f ? Vector3.up : Vector3.right).normalized;
+        var v = Vector3.Cross(d, u).normalized;
+        var pa = Body(a.transform, maxSamples, withRoof);
+        var pb = Body(b.transform, maxSamples, withRoof);
+        if (pa.Count == 0 || pb.Count == 0) return float.NaN;
+        var fa = new Dictionary<long, float>();   // 筋ごと: a の前面(dir の最大)
+        var fb = new Dictionary<long, float>();   // 筋ごと: b の背面(dir の最小)
+        var pt = new Dictionary<long, Vector3>();
+        System.Func<Vector3, long> key = w =>
+            ((long)Mathf.RoundToInt(Vector3.Dot(w, u) / cell) << 32) ^ (uint)Mathf.RoundToInt(Vector3.Dot(w, v) / cell);
+        foreach (var w in pa)
+        {
+            long k = key(w); float q = Vector3.Dot(w, d);
+            float cur; if (!fa.TryGetValue(k, out cur) || q > cur) { fa[k] = q; pt[k] = w; }
+        }
+        foreach (var w in pb)
+        {
+            long k = key(w); float q = Vector3.Dot(w, d);
+            float cur; if (!fb.TryGetValue(k, out cur) || q < cur) fb[k] = q;
+        }
+        float best = float.NaN;
+        foreach (var kv in fa)
+        {
+            float qb; if (!fb.TryGetValue(kv.Key, out qb)) continue;
+            float g = qb - kv.Value;
+            if (float.IsNaN(best) || g < best) { best = g; at = pt[kv.Key]; }
+        }
+        if (float.IsNaN(best)) return best;                      // 筋が重ならない = 向き合っていない
+        foreach (var kv in fa)
+        {
+            float qb; if (!fb.TryGetValue(kv.Key, out qb)) continue;
+            if (qb - kv.Value - best <= tol) count++;
+        }
+        return best;
+    }
+
+    /// <summary>**触れている箇所で突き付ける。**<paramref name="mover"/> を <paramref name="dir"/> へ動かし、
+    /// <paramref name="other"/> との**実際の接触**(<see cref="Contact(GameObject,GameObject,Vector3,out Vector3,out int,float,float,int,bool)"/>)が
+    /// <paramref name="gap"/>(+ = 残す隙 / − = 差し込む量)になる所で止める。返り値 = 動かした量[m]
+    /// (向き合っていなければ NaN)。<paramref name="at"/> と <paramref name="count"/> は動かした後の接触の箇所と筋数。
+    ///
+    /// <para>⭐ 帯と投影で面を測る <see cref="Abut(GameObject,Vector2,float,float,bool,float,float,Vector2,Vector2,float)"/> と違い、
+    /// **相手の駒そのもの**を相手に取る。名指しした面の外で当たっていればそこで止まるので、
+    /// 「面は合っているのに軒が刺さっている」が起きない。</para></summary>
+    public static float Abut(GameObject mover, GameObject other, Vector3 dir, float gap, out Vector3 at, out int count,
+                             float cell = 0.25f, int maxSamples = 4000, bool withRoof = true)
+    {
+        float c = Contact(mover, other, dir, out at, out count, 0.01f, cell, maxSamples, withRoof);
+        if (float.IsNaN(c)) return float.NaN;
+        float shift = c - gap;                                   // 隙が gap になるまで dir へ進める
+        mover.transform.position += dir.normalized * shift;
+        Contact(mover, other, dir, out at, out count, 0.01f, cell, maxSamples, withRoof);
+        return shift;
+    }
+
+    /// <summary>**地面と触れている箇所を測る。**(相手が地形のときの <see cref="Contact(GameObject,GameObject,Vector3,out Vector3,out int,float,float,int,bool)"/>。)
+    /// 駒の実メッシュの全頂点について「頂点の高さ − その真下の地形(格子点)」を取り、最小の物が触れている箇所。
+    /// 返り値 = その隙[m](正=浮き・負=埋没・0=接触)。<paramref name="at"/> = 触れている所の世界座標、
+    /// <paramref name="count"/> = 最小から <paramref name="tol"/> 以内にある頂点の数(**接触が複数か**の検め)。
     /// 頂点が無ければ NaN。
     ///
     /// <para>⚠ <paramref name="maxSamples"/> は頂点の間引きの上限。**1 頂点につき地形を 1 回引く**ので、
     /// 79 区画を一度に建てる類型の車線では 600〜800 に絞る(既定 4000 は一邸を精密に据えるとき)。
     /// ⛔ 間引きすぎると接地の頂点そのものを落とす — 留め継ぎの隅部材のような疎な先端は 999999 を渡す。</para>
     ///
-    /// <para>⛔ **接地箇所は「底(bounds.min.y)」ではない。**斜面では上手側の頂点が先に着き、据え面のある石はその縁が、
-    /// 木は根張りの端が着く。底の一点で据えると、着くべき所が浮くか埋まる。⛔ **部材の基準点(ピボット・原点・
+    /// <para>⛔ **触れる所は「底(bounds.min.y)」ではない。**斜面では上手側の頂点が先に着き、据え面のある石はその縁が、
+    /// 木は根張りの端が着く。底の一点で据えると、着くべき所が浮くか埋まる。
+    /// ⛔ **相手は地面だけではない** — 部材どうしの取り合いは <see cref="Contact(GameObject,GameObject,Vector3,out Vector3,out int,float,float,int,bool)"/> で測る
+    /// (2026-09-21 施主指摘)。⛔ **部材の基準点(ピボット・原点・
     /// bounds の中心)で位置を決めない。絶対に。**(2026-09-20 施主指摘「実物の底や地面では漏れる。接地箇所を測れ」)</para></summary>
     public static float Contact(GameObject go, out Vector3 at, out int count, float tol = 0.01f, int maxSamples = 4000)
     {
@@ -329,7 +409,8 @@ public static class EdoBuild
         return best;
     }
 
-    /// <summary>**地面に据える。**<see cref="Contact"/> で測った**接地箇所**が地形(格子点)に着く高さへ動かし、
+    /// <summary>**地面に据える。**<see cref="Contact(GameObject,out Vector3,out int,float,int)"/> で測った
+    /// **地面と触れる箇所**が地形(格子点)に着く高さへ動かし、
     /// <paramref name="sink"/> だけ沈める。返り値 = 動かした量[m]。測れる頂点が無ければ例外(黙って置かない)。
     ///
     /// <para>⛔ **部材の基準点(ピボット)を信用して座標へ置かない。**ピボットの位置は部材ごとに違う

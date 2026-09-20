@@ -64,7 +64,7 @@ memory: project
 3. Builder に無い工程(指図にはあるが C# が未対応)は、**まず指図(`edo-sashizukata` が
    書き起こした部材・納め)が解決済みか確認**してから、対象 `Edo*Builder.cs` に Stage を追記する
    (`create_script`/`apply_text_edits`/`script_apply_edits` を使い、既存 Stage の書式に倣う)
-   ⭐ **据え付けは「置き方の4手」で書く**(2026-09-20 施主指示・スキル `sashizu.md` §3f): 固定側(門構え・隅)を
+   ⭐ **据え付けは「置き方の4手」で書く**(正典は **`docs/oki-kata.md`** — 着手前に読む): 固定側(門構え・隅)を
    先に置く → 可動側は前の相手と**触れる所**まで `EdoBuild.Abut(駒, 相手, 向き, 隙)` で寄せる(連鎖) →
    高さは**触れている箇所**を `EdoBuild.SeatOnCrest`(石垣の天端)/ `EdoBuild.PadY`(段の格子点の中央値)/ `EdoBuild.Contact`・
    `SeatOnGround`(木・石・柵)で測って据える → 事後に寄せる関数を足さない。⛔ **部材の基準点(ピボット・原点・bounds の中心)

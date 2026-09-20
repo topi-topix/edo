@@ -1365,6 +1365,9 @@ def build_kirizuma_set():
 HIRA_OVER = 0.35        # 庇の瓦場を身舎の屋根の下へ差し込む量[m](光の筋を消す重ね代)
 HIRA_MIZU = 0.18        # 雨押え(水切り)板の見付[m]
 HIRA_SODE = 0.20        # 袖瓦の持ち上げ[m](瓦の実体は名目平面より上にある)
+NOTCH_T = 0.08          # 切り欠きの受け板・塞ぎ板の厚[m]
+NOTCH_H = 0.20          # 切り欠きの奥の塞ぎの立ち上がり[m](瓦の小口を隠す)
+NOTCH_KEN = 1.0         # 切り欠きの幅[間](= 渡廊下の幅)
 
 
 def KenTag(n):
@@ -1372,13 +1375,16 @@ def KenTag(n):
     return ("%g" % n) if abs(n - int(n)) > 1e-6 else "%d" % int(n)
 
 
-def hirairi_name(wk, dk, eave, omit=()):
+def hirairi_name(wk, dk, eave, omit=(), notches=()):
     """平入り+庇の部材名。⚠ **mm は `round`**(`floor` は浮動小数で 1mm 落ちる)。
-    `_o<辺>` は庇を断った辺(格子の綴り・並びは u0,u1,v0,v1)、`_e<mm>` は**床上の**身舎の軒桁。"""
+    `_o<辺>` は庇を断った辺(格子の綴り・並びは u0,u1,v0,v1)、`_e<mm>` は**床上の**身舎の軒桁。
+    `_k<辺>-<間>` は**渡廊下の取り付きで庇の軒先を切り欠いた**位置(中心の間数・棟の格子基準)。"""
     s = "Goten_Roof_Hirairi_%sx%sken" % (KenTag(wk), KenTag(dk))
     q = [k for k in ("u0", "u1", "v0", "v1") if k in set(omit or ())]
     if q:
         s += "_o" + "".join(q)
+    for side, c in sorted(notches or [], key=lambda z: (("u0", "u1", "v0", "v1").index(z[0]), z[1])):
+        s += "_k%s-%s" % (side, KenTag(c))
     return s + "_e%d" % int(round(eave * 1000.0))
 
 
@@ -1462,6 +1468,24 @@ def _rake_boards(x, inward, y_end, z_end, apex_y, apex_z, name, p, bw=0.34, bt=0
     return keep
 
 
+def _prism_uz(P, t_a, t_b, pts_uz, mat, name):
+    """`(u, z)` の閉多角形を **t 方向 t_a..t_b へ押し出した板**。`P` は (t,u)→(x,y) の写像。
+    ⭐ 切り欠きの脇板のように**屋根の流れに沿って下る板**に使う
+      (⛔ `V.box` で作ると矩形なので軒下へ 0.4m 垂れ、庇の下から見上げると鰭になる)。"""
+    v = []
+    for tt in (t_a, t_b):
+        for (u, z) in pts_uz:
+            x, y = P(tt, u)
+            v.append((x, y, z))
+    n = len(pts_uz)
+    f = [list(range(n)), list(range(2 * n - 1, n - 1, -1))]
+    f += [[i, (i + 1) % n, n + (i + 1) % n, n + i] for i in range(n)]
+    o = _mesh_from_poly(name, v, f, recalc=True)
+    if mat:
+        o.data.materials.append(mat)
+    return o
+
+
 def _hirairi_sides(W, D, omit, hken, ken=KEN):
     """庇の張り出し[m]を **Blender の四辺** (minx, maxx, miny, maxy) で返す。
     ⭐ 対応は  minx = 格子 u1 / maxx = u0 / miny = v0 / maxy = v1(軸の鎖は章頭の註)。"""
@@ -1472,7 +1496,8 @@ def _hirairi_sides(W, D, omit, hken, ken=KEN):
 
 
 def make_hirairi(W, D, eave, omit=(), name="Goten_Roof_Hirairi",
-                 hon=0.60, his=0.45, noki=0.90, hken=1, ken=KEN, oni_on=True):
+                 hon=0.60, his=0.45, noki=0.90, hken=1, ken=KEN, oni_on=True,
+                 notches=(), notch_w=None):
     """**平入り + 庇**(`const.nagayaGataRoof`)。返り値 = 1メッシュ。
 
     W = 桁行の外形[m](大棟が走る側)/ D = 梁間の外形[m] / eave = **身舎の軒桁**の高さ
@@ -1484,7 +1509,16 @@ def make_hirairi(W, D, eave, omit=(), name="Goten_Roof_Hirairi",
       大棟(瓦の頂)= eave + 身舎の梁間/2 × hon / 庇の軒桁 = eave − hken×ken×his /
       庇の軒先の下端 = eave − (hken×ken + noki)×his /
       庇を断った辺の軒先の下端 = eave − noki×hon。
-    ⛔ **bbox の丈をピボットからの高さとして使わない**(大棟の座と瓦の起伏が上へ出る)。"""
+    ⛔ **bbox の丈をピボットからの高さとして使わない**(大棟の座と瓦の起伏が上へ出る)。
+
+    ⭐⭐ **`notches` = 渡廊下が取り付く辺の切り欠き** `[(辺, 中心の間数), ...]`。
+      指図の取り合い(`_roka` ④「廊下の**桁の下端** ↔ **庇の軒桁の天端**」)を成り立たせるため、
+      **その幅だけ庇の軒先を切り詰め**、底に**軒桁の天端の水平面**を出す。
+      ⛔ 軒先の下へ潜らせる納めは指図が採らない(`_roka` ③)。
+      中心の数え方は**棟の格子基準** — u の辺は `munes[].v0` から、v の辺は `munes[].u0` からの間数。
+      ⇒ 棟梁は `links[]` の矩形の中心 − 棟の u0/v0 をそのまま渡せる。"""
+    if notch_w is None:
+        notch_w = NOTCH_KEN * ken
     hxm, hxp, hym, hyp = _hirairi_sides(W, D, omit, hken, ken)
     mx0, mx1 = hxm, W - hxp                     # 身舎の壁の通り
     my0, my1 = hym, D - hyp
@@ -1503,6 +1537,7 @@ def make_hirairi(W, D, eave, omit=(), name="Goten_Roof_Hirairi",
 
     p = palette()
     pieces = []
+    notch_world = []                            # 切り欠きの芯(検証レンダの狙い所)
 
     # --- 身舎の本屋根(平入りの切妻。両流れ)--------------------------------
     pieces.append(_tile_field_k([[(rx0, ry0), (rx1, ry0), (rx1, ridge_y), (rx0, ridge_y)]],
@@ -1538,41 +1573,102 @@ def make_hirairi(W, D, eave, omit=(), name="Goten_Roof_Hirairi",
                             name + "_sode", w=0.34, h=0.26)
 
     # --- 庇(四辺 − 断った辺)。隅は 45°の隅棟でつなぐ -----------------------
+    # ⭐ 辺ごとに **(t, u) の局所座標**で組む: t = 辺に沿う / u = 身舎の壁からの深さ(外向き)。
+    #   u = 0 身舎の壁 / u = hken×ken **庇の軒桁の線(足形の縁)** / u = run 庇の軒先。
+    #   隅の留めは「深さ u だけ t を伸ばす」45°の線なので、どの辺も同じ式で書ける。
     run = hken * ken + noki                     # 身舎の壁 → 庇の軒先(平面上)
+    keta_u = hken * ken                         # 軒桁の線の深さ = 足形の縁
+    z_keta = eave - keta_u * his                # **庇の軒桁の天端**(= 渡廊下の桁が掛かる面)
     z_tip = eave - run * his
-    # (辺, 内側の線, 外側の線, yaw, 直交方向の両端)
-    if hym > 0:
-        a0 = (mx0 + HIRA_OVER) if hxm > 0 else mx0
-        a1 = (mx1 - HIRA_OVER) if hxp > 0 else mx1
-        b0 = (mx0 - run) if hxm > 0 else mx0
-        b1 = (mx1 + run) if hxp > 0 else mx1
-        pieces.append(_tile_field_k([[(a0, my0 + HIRA_OVER), (a1, my0 + HIRA_OVER),
-                                      (b1, my0 - run), (b0, my0 - run)]],
-                                    (b0, my0 - run), 90, z_tip, name + "_hS", his))
-    if hyp > 0:
-        a0 = (mx0 + HIRA_OVER) if hxm > 0 else mx0
-        a1 = (mx1 - HIRA_OVER) if hxp > 0 else mx1
-        b0 = (mx0 - run) if hxm > 0 else mx0
-        b1 = (mx1 + run) if hxp > 0 else mx1
-        pieces.append(_tile_field_k([[(a1, my1 - HIRA_OVER), (a0, my1 - HIRA_OVER),
-                                      (b0, my1 + run), (b1, my1 + run)]],
-                                    (b0, my1 + run), 270, z_tip, name + "_hN", his))
-    if hxm > 0:
-        c0 = (my0 + HIRA_OVER) if hym > 0 else my0
-        c1 = (my1 - HIRA_OVER) if hyp > 0 else my1
-        d0 = (my0 - run) if hym > 0 else my0
-        d1 = (my1 + run) if hyp > 0 else my1
-        pieces.append(_tile_field_k([[(mx0 + HIRA_OVER, c0), (mx0 + HIRA_OVER, c1),
-                                      (mx0 - run, d1), (mx0 - run, d0)]],
-                                    (mx0 - run, d0), 0, z_tip, name + "_hW", his))
-    if hxp > 0:
-        c0 = (my0 + HIRA_OVER) if hym > 0 else my0
-        c1 = (my1 - HIRA_OVER) if hyp > 0 else my1
-        d0 = (my0 - run) if hym > 0 else my0
-        d1 = (my1 + run) if hyp > 0 else my1
-        pieces.append(_tile_field_k([[(mx1 - HIRA_OVER, c1), (mx1 - HIRA_OVER, c0),
-                                      (mx1 + run, d0), (mx1 + run, d1)]],
-                                    (mx1 + run, d0), 180, z_tip, name + "_hE", his))
+    SIDES = {                                   # 辺 → (写像, t の両端, 隣の辺の庇, yaw)
+        "v0": (lambda t, u: (t, my0 - u), (mx0, mx1), (hxm, hxp), 90),
+        "v1": (lambda t, u: (t, my1 + u), (mx0, mx1), (hxm, hxp), 270),
+        "u1": (lambda t, u: (mx0 - u, t), (my0, my1), (hym, hyp), 0),
+        "u0": (lambda t, u: (mx1 + u, t), (my0, my1), (hym, hyp), 180),
+    }
+    HAS = {"v0": hym, "v1": hyp, "u1": hxm, "u0": hxp}
+
+    def _notch_t(side, center_ken):
+        """切り欠きの中心を **その辺の t 座標**へ直す。
+        ⭐ 呼び方は棟の**格子**基準 — u の辺(u0/u1)は `munes[].v0` からの間数、
+          v の辺(v0/v1)は `munes[].u0` からの間数(⛔ どちらも Blender の軸ではない)。
+        ⚠ **格子 +u = Blender −X** なので、v の辺だけ `W − 中心` へ折り返す。"""
+        return (center_ken * ken) if side in ("u0", "u1") else (W - center_ken * ken)
+
+    notch_by_side = {}
+    for side, center_ken in (notches or []):
+        if side not in SIDES:
+            raise SystemExit("⛔ 切り欠きの辺が読めない: %s" % side)
+        if HAS[side] <= 0:
+            raise SystemExit("⛔ %s は庇を断った辺なので切り欠けない(そこの軒は本屋根)" % side)
+        tc = _notch_t(side, center_ken)
+        notch_by_side.setdefault(side, []).append((tc - notch_w / 2.0, tc + notch_w / 2.0))
+
+    for side in ("v0", "v1", "u1", "u0"):
+        P, (t_lo, t_hi), (h_lo, h_hi), yaw = SIDES[side]
+        if HAS[side] <= 0:
+            continue
+        long_axis = 'x' if side in ("v0", "v1") else 'y'
+
+        def start(u, _lo=t_lo, _h=h_lo):
+            return _lo - u if _h > 0 else _lo
+
+        def finish(u, _hi=t_hi, _h=h_hi):
+            return _hi + u if _h > 0 else _hi
+
+        cuts = sorted(notch_by_side.get(side, []))
+        if not cuts:
+            # ⭕ 切り欠きが無い辺は**一枚のまま**葺く — 軒桁の線で割ると切り口が二重になり
+            #   三角が 1 割増える(姿は同じ)。既に焼いた部材と幾何を揃える意味でも割らない
+            polys = [[P(start(-HIRA_OVER), -HIRA_OVER), P(finish(-HIRA_OVER), -HIRA_OVER),
+                      P(finish(run), run), P(start(run), run)]]
+            segs = []
+        else:
+            polys = [[P(start(-HIRA_OVER), -HIRA_OVER), P(finish(-HIRA_OVER), -HIRA_OVER),
+                      P(finish(keta_u), keta_u), P(start(keta_u), keta_u)]]
+            # 外(軒桁の線 → 軒先)は切り欠きで分かれる。⛔ 切り欠きの中へ瓦を残さない
+            segs, a = [], start(run)
+            for (n0, n1) in cuts:
+                segs.append((a, n0)); a = n1
+            segs.append((a, finish(run)))
+        for (s0, s1) in segs:
+            q = [(max(start(keta_u), s0), keta_u), (min(finish(keta_u), s1), keta_u),
+                 (min(finish(run), s1), run), (max(start(run), s0), run)]
+            if min(q[1][0] - q[0][0], q[2][0] - q[3][0]) < 0.01:
+                continue                        # 潰れた断片は葺かない
+            polys.append([P(t, u) for (t, u) in q])
+        tag = {"v0": "_hS", "v1": "_hN", "u1": "_hW", "u0": "_hE"}[side]
+        pieces.append(_tile_field_k(polys, P(start(run), run), yaw, z_tip, name + tag, his))
+
+        # --- 切り欠き(渡廊下が取り付く辺)— 底・奥・両脇を塞ぐ。⛔ 素通しにしない ---
+        for (n0, n1) in cuts:
+            # ① 受け板 — **天端 = 庇の軒桁の天端 z_keta** の水平面。渡廊下の桁はここへ掛かる
+            e0 = P(n0, keta_u - 0.06)
+            e1 = P(n1, run)
+            o_ = V.box(name + "_kbase",
+                       (max(abs(e1[0] - e0[0]), NOTCH_T), max(abs(e1[1] - e0[1]), NOTCH_T), NOTCH_T),
+                       ((e0[0] + e1[0]) / 2.0, (e0[1] + e1[1]) / 2.0, z_keta - NOTCH_T / 2.0),
+                       p['wood'])
+            V.set_uv_rect(o_, WOOD_UV, axes=('z', long_axis))
+            new_geo.append((o_, None))
+            notch_world.append(P((n0 + n1) / 2.0, keta_u + noki * 0.5) + (z_keta,))
+            # ② 奥の塞ぎ — 軒桁の線に立てて、切った瓦場の小口を隠す
+            b0 = P(n0, keta_u)
+            b1 = P(n1, keta_u + NOTCH_T)
+            o_ = V.box(name + "_kback",
+                       (max(abs(b1[0] - b0[0]), NOTCH_T), max(abs(b1[1] - b0[1]), NOTCH_T), NOTCH_H),
+                       ((b0[0] + b1[0]) / 2.0, (b0[1] + b1[1]) / 2.0, z_keta + NOTCH_H / 2.0),
+                       p['wood'])
+            V.set_uv_rect(o_, WOOD_UV, axes=('z', long_axis))
+            new_geo.append((o_, None))
+            # ③ 両脇の塞ぎ — ⛔ 箱で作らない(軒下へ垂れる)。**流れに沿って下る板**を押し出す
+            uz = [(keta_u, z_keta + 0.18), (run, z_tip + 0.18),
+                  (run, z_tip - 0.10), (keta_u, z_keta - 0.10)]
+            for (tn, sgn) in ((n0, -1.0), (n1, +1.0)):
+                o_ = _prism_uz(P, tn, tn + sgn * NOTCH_T, uz, p['wood'], name + "_kside")
+                V.set_uv_rect(o_, WOOD_UV, axes=('z', 'y' if side in ("v0", "v1") else 'x'))
+                new_geo.append((o_, None))
+
     # 隅棟(庇どうしが出会う隅だけ)
     for (hx, hy, cx_, cy_, ox, oy) in ((hxm, hym, mx0, my0, mx0 - run, my0 - run),
                                        (hxp, hym, mx1, my0, mx1 + run, my0 - run),
@@ -1601,7 +1697,6 @@ def make_hirairi(W, D, eave, omit=(), name="Goten_Roof_Hirairi",
                             (xcut, sy_out, z_tip + HIRA_SODE * 0.8),
                             name + "_hsode", w=0.30, h=0.24)
 
-    # --- 雨押え(水切り)— 本屋根の軒先の小口と庇の頭の継ぎ目を隠す横一文字の板 ---
     #   ⛔ 入れないと、本屋根を切った断面が庇の瓦の上に剥き出しで載る(白い筋になる)。
     #   ⚠ 隅で天端が同一平面で重なると z-fighting するので、x の板は y の板のぶん詰める。
     for (h_, yb, sgn) in ((hym, my0, -1.0), (hyp, my1, +1.0)):
@@ -1630,11 +1725,15 @@ def make_hirairi(W, D, eave, omit=(), name="Goten_Roof_Hirairi",
     V.dedup_materials()
     o = V.join(pieces, name)
     V.set_origin(o, (W / 2.0, D / 2.0, 0.0))
-    _verify_hirairi(o, W, D, eave, omit, hon, his, noki, hken, ken, name)
+    if notch_world:                             # 検証レンダが寄る先(⛔ 人が座標を書かない)
+        o["notch_pts"] = [c for pt in notch_world for c in pt]
+    _verify_hirairi(o, W, D, eave, omit, hon, his, noki, hken, ken, name,
+                    notches=notches, notch_w=notch_w)
     return o
 
 
-def _verify_hirairi(o, W, D, eave, omit, hon, his, noki, hken, ken, name):
+def _verify_hirairi(o, W, D, eave, omit, hon, his, noki, hken, ken, name,
+                    notches=(), notch_w=None):
     """⛔⛔ **非対称(`hisashiOmit` のある)棟を焼いたら必ず回す検算。**
 
     ⚠ **外形(bbox)では見抜けない** — 庇を断った辺は本屋根の軒が 0.9 出るので、
@@ -1666,7 +1765,36 @@ def _verify_hirairi(o, W, D, eave, omit, hon, his, noki, hken, ken, name):
         bad += 1 if ng else 0
         rows.append("    %-8s 庇%s  軒先手前0.3m の天端 %.3f(従属値 %.3f)%s"
                     % (tag, "有" if h_ > 0 else "無", got, want, "  <<" if ng else ""))
-    print("VERIFY %s  ピボット=足形の中心/床" % name)
+    # --- 切り欠き(渡廊下の取り付き)------------------------------------------
+    #   ⭐ **軒先の側で測る** — 切り欠きが効いていれば天端は**軒桁の天端 z_keta** の水平な棚、
+    #     効いていなければ瓦の流れ(z_tip ≒ 0.4 低い)。⛔ 軒桁の線の近くで測ると差が出ない。
+    keta_u = hken * ken
+    z_keta = eave - keta_u * his
+    z_tip = eave - (keta_u + noki) * his
+    print("VERIFY %s  ピボット=足形の中心/床  **庇の軒桁の天端 z=%.4f**(桁の掛かる面)" % (name, z_keta))
+    for (side, ck) in (notches or []):
+        tc = (ck * ken) if side in ("u0", "u1") else (W - ck * ken)
+        half = (notch_w or ken) / 2.0
+        # ⚠⚠ **頂点では測れない** — 受け板は箱なので頂点が隅にしかなく、帯で拾うと空になる
+        #   (2026-09-20 に nan を出して「板が焼けていない」と誤診しかけた)。
+        #   ⭕ **真上から光線を落として当たりの高さを読む**(ピボット基準 = オブジェクト局所)。
+        # ⚠ 深さ u は **身舎の壁**から測る(⛔ 足形の縁からでも 0 からでもない)
+        depth = keta_u + noki - 0.25                 # 軒先寄り(切り欠きが効けば棚・効かねば瓦)
+        if side == "v0":
+            wp = (tc, hym - depth)
+        elif side == "v1":
+            wp = (tc, (D - hyp) + depth)
+        elif side == "u1":
+            wp = (hxm - depth, tc)
+        else:
+            wp = ((W - hxp) + depth, tc)
+        loc = mathutils.Vector((wp[0] - px, wp[1] - py, 12.0))
+        hit, hp, _n, _i = o.ray_cast(loc, mathutils.Vector((0.0, 0.0, -1.0)), distance=30.0)
+        got = hp.z if hit else float('nan')
+        ng = not (z_keta - 0.12 <= got <= z_keta + 0.02)
+        bad += 1 if ng else 0
+        rows.append("    切欠 %-3s @%-5g間  軒先寄りの天端 %.3f(受け板 %.3f / 切らねば %.3f)%s"
+                    % (side, ck, got, z_keta, z_tip, "  <<" if ng else ""))
     for r in rows:
         print(r)
     if bad:
@@ -1755,6 +1883,15 @@ def render_hirairi(o, path_dir, tag, eave=2.744):
          (cx - W * 0.30, cy - D * 0.2, zc), res=(1500, 1000))
     shot("05_shinjo", (cx, cy, mx.z + r * 1.2), (cx, cy, mn.z),
          ortho=max(W, D) * 1.06, res=(1400, 1400))
+    # 6) ⭐ **切り欠きの寄り** — 桁の掛かる面(軒桁の天端)が平らに出ているか・脇と奥が塞がっているか
+    pts = list(o.get("notch_pts") or [])
+    for k in range(0, len(pts), 3):
+        q = mathutils.Vector((pts[k], pts[k + 1], pts[k + 2]))
+        d = mathutils.Vector((q.x - cx, q.y - cy, 0.0))
+        d = d.normalized() if d.length > 1e-6 else mathutils.Vector((1.0, 0.0, 0.0))
+        shot("06_kirikaki%d" % (k // 3), (q.x + d.x * 3.1 + d.y * 1.2,
+                                          q.y + d.y * 3.1 - d.x * 1.2, q.z + 1.35),
+             (q.x - d.x * 0.6, q.y - d.y * 0.6, q.z - 0.10), res=(1500, 1000))
     return out
 
 
@@ -1778,16 +1915,25 @@ if __name__ == "__main__":
     if argv and argv[0] == "hirairi":
         # 平入り + 庇 — `-- hirairi <桁行間数> <梁間間数> <身舎の軒桁m(床上)> [名前]`
         #   --omit v1[,u0...]  庇を回さない辺(格子の綴り)/ --hon <勾配> / --his <勾配>
+        #   --notch u1-2.5[,v1-4.5]  渡廊下が取り付く辺の切り欠き(辺-中心の間数)
         #   --noki <m> / --hisashi-ken <間> / --render [<出力ディレクトリ>]
         wk = float(argv[1]); dk = float(argv[2]); ev = float(argv[3])
         rest = argv[4:]
         nm = rest[0] if rest and not rest[0].startswith("--") else None
         kw = dict(hon=0.60, his=0.45, noki=0.90, hken=1)
-        omit, rdir = [], None
+        omit, notch, rdir = [], [], None
         i = 0
         while i < len(rest):
             t = rest[i]
             if t == "--omit":   omit = [q for q in rest[i + 1].split(",") if q]; i += 2
+            elif t == "--notch":
+                # ⭐ `u1-2.5,v1-4.5` = 辺と**中心の間数**(u の辺は棟の v0 から / v の辺は u0 から)
+                for tok in rest[i + 1].split(","):
+                    if not tok.strip():
+                        continue
+                    sd, _, cc = tok.partition("-")
+                    notch.append((sd.strip(), float(cc)))
+                i += 2
             elif t == "--hon":  kw['hon'] = float(rest[i + 1]); i += 2
             elif t == "--his":  kw['his'] = float(rest[i + 1]); i += 2
             elif t == "--noki": kw['noki'] = float(rest[i + 1]); i += 2
@@ -1799,9 +1945,9 @@ if __name__ == "__main__":
                     rdir = os.path.join(V.REPO, "Screenshots"); i += 1
             else: i += 1
         if nm is None:
-            nm = hirairi_name(wk, dk, ev, omit)
+            nm = hirairi_name(wk, dk, ev, omit, notch)
         V.reset()
-        o = make_hirairi(wk * KEN, dk * KEN, ev, omit=omit, name=nm, **kw)
+        o = make_hirairi(wk * KEN, dk * KEN, ev, omit=omit, name=nm, notches=notch, **kw)
         report(o, nm)
         if rdir:
             for f in render_hirairi(o, rdir, nm, eave=ev):

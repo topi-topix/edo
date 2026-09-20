@@ -2,7 +2,7 @@
 """**松江松平出羽守上屋敷の、隣の棟と接する棟の屋根** — 接する辺の軒を落として焼く。
 
     blender --background --python Tools/Blender/build_matsudaira_dewa_roofs.py -- [--render] [--only <名>]
-    blender --background --python Tools/Blender/build_matsudaira_dewa_roofs.py -- --hirairi [--render] [--only <棟名>]
+    blender --background --python Tools/Blender/build_matsudaira_dewa_roofs.py -- --hirairi [--render] [--only <棟名>] [--plain]
     blender --background --python Tools/Blender/build_matsudaira_dewa_roofs.py -- --geya [--render]
 
 ⭐⭐ **なぜ要るか(2026-09-09 普請検査の差し戻し1)。**
@@ -204,10 +204,40 @@ def load_doc():
         return json.load(f)
 
 
-def plan_hirairi(doc):
-    """[(名前, 桁行間, 梁間間, 軒桁(床上), 庇を断つ辺)] を指図から組む。"""
+def notches_for(m, links):
+    """棟 m の**庇の軒先を切り欠く辺と中心**[(辺, 間数)] を `links` から解く。
+
+    ⭐ 判定は棟の外形の線と渡廊下の矩形が**同じ線を共有し、直交方向に重なる**こと
+      (`_touching` と同じ規則)。⛔ 人が数えた数を受け取らない。
+    ⭐ 中心の数え方は**棟の格子基準** — u の辺は `munes[].v0` から、v の辺は `munes[].u0` から。
+      ⚠ 部材の生成器 `make_hirairi` の `notches` と同じ綴りにすること(あちらで Blender 軸へ直す)。
+    ⛔ **口(御錠口・御膳所口)は数えない** — 下屋を架けないので軒先を切る理由が無い。"""
+    out = []
+    for l in links:
+        if l.get("kind") != "渡廊下":
+            continue
+        ov_v = min(m["v1"], l["v1"]) - max(m["v0"], l["v0"])
+        ov_u = min(m["u1"], l["u1"]) - max(m["u0"], l["u0"])
+        if ov_v > 0:
+            cv = (l["v0"] + l["v1"]) / 2.0 - m["v0"]
+            if m["u0"] == l["u1"]:
+                out.append(("u0", cv))
+            if m["u1"] == l["u0"]:
+                out.append(("u1", cv))
+        if ov_u > 0:
+            cu = (l["u0"] + l["u1"]) / 2.0 - m["u0"]
+            if m["v0"] == l["v1"]:
+                out.append(("v0", cu))
+            if m["v1"] == l["v0"]:
+                out.append(("v1", cu))
+    return sorted(out, key=lambda z: (("u0", "u1", "v0", "v1").index(z[0]), z[1]))
+
+
+def plan_hirairi(doc, with_notch=True):
+    """[(名前, 桁行間, 梁間間, 軒桁(床上), 庇を断つ辺, 切り欠き)] を指図から組む。"""
     c = doc["const"]
     ken, floor = c["ken"], c["gotenFloor"]
+    links = doc.get("links", [])
     jobs = []
     for m in doc["munes"]:
         if m.get("roof"):
@@ -215,7 +245,8 @@ def plan_hirairi(doc):
         w = int(round(abs(m["u1"] - m["u0"])))
         d = int(round(abs(m["v1"] - m["v0"])))
         eav = (c["umayaEave"] if m.get("zone") == "厩" else c["nagayaGataEave"]) - floor
-        jobs.append((m["name"], w, d, eav, list(m.get("hisashiOmit") or [])))
+        nt = notches_for(m, links) if with_notch else []
+        jobs.append((m["name"], w, d, eav, list(m.get("hisashiOmit") or []), nt))
     return jobs
 
 
@@ -238,14 +269,17 @@ def main_hirairi(argv):
     r = c["nagayaGataRoof"]
     rdir = SHOT if "--render" in argv else None
     only = argv[argv.index("--only") + 1] if "--only" in argv else None
-    jobs = plan_hirairi(doc)
-    print("[dewa-hirairi] 平入り+庇の棟 %d(指図から)" % len(jobs))
-    for nm, w, d, eav, omit in jobs:
+    plain = "--plain" in argv          # 切り欠きの無い版(渡廊下の取り付かない辺・他邸のため)
+    jobs = plan_hirairi(doc, with_notch=not plain)
+    print("[dewa-hirairi] 平入り+庇の棟 %d(指図から)%s" % (len(jobs), " ⭕切り欠き無し" if plain else ""))
+    for nm, w, d, eav, omit, nt in jobs:
         if only and nm != only:
             continue
-        name = GR.hirairi_name(w, d, eav, omit)
+        name = GR.hirairi_name(w, d, eav, omit, nt)
+        if nt:
+            print("[dewa-hirairi]   %-14s 切り欠き %s" % (nm, ", ".join("%s @%g間" % q for q in nt)))
         V.reset()
-        o = GR.make_hirairi(w * ken, d * ken, eav, omit=omit, name=name,
+        o = GR.make_hirairi(w * ken, d * ken, eav, omit=omit, name=name, notches=nt,
                             hon=r["honKobai"], his=c["hisashiKobai"],
                             noki=c["nokiE"], hken=int(r["hisashiKen"]), ken=ken)
         mn, mx = GR.report(o, name)

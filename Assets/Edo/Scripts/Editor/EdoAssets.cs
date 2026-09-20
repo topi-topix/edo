@@ -359,21 +359,89 @@ public static class EdoAssets
         /// ピボットからの高さではない**(部材は z 1.399..5.519 = 軒先より下に破風が垂れる)。</para>
         ///
         /// <para><paramref name="omit"/> = 庇を回さない辺(格子の綴り "u0","u1","v0","v1" を
-        /// 並べた物。指図 `munes[].hisashiOmit` をそのまま。⛔ 人が辺を数えない)。
-        /// 焼いてあるもの: 6x6 / 18x6 / 10x6(e2744・四方庇)、22x5 ov1(e2744)、14x5 ov1(e2410)。</para>
+        /// 並べた物。指図 `munes[].hisashiOmit` をそのまま。⛔ 人が辺を数えない)。</para>
+        ///
+        /// <para>⭐⭐ <paramref name="notches"/> = **渡廊下が取り付く辺の切り欠き**(辺, 中心の間数)。
+        /// 指図の取り合い(`_roka` ④「廊下の**桁の下端** ↔ **庇の軒桁の天端**」)を成り立たせるため、
+        /// その1間だけ庇の軒先を切り詰め、底に**軒桁の天端の水平な受け面**を出してある。
+        /// ⛔ 軒先の下へ潜らせる納めは指図が採らない(`_roka` ③)。⛔ 切り欠き無しの版を
+        /// 渡廊下の取り付く棟へ据えない — 柱筋の頭上が `roka.zujoMin` を 65mm 割る(2026-09-20 実測)。
+        /// ⇒ <see cref="HirairiNotches"/> が `munes[]`/`links[]` から機械的に解く。
+        /// 中心は **u の辺は棟の v0 から / v の辺は棟の u0 から**の間数。</para>
+        ///
+        /// <para>⭕ **受け面(庇の軒桁の天端)の実測 = ピボットから z +1.926**(軒桁 2.744 の4棟)
+        /// / **+1.592**(厩 2.410)。棟梁はここへ廊下の桁を掛ける。切り欠きは**幅1間・奥行 0.90**
+        /// (軒の出ぶん)で、両脇と奥は板で塞いである。</para>
+        ///
+        /// <para>焼いてあるもの — 切り欠き**あり**(この邸の取り付き6か所):
+        /// 6x6 ku1-2.5 / 18x6 ku0-2.5 ku1-2.5 kv1-4.5 / 10x6 ku0-2.5 / 22x5 ov1 kv0-10.5(e2744)。
+        /// 切り欠き**なし**(取り付かない辺・他邸用): 6x6 / 18x6 / 10x6 / 22x5 ov1(e2744)、
+        /// 14x5 ov1(e2410・厩は渡廊下が無い)。</para>
         /// 生成: blender --background --python Tools/Blender/build_matsudaira_dewa_roofs.py -- --hirairi --render
-        /// (単発は build_goten_roof.py -- hirairi &lt;桁行間&gt; &lt;梁間間&gt; &lt;軒桁m&gt; [--omit v1] [--render])</summary>
-        public static string RoofHirairi(int wKen, int dKen, float eaveAboveFloor, string[] omit = null)
+        /// (切り欠き無しは同 `-- --hirairi --plain` / 単発は
+        ///  build_goten_roof.py -- hirairi &lt;桁行間&gt; &lt;梁間間&gt; &lt;軒桁m&gt; [--omit v1] [--notch u1-2.5] [--render])</summary>
+        public static string RoofHirairi(int wKen, int dKen, float eaveAboveFloor,
+                                         string[] omit = null, string[] notchSide = null,
+                                         float[] notchKen = null)
         {
             var inv = System.Globalization.CultureInfo.InvariantCulture;
             string s = RoofDir + "Goten_Roof_Hirairi_" + wKen + "x" + dKen + "ken";
+            var order = new[] { "u0", "u1", "v0", "v1" };
             string q = "";
-            foreach (var side in new[] { "u0", "u1", "v0", "v1" })
+            foreach (var side in order)
                 if (omit != null && System.Array.IndexOf(omit, side) >= 0) q += side;
             if (q.Length > 0) s += "_o" + q;
+            if (notchSide != null && notchSide.Length > 0)
+            {
+                var idx = new System.Collections.Generic.List<int>();
+                for (int i = 0; i < notchSide.Length; i++) idx.Add(i);
+                idx.Sort((a, b) =>
+                {
+                    int c = System.Array.IndexOf(order, notchSide[a])
+                            .CompareTo(System.Array.IndexOf(order, notchSide[b]));
+                    return c != 0 ? c : notchKen[a].CompareTo(notchKen[b]);
+                });
+                foreach (var i in idx) s += "_k" + notchSide[i] + "-" + KenTag(notchKen[i]);
+            }
             // ⚠ mm は **四捨五入**(floor は浮動小数で 1mm 落ちる)。Python 側と同じ綴りにすること
             long mm = (long)System.Math.Floor((double)eaveAboveFloor * 1000.0 + 0.5);
             return s + "_e" + mm.ToString(inv) + ".fbx";
+        }
+
+        /// <summary>棟に取り付く渡廊下から、<see cref="RoofHirairi"/> へ渡す**切り欠き**
+        /// (辺 <paramref name="side"/> と中心の間数 <paramref name="ken"/>)を解く。
+        /// ⛔ 人が数えた数を書かない — 部材方 `build_matsudaira_dewa_roofs.notches_for` と同じ規則:
+        /// **外形の線を共有し、直交方向の重なりが正**なら取り付き。
+        /// ⭕ 中心は **u の辺は棟の v0 から / v の辺は棟の u0 から**の間数(棟の格子基準)。
+        /// ⛔ 口(`kind` が「渡廊下」でないもの = 御錠口・御膳所口)は渡さない — 下屋を架けないので
+        /// 軒先を切る理由が無い。
+        ///
+        /// <para>矩形はどれも <c>{u0, u1, v0, v1}</c> の 4 要素。⇒ 指図の `munes[]` / `links[]` を
+        /// そのまま渡せる。</para></summary>
+        public static void HirairiNotches(float[] mune,
+                                          System.Collections.Generic.IEnumerable<float[]> rokaRects,
+                                          out string[] side, out float[] ken)
+        {
+            var ss = new System.Collections.Generic.List<string>();
+            var kk = new System.Collections.Generic.List<float>();
+            foreach (var l in rokaRects)
+            {
+                double ovV = System.Math.Min(mune[3], l[3]) - System.Math.Max(mune[2], l[2]);
+                double ovU = System.Math.Min(mune[1], l[1]) - System.Math.Max(mune[0], l[0]);
+                if (ovV > 0.0)
+                {
+                    float cv = (l[2] + l[3]) / 2f - mune[2];
+                    if (System.Math.Abs(mune[0] - l[1]) < 1e-4) { ss.Add("u0"); kk.Add(cv); }
+                    if (System.Math.Abs(mune[1] - l[0]) < 1e-4) { ss.Add("u1"); kk.Add(cv); }
+                }
+                if (ovU > 0.0)
+                {
+                    float cu = (l[0] + l[1]) / 2f - mune[0];
+                    if (System.Math.Abs(mune[2] - l[3]) < 1e-4) { ss.Add("v0"); kk.Add(cu); }
+                    if (System.Math.Abs(mune[3] - l[2]) < 1e-4) { ss.Add("v1"); kk.Add(cu); }
+                }
+            }
+            side = ss.ToArray(); ken = kk.ToArray();
         }
 
         /// <summary>**渡廊下の差し掛けの下屋(両流れ)**。主屋の軒下から葺き下ろす下屋で、

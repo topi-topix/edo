@@ -1365,7 +1365,13 @@ def build_kirizuma_set():
 HIRA_OVER = 0.35        # 庇の瓦場を身舎の屋根の下へ差し込む量[m](光の筋を消す重ね代)
 HIRA_MIZU = 0.18        # 雨押え(水切り)板の見付[m]
 HIRA_SODE = 0.20        # 袖瓦の持ち上げ[m](瓦の実体は名目平面より上にある)
-NOTCH_T = 0.08          # 切り欠きの受け板・塞ぎ板の厚[m]
+NOTCH_T = 0.08          # 切り欠きの奥・脇の塞ぎ板の厚[m]
+NOTCH_BASE_T = 0.00909  # 切り欠きの**受け板**の厚[m] = 3分(化粧の面戸板)
+#   ⛔⛔ **ここを厚くしない。** 受け面(軒桁の天端)に廊下の桁が掛かるが、当たりの測り方は
+#     「切り欠きの中を鉛直に貫いた**最も低い交点**」なので、拾われるのは**板の下端**。
+#     ⇒ 板厚がそのまま頭上の余裕を食う(2026-09-20: 厚 0.08 で `roka.zujoMin` を 65mm 割り、
+#     『切り欠きが効いていない』と読まれた)。柱筋の頭上 = 1.7423 − 厚 ⇒ **厚 ≤ 0.0153**。
+#   ⛔ 0 厚(板なし)にもしない — 受け面と瓦場の間に隙が開く。
 NOTCH_H = 0.20          # 切り欠きの奥の塞ぎの立ち上がり[m](瓦の小口を隠す)
 NOTCH_KEN = 1.0         # 切り欠きの幅[間](= 渡廊下の幅)
 
@@ -1646,8 +1652,9 @@ def make_hirairi(W, D, eave, omit=(), name="Goten_Roof_Hirairi",
             e0 = P(n0, keta_u - 0.06)
             e1 = P(n1, run)
             o_ = V.box(name + "_kbase",
-                       (max(abs(e1[0] - e0[0]), NOTCH_T), max(abs(e1[1] - e0[1]), NOTCH_T), NOTCH_T),
-                       ((e0[0] + e1[0]) / 2.0, (e0[1] + e1[1]) / 2.0, z_keta - NOTCH_T / 2.0),
+                       (max(abs(e1[0] - e0[0]), NOTCH_BASE_T), max(abs(e1[1] - e0[1]), NOTCH_BASE_T),
+                        NOTCH_BASE_T),
+                       ((e0[0] + e1[0]) / 2.0, (e0[1] + e1[1]) / 2.0, z_keta - NOTCH_BASE_T / 2.0),
                        p['wood'])
             V.set_uv_rect(o_, WOOD_UV, axes=('z', long_axis))
             new_geo.append((o_, None))
@@ -1791,10 +1798,21 @@ def _verify_hirairi(o, W, D, eave, omit, hon, his, noki, hken, ken, name,
         loc = mathutils.Vector((wp[0] - px, wp[1] - py, 12.0))
         hit, hp, _n, _i = o.ray_cast(loc, mathutils.Vector((0.0, 0.0, -1.0)), distance=30.0)
         got = hp.z if hit else float('nan')
+        # ⭐⭐ **当たりは「最も低い交点」** — 受け面の**下**にもう一枚(板の下端)が在る。
+        #   棟梁の実機はそちらを拾うので、**板の下端まで測って刷る**
+        #   (2026-09-20: 厚 0.08 の板の下端が拾われ『切り欠きが効いていない』と読まれた)。
+        low, guard = got, 0
+        while hit and guard < 8:
+            hit, hp, _n, _i = o.ray_cast(mathutils.Vector((loc.x, loc.y, low - 1e-4)),
+                                         mathutils.Vector((0.0, 0.0, -1.0)), distance=30.0)
+            if hit:
+                low = hp.z
+            guard += 1
         ng = not (z_keta - 0.12 <= got <= z_keta + 0.02)
         bad += 1 if ng else 0
-        rows.append("    切欠 %-3s @%-5g間  軒先寄りの天端 %.3f(受け板 %.3f / 切らねば %.3f)%s"
-                    % (side, ck, got, z_keta, z_tip, "  <<" if ng else ""))
+        rows.append("    切欠 %-3s @%-5g間  受け面 %.4f / **板の下端 %.4f**(厚 %.4f)"
+                    "(従属値 %.4f / 切らねば %.3f)%s"
+                    % (side, ck, got, low, got - low, z_keta, z_tip, "  <<" if ng else ""))
     for r in rows:
         print(r)
     if bad:
@@ -1892,6 +1910,12 @@ def render_hirairi(o, path_dir, tag, eave=2.744):
         shot("06_kirikaki%d" % (k // 3), (q.x + d.x * 3.1 + d.y * 1.2,
                                           q.y + d.y * 3.1 - d.x * 1.2, q.z + 1.35),
              (q.x - d.x * 0.6, q.y - d.y * 0.6, q.z - 0.10), res=(1500, 1000))
+        # 7) ⭐ **見上げ** — 受け板の**厚**(3分)と下端が見える角度。⛔ 上からの絵では読めない
+        # 7) ⭐ **切り欠きの正面(正射影)** — 受け板の**厚**が実寸で読める唯一の絵。
+        #   ⚠ 斜めの見上げでは 3分(9mm)の小口は読めない。⚠ カメラは地面板より上に置く。
+        shot("07_kirikaki%d_seimen" % (k // 3),
+             (q.x + d.x * 5.0, q.y + d.y * 5.0, q.z - 0.02), (q.x, q.y, q.z - 0.02),
+             ortho=2.4, res=(1500, 900))
     return out
 
 

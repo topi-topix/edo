@@ -2,7 +2,7 @@
 """**松江松平出羽守上屋敷の、隣の棟と接する棟の屋根** — 接する辺の軒を落として焼く。
 
     blender --background --python Tools/Blender/build_matsudaira_dewa_roofs.py -- [--render] [--only <名>]
-    blender --background --python Tools/Blender/build_matsudaira_dewa_roofs.py -- --hirairi [--render] [--only <棟名>] [--plain]
+    blender --background --python Tools/Blender/build_matsudaira_dewa_roofs.py -- --hirairi [--render] [--only <棟名>] [--plain] [--only-notched]
     blender --background --python Tools/Blender/build_matsudaira_dewa_roofs.py -- --geya [--render]
 
 ⭐⭐ **なぜ要るか(2026-09-09 普請検査の差し戻し1)。**
@@ -272,8 +272,11 @@ def main_hirairi(argv):
     plain = "--plain" in argv          # 切り欠きの無い版(渡廊下の取り付かない辺・他邸のため)
     jobs = plan_hirairi(doc, with_notch=not plain)
     print("[dewa-hirairi] 平入り+庇の棟 %d(指図から)%s" % (len(jobs), " ⭕切り欠き無し" if plain else ""))
+    only_notched = "--only-notched" in argv     # 切り欠きのある棟だけ焼き直す(他は触らない)
     for nm, w, d, eav, omit, nt in jobs:
         if only and nm != only:
+            continue
+        if only_notched and not nt:
             continue
         name = GR.hirairi_name(w, d, eav, omit, nt)
         if nt:

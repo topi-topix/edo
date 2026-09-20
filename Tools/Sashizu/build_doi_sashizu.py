@@ -38,6 +38,7 @@ from sashizu_lib import (R, _pat, _SVN, Proj, RGrid, cf_color, cutfill_legend,
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DOC = os.path.join(ROOT, "docs/Sashizu")
+EST = "doi"                       # 感度試験の記録のキー(sashizu_lib.sens)
 JSON = os.path.join(DOC, "doi_sashizu.json")
 MD = os.path.join(DOC, "doi_kosho.md")
 OUT = os.path.join(DOC, "doi_sashizu.html")
@@ -2811,11 +2812,11 @@ def probe_roster(d):
                    ("陰の樹下の受け", juka_uke_sens),
                    ("受け石の平面の当たり", uke_atari_sens),
                    ("沓脱石の従属", kutsunugi_deps_sens)):
-        pr, vd = fn(d)
+        pr, vd = sashizu_lib.sens(EST, fn.__name__, lambda fn=fn: fn(d), ([], []))
         for q in pr:
             out.append((nm,) + tuple(q))
         bad += ["**%s** の破壊試験 — %s" % (nm, x) for x in vd]
-    ks = kuramae_sens(d)
+    ks = sashizu_lib.sens(EST, "kuramae_sens", lambda: kuramae_sens(d), [])
     for q in ks:
         out.append(("蔵前の取り合い",) + tuple(q))
     bad += ["**蔵前の取り合い** の破壊試験 — %s" % x for x in _probe_verdict(ks)]
@@ -3642,7 +3643,7 @@ def _user_claim_probe_table(d):
     ⭕ 第一列 = **本番と同じ網**(印では赦さない・台帳と否定文だけが口)。
     ⭕ 第二列 = **赦しを一つも持たない素の網** — ⛔ ここが 0 なら**注入が届いていない**。
     """
-    pr, sb = user_claim_sensitivity(d)
+    pr, sb = sashizu_lib.sens(EST, "user_claim_sensitivity", lambda: user_claim_sensitivity(d), ([], []))
     return ("<div class='tw'><table><thead><tr>"
             "<th>破壊試験(出自の名乗り <code>kinkuUser</code>)</th>"
             "<th>本番の網</th><th>素の網(⛔ 赦し無し)</th><th>期待</th></tr></thead><tbody>"
@@ -3669,7 +3670,7 @@ def _user_claim_probe_table(d):
 
 def _userrulings_probe_table(d):
     """**破壊試験を図にも出す**(⛔ stdout に閉じ込めない=規則19)。"""
-    pr, sb = userrulings_tsuke_sensitivity(d)
+    pr, sb = sashizu_lib.sens(EST, "userrulings_tsuke_sensitivity", lambda: userrulings_tsuke_sensitivity(d), ([], []))
     return ("<div class='tw'><table><thead><tr>"
             "<th>破壊試験(<code>const.userRulings</code> の行き先)</th>"
             "<th>鳴った件数</th><th>期待</th><th>変異</th></tr></thead><tbody>"
@@ -17995,7 +17996,7 @@ def main():
              % len(_tp)))
     for _q in _tp:
         print("    ", _q)
-    _upr, _usb = userrulings_tsuke_sensitivity(d)
+    _upr, _usb = sashizu_lib.sens(EST, "userrulings_tsuke_sensitivity", lambda: userrulings_tsuke_sensitivity(d), ([], []))
     print("── 破壊試験(`const.userRulings` の行き先): %s"
           % ("**%d束/%d束 期待どおり**" % (len(_upr) - len(_usb), len(_upr))
              if not _usb else "⚠ %d束が期待と違う" % len(_usb)))
@@ -18003,7 +18004,7 @@ def main():
         print("    %s → %d 件%s" % (_nm, _n9, _PMV(_mv9)))
     for _b in _usb:
         print("   ", _b)
-    _ppr, _psb = point_cert_sensitivity(d)
+    _ppr, _psb = sashizu_lib.sens(EST, "point_cert_sensitivity", lambda: point_cert_sensitivity(d), ([], []))
     print("── 破壊試験(庭の点景の要素別の確度): %s"
           % ("**%d束/%d束 期待どおり**" % (len(_ppr) - len(_psb), len(_ppr))
              if not _psb else "⚠ %d束が期待と違う" % len(_psb)))
@@ -18015,7 +18016,7 @@ def main():
     print("── 確度の支え(条⑥・**図全体**): `cert` を名乗る欄 %d / うち S/A/B %d — "
           "典拠を名指す %d ・行き先を持つ %d(うち軸ごとに割った欄 %d)"
           % (_cst["all"], _cst["sab"], _cst["bysrc"], _cst["bypend"], _cst["axes"]))
-    _spr, _ssb = src_role_sensitivity(d)
+    _spr, _ssb = sashizu_lib.sens(EST, "src_role_sensitivity", lambda: src_role_sensitivity(d), ([], []))
     print("── 破壊試験(反証・外挿を「支え」の列へ戻す): %s"
           % ("**%d束/%d束 期待どおり**" % (len(_spr) - len(_ssb), len(_spr))
              if not _ssb else "⚠ %d束が期待と違う" % len(_ssb)))
@@ -18023,7 +18024,7 @@ def main():
         print("    %s → %d 件%s" % (_nm, _n9, _PMV(_mv9)))
     for _b in _ssb:
         print("   ", _b)
-    _tpr, _tsb = tani_sensitivity(d)
+    _tpr, _tsb = sashizu_lib.sens(EST, "tani_sensitivity", lambda: tani_sensitivity(d), ([], []))
     print("── 感度試験(廊下の谷): %s"
           % ("**%d束/%d束 期待どおり**" % (len(_tpr) - len(_tsb), len(_tpr))
              if not _tsb else "⚠ %d束が期待と違う" % len(_tsb)))
@@ -18033,7 +18034,7 @@ def main():
               % (_nm, _got[0], _got[1], _got[2]))
     for _b in _tsb:
         print("   ", _b)
-    _cpr, _cbd = roka_cut_sensitivity(d)
+    _cpr, _cbd = sashizu_lib.sens(EST, "roka_cut_sensitivity", lambda: roka_cut_sensitivity(d), ([], []))
     print("── 感度試験(階段廊下の段の位置): %s"
           % ("**%d束/%d束 期待どおり**" % (len(_cpr) - len(_cbd), len(_cpr))
              if not _cbd else "⚠ %d束が期待と違う" % len(_cbd)))
@@ -18042,7 +18043,7 @@ def main():
               "条④(頭上)%d件 / 未決 %d件" % ((_nm,) + _got))
     for _b in _cbd:
         print("   ", _b)
-    probes, sbad = mune_gap_sensitivity(d)
+    probes, sbad = sashizu_lib.sens(EST, "mune_gap_sensitivity", lambda: mune_gap_sensitivity(d), ([], []))
     print("── 感度試験(`mune_gap_check`): %s"
           % ("**%d束/%d束 期待どおり**" % (len(probes) - len(sbad), len(probes))
              if not sbad else "⚠ %d束が期待と違う" % len(sbad)))
@@ -18748,7 +18749,7 @@ def main():
         h.append(roof_table(d))
         h.append("<h3>屋根の型 — 家族ごと(隅の飛び出しの向きはここからの導出)</h3>")
         h.append(roof_kata_table(d))
-        _rkp, _rkb = roof_kata_sensitivity(d)
+        _rkp, _rkb = sashizu_lib.sens(EST, "roof_kata_sensitivity", lambda: roof_kata_sensitivity(d), ([], []))
         h.append("<div class='tw'><table><thead><tr><th>破壊試験(屋根の型)</th>"
                  "<th>鳴った件数</th><th>期待</th></tr></thead><tbody>"
                  + "".join("<tr><td>%s</td><td><b>%d 件</b></td><td>%s</td></tr>"
@@ -18767,7 +18768,7 @@ def main():
         h.append(tani_table(d))
         # ⭐⭐ **入れ替えた条は感度試験まで図に出す**(規則19)。⛔ stdout に閉じ込めない。
         #   ⚠ **前の版は恒真で、件数だけを見ていたら「0件=通った」と読めてしまった。**
-        _tp9, _tb9 = tani_sensitivity(d)
+        _tp9, _tb9 = sashizu_lib.sens(EST, "tani_sensitivity", lambda: tani_sensitivity(d), ([], []))
         h.append("<div class='tw'><table><thead><tr><th>感度試験(廊下の谷)</th>"
                  "<th>条①(谷が閉じない)</th><th>条②(大棟が高い)</th>"
                  "<th>中点の条<br><code>tani_margin_check</code></th><th>期待</th>"
@@ -18795,7 +18796,7 @@ def main():
         h.append("<h3>階段廊下の段と屋根の切れ目 — 位置(<code>cutAt</code>)と四条</h3>")
         h.append(roka_cut_table(d))
         # ⭐⭐ **裁定で入れた値は、同じ巡で「壊すと鳴る」ことまで刷る**(規則19)。
-        _cp9, _cb9 = roka_cut_sensitivity(d)
+        _cp9, _cb9 = sashizu_lib.sens(EST, "roka_cut_sensitivity", lambda: roka_cut_sensitivity(d), ([], []))
         h.append("<div class='tw'><table><thead><tr><th>感度試験(段の位置)</th>"
                  "<th>条①(柱通り)</th><th>条②(端から)</th><th>条③(走り)</th>"
                  "<th>条④(頭上)</th>"

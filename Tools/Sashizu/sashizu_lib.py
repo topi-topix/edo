@@ -1212,3 +1212,187 @@ def overlap_check(d):
                         continue
                 bad.append("%s %s × %s %s (%.1f×%.1f間)" % (k1, n1, k2, n2, iu, iv))
     return bad
+
+
+# ===========================================================================
+# 感度試験(破壊試験)の回し方 — 既定では回さず、前回の記録を読む(2026-09-20)
+# ===========================================================================
+#
+# 【なぜ】実測(2026-09-20): 松江松平の生成器は 1 回 120〜178 分(中央値 86 分)かかり、
+#   9/15 以降の実測 41 回ぶんの待ちがそのまま役の実働になっていた。内訳を測ると
+#   `_garden_checks` 1 回が 61 秒で、それを「わざと壊して鳴るか」で 81 通り回すので
+#   **破壊試験だけで約 80 分**。設計値を 1 つ直すたびにこれを丸ごと回していた。
+#
+# 【どう変えたか】破壊試験は**既定では回さず、前回回したときの結果を記録から読む**。
+#   `--deep`(または `SASHIZU_DEEP=1`)を付けたときだけ実際に壊して回し、
+#   `docs/Sashizu/<邸>_sensitivity.json` へ書く。
+#
+# ⛔ **「回さない」は「合格」ではない**(CLAUDE.md 規則19)。だから:
+#   - 記録が無い項目は ⛔ で「**回っていない**(合格ではない)」と刷る
+#   - 記録はそのときの**生成器と設計値の指紋**を持ち、どちらかが変わっていれば
+#     ⚠「記録が古い」と刷る。緑にはならない
+#   - 既定の run でも**前回の結果そのもの**(鳴らなかった probe を含む)を刷るので、
+#     報告経路は切れない
+#
+# 【使い方】各生成器の呼び出し側を次の形にするだけ:
+#     base, probes = sens("matsudaira_dewa", "planting",
+#                         lambda: planting_sensitivity(d, dem), default=(0, []))
+
+import hashlib as _hashlib
+import json as _json
+import os as _os
+import sys as _sys
+import time as _time
+
+_SENS_DEEP = None
+_SENS_MEM = {}
+_SENS_REC = {}
+_SENS_SEEN = []
+
+
+def sens_root():
+    """`docs/Sashizu/` の絶対パス(このファイルは `Tools/Sashizu/` に在る)。"""
+    here = _os.path.dirname(_os.path.abspath(__file__))
+    return _os.path.join(_os.path.dirname(_os.path.dirname(here)), "docs", "Sashizu")
+
+
+def deep_enabled():
+    """破壊試験を実際に回すか。`--deep` か `SASHIZU_DEEP=1`。"""
+    global _SENS_DEEP
+    if _SENS_DEEP is None:
+        _SENS_DEEP = ("--deep" in _sys.argv) or (_os.environ.get("SASHIZU_DEEP") == "1")
+    return _SENS_DEEP
+
+
+def _sens_file(estate):
+    return _os.path.join(sens_root(), estate + "_sensitivity.json")
+
+
+def _sha(path):
+    try:
+        with open(path, "rb") as f:
+            return _hashlib.sha256(f.read()).hexdigest()[:16]
+    except Exception:
+        return "?"
+
+
+def sens_fingerprint(estate):
+    """記録の鮮度を決める指紋 — 生成器そのものと設計値の json。"""
+    here = _os.path.dirname(_os.path.abspath(__file__))
+    return {"gen": _sha(_os.path.join(here, "build_%s_sashizu.py" % estate)),
+            "json": _sha(_os.path.join(sens_root(), "%s_sashizu.json" % estate)),
+            "md": _sha(_os.path.join(sens_root(), "%s_kosho.md" % estate)),
+            "lib": _sha(_os.path.abspath(__file__))}
+
+
+def _sens_load(estate):
+    if estate in _SENS_REC:
+        return _SENS_REC[estate]
+    try:
+        with open(_sens_file(estate), encoding="utf-8") as f:
+            rec = _json.load(f)
+    except Exception:
+        rec = {}
+    _SENS_REC[estate] = rec
+    return rec
+
+
+def sens_stale(estate):
+    """記録が古い(生成器か設計値が変わった)なら理由の一覧、新しければ []。"""
+    rec = _sens_load(estate)
+    if not rec.get("probes"):
+        return ["記録が無い"]
+    old, new = rec.get("fingerprint") or {}, sens_fingerprint(estate)
+    JA = {"gen": "生成器", "json": "設計値", "md": "考証の文", "lib": "共通ライブラリ"}
+    return ["%s が変わった" % JA[k] for k in ("gen", "json", "md", "lib")
+            if old.get(k) != new.get(k)]
+
+
+def sens(estate, name, fn, default=None):
+    """感度試験を回す(`--deep`)か、前回の記録をそのまま返す(既定)。
+
+    `fn` は引数なしで、従来どおりの戻り値を返す呼び出し可能。
+    戻り値は json を往復するので tuple は list になる(展開は同じに効く)。
+    同じ `(estate, name)` は 1 プロセスで一度しか回さない(土井は同じ束を 2 度呼ぶ)。
+    """
+    key = (estate, name)
+    if key in _SENS_MEM:
+        return _SENS_MEM[key]
+    if deep_enabled():
+        t0 = _time.time()
+        val = fn()
+        rec = _sens_load(estate)
+        rec.setdefault("probes", {})[name] = val
+        rec["fingerprint"] = sens_fingerprint(estate)
+        rec["t"] = _time.strftime("%Y-%m-%dT%H:%M:%S")
+        rec.setdefault("secs", {})[name] = round(_time.time() - t0, 1)
+        try:
+            with open(_sens_file(estate), "w", encoding="utf-8") as f:
+                _json.dump(rec, f, ensure_ascii=False, indent=1)
+        except Exception as ex:
+            print("  ⛔ 感度試験の記録が書けない(%s): %s" % (name, ex))
+        _SENS_SEEN.append((name, "回した", round(_time.time() - t0, 1)))
+    else:
+        rec = _sens_load(estate)
+        if name in (rec.get("probes") or {}):
+            val = rec["probes"][name]
+            _SENS_SEEN.append((name, "記録", (rec.get("secs") or {}).get(name)))
+        else:
+            val = default
+            _SENS_SEEN.append((name, "未実施", None))
+    _SENS_MEM[key] = val
+    return val
+
+
+def sens_report(estate):
+    """既定の run の末尾に 1 行で刷る — 何が回り、何が回っていないか。"""
+    if deep_enabled():
+        tot = sum(s or 0 for _n, _k, s in _SENS_SEEN)
+        return ("感度試験(破壊試験): %d 束を実際に回した(計 %.0f 分)。記録 = %s"
+                % (len(_SENS_SEEN), tot / 60.0,
+                   _os.path.relpath(_sens_file(estate), _os.getcwd())))
+    miss = [n for n, k, _s in _SENS_SEEN if k == "未実施"]
+    stale = sens_stale(estate)
+    rec = _sens_load(estate)
+    head = ("感度試験(破壊試験): 回していない(既定) — 上の判定は %s に回した記録"
+            % (rec.get("t") or "?"))
+    if miss:
+        return (head + "\n   ⛔ %d 束は**記録が無い = 回っていない**(合格ではない): %s"
+                "\n   ⭕ `python3 Tools/Sashizu/build_%s_sashizu.py --deep` で回すこと"
+                % (len(miss), "・".join(miss), estate))
+    if stale:
+        return (head + "\n   ⚠ 記録が古い(%s)— 上の判定は**今の設計値のものではない**"
+                "\n   ⭕ `python3 Tools/Sashizu/build_%s_sashizu.py --deep` で回し直すこと"
+                % ("・".join(stale), estate))
+    return head + "(生成器・設計値とも記録のときと同じ)"
+
+
+# ===========================================================================
+# 検査ごとの所要を測る(2026-09-20)— どの検査が輪を長くしているかを毎回刷る
+# ===========================================================================
+_CHK_T = {}
+
+
+def chk(name, fn):
+    """検査を 1 本回し、所要を記録する。戻り値はそのまま。"""
+    t0 = _time.time()
+    try:
+        return fn()
+    finally:
+        dt = _time.time() - t0
+        _CHK_T[name] = _CHK_T.get(name, 0.0) + dt
+        if dt >= 20:
+            print("    ⏱ %s %.0f 秒" % (name, dt), flush=True)
+
+
+def chk_report(top=10, floor=1.0):
+    """重い順に刷る。`floor` 秒未満は畳む。"""
+    if not _CHK_T:
+        return ""
+    tot = sum(_CHK_T.values())
+    rows = sorted(_CHK_T.items(), key=lambda kv: -kv[1])[:top]
+    rows = [(k, v) for k, v in rows if v >= floor]
+    if not rows:
+        return "検査 %d 本で計 %.0f 秒(どれも %.0f 秒未満)" % (len(_CHK_T), tot, floor)
+    return ("検査 %d 本で計 %.0f 秒。重い順:\n" % (len(_CHK_T), tot)
+            + "\n".join("    %6.1fs %5.0f%%  %s" % (v, 100 * v / tot, k) for k, v in rows))

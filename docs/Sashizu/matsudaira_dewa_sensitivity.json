@@ -1,0 +1,41 @@
+{
+ "probes": {
+  "common_probes": {
+   "棟を重ねる": {
+    "expect": "C01",
+    "status": "ng",
+    "rang": true
+   },
+   "棟を区画の外へ": {
+    "expect": "C02",
+    "status": "ng",
+    "rang": true
+   },
+   "段を 3m 上げる": {
+    "expect": "C04",
+    "status": "ng",
+    "rang": true
+   },
+   "外周の run の真ん中に穴(3〜5m)": {
+    "expect": "C07",
+    "status": "ng",
+    "rang": true
+   },
+   "室を棟の外へ": {
+    "expect": "C03",
+    "status": "ng",
+    "rang": true
+   }
+  }
+ },
+ "fingerprint": {
+  "gen": "f8dbe650eb3e43b8",
+  "json": "5fb342f49fa234bd",
+  "md": "8e61a16b2a392009",
+  "lib": "270958a0216c0e09"
+ },
+ "t": "2026-09-20T11:21:34",
+ "secs": {
+  "common_probes": 3.3
+ }
+}

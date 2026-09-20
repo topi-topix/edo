@@ -216,6 +216,8 @@ def _side_digest(name, path, files):
         fp = (os.path.join(root, "Tools", "Sashizu", "build_%s_sashizu.py" % name)
               if kind == "py" else
               os.path.join(root, "docs", "Sashizu", "%s_kosho.md" % name))
+        if kind == "py" and not os.path.exists(fp):        # 2026-09-20 以降は共通の生成器
+            fp = os.path.join(root, "Tools", "Sashizu", "build_sashizu.py")
         if os.path.exists(fp):
             with open(fp, "rb") as f:
                 out.append(kind + ":" + hashlib.sha256(f.read()).hexdigest()[:16])
@@ -345,9 +347,11 @@ def cmd_checks():
     for est in estate_names():
         fp = os.path.join(REPO, "Tools", "Sashizu", "build_%s_sashizu.py" % est)
         if not os.path.exists(fp):
+            fp = os.path.join(REPO, "Tools", "Sashizu", "build_sashizu.py")   # 共通の生成器(2026-09-20)
+        if not os.path.exists(fp):
             continue
         src = open(fp, encoding="utf-8", errors="replace").read()
-        n = len(_re.findall(r"^def \w+_check\(", src, _re.M))
+        n = len(_re.findall(r"^def \w+_check\(", src, _re.M)) or len(_re.findall(r"^    def c\d\d\(self\)", src, _re.M))
         rows.append((est, n, src.count("\n")))
     print("機械検査の本数(def *_check)  邸 | 本数 | 生成器の行数")
     for est, n, ln in sorted(rows, key=lambda r: -r[1]):

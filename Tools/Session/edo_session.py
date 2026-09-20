@@ -790,8 +790,12 @@ def _check_bash_writes(cmd, me, ttl):
                     % (rel(p), c["session"], g, (now() - c["heartbeat"]) / 60.0,
                        c.get("note", ""), g))
     # 生成器の実行は、書き出す先(指図の json/html)がコマンドに現れないので名前から引く
-    for m in re.finditer(r"build_([A-Za-z0-9_]+)_sashizu\.py", _strip_heredocs(cmd)):
-        dom = "sashizu:" + m.group(1)
+    # 邸ごとの生成器 build_<邸>_sashizu.py と、共通の生成器 build_sashizu.py <邸>(2026-09-20 以降)の両方を引く
+    _c9 = _strip_heredocs(cmd)
+    _doms = [m.group(1) for m in re.finditer(r"build_([A-Za-z0-9_]+)_sashizu\.py", _c9)]
+    _doms += [m.group(1) for m in re.finditer(r"build_sashizu\.py\s+(?:--\S+\s+)*([A-Za-z][A-Za-z0-9_]*)", _c9)]
+    for _dm in _doms:
+        dom = "sashizu:" + _dm
         hs = domain_holders(dom, me, ttl)
         if hs:
             return ("⛔ 門番: `%s` の生成器を走らせようとしている。**別のセッション %s** が"

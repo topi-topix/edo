@@ -41,7 +41,7 @@ Artifact として publish もして URL を索引に載せる(ユーザーが�
 |---|---|
 | `docs/Sashizu/okabe_sashizu.json` | 設計値の正典。人が書く |
 | `docs/Sashizu/okabe_kosho.md` | 文章の部(典拠・決めごと・未解決)。現況形 |
-| `Tools/Sashizu/build_okabe_sashizu.py` | 上の二つから HTML を組む。**実装は読まない** |
+| `Tools/Sashizu/build_sashizu.py <屋敷>` | 上の二つから HTML を組む(全邸共通・1 本)。**実装は読まない** |
 | `Edo ▸ 岡部筑前守上屋敷 ▸ 指図と実装を突き合わせる` | 指図と実装を項目ごとに比べ、差分を出す |
 
 ---

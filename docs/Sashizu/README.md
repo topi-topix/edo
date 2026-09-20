@@ -47,7 +47,7 @@
 |---|---|---|
 | `okabe_sashizu.json` | 設計値の正典 | 人 |
 | `okabe_kosho.md` | 文章の部（典拠・決めごと・未解決） | 人 |
-| `okabe_sashizu.html` | 上の二つから組んだ図面 | `Tools/Sashizu/build_okabe_sashizu.py` |
+| `okabe_sashizu.html` | 上の二つから組んだ図面 | `Tools/Sashizu/build_sashizu.py okabe`(全邸共通) |
 | `okabe_dem.json` | 造成前地盤(現代・正典 `base_dem.json` の区画切り出し) | `Tools/Sashizu/build_base_dem.py` |
 | `okabe_terrain.json` | 現況地盤の回転間格子標本 | `Tools/Sashizu/build_okabe_edo_dem.py` |
 | `okabe_edo_recon.json` | 江戸期復元レイヤの仕様(近代造成を戻す指示) | `Tools/Sashizu/build_okabe_edo_dem.py` |
@@ -61,7 +61,7 @@
 | — | **松江松平の裁定図の綴り**(済/未決を冒頭の一覧と札で示す・番号は振り直さない)。Artifact https://claude.ai/code/artifact/35042658-748f-4510-bbb1-3e9c6156a999 | 普請奉行(scratchpad の `matsudaira_saitei_board.html` から公開) |
 
 ```bash
-python3 Tools/Sashizu/build_okabe_sashizu.py
+python3 Tools/Sashizu/build_sashizu.py okabe
 ```
 
 ## 生成器の回し方 — 既定と `--deep`(2026-09-20)
@@ -70,8 +70,12 @@ python3 Tools/Sashizu/build_okabe_sashizu.py
 
 | 回し方 | 何をする | 目安 |
 |---|---|---|
-| `python3 Tools/Sashizu/build_<邸>_sashizu.py` | 設計値の検査を全部回し、図を組む。破壊試験は**前回の記録を読んで刷る** | 数分 |
-| 同 `--deep` | 破壊試験も実際に回し、`docs/Sashizu/<邸>_sensitivity.json` へ記録する | 1〜2 時間 |
+| `python3 Tools/Sashizu/build_sashizu.py <邸>` | 共通の検査 23 本を回し、図 4 枚(配置・現況・切盛・断面・動線)を組む。壊し試しは**前回の記録を読んで刷る** | 10 秒 |
+| 同 `--deep` | 共通の壊し試し(棟を重ねる・区画の外へ・段を上げる・run を縮める・室を外へ)も回し、`docs/Sashizu/<邸>_sensitivity.json` へ記録する | 30 秒 |
+
+⭐ **2026-09-20 施主指示で邸ごとの生成器 5 本(77,000 行・検査 348 本)を廃し、共通の 1 本にした。**
+検査の札(共通へ / Unity で測る / 落とす / 欄へ写す)は `check_triage.json`、経緯は `check_triage.md`。
+邸ごとの綴りの違いは生成器の「読み手」が吸収し、読めなかった欄は図の末尾に名指しで刷る(規則19)。
 
 ⛔ **「回していない」は「合格」ではない。** だから既定の run でも、
 前回の記録の日付・鳴らなかった probe・記録の鮮度を必ず 1 行で刷る。
@@ -175,8 +179,8 @@ python3 Tools/Sashizu/build_sotobori_saitei.py   # ⚠ 同じく TerrainBackups 
 
 ## 生成
 
-`Tools/Sashizu/build_<屋敷>_sashizu.py` が `<屋敷>_sashizu.json` と `<屋敷>_kosho.md` から一枚に組む
-(5邸: okabe / matsudaira / doi / sanno / kyogoku_bitchu)。地盤側は `Tools/Sashizu/build_base_dem.py`(切り出し)と
+`Tools/Sashizu/build_sashizu.py <屋敷>`(全邸共通・1 本)が `<屋敷>_sashizu.json` と `<屋敷>_kosho.md` から一枚に組む
+(5邸: okabe / matsudaira_dewa / doi / sanno / kyogoku_bitchu)。地盤側は `Tools/Sashizu/build_base_dem.py`(切り出し)と
 `Tools/Sashizu/build_<屋敷>_edo_dem.py`(復元レイヤ・間格子。現状 okabe / doi / kyogoku_bitchu のみ)が書く。
 **生成器は実装を読まない。** 座標は世界座標（Unity のシーン座標）から `Proj` / `Grid` で
 直に変換しているので、図面と実装がズレない。

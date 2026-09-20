@@ -210,7 +210,7 @@ python3 Tools/Session/edo_session.py release     # 自分の claim を全部解�
 |---|---|
 | 他のセッションが押さえたファイルを Edit / Write | ⛔ 止める。誰が・何をしているかを出す |
 | **他のセッションが押さえたファイルを Bash で書く**(`sed -i` / `>` `>>` / `tee` / `mv` / `cp` / `rm`) | ⛔ 止める(2026-09-01 に塞いだ穴。それまで**素通りだった**) |
-| **他のセッションが押さえた屋敷の生成器を走らせる**(`python3 …/build_<邸>_sashizu.py`) | ⛔ 止める。生成器は指図を丸ごと書き直すので相手の編集が消える |
+| **他のセッションが押さえた屋敷の生成器を走らせる**(`python3 …/build_sashizu.py <邸>`) | ⛔ 止める。生成器は指図を丸ごと書き直すので相手の編集が消える |
 | 他のセッションが Unity 使用中に Unity MCP を叩く | ⛔ 止める。⚠ 読むだけのもの(`read_console` ほか)は通す |
 | `git add -A` / `git add .` / `git commit -a` | ⛔ 常に止める。**パスを明示すること** |
 | `git reset --hard` / `git clean -f` / `git stash` / `git rebase` / 強制 push | ⛔ 常に止める |

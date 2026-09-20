@@ -79,7 +79,7 @@ SLICES = [
         parcels=["sannosha_prec", "sannosha_kanri", "sannobuke_juge"]
                 + [f"sannojubo_parcels_{i}" for i in range(10)],
         doc="山王権現社まわりの造成前の地形【確度P】。世界座標の格子。h[iz][ix]=標高m。"
-            "生成器 build_sanno_sashizu.py が §3a 現況図・§3b 切盛図でこれを読む。",
+            "生成器 build_sashizu.py sanno が現況図・切盛図でこれを読む。",
         # ⚠ 2026-08-31(EDO-0014 解決): x[-660,-370] z[636,976] では**樹下邸の東を 2.7m 欠いて**いた。
         #   区画+余白40m の x[-694,-326] z[598,1008] へ広げた。
         #   ⭕ 当初は正本が x[-800,-330] z[600,1340] までしか無く東を -330 でクリップしたが、

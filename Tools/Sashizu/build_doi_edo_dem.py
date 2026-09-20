@@ -294,7 +294,7 @@ def build(check=False):
     cur = load(os.path.join(DOC, "doi_terrain.json"))
     # 回転の基底は指図の生成器が持つ(二重に実装しない)
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    import build_doi_sashizu as BD
+    import sashizu_lib as BD                   # 回転の基底は共通 lib(邸ごとの生成器は 2026-09-20 に廃した)
     gr = BD.RGrid(d)
     rot = {"_": ("**江戸期の復元地盤**を回転間グリッド shukaku の1間格子へ。区画の外は null。"
                  "⛔ 手で編集しない — `build_doi_edo_dem.py` が作る。"),

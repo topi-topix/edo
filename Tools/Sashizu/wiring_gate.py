@@ -13,13 +13,13 @@
 ⭕ 本ツールは**外から生成器のソースを読むだけ**で、邸ごとの構造を仮定しない。
 
     python3 Tools/Sashizu/wiring_gate.py                     # 全邸の生成器
-    python3 Tools/Sashizu/wiring_gate.py Tools/Sashizu/build_okabe_sashizu.py
+    python3 Tools/Sashizu/wiring_gate.py Tools/Sashizu/build_sashizu.py
     python3 Tools/Sashizu/wiring_gate.py --json
 
 ⭐ **第3型(測ったのに図に出していない)は静的には見えない。**別モードで、生成器の
 実行ログと成果物の HTML を突き合わせる:
 
-    python3 Tools/Sashizu/build_<邸>_sashizu.py 2>&1 | tee /tmp/run.log
+    python3 Tools/Sashizu/build_sashizu.py <邸> 2>&1 | tee /tmp/run.log
     python3 Tools/Sashizu/wiring_gate.py --surfaced /tmp/run.log docs/Sashizu/<邸>_sashizu.html
 
 ⛔ **限界 — 0件は「合格」ではなく「この型では捕まらなかった」。**名前で辿る静的解析なので:

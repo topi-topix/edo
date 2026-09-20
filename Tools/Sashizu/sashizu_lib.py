@@ -1279,7 +1279,10 @@ def _sha(path):
 def sens_fingerprint(estate):
     """記録の鮮度を決める指紋 — 生成器そのものと設計値の json。"""
     here = _os.path.dirname(_os.path.abspath(__file__))
-    return {"gen": _sha(_os.path.join(here, "build_%s_sashizu.py" % estate)),
+    gen = _os.path.join(here, "build_%s_sashizu.py" % estate)
+    if not _os.path.exists(gen):                       # 共通の生成器(2026-09-20 以降はこちらが既定)
+        gen = _os.path.join(here, "build_sashizu.py")
+    return {"gen": _sha(gen),
             "json": _sha(_os.path.join(sens_root(), "%s_sashizu.json" % estate)),
             "md": _sha(_os.path.join(sens_root(), "%s_kosho.md" % estate)),
             "lib": _sha(_os.path.abspath(__file__))}
@@ -1358,11 +1361,11 @@ def sens_report(estate):
             % (rec.get("t") or "?"))
     if miss:
         return (head + "\n   ⛔ %d 束は**記録が無い = 回っていない**(合格ではない): %s"
-                "\n   ⭕ `python3 Tools/Sashizu/build_%s_sashizu.py --deep` で回すこと"
+                "\n   ⭕ `python3 Tools/Sashizu/build_sashizu.py %s --deep` で回すこと"
                 % (len(miss), "・".join(miss), estate))
     if stale:
         return (head + "\n   ⚠ 記録が古い(%s)— 上の判定は**今の設計値のものではない**"
-                "\n   ⭕ `python3 Tools/Sashizu/build_%s_sashizu.py --deep` で回し直すこと"
+                "\n   ⭕ `python3 Tools/Sashizu/build_sashizu.py %s --deep` で回し直すこと"
                 % ("・".join(stale), estate))
     return head + "(生成器・設計値とも記録のときと同じ)"
 

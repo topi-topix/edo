@@ -56,7 +56,7 @@
 
 ```bash
 python3 Tools/Sashizu/wiring_gate.py                       # 全邸の生成器を見る
-python3 Tools/Sashizu/build_<邸>_sashizu.py 2>&1 | tee /tmp/run.log
+python3 Tools/Sashizu/build_sashizu.py <邸> 2>&1 | tee /tmp/run.log
 python3 Tools/Sashizu/wiring_gate.py --surfaced /tmp/run.log docs/Sashizu/<邸>_sashizu.html
 ```
 

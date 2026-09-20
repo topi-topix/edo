@@ -72,7 +72,7 @@ maxTurns: 300
 3. `docs/asset-catalog.md`(用途別索引)— 部材解決の一次照会。⛔ `docs/asset-index.tsv` は
    **丸読みしない** — `grep -i <語> docs/asset-index.tsv` で当たる。無ければ「edo-zaiko へ照会要」と明記して進める
 4. `Assets/Edo/Scripts/Editor/EdoAssets.cs` — 指図が名指しする関数・パスが実在するか
-5. **近い既存屋敷の `<屋敷>_sashizu.json` / `_kosho.md` / `Tools/Sashizu/build_<屋敷>_sashizu.py`**
+5. **近い既存屋敷の `<屋敷>_sashizu.json` / `_kosho.md`**(生成器は全邸共通 `Tools/Sashizu/build_sashizu.py` — 邸ごとに書かない)
    ⛔ json も生成器も大きい — 丸読みしない — 要る章(key)だけ `python3 -c` で抜くか grep で引く
    — 書式は必ずこれに倣う。屋敷ごとに独自の書き方を発明しない
 
@@ -153,7 +153,7 @@ run・棟・門・櫓・土留めのすべてについて、次のいずれか�
 - Blender 新造が先行して要る部材があれば、その依存関係を Stage 順に矛盾しない形で書く
 
 ### 5. 生成器を回して結果を見る
-書き終えたら **`python3 Tools/Sashizu/build_<屋敷>_sashizu.py` を実行**し、
+書き終えたら **`python3 Tools/Sashizu/build_sashizu.py <屋敷>` を実行**し、
 html が壊れずに組み上がるか確認する。生成器がエラーで落ちる・図版が減るのは
 自分の書き方の不整合が原因なので、直してから完了とする。
 **前景で 1 回**回す(既定なら数分)。⛔ 背景へ投げて `sleep` で見に行く形にしない。

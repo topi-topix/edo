@@ -629,6 +629,28 @@ public static class EdoSannoShaRebuild
         return null;
     }
     const string BOM_SUKIBEI = "透塀(連子窓の塀)";
+    /// <summary>`bom[<label>].手当` が名指す**部材のパス**を引く(「… → `Assets/….fbx`」の最初の一つ)。
+    /// ⭐ **パスの出所は指図**で、実装は綴りを持たない(規則12 の趣旨)。
+    /// ⛔ 「⛔ 旧 `Assets/…` は据えない」と続く後ろのパスを拾わない ── **最初の一つだけ**。</summary>
+    static string BomPartPath(string label)
+    {
+        var b = label == null ? null : FindBom(label); if (b == null) return null;
+        string te = S(b, "手当"); if (te == null) return null;
+        int arrow = te.IndexOf('→'); if (arrow < 0) return null;
+        int i = te.IndexOf("Assets/", arrow, StringComparison.Ordinal); if (i < 0) return null;
+        int e = te.IndexOf(".fbx", i, StringComparison.Ordinal); if (e < 0) return null;
+        return te.Substring(i, e + 4 - i);
+    }
+    /// <summary>門の名 → シーンの名(⛔ 部材のパスではない)。</summary>
+    static string GateNameOf(string designName)
+    {
+        if (designName == null) return "Mon";
+        if (designName.StartsWith("隨身門")) return "Romon";
+        if (designName.StartsWith("中門")) return "Chumon";
+        if (designName.StartsWith("坂下の門")) return "Sakashitamon";
+        if (designName.StartsWith("勝手口")) return "Kido";
+        return designName;
+    }
     /// <summary>透塀の一辺を据える。**割り付けは指図の規約**(`bom[透塀].spanBaseM` で辺を等分 ──
     /// 本数 = round(辺長 / 基準スパン)・スパン = 辺長 / 本数)で、⛔ 実装は数を持たない。
     /// 端の種類は −X, +X の順: c = 隅部材へ続く / n = 次のスパンへ / t = 中門へ突き付け /
@@ -708,12 +730,17 @@ public static class EdoSannoShaRebuild
         float orient = Mathf.Sign(area);
 
         var bom = FindBom(BOM_SUKIBEI);
-        int made = 0, flipped = 0;
+        // ⛔ 隅の群は **一度だけ**掃く(run の群は Stage4 の輪の中で掃かれるが、ここは輪の外)。
+        var kgrp = Group("Kakoi/Sukibei_Kado"); Clear(kgrp);
+        int made = 0;
         foreach (var o in L(Doc, "joints"))
         {
             var j = o as Dictionary<string, object>; if (j == null) continue;
-            string kind = S(j, "kind"); if (kind == null || kind.IndexOf('隅') < 0) continue;
-            string an = RunRef(S(j, "a")), bn = RunRef(S(j, "b"));
+            // ⭐ **隅は `kadoFrom` が名指す**(`in` = 入る辺 / `out` = 出る辺 / `name` = 呼び名)。
+            //   ⛔ `kind` に「隅」を探さない ── 2026-09-16(K059)に凹凸が折れ線からの従属値へ
+            //   改まって `kind` が null になり、⛔ **隅が 0 箇所**になっていた(棟梁 2026-09-20)。
+            var kf = D(j, "kadoFrom"); if (kf == null) continue;
+            string an = S(kf, "in"), bn = S(kf, "out"), kadoName = S(kf, "name");
             if (an == null || bn == null) continue;
             var ra = FindByName(Impl, "runs", an); var rb = FindByName(Impl, "runs", bn);
             if (ra == null || rb == null || S(ra, "kind") != "透塀") continue;
@@ -726,12 +753,6 @@ public static class EdoSannoShaRebuild
             Vector2 e2 = (nb[1] - node).normalized;              // 隅から b の辺へ
             float turn = ((-e1.x) * e2.y - (-e1.y) * e2.x) * orient;   // > 0 なら出隅(凸)
             bool dezumi = turn > 0f;
-            if (dezumi != (kind.IndexOf("出隅") >= 0))
-            {
-                flipped++;
-                sb.AppendLine("  ⚠ 隅 " + an + "→" + bn + ": `joints` は「" + kind + "」だが、折れ線の凹凸は **" +
-                              (dezumi ? "出隅" : "入隅") + "** ── 折れ線に従って据えた(⛔ 指図方へ差し戻す)");
-            }
             // 脚を辺へ合わせる: 出隅は Z = rot(X)・入隅は Z = −rot(X)(rot(v) = (−v.y, v.x))。
             //   ⇒ −X = f・(出隅) −Z = g / (入隅) +Z = g となる (f, g) の組を二通りから選ぶ。
             Vector2 f = e1, g = e2;
@@ -747,24 +768,19 @@ public static class EdoSannoShaRebuild
             if (AssetDatabase.LoadAssetAtPath<GameObject>(part) == null)
             { sb.AppendLine("  ★ 隅 " + an + "→" + bn + ": 隅部材 " + part + " が無い(部材方へ)"); continue; }
             float seat = F(ra, "seat");
-            var grp = Group("Kakoi/" + an);
-            EdoBuild.Place(part, new Vector3(node.x, seat, node.y), YawX(-f), Vector3.one, grp,
-                           an + "_" + (900 + made).ToString("000") + "f");
+            // ⭐ 隅は **run の群に入れない**。⛔ `<run名>_NNNf` と名づけると突き合わせが
+            //   隅を run の外接矩形に混ぜ、run ごとに 0.29m の**偽の芯ずれ**を 8 本出す
+            //   (2026-09-20 棟梁の実測)。隅は `joints[].kadoFrom` が立てる別の物なので
+            //   群も名も別に取る(名 = `Kado_<in>_<out>`。⚠ `kadoFrom.name` は「北の段」が
+            //   2 箇所あって一意にならない)。
+            EdoBuild.Place(part, new Vector3(node.x, seat, node.y), YawX(-f), Vector3.one, kgrp,
+                           "Kado_" + an + "_" + bn);
+            sb.AppendLine("    隅 " + (kadoName ?? (an + "→" + bn)) + ": " + (dezumi ? "出隅" : "入隅") +
+                          " (" + node.x.ToString("F2") + ", " + node.y.ToString("F2") + ") 床 " + seat.ToString("F2"));
             made++;
         }
-        sb.AppendLine("  透塀の隅: " + made + " 箇所(出隅・入隅は折れ線の凹凸から)" +
-                      (flipped > 0 ? " / ⚠ `joints` の呼び名と食い違った隅 " + flipped + " 箇所" : ""));
+        sb.AppendLine("  透塀の隅: " + made + " 箇所(出隅・入隅は折れ線の凹凸から = `kadoFrom` の従属値)");
         return made;
-    }
-    /// <summary>`joints` の「透塀 Sukibei_E(北袖)」のような綴りから run 名を取り出す。</summary>
-    static string RunRef(string s)
-    {
-        if (string.IsNullOrEmpty(s)) return null;
-        int p = s.IndexOf('(');
-        if (p > 0) s = s.Substring(0, p);
-        var tok = s.Trim().Split(' ');
-        string last = tok[tok.Length - 1].Trim();
-        return last.StartsWith("Sukibei_") ? last : null;
     }
 
     // ---------------------------------------------------------------- 袖塀
@@ -830,9 +846,12 @@ public static class EdoSannoShaRebuild
     // ================================================================ Stage 5 門・鳥居
     [MenuItem(MENU + "5 門・鳥居")]
     public static void Stage5Menu() { Debug.Log("[山王] " + Stage5_MonTorii()); }
-    /// <summary>算出物 `gates` の芯・yaw・敷居の高さへ据える。
-    /// ⚠ **楼門は Japanese Castle の Yaguramon A の代用**(`bom`「遠景では読めるので当面代用」)。
-    /// ⛔ 中門・鳥居・木戸は **部材が無い**(`bom` が「無い/新造」優先2)ので建てない。</summary>
+    /// <summary>算出物 `gates` の芯・yaw・敷居の高さへ据える。⭐ 部材は **`bom[<gates[].bom>].手当` が
+    /// 名指す物**を据える(2026-09-20 に代用をやめた ── 楼門・坂下の門・中門は専用部材が焼けている)。
+    /// 部材の規約(`bom[].axis`): 通り抜け = ローカル X・**正面 = +X**・ピボット = 門の芯・敷居の高さ
+    /// ⇒ `gates[].yaw` のまま・scale one・⛔ **SeatBottom しない**・⛔ **実メッシュの芯で寄せ直さない**
+    /// (ピボットが芯なので寄せ直すと基壇の張り出しのぶんだけ門口がずれる)。
+    /// ⛔ 向き(`yaw`)が指図に無い門は据えない ── 発明せず差し戻す。⛔ 鳥居は部材が無い(`bom`「無い」)。</summary>
     public static string Stage5_MonTorii()
     {
         var gate = Gate(); if (gate != null) return gate;
@@ -845,20 +864,29 @@ public static class EdoSannoShaRebuild
             string name = S(gt, "name");
             var wp = L(gt, "world"); if (wp.Count < 2) continue;
             Vector2 p = new Vector2(Cv(wp[0]), Cv(wp[1]));
+            if (!HasNum(gt, "yaw"))
+            { pend.Add(name + "(`gates[].yaw` が null ── 向きが指図に無い)"); continue; }
             float yaw = F(gt, "yaw"), sill = F(gt, "sill");
-            // 代用が `bom` に書いてある門だけ据える
-            string scn = null; float scale = 0f;
-            if (name.StartsWith("隨身門")) { scn = "Zuijinmon"; scale = 0.60f; }
-            else if (name.StartsWith("坂下の門")) { scn = "Niomon"; scale = 0.55f; }
-            if (scn == null) { pend.Add(name); continue; }
-            var go = EdoBuild.Place(EdoAssets.JC.YaguramonA, Vector3.zero, yaw, Vector3.one * scale, grp, scn);
-            var b = EdoBuild.RB(go);
-            go.transform.position += new Vector3(p.x - b.center.x, 0, p.y - b.center.z);
-            EdoBuild.SeatBottom(go, sill - 0.22f * scale);   // `bom`: pivot の埋め込み補正
+            string label = S(gt, "bom");
+            var bm = label == null ? null : FindBom(label);
+            string path = BomPartPath(label);
+            if (path == null) { pend.Add(name + "(`bom[" + label + "].手当` に部材のパスが無い)"); continue; }
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+            { pend.Add(name + "(" + path + " が無い)"); continue; }
+            var ax = bm == null ? null : D(bm, "axis");
+            string front = ax == null ? null : S(ax, "front");
+            if (front == null)
+            { pend.Add(name + "(`bom[" + label + "].axis.front` が無い ── 向きの規約が引けない)"); continue; }
+            if (front != "+X")
+            { pend.Add(name + "(部材の正面が `+X` でない: " + front + ")"); continue; }
+            var go = EdoBuild.Place(path, new Vector3(p.x, sill, p.y), yaw, Vector3.one, grp, GateNameOf(name));
+            var bb = EdoBuild.RB(go);
             made++;
-            sb.AppendLine("  " + name + " → " + scn + " (" + p.x.ToString("F1") + ", " + p.y.ToString("F1") +
-                          ") yaw " + yaw.ToString("F0") + " 敷居 " + sill.ToString("F2") + " ×" + scale.ToString("F2") +
-                          " ⚠ 代用(Yaguramon A)");
+            sb.AppendLine("  " + name + " → " + System.IO.Path.GetFileNameWithoutExtension(path) +
+                          " 芯 (" + p.x.ToString("F2") + ", " + p.y.ToString("F2") + ") yaw " + yaw.ToString("F1") +
+                          " 敷居 " + sill.ToString("F2") + " / 実メッシュ W" + bb.size.x.ToString("F2") +
+                          " H" + bb.size.y.ToString("F2") + " D" + bb.size.z.ToString("F2") +
+                          " 下端 " + (bb.center.y - bb.extents.y).ToString("F2"));
         }
         foreach (var o in L(Doc, "torii"))
         {
@@ -906,8 +934,15 @@ public static class EdoSannoShaRebuild
             if (!S(k, "name").StartsWith("向拝")) continue;    // 本殿の木階は本殿の部材に入っている
             Vector2 a = P2(G(k, "a")), b = P2(G(k, "b"));
             Vector2 c = W((a.x + b.x) * 0.5f, a.y);
-            string path = P.Shaden("Sanno_Kizahashi_3ken");
-            if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null) { pend.Add(S(k, "name")); continue; }
+            // ⭐ 部材の綴りは `kaidans` の 幅(wKen)・出(a〜b)・丈(yTop−yBot)からの**従属値**。
+            //   ⛔ "Sanno_Kizahashi_3ken" のような名を書かない(旧部材を拾って寸法が化ける)。
+            float ken = F(D(Impl, "grid"), "ken");
+            int wMm = Mathf.RoundToInt(F(k, "wKen") * ken * 1000f);
+            int runMm = Mathf.RoundToInt(Mathf.Abs(b.x - a.x) * ken * 1000f);
+            int riseMm = Mathf.RoundToInt((F(k, "yTop") - F(k, "yBot")) * 1000f);
+            string path = EdoAssets.Own.SannoKizahashi(wMm, runMm, riseMm);
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+            { pend.Add(S(k, "name") + "(" + path + " が無い)"); continue; }
             EdoBuild.Place(path, new Vector3(c.x, F(k, "yBot"), c.y), 0f, Vector3.one, grp, "Kizahashi");
             made++;
             sb.AppendLine("  " + S(k, "name") + " → Kizahashi (" + c.x.ToString("F2") + ", " + c.y.ToString("F2") +

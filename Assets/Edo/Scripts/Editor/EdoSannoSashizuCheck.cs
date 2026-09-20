@@ -62,9 +62,14 @@ public static class EdoSannoSashizuCheck
         { "本殿", "Honden" }, { "作り合い", "Tsukuriai" }, { "幣殿", "Heiden" },
         { "拝殿", "Haiden" }, { "向拝", "Kohai" },
     };
+    /// <summary>門: 指図の名の先頭 → シーンの名。⭐ **2026-09-20 に名を改めた** ── 楼門・坂下の門は
+    /// Japanese Castle の `Yaguramon A` の代用(`Zuijinmon` / `Niomon`)をやめ、指図の
+    /// `bom[].手当` が名指す専用部材で建った(`Romon` / `Sakashitamon`)。
+    /// ⭐ **`中門` を名簿へ足した** ── 部材(`Sanno_Chumon_…`)が焼けて据わったのに名簿に行が無く、
+    /// 「名簿にも載っていない」= ⛔ **向きも位置も測れていなかった**(規則19)。</summary>
     static readonly Dictionary<string, string> GATE_NAME = new Dictionary<string, string>
     {
-        { "隨身門", "Zuijinmon" }, { "坂下の門", "Niomon" },
+        { "隨身門", "Romon" }, { "中門", "Chumon" }, { "坂下の門", "Sakashitamon" },
     };
     static readonly Dictionary<string, string> TORII_NAME = new Dictionary<string, string>
     {
@@ -514,6 +519,41 @@ public static class EdoSannoSashizuCheck
             foreach (var kv in byPrefix)
                 if (!wantNames.Contains(kv.Key))
                     bad("囲い", "孤児(指図に無い囲い): " + kv.Key + " ×" + kv.Value.Count + " 部材");
+
+            // ---- 透塀の隅 ---------------------------------------------------
+            // ⭐ 2026-09-20 に足した。隅は `joints[].kadoFrom`(`in` = 入る辺 / `out` = 出る辺)が
+            //   立てる別の物で、⛔ どちらかの run の外接矩形に混ぜてはいけない
+            //   (混ぜると run ごとに 0.29m の偽の芯ずれが 8 本出る)。⇒ **節点そのもの**と比べる。
+            // ⚠ 部材のピボットは隅柱の芯だが、外形は X/Z とも [−0.477, +0.493] なので
+            //   外接矩形の芯は節点から 0.011m ずれて出る(許容 0.02m の内)。
+            int kadoWant = 0, kadoCmp = 0;
+            foreach (var o in L(doc, "joints"))
+            {
+                var j = o as Dictionary<string, object>; if (j == null) continue;
+                var kf = j.ContainsKey("kadoFrom") ? j["kadoFrom"] as Dictionary<string, object> : null;
+                if (kf == null) continue;
+                string an = Str(kf, "in"), bn = Str(kf, "out"); if (an == null || bn == null) continue;
+                kadoWant++;
+                var ira = FindByName(impl, "runs", an); var irb = FindByName(impl, "runs", bn);
+                if (ira == null || irb == null)
+                { bad("囲い", "隅 " + an + "→" + bn + ": 算出物に run が無い"); continue; }
+                var na = L(ira, "nodes"); var nb = L(irb, "nodes");
+                if (na.Count < 2 || nb.Count < 2)
+                { bad("囲い", "隅 " + an + "→" + bn + ": 折れ線の節点が足りない"); continue; }
+                Vector2 node = P2(na[na.Count - 1]);
+                if (Vector2.Distance(node, P2(nb[0])) > 0.05f)
+                { bad("囲い", "隅 " + an + "→" + bn + ": 折れ線の端が一致しない(算出物)"); continue; }
+                var kt = ByName(index, "Kado_" + an + "_" + bn);
+                if (kt == null)
+                { bad("囲い", "隅 " + an + "→" + bn + "(実装名 Kado_" + an + "_" + bn + ")が実装に無い"); continue; }
+                kadoCmp++;
+                var kc = EdoBuild.RB(kt.gameObject).center;
+                float kd = Vector2.Distance(new Vector2(kc.x, kc.z), node);
+                if (kd > POS_TOL_M)
+                    bad("囲い", "隅 " + an + "→" + bn + " が " + kd.ToString("F2") + "m ずれている(節点 " +
+                        V(node) + " / 実装 " + V(new Vector2(kc.x, kc.z)) + ")");
+            }
+            head.AppendLine("  透塀の隅: 指図 " + kadoWant + " 箇所 / 実装と突き合わせた " + kadoCmp + " 箇所");
         }
 
         // =====================================================================

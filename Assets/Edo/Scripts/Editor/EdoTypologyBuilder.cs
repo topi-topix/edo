@@ -490,8 +490,7 @@ public static class EdoTypologyBuilder
                 // ⛔ ピボットの座・底ではなく**接地箇所**で据える(規則21)
                 try { EdoBuild.SeatOnGround(go, 0f, VERTS); }
                 catch (Exception) { unseated++; UnityEngine.Object.DestroyImmediate(go); go = null; continue; }
-                float over;
-                if (!FootprintInside(poly, go.transform, out over))
+                if (OutsideBy(poly, go.transform, false) > 0f)   // 壁体が外へ出たら退ける(軒は別勘定)
                 {
                     UnityEngine.Object.DestroyImmediate(go); go = null; continue;
                 }
@@ -598,7 +597,7 @@ public static class EdoTypologyBuilder
             if (tried != null && tried.Contains(p)) continue;
             // ⭐ ここは**下読み**。r は型ごとの当て推量なので、半径をそのまま境界に効かせると
             //    収まる棟まで弾く(620坪の小旗本で主屋が建たなかった)。本当の関門は
-            //    置いた後の FootprintInside(実メッシュの底面)。
+            //    置いた後の OutsideBy(壁体の実頂点)。
             if (EdoGeom.DistToPolyEdge(poly, p) < r * 0.55f) continue;
             bool ok = true;
             foreach (var b in placed)
@@ -612,22 +611,19 @@ public static class EdoTypologyBuilder
         return null;
     }
 
-    /// <summary>据えた駒の**実メッシュの底面**(回転込み)が区画の内に収まっているか。
-    /// ⭐ 半径は当て推量なので、置いてから実メッシュで検め直す(規則5)。</summary>
-    static bool FootprintInside(Vector2[] poly, Transform t, out float over)
+    /// <summary>駒が区画の外へ出た量[m]。⭐ **壁体と軒を分けて測る。**
+    /// <paramref name="withRoof"/>=false なら屋根・軒・垂木を外した**壁体**の頂点だけ(=区域侵犯の本体)、
+    /// true なら軒も含む(=軒の張り出し)。⛔ 外接箱の隅で測らない — 斜めの辺に沿う塀は回っているだけで隅が外へ出る。
+    /// ⚠ 軒が境界を越えることの許容は施主の裁定待ちなので、**混ぜずに別々に刷る**(規則19)。</summary>
+    static float OutsideBy(Vector2[] poly, Transform t, bool withRoof)
     {
-        float mnx, mxx, mnz, mxz, mny;
-        EdoBuild.ObbFootprint(t, out mnx, out mxx, out mnz, out mxz, out mny);
-        over = 0f;
-        var loc = new[] { new Vector3(mnx, mny, mnz), new Vector3(mxx, mny, mnz),
-                          new Vector3(mnx, mny, mxz), new Vector3(mxx, mny, mxz) };
-        foreach (var l in loc)
+        float over = 0f;
+        foreach (var w in EdoBuild.Body(t, 600, withRoof))
         {
-            var w = t.TransformPoint(l);
-            var p = new Vector2(w.x, w.z);
-            if (!EdoGeom.PIP(poly, p)) over = Mathf.Max(over, EdoGeom.DistToPolyEdge(poly, p));
+            var q = new Vector2(w.x, w.z);
+            if (!EdoGeom.PIP(poly, q)) over = Mathf.Max(over, EdoGeom.DistToPolyEdge(poly, q));
         }
-        return over <= 0f;
+        return over;
     }
 
     // ───────────────────────── Stage 6: 検査 ─────────────────────────
@@ -642,8 +638,8 @@ public static class EdoTypologyBuilder
     /// であって合格ではない(規則19)。最悪値を必ず刷り、緩い条件で 0 が出ていないか見えるようにする。</summary>
     public static string Inspect(string id, Transform root, Vector2[] poly)
     {
-        int n = 0, outside = 0, sunk = 0, floated = 0, multi = 0;
-        float worstOut = 0f, worstSunk = 0f, worstFloat = 0f, worstRelief = 0f;
+        int n = 0, outside = 0, sunk = 0, floated = 0, multi = 0, eaveOut = 0;
+        float worstOut = 0f, worstSunk = 0f, worstFloat = 0f, worstRelief = 0f, worstEave = 0f;
         foreach (Transform grp in root)
         {
             float tol = (grp.name == "Kakoi" || grp.name == "Mon") ? 0.6f : 0f;  // 塀と門は境界線の上に立つ
@@ -656,8 +652,11 @@ public static class EdoTypologyBuilder
                 n++;
                 // ⛔ AABB の隅で測らない — 斜めの辺に沿う塀は、回っているだけで隅が外へ出る。
                 //    実メッシュの底面(回転込み)で測る(規則5)。
-                float outD; FootprintInside(poly, t, out outD);
+                // 区域侵犯は**壁体**で数える(軒は別勘定 — 軒の許容は裁定待ち)
+                float outD = OutsideBy(poly, t, false);
                 if (outD > tol) { outside++; worstOut = Mathf.Max(worstOut, outD); }
+                float eaveD = OutsideBy(poly, t, true);
+                if (eaveD > tol) { eaveOut++; worstEave = Mathf.Max(worstEave, eaveD); }
                 // ⛔ 「底(bounds.min.y) − 中心の真下の地形」で測らない(2026-09-20 施主指摘)。
                 //    接地は底とは限らず(斜面では上手側の頂点が先に着く)、複数あり得る。
                 //    測るのは **接地箇所の隙間** と **接地の数**(EdoBuild.Contact)。
@@ -705,10 +704,11 @@ public static class EdoTypologyBuilder
                 minGap < 0f ? "(⛔ めり込み)" : (minGap < MIN_BLDG_GAP ? "(⚠ 目安 " + MIN_BLDG_GAP.ToString("F1") + "m 未満)" : ""));
         bool clash = minGap != float.MaxValue && minGap < 0f;
         string mark = (outside + sunk + floated) == 0 && !clash ? "⭕" : "⛔";
-        return string.Format("  {0} 検査: 駒 {1} — 区画の外 {2}(最悪 {3:F2}m) / 接地の埋没 {4}(最悪 {5:F2}m) / "
-                           + "接地の浮き {6}(最悪 {7:F2}m) / 複数接地 {8}駒 / 足元の起伏 最悪 {9:F2}m{10}",
+        return string.Format("  {0} 検査: 駒 {1} — 壁体が区画の外 {2}(最悪 {3:F2}m) / 軒が区画の外 {11}(最悪 {12:F2}m・許容は裁定待ち) / "
+                           + "触れている所の埋没 {4}(最悪 {5:F2}m) / 浮き {6}(最悪 {7:F2}m) / "
+                           + "触れている所が複数 {8}駒 / 足元の起伏 最悪 {9:F2}m{10}",
                              mark, n, outside, worstOut, sunk, worstSunk,
-                             floated, worstFloat, multi, worstRelief, gap);
+                             floated, worstFloat, multi, worstRelief, gap, eaveOut, worstEave);
     }
 
     // ───────────────────────── メニュー ─────────────────────────

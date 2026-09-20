@@ -1753,11 +1753,41 @@ public static partial class EdoMatsudairaDewaBuilder
                     for (int oi = 0; oi < ol.Count; oi++) omit[oi] = (string)ol[oi];
                 }
                 omitEdges = omit;
-                string hira = EdoAssets.Goten.RoofHirairi(kw, kd, eaveAboveFloor, omit);
+                // ⭐⭐ **渡廊下が取り付く辺の切り欠き**(2026-09-20)。指図 `_roka` ④ の取り合いは
+                //   「廊下の**桁の下端** ↔ **庇の軒桁の天端**」であって軒先の下端ではない
+                //   (軒先の下へ潜らせる納めは `_roka` ③ が採らない)。⇒ その1間だけ庇の軒先を
+                //   切り詰め、底に軒桁の天端の受け面を出した版を引く。
+                //   ⛔ 辺と位置を人が数えない — `EdoAssets.Goten.HirairiNotches` が
+                //     `munes[]`/`links[]` の矩形から機械的に解く(規則5)。
+                //   ⛔ 口(`kind` が「渡廊下」でない = 御錠口・御膳所口)は渡さない — 下屋を
+                //     架けないので軒先を切る理由が無い。
+                //   ⛔ 取り付く棟へ切り欠き無しの版を据えない(柱筋の頭上が `roka.zujoMin` を
+                //     65mm 割る・2026-09-20 実測)。どちらを引くかは返り値の空/非空で決まる。
+                var rokaRects = new List<float[]>();
+                foreach (var lo in A(D["links"]))
+                {
+                    var l0 = O(lo);
+                    string k0 = Has(l0, "kind") ? (string)l0["kind"] : "渡廊下";
+                    if (k0 != "渡廊下") continue;
+                    rokaRects.Add(new float[] { F(l0["u0"]), F(l0["u1"]), F(l0["v0"]), F(l0["v1"]) });
+                }
+                string[] nSide; float[] nKen;
+                EdoAssets.Goten.HirairiNotches(
+                    new float[] { F(m["u0"]), F(m["u1"]), F(m["v0"]), F(m["v1"]) },
+                    rokaRects, out nSide, out nKen);
+                string hira = EdoAssets.Goten.RoofHirairi(kw, kd, eaveAboveFloor, omit, nSide, nKen);
                 if (AssetDatabase.LoadAssetAtPath<GameObject>(hira) != null)
                 {
                     // ⛔ 寄せ直さない — 部材の z=0 が床で、軒桁は焼き込んである(帯割りと同じ据え方)
                     roof = hira; roofAtFloor = true; roofYaw = 0f;
+                    if (nSide.Length > 0)
+                    {
+                        var nb = new System.Text.StringBuilder();
+                        for (int ni = 0; ni < nSide.Length; ni++)
+                            nb.Append(ni == 0 ? "" : " ").Append(nSide[ni]).Append('-')
+                              .Append(EdoAssets.Goten.KenTag(nKen[ni]));
+                        sb.AppendLine("・" + name + ": 渡廊下の切り欠き " + nSide.Length + "か所(" + nb + ")");
+                    }
                 }
                 else
                 {
@@ -1952,12 +1982,14 @@ public static partial class EdoMatsudairaDewaBuilder
                 }
                 else
                 {
-                    // 元に採る端 — 主屋(帯割り)が在ればその側、両端とも主屋なら高い側、
-                    // 両端とも主屋でなければ低い側(指図 `_roka` / `_pending.rokaNagayaFloor`)
-                    int pick;
-                    if (omoya[0] != omoya[1]) pick = omoya[0] ? 0 : 1;
-                    else if (omoya[0]) pick = atari[0] >= atari[1] ? 0 : 1;
-                    else pick = atari[0] <= atari[1] ? 0 : 1;
+                    // ⭐⭐ 元に採る端 = **当たりの低い端**(全渡廊下で一律。普請奉行の決定
+                    //   EDO-0276・2026-09-20。⛔ 指図 json は書き換えない=規則4、決定は掲示板が正典)。
+                    //   指図 `_roka` は「両端とも御殿なら高い側」と「端ごとに 頭 ≤ 当たり − clear」
+                    //   (縛り①)の二つを持つが、**後者は めり込み = 許容0 を防ぐ縛りなので優先する**。
+                    //   高い側の規則は頭上の有効高を最大に取るための U 推論で、低い側でも頭上 2.100 と
+                    //   目標 `roka.zujoTarget` 1.97 を上回るため失う物がない ⇒ 奥向どうしの規則
+                    //   (低い側)へ揃える。`omoya[]` は残すが選り分けには使わない。
+                    int pick = atari[0] <= atari[1] ? 0 : 1;
                     float head = atari[pick] - rkClear;
                     float colTop = head - (EdoGotenKit.K * 0.5f) * rkKobai;
                     g = EdoGotenKit.Roka(name, grp, new Vector3(w.x, y, w.y), alongU ? yawU : yawV, n,

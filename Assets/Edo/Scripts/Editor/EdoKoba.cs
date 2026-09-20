@@ -102,6 +102,16 @@ public static class EdoKoba
 
         var koba = EditorSceneManager.OpenScene(EdoAssets.Scenes.Koba, OpenSceneMode.Single);
 
+        // ⛔ **消す前に、書き戻していない屋敷が載っていないか検める。**
+        //   下の掃除は DestroyImmediate で無条件に消すが、Koba.unity は gitignore なので
+        //   書き戻していない邸をここで消すと**本当に失われる**(赤坂なら .unity に残る)。
+        //   2026-09-21(EDO-0282②)までは「解けたままのルートを無条件に書き戻す」処理が
+        //   偶然この穴を塞いでいた。その処理をやめたので、門を明示的に置く。
+        var lost = EdoYashikiPrefab.UnwrittenIn(koba);
+        if (lost.Count > 0)
+            return "⛔ 書き戻していない屋敷が作業場に載っている: " + string.Join(", ", lost)
+                 + "\n  Edo/屋敷/プレハブへ書き戻す(触った分だけ) を実行してから開き直すこと";
+
         // ⚠ **冪等にする。** MCP がタイムアウトすると同じ呼び出しが再送され、
         //   素直に実体化するだけだと屋敷が何重にも積まれる(2026-09-19 に6重を実測)。
         //   前回の屋敷を片付ける役も兼ねる — 作業場に載るのは常に一邸。

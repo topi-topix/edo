@@ -302,6 +302,39 @@ public static class EdoBuild
         return crest == float.MinValue ? float.NaN : crest;
     }
 
+    /// <summary>**地面に据える。**駒の**実メッシュの底**を、その真下の地形(格子点)へ置き、
+    /// <paramref name="sink"/> だけ沈める。返り値 = 動かした量[m]。
+    ///
+    /// <para>⛔ **部材の基準点(ピボット)を信用して座標へ置かない。**ピボットの位置は部材ごとに違う
+    /// (床 / 軒先 / 小口 / 中心 / 天端)。座標へ直に置くと、メッシュがピボットより下へ伸びている部材は
+    /// その分だけ地中へ潜り、上へ伸びている部材は浮く。⚠ 2026-09-20 松江松平: 下草を「設計面へピボットを置く」
+    /// だけで据えていたため、実メッシュの底が地面から **1.90m** 下にあった(葉は地表に見えているので
+    /// レンダでは気づけない)。景石も沈める量を 0.34m の決め打ちにしていた。</para>
+    ///
+    /// <para>⚠ <paramref name="sink"/> は**意図して埋める量**(景石の 1/3 埋め・下草の根元)。
+    /// ⛔ 部材のピボットのずれを吸わせる目的で使わない — それは測って消す物で、決め打ちで隠す物ではない。</para></summary>
+    public static float SeatOnGround(GameObject go, float sink = 0f)
+    {
+        var b = RB(go);
+        float g = GroundGrid(go.transform.position.x, go.transform.position.z);
+        float dy = (g - sink) - b.min.y;
+        go.transform.position += new Vector3(0f, dy, 0f);
+        return dy;
+    }
+
+    /// <summary>**丈の <paramref name="fraction"/> だけ埋めて据える。**景石の「1/3 埋め」のような、
+    /// 部材の大きさに比例して沈める据え方。丈は実メッシュの高さから測るので、
+    /// 個体差のある石をスケールで散らしても埋まり方が揃う。返り値 = 埋めた量[m]。
+    /// ⛔ 決め打ちの沈め量(0.34m など)を全個体へ当てない — 大きい石は浮き、小さい石は沈む。</summary>
+    public static float SeatBuried(GameObject go, float fraction)
+    {
+        var b = RB(go);
+        float h = b.size.y;
+        float sink = h * Mathf.Clamp01(fraction);
+        SeatOnGround(go, sink);
+        return sink;
+    }
+
     /// <summary>駒の底を、その真下の石垣の天端(<see cref="CrestY"/>)から <paramref name="sink"/> だけ沈めた高さに据える。
     /// 石垣が無ければ動かさず false(呼び出し側は設計の座で据えて「石垣なし」と報告する)。
     /// ⭐ 天端 = 指図の seat のはずだが、**測って据えれば** Stage3 や指図の seat が動いても囲いが黙って浮かない。</summary>

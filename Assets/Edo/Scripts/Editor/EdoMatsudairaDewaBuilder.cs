@@ -1498,9 +1498,26 @@ public static partial class EdoMatsudairaDewaBuilder
 
     /// <summary>棟 <paramref name="root"/> の**屋根の実メッシュ**を world の鉛直線 (xz) で貫き、
     /// **最も低い交点の world Y** を返す(= その点での葺き面の下端 = 取り合いの「当たり」の面)。
-    /// 交わらなければ NaN。⛔ bbox で測らない(隅棟の角が片側 0.14 飛び出すので偽陽性が出る)。</summary>
+    /// 交わらなければ NaN。⛔ bbox で測らない(隅棟の角が片側 0.14 飛び出すので偽陽性が出る)。
+    ///
+    /// <para>⭐⭐ <paramref name="outward"/> = **棟から廊下へ向かう向き**(world xz・正規化済み。
+    /// 零ベクトルなら絞らない)。当たりは「**廊下の上に張り出している物**」なので、
+    /// 棟の外形線より内側にしか無い面は**障害物ではない**。⇒ 頂点が1つも
+    /// <paramref name="xz"/> より外側に無い三角形は落とす。
+    /// ⛔ この絞りが無いと、切り欠きのある棟で**棟の内側の庇の裏**(local 2.4654)を拾い、
+    ///   切り欠きの受け板(2.5368)より 72mm 低い当たりが出る。しかも外形線は**数値的に際どく**、
+    ///   同じ納めでも端によって内側の面を拾ったり拾わなかったりする(2026-09-20 実測:
+    ///   線上 2.4654 / 線から 0.010間=18mm 外で 2.5368)。
+    /// ⚠ 帯割りの棟では軒の裏が外形線を**跨いで**続くので、跨ぐ三角形は残り値は変わらない
+    ///   (表向3本の当たり 2.943/2.903 は絞りの前後で同値)。</para></summary>
     static float RoofPierceMinY(Transform root, Vector2 xz)
     {
+        return RoofPierceMinY(root, xz, Vector2.zero);
+    }
+
+    static float RoofPierceMinY(Transform root, Vector2 xz, Vector2 outward)
+    {
+        bool clip = outward.sqrMagnitude > 1e-6f;
         float best = float.NaN;
         foreach (var mf in root.GetComponentsInChildren<MeshFilter>())
         {
@@ -1521,6 +1538,17 @@ public static partial class EdoMatsudairaDewaBuilder
             for (int i = 0; i < vs.Length; i++) wv[i] = t.TransformPoint(vs[i]);
             for (int i = 0; i + 2 < tri.Length; i += 3)
             {
+                if (clip)
+                {
+                    // 頂点が1つも外側(廊下の側)に無い三角形は、廊下の上に張り出していない
+                    bool anyOut = false;
+                    for (int k = 0; k < 3; k++)
+                    {
+                        var p3 = wv[tri[i + k]];
+                        if ((p3.x - xz.x) * outward.x + (p3.z - xz.y) * outward.y > 1e-3f) { anyOut = true; break; }
+                    }
+                    if (!anyOut) continue;
+                }
                 float hy;
                 if (!TriPierceY(wv[tri[i]], wv[tri[i + 1]], wv[tri[i + 2]], xz, out hy)) continue;
                 if (float.IsNaN(best) || hy < best) best = hy;
@@ -1960,13 +1988,18 @@ public static partial class EdoMatsudairaDewaBuilder
                     omoya[e] = Has(mm, "roof");
                     GameObject mg; _muneGo.TryGetValue(endName[e], out mg);
                     if (mg == null) { atari[e] = float.NaN; continue; }
+                    // ⭐ **棟から廊下へ向かう向き**。当たりは「廊下の上に張り出している物」なので、
+                    //   外形線より内側にしか無い面(棟の内側の庇の裏)は数に入れない
+                    //   (`RoofPierceMinY` の注。2026-09-20 の是正)。
+                    Vector2 pEnd = f.W(endU[e], endV[e]);
+                    Vector2 outw = (f.W(midU, midV) - pEnd).normalized;
                     // 廊下の幅を横切って 5 点を測り、中央値を採る(瓦は名目面から ±0.15 うねる)
                     var hits = new List<float>();
                     for (int s = -2; s <= 2; s++)
                     {
                         float t = s * 0.2f;
                         Vector2 p = f.W(endU[e] + (alongU ? 0f : t), endV[e] + (alongU ? t : 0f));
-                        float hy = RoofPierceMinY(mg.transform, p);
+                        float hy = RoofPierceMinY(mg.transform, p, outw);
                         if (!float.IsNaN(hy)) hits.Add(hy - y);
                     }
                     if (hits.Count == 0) { atari[e] = float.NaN; continue; }

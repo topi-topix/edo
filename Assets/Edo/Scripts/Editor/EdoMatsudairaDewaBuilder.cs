@@ -46,7 +46,7 @@ public static partial class EdoMatsudairaDewaBuilder
     {
         get { return Path.Combine(Directory.GetParent(Application.dataPath).FullName, SashizuRel); }
     }
-    public static void Reload() { _d = null; _frame = null; _terr = null; _runs = null; _walls = null; _nat = null; _natRes = 0; }
+    public static void Reload() { _d = null; _frame = null; _terr = null; _runs = null; _walls = null; _nat = null; _natRes = 0; _terraceY.Clear(); }
     static Dictionary<string, object> D
     {
         get
@@ -641,12 +641,64 @@ public static partial class EdoMatsudairaDewaBuilder
             return outp;
         };
 
+        // ⭐⭐ **隅部材を先に据え、その腕を実測してから run の端を決める(2026-09-20 是正)。**
+        //   ⚠ 普請検査 2026-09-20: 入隅 `Kado_J_P2`(`Dobei_Kado_88M`)の両腕と隣の run の間が
+        //     辺1 で 0.848m・辺2 で 0.902m 空いていた(軒下の帯 座+0.6〜1.4m の実測)。
+        //   原因は指図 `kado.parts.Dobei_Kado_88M.armRaw` 2.274(×1.818 = 世界 4.134m)が
+        //   **実部材の腕 3.30m と食い違う**こと。run の s0/s1 はその 4.13 を前提に置かれているので、
+        //   腕が届かず 0.85〜0.90m の口が残る。
+        //   ⭕ CLAUDE.md 規則2(2026-09-19 裁定)「取り合いと境界はビルダーが実メッシュから解く」に従い、
+        //     **隅に接する側の run の端だけ**を、据えた隅部材の**壁体**が覆う所まで寄せる。
+        //     ⛔ 反対に狭めない(腕が run より長い隅は重なるのが正 — 閉じの許容は『隙間 > めり込み』)。
+        //     ⛔ run の格子(駒のピッチ)は触らない — 端点が動いた分だけ DobeiRun が割り付け直す。
+        sb.AppendLine(PlaceKado(kak));
+        sb.AppendLine("隅を先に犬走りへ寄せる … " + AlignInubashiri());
+        var kadoLo = new Dictionary<int, float>();   // 辺 → 隅の壁体が s=0 側から覆う上限
+        var kadoHi = new Dictionary<int, float>();   // 辺 → 隅の壁体が s=L 側から覆う下限
+        sb.AppendLine(KadoArmSpan(kak, kadoLo, kadoHi));
+        // ⛔ **辺の端の run にだけ効かせる。**辺の途中の run まで隅へ伸ばすと、同じ辺の run が
+        //   丸ごと重なって外周が二重になる(2026-09-20 に一度そう建てた — 辺0 の 6 run が
+        //   すべて 4.91‥71.50 になった)。辺ごとに **s0 が最小の run / s1 が最大の run** だけ。
+        var edgeMinS0 = new Dictionary<int, float>(); var edgeMaxS1 = new Dictionary<int, float>();
+        foreach (var r0 in Runs)
+        {
+            float q0;
+            if (!edgeMinS0.TryGetValue(r0.edge, out q0) || r0.s0 < q0) edgeMinS0[r0.edge] = r0.s0;
+            if (!edgeMaxS1.TryGetValue(r0.edge, out q0) || r0.s1 > q0) edgeMaxS1[r0.edge] = r0.s1;
+        }
+        Func<Run, float[]> clamp = r =>
+        {
+            float a0 = r.s0, a1 = r.s1;
+            float lo, hi;
+            if (r.s0 <= edgeMinS0[r.edge] + 1e-3f
+                && kadoLo.TryGetValue(r.edge, out lo) && lo < a0) a0 = lo;
+            if (r.s1 >= edgeMaxS1[r.edge] - 1e-3f
+                && kadoHi.TryGetValue(r.edge, out hi) && hi > a1) a1 = hi;
+            if (r.nagaya && (Mathf.Abs(a0 - r.s0) > 0.02f || Mathf.Abs(a1 - r.s1) > 0.02f))
+            {
+                // ⛔ 長屋は**長さごとに焼いた一体部材**なので端を動かせない(違う長さの FBX が要る)。
+                //   ⇒ 動かさずに申し送る(部材方へ = 長い部材を焼く / 指図方へ = 隅の腕を実測へ直す)。
+                sb.AppendLine("⚠ 長屋 " + r.name + " 辺" + r.edge + " の隅側の端が隅部材の腕と "
+                    + Mathf.Max(Mathf.Abs(a0 - r.s0), Mathf.Abs(a1 - r.s1)).ToString("F3")
+                    + "m 食い違う(指図 s " + r.s0.ToString("F2") + "‥" + r.s1.ToString("F2")
+                    + " / 腕の実測 " + a0.ToString("F2") + "‥" + a1.ToString("F2")
+                    + ")— 長屋は一体部材なので端を動かさない。部材方/指図方へ");
+                return new float[] { r.s0, r.s1 };
+            }
+            if (Mathf.Abs(a0 - r.s0) > 0.02f || Mathf.Abs(a1 - r.s1) > 0.02f)
+                sb.AppendLine("隅へ寄せた: " + r.name + " 辺" + r.edge + " s " + r.s0.ToString("F2")
+                    + "‥" + r.s1.ToString("F2") + " → " + a0.ToString("F2") + "‥" + a1.ToString("F2")
+                    + "(隅部材の壁体の実測)");
+            return new float[] { a0, a1 };
+        };
+
         // 練塀は run ごとに(段が違うので繋げない)
         foreach (var r in Runs)
         {
             if (r.nagaya) continue;
             Vector2 outw = OutNormal(r.edge);
-            foreach (var seg in split(r.edge, r.s0, r.s1))
+            var cl = clamp(r);
+            foreach (var seg in split(r.edge, cl[0], cl[1]))
             {
                 if ((seg[1] - seg[0]).magnitude < 1.2f) continue;
                 // 斜面の run は天端が一直線に下るので、2m 刻みに割ってその位置の天端で据える
@@ -660,7 +712,7 @@ public static partial class EdoMatsudairaDewaBuilder
                     {
                         Vector2 pa = Vector2.Lerp(seg[0], seg[1], q / (float)nSeg);
                         Vector2 pb = Vector2.Lerp(seg[0], seg[1], (q + 1) / (float)nSeg);
-                        float sMid = r.s0 + (r.s1 - r.s0) * ((q + 0.5f) / nSeg);
+                        float sMid = cl[0] + (cl[1] - cl[0]) * ((q + 0.5f) / nSeg);
                         EdoNishiTameikeBuilder.DobeiRun(kak, pa, pb, outw, r.name + "_" + q, false,
                                                         r.SeatAt(sMid), Vector2.zero, -1);
                     }
@@ -678,6 +730,7 @@ public static partial class EdoMatsudairaDewaBuilder
         foreach (var r in Runs)
         {
             if (!r.nagaya) continue;
+            clamp(r);          // ⛔ 長屋は端を動かさない — 隅部材の腕との食い違いを申し送るだけ
             // ⛔ **run の長さをそのまま部材の呼び寸法にしてはいけない。**
             //   `Nagaya_Omote_<L>` の L は**破風の外端どうし(屋根の全長)**で、壁の実体は
             //   両端 TSUMA_OVER だけ内側にある。run 長で頼むと隣り合う run の**壁が 0.64m 空き、
@@ -738,7 +791,6 @@ public static partial class EdoMatsudairaDewaBuilder
             nag++;
         }
         sb.AppendLine("塀・長屋: 長屋 " + nag + "棟 / 練塀run " + hei);
-        sb.AppendLine(PlaceKado(kak));
 
         // 木柵(地形なり)。在庫の矢来を等間隔に立てる。
         var fen = Group("Fences"); Clear(fen);
@@ -777,110 +829,9 @@ public static partial class EdoMatsudairaDewaBuilder
         sb.AppendLine("木柵: " + posts + "枚(" + A(D["fences"]).Count + " run)");
         // 石垣の法肩から犬走りを残して据え直す(石垣は Stage3 だが法肩＝区画線なので順序に依らない)
         sb.AppendLine(AlignInubashiri());
-        sb.AppendLine(CloseKadoSeams(kak));
         return sb.ToString();
     }
 
-    /// <summary>**隅部材と、隣り合う run の端の駒の隙間を、駒を伸ばして塞ぐ。**
-    ///
-    /// ⚠ 2026-09-06 にユーザーが「練塀が隣の塀と隙間が残っている」と指摘して発覚(ブックマーク#4)。
-    ///   実測すると入隅 `Kado_J_P2` の壁体と隣の練塀の壁体が **0.176〜0.455m** 空いていた。
-    ///   ⛔ 外接箱でも、屋根まで含めた最短距離でも見えない — **軒が張り出して先に触れる**ので
-    ///   「接している」と誤診する(私が一度そう報告した)。⭕ **壁体の高さ帯だけを取り出して測る**。
-    ///
-    /// 直し方は CLAUDE.md 規則5 のとおり「置いた駒の実メッシュから面を測って寄せる」:
-    /// 隅の腕の端の面と、隣の駒の端の面の距離だけ、**駒を走り方向へ伸ばす**(伸ばす向きは隅側)。
-    /// ⛔ 隅部材そのものは伸ばさない(留め継ぎの角度が崩れる)。⚠ 伸び代の上限は 1 駒の 25%。</summary>
-    static string CloseKadoSeams(Transform kak)
-    {
-        var sb = new System.Text.StringBuilder();
-        var kados = new List<Transform>(); var runs = new List<Transform>();
-        foreach (Transform ch in kak) { if (ch.name.StartsWith("Kado_")) kados.Add(ch); else runs.Add(ch); }
-        int nFix = 0; float worst = 0f; string worstName = "";
-        foreach (var kado in kados)
-        {
-            var kb = MeshBody(kado, 999999); if (kb.Count == 0) continue;   // 隅は全頂点(間引かない・上のコメント参照)
-            float ky0 = 1e9f, ky1 = -1e9f; foreach (var v in kb) { if (v.y < ky0) ky0 = v.y; if (v.y > ky1) ky1 = v.y; }
-            float lo = ky0 + (ky1 - ky0) * 0.15f, hi = ky0 + (ky1 - ky0) * 0.80f;   // 壁体の帯
-            foreach (var run in runs)
-            {
-                // ⛔ **隅(Kado)は単一メッシュで裏面が無い**(実測: run 側の裏面 `_0b` との隙間
-                //   0.33〜0.38m は「相手が無い」だけで実体の欠陥ではない)。練塀 run は前後2枚
-                //   (`_0f` 表 / `_0b` 裏)で厚みを作るが、隅にはこの裏面に対応する駒が無いので、
-                //   裏面との隙間を数え続けても直しようが無い警告にしかならない。表面(`_0f` /
-                //   末尾が f/b で終わらない棟=長屋)だけを隅の相手として数える。
-                if (run.name.EndsWith("_0b")) continue;
-                var rb = MeshBody(run); if (rb.Count == 0) continue;
-                float best = 1e9f; Vector3 pa = Vector3.zero, pb = Vector3.zero;
-                foreach (var a in kb) { if (a.y < lo || a.y > hi) continue;
-                    foreach (var b in rb) { if (b.y < lo || b.y > hi) continue;
-                        float d = (a - b).sqrMagnitude; if (d < best) { best = d; pa = a; pb = b; } } }
-                if (best > 1e8f) continue;
-                float gap = Mathf.Sqrt(best);
-                if (gap < 0.02f || gap > 1.0f) continue;             // 接している / 隣ではない
-                // ⛔ 走り方向を「局所 +X」と決め打ちしない — 練塀の駒は**外向き法線**で yaw を取っており、
-                //   +X が走りとは限らない。⭕ **駒の実メッシュを局所 X と局所 Z へ投影して長い方**を走りに採る。
-                float exX = LocalSpan(run, Vector3.right), exZ = LocalSpan(run, Vector3.forward);
-                bool useX = exX >= exZ; float len = useX ? exX : exZ;
-                Vector3 ax = run.rotation * (useX ? Vector3.right : Vector3.forward);
-                float sgn = Vector3.Dot(pa - pb, ax) >= 0 ? 1f : -1f;
-                // ⛔ **走り方向で既に重なっている継ぎ目は伸ばしても詰まらない** — 隙間は横(法線)方向にある。
-                //   2026-09-06 実測: 入隅 Kado_J_P2 と S_Hei_C_23f は走りで 0.414m 重なりながら壁体が 0.486m 空く。
-                //   原因は `AlignInubashiri` が run だけを犬走りに合わせ、**隅部材を動かしていない**こと(横のずれ)。
-                //   ⇒ ここでは触らず、そのまま報告する(直しは隅部材の横合わせ・棟梁へ)。
-                // ⚠ 2026-09-08(棟梁差戻し・検証して撤回): 「間引き(900点)が隅部材の極値頂点を
-                //   取りこぼし、`AlignInubashiri` の横合わせ自体の残差を過大にしていた」のは実証済み
-                //   (`MeshBody(tr, 999999)` で間引きを止めたら、隅の外面が -0.30±0.02 まで揃った —
-                //   これは残す)。⛔ しかし**「揃ったなら重なり判定を無視して伸ばしてよい」は誤りだった**
-                //   — P0/P1/P3/P13 は角度のある留め継ぎ(直角でない)なので、run を**自身の走り軸に
-                //   沿って**伸ばしても、隅の断面に対して斜めにしか近づかず、3D最短距離の隙間
-                //   (0.02〜0.13m)はほぼ変化しなかった(実測: 伸縮の前後で隙間が小数点以下まで同じ)。
-                //   ⇒ 判定は元に戻す。この残差(0.02〜0.13m)は**壁面どうしが別メッシュで角度を持って
-                //   接する継ぎ目に残る限界**として棟梁から普請奉行へ報告する(run の軸方向伸縮では解けない
-                //   — 隅部材側の断面形状を直すか、指図側で許容差を見直すかの二択)。
-                float kA = EdgeAlong(kado, ax, -1f), kB = EdgeAlong(kado, ax, 1f);
-                float rA = EdgeAlong(run, ax, -1f), rB = EdgeAlong(run, ax, 1f);
-                if (Mathf.Min(kB, rB) - Mathf.Max(kA, rA) > 0.02f)
-                { sb.AppendLine(string.Format("⚠ {0} ⇔ {1}: 壁体が {2:F3}m 空くが走りでは重なっている — **横のずれ**(隅部材が犬走りに合っていない)。棟梁へ", kado.name, run.name, gap)); continue; }
-                // 伸ばしてよい上限: 指図の joints[].tol が正典(J_P* の tol は概ね [-0.05〜-0.10, 0.0] =
-                //   数cmの重なりは許すが、正の隙間は本来ゼロという設計値)。⚠ 2026-09-08(棟梁・普請検査差戻し):
-                //   旧 `max(0.60, len*0.35)` は駒(pitch≈2.98m)の 35% ≈ 1.04m まで無条件に伸ばしていたため、
-                //   隅部材の腕の実寸不足(例: `Dobei_Kado_88M` の腕 3.27m。指図は 4.10〜4.15m を前提)を
-                //   run の伸縮で丸ごと隠し、**run の終端が指図の s0/s1 から 0.81〜0.84m ずれる**副作用が出ていた
-                //   (RunEndQA が指摘)。腕の実寸不足は run 側の対症療法では直らない(部材方の腕を伸ばすか、
-                //   指図側で s0/s1 を実寸へ合わせるかの二択)。ここでは**駒の継ぎ目としてあり得る小さな誤差
-                //   だけを詰め**、それを超える隙間は run を歪めず報告する。
-                const float CAP = 0.20f;
-                if (len < 0.2f || gap > CAP) { sb.AppendLine(string.Format("⚠ {0} ⇔ {1}: 隙間 {2:F3}m > 上限 {3:F2}m — 伸ばさず(部材方/指図方へ。隅部材の腕の実寸が指図の前提より短い疑い)", kado.name, run.name, gap, CAP)); continue; }
-                // ⛔ ピボットが駒の中心とは限らないので「伸ばして半分ずらす」では詰まらない(2026-09-06 実測)。
-                // ⭕ 伸ばした**あとに実測**し、隅側の端が目標へ来るまで平行移動する(規則5: 実メッシュで測る)。
-                float nearBefore = EdgeAlong(run, ax, sgn);
-                float target = nearBefore + sgn * gap;
-                var ls = run.localScale; float k = (len + gap) / len;
-                run.localScale = useX ? new Vector3(ls.x * k, ls.y, ls.z) : new Vector3(ls.x, ls.y, ls.z * k);
-                float nearAfter = EdgeAlong(run, ax, sgn);
-                Vector3 delta = ax * (target - nearAfter);
-                run.position += delta;
-                // ⚠ 2026-09-08: 表(_?f)だけ伸ばして裏(_?b)を置き去りにすると、壁の表裏が
-                //   走り方向にずれて剥離する(実測: S_Hei_W0b_0f/_0b が 2.13m 食い違っていた)。
-                //   裏に同じ駒番号の対がいれば、同じ scale 係数・同じ移動量を裏にも適用する。
-                if (run.name.EndsWith("f"))
-                {
-                    string bName = run.name.Substring(0, run.name.Length - 1) + "b";
-                    var back = kak.Find(bName);
-                    if (back != null)
-                    {
-                        var lsb = back.localScale;
-                        back.localScale = useX ? new Vector3(lsb.x * k, lsb.y, lsb.z) : new Vector3(lsb.x, lsb.y, lsb.z * k);
-                        back.position += delta;
-                    }
-                }
-                nFix++; if (gap > worst) { worst = gap; worstName = kado.name + " ⇔ " + run.name; }
-            }
-        }
-        sb.AppendLine(string.Format("隅の継ぎ目を詰めた: {0} 駒(最大 {1:F3}m {2})", nFix, worst, worstName));
-        return sb.ToString().TrimEnd();
-    }
 
 
 
@@ -1025,6 +976,18 @@ public static partial class EdoMatsudairaDewaBuilder
             go.transform.position = new Vector3(b.x, seat - 0.10f, b.y);
             go.transform.rotation = Quaternion.Euler(0, Mathf.Atan2(dIn.x, dIn.y) * Mathf.Rad2Deg, 0);
             go.transform.localScale = Vector3.one * ES_KADO;
+            // ⭐ **鉛直も「その下の実物」を測って据える**(EDO-0286)。石垣基壇の天端を測って
+            //   そこから 0.10m 沈める。⛔ 指図の `kado.seat` を座標として使わない —
+            //   普請検査 2026-09-20 で `Kado_J_P0` の下端が基壇の天端から 0.325m 離れていた。
+            {
+                float crest;
+                if (!EdoBuild.SeatOnCrest(go, Group("Ishigaki"), 0.10f, out crest))
+                    sb.AppendLine("〔記録〕隅 " + go.name + ": 真下に石垣が無いので指図の座 "
+                        + seat.ToString("F2") + " で据えた");
+                else if (Mathf.Abs(crest - seat) > 0.05f)
+                    sb.AppendLine("〔記録〕隅 " + go.name + " の石垣の天端 実測 " + crest.ToString("F2")
+                        + "m(指図 `kado.seat` " + seat.ToString("F2") + ")");
+            }
             n++;
         }
         sb.Append("隅部材: " + n + " 基");
@@ -1034,6 +997,121 @@ public static partial class EdoMatsudairaDewaBuilder
 
     /// <summary>隅部材・練塀の直線材に共通の倍率。素の部材は江戸暦の単位なので ES を掛ける。</summary>
     const float ES_KADO = 1.818f;
+
+    /// <summary>**段(terrace)の面の高さを、造成後の地形のハイトマップ格子点の中央値で採る。**
+    ///
+    /// <para>⭐ EDO-0286(施主指示 2026-09-20)。⛔ 棟の y に指図の `munes[].y` を使わない —
+    /// 造成が実際にどこへ落ち着いたかを見ないまま据えると、地形と棟が黙ってずれる
+    /// (普請検査 2026-09-20: 御殿5棟が 0.86〜0.93m 浮いた)。CLAUDE.md 規則3
+    /// 「面の高さは地形が決める」の実装側の姿。</para>
+    ///
+    /// <para>⚠ **地形を書く Stage(1・1b・6a)の後に呼ぶこと。**同じ段の棟は同じ値を返すので
+    /// 渡廊下は繋がる(段名でキャッシュ)。⛔ `Ground` の双一次で測らない(縁の擦り付けを拾う)。</para></summary>
+    static Dictionary<string, float> _terraceY = new Dictionary<string, float>();
+    public static void ResetTerraceY() { _terraceY.Clear(); }
+    static float TerraceY(Terrace t, out float spread, out int nPt)
+    {
+        float cached;
+        if (_terraceY.TryGetValue(t.name, out cached)) { spread = 0f; nPt = -1; return cached; }
+        var f = Grid;
+        var poly = new Vector2[] { f.W(t.u0, t.v0), f.W(t.u1, t.v0), f.W(t.u1, t.v1), f.W(t.u0, t.v1) };
+        float y = EdoBuild.PadY(poly, 1.0f, out spread, out nPt);
+        _terraceY[t.name] = y;
+        return y;
+    }
+    /// <summary>格子点 (u,v) を含む段。無ければ最寄り(距離 0 の段が無い所に棟は建たない想定)。</summary>
+    static Terrace TerraceOf(float u, float v)
+    {
+        Terrace best = Terraces[0]; float bd = float.MaxValue;
+        foreach (var t in Terraces)
+        {
+            float cu = Mathf.Clamp(u, t.u0, t.u1), cv = Mathf.Clamp(v, t.v0, t.v1);
+            float d = new Vector2(u - cu, v - cv).magnitude;
+            if (d < bd) { bd = d; best = t; }
+        }
+        return best;
+    }
+
+    /// <summary>指図 `joints[id].gap`(+ = 隙間 / − = 差し込み)。⛔ 突き付けの量を実装で決めない。
+    /// 無い継ぎ目は 0(突き付け)。</summary>
+    static float JointGap(string id)
+    {
+        foreach (var o in A(D["joints"]))
+        {
+            var j = O(o);
+            if ((string)j["id"] != id) continue;
+            return Has(j, "gap") ? F(j["gap"]) : 0f;
+        }
+        return 0f;
+    }
+
+    /// <summary>**据えた隅部材の「腕」が、接する二辺の s をどこまで覆っているかを実メッシュで測る。**
+    ///
+    /// <para>⛔ **指図の `kado.parts[].armRaw` を信じない。**2026-09-20 の普請検査で、
+    /// `Dobei_Kado_88M`(P2)の宣言 2.274 × 1.818 = **4.134m** に対し実部材の腕は **3.30m** しかなく、
+    /// その差がそのまま外周の口(辺1 0.848m・辺2 0.902m)になっていた。
+    /// 腕は**部材が持つ寸法**で、指図に写した瞬間に二箇所が食い違う(`_kado` 自身がそう書いている)。</para>
+    ///
+    /// <para>測り方は `AlignInubashiri` の隅の横合わせと**同じ選り分け**(隅の折れ点から見て
+    /// その腕の中心線から `dobeiWallT × 1.5` 以内の頂点だけ)。高さは**軒下の帯 座+0.6〜1.4m** —
+    /// ⛔ 全メッシュで測ると軒・反り・鬼が先に届いて腕が 0.9m 長く出る(普請検査が『穴』と鳴らす
+    /// のは壁体で測るから。測る帯を揃えないと建てた物と検めた物が別になる)。</para>
+    ///
+    /// <para>結果: <paramref name="lo"/>[辺] = その辺の s=0 側にある隅が覆う上限 /
+    /// <paramref name="hi"/>[辺] = s=L 側にある隅が覆う下限。</para></summary>
+    static string KadoArmSpan(Transform kak, Dictionary<int, float> lo, Dictionary<int, float> hi)
+    {
+        var sb = new System.Text.StringBuilder("隅の腕(壁体・実測): ");
+        float wallT = F(O(D["const"])["dobeiWallT"]);
+        // ⛔ **腕の選り分けに「隅の二等分線からの残差」を使わない。**`AlignInubashiri` が使っている
+        //   その窓は、隅部材が犬走りぶん(0.30m)線の内へ寄っているぶん原点がずれるので、
+        //   **直角に近い隅(P0 の +90.95°・P2 の −87.76°)で頂点が 1 つも入らない**(実測で確認)。
+        // ⭕ 代わりに**その辺の壁の帯**で選る — 辺の外向き法線への射影が
+        //   「線の外 +0.40 〜 線の内 −(犬走り+壁厚+0.40)」に入る頂点だけがその辺の腕の壁。
+        //   隅部材が多少ずれていても拾える幅にしてある。
+        System.Func<Transform, int, float, float, float[]> reach = (kc2, e, bLo2, bHi2) =>
+        {
+            Vector2 apex = Poly[e % Poly.Length];
+            Vector2 u = (Poly[(e + 1) % Poly.Length] - apex).normalized;
+            Vector2 nn = OutNormal(e);
+            float tHi = 0.40f, tLo = -(INUBASHIRI + wallT + 0.40f);
+            float mn = float.MaxValue, mx = float.MinValue;
+            foreach (var w in MeshBody(kc2, 999999))
+            {
+                if (w.y < bLo2 || w.y > bHi2) continue;
+                float t = (w.x - apex.x) * nn.x + (w.z - apex.y) * nn.y;
+                if (t < tLo || t > tHi) continue;
+                float s = (w.x - apex.x) * u.x + (w.z - apex.y) * u.y;
+                if (s < mn) mn = s; if (s > mx) mx = s;
+            }
+            return mn == float.MaxValue ? null : new float[] { mn, mx };
+        };
+        foreach (var o in A(D["joints"]))
+        {
+            var j = O(o);
+            if (!Has(j, "kado")) continue;
+            string id = (string)j["id"];
+            var kc = kak.Find("Kado_" + id);
+            if (kc == null) continue;
+            int e1 = (int)F(j["edge"]);
+            int e2 = (e1 + 1) % Poly.Length;
+            var body = MeshBody(kc, 999999);
+            if (body.Count == 0) { sb.Append(id + ":メッシュ無 "); continue; }
+            float y0 = 1e9f; foreach (var v in body) if (v.y < y0) y0 = v.y;
+            float seat = y0 + 0.10f;                           // PlaceKado は seat − 0.10 に置く
+            float bLo = seat + 0.6f, bHi = seat + 1.4f;
+            var r1 = reach(kc, e1, bLo, bHi);                  // 辺 e1 では隅は s=L の側
+            var r2 = reach(kc, e2, bLo, bHi);                  // 辺 e2 では隅は s=0 の側
+            if (r1 == null || r2 == null) { sb.Append(id + ":腕を判別できず "); continue; }
+            float h = r1[0];                                   // 腕が辺 e1 を覆う下限
+            float l = r2[1];                                   // 腕が辺 e2 を覆う上限
+            if (!hi.ContainsKey(e1) || h < hi[e1]) hi[e1] = h;
+            if (!lo.ContainsKey(e2) || l > lo[e2]) lo[e2] = l;
+            sb.Append(id + " 辺" + e1 + "(s≥" + h.ToString("F2") + ")/ 辺" + e2
+                    + "(s≤" + l.ToString("F2") + ") ");
+        }
+        return sb.ToString().TrimEnd();
+    }
 
     public static string AlignInubashiri()
     {
@@ -1119,7 +1197,7 @@ public static partial class EdoMatsudairaDewaBuilder
             var body = MeshBody(kc, 999999);   // 隅は全頂点(間引かない・MeshBody のコメント参照)
             if (body.Count == 0) { kadoNote.Add(id + ": メッシュ無し"); continue; }
             // Kado の FBX は単一メッシュ(run のように hei/namako で分かれていない)。
-            // run と同じ「壁体の帯」(高さの15〜80%, `CloseKadoSeams` と同じ帯)で屋根を除く。
+            // run と同じ「壁体の帯」(高さの15〜80%)で屋根を除く。
             float ky0 = 1e9f, ky1 = -1e9f;
             foreach (var v in body) { if (v.y < ky0) ky0 = v.y; if (v.y > ky1) ky1 = v.y; }
             float lo = ky0 + (ky1 - ky0) * 0.15f, hi = ky0 + (ky1 - ky0) * 0.80f;
@@ -1157,52 +1235,11 @@ public static partial class EdoMatsudairaDewaBuilder
         return sb.ToString();
     }
 
-    /// <summary>**門と扉の面を囲いの面へ揃える。**
-    /// ⚠ 2026-08-29(EDO-0053)にユーザーが「門と長屋が面一になっていないので門や塀の意味を成さない」
-    ///   と指摘して発覚。実測では小門が +0.59m・表門が +0.26m せり出し、囲いは −0.30m だった。
-    ///   門が塀の面から飛び出していると、門が壁の一部でなく前に置いた飾りに見える。
-    /// ⛔ 番所は除く — `gate.plan.bansho.protrude`(石垣畳出)で**張り出すのが指図の意図**。</summary>
-    public static string AlignGateFace()
-    {
-        var grp = Group("Mon");
-        var gateEdge = new Dictionary<string, int>();
-        var g0 = O(D["gate"]);
-        gateEdge["Omotemon"] = (int)F(g0["edge"]);
-        foreach (var o in A(D["komon"])) { var k = O(o); gateEdge[(string)k["name"]] = (int)F(k["edge"]); }
-        int moved = 0;
-        var sb = new System.Text.StringBuilder();
-        for (int i = 0; i < grp.childCount; i++)
-        {
-            var c = grp.GetChild(i);
-            if (c.name.StartsWith("Bansho")) continue;              // 張り出すのが正
-            string bas = c.name.Split(new[] { "_Tobira" }, System.StringSplitOptions.None)[0];
-            if (!gateEdge.ContainsKey(bas)) continue;
-            int e = gateEdge[bas];
-            Vector2 n2 = OutNormal(e);
-            var a = Poly[e % Poly.Length];
-            float best = float.MinValue;
-            foreach (var mf in c.GetComponentsInChildren<MeshFilter>())
-            {
-                if (mf.sharedMesh == null) continue;
-                var m = mf.transform.localToWorldMatrix;
-                foreach (var v in mf.sharedMesh.vertices)
-                {
-                    var w = m.MultiplyPoint3x4(v);
-                    best = Mathf.Max(best, (w.x - a.x) * n2.x + (w.z - a.y) * n2.y);
-                }
-            }
-            if (best == float.MinValue) continue;
-            float shift = (-INUBASHIRI) - best;
-            if (Mathf.Abs(shift) > 0.02f)
-            {
-                c.position += new Vector3(n2.x * shift, 0f, n2.y * shift);
-                moved++;
-                sb.AppendLine("　" + c.name + " 外面 " + best.ToString("+0.00;-0.00") + " → -0.30");
-            }
-        }
-        sb.Append("門の面を揃えた: " + moved + " 基");
-        return sb.ToString();
-    }
+    // ⛔ **`AlignGateFace` と `CloseKadoSeams` は 2026-09-20 に削除した**(EDO-0286・施主指示)。
+    //   「置いた後に寄せる/伸ばす」関数があるほど**置き方の欠陥が隠れる**。門構えは
+    //   `Stage5_Mon` で 門柱 → 番所 → 袖塀 の順に実測面へ突き付ける連鎖に、隅は `Stage2` で
+    //   **先に**据えて腕の実端面を run の端にする作りへ移した(`KadoArmSpan`)。
+    //   ⛔ 同じ型の関数を足さないこと。
 
     // ---------------------------------------------------------------- Stage3 石垣基壇
     //
@@ -1677,6 +1714,7 @@ public static partial class EdoMatsudairaDewaBuilder
           if (reviewGate != null) return reviewGate; }
 
         var grp = Group("Buildings"); Clear(grp);
+        _terraceY.Clear();          // ⭐ 段の面は毎回 造成後の地形から測り直す(EDO-0286)
         var f = Grid;
         float yawU = YawAlongU(), yawV = YawAlongV();
         var sb = new System.Text.StringBuilder();
@@ -1701,7 +1739,18 @@ public static partial class EdoMatsudairaDewaBuilder
                 sb.AppendLine("⚠ " + name + ": 入側一間を四方に回すと身舎が残らない(" + kw + "x" + kd + ")");
                 continue;
             }
-            float y = F(m["y"]);
+            // ⭐⭐ **面の高さは造成後の地形が決める**(EDO-0286・CLAUDE.md 規則3)。
+            //   ⛔ `munes[].y` を座標として使わない — 指図は「どの段に載るか」を持ち、
+            //     高さはその段の**ハイトマップ格子点の中央値**(`EdoBuild.PadY`)。
+            //   同じ段の棟は同じ値になるので渡廊下は繋がる。指図との差 Δ は報告に出す。
+            float spreadT; int nPt;
+            var terr4 = TerraceOf((u0 + u1) * 0.5f, (v0 + v1) * 0.5f);
+            float y = TerraceY(terr4, out spreadT, out nPt);
+            if (Mathf.Abs(y - F(m["y"])) > 0.05f)
+                sb.AppendLine("〔記録〕" + name + " の座 " + y.ToString("F3") + "m(段 " + terr4.name
+                    + " の造成後の格子点中央値" + (nPt >= 0 ? "・標本" + nPt + "点・ばらつき"
+                    + spreadT.ToString("F2") + "m" : "") + ")= 指図 `munes[].y` "
+                    + F(m["y"]).ToString("F2") + " と " + (y - F(m["y"])).ToString("+0.00;-0.00") + "m 違う");
             var w = f.W(u0, v1);                          // local(0,0) の角
             // EDO-0149: 指図に munes[].roof(帯割り)があれば RoofBanded へ差し替える。
             // 無い棟(御湯殿・長局北・奥台所・厩=長屋型)は帯割りの部材が無いので、
@@ -1960,7 +2009,9 @@ public static partial class EdoMatsudairaDewaBuilder
             int n = alongU ? kw : kd;
             if ((alongU ? kd : kw) != 1)
                 sb.AppendLine("⚠ " + name + ": 廊下の幅が一間でない(" + kw + "x" + kd + ")");
-            float y = F(l["y"]);
+            // ⭐ 廊下も棟と同じ段の面へ(EDO-0286)。⛔ `links[].y` を座標として使わない
+            float spreadL; int nPtL;
+            float y = TerraceY(TerraceOf((u0 + u1) * 0.5f, (v0 + v1) * 0.5f), out spreadL, out nPtL);
             var w = alongU ? f.W(u0, v1) : f.W(u0, v0);
             GameObject g;
             if (kind != "渡廊下")
@@ -2088,10 +2139,29 @@ public static partial class EdoMatsudairaDewaBuilder
         if (mon != null) { n++; sb.AppendLine("表門 s=" + gs.ToString("F1") + " 敷居=" + sill.ToString("F2")); }
 
         // 番所2棟 — sPos の banshoW / banshoE の中心へ。門の面より外へ protrude 分だけ出す
-        var plan = O(gate["plan"]);
+        var plan0 = O(gate["plan"]);
+        var apexG0 = Poly[ge % Poly.Length];
+        // ⭐⭐ **置き方の1手目 — 固定側(門柱)を先に据え、面を先に揃える**(EDO-0286・施主指示 2026-09-20)。
+        //   ⛔ 事後に寄せる `AlignGateFace` は廃した。据える時点で外面を犬走りへ合わせる。
+        //   帯は **敷居 〜 敷居 + `plan.monH` × 0.6**(冠木の下端より下・柱の足元を含む。⛔ 上まで
+        //   伸ばすと冠木 ±0.35 を柱の面と読み違える)。
+        Vector2 eDirG = (EdgePt(ge, 1f) - EdgePt(ge, 0f)).normalized;
+        float monBandLo = sill, monBandHi = sill + F(plan0["monH"]) * 0.6f;
+        float sMonLoProj = float.NaN, sMonHiProj = float.NaN;
+        if (mon != null)
+        {
+            float mv = EdoBuild.AlignFace(mon, apexG0, outw, -INUBASHIRI, monBandLo, monBandHi);
+            float mMn0, mMx0;
+            ProjBand(mon, eDirG, monBandLo, monBandHi, out mMn0, out mMx0);
+            sMonLoProj = mMn0; sMonHiProj = mMx0;
+            sb.AppendLine("　表門の外面を犬走り(−" + INUBASHIRI.ToString("F2") + ")へ "
+                + mv.ToString("+0.000;-0.000") + "m 寄せて据えた(据え付けの一手。事後の寄せは無い)");
+        }
+        var plan = plan0;
         var sp = O(plan["sPos"]);
         var bs = O(plan["bansho"]);
         float prot = F(bs["protrude"]);
+        float banshoD = F(bs["d"]);
         // ⭐ **番所躯体の面の s**(低い側・高い側)を控える。袖塀の小口(J_Sode_*)は
         //   指図が「番所躯体の妻面」と名指ししているので、据えたあとここへ突き付けて検める。
         var banshoFace = new Dictionary<string, Vector2>();
@@ -2102,7 +2172,15 @@ public static partial class EdoMatsudairaDewaBuilder
         {
             var a = A(sp[key]);
             float mid = (F(a[0]) + F(a[1])) * 0.5f;
-            Vector2 q = EdgePt(ge, mid) + outw * (prot * 0.5f);
+            // ⭐⭐ **2026-09-20 是正 — `protrude` は「躯体が外周線を越える量」。**
+            //   指図 `gate.plan.bansho.parcelOut._`「越える量は従属値 = `protrude`(2.0m)+ `outAdd`」と
+            //   `assembly`「外周線から街路側へ `bansho.protrude` だけ張り出して切石基壇に載る」が正典。
+            //   ⇒ **躯体の外面**が線から `protrude` の所へ来る ⇒ 芯は線から `protrude − d/2`。
+            //   ⛔ 旧実装の `outw * (prot * 0.5f)` は protrude を「芯の寄せの2倍」と読んでおり、
+            //     躯体の外面が線から **2.8m**(= 1.0 + d/2 1.8)へ出ていた。普請検査の実測 3.350m と
+            //     宣言 2.3m の食い違い 1.05m のうち **0.80m はこれ**(残り 0.25m は `outAdd` の欄が
+            //     向唐破風の軒の出 0.55m でなく 0.30m だったぶん。欄は実測へ直した)。
+            Vector2 q = EdgePt(ge, mid) + outw * (prot - banshoD * 0.5f);
             // ⭐ 部材名に**躯体の幅**が入る(2026-09-09)。⛔ 寸法なしの旧名は削除済み —
             //   指図の `w` を動かしたら「部材が無い」と鳴るのが正。⛔ 旧寸で黙って建てない。
             var go = EdoNishiTameikeBuilder.Place(EdoAssets.Own.MatsudairaBansho(F(bs["w"])),
@@ -2110,6 +2188,74 @@ public static partial class EdoMatsudairaDewaBuilder
             if (go != null)
             {
                 n++;
+                float yLoBody = sill + EdoAssets.Own.MatsudairaBanshoBodyBand[0];
+                float yHiBody = sill + EdoAssets.Own.MatsudairaBanshoBodyBand[1];
+                // ⭐⭐ **左右を対に振る(2026-09-20 是正)。**番所の部材は**片手**で焼けている —
+                //   実測(`Matsudaira_Bansho_W4.25.fbx`): 躯体 ±2.125 に対し局所 X の伸びは
+                //   **−2.305(切石基壇 +0.18)/ +2.345(側面の出格子の受け +0.22)**。
+                //   2棟を同じ向きで据えると、**出格子が片方は門柱・片方は袖塀**を向き、
+                //   指図 `J_Bansho_E._`「西の `J_Bansho_W` と対。**左右で同じ納めにする**」に反する。
+                //   実害は東側で、出格子の受け(座+1.38〜1.50m)が**袖塀Eへ 0.22m めり込む**
+                //   (普請検査 2026-09-20 の実測)。
+                // ⭕ **出格子の側を門の開口へ向ける**(番所は門を見張る棟。袖塀は薄い壁で、
+                //   そこへ格子が突き抜けると外から見える。門柱は太い角柱なので受けの端は中に隠れる)。
+                //   ⛔ 向きを定数で決め打ちしない — **置いた実メッシュで、躯体の面より外へ大きく出る
+                //   のがどちら側かを測って**から、必要なときだけ局所 X を反転する。
+                {
+                    float wMn, wMx, bMn0, bMx0;
+                    ProjBand(go, eDir0, sill, sill + 9f, out wMn, out wMx);     // 全体(帯は実質無制限)
+                    ProjBand(go, eDir0, sill + EdoAssets.Own.MatsudairaBanshoBodyBand[0],
+                             sill + EdoAssets.Own.MatsudairaBanshoBodyBand[1], out bMn0, out bMx0,
+                             outw, new Vector2(go.transform.position.x, go.transform.position.z),
+                             banshoD * 0.5f + 0.05f);
+                    if (bMx0 > bMn0 && wMx > wMn)
+                    {
+                        float overLo = bMn0 - wMn, overHi = wMx - bMx0;   // 躯体の面より外へ出る量
+                        // 出の大きい側が開口の芯(gs)の側を向いていなければ反転する
+                        bool bigOnHighS = overHi > overLo;
+                        bool gateOnHighS = gs > mid;
+                        if (bigOnHighS != gateOnHighS)
+                        {
+                            var ls = go.transform.localScale;
+                            go.transform.localScale = new Vector3(-ls.x, ls.y, ls.z);
+                            sb.AppendLine("番所 " + key + ": 側面の出格子(躯体の面より +"
+                                + Mathf.Max(overLo, overHi).ToString("F2") + "m)が門と反対を向いていたので"
+                                + "**局所 X を反転**して対にした(指図 `J_Bansho_E._`『左右で同じ納め』)");
+                        }
+                    }
+                }
+                // ⭐⭐⭐ **置き方の2手目 — 番所は「測って突き付ける」(EDO-0286・施主指示 2026-09-20)。**
+                //   ⛔ `sPos` の中点+`protrude/2` で置いて後から⚠を積む作りはやめた。
+                //   ① **横**: 躯体の外側の面(帯 `MatsudairaBanshoBodyBand` + 走りの窓で切石基壇 ±0.18 を外す)を
+                //      **区画線 + `protrude`** へ `AlignFace` 相当で寄せる(指図 `parcelOut._`
+                //      「越える量 = `protrude` + `outAdd`」の `protrude` はここ)。
+                //      ⚠ 内側の面を犬走りに乗せる条件とは同時に満たせない(奥行 3.6 > 2.3)。
+                //        確度A は「街路へ張出 `protrude`」なので**外側の面を正**とする。
+                //   ② **走り**: 躯体の門柱側の妻面を、置いた門柱の外側面(実測)へ `Abut`(gap は指図の `joints`)。
+                {
+                    var perpOrigin = new Vector2(go.transform.position.x, go.transform.position.z);
+                    float halfW = F(bs["w"]) * 0.5f + 0.02f;      // 走りの窓 — 基壇の角(±w/2+0.18)を外す
+                    float faceOut = EdoBuild.Face(go, outw, yLoBody, yHiBody, true, eDirG, perpOrigin, halfW);
+                    if (!float.IsNaN(faceOut))
+                    {
+                        float tgt = Vector2.Dot(apexG0, outw) + prot;
+                        float sh = tgt - faceOut;
+                        go.transform.position += new Vector3(outw.x * sh, 0f, outw.y * sh);
+                        sb.AppendLine("　番所 " + key + " の躯体の外面を 区画線+" + prot.ToString("F2")
+                            + " へ " + sh.ToString("+0.000;-0.000") + "m 寄せて据えた");
+                    }
+                    bool gateHigh = gs > mid;                      // 門は s の大きい側か
+                    float tgtS = gateHigh ? sMonLoProj : sMonHiProj;
+                    if (!float.IsNaN(tgtS))
+                    {
+                        float jg = JointGap(gateHigh ? "J_Bansho_W" : "J_Bansho_E");
+                        float sh2 = EdoBuild.Abut(go, eDirG, yLoBody, yHiBody, gateHigh, tgtS, jg,
+                                                  outw, new Vector2(go.transform.position.x, go.transform.position.z),
+                                                  banshoD * 0.5f + 0.05f);
+                        sb.AppendLine("　番所 " + key + " の躯体の妻面を 門柱の外側面(実測)へ "
+                            + sh2.ToString("+0.000;-0.000") + "m 突き付けた(gap=" + jg.ToString("F2") + ")");
+                    }
+                }
                 // ⭐⭐ **2026-09-09 普請奉行の裁定 C — 検査を「躯体の面」で測る。**
                 //   指図の継ぎ目 `J_Bansho_*` / `J_Sode_*` が名指しするのは**番所躯体の東端/西端**で、
                 //   部材のメッシュは恒久的に 躯体 + 0.40m(基壇 +0.18 / 側面の出格子 +0.22)。
@@ -2159,6 +2305,39 @@ public static partial class EdoMatsudairaDewaBuilder
                         + sLo.ToString("F2") + "‥" + sHi.ToString("F2") + "(指図 " + wantLo.ToString("F2")
                         + "‥" + wantHi.ToString("F2") + ")/ 参考: 基壇・出格子を含む外接 "
                         + whole.ToString("F2") + "m");
+                }
+                // ⭐ **街路への張り出しを毎回実測で出す**(指図 `parcelOut._` の申し送り
+                //   「実測値は毎回出す(2.3m から動いたら気づけるように)」)。
+                //   ⛔ 受容(`accept`)されているので不合格にはしない。⛔ 黙りもしない。
+                {
+                    var apexG = Poly[ge % Poly.Length];
+                    float bodyOut = float.MinValue, wholeOut = float.MinValue;
+                    float yLoB2 = sill + EdoAssets.Own.MatsudairaBanshoBodyBand[0];
+                    float yHiB2 = sill + EdoAssets.Own.MatsudairaBanshoBodyBand[1];
+                    foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+                    {
+                        if (mf.sharedMesh == null) continue;
+                        var mtx = mf.transform.localToWorldMatrix;
+                        foreach (var v in mf.sharedMesh.vertices)
+                        {
+                            var w4 = mtx.MultiplyPoint3x4(v);
+                            float d4 = (w4.x - apexG.x) * outw.x + (w4.z - apexG.y) * outw.y;
+                            wholeOut = Mathf.Max(wholeOut, d4);
+                            if (w4.y >= yLoB2 && w4.y <= yHiB2) bodyOut = Mathf.Max(bodyOut, d4);
+                        }
+                    }
+                    var po = Has(bs, "parcelOut") ? O(bs["parcelOut"]) : null;
+                    float wantOut = po == null ? -1f : prot + F(po["outAdd"]);
+                    // ⚠ `bodyOut` の帯(座+0.50〜0.60)には**切石基壇の天端**(躯体より +0.18)が
+                    //   同居する。躯体の面そのものは据え方で `protrude` ちょうど。
+                    //   ⇒ 部材の最外の出は **最外 − `protrude`** で出す(基壇からの差ではない)。
+                    sb.AppendLine("〔記録〕番所 " + key + " の街路への張り出し: 躯体の面 "
+                        + prot.ToString("F2") + "m(据え方で `protrude` ちょうど。帯の実測 "
+                        + bodyOut.ToString("F3") + "m は切石基壇の天端 +0.18 を含む)/ **最外 "
+                        + wholeOut.ToString("F3") + "m**(指図 `protrude`+`outAdd` = "
+                        + (wantOut < 0f ? "—" : wantOut.ToString("F2")) + ")/ 部材の最外の出 = "
+                        + (wholeOut - prot).ToString("F3") + "m(= 向唐破風の軒)"
+                        + (po != null && (bool)po["accept"] ? " — `parcelOut.accept`=true(受容済み)" : ""));
                 }
             }
         }
@@ -2276,6 +2455,25 @@ public static partial class EdoMatsudairaDewaBuilder
                         go.transform.position += new Vector3(outw.x * shift, 0f, outw.y * shift);
                     }
                 }
+                // ⭐⭐⭐ **置き方の3手目 — 袖塀は番所の外側の妻面(実測)へ突き付ける。**
+                //   ⛔ `sPos` の端に置いて後から差を報告する作りはやめた(EDO-0286)。
+                //   相手の面は**番所の躯体の妻面**(指図 `J_Sode_*.bFace`)。帯は袖塀の壁体(丈の 0.2〜0.6)。
+                {
+                    string bkey0 = "bansho" + side;
+                    if (banshoFace.ContainsKey(bkey0))
+                    {
+                        var bf0 = banshoFace[bkey0];
+                        // 番所の**外側**(門から遠い側)の妻面
+                        float sFace0 = Mathf.Abs(bf0.x - gs) < Mathf.Abs(bf0.y - gs) ? bf0.y : bf0.x;
+                        // 袖塀は番所より外(門から遠い)側にある ⇒ 番所に当たるのは門に近い側の小口
+                        bool sodeMaxSide = sFace0 > gs ? false : true;
+                        float jg0 = JointGap("J_Sode_" + side);
+                        float sh3 = EdoBuild.Abut(go, eDir0, sill + dobeiH * 0.20f, sill + dobeiH * 0.60f,
+                                                  sodeMaxSide, sFace0 + sBase, jg0);
+                        sb.AppendLine("　袖塀 " + side + " の小口を 番所の外側の妻面(実測)へ "
+                            + sh3.ToString("+0.000;-0.000") + "m 突き付けた(gap=" + jg0.ToString("F2") + ")");
+                    }
+                }
                 n++;
                 // ⭐ **継ぎ目 J_Sode_*(袖塀の小口 ↔ 番所躯体の妻面)を実測で検める。**
                 //   ⛔ 屋根の出(0.5)を含む外接で測らない — 壁体の帯(丈の 0.2〜0.6)で測る。
@@ -2370,7 +2568,6 @@ public static partial class EdoMatsudairaDewaBuilder
                         + "(⛔ 実装が勝手に別部材の扉を据えない)");
             }
         }
-        sb.AppendLine(AlignGateFace());
         sb.Append("門 " + n + " 基");
         return sb.ToString();
     }
@@ -4256,7 +4453,23 @@ public static partial class EdoMatsudairaDewaBuilder
             }
         }
 
-        // (1) 各層の端が指図の s0/s1 に乗っているか
+        // ---- 囲いも**隅に接する端だけ**、期待を「据えた隅部材の壁体が覆う所」へ広げる。
+        //   ⭐ 2026-09-20: 指図 `kado.parts[].armRaw` は部材の実寸と食い違うことがある
+        //   (`Dobei_Kado_88M` は宣言 4.134m に対し実測 3.30m)。Stage2 は**実メッシュで測った腕**
+        //   まで run の端を寄せるので(CLAUDE.md 規則2・2026-09-19 裁定)、検査もその実測を見る。
+        //   ⛔ 許容を緩めたのではない — **紙の数字でなく実際の継ぎ目を測る**ように変えただけで、
+        //     隅から離れた端は今までどおり指図の s0/s1 ちょうど(±0.10)を要求する。
+        var kLo = new Dictionary<int, float>(); var kHi = new Dictionary<int, float>();
+        KadoArmSpan(kak, kLo, kHi);
+        var eMin = new Dictionary<int, float>(); var eMax = new Dictionary<int, float>();
+        foreach (var r0 in Runs)
+        {
+            float q0;
+            if (!eMin.TryGetValue(r0.edge, out q0) || r0.s0 < q0) eMin[r0.edge] = r0.s0;
+            if (!eMax.TryGetValue(r0.edge, out q0) || r0.s1 > q0) eMax[r0.edge] = r0.s1;
+        }
+
+        // (1) 各層の端が指図の s0/s1(隅に接する端は隅部材の腕)に乗っているか
         int nk = 0, ni = 0;
         foreach (var r in Runs)
         {
@@ -4264,9 +4477,17 @@ public static partial class EdoMatsudairaDewaBuilder
             if (kakSpan.TryGetValue(r.name, out v))
             {
                 nk++;
-                if (Mathf.Abs(v[0] - r.s0) > 0.10f || Mathf.Abs(v[1] - r.s1) > 0.10f)
+                float e0 = r.s0, e1e = r.s1; float q;
+                if (!r.nagaya && r.s0 <= eMin[r.edge] + 1e-3f
+                    && kLo.TryGetValue(r.edge, out q) && q < e0) e0 = q;
+                if (!r.nagaya && r.s1 >= eMax[r.edge] - 1e-3f
+                    && kHi.TryGetValue(r.edge, out q) && q > e1e) e1e = q;
+                if (Mathf.Abs(v[0] - e0) > 0.10f || Mathf.Abs(v[1] - e1e) > 0.10f)
                     bad.Add("囲い " + r.name + " 辺" + r.edge + " 壁 " + v[0].ToString("F2") + "〜" + v[1].ToString("F2")
-                            + "(指図 " + r.s0.ToString("F2") + "〜" + r.s1.ToString("F2") + ")");
+                            + "(期待 " + e0.ToString("F2") + "〜" + e1e.ToString("F2")
+                            + (e0 != r.s0 || e1e != r.s1
+                               ? " = 指図 " + r.s0.ToString("F2") + "〜" + r.s1.ToString("F2") + " を隅部材の腕の実測へ寄せた値"
+                               : " = 指図") + ")");
             }
             if (igSpan.TryGetValue(r.name, out v))
             {

@@ -348,27 +348,12 @@ public static class EdoOkabeYashikiBuilder
     // =====================================================================
     // 群と地形の小物
     // =====================================================================
-    static Transform Group(string child)
-    {
-        var r = GameObject.Find(GN);
-        if (r == null) { r = new GameObject(GN); Undo.RegisterCreatedObjectUndo(r, "grp"); }
-        EdoYashikiPrefab.EnsureEditable(r);      // プレハブ化済みなら解く(でないと組み替えが黙って失敗する)
-        var cur = r.transform;
-        if (string.IsNullOrEmpty(child)) return cur;
-        foreach (var seg in child.Split('/'))
-        {
-            var nx = cur.Find(seg);
-            if (nx == null)
-            {
-                var go = new GameObject(seg);
-                Undo.RegisterCreatedObjectUndo(go, "grp");
-                go.transform.SetParent(cur, false);
-                nx = go.transform;
-            }
-            cur = nx;
-        }
-        return cur;
-    }
+    /// <summary>
+    /// 群を辿る(無ければ作る)。⭐ 中身は共通の一本道 <see cref="EdoYashikiPrefab.Group"/>。
+    /// ルートの外側と**辿った先頭の段だけ**を解くので、触っていない段は書き戻しが飛ばせる
+    /// (EDO-0282③)。⛔ ここに置き方を書かない(規則21)。
+    /// </summary>
+    static Transform Group(string child) { return EdoYashikiPrefab.Group(GN, child); }
     static void Clear(Transform t)
     { for (int i = t.childCount - 1; i >= 0; i--) UnityEngine.Object.DestroyImmediate(t.GetChild(i).gameObject); }
 

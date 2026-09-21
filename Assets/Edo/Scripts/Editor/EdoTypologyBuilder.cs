@@ -28,7 +28,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
-public static class EdoTypologyBuilder
+public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyBuilder.Niwa.cs
 {
     const float ES = 1.818f;          // edogoyomi の倍率(江戸間1間)
     const float KEN = 1.818f;
@@ -528,8 +528,12 @@ public static class EdoTypologyBuilder
             }
         }
 
-        // ── Stage 3〜5: 主屋・付属・植栽 ──
+        // ── Stage 3〜4: 主屋・付属 ──
         log.Add(Omoya(s, root, poly, front, pad));
+
+        // ── Stage 5: 植栽(EDO-0323)── ⭐ 参道の帯は**Stage 1 で実測した門構えの開口**から引く
+        //    (⛔ 当て推量の GateWidth ではない)。庭の意匠は庭方の設計・EdoTypologyBuilder.Niwa.cs。
+        log.Add(Niwa(s, root, poly, front, pad, gateC, gateHalf));
 
         // ── Stage 6: 検査(0件でも刷る・規則19) ──
         log.Add(Inspect(id, root, poly));

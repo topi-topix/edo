@@ -18,7 +18,21 @@ import re
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PARCELS = os.path.join(ROOT, "docs", "Sashizu", "parcels.json")
 TYPO    = os.path.join(ROOT, "docs", "Sashizu", "typology.json")
+# ⭐ **ビルダーは1本だが、ファイルは分かれている**(`EdoTypologyBuilder.cs` + `.Niwa.cs` …)。
+#   ⛔ 1ファイルだけ読むと、別の部分クラスで使っている欄が「読んで捨てている」に見える —
+#   2026-09-21、庭(Stage 5)を `.Niwa.cs` へ分けた途端、実際に効いている `garden` が
+#   read_but_unused に居座った(EDO-0323)。関門が嘘をつく方向の盲点なので glob で拾う。
+BUILDER_GLOB = os.path.join(ROOT, "Assets", "Edo", "Scripts", "Editor", "EdoTypologyBuilder*.cs")
 BUILDER = os.path.join(ROOT, "Assets", "Edo", "Scripts", "Editor", "EdoTypologyBuilder.cs")
+
+
+def builder_src():
+    """ビルダーの全部分クラスを1つの文字列として読む(無ければ None)。"""
+    import glob as _glob
+    paths = sorted(_glob.glob(BUILDER_GLOB))
+    if not paths:
+        return None
+    return "\n".join(open(p, encoding="utf-8").read() for p in paths)
 # ⭐ 表の欄を**建てる以外の手**で使う道具(地表の輪)。`surface` は地形のスプラットへ塗る欄で、類型ビルダーは
 #   駒を置くだけなので読まない — 使い手が別のファイルにいても「使われている」と数える(EDO-0319)。
 #   ⛔ 増やすときは、そのファイルが**表の欄名を `.欄` で引いて実際に効かせている**ことを確かめてから。
@@ -28,9 +42,9 @@ CONSUMERS = [os.path.join(ROOT, "Assets", "Edo", "Scripts", "Editor", "EdoSurfac
 def read_keys():
     """類型ビルダーが**実際に読む**欄の名。⛔ 手で写した一覧にしない — 写しはビルダーが
     変わった日にそのまま嘘になる。ソースの `S(d,"…")` / `I(d,"…",…)` / `Bo(d,"…",…)` を引く。"""
-    if not os.path.exists(BUILDER):
+    src = builder_src()
+    if src is None:
         return None
-    src = open(BUILDER, encoding="utf-8").read()
     return set(re.findall(r'\b[SIB]o?\(\s*d\s*,\s*"([^"]+)"', src))
 
 
@@ -39,9 +53,9 @@ def read_but_unused():
     ⭐ `inert_defaults` の裏返しで、こちらの方が見つけにくい — 表にも欄があり C# も読んでいるので
     「効いている」ように見えるのに、建てる側が参照しないので姿は変わらない(`inari` が実際にそう)。
     ⛔ 0 件でも「合格」ではない: 参照していても**使い道が間違っている**のはここでは捕まらない。"""
-    if not os.path.exists(BUILDER):
+    src = builder_src()
+    if src is None:
         return None
-    src = open(BUILDER, encoding="utf-8").read()
     out = []
     for field, key in re.findall(r'\b(\w+)\s*=\s*[SIB]o?\(\s*d\s*,\s*"([^"]+)"', src):
         # 宣言 1 回 + この読み込みの左辺 1 回を引いた残りが、その欄の**使われ方**。

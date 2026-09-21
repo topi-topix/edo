@@ -8,10 +8,12 @@
 //    **区画の内側の格子点へばらばらに散らして**いた。町屋は通りに面して軒を接して建つものなので、
 //    姿が根本から違った(どの区画も「どこも6軒」で、区画の大小も間口も効いていなかった)。
 //
-// ⚠ **5間(9.09m)の1軒を埋める駒が在庫に無い。**在庫の表店は `Eg.Shop01` 躯体幅 ≒4.9m(2.7間)と
-//    `Eg.Shop02` ≒7.1m(3.9間)の2点だけ。⛔ 非等方に伸ばして 5 間へ合わせない(軒の出と格子の目が伸びる)。
-//    採ったのは **継ぐ**方 — 1軒を駒1〜2枚の組で埋め、表の間口との差を <see cref="EdoBuild.MachiyaTally"/> に
-//    載せて呼び手に刷らせる。5間専用の駒は EDO-0318 ④(部材方)。
+// ⚠ **在庫の表店は `Eg.Shop01` 軒幅 ≒4.9m(2.7間)と `Eg.Shop02` ≒7.1m(3.9間)の2点だけ**で、5間(9.09m)の
+//    1軒は1枚で埋まらない。⛔ 非等方に伸ばして 5 間へ合わせない(軒の出と格子の目が伸びる)。
+//    そこで **継ぐ**(1軒を駒1〜2枚の組で埋め、表の間口との差を <see cref="EdoBuild.MachiyaTally"/> に載せて
+//    呼び手に刷らせる)のと並べて、**当方で起こした 5間の駒**(`EdoAssets.Own.Typ.Omotedana`・EDO-0348)を
+//    候補へ足せる(EDO-0355)。⚠ **在庫の駒は ES 倍・当方の駒は実寸(倍率 1)** なので、駒ごとに
+//    <see cref="ShopPiece"/>(パス+倍率)を持ち、測る手も置く手も同じ倍率で通す。
 //
 // 作法は docs/oki-kata.md(触れている箇所を測る)/ 置き方の4手は
 // unity-buke-yashiki/references/sashizu.md §3f。
@@ -42,6 +44,19 @@ public static partial class EdoBuild
         public float W { get { return hi - lo; } }        // 軒の幅(= 1 枚が食う走り)
         public float WallW { get { return wHi - wLo; } }  // 躯体の幅
         public float D { get { return dHi - dLo; } }      // 躯体の奥行
+    }
+
+    /// <summary>表店の駒 1 種 = パス+倍率。⭐ **測る倍率と置く倍率を分けて持てない形にした** — edogoyomi は ES 倍、
+    /// 当方で起こした駒は実寸(1 倍)で、片方だけ取り違えると 1.8 倍(または 0.55 倍)の町屋が建つ(EDO-0355)。
+    /// ⛔ 呼び手が `ShopMeasure` / `OwnMeasure` を選ばない — <see cref="Measure"/> が倍率を通す。</summary>
+    public struct ShopPiece
+    {
+        public string path; public float scale;
+        public static ShopPiece Kit(string path) { return new ShopPiece { path = path, scale = ES }; }      // 在庫の駒(ES 倍)
+        public static ShopPiece Ours(string path) { return new ShopPiece { path = path, scale = 1f }; }     // 当方の駒(実寸)
+        public ShopModule Measure() { return ModuleMeasure(path, scale); }
+        public Vector3 Scale3 { get { return Vector3.one * scale; } }
+        public string Name { get { return System.IO.Path.GetFileNameWithoutExtension(path); } }
     }
 
     /// <summary>軒どうしの継ぎ目に残す**髪一筋**[m]。⭐ 0 ちょうどで突き付けると、据え直しの丸めで
@@ -185,22 +200,23 @@ public static partial class EdoBuild
         public int clashed;        // 先に建った列にめり込むので退けた駒(両側町の角)
         public int tucked;         // 区画の内へ折り込んだ駒
         public float tuckedM;      // 同・最大の折り込み量[m]
+        public string oursKind;    // 当方の駒を候補へ足したときのその名前(足さなければ null)
     }
 
     /// <summary>1 軒の間口 <paramref name="maguchiM"/> を、在庫の駒 1〜2 枚の組で埋める候補。
     /// 誤差の小さい順に返す。⭐ **1 種に決め打たない** — 全部おなじ組で埋めると、24 区画の通りが
     /// 同じ駒の等間隔の並びになる(`docs/typology-builder.md` の「⛔ 等間隔・同一個体」)。
     /// 採るのは「最良の誤差 + 0.5m」か「間口の 1/4」のどちらか広い方に入る組だけ。</summary>
-    static List<string[]> ShopCombos(string[] stock, float maguchiM)
+    static List<ShopPiece[]> ShopCombos(ShopPiece[] stock, float maguchiM)
     {
-        var cand = new List<string[]>();
+        var cand = new List<ShopPiece[]>();
         foreach (var a in stock) cand.Add(new[] { a });
         foreach (var a in stock) foreach (var b in stock) cand.Add(new[] { a, b });
-        Func<string[], float> wid = c => { float w = 0f; foreach (var p in c) w += ShopMeasure(p).W; return w; };
+        Func<ShopPiece[], float> wid = c => { float w = 0f; foreach (var p in c) w += p.Measure().W; return w; };
         cand.Sort((x, y) => Mathf.Abs(wid(x) - maguchiM).CompareTo(Mathf.Abs(wid(y) - maguchiM)));
         float best = Mathf.Abs(wid(cand[0]) - maguchiM);
         float tol = Mathf.Max(best + 0.5f, maguchiM * 0.25f);
-        var keep = new List<string[]>();
+        var keep = new List<ShopPiece[]>();
         foreach (var c in cand)
         {
             if (Mathf.Abs(wid(c) - maguchiM) > tol) continue;
@@ -224,10 +240,14 @@ public static partial class EdoBuild
     /// <param name="gapC">/<paramref name="gapHalf"/> 木戸(路地口)の開口。列をそこで割る。gapHalf≤0 なら割らない。</param>
     /// <param name="leadPath">列の頭に 1 枚だけ差す駒(自身番屋)。null なら差さない。
     /// その軒の残りは在庫の駒で埋める。</param>
+    /// <param name="ours">当方で起こした表店の駒(実寸・**深い順**)。null なら在庫の 2 点だけ。
+    /// ⭐ **奥行に収まる最初の 1 枚だけ**を候補へ足す(深い版が入らない辺では詰めた版へ落ちる)。
+    /// 在庫の駒と同じ候補として <see cref="ShopCombos"/> に載るので、間口に合う駒が先に採られ、
+    /// 合わなければ従来どおり在庫の駒を継ぐ。</param>
     /// <param name="keepInside">壁体がここから出る駒は置かない(区域侵犯は許容0・規則4)。null なら検めない。</param>
     public static List<GameObject> MachiyaRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, float baseY,
         float maguchiM, float maxDepthM, Vector2 gapC, float gapHalf, string prefix,
-        string leadPath, Vector2[] keepInside, List<GameObject> avoid, out MachiyaTally tally)
+        string leadPath, string[] ours, Vector2[] keepInside, List<GameObject> avoid, out MachiyaTally tally)
     {
         var made = new List<GameObject>();
         tally = new MachiyaTally();
@@ -252,13 +272,22 @@ public static partial class EdoBuild
             tally.roomM = real;
             room = (room > 0f) ? Mathf.Min(room, real) : real;
         }
-        var stock = new List<string>();
+        var stock = new List<ShopPiece>();
         foreach (var p in new[] { EdoAssets.Eg.Shop01, EdoAssets.Eg.Shop02 })
         {
-            if (room > 0f && ShopMeasure(p).D > room - 0.3f) continue;
-            stock.Add(p);
+            var pc = ShopPiece.Kit(p);
+            if (room > 0f && pc.Measure().D > room - 0.3f) continue;
+            stock.Add(pc);
         }
-        if (stock.Count == 0) stock.Add(EdoAssets.Eg.Shop01);   // 奥行が足りなくても 1 種は残す(呼び手が刷る)
+        // 当方の駒: 奥行に収まる**最初の 1 枚**(深い版 → 詰めた版)。収まる版が無ければ足さない。
+        if (ours != null)
+            foreach (var p in ours)
+            {
+                var pc = ShopPiece.Ours(p);
+                if (room > 0f && pc.Measure().D > room - 0.3f) continue;
+                stock.Add(pc); tally.oursKind = pc.Name; break;
+            }
+        if (stock.Count == 0) stock.Add(ShopPiece.Kit(EdoAssets.Eg.Shop01));   // 奥行が足りなくても 1 種は残す(呼び手が刷る)
         var combos = ShopCombos(stock.ToArray(), maguchiM);
         tally.comboKinds = combos.Count;
 
@@ -275,7 +304,7 @@ public static partial class EdoBuild
         var rnd = new System.Random(prefix.GetHashCode());
         var kinds = new Dictionary<string, int>();
         int idx = 0;
-        string lead = leadPath;                       // 頭の 1 枚は最初の区間の最初の軒でだけ使う
+        ShopPiece? lead = leadPath != null ? (ShopPiece?)ShopPiece.Kit(leadPath) : null;   // 頭の 1 枚は最初の区間の最初の軒でだけ使う
 
         foreach (var seg in segs)
         {
@@ -283,29 +312,29 @@ public static partial class EdoBuild
             if (segLen < 1.0f) continue;
 
             // ── 下読み: この区間に何軒が何枚で入るか(まだ置かない)──
-            var rows = new List<List<string>>();
+            var rows = new List<List<ShopPiece>>();
             float total = 0f;
             while (true)
             {
-                var row = new List<string>();
+                var row = new List<ShopPiece>();
                 float w = 0f;
                 bool usedLead = lead != null;
                 if (usedLead)
                 {
-                    row.Add(lead); w += ShopMeasure(lead).W;
+                    row.Add(lead.Value); w += lead.Value.Measure().W;
                     // 残りを在庫の駒で埋める(1 枚だけ・入らなければ番屋 1 枚で 1 軒とする)
-                    string fill = null; float bestErr = float.MaxValue;
+                    ShopPiece? fill = null; float bestErr = float.MaxValue;
                     foreach (var p in stock)
                     {
-                        float err = Mathf.Abs(w + ShopMeasure(p).W - maguchiM);
+                        float err = Mathf.Abs(w + p.Measure().W - maguchiM);
                         if (err < bestErr) { bestErr = err; fill = p; }
                     }
-                    if (fill != null && Mathf.Abs(w - maguchiM) > bestErr) { row.Add(fill); w += ShopMeasure(fill).W; }
+                    if (fill != null && Mathf.Abs(w - maguchiM) > bestErr) { row.Add(fill.Value); w += fill.Value.Measure().W; }
                 }
                 else
                 {
                     var c = combos[rnd.Next(combos.Count)];
-                    foreach (var p in c) { row.Add(p); w += ShopMeasure(p).W; }
+                    foreach (var p in c) { row.Add(p); w += p.Measure().W; }
                 }
                 if (total + w > segLen + 0.01f) break;   // ⛔ 入らない軒は数えない(区間からはみ出す)
                 rows.Add(row); total += w;
@@ -323,13 +352,13 @@ public static partial class EdoBuild
             foreach (var row in rows)
             {
                 var houseGo = new List<GameObject>();
-                foreach (var path in row)
+                foreach (var pc in row)
                 {
-                    var m = ShopMeasure(path);
+                    var m = pc.Measure();
                     // ローカル +X ∥ rdir なので、軒の低い端が cursor に来るピボットの走り座標
                     var c2 = sA + rdir * (cursor - m.lo);
-                    var go = Place(path, new Vector3(c2.x, baseY, c2.y), psi, Vector3.one * ES, parent,
-                                   prefix + "_" + idx + "_" + System.IO.Path.GetFileNameWithoutExtension(path));
+                    var go = Place(pc.path, new Vector3(c2.x, baseY, c2.y), psi, pc.Scale3, parent,
+                                   prefix + "_" + idx + "_" + pc.Name);
                     // ② 奥行: 店先の**実面**を境界線へ(⛔ ピボット・外接箱で寄せない)
                     var rb = RB(go);
                     AlignFace(go, A, outward, 0f, rb.min.y + 0.30f, rb.min.y + rb.size.y * 0.60f);
@@ -362,7 +391,7 @@ public static partial class EdoBuild
                         tally.clashed++; idx++; cursor += m.W + JOINT; continue;
                     }
                     made.Add(go); houseGo.Add(go); idx++;
-                    int cnt; string nm = System.IO.Path.GetFileNameWithoutExtension(path);
+                    int cnt; string nm = pc.Name;
                     kinds.TryGetValue(nm, out cnt); kinds[nm] = cnt + 1;
                     tally.builtM += m.W;
                     // 軒の出のぶん、界壁には必ず隙が残る(閉じは「隙間 > めり込み」)。実寸から出して刷る。

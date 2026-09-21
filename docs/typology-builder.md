@@ -40,10 +40,14 @@
 
 | 残っているビルダー | 何を握っているか | 呼んでいる側 |
 |---|---|---|
-| `EdoSannoJuboBuilder` | `PanelRun`(板塀の run)・`Parcels`・`ObbFootprint`/`MoveToObb` | `EdoSannoShaBuilder` / `EdoSannoShaRebuild` / `EdoSannoBukeBuilder` |
-| `EdoNishiTameikeBuilder` | `NagayaRun`/`DobeiRun`/`Place`/`RB`/`SeatBottom`/`Ground` | `EdoSannoBukeBuilder` / `EdoYamatoRebuild` |
-| `EdoSannoKitaBuilder` | `ES`(1.818)と土井の旧ルート名 | `EdoMatsudairaDewaBuilder` |
+| `EdoSannoJuboBuilder` | `PanelRun`(板塀の run)・`Parcels`・`ObbFootprint`/`MoveToObb` | 3 ファイル(山王社ほか) |
+| `EdoNishiTameikeBuilder` | `NagayaRun`/`DobeiRun`/`NaturalMode`/`Place`/`RB`/`SeatBottom`/`Ground`/`T` | **11 ファイル・143 箇所** — 松江松平・岡部・土井・三屋敷・松平大和守・山王社・山王武家・汐見坂、**そして類型ビルダー自身** |
+| `EdoSannoKitaBuilder` | `ES`(1.818) | `EdoMatsudairaDewaBuilder` |
 | `EdoSannoBukeBuilder` | 丹羽・京極(`built: hand`)と樹下・内藤・社人(類型)が同居 | — (先に邸ごとに分ける → EDO-0094) |
+
+⚠ **`EdoNishiTameikeBuilder` は「溜池西の街区ビルダー」の顔をしているが、実体は共有の置き場だった。**
+2026-08-26 に本体を `EdoBuild` へ移したとき、呼び手を変えずに 1 行委譲を残したので、以後に書かれた邸も
+そこを経由して書かれ続けた。名前が仕事を表さなくなった委譲は、こうして増える。
 
 **図を起こして手で建てた敷地**(岡部・土井・松江松平・山王社・京極・丹羽・外堀)は、
 `"built": "hand"` の印を持ち、類型ビルダーの生成対象から外れる。これは格の違いではなく

@@ -36,18 +36,33 @@
 新町 / 代地北 / 桐畑の代地 / 田町 / 田町五丁目対岸 / 溜池北西 / 預明地。消す前に拾った史料値は
 `typology.json` の `source` 欄(commit `ae124cd9`)、ヘッダの語りは git と memory(`sanbezaka-higashi-block` ほか)。
 
-⛔ **まだ消せない 4 本**(いずれも「手で建てた敷地」が中の関数を呼んでいる。先に `EdoBuild` へ移す):
-
-| 残っているビルダー | 何を握っているか | 呼んでいる側 |
-|---|---|---|
-| `EdoSannoJuboBuilder` | `PanelRun`(板塀の run)・`Parcels`・`ObbFootprint`/`MoveToObb` | 3 ファイル(山王社ほか) |
-| `EdoNishiTameikeBuilder` | `NagayaRun`/`DobeiRun`/`NaturalMode`/`Place`/`RB`/`SeatBottom`/`Ground`/`T` | **11 ファイル・143 箇所** — 松江松平・岡部・土井・三屋敷・松平大和守・山王社・山王武家・汐見坂、**そして類型ビルダー自身** |
-| `EdoSannoKitaBuilder` | `ES`(1.818) | `EdoMatsudairaDewaBuilder` |
-| `EdoSannoBukeBuilder` | 丹羽・京極(`built: hand`)と樹下・内藤・社人(類型)が同居 | — (先に邸ごとに分ける → EDO-0094) |
+⭕ **街区ビルダーは全廃した**(2026-09-21・EDO-0299 ④)。11 本を `cefb660b` で、残る 3 本
+(`EdoNishiTameikeBuilder` / `EdoSannoJuboBuilder` / `EdoSannoKitaBuilder`)を `4f061c20` で消した。
+史料値は消す前に `typology.json` の `source` / `note` へ写してある(⛔ 写す前に消さないこと —
+調べた区画が既定値へ戻る)。
 
 ⚠ **`EdoNishiTameikeBuilder` は「溜池西の街区ビルダー」の顔をしているが、実体は共有の置き場だった。**
 2026-08-26 に本体を `EdoBuild` へ移したとき、呼び手を変えずに 1 行委譲を残したので、以後に書かれた邸も
 そこを経由して書かれ続けた。名前が仕事を表さなくなった委譲は、こうして増える。
+
+⛔ **まだ片付いていない 1 本**:
+
+| 残っているビルダー | 何を握っているか | 次の手 |
+|---|---|---|
+| `EdoSannoBukeBuilder` | 丹羽・京極(`built: hand`)と樹下・社人(類型)が同居 | 邸ごとに分ける → EDO-0094。内藤(Stage6)は 2026-09-21 に撤去済み(`45680d61`) |
+
+### 旧邸の重複を畳む(EDO-0299 ④ の後半)
+
+街区ビルダーが建てた旧邸 `Edo_Yashiki_*` は、類型が同じ区画に建てた `Edo_Typo_*` と**二重に載っている**。
+⛔ **どれが重複かを名前から当てない** — 2026-09-21 に三度外した。判定は `Edo/屋敷/旧邸の重複を検める`
+(`EdoDupYashiki.cs`)が機械でやる: ルート配下の Renderer の bounds 中心(世界 xz)を数え、最も多く
+入った区画を採り、その区画の `built` が `hand` なら残す。類型表に無い区画も残す側へ倒す(規則19)。
+
+2026-09-21 の判定 = 旧邸 36 本のうち **残す 8 本**(`doi` / `matsudaira_dewa` / `okabe` /
+`sannobuke_kyogoku` / `sannobuke_niwa` / `sanyashiki_estates_0..2`)・**畳む 28 本**。
+Unity の実測と、プレハブの yaml から起こした判定は 36 本すべてで一致した。
+畳むのは `Edo/屋敷/旧邸の重複を畳む`(ルートを外し同名のプレハブも消す・戻すのは git)。
+⛔ その前後で `Edo/屋敷/プレハブへ書き戻す(全部・強制)` は押さない。
 
 **図を起こして手で建てた敷地**(岡部・土井・松江松平・山王社・京極・丹羽・外堀)は、
 `"built": "hand"` の印を持ち、類型ビルダーの生成対象から外れる。これは格の違いではなく
@@ -66,7 +81,7 @@
 | `machiya` | 27 | 片側町 / 両面町 × **間口(間)** × 裏長屋の有無 × 番屋・稲荷 | `typology.json`(写し済み。文政町方書上の家数・店借を含む) |
 | `jisha` | 15 | 社僧の坊 / 寺 / 社家 × 本堂の間数 × 門の型 | `typology.json`(写し済み)/ `EdoSannoJuboBuilder`(十坊の坊名・未廃止) |
 | `kouyuu` | 8 | 御預明地 / 干場 / 火消屋敷 × 地表の仕上げ | `typology.json`(写し済み) |
-| `other` | 1 | 松平大和守 9,661 坪 | `EdoYamatoRebuild` |
+| `other` | 1 | 松平大和守 9,661 坪 | `typology.json`(写し済み)。`EdoYamatoRebuild` は呼び手の無い残骸 → EDO-0303 |
 
 ## 2. 輪 — 類型の区画には指図も検分の輪も無い
 
@@ -222,7 +237,7 @@ Find では見落として同名の2本目が生え、プレハブ資産がど�
    囲い・門・主屋・蔵・庭木の五系統を全部通せる唯一の類型で、武家は 37 区画と最大勢力。
 3. **P2 buke 全帯** — ⭕ **済(2026-09-21)。**考証値を表へ写し、同じ巡で街区ビルダー 11 本を削除(EDO-0299 ④)。
 4. **P3 machiya** — ⭕ **済。**田町・新町・代地の径数は表にあり、旧ビルダーは削除済み。裏長屋のスタンドインは在庫方 → 部材方が残件。
-5. **P4 jisha / kouyuu** — 坊 10 筆・寺 2・社家 1 / 明地 7・火消 1。表は埋まっているが `EdoSannoJuboBuilder` は §1 の理由でまだ消せない。
+5. **P4 jisha / kouyuu** — 坊 10 筆・寺 2・社家 1 / 明地 7・火消 1。⭕ 済(`EdoSannoJuboBuilder` は 2026-09-21 に廃止)。
 
 【決着した裁定】(2026-09-19・裁定図 https://claude.ai/artifact/6fES1zxqUgvzDssgRvjd4Z):
 

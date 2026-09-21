@@ -111,11 +111,16 @@ def main():
             "⛔ url を渡さないと別の図が生える):\n    %s\n  "
             "上げるのを断られたら `Artifact(action=\"read\", url=\"%s\")` を1回打ってから、もう一度上げること"
             "(これで読まれるのは板を表示する枠の頁だけで、板の本体は読まれない)。\n  "
-            "そのあと `python3 Tools/Session/build_board_html.py --published %s` で判を押してから終えること。"
+            "⚠ それでも「板の本体 board.html が別のセッションに差し替えられた」と断られたら、**上げ直さない**"
+            "(上げ直すには本体を読むことになり、⛔ に反する)。公開の判 %s の `at` が"
+            "自分の焼き %s の更新時刻より新しければ、別のセッションが同じ板をすでに上げている。"
+            "そのときは上げず、判も押さずに終えてよい。\n  "
+            "上げられたら、そのあと `python3 Tools/Session/build_board_html.py --published %s` で判を押してから終えること。"
             % (("%.0f 時間ぶん" % late) if at else "",
                "**焼き直しは済ませた**ので、" if ok
                else "⛔ 焼き直しに失敗したので `python3 Tools/Session/build_board_html.py` を手で回してから、",
-               how, url, url))
+               how, url, os.path.join(board, "_pm", "published.json"),
+               os.path.join(board, "_pm", "dashboard.html"), url))
 
     # ── ② 自分が立てた裁定要請を、施主へ出さずに手を止めようとしている
     me = (ev.get("session_id") or "")[:12]

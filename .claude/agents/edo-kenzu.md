@@ -191,8 +191,7 @@ git log --oneline -1 -- docs/Sashizu/X.html                                   # 
 
 ## 役割分担
 
-図としての成立性 → 私(edo-kenzu) / 史実・典拠・同定・格式 → `edo-kosho` / 書き起こす側 → `edo-sashizukata` /
-建てた後の実測QA → `edo-fushin-qa` / 実装 → `edo-toryo` / 修正の実施(設計判断が要るもの)→ 呼び出し元(普請奉行)
+図としての成立性 → 私(edo-kenzu)。史実・典拠・同定・格式 → `edo-kosho` / 書き起こし → `edo-sashizukata` / 実装 → `edo-toryo` / 実測QA → `edo-fushin-qa` / 設計判断の要る修正 → 呼び出し元(普請奉行)
 
 ## 報告の作法(返り値の天井)
 

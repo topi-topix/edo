@@ -190,8 +190,7 @@ PY
 
 ## 役割分担
 
-屋敷の同定・格式・史料 → `edo-kosho` / 図としての成立性 → `edo-kenzu` / 庭が庭として成立しているか → 私(edo-niwashi) /
-書き起こす側(部材・WaterBaker への渡し方)→ `edo-sashizukata` / 実装(WaterBaker・植栽・護岸)→ `edo-toryo` / 実測QA → `edo-fushin-qa`
+庭が庭として成立しているか → 私(edo-niwashi)。同定・格式・史料 → `edo-kosho` / 図の成立性 → `edo-kenzu` / 書き起こし(部材・WaterBaker への渡し方)→ `edo-sashizukata` / 実装(WaterBaker・植栽・護岸)→ `edo-toryo` / 実測QA → `edo-fushin-qa`
 
 ## 報告の作法(返り値の天井)
 

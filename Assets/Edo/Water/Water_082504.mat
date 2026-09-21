@@ -33,14 +33,14 @@ Material:
     - _AgitRange: 12
     - _AgitStrength: 0
     - _Alpha: 0.8
-    - _DepthFade: 4
-    - _FoamAmount: 0.4
+    - _DepthFade: 1.5
+    - _FoamAmount: 0.1
     - _FresnelPower: 3
     - _NormalScale: 0.35
     - _NormalStrength: 1
     - _ReflectionStrength: 1
     - _RefractionStrength: 0.025
-    - _ShoreWidth: 1.5
+    - _ShoreWidth: 0.525
     - _Smoothness: 0.92
     - _SunSpecIntensity: 3.5
     - _SunSpecPower: 800

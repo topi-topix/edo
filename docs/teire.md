@@ -62,7 +62,7 @@ CLAUDE.md・`.claude/`(役・コマンド・フック・rules・workflows)・ス
 - **`kind: desktop` / `plugin` は会話から止められない** — Claude Desktop の設定(拡張機能)でユーザーが切る。
 - 2026-09-21 に止めた 4 本: Vercel 212・Gmail 30・Supabase 29・Google Calendar 9 = **280 ツール**。
 - 残す物: `unityMCP` 46(普請の本体)・`scheduled-tasks` 6(日誌と週次の自動点検)・`visualize` 2・`Claude Docs` 8。
-- 未処置(ユーザーの端末操作): デスクトップ拡張 `edinetdb` 75・`irweather` 8(どちらも irweather.jp の普請の道具)。
+- 残す(施主裁定 2026-09-21・EDO-0139 を閉じた): デスクトップ拡張 `edinetdb` 75・`irweather` 8。irweather.jp の道具なので切らない。
 
 ## 置き場所の規則の言い直し(CLAUDE.md「知識の置き場所」の延長)
 

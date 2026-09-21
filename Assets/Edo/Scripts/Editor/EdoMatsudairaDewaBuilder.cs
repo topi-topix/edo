@@ -1426,6 +1426,8 @@ public static partial class EdoMatsudairaDewaBuilder
             Vector2 n = OutNormal(r.edge);
             // ローカル +X を外向きに、+Z を s の増える向きに合わせる
             float psi = Mathf.Atan2(-n.y, n.x) * Mathf.Rad2Deg;
+            // 走りの向き(s が増える向き)— 区画の外へ出た駒をこの向きに引いて収める
+            Vector2 edgeDir = (EdgePt(r.edge, 1f) - EdgePt(r.edge, 0f)).normalized;
             // ⚠ 天端は駒ごとに r.SeatAt(t) から取る(腕の区間は上の segSeat が優先)。r.seat は
             //   斜面 run の**中点**で、これで平らに据えると一本の run の中で埋没と過大露出が
             //   同時に起きる(2026-08-23)。石垣そのものは水平が正典(unity-modular-stonewall §3)
@@ -1456,7 +1458,21 @@ public static partial class EdoMatsudairaDewaBuilder
                     var go = EdoBuild.Place(EdoAssets.JC.CastleWall,
                         new Vector3(p.x, seat - IG_H, p.y), psi,
                         Vector3.one, grp, "IG_" + bucketName + "_" + made);
-                    if (go != null) made++;
+                    if (go != null)
+                    {
+                        made++;
+                        // ⭐ **区域侵犯は壁体の頂点で数える**(`docs/oki-kata.md` §4)。奥行のある駒は
+                        //   **自分の辺に載っていても角で隣の辺を跨ぐ**ので、辺の線ではなく**区画の多角形**で
+                        //   検めて、走りに沿って最小量だけ引く(犬走りの控えは面に直交する量なので動かない)。
+                        //   2026-09-21 実測: 留め継ぎの腕 3 駒が頂点の先で 0.0397/0.0388/0.0016m 跨いでいた。
+                        float wasOut;
+                        float pulled = EdoBuild.KeepInsidePoly(go, Poly, edgeDir, 0.50f, out wasOut, 0.01f, 999999);
+                        if (wasOut > 0.0005f)
+                            sb.AppendLine((float.IsNaN(pulled) ? "⛔ " : "・") + "区画の外へ " + wasOut.ToString("F4")
+                                          + "m: " + go.name + (float.IsNaN(pulled)
+                                             ? " — 0.50m 引いても収まらない(置き方を見直す)"
+                                             : " → 走りに沿って " + pulled.ToString("F3") + "m 引いて収めた"));
+                    }
                 }
                 runs++;
             }
@@ -3026,6 +3042,29 @@ public static partial class EdoMatsudairaDewaBuilder
                 sb.AppendLine("⚠ 石段 " + nm + ": 天端 " + topY.ToString("F2") +
                               " に対し、上がった先の設計面は " + atTop.ToString("F2") + "m");
             float rise = drop / steps, tread = run / steps;
+            // ⭐ **段の位置は地表から解く従属値。**指図の `pos` は落ち際の見当でしかなく、造成の擦り付けで
+            //   落ち際は 2〜4.5m に広がるのに段の走りは 1〜1.5m しかない。⇒ 段数・落差・幅・向き(指図の意図)は
+            //   動かさず、**走りに沿った位置だけ**を実地表へ合わせる(`EdoBuild.FitRunAlongAxis` の注記)。
+            //   2026-09-21 実測: 東小門の段が落ち際から 1.75m 内へ外れ、3段とも平場 27.00 の下に丸ごと埋没。
+            {
+                var fitS = new float[steps]; var fitTop = new float[steps];
+                for (int i = 0; i < steps; i++)
+                { fitS[i] = -run * 0.5f + tread * (i + 0.5f); fitTop[i] = baseY + rise * (i + 1); }
+                float devB, devA;
+                //   ⚠ 許容は**その段自身の蹴上** — 一蹴上ぶん以内の沈み/浮きなら段は段として読めるので動かさない
+                float slide = EdoBuild.FitRunAlongAxis(c0, up, fitS, fitTop,
+                                                       Mathf.Max(1.5f, run + 1.5f), 0.05f, rise,
+                                                       out devB, out devA);
+                if (Mathf.Abs(slide) > 0.001f)
+                {
+                    c0 += up * slide;
+                    sb.AppendLine("石段 " + nm + ": 落ち際へ " + slide.ToString("F2")
+                                  + "m 寄せた(天端と地表の差 最悪 " + devB.ToString("F3")
+                                  + " → " + devA.ToString("F3") + "m)");
+                }
+                else sb.AppendLine("石段 " + nm + ": 落ち際に載っている(天端と地表の差 最悪 "
+                                   + devB.ToString("F3") + "m)");
+            }
             float yaw = Mathf.Atan2(up.x, up.y) * Mathf.Rad2Deg;
             var mod = AssetDatabase.LoadAssetAtPath<GameObject>(EdoAssets.Own.DanishiStep);
             if (mod == null) { sb.AppendLine("⚠ 段石が無い: " + EdoAssets.Own.DanishiStep); continue; }

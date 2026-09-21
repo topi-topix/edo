@@ -386,7 +386,14 @@ public static partial class EdoBuild
     }
 
     /// <summary>**地面と触れている箇所を測る。**(相手が地形のときの <see cref="Contact(GameObject,GameObject,Vector3,out Vector3,out int,float,float,int,bool)"/>。)
-    /// 駒の実メッシュの全頂点について「頂点の高さ − その真下の地形(格子点)」を取り、最小の物が触れている箇所。
+    /// 駒の実メッシュの全頂点について「頂点の高さ − **その真下の地表**」を取り、最小の物が触れている箇所。
+    ///
+    /// <para>⭐ **地表は <see cref="Ground"/>(描かれている面)で引く。⛔ <see cref="GroundGrid"/>(最寄りの格子点)で引かない。**
+    /// 格子は 2.0 m/px なので、最寄り点へ丸めると**斜面では ±(1m × 勾配)** の嘘が乗る。2026-09-21 松江松平の実測:
+    /// 滝見の石段(勾配 1:2.5)が格子では 埋 1.576m・地表では 0.850m と出て **12駒が嘘で不合格**になり、
+    /// 逆に岩屋の天井石は格子では 0.148m(合格に見える)・地表では **浮き 1.083m** で **嘘で合格**していた。
+    /// 接地は「駒が実際に載っている面」との差であって、面の設計高(`PadY` / `GroundGrid` の役目)ではない。</para>
+    ///
     /// 返り値 = その隙[m](正=浮き・負=埋没・0=接触)。<paramref name="at"/> = 触れている所の世界座標、
     /// <paramref name="count"/> = 最小から <paramref name="tol"/> 以内にある頂点の数(**接触が複数か**の検め)。
     /// 頂点が無ければ NaN。
@@ -407,7 +414,7 @@ public static partial class EdoBuild
         var cl = new List<float>(pts.Count);
         foreach (var p in pts)
         {
-            float c = p.y - GroundGrid(p.x, p.z); cl.Add(c);
+            float c = p.y - Ground(p.x, p.z); cl.Add(c);
             if (float.IsNaN(best) || c < best) { best = c; at = p; }
         }
         if (float.IsNaN(best)) return best;
@@ -458,6 +465,112 @@ public static partial class EdoBuild
         if (float.IsNaN(crest)) return false;
         SeatBottom(go, crest - sink);
         return true;
+    }
+
+    /// <summary>**段(石段)の一連を、地表の落ち際へ合わせて走り方向に滑らせる。**剛体のまま
+    /// <paramref name="up"/> へ動かし、各段の天端 <paramref name="treadTop"/> と**その段の下の地表**との差の
+    /// 最悪値が最小になる寄せ量[m]を返す(± は <paramref name="up"/> 向き)。<paramref name="treadS"/> は
+    /// <paramref name="foot"/> から測った各段の弧長。同じ悪さなら**動かさない方**を採る。
+    ///
+    /// <para>⛔ **指図の `pos` を座標として信じない。**造成した段の落ち際は擦り付けで 2〜4.5m に広がるのに、
+    /// 段の走りは 1〜1.5m しかない。2026-09-21 松江松平の実測: 東小門の段(走り 1.35m・落差 0.9m)は
+    /// 落ち際から 1.75m 内へ外れ、**3段とも平場 27.00 の下に丸ごと埋まっていた**(天端 −0.601m)。
+    /// 表門の段も 0.28m ずれていた。⇒ 段の**位置は地表から解く従属値**。
+    /// ⚠ 段数・落差・幅・向きは指図の意図なので動かさない — 動かすのは走りに沿った位置だけ。</para>
+    ///
+    /// <para>⚠ 両端を地形から取っている段(`kind: 庭の段`)には要らない — すでに従属値で解けている。
+    /// 要るのは**足元/天端を literal(門の敷居・面の設計高)で持つ段**。</para></summary>
+    /// <param name="accept">この差[m]までなら**動かさない**。段の蹴上を渡す — 天端が一蹴上ぶん以内の
+    /// 沈み/浮きなら段は段として読めるので、位置を解き直す理由がない。⛔ 0 を渡すと「よりましな所」を
+    /// 求めて段が何 m でも歩き出す(2026-09-21: 差 0.153m の一枚段が 1.10m も動いた)。</param>
+    public static float FitRunAlongAxis(Vector2 foot, Vector2 up, float[] treadS, float[] treadTop,
+                                        float searchHalf, float step, float accept,
+                                        out float devBefore, out float devAfter)
+    {
+        if (treadS == null || treadTop == null || treadS.Length != treadTop.Length || treadS.Length == 0)
+            throw new Exception("FitRunAlongAxis: 段の弧長と天端の数が合わない");
+        up = up.normalized;
+        if (step <= 1e-4f) step = 0.05f;
+        devBefore = RunDev(foot, up, treadS, treadTop, 0f);
+        devAfter = devBefore;
+        if (devBefore <= accept) return 0f;               // 段として読める — 動かさない
+        float bestDev = devBefore;
+        for (float d = -searchHalf; d <= searchHalf + 1e-4f; d += step)
+        {
+            float dv = RunDev(foot, up, treadS, treadTop, d);
+            if (dv < bestDev - 1e-4f) bestDev = dv;
+        }
+        if (bestDev >= devBefore - 1e-4f) return 0f;
+        // 同じくらい良い寄せ方が幅を持つので、**いちばん動かさずに済む**位置を採る。
+        // ⛔ ここに `accept` を混ぜない — 一度動かすと決めた段は**いちばん良く納まる所**まで寄せる
+        //   (混ぜると許容ぎりぎり 0.285m で止まり、最下段がほとんど見えないまま残る)
+        float tol = bestDev + 0.02f;
+        float best = 0f; bool found = false;
+        for (float d = -searchHalf; d <= searchHalf + 1e-4f; d += step)
+        {
+            if (RunDev(foot, up, treadS, treadTop, d) > tol) continue;
+            if (!found || Mathf.Abs(d) < Mathf.Abs(best)) { best = d; found = true; }
+        }
+        if (!found) return 0f;
+        devAfter = RunDev(foot, up, treadS, treadTop, best);
+        return best;
+    }
+
+    /// <summary>各段の天端と地表の差の最悪値(<see cref="FitRunAlongAxis"/> の目的関数)。</summary>
+    static float RunDev(Vector2 foot, Vector2 up, float[] s, float[] top, float d)
+    {
+        float w = 0f;
+        for (int i = 0; i < s.Length; i++)
+        {
+            Vector2 p = foot + up * (s[i] + d);
+            w = Mathf.Max(w, Mathf.Abs(Ground(p.x, p.y) - top[i]));
+        }
+        return w;
+    }
+
+    /// <summary>**壁体を区画の多角形の内へ収める。**置いた駒の実メッシュ(屋根を除く)が
+    /// <paramref name="poly"/> の外へ出ていたら、走り <paramref name="runDir"/> に沿って
+    /// **最小量だけ**引いて収める。返り値 = 動かした量[m](+ は runDir 向き・0 = 元から内側)。
+    /// <paramref name="maxPull"/> まで引いても収まらなければ**動かさず NaN**(呼び出し側が「置かない」を選べる)。
+    /// <paramref name="before"/> = 動かす前に区画の外へ出ていた最大量[m]。
+    ///
+    /// <para>⛔ **辺の線で測らない** — 奥行のある駒は角で隣の辺を跨ぐ(`docs/oki-kata.md` §4)。
+    /// 2026-09-21 松江松平の実測: 石垣の留め継ぎの腕 3 駒が、自分の辺には載っているのに
+    /// 頂点の先で隣の辺を 0.0397 / 0.0388 / 0.0016m 跨いでいた(走りに沿って 0.04m 引けば収まる)。
+    /// 走りに沿って引くので**犬走りの控え(面に直交する量)は動かない**し、駒どうしは 0.20m 以上
+    /// 重ねてあるので隙も開かない。</para>
+    ///
+    /// <para>⚠ 長屋のような**一体で端の動かせない駒**には使わない(`NagayaRun.keepInside` のように
+    /// 「出る駒は置かない」を選ぶ)。これは重ねて並べる駒(石垣・塀)のための物。</para></summary>
+    public static float KeepInsidePoly(GameObject go, Vector2[] poly, Vector2 runDir, float maxPull,
+                                       out float before, float step = 0.01f, int maxSamples = 4000)
+    {
+        var pts = Body(go.transform, maxSamples);
+        before = OutsideBy(pts, poly, Vector2.zero);
+        if (before <= 0f) return 0f;
+        runDir = runDir.normalized;
+        for (float d = step; d <= maxPull + 1e-4f; d += step)
+        {
+            if (OutsideBy(pts, poly, -runDir * d) <= 0f)
+            { go.transform.position += new Vector3(-runDir.x * d, 0f, -runDir.y * d); return -d; }
+            if (OutsideBy(pts, poly, runDir * d) <= 0f)
+            { go.transform.position += new Vector3(runDir.x * d, 0f, runDir.y * d); return d; }
+        }
+        return float.NaN;
+    }
+
+    /// <summary>点群を <paramref name="off"/> だけずらしたとき、多角形の外へ出る最大距離[m](0 = 全部内側)。</summary>
+    static float OutsideBy(List<Vector3> pts, Vector2[] poly, Vector2 off)
+    {
+        float worst = 0f;
+        foreach (var p in pts)
+        {
+            var q = new Vector2(p.x + off.x, p.z + off.y);
+            if (EdoGeom.PIP(poly, q)) continue;
+            float d = EdoGeom.DistToPolyEdge(poly, q);
+            if (d > worst) worst = d;
+        }
+        return worst;
     }
 
     /// <summary>**足あとの下の地形**(格子点)の最小と最大。中心 <paramref name="c"/>・

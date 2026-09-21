@@ -1387,12 +1387,62 @@ SYNC_PATHS = ["Tools/Session", "CLAUDE.md", "docs/session-coordination.md",
               "docs/oki-kata.md", "docs/typology-builder.md"]
 
 
+def _main_kind(main_root, rp):
+    """main ブランチの最新コミットで `rp` が blob か tree か(無ければ None)。"""
+    r = subprocess.run(["git", "-C", main_root, "cat-file", "-t", "main:" + rp],
+                       capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
+def _main_ls(main_root, rp):
+    """main の最新コミットで、ディレクトリ `rp` の**直下**のファイル名(サブディレクトリは含めない)。"""
+    r = subprocess.run(["git", "-C", main_root, "ls-tree", "-z", "main", rp.rstrip("/") + "/"],
+                       capture_output=True)
+    names = []
+    for ent in r.stdout.split(b"\0"):
+        meta, _, path = ent.partition(b"\t")
+        if len(meta.split()) >= 2 and meta.split()[1] == b"blob":
+            names.append(os.path.basename(path.decode("utf-8")))
+    return names
+
+
+def _main_blob(main_root, rp):
+    """main の最新コミットにある `rp` の中身(バイト列)。フィルタを通さない。"""
+    r = subprocess.run(["git", "-C", main_root, "cat-file", "blob", "main:" + rp], capture_output=True)
+    return r.stdout if r.returncode == 0 else None
+
+
+def _write_if_diff(data, dst):
+    """`dst` の中身が `data` と違えば書く。書いたら True。"""
+    try:
+        with open(dst, "rb") as f:
+            cur = f.read()
+    except Exception:
+        cur = None
+    if cur == data:
+        return False
+    try:
+        with open(dst, "wb") as f:
+            f.write(data)
+        return True
+    except Exception:
+        return False
+
+
 def cmd_sync_tools(a):
     """main の運用ファイル(門番のツール・不変則・作法)を全 worktree の作業ツリーへ配る。
+    ⭐ **配るのは main ブランチの最新コミットの内容。** メインのチェックアウトの作業ツリーの現物ではない。
+    メインは別セッションが編集中の場所で、現物を配ると**書きかけの版が全 worktree へ写る**
+    (2026-09-22 実測: 編集中の 2 ファイルが 15 worktree に写った)。未コミット・未追跡の物は配らない。
     ⚠ **コミットはしない。** 各 worktree のブランチに勝手なコミットを積むと、その邸の
     履歴に無関係な変更が混ざる(CLAUDE.md 規則4 の「経緯は git log で追う」が崩れる)。
-    作業ツリーのファイルだけを main の内容に合わせ、コミットするかは各セッションに委ねる。"""
+    作業ツリーのファイルだけを main に合わせ、コミットするかは各セッションに委ねる。"""
     main_root = os.path.dirname(_common_git_dir())
+    head = subprocess.run(["git", "-C", main_root, "rev-parse", "--short", "--verify", "-q", "main"],
+                          capture_output=True, text=True)
+    if head.returncode != 0:
+        print("⛔ main ブランチが無い — 何を配るか決められない")
+        return 1
     r = subprocess.run(["git", "-C", ROOT, "worktree", "list", "--porcelain"],
                        capture_output=True, text=True).stdout
     targets = []
@@ -1406,42 +1456,44 @@ def cmd_sync_tools(a):
     if not targets:
         print("worktree は無い(main だけ)")
         return 0
+    # 配る物 = (相対パス, 中身, 属するディレクトリ or None)。一度だけ main のコミットから読む。
+    items = []
+    for rp in SYNC_PATHS:
+        kind = _main_kind(main_root, rp)
+        if kind == "tree":
+            for fn in sorted(_main_ls(main_root, rp)):
+                if fn.endswith((".py", ".md", ".js", ".json", ".sh")):
+                    data = _main_blob(main_root, rp.rstrip("/") + "/" + fn)
+                    if data is not None:
+                        items.append((os.path.join(rp, fn), data, rp))
+        elif kind == "blob":
+            data = _main_blob(main_root, rp)
+            if data is not None:
+                items.append((rp, data, None))
+    print("main @%s の内容を配る(作業ツリーの未コミット分は配らない)" % head.stdout.strip())
     total = 0
     for wp in targets:
         changed = []
-        for rp in SYNC_PATHS:
-            src = os.path.join(main_root, rp)
-            dst = os.path.join(wp, rp)
-            if not os.path.exists(src):
-                continue
-            # その worktree が sparse でそのパスを持っていなければ触らない(増やさない)
-            if not os.path.exists(os.path.dirname(dst) or wp):
-                continue
-            if os.path.isdir(src):
-                for fn in sorted(os.listdir(src)):
-                    if not fn.endswith((".py", ".md", ".js", ".json", ".sh")):
-                        continue
-                    s2, d2 = os.path.join(src, fn), os.path.join(dst, fn)
-                    if not os.path.isdir(dst):
-                        continue
-                    if _copy_if_diff(s2, d2):
-                        changed.append(os.path.join(rp, fn))
+        for rel, data, drp in items:
+            dst = os.path.join(wp, rel)
+            if drp is not None:
+                # その worktree が sparse でそのディレクトリを持っていなければ触らない(増やさない)。
+                # ⚠ ディレクトリの一括配布は**既にあるファイルを更新するだけ**(新規は作らない)
+                if not os.path.isdir(os.path.join(wp, drp)) or not os.path.exists(dst):
+                    continue
+                if _write_if_diff(data, dst):
+                    changed.append(rel)
             else:
                 # ⭐ **名指しした1ファイルは、無ければ作る。** SYNC_PATHS に個別に挙げてあるのは
                 #   「全邸共通の道具」で、無い worktree は**その道具を使えない**まま動く。
                 #   2026-09-01 実測: 検図関門(review_gate.py)が doi/京極/内藤/岡部の4つの
                 #   worktree に無く、配布から静かに落ちていた(既存ファイルしか更新しない実装で、
                 #   名指しした意図と食い違っていた)。⚠ ディレクトリの一括配布は増やさないまま。
-                if not os.path.exists(dst) and os.path.isdir(os.path.dirname(dst)):
-                    try:
-                        io.open(dst, "w", encoding="utf-8").write(
-                            io.open(src, encoding="utf-8").read())
-                        changed.append(rp + "(新規)")
-                        continue
-                    except Exception:
-                        pass
-                if os.path.exists(dst) and _copy_if_diff(src, dst):
-                    changed.append(rp)
+                if not os.path.isdir(os.path.dirname(dst)):
+                    continue
+                existed = os.path.exists(dst)
+                if _write_if_diff(data, dst):
+                    changed.append(rel if existed else rel + "(新規)")
         if changed:
             total += len(changed)
             print("%s\n  更新 %d 件: %s" % (wp, len(changed), ", ".join(changed[:6])))
@@ -1453,24 +1505,6 @@ def cmd_sync_tools(a):
               "含めるかは各自の判断(運用ファイルなので、通常は次の作業コミットに混ぜず"
               "`git checkout -- <パス>` で戻してもよい — フックは main の実体を使うため)。")
     return 0
-
-
-def _copy_if_diff(src, dst):
-    try:
-        with io.open(src, encoding="utf-8") as f:
-            a = f.read()
-        with io.open(dst, encoding="utf-8") as f:
-            b = f.read()
-    except Exception:
-        return False
-    if a == b:
-        return False
-    try:
-        with io.open(dst, "w", encoding="utf-8") as f:
-            f.write(a)
-        return True
-    except Exception:
-        return False
 
 
 def cmd_worktrees(a):

@@ -759,18 +759,54 @@ def chk_K1(env, F):
 
 def chk_W(env, F):
     """worktree の設定が main と違う: main に無いファイル(W1)・内容の違い(W2)。"""
+    def sha(b):
+        return hashlib.sha256(b).hexdigest()
+
+    def rb(fp):
+        with open(fp, "rb") as fh:
+            return fh.read()
+
     def files(base):
         out = {}
         for d in CONFIG_DIRS:
             for fp in glob.glob(os.path.join(base, d, "*")):
                 if os.path.isfile(fp) and fp.endswith((".md", ".py", ".sh", ".js", ".json")):
-                    out[os.path.relpath(fp, base)] = hashlib.sha256(read(fp).encode("utf-8")).hexdigest()
+                    out[os.path.relpath(fp, base)] = sha(rb(fp))
         for f in CONFIG_FILES:
             fp = os.path.join(base, f)
             if os.path.isfile(fp):
-                out[f] = hashlib.sha256(read(fp).encode("utf-8")).hexdigest()
+                out[f] = sha(rb(fp))
         return out
-    main = files(env.root)
+
+    def files_committed(root):
+        """main ブランチの**最新コミット**の設定。⛔ main の作業ツリーの現物とは比べない —
+        sync-tools が配るのはコミット済みの内容で(別セッションの編集中の版は配らない)、
+        現物と比べると main に書きかけがあるあいだ「配れ」と鳴り続け、配っても消えない偽の警報になる。
+        main ブランチが無ければ None(呼び手が作業ツリーへ戻る)。"""
+        def cat(rp):
+            r = subprocess.run(["git", "-C", root, "cat-file", "blob", "main:" + rp], capture_output=True)
+            return r.stdout if r.returncode == 0 else None
+        if not _git(root, "rev-parse", "--verify", "-q", "main"):
+            return None
+        out = {}
+        for d in CONFIG_DIRS:
+            r = subprocess.run(["git", "-C", root, "ls-tree", "-z", "main", d + "/"], capture_output=True)
+            for ent in r.stdout.split(b"\0"):
+                meta, _, path = ent.partition(b"\t")
+                if len(meta.split()) >= 2 and meta.split()[1] == b"blob":
+                    rp = path.decode("utf-8")
+                    if rp.endswith((".md", ".py", ".sh", ".js", ".json")):
+                        data = cat(rp)
+                        if data is not None:
+                            out[rp] = sha(data)
+        for f in CONFIG_FILES:
+            data = cat(f)
+            if data is not None:
+                out[f] = sha(data)
+        return out
+    main = files_committed(env.root)
+    if main is None:
+        main = files(env.root)
     stale = []
     for wp, br in env.worktrees():
         wf = files(wp)

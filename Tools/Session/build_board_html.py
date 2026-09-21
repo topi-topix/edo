@@ -483,6 +483,9 @@ h1{font-family:'Shippori Mincho',serif;font-weight:600;font-size:26px;margin:0;l
   transition:background .1s,color .1s,border-color .1s}
 .fchip:hover{border-color:var(--ink)}
 .fchip.active{background:var(--ai-soft);border-color:var(--ai);color:var(--ai);font-weight:600}
+.fkind{font-weight:600}
+.fkind .kn{font-weight:400;font-family:'IBM Plex Mono',monospace;font-size:11px;margin-left:3px;opacity:.75}
+.fsep{width:1px;height:16px;background:var(--line-firm,var(--line));margin:0 4px}
 .fchip[data-type="blocker"].active{background:var(--shu-soft);border-color:var(--shu);color:var(--shu)}
 .fchip[data-type="decision"].active{background:var(--oud-soft);border-color:var(--oud);color:var(--oud)}
 .fsearch{font:inherit;font-size:12.5px;padding:5px 10px;border:1px solid var(--line);
@@ -759,6 +762,7 @@ JS = """
         既定は全群とも未選択なので、開いた直後は全件が出る。 */
   var siteBtns  = $all('#siteFilter .fchip');
   var stateBtns = $all('#stateFilter .fchip');
+  var kindBtns  = $all('#kindFilter .fchip');
   var search    = document.getElementById('fsearch');
   var resetBtn  = document.getElementById('fReset');
   var items = $all('.fitem');
@@ -797,18 +801,54 @@ JS = """
     lanes.forEach(function(l){
       l.style.display = passes(sites, l.getAttribute('data-site')) ? '' : 'none';
     });
+    countKinds();
     if (countEl) countEl.textContent = shownRows + ' 件表示中';
     var none = document.getElementById('tasksEmpty');
     if (none) none.hidden = shownRows !== 0;
   }
+  /* 区分(作業あり/作業なし)は状態チップのまとめ押し。押すとその区分の状態だけを選び、
+     もう一度押すと全解除。状態チップを個別に触ったら、区分チップは「いま選ばれている状態が
+     その区分と過不足なく一致するか」で点灯を決め直す(AND で絞り合わない=空になる罠を避ける)。 */
+  function syncKinds(){
+    var on = activeVals(stateBtns, 'data-state');
+    kindBtns.forEach(function(k){
+      var m = k.getAttribute('data-members').split(',');
+      k.classList.toggle('active', on.size === m.length && m.every(function(x){ return on.has(x); }));
+    });
+  }
+  function countKinds(){
+    /* 件数は敷地の絞り込みだけを反映する(検索語には引きずられない) */
+    var sites = activeVals(siteBtns, 'data-site');
+    var per = {};
+    $all('#taskBody tr.trow').forEach(function(r){
+      if (!passes(sites, r.getAttribute('data-site'))) return;
+      var st = r.getAttribute('data-state');
+      per[st] = (per[st] || 0) + 1;
+    });
+    kindBtns.forEach(function(k){
+      var n = 0;
+      k.getAttribute('data-members').split(',').forEach(function(x){ n += per[x] || 0; });
+      var el = k.querySelector('.kn'); if (el) el.textContent = n;
+    });
+  }
+  kindBtns.forEach(function(k){
+    k.addEventListener('click', function(){
+      var was = k.classList.contains('active');
+      var m = k.getAttribute('data-members').split(',');
+      stateBtns.forEach(function(b){
+        b.classList.toggle('active', !was && m.indexOf(b.getAttribute('data-state')) !== -1);
+      });
+      syncKinds(); apply();
+    });
+  });
   siteBtns.concat(stateBtns).forEach(function(b){
-    b.addEventListener('click', function(){ b.classList.toggle('active'); apply(); });
+    b.addEventListener('click', function(){ b.classList.toggle('active'); syncKinds(); apply(); });
   });
   if (search)   search.addEventListener('input', apply);
   if (resetBtn) resetBtn.addEventListener('click', function(){
     /* リセット = 全解除(= 全件表示)。既定の状態へ戻す */
     siteBtns.concat(stateBtns).forEach(function(b){ b.classList.remove('active'); });
-    search.value = ''; apply();
+    search.value = ''; syncKinds(); apply();
   });
 
   /* ── 行を押したら詳細(経過ログ・裁定の中身・正典の参照)を開く */
@@ -921,11 +961,12 @@ def issue_li(i, states):
         row_cls += " info-row"
     if i["status"] in ("done", "dropped"):
         row_cls += " done-row"
-    return ('<li id="%s" class="fitem %s" data-site="%s" data-type="%s" data-status="%s">'
+    return ('<li id="%s" class="fitem %s" data-site="%s" data-type="%s" data-status="%s"'
+            ' data-state="%s">'
             '<span class="id">%s</span><span class="ttl">%s</span>'
             '<span class="badge type-%s">%s</span><span class="badge st-%s">%s</span>%s</li>'
             % (esc(i["id"]), esc(row_cls), esc(display_site(i)), esc(i["type"]), esc(i["status"]),
-               esc(i["id"]), esc(i["title"]),
+               esc(task_state(i)[0]), esc(i["id"]), esc(i["title"]),
                esc(i["type"]), esc(TYPE_LABEL.get(i["type"], i["type"])),
                esc(i["status"]), esc(STATUS_LABEL.get(i["status"], i["status"])),
                refs_html(i, states)))
@@ -1154,7 +1195,13 @@ def tasks_table_html(issues, states):
 # 状態の絞り込みに出す並び(task_state が返すラベルと一致させる)。
 # 2026-08-29 ユーザー指示で「種別」の絞り込みを廃してこちらへ置き換えた —
 # 種別「裁定」と状態「要裁定」が読み分けられない、という同じ指摘の続き。
-STATE_CHIPS = ["要裁定", "ブロッカー", "進行中", "未着手", "記録", "完了", "見送り"]
+# 2026-09-21 施主指示: 「作業が発生するもの」と「そうでないもの」を一押しで切り替えたい。
+# 区分チップは状態チップの**まとめ押し**(下の JS が連動させる)。二つの集合は互いに素で、
+# 足すと STATE_CHIPS 全部になる。
+WORK_STATES = ["要裁定", "ブロッカー", "進行中", "未着手"]      # 手を動かす物
+DONE_STATES = ["記録", "完了", "見送り"]                       # 動かさない物(読むだけ・済み・やめた)
+STATE_CHIPS = WORK_STATES + DONE_STATES
+KIND_CHIPS = [("work", "作業あり", WORK_STATES), ("rest", "作業なし", DONE_STATES)]
 
 
 def filterbar_html():
@@ -1168,8 +1215,15 @@ def filterbar_html():
     p.append('<button type="button" class="fchip" data-site="%s">%s</button>'
              % (esc(CROSS_KEY), esc(CROSS_LABEL)))
     p.append("</div>")
+    p.append('<div class="fgroup" id="kindFilter"><span class="flabel">区分</span>')
+    for k, name, members in KIND_CHIPS:
+        p.append('<button type="button" class="fchip fkind" data-kind="%s" data-members="%s">'
+                 '%s <b class="kn"></b></button>' % (esc(k), esc(",".join(members)), esc(name)))
+    p.append("</div>")
     p.append('<div class="fgroup" id="stateFilter"><span class="flabel">状態</span>')
-    for s in STATE_CHIPS:
+    for n, s in enumerate(STATE_CHIPS):
+        if n == len(WORK_STATES):  # 作業あり | 作業なし の境に細い区切り
+            p.append('<span class="fsep" aria-hidden="true"></span>')
         p.append('<button type="button" class="fchip" data-state="%s">%s</button>'
                  % (esc(s), esc(s)))
     p.append("</div>")
@@ -1190,6 +1244,7 @@ def build_html(issues, pending, commits, claims, states, summary, reviews, typol
     junsu_base = load_junsu_baseline()
 
     p = []
+    p.append('<meta charset="utf-8">')  # 常時の窓(素の http.server)は charset を付けない
     p.append("<title>赤坂普請 普請場</title>")
     p.append('<link rel="stylesheet" href="https://fonts.googleapis.com/css2?'
              'family=Shippori+Mincho:wght@600&family=Noto+Sans+JP:wght@400;500;700&'

@@ -7,7 +7,7 @@ maxTurns: 80
 effort: low
 ---
 
-プロジェクトのアセット在庫(3,098点 <!-- measured: count:asset-index -->)を引く read-only エージェント。
+プロジェクトのアセット在庫(3,158点 <!-- measured: count:asset-index -->)を引く read-only エージェント。
 **何かを置く前に在庫を引く**のがこのプロジェクトの作法。フォルダを掘る前にここへ来る。
 
 ## 見るもの(この順)

@@ -1285,7 +1285,14 @@ SYNC_PATHS = ["Tools/Session", "CLAUDE.md", "docs/session-coordination.md",
               #   CLAUDE.md のルーティング表が指す文書。⛔ Tools/Skills は入れない(スキルは symlink で 1 本)。
               ".claude/rules", ".claude/workflows", ".claude/settings.json", "docs/lessons.md",
               "Tools/Sashizu/decision_gate.py", "docs/asset-catalog.md", "docs/terrain-georef-fix.md",
-              "docs/unity-agent-plugin.md", "docs/teire.md"]
+              "docs/unity-agent-plugin.md", "docs/teire.md",
+              # ⭐ 道具改め(2026-09-21)が見つけた漏れ。
+              #   ・完成条件の表 — 検図関門が phase を読む相方。⛔ 片方だけ古いと、実装へ入った邸に
+              #     worktree 側が紙の巡を要求し続ける(EDO-0307 と同じ型)
+              #   ・棟梁の知見 — 古い写しで動くと、踏んだ罠をもう一度踏む
+              #   ・CLAUDE.md のルーティング表が指す2文書(置き方・類型表の設計)
+              "Tools/Sashizu/kansei_gate.py", ".claude/agent-memory",
+              "docs/oki-kata.md", "docs/typology-builder.md"]
 
 
 def cmd_sync_tools(a):

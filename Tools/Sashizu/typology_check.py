@@ -46,7 +46,37 @@ def read_but_unused():
         minus = 3 if field == key else 2
         if len(re.findall(r"\b%s\b" % re.escape(field), src)) - minus <= 0:
             out.append(key)
-    return sorted(set(out))
+    # ⭕ 典拠(`source`)と史料値(`koku`)は姿を決めない欄なので、破れの列から外して別に刷る。
+    #   ⛔ 黙って落とさない — 落とした事実も毎回刷る(規則19)。
+    return sorted(set(out) - NOT_SHAPE)
+
+
+# ⭕ **建つ姿に効かなくて当たり前の欄。**典拠と史料値は姿を決めず、決めてはいけない —
+#   `source` は値の出どころ、`koku` は格帯(`rank`)を裏づける史料値で、石高から棟数を引く鎖は
+#   史料で切れている(docs/typology-builder.md §4「附属の種別」)。⛔ この集合を静かに増やさない:
+#   増やすほど「効かない欄」が正当化され、EDO-0304 と同じ沈黙に戻る。増やすなら理由をここへ書く。
+NOT_SHAPE = {"source", "koku"}
+
+
+def unread_fields(T):
+    """**区画に書いてあるのに、ビルダーがその名を一度も読まない欄。**
+    ⭐ 第三の盲点(EDO-0317・2026-09-21)。`inert_defaults` は `defaults` の側しか見ず、
+    `read_but_unused` は「読んでから使わない」欄しか見ないので、**区画にだけ在る欄**は
+    どちらの網にも掛からない — `kamiyui`(髪結床・24区画)`tanagari`(店借)`hoshiba`(干場)
+    `tokinokane`(時の鐘)がそうで、史料から起こして書き込んだのに誰も建てていなかった。
+    ⛔ 破れ(赤)にしない: 部材が無くて建てられない欄もある。ここは「見えるようにする」係。"""
+    read = read_keys()
+    if read is None:
+        return None
+    seen = {}
+    for pid, e in (T.get("parcels") or {}).items():
+        if not isinstance(e, dict) or e.get("built") == "hand":
+            continue
+        for k in e:
+            if k.startswith("_") or k in ("cert", "source", "note") or k in read:
+                continue
+            seen.setdefault(k, []).append(pid)
+    return sorted(seen.items(), key=lambda kv: (-len(kv[1]), kv[0]))
 
 
 def inert_defaults(T):
@@ -174,15 +204,19 @@ def main():
                     help="確度 P のまま残っている欄を並べる(B/U へ振り直す対象・EDO-0255)")
     a = ap.parse_args()
     bad, pcert = check()
-    inert = inert_defaults(json.load(open(TYPO))) if os.path.exists(TYPO) else None
+    T = json.load(open(TYPO)) if os.path.exists(TYPO) else None
+    inert = inert_defaults(T) if T else None
     unused = read_but_unused()
+    unread = unread_fields(T) if T else None
     if a.list_p:
         for s in pcert:
             print(s)
         return
     if a.json:
         print(json.dumps({"bad": [{"parcel": p, "why": w} for p, w in bad],
-                          "inert_defaults": inert, "read_but_unused": unused},
+                          "inert_defaults": inert, "read_but_unused": unused,
+                          "unread_fields": {k: v for k, v in (unread or [])},
+                          "not_shape": sorted(NOT_SHAPE)},
                          ensure_ascii=False)); return
     # ⭐ 破れが 0 件でも必ず刷る(規則19)— 「既定を足したのに効かない」は赤ではなく沈黙で来る。
     if inert:
@@ -191,6 +225,13 @@ def main():
     if unused:
         print("  ⚠ 欄 %d 個はビルダーが読むのに一度も使っていない — 値を入れても姿は変わらない: %s"
               % (len(unused), "・".join(unused)))
+    if unread:
+        print("  ⚠ 欄 %d 個は区画に書いてあるのにビルダーが読みもしない — 史料から起こした値が誰にも建てられていない: %s"
+              % (len(unread), "・".join("%s(%d区画)" % (k, len(v)) for k, v in unread)))
+    # ⭕ 除外した欄も名指しで刷る(規則19 — 黙って緩めた検査は「合格」に見える)。
+    #   ⛔ `--quiet`(挨拶フック)で破れも ⚠ も無いときだけ黙る — 毎回の固定費にしない。
+    if not a.quiet or inert or unused or unread:
+        print("  ⭕ 建つ姿に効かなくて当たり前の欄(意図して除外)= %s" % "・".join(sorted(NOT_SHAPE)))
     if not bad:
         if not a.quiet:
             n = len(json.load(open(TYPO)).get("parcels", {}))

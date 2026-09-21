@@ -16,7 +16,7 @@
 ⛔ 焼いた ≠ 届いた。判は `build_board_html.py --published <URL>` で押す。
 正典: docs/session-board.md「普請場の一枚」
 """
-import json, os, re, subprocess, sys, time
+import json, os, re, shutil, subprocess, sys, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)                       # .claude/
@@ -34,6 +34,31 @@ def main_root():
     except Exception:
         pass
     return ROOT
+
+
+def stage_for_artifact(board, cwd):
+    """Artifact へ渡せる **絶対パス** (index.html, dashboard.html) を返す。
+
+    ⚠ 相対の `.git/edo-board/_pm/...` を渡してはいけない。**worktree では `.git` が
+    ディレクトリでなくファイル**なので `ENOTDIR` で開けない(2026-09-22 実測)。実体は
+    `git rev-parse --git-common-dir` の先=メインの checkout に在り、そこは worktree の
+    作業ディレクトリの**外**なので、絶対パスに直しても Artifact は受け取らない。
+
+    そこで**どの根から呼ばれても同じ**に、作業ツリーの `Temp/edo-board/` へ写してその絶対パスを渡す
+    (`.gitignore` の `[Tt]emp/` で無視される・`git status` は汚れない)。⛔ メインの checkout だけ
+    実体をそのまま渡す枝を作らない — `.git/` 配下を渡す形は Artifact で通した実績が無く、
+    普段は worktree から呼ばれるので**壊れても誰も踏まずに残る**。
+    """
+    idx = os.path.join(board, "_pm", "index.html")
+    dash = os.path.join(board, "_pm", "dashboard.html")
+    dst = os.path.join(os.path.realpath(cwd), "Temp", "edo-board")
+    try:
+        os.makedirs(dst, exist_ok=True)
+        shutil.copy2(idx, os.path.join(dst, "index.html"))
+        shutil.copy2(dash, os.path.join(dst, "dashboard.html"))
+        return os.path.join(dst, "index.html"), os.path.join(dst, "dashboard.html")
+    except Exception:
+        return idx, dash                          # 写せなければ実体を出す(理由は publish の失敗に出る)
 
 
 def main():
@@ -75,18 +100,23 @@ def main():
             except Exception:
                 ok = False
         late = (newest - at) / 3600.0
-        how = ('Artifact(file_path=".git/edo-board/_pm/index.html", url="%s", '
-               'files={"board.html": ".git/edo-board/_pm/dashboard.html"}, '
-               'overwrite_unread=["board.html"])' % url)
+        idx_p, dash_p = stage_for_artifact(board, ev.get("cwd") or ROOT)   # ⚠ 焼いた後に写す
+        how = ('Artifact(file_path="%s", url="%s", '
+               'files={"board.html": "%s"}, '
+               'overwrite_unread=["board.html"])' % (idx_p, url, dash_p))
         reasons.append(
             "掲示板が %s動いたのに、施主が見る一枚は古いまま。%s"
             "**中身だけ**を差し替えて上げ("
-            "⛔ 頁そのものを読み込まないこと・⛔ url を渡さないと別の図が生える):\n    %s\n  "
+            "⛔ board.html(1.6MB の板)を読み込まないこと — 文脈が飛ぶ・"
+            "⛔ url を渡さないと別の図が生える):\n    %s\n  "
+            "⚠ この巡で一度も上げていないセッションは publish を断られる。"
+            "そのときは `Artifact(action=\"read\", url=\"%s\")` で**頁(iframe の殻・529B)だけ**を"
+            "読んでから上げ直すこと(板は読まれない)。\n  "
             "そのあと `python3 Tools/Session/build_board_html.py --published %s` で判を押してから終えること。"
             % (("%.0f 時間ぶん" % late) if at else "",
                "**焼き直しは済ませた**ので、" if ok
                else "⛔ 焼き直しに失敗したので `python3 Tools/Session/build_board_html.py` を手で回してから、",
-               how, url))
+               how, url, url))
 
     # ── ② 自分が立てた裁定要請を、施主へ出さずに手を止めようとしている
     me = (ev.get("session_id") or "")[:12]

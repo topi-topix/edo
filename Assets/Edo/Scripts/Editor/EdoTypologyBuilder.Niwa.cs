@@ -69,7 +69,7 @@ public static partial class EdoTypologyBuilder
             bool takeDe = (de + 1f) / (ev + de + 1f) <= deShare;
             var pal = takeDe ? LinDe : LinEv;
             string path = pal[rnd.Next(pal.Length)];
-            for (int t = 0; t < 4 && path == last && pal.Length > 1; t++) path = pal[rnd.Next(pal.Length)];
+            for (int t = 0; t < 32 && path == last && pal.Length > 1; t++) path = pal[rnd.Next(pal.Length)];   // ⛔ 塊の中で同一個体を2本続けない(4回では確率で残る)
             if (takeDe) de++; else ev++;
             return path;
         };
@@ -800,21 +800,33 @@ public static partial class EdoTypologyBuilder
     /// 実測の離れ・偶数の塊・樹冠の被覆率まで出して、はじめて検査になる。</summary>
     static string NiwaInspect(EdoBuild.NiwaField f, List<string> want, List<string> got)
     {
-        // ④ 偶数の塊 / 同一個体が2本続いた箇所 — 据えた順に層ごとに見る
-        int evenClump = 0, twin = 0;
-        var runLayer = ""; var runPath = ""; int runN = 0;
-        Action flush = () => { if (runN > 0 && (runN & 1) == 0) evenClump++; };
+        // ④ 偶数の塊 — ⭐ **塊ごとに**据わった本数を数える(NiwaClump が振った札 clump で)。
+        //    ⚠ 意図が奇数でも、置けなかった駒があれば据わった本数は偶数になりうる — 数えるのは据わった数。
+        //    塊でない駒(clump=0: 井戸・灯籠・飛石の列)は数えない。
+        var perClump = new Dictionary<int, int>();
         foreach (var k in f.Komas)
         {
-            if (k.layer != runLayer) { flush(); runLayer = k.layer; runN = 0; runPath = ""; }
-            runN++;
+            if (k.clump <= 0) continue;
+            int c; perClump.TryGetValue(k.clump, out c); perClump[k.clump] = c + 1;
+        }
+        int evenClump = 0; foreach (var kv in perClump) if ((kv.Value & 1) == 0) evenClump++;
+        // 同一個体が2本続いた箇所 — ⭐ **同じ塊の中で**据えた順に隣り合う2本(設計 §5-1「個体を混ぜ、
+        // 同一個体を2本続けない」は塊の規則)。⛔ 層を通しで見ない — 離れた別の塊の境目は「続いた」でない
+        int twin = 0;
+        int runClump = 0; var runPath = "";
+        foreach (var k in f.Komas)
+        {
+            if (k.clump <= 0) { runClump = 0; runPath = ""; continue; }
+            if (k.clump != runClump) { runClump = k.clump; runPath = ""; }
             if (k.path == runPath) twin++;                 // ⛔ 同じ個体が2本続いた = 乱れ④の欠け
             runPath = k.path;
         }
-        flush();
 
         float cov = f.Coverage();
-        string covMark = cov > 0.50f ? "⚠ 林" : (cov < 0.05f ? "⚠ 禿げ" : "⭕");
+        // 設計 §5-2 ⑤: 目安 15〜30% / **50% 超 = 林・5% 未満 = 禿げ**(この2つだけが不合格)。
+        // 目安の外でも 5〜50% なら許容 — ただし「⭕」とは刷らず、外れていることは見せる(規則19)
+        string covMark = cov > 0.50f ? "⚠ 林" : (cov < 0.05f ? "⚠ 禿げ"
+                       : (cov >= 0.15f && cov <= 0.30f ? "⭕" : "(目安の外・許容)"));
         // 常緑:落葉 — 落葉3種とモミジを落葉に数える
         int raku = 0, jou = 0;
         foreach (var k in f.Komas)
@@ -826,15 +838,15 @@ public static partial class EdoTypologyBuilder
             if (de) raku++; else jou++;
         }
         float ratio = (jou + raku) > 0 ? (float)jou / (jou + raku) : 0f;
-        string mark = (f.InBand == 0 && evenClump == 0 && twin == 0) ? "⭕" : "⛔";
+        string mark = (f.InBand == 0 && evenClump == 0 && twin == 0 && cov >= 0.05f && cov <= 0.50f) ? "⭕" : "⛔";
         return string.Format(
-            "    {0} 庭の検査: 駒 {1}(予算 {2})/ 参道の帯に入った駒 {3}(許容0)/ 偶数の塊 {4} / 同一個体が続いた箇所 {5}\n"
+            "    {0} 庭の検査: 駒 {1}(予算 {2})/ 参道の帯に入った駒 {3}(許容0)/ 偶数の塊 {4}(塊 {15} 個中・据わった本数で数える)/ 同一個体が続いた箇所 {5}(塊の中で)\n"
           + "      離れの実測: 囲いから 最小 {6:F2}m / 軒から 最小 {7:F2}m(⛔ 中心点ではなく実バウンズの縁で測った値)\n"
           + "      樹冠の投影の被覆率 {8:P0} {9}(目安 15〜30%)/ 常緑:落葉 = {10:P0}:{11:P0}(目安 70:30)/ 置けなかった駒 {12}\n"
           + "      意図: {13}\n      実際: {14}",
             mark, f.Komas.Count, NIWA_BUDGET, f.InBand, evenClump, twin,
             float.IsNaN(f.MinWall) ? 0f : f.MinWall, float.IsNaN(f.MinEave) ? 0f : f.MinEave,
             cov, covMark, ratio, 1f - ratio, f.Refused,
-            string.Join(" / ", want.ToArray()), string.Join(" / ", got.ToArray()));
+            string.Join(" / ", want.ToArray()), string.Join(" / ", got.ToArray()), perClump.Count);
     }
 }

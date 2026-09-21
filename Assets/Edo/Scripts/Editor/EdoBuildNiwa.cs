@@ -200,7 +200,8 @@ public static partial class EdoBuild
     }
 
     /// <summary>据えた駒ひとつ(**実バウンズで測り直した**平面の半径つき)。</summary>
-    public struct NiwaKoma { public Vector2 c; public float r; public string path; public string layer; }
+    /// <summary>`clump` = 塊の通し番号(NiwaClump が振る)。0 = 塊でない駒(井戸・灯籠・飛石の列)— 検査は 1 以上だけを塊として数える。</summary>
+    public struct NiwaKoma { public Vector2 c; public float r; public string path; public string layer; public int clump; }
 
     /// <summary>庭の地 — 「どこに置けるか」を実メッシュから解いて持つ。
     /// ⭐ 置くのは**帯と塊だけ**(§5-4 ①「庭域へ一様乱数で撒かない」)。この型は撒く役ではなく、
@@ -221,11 +222,30 @@ public static partial class EdoBuild
 
         // 検査のための控え(§5-2)
         public int Refused, InBand;
+        /// <summary>塊の通し番号の採番と、いま据えている塊(0 = 塊の外)。</summary>
+        public int ClumpSeq, CurClump;
         public float MinWall = float.NaN, MinEave = float.NaN;
 
         public NiwaField(Vector2[] poly) { Poly = poly; }
 
         public float Area { get { return Cells.Count * Cell * Cell; } }
+
+        /// <summary>直前に据えた駒を外す(塊を奇数へ戻す用)。⭐ 検査の控え(最小の離れ・帯への侵入)は
+        /// 外した駒が作っていたかもしれないので、残った駒から**測り直す**。</summary>
+        public void DropLast(GameObject go)
+        {
+            if (Komas.Count == 0) return;
+            Komas.RemoveAt(Komas.Count - 1);
+            UnityEngine.Object.DestroyImmediate(go);
+            MinWall = float.NaN; MinEave = float.NaN; InBand = 0;
+            foreach (var k in Komas)
+            {
+                float dw = Walls.Dist(k.c, 12f) - k.r, de = Eaves.Dist(k.c, 12f) - k.r;
+                if (float.IsNaN(MinWall) || dw < MinWall) MinWall = dw;
+                if (float.IsNaN(MinEave) || de < MinEave) MinEave = de;
+                if (InSando(k.c, 0f)) InBand++;
+            }
+        }
 
         public void AddBand(Vector2 a, Vector2 b, float half)
         { BandA.Add(a); BandB.Add(b); BandHalf.Add(half); }
@@ -289,7 +309,7 @@ public static partial class EdoBuild
         /// <summary>1駒据える。⭐ 順は **置く → 接地箇所で据える → 実バウンズで樹冠を測り直す**。
         /// ⛔ ピボットの座に置き去りにしない。据えられなければ取り除いて null を返す(黙って浮かせない)。</summary>
         public GameObject Put(Transform parent, string path, Vector2 p, float yaw, float scale, float sink,
-                              string name, string layer)
+                              string name, string layer, float edgeK = -1f)
         {
             if (string.IsNullOrEmpty(path)) return null;
             var go = Place(path, new Vector3(p.x, Ground(p.x, p.y), p.y), yaw, Vector3.one * scale, parent, name);
@@ -299,7 +319,11 @@ public static partial class EdoBuild
             var rb = RB(go);
             float rr = Mathf.Max(rb.size.x, rb.size.z) * 0.5f;      // ⭐ 実バウンズで測り直す
             var c = new Vector2(rb.center.x, rb.center.z);
-            Komas.Add(new NiwaKoma { c = c, r = rr, path = path, layer = layer });
+            // ⭐ 区画の線からの控えは**据えた後の実バウンズ**でも守る。Free は推定の樹冠半径で判定するので、
+            //    実バウンズが推定より大きい木は線を越える(Stage6 が区域侵犯として数える)。edgeK < 0 は検めない。
+            if (edgeK >= 0f && (!EdoGeom.PIP(Poly, c) || EdoGeom.DistToPolyEdge(Poly, c) < rr * edgeK))
+            { UnityEngine.Object.DestroyImmediate(go); Refused++; return null; }
+            Komas.Add(new NiwaKoma { c = c, r = rr, path = path, layer = layer, clump = CurClump });
             // 検査の控え — 実測の離れ(⛔ 「置けた」だけを合格にしない・規則19)
             // ⚠ 打ち切り 12m — ここで採るのは**最小値**なので、遠い側の実距離は要らない
             //    (cap を上げると升の走査が二乗で効いて 79 区画の再生成が重くなる)。
@@ -340,12 +364,13 @@ public static partial class EdoBuild
         if ((n & 1) == 0) n++;                                   // ⛔ 偶数の塊を作らない(§5-2 ④)
         string last = null;
         var at = center; float lastR = 0f;
+        f.CurClump = ++f.ClumpSeq;                               // 検査が「塊ごと」に数えるための札
         for (int i = 0; i < n; i++)
         {
             // 個体を混ぜる(同じ物を2本続けない)
             string path = pick != null ? pick(last) : palette[rnd.Next(palette.Length)];
             if (pick == null)
-                for (int t = 0; t < 4 && path == last && palette.Length > 1; t++) path = palette[rnd.Next(palette.Length)];
+                for (int t = 0; t < 32 && path == last && palette.Length > 1; t++) path = palette[rnd.Next(palette.Length)];
             if (string.IsNullOrEmpty(path)) { f.Refused++; continue; }
             float baseR = CrownR(path);
             if (baseR <= 0f) { f.Refused++; continue; }
@@ -370,9 +395,17 @@ public static partial class EdoBuild
             float yaw = (float)rnd.NextDouble() * 360f;          // 乱れ ③ yaw は全周
             float sink = o.SinkByScale > 0f ? sc * o.SinkByScale
                                             : Mathf.Lerp(o.SinkLo, o.SinkHi, (float)rnd.NextDouble());
-            var go = f.Put(parent, path, p, yaw, sc, sink, prefix + "_" + i, layer);
+            var go = f.Put(parent, path, p, yaw, sc, sink, prefix + "_" + i, layer, o.EdgeK);
             if (go == null) continue;
             made.Add(go); last = path; at = p; lastR = r;
+        }
+        f.CurClump = 0;
+        // ⛔ 塊は必ず奇数(§5-2 ④)。置けなかった駒があって偶数で据わったら、最後の1本を下げて奇数にする。
+        //    (意図の奇数へ埋め直すのでなく減らす — 退避で置けなかった場所へ無理に詰めない)
+        if (made.Count > 0 && (made.Count & 1) == 0)
+        {
+            f.DropLast(made[made.Count - 1]);
+            made.RemoveAt(made.Count - 1);
         }
         return made;
     }
@@ -450,7 +483,7 @@ public static partial class EdoBuild
             if (!f.Free(p, r, o)) { f.Refused++; continue; }
             float yaw = Mathf.Atan2(dir.x, dir.y) * Mathf.Rad2Deg + ((float)rnd.NextDouble() - 0.5f) * 40f;
             float sink = Mathf.Lerp(o.SinkLo, o.SinkHi, (float)rnd.NextDouble());
-            var go = f.Put(parent, path, p, yaw, sc, sink, prefix + "_" + i, layer);
+            var go = f.Put(parent, path, p, yaw, sc, sink, prefix + "_" + i, layer, o.EdgeK);
             if (go == null) continue;
             made.Add(go); last = path;
         }

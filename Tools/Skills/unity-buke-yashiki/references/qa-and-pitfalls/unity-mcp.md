@@ -444,10 +444,26 @@ CLAUDE.md 規則5 違反になる。⭕ **`EdoGotenKit.Mune` で roofAsset を `
 (`EdoSashizuExport.CheckScene(id)` を `execute_code` で直に呼ぶ / `GameObject.Find` + `Find`)だけにする。
 ⭐ 終わりに `PrefabUtility.IsAnyPrefabInstanceRoot(root)` と `scene.isDirty` を必ず確かめる。
 
-## ⚠ `EdoYashikiPrefab.EnsureEditable` は **Completely で解く** — 書き戻したプレハブが数倍に膨らむ ★★
+## ⭕ 解決済 `EnsureEditable` の Completely — 書き戻したプレハブが数倍に膨らむ(2026-09-21 に直した)
 
-**2026-09-10 山王。** ビルダーを流す前の「解く」は `PrefabUnpackMode.Completely` なので、
-入れ子のプレハブ参照が**全部インライン化**される。⇒ 書き戻したら
+**2026-09-10 山王。** ビルダーを流す前の「解く」は `PrefabUnpackMode.Completely` だったので、
+入れ子のプレハブ参照が**全部インライン化**されていた。⇒ 書き戻したら
 `Edo_Sanno_Sha.prefab` が **1.98MB → 17.0MB**(transform は 5,562 → 6,562 なので、
-増えたぶんの大半は据えた物ではなく入れ子の展開)。LFS は版ごとに丸ごと保存するので、
-⚠ **1回のコミットで 17MB 乗る**。⛔ 「重くなった原因は据えた部材」と誤診しない。
+増えたぶんの大半は据えた物ではなく入れ子の展開)。⛔ 「重くなった原因は据えた部材」と誤診しない。
+
+**⭕ 2026-09-21(EDO-0282③)に `OutermostRoot` へ改めた**
+(`Assets/Edo/Scripts/Editor/EdoYashikiPrefab.EnsureRootEditable` / `EnsureStageEditable`)。
+葉のプレハブ(木・キットの部材)は繋がったままなので、もう膨らまない。
+同じ病を松江松平の庭でも実測している — **5,155 個すべてが生のオブジェクトで 15.2MB**
+(同じ邸の御殿は参照のままで 7,821 個・21.3MB)。→ `docs/maintenance/scene-size.md` §8
+
+⚠ **縮みは建て直すまで出ない。** 既に生になっている段は、その Stage を流し直して
+初めてプレハブ参照へ戻る。
+
+## ⛔ 段(ルート直下の群)の中を `Group()` を通さずに組み替えない ★★★
+
+松江松平・岡部・土井は**段ごとの入れ子プレハブ**(`Assets/Edo/Prefabs/Scene/Parts/<邸>__<段>.prefab`)。
+段はプレハブインスタンスなので、**プレハブ由来の子の削除・付け替えは例外を投げずに無視される**。
+`EdoYashikiPrefab.Group(ルート名, "Niwa")` を通せば、その段だけが解かれる。
+`EdoYashikiPrefab.EnsureEditable(root)` でも安全(全段を解く。ただし全段が書き直る)。
+⛔ `GameObject.Find(邸).transform.Find("Niwa")` を自分で書いて `DestroyImmediate` しない。

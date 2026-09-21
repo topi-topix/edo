@@ -77,6 +77,21 @@ public static class EdoYashikiPrefab
         "Edo_Yashiki_MatsudairaDewa", "Edo_Yashiki_OkabeChikuzen", "Edo_Yashiki_DoiOsumi",
     };
 
+    /// <summary>シーンに置いたままにするルートか(地形・光・カメラ等)。作業場が同じ名簿で仕分ける。</summary>
+    public static bool IsKeepInScene(string name) { return KeepInScene.Contains(name); }
+
+    /// <summary>段へ割る名簿に載っているルートか(名前だけで判定・実体は要らない)。</summary>
+    public static bool IsSplitRoot(string name) { return SplitRoots.Contains(name); }
+
+    /// <summary>そのルートについて既に出来ている段の入れ子プレハブのパス(無ければ空)。</summary>
+    public static string[] StageAssetsOf(string rootName)
+    {
+        if (!Directory.Exists(PartsDir)) return new string[0];
+        var files = Directory.GetFiles(PartsDir, Safe(rootName) + "__*.prefab");
+        for (int i = 0; i < files.Length; i++) files[i] = files[i].Replace('\\', '/');
+        return files;
+    }
+
     static string Safe(string name)
     {
         var safe = name;

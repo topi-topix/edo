@@ -661,8 +661,22 @@ def cmd_release(a):
         (c.get("used") or {}).pop(r, None)
     save(c, fp)
     print("release: 残り %s %s" % (c["paths"], c["resources"]))
+    if "unity" in freed:
+        _reload_cost()
     _hand_over(freed)
     return 0
+
+
+def _reload_cost():
+    """Unity を手放すときに、ドメインリロードをどのシーンで食べたかを突きつける(EDO-0282①)。
+    ⚠ 数えるのは Editor.log の1起動ぶん(時刻が入らないので区間で切れない)。"""
+    try:
+        sys.path.insert(0, os.path.join(ROOT, "Tools", "Unity"))
+        import reload_cost
+        for l in reload_cost.report()[0]:
+            print("  " + l)
+    except Exception as e:                       # 計測が転んでも手仕舞いは止めない
+        print("  (ドメインリロードの集計は取れなかった: %s)" % e)
 
 
 def _hand_over(freed):

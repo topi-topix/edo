@@ -46,7 +46,7 @@ public static class EdoNishiTameikeBuilder
     // ⚠ poly の正典 = docs/Sashizu/parcels.json(CLAUDE.md 規則10 / 2026-08-26 ユーザー裁定で json採用)
     public static Estate[] Estates = new Estate[]
     {
-        // 下書きv3 (2026-08-09): 横田・土岐とも溜池岸側へ拡張。水没部は EdoDaichiBuilder.Stage1_Grade で
+        // 下書きv3 (2026-08-09): 横田・土岐とも溜池岸側へ拡張。水没部は旧 EdoDaichiBuilder.Stage1_Grade(EDO-0299 で廃止・類型ビルダーが引き継ぐ)で
         // 水面+1mの棚(7.6)へ盛土する(ユーザー指示: 溜池掘削で現況高さが不正確なため必要な造成は可)。
         new Estate{ group="Edo_Yashiki_Yokota", label="横田筑後守(9500石)",
             poly=EdoParcels.Get("nishitameike_estates_0"),

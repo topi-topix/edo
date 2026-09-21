@@ -177,9 +177,9 @@ additive scene）は **B2 を入れるなら不要**。シーンが数MBまで�
   `GameObject.Find(root)` が空振りすると**アクティブなシーンに同名ルートを新規作成する**
   （`EdoNishiTameikeBuilder.cs:126` が正典、他13本がコピー）。
   分割するならルート名→シーンの対応表を持つルータを**同時に**入れること
-- ビルダーが他地区の成果物を掴んでいる箇所: `EdoSanbezakaBuilder.cs:416` →`Edo_Sanno_Sha` /
-  `EdoOkabeYashikiBuilder.cs:638` →`Edo_Sanno_Sha` / `EdoAzukarichiBuilder.cs:123` →`Edo_Tamachi_Bank` /
-  `EdoTameikeKitaBuilder.cs:707` →`Water_KurodaKamoba`
+- ビルダーが他地区の成果物を掴んでいる箇所: 旧 `EdoSanbezakaBuilder.cs:416` →`Edo_Sanno_Sha`(EDO-0299 で廃止)/
+  `EdoOkabeYashikiBuilder.cs:638` →`Edo_Sanno_Sha` / 旧 `EdoAzukarichiBuilder.cs:123` →`Edo_Tamachi_Bank`(同)/
+  旧 `EdoTameikeKitaBuilder.cs:707` →`Water_KurodaKamoba`(同)
 - 地形 `ModernTerrain` は1つで全ビルダーが読み書きする。分割できない。
   なお `ModernTerrain.asset` は **15.5 MB / LFS** なので、**造成や splat を伴う作業は
   シーンと別に 15.5 MB が乗る**。これはどの案でも減らない

@@ -129,4 +129,4 @@ LOD メッシュなど頂点数を増やしたくない場合は、壊れた頂�
 - ユーザーの「下書き(色線)」はEdoSketchのストローク: `UserData/Sketches/<scene>.json` を読むと
   ワールド座標の折れ線が色番号付きで得られる(0赤1黄2水色3緑4桃5白)。設計座標はここから直接取る。
 - Akasaka地形のsplat: layer 0=L_dirt 1=L_grass 2=L_bare 3=L_moat。道=bare 0.55-0.72+grass0.04、
-  広場(枡形内)=bare 0.42-0.60+grass0.08 (EdoShinmachiBuilderの通り筋レシピ流用)。
+  広場(枡形内)=bare 0.42-0.60+grass0.08 (旧 EdoShinmachiBuilder の通り筋レシピ流用。ビルダーは EDO-0299 で廃止・レシピの値はここが正典)。

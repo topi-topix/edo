@@ -465,6 +465,7 @@ public static class EdoTypologyBuilder
 
         // ── Stage 2: 囲い(**可動側** — 開口は門構えの実測 — 置き方の4手②) ──
         var encl = Group("Kakoi", root);
+        var kakoiNotes = new List<string>();
         foreach (var e in edges)
         {
             if (e.kind == EdgeKind.Shared && !e.mine) continue;         // 隣が持つ辺は建てない
@@ -476,10 +477,17 @@ public static class EdoTypologyBuilder
             if (kind == "nagaya")
                 EdoBuild.NagayaRun(encl, e.a, e.b, e.outward, pad, gc, gh, pre, poly);
             else
-                EdoBuild.DobeiRun(encl, e.a, e.b, e.outward, pre, true, pad, gc, gh);
+            {
+                // ⭐ 種別を run へ**渡す**(EDO-0324)。⛔ 2026-09-21 まで種別は捨てられていて、
+                //    ita / dobei / ita+ikegaki / ishigaki+hei / yarai / boji / kui が全部おなじ板塀で建っていた。
+                string note;
+                EdoBuild.FenceRun(encl, e.a, e.b, e.outward, kind, pad, gc, gh, pre, out note);
+                if (!string.IsNullOrEmpty(note)) kakoiNotes.Add("辺" + e.i + " " + note);
+            }
         }
         log.Add("  囲い: " + string.Join(" / ", edges.Where(e => e.mine).Select(
             e => e.i + "=" + EnclosureFor(s, e, e == front)).ToArray()));
+        foreach (var nt in kakoiNotes) log.Add("    " + nt);   // ⛔ 代用を黙って飲まない(規則7・19)
 
         // ── Stage 2b: 門構えの奥行を、建った塀の**通り側の面**へ揃える ──
         // ⭐ 横はもう決まっている(塀の開口がその実測で開いている)ので、動かすのは奥行だけ。
@@ -553,9 +561,12 @@ public static class EdoTypologyBuilder
         return ds[ds.Count / 2];
     }
 
+    /// <summary>この辺を何で囲うか。⛔ 2026-09-21 まで公有地は `fence` の欄を読まずに `yarai` を直書きしていて、
+    /// 表に書いた yarai 1 / boji 3 / kui 1 / ita 1 / none 4 のうち**建つ姿に効いていたのは 0 件**だった(EDO-0324)。
+    /// 返す語は <see cref="EdoBuild.FenceRun"/> の種別(none は囲わない)。</summary>
     static string EnclosureFor(Spec s, Edge e, bool isFront)
     {
-        if (s.type == "kouyuu") return "yarai";
+        if (s.type == "kouyuu") return s.fence ?? "yarai";   // ⭐ 表の欄が勝つ(既定は表の defaults.kouyuu.fence)
         if (s.enclosure == "nagaya") return "nagaya";
         if (s.enclosure == "nagaya_front+ita") return isFront ? "nagaya" : "ita";
         return s.enclosure ?? "ita";

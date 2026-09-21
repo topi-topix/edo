@@ -302,8 +302,11 @@ public static partial class EdoBuild
 
     // ---------- 板塀/穂垣 run — 片面ポリゴンなので表裏の対で置く ----------
     // asset: 5枚スパンOBJ。走りは DobeiRun と同じ実寸カーソル。パネル毎に接地。
+    /// <param name="seatByContact">⭐ true なら**触れている箇所**を測って据える(規則21)。
+    /// 既定 false は bounds の底で据える従来の動き — 呼び手(山王社の板塀)の姿を変えないため。
+    /// ⛔ 既定を反転するのは **EDO-0342**(山王社を建て直して据わりを実測してから)。</param>
     public static List<GameObject> PanelRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string prefix,
-        string assetPath, Vector2 gapC, float gapHalf)
+        string assetPath, Vector2 gapC, float gapHalf, bool seatByContact = false)
     {
         var made = new List<GameObject>();
         Vector2 dir = (B - A).normalized; float len = (B - A).magnitude;
@@ -337,9 +340,151 @@ public static partial class EdoBuild
                 float mn, mx;
                 ButtOnRun(go, A, dir, outward, side == 0 ? 0.0f : -0.12f, startAbs, out mn, out mx);
                 if (side == 0) { prevEnd = mx; chained = true; }
-                SeatBottom(go, baseY - 0.10f);
+                if (seatByContact) { try { SeatOnGround(go, 0.10f, 600); } catch (Exception) { SeatBottom(go, baseY - 0.10f); } }
+                else SeatBottom(go, baseY - 0.10f);
                 made.Add(go);
             }
+        }
+        return made;
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  囲いの作り分け (EDO-0324・2026-09-21)
+    //  ⛔ 「どの区画が何を持つか」はここに書かない — それは類型表と EdoTypologyBuilder の持ち場。
+    //     ここに書くのは **置く・測る・突き付ける・据える** だけ(規則21)。
+    // ══════════════════════════════════════════════════════════════════════
+
+    /// <summary>辺 A→B に**種別どおりの囲い**を建てる。
+    /// ⛔ 2026-09-21 まで種別は捨てられていて、ita / dobei / ita+ikegaki / ishigaki+hei / yarai / boji / kui の
+    /// **7 種が全部おなじ板塀**で建っていた(EDO-0324)。
+    /// <para><paramref name="note"/> に「何で建てたか・何を代用したか」を必ず返す — ⛔ 黙って代用しない(規則7・19)。
+    /// 既定(<paramref name="kind"/> が null や未知の語)は**今までどおりの板塀**で、呼び手を変えない限り姿は変わらない。</para></summary>
+    public static List<GameObject> FenceRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string kind,
+        float baseY, Vector2 gapC, float gapHalf, string prefix, out string note)
+    {
+        switch (kind)
+        {
+            case "none":
+                note = "囲わない(表の fence=none)";
+                return new List<GameObject>();
+
+            case "yarai":
+            {
+                // 竹矢来の駒は在庫に無い。穂垣(片面ポリゴン・5スパン)を表裏の対で立てる。
+                var made = PanelRun(parent, A, B, outward, prefix, EdoAssets.Eg.Hogaki5, gapC, gapHalf, true);
+                float h = made.Count > 0 ? RB(made[0]).size.y : float.NaN;   // ⭐ 据えた駒の実メッシュから測る
+                note = string.Format("竹矢来=穂垣で代用 {0}枚(実丈 {1:F2}m)⚠ 竹矢来(交叉させた竹)の駒は在庫に無い — EDO-0318",
+                                     made.Count, h);
+                return made;
+            }
+
+            case "boji":
+                // 傍示杭 = 境を示す**標**。杭列より疎に、太い1径で立てる。
+                return KuiRun(parent, A, B, outward, prefix, gapC, gapHalf, 5f, new float[] { 0.18f }, "傍示杭", out note);
+
+            case "kui":
+                return KuiRun(parent, A, B, outward, prefix, gapC, gapHalf, 1f, new float[] { 0.12f, 0.15f, 0.18f }, "杭列", out note);
+
+            case "ita+ikegaki":
+            {
+                var made = DobeiRun(parent, A, B, outward, prefix, NaturalMode, baseY, gapC, gapHalf);
+                int ni = IkegakiRow(parent, A, B, outward, prefix + "ike", made, gapC, gapHalf);
+                note = string.Format("板塀 {0}枚 + 生垣 {1}駒(生垣は塀の**触れている箇所**まで寄せた)", made.Count, ni);
+                return made;
+            }
+
+            case "dobei":
+                note = "⚠ 練塀(築地塀)の駒が在庫に無いので**板塀で代用**した — EDO-0318";
+                return DobeiRun(parent, A, B, outward, prefix, NaturalMode, baseY, gapC, gapHalf);
+
+            case "ishigaki+hei":
+                note = "⚠ 腰の石垣は unity-modular-stonewall の run の持ち場 — いまは**塀だけ**建てた";
+                return DobeiRun(parent, A, B, outward, prefix, NaturalMode, baseY, gapC, gapHalf);
+
+            case "ita":
+                note = null;
+                return DobeiRun(parent, A, B, outward, prefix, NaturalMode, baseY, gapC, gapHalf);
+
+            default:
+                note = kind == null ? null : ("⚠ 知らない囲いの種別 \"" + kind + "\" — 板塀で建てた");
+                return DobeiRun(parent, A, B, outward, prefix, NaturalMode, baseY, gapC, gapHalf);
+        }
+    }
+
+    /// <summary>**杭列**(傍示杭・杭)。⛔ 連続の塀にしない — **間を空けて立てる**。
+    /// <para>芯々 = <paramref name="pitchKen"/> 間(江戸間 1 間 = 1.818m は CLAUDE.md の不変値)。
+    /// ⚠ 何間置きかは史料が無い【確度 U】— 杭列は 1 間、傍示杭は**標**なので 5 間に採った。
+    /// 隙は**据えた杭の実幅を測って**刷るので、駒を替えれば刷る値も変わる。</para>
+    /// 径は <paramref name="dias"/> を混ぜ、yaw は全周へ振る(⛔ 1 種を等間隔に並べない — `EdoAssets.Own.Kui` の注記)。
+    /// 据えは <see cref="SeatBuried"/> の 1/3 埋め — 杭は地面に**刺さる**物で、底を地面に置く物ではない。
+    /// ⛔ ピボット(杭は頭が原点で −Y へ 1.55 垂れる)で高さを決めない(規則21)。</summary>
+    public static List<GameObject> KuiRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string prefix,
+        Vector2 gapC, float gapHalf, float pitchKen, float[] dias, string label, out string note)
+    {
+        var made = new List<GameObject>();
+        Vector2 dir = (B - A).normalized; float len = (B - A).magnitude;
+        int n = Mathf.Max(1, Mathf.RoundToInt(len / (ES * pitchKen)));
+        float pitch = len / n;
+        // ⭐ 種は**辺の座標**から作る(版を跨いで同じ姿になる)。⛔ string.GetHashCode は実行ごとに撹拌される。
+        var rnd = new System.Random(Mathf.RoundToInt((A.x * 7.3f + A.y * 11.9f + B.x * 29.1f + B.y * 53.7f) * 100f) & 0x7fffffff);
+        float gT = gapHalf > 0 ? Vector2.Dot(gapC - A, dir) : 0f;
+        for (int k = 0; k <= n; k++)
+        {
+            float t = pitch * k;
+            if (gapHalf > 0 && Mathf.Abs(t - gT) < gapHalf) continue;          // 門の開口は空ける
+            var c = A + dir * t;
+            var go = Place(EdoAssets.Own.Kui(dias[rnd.Next(dias.Length)]), new Vector3(c.x, 0f, c.y),
+                           (float)rnd.NextDouble() * 360f, Vector3.one, parent, prefix + "_" + k);
+            if (go == null) continue;
+            try { SeatBuried(go, 1f / 3f, 200); }
+            catch (Exception) { UnityEngine.Object.DestroyImmediate(go); continue; }
+            made.Add(go);
+        }
+        float w = 0f, ex = 0f;
+        foreach (var go in made) { var b = RB(go); w = Mathf.Max(w, Mathf.Max(b.size.x, b.size.z)); ex = Mathf.Max(ex, b.size.y); }
+        note = string.Format("{0} {1}本(芯々 {2:F2}m = {3:F0}間【U】・杭の実幅 {4:F2}m ⇒ 隙 {5:F2}m・丈 {6:F2}m・径{7}種を混ぜ yaw を振った)",
+                             label, made.Count, pitch, pitchKen, w, pitch - w, ex, dias.Length);
+        return made;
+    }
+
+    /// <summary>板塀の内側に**生垣**(1 間モジュール)を並べる。走りは 1 間ピッチ
+    /// (駒の実幅 1.91m は葉の持ち出し込みで、**突き付けるのは 1 間の木口**)。
+    /// 奥行は塀の**触れている箇所**まで <see cref="Abut(GameObject,GameObject,Vector3,float,out Vector3,out int,float,int,bool)"/> で寄せる
+    /// — ⛔ 外接箱 + 定数で寄せない(規則21)。返り値 = 据えた駒の数。</summary>
+    static int IkegakiRow(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string prefix,
+                          List<GameObject> fence, Vector2 gapC, float gapHalf)
+    {
+        if (fence == null || fence.Count == 0) return 0;
+        Vector2 dir = (B - A).normalized; float len = (B - A).magnitude;
+        int n = Mathf.FloorToInt(len / ES);
+        if (n < 1) return 0;
+        float psi = Mathf.Atan2(outward.x, outward.y) * Mathf.Rad2Deg;
+        var toFence = new Vector3(outward.x, 0f, outward.y);
+        float head = (len - ES * n) * 0.5f;
+        float gT = gapHalf > 0 ? Vector2.Dot(gapC - A, dir) : 0f;
+        // ⭐ 突き付ける相手は塀の**内側の葉**(DobeiRun は表裏の対で置き、裏の駒の名が "b" で終わる)。
+        var inner = fence.Where(f => f.name.EndsWith("b")).ToList();
+        if (inner.Count == 0) inner = fence;
+        int made = 0;
+        for (int k = 0; k < n; k++)
+        {
+            float t = head + ES * (k + 0.5f);
+            if (gapHalf > 0 && Mathf.Abs(t - gT) < gapHalf + ES * 0.5f) continue;   // 門の開口は空ける
+            // 仮置きは塀の内側へ引いた所。⭐ 位置は置いたあと**測って**決める(この 1.6m は姿に残らない)。
+            var c = A + dir * t - outward * 1.6f;
+            var go = Place(EdoAssets.Own.Ikegaki(k == 0 || k == n - 1), new Vector3(c.x, 0f, c.y), psi,
+                           Vector3.one, parent, prefix + "_" + k);
+            if (go == null) continue;
+            try { SeatOnGround(go, 0.05f, 300); } catch (Exception) { }
+            GameObject near = null; float bd = float.MaxValue;
+            foreach (var f in inner)
+            {
+                float d = Vector3.Distance(f.transform.position, go.transform.position);
+                if (d < bd) { bd = d; near = f; }
+            }
+            if (near != null) { Vector3 at; int cn; Abut(go, near, toFence, 0f, out at, out cn, 0.30f, 400); }
+            try { SeatOnGround(go, 0.05f, 300); } catch (Exception) { }
+            made++;
         }
         return made;
     }

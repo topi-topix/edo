@@ -1,0 +1,3 @@
+{
+ "_polygon": "区画の正典は docs/Sashizu/parcels.json#sannobuke_kyogoku(ユーザーが 2026-08-30 に敷地割ツールで引き直した)。ここには読み取り結果を写すだけで、食い違ったら parcels.json が勝つ。⚠ json 側は先頭点が重複して8点だが、長さ0の辺なので**7点**として扱う(共有1で起票済)。"
+}

@@ -1,0 +1,3 @@
+{
+ "_dem": "造成前の地盤は **`docs/Sashizu/base_dem.json` が正本**(CLAUDE.md 規則12)。`doi_dem.json` はその切り出しで、`Tools/Sashizu/build_base_dem.py` が生成する。⛔ **手で編集しない。Unity の live terrain から採り直さない** — live は作業面で、採った時刻までに誰かが流した造成が乗る。2026-08-24、旧 `doi_dem.json` は松平区画の574セル(最大+6.91m)に松平の造成を写しており、境界から0.3mの当家側の地盤が 2.5m 押し上げられていた(松平の指摘で発覚・司令塔が正本へ一本化)。⚠ 回転間格子の `doi_terrain.json` を作り直すときは、種地を `base_dem.json` から取ること。縁の8セル(最大1.61m・v>94 の補間で埋めた範囲)は既知として残してよい。"
+}

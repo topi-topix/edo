@@ -214,8 +214,7 @@ public static class EdoYashikiPrefab
         var touched = TouchedIn(scene);
         var orphans = new List<string>();
         var sb = new System.Text.StringBuilder();
-        int wrote = 0, skipUntouched = 0, skipNoMods = 0, skipOverrideOnly = 0;
-        var ovrOnly = new List<string>();
+        int wrote = 0, skipUntouched = 0, skipNoMods = 0, skipUntracked = 0;
         long bytes = 0;
         var sw = System.Diagnostics.Stopwatch.StartNew();
 
@@ -225,36 +224,28 @@ public static class EdoYashikiPrefab
             bool hasAsset = File.Exists(PathFor(r.name));
             if (!isPf && !hasAsset) continue;          // 未変換 — Convert の仕事(従来どおり触らない)
 
+            bool hit = touched.Contains(r.name);
+
+            if (scope == WriteBackScope.Touched && !hit)
+            {
+                // ⛔ **台帳に無いルートには、プレハブの差分を問い合わせもしない。**
+                //   `GetAddedGameObjects`/`GetRemovedGameObjects` は 162 本で 6.8 秒、
+                //   `GetObjectOverrides` は 2.4 秒かかる(2026-09-21 実測)。
+                //   1本のために全部を問い合わせるのでは、舐めるのをやめた意味が無い。
+                //   ここで払うのは `File.Exists`(162 本で 5ms)だけ。
+                if (!isPf) { orphans.Add(r.name); skipUntouched++; continue; }   // ⛔ 他邸を巻き込まない
+                skipUntracked++;
+                continue;
+            }
+
+            // ここから先は「書くと決めたルート」だけ。差分の問い合わせは記録のためで、判定には使わない。
             int ovr = isPf ? PrefabUtility.GetObjectOverrides(r).Count : 0;
             int str = isPf ? PrefabUtility.GetAddedGameObjects(r).Count
                            + PrefabUtility.GetRemovedGameObjects(r).Count : 0;
             int mods = isPf ? ovr + str : -1;
-            bool hit = touched.Contains(r.name);
-            string why = hit ? "台帳" : (isPf ? $"構造の手直し {str}" : "解けたまま");
+            string why = hit ? "台帳" : (isPf ? $"override {ovr}/構造 {str}" : "解けたまま");
 
-            if (scope == WriteBackScope.Touched && !hit)
-            {
-                if (!isPf) { orphans.Add(r.name); skipUntouched++; continue; }   // ⛔ 他邸を巻き込まない
-
-                // ⛔ **override があるだけでは書かない。** 2026-09-21 に赤坂で実測すると、
-                //   プレハブインスタンス 162 本のうち 74 本が「消えない override」を持っていた。
-                //   中身は**全部同じ一種類** — MeshRenderer の `m_Materials.Array.data[0]`。
-                //   コードが `new Material(...)` で起こした材質は**資産でない**のでプレハブへ
-                //   serialize できず、資産側は null、インスタンス側は override のまま残る。
-                //   ⇒ 書き戻しても `mods` は 0 に戻らないので、保存のたびに同じ 74 本
-                //     (87.9MB・107.9 秒)を書き直し、git の変化は 0 件だった。これが②の的。
-                //   材質そのものの直しは②の外(→ 掲示板)。ここでは**判定を構造に寄せる**。
-                //   実測: その 74 本は add も rem も全部 0。構造の手直し(子の増減)は
-                //   `Group()` を通らない手編集でしか起きないので、偽陽性なしで拾える。
-                if (str == 0)
-                {
-                    if (ovr > 0) { skipOverrideOnly++; if (ovrOnly.Count < 5) ovrOnly.Add(r.name + "(" + ovr + ")"); }
-                    else skipNoMods++;
-                    continue;
-                }
-                // 子が増減している = 人が Hierarchy で組み替えた。書く。
-            }
-            else if (scope == WriteBackScope.All && isPf && mods == 0 && !hit) { skipNoMods++; continue; }
+            if (scope == WriteBackScope.All && isPf && mods == 0 && !hit) { skipNoMods++; continue; }
 
             long b;
             sb.AppendLine("  " + OneLogged(r, out b) + $"\t({why})");
@@ -268,8 +259,7 @@ public static class EdoYashikiPrefab
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
 
         Debug.Log($"[EdoWriteBack] done scene={Path.GetFileName(scene.path)} scope={scope}"
-                + $" wrote={wrote} (解けたまま={skipUntouched} 変更なし={skipNoMods}"
-                + $" override只={skipOverrideOnly}{(ovrOnly.Count > 0 ? " 例:" + string.Join(",", ovrOnly) + (skipOverrideOnly > ovrOnly.Count ? ",…" : "") : "")})"
+                + $" wrote={wrote} (台帳外={skipUntracked} 解けたまま={skipUntouched} 変更なし={skipNoMods})"
                 + $" bytes={bytes / 1048576.0:F1}MB ms={sw.ElapsedMilliseconds}");
 
         if (orphans.Count > 0)
@@ -390,11 +380,14 @@ public static class EdoYashikiPrefab
         sb.AppendLine($"\nプレハブ化済={conv}  解けたまま={loose}  未変換(>= {MinTransforms})={left}  シーンに残す={keep}");
         sb.AppendLine($"台帳({Path.GetFileName(scene.path)})={touched.Count} 件");
         sb.AppendLine($"構造の手直しあり(add+rem>0)={structural}  override だけ={ovrOnly}");
-        if (ovrOnly > 0)
-            sb.AppendLine("⚠ 「override だけ」は書き戻しの対象外(台帳に無ければ)。2026-09-21 の実測では"
-                        + " その正体は全部 MeshRenderer の m_Materials — コードで起こした材質が資産でないため"
-                        + " プレハブに焼けず、書き戻しても消えない。手で直したルートがここに居るなら"
-                        + " Edo/屋敷/プレハブへ書き戻す(選択中) で明示的に書くこと。");
+        sb.AppendLine("⚠ **台帳に無いルートは、override があっても構造が変わっていても書き戻されない**"
+                    + "(保存のたびに 162 本へ問い合わせると 9.2 秒かかるため、判定は台帳だけで行う)。"
+                    + "\n   この表が、その取りこぼしを見つける唯一の場所。**「構造の手直しあり」に心当たりの"
+                    + "ないルートが居たら、Group() を通らない手編集が残っている** —"
+                    + " Edo/屋敷/プレハブへ書き戻す(選択中) で明示的に書くこと。"
+                    + "\n   ⭐ 「override だけ」の大半は直しようのない常連: 2026-09-21 の実測ではその正体は"
+                    + "全部 MeshRenderer の m_Materials で、コードが new Material(...) で起こした材質は"
+                    + "資産でないためプレハブへ焼けず、書き戻しても消えない(赤坂で 162 本中 74 本)。");
         return sb.ToString();
     }
 }

@@ -29,6 +29,7 @@
   敷居レベル。鐘楼と墓地は **ピボット = footprint の中心・地盤レベル**。
 
 【材】⛔ 新規に作らない。`wood` / `wall C` / `Foundation_A_01` / `roof` / `roof ornaments`。
+      ⚠ 鐘楼の基壇と墓地だけは切石 `Kirishi`(玉石の Foundation_A_01 を基壇に当てない)。
 """
 import bpy, sys, os, math
 
@@ -115,9 +116,13 @@ def shoro(ken=3.0):
     z_dan, z_koshi, z_keta = 0.55, 2.60, 4.75
 
     # ① 基壇(切石積)。天端をわずかに絞って段に見せる
-    m.box(-B, B, 0.0, z_dan * 0.62, -B, B, VM.sub(P['suv'], 0, 0, 1, 0.5), STONE)
-    m.box(-B + 0.10, B - 0.10, z_dan * 0.62, z_dan, -B + 0.10, B - 0.10,
-          VM.sub(P['suv'], 0, 0.5, 1, 1.0), STONE)
+    # ⭐ 材は **`Kirishi`**(切石)。⛔ 2026-09-21 に `STONE`(= Foundation_A_01・玉石積み)で焼いて
+    #   EdoAssets.Own.Shoro の注記と食い違った(EDO-0318 ⑦)。玉石の材を基壇に当てると
+    #   「小石を盛った台」に見える — 墓地の囲いと同じ切石に揃える。
+    kiri = SB.kirishi_material()
+    suv = (0.06, 0.06, 0.52, 0.52)          # 切石はタイル材 — 小さい駒には一部だけ当てる
+    m.box(-B, B, 0.0, z_dan * 0.62, -B, B, suv, KIRI)
+    m.box(-B + 0.10, B - 0.10, z_dan * 0.62, z_dan, -B + 0.10, B - 0.10, suv, KIRI)
 
     # ② 袴腰 — 下 hb・上 ht の台形。4面を quad で張る(⛔ box で立てると垂直になる)
     hb, ht = B - 0.24, pillar + 0.26
@@ -176,7 +181,7 @@ def shoro(ken=3.0):
             m.box(xa - 0.008, xb + 0.008, cy - 0.045, cy + 0.045, -gr, gr, kuv, WOOD)
 
     # ④ 梵鐘 — 桁から吊る。⚠ 材は `roof ornaments`(在庫に金属の材が無い)【U】
-    body = m.to_object(name + "_body", [P['wood'], P['wall'], P['stone'], P['shoji']])
+    body = m.to_object(name + "_body", [P['wood'], P['wall'], P['stone'], P['shoji'], kiri])
     bell = _bell(name + "_bell", z_keta - 0.26)
     # ⑤ 入母屋
     roof = R.make_irimoya(2.0 * pillar, 2.0 * pillar, name + "_roof", eave=0.95)

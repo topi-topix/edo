@@ -50,6 +50,20 @@ CLAUDE.md・`.claude/`(役・コマンド・フック・rules・workflows)・ス
 4. **事故のたび**: `edo_board.py post --type lesson` が `docs/lessons.md` へ足した行に、直しと同じコミットで
    処置タグ(`→規則N` / `→スキル:<名>` / `→メモリ:<file>` / `→不要` / `→保留:日付`)を付ける。14 日で道具が鳴る。
 
+## 起動時の固定費 — MCP コネクタ(2026-09-21)
+
+**全セッションが毎回背負う固定費**に、この普請と無関係な MCP サーバのツール名一覧とサーバ手引きがある
+(EDO-0139)。要るか要らないかは邸ごとでなくアカウントごとに決まるので、見張りは道具でなくこの節。
+
+- **今どうなっているか**を出す道具は `mcp__ccd_connectors__session_connectors_status`(`kind` と `tool_count`)。
+- **`kind: connector`(claude.ai 側)は会話から止められる** — `mcp__ccd_connectors__set_session_connector_enabled`
+  に名前と `enabled: false`。⚠ 止めると**新しいセッションの既定**にもなる(他プロジェクトを含む)。
+  要るときは + メニューのコネクタで一時的に戻す。
+- **`kind: desktop` / `plugin` は会話から止められない** — Claude Desktop の設定(拡張機能)でユーザーが切る。
+- 2026-09-21 に止めた 4 本: Vercel 212・Gmail 30・Supabase 29・Google Calendar 9 = **280 ツール**。
+- 残す物: `unityMCP` 46(普請の本体)・`scheduled-tasks` 6(日誌と週次の自動点検)・`visualize` 2・`Claude Docs` 8。
+- 未処置(ユーザーの端末操作): デスクトップ拡張 `edinetdb` 75・`irweather` 8(どちらも irweather.jp の普請の道具)。
+
 ## 置き場所の規則の言い直し(CLAUDE.md「知識の置き場所」の延長)
 
 - **義務は正典 1 箇所。** `<!-- obl:<id> canon -->` を正典の行に、他の言及は `→` 付きの 1 行に `<!-- obl:<id> -->`。

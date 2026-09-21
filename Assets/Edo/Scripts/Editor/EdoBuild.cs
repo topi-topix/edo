@@ -124,6 +124,12 @@ public static partial class EdoBuild
     public static bool IsRoofName(string name)
     {
         string n = name.ToLower();
+        // ⛔ 棟割長屋(munewari)の "mune" は棟ではなく「棟を割る」の意。単一メッシュの駒がこれで丸ごと屋根扱いになり、
+        //    壁体の頂点が 0 になった — 区域侵犯も隣とのめり込みも**棟割だけ素通り**していた(EDO-0355・
+        //    新町 ra で表店の5間の駒が棟割へ −7.9m めり込んだのに Clashes が NaN を返した)。
+        //    ⚠ 部分文字列の篩なので同じ型は他にも起きうる(Enoki / Mukunoki の "noki")。駒を焼いたら壁体の頂点が
+        //    0 でないことを確かめる。
+        if (n.Contains("munewari")) return false;
         return n.Contains("yane") || n.Contains("noki") || n.Contains("taruki") || n.Contains("mune") || n.Contains("keta");
     }
 

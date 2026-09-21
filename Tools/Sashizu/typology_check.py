@@ -31,11 +31,12 @@ NEED = {
 
 def check():
     bad = []
+    pcert = []          # この表で使ってはいけない確度 P の欄(下でまとめて 1 行にする)
     parcels = json.load(open(PARCELS))["parcels"]
     ids  = [p["id"] for p in parcels]
     cats = {p["id"]: p.get("category") for p in parcels}
     if not os.path.exists(TYPO):
-        return [("表が無い", "docs/Sashizu/typology.json が無い — 類型ビルダーは一区画も建てられない")]
+        return [("表が無い", "docs/Sashizu/typology.json が無い — 類型ビルダーは一区画も建てられない")], []
     T = json.load(open(TYPO))
     tp = T.get("parcels", {})
 
@@ -73,20 +74,37 @@ def check():
             for k, v in c.items():
                 if v not in CERT:
                     bad.append((i, f"cert.{k}={v} は S/A/B/P/U でない"))
+                elif v == "P":
+                    pcert.append(f"{i}.{k}")
         if not e.get("source"):
             bad.append((i, "source が無い — 値の出どころを書く(規則7)"))
         # 区画の category と類型の type が食い違うなら、source で断ってあること
         want = {"buke": "buke", "machiya": "machiya", "jisha": "jisha", "kouyuu": "kouyuu"}
         if cats.get(i) in want and want[cats[i]] != t and "⚠" not in (e.get("source") or ""):
             bad.append((i, f"区画は {cats[i]} なのに類型は {t} — 食い違いを source に ⚠ で断る"))
-    return bad
+
+    # 確度 P は「当方が測った・算出した値」で、類型の既定値ではない(規則7・sources.md)。
+    # 文献から導かれる型は B、当方が地形や接道から推したものは U。⛔ 欄ごとに 1 件ずつ並べない —
+    # 数が多いと本物の破れが埋もれる。1 行にまとめ、振り直しが済めば自然に消える。
+    if pcert:
+        bad.append(("(表ぜんたい)",
+                    "cert に P が %d 欄(%d 区画)— P は当方の実測・算出で類型の既定値ではない。"
+                    "B(文献の型)か U(当方の推論)へ振り直す。振り分けは考証方の持ち場 → 掲示板 EDO-0255。"
+                    "内訳は `--list-p`" % (len(pcert), len({s.split(".")[0] for s in pcert}))))
+    return bad, pcert
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--quiet", action="store_true", help="破れがある時だけ書く(挨拶フック用)")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--list-p", action="store_true",
+                    help="確度 P のまま残っている欄を並べる(B/U へ振り直す対象・EDO-0255)")
     a = ap.parse_args()
-    bad = check()
+    bad, pcert = check()
+    if a.list_p:
+        for s in pcert:
+            print(s)
+        return
     if a.json:
         print(json.dumps([{"parcel": p, "why": w} for p, w in bad], ensure_ascii=False)); return
     if not bad:

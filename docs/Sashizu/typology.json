@@ -1,5 +1,5 @@
 {
- "_": "類型表 — 全 88 区画の類型と径数。座標は持たない(区画は docs/Sashizu/parcels.json が正典・規則11)。欄が null のときは defaults から採る。cert は確度 S/A/B/P/U(規則7)。built:hand は図を起こして建てた敷地で、類型ビルダーの生成対象から外れる。設計=docs/typology-builder.md / 検査=Tools/Sashizu/typology_check.py",
+ "_": "類型表 — 全 88 区画の類型と径数。座標は持たない(区画は docs/Sashizu/parcels.json が正典・規則11)。欄が null のときは defaults から採る。cert は確度 S/A/B/P/U(規則7・正典は Tools/Skills/unity-buke-yashiki/references/sources.md)。⛔ この表で P を使わない — P は当方が測った・算出した値で、類型の既定値ではない。複数の文献から導かれる型は B、当方が地形や接道から推したものは U(当方の推論)。built:hand は図を起こして建てた敷地で、類型ビルダーの生成対象から外れる。設計=docs/typology-builder.md / 検査=Tools/Sashizu/typology_check.py",
  "_front": "front は8方位(N/NE/E/SE/S/SW/W/NW と NNE などの中間)。null のときはビルダーが接道辺(区画の間に残った領域に面する辺)から採る。⛔ 辺番号も座標も書かない — 取り合いは実メッシュから解く(規則5)",
  "defaults": {
   "_": "類型ごとの既定値。区画の欄が null のときビルダーがここから採る。⛔ 出典の無い既定値は U 扱い(規則7)",

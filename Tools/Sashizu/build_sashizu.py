@@ -763,7 +763,7 @@ class Checks(object):
             if kind == "廊下":
                 continue
             if b.name in exc or b.label in exc:
-                rows.append((b.label, b.name, 0.0, 0.0, 100.0))
+                rows.append((b.label, b.name, 0.0, 0.0, 100.0, 0.0, 0.0))   # 表は 7 欄(系統差・ばらつきも)
                 continue
             u0, v0, u1, v1 = bbox(b.poly)
             ds = []
@@ -2032,7 +2032,9 @@ def build(est, deep=False, out=None):
     for cid, what, res, st in C.rows:
         mark = {"ok": "○", "ng": "⛔", "na": "未検査"}[st]
         det = C.detail.get(cid)
-        rows.append([cid, "*" + what, res + (("<br><small>" + "<br>".join(esc(x) for x in det) + "</small>") if det else ""), mark])
+        # ⛔ `esc()` だと C04 の **系統差** が字のまま刷られ、D01 が生成器自身の出力に鳴る(EDO-0268)。
+        #   検査の文は散文なので行内の記法を器へ移す(L.inline は escape も兼ねる)。
+        rows.append([cid, "*" + what, res + (("<br><small>" + "<br>".join(L.inline(x) for x in det) + "</small>") if det else ""), mark])
     h.append(tbl(["#", "*検査", "結果", "可否"], rows))
     h.append('<p class="cap">不合格 <b>%d</b> 件・未検査 %d 件。0 件は「その条件を満たした」以上を意味しない。'
              '部材の取り合い・境界・植栽の姿は Unity で実メッシュから測る(規則2・5・19)。</p>' % (ng, na))

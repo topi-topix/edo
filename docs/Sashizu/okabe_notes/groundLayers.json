@@ -1,0 +1,3 @@
+{
+ "groundLayers/_": "**地表層(スプラット)の宣言**。⚠ **登録済みは `L_grass` だけ** — 残り3枚は棟梁が `EdoAssets` へ登録する。⛔ 名を書かずに『塗る』と書かない。⭐ **2026-09-04: 割り当ての正典を各物へ移した** — 庭は `gardens[].layer`、窓は `nishi.mado.layer`、法尻は `nishi.hojiri.layer`(+`layerMix`)、坂は `ramps[].layer`、参道は `sando.layer`。ここはその**一覧**であって二重の正典ではない。"
+}

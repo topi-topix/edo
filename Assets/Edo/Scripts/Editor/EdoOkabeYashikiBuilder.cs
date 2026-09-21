@@ -2067,34 +2067,32 @@ public static class EdoOkabeYashikiBuilder
         // ⛔ 地形を彫る側の設定は**触らない**(Recarve を呼ばないので効かないが、既定を明示しておく)
         wb.raiseBanks = false; wb.verticalWalls = false; wb.levelFloor = false;
 
-        // 材質 — 場面の他の水面から借りる(松江の御泉水と揃える)
+        // 材質 — **この池だけの1枚**を決まったパスで持つ。
+        // ⛔⛔ **他の水面から借りない。**2026-09-21 まではここが「場面で最初に見つかった水面の材質を
+        //   借りる」作りで、`FindObjectsByType` の並びは**保証されない**ため、当家の池が
+        //   **外堀(`Sotobori_00002`)の材質を握った**。⇒ 深さ 1.5m の濠と深さ 1.5m の庭の池が
+        //   1枚を共有し、片方の見え方を直すともう片方が動く関係になっていた(EDO-0316)。
+        // ⭐ 見え方の3つ(色の深さ・岸なじみ・泡)は `WaterBaker.ApplyLook` が**深さから起こす**。
+        //   ⛔ 4.0 / 1.5 / 0.4 の既定を「他所と揃える」名目で持ち込まない。
+        // ⚠ パスを固定するのは、Stage を流し直すたびに `… 1.mat` の孤児が溜まらないようにするため
+        //   (土井の池が 8 個作った先例。`EdoDoiBuilder.Niwa.cs` の MAT と同じ作法)。
         var mr = wb.GetComponent<MeshRenderer>();
-        if (mr.sharedMaterial == null)
+        string matPath = "Assets/Edo/Water/" + nm + ".mat";
+        var pondMat = AssetDatabase.LoadAssetAtPath<Material>(matPath);
+        if (pondMat == null)
         {
-            Material donor = null;
-            foreach (var o2 in UnityEngine.Object.FindObjectsByType<WaterBody>(
-                         FindObjectsInactive.Include, FindObjectsSortMode.None))
-            {
-                if (o2 == wb) continue;
-                var r2 = o2.GetComponent<MeshRenderer>();
-                if (r2 != null && r2.sharedMaterial != null) { donor = r2.sharedMaterial; break; }
-            }
-            if (donor != null) mr.sharedMaterial = donor;
-            else
-            {
-                var sh = Shader.Find("Edo/Water");
-                if (sh == null) { wait.Add("シェーダ `Edo/Water` が見つからない(URP の Depth+Opaque Texture が要る)"); return "水面: 材質待ち"; }
-                var mat = new Material(sh);
-                mat.SetColor("_DeepColor", new Color(0.13f, 0.32f, 0.40f));
-                mat.SetColor("_ShallowColor", new Color(0.28f, 0.50f, 0.55f));
-                mat.SetFloat("_FresnelPower", 3.0f); mat.SetFloat("_Alpha", 0.8f);
-                AssetDatabase.CreateAsset(mat, AssetDatabase.GenerateUniqueAssetPath(
-                    "Assets/Edo/Water/" + nm + ".mat"));
-                mr.sharedMaterial = mat;
-                wait.Add("水面の材質を**新しく起こした**(場面に借りられる水面が無かった)。"
-                       + "⚠ 松江松平の御泉水と見え方が揃っているか、検証レンダで確かめること");
-            }
+            var sh = Shader.Find("Edo/Water");
+            if (sh == null) { wait.Add("シェーダ `Edo/Water` が見つからない(URP の Depth+Opaque Texture が要る)"); return "水面: 材質待ち"; }
+            pondMat = new Material(sh);
+            AssetDatabase.CreateAsset(pondMat, matPath);
         }
+        // ⛔ 色・透け・さざ波は水域の性格なので毎回上書きしてよい(この池は庭の池の明るい水)
+        pondMat.SetColor("_DeepColor", new Color(0.13f, 0.32f, 0.40f));
+        pondMat.SetColor("_ShallowColor", new Color(0.28f, 0.50f, 0.55f));
+        pondMat.SetFloat("_FresnelPower", 3.0f); pondMat.SetFloat("_Alpha", 0.8f);
+        WaterBaker.ApplyLook(pondMat, depth);
+        EditorUtility.SetDirty(pondMat);
+        mr.sharedMaterial = pondMat;
         // ⭕ **水面メッシュだけ**を焼く。⛔ Recarve は呼ばない
         WaterBaker.RebuildSurface(wb);
         return "水面: " + nm + " 汀 " + wb.outline.Count + " 点 / 水面 " + wy.ToString("F2")

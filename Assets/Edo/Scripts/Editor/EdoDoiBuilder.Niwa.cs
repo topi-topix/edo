@@ -504,7 +504,15 @@ public static partial class EdoDoiBuilder
             var shader = Shader.Find("Edo/Water");
             if (shader != null) { mat = new Material(shader); AssetDatabase.CreateAsset(mat, MAT); }
         }
-        if (mat != null) go.GetComponent<MeshRenderer>().sharedMaterial = mat;
+        // ⭐ 見え方(色の深さ・岸なじみ・泡)は**深さからの従属値**。⛔ 材質に置いた既定を信じない —
+        //   シェーダの既定 4.0 / 1.5 / 0.4 は深さ 3〜4m の溜池向けで、深さ 1.0m の当家の池に
+        //   当てると全面が白茶け、汀の全周に白い縁が回る(EDO-0316)。
+        if (mat != null)
+        {
+            WaterBaker.ApplyLook(mat, wb.depth);
+            EditorUtility.SetDirty(mat);
+            go.GetComponent<MeshRenderer>().sharedMaterial = mat;
+        }
         var msh = AssetDatabase.LoadAssetAtPath<Mesh>(MSH);
         if (msh != null) go.GetComponent<MeshFilter>().sharedMesh = msh;   // 既存を上書き更新させる
         WaterBaker.RebuildSurface(wb);

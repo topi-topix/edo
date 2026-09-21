@@ -53,8 +53,14 @@ public class WaterBodyEditor : Editor
         // ---- 地形の掘り込み（深さ/形）: 変更後『掘り直す』ボタンで反映 ----
         EditorGUILayout.LabelField("地形の掘り込み", EditorStyles.boldLabel);
         EditorGUI.BeginChangeCheck();
-        float d = EditorGUILayout.Slider(new GUIContent("深さ(m)", "水面から底までの深さ。変更後『掘り直す』で反映"), wb.depth, 0.5f, 5f);
-        if (EditorGUI.EndChangeCheck()) { Undo.RecordObject(wb, "Water Depth"); wb.depth = d; EditorUtility.SetDirty(wb); }
+        float d = EditorGUILayout.Slider(new GUIContent("深さ(m)", "水面から底までの深さ。変更後『掘り直す』で反映。見え方(色の深さ・岸なじみ・泡)も自動で付いてくる"), wb.depth, 0.5f, 5f);
+        if (EditorGUI.EndChangeCheck())
+        {
+            Undo.RecordObject(wb, "Water Depth"); wb.depth = d; EditorUtility.SetDirty(wb);
+            // ⭐ **見え方は深さからの従属値**なので、深さを動かしたら一緒に起こし直す(EDO-0316)。
+            //   ⛔ 深さだけ動かして見え方を置いていくと、浅い池に深い濠の値が残り白茶ける。
+            WaterBaker.ApplyLook(wb);
+        }
 
         EditorGUILayout.LabelField("水位(m)", wb.waterY.ToString("F2"));
 
@@ -132,9 +138,22 @@ public class WaterBodyEditor : Editor
         }
         else
         {
+            // ⭐ 色の深さ・岸なじみ・泡の3つは**深さからの従属値**(WaterBaker.LookFromDepth)。
+            //   ずれていたら黄色で突きつけて、一押しで起こし直せるようにする(EDO-0316 の再発止め)。
+            if (WaterBaker.LookDiffers(mat, wb.depth))
+            {
+                WaterBaker.LookFromDepth(wb.depth, out float fA, out float sA, out float mA);
+                EditorGUILayout.HelpBox(string.Format(
+                    "見え方が深さ {0:F2}m と食い違っています（浅い水に深い濠の値が残ると全面が白茶けます）。\n" +
+                    "色の深さ {1:F2}→{2:F2} / 岸のなじみ {3:F2}→{4:F2} / 泡 {5:F2}→{6:F2}",
+                    wb.depth, mat.GetFloat("_DepthFade"), fA, mat.GetFloat("_ShoreWidth"), sA,
+                    mat.GetFloat("_FoamAmount"), mA), MessageType.Warning);
+                if (GUILayout.Button("深さから見え方を起こし直す")) { WaterBaker.ApplyLook(wb); SceneView.RepaintAll(); }
+            }
+
             EditorGUI.BeginChangeCheck();
-            float shore = EditorGUILayout.Slider(new GUIContent("岸のなじみ幅 Shore(m)", "岸際が地面に溶ける幅。大きいほど岸がふわっと滑らかに。即反映"),
-                mat.GetFloat("_ShoreWidth"), 0.5f, 12f);
+            float shore = EditorGUILayout.Slider(new GUIContent("岸のなじみ幅 Shore(m)", "岸際が地面に溶ける幅。大きいほど岸がふわっと滑らかに。即反映。既定は深さ×0.35"),
+                mat.GetFloat("_ShoreWidth"), 0.2f, 12f);
             float foam = EditorGUILayout.Slider(new GUIContent("泡 Foam", "岸際の白い泡の量。即反映"), mat.GetFloat("_FoamAmount"), 0f, 1f);
             float fade = EditorGUILayout.Slider(new GUIContent("色の深さ Depth Fade(m)", "浅色→深色に変わる深さ。即反映"), mat.GetFloat("_DepthFade"), 1f, 12f);
             Color deep = EditorGUILayout.ColorField("深い色", mat.GetColor("_DeepColor"));

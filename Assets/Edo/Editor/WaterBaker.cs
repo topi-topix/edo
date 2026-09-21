@@ -34,6 +34,115 @@ public static class WaterBaker
         return wb;
     }
 
+    // ===== 見え方は深さからの従属値 ================================================
+    //
+    // ⭐⭐ **水の見え方は「深さ」から落ちる従属値であって、手で置く値ではない。**
+    //   シェーダの既定は `_DepthFade` 4.0m / `_ShoreWidth` 1.5m / `_FoamAmount` 0.4 で、
+    //   **深さ 3〜4m の溜池・堀**を前提にした値。⇒ 深さ 0.9m の庭の池へそのまま当てると
+    //   ① 池のどこも「深い色」に届かず**面の中ほどまで乳白色に濁って見え**、
+    //   ② 岸なじみの帯 1.5m が**汀の全周に幅 2m の白い縁**を描く
+    //   (2026-09-21 松江松平の御泉水で施主が指摘・検証レンダで確認)。
+    //   ⛔ 4.0 / 1.5 を「既定だから」で残さない。⛔ 濁りを色で誤魔化さない(深さの尺度の話)。
+    //
+    // ⚠⚠ **2026-09-21 の再発の根**: この式は <see cref="NewBody"/> の中に直書きで、
+    //   **起こす瞬間にしか効かなかった**。⇒ 既に在る水面は深さを変えても見え方が付いてこず、
+    //   赤坂に既定のままの材質が4枚残って、最後は **`.mat` を手で書き換える**ことになった
+    //   (EDO-0316。⛔ これは規則21 の「局所修正」そのもの)。
+    //   ⇒ 式を <see cref="ApplyLook"/> に出し、**既に在る水面へも当てられる**ようにした。
+    //   ⇒ 深さを動かしたら付いてくる(`WaterBodyEditor` の深さのつまみ)。
+    //   ⇒ ずれは `Edo/水/見え方を深さから検める` が場面ぜんぶを舐めて突きつける。
+    //
+    // ⛔ **色・透け・さざ波・反射はこの式に入れない。** あれは水域の性格(濠の暗い水と
+    //   庭の池の明るい水)で、深さからは落ちない。手で寄せる欄として `WaterBodyEditor` に残す。
+
+    /// <summary>深さから <c>_DepthFade</c> / <c>_ShoreWidth</c> / <c>_FoamAmount</c> を起こす。</summary>
+    public static void LookFromDepth(float depth, out float fade, out float shore, out float foam)
+    {
+        fade  = Mathf.Max(0.8f, depth);                        // 浅色→深色に変わる深さ = 水深そのもの
+        shore = Mathf.Clamp(depth * 0.35f, 0.25f, 1.5f);       // 岸なじみは深さに比例(緩い岸ほど広い)
+        foam  = depth >= 2.0f ? 0.4f : 0.1f;                   // 泡が立つのは風の当たる広い水面だけ
+    }
+
+    /// <summary>材質へ深さからの見え方を当てる。⛔ 色・透け・さざ波は触らない。</summary>
+    public static void ApplyLook(Material mat, float depth)
+    {
+        if (mat == null) return;
+        LookFromDepth(depth, out float fade, out float shore, out float foam);
+        mat.SetFloat("_DepthFade", fade);
+        mat.SetFloat("_ShoreWidth", shore);
+        mat.SetFloat("_FoamAmount", foam);
+    }
+
+    /// <summary>**既に在る水域**の見え方を、その水域の深さから起こし直す。直したら true。</summary>
+    public static bool ApplyLook(WaterBody wb)
+    {
+        if (wb == null) return false;
+        var mr = wb.GetComponent<MeshRenderer>();
+        var mat = mr != null ? mr.sharedMaterial : null;
+        if (mat == null || !LookDiffers(mat, wb.depth)) return false;
+        Undo.RecordObject(mat, "Water Look From Depth");
+        ApplyLook(mat, wb.depth);
+        EditorUtility.SetDirty(mat);
+        return true;
+    }
+
+    /// <summary>材質の見え方が深さと食い違っているか(0.01 を超える差があるか)。</summary>
+    public static bool LookDiffers(Material mat, float depth)
+    {
+        if (mat == null || !mat.HasProperty("_DepthFade")) return false;
+        LookFromDepth(depth, out float fade, out float shore, out float foam);
+        return Mathf.Abs(mat.GetFloat("_DepthFade") - fade) > 0.01f
+            || Mathf.Abs(mat.GetFloat("_ShoreWidth") - shore) > 0.01f
+            || Mathf.Abs(mat.GetFloat("_FoamAmount") - foam) > 0.01f;
+    }
+
+    /// <summary>
+    /// 場面の水域をぜんぶ舐めて、見え方が深さと食い違う物を数え上げる(直さない)。
+    /// ⭐ **入れた値が建つ姿に効いているかを見張る輪**(規則19)。⛔ 数えるだけ・書かない。
+    /// ⚠ **材質の使い回しも見る** — 深さの違う水域が同じ材質を握っていると、どちらかは
+    ///   必ず食い違い、片方を直すともう片方が狂う(EDO-0316 で外堀と岡部の池が握っていた)。
+    /// </summary>
+    [MenuItem("Edo/水/見え方を深さから検める", false, 20)]
+    public static void AuditLook()
+    {
+        var sb = new System.Text.StringBuilder("水の見え方 — 深さとの突き合わせ\n");
+        var users = new Dictionary<Material, List<WaterBody>>();
+        int bad = 0, all = 0;
+        foreach (var wb in Object.FindObjectsByType<WaterBody>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            var mr = wb.GetComponent<MeshRenderer>();
+            var mat = mr != null ? mr.sharedMaterial : null;
+            all++;
+            if (mat == null) { sb.AppendLine("⛔ " + wb.name + ": 材質が無い"); bad++; continue; }
+            if (!users.TryGetValue(mat, out var lst)) users[mat] = lst = new List<WaterBody>();
+            lst.Add(wb);
+            if (!LookDiffers(mat, wb.depth)) continue;
+            bad++;
+            LookFromDepth(wb.depth, out float fade, out float shore, out float foam);
+            sb.AppendLine(string.Format(
+                "⛔ {0} (深さ {1:F2}m・材質 {2}): 色の深さ {3:F2}→{4:F2} / 岸なじみ {5:F2}→{6:F2} / 泡 {7:F2}→{8:F2}",
+                wb.name, wb.depth, mat.name,
+                mat.GetFloat("_DepthFade"), fade, mat.GetFloat("_ShoreWidth"), shore,
+                mat.GetFloat("_FoamAmount"), foam));
+        }
+        int shared = 0;
+        foreach (var kv in users)
+        {
+            if (kv.Value.Count < 2) continue;
+            var names = new List<string>();
+            bool sameDepth = true;
+            foreach (var w in kv.Value) { names.Add(w.name + " " + w.depth.ToString("F2") + "m"); if (Mathf.Abs(w.depth - kv.Value[0].depth) > 0.01f) sameDepth = false; }
+            if (sameDepth) continue;   // ⭕ 同じ深さの水域が1枚を共有するのは正しい(外堀の区間どうし)
+            shared++;
+            sb.AppendLine("⛔ 材質 " + kv.Key.name + " を**深さの違う水域が共有**: " + string.Join(" / ", names)
+                        + " — どちらかは必ず食い違う。材質を分けること");
+        }
+        sb.AppendLine(bad == 0 && shared == 0
+            ? "⭕ 水域 " + all + " すべて深さと合っている"
+            : "⛔ 水域 " + all + " のうち 見え方の食い違い " + bad + " 枚・深さ違いの材質共有 " + shared + " 組");
+        Debug.Log(sb.ToString());
+    }
+
     /// <summary>駒とマテリアルだけ作る（掘り込みも水面メッシュも作らない）。</summary>
     static WaterBody NewBody(List<Vector3> outline, float depth)
     {
@@ -47,17 +156,7 @@ public static class WaterBaker
         var mat = new Material(Shader.Find("Edo/Water"));
         mat.SetColor("_DeepColor", DeepC); mat.SetColor("_ShallowColor", ShallowC);
         mat.SetFloat("_FresnelPower", 3.0f); mat.SetFloat("_Alpha", 0.8f);
-        // ⭐⭐ **深さに合わせて水の見え方を起こす(2026-09-21 是正)。**
-        //   シェーダの既定は `_DepthFade` 4.0m / `_ShoreWidth` 1.5m / `_FoamAmount` 0.4 で、
-        //   **深さ 3〜4m の溜池・堀**を前提にした値。⇒ 深さ 0.9m の庭の池へそのまま当てると
-        //   ① 池のどこも「深い色」に届かず**面の中ほどまで乳白色に濁って見え**、
-        //   ② 岸なじみの帯 1.5m が**汀の全周に幅 2m の白い縁**を描く
-        //   (2026-09-21 松江松平の御泉水で施主が指摘・検証レンダで確認)。
-        //   ⇒ **`_DepthFade` はその水域の深さそのもの**、岸なじみは深さに比例(緩い岸ほど広い)。
-        //   ⛔ 4.0 / 1.5 を「既定だから」で残さない。⛔ 濁りを色で誤魔化さない(深さの尺度の話)。
-        mat.SetFloat("_DepthFade", Mathf.Max(0.8f, depth));
-        mat.SetFloat("_ShoreWidth", Mathf.Clamp(depth * 0.35f, 0.25f, 1.5f));
-        mat.SetFloat("_FoamAmount", depth >= 2.0f ? 0.4f : 0.1f);
+        ApplyLook(mat, depth);
         AssetDatabase.CreateAsset(mat, AssetDatabase.GenerateUniqueAssetPath("Assets/Edo/Water/" + go.name + ".mat"));
         go.GetComponent<MeshRenderer>().sharedMaterial = mat;
         return wb;

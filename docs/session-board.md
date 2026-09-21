@@ -151,10 +151,23 @@ greet フックが board の digest を自動表示する — **裁定待ち →
 
 ## ダッシュボード
 
-`python3 Tools/Session/build_board_html.py` が `.git/edo-board/_pm/dashboard.html` を生成する。
-見たいときに誰でも流してよく、再公開は同一 URL へ上書きする:
-https://claude.ai/artifact/SffWPZCmVFFBGGiUbCR3NS
-(`…/code/artifact/cfda75da-234f-4411-9cdb-701904838613` は同じ一枚の別綴り)
+`python3 Tools/Session/build_board_html.py` が `.git/edo-board/_pm/` に二つ焼く —
+**表紙 `index.html`(529 バイト・二度と変わらない)** と **中身 `dashboard.html`(880KB)**。
+見たいときに誰でも流してよく、公開は同一 URL へ中身だけ差し替える:
+https://claude.ai/artifact/3wTRqrXgJBp8LJUwWFZ4KY
+
+```
+Artifact(file_path=".git/edo-board/_pm/index.html",
+         url="https://claude.ai/artifact/3wTRqrXgJBp8LJUwWFZ4KY",
+         files={"board.html": ".git/edo-board/_pm/dashboard.html"},
+         overwrite_unread=["board.html"])
+```
+
+⛔ **一枚そのものを頁にしない。**`url=` を渡して頁を上書きするには、その通話が一度その頁を
+**読んで**いなければならない。880KB の頁を読むと文脈がそれだけで埋まる — これが
+「公開は日に一度」の正体だった(2026-09-21 に判明)。表紙が 529 バイトなら読んでも無害で、
+中身は添え物として差し替わる。旧い一枚(`…/artifact/SffWPZCmVFFBGGiUbCR3NS`・
+`…/code/artifact/cfda75da-…`)は 2026-09-21 で更新を止めた。
 **定期の担い手は毎朝の `/nikki`**(2026-09-20 施主裁定)。焼いたら Artifact へ上書きし、
 `build_board_html.py --published <URL>` で判を押す — ⛔ 焼いただけでは施主に届かない。
 

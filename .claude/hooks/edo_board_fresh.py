@@ -21,7 +21,7 @@ import json, os, re, subprocess, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)                       # .claude/
 ROOT = os.path.dirname(ROOT)                       # リポジトリ(worktree のこともある)
-DEFAULT_URL = "https://claude.ai/artifact/SffWPZCmVFFBGGiUbCR3NS"
+DEFAULT_URL = "https://claude.ai/artifact/3wTRqrXgJBp8LJUwWFZ4KY"
 
 
 def main_root():
@@ -75,17 +75,18 @@ def main():
             except Exception:
                 ok = False
         late = (newest - at) / 3600.0
-        if ok:
-            reasons.append(
-                "掲示板が %s動いたのに、施主が見る一枚は古いまま。**焼き直しは済ませた**ので、"
-                "`%s` を `Artifact` に `url=%s` を渡して上書きし(⛔ url を渡さないと別の図が生える)、"
-                "そのあと `python3 Tools/Session/build_board_html.py --published %s` で判を押してから終えること。"
-                % (("%.0f 時間ぶん" % late) if at else "", baked, url, url))
-        else:
-            reasons.append(
-                "掲示板が動いたのに一枚が古い。`python3 Tools/Session/build_board_html.py` で焼き直し、"
-                "`%s` を `Artifact` に `url=%s` で上書きし、`--published %s` で判を押してから終えること。"
-                % (baked, url, url))
+        how = ('Artifact(file_path=".git/edo-board/_pm/index.html", url="%s", '
+               'files={"board.html": ".git/edo-board/_pm/dashboard.html"}, '
+               'overwrite_unread=["board.html"])' % url)
+        reasons.append(
+            "掲示板が %s動いたのに、施主が見る一枚は古いまま。%s"
+            "**中身だけ**を差し替えて上げ("
+            "⛔ 頁そのものを読み込まないこと・⛔ url を渡さないと別の図が生える):\n    %s\n  "
+            "そのあと `python3 Tools/Session/build_board_html.py --published %s` で判を押してから終えること。"
+            % (("%.0f 時間ぶん" % late) if at else "",
+               "**焼き直しは済ませた**ので、" if ok
+               else "⛔ 焼き直しに失敗したので `python3 Tools/Session/build_board_html.py` を手で回してから、",
+               how, url))
 
     # ── ② 自分が立てた裁定要請を、施主へ出さずに手を止めようとしている
     me = (ev.get("session_id") or "")[:12]

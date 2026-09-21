@@ -32,8 +32,10 @@ argument-hint: "[YYYY-MM-DD]"
 7. コミット(⛔ `git add -A` / `-a` は門番が止める。未追跡の日誌は `git commit --` に掛からないので門番の commit を使う):
    `python3 Tools/Session/edo_session.py commit docs/Nikki/<date>.json docs/Nikki/<date>.md <触ったパス> -m "chore(日誌): <date> — 反映 k 件 … closes EDO-xxxx"`。
 8. 普請場の一枚を焼き直して**同じ URL へ上げ、判を押す**(2026-09-20 施主裁定 — 定期の担い手はここ):
-   `python3 Tools/Session/build_board_html.py` → `.git/edo-board/_pm/dashboard.html` を `Artifact` に
-   `url=https://claude.ai/artifact/SffWPZCmVFFBGGiUbCR3NS` で上書き → `build_board_html.py --published <URL>`。
+   `python3 Tools/Session/build_board_html.py` → `Artifact(file_path=".git/edo-board/_pm/index.html",
+   url="https://claude.ai/artifact/3wTRqrXgJBp8LJUwWFZ4KY", files={"board.html": ".git/edo-board/_pm/dashboard.html"},
+   overwrite_unread=["board.html"])` → `build_board_html.py --published <URL>`。
+   ⛔ 880KB の中身は**読まない**(表紙だけが頁。正典 docs/session-board.md「ダッシュボード」)。
    ⛔ 焼いただけでは施主に届かない(公開だけは手が要る)。
    ⭐ 2026-09-21 以降、焼き直しは**日誌だけの仕事ではない** — 板が動いた日は手仕舞いのたびに
    Stop フック(`.claude/hooks/edo_board_fresh.py`)が焼いて公開を促す。机の前の窓は

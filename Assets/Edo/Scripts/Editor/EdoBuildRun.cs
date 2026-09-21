@@ -2,9 +2,9 @@
 //   EDO-0299 ④: EdoNishiTameikeBuilder / EdoSannoJuboBuilder を廃止するにあたり、
 //   手で建てた敷地(山王社・山王武家・松平大和守)が呼んでいた run をここへ引き取った。
 //   ⛔ 部材の基準点で位置を決めない(規則21)。据えるのは **触れている箇所** — SeatOnGround を使う。
-//   ⚠ PanelRun / DobeiRun / MoveToObb の**走り方向の割り付け**はまだ bounds 中心合わせで、
-//     部材を区間ちょうどに伸縮させてから中心を置いている(伸縮するので継ぎ目は空かない)。
-//     長屋と同じ実寸カーソルへ寄せるのは Unity で実測しながらの別巡 — 掲示板 EDO-0302。
+//   2026-09-21 (EDO-0302): DobeiRun / PanelRun の走り方向は**実寸カーソル**へ寄せた。部材の頂点から走り方向の実寸を測り
+//     (RunMeasure)、その実寸がピッチにちょうど収まるよう伸縮し、**前の駒の端の実測**へ突き付けて置く。
+//     bounds の中心には合わせない。MoveToObb(呼び手なし・OBB の中心で置く)は廃止した。
 //   作法の正典 docs/oki-kata.md / 部材の並べ方 Tools/Skills/unity-buke-yashiki/references/perimeter.md
 using System;
 using System.Collections.Generic;
@@ -212,7 +212,50 @@ public static partial class EdoBuild
         }
     }
 
+    // ---------- 走り方向の実寸カーソル (塀・板塀) ----------
+    // 部材の走り方向(ローカルX)の実寸。倍率1・回転なしで仮置きして頂点から測る(NagayaMeasure の塀版)。
+    // 屋根・軒・垂木を含む全メッシュの範囲 — 塀は壁と屋根が同じ長さで、突き付ける面は屋根ごとの端になる。
+    public struct RunModule { public float lo, hi; public float W { get { return hi - lo; } } }
+
+    static readonly Dictionary<string, RunModule> _runMeasure = new Dictionary<string, RunModule>();
+
+    public static RunModule RunMeasure(string path)
+    {
+        RunModule m;
+        if (_runMeasure.TryGetValue(path, out m)) return m;
+        var go = (GameObject)PrefabUtility.InstantiatePrefab(Load(path));
+        go.transform.position = Vector3.zero;
+        go.transform.rotation = Quaternion.identity;
+        go.transform.localScale = Vector3.one;
+        float mn, mx;
+        ProjExtent(go, new Vector2(1f, 0f), float.MinValue, float.MaxValue, null, out mn, out mx);
+        UnityEngine.Object.DestroyImmediate(go);
+        if (mx <= mn) throw new Exception("RunMeasure: no mesh in " + path);
+        m = new RunModule { lo = mn, hi = mx };
+        _runMeasure[path] = m;
+        return m;
+    }
+
+    /// <summary>駒を走り方向 <paramref name="dir"/> の実寸で <paramref name="startAbs"/>(世界の xz を dir へ射影した値)へ突き付ける。
+    /// 奥行は実測した厚みの中央を「線から latOff だけ内」へ。返る <paramref name="mn"/>/<paramref name="mx"/> は
+    /// 据えたあとの端の**実測値**(次の駒はこの mx へ突き付ける)。
+    /// ⛔ bounds の中心へ合わせない — 奥行を先に、走りを最後に寄せるので、走りの端は必ず startAbs に来る。</summary>
+    static void ButtOnRun(GameObject go, Vector2 A, Vector2 dir, Vector2 outward, float latOff, float startAbs,
+                          out float mn, out float mx)
+    {
+        float lmn, lmx;
+        ProjExtent(go, outward, float.MinValue, float.MaxValue, null, out lmn, out lmx);
+        float dLat = (Vector2.Dot(A, outward) + latOff) - (lmn + lmx) * 0.5f;
+        go.transform.position += new Vector3(outward.x * dLat, 0f, outward.y * dLat);
+        ProjExtent(go, dir, float.MinValue, float.MaxValue, null, out mn, out mx);
+        float dRun = startAbs - mn;
+        go.transform.position += new Vector3(dir.x * dRun, 0f, dir.y * dRun);
+        mn += dRun; mx += dRun;
+    }
+
     // ---------- dobei run (表裏ペア) ----------
+    // 走り方向: 区間を pitch に等分し、駒の実寸(RunMeasure)を pitch へ伸縮して、前の駒の実測の端へ突き付ける。
+    // ⚠ 表(side 0)が鎖の主。裏(side 1)は表の端の実測に揃える(裏は 0.20m 内側へ寄る)。
     public static List<GameObject> DobeiRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string prefix,
         bool followGround, float flatBase, Vector2 gapC, float gapHalf)
     {
@@ -220,15 +263,17 @@ public static partial class EdoBuild
         Vector2 dir = (B - A).normalized; float len = (B - A).magnitude;
         int n = Mathf.Max(1, Mathf.RoundToInt(len / 2.982f));
         float pitch = len / n;
-        float sx = pitch / 1.6447f;
+        float sx = pitch / RunMeasure(PHei).W;
         float psi = Mathf.Atan2(outward.x, outward.y) * Mathf.Rad2Deg;
+        float a0 = Vector2.Dot(A, dir);
+        bool chained = false; float prevEnd = 0f;
         for (int k = 0; k < n; k++)
         {
             var c2 = A + dir * (pitch * (k + 0.5f));
             if (gapHalf > 0)
             {
                 float gT = Vector2.Dot(gapC - A, dir);
-                if (Mathf.Abs(pitch * (k + 0.5f) - gT) < gapHalf + pitch * 0.5f - 0.01f) continue;
+                if (Mathf.Abs(pitch * (k + 0.5f) - gT) < gapHalf + pitch * 0.5f - 0.01f) { chained = false; continue; }
             }
             float baseY = flatBase;
             if (followGround)
@@ -237,17 +282,15 @@ public static partial class EdoBuild
                 float g2 = Ground(c2.x + dir.x * pitch * 0.5f, c2.y + dir.y * pitch * 0.5f);
                 baseY = Mathf.Max(g1, g2);
             }
+            float startAbs = chained ? prevEnd : a0 + pitch * k;
             for (int side = 0; side < 2; side++)
             {
                 float ry = side == 0 ? psi : psi + 180f;
-                var off2 = outward * (side == 0 ? 0.0f : -0.2f);
-                var go = Place(PHei, Vector3.zero, ry, new Vector3(sx * ES / 1.818f * 1.818f, ES, ES), parent,
+                var go = Place(PHei, Vector3.zero, ry, new Vector3(sx, ES, ES), parent,
                     prefix + "_" + k + (side == 0 ? "f" : "b"));
-                go.transform.localScale = new Vector3(sx, ES, ES);
-                // bounds 中心合わせ
-                var b = RB(go);
-                var target = new Vector3(c2.x + off2.x, 0, c2.y + off2.y);
-                go.transform.position += new Vector3(target.x - b.center.x, 0, target.z - b.center.z);
+                float mn, mx;
+                ButtOnRun(go, A, dir, outward, side == 0 ? 0.0f : -0.2f, startAbs, out mn, out mx);
+                if (side == 0) { prevEnd = mx; chained = true; }
                 // ⛔ 底を「足元の地形」へ落とさない — **触れている箇所**を測って据える(規則21・2026-09-21)
                 if (followGround) { try { SeatOnGround(go, 0.10f, 600); } catch (System.Exception) { SeatBottom(go, baseY - 0.10f); } }
                 else SeatBottom(go, baseY - 0.10f);
@@ -258,80 +301,46 @@ public static partial class EdoBuild
     }
 
     // ---------- 板塀/穂垣 run — 片面ポリゴンなので表裏の対で置く ----------
-
-    // ---------- 板塀/穂垣 run (片面ポリゴンの表裏ペア) ----------
-    // asset: 5枚スパンOBJ。バウンズ中心合わせで格子に載せ、パネル毎に接地。
+    // asset: 5枚スパンOBJ。走りは DobeiRun と同じ実寸カーソル。パネル毎に接地。
     public static List<GameObject> PanelRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string prefix,
         string assetPath, Vector2 gapC, float gapHalf)
     {
         var made = new List<GameObject>();
         Vector2 dir = (B - A).normalized; float len = (B - A).magnitude;
         // スパン実測(ES基準)
-        var probe = Place(assetPath, Vector3.zero, 0, Vector3.one * ES, parent, "probe");
-        float spanES = RB(probe).size.x;
-        UnityEngine.Object.DestroyImmediate(probe);
+        float spanLocal = RunMeasure(assetPath).W;
+        float spanES = spanLocal * ES;
         if (spanES < 0.5f) spanES = 7.49f;
         int n = Mathf.Max(1, Mathf.RoundToInt(len / (spanES - 0.15f)));
         float pitch = len / n;
-        float sx = ES * pitch / spanES;
+        float sx = pitch / spanLocal;
         float psi = Mathf.Atan2(outward.x, outward.y) * Mathf.Rad2Deg;
+        float a0 = Vector2.Dot(A, dir);
+        bool chained = false; float prevEnd = 0f;
         for (int k = 0; k < n; k++)
         {
             var c2 = A + dir * (pitch * (k + 0.5f));
             if (gapHalf > 0)
             {
                 float gT = Vector2.Dot(gapC - A, dir);
-                if (Mathf.Abs(pitch * (k + 0.5f) - gT) < gapHalf + pitch * 0.5f - 0.01f) continue;
+                if (Mathf.Abs(pitch * (k + 0.5f) - gT) < gapHalf + pitch * 0.5f - 0.01f) { chained = false; continue; }
             }
             float g1 = Ground(c2.x - dir.x * pitch * 0.5f, c2.y - dir.y * pitch * 0.5f);
             float g2 = Ground(c2.x + dir.x * pitch * 0.5f, c2.y + dir.y * pitch * 0.5f);
             float baseY = Mathf.Max(g1, g2);
+            float startAbs = chained ? prevEnd : a0 + pitch * k;
             for (int side = 0; side < 2; side++)
             {
                 float ry = side == 0 ? psi : psi + 180f;
-                var off2 = outward * (side == 0 ? 0.0f : -0.12f);
                 var go = Place(assetPath, Vector3.zero, ry, new Vector3(sx, ES, ES), parent,
                     prefix + "_" + k + (side == 0 ? "f" : "b"));
-                var b = RB(go);
-                var target = new Vector3(c2.x + off2.x, 0, c2.y + off2.y);
-                go.transform.position += new Vector3(target.x - b.center.x, 0, target.z - b.center.z);
+                float mn, mx;
+                ButtOnRun(go, A, dir, outward, side == 0 ? 0.0f : -0.12f, startAbs, out mn, out mx);
+                if (side == 0) { prevEnd = mx; chained = true; }
                 SeatBottom(go, baseY - 0.10f);
                 made.Add(go);
             }
         }
         return made;
-    }
-
-    public static string MoveToObb(string groupName, string childPath, float x, float z)
-    {
-        var root = GameObject.Find(groupName);
-        var it = root.transform.Find(childPath);
-        if (it == null) return "missing " + childPath;
-        float mnx, mxx, mnz, mxz, mny;
-        ObbFootprint(it, out mnx, out mxx, out mnz, out mxz, out mny);
-        if (mnx == float.MaxValue) return "no mesh " + childPath;
-        var lcC = new Vector3((mnx + mxx) / 2, mny, (mnz + mxz) / 2);
-        var wC = it.TransformPoint(lcC);
-        it.position += new Vector3(x - wC.x, 0, z - wC.z);
-        float gmn = float.MaxValue;
-        for (int i = 0; i <= 3; i++)
-            for (int j = 0; j <= 3; j++)
-            {
-                if (i > 0 && i < 3 && j > 0 && j < 3) continue;
-                var wp = it.TransformPoint(new Vector3(Mathf.Lerp(mnx, mxx, i / 3f), mny, Mathf.Lerp(mnz, mxz, j / 3f)));
-                gmn = Mathf.Min(gmn, Ground(wp.x, wp.z));
-            }
-        var wBase = it.TransformPoint(new Vector3(0, mny, 0));
-        it.position += new Vector3(0, (gmn - 0.12f) - wBase.y, 0);
-        float buried = float.MinValue, floating = float.MinValue;
-        for (int i = 0; i <= 3; i++)
-            for (int j = 0; j <= 3; j++)
-            {
-                if (i > 0 && i < 3 && j > 0 && j < 3) continue;
-                var wp = it.TransformPoint(new Vector3(Mathf.Lerp(mnx, mxx, i / 3f), mny, Mathf.Lerp(mnz, mxz, j / 3f)));
-                float g = Ground(wp.x, wp.z);
-                buried = Mathf.Max(buried, g - wp.y); floating = Mathf.Max(floating, wp.y - g);
-            }
-        return childPath + " 埋=" + buried.ToString("F2") + " 浮=" + floating.ToString("F2");
     }
 }

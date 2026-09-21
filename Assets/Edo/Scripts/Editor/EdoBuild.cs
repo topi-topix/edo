@@ -459,4 +459,120 @@ public static partial class EdoBuild
         SeatBottom(go, crest - sink);
         return true;
     }
+
+    /// <summary>**足あとの下の地形**(格子点)の最小と最大。中心 <paramref name="c"/>・
+    /// 軸 <paramref name="axisA"/>/<paramref name="axisB"/>(単位ベクトル)の半寸 <paramref name="halfA"/>/
+    /// <paramref name="halfB"/> の矩形を <paramref name="n"/>×<paramref name="n"/> で標本する。
+    /// ⭐ **据える前に「その駒が本当にその面へ載るか」を検める道具。**段の際では設計の段の線と
+    /// 造成した地形の段が格子1マスぶんずれるので、線だけで寄せると駒の片側が下の面の上に残る
+    /// (松江松平の勝手井戸 2026-09-21: 設計の線 v=29 に対し地形の段は v≒29.6・片側が 0.24m 浮いた)。</summary>
+    public static void GroundUnder(Vector2 c, Vector2 axisA, float halfA, Vector2 axisB, float halfB,
+                                   int n, out float mn, out float mx)
+    {
+        mn = float.MaxValue; mx = float.MinValue;
+        n = Mathf.Max(2, n);
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j < n; j++)
+            {
+                float a = Mathf.Lerp(-halfA, halfA, i / (float)(n - 1));
+                float b = Mathf.Lerp(-halfB, halfB, j / (float)(n - 1));
+                Vector2 p = c + axisA * a + axisB * b;
+                float g = GroundGrid(p.x, p.y);
+                if (g < mn) mn = g; if (g > mx) mx = g;
+            }
+    }
+
+    // ============================================================ 隅の駒と塀の取り合い(2026-09-21)
+    // ⭐ **斜めに据わる駒(隅櫓・門構え・番所)の脇で塀の run をどこで止めるか**を実メッシュから解く道具。
+    //   ⛔ **駒の全頂点を辺の向きへ射影して端を採らない。** 斜めに据わった駒は**回廊の外**
+    //   (区画の内側へ深く入った所)の頂点が極値になるので、そこへ塀の端を合わせると
+    //   塀と駒の間に口が残る — 松江松平の隅櫓 Y_NE で **1.13m**(2026-09-21 実測)。
+    //   ⭕ **塀が通る回廊**(辺の線からの奥行の範囲 × 塀の高さの帯)に居る頂点だけを射影する。
+    //   → docs/oki-kata.md §2「可動側は前の相手と触れる所まで寄せる」/ §3「触れている箇所を測る」
+
+    /// <summary>プレハブ資産を <paramref name="pos"/> / <paramref name="yaw"/> に据えたと仮定したときの
+    /// 世界頂点。**実体化しない**ので、その駒を建てるより前の Stage(囲いの run)でも測れる。
+    /// <paramref name="withRoof"/> = false なら屋根系のメッシュ(<see cref="IsRoofName"/>)を落とす。</summary>
+    public static List<Vector3> BodyAt(string prefabPath, Vector3 pos, float yaw, bool withRoof = true)
+    {
+        var L = new List<Vector3>();
+        var asset = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+        if (asset == null) return L;
+        var pose = Matrix4x4.TRS(pos, Quaternion.Euler(0f, yaw, 0f), Vector3.one)
+                 * asset.transform.worldToLocalMatrix;
+        foreach (var mf in asset.GetComponentsInChildren<MeshFilter>(true))
+        {
+            if (mf.sharedMesh == null) continue;
+            var rr = mf.GetComponent<Renderer>(); if (rr == null || !rr.enabled) continue;
+            if (!withRoof && IsRoofName(mf.name)) continue;
+            var m = pose * mf.transform.localToWorldMatrix;
+            var vs = mf.sharedMesh.vertices;
+            for (int i = 0; i < vs.Length; i++) L.Add(m.MultiplyPoint3x4(vs[i]));
+        }
+        return L;
+    }
+
+    /// <summary>**塀の通り道(回廊)を、その駒がどこからどこまで塞いでいるか。**
+    /// <paramref name="pts"/> の世界頂点のうち、辺 <paramref name="A"/>→<paramref name="B"/> の線からの奥行
+    /// (<paramref name="perpDir"/> 方向で <paramref name="perpLo"/>‥<paramref name="perpHi"/>)と
+    /// 高さ(<paramref name="yLo"/>‥<paramref name="yHi"/>)の**両方**に入る物だけを走り方向へ射影した区間。
+    /// s は A からの距離[m]。回廊に頂点が無ければ false(= その辺では塞いでいない)。
+    /// <para>⭕ 使い方: 塀の断面を <see cref="DobeiProfile"/> で実測 → 隅の駒の頂点を
+    /// <see cref="BodyAt"/>(まだ建てていない)か <see cref="Body"/>(建ててある)で採る → ここへ渡す →
+    /// run の端を <c>s0 − 犬走り</c> / <c>s1 + 犬走り</c> に落とす。</para></summary>
+    public static bool CorridorSpan(List<Vector3> pts, Vector2 A, Vector2 B, Vector2 perpDir,
+                                    float perpLo, float perpHi, float yLo, float yHi,
+                                    out float s0, out float s1)
+    {
+        s0 = float.NaN; s1 = float.NaN;
+        Vector2 d = (B - A).normalized;
+        float mn = float.MaxValue, mx = float.MinValue;
+        foreach (var w in pts)
+        {
+            if (w.y < yLo || w.y > yHi) continue;
+            float p = (w.x - A.x) * perpDir.x + (w.z - A.y) * perpDir.y;
+            if (p < perpLo || p > perpHi) continue;
+            float s = (w.x - A.x) * d.x + (w.z - A.y) * d.y;
+            if (s < mn) mn = s; if (s > mx) mx = s;
+        }
+        if (mx < mn) return false;
+        s0 = mn; s1 = mx; return true;
+    }
+
+    /// <summary>**その辺に建てる練塀の断面を、駒を1枚仮に据えて実測する。**
+    /// 返るのは辺の線からの奥行の範囲(<paramref name="perpDir"/> = <c>−outward</c> の向きで
+    /// <paramref name="perpLo"/>‥<paramref name="perpHi"/>)と、高さの帯 <paramref name="yLo"/>‥<paramref name="yHi"/>。
+    /// ⛔ 指図の厚み(`const.dobeiT`)や座の数で代用しない — <see cref="DobeiRun"/> は裏板を 0.20m 下げ、
+    /// 底を座より 0.10m 下げて据えるので、紙の数と実寸は必ずずれる。仮置きした駒はこの場で消す。
+    /// <para>⚠ <paramref name="outerAt"/> を渡すと、**実測した奥行の幅を保ったまま**外面がそこへ来るよう
+    /// 断面を置き直す。囲いは据えたあと犬走り(外面 = 線から内へ 0.30m)へ寄るので、仮置きの駒の
+    /// 位置をそのまま信じると回廊が 0.3〜0.4m ずれる(松江松平 2026-09-21 実測)。
+    /// <paramref name="pad"/> は両側の余裕[m]。</para></summary>
+    public static bool DobeiProfile(Vector2 A, Vector2 B, Vector2 outward, float seat,
+                                    out Vector2 perpDir, out float perpLo, out float perpHi,
+                                    out float yLo, out float yHi,
+                                    float outerAt = float.NaN, float pad = 0f)
+    {
+        perpDir = -outward; perpLo = 0f; perpHi = 0f; yLo = 0f; yHi = 0f;
+        var probe = new GameObject("__dobei_profile_probe__");
+        try
+        {
+            Vector2 d = (B - A).normalized;
+            var made = DobeiRun(probe.transform, A, A + d * 3f, outward, "probe", false, seat, Vector2.zero, -1);
+            if (made.Count == 0) return false;
+            float pmn = float.MaxValue, pmx = float.MinValue, ymn = float.MaxValue, ymx = float.MinValue;
+            foreach (var g in made)
+                foreach (var w in Body(g.transform, 999999, true))
+                {
+                    float p = (w.x - A.x) * perpDir.x + (w.z - A.y) * perpDir.y;
+                    if (p < pmn) pmn = p; if (p > pmx) pmx = p;
+                    if (w.y < ymn) ymn = w.y; if (w.y > ymx) ymx = w.y;
+                }
+            if (pmx < pmn) return false;
+            if (!float.IsNaN(outerAt)) { pmx = outerAt + (pmx - pmn); pmn = outerAt; }
+            perpLo = pmn - pad; perpHi = pmx + pad; yLo = ymn; yHi = ymx;
+            return true;
+        }
+        finally { UnityEngine.Object.DestroyImmediate(probe); }
+    }
 }

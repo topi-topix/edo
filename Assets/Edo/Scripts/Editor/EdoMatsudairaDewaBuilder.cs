@@ -667,6 +667,12 @@ public static partial class EdoMatsudairaDewaBuilder
             if (!edgeMinS0.TryGetValue(r0.edge, out q0) || r0.s0 < q0) edgeMinS0[r0.edge] = r0.s0;
             if (!edgeMaxS1.TryGetValue(r0.edge, out q0) || r0.s1 > q0) edgeMaxS1[r0.edge] = r0.s1;
         }
+        // ⭐⭐ **隅櫓の逃げ(指図 `yagura[].gapA` / `gapB` の従属値)。**
+        //   櫓は Stage6 で建つが、袖塀の端は櫓の実メッシュが決めるので**ここで先に測る**
+        //   (`EdoBuild.BodyAt` は実体化せずにプレハブを測る)。
+        var yagLo = new Dictionary<int, float>();   // 辺 → run の s0 の下限(櫓の先 + 犬走り)
+        var yagHi = new Dictionary<int, float>();   // 辺 → run の s1 の上限(櫓の手前 − 犬走り)
+        sb.AppendLine(YaguraKeepout(yagLo, yagHi));
         Func<Run, float[]> clamp = r =>
         {
             float a0 = r.s0, a1 = r.s1;
@@ -675,6 +681,11 @@ public static partial class EdoMatsudairaDewaBuilder
                 && kadoLo.TryGetValue(r.edge, out lo) && lo < a0) a0 = lo;
             if (r.s1 >= edgeMaxS1[r.edge] - 1e-3f
                 && kadoHi.TryGetValue(r.edge, out hi) && hi > a1) a1 = hi;
+            // 隅櫓の逃げ — **辺の端の run だけ**を櫓の回廊の縁へ寄せる(縮めるだけでなく伸ばす:
+            // 櫓は辺と斜めに交わるので、射影の端より手前で止めると口が残る)。
+            float yl, yh;
+            if (r.s0 <= edgeMinS0[r.edge] + 1e-3f && yagLo.TryGetValue(r.edge, out yl)) a0 = yl;
+            if (r.s1 >= edgeMaxS1[r.edge] - 1e-3f && yagHi.TryGetValue(r.edge, out yh)) a1 = yh;
             if (r.nagaya && (Mathf.Abs(a0 - r.s0) > 0.02f || Mathf.Abs(a1 - r.s1) > 0.02f))
             {
                 // ⛔ 長屋は**長さごとに焼いた一体部材**なので端を動かせない(違う長さの FBX が要る)。
@@ -3105,6 +3116,28 @@ public static partial class EdoMatsudairaDewaBuilder
                                       need.ToString("F2") + "(縁石 " + fw.ToString("F2") +
                                       " + 枠の半寸 " + half.ToString("F2") + ")");
                     }
+                    // ⭐⭐ **線で寄せただけでは「段の上に載る」は成立しない。**造成した地形の段は
+                    //   設計の段の線と格子1マスぶんずれる(2026-09-21 実測: 設計 v=29 / 地形 v≒29.6)。
+                    //   ⇒ **足あとの下の地形を実測し**、全体が高い面へ載るまで段の上の向きへ進める。
+                    //   ⛔ 座標は書かない(規則2)— 地形と部材の実寸からの従属値。
+                    {
+                        Vector2 uu = new Vector2(f.ux, f.uz).normalized, vv = new Vector2(f.vx, f.vz).normalized;
+                        float hu = idoSz.x * 0.5f, hv = idoSz.z * 0.5f;
+                        float hiY = Mathf.Max(yM, yP);
+                        float step = 0.10f, movedK = 0f, gmn = 0f, gmx = 0f;
+                        for (int it = 0; it < 40; it++)
+                        {
+                            EdoBuild.GroundUnder(f.W(wu, wv), uu, hu, vv, hv, 9, out gmn, out gmx);
+                            if (gmn >= hiY - 0.05f) break;
+                            if (lineV) wv += sgn * step; else wu += sgn * step;
+                            movedK += step;
+                        }
+                        if (movedK > 0f)
+                            sb.AppendLine("・井戸 " + (string)w["name"] + ": 足あとの下の地形が " +
+                                gmn.ToString("F3") + "‥" + gmx.ToString("F3") + " ⇒ 段の上(" +
+                                hiY.ToString("F2") + ")へ載るまで " + (lineV ? "v " : "u ") +
+                                "を " + movedK.ToString("F2") + " 間 進めた(実測)");
+                    }
                 }
             }
             Vector2 c = f.W(wu, wv);
@@ -3433,6 +3466,74 @@ public static partial class EdoMatsudairaDewaBuilder
         float r = yaw * Mathf.Deg2Rad;
         var ax = new Vector3(Mathf.Cos(r), 0, -Mathf.Sin(r));
         return Mathf.Abs(ax.x) * b.size.x + Mathf.Abs(ax.z) * b.size.z;
+    }
+
+    /// <summary>**隅櫓の逃げ** — 指図 `yagura[].gapA` / `gapB`(従属値)を実メッシュから解く。
+    ///
+    /// <para>櫓は内角の二等分線に沿って据わるので**辺と斜めに交わる**。塀の端をどこで止めるかは、
+    /// 櫓が**塀の通り道(回廊)**をどこからどこまで塞いでいるかで決まる。回廊の断面
+    /// (辺の線からの奥行と高さの帯)は <see cref="EdoBuild.DobeiProfile"/> が駒を1枚仮に据えて実測し、
+    /// 櫓の頂点は <see cref="EdoBuild.BodyAt"/> が**実体化せずに**プレハブから採る
+    /// (櫓が建つのは Stage6 で、囲いより後だから)。</para>
+    ///
+    /// <para>⛔⛔ **櫓の全頂点を辺の向きへ射影して端を採らない。** 斜めに据わった駒は
+    /// 回廊の外(区画の内側へ深く入った所)の頂点が極値になる。2026-09-21 の実測では
+    /// 辺13 で全頂点の射影が s=65.748、回廊の中だけだと s=68.000 で **2.25m** 違い、
+    /// 射影の端に合わせた袖塀は櫓との間に **1.13m の口**を残していた。</para>
+    ///
+    /// <para>⛔ 指図の数(旧 gapA 7.0 / gapB 6.8 = 設計の半幅 2.73 から起こした数)を使わない。
+    /// ⛔ 内角を直角と仮定しない(頂点14 の内角は 106°)。</para></summary>
+    /// <param name="lo">辺 → その辺の s0 側の run の端(櫓の先 + 犬走り)</param>
+    /// <param name="hi">辺 → その辺の s1 側の run の端(櫓の手前 − 犬走り)</param>
+    static string YaguraKeepout(Dictionary<int, float> lo, Dictionary<int, float> hi)
+    {
+        var sb = new System.Text.StringBuilder();
+        var P = Poly; int n = P.Length; var f = Grid;
+        string path = EdoAssets.Own.Matsudaira.Yagura;
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+            return "⛔ 隅櫓の部材が無い(" + path + ")— 逃げを解けない";
+        foreach (var o in A(D["yagura"]))
+        {
+            var y = O(o);
+            int vi = (int)F(y["vertex"]);
+            float seat = F(y["seat"]), kn = F(y["ken"]);
+            Vector2 c = YaguraSeat(P, vi, kn * f.ken);
+            Vector2 e = (P[(vi + 1) % n] - P[vi % n]).normalized;
+            float yaw = Mathf.Atan2(e.y, -e.x) * Mathf.Rad2Deg;
+            var pts = EdoBuild.BodyAt(path, new Vector3(c.x, seat, c.y), yaw);
+            if (pts.Count == 0) { sb.AppendLine("⛔ 隅櫓 " + (string)y["name"] + ": 実メッシュが読めない"); continue; }
+            // 入りの辺(頂点 vi で終わる)= s1 側 / 出の辺(vi から始まる)= s0 側
+            int eIn = (vi - 1 + n) % n, eOut = vi % n;
+            for (int k = 0; k < 2; k++)
+            {
+                int ed = k == 0 ? eIn : eOut;
+                Vector2 a = P[ed % n], b = P[(ed + 1) % n];
+                Vector2 pdir; float pLo, pHi, yLo, yHi;
+                // ⚠ 囲いは据えたあと `AlignInubashiri` で外面が線から内へ INUBASHIRI へ寄る。
+                //   仮置きの駒の位置をそのまま信じると回廊が 0.38m ずれる(2026-09-21 実測)。
+                if (!EdoBuild.DobeiProfile(a, b, OutNormal(ed), seat, out pdir, out pLo, out pHi,
+                                           out yLo, out yHi, -INUBASHIRI))
+                { sb.AppendLine("⛔ 隅櫓 " + (string)y["name"] + " 辺" + ed + ": 塀の断面が測れない"); continue; }
+                float q0, q1;
+                if (!EdoBuild.CorridorSpan(pts, a, b, pdir, pLo, pHi, yLo, yHi, out q0, out q1))
+                { sb.AppendLine("〔記録〕隅櫓 " + (string)y["name"] + " 辺" + ed + ": 塀の回廊を塞いでいない"); continue; }
+                float L = (b - a).magnitude;
+                if (k == 0) { hi[ed] = q0 - INUBASHIRI;
+                    sb.AppendLine("隅櫓 " + (string)y["name"] + " 辺" + ed + "(入り): 回廊を塞ぐ s "
+                        + q0.ToString("F3") + "‥" + q1.ToString("F3") + " ⇒ 塀の端 s1="
+                        + hi[ed].ToString("F3") + "(犬走り " + INUBASHIRI.ToString("F2")
+                        + ")/ 開口 gapA=" + (L - hi[ed]).ToString("F3")); }
+                else { lo[ed] = q1 + INUBASHIRI;
+                    sb.AppendLine("隅櫓 " + (string)y["name"] + " 辺" + ed + "(出): 回廊を塞ぐ s "
+                        + q0.ToString("F3") + "‥" + q1.ToString("F3") + " ⇒ 塀の端 s0="
+                        + lo[ed].ToString("F3") + "(犬走り " + INUBASHIRI.ToString("F2")
+                        + ")/ 開口 gapB=" + lo[ed].ToString("F3")); }
+                sb.AppendLine("　　回廊 奥行 " + pLo.ToString("F3") + "‥" + pHi.ToString("F3")
+                    + " / 帯 y " + yLo.ToString("F2") + "‥" + yHi.ToString("F2")
+                    + "(塀の駒の実測)/ 辺長 " + L.ToString("F3"));
+            }
+        }
+        return sb.Length == 0 ? "隅櫓なし" : sb.ToString().TrimEnd();
     }
 
     /// <summary>隅櫓の据え位置 — 区画の頂点 vi から内向きの二等分線に沿って side/2+犬走り 分だけ入る。</summary>

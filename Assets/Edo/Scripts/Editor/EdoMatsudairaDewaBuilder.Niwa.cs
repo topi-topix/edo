@@ -920,8 +920,16 @@ public static partial class EdoMatsudairaDewaBuilder
             // ⭕ 木そのものは `Stage7b` が `<庭>_<役>_<通し番号>` と名づける ⇒ **末尾が `_数字`**。
             //   群のノード(庭名・層名)は数字で終わらない。⛔ 部材側の LOD_0/LOD_1 まで潜らないよう、
             //   木に当たったらそこで打ち切る。
-            int got = 0; var pl = G2("Niwa/Planting");
-            if (pl != null)
+            // ⛔⛔ **`Niwa/Planting` だけを見ない。**2026-09-21 の置き方の入れ替えで
+            //   `Stage7b_NiwaFromScatter` は庭ごとの群 `Niwa/G_<庭>` へ据えるようになった。
+            //   `Planting` だけ数えると、829 本が据わっているのに「一本も据わっていない」と出る
+            //   (実際にそう出た。検査の文言と実装の集合を突き合わせる = CLAUDE.md 規則19)。
+            var plRoots = new List<Transform>();
+            { var p0 = G2("Niwa/Planting"); if (p0 != null) plRoots.Add(p0);
+              var nw = G2("Niwa");
+              if (nw != null) foreach (Transform c in nw) if (c.name.StartsWith("G_")) plRoots.Add(c); }
+            int got = 0;
+            foreach (var pl in plRoots)
             {
                 var stack = new Stack<Transform>(); stack.Push(pl);
                 while (stack.Count > 0)

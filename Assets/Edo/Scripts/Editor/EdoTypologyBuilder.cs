@@ -53,6 +53,15 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         public int maguchiKen, depthKen;
         public bool twoSided, jishinban, inari;
         public bool kuri, yagura, shoro, sanmon, graveyard;
+        // ⭐ 主屋の型(EDO-0327)。goten / omote_oku / ganko / ujigata / tanoji。
+        //    ⛔ 2026-09-21 まで Plan() は rank でしか分岐せず、defaults の omoya は**足しても
+        //    建つ姿が変わらない**欄だった(typology_check の inert_defaults が毎朝刷っていた)。
+        public string omoya;
+        // ⭐ 区画にだけ在って、ビルダーが名を読みもしなかった三つ(EDO-0327・規則19)。
+        //    ⛔ 使い道が決まらない欄でも**黙って捨てない** — 読んで log に刷る。
+        public string hoshiba;               // 干場の種別 konya 紺屋 / kappa 合羽(4区画)
+        public int tacchu;                   // 塔頭(子院)の数(澄泉寺=3)
+        public bool tokinokane;              // 時の鐘(成満寺=江戸の二番鐘)
         public Dictionary<string, object> raw;
         public bool Hand { get { return built == "hand"; } }
     }
@@ -148,6 +157,8 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 kuri = Bo(d, "kuri", true), yagura = Bo(d, "yagura", false),
                 shoro = Bo(d, "shoro", false), sanmon = Bo(d, "sanmon", false),
                 graveyard = Bo(d, "graveyard", false),
+                omoya = S(d, "omoya"), hoshiba = S(d, "hoshiba"),
+                tacchu = I(d, "tacchu", 0), tokinokane = Bo(d, "tokinokane", false),
             };
             _table[kv.Key] = s;
         }
@@ -609,7 +620,13 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
     /// <summary>主屋・付属・庭木。区画の内側へ SETBACK 引いた所に、型ごとの棟を置く。</summary>
     static string Omoya(Spec s, Transform root, Vector2[] poly, Edge front, float pad)
     {
-        if (s.type == "kouyuu" && s.building != "hikeshi") return "  主屋: 無し(明地・干場は地表と柵だけ)";
+        if (s.type == "kouyuu" && s.building != "hikeshi")
+            // ⭐ 干場の種別(`hoshiba`)は読むが**建てない** — 竿・張り板・渋紙の駒が在庫に無い
+            //    (`docs/asset-index.tsv` に物干しの類は 0 点)。⛔ 黙って捨てず、何を建てなかったかを刷る(規則19)。
+            return "  主屋: 無し(明地・干場は地表と柵だけ)" + (s.hoshiba == null ? "" :
+                string.Format("・⚠ {0}干場だが竿と張り板の部材が無く未建(地表 {1} と柵だけ)",
+                              s.hoshiba == "konya" ? "紺屋" : s.hoshiba == "kappa" ? "合羽" : s.hoshiba,
+                              s.surface ?? "dirt"));
         var g = Group("Tatemono", root);
         var c = Inner(poly, SETBACK);
         if (c.Count == 0) return "  ⛔ 主屋: 区画が狭く、囲いの内側に置ける場所が無い";
@@ -689,6 +706,8 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
             if (k < 0) kinds.Add(nm + "×1");
             else kinds[k] = nm + "×" + (int.Parse(kinds[k].Substring(nm.Length + 1)) + 1);
         }
+        string tch = s.tacchu > 0 ? string.Format("・塔頭{0}寺(⚠ 子院の部材が無く小屋で代用)", s.tacchu) : "";
+        string tkn = s.tokinokane ? "・時の鐘(⚠ 鐘楼は建つが時の鐘としての作り分けは未実装)" : "";
         string bab = s.baba ? "・⚠ 馬場は未建(地表+垣根の run は EdoBuild の持ち場・EDO-0304)" : "";
         string yag = s.yagura ? "・⚠ 隅矢倉は在庫に部材が無いため未建(部材方の宿題)" : "";
         string un  = s.units > 1 ? string.Format("・{0}戸割り", s.units) : "";
@@ -697,9 +716,28 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         if (clashed > 0) dr += string.Format("・{0}回は先の棟にめり込むので退けて置き直した", clashed);
         if (!float.IsNaN(worstPair)) dr += string.Format("・棟どうしの当たりの最小 {0:F2}m{1}", worstPair,
             worstPair < MIN_BLDG_GAP ? "(⚠ 目安 " + MIN_BLDG_GAP.ToString("F1") + "m 未満)" : "");
-        return string.Format("  主屋と付属: {0}/{1}棟(型={2}{3}){4}{5}{6}\n    仕様: {7}",
-            n, plan.Count, s.rank ?? s.kind ?? s.type, un, dr, yag, bab,
+        // ⭐ 型は **omoya** を刷る(rank ではない)— どの型で建てたかが log に出ていないと、
+        //    表の欄が効いたかどうかを建てた姿からしか確かめられない(EDO-0327・規則19)。
+        return string.Format("  主屋と付属: {0}/{1}棟(型={2}{3}){4}{5}{6}{7}{8}\n    仕様: {9}",
+            n, plan.Count,
+            s.type == "buke" ? OmoyaOf(s) : (s.kind ?? s.type),
+            un, dr, yag, bab, tch, tkn,
             string.Join(" ", kinds.ToArray()));
+    }
+
+    /// <summary>この区画の主屋の型。⭐ **表の `omoya` が勝ち**、書いていないときだけ格帯から採る
+    /// (割り当ては docs/typology-builder.md §4 の表と同じ)。⛔ 格帯を先に見ない — 区画に書いた
+    /// 史料値が既定に負ける(表の約束は「区画の欄が null のときビルダーが既定から採る」)。</summary>
+    static string OmoyaOf(Spec s)
+    {
+        if (!string.IsNullOrEmpty(s.omoya)) return s.omoya;
+        switch (s.rank)
+        {
+            case "daimyo":         return s.yashiki == "naka" ? "omote_oku" : "goten";
+            case "hatamoto_large": return "ganko";
+            case "hatamoto_mid":   return "ujigata";
+            default:               return "tanoji";
+        }
     }
 
     /// <summary>型ごとに「何を何棟」。⛔ 在庫の代用が多い — 専用部材は部材方の宿題。</summary>
@@ -709,17 +747,24 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         Action<string, float, int> add = (p, r, k) => { for (int i = 0; i < k; i++) L.Add(new KeyValuePair<string, float>(p, r)); };
         if (s.type == "buke")
         {
-            switch (s.rank)
+            // ⭐ 主屋の型は**表の `omoya` が勝つ**(区画 > defaults > 格帯。EDO-0327)。
+            //    型の中身は docs/typology-builder.md §4 の表 — 御殿複合 / 表・奥の2核 / 雁行複合 /
+            //    U字 / 田の字。⚠ 部材は VK の3点しかないので**型ごとに姿は変わらない** —
+            //    変わるのは棟の組み合わせだけで、御殿複合の3核は EDO-0318 ⑥ の持ち場。
+            switch (OmoyaOf(s))
             {
-                case "daimyo":
+                case "goten":        // 御殿複合(表向・中奥・奥向の3核)
                     add(EdoAssets.VK.BigHouse, 14f, 1); add(EdoAssets.VK.House, 10f, 2);
                     add(EdoAssets.VK.SmallHouse, 7f, 1); break;
-                case "hatamoto_large":
+                case "omote_oku":    // 表・奥の2核(中屋敷)
+                    add(EdoAssets.VK.BigHouse, 13f, 1); add(EdoAssets.VK.House, 10f, 1);
+                    add(EdoAssets.VK.SmallHouse, 7f, 1); break;
+                case "ganko":        // 雁行複合
                     add(EdoAssets.VK.BigHouse, 13f, 1); add(EdoAssets.VK.House, 9f, 1);
                     add(EdoAssets.VK.SmallHouse, 7f, 1); break;
-                case "hatamoto_mid":
+                case "ujigata":      // U字主屋
                     add(EdoAssets.VK.House, 10f, 1); add(EdoAssets.VK.SmallHouse, 7f, 1); break;
-                default:
+                default:             // tanoji 田の字(御家人 30坪)
                     add(EdoAssets.VK.SmallHouse, 7f, 1); break;
             }
             add(EdoAssets.Eg.Kura, 6f, Mathf.Clamp(s.kura, 0, 4));
@@ -750,6 +795,13 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
             //    在庫の `obj_shoro1` は ES 後 1.45m の灯籠級で代用にならない(在庫方 09-21)。
             if (s.shoro) add(EdoAssets.Own.Shoro(3f), 5f, 1);            // 袴腰 3間角 W5.88・棟天端 6.94
             if (s.graveyard) add(EdoAssets.Own.Bochi(6f, 4f), 7f, 1);    // 一画を一体で W10.91 × D7.27
+            // ⭐ 塔頭(子院)— 澄泉寺 3 寺(EDO-0327)。⚠ 子院の専用部材は無く、庫裏と同じ小屋の流用。
+            //    ⛔ 塔頭は本来それぞれ門と囲いを持つ一画だが、ここでは棟だけを建てる(部材の宿題)。
+            add(EdoAssets.VK.SmallHouse, 7f, Mathf.Clamp(s.tacchu, 0, 4));
+            // ⭐ 時の鐘(成満寺=本石町に次ぐ江戸の二番鐘)。鐘楼そのものは `shoro` が建てるので、
+            //    ここでは**表が時の鐘と書いていて鐘楼が立たない**矛盾だけを埋める。
+            //    ⚠ 時の鐘としての作り分け(丈・撞座・通りへの向き)は未実装 — 部材と置き方の宿題。
+            if (s.tokinokane && !s.shoro) add(EdoAssets.Own.Shoro(3f), 5f, 1);
             // ⚠ `sanmon` の欄は門の欄(`gate`)と同じ物を二度書いている — 山門は GatePath() が
             //    表門として建てるので、ここでは何も足さない(足すと境内に山門が2基立つ)。
         }

@@ -9,8 +9,33 @@ public static class WaterBaker
     static readonly Color ShallowC = new Color(0.28f, 0.50f, 0.55f);
     const float Margin = 150f;   // スナップショットの余白(m)
 
-    /// <summary>なぞった点から新しい編集可能な水域を作る。</summary>
+    /// <summary>なぞった点から新しい編集可能な水域を作る（地形も掘る）。</summary>
     public static WaterBody Create(List<Vector3> outline, float depth)
+    {
+        var wb = NewBody(outline, depth);
+        Recarve(wb);
+        return wb;
+    }
+
+    /// <summary>**掘り込み済みの地形に、水面の駒だけを起こし直す（復旧用）。地形は一切触らない。**
+    /// <para>⭐ 使う場面: 掘ってあるのに `WaterBody` の駒だけが失われたとき
+    /// (松江松平 2026-09-21 — 段別プレハブ化で `Niwa/Sensui` ごと落ち、池が空掘りのまま残っていた)。
+    /// ⛔ こういうとき <see cref="Create"/> を呼んではいけない — 中の <see cref="Recarve"/> が
+    /// 輪郭の内側を平らに均すので、掘ったあとに隆起させた**岬・中島・澪筋が消える**。
+    /// ⛔ <see cref="Recarve"/> はスナップ領域(輪郭bbox+150m = 300m超)を書き戻すので、
+    /// 隣の敷地の造成を巻き込む危険もある(EDO-0128)。</para>
+    /// <para>⚠ この駒は `hasSnap=false` で生まれる。あとで誰かが <see cref="Recarve"/> を呼ぶと
+    /// **そのときの地形**(＝掘ったあと)が復元用のスナップになる。</para></summary>
+    public static WaterBody CreateNoCarve(List<Vector3> outline, float depth, float waterY)
+    {
+        var wb = NewBody(outline, depth);
+        wb.waterY = waterY;
+        RebuildSurface(wb);
+        return wb;
+    }
+
+    /// <summary>駒とマテリアルだけ作る（掘り込みも水面メッシュも作らない）。</summary>
+    static WaterBody NewBody(List<Vector3> outline, float depth)
     {
         var parent = GameObject.Find("Water"); if (parent == null) parent = new GameObject("Water");
         var go = new GameObject("Water_" + System.DateTime.Now.ToString("HHmmss"));
@@ -24,7 +49,6 @@ public static class WaterBaker
         mat.SetFloat("_FresnelPower", 3.0f); mat.SetFloat("_Alpha", 0.8f);
         AssetDatabase.CreateAsset(mat, AssetDatabase.GenerateUniqueAssetPath("Assets/Edo/Water/" + go.name + ".mat"));
         go.GetComponent<MeshRenderer>().sharedMaterial = mat;
-        Recarve(wb);
         return wb;
     }
 

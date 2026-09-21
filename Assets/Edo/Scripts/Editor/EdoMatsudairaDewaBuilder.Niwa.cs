@@ -158,7 +158,31 @@ public static partial class EdoMatsudairaDewaBuilder
     public static string Stage6a_Sensui()
     {
         { var g = EdoSashizuExport.ReviewGate("matsudaira_dewa"); if (g != null) return g; }
-        if (Marked("6a_sensui")) return "⛔ 6a は実行済み(マーカー)。⛔ Recarve を二度呼ぶと岬と中島が平らに戻る";
+        // ⭐ **掘り込みは一度きり。水面の駒は何度でも起こし直せる。**
+        //   2026-09-21(普請検査): 地形は floorY 25.15 まで掘れているのに `Niwa/Sensui` の
+        //   `WaterBody` が丸ごと失われていた(段別プレハブ化 EDO-0282③ で `_markers` と一緒に落ちた)。
+        //   ⛔ このとき 6a を頭から流し直すと `Recarve` が輪郭の内側を均し、**岬2基・中島・澪筋が消える**
+        //   (6a' はマーカーで二度流せないので掘り直せない)。⇒ 水面だけ起こす。
+        if (Marked("6a_sensui"))
+        {
+            var had = Group("").GetComponentInChildren<WaterBody>(true);
+            if (had != null)
+                return "⛔ 6a は実行済み(マーカー・水面 " + had.name + " も在る)。⛔ Recarve を二度呼ぶと岬と中島が平らに戻る";
+            var pd = Pond; var bk = O(Sensui["baker"]);
+            float wy0 = F(pd["waterY"]);
+            var ol0 = new List<Vector3>();
+            foreach (var q in UVLine(pd["outline"])) ol0.Add(new Vector3(q.x, wy0, q.y));
+            var wb0 = WaterBaker.CreateNoCarve(ol0, F(pd["depth"]), wy0);
+            if (wb0 == null) return "⛔ WaterBaker.CreateNoCarve が null";
+            wb0.verticalWalls = HasKey(bk, "verticalWalls") && Convert.ToBoolean(bk["verticalWalls"]);
+            wb0.levelFloor = HasKey(bk, "levelFloor") && Convert.ToBoolean(bk["levelFloor"]);
+            wb0.raiseBanks = HasKey(bk, "raiseBanks") && Convert.ToBoolean(bk["raiseBanks"]);
+            if (HasKey(bk, "bankWidth")) wb0.bankWidth = F(bk["bankWidth"]);
+            wb0.name = StrOf(pd, "name") ?? "P_Sensui";
+            wb0.transform.SetParent(Group("Niwa/Sensui"), true);
+            return string.Format("御泉水 {0}: **水面だけ**起こし直した(掘り込みは触っていない)。汀 {1} 点 / 水面 {2:F2} / 底 {3:F2}",
+                                 wb0.name, ol0.Count, wy0, wy0 - F(pd["depth"]));
+        }
         // ⛔ `WaterBaker` の snap 矩形 320×320m が土井 6/10 点・岡部 4/13 点に掛かる(`_pending.snapKiten`)。
         //    起票して両セッションへ連絡してから、マーカー `Niwa/_markers/6a_snap_notified` を手で作る。
         if (!Marked("6a_snap_notified"))

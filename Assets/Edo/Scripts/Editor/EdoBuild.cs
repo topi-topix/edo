@@ -512,6 +512,62 @@ public static partial class EdoBuild
         return L;
     }
 
+    /// <summary>材やサブメッシュの名で屋根を見分ける。<see cref="IsRoofName"/>(和名)に
+    /// 英名の roof / 屋根 を足したもの。⛔ <see cref="IsRoofName"/> 自体は広げない —
+    /// あれは `Body()` が壁体を選ぶのに使っていて、広げると他邸の実測値が黙って動く。</summary>
+    public static bool IsRoofLabel(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return false;
+        string n = name.ToLower();
+        return IsRoofName(n) || n.Contains("roof") || n.Contains("屋根");
+    }
+
+    /// <summary>**一体メッシュの駒の「一層目の躯体」**の世界頂点(実体化しない)。
+    /// <para>⭐ 一体で焼いた部材(隅櫓・門・祠)は屋根も壁も**ひとつの MeshFilter** に入っていて、
+    /// メッシュの名では屋根を落とせない。⇒ **材(サブメッシュ)の名**で屋根を見分け、
+    /// **屋根の最も低い点より下に居る頂点**だけを返す。これが「軒より下の躯体」。</para>
+    /// <para>⛔ 高さの帯を数で決め打ちしない(`座+2.0m` のような数)— 屋根の高さは部材が決める。
+    /// 松江松平の隅櫓 Y_NE: 屋根の最下点 32.67 ⇒ 一層目の躯体 = 板壁 Fence_B_01 + 漆喰壁
+    /// Wall Exterior Defence(y29.40‥32.67)。⚠ 二層目の妻壁 `wall C`(33.11‥)と柱 `wood`(32.76‥)は
+    /// **この上に居るので入らない** — 入れたいときは <see cref="BodyAt"/> を使う。</para>
+    /// <para>屋根のサブメッシュが無ければ <see cref="BodyAt"/>(withRoof:false)と同じ物を返す。</para></summary>
+    public static List<Vector3> BodyBelowRoofAt(string prefabPath, Vector3 pos, float yaw)
+    {
+        var L = new List<Vector3>();
+        var asset = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+        if (asset == null) return L;
+        var pose = Matrix4x4.TRS(pos, Quaternion.Euler(0f, yaw, 0f), Vector3.one)
+                 * asset.transform.worldToLocalMatrix;
+        float roofLo = float.MaxValue;
+        var keep = new List<Vector3>();
+        foreach (var mf in asset.GetComponentsInChildren<MeshFilter>(true))
+        {
+            if (mf.sharedMesh == null) continue;
+            var rr = mf.GetComponent<Renderer>(); if (rr == null || !rr.enabled) continue;
+            var m = pose * mf.transform.localToWorldMatrix;
+            var vs = mf.sharedMesh.vertices;
+            var W = new Vector3[vs.Length];
+            for (int i = 0; i < vs.Length; i++) W[i] = m.MultiplyPoint3x4(vs[i]);
+            var mats = rr.sharedMaterials;
+            bool meshIsRoof = IsRoofLabel(mf.gameObject.name) || IsRoofLabel(mf.sharedMesh.name);
+            for (int s = 0; s < mf.sharedMesh.subMeshCount; s++)
+            {
+                string mat = s < mats.Length && mats[s] != null ? mats[s].name : "";
+                bool isRoof = meshIsRoof || IsRoofLabel(mat);
+                var tri = mf.sharedMesh.GetTriangles(s);
+                for (int i = 0; i < tri.Length; i++)
+                {
+                    var w = W[tri[i]];
+                    if (isRoof) { if (w.y < roofLo) roofLo = w.y; }
+                    else keep.Add(w);
+                }
+            }
+        }
+        if (roofLo == float.MaxValue) return keep;               // 屋根が見分けられない = 壁体そのまま
+        foreach (var w in keep) if (w.y < roofLo) L.Add(w);
+        return L;
+    }
+
     /// <summary>**塀の通り道(回廊)を、その駒がどこからどこまで塞いでいるか。**
     /// <paramref name="pts"/> の世界頂点のうち、辺 <paramref name="A"/>→<paramref name="B"/> の線からの奥行
     /// (<paramref name="perpDir"/> 方向で <paramref name="perpLo"/>‥<paramref name="perpHi"/>)と
@@ -519,7 +575,13 @@ public static partial class EdoBuild
     /// s は A からの距離[m]。回廊に頂点が無ければ false(= その辺では塞いでいない)。
     /// <para>⭕ 使い方: 塀の断面を <see cref="DobeiProfile"/> で実測 → 隅の駒の頂点を
     /// <see cref="BodyAt"/>(まだ建てていない)か <see cref="Body"/>(建ててある)で採る → ここへ渡す →
-    /// run の端を <c>s0 − 犬走り</c> / <c>s1 + 犬走り</c> に落とす。</para></summary>
+    /// **返った <paramref name="s0"/>/<paramref name="s1"/> が run の端そのもの**(塞いでいる所まで塀を通す)。</para>
+    /// <para>⛔⛔ **返り値に犬走りを足し引きしない。**犬走りは「塀と郭(地面)の間」= **断面**の控えで、
+    /// 「隅の駒と塀の間」= **走り方向**の話ではない。松江松平 2026-09-21: ここで 0.30 を引いて
+    /// 隅櫓 Y_NE と袖塀の間に **0.300/0.299m の穴**を二つ開けた(普請検査が実測)。
+    /// 走り方向は**触れるまで**寄せる — 閉じない案と浅く刺さる案が並んだら刺すほうを採る
+    /// (メモリ `gate-wall-closure-rule`「隙間 > めり込み」)。同じ形は
+    /// 岡部の隅部材・山王の楼門脇の透塀・土井の隅にも当たる。</para></summary>
     public static bool CorridorSpan(List<Vector3> pts, Vector2 A, Vector2 B, Vector2 perpDir,
                                     float perpLo, float perpHi, float yLo, float yHi,
                                     out float s0, out float s1)

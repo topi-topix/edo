@@ -3156,7 +3156,7 @@ public static partial class EdoMatsudairaDewaBuilder
             var y = O(o);
             int vi = (int)F(y["vertex"]);
             float seat = F(y["seat"]), kn = F(y["ken"]);
-            Vector2 c = YaguraSeat(P, vi, kn * f.ken);
+            Vector2 c = YaguraSeat(P, vi, kn * f.ken, seat);
             Vector2 e = (P[(vi + 1) % P.Length] - P[vi % P.Length]).normalized;
             var go = EdoBuild.Place(EdoAssets.Own.Matsudaira.Yagura,
                 new Vector3(c.x, seat, c.y), Mathf.Atan2(e.y, -e.x) * Mathf.Rad2Deg,
@@ -3483,8 +3483,8 @@ public static partial class EdoMatsudairaDewaBuilder
     ///
     /// <para>⛔ 指図の数(旧 gapA 7.0 / gapB 6.8 = 設計の半幅 2.73 から起こした数)を使わない。
     /// ⛔ 内角を直角と仮定しない(頂点14 の内角は 106°)。</para></summary>
-    /// <param name="lo">辺 → その辺の s0 側の run の端(櫓の先 + 犬走り)</param>
-    /// <param name="hi">辺 → その辺の s1 側の run の端(櫓の手前 − 犬走り)</param>
+    /// <param name="lo">辺 → その辺の s0 側の run の端(= 櫓が回廊を塞ぎ終わる所。⛔ 犬走りを足さない)</param>
+    /// <param name="hi">辺 → その辺の s1 側の run の端(= 櫓が回廊を塞ぎ始める所。⛔ 犬走りを引かない)</param>
     static string YaguraKeepout(Dictionary<int, float> lo, Dictionary<int, float> hi)
     {
         var sb = new System.Text.StringBuilder();
@@ -3497,7 +3497,7 @@ public static partial class EdoMatsudairaDewaBuilder
             var y = O(o);
             int vi = (int)F(y["vertex"]);
             float seat = F(y["seat"]), kn = F(y["ken"]);
-            Vector2 c = YaguraSeat(P, vi, kn * f.ken);
+            Vector2 c = YaguraSeat(P, vi, kn * f.ken, seat);
             Vector2 e = (P[(vi + 1) % n] - P[vi % n]).normalized;
             float yaw = Mathf.Atan2(e.y, -e.x) * Mathf.Rad2Deg;
             var pts = EdoBuild.BodyAt(path, new Vector3(c.x, seat, c.y), yaw);
@@ -3518,16 +3518,20 @@ public static partial class EdoMatsudairaDewaBuilder
                 if (!EdoBuild.CorridorSpan(pts, a, b, pdir, pLo, pHi, yLo, yHi, out q0, out q1))
                 { sb.AppendLine("〔記録〕隅櫓 " + (string)y["name"] + " 辺" + ed + ": 塀の回廊を塞いでいない"); continue; }
                 float L = (b - a).magnitude;
-                if (k == 0) { hi[ed] = q0 - INUBASHIRI;
+                // ⛔⛔ **犬走りを足し引きしない。**犬走りは「塀と郭の間」= 断面の控えで、
+                //   「櫓と塀の間」= 走り方向の話ではない。2026-09-21 にここで 0.30 を引いて
+                //   辺13/辺14 に 0.300/0.299m の穴を二つ開けた(普請検査の実測)。
+                //   塀は櫓が回廊を塞ぎ始める所まで通す(触れるまで寄せる)。→ EdoBuild.CorridorSpan の注記
+                if (k == 0) { hi[ed] = q0;
                     sb.AppendLine("隅櫓 " + (string)y["name"] + " 辺" + ed + "(入り): 回廊を塞ぐ s "
                         + q0.ToString("F3") + "‥" + q1.ToString("F3") + " ⇒ 塀の端 s1="
-                        + hi[ed].ToString("F3") + "(犬走り " + INUBASHIRI.ToString("F2")
-                        + ")/ 開口 gapA=" + (L - hi[ed]).ToString("F3")); }
-                else { lo[ed] = q1 + INUBASHIRI;
+                        + hi[ed].ToString("F3") + "(櫓へ突き付け)/ 開口 gapA="
+                        + (L - hi[ed]).ToString("F3")); }
+                else { lo[ed] = q1;
                     sb.AppendLine("隅櫓 " + (string)y["name"] + " 辺" + ed + "(出): 回廊を塞ぐ s "
                         + q0.ToString("F3") + "‥" + q1.ToString("F3") + " ⇒ 塀の端 s0="
-                        + lo[ed].ToString("F3") + "(犬走り " + INUBASHIRI.ToString("F2")
-                        + ")/ 開口 gapB=" + lo[ed].ToString("F3")); }
+                        + lo[ed].ToString("F3") + "(櫓へ突き付け)/ 開口 gapB="
+                        + lo[ed].ToString("F3")); }
                 sb.AppendLine("　　回廊 奥行 " + pLo.ToString("F3") + "‥" + pHi.ToString("F3")
                     + " / 帯 y " + yLo.ToString("F2") + "‥" + yHi.ToString("F2")
                     + "(塀の駒の実測)/ 辺長 " + L.ToString("F3"));
@@ -3536,8 +3540,16 @@ public static partial class EdoMatsudairaDewaBuilder
         return sb.Length == 0 ? "隅櫓なし" : sb.ToString().TrimEnd();
     }
 
-    /// <summary>隅櫓の据え位置 — 区画の頂点 vi から内向きの二等分線に沿って side/2+犬走り 分だけ入る。</summary>
-    static Vector2 YaguraSeat(Vector2[] P, int vi, float side)
+    /// <summary>隅櫓の据え位置 — 区画の頂点 vi から内向きの二等分線に沿って入れる。
+    /// <para>⭐⭐ **入れ量は実メッシュからの従属値**(施主裁定 B・2026-09-21 EDO-0310)。
+    /// 「**一層目の躯体(屋根の最下点より下)の全頂点が、両隣の区画線のどちらも越えない**」
+    /// を満たす最小の入れ量。⛔ 4.224 や 0.434 を定数で焼かない — 部材か区画の角が変われば動く。
+    /// 足がかり(下限)は従来どおり幾何の (半幅 + 犬走り) ÷ sin(内角の半分) で、
+    /// そこから**実測で越えているぶんだけ さらに内へ**入れる(外へは戻さない)。</para>
+    /// <para>⚠ **軸は振らない** — 向きは辺 vi→vi+1 に沿わせたまま(案C=二等分線へ振るは不採用)。
+    /// ⚠ 二層目の妻壁(`wall C`)と柱(`wood`)、屋根の軒は**この入れ量では収まらない** —
+    /// 軒の越えは `yagura[].parcelOut` で受容済み。</para></summary>
+    static Vector2 YaguraSeat(Vector2[] P, int vi, float side, float seat)
     {
         int n = P.Length;
         Vector2 p = P[vi % n];
@@ -3551,7 +3563,33 @@ public static partial class EdoMatsudairaDewaBuilder
         // 二等分線に沿って入れる量 = (半幅 + 犬走り 0.30) / sin(半角)。
         // 折れ角は現地が決めるので直角を仮定しない(unity-modular-stonewall §1)。
         float half = Mathf.Max(0.20f, Mathf.Acos(Mathf.Clamp(Vector2.Dot(a, bis), -1f, 1f)));
-        float inset = (side * 0.5f + 0.30f) / Mathf.Max(0.35f, Mathf.Sin(half));
+        float inset = (side * 0.5f + INUBASHIRI) / Mathf.Max(0.35f, Mathf.Sin(half));
+        // ---- ここから実メッシュで解く(裁定B)。足がかりの位置に仮に据えて、両隣の区画線の越えを測る。
+        int nv = P.Length;
+        Vector2 eDir = (P[(vi + 1) % nv] - P[vi % nv]).normalized;
+        float yaw = Mathf.Atan2(eDir.y, -eDir.x) * Mathf.Rad2Deg;
+        Vector2 c0 = p + bis * inset;
+        var body = EdoBuild.BodyBelowRoofAt(EdoAssets.Own.Matsudaira.Yagura,
+                                            new Vector3(c0.x, seat, c0.y), yaw);
+        if (body.Count > 0)
+        {
+            float need = 0f;
+            for (int k = 0; k < 2; k++)
+            {
+                int ed = k == 0 ? (vi - 1 + nv) % nv : vi % nv;     // 入りの辺 / 出の辺
+                Vector2 aa = P[ed % nv], on = OutNormal(ed);
+                float over = float.MinValue;
+                foreach (var w in body)
+                {
+                    float dd = (w.x - aa.x) * on.x + (w.z - aa.y) * on.y;   // +が区画の外
+                    if (dd > over) over = dd;
+                }
+                // 二等分線に沿って 1m 入れると、その辺の越えは -dot(bis, outward) だけ減る
+                float kk = -(bis.x * on.x + bis.y * on.y);
+                if (kk > 1e-3f && over > 0f) need = Mathf.Max(need, over / kk);
+            }
+            inset += need;
+        }
         return p + bis * inset;
     }
 
@@ -4246,6 +4284,15 @@ public static partial class EdoMatsudairaDewaBuilder
     public static void Stage7Menu() { Debug.Log("[Matsudaira] " + Stage7_Niwa()); }
     public static string Stage7_Niwa()
     {
+        // ⛔⛔ **退役した Stage。**庭を外接箱で読み、樹種と塊がべた書きで、指図の poly/at/groups/clr を
+        //   読まない(検図 第4次【高7】)。正典は **`7' 植栽`**(生成器 `scatter_gardens` が撒いた
+        //   散布点 = 各検査が見たのと同じ点を据えるだけ)。⛔ 両方流すと同じ庭に二重に植わる。
+        //   2026-09-21(普請検査): この Stage が残した 829 駒のうち 62 駒が御泉水の汀線の**内側**に
+        //   立ち(設計面 27.0 のまま = 掘った底の上)、最大 2.100m 浮いていた。
+        //   ⛔ 本体の `Clear(Group("Niwa"))` は _markers・Mizu・Ishigumi・Tenkei まで消す。走らせない。
+        return "⛔ 旧 Stage7(庭の植栽)は退役 — 検図 第4次【高7】。"
+             + "`Edo/松平出羽守上屋敷/7' 植栽(指図の散布点を据える)` を使う";
+#pragma warning disable 0162
         // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
         //    2026-09-01: Stage7 が指図の poly/at/groups/clr を読まず、**撤回済みの
         //    「松を全数 −u へ傾ける」がコードに生きていた**。流せば撤回した案が復活する。
@@ -4434,6 +4481,7 @@ public static partial class EdoMatsudairaDewaBuilder
         sb.Append("木 " + nTree + " / 刈込 " + nShrub + " 株 / 下草 " + nGround +
                   " / 景石 " + nRock + "  [" + string.Join(" | ", report.ToArray()) + "]");
         return sb.ToString();
+#pragma warning restore 0162
     }
 
     /// <summary>庭の矩形の中で、空いている点を決定論的に探す。見つからなければ false。</summary>
@@ -4449,7 +4497,8 @@ public static partial class EdoMatsudairaDewaBuilder
         c = Vector2.zero; return false;
     }
 
-    /// <summary>1本植える。設計面に据え、向きと大きさを散らす。tiltU!=0 なら u 方向へ傾ける。</summary>
+    /// <summary>1本植える。**地面(live terrain)の実測に据え**、向きと大きさを散らす。
+    /// tiltU!=0 なら u 方向へ傾ける。⛔ 設計面の数で据えない(本体の注記)。</summary>
     // ---------------------------------------------------------------- Stage 8: 西斜面の林
     /// <summary>指図の `slopeArea` と `slopePlanting` を読んで西の法面に林を作る。
     ///
@@ -4471,6 +4520,13 @@ public static partial class EdoMatsudairaDewaBuilder
     public static void Stage8Menu() { Debug.Log("[Matsudaira] " + Stage8_Shamen()); }
     public static string Stage8_Shamen()
     {
+        // ⛔⛔ **退役した Stage。**西斜面の散布点も生成器 `scatter_slope` が
+        //   `matsudaira_dewa_planting_out.json` へ書き出し済み(`ground:"terrain"` の 707 点)で、
+        //   **`7' 植栽` の一本で据わる**。帯を二重に持たないための統合(検図【高5】)。
+        //   ⛔ 両方流すと法面に二重に植わる。
+        return "⛔ 旧 Stage8(西斜面の林)は `7' 植栽` へ統合された(検図【高5】)。"
+             + "`Edo/松平出羽守上屋敷/7' 植栽(指図の散布点を据える)` を使う";
+#pragma warning disable 0162
         // ⛔ **検図関門**(CLAUDE.md 規則18)。不合格の指図を実装しない。
         //    2026-09-01: Stage7 が指図の poly/at/groups/clr を読まず、**撤回済みの
         //    「松を全数 −u へ傾ける」がコードに生きていた**。流せば撤回した案が復活する。
@@ -4610,6 +4666,7 @@ public static partial class EdoMatsudairaDewaBuilder
         sb.AppendLine(ScreenQA(crest, segOut, slopeWidth, screens, sc));
         sb.Append("斜面の木 " + nAll + " 本  [" + string.Join(" | ", report.ToArray()) + "]");
         return sb.ToString();
+#pragma warning restore 0162
     }
 
     /// <summary>**遮蔽の検査。**法肩に `step` ごとの検査点を取り、`reach` 以内に樹高 `minH` 以上の
@@ -4694,7 +4751,12 @@ public static partial class EdoMatsudairaDewaBuilder
     {
         var f = Grid;
         Vector2 w = f.W(u, v);
-        float y = DesignY(w);
+        // ⭐ **木は「地面に触れる所」で据える。**⛔ 設計面(`DesignY`)の数で据えない —
+        //   造成は設計面に完全には届かず(GradeQA 1.5%)、**築山は設計面より上へ盛る**ので、
+        //   紙の面で据えると 築山の中に埋まり(実測 −1.90m)、造成の残る窪みでは浮く(+0.78m)。
+        //   2026-09-21 の実測: 設計面で据えると 1278 駒のうち 44 駒が 0.30m 超ずれた。
+        //   → CLAUDE.md 規則21「何かと何かが接するなら、触れている箇所を測って決める」/ docs/oki-kata.md
+        float y = TerrainY(w);
         float s = scale * (0.82f + (float)rnd.NextDouble() * 0.36f);   // 同じ大きさで並べない
         var go = EdoBuild.Place(path, new Vector3(w.x, y - sink * s, w.y),
             (float)rnd.NextDouble() * 360f, Vector3.one * s, parent, name);

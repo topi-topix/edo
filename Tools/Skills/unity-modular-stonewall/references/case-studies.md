@@ -35,7 +35,7 @@ R2の閉形式スライド量は `k = 2.4 − 2.4/sinΔ`（Δ=90で0）。
 
 ## 16. 虎御門枡形で実証(2026-08-10)
 
-- **Yaguramon A から嘉永期の「渡櫓なし櫓門」を作る**: `Exterior/Roof` と `Exterior/Wall` を
+- **Yaguramon A から安政期(基準年次)の「渡櫓なし櫓門」を作る**: `Exterior/Roof` と `Exterior/Wall` を
   SetActive(false) → Base(櫓台石垣×2+門扉+柱+庇)だけが残り、幕末外郭門の正史の姿になる。
   ×1.5 で台上端=基準+6.0m・開口6.2m。台が壁線を占有する区間は straight をスキップ(§4と同じ)。
 - **Castle Wall (scale x=1) の天端実測**: pivot から進行方向左へ 0.000〜1.400m(中心+0.700)。

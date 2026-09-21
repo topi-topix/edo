@@ -1,7 +1,7 @@
 {
  "_": "完成条件の表(2026-09-19 施主裁定3=A)。全部 pass で完成。以後の指摘は掲示板へ積み、指図は開かない。値は普請検査の実測、render だけは施主の発話の引用。見張りは python3 Tools/Sashizu/kansei_gate.py",
  "estate": "matsudaira_dewa",
- "phase": "built",
+ "phase": "done",
  "since": "2026-09-19",
  "items": {
   "gap": {
@@ -44,14 +44,14 @@
    "label": "レンダの施主承認",
    "what": "検証レンダ(真上・門の外・庭の目線)を施主が見て承認",
    "how": "施主の発話。⛔ 役は書けない — --quote に引用を入れる",
-   "value": null,
-   "verdict": null,
-   "at": null,
+   "value": "検証レンダ5枚(真上・門の外・庭の目線・御泉水・隅櫓NE)を施主が見て承認。絵 https://claude.ai/artifact/QdxqnDLkqmmwAd6shj5Joe。三枚目(庭の目線)で水面が白く飛ぶこと・遠景に隣の桃色が写ることは提示済みのうえでの承認",
+   "verdict": "pass",
+   "at": "2026-09-21",
    "note": "",
-   "quote": null
+   "quote": "承認します、絵はこれで良いです"
   }
  },
- "completed": null,
+ "completed": "2026-09-21",
  "history": [
   {
    "at": "2026-09-19T19:48:59+09:00",
@@ -184,6 +184,12 @@
    "at": "2026-09-21T17:26:32+09:00",
    "event": "record",
    "item": "match",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-21T17:34:01+09:00",
+   "event": "record",
+   "item": "render",
    "verdict": "pass"
   }
  ]

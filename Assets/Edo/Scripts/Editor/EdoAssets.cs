@@ -1445,6 +1445,12 @@ public static class EdoAssets
         // 自作マテリアルの名前引き(規則11: パスの literal はここ以外に書かない)
         public static string Mat(string name) { return "Assets/Edo/Materials/" + name + ".mat"; }
 
+        /// <summary>**色だけの無地の材質**(URP/Lit)を置く場所。`EdoSolidMat.Get(Color)` が色ごとに 1 枚だけ起こす
+        /// (EDO-0301)。⛔ コードで `new Material(...)` して資産にしないと、プレハブの m_Materials が null になり、
+        /// そのプレハブを別の場所へ置くとマゼンタになる。</summary>
+        public const string SolidMatDir = "Assets/Edo/Materials/Solid";
+        public static string SolidMat(string hex) { return SolidMatDir + "/Solid_" + hex + ".mat"; }
+
         /// <summary>松江松平邸の表門 — **屋根なしの冠木門**(角柱・冠木・内開きの板戸)。
         /// 姿は温古写真集11(88005761・明治初撮影)の実見【A】+『日本案内記 関東篇』昭和5年【A】。
         /// ⚠ 切妻小屋根を載せる前案は 2026-08-23 に撤回済み。**屋根なしが正**。

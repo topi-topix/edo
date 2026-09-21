@@ -348,7 +348,7 @@ public static class EdoYamatoRebuild
         float faceYaw = Mathf.Atan2(Uhat.x, Uhat.y) * Mathf.Rad2Deg; // 正面を御殿(東)へ
         g.transform.rotation = Quaternion.Euler(0, faceYaw, 0);
         Undo.RegisterCreatedObjectUndo(g, "noh");
-        var wood = new Material(Shader.Find("Universal Render Pipeline/Lit")); wood.color = new Color(0.45f, 0.34f, 0.22f);
+        var wood = EdoSolidMat.Get(new Color(0.45f, 0.34f, 0.22f));
         var dai = GameObject.CreatePrimitive(PrimitiveType.Cube);
         dai.name = "dai"; dai.transform.SetParent(g.transform, false);
         dai.transform.localScale = new Vector3(6.4f, 0.85f, 6.4f);
@@ -402,8 +402,8 @@ public static class EdoYamatoRebuild
         var g = new GameObject("Ido_" + u + "_" + v); g.transform.SetParent(parent, false);
         g.transform.position = new Vector3(p.x, y, p.y);
         Undo.RegisterCreatedObjectUndo(g, "well");
-        var stone = new Material(Shader.Find("Universal Render Pipeline/Lit")); stone.color = new Color(0.55f, 0.55f, 0.52f);
-        var wood = new Material(Shader.Find("Universal Render Pipeline/Lit")); wood.color = new Color(0.38f, 0.28f, 0.18f);
+        var stone = EdoSolidMat.Get(new Color(0.55f, 0.55f, 0.52f));
+        var wood = EdoSolidMat.Get(new Color(0.38f, 0.28f, 0.18f));
         var curb = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
         curb.name = "curb"; curb.transform.SetParent(g.transform, false);
         curb.transform.localScale = new Vector3(1.3f, 0.35f, 1.3f);
@@ -432,9 +432,9 @@ public static class EdoYamatoRebuild
         var g = new GameObject("Inari"); g.transform.SetParent(parent, false);
         g.transform.position = new Vector3(p.x, y, p.y);
         Undo.RegisterCreatedObjectUndo(g, "inari");
-        var shu = new Material(Shader.Find("Universal Render Pipeline/Lit")); shu.color = new Color(0.78f, 0.15f, 0.08f);
-        var stone = new Material(Shader.Find("Universal Render Pipeline/Lit")); stone.color = new Color(0.55f, 0.55f, 0.52f);
-        var wood = new Material(Shader.Find("Universal Render Pipeline/Lit")); wood.color = new Color(0.42f, 0.30f, 0.18f);
+        var shu = EdoSolidMat.Get(new Color(0.78f, 0.15f, 0.08f));
+        var stone = EdoSolidMat.Get(new Color(0.55f, 0.55f, 0.52f));
+        var wood = EdoSolidMat.Get(new Color(0.42f, 0.30f, 0.18f));
         for (int i = 0; i < 2; i++)
         {
             var post = GameObject.CreatePrimitive(PrimitiveType.Cylinder);

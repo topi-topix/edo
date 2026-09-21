@@ -145,7 +145,7 @@ public static class EdoSannoShaBuilder
         }
         return cur;
     }
-    static Material Mat(Color c) { var m = new Material(Shader.Find("Universal Render Pipeline/Lit")); m.color = c; return m; }
+    static Material Mat(Color c) { return EdoSolidMat.Get(c); }   // 資産(EDO-0301: new Material はプレハブに焼けない)
     static GameObject Box(Transform parent, string name, Vector3 pos, Vector3 scale, Material m, float ry = 0)
     {
         var b = GameObject.CreatePrimitive(PrimitiveType.Cube);

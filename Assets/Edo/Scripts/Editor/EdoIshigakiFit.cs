@@ -141,10 +141,11 @@ public class EdoIshigakiFit : EditorWindow
         mesh.RecalculateNormals(); mesh.RecalculateBounds();
 
         var layer = AssetDatabase.LoadAssetAtPath<TerrainLayer>(EdoAssets.Own.LayerGrass);
-        var mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        var mat = EdoSolidMat.Named("IshigakiSkirt", null);   // 資産(EDO-0301)。特性は毎回書く — 道具の持ち物
         if (layer != null && layer.diffuseTexture != null) mat.SetTexture("_BaseMap", layer.diffuseTexture);
         mat.SetFloat("_Smoothness", 0f); mat.SetFloat("_Metallic", 0f);
         mat.SetColor("_BaseColor", new Color(1.44f, 1.25f, 1.40f)); // 地形の実測平均色に合わせた較正値
+        EditorUtility.SetDirty(mat);
 
         var old = GameObject.Find(SkirtName); if (old != null) Object.DestroyImmediate(old);
         var go = new GameObject(SkirtName);

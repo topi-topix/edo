@@ -113,7 +113,7 @@ public static class EdoSannoBukeBuilder
         }
         return cur;
     }
-    static Material Mat(Color c) { var m = new Material(Shader.Find("Universal Render Pipeline/Lit")); m.color = c; return m; }
+    static Material Mat(Color c) { return EdoSolidMat.Get(c); }   // 資産(EDO-0301: new Material はプレハブに焼けない)
     static void CenterSeat(GameObject go, float x, float z, float sink = 0.12f)
     {
         var b = RB(go);

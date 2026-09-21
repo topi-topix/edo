@@ -678,9 +678,11 @@ public static class EdoYashikiPrefab
                     + "\n   この表が、その取りこぼしを見つける唯一の場所。**「構造の手直しあり」に心当たりの"
                     + "ないルートが居たら、Group() を通らない手編集が残っている** —"
                     + " Edo/屋敷/プレハブへ書き戻す(選択中) で明示的に書くこと。"
-                    + "\n   ⭐ 「override だけ」の大半は直しようのない常連: 2026-09-21 の実測ではその正体は"
-                    + "全部 MeshRenderer の m_Materials で、コードが new Material(...) で起こした材質は"
-                    + "資産でないためプレハブへ焼けず、書き戻しても消えない(赤坂で 162 本中 74 本)。");
+                    + "\n   ⭐ 「override だけ」の正体(2026-09-21 の実測)は全部 MeshRenderer の m_Materials — コードが"
+                    + " new Material(...) で起こした材質は資産でないためプレハブへ焼けず、書き戻しても消えない"
+                    + "(赤坂で 162 本中 74 本)。EDO-0301 で **ビルダーは EdoSolidMat.Get に改め**、既存分は"
+                    + " Edo/屋敷/埋め込み材質を資産へ(全ルート) で焼く。下の「資産でない材質」が 0 なら直っている。");
+        sb.AppendLine("材質: " + EdoSolidMat.CountLoose(scene));
         sb.Append(StageStatus(scene));
         return sb.ToString();
     }

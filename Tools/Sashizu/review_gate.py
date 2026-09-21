@@ -530,8 +530,25 @@ def main():
     argv = sys.argv[1:]
     if argv and argv[0] == "--record":
         if len(argv) < 4:
-            sys.exit("使い方: --record <屋敷> <検分役> <pass|fail|advisory> [一言]")
-        record(argv[1], argv[2], argv[3], " ".join(argv[4:]))
+            sys.exit("使い方: --record <屋敷> <検分役> <pass|fail|advisory> [一言]\n"
+                     "        --record <屋敷> <検分役> <判定> --note-file <パス|->")
+        # ⭐ **一言をファイル(か標準入力)から渡せる**(2026-09-21 EDO-0179)。
+        #   ⛔ コマンドラインに二重引用符で書くと、検分役の文中の `鍵の名` を
+        #   **シェルがコマンドとして実行して消す**。2026-09-09 に山王で 4 件が消え、
+        #   それでも本ツールは exit 0 で「記録: … = fail」と成功を刷った。
+        #   ⚠ 消えるのは「どの鍵を直せばよいか」なので、次の巡が読んで**何を直すか分からない**。
+        #   ⛔ 関門の側では気づけない — シェルが先に食うので、ここには届かないため。
+        rest = argv[4:]
+        if "--note-file" in rest:
+            i = rest.index("--note-file")
+            if i + 1 >= len(rest):
+                sys.exit("--note-file にパスが無い(標準入力から読むなら `-`)")
+            src = rest[i + 1]
+            note = sys.stdin.read() if src == "-" else open(src, encoding="utf-8").read()
+            note = note.strip()
+        else:
+            note = " ".join(rest)
+        record(argv[1], argv[2], argv[3], note)
         return
     if argv and argv[0] == "--changed":
         if len(argv) < 2:

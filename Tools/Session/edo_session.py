@@ -770,6 +770,34 @@ def cmd_check_write(a):
     return 0
 
 
+# ── 散文を記録に書き込む打ち方(中の ` が食われると、何を直すかが消える)
+_PROSE_ARG = re.compile(r"(review_gate\.py\s+--record|edo_board\.py\s+(?:note|post)\b)")
+
+
+def _bt_in_dquote(cmd):
+    """シェルが**実行してしまう** ` が一行の中にあるか。
+
+    ⭕ 一重引用符の中の ` は literal(安全)。⛔ 二重引用符の中と、引用符の外は
+    コマンド置換として実行される。⭐ 区切りを引用符で囲んだヒアドキュメント
+    (`<<'EOF'`)は中身がまるごと literal なので、その打ち方は見送る。"""
+    if re.search(r"<<\s*['\"]", cmd):
+        return False
+    i, sq, dq = 0, False, False
+    while i < len(cmd):
+        ch = cmd[i]
+        if ch == "\\" and not sq:
+            i += 2
+            continue
+        if ch == "'" and not dq:
+            sq = not sq
+        elif ch == '"' and not sq:
+            dq = not dq
+        elif ch == "`" and not sq:
+            return True
+        i += 1
+    return False
+
+
 BLENDER = re.compile(r"(?:^|[;&|(\n]\s*)(?:\S*/)?blender\b")
 # Unity 公式プラグインの CLI(~/.unity/bin/unity)。`command`/`pipeline` はエディタそのものを動かし、
 # `open`/`build`/`test` は同じプロジェクトに2つ目のエディタを立てる。`status`/`editors`/`releases` は読むだけ。
@@ -906,6 +934,23 @@ def cmd_check_bash(a):
         if msg:
             print(msg)
         touch(me, resources=[r])
+    # ── 記録に書く散文の中の ` がシェルに食われる(2026-09-21 EDO-0179)
+    #    ⛔ **これは門番でしか止められない。** 受け取る側の道具(review_gate / edo_board)は
+    #    シェルが食った**後**の文しか見えず、何が消えたか知りようがない。ここだけが
+    #    食われる前の一行を見ている。
+    #    ⚠ 2026-09-09 に山王で実際に起きた: 庭方の検分結果を二重引用符で書き戻したとき、
+    #    文中の `鍵の名` 4 つが zsh のコマンド置換として実行されて丸ごと消え、
+    #    それでも道具は exit 0 で「記録: … = fail」と成功を刷った。
+    #    ⚠ 消えるのは「どの鍵を直せばよいか」なので、次の巡が読んで何を直すか分からなくなる。
+    m = _PROSE_ARG.search(cmd)
+    if m and _bt_in_dquote(cmd):
+        return _deny(
+            "⛔ 門番: 記録の文に ` が入っている。**二重引用符の中の `…` はシェルが\n"
+            "   コマンドとして実行して消す** — 鍵の名を囲んだつもりの所が丸ごと落ちる。\n"
+            "   ⚠ 2026-09-09 に山王で 4 件が消え、それでも道具は成功を刷った(EDO-0179)。\n"
+            "   → **一重引用符**にするか、長い文はファイルから渡すこと:\n"
+            "     python3 Tools/Sashizu/review_gate.py --record <邸> <役> <判定> --note-file <パス>\n"
+            "     (`--note-file -` で標準入力からも読む)")
     for pat, why in BANNED:
         if re.search(pat, cmd):
             return _deny("⛔ 門番: この git の打ち方は共有ワークツリーでは禁止。\n   %s" % why)

@@ -45,7 +45,8 @@ using UnityEngine.SceneManagement;
 public static class EdoKoba
 {
     /// <summary>作業場に持ち込むシーン常駐物。EdoYashikiPrefab.KeepInScene のうち、
-    /// ビルダーが建てるのに実際に要る物だけ(地形・光・カメラ)。</summary>
+    /// ビルダーが建てるのに実際に要る物だけ。⚠ 赤坂に無い物は黙って飛ばす
+    /// (`Main Camera` は赤坂のルートに無い — 検証レンダは撮るたびに仮のカメラを立てる)。</summary>
     static readonly string[] Bring = { "ModernTerrain", "Directional Light", "Main Camera" };
 
     // ---- 仕立てる ----------------------------------------------------------

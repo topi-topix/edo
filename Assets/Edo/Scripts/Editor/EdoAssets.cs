@@ -2215,7 +2215,7 @@ public static class EdoAssets
         /// <summary>本番の一枚。</summary>
         public const string Akasaka = "Assets/Edo/Scenes/Akasaka.unity";
 
-        /// <summary>作業場 — C# を直している間だけ使う軽いシーン(地形+光+カメラ+一邸)。
+        /// <summary>作業場 — 建て直しの輪を回す軽いシーン(地形+光+対象邸+20m 以内の隣)。
         /// `Edo/普請/作業場を仕立てる` が赤坂から起こす。中身は使い捨てなので gitignore。
         /// → <see cref="EdoKoba"/></summary>
         public const string Koba    = "Assets/Edo/Scenes/Koba.unity";

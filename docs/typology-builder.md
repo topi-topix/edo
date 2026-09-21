@@ -57,7 +57,7 @@
 | Stage1_Juge(樹下)・Stage2_Shanin(社人八家) | 類型ビルダー(`Edo_Typo_sannobuke_juge` / `_shanin`・`typology.json` は jisha 類型) | 表門・庭・板塀の姿を `typology.json` の `source` へ(確度U) |
 | Stage4_Niwa(丹羽)・Stage5_Kyogoku(京極) | **指図ビルダー**。ただし 2 邸とも `review_gate` が赤(不合格)で実装に入れない(規則18) | 値は各自の `<邸>_kosho.md` / 指図が持つ。シーンの旧邸(`Edo_Yashiki_NiwaSakyo` / `_KyogokuBitchu`)は正典のまま残す(規則1) |
 | Stage3_Sando(参道並木・鳥居・門前町)| 山王社の指図(`sanno_sashizu.json` は並木を置かない設計・二ノ鳥居/一ノ鳥居は指図が持つ)と類型 `sanno_monzen_*` | 消したコードの並木は指図が採らない判断と食い違っていた |
-| Stage7_Splat(この街区の地表塗り) | 持ち先なし(塗り直しが要るなら `unity-surface-authoring` の道具で) | 塗った結果は地形データに焼けている |
+| Stage7_Splat(この街区の地表塗り) | 公有地は **`EdoSurfacePaint`**(メニュー `Edo/土地利用/公有地の地表を塗る`・表の `surface` を読む。EDO-0319)。町屋・武家地は持ち先なし(塗り直しが要るなら `unity-surface-authoring` の道具で) | 塗った結果は地形データに焼けている。⚠ 干場の `surface` は旧 Stage4 が土で塗っていたので `dirt`(表へ写すとき既定の grass に落ちていた) |
 | Stage0_Demolish・FixGroup・Well・Torii・PlaceGate・FrontWall | 廃止(呼び手なし。置き方は `EdoBuild` が正典・規則21) | — |
 
 ⚠ 消したのは**コードだけ**で、シーンとプレハブには触れていない。⛔ 内藤(Stage6)は同じ理由で 2026-09-21 に先に撤去済み(`45680d61`)。

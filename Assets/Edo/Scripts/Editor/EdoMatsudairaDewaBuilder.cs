@@ -873,23 +873,6 @@ public static partial class EdoMatsudairaDewaBuilder
         throw new Exception("指図の点が [u,v] でも {ref} でもない");
     }
 
-    /// <summary>駒の**壁体**の、軸 <paramref name="ax"/> 方向の端の座標(<paramref name="sgn"/> が +1 なら最大側)。</summary>
-    static float EdgeAlong(Transform tr, Vector3 ax, float sgn)
-    {
-        float mn = 1e9f, mx = -1e9f;
-        foreach (var v in MeshBody(tr)) { float q = Vector3.Dot(v, ax); if (q < mn) mn = q; if (q > mx) mx = q; }
-        return sgn >= 0 ? mx : mn;
-    }
-
-    /// <summary>駒の**実メッシュ**を、駒の局所軸 <paramref name="localAxis"/> へ投影した伸び[m](世界の尺度)。</summary>
-    static float LocalSpan(Transform tr, Vector3 localAxis)
-    {
-        Vector3 ax = tr.rotation * localAxis;
-        float mn = 1e9f, mx = -1e9f;
-        foreach (var v in MeshBody(tr)) { float q = Vector3.Dot(v, ax); if (q < mn) mn = q; if (q > mx) mx = q; }
-        return mx > mn ? mx - mn : 0f;
-    }
-
     /// <summary>**壁体**(屋根・軒・垂木・棟・桁を除く)の頂点を世界座標で。⛔ 軒は先に触れるので継ぎ目の判定に使わない。
     /// <paramref name="maxSamples"/> 既定 900(従来どおり・性能優先)。
     /// ⚠ 2026-09-08(棟梁差戻し): **一様な添字間引きは極値(最小/最大)を落とすことがある** — 隅部材
@@ -897,21 +880,7 @@ public static partial class EdoMatsudairaDewaBuilder
     /// 選ばれず、実測で「壁体が 0.07〜0.46m 空く」の**過大な偽陽性**を出した(実際は全頂点で測ると
     /// 0.01〜0.24m — 半分以下)。⇒ **隅部材の頂点を測る側(呼び出し元)は `maxSamples` を大きく渡し、
     /// 相手側(長い run/長屋)は間引いたままにする**(隅×長屋の全頂点同士だと O(n・m) が重い)。</summary>
-    static List<Vector3> MeshBody(Transform tr, int maxSamples = 900)
-    {
-        var L = new List<Vector3>();
-        foreach (var mf in tr.GetComponentsInChildren<MeshFilter>())
-        {
-            if (mf.sharedMesh == null) continue;
-            var rr = mf.GetComponent<Renderer>(); if (rr == null || !rr.enabled) continue;
-            string n = mf.name.ToLower();
-            if (n.Contains("yane") || n.Contains("noki") || n.Contains("taruki") || n.Contains("mune") || n.Contains("keta")) continue;
-            var l2w = mf.transform.localToWorldMatrix; var vs = mf.sharedMesh.vertices;
-            int step = Mathf.Max(1, vs.Length / Mathf.Max(1, maxSamples));
-            for (int i = 0; i < vs.Length; i += step) L.Add(l2w.MultiplyPoint3x4(vs[i]));
-        }
-        return L;
-    }
+    static List<Vector3> MeshBody(Transform tr, int maxSamples = 900) { return EdoBuild.Body(tr, maxSamples); }
 
     static Bounds RendBounds(Transform tr)
     {
@@ -3706,53 +3675,12 @@ public static partial class EdoMatsudairaDewaBuilder
     static void ProjBand(GameObject go, Vector2 dir, float yLo, float yHi, out float mn, out float mx,
                          Vector2 perpDir = default(Vector2), Vector2 origin = default(Vector2),
                          float perpMax = 0f)
-    {
-        mn = float.MaxValue; mx = float.MinValue;
-        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
-        {
-            if (mf.sharedMesh == null) continue;
-            var rr = mf.GetComponent<Renderer>();
-            if (rr == null || !rr.enabled || !mf.gameObject.activeInHierarchy) continue;
-            var l2w = mf.transform.localToWorldMatrix;
-            foreach (var v in mf.sharedMesh.vertices)
-            {
-                var wv = l2w.MultiplyPoint3x4(v);
-                if (wv.y < yLo || wv.y > yHi) continue;
-                if (perpMax > 0f)
-                {
-                    float d = (wv.x - origin.x) * perpDir.x + (wv.z - origin.y) * perpDir.y;
-                    if (Mathf.Abs(d) > perpMax) continue;
-                }
-                float t = wv.x * dir.x + wv.z * dir.y;
-                if (t < mn) mn = t; if (t > mx) mx = t;
-            }
-        }
-    }
+    { EdoBuild.FaceSpan(go, dir, yLo, yHi, out mn, out mx, perpDir, origin, perpMax); }
 
     /// <summary>置いた駒の**実メッシュ**を走り方向 <paramref name="dir"/> へ投影した伸び[m]。
     /// ⛔ 外接箱の x/z の大きい方で代用しない — 斜めのグリッドでは箱が膨らむ(2026-08 の偽陽性5件と同じ罠)。
     /// ⛔ **躯体の面**を測る用途に使わない — 基壇・軒・出格子が混ざる。そちらは <see cref="ProjBand"/>。</summary>
-    static float ProjSpan(GameObject go, Vector2 dir)
-    {
-        float mn = float.MaxValue, mx = float.MinValue;
-        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
-        {
-            if (mf.sharedMesh == null) continue;
-            // ⛔ **見えないメッシュを数えない**(2026-09-06): 冠木門のプレハブには Renderer の無い/切ってある
-            //    駒が入っており、頂点を素で走ると走り方向の伸びが 2.38m(実際に見えるのは 1.17m)になる。
-            //    その値で開口を空けると木戸の両側に 0.6m の隙間が残る(ユーザー ブックマーク#3・#5)。
-            var rr = mf.GetComponent<Renderer>();
-            if (rr == null || !rr.enabled || !mf.gameObject.activeInHierarchy) continue;
-            var l2w = mf.transform.localToWorldMatrix;
-            foreach (var v in mf.sharedMesh.vertices)
-            {
-                var wv = l2w.MultiplyPoint3x4(v);
-                float t = wv.x * dir.x + wv.z * dir.y;
-                if (t < mn) mn = t; if (t > mx) mx = t;
-            }
-        }
-        return mx > mn ? mx - mn : 0f;
-    }
+    static float ProjSpan(GameObject go, Vector2 dir) { return EdoBuild.ProjSpan(go, dir); }
 
     /// <summary>**板塀の根石(玉石)を据える** — 指図 `nakajikiriRule.neishi` が正典。
     ///

@@ -189,6 +189,26 @@ public static partial class EdoBuild
         }
     }
 
+    /// <summary>駒の**実メッシュ**(見えている物だけ)を走り方向 <paramref name="dir"/>(xz)へ投影した伸び[m]。
+    /// ⛔ 外接箱の x/z の大きい方で代用しない — 斜めのグリッドでは箱が膨らむ。
+    /// ⛔ **躯体の面**を測る用途に使わない — 基壇・軒・出格子が混ざる。そちらは <see cref="FaceSpan"/>(高さの帯)。
+    /// ⛔ 見えないメッシュは数えない(冠木門のプレハブには Renderer の無い/切ってある駒が入っていて、
+    /// 素で走ると 1.17m の門が 2.38m と出て開口が広がる。2026-09-06)。</summary>
+    public static float ProjSpan(GameObject go, Vector2 dir)
+    {
+        float mn, mx; FaceSpan(go, dir, float.MinValue, float.MaxValue, out mn, out mx);
+        return mx > mn ? mx - mn : 0f;
+    }
+
+    /// <summary>駒の**壁体**を、駒の局所軸 <paramref name="localAxis"/> へ投影した伸び[m](世界の尺度)。無ければ 0。</summary>
+    public static float LocalSpan(Transform tr, Vector3 localAxis)
+    {
+        Vector3 ax = tr.rotation * localAxis;
+        float mn = float.MaxValue, mx = float.MinValue;
+        foreach (var v in Body(tr)) { float q = Vector3.Dot(v, ax); if (q < mn) mn = q; if (q > mx) mx = q; }
+        return mx > mn ? mx - mn : 0f;
+    }
+
     /// <summary><see cref="FaceSpan"/> の片側。<paramref name="maxSide"/> なら dir の正の側の面。無ければ NaN。</summary>
     public static float Face(GameObject go, Vector2 dir, float yLo, float yHi, bool maxSide,
                              Vector2 perpDir = default(Vector2), Vector2 origin = default(Vector2), float perpMax = 0f)
@@ -199,8 +219,10 @@ public static partial class EdoBuild
     }
 
     /// <summary>線(点 <paramref name="a"/>・外向き法線 <paramref name="n"/>)からの、帯内の頂点の**最大の張り出し**[m]
-    /// (= その駒の外面の位置。負なら線より内)。頂点が無ければ NaN。岡部 `FaceOut` に帯を足した物。</summary>
-    public static float FaceOut(GameObject go, Vector2 a, Vector2 n, float yLo, float yHi)
+    /// (= その駒の外面の位置。負なら線より内)。頂点が無ければ NaN。岡部 `FaceOut` に帯を足した物。
+    /// <paramref name="pick"/> があれば、それが true のメッシュだけで測る(壁面だけを名指しする用。null なら全部)。</summary>
+    public static float FaceOut(GameObject go, Vector2 a, Vector2 n, float yLo, float yHi,
+                                Predicate<MeshFilter> pick = null)
     {
         float best = float.MinValue;
         foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
@@ -208,6 +230,7 @@ public static partial class EdoBuild
             if (mf.sharedMesh == null) continue;
             var rr = mf.GetComponent<Renderer>();
             if (rr == null || !rr.enabled || !mf.gameObject.activeInHierarchy) continue;
+            if (pick != null && !pick(mf)) continue;      // 名指しした面のメッシュだけで測る(岡部の壁面名)
             var l2w = mf.transform.localToWorldMatrix;
             foreach (var v in mf.sharedMesh.vertices)
             {
@@ -223,9 +246,10 @@ public static partial class EdoBuild
     /// <summary>外面(<see cref="FaceOut"/>)が <paramref name="target"/> へ来るよう、法線 <paramref name="n"/> 方向に
     /// 平行移動する。返り値 = 移動量[m](測れなければ NaN)。犬走り合わせ(target = −0.30)や
     /// 番所の張り出し(target = +protrude)に使う。⛔ 定数で寄せない — 部材を替えた瞬間に破れる。</summary>
-    public static float AlignFace(GameObject go, Vector2 a, Vector2 n, float target, float yLo, float yHi)
+    public static float AlignFace(GameObject go, Vector2 a, Vector2 n, float target, float yLo, float yHi,
+                                  Predicate<MeshFilter> pick = null)
     {
-        float f = FaceOut(go, a, n, yLo, yHi);
+        float f = FaceOut(go, a, n, yLo, yHi, pick);
         if (float.IsNaN(f)) return float.NaN;
         float shift = target - f;
         go.transform.position += new Vector3(n.x * shift, 0f, n.y * shift);

@@ -535,6 +535,22 @@ public static class EdoOkabeYashikiBuilder
         _nagayaSpan.Clear();
         string nagRep = PlaceOmoteNagaya(kak, wait);
 
+        // ---- 隅の留め継ぎ(⭐ 練塀より**先**に据え、腕の実端面を測る)-----------
+        //   ⛔ 隅は区画線の上に据わるので、run だけ犬走りへ寄せると隅が壁面より 0.76m 外へ張り出し、
+        //     腕(±4.1m)が run の端と重なる(2026-09-21 実測)。⭕ 先に据えて犬走りへ寄せ、
+        //     **辺の端の run の端を腕の実端面へ突き付ける**(`EdoBuild.KadoFace` / `KadoArm`・docs/oki-kata.md §2)。
+        sb.AppendLine(PlaceKado(kak));
+        var kadoLo = new Dictionary<int, float>();   // 辺 → 隅の壁体が s=0 側から覆う上限
+        var kadoHi = new Dictionary<int, float>();   // 辺 → 隅の壁体が s=L 側から覆う下限
+        sb.AppendLine(FitKado(kak, kadoLo, kadoHi));
+        var edgeMinS0 = new Dictionary<int, float>(); var edgeMaxS1 = new Dictionary<int, float>();
+        foreach (var r0 in Runs)
+        {
+            float q0;
+            if (!edgeMinS0.TryGetValue(r0.edge, out q0) || r0.s0 < q0) edgeMinS0[r0.edge] = r0.s0;
+            if (!edgeMaxS1.TryGetValue(r0.edge, out q0) || r0.s1 > q0) edgeMaxS1[r0.edge] = r0.s1;
+        }
+
         // ---- 練塀 ------------------------------------------------------
         int hei = 0, skipped = 0;
         foreach (var r in Runs)
@@ -558,6 +574,16 @@ public static class EdoOkabeYashikiBuilder
                        + r.s0.ToString("0.###") + "〜" + r.s1.ToString("0.###") + " → "
                        + rs0.ToString("0.###") + "〜" + rs1.ToString("0.###")
                        + "(⛔ 呼び寸法で継がない・可動側は練塀)");
+            // ⭐ **辺の端の run だけ**を、隅の腕の実端面へ突き付ける(辺の途中の run は触らない)。
+            //   ⛔ 呼び寸法で継がない — 腕は部材が持つ寸法で、run の端は腕が決める。
+            float qa; bool cornerEnd0 = false, cornerEnd1 = false;
+            if (r.s0 <= edgeMinS0[r.edge] + 1e-3f && kadoLo.TryGetValue(r.edge, out qa)) { rs0 = qa; cornerEnd0 = true; }
+            if (r.s1 >= edgeMaxS1[r.edge] - 1e-3f && kadoHi.TryGetValue(r.edge, out qa)) { rs1 = qa; cornerEnd1 = true; }
+            if (rs1 - rs0 < 0.5f)
+            { wait.Add("練塀 " + r.name + ": 隅の腕の実端面で挟むと長さが " + (rs1 - rs0).ToString("F2") + "m — 据えない"); continue; }
+            if (cornerEnd0 || cornerEnd1)
+                wait.Add("練塀 " + r.name + ": 隅の腕の実端面へ突き付けた s " + r.s0.ToString("0.###") + "〜" + r.s1.ToString("0.###")
+                       + " → " + rs0.ToString("0.###") + "〜" + rs1.ToString("0.###"));
             Vector2 a = EdgePt(r.edge, rs0), b = EdgePt(r.edge, rs1);
             if (Mathf.Abs(r.seat1 - r.seat0) < 0.01f)
             {
@@ -574,7 +600,7 @@ public static class EdoOkabeYashikiBuilder
                 {
                     Vector2 pa = Vector2.Lerp(a, b, q / (float)nSeg);
                     Vector2 pb = Vector2.Lerp(a, b, (q + 1) / (float)nSeg);
-                    float sMid = Mathf.Lerp(r.s0, r.s1, (q + 0.5f) / nSeg);
+                    float sMid = Mathf.Lerp(rs0, rs1, (q + 0.5f) / nSeg);
                     EdoBuild.DobeiRun(kak, pa, pb, outw, r.name + "_" + q, false,
                                                     r.SeatAt(sMid), Vector2.zero, -1);
                 }
@@ -583,9 +609,6 @@ public static class EdoOkabeYashikiBuilder
         }
         sb.AppendLine(nagRep);
         sb.AppendLine("練塀: " + hei + " run 据えた");
-
-        // ---- 隅の留め継ぎ ----------------------------------------------
-        sb.AppendLine(PlaceKado(kak));
 
         // ---- 犬走りへ寄せる(据えた駒の実メッシュから外面を測る)----------
         sb.AppendLine(AlignInubashiri());
@@ -832,7 +855,7 @@ public static class EdoOkabeYashikiBuilder
             if (go == null) { sb.AppendLine("★ 小門 " + nm + ": 据えられない " + path); continue; }
             // 走りの方向の芯を開口の芯へ合わせ、外面を犬走りの位置へ寄せる
             float face = FaceOut(go, e);
-            if (face != float.MinValue)
+            if (!float.IsNaN(face))
             {
                 float shift = -INUBASHIRI - face;
                 go.transform.position += new Vector3(nrm.x * shift, 0f, nrm.y * shift);
@@ -845,25 +868,10 @@ public static class EdoOkabeYashikiBuilder
         return sb.ToString();
     }
 
-    /// <summary>据えた現物の**外面**(辺 e の区画線から外向きへの最大の張り出し[m])。
-    /// ⛔ 呼び寸法や bbox の半分で代用しない — 部材を差し替えた瞬間に壊れる。</summary>
+    /// <summary>据えた現物の**外面**(辺 e の区画線から外向きへの最大の張り出し[m])。測れなければ NaN。
+    /// ⛔ 呼び寸法や bbox の半分で代用しない — 部材を差し替えた瞬間に壊れる。測る本体は `EdoBuild.FaceOut`。</summary>
     static float FaceOut(GameObject go, int e)
-    {
-        var P = Poly; var a = P[e % P.Length]; Vector2 nrm = OutNormal(e);
-        float best = float.MinValue;
-        foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
-        {
-            if (mf.sharedMesh == null) continue;
-            var m = mf.transform.localToWorldMatrix;
-            var vs = mf.sharedMesh.vertices;
-            for (int q = 0; q < vs.Length; q++)
-            {
-                var w = m.MultiplyPoint3x4(vs[q]);
-                best = Mathf.Max(best, (w.x - a.x) * nrm.x + (w.z - a.y) * nrm.y);
-            }
-        }
-        return best;
-    }
+    { return EdoBuild.FaceOut(go, Poly[e % Poly.Length], OutNormal(e), float.MinValue, float.MaxValue); }
 
     // ---------------------------------------------------------------- 木柵
     /// <summary>木柵(辺5=溜池の堤)。**基礎も整地も石垣も持たない地形なり**なので天端を持たない。
@@ -1012,6 +1020,42 @@ public static class EdoOkabeYashikiBuilder
         return hgt;
     }
 
+    // ---------------------------------------------------------------- 隅の犬走り合わせと腕の実測
+    /// <summary>据えた隅の両腕の外面を犬走りへ寄せ、腕の実端面を測る。測る本体は共通の層
+    /// (`EdoBuild.KadoFace` / `KadoArm`)。<paramref name="lo"/>[辺] = その辺の s=0 側にある隅が覆う上限 /
+    /// <paramref name="hi"/>[辺] = s=L 側にある隅が覆う下限。⛔ 邸にこの測りを書き写さない(規則21)。</summary>
+    static string FitKado(Transform kak, Dictionary<int, float> lo, Dictionary<int, float> hi)
+    {
+        var list = A(Get(IMPL, "corners"));
+        if (list == null) return "隅の腕: 算出物に corners が無い";
+        var P = Poly; int n = P.Length;
+        float wallT = C("dobeiT");
+        var sb = new System.Text.StringBuilder("隅の腕(壁体・実測): ");
+        var notes = new List<string>(); int fit = 0; float worstMove = 0f;
+        foreach (var o in list)
+        {
+            var c = O(o); if (c == null || !Has(c, "part")) continue;       // PlaceKado と同じ選り分け
+            string id = S(c["id"]);
+            var kc = kak.Find("Kado_" + id); if (kc == null) continue;
+            int e1 = ((int)F(c["vertex"]) - 1 + n) % n, e2 = (e1 + 1) % n;
+            Vector2 mv; string note;
+            if (!EdoBuild.KadoFace(kc, P, e1, OutNormal, -INUBASHIRI, wallT, out mv, out note))
+            { notes.Add(id + ": " + note); continue; }
+            if (note != null) notes.Add(id + ": " + note);
+            worstMove = Mathf.Max(worstMove, mv.magnitude);
+            float h, l;
+            if (!EdoBuild.KadoArm(kc, P, e1, OutNormal, -INUBASHIRI, wallT, 0.10f, out h, out l))
+            { notes.Add(id + ": 腕を判別できず"); continue; }
+            if (!hi.ContainsKey(e1) || h < hi[e1]) hi[e1] = h;
+            if (!lo.ContainsKey(e2) || l > lo[e2]) lo[e2] = l;
+            sb.Append(id + " 辺" + e1 + "(s≥" + h.ToString("F2") + ")/辺" + e2 + "(s≤" + l.ToString("F2") + ") ");
+            fit++;
+        }
+        sb.Append("｜ " + fit + " 基・最大の寄せ " + worstMove.ToString("F2") + "m");
+        if (notes.Count > 0) sb.Append(" ｜ ★ " + string.Join(" / ", notes.ToArray()));
+        return sb.ToString();
+    }
+
     // ---------------------------------------------------------------- 隅の留め継ぎ
     /// <summary>隅部材を据える。**折れ角は区画が決めるもので毎回違う**ので決め打ちしない。
     /// 角度・部材・天端は生成器が算出した `impl.corners` が正典(指図の json は持たない)。
@@ -1068,6 +1112,7 @@ public static class EdoOkabeYashikiBuilder
         var kak = Group("Kakoi");
         var P = Poly;
         float target = -INUBASHIRI;
+        System.Predicate<MeshFilter> pickWall = mf => WallFace.Contains(mf.gameObject.name);   // 壁面のメッシュだけで測る
         int moved = 0, seen = 0; float worst = 0f; string worstName = null;
         float resid = 0f; string residName = null;
         for (int i = 0; i < kak.childCount; i++)
@@ -1080,20 +1125,8 @@ public static class EdoOkabeYashikiBuilder
             var r = Runs[ri];
             Vector2 nrm = OutNormal(r.edge);
             var a = P[r.edge % P.Length];
-            float best = float.MinValue;
-            foreach (var mf in c.GetComponentsInChildren<MeshFilter>())
-            {
-                if (mf.sharedMesh == null) continue;
-                if (!WallFace.Contains(mf.gameObject.name)) continue;
-                var m = mf.transform.localToWorldMatrix;
-                var vs = mf.sharedMesh.vertices;
-                for (int q = 0; q < vs.Length; q++)
-                {
-                    var w = m.MultiplyPoint3x4(vs[q]);
-                    best = Mathf.Max(best, (w.x - a.x) * nrm.x + (w.z - a.y) * nrm.y);
-                }
-            }
-            if (best == float.MinValue) continue;
+            float best = EdoBuild.FaceOut(c.gameObject, a, nrm, float.MinValue, float.MaxValue, pickWall);
+            if (float.IsNaN(best)) continue;
             seen++;
             float shift = target - best;
             if (Mathf.Abs(shift) > Mathf.Abs(worst)) { worst = shift; worstName = c.name; }
@@ -1101,19 +1134,8 @@ public static class EdoOkabeYashikiBuilder
             { c.position += new Vector3(nrm.x * shift, 0f, nrm.y * shift); moved++; }
             // ⭐ **寄せた後にもう一度測る**(残差)。⛔ 「寄せ量」を残差と読み違えない —
             //   寄せ量が大きいのは元が外れていただけで、直ったかどうかは残差でしか分からない。
-            float after = float.MinValue;
-            foreach (var mf in c.GetComponentsInChildren<MeshFilter>())
-            {
-                if (mf.sharedMesh == null || !WallFace.Contains(mf.gameObject.name)) continue;
-                var m2 = mf.transform.localToWorldMatrix;
-                var vs2 = mf.sharedMesh.vertices;
-                for (int q2 = 0; q2 < vs2.Length; q2++)
-                {
-                    var w2 = m2.MultiplyPoint3x4(vs2[q2]);
-                    after = Mathf.Max(after, (w2.x - a.x) * nrm.x + (w2.z - a.y) * nrm.y);
-                }
-            }
-            if (after != float.MinValue)
+            float after = EdoBuild.FaceOut(c.gameObject, a, nrm, float.MinValue, float.MaxValue, pickWall);
+            if (!float.IsNaN(after))
             { float rr = Mathf.Abs(after - target); if (rr > resid) { resid = rr; residName = c.name; } }
         }
         return "犬走りへ寄せた: " + moved + " / " + seen + " 駒(最大の寄せ "

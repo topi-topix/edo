@@ -21,6 +21,9 @@
 【使い方】
     python3 Tools/Sashizu/kansei_gate.py                          # 全敷地の表を見る
     python3 Tools/Sashizu/kansei_gate.py --init matsudaira_dewa   # 実装の車線へ入れる(表を起こす)
+      ⛔ **図の機械検査(C01〜C23)が赤なら入れない**(2026-09-21・EDO-0291・規則3)。記録は生成器が
+         書く(`build_sashizu.py <邸>` → `<邸>_checks.json`)。記録が無い・古い指図の物でも止まる。
+         施主が承知なら `--init <邸> --quote "<施主の発話>"`(表の history に引用が残る)
     python3 Tools/Sashizu/kansei_gate.py --record matsudaira_dewa gap pass --value "隙 0 / めり込み 0 (JointQA 214 組)"
     python3 Tools/Sashizu/kansei_gate.py --record matsudaira_dewa render pass --quote "この見た目でよい(2026-09-20)"
     python3 Tools/Sashizu/kansei_gate.py --reopen matsudaira_dewa "図から起こし直す" --quote "<施主の発話>"   # ⛔ 施主の発話が要る
@@ -31,6 +34,7 @@
 """
 import collections
 import datetime
+import hashlib
 import json
 import os
 import sys
@@ -107,7 +111,41 @@ def names(base=None):
     return sorted(f[:-len("_kansei.json")] for f in os.listdir(d) if f.endswith("_kansei.json"))
 
 
-def cmd_init(name, base=None, force=False):
+def zu_checks(name, base=None):
+    """図の機械検査(C01〜C23)の記録を読む。返すのは (印, 一行, 赤の列)。
+
+    ⛔ **これが無かったのが規則3 が効かなかった理由**(掲示板 EDO-0291)。2026-09-01、
+    松江松平の図の検査は棟別 38.4% の赤を出していたのに、実装の車線へ入る所は**検分の記録**しか
+    見ていなかった。紙の上で分かっていたのに誰も止まらず、建てて普請検査で出た。
+    ⇒ 刷るだけでは関門にならない。⭕ 入口で読んで止める(規則19)。
+
+    記録は生成器が毎回書く(`build_sashizu.py <邸>` → `<邸>_checks.json`)。
+    ⚠ 指図の指紋を照らして、**いまの指図を見た記録か**まで見る — 古い緑で通さない。
+    """
+    d = base or DOCS
+    p = os.path.join(d, "%s_checks.json" % name)
+    if not os.path.exists(p):
+        return "⛔", "図の機械検査の記録が無い — `python3 Tools/Sashizu/build_sashizu.py %s` で焼き直す" % name, []
+    try:
+        with open(p, encoding="utf-8") as fp:
+            rec = json.load(fp)
+    except Exception:
+        return "⛔", "図の機械検査の記録が読めない(%s)" % os.path.relpath(p, REPO), []
+    try:
+        sha = hashlib.sha256(open(os.path.join(d, "%s_sashizu.json" % name), "rb").read()).hexdigest()[:16]
+    except Exception:
+        sha = ""
+    if rec.get("sashizu_sha") and sha and rec["sashizu_sha"] != sha:
+        return "⛔", ("図の機械検査の記録が**いまの指図の物ではない**(記録 %s / いま %s)— 焼き直す"
+                      % (rec["sashizu_sha"], sha)), []
+    red = [r for r in (rec.get("rows") or []) if r.get("status") == "ng"]
+    na = [r for r in (rec.get("rows") or []) if r.get("status") == "na"]
+    if red:
+        return "⛔", "図の機械検査が赤 %d 件(未検査 %d 件)" % (len(red), len(na)), red
+    return "⭕", "図の機械検査 赤 0 件(未検査 %d 件)" % len(na), []
+
+
+def cmd_init(name, base=None, force=False, quote=None):
     p = _path(name, base)
     if os.path.exists(p) and not force:
         sys.exit("⛔ %s の表は既に在る(%s)。白紙に戻すのは --reopen。" % (name, os.path.relpath(p, REPO)))
@@ -125,6 +163,22 @@ def cmd_init(name, base=None, force=False):
         pass
     except Exception:
         pass
+    # ⛔ **図の機械検査の赤は止める**(EDO-0291・規則3)。検分の記録の赤とは扱いが違う —
+    #   あちらは移行期間の断りがあるが、こちらは「紙の上で既に分かっている欠陥」。
+    #   ⭕ 抜けられるのは施主の発話の引用がある時だけ(完成条件の render と同じ作法)。
+    mark, line, red = zu_checks(name, base)
+    if mark == "⛔":
+        print("⛔ %s — %s" % (name, line))
+        for r in red[:8]:
+            print("     %s %s: %s" % (r.get("id"), r.get("what"), str(r.get("res"))[:80]))
+        if len(red) > 8:
+            print("     … ほか %d 件" % (len(red) - 8))
+        if not quote:
+            sys.exit("⛔ 実装の車線へ入れない。直してから焼き直すか、施主が承知なら `--quote \"<施主の発話>\"`。"
+                     "\n   ⚠ 直すのは棟でも土でもなく**面の引き方**のことが多い(規則3・スキル §B-1 の 2 へ戻る)。")
+        print("⚠ 施主の発話の引用があるので、赤のまま実装の車線へ入れる: 「%s」" % quote[:120])
+    else:
+        print("⭕ %s — %s" % (name, line))
     doc = collections.OrderedDict([
         ("_", "完成条件の表(2026-09-19 施主裁定3=A)。全部 pass で完成。以後の指摘は掲示板へ積み、指図は開かない。"
               "値は普請検査の実測、render だけは施主の発話の引用。見張りは python3 Tools/Sashizu/kansei_gate.py"),
@@ -133,9 +187,10 @@ def cmd_init(name, base=None, force=False):
         ("since", datetime.date.today().isoformat()),
         ("items", _blank_items()),
         ("completed", None),
-        ("history", [collections.OrderedDict([
-            ("at", datetime.datetime.now().astimezone().isoformat(timespec="seconds")),
-            ("event", "init")])]),
+        ("history", [collections.OrderedDict(
+            [("at", datetime.datetime.now().astimezone().isoformat(timespec="seconds")),
+             ("event", "init")]
+            + ([("zu_red", len(red)), ("quote", quote[:600])] if red and quote else []))]),
     ])
     _save(doc, p)
     print("起票: %s → %s(phase=built。以後 review_gate は効かず、この表が関門)" % (name, os.path.relpath(p, REPO)))
@@ -265,10 +320,35 @@ def selftest():
     with tempfile.TemporaryDirectory() as td, contextlib.redirect_stdout(_io.StringIO()):
         with open(os.path.join(td, "x_sashizu.json"), "w") as fp:
             fp.write("{}")
+
         def expect(cond, msg):
             if not cond:
                 fails.append(msg)
-        cmd_init("x", base=td)
+
+        def zu(rows, sha=None):
+            """図の機械検査の記録を仕込む。sha=None なら今の指図の指紋(= 新しい記録)。"""
+            if sha is None:
+                sha = hashlib.sha256(open(os.path.join(td, "x_sashizu.json"), "rb").read()).hexdigest()[:16]
+            with open(os.path.join(td, "x_checks.json"), "w") as f2:
+                json.dump({"estate": "x", "sashizu_sha": sha, "rows": rows}, f2)
+
+        def blocked(**kw):
+            """--init が止まるか。⛔ 止まらなければ規則3 の関門が死んでいる(EDO-0291)。"""
+            try:
+                cmd_init("x", base=td, force=True, **kw)
+                return False
+            except SystemExit:
+                return True
+
+        # ⛔ 図の機械検査の赤を読む関門(EDO-0291)— 紙で分かっている欠陥を実装へ通さない
+        expect(blocked(), "図の検査の**記録が無い**のに実装の車線へ入れた")
+        zu([{"id": "C04", "what": "面と地形", "res": "系統差 0.45m", "status": "ng"}])
+        expect(blocked(), "図の検査が**赤**なのに実装の車線へ入れた")
+        expect(not blocked(quote="Bで(施主 2026-09-20)"), "施主の引用があるのに通らない")
+        zu([{"id": "C01", "what": "重なり", "res": "0 件", "status": "ok"}], sha="むかしの指図")
+        expect(blocked(), "**古い指図を見た記録**で実装の車線へ入れた")
+        zu([{"id": "C01", "what": "重なり", "res": "0 件", "status": "ok"}])
+        cmd_init("x", base=td, force=True)
         expect(phase("x", td) == "built", "init 後の phase が built でない")
         expect(cmd_status(base=td) == 1, "未測が残るのに exit 0")
         try:
@@ -330,7 +410,7 @@ def main():
     if argv and argv[0] == "--init":
         if len(argv) < 2:
             sys.exit("使い方: --init <敷地>")
-        return sys.exit(cmd_init(argv[1], force="--force" in argv))
+        return sys.exit(cmd_init(argv[1], force="--force" in argv, quote=_opt(argv, "--quote")))
     if argv and argv[0] == "--record":
         value, note, quote = _opt(argv, "--value"), _opt(argv, "--note"), _opt(argv, "--quote")
         if len(argv) < 4:

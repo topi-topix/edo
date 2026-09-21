@@ -2026,6 +2026,7 @@ def build(est, deep=False, out=None):
     h.append("</div>")
     out = out or os.path.join(DOC, est + "_sashizu.html")
     open(out, "w", encoding="utf-8").write("\n".join(h))
+    _write_check_record(est, out, C, ng, na)
     print("書いた: %s (%.0f KB)  %.0f 秒" % (os.path.relpath(out, ROOT), os.path.getsize(out) / 1024, time.time() - t_all))
     print("検査 不合格 %d / 未検査 %d / 建蔽率 %.1f%% / 図版 %d 面 / 読めなかった欄 %d" % (ng, na, C.kenpei, n[0], len(M.notes)))
     for cid, what, res, st in C.rows:
@@ -2038,6 +2039,41 @@ def build(est, deep=False, out=None):
     print(L.sens_report(est))
     print(L.chk_report(top=6, floor=2.0))
     return ng
+
+
+def sashizu_sha(est, doc_dir=None):
+    """指図の中身の指紋。⭐ 検査の記録がいまの指図を見た物かを、後から機械で言えるように。"""
+    import hashlib
+    p = os.path.join(doc_dir or DOC, est + "_sashizu.json")
+    try:
+        return hashlib.sha256(open(p, "rb").read()).hexdigest()[:16]
+    except Exception:
+        return ""
+
+
+def _write_check_record(est, out, C, ng, na):
+    """図の機械検査の結果を**機械で読める形**で残す。
+
+    ⛔ **刷るだけでは関門にならない。**2026-09-01、松江松平の図の検査は棟別 38.4% の赤を
+    出していたのに誰も止まらず、建てて普請検査で出た。⇒ 実装の車線へ入る所(kansei_gate --init)が
+    この記録を読んで止める(掲示板 EDO-0291・規則3・規則19)。
+    ⚠ `--out` を付けた試し焼きでは、記録も同じ捨て場へ落ちる(正典の記録を汚さない)。
+    """
+    rec = {"_": "図の機械検査の結果。生成器が毎回書き、kansei_gate.py --init が読んで赤なら止める"
+                "(EDO-0291)。⛔ 手で書かない — 図を焼き直せば入れ替わる。",
+           "estate": est,
+           "at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+           "sashizu_sha": sashizu_sha(est),
+           "ng": ng, "na": na,
+           "rows": [{"id": cid, "what": what, "res": res, "status": st}
+                    for cid, what, res, st in C.rows]}
+    p = os.path.join(os.path.dirname(os.path.abspath(out)), est + "_checks.json")
+    try:
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump(rec, f, ensure_ascii=False, indent=1)
+            f.write("\n")
+    except Exception as ex:                      # noqa: BLE001
+        print("⚠ 検査の記録が書けなかった: %s" % ex)
 
 
 def main(argv):

@@ -214,10 +214,16 @@ public static class EdoGateComplete
         if (bansho != null && bansho.ContainsKey("count"))
         {
             int want = (int)F(bansho["count"]);
-            int have = 0;
-            for (int i = 0; i < group.childCount; i++)
-                if (group.GetChild(i).name.StartsWith("Bansho_", StringComparison.Ordinal)) have++;
-            sb.AppendLine((have != want ? "★ " : "　") + "番所 — 指図 " + want + " / 建った " + have);
+            object bw; t.TryGetValue("bansho", out bw);
+            if ((bw as string) == "body")
+                sb.AppendLine("　番所 — 指図 " + want + "(この型は番所が躯体の内にある。子の数では数えない=記録のみ)");
+            else
+            {
+                int have = 0;
+                for (int i = 0; i < group.childCount; i++)
+                    if (group.GetChild(i).name.StartsWith("Bansho_", StringComparison.Ordinal)) have++;
+                sb.AppendLine((have != want ? "★ " : "　") + "番所 — 指図 " + want + " / 建った " + have);
+            }
         }
         return sb.ToString().TrimEnd();
     }

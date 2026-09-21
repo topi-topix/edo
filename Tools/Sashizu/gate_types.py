@@ -104,7 +104,10 @@ def audit(g, name, table, hint_kind=None):
             out.append(("na", "型『%s』は屋根を持つが、指図に屋根の欄が無い(plan.roof か kind に形を書く)" % t["label"]))
     bc = bansho_count(g)
     if bc:
-        out.append(("info", "番所 %d(実装で %s が %d 居るか測る)" % (bc, table["attachments"]["bansho"]["scene"], bc)))
+        if t.get("bansho") == "body":
+            out.append(("info", "番所 %d(躯体の内。子の数では数えない)" % bc))
+        else:
+            out.append(("info", "番所 %d(実装で %s が %d 居るか測る)" % (bc, table["attachments"]["bansho"]["scene"], bc)))
     return ty, out
 
 

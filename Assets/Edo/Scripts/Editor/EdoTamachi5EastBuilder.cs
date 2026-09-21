@@ -38,6 +38,7 @@ public static class EdoTamachi5EastBuilder
     {
         var r = GameObject.Find(RootName);
         if (r == null) { r = new GameObject(RootName); Undo.RegisterCreatedObjectUndo(r, "grp"); }
+        EdoYashikiPrefab.EnsureEditable(r);   // ★ プレハブ化済みなら解く(でないと組み替えが黙って失敗する)
         var cur = r.transform;
         foreach (var seg in child.Split('/'))
         {

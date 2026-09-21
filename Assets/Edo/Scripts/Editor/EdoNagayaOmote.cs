@@ -35,32 +35,9 @@ public static class EdoNagayaOmote
                 if (m != null && !byName.ContainsKey(m.name)) byName[m.name] = m;
             }
 
-        int n = 0; var miss = new List<string>();
-        foreach (var guid in AssetDatabase.FindAssets("t:Model", new[] { ModelDir }))
-        {
-            string path = AssetDatabase.GUIDToAssetPath(guid);
-            var imp = AssetImporter.GetAtPath(path) as ModelImporter; if (imp == null) continue;
-            imp.materialImportMode = ModelImporterMaterialImportMode.ImportViaMaterialDescription;
-            var go = AssetDatabase.LoadAssetAtPath<GameObject>(path); if (go == null) continue;
-            bool touched = false;
-            foreach (var r in go.GetComponentsInChildren<MeshRenderer>())
-                foreach (var m in r.sharedMaterials)
-                {
-                    if (m == null) continue;
-                    Material donor;
-                    if (!byName.TryGetValue(m.name, out donor)) { if (!miss.Contains(m.name)) miss.Add(m.name); continue; }
-                    if (donor == m) continue;
-                    imp.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), m.name), donor);
-                    touched = true;
-                }
-            if (touched)
-            {
-                AssetDatabase.WriteImportSettingsIfDirty(path);
-                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
-                n++;
-            }
-        }
-        AssetDatabase.SaveAssets();
-        return "remap " + n + " 本" + (miss.Count > 0 ? " / 借り先が見つからない材: " + string.Join(", ", miss.ToArray()) : "");
+        // ⭐ 芯は EdoRemapMat.Run(全邸で1本・EDO-0318)。ここに書くのは借り先の引き方だけ
+        //    — 表長屋の借り先はフォルダの .mat ではなく .obj のサブアセットなので、
+        //    名前表を自分で組んでから渡す。
+        return EdoRemapMat.Run(byName, new[] { ModelDir }, "表長屋");
     }
 }

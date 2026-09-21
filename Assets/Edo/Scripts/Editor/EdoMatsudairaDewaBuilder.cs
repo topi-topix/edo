@@ -4077,17 +4077,6 @@ public static partial class EdoMatsudairaDewaBuilder
             // もう Own.Tateishi 用ではない)。
             "Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Rocks/Rocks/Models/Materials",
         };
-        var byName = new Dictionary<string, Material>();
-        foreach (var dir in donorDirs)
-        {
-            if (!AssetDatabase.IsValidFolder(dir)) continue;
-            foreach (var guid in AssetDatabase.FindAssets("t:Material", new[] { dir }))
-            {
-                var m = AssetDatabase.LoadAssetAtPath<Material>(AssetDatabase.GUIDToAssetPath(guid));
-                if (m != null && !byName.ContainsKey(m.name)) byName[m.name] = m;
-            }
-        }
-        int n = 0; var miss = new List<string>();
         // ⚠ 門・番所(Models/Mon)も同じ借り先を使う。2026-08-31 に番所の瓦を
         //   Village Kit の `Roof B` へ替えたとき、ここが Fuzokuya しか見ていなかったため
         //   材質名が変わった番所が真っ白になった。**FBX を焼いた folder は必ずここに足す。**
@@ -4100,34 +4089,8 @@ public static partial class EdoMatsudairaDewaBuilder
         string[] modelDirs = { "Assets/Edo/Models/Fuzokuya", "Assets/Edo/Models/Mon",
                                "Assets/Edo/Models/Trees", "Assets/Edo/Models/Niwa",
                                "Assets/Edo/Models/Hei", "Assets/Edo/Models/Fuchi" };
-        // ⚠ まだ Unity が取り込んでいないフォルダを渡すと FindAssets が落ちる
-        modelDirs = System.Array.FindAll(modelDirs, AssetDatabase.IsValidFolder);
-        if (modelDirs.Length == 0) return "対象フォルダが無い";
-        foreach (var guid in AssetDatabase.FindAssets("t:Model", modelDirs))
-        {
-            string path = AssetDatabase.GUIDToAssetPath(guid);
-            var imp = AssetImporter.GetAtPath(path) as ModelImporter; if (imp == null) continue;
-            var go = AssetDatabase.LoadAssetAtPath<GameObject>(path); if (go == null) continue;
-            bool touched = false;
-            foreach (var r in go.GetComponentsInChildren<MeshRenderer>())
-                foreach (var m in r.sharedMaterials)
-                {
-                    if (m == null) continue;
-                    Material donor;
-                    if (!byName.TryGetValue(m.name, out donor)) { if (!miss.Contains(m.name)) miss.Add(m.name); continue; }
-                    if (donor == m) continue;
-                    imp.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), m.name), donor);
-                    touched = true;
-                }
-            if (touched)
-            {
-                AssetDatabase.WriteImportSettingsIfDirty(path);
-                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
-                n++;
-            }
-        }
-        AssetDatabase.SaveAssets();
-        return "remap " + n + " 本" + (miss.Count > 0 ? " / 借り先が見つからない材: " + string.Join(", ", miss.ToArray()) : "");
+        // ⭐ 芯は EdoRemapMat.Run(全邸で1本・EDO-0318)。ここに書くのは並びだけ。
+        return EdoRemapMat.Run(donorDirs, modelDirs, "松江松平の附属屋・門・木");
     }
 
 

@@ -52,7 +52,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         public bool baba;
         public int maguchiKen, depthKen;
         public bool twoSided, jishinban, inari;
-        public bool kuri, yagura, shoro, sanmon;
+        public bool kuri, yagura, shoro, sanmon, graveyard;
         public Dictionary<string, object> raw;
         public bool Hand { get { return built == "hand"; } }
     }
@@ -147,6 +147,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 inari = Bo(d, "inari", false),
                 kuri = Bo(d, "kuri", true), yagura = Bo(d, "yagura", false),
                 shoro = Bo(d, "shoro", false), sanmon = Bo(d, "sanmon", false),
+                graveyard = Bo(d, "graveyard", false),
             };
             _table[kv.Key] = s;
         }
@@ -310,11 +311,29 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
             case "nagayamon": return EdoAssets.Eg.Nagayamon;
             case "hmon": return EdoAssets.Eg.Hmon;
             case "kabukimon": return EdoAssets.Eg.Kabukimon;
-            case "munemon": case "yakuimon": case "sanmon": return EdoAssets.Eg.Kabukimon; // 代用(部材方へ宿題)
+            // ⭐ 格の梯子(部材方 EDO-0318 ①②・2026-09-21 結線)。棟門 3.60 < 薬医門 4.41 < 山門 5.12(棟天端)。
+            //    ⛔ 2026-09-21 までこの3つは全部 Eg.Kabukimon(冠木門)へ落ちていて**格が3段違って**いた。
+            case "munemon": return EdoAssets.Own.Munamon(2.727f);   // 棟門(門口1.5間)
+            case "yakuimon": return EdoAssets.Own.Yakuimon;         // 薬医門(社家)
+            case "sanmon": return EdoAssets.Own.Sanmon;             // 山門=四脚門(寺)
             case "komon": return EdoAssets.Eg.KidoOpen;
             default: return EdoAssets.Eg.Kabukimon;
         }
     }
+
+    /// <summary>門の部材の倍率。⛔ **一律 ES を掛けない。**edogoyomi の駒(<see cref="EdoAssets.Eg"/>)は
+    /// 素寸が江戸間の 1/1.818 なので ES を掛けるが、部材方が Blender で起こした
+    /// <see cref="EdoAssets.Own"/> の門は**はじめから実寸(m)で焼いてある**。
+    /// ES を掛けると山門が W5.90 → 10.72m の城門級になる(2026-09-21・EDO-0318 の結線で踏んだ)。</summary>
+    static float GateScale(string g)
+    {
+        switch (g)
+        {
+            case "munemon": case "yakuimon": case "sanmon": return 1f;   // Own.*(実寸)
+            default: return ES;                                          // Eg.*(edogoyomi)
+        }
+    }
+
     /// <summary>門の実幅の概算(m)。⛔ 部材の実メッシュではなく「表門の辺を選ぶための目安」で、
     /// 据えた後の納めは実メッシュで解く(規則5)。長屋門と高麗門は両翼込み、腕木門級は1間半。</summary>
     static float GateWidth(Spec s)
@@ -323,8 +342,11 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         {
             case "kmon": case "nagayamon": return 23f;   // 長屋門(門口3間+両翼)
             case "hmon":                   return 15f;   // 高麗門+袖塀
-            case "sanmon": case "yakuimon": return 9f;    // 山門・薬医門
-            default:                       return 6f;    // 棟門・腕木門・小門
+            // ⭐ 山門・薬医門・棟門は**焼いた部材の実測**(EdoAssets.Own の注記)。当て推量の 9f を捨てた。
+            case "sanmon":                 return 5.90f; // 四脚門 Typ_Sanmon W 5.896
+            case "yakuimon":               return 5.06f; // 薬医門 Typ_Yakuimon W 5.060
+            case "munemon":                return 4.63f; // 棟門 Munamon_2.73 W 4.627
+            default:                       return 6f;    // 腕木門・小門
         }
     }
     static int BanshoCount(string b) { return b == "ryou" ? 2 : b == "kata" ? 1 : 0; }
@@ -413,7 +435,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         GameObject mon = null;
         if (s.type != "kouyuu" || s.building == "hikeshi")
             mon = EdoBuild.Place(GatePath(s.gate), new Vector3(gateC.x, pad, gateC.y), psi,
-                                 Vector3.one * ES, monGrp, "Mon_" + s.gate);
+                                 Vector3.one * GateScale(s.gate), monGrp, "Mon_" + s.gate);
         if (mon != null)
         {
             Seat(mon, log);           // ⛔ ピボットの座で置かない — 接地箇所を測って据える
@@ -723,6 +745,13 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
             add(s.kind == "temple" ? EdoAssets.VK.BigHouse : EdoAssets.VK.House, 12f, 1);
             if (s.kuri) add(EdoAssets.VK.SmallHouse, 8f, 1);                          // 庫裏
             add(EdoAssets.Eg.Kura, 6f, Mathf.Clamp(s.kura, 0, 2));
+            // ⭐ 鐘楼と墓地(部材方 EDO-0318 ③④・2026-09-21 結線)。⛔ 2026-09-21 まで表の
+            //    `shoro` / `graveyard` は**読むだけで一度も建てない**欄だった(wiring_gate が毎朝刷っていた)。
+            //    在庫の `obj_shoro1` は ES 後 1.45m の灯籠級で代用にならない(在庫方 09-21)。
+            if (s.shoro) add(EdoAssets.Own.Shoro(3f), 5f, 1);            // 袴腰 3間角 W5.88・棟天端 6.94
+            if (s.graveyard) add(EdoAssets.Own.Bochi(6f, 4f), 7f, 1);    // 一画を一体で W10.91 × D7.27
+            // ⚠ `sanmon` の欄は門の欄(`gate`)と同じ物を二度書いている — 山門は GatePath() が
+            //    表門として建てるので、ここでは何も足さない(足すと境内に山門が2基立つ)。
         }
         // ⛔ 町屋はここに書かない(2026-09-21・EDO-0325)。表店は**接道辺の run** で建てる
         //    (EdoTypologyBuilder.Machiya.cs の Stage 3m → EdoBuild.MachiyaRun)。

@@ -3585,16 +3585,6 @@ public static class EdoOkabeYashikiBuilder
             // photoscanned rock を切って使うので材質名は M_photoscanned_rocks_01
             "Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Rocks/Rocks/Models/Materials",
         };
-        var byName = new Dictionary<string, Material>();
-        foreach (var dir in donorDirs)
-        {
-            if (!AssetDatabase.IsValidFolder(dir)) continue;
-            foreach (var guid in AssetDatabase.FindAssets("t:Material", new[] { dir }))
-            {
-                var m = AssetDatabase.LoadAssetAtPath<Material>(AssetDatabase.GUIDToAssetPath(guid));
-                if (m != null && !byName.ContainsKey(m.name)) byName[m.name] = m;
-            }
-        }
         // ⚠ **FBX を焼いたフォルダは必ずここに足す。**松江松平で、番所の材質を替えたのに
         //   remap がそのフォルダを見ておらず真っ白になった前例がある(2026-08-31)。
         // ⚠ `Models/Trees` は当邸が新造した高木3種とつる3種が居る。ここに入れないと
@@ -3606,34 +3596,8 @@ public static class EdoOkabeYashikiBuilder
                                "Assets/Edo/Models/Maruta", "Assets/Edo/Models/Goten/Roofs",
                                "Assets/Edo/Models/Fuzokuya", "Assets/Edo/Models/Hei",
                                "Assets/Edo/Models/Trees", "Assets/Edo/Models/Niwa" };
-        modelDirs = System.Array.FindAll(modelDirs, AssetDatabase.IsValidFolder);
-        int n = 0; var miss = new List<string>();
-        foreach (var guid in AssetDatabase.FindAssets("t:Model", modelDirs))
-        {
-            string path = AssetDatabase.GUIDToAssetPath(guid);
-            var imp = AssetImporter.GetAtPath(path) as ModelImporter; if (imp == null) continue;
-            var go = AssetDatabase.LoadAssetAtPath<GameObject>(path); if (go == null) continue;
-            bool touched = false;
-            foreach (var r in go.GetComponentsInChildren<MeshRenderer>())
-                foreach (var m in r.sharedMaterials)
-                {
-                    if (m == null) continue;
-                    Material donor;
-                    if (!byName.TryGetValue(m.name, out donor)) { if (!miss.Contains(m.name)) miss.Add(m.name); continue; }
-                    if (donor == m) continue;
-                    imp.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), m.name), donor);
-                    touched = true;
-                }
-            if (touched)
-            {
-                AssetDatabase.WriteImportSettingsIfDirty(path);
-                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
-                n++;
-            }
-        }
-        AssetDatabase.SaveAssets();
-        return "新造部材の remap " + n + " 本"
-             + (miss.Count > 0 ? " / 借り先が見つからない材: " + string.Join(", ", miss.ToArray()) : "");
+        // ⭐ 芯は EdoRemapMat.Run(全邸で1本・EDO-0318)。ここに書くのは並びだけ。
+        return EdoRemapMat.Run(donorDirs, modelDirs, "岡部の新造部材");
     }
 
     [MenuItem("Edo/岡部筑前守上屋敷/坂の土留めのマテリアルをremap")]

@@ -928,46 +928,9 @@ public static class EdoSannoShaBuilder
             //   `Assets/Edo/Materials` 直下に在るため(2026-09-20 部材方)。足さないと扁額だけ真っ白。
             "Assets/Edo/Materials",
         };
-        var byName = new Dictionary<string, Material>();
-        foreach (var dir in donorDirs)
-        {
-            if (!AssetDatabase.IsValidFolder(dir)) continue;
-            foreach (var guid in AssetDatabase.FindAssets("t:Material", new[] { dir }))
-            {
-                var m = AssetDatabase.LoadAssetAtPath<Material>(AssetDatabase.GUIDToAssetPath(guid));
-                if (m != null && !byName.ContainsKey(m.name)) byName[m.name] = m;
-            }
-        }
         string[] modelDirs = { "Assets/Edo/Models/Kaidan", "Assets/Edo/Models/Hei",
                                "Assets/Edo/Models/Sanno" };
-        modelDirs = System.Array.FindAll(modelDirs, AssetDatabase.IsValidFolder);
-        if (modelDirs.Length == 0) return "対象フォルダが無い";
-        int n = 0; var miss = new List<string>();
-        foreach (var guid in AssetDatabase.FindAssets("t:Model", modelDirs))
-        {
-            string path = AssetDatabase.GUIDToAssetPath(guid);
-            var imp = AssetImporter.GetAtPath(path) as ModelImporter; if (imp == null) continue;
-            var go = AssetDatabase.LoadAssetAtPath<GameObject>(path); if (go == null) continue;
-            bool touched = false;
-            foreach (var r in go.GetComponentsInChildren<MeshRenderer>())
-                foreach (var m in r.sharedMaterials)
-                {
-                    if (m == null) continue;
-                    Material donor;
-                    if (!byName.TryGetValue(m.name, out donor)) { if (!miss.Contains(m.name)) miss.Add(m.name); continue; }
-                    if (donor == m) continue;
-                    imp.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), m.name), donor);
-                    touched = true;
-                }
-            if (touched)
-            {
-                AssetDatabase.WriteImportSettingsIfDirty(path);
-                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
-                n++;
-            }
-        }
-        AssetDatabase.SaveAssets();
-        return "新造部材の remap " + n + " 本"
-             + (miss.Count > 0 ? " / 借り先が見つからない材: " + string.Join(", ", miss.ToArray()) : "");
+        // ⭐ 芯は EdoRemapMat.Run(全邸で1本・EDO-0318)。ここに書くのは並びだけ。
+        return EdoRemapMat.Run(donorDirs, modelDirs, "山王の新造部材");
     }
 }

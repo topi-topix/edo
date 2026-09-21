@@ -796,7 +796,7 @@ JS = """
             ? saved : 'tasks');
 
   /* ── フィルタ。**1つも選ばれていない群は絞り込まない**(= 全選択と同じ)。
-        既定は全群とも未選択なので、開いた直後は全件が出る。 */
+        既定は区分「作業あり」だけ押した状態(2026-09-21 施主指示)。押し直せば全件が出る。 */
   var siteBtns  = $all('#siteFilter .fchip');
   var stateBtns = $all('#stateFilter .fchip');
   var kindBtns  = $all('#kindFilter .fchip');
@@ -882,10 +882,24 @@ JS = """
     b.addEventListener('click', function(){ b.classList.toggle('active'); syncKinds(); apply(); });
   });
   if (search)   search.addEventListener('input', apply);
+  /* 既定 = 「作業あり」の状態チップを選んだ形(区分チップの点灯は syncKinds が決める) */
+  function setDefaultFilter(){
+    var wk = kindBtns.filter(function(k){ return k.getAttribute('data-kind') === 'work'; })[0];
+    var work = wk ? wk.getAttribute('data-members').split(',') : [];
+    siteBtns.forEach(function(b){ b.classList.remove('active'); });
+    stateBtns.forEach(function(b){
+      b.classList.toggle('active', work.indexOf(b.getAttribute('data-state')) !== -1);
+    });
+    if (search) search.value = '';
+    syncKinds();
+  }
   if (resetBtn) resetBtn.addEventListener('click', function(){
-    /* リセット = 全解除(= 全件表示)。既定の状態へ戻す */
-    siteBtns.concat(stateBtns).forEach(function(b){ b.classList.remove('active'); });
-    search.value = ''; syncKinds(); apply();
+    /* リセット = 既定へ戻す(敷地・状態・検索を外し「作業あり」だけ押した形・並びは ID 降順) */
+    setDefaultFilter(); apply();
+    var idTh = document.querySelector('.tasks thead th[data-key="id"]');
+    if (idTh && idTh.getAttribute('data-dir') !== 'desc'){
+      idTh.setAttribute('data-dir', 'asc'); idTh.click();   /* asc → 押すと desc */
+    }
   });
 
   /* ── 行を押したら詳細(経過ログ・裁定の中身・正典の参照)を開く */
@@ -937,6 +951,7 @@ JS = """
     });
   }
 
+  setDefaultFilter();
   apply();
 })();
 """
@@ -1216,13 +1231,16 @@ def task_row(i, states):
 
 
 def tasks_table_html(issues, states):
-    rows = sorted(issues, key=lambda i: (task_prio(i), -(i.get("updated") or 0)))
+    # 既定の並びは **ID 降順**(2026-09-21 施主指示・新しい起票が上)。優先度で並べたいときは「状態」の頭を押す。
+    rows = sorted(issues, key=lambda i: -id_num(i["id"]))
     head = [("id", "ID", "sortable"), ("sitename", "敷地", "sortable"),
             ("prio", "状態", "sortable"),
             ("title", "タスク", "sortable"), ("when", "更新", "sortable")]
     th = "".join(
-        '<th %sdata-key="%s">%s<span class="ar"></span></th>'
-        % (('class="%s" ' % c) if c else "", esc(k), esc(lbl)) for k, lbl, c in head)
+        '<th %sdata-key="%s"%s>%s<span class="ar">%s</span></th>'
+        % (('class="%s" ' % c) if c else "", esc(k),
+           ' data-dir="desc"' if k == "id" else "", esc(lbl), "▼" if k == "id" else "")
+        for k, lbl, c in head)
     return ('<div class="mwrap"><table class="tasks"><thead><tr>%s</tr></thead>'
             '<tbody id="taskBody">%s</tbody></table></div>'
             '<div class="empty" id="tasksEmpty" hidden>'
@@ -1243,8 +1261,9 @@ KIND_CHIPS = [("work", "作業あり", WORK_STATES), ("rest", "作業なし", DO
 
 
 def filterbar_html():
-    # ⚠ 既定は**すべて未選択**。JS 側で「1つも選ばれていない群は絞り込まない」と
-    #    扱うので、未選択 = 全件表示 になる(ユーザー指示 2026-08-29)。
+    # ⚠ HTML の上ではすべて未選択で焼く。既定の「作業あり」は JS(setDefaultFilter)が
+    #    開いた直後に押す(2026-09-21 施主指示。それ以前は未選択 = 全件表示・2026-08-29)。
+    #    JS 側で「1つも選ばれていない群は絞り込まない」と扱うのは変えていない。
     p = ['<div class="filterbar">']
     p.append('<div class="fgroup" id="siteFilter"><span class="flabel">敷地</span>')
     for e, name in SITES.items():

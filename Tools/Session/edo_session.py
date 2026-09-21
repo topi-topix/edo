@@ -867,16 +867,21 @@ def cmd_check_bash(a):
                 "   出力先 `Assets/Edo/Models/` も worktree には無い。\n"
                 "   → **メインのチェックアウトのセッション**で回すこと:\n"
                 "     %s" % os.path.dirname(_common_git_dir()))
-        cs = load_all(a.ttl)
-        h = [c for c in cs if c["session"] != me and "assets" in c.get("resources", [])]
-        if h:
+        # ⛔ **自前で保持者を数えない — Unity と同じ `take_resource` を通す。**(2026-09-21 EDO-0162)
+        #   ここだけ手組みの判定で、①放置の引き取り(res_stale)②待ち行列と予約 の
+        #   どちらも見ていなかった。unity には 20 分の自動引き取りが効くのに assets には
+        #   効かず、握った側が忘れると TTL 45 分まで空かない。
+        #   ⚠ 実測(2026-09-07): 山王が 17 分待ち、土井が気づいて手で返すまで空かなかった。
+        #   ⛔ 待たせた側は「待っている人がいる」ことにも気づけない(行列に並べていないので)。
+        #   ⚠ 心拍で刷っていたのも誤り — 心拍は別の作業でも更新されるので「使用中」に見え続ける。
+        ok, msg = take_resource(me, "assets", a.ttl)
+        if not ok:
             return _deny(
-                "⛔ 門番: 部材の書き出しは**セッション %s** が使用中(心拍 %.0f 分前)。\n"
-                "   %s\n"
-                "   出力先 `Assets/Edo/Models/` は共有で、同じ部材を同時に焼くと**後勝ちで上書き**される\n"
-                "   (`build_goten_roof.py -- rebuild` は Roofs/ の全数を焼き直す)。\n"
-                "   → 終わるのを待つこと。"
-                % (h[0]["session"], (now() - h[0]["heartbeat"]) / 60.0, h[0].get("note", "")))
+                msg + "\n   ⚠ 出力先 `Assets/Edo/Models/` は共有で、同じ部材を同時に焼くと"
+                      "**後勝ちで上書き**される\n"
+                      "     (`build_goten_roof.py -- rebuild` は Roofs/ の全数を焼き直す)。")
+        if msg:
+            print(msg)
         touch(me, resources=["assets"])
     for pat, why in BANNED:
         if re.search(pat, cmd):

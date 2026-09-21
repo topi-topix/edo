@@ -13,6 +13,30 @@ public static partial class EdoBuild
     /// (= sin 折れ角)。これ未満は面の法線方向へだけ動かす。</summary>
     const float ExactSolveDet = 0.5f;
 
+    /// <summary>**隅の折れ角[°]を区画から測る。**入りの走り(頂点の手前の辺)から出の走り(次の辺)への旋回で、
+    /// 左へ曲がれば負・右へ曲がれば正。<paramref name="vertex"/> は折れ点の頂点番号。
+    ///
+    /// <para>⛔ **指図や算出物が宣言する `deg` を信じない**(規則21「部材の基準点で位置を決めない」と同じ型 —
+    /// 宣言された寸法は、生成器を一度でも入れ替えた瞬間に実物と食い違う)。⭐ 2026-09-21 に実際に起きた:
+    /// 岡部の生成器だけが折れ角を**符号を反転して**焼いていて、`EdoAssets.Own.Kado(part, deg)` が
+    /// deg&lt;0 で選ぶ `M`(鏡像)変種のせいで、**隅 8 基すべてが鏡像の部材**で建っていた。
+    /// 浅い隅(P1 +0.24°)は誤差 2×|deg| が小さく健全に見え、深い隅ほど壊れる —
+    /// Kado_P11(+61.61°)が区画線を 2.862m、Kado_P0(+95.11°)が 2.261m 越えた。掲示板 EDO-0343。
+    /// ⚠ 松江松平の宣言(+90.95 / +18.54 / −87.76 / +41.24 / +18.52)は実測と一致していたので、
+    /// この関数へ移しても**建つ姿は変わらない**(移行の安全確認に使える)。</para>
+    ///
+    /// <para>⭕ 部材の名前の符号 = この旋回の符号。`Own.Kado` が `|deg| の四捨五入 + (負なら M)` で引く。</para></summary>
+    public static float KadoDeg(Vector2[] poly, int vertex)
+    {
+        int n = poly.Length;
+        Vector2 P = poly[((vertex % n) + n) % n];
+        Vector2 a = poly[(((vertex - 1) % n) + n) % n];
+        Vector2 b = poly[(((vertex + 1) % n) + n) % n];
+        float hIn = Mathf.Atan2((P - a).x, (P - a).y) * Mathf.Rad2Deg;
+        float hOut = Mathf.Atan2((b - P).x, (b - P).y) * Mathf.Rad2Deg;
+        return Mathf.DeltaAngle(hIn, hOut);
+    }
+
     /// <summary>**隅部材の両腕の外面を、平行移動だけで <paramref name="target"/>(区画線から外向きへ。犬走りなら −0.30)へ据える。**
     /// 折れ点 = 辺 <paramref name="e1"/> の終点 = 辺 e1+1 の始点。<b>yaw は動かさない</b>(折れ角は部材が持つ)。
     ///

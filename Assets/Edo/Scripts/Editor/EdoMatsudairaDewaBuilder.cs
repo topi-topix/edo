@@ -939,7 +939,12 @@ public static partial class EdoMatsudairaDewaBuilder
             int v = (e + 1) % Poly.Length;                         // 継ぎ目の頂点 = 辺 e の終点
             Vector2 a = Poly[e % Poly.Length], b = Poly[v];
             Vector2 dIn = (b - a).normalized;
-            float deg = F(kd["deg"]);
+            // ⛔ 指図の `deg` を信じない — 折れ角は**区画から測る**(規則21・EDO-0343)。
+            //    当邸の宣言は実測と一致しているので建つ姿は変わらない(移行の安全確認)。
+            float deg = EdoBuild.KadoDeg(Poly, v);
+            if (Mathf.Abs(Mathf.DeltaAngle(deg, F(kd["deg"]))) > 0.5f)
+                sb.AppendLine("★ 隅 " + (string)j["id"] + ": 指図の折れ " + F(kd["deg"]).ToString("+0.00;-0.00")
+                   + "° が区画の実測 " + deg.ToString("+0.00;-0.00") + "° と食い違う — 実測で建てた");
             string path = EdoAssets.Own.Kado((string)kd["part"], deg);
             var src = AssetDatabase.LoadAssetAtPath<GameObject>(path);
             if (src == null)
@@ -1040,33 +1045,13 @@ public static partial class EdoMatsudairaDewaBuilder
     ///
     /// <para>結果: <paramref name="lo"/>[辺] = その辺の s=0 側にある隅が覆う上限 /
     /// <paramref name="hi"/>[辺] = s=L 側にある隅が覆う下限。</para></summary>
+    /// <para>⭐ 2026-09-21・EDO-0289 ④: 測る本体は共通の層(<see cref="EdoBuild.KadoArm"/>)へ移した。
+    /// ⛔ **邸ビルダーにこの測りを書き写さない**(規則21)。当邸が持っていた選り分け — 辺の壁の帯で選る・
+    /// 二等分線の残差を使わない(直角に近い隅で頂点が 1 つも入らない)— はそのまま共通の層が持っている。</para>
     static string KadoArmSpan(Transform kak, Dictionary<int, float> lo, Dictionary<int, float> hi)
     {
         var sb = new System.Text.StringBuilder("隅の腕(壁体・実測): ");
         float wallT = F(O(D["const"])["dobeiWallT"]);
-        // ⛔ **腕の選り分けに「隅の二等分線からの残差」を使わない。**`AlignInubashiri` が使っている
-        //   その窓は、隅部材が犬走りぶん(0.30m)線の内へ寄っているぶん原点がずれるので、
-        //   **直角に近い隅(P0 の +90.95°・P2 の −87.76°)で頂点が 1 つも入らない**(実測で確認)。
-        // ⭕ 代わりに**その辺の壁の帯**で選る — 辺の外向き法線への射影が
-        //   「線の外 +0.40 〜 線の内 −(犬走り+壁厚+0.40)」に入る頂点だけがその辺の腕の壁。
-        //   隅部材が多少ずれていても拾える幅にしてある。
-        System.Func<Transform, int, float, float, float[]> reach = (kc2, e, bLo2, bHi2) =>
-        {
-            Vector2 apex = Poly[e % Poly.Length];
-            Vector2 u = (Poly[(e + 1) % Poly.Length] - apex).normalized;
-            Vector2 nn = OutNormal(e);
-            float tHi = 0.40f, tLo = -(INUBASHIRI + wallT + 0.40f);
-            float mn = float.MaxValue, mx = float.MinValue;
-            foreach (var w in MeshBody(kc2, 999999))
-            {
-                if (w.y < bLo2 || w.y > bHi2) continue;
-                float t = (w.x - apex.x) * nn.x + (w.z - apex.y) * nn.y;
-                if (t < tLo || t > tHi) continue;
-                float s = (w.x - apex.x) * u.x + (w.z - apex.y) * u.y;
-                if (s < mn) mn = s; if (s > mx) mx = s;
-            }
-            return mn == float.MaxValue ? null : new float[] { mn, mx };
-        };
         foreach (var o in A(D["joints"]))
         {
             var j = O(o);
@@ -1076,16 +1061,9 @@ public static partial class EdoMatsudairaDewaBuilder
             if (kc == null) continue;
             int e1 = (int)F(j["edge"]);
             int e2 = (e1 + 1) % Poly.Length;
-            var body = MeshBody(kc, 999999);
-            if (body.Count == 0) { sb.Append(id + ":メッシュ無 "); continue; }
-            float y0 = 1e9f; foreach (var v in body) if (v.y < y0) y0 = v.y;
-            float seat = y0 + 0.10f;                           // PlaceKado は seat − 0.10 に置く
-            float bLo = seat + 0.6f, bHi = seat + 1.4f;
-            var r1 = reach(kc, e1, bLo, bHi);                  // 辺 e1 では隅は s=L の側
-            var r2 = reach(kc, e2, bLo, bHi);                  // 辺 e2 では隅は s=0 の側
-            if (r1 == null || r2 == null) { sb.Append(id + ":腕を判別できず "); continue; }
-            float h = r1[0];                                   // 腕が辺 e1 を覆う下限
-            float l = r2[1];                                   // 腕が辺 e2 を覆う上限
+            float h, l;                                        // PlaceKado は seat − 0.10 に置く
+            if (!EdoBuild.KadoArm(kc, Poly, e1, OutNormal, -INUBASHIRI, wallT, 0.10f, out h, out l))
+            { sb.Append(id + ":腕を判別できず "); continue; }
             if (!hi.ContainsKey(e1) || h < hi[e1]) hi[e1] = h;
             if (!lo.ContainsKey(e2) || l > lo[e2]) lo[e2] = l;
             sb.Append(id + " 辺" + e1 + "(s≥" + h.ToString("F2") + ")/ 辺" + e2
@@ -1167,49 +1145,17 @@ public static partial class EdoMatsudairaDewaBuilder
             var kc = kak.Find("Kado_" + id);
             if (kc == null) continue;
             int e1 = (int)F(j["edge"]);
-            int e2 = (e1 + 1) % Poly.Length;
-            Vector2 a1 = Poly[e1 % Poly.Length];             // 辺 e1 の遠端(隅の反対側)
-            Vector2 P = Poly[e2 % Poly.Length];               // 隅の折れ点(= 辺 e1 の終点 = 辺 e2 の始点)
-            Vector2 a3 = Poly[(e2 + 1) % Poly.Length];        // 辺 e2 の遠端
-            Vector2 t1 = (a1 - P).normalized, t2 = (a3 - P).normalized;   // 隅から外への腕の走り方向
-            Vector2 kn1 = OutNormal(e1), kn2 = OutNormal(e2);
-            float det = kn1.x * kn2.y - kn1.y * kn2.x;
-            if (Mathf.Abs(det) < 0.05f) { kadoNote.Add(id + ": 両辺がほぼ平行(det=" + det.ToString("F3") + ") — 解けず(棟梁へ)"); continue; }
-            var body = MeshBody(kc, 999999);   // 隅は全頂点(間引かない・MeshBody のコメント参照)
-            if (body.Count == 0) { kadoNote.Add(id + ": メッシュ無し"); continue; }
-            // Kado の FBX は単一メッシュ(run のように hei/namako で分かれていない)。
-            // run と同じ「壁体の帯」(高さの15〜80%)で屋根を除く。
-            float ky0 = 1e9f, ky1 = -1e9f;
-            foreach (var v in body) { if (v.y < ky0) ky0 = v.y; if (v.y > ky1) ky1 = v.y; }
-            float lo = ky0 + (ky1 - ky0) * 0.15f, hi = ky0 + (ky1 - ky0) * 0.80f;
-            // ⭐ 2026-09-08(棟梁差戻し): 折れ角が浅い隅(t1・t2 がほぼ反対向き。例 P1/P13 の 18.5°)では
-            //   腕1の実の壁面上の点でも d2(相手の腕への射影)が d1 にほぼ比例して大きくなる
-            //   (d2 ≒ d1・cosθ, θ=t1,t2 のなす角)ため、**絶対値の窓 |d2|≤定数 は腕が長いほど
-            //   すぐに外れる**(実測: P1 で d1=1.26m の壁面点が d2=-0.98 になり 0.6 の窓を割る)。
-            //   ⇒ 窓は「腕の中心線からのはみ出し」= d2 と d1・cosθ の**差**で測る(実際の折れ角=腕の
-            //   実寸から導く。決め打ちの絶対窓をやめる)。しきい値そのものも壁厚の実寸(dobeiWallT)から
-            //   導く — 0.6 という値を保守しない。
-            float cosT = Vector2.Dot(t1, t2);
+            // ⭐ 2026-09-21・EDO-0289 ④: 腕ごとの選り分けと 2 元 1 次方程式は共通の層
+            //   (`EdoBuild.KadoFace`)が持つ。⛔ 邸ビルダーへ書き写さない(規則21)。
+            // ⚠ 共通の層は**折れ角が浅い隅**(|det| < 0.5 = 30° 未満。当邸は P1・P13 の 18.5°)で
+            //   厳密解をやめ、面の法線方向へだけ動かす — 厳密解は走り方向へ 1/det 倍に暴れる
+            //   (岡部 P3・14.45° で実測 7.79m 動いた)。当邸はそこだけ据わりが変わる。
             float dobeiWallT = F(O(D["const"])["dobeiWallT"]);
-            float armThresh = dobeiWallT * 1.5f;   // 壁厚+留め継ぎの面取り分の余裕(実寸由来)
-            float best1 = float.MinValue, best2 = float.MinValue;
-            foreach (var w in body)
-            {
-                if (w.y < lo || w.y > hi) continue;
-                Vector2 rel = new Vector2(w.x, w.z) - P;
-                float d1 = Vector2.Dot(rel, t1), d2 = Vector2.Dot(rel, t2);
-                if (d1 >= 0f && Mathf.Abs(d2 - d1 * cosT) <= armThresh) best1 = Mathf.Max(best1, Vector2.Dot(rel, kn1));
-                if (d2 >= 0f && Mathf.Abs(d1 - d2 * cosT) <= armThresh) best2 = Mathf.Max(best2, Vector2.Dot(rel, kn2));
-            }
-            if (best1 == float.MinValue || best2 == float.MinValue) { kadoNote.Add(id + ": 両辺の壁体を判別できず"); continue; }
-            float r1 = (-INUBASHIRI) - best1, r2 = (-INUBASHIRI) - best2;
-            float dx = (r1 * kn2.y - r2 * kn1.y) / det;
-            float dz = (kn1.x * r2 - kn2.x * r1) / det;
-            if (Mathf.Abs(dx) > 0.02f || Mathf.Abs(dz) > 0.02f)
-            {
-                kc.position += new Vector3(dx, 0f, dz);
-                movedKado++;
-            }
+            Vector2 mv; string note;
+            if (!EdoBuild.KadoFace(kc, Poly, e1, OutNormal, -INUBASHIRI, dobeiWallT, out mv, out note))
+            { kadoNote.Add(id + ": " + note); continue; }
+            if (note != null) kadoNote.Add(id + ": " + note);
+            if (mv.sqrMagnitude > 0.02f * 0.02f) movedKado++;
         }
         sb.Append(" / 隅の横合わせ: " + movedKado + " 基");
         if (kadoNote.Count > 0) sb.Append(" / ★ " + string.Join(" / ", kadoNote.ToArray()));

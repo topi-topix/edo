@@ -1067,14 +1067,19 @@ public static class EdoOkabeYashikiBuilder
         var list = A(Get(IMPL, "corners"));
         if (list == null) return "隅部材: 算出物に corners が無い(生成器の --export-impl 待ち)";
         var P = Poly; int n = P.Length;
-        int made = 0, skip = 0; var miss = new List<string>();
+        int made = 0, skip = 0; var miss = new List<string>(); var degWarn = new List<string>();
         foreach (var o in list)
         {
             var c = O(o); if (c == null) continue;
             if (!Has(c, "part")) { skip++; continue; }        // 留め継ぎでない隅(当家が建てない側など)
             string part = S(c["part"]);
             if (part == "Nagaya") { skip++; continue; }       // 表長屋の隅は次巡
-            float deg = F(c["deg"]);
+            // ⛔ 算出物の `deg` を信じない — 岡部の生成器は符号を反転して焼いていて、隅 8 基すべてが
+            //    鏡像の部材で建っていた(2026-09-21 実測・EDO-0343)。折れ角は**区画から測る**(規則21)。
+            float deg = EdoBuild.KadoDeg(Poly, (int)F(c["vertex"]));
+            if (Has(c, "deg") && Mathf.Abs(Mathf.DeltaAngle(deg, F(c["deg"]))) > 0.5f)
+                degWarn.Add(S(c["id"]) + " 算出物 " + F(c["deg"]).ToString("+0.0;-0.0")
+                          + "° ≠ 実測 " + deg.ToString("+0.0;-0.0") + "°");
             string path = EdoAssets.Own.Kado(part, deg);
             var src = AssetDatabase.LoadAssetAtPath<GameObject>(path);
             if (src == null)
@@ -1097,6 +1102,9 @@ public static class EdoOkabeYashikiBuilder
             made++;
         }
         var sb = new System.Text.StringBuilder("隅部材: " + made + " 基(留め継ぎでない/次巡 " + skip + ")");
+        if (degWarn.Count > 0)
+            sb.Append("\n★ 折れ角が算出物と食い違う " + degWarn.Count + " 件(区画の実測で建てた・生成器を直すこと EDO-0343) — "
+                    + string.Join(" / ", degWarn.ToArray()));
         if (miss.Count > 0)
             sb.Append("\n★ 部材が無い " + miss.Count + " 件 — " + string.Join(" / ", miss.ToArray()));
         return sb.ToString();

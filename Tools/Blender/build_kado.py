@@ -55,7 +55,7 @@ FLIP_THK = False        # --flipthk で立てる。書き出し名に T が付�
 ROOT = V.REPO
 JC   = os.path.join(ROOT, "Assets/Japanese Castle")
 VK   = os.path.join(ROOT, "Assets/Japanese Village Kit")
-OUT  = os.path.join(ROOT, "Assets/Edo/Models/Kado")
+OUT  = V.out_dir(os.path.join(ROOT, "Assets/Edo/Models/Kado"))
 
 # ---------------------------------------------------------------- 部材の定義
 # src   … 素にするメッシュ(fbx は kit の Meshes 相対 / obj・自前 fbx は絶対)
@@ -394,7 +394,10 @@ def main():
             c = (mn + mx) * 0.5
             r = max((mx - mn).x, (mx - mn).y) * 1.4
             V.studio((c.x + r, c.y - r, c.z + r * 0.9), (c.x, c.y, c.z), res=(1400, 900))
-            V.render(os.path.join(ROOT, "Screenshots", "kado_%s_%02d.png" % (part, round(abs(deg)))))
+            # ⚠ 鏡像(M)は同じ |deg| なので、hand を名に入れないと非鏡像の検証画像を上書きする
+            hand = "" if deg > 0 else "M"
+            V.render(os.path.join(ROOT, "Screenshots",
+                                  "kado_%s_%02d%s.png" % (part, round(abs(deg)), hand)))
 
 
 main()

@@ -1418,10 +1418,16 @@ public static class EdoAssets
         /// ⭕ **浅い折れも留めで通る** — Δ=0.24° は「ほぼ直材」の一枚物として焼ける
         /// (2026-09-04 実測。突き付けに逃げる必要は無い)。
         ///
-        /// 焼いてあるもの(Dobei = 練塀。腕は折れ点から ±2.26m・高さ 1.455m・s を掛けて据える):
-        /// 00M 01M 06 07 11 14M 18 19 31 38M 41 62M 88M 91 95M ／ Ishigaki 31・31M ／
-        /// Tsuijibei 31 ／ Nagaya 38M。無い角度は:
-        ///   blender --background --python Tools/Blender/build_kado.py -- --part dobei --deg &lt;符号つき角度&gt; --render</summary>
+        /// 焼いてあるもの(Dobei = 練塀。腕は折れ点から ±2.26m・高さ 1.455m・s を掛けて据える。
+        /// s=1.818 で据えれば片腕は世界で 4.10m):
+        /// 00 00M 01 01M 06 07 08 08M 11 11M 14 14M 18 18M 19 31 38M 41 62 62M 88M 91 95 95M ／
+        /// Ishigaki 31・31M ／ Tsuijibei 31 ／ Nagaya 38M。無い角度は:
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part dobei --deg &lt;符号つき角度&gt; --render
+        ///
+        /// ⚠ **+deg と −deg は互いの厳密な鏡像ではない。**素の練塀が厚み方向に非対称
+        /// (表裏2枚組が 0.2m ずれる)なので、留め面を反転すると残る材が少し変わる
+        /// (Δ=95 で 面 5278 対 4478・張り出し 0.56m 対 0.34m)。⭕ 折れの向きは正しく逆で、
+        /// 躯体面はどちらも同じ側に残る — **据える側は符号だけ見ればよい**(2026-09-21 実測)。</summary>
         public static string Kado(string part, float deg)
         {
             return "Assets/Edo/Models/Kado/" + part + "_Kado_"

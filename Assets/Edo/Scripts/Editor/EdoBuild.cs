@@ -16,13 +16,40 @@ public static partial class EdoBuild
     /// ⚠ 各ビルダーが持つ `const float ES = 1.818f` の写しはここへ寄せること。</summary>
     public const float ES = 1.818f;
 
-    /// <summary>アクティブな Terrain (最初の1枚)。無ければ例外。</summary>
+    // ⚠ 2026-09-21 — `Ground`/`GroundGrid` は **1 頂点につき 1 回**呼ばれる(接地の測りは駒の全頂点を引く)。
+    //   そこで `T()` が毎回 `FindObjectsByType<Terrain>` でシーンを全走査していたため、松江松平の普請検査
+    //   (植栽 1278 点・駒あたり最大 4000 頂点)が 40 分を超えた。⭐ `Terrain.SampleHeight` 自体は速い —
+    //   遅かったのは**その手前の Terrain の探し直し**。⇒ 掴んだ物が失効したときだけ探し直す。
+    //   ⛔ 掴むのは Terrain の参照だけで、**原点の y は掴まない**(`Ground` は毎回 transform から読む)。
+    //      造成やジオリファレンスで Terrain が動いたとき、古い y を返して全部の高さを静かに狂わせない為。
+    static Terrain _terrain;
+
+    /// <summary>掴んでいる Terrain を捨てる。⚠ **Terrain を差し替えたのに古い物が active のまま残る**
+    /// 差し替え方をしたときだけ要る(active が落ちる差し替えなら <see cref="T"/> が自分で拾い直す)。</summary>
+    public static void InvalidateTerrain() { _terrain = null; }
+
+    /// <summary>アクティブな Terrain (最初の1枚)。無ければ例外。⭐ 掴んだ物が生きていれば再走査しない。</summary>
     public static Terrain T()
     {
+        var c = _terrain;
+        if (c != null && c.gameObject.activeInHierarchy) return c;
         foreach (var t in UnityEngine.Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None))
-            if (t.gameObject.activeInHierarchy) return t;
+            if (t.gameObject.activeInHierarchy) { _terrain = t; return t; }
         throw new Exception("no active terrain");
     }
+
+    /// <summary>**地表を何度も引くための掴み。**Terrain と原点の y を一度だけ掴み、以後は `SampleHeight` だけを叩く。
+    /// ⭐ 駒の全頂点を引く所(<see cref="Contact(GameObject,out Vector3,out int,float,int)"/>)で使う。
+    /// ⛔ 1 巡のあいだに Terrain を動かす所では使わない(掴んだ原点の y が古くなる)。</summary>
+    public struct GroundProbe
+    {
+        readonly Terrain t; readonly float y0;
+        public GroundProbe(Terrain terrain) { t = terrain; y0 = terrain.transform.position.y; }
+        public float At(float x, float z) { return t.SampleHeight(new Vector3(x, 0f, z)) + y0; }
+    }
+
+    /// <summary>地表の引き手を一つ作る。<see cref="GroundProbe"/> を見よ。</summary>
+    public static GroundProbe Probe() { return new GroundProbe(T()); }
 
     /// <summary>live terrain の標高 (m)。⚠ 造成が乗る作業面 — 造成前の地盤は docs/Sashizu/base_dem.json が正典。</summary>
     public static float Ground(float x, float z) { var t = T(); return t.SampleHeight(new Vector3(x, 0, z)) + t.transform.position.y; }
@@ -411,14 +438,17 @@ public static partial class EdoBuild
     {
         var pts = Body(go.transform, maxSamples);
         float best = float.NaN; at = go.transform.position; count = 0;
-        var cl = new List<float>(pts.Count);
-        foreach (var p in pts)
+        if (pts.Count == 0) return best;
+        var probe = Probe();                       // ⭐ 掴みは駒ごとに一つ(⛔ 頂点ごとに Ground を呼ばない)
+        var cs = new float[pts.Count];
+        for (int i = 0; i < pts.Count; i++)
         {
-            float c = p.y - Ground(p.x, p.z); cl.Add(c);
+            var p = pts[i];
+            float c = p.y - probe.At(p.x, p.z); cs[i] = c;
             if (float.IsNaN(best) || c < best) { best = c; at = p; }
         }
         if (float.IsNaN(best)) return best;
-        foreach (var c in cl) if (c - best <= tol) count++;
+        for (int i = 0; i < cs.Length; i++) if (cs[i] - best <= tol) count++;
         return best;
     }
 

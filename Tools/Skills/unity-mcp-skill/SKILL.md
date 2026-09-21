@@ -281,6 +281,31 @@ set_active_instance(instance="MyProject@abc123")
 | "stale_file" error | File changed since SHA | Re-fetch SHA with `get_sha`, retry |
 | Connection lost | Domain reload | Wait ~5s, reconnect |
 | Commands fail silently | Wrong instance | Check `set_active_instance` |
+| `Timeout receiving Unity response` | Unity は生きていて処理は走り切ることが多い | **叩き直さない** — 進みをファイルで見る(下) |
+
+### ⛔ `Timeout receiving Unity response` を叩き直さない
+
+タイムアウトは**中断ではない**。Unity は 80〜100% CPU で処理を走り切っていることが多く、しかも
+**MCP の再送が届いて同じ処理が最初からもう一度走る**(2026-09-21 に2セッションで別々に実測)。
+
+⇒ 長い処理は **1件ごとにファイルへ書き出し**、タイムアウトしたら再送せずファイルの出来を見る。
+
+```csharp
+// ⛔ 冒頭で File.WriteAllText(outp, "") と空にしない — 再送が走ると進みが 0 に戻り、
+//    こちらは「進んでいない」と誤診する(2026-09-21 に実際に 10/13 → 8/13 へ巻き戻った)。
+// ⭕ 追記(AppendAllText)にして、呼ぶ前に自分で消しておく。
+foreach (var id in ids) {
+    var line = BuildOne(id);
+    System.IO.File.AppendAllText(outp, line + "\n────\n");
+}
+```
+
+進みを待つのは Unity へ問い合わせず **ファイルの行数**で:
+`until [ "$(grep -c 'プレハブ:' out.txt)" -ge 13 ]; do sleep 15; done`
+⚠ 罫線(`────`)を `grep -c` の目印にしない — シェルによっては当たらない。ASCII の語で数える。
+
+⭕ 冪等な処理(材の remap など)は、タイムアウトの後に**もう一度呼んで 0 件が返ること**で
+済んだと確かめられる。
 
 ## Reference Files
 

@@ -127,6 +127,22 @@ public static partial class EdoBuild
         return n.Contains("yane") || n.Contains("noki") || n.Contains("taruki") || n.Contains("mune") || n.Contains("keta");
     }
 
+    /// <summary>屋根名の篩に掛ける**部材の素性の名**。⛔ **手渡された根の GameObject 名は使わない** —
+    /// 根の名は <see cref="Place"/> が付けた**呼び名**(「Mon_munemon」「Bansho_L」など)で、部材の素性ではない。
+    ///
+    /// <para>⛔ 2026-09-21 に踏んだ(EDO-0318 ①): 部材方が焼いた駒は**単一メッシュが根に載る**ので、
+    /// `Place()` が根を "Mon_munemon" へ改名した瞬間に <see cref="IsRoofName"/> が "**mune**" を拾い、
+    /// 壁体の頂点が 0 になって <see cref="SeatOnGround"/> が「測れる頂点が無い」を投げた。
+    /// 棟門が一基も据わらない。⚠ 同じ型は "…keta…" "…noki…" を含む呼び名でも起きる。</para>
+    ///
+    /// <para>根に載っているメッシュは**メッシュ資産の名**で判ずる(FBX 由来なので改名されない)。
+    /// 子の GameObject は部材の中の名前がそのまま残っているので従来どおり。</para></summary>
+    static string PartName(Transform root, MeshFilter mf)
+    {
+        if (mf.transform != root) return mf.name;
+        return mf.sharedMesh != null ? mf.sharedMesh.name : mf.name;
+    }
+
     /// <summary>**壁体**(屋根・軒・垂木・棟・桁を除く、見えているメッシュ)の頂点を世界座標で。
     /// <paramref name="maxSamples"/> は一様な添字間引きの上限(既定 900・性能優先)。
     /// ⚠ 一様な間引きは極値を落とすことがある — 隅部材(単一メッシュ 1.6〜1.8 万頂点)は 999999 を渡して
@@ -140,7 +156,7 @@ public static partial class EdoBuild
         {
             if (mf.sharedMesh == null) continue;
             var rr = mf.GetComponent<Renderer>(); if (rr == null || !rr.enabled || !mf.gameObject.activeInHierarchy) continue;
-            if (!withRoof && IsRoofName(mf.name)) continue;
+            if (!withRoof && IsRoofName(PartName(tr, mf))) continue;
             var l2w = mf.transform.localToWorldMatrix; var vs = mf.sharedMesh.vertices;
             int step = Mathf.Max(1, vs.Length / Mathf.Max(1, maxSamples));
             for (int i = 0; i < vs.Length; i += step) L.Add(l2w.MultiplyPoint3x4(vs[i]));

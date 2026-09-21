@@ -24,7 +24,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Write|Edit|NotebookEdit|Bash|Agent|mcp__unityMCP__.*",
+        "matcher": "Read|Write|Edit|NotebookEdit|Bash|Agent|mcp__unityMCP__.*",
         "hooks": [
           {
             "type": "command",

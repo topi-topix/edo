@@ -152,12 +152,24 @@ def human_text(e):
     return None
 
 
+def guard_stops(fp):
+    """門番の文脈計がこのセッションを**何回止めたか**(`.claude/hooks/edo_guard.py` が刻む)。
+    ⭐ 天井を守る機構が実際に鳴っているかは、ここでしか見えない(規則19・EDO-0259)。
+    ⚠ 欄が無いセッション(2026-09-21 以前)は None = 「測っていない」。0 =「一度も止めなかった」。"""
+    sid = os.path.basename(fp)[:12]
+    try:
+        d = json.load(open(os.path.join(REPO, ".git", "edo-session", sid + ".json"), encoding="utf-8"))
+    except Exception:
+        return None
+    return int(d["ctx_stops"]) if "ctx_stops" in d else None
+
+
 def scan_main(fp, since):
     """主セッション 1 本の集計。⚠ assistant は content block ごとに別行で同じ message.id を共有し、
     各行に usage が付く(途中行は output 0)。message.id で畳まないと往復と cache_read が約 2 倍に膨らむ
     (2026-09-19 に直した — それ以前の数字は膨らんでいる)。"""
     r = dict(sid=os.path.basename(fp)[:8], title="-", first=None, last=None, turns=0, users=0,
-             read=0, write=0, out=0, maxctx=0, over300=0, over400=0, compacts=0,
+             read=0, write=0, out=0, maxctx=0, over300=0, over400=0, compacts=0, stops=guard_stops(fp),
              agents=collections.Counter(), board_posts=0, msgs=[], streak_max=0, streaks=[])
     last_txt = None
     st = Streaks()
@@ -320,17 +332,22 @@ def main():
         if r["turns"] and (r["last"] or "") >= a.since:
             rows.append(r)
     rows.sort(key=lambda r: -r["read"])
-    print("■ 主セッション(%s 以降・%d 本)  往復 | >300K | >400K | 圧縮 | cache_read | 呼出 | 自走の巡の最大" % (a.since, len(rows)))
+    print("■ 主セッション(%s 以降・%d 本)  往復 | >300K | >400K | 圧縮 | 止 | cache_read | 呼出 | 自走の巡の最大" % (a.since, len(rows)))
     tot = collections.Counter()
     for r in rows:
-        tot["turns"] += r["turns"]; tot["read"] += r["read"]; tot["o3"] += r["over300"]
-        print("  %s %-20s %5d | %3d%% | %3d%% | %d | %7s | %3d | %d"
+        tot["turns"] += r["turns"]; tot["read"] += r["read"]; tot["o3"] += r["over300"]; tot["stops"] += r["stops"] or 0
+        print("  %s %-20s %5d | %3d%% | %3d%% | %d | %2s | %7s | %3d | %d"
               % (r["sid"], r["title"][:20], r["turns"],
                  100 * r["over300"] // max(1, r["turns"]), 100 * r["over400"] // max(1, r["turns"]),
-                 r["compacts"], fmt_m(r["read"]), sum(r["agents"].values()), r["streak_max"]))
+                 r["compacts"], ("%2d" % r["stops"]) if r["stops"] is not None else " -", fmt_m(r["read"]), sum(r["agents"].values()), r["streak_max"]))
     if tot["turns"]:
-        print("  合計: 往復 %d / cache_read %s / 文脈>300K の往復 %d%%"
-              % (tot["turns"], fmt_m(tot["read"]), 100 * tot["o3"] // tot["turns"]))
+        print("  合計: 往復 %d / cache_read %s / 文脈>300K の往復 %d%% / 門番が止めた回数 %d"
+              % (tot["turns"], fmt_m(tot["read"]), 100 * tot["o3"] // tot["turns"], tot["stops"]))
+        # ⛔ 「天井の上なのに一度も止まっていない」= 機構が効いていない証拠(0 件は合格ではない・規則19)
+        mute = [r for r in rows if r["over300"] and r["stops"] == 0]
+        if mute:
+            print("  ⚠ 天井を超えたのに門番が一度も止めていないセッション %d 本: %s"
+                  % (len(mute), " ".join(r["sid"] for r in mute[:6])))
     print("\n■ 報告の質(ユーザー向け最終文)  通数 | 平均字 | 2000字超 | 見出し率 | 記号/通 | 役名/通 | 機構語を含む通")
     for r in rows:
         q = report_quality(r["msgs"])

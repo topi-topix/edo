@@ -475,6 +475,96 @@ def gate(name):
     return red, rows
 
 
+def selftest():
+    """⭐ **既知の形を仕込んで、関門が必ずその判定を出すことを確かめる。**
+
+    ⛔ 他の関門(`wiring_gate` / `decision_gate` / `config_doctor`)には自己検査が
+    あるのに、検図関門にだけ無かった(2026-09-13 の道具改め G1・EDO-0219)。
+    ⚠ **関門は「赤が出ない」のが正常**なので、判定が死んでも誰も気づかない —
+    静かに全邸が通り、赤のまま実装へ進む。だから自分で自分を鳴らす。
+    ⛔ 本物の指図は一切読まない(捨て場に仕込んだ json だけを見る)。"""
+    import shutil
+    import tempfile
+    tmp = tempfile.mkdtemp(prefix="review-gate-selftest-")
+    base = {"_": "自己検査の作り物", "mune": [{"name": "表御殿"}]}   # 庭を持たない = 庭方は不要
+
+    def doc_with(reviews, extra=None):
+        d = dict(base)
+        if extra:
+            d.update(extra)
+        d["reviews"] = reviews
+        return d
+
+    def place(d, phase=None):
+        """作り物を捨て場へ置き、_doc_path / _kansei_phase をそこへ向ける。"""
+        p = os.path.join(tmp, "selftest_sashizu.json")
+        with open(p, "w") as fp:
+            json.dump(d, fp, ensure_ascii=False)
+        if phase:
+            with open(os.path.join(tmp, "selftest_kansei.json"), "w") as fp:
+                json.dump({"phase": phase}, fp)
+        elif os.path.exists(os.path.join(tmp, "selftest_kansei.json")):
+            os.remove(os.path.join(tmp, "selftest_kansei.json"))
+        return p
+
+    def good_hash(d, p):
+        return fingerprint(d, REVIEWERS["kenzu"]["keys"], "selftest", p,
+                           REVIEWERS["kenzu"].get("files", ()))
+
+    orig_doc_path = globals()["_doc_path"]
+    globals()["_doc_path"] = lambda n: os.path.join(tmp, "selftest_sashizu.json")
+    ng = []
+    try:
+        # (題, 仕込む reviews.kenzu, phase, 期待する印, 期待が赤か)
+        d0 = doc_with({})
+        p0 = place(d0)
+        h = good_hash(d0, p0)
+        # ⛔ **印と赤の件数だけを見てはいけない。**2026-09-21 の破壊試験で判った —
+        #   「不合格」の判定を殺しても、`verdict` が pass/advisory のどれでもないので
+        #   最後の「読めない」へ落ち、印も ⛔・赤も 1 件のまま**同じに見える**。
+        #   ⭕ **なぜ赤なのかの文言まで突き合わせる**(検査の文言と実装の集合を合わせる)。
+        cases = [
+            ("記録が無い",          None,                                        None,    "⛔", True,  "記録が無い"),
+            ("不合格",              {"verdict": "fail", "at": "2026-01-01", "hash": h}, None, "⛔", True,  "不合格"),
+            ("指図が変わった",      {"verdict": "pass", "at": "2026-01-01", "hash": "ちがう"}, None, "⚠", True,  "検め直しが要る"),
+            ("通っている",          {"verdict": "pass", "at": "2026-01-01", "hash": h}, None, "⭕", False, "通っている"),
+            ("助言のみ",            {"verdict": "advisory", "at": "2026-01-01", "hash": h}, None, "・", False, "助言のみ"),
+            ("verdict が読めない",  {"verdict": "まる", "at": "2026-01-01", "hash": h}, None, "⛔", True,  "読めない"),
+            ("実装後は効かない",    None,                                        "built", "・", False, "実装後"),
+        ]
+        for title, kenzu, phase, want_mark, want_red, want_why in cases:
+            # ⚠ 指紋は指図の中身から出るので、**記録を入れ終えた形**で採る。
+            #   ⭕ `reviews` 自身は指紋の対象外(でなければ循環する)。
+            d = doc_with({"kenzu": dict(kenzu)} if kenzu else {})
+            d["reviews"]["kosho"] = {"verdict": "pass", "at": "2026-01-01"}
+            p = place(d, phase)
+            for role in ("kenzu", "kosho"):
+                rec = d["reviews"].get(role)
+                if rec and rec.get("hash") != "ちがう":
+                    rec["hash"] = fingerprint(d, REVIEWERS[role]["keys"], "selftest", p,
+                                              REVIEWERS[role].get("files", ()))
+            p = place(d, phase)
+            red, rows = gate("selftest")
+            row = next((r for r in rows if r[1] in ("kenzu", "kansei")), None)
+            mark = row[0] if row else "(行が無い)"
+            why = row[3] if row else ""
+            ok = (mark == want_mark) and (bool(red) == want_red) and (want_why in why)
+            print("%s %-20s → %s「%s」(期待 %s「%s」)/ 赤 %d 件"
+                  % ("⭕" if ok else "⛔", title, mark, why[:22], want_mark, want_why, red))
+            if not ok:
+                ng.append(title)
+    finally:
+        globals()["_doc_path"] = orig_doc_path
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    print()
+    if ng:
+        print("⛔ 自己検査 不通 %d 件 — **関門の判定が死んでいる。**%s" % (len(ng), " / ".join(ng)))
+        return 1
+    print("⭕ 自己検査 全通 — 7 つの形とも生きている。")
+    return 0
+
+
 def record(name, key, verdict, note):
     # ⚠ 書き戻し先も _doc_path — main に書くと、worktree で作業している邸の
     #   指図には反映されず、次の巡回でまた「記録が無い」に戻る。
@@ -528,6 +618,8 @@ def record(name, key, verdict, note):
 
 def main():
     argv = sys.argv[1:]
+    if argv and argv[0] == "--selftest":
+        return sys.exit(selftest())
     if argv and argv[0] == "--record":
         if len(argv) < 4:
             sys.exit("使い方: --record <屋敷> <検分役> <pass|fail|advisory> [一言]\n"

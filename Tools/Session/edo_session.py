@@ -53,6 +53,27 @@ SID_LEN = 12
 IDLE_MIN = {"unity": 20.0, "terrain": 20.0, "assets": 30.0, "git-index": 10.0}
 
 
+def buzai_resource(cmd):
+    """Blender の一行から **その部材だけの資源名** `assets:<スクリプト名>` を作る。
+
+    ⛔ **Blender 同士は本来ぶつからない**(`--background` の使い捨て)。効くのは出力の
+    後勝ちだけで、それは**同じ物を焼いたときにしか起きない**。2026-09-21 の実測:
+    書き出し 48 本のうち、2 本以上のスクリプトが同じ名前の FBX を書く組は **0 件**。
+    全数を焼き直すのは `build_goten_roof.py -- rebuild` だけで、その出力先 `Goten/Roofs/`
+    を使うスクリプトは**それ 1 本**。⇒ **待つ必要があるのは同じスクリプトどうしだけ。**
+    ⚠ 施主指摘(2026-09-21)「同じ部材を扱う時だけ待ち行列が発生するのでなければ、
+    無駄に待つことになる」。
+    ⚠ スクリプト名を読めなかったときだけ、安全側に倒して従来どおり `assets` 全体を取る。"""
+    m = re.search(r"([A-Za-z0-9_.-]+)\.py\b", cmd or "")
+    return "assets:%s" % m.group(1) if m else "assets"
+
+
+def known_resource(r):
+    """`--resources` に書いてよい名か。⭐ 部材は `assets:<スクリプト名>` を許す。"""
+    return r in RESOURCES or r in PSEUDO_RESOURCES or (
+        r.startswith("assets:") and len(r) > len("assets:"))
+
+
 def res_idle(c, r):
     """資源 r を最後に使ってからの経過(分)。記録が無い旧 claim は心拍で代用する。"""
     t = (c.get("used") or {}).get(r)
@@ -556,7 +577,7 @@ def cmd_status(a):
 def cmd_wait(a):
     me = sid(a.session)
     for r in a.resources:
-        if r not in RESOURCES:
+        if not known_resource(r):
             print("不明な資源: %s" % r, file=sys.stderr)
             return 1
         hold = [c for c in load_all(a.ttl)
@@ -589,8 +610,8 @@ def cmd_claim(a):
         if k not in c["paths"]:
             c["paths"].append(k)
     for r in a.resources:
-        if r not in RESOURCES and r not in PSEUDO_RESOURCES:
-            print("不明な資源: %s(%s のいずれか)"
+        if not known_resource(r):
+            print("不明な資源: %s(%s / assets:<スクリプト名> のいずれか)"
                   % (r, "/".join(RESOURCES + PSEUDO_RESOURCES)), file=sys.stderr)
             return 1
         # ⭐ 予約の尊重・放置の引き取り・待ち行列の掃除は take_resource が一手に見る
@@ -874,15 +895,17 @@ def cmd_check_bash(a):
         #   ⚠ 実測(2026-09-07): 山王が 17 分待ち、土井が気づいて手で返すまで空かなかった。
         #   ⛔ 待たせた側は「待っている人がいる」ことにも気づけない(行列に並べていないので)。
         #   ⚠ 心拍で刷っていたのも誤り — 心拍は別の作業でも更新されるので「使用中」に見え続ける。
-        ok, msg = take_resource(me, "assets", a.ttl)
+        # ⭐ **部材ごとに分ける**(2026-09-21 施主指摘)— 別の部材を焼く者どうしは待たない。
+        r = buzai_resource(cmd)
+        ok, msg = take_resource(me, r, a.ttl)
         if not ok:
             return _deny(
-                msg + "\n   ⚠ 出力先 `Assets/Edo/Models/` は共有で、同じ部材を同時に焼くと"
-                      "**後勝ちで上書き**される\n"
+                msg + "\n   ⚠ **同じ部材を焼こうとしている**(別の部材なら待たされない)。\n"
+                      "     同じ物を同時に焼くと出力が**後勝ちで上書き**される\n"
                       "     (`build_goten_roof.py -- rebuild` は Roofs/ の全数を焼き直す)。")
         if msg:
             print(msg)
-        touch(me, resources=["assets"])
+        touch(me, resources=[r])
     for pat, why in BANNED:
         if re.search(pat, cmd):
             return _deny("⛔ 門番: この git の打ち方は共有ワークツリーでは禁止。\n   %s" % why)
@@ -939,7 +962,7 @@ def cmd_steal(a):
     #   生死は claim の心拍だけで見る(load_all が TTL で落とす)。
     #   本当に固まった相手は心拍も止まるので、IDLE_MIN 経過後に res_stale が立ち、
     #   `wait` → 予約か、次の take_resource が正規の手順で引き取る。逃げ道は要らない。
-    for r in [w for w in a.what if w in RESOURCES]:
+    for r in [w for w in a.what if known_resource(w) and w not in PSEUDO_RESOURCES]:
         hold = [c for c in cs if c["session"] != me and r in c.get("resources", [])]
         if hold and not res_stale(hold[0], r):
             print("⛔ 門番: %s は**セッション %s が使用中**(心拍 %.1f 分前・最終使用 %.0f 分前)。\n"
@@ -978,8 +1001,8 @@ def cmd_steal(a):
             n += 1
             fp = os.path.join(LOCKS, "%s.json" % re.sub(r"[^A-Za-z0-9_.-]", "_", c["session"]))
             save(c, fp)
-    touch(me, paths=[w for w in a.what if w not in RESOURCES],
-          resources=[w for w in a.what if w in RESOURCES])
+    touch(me, paths=[w for w in a.what if not known_resource(w)],
+          resources=[w for w in a.what if known_resource(w)])
     print("steal: %s を %d 件のセッションから引き取った(理由: %s)" % (a.what, n, a.reason or "—"))
     return 0
 
@@ -1121,7 +1144,12 @@ def cmd_start(a):
               "**新しいセッション**で。" % a.name, file=sys.stderr)
         return 2
     if a.unity or a.blender:
-        want = ["unity"] if a.unity else ["assets"]
+        # ⛔ **`--blender` では資源を取らない**(2026-09-21 施主指摘)。取る相手が
+        #   決まるのは「どのスクリプトを回すか」が判った瞬間で、そこは check-bash が
+        #   `assets:<スクリプト名>` で押さえる。ここで `assets` 全体を粗く握ると、
+        #   **別の部材を焼くだけの相手まで待たせる**。`--blender` の役目は
+        #   「メインのチェックアウトに留まる」ことだけ(在庫キットが worktree に無いため)。
+        want = ["unity"] if a.unity else []
         for w in want:
             # ⭐ `check-unity` と同じ規則で取る(予約を追い越さない・放置は引き取る)。
             #   ⛔ ここだけ独自判定にしていたため、`wait` で並んだ側を横取りできた。
@@ -1339,10 +1367,10 @@ def main():
     p.add_argument("--resources", nargs="*", default=[]); p.add_argument("--keep", action="store_true", help="自邸の open task を残したまま返す(手仕舞い済みの申告)")
     p.set_defaults(fn=cmd_release)
     p = sub.add_parser("wait", help="使用中の資源の待ち行列に並ぶ(空けば先頭に予約が出る)")
-    p.add_argument("--resources", nargs="+", required=True, choices=RESOURCES)
+    p.add_argument("--resources", nargs="+", required=True)
     p.add_argument("--note", default=""); p.set_defaults(fn=cmd_wait)
     p = sub.add_parser("unwait", help="待ち行列から降りる")
-    p.add_argument("--resources", nargs="+", required=True, choices=RESOURCES)
+    p.add_argument("--resources", nargs="+", required=True)
     p.set_defaults(fn=cmd_unwait)
     p = sub.add_parser("check-write"); p.add_argument("path")
     p.add_argument("--no-route", action="store_true"); p.set_defaults(fn=cmd_check_write)

@@ -159,20 +159,46 @@ greet フックが board の digest を自動表示する — **裁定待ち →
 見たいときに誰でも流してよく、公開は同一 URL へ中身だけ差し替える:
 https://claude.ai/artifact/3wTRqrXgJBp8LJUwWFZ4KY
 
-```
-Artifact(file_path=".git/edo-board/_pm/index.html",
-         url="https://claude.ai/artifact/3wTRqrXgJBp8LJUwWFZ4KY",
-         files={"board.html": ".git/edo-board/_pm/dashboard.html"},
-         overwrite_unread=["board.html"])
-```
-
 ⛔ **一枚そのものを頁にしない。**`url=` を渡して頁を上書きするには、その通話が一度その頁を
 **読んで**いなければならない。880KB の頁を読むと文脈がそれだけで埋まる — これが
 「公開は日に一度」の正体だった(2026-09-21 に判明)。表紙が 529 バイトなら読んでも無害で、
 中身は添え物として差し替わる。旧い一枚(`…/artifact/SffWPZCmVFFBGGiUbCR3NS`・
 `…/code/artifact/cfda75da-…`)は 2026-09-21 で更新を止めた。
-**定期の担い手は毎朝の `/nikki`**(2026-09-20 施主裁定)。焼いたら Artifact へ上書きし、
-`build_board_html.py --published <URL>` で判を押す — ⛔ 焼いただけでは施主に届かない。
+**定期の担い手は毎朝の `/nikki`**(2026-09-20 施主裁定)。上げ方は次の節。
+⛔ 焼いただけでは施主に届かない。
+
+### 上げ方 — 楽観ロック(2026-09-22 施主指示)
+
+複数のセッションが手仕舞いのたびに同じ一枚を上げ合う。**焼くとき版を採る → 上げる直前に照合する →
+違えば焼き直してから上げる。**板は件の json(`.git/edo-board/EDO-*.json`)から毎回作り直すので、
+焼き直した一枚には自分の分も相手の分も入り、取り合いにならない。
+
+1. **焼く** — `python3 Tools/Session/build_board_html.py --stage Temp/edo-board`
+   焼いて、版を `_pm/baked.json` に書き、`index.html` と `dashboard.html` を `Temp/edo-board/` へ写す。
+   写す先は作業ツリーの中(`.gitignore` 対象)。Artifact は作業ディレクトリの外を受け取らず、
+   worktree では `.git` がファイルなので `.git/edo-board/…` は相対でも開けない(ENOTDIR)。
+2. **上げる直前に照合** — `python3 Tools/Session/build_board_html.py --check-fresh`。
+   0 ならそのまま上げる。1 なら焼いてから板が動いている — 1. へ戻る。
+3. **上げる** —
+   ```
+   Artifact(file_path="Temp/edo-board/index.html",
+            url="https://claude.ai/artifact/3wTRqrXgJBp8LJUwWFZ4KY",
+            files={"board.html": "Temp/edo-board/dashboard.html"},
+            overwrite_unread=["board.html"])
+   ```
+   断られたら(枠の頁を見ていない / 別のセッションが先に上げた):
+   ① `Artifact(action="read", url=…)` を1回 — 読まれるのは枠の頁だけ。⛔ 板の本体 `board.html` は読まない(大きい)
+   ② 1. で焼き直して写す ③ もう一度上げる。⛔ **上げずに終えない。**
+4. **判を押す** — `python3 Tools/Session/build_board_html.py --published <URL>`。判は版も押す。
+   ⛔ 焼いただけ・ローカルで焼き直しただけでは押さない。
+
+**なぜ時刻でなく版か。** 版は件の json のファイル名と中身から採る 16 桁の指紋で、同じ版なら中身が同じ。
+だから誰が上げた一枚でも「今の板を写している」と言える。時刻で測ると二つ外れる —
+(a) 件が消えると「一番新しい更新時刻」は下がり、覆っていると誤って読める。
+(b) 別のセッションが先に焼いて後から上げると、判の時刻のほうが新しいのに、その板には
+後から起票された件が入っていない。
+⚠ claim の心拍と main の HEAD は**わざと版に入れていない**(入れると一枚が永久に古くなる)。
+挨拶フックは判の版で古びを判定し、版の無い旧い判だけ時刻へ後退する。
 
 ### 届くまでの遅れを詰める二本立て(2026-09-21 施主裁定 EDO-0298=A+B)
 
@@ -184,7 +210,7 @@ Artifact(file_path=".git/edo-board/_pm/index.html",
 | **B 常時の窓** | `Tools/Session/board_window.py`(launchd `jp.edo.board-window`) | 5 分以内 | http://127.0.0.1:8787/ (この Mac だけ) |
 
 ⛔ **公開だけは手が要る**(Artifact は人の道具)。フックは焼くところまでしかできないので、
-止められたら `.git/edo-board/_pm/dashboard.html` を `url=` 付きで上書きし、`--published <URL>` で判を押す。
+止められたら上の「上げ方」の 2.〜4. を踏む(焼いて写すところまではフックが済ませている)。
 ⛔ **ローカルの焼き直しで判を押さない** — 判は「施主が見る Artifact が新しい」ことの印で、
 ここを混ぜると外向きの遅れが見えなくなる。
 ⭐ **裁定と詰まりの二種は板に置くだけでは届かない。** その巡のうちに施主へ 6 点セットで出す
@@ -209,7 +235,7 @@ Artifact(file_path=".git/edo-board/_pm/index.html",
 
 掲示板の実体は `.git/edo-board/` にあり**リポジトリに入らない**。施主がこれを見られるのは
 `python3 Tools/Session/build_board_html.py` が焼く一枚だけ。⛔ **焼いた ≠ 届いた** —
-Artifact を更新したら `build_board_html.py --published <URL>` で判を押す。
+Artifact を更新したら判を押す(版も押す)。手順は「ダッシュボード」の「上げ方」— 照合してから上げ、上げたら判。
 2026-09-02 に焼いた一枚が 17 日そのままで、施主が掲示板を見失った(2026-09-19)。
 判が古いと挨拶フックが 1 行鳴る。
 

@@ -11,6 +11,7 @@ CLAUDE.md・`.claude/`(役・コマンド・フック・rules・workflows)・ス
 | 役目 | 道具 | いつ |
 |---|---|---|
 | **道具改め** — 設定の破れを鳴らす | `python3 Tools/Session/config_doctor.py` | 挨拶(`--quick`)・週次(`--table`)・月次(`--deep`) |
+| **利用実績** — 使われていない役・スキル・参照を挙げる。直さない(畳む・統合する・残すは人が決める) | `config_doctor.py --table` の **U1**(30 日呼ばれない役・スキル)/ **U2**(60 日読まれない参照)。台帳は `python3 Tools/Session/usage_ledger.py` | 週次(`--table`・`--deep`)。挨拶では回さない |
 | **週次の自動点検** — 表と自己検査を取り、掲示板(`infra`)へ起票して通知する。直さない | スケジュール済みタスク `edo-teire-weekly`(本文 `~/.claude/scheduled-tasks/edo-teire-weekly/SKILL.md`) | 毎週日曜 18 時(アプリが閉じていれば次の起動時)。2026-09-13 ユーザー裁定 |
 | **手入れ** — 表を読んで処置する | `/teire` | 週次。自動点検の起票を受けて回す。挨拶も「前回から N 日」と催促する |
 | 自己検査 — 道具の検出が生きているか | `config_doctor.py --selftest` | 月次(`--deep` が回す)と道具を直したとき |
@@ -22,7 +23,7 @@ CLAUDE.md・`.claude/`(役・コマンド・フック・rules・workflows)・ス
 検査の型(鍵の頭 2 文字): **R** 参照の実在(役→スキル・参照節、CLAUDE.md の表→文書・役、コマンド→Workflow・道具、
 フック→スクリプト、SKILL.md↔references、MEMORY.md↔ファイル)/ **Q** 設定を語る数字(計測キー無し・計測とのずれ・
 期限切れの移行期間)/ **C** 義務の矛盾(必ず/しない の並存・`obl:` タグの正典が 1 箇所か・description の衛生)/
-**S** サイズ予算 / **V** frontmatter の妥当性 / **G** 関門に自己検査 / **K** ゴミ / **W** worktree の設定のずれ /
+**S** サイズ予算 / **V** frontmatter の妥当性 / **G** 関門に自己検査 / **K** ゴミ / **U** 利用実績(transcript から。記録が 30 日に満たない間は判定しない・入って窓の分は猶予)/ **W** worktree の設定のずれ /
 **Y** sync-tools の網羅 / **SK** スキルの未コミット / **L** 教訓の処置タグ / **N** 催促。
 各型の条件と予算は `config_doctor.py` の中(`BUDGET`・各 `chk_*` の docstring)が正典で、ここには写さない。
 
@@ -31,6 +32,9 @@ CLAUDE.md・`.claude/`(役・コマンド・フック・rules・workflows)・ス
 1. **挨拶で ⛔ が出たら、設定を触る前に直す。** ⛔ は曖昧さの無い破れ(無い物を指す・JSON が壊れている・
    義務の正典が 2 つ)。`.claude/`・CLAUDE.md・`Tools/Skills/`・メモリ・`docs/lessons.md` を触るコミットは、
    `--quick` が無言であることが合格の条件。⚠ は表の材料であって止め物ではない。
+   **コミットの手前で門番が回す**(2026-09-21・EDO-0221): 上の物を含む `git commit` / `edo_session.py commit` は、
+   `--quick` が ⛔ を返していると止まる(⚠・催促・道具の失敗・遅延は通す)。main だけ — worktree のコミットには回さない。
+   `--amend` も回さない。自己検査は `python3 Tools/Session/edo_session.py selftest`。
 1.5. **毎朝 `/nikki`。** 夜の自動点検が前日の日誌と反映案を起票する。朝の普請奉行がそれを読み、メモリ・教訓・
    スキル・規則へ**手で**入れてコミットする(自動では書かない — ユーザー裁定 2026-09-19。自動化すると二度と鳴らない
    `docs/verification-loops.md`)。日誌が測る物: 実働(放置と施主の返事待ちを除く)・時間の行き先(役・Bash・Unity・
@@ -87,5 +91,9 @@ CLAUDE.md・`.claude/`(役・コマンド・フック・rules・workflows)・ス
   生ログは `.git/edo-nikki/claims.jsonl`(claim が消える前に門番が刻む — release / 失効 / 奪取)と
   `sessions.jsonl`(SessionEnd フック `.claude/hooks/edo_session_end.py`)。どちらも append-only。
   transcript(`~/.claude/projects/<repo>/`)は Claude Code が消しうるので、日誌がリポジトリに載る側の正典。
-- 未着手(元「第 2 期」の残り): 呼ばれない役・スキルと読まれない参照の利用実績、コミット時に門番が `--quick` を
-  回す、ダッシュボードの 1 行。長すぎる最終回答は日誌の「最終文の質」が測る。
+- 利用実績の台帳: `.git/edo-teire/usage.json`(transcript ごとの寄与。**消えた transcript の寄与は残す** — 消えたから
+  「使われなかった」に戻らない)。main と worktree のセッションの transcript を両方読む。初回は 16 秒ほど、以後は差分。
+  拾う物と算法は `usage_ledger.py` の docstring が正典。⚠ Bash の文に書いたパスも「読んだ」と数える(緩い側に倒す)。
+- 手入れの第 2 期は 2026-09-21 に終わった(EDO-0221): 利用実績(U1/U2)・コミット時の `--quick`・ダッシュボードの 1 行
+  (`build_board_html.py` の `teire_chips`。前回の道具改めからの日数・⛔⚠・使われていない設定の数)。
+  長すぎる最終回答は日誌の「最終文の質」が測る。

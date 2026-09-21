@@ -718,6 +718,59 @@ def _deny(msg):
     return 2
 
 
+# ── 設定を触るコミットの関門(2026-09-21・EDO-0221)──────────────────────────────
+#   docs/teire.md 作法1: 設定(CLAUDE.md・.claude/・スキル・教訓)を触るコミットは `config_doctor --quick` が
+#   無言であることが合格の条件。散文の作法では 2026-09-19 に 20 回の編集・6 回の門番の停止を出したので、
+#   コミットの手前で道具に見張らせる。⛔ 止めるのは道具改めが ⛔(曖昧さの無い破れ)を返したときだけ —
+#   ⚠ と催促(N1)は通す。⚠ 道具が落ちた・遅い時は通す(フックは作業を止めない)。
+#   ⚠ main でだけ回す: 道具改めは main の作業ツリーを検める。worktree のコミットに main の状態を突き付けても無意味。
+_DOCTOR_PREFIX = (".claude/agents/", ".claude/commands/", ".claude/rules/", ".claude/hooks/",
+                  ".claude/workflows/", ".claude/agent-memory/", "Tools/Skills/")
+_DOCTOR_FILES = ("CLAUDE.md", ".claude/settings.json", "docs/lessons.md")
+
+
+def _config_paths(files):
+    return [f for f in files if f in _DOCTOR_FILES or f.startswith(_DOCTOR_PREFIX)]
+
+
+def _doctor_gate(files, cmd=None, timeout=45):
+    """→ 止める文(str)| None。files は今回コミットに入る repo 相対のパス。"""
+    cfg = _config_paths(files)
+    if not cfg:
+        return None
+    try:
+        r = subprocess.run(cmd or [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                                                 "config_doctor.py"), "--quick"],
+                           capture_output=True, text=True, timeout=timeout, cwd=ROOT)
+    except Exception:
+        return None
+    if r.returncode != 1:
+        return None
+    return ("⛔ 門番: 設定を触るコミットだが、道具改めが**設定の破れ(⛔)**を返している。\n"
+            + "".join("   %s\n" % ln for ln in r.stdout.strip().split("\n")[:8])
+            + "   対象: %s\n" % ", ".join(cfg[:4])
+            + "   → 直して `python3 Tools/Session/config_doctor.py --quick` が無言になってからコミットすること"
+              "(docs/teire.md 作法1)。\n"
+              "   ⚠ 破れが**他のセッションの編集中の物**なら、その物を外す(`git restore --staged`)か、相手が直すのを待つ。")
+
+
+def _is_main_root():
+    return os.path.realpath(ROOT) == os.path.realpath(os.path.dirname(_common_git_dir()))
+
+
+def _commit_paths(cmd, staged):
+    """コミットに入る物 = staging ∪ `git commit … -- <パス>` の明示パス。⚠ 後者は staging に載らない。"""
+    files = list(staged)
+    m = re.search(CMDPOS + r"git\s+commit\b[^|;&]*?\s--\s+([^|;&]+)", cmd)
+    if m:
+        try:
+            import shlex
+            files += shlex.split(m.group(1))
+        except ValueError:
+            pass
+    return files
+
+
 def cmd_check_write(a):
     me = sid(a.session)
     p = a.path
@@ -966,6 +1019,10 @@ def cmd_check_bash(a):
             hs = holders(os.path.join(ROOT, f), me, a.ttl)
             if hs:
                 bad.append((f, hs[0][0]["session"]))
+        if not bad and _is_main_root():
+            why = _doctor_gate(_commit_paths(cmd, staged))
+            if why:
+                return _deny(why)
         if bad:
             return _deny(
                 "⛔ 門番: staging に**別のセッションが押さえているファイル**が入っている。\n"
@@ -1062,10 +1119,45 @@ def cmd_commit(a):
         print("⛔ 他のセッションが押さえているパスが混ざっている:\n"
               + "".join("   %s ← %s\n" % b for b in bad), file=sys.stderr)
         return 2
+    if _is_main_root():
+        why = _doctor_gate(a.paths)
+        if why:
+            print(why, file=sys.stderr)
+            return 2
     subprocess.run(["git", "-C", ROOT, "reset", "-q"], check=False)
     subprocess.run(["git", "-C", ROOT, "add", "--"] + list(a.paths), check=True)
     r = subprocess.run(["git", "-C", ROOT, "commit", "-m", a.message], check=False)
     return r.returncode
+
+
+def cmd_selftest(a):
+    """⛔ 落ちたら**設定コミットの関門が死んでいる**(素通りしても誰も気づかない)。"""
+    ng = 0
+    bad_doc = [sys.executable, "-c", "print('道具改め — 設定に破れがある');print('  ⛔ R1 x — y');raise SystemExit(1)"]
+    nudge = [sys.executable, "-c", "print('手入れ: 前回から 9 日');raise SystemExit(0)"]
+    crash = [sys.executable, "-c", "raise SystemExit(3)"]
+    slow = [sys.executable, "-c", "import time;time.sleep(5)"]
+    cases = [
+        ("設定を触る + ⛔ → 止める", ["CLAUDE.md"], bad_doc, True),
+        (".claude/agents を触る + ⛔ → 止める", [".claude/agents/edo-x.md"], bad_doc, True),
+        ("スキルを触る + ⛔ → 止める", ["Tools/Skills/a/SKILL.md"], bad_doc, True),
+        ("教訓を触る + ⛔ → 止める", ["docs/lessons.md"], bad_doc, True),
+        ("設定を触る + 催促だけ(exit 0)→ 通す", ["CLAUDE.md"], nudge, False),
+        ("設定を触る + 道具が落ちた → 通す", ["CLAUDE.md"], crash, False),
+        ("設定を触る + 遅い → 通す", ["CLAUDE.md"], slow, False),
+        ("設定に触れない + ⛔ → 通す(そもそも回さない)", ["Assets/x.cs", "docs/other.md", ".claude/settings.local.json"], bad_doc, False),
+    ]
+    for title, files, cmd, deny in cases:
+        got = _doctor_gate(files, cmd=cmd, timeout=1) is not None
+        ok = got == deny
+        ng += 0 if ok else 1
+        print("%s %s" % ("⭕" if ok else "⛔", title))
+    got = _commit_paths("git commit -m x -- CLAUDE.md docs/a.md", ["Tools/x.py"])
+    ok = got == ["Tools/x.py", "CLAUDE.md", "docs/a.md"]
+    ng += 0 if ok else 1
+    print("%s `git commit -- <パス>` の明示パスを拾う(staging に載らない物)%s" % ("⭕" if ok else "⛔", "" if ok else " → %s" % got))
+    print("⛔ 自己検査 %d 件失敗" % ng if ng else "⭕ 自己検査 全通")
+    return 1 if ng else 0
 
 
 SPARSE = ["docs", "Tools", ".claude"]
@@ -1448,6 +1540,7 @@ def main():
                             "(コミットはしない。EDO-0076/0077)")
     p.add_argument("--verbose", action="store_true", help="変更が無い worktree も出す")
     p.set_defaults(fn=cmd_sync_tools)
+    sub.add_parser("selftest", help="設定コミットの関門の自己検査").set_defaults(fn=cmd_selftest)
     p = sub.add_parser("commit"); p.add_argument("paths", nargs="+")
     p.add_argument("-m", "--message", required=True); p.set_defaults(fn=cmd_commit)
     a = ap.parse_args()

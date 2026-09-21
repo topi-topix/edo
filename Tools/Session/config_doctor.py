@@ -33,6 +33,7 @@
 """
 import argparse
 import ast
+import datetime
 import fnmatch
 import glob
 import hashlib
@@ -46,6 +47,9 @@ import tempfile
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import usage_ledger as UL  # noqa: E402  利用実績(U1/U2)
+
 HOME = os.path.expanduser("~")
 
 # ── 既知の名前(Claude Code の作法) ──────────────────────────────────────
@@ -78,6 +82,7 @@ BUDGET = {"claude_lines": 160, "claude_kb": 14, "agent_lines": 200, "command_lin
           "memory_file": 250, "memory_index": 120, "lessons_lines": 200, "agent_desc": 600}
 REF_ALLOW = {"sources.md"}          # 典拠台帳は長くてよい(目次があること)
 LESSON_DUE_DAYS, TRANSITION_DAYS, NUDGE_DAYS, UNCOMMITTED_DAYS = 14, 30, 7, 7
+IDLE_ROLE_DAYS, IDLE_REF_DAYS, USAGE_MIN_COVER = 30, 60, 30   # U1(役・スキル)/ U2(参照)/ これ未満の記録では判定しない
 QUICK_MAX = 6
 
 
@@ -110,6 +115,8 @@ class Env:
         gd = _git(self.root, "rev-parse", "--path-format=absolute", "--git-common-dir").strip()
         self.state = os.path.abspath(a.state_dir) if a.state_dir else os.path.join(gd or self.root, "edo-teire")
         self.worktrees_override = a.worktrees
+        self.transcripts_override = a.transcripts_dir
+        self.quick = False
         self.now = time.time()
         self._tracked = None
 
@@ -161,6 +168,16 @@ class Env:
         except Exception:
             pass
         return out
+
+    def added_at(self, path):
+        """git に入った時刻(epoch)。git が無い・履歴が無いなら None(= 古い物として扱う)。"""
+        if not self.is_git:
+            return None
+        rel = os.path.relpath(os.path.realpath(path), os.path.realpath(self.root))   # ⚠ スキルは symlink 越し
+        if rel.startswith(".."):
+            return None
+        out = _git(self.root, "log", "--diff-filter=A", "--follow", "--format=%ct", "--", rel, timeout=10).split()
+        return int(out[-1]) if out else None
 
     def edo_skills(self):
         """検める対象のスキル = 設定から Skill(x) で参照される物 ∪ Tools/Skills/ にある物。irweather 等は見ない。"""
@@ -870,6 +887,79 @@ def chk_L(env, F):
                 F.add("L1", "⚠", fp, "行 %d: %s の保留期限 %s を過ぎた" % (i, iid, t[3:]), fix="lesson-tag →不要")
 
 
+def _usage(env):
+    """(台帳の要約, 記録の最古 epoch) — 台帳を差分更新してから読む。transcript が無ければ (None, None)。"""
+    dirs = env.transcripts_override if env.transcripts_override is not None else UL.project_dirs(env.root)
+    if not dirs:
+        return None, None
+    return UL.summarize(UL.scan(env.state, dirs))
+
+
+def chk_U(env, F):
+    """利用実績(EDO-0221)。U1 役・スキルが 30 日呼ばれていない / U2 参照が 60 日読まれていない。
+    ⚠ 挨拶(--quick)では回さない(transcript を舐める)。⚠ 記録が 30 日に満たない間は判定しない —
+    「一度も呼ばれていない」は記録が足りないだけかもしれない。⚠ 新しく入った物は窓の分だけ猶予する。"""
+    if env.quick:
+        return
+    tot, first = _usage(env)
+    if not first:
+        return
+    cover = int((env.now - first) / 86400)
+    if cover < USAGE_MIN_COVER:
+        return
+    since = time.strftime("%Y-%m-%d", time.localtime(first))
+
+    for fp in env.agents():
+        name = os.path.basename(fp)[:-3]
+        w = idle_from(env, tot.get("role:" + name, (0, 0)), IDLE_ROLE_DAYS, fp, cover, since)
+        if w:
+            F.add("U1", "⚠", fp, "役 %s は %s呼ばれていない(最後 %s)" % ((name,) + w), fix="")
+    for name in env.edo_skills():
+        d = env.skill_dir(name)
+        if not d:
+            continue
+        w = idle_from(env, tot.get("skill:" + name, (0, 0)), IDLE_ROLE_DAYS, os.path.join(d, "SKILL.md"), cover, since)
+        if w:
+            F.add("U1", "⚠", os.path.join(d, "SKILL.md"), "スキル %s は %s呼ばれていない(最後 %s)" % ((name,) + w), fix="")
+    refs = {}       # 台帳の鍵 → 実ファイル
+    for name in env.edo_skills():
+        d = env.skill_dir(name)
+        for fp in sorted(glob.glob(os.path.join(d, "references", "**", "*.md"), recursive=True)) if d else []:
+            refs["%s/%s" % (name, os.path.relpath(fp, d))] = fp
+    base_count = {}
+    for k in refs:
+        b = k.split("/references/", 1)[-1]
+        base_count[b] = base_count.get(b, 0) + 1
+    for k, fp in refs.items():
+        b = k.split("/references/", 1)[-1]
+        alts = ["path:" + k] + (["base:" + b] if base_count[b] == 1 else [])
+        best = max((tot.get(a, (0, 0)) for a in alts), key=lambda v: v[1])
+        w = idle_from(env, best, IDLE_REF_DAYS, fp, cover, since)
+        if w:
+            F.add("U2", "⚠", fp, "参照 %s は %s読まれていない(最後 %s)" % ((k,) + w), fix="")
+    for doc in sorted({m for f in env.config_texts() if f.endswith("CLAUDE.md")
+                       for m in re.findall(r"docs/[\w./-]+\.md", read(f))}):
+        fp = env.p(doc)
+        if not os.path.isfile(fp):
+            continue
+        w = idle_from(env, tot.get("path:" + doc, (0, 0)), IDLE_REF_DAYS, fp, cover, since)
+        if w:
+            F.add("U2", "⚠", fp, "参照 %s は %s読まれていない(最後 %s)" % ((doc,) + w), fix="")
+
+
+def idle_from(env, hit, thr, path, cover, since):
+    """→ (窓の言い方, 最後の日付|"一度も無し")。窓の中で使われた・入ったばかりなら None。"""
+    n, last = hit
+    win = min(thr, cover) * 86400
+    if last and env.now - last <= win:
+        return None
+    added = env.added_at(path)
+    if added and env.now - added <= win:
+        return None
+    span = "%d 日" % thr if cover >= thr else "記録の範囲(%s〜)" % since
+    return span, (time.strftime("%Y-%m-%d", time.localtime(last)) if last else "一度も無し")
+
+
 def chk_N1(env, F):
     last = os.path.join(env.state, "last.json")
     try:
@@ -883,11 +973,12 @@ def chk_N1(env, F):
 
 
 CHECKS = [chk_R1_R2, chk_R3, chk_R4, chk_R5, chk_R6_V3, chk_R7, chk_R8, chk_Q, chk_C, chk_S1, chk_V1_V2, chk_G1,
-          chk_K1, chk_W, chk_Y1, chk_SK1, chk_L]
+          chk_K1, chk_W, chk_Y1, chk_SK1, chk_L, chk_U]
 
 
 def run_checks(env, quick=False):
     F = Findings(env)
+    env.quick = quick
     for c in CHECKS:
         try:
             c(env, F)
@@ -948,8 +1039,11 @@ def cmd_table(env, write_state=True):
                                               f["text"].replace("|", "｜"), f["fix"] or "keep"))
     print("\n内訳: " + " / ".join("%s %d" % kv for kv in sorted(agg.items())))
     if write_state:
-        _save(env, "last.json", {"t": env.now, "mode": "table", "counts": agg,
-                                 "ids": sorted({f["id"] for f in live})})
+        by_id = {}
+        for f in live:
+            by_id[f["id"]] = by_id.get(f["id"], 0) + 1
+        _save(env, "last.json", {"t": env.now, "mode": "table", "counts": agg, "by_id": by_id,
+                                 "ids": sorted(by_id)})
     return 1 if agg.get("⛔") else 0
 
 
@@ -1056,12 +1150,14 @@ def cmd_apply(env, fp):
 def cmd_deep(env):
     rc = cmd_table(env)
     print("\n## 関門の自己検査\n")
-    gates = sorted(glob.glob(env.p("Tools", "Sashizu", "*_gate.py"))) + [os.path.abspath(__file__)]
-    for g in gates:
-        if "--selftest" not in read(g):
-            print("⚠ %s に --selftest が無い" % env.rel(g))
+    gates = [(g, "--selftest") for g in sorted(glob.glob(env.p("Tools", "Sashizu", "*_gate.py")))
+             + [os.path.abspath(__file__), env.p("Tools", "Session", "usage_ledger.py")]]
+    gates.append((env.p("Tools", "Session", "edo_session.py"), "selftest"))      # 設定コミットの関門(EDO-0221)
+    for g, arg in gates:
+        if not os.path.isfile(g) or arg.lstrip("-") not in read(g):
+            print("⚠ %s に %s が無い" % (env.rel(g), arg))
             continue
-        r = subprocess.run([sys.executable, g, "--selftest"], capture_output=True, text=True, cwd=env.root)
+        r = subprocess.run([sys.executable, g, arg], capture_output=True, text=True, cwd=env.root)
         print("%s %s" % ("⭕" if r.returncode == 0 else "⛔", env.rel(g)))
         if r.returncode:
             print("   " + (r.stdout + r.stderr).strip().replace("\n", "\n   ")[:1500])
@@ -1077,7 +1173,8 @@ def cmd_deep(env):
     print("\n## 月次の手作業(道具では測れない物)\n")
     print("- メモリ: `Skill(anthropic-skills:consolidate-memory)` で重複・古い事実・索引を整理する")
     print("- スキル: `Skill(anthropic-skills:skill-creator)` で edo 各スキルの description の発火精度と SKILL.md の長さを見直す")
-    print("- 利用実績(第2期・未実装): 30 日呼ばれない役・スキル、60 日読まれない参照を transcript から挙げる")
+    print("- 利用実績: 表の U1(30 日呼ばれない役・スキル)/ U2(60 日読まれない参照)を見て、畳む・統合する・残す(keep + 理由)を決める。"
+          "台帳は `python3 Tools/Session/usage_ledger.py`")
     return rc
 
 
@@ -1120,12 +1217,35 @@ def _fixture(base):
     w("memory/one.md", "---\nname: one\ndescription: d\n---\nfact\n")
     os.makedirs(os.path.join(base, "wt", ".claude", "agents"))     # worktree は空の .claude(W の型だけが植える)
     w("gsettings.json", json.dumps({"hooks": {}}))
+    _transcripts(base)
+
+
+def _transcripts(base, role_days=2, skill_days=2, refs=("a", "b", "sources", "orphan"), doc=True, cover=70):
+    """利用実績の fixture。既定は「全部が最近使われ、記録は 70 日前から」の無傷な版。
+    role_days / skill_days=None なら一度も無し。cover は記録の最古(日前)。"""
+    def ts(days):
+        return (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)).isoformat()
+
+    def tu(name, inp, days):
+        return json.dumps({"type": "assistant", "timestamp": ts(days), "message": {"content": [
+            {"type": "tool_use", "id": "x", "name": name, "input": inp}]}}) + "\n"
+    out = tu("Bash", {"command": "true"}, cover)
+    if role_days is not None:
+        out += tu("Agent", {"subagent_type": "edo-alpha"}, role_days)
+    if skill_days is not None:
+        out += tu("Skill", {"skill": "sk"}, skill_days)
+    for r in refs:
+        out += tu("Read", {"file_path": "/h/.claude/skills/sk/references/%s.md" % r}, 2)
+    if doc:
+        out += tu("Bash", {"command": "cat docs/teire.md"}, 2)
+    _w(base, "tr/s1.jsonl", out)
 
 
 def _run_fixture(base, extra=None):
     args = ["--root", os.path.join(base), "--skills-dir", os.path.join(base, "skills"),
             "--memory-dir", os.path.join(base, "memory"), "--global-settings", os.path.join(base, "gsettings.json"),
-            "--state-dir", os.path.join(base, "state"), "--worktrees", os.path.join(base, "wt")]
+            "--state-dir", os.path.join(base, "state"), "--worktrees", os.path.join(base, "wt"),
+            "--transcripts-dir", os.path.join(base, "tr")]
     env = Env(parse(args + (extra or [])))
     F = run_checks(env)
     return sorted({f["id"] for f in F.items if f["id"] != "N1"}), F
@@ -1191,6 +1311,11 @@ def selftest():
             ("L1 タグ無しの教訓", lambda: _app(base, "docs/lessons.md", "- %s **教訓二 その先**(EDO-0002・cross)\n" % old), "L1"),
             ("L2 →規則 が無い規則", lambda: _app(base, "docs/lessons.md", "- %s **教訓三 その先**(EDO-0003・cross) →規則9\n" % old), "L2"),
             ("L2 →スキル に痕跡が無い", lambda: _app(base, "docs/lessons.md", "- %s **教訓四 その先**(EDO-0004・cross) →スキル:sk\n" % old), "L2"),
+            ("U1 役が 30 日呼ばれていない", lambda: _transcripts(base, role_days=40), "U1"),
+            ("U1 役が一度も呼ばれていない", lambda: _transcripts(base, role_days=None), "U1"),
+            ("U1 スキルが 30 日呼ばれていない", lambda: _transcripts(base, skill_days=40), "U1"),
+            ("U2 参照が読まれていない", lambda: _transcripts(base, refs=("a", "sources", "orphan")), "U2"),
+            ("U2 CLAUDE.md の表の文書が読まれていない", lambda: _transcripts(base, doc=False), "U2"),
         ]
         for title, plant, want in CASES:
             shutil.rmtree(base)
@@ -1206,6 +1331,17 @@ def selftest():
             else:
                 print("⛔ %s → **鳴らなかった**(期待 %s / 実際 %s)" % (title, want, ", ".join(ids) or "0件"))
                 ng += 1
+        # 記録が 30 日に満たなければ「呼ばれていない」と言わない(言えば誤検出になる)
+        shutil.rmtree(base)
+        os.makedirs(base)
+        _fixture(base)
+        _transcripts(base, role_days=None, refs=(), doc=False, cover=10)
+        ids, F = _run_fixture(base)
+        if "U1" in ids or "U2" in ids:
+            print("⛔ 記録が 10 日ぶんなのに U を鳴らした(判定してはいけない)")
+            ng += 1
+        else:
+            print("⭕ 記録が短い間は U を鳴らさない")
         # 表 → apply の往復(keep と lesson-tag)
         shutil.rmtree(base)
         os.makedirs(base)
@@ -1279,6 +1415,7 @@ def parse(argv):
     ap.add_argument("--global-settings")
     ap.add_argument("--state-dir")
     ap.add_argument("--worktrees", nargs="*", default=None)
+    ap.add_argument("--transcripts-dir", nargs="*", default=None, help="transcript の置き場(既定は main と worktree の全部)")
     return ap.parse_args(argv)
 
 

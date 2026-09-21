@@ -362,6 +362,34 @@ def build_relationships(issues):
     return {"pair": pair, "hub": hub, "general": general}
 
 
+def load_teire():
+    """道具改めの前回の結果(.git/edo-teire/last.json)。無ければ None。⚠ 自動点検の --table でも更新される。"""
+    try:
+        return json.load(open(os.path.join(_common_git_dir(), "edo-teire", "last.json"), encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def teire_chips(last, now=None):
+    """ダッシュボードの 1 行(EDO-0221): 前回の道具改め・破れ・使われていない設定。
+    週 1 の目安(config_doctor.NUDGE_DAYS = 7)を過ぎたら色を変える。"""
+    if not last:
+        return '<span class="chip wait">道具改め <b>未実施</b></span>'
+    days = int(((now or time.time()) - last.get("t", 0)) / 86400)
+    c = last.get("counts") or {}
+    bad, warn = c.get("⛔", 0), c.get("⚠", 0)
+    out = ['<span class="chip %s">道具改め <b>%s</b> ⛔%d ⚠%d</span>'
+           % ("crit" if bad else ("wait" if days > 7 else "ok"), "今日" if days == 0 else "%d日前" % days, bad, warn)]
+    by = last.get("by_id")
+    if by is not None:
+        idle = by.get("U1", 0)
+        unread = by.get("U2", 0)
+        out.append('<span class="chip %s">使われていない設定 <b>%d</b>'
+                   '<span title="30日呼ばれない役・スキル / 60日読まれない参照"> (役・スキル %d / 参照 %d)</span></span>'
+                   % ("wait" if idle + unread else "ok", idle + unread, idle, unread))
+    return "".join(out)
+
+
 def build_summary(issues, pending, commits, claims):
     est = {}
     for e in SITES:
@@ -1172,6 +1200,7 @@ def build_html(issues, pending, commits, claims, states, summary, reviews, typol
     p.append('<span class="chip %s">ブロッカー <b>%d</b></span>' % ("crit" if blks else "ok", len(blks)))
     p.append('<span class="chip">open <b>%d</b></span>' % len(live))
     p.append('<span class="chip">生きているセッション <b>%d</b></span>' % len(claims))
+    p.append(teire_chips(load_teire()))
     p.append("</div>")
 
     # ── open issue の内訳(裁定待ち/ブロッカー/その他 の構成比)

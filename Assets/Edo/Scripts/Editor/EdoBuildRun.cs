@@ -302,11 +302,9 @@ public static partial class EdoBuild
 
     // ---------- 板塀/穂垣 run — 片面ポリゴンなので表裏の対で置く ----------
     // asset: 5枚スパンOBJ。走りは DobeiRun と同じ実寸カーソル。パネル毎に接地。
-    /// <param name="seatByContact">⭐ true なら**触れている箇所**を測って据える(規則21)。
-    /// 既定 false は bounds の底で据える従来の動き — 呼び手(山王社の板塀)の姿を変えないため。
-    /// ⛔ 既定を反転するのは **EDO-0342**(山王社を建て直して据わりを実測してから)。</param>
+    /// <remarks>据えは DobeiRun と同じ — **触れている箇所**を測る(規則21)。失敗したときだけ bounds の底(EDO-0342)。</remarks>
     public static List<GameObject> PanelRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string prefix,
-        string assetPath, Vector2 gapC, float gapHalf, bool seatByContact = false)
+        string assetPath, Vector2 gapC, float gapHalf)
     {
         var made = new List<GameObject>();
         Vector2 dir = (B - A).normalized; float len = (B - A).magnitude;
@@ -340,8 +338,7 @@ public static partial class EdoBuild
                 float mn, mx;
                 ButtOnRun(go, A, dir, outward, side == 0 ? 0.0f : -0.12f, startAbs, out mn, out mx);
                 if (side == 0) { prevEnd = mx; chained = true; }
-                if (seatByContact) { try { SeatOnGround(go, 0.10f, 600); } catch (Exception) { SeatBottom(go, baseY - 0.10f); } }
-                else SeatBottom(go, baseY - 0.10f);
+                try { SeatOnGround(go, 0.10f, 600); } catch (Exception) { SeatBottom(go, baseY - 0.10f); }
                 made.Add(go);
             }
         }
@@ -371,7 +368,7 @@ public static partial class EdoBuild
             case "yarai":
             {
                 // 竹矢来の駒は在庫に無い。穂垣(片面ポリゴン・5スパン)を表裏の対で立てる。
-                var made = PanelRun(parent, A, B, outward, prefix, EdoAssets.Eg.Hogaki5, gapC, gapHalf, true);
+                var made = PanelRun(parent, A, B, outward, prefix, EdoAssets.Eg.Hogaki5, gapC, gapHalf);
                 float h = made.Count > 0 ? RB(made[0]).size.y : float.NaN;   // ⭐ 据えた駒の実メッシュから測る
                 note = string.Format("竹矢来=穂垣で代用 {0}枚(実丈 {1:F2}m)⚠ 竹矢来(交叉させた竹)の駒は在庫に無い — EDO-0318",
                                      made.Count, h);

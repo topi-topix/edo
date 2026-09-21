@@ -569,7 +569,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         // ⭐ 町屋を Omoya へ通さない(EDO-0325)。Omoya は「区画の内側の空いた所へ棟を散らす」段で、
         //    通りに面して軒を接して建つ町屋とは置き方が別の物。→ EdoTypologyBuilder.Machiya.cs
         if (s.type == "machiya") log.Add(Machiya(s, root, poly, front, edges, pad, gateC, gateHalf));
-        else log.Add(Omoya(s, root, poly, front, pad));
+        else log.Add(Omoya(s, root, poly, front, pad, gateC));
 
         // ── Stage 5: 植栽(EDO-0323)── ⭐ 参道の帯は**Stage 1 で実測した門構えの開口**から引く
         //    (⛔ 当て推量の GateWidth ではない)。庭の意匠は庭方の設計・EdoTypologyBuilder.Niwa.cs。
@@ -618,7 +618,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
 
     // ───────────────────────── Stage 3〜5 ─────────────────────────
     /// <summary>主屋・付属・庭木。区画の内側へ SETBACK 引いた所に、型ごとの棟を置く。</summary>
-    static string Omoya(Spec s, Transform root, Vector2[] poly, Edge front, float pad)
+    static string Omoya(Spec s, Transform root, Vector2[] poly, Edge front, float pad, Vector2 gateC)
     {
         if (s.type == "kouyuu" && s.building != "hikeshi")
             // ⭐ 干場の種別(`hoshiba`)は読むが**建てない** — 竿・張り板・渋紙の駒が在庫に無い
@@ -653,6 +653,25 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         var made = new List<GameObject>();            // 棟どうしの当たりを測るための実体
         var tried = new HashSet<Vector2>();
         int n = 0, dropped = 0, unseated = 0, clashed = 0;
+        // ⭐ 御殿複合(EDO-0318 ⑥)— 中軸に玄関→表向→中奥→奥向を渡廊下でつないだ**一体の駒**を輪の前に建てる。
+        //    以後の付属(蔵・厩・作事小屋)は、この駒の**棟ごとの外形**を避けて置く(⛔ 複合ぜんたいの外接箱で
+        //    避けない — 雁行の振りで箱の中は空き地だらけになり、付属が一つも入らなくなる)。
+        string gotenNote = "";
+        if (s.type == "buke" && OmoyaOf(s) == "goten")
+        {
+            var inward = -front.outward;
+            float target = EdoBuild.GotenTargetArea(poly, root);
+            var gg = EdoBuild.GotenComplex(g, "Goten", poly, gateC, inward, pad, target, SETBACK, VERTS, out gotenNote);
+            if (gg != null)
+                foreach (Transform part in gg.transform)
+                {
+                    var prb = EdoBuild.RB(part.gameObject);
+                    if (prb.size.y < 0.01f) continue;
+                    prb.Expand(MIN_BLDG_GAP * 2f); placed.Add(prb);
+                    made.Add(part.gameObject);
+                }
+            gotenNote = "\n" + gotenNote;
+        }
         float worstPair = float.NaN;
         foreach (var item in plan)
         {
@@ -718,11 +737,11 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
             worstPair < MIN_BLDG_GAP ? "(⚠ 目安 " + MIN_BLDG_GAP.ToString("F1") + "m 未満)" : "");
         // ⭐ 型は **omoya** を刷る(rank ではない)— どの型で建てたかが log に出ていないと、
         //    表の欄が効いたかどうかを建てた姿からしか確かめられない(EDO-0327・規則19)。
-        return string.Format("  主屋と付属: {0}/{1}棟(型={2}{3}){4}{5}{6}{7}{8}\n    仕様: {9}",
+        return string.Format("  主屋と付属: {0}/{1}棟(型={2}{3}){4}{5}{6}{7}{8}\n    仕様: {9}{10}",
             n, plan.Count,
             s.type == "buke" ? OmoyaOf(s) : (s.kind ?? s.type),
             un, dr, yag, bab, tch, tkn,
-            string.Join(" ", kinds.ToArray()));
+            string.Join(" ", kinds.ToArray()), gotenNote);
     }
 
     /// <summary>この区画の主屋の型。⭐ **表の `omoya` が勝ち**、書いていないときだけ格帯から採る
@@ -753,9 +772,8 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
             //    変わるのは棟の組み合わせだけで、御殿複合の3核は EDO-0318 ⑥ の持ち場。
             switch (OmoyaOf(s))
             {
-                case "goten":        // 御殿複合(表向・中奥・奥向の3核)
-                    add(EdoAssets.VK.BigHouse, 14f, 1); add(EdoAssets.VK.House, 10f, 2);
-                    add(EdoAssets.VK.SmallHouse, 7f, 1); break;
+                case "goten":        // 御殿複合(玄関→表向→中奥→奥向)— ⭐ 棟は Omoya() が GotenComplex で
+                    break;           //    一体の駒として先に建てる。⛔ ここへ VK を足さない(御殿の脇に民家が散る)
                 case "omote_oku":    // 表・奥の2核(中屋敷)
                     add(EdoAssets.VK.BigHouse, 13f, 1); add(EdoAssets.VK.House, 10f, 1);
                     add(EdoAssets.VK.SmallHouse, 7f, 1); break;

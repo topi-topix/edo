@@ -663,80 +663,14 @@ public static class EdoSannoBukeBuilder
         return sb.ToString() + "kyogoku done";
     }
 
-    // ---------- Stage 6: 内藤紀伊守上屋敷 ----------
-    public static string Stage6_Naito()
-    {
-        const string G = "Edo_Yashiki_NaitoKii";
-        var exist = GameObject.Find(G);
-        if (exist != null && exist.transform.childCount > 0) return "SKIP Naito";
-        var sb = new System.Text.StringBuilder();
-        EdoBuild.NaturalMode = true;
-        var kak = Group(G, "Kakoi");
-        var monGrp = Group(G, "Omotemon");
-        // 表門=北辺東寄り x≈-106, 北向き(門印=三角形)。独立門+両番所(譜代5万石・老中)
-        Vector2 a9 = NAITO[9], a10 = NAITO[10];   // 辺9(N): (-88.9,677.7)→(-126.79,677.7)。表門 x≈-106 はこの辺上(2026-08-26 json採用で北辺が辺9+10に割れた)
-        Vector2 nDir = (a10 - a9).normalized;
-        Vector2 gate = a9 + nDir * Mathf.Abs((-106f - a9.x) / Mathf.Abs(nDir.x));
-        Vector2 fout = -EdoGeom.InwardNormal(NAITO, 9);
-        float gateHalf = PlaceGate(PKmon, monGrp, gate, fout, 2, "Kmon", sb);
-        int N = NAITO.Length;
-        for (int i = 0; i < N; i++)
-        {
-            Vector2 a = NAITO[i], b = NAITO[(i + 1) % N];
-            Vector2 outw = -EdoGeom.InwardNormal(NAITO, i);
-            if (i == 9)
-                FrontWall(kak, a, b, outw, gate, gateHalf + 0.5f, "Hei_F");
-            else
-                EdoBuild.DobeiRun(kak, a, b, outw, "Hei_" + i, true, 0, Vector2.zero, -1);
-        }
-        var bg = Group(G, "Buildings");
-        // 表御殿=Manor。facadeを北の表門に正対(facade+35.2偏心→OBB中心=facadeの31.2m奥)
-        var manor = Place(PManor, Vector3.zero, 0f, Vector3.one, bg, "OmoteGoten");
-        CenterSeat(manor, -110f, 628f);
-        var okg = Place(PHouse, Vector3.zero, 0f, Vector3.one, bg, "OkuGoten");
-        CenterSeat(okg, -160f, 612f);
-        var yks = Place(PHouseB, Vector3.zero, 90f, Vector3.one, bg, "Yakusho");
-        CenterSeat(yks, -140f, 660f);
-        var dd = Place(PSmallHouse, Vector3.zero, 90f, Vector3.one, bg, "Daidokoro");
-        CenterSeat(dd, -185f, 640f);
-        for (int i = 0; i < 3; i++)
-        {
-            var kr = Place(PKura, Vector3.zero, 90f, Vector3.one * ES, bg, "Kura_" + (i + 1));
-            CenterSeat(kr, -235f - i * 8f, 640f - i * 4f);
-        }
-        // 中間長屋(knagaya l+r)
-        var m1 = Place(EdoAssets.Eg.KnagayaL, Vector3.zero, 0f, Vector3.one * ES, bg, "ChugenNagaya_L");
-        CenterSeat(m1, -290f, 655f);
-        var m2 = Place(EdoAssets.Eg.KnagayaR, Vector3.zero, 0f, Vector3.one * ES, bg, "ChugenNagaya_R");
-        CenterSeat(m2, -282.2f, 655f);
-        Well(bg, -170f, 630f);
-        // 庭: 台地東の高台=奥庭、南の水際=溜池を望む景(池は作らない)
-        var gg = Group(G, "Garden");
-        var rnd = new System.Random(5090);
-        for (int i = 0, gd = 0; i < 30 && gd < 1200; gd++)
-        {
-            float px = Mathf.Lerp(-368f, -60f, (float)rnd.NextDouble());
-            float pz = Mathf.Lerp(520f, 670f, (float)rnd.NextDouble());
-            var p2 = new Vector2(px, pz);
-            if (!EdoGeom.PIP(NAITO, p2) || EdoGeom.DistToPolyEdge(NAITO, p2) < 4f) continue;
-            bool nearB = false;
-            foreach (Transform c in bg) { var rb2 = RB(c.gameObject); if (px > rb2.min.x - 2.5f && px < rb2.max.x + 2.5f && pz > rb2.min.z - 2.5f && pz < rb2.max.z + 2.5f) { nearB = true; break; } }
-            if (nearB) continue;
-            float y = Ground(px, pz);
-            if (rnd.NextDouble() < 0.7)
-            {
-                var go = Place(Pines[rnd.Next(Pines.Length)], new Vector3(px, y, pz), (float)rnd.NextDouble() * 360f, Vector3.one * (1.65f * (0.9f + 0.5f * (float)rnd.NextDouble())), gg, "Pine_" + i);
-                SeatBottom(go, y - 0.05f);
-            }
-            else
-            {
-                var go = Place(Shrubs[rnd.Next(Shrubs.Length)], new Vector3(px, y, pz), (float)rnd.NextDouble() * 360f, Vector3.one * (0.9f + 0.7f * (float)rnd.NextDouble()), gg, "Shrub_" + i);
-                SeatBottom(go, y - 0.04f);
-            }
-            i++;
-        }
-        return sb.ToString() + "naito done";
-    }
+    // ---------- Stage 6(廃止): 内藤紀伊守上屋敷 ----------
+    // ⛔ 2026-09-21・EDO-0299(施主裁定A)で撤去した。sannobuke_naito は類型表が持つ区画
+    // (built が hand ではない)なので、建てるのは EdoTypologyBuilder = Edo_Typo_sannobuke_naito 一本。
+    // ここに残っていた Stage6_Naito は同じ区画に Edo_Yashiki_NaitoKii を二重に建てており、
+    // かつ座標と部材の端を直に書いていた(規則21 違反)。史料値(表門=北辺東寄り x≈-106・北向き、
+    // 下がり藤紋・村上藩5万90石・当主 内藤信親)は docs/Sashizu/typology.json の
+    // sannobuke_naito.source / note が持つ。⛔ このビルダーへ書き戻さないこと。
+    // 残る宿題は EDO-0094 — 樹下(Stage1)・社人(Stage2)も類型の区画なので同様に外す。
 
     // ---------- Stage 7: スプラット ----------
     public static string Stage7_Splat()
@@ -832,7 +766,6 @@ public static class EdoSannoBukeBuilder
         sb.AppendLine(Stage3_Sando());
         sb.AppendLine(Stage4_Niwa());
         sb.AppendLine(Stage5_Kyogoku());
-        sb.AppendLine(Stage6_Naito());
         sb.AppendLine(Stage7_Splat());
         return sb.ToString();
     }

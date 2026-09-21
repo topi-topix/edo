@@ -255,7 +255,12 @@ public static class EdoShiomizakaRebuild
         var g2 = EdoYamatoRebuild.Gate2;
         float t = Vector2.Dot(g2 - A, U);
         float roadH = RoadH(Mathf.Clamp(t, T0, T1));
-        var mong = GameObject.Find("Edo_Yashiki_MatsudairaYamato").transform.Find("Omotemon_v2");
+        // ⚠ 2026-09-21・EDO-0299: matsudaira_yamato は類型表が持つ区画になり、旧 Edo_Yashiki_MatsudairaYamato は
+        //   重複として畳む対象。門の実体は Edo_Typo_matsudaira_yamato 側へ移るので、ここは黙って落ちずに知らせる。
+        var yamato = GameObject.Find("Edo_Yashiki_MatsudairaYamato");
+        if (yamato == null) return "SKIP Z4 — Edo_Yashiki_MatsudairaYamato が無い。門は類型側(Edo_Typo_matsudaira_yamato)へ移った → EDO-0303";
+        var mong = yamato.transform.Find("Omotemon_v2");
+        if (mong == null) return "SKIP Z4 — Omotemon_v2 が無い → EDO-0303";
         var sb = new System.Text.StringBuilder("gate t=" + t.ToString("F1") + " roadH=" + roadH.ToString("F2") + "\n");
         foreach (Transform c in mong)
         {

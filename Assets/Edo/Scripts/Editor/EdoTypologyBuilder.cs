@@ -466,9 +466,13 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         // ── Stage 2: 囲い(**可動側** — 開口は門構えの実測 — 置き方の4手②) ──
         var encl = Group("Kakoi", root);
         var kakoiNotes = new List<string>();
+        // ⭐ 町屋の通りの側の囲いは**表店の壁そのもの**(EDO-0325)。この辺に板塀を建てると
+        //    店先が通りから隠れる。辺を選ぶのは Stage 3m と同じ関数なので、列の載る辺と必ず一致する。
+        var machiyaFronts = MachiyaFrontEdges(s, edges, front);
         foreach (var e in edges)
         {
             if (e.kind == EdgeKind.Shared && !e.mine) continue;         // 隣が持つ辺は建てない
+            if (machiyaFronts.Contains(e)) { kakoiNotes.Add("辺" + e.i + " 囲わない — 表店の列が通りを受ける"); continue; }
             bool isFront = (e == front);
             var gc = isFront ? gateC : Vector2.zero;
             var gh = isFront ? gateHalf : -1f;
@@ -486,7 +490,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
             }
         }
         log.Add("  囲い: " + string.Join(" / ", edges.Where(e => e.mine).Select(
-            e => e.i + "=" + EnclosureFor(s, e, e == front)).ToArray()));
+            e => e.i + "=" + (machiyaFronts.Contains(e) ? "表店" : EnclosureFor(s, e, e == front))).ToArray()));
         foreach (var nt in kakoiNotes) log.Add("    " + nt);   // ⛔ 代用を黙って飲まない(規則7・19)
 
         // ── Stage 2b: 門構えの奥行を、建った塀の**通り側の面**へ揃える ──
@@ -528,8 +532,11 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
             }
         }
 
-        // ── Stage 3〜4: 主屋・付属 ──
-        log.Add(Omoya(s, root, poly, front, pad));
+        // ── Stage 3〜4: 主屋・付属 ／ 町屋は Stage 3m(表店の列)──
+        // ⭐ 町屋を Omoya へ通さない(EDO-0325)。Omoya は「区画の内側の空いた所へ棟を散らす」段で、
+        //    通りに面して軒を接して建つ町屋とは置き方が別の物。→ EdoTypologyBuilder.Machiya.cs
+        if (s.type == "machiya") log.Add(Machiya(s, root, poly, front, edges, pad, gateC, gateHalf));
+        else log.Add(Omoya(s, root, poly, front, pad));
 
         // ── Stage 5: 植栽(EDO-0323)── ⭐ 参道の帯は**Stage 1 で実測した門構えの開口**から引く
         //    (⛔ 当て推量の GateWidth ではない)。庭の意匠は庭方の設計・EdoTypologyBuilder.Niwa.cs。
@@ -717,12 +724,10 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
             if (s.kuri) add(EdoAssets.VK.SmallHouse, 8f, 1);                          // 庫裏
             add(EdoAssets.Eg.Kura, 6f, Mathf.Clamp(s.kura, 0, 2));
         }
-        else if (s.type == "machiya")
-        {
-            int shops = Mathf.Clamp(s.houses > 0 ? s.houses / 6 : 6, 2, 14);
-            add(EdoAssets.Eg.Shop01, 5f, shops / 2); add(EdoAssets.Eg.Shop02, 5f, shops - shops / 2);
-            if (s.jishinban) add(EdoAssets.Eg.Jishinban, 5f, 1);
-        }
+        // ⛔ 町屋はここに書かない(2026-09-21・EDO-0325)。表店は**接道辺の run** で建てる
+        //    (EdoTypologyBuilder.Machiya.cs の Stage 3m → EdoBuild.MachiyaRun)。
+        //    ここに在った分岐は `houses/6` を 2〜14 に丸めた棟数を積み、Spot() が区画の**内側の格子点へ
+        //    ばらばらに散らして**いた — 町屋は通りに面して軒を接して建つ物なので姿が根本から違った。
         else if (s.building == "hikeshi")
         {
             add(EdoAssets.VK.House, 10f, 1); add(EdoAssets.Eg.Hinomiyagura, 6f, 1);

@@ -127,9 +127,9 @@ public static class EdoSannoShaBuilder
 
     static float Ground(float x, float z) { return EdoBuild.Ground(x, z); }
     static GameObject Place(string path, Vector3 pos, float ry, Vector3 scale, Transform parent, string name)
-    { return EdoNishiTameikeBuilder.Place(path, pos, ry, scale, parent, name); }
-    static Bounds RB(GameObject go) { return EdoNishiTameikeBuilder.RB(go); }
-    static void SeatBottom(GameObject go, float y) { EdoNishiTameikeBuilder.SeatBottom(go, y); }
+    { return EdoBuild.Place(path, pos, ry, scale, parent, name); }
+    static Bounds RB(GameObject go) { return EdoBuild.RB(go); }
+    static void SeatBottom(GameObject go, float y) { EdoBuild.SeatBottom(go, y); }
     static Transform Group(string root, string child)
     {
         var r = GameObject.Find(root);
@@ -199,7 +199,7 @@ public static class EdoSannoShaBuilder
         if (root != null && root.transform.Find("Keidai") != null) return "SKIP: Keidai exists";
         var kg = Group(GROUP, "Keidai");
         var sb = new System.Text.StringBuilder();
-        EdoNishiTameikeBuilder.NaturalMode = true;
+        EdoBuild.NaturalMode = true;
 
         // 透塀(es_dobei) ── ⛔ **指図の runs(kind=="透塀")から引く。社地の多角形からは引かない。**
         //   2026-08-31 まで PREC(社地)を **4点の矩形として** 読んでいた(`for i<4` / `PREC[(i+1)%4]`)。
@@ -229,7 +229,7 @@ public static class EdoSannoShaBuilder
             Vector2 gapC = Vector2.zero; float gapHalf = -1f;
             if (Has(r, "gapU")) { gapC = UV(Num(r["gapU"]), Num(qa[1])); gapHalf = Num(r["gapHalf"]) * ES; }
             else if (Has(r, "gapV")) { gapC = UV(Num(qa[0]), Num(r["gapV"])); gapHalf = Num(r["gapHalf"]) * ES; }
-            EdoNishiTameikeBuilder.DobeiRun(kak, a, b, outw, Convert.ToString(r["name"]),
+            EdoBuild.DobeiRun(kak, a, b, outw, Convert.ToString(r["name"]),
                 false, Num(r["seat"]), gapC, gapHalf);
             skPer += (b - a).magnitude;
         }
@@ -249,9 +249,9 @@ public static class EdoSannoShaBuilder
         // 本殿玉垣
         var tg = Group(GROUP, "Keidai/Tamagaki");
         Vector2 t0 = new Vector2(-553f, 849f), t1 = new Vector2(-537f, 849f), t2 = new Vector2(-537f, 865f), t3 = new Vector2(-553f, 865f);
-        EdoNishiTameikeBuilder.DobeiRun(tg, t0, t1, new Vector2(0, -1), "TW_S", true, 0, Vector2.zero, -1);
-        EdoNishiTameikeBuilder.DobeiRun(tg, t2, t3, new Vector2(0, 1), "TW_N", true, 0, Vector2.zero, -1);
-        EdoNishiTameikeBuilder.DobeiRun(tg, t3, t0, new Vector2(-1, 0), "TW_W", true, 0, Vector2.zero, -1);
+        EdoBuild.DobeiRun(tg, t0, t1, new Vector2(0, -1), "TW_S", true, 0, Vector2.zero, -1);
+        EdoBuild.DobeiRun(tg, t2, t3, new Vector2(0, 1), "TW_N", true, 0, Vector2.zero, -1);
+        EdoBuild.DobeiRun(tg, t3, t0, new Vector2(-1, 0), "TW_W", true, 0, Vector2.zero, -1);
         // 神楽殿(北)・宝蔵(北西)・薬師堂/観音堂(南列)・不動堂/庚申堂(北列)
         var kagura = Place(PSmallHouse, Vector3.zero, 180f, Vector3.one * 0.8f, bg, "Kaguraden");
         CenterSeat(kagura, -512f, 882f);
@@ -408,8 +408,8 @@ public static class EdoSannoShaBuilder
         CenterSeat(nio, NIO.x, NIO.y, 0.25f);
         var nb = RB(nio);
         var hei = Group(GROUP, "Sando/Sukibei");
-        EdoNishiTameikeBuilder.DobeiRun(hei, new Vector2(NIO.x, 857f - 22f), new Vector2(NIO.x, nb.min.z - 0.3f), new Vector2(1, 0), "SB_S", true, 0, Vector2.zero, -1);
-        EdoNishiTameikeBuilder.DobeiRun(hei, new Vector2(NIO.x, nb.max.z + 0.3f), new Vector2(NIO.x, 857f + 22f), new Vector2(1, 0), "SB_N", true, 0, Vector2.zero, -1);
+        EdoBuild.DobeiRun(hei, new Vector2(NIO.x, 857f - 22f), new Vector2(NIO.x, nb.min.z - 0.3f), new Vector2(1, 0), "SB_S", true, 0, Vector2.zero, -1);
+        EdoBuild.DobeiRun(hei, new Vector2(NIO.x, nb.max.z + 0.3f), new Vector2(NIO.x, 857f + 22f), new Vector2(1, 0), "SB_N", true, 0, Vector2.zero, -1);
         // 二ノ鳥居(石鳥居): 参道入口(小路の辻)に、通行方向=参道軸(TORII→男坂下)へ向ける
         Torii(sg, TORII.x, TORII.y, 0f);
         var tor = sg.Find("NinoTorii");
@@ -518,7 +518,7 @@ public static class EdoSannoShaBuilder
         var root = GameObject.Find(GROUP_K);
         if (root != null && root.transform.childCount > 0) return "SKIP: Kanriin exists";
         var sb = new System.Text.StringBuilder();
-        EdoNishiTameikeBuilder.NaturalMode = true;
+        EdoBuild.NaturalMode = true;
         var kak = Group(GROUP_K, "Kakoi");
         var monGrp = Group(GROUP_K, "Omotemon");
         int N = KANRI.Length;
@@ -536,9 +536,9 @@ public static class EdoSannoShaBuilder
             Vector2 mid = (a + b) * 0.5f;
             Vector2 outw = (mid - cenP); outw.Normalize();
             if (i == 2)
-                EdoNishiTameikeBuilder.DobeiRun(kak, a, b, outw, "Nerbei_Mon", true, 0, gate, 7.6f);
+                EdoBuild.DobeiRun(kak, a, b, outw, "Nerbei_Mon", true, 0, gate, 7.6f);
             else
-                EdoNishiTameikeBuilder.DobeiRun(kak, a, b, outw, "Nerbei_" + i, true, 0, Vector2.zero, -1);
+                EdoBuild.DobeiRun(kak, a, b, outw, "Nerbei_" + i, true, 0, Vector2.zero, -1);
         }
         // 薬医門級(k_mon): 参道コリドー向き
         float psiIn = Mathf.Atan2(inw.x, inw.y) * Mathf.Rad2Deg;
@@ -764,6 +764,7 @@ public static class EdoSannoShaBuilder
             return inside;
         };
         Vector2[] onna = { new Vector2(-426f, 872f), new Vector2(-441f, 884f), new Vector2(-458f, 890f), new Vector2(-474f, 891f), new Vector2(-487f, 888f) };
+        var juboPolys = EdoParcels.GetByPrefix("sannojubo_parcels_");   // 十坊の10筆(区画の正典・規則11)。輪の外で一度だけ引く
         Vector2[] sandoAxis = { new Vector2(StairX0 + 2f, 857f), new Vector2(ZUIJIN.x - 6f, 857f) };
         Vector2[] approach = { TORII, APPROACH_MID, APPROACH_END };   // 鳥居→(観理院北角)→男坂下
         for (int zz = 0; zz < h; zz++)
@@ -774,8 +775,8 @@ public static class EdoSannoShaBuilder
                 var p = new Vector2(wx, wz);
                 float bare = -1, grass = 0, dirt = 0;
                 bool inJubo = false;
-                foreach (var jb in EdoSannoJuboBuilder.Parcels)
-                    if (pip(jb.poly, p)) { inJubo = true; break; }
+                foreach (var jpoly in juboPolys)
+                    if (pip(jpoly, p)) { inJubo = true; break; }
                 if (inJubo) continue;    // 十坊のスプラットは触らない(JuboBuilder担当)
                 if (pip(PREC, p))
                 {   // 境内=白砂利
@@ -834,6 +835,7 @@ public static class EdoSannoShaBuilder
         var root = GameObject.Find(GROUP);
         if (root != null && root.transform.Find("Keidairin") != null) return "SKIP: Keidairin exists";
         var tg = Group(GROUP, "Keidairin");
+        var juboPolys = EdoParcels.GetByPrefix("sannojubo_parcels_");   // 十坊の10筆(区画の正典・規則11)。輪の外で一度だけ引く
         var rnd = new System.Random(777);
         string[] bam = {
             EdoAssets.JG.BambooBig01,
@@ -847,9 +849,9 @@ public static class EdoSannoShaBuilder
             if (hgt < 12.5f) continue;                                   // 麓は除外
             if (px > -566f && px < -490f && pz > 818f && pz < 896f) continue; // 境内内部は除外
             bool inJubo = false;                                          // 十坊の区画内は除外
-            foreach (var jb in EdoSannoJuboBuilder.Parcels)
+            foreach (var poly in juboPolys)
             {
-                bool ins = false; var poly = jb.poly;
+                bool ins = false;
                 for (int i2 = 0, j2 = poly.Length - 1; i2 < poly.Length; j2 = i2++)
                     if (((poly[i2].y > pz) != (poly[j2].y > pz)) &&
                         (px < (poly[j2].x - poly[i2].x) * (pz - poly[i2].y) / (poly[j2].y - poly[i2].y) + poly[i2].x)) ins = !ins;
@@ -884,7 +886,7 @@ public static class EdoSannoShaBuilder
         //   判定は `docs/Sashizu/sanno_sashizu.json` の `reviews` — 記録は
         //   `python3 Tools/Sashizu/review_gate.py --record sanno <役> <pass|fail>` が書く。
         var reviewGate = EdoSashizuExport.ReviewGate("sanno"); if (reviewGate != null) return reviewGate;
-        EdoNishiTameikeBuilder.NaturalMode = true;
+        EdoBuild.NaturalMode = true;
         var sb = new System.Text.StringBuilder();
         sb.AppendLine(Stage1_Keidai());
         sb.AppendLine(Stage2_Sando());

@@ -527,7 +527,7 @@ public static class EdoOkabeYashikiBuilder
         var gate = ReviewGate(); if (gate != null) return gate;
         var sb = new System.Text.StringBuilder();
         var wait = new List<string>();
-        EdoNishiTameikeBuilder.NaturalMode = false;      // 天端は run の seat で通す
+        EdoBuild.NaturalMode = false;      // 天端は run の seat で通す
         var kak = Group("Kakoi"); Clear(kak);
 
         // ---- 表長屋・表門(⭐ 練塀より**先**に据える)-----------------------
@@ -561,7 +561,7 @@ public static class EdoOkabeYashikiBuilder
             Vector2 a = EdgePt(r.edge, rs0), b = EdgePt(r.edge, rs1);
             if (Mathf.Abs(r.seat1 - r.seat0) < 0.01f)
             {
-                EdoNishiTameikeBuilder.DobeiRun(kak, a, b, outw, r.name, false, r.seat0, Vector2.zero, -1);
+                EdoBuild.DobeiRun(kak, a, b, outw, r.name, false, r.seat0, Vector2.zero, -1);
                 hei++;
             }
             else
@@ -575,7 +575,7 @@ public static class EdoOkabeYashikiBuilder
                     Vector2 pa = Vector2.Lerp(a, b, q / (float)nSeg);
                     Vector2 pb = Vector2.Lerp(a, b, (q + 1) / (float)nSeg);
                     float sMid = Mathf.Lerp(r.s0, r.s1, (q + 0.5f) / nSeg);
-                    EdoNishiTameikeBuilder.DobeiRun(kak, pa, pb, outw, r.name + "_" + q, false,
+                    EdoBuild.DobeiRun(kak, pa, pb, outw, r.name + "_" + q, false,
                                                     r.SeatAt(sMid), Vector2.zero, -1);
                 }
                 hei++;

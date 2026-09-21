@@ -87,7 +87,7 @@ public static class EdoSanyashikiRebuild
     // 池保護矩形: (2,190)-(48,230) ±6m は不変
     public static string S2_GradeEdges()
     {
-        var t = EdoNishiTameikeBuilder.T(); var td = t.terrainData;
+        var t = EdoBuild.T(); var td = t.terrainData;
         int res = td.heightmapResolution;
         Vector3 tp = t.transform.position; var ts = td.size;
         float cell = ts.x / (res - 1);
@@ -97,7 +97,7 @@ public static class EdoSanyashikiRebuild
         int w = ix1 - ix0 + 1, h = iz1 - iz0 + 1;
         var H = td.GetHeights(ix0, iz0, w, h);
         float sy = ts.y;
-        Func<float, float, float> G = (x, z) => EdoNishiTameikeBuilder.Ground(x, z);
+        Func<float, float, float> G = (x, z) => EdoBuild.Ground(x, z);
         int changed = 0;
         for (int zz = 0; zz < h; zz++) for (int xx = 0; xx < w; xx++)
         {
@@ -160,7 +160,7 @@ public static class EdoSanyashikiRebuild
         Vector2 fA = e.poly[e.front], fB = e.poly[(e.front + 1) % N];
         Vector2 gate2 = Vector2.Lerp(fA, fB, e.gateT);
         Vector2 fin = InwardN(e, e.front);
-        float gatePad = EdoNishiTameikeBuilder.Ground((gate2 + fin * 10f).x, (gate2 + fin * 10f).y);
+        float gatePad = EdoBuild.Ground((gate2 + fin * 10f).x, (gate2 + fin * 10f).y);
 
         int nIshi = 0, nHei = 0, nNag = 0;
         for (int i = 0; i < N; i++)
@@ -181,14 +181,14 @@ public static class EdoSanyashikiRebuild
                 float tm = (t0 + t1) * 0.5f;
                 if (sk0 >= 0 && tm > sk0 && tm < sk1) continue;
                 var sa = A + d * t0; var sbp = A + d * t1; var m = A + d * tm;
-                float inner = EdoNishiTameikeBuilder.Ground((m + inw * 5).x, (m + inw * 5).y);
-                float outer = EdoNishiTameikeBuilder.Ground((m - inw * 5).x, (m - inw * 5).y);
+                float inner = EdoBuild.Ground((m + inw * 5).x, (m + inw * 5).y);
+                float outer = EdoBuild.Ground((m - inw * 5).x, (m - inw * 5).y);
                 bool gateHere = (i == e.front) && Mathf.Abs(tm - len * e.gateT) < 14f;
                 bool nag = (i == e.front && Mathf.Abs(inner - outer) <= 1.6f) || e.nagayaEdges.Contains(i);
                 if (nag)
                 {
                     float baseY = Mathf.Min(inner, outer);
-                    EdoNishiTameikeBuilder.NagayaRun(kak, sa, sbp, outw, baseY,
+                    EdoBuild.NagayaRun(kak, sa, sbp, outw, baseY,
                         gateHere ? gate2 : Vector2.zero, gateHere ? (e.gateType == "k_mon" ? 8.5f : 5.5f) : -1f, "NG3_" + i + "_" + k);
                     nNag++;
                 }
@@ -206,10 +206,10 @@ public static class EdoSanyashikiRebuild
                         float tq = Mathf.Min(q * 1.8f, (t1 - t0) - 0.01f);
                         var p = A2 + dd * tq;
                         if (gateHere) { float gtq = Vector2.Dot(gate2 - A2, dd); if (Mathf.Abs(tq - gtq) < (e.gateType == "k_mon" ? 8.5f : 5.5f)) continue; }
-                        EdoNishiTameikeBuilder.Place(P_CW, new Vector3(p.x, baseY2, p.y), yaw, new Vector3(1, syw, 1), kak, "CW3_" + nIshi);
+                        EdoBuild.Place(P_CW, new Vector3(p.x, baseY2, p.y), yaw, new Vector3(1, syw, 1), kak, "CW3_" + nIshi);
                         nIshi++;
                     }
-                    EdoNishiTameikeBuilder.DobeiRun(kak, sa, sbp, outw, "Hei3_" + i + "_" + k, false, coping - 0.05f,
+                    EdoBuild.DobeiRun(kak, sa, sbp, outw, "Hei3_" + i + "_" + k, false, coping - 0.05f,
                         gateHere ? gate2 : Vector2.zero, gateHere ? (e.gateType == "k_mon" ? 8.5f : 5.5f) : -1f);
                     nHei++;
                 }
@@ -218,10 +218,10 @@ public static class EdoSanyashikiRebuild
         // 門
         string gp = e.gateType == "k_mon" ? P_KMON : P_HMON;
         float psiIn = Mathf.Atan2(fin.x, fin.y) * Mathf.Rad2Deg;
-        var monGo = EdoNishiTameikeBuilder.Place(gp, new Vector3(gate2.x, gatePad, gate2.y), psiIn,
+        var monGo = EdoBuild.Place(gp, new Vector3(gate2.x, gatePad, gate2.y), psiIn,
             e.gateType == "k_mon" ? Vector3.one * ES : Vector3.one, mong, "Mon_v3");
-        EdoNishiTameikeBuilder.SeatBottom(monGo, gatePad - 0.05f);
-        var mb = EdoNishiTameikeBuilder.RB(monGo);
+        EdoBuild.SeatBottom(monGo, gatePad - 0.05f);
+        var mb = EdoBuild.RB(monGo);
         monGo.transform.position += new Vector3(gate2.x - mb.center.x, 0, gate2.y - mb.center.z);
         // kagami 内側検証
         float kmn = float.MaxValue, kmx = float.MinValue;
@@ -237,12 +237,12 @@ public static class EdoSanyashikiRebuild
         }
         if (kmn != float.MaxValue)
         {
-            var mc = EdoNishiTameikeBuilder.RB(monGo).center;
+            var mc = EdoBuild.RB(monGo).center;
             float cp = mc.x * (-fin.x) + mc.z * (-fin.y);
             if ((kmn + kmx) * 0.5f > cp)
             {
                 monGo.transform.rotation *= Quaternion.Euler(0, 180, 0);
-                var b2 = EdoNishiTameikeBuilder.RB(monGo);
+                var b2 = EdoBuild.RB(monGo);
                 monGo.transform.position += new Vector3(gate2.x - b2.center.x, 0, gate2.y - b2.center.z);
                 sb.AppendLine("mon flipped");
             }
@@ -252,8 +252,8 @@ public static class EdoSanyashikiRebuild
             float side = i == 0 ? 1f : -1f;
             var runAxis = (fB - fA).normalized;
             var bp = gate2 + runAxis * (side * ((e.gateType == "k_mon" ? 7.2f : 4.2f) + 2.2f)) + (-fin) * 0.5f;
-            var ban = EdoNishiTameikeBuilder.Place(P_BANSHO, new Vector3(bp.x, gatePad, bp.y), psiIn + 180f, Vector3.one * ES, mong, "Bansho_" + i);
-            EdoNishiTameikeBuilder.SeatBottom(ban, gatePad - 0.05f);
+            var ban = EdoBuild.Place(P_BANSHO, new Vector3(bp.x, gatePad, bp.y), psiIn + 180f, Vector3.one * ES, mong, "Bansho_" + i);
+            EdoBuild.SeatBottom(ban, gatePad - 0.05f);
             var f3 = ban.transform.forward;
             if (f3.x * (-fin.x) + f3.z * (-fin.y) < 0)
                 ban.transform.rotation = Quaternion.Euler(0, Mathf.Atan2(-fin.x, -fin.y) * Mathf.Rad2Deg, 0);

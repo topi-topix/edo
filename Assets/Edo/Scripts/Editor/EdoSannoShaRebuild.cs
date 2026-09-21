@@ -589,7 +589,7 @@ public static class EdoSannoShaRebuild
                     // 在庫の板塀(edogoyomi)。⚠ 呼び寸に合わせて走り方向だけ伸縮するのは
                     //   既存の `PanelRun` の流儀(全邸で同じ)。表裏2枚で `_kf`/`_kb` と名づく。
                     var outw = new Vector2(dir.y, -dir.x);
-                    var lst = EdoSannoJuboBuilder.PanelRun(grp, a, b, outw, name, EdoAssets.Eg.Itabei5, Vector2.zero, -1);
+                    var lst = EdoBuild.PanelRun(grp, a, b, outw, name, EdoAssets.Eg.Itabei5, Vector2.zero, -1);
                     made += lst.Count;
                 }
                 else

@@ -73,13 +73,13 @@ public static class EdoYamatoRebuild
         float u = Vector2.Dot(p - g2, Uhat), v = Vector2.Dot(p - g2, Vin);
         foreach (var pd in Pads)
             if (Mathf.Abs(u - pd.u) < pd.hu && Mathf.Abs(v - pd.v) < pd.hv) return pd.level;
-        return EdoNishiTameikeBuilder.Ground(p.x, p.y);
+        return EdoBuild.Ground(p.x, p.y);
     }
 
     // ---------- Y1: 造成(壊れ帯の調和補間 + 基壇 + 門前平場) ----------
     public static string Y1_Grade()
     {
-        var t = EdoNishiTameikeBuilder.T(); var td = t.terrainData;
+        var t = EdoBuild.T(); var td = t.terrainData;
         int res = td.heightmapResolution;
         Vector3 tp = t.transform.position; var ts = td.size;
         float cell = ts.x / (res - 1);
@@ -130,7 +130,7 @@ public static class EdoYamatoRebuild
             }
         }
         // 門前平場: 門中心から半径12m=門地盤、12-20mフェザー(区画外のみ)
-        float gatePad = EdoNishiTameikeBuilder.Ground(g2.x, g2.y);
+        float gatePad = EdoBuild.Ground(g2.x, g2.y);
         for (int zz = 0; zz < h; zz++) for (int xx = 0; xx < w; xx++)
         {
             var p = W2(zz, xx);
@@ -168,8 +168,8 @@ public static class EdoYamatoRebuild
             {
                 float t0 = (float)k / ns, t1 = (float)(k + 1) / ns;
                 var m = Vector2.Lerp(A, B, (t0 + t1) * 0.5f);
-                float inner = EdoNishiTameikeBuilder.Ground((m + inw * 4).x, (m + inw * 4).y);
-                float street = EdoNishiTameikeBuilder.Ground((m - inw * 5).x, (m - inw * 5).y);
+                float inner = EdoBuild.Ground((m + inw * 4).x, (m + inw * 4).y);
+                float street = EdoBuild.Ground((m - inw * 5).x, (m - inw * 5).y);
                 bool nag = Mathf.Abs(inner - street) <= 1.2f;
                 float cop = Mathf.Round((Mathf.Max(inner, street) + 1.0f) * 2f) / 2f;
                 if (cur != null && cur.nagaya == nag && (nag || Mathf.Abs(cur.coping - cop) < 0.26f))
@@ -215,8 +215,8 @@ public static class EdoYamatoRebuild
             bool gateHere = onFront && gT0 > -12 && gT0 < len + 12;
             if (s.nagaya)
             {
-                float baseY = EdoNishiTameikeBuilder.Ground(((s.a + s.b) * 0.5f + inw * 2).x, ((s.a + s.b) * 0.5f + inw * 2).y);
-                var mods = EdoNishiTameikeBuilder.NagayaRun(kak, s.a, s.b, outw, baseY,
+                float baseY = EdoBuild.Ground(((s.a + s.b) * 0.5f + inw * 2).x, ((s.a + s.b) * 0.5f + inw * 2).y);
+                var mods = EdoBuild.NagayaRun(kak, s.a, s.b, outw, baseY,
                     gateHere ? g2 : Vector2.zero, gateHere ? 9.5f : -1f, "NGv2_" + nNag);
                 nNag++;
             }
@@ -226,8 +226,8 @@ public static class EdoYamatoRebuild
                 //   ポリゴンは反時計回り(内面)なので、辺を逆走(b→a)すると左=外になる
                 var A2 = s.b; var B2 = s.a; var dd = (B2 - A2).normalized;
                 float yaw = Mathf.Atan2(dd.x, dd.y) * Mathf.Rad2Deg;
-                float ground = Mathf.Min(EdoNishiTameikeBuilder.Ground((A2 - inw * 5).x, (A2 - inw * 5).y),
-                                          EdoNishiTameikeBuilder.Ground((B2 - inw * 5).x, (B2 - inw * 5).y));
+                float ground = Mathf.Min(EdoBuild.Ground((A2 - inw * 5).x, (A2 - inw * 5).y),
+                                          EdoBuild.Ground((B2 - inw * 5).x, (B2 - inw * 5).y));
                 float baseY2 = Mathf.Min(ground - 0.6f, s.coping - 2.0f);
                 float syw = Mathf.Max(0.5f, (s.coping - baseY2) / 4.0f);
                 int n = Mathf.Max(1, Mathf.CeilToInt(len / 1.8f));
@@ -236,21 +236,21 @@ public static class EdoYamatoRebuild
                     float tk = Mathf.Min(k * 1.8f, len - 0.01f);
                     var p = A2 + dd * tk;
                     if (gateHere) { float gtk = Vector2.Dot(g2 - A2, dd); if (Mathf.Abs(tk - gtk) < 9.5f) continue; }
-                    var go = EdoNishiTameikeBuilder.Place(P_CW, new Vector3(p.x, baseY2, p.y), yaw, new Vector3(1, syw, 1), kak, "CWv2_" + nIshi);
+                    var go = EdoBuild.Place(P_CW, new Vector3(p.x, baseY2, p.y), yaw, new Vector3(1, syw, 1), kak, "CWv2_" + nIshi);
                     nIshi++;
                 }
                 // 塀(表裏ペア)を天端に
-                var hei = EdoNishiTameikeBuilder.DobeiRun(kak, s.a, s.b, outw, "HeiV2_" + nHei, false, s.coping - 0.05f,
+                var hei = EdoBuild.DobeiRun(kak, s.a, s.b, outw, "HeiV2_" + nHei, false, s.coping - 0.05f,
                     gateHere ? g2 : Vector2.zero, gateHere ? 9.5f : -1f);
                 nHei++;
             }
         }
         // 門: k_mon + 両番所
-        float gatePad = EdoNishiTameikeBuilder.Ground(g2.x, g2.y);
+        float gatePad = EdoBuild.Ground(g2.x, g2.y);
         float psiIn = Mathf.Atan2(Vin.x, Vin.y) * Mathf.Rad2Deg;
-        var monGo = EdoNishiTameikeBuilder.Place(P_KMON, new Vector3(g2.x, gatePad, g2.y), psiIn, Vector3.one * ES, mon, "Kmon");
-        EdoNishiTameikeBuilder.SeatBottom(monGo, gatePad - 0.05f);
-        var mb = EdoNishiTameikeBuilder.RB(monGo);
+        var monGo = EdoBuild.Place(P_KMON, new Vector3(g2.x, gatePad, g2.y), psiIn, Vector3.one * ES, mon, "Kmon");
+        EdoBuild.SeatBottom(monGo, gatePad - 0.05f);
+        var mb = EdoBuild.RB(monGo);
         monGo.transform.position += new Vector3(g2.x - mb.center.x, 0, g2.y - mb.center.z);
         // kagami が内側かの検証(外なら180回転)
         float kmn = float.MaxValue, kmx = float.MinValue;
@@ -266,12 +266,12 @@ public static class EdoYamatoRebuild
         }
         if (kmn != float.MaxValue)
         {
-            var mc = EdoNishiTameikeBuilder.RB(monGo).center;
+            var mc = EdoBuild.RB(monGo).center;
             float cp = mc.x * (-Vin.x) + mc.z * (-Vin.y);
             if ((kmn + kmx) * 0.5f > cp)
             {
                 monGo.transform.rotation *= Quaternion.Euler(0, 180, 0);
-                var b2 = EdoNishiTameikeBuilder.RB(monGo);
+                var b2 = EdoBuild.RB(monGo);
                 monGo.transform.position += new Vector3(g2.x - b2.center.x, 0, g2.y - b2.center.z);
                 sb.AppendLine("kmon flipped");
             }
@@ -280,13 +280,13 @@ public static class EdoYamatoRebuild
         {
             float side = i == 0 ? 1f : -1f;
             var bp = g2 + Uhat * (side * 11f) + (-Vin) * 0.5f;
-            var ban = EdoNishiTameikeBuilder.Place(P_BANSHO, new Vector3(bp.x, gatePad, bp.y), psiIn + 180f, Vector3.one * ES, mon, "Bansho_" + i);
-            EdoNishiTameikeBuilder.SeatBottom(ban, gatePad - 0.05f);
+            var ban = EdoBuild.Place(P_BANSHO, new Vector3(bp.x, gatePad, bp.y), psiIn + 180f, Vector3.one * ES, mon, "Bansho_" + i);
+            EdoBuild.SeatBottom(ban, gatePad - 0.05f);
             var f3 = ban.transform.forward;
             if (f3.x * (-Vin.x) + f3.z * (-Vin.y) < 0)
                 ban.transform.rotation = Quaternion.Euler(0, Mathf.Atan2(-Vin.x, -Vin.y) * Mathf.Rad2Deg, 0);
             // 前面を門前面と面一
-            var bb = EdoNishiTameikeBuilder.RB(ban); var gb = EdoNishiTameikeBuilder.RB(monGo);
+            var bb = EdoBuild.RB(ban); var gb = EdoBuild.RB(monGo);
             float bf = bb.center.x * (-Vin.x) + bb.center.z * (-Vin.y) + bb.extents.magnitude * 0f;
             // 簡易: 門の外面へ z 揃え(実測: 門前面=バウンズの外向き最大)
             float gFront = gb.center.x * (-Vin.x) + gb.center.z * (-Vin.y) + 3.2f;
@@ -306,8 +306,8 @@ public static class EdoYamatoRebuild
         var p = g2 + Uhat * u + Vin * v;
         float y = PadAt(p);
         float streetYaw = Mathf.Atan2(-Vin.x, -Vin.y) * Mathf.Rad2Deg;
-        var go = EdoNishiTameikeBuilder.Place(path, new Vector3(p.x, y, p.y), streetYaw + yawOff, scale, parent, name);
-        EdoNishiTameikeBuilder.SeatBottom(go, y - 0.12f);
+        var go = EdoBuild.Place(path, new Vector3(p.x, y, p.y), streetYaw + yawOff, scale, parent, name);
+        EdoBuild.SeatBottom(go, y - 0.12f);
         return go;
     }
 
@@ -386,13 +386,13 @@ public static class EdoYamatoRebuild
         var negRight = new Vector2(-Mathf.Cos(rad), Mathf.Sin(rad));
         var g = new GameObject(name); g.transform.SetParent(parent, false);
         Undo.RegisterCreatedObjectUndo(g, "umaya");
-        var m1 = EdoNishiTameikeBuilder.Place(EdoAssets.Eg.KnagayaL, Vector3.zero, psi, Vector3.one * ES, g.transform, "u0");
-        var m2 = EdoNishiTameikeBuilder.Place(EdoAssets.Eg.KnagayaR, Vector3.zero, psi, Vector3.one * ES, g.transform, "u1");
+        var m1 = EdoBuild.Place(EdoAssets.Eg.KnagayaL, Vector3.zero, psi, Vector3.one * ES, g.transform, "u0");
+        var m2 = EdoBuild.Place(EdoAssets.Eg.KnagayaR, Vector3.zero, psi, Vector3.one * ES, g.transform, "u1");
         var p1 = c - negRight * 3.9f; var p2 = c + negRight * 3.9f;
         m1.transform.position = new Vector3(p1.x, y, p1.y);
         m2.transform.position = new Vector3(p2.x, y, p2.y);
-        EdoNishiTameikeBuilder.SeatBottom(m1, y - 0.10f);
-        EdoNishiTameikeBuilder.SeatBottom(m2, y - 0.10f);
+        EdoBuild.SeatBottom(m1, y - 0.10f);
+        EdoBuild.SeatBottom(m2, y - 0.10f);
     }
 
     static void Well(Transform parent, float u, float v)

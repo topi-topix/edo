@@ -1313,7 +1313,7 @@ public static partial class EdoDoiBuilder
             if (old != null) { UnityEngine.Object.DestroyImmediate(old.gameObject); sb.AppendLine("旧 Omotemon 群(2026-08-12 仮置き)を撤去"); }
         }
 
-        EdoNishiTameikeBuilder.NaturalMode = false;      // 天端は run の seat で通す
+        EdoBuild.NaturalMode = false;      // 天端は run の seat で通す
 
         // ── 練塀(表裏2枚組・段が違うので run ごと)
         int hei = 0;
@@ -1328,7 +1328,7 @@ public static partial class EdoDoiBuilder
                 if ((b - a).magnitude < 1.2f) continue;
                 // 犬走り: 石垣の法肩(=区画線)から内へ 0.30m 控える
                 a -= outw * Inubashiri; b -= outw * Inubashiri;
-                EdoNishiTameikeBuilder.DobeiRun(kak, a, b, outw, r.name + (seg > 0 ? "_s" + seg : ""),
+                EdoBuild.DobeiRun(kak, a, b, outw, r.name + (seg > 0 ? "_s" + seg : ""),
                                                 false, r.seat, Vector2.zero, -1);
                 hei++; seg++;
             }

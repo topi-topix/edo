@@ -479,7 +479,7 @@ public static partial class EdoMatsudairaDewaBuilder
     /// ⛔ 決め打ちの定数に戻さない — 部材を差し替えた瞬間に穴が開く。</summary>
     static float FenceWidth(Transform parent, float psi)
     {
-        var probe = EdoNishiTameikeBuilder.Place(EdoAssets.Eg.Hogaki5, new Vector3(0, -9999f, 0),
+        var probe = EdoBuild.Place(EdoAssets.Eg.Hogaki5, new Vector3(0, -9999f, 0),
                                                  psi, Vector3.one, parent, "__probe");
         if (probe == null) return 4.0f;
         float w = 0f;
@@ -569,7 +569,7 @@ public static partial class EdoMatsudairaDewaBuilder
     }
 
     // ---------------------------------------------------------------- 表長屋の並べ方
-    // ⚠ 共有の EdoNishiTameikeBuilder.NagayaRun は使わない。あれは
+    // ⚠ 共有の EdoBuild.NagayaRun は使わない。あれは
     //     ・PITCH=7.81m 決め打ち。**部材の実体は 8.062m** なので全継ぎ目が 0.252m 重なる
     //       → 海鼠紋が二重・瓦が二重・窓の割りが継ぎ目でずれる
     //     ・さらに pitchRun = span/(n-1) で run ごとにピッチを変えるので重なり量が run ごとに違う
@@ -583,7 +583,7 @@ public static partial class EdoMatsudairaDewaBuilder
         var go = (GameObject)PrefabUtility.InstantiatePrefab(pf);
         go.transform.position = Vector3.zero;
         go.transform.rotation = Quaternion.identity;
-        go.transform.localScale = Vector3.one * EdoSannoKitaBuilder.ES;
+        go.transform.localScale = Vector3.one * EdoBuild.ES;
         var rs = go.GetComponentsInChildren<Renderer>();
         // 壁(namako/wall/dodai)の範囲が繰り返し長。屋根の反り・鬼は端で出るので使わない。
         float mn = float.MaxValue, mx = float.MinValue;
@@ -606,7 +606,7 @@ public static partial class EdoMatsudairaDewaBuilder
         { var reviewGate = EdoSashizuExport.ReviewGate("matsudaira_dewa");
           if (reviewGate != null) return reviewGate; }
 
-        EdoNishiTameikeBuilder.NaturalMode = false;     // 天端は run の seat で通す
+        EdoBuild.NaturalMode = false;     // 天端は run の seat で通す
         var kak = Group("Kakoi"); Clear(kak);
         var sb = new System.Text.StringBuilder();
         int nag = 0, hei = 0;
@@ -704,7 +704,7 @@ public static partial class EdoMatsudairaDewaBuilder
                 if ((seg[1] - seg[0]).magnitude < 1.2f) continue;
                 // 斜面の run は天端が一直線に下るので、2m 刻みに割ってその位置の天端で据える
                 if (Mathf.Abs(r.seat1 - r.seat0) < 0.01f)
-                    EdoNishiTameikeBuilder.DobeiRun(kak, seg[0], seg[1], outw, r.name, false, r.seat0, Vector2.zero, -1);
+                    EdoBuild.DobeiRun(kak, seg[0], seg[1], outw, r.name, false, r.seat0, Vector2.zero, -1);
                 else
                 {
                     float segLen = Vector2.Distance(seg[0], seg[1]);
@@ -714,7 +714,7 @@ public static partial class EdoMatsudairaDewaBuilder
                         Vector2 pa = Vector2.Lerp(seg[0], seg[1], q / (float)nSeg);
                         Vector2 pb = Vector2.Lerp(seg[0], seg[1], (q + 1) / (float)nSeg);
                         float sMid = cl[0] + (cl[1] - cl[0]) * ((q + 0.5f) / nSeg);
-                        EdoNishiTameikeBuilder.DobeiRun(kak, pa, pb, outw, r.name + "_" + q, false,
+                        EdoBuild.DobeiRun(kak, pa, pb, outw, r.name + "_" + q, false,
                                                         r.SeatAt(sMid), Vector2.zero, -1);
                     }
                 }
@@ -779,7 +779,7 @@ public static partial class EdoMatsudairaDewaBuilder
             Vector2 p3 = EdgePt(r.edge, sMid) - outw2 * INUBASHIRI;
             float seat3 = r.SeatAt(sMid);
             // ピボット = 走りの中心・土台の底・**壁の外面**。FBX は実寸(m)なので scale=1
-            var go3 = EdoNishiTameikeBuilder.Place(path, new Vector3(p3.x, seat3, p3.y), psi2,
+            var go3 = EdoBuild.Place(path, new Vector3(p3.x, seat3, p3.y), psi2,
                                                    Vector3.one, kak, r.name);
             if (go3 == null)
             {
@@ -788,7 +788,7 @@ public static partial class EdoMatsudairaDewaBuilder
                               + (r.nijukai ? " --floors 2" : ""));
                 continue;
             }
-            EdoNishiTameikeBuilder.SeatBottom(go3, seat3 - 0.10f);
+            EdoBuild.SeatBottom(go3, seat3 - 0.10f);
             nag++;
         }
         sb.AppendLine("塀・長屋: 長屋 " + nag + "棟 / 練塀run " + hei);
@@ -820,10 +820,10 @@ public static partial class EdoMatsudairaDewaBuilder
             {
                 float s = a0 + w * 0.5f + pitch * q;
                 Vector2 p = EdgePt(e, s);
-                var go = EdoNishiTameikeBuilder.Place(EdoAssets.Eg.Hogaki5, new Vector3(p.x, 0, p.y),
+                var go = EdoBuild.Place(EdoAssets.Eg.Hogaki5, new Vector3(p.x, 0, p.y),
                                                      psi, Vector3.one, fen, (string)fdef["name"] + "_" + posts);
                 if (go == null) continue;
-                EdoNishiTameikeBuilder.SeatBottom(go, G(p.x, p.y) - 0.05f);
+                EdoBuild.SeatBottom(go, G(p.x, p.y) - 0.05f);
                 posts++;
             }
         }
@@ -1415,7 +1415,7 @@ public static partial class EdoMatsudairaDewaBuilder
                     //   NE_Nagaya_1 0.30m / S_Hei_Doi_S1b 1.12m — いずれも run 本体の seat と
                     //   隅の kado.seat の差にちょうど一致)。腕は run 本体と別バケツに分けて数える。
                     string bucketName = float.IsNaN(segSeat[si]) ? r.name : (r.name + "_arm");
-                    var go = EdoNishiTameikeBuilder.Place(EdoAssets.JC.CastleWall,
+                    var go = EdoBuild.Place(EdoAssets.JC.CastleWall,
                         new Vector3(p.x, seat - IG_H, p.y), psi,
                         Vector3.one, grp, "IG_" + bucketName + "_" + made);
                     if (go != null) made++;
@@ -2284,7 +2284,7 @@ public static partial class EdoMatsudairaDewaBuilder
         float yaw = Mathf.Atan2(outw.x, outw.y) * Mathf.Rad2Deg;
 
         Vector2 gp = EdgePt(ge, gs);
-        var mon = EdoNishiTameikeBuilder.Place(EdoAssets.Own.MatsudairaOmotemon,
+        var mon = EdoBuild.Place(EdoAssets.Own.MatsudairaOmotemon,
             new Vector3(gp.x, sill, gp.y), yaw, Vector3.one, grp, "Omotemon");
         if (mon != null) { n++; sb.AppendLine("表門 s=" + gs.ToString("F1") + " 敷居=" + sill.ToString("F2")); }
 
@@ -2333,7 +2333,7 @@ public static partial class EdoMatsudairaDewaBuilder
             Vector2 q = EdgePt(ge, mid) + outw * (prot - banshoD * 0.5f);
             // ⭐ 部材名に**躯体の幅**が入る(2026-09-09)。⛔ 寸法なしの旧名は削除済み —
             //   指図の `w` を動かしたら「部材が無い」と鳴るのが正。⛔ 旧寸で黙って建てない。
-            var go = EdoNishiTameikeBuilder.Place(EdoAssets.Own.MatsudairaBansho(F(bs["w"])),
+            var go = EdoBuild.Place(EdoAssets.Own.MatsudairaBansho(F(bs["w"])),
                 new Vector3(q.x, sill, q.y), yaw, Vector3.one, grp, "Bansho_" + key.Substring(6));
             if (go != null)
             {
@@ -2578,7 +2578,7 @@ public static partial class EdoMatsudairaDewaBuilder
                         + "。当面は潜り戸なしで据える");
                 }
                 Vector2 p0 = EdgePt(ge, sStart);
-                var go = EdoNishiTameikeBuilder.Place(path, new Vector3(p0.x, sill, p0.y), yawS,
+                var go = EdoBuild.Place(path, new Vector3(p0.x, sill, p0.y), yawS,
                                                      Vector3.one, grp, "Sode_" + side);
                 if (go == null) { sb.AppendLine("⛔ 袖塀の部材が無い " + path); continue; }
                 // 犬走り: **壁体の外面**を区画線から内へ INUBASHIRI 。⛔ 外接箱(屋根の出 0.5)で測らない
@@ -2749,7 +2749,7 @@ public static partial class EdoMatsudairaDewaBuilder
         float fx = (pairW > 0.1f && want > 0.1f) ? want / pairW : 1f;
         foreach (var pr in new[] { new[] { pathL, "L" }, new[] { pathR, "R" } })
         {
-            var go = EdoNishiTameikeBuilder.Place(pr[0], new Vector3(p.x, sill - footOff, p.y), yaw,
+            var go = EdoBuild.Place(pr[0], new Vector3(p.x, sill - footOff, p.y), yaw,
                                                   new Vector3(fx, 1f, 1f), grp, name + "_Tobira" + pr[1]);
             if (go != null) n++;
         }
@@ -2814,12 +2814,12 @@ public static partial class EdoMatsudairaDewaBuilder
                 //       据えたあと**実メッシュの外接箱の中心**が開口の中心に来るよう平面で寄せ直す。
                 Vector2 c = (A2 + B2) * 0.5f;
                 Vector2 dir = (B2 - A2).normalized;
-                var go = EdoNishiTameikeBuilder.Place(EdoAssets.Eg.Kabukimon,
+                var go = EdoBuild.Place(EdoAssets.Eg.Kabukimon,
                     new Vector3(c.x, DesignY(c), c.y), Mathf.Atan2(dir.y, -dir.x) * Mathf.Rad2Deg,
-                    Vector3.one * EdoSannoKitaBuilder.ES, njGrp, nm);
+                    Vector3.one * EdoBuild.ES, njGrp, nm);
                 if (go != null)
                 {
-                    var bb = EdoNishiTameikeBuilder.RB(go);
+                    var bb = EdoBuild.RB(go);
                     // 幅は**走り方向へ投影した実メッシュの伸び**で測る(外接箱の x/z の大きい方ではない)
                     float have = ProjSpan(go, dir);
                     float want = (B2 - A2).magnitude;
@@ -2829,10 +2829,10 @@ public static partial class EdoMatsudairaDewaBuilder
                         go.transform.localScale = new Vector3(ls.x * want / have, ls.y * h / bb.size.y, ls.z);
                     }
                     // 平面: 実メッシュの中心を開口の中心へ / 鉛直: 実メッシュの底を設計地盤へ
-                    var bb2 = EdoNishiTameikeBuilder.RB(go);
+                    var bb2 = EdoBuild.RB(go);
                     go.transform.position += new Vector3(c.x - bb2.center.x, DesignY(c) - bb2.min.y, c.y - bb2.center.z);
                     // 板塀が空ける「穴」は、指図の a/b ではなく**据えた実メッシュの走り方向の伸び**で取る
-                    var bb3 = EdoNishiTameikeBuilder.RB(go);
+                    var bb3 = EdoBuild.RB(go);
                     float half = ProjSpan(go, dir) * 0.5f;
                     Vector2 mc = new Vector2(bb3.center.x, bb3.center.z);
                     for (int ki = 0; ki < kido.Count; ki++)
@@ -2870,11 +2870,11 @@ public static partial class EdoMatsudairaDewaBuilder
                 for (int k = 0; k < n; k++)
                 {
                     Vector2 c = P0 + dir * (pitch * (k + 0.5f));
-                    var go = EdoNishiTameikeBuilder.Place(EdoAssets.Eg.TakeGaki,
+                    var go = EdoBuild.Place(EdoAssets.Eg.TakeGaki,
                         new Vector3(c.x, DesignY(c), c.y), yaw,
                         new Vector3(S, S * 1.30f, S * pitch / PITCH), rlGrp, nm + "_" + k);
                     if (go == null) continue;
-                    var bb = EdoNishiTameikeBuilder.RB(go);
+                    var bb = EdoBuild.RB(go);
                     go.transform.position += new Vector3(c.x - bb.center.x,
                         DesignY(c) - 0.05f - bb.min.y, c.y - bb.center.z);
                     nGaki++;
@@ -2945,12 +2945,12 @@ public static partial class EdoMatsudairaDewaBuilder
                     {
                         float t2 = (j - (gacross - 1) * 0.5f) * (gw / gacross);
                         Vector2 cc = c + gside * t2;
-                        var go = EdoNishiTameikeBuilder.Place(EdoAssets.Own.DanishiStep,
+                        var go = EdoBuild.Place(EdoAssets.Own.DanishiStep,
                             new Vector3(cc.x, gtop, cc.y), gyaw, Vector3.one, dnGrp, nm + "_" + i + "_" + j);
                         if (go == null) continue;
-                        float have2 = RunWidth(EdoNishiTameikeBuilder.RB(go), gyaw);
+                        float have2 = RunWidth(EdoBuild.RB(go), gyaw);
                         if (have2 > 0.05f) go.transform.localScale = new Vector3((gw / gacross) / have2, 1f, 1f);
-                        var bb2 = EdoNishiTameikeBuilder.RB(go);
+                        var bb2 = EdoBuild.RB(go);
                         go.transform.position += new Vector3(cc.x - bb2.center.x, gtop - bb2.max.y, cc.y - bb2.center.z);
                         nDan++;
                     }
@@ -3001,16 +3001,16 @@ public static partial class EdoMatsudairaDewaBuilder
                 {
                     float t = (j - (across - 1) * 0.5f) * (wid / across);
                     Vector2 c = c0 + up * s + side * t;
-                    var go = EdoNishiTameikeBuilder.Place(EdoAssets.Own.DanishiStep,
+                    var go = EdoBuild.Place(EdoAssets.Own.DanishiStep,
                         new Vector3(c.x, top, c.y), yaw, Vector3.one, dnGrp,
                         nm + "_" + i + "_" + j);
                     if (go == null) continue;
                     // 幅を割り付けぶんへ合わせる(段石の実寸は 1.98m。端数はここで吸収する)
-                    float have = RunWidth(EdoNishiTameikeBuilder.RB(go), yaw);
+                    float have = RunWidth(EdoBuild.RB(go), yaw);
                     if (have > 0.05f)
                         go.transform.localScale = new Vector3((wid / across) / have, 1f, 1f);
                     // **天端を段のレベルに合わせる**(段石は上面が踏面。汐見坂と同じ据え方)
-                    var bb = EdoNishiTameikeBuilder.RB(go);
+                    var bb = EdoBuild.RB(go);
                     go.transform.position += new Vector3(c.x - bb.center.x, top - bb.max.y, c.y - bb.center.z);
                     nDan++;
                 }
@@ -3108,7 +3108,7 @@ public static partial class EdoMatsudairaDewaBuilder
                 }
             }
             Vector2 c = f.W(wu, wv);
-            var go = EdoNishiTameikeBuilder.Place(EdoAssets.Own.Matsudaira.Ido,
+            var go = EdoBuild.Place(EdoAssets.Own.Matsudaira.Ido,
                 new Vector3(c.x, DesignY(c), c.y), yawU, Vector3.one, idGrp, (string)w["name"]);
             // ⚠ バウンズ中心で寄せない。**自作部材のピボットは footprint の中心・地盤**なので
             //   Place がそのまま正位置。桁や鳥居で重心が偏る部材でバウンズに寄せると設計点からずれる
@@ -3125,7 +3125,7 @@ public static partial class EdoMatsudairaDewaBuilder
             float seat = F(y["seat"]), kn = F(y["ken"]);
             Vector2 c = YaguraSeat(P, vi, kn * f.ken);
             Vector2 e = (P[(vi + 1) % P.Length] - P[vi % P.Length]).normalized;
-            var go = EdoNishiTameikeBuilder.Place(EdoAssets.Own.Matsudaira.Yagura,
+            var go = EdoBuild.Place(EdoAssets.Own.Matsudaira.Yagura,
                 new Vector3(c.x, seat, c.y), Mathf.Atan2(e.y, -e.x) * Mathf.Rad2Deg,
                 Vector3.one, ygGrp, (string)y["name"]);
             if (go == null) continue;
@@ -3208,7 +3208,7 @@ public static partial class EdoMatsudairaDewaBuilder
             }
 
             Vector2 c = f.W((u0 + u1) * 0.5f, (v0 + v1) * 0.5f);
-            var go = EdoNishiTameikeBuilder.Place(path, new Vector3(c.x, DesignY(c), c.y),
+            var go = EdoBuild.Place(path, new Vector3(c.x, DesignY(c), c.y),
                 yaw, Vector3.one, svGrp, nm);
             if (go == null) { sb.AppendLine("⚠ 附属屋 " + nm + ": 部材が読めない " + path); continue; }
 
@@ -3588,7 +3588,7 @@ public static partial class EdoMatsudairaDewaBuilder
         for (int i = 0; i < LONG.Length; i++)
         {
             paths[i] = EdoAssets.Own.Neishi(LONG[i]);
-            var probe = EdoNishiTameikeBuilder.Place(paths[i], Vector3.zero, 0f, Vector3.one,
+            var probe = EdoBuild.Place(paths[i], Vector3.zero, 0f, Vector3.one,
                                                     njGrp, "probe_neishi");
             if (probe == null) { gspan[i] = 0f; continue; }
             float mn = float.MaxValue, mx = float.MinValue, bmn = float.MaxValue, bmx = float.MinValue;
@@ -3777,7 +3777,7 @@ public static partial class EdoMatsudairaDewaBuilder
                     y2 = DesignY(c);
                 }
                 float yaw2 = baseYaw + (((next() & 1u) == 1u) ? 180f : 0f);   // 繰り返しを崩す
-                var go2 = EdoNishiTameikeBuilder.Place(paths[vi], new Vector3(c.x, y2, c.y), yaw2,
+                var go2 = EdoBuild.Place(paths[vi], new Vector3(c.x, y2, c.y), yaw2,
                                                        Vector3.one, grp2, nm + "_ne" + made);
                 if (go2 != null) made++;
                 t0 += span;
@@ -3853,11 +3853,11 @@ public static partial class EdoMatsudairaDewaBuilder
     static int ItabeiRun(Transform parent, Vector2 A2, Vector2 B2, float h, string prefix,
                          List<Vector2[]> skip)
     {
-        var probe = EdoNishiTameikeBuilder.Place(EdoAssets.Eg.Itabei5, Vector3.zero, 0,
-            Vector3.one * EdoSannoKitaBuilder.ES, parent, "probe");
+        var probe = EdoBuild.Place(EdoAssets.Eg.Itabei5, Vector3.zero, 0,
+            Vector3.one * EdoBuild.ES, parent, "probe");
         if (probe == null) return 0;
-        var pb = EdoNishiTameikeBuilder.RB(probe);
-        float spanES = pb.size.x, rawH = pb.size.y / EdoSannoKitaBuilder.ES;
+        var pb = EdoBuild.RB(probe);
+        float spanES = pb.size.x, rawH = pb.size.y / EdoBuild.ES;
         UnityEngine.Object.DestroyImmediate(probe);
         if (spanES < 0.5f) return 0;
 
@@ -3933,17 +3933,17 @@ public static partial class EdoMatsudairaDewaBuilder
                  + PlaceItabeiSpan(parent, A2, dir, nrm, tm, t1, spanES, sy, yaw, name + "b", depth + 1);
         }
         float pitch = t1 - t0;
-        float sx = EdoSannoKitaBuilder.ES * pitch / spanES;
+        float sx = EdoBuild.ES * pitch / spanES;
         Vector2 c = (pL + pR) * 0.5f;
         float y = Mathf.Min(gL, gR);                          // 低い端に合わせて座る
         int made = 0;
         for (int side = 0; side < 2; side++)
         {
-            var go = EdoNishiTameikeBuilder.Place(EdoAssets.Eg.Itabei5, Vector3.zero,
-                side == 0 ? yaw : yaw + 180f, new Vector3(sx, sy, EdoSannoKitaBuilder.ES),
+            var go = EdoBuild.Place(EdoAssets.Eg.Itabei5, Vector3.zero,
+                side == 0 ? yaw : yaw + 180f, new Vector3(sx, sy, EdoBuild.ES),
                 parent, name + (side == 0 ? "f" : "b"));
             if (go == null) continue;
-            var b = EdoNishiTameikeBuilder.RB(go);
+            var b = EdoBuild.RB(go);
             Vector2 tgt = c + nrm * (side == 0 ? 0.06f : -0.06f);
             go.transform.position += new Vector3(tgt.x - b.center.x, y - 0.08f - b.min.y, tgt.y - b.center.z);
             made++;
@@ -4566,7 +4566,7 @@ public static partial class EdoMatsudairaDewaBuilder
     {
         float y = TerrainY(w);
         float s = scale * (sj0 + (float)rnd.NextDouble() * (sj1 - sj0));
-        var go = EdoNishiTameikeBuilder.Place(path, new Vector3(w.x, y, w.y),
+        var go = EdoBuild.Place(path, new Vector3(w.x, y, w.y),
             (float)rnd.NextDouble() * 360f, Vector3.one * s, parent, name);
         if (go == null) return null;
         float tl = tilt0 + (float)rnd.NextDouble() * (tilt1 - tilt0);
@@ -4595,7 +4595,7 @@ public static partial class EdoMatsudairaDewaBuilder
         Vector2 w = f.W(u, v);
         float y = DesignY(w);
         float s = scale * (0.82f + (float)rnd.NextDouble() * 0.36f);   // 同じ大きさで並べない
-        var go = EdoNishiTameikeBuilder.Place(path, new Vector3(w.x, y - sink * s, w.y),
+        var go = EdoBuild.Place(path, new Vector3(w.x, y - sink * s, w.y),
             (float)rnd.NextDouble() * 360f, Vector3.one * s, parent, name);
         if (go != null && Mathf.Abs(tiltU) > 1e-3f)
         {

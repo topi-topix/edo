@@ -17,8 +17,8 @@
 //    順は置き方の4手: ①門構えを先に据える ②塀は門構えの実測の開口へ ③高さは接地箇所を測って
 //    ④事後に寄せる関数を持たない。→ unity-buke-yashiki/references/sashizu.md §3f
 //
-// ⚠ NagayaRun / DobeiRun は既知の欠陥込みで EdoNishiTameikeBuilder に置かれている(EdoBuild の冒頭注記)。
-//    当面はそこを呼ぶ。街区ビルダーが退場するとき EdoBuild へ移す(EDO-0293 の④・積み残し)。
+// ⭕ NagayaRun / DobeiRun は EdoBuild(EdoBuildRun.cs)にある。2026-09-21 の EDO-0299 ④ で
+//    EdoNishiTameikeBuilder ごと引き取った。⚠ 塀の走り方向の割り付けはまだ bounds 中心合わせ(EDO-0302)。
 
 using System;
 using System.Collections.Generic;
@@ -348,7 +348,7 @@ public static class EdoTypologyBuilder
             edges.Count(e => e.kind == EdgeKind.Road), edges.Count(e => e.kind == EdgeKind.Shared),
             edges.Count(e => e.kind == EdgeKind.Shared && e.mine)));
 
-        EdoNishiTameikeBuilder.NaturalMode = true;   // 地形追従(造成しない)
+        EdoBuild.NaturalMode = true;   // 地形追従(造成しない)
 
         // ── Stage 1: 門構え(**固定側を先に置く** — 置き方の4手①) ──
         // ⭐ 2026-09-20 規則21: 門を塀の切れ目へ後から挿し込まない。**門と番所を先に据え、その実測の妻面から
@@ -425,9 +425,9 @@ public static class EdoTypologyBuilder
             string kind = EnclosureFor(s, e, isFront);
             string pre = kind + "_" + e.i;
             if (kind == "nagaya")
-                EdoNishiTameikeBuilder.NagayaRun(encl, e.a, e.b, e.outward, pad, gc, gh, pre, poly);
+                EdoBuild.NagayaRun(encl, e.a, e.b, e.outward, pad, gc, gh, pre, poly);
             else
-                EdoNishiTameikeBuilder.DobeiRun(encl, e.a, e.b, e.outward, pre, true, pad, gc, gh);
+                EdoBuild.DobeiRun(encl, e.a, e.b, e.outward, pre, true, pad, gc, gh);
         }
         log.Add("  囲い: " + string.Join(" / ", edges.Where(e => e.mine).Select(
             e => e.i + "=" + EnclosureFor(s, e, e == front)).ToArray()));

@@ -47,7 +47,7 @@ public static class EdoShiomizakaRebuild
         for (int i = 0; i < n; i++)
         {
             float t = T0 + i, s = 0;
-            foreach (var nv in ns) { var p = W(t, nv); s += EdoNishiTameikeBuilder.Ground(p.x, p.y); }
+            foreach (var nv in ns) { var p = W(t, nv); s += EdoBuild.Ground(p.x, p.y); }
             raw[i] = s / ns.Length;
         }
         // 門前平場などの人工的な凹凸を消すため強めに平滑(±18m → 単調化 → ±14m → 単調化)。
@@ -97,7 +97,7 @@ public static class EdoShiomizakaRebuild
     {
         var bl = AssetDatabase.LoadAssetAtPath<TerrainData>(baselinePath);
         if (bl == null) return "Z0: baseline not found " + baselinePath;
-        var ter = EdoNishiTameikeBuilder.T(); var td = ter.terrainData;
+        var ter = EdoBuild.T(); var td = ter.terrainData;
         int res = td.heightmapResolution;
         Vector3 tp = ter.transform.position; var ts = td.size;
         float cell = ts.x / (res - 1);
@@ -126,7 +126,7 @@ public static class EdoShiomizakaRebuild
     // ---- 1: 回廊の造成(路面帯のみ。石垣の足元は触らない) ----
     public static string Z1_Grade()
     {
-        var ter = EdoNishiTameikeBuilder.T(); var td = ter.terrainData;
+        var ter = EdoBuild.T(); var td = ter.terrainData;
         int res = td.heightmapResolution;
         Vector3 tp = ter.transform.position; var ts = td.size;
         float cell = ts.x / (res - 1), sy = ts.y;
@@ -259,13 +259,13 @@ public static class EdoShiomizakaRebuild
         var sb = new System.Text.StringBuilder("gate t=" + t.ToString("F1") + " roadH=" + roadH.ToString("F2") + "\n");
         foreach (Transform c in mong)
         {
-            var b = EdoNishiTameikeBuilder.RB(c.gameObject);
+            var b = EdoBuild.RB(c.gameObject);
             float before = b.min.y;
             c.position += new Vector3(0, (roadH - 0.05f) - b.min.y, 0);
             sb.AppendLine("  " + c.name + " " + before.ToString("F2") + " -> " + (roadH - 0.05f).ToString("F2"));
         }
         // 門前の平場を路面高へ均す(区画外・半径14m、20mでフェザー)
-        var ter = EdoNishiTameikeBuilder.T(); var td = ter.terrainData;
+        var ter = EdoBuild.T(); var td = ter.terrainData;
         int res = td.heightmapResolution;
         Vector3 tp = ter.transform.position; var ts = td.size;
         float cell = ts.x / (res - 1), sy = ts.y;
@@ -305,7 +305,7 @@ public static class EdoShiomizakaRebuild
             for (float nv = N0 + 1f; nv <= N1 - 1f; nv += 3f)
             {
                 var p = W(t, nv);
-                float g = EdoNishiTameikeBuilder.Ground(p.x, p.y);
+                float g = EdoBuild.Ground(p.x, p.y);
                 float d = Mathf.Abs(g - (rh - 0.06f));
                 if (d > worst) { worst = d; worstT = t; }
             }

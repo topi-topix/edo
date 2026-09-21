@@ -285,6 +285,20 @@ public static class EdoParcels
     }
 
     /// <summary>json に無ければ fallback を返す。移行中のビルダー向け。</summary>
+    /// <summary>id が prefix で始まる区画の多角形を台帳の順に返す(世界 xz)。
+    /// ⚠ 走査するので、格子を舐める輪の**外側**で一度だけ呼ぶこと。</summary>
+    public static List<Vector2[]> GetByPrefix(string prefix)
+    {
+        var outp = new List<Vector2[]>();
+        foreach (var pc in All)
+            if (pc.id != null && pc.id.StartsWith(prefix))
+            {
+                var poly = Get(pc.id);
+                if (poly != null && poly.Length >= 3) outp.Add(poly);
+            }
+        return outp;
+    }
+
     public static Vector2[] GetOr(string id, Vector2[] fallback)
     {
         var p = Find(id);
@@ -314,7 +328,9 @@ public static class EdoParcels
 
     /// <summary>エディタアセンブリの静的フィールドを走査して区画らしいポリゴンを集める。
     /// 拾うのは (a) `Vector2[]` の静的フィールド (b) 配列/List の要素が `Vector2[]` を持つ物
-    /// (EdoNishiTameikeBuilder.Estates / EdoSannoJuboBuilder の Parcel[] など)。
+    /// (かつての EdoNishiTameikeBuilder の Estates / EdoSannoJuboBuilder の Parcel[] など。
+    ///  ⚠ 2026-09-21 の EDO-0299 で街区ビルダーを全廃したので、いま拾える多角形はほとんど無い —
+    ///  `Edo/敷地割/ビルダーと突き合わせる` は空振りする。0 件は「合格」ではない(規則19)。)
     /// 3点未満と、極端に細長い物(道の軸線)は落とす。</summary>
     /// <summary>ビルダーが入っているエディタアセンブリ。
     /// ⚠ `typeof(EdoParcels).Assembly` と書いてはいけない — asmdef で分けた日に

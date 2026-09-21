@@ -2,14 +2,20 @@
 //   EdoNishiTameikeBuilder (1305行の屋敷ビルダー) に埋まっていた共有ヘルパの本体をここへ移した。
 //   NT 側はシグネチャ温存の1行委譲を残しており、NT を参照する既存16ファイルは無変更で動く。
 //   各ビルダーの Ground 委譲チェーン (Shinmachi→Tamachi→TameikeKita 等) はここへ1段化済み。
-//   ⛔ NagayaRun / DobeiRun / NaturalMode は既知の欠陥・状態込みで NT に残す (統一は別 Phase・ユーザー確認付き)。
+//   2026-09-21 (EDO-0299): NagayaRun / DobeiRun / PanelRun / MoveToObb / NaturalMode も
+//   ここへ引き取り、EdoNishiTameikeBuilder・EdoSannoJuboBuilder・EdoSannoKitaBuilder を廃止した。
+//   囲いの run は EdoBuildRun.cs (同じ partial class) にある。
 using System;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
-public static class EdoBuild
+public static partial class EdoBuild
 {
+    /// <summary>edogoyomi の倍率 = 江戸間 1 間 = 6 尺 (CLAUDE.md 座標系の表)。
+    /// ⚠ 各ビルダーが持つ `const float ES = 1.818f` の写しはここへ寄せること。</summary>
+    public const float ES = 1.818f;
+
     /// <summary>アクティブな Terrain (最初の1枚)。無ければ例外。</summary>
     public static Terrain T()
     {

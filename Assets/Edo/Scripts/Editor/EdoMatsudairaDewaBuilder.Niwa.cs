@@ -268,7 +268,7 @@ public static partial class EdoMatsudairaDewaBuilder
             string api = ResolveApi(StrOf(nd, "api"));
             if (api == null) { noPart++; continue; }
             Vector2 w = f.W(F(nd["u"]), F(nd["v"]));
-            EdoNishiTameikeBuilder.Place(api, new Vector3(w.x, TerrainY(w.x, w.y), w.y), 0f, Vector3.one, grp, "MZ_" + StrOf(nd, "id"));
+            EdoBuild.Place(api, new Vector3(w.x, TerrainY(w.x, w.y), w.y), 0f, Vector3.one, grp, "MZ_" + StrOf(nd, "id"));
             placed++;
         }
         // 遣水の野筋: 27.0 の面を幅 w・深さ depth の浅い谷に掘る(非冪等)
@@ -349,7 +349,7 @@ public static partial class EdoMatsudairaDewaBuilder
                     else if (face.Contains("洞") && shuW.HasValue) tgt = w + (w - shuW.Value);
                     if (tgt.HasValue) { Vector2 dv = tgt.Value - w; yaw = Mathf.Atan2(dv.x, dv.y) * Mathf.Rad2Deg; }
                 }
-                var go = EdoNishiTameikeBuilder.Place(path, new Vector3(w.x, gy - full * bu, w.y), yaw, Vector3.one, sub, snm);
+                var go = EdoBuild.Place(path, new Vector3(w.x, gy - full * bu, w.y), yaw, Vector3.one, sub, snm);
                 if (go == null) { nSkip++; sb.AppendLine("⚠ 石 " + snm + ": 部材が解けない(" + (StrOf(st, "api") ?? "在庫") + ")"); i++; continue; }
                 // 寸法: 指図の `plan` [長, 幅] と全丈へ **非等方**に合わせる。⛔ 異方比(軸ごとの拡縮の最大/最小)が 1.35 を超える石は
                 //   岩肌が伸びて岩に見えないので据えず、部材方へ(庭方 2026-09-04 共有2-4)。
@@ -406,7 +406,7 @@ public static partial class EdoMatsudairaDewaBuilder
                     Vector2 seat = q; for (int k = 0; k < 40; k++) { seat = q + nrm * (k * 0.1f); if (TerrainY(seat.x, seat.y) > wy) break; }
                     float top = wy + Mathf.Lerp(aMin, aMax, (float)rnd.NextDouble());
                     float gy = TerrainY(seat.x, seat.y); float full = (top - gy) / (1f - bury);
-                    var go = EdoNishiTameikeBuilder.Place(EdoAssets.JG.Rock(1 + rnd.Next(3)),
+                    var go = EdoBuild.Place(EdoAssets.JG.Rock(1 + rnd.Next(3)),
                         new Vector3(seat.x, gy - full * bury, seat.y), Mathf.Atan2((c - a).x, (c - a).y) * Mathf.Rad2Deg, Vector3.one, gsub, "護岸_" + nGogan);
                     if (go != null) { ScaleToHeight(go, full); nGogan++; }
                     pos += size * gap;
@@ -494,7 +494,7 @@ public static partial class EdoMatsudairaDewaBuilder
                     bool end = (i == 0 || i == nBay - 1);
                     string ikPath = EdoAssets.Own.Ikegaki(end);
                     Vector2 c = origin + dir * (BAY * (i + 0.5f));
-                    var goIk = EdoNishiTameikeBuilder.Place(ikPath, new Vector3(c.x, TerrainY(c.x, c.y), c.y),
+                    var goIk = EdoBuild.Place(ikPath, new Vector3(c.x, TerrainY(c.x, c.y), c.y),
                         yaw, Vector3.one, grp, name + "_" + i);
                     if (goIk != null) madeIk++;
                 }
@@ -517,7 +517,7 @@ public static partial class EdoMatsudairaDewaBuilder
                 var a = A(t["a"]); var b = A(t["b"]);
                 Vector2 wa = f.W(F(a[0]), F(a[1])), wb = f.W(F(b[0]), F(b[1]));
                 float L = Vector2.Distance(wa, wb); float yaw = Mathf.Atan2((wb - wa).x, (wb - wa).y) * Mathf.Rad2Deg;
-                var probe = EdoNishiTameikeBuilder.Place(api, new Vector3(wa.x, TerrainY(wa.x, wa.y), wa.y), yaw, Vector3.one, grp, name + "_0");
+                var probe = EdoBuild.Place(api, new Vector3(wa.x, TerrainY(wa.x, wa.y), wa.y), yaw, Vector3.one, grp, name + "_0");
                 if (probe == null) { missing[kind] = missing.ContainsKey(kind) ? missing[kind] + 1 : 1; continue; }
                 var rs = probe.GetComponentsInChildren<Renderer>(); var bb = rs[0].bounds; foreach (var r in rs) bb.Encapsulate(r.bounds);
                 float unit = Mathf.Max(0.3f, Vector3.Dot(bb.size, Quaternion.Euler(0, yaw, 0) * Vector3.forward).Equals(0) ? bb.size.x : Mathf.Abs(bb.size.z));
@@ -525,7 +525,7 @@ public static partial class EdoMatsudairaDewaBuilder
                 for (int i = 1; i < cnt; i++)
                 {
                     Vector2 q = Vector2.Lerp(wa, wb, (float)i / cnt);
-                    EdoNishiTameikeBuilder.Place(api, new Vector3(q.x, TerrainY(q.x, q.y), q.y), yaw, Vector3.one, grp, name + "_" + i);
+                    EdoBuild.Place(api, new Vector3(q.x, TerrainY(q.x, q.y), q.y), yaw, Vector3.one, grp, name + "_" + i);
                 }
                 placed += cnt;
             }
@@ -550,7 +550,7 @@ public static partial class EdoMatsudairaDewaBuilder
                     pyaw = Mathf.Atan2(fd.x, fd.y) * Mathf.Rad2Deg;
                 }
                 else pyaw = (float)rnd.NextDouble() * 360f;      // 石・灯籠は向きを持たない
-                var go = EdoNishiTameikeBuilder.Place(api, new Vector3(w.x, TerrainY(w.x, w.y), w.y), pyaw, Vector3.one, grp, name);
+                var go = EdoBuild.Place(api, new Vector3(w.x, TerrainY(w.x, w.y), w.y), pyaw, Vector3.one, grp, name);
                 if (go != null)
                 {
                     placed++;

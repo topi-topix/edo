@@ -1779,6 +1779,12 @@ public static partial class EdoDoiBuilder
     /// CLAUDE.md 規則3「面の高さは地形が決める」の実装側の姿。⚠ **地形を書く Stage の後**に呼ぶ。
     /// 指図 y と 0.05m を超えて食い違うときは、測った面へ据えて `Wait` に出す(指図方へ)。
     /// 標本が取れない小さな足形は縁の余白を 0 にして再度測り、それでも無ければ指図 y を使う(黙らず `Wait`)。</summary>
+    /// <summary>足元の地形の起伏(`PadY` の max−min)がこれを超えたら、**中央値は「面」ではない**。
+    /// 規則3 の系統差 ±0.25m の倍 — これを超えると、中央値に据えた時点で端が 0.25m 以上ずれる。
+    /// ⚠ 2026-09-21 の普請検査で、廊下2本(段 26.00/26.60 をまたぐ)が 1.22m 浮き、厩(均していない郭・
+    /// 足元の起伏 2.80m)が 1.30m 埋まって 1.50m 浮いていた。中央値だけ見て起伏を捨てていたのが原因。</summary>
+    const float PadSpreadMax = 0.50f;
+
     static float FaceY(float u0, float v0, float u1, float v1, float designY, string label)
     {
         var f = Grid;
@@ -1791,6 +1797,11 @@ public static partial class EdoDoiBuilder
             try { y = EdoBuild.PadY(poly, 0f, out spread, out n); }
             catch (Exception) { Wait(label + ": 足形の中に格子点が無く面を測れない — 指図 y " + designY.ToString("F2") + " で据えた"); return designY; }
         }
+        if (spread > PadSpreadMax)
+            Wait(label + ": 足元の地形が " + spread.ToString("F2") + "m 起伏している(格子点 " + n
+               + " の中央値 " + y.ToString("F2") + ")— **中央値は面ではない**。このまま据えると端が最大 "
+               + (spread * 0.5f).ToString("F2") + "m 浮く/埋まる。段をまたぐ廊下は段ごとに割り、"
+               + "均していない郭(bench)の棟は基壇に載せること");
         if (Mathf.Abs(y - designY) > 0.05f)
             Wait(label + ": 造成後の面 " + y.ToString("F2") + " が指図 y " + designY.ToString("F2") + " と "
                + (y - designY).ToString("+0.00;-0.00") + "m 食い違う — 測った面へ据えた(指図方へ)");

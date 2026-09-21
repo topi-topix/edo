@@ -84,14 +84,31 @@ def _cache_path():
     return os.path.join(d, "edo-wiring-cache.json")
 
 
+def _analyzer_stamp():
+    """判定の仕掛けそのものの指紋。
+
+    ⛔ **控えの鍵を「見られる側の中身」だけにしてはいけない。**2026-09-21、クラスの中の検査を
+    数えるように直したのに、生成器が1文字も変わっていないので**古い判定がそのまま出続けた** —
+    直したのに「検査 0」のままだった。⭕ 判定する側が変わったら控えは丸ごと外す。
+    """
+    try:
+        src = open(os.path.abspath(__file__), encoding="utf-8").read()
+    except Exception:
+        return "?"
+    return hashlib.sha256(src.encode("utf-8")).hexdigest()[:16]
+
+
 def load_cache():
     fp = _cache_path()
     if not fp:
         return None
     try:
-        return json.load(open(fp, encoding="utf-8"))
+        c = json.load(open(fp, encoding="utf-8"))
     except Exception:
-        return {}                      # 壊れていても黙って採り直す(控えは捨ててよい)
+        return {"_v": _analyzer_stamp()}   # 壊れていても黙って採り直す(控えは捨ててよい)
+    if c.get("_v") != _analyzer_stamp():
+        return {"_v": _analyzer_stamp()}   # 判定する側が変わった — 採り直す
+    return c
 
 
 def save_cache(cache):
@@ -210,23 +227,82 @@ def _audit(path, src):
 
     n_check = len([n for n in universe if _kind(n) == "検査"])
 
-    # ── ⚠ **クラスの中の検査は本ツールでは追えない**(2026-09-21)。
-    #   共通の生成器は検査 23 本を `cNN` という名のメソッドで持ち、名前で集める仕掛けで
-    #   輪に入れている。⛔ module 直下の関数しか見ない本ツールは、それを **「検査 0」と
-    #   刷っていた** — 「読めなければ 0 件」(EDO-0029 と同じ型の嘘)。
-    #   ⭕ 追えないものは 0 と言わず、**追えないと言う**。
-    unseen = []
-    for node in tree.body:
-        if not isinstance(node, ast.ClassDef):
-            continue
-        for m in node.body:
-            if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef)) and \
-                    (_kind(m.name) == "検査" or re.match(r"^c\d\d$", m.name)):
-                unseen.append("%s.%s" % (node.name, m.name))
+    # ── クラスの中の検査も同じ3型で見る(2026-09-21・EDO-0309)
+    cls_checks, cls_orphan, cls_mute = _class_audit(tree)
+    orphan += cls_orphan
+    mute += cls_mute
+    n_check += len(cls_checks)
 
     return {"path": path, "library": False, "orphan": orphan, "discarded": discarded,
-            "mute": mute, "unseen": sorted(unseen),
+            "mute": mute, "cls_check": sorted(cls_checks),
             "n_func": len(universe), "n_reached": len(seen), "n_check": n_check}
+
+
+# ⛔ **「読めなければ 0 件」は嘘**(EDO-0029 と同じ型)。共通の生成器は検査 22 本を
+#   `cNN` という名のメソッドで持ち、名前で集める仕掛けで輪に入れている。module 直下の関数しか
+#   見なかった頃、本ツールはそれを **「検査 0」と刷っていた**(EDO-0309)。
+_DISPATCH = ("dir", "vars", "getattr")     # 名前で集める仕掛けの目印
+
+
+def _self_calls(node):
+    """`self.foo()` の foo。⭐ 兄弟のメソッドを呼んでいるところ。"""
+    return {n.func.attr for n in ast.walk(node)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+            and isinstance(n.func.value, ast.Name) and n.func.value.id == "self"}
+
+
+def _method_records(node):
+    """このメソッド自身が**結果をどこかへ残しているか**。
+    刷る / 値を返す / 何かへ積む(`self.rows.append(...)`)のいずれか。"""
+    for n in ast.walk(node):
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "print":
+            return True
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and \
+                n.func.attr in ("append", "extend", "add", "update", "write"):
+            return True
+        if isinstance(n, ast.Return) and n.value is not None:
+            return True
+    return False
+
+
+def _class_audit(tree):
+    """クラスの中の検査を、module 直下の関数と同じ3型で見る。
+
+    ⭕ **孤立** — 名前で集める仕掛け(`dir(self)` / `getattr`)も無く、どこからも名指しされない検査。
+    ⭕ **黙り** — 走るが、刷りも返しも積みもしない(結果がどこにも残らない)。
+    ⚠ 保守的に倒す — 兄弟を1段辿って「積む物へ届くか」を見るだけ。狼少年の関門は無視される。
+    """
+    checks, orphan, mute = [], [], []
+    # 名指し — モジュールのどこかに現れる属性名と文字列(`"c01"` の名簿もここで拾う)
+    named = {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
+    named |= {n.value for n in ast.walk(tree)
+              if isinstance(n, ast.Constant) and isinstance(n.value, str)}
+    for cls in [n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)]:
+        methods = {m.name: m for m in cls.body
+                   if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef))}
+        mine = [m for m in methods
+                if _kind(m) == "検査" or re.match(r"^c\d\d$", m)]
+        if not mine:
+            continue
+        collects = any(isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                       and n.func.id in _DISPATCH for n in ast.walk(cls))
+        # 「積む物へ届く」を兄弟づたいに広げる(不動点)
+        rec = {m for m, node in methods.items() if _method_records(node)}
+        while True:
+            more = {m for m, node in methods.items()
+                    if m not in rec and (_self_calls(node) & rec)}
+            if not more:
+                break
+            rec |= more
+        for m in sorted(mine):
+            full = "%s.%s" % (cls.name, m)
+            checks.append(full)
+            if not collects and m not in named:
+                orphan.append({"name": full, "kind": "検査", "line": methods[m].lineno})
+            elif m not in rec:
+                mute.append({"name": full, "line": methods[m].lineno,
+                             "via": "(クラスの中)", "why": "mute"})
+    return checks, orphan, mute
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -464,6 +540,30 @@ def main():
     return h
 """
 
+# ⭐ **クラスの中の検査**(2026-09-21・EDO-0309)— 共通の生成器と同じ作り:
+#   `cNN` を足すだけで輪に入る名簿無しの仕掛けで、結果は `self.add` で積む。
+_CLS_CLEAN = """
+class Checks(object):
+    def __init__(self):
+        self.rows = []
+
+    def add(self, cid, r):
+        self.rows.append((cid, r))
+
+    def run(self):
+        fns = [getattr(self, n) for n in sorted(dir(self)) if len(n) == 3 and n[0] == "c"]
+        for f in fns:
+            f()
+        return self.rows
+
+    def c01(self):
+        self.add("C01", 0)
+
+
+def main():
+    print(Checks().run())
+"""
+
 _CASES = [
     # (題, 仕込む欠陥, 期待する種別, 期待する検査/産物名)
     ("孤立(呼ばれない表)",
@@ -478,6 +578,15 @@ _CASES = [
      _CLEAN.replace('    print("foo: %d 件" % len(bad))\n',
                     '    if bad:\n        print("foo: %d 件" % len(bad))\n'),
      "guarded", "foo_check"),
+    # ⛔ クラスの中の検査 — 追えないことを「0件」と刷らない(EDO-0309)
+    ("クラスの中の孤立(名簿も名指しも無い)",
+     _CLS_CLEAN.replace('        fns = [getattr(self, n) for n in sorted(dir(self)) if len(n) == 3 and n[0] == "c"]\n'
+                        '        for f in fns:\n            f()\n',
+                        '        pass\n'),
+     "orphan", "Checks.c01"),
+    ("クラスの中の黙り(積みも刷りもしない)",
+     _CLS_CLEAN.replace('        self.add("C01", 0)\n', '        bad = 1 + 1\n'),
+     "mute", "Checks.c01"),
 ]
 
 
@@ -517,12 +626,31 @@ def selftest():
             print("⛔ %s → **鳴らなかった**(期待 %s / 実際 %s)" % (title, want, got or "0件"))
             ng += 1
 
+    # ⛔ **控えが古い判定を握り続けないこと**(2026-09-21)。判定の仕掛けを直しても
+    #   生成器が1文字も変わっていなければ、中身のハッシュだけを鍵にした控えは外れない —
+    #   直したのに「検査 0」のままだった。⭕ 判定する側の指紋も鍵に入れる。
+    fd, cfp = tempfile.mkstemp(suffix=".json")
+    os.close(fd)
+    orig_cp = globals()["_cache_path"]
+    globals()["_cache_path"] = lambda: cfp
+    try:
+        save_cache({"_v": "むかしの判定", "deadbeef": {"n_check": 0}})
+        got = load_cache()
+        if got.get("deadbeef") is None and got.get("_v") == _analyzer_stamp():
+            print("⭕ 控えは判定の版が変わったら外れる")
+        else:
+            print("⛔ 控えが**古い判定を握り続けた** — 直しても 0 件のままになる")
+            ng += 1
+    finally:
+        globals()["_cache_path"] = orig_cp
+        os.unlink(cfp)
+
     print()
     if ng:
         print("⛔ 自己検査 %d 件失敗 — **この道具の検出が死んでいる。**"
               "⚠ 邸の生成器が0件でも、それは合格の意味を持たない。" % ng)
     else:
-        print("⭕ 自己検査 全通 — 4型とも生きている。")
+        print("⭕ 自己検査 全通 — %d 型と控えの作法とも生きている。" % len(_CASES))
     return 1 if ng else 0
 
 
@@ -621,8 +749,8 @@ def main():
         mark = "⛔" if hard else ("⚠" if r.get("mute") else "⭕")
         print("%s %-38s 関数 %d / 到達 %d / 検査 %d%s"
               % (mark, name, r["n_func"], r["n_reached"], r["n_check"],
-                 "(+ クラスの中に %d 本・本ツールでは追えない)" % len(r["unseen"])
-                 if r.get("unseen") else ""))
+                 "(うち クラスの中 %d 本)" % len(r["cls_check"])
+                 if r.get("cls_check") else ""))
         for o in r["orphan"]:
             print("    ⛔ 孤立 L%-5d %s()  … %sを作るが、main からも module 直下からも"
                   "辿れない = 一度も走らない" % (o["line"], o["name"], o["kind"]))

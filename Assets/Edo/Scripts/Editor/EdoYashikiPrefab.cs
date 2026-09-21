@@ -345,6 +345,20 @@ public static class EdoYashikiPrefab
                 Debug.Log($"[EdoWriteBack] 段 {root.name}/{go.name} を書く(override {mods}"
                         + (src == path ? "" : $" ・出所が違う {src}") + ")");
             }
+            else if (PrefabUtility.IsAnyPrefabInstanceRoot(go))
+            {
+                // ⛔ **この段は、うちが作った物ではない資産の実体。**(規則1 手組み資産は正典)
+                //   ここで SaveAsPrefabAssetAndConnect すると、段が Parts の複製へ繋ぎ替わり、
+                //   元の資産は参照されないまま取り残される — 手組みの門・長屋・石垣がそうなる。
+                //   2026-09-21 の実測では松江松平・岡部・土井の段は全部「生」でこの枝には入らないが、
+                //   手で作った群をルート直下に置けば入る。飛ばして名指しで残す。
+                var foreign = AssetDatabase.GetAssetPath(PrefabUtility.GetCorrespondingObjectFromSource(go));
+                Debug.LogWarning($"⛔ [EdoWriteBack] 段 {root.name}/{go.name} は"
+                    + $"よその資産の実体なので割らない: {foreign}"
+                    + "\n   割りたいなら、先にその資産を解いて(= うちの持ち物にして)から。");
+                kept++;
+                continue;
+            }
             var sw = System.Diagnostics.Stopwatch.StartNew();
             PrefabUtility.SaveAsPrefabAssetAndConnect(go, path, InteractionMode.AutomatedAction);
             sw.Stop();
@@ -472,7 +486,10 @@ public static class EdoYashikiPrefab
             sb.AppendLine("  " + OneLogged(r, out b) + $"\t({why})");
             bytes += b;
             wrote++;
-            if (!isPf) clobbered.Add(r.name);   // 解けたままのルートを資産へ上書きした
+            // ⚠ 危ないのは「**台帳に無いのに**解けている」ルートを書いたときだけ。
+            //   台帳にあるルートは、この巡で EnsureRootEditable が自分で解いた物なので正常
+            //   (③で段へ割ると、本体は毎巡かならず解けた状態で書き戻る)。
+            if (!isPf && !hit) clobbered.Add(r.name);
             ForgetTouched(scene, r.name);
         }
         sw.Stop();

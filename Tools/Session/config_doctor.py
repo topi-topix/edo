@@ -22,7 +22,8 @@
   機械的(--apply が実行する):
     rm <path>                 ゴミを消す(K1)
     remeasure                 計測キー付きの数字を今の値に書き直す(Q2)
-    index-add / index-rm      MEMORY.md の索引行を足す / 消す(R7)
+    index-add / index-rm      MEMORY.md の索引行を足す / 消す(R7 のみ。⛔ 典拠台帳の索引=R8 は手で入れる
+                              — その項をどの確度の行へ載せるかは考証の判断)
     sync-rm                   worktree の作業ツリーから main に無いファイルを消す(W1・コミットしない)
     lesson-tag →不要 | lesson-tag →保留:YYYY-MM-DD   教訓の行に処置タグを付ける(L1)
     task:<邸> "<文>"          掲示板へ宿題として起票する(意味的な件の逃がし先)(⚠ 門番の都合で EDO_SESSION_ID を付けて叩く)
@@ -447,6 +448,45 @@ def chk_R7(env, F):
         F.add("R7", "⚠", os.path.join(env.memory, f), "MEMORY.md に索引行が無い", fix="index-add")
 
 
+def chk_R8(env, F):
+    """典拠台帳: sources.md の索引 ↔ 項の見出し。
+
+    ⚠ **索引に無い項は、grep する ID が分からないので実質的に見つからない。**考証方の手順は
+    「索引で ID を見つけてから該当項だけ読む」(台帳は14万字超で丸読みしない)。索引から漏れると
+    **次の巡で同じ史料を取り直す**ことになる — WebFetch のやり直しと外部への負荷。
+    2026-09-06 にはその日の起票が1件残らず漏れていた(掲示板 EDO-0151)。
+
+    ⛔ 逆(索引に在って見出しが無い)は見ない — §3 の書籍図版の表のように、
+    `### [ID]` の見出しを持たないまま索引に載る項が在る(索引にその旨が書いてある)。
+    """
+    for name in env.edo_skills():
+        d = env.skill_dir(name)
+        if not d:
+            continue
+        fp = os.path.join(d, "references", "sources.md")
+        if not os.path.isfile(fp):
+            continue
+        lines = read(fp).split("\n")
+        i0 = next((i for i, l in enumerate(lines) if re.match(r"^#+ .*索引", l)), None)
+        if i0 is None:
+            continue        # 索引が無いことは chk_S1 が言う
+        i1 = next((i for i in range(i0 + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
+        idx = "\n".join(lines[i0:i1])
+        seen = set()
+        for n, l in enumerate(lines, 1):
+            m = re.match(r"^### \[([^\]]+)\]", l)
+            if not m:
+                continue
+            i = re.sub(r"\(続き.*$", "", m.group(1)).strip()    # 「(続き — …)」は同じ ID
+            if i in seen:
+                continue
+            seen.add(i)
+            if "`%s`" % i not in idx:
+                F.add("R8", "⚠", "%s:%d" % (fp, n),
+                      "典拠 [%s] が索引に無い — 考証方が ID を引けず、次の巡で取り直しになる" % i,
+                      fix="manual")
+
+
 def _measure(env, key):
     kind, _, arg = key.partition(":")
     try:
@@ -842,7 +882,7 @@ def chk_N1(env, F):
                                                                  else "前回の道具改めから %d 日" % days), fix="")
 
 
-CHECKS = [chk_R1_R2, chk_R3, chk_R4, chk_R5, chk_R6_V3, chk_R7, chk_Q, chk_C, chk_S1, chk_V1_V2, chk_G1,
+CHECKS = [chk_R1_R2, chk_R3, chk_R4, chk_R5, chk_R6_V3, chk_R7, chk_R8, chk_Q, chk_C, chk_S1, chk_V1_V2, chk_G1,
           chk_K1, chk_W, chk_Y1, chk_SK1, chk_L]
 
 
@@ -961,6 +1001,10 @@ def cmd_apply(env, fp):
                     continue
                 os.remove(target)
             elif kind == "index-add":
+                if f["id"] != "R7":
+                    # ⛔ この処置は MEMORY.md にしか効かない。典拠台帳(R8)は確度の行を選ぶ判断が要る
+                    print("✗ %s index-add は R7(MEMORY.md)にだけ効く — 手で索引へ入れる" % key)
+                    continue
                 name = os.path.basename(target)
                 title = re.search(r"^name:\s*(.+)$", read(target), re.M)
                 desc = re.search(r"^description:\s*(.+)$", read(target), re.M)
@@ -1064,9 +1108,14 @@ def _fixture(base):
                                       "              \"docs/lessons.md\", \"docs/teire.md\", \"Tools/Sashizu/x_gate.py\"]\n"
                                       "X = fn.endswith((\".py\", \".md\", \".js\", \".json\"))\n")
     w("Tools/Session/config_doctor.py", "# --selftest\n")
-    w("skills/sk/SKILL.md", "---\nname: sk\ndescription: skill sk\n---\n\n- `references/a.md`\n- `references/b.md`\n")
+    w("skills/sk/SKILL.md", "---\nname: sk\ndescription: skill sk\n---\n\n- `references/a.md`\n- `references/b.md`\n"
+                            "- `references/sources.md`\n")
     w("skills/sk/references/a.md", "# a\n\n## §1 節\n")
     w("skills/sk/references/b.md", "# b\n")
+    # 典拠台帳の型 — 索引と項の見出しが揃っている無傷な版(R8 の土台)
+    w("skills/sk/references/sources.md",
+      "# 典拠一覧\n\n## 索引 — 確度別の [ID] 一覧\n\n**B 一般類型** (1件)\n\n\u3000`甲`\n\n---\n\n"
+      "### [甲] 確度B\n本文。\n")
     w("memory/MEMORY.md", "# idx\n\n- [one](one.md) — x\n")
     w("memory/one.md", "---\nname: one\ndescription: d\n---\nfact\n")
     os.makedirs(os.path.join(base, "wt", ".claude", "agents"))     # worktree は空の .claude(W の型だけが植える)
@@ -1132,6 +1181,8 @@ def selftest():
             ("V2 meta.name 不一致", lambda: _rep(base, ".claude/workflows/wf.js", "name: 'wf'", "name: 'other'"), "V2"),
             ("V3 スキルの description が空", lambda: _rep(base, "skills/sk/SKILL.md", "description: skill sk", "description:"), "V3"),
             ("G1 関門に selftest 無し", lambda: _rep(base, "Tools/Sashizu/x_gate.py", "--selftest", "--x"), "G1"),
+            ("R8 典拠が索引に無い", lambda: _app(base, "skills/sk/references/sources.md",
+                "\n### [乙] 確度B\n本文。\n"), "R8"),
             ("K1 ゴミ", lambda: _w(base, ".claude/hooks/old.sh.superseded", "x\n"), "K1"),
             ("W1 worktree にだけある役", lambda: _w(base, "wt/.claude/agents/edo-ghost.md", "---\nname: edo-ghost\n---\n"), "W1"),
             ("W2 worktree の内容が違う", lambda: _w(base, "wt/CLAUDE.md", read(os.path.join(base, "CLAUDE.md")) + "old\n"), "W2"),

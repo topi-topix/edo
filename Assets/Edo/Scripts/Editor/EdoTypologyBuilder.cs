@@ -47,6 +47,9 @@ public static class EdoTypologyBuilder
         public string rank, yashiki, kind, gate, bansho, enclosure, garden, surface, fence, building;
         public string front;                 // 8方位。null ならビルダーが接道辺から採る
         public int kura, units, koku, houses;
+        // 附属の種別(EDO-0304 案A・2026-09-21 考証方)。⛔ 棟数は推定しない — 在る/無いの 0/1 だけ。
+        public int umaya, komeKura, sakujiKoya, hikeshiKura, kagoKura, monooki;
+        public bool baba;
         public int maguchiKen, depthKen;
         public bool twoSided, jishinban, inari;
         public bool kuri, yagura, shoro, sanmon;
@@ -73,17 +76,59 @@ public static class EdoTypologyBuilder
         bool o; if (bool.TryParse(v.ToString(), out o)) return o; return dflt;
     }
 
+    static Dictionary<string, object> _defs;
+
+    /// <summary>この区画の類型に当たる <c>defaults</c> の塊。⭐ 鍵は型ごとに違う —
+    /// buke は <c>rank_yashiki</c>(daimyo_kami)→ 無ければ <c>rank</c>(hatamoto_mid)、
+    /// jisha は <c>kind</c>、machiya と kouyuu は入れ子が無いので塊そのもの。
+    /// ⛔ 格が表に無いときは **null を返す** — 別の格の既定を借りると、書いていない物が建つ。</summary>
+    static Dictionary<string, object> DefaultsFor(Dictionary<string, object> d)
+    {
+        if (_defs == null) return null;
+        string type = S(d, "type"); if (type == null) return null;
+        object br; if (!_defs.TryGetValue(type, out br)) return null;
+        var branch = br as Dictionary<string, object>; if (branch == null) return null;
+        string[] keys;
+        if (type == "buke") keys = new[] { S(d, "rank") + "_" + S(d, "yashiki"), S(d, "rank") };
+        else if (type == "jisha") keys = new[] { S(d, "kind") };
+        else return branch;
+        foreach (var k in keys)
+        {
+            object v; if (k == null || !branch.TryGetValue(k, out v)) continue;
+            var dd = v as Dictionary<string, object>; if (dd != null) return dd;
+        }
+        return null;
+    }
+
+    /// <summary>区画に**書いていない**欄だけ既定で埋める(表の `_` の約束「区画の欄が null のとき
+    /// ビルダーがここから採る」の実装)。⛔ 2026-09-21 まで LoadTable は parcels しか読んでおらず、
+    /// この約束は**一度も効いていなかった** — defaults へ欄を足しても建つ姿は変わらなかった(EDO-0304)。
+    /// ⛔ 区画に書いてある値を既定で上書きしない。`_` で始まる覚書の欄と、既定側の典拠 `src` は差さない。</summary>
+    static void Fill(Dictionary<string, object> d, Dictionary<string, object> def)
+    {
+        if (def == null) return;
+        foreach (var kv in def)
+        {
+            if (string.IsNullOrEmpty(kv.Key) || kv.Key[0] == '_' || kv.Key == "src") continue;
+            object cur; if (d.TryGetValue(kv.Key, out cur) && cur != null) continue;
+            d[kv.Key] = kv.Value;
+        }
+    }
+
     public static void LoadTable()
     {
         _table = new Dictionary<string, Spec>();
         if (!File.Exists(TablePath)) { Debug.LogError("類型表が無い: " + TablePath); return; }
         var root = EdoMiniJson.Parse(File.ReadAllText(TablePath)) as Dictionary<string, object>;
         if (root == null) { Debug.LogError("類型表が読めない: " + TablePath); return; }
+        object df; _defs = root.TryGetValue("defaults", out df) ? df as Dictionary<string, object> : null;
+        if (_defs == null) Debug.LogWarning("類型表に defaults が無い — 区画に書いた欄だけで建てる");
         object ps; if (!root.TryGetValue("parcels", out ps)) { Debug.LogError("類型表に parcels が無い"); return; }
         var dict = ps as Dictionary<string, object>;
         foreach (var kv in dict)
         {
             var d = kv.Value as Dictionary<string, object>; if (d == null) continue;
+            Fill(d, DefaultsFor(d));                 // ⭐ 既定を差してから読む(区画の値が勝つ)
             var s = new Spec
             {
                 id = kv.Key, raw = d,
@@ -93,6 +138,10 @@ public static class EdoTypologyBuilder
                 garden = S(d, "garden"), surface = S(d, "surface"), fence = S(d, "fence"),
                 building = S(d, "building"), front = S(d, "front"),
                 kura = I(d, "kura", 0), units = I(d, "units", 1), koku = I(d, "koku", 0),
+                umaya = I(d, "umaya", 0), komeKura = I(d, "kome_kura", 0),
+                sakujiKoya = I(d, "sakuji_koya", 0), hikeshiKura = I(d, "hikeshi_kura", 0),
+                kagoKura = I(d, "kago_kura", 0), monooki = I(d, "monooki", 0),
+                baba = Bo(d, "baba", false),
                 houses = I(d, "houses", 0), maguchiKen = I(d, "maguchi_ken", 5), depthKen = I(d, "depth_ken", 18),
                 twoSided = Bo(d, "two_sided", false), jishinban = Bo(d, "jishinban", false),
                 inari = Bo(d, "inari", false),
@@ -586,6 +635,17 @@ public static class EdoTypologyBuilder
             }
             if (go == null) dropped++;
         }
+        // ⭐ **何を建てるつもりだったか**を毎回刷る(規則19)。棟数だけだと、表に足した種別が
+        //    部材の取り違えや置き場所不足で丸ごと落ちても「N棟」の数字が減るだけで気づけない。
+        var kinds = new List<string>();
+        foreach (var it in plan)
+        {
+            string nm = Path.GetFileNameWithoutExtension(it.Key);
+            int k = kinds.FindIndex(x => x.StartsWith(nm + "×"));
+            if (k < 0) kinds.Add(nm + "×1");
+            else kinds[k] = nm + "×" + (int.Parse(kinds[k].Substring(nm.Length + 1)) + 1);
+        }
+        string bab = s.baba ? "・⚠ 馬場は未建(地表+垣根の run は EdoBuild の持ち場・EDO-0304)" : "";
         string yag = s.yagura ? "・⚠ 隅矢倉は在庫に部材が無いため未建(部材方の宿題)" : "";
         string un  = s.units > 1 ? string.Format("・{0}戸割り", s.units) : "";
         string dr  = dropped > 0 ? string.Format("・⚠ {0}棟は区画に収まらず未建", dropped) : "";
@@ -593,7 +653,9 @@ public static class EdoTypologyBuilder
         if (clashed > 0) dr += string.Format("・{0}回は先の棟にめり込むので退けて置き直した", clashed);
         if (!float.IsNaN(worstPair)) dr += string.Format("・棟どうしの当たりの最小 {0:F2}m{1}", worstPair,
             worstPair < MIN_BLDG_GAP ? "(⚠ 目安 " + MIN_BLDG_GAP.ToString("F1") + "m 未満)" : "");
-        return string.Format("  主屋と付属: {0}棟(型={1}{2}){3}{4}", n, s.rank ?? s.kind ?? s.type, un, dr, yag);
+        return string.Format("  主屋と付属: {0}/{1}棟(型={2}{3}){4}{5}{6}\n    仕様: {7}",
+            n, plan.Count, s.rank ?? s.kind ?? s.type, un, dr, yag, bab,
+            string.Join(" ", kinds.ToArray()));
     }
 
     /// <summary>型ごとに「何を何棟」。⛔ 在庫の代用が多い — 専用部材は部材方の宿題。</summary>
@@ -617,6 +679,20 @@ public static class EdoTypologyBuilder
                     add(EdoAssets.VK.SmallHouse, 7f, 1); break;
             }
             add(EdoAssets.Eg.Kura, 6f, Mathf.Clamp(s.kura, 0, 4));
+            // ── 附属の種別(EDO-0304 案A・施主裁定 2026-09-21)────────────────────────
+            // ⭐ 濃さは**棟数**でなく**種別**で戻す。石高帯から列数を引く鎖は史料で切れている
+            //    (1〜10万石の棟数は U・密度の主キーは坪数と警備要求)ので、数は一切推定しない。
+            // ⛔ 既定で持たせてよいのは大名だけ。旗本以下が 0 なのは「判らない」ではなく
+            //    **不在の側に確度A**([鈴木1985] 建家図8例の周囲は土蔵・物置・雪隠のみ)。
+            add(EdoAssets.Own.Typ.Umaya, 6f, Mathf.Clamp(s.umaya, 0, 2));
+            add(EdoAssets.Own.Typ.SakujiKoya, 5f, Mathf.Clamp(s.sakujiKoya + s.monooki, 0, 2));
+            // ⚠ **蔵は3種別で部材が2点しかない。**土蔵=在庫の汎用蔵 / 米蔵・火消道具蔵・御駕籠蔵=
+            //    部材方が起こした米蔵。中の道具が違うだけで外見の作り分けは無い(部材方の宿題)。
+            //    ⛔ ここで数を足して濃さを繕わない — 見分けが付かない蔵が増えるだけ(在庫方 09-21)。
+            add(EdoAssets.Own.Typ.Komegura, 6f,
+                Mathf.Clamp(s.komeKura + s.hikeshiKura + s.kagoKura, 0, 3));
+            // ⚠ 馬場(s.baba)はまだ建てない — 建物でなく地表+垣根で、垣根の run は EdoBuild の
+            //    持ち場(規則21)。既定は全格 false なので今日は誰にも効かない(EDO-0304 の残り)。
         }
         else if (s.type == "jisha")
         {

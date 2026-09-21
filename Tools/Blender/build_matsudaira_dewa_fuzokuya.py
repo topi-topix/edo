@@ -250,14 +250,24 @@ def _finish(name, m, mats, extra):
 
 
 # ================================================================ 土蔵
-def dozo(uk=4, vk=7, name="Matsudaira_Dozo", eave=4.60):
+def dozo(uk=4, vk=7, name="Matsudaira_Dozo", eave=4.60, mado=1.0, gawa_mado=0,
+         mizukiri_tooshi=True):
     """土蔵。長手(棟)= vk 間 = ローカル X。据えは yawV(ローカル +X → +v)。
     腰は石の basement、上は白漆喰の大壁。妻に観音扉一対。【確度B=江戸の一般類型】
 
     ⚠ `eave` は**軒の下端**(地盤から m)。⛔ 棟の天端は指定できない —
       瓦モジュールの勾配 0.5456 は動かせないので、**棟高 = eave + (梁間/2 + 0.75)×0.5456**
       が従属して決まる(README「棟が高すぎる」の項)。⇒ 指図が軒高と棟高を両方持っていても
-      **梁間が変われば両立しない**ので、軒を合わせて棟の実測を指図へ返すこと。"""
+      **梁間が変われば両立しない**ので、軒を合わせて棟の実測を指図へ返すこと。
+
+    ⭕ `mado` は**妻の小窓の寸法の倍率**(額縁も竪子もまとめて拡縮。芯の間隔 ±0.9 は動かさない)。
+      既定 1.0 は従来と**寸分違わない**。⛔ 米蔵を別の実装で書き起こさないための引数で、
+      `build_typ_fuzokuya.komegura` が 0.55 を渡して「窓の小さい高い蔵」を出す。
+    ⭕ `gawa_mado` は**長手(±Z)の壁に高窓を何口ずつ開けるか**。既定 0 = 従来どおり開けない。
+      ⚠ 2026-09-21 に `Eg.Kura` と並べて焼いて分かったこと: 長手の大壁は **7.3 × 3.1m が
+      一面の白**で、意匠の無い箱に見える(`Eg.Kura` は妻に窓・扉・庇・棟飾りが付く)。
+      ⇒ 米蔵は**風を抜くのが用途そのもの**なので、ここに高窓を並べるのが作りとして正しく、
+      同時に見分けも付く。⛔ 土蔵(文書・什器)には開けない — だから既定は 0。"""
     (wm, wuv), (sm, suv), (pm, puv) = palette()
     W, D = vk * KEN, uk * KEN          # X=桁行(長手) Y=梁間
     BASE, EAVE = 0.40, eave            # 基壇高 / 軒高
@@ -280,15 +290,47 @@ def dozo(uk=4, vk=7, name="Matsudaira_Dozo", eave=4.60):
         z1 = dw / 2 if s > 0 else 0.0
         m.box(-hw - 0.14, -hw - 0.04, BASE, BASE + dh, z0, z1, _sub(wuv, .1, 0, .5, 1), WOOD)
     # 窓(妻の +X 側に小窓2つ)。漆喰の額縁の中に竪子を並べる
+    # ⚠ `mado` で拡縮するのは**額縁と竪子の寸法だけ**。芯 zc=±0.9 と中心高 EAVE−1.50 は
+    #    動かさない — 窓を小さくしたときに二つが寄って一つの大窓に見えるのを避けるため。
+    yc = EAVE - 1.50
+    fz, fy = 0.46 * mado, 0.47 * mado          # 額縁の半寸(横・縦)
+    gz, gy = 0.34 * mado, 0.35 * mado          # 竪子の入る窓の半寸
     for s in (-1, 1):
         zc = s * 0.9
-        m.box(hw + 0.01, hw + 0.09, EAVE - 1.97, EAVE - 1.03, zc - 0.46, zc + 0.46,
+        m.box(hw + 0.01, hw + 0.09, yc - fy, yc + fy, zc - fz, zc + fz,
               _sub(puv, .2, .2, .5, .5), PLAS)
-        m.koshi_z(zc - 0.34, zc + 0.34, EAVE - 1.85, EAVE - 1.15, hw + 0.05, hw + 0.13,
-                  _sub(wuv, .5, .2, .8, .8), WOOD, pitch=0.10, bar=0.026, yoko=1)
+        m.koshi_z(zc - gz, zc + gz, yc - gy, yc + gy, hw + 0.05, hw + 0.13,
+                  _sub(wuv, .5, .2, .8, .8), WOOD, pitch=0.10 * mado, bar=0.026 * mado, yoko=1)
+    # 長手(±Z)の高窓。⛔ 既定 gawa_mado=0 では1つも積まない(従来の土蔵と寸分違わない)
+    # ⚠ 寸法は `mado` と独立の固定値 — 妻窓と同じ倍率を掛けると 0.27m になって
+    #   壁の染みにしか見えない(2026-09-21 に並べ比べで実見)。
+    if gawa_mado:
+        yv = EAVE - 1.20                       # 軒から 1.20 下 = 壁の上三分の一
+        fz, fy, gz, gy = 0.25, 0.22, 0.18, 0.15
+        for sz, sg in ((-hd, -1), (hd, 1)):
+            for i in range(gawa_mado):
+                xc = -hw + W * (i + 0.5) / float(gawa_mado)
+                za, zb = sorted((sz + sg * 0.01, sz + sg * 0.09))
+                m.box(xc - fz, xc + fz, yv - fy, yv + fy, za, zb,
+                      _sub(puv, .2, .2, .5, .5), PLAS)
+                ka, kb = sorted((sz + sg * 0.05, sz + sg * 0.13))
+                m.koshi(xc - gz, xc + gz, yv - gy, yv + gy, ka, kb,
+                        _sub(wuv, .5, .2, .8, .8), WOOD, pitch=0.085, bar=0.022, yoko=1)
     # 水切り(腰の上に一段。土蔵の顔)
-    m.box(-hw - 0.16, hw + 0.16, BASE + 1.55, BASE + 1.70, -hd - 0.16, hd + 0.16,
-          _sub(puv, .3, .3, .7, .5), PLAS)
+    # ⚠ **通しで回すと観音扉を白い板が横切る**(2026-09-21 に目の高さのレンダで実見)。
+    #   既存の土蔵3点(`Matsudaira_Dozo`/`Doi_Kura_3x8`/`Doi_Kura_3x3`)はこの姿で焼いて
+    #   据わっているので、⛔ **既定を変えない**。`mizukiri_tooshi=False` を渡したときだけ
+    #   扉の額縁の幅ぶん切って回す。⭕ 切り口は x=−hw で止めるので、額縁(前面 −hw−0.10)の
+    #   裏に隠れて小口は見えない。
+    my0, my1 = BASE + 1.55, BASE + 1.70
+    mex, muv = hw + 0.16, _sub(puv, .3, .3, .7, .5)
+    if mizukiri_tooshi:
+        m.box(-mex, mex, my0, my1, -hd - 0.16, hd + 0.16, muv, PLAS)
+    else:
+        b = dw / 2 + 0.16
+        m.box(-mex, mex, my0, my1, -hd - 0.16, -b, muv, PLAS)
+        m.box(-mex, mex, my0, my1, b, hd + 0.16, muv, PLAS)
+        m.box(-hw, mex, my0, my1, -b, b, muv, PLAS)
     roof = _roof("kirizuma", W, D, name + "_roof", EAVE, eave=0.75, end=0.45, tsuma=True)
     return _finish(name, m, [wm, sm, pm], [roof])
 

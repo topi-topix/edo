@@ -18,3 +18,4 @@
 - [Kirishi のタイルと朱の材の置き場](kirishi-tile-and-shu-material.md) — 0.44 を大石に流用すると継ぎ目が壁に見える。Shu_Torii は remap の借り先に無い(2026-09-20)
 - [段違いの折れ目の「口」は板でなく管](dan-chigai-roof-kuchi-is-a-duct.md) — 幅方向にも抜ける・瓦の谷も水路・rotate_z(90) の 6e-17 が対称の検算を落とす(2026-09-20)
 - [落差0と落差0.30を一つの型で](one-part-for-drop0-and-drop30.md) — 天端を揃え下に隠れる丈を変える。Kirishi 0.44 は縁石に流用しない(2026-09-20)
+- [見分けは並べて焼くまで判らない・FBX のバイト差は回帰の指標にならない](narabe-check-and-fbx-byte-noise.md) — 単体4枚では長手の白一面を見落とす。回帰は頂点集合で見る(2026-09-21)

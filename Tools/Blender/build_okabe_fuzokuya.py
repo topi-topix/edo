@@ -180,27 +180,35 @@ def tomomachi(uKen=3, vKen=5, name="Okabe_Tomomachi"):
 
 
 # ================================================================ 納戸小屋
-def nandokoya(uKen=1.5, vKen=1.0, name="Okabe_NandoKoya"):
+def nandokoya(uKen=1.5, vKen=1.0, name="Okabe_NandoKoya", eaveH=2.05, noki=0.42,
+              end=0.22, ratio=0.40, base=0.16, post=0.12, nx=1, nz=1,
+              dw=0.82, doorH=1.75, leaves=1, pitch=0.17):
     """納戸小屋 1.5×1間・**板葺**(指図 `service.Nando_Nagatsubone`「板葺」)。
     長局の物干の道具を仕舞う小屋。⛔ **瓦モジュールを使わない** —
     `roof 2x2` の勾配は 0.5456 固定で、1間の小屋に架けると棟が高すぎる。
-    板葺なので勾配は自由に選べる → **0.40(4寸)【U】**。"""
+    板葺なので勾配は自由に選べる → **0.40(4寸)【U】**。
+
+    ⭕ **板葺・四周板壁・前面に板戸** という作りは作事小屋にもそのまま効くので、
+      骨の割付(`nx`/`nz`)・軒高・戸の寸法を引数に出してある。**既定値は岡部の 1.5×1間の
+      ままで、渡さなければ従来と寸分違わない。**⛔ 同じ型を別の実装で二度書かない
+      (`build_typ_fuzokuya.sakuji_koya` が 3×2間で呼ぶ)。
+    ⚠ `nx`/`nz` は柱の**割付の数**で間数からの自動導出をしない — 1.5間を丸めると
+      骨が歪む(`frame` の断り)。⇒ 大きくするときは**呼ぶ側が整数で渡す**。"""
     P = N.palette()
     W, D = uKen * KEN, vKen * KEN          # 長手 = u(1.5間)
-    EAVE, NOKI, END, RAT = 2.05, 0.42, 0.22, 0.40
+    EAVE, NOKI, END, RAT = eaveH, noki, end, ratio
     hw, hd = W / 2.0, D / 2.0
     m = VM.Mesh()
-    frame(m, P, W, D, EAVE, 1, 1, base=0.16, post=0.12)
-    # 四周の板壁。前面(+Z)に片開きの板戸1枚
+    frame(m, P, W, D, EAVE, nx, nz, base=base, post=post)
+    # 四周の板壁。前面(+Z)に板戸(既定は片開き1枚)
     for sx, s in ((-hw, -1), (hw, 1)):
-        N.shitami(m, P, -hd, hd, 0.16, EAVE - 0.20, sx, s, 'z', pitch=0.17)
-    N.shitami(m, P, -hw, hw, 0.16, EAVE - 0.20, -hd, -1, 'x', pitch=0.17)
-    dw = 0.82
-    N.shitami(m, P, -hw, -dw / 2, 0.16, EAVE - 0.20, hd, 1, 'x', pitch=0.17)
-    N.shitami(m, P, dw / 2, hw, 0.16, EAVE - 0.20, hd, 1, 'x', pitch=0.17)
-    m.box(-dw / 2 - 0.04, dw / 2 + 0.04, 1.75, EAVE - 0.20, hd - 0.04, hd + 0.06,
+        N.shitami(m, P, -hd, hd, base, EAVE - 0.20, sx, s, 'z', pitch=pitch)
+    N.shitami(m, P, -hw, hw, base, EAVE - 0.20, -hd, -1, 'x', pitch=pitch)
+    N.shitami(m, P, -hw, -dw / 2, base, EAVE - 0.20, hd, 1, 'x', pitch=pitch)
+    N.shitami(m, P, dw / 2, hw, base, EAVE - 0.20, hd, 1, 'x', pitch=pitch)
+    m.box(-dw / 2 - 0.04, dw / 2 + 0.04, doorH, EAVE - 0.20, hd - 0.04, hd + 0.06,
           VM.sub(P['wuv'], 0.30, 0.40, 0.80, 0.60), WOOD)          # 鴨居
-    N.door_leaves(m, P, -dw / 2, dw / 2, 0.18, 1.75, hd, 1, n=1)
+    N.door_leaves(m, P, -dw / 2, dw / 2, base + 0.02, doorH, hd, 1, n=leaves)
     # ---- 板葺の切妻。⛔ 瓦を使わない。板を重ねて葺く
     apex = EAVE + (hd + NOKI) * RAT
     ex, ez = hw + END, hd + NOKI

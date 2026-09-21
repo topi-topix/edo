@@ -13,9 +13,57 @@
 """
 import argparse, json, os, sys
 
+import re
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PARCELS = os.path.join(ROOT, "docs", "Sashizu", "parcels.json")
 TYPO    = os.path.join(ROOT, "docs", "Sashizu", "typology.json")
+BUILDER = os.path.join(ROOT, "Assets", "Edo", "Scripts", "Editor", "EdoTypologyBuilder.cs")
+
+
+def read_keys():
+    """類型ビルダーが**実際に読む**欄の名。⛔ 手で写した一覧にしない — 写しはビルダーが
+    変わった日にそのまま嘘になる。ソースの `S(d,"…")` / `I(d,"…",…)` / `Bo(d,"…",…)` を引く。"""
+    if not os.path.exists(BUILDER):
+        return None
+    src = open(BUILDER, encoding="utf-8").read()
+    return set(re.findall(r'\b[SIB]o?\(\s*d\s*,\s*"([^"]+)"', src))
+
+
+def read_but_unused():
+    """ビルダーが **Spec へ読み込みはするのに、一度も使っていない**欄。
+    ⭐ `inert_defaults` の裏返しで、こちらの方が見つけにくい — 表にも欄があり C# も読んでいるので
+    「効いている」ように見えるのに、建てる側が参照しないので姿は変わらない(`inari` が実際にそう)。
+    ⛔ 0 件でも「合格」ではない: 参照していても**使い道が間違っている**のはここでは捕まらない。"""
+    if not os.path.exists(BUILDER):
+        return None
+    src = open(BUILDER, encoding="utf-8").read()
+    out = []
+    for field, key in re.findall(r'\b(\w+)\s*=\s*[SIB]o?\(\s*d\s*,\s*"([^"]+)"', src):
+        # 宣言 1 回 + この読み込みの左辺 1 回を引いた残りが、その欄の**使われ方**。
+        # ⛔ C# の欄名と json の鍵名が同じとき(`inari`)は**鍵の文字列そのもの**も数に入るので
+        #    もう 1 回引く — これを忘れて 2026-09-21 に `inari` を取り逃がした。
+        minus = 3 if field == key else 2
+        if len(re.findall(r"\b%s\b" % re.escape(field), src)) - minus <= 0:
+            out.append(key)
+    return sorted(set(out))
+
+
+def inert_defaults(T):
+    """`defaults` にあってビルダーが読まない欄。⭐ これが EDO-0304 の正体 — 表へ欄を足しても
+    C# が読んでいなければ**建つ姿は一切変わらない**のに、表を見た者には効いているように見える。
+    ⛔ 破れ(赤)にはしない: 既に居る欄の是非は考証方と部材方の持ち場で、ここは「見えるようにする」係。"""
+    read = read_keys()
+    if read is None:
+        return None
+    keys = set()
+    for branch in (T.get("defaults") or {}).values():
+        if not isinstance(branch, dict):
+            continue
+        leaves = [v for v in branch.values() if isinstance(v, dict)] or [branch]
+        for leaf in leaves:
+            keys |= {k for k in leaf if not k.startswith("_") and k != "src"}
+    return sorted(keys - read)
 
 CERT = set("SABPU")
 # ⭕ 区画の実欄でない cert の鍵として許すのはこの三つだけ(区画そのものの素性に掛かる確度)。
@@ -62,11 +110,18 @@ def check():
         if t not in TYPES:
             bad.append((i, f"type が無いか未知({t})")); continue
         for k in NEED[t]:
-            if k == "yashiki" and e.get("rank") == "gokenin":
-                # ⛔ 上/中/下は**大名の屋敷の別**で、御家人の拝領屋敷には付かない
-                #   (考証方・掲示板 EDO-0311 ④)。付いていたら逆に鳴らす。
+            if k == "yashiki" and e.get("rank") != "daimyo":
+                # ⛔ 上/中/下を冠するのは**大名だけ**。旗本・御家人には付かない(考証方 2026-09-21・EDO-0311 ②)。
+                #   同時代の一括記録は同じ記事の中で大名にだけ「上 岡部筑前守殿」「中 鳥居丹波守殿」と
+                #   屋敷の別を冠し、旗本には「御小姓組 村瀬平四郎殿」と役名を冠して別を書かない
+                #   [安政地震被害書上 J1400016]S。切絵図の悉皆でも旗本の第二の屋敷は「抱屋敷」で
+                #   「下屋敷」とは書かれない([江戸マップ地名データセット]A 悉皆7例)。
+                #   ⚠ **「旗本は上屋敷を持たない」とは書かない** — 辞典は「拝領居屋敷=上屋敷」の
+                #   類別を旗本・御家人へも及ぼす([世界大百科事典『武家屋敷』鈴木充]A)。両立する:
+                #   概念上の類別名であって、実務の記載では屋敷の別を冠さない。
                 if "yashiki" in e:
-                    bad.append((i, "御家人なのに yashiki(上/中/下)が付いている — あれは大名の屋敷の別"))
+                    bad.append((i, "大名でないのに yashiki(上/中/下)が付いている — "
+                                   "屋敷の別を冠するのは大名だけ(類別としての『拝領居屋敷』は source へ書く)"))
                 continue
             if k not in e:
                 bad.append((i, f"{t} に要る欄 {k} が無い"))
@@ -119,12 +174,23 @@ def main():
                     help="確度 P のまま残っている欄を並べる(B/U へ振り直す対象・EDO-0255)")
     a = ap.parse_args()
     bad, pcert = check()
+    inert = inert_defaults(json.load(open(TYPO))) if os.path.exists(TYPO) else None
+    unused = read_but_unused()
     if a.list_p:
         for s in pcert:
             print(s)
         return
     if a.json:
-        print(json.dumps([{"parcel": p, "why": w} for p, w in bad], ensure_ascii=False)); return
+        print(json.dumps({"bad": [{"parcel": p, "why": w} for p, w in bad],
+                          "inert_defaults": inert, "read_but_unused": unused},
+                         ensure_ascii=False)); return
+    # ⭐ 破れが 0 件でも必ず刷る(規則19)— 「既定を足したのに効かない」は赤ではなく沈黙で来る。
+    if inert:
+        print("  ⚠ defaults の欄 %d 個を類型ビルダーが読まない — 足しても建つ姿は変わらない: %s"
+              % (len(inert), "・".join(inert)))
+    if unused:
+        print("  ⚠ 欄 %d 個はビルダーが読むのに一度も使っていない — 値を入れても姿は変わらない: %s"
+              % (len(unused), "・".join(unused)))
     if not bad:
         if not a.quiet:
             n = len(json.load(open(TYPO)).get("parcels", {}))

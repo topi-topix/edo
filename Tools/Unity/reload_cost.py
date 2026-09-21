@@ -22,31 +22,37 @@ RE_AWAKE = re.compile(r"AwakeInstancesAfterBackupRestoration \((\d+)ms\)")
 
 
 def scan(path, offset=0):
-    """(rows, end_offset) — rows は {scene, ms, awake_ms} の並び。"""
+    """(rows, end_offset) — rows は {scene, ms, awake_ms} の並び。
+
+    ⚠ `offset` は**報告する範囲**を切るだけで、読むのは常に頭から。途中から読むと
+    「そのとき開いていたシーン」を見失い、全部が (シーン前) に落ちる(2026-09-21 に踏んだ)。"""
     rows, scene = [], None
     if not os.path.exists(path):
         return rows, 0
-    with open(path, "r", errors="replace") as f:
-        f.seek(offset)
-        for line in f:
-            m = RE_OPEN.search(line)
-            if m:
-                scene = os.path.splitext(os.path.basename(m.group(1)))[0]
-                continue
-            m = RE_RELOAD.search(line)
-            if m:
-                rows.append({"scene": scene, "ms": int(m.group(1)), "awake_ms": 0})
-                continue
-            m = RE_AWAKE.search(line)
-            if m and rows and rows[-1]["awake_ms"] == 0:
-                rows[-1]["awake_ms"] = int(m.group(1))
-        end = f.tell()
-    return rows, end
+    with open(path, "rb") as fb:
+        raw = fb.read()
+    pos = 0
+    for bline in raw.splitlines(keepends=True):
+        here, pos = pos, pos + len(bline)
+        line = bline.decode("utf-8", "replace")
+        m = RE_OPEN.search(line)
+        if m:
+            scene = os.path.splitext(os.path.basename(m.group(1)))[0]
+            continue
+        if here < offset:                       # 範囲の手前 — シーンの追跡だけ続ける
+            continue
+        m = RE_RELOAD.search(line)
+        if m:
+            rows.append({"scene": scene, "ms": int(m.group(1)), "awake_ms": 0})
+            continue
+        m = RE_AWAKE.search(line)
+        if m and rows and rows[-1]["awake_ms"] == 0:
+            rows[-1]["awake_ms"] = int(m.group(1))
+    return rows, len(raw)
 
 
 def summarize(rows):
-    """シーン別に畳む。⚠ 最初のシーンを開く前のリロードは scene=None —
-    エディタ起動時に復元された前回のシーン(たいてい赤坂)なので「起動時」として別に数える。"""
+    """シーン別に畳む。⚠ シーンの行より前のリロード(起動の最初の1回)は scene=None。"""
     agg = {}
     for r in rows:
         k = r["scene"] or "(シーン前)"

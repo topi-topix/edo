@@ -19,6 +19,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 PARCELS = os.path.join(ROOT, "docs", "Sashizu", "parcels.json")
 TYPO    = os.path.join(ROOT, "docs", "Sashizu", "typology.json")
 BUILDER = os.path.join(ROOT, "Assets", "Edo", "Scripts", "Editor", "EdoTypologyBuilder.cs")
+# ⭐ 表の欄を**建てる以外の手**で使う道具(地表の輪)。`surface` は地形のスプラットへ塗る欄で、類型ビルダーは
+#   駒を置くだけなので読まない — 使い手が別のファイルにいても「使われている」と数える(EDO-0319)。
+#   ⛔ 増やすときは、そのファイルが**表の欄名を `.欄` で引いて実際に効かせている**ことを確かめてから。
+CONSUMERS = [os.path.join(ROOT, "Assets", "Edo", "Scripts", "Editor", "EdoSurfacePaint.cs")]
 
 
 def read_keys():
@@ -44,7 +48,11 @@ def read_but_unused():
         # ⛔ C# の欄名と json の鍵名が同じとき(`inari`)は**鍵の文字列そのもの**も数に入るので
         #    もう 1 回引く — これを忘れて 2026-09-21 に `inari` を取り逃がした。
         minus = 3 if field == key else 2
-        if len(re.findall(r"\b%s\b" % re.escape(field), src)) - minus <= 0:
+        uses = len(re.findall(r"\b%s\b" % re.escape(field), src)) - minus
+        for cp in CONSUMERS:   # 別ファイルの使い手は `.欄` の参照だけ数える(宣言ではあり得ない)
+            if os.path.exists(cp):
+                uses += len(re.findall(r"\.%s\b" % re.escape(field), open(cp, encoding="utf-8").read()))
+        if uses <= 0:
             out.append(key)
     # ⭕ 典拠(`source`)と史料値(`koku`)は姿を決めない欄なので、破れの列から外して別に刷る。
     #   ⛔ 黙って落とさない — 落とした事実も毎回刷る(規則19)。

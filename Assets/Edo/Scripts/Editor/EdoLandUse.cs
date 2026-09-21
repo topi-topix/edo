@@ -380,7 +380,7 @@ public static class EdoLandUse
     // 草原(緑)の芝ウェイトから草ディテールを再生成。二値マスクを軽くぼかし、閾値を弱いノイズで揺らして
     // 直線的な境界を少しだけ崩す(道への漏れは数%に抑制)。層0=密(細葉GrassLowA)、層1=疎らな広葉(GrassLowB)。
     // 水部分は芝ウェイトが低いので自然に除外される。
-    static void RebuildGrass(Terrain terr, TerrainData td, BakeMask region=null)
+    public static void RebuildGrass(Terrain terr, TerrainData td, BakeMask region=null)
     {
         if (td.detailPrototypes.Length==0) return;
         Vector3 tp=terr.transform.position;

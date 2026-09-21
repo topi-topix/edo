@@ -39,7 +39,7 @@
       ]
     },
     {
-      "id": "nishitameike_estates_0", "label": "Edo_Yashiki_Yokota",
+      "id": "nishitameike_estates_0", "label": "横田筑後守 邸",
       "category": "buke", "color": 2,
       "source": "EdoNishiTameikeBuilder.Estates[0]",
       "note": "",
@@ -49,7 +49,7 @@
       ]
     },
     {
-      "id": "nishitameike_estates_1", "label": "Edo_Yashiki_Toki",
+      "id": "nishitameike_estates_1", "label": "土岐丹波守 邸",
       "category": "buke", "color": 2,
       "source": "EdoNishiTameikeBuilder.Estates[1]",
       "note": "",
@@ -58,7 +58,7 @@
       ]
     },
     {
-      "id": "nishitameike_estates_2", "label": "Edo_Yashiki_YamaguchiUshiku",
+      "id": "nishitameike_estates_2", "label": "山口筑前守 上屋敷",
       "category": "buke", "color": 2,
       "source": "EdoNishiTameikeBuilder.Estates[2]",
       "note": "",
@@ -68,7 +68,7 @@
       ]
     },
     {
-      "id": "nishitameike_estates_3", "label": "Edo_Yashiki_MatsudairaHyuga",
+      "id": "nishitameike_estates_3", "label": "松平日向守 上屋敷",
       "category": "buke", "color": 2,
       "source": "EdoNishiTameikeBuilder.Estates[3]",
       "note": "",
@@ -258,7 +258,7 @@
       ]
     },
     {
-      "id": "sanyashiki_estates_0", "label": "Edo_Yashiki_Ota",
+      "id": "sanyashiki_estates_0", "label": "太田善太夫 邸",
       "category": "buke", "color": 2,
       "source": "EdoSanyashikiRebuild.Estates[0]",
       "note": "",
@@ -267,7 +267,7 @@
       ]
     },
     {
-      "id": "sanyashiki_estates_1", "label": "Edo_Yashiki_Kano",
+      "id": "sanyashiki_estates_1", "label": "加納備中守 邸",
       "category": "buke", "color": 2,
       "source": "EdoSanyashikiRebuild.Estates[1]",
       "note": "",
@@ -276,7 +276,7 @@
       ]
     },
     {
-      "id": "sanyashiki_estates_2", "label": "Edo_Yashiki_Matsudaira",
+      "id": "sanyashiki_estates_2", "label": "鍋島邸(松平肥前守)",
       "category": "buke", "color": 2,
       "source": "EdoSanyashikiRebuild.Estates[2]",
       "note": "",
@@ -286,7 +286,7 @@
       ]
     },
     {
-      "id": "tameikekita_estates_0", "label": "Edo_Yashiki_MatsudairaMino",
+      "id": "tameikekita_estates_0", "label": "松平美濃守 中屋敷",
       "category": "buke", "color": 2,
       "source": "EdoTameikeKitaBuilder.Estates[0]",
       "note": "",
@@ -297,7 +297,7 @@
       ]
     },
     {
-      "id": "tameikekita_estates_1", "label": "Edo_Yashiki_MizunoHyuga",
+      "id": "tameikekita_estates_1", "label": "水野日向守 上屋敷",
       "category": "buke", "color": 2,
       "source": "EdoTameikeKitaBuilder.Estates[1]",
       "note": "",
@@ -306,7 +306,7 @@
       ]
     },
     {
-      "id": "tameikekita_estates_2", "label": "Edo_Yashiki_SagaraEchizen",
+      "id": "tameikekita_estates_2", "label": "相良越前守 中屋敷",
       "category": "buke", "color": 2,
       "source": "EdoTameikeKitaBuilder.Estates[2]",
       "note": "",
@@ -316,7 +316,7 @@
       ]
     },
     {
-      "id": "todablock_parcels_0", "label": "Edo_Yashiki_TodaUneme",
+      "id": "todablock_parcels_0", "label": "戸田采女正 上屋敷",
       "category": "buke", "color": 2,
       "source": "EdoTodaBlockBuilder.Parcels[0]",
       "note": "",
@@ -328,7 +328,7 @@
       ]
     },
     {
-      "id": "todablock_parcels_2", "label": "Edo_Yashiki_Inoue",
+      "id": "todablock_parcels_2", "label": "井上寿一郎 邸",
       "category": "buke", "color": 2,
       "source": "EdoTodaBlockBuilder.Parcels[2]",
       "note": "",
@@ -338,7 +338,7 @@
       ]
     },
     {
-      "id": "toranomonuchi_parcels_0", "label": "Edo_Yashiki_NaitoNoto",
+      "id": "toranomonuchi_parcels_0", "label": "内藤能登守 上屋敷",
       "category": "buke", "color": 2,
       "source": "EdoToranomonUchiBuilder.Parcels[0]",
       "note": "",
@@ -349,7 +349,7 @@
       ]
     },
     {
-      "id": "toranomonuchi_parcels_1", "label": "Edo_Yashiki_Murase",
+      "id": "toranomonuchi_parcels_1", "label": "村瀬平四郎 邸",
       "category": "buke", "color": 2,
       "source": "EdoToranomonUchiBuilder.Parcels[1]",
       "note": "",
@@ -359,7 +359,7 @@
       ]
     },
     {
-      "id": "toranomonuchi_parcels_2", "label": "Edo_Yashiki_Ogura",
+      "id": "toranomonuchi_parcels_2", "label": "小倉鈴之進 邸",
       "category": "buke", "color": 2,
       "source": "EdoToranomonUchiBuilder.Parcels[2]",
       "note": "",
@@ -368,7 +368,7 @@
       ]
     },
     {
-      "id": "toranomonuchi_parcels_3", "label": "Edo_Yashiki_HayashiZusho",
+      "id": "toranomonuchi_parcels_3", "label": "林図書助 邸",
       "category": "buke", "color": 2,
       "source": "EdoToranomonUchiBuilder.Parcels[3]",
       "note": "",
@@ -387,7 +387,7 @@
       ]
     },
     {
-      "id": "sannojubo_parcels_0", "label": "Edo_SannoBo_Enjoin",
+      "id": "sannojubo_parcels_0", "label": "円乗院(山王社十坊)",
       "category": "jisha", "color": 3,
       "source": "EdoSannoJuboBuilder.Parcels[0]",
       "note": "",
@@ -396,7 +396,7 @@
       ]
     },
     {
-      "id": "sannojubo_parcels_1", "label": "Edo_SannoBo_Jojuin",
+      "id": "sannojubo_parcels_1", "label": "成就院(山王社十坊)",
       "category": "jisha", "color": 3,
       "source": "EdoSannoJuboBuilder.Parcels[1]",
       "note": "",
@@ -405,7 +405,7 @@
       ]
     },
     {
-      "id": "sannojubo_parcels_2", "label": "Edo_SannoBo_Hozoin",
+      "id": "sannojubo_parcels_2", "label": "宝蔵院(山王社十坊)",
       "category": "jisha", "color": 3,
       "source": "EdoSannoJuboBuilder.Parcels[2]",
       "note": "",
@@ -414,7 +414,7 @@
       ]
     },
     {
-      "id": "sannojubo_parcels_3", "label": "Edo_SannoBo_Chomyoin",
+      "id": "sannojubo_parcels_3", "label": "長明院(山王社十坊)",
       "category": "jisha", "color": 3,
       "source": "EdoSannoJuboBuilder.Parcels[3]",
       "note": "",
@@ -423,7 +423,7 @@
       ]
     },
     {
-      "id": "sannojubo_parcels_4", "label": "Edo_SannoBo_Fukujuin",
+      "id": "sannojubo_parcels_4", "label": "福寿院(山王社十坊)",
       "category": "jisha", "color": 3,
       "source": "EdoSannoJuboBuilder.Parcels[4]",
       "note": "",
@@ -432,7 +432,7 @@
       ]
     },
     {
-      "id": "sannojubo_parcels_5", "label": "Edo_SannoBo_Chikoin",
+      "id": "sannojubo_parcels_5", "label": "智光院(山王社十坊)",
       "category": "jisha", "color": 3,
       "source": "EdoSannoJuboBuilder.Parcels[5]",
       "note": "",
@@ -441,7 +441,7 @@
       ]
     },
     {
-      "id": "sannojubo_parcels_6", "label": "Edo_SannoBo_Hosenin",
+      "id": "sannojubo_parcels_6", "label": "宝仙院(山王社十坊)",
       "category": "jisha", "color": 3,
       "source": "EdoSannoJuboBuilder.Parcels[6]",
       "note": "",
@@ -450,7 +450,7 @@
       ]
     },
     {
-      "id": "sannojubo_parcels_7", "label": "Edo_SannoBo_Muryoin",
+      "id": "sannojubo_parcels_7", "label": "無量院(山王社十坊)",
       "category": "jisha", "color": 3,
       "source": "EdoSannoJuboBuilder.Parcels[7]",
       "note": "",
@@ -459,7 +459,7 @@
       ]
     },
     {
-      "id": "sannojubo_parcels_8", "label": "Edo_SannoBo_Chijoin",
+      "id": "sannojubo_parcels_8", "label": "智乗院(山王社十坊)",
       "category": "jisha", "color": 3,
       "source": "EdoSannoJuboBuilder.Parcels[8]",
       "note": "",
@@ -468,7 +468,7 @@
       ]
     },
     {
-      "id": "sannojubo_parcels_9", "label": "Edo_SannoBo_Jomyoin",
+      "id": "sannojubo_parcels_9", "label": "常明院(山王社十坊)",
       "category": "jisha", "color": 3,
       "source": "EdoSannoJuboBuilder.Parcels[9]",
       "note": "",
@@ -502,7 +502,7 @@
       ]
     },
     {
-      "id": "todablock_parcels_3", "label": "Edo_Temple_Chosenji",
+      "id": "todablock_parcels_3", "label": "澄泉寺",
       "category": "jisha", "color": 3,
       "source": "EdoTodaBlockBuilder.Parcels[3]",
       "note": "",
@@ -512,7 +512,7 @@
       ]
     },
     {
-      "id": "todablock_parcels_4", "label": "Edo_Temple_Yosenji",
+      "id": "todablock_parcels_4", "label": "陽泉寺",
       "category": "jisha", "color": 3,
       "source": "EdoTodaBlockBuilder.Parcels[4]",
       "note": "",
@@ -588,7 +588,7 @@
       ]
     },
     {
-      "id": "todablock_parcels_1", "label": "Edo_Hikeshi_Koide",
+      "id": "todablock_parcels_1", "label": "小出伊織 定火消御役屋敷",
       "category": "kouyuu", "color": 6,
       "source": "EdoTodaBlockBuilder.Parcels[1]",
       "note": "",
@@ -803,7 +803,7 @@
       ]
     },
     {
-      "id": "tamachi_chos_0", "label": "Edo_Tamachi_5",
+      "id": "tamachi_chos_0", "label": "赤坂田町五丁目",
       "category": "machiya", "color": 4,
       "source": "EdoTamachiBuilder.Chos[0]",
       "note": "",
@@ -812,7 +812,7 @@
       ]
     },
     {
-      "id": "tamachi_chos_1", "label": "Edo_Tamachi_4",
+      "id": "tamachi_chos_1", "label": "赤坂田町四丁目",
       "category": "machiya", "color": 4,
       "source": "EdoTamachiBuilder.Chos[1]",
       "note": "",
@@ -821,7 +821,7 @@
       ]
     },
     {
-      "id": "tamachi_chos_2", "label": "Edo_Tamachi_3",
+      "id": "tamachi_chos_2", "label": "赤坂田町三丁目",
       "category": "machiya", "color": 4,
       "source": "EdoTamachiBuilder.Chos[2]",
       "note": "",
@@ -830,7 +830,7 @@
       ]
     },
     {
-      "id": "tamachi_chos_3", "label": "Edo_Tamachi_2",
+      "id": "tamachi_chos_3", "label": "赤坂田町二丁目",
       "category": "machiya", "color": 4,
       "source": "EdoTamachiBuilder.Chos[3]",
       "note": "",
@@ -839,7 +839,7 @@
       ]
     },
     {
-      "id": "tamachi_chos_4", "label": "Edo_Tamachi_1",
+      "id": "tamachi_chos_4", "label": "赤坂田町一丁目",
       "category": "machiya", "color": 4,
       "source": "EdoTamachiBuilder.Chos[4]",
       "note": "",

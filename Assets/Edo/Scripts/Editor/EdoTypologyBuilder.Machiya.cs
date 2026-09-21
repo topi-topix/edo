@@ -79,7 +79,8 @@ public static partial class EdoTypologyBuilder
         var g = Group("Tatemono", root);
         // 自身番屋は**列の頭に 1 軒ぶん**として差す(⛔ 区画の中へ単独で散らさない)。
         string lead = s.jishinban ? EdoAssets.Eg.Jishinban : null;
-        int totalPieces = 0, totalHouses = 0, wantTotal = 0, dropped = 0;
+        int totalPieces = 0, totalHouses = 0, wantTotal = 0, dropped = 0, clashed = 0;
+        var built = new List<GameObject>();       // 先に建った列(両側町の角で取り合う)
         float worstJoint = float.NaN, worstWallGap = 0f, worstFace = float.NaN, restSum = 0f;
         int kinds = 0;
 
@@ -88,9 +89,11 @@ public static partial class EdoTypologyBuilder
             var e = fronts[k];
             bool hasGate = (e == front) && gateHalf > 0f;      // 木戸(路地口)はこの辺にだけ開く
             EdoBuild.MachiyaTally t;
-            EdoBuild.MachiyaRun(g, e.a, e.b, e.outward, pad, maguchiM, depthM,
+            built.AddRange(EdoBuild.MachiyaRun(g, e.a, e.b, e.outward, pad, maguchiM, depthM,
                                 hasGate ? gateC : Vector2.zero, hasGate ? gateHalf : -1f,
-                                "Omotedana" + k, k == 0 ? lead : null, poly, out t);
+                                "Omotedana" + k, k == 0 ? lead : null, poly,
+                                k == 0 ? null : built, out t));
+            clashed += t.clashed;
             totalPieces += t.pieces; totalHouses += t.houses; wantTotal += t.wantHouses;
             dropped += t.dropped; restSum += t.restM;
             worstWallGap = Mathf.Max(worstWallGap, t.wallGapM);
@@ -104,6 +107,13 @@ public static partial class EdoTypologyBuilder
                 t.houses, t.wantHouses, s.maguchiKen, maguchiM, t.pieces, t.combos,
                 t.rojiM, Mathf.Max(0, t.houses - 1), t.restM,
                 t.dropped > 0 ? "・⛔ " + t.dropped + "枚は壁体が区画の外へ出るので退けた" : ""));
+            if (t.roomM > 0f && t.roomM < depthM - 0.5f)
+                log.Add(string.Format("      ⚠ 辺{0} の背後は実測 {1:F1}m しかない(表の depth_ken は {2}間={3:F1}m)"
+                                    + " — 深い駒を候補から外した。表の奥行を検め直すこと",
+                                      e.i, t.roomM, s.depthKen, depthM));
+            if (t.tucked > 0)
+                log.Add(string.Format("      辺{0}: {1}枚を区画の内へ最大 {2:F2}m 折り込んだ(斜めの側辺を跨ぐ列の端・裁定A)",
+                                      e.i, t.tucked, t.tuckedM));
         }
 
         log.Insert(0, string.Format("  町屋: 表店 {0}軒 / 駒 {1}枚 — 接道辺 {2}本({3})",
@@ -128,8 +138,10 @@ public static partial class EdoTypologyBuilder
                 + (worstJoint < 0f ? "(⛔ めり込み)" : ""),
             worstWallGap, restSum));
         if (dropped > 0) log.Add("    ⛔ 区画の外へ出て退けた駒 " + dropped + "枚 — その分だけ通りに歯抜けが残る");
+        if (clashed > 0) log.Add("    角で先の列にめり込むので退けた駒 " + clashed
+                               + "枚 — 両側町の二つの列が同じ角を取り合うため(角は空ける)");
 
-        log.Add(UraNagaya(s, root, poly, fronts, depthM, pad));
+        log.Add(UraNagaya(s, root, poly, fronts, depthM, pad, built));
         log.Add(UnusedFields(s));
         return string.Join("\n", log.ToArray());
     }
@@ -142,7 +154,8 @@ public static partial class EdoTypologyBuilder
     /// 「棟(奥行 2 間)+ 路地 1 間」の帯を何本とれるか。棟の実寸は
     /// <see cref="EdoAssets.Own.UraNagaya(float)"/>(2026-09-21・部材方 EDO-0318 ④)から実測で採り、
     /// ⛔ 図面の 2 間という数字を高さや奥行の代わりに使わない。</para></summary>
-    static string UraNagaya(Spec s, Transform root, Vector2[] poly, List<Edge> fronts, float depthM, float pad)
+    static string UraNagaya(Spec s, Transform root, Vector2[] poly, List<Edge> fronts, float depthM, float pad,
+                            List<GameObject> avoid)
     {
         var d = s.raw;
         int want = I(d, "ura_nagaya", DERIVE);
@@ -171,7 +184,8 @@ public static partial class EdoTypologyBuilder
             float inset = shopD + ROJI + r * band;
             int dr; float wg;
             var got = EdoBuild.UraNagayaRun(g, e0.a, e0.b, e0.outward, pad, inset, cap,
-                                            "UraNagaya" + r, poly, out dr, out wg);
+                                            "UraNagaya" + r, poly, avoid, out dr, out wg);
+            avoid.AddRange(got);          // 次の列は前の列も避ける
             made += got.Count; built += got.Count; dropped += dr;
             if (!float.IsNaN(wg) && (float.IsNaN(worst) || wg < worst)) worst = wg;
         }

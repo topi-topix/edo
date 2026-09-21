@@ -44,6 +44,91 @@ public static partial class EdoBuild
         public float D { get { return dHi - dLo; } }      // 躯体の奥行
     }
 
+    /// <summary>軒どうしの継ぎ目に残す**髪一筋**[m]。⭐ 0 ちょうどで突き付けると、据え直しの丸めで
+    /// 触れている箇所が 0.0004m ほど負に落ち、検査が「めり込み」と刷る(2026-09-21 実測)。
+    /// 閉じは **「隙間 &gt; めり込み」**なので、見えない幅だけ正の側へ倒す。</summary>
+    const float JOINT = 0.005f;
+
+    /// <summary>駒の**壁体**(屋根・軒を外した実頂点)が線 (<paramref name="a"/>, 外向き <paramref name="n"/>)
+    /// より外にあれば、その分だけ内へ引く。返り値 = 引いた量[m]。
+    /// ⛔ 帯(<see cref="FaceOut"/>)で合わせただけで済ませない — 帯の外の基壇・腰板・下屋が先に越える。</summary>
+    static float TuckToLine(GameObject go, Vector2 a, Vector2 n)
+    {
+        float over = float.MinValue;
+        foreach (var w in Body(go.transform, 400, false))
+        {
+            float dd = (w.x - a.x) * n.x + (w.z - a.y) * n.y;
+            if (dd > over) over = dd;
+        }
+        if (over <= 0f || over == float.MinValue) return 0f;
+        go.transform.position -= new Vector3(n.x, 0f, n.y) * over;
+        return over;
+    }
+
+    /// <summary>**辺の背後に実際に何 m あるか。**辺の上の 9 点から敷地の内へ歩いて、区画の外へ出るまでの
+    /// 距離の中央値。⭐ 表の `depth_ken` を鵜呑みにしない — 山王門前の短冊は表が 18 間(32.7m)と言うのに
+    /// 実際は **6.8m** しかなく、奥行 6.91m の `Eg.Shop02` が全 12 駒とも背中側の境界を 0.14m 越えた
+    /// (2026-09-21 実測)。⛔ 区域侵犯は許容0(規則4)なので、駒を選ぶ前に区画を測る。</summary>
+    public static float EdgeDepth(Vector2[] poly, Vector2 A, Vector2 B, Vector2 outward)
+    {
+        var inw = -outward;
+        var ds = new List<float>();
+        for (int k = 1; k <= 9; k++)
+        {
+            var p = Vector2.Lerp(A, B, k / 10f);
+            float dd = 0f;
+            while (dd < 200f && EdoGeom.PIP(poly, p + inw * (dd + 0.25f))) dd += 0.25f;
+            ds.Add(dd);
+        }
+        ds.Sort();
+        return ds[ds.Count / 2];
+    }
+
+    /// <summary>**区画の内へ折り込む。**駒の壁体が区画の外にある間、内向きへ刻んで下げる。
+    /// 返り値 = 下げた量[m](<paramref name="cap"/> まで下げても収まらなければ −1)。
+    /// ⛔ 軒では判定しない — 軒は越えてよい(2026-09-21 施主裁定A)。</summary>
+    /// <summary>この駒が既に建った駒のどれかへ**めり込んで**いるか。⛔ 外接箱の重なりで見ない —
+    /// 回った駒で必ず外す。測るのは <see cref="Contact(GameObject,GameObject,Vector3,out Vector3,out int,float,float,int,bool)"/>
+    /// の触れている箇所で、軒は許容(裁定A)なので屋根を外した壁体だけで見る。</summary>
+    static bool Clashes(GameObject go, List<GameObject> others)
+    {
+        foreach (var o in others)
+        {
+            var d3 = o.transform.position - go.transform.position; d3.y = 0f;
+            if (d3.sqrMagnitude < 1e-4f) return true;
+            Vector3 at; int nc;
+            float g = Contact(go, o, d3.normalized, out at, out nc, 0.01f, 0.5f, 400, false);
+            if (!float.IsNaN(g) && g < 0f) return true;
+        }
+        return false;
+    }
+
+    static void Seat2(GameObject go, Vector2 at)
+    {
+        try { SeatOnGround(go, 0.05f, 600); }
+        catch (Exception) { SeatBottom(go, Ground(at.x, at.y) - 0.05f); }
+    }
+
+    static float TuckIntoParcel(GameObject go, Vector2[] poly, Vector2 inward, float cap)
+    {
+        float moved = 0f;
+        while (OutsideParcelStrict(go.transform, poly) && moved < cap)
+        {
+            go.transform.position += new Vector3(inward.x, 0f, inward.y) * 0.05f;
+            moved += 0.05f;
+        }
+        return OutsideParcelStrict(go.transform, poly) ? -1f : moved;
+    }
+
+    /// <summary>駒の**壁体**が区画の外へ 1 点でも出ているか。遊びは無し —
+    /// 塀と違って建物は境界線の上に立つ物ではない(規則4「区域侵犯は許容0」)。</summary>
+    static bool OutsideParcelStrict(Transform t, Vector2[] poly)
+    {
+        foreach (var w in Body(t, 400, false))
+            if (!EdoGeom.PIP(poly, new Vector2(w.x, w.z))) return true;
+        return false;
+    }
+
     static readonly Dictionary<string, ShopModule> _shopMeasure = new Dictionary<string, ShopModule>();
 
     /// <summary>在庫の edogoyomi の駒(ES 倍で使う物)を測る。</summary>
@@ -96,6 +181,10 @@ public static partial class EdoBuild
         public float frontFace;    // 店先の面が境界線からどれだけ外(+)/内(−)にあるか[m]
         public string combos;      // 1軒を何枚で埋めたか(駒名×枚数 の内訳)
         public int comboKinds;     // 1軒の埋め方の候補が何通りあったか(1 = 同じ駒が並ぶ)
+        public float roomM;        // 辺の背後に**実際に**あった奥行[m](表の depth_ken とは別)
+        public int clashed;        // 先に建った列にめり込むので退けた駒(両側町の角)
+        public int tucked;         // 区画の内へ折り込んだ駒
+        public float tuckedM;      // 同・最大の折り込み量[m]
     }
 
     /// <summary>1 軒の間口 <paramref name="maguchiM"/> を、在庫の駒 1〜2 枚の組で埋める候補。
@@ -138,7 +227,7 @@ public static partial class EdoBuild
     /// <param name="keepInside">壁体がここから出る駒は置かない(区域侵犯は許容0・規則4)。null なら検めない。</param>
     public static List<GameObject> MachiyaRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, float baseY,
         float maguchiM, float maxDepthM, Vector2 gapC, float gapHalf, string prefix,
-        string leadPath, Vector2[] keepInside, out MachiyaTally tally)
+        string leadPath, Vector2[] keepInside, List<GameObject> avoid, out MachiyaTally tally)
     {
         var made = new List<GameObject>();
         tally = new MachiyaTally();
@@ -154,11 +243,19 @@ public static partial class EdoBuild
         Vector2 sA = A, rdir = dir;
         if (Vector2.Dot(dir, xdirW) < 0f) { sA = B; rdir = -dir; }
 
-        // 在庫の駒 — 奥行が足りない辺では深い駒を外す
+        // 在庫の駒 — 奥行が足りない辺では深い駒を外す。
+        // ⭐ 効かせるのは**表の奥行と実測の奥行の小さい方**(表が実際より広く言うことがある)。
+        float room = maxDepthM;
+        if (keepInside != null)
+        {
+            float real = EdgeDepth(keepInside, A, B, outward);
+            tally.roomM = real;
+            room = (room > 0f) ? Mathf.Min(room, real) : real;
+        }
         var stock = new List<string>();
         foreach (var p in new[] { EdoAssets.Eg.Shop01, EdoAssets.Eg.Shop02 })
         {
-            if (maxDepthM > 0f && ShopMeasure(p).D > maxDepthM - 0.5f) continue;
+            if (room > 0f && ShopMeasure(p).D > room - 0.3f) continue;
             stock.Add(p);
         }
         if (stock.Count == 0) stock.Add(EdoAssets.Eg.Shop01);   // 奥行が足りなくても 1 種は残す(呼び手が刷る)
@@ -236,14 +333,33 @@ public static partial class EdoBuild
                     // ② 奥行: 店先の**実面**を境界線へ(⛔ ピボット・外接箱で寄せない)
                     var rb = RB(go);
                     AlignFace(go, A, outward, 0f, rb.min.y + 0.30f, rb.min.y + rb.size.y * 0.60f);
+                    // ⭐ 帯で合わせた面より、**帯の外の壁体**(基壇の縁・腰板・下屋)が先に線を越える
+                    //    ことがある(2026-09-21 実測: 山王門前で 12 駒が 0.14m・田町で 2 駒が 0.06m)。
+                    //    区域侵犯は許容0(規則4)なので、実メッシュの張り出しを測って**その分だけ内へ引く**。
+                    //    ⛔ 定数の犬走りで逃げない — 駒を替えた日にまた越える(規則8)。
+                    TuckToLine(go, A, outward);
                     // ③ 高さ: **触れている箇所**を測って据える(規則21)
                     try { SeatOnGround(go, 0.05f, 600); }
                     catch (Exception) { SeatBottom(go, Ground(c2.x, c2.y) - 0.05f); }
-                    // 壁体が区画の外へ出る駒は置かない(区域侵犯は許容0・規則4)
-                    if (keepInside != null && OutsideParcel(go.transform, keepInside))
+                    // 壁体が区画の外へ出たら、まず**区画の内へ折り込む**(裁定A の折り込みと同じ手)。
+                    // 斜めの側辺を跨ぐ列の端は 0.05〜0.20m 下げれば収まる(2026-09-21 実測 0.06m)。
+                    // それでも収まらない駒だけ退ける — ⛔ 区域侵犯は許容0(規則4)。
+                    if (keepInside != null)
+                    {
+                        float tk = TuckIntoParcel(go, keepInside, -outward, 0.60f);
+                        if (tk < 0f)
+                        {
+                            UnityEngine.Object.DestroyImmediate(go);
+                            tally.dropped++; idx++; cursor += m.W + JOINT; continue;
+                        }
+                        if (tk > 0f) { tally.tuckedM = Mathf.Max(tally.tuckedM, tk); tally.tucked++; Seat2(go, c2); }
+                    }
+                    // 両側町は**角で二つの列が同じ場所を取り合う**(2026-09-21 実測: 新町三丁目で −6.38m)。
+                    // 先に建った列の駒と**触れている箇所**を測り、めり込むなら退けて角を空ける。
+                    if (avoid != null && Clashes(go, avoid))
                     {
                         UnityEngine.Object.DestroyImmediate(go);
-                        tally.dropped++; idx++; cursor += m.W; continue;
+                        tally.clashed++; idx++; cursor += m.W + JOINT; continue;
                     }
                     made.Add(go); houseGo.Add(go); idx++;
                     int cnt; string nm = System.IO.Path.GetFileNameWithoutExtension(path);
@@ -251,7 +367,7 @@ public static partial class EdoBuild
                     tally.builtM += m.W;
                     // 軒の出のぶん、界壁には必ず隙が残る(閉じは「隙間 > めり込み」)。実寸から出して刷る。
                     tally.wallGapM = Mathf.Max(tally.wallGapM, (m.hi - m.wHi) + (m.wLo - m.lo));
-                    cursor += m.W;                    // 継ぎ目は軒の実寸で面一
+                    cursor += m.W + JOINT;            // 継ぎ目は軒の実寸 + 髪一筋
                 }
                 if (houseGo.Count > 0) tally.houses++;
                 cursor += roji;
@@ -292,7 +408,7 @@ public static partial class EdoBuild
     /// <param name="wallGap">返り: 棟どうしの**触れている箇所**の隙の最小[m](負 = めり込み)。</param>
     public static List<GameObject> UraNagayaRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward,
         float baseY, float insetM, int cap, string prefix, Vector2[] keepInside,
-        out int dropped, out float wallGap)
+        List<GameObject> avoid, out int dropped, out float wallGap)
     {
         var made = new List<GameObject>();
         dropped = 0; wallGap = float.NaN;
@@ -329,13 +445,27 @@ public static partial class EdoBuild
             AlignFace(go, sA, outward, 0f, rb.min.y + 0.30f, rb.min.y + rb.size.y * 0.60f);
             try { SeatOnGround(go, 0.05f, 600); }
             catch (Exception) { SeatBottom(go, Ground(c2.x, c2.y) - 0.05f); }
-            if (keepInside != null && OutsideParcel(go.transform, keepInside))
+            if (keepInside != null)
+            {
+                // ⛔ 塀の 0.60m の遊びを建物に使わない(規則4「区域侵犯は許容0」)。
+                //    折り込んで収まらない棟だけ退ける。
+                float tk = TuckIntoParcel(go, keepInside, -outward, 0.60f);
+                if (tk < 0f)
+                {
+                    UnityEngine.Object.DestroyImmediate(go);
+                    dropped++; idx++; cursor += pm.W + JOINT; continue;
+                }
+                if (tk > 0f) Seat2(go, c2);
+            }
+            // ⛔ 両側町は**もう一方の通りの表店が背後まで回り込んでいる**(2026-09-21 実測:
+            //    新町三丁目で −5.03m)。先に建った駒とめり込む棟は退ける。
+            if (avoid != null && Clashes(go, avoid))
             {
                 UnityEngine.Object.DestroyImmediate(go);
-                dropped++; idx++; cursor += pm.W; continue;
+                dropped++; idx++; cursor += pm.W + JOINT; continue;
             }
             made.Add(go); idx++;
-            cursor += pm.W;
+            cursor += pm.W + JOINT;
         }
         var back = new Vector3(-rdir.x, 0f, -rdir.y);
         for (int k = 1; k < made.Count; k++)

@@ -1,0 +1,154 @@
+{
+  "_": "門の型 → その型が要求する部材の表(EDO-0315)。正典。⛔ 邸ごとの指図へ写さない。読み手は Tools/Sashizu/gate_types.py(図の輪 C24)と Assets/Edo/Scripts/Editor/EdoGateComplete.cs(実装の輪)の2つ。",
+  "_why": "松江松平の検証レンダで『表門の屋根が見当たらず板一枚に見える』が絵で初めて見つかった(2026-09-21)。門の取り合い(隙間0・めり込み0・4継ぎ目 +0.0000)は『隣り合う部材が接しているか』しか見ておらず、『その型が持つべき部材が居るか』を誰も見ていなかった。屋根の有無は数えられる = 計算の輪と実装の輪の両方で出せる(verification-loops §4「屋根が無い」)。",
+  "_how": "型は指図の gate.kind(自由文)から `match` の語で引く。上から順に最初に当たった型。⛔ 型が決まらない門は『未検査』であって『合格』ではない。",
+  "_roofValues": {
+    "none": "屋根を持たない型。屋根が在れば不合格(残骸か型の取り違え)。指図が『屋根なし』と確度つきで書いた物は記録として刷る",
+    "yes": "屋根を持つ型。屋根が無ければ不合格。形(切妻・入母屋・唐破風・単層/重層)は `roofKind` の注で、検査は形を問わず『開口の上に屋根が架かっているか』だけを数える",
+    "opt": "型が屋根の有無を決めない。測って値を記録するだけで、合否には数えない(⛔ 黙って除外もしない)"
+  },
+  "_roofMeasure": {
+    "_": "実装の輪で屋根を『幾何』で数える規則。単一メッシュの門(Matsudaira_Omotemon.fbx 等)は部材の名前で屋根を判定できないので、開口の上の面を測る。 ⚠ 値は仮(P)。松江松平の屋根なし冠木門(0本)と長屋門(土井・岡部)の実測で締める — EdoGateComplete.Run の報告に実測値が毎回出る。",
+    "clearance": 2.6,
+    "minDepthFrac": 0.6,
+    "minAreaFrac": 0.5,
+    "_clearance": "門の柱の開口の上端の目安(m)。敷居 + これ より上で、上向き(法線 y > 0.3)の面を屋根の候補とする。冠木の上面は細いので届かない。",
+    "_minDepthFrac": "屋根の候補の奥行方向の広がりが monD のこの割合以上(冠木1本の幅 0.3m と区別する)",
+    "_minAreaFrac": "屋根の候補の面積が monW × monD のこの割合以上",
+    "minWidthFrac": 0.6,
+    "_minWidthFrac": "屋根の候補の走り方向の広がりが monW のこの割合以上"
+  },
+  "types": {
+    "romon": {
+      "label": "楼門・二重門",
+      "match": [
+        "楼門",
+        "二重門",
+        "二階門"
+      ],
+      "roof": "yes",
+      "parts": [
+        "hashira",
+        "tobira",
+        "yane"
+      ],
+      "cert": "B — 一般類型(重層の門は屋根を必ず持つ)",
+      "roofKind": "入母屋・重層"
+    },
+    "sanmon": {
+      "label": "山門・三間一戸の門",
+      "match": [
+        "三間一戸",
+        "山門",
+        "仁王門",
+        "隨身門",
+        "随身門"
+      ],
+      "roof": "yes",
+      "parts": [
+        "hashira",
+        "tobira",
+        "yane"
+      ],
+      "cert": "B — 一般類型",
+      "roofKind": "入母屋・単層など"
+    },
+    "karamon": {
+      "label": "唐門",
+      "match": [
+        "唐門"
+      ],
+      "roof": "yes",
+      "parts": [
+        "hashira",
+        "tobira",
+        "yane"
+      ],
+      "cert": "B — 一般類型(唐破風・平唐門とも屋根を持つ)",
+      "roofKind": "唐破風・平唐門"
+    },
+    "yakuimon": {
+      "label": "薬医門",
+      "match": [
+        "薬医門"
+      ],
+      "roof": "yes",
+      "parts": [
+        "hashira",
+        "hikaebashira",
+        "kabuki",
+        "tobira",
+        "yane"
+      ],
+      "cert": "A — [赤門]A(三間薬医門・切妻造)/ unity-buke-yashiki references/sources.md 屋根の型式論",
+      "roofKind": "切妻"
+    },
+    "munemon": {
+      "label": "棟門",
+      "match": [
+        "棟門"
+      ],
+      "roof": "yes",
+      "parts": [
+        "hashira",
+        "tobira",
+        "yane"
+      ],
+      "cert": "B — 一般類型(二本の本柱の上に直に切妻を載せる。EdoAssets.Own の注記)",
+      "roofKind": "切妻"
+    },
+    "nagayamon": {
+      "label": "長屋門",
+      "match": [
+        "長屋門",
+        "門長屋"
+      ],
+      "roof": "yes",
+      "parts": [
+        "hashira",
+        "tobira",
+        "yane",
+        "heya"
+      ],
+      "cert": "B — 一般類型(門の左右に部屋=門長屋が連なり、全体が一つの屋根の下)",
+      "roofKind": "切妻または入母屋(全体が一つの屋根の下)"
+    },
+    "kabukimon": {
+      "label": "冠木門",
+      "match": [
+        "冠木門"
+      ],
+      "roof": "none",
+      "parts": [
+        "hashira",
+        "kabuki",
+        "tobira"
+      ],
+      "cert": "A — 定義上 屋根を持たない(二本の柱に冠木を渡しただけの門)。⛔ 大名の表門でも、焼失後の再建などで屋根なしの冠木門になる例が在る(松江松平 [温古写真集11]A・[日本案内記 関東篇]A)"
+    },
+    "kido": {
+      "label": "木戸・小門",
+      "match": [
+        "木戸",
+        "小門",
+        "潜門",
+        "潜り戸"
+      ],
+      "roof": "opt",
+      "parts": [
+        "hashira",
+        "tobira"
+      ],
+      "cert": "P — 板扉+冠木の簡素な口。屋根を載せる例も載せない例も在るので、屋根の有無は合否に数えず記録だけ刷る"
+    }
+  },
+  "attachments": {
+    "_": "門に付く物は型ではなく指図の欄から数える。欄が数を言うなら、その数だけ居ること。",
+    "bansho": {
+      "label": "番所",
+      "count": "plan.bansho.count",
+      "scene": "Bansho_*",
+      "_": "⛔ 袖塀は数えない — plan.sode は長さ(m)で、左右に何枚かは指図が言わない。数を発明しない"
+    }
+  }
+}

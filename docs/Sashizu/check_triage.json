@@ -306,6 +306,11 @@
     "sanno:probe_misfire_check",
     "matsudaira:check_wiring_check"
    ]
+  },
+  "C24": {
+   "title": "門の完備",
+   "measures": "門の型(gate_types.json)が要求する屋根の有無が指図の欄と食い違わず、型が読めない門・屋根の欄が無い門が『未検査』として名指しされる。建った姿(屋根が本当に載っているか)は EdoGateComplete が Unity で測る",
+   "from_checks": []
   }
  },
  "checks": [

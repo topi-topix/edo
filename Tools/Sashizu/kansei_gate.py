@@ -21,7 +21,7 @@
 【使い方】
     python3 Tools/Sashizu/kansei_gate.py                          # 全敷地の表を見る
     python3 Tools/Sashizu/kansei_gate.py --init matsudaira_dewa   # 実装の車線へ入れる(表を起こす)
-      ⛔ **図の機械検査(C01〜C23)が赤なら入れない**(2026-09-21・EDO-0291・規則3)。記録は生成器が
+      ⛔ **図の機械検査(C01〜C24)が赤なら入れない**(2026-09-21・EDO-0291・規則3)。記録は生成器が
          書く(`build_sashizu.py <邸>` → `<邸>_checks.json`)。記録が無い・古い指図の物でも止まる。
          施主が承知なら `--init <邸> --quote "<施主の発話>"`(表の history に引用が残る)
     python3 Tools/Sashizu/kansei_gate.py --record matsudaira_dewa gap pass --value "隙 0 / めり込み 0 (JointQA 214 組)"
@@ -112,7 +112,7 @@ def names(base=None):
 
 
 def zu_checks(name, base=None):
-    """図の機械検査(C01〜C23)の記録を読む。返すのは (印, 一行, 赤の列)。
+    """図の機械検査(C01〜C24)の記録を読む。返すのは (印, 一行, 赤の列)。
 
     ⛔ **これが無かったのが規則3 が効かなかった理由**(掲示板 EDO-0291)。2026-09-01、
     松江松平の図の検査は棟別 38.4% の赤を出していたのに、実装の車線へ入る所は**検分の記録**しか

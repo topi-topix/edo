@@ -11,7 +11,7 @@ service / wells / runs / gate・komon・gates / kaidans / routes / gardens / sec
 (規則19: 読めていない値は「未検査」であって「合格」ではない)。
 
 ⛔ 設計値をここに書かない。⛔ 実装(C#)を読まない。⛔ 邸の名前で分岐しない — 欄の形で分岐する。
-検査の名簿と札は docs/Sashizu/check_triage.json(共通版に残す 23 の意図 C01〜C23)。
+検査の名簿と札は docs/Sashizu/check_triage.json(共通版に残す意図 C01〜C24)。
 """
 import copy
 import datetime
@@ -1445,6 +1445,31 @@ class Checks(object):
                  "%d 件" % len(bad), "ok" if not bad else "ng", bad[:12])
 
 
+    # C24 門の完備 — 型が要求する部材(屋根の有無・番所)が指図の欄に食い違いなくあるか(EDO-0315)
+    def c24(self):
+        M = self.M
+        if not M.gates:
+            self.add("C24", "門の完備", "未検査 — 門が読めない", "na")
+            return
+        import gate_types as GT
+        table = GT.load_table()
+        ng, na, rows = [], [], []
+        for g in M.gates:
+            g_raw = g.raw if isinstance(g.raw, dict) else {}
+            ty, res = GT.audit(g_raw, g.name, table, g.kind)
+            for lv, msg in res:
+                if lv == "ng":
+                    ng.append("%s: %s" % (g.name, msg))
+                elif lv == "na":
+                    na.append("%s: %s" % (g.name, msg))
+            rows.append((g.name, ty, "; ".join(m for _, m in res) or "—"))
+        self.rows_c24 = rows
+        result = "矛盾 %d / 未検査 %d(欄が無い・型が読めない)" % (len(ng), len(na))
+        status = "ng" if ng else ("na" if na else "ok")
+        self.add("C24", "門の完備 — 門 %d の型が要求する屋根が指図の欄と食い違わない(建った姿は EdoGateComplete で測る)" % len(M.gates),
+                 result, status, (ng + na)[:12])
+
+
 # ================================================================ 共通の壊し試し(C23)
 def deep_probes(est):
     """設計を写して壊し、共通の検査が鳴るかを記録する。名前 → (壊し方, 鳴るべき検査, 鳴ったか)。"""
@@ -1504,6 +1529,16 @@ def deep_probes(est):
                 return True
         return False
     probes["室を棟の外へ"] = ("C03", p_room_out)
+
+    def p_gate_roof(d):
+        g = d.get("gate")
+        if not isinstance(g, dict):
+            return False
+        g["kind"] = "長屋門(屋根なし)"        # 屋根を持つ型が『屋根なし』と書かれる矛盾
+        if isinstance(g.get("plan"), dict):
+            g["plan"].pop("roof", None)
+        return True
+    probes["長屋門を『屋根なし』にする"] = ("C24", p_gate_roof)
 
     out = {}
     for name, (cid, mut) in probes.items():
@@ -2011,6 +2046,8 @@ def build(est, deep=False, out=None):
                      [[a, b if b is not None else "—", fmt(c), fmt(d, 3), fmt(e), fmt(f), "*" + nt] for a, b, c, d, e, f, nt in C.rows_c11]))
     if getattr(C, "rows_c08", None):
         h.append(tbl(["門", "型", "幅 m", "敷居 m", "*検め"], [[a, b, fmt(c), fmt(d), "*" + nt] for a, b, c, d, nt in C.rows_c08]))
+    if getattr(C, "rows_c24", None):
+        h.append(tbl(["門", "型(gate_types.json)", "*屋根・番所の検め"], [[a, b or "?", "*" + nt] for a, b, nt in C.rows_c24]))
     h.append("</div>")
 
     # 其六 外周と役割

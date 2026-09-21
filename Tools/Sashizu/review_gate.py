@@ -407,16 +407,46 @@ def cmd_changed(name, as_json=False):
     return 0
 
 
+def _kansei_sides(name, sashizu_path):
+    """完成条件の表の在りかの候補 — 指図と同じ側・main・その邸の worktree。実在する物だけ返す。"""
+    cand = [os.path.join(os.path.dirname(sashizu_path), "%s_kansei.json" % name),
+            os.path.join(DOC, "%s_kansei.json" % name),
+            os.path.join(REPO, ".claude", "worktrees", name, "docs", "Sashizu",
+                         "%s_kansei.json" % name)]
+    seen, out = set(), []
+    for p in cand:
+        rp = os.path.realpath(p)
+        if rp in seen or not os.path.exists(p):
+            continue
+        seen.add(rp)
+        out.append(p)
+    return out
+
+
 def _kansei_phase(name, sashizu_path):
-    """完成条件の表の phase。表が無ければ design(= この関門が効く)。指図と同じ側(main / worktree)を見る。"""
-    p = os.path.join(os.path.dirname(sashizu_path), "%s_kansei.json" % name)
-    if not os.path.exists(p):
-        return "design"
-    try:
-        with open(p) as fp:
-            return json.load(fp).get("phase") or "built"
-    except Exception:
-        return "design"
+    """完成条件の表の phase。表が無ければ design(= この関門が効く)。
+
+    ⛔ **指図と同じ側だけを見てはいけない。**表(`--init`)は main へ書かれるのに、指図は
+    worktree の方が新しければそちらが採られる(`_doc_path`)。同じ側しか見ないと、
+    **実装へ入った邸に紙の巡を要求し続ける**(2026-09-21 実測: 山王は 2026-09-19 の
+    施主裁定Aで実装へ入り main に phase=built の表が在るのに、指図は worktree 側が採られ、
+    関門は3役の検め直しを要求し続けていた。掲示板 EDO-0307)。
+
+    ⭕ **新しい方を採る**(`_doc_path` と同じ作法)。`history` の最後の `at` が新しい側を正とする。
+    これで `--reopen`(phase=design へ戻す)も効く — 戻した側の history が最も新しくなるから。
+    """
+    newest, phase = "", "design"
+    for p in _kansei_sides(name, sashizu_path):
+        try:
+            with open(p) as fp:
+                doc = json.load(fp)
+        except Exception:
+            continue
+        hist = doc.get("history") or []
+        at = (hist[-1].get("at") if hist else None) or doc.get("since") or ""
+        if at >= newest:
+            newest, phase = at, doc.get("phase") or "built"
+    return phase
 
 
 def estates():
@@ -513,7 +543,7 @@ def selftest():
 
     orig_doc_path = globals()["_doc_path"]
     globals()["_doc_path"] = lambda n: os.path.join(tmp, "selftest_sashizu.json")
-    ng = []
+    ng, ran = [], []
     try:
         # (題, 仕込む reviews.kenzu, phase, 期待する印, 期待が赤か)
         d0 = doc_with({})
@@ -549,10 +579,36 @@ def selftest():
             mark = row[0] if row else "(行が無い)"
             why = row[3] if row else ""
             ok = (mark == want_mark) and (bool(red) == want_red) and (want_why in why)
+            ran.append(title)
             print("%s %-20s → %s「%s」(期待 %s「%s」)/ 赤 %d 件"
                   % ("⭕" if ok else "⛔", title, mark, why[:22], want_mark, want_why, red))
             if not ok:
                 ng.append(title)
+
+        # ⭐ **表が指図と別の側に在っても効く**(EDO-0307)。`--init` は main へ書くのに、指図は
+        #   worktree の方が新しければそちらが採られる。同じ側しか見ない実装だと、実装へ入った
+        #   邸に紙の巡を要求し続ける。ここでは tmp=worktree 側・tmp2=main 側に見立てる。
+        tmp2 = tempfile.mkdtemp(prefix="review-gate-selftest-main-")
+        orig_doc_dir = globals()["DOC"]
+        try:
+            d = doc_with({})
+            place(d)                                  # 指図だけ(表は置かない)
+            with open(os.path.join(tmp2, "selftest_kansei.json"), "w") as fp:
+                json.dump({"phase": "built", "since": "2026-09-20",
+                           "history": [{"at": "2026-09-20T12:00:00+09:00", "event": "init"}]}, fp)
+            globals()["DOC"] = tmp2
+            red, rows = gate("selftest")
+            row = next((r for r in rows if r[1] in ("kenzu", "kansei")), None)
+            mark, why = (row[0], row[3]) if row else ("(行が無い)", "")
+            ok = (mark == "・") and (red == 0) and ("実装後" in why)
+            ran.append("表が別の側に在る")
+            print("%s %-20s → %s「%s」(期待 ・「実装後」)/ 赤 %d 件"
+                  % ("⭕" if ok else "⛔", "表が別の側に在る", mark, why[:22], red))
+            if not ok:
+                ng.append("表が別の側に在る")
+        finally:
+            globals()["DOC"] = orig_doc_dir
+            shutil.rmtree(tmp2, ignore_errors=True)
     finally:
         globals()["_doc_path"] = orig_doc_path
         shutil.rmtree(tmp, ignore_errors=True)
@@ -561,7 +617,7 @@ def selftest():
     if ng:
         print("⛔ 自己検査 不通 %d 件 — **関門の判定が死んでいる。**%s" % (len(ng), " / ".join(ng)))
         return 1
-    print("⭕ 自己検査 全通 — 7 つの形とも生きている。")
+    print("⭕ 自己検査 全通 — %d つの形とも生きている。" % len(ran))
     return 0
 
 

@@ -32,17 +32,54 @@ OUT = os.path.join(BOARD, "_pm")
 # 「敷地」= 邸(屋敷)に限らない、地区としてまとまった作業単位。
 # 邸(sashizu.json/README の状態列/検図・考証の巡数を持つ)と、それを持たない
 # 敷地(例: 外堀・溜池 — 複数邸にまたがるので1邸のものにできない)を区別する。
-SITES = {"matsudaira_dewa": "松江松平邸", "sanno": "山王社", "okabe": "岡部邸",
-         "doi": "土井邸", "sotobori": "外堀・溜池"}
-ESTATES = {"matsudaira_dewa": "松江松平邸", "sanno": "山王社", "okabe": "岡部邸", "doi": "土井邸"}
-SHORT = {"matsudaira_dewa": "松", "sanno": "山", "okabe": "岡", "doi": "土", "sotobori": "堀"}
+#
+# ⛔ **名簿を手で持たない。** かつては 5 敷地をここへ直に書いていたため、あとから立った邸
+#   (丹羽左京・京極備中守)の issue が `display_site()` で「全体・基盤」へ畳まれ、その邸の
+#   カードにも宿題にも出なかった(EDO-0312 が宛先漏れのまま気づかれなかった)。
+#   ⭕ 名簿は `review_gate.estate_names()`(指図の実体: main と worktree の *_sashizu.json)から引く。
+#   下の表は**表示名・略称・表記ゆれ・色**だけ — 指図からは引けない飾りで、無い邸は id のまま出る。
+_SITE_NAMES = {"matsudaira_dewa": "松江松平邸", "sanno": "山王社", "okabe": "岡部邸",
+               "doi": "土井邸", "kyogoku_bitchu": "京極備中守邸", "niwa_sakyo": "丹羽左京邸",
+               "sotobori": "外堀・溜池"}
+SHORT = {"matsudaira_dewa": "松", "sanno": "山", "okabe": "岡", "doi": "土",
+         "kyogoku_bitchu": "京", "niwa_sakyo": "丹", "sotobori": "堀"}
 MENTION = {  # 関係図・巡回検知が本文から敷地を拾うときの表記ゆれ(index[1]は path 突合にも使う)
     "matsudaira_dewa": ["松平", "松江", "Matsudaira"],
     "sanno": ["山王", "Sanno"],
     "okabe": ["岡部", "Okabe"],
     "doi": ["土井", "Doi"],
+    # ⚠ 京極・丹羽は山王の隣の上屋敷でもある(山王の issue が普通に「京極」と書く)ので、
+    #   裸の苗字では拾わない — 邸の名まで書いたときだけ当てる
+    "kyogoku_bitchu": ["京極備中", "Kyogoku"],
+    #   ⚠ "Niwa" だけは path 突合に使えない — Assets/Edo/Models/Niwa/(庭)・edo-niwashi(庭方)に当たる
+    "niwa_sakyo": ["丹羽左京", "NiwaSakyo"],
     "sotobori": ["外堀", "Tameike", "溜池", "Sotobori"],
 }
+_SITE_ORDER = ["matsudaira_dewa", "sanno", "okabe", "doi"]   # 既定の並び。残りは名前順・外堀は末尾
+
+
+def _site_names():
+    """敷地の名簿(指図の実体から)。引けなければ表の既知の敷地へ退く。"""
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "review_gate", os.path.join(ROOT, "Tools", "Sashizu", "review_gate.py"))
+        rg = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(rg)
+        names = set(rg.estate_names())
+    except Exception as ex:
+        sys.stderr.write("⚠ 敷地の名簿を review_gate から引けない(%s)— 既知の敷地だけで焼く\n" % ex)
+        names = set(_SITE_NAMES)
+    names.add("sotobori")
+    rest = sorted(n for n in names if n not in _SITE_ORDER and n != "sotobori")
+    return [n for n in _SITE_ORDER if n in names] + rest + ["sotobori"]
+
+
+SITES = {e: _SITE_NAMES.get(e, e) for e in _site_names()}
+for _e in SITES:                       # 表に無い邸も落とさない(略称=頭文字・表記ゆれ=id)
+    SHORT.setdefault(_e, _e[:1].upper())
+    MENTION.setdefault(_e, [_e, _e])
+ESTATES = {e: n for e, n in SITES.items() if e != "sotobori"}   # 邸 = 外堀以外
 CROSS_KEY = "cross"  # cross/infra をまとめた「全体・基盤」の表示上のキー
 CROSS_LABEL = "全体・基盤"
 TYPE_LABEL = {"decision": "裁定", "blocker": "ブロッカー", "task": "task", "info": "info"}
@@ -1069,7 +1106,8 @@ def network_svg(rel, open_counts, w=380, h=280):
 
 
 SITE_DOT = {"matsudaira_dewa": "var(--ai)", "sanno": "var(--matsu)", "okabe": "var(--oud)",
-            "doi": "var(--shu)", "sotobori": "#4E8FA8", CROSS_KEY: "var(--line-firm)"}
+            "doi": "var(--shu)", "kyogoku_bitchu": "#A66A2E", "niwa_sakyo": "#7E5A9B",
+            "sotobori": "#4E8FA8", CROSS_KEY: "var(--line-firm)"}
 # 既定の並び: 手を打つべき順。要裁定 → ブロッカー → 進行中 → open → 完了
 PRIO = {"awaiting-user": 0, "in-progress": 2, "open": 3, "done": 8, "dropped": 9}
 

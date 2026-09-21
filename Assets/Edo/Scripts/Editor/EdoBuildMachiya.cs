@@ -406,9 +406,13 @@ public static partial class EdoBuild
     ///
     /// <param name="cap">置く棟数の上限(表の `ura_nagaya` が数で書いてあるとき)。0 以下なら上限なし。</param>
     /// <param name="wallGap">返り: 棟どうしの**触れている箇所**の隙の最小[m](負 = めり込み)。</param>
+    /// <param name="munewari">⭐ **棟割長屋**(奥行4間・大棟を挟んで ±Z の両面に戸)で積む
+    /// (<see cref="EdoAssets.Own.UraNagayaMunewari(float)"/>)。**路地が前後にある列**はこちらが正しい姿で、
+    /// 1棟が路地2本ぶんを受け持つ。⛔ 割長屋を2棟背中合わせに置いて代用しない(部材の注記)。
+    /// ⚠ 列の**いちばん奥**(背が隣地の境に向く列)は盲面が要るので false = 割長屋のまま。</param>
     public static List<GameObject> UraNagayaRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward,
         float baseY, float insetM, int cap, string prefix, Vector2[] keepInside,
-        List<GameObject> avoid, out int dropped, out float wallGap)
+        List<GameObject> avoid, out int dropped, out float wallGap, bool munewari = false)
     {
         var made = new List<GameObject>();
         dropped = 0; wallGap = float.NaN;
@@ -432,7 +436,7 @@ public static partial class EdoBuild
             string pick = null; ShopModule pm = default(ShopModule);
             foreach (var wk in lens)
             {
-                var path = EdoAssets.Own.UraNagaya(wk);
+                var path = munewari ? EdoAssets.Own.UraNagayaMunewari(wk) : EdoAssets.Own.UraNagaya(wk);
                 var m = OwnMeasure(path);
                 if (cursor + m.W <= len + 0.01f) { pick = path; pm = m; break; }
             }

@@ -160,10 +160,15 @@ public static partial class EdoTypologyBuilder
     /// 数でなければ**奥行と間口から割った列**を全部建てる(表の `defaults.machiya.ura_nagaya` が
     /// 「間口と奥行から割る」と約束している)。`0` は「建てるな」。
     ///
-    /// <para>割り: 奥行 `depth_ken` から**表店の実測の奥行**と路地 1 間を引いた残りへ、
-    /// 「棟(奥行 2 間)+ 路地 1 間」の帯を何本とれるか。棟の実寸は
-    /// <see cref="EdoAssets.Own.UraNagaya(float)"/>(2026-09-21・部材方 EDO-0318 ④)から実測で採り、
-    /// ⛔ 図面の 2 間という数字を高さや奥行の代わりに使わない。</para></summary>
+    /// <para>割り: 奥行 `depth_ken` から**表店の実測の奥行**と路地 1 間を引いた残りへ、棟と路地の帯を
+    /// 奥へ積む。棟の実寸は <see cref="EdoAssets.Own.UraNagaya(float)"/> /
+    /// <see cref="EdoAssets.Own.UraNagayaMunewari(float)"/>(2026-09-21・部材方 EDO-0318 ④)から
+    /// **実測で**採り、⛔ 図面の 2 間・4 間という数字を奥行の代わりに使わない。</para>
+    ///
+    /// <para>⭐ **前後に路地がある列は棟割長屋**(奥行4間・両面に戸)で積む(2026-09-21・EDO-0318 ④の
+    /// 取りこぼし)。1棟が路地2本ぶんを受け持つので、割長屋を2列背中合わせに並べるより**棟が1本で済み**、
+    /// 奥行も 13.5m → 10.4m で済む。⛔ 割長屋を2棟背中合わせに置いて代用しない(部材の注記)。
+    /// ⚠ **いちばん奥の列だけは割長屋** — 背が隣地の境に向くので盲面が要る。</para></summary>
     static string UraNagaya(Spec s, Transform root, Vector2[] poly, List<Edge> fronts, float depthM, float pad,
                             List<GameObject> avoid)
     {
@@ -174,40 +179,56 @@ public static partial class EdoTypologyBuilder
 
         float shopD = Mathf.Max(EdoBuild.ShopMeasure(EdoAssets.Eg.Shop01).D,
                                 EdoBuild.ShopMeasure(EdoAssets.Eg.Shop02).D);
-        var um = EdoBuild.OwnMeasure(EdoAssets.Own.UraNagaya(6f));   // 桁行が変わっても奥行は同じ
-        float band = um.D + ROJI;
+        var um = EdoBuild.OwnMeasure(EdoAssets.Own.UraNagaya(6f));          // 桁行が変わっても奥行は同じ
+        var mw = EdoBuild.OwnMeasure(EdoAssets.Own.UraNagayaMunewari(6f));  // 棟割(奥行4間)
         float avail = depthM - shopD - ROJI;
-        int rows = Mathf.Max(0, Mathf.FloorToInt(avail / band));
+        // ⭐ 奥へ積む列を先に割る: 前後に路地がある列は**棟割**、いちばん奥の列だけ**割長屋**(盲面が要る)
+        var plan = new List<KeyValuePair<float, bool>>();   // 引き[m] → 棟割か
+        float cur = shopD + ROJI, rest = avail;
+        while (true)
+        {
+            if (rest >= mw.D + ROJI + um.D)                 // 棟割 + 路地 + もう1列 が入る
+            { plan.Add(new KeyValuePair<float, bool>(cur, true)); cur += mw.D + ROJI; rest -= mw.D + ROJI; }
+            else if (rest >= um.D)                          // いちばん奥の列(背は隣地の境)
+            { plan.Add(new KeyValuePair<float, bool>(cur, false)); break; }
+            else break;
+        }
+        int rows = plan.Count;
         if (rows <= 0)
             return string.Format("    裏長屋: 建たない — 奥行 {0}間={1:F1}m から表店の実測の奥行 {2:F1}m と"
-                               + "路地 {3:F1}m を引くと残り {4:F1}m で、棟の実測 {5:F1}m + 路地 {3:F1}m が入らない【確度U】",
+                               + "路地 {3:F1}m を引くと残り {4:F1}m で、棟の実測 {5:F1}m が入らない【確度U】",
                                  s.depthKen, depthM, shopD, ROJI, avail, um.D);
 
         var g = Group("Tatemono", root);
         var e0 = fronts[0];                       // 路地は表店の列と平行に走る(1 本目の接道辺)
         int made = 0, dropped = 0, built = 0;
         float worst = float.NaN;
+        int nMune = 0;
         for (int r = 0; r < rows; r++)
         {
             int cap = want == DERIVE ? 0 : Mathf.Max(0, want - built);
             if (want != DERIVE && cap == 0) break;
-            float inset = shopD + ROJI + r * band;
+            float inset = plan[r].Key;
+            bool mune = plan[r].Value;
             int dr; float wg;
             var got = EdoBuild.UraNagayaRun(g, e0.a, e0.b, e0.outward, pad, inset, cap,
-                                            "UraNagaya" + r, poly, avoid, out dr, out wg);
+                                            "UraNagaya" + r, poly, avoid, out dr, out wg, mune);
+            if (mune) nMune += got.Count;
             avoid.AddRange(got);          // 次の列は前の列も避ける
             made += got.Count; built += got.Count; dropped += dr;
             if (!float.IsNaN(wg) && (float.IsNaN(worst) || wg < worst)) worst = wg;
         }
-        return string.Format("    裏長屋 {0}棟({1}列・{2})— 割り: 奥行 {3}間={4:F1}m − 表店の実測 {5:F1}m"
-                           + " − 路地 {6:F1}m = {7:F1}m ÷ (棟 {8:F1}m + 路地 {6:F1}m) = {9}列【確度U】"
+        return string.Format("    裏長屋 {0}棟(棟割 {12}棟 / 割長屋 {13}棟・{1}列・{2})— 割り: 奥行 {3}間={4:F1}m"
+                           + " − 表店の実測 {5:F1}m − 路地 {6:F1}m = {7:F1}m へ、棟割 {8:F1}m+路地 と"
+                           + " 割長屋 {14:F1}m(いちばん奥)を積んで {9}列【確度U】"
                            + " / 棟どうしの当たりの最小 {10}{11}"
                            + "\n    ⚠ 1戸の間口は九尺(1.5間)で機械的に割ってある【一般類型A】— "
                            + "その筆に何戸あったかの史料は無い(部材の注記・確度U)",
             made, rows, want == DERIVE ? "表は数でないので割り出した" : "表の ura_nagaya=" + want + " を上限にした",
-            s.depthKen, depthM, shopD, ROJI, avail, um.D, rows,
+            s.depthKen, depthM, shopD, ROJI, avail, mw.D, rows,
             float.IsNaN(worst) ? "—" : worst.ToString("F3") + "m" + (worst < 0f ? "(⛔ めり込み)" : ""),
-            dropped > 0 ? string.Format(" / ⛔ {0}棟は壁体が区画の外へ出るので退けた", dropped) : "");
+            dropped > 0 ? string.Format(" / ⛔ {0}棟は壁体が区画の外へ出るので退けた", dropped) : "",
+            nMune, made - nMune, um.D);
     }
 
     /// <summary>⛔ **ビルダーが読みもしていない欄を黙って捨てない**(規則19)。

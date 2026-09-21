@@ -1774,6 +1774,29 @@ public static partial class EdoDoiBuilder
         return alongU ? f.W(u0, v0) : f.W(u1, v0);
     }
 
+    /// <summary>**棟の据え付けの面 = 造成後の地形の格子点の中央値**(`EdoBuild.PadY`)。指図の `y` は造成の目標で、
+    /// 実際に落ち着いた面を測らずに据えると棟が黙って浮く・埋まる(松江松平 2026-09-20: 御殿5棟が 0.86〜0.93m 浮いた)。
+    /// CLAUDE.md 規則3「面の高さは地形が決める」の実装側の姿。⚠ **地形を書く Stage の後**に呼ぶ。
+    /// 指図 y と 0.05m を超えて食い違うときは、測った面へ据えて `Wait` に出す(指図方へ)。
+    /// 標本が取れない小さな足形は縁の余白を 0 にして再度測り、それでも無ければ指図 y を使う(黙らず `Wait`)。</summary>
+    static float FaceY(float u0, float v0, float u1, float v1, float designY, string label)
+    {
+        var f = Grid;
+        var poly = new Vector2[] { f.W(u0, v0), f.W(u1, v0), f.W(u1, v1), f.W(u0, v1) };
+        float spread; int n;
+        float y;
+        try { y = EdoBuild.PadY(poly, 0.5f, out spread, out n); }
+        catch (Exception)
+        {
+            try { y = EdoBuild.PadY(poly, 0f, out spread, out n); }
+            catch (Exception) { Wait(label + ": 足形の中に格子点が無く面を測れない — 指図 y " + designY.ToString("F2") + " で据えた"); return designY; }
+        }
+        if (Mathf.Abs(y - designY) > 0.05f)
+            Wait(label + ": 造成後の面 " + y.ToString("F2") + " が指図 y " + designY.ToString("F2") + " と "
+               + (y - designY).ToString("+0.00;-0.00") + "m 食い違う — 測った面へ据えた(指図方へ)");
+        return y;
+    }
+
     [MenuItem(MENU + "4 御殿複合(棟・廊下)")]
     public static void Stage4Menu() { Debug.Log("[Doi] " + Stage4_Goten()); }
     public static string Stage4_Goten()
@@ -1796,7 +1819,7 @@ public static partial class EdoDoiBuilder
             //   勝手 Daidokoro は u −15.5..−5.5(10間ちょうどだが原点が半間)で、原点で撥ねると
             //   建たない(2026-09-06 に踏んだ)。部材キットは間数しか見ないので原点は float でよい。
             int ku = Mathf.RoundToInt(fu1 - fu0), kv = Mathf.RoundToInt(fv1 - fv0);
-            float y = F(m["y"]);
+            float y = FaceY(fu0, fv0, fu1, fv1, F(m["y"]), "棟 " + name);
             bool goten = Has(m, "goten") && Convert.ToBoolean(m["goten"]);
 
             // 厩は御殿の部材ではない(専用に焼いた `Own.DoiUmaya`)
@@ -1936,7 +1959,7 @@ public static partial class EdoDoiBuilder
                 Wait("廊下 " + name + " の切妻屋根が無い: " + span.ToString("0.##") + "間 → "
                    + "blender --background --python Tools/Blender/build_goten_roof.py -- kirizuma "
                    + span.ToString("0.##"));
-            float y = F(l["y"]);
+            float y = FaceY(lu0, lv0, lu1, lv1, F(l["y"]), "廊下 " + name);
             var w = alongU ? f.W(lu0, lv0) : f.W(lu1, lv0);
             var g = EdoGotenKit.Roka(name, grp, new Vector3(w.x, y, w.y), alongU ? yawU : yawV, span,
                                      floor, colStart: false, colEnd: false);
@@ -1956,7 +1979,8 @@ public static partial class EdoDoiBuilder
     static bool PlaceUmaya(Transform grp, Dictionary<string, object> m, System.Text.StringBuilder sb)
     {
         var f = Grid;
-        float u0 = F(m["u0"]), v0 = F(m["v0"]), u1 = F(m["u1"]), v1 = F(m["v1"]), y = F(m["y"]);
+        float u0 = F(m["u0"]), v0 = F(m["v0"]), u1 = F(m["u1"]), v1 = F(m["v1"]);
+        float y = FaceY(u0, v0, u1, v1, F(m["y"]), "厩");
         string path = EdoAssets.Own.DoiUmaya;
         if (!Exists(path))
         { Wait("厩の部材が無い: " + path + " → blender --background --python Tools/Blender/build_doi_buzai.py -- umaya"); return false; }

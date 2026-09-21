@@ -32,25 +32,25 @@ Material:
     - _AgitFoam: 0.55
     - _AgitRange: 12
     - _AgitStrength: 0
-    - _Alpha: 0.8
-    - _DepthFade: 4
-    - _FoamAmount: 0.4
-    - _FresnelPower: 3
+    - _Alpha: 0.95
+    - _DepthFade: 0.9
+    - _FoamAmount: 0.1
+    - _FresnelPower: 4
     - _NormalScale: 0.35
-    - _NormalStrength: 1
+    - _NormalStrength: 0.35
     - _ReflectionStrength: 1
-    - _RefractionStrength: 0.025
-    - _ShoreWidth: 1.5
-    - _Smoothness: 0.92
+    - _RefractionStrength: 0.02
+    - _ShoreWidth: 0.3
+    - _Smoothness: 0.94
     - _SunSpecIntensity: 3.5
     - _SunSpecPower: 800
     - _WaveScale: 0.12
     - _WaveSpeed: 0.35
-    - _WaveStrength: 0.06
+    - _WaveStrength: 0.03
     m_Colors:
     - _AgitA: {r: 0, g: 0, b: 0, a: 0}
     - _AgitB: {r: 0, g: 0, b: 0, a: 0}
-    - _DeepColor: {r: 0.13, g: 0.32, b: 0.4, a: 1}
-    - _ShallowColor: {r: 0.28, g: 0.5, b: 0.55, a: 1}
+    - _DeepColor: {r: 0.04, g: 0.13, b: 0.15, a: 1}
+    - _ShallowColor: {r: 0.16, g: 0.34, b: 0.36, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

@@ -401,6 +401,7 @@ public static partial class EdoMatsudairaDewaBuilder
         }
         // 石組護岸: 帯ごとに汀線を歩き、`seatRule`(外向きに進んで最初に地面が waterY を超える点)へ据える
         int nGogan = 0; var gsub = Group("Niwa/Ishigumi/Gogan"); var shoreArr = shore.ToArray();
+        float goganBuryMax = 0f; string goganBuryWho = "-"; int nFlip = 0, nGoganSkip = 0;
         // ⭐ goganGap(検図 第14次 2026-09-06): 吐き口の岩組(岩屋)が占める汀線の区間には常石を置かない。
         //   生成器 `_gogan_exclude_gap` と同じ従属値 = tenkei[T_Iwagumi_Iwaya].atShore の {shore(1始まり), spanMax[m]}。
         int gapIdx = -1; float gapSpan = 0f;
@@ -427,12 +428,47 @@ public static partial class EdoMatsudairaDewaBuilder
                     //    外向き = 法線方向へ 0.8m 進んだ点が池の**外**(PIP false)。
                     Vector2 nrm = new Vector2(-(c - a).y, (c - a).x).normalized;
                     if (EdoGeom.PIP(shoreArr, q + nrm * 0.8f)) nrm = -nrm;
+                    // ⭐⭐ **外向きの取り違えは「地形が上がる側」で正す**(2026-09-21 是正)。
+                    //   PIP は**設計の輪郭**を見ているので、瓢箪のくびれ・岬の際では 0.8m の探りが
+                    //   向こう岸の内側へ落ちて裏返る。裏返ると `seatRule` が満たせず、走査の終点
+                    //   (4m 先)にそのまま据わって**池の底に立つ**(2026-09-21 実測: 護岸_71/72/73 が
+                    //   地形 24.90〜25.15 = 池底に立ち、丈 2.8〜3.0m・埋まり 0.94〜1.01m)。
+                    //   ⇒ **PIP の側で 4m 歩いても水面を越えないのに、反対側なら越える**ときだけ裏返す。
+                    //   ⛔ いつも地形で決めない(緩い岸では両側が上がる)。⛔ 汀線そのものは動かさない。
+                    float dP = 99f, dN = 99f;
+                    for (int k = 1; k <= 40; k++)
+                    {
+                        float t = k * 0.1f;
+                        if (dP > 90f && TerrainY(q.x + nrm.x * t, q.y + nrm.y * t) > wy) dP = t;
+                        if (dN > 90f && TerrainY(q.x - nrm.x * t, q.y - nrm.y * t) > wy) dN = t;
+                    }
+                    if (dP > 90f && dN < 90f) { nrm = -nrm; nFlip++; }
                     Vector2 seat = q; for (int k = 0; k < 40; k++) { seat = q + nrm * (k * 0.1f); if (TerrainY(seat.x, seat.y) > wy) break; }
                     float top = wy + Mathf.Lerp(aMin, aMax, (float)rnd.NextDouble());
                     float gy = TerrainY(seat.x, seat.y); float full = (top - gy) / (1f - bury);
+                    // ⛔⛔ **`seatRule` を満たす点が見つからなければ据えない**(2026-09-21 是正)。
+                    //   走査(4m)のあいだ地形が一度も水面を越えないのは「そこに岸が無い」ということで、
+                    //   終点にそのまま据えると**池の底に立つ**。2026-09-21 実測: 護岸_71/72/73 が
+                    //   地形 24.90〜25.15(池底 `floorY` 25.15 以下)に立ち、丈が 2.8〜3.0m へ膨らんで
+                    //   埋まりが 0.94〜1.01m(許容 1.0)になっていた。⛔ 丈を頭打ちにして隠さない
+                    //   ⛔ 汀線を動かさない — **据えずに数えて申し送る**(異方比の石・部材なしの石と同じ扱い)。
+                    //   ⚠ 原因は汀が 2.0 m/px の地形では垂直に立たないこと(`_pending` / 浅瀬の帯と同根)。
+                    if (gy <= wy) { nGoganSkip++; pos += size * gap; continue; }
                     var go = EdoBuild.Place(EdoAssets.JG.Rock(1 + rnd.Next(3)),
-                        new Vector3(seat.x, gy - full * bury, seat.y), Mathf.Atan2((c - a).x, (c - a).y) * Mathf.Rad2Deg, Vector3.one, gsub, "護岸_" + nGogan);
-                    if (go != null) { ScaleToHeight(go, full); nGogan++; }
+                        new Vector3(seat.x, gy, seat.y), Mathf.Atan2((c - a).x, (c - a).y) * Mathf.Rad2Deg, Vector3.one, gsub, "護岸_" + nGogan);
+                    if (go != null)
+                    {
+                        ScaleToHeight(go, full);
+                        // ⭐⭐ **据えは「石が地面と触れている所」で測る**(`docs/oki-kata.md` §3)。
+                        //   ⛔ ピボットを `地形 − 丈×埋め` へ置かない — 転石のピボットは石ごとに
+                        //   底とは限らず、汀の法面では足あとの中で地形が 1m 近く上下する。
+                        //   2026-09-21 実測: `護岸_72` が 1.173m・`護岸_73` が 1.049m 埋まっていた(許容1.0)。
+                        //   `SeatBuried` は実メッシュの接地点を測って丈の `gogan.bury` だけ沈めるので、
+                        //   埋まりは**どの石でも 丈×bury**(= 指図の 1/3 埋め)に揃う。
+                        float sunk = EdoBuild.SeatBuried(go, bury);
+                        if (sunk > goganBuryMax) { goganBuryMax = sunk; goganBuryWho = go.name; }
+                        nGogan++;
+                    }
                     pos += size * gap;
                 }
                 carry = pos - seg; idx++;
@@ -441,6 +477,8 @@ public static partial class EdoMatsudairaDewaBuilder
             }
         }
         sb.AppendLine(string.Format("石組 {0} 石(据えず {2})/ 護岸 {1} 石(石橋は部材なし・据えず)", nStone, nGogan, nSkip));
+        sb.AppendLine(string.Format("護岸の埋まり(接地点の実測・丈×{2:F3}): 最大 {0:F3}m({1})/ 外向きを地形で正した石 {3} 個 / seatRule を満たす岸が 4m 以内に無く据えず {4} 石",
+                                    goganBuryMax, goganBuryWho, bury, nFlip, nGoganSkip));
         return sb.ToString();
     }
 

@@ -47,6 +47,17 @@ public static class WaterBaker
         var mat = new Material(Shader.Find("Edo/Water"));
         mat.SetColor("_DeepColor", DeepC); mat.SetColor("_ShallowColor", ShallowC);
         mat.SetFloat("_FresnelPower", 3.0f); mat.SetFloat("_Alpha", 0.8f);
+        // ⭐⭐ **深さに合わせて水の見え方を起こす(2026-09-21 是正)。**
+        //   シェーダの既定は `_DepthFade` 4.0m / `_ShoreWidth` 1.5m / `_FoamAmount` 0.4 で、
+        //   **深さ 3〜4m の溜池・堀**を前提にした値。⇒ 深さ 0.9m の庭の池へそのまま当てると
+        //   ① 池のどこも「深い色」に届かず**面の中ほどまで乳白色に濁って見え**、
+        //   ② 岸なじみの帯 1.5m が**汀の全周に幅 2m の白い縁**を描く
+        //   (2026-09-21 松江松平の御泉水で施主が指摘・検証レンダで確認)。
+        //   ⇒ **`_DepthFade` はその水域の深さそのもの**、岸なじみは深さに比例(緩い岸ほど広い)。
+        //   ⛔ 4.0 / 1.5 を「既定だから」で残さない。⛔ 濁りを色で誤魔化さない(深さの尺度の話)。
+        mat.SetFloat("_DepthFade", Mathf.Max(0.8f, depth));
+        mat.SetFloat("_ShoreWidth", Mathf.Clamp(depth * 0.35f, 0.25f, 1.5f));
+        mat.SetFloat("_FoamAmount", depth >= 2.0f ? 0.4f : 0.1f);
         AssetDatabase.CreateAsset(mat, AssetDatabase.GenerateUniqueAssetPath("Assets/Edo/Water/" + go.name + ".mat"));
         go.GetComponent<MeshRenderer>().sharedMaterial = mat;
         return wb;

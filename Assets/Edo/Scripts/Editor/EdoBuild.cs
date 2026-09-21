@@ -568,6 +568,50 @@ public static partial class EdoBuild
         return L;
     }
 
+    /// <summary>**一体メッシュの駒の「躯体」全部**(屋根の材を除いた**すべての材**)の世界頂点(実体化しない)。
+    /// <para>⭐ <see cref="BodyBelowRoofAt"/> は「屋根の最下点より下」= **一層目だけ**を返すので、
+    /// 二層・三層の櫓では**二層目の妻壁・柱が落ちる**。区域侵犯のように「躯体が線を越えないこと」を
+    /// 解くときは**層を問わず躯体を数える**必要がある ⇒ こちらを使う。
+    /// 松江松平の隅櫓 Y_NE(2026-09-21): `BodyBelowRoofAt` で一層目を収めたあと、二層目の妻壁
+    /// `wall C` 0.292m・柱 `wood` 0.562m が区画線を越えたまま残っていた。</para>
+    /// <para>数え方は材(サブメッシュ)の名 — <see cref="IsRoofLabel"/> に当たる材(roof / roof ornaments /
+    /// yane / noki / taruki / mune / keta / 屋根)を**落とし**、残りを躯体とする。
+    /// ⭐ **何を躯体と数えたか**は <paramref name="bodyParts"/> / <paramref name="roofParts"/> に
+    /// 材の名で返る — ⛔ 「躯体」の中身を言わずに数だけ報告しない(指図の欄へ列挙するため)。</para>
+    /// <para>⛔ 高さの帯で層を切り分けない(層の高さは部材が決める)。⛔ 軒の出を躯体に数えない
+    /// (軒の張り出しは許容 — CLAUDE.md 規則・2026-09-21 施主裁定A)。</para></summary>
+    public static List<Vector3> BodyExRoofAt(string prefabPath, Vector3 pos, float yaw,
+                                             List<string> bodyParts = null, List<string> roofParts = null)
+    {
+        var L = new List<Vector3>();
+        var asset = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+        if (asset == null) return L;
+        var pose = Matrix4x4.TRS(pos, Quaternion.Euler(0f, yaw, 0f), Vector3.one)
+                 * asset.transform.worldToLocalMatrix;
+        foreach (var mf in asset.GetComponentsInChildren<MeshFilter>(true))
+        {
+            if (mf.sharedMesh == null) continue;
+            var rr = mf.GetComponent<Renderer>(); if (rr == null || !rr.enabled) continue;
+            var m = pose * mf.transform.localToWorldMatrix;
+            var vs = mf.sharedMesh.vertices;
+            var W = new Vector3[vs.Length];
+            for (int i = 0; i < vs.Length; i++) W[i] = m.MultiplyPoint3x4(vs[i]);
+            var mats = rr.sharedMaterials;
+            bool meshIsRoof = IsRoofLabel(mf.gameObject.name) || IsRoofLabel(mf.sharedMesh.name);
+            for (int s = 0; s < mf.sharedMesh.subMeshCount; s++)
+            {
+                string mat = s < mats.Length && mats[s] != null ? mats[s].name : "";
+                bool isRoof = meshIsRoof || IsRoofLabel(mat);
+                string label = string.IsNullOrEmpty(mat) ? mf.gameObject.name : mat;
+                if (isRoof) { if (roofParts != null && !roofParts.Contains(label)) roofParts.Add(label); continue; }
+                if (bodyParts != null && !bodyParts.Contains(label)) bodyParts.Add(label);
+                var tri = mf.sharedMesh.GetTriangles(s);
+                for (int i = 0; i < tri.Length; i++) L.Add(W[tri[i]]);
+            }
+        }
+        return L;
+    }
+
     /// <summary>**塀の通り道(回廊)を、その駒がどこからどこまで塞いでいるか。**
     /// <paramref name="pts"/> の世界頂点のうち、辺 <paramref name="A"/>→<paramref name="B"/> の線からの奥行
     /// (<paramref name="perpDir"/> 方向で <paramref name="perpLo"/>‥<paramref name="perpHi"/>)と

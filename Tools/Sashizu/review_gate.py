@@ -71,8 +71,97 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 DOC = os.path.join(REPO, "docs", "Sashizu")
 
 
+class Ambiguous(Exception):
+    """宛先(main か worktree か)が機械では決まらない。呼び手は**黙って片方を採らず**止める(EDO-0321)。"""
+
+
+def _git(cwd, *args):
+    """git を cwd で走らせて (終了コード, 標準出力)。git が無い・落ちたら (None, "")。"""
+    import subprocess
+    try:
+        r = subprocess.run(["git", "-C", cwd] + list(args), capture_output=True,
+                           text=True, timeout=20)
+        return r.returncode, r.stdout
+    except Exception:
+        return None, ""
+
+
+def _content_print(fp):
+    """指図の中身の指紋(`reviews` と `_` 注記を除く)。読めなければ None。"""
+    try:
+        with open(fp) as f:
+            d = json.load(f)
+    except Exception:
+        return None
+    src = _drop_notes({k: v for k, v in d.items() if k != "reviews"})
+    return hashlib.sha256(json.dumps(src, ensure_ascii=False, sort_keys=True,
+                                     separators=(",", ":")).encode()).hexdigest()
+
+
+def _newer_by_git(rel, main_root, wt_root):
+    """指図ファイル `rel` の**履歴**だけで新旧が言えるなら 'main' / 'wt'、言えなければ None。
+
+    数えるのは「相手に無い、このファイルへの変更」— 相手が持たないコミットのうちこのファイルを
+    触った数 + 未コミットの書き換え(1 と数える)。**片方だけが持っていれば**その側が新しい。
+    両側が持っていれば(枝が分岐してファイル自体が別々に進んでいれば)言わない。
+    ⚠ 枝全体の先後では見ない — 枝が古くても、このファイルは動いていないことがある。"""
+    rc1, mh = _git(main_root, "rev-parse", "HEAD")
+    rc2, wh = _git(wt_root, "rev-parse", "HEAD")
+    if rc1 != 0 or rc2 != 0:
+        return None
+    mh, wh = mh.strip(), wh.strip()
+
+    def _count(root, mine, theirs):
+        rc, dirty = _git(root, "status", "--porcelain", "--", rel)
+        rc2, out = _git(main_root, "rev-list", "--count", mine, "--not", theirs, "--", rel)
+        if rc != 0 or rc2 != 0 or not out.strip().isdigit():
+            return None
+        return int(out.strip()) + (1 if dirty.strip() else 0)
+
+    m_only, w_only = _count(main_root, mh, wh), _count(wt_root, wh, mh)
+    if m_only is None or w_only is None:
+        return None
+    if m_only and not w_only:
+        return "main"
+    if w_only and not m_only:
+        return "wt"
+    return None
+
+
+def _newest_review(fp):
+    try:
+        with open(fp) as f:
+            rv = (json.load(f).get("reviews") or {})
+    except Exception:
+        return ""
+    return max([v.get("at", "") for v in rv.values()] or [""])
+
+
+def _pick_doc(name, main_root, wt_root):
+    """main と worktree の指図のうち生きている方の実体。決められなければ `Ambiguous`。"""
+    rel = os.path.join("docs", "Sashizu", name + "_sashizu.json")
+    main_fp, wt_fp = os.path.join(main_root, rel), os.path.join(wt_root, rel)
+    if not os.path.exists(wt_fp):
+        return main_fp
+    if not os.path.exists(main_fp):
+        return wt_fp
+    side = _newer_by_git(rel, main_root, wt_root)
+    if side:
+        return main_fp if side == "main" else wt_fp
+    if _content_print(main_fp) == _content_print(wt_fp):
+        return wt_fp
+    m, w = _newest_review(main_fp), _newest_review(wt_fp)
+    if w != m:
+        return wt_fp if w > m else main_fp
+    raise Ambiguous(
+        "%s: 指図が main と worktree(%s)で食い違い、どちらが新しいか決められない"
+        "(指図ファイルが両側で別々に進んでいるか未コミットの書き換えがあり、検分の日も同じ)。"
+        "片方へ寄せてから(マージか `git checkout`)もう一度。"
+        % (name, os.path.relpath(wt_root, main_root)))
+
+
 def _doc_path(name):
-    """その邸の指図の**いま生きている実体**を返す。
+    """その邸の指図の**いま生きている実体**を返す。決められなければ `Ambiguous` を投げる。
 
     ⛔ **main だけを見てはいけない。** 各邸は `.claude/worktrees/<邸>/` で作業しており、
     検分の結果(`reviews`)はそこへ書かれる。main へマージするまで反映されないので、
@@ -81,25 +170,19 @@ def _doc_path(name):
     関門は3件とも「記録が無い」と表示していた)。
     ⚠ フックは main の絶対パスでこの道具を呼ぶので、cwd では判断できない。
 
-    ⭕ **新しい方を採る。** worktree と main の両方にあれば、`reviews` の `at`(検分の日)が
-    新しい側を正とする。同じなら worktree(作業中の実体)を採る。
+    ⛔ **worktree を無条件に信用してもいけない**(EDO-0321)。main に追い越された古い枝は
+    章ごと欠けた指図を持つ。`reviews` が両方とも空(初回)か同じ日だと、旧い規則
+    (「同着なら worktree」)は必ず古い方を採り、指紋が別物の指図へ検分の記録が立った
+    (2026-09-21 京極 EDO-0199。同じ穴に岡部・外堀・土井も居た — 同着で古い側を採っていた)。
+
+    ⭕ 決め方(上から順に。詳しくは `_pick_doc`):
+      ① 片方しか無い → それ
+      ② git の履歴で言える(両側 clean で、片方だけがこの指図を変えている)→ 変えている側
+      ③ 中身が同じ(`reviews` と `_` 注記を除いて)→ worktree(従来どおり)
+      ④ `reviews` の `at` が新しい側
+      ⑤ **同着で中身も違う → `Ambiguous`。**黙って片方を採らず、名指しで止める
     """
-    main_fp = os.path.join(DOC, name + "_sashizu.json")
-    wt_fp = os.path.join(REPO, ".claude", "worktrees", name,
-                         "docs", "Sashizu", name + "_sashizu.json")
-    if not os.path.exists(wt_fp):
-        return main_fp
-    if not os.path.exists(main_fp):
-        return wt_fp
-
-    def _newest(fp):
-        try:
-            rv = (json.load(open(fp)).get("reviews") or {})
-        except Exception:
-            return ""
-        return max([v.get("at", "") for v in rv.values()] or [""])
-
-    return wt_fp if _newest(wt_fp) >= _newest(main_fp) else main_fp
+    return _pick_doc(name, REPO, os.path.join(REPO, ".claude", "worktrees", name))
 
 
 def estate_names():
@@ -496,7 +579,16 @@ def estates():
 def gate(name):
     """1邸の関門。返すのは (赤の件数, 行の列)。
     ⚠ 指図は main とは限らない — worktree の方が新しければそちらを見る(_doc_path)。"""
-    path = _doc_path(name)
+    try:
+        path = _doc_path(name)
+    except Ambiguous as e:
+        # ⛔ 黙って片方を採らない(EDO-0321)。ただし実装の車線に入った邸は指図を見ないので、
+        #   宛先が決まらなくても関門は効かない(表は main にも worktree にも在るので main で見てよい)。
+        ph = _kansei_phase(name, os.path.join(DOC, name + "_sashizu.json"))
+        if ph in ("built", "done"):
+            return 0, [("・", "kansei", "完成条件の表",
+                        "実装後(phase=%s) — 検図関門は効かない。関門は `kansei_gate.py`" % ph, "")]
+        return 1, [("⛔", "doc", "指図の宛先", "**決められない**", str(e))]
     with open(path) as fp:
         doc = json.load(fp)
     # 2026-09-19 施主裁定2=A: 検分は**実装前に 1 巡**。実装の車線に入った敷地(<邸>_kansei.json が在り
@@ -544,6 +636,86 @@ def gate(name):
             rows.append(("⛔", key, spec["label"], "verdict が読めない: %r" % verdict, ""))
             red += 1
     return red, rows
+
+
+def _selftest_pick(ran, ng):
+    """⭐ 宛先の決め方(EDO-0321)。**本物のリポジトリは触らず**、捨て場に git と worktree を仕込む。
+    ⛔ 実測で 4 邸(京極・岡部・外堀・土井)が「同着なら worktree」で古い枝を採っていた形を含める。"""
+    import shutil
+    import subprocess
+    import tempfile
+    root = tempfile.mkdtemp(prefix="review-gate-pick-")
+    main_root = os.path.join(root, "main")
+    rel = os.path.join("docs", "Sashizu", "x_sashizu.json")
+
+    def git(cwd, *a):
+        subprocess.run(["git", "-C", cwd, "-c", "user.email=t@t", "-c", "user.name=t"] + list(a),
+                       check=True, capture_output=True)
+
+    def put(base, doc):
+        fp = os.path.join(base, rel)
+        os.makedirs(os.path.dirname(fp), exist_ok=True)
+        with open(fp, "w") as f:
+            json.dump(doc, f, ensure_ascii=False)
+
+    def commit(base, doc, msg):
+        put(base, doc)
+        git(base, "add", "-A")
+        git(base, "commit", "-m", msg)
+
+    def fresh(tag):
+        """main に v1 を置き、そこから worktree を切る。返すのは (main, worktree)。"""
+        m = os.path.join(root, "m_" + tag)
+        w = os.path.join(root, "w_" + tag)
+        os.makedirs(m)
+        git(m, "init", "-q", "-b", "main")
+        commit(m, {"mune": ["v1"], "reviews": {}}, "v1")
+        git(m, "worktree", "add", "-q", "-b", "br", w)
+        return m, w
+
+    def pick(m, w):
+        try:
+            got = _pick_doc("x", m, w)
+        except Ambiguous:
+            return "ambiguous"
+        return "main" if got.startswith(m) else "wt"
+
+    cases = []
+    try:
+        m, w = fresh("stale")                               # main だけが進んだ(worktree は古い枝)
+        commit(m, {"mune": ["v1", "v2"], "reviews": {}}, "main v2")
+        cases.append(("古い枝は採らない", pick(m, w), "main"))
+
+        m, w = fresh("ahead")                               # worktree だけが進んだ
+        commit(w, {"mune": ["v1", "wt"], "reviews": {}}, "wt v2")
+        cases.append(("worktree が進んでいる", pick(m, w), "wt"))
+
+        m, w = fresh("dirty")                               # worktree に未コミットの書き換え
+        put(w, {"mune": ["v1", "edit"], "reviews": {}})
+        cases.append(("worktree が未コミット", pick(m, w), "wt"))
+
+        m, w = fresh("fork")                                # 両側が別々に進んだ・検分の日は同じ
+        commit(m, {"mune": ["v1", "m"], "reviews": {}}, "m")
+        commit(w, {"mune": ["v1", "w"], "reviews": {}}, "w")
+        cases.append(("分岐・同着は決めない", pick(m, w), "ambiguous"))
+
+        m, w = fresh("fork2")                               # 分岐でも検分の日が新しい側があれば従う
+        commit(m, {"mune": ["v1", "m"], "reviews": {"kenzu": {"at": "2026-09-20"}}}, "m")
+        commit(w, {"mune": ["v1", "w"], "reviews": {"kenzu": {"at": "2026-09-01"}}}, "w")
+        cases.append(("分岐・日が新しい側", pick(m, w), "main"))
+
+        m, w = fresh("same")                                # 指図は両側とも動いていない
+        commit(m, {"mune": ["v1"], "reviews": {}, "_x": "別のファイルの変更"}, "note only")
+        cases.append(("文章だけ違う", pick(m, w), "main"))
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+    for title, got, want in cases:
+        ok = got == want
+        ran.append("宛先:" + title)
+        print("%s 宛先 %-22s → %s(期待 %s)" % ("⭕" if ok else "⛔", title, got, want))
+        if not ok:
+            ng.append("宛先:" + title)
 
 
 def selftest():
@@ -654,6 +826,8 @@ def selftest():
         globals()["_doc_path"] = orig_doc_path
         shutil.rmtree(tmp, ignore_errors=True)
 
+    _selftest_pick(ran, ng)
+
     print()
     if ng:
         print("⛔ 自己検査 不通 %d 件 — **関門の判定が死んでいる。**%s" % (len(ng), " / ".join(ng)))
@@ -714,6 +888,14 @@ def record(name, key, verdict, note):
 
 
 def main():
+    try:
+        return _main()
+    except Ambiguous as e:
+        # 宛先が決まらない — exit 1(門番が止めるのは exit 2 だけなので、三巡則の見張りは止めない)
+        sys.exit("⛔ " + str(e))
+
+
+def _main():
     argv = sys.argv[1:]
     if argv and argv[0] == "--selftest":
         return sys.exit(selftest())

@@ -163,7 +163,10 @@ def load_junsu_baseline():
         rg = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(rg)
         for est in rg.estate_names():
-            doc = json.load(open(rg._doc_path(est), encoding="utf-8"))
+            try:
+                doc = json.load(open(rg._doc_path(est), encoding="utf-8"))
+            except rg.Ambiguous:
+                continue    # 宛先が決まらない邸(EDO-0321)は空欄。1 邸のために残りの邸のゲージを消さない
             n = max([rg.consecutive_fails(doc, k) for k in rg.REVIEWERS] or [0])
             cur = max([len((doc.get("reviews") or {}).get(k, {}).get("rounds") or []) for k in rg.REVIEWERS] or [0])
             out[est] = {"n": max(0, cur - n), "fails": n}

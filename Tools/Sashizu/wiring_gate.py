@@ -33,9 +33,11 @@
 import argparse
 import ast
 import glob
+import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -68,8 +70,65 @@ def _refs(node, universe):
     return out & universe
 
 
-def audit(path):
+def _cache_path():
+    """判定の控えの置き場。⭐ **作業ツリーの外**(git の共通ディレクトリ)に置く —
+    リポジトリの中に置くと `git status` に出て、コミットの取り違えを招く。
+    worktree でも共通ディレクトリは1つなので、全邸で1つの控えを共有する。"""
+    try:
+        d = subprocess.check_output(["git", "-C", ROOT, "rev-parse", "--git-common-dir"],
+                                    text=True, stderr=subprocess.DEVNULL).strip()
+    except Exception:
+        return None
+    if not os.path.isabs(d):
+        d = os.path.join(ROOT, d)
+    return os.path.join(d, "edo-wiring-cache.json")
+
+
+def load_cache():
+    fp = _cache_path()
+    if not fp:
+        return None
+    try:
+        return json.load(open(fp, encoding="utf-8"))
+    except Exception:
+        return {}                      # 壊れていても黙って採り直す(控えは捨ててよい)
+
+
+def save_cache(cache):
+    fp = _cache_path()
+    if not fp or cache is None:
+        return
+    try:
+        tmp = fp + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False)
+        os.replace(tmp, fp)
+    except Exception:
+        pass                           # 控えが書けなくても関門の判定は変わらない
+
+
+def audit(path, cache=None):
+    """⭐ **判定は生成器の中身だけで決まる**(ast.parse した木しか見ない)ので、
+    中身のハッシュで控えが効く。⚠ 挨拶フックの 7 秒のうち 6 秒が本ツールだった
+    (2026-09-13 の計時)— 山王の生成器が 2 万行超で、毎回 ast を歩き直していた。
+    ⛔ 控えは中身が 1 文字でも違えば外れるので、古い判定を掴むことはない。"""
     src = open(path, encoding="utf-8").read()
+    if cache is not None:
+        key = hashlib.sha256(src.encode("utf-8")).hexdigest()
+        hit = cache.get(key)
+        if hit is not None:
+            if hit == "none":          # 関数が無い生成器(json に None は書けないので符牒)
+                return None
+            r = dict(hit)
+            r["path"] = path           # ⚠ 中身が同じでもパスは邸ごとに違う
+            return r
+        r = _audit(path, src)
+        cache[key] = "none" if r is None else r
+        return r
+    return _audit(path, src)
+
+
+def _audit(path, src):
     tree = ast.parse(src)
     funcs = {n.name: n for n in tree.body
              if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
@@ -150,8 +209,23 @@ def audit(path):
             if v not in ("print", "return")]
 
     n_check = len([n for n in universe if _kind(n) == "検査"])
+
+    # ── ⚠ **クラスの中の検査は本ツールでは追えない**(2026-09-21)。
+    #   共通の生成器は検査 23 本を `cNN` という名のメソッドで持ち、名前で集める仕掛けで
+    #   輪に入れている。⛔ module 直下の関数しか見ない本ツールは、それを **「検査 0」と
+    #   刷っていた** — 「読めなければ 0 件」(EDO-0029 と同じ型の嘘)。
+    #   ⭕ 追えないものは 0 と言わず、**追えないと言う**。
+    unseen = []
+    for node in tree.body:
+        if not isinstance(node, ast.ClassDef):
+            continue
+        for m in node.body:
+            if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef)) and \
+                    (_kind(m.name) == "検査" or re.match(r"^c\d\d$", m.name)):
+                unseen.append("%s.%s" % (node.name, m.name))
+
     return {"path": path, "library": False, "orphan": orphan, "discarded": discarded,
-            "mute": mute,
+            "mute": mute, "unseen": sorted(unseen),
             "n_func": len(universe), "n_reached": len(seen), "n_check": n_check}
 
 
@@ -481,8 +555,13 @@ def targets(argv):
                 raise SystemExit(2)
         return out
     # ⭐ 無引数のときも**邸ごとに worktree を先に見る**(邸名で引いたときと揃える)。
+    # ⛔ **共通の生成器を名指しで入れる**(2026-09-21)— 2026-09-20 に邸ごとの生成器 5 本を
+    #   `build_sashizu.py <邸>` へ一本化したとき、`build_*_sashizu.py` の * が空に当たらず
+    #   **共通版が網から静かに落ちた**。関門の対象は 7 本 → 2 本(外堀だけ)になり、
+    #   それでも「⭕ 0 件」と刷り続けた。⚠ 名簿を glob だけで持つと、一本化で黙って穴が開く。
     out, seen = [], set()
-    for pat in ("Tools/Sashizu/build_*_sashizu.py", "Tools/Sashizu/build_*_saitei.py"):
+    for pat in ("Tools/Sashizu/build_sashizu.py", "Tools/Sashizu/build_typology_page.py",
+                "Tools/Sashizu/build_*_sashizu.py", "Tools/Sashizu/build_*_saitei.py"):
         for fp in sorted(glob.glob(os.path.join(ROOT, pat))):
             fp = _live(fp)
             if fp not in seen:
@@ -499,6 +578,8 @@ def main():
                     help="実行ログの ⚠/⛔/⭕ の行が成果物 HTML に載っているかを突き合わせる")
     ap.add_argument("--selftest", action="store_true",
                     help="既知の欠陥を仕込んだ版で必ず鳴ることを確かめる(検出が死んでいないか)")
+    ap.add_argument("--no-cache", action="store_true",
+                    help="中身のハッシュの控えを使わず、毎回 ast を歩き直す")
     a = ap.parse_args()
 
     if a.selftest:
@@ -516,13 +597,15 @@ def main():
         return 1 if miss else 0
 
     reports, bad = [], 0
+    cache = None if a.no_cache else load_cache()
     for p in targets(a.paths):
-        r = audit(p)
+        r = audit(p, cache)
         if r is None:
             continue
         reports.append(r)
         bad += len(r["orphan"]) + len(r["discarded"]) \
             + len([o for o in r.get("mute", ()) if o.get("why") != "guarded"])
+    save_cache(cache)
 
     if a.json:
         print(json.dumps(reports, ensure_ascii=False, indent=1))
@@ -536,8 +619,10 @@ def main():
         hard = r["orphan"] or r["discarded"] or \
             [o for o in r.get("mute", ()) if o.get("why") != "guarded"]
         mark = "⛔" if hard else ("⚠" if r.get("mute") else "⭕")
-        print("%s %-38s 関数 %d / 到達 %d / 検査 %d"
-              % (mark, name, r["n_func"], r["n_reached"], r["n_check"]))
+        print("%s %-38s 関数 %d / 到達 %d / 検査 %d%s"
+              % (mark, name, r["n_func"], r["n_reached"], r["n_check"],
+                 "(+ クラスの中に %d 本・本ツールでは追えない)" % len(r["unseen"])
+                 if r.get("unseen") else ""))
         for o in r["orphan"]:
             print("    ⛔ 孤立 L%-5d %s()  … %sを作るが、main からも module 直下からも"
                   "辿れない = 一度も走らない" % (o["line"], o["name"], o["kind"]))

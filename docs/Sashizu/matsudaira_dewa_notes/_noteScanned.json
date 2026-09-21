@@ -1,0 +1,3 @@
+{
+ "_noteScanned": "**`underscore_note_check` が走査する容器。**⭕ 棚卸しが済んだのは `runs` と `joints` の 2 容器(注記の欄を表に足した)。⛔ ここに無い容器(`munes` の `_`/`_iri`/`_rooms`・`gardens` の `_`/`_ownScatter`/`_access`・`planting` / `tenkei` / `service` / `links` ほか)は**まだ見張られていない** — 次の巡の棚卸し(`_pending.underscoreNotesNotDrawn`)。⛔ 走査する容器の名を生成器に埋めない(棚卸しが進んだら指図の側だけを直す)。"
+}

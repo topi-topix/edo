@@ -226,9 +226,27 @@ def _side_digest(name, path, files):
     return out
 
 
-def fingerprint(doc, keys, name=None, path=None, files=()):
-    """検分が見た範囲の指紋。⚠ `_` で始まる注記のキーは**除く** —
+def _drop_notes(v):
+    """`_` で始まるキーを**入れ子まで**落とす。
+
+    ⚠ **2026-09-21 まで top-level しか落としていなかった**(EDO-0330)。docstring は当初から
+    「文章を直しただけで検め直しを要求すると関門が形骸化する」と述べていたのに、実装は
+    章の中の `_` を指紋に入れていた — 意図と実装のずれ。指図の文章を `<邸>_notes/` へ
+    切り出す普請(2026-09-21 施主指示)で表に出た。
+    ⭕ 入れ子まで落とせば、**文章をどこへ置き換えても検分は動かない**(土井・岡部・外堀で実証)。
+    ⛔ 値は一つも落とさない — 落ちるのは `_` で始まるキーだけ。"""
+    if isinstance(v, dict):
+        return {k: _drop_notes(x) for k, x in v.items() if not str(k).startswith("_")}
+    if isinstance(v, list):
+        return [_drop_notes(x) for x in v]
+    return v
+
+
+def fingerprint(doc, keys, name=None, path=None, files=(), legacy=False):
+    """検分が見た範囲の指紋。⚠ `_` で始まる注記のキーは**入れ子まで除く** —
     文章を直しただけで検め直しを要求すると、関門がすぐ形骸化する。
+    `legacy=True` は 2026-09-21 以前の式(top-level の `_` しか除かない)。
+    記録済みの hash を突き合わせるためだけに残す — 新たに書く指紋は常に新しい式。
     ⛔ **`reviews` 自身も除く。** 除かないと自己矛盾になる — record() が reviews を
     書き込むたびに指紋が動き、書いた直後から「検め直しが要る」に戻ってしまう
     (2026-09-01、丹羽セッションが実測: 検図→考証と2件記録したら両方とも無効化され、
@@ -247,21 +265,42 @@ def fingerprint(doc, keys, name=None, path=None, files=()):
             #   以後どれだけ庭が育っても指紋が動かず「通っている」ままになる。
             #   ⭕ 見る範囲が空なら指図全体で採る(=何か変われば検め直しになる)。
             #   2026-09-01 の点検で見つけた、EDO-0101 と同じ「関門が形骸化する」型の穴。
-            return fingerprint(doc, None, name, path, files)
+            return fingerprint(doc, None, name, path, files, legacy)
+    if not legacy:
+        src = _drop_notes(src)
     blob = json.dumps(src, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     if name and path:
         blob += "|" + "|".join(_side_digest(name, path, files))
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
 
 
+def still_valid(recorded, want, doc, spec, name, path):
+    """記録された指紋が、いまの指図をまだ覆っているか。
+
+    ⭐ **旧い式(2026-09-21 以前)で一致するなら、その記録はまだ有効**(EDO-0330)。
+    旧い式は「値 + 入れ子の文章」を見ていた。それが一致するということは**値も文章も
+    当時のまま**ということなので、新しい式(値だけ)も必ず一致する。
+    ⇒ 式を変えた日に全邸を赤へ落とさずに済む(松江松平は完成・山王は緑だった)。
+    ⛔ **逆は成り立たない。**新しい式だけが合う記録(=文章だけが動いた)は
+    上の `recorded == want` が先に拾うので、ここへは来ない。
+    記録は次に検分を通したとき新しい式で上書きされる(遅延移行)。"""
+    if recorded == want:
+        return True
+    return recorded == fingerprint(doc, spec["keys"], name, path,
+                                   spec.get("files", ()), legacy=True)
+
+
 def chapter_prints(doc, keys, name=None, path=None, files=()):
-    """章(top-level key)ごとの指紋。`_` 注記と reviews は除く。生成器・文章は "py"/"md" の擬似章。"""
+    """章(top-level key)ごとの指紋。`_` 注記(**入れ子まで**)と reviews は除く。
+    生成器・文章は "py"/"md" の擬似章。⚠ 入れ子まで除くのは 2026-09-21 から(EDO-0330) —
+    文章だけを直した章が「変わった章」に挙がると、検分が毎回そこを読み直す。"""
     out = collections.OrderedDict()
     src = [k for k in doc if not k.startswith("_") and k != "reviews"]
     if keys is not None:
         src = [k for k in keys if k in doc] or src
     for k in src:
-        blob = json.dumps(doc[k], ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        blob = json.dumps(_drop_notes(doc[k]), ensure_ascii=False,
+                          sort_keys=True, separators=(",", ":"))
         out[k] = hashlib.sha256(blob.encode("utf-8")).hexdigest()[:12]
     if name and path:
         for item in _side_digest(name, path, files):
@@ -490,7 +529,7 @@ def gate(name):
         if verdict == "fail":
             rows.append(("⛔", key, spec["label"], "不合格(%s)" % at, got.get("note", "")))
             red += 1
-        elif got.get("hash") != want:
+        elif not still_valid(got.get("hash"), want, doc, spec, name, path):
             rows.append(("⚠", key, spec["label"],
                          "検め直しが要る — %s に通ったあと指図が変わった" % at,
                          "記録 %s / いま %s" % (got.get("hash", "—"), want)))
@@ -498,7 +537,9 @@ def gate(name):
         elif verdict == "advisory":
             rows.append(("・", key, spec["label"], "助言のみ(%s)" % at, got.get("note", "")))
         elif verdict == "pass":
-            rows.append(("⭕", key, spec["label"], "通っている(%s)" % at, ""))
+            rows.append(("⭕", key, spec["label"], "通っている(%s)" % at,
+                         "" if got.get("hash") == want
+                         else "指紋の式が 2026-09-21 に変わったが記録は有効(EDO-0330)"))
         else:
             rows.append(("⛔", key, spec["label"], "verdict が読めない: %r" % verdict, ""))
             red += 1

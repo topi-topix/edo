@@ -1991,7 +1991,8 @@ def build(est, deep=False, out=None):
     h.append(tbl(["辺", "run", "種別", "延長 m", "座 m", "持ち主"], rows))
     if M.program:
         h.append(tbl(["役割", "要否", "棟・区画", "確度", "*覚"],
-                     [[p.role, p.need or "—", "、".join(p.by) if p.by else "—", p.cert, "*" + (p.note or "")[:160]] for p in M.program]))
+                     [[p.role, p.need or "—", "、".join(p.by) if p.by else "—", p.cert,
+                       "*" + _cut(p.note or "", 160)] for p in M.program]))
     h.append("</div>")
 
     # 其七 検査
@@ -2010,7 +2011,9 @@ def build(est, deep=False, out=None):
         h.append("<h4>共通の壊し試し(C23)</h4>")
         h.append(tbl(["壊し方", "鳴るべき検査", "鳴ったか"],
                      [[k, v["expect"], "○" if v["rang"] else ("該当無し" if v["rang"] is None else "⛔ %s" % v["status"])] for k, v in sr.items()]))
-    h.append('<p class="cap">%s</p>' % esc(L.sens_report(est)))
+    # ⛔ `esc()` だけだと **太字** と `名` が**字として刷られる**(D01・掲示板 EDO-0178)。
+    #   この一行は散文なので、行内の記法を html の器へ移す(L.inline は escape も兼ねる)。
+    h.append('<p class="cap">%s</p>' % L.inline(L.sens_report(est)).replace("\n", "<br>"))
     if M.notes:
         h.append("<h4>読めなかった欄</h4>")
         h.append(tbl(["*欄"], [["*" + x] for x in M.notes]))
@@ -2024,9 +2027,17 @@ def build(est, deep=False, out=None):
              '地盤 <code>%s</code> ／ 生成器 <code>Tools/Sashizu/build_sashizu.py</code>(全邸共通)。⛔ 生成器は実装を読まない。</p>'
              % (esc(title), est, est, M.dem_name))
     h.append("</div>")
+    # ── 文書の記法(D01)。⛔ **図の字面だけを見る検査は構造的に 0 を返し続ける** —
+    #   欠陥は html の本文と表に出る(掲示板 EDO-0178)。⚠ この物差し(svg_layout.doc_markup)は
+    #   2026-09-20 の生成器の一本化で**呼び手を失ったまま**だった。測れるのに測っていなかった。
+    #   ⚠ 母集団は「この章を足す前の紙」— 自分を測る循環を避ける。
+    mk, mk_n = _doc_markup_plate(h)
     out = out or os.path.join(DOC, est + "_sashizu.html")
     open(out, "w", encoding="utf-8").write("\n".join(h))
-    _write_check_record(est, out, C, ng, na)
+    _write_check_record(est, out, C, ng, na, mk=mk)
+    if mk:
+        print("  %s D01 文書の記法が字になっている: %d 件(母集団 %s 字・引用の面 %d 件は別枠)"
+              % ("⛔" if mk_n else "○", mk_n, "{:,}".format(mk["chars"]), mk["quoted"]))
     print("書いた: %s (%.0f KB)  %.0f 秒" % (os.path.relpath(out, ROOT), os.path.getsize(out) / 1024, time.time() - t_all))
     print("検査 不合格 %d / 未検査 %d / 建蔽率 %.1f%% / 図版 %d 面 / 読めなかった欄 %d" % (ng, na, C.kenpei, n[0], len(M.notes)))
     for cid, what, res, st in C.rows:
@@ -2051,7 +2062,51 @@ def sashizu_sha(est, doc_dir=None):
         return ""
 
 
-def _write_check_record(est, out, C, ng, na):
+def _cut(s, n):
+    """散文を n 字で切る。⛔ **記法の途中で切らない** — 片割れになった `**` や `` ` `` は
+    対にならず、html の器へ移らずに**字として刷られる**(掲示板 EDO-0178・土井の役割表で実際に出た)。
+    ⇒ 切ったあと、対になっていない印を落としてから省略記号を付ける。"""
+    if len(s) <= n:
+        return s
+    s = s[:n]
+    for mark in ("**", "`"):
+        if s.count(mark) % 2:
+            head = s[:s.rfind(mark)]
+            # ⚠ 印を落として空になるなら、切り口ごとではなく**その印だけ**を抜く
+            s = head if head.strip() else s.replace(mark, "", 1)
+    return s.rstrip() + "…"
+
+
+def _doc_markup_plate(h):
+    """組み上がった紙を測り、その結果の章を**紙の末尾へ足す**。返すのは (結果, 件数)。
+
+    ⛔ **除いた面を「数えていない」で済ませない**(2026-09-08 土井 第8巡)。`<code>` の中は
+    記法そのものの引用なので欠陥に数えないが、⛔ **そこは同時に穴**でもある — 本物の欠陥が
+    その面へ入り込めば鳴らない。⇒ 除いた面の件数と母集団を必ず一緒に刷る。
+    """
+    try:
+        sys.path.insert(0, HERE)
+        import svg_layout as SL                       # noqa: E402
+        mk = SL.doc_markup("\n".join(h))
+    except Exception as ex:                           # noqa: BLE001
+        print("⚠ 文書の記法が測れなかった: %s" % ex)
+        return None, 0
+    n = mk["n"]
+    h.append('<div class="plate"><div class="phead"><h2>文書の記法</h2>'
+             '<span class="meta">svg_layout.doc_markup()</span></div>')
+    rows = [[f, "、".join("%s %d" % (nm, c) for nm, c in row if c) or "0",
+             str(sum(c for _, c in row))] for f, row in SL.doc_markup_counts(mk)]
+    h.append(tbl(["面", "*腕ごと", "計"], rows))
+    h.append('<p class="cap">記法が字として刷られている数 <b>%d</b> 件。'
+             '母集団は <b>%d</b> の字面 / <b>%s</b> 字(<code>svg</code>・<code>style</code> の中は除く)。'
+             '⛔ 別枠 — 記法そのものを引用している面(<code>code</code> の中・%d span)に %d 件。'
+             'ここは欠陥に数えないが、⛔ <b>本物の欠陥がこの面へ入り込めば鳴らない穴</b>でもある。'
+             '⚠ 図の字面(<code>svg</code> の中)は前の章が測る。</p></div>'
+             % (n, mk["nodes"], "{:,}".format(mk["chars"]), mk["codeSpans"], mk["quoted"]))
+    return mk, n
+
+
+def _write_check_record(est, out, C, ng, na, mk=None):
     """図の機械検査の結果を**機械で読める形**で残す。
 
     ⛔ **刷るだけでは関門にならない。**2026-09-01、松江松平の図の検査は棟別 38.4% の赤を
@@ -2067,6 +2122,14 @@ def _write_check_record(est, out, C, ng, na):
            "ng": ng, "na": na,
            "rows": [{"id": cid, "what": what, "res": res, "status": st}
                     for cid, what, res, st in C.rows]}
+    if mk is not None:
+        # ⚠ D01 は紙が組み上がってからでないと測れないので、検査の表(C01〜)には並ばない。
+        #   ⛔ だからといって記録から落とさない — 落とせば「測っていない」が「0 件」に化ける。
+        rec["rows"].append({"id": "D01", "what": "文書の記法が字になっていないか",
+                            "res": "%d 件(母集団 %s 字・引用の面 %d 件は別枠)"
+                                   % (mk["n"], "{:,}".format(mk["chars"]), mk["quoted"]),
+                            "status": "ng" if mk["n"] else "ok"})
+        rec["ng"] = ng = ng + (1 if mk["n"] else 0)
     p = os.path.join(os.path.dirname(os.path.abspath(out)), est + "_checks.json")
     try:
         with open(p, "w", encoding="utf-8") as f:

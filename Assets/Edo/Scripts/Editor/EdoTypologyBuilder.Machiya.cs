@@ -81,6 +81,7 @@ public static partial class EdoTypologyBuilder
         string lead = s.jishinban ? EdoAssets.Eg.Jishinban : null;
         int totalPieces = 0, totalHouses = 0, wantTotal = 0, dropped = 0;
         float worstJoint = float.NaN, worstWallGap = 0f, worstFace = float.NaN, restSum = 0f;
+        int kinds = 0;
 
         for (int k = 0; k < fronts.Count; k++)
         {
@@ -93,6 +94,7 @@ public static partial class EdoTypologyBuilder
             totalPieces += t.pieces; totalHouses += t.houses; wantTotal += t.wantHouses;
             dropped += t.dropped; restSum += t.restM;
             worstWallGap = Mathf.Max(worstWallGap, t.wallGapM);
+            kinds = Mathf.Max(kinds, t.comboKinds);
             if (!float.IsNaN(t.minJoint) && (float.IsNaN(worstJoint) || t.minJoint < worstJoint)) worstJoint = t.minJoint;
             if (!float.IsNaN(t.frontFace) && (float.IsNaN(worstFace) || t.frontFace > worstFace)) worstFace = t.frontFace;
             log.Add(string.Format(
@@ -114,6 +116,10 @@ public static partial class EdoTypologyBuilder
                 wantTotal, totalHouses,
                 EdoBuild.ShopMeasure(EdoAssets.Eg.Shop01).W, EdoBuild.ShopMeasure(EdoAssets.Eg.Shop02).W));
         if (s.jishinban) log.Add("    自身番屋: 表店列の頭へ 1 軒ぶんとして差した(通りへ面する)");
+        if (kinds == 1)
+            log.Add(string.Format("    ⚠ 1軒の埋め方が1通りしかない(間口 {0}間={1:F2}m に対し他の組は誤差が大きすぎる)"
+                                + " — **同じ駒が等間隔に並ぶ**。乱しようが無いのは駒が2点しかないからで、直すのは部材の側(EDO-0348)",
+                                s.maguchiKen, maguchiM));
         log.Add(string.Format("    通りとの取り合い: 店先の躯体の面が境界線から {0:+0.00;-0.00}m"
                             + " / 隣の軒との当たりの最小 {1} / 界壁に残る隙 最大 {2:F2}m(軒の出の和・閉じは「隙間>めり込み」)"
                             + " / 端の余りの合計 {3:F2}m",

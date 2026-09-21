@@ -95,6 +95,7 @@ public static partial class EdoBuild
         public float wallGapM;     // 軒を接したときに界壁に残る隙の最大[m](= 両側の軒の出の和)
         public float frontFace;    // 店先の面が境界線からどれだけ外(+)/内(−)にあるか[m]
         public string combos;      // 1軒を何枚で埋めたか(駒名×枚数 の内訳)
+        public int comboKinds;     // 1軒の埋め方の候補が何通りあったか(1 = 同じ駒が並ぶ)
     }
 
     /// <summary>1 軒の間口 <paramref name="maguchiM"/> を、在庫の駒 1〜2 枚の組で埋める候補。
@@ -162,6 +163,7 @@ public static partial class EdoBuild
         }
         if (stock.Count == 0) stock.Add(EdoAssets.Eg.Shop01);   // 奥行が足りなくても 1 種は残す(呼び手が刷る)
         var combos = ShopCombos(stock.ToArray(), maguchiM);
+        tally.comboKinds = combos.Count;
 
         // 木戸の開口で区間を割る(NagayaRun と同じ割り方)
         var segs = new List<float[]>();
@@ -303,7 +305,9 @@ public static partial class EdoBuild
         Vector2 inw = -outward;
         sA += inw * insetM;
 
-        // 桁行は長い棟から。⛔ 1 種を並べない — 6/9/12 間の 3 本が在る(EdoAssets.Own.UraNagaya)
+        // 桁行は**残りへ入る一番長い棟**から。⭐ 表店と違って乱さない — 裏店は同じ割りの棟を
+        //    続けて建てた物で、長さを混ぜるほど棟の天端が刻まれて長屋らしさが消える。
+        //    残りが 6 間を切ったところが列の終わり(端数は路地の突き当りが受ける)。
         var lens = new float[] { 12f, 9f, 6f };
         float cursor = 0f;
         int idx = 0;

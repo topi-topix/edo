@@ -440,10 +440,18 @@ public static partial class EdoBuild
             catch (Exception) { UnityEngine.Object.DestroyImmediate(go); continue; }
             made.Add(go);
         }
+        // ⭐ 刷る丈は**地面から上に出ている分**(頭の高さ − 真下の地表)。
+        //    ⛔ メッシュの高さ(1.55m)を刷らない — 1/3 は地中で、見える丈ではない(検査の文言と実装を合わせる)。
         float w = 0f, ex = 0f;
-        foreach (var go in made) { var b = RB(go); w = Mathf.Max(w, Mathf.Max(b.size.x, b.size.z)); ex = Mathf.Max(ex, b.size.y); }
-        note = string.Format("{0} {1}本(芯々 {2:F2}m = {3:F0}間【U】・杭の実幅 {4:F2}m ⇒ 隙 {5:F2}m・丈 {6:F2}m・径{7}種を混ぜ yaw を振った)",
-                             label, made.Count, pitch, pitchKen, w, pitch - w, ex, dias.Length);
+        foreach (var go in made)
+        {
+            var b = RB(go);
+            w = Mathf.Max(w, Mathf.Max(b.size.x, b.size.z));
+            ex = Mathf.Max(ex, b.max.y - Ground(b.center.x, b.center.z));
+        }
+        note = string.Format("{0} {1}本(芯々 {2:F2}m = {3:F0}間【U】・杭の実幅 {4:F2}m ⇒ 隙 {5:F2}m・露出丈 {6:F2}m・{7})",
+                             label, made.Count, pitch, pitchKen, w, pitch - w, ex,
+                             dias.Length > 1 ? "径" + dias.Length + "種を混ぜ yaw を振った" : "yaw を振った");
         return made;
     }
 

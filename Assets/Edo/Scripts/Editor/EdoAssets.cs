@@ -1812,6 +1812,55 @@ public static class EdoAssets
             /// 材 = `wood` / `wall C` / `Foundation_A_01` / `wall A`(瓦が無いので4種)。
             /// 生成: blender --background --python Tools/Blender/build_typ_fuzokuya.py -- sakuji --render</summary>
             public const string SakujiKoya = FuzokuyaDir + "Typ_SakujiKoya.fbx";
+
+        const string MachiyaDir = "Assets/Edo/Models/Machiya/";
+
+        /// <summary>**表店(おもてだな)**— 町屋24町の通りに面して並ぶ2階建ての商家(類型共用)。
+        /// 桁行 <paramref name="wKen"/> 間・奥行 4間相当(7.272m)・**厨子二階**・見世棚つき。
+        ///
+        /// <para>⭐ 在庫の <see cref="Eg.Shop01"/>(軒幅 4.93m)/ <see cref="Eg.Shop02"/>(7.13m)では
+        /// 表の `maguchi_ken` 5間(9.09m)を **1枚で埋められなかった**(Shop01×2 = 9.86m で +0.77m)。
+        /// これは **軒の端から端が 9.090m ちょうど** — `EdoBuild.ShopMeasure` が測る幅
+        /// (<see cref="EdoBuild.ShopModule.W"/> = 軒込み)がそのまま表の 5間に一致する。</para>
+        ///
+        /// <para>実寸 **W 9.090(X) × H 4.284(Y) × D 7.272(Z)**・面 7,858・底 0.000。
+        /// 立面は Shop01 に合わせてある: 1階庇の先端 **1.73** / 頂 **2.361** / 2階の窓 **2.40〜2.87** /
+        /// 2階の軒先 **3.35** / 瓦面の大棟 **4.050** / **棟天端 4.240**(Shop01 は 4.236)/
+        /// けらば **0.11**。⇒ 同じ列へ軒を接して継いでも屋根がめり込まず、棟の段も出ない。
+        /// ⚠ bbox の丈 4.284 は袖瓦の上端で、棟天端そのものの差は +0.004。</para>
+        ///
+        /// <para>⚠ **柱間は 1.750m(0.96間)**。桁行 5間 = 9.09 は**軒の端から端**で取ってあり、
+        /// 柱通りはそこから軒の出(0.17×2)を引いた内側。⛔ 柱間を 1.818 固定にすると
+        /// 軒幅が 9.45 になって表の 5間 と 0.36m ずれる。</para>
+        ///
+        /// <para>⚠ **段違いの2棟**(表屋 = 厨子二階 / 奥 = 平屋)。4間の奥行を1枚の切妻で架けると
+        /// 瓦の勾配 0.5456 では棟天端が 5.4m まで上がり Shop01 より 1.2m 高くなるため。
+        /// 奥棟の棟天端 3.279 / 谷 2.235。奥行は <see cref="Omotedana(float,float)"/> で詰められる
+        /// (**奥棟だけが縮み、表の立面は一切動かない**。実用の下限は 6.30m = 奥が約1間)。</para>
+        ///
+        /// <para>ローカル **+X = 桁行(通りに沿う)/ +Z = 通り(店先)**。ピボット = **足形の中心・地盤レベル**。
+        /// ⚠ **大戸口(出入口)は −X 寄りの1間**、残り4間が見世(格子+見世棚)。左右非対称なので
+        /// yaw で大戸口の位置が変わる。⚠ 軒は足形の外へ ±X に 0.17 出る(ピボットには含まれない)。</para>
+        ///
+        /// 材 = `wood` / `wall C` / `Foundation_A_01` / `wall A` / `roof` / `roof ornaments` /
+        /// **`Noren 2`**(キットの藍の暖簾。⚠ 色は .mat が乗せるので remap 必須)。
+        /// 生成: blender --background --python Tools/Blender/build_typ_machiya.py -- --render</summary>
+        public static string Omotedana(float wKen)
+        {
+            return MachiyaDir + "Typ_Omotedana_" + Len2(wKen) + "ken.fbx";
+        }
+
+        /// <summary>**奥行を詰めた表店。**背後の余地が 4間(7.272m)に足りない筆で使う。
+        /// ⭐ 縮むのは**奥棟だけ**で、店先の立面・軒先 3.35・棟天端 4.240・けらば 0.11 は動かない。
+        /// 焼いてあるのは **5×3.85間(D 7.000m・面 7,776)**。実用の下限は **D 6.30**(奥が約1間)。
+        /// ⛔ 4間より深くしない — 奥棟の棟天端が表屋の軒桁 3.465 へ迫る(生成器が ⚠ を刷る)。
+        /// 無い寸法は
+        /// blender --background --python Tools/Blender/build_typ_machiya.py -- --ken &lt;桁行間&gt; --okuyuki &lt;奥行m&gt;
+        /// で足す。</summary>
+        public static string Omotedana(float wKen, float dKen)
+        {
+            return MachiyaDir + "Typ_Omotedana_" + Len2(wKen) + "x" + Len2(dKen) + "ken.fbx";
+        }
         }
 
         // ---------------------------------------------------------------- 岡部邸の附属屋・結界

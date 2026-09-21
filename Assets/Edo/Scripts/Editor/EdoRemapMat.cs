@@ -120,6 +120,7 @@ public static class EdoRemapMat
         string[] modelDirs = {
             "Assets/Edo/Models/Nagaya", "Assets/Edo/Models/Mon",
             "Assets/Edo/Models/Jisha",  "Assets/Edo/Models/Fuzokuya",
+            "Assets/Edo/Models/Machiya",     // 表店 Typ_Omotedana_*(EDO-0348)
         };
         return Run(donorDirs, modelDirs, "類型の部材");
     }

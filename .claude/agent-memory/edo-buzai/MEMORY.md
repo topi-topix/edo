@@ -20,3 +20,5 @@
 - [落差0と落差0.30を一つの型で](one-part-for-drop0-and-drop30.md) — 天端を揃え下に隠れる丈を変える。Kirishi 0.44 は縁石に流用しない(2026-09-20)
 - [見分けは並べて焼くまで判らない・FBX のバイト差は回帰の指標にならない](narabe-check-and-fbx-byte-noise.md) — 単体4枚では長手の白一面を見落とす。回帰は頂点集合で見る(2026-09-21)
 - [隅部材の +deg と −deg は厳密な鏡像ではない](kado-plus-minus-not-exact-mirror.md) — 面数差800は欠陥でない。向きは平面の並べ焼きで読む(2026-09-21)
+- [表店は軒込みの bbox が「食う幅」・キットに本物の暖簾がある](machiya-omotedana-bbox-and-kit-noren.md) — 柱間でなく bbox を 5間に合わせる。Noren 2 は藍(2026-09-21)
+- [m.box の z0>z1 は面が内向き・光線検査の偽陽性](mesh-box-inward-normals-and-ray-checks.md) — EEVEE では気づけない。段違いは一番低い屋根を採る(2026-09-21)

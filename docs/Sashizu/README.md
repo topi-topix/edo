@@ -90,6 +90,10 @@ python3 Tools/Sashizu/build_sashizu.py okabe
 | `python3 Tools/Sashizu/build_sashizu.py <邸>` | 共通の検査 23 本を回し、図 4 枚(配置・現況・切盛・断面・動線)を組む。壊し試しは**前回の記録を読んで刷る** | 10 秒 |
 | 同 `--deep` | 共通の壊し試し(棟を重ねる・区画の外へ・段を上げる・run を縮める・室を外へ)も回し、`docs/Sashizu/<邸>_sensitivity.json` へ記録する | 30 秒 |
 
+⚠ **法面の式は欄で分かれる**(EDO-0270)。`terrainCheck.gradedCover.wallCollarM` を持つ指図(いまは山王)は `Tools/Sashizu/sashizu_soil.py`
+(土留めを障害物とした測地距離の「一枚の土の面」+ 凹みの均し ── 山王の枝 `sashizu/sanno` から移した)、持たない指図は lib の ray 式。
+**⛔ 邸名で分けない**。山王は土の面のぶん重く、`build_sashizu.py sanno` は約 35 秒(`--deep` は約 3 分)。
+
 ⭐ **2026-09-20 施主指示で邸ごとの生成器 5 本(77,000 行・検査 348 本)を廃し、共通の 1 本にした。**
 検査の札(共通へ / Unity で測る / 落とす / 欄へ写す)は `check_triage.json`、経緯は `check_triage.md`。
 邸ごとの綴りの違いは生成器の「読み手」が吸収し、読めなかった欄は図の末尾に名指しで刷る(規則19)。

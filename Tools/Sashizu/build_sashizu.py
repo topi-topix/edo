@@ -11,6 +11,8 @@ service / wells / runs / gate・komon・gates / kaidans / routes / gardens / sec
 (規則19: 読めていない値は「未検査」であって「合格」ではない)。
 
 ⛔ 設計値をここに書かない。⛔ 実装(C#)を読まない。⛔ 邸の名前で分岐しない — 欄の形で分岐する。
+法面の式も欄で分ける: `terrainCheck.gradedCover.wallCollarM` を持つ指図(山王)は `sashizu_soil.py`(土留めを障害物とした
+測地距離の一枚の土の面・凹みの均し)、持たなければ lib の ray 式(EDO-0270)。
 検査の名簿と札は docs/Sashizu/check_triage.json(共通版に残す意図 C01〜C24)。
 """
 import copy
@@ -26,6 +28,7 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import sashizu_lib as L  # noqa: E402
+import sashizu_soil as SOIL  # noqa: E402
 
 ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
 DOC = os.path.join(ROOT, "docs", "Sashizu")
@@ -130,6 +133,9 @@ def shrink(p, d):
 
 def plen(pts):
     return sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(pts, pts[1:]))
+
+
+_SOIL_OWNER = [None]      # sashizu_soil の覚え書きを今使っている Model
 
 
 # ================================================================ 地盤
@@ -249,6 +255,15 @@ class Model(object):
             return None
         if not self.in_parcel(u, v):
             return nat
+        if self._soil_d is not None:
+            # ⚠ sashizu_soil の覚え書きはモジュールの中に一組しかない(壊し試しは指図を複製して Model を作り直す)。
+            #   別の Model が使った後は、自分の地形と指図で空から解き直す。
+            if _SOIL_OWNER[0] is not self:
+                SOIL.reset()
+                SOIL.bind_dem(self.dem.raw)
+                _SOIL_OWNER[0] = self
+            y = SOIL.design_y(self._soil_d, self.gr, *self.W(u, v))
+            return nat if y is None else y
         try:
             return L.graded_y(self._libd, u, v, nat, lambda dd, uu, vv: self.in_parcel(uu, vv))
         except Exception:  # noqa: BLE001
@@ -609,6 +624,9 @@ class Model(object):
         self._libd.setdefault("kaidans", [])
         self._libd.setdefault("ramps", [])
         self._lib_fail = 0
+        # 法面の式 — 指図が「一枚の土の面」(`terrainCheck.gradedCover.wallCollarM`)を宣言していれば sashizu_soil。
+        # ⚠ 欄の有無で分ける(邸名で分けない)。宣言が無ければ従来どおり lib の ray 式。
+        self._soil_d = SOIL.prepare(d) if SOIL.declared(d) else None
 
     def mine_edges(self):
         """当家が持つ辺 — 欄(edgeOwner / edges[].neighbor)が言えばそれ、無ければ当家の run が載る辺。"""
@@ -2221,32 +2239,7 @@ def main(argv):
     out = None
     if "--out" in argv:
         out = argv[argv.index("--out") + 1]
-    gap = _slope_model_gap(est)
-    if gap and out is None:
-        print("⛔ %s の図は焼かない(EDO-0270): %s" % (est, gap))
-        print("   試し焼きは --out <捨て場>.html(検査の記録もそこへ落ちる)。")
-        return 2
     return 1 if build(est, deep="--deep" in argv, out=out) else 0
-
-
-def _slope_model_gap(est):
-    """指図が宣言している法面の式を、この生成器が解けないなら理由を返す(解けるなら None)。
-
-    生成器の法面は lib の ray 式(`const.featherCap` で打ち切る旧式)。山王は 2026-09-19 の裁定(案A)で
-    「土留めを障害物とした測地距離の一枚の土の面」へ入れ替え、その入力の `terrainCheck.gradedCover.wallCollarM`
-    を持つ。⛔ 旧式で焼くと切盛図の法面が別物になる(山王で 852 m² → 21,976 m²・最大 6.26 m)うえ、
-    枝 sashizu/sanno の図(36 枚)が 25 枚へ痩せた図に置き換わる。⚠ 欄の有無で見る — 邸名で分けない。"""
-    try:
-        with open(os.path.join(DOC, est + "_sashizu.json"), encoding="utf-8") as f:
-            d = json.load(f)
-    except Exception:  # noqa: BLE001
-        return None
-    gc = (d.get("terrainCheck") or {}).get("gradedCover") or {}
-    if "wallCollarM" not in gc:
-        return None
-    return ("法面が『一枚の土の面』(terrainCheck.gradedCover.wallCollarM)で宣言されているが、共通の生成器は"
-            "旧い ray 式でしか解けない。取り込む元は枝 sashizu/sanno の cone_field()(4bc89706..bbdb6b5a・"
-            "土留め・石段・開口の読みごと)。取り込むまでは焼かない")
 
 
 if __name__ == "__main__":

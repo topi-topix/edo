@@ -1268,10 +1268,14 @@ def _sens_file(estate):
     return _os.path.join(sens_root(), estate + "_sensitivity.json")
 
 
-def _sha(path):
+def _sha(path, *more):
+    """ファイルの指紋。`more` があれば、その中身も続けて混ぜる(生成器が別ファイルの式を呼ぶとき)。"""
     try:
-        with open(path, "rb") as f:
-            return _hashlib.sha256(f.read()).hexdigest()[:16]
+        h = _hashlib.sha256()
+        for p in (path,) + more:
+            with open(p, "rb") as f:
+                h.update(f.read())
+        return h.hexdigest()[:16]
     except Exception:
         return "?"
 
@@ -1282,7 +1286,8 @@ def sens_fingerprint(estate):
     gen = _os.path.join(here, "build_%s_sashizu.py" % estate)
     if not _os.path.exists(gen):                       # 共通の生成器(2026-09-20 以降はこちらが既定)
         gen = _os.path.join(here, "build_sashizu.py")
-    return {"gen": _sha(gen),
+    soil = _os.path.join(here, "sashizu_soil.py")       # 法面の式(EDO-0270)── 生成器の一部として数える
+    return {"gen": _sha(gen, soil) if gen.endswith("build_sashizu.py") else _sha(gen),
             "json": _sha(_os.path.join(sens_root(), "%s_sashizu.json" % estate)),
             "md": _sha(_os.path.join(sens_root(), "%s_kosho.md" % estate)),
             "lib": _sha(_os.path.abspath(__file__))}

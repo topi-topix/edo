@@ -25,17 +25,22 @@
     "expect": "C03",
     "status": null,
     "rang": null
+   },
+   "長屋門を『屋根なし』にする": {
+    "expect": "C24",
+    "status": null,
+    "rang": null
    }
   }
  },
  "fingerprint": {
-  "gen": "f8dbe650eb3e43b8",
-  "json": "e60112ccd3d65e91",
-  "md": "e2ac4f8367cd9b0b",
-  "lib": "270958a0216c0e09"
+  "gen": "418ed82e3d95c300",
+  "json": "ec13726427f17b38",
+  "md": "8be6857c76307f90",
+  "lib": "1e769b0551da0eda"
  },
- "t": "2026-09-20T11:21:33",
+ "t": "2026-09-21T20:59:26",
  "secs": {
-  "common_probes": 1.4
+  "common_probes": 116.1
  }
 }

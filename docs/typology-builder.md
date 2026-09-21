@@ -49,11 +49,18 @@
 2026-08-26 に本体を `EdoBuild` へ移したとき、呼び手を変えずに 1 行委譲を残したので、以後に書かれた邸も
 そこを経由して書かれ続けた。名前が仕事を表さなくなった委譲は、こうして増える。
 
-⛔ **まだ片付いていない 1 本**:
+⭕ **最後の街区ビルダー `EdoSannoBukeBuilder` も解散した**(2026-09-21・EDO-0094・施主裁定A)。街区ビルダーは 0 本。
+行き先は「分割」でなく「解散」— 邸ごとに 3 本へ分ける旧案は**規則21「ビルダーは2本」より前の案**で、実施すると 3 本目以降を新造する。
 
-| 残っているビルダー | 何を握っているか | 次の手 |
+| 旧 Stage | 行き先 | 拾った値 |
 |---|---|---|
-| `EdoSannoBukeBuilder` | 丹羽・京極(`built: hand`)と樹下・社人(類型)が同居 | **解散**(EDO-0094・施主裁定A 2026-09-21)。丹羽(Stage4_Niwa)・京極(Stage5_Kyogoku)は `built: hand` で各々が指図を持つので**指図ビルダー**へ、樹下(Stage1_Juge)・社人八家(Stage2_Shanin)は `typology.json` で jisha 類型なので**類型ビルダー**へ寄せ、`EdoSannoBukeBuilder.cs` 自体を消す。内藤(Stage6)は 2026-09-21 に撤去済み(`45680d61`)。⛔ 邸ごとに 3 本へ分ける旧案は採らない — **規則21「ビルダーは2本」**(2026-09-20)より前の案で、実施すると 3 本目以降を新造することになる |
+| Stage1_Juge(樹下)・Stage2_Shanin(社人八家) | 類型ビルダー(`Edo_Typo_sannobuke_juge` / `_shanin`・`typology.json` は jisha 類型) | 表門・庭・板塀の姿を `typology.json` の `source` へ(確度U) |
+| Stage4_Niwa(丹羽)・Stage5_Kyogoku(京極) | **指図ビルダー**。ただし 2 邸とも `review_gate` が赤(不合格)で実装に入れない(規則18) | 値は各自の `<邸>_kosho.md` / 指図が持つ。シーンの旧邸(`Edo_Yashiki_NiwaSakyo` / `_KyogokuBitchu`)は正典のまま残す(規則1) |
+| Stage3_Sando(参道並木・鳥居・門前町)| 山王社の指図(`sanno_sashizu.json` は並木を置かない設計・二ノ鳥居/一ノ鳥居は指図が持つ)と類型 `sanno_monzen_*` | 消したコードの並木は指図が採らない判断と食い違っていた |
+| Stage7_Splat(この街区の地表塗り) | 持ち先なし(塗り直しが要るなら `unity-surface-authoring` の道具で) | 塗った結果は地形データに焼けている |
+| Stage0_Demolish・FixGroup・Well・Torii・PlaceGate・FrontWall | 廃止(呼び手なし。置き方は `EdoBuild` が正典・規則21) | — |
+
+⚠ 消したのは**コードだけ**で、シーンとプレハブには触れていない。⛔ 内藤(Stage6)は同じ理由で 2026-09-21 に先に撤去済み(`45680d61`)。
 
 ### 旧邸の重複を畳む(EDO-0299 ④ の後半)
 

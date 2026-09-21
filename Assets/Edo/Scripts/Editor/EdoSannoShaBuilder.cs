@@ -115,7 +115,7 @@ public static class EdoSannoShaBuilder
     // 辺: 0=S(前面道路) 1=W(山裾) 2=NW(参道コリドー沿い=表門) 3=N 4=E(南北小路沿い)
     static Vector2[] KANRI { get { return EdoParcels.Get("sannosha_kanri"); } }
     // 樹下邸: 北東麓。2026-08-26 二重定義を解消 — 正典は sannobuke_juge(旧 sannosha_juge 矩形は削除)。
-    // ここでは Stage6 のスプラット判定にのみ使う(建てるのは EdoSannoBukeBuilder.Stage1_Juge)。
+    // ここでは Stage6 のスプラット判定にのみ使う(建てるのは類型ビルダー = Edo_Typo_sannobuke_juge。旧 EdoSannoBukeBuilder は EDO-0094 で解散)。
     static Vector2[] JUGE { get { return EdoParcels.Get("sannobuke_juge"); } }
     // 門前町の道: 山麓の通りの北端から北東へ
     static readonly Vector2[] MONZEN_ROAD = {
@@ -651,9 +651,8 @@ public static class EdoSannoShaBuilder
     }
 
     // ---------- Stage 4: 樹下家邸(引退) ----------
-    // 2026-08-26 引退: 樹下邸は EdoSannoBukeBuilder.Stage0_Demolish(旧の撤去)+ Stage1_Juge
-    // (sannobuke_juge・同じグループ名 Edo_Sanno_JugeYashiki に建てる)が受け持つ。
-    // 旧実装(sannosha_juge の4点矩形前提)は git log で追う。
+    // 2026-08-26 引退: 樹下邸は旧 EdoSannoBukeBuilder.Stage1_Juge が受け持ち、2026-09-21(EDO-0094)から
+    // 類型ビルダー(Edo_Typo_sannobuke_juge)が受け持つ。旧実装は git log で追う。
     public static string Stage4_Juge()
     {
         // ⛔ **検図関門**(規則18)。指図が不合格のまま建てると、直った瞬間に建て直しになる。

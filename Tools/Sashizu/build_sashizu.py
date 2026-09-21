@@ -2221,7 +2221,32 @@ def main(argv):
     out = None
     if "--out" in argv:
         out = argv[argv.index("--out") + 1]
+    gap = _slope_model_gap(est)
+    if gap and out is None:
+        print("⛔ %s の図は焼かない(EDO-0270): %s" % (est, gap))
+        print("   試し焼きは --out <捨て場>.html(検査の記録もそこへ落ちる)。")
+        return 2
     return 1 if build(est, deep="--deep" in argv, out=out) else 0
+
+
+def _slope_model_gap(est):
+    """指図が宣言している法面の式を、この生成器が解けないなら理由を返す(解けるなら None)。
+
+    生成器の法面は lib の ray 式(`const.featherCap` で打ち切る旧式)。山王は 2026-09-19 の裁定(案A)で
+    「土留めを障害物とした測地距離の一枚の土の面」へ入れ替え、その入力の `terrainCheck.gradedCover.wallCollarM`
+    を持つ。⛔ 旧式で焼くと切盛図の法面が別物になる(山王で 852 m² → 21,976 m²・最大 6.26 m)うえ、
+    枝 sashizu/sanno の図(36 枚)が 25 枚へ痩せた図に置き換わる。⚠ 欄の有無で見る — 邸名で分けない。"""
+    try:
+        with open(os.path.join(DOC, est + "_sashizu.json"), encoding="utf-8") as f:
+            d = json.load(f)
+    except Exception:  # noqa: BLE001
+        return None
+    gc = (d.get("terrainCheck") or {}).get("gradedCover") or {}
+    if "wallCollarM" not in gc:
+        return None
+    return ("法面が『一枚の土の面』(terrainCheck.gradedCover.wallCollarM)で宣言されているが、共通の生成器は"
+            "旧い ray 式でしか解けない。取り込む元は枝 sashizu/sanno の cone_field()(4bc89706..bbdb6b5a・"
+            "土留め・石段・開口の読みごと)。取り込むまでは焼かない")
 
 
 if __name__ == "__main__":

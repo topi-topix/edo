@@ -10,13 +10,19 @@
   "_roofMeasure": {
     "_": "実装の輪で屋根を『幾何』で数える規則。単一メッシュの門(Matsudaira_Omotemon.fbx 等)は部材の名前で屋根を判定できないので、開口の上の面を測る。 ⚠ 値は仮(P)。松江松平の屋根なし冠木門(0本)と長屋門(土井・岡部)の実測で締める — EdoGateComplete.Run の報告に実測値が毎回出る。",
     "clearance": 2.6,
-    "minDepthFrac": 0.6,
+    "minDepthFrac": 0.8,
     "minAreaFrac": 0.5,
     "_clearance": "門の柱の開口の上端の目安(m)。敷居 + これ より上で、上向き(法線 y > 0.3)の面を屋根の候補とする。冠木の上面は細いので届かない。",
-    "_minDepthFrac": "屋根の候補の奥行方向の広がりが monD のこの割合以上(冠木1本の幅 0.3m と区別する)",
+    "_minDepthFrac": "屋根の候補の奥行方向の広がりが monD のこの割合以上(冠木1本の幅 0.5m と区別する。0.6 では屋根なし冠木門の余裕が 0.5m/0.72m と薄かったので 0.8 へ)",
     "_minAreaFrac": "屋根の候補の面積が monW × monD のこの割合以上",
     "minWidthFrac": 0.6,
-    "_minWidthFrac": "屋根の候補の走り方向の広がりが monW のこの割合以上"
+    "_minWidthFrac": "屋根の候補の走り方向の広がりが monW のこの割合以上",
+    "_calibration": {
+      "_": "2026-09-21 Blender(--background)で FBX を直に測った実測(Unity で置く前の部材そのもの・clearance 2.6)。Unity の実測(EdoGateComplete.Run)で確かめて締める。",
+      "Matsudaira_Omotemon.fbx(屋根なし冠木門・monW4.5/monD1.2)": "面積 3.99 m² / 奥行 0.50 m / 走り 5.20 m → 面積と走りは通るが奥行 0.50 < 0.96 で『屋根なし』と読める(奥行が効いている。面積だけでは屋根と誤読する)",
+      "Doi_Nagayamon.fbx(長屋門・monW11.82/monD4.5)": "面積 129.35 m² / 奥行 4.37 m / 走り 11.82 m → 3つとも余裕で『屋根あり』",
+      "Munamon_2.73.fbx(棟門)": "面積 26.91 m² / 奥行 2.56 m / 走り 4.49 m → 屋根の広がりを持つ(monD 不明のため判定は Unity で)"
+    }
   },
   "types": {
     "romon": {

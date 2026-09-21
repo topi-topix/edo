@@ -1562,6 +1562,13 @@ public static class EdoAssets
         public const string SolidMatDir = "Assets/Edo/Materials/Solid";
         public static string SolidMat(string hex) { return SolidMatDir + "/Solid_" + hex + ".mat"; }
 
+        /// <summary>**コードで起こしたメッシュ**の置き場。`EdoSolidMesh.Save(mesh, 名)` が
+        /// `&lt;名&gt;_&lt;中身の指紋&gt;.asset` で 1 枚だけ起こす(EDO-0332)。⛔ `new Mesh()` を
+        /// そのまま `sharedMesh` へ入れると、プレハブの m_Mesh が null になり、そのプレハブを
+        /// 別の場所へ置いた途端にその部材だけ消える。⛔ 手で作る資産はここへ置かない — 生成物だけ。</summary>
+        public const string GenMeshDir = "Assets/Edo/Meshes/Gen";
+        public static string GenMesh(string name) { return GenMeshDir + "/" + name + ".asset"; }
+
         /// <summary>松江松平邸の表門 — **屋根なしの冠木門**(角柱・冠木・内開きの板戸)。
         /// 姿は温古写真集11(88005761・明治初撮影)の実見【A】+『日本案内記 関東篇』昭和5年【A】。
         /// ⚠ 切妻小屋根を載せる前案は 2026-08-23 に撤回済み。**屋根なしが正**。

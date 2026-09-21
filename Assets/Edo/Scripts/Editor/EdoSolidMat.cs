@@ -106,9 +106,11 @@ public static class EdoSolidMat
     /// **プレハブ資産の側へも焼く**(EDO-0301)。付け替えるだけではシーンの override が資産の参照に変わるだけで、
     /// プレハブ資産側は null のまま — そのプレハブを別の場所へ置くとマゼンタになる。
     ///
-    /// 焼き方: 付け替えた枠の**最寄りのプレハブインスタンス**ごとに、材質の override だけを
-    /// <c>ApplyPrefabInstance</c> で資産へ書く。入れ子は**内側から**(段 → ルート)。
-    /// ⛔ 材質以外の override(位置の手直しなど)があるインスタンスは**焼かない** — 名指しで残す。
+    /// 焼き方: 付け替えた枠の**最寄りのプレハブインスタンス**ごとに
+    /// <see cref="EdoYashikiPrefab.BakeAssetSwaps"/> で資産へ書く(内側から・資産への差し替えだけ)。
+    /// ⛔ 位置の手直しなど**差し替え以外の override** があるインスタンスは焼かない — 名指しで残す。
+    /// ⛔ **メッシュが資産でないインスタンスも焼かない** — 焼くと資産側の m_Mesh が null になる。
+    ///    先に `Edo/屋敷/埋め込みメッシュを資産へ` を通すこと(EDO-0332)。
     /// <paramref name="onlyRoots"/> を渡すとそのルートだけ(試験用)。null なら全ルート。
     /// </summary>
     public static string Migrate(UnityEngine.SceneManagement.Scene scene,
@@ -142,7 +144,7 @@ public static class EdoSolidMat
                     }
                     if (so == null) continue;
                     so.ApplyModifiedPropertiesWithoutUndo();
-                    var near = BakeTarget(rd);
+                    var near = EdoYashikiPrefab.BakeTargetFor(rd);
                     if (near != null) instances.Add(near);
                     else if (!PrefabUtility.IsPartOfPrefabInstance(rd)) plain.Add(root.name);
                     else kitOnly.Add(root.name);
@@ -153,68 +155,16 @@ public static class EdoSolidMat
         AssetDatabase.SaveAssets();
         made0 = AssetDatabase.FindAssets("t:Material", new[] { EdoAssets.Own.SolidMatDir }).Length;
 
-        // 内側(深い)インスタンスから焼く。浅い側の override は、内側が焼けると消える。
-        var order = new System.Collections.Generic.List<GameObject>(instances);
-        order.Sort((a, b) => Depth(b.transform).CompareTo(Depth(a.transform)));
-        int baked = 0; var refused = new System.Collections.Generic.List<string>();
-        foreach (var inst in order)
-        {
-            if (inst == null) continue;
-            // ⛔ 焼く前に「材質だけ」を確かめる。⚠ GetObjectOverrides(inst, true) は名前・位置の**既定の override**
-            //   まで数えるので、これで判定すると全ルートが断られる(2026-09-21 実測: 1 枠のルートで 3 件)。
-            string why = NotOnlyMaterials(inst);
-            if (why != null) { refused.Add(inst.name + "(" + why + ")"); continue; }
-            PrefabUtility.ApplyPrefabInstance(inst, InteractionMode.AutomatedAction);
-            baked++;
-        }
+        // 焼くのは EdoYashikiPrefab.BakeAssetSwaps(内側から・資産を指す差し替えだけ)。
+        // ⛔ メッシュが資産でないインスタンスはここで断られる(EDO-0332)— 焼くと資産側の m_Mesh が null になる。
+        int baked; string refused = EdoYashikiPrefab.BakeAssetSwaps(instances, out baked);
         UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
-        return $"付け替え {slots} 枠 / {rootsHit} ルート / 材質資産 {made0} 枚 / 焼いたインスタンス {baked}/{order.Count}"
+        return $"付け替え {slots} 枠 / {rootsHit} ルート / 材質資産 {made0} 枚 / 焼いたインスタンス {baked}/{instances.Count}"
              + (kitOnly.Count > 0 ? $" / ⛔ 焼く先が邸のプレハブの外 {kitOnly.Count}({string.Join(",", kitOnly)})" : "")
              + (plain.Count > 0 ? $" / プレハブでないルート {plain.Count}({string.Join(",", plain)})" : "")
-             + (refused.Count > 0 ? "\n⛔ 焼かなかった: " + string.Join(", ", refused) : "")
+             + (refused.Length > 0 ? "\n⛔ 焼かなかった: " + refused : "")
              + $"  ms={sw.ElapsedMilliseconds}";
     }
-
-    /// <summary>この枠の材質を**焼いてよい**プレハブインスタンス。内側から外へ辿り、資産が
-    /// <see cref="EdoYashikiPrefab.Dir"/> の下(赤坂の邸・段のプレハブ)にある最初の物。
-    /// ⛔ **部品(キット・木・門など)の資産へは焼かない。** 部品のインスタンスへの材質の差し替えは
-    ///   「その邸のその場所だけ」の override で、部品の資産へ焼くと**同じ部品を使う全部の場所**の色が変わる。
-    ///   外側の邸のプレハブへ焼けば、入れ子の変更としてそこに残る。無ければ null。</summary>
-    static GameObject BakeTarget(Component c)
-    {
-        var g = c.gameObject;
-        while (g != null)
-        {
-            var inst = PrefabUtility.GetNearestPrefabInstanceRoot(g);
-            if (inst == null) return null;
-            var src = PrefabUtility.GetCorrespondingObjectFromSource(inst);
-            var path = src != null ? AssetDatabase.GetAssetPath(src) : "";
-            if (path.StartsWith(EdoYashikiPrefab.Dir + "/")) return inst;
-            g = inst.transform.parent != null ? inst.transform.parent.gameObject : null;
-        }
-        return null;
-    }
-
-    /// <summary>このインスタンスの override が「レンダラーの m_Materials だけ」か。違えば理由を返す(焼いてよければ null)。
-    /// ルート自身の名前・位置・回転は既定の override なので許す(ApplyPrefabInstance も資産へは書かない)。</summary>
-    static string NotOnlyMaterials(GameObject inst)
-    {
-        if (PrefabUtility.GetAddedGameObjects(inst).Count + PrefabUtility.GetRemovedGameObjects(inst).Count > 0)
-            return "構造の手直しあり";
-        if (PrefabUtility.GetAddedComponents(inst).Count + PrefabUtility.GetRemovedComponents(inst).Count > 0)
-            return "部品の増減あり";
-        var srcRoot = PrefabUtility.GetCorrespondingObjectFromSource(inst);
-        foreach (var mod in PrefabUtility.GetPropertyModifications(inst))
-        {
-            var t = mod.target;
-            if (t is Renderer) { if (!mod.propertyPath.StartsWith("m_Materials")) return "材質以外の override: " + mod.propertyPath; }
-            else if (srcRoot != null && (t == srcRoot || t == srcRoot.transform)) { /* ルートの名前・位置・回転 */ }
-            else if (t != null) return "レンダラー以外の override: " + t.GetType().Name + "." + mod.propertyPath;
-        }
-        return null;
-    }
-
-    static int Depth(Transform t) { int d = 0; for (; t != null; t = t.parent) d++; return d; }
 
     [MenuItem("Edo/屋敷/埋め込み材質を資産へ(選択中のルートだけ)")]
     public static void MigrateSelectedMenu()

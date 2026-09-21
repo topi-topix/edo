@@ -683,6 +683,9 @@ public static class EdoYashikiPrefab
                     + "(赤坂で 162 本中 74 本)。EDO-0301 で **ビルダーは EdoSolidMat.Get に改め**、既存分は"
                     + " Edo/屋敷/埋め込み材質を資産へ(全ルート) で焼く。下の「資産でない材質」が 0 なら直っている。");
         sb.AppendLine("材質: " + EdoSolidMat.CountLoose(scene));
+        sb.AppendLine("メッシュ: " + EdoSolidMesh.CountLoose(scene)
+                    + "   ⛔ 0 でなければ、そのルートは材質も焼けない(焼くと資産側の m_Mesh が null になるので"
+                    + " 門番が断る)。Edo/屋敷/埋め込みメッシュを資産へ(全ルート) で直す。EDO-0332");
         sb.Append(StageStatus(scene));
         return sb.ToString();
     }
@@ -711,4 +714,91 @@ public static class EdoYashikiPrefab
         }
         return sb.ToString();
     }
+
+    // ───────── コードで起こした物を資産へ付け替えたあと、プレハブ資産へ焼く(EDO-0301 / EDO-0332) ─────────
+    //
+    // ⛔ **資産でない物(コードの new Material / new Mesh)を指したまま焼くと、資産側が null になる。**
+    //   シーンでは override が効くので見た目は正しく、そのプレハブを**別の場所へ置いた瞬間**に
+    //   マゼンタ(材質)・不可視(メッシュ)になる。焼く前に「指し先が資産か」を必ず確かめる。
+    //   付け替えの側は EdoSolidMat.Get(色) / EdoSolidMesh.Save(メッシュ, 名) が持つ。
+
+    /// <summary>この枠の override を**焼いてよい**プレハブインスタンス。内側から外へ辿り、資産が
+    /// <see cref="Dir"/> の下(赤坂の邸・段のプレハブ)にある最初の物。
+    /// ⛔ **部品(キット・木・門など)の資産へは焼かない。** 部品のインスタンスへの差し替えは
+    ///   「その邸のその場所だけ」の override で、部品の資産へ焼くと**同じ部品を使う全部の場所**が変わる。
+    ///   外側の邸のプレハブへ焼けば、入れ子の変更としてそこに残る。無ければ null。</summary>
+    public static GameObject BakeTargetFor(Component c)
+    {
+        var g = c != null ? c.gameObject : null;
+        while (g != null)
+        {
+            var inst = PrefabUtility.GetNearestPrefabInstanceRoot(g);
+            if (inst == null) return null;
+            var src = PrefabUtility.GetCorrespondingObjectFromSource(inst);
+            var path = src != null ? AssetDatabase.GetAssetPath(src) : "";
+            if (path.StartsWith(Dir + "/")) return inst;
+            g = inst.transform.parent != null ? inst.transform.parent.gameObject : null;
+        }
+        return null;
+    }
+
+    /// <summary>付け替えたインスタンス群をプレハブ資産へ焼く。入れ子は**内側から**(段 → ルート) —
+    /// 内側が焼けると浅い側の同じ override は消える。焼いた数を <paramref name="baked"/> に返し、
+    /// 断った物は理由つきの一覧を返す(空なら全部焼けた)。</summary>
+    public static string BakeAssetSwaps(ICollection<GameObject> instances, out int baked)
+    {
+        baked = 0;
+        var order = new List<GameObject>(instances);
+        order.Sort((a, b) => Depth(b.transform).CompareTo(Depth(a.transform)));
+        var refused = new List<string>();
+        foreach (var inst in order)
+        {
+            if (inst == null) continue;
+            string why = NotOnlyAssetSwap(inst);
+            if (why != null) { refused.Add(inst.name + "(" + why + ")"); continue; }
+            PrefabUtility.ApplyPrefabInstance(inst, InteractionMode.AutomatedAction);
+            baked++;
+        }
+        return refused.Count == 0 ? "" : string.Join(", ", refused);
+    }
+
+    /// <summary>このインスタンスの override が「レンダラーの材質・メッシュを**資産へ**差し替えただけ」か。
+    /// 違えば理由を返す(焼いてよければ null)。ルート自身の名前・位置・回転は既定の override なので許す
+    /// (ApplyPrefabInstance も資産へは書かない)。
+    /// ⚠ <c>GetObjectOverrides(inst, true)</c> で数えると既定の override まで拾って全ルートが断られる
+    ///   (2026-09-21 実測: 1 枠のルートで 3 件)。ここは PropertyModification を直に読む。</summary>
+    static string NotOnlyAssetSwap(GameObject inst)
+    {
+        if (PrefabUtility.GetAddedGameObjects(inst).Count + PrefabUtility.GetRemovedGameObjects(inst).Count > 0)
+            return "構造の手直しあり";
+        if (PrefabUtility.GetAddedComponents(inst).Count + PrefabUtility.GetRemovedComponents(inst).Count > 0)
+            return "部品の増減あり";
+        var srcRoot = PrefabUtility.GetCorrespondingObjectFromSource(inst);
+        foreach (var mod in PrefabUtility.GetPropertyModifications(inst))
+        {
+            var t = mod.target;
+            if (t is Renderer)
+            {
+                if (!mod.propertyPath.StartsWith("m_Materials")) return "材質以外の override: " + mod.propertyPath;
+                if (!PointsAtAsset(mod)) return "資産でない材質を指したまま: " + mod.propertyPath;
+            }
+            else if (t is MeshFilter || t is MeshCollider)
+            {
+                if (mod.propertyPath != "m_Mesh") return "メッシュ以外の override: " + mod.propertyPath;
+                if (!PointsAtAsset(mod)) return "資産でないメッシュを指したまま: " + mod.propertyPath;
+            }
+            else if (srcRoot != null && (t == srcRoot || t == srcRoot.transform)) { /* ルートの名前・位置・回転 */ }
+            else if (t != null) return "レンダラー以外の override: " + t.GetType().Name + "." + mod.propertyPath;
+        }
+        return null;
+    }
+
+    /// <summary>この override の指し先が資産か。null は「失う物が無い」ので許す。
+    /// ⛔ ここが EDO-0301/0332 の一線 — 資産でない物を指したまま焼くと資産側が null になる。</summary>
+    static bool PointsAtAsset(PropertyModification mod)
+    {
+        return mod.objectReference == null || AssetDatabase.Contains(mod.objectReference);
+    }
+
+    static int Depth(Transform t) { int d = 0; for (; t != null; t = t.parent) d++; return d; }
 }

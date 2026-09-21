@@ -698,7 +698,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 float worst = float.NaN;
                 foreach (var prev in made)
                 {
-                    var d3 = prev.transform.position - go.transform.position; d3.y = 0f;
+                    var d3 = PairDir(go, prev);
                     if (d3.sqrMagnitude < 1e-4f) { worst = -9f; break; }
                     Vector3 pat; int pn;
                     float gp = EdoBuild.Contact(go, prev, d3.normalized, out pat, out pn, 0.01f, 0.5f, 800);
@@ -764,6 +764,15 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
     {
         var L = new List<KeyValuePair<string, float>>();
         Action<string, float, int> add = (p, r, k) => { for (int i = 0; i < k; i++) L.Add(new KeyValuePair<string, float>(p, r)); };
+    /// <summary>二つの駒を**互いへ押し付ける向き**(a から b・水平)。⛔ 駒の基準点(ピボット)から基準点へ
+    /// 向けない — 基準点は部材ごとに端・角・中心とばらばらで、長い駒(御殿複合 80m 超)では向きが軸に沿って
+    /// −11.9m の嘘のめり込みが出た(2026-09-22・規則21)。**外形の中心どうし**で向ける。</summary>
+    static Vector3 PairDir(GameObject a, GameObject b)
+    {
+        var d = EdoBuild.RB(b).center - EdoBuild.RB(a).center; d.y = 0f;
+        return d;
+    }
+
         if (s.type == "buke")
         {
             // ⭐ 主屋の型は**表の `omoya` が勝つ**(区画 > defaults > 格帯。EDO-0327)。
@@ -928,6 +937,12 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 Vector3 at; int nc;
                 float dy = EdoBuild.Contact(t.gameObject, out at, out nc, 0.01f, VERTS);
                 if (float.IsNaN(dy)) continue;
+                // ⭐ 赤になりかけた駒だけ、間引かずに測り直す。⛔ 頂点の多い駒(屋敷林の木)は 800 点の
+                //    一様な間引きが根元の頂点を落とし、+0.97m の「浮き」が全頂点では −0.29m だった
+                //    (2026-09-22 todablock。EDO-0323 の指摘)。全区画を精密に測ると 79 区画が終わらないので、
+                //    ここだけ。測り直した値が本当の値 — 間引きの値で ⛔ を出さない(規則19)。
+                if (dy < -1.0f || dy > 0.7f)
+                    dy = EdoBuild.Contact(t.gameObject, out at, out nc, 0.01f, 60000);
                 if (dy < -1.0f) { sunk++; worstSunk = Mathf.Max(worstSunk, -dy); }
                 if (dy > 0.7f) { floated++; worstFloat = Mathf.Max(worstFloat, dy); }
                 if (nc > 1) multi++;
@@ -953,11 +968,21 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         if (tate != null)
         {
             var gs = new List<GameObject>();
-            foreach (Transform t in tate) if (t.GetComponentsInChildren<Renderer>().Length > 0) gs.Add(t.gameObject);
+            var own = new List<Transform>();            // 各駒がどの根に属するか(複合の内側どうしは測らない)
+            foreach (Transform t in tate)
+            {
+                if (t.GetComponentsInChildren<Renderer>().Length == 0) continue;
+                // ⭐ 御殿複合は**棟ごとに**測る。複合ぜんたいは 80m を超える長い駒で、基準点も外形も端に寄る —
+                //    一つの駒として測ると隣の蔵との向きが軸に沿って −11.9m の嘘が出た(2026-09-22)。
+                if (t.name == "Goten") foreach (Transform part in t) { gs.Add(part.gameObject); own.Add(t); }
+                else { gs.Add(t.gameObject); own.Add(t); }
+            }
             for (int i = 0; i < gs.Count; i++)
                 for (int j = i + 1; j < gs.Count; j++)
                 {
-                    var d3 = gs[j].transform.position - gs[i].transform.position; d3.y = 0f;
+                    // 複合の内側(渡廊下と棟)は軒がかぶるのが設計 — 取り合いは GotenComplex が屋根を外して測って刷る
+                    if (own[i] == own[j]) continue;
+                    var d3 = PairDir(gs[i], gs[j]);
                     if (d3.sqrMagnitude < 1e-4f) { minGap = Mathf.Min(minGap, -9f); continue; }
                     Vector3 at2; int n2;
                     float g = EdoBuild.Contact(gs[i], gs[j], d3.normalized, out at2, out n2, 0.01f, 0.5f, 800);

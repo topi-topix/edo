@@ -58,6 +58,11 @@ public static partial class EdoBuild
 
     /// <summary>[福井図] の 6,600 坪 = 21,818 m²。建蔽率の史料値が採れる唯一の上屋敷。</summary>
     const float GOTEN_FUKUI_M2 = 6600f * 3.3058f;
+    /// <summary>複合の足元の地面の起伏[m]の許容。複合は一枚の面で据える(いちばん高い地面に載る)ので、
+    /// 起伏はそのまま低い側の縁の下の高さになる。⚠ 数字は当方の見当【U】— 縁の下に束石と地覆が見える
+    /// 高さ(人の背丈ほど)を超えると高床に見えるので、その手前で切る。</summary>
+    const float GOTEN_RELIEF_OK = 2.0f;
+
     /// <summary>上屋敷の建蔽率(御殿+長屋)の史料値 5〜6割 [福井図] の中。</summary>
     const float GOTEN_KENPEI = 0.55f;
 
@@ -129,8 +134,12 @@ public static partial class EdoBuild
 
         // ── 段と据える所を選ぶ(下見。⛔ ここで建てない — 建てて測るのは選んだ一つだけ)────
         int tier = -1, side = 0; float bestU = 0f, bestV = 0f, bestScore = float.MaxValue;
+        float bestRelief = float.NaN;
+        // 起伏が大きくて採れる置き所が無かったときの次善(起伏がいちばん小さい置き所。同じなら小さい段)
+        int fbTier = -1, fbSide = 0; float fbU = 0f, fbV = 0f, fbRelief = float.MaxValue;
         var cen = Centroid(poly);
         float cenU = Vector2.Dot(cen - gateC, uDir), cenV = Vector2.Dot(cen - gateC, vDir);
+        var probe = Probe();
         for (int t = 0; t < GOTEN_TIERS.GetLength(0) && tier < 0; t++)
         {
             if (targetArea > 0f && TierArea(t) > targetArea) continue;   // 目標より大きい段は採らない
@@ -140,14 +149,28 @@ public static partial class EdoBuild
                     {
                         var rects = TierRects(t, sg, u0, v0);
                         if (!RectsFit(rects, poly, gateC, uDir, vDir, setback)) continue;
+                        // ⭐ 足元の起伏が小さい所へ据える。複合は一枚の面で据える(いちばん高い地面に載る)ので、
+                        //    起伏がそのまま**低い側の縁の下の高さ**になる。⛔ 中央への寄せだけで選ばない —
+                        //    2026-09-22 の三べ坂 abe は起伏 17m の斜面の真ん中を選び、10m の高床に据わった。
+                        float relief = ReliefUnder(rects, gateC, uDir, vDir, probe);
+                        if (relief < fbRelief - 1e-3f) { fbRelief = relief; fbTier = t; fbSide = sg; fbU = u0; fbV = v0; }
+                        if (relief > GOTEN_RELIEF_OK) continue;
                         // ⭐ 敷地の真ん中へ寄せる([中屋敷図]「御殿群は敷地中央に固まり、周囲は空地」)
                         float cu = 0f, cv = 0f;
                         foreach (var r in rects) { cu += (r.x + r.y) * 0.5f; cv += (r.z + r.w) * 0.5f; }
                         cu /= rects.Count; cv /= rects.Count;
                         float sc = Mathf.Abs(cu - cenU) + Mathf.Abs(cv - cenV);
-                        if (sc < bestScore) { bestScore = sc; tier = t; side = sg; bestU = u0; bestV = v0; }
+                        if (sc < bestScore) { bestScore = sc; tier = t; side = sg; bestU = u0; bestV = v0; bestRelief = relief; }
                     }
             if (tier >= 0) break;
+        }
+        string steep = "";
+        if (tier < 0 && fbTier >= 0)
+        {
+            // どの段も起伏の許容を超える — 起伏がいちばん小さい所を採り、⚠ を刷る(黙って高床にしない・規則19)
+            tier = fbTier; side = fbSide; bestU = fbU; bestV = fbV; bestRelief = fbRelief;
+            steep = string.Format("⚠ 足元の起伏 {0:F1}m が許容 {1:F1}m を超える(どの段でも) — 低い側の縁の下が最大 {0:F1}m 開く。" +
+                                  "斜面は造成か段の分けが要る(規則3・手組みの領分)", fbRelief, GOTEN_RELIEF_OK);
         }
         if (tier < 0)
         {
@@ -193,6 +216,7 @@ public static partial class EdoBuild
                                           colStart: false, colEnd: false);
                 if (rk != null)
                 {
+                    NameRoofs(rk);
                     // ⭐ 前の核の**実メッシュ**へ突き付ける(⛔ 屋根は外して測る — 渡廊下は軒の下を
                     //    くぐるのが正しい姿で、屋根ごと測ると軒先で 1.2m 手前に止まる)
                     if (prev != null) AbutQuiet(rk, prev, -ToV3(vDir), verts);
@@ -205,6 +229,7 @@ public static partial class EdoBuild
                                       root.transform, new Vector3(uc, 0f, vCur), 270f,
                                       w, d - 2, 1, 0.62f, EdoAssets.Goten.RoofIrimoya_(w, d));
             if (mu == null) { note = "⛔ 御殿複合: 棟が組めなかった(部材を検める)"; return root; }
+            NameRoofs(mu);
             if (prev != null) AbutQuiet(mu, prev, -ToV3(vDir), verts);
             cores.Add(mu); made.Add(new KeyValuePair<string, Vector2Int>(mu.name, new Vector2Int(w, d)));
             prev = mu;
@@ -228,8 +253,10 @@ public static partial class EdoBuild
         for (int i = 0; i < links.Count; i++)
         {
             Vector3 at; int nc;
-            float g1 = Contact(links[i], cores[i], ToV3(vDir), out at, out nc, 0.01f, 0.25f, verts, false);
-            float g2 = Contact(links[i], cores[i + 1], -ToV3(vDir), out at, out nc, 0.01f, 0.25f, verts, false);
+            // ⭐ dir は「廊下から相手へ向かう向き」。手前の核(cores[i])は −v の側、奥の核(cores[i+1])は +v の側。
+            //    ⛔ 逆に書くと相手の背面まで測って −(核の奥行) が出る(2026-09-22 実測で −26.8m の嘘)。
+            float g1 = Contact(links[i], cores[i], -ToV3(vDir), out at, out nc, 0.01f, 0.25f, verts, false);
+            float g2 = Contact(links[i], cores[i + 1], ToV3(vDir), out at, out nc, 0.01f, 0.25f, verts, false);
             foreach (var g in new[] { g1, g2 })
                 if (!float.IsNaN(g) && (float.IsNaN(worstJoint) || g < worstJoint)) worstJoint = g;
         }
@@ -246,6 +273,8 @@ public static partial class EdoBuild
             outWall, outEave,
             float.IsNaN(worstJoint) ? "⛔測れず"
                 : string.Format("{0:F2}m{1}", worstJoint, worstJoint < -0.01f ? "(⛔ めり込み)" : ""));
+        note += string.Format("\n    足元の起伏(下見) {0:F2}m(許容 {1:F1}m){2}", bestRelief, GOTEN_RELIEF_OK,
+                              steep.Length > 0 ? "\n    " + steep : "");
         return root;
     }
 
@@ -253,6 +282,25 @@ public static partial class EdoBuild
 
     static Vector3 ToV3(Vector2 v) { return new Vector3(v.x, 0f, v.y); }
     static string Tail(string n) { int i = n.LastIndexOf('_'); return i < 0 ? n : n.Substring(i + 1); }
+
+    /// <summary>矩形の並びの足元の地面の起伏 = 最高 − 最低[m]。矩形を 3m 格子で引く(地形は 2m/px)。</summary>
+    static float ReliefUnder(List<Vector4> rects, Vector2 org, Vector2 uDir, Vector2 vDir, GroundProbe probe)
+    {
+        float lo = float.MaxValue, hi = float.MinValue;
+        foreach (var r in rects)
+        {
+            int nu = Mathf.Max(2, Mathf.CeilToInt((r.y - r.x) / 3f)), nv = Mathf.Max(2, Mathf.CeilToInt((r.w - r.z) / 3f));
+            for (int i = 0; i <= nu; i++)
+                for (int j = 0; j <= nv; j++)
+                {
+                    float u = Mathf.Lerp(r.x, r.y, i / (float)nu), v = Mathf.Lerp(r.z, r.w, j / (float)nv);
+                    var w = org + uDir * u + vDir * v;
+                    float y = probe.At(w.x, w.y);
+                    if (y < lo) lo = y; if (y > hi) hi = y;
+                }
+        }
+        return hi - lo;
+    }
 
     /// <summary>段の建坪[m²](玄関を含まない3核)。</summary>
     static float TierArea(int t)
@@ -337,6 +385,21 @@ public static partial class EdoBuild
     }
 
     /// <summary>相手の駒へ突き付ける(屋根を外して測る)。向き合っていなければ動かさない。</summary>
+    /// <summary>屋根の駒の名を、<see cref="IsRoofName"/> の篩に掛かる名にする。
+    /// <para>⛔ 2026-09-22 に踏んだ(EDO-0318 ⑥): 御殿キットの屋根は `Goten_Roof_Irimoya_…` /
+    /// `Goten_Roof_Kirizuma_…` で、`Body()` の屋根の篩(yane/noki/taruki/mune/keta のローマ字)に
+    /// **掛からない**。「屋根を外して測る」つもりが屋根込みで測り、廊下の屋根の棟が相手の軒と同じ高さの筋に
+    /// 入ると −1.1m のめり込みが出た(据えで全体が動くと筋の割り付けが変わって現れる)。
+    /// ⛔ 篩(`IsRoofName`)を広げない — 他邸の壁体の実測値が黙って動く。この複合の駒の中だけで名を付ける。</para></summary>
+    static void NameRoofs(GameObject piece)
+    {
+        foreach (var mf in piece.GetComponentsInChildren<MeshFilter>(true))
+        {
+            string n = mf.gameObject.name;
+            if (n.ToLower().Contains("roof") && !IsRoofName(n)) mf.gameObject.name = n + "_yane";
+        }
+    }
+
     static void AbutQuiet(GameObject mover, GameObject other, Vector3 dir, int verts)
     {
         Vector3 at; int nc;

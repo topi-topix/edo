@@ -19,7 +19,7 @@
 焼くだけで、フィルタは焼いた後にブラウザ側で効く(JSで表示/非表示を切り替えるだけ・
 サーバもDBも無い)。
 """
-import html, json, os, re, subprocess, sys, time
+import hashlib, html, json, os, re, shutil, subprocess, sys, time
 from urllib.parse import quote
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -1495,12 +1495,68 @@ SHELL = """<title>普請場の一枚</title>
 """
 
 
+def board_version():
+    """**掲示板の版** = 件の json の**中身そのもの**から採る指紋。
+
+    ⭐ **楽観ロックの物差し(2026-09-22 施主指示)。**焼く前に採って `baked.json` へ書き、
+    上げる直前に `--check-fresh` で照合する。同じなら上げてよい。違えば**焼き直してから上げる** —
+    板は件の json から毎回作り直すので、焼き直した一枚には自分の分も相手の分も入る。
+
+    ⛔ **時刻で測らない。**(a) 件が**消える**と一番新しい mtime は下がり、「覆っている」と誤って読める。
+    (b) 先に焼いて後から上げた相手の判は、壁時計だけ新しくて中身が古い。
+    ⭐ 版が同じなら中身が同じ — **誰が上げたかに関わらず**、公開中の一枚が今の板を写していると判る。
+    だから取り合いになっても、相手の一枚に自分の分が入っていれば上げ直さずに済む。
+
+    ⚠ 見るのは**件の json だけ**。claim の心拍は数秒ごとに動くので**わざと入れない**
+    (入れると一枚が永久に「古い」になる)。同じ理由で main の HEAD も入れない —
+    commits 欄が少し遅れるのは承知のうえ。"""
+    h = hashlib.sha256()
+    for fn in sorted(os.listdir(BOARD)):
+        if re.match(r"EDO-\d+\.json$", fn):
+            h.update(fn.encode("utf-8"))
+            with open(os.path.join(BOARD, fn), "rb") as f:
+                h.update(f.read())
+    return h.hexdigest()[:16]
+
+
+def _load(path):
+    try:
+        return json.load(open(path, encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def stage(dst_dir):
+    """焼いた一枚を、Artifact へ渡せる場所(作業ツリーの中)へ写す。
+    ⚠ worktree の `.git` はファイルなので、`.git/edo-board/_pm/` を直に渡すと開けない。"""
+    os.makedirs(dst_dir, exist_ok=True)
+    for fn in ("index.html", "dashboard.html"):
+        shutil.copy2(os.path.join(OUT, fn), os.path.join(dst_dir, fn))
+    print("写した: %s" % dst_dir)
+
+
+def check_fresh():
+    """焼いた一枚が**今の**掲示板と同じ版か。同じなら 0、焼いてから板が動いていれば 1。"""
+    baked = _load(os.path.join(OUT, "baked.json")).get("version")
+    now = board_version()
+    if baked == now:
+        print("焼いた一枚は今の掲示板と同じ版(%s)— そのまま上げてよい" % now)
+        return 0
+    print("⛔ 焼いてから掲示板が動いた(焼き %s → 板 %s)— `--stage <写す先>` で焼き直してから上げること"
+          % (baked or "(無し)", now))
+    return 1
+
+
 def stamp_published(url):
     """⛔ **焼いた ≠ 施主に届いた。**2026-09-02 に焼いた一枚が 17 日 Artifact のまま古びて、
     施主が掲示板を見失った(2026-09-19)。公開した側がここへ判を押し、挨拶フックが
-    「掲示板が動いたのに一枚が古い」を鳴らす。"""
+    「掲示板が動いたのに一枚が古い」を鳴らす。
+
+    ⭐ **判は `version`(上げた一枚の版)も持つ。**壁時計の `at` だけでは
+    「判のほうが新しいのに、その板には後から起票された件が入っていない」を見分けられない。"""
     os.makedirs(OUT, exist_ok=True)
-    json.dump({"at": time.time(), "url": url},
+    json.dump({"at": time.time(), "url": url,
+               "version": _load(os.path.join(OUT, "baked.json")).get("version", "")},
               open(os.path.join(OUT, "published.json"), "w", encoding="utf-8"),
               ensure_ascii=False, indent=1)
     print("判を押した: %s" % os.path.join(OUT, "published.json"))
@@ -1511,6 +1567,12 @@ def main():
         i = sys.argv.index("--published")
         stamp_published(sys.argv[i + 1] if len(sys.argv) > i + 1 else "")
         return
+    if "--check-fresh" in sys.argv:
+        sys.exit(check_fresh())
+    if "--version" in sys.argv:     # 今の掲示板の版だけを出す(焼かない・フックの判定用)
+        print(board_version())
+        return
+    version = board_version()       # ⭐ **読む前に採る。**焼いている間に動いた分は次回へ回す
     issues = load_issues()
     pending = load_pending()
     commits = load_commits()
@@ -1525,8 +1587,15 @@ def main():
     open(os.path.join(OUT, "dashboard.html"), "w", encoding="utf-8").write(
         build_html(issues, pending, commits, claims, states, summary, reviews, typology))
     open(os.path.join(OUT, "index.html"), "w", encoding="utf-8").write(SHELL)
-    print("dashboard: %s\nsummary:   %s" % (os.path.join(OUT, "dashboard.html"),
-                                            os.path.join(OUT, "summary.json")))
+    json.dump({"at": time.time(), "version": version},
+              open(os.path.join(OUT, "baked.json"), "w", encoding="utf-8"),
+              ensure_ascii=False, indent=1)
+    print("dashboard: %s\nsummary:   %s\n掲示板の版: %s"
+          % (os.path.join(OUT, "dashboard.html"), os.path.join(OUT, "summary.json"), version))
+    if "--stage" in sys.argv:
+        i = sys.argv.index("--stage")
+        if len(sys.argv) > i + 1:
+            stage(sys.argv[i + 1])
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@
 ⛔ 焼いた ≠ 届いた。判は `build_board_html.py --published <URL>` で押す。
 正典: docs/session-board.md「普請場の一枚」
 """
-import json, os, re, shutil, subprocess, sys, time
+import json, os, re, subprocess, sys, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)                       # .claude/
@@ -37,7 +37,8 @@ def main_root():
 
 
 def stage_for_artifact(board, cwd):
-    """Artifact へ渡せる **絶対パス** (index.html, dashboard.html) を返す。
+    """Artifact へ渡せる **写す先と絶対パス** (写す先, index.html, dashboard.html) を返す。
+    写すのは `build_board_html.py --stage <写す先>`(焼いた直後に一手で写る)。
 
     ⚠ 相対の `.git/edo-board/_pm/...` を渡してはいけない。**worktree では `.git` が
     ディレクトリでなくファイル**なので `ENOTDIR` で開けない(2026-09-22 実測)。実体は
@@ -49,16 +50,23 @@ def stage_for_artifact(board, cwd):
     実体をそのまま渡す枝を作らない — `.git/` 配下を渡す形は Artifact で通した実績が無く、
     普段は worktree から呼ばれるので**壊れても誰も踏まずに残る**。
     """
-    idx = os.path.join(board, "_pm", "index.html")
-    dash = os.path.join(board, "_pm", "dashboard.html")
     dst = os.path.join(os.path.realpath(cwd), "Temp", "edo-board")
+    return dst, os.path.join(dst, "index.html"), os.path.join(dst, "dashboard.html")
+
+
+def board_version(root):
+    """今の掲示板の版。正典は `build_board_html.board_version` — ここでは計算しない
+    (同じ式を二つ持つと、片方を直したときに静かに食い違う)。呼べなければ None。"""
+    gen = os.path.join(root, "Tools", "Session", "build_board_html.py")
+    if not os.path.exists(gen):
+        return None
     try:
-        os.makedirs(dst, exist_ok=True)
-        shutil.copy2(idx, os.path.join(dst, "index.html"))
-        shutil.copy2(dash, os.path.join(dst, "dashboard.html"))
-        return os.path.join(dst, "index.html"), os.path.join(dst, "dashboard.html")
+        r = subprocess.run([sys.executable, gen, "--version"], cwd=root,
+                           capture_output=True, text=True, timeout=20)
     except Exception:
-        return idx, dash                          # 写せなければ実体を出す(理由は publish の失敗に出る)
+        return None
+    v = (r.stdout or "").strip().splitlines()[-1:] or [""]
+    return v[0] if r.returncode == 0 and re.fullmatch(r"[0-9a-f]{16}", v[0]) else None
 
 
 def main():
@@ -85,22 +93,28 @@ def main():
             stamp = {}
     at = stamp.get("at", 0)
     url = stamp.get("url") or DEFAULT_URL
+    ver, pub_ver = board_version(root), stamp.get("version")
     reasons = []
 
     # ── ① 板が公開より新しい → 焼いてから、公開を頼む
-    if newest - at > 60:
+    # ⭐ **版で測る(2026-09-22 施主指示)。**版が同じなら、誰が上げた一枚でも今の板を写している。
+    #   ⛔ 壁時計の `at` で測らない — 先に焼いて後から上げた相手の判は、時刻だけ新しくて中身が古い。
+    #   版を採れない/判が版を持たないときだけ、旧来の時刻の比べ方へ後退する。
+    if (ver != pub_ver) if (ver and pub_ver) else (newest - at > 60):
         gen = os.path.join(root, "Tools", "Session", "build_board_html.py")
+        stage_dir_idx = stage_for_artifact(board, ev.get("cwd") or ROOT)
+        stage_dir = stage_dir_idx[0]
         baked = os.path.join(board, "_pm", "dashboard.html")
         ok = False
         if os.path.exists(gen):
             try:
-                r = subprocess.run([sys.executable, gen], cwd=root, capture_output=True,
-                                   text=True, timeout=120)
+                r = subprocess.run([sys.executable, gen, "--stage", stage_dir], cwd=root,
+                                   capture_output=True, text=True, timeout=120)
                 ok = r.returncode == 0
             except Exception:
                 ok = False
         late = (newest - at) / 3600.0
-        idx_p, dash_p = stage_for_artifact(board, ev.get("cwd") or ROOT)   # ⚠ 焼いた後に写す
+        idx_p, dash_p = stage_dir_idx[1], stage_dir_idx[2]
         how = ('Artifact(file_path="%s", url="%s", '
                'files={"board.html": "%s"}, '
                'overwrite_unread=["board.html"])' % (idx_p, url, dash_p))
@@ -109,18 +123,20 @@ def main():
             "**中身だけ**を差し替えて上げ("
             "⛔ 板の本体 board.html を読み込まないこと — 大きくて文脈が飛ぶ・"
             "⛔ url を渡さないと別の図が生える):\n    %s\n  "
-            "上げるのを断られたら `Artifact(action=\"read\", url=\"%s\")` を1回打ってから、もう一度上げること"
-            "(これで読まれるのは板を表示する枠の頁だけで、板の本体は読まれない)。\n  "
-            "⚠ それでも「板の本体 board.html が別のセッションに差し替えられた」と断られたら、**上げ直さない**"
-            "(上げ直すには本体を読むことになり、⛔ に反する)。公開の判 %s の `at` が"
-            "自分の焼き %s の更新時刻より新しければ、別のセッションが同じ板をすでに上げている。"
-            "そのときは上げず、判も押さずに終えてよい。\n  "
-            "上げられたら、そのあと `python3 Tools/Session/build_board_html.py --published %s` で判を押してから終えること。"
+            "⚠ **上げる直前に `python3 Tools/Session/build_board_html.py --check-fresh`。**"
+            "「掲示板が動いた」と出たら、焼いた一枚は古い — 下の焼き直しをしてから上げること。\n  "
+            "上げるのを断られたら(枠の頁を見ていない/別のセッションが先に上げた):\n"
+            "    ① `Artifact(action=\"read\", url=\"%s\")` を1回"
+            "(読まれるのは板を表示する枠の頁だけで、板の本体は読まれない)\n"
+            "    ② `python3 Tools/Session/build_board_html.py --stage %s` で**焼き直して写す**\n"
+            "    ③ もう一度上げる\n  "
+            "⛔ **上げずに終えない。**焼き直した一枚には自分の分も相手の分も入る"
+            "(板は件の json から毎回作り直すので、取り合いにならない)。\n  "
+            "上げられたら `python3 Tools/Session/build_board_html.py --published %s` で判を押してから終えること。"
             % (("%.0f 時間ぶん" % late) if at else "",
                "**焼き直しは済ませた**ので、" if ok
                else "⛔ 焼き直しに失敗したので `python3 Tools/Session/build_board_html.py` を手で回してから、",
-               how, url, os.path.join(board, "_pm", "published.json"),
-               os.path.join(board, "_pm", "dashboard.html"), url))
+               how, url, stage_dir, url))
 
     # ── ② 自分が立てた裁定要請を、施主へ出さずに手を止めようとしている
     me = (ev.get("session_id") or "")[:12]

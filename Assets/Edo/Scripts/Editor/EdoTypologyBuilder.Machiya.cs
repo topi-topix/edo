@@ -70,8 +70,10 @@ public static partial class EdoTypologyBuilder
         string pattern = S(d, "pattern") ?? "auto";
 
         if (pattern == "none")
-            return string.Format("  町屋: 表店を建てない(表の pattern=none)— 間口 {0}間 / 奥行 {1}間 は読んだが効かせない",
-                                 s.maguchiKen, s.depthKen);
+            return string.Format("  町屋: 表店を建てない(表の pattern=none)— 間口 {0}間 / 奥行 {1}間 は読んだが効かせない{2}",
+                                 s.maguchiKen, s.depthKen,
+                                 // ⭐ 稲荷は表店の裏手へ据えるので、列が無ければ裏手が決まらない(黙って捨てない・規則19)
+                                 s.inari ? " / ⚠ 表の inari=true も建てない(表店列が無く裏手が決まらない)" : "");
 
         var fronts = MachiyaFrontEdges(s, edges, front);
         if (fronts.Count == 0) return "  ⛔ 町屋: 接道辺が無く表店を載せる辺が採れない";
@@ -140,6 +142,14 @@ public static partial class EdoTypologyBuilder
         if (dropped > 0) log.Add("    ⛔ 区画の外へ出て退けた駒 " + dropped + "枚 — その分だけ通りに歯抜けが残る");
         if (clashed > 0) log.Add("    角で先の列にめり込むので退けた駒 " + clashed
                                + "枚 — 両側町の二つの列が同じ角を取り合うため(角は空ける)");
+
+        // ── 稲荷(EDO-0326)── ⭐ **裏長屋より先**に据える(置き方の4手① — 固定側を先に置く)。
+        //    後にすると、裏長屋が奥行を埋め切った後で社の座が残らない。据えた社は built へ入るので、
+        //    裏長屋の列はそれを避けて並ぶ。
+        float shopD = Mathf.Max(EdoBuild.ShopMeasure(EdoAssets.Eg.Shop01).D,
+                                EdoBuild.ShopMeasure(EdoAssets.Eg.Shop02).D);
+        string inari = Inari(s, root, poly, fronts, shopD, gateC, built);
+        if (inari != null) log.Add(inari);
 
         log.Add(UraNagaya(s, root, poly, fronts, depthM, pad, built));
         log.Add(UnusedFields(s));
@@ -211,7 +221,6 @@ public static partial class EdoTypologyBuilder
         if (tana != DERIVE) miss.Add("tanagari=" + tana + "(店借の戸数 — 裏長屋の戸割りへ効かせる先が無い)");
         if (Bo(d, "shimatuya", false)) miss.Add("shimatuya=true(仕舞屋 — 表店と作り分ける駒が無い)");
         if (s.houses > 0) miss.Add("houses=" + s.houses + "(家数 — 軒数は辺長÷間口で出すので使わない)");
-        if (s.inari) miss.Add("inari=true(小祠と鳥居は在庫にあるが据える段が無い — EDO-0317 ②)");
         if (miss.Count == 0) return "    読んで使い道が無かった欄: 無し";
         return "    ⚠ 読んだが建つ姿に効かせていない欄: " + string.Join(" / ", miss.ToArray());
     }

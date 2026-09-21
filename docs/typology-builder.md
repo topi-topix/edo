@@ -291,6 +291,12 @@ Unity の実測と、プレハブの yaml から起こした判定は 36 本す�
 | 6 検査 | 隙 / 境界侵犯 / 埋没・浮き を**同じ Stage で測って刷る**(規則19。0 件でも刷る) | `JointQA` / `GroundQA` の型を共通化して区画 id ごとに件数を返す |
 | 7 切り出し | 建ったルートを `Assets/Edo/Prefabs/Scene/Edo_Typo_<id>.prefab` へ**1区画=1プレハブ**で書き出す(`EdoYashikiPrefab.One`)。シーンに残るのは参照だけ | — |
 
+⭐ **町屋の稲荷は Stage 4 ではなく Stage 3m の中**(EDO-0326・`EdoTypologyBuilder.Inari.cs` の `Inari()`)。
+町屋には主屋が無いので「主屋の裏」が引けず、拠り所は**自身番屋の裏**(表の `jishinban`。四丁目の西行稲荷は
+史料が「自身番裏」と書く)、無ければ表店列の端の裏【U】。⭐ **裏長屋より先に据える**(置き方の4手①)—
+後にすると奥行が埋まって社の座が残らない。据える・測る・参道のぶん離すのは `EdoBuild.InariSet`
+(`EdoBuildInari.cs`)だけで、参道は**祠の正面の実面**から測る(⛔ ピボットどうしの距離で離さない)。
+
 ⛔ **座標を C# に書かない**(規則11)。区画は `EdoParcels.Get`、径数は `typology.json`、パスは `EdoAssets.cs`(規則12)。
 ⛔ 手組み資産(`Ishigaki` / `Nagaya` / `Omotemon`)のある区画は、その資産を**避けて**建てる(規則1)。
 

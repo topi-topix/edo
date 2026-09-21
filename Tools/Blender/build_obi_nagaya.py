@@ -54,7 +54,10 @@ import vkmesh as VM
 import build_goten_roof as R
 
 KEN  = 1.818
-OUT  = os.path.join(V.REPO, "Assets", "Edo", "Models", "Nagaya")
+# ⛔ `V.out_dir` を通す — 通さないと `BUZAI_OUT` が効かず、staging へ焼いたつもりが
+#   Assets を直に上書きする(README「第1段で staging へ焼いて実寸とレンダを検める」が
+#   この生成器だけ破れていた。2026-09-21 に踏んで直した)。
+OUT  = V.out_dir(os.path.join(V.REPO, "Assets", "Edo", "Models", "Nagaya"))
 SHOT = os.path.join(V.REPO, "Screenshots")
 
 WOOD, WALL, STONE, SHOJI = 0, 1, 2, 3   # マテリアルスロットの番号(**必ずこの順**)
@@ -209,13 +212,14 @@ def section(m, xa, xb, pts, uv, mat):
 
 
 # ---------------------------------------------------------------- 屋根
-def obi_roof(W, D, name, P, ridge_show=0.36, noki=NOKI):
+def obi_roof(W, D, name, P, ridge_show=0.36, noki=NOKI, end=None):
     """切妻(桟瓦)。局所 z=0 は **軒先**、原点は footprint の中心。
     ⚠ `build_goten_roof.make_kirizuma` は使わない — 棟の寸法が渡廊下用に固定で、
       袖瓦も棟の小口の詰めも無い(渡廊下は端が棟の軒下に隠れるため要らなかった)。
       崖下の長屋は**妻が丸見え**なので、袖瓦と小口の詰めを自分で入れる。"""
+    end = END if end is None else end
     hw, hd = W / 2.0, D / 2.0
-    x0, x1 = -hw - END, hw + END
+    x0, x1 = -hw - end, hw + end
     y0, y1 = -hd - noki, hd + noki
     h = (hd + noki) * R.RATIO                     # 軒先から大棟の瓦面まで
     RW = 0.42                                     # 大棟の幅
@@ -300,8 +304,21 @@ def gable_set(m, P, hw, hd, eaveH, roofZ, apex, noki, end=None):
 
 
 def build(wKen, dKen, name, eaveH=2.70, ridge_show=0.36, plan=None,
-          koshiH=KOSHI, noki=NOKI):
-    """plan = 開口面(+Z)の割付 [(x0, x1, 'door'|'window'), ...](走りの中心が 0)"""
+          koshiH=KOSHI, noki=NOKI, base=None, end=None, plan_b=None,
+          uchinori=None, post_pitch=1.0):
+    """plan = 開口面(+Z)の割付 [(x0, x1, 'door'|'window'), ...](走りの中心が 0)
+
+    ⭐ 2026-09-21(EDO-0318 ④)に類型の**裏長屋**のため4つ引数を出した。
+      ⛔ 既定はすべて従来どおりなので、岡部の呼び出し(nagaya/monooki/kawaya)の姿は動かない。
+      <paramref name="base"/>  基壇の高さ[m](既定 BASE 0.20)。裏店は基壇をほぼ持たない
+      <paramref name="end"/>   けらばの出[m](既定 END 0.30)
+      <paramref name="plan_b"/> **−Z(盲面)側の割付**。None のままなら従来どおり開口を一切あけない。
+                                棟割長屋のように背中合わせで戸が並ぶときだけ渡す
+      <paramref name="uchinori"/> 建具の内法高[m](既定 UCHINORI 1.95)
+      <paramref name="post_pitch"/> 柱の間隔[間](既定 1.0)。裏店は 1.5間=1戸の見付で割る"""
+    BASE_ = BASE if base is None else base
+    END_ = END if end is None else end
+    UCHI_ = UCHINORI if uchinori is None else uchinori
     P = palette()
     W, D = wKen * KEN, dKen * KEN
     hw, hd = W / 2.0, D / 2.0
@@ -312,68 +329,87 @@ def build(wKen, dKen, name, eaveH=2.70, ridge_show=0.36, plan=None,
     m = VM.Mesh()
 
     # ---- 基壇(玉石を均した低い壇)。⛔ 高床にしない(指図 nishi.obi.sahou)
-    m.box(-hw - 0.13, hw + 0.13, 0.0, BASE, -hd - 0.13, hd + 0.13,
-          VM.sub(P['suv'], 0, 0, 1, 0.5), STONE)
+    if BASE_ > 0.001:
+        m.box(-hw - 0.13, hw + 0.13, 0.0, BASE_, -hd - 0.13, hd + 0.13,
+              VM.sub(P['suv'], 0, 0, 1, 0.5), STONE)
 
-    # ---- 柱の位置(1間ピッチ + 開口の見付)
-    npost = int(round(wKen)) + 1
+    # ---- 柱の位置(既定は1間ピッチ + 開口の見付。post_pitch で割りを変える)
+    npost = int(round(wKen / max(0.25, post_pitch))) + 1
     xs = [-hw + W * i / float(max(1, npost - 1)) for i in range(npost)]
-    for (a, b, _k) in plan:
+    for (a, b, _k) in list(plan) + list(plan_b or []):
         xs += [a - POST / 2 - 0.005, b + POST / 2 + 0.005]
     xs = sorted(set(round(x, 4) for x in xs))
 
-    # ---- 盲面(−Z・水側)と両妻(±X)。開口を一切あけない
-    shitami(m, P, -hw, hw, BASE, koshiH, -hd, -1, 'x')
-    mizukiri(m, P, -hw, hw, koshiH, -hd, -1, 'x')
-    plaster(m, P, -hw, hw, koshiH, eaveH, -hd, -1, 'x')
+    def blind(zf, sg):
+        """開口を一切あけない一面(従来の −Z の作り)。"""
+        shitami(m, P, -hw, hw, BASE_, koshiH, zf, sg, 'x')
+        mizukiri(m, P, -hw, hw, koshiH, zf, sg, 'x')
+        plaster(m, P, -hw, hw, koshiH, eaveH, zf, sg, 'x')
+
+    def opened(pl, zf, sg):
+        """割付 pl を持つ一面。⭐ 2026-09-21 に +Z 専用の処理から切り出した
+        (棟割長屋は −Z にも戸が並ぶ・EDO-0318 ④)。⛔ 中身は一切変えていない —
+        `hd` を zf に、`1` を sg に置いただけ。"""
+        segs, cur = [], -hw
+        for (a, b, k) in sorted(pl):
+            if a > cur + 1e-6:
+                segs.append((cur, a, 'wall'))
+            segs.append((a, b, k))
+            cur = b
+        if cur < hw - 1e-6:
+            segs.append((cur, hw, 'wall'))
+        if not segs:
+            segs = [(-hw, hw, 'wall')]
+        for (a, b, k) in segs:
+            if k == 'wall':
+                shitami(m, P, a, b, BASE_, koshiH, zf, sg, 'x')
+                mizukiri(m, P, a, b, koshiH, zf, sg, 'x')
+                plaster(m, P, a, b, koshiH, eaveH, zf, sg, 'x')
+            elif k == 'window':
+                # 腰高窓 — 腰は下見板のまま、上に小壁
+                shitami(m, P, a, b, BASE_, koshiH, zf, sg, 'x')
+                plaster(m, P, a, b, UCHI_, eaveH, zf, sg, 'x')
+                m.box(a, b, koshiH, koshiH + 0.09, zf - sg * 0.02, zf + sg * 0.07,
+                      VM.sub(P['wuv'], 0.45, 0.10, 0.90, 0.35), WOOD)       # 窓台
+                m.box(a, b, UCHI_ - 0.09, UCHI_, zf - sg * 0.02, zf + sg * 0.07,
+                      VM.sub(P['wuv'], 0.45, 0.40, 0.90, 0.65), WOOD)       # 無目
+                # ⛔ 板を1枚貼らない。竪子を実体で並べる
+                # ⛔ **格子だけにしない。**裏に明かり障子を入れないと窓が素通しになり、
+                #   建物の中と反対側の壁の裏面が見える(2026-09-04 に実見)
+                m.box(a + 0.02, b - 0.02, koshiH + 0.08, UCHI_ - 0.08,
+                      zf - sg * 0.115, zf - sg * 0.085,
+                      VM.sub(P['juv'], 0.05, 0.05, 0.95, 0.95), SHOJI)
+                m.koshi(a + 0.03, b - 0.03, koshiH + 0.09, UCHI_ - 0.09,
+                        zf - sg * 0.05, zf + sg * 0.02,
+                        VM.sub(P['wuv'], 0.60, 0.10, 0.95, 0.90), WOOD,
+                        pitch=0.115, bar=0.026, yoko=2)
+            else:                                     # door
+                plaster(m, P, a, b, UCHI_, eaveH, zf, sg, 'x')            # 戸の上の小壁
+                m.box(a - 0.04, b + 0.04, BASE_, BASE_ + 0.08,
+                      zf - sg * 0.06, zf + sg * 0.09,
+                      VM.sub(P['wuv'], 0.30, 0.10, 0.80, 0.30), WOOD)     # 敷居
+                m.box(a - 0.04, b + 0.04, UCHI_ - 0.09, UCHI_,
+                      zf - sg * 0.06, zf + sg * 0.09,
+                      VM.sub(P['wuv'], 0.30, 0.40, 0.80, 0.60), WOOD)     # 鴨居
+                door_leaves(m, P, a, b, BASE_ + 0.06, UCHI_ - 0.05, zf, sg,
+                            n=(1 if (b - a) < 1.2 else 2))
+
+    # ---- 盲面(−Z・水側)。plan_b が来たときだけ戸を並べる(棟割長屋)
+    if plan_b:
+        opened(plan_b, -hd, -1)
+    else:
+        blind(-hd, -1)
     posts(m, P, xs, koshiH, eaveH, -hd, -1, 'x')
+    # ---- 両妻(±X)。開口を一切あけない
     for sx in (-hw, hw):
         s = 1 if sx > 0 else -1
-        shitami(m, P, -hd, hd, BASE, koshiH, sx, s, 'z')
+        shitami(m, P, -hd, hd, BASE_, koshiH, sx, s, 'z')
         mizukiri(m, P, -hd, hd, koshiH, sx, s, 'z')
         plaster(m, P, -hd, hd, koshiH, eaveH, sx, s, 'z')
         posts(m, P, [-hd + 0.25, 0.0, hd - 0.25], koshiH, eaveH, sx, s, 'z')
 
     # ---- 開口面(+Z・山側)
-    segs, cur = [], -hw
-    for (a, b, k) in sorted(plan):
-        if a > cur + 1e-6:
-            segs.append((cur, a, 'wall'))
-        segs.append((a, b, k))
-        cur = b
-    if cur < hw - 1e-6:
-        segs.append((cur, hw, 'wall'))
-    if not segs:
-        segs = [(-hw, hw, 'wall')]
-    for (a, b, k) in segs:
-        if k == 'wall':
-            shitami(m, P, a, b, BASE, koshiH, hd, 1, 'x')
-            mizukiri(m, P, a, b, koshiH, hd, 1, 'x')
-            plaster(m, P, a, b, koshiH, eaveH, hd, 1, 'x')
-        elif k == 'window':
-            # 腰高窓 — 腰は下見板のまま、上に小壁
-            shitami(m, P, a, b, BASE, koshiH, hd, 1, 'x')
-            plaster(m, P, a, b, UCHINORI, eaveH, hd, 1, 'x')
-            m.box(a, b, koshiH, koshiH + 0.09, hd - 0.02, hd + 0.07,
-                  VM.sub(P['wuv'], 0.45, 0.10, 0.90, 0.35), WOOD)       # 窓台
-            m.box(a, b, UCHINORI - 0.09, UCHINORI, hd - 0.02, hd + 0.07,
-                  VM.sub(P['wuv'], 0.45, 0.40, 0.90, 0.65), WOOD)       # 無目
-            # ⛔ 板を1枚貼らない。竪子を実体で並べる
-            # ⛔ **格子だけにしない。**裏に明かり障子を入れないと窓が素通しになり、
-            #   建物の中と反対側の壁の裏面が見える(2026-09-04 に実見)
-            m.box(a + 0.02, b - 0.02, koshiH + 0.08, UCHINORI - 0.08, hd - 0.115, hd - 0.085,
-                  VM.sub(P['juv'], 0.05, 0.05, 0.95, 0.95), SHOJI)
-            m.koshi(a + 0.03, b - 0.03, koshiH + 0.09, UCHINORI - 0.09, hd - 0.05, hd + 0.02,
-                    VM.sub(P['wuv'], 0.60, 0.10, 0.95, 0.90), WOOD,
-                    pitch=0.115, bar=0.026, yoko=2)
-        else:                                     # door
-            plaster(m, P, a, b, UCHINORI, eaveH, hd, 1, 'x')            # 戸の上の小壁
-            m.box(a - 0.04, b + 0.04, BASE, BASE + 0.08, hd - 0.06, hd + 0.09,
-                  VM.sub(P['wuv'], 0.30, 0.10, 0.80, 0.30), WOOD)       # 敷居
-            m.box(a - 0.04, b + 0.04, UCHINORI - 0.09, UCHINORI, hd - 0.06, hd + 0.09,
-                  VM.sub(P['wuv'], 0.30, 0.40, 0.80, 0.60), WOOD)       # 鴨居
-            door_leaves(m, P, a, b, BASE + 0.06, UCHINORI - 0.05, hd, 1,
-                        n=(1 if (b - a) < 1.2 else 2))
+    opened(plan, hd, 1)
 
     # ---- 柱(開口面)と軒桁・妻梁
     posts(m, P, xs, koshiH, eaveH, hd, 1, 'x')
@@ -384,10 +420,10 @@ def build(wKen, dKen, name, eaveH=2.70, ridge_show=0.36, plan=None,
         m.box(s * hw - s * 0.17, s * hw, eaveH - 0.19, eaveH, -hd, hd,
               VM.sub(P['wuv'], 0.20, 0.50, 0.95, 0.80), WOOD)
 
-    gable_set(m, P, hw, hd, eaveH, roofZ, apex, noki)
+    gable_set(m, P, hw, hd, eaveH, roofZ, apex, noki, end=END_)
 
     body = m.to_object(name + "_body", [P['wood'], P['wall'], P['stone'], P['shoji']])
-    roof = obi_roof(W, D, name + "_roof", P, ridge_show=ridge_show, noki=noki)
+    roof = obi_roof(W, D, name + "_roof", P, ridge_show=ridge_show, noki=noki, end=END_)
     roof.location = (0.0, 0.0, roofZ)
     bpy.context.view_layer.update()
     V.sel([roof])

@@ -1319,7 +1319,112 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_obi_nagaya.py -- kawaya</summary>
         public const string ObiKawaya = NagayaDir + "Obi_Kawaya_1ken.fbx";
 
+        /// <summary>**裏長屋(裏店)— 割長屋**。町屋24町の路地に並ぶ九尺二間の棟(類型共用)。
+        /// 桁行 <paramref name="wKen"/> 間 × **奥行 2間**・平屋・桟瓦・下見板腰。
+        /// **+Z の一面だけに戸**が並び、−Z は盲面(背中合わせの隣棟・隣地の塀に接する面)。
+        ///
+        /// <para>⭐ 1戸 = **間口 九尺(1.5間 = 2.727m)× 奥行 二間**【一般類型 A】。
+        /// 桁行は 1.5間で機械的に割る ⇒ 6間=4戸 / 9間=6戸 / 12間=8戸。
+        /// ⛔ **戸数を史実として名乗らせない**【U】— その筆に何戸あったかの史料は当プロジェクトに無い。</para>
+        ///
+        /// <para>実寸(焼いてある3本)— **W 11.448 / 16.902 / 22.356(X)× H 3.592(Y)× D 4.928(Z)**・
+        /// 面 5,021 / 7,151 / 9,231。軒桁 **2.30**・棟天端 **3.592**・底 0.000。
+        /// ⭕ 在庫の表店 <see cref="Eg.Shop01"/>(ES後 W4.93 × H4.25 × D4.03)より **0.66m 低い**。
+        /// ⚠ 丈だけでは見分けが付かない — **1.5間ピッチの戸が延々続く割り**と**見世棚が無いこと**で見る。</para>
+        ///
+        /// <para>⚠ 軒は footprint の外へ ±Z に 0.55・±X に 0.20 出る。**ピボットには含まれない**
+        /// (ピボット = footprint の中心・地盤レベル)。据えるときは **+Z を路地へ**向けること —
+        /// 逆に向けると盲面が路地に向いて戸が消える。</para>
+        ///
+        /// 材 = `wood` / `wall C` / `Foundation_A_01` / `wall A` / `roof` / `roof ornaments`(すべてキット由来)。
+        /// 無い寸法は
+        /// blender --background --python Tools/Blender/build_typ_nagaya.py -- ura --ken &lt;桁行間&gt;
+        /// で足す。</summary>
+        public static string UraNagaya(float wKen)
+        {
+            return NagayaDir + "Typ_UraNagaya_" + Len2(wKen) + "ken.fbx";
+        }
+
+        /// <summary>**裏長屋 — 棟割長屋**(背中合わせ)。<see cref="UraNagaya(float)"/> と同じ割りだが
+        /// **奥行 4間**(2間+2間)で、大棟を挟んで **±Z の両面に戸**が並ぶ。1棟で路地を2本分まかなう。
+        ///
+        /// <para>実寸 — **W 11.448 / 16.902 / 22.356(X)× H 4.584(Y)× D 8.564(Z)**・
+        /// 面 7,195 / 10,127 / 13,067。軒桁 **2.30**(割長屋と同じ)・棟天端 **4.584**。
+        /// ⚠ **棟高は梁間からの従属値** — 瓦の勾配 0.5456 は動かせないので、梁間が 2間→4間 になった分
+        /// 棟が 0.99m 上がる。⇒ 表店 <see cref="Eg.Shop01"/>(4.25)より **0.33m 高い**。
+        /// 見分けは丈ではなく**割りと見世棚の有無**で付く。</para>
+        ///
+        /// <para>⛔ <see cref="UraNagaya(float)"/> を2棟背中合わせに置いて代用しない —
+        /// 間に隙間が出て棟が2本立って見える。</para>
+        ///
+        /// ピボット・材・軒の出は <see cref="UraNagaya(float)"/> と同じ(±Z とも開口面なので向きは自由)。
+        /// 生成: blender --background --python Tools/Blender/build_typ_nagaya.py -- munewari --ken &lt;桁行間&gt;</summary>
+        public static string UraNagayaMunewari(float wKen)
+        {
+            return NagayaDir + "Typ_UraNagaya_" + Len2(wKen) + "ken_munewari.fbx";
+        }
+
         const string NagayaDir = "Assets/Edo/Models/Nagaya/";
+
+        /// <summary>**山門 — 四脚門**(類型共用・寺4区画)。門口 **2間(3.636m)**・本柱2 + 控柱4・
+        /// 切妻本瓦。実寸 **W 5.896 × H 5.382 × D 5.292**・面 1,765・**底 −0.260**(沓石が敷居より下)。
+        /// 有効高 3.10 / 桁 3.95 / **棟天端 5.12**。
+        ///
+        /// <para>⛔ 2026-09-21 まで `gate:sanmon` は <see cref="Eg.Kabukimon"/>(冠木門)へ落ちていて
+        /// **格が3段違っていた**(EDO-0318 ①)。格の梯子は
+        /// <see cref="Own.Munemon"/> 3.60 &lt; <see cref="Yakuimon"/> 4.41 &lt; **山門 5.12**。</para>
+        ///
+        /// ローカル **+X = 門口の方向 / +Z = 外(参道)**。ピボット = **門の芯・敷居レベル**。
+        /// 寸法は【U】— 指図に欄が無く、部材方が「格の順が立面で読める」ことだけを条件に決めた。
+        /// 生成: blender --background --python Tools/Blender/build_typ_jisha.py -- sanmon</summary>
+        public const string Sanmon = MonDir + "Typ_Sanmon.fbx";
+
+        /// <summary>**薬医門**(類型共用・社家=神主の屋敷)。門口 **3.00m**・本柱2 + **控柱2(後ろだけ)**・
+        /// 切妻本瓦。実寸 **W 5.060 × H 4.673 × D 4.692**・面 1,564・**底 −0.260**。
+        /// 有効高 2.70 / 桁 3.35 / **棟天端 4.41**。
+        ///
+        /// <para>⛔ 在庫の <see cref="Eg.Kmon"/> で代用しない — あれも薬医門だが **ES 後 W14.4m** の
+        /// 袖付きの大門で、屋敷門に据えると長屋門級になる(在庫方 2026-09-21)。</para>
+        ///
+        /// <para>⚠ **控柱は −Z(内)側**。据えるとき +Z を表へ向けないと控柱が通りに出る。</para>
+        /// ピボット = 門の芯・敷居レベル。寸法は【U】。
+        /// 生成: blender --background --python Tools/Blender/build_typ_jisha.py -- yakuimon</summary>
+        public const string Yakuimon = MonDir + "Typ_Yakuimon.fbx";
+
+        const string JishaDir = "Assets/Edo/Models/Jisha/";
+
+        /// <summary>**鐘楼 — 袴腰**(類型共用・寺4区画)。基壇 <paramref name="ken"/> 間角・
+        /// 袴腰・上層は吹き放ち(柱間2間)・高欄・**梵鐘**・入母屋本瓦。
+        /// 実寸(3間)**W 5.877 × H 6.942 × D 5.877**・面 3,028・底 0.000。
+        /// 基壇 0.55 / 縁 2.60 / 桁 4.75 / 棟天端 6.94。
+        ///
+        /// <para>⛔ 在庫の `obj_shoro1` で代用しない — **ES 後 実丈 1.45m** の石造小物で、
+        /// 101箇所に灯籠として据わっている駒(在庫方 2026-09-21)。拡大しても彫りが灯籠のまま。</para>
+        ///
+        /// <para>⚠ **材が2つ増える** — 梵鐘は Japanese Castle の `Ornament`(金具)、
+        /// 基壇と縁石は `Kirishi`(山王の段石の切石)。remap のとき見落とさないこと。
+        /// ⛔ `Foundation_A_01`(玉石積み)を基壇に当て直さない — 「小石を盛った台」に見える。</para>
+        ///
+        /// ピボット = **基壇の中心・地盤レベル**。⭕ 正面が無いので向きは自由。寸法は【U】。
+        /// 生成: blender --background --python Tools/Blender/build_typ_jisha.py -- shoro</summary>
+        public static string Shoro(float ken) { return JishaDir + "Typ_Shoro_" + Len2(ken) + "ken.fbx"; }
+
+        /// <summary>**墓地の一画**(類型共用・寺3区画)。切石の低い囲い + **半間ピッチの墓石 59基**
+        /// (角柱・櫛形・板碑の3型)+ 卒塔婆。実寸(6×4間)**W 10.908 × H 1.224 × D 7.272**・面 1,566。
+        ///
+        /// <para>⭐ **一画を一体で焼いてある** — 1基ずつ Unity 側で撒かない。撒き方は区画ごとに
+        /// 変わらず、類型ビルダーは棟を置く器しか持たない。⇒ 寺ごとに向きだけ変えて据える。
+        /// ⚠ 乱数の種を 1856 で固定してあるので、同じ寸法なら何度焼いても同じ並びになる。</para>
+        ///
+        /// <para>⚠ 材は **`Kirishi`**(切石)。⛔ `Foundation_A_01` に戻さない — 玉石積みの材なので
+        /// 墓石が「小石を積んだ山」に見える(2026-09-21 に焼いて実見)。</para>
+        ///
+        /// ピボット = **一画の中心・地盤レベル**。⭕ 正面が無い。墓石の姿は【U】。
+        /// 生成: blender --background --python Tools/Blender/build_typ_jisha.py -- bochi</summary>
+        public static string Bochi(float wKen, float dKen)
+        {
+            return JishaDir + "Typ_Bochi_" + Len2(wKen) + "x" + Len2(dKen) + "ken.fbx";
+        }
 
         /// <summary>**通用口の棟門**(岡部邸 `komon.Tsuyodo` — 袋小路に開く勝手口)。
         /// 二本の本柱の上に直に切妻を載せる最も簡素な門。⚠ 在庫の門は薬医門(`Eg.Kmon`)・

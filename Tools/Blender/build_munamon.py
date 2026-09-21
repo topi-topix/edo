@@ -34,7 +34,8 @@ import vkmesh as VM
 import build_goten_roof as R
 import build_obi_nagaya as N          # 屋根・妻まわり・材の借用を使い回す
 
-OUT  = os.path.join(V.REPO, "Assets", "Edo", "Models", "Mon")
+# ⛔ `V.out_dir` を通す(README の BUZAI_OUT 規約。通さないと staging へ逃がせない)
+OUT  = V.out_dir(os.path.join(V.REPO, "Assets", "Edo", "Models", "Mon"))
 SHOT = os.path.join(V.REPO, "Screenshots")
 WOOD, WALL, STONE = N.WOOD, N.WALL, N.STONE
 
@@ -72,7 +73,7 @@ def rbox(m, x0, x1, y0, y1, z0, z1, uv, mat, ox=0.0, oz=0.0, ang=0.0):
         rquad(m, q, uv, mat, ox, oz, ang)
 
 
-def leaf(m, P, x0, x1, hinge_x, ang, meet=None):
+def leaf(m, P, x0, x1, hinge_x, ang, meet=None, top=None):
     """板戸1枚。**竪板と桟を実体で起こす**(渋墨の板戸はテクスチャでは目地が出ない)。
     hinge_x = 吊り元(本柱の内面)。ang>0 で −Z(敷地の内側)へ振れる = 内開き。
     meet = 召し合わせのある側の x(あれば、その裏に定規縁を打つ)。
@@ -82,7 +83,9 @@ def leaf(m, P, x0, x1, hinge_x, ang, meet=None):
     z1, z0 = -0.02, -0.02 - t                 # 扉の表は敷居の芯より僅かに内側
     # ⚠ 扉の頭は**冠木の下端に合わせる**。DOOR_H を足して決めると 4cm の隙間が残り、
     #   立面で冠木の下に横一文字の光の筋が走る(2026-09-04 に実見)
-    y0, y1 = 0.06, KABUKI
+    # ⛔⛔ **`top` を渡さないと扉が 2.40 で止まる。**2026-09-21、山門(冠木 3.10)を
+    #   焼いたら扉の上に **0.76m の横一文字の穴**が開いて空が抜けた(EDO-0318 ①)。
+    y0, y1 = 0.06, (KABUKI if top is None else top)
     m_uv = VM.sub(P['wuv'], 0.62, 0.05, 0.80, 0.95)
     rbox(m, x0, x1, y0, y1, z0, z1, m_uv, WOOD, hinge_x, 0.0, ang)
     nb = max(2, int(round((x1 - x0) / 0.30)))
@@ -104,37 +107,69 @@ def leaf(m, P, x0, x1, hinge_x, ang, meet=None):
                  VM.sub(P['wuv'], 0.72, 0.10, 0.92, 0.45), WOOD, hinge_x, 0.0, ang)
 
 
-def build(w=2.7, opened=False, name=None):
+def build(w=2.7, opened=False, name=None, post=None, kabuki=None, keats=None,
+          deep=None, noki=None, end=None, ridge=None, hikae=(), hikae_post=None):
+    """棟門(既定)と、**控柱を足した薬医門・四脚門**を1本で起こす。
+
+    ⭐ 2026-09-21(EDO-0318 ①)に引数を出した。⛔ **既定はすべて従来の定数**なので、
+      岡部の呼び出し(`build(w=2.7)`)の姿は一切動かない。
+      <paramref name="hikae"/> = **控柱の z 位置[m]の並び**(本柱の芯が z=0)。
+        `()`      → 棟門(本柱2本だけ)
+        `(-d,)`   → **薬医門**(本柱の後ろに控柱2本。⭐ 屋根は本柱の上に棟を置いた
+                    左右対称の切妻で、控柱は後ろの流れの下に入る — これが薬医門の常法)
+        `(-d, d)` → **四脚門**(本柱の前後に控柱4本。寺の山門の格)
+      ⚠ 控柱を足したら <paramref name="deep"/> を **2*d + 軒の余地**まで広げること。
+        広げないと控柱が軒の外へ出て、雨ざらしの柱に見える。"""
+    post = POST if post is None else post
+    kabuki = KABUKI if kabuki is None else kabuki
+    keats = KEATS if keats is None else keats
+    deep = DEEP if deep is None else deep
+    noki = NOKI if noki is None else noki
+    end = END if end is None else end
+    ridge = RIDGE if ridge is None else ridge
+    hikae_post = (post * 0.72) if hikae_post is None else hikae_post
     name = name or ("Munamon_" + N.fmt(w) + ("_Open" if opened else ""))
     P = N.palette()
     m = VM.Mesh()
     hx = w / 2.0                              # 門口の内法の半分
-    px = hx + POST / 2.0                      # 本柱の芯
-    W = w + 2 * POST + 0.72                   # 屋根の桁行(柱の外へ 0.36 ずつ出る)
-    hw, hd = W / 2.0, DEEP / 2.0
-    roofZ = KEATS - NOKI * R.RATIO             # 軒先レベル(桁の線で屋根が壁に合う)
-    apex = roofZ + (hd + NOKI) * R.RATIO
+    px = hx + post / 2.0                      # 本柱の芯
+    W = w + 2 * post + 0.72                   # 屋根の桁行(柱の外へ 0.36 ずつ出る)
+    hw, hd = W / 2.0, deep / 2.0
+    roofZ = keats - noki * R.RATIO             # 軒先レベル(桁の線で屋根が壁に合う)
+    apex = roofZ + (hd + noki) * R.RATIO
 
     # ---- 沓石(礎盤)と本柱
     for s in (-1, 1):
         m.box(s * px - 0.24, s * px + 0.24, -0.26, 0.05, -0.24, 0.24,
               VM.sub(P['suv'], 0, 0, 1, 0.5), STONE)
-        m.box(s * px - POST / 2, s * px + POST / 2, 0.02, KEATS, -POST / 2, POST / 2,
+        m.box(s * px - post / 2, s * px + post / 2, 0.02, keats, -post / 2, post / 2,
               VM.sub(P['wuv'], 0.10, 0.02, 0.42, 0.98), WOOD)
+    # ---- 控柱(薬医門・四脚門)。本柱より細く、**桁ではなく梁で本柱へ繋ぐ**
+    for dz in hikae:
+        for s in (-1, 1):
+            m.box(s * px - 0.20, s * px + 0.20, -0.26, 0.05, dz - 0.20, dz + 0.20,
+                  VM.sub(P['suv'], 0, 0, 1, 0.5), STONE)                     # 沓石
+            m.box(s * px - hikae_post / 2, s * px + hikae_post / 2, 0.02, keats - 0.22,
+                  dz - hikae_post / 2, dz + hikae_post / 2,
+                  VM.sub(P['wuv'], 0.10, 0.02, 0.42, 0.98), WOOD)            # 控柱
+            # 本柱と控柱を繋ぐ**繋ぎ梁**。⛔ 抜くと控柱が独立して立つ棒に見える
+            lo, hi = sorted((0.0, dz))
+            m.box(s * px - 0.09, s * px + 0.09, keats - 0.52, keats - 0.28, lo, hi,
+                  VM.sub(P['wuv'], 0.20, 0.50, 0.95, 0.80), WOOD)
     # ---- 冠木(本柱を貫いて左右へ出る)+ 上の小壁 + 桁 + 妻梁
-    m.box(-px - 0.34, px + 0.34, KABUKI, KABUKI + 0.30, -0.15, 0.15,
+    m.box(-px - 0.34, px + 0.34, kabuki, kabuki + 0.30, -0.15, 0.15,
           VM.sub(P['wuv'], 0.20, 0.15, 0.95, 0.50), WOOD)
     # 小壁(漆喰)。⚠ 見込みを 0.18 まで取り、**天井板と併せて冠木の上を塞ぐ** —
     # 薄い板1枚だと冠木と軒のあいだが横一文字の隙間になって、門越しに空が抜ける
     # (2026-09-04 に実見)。棟門の小屋裏は化粧屋根裏か天井板で塞ぐのが常法。
-    m.box(-px - 0.02, px + 0.02, KABUKI + 0.28, KEATS, -0.18, 0.18,
+    m.box(-px - 0.02, px + 0.02, kabuki + 0.28, keats, -0.18, 0.18,
           VM.sub(P['cuv'], 0.05, 0.05, 0.95, 0.95), WALL)
-    m.box(-hw + 0.12, hw - 0.12, KEATS - 0.05, KEATS, -hd + 0.02, hd - 0.02,
+    m.box(-hw + 0.12, hw - 0.12, keats - 0.05, keats, -hd + 0.02, hd - 0.02,
           VM.sub(P['wuv'], 0.05, 0.10, 0.95, 0.55), WOOD)      # 天井板(門の下から見上げる面)
     for s in (-1, 1):
-        m.box(-hw + 0.10, hw - 0.10, KEATS - 0.16, KEATS, s * hd - s * 0.10, s * hd,
+        m.box(-hw + 0.10, hw - 0.10, keats - 0.16, keats, s * hd - s * 0.10, s * hd,
               VM.sub(P['wuv'], 0.20, 0.50, 0.95, 0.80), WOOD)  # 桁
-        m.box(s * hw + s * 0.02 - s * 0.12, s * hw + s * 0.02, KEATS - 0.16, KEATS,
+        m.box(s * hw + s * 0.02 - s * 0.12, s * hw + s * 0.02, keats - 0.16, keats,
               -hd, hd, VM.sub(P['wuv'], 0.30, 0.15, 0.90, 0.45), WOOD)   # 妻梁
     # ---- 敷居(門口の足元)。⛔ 抜けたままにしない
     m.box(-px, px, -0.04, 0.06, -0.16, 0.16,
@@ -144,20 +179,16 @@ def build(w=2.7, opened=False, name=None):
     ang = OPEN_DEG if opened else 0.0
     # ⚠ **召し合わせに隙を取る。**2枚を突き付けると立面で1枚の板壁に見える
     GAP = 0.012
-    leaf(m, P, -hx, -GAP, -hx, -ang)
-    leaf(m, P, GAP, hx, hx, ang, meet=GAP)
+    leaf(m, P, -hx, -GAP, -hx, -ang, top=kabuki)
+    leaf(m, P, GAP, hx, hx, ang, meet=GAP, top=kabuki)
 
     # ---- 妻まわり(妻壁・けらば裏板・破風)は詰人長屋と同じ作り
-    N.gable_set(m, P, hw, hd, KEATS, roofZ, apex, NOKI, end=END)
+    N.gable_set(m, P, hw, hd, keats, roofZ, apex, noki, end=end)
 
     body = m.to_object(name + "_body", [P['wood'], P['wall'], P['stone']])
-    show = RIDGE - apex + N.SEAT               # 熨斗の見え掛かりで棟天端を 3.60 に合わせる
-    keep_end = N.END
-    N.END = END
-    try:
-        roof = N.obi_roof(W, DEEP, name + "_roof", P, ridge_show=show - N.SEAT, noki=NOKI)
-    finally:
-        N.END = keep_end
+    show = ridge - apex + N.SEAT               # 熨斗の見え掛かりで棟天端を ridge に合わせる
+    roof = N.obi_roof(W, deep, name + "_roof", P, ridge_show=show - N.SEAT,
+                      noki=noki, end=end)
     roof.location = (0.0, 0.0, roofZ)
     bpy.context.view_layer.update()
     V.sel([roof])
@@ -167,8 +198,8 @@ def build(w=2.7, opened=False, name=None):
     V.set_origin(o, (0.0, 0.0, 0.0))
     V.sel([o])
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-    print("[munamon] %-18s 門口 %.2fm / 有効高 %.2f / 桁 %.2f / 瓦の大棟 %.3f"
-          % (name, w, KABUKI, KEATS, apex))
+    print("[munamon] %-22s 門口 %.2fm / 有効高 %.2f / 桁 %.2f / 瓦の大棟 %.3f / 控柱 %d本"
+          % (name, w, kabuki, keats, apex, 2 * len(hikae)))
     return o, name
 
 

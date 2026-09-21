@@ -215,6 +215,7 @@ public static class EdoYashikiPrefab
         var orphans = new List<string>();
         var sb = new System.Text.StringBuilder();
         int wrote = 0, skipUntouched = 0, skipNoMods = 0, skipUntracked = 0;
+        var clobbered = new List<string>();
         long bytes = 0;
         var sw = System.Diagnostics.Stopwatch.StartNew();
 
@@ -251,6 +252,7 @@ public static class EdoYashikiPrefab
             sb.AppendLine("  " + OneLogged(r, out b) + $"\t({why})");
             bytes += b;
             wrote++;
+            if (!isPf) clobbered.Add(r.name);   // 解けたままのルートを資産へ上書きした
             ForgetTouched(scene, r.name);
         }
         sw.Stop();
@@ -261,6 +263,23 @@ public static class EdoYashikiPrefab
         Debug.Log($"[EdoWriteBack] done scene={Path.GetFileName(scene.path)} scope={scope}"
                 + $" wrote={wrote} (台帳外={skipUntracked} 解けたまま={skipUntouched} 変更なし={skipNoMods})"
                 + $" bytes={bytes / 1048576.0:F1}MB ms={sw.ElapsedMilliseconds}");
+
+        // ⛔ **解けたままのルートを資産へ書いた = そのルートの「いまのシーンでの姿」で、
+        //   プレハブ資産を丸ごと差し替えたということ。** 作業場に他邸を解いたまま載せて
+        //   これを押すと、その邸が作業場の姿で上書きされる。
+        //   2026-09-21 に実地で起きた: 受け入れ試験で赤坂の Edo_SannoBo_Chikoin の資産を
+        //   作業場の姿で潰し、赤坂側のインスタンスが壊れてルートごと落ちた(参照 16→0)。
+        //   資産を git で戻してもシーン側は戻らない。**名指しで残す。**
+        if (clobbered.Count > 0)
+            Debug.LogWarning($"⛔ [EdoWriteBack] 解けたままのルート {clobbered.Count} 件を"
+                + "「いまのシーンでの姿」でプレハブ資産へ上書きしました:\n"
+                + "   " + string.Join(", ", clobbered)
+                + "\n   ⚠ これが他邸なら、その邸は**いまのシーンに載っている姿で置き換わった**。"
+                + "\n     作業場で押したなら特に危ない(作業場の姿が赤坂の資産を潰す)。"
+                + "\n     覚えがなければ git status Assets/Edo/Prefabs/Scene/ で確かめ、"
+                + "git checkout -- <パス> で戻すこと。"
+                + "\n     ⛔ シーン側のインスタンスは資産を戻しても直らないことがある —"
+                + "その場合はシーンも戻す。");
 
         if (orphans.Count > 0)
             Debug.LogWarning($"⚠ [EdoWriteBack] 解けたまま放置されたルートが {orphans.Count} 件(書き戻していない):\n"
@@ -346,8 +365,11 @@ public static class EdoYashikiPrefab
     [MenuItem("Edo/屋敷/プレハブへ書き戻す(全部・強制)")]
     public static void WriteBackAllMenu()
     {
-        Debug.LogWarning("⚠ 全ルートを舐めます。解けたままの他邸も巻き込みます(救済用)。"
-                       + "普段は Edo/屋敷/プレハブへ書き戻す(触った分だけ) を使うこと。");
+        Debug.LogWarning("⛔ 全ルートを舐めます。**解けたままの他邸を、いまのシーンでの姿で上書きします**(救済用)。"
+                       + "\n   2026-09-21 に実地で起きた事故: 作業場に他邸を解いたまま載せてこれを押し、"
+                       + "その邸の資産が作業場の姿で潰れ、赤坂側のインスタンスが壊れてルートごと落ちた。"
+                       + "\n   ⭕ 普段は Edo/屋敷/プレハブへ書き戻す(触った分だけ)。"
+                       + "自分の邸1軒を救うだけなら (選択中) を使うこと。");
         Debug.Log(WriteBackAll());
     }
 

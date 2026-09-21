@@ -1,5 +1,5 @@
 {
- "_": "類型表 — 全 88 区画の類型と径数。座標は持たない(区画は docs/Sashizu/parcels.json が正典・規則11)。欄が null のときは defaults から採る。cert は確度 S/A/B/P/U(規則7・正典は Tools/Skills/unity-buke-yashiki/references/sources.md)。⛔ この表で P を使わない — P は当方が測った・算出した値で、類型の既定値ではない。複数の文献から導かれる型は B、当方が地形や接道から推したものは U(当方の推論)。built:hand は図を起こして建てた敷地で、類型ビルダーの生成対象から外れる。設計=docs/typology-builder.md / 検査=Tools/Sashizu/typology_check.py",
+ "_": "類型表 — 全 88 区画の類型と径数。座標は持たない(区画は docs/Sashizu/parcels.json が正典・規則11)。欄が null のときは defaults から採る。cert は確度 S/A/B/P/U(規則7・正典は Tools/Skills/unity-buke-yashiki/references/sources.md)。⛔ この表で P を使わない — P は当方が測った・算出した値で、類型の既定値ではない。複数の文献から導かれる型は B、当方が地形や接道から推したものは U(当方の推論)。cert の鍵は原則この区画の実欄。⭕ 例外は name(呼び名の同定)・haishaku(拝領の別)・azukari(御預の別)の三つだけで、⛔ それ以外の実在しない欄名を書かない(確度が何に掛かるか定まらなくなる。typology_check.py が見張る)。built:hand は図を起こして建てた敷地で、類型ビルダーの生成対象から外れる。設計=docs/typology-builder.md / 検査=Tools/Sashizu/typology_check.py",
  "_front": "front は8方位(N/NE/E/SE/S/SW/W/NW と NNE などの中間)。null のときはビルダーが接道辺(区画の間に残った領域に面する辺)から採る。⛔ 辺番号も座標も書かない — 取り合いは実メッシュから解く(規則5)",
  "defaults": {
   "_": "類型ごとの既定値。区画の欄が null のときビルダーがここから採る。⛔ 出典の無い既定値は U 扱い(規則7)",
@@ -582,7 +582,7 @@
     "gate": "B",
     "yashiki": "A"
    },
-   "source": "相良越前守 肥後人吉藩2.21万石 約4,700坪。[切絵図 尾張屋版 赤坂絵図 NDL1286666] ⚠ 切絵図の■=**中屋敷**。写し元 EdoTameikeKitaBuilder.cs のヘッダも『相良(中屋敷2.2万)』で、表の kami は写し違い。 ⚠ 番所は**片**(1〜5万石帯)— 一律両番所の規範は 2026-08-23 撤回。",
+   "source": "相良越前守 肥後人吉藩2.21万石 約4,700坪。[切絵図 尾張屋版 赤坂絵図 NDL1286666] ⚠ 切絵図の■=**中屋敷**。写し元 EdoTameikeKitaBuilder.cs のヘッダも『相良(中屋敷2.2万)』。⭕ 表は naka で正(2026-09-21 に古い注意書きを畳んだ・EDO-0311 ⑥)。 ⚠ 番所は**片**(1〜5万石帯)— 一律両番所の規範は 2026-08-23 撤回。",
    "type": "buke"
   },
   "todablock_parcels_0": {
@@ -1123,7 +1123,8 @@
    "building": "yaba",
    "cert": {
     "kind": "B",
-    "composition": "U"
+    "building": "U",
+    "fence": "U"
    },
    "source": "大的稽古場。堤明地内の弓術大的稽古の矢場。安土+大的+射小屋+矢来+矢除板塀は矢場の一般類型(推定スタンドイン)。射小屋=kidobanya 代用。⭐ 矢道が要るため唯一の造成許可地(7.5mレベル+外周5mブレンド)",
    "type": "kouyuu"
@@ -1531,7 +1532,6 @@
    "type": "kouyuu"
   },
   "tamachi5east_horiguchipoly": {
-   "yashiki": "kami",
    "rank": "gokenin",
    "koku": null,
    "front": null,
@@ -1546,7 +1546,7 @@
     "koku": "U",
     "front": "U"
    },
-   "source": "絵図の文字「堀口儀八郎」。人名のみ判明。小規模拝領屋敷(板塀+冠木門+小主屋)の推定。⚠ 区画の category は machiya だが実体は武家の小屋敷",
+   "source": "絵図の文字「堀口儀八郎」。人名のみ判明。小規模拝領屋敷(板塀+冠木門+小主屋)の推定。⚠ 区画の category は machiya だが実体は武家の小屋敷 ⚠ 2026-09-21: yashiki(上/中/下)を落とした — あれは大名の屋敷の別で、御家人の拝領屋敷には付かない(考証方・掲示板 EDO-0311 ④)。⛔ 門は gokenin の既定 komon より一段高い kabukimon のままにしてある — 絵図から読んだ値なので既定へ戻さない。",
    "type": "buke"
   },
   "tamachi5east_kaishopoly": {
@@ -1563,7 +1563,7 @@
    "inari": false,
    "cert": {
     "kind": "B",
-    "composition": "U"
+    "pattern": "U"
    },
    "source": "絵図の文字「拝借地(櫨実会所)」。櫨実(はぜのみ)=木蝋原料の集荷会所と解釈。会所母屋+蔵+筵干し場は一般類型からの推定。文献裏付けは未取得(2026-08-09 Web検索でヒットなし)",
    "type": "machiya"
@@ -1580,10 +1580,10 @@
    "kamiyui": false,
    "inari": false,
    "cert": {
-    "kind": "A",
     "maguchi_ken": "B",
     "depth_ken": "U",
-    "front": "U"
+    "front": "U",
+    "name": "A"
    },
    "source": "絵図の文字「町屋」のみ判明。堀端通の東側(溜池汀)の権利地。114坪と小さく表店1列のみ",
    "type": "machiya"

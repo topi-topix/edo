@@ -18,6 +18,9 @@ PARCELS = os.path.join(ROOT, "docs", "Sashizu", "parcels.json")
 TYPO    = os.path.join(ROOT, "docs", "Sashizu", "typology.json")
 
 CERT = set("SABPU")
+# ⭕ 区画の実欄でない cert の鍵として許すのはこの三つだけ(区画そのものの素性に掛かる確度)。
+#   ⛔ 増やさない — 増やすほど「確度が何に掛かるか」が曖昧になる(掲示板 EDO-0311 ③)。
+CERT_META = {"name", "haishaku", "azukari"}
 TYPES = {"buke", "machiya", "jisha", "kouyuu"}
 GATES = {"kmon", "nagayamon", "hmon", "kabukimon", "munemon", "yakuimon", "sanmon", "komon", None}
 ENCL  = {"nagaya", "nagaya_front+ita", "ita", "dobei", "ita+ikegaki", "ishigaki+hei", "yarai", None}
@@ -59,6 +62,12 @@ def check():
         if t not in TYPES:
             bad.append((i, f"type が無いか未知({t})")); continue
         for k in NEED[t]:
+            if k == "yashiki" and e.get("rank") == "gokenin":
+                # ⛔ 上/中/下は**大名の屋敷の別**で、御家人の拝領屋敷には付かない
+                #   (考証方・掲示板 EDO-0311 ④)。付いていたら逆に鳴らす。
+                if "yashiki" in e:
+                    bad.append((i, "御家人なのに yashiki(上/中/下)が付いている — あれは大名の屋敷の別"))
+                continue
             if k not in e:
                 bad.append((i, f"{t} に要る欄 {k} が無い"))
         if e.get("gate") not in GATES:
@@ -76,6 +85,15 @@ def check():
                     bad.append((i, f"cert.{k}={v} は S/A/B/P/U でない"))
                 elif v == "P":
                     pcert.append(f"{i}.{k}")
+                # ⛔ **確度が何に掛かるか定まらない**のを許さない(掲示板 EDO-0311 ③)。
+                #   実在しない欄名に確度を付けると、読み手はどの値の話か分からず、
+                #   直しようも無い(azukarichi_yl と tamachi5east_kaishopoly に composition が在った)。
+                if k not in e and k not in CERT_META:
+                    bad.append((i, f"cert.{k} は実在しない欄 — 実欄か {'/'.join(sorted(CERT_META))} のどれかにする"))
+        # ⛔ 同じことを二つの欄で言わない — 門の型と山門の有無が食い違うと**二重に建つ**
+        #   (観理院で実際に起きた・EDO-0311 ⑤)
+        if t == "jisha" and "sanmon" in e and bool(e.get("sanmon")) != (e.get("gate") == "sanmon"):
+            bad.append((i, f"gate={e.get('gate')} と sanmon={e.get('sanmon')} が食い違う — 山門が二重に建つ"))
         if not e.get("source"):
             bad.append((i, "source が無い — 値の出どころを書く(規則7)"))
         # 区画の category と類型の type が食い違うなら、source で断ってあること

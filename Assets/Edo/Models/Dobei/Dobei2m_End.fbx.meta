@@ -3,7 +3,27 @@ guid: 143d84e677bc84cb3b715e9f333c8967
 ModelImporter:
   serializedVersion: 24501
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Fence_B_01
+    second: {fileID: 2100000, guid: eff2666bf115c77408727fe3df6162fd, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Wall Exterior Defence
+    second: {fileID: 2100000, guid: e17ab15db40da9e46b7b8ffb232ff8de, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: roof
+    second: {fileID: 2100000, guid: 46aea8a32dec24843adef3ad15ec2f3e, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: roof ornaments
+    second: {fileID: 2100000, guid: 2dba1ffbff60ed84194cd5d6c406b790, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0

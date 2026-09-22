@@ -33,7 +33,10 @@ def _common_git_dir():
 
 
 LOCKS = os.path.join(_common_git_dir(), "edo-locks")
+# 窓の今(.claude/hooks/edo_now.py が刻む `<sid>.now.json`)。仕舞いのとき一緒に消す(EDO-0366)
+SESS_DIR = os.path.join(_common_git_dir(), "edo-session")
 TTL_MIN = 45.0
+FIN_TTL_S = 24 * 3600   # 仕舞いの墓標を残す長さ(claim の TTL より長く — 短いと窓が生き返る)
 RESOURCES = ("unity", "terrain", "git-index", "assets")
 # ⚠ **排他ではない名乗り。** 「メインのチェックアウトに居るので worktree へ回さないでくれ」
 #   という意思表示で、複数のセッションが同時に持ってよい。check_write が見ている。
@@ -273,12 +276,58 @@ def _nikki_log(c, reason, by=None, extra=None):
         pass
 
 
+def fin_path(s):
+    """仕舞いの墓標の場所。⛔ **`.json` にしない** — load_all が claim として読んでしまう。"""
+    return os.path.join(LOCKS, "%s.fin" % re.sub(r"[^A-Za-z0-9_.-]", "_", s))
+
+
+def fin_mark(s, tasks=()):
+    """窓を仕舞った印を置く(EDO-0366)。
+
+    ⚠ `finish` が claim を消しても、そのあと**何か一つでも** touch() が走れば
+    `mine()` が同じ sid の claim を作り直す(板焼き・門番・待ち行列など入口はいくつもある)。
+    印が無いと、その中身の空な claim が「生きている窓」として板へ戻り、しかも
+    `board_now.collect` が閉じた claim の履歴から題を貼り直すので、仕舞った窓が
+    元の票を掲げて『働いている』と出続けた(2026-09-22 施主指摘・EDO-0312 の窓)。"""
+    try:
+        os.makedirs(LOCKS, exist_ok=True)
+        atomic_write_json({"session": s, "at": now(), "task": list(tasks)}, fin_path(s))
+    except Exception:
+        pass
+
+
+def fin_at(s):
+    """その窓が仕舞われた時刻(印が無ければ 0)。"""
+    try:
+        return json.load(open(fin_path(s), encoding="utf-8")).get("at") or 0
+    except Exception:
+        return 0
+
+
+def fin_clear(s):
+    """仕舞いの印を外す(`start` — つまり**新しい仕事を名乗った**ときだけ)。"""
+    try:
+        os.remove(fin_path(s))
+    except OSError:
+        pass
+
+
 def load_all(ttl=TTL_MIN):
-    """生きている claim だけを返す。死んだものは掃除する。"""
+    """生きている claim だけを返す。死んだものは掃除する。
+    ⭐ 仕舞われた窓(`finish` の印がある)の claim は `finished` を立てて返す —
+    門番の排他には要るが、**板と status では窓として数えない**(EDO-0366)。"""
     out = []
     if not os.path.isdir(LOCKS):
         return out
     for fn in sorted(os.listdir(LOCKS)):
+        if fn.endswith(".fin"):
+            # 墓標は claim より長生きさせる(TTL 45 分では窓が生き返る)。一日で掃く。
+            try:
+                if now() - os.path.getmtime(os.path.join(LOCKS, fn)) > FIN_TTL_S:
+                    os.remove(os.path.join(LOCKS, fn))
+            except OSError:
+                pass
+            continue
         if not fn.endswith(".json"):
             continue
         fp = os.path.join(LOCKS, fn)
@@ -305,6 +354,10 @@ def load_all(ttl=TTL_MIN):
             except OSError:
                 pass
             continue
+        if not c.get("finished"):
+            t = fin_at(c.get("session", ""))
+            if t and t >= c.get("started", 0):
+                c["finished"] = t
         out.append(c)
     return out
 
@@ -313,12 +366,25 @@ def mine(s):
     fp = os.path.join(LOCKS, "%s.json" % re.sub(r"[^A-Za-z0-9_.-]", "_", s))
     if os.path.exists(fp):
         try:
-            return json.load(open(fp, encoding="utf-8")), fp
+            c = json.load(open(fp, encoding="utf-8"))
+            # 仕舞い済みかどうかの正体は**墓標**。印が消えていれば(= `start` が外した)欄も落とす。
+            t = fin_at(s)
+            if t:
+                c["finished"] = t
+            else:
+                c.pop("finished", None)
+            return c, fp
         except Exception:
             pass
-    return {"session": s, "pid": os.getppid(), "cwd": os.getcwd(),
-            "started": now(), "heartbeat": now(),
-            "paths": [], "resources": [], "note": ""}, fp
+    # ⚠ 仕舞ったあとに作り直された claim は**仕舞い済みのまま**にする。
+    #   ここで印を落とすと窓が板へ生き返る(EDO-0366)。外れるのは `start` のときだけ。
+    c = {"session": s, "pid": os.getppid(), "cwd": os.getcwd(),
+         "started": now(), "heartbeat": now(),
+         "paths": [], "resources": [], "note": ""}
+    t = fin_at(s)
+    if t:
+        c["finished"] = t
+    return c, fp
 
 
 def atomic_write_json(obj, fp):
@@ -562,11 +628,16 @@ def cmd_status(a):
         print("⭐ %s が空いている(保持者なし)。待ち行列の先頭 %s に %.0f 分の予約を出した。"
               % (r, w["session"], RESERVE_MIN))
     cs = load_all(a.ttl)
+    # ⭐ 仕舞った窓は数に入れない(EDO-0366)。`finish` のあとに作り直された claim は
+    #   中身が空でも心拍が新しいので、そのままだと「まだ働いている窓」に見える。
+    fin = [c for c in cs if c.get("finished")]
+    cs = [c for c in cs if not c.get("finished")]
     if not cs:
         print("門番: 生きている claim は無し")
         return 0
     me = sid(a.session, strict=False)
-    print("門番 — 生きている claim %d 件(TTL %.0f 分)" % (len(cs), a.ttl))
+    print("門番 — 生きている claim %d 件(TTL %.0f 分)%s"
+          % (len(cs), a.ttl, ("・仕舞い済の窓 %d 件は除く" % len(fin)) if fin else ""))
     if len(cs) > 1:
         # ⚠ pid を出すと「ps に無い=終了した」と読まれて資源を取り上げられる(EDO-0280)。
         #   この環境では他セッションの pid はプロセス表に映らないので、必ず一言添える。
@@ -763,6 +834,13 @@ def cmd_finish(a):
         os.remove(fp)
     else:
         freed = []
+    # ⭐ 窓を仕舞った印を置き、窓の今の刻みも消す(EDO-0366)。これが無いと、このあとの
+    #   どんな touch() でも claim が作り直され、板に元の票のまま『働いている』と出続ける。
+    fin_mark(me, closed or tasks)
+    try:
+        os.remove(os.path.join(SESS_DIR, me + ".now.json"))
+    except OSError:
+        pass
     print("finish: %s の窓を閉じた(%s)"
           % (me, ("閉じた票 " + "・".join(closed)) if closed
              else ("票は閉じず " + "・".join(tasks)) if tasks else "票なし"))
@@ -1226,6 +1304,35 @@ def cmd_commit(a):
     return r.returncode
 
 
+def _selftest_finish():
+    """仕舞った窓が生き返らないこと(EDO-0366)。⛔ 落ちたら、閉じた窓が板に『働いている』と出る。"""
+    import tempfile
+    global LOCKS, SESS_DIR
+    keep, tmp = (LOCKS, SESS_DIR), tempfile.mkdtemp()
+    LOCKS, SESS_DIR = os.path.join(tmp, "locks"), os.path.join(tmp, "sess")
+    os.makedirs(LOCKS), os.makedirs(SESS_DIR)
+    ng, s = 0, "selftst0-fin"
+
+    def chk(title, ok):
+        nonlocal ng
+        ng += 0 if ok else 1
+        print("%s %s" % ("⭕" if ok else "⛔", title))
+
+    try:
+        touch(s, paths=["sashizu:infra"])
+        os.remove(os.path.join(LOCKS, s + ".json"))
+        fin_mark(s, ["EDO-0001"])
+        chk("仕舞った窓は claim ごと消える", not load_all())
+        touch(s)                                   # 板焼き・門番などが claim を作り直す
+        chk("作り直された claim は仕舞い済のまま", bool((load_all() or [{}])[0].get("finished")))
+        fin_clear(s)
+        touch(s)
+        chk("新しい仕事を名乗れば印は外れる", not (load_all() or [{}])[0].get("finished"))
+    finally:
+        LOCKS, SESS_DIR = keep
+    return ng
+
+
 def cmd_selftest(a):
     """⛔ 落ちたら**設定コミットの関門が死んでいる**(素通りしても誰も気づかない)。"""
     ng = 0
@@ -1252,6 +1359,7 @@ def cmd_selftest(a):
     ok = got == ["Tools/x.py", "CLAUDE.md", "docs/a.md"]
     ng += 0 if ok else 1
     print("%s `git commit -- <パス>` の明示パスを拾う(staging に載らない物)%s" % ("⭕" if ok else "⛔", "" if ok else " → %s" % got))
+    ng += _selftest_finish()
     print("⛔ 自己検査 %d 件失敗" % ng if ng else "⭕ 自己検査 全通")
     return 1 if ng else 0
 
@@ -1361,6 +1469,8 @@ def cmd_start(a):
         except Exception:
             pass
     c, fp = mine(me)
+    fin_clear(me)               # 新しい仕事を名乗った — 仕舞いの印を外す(EDO-0366)
+    c.pop("finished", None)
     if dom not in c["paths"]:
         c["paths"].append(dom)
     if a.note:

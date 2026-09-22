@@ -163,10 +163,21 @@ def load_waits(path=None, since=0.0, max_bytes=1_000_000):
     return out
 
 
+def _work(st, now):
+    """「働いている」と言ってよいのは**刻みが新しいとき**だけ(EDO-0366)。
+    ⚠ 窓は `finish` を通らずに閉じることもある(施主がタブを閉じる・落ちる)。そのとき刻みは
+    最後の道具呼び出しのまま止まるので、古い刻みを『働いている』と読むと、閉じた窓が
+    最大 45 分のあいだ働いて見える(2026-09-22 施主指摘)。止まっていることを表に出す。"""
+    at = st.get("at") or 0
+    if now - at > LIVE_MIN * 60:
+        return dict(kind="stale", label="刻みが止まっている", since=at)
+    return dict(kind="work", label="働いている", since=at)
+
+
 def window_state(st, now, show_s=SHOW_S):
     """窓の今を一つに畳む。戻り値 dict(kind, label, since)。
     kind: busy=道具の返事を show_s 秒超えて待っている / idle=手が空いている(施主の指示待ち) /
-          work=働いている / ""=不明(刻みが無い・古い)。
+          work=働いている / stale=刻みが止まっている(窓が閉じたかも) / ""=不明(刻みが無い・古い)。
     ⭐ stack の**一番外側**が「窓として」待っている物(役の中の Bash ではなく、役の帰り)。"""
     if not st or now - (st.get("at") or 0) > STATE_TTL_S:
         return dict(kind="", label="", since=None)
@@ -179,10 +190,10 @@ def window_state(st, now, show_s=SHOW_S):
             if sub and e.get("tool") == "Agent" and sub.get("tool"):
                 lab += "・役の中: " + sub["tool"].split("__")[-1]
             return dict(kind="busy", label=lab, since=e["since"])
-        return dict(kind="work", label="働いている", since=e.get("since"))
+        return _work(st, now)
     if st.get("idle_since"):
         return dict(kind="idle", label="手が空いている(施主の指示待ち)", since=st["idle_since"])
-    return dict(kind="work", label="働いている", since=st.get("at"))
+    return _work(st, now)
 
 
 def res_spans(events, resource="unity"):
@@ -282,6 +293,11 @@ def collect(now=None, live=None, queue=None, hist=None, ticket_estate=None, win_
         w["segs"].append((max(r["started"], t0), r["ended"], kind))
         w["note"] = w["note"] or r.get("note", "")
         w["paths"] = w["paths"] or r.get("paths", [])
+    # ⭐ 仕舞った窓(`finish` の印がある)は**生きている窓として数えない**(EDO-0366)。
+    #   finish のあとの touch() で claim は作り直されるので、そのままだと閉じた窓が
+    #   閉じた票の題を掲げて『働いている』と出続けた(2026-09-22 施主指摘)。
+    #   終わった事跡は下の「終わった仕事」の節が持つ。
+    live = [c for c in live if not c.get("finished")]
     for c in live:
         w = row(c["session"])
         w["live"] = True
@@ -462,7 +478,8 @@ def _dur(a, b):
 
 
 def _state_chip(w, now):
-    """窓の今の札。busy=朱(何を待っているか) / idle=黄(施主の指示待ち) / work=緑。不明なら空。"""
+    """窓の今の札。busy=朱(何を待っているか) / idle=黄(施主の指示待ち) / work=緑 /
+    stale=灰(刻みが止まっている)。不明なら空。"""
     s = w.get("state") or {}
     k = s.get("kind")
     if not k:
@@ -472,6 +489,8 @@ def _state_chip(w, now):
         return '<span class="bn-chip s">⏳ %s %d分</span>' % (esc(s["label"]), mins)
     if k == "idle":
         return '<span class="bn-chip i">%s %d分</span>' % (esc(s["label"]), mins)
+    if k == "stale":
+        return '<span class="none">%s(%d分)</span>' % (esc(s["label"]), mins)
     return '<span class="bn-chip k">%s</span>' % esc(s["label"])
 
 
@@ -643,6 +662,16 @@ def selftest():
     assert window_state({"at": n - 5, "stack": [{"tool": "Bash", "kind": "x", "since": n - 30}]}, n)["kind"] == "work", "60 秒未満は働いている"
     assert window_state({"at": n - 3600 * 2, "stack": []}, n)["kind"] == "", "古い刻みは不明"
     assert window_state({}, n)["kind"] == "", "刻みが無ければ不明"
+    # EDO-0366: 刻みが止まった窓を「働いている」と言わない(finish を通らず閉じた窓)
+    assert window_state({"at": n - (LIVE_MIN + 5) * 60, "stack": []}, n)["kind"] == "stale", "止まった刻みは働いていない"
+    assert window_state({"at": n - 60, "stack": []}, n)["kind"] == "work"
+    assert window_state({"at": n - 1200, "stack": [], "idle_since": n - 1200}, n)["kind"] == "idle", \
+        "手が空いていると自分で言った窓はそのまま(止まった刻みではない)"
+    # EDO-0366: 仕舞った窓は、そのあと claim が作り直されても板の窓ではない
+    fin_live = [dict(live[0], finished=n - 300)]
+    d4 = collect(now=n, live=fin_live, queue=[], hist=[], events=[], namer=lambda s: "")
+    assert not [w for w in d4["rows"] if w["live"]], "仕舞った窓は窓の今に出さない"
+    assert "生きている窓は無い" in html(d4), "仕舞った窓だけなら表は空"
     assert d["rows"][0]["hold_from"] == n - 3000 and not d["rows"][0]["hold_est"], "取った時刻は実測"
     assert not d["est"]
     d2 = collect(now=n, live=live, queue=queue, hist=hist, events=[], namer=lambda s: "")

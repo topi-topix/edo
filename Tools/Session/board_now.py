@@ -14,6 +14,9 @@
    取る・返す・取り上げ・失効・並ぶ・降りるの 6 つ。帯の朱と斜線はここから引く。
    ⚠ この記録より前に取られた資源は事跡が無いので、前の持ち手が返した時刻から推定し、
    画面に「推定」と出す(記録が一巡すれば自然に消える)。
+⭐ **終わった仕事は日を越えて残す(2026-09-22 施主指示)。** 窓を閉じると claim は消えるので、
+   `edo_session.py finish` が claims.jsonl へ書く `reason="finish"` の行が唯一の事跡。
+   閉じた票・要した時間つきで「終わった仕事」の節に出す(既定 14 日ぶん)。
 ⛔ 進み具合(「9/16」など)は描かない。仕事の段を記録する口がまだ無く、勘で書かせると嘘になる。
 
     python3 Tools/Session/board_now.py --selftest
@@ -31,6 +34,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 WIN_MIN = 180          # 帯が見せる幅(分)。左端が3時間前、右端が今
+FIN_DAYS = 14          # 「終わった仕事」を何日ぶん残すか(掲示板の「古び」と同じ 14 日)
+FIN_MAX = 12           # 節に並べる本数の上限(残りは「ほか N 本」)
 LIVE_MIN = 15.0        # この心拍以内を「動いている」と数える(TTL は 45 分)
 esc = lambda s: _html.escape(str(s), quote=True)
 hm = lambda t: time.strftime("%H:%M", time.localtime(t))
@@ -124,8 +129,48 @@ def res_spans(events, resource="unity"):
     return spans
 
 
-def collect(now=None, live=None, queue=None, hist=None, ticket_estate=None, win_min=WIN_MIN, namer=None, events=None):
-    """窓ごとの行を集める。live/queue/hist は試験のために差し替えられる。
+def load_claim_log(path=None, since=0.0):
+    """畳まれた claim の履歴(append-only)を時刻順で返す。`since` より後に終わった行だけ。"""
+    if path is None:
+        try:
+            import edo_session as es
+            path = os.path.join(os.path.dirname(es.LOCKS), "edo-nikki", "claims.jsonl")
+        except Exception:
+            return []
+    out = []
+    if path and os.path.exists(path):
+        for l in open(path, encoding="utf-8"):
+            try:
+                r = json.loads(l)
+            except Exception:
+                continue
+            if r.get("ended", 0) > since:
+                out.append(r)
+    out.sort(key=lambda r: r.get("ended", 0))
+    return out
+
+
+def fin_rows(log, now, days=FIN_DAYS, namer=None):
+    """**終わった仕事**(`edo_session.py finish` の行)を新しい順に畳む。1行=1つの仕舞い。
+    ⭐ 窓が閉じると claim は消えるので、日を越えても残るのはこの行だけ(2026-09-22 施主指示)。"""
+    namer = namer or session_name
+    out = []
+    for r in log:
+        if r.get("reason") != "finish" or r.get("ended", 0) < now - days * 86400:
+            continue
+        out.append(dict(sid=r.get("session", ""), name=namer(r.get("session", "")),
+                        title=_title(r.get("note")) or _files_title(r.get("paths") or []) or "(名乗りなし)",
+                        ended=r.get("ended", 0), started=r.get("started") or 0,
+                        closed=list(r.get("closed") or []), kept=list(r.get("kept") or []),
+                        task=list(r.get("task") or []), result=r.get("result") or "",
+                        estates=list(r.get("estate") or [])))
+    out.sort(key=lambda w: -w["ended"])
+    return out
+
+
+def collect(now=None, live=None, queue=None, hist=None, ticket_estate=None, win_min=WIN_MIN, namer=None, events=None,
+            fins=None, fin_days=FIN_DAYS):
+    """窓ごとの行を集める。live/queue/hist/fins は試験のために差し替えられる。
     ticket_estate={"EDO-0354": "typology"} — 名乗りの票番号から邸を引く(claim に sashizu: が無い窓のため)。"""
     now = now or time.time()
     t0 = now - win_min * 60
@@ -134,23 +179,18 @@ def collect(now=None, live=None, queue=None, hist=None, ticket_estate=None, win_
     if events is None:
         events = load_res_events()
     spans = res_spans(events)
-    if live is None or queue is None or hist is None:
+    if live is None or queue is None or hist is None or fins is None:
         import edo_session as es
         if live is None:
             live = es.load_all()
         if queue is None:
             queue = es.q_load().get("unity", [])
-        if hist is None:
-            hist = []
-            p = os.path.join(os.path.dirname(es.LOCKS), "edo-nikki", "claims.jsonl")
-            if os.path.exists(p):
-                for l in open(p, encoding="utf-8"):
-                    try:
-                        r = json.loads(l)
-                    except Exception:
-                        continue
-                    if r.get("ended", 0) > t0:
-                        hist.append(r)
+        if hist is None or fins is None:
+            log = load_claim_log(since=now - max(fin_days * 86400, win_min * 60))
+            if hist is None:
+                hist = [r for r in log if r.get("ended", 0) > t0]
+            if fins is None:
+                fins = fin_rows(log, now, fin_days, namer)
     last_unity_release = max([r["ended"] for r in hist if "unity" in r.get("resources", [])] or [0])
 
     rows = {}
@@ -215,7 +255,7 @@ def collect(now=None, live=None, queue=None, hist=None, ticket_estate=None, win_
     mute_live = [w for w in mute if w["live"]]
     est = any(w.get("hold_est") for w in named)
     return dict(now=now, t0=t0, win=win_min * 60, rows=named, mute=mute_live,
-                est=est, logged=bool(events))
+                est=est, logged=bool(events), fins=list(fins or []), fin_days=fin_days)
 
 
 # ───────────────────────────── 描く
@@ -259,6 +299,17 @@ CSS = """<style>
 .bn-b.wait{top:1px;height:16px;border:1px solid var(--n-oud);background:repeating-linear-gradient(135deg,var(--n-oud) 0 2px,transparent 2px 6px)}
 .bn-now{position:absolute;right:0;top:-7px;bottom:-7px;width:1px;background:var(--n-ink)}
 .bn-ended{margin-top:10px}.bn-ended summary{cursor:pointer;font-size:12.5px;color:var(--n-muted);padding:6px 0}
+/* 終わった仕事(手仕舞い)— 窓が閉じても残る唯一の事跡 */
+.bn-fin{margin-top:22px}
+.bn-fin table{width:100%;border-collapse:collapse;border:1px solid var(--n-line);background:var(--n-card);font-size:12.5px}
+.bn-fin th,.bn-fin td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--n-soft);vertical-align:baseline}
+.bn-fin th{font-size:11px;letter-spacing:.08em;color:var(--n-muted);font-weight:500;white-space:nowrap}
+.bn-fin tr:last-child td{border-bottom:0}
+.bn-fin .t,.bn-fin .d{white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--n-muted)}
+.bn-fin .ti{color:var(--n-ink)}
+.bn-fin .ok{font:500 11px ui-monospace,Menlo,monospace;color:var(--n-ok);border:1px solid var(--n-ok);padding:0 5px;margin-right:4px;white-space:nowrap}
+.bn-fin .kept{font-size:11px;color:var(--n-oud)}
+.bn-fin .none{font-size:11.5px;color:var(--n-muted)}
 .bn-keys{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:11.5px;color:var(--n-muted);margin-top:10px}
 .bn-keys span{display:inline-flex;align-items:center;gap:6px}
 .bn-keys .bn-b{position:static;width:22px;height:10px}
@@ -299,6 +350,43 @@ def _ticks(d):
         out.append('<span style="left:%.2f%%">%s</span>' % (100.0 * (t - d["t0"]) / d["win"], hm(t)))
         t += 1800
     return "".join(out)
+
+
+def _dur(a, b):
+    if not a or not b or b <= a:
+        return "—"
+    m = (b - a) / 60.0
+    return "%d分" % m if m < 90 else "%.1f時間" % (m / 60.0)
+
+
+def _fin_html(d):
+    """**終わった仕事**の節。窓が閉じると claim は消えるので、日を越えて残るのはここだけ。
+    正典は `edo-nikki/claims.jsonl` の `reason="finish"` の行(`edo_session.py finish` が書く)。"""
+    fins, days = d.get("fins") or [], d.get("fin_days", FIN_DAYS)
+    p = ['<div class="bn-fin"><h3>終わった仕事</h3>'
+         '<p class="sub">1行=1つの仕舞い。窓が閉じても %d 日ぶん残る — '
+         "どの票を閉じ、どれだけ掛かったか。</p>" % days]
+    if not fins:
+        return "".join(p) + ('<p class="none">この %d 日に仕舞われた仕事は無い。'
+                             "仕事が終わったら <b>edo_session.py finish --task EDO-xxxx</b> で"
+                             "票を閉じて窓を閉じる — その一手だけがここに残る。</p></div>" % days)
+    p.append("<table><tr><th>仕舞った</th><th>窓</th><th>仕事</th><th>閉じた票</th><th>掛かった</th></tr>")
+    for w in fins[:FIN_MAX]:
+        tk = "".join('<span class="ok">%s</span>' % esc(x) for x in w["closed"])
+        if not tk:
+            tk = '<span class="kept">票は閉じず%s</span>' % (
+                "(" + esc("・".join(w["task"])) + ")" if w["task"] else "(票なし)")
+        if w["kept"]:
+            tk += '<span class="kept">残 %d</span>' % len(w["kept"])
+        p.append('<tr><td class="t">%s</td><td>%s</td><td class="ti">%s</td><td>%s</td>'
+                 '<td class="d">%s</td></tr>'
+                 % (esc(time.strftime("%m-%d %H:%M", time.localtime(w["ended"]))),
+                    _sn(w), esc(w["title"][:46]), tk, esc(_dur(w["started"], w["ended"]))))
+    p.append("</table>")
+    if len(fins) > FIN_MAX:
+        p.append('<p class="none">ほか %d 本(生ログは edo-nikki/claims.jsonl)</p>' % (len(fins) - FIN_MAX))
+    p.append("</div>")
+    return "".join(p)
 
 
 def html(d=None, css=True):
@@ -350,10 +438,12 @@ def html(d=None, css=True):
     p.append('</div><div class="bn-keys"><span><i class="bn-b unity"></i>Unity を使っている</span>'
              '<span><i class="bn-b wait"></i>Unity を待っている</span><span><i class="bn-b work"></i>仕事の名乗りあり</span>'
              '<span><i class="bn-b mute"></i>名乗りなし</span></div>'
-             '<p class="bn-fine">%s窓の名は claim の名乗りから出している。</p></div>'
+             '<p class="bn-fine">%s窓の名は claim の名乗りから出している。</p>'
              % ("⚠ この窓が Unity を取った事跡が記録より前にあるため、朱の帯の左端は前の持ち手が返した時刻からの推定。"
                 if d.get("est") else
                 "朱と斜線は資源の出入りの記録(取った・返した・並んだ)の実測。"))
+    p.append(_fin_html(d))
+    p.append("</div>")
     return "".join(p)
 
 
@@ -403,6 +493,19 @@ def selftest():
     assert 'class="bn-sn" title="aaaaaaaa-111">名前A' in out and 'title="cccccccc-333">cccccccc' in out   # 名前が無ければ短い ID
     assert "10分待ち" in out and "Unity 使用中" not in out and "1番" in out and "寺社の建て直し" in out
     assert "Unity 使用中" in lane_html(d, "typology") or "10分待ち" in lane_html(d, "typology")
+    assert "終わった仕事" in out and "この 14 日に仕舞われた仕事は無い" in out    # 仕舞いが無い日も節は出す
+    # 仕舞い(finish)の行は窓が消えても残る — 閉じた票と掛かった時間を出す
+    log = [dict(session="eeeeeeee-555", started=n - 86400 * 2 - 5400, ended=n - 86400 * 2,
+                reason="finish", note="EDO-0361: 日誌の邸引き", paths=["sashizu:infra"],
+                closed=["EDO-0361"], kept=["EDO-0360"], task=["EDO-0361"]),
+           dict(session="ffffffff-666", started=n - 9000, ended=n - 8000, reason="release", note="x")]
+    fr = fin_rows(log, n, namer=lambda s: "名前E")
+    assert len(fr) == 1 and fr[0]["closed"] == ["EDO-0361"], fr      # release は仕舞いではない
+    assert fr[0]["ended"] < n - 86400, "日を越えた仕舞いも残る"
+    d3 = collect(now=n, live=[], queue=[], hist=[], fins=fr)
+    h3 = html(d3)
+    assert "EDO-0361" in h3 and "1.5時間" in h3 and "残 1" in h3 and "名前E" in h3, h3
+    assert fin_rows(log, n, days=1, namer=lambda s: "") == [], "古い仕舞いは落ちる"
     assert html(collect(now=n, live=[], queue=[], hist=[]), css=False).count("空いている") == 1
     print("selftest ok")
 

@@ -100,6 +100,9 @@
 → **`.claude/rules/unity.md`**(排他・プレハブ・地形・コンパイル・MCP の罠)。共通の一線だけここに:
 **Unity は排他**(`edo_session.py start <屋敷> --unity` / 終わったら即 `release --resources unity`)、
 **`git add -A` / `git commit -a` は門番が止める**。→ `docs/session-coordination.md` <!-- obl:unity-release -->
+**1セッション1タスク**(`start <敷地> --task EDO-xxxx`)。⛔ 同じ窓で次の仕事へ移らない。仕舞いは
+`edo_session.py finish --task EDO-xxxx --msg "<結果>"` — 票を閉じ・終わった事跡を残し・claim を全部返す一手。
+→ `docs/session-board.md` §1c <!-- obl:one-task-per-session -->
 
 ## ルーティング
 

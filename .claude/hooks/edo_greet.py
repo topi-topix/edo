@@ -45,9 +45,12 @@ if os.path.exists(CLI):
                   " 使いたいのに埋まっていたら `edo_session.py wait --resources unity` で"
                   "**待ち行列に並ぶ**(空けば先頭に15分の予約が出る)。"
                   "⛔ **返した側は次の人へ SendMessage で連絡する義務がある。**")
-        print("作業を始めるには **`python3 Tools/Session/edo_session.py start <屋敷>`**。"
+        print("作業を始めるには **`python3 Tools/Session/edo_session.py start <屋敷> --task EDO-xxxx`**。"
               "指図だけなら worktree を探して(無ければ作って)そこへ回す。"
-              "Unity を使うなら `start <屋敷> --unity` でメインに留まり Unity を確保する。")
+              "Unity を使うなら `start <屋敷> --unity` でメインに留まり Unity を確保する。"
+              "**1セッション1タスク** — 仕舞う票を名乗り、終わったら "
+              "`finish --task EDO-xxxx --msg \"<結果>\"` で票を閉じて窓を閉じる"
+              "(docs/session-board.md §1c)。")
     # 文脈計(計画 E-2): このセッションの文脈を 1 行。300K を超えたら /compact(docs/fushin-bugyo.md)。
     tp = ev.get("transcript_path") or ""
     tr = os.path.join(MAIN_ROOT, "Tools", "Session", "token_report.py")

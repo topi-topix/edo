@@ -253,15 +253,18 @@ def sid(default=None, strict=True):
     return "pid-%s" % os.getppid()
 
 
-def _nikki_log(c, reason, by=None):
+def _nikki_log(c, reason, by=None, extra=None):
     """claim が消える前に、その履歴を日誌の生ログへ 1 行追記する(append-only)。
     ⚠ claim は release / TTL 失効で削除されるので、これが無いと「誰がいつどの邸を持っていたか」が
-    消える(2026-09-19 日誌の機構)。読む側は Tools/Session/nikki.py。失敗しても黙る。"""
+    消える(2026-09-19 日誌の機構)。読む側は Tools/Session/nikki.py と board_now.py。失敗しても黙る。
+    ⭐ `reason="finish"` の行が**仕事が終わった事跡**(2026-09-22 施主指示) — 閉じた票を `closed` に持ち、
+       普請場の一枚の「セッション」タブが日を越えてもこれを出す。`extra` はその追加の欄。"""
     try:
         rec = {"session": c.get("session"), "estate": [p[8:] for p in c.get("paths", []) if p.startswith("sashizu:")],
                "paths": list(c.get("paths", [])), "phase": c.get("phase"), "resources": list(c.get("resources", [])),
                "started": c.get("started"), "ended": now(), "reason": reason, "by": by,
                "note": (c.get("note") or "")[:80], "cwd": c.get("cwd")}
+        rec.update(extra or {})
         d = os.path.join(os.path.dirname(LOCKS), "edo-nikki")
         os.makedirs(d, exist_ok=True)
         with open(os.path.join(d, "claims.jsonl"), "a", encoding="utf-8") as f:
@@ -713,6 +716,68 @@ def cmd_release(a):
         (c.get("used") or {}).pop(r, None)
     save(c, fp)
     print("release: 残り %s %s" % (c["paths"], c["resources"]))
+    if "unity" in freed:
+        _reload_cost()
+    _hand_over(freed)
+    return 0
+
+
+def _board_cli():
+    return os.path.join(os.path.dirname(_common_git_dir()), "Tools", "Session", "edo_board.py")
+
+
+def cmd_finish(a):
+    """仕事を仕舞う口(2026-09-22 施主指示) — **票を閉じ・事跡を残し・claim を全部返す**を一手で。
+
+    ⭐ **1セッション1タスク**。窓が閉じると claim は消えるので、終わったことは日誌の生ログ
+    (`edo-nikki/claims.jsonl` の `reason="finish"` の行)にしか残らない。普請場の一枚の
+    「セッション」タブはその行を読んで「終わった仕事」として出す(board_now.py)。
+    ⛔ 票を閉じずに窓を閉じない — 次の窓には引き継ぐ手段が無い(docs/session-board.md §1c)。"""
+    me = sid(a.session)
+    c, fp = mine(me)
+    tasks = [x.strip().upper() for x in (a.task or []) if x.strip()]
+    if not tasks and c.get("task"):
+        tasks = [c["task"]]
+    if not tasks:
+        m = re.findall(r"EDO-\d{3,4}", c.get("note") or "")
+        tasks = m[:1]
+    closed, miss = [], []
+    for tk in tasks:
+        if a.keep_task:
+            break
+        r = subprocess.run([sys.executable, _board_cli(), "close", tk] +
+                           (["--msg", a.msg] if a.msg else []), capture_output=True, text=True)
+        out = (r.stdout or r.stderr).strip()
+        if out:
+            print("  " + out.replace("\n", "\n  "))
+        (closed if r.returncode == 0 else miss).append(tk)
+    kept = _open_tasks_of(c)
+    kept_ids = [m.group(0) for m in (re.search(r"EDO-\d{3,4}", k) for k in kept) if m]
+    rec = {"task": tasks, "closed": closed, "kept": kept_ids,
+           "result": (a.msg or "")[:120], "finished": True}
+    if os.path.exists(fp):
+        _nikki_log(c, "finish", extra=rec)
+        for r in c.get("resources", []):
+            _res_log(me, r, "release")
+        freed = [r for r in c.get("resources", []) if r in RESOURCES]
+        os.remove(fp)
+    else:
+        freed = []
+    print("finish: %s の窓を閉じた(%s)"
+          % (me, ("閉じた票 " + "・".join(closed)) if closed
+             else ("票は閉じず " + "・".join(tasks)) if tasks else "票なし"))
+    if miss:
+        print("  ⚠ 閉じられなかった票: %s — `edo_board.py show <ID>` で確かめること" % "・".join(miss),
+              file=sys.stderr)
+    if kept:
+        print("  ⚠ この敷地には open task が %d 件残っている(次の窓が拾う):" % len(kept), file=sys.stderr)
+        for k in kept[:5]:
+            print("    " + k, file=sys.stderr)
+    if not tasks and not a.keep_task:
+        print("  ⚠ 票を名乗らずに仕舞った。次からは `start <敷地> --task EDO-xxxx`"
+              "(1セッション1タスク・docs/session-board.md §1c)", file=sys.stderr)
+    print("  ⭐ 終わった事跡は日誌の生ログへ残した。普請場の一枚の「セッション」タブに"
+          "「終わった仕事」として出る(常時の窓は5分で焼き直す)。")
     if "unity" in freed:
         _reload_cost()
     _hand_over(freed)
@@ -1300,6 +1365,24 @@ def cmd_start(a):
         c["paths"].append(dom)
     if a.note:
         c["note"] = a.note
+    # ⭐ **1セッション1タスク**(2026-09-22 施主指示・docs/session-board.md §1c)。
+    #   窓に票を1枚だけ結びつける。仕舞いは `finish` が閉じて、終わった事跡を一枚へ残す。
+    task = (getattr(a, "task", "") or "").strip().upper()
+    if task and not re.fullmatch(r"EDO-\d{3,4}", task):
+        print("⛔ --task は掲示板の票番号(EDO-0361 の形)で渡すこと。", file=sys.stderr)
+        return 2
+    if task:
+        if c.get("task") and c["task"] != task:
+            print("⚠ 1セッション1タスク — この窓は既に %s を名乗っている。別の仕事なら\n"
+                  "   `finish` で仕舞ってから**新しい窓**で始めること(文脈を持ち越さない)。"
+                  % c["task"], file=sys.stderr)
+        c["task"] = task
+        if task not in (c.get("note") or ""):
+            c["note"] = ("%s: %s" % (task, c.get("note") or "")).rstrip(": ")
+    elif not c.get("task") and a.name not in ("cross",):
+        print("⚠ 1セッション1タスク — 仕舞う票を名乗ること(`--task EDO-xxxx`)。無ければ\n"
+              "   `edo_board.py post` で番号を取る。票の無い窓は、終わった事跡が一枚に残らない。",
+              file=sys.stderr)
     phase = getattr(a, "phase", None)
     if phase:
         c["phase"] = phase
@@ -1594,7 +1677,15 @@ def main():
     p.add_argument("--blender", action="store_true", help="Blender で部材を作る(メインに留まる)")
     p.add_argument("--note", default="")
     p.add_argument("--join", action="store_true", help="同じ敷地を別セッションが進めていても引き継ぐ(理由を --note に)")
+    p.add_argument("--task", default="", help="この窓が仕舞う掲示板の票(EDO-xxxx)。1セッション1タスク")
     p.set_defaults(fn=cmd_start)
+    p = sub.add_parser("finish", help="仕事を仕舞う — 票を close し、終わった事跡を残し、claim を全部返す"
+                                      "(1セッション1タスク・docs/session-board.md §1c)")
+    p.add_argument("--task", nargs="*", default=[], help="閉じる票(既定は start --task で名乗った物)")
+    p.add_argument("--msg", default="", help="何をして終わったか(票の log と日誌に残る)")
+    p.add_argument("--keep-task", action="store_true", dest="keep_task",
+                   help="票は閉じずに窓だけ閉じる(続きが要る・別の窓へ渡す場合)")
+    p.set_defaults(fn=cmd_finish)
     p = sub.add_parser("worktree"); p.add_argument("name")
     p.add_argument("--branch"); p.add_argument("--base")
     p.add_argument("--full", action="store_true", help="Assets も含める(Unity を開くなら)")

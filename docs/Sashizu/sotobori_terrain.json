@@ -19,8 +19,8 @@
   "waterAreaHa": 2.44,
   "bankAreaHa": 2.24,
   "cut_m3": 118323,
-  "fill_m3": 20951,
-  "net_m3": 97372,
+  "fill_m3": 20948,
+  "net_m3": 97375,
   "maxCut_m": 6.71,
   "maxFill_m": 3.94,
   "spillCells": 0,
@@ -34,20 +34,21 @@
     "maxFill_m": 0.0
    },
    "body": {
-    "label": "躯体の帯 0–4.80m(石垣の下・種地を戻す)",
+    "label": "躯体(駒の footprint・種地を戻す)",
     "cut_m3": 16496,
-    "fill_m3": 2490,
+    "fill_m3": 2473,
     "maxCut_m": 6.59,
     "maxFill_m": 3.94
    },
    "bank": {
-    "label": "②③ 岸 4.80–14m(天端基準)",
+    "label": "②③ 岸(天端 −0.20m 基準・最大 14m)",
     "cut_m3": 112,
-    "fill_m3": 18460,
+    "fill_m3": 18475,
     "maxCut_m": 0.5,
     "maxFill_m": 3.65
    }
   },
+  "bodyAreaM2": 7576,
   "maxFillOutsideBody_m": 3.65,
   "overshoot_m2": 3972,
   "overshootMaxOutside_m": 4.3,
@@ -4079,7 +4080,7 @@
    "n": 14,
    "curOverCopingMedian": -1.32,
    "designOverCopingMedian": -1.4,
-   "designOverCopingMax": -0.25,
+   "designOverCopingMax": -0.2,
    "buriedPct": 0.0
   },
   {
@@ -4114,8 +4115,8 @@
    "body": "Sotobori_00003",
    "n": 2,
    "curOverCopingMedian": -1.37,
-   "designOverCopingMedian": -1.71,
-   "designOverCopingMax": -1.71,
+   "designOverCopingMedian": -1.9,
+   "designOverCopingMax": -1.9,
    "buriedPct": 0.0
   },
   {

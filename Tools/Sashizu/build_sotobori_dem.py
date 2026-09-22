@@ -142,6 +142,50 @@ def side_offset(d, body, side):
     return t
 
 
+PIECE_LEN = 2.60   # 駒1枚の長さ[m](ピッチ 2.40 + 重ね 0.20)。局所 z の張り出し。
+
+
+def stone_footprint(np, d, PX, PZ, works_ids):
+    """**据えた駒が実際に占める平面**(規則②の『躯体』)。
+
+    ⭐ 2026-09-01 ユーザー裁定A(裁定1)。それまで躯体の帯は「汀線からの距離 ≤ faceToPivot」で
+    作っていたが、⛔ **距離で作ると出隅で帯が半径 faceToPivot の扇形になり、直線の駒では
+    埋まらない**(→ 旧 U11。継ぎ目の郭内で 8 m² が堀底のまま残っていた)。
+    CLAUDE.md 規則5「部材どうしを中心で合わせない・据えた実メッシュの面で寄せる」に揃え、
+    **駒の矩形の和**で作る。出隅も入隅も同じ式で解ける。
+
+    駒1枚の躯体はピボットを原点として **局所 x ∈ [−faceToPivot, 0] / 局所 z ∈ [−PIECE_LEN, 0]**
+    (メッシュ local bounds center(−1.20, 2.00, −1.00) extents(1.20, 2.00, 1.00) に §8規約の
+    scale (2.0, sy, 1.3) を掛けた値)。run は駒をピッチ 2.40 で `p0`→`p1` に並べたものなので、
+    その和は **`p0` から `p1` までの帯を、`p0` 側へ PIECE_LEN だけ伸ばした矩形**になる
+    (全 run で `u·forward = +1.0000` を確認済)。⚠ 向きは `yaw` ではなく **`p0`→`p1` から採る** —
+    `yaw` は小数第2位までしか無く、535m の run では 0.09m ずれて格子の縁のセルが入れ替わる。
+    """
+    tw = d["ishigaki"].get("faceToPivot", 4.80)
+    out = np.zeros(PX.shape, bool)
+
+    def strip(p0, u, ln):
+        q = (-u[1], u[0])                       # −right(見え面へ向く側)
+        dx, dz = PX - p0[0], PZ - p0[1]
+        s = dx * u[0] + dz * u[1]
+        a = dx * q[0] + dz * q[1]
+        return ((s >= -PIECE_LEN - 1e-9) & (s <= ln + 1e-9) &
+                (a >= -1e-9) & (a <= tw + 1e-9))
+
+    for r in d["ishigaki"]["runs"]:
+        if r.get("body") not in works_ids:
+            continue
+        vx, vz = r["p1"][0] - r["p0"][0], r["p1"][1] - r["p0"][1]
+        ln = math.hypot(vx, vz)
+        out |= strip(r["p0"], (vx / ln, vz / ln), ln)
+    # ⛔ **隅の駒は footprint に入れない。** 隅駒の向き(`yaw`)は隣接 run のちょうど −90.00°で、
+    #    `p + (−right) × faceToPivot` が見え面ではなく**躯体の裏面**に落ちる — つまり躯体が
+    #    どちらへ張り出すかが未実測(`ishigaki.cornersNote` / U15)。入れると隅で最大 2.17m の
+    #    掘り下げを設計に書いてしまう(2026-09-01 に試算して却下)。⭕ **隅は岸として扱う** —
+    #    天端 − 0.20m は隅駒自身の天端から測るので、隅駒も 0.20m は地上に出たままになる。
+    return out
+
+
 def coping_at(d, x, z, side, body=None):
     """石垣の天端。run の端点と天端の推移から内挿する(実装は読まない)。"""
     best, bd = None, 1e9
@@ -185,12 +229,15 @@ def design_surface(np, d, cur, pre, ins, dist, floor, keep_out, coping, step, PX
     band = (~ins) & (dist <= w["outerWidth"]) & (~keep_out)
     t = np.clip((dist - w["featherFrom"]) / (w["outerWidth"] - w["featherFrom"]), 0, 1)
     # ② 岸は**最寄りの石垣の天端 − bankBelowCoping**(2026-08-30 ユーザー裁定A・EDO-0064)。
-    #    ⛔ 汀線から faceToPivot までは規則②が「躯体」とみなす帯。天端基準では**盛らず**、
-    #       種地(pre)を戻す。⛔ 「帯の中」=「石の下」ではない(出隅は扇形が埋まらない・U11)。
+    #    ⛔ **据えた駒が実際に占める所**は規則②の「躯体」。天端基準では**盛らず**、種地(pre)を
+    #       戻す(天端まで上げると石そのものが土に埋まる)。⭐ 2026-09-01 ユーザー裁定A(裁定1)で
+    #       「汀線からの距離 ≤ faceToPivot」から `stone_footprint()` へ改めた — 距離で作ると
+    #       出隅が扇形になり直線の駒では埋まらなかった(旧 U11・継ぎ目の郭内 8 m²)。
     #    ⚠ 『触らない』ではない — この帯でも掘削と埋め戻しは起きる(volumes.byZone.body を見よ)。
-    tw = d["ishigaki"].get("faceToPivot", 4.80)
+    stone = stone_footprint(np, d, PX, PZ,
+                            {b["id"] for b in d["water"] if b.get("works")})
     bank = coping - w.get("bankBelowCoping", 0.20)
-    base = np.where(dist >= tw, bank, pre)                  # ②
+    base = np.where(stone, pre, bank)                       # ②
     des = np.where(band, base * (1 - t) + cur * t, cur)     # ②③
     des = np.where(ins, floor, des)                         # ①
     fea = band & (dist > w["featherFrom"])                  # ④ 摺り付け帯だけ 45°
@@ -201,19 +248,20 @@ def design_surface(np, d, cur, pre, ins, dist, floor, keep_out, coping, step, PX
         if np.allclose(new, des):
             break
         des = new
-    return des, band
+    return des, band, stone
 
 
-def _by_zone(np, dz, cell, ins, band, dist, tw):
-    """土量を ①汀線の内側 / 躯体の帯 0–tw / ②③岸 tw–14m の3帯に割る。
+def _by_zone(np, dz, cell, ins, band, stone, tw):
+    """土量を ①汀線の内側 / 躯体(駒の footprint) / ②③岸 の3帯に割る。
 
-    ⚠ 「躯体の帯は触らない」と読まれがちだが、実際には種地を戻すので掘削も埋め戻しも起きる
+    ⚠ 「躯体は触らない」と読まれがちだが、実際には種地を戻すので掘削も埋め戻しも起きる
     (2026-08-31 検図・高2)。図と規則がそれを隠さないよう、帯ごとに出す。
+    ⭐ 2026-09-01 裁定A以降、躯体は距離ではなく **据えた駒の footprint**(`stone_footprint`)。
     """
     out = {}
     for key, m, lab in (("inside", ins, "① 汀線の内側(堀)"),
-                        ("body", band & (dist < tw), "躯体の帯 0–%.2fm(石垣の下・種地を戻す)" % tw),
-                        ("bank", band & (dist >= tw), "②③ 岸 %.2f–14m(天端基準)" % tw)):
+                        ("body", band & stone, "躯体(駒の footprint・種地を戻す)"),
+                        ("bank", band & (~stone), "②③ 岸(天端 −0.20m 基準・最大 14m)")):
         v = np.where(m, dz, 0.0)
         out[key] = {"label": lab,
                     "cut_m3": round(float(np.clip(-v, 0, None).sum() * cell)),
@@ -316,7 +364,7 @@ def main():
         sel = dd < bdd
         bdd = np.where(sel, dd, bdd)
         COP = np.where(sel, cp, COP)
-    des, band = design_surface(np, d, CUR, PRE, ins, dist, floor, ko, COP, sp, PX, PZ)
+    des, band, stone = design_surface(np, d, CUR, PRE, ins, dist, floor, ko, COP, sp, PX, PZ)
     work = ins | band
     dz = des - CUR
     cell = sp * sp
@@ -350,11 +398,11 @@ def main():
             "maxFill_m": round(float(np.clip(dz, 0, None).max()), 2),
             "spillCells": int(((~work) & (np.abs(dz) > 0.01)).sum()),
             "keepOutCells": int((ko & (np.abs(dz) > 0.01)).sum()),
-            "byZone": _by_zone(np, dz, cell, ins, band, dist,
+            "byZone": _by_zone(np, dz, cell, ins, band, stone,
                                d["ishigaki"].get("faceToPivot", 4.80)),
+            "bodyAreaM2": int((band & stone).sum() * cell),
             "maxFillOutsideBody_m": round(float(np.clip(
-                np.where(ins | (band & (dist >= d["ishigaki"].get("faceToPivot", 4.80))), dz, 0.0),
-                0, None).max()), 2),
+                np.where(ins | (band & (~stone)), dz, 0.0), 0, None).max()), 2),
             "overshoot_m2": int(ovs.sum() * cell),
             "overshootMaxOutside_m": (round(float(dist[ovs].max()), 1) if ovs.sum() else 0.0),
             "overshootMedianOutside_m": (round(float(np.median(dist[ovs])), 1) if ovs.sum() else 0.0),

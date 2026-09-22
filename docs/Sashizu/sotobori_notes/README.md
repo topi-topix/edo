@@ -9,7 +9,7 @@
 | 章 | 注記 | 大きさ |
 |---|---:|---:|
 | [ishigaki](ishigaki.json) | 2 | 5.6 KB |
-| [works](works.json) | 4 | 1.7 KB |
+| [works](works.json) | 5 | 1.9 KB |
 | [system](system.json) | 1 | 0.6 KB |
 | [_reviews](_reviews.json) | 1 | 0.4 KB |
 | [sections](sections.json) | 1 | 0.4 KB |
@@ -19,4 +19,4 @@
 | [water](water.json) | 1 | 0.1 KB |
 | [reach](reach.json) | 1 | 0.1 KB |
 
-計 10 章 / 14 件 / 10 KB
+計 10 章 / 15 件 / 10 KB

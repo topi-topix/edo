@@ -544,11 +544,11 @@ def byid_works(d, r):
 
 def rule_svg(d, W=1180.0):
     """工区と摺り付けの規則(模式)。"""
-    H = 300.0
+    H = 340.0
     h = _sv(W, H, "工区と摺り付け")
     h.append(R(0, 0, W, H, fill="var(--paper)"))
     x0, xw = 60.0, W - 100.0
-    y0, ys = H - 60, 26.0
+    y0, ys = H - 92, 26.0        # ⚠ 下に注記が5行入るので、底から 92px 上を基線にする
     w = d["works"]
     span = w["outerWidth"] + 20
     X = lambda t: x0 + (t + span) / (2 * span) * xw
@@ -556,7 +556,7 @@ def rule_svg(d, W=1180.0):
     fl = [b["floor"] for b in d["water"] if b.get("works")][0]
     tw = d["ishigaki"].get("faceToPivot", 4.80)
     zones = [(-span, 0, "① 汀線の内側(堀) ── 床 %.2f 一律" % fl, "#BBD3DF"),
-             (0, tw, "躯体 0–%.2fm ── 石垣の下(種地を戻す)" % tw, "var(--cut1)"),
+             (0, tw, "躯体 0–%.2fm ── 据えた駒の下(種地を戻す)" % tw, "var(--cut1)"),
              (tw, w["featherFrom"], "② %.2f–%.0fm ── 天端 − %.2f まで盛る"
               % (tw, w["featherFrom"], w.get("bankBelowCoping", 0.2)), "var(--fill1)"),
              (w["featherFrom"], w["outerWidth"], "③ %.0f–%.0fm ── 摺り付け(④で45°頭打ち)"
@@ -599,10 +599,15 @@ def rule_svg(d, W=1180.0):
              '堀の壁は総石垣なので垂直のまま残す　⭐ ②は最寄りの天端 − %.2f m'
              '(2026-08-30 ユーザー裁定A)</text>'
              % (x0, y0 + 38, d["works"].get("bankBelowCoping", 0.2)))
-    h.append('<text class="sl" x="%.1f" y="%.1f">⛔ 躯体の帯(0–%.2fm)は「触らない」のではない '
+    h.append('<text class="sl" x="%.1f" y="%.1f">⛔ 躯体(0–%.2fm)は「触らない」のではない '
              '── 天端基準で盛らないだけで、種地(08-22 リセット直前)を戻すので'
-             '掘削も埋め戻しも起きる。上の平らな線は模式で、実際は種地の起伏をなぞる</text>'
-             % (x0, y0 + 52, ofs))
+             '掘削も埋め戻しも起きる</text>' % (x0, y0 + 52, ofs))
+    h.append('<text class="sl" x="%.1f" y="%.1f">　上の平らな線は模式で、'
+             '実際は種地の起伏をなぞる</text>' % (x0, y0 + 66))
+    h.append('<text class="sl" x="%.1f" y="%.1f">⚠ この断面は直線 run の模式。'
+             '平面での躯体は据えた駒の矩形の和で採る'
+             '(works.bodyBand・2026-09-01 裁定A)── 出隅は其十四</text>'
+             % (x0, y0 + 80))
     h.append(ENDSVG)
     return "\n".join(h)
 
@@ -639,12 +644,44 @@ class _Shift(object):
         return self.p.L(m)
 
 
-def _fan_layers(d, p, h, win, pat):
-    """砂色 = 規則②の「躯体の帯」/ 網 = 実駒の占める所。⛔ 両者の差が出隅の扇形。"""
+def _body_rects(d):
+    """規則②の躯体 = **据えた駒の矩形の和**(`works.bodyBand`)を多角形の列で返す。
+
+    ⭐ 実装の正典は `Tools/Sashizu/build_sotobori_dem.py` の `stone_footprint()`。ここはその
+    **同じ式を図に描くための写し**で、⛔ 寸法は json(`ishigaki.faceToPivot` / `ishigaki.pieceLen`)
+    からしか採らない。⚠ 向きは `yaw` ではなく `p0`→`p1` から採る(`yaw` は小数第2位まで)。
+    """
+    pl = d["ishigaki"].get("pieceLen", 2.60)
+    out = []
+    for r in d["ishigaki"]["runs"]:
+        f = r.get("face")
+        if not f or not byid_works(d, r):
+            continue
+        p0, p1 = r["p0"], r["p1"]
+        vx, vz = p1[0] - p0[0], p1[1] - p0[1]
+        L = math.hypot(vx, vz) or 1.0
+        ux, uz = vx / L, vz / L
+        out.append([(p0[0] - pl * ux, p0[1] - pl * uz), (p1[0], p1[1]),
+                    (f[1][0], f[1][1]), (f[0][0] - pl * ux, f[0][1] - pl * uz)])
+    return out
+
+
+def _body_layers(d, p, h, win, pat):
+    """規則②の「躯体」── **裁定前(桃)と裁定後(砂)を重ねて比べる図**。
+
+    ⭐ 2026-09-01 ユーザー裁定A(裁定1)で、躯体の定義が
+    **「汀線からの距離 ≤ `faceToPivot`」→「据えた駒の矩形の和」**(`works.bodyBand`)に変わった。
+    桃(旧)は汀線からの距離で作るので**出隅で半径 `faceToPivot` の扇形**になり、直線の駒が
+    埋め残していた ── その扇形が**裁定で消えたもの**。図では**砂に覆われずに残る桃**として読める。
+    ⭕ 逆に砂が桃からはみ出す所は、駒が `p0` 側へ `pieceLen` 張り出す分(旧の帯が取りこぼしていた)。
+    網は実駒(見え面 → ピボット線)で、⭕ **いまや砂と網は 駒 `pieceLen` 分の伸びを除いて一致する。**
+    """
     x0, x1, z0, z1 = win
     tw = d["ishigaki"].get("faceToPivot", 4.80)
+    pl = d["ishigaki"].get("pieceLen", 2.60)
     wp = [b for b in d["water"] if b.get("works")]
-    h.append('<g opacity="0.55" fill="#D9C08A">')
+    # ① 旧(裁定前)= 汀線からの距離で作った帯。出隅で扇形になる
+    h.append('<g opacity="0.45" fill="#C98C86">')
     for b in wp:
         q = b["outline"]
         for i in range(len(q)):
@@ -655,6 +692,12 @@ def _fan_layers(d, p, h, win, pat):
         for v in q:
             h.append('<circle cx="%.1f" cy="%.1f" r="%.1f"/>'
                      % (p.X(v[0]), p.Y(v[1]), p.L(tw)))
+    h.append("</g>")
+    # ② 新(裁定後)= 据えた駒の矩形の和。run ごとに [p0 − pieceLen·u, p1] × [ピボット線, 見え面]
+    #    ⛔ 隅の駒は入れない(`works.bodyBand.cornersExcluded`)── 向きが未実測なので岸として扱う
+    h.append('<g fill="#D9C08A">')
+    for q in _body_rects(d):
+        h.append('<path d="%s"/>' % poly_path(p, q))
     h.append("</g>")
     for b in wp:
         h.append('<path d="%s" fill="#CFE0E9" stroke="none"/>' % poly_path(p, b["outline"]))
@@ -689,14 +732,14 @@ def _east_inset(d, h, pat, ox, oy, w):
              '</clipPath></defs>' % (cid, ox, oy, w, hh))
     h.append(R(ox, oy, w, hh, fill="var(--paper2)", stroke="var(--rule)", sw=1.0))
     h.append('<g clip-path="url(#%s)">' % cid)
-    _fan_layers(d, ip, h, (x0, x1, z0, z1), pat)
+    _body_layers(d, ip, h, (x0, x1, z0, z1), pat)
     for v in d["ishigaki"].get("cornerFan", {}).get("vertices", []):
         vx, vz = v["p"]
         if not (x0 <= vx <= x1 and z0 <= vz <= z1):
             continue
         h.append('<circle cx="%.1f" cy="%.1f" r="3" fill="#7A2E1E"/>' % (ip.X(vx), ip.Y(vz)))
-        h.append('<text class="anG" x="%.1f" y="%.1f">%s %.1f m²</text>'
-                 % (ip.X(vx) - 66, ip.Y(vz) - 6, v["v"], v["outsideWaterBelowM2"]))
+        h.append('<text class="anG" x="%.1f" y="%.1f">%s 旧 %.1f m²</text>'
+                 % (ip.X(vx) - 74, ip.Y(vz) - 6, v["v"], v["outsideWaterBelowM2"]))
     h.append("</g>")
     h.append('<text class="an2b" x="%.1f" y="%.1f">東端の2出隅(本図の窓の外・同じ縮尺ではない)</text>'
              % (ox, oy - 6))
@@ -712,29 +755,33 @@ def junction_svg(d, dem, ter, W=1180.0):
     """継ぎ目(距離程 444.8–499.5)の詳細平面。
 
     ⚠ この区間は**縦断にも横断にも現れない** — 縦断の基準線が途切れ、横断の最寄りは
-    ニ(560m)で 60m 下流にある。図の最大の争点(U7 の折れ・SW3a・隅駒・残置・出隅の扇形)が
+    ニ(560m)で 60m 下流にある。図の最大の争点(U7 の折れ・SW3a・隅駒・残置・旧の出隅の扇形)が
     ここに集まるので、1面を割いて平面で見せる。
+    ⭐ 2026-09-01 の裁定A(裁定1)以降、この図は**躯体の定義が裁定でどう変わったか**を見せる図でもある。
     """
     x0, x1, z0, z1 = JUNC_EXTENT
-    p = Proj(x0, x1, z0, z1, W=W, top=18, bottom=30)
+    # ⚠ bottom を厚く採る ── 下端に凡例の帯を置く(裁定前/裁定後の読み分けに要る)
+    p = Proj(x0, x1, z0, z1, W=W, top=18, bottom=78)
     h = _sv(p.W, p.H, "継ぎ目の詳細平面")
     pat = _SVN[0]                      # 網かけ(実駒)のパターン id。⚠ インセットでも同じ物を使う
+    tw = d["ishigaki"].get("faceToPivot", 4.80)
+    pl = d["ishigaki"].get("pieceLen", 2.60)
     h.append(R(0, 0, p.W, p.H, fill="var(--paper)"))
 
     # ①砂色 = 規則②の躯体の帯 / ②水面 / ③網 = 実駒 / ④隅駒(footprint 未実測なので点)
-    _fan_layers(d, p, h, (x0, x1, z0, z1), pat)
+    _body_layers(d, p, h, (x0, x1, z0, z1), pat)
     for c in d["ishigaki"]["corners"]:
         if x0 <= c["p"][0] <= x1 and z0 <= c["p"][1] <= z1:
-            h.append('<text class="anS" x="%.1f" y="%.1f">%s(隅駒・footprint 未実測)</text>'
+            h.append('<text class="anS" x="%.1f" y="%.1f">%s(隅駒・躯体に入れず岸として扱う)</text>'
                      % (p.X(c["p"][0]) + 8, p.Y(c["p"][1]) + 4, html.escape(c["name"])))
 
-    # ⑤ 出隅の扇形の量(ishigaki.cornerFan が正典)
+    # ⑤ 出隅ごとの「裁定で消えた埋め残し」の量(ishigaki.cornerFan が正典・裁定前に測った値)
     for v in d["ishigaki"].get("cornerFan", {}).get("vertices", []):
         vx, vz = v["p"]
         if not (x0 <= vx <= x1 and z0 <= vz <= z1):
             continue
         h.append('<circle cx="%.1f" cy="%.1f" r="3" fill="#7A2E1E"/>' % (p.X(vx), p.Y(vz)))
-        h.append('<text class="anG" x="%.1f" y="%.1f">%s ── 埋め残し %.1f m²(%.1f%%)</text>'
+        h.append('<text class="anG" x="%.1f" y="%.1f">%s ── 旧の埋め残し %.1f m²(%.1f%%)・裁定で解消</text>'
                  % (p.X(vx) + 7, p.Y(vz) - 7, v["v"], v["outsideWaterBelowM2"],
                     v["outsideWaterBelowPct"]))
 
@@ -775,7 +822,7 @@ def junction_svg(d, dem, ter, W=1180.0):
                      % (p.X(pt[0]) - 34, p.Y(pt[1]) + 46, ch))
         h.append('<text class="anS" x="14" y="%.1f">⚠ 縦断の基準線はこの %.1f m が空白'
                  '(%s)── 横断も切れない</text>'
-                 % (p.H - 34, g["length"], plain(g["name"])))
+                 % (p.H - 64, g["length"], plain(g["name"])))
 
     # ⑦ run の名
     for r in d["ishigaki"]["runs"]:
@@ -793,23 +840,42 @@ def junction_svg(d, dem, ter, W=1180.0):
                  % (p.X(mx) + 5, p.Y(mz) + 12, html.escape(r["line"])))
 
     # ⚠ 東端の2出隅は本図の窓の外 — 同じ描き方の小図を左下の余白へ添える(2026-09-01 検図 低9)
-    _east_inset(d, h, pat, 26.0, p.H - 372.0, 208.0)
+    _east_inset(d, h, pat, 26.0, p.H - 420.0, 208.0)
 
     L = p.L(10)
-    y = p.H - 12
-    h.append('<path d="M240,%.1f h%.1f" stroke="var(--dim)" stroke-width="1.4"/>'
+    y = p.H - 68                      # ⚠ 下端 48px は凡例の帯。縮尺はその上の行へ寄せる
+    h.append('<path d="M700,%.1f h%.1f" stroke="var(--dim)" stroke-width="1.4"/>'
              '<text class="sl" x="%.1f" y="%.1f">10 m(本図)</text>'
-             % (y, L, 240 + L + 6, y + 3))
+             % (y, L, 700 + L + 6, y + 3))
     h.append('<path d="M%.1f,%.1f l0,-24" stroke="var(--dim)" stroke-width="1"/>'
              '<text class="anS2" x="%.1f" y="%.1f">北</text>'
              % (p.W - 34, p.H - 34, p.W - 34, p.H - 40))
-    h.append('<text class="big" x="14" y="16">継ぎ目の詳細平面 ── 砂色 = 規則②の「躯体の帯」'
-             '／ 網 = 実駒の占める所</text>')
+    h.append('<text class="big" x="14" y="16">継ぎ目の詳細平面 ── 規則②の「躯体」の'
+             '<tspan font-weight="bold">裁定前 / 裁定後</tspan>を重ねて比べる'
+             '(2026-09-01 ユーザー裁定A・裁定1)</text>')
+    # 凡例。⛔ 寸法は json から。桃が砂に覆われずに残る所 = 裁定で消えた扇形
+    lg = [("#C98C86", 0.45,
+           "旧(裁定前)= 汀線から %.2f m の帯 ── 出隅で扇形になる" % tw),
+          ("#D9C08A", 1.0,
+           "新(裁定後)= 据えた駒の矩形の和(p0 側へ %.2f m 伸ばす)" % pl),
+          (None, 0, "網 = 実駒(見え面 → ピボット線)"),
+          (None, 0, "⭐ 砂に覆われず残る桃 = 裁定で消えた埋め残し")]
+    ly = p.H - 46
+    for i, (col, op, lab) in enumerate(lg):
+        yy = ly + (i % 2) * 15
+        xx = 14.0 + (i // 2) * 560.0
+        if col:
+            h.append(R(xx, yy - 9, 16, 11, fill=col, op=op, stroke="var(--rule)", sw=0.6))
+        elif i == 2:
+            h.append('<rect x="%.1f" y="%.1f" width="16" height="11" fill="url(#pi%d)" '
+                     'stroke="var(--ishi)" stroke-width="0.8"/>' % (xx, yy - 9, pat))
+        h.append('<text class="sl" x="%.1f" y="%.1f">%s</text>' % (xx + 21, yy, plain(lab)))
     h.append(ENDSVG)
     return "\n".join(h)
 
 
 def fan_table(d):
+    """⚠ **裁定前の記録**。2026-09-01 の裁定A(裁定1)で扇形そのものが生じなくなった。"""
     fan = d["ishigaki"].get("cornerFan")
     if not fan:
         return ""
@@ -818,7 +884,8 @@ def fan_table(d):
             % (v["v"], inline(html.escape(v["where"])), v["p"][0], v["p"][1],
                v["outsideWaterBelowM2"], v["outsideWaterBelowPct"])
             for v in fan["vertices"]]
-    return tbl(["頂点", "場所", "世界座標", "埋め残しの面積", "円に占める割合"], rows)
+    return ("<h4>裁定で消えた埋め残し(旧の躯体の帯が出隅で作っていた扇形・記録)</h4>"
+            + tbl(["頂点", "場所", "世界座標", "旧の埋め残しの面積", "円に占める割合"], rows))
 
 
 # ---------------------------------------------------------------- 表
@@ -837,8 +904,8 @@ def spec_table(d, ter):
     add("工区(その汀線 + %.0f m)" % d["works"]["outerWidth"], "%.2f ha" % v["workAreaHa"])
     add("掘削", "%s m³(最大 %.2f m)" % ("{:,}".format(v["cut_m3"]), v["maxCut_m"]))
     mf = "%s m³(最大 %.2f m)" % ("{:,}".format(v["fill_m3"]), v["maxFill_m"])
-    mf += "　⚠ この最大は<b>石垣の躯体の下</b>(汀線から %.2f m 以内)の値で、<b>地表には現れない</b>" \
-          % d["ishigaki"].get("faceToPivot", 4.80)
+    mf += "　⚠ この最大は<b>石垣の躯体の下</b>(規則②の躯体 = 据えた駒の矩形の和・" \
+          "<code>works.bodyBand</code>)の値で、<b>地表には現れない</b>"
     if v.get("maxFillOutsideBody_m") is not None:
         mf += " ── 躯体を除いた最大は <b>%.2f m</b>" % v["maxFillOutsideBody_m"]
     else:
@@ -848,10 +915,16 @@ def spec_table(d, ter):
         "%s m³　⚠ <b>行き先は未決</b>(U13)" % "{:,}".format(v["net_m3"]))
     if v.get("overshoot_m2") is not None:
         add("汀線の外に残る水面下の床",
-            "%s m²(<b>汀線から %.2f m の帯の中</b>・中央 %.1f m・最大 %.1f m 外。"
-            "⚠ <b>帯 ≠ 石の下</b> ── 出隅では帯が扇形になり、直線の駒が埋めない → U11)"
-            % ("{:,}".format(v["overshoot_m2"]), d["ishigaki"].get("faceToPivot", 4.80),
+            "%s m²(汀線から 中央 %.1f m・最大 %.1f m 外。"
+            "⭕ <b>全量が規則②の躯体 = 据えた駒の矩形の和の中</b>にあり、<b>石で隠れる</b> ── "
+            "2026-09-01 の裁定A(裁定1)で躯体を距離ではなく駒の矩形で作るようにしたので、"
+            "<b>出隅の扇形の埋め残しは生じない</b>。→ <code>works.bodyBand</code>)"
+            % ("{:,}".format(v["overshoot_m2"]),
                v["overshootMedianOutside_m"], v["overshootMaxOutside_m"]))
+    if v.get("bodyAreaM2") is not None:
+        add("規則②の躯体(据えた駒の矩形の和・<code>works.bodyBand</code>)",
+            "%s m²　⚠ <b>隅の駒は含まない</b>(向きが未実測なので岸として扱う)"
+            % "{:,}".format(v["bodyAreaM2"]))
     for k in ("inside", "body", "bank"):
         z = v.get("byZone", {}).get(k)
         if z:
@@ -900,12 +973,22 @@ def _prov(d):
     return {r["line"] for r in d["ishigaki"]["runs"] if r.get("provisional")}
 
 
+def _buried_exceptions(d):
+    """`checks.ishigaki_buried` の例外(2026-09-01 ユーザー裁定A・裁定2)。正典は json。"""
+    for c in d["checks"]:
+        if c["id"] == "ishigaki_buried":
+            return c.get("exceptions") or []
+    return []
+
+
 def buried_table(d, ter):
     prov = _prov(d)
+    exc = {e["run"] for e in _buried_exceptions(d)}
     rows = []
     for b in ter["ishigakiBuried"]:
         flag = " ⚠" if b["buriedPct"] > 20 else ""
-        b = dict(b, line=b["line"] + ("(仮設)" if b["line"] in prov else ""))
+        b = dict(b, line=b["line"] + ("(仮設)" if b["line"] in prov else "")
+                 + ("　★例外" if b["line"] in exc else ""))
         rows.append("<tr><td>%s</td><td>%s</td><td>%d</td><td>%+.2f</td><td>%+.2f</td>"
                     "<td>%.0f%%%s</td></tr>"
                     % (b["line"], b["body"].replace("Sotobori_", ""), b["n"],
@@ -1157,6 +1240,23 @@ def main():
 
     h.append("<h4>石垣が土に埋まっていないか(run 線そのもので測る)</h4>")
     h.append(buried_table(d, ter))
+    exc = _buried_exceptions(d)
+    if exc:
+        h.append('<div class="box"><p><b>★ 合格条件の例外(2026-09-01 ユーザー裁定A・裁定2)</b>'
+                 '── 掘る水面の run は「埋まる割合」0%% が合格条件だが、次の1件を'
+                 '<b>評価から外す</b>(上の表では ★ を付けた)。%s</p><ul class="prose">%s</ul>'
+                 '<p>⛔ <b>地形も石垣も動かさない ── 動くのは合格文だけ。</b>'
+                 '却下した案は <b>(b) 凍結域 K1 を東へ伸ばして工区から外す</b>'
+                 '(工区の境が動き <code>works.keepOut</code> と検査 <code>spill_live</code> に波及)と '
+                 '<b>(c) 地面を削って天端を出す</b>(CLAUDE.md 絶対規則9「地形は現地形に従う」と衝突)。'
+                 '⛔ <b>埋まる駒数と最大の埋没をこの文に写さない</b> ── 上の表'
+                 '(<code>sotobori_terrain.json</code> の <code>ishigakiBuried</code>)が正典。</p></div>'
+                 % ("".join(" %s" % inline(html.escape(e.get("note") or e.get("_")))
+                            for e in exc if (e.get("note") or e.get("_"))),
+                    "".join("<li><code>%s</code> の <b>%s</b> ── %s〔%s〕</li>"
+                            % (html.escape(e["run"]), inline(html.escape(e["where"])),
+                               inline(html.escape(e["why"])), html.escape(e.get("cert", "—")))
+                            for e in exc)))
     h.append('<p class="cap">⚠ <b>00001 の郭外の CW1s(Ishigaki_Ext_4・86駒)は天端が地面に潜る。</b>'
              '虎ノ門の橋の取付の R1・R3 も同様。'
              'これは 08-22 のリセットのせいではない ── <b>現況と 08-22 リセット直前が一致</b>しており、'
@@ -1188,32 +1288,44 @@ def main():
             "SW3a の 23 駒、隅駒 CWC3_v2 / CWC3_v6、そして継ぎ目の残置。そこで平面で1面を割いた。"
             "⛔ <b>ここに横断は切れない</b> ── 距離程は郭外の汀線に沿う直線区間をつないで採るので、"
             "この区間には基準線そのものが無い(<code>reach.gaps</code>)。"
-            "<br><b>砂色 = 規則②が「躯体」とみなす帯(汀線から %.2f m)／ 網 = 実駒が占める所"
-            "(見え面 → ピボット線)</b>。⭐ <b>両者が食い違うのが出隅で、砂色が扇形にはみ出す</b> ── "
-            "帯は<b>汀線からの距離</b>で作られるのに、石は<b>直線の駒</b>だからである。"
-            "⛔ この埋め残しは種地(堀底 0.30)のまま残り、地形の三角形分割で細長い楔として切られる ── "
-            "<b>現地で見える砂色の三角形の正体</b>。"
-            "⚠ <b>隅の駒は点でしか描けない</b> ── footprint(と見え面)が未実測だからで、"
-            "扇形が実際にどれだけ隠れるかは<b>採り直すまで分からない</b>(<code>ishigaki.cornersNote</code>)。"
-            "⛔ <b>直し方はユーザー裁定が要るので、この指図には現象と量だけを載せ、案は書かない。</b>"
-            % (ter["gaps"][1]["length"], d["ishigaki"].get("faceToPivot", 4.80)))
+            "<br>⭐ <b>この図は規則②の「躯体」の定義が 2026-09-01 の裁定A(裁定1)でどう変わったかを"
+            "重ねて見せる。</b>"
+            "<b>桃 = 旧(汀線から %.2f m の帯)／ 砂 = 新(据えた駒の矩形の和)／ 網 = 実駒"
+            "(見え面 → ピボット線)</b>。"
+            "旧の帯は<b>汀線からの距離</b>で作るので<b>出隅で半径 %.2f m の扇形</b>になり、"
+            "石は<b>直線の駒</b>なのでそれを埋めなかった ── その埋め残しは種地(堀底)のまま残り、"
+            "地形の三角形分割で細長い楔として切られていた(<b>現地で見えていた砂色の三角形の正体</b>)。"
+            "⭐ <b>砂に覆われずに残る桃が、裁定で消えたもの</b>である。"
+            "⭕ 逆に<b>砂が桃からはみ出す所</b>は、駒がピボットから <b>%.2f m</b> 手前へ張り出す分で、"
+            "旧の帯はそこを取りこぼしていた(<code>ishigaki.pieceLenNote</code>)。"
+            "⭕ <b>いまや砂と網は、その %.2f m の伸びを除いて一致する</b> ── "
+            "躯体は<b>据えた駒が実際に占める矩形の和</b>だからで、出隅も入隅も同じ式で解ける"
+            "(<code>works.bodyBand</code>)。"
+            "⛔ <b>隅の駒は躯体に入れない</b>(点でしか描いていない)── 向きが未実測で躯体が"
+            "どちらへ張り出すか決まらないためで、<b>隅は岸として扱う</b>"
+            "(<code>works.bodyBand.cornersExcluded</code> / <code>ishigaki.cornersNote</code>)。"
+            "⛔ <b>石垣は1駒も動かしていない</b>(CLAUDE.md 絶対規則1)── 動いたのは地形の側だけ。"
+            % (ter["gaps"][1]["length"], d["ishigaki"].get("faceToPivot", 4.80),
+               d["ishigaki"].get("faceToPivot", 4.80), d["ishigaki"].get("pieceLen", 2.60),
+               d["ishigaki"].get("pieceLen", 2.60)))
     h.append(fan_table(d))
-    h.append('<p class="cap">出隅ごとの量。<b>半径 %.2f m の円(全面 %.2f m²)のうち、'
-             '「水面の外 かつ 設計面が水面 %.2f より低い」所</b>を測ったもの。'
-             '水面の内外は汀線の多角形で厳密に、設計面は <code>sotobori_dem.json</code> の '
-             '<code>design</code>(4m 格子)を<b>双一次</b>で。'
-             '⛔ <b>前版の「円内で水面より低い割合」(v1 90.1%% 等)は撤回した</b> ── '
-             '円の<b>全面</b>を分母にしていたため<b>堀そのものを埋め残しに数えて</b>おり、'
-             '<b>順位も違っていた</b>(v2 は実際には 0.0 m² で実質ゼロ)。'
+    h.append('<p class="cap">⭐ <b>これは裁定で消えたものの記録で、いまの設計面には当たらない</b>'
+             '(<code>ishigaki.cornerFan.resolvedBy</code>)。裁定前に、出隅ごとに'
+             '<b>半径 %.2f m の円(全面 %.2f m²)のうち「水面の外 かつ 設計面が水面 %.2f より低い」所</b>'
+             'を測ったもの。水面の内外は汀線の多角形で厳密に、設計面は '
+             '<code>sotobori_dem.json</code> の <code>design</code>(4m 格子)を<b>双一次</b>で。'
              '⛔ <b>実駒で測ったのは v6 のまわりだけ</b>(上の図の朱の矩形)で、'
              '<b>他の5頂点は実駒で未測</b>。⚠ <b>東端の2出隅(v4/v5)は非史実の締切石垣 END3 の隅</b>で、'
              '幸橋御門の普請で撤去する(U3)── <b>恒久は継ぎ目の4隅</b>。'
-             '<br>⚠ <b>この帯の半径 4.80 m は実測値ではなく算出値</b>(躯体の局所Xの張り出し 2.40 × '
-             '<code>scale.x</code> 2.00)。Unity で実測したのは駒の <code>position</code> と '
-             '<code>right</code> だけで、<b>汀線・規則②・この表がすべてこの1定数に載る</b> ── '
-             '<code>Renderer.bounds</code> で直に採り直すのが宿題(<code>ishigaki.faceToPivotNote</code>)。</p>'
-             % (d["ishigaki"].get("faceToPivot", 4.80), math.pi * 4.80 ** 2,
-                [b["waterY"] for b in d["water"] if b.get("works")][0]))
+             '<br>⚠ <b>躯体の厚み %.2f m と駒の長さ %.2f m は実測値ではなく算出値</b>で、'
+             'Unity で実測したのは駒の <code>position</code> と <code>right</code> だけである ── '
+             '<b>汀線も規則②の躯体もこの2定数に載る</b>ので、'
+             '<code>Renderer.bounds</code> で直に採り直すのが宿題'
+             '(<code>ishigaki.faceToPivotNote</code> / <code>ishigaki.pieceLenNote</code>)。</p>'
+             % (d["ishigaki"].get("faceToPivot", 4.80),
+                math.pi * d["ishigaki"].get("faceToPivot", 4.80) ** 2,
+                [b["waterY"] for b in d["water"] if b.get("works")][0],
+                d["ishigaki"].get("faceToPivot", 4.80), d["ishigaki"].get("pieceLen", 2.60)))
 
     plate(h, nx(), "施工の段階", "地形の編集は Undo の外 ── 2026-08-31 実施済")
     h.append(stage_table(d))

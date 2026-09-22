@@ -75,16 +75,14 @@ public static partial class EdoTypologyBuilder
         };
     }
 
-    /// <summary>帯の落葉の割り = 庭全体を 7:3 にするために、この帯が負う落葉の比。
-    /// <paramref name="plannedEv"/> / <paramref name="plannedDe"/> は他の層の予定本数。
-    /// ⭐ 渡すのは**高木+中木だけ** — <see cref="NiwaInspect"/> が 7:3 を測る母集団(<c>k.tall</c>)と
-    /// 同じ集合でないと、帯がいくら帳尻を合わせても検査は外れる(規則19「検査の文言と実装の集合を
-    /// 突き合わせる」)。⛔ 照葉低木・刈込・下草を入れない(全て常緑なので帯の落葉が水増しされる)。</summary>
-    static float DeShare(int band, int plannedEv, int plannedDe)
+    /// <summary>帯の落葉の割り。⭐ **0.30 固定**(庭方 2026-09-22 の直し③)。
+    /// ⛔ 他の層の予定本数から帳尻を合わせない — 帯の取れ高が区画ごとに 0/9〜9/15 本と振れるので、
+    ///    従属させると帯の落葉が 0〜60% へ跳ね、検査の 20〜35% に入らない区画が出る。固定にすると
+    ///    庭方の検算で実測 25〜32% に収まり、帯が0本の区画もモミジ層(直し②)で届く。</summary>
+    static float DeShare(int band)
     {
         if (band <= 0) return 0f;
-        float need = 0.30f * (band + plannedEv + plannedDe) - plannedDe;
-        return Mathf.Clamp(need / band, 0f, 0.60f);
+        return 0.30f;
     }
 
     /// <summary>庭のクロマツ(主木)。⭐ 在庫の `JG.Pine` は独立して枝を張った**庭の松**で、
@@ -465,6 +463,16 @@ public static partial class EdoTypologyBuilder
         int nToro   = chisen ? Rng(rnd, 1, 2)   : 1;
         int nShida  = chisen ? Rng(rnd, 20, 40) : Rng(rnd, 12, 25);
 
+        // ── ④ 層の本数を庭域 A に従属させる(庭方 2026-09-22 の裁定1)⭐ **引いた後に抑える** —
+        //    Odd/Rng を引かずに差し替えると後段の層の乱数が丸ごとずれ、検分で見た数が再現しなくなる。
+        // ⛔ 当てない3層: モミジ(常緑本数からの従属値なので二重に絞らない)/ 下草(裸地を埋める役目・
+        //    被覆率の分子にも入らない)/ 屋敷林(基準は周長で、保険で掛けても実害が無い)。
+        nMatsu = f.Area < 1200f ? 1 : (f.Area < 3000f ? Mathf.Min(nMatsu, 3) : nMatsu);
+        nChu   = Mathf.Min(nChu,  Mathf.FloorToInt(f.Area / 400f));
+        nTei   = Mathf.Min(nTei,  Mathf.FloorToInt(f.Area / 150f));
+        nKari  = Mathf.Min(nKari, Mathf.Max(1, Mathf.FloorToInt(f.Area / 1200f)));
+        //        ⚠ 刈込は**組数だけ**を抑える。組の中の本数(3〜5)は減らさない(裁定1)。
+
         // ── ③ 池代地を**先に**囲う(木を置いてからでは動かせない・§5-1 chisen ③)──
         if (chisen)
         {
@@ -505,11 +513,7 @@ public static partial class EdoTypologyBuilder
             var pts = EdoBuild.NiwaWallBandSites(f, lo, hi, sites, rnd,
                           p => EdoGeom.DistToEdge(p, front.a, front.b) < hi + 1.5f, out fromWall, out blind);
             int plan = Mathf.Min(capTrees, pts.Count * (chisen ? 4 : 3));
-            // ⛔ 照葉低木 nTei を分母に入れない — 低木は全て常緑なので帯の落葉が水増しされ、
-            //    検査の母集団(高木+中木)では 落葉が許容の上へ振れる(2026-09-22 実測 sanbezaka_goto 43%)。
-            //    後から据える勝手の木(0〜2)と前庭の松(3)はここでは rnd を引けないので定数 4 で見込む
-            //    (⛔ ここで Rng を引くと後段の層の乱数が丸ごとずれる)。
-            float deShare = DeShare(plan, nMatsu + nChu + 4, nMomiji);
+            float deShare = DeShare(plan);          // ⭐ 0.30 固定(直し③)
             var mix = LinMix(rnd, deShare);
             int made = 0, tried = 0;
             foreach (var p in pts)
@@ -599,11 +603,17 @@ public static partial class EdoTypologyBuilder
         // ⭐ 外周の帯の落葉の割りを出すのに要る(7:3・覆さない線③)。
         // ⛔ **高木+中木だけ**を足す — 低木(坪庭の低木・照葉低木)は全て常緑で、検査の母集団に入らない。
         int plannedEv = 0;
+        int nPocketChu = 0;                                // ⭐ モミジの本数(直し②)に要るので外へ出す
         var pocket = EdoBuild.NiwaPocket(f, 1.0f, 6.0f, 12);
         if (pocket.Count >= 12)
         {
-            log.Add(string.Format("    坪庭: 棟と棟の間のポケット {0:F0}m²({1}点)", pocket.Count * f.Cell * f.Cell, pocket.Count));
-            int nPocketChu = Rng(rnd, 1, 3), nPocketTei = Rng(rnd, 5, 9);
+            float pocketA = pocket.Count * f.Cell * f.Cell;
+            log.Add(string.Format("    坪庭: 棟と棟の間のポケット {0:F0}m²({1}点)", pocketA, pocket.Count));
+            nPocketChu = Rng(rnd, 1, 3);                   // ⛔ 引く順を変えない(この後に nPocketTei)
+            int nPocketTei = Rng(rnd, 5, 9);
+            // ④ 裁定1 ⭐ 坪庭の2層の基準は**ポケット面積**(庭域 A ではない)。引いた後に抑える
+            nPocketChu = Mathf.Min(nPocketChu, Mathf.FloorToInt(pocketA / 250f));
+            nPocketTei = Mathf.Min(nPocketTei, Mathf.FloorToInt(pocketA / 150f));
             plannedEv += nPocketChu;                       // ⛔ nPocketTei(低木)は足さない
             Layer(grp, "坪庭の中木", f, new List<Vector2>(pocket), ChubokuPal, nPocketChu, rnd, chu, want, got);
             Layer(grp, "坪庭の低木", f, new List<Vector2>(pocket), TeibokuPal, nPocketTei, rnd, shrub, want, got);
@@ -617,11 +627,21 @@ public static partial class EdoTypologyBuilder
 
         // 小平庭(座敷面の前)⭐ 池は層ごとに main から引き直す(検分④)
         int nMatsu = Odd(rnd, 2, 3), nChu = Rng(rnd, 3, 5), nTei = Rng(rnd, 6, 12);
+        // ── ④ 裁定1: 庭域 A に従属させる ⭐ **引いた後に抑える**(乱数の流れを崩さない)
+        nMatsu = f.Area < 1200f ? 1 : (f.Area < 3000f ? Mathf.Min(nMatsu, 3) : nMatsu);
+        nChu   = Mathf.Min(nChu, Mathf.FloorToInt(f.Area / 400f));
+        nTei   = Mathf.Min(nTei, Mathf.FloorToInt(f.Area / 150f));
+        // ── ② 小平庭にモミジ一株(江戸の定石・庭方承認)。⭐ 落葉の供給を外周の帯だけに頼らない —
+        //    帯の取れ高が 0/9〜9/15 本と振れるので、tsubo は帯が落ちると 100:0 になっていた。
+        // ⛔ モミジに A 従属の上限を当てない(裁定1) — 既に常緑の本数からの従属値で、二重に絞ることになる
+        int nMomiji = Mathf.Max(1, Mathf.RoundToInt(0.379f * (nPocketChu + nMatsu + nChu)));
         plannedEv += nMatsu + nChu;                        // ⛔ nTei(低木)は足さない
         Layer(grp, "主木の松", f, new List<Vector2>(main), MatsuPal, nMatsu, rnd, tree, want, got);
         Layer(grp, "常緑中木", f, new List<Vector2>(main), ChubokuPal, nChu, rnd, chu, want, got);
+        Layer(grp, "モミジ", f, new List<Vector2>(main), MomijiPal, nMomiji, rnd, chu, want, got);
         {
             int kumi = Rng(rnd, 1, 2); int made = 0;
+            kumi = Mathf.Min(kumi, Mathf.Max(1, Mathf.FloorToInt(f.Area / 1200f)));   // ④ 組数だけ(裁定1)
             var pool = new List<Vector2>(main);
             float rr = MaxCrown(KarikomiPal) * shrub.ScaleHi;
             for (int i = 0; i < kumi; i++)
@@ -644,21 +664,23 @@ public static partial class EdoTypologyBuilder
             bool fromWall; int blind;
             var pts = EdoBuild.NiwaWallBandSites(f, lo, hi, sites, rnd,
                           p => EdoGeom.DistToEdge(p, front.a, front.b) < hi + 1.5f, out fromWall, out blind);
-            int plan = Mathf.Min(30, pts.Count * 3);
-            var mix = LinMix(rnd, DeShare(plan, plannedEv, 0));
+            // ④ 裁定1: 帯は Min(30, 箇所×3, ⌊A/250⌋)。⭐ plan を loop の上限にも使う —
+            //    ⛔ 前は plan が DeShare へ渡るだけで、本数は定数 30 で縛っていた(⌊A/250⌋ が効かない)
+            int plan = Mathf.Min(30, pts.Count * 3, Mathf.FloorToInt(f.Area / 250f));
+            var mix = LinMix(rnd, DeShare(plan));           // ⭐ 0.30 固定(直し③)
             int made = 0, tried = 0;
             foreach (var p in pts)
             {
-                if (made >= 30 || f.Komas.Count >= NIWA_BUDGET) break;
+                if (made >= plan || f.Komas.Count >= NIWA_BUDGET) break;
                 tried += 3;
                 made += EdoBuild.NiwaClump(grp, "Gaishu", f, p, LinPal, 3, rnd, tree, "外周の帯", mix).Count;
             }
             want.Add("外周の帯 " + tried); got.Add("外周の帯 " + made);
             log.Add(string.Format("    外周の帯: 周長 {0:F0}m ÷ 40 = {1}箇所 → {2}/{3}本"
-                                + "(囲いの実メッシュから {4:F1}〜{5:F1}m{6}・上限 30)",
+                                + "(囲いの実メッシュから {4:F1}〜{5:F1}m{6}・上限 {7} = Min(30, 箇所×3, ⌊A/250⌋))",
                                   per, pts.Count, made, tried, lo, hi,
                                   fromWall ? (blind > 0 ? string.Format("・うち {0}箇所は囲いが無く区画の線から", blind) : "")
-                                           : "・⚠ 囲いが1枚も無いので区画の線から"));
+                                           : "・⚠ 囲いが1枚も無いので区画の線から", plan));
         }
         Layer(grp, "下草", f, new List<Vector2>(f.Cells), ShidaPal, Rng(rnd, 10, 20), rnd, kusa, want, got);
     }
@@ -908,14 +930,15 @@ public static partial class EdoTypologyBuilder
         }
 
         float cov = f.Coverage();
-        // ⭐ 被覆率の目安は**型で違う**(検分⑩): chisen/small 10〜25% / tsubo 15〜30% / ura 5〜15%。
-        //    裏庭は裸地が既定なので、5〜10% は許容(⛔ 全型に同じ目安を当てると ura が永久に赤)。
-        //    不合格線は **tsubo/small/chisen の 5%未満** と **全型の 50%超** のふたつだけ。
-        float covLo = g == "tsubo" ? 0.15f : (g == "ura" ? 0.05f : 0.10f);
+        // ⭐ 裁定2(2026-09-22): union で測り直したので**旧式の目安 15〜30% 等は当てない**。
+        //    判定は不合格線のふたつだけ — 50%超=林 / 5%未満=禿げ。目安の据え直しは庭方の次巡。
+        // ⚠ 5%未満の線は ura に当てていない(従前どおり)— 裏庭は裸地が既定で、当てると全 ura が
+        //    新たに赤になる。裁定2 の文面はここに触れていないので**現行の挙動を変えない**方を採った。
+        float covLo = g == "tsubo" ? 0.15f : (g == "ura" ? 0.05f : 0.10f);   // 刷らないが引数に残す
         float covHi = g == "tsubo" ? 0.30f : (g == "ura" ? 0.15f : 0.25f);
         bool covBad = cov > 0.50f || (g != "ura" && cov < 0.05f);
         string covMark = cov > 0.50f ? "⛔ 林(50%超)" : (g != "ura" && cov < 0.05f ? "⛔ 禿げ(5%未満)"
-                       : (cov >= covLo && cov <= covHi ? "⭕" : "(目安の外・許容)"));
+                       : "参考(union の新式・旧式の目安は当てない)");
         // ⭐ 常緑:落葉の**分母は高木+中木だけ**(検分⑦)。照葉低木・刈込・坪庭の低木・下草は全て常緑なので、
         //    分母に入れると 7:3 は原理的に届かず、帯が落ちた区画が 100:0 になる。
         int raku = 0, jou = 0;
@@ -930,8 +953,13 @@ public static partial class EdoTypologyBuilder
         float deRatio = tall > 0 ? (float)raku / tall : 0f;
         // 許容(検分⑦): chisen/small/tsubo は落葉 20〜35% / ura は 0〜15%(実のなる木だけ)
         float deLo = g == "ura" ? 0.00f : 0.20f, deHi = g == "ura" ? 0.15f : 0.35f;
-        bool deOk = tall == 0 || (deRatio >= deLo && deRatio <= deHi);
-        string deMark = tall == 0 ? "(高木・中木が0本)" : (deOk ? "⭕" : "⚠ 許容の外");
+        // ⭐ **分母が5本未満の区画には当てない**(庭方 2026-09-22 の直し①)— 裏庭は木が1〜2本しか
+        //    立たないので、取り得る比は 0% か 50% だけ。7:3 は原理的に届かず永久に赤になる。
+        //    ⛔ 意匠の欠陥ではなく検査の当て方の誤り(規則19「検査の文言と実装の集合を突き合わせる」)。
+        bool deThin = tall < 5;
+        bool deOk = deThin || (deRatio >= deLo && deRatio <= deHi);
+        string deMark = tall == 0 ? "(高木・中木が0本)"
+                      : (deThin ? "(分母 " + tall + " 本・5本未満なので当てない)" : (deOk ? "⭕" : "⚠ 許容の外"));
         // ⛔ 据えてから落とした駒は**欠陥ではない**(軒へ食い込む木を落とすのは設計どおりの始末)ので
         //    合否には入れない。ただし件数と最悪値は必ず刷る(規則19「0件を合格と読ませない」)。
         string mark = (f.InBand == 0 && evenClump == 0 && twin == 0 && !covBad && deOk) ? "⭕" : "⛔";
@@ -939,7 +967,7 @@ public static partial class EdoTypologyBuilder
             "    {0} 庭の検査({16}): 駒 {1}(予算 {2})/ 参道の帯に入った駒 {3}(許容0)/ 偶数の塊 {4}(塊 {15} 個中・据わった本数で数える)/ 同一個体が続いた箇所 {5}(塊の中で)\n"
           + "      離れの実測: 囲いから **幹の芯**で 最小 {6:F2}m(負は是 — 塀越しに枝が張るのは庭として正しい)"
           + " / 軒から **樹冠の外接円**で 最小 {7:F2}m(層ごとの下限 0.2〜0.4m・割った駒は据えてから落とす→次行)\n"
-          + "      樹冠の投影の被覆率 {8:P0} {9}(この型の目安 {18:P0}〜{19:P0}・不合格は 50%超{20})"
+          + "      樹冠の投影の被覆率 {8:P0} {9}(union・下草/飛石/景石/灯籠/井戸を除く全層・不合格は 50%超{20})"
           + " / 常緑:落葉 = {10:P0}:{11:P0} {21}(高木+中木 {22}本が分母・この型の落葉の許容 {23:P0}〜{24:P0})\n"
           + "      置けなかった駒 {12}(退避で拒んだ)/ 据えてから落とした駒: 軒へ食い込み {17}・区画の線を越え {25}(うち内へ寄せて据わった駒 {30}・寄せても駄目で落とした数がこの {25})・急斜面で据わらず {26}(最悪 {27:F2}m)"
           + " / 起伏が大きく間引かずに据え直した駒 {28} / 幹の芯が測れなかった駒 {29}\n"

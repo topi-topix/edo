@@ -514,17 +514,73 @@ public static partial class EdoBuild
             return go;
         }
 
-        /// <summary>樹冠の投影の被覆率(庭域に対する)。目安 15〜30%・50%超=林・5%未満=禿げ(§5-2 ⑤)。</summary>
+        /// <summary>被覆率から除く層の語幹(庭方 2026-09-22 の裁定2)。⭐ この5つ**だけ**を除く —
+        /// 低木・刈込は**含める**(常緑比の分母=高木+中木とは揃えない)。⛔ 半径の閾値で切らない。
+        /// 語幹で見るのは「坪庭の下草」「坪庭の飛石」のような変種を名指しのまま拾うため。</summary>
+        static readonly string[] CovSkip = { "下草", "飛石", "景石", "灯籠", "井戸" };
+
+        /// <summary>樹冠の投影の被覆率(庭域に対する)。不合格は 50%超=林 / 5%未満=禿げ。
+        /// ⭐ 面積は **union**(重なりを1回だけ)。⛔ πr² の単純和で数えない — 塊は芯々が樹冠半径の
+        ///    和の 0.42〜0.75 で寄るので、株に見えるほど二重に数える(実測 toranomonuchi_1 で 58%)。
+        /// ⭐ 数えるのは **1m 格子**で、**庭域の内側だけ**(区画の線を越えた樹冠は自動で外れる)。
+        ///    ⛔ 2m 格子で数えない — 低木の樹冠(r≈1.0m)を丸ごと拾うか丸ごと落とす。
+        /// ⚠ <c>Cells</c> は世界座標の 2 の倍数ではない(<see cref="Solve"/> が Poly の最小角から
+        ///    刻む)ので、庭域の番地は**自分の最小の格子点**を原点にして採る。</summary>
         public float Coverage(params string[] layers)
         {
-            float a = 0f;
+            if (Cells.Count == 0 || Area <= 1f) return 0f;
+            // ⭐ 1m の升が 2m の升をちょうど 2×2 に割るように原点を半升ずらす(番地は floor で一致する)
+            float ox = float.MaxValue, oz = float.MaxValue;
+            for (int i = 0; i < Cells.Count; i++)
+            {
+                if (Cells[i].x < ox) ox = Cells[i].x;
+                if (Cells[i].y < oz) oz = Cells[i].y;
+            }
+            float bx = ox - Cell * 0.5f, bz = oz - Cell * 0.5f;
+            var dom = new HashSet<long>();
+            for (int i = 0; i < Cells.Count; i++)
+                dom.Add(((long)Mathf.FloorToInt((Cells[i].x - bx) / Cell) << 32)
+                        ^ (uint)Mathf.FloorToInt((Cells[i].y - bz) / Cell));
+
+            var sel = new List<NiwaKoma>();
             foreach (var k in Komas)
             {
+                if (k.r <= 0f || k.layer == null) continue;
+                bool skip = false;
+                for (int i = 0; i < CovSkip.Length; i++)
+                    if (k.layer.Contains(CovSkip[i])) { skip = true; break; }
+                if (skip) continue;                          // ⛔ 下草・飛石・景石・灯籠・井戸だけを除く
                 bool take = layers == null || layers.Length == 0;
                 if (!take) foreach (var l in layers) if (k.layer == l) { take = true; break; }
-                if (take) a += Mathf.PI * k.r * k.r;
+                if (take) sel.Add(k);
             }
-            return Area > 1f ? a / Area : 0f;
+            if (sel.Count == 0) return 0f;
+
+            // union は格子の数え上げで解く ⭐ 3つ以上の円の union は解析では閉じない。
+            // 円ごとに自分の bbox だけを塗るので、手間は「被覆した面積 ÷ 1m²」で済む(全域を舐めない)
+            const float q = 1f;
+            var hit = new HashSet<long>();
+            for (int i = 0; i < sel.Count; i++)
+            {
+                var k = sel[i]; float r2 = k.r * k.r;
+                int x0 = Mathf.FloorToInt((k.c.x - k.r - bx) / q), x1 = Mathf.CeilToInt((k.c.x + k.r - bx) / q);
+                int z0 = Mathf.FloorToInt((k.c.y - k.r - bz) / q), z1 = Mathf.CeilToInt((k.c.y + k.r - bz) / q);
+                for (int ix = x0; ix <= x1; ix++)
+                {
+                    float x = bx + (ix + 0.5f) * q, dx = x - k.c.x;
+                    if (dx * dx > r2) continue;
+                    for (int iz = z0; iz <= z1; iz++)
+                    {
+                        float z = bz + (iz + 0.5f) * q, dz = z - k.c.y;
+                        if (dx * dx + dz * dz > r2) continue;
+                        long dk = ((long)Mathf.FloorToInt((x - bx) / Cell) << 32)
+                                  ^ (uint)Mathf.FloorToInt((z - bz) / Cell);
+                        if (!dom.Contains(dk)) continue;     // ⭐ 庭域の外(区画の線を越えた樹冠)は数えない
+                        hit.Add(((long)ix << 32) ^ (uint)iz);
+                    }
+                }
+            }
+            return (hit.Count * q * q) / Area;
         }
     }
 

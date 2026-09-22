@@ -290,6 +290,61 @@ def _append_lesson(issue):
         print("  ⚠ docs/lessons.md へ書けなかった: %s" % e, file=sys.stderr)
 
 
+# ────────────────────────────────────────────── 型(直しが入った規則・仕組みの場所)
+# 施主指示 2026-09-22(EDO-0376)「規則や仕組みにせずに場当たり的に対応しているものがあれば
+# そうならないようにしてほしい」。実例: 表店の駒 EDO-0348→0355→0362 は「無い長さを一つ焼く」を
+# 3度繰り返し、埋め方の規則は作られなかった。囲い EDO-0324 は練塀・竹矢来が板塀のまま閉じ 0351/0363 が
+# 湧いた。床下の検め(EDO-0318)は御殿だけに入り付属屋の 0370 が湧いた。
+# ⇒ **宿題(task/blocker)を done にするには、直しがどの規則・関数・検査へ入ったか(型)と、
+#    その型が他のどこに当たるか(広がり・CLAUDE.md 規則21)を記録する。**本当に一回きりなら
+#    `--tanpatsu <理由>` で明示する(無言の単発を許さない)。
+KATA_TYPES = ("task", "blocker")
+KATA_PLACE = re.compile(r"[/#.()§]")          # パス・節・関数名の形をしているか
+KATA_MIN, HIROGARI_MIN, TANPATSU_MIN = 6, 5, 8
+
+
+def check_kata(c, kata, hirogari, tanpatsu):
+    """done にしてよいか。理由(str)を返す。None なら通る。"""
+    if c.get("type") not in KATA_TYPES:
+        return None
+    if tanpatsu:
+        if len(tanpatsu.strip()) < TANPATSU_MIN:
+            return "--tanpatsu の理由が短い(%d 字以上)。なぜ規則・仕組みに入れないのかを書く" % TANPATSU_MIN
+        if kata:
+            return "--kata と --tanpatsu は同時に付けない(型へ入れたなら単発ではない)"
+        return None
+    if not kata:
+        return ("宿題を閉じるには**直しが入った型の場所**が要る。\n"
+                "   --kata '<パス#節 か クラス.関数>'   例: --kata 'EdoBuildRun.cs FenceRun' / 'docs/oki-kata.md#3'\n"
+                "   --hirogari '<この型が他のどこに当たるか>' 例: --hirogari '全類型の門9筆と山王の板塀'\n"
+                "   本当に一回きりなら --tanpatsu '<理由>'(無言の単発は許さない)。\n"
+                "   ⛔ 症状の駒・邸・段だけ直して閉じると、同じ型が別の票で湧く(0348→0355→0362・0324→0351/0363・0370)。\n"
+                "   正典: docs/session-board.md §1d / CLAUDE.md 規則21")
+    if len(kata.strip()) < KATA_MIN or not KATA_PLACE.search(kata):
+        return "--kata は場所の形で(パス#節 か クラス.関数 か 関数名())。『直した』『ビルダー』では場所が分からない: %r" % kata
+    if not hirogari or len(hirogari.strip()) < HIROGARI_MIN:
+        return ("--hirogari が無い(%d 字以上)。この型が**他のどの部材・どの邸・どの段**に当たるかを書く(規則21)。"
+                "当たる先が本当に無いなら --hirogari 'この1筆だけ: <理由>'" % HIROGARI_MIN)
+    return None
+
+
+def set_kata(c, me, kata, hirogari, tanpatsu):
+    if c.get("type") not in KATA_TYPES:
+        return
+    c["kata"] = ({"oneoff": True, "why": tanpatsu.strip()} if tanpatsu
+                 else {"where": kata.strip(), "scope": hirogari.strip()})
+    c["kata"].update({"by": me, "t": now()})
+
+
+def fmt_kata(c):
+    k = c.get("kata")
+    if not k:
+        return None
+    if k.get("oneoff"):
+        return "  型: 単発 — %s" % k.get("why", "")
+    return "  型: %s\n  広がり: %s" % (k.get("where", ""), k.get("scope", ""))
+
+
 def cmd_note(a):
     c, fp = load_one(a.id)
     if not c:
@@ -304,14 +359,23 @@ def cmd_note(a):
         print("⛔ 直前の note とほぼ同文(類似度 %.2f)。シェルに食われた再掲なら --force。"
               "(実例 EDO-0149 note7/8・EDO-0151 note1/2)" % ratio, file=sys.stderr)
         return 1
-    c["log"].append({"t": now(), "by": sid(a.session), "msg": a.msg})
     if a.status:
         if a.status not in STATUSES:
             print("不明な status: %s(%s)" % (a.status, "/".join(STATUSES)), file=sys.stderr)
             return 1
+        if a.status == "done":
+            why = check_kata(c, a.kata, a.hirogari, a.tanpatsu)
+            if why:
+                print("⛔ %s" % why, file=sys.stderr)
+                return 1
+            set_kata(c, sid(a.session), a.kata, a.hirogari, a.tanpatsu)
         c["status"] = a.status
+    c["log"].append({"t": now(), "by": sid(a.session), "msg": a.msg})
     save(c, fp)
     print("note: %s" % fmt_line(c))
+    k = fmt_kata(c) if a.status == "done" else None
+    if k:
+        print(k)
     return 0
 
 
@@ -319,10 +383,19 @@ def cmd_close(a):
     c, fp = load_one(a.id)
     if not c:
         return 1
+    if not a.dropped:
+        why = check_kata(c, a.kata, a.hirogari, a.tanpatsu)
+        if why:
+            print("⛔ %s" % why, file=sys.stderr)
+            return 1
+        set_kata(c, sid(a.session), a.kata, a.hirogari, a.tanpatsu)
     c["status"] = "dropped" if a.dropped else "done"
     c["log"].append({"t": now(), "by": sid(a.session), "msg": a.msg or c["status"]})
     save(c, fp)
     print("close: %s" % fmt_line(c))
+    k = fmt_kata(c) if not a.dropped else None
+    if k:
+        print(k)
     return 0
 
 
@@ -351,11 +424,28 @@ def cmd_from_commit(a):
         return 0
     subj = body.strip().split("\n")[0][:80]
     closes = set(re.findall(r"(?i)\b(?:closes?|fixes|resolves?)\s+(EDO-\d{4})", body))
+    # ⭐ 型はコミット本文の行で渡す: 「型: EdoBuildRun.cs FenceRun」「広がり: 全類型の囲い」「単発: <理由>」
+    def _line(key):
+        m = re.search(r"(?m)^\s*(?:%s)\s*[:：]\s*(.+?)\s*$" % key, body)
+        return m.group(1) if m else ""
+    kata, hirogari, tanpatsu = _line("型|kata"), _line("広がり|hirogari"), _line("単発|tanpatsu")
     for iid in sorted(set(re.findall(r"EDO-\d{4}", body))):
         c, fp = load_one(iid)
         if not c:
             continue
         if iid in closes and c["status"] in LIVE:
+            why = check_kata(c, kata, hirogari, tanpatsu)
+            if why:
+                # ⛔ 型の記録なしに done にしない。票は開けたまま、閉じ方を log に残す(EDO-0376)。
+                c["log"].append({"t": now(), "by": "post-commit",
+                                 "msg": "⚠ closes @ %s を保留 — 型の記録が無い(%s)。"
+                                        "`edo_board.py close %s --kata <場所> --hirogari <当たる先>`"
+                                        "(単発なら --tanpatsu <理由>)で閉じる。コミット本文なら「型:」「広がり:」の行。"
+                                        % (a.sha[:8], why.split("\n")[0][:60], iid)})
+                save(c, fp)
+                print("from-commit: ⚠ 保留 %s" % fmt_line(c))
+                continue
+            set_kata(c, "post-commit@" + a.sha[:8], kata, hirogari, tanpatsu)
             c["status"] = "done"
             c["log"].append({"t": now(), "by": "post-commit", "msg": "closes @ %s: %s" % (a.sha[:8], subj)})
         else:
@@ -396,6 +486,9 @@ def cmd_show(a):
         print("  どこ: %s" % c["where"])
     for r in c.get("refs", []):
         print("  ref: %s" % r)
+    k = fmt_kata(c)
+    if k:
+        print(k)
     d = c.get("decision")
     if d:
         print("  背景: %s" % d["background"])
@@ -574,16 +667,27 @@ def main():
                         "各案を同じ縮尺で並べた図と、案ごとに動く数値を添えること"
                         "(2026-08-30 ユーザー指示。名前と数字の羅列で選ばせない)")
     p.set_defaults(fn=cmd_post)
+    KATA_HELP = dict(
+        kata="直しが入った規則・仕組みの場所(パス#節 / クラス.関数)。task/blocker を done にするとき必須",
+        hirogari="その型が他のどの部材・邸・段に当たるか(規則21)。--kata と組で必須",
+        tanpatsu="本当に一回きりの直しなら、規則・仕組みへ入れない理由(--kata の代わり)")
     p = sub.add_parser("note", help="log へ1行追記(--status で状態遷移も)")
     p.add_argument("id"); p.add_argument("msg")
     p.add_argument("--status", choices=STATUSES)
+    p.add_argument("--kata", default="", help=KATA_HELP["kata"])
+    p.add_argument("--hirogari", default="", help=KATA_HELP["hirogari"])
+    p.add_argument("--tanpatsu", default="", help=KATA_HELP["tanpatsu"])
     p.add_argument("--force", action="store_true", help="直前と同文でも足す(再掲の事故用)")
     p.set_defaults(fn=cmd_note)
     p = sub.add_parser("retitle", help="題を改める(本文で数字を訂正したら題も)"); p.add_argument("id"); p.add_argument("title")
     p.set_defaults(fn=cmd_retitle)
     p = sub.add_parser("from-commit", help="post-commit フック用"); p.add_argument("sha"); p.set_defaults(fn=cmd_from_commit)
-    p = sub.add_parser("close"); p.add_argument("id")
+    p = sub.add_parser("close", help="宿題を閉じる — task/blocker は --kata+--hirogari か --tanpatsu が要る(§1d)")
+    p.add_argument("id")
     p.add_argument("--dropped", action="store_true"); p.add_argument("--msg", default="")
+    p.add_argument("--kata", default="", help=KATA_HELP["kata"])
+    p.add_argument("--hirogari", default="", help=KATA_HELP["hirogari"])
+    p.add_argument("--tanpatsu", default="", help=KATA_HELP["tanpatsu"])
     p.set_defaults(fn=cmd_close)
     p = sub.add_parser("list"); p.add_argument("--estate", choices=ESTATES)
     p.add_argument("--type", choices=TYPES, help="種別で絞る(宿題だけ見るなら --type task)")

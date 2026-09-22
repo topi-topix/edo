@@ -816,12 +816,22 @@ def cmd_finish(a):
     for tk in tasks:
         if a.keep_task:
             break
-        r = subprocess.run([sys.executable, _board_cli(), "close", tk] +
-                           (["--msg", a.msg] if a.msg else []), capture_output=True, text=True)
+        extra = ["--msg", a.msg] if a.msg else []
+        for k in ("kata", "hirogari", "tanpatsu"):
+            if getattr(a, k, ""):
+                extra += ["--" + k, getattr(a, k)]
+        r = subprocess.run([sys.executable, _board_cli(), "close", tk] + extra,
+                           capture_output=True, text=True)
         out = (r.stdout or r.stderr).strip()
         if out:
             print("  " + out.replace("\n", "\n  "))
         (closed if r.returncode == 0 else miss).append(tk)
+    # ⛔ 票が閉じられなかったら窓も仕舞わない(EDO-0376)。型の記録(--kata/--hirogari か --tanpatsu)が
+    #   無いまま claim を返すと、票は開いたまま・窓は消え、誰も型へ入れずに終わる。
+    if miss and not a.keep_task:
+        print("⛔ finish を止めた: 票 %s を閉じられなかった。上の理由を直して打ち直す"
+              "(票を開けたまま窓だけ閉じるなら --keep-task)。" % "・".join(miss), file=sys.stderr)
+        return 1
     kept = _open_tasks_of(c)
     kept_ids = [m.group(0) for m in (re.search(r"EDO-\d{3,4}", k) for k in kept) if m]
     rec = {"task": tasks, "closed": closed, "kept": kept_ids,
@@ -1795,6 +1805,9 @@ def main():
     p.add_argument("--msg", default="", help="何をして終わったか(票の log と日誌に残る)")
     p.add_argument("--keep-task", action="store_true", dest="keep_task",
                    help="票は閉じずに窓だけ閉じる(続きが要る・別の窓へ渡す場合)")
+    p.add_argument("--kata", default="", help="直しが入った規則・仕組みの場所(パス#節 / クラス.関数)。宿題を閉じるとき必須")
+    p.add_argument("--hirogari", default="", help="その型が他のどの部材・邸・段に当たるか(規則21)")
+    p.add_argument("--tanpatsu", default="", help="本当に一回きりなら、規則・仕組みへ入れない理由(--kata の代わり)")
     p.set_defaults(fn=cmd_finish)
     p = sub.add_parser("worktree"); p.add_argument("name")
     p.add_argument("--branch"); p.add_argument("--base")

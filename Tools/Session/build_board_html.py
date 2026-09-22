@@ -1549,6 +1549,11 @@ def build_html(issues, pending, commits, claims, states, summary, reviews, typol
     blks = [i for i in live if i["type"] == "blocker"]
     others = [i for i in live if i not in waits and i not in blks]
     now_d = _now_data(issues)
+    # ⭐ 窓の今(EDO-0364)— summary.json にも機械可読で載せる(常時の窓 /summary.json から読める)
+    try:
+        summary["windows"] = _sibling("board_now").summary_rows(now_d) if now_d else []
+    except Exception:
+        summary["windows"] = []
     rel = build_relationships(issues)
     open_counts = {e: len(summary["estates"][e]["open_issues"]) for e in SITES}
     junsu_base = load_junsu_baseline()
@@ -1876,10 +1881,11 @@ def main():
     typology = load_typology()
     summary = build_summary(issues, pending, commits, claims)
     os.makedirs(OUT, exist_ok=True)
-    json.dump(summary, open(os.path.join(OUT, "summary.json"), "w", encoding="utf-8"),
-              ensure_ascii=False, indent=1)
     open(os.path.join(OUT, "dashboard.html"), "w", encoding="utf-8").write(
         build_html(issues, pending, commits, claims, states, summary, reviews, typology))
+    # ⚠ summary.json は一枚を焼いた**後**に書く — build_html が「窓の今」(windows)を summary へ足す
+    json.dump(summary, open(os.path.join(OUT, "summary.json"), "w", encoding="utf-8"),
+              ensure_ascii=False, indent=1)
     open(os.path.join(OUT, "index.html"), "w", encoding="utf-8").write(SHELL)
     json.dump({"at": time.time(), "version": version},
               open(os.path.join(OUT, "baked.json"), "w", encoding="utf-8"),

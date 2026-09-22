@@ -224,6 +224,26 @@ def main():
         ev = json.load(sys.stdin)
     except Exception:
         sys.exit(0)
+    # ⭐ 窓の今(EDO-0364・2026-09-22 施主指示): 道具を呼んだ事実を同じプロセスで刻む(python の起動を 1 本増やさない)。
+    #   止めた(exit 2)ときは道具が走らないので、Post 相当で刻みを落とす — 幽霊の「待ち」を板に出さない。
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import edo_now
+        edo_now.record_pre(ev)
+    except Exception:
+        edo_now = None
+    try:
+        _main(ev)
+    except SystemExit as e:
+        if e.code == 2 and edo_now is not None:
+            try:
+                edo_now.record_post(ev)
+            except Exception:
+                pass
+        raise
+
+
+def _main(ev):
     sess = (ev.get("session_id") or "unknown")[:12]
     try:
         context_meter(ev, sess)
@@ -351,7 +371,8 @@ def selftest():
         e2e += 1
         print("  ⛔ 通しの検め自体が落ちた: %s" % ex)
     finally:
-        for f in (tp, state):
+        # ⚠ 窓の今(edo_now.record_pre)も同じ sid で刻むので、その *.now.json も片付ける
+        for f in (tp, state, os.path.join(SESS_DIR, sid + ".now.json")):
             try:
                 os.remove(f)
             except OSError:

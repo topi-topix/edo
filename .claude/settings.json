@@ -24,7 +24,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Read|Write|Edit|NotebookEdit|Bash|Agent|mcp__unityMCP__.*",
+        "matcher": "Read|Write|Edit|NotebookEdit|Bash|Agent|Workflow|Monitor|Skill|mcp__unityMCP__.*",
         "hooks": [
           {
             "type": "command",
@@ -46,9 +46,25 @@
         ]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/edo_now.py",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/edo_now.py",
+            "timeout": 5
+          },
           {
             "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/edo_report_lint.py",
@@ -65,6 +81,16 @@
       }
     ],
     "PostToolUse": [
+      {
+        "matcher": "Bash|Agent|Workflow|Monitor|Skill|mcp__unityMCP__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/edo_now.py",
+            "timeout": 5
+          }
+        ]
+      },
       {
         "matcher": "mcp__unityMCP__.*",
         "hooks": [

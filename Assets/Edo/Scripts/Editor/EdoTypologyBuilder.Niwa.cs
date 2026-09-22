@@ -76,7 +76,10 @@ public static partial class EdoTypologyBuilder
     }
 
     /// <summary>帯の落葉の割り = 庭全体を 7:3 にするために、この帯が負う落葉の比。
-    /// <paramref name="plannedEv"/> / <paramref name="plannedDe"/> は他の層の予定本数。</summary>
+    /// <paramref name="plannedEv"/> / <paramref name="plannedDe"/> は他の層の予定本数。
+    /// ⭐ 渡すのは**高木+中木だけ** — <see cref="NiwaInspect"/> が 7:3 を測る母集団(<c>k.tall</c>)と
+    /// 同じ集合でないと、帯がいくら帳尻を合わせても検査は外れる(規則19「検査の文言と実装の集合を
+    /// 突き合わせる」)。⛔ 照葉低木・刈込・下草を入れない(全て常緑なので帯の落葉が水増しされる)。</summary>
     static float DeShare(int band, int plannedEv, int plannedDe)
     {
         if (band <= 0) return 0f;
@@ -211,20 +214,28 @@ public static partial class EdoTypologyBuilder
         float m = 0f; foreach (var p in pal) m = Mathf.Max(m, EdoBuild.CrownR(p)); return m;
     }
 
-    /// <summary>候補の池から、その半径が本当に空いている点を1つ取り出す(取った点は池から外す)。</summary>
+    /// <summary>候補の池から、その半径が本当に空いている点を1つ取り出す。
+    /// ⭐ **池から外すのは据わった点だけ**(検分④)。⛔ 空いていなかった点まで捨てない —
+    /// 捨てると候補が**成否に関わらず**枯れて、後ろの層(小さい駒なら置けた層)が丸ごと 0 になる
+    /// (2026-09-22 実測: 6区画でモミジ以降が単調に 0)。</summary>
     static Vector2? TakeSite(List<Vector2> pool, System.Random rnd, EdoBuild.NiwaField f,
                              float r, EdoBuild.NiwaSet o)
     {
-        for (int t = 0; t < 40 && pool.Count > 0; t++)
+        var tried = new HashSet<int>();
+        for (int t = 0; t < 40 && tried.Count < pool.Count; t++)
         {
             int k = rnd.Next(pool.Count);
-            var p = pool[k]; pool.RemoveAt(k);
-            if (f.Free(p, r, o)) return p;
+            if (!tried.Add(k)) continue;
+            var p = pool[k];
+            if (!f.Free(p, r, o)) continue;
+            pool.RemoveAt(k);                      // ⭐ 据わる点だけを外す
+            return p;
         }
         return null;
     }
 
-    /// <summary>層をひと組据える。⭐ **意図した数と据わった数の差を必ず控える**(§5-2 ①・規則19)。</summary>
+    /// <summary>層をひと組据える。⭐ **意図した数と据わった数の差を必ず控える**(§5-2 ①・規則19)。
+    /// ⭐ 候補の池は**層ごとに引き直す**(検分④)— 呼び手が `new List&lt;Vector2&gt;(main)` を渡すこと。</summary>
     static void Layer(Transform grp, string name, EdoBuild.NiwaField f, List<Vector2> pool, string[] pal,
                       int want, System.Random rnd, EdoBuild.NiwaSet o,
                       List<string> want_, List<string> got_)
@@ -245,18 +256,42 @@ public static partial class EdoTypologyBuilder
         want_.Add(name + " " + want); got_.Add(name + " " + made);
     }
 
-    /// <summary>扇(半角35°・半径25m)の中の庭域の格子点(§5-0 b「座敷面」)。</summary>
-    static List<Vector2> Fan(EdoBuild.NiwaField f, Vector2 apex, Vector2 n, float halfDeg, float radius)
+    /// <summary>**主景の帯** — 座敷面の中点 + 法線 3.0m を起点に、幅 = 面長 + 左右各 4.0m・奥行 25m の
+    /// 帯と庭域 G の交わり(検分⑨)。⛔ 半角35°の扇で採らない — 扇はどの区画でも同じ 382m² にしかならず、
+    /// **面長に従属しない**(設計と §4.5 は「面長×奥行25」と書いている)。</summary>
+    static List<Vector2> MainBand(EdoBuild.NiwaField f, Vector2 apex, Vector2 n, float faceLen, float depth)
     {
+        var perp = new Vector2(-n.y, n.x);
+        float halfW = faceLen * 0.5f + 4.0f;
         var L = new List<Vector2>();
         foreach (var p in f.Cells)
         {
-            var d = p - apex; float m = d.magnitude;
-            if (m < 0.01f || m > radius) continue;
-            if (Vector2.Angle(d, n) > halfDeg) continue;
+            var d = p - apex;
+            float along = Vector2.Dot(d, n);
+            if (along < 0f || along > depth) continue;
+            if (Mathf.Abs(Vector2.Dot(d, perp)) > halfW) continue;
             L.Add(p);
         }
         return L;
+    }
+
+    /// <summary>門の**通り抜け**(柱間)[m] — 参道の帯(白洲)の幅を引くための代用値(検分③)。
+    /// ⛔ 門構えの全幅ではない(長屋門の両翼は長屋)。⛔ 部材の名から推し量らず、
+    /// <see cref="GatePath"/> に実在する綴りだけで引く(表に無い型は「他 = 1間」へ落とす)。
+    /// <list type="bullet">
+    /// <item>長屋門 2間 = 3.64m(`nagayamon`)</item>
+    /// <item>高麗門・薬医門・棟門 1.5間 = 2.73m(`hmon` / `yakuimon` / `munemon` /
+    ///   `kmon` — 在庫の `Eg.Kmon` も薬医門・<see cref="EdoAssets"/> の注記)</item>
+    /// <item>他(冠木門 `kabukimon`・小門 `komon`・山門 `sanmon`)1間 = 1.82m</item>
+    /// </list></summary>
+    static float GateThrough(string gate)
+    {
+        switch (gate)
+        {
+            case "nagayamon": return 2f * ES;
+            case "hmon": case "yakuimon": case "munemon": case "kmon": return 1.5f * ES;
+            default: return 1f * ES;
+        }
     }
 
     static float Perimeter(Vector2[] poly)
@@ -315,10 +350,15 @@ public static partial class EdoTypologyBuilder
         }
         else
         {
-            opening = gateHalf > 0f ? gateHalf * 2f : 6.0f;
-            openHow = string.Format("⚠ 通り抜けが測れず門構えの幅 {0:F1}m で代用", opening);
+            // ⛔ 門構えの**全幅**で代用しない(検分③)。長屋門は両翼が長屋なので、全幅で引くと
+            //    白洲が片側 18.5m = 幅 37m になり、庭域を削って前庭の松の置き場まで潰す。
+            //    代用するのは**門の格ごとの通り抜け**(柱間)。28区画すべてで門扉が閉じた駒なので
+            //    空きの連なりが出ず、いまは全区画がこの道を通る。
+            opening = GateThrough(s.gate);
+            openHow = string.Format("⚠ 通り抜けが測れず 門の格({0})の柱間 {1:F2}m で代用", s.gate ?? "無指定", opening);
         }
-        float half = opening * 0.5f + 1.5f;
+        // ⭐ 片側の上限 6.0m(実測できた場合も含む)— 武家屋敷の玄関前の白洲は 5〜10間【B】
+        float half = Mathf.Min(opening * 0.5f + 1.5f, 6.0f);
         Vector2 sandoB = cO;
         {
             float best = float.MaxValue;
@@ -356,25 +396,27 @@ public static partial class EdoTypologyBuilder
             new Vector2(tr.right.x, tr.right.z).normalized, new Vector2(-tr.right.x, -tr.right.z).normalized,
             new Vector2(tr.forward.x, tr.forward.z).normalized, new Vector2(-tr.forward.x, -tr.forward.z).normalized,
         };
-        Vector2 zashikiN = axes[0], zashikiApex = cO; float zashikiLen = 10f; int bestN = -1;
+        Vector2 zashikiN = axes[0], zashikiApex = cO, zashikiMid = cO; float zashikiLen = 10f; int bestN = -1;
         foreach (var n in axes)
         {
             if (n.sqrMagnitude < 0.5f) continue;
             float hw = EdoBuild.ProjSpan(omoya, n) * 0.5f;
             var mid = cO + n * hw;
             var apex = mid + n * 3.0f;
-            int c = Fan(f, apex, n, 35f, 25f).Count;
+            float faceLen = EdoBuild.ProjSpan(omoya, new Vector2(-n.y, n.x));
+            int c = MainBand(f, apex, n, faceLen, 25f).Count;
             bool better = c > bestN || (c == bestN && Vector2.Distance(apex, gateC) > Vector2.Distance(zashikiApex, gateC));
             if (!better) continue;
-            bestN = c; zashikiN = n; zashikiApex = apex;
-            zashikiLen = EdoBuild.ProjSpan(omoya, new Vector2(-n.y, n.x));
+            bestN = c; zashikiN = n; zashikiApex = apex; zashikiMid = mid; zashikiLen = faceLen;
         }
-        var main = Fan(f, zashikiApex, zashikiN, 35f, 25f);
+        var main = MainBand(f, zashikiApex, zashikiN, zashikiLen, 25f);
         float per = Perimeter(poly);
         var want = new List<string>(); var got = new List<string>();
-        log.Add(string.Format("  庭({0}): 庭域 {1:F0}m²({2}点)/ 周長 {3:F0}m / 座敷面 面長 {4:F1}m・主景の候補 {5}点"
-                            + " / 参道の帯 片側 {6:F1}m({7} ÷2 + 1.5)",
-                              g, f.Area, f.Cells.Count, per, zashikiLen, main.Count, half, openHow));
+        log.Add(string.Format("  庭({0}): 庭域 {1:F0}m²({2}点)/ 周長 {3:F0}m / 座敷面 面長 {4:F1}m"
+                            + "・主景の帯(幅 面長+左右4.0 × 奥行25)の候補 {5}点 = {6:F0}m²"
+                            + " / 参道の帯 片側 {7:F1}m({8} ÷2 + 1.5・上限6.0)",
+                              g, f.Area, f.Cells.Count, per, zashikiLen, main.Count,
+                              main.Count * f.Cell * f.Cell, half, openHow));
 
         // 勝手側(門と反対の半面)の候補点
         var kdir = (cO - gateC).sqrMagnitude > 0.01f ? (cO - gateC).normalized : zashikiN;
@@ -382,14 +424,14 @@ public static partial class EdoTypologyBuilder
 
         switch (g)
         {
-            case "chisen": NiwaChisen(s, grp, f, poly, front, rnd, main, katte, per, zashikiLen, gateC, half, want, got, log, 1.0f); break;
-            case "small":  NiwaChisen(s, grp, f, poly, front, rnd, main, katte, per, zashikiLen, gateC, half, want, got, log, 0.55f); break;
-            case "tsubo":  NiwaTsubo(s, grp, f, poly, front, rnd, main, per, want, got, log); break;
+            case "chisen": NiwaChisen(s, grp, f, poly, front, rnd, main, katte, per, zashikiLen, zashikiMid, zashikiN, gateC, half, want, got, log, 1.0f); break;
+            case "small":  NiwaChisen(s, grp, f, poly, front, rnd, main, katte, per, zashikiLen, zashikiMid, zashikiN, gateC, half, want, got, log, 0.55f); break;
+            case "tsubo":  NiwaTsubo(s, grp, f, poly, front, rnd, main, per, zashikiMid, zashikiN, want, got, log); break;
             case "ura":    NiwaUra(s, grp, f, mune, rnd, katte, kdir, cO, want, got, log); break;
             default:       return "  ⚠ 庭: 表の garden=" + g + " は庭方の設計に無い型 — 建てない(表を検め直す)";
         }
 
-        log.Add(NiwaInspect(f, want, got));
+        log.Add(NiwaInspect(f, g, want, got));
         return string.Join("\n", log.ToArray());
     }
 
@@ -399,12 +441,15 @@ public static partial class EdoTypologyBuilder
     /// 0.55 なら small(⛔ small は**池代地を持たない**)。本数はすべて周長と面長からの従属値。</summary>
     static void NiwaChisen(Spec s, Transform grp, EdoBuild.NiwaField f, Vector2[] poly, Edge front,
                            System.Random rnd, List<Vector2> main, List<Vector2> katte,
-                           float per, float faceLen, Vector2 gateC, float bandHalf,
+                           float per, float faceLen, Vector2 zashikiMid, Vector2 zashikiN,
+                           Vector2 gateC, float bandHalf,
                            List<string> want, List<string> got, List<string> log, float k)
     {
         bool chisen = k > 0.9f;
-        var tree = EdoBuild.NiwaSet.Tree;
+        var tree = EdoBuild.NiwaSet.Tree;        // 高木(囲いから幹で 1.2)
+        var chu = EdoBuild.NiwaSet.Chuboku;      // 中木(囲いから幹で 0.8)
         var shrub = EdoBuild.NiwaSet.Shrub;
+        var kusa = EdoBuild.NiwaSet.Kusa;        // 下草 — 飛石は下草を踏める(検分①)
 
         // ⭐ **主景の本数を先に引く。**屋敷林は常緑と落葉の両方を持つ唯一の層なので、
         //    他の層の予定を知らないと庭全体の 常緑:落葉 = 7:3(覆さない線③)に着地できない。
@@ -423,35 +468,48 @@ public static partial class EdoTypologyBuilder
         // ── ③ 池代地を**先に**囲う(木を置いてからでは動かせない・§5-1 chisen ③)──
         if (chisen)
         {
-            var cand = main.Where(p => f.Eaves.Dist(p, 13f) >= 12f && EdoGeom.DistToPolyEdge(poly, p) >= 8f).ToList();
+            // ⭐ 母集合は**座敷面の側の半面ぜんたい**(検分⑤)。⛔ 主景の帯で切らない —
+            //    帯(660m²級)を さらに 軒≥12・区画辺≥8 で削ると連結域が数升になり、
+            //    22,333坪の屋敷に径2〜3mの水たまりが出来る(2026-09-22 実測・下草は1株も入らなかった)。
+            var zashikiSide = f.Cells.Where(p => Vector2.Dot(p - zashikiMid, zashikiN) > 0f).ToList();
+            var cand = zashikiSide.Where(p => f.Eaves.Dist(p, 13f) >= 12f && EdoGeom.DistToPolyEdge(poly, p) >= 8f).ToList();
             var blob = EdoBuild.NiwaBlob(f, cand, 6);
+            float longD = 0f; Vector2 c = Vector2.zero;
             if (blob.Count >= 6)
             {
-                var c = Vector2.zero; foreach (var p in blob) c += p; c /= blob.Count;
+                foreach (var p in blob) c += p; c /= blob.Count;
                 float mnx = blob.Min(p => p.x), mxx = blob.Max(p => p.x);
                 float mnz = blob.Min(p => p.y), mxz = blob.Max(p => p.y);
-                float shortSide = Mathf.Min(mxx - mnx, mxz - mnz) + f.Cell;
-                float longR = shortSide * 0.55f * 0.5f;
-                f.Voids.Add(EdoBuild.NiwaVoidPoly(c, longR, rnd));
-                log.Add(string.Format("    池代地: {0:F0}m² の連結域の重心に 長径 {1:F1}m の不定形の空地を確保"
-                                    + "(⛔ 類型では掘らない — 後から木を動かさずに掘れるように空けるだけ)",
-                                      blob.Count * f.Cell * f.Cell, longR * 2f));
+                longD = (Mathf.Min(mxx - mnx, mxz - mnz) + f.Cell) * 0.55f;      // 長径 = 短辺 × 0.55
             }
-            else log.Add("    ⚠ 池代地: 軒から12m・区画辺から8m を満たす連結域が無い(棟と囲いで埋まっている)— 空地は取らない");
+            if (longD >= 12f)
+            {
+                f.Voids.Add(EdoBuild.NiwaVoidPoly(c, longD * 0.5f, rnd));
+                log.Add(string.Format("    池代地: 座敷面の側の {0:F0}m² の連結域の重心に 長径 {1:F1}m の不定形の空地を確保"
+                                    + "(⛔ 類型では掘らない — 後から木を動かさずに掘れるように空けるだけ)",
+                                      blob.Count * f.Cell * f.Cell, longD));
+            }
+            else log.Add(string.Format("    ⚠ 池代地: 取らなかった — 座敷面の側で 軒から12m・区画辺から8m を満たす"
+                                     + "連結域の長径が {0:F1}m(12m 未満・池として小さすぎる)", longD));
         }
 
-        // ── ① 屋敷林の帯(囲いの内側)。塊 3〜5本・表門の辺には置かない ──
+        // ── ① 屋敷林の帯。⭐ 基準は**囲いの内側の面**(検分②)──
         {
-            float rr = MaxCrown(LinPal) * tree.ScaleHi;
-            // ⚠ 帯の寄せは設計では 2.5〜7.0。樹冠が区画の線を越えると Stage6 が**壁体の区域侵犯**として
-            //    数えるので(検査は木と軒を見分けない)、寄せの下限を樹冠半径まで押し込む。
-            float insetLo = Mathf.Max(chisen ? 2.5f : 2.5f, rr + 0.3f), insetHi = Mathf.Max(7.0f, rr + 1.2f);
-            int sites = Mathf.Max(1, Mathf.RoundToInt(per / (chisen ? 40f : 45f)));
-            int capTrees = chisen ? 80 : 40;
-            var pts = EdoBuild.NiwaBandSites(poly, insetLo, insetHi, sites, rnd,
-                          p => EdoGeom.DistToEdge(p, front.a, front.b) < insetHi + 1.5f);
+            // ⛔ 区画の線から 2.5〜7.0 で採らない — 長屋・長屋塀は内へ5〜6m の占めを持つので
+            //    帯がその上に乗って丸ごと落ちる(実測 555→285本・61%落ち)。
+            //    寄せは**壁の実メッシュから** chisen/small 1.5〜8.0m。
+            float lo = 1.5f, hi = 8.0f;
+            int sites = Mathf.Max(1, Mathf.RoundToInt(per / (chisen ? 28f : 32f)));
+            int capTrees = chisen ? 140 : 70;
+            bool fromWall; int blind;
+            var pts = EdoBuild.NiwaWallBandSites(f, lo, hi, sites, rnd,
+                          p => EdoGeom.DistToEdge(p, front.a, front.b) < hi + 1.5f, out fromWall, out blind);
             int plan = Mathf.Min(capTrees, pts.Count * (chisen ? 4 : 3));
-            float deShare = DeShare(plan, nMatsu + nChu + nTei, nMomiji);
+            // ⛔ 照葉低木 nTei を分母に入れない — 低木は全て常緑なので帯の落葉が水増しされ、
+            //    検査の母集団(高木+中木)では 落葉が許容の上へ振れる(2026-09-22 実測 sanbezaka_goto 43%)。
+            //    後から据える勝手の木(0〜2)と前庭の松(3)はここでは rnd を引けないので定数 4 で見込む
+            //    (⛔ ここで Rng を引くと後段の層の乱数が丸ごとずれる)。
+            float deShare = DeShare(plan, nMatsu + nChu + 4, nMomiji);
             var mix = LinMix(rnd, deShare);
             int made = 0, tried = 0;
             foreach (var p in pts)
@@ -463,21 +521,23 @@ public static partial class EdoTypologyBuilder
             }
             want.Add("屋敷林 " + tried); got.Add("屋敷林 " + made);
             log.Add(string.Format("    屋敷林: 周長 {0:F0}m ÷ {1} = {2}箇所の塊 → {3}/{4}本"
-                                + "(内側 {5:F1}〜{6:F1}m・上限 {7}・落葉の割り {8:P0} = 庭全体を 7:3 にする値)",
-                                  per, chisen ? 40 : 45, pts.Count, made, tried, insetLo, insetHi, capTrees, deShare));
+                                + "(囲いの実メッシュから {5:F1}〜{6:F1}m{7}・上限 {8}・落葉の割り {9:P0} = 庭全体を 7:3 にする値)",
+                                  per, chisen ? 28 : 32, pts.Count, made, tried, lo, hi,
+                                  fromWall ? (blind > 0 ? string.Format("・うち {0}箇所は囲いが無く区画の線から", blind) : "")
+                                           : "・⚠ 囲いが1枚も無いので区画の線から", capTrees, deShare));
         }
 
-        // ── ② 主景(座敷面の前の扇)──
-        var pool = new List<Vector2>(main);
-        Layer(grp, "主木の松", f, pool, MatsuPal, nMatsu, rnd, tree, want, got);
-        Layer(grp, "常緑中木", f, pool, ChubokuPal, nChu, rnd, tree, want, got);
-        Layer(grp, "モミジ", f, pool, MomijiPal, nMomiji, rnd, tree, want, got);
-        Layer(grp, "照葉低木", f, pool, TeibokuPal, nTei, rnd, shrub, want, got);
+        // ── ② 主景(座敷面の前の帯)⭐ 池は**層ごとに main から引き直す**(検分④)──
+        Layer(grp, "主木の松", f, new List<Vector2>(main), MatsuPal, nMatsu, rnd, tree, want, got);
+        Layer(grp, "常緑中木", f, new List<Vector2>(main), ChubokuPal, nChu, rnd, chu, want, got);
+        Layer(grp, "モミジ", f, new List<Vector2>(main), MomijiPal, nMomiji, rnd, chu, want, got);
+        Layer(grp, "照葉低木", f, new List<Vector2>(main), TeibokuPal, nTei, rnd, shrub, want, got);
 
         // 刈込の塊(3〜5組)
         {
             int kumi = nKari;
             int made = 0;
+            var pool = new List<Vector2>(main);
             float rr = MaxCrown(KarikomiPal) * shrub.ScaleHi;
             for (int i = 0; i < kumi; i++)
             {
@@ -488,42 +548,40 @@ public static partial class EdoTypologyBuilder
             want.Add("刈込 " + kumi + "組"); got.Add("刈込 " + made + "本");
         }
         // 景石(1組 = 三石。丈 1.0 正規化なので localScale = 総丈・沈め = 総丈÷3 の1/3埋め)
-        NiwaIshigumi(grp, f, pool, rnd, nIshi, want, got);
-        // 飛石1条 — 座敷の前から庭を横切る
-        NiwaTobiishi(grp, f, pool, rnd, nTobi, want, got);
+        NiwaIshigumi(grp, f, new List<Vector2>(main), rnd, nIshi, want, got);
+        // 飛石1条 — 座敷面の中点の外 2.0m から庭へ下りる(⭐ 芯々は石の実寸から・検分①)
+        NiwaTobiishi(grp, f, rnd, zashikiMid + zashikiN * 2.0f, zashikiN, nTobi, want, got, log);
         // 灯籠
-        NiwaToro(grp, f, pool, rnd, nToro, want, got);
+        NiwaToro(grp, f, new List<Vector2>(main), rnd, nToro, want, got);
         // 井戸(chisen は勝手まわりに1口・small は2口)
         NiwaIdo(grp, f, katte, rnd, chisen ? 1 : 2, want, got, log);
         // ④ 勝手まわりは裸地・木0〜2本
-        {
-            var kp = new List<Vector2>(katte);
-            Layer(grp, "勝手の木", f, kp, ChubokuPal, Rng(rnd, 0, 2), rnd, tree, want, got);
-        }
+        Layer(grp, "勝手の木", f, new List<Vector2>(katte), ChubokuPal, Rng(rnd, 0, 2), rnd, chu, want, got);
         // ⑤ 前庭は白洲。門の内側の左右に松1〜2本ずつ**必ず非対称**
         NiwaMaeniwa(grp, f, rnd, gateC, bandHalf, front, want, got);
         // 5e 下草(⛔ 予算を超えたら低木から減る — ここが最後)
-        var fern = new List<Vector2>(f.Cells);
-        Layer(grp, "下草", f, fern, ShidaPal, nShida, rnd, shrub, want, got);
-        // 池代地の中は下草だけ(⛔ 木・石を入れない)
+        Layer(grp, "下草", f, new List<Vector2>(f.Cells), ShidaPal, nShida, rnd, kusa, want, got);
+        // 池代地の中は下草だけ(⛔ 木・石を入れない)。
+        // ⭐ 輪郭の内ぜんたいではなく**汀の内側 1.5m の環**に置く — 中央は空ける(水になる所・検分⑤)
         if (f.Voids.Count > 0)
         {
-            var inside = f.Cells.Where(p => f.InVoid(p)).ToList();
+            var ring = f.Cells.Where(p => f.InVoid(p)
+                                       && EdoGeom.DistToPolyEdge(f.Voids[0], p) <= 1.5f).ToList();
             int n = Mathf.Min(Rng(rnd, 5, 11), Mathf.Max(0, NIWA_BUDGET - f.Komas.Count));
             int made = 0;
-            var o = EdoBuild.NiwaSet.Shrub; o.EdgeK = 0.9f;
+            var o = kusa; o.EdgeK = 0.9f;
             foreach (int c in OddSplit(n, rnd))
             {
                 Vector2? site = null;
-                for (int t = 0; t < 20 && inside.Count > 0; t++)
+                for (int t = 0; t < 20 && ring.Count > 0; t++)
                 {
-                    int q = rnd.Next(inside.Count); var p = inside[q]; inside.RemoveAt(q);
+                    int q = rnd.Next(ring.Count); var p = ring[q]; ring.RemoveAt(q);
                     if (f.Free(p, 0.6f, o, true)) { site = p; break; }
                 }
                 if (site == null) break;
                 made += EdoBuild.NiwaClump(grp, "IkeShita", f, site.Value, ShidaPal, c, rnd, o, "池代地の下草").Count;
             }
-            want.Add("池代地の下草 " + n); got.Add("池代地の下草 " + made);
+            want.Add("池代地の下草 " + n + "(汀の内 1.5m の環)"); got.Add("池代地の下草 " + made);
         }
     }
 
@@ -533,33 +591,38 @@ public static partial class EdoTypologyBuilder
     /// ⛔ 坪庭に灯籠・刈込を入れない。⚠ 連結成分が48m²未満なら**坪庭を無理に作らない**。</summary>
     static void NiwaTsubo(Spec s, Transform grp, EdoBuild.NiwaField f, Vector2[] poly, Edge front,
                           System.Random rnd, List<Vector2> main, float per,
+                          Vector2 zashikiMid, Vector2 zashikiN,
                           List<string> want, List<string> got, List<string> log)
     {
-        var tree = EdoBuild.NiwaSet.Tree; var shrub = EdoBuild.NiwaSet.Shrub;
-        int plannedEv = 0;                     // ⭐ 外周の帯の落葉の割りを出すのに要る(7:3・覆さない線③)
+        var tree = EdoBuild.NiwaSet.Tree; var chu = EdoBuild.NiwaSet.Chuboku;
+        var shrub = EdoBuild.NiwaSet.Shrub; var kusa = EdoBuild.NiwaSet.Kusa;
+        // ⭐ 外周の帯の落葉の割りを出すのに要る(7:3・覆さない線③)。
+        // ⛔ **高木+中木だけ**を足す — 低木(坪庭の低木・照葉低木)は全て常緑で、検査の母集団に入らない。
+        int plannedEv = 0;
         var pocket = EdoBuild.NiwaPocket(f, 1.0f, 6.0f, 12);
         if (pocket.Count >= 12)
         {
-            var pp = new List<Vector2>(pocket);
             log.Add(string.Format("    坪庭: 棟と棟の間のポケット {0:F0}m²({1}点)", pocket.Count * f.Cell * f.Cell, pocket.Count));
             int nPocketChu = Rng(rnd, 1, 3), nPocketTei = Rng(rnd, 5, 9);
-            plannedEv += nPocketChu + nPocketTei;
-            Layer(grp, "坪庭の中木", f, pp, ChubokuPal, nPocketChu, rnd, tree, want, got);
-            Layer(grp, "坪庭の低木", f, pp, TeibokuPal, nPocketTei, rnd, shrub, want, got);
-            Layer(grp, "坪庭の下草", f, pp, ShidaPal, Rng(rnd, 8, 15), rnd, shrub, want, got);
-            NiwaIshigumi(grp, f, pp, rnd, 1, want, got);
-            NiwaTobiishi(grp, f, pp, rnd, Rng(rnd, 5, 9), want, got);
+            plannedEv += nPocketChu;                       // ⛔ nPocketTei(低木)は足さない
+            Layer(grp, "坪庭の中木", f, new List<Vector2>(pocket), ChubokuPal, nPocketChu, rnd, chu, want, got);
+            Layer(grp, "坪庭の低木", f, new List<Vector2>(pocket), TeibokuPal, nPocketTei, rnd, shrub, want, got);
+            Layer(grp, "坪庭の下草", f, new List<Vector2>(pocket), ShidaPal, Rng(rnd, 8, 15), rnd, kusa, want, got);
+            NiwaIshigumi(grp, f, new List<Vector2>(pocket), rnd, 1, want, got);
+            // ⭐ 坪庭の飛石は**ポケットの重心**から。起点は座敷面が無い側なので庭域の重心を採る
+            var pc = Vector2.zero; foreach (var p in pocket) pc += p; pc /= pocket.Count;
+            NiwaTobiishi(grp, f, rnd, pc, zashikiN, Rng(rnd, 5, 9), want, got, log, "坪庭の飛石");
         }
         else log.Add("    ⚠ 坪庭: 軒から1.0〜6.0m の連結成分が 48m² に満たない — 坪庭は作らない(無理に作らない・§5-1)");
 
-        // 小平庭(座敷面の前)
-        var pool = new List<Vector2>(main);
+        // 小平庭(座敷面の前)⭐ 池は層ごとに main から引き直す(検分④)
         int nMatsu = Odd(rnd, 2, 3), nChu = Rng(rnd, 3, 5), nTei = Rng(rnd, 6, 12);
-        plannedEv += nMatsu + nChu + nTei;
-        Layer(grp, "主木の松", f, pool, MatsuPal, nMatsu, rnd, tree, want, got);
-        Layer(grp, "常緑中木", f, pool, ChubokuPal, nChu, rnd, tree, want, got);
+        plannedEv += nMatsu + nChu;                        // ⛔ nTei(低木)は足さない
+        Layer(grp, "主木の松", f, new List<Vector2>(main), MatsuPal, nMatsu, rnd, tree, want, got);
+        Layer(grp, "常緑中木", f, new List<Vector2>(main), ChubokuPal, nChu, rnd, chu, want, got);
         {
             int kumi = Rng(rnd, 1, 2); int made = 0;
+            var pool = new List<Vector2>(main);
             float rr = MaxCrown(KarikomiPal) * shrub.ScaleHi;
             for (int i = 0; i < kumi; i++)
             {
@@ -569,31 +632,35 @@ public static partial class EdoTypologyBuilder
             }
             want.Add("刈込 " + kumi + "組"); got.Add("刈込 " + made + "本");
         }
-        Layer(grp, "照葉低木", f, pool, TeibokuPal, nTei, rnd, shrub, want, got);
-        NiwaIshigumi(grp, f, pool, rnd, Rng(rnd, 1, 2), want, got);
-        NiwaTobiishi(grp, f, pool, rnd, Rng(rnd, 8, 14), want, got);
-        NiwaToro(grp, f, pool, rnd, Rng(rnd, 0, 1), want, got);
+        Layer(grp, "照葉低木", f, new List<Vector2>(main), TeibokuPal, nTei, rnd, shrub, want, got);
+        NiwaIshigumi(grp, f, new List<Vector2>(main), rnd, Rng(rnd, 1, 2), want, got);
+        NiwaTobiishi(grp, f, rnd, zashikiMid + zashikiN * 2.0f, zashikiN, Rng(rnd, 8, 14), want, got, log);
+        NiwaToro(grp, f, new List<Vector2>(main), rnd, Rng(rnd, 0, 1), want, got);
 
-        // 外周の帯(⛔ 表の辺は除く)— 周長÷50 箇所 × 3本・上限18本
+        // 外周の帯(⛔ 表の辺は除く)— ⭐ 基準は**囲いの内側の面**・周長÷40 箇所 × 3本・上限30本(検分②)
         {
-            float rr = MaxCrown(LinPal) * tree.ScaleHi;
-            float insetLo = Mathf.Max(2.0f, rr + 0.3f), insetHi = Mathf.Max(5.0f, rr + 1.0f);
-            int sites = Mathf.Max(1, Mathf.RoundToInt(per / 50f));
-            var pts = EdoBuild.NiwaBandSites(poly, insetLo, insetHi, sites, rnd,
-                          p => EdoGeom.DistToEdge(p, front.a, front.b) < insetHi + 1.5f);
-            int plan = Mathf.Min(18, pts.Count * 3);
+            float lo = 1.5f, hi = 6.0f;
+            int sites = Mathf.Max(1, Mathf.RoundToInt(per / 40f));
+            bool fromWall; int blind;
+            var pts = EdoBuild.NiwaWallBandSites(f, lo, hi, sites, rnd,
+                          p => EdoGeom.DistToEdge(p, front.a, front.b) < hi + 1.5f, out fromWall, out blind);
+            int plan = Mathf.Min(30, pts.Count * 3);
             var mix = LinMix(rnd, DeShare(plan, plannedEv, 0));
             int made = 0, tried = 0;
             foreach (var p in pts)
             {
-                if (made >= 18 || f.Komas.Count >= NIWA_BUDGET) break;
+                if (made >= 30 || f.Komas.Count >= NIWA_BUDGET) break;
                 tried += 3;
                 made += EdoBuild.NiwaClump(grp, "Gaishu", f, p, LinPal, 3, rnd, tree, "外周の帯", mix).Count;
             }
             want.Add("外周の帯 " + tried); got.Add("外周の帯 " + made);
+            log.Add(string.Format("    外周の帯: 周長 {0:F0}m ÷ 40 = {1}箇所 → {2}/{3}本"
+                                + "(囲いの実メッシュから {4:F1}〜{5:F1}m{6}・上限 30)",
+                                  per, pts.Count, made, tried, lo, hi,
+                                  fromWall ? (blind > 0 ? string.Format("・うち {0}箇所は囲いが無く区画の線から", blind) : "")
+                                           : "・⚠ 囲いが1枚も無いので区画の線から"));
         }
-        var fern = new List<Vector2>(f.Cells);
-        Layer(grp, "下草", f, fern, ShidaPal, Rng(rnd, 10, 20), rnd, shrub, want, got);
+        Layer(grp, "下草", f, new List<Vector2>(f.Cells), ShidaPal, Rng(rnd, 10, 20), rnd, kusa, want, got);
     }
 
     // ───────────────────────── ura ─────────────────────────
@@ -605,7 +672,8 @@ public static partial class EdoTypologyBuilder
                         List<string> want, List<string> got, List<string> log)
     {
         const int URA_CAP = 25;
-        var tree = EdoBuild.NiwaSet.Tree; var shrub = EdoBuild.NiwaSet.Shrub;
+        var chu = EdoBuild.NiwaSet.Chuboku; var shrub = EdoBuild.NiwaSet.Shrub;
+        var kusa = EdoBuild.NiwaSet.Kusa;
 
         // 棟と土蔵の実メッシュを別々に持つ(⛔ 「軒からの距離」ではなく**その棟からの距離**で決める)
         var occOmoya = new EdoBuild.NiwaOcc(); occOmoya.AddBody(mune[0], 300, false);
@@ -631,7 +699,7 @@ public static partial class EdoTypologyBuilder
             float r = EdoBuild.CrownR(ido);
             var site = TakeSite(cand, rnd, f, r, o);
             want.Add("井戸 1");
-            if (site != null && f.Put(grp, ido, site.Value, Rf(rnd, 0f, 360f), 1f, 0f, "Ido", "井戸") != null)
+            if (site != null && f.Put(grp, ido, site.Value, Rf(rnd, 0f, 360f), 1f, 0f, "Ido", "井戸", o) != null)
             { idoAt = site; got.Add("井戸 1"); }
             else got.Add("井戸 0");
             log.Add("    ⚠ 井戸の駒は山王社のために起こした井桁の井戸(`Own.SannoIdoIgeta`)を当てている —"
@@ -659,11 +727,23 @@ public static partial class EdoTypologyBuilder
                 }
                 if (Vector2.Distance(end, from) > 1.0f) way.Add(end);
             }
-            int n = Rng(rnd, 6, 12);
+            // ⭐ 芯々は**石の実寸**から(検分①)。経路は勝手口→井戸→蔵の扉で機能が決めているので、
+            //    石数は経路長 ÷ 芯々 の従属値になる。⚠ 意匠の「6〜12石」と噛み合わない経路は
+            //    12枚で打ち切り、要る枚数と一緒に刷る(⛔ 芯々を伸ばして辻褄を合わせない)。
+            float total = 0f;
+            for (int i = 1; i < way.Count; i++) total += Vector2.Distance(way[i - 1], way[i]);
+            float pitch = EdoBuild.NiwaStepPitch(0.45f, rnd);
+            int need = Mathf.Max(1, Mathf.RoundToInt(total / pitch) + 1);
+            int n = Mathf.Min(need, 12);
             want.Add("飛石 " + n);
             int made = way.Count >= 2
-                ? EdoBuild.NiwaStepPath(grp, "Tobiishi", f, way, TobiPal, n, rnd, 0.45f, EdoBuild.NiwaSet.Stone, "飛石").Count : 0;
+                ? EdoBuild.NiwaStepPath(grp, "Tobiishi", f, way, TobiPal, n, rnd, 0.45f,
+                                        EdoBuild.NiwaSet.Path("飛石"), "飛石", pitch).Count : 0;
             got.Add("飛石 " + made);
+            log.Add(string.Format("    飛石: 勝手口→井戸→蔵の扉 {0:F1}m ÷ 芯々 {1:F2}m(石の長軸 0.45×1.05〜1.25)"
+                                + " = {2}枚要る → {3}枚置いた{4}",
+                                  total, pitch, need, made,
+                                  need > 12 ? "(⚠ 意匠の上限 12枚で打ち切り — 経路長と『6〜12石』が噛み合っていない)" : ""));
         }
 
         // 常緑中木1〜2(区画の隅)
@@ -672,14 +752,12 @@ public static partial class EdoTypologyBuilder
             foreach (var p in f.Cells)
                 if (EdoGeom.DistToPolyEdge(f.Poly, p) <= 4.0f) corners.Add(p);
             corners.Sort((a, b) => EdoGeom.DistToPolyEdge(f.Poly, a).CompareTo(EdoGeom.DistToPolyEdge(f.Poly, b)));
-            Layer(grp, "隅の中木", f, corners, ChubokuPal, Rng(rnd, 1, 2), rnd, tree, want, got);
+            Layer(grp, "隅の中木", f, corners, ChubokuPal, Rng(rnd, 1, 2), rnd, chu, want, got);
         }
         // 実のなる木0〜1(ウメ)⚠ 夏姿に花が付いていないか — 生成器(build_tree.py)に花の形は無い
-        {
-            var pool = new List<Vector2>(katte);
-            Layer(grp, "実のなる木", f, pool, new[] { EdoAssets.Own.Ume("Small", 1), EdoAssets.Own.Ume("Small", 2) },
-                  Rng(rnd, 0, 1), rnd, tree, want, got);
-        }
+        Layer(grp, "実のなる木", f, new List<Vector2>(katte),
+              new[] { EdoAssets.Own.Ume("Small", 1), EdoAssets.Own.Ume("Small", 2) },
+              Rng(rnd, 0, 1), rnd, chu, want, got);
         // 照葉低木3〜6を塀際に不等間隔
         {
             var hei = f.Cells.Where(p => f.Walls.Dist(p, 4f) <= 2.5f).ToList();
@@ -688,8 +766,8 @@ public static partial class EdoTypologyBuilder
         // 下草5〜10(⛔ 合計 25 駒を超えない)
         {
             int room = Mathf.Max(0, URA_CAP - f.Komas.Count);
-            var pool = new List<Vector2>(f.Cells);
-            Layer(grp, "下草", f, pool, ShidaPal, Mathf.Min(Rng(rnd, 5, 10), room), rnd, shrub, want, got);
+            Layer(grp, "下草", f, new List<Vector2>(f.Cells), ShidaPal,
+                  Mathf.Min(Rng(rnd, 5, 10), room), rnd, kusa, want, got);
         }
         if (f.Komas.Count > URA_CAP)
             log.Add(string.Format("    ⚠ 裏庭の駒が {0}(上限 {1})— 意匠の「実用の庭」を越えている", f.Komas.Count, URA_CAP));
@@ -714,20 +792,27 @@ public static partial class EdoTypologyBuilder
         want.Add("景石 " + kumi + "組"); got.Add("景石 " + made + "石");
     }
 
-    /// <summary>飛石1条。座敷の前から庭へ下りる筋を、庭域の点を2つ拾って引く。</summary>
-    static void NiwaTobiishi(Transform grp, EdoBuild.NiwaField f, List<Vector2> pool, System.Random rnd,
-                             int n, List<string> want, List<string> got)
+    /// <summary>飛石1条 — **座敷面の中点の外 2.0m** から庭へ下りる筋(検分①)。
+    /// ⛔ 庭域の点を2つ拾って結ばない — それだと芯々が経路長の従属値になり、
+    /// 芯々 1.5〜3m の飛び飛びの石になって**一条に見えない**(2026-09-22 実測 356→98枚・9区画で0)。
+    /// ⭐ 順は **芯々を石の実寸から決める → 経路長 =(n−1)×芯々 → 出だしの向きを測って決める →
+    /// 折れ2箇所で経路を引く**。</summary>
+    static void NiwaTobiishi(Transform grp, EdoBuild.NiwaField f, System.Random rnd,
+                             Vector2 start, Vector2 aim, int n, List<string> want, List<string> got,
+                             List<string> log, string label = "飛石")
     {
-        want.Add("飛石 " + n);
-        if (pool.Count < 2) { got.Add("飛石 0"); return; }
-        var a = pool[rnd.Next(pool.Count)];
-        var far = pool.OrderByDescending(p => Vector2.Distance(p, a)).Take(Mathf.Max(1, pool.Count / 4)).ToList();
-        var b = far[rnd.Next(far.Count)];
-        var mid = Vector2.Lerp(a, b, 0.5f) + new Vector2(-(b - a).y, (b - a).x).normalized
-                * ((float)rnd.NextDouble() - 0.5f) * Vector2.Distance(a, b) * 0.25f;   // ⛔ 一直線に引かない
-        var way = new List<Vector2> { a, mid, b };
-        int made = EdoBuild.NiwaStepPath(grp, "Tobiishi", f, way, TobiPal, n, rnd, 0.45f, EdoBuild.NiwaSet.Stone, "飛石").Count;
-        got.Add("飛石 " + made);
+        want.Add(label + " " + n);
+        var o = EdoBuild.NiwaSet.Path(label);
+        float pitch = EdoBuild.NiwaStepPitch(0.45f, rnd);
+        float total = Mathf.Max(0.5f, (n - 1) * pitch);
+        float r = 0.45f * 0.5f;                       // 石の長軸 0.45 の外接円
+        var dir = EdoBuild.NiwaStepAim(f, start, aim, 70f, total, pitch, r, o);
+        var way = EdoBuild.NiwaStepWay(start, dir, total, rnd);
+        int made = EdoBuild.NiwaStepPath(grp, "Tobiishi", f, way, TobiPal, n, rnd, 0.45f, o, label, pitch).Count;
+        got.Add(label + " " + made);
+        log.Add(string.Format("    {0}: 芯々 {1:F2}m(石の長軸 0.45×1.05〜1.25)× {2}枚 = 経路 {3:F1}m"
+                            + "(座敷面の中点の外2.0m から・折れ2箇所)→ {4}枚",
+                              label, pitch, n, total, made));
     }
 
     /// <summary>灯籠(雪見)。⚠ edogoyomi の駒なので **ES を掛ける**。⛔ 春日灯籠は使わない。</summary>
@@ -741,7 +826,7 @@ public static partial class EdoTypologyBuilder
             float r = EdoBuild.CrownR(EdoAssets.Own.Toro) * ES;
             var site = TakeSite(pool, rnd, f, r, o);
             if (site == null) break;
-            if (f.Put(grp, EdoAssets.Own.Toro, site.Value, Rf(rnd, 0f, 360f), ES, 0f, "Toro_" + i, "灯籠") != null) made++;
+            if (f.Put(grp, EdoAssets.Own.Toro, site.Value, Rf(rnd, 0f, 360f), ES, 0f, "Toro_" + i, "灯籠", o) != null) made++;
         }
         want.Add("灯籠 " + n); got.Add("灯籠 " + made);
     }
@@ -759,7 +844,7 @@ public static partial class EdoTypologyBuilder
         {
             var site = TakeSite(pool, rnd, f, r, o);
             if (site == null) break;
-            if (f.Put(grp, ido, site.Value, Rf(rnd, 0f, 360f), 1f, 0f, "Ido_" + i, "井戸") != null) made++;
+            if (f.Put(grp, ido, site.Value, Rf(rnd, 0f, 360f), 1f, 0f, "Ido_" + i, "井戸", o) != null) made++;
         }
         want.Add("井戸 " + n); got.Add("井戸 " + made);
         if (made > 0) log.Add("    ⚠ 井戸の駒は山王社の井桁の井戸(`Own.SannoIdoIgeta`)の流用 — 類型の井戸は未造(EDO-0318)");
@@ -798,7 +883,7 @@ public static partial class EdoTypologyBuilder
 
     /// <summary>庭方 §5-2 の5項目。⛔ 「置けた本数」だけを刷らない — 意図との差・帯の侵入・
     /// 実測の離れ・偶数の塊・樹冠の被覆率まで出して、はじめて検査になる。</summary>
-    static string NiwaInspect(EdoBuild.NiwaField f, List<string> want, List<string> got)
+    static string NiwaInspect(EdoBuild.NiwaField f, string g, List<string> want, List<string> got)
     {
         // ④ 偶数の塊 — ⭐ **塊ごとに**据わった本数を数える(NiwaClump が振った札 clump で)。
         //    ⚠ 意図が奇数でも、置けなかった駒があれば据わった本数は偶数になりうる — 数えるのは据わった数。
@@ -823,30 +908,47 @@ public static partial class EdoTypologyBuilder
         }
 
         float cov = f.Coverage();
-        // 設計 §5-2 ⑤: 目安 15〜30% / **50% 超 = 林・5% 未満 = 禿げ**(この2つだけが不合格)。
-        // 目安の外でも 5〜50% なら許容 — ただし「⭕」とは刷らず、外れていることは見せる(規則19)
-        string covMark = cov > 0.50f ? "⚠ 林" : (cov < 0.05f ? "⚠ 禿げ"
-                       : (cov >= 0.15f && cov <= 0.30f ? "⭕" : "(目安の外・許容)"));
-        // 常緑:落葉 — 落葉3種とモミジを落葉に数える
+        // ⭐ 被覆率の目安は**型で違う**(検分⑩): chisen/small 10〜25% / tsubo 15〜30% / ura 5〜15%。
+        //    裏庭は裸地が既定なので、5〜10% は許容(⛔ 全型に同じ目安を当てると ura が永久に赤)。
+        //    不合格線は **tsubo/small/chisen の 5%未満** と **全型の 50%超** のふたつだけ。
+        float covLo = g == "tsubo" ? 0.15f : (g == "ura" ? 0.05f : 0.10f);
+        float covHi = g == "tsubo" ? 0.30f : (g == "ura" ? 0.15f : 0.25f);
+        bool covBad = cov > 0.50f || (g != "ura" && cov < 0.05f);
+        string covMark = cov > 0.50f ? "⛔ 林(50%超)" : (g != "ura" && cov < 0.05f ? "⛔ 禿げ(5%未満)"
+                       : (cov >= covLo && cov <= covHi ? "⭕" : "(目安の外・許容)"));
+        // ⭐ 常緑:落葉の**分母は高木+中木だけ**(検分⑦)。照葉低木・刈込・坪庭の低木・下草は全て常緑なので、
+        //    分母に入れると 7:3 は原理的に届かず、帯が落ちた区画が 100:0 になる。
         int raku = 0, jou = 0;
         foreach (var k in f.Komas)
         {
-            if (k.layer == "下草" || k.layer == "池代地の下草" || k.layer == "坪庭の下草"
-                || k.layer == "景石" || k.layer == "飛石" || k.layer == "灯籠" || k.layer == "井戸") continue;
+            if (!k.tall) continue;                        // ⛔ 低木・刈込・下草・石は数えない
             bool de = k.path.Contains("Enoki") || k.path.Contains("Mukunoki") || k.path.Contains("Keyaki")
                    || k.path.Contains("Momiji") || k.path.Contains("Ume");
             if (de) raku++; else jou++;
         }
-        float ratio = (jou + raku) > 0 ? (float)jou / (jou + raku) : 0f;
-        string mark = (f.InBand == 0 && evenClump == 0 && twin == 0 && cov >= 0.05f && cov <= 0.50f) ? "⭕" : "⛔";
+        int tall = jou + raku;
+        float deRatio = tall > 0 ? (float)raku / tall : 0f;
+        // 許容(検分⑦): chisen/small/tsubo は落葉 20〜35% / ura は 0〜15%(実のなる木だけ)
+        float deLo = g == "ura" ? 0.00f : 0.20f, deHi = g == "ura" ? 0.15f : 0.35f;
+        bool deOk = tall == 0 || (deRatio >= deLo && deRatio <= deHi);
+        string deMark = tall == 0 ? "(高木・中木が0本)" : (deOk ? "⭕" : "⚠ 許容の外");
+        // ⛔ 据えてから落とした駒は**欠陥ではない**(軒へ食い込む木を落とすのは設計どおりの始末)ので
+        //    合否には入れない。ただし件数と最悪値は必ず刷る(規則19「0件を合格と読ませない」)。
+        string mark = (f.InBand == 0 && evenClump == 0 && twin == 0 && !covBad && deOk) ? "⭕" : "⛔";
         return string.Format(
-            "    {0} 庭の検査: 駒 {1}(予算 {2})/ 参道の帯に入った駒 {3}(許容0)/ 偶数の塊 {4}(塊 {15} 個中・据わった本数で数える)/ 同一個体が続いた箇所 {5}(塊の中で)\n"
-          + "      離れの実測: 囲いから 最小 {6:F2}m / 軒から 最小 {7:F2}m(⛔ 中心点ではなく実バウンズの縁で測った値)\n"
-          + "      樹冠の投影の被覆率 {8:P0} {9}(目安 15〜30%)/ 常緑:落葉 = {10:P0}:{11:P0}(目安 70:30)/ 置けなかった駒 {12}\n"
+            "    {0} 庭の検査({16}): 駒 {1}(予算 {2})/ 参道の帯に入った駒 {3}(許容0)/ 偶数の塊 {4}(塊 {15} 個中・据わった本数で数える)/ 同一個体が続いた箇所 {5}(塊の中で)\n"
+          + "      離れの実測: 囲いから **幹の芯**で 最小 {6:F2}m(負は是 — 塀越しに枝が張るのは庭として正しい)"
+          + " / 軒から **樹冠の外接円**で 最小 {7:F2}m(層ごとの下限 0.2〜0.4m・割った駒は据えてから落とす→次行)\n"
+          + "      樹冠の投影の被覆率 {8:P0} {9}(この型の目安 {18:P0}〜{19:P0}・不合格は 50%超{20})"
+          + " / 常緑:落葉 = {10:P0}:{11:P0} {21}(高木+中木 {22}本が分母・この型の落葉の許容 {23:P0}〜{24:P0})\n"
+          + "      置けなかった駒 {12}(退避で拒んだ)/ 据えてから落とした駒: 軒へ食い込み {17}・区画の線を越え {25}(うち内へ寄せて据わった駒 {30}・寄せても駄目で落とした数がこの {25})・急斜面で据わらず {26}(最悪 {27:F2}m)"
+          + " / 起伏が大きく間引かずに据え直した駒 {28} / 幹の芯が測れなかった駒 {29}\n"
           + "      意図: {13}\n      実際: {14}",
             mark, f.Komas.Count, NIWA_BUDGET, f.InBand, evenClump, twin,
             float.IsNaN(f.MinWall) ? 0f : f.MinWall, float.IsNaN(f.MinEave) ? 0f : f.MinEave,
-            cov, covMark, ratio, 1f - ratio, f.Refused,
-            string.Join(" / ", want.ToArray()), string.Join(" / ", got.ToArray()), perClump.Count);
+            cov, covMark, 1f - deRatio, deRatio, f.Refused,
+            string.Join(" / ", want.ToArray()), string.Join(" / ", got.ToArray()), perClump.Count,
+            g, f.DropEave, covLo, covHi, g == "ura" ? "" : "と 5%未満", deMark, tall, deLo, deHi,
+            f.DropEdge, f.DropSteep, f.WorstSteep, f.Reseat, f.TrunkNaN, f.Nudged);
     }
 }

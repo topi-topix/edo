@@ -70,6 +70,7 @@
 | `okabe_edo_recon.json` | 江戸期復元レイヤの仕様(近代造成を戻す指示) | `Tools/Sashizu/build_okabe_edo_dem.py` |
 | `okabe_edo_dem.json` | 江戸期復元地盤の回転間格子 | `Tools/Sashizu/build_okabe_edo_dem.py` |
 | `okabe_edo_world.json` | 江戸期復元地盤(世界座標・区画でクリップ)。**隣家の共有辺検査が読む** | `Tools/Sashizu/build_okabe_edo_dem.py` |
+| `okabe_impl.json` | ⭐ **実装(C#)が読む算出物** — 指図に入らない従属値(造成後の地盤・隅の折れ角・散布点・基壇の露出)。⛔ **焼けるのは `corners` だけ** — 他の欄は焼き手が main に無く据え置き(＝未検査・規則19)。⚠ 据え置きの欄に効く値を指図で動かしたら建てる前に起票すること(EDO-0386) | `Tools/Sashizu/bake_impl.py okabe --write`(引数なしで突き合わせ・`--quiet` を挨拶フックが呼ぶ) |
 | — | 指図と実装の突き合わせ | Unity `Edo ▸ 岡部筑前守上屋敷 ▸ 指図と実装を突き合わせる` |
 | `<屋敷>_kansei.json` | **完成条件の表**(隙0・境界侵犯0・埋没浮き0・突き合わせ0・レンダの施主承認)。在る = 実装の車線に入り検図関門は効かない | `Tools/Sashizu/kansei_gate.py --init / --record / --reopen`(普請奉行が書き戻す) |
 | `matsudaira_dewa_edo_recon.json` | 松江松平の江戸期復元レイヤの仕様(1883 の法肩・法尻の点列と確度 `cert`。html の地盤の呼び名はここから引く) | 人(`_calib`/`_datum` は考証方の値) |

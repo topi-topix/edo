@@ -135,6 +135,20 @@ if os.path.exists(CLI):
         t = subprocess.run([sys.executable, tcli, "--quiet"], capture_output=True, text=True, env=env)
         if t.stdout.strip():
             print(t.stdout.strip())
+    # 算出物の焼き手(2026-09-22・EDO-0386) — 実装(C#)が読む `<邸>_impl.json` は指図に無い従属値の
+    #   焼き出しで、邸ごとの生成器が焼いていた。その生成器は 2026-09-20 の共通化で消え、**main には
+    #   焼き手が一つも残らなかった**。焼き直せない欄は黙って腐る —— 岡部の `corners[].deg` は 13 隅
+    #   すべて符号が逆のまま半月止まり、隅 8 基が鏡像の部材で建っていた(EDO-0343)。
+    #   ⛔ これを捕まえる目は実装の輪(建ててみる)にしか無かった。安い輪で捕まえる(規則19)。
+    #   ⚠ `--quiet` は食い違いと古い焼きだけを鳴らし、無傷なら一言も出さない。
+    icli = os.path.join(MAIN_ROOT, "Tools", "Sashizu", "bake_impl.py")
+    if os.path.exists(icli):
+        try:
+            i = subprocess.run([sys.executable, icli, "--quiet"], capture_output=True, text=True, env=env, timeout=20)
+            if i.stdout.strip():
+                print(i.stdout.strip())
+        except Exception:
+            pass
     # 結線関門(絶対規則19) — **書いたのに誰の目にも入らない産物**を鳴らす。
     #   ⛔ 規則19 は CLAUDE.md に入ったが、**機構としては誰にも鳴っていなかった**。
     #   これは規則18(検図関門)を作った動機そのもの ——「ルーティング表に載っていたが

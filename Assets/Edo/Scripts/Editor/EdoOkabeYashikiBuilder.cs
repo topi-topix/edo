@@ -12,11 +12,15 @@
 //   区画は `EdoParcels.Get("okabe")`(規則11)。アセットのパスは `EdoAssets`(規則12)。
 //
 // 【指図が持たない算出物は生成器が焼く】造成後の地盤・法肩の竹垣・隅の留め継ぎ・基壇の露出は、
-//   指図の json には**入っておらず**、生成器 `Tools/Sashizu/build_okabe_sashizu.py` が
-//   毎回算出している(`graded_y` 606行 / `auto_rails` / `corners_table` / `run_base`)。
-//   これを C# へ移植すると正典が2つになって黙ってドリフトするので、
-//   **2026-09-03 ユーザー裁定1=A** で生成器に焼き出させ、ここは**読むだけ**にした
-//   → `docs/Sashizu/okabe_impl.json`(スキーマは下の <see cref="Impl"/> の注)。
+//   指図の json には**入っておらず**、算出物 `docs/Sashizu/okabe_impl.json` に焼いてある
+//   (`graded` / `rails` / `corners` / `base`)。これを C# へ移植すると正典が2つになって
+//   黙ってドリフトするので、**2026-09-03 ユーザー裁定1=A** で焼き出しに受けさせ、ここは**読むだけ**にした
+//   (スキーマは下の <see cref="IMPL"/> の注)。
+//   ⛔ **焼いた生成器 `Tools/Sashizu/build_okabe_sashizu.py` はもう無い** — 2026-09-20 の生成器の共通化
+//   (afb529c2)で消え、main には焼き手が一つも残らなかった。焼き直せない欄は黙って腐る:
+//   実際 `corners[].deg` は 13 隅すべて符号が逆のまま半月止まっていた(EDO-0343 / EDO-0386)。
+//   ⭕ いまの焼き手は `python3 Tools/Sashizu/bake_impl.py okabe --write`。**焼けるのは `corners` だけ**で、
+//   `graded` / `rails` / `base` / `planting` / `kui` / `migiwa` / `gardens` は据え置き(＝未検査・規則19)。
 //   ⭐ 同じ作法の先例が松江松平の植栽(`matsudaira_dewa_planting_out.json`)にある。
 //
 // 【この版で建つもの】2026-09-03 ユーザー裁定3=B。
@@ -93,7 +97,8 @@ public static class EdoOkabeYashikiBuilder
     ///   "of": "okabe_sashizu.json",
     ///   "src": { "sha256": "&lt;指図 json のバイト列の SHA-256(小文字hex)&gt;", "bytes": 348142 },
     ///   "at": "2026-09-03T21:00:00+09:00",
-    ///   "generator": "Tools/Sashizu/build_okabe_sashizu.py --export-impl",
+    ///   "generator": "Tools/Sashizu/bake_impl.py &lt;邸&gt; --write",
+    ///   "baked": { "columns": ["corners"], "carried": { "graded": "…", … } },   // 焼き直した欄 / 据え置いた欄
     ///   "checks": { "gradeTol": 0.30, "baseMin": 0.20 },
     ///   "graded": {            // 造成後の地盤 graded_y。**世界座標**の格子。区画の外は null
     ///     "x0": -720.0, "z0": 930.0, "step": 1.0, "nx": 321, "nz": 181,
@@ -131,7 +136,7 @@ public static class EdoOkabeYashikiBuilder
                 string p = Path.Combine(ProjRoot, ImplRel);
                 if (!File.Exists(p))
                     throw new Exception("⛔ 算出物が無い: " + p
-                        + "\n   生成器が焼いていない。`python3 Tools/Sashizu/build_okabe_sashizu.py --export-impl`"
+                        + "\n   焼き手が焼いていない。`python3 Tools/Sashizu/bake_impl.py okabe --write`"
                         + "\n   (造成後の地盤・法肩の竹垣・隅の留め継ぎ・基壇の露出は指図の json に入っていない。"
                         + "ここへ移植すると正典が2つになるので焼き出しで受ける — 2026-09-03 裁定1=A)");
                 _impl = EdoMiniJson.Parse(File.ReadAllText(p)) as Dictionary<string, object>;
@@ -154,7 +159,9 @@ public static class EdoOkabeYashikiBuilder
         if (!EdoQaVerdict.FingerprintMatches(want, got))
             throw new Exception("⛔ 算出物が**いまの指図から焼かれていない**"
                 + "\n   指図 " + got.Substring(0, 16) + "… / 算出物が名乗る元 " + want.Substring(0, Math.Min(16, want.Length)) + "…"
-                + "\n   `python3 Tools/Sashizu/build_okabe_sashizu.py --export-impl` を回し直すこと");
+                + "\n   `python3 Tools/Sashizu/bake_impl.py okabe --write` を回し直すこと"
+                + "\n   ⛔ ただし焼けるのは corners だけ — graded/rails/base/planting/kui/migiwa/gardens に"
+                + "効く欄を指図で動かしたのなら、焼き手が無い(EDO-0386)。掲示板へ起票してから建てること");
     }
 
     // ---- json の小物 ----
@@ -1061,13 +1068,15 @@ public static class EdoOkabeYashikiBuilder
     /// `impl.corners` が正典なのは頂点・部材(part)の割り付けだけ — 角度(deg)は信じない
     /// (生成器が符号を反転して焼く不具合、2026-09-21 実測・EDO-0343)。折れ角は毎回
     /// `EdoBuild.KadoDeg` で**区画の実測**から求める(規則21)。天端は各部材の実メッシュから測る。
+    /// ⭕ 算出物の欄は 2026-09-22 に `bake_impl.py` で符号ごと焼き直したので、いまは実測と一致する
+    ///   — が、**一致を当てにして json を読む側へ戻さない**。宣言は焼き手を入れ替えた瞬間にまた外れる。
     /// 据え: `position = 頂点 / yaw = 入りの run の走りの方位 / scale = ES`。
     /// ⚠ 直線材は `SeatBottom(seat − 0.10)` で沈めてあるので、隅も同じだけ沈める
     ///   (seat ちょうどだと 0.10m 浮いて軒の線が隅で段になる)。</summary>
     static string PlaceKado(Transform parent)
     {
         var list = A(Get(IMPL, "corners"));
-        if (list == null) return "隅部材: 算出物に corners が無い(生成器の --export-impl 待ち)";
+        if (list == null) return "隅部材: 算出物に corners が無い(`python3 Tools/Sashizu/bake_impl.py okabe --write`)";
         var P = Poly; int n = P.Length;
         int made = 0, skip = 0; var miss = new List<string>(); var degWarn = new List<string>();
         foreach (var o in list)
@@ -1078,6 +1087,7 @@ public static class EdoOkabeYashikiBuilder
             if (part == "Nagaya") { skip++; continue; }       // 表長屋の隅は次巡
             // ⛔ 算出物の `deg` を信じない — 岡部の生成器は符号を反転して焼いていて、隅 8 基すべてが
             //    鏡像の部材で建っていた(2026-09-21 実測・EDO-0343)。折れ角は**区画から測る**(規則21)。
+            //    ⭕ 欄そのものは 2026-09-22 に焼き直した(EDO-0386)。下の突き合わせは**二度と外れないため**に残す。
             float deg = EdoBuild.KadoDeg(Poly, (int)F(c["vertex"]));
             if (Has(c, "deg") && Mathf.Abs(Mathf.DeltaAngle(deg, F(c["deg"]))) > 0.5f)
                 degWarn.Add(S(c["id"]) + " 算出物 " + F(c["deg"]).ToString("+0.0;-0.0")
@@ -1105,7 +1115,8 @@ public static class EdoOkabeYashikiBuilder
         }
         var sb = new System.Text.StringBuilder("隅部材: " + made + " 基(留め継ぎでない/次巡 " + skip + ")");
         if (degWarn.Count > 0)
-            sb.Append("\n★ 折れ角が算出物と食い違う " + degWarn.Count + " 件(区画の実測で建てた・生成器を直すこと EDO-0343) — "
+            sb.Append("\n★ 折れ角が算出物と食い違う " + degWarn.Count
+                    + " 件(区画の実測で建てた — `python3 Tools/Sashizu/bake_impl.py okabe --write` で欄を焼き直すこと EDO-0386) — "
                     + string.Join(" / ", degWarn.ToArray()));
         if (miss.Count > 0)
             sb.Append("\n★ 部材が無い " + miss.Count + " 件 — " + string.Join(" / ", miss.ToArray()));
@@ -2008,7 +2019,7 @@ public static class EdoOkabeYashikiBuilder
         var sb = new System.Text.StringBuilder();
         var items = A(Get(IMPL, "gardens"));
         if (items == null)
-        { return "庭: 算出物に gardens が無い — 生成器の --export-impl に足すこと"; }
+        { return "庭: 算出物に gardens が無い — ⛔ main に焼き手が無い欄(EDO-0386)。掲示板へ起票すること"; }
 
         var grp = Group("Niwa"); Clear(grp);
         int made = 0, splat = 0, terrainOwned = 0, skipped = 0;
@@ -2667,7 +2678,7 @@ public static class EdoOkabeYashikiBuilder
         {
             wait.Add("算出物に planting が無い — 林(高木72・中木160・低木22群・下草・つる・ヤダケ)/"
                    + "法肩の松15/榎3/ススキ の**散布点を生成器に焼かせること**"
-                   + "(`--export-impl` に planting を足す)。⛔ 実装側で撒き直すと、"
+                   + "(planting は ⛔ main に焼き手が無い欄 — EDO-0386)。⛔ 実装側で撒き直すと、"
                    + "指図の検査(窓の樹高の上限・対岸の二層・坂と木戸の離れ)が見た配置と別物になる");
             return "植栽: 算出物待ち";
         }

@@ -66,7 +66,10 @@ public static partial class EdoTypologyBuilder
         int ev = 0, de = 0;
         return last =>
         {
-            bool takeDe = (de + 1f) / (ev + de + 1f) <= deShare;
+            // ⭐ 裁定4: 分子に「これから据える1本」を足さない。⛔ 旧式 (de+1)/(ev+de+1) <= deShare は
+            //    de=0,ev=0 のとき 1.0 <= 0.30 が偽で、4本目まで落葉が一本も出なかった
+            //    (3本の塊しか置かない tsubo の帯は落葉ゼロになる)。
+            bool takeDe = (float)de / (ev + de + 1f) < deShare;
             var pal = takeDe ? LinDe : LinEv;
             string path = pal[rnd.Next(pal.Length)];
             for (int t = 0; t < 32 && path == last && pal.Length > 1; t++) path = pal[rnd.Next(pal.Length)];   // ⛔ 塊の中で同一個体を2本続けない(4回では確率で残る)
@@ -472,6 +475,13 @@ public static partial class EdoTypologyBuilder
         nTei   = Mathf.Min(nTei,  Mathf.FloorToInt(f.Area / 150f));
         nKari  = Mathf.Min(nKari, Mathf.Max(1, Mathf.FloorToInt(f.Area / 1200f)));
         //        ⚠ 刈込は**組数だけ**を抑える。組の中の本数(3〜5)は減らさない(裁定1)。
+        // ── 裁定4: モミジは**帯以外の常緑(高木+中木)**からの従属値。⭐ 引いた値を**上書きする**だけ
+        //    (⛔ 引きを消すと後段の層の乱数が丸ごとずれ、他の区画の庭まで組み替わる)。
+        //    0.379 = 0.275/(1−0.275)。帯以外 27.5% / 帯 30% なら混ぜた比は必ずその間に収まり、
+        //    帯の本数(0〜30本)にも据わり方にも依らなくなる。
+        // ⚠ E0 の「勝手の木(0〜2)」と「前庭の松(3)」はこの時点で rnd を引けないので定数 4 で見込む
+        //    (従前 DeShare へ渡していた見込みと同じ値。⛔ ここで Rng を引くと後段がずれる)。
+        nMomiji = Mathf.Max(1, Mathf.RoundToInt(0.379f * (nMatsu + nChu + 4)));
 
         // ── ③ 池代地を**先に**囲う(木を置いてからでは動かせない・§5-1 chisen ③)──
         if (chisen)
@@ -693,7 +703,13 @@ public static partial class EdoTypologyBuilder
                         System.Random rnd, List<Vector2> katte, Vector2 kdir, Vector2 cO,
                         List<string> want, List<string> got, List<string> log)
     {
-        const int URA_CAP = 25;
+        // 裁定5: 25→32。⭐ 飛石が三口に分かれて 12→7〜9枚に減る分の余地(裁定A・別巡)
+        const int URA_CAP = 32;
+        // 裁定5 ⭐ 裏庭の層は**庭域と周長に従わせる** — 庭域が 268〜1,388m²(5.2倍)も開くのに
+        //    固定本数だったのが、被覆率が 1% まで落ちた真因(閾値をいじっても直らない)。
+        float uraPer = 0f;
+        for (int i = 0; i < f.Poly.Length; i++)
+            uraPer += Vector2.Distance(f.Poly[i], f.Poly[(i + 1) % f.Poly.Length]);
         var chu = EdoBuild.NiwaSet.Chuboku; var shrub = EdoBuild.NiwaSet.Shrub;
         var kusa = EdoBuild.NiwaSet.Kusa;
 
@@ -774,22 +790,32 @@ public static partial class EdoTypologyBuilder
             foreach (var p in f.Cells)
                 if (EdoGeom.DistToPolyEdge(f.Poly, p) <= 4.0f) corners.Add(p);
             corners.Sort((a, b) => EdoGeom.DistToPolyEdge(f.Poly, a).CompareTo(EdoGeom.DistToPolyEdge(f.Poly, b)));
-            Layer(grp, "隅の中木", f, corners, ChubokuPal, Rng(rnd, 1, 2), rnd, chu, want, got);
+            int nSumi = Rng(rnd, 1, 2);                      // ⭐ 引いてから上書き(乱数の流れを崩さない)
+            nSumi = f.Area < 600f ? 1 : (f.Area < 1000f ? 2 : 3);       // 裁定5
+            Layer(grp, "隅の中木", f, corners, ChubokuPal, nSumi, rnd, chu, want, got);
         }
-        // 実のなる木0〜1(ウメ)⚠ 夏姿に花が付いていないか — 生成器(build_tree.py)に花の形は無い
-        Layer(grp, "実のなる木", f, new List<Vector2>(katte),
-              new[] { EdoAssets.Own.Ume("Small", 1), EdoAssets.Own.Ume("Small", 2) },
-              Rng(rnd, 0, 1), rnd, chu, want, got);
-        // 照葉低木3〜6を塀際に不等間隔
+        // 実のなる木(ウメ)⚠ 夏姿に花が付いていないか — 生成器(build_tree.py)に花の形は無い
+        {
+            int nMi = Rng(rnd, 0, 1);                        // ⭐ A<600 は現行のまま(裁定5)
+            if (f.Area >= 600f) nMi = 1;
+            Layer(grp, "実のなる木", f, new List<Vector2>(katte),
+                  new[] { EdoAssets.Own.Ume("Small", 1), EdoAssets.Own.Ume("Small", 2) },
+                  nMi, rnd, chu, want, got);
+        }
+        // 照葉低木を塀際に不等間隔 ⭐ 本数は**周長**の従属値(裁定5)
         {
             var hei = f.Cells.Where(p => f.Walls.Dist(p, 4f) <= 2.5f).ToList();
-            Layer(grp, "塀際の低木", f, hei, TeibokuPal, Rng(rnd, 3, 6), rnd, shrub, want, got);
+            int nHei = Rng(rnd, 3, 6);                       // ⭐ 引いてから上書き
+            nHei = Mathf.Clamp(Mathf.FloorToInt(uraPer / 22f), 3, 9);
+            Layer(grp, "塀際の低木", f, hei, TeibokuPal, nHei, rnd, shrub, want, got);
         }
-        // 下草5〜10(⛔ 合計 25 駒を超えない)
+        // 下草 ⭐ 本数は**庭域**の従属値(裁定5)。⛔ 合計 URA_CAP 駒を超えない
         {
             int room = Mathf.Max(0, URA_CAP - f.Komas.Count);
+            int nKusa = Rng(rnd, 5, 10);                     // ⭐ 引いてから上書き
+            nKusa = Mathf.Clamp(Mathf.FloorToInt(f.Area / 90f), 5, 14);
             Layer(grp, "下草", f, new List<Vector2>(f.Cells), ShidaPal,
-                  Mathf.Min(Rng(rnd, 5, 10), room), rnd, kusa, want, got);
+                  Mathf.Min(nKusa, room), rnd, kusa, want, got);
         }
         if (f.Komas.Count > URA_CAP)
             log.Add(string.Format("    ⚠ 裏庭の駒が {0}(上限 {1})— 意匠の「実用の庭」を越えている", f.Komas.Count, URA_CAP));
@@ -932,12 +958,14 @@ public static partial class EdoTypologyBuilder
         float cov = f.Coverage();
         // ⭐ 裁定2(2026-09-22): union で測り直したので**旧式の目安 15〜30% 等は当てない**。
         //    判定は不合格線のふたつだけ — 50%超=林 / 5%未満=禿げ。目安の据え直しは庭方の次巡。
-        // ⚠ 5%未満の線は ura に当てていない(従前どおり)— 裏庭は裸地が既定で、当てると全 ura が
-        //    新たに赤になる。裁定2 の文面はここに触れていないので**現行の挙動を変えない**方を採った。
-        float covLo = g == "tsubo" ? 0.15f : (g == "ura" ? 0.05f : 0.10f);   // 刷らないが引数に残す
-        float covHi = g == "tsubo" ? 0.30f : (g == "ura" ? 0.15f : 0.25f);
-        bool covBad = cov > 0.50f || (g != "ura" && cov < 0.05f);
-        string covMark = cov > 0.50f ? "⛔ 林(50%超)" : (g != "ura" && cov < 0.05f ? "⛔ 禿げ(5%未満)"
+        // ⭐ 裁定5: ura にも禿げの線を当てる。ただし下限は **3%**(他の型は 5%)。
+        //    ⛔ 閾値だけでは足りない — 真因は層の本数が庭域に従っていなかったこと(NiwaUra で是正)。
+        float covFloor = g == "ura" ? 0.03f : 0.05f;
+        float covLo = g == "tsubo" ? 0.15f : (g == "ura" ? 0.03f : 0.10f);   // 刷らないが引数に残す
+        float covHi = g == "tsubo" ? 0.30f : (g == "ura" ? 0.20f : 0.25f);
+        bool covBad = cov > 0.50f || cov < covFloor;
+        string covMark = cov > 0.50f ? "⛔ 林(50%超)"
+                       : (cov < covFloor ? "⛔ 禿げ(" + covFloor.ToString("P0") + "未満)"
                        : "参考(union の新式・旧式の目安は当てない)");
         // ⭐ 常緑:落葉の**分母は高木+中木だけ**(検分⑦)。照葉低木・刈込・坪庭の低木・下草は全て常緑なので、
         //    分母に入れると 7:3 は原理的に届かず、帯が落ちた区画が 100:0 になる。
@@ -953,13 +981,15 @@ public static partial class EdoTypologyBuilder
         float deRatio = tall > 0 ? (float)raku / tall : 0f;
         // 許容(検分⑦): chisen/small/tsubo は落葉 20〜35% / ura は 0〜15%(実のなる木だけ)
         float deLo = g == "ura" ? 0.00f : 0.20f, deHi = g == "ura" ? 0.15f : 0.35f;
-        // ⭐ **分母が5本未満の区画には当てない**(庭方 2026-09-22 の直し①)— 裏庭は木が1〜2本しか
-        //    立たないので、取り得る比は 0% か 50% だけ。7:3 は原理的に届かず永久に赤になる。
+        // ⭐ **分母が10本未満の区画には当てない**(庭方 2026-09-22 の直し① → 裁定4 で 5→10)—
+        //    分母が小さいと1本の刻みが目安の窓(15pt 幅)を飛び越えてしまい、比では計れない。
+        //    裏庭は木が1〜2本しか立たず、取り得る比が 0% か 50% だけで原理的に届かなかった。
         //    ⛔ 意匠の欠陥ではなく検査の当て方の誤り(規則19「検査の文言と実装の集合を突き合わせる」)。
-        bool deThin = tall < 5;
+        //    緩めても素通りしないのは、裁定4 のモミジ従属値でどの庭にも落葉が最低1本入るから。
+        bool deThin = tall < 10;
         bool deOk = deThin || (deRatio >= deLo && deRatio <= deHi);
         string deMark = tall == 0 ? "(高木・中木が0本)"
-                      : (deThin ? "(分母 " + tall + " 本・5本未満なので当てない)" : (deOk ? "⭕" : "⚠ 許容の外"));
+                      : (deThin ? "(分母 " + tall + " 本・10本未満なので当てない)" : (deOk ? "⭕" : "⚠ 許容の外"));
         // ⛔ 据えてから落とした駒は**欠陥ではない**(軒へ食い込む木を落とすのは設計どおりの始末)ので
         //    合否には入れない。ただし件数と最悪値は必ず刷る(規則19「0件を合格と読ませない」)。
         string mark = (f.InBand == 0 && evenClump == 0 && twin == 0 && !covBad && deOk) ? "⭕" : "⛔";
@@ -976,7 +1006,7 @@ public static partial class EdoTypologyBuilder
             float.IsNaN(f.MinWall) ? 0f : f.MinWall, float.IsNaN(f.MinEave) ? 0f : f.MinEave,
             cov, covMark, 1f - deRatio, deRatio, f.Refused,
             string.Join(" / ", want.ToArray()), string.Join(" / ", got.ToArray()), perClump.Count,
-            g, f.DropEave, covLo, covHi, g == "ura" ? "" : "と 5%未満", deMark, tall, deLo, deHi,
+            g, f.DropEave, covLo, covHi, g == "ura" ? "と 3%未満" : "と 5%未満", deMark, tall, deLo, deHi,
             f.DropEdge, f.DropSteep, f.WorstSteep, f.Reseat, f.TrunkNaN, f.Nudged);
     }
 }

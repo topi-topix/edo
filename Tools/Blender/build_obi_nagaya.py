@@ -212,6 +212,94 @@ def section(m, xa, xb, pts, uv, mat):
 
 
 # ---------------------------------------------------------------- 屋根
+def koguchi(o, at_min, mat, uv, eps=1e-3):
+    """棟モジュールの**開いた小口**を、その断面の輪郭**そのもの**で塞ぐ。
+
+    【なぜ箱では駄目か — 2026-09-22(EDO-0354)に実測して捨てた】
+      `roof top x1` の小口は冠瓦の丸い天端に熨斗が積んだ 11 頂点の輪郭で、
+      **外接する箱は角が棟の輪郭からはみ出し、内接する箱は縁が開いたまま残る**。
+      従前は内接の箱(幅 0.80 / 丈 0.76)を差していたので、庫裏 6×4間(棟 0.42 × 0.49)で
+      **天端に 0.108m の帯・両脇に 0.042m の縞**が開いていた。棟は両端の開いた**管**なので、
+      開いた所は反対の端まで素通しになり、妻から見ると**棟の真上に空が抜ける**
+      (2026-09-22 に光線で実測: z 5.10 以上は 11.6m 先まで一度も当たらない)。
+      ⚠ EEVEE では裏面も描くので**レンダで気づけない**。背景をマゼンタにして初めて出た。
+    ⭕ 輪郭そのもので塞げば、はみ出しも抜けも**原理的に**出ない。
+
+    ⛔ **瓦の材(`roof`)で塞がない。** アトラスに瓦と木部(野地・垂木)が同居していて、
+      最大面でも上向きの最大面でも木の帯に落ち、棟端が**木の箱**に見える(2026-09-04 に2度)。
+      ⭕ 鬼を置かない切妻の棟端の常法どおり `wall C` で**塗り籠める**。
+    ⚠ `R.ridge` の中の `o.copy()` は**メッシュを共有する**ので、触る前に必ず
+      `o.data = o.data.copy()` で切り離す(でないと全モジュールの継ぎ目に蓋が湧く)。
+
+    ⛔⛔ **小口は「閉じた環」ではない。**`roof top x1` は実測で **22 頂点・10 面の
+      開いた帯**(冠瓦と熨斗を伏せた面だけで、**底は張っていない**)。境界の 22 辺は
+      小口 10 + 小口 10 + **底の継ぎ目 2** で、ぐるりと一周する**一本の輪**になっている。
+      ⇒ 小口の 10 辺だけを `bmesh.ops.holes_fill` へ渡しても、それは環でなく**弧**なので
+        **1面も張られない**(2026-09-22 に 0 面で返って気づいた)。
+      ⭕ 弧の 11 頂点を順に並べ、**底を弦で閉じた多角形**として面を1枚起こす。
+        弦は棟が瓦へ食い込む線(SEAT)より下なので、瓦の中に隠れる。
+    <paramref name="at_min"/> = 局所 x の小さいほうの端(`R.ridge` の p0 側)。
+    戻り値 = 塞いだ面の数。"""
+    import bmesh
+    if mat.name not in [mm.name if mm else "" for mm in o.data.materials]:
+        o.data.materials.append(mat)
+    mi = [mm.name if mm else "" for mm in o.data.materials].index(mat.name)
+    bm = bmesh.new(); bm.from_mesh(o.data)
+    bm.verts.ensure_lookup_table()
+    xs = [v.co.x for v in bm.verts]
+    if not xs:
+        bm.free(); return 0
+    lim = min(xs) if at_min else max(xs)
+    edges = [e for e in bm.edges if len(e.link_faces) == 1
+             and all(abs(v.co.x - lim) < eps for v in e.verts)]
+    if not edges:
+        bm.free(); return 0
+    # 弧を1本の並びに繋ぐ(端 = その並びの中で辺を1本しか持たない頂点)
+    adj = {}
+    for e in edges:
+        a, b = e.verts
+        adj.setdefault(a, []).append(b)
+        adj.setdefault(b, []).append(a)
+    ends = [v for v, ns in adj.items() if len(ns) == 1]
+    if len(ends) > 2:
+        bm.free(); return 0
+    cur = ends[0] if ends else next(iter(adj))
+    chain, seen = [cur], set([cur])
+    while True:
+        nxt = next((v for v in adj.get(cur, []) if v not in seen), None)
+        if nxt is None:
+            break
+        chain.append(nxt); seen.add(nxt); cur = nxt
+    if len(chain) < 3:
+        bm.free(); return 0
+    try:
+        f0 = bm.faces.new(chain)
+    except ValueError:                       # 既に同じ面がある(2度塞いだ)
+        bm.free(); return 0
+    # ⚠ 凹みのある輪郭を n 角形のまま出すと、Unity の三角化が輪郭の外へ渡る。
+    #   焼く前にこちらで三角に割っておく
+    new = bmesh.ops.triangulate(bm, faces=[f0]).get('faces', [f0]) or [f0]
+    # ⚠ 置く行列が鏡(行列式 < 0)なら、焼いたときに裏返るので**局所では逆に**向けておく。
+    #   `R.ridge` は 2026-09-22 から右手系なので通常は +1 だが、ここで決め打たない
+    uvl = bm.loops.layers.uv.active or bm.loops.layers.uv.new("UVMap")
+    want = (-1.0 if at_min else 1.0) * \
+        (1.0 if o.matrix_world.to_3x3().determinant() >= 0.0 else -1.0)
+    ys = [v.co.y for v in bm.verts if abs(v.co.x - lim) < eps]
+    zs = [v.co.z for v in bm.verts if abs(v.co.x - lim) < eps]
+    sy = max(max(ys) - min(ys), 1e-6); sz = max(max(zs) - min(zs), 1e-6)
+    for f in new:
+        f.material_index = mi
+        f.normal_update()
+        if f.normal.x * want < 0.0:
+            f.normal_flip()
+        for lp in f.loops:
+            fu = (lp.vert.co.y - min(ys)) / sy
+            fv = (lp.vert.co.z - min(zs)) / sz
+            lp[uvl].uv = (uv[0] + (uv[2] - uv[0]) * fu, uv[1] + (uv[3] - uv[1]) * fv)
+    bm.to_mesh(o.data); bm.free(); o.data.update()
+    return len(new)
+
+
 def obi_roof(W, D, name, P, ridge_show=0.36, noki=NOKI, end=None):
     """切妻(桟瓦)。局所 z=0 は **軒先**、原点は footprint の中心。
     ⚠ `build_goten_roof.make_kirizuma` は使わない — 棟の寸法が渡廊下用に固定で、
@@ -230,32 +318,36 @@ def obi_roof(W, D, name, P, ridge_show=0.36, noki=NOKI, end=None):
     pieces.append(R.tile_field([[(x1, y1), (x0, y1), (x0, 0.0), (x1, 0.0)]],
                                (x0, y1), 270, 0.0, name + "_N"))
     # 大棟 — 熨斗の見え掛かりで棟高を合わせる(docstring の【⚠】参照)
-    pieces += R.ridge((x0, 0.0, h - SEAT), (x1, 0.0, h - SEAT),
-                      name + "_omune", w=RW, h=RH)
+    mune = R.ridge((x0, 0.0, h - SEAT), (x1, 0.0, h - SEAT),
+                   name + "_omune", w=RW, h=RH)
+    pieces += mune
     # ⚠ **棟の小口を塞ぐ。** `roof top x1` は実測で **両端が開いている**
     #   (小口に向く面が 0 枚・境界の辺 22)。塞がないと妻から棟の中が透ける
     #   — 「端部材を忘れない。run の端で小口が透ける」(築地塀で実際に起きた型)。
-    # ⭕ **棟端は漆喰で塗り籠める。**鬼を置かない切妻の棟端の常法で、
-    #   材も既にある `wall C` で済む。
-    #   ⚠ 瓦の材(`roof`)で塞ごうとして2度失敗した — `roof` のアトラスは
-    #     瓦と木部(野地・垂木)が同居していて、最大面でも「上向きの最大面」でも
-    #     木の帯に落ち、棟端が**木の箱**に見えた(2026-09-04)。
-    for sx, sg in ((x0, -1), (x1, 1)):
-        # 棟の断面は角の丸い熨斗の積みなので、**外形より一回り小さい詰め**を内側へ。
-        # bbox いっぱいの箱にすると角が棟の輪郭からはみ出す
-        c = V.box(name + ("_capA" if sg < 0 else "_capB"),
-                  (0.06, RW * 0.80, RH * 0.76),
-                  (sx - sg * 0.04, 0.0, h - SEAT + RH * 0.40), P['wall'])
-        V.set_uv_rect(c, VM.sub(P['cuv'], 0.1, 0.1, 0.9, 0.9), axes=('y', 'z'))
-        pieces.append(c)
+    # ⭕ 2026-09-22(EDO-0354)に**内接の箱をやめて断面の輪郭そのもの**へ替えた。
+    #   箱では天端 0.108m・両脇 0.042m が開いたまま残っていた(`koguchi` の docstring)。
+    cuv = VM.sub(P['cuv'], 0.1, 0.1, 0.9, 0.9)
+    if mune:
+        for o, at_min in ((mune[0], True), (mune[-1], False)):
+            o.data = o.data.copy()          # ⛔ `R.ridge` の copy はメッシュを共有する
+        nf = koguchi(mune[0], True, P['wall'], cuv) + \
+            koguchi(mune[-1], False, P['wall'], cuv)
+        print("[obi] %-22s 大棟の小口を %d 面で塞いだ" % (name, nf))
     # 袖瓦(けらばの瓦の切り口と破風板の天端を覆う)。README のとおり持ち上げて通す。
     # ⚠ **大棟の脇で止める** — 棟まで通すと棟を跨いで空へ飛び出す(2026-09-04 に実見)
+    # ⚠ 袖瓦も両端の開いた管なので、**軒先側の小口も塞ぐ**(2026-09-22)。
+    #   ⛔ 棟側(ye 側)は塞がない — 大棟の脇へ突き付けてあり、塞ぐと大棟の中へ
+    #     壁が1枚立つ(外からは見えないのに面だけ増える)。
     for sx in (x0 + 0.06, x1 - 0.06):
         for s in (-1, 1):
             ye = s * (RW * 0.5 + 0.03)
-            pieces += R.ridge((sx, s * (hd + noki), 0.20),
-                              (sx, ye, h - abs(ye) * R.RATIO + 0.20),
-                              name + "_sode", w=0.26, h=0.20)
+            sode = R.ridge((sx, s * (hd + noki), 0.20),
+                           (sx, ye, h - abs(ye) * R.RATIO + 0.20),
+                           name + "_sode", w=0.26, h=0.20)
+            if sode:
+                sode[0].data = sode[0].data.copy()
+                koguchi(sode[0], True, P['wall'], cuv)
+            pieces += sode
     # ⛔ **鬼瓦は載せない。** 詰人長屋に鬼を上げると格が上がる(指図 roofs は
     #   表長屋と崖下で格を分けると宣言している)。棟端は上の小口の詰めで納める。
     V.dedup_materials()
@@ -263,10 +355,18 @@ def obi_roof(W, D, name, P, ridge_show=0.36, noki=NOKI, end=None):
 
 
 # ---------------------------------------------------------------- 躯体
-def gable_set(m, P, hw, hd, eaveH, roofZ, apex, noki, end=None):
+def gable_set(m, P, hw, hd, eaveH, roofZ, apex, noki, end=None, m_eave=None):
     """切妻の妻まわり(妻壁の三角・けらば裏板・破風板)を一式張る。
-    棟門など他の切妻の部材からも呼ぶので関数にしてある。"""
+    棟門など他の切妻の部材からも呼ぶので関数にしてある。
+
+    ⭐ 2026-09-22(EDO-0354)に <paramref name="m_eave"/> を出した。渡すと
+      **けらば裏板と破風板だけ**をそちらの Mesh へ積む(妻壁の三角は `m` のまま)。
+      ⚠ この2つは足形の外へ **±Z に noki・±X に end+見付** 出るので、躯体と同じ駒に
+      入れると `EdoBuild.Body(withRoof:false)` が測る「壁体」が軒の出のぶん太る
+      (6×4間で Z に ±0.90m・X に ±0.355m)。屋根の駒へ移すとこれが落ちる。
+    ⛔ 既定(None)は従来どおり `m` へ積む — 積む順も同じなので既存の駒は1ミリも動かない。"""
     end = END if end is None else end
+    me = m if m_eave is None else m_eave
     # ---- 妻壁(三角)。**底辺は軒桁の線** — 屋根はここで壁の天端に合わせてある
     for sx, inward in ((-hw, +1), (hw, -1)):
         tri_uv = VM.sub(P['cuv'], 0.05, 0.05, 0.95, 0.95)
@@ -281,7 +381,7 @@ def gable_set(m, P, hw, hd, eaveH, roofZ, apex, noki, end=None):
         for s in (-1, 1):
             pts = [(0.0, apex), (s * (hd + noki), roofZ),
                    (s * (hd + noki), roofZ - 0.05), (0.0, apex - 0.05)]
-            section(m, sx, sx - inward * end, pts,
+            section(me, sx, sx - inward * end, pts,
                     VM.sub(P['wuv'], 0.05, 0.05, 0.95, 0.45), WOOD)
 
     # ---- 破風板。**板の 45% を屋根面より上へ出す**(README の drop=0.55)。
@@ -298,14 +398,14 @@ def gable_set(m, P, hw, hd, eaveH, roofZ, apex, noki, end=None):
                    (B[0] + nz * BW * UP, B[1] + ny * BW * UP),
                    (B[0] - nz * BW * (1 - UP), B[1] - ny * BW * (1 - UP)),
                    (A[0] - nz * BW * (1 - UP), A[1] - ny * BW * (1 - UP))]
-            section(m, sx, sx + inward * BT, pts,
+            section(me, sx, sx + inward * BT, pts,
                     VM.sub(P['wuv'], 0.60, 0.02, 0.78, 0.98), WOOD)
     return m
 
 
 def build(wKen, dKen, name, eaveH=2.70, ridge_show=0.36, plan=None,
           koshiH=KOSHI, noki=NOKI, base=None, end=None, plan_b=None,
-          uchinori=None, post_pitch=1.0):
+          uchinori=None, post_pitch=1.0, split=False):
     """plan = 開口面(+Z)の割付 [(x0, x1, 'door'|'window'), ...](走りの中心が 0)
 
     ⭐ 2026-09-21(EDO-0318 ④)に類型の**裏長屋**のため4つ引数を出した。
@@ -315,7 +415,15 @@ def build(wKen, dKen, name, eaveH=2.70, ridge_show=0.36, plan=None,
       <paramref name="plan_b"/> **−Z(盲面)側の割付**。None のままなら従来どおり開口を一切あけない。
                                 棟割長屋のように背中合わせで戸が並ぶときだけ渡す
       <paramref name="uchinori"/> 建具の内法高[m](既定 UCHINORI 1.95)
-      <paramref name="post_pitch"/> 柱の間隔[間](既定 1.0)。裏店は 1.5間=1戸の見付で割る"""
+      <paramref name="post_pitch"/> 柱の間隔[間](既定 1.0)。裏店は 1.5間=1戸の見付で割る
+
+    ⭐ <paramref name="split"/>(2026-09-22・EDO-0354): **躯体と屋根を1つに join せず、
+      `(躯体, 屋根)` の2オブジェクトで返す。**屋根の駒は `<name>_yane` と名乗るので
+      `EdoBuild.IsRoofName` の篩(yane/noki/taruki/mune/keta)に掛かり、
+      `EdoBuild.Body(withRoof:false)` から落ちる。けらば裏板と破風板も屋根の側へ寄せてある
+      (`gable_set(m_eave=)`)ので、**壁体の bbox が軒の出で太らない**。
+      ⚠ 返り値は origin も scale も未処理 — 呼び手が `V.set_origin` と `transform_apply` を打つ。
+      ⛔ 既定(False)は従来どおり join した1つを返す — 既存の駒は1ミリも動かない。"""
     BASE_ = BASE if base is None else base
     END_ = END if end is None else end
     UCHI_ = UCHINORI if uchinori is None else uchinori
@@ -420,7 +528,8 @@ def build(wKen, dKen, name, eaveH=2.70, ridge_show=0.36, plan=None,
         m.box(s * hw - s * 0.17, s * hw, eaveH - 0.19, eaveH, -hd, hd,
               VM.sub(P['wuv'], 0.20, 0.50, 0.95, 0.80), WOOD)
 
-    gable_set(m, P, hw, hd, eaveH, roofZ, apex, noki, end=END_)
+    me = VM.Mesh() if split else None
+    gable_set(m, P, hw, hd, eaveH, roofZ, apex, noki, end=END_, m_eave=me)
 
     body = m.to_object(name + "_body", [P['wood'], P['wall'], P['stone'], P['shoji']])
     roof = obi_roof(W, D, name + "_roof", P, ridge_show=ridge_show, noki=noki, end=END_)
@@ -429,6 +538,14 @@ def build(wKen, dKen, name, eaveH=2.70, ridge_show=0.36, plan=None,
     V.sel([roof])
     bpy.ops.object.transform_apply(location=True, rotation=False, scale=False)
     V.dedup_materials()
+    if split:
+        # けらば裏板・破風板は**絶対座標で積んである**ので、屋根を下ろしたあとに素直に join できる
+        kera = me.to_object(name + "_kera", [P['wood'], P['wall'], P['stone'], P['shoji']])
+        roof = V.join([roof, kera], name + "_yane")
+        LAST['apex'] = apex
+        LAST['roofZ'] = roofZ
+        print("[obi] %-22s(split)軒桁 %.2f / 瓦の大棟 %.3f" % (name, eaveH, apex))
+        return body, roof
     o = V.join([body, roof], name)
     V.set_origin(o, (0.0, 0.0, 0.0))
     V.sel([o])

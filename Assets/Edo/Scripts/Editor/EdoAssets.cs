@@ -1426,6 +1426,36 @@ public static class EdoAssets
             return JishaDir + "Typ_Bochi_" + Len2(wKen) + "x" + Len2(dKen) + "ken.fbx";
         }
 
+        /// <summary>**庫裏**(類型共用・寺と塔頭の台所兼住居)。平屋・**切妻の平入**・桟瓦・
+        /// 下見板腰・妻に煙出し。桁行 <paramref name="wKen"/> 間 × 梁間 <paramref name="dKen"/> 間。
+        /// 焼いてあるのは **6×4間** と **5×3.5間** の2寸法。
+        ///
+        /// <para>⛔ **<see cref="VK.SmallHouse"/> を庫裏に当て直さない** — 実測 14.49 × 10.49m で
+        /// 本堂(7×6間)とほぼ同大になり、成満寺ほか狭い境内 3〜4 区画で収まらず未建に落ちた
+        /// (在庫方 2026-09-22: これより小さい住居の完成駒は在庫に無い)。</para>
+        ///
+        /// <para>⭐ **躯体と屋根が別オブジェクト**(`<name>_body` / `<name>_yane`)。`_yane` は
+        /// <c>EdoBuild.IsRoofName</c> の篩に掛かるので **<c>EdoBuild.Body(go, n, withRoof:false)</c> が
+        /// 屋根を落とす** = 「軒は区画の線を越えてよい・壁体は内側」で測れる。
+        /// けらば裏板と破風板も屋根の側に入れてある。</para>
+        ///
+        /// 実寸(6×4間): 屋根込 **W 11.768 × H 5.194 × D 9.264** / 壁体 **W 11.168 × H 4.834 × D 7.532**。
+        /// 実寸(5×3.5間): 屋根込 **W 9.830 × H 4.736 × D 8.155** / 壁体 **W 9.350 × H 4.436 × D 6.623**。
+        /// 軒桁 2.85 / 2.70、軒の出 0.90 / 0.80、けらば 0.36 / 0.30。
+        ///
+        /// <para>ローカル: 幅=X(桁行)/ 高さ=Y / 厚み=Z(梁間)、**+Z = 平入の正面**。
+        /// ピボット = **足形の中心・床(地盤)レベル**・底 0.000。
+        /// ⚠ **土間口(大戸)が Unity +X 寄りで左右非対称** — yaw で土間口の向きが変わる。</para>
+        ///
+        /// <para>⚠ 材は `wood` / `wall C` / `wall A` / `Foundation_A_01` / `roof` / `roof ornaments`。
+        /// remap は **Edo ▸ 類型 ▸ 新造部材のマテリアルをremap**(`Models/Jisha` を見ている)。</para>
+        ///
+        /// 生成: blender --background --python Tools/Blender/build_typ_kuri.py -- [kuri6|kuri5] --render</summary>
+        public static string Kuri(float wKen, float dKen)
+        {
+            return JishaDir + "Typ_Kuri_" + Len2(wKen) + "x" + Len2(dKen) + "ken.fbx";
+        }
+
         /// <summary>**通用口の棟門**(岡部邸 `komon.Tsuyodo` — 袋小路に開く勝手口)。
         /// 二本の本柱の上に直に切妻を載せる最も簡素な門。⚠ 在庫の門は薬医門(`Eg.Kmon`)・
         /// 冠木門・城門しかなく、**棟門は無い**。通用口に薬医門を据えると格が上がる。

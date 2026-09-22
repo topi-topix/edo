@@ -135,17 +135,42 @@ def _module(relpath, name):
     return V.join(V.place(relpath, 0, 0, 0), name)
 
 
-def _frame(ax):
-    """棟の軸 ax から (X=軸, Y=水平の横, Z=上) の正規直交基底の行列を作る"""
-    side = ax.cross(Vector((0, 0, 1)))
+def _frame(ax, rh=False):
+    """棟の軸 ax から (X=軸, Y=水平の横, Z=上) の正規直交基底の行列を作る。
+
+    ⛔⛔ **既定(rh=False)は行列式 −1 の左手系。**`side = ax × Z` の取り方のせいで、
+      この行列で置いた駒は**鏡像**になる(2026-09-22 に det −1.83 を実測)。
+      Blender は行列式が負のオブジェクトを描くとき法線を補正するので**レンダでは
+      まったく気づけない**が、`V.join` が行列式 +1 の駒(瓦場など)へ join すると
+      鏡だけが焼かれて**巻き順が裏返ったまま**残り、**Unity の裏面カリングで消える**。
+      ⇒ 庫裏の「棟の真上に空が抜ける」の正体がこれだった(EDO-0354)。
+    ⭕ <paramref name="rh"/>=True は `side = Z × ax` に取り直すだけ。**軸(X)と上(Z)の
+      向きは変わらず、横(Y)の符号だけ**が返る。
+    ⚠ **既定を替えていないのは `oni()` のため。**鬼瓦のモジュール(`roof ornaments L`)は
+      y 鏡で **0.415m ずれる非対称**な駒なので、右手系へ替えると鬼が左右反転する。
+      棟モジュール(`roof top x1`)は **y 鏡のずれ 0.000000m の完全対称**で、`C` が断面を
+      軸へ寄せているから、`ridge()` は替えても**頂点が 1mm も動かない**(実測)。"""
+    up_axis = Vector((0, 0, 1))
+    side = up_axis.cross(ax) if rh else ax.cross(up_axis)
     if side.length < 1e-9:
         return None
     side.normalize()
-    up = side.cross(ax)
+    up = ax.cross(side) if rh else side.cross(ax)
     return mathutils.Matrix(((ax.x, side.x, up.x, 0.0),
                              (ax.y, side.y, up.y, 0.0),
                              (ax.z, side.z, up.z, 0.0),
                              (0.0, 0.0, 0.0, 1.0)))
+
+
+def _flip_faces(o):
+    """メッシュの巻き順を全部返す。**行列式が負の行列で置く駒**を、焼いたときに
+    表が外を向くようにするために使う(⭕ 頂点は1つも動かない)。"""
+    import bmesh
+    bm = bmesh.new(); bm.from_mesh(o.data)
+    for f in bm.faces:
+        f.normal_flip()
+    bm.to_mesh(o.data); bm.free(); o.data.update()
+    return o
 
 
 def ridge(p0, p1, name, w=0.46, h=0.38):
@@ -156,13 +181,18 @@ def ridge(p0, p1, name, w=0.46, h=0.38):
        リアルさを欠く」)。`roof top x1` は冠瓦・熨斗瓦2段・紐が彫り込んであるモジュールで、
        これを継げば大棟も隅棟も他の瓦と同じ密度になる。
     継ぎ目: 実長 L を整数 n で割り、モジュールを x 方向に L/n/0.909 だけ伸ばして継ぐ。
-       端数が出ないので斜めの隅棟でも隙間・食い違いが出ない(以前ここで破綻した原因)。"""
+       端数が出ないので斜めの隅棟でも隙間・食い違いが出ない(以前ここで破綻した原因)。
+
+    ⭕⭕ 2026-09-22(EDO-0354): **`_frame` を右手系で取る**ようにした。左手系のままだと
+       棟モジュールが鏡像で置かれ、join で鏡が焼かれて**巻き順が裏返ったまま残り、
+       Unity では大棟・隅棟・袖瓦が丸ごと消える**(Blender のレンダでは補正が効くので
+       気づけない)。`roof top x1` は完全対称なので、**頂点は1つも動かない**。"""
     p0 = Vector(p0); p1 = Vector(p1)
     d = p1 - p0
     L = d.length
     if L < 1e-4:
         return []
-    R = _frame(d.normalized())
+    R = _frame(d.normalized(), rh=True)
     if R is None:
         return []
     n = max(1, int(round(L / RIDGE_L)))

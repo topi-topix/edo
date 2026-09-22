@@ -262,7 +262,7 @@ def ty_score(r):
     return sum(W_CERT[g] for _, g in r["cert"]) / len(r["cert"]) / 4 * 100
 
 
-def stage_rail_html(issues):
+def stage_rail_html(issues, states):
     """邸ごとの工程の帯(① 下書き → ② 考証+指図 → ③ 部材 → ④ 実装 → ⑤ 完成)。
 
     ⭐ 2026-09-22 に**系図から「区画」タブへ移した**(施主指示「系図はリポジトリだけ」)。
@@ -281,11 +281,11 @@ def stage_rail_html(issues):
         return ""
     if not rows:
         return ""
-    cnt = {}      # 右端の数字 = その敷地で**開いている**件(済み・見送りは数えない)
+    by_est = {}
     for i in live:
-        cnt[i["estate"]] = cnt.get(i["estate"], 0) + 1
+        by_est.setdefault(i["estate"], []).append(i)
     p = ['<h2>邸ごとの工程<span class="h2note">① 下書き → ② 考証+指図 → ③ 部材 → ④ 実装 → ⑤ 完成'
-         "</span></h2>", '<div class="estates">']
+         "　／　行を押すとその敷地の残件が開く</span></h2>", '<div class="estates">']
     for r in rows:
         st, fin = r["stage"], (r["stage"] or 0) >= 5
         if st is None:
@@ -297,14 +297,24 @@ def stage_rail_html(issues):
                    esc(nm))
                 for i, nm in enumerate(stages))
         bad = (not fin) and re.search(r"⛔|不合格|検め直し|未測|未検分", r["gate"] or "")
-        p.append('<div class="est"><div class="nm">%s<i>%s</i></div>'
+        iss = by_est.get(r["id"], [])
+        # 残件のある行だけを**押して開ける**ようにする(2026-09-22 施主指示)。
+        # 0 件の行に開閉を付けると、押しても何も出ない札が並んで「押せる」の意味が薄れる。
+        did = "estd-" + re.sub(r"[^A-Za-z0-9_-]", "_", r["id"])
+        head = ('<div class="est open" role="button" tabindex="0" aria-expanded="false"'
+                ' aria-controls="%s">' % did) if iss else '<div class="est">'
+        p.append('%s<div class="nm">%s%s<i>%s</i></div>'
                  '<div class="rail">%s</div>'
                  '<div class="gate %s"><b>%s</b> ・ %s<em>%s</em></div>'
                  '<div class="cnt"><b>%d</b><br>件</div></div>'
-                 % (esc(SITES.get(r["id"], r["name"])), esc(r["id"]), rail,
+                 % (head, '<span class="caret">▶</span>' if iss else "",
+                    esc(SITES.get(r["id"], r["name"])), esc(r["id"]), rail,
                     "ok" if fin else ("bad" if bad else ""),
                     esc(r["state"]) + ("†" if r.get("hint") else ""),
-                    esc(r["gate"]), esc(r.get("note") or ""), cnt.get(r["id"], 0)))
+                    esc(r["gate"]), esc(r.get("note") or ""), len(iss)))
+        if iss:
+            p.append('<div class="estdet" id="%s" hidden><ul class="iss">%s</ul></div>'
+                     % (did, "".join(issue_li(i, states, id_prefix="rail-") for i in iss)))
     p.append("</div>")
     p.append('<div class="estlegend">'
              '<span><i style="background:var(--ai);border-color:var(--ai)"></i>済んだ段</span>'
@@ -608,6 +618,21 @@ h1{font-family:'Shippori Mincho',serif;font-weight:600;font-size:26px;margin:0;l
 h2{font-family:'Shippori Mincho',serif;font-weight:600;font-size:17px;
   border-bottom:2px solid var(--ink);padding-bottom:5px;margin:34px 0 14px;letter-spacing:.06em}
 .h2note{font-size:11.5px;color:var(--muted);font-weight:400;letter-spacing:0;margin-left:8px}
+/* ── 折りたたむ節(2026-09-22 施主指示)。summary を h2 と同じ姿にして、左に開閉の三角を置く。
+      ⭐ 素の <details> なので JS が落ちても開ける。覚えておくのは開閉の別だけ(localStorage)。 */
+.fold{margin:0}
+.fold > summary{list-style:none;cursor:pointer;
+  font-family:'Shippori Mincho',serif;font-weight:600;font-size:17px;
+  border-bottom:2px solid var(--ink);padding-bottom:5px;margin:34px 0 14px;letter-spacing:.06em;
+  display:flex;align-items:baseline;gap:8px}
+.fold > summary::-webkit-details-marker{display:none}
+.fold > summary::before{content:"▶";font-size:10px;color:var(--muted);flex:none;
+  transition:transform .12s;display:inline-block;font-family:var(--mono)}
+.fold[open] > summary::before{transform:rotate(90deg)}
+.fold > summary:hover::before{color:var(--ink)}
+.fold > summary:focus-visible{outline:2px solid var(--ai);outline-offset:2px}
+.fold > summary .h2note{flex:1}
+.fold > summary .n{font-family:var(--mono);font-size:12px;color:var(--muted);font-weight:400}
 .dl{display:grid;grid-template-columns:4.5em 1fr;gap:3px 12px;font-size:13.5px}
 .dl dt{color:var(--muted)}.dl dd{margin:0}
 .dl .rec{color:var(--ai);font-weight:600}
@@ -654,6 +679,17 @@ h2{font-family:'Shippori Mincho',serif;font-weight:600;font-size:17px;
 .est .norail{font-size:11px;color:var(--muted)}
 .est .cnt{text-align:right;font-size:12px;color:var(--muted)}
 .est .cnt b{font-size:17px;color:var(--ink);font-family:'Shippori Mincho',serif;font-weight:600}
+.est.open{cursor:pointer}
+.est.open:hover{background:var(--bg)}
+.est.open:focus-visible{outline:2px solid var(--ai);outline-offset:-2px}
+.est .caret{color:var(--muted);font-size:9px;margin-right:6px;display:inline-block;
+  transition:transform .12s;font-family:var(--mono)}
+.est[aria-expanded="true"]{background:var(--bg);border-bottom-color:transparent}
+.est[aria-expanded="true"] .caret{transform:rotate(90deg);color:var(--ink)}
+/* 開いた中身 = その敷地の残件。帯の行と地続きに見せる */
+.estdet{background:var(--bg);border-bottom:1px solid var(--line);padding:0 14px 12px}
+.estdet:last-child{border-bottom:0}
+.estdet .iss{margin:0}
 .estlegend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin:9px 0 0}
 .estlegend i{display:inline-block;width:20px;height:8px;vertical-align:middle;margin-right:5px;
   border:1px solid var(--line)}
@@ -916,6 +952,36 @@ JS = """
   selectTab(tabs.some(function(t){ return t.getAttribute('data-tab') === saved; })
             ? saved : 'tasks');
 
+  /* ── 工程の帯: 行を押すとその敷地の残件が開く(2026-09-22 施主指示)。
+        開くのは行ごとで、開閉は憶えない — 帯は一望する為の物なので、次に来たときは畳んだ姿で始める。 */
+  $all('.est.open').forEach(function(row){
+    var det = document.getElementById(row.getAttribute('aria-controls'));
+    if (!det) return;
+    function toggle(){
+      var on = row.getAttribute('aria-expanded') !== 'true';
+      row.setAttribute('aria-expanded', on ? 'true' : 'false');
+      det.hidden = !on;
+    }
+    row.addEventListener('click', function(e){
+      if (e.target.closest('a')) return;      /* 中の参照リンクは素通しする */
+      toggle();
+    });
+    row.addEventListener('keydown', function(e){
+      if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toggle(); }
+    });
+  });
+
+  /* ── 畳む節(いまは「敷地ごとの札」だけ)。既定は閉じたまま — 上の工程の帯が同じ敷地の
+        要約なので、開くのは1邸ずつ見たいときだけ。⭐ 開いた/閉じたは憶える(タブと同じ流儀)。
+        ⚠ 素の <details> なので、この JS が落ちても開閉そのものは効く。 */
+  $all('details.fold').forEach(function(d){
+    var key = 'edo_fold_' + d.id;
+    try { if (localStorage.getItem(key) === '1') d.open = true; } catch(e){}
+    d.addEventListener('toggle', function(){
+      try { localStorage.setItem(key, d.open ? '1' : '0'); } catch(e){}
+    });
+  });
+
   /* ── フィルタ。**1つも選ばれていない群は絞り込まない**(= 全選択と同じ)。
         既定は区分「作業あり」だけ押した状態(2026-09-21 施主指示)。押し直せば全件が出る。 */
   var siteBtns  = $all('#siteFilter .fchip');
@@ -1122,7 +1188,7 @@ def refs_html(i, states):
         for l in uniq)
 
 
-def issue_li(i, states):
+def issue_li(i, states, id_prefix=""):
     # id を振るのは見た目でなく、ダッシュボードのコメント機能が要素を CSS セレクタで
     # 位置(nth-of-type)アンカーするため — issue が close/並び替わるたびに別の
     # カードを指してしまう(実際に2件連続で起きた)。id があれば #EDO-0025 のように
@@ -1134,11 +1200,13 @@ def issue_li(i, states):
         row_cls += " info-row"
     if i["status"] in ("done", "dropped"):
         row_cls += " done-row"
+    # ⚠ id_prefix は**同じ件を2箇所に出すとき**に渡す(工程の帯を開いた中と、敷地ごとの札)。
+    #   裸の id はコメント機能のアンカーなので、札の側が持つ。帯の側は接頭辞を付けて衝突を避ける。
     return ('<li id="%s" class="fitem %s" data-site="%s" data-type="%s" data-status="%s"'
             ' data-state="%s">'
             '<span class="id">%s</span><span class="ttl">%s</span>'
             '<span class="badge type-%s">%s</span><span class="badge st-%s">%s</span>%s</li>'
-            % (esc(i["id"]), esc(row_cls), esc(display_site(i)), esc(i["type"]), esc(i["status"]),
+            % (esc(id_prefix + i["id"]), esc(row_cls), esc(display_site(i)), esc(i["type"]), esc(i["status"]),
                esc(task_state(i)[0]), esc(i["id"]), esc(i["title"]),
                esc(i["type"]), esc(TYPE_LABEL.get(i["type"], i["type"])),
                esc(i["status"]), esc(STATUS_LABEL.get(i["status"], i["status"])),
@@ -1520,8 +1588,13 @@ def build_html(issues, pending, commits, claims, states, summary, reviews, typol
              "指図を起こさない類型の区画は欄ごとの確度で見る。"
              'タスクを横断で探すなら「タスク一覧」タブへ。'
              "上のフィルタの敷地の絞り込みはこの頁にも効く。</p>")
-    p.append(stage_rail_html(issues))     # 工程の帯(2026-09-22 に系図から移した)
-    p.append('<h2>敷地ごとの札<span class="h2note">検分の関門・直近のコミット・開いている件</span></h2>')
+    p.append(stage_rail_html(issues, states))   # 工程の帯(2026-09-22 に系図から移した)
+    # 敷地ごとの札は**畳んで出す**(2026-09-22 施主指示)。上の工程の帯が同じ敷地の要約なので、
+    # 既定では帯だけを見せ、1邸ずつ検分・コミット・件を見たいときに開く。開閉は憶える(JS)。
+    p.append('<details class="fold" id="foldLanes">')
+    p.append('<summary>敷地ごとの札<span class="n">%d</span>'
+             '<span class="h2note">検分の関門・直近のコミット・開いている件</span></summary>'
+             % (len(SITES) + 1))
     p.append("<div class='lanes'>")
     for e, name in SITES.items():
         is_estate = e in ESTATES
@@ -1605,6 +1678,7 @@ def build_html(issues, pending, commits, claims, states, summary, reviews, typol
         p.append('<div class="kv">issue なし</div>')
     p.append("</div>")  # #lane-cross
     p.append("</div>")  # .lanes
+    p.append("</details>")
 
     # 横断の相関(敷地の見方の一部なのでこのタブに置く)
     p.append('<h2>横断の相関<span class="h2note">円の太さ=言及した open issue 件数・数字=件数</span></h2>')

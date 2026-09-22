@@ -118,12 +118,16 @@ public static partial class EdoTypologyBuilder
         }
     }
     static string[] _momijiSmall, _momijiAll;
-    /// <summary>モミジの個体プール。⭐ **庭域で切り分ける**(庭方 2026-09-22 の裁定6)—
-    /// A&lt;3000m² は Small だけ(MaxCrown 2.45m)。⛔ Mid を混ぜると MaxCrown が 3.49m になり、
-    /// 常緑中木(2.98m)より大きくなって**混んだ庭では据わりで負ける**(場所取りでも軒の当たりでも
-    /// 先に落ちる)。実測 sanbezaka_ooka で モミジ3本中1本しか据わらず落葉比が 29%→8% へ落ちた。
-    /// → メモリ `ratio-on-intent-vs-seated`。</summary>
-    static string[] MomijiPalFor(float area)
+    /// <summary>モミジの個体プール。⭐ **型で決める**(庭方 2026-09-22 の裁定7)—
+    /// **坪庭は常に Small だけ**(MaxCrown 2.45m)、chisen/small は Mid も混ぜる(3.49m)。
+    /// ⛔ **庭域の面積で切らない**(裁定6 の `A&lt;3000` は撤回)— tsubo の main(332〜2,152m²)と
+    ///    chisen の main(864〜2,892m²)は重なっており、面積で切ると**型の格と逆に振れる**
+    ///    (A が 3000 を僅かに超える tsubo だけが Mid に戻り、落葉比が 15〜18% へ落ちた)。
+    ///    小平庭は本来 2〜3m の株立ちが正しい姿で、代理変数の問題ではなく**型そのものが答え**。
+    /// ⚠ Mid を混ぜると常緑中木(2.98m)より大きくなり、混んだ庭では場所取りでも軒の当たりでも
+    ///    先に落ちる → メモリ `ratio-on-intent-vs-seated`。
+    /// ⚠ ura にモミジの層は無い(実用の庭・裁定5の層立てのまま)。</summary>
+    static string[] MomijiPalFor(string garden)
     {
         if (_momijiSmall == null) _momijiSmall = new[]
         {
@@ -134,7 +138,7 @@ public static partial class EdoTypologyBuilder
             EdoAssets.Own.Momiji("Small", 1), EdoAssets.Own.Momiji("Small", 2),
             EdoAssets.Own.Momiji("Mid", 3),
         };
-        return area < 3000f ? _momijiSmall : _momijiAll;
+        return garden == "tsubo" ? _momijiSmall : _momijiAll;
     }
     static string[] _teibokuPal;
     static string[] TeibokuPal
@@ -570,7 +574,8 @@ public static partial class EdoTypologyBuilder
         //    (裁定6C)。⛔ main だけだと池代地と重なって候補が枯れ、主景に一本も立たない。
         Layer(grp, "主木の松", f, new List<Vector2>(pondRing), MatsuPal, nMatsu, rnd, tree, want, got,
               new List<Vector2>(main));
-        Layer(grp, "モミジ", f, new List<Vector2>(main), MomijiPalFor(f.Area), nMomiji, rnd, chu, want, got);
+        Layer(grp, "モミジ", f, new List<Vector2>(main), MomijiPalFor(chisen ? "chisen" : "small"),
+              nMomiji, rnd, chu, want, got);
         Layer(grp, "常緑中木", f, new List<Vector2>(main), ChubokuPal, nChu, rnd, chu, want, got);
 
         // 刈込の塊(3〜5組)
@@ -676,7 +681,7 @@ public static partial class EdoTypologyBuilder
         // ⭐ 据える順は 主木の松 → モミジ → 常緑中木(裁定6)。A<3000 のモミジは Small だけなので
         //    常緑中木より小さく、「大きい物から先に据える」原則には反しない
         Layer(grp, "主木の松", f, new List<Vector2>(main), MatsuPal, nMatsu, rnd, tree, want, got);
-        Layer(grp, "モミジ", f, new List<Vector2>(main), MomijiPalFor(f.Area), nMomiji, rnd, chu, want, got);
+        Layer(grp, "モミジ", f, new List<Vector2>(main), MomijiPalFor("tsubo"), nMomiji, rnd, chu, want, got);
         Layer(grp, "常緑中木", f, new List<Vector2>(main), ChubokuPal, nChu, rnd, chu, want, got);
         {
             int kumi = Rng(rnd, 1, 2); int made = 0;

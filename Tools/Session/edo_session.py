@@ -95,6 +95,27 @@ def res_stale(c, r):
 QUEUE = os.path.join(os.path.dirname(LOCKS), "edo-queue.json")
 RESERVE_MIN = 15.0
 
+# ────────────────────────────── 資源の出入りの記録(2026-09-22 施主指示)
+#   ⛔ **claim だけでは「いつ取ったか」が分からない。**claim は取った後の姿しか持たず
+#   (`used` は最後に触った時刻)、返した瞬間にファイルごと消える。そのため
+#   「Unity は今日どれだけ使われ、誰が何分待ったか」を後から出せなかった
+#   (普請場の一枚の帯は「前の持ち手が返した時刻」からの推定で描くほかなかった)。
+#   ⭕ 取る・返す・取り上げる・失効・並ぶ・降りるの 6 つを、起きた瞬間に 1 行ずつ追記する。
+#   append-only。読む側は Tools/Session/board_now.py。失敗しても黙る(記録で作業を止めない)。
+RESLOG = os.path.join(os.path.dirname(LOCKS), "edo-nikki", "resources.jsonl")
+
+
+def _res_log(session, resource, event, by="", why=""):
+    """資源の出入りを 1 行残す。event: take / release / steal / expire / wait / unwait。"""
+    try:
+        os.makedirs(os.path.dirname(RESLOG), exist_ok=True)
+        with open(RESLOG, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"t": now(), "session": session, "resource": resource,
+                                "event": event, "by": by, "why": why},
+                               ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
 
 def q_load():
     try:
@@ -131,12 +152,15 @@ def q_enqueue(r, me, note=""):
             return i + 1
     ws.append({"session": me, "since": now(), "note": note})
     q_save(q)
+    _res_log(me, r, "wait", why=note)
     return len(ws)
 
 
 def q_drop(r, me):
     q = q_load()
     ws = q.get(r, [])
+    if any(w["session"] == me for w in ws):      # 並んでいた人が降りた/取れたときだけ記録する
+        _res_log(me, r, "unwait")
     q[r] = [w for w in ws if w["session"] != me]
     if not q[r]:
         q.pop(r, None)
@@ -271,6 +295,8 @@ def load_all(ttl=TTL_MIN):
         #   これで claim が即死し、事故の再現テストが素通りした)。pid は表示用。
         if (now() - c.get("heartbeat", 0)) / 60.0 > ttl:
             _nikki_log(c, "expire")
+            for r in c.get("resources", []):
+                _res_log(c.get("session", ""), r, "expire")
             try:
                 os.remove(fp)
             except OSError:
@@ -464,6 +490,7 @@ def _force_release(session, resources, by="", why=""):
         (c.get("used") or {}).pop(r, None)
         c.setdefault("taken", []).append(
             {"resource": r, "by": by, "at": now(), "why": why})
+        _res_log(session, r, "steal", by=by, why=why)
     c["taken"] = [t for t in c.get("taken", [])
                   if (now() - t.get("at", 0)) / 3600.0 < 6][-8:]
     atomic_write_json(c, fp)
@@ -482,7 +509,7 @@ def take_resource(me, r, ttl=TTL_MIN):
         return True, ""
     cs = load_all(ttl)
     if any(c["session"] == me and r in c.get("resources", []) for c in cs):
-        return True, ""
+        return True, ""       # 既に持っている — 取得は1回なので記録しない
     ok, h = q_may_take(r, me)
     if not ok:
         return False, ("⛔ 門番: %s は**待ち行列の先頭 %s** に予約が出ている(残り最大 %.0f 分)。\n"
@@ -504,6 +531,7 @@ def take_resource(me, r, ttl=TTL_MIN):
                "   作業が終わったら `edo_session.py release --resources %s` を打つこと。"
                % (r, hold[0]["session"], res_idle(hold[0], r), r))
     q_drop(r, me)
+    _res_log(me, r, "take")
     return True, msg
 
 
@@ -665,6 +693,8 @@ def cmd_release(a):
             return 2
         if os.path.exists(fp):
             _nikki_log(c, "release")
+            for r in c.get("resources", []):
+                _res_log(me, r, "release")
             os.remove(fp)
         print("release: %s の claim をすべて解いた" % me)
         return 0
@@ -679,6 +709,7 @@ def cmd_release(a):
         if r in c["resources"]:
             c["resources"].remove(r)
             freed.append(r)
+            _res_log(me, r, "release")
         (c.get("used") or {}).pop(r, None)
     save(c, fp)
     print("release: 残り %s %s" % (c["paths"], c["resources"]))

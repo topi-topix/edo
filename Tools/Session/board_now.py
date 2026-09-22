@@ -10,9 +10,10 @@
     build_board_html.py   一枚の「今」タブ(html())と、敷地別タブの邸ごとの小さな帯(lane_html())
     repo_graph.py         系図の「いま動いている普請」の場所(html())
 
-⚠ Unity を**取った時刻**は記録されていない(claim には `used`=最後に使った時刻しか無い)。
-   いまの持ち手の帯の左端は「前の持ち手が返した時刻」から引いた推定で、画面にもそう書く。
-   取る・返す・並ぶ時刻を edo_session.py が残すようになったら、ここの推定を実測へ差し替える。
+⭐ 資源の出入りは **edo-nikki/resources.jsonl**(edo_session._res_log)が実測で持つ。
+   取る・返す・取り上げ・失効・並ぶ・降りるの 6 つ。帯の朱と斜線はここから引く。
+   ⚠ この記録より前に取られた資源は事跡が無いので、前の持ち手が返した時刻から推定し、
+   画面に「推定」と出す(記録が一巡すれば自然に消える)。
 ⛔ 進み具合(「9/16」など)は描かない。仕事の段を記録する口がまだ無く、勘で書かせると嘘になる。
 
     python3 Tools/Session/board_now.py --selftest
@@ -72,13 +73,67 @@ def session_name(sid):
     return ""
 
 
-def collect(now=None, live=None, queue=None, hist=None, ticket_estate=None, win_min=WIN_MIN, namer=None):
+def load_res_events(path=None, max_bytes=2_000_000):
+    """資源の出入りの記録(append-only)を新しい順の逆=時刻順で返す。無ければ空。
+    ⚠ 後ろから max_bytes だけ読む — 先頭の 1 行は欠けうるので捨てる。"""
+    if path is None:
+        try:
+            import edo_session as es
+            path = es.RESLOG
+        except Exception:
+            return []
+    try:
+        size = os.path.getsize(path)
+        with open(path, "rb") as f:
+            f.seek(max(0, size - max_bytes))
+            raw = f.read()
+        lines = raw.decode("utf-8", "ignore").split("\n")
+        if size > max_bytes:
+            lines = lines[1:]
+    except Exception:
+        return []
+    out = []
+    for l in lines:
+        if l.strip():
+            try:
+                out.append(json.loads(l))
+            except Exception:
+                pass
+    out.sort(key=lambda e: e.get("t", 0))
+    return out
+
+
+def res_spans(events, resource="unity"):
+    """出入りの記録を区間へ畳む。戻り値 {(session, 種別): [(始, 終 or None)]}。
+    種別は "unity"(使っていた)と "wait"(待っていた)。終わりが None なら今も続いている。"""
+    open_, spans = {}, {}
+    for e in events:
+        if e.get("resource") != resource:
+            continue
+        sid, ev, t = e.get("session", ""), e.get("event"), e.get("t", 0)
+        kind = {"take": "unity", "wait": "wait"}.get(ev)
+        end = {"release": "unity", "steal": "unity", "expire": "unity", "unwait": "wait"}.get(ev)
+        if kind:
+            open_.setdefault((sid, kind), t)          # 二重の take は最初を採る
+        elif end:
+            a = open_.pop((sid, end), None)
+            if a is not None:
+                spans.setdefault((sid, end), []).append((a, t))
+    for (sid, kind), a in open_.items():
+        spans.setdefault((sid, kind), []).append((a, None))
+    return spans
+
+
+def collect(now=None, live=None, queue=None, hist=None, ticket_estate=None, win_min=WIN_MIN, namer=None, events=None):
     """窓ごとの行を集める。live/queue/hist は試験のために差し替えられる。
     ticket_estate={"EDO-0354": "typology"} — 名乗りの票番号から邸を引く(claim に sashizu: が無い窓のため)。"""
     now = now or time.time()
     t0 = now - win_min * 60
     ticket_estate = ticket_estate or {}
     namer = namer or session_name
+    if events is None:
+        events = load_res_events()
+    spans = res_spans(events)
     if live is None or queue is None or hist is None:
         import edo_session as es
         if live is None:
@@ -105,8 +160,7 @@ def collect(now=None, live=None, queue=None, hist=None, ticket_estate=None, win_
                                          live=False, holder=False, wait_from=None))
     for r in hist:
         w = row(r["session"])
-        named = bool(r.get("note") or [p for p in r.get("paths", []) if not p.startswith("sashizu:") or True])
-        kind = "unity" if "unity" in r.get("resources", []) else ("work" if named and (r.get("note") or r.get("paths")) else "mute")
+        kind = "work" if (r.get("note") or r.get("paths")) else "mute"
         w["segs"].append((max(r["started"], t0), r["ended"], kind))
         w["note"] = w["note"] or r.get("note", "")
         w["paths"] = w["paths"] or r.get("paths", [])
@@ -120,14 +174,28 @@ def collect(now=None, live=None, queue=None, hist=None, ticket_estate=None, win_
         named = bool(c.get("note") or c.get("paths"))
         w["segs"].append((max(c["started"], t0), w["beat"], "work" if named else "mute"))
         if "unity" in c.get("resources", []):
-            a = max(c["started"], last_unity_release, t0)
-            w["segs"].append((a, w["beat"], "unity"))
-            w["holder"], w["hold_from"] = True, a
+            w["holder"] = True
+            live_span = [sp for sp in spans.get((w["sid"], "unity"), []) if sp[1] is None]
+            if live_span:                      # ⭕ 実測(resources.jsonl の take)
+                w["hold_from"], w["hold_est"] = live_span[0][0], False
+            else:                              # ⚠ 記録より前に取られた — 前の返却からの推定
+                w["hold_from"] = max(c["started"], last_unity_release, t0)
+                w["hold_est"] = True
+                w["segs"].append((max(w["hold_from"], t0), w["beat"], "unity"))
     for q in queue:
         w = row(q["session"])
         w["segs"].append((max(q["since"], t0), now, "wait"))
         w["wait_from"] = q["since"]
         w["note"] = w["note"] or q.get("note", "")
+
+    for (sid, kind), sp in spans.items():
+        w = row(sid)
+        for a, b in sp:
+            b = b if b is not None else now
+            if b > t0:
+                w["segs"].append((max(a, t0), b, kind))
+                if kind == "wait" and sp[-1][1] is None:
+                    w["wait_from"] = min(w["wait_from"] or a, a)
 
     named, mute = [], []
     for w in rows.values():
@@ -145,7 +213,9 @@ def collect(now=None, live=None, queue=None, hist=None, ticket_estate=None, win_
         w["quiet"] = w["live"] and (now - w["beat"]) / 60 > LIVE_MIN
     named.sort(key=lambda w: (not w["holder"], w["wait_from"] or 9e12, -max(b for _, b, _ in w["segs"])))
     mute_live = [w for w in mute if w["live"]]
-    return dict(now=now, t0=t0, win=win_min * 60, rows=named, mute=mute_live)
+    est = any(w.get("hold_est") for w in named)
+    return dict(now=now, t0=t0, win=win_min * 60, rows=named, mute=mute_live,
+                est=est, logged=bool(events))
 
 
 # ───────────────────────────── 描く
@@ -242,9 +312,10 @@ def html(d=None, css=True):
     p.append('<h3>Unity の座</h3><p class="sub">一度に一人しか使えない。いま誰が使い、誰が何分待っているか。</p><div class="bn-seat">')
     if holder:
         p.append('<div class="bn-hold"><div class="k">いま使っている</div><div class="t">%s</div>'
-                 '<div class="bn-meta">%s<span>%s から(%d分)</span><span>%s</span></div></div>'
+                 '<div class="bn-meta">%s<span>%s から(%d分)%s</span><span>%s</span></div></div>'
                  % (_sn(holder) + " " + esc(holder["title"]), ('<b class="bn-tk">%s</b>' % esc(holder["ticket"])) if holder["ticket"] else "",
-                    hm(holder["hold_from"]), (now - holder["hold_from"]) / 60, esc(holder["sid"][:8])))
+                    hm(holder["hold_from"]), (now - holder["hold_from"]) / 60,
+                    "・推定" if holder.get("hold_est") else "", esc(holder["sid"][:8])))
     else:
         p.append('<div class="bn-hold free"><div class="k">いま使っている</div><div class="t">空いている</div></div>')
     p.append('<ol class="bn-q">')
@@ -279,8 +350,10 @@ def html(d=None, css=True):
     p.append('</div><div class="bn-keys"><span><i class="bn-b unity"></i>Unity を使っている</span>'
              '<span><i class="bn-b wait"></i>Unity を待っている</span><span><i class="bn-b work"></i>仕事の名乗りあり</span>'
              '<span><i class="bn-b mute"></i>名乗りなし</span></div>'
-             '<p class="bn-fine">⚠ Unity を「いつ取ったか」はまだ記録されていない。朱の帯の左端は、前の持ち手が返した時刻から引いた推定。'
-             '窓の名は claim の note(名乗り)から出している。</p></div>')
+             '<p class="bn-fine">%s窓の名は claim の名乗りから出している。</p></div>'
+             % ("⚠ この窓が Unity を取った事跡が記録より前にあるため、朱の帯の左端は前の持ち手が返した時刻からの推定。"
+                if d.get("est") else
+                "朱と斜線は資源の出入りの記録(取った・返した・並んだ)の実測。"))
     return "".join(p)
 
 
@@ -311,8 +384,19 @@ def selftest():
             dict(session="bbbbbbbb-222", started=n - 900, heartbeat=n - 60 * 20, paths=[], resources=[], note="")]
     queue = [dict(session="cccccccc-333", since=n - 600, note="EDO-0355: 棟割")]
     hist = [dict(session="dddddddd-444", started=n - 7000, ended=n - 4000, resources=["unity"], paths=[], note="x", reason="release")]
-    d = collect(now=n, live=live, queue=queue, hist=hist, ticket_estate={"EDO-0355": "typology"},
+    ev = [dict(t=n - 7000, session="dddddddd-444", resource="unity", event="take"),
+          dict(t=n - 4000, session="dddddddd-444", resource="unity", event="release"),
+          dict(t=n - 3000, session="aaaaaaaa-111", resource="unity", event="take"),
+          dict(t=n - 600, session="cccccccc-333", resource="unity", event="wait")]
+    sp = res_spans(ev)
+    assert sp[("dddddddd-444", "unity")] == [(n - 7000, n - 4000)], sp      # 閉じた区間
+    assert sp[("aaaaaaaa-111", "unity")] == [(n - 3000, None)], sp          # まだ持っている
+    d = collect(now=n, live=live, queue=queue, hist=hist, events=ev, ticket_estate={"EDO-0355": "typology"},
                 namer=lambda sid: {"aaaaaaaa-111": "名前A"}.get(sid, ""))
+    assert d["rows"][0]["hold_from"] == n - 3000 and not d["rows"][0]["hold_est"], "取った時刻は実測"
+    assert not d["est"]
+    d2 = collect(now=n, live=live, queue=queue, hist=hist, events=[], namer=lambda s: "")
+    assert d2["est"] and d2["rows"][0]["hold_est"], "記録が無ければ推定に落ちる"
     assert d["rows"][0]["holder"] and d["rows"][1]["wait_from"], "持ち手が先頭・待ちが次"
     assert len(d["mute"]) == 1 and d["rows"][1]["estates"] == ["typology"]
     out = html(d)

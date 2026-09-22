@@ -3,6 +3,7 @@
 //   同一実装をここへ一本化した。空白正規化後に同一と実証できたコピーだけを置換済み。
 //   実装差のある版は各ファイルに据え置き(直上に注記あり)。統一は裁定待ち。
 // 依存は UnityEngine の Vector2 / Mathf のみ。シーン・アセットには一切触らない。
+using System;
 using UnityEngine;
 
 public static class EdoGeom
@@ -61,5 +62,40 @@ public static class EdoGeom
             if (!float.IsNaN(e) && e < m) m = e;
         }
         return m;
+    }
+
+    /// <summary>点集合の凸包の頂点インデックス(反時計回り・共線点は落とす)。
+    /// 凸包の**外**の頂点は、定義上どの向きへ投影しても凸包上のいずれかの頂点以下にしかならない —
+    /// つまり「どの向きの端(最小/最大)になり得るか」を過不足なく絞り込める、間引きではなく正確な絞り込み。
+    /// <c>EdoBuild</c> の境界系(区域侵犯 <c>OutsideBy</c>・軸方向の伸び <c>EdgeAlong</c>/<c>LocalSpan</c>/
+    /// <c>StretchEnd</c>)が、一様な添字間引きで極値の頂点を落として区域侵犯を見逃す危険を消すために使う
+    /// (EDO-0383)。3点未満ならそのまま全indexを返す。</summary>
+    public static int[] HullXZ(Vector2[] pts)
+    {
+        int n = pts.Length;
+        if (n < 3) { var all = new int[n]; for (int i = 0; i < n; i++) all[i] = i; return all; }
+        var order = new int[n];
+        for (int i = 0; i < n; i++) order[i] = i;
+        Array.Sort(order, (a, b) => pts[a].x != pts[b].x ? pts[a].x.CompareTo(pts[b].x) : pts[a].y.CompareTo(pts[b].y));
+        var hull = new int[2 * n];
+        int k = 0;
+        for (int i = 0; i < n; i++)
+        {
+            while (k >= 2 && HullCross(pts[hull[k - 2]], pts[hull[k - 1]], pts[order[i]]) <= 0f) k--;
+            hull[k++] = order[i];
+        }
+        int lower = k + 1;
+        for (int i = n - 2; i >= 0; i--)
+        {
+            while (k >= lower && HullCross(pts[hull[k - 2]], pts[hull[k - 1]], pts[order[i]]) <= 0f) k--;
+            hull[k++] = order[i];
+        }
+        var result = new int[k - 1];
+        Array.Copy(hull, result, k - 1);
+        return result;
+    }
+    static float HullCross(Vector2 o, Vector2 a, Vector2 b)
+    {
+        return (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
     }
 }

@@ -154,7 +154,11 @@ public static partial class EdoBuild
     /// ⚠ 一様な間引きは極値を落とすことがある — 隅部材(単一メッシュ 1.6〜1.8 万頂点)は 999999 を渡して
     /// 間引かない(松江松平 2026-09-08: 留め継ぎの先端の疎な頂点が落ちて隙間を 0.46m と過大に出した)。
     /// ⛔ **接地(地面との隙)を測るなら這って使わない** — <see cref="Contact(GameObject,out Vector3,out int,float,int)"/>
-    /// は格子ごとの最下点だけを拾う専用の集め方(<see cref="GroundCandidates"/>)を使う(EDO-0357)。</summary>
+    /// は格子ごとの最下点だけを拾う専用の集め方(<see cref="GroundCandidates"/>)を使う(EDO-0357)。
+    /// ⛔ **区域侵犯・軸方向の伸び(境界系)を測るなら這って使わない** — <see cref="KeepInsidePoly"/> /
+    /// <see cref="EdgeAlong"/> / <see cref="LocalSpan"/> / <see cref="StretchEnd"/> は局所XZの凸包だけを拾う
+    /// 専用の集め方(<see cref="EdgeCandidates"/>)を使う — 一様な間引きは境界側では極値を落として
+    /// 区域侵犯を見逃す方向になり危険(EDO-0383)。</summary>
     /// <param name="withRoof">true なら屋根系のメッシュも含める。⭐ 屋根と屋根・軒と塀のように
     /// **屋根そのものが触れる取り合い**を測るときに使う(既定の false は壁の面を測るため)。</param>
     public static List<Vector3> Body(Transform tr, int maxSamples = 900, bool withRoof = false)
@@ -228,12 +232,49 @@ public static partial class EdoBuild
         return L;
     }
 
+    /// <summary>境界系(<see cref="OutsideBy"/> 経由の <see cref="KeepInsidePoly"/> / <see cref="EdgeAlong"/> /
+    /// <see cref="LocalSpan"/> / <see cref="StretchEnd"/>)専用の頂点集め。これらはみな**局所 XZ(水平)の
+    /// 軸か多角形**しか扱わないので、局所 XZ の凸包(<see cref="EdoGeom.HullXZ"/>)だけを候補にすれば足りる —
+    /// 凸包の外の頂点は、その頂点集合のどの向きへの投影でも凸包上のいずれかの頂点以下にしかならない
+    /// (凸性の定義そのもの)。<see cref="Body"/> の一様な添字間引きは区画の外へ最も出ている頂点や軸方向の
+    /// 端の頂点を間引きで落とすことがあり、境界側は**過小評価**(区域侵犯の見逃し・軸の伸びの過小算定)に
+    /// なって規則4の許容0に反する危険があった(EDO-0383・2026-09-22。実測はしていない・設計上の危険として
+    /// 間引きでなく正確な絞り込みへ直した)。メッシュ資産ごとに1度だけ計算してキャッシュする。
+    /// ⚠ ax/localAxis に鉛直成分がある使い方は想定していない(これらの関数はいずれも水平の走り・伸縮にしか
+    /// 使われていない)。</summary>
+    static readonly Dictionary<Mesh, int[]> _hullXZCache = new Dictionary<Mesh, int[]>();
+    static int[] HullXZIndices(Mesh m)
+    {
+        int[] keep;
+        if (_hullXZCache.TryGetValue(m, out keep)) return keep;
+        var vs = m.vertices;
+        var pts2 = new Vector2[vs.Length];
+        for (int i = 0; i < vs.Length; i++) pts2[i] = new Vector2(vs[i].x, vs[i].z);
+        keep = EdoGeom.HullXZ(pts2);
+        _hullXZCache[m] = keep;
+        return keep;
+    }
+    static List<Vector3> EdgeCandidates(Transform tr)
+    {
+        var L = new List<Vector3>();
+        foreach (var mf in tr.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var rr = mf.GetComponent<Renderer>(); if (rr == null || !rr.enabled || !mf.gameObject.activeInHierarchy) continue;
+            if (IsRoofName(PartName(tr, mf))) continue;         // 境界は壁体で測る(屋根は除く・Body と同じ篩)
+            var l2w = mf.transform.localToWorldMatrix; var vs = mf.sharedMesh.vertices;
+            foreach (var i in HullXZIndices(mf.sharedMesh)) L.Add(l2w.MultiplyPoint3x4(vs[i]));
+        }
+        return L;
+    }
+
     /// <summary>駒の壁体の、世界軸 <paramref name="ax"/> 方向の端の座標(<paramref name="sgn"/> ≥ 0 なら最大側)。
-    /// 頂点が無ければ NaN。</summary>
-    public static float EdgeAlong(Transform tr, Vector3 ax, float sgn, int maxSamples = 900)
+    /// 頂点が無ければ NaN。候補は <see cref="EdgeCandidates"/>(局所XZの凸包・EDO-0383)— 間引きでなく
+    /// 正確な絞り込みなので maxSamples は無い。</summary>
+    public static float EdgeAlong(Transform tr, Vector3 ax, float sgn)
     {
         float mn = float.MaxValue, mx = float.MinValue;
-        foreach (var v in Body(tr, maxSamples)) { float q = Vector3.Dot(v, ax); if (q < mn) mn = q; if (q > mx) mx = q; }
+        foreach (var v in EdgeCandidates(tr)) { float q = Vector3.Dot(v, ax); if (q < mn) mn = q; if (q > mx) mx = q; }
         if (mx < mn) return float.NaN;
         return sgn >= 0 ? mx : mn;
     }
@@ -280,12 +321,13 @@ public static partial class EdoBuild
         return mx > mn ? mx - mn : 0f;
     }
 
-    /// <summary>駒の**壁体**を、駒の局所軸 <paramref name="localAxis"/> へ投影した伸び[m](世界の尺度)。無ければ 0。</summary>
+    /// <summary>駒の**壁体**を、駒の局所軸 <paramref name="localAxis"/> へ投影した伸び[m](世界の尺度)。無ければ 0。
+    /// 候補は <see cref="EdgeCandidates"/>(局所XZの凸包・EDO-0383)。</summary>
     public static float LocalSpan(Transform tr, Vector3 localAxis)
     {
         Vector3 ax = tr.rotation * localAxis;
         float mn = float.MaxValue, mx = float.MinValue;
-        foreach (var v in Body(tr)) { float q = Vector3.Dot(v, ax); if (q < mn) mn = q; if (q > mx) mx = q; }
+        foreach (var v in EdgeCandidates(tr)) { float q = Vector3.Dot(v, ax); if (q < mn) mn = q; if (q > mx) mx = q; }
         return mx > mn ? mx - mn : 0f;
     }
 
@@ -357,11 +399,12 @@ public static partial class EdoBuild
     /// 世界軸 <paramref name="ax"/> に沿う駒の壁体の端(<paramref name="sgn"/> の側)が <paramref name="target"/>
     /// (ax への投影値)へ来るよう、ax に最も近い局所軸で localScale を掛け、**伸ばした後に実測して**平行移動する
     /// (ピボットが中心とは限らない)。<paramref name="pair"/>(練塀の裏の駒)があれば同じ係数・同じ移動量。
-    /// 返り値 = 伸ばした量[m](負 = 縮めた。測れなければ NaN)。上限は呼び出し側が決める。</summary>
+    /// 返り値 = 伸ばした量[m](負 = 縮めた。測れなければ NaN)。上限は呼び出し側が決める。
+    /// 候補は <see cref="EdgeCandidates"/>(局所XZの凸包・EDO-0383)。</summary>
     public static float StretchEnd(Transform piece, Transform pair, Vector3 ax, float sgn, float target)
     {
         float mn = float.MaxValue, mx = float.MinValue;
-        foreach (var v in Body(piece)) { float q = Vector3.Dot(v, ax); if (q < mn) mn = q; if (q > mx) mx = q; }
+        foreach (var v in EdgeCandidates(piece)) { float q = Vector3.Dot(v, ax); if (q < mn) mn = q; if (q > mx) mx = q; }
         if (mx < mn) return float.NaN;
         float len = mx - mn; if (len < 0.2f) return float.NaN;
         float near = sgn >= 0 ? mx : mn;
@@ -675,11 +718,14 @@ public static partial class EdoBuild
     /// 重ねてあるので隙も開かない。</para>
     ///
     /// <para>⚠ 長屋のような**一体で端の動かせない駒**には使わない(`NagayaRun.keepInside` のように
-    /// 「出る駒は置かない」を選ぶ)。これは重ねて並べる駒(石垣・塀)のための物。</para></summary>
+    /// 「出る駒は置かない」を選ぶ)。これは重ねて並べる駒(石垣・塀)のための物。</para>
+    ///
+    /// <para>候補は <see cref="EdgeCandidates"/>(局所XZの凸包・EDO-0383)— 以前の一様な添字間引きは
+    /// 区画の外へ最も出ている頂点を間引きで落とすことがあり、区域侵犯を見逃す方向で危険だった。</para></summary>
     public static float KeepInsidePoly(GameObject go, Vector2[] poly, Vector2 runDir, float maxPull,
-                                       out float before, float step = 0.01f, int maxSamples = 4000)
+                                       out float before, float step = 0.01f)
     {
-        var pts = Body(go.transform, maxSamples);
+        var pts = EdgeCandidates(go.transform);
         before = OutsideBy(pts, poly, Vector2.zero);
         if (before <= 0f) return 0f;
         runDir = runDir.normalized;

@@ -1381,7 +1381,7 @@ public static partial class EdoMatsudairaDewaBuilder
                         //   検めて、走りに沿って最小量だけ引く(犬走りの控えは面に直交する量なので動かない)。
                         //   2026-09-21 実測: 留め継ぎの腕 3 駒が頂点の先で 0.0397/0.0388/0.0016m 跨いでいた。
                         float wasOut;
-                        float pulled = EdoBuild.KeepInsidePoly(go, Poly, edgeDir, 0.50f, out wasOut, 0.01f, 999999);
+                        float pulled = EdoBuild.KeepInsidePoly(go, Poly, edgeDir, 0.50f, out wasOut, 0.01f);
                         if (wasOut > 0.0005f)
                             sb.AppendLine((float.IsNaN(pulled) ? "⛔ " : "・") + "区画の外へ " + wasOut.ToString("F4")
                                           + "m: " + go.name + (float.IsNaN(pulled)

@@ -21,6 +21,14 @@ metadata:
 | Banded(松江松平 7本) | `matsudaira_dewa_sashizu.json` の `munes[].roof`。軒を落とす辺は `build_matsudaira_dewa_roofs._touching()` が外形から解く ⇒ `_n` の綴りも自動で一致 |
 | Banded(土井 5本) | 指図に `bands`/`spanKen` が無いので**名前から**。ただし `const.gotenEave` 3.4 / `nokiDe` 0.9 / `tsumaEnd` 0.3 が**生成器の既定と同値**だと確かめてから |
 | Hirairi(5本) | `build_matsudaira_dewa_roofs.plan_hirairi()` がそのまま出す。`_e2744` = `nagayaGataEave` 3.364 − `gotenFloor` 0.62、`_e2410` = `umayaEave` 3.03 − 0.62 |
+| Kirizuma / RokaGeya | `-- kirizuma <間数>` / `build_matsudaira_dewa_roofs.py -- --geya`(後者は指図の `links[].kind=="渡廊下"` から 2/4/6ken を出す)。どちらも既定のまま |
+| Noboriro(2本) | **指図にも C# にも寸法が無い**。斜長は既存 FBX の X から `W = hi.x − 0.30(end)− 0.069(棟の出)`、幅は Y が Kirizuma と同一 ⇒ `KEN`。W1 10.82 / W2 14.42 |
+
+⛔⛔ **コミット文の散文を仕様として読まない。** `aa7edbae` は登廊を「いずれも幅4.4m」と書くが、
+焼いてある FBX の梁間は **Kirizuma と 1mm も違わない 3.135m(= KEN + 軒 0.60×2 + 軒瓦 0.117)**。
+4.4m は**柱の芯々**(「段の芯から左右 2.00m」)の値で、屋根の幅ではなかった。
+⭕ 数値は**焼いてある物を測って**復元し、散文は裏取りにしか使わない
+(2026-09-22 EDO-0394 で実測。値は `EdoAssets.Goten.RoofNoboriro` のコメントへ書き戻した)。
 
 ⇒ **焼き直しの駆動は既存の生成スクリプトの `plan()` 系を import して回すのが最短**
 (scratchpad に薄い runner を書いて `--only` で絞る)。
@@ -33,9 +41,12 @@ metadata:
 ⇒ 「反転」が出て「頂点数と bbox が動かない」なら、それは巻きだけの直し。
 測り方は [[rebake-regression-by-vertex-multiset]]。
 
-**⚠ 同じ不良が Kirizuma / Noboriro / RokaGeya にも残っている**(`ridge()` を呼ぶが
-`oni()` は呼ばない型)。2026-09-22 実測: 据えてある `Kirizuma_2ken` は新しく焼いた物に対し
-**50 面反転**、`RokaGeya_2ken` は **24 面反転**。EDO-0393 の範囲外なので掲示板へ起票した。
+**⭕ 同じ不良の Kirizuma / Noboriro / RokaGeya 15本も焼き直した**(2026-09-22 EDO-0394)。
+`ridge()` を呼ぶが `oni()` は呼ばない型。頂点数・面数・材質スロット名は 15本すべて完全一致、
+bbox の差 **0.0002mm 以下**、最大移動 **0.200mm**(`RIDGE_W` の丸めぶん)、
+反転は **切妻 30〜210 面 / 登廊 130・170 面 / 下屋 40〜120 面**。
+⛔ `.meta` は 1本も変わらないので **remap は要らない**(材質スロット名が同じで、
+`.meta` の `externalObjects` が `roof` / `roof ornaments` / `wood` を GUID で留めている)。
 `Amaosae` は `GR.ridge` を使わないので無関係。
 
 関連 [[ridge-module-mirrored-and-koguchi-arc]] [[magenta-background-finds-holes]]

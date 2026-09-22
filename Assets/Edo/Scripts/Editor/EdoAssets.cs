@@ -520,7 +520,10 @@ public static class EdoAssets
 
         /// <summary>登廊(階段廊下)の屋根。切妻を斜長ぶん通し、幅は石段の平場ぶん取ったもの。
         /// **据えるときに勾配ぶん傾ける**ので、屋根そのものは平らに作ってある。
-        /// 生成: build_goten_roof.py -- noboriro &lt;斜長&gt; &lt;幅&gt; &lt;名前&gt;</summary>
+        /// <para>⚠ **幅は 1間(1.818)**。aa7edbae のコミット文の「幅4.4m」は誤り(柱の芯々のこと)で、
+        /// 焼いてある FBX の梁間は <see cref="RoofKirizuma"/> と同一(2026-09-22 EDO-0394 で実測して復元)。
+        /// 斜長は W1 = 10.82 / W2 = 14.42。</para>
+        /// 生成: blender --background --python Tools/Blender/build_goten_roof.py -- noboriro 10.82 1.818 Goten_Roof_Noboriro_W1</summary>
         public static string RoofNoboriro(string tag)
         {
             return RoofDir + "Goten_Roof_Noboriro_" + tag + ".fbx";

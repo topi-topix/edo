@@ -1634,17 +1634,20 @@ def build_html(issues, pending, commits, claims, states, summary, reviews, typol
     p.append("</div>")
 
     # ── 系図(git の枝・枝の台帳・日ごとの手数)。2026-09-22 に「最近の動き」を畳んで合流させた。
+    #    ⭐ 並びは **系図が先・最近の動きが後**(2026-09-22 施主指示)。この札を開く用は枝の形を見ること
+    #    なので、それを頭に置く。最近の動きは同じコミットの一覧で、系図を読んだ後の確かめに使う。
     p.append('<div class="panel" data-panel="graph" hidden>')
     p.append('<p class="pglead"><b>1行=1つのコミット。</b>見せるのはリポジトリだけ — '
              "枝がどこで分かれ、どこへ入ったか。敷地の進み具合は「区画」タブへ移した。</p>")
-    p.append("<h2>最近の動き(全ブランチ)</h2><div class='scroll'><table class='feed'>")
+    p.append(_graph_panel_html())
+    p.append("<h2>最近の動き(全ブランチ)<span class=\"h2note\">上の系図と同じコミットを、"
+             "枝を畳んで新しい順に並べた表</span></h2><div class='scroll'><table class='feed'>")
     for c in commits[:20]:
         p.append('<tr><td class="t">%s</td><td class="e">%s</td>'
                  '<td class="h">%s</td><td>%s</td></tr>'
                  % (esc(ago(c["t"])), esc(SITES.get(c["estate"], "—")),
                     esc(c["h"]), esc(c["s"])))
     p.append("</table></div>")
-    p.append(_graph_panel_html())
     p.append("</div>")  # panel graph
 
     p.append("<footer>Tools/Session/build_board_html.py が生成。正典: "

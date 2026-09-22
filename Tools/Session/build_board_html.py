@@ -92,15 +92,48 @@ def _site_names():
         sys.stderr.write("⚠ 敷地の名簿を review_gate から引けない(%s)— 既知の敷地だけで焼く\n" % ex)
         names = set(_SITE_NAMES)
     names.add("sotobori")
+    names |= set(PARCEL_SITES)
     rest = sorted(n for n in names if n not in _SITE_ORDER and n != "sotobori")
     return [n for n in _SITE_ORDER if n in names] + rest + ["sotobori"]
 
 
-SITES = {e: _SITE_NAMES.get(e, e) for e in _site_names()}
+def _parcel_sites():
+    """指図を持たない類型の区画で、掲示板に issue が付いている物 → {id: 区画の表示名}。
+    松平大和守など。名簿は parcels.json(町割の正典)と掲示板の estate 欄から引く — 手で足さない。
+    ⛔ 指図が無いので邸ではない(スパークラインも三巡則も持たない)。issue 一覧だけの枠になる。"""
+    try:
+        labels = {p["id"]: p.get("label") or p["id"] for p in
+                  json.load(open(os.path.join(ROOT, "docs", "Sashizu", "parcels.json"),
+                                 encoding="utf-8"))["parcels"]}
+        sashizu = set()
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "review_gate", os.path.join(ROOT, "Tools", "Sashizu", "review_gate.py"))
+        rg = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(rg)
+        sashizu = set(rg.estate_names())
+    except Exception:
+        return {}
+    out = {}
+    if os.path.isdir(BOARD):
+        for fn in os.listdir(BOARD):
+            if re.match(r"EDO-\d+\.json$", fn):
+                try:
+                    e = json.load(open(os.path.join(BOARD, fn), encoding="utf-8")).get("estate")
+                except Exception:
+                    continue
+                if e in labels and e not in sashizu and e not in _SITE_NAMES:
+                    out[e] = labels[e]
+    return out
+
+
+PARCEL_SITES = _parcel_sites()
+SITES = {e: _SITE_NAMES.get(e, PARCEL_SITES.get(e, e)) for e in _site_names()}
 for _e in SITES:                       # 表に無い邸も落とさない(略称=頭文字・表記ゆれ=id)
     SHORT.setdefault(_e, _e[:1].upper())
     MENTION.setdefault(_e, [_e, _e])
-ESTATES = {e: n for e, n in SITES.items() if e != "sotobori"}   # 邸 = 外堀以外
+ESTATES = {e: n for e, n in SITES.items()
+           if e != "sotobori" and e not in PARCEL_SITES}   # 邸 = 指図を持つ敷地(外堀・類型の区画は除く)
 CROSS_KEY = "cross"  # cross/infra をまとめた「全体・基盤」の表示上のキー
 CROSS_LABEL = "全体・基盤"
 TYPE_LABEL = {"decision": "裁定", "blocker": "ブロッカー", "task": "task", "info": "info"}
@@ -1455,11 +1488,12 @@ def filterbar_html():
     #    JS 側で「1つも選ばれていない群は絞り込まない」と扱うのは変えていない。
     p = ['<div class="filterbar">']
     p.append('<div class="fgroup" id="siteFilter"><span class="flabel">敷地</span>')
+    # 「全体・基盤」は先頭(2026-09-21 施主指示)。特定の敷地に紐づかない物を最初に見たい。
+    p.append('<button type="button" class="fchip" data-site="%s">%s</button>'
+             % (esc(CROSS_KEY), esc(CROSS_LABEL)))
     for e, name in SITES.items():
         p.append('<button type="button" class="fchip" data-site="%s">%s</button>'
                  % (esc(e), esc(name)))
-    p.append('<button type="button" class="fchip" data-site="%s">%s</button>'
-             % (esc(CROSS_KEY), esc(CROSS_LABEL)))
     p.append("</div>")
     p.append('<div class="fgroup" id="kindFilter"><span class="flabel">区分</span>')
     for k, name, members in KIND_CHIPS:

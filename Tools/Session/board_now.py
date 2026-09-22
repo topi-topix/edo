@@ -53,12 +53,32 @@ def _files_title(paths):
     return fs[0] + (" ほか" if len(fs) > 1 else "")
 
 
-def collect(now=None, live=None, queue=None, hist=None, ticket_estate=None, win_min=WIN_MIN):
+def session_name(sid):
+    """窓(claim)の短い ID から、そのセッションの**名前**(サイドバーに出る題)を引く。
+    正体は会話の記録(~/.claude/projects/*/<sid>*.jsonl)の `custom-title`。無ければ空文字。
+    ⚠ 記録は大きい(数十MB)ので、末尾 4MB → 先頭 1MB だけを見る。題は追記されるので末尾が新しい。"""
+    import glob as _g
+    for f in _g.glob(os.path.expanduser("~/.claude/projects/*/%s*.jsonl" % sid)):
+        try:
+            size = os.path.getsize(f)
+            with open(f, "rb") as fh:
+                for a, n in ((max(0, size - 4_000_000), 4_000_000), (0, 1_000_000)):
+                    fh.seek(a)
+                    hits = re.findall(rb'"type":"custom-title","customTitle":"((?:[^"\\]|\\.)*)"', fh.read(n))
+                    if hits:
+                        return json.loads(b'"' + hits[-1] + b'"')
+        except Exception:
+            continue
+    return ""
+
+
+def collect(now=None, live=None, queue=None, hist=None, ticket_estate=None, win_min=WIN_MIN, namer=None):
     """窓ごとの行を集める。live/queue/hist は試験のために差し替えられる。
     ticket_estate={"EDO-0354": "typology"} — 名乗りの票番号から邸を引く(claim に sashizu: が無い窓のため)。"""
     now = now or time.time()
     t0 = now - win_min * 60
     ticket_estate = ticket_estate or {}
+    namer = namer or session_name
     if live is None or queue is None or hist is None:
         import edo_session as es
         if live is None:
@@ -116,6 +136,7 @@ def collect(now=None, live=None, queue=None, hist=None, ticket_estate=None, win_
     for w in named:
         tk = _ticket(w["note"])
         w["ticket"] = tk
+        w["name"] = namer(w["sid"])
         w["title"] = _title(w["note"]) or _files_title(w["paths"]) or "(名乗りなし)"
         e = [p[8:] for p in w["paths"] if p.startswith("sashizu:")]
         w["estates"] = e or ([ticket_estate[tk]] if tk in ticket_estate else [])
@@ -143,6 +164,7 @@ CSS = """<style>
 .bn-hold.free .k{color:var(--n-ok)}
 .bn-hold .t{font-size:18px;line-height:1.45;margin:3px 0 7px;font-weight:600}
 .bn-meta{display:flex;flex-wrap:wrap;gap:3px 12px;font-size:12px;color:var(--n-muted);align-items:baseline}
+.bn-sn{display:inline-block;font-size:11px;font-weight:700;line-height:1.5;padding:0 7px;margin-right:6px;border:1px solid var(--n-ink);color:var(--n-ink);background:color-mix(in srgb,var(--n-ink) 7%,var(--n-card));vertical-align:1px}
 .bn-tk{font:500 11px ui-monospace,Menlo,monospace;color:var(--n-ai)}
 .bn-q{list-style:none;margin:0;padding:4px 0;background:var(--n-card)}
 .bn-q li{display:grid;grid-template-columns:40px minmax(0,1fr);gap:0 10px;padding:7px 16px;border-bottom:1px solid var(--n-soft)}
@@ -184,6 +206,11 @@ CSS = """<style>
 </style>"""
 
 
+def _sn(w):
+    """セッションの名前の札。名前が引けなければ短い ID を出す(空の札は出さない)。"""
+    return '<span class="bn-sn" title="%s">%s</span>' % (esc(w["sid"]), esc(w.get("name") or w["sid"][:8]))
+
+
 def _track(d, segs):
     out = []
     order = {"mute": 0, "work": 1, "wait": 2, "unity": 3}
@@ -216,14 +243,14 @@ def html(d=None, css=True):
     if holder:
         p.append('<div class="bn-hold"><div class="k">いま使っている</div><div class="t">%s</div>'
                  '<div class="bn-meta">%s<span>%s から(%d分)</span><span>%s</span></div></div>'
-                 % (esc(holder["title"]), ('<b class="bn-tk">%s</b>' % esc(holder["ticket"])) if holder["ticket"] else "",
+                 % (_sn(holder) + " " + esc(holder["title"]), ('<b class="bn-tk">%s</b>' % esc(holder["ticket"])) if holder["ticket"] else "",
                     hm(holder["hold_from"]), (now - holder["hold_from"]) / 60, esc(holder["sid"][:8])))
     else:
         p.append('<div class="bn-hold free"><div class="k">いま使っている</div><div class="t">空いている</div></div>')
     p.append('<ol class="bn-q">')
     for i, w in enumerate(waiters, 1):
         p.append('<li><span class="no">%d番</span><span>%s</span><span class="qm">%s<span>%d分待ち</span></span></li>'
-                 % (i, esc(w["title"]), ('<b class="bn-tk">%s</b>' % esc(w["ticket"])) if w["ticket"] else "",
+                 % (i, _sn(w) + " " + esc(w["title"]), ('<b class="bn-tk">%s</b>' % esc(w["ticket"])) if w["ticket"] else "",
                     (now - w["wait_from"]) / 60))
     if not waiters:
         p.append('<li class="none">待っている人はいない</li>')
@@ -235,7 +262,7 @@ def html(d=None, css=True):
         beat = ("心拍 %d分前" % ((now - w["beat"]) / 60)) if w["live"] else "終了"
         return ('<div class="bn-ln%s"><div class="bn-lab"><b>%s</b><span>%s<i>%s</i><i>%s</i><i class="has">%s</i></span></div>'
                  '<div class="bn-tr">%s<em class="bn-now"></em></div></div>'
-                 % (" bn-quiet" if (not w["live"] or w["quiet"]) else "", esc(w["title"][:46]),
+                 % (" bn-quiet" if (not w["live"] or w["quiet"]) else "", _sn(w) + " " + esc(w["title"][:46]),
                     ('<i class="bn-tk">%s</i>' % esc(w["ticket"])) if w["ticket"] else "", esc(w["sid"][:8]), beat,
                     esc(" ・ ".join(w["holds"])), _track(d, w["segs"])))
     active = [w for w in rows if w["live"] or w["holder"] or w["wait_from"]]
@@ -270,9 +297,9 @@ def lane_html(d, estate):
             chips += '<span class="bn-chip u">Unity 使用中</span>'
         elif w["wait_from"]:
             chips += '<span class="bn-chip w">Unity %d分待ち</span>' % ((d["now"] - w["wait_from"]) / 60)
-        p.append('<div class="bn-mini"><div class="t"><b>%s</b>%s<span class="bn-chip">%s・心拍 %s</span></div>'
+        p.append('<div class="bn-mini"><div class="t">%s<b>%s</b>%s<span class="bn-chip">心拍 %s</span></div>'
                  '<div class="bn-tr">%s<em class="bn-now"></em></div></div>'
-                 % (esc(w["title"][:40]), chips, esc(w["sid"][:8]),
+                 % (_sn(w), esc(w["title"][:40]), chips,
                     ("%d分前" % ((d["now"] - w["beat"]) / 60)) if w["beat"] else "—", _track(d, w["segs"])))
     return "".join(p)
 
@@ -284,10 +311,12 @@ def selftest():
             dict(session="bbbbbbbb-222", started=n - 900, heartbeat=n - 60 * 20, paths=[], resources=[], note="")]
     queue = [dict(session="cccccccc-333", since=n - 600, note="EDO-0355: 棟割")]
     hist = [dict(session="dddddddd-444", started=n - 7000, ended=n - 4000, resources=["unity"], paths=[], note="x", reason="release")]
-    d = collect(now=n, live=live, queue=queue, hist=hist, ticket_estate={"EDO-0355": "typology"})
+    d = collect(now=n, live=live, queue=queue, hist=hist, ticket_estate={"EDO-0355": "typology"},
+                namer=lambda sid: {"aaaaaaaa-111": "名前A"}.get(sid, ""))
     assert d["rows"][0]["holder"] and d["rows"][1]["wait_from"], "持ち手が先頭・待ちが次"
     assert len(d["mute"]) == 1 and d["rows"][1]["estates"] == ["typology"]
     out = html(d)
+    assert 'class="bn-sn" title="aaaaaaaa-111">名前A' in out and 'title="cccccccc-333">cccccccc' in out   # 名前が無ければ短い ID
     assert "10分待ち" in out and "Unity 使用中" not in out and "1番" in out and "寺社の建て直し" in out
     assert "Unity 使用中" in lane_html(d, "typology") or "10分待ち" in lane_html(d, "typology")
     assert html(collect(now=n, live=[], queue=[], hist=[]), css=False).count("空いている") == 1

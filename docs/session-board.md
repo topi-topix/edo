@@ -179,16 +179,18 @@ https://claude.ai/artifact/3wTRqrXgJBp8LJUwWFZ4KY
    worktree では `.git` がファイルなので `.git/edo-board/…` は相対でも開けない(ENOTDIR)。
 2. **上げる直前に照合** — `python3 Tools/Session/build_board_html.py --check-fresh`。
    0 ならそのまま上げる。1 なら焼いてから板が動いている — 1. へ戻る。
-3. **上げる** —
+3. **先に読んでから上げる(2026-09-22 是正)** — `Artifact(action="read", url=…)` を必ず1回先に読んでから上げる。
+   読まれるのは枠の頁だけ(529バイト・読んでも文脈は埋まらない)。⛔ 板の本体 `board.html` は読まない(大きい)。
+   「読まずに上げて断られたら読む」の順だと、**他の巡が先に上げていた場合は読んでいないので毎回断られる**
+   (2026-09-22 の朝、同じセッションが2回弾かれた実例)。先に読めば1回で通る。
    ```
    Artifact(file_path="Temp/edo-board/index.html",
             url="https://claude.ai/artifact/3wTRqrXgJBp8LJUwWFZ4KY",
             files={"board.html": "Temp/edo-board/dashboard.html"},
             overwrite_unread=["board.html"])
    ```
-   断られたら(枠の頁を見ていない / 別のセッションが先に上げた):
-   ① `Artifact(action="read", url=…)` を1回 — 読まれるのは枠の頁だけ。⛔ 板の本体 `board.html` は読まない(大きい)
-   ② 1. で焼き直して写す ③ もう一度上げる。⛔ **上げずに終えない。**
+   それでも断られたら(読んだ後にさらに別のセッションが上げた): 1. で焼き直して写す → もう一度 read → もう一度上げる。
+   ⛔ **上げずに終えない。**
 4. **判を押す** — `python3 Tools/Session/build_board_html.py --published <URL>`。判は版も押す。
    ⛔ 焼いただけ・ローカルで焼き直しただけでは押さない。
 

@@ -104,15 +104,24 @@ public static partial class EdoBuild
     /// ⛔ 軒では判定しない — 軒は越えてよい(2026-09-21 施主裁定A)。</summary>
     /// <summary>この駒が既に建った駒のどれかへ**めり込んで**いるか。⛔ 外接箱の重なりで見ない —
     /// 回った駒で必ず外す。測るのは <see cref="Contact(GameObject,GameObject,Vector3,out Vector3,out int,float,float,int,bool)"/>
-    /// の触れている箇所で、軒は許容(裁定A)なので屋根を外した壁体だけで見る。</summary>
+    /// の触れている箇所。
+    ///
+    /// <para>⭐ **退ける門は、建った後の検査とまったく同じ測りでなければならない**(2026-09-22・EDO-0355)。
+    /// ここは 2026-09-22 まで「基準点どうしの向き・頂点400・屋根を外す」で測っていて、区画の検査
+    /// (<c>EdoTypologyBuilder</c> の `Kensa`)は「**外形の中心どうし**の向き・頂点800・**屋根込み**」で
+    /// 測っていた。門の方が緩いので、門を通った棟が検査で ⛔ になる(実測: 新町 rb −0.12m /
+    /// 田町 chos_0 −0.63m)。⛔ 検査を緩めて合わせない — **門を検査へ揃える**(規則19・許容0)。</para>
+    ///
+    /// <para>⛔ 向きを駒の基準点どうしから採らない — 基準点は部材ごとに端・角・中心とばらばらで、
+    /// 長い駒では軸に沿った嘘のめり込みが出る(規則21)。**外形の中心どうし**で向ける。</para></summary>
     static bool Clashes(GameObject go, List<GameObject> others)
     {
         foreach (var o in others)
         {
-            var d3 = o.transform.position - go.transform.position; d3.y = 0f;
+            var d3 = RB(o).center - RB(go).center; d3.y = 0f;
             if (d3.sqrMagnitude < 1e-4f) return true;
             Vector3 at; int nc;
-            float g = Contact(go, o, d3.normalized, out at, out nc, 0.01f, 0.5f, 400, false);
+            float g = Contact(go, o, d3.normalized, out at, out nc, 0.01f, 0.5f, 800);
             if (!float.IsNaN(g) && g < 0f) return true;
         }
         return false;
@@ -197,6 +206,7 @@ public static partial class EdoBuild
         public string combos;      // 1軒を何枚で埋めたか(駒名×枚数 の内訳)
         public int comboKinds;     // 1軒の埋め方の候補が何通りあったか(1 = 同じ駒が並ぶ)
         public float roomM;        // 辺の背後に**実際に**あった奥行[m](表の depth_ken とは別)
+        public float shopD;        // 据えた表店の**壁体**が境界線から奥へ食った最大[m](⛔ 在庫の駒の寸法で代用しない)
         public int clashed;        // 先に建った列にめり込むので退けた駒(両側町の角)
         public int tucked;         // 区画の内へ折り込んだ駒
         public float tuckedM;      // 同・最大の折り込み量[m]
@@ -391,6 +401,14 @@ public static partial class EdoBuild
                         tally.clashed++; idx++; cursor += m.W + JOINT; continue;
                     }
                     made.Add(go); houseGo.Add(go); idx++;
+                    // ⭐ **据えた駒が奥へ何 m 食ったか**を実測する(2026-09-22・EDO-0355)。裏長屋の列の
+                    //    引きはこれと路地から決まる。⛔ 在庫の Shop01/02 の寸法で代用しない —
+                    //    当方の 5 間の駒は Shop02 より 0.36m 深く、その分だけ路地が痩せて棟へめり込む。
+                    foreach (var w in Body(go.transform, 400, false))
+                    {
+                        float dd = -((w.x - A.x) * outward.x + (w.z - A.y) * outward.y);
+                        if (dd > tally.shopD) tally.shopD = dd;
+                    }
                     int cnt; string nm = pc.Name;
                     kinds.TryGetValue(nm, out cnt); kinds[nm] = cnt + 1;
                     tally.builtM += m.W;
@@ -435,16 +453,18 @@ public static partial class EdoBuild
     ///
     /// <param name="cap">置く棟数の上限(表の `ura_nagaya` が数で書いてあるとき)。0 以下なら上限なし。</param>
     /// <param name="wallGap">返り: 棟どうしの**触れている箇所**の隙の最小[m](負 = めり込み)。</param>
+    /// <param name="gapM">返り: 据わる棟が無くて**歯抜けのまま残した走り**の合計[m](EDO-0355)。
+    /// ⛔ 0 でない値を呼び手が黙って飲まない — 通りの裏に空いた穴の実測(規則19)。</param>
     /// <param name="munewari">⭐ **棟割長屋**(奥行4間・大棟を挟んで ±Z の両面に戸)で積む
     /// (<see cref="EdoAssets.Own.UraNagayaMunewari(float)"/>)。**路地が前後にある列**はこちらが正しい姿で、
     /// 1棟が路地2本ぶんを受け持つ。⛔ 割長屋を2棟背中合わせに置いて代用しない(部材の注記)。
     /// ⚠ 列の**いちばん奥**(背が隣地の境に向く列)は盲面が要るので false = 割長屋のまま。</param>
     public static List<GameObject> UraNagayaRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward,
         float baseY, float insetM, int cap, string prefix, Vector2[] keepInside,
-        List<GameObject> avoid, out int dropped, out float wallGap, bool munewari = false)
+        List<GameObject> avoid, out int dropped, out float wallGap, out float gapM, bool munewari = false)
     {
         var made = new List<GameObject>();
-        dropped = 0; wallGap = float.NaN;
+        dropped = 0; wallGap = float.NaN; gapM = 0f;
         Vector2 dir = (B - A).normalized; float len = (B - A).magnitude;
         float psi = Mathf.Atan2(outward.x, outward.y) * Mathf.Rad2Deg;   // 戸の面(+Z)を路地へ
         Vector2 xdirW = new Vector2(outward.y, -outward.x);
@@ -457,20 +477,27 @@ public static partial class EdoBuild
         // 桁行は**残りへ入る一番長い棟**から。⭐ 表店と違って乱さない — 裏店は同じ割りの棟を
         //    続けて建てた物で、長さを混ぜるほど棟の天端が刻まれて長屋らしさが消える。
         //    残りが 6 間を切ったところが列の終わり(端数は路地の突き当りが受ける)。
+        //
+        // ⭐ **退けた棟の幅だけカーソルを飛ばさない**(2026-09-22・EDO-0355)。飛ばすと、退けた駒の
+        //    走り(12 間 = 21.8m にもなる)がそのまま通りの裏の**歯抜け**として残る。退けたら同じ座で
+        //    **一段短い棟**へ落として掛け直し、12→9→6 間のどれも据わらない座だけ 1 間ずつ送る。
+        //    送った分は <paramref name="gapM"/> に実測で返す(⛔ 黙って飲まない・規則19)。
         var lens = new float[] { 12f, 9f, 6f };
+        const float STEP = 1.818f;                         // 据わらない座を送る刻み(江戸間 1 間)
         float cursor = 0f;
-        int idx = 0;
-        while (cursor < len - 0.5f)
+        int idx = 0, li = 0;                               // li = いま掛けている桁行(lens の添字)
+        int guard = 0;
+        while (cursor < len - 0.5f && guard++ < 500)
         {
-            string pick = null; ShopModule pm = default(ShopModule);
-            foreach (var wk in lens)
-            {
-                var path = munewari ? EdoAssets.Own.UraNagayaMunewari(wk) : EdoAssets.Own.UraNagaya(wk);
-                var m = OwnMeasure(path);
-                if (cursor + m.W <= len + 0.01f) { pick = path; pm = m; break; }
-            }
-            if (pick == null) break;                       // 一番短い棟も入らない = 打ち止め
             if (cap > 0 && made.Count >= cap) break;
+            string pick = null; ShopModule pm = default(ShopModule);
+            for (int t = li; t < lens.Length; t++)
+            {
+                var path = munewari ? EdoAssets.Own.UraNagayaMunewari(lens[t]) : EdoAssets.Own.UraNagaya(lens[t]);
+                var m = OwnMeasure(path);
+                if (cursor + m.W <= len + 0.01f) { pick = path; pm = m; li = t; break; }
+            }
+            if (pick == null) break;                       // 一番短い棟も走りに入らない = 列の終わり
             var c2 = sA + rdir * (cursor - pm.lo);
             var go = Place(pick, new Vector3(c2.x, baseY, c2.y), psi, Vector3.one, parent,
                            prefix + "_" + idx + "_" + System.IO.Path.GetFileNameWithoutExtension(pick));
@@ -478,27 +505,27 @@ public static partial class EdoBuild
             AlignFace(go, sA, outward, 0f, rb.min.y + 0.30f, rb.min.y + rb.size.y * 0.60f);
             try { SeatOnGround(go, 0.05f, 600); }
             catch (Exception) { SeatBottom(go, Ground(c2.x, c2.y) - 0.05f); }
+            bool reject = false;
             if (keepInside != null)
             {
                 // ⛔ 塀の 0.60m の遊びを建物に使わない(規則4「区域侵犯は許容0」)。
                 //    折り込んで収まらない棟だけ退ける。
                 float tk = TuckIntoParcel(go, keepInside, -outward, 0.60f);
-                if (tk < 0f)
-                {
-                    UnityEngine.Object.DestroyImmediate(go);
-                    dropped++; idx++; cursor += pm.W + JOINT; continue;
-                }
-                if (tk > 0f) Seat2(go, c2);
+                if (tk < 0f) reject = true;
+                else if (tk > 0f) Seat2(go, c2);
             }
             // ⛔ 両側町は**もう一方の通りの表店が背後まで回り込んでいる**(2026-09-21 実測:
             //    新町三丁目で −5.03m)。先に建った駒とめり込む棟は退ける。
-            if (avoid != null && Clashes(go, avoid))
+            if (!reject && avoid != null && Clashes(go, avoid)) reject = true;
+            if (reject)
             {
                 UnityEngine.Object.DestroyImmediate(go);
-                dropped++; idx++; cursor += pm.W + JOINT; continue;
+                dropped++;
+                if (li + 1 < lens.Length) { li++; continue; }      // 同じ座で一段短い棟へ掛け直す
+                gapM += STEP; cursor += STEP; li = 0; continue;    // どれも据わらない座 — 1 間送る
             }
             made.Add(go); idx++;
-            cursor += pm.W + JOINT;
+            cursor += pm.W + JOINT; li = 0;
         }
         var back = new Vector3(-rdir.x, 0f, -rdir.y);
         for (int k = 1; k < made.Count; k++)

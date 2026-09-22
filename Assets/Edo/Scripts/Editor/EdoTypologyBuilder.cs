@@ -892,7 +892,12 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
     static float OutsideBy(Vector2[] poly, Transform t, bool withRoof)
     {
         float over = 0f;
-        foreach (var w in EdoBuild.Body(t, 600, withRoof))
+        // ⭐ withRoof=false は EdoBuild.BodyExRoof を使う(EDO-0358・2026-09-22)。名前で
+        //    屋根を落とせない一枚メッシュの駒(庫裏・墓地・鐘楼・山門)は Body(false) が Body(true) と
+        //    同数のままだった — 軒込みの外形が壁体として数えられ、軒の越境が許容されず(裁定A)
+        //    区域侵犯として誤って赤くなる。→ EdoBuild.cs「BodyExRoof」の注記。
+        var pts = withRoof ? EdoBuild.Body(t, 600, true) : EdoBuild.BodyExRoof(t, 600);
+        foreach (var w in pts)
         {
             var q = new Vector2(w.x, w.z);
             if (!EdoGeom.PIP(poly, q)) over = Mathf.Max(over, EdoGeom.DistToPolyEdge(poly, q));

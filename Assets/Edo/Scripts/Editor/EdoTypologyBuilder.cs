@@ -943,6 +943,26 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 //    ここだけ。測り直した値が本当の値 — 間引きの値で ⛔ を出さない(規則19)。
                 if (dy < -1.0f || dy > 0.7f)
                     dy = EdoBuild.Contact(t.gameObject, out at, out nc, 0.01f, 60000);
+                // ⭐ **一続きの複合は棟ごとに測る。**⛔ 複合ぜんたいの Contact は**子の最小**を返すので、
+                //    塚に載った 1 棟が 0.00m を返すと、他の 6 棟が 2.1m 浮いていても「⭕ 0.00m」になる。
+                //    2026-09-22 の戸田・阪部・松平がこれで、数値の関門は全部通ったのに
+                //    検証レンダでは建物の下を光が抜けていた(EDO-0318 ⑥・規剉19「0 件は合格ではない」)。
+                if (t.name == "Goten" && t.childCount > 1)
+                {
+                    float lo = dy, hi = dy;
+                    foreach (Transform part in t)
+                    {
+                        if (part.GetComponentsInChildren<Renderer>().Length == 0) continue;
+                        Vector3 pat2; int pn2;
+                        float pd = EdoBuild.Contact(part.gameObject, out pat2, out pn2, 0.01f, VERTS);
+                        if (!float.IsNaN(pd) && (pd < -1.0f || pd > 0.7f))
+                            pd = EdoBuild.Contact(part.gameObject, out pat2, out pn2, 0.01f, 60000);
+                        if (float.IsNaN(pd)) continue;
+                        if (pd < lo) lo = pd;
+                        if (pd > hi) hi = pd;
+                    }
+                    dy = hi > -lo ? hi : lo;            // 浮きと埋没の**大きい方**を複合の代表にする
+                }
                 if (dy < -1.0f) { sunk++; worstSunk = Mathf.Max(worstSunk, -dy); }
                 if (dy > 0.7f) { floated++; worstFloat = Mathf.Max(worstFloat, dy); }
                 if (nc > 1) multi++;

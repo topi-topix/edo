@@ -117,18 +117,24 @@ public static partial class EdoTypologyBuilder
             return _chubokuPal;
         }
     }
-    static string[] _momijiPal;
-    static string[] MomijiPal
+    static string[] _momijiSmall, _momijiAll;
+    /// <summary>モミジの個体プール。⭐ **庭域で切り分ける**(庭方 2026-09-22 の裁定6)—
+    /// A&lt;3000m² は Small だけ(MaxCrown 2.45m)。⛔ Mid を混ぜると MaxCrown が 3.49m になり、
+    /// 常緑中木(2.98m)より大きくなって**混んだ庭では据わりで負ける**(場所取りでも軒の当たりでも
+    /// 先に落ちる)。実測 sanbezaka_ooka で モミジ3本中1本しか据わらず落葉比が 29%→8% へ落ちた。
+    /// → メモリ `ratio-on-intent-vs-seated`。</summary>
+    static string[] MomijiPalFor(float area)
     {
-        get
+        if (_momijiSmall == null) _momijiSmall = new[]
         {
-            if (_momijiPal == null) _momijiPal = new[]
-            {
-                EdoAssets.Own.Momiji("Small", 1), EdoAssets.Own.Momiji("Small", 2),
-                EdoAssets.Own.Momiji("Mid", 3),
-            };
-            return _momijiPal;
-        }
+            EdoAssets.Own.Momiji("Small", 1), EdoAssets.Own.Momiji("Small", 2),
+        };
+        if (_momijiAll == null) _momijiAll = new[]
+        {
+            EdoAssets.Own.Momiji("Small", 1), EdoAssets.Own.Momiji("Small", 2),
+            EdoAssets.Own.Momiji("Mid", 3),
+        };
+        return area < 3000f ? _momijiSmall : _momijiAll;
     }
     static string[] _teibokuPal;
     static string[] TeibokuPal
@@ -237,9 +243,12 @@ public static partial class EdoTypologyBuilder
 
     /// <summary>層をひと組据える。⭐ **意図した数と据わった数の差を必ず控える**(§5-2 ①・規則19)。
     /// ⭐ 候補の池は**層ごとに引き直す**(検分④)— 呼び手が `new List&lt;Vector2&gt;(main)` を渡すこと。</summary>
+    /// <param name="poolAlt">⭐ 先の池が枯れたときに続けて使う池(裁定6C)。
+    /// 「環から使い切ってから main」を素直に書くための受け皿 — ⛔ 2つを1本に混ぜない
+    /// (TakeSite は無作為に引くので、混ぜると環が先に使われない)。</param>
     static void Layer(Transform grp, string name, EdoBuild.NiwaField f, List<Vector2> pool, string[] pal,
                       int want, System.Random rnd, EdoBuild.NiwaSet o,
-                      List<string> want_, List<string> got_)
+                      List<string> want_, List<string> got_, List<Vector2> poolAlt = null)
     {
         int cap = Mathf.Max(0, NIWA_BUDGET - f.Komas.Count);
         int n = Mathf.Min(want, cap);
@@ -250,6 +259,7 @@ public static partial class EdoTypologyBuilder
             foreach (int c in OddSplit(n, rnd))
             {
                 var site = TakeSite(pool, rnd, f, rr, o);
+                if (site == null && poolAlt != null) site = TakeSite(poolAlt, rnd, f, rr, o);
                 if (site == null) break;
                 made += EdoBuild.NiwaClump(grp, name, f, site.Value, pal, c, rnd, o, name).Count;
             }
@@ -483,6 +493,8 @@ public static partial class EdoTypologyBuilder
         //    (従前 DeShare へ渡していた見込みと同じ値。⛔ ここで Rng を引くと後段がずれる)。
         nMomiji = Mathf.Max(1, Mathf.RoundToInt(0.379f * (nMatsu + nChu + 4)));
 
+        // ⭐ 池代地の汀の外の環(裁定6C)。池を取らない区画では空のまま = 主景は main だけを使う
+        var pondRing = new List<Vector2>();
         // ── ③ 池代地を**先に**囲う(木を置いてからでは動かせない・§5-1 chisen ③)──
         if (chisen)
         {
@@ -502,7 +514,13 @@ public static partial class EdoTypologyBuilder
             }
             if (longD >= 12f)
             {
-                f.Voids.Add(EdoBuild.NiwaVoidPoly(c, longD * 0.5f, rnd));
+                var pondPoly = EdoBuild.NiwaVoidPoly(c, longD * 0.5f, rnd);
+                f.Voids.Add(pondPoly);
+                // ⭐ 汀の外 0〜6m の環(裁定6C)— 主木の松・景石・灯籠はここから使い切る。
+                //    ⛔ 池代地の中は f.Free が拒むので、main だけでは主景の候補が枯れる。
+                foreach (var p in f.Cells)
+                    if (!EdoGeom.PIP(pondPoly, p) && EdoGeom.DistToPolyEdge(pondPoly, p) <= 6f)
+                        pondRing.Add(p);
                 log.Add(string.Format("    池代地: 座敷面の側の {0:F0}m² の連結域の重心に 長径 {1:F1}m の不定形の空地を確保"
                                     + "(⛔ 類型では掘らない — 後から木を動かさずに掘れるように空けるだけ)",
                                       blob.Count * f.Cell * f.Cell, longD));
@@ -529,7 +547,10 @@ public static partial class EdoTypologyBuilder
             foreach (var p in pts)
             {
                 if (made >= capTrees || f.Komas.Count >= NIWA_BUDGET) break;
-                int n = chisen ? Odd(rnd, 3, 5) : 3;
+                // ⭐ 塊の大きさは 3:5 = **2:1**(裁定6B)。⚠ 旧 Odd(rnd,3,5) は Rng(3..5) の 4 を 5 へ
+                //    寄せるので 3:5 = 1:2 と**逆**に出ていた(3が1/3しか出ない)。3を厚くして
+                //    大きい塊の連続を減らす
+                int n = chisen ? (rnd.NextDouble() < 2.0 / 3.0 ? 3 : 5) : 3;
                 tried += n;
                 made += EdoBuild.NiwaClump(grp, "Yashikirin", f, p, LinPal, n, rnd, tree, "屋敷林", mix).Count;
             }
@@ -542,10 +563,15 @@ public static partial class EdoTypologyBuilder
         }
 
         // ── ② 主景(座敷面の前の帯)⭐ 池は**層ごとに main から引き直す**(検分④)──
-        Layer(grp, "主木の松", f, new List<Vector2>(main), MatsuPal, nMatsu, rnd, tree, want, got);
+        // ⭐ 据える順は 主木の松 → モミジ → 常緑中木 → 刈込 → 照葉低木(裁定6)。
+        //    モミジは「景の木」なので先に据える。A<3000 では Small だけなので常緑中木より小さく、
+        //    「大きい物から先に据える」原則には反しない。
+        // ⭐ 池代地を取った区画は、主景の pool に**汀の外 0〜6m の環**を足して**環から使い切る**
+        //    (裁定6C)。⛔ main だけだと池代地と重なって候補が枯れ、主景に一本も立たない。
+        Layer(grp, "主木の松", f, new List<Vector2>(pondRing), MatsuPal, nMatsu, rnd, tree, want, got,
+              new List<Vector2>(main));
+        Layer(grp, "モミジ", f, new List<Vector2>(main), MomijiPalFor(f.Area), nMomiji, rnd, chu, want, got);
         Layer(grp, "常緑中木", f, new List<Vector2>(main), ChubokuPal, nChu, rnd, chu, want, got);
-        Layer(grp, "モミジ", f, new List<Vector2>(main), MomijiPal, nMomiji, rnd, chu, want, got);
-        Layer(grp, "照葉低木", f, new List<Vector2>(main), TeibokuPal, nTei, rnd, shrub, want, got);
 
         // 刈込の塊(3〜5組)
         {
@@ -561,12 +587,13 @@ public static partial class EdoTypologyBuilder
             }
             want.Add("刈込 " + kumi + "組"); got.Add("刈込 " + made + "本");
         }
+        Layer(grp, "照葉低木", f, new List<Vector2>(main), TeibokuPal, nTei, rnd, shrub, want, got);
         // 景石(1組 = 三石。丈 1.0 正規化なので localScale = 総丈・沈め = 総丈÷3 の1/3埋め)
-        NiwaIshigumi(grp, f, new List<Vector2>(main), rnd, nIshi, want, got);
+        NiwaIshigumi(grp, f, new List<Vector2>(pondRing), rnd, nIshi, want, got, new List<Vector2>(main));
         // 飛石1条 — 座敷面の中点の外 2.0m から庭へ下りる(⭐ 芯々は石の実寸から・検分①)
         NiwaTobiishi(grp, f, rnd, zashikiMid + zashikiN * 2.0f, zashikiN, nTobi, want, got, log);
         // 灯籠
-        NiwaToro(grp, f, new List<Vector2>(main), rnd, nToro, want, got);
+        NiwaToro(grp, f, new List<Vector2>(pondRing), rnd, nToro, want, got, new List<Vector2>(main));
         // 井戸(chisen は勝手まわりに1口・small は2口)
         NiwaIdo(grp, f, katte, rnd, chisen ? 1 : 2, want, got, log);
         // ④ 勝手まわりは裸地・木0〜2本
@@ -646,9 +673,11 @@ public static partial class EdoTypologyBuilder
         // ⛔ モミジに A 従属の上限を当てない(裁定1) — 既に常緑の本数からの従属値で、二重に絞ることになる
         int nMomiji = Mathf.Max(1, Mathf.RoundToInt(0.379f * (nPocketChu + nMatsu + nChu)));
         plannedEv += nMatsu + nChu;                        // ⛔ nTei(低木)は足さない
+        // ⭐ 据える順は 主木の松 → モミジ → 常緑中木(裁定6)。A<3000 のモミジは Small だけなので
+        //    常緑中木より小さく、「大きい物から先に据える」原則には反しない
         Layer(grp, "主木の松", f, new List<Vector2>(main), MatsuPal, nMatsu, rnd, tree, want, got);
+        Layer(grp, "モミジ", f, new List<Vector2>(main), MomijiPalFor(f.Area), nMomiji, rnd, chu, want, got);
         Layer(grp, "常緑中木", f, new List<Vector2>(main), ChubokuPal, nChu, rnd, chu, want, got);
-        Layer(grp, "モミジ", f, new List<Vector2>(main), MomijiPal, nMomiji, rnd, chu, want, got);
         {
             int kumi = Rng(rnd, 1, 2); int made = 0;
             kumi = Mathf.Min(kumi, Mathf.Max(1, Mathf.FloorToInt(f.Area / 1200f)));   // ④ 組数だけ(裁定1)
@@ -826,7 +855,7 @@ public static partial class EdoTypologyBuilder
     /// <summary>景石(1組 = 三石)。⭐ 丈 1.000 に正規化した部材なので **localScale = 総丈**、
     /// 沈めは **総丈÷3**(1/3埋め・庭方 §5-0「据え」)。</summary>
     static void NiwaIshigumi(Transform grp, EdoBuild.NiwaField f, List<Vector2> pool, System.Random rnd,
-                             int kumi, List<string> want, List<string> got)
+                             int kumi, List<string> want, List<string> got, List<Vector2> poolAlt = null)
     {
         var o = EdoBuild.NiwaSet.Stone;
         o.ScaleLo = 0.75f; o.ScaleHi = 1.35f; o.SinkByScale = 1f / 3f;   // 露出 0.5〜0.9m
@@ -834,6 +863,7 @@ public static partial class EdoTypologyBuilder
         for (int i = 0; i < kumi; i++)
         {
             var site = TakeSite(pool, rnd, f, 1.2f, o);
+            if (site == null && poolAlt != null) site = TakeSite(poolAlt, rnd, f, 1.2f, o);   // 環 → main(裁定6C)
             if (site == null) break;
             made += EdoBuild.NiwaClump(grp, "Ishigumi", f, site.Value, IshiPal, 3, rnd, o, "景石").Count;
         }
@@ -865,7 +895,7 @@ public static partial class EdoTypologyBuilder
 
     /// <summary>灯籠(雪見)。⚠ edogoyomi の駒なので **ES を掛ける**。⛔ 春日灯籠は使わない。</summary>
     static void NiwaToro(Transform grp, EdoBuild.NiwaField f, List<Vector2> pool, System.Random rnd,
-                         int n, List<string> want, List<string> got)
+                         int n, List<string> want, List<string> got, List<Vector2> poolAlt = null)
     {
         var o = EdoBuild.NiwaSet.Stone;
         int made = 0;
@@ -873,6 +903,7 @@ public static partial class EdoTypologyBuilder
         {
             float r = EdoBuild.CrownR(EdoAssets.Own.Toro) * ES;
             var site = TakeSite(pool, rnd, f, r, o);
+            if (site == null && poolAlt != null) site = TakeSite(poolAlt, rnd, f, r, o);      // 環 → main(裁定6C)
             if (site == null) break;
             if (f.Put(grp, EdoAssets.Own.Toro, site.Value, Rf(rnd, 0f, 360f), ES, 0f, "Toro_" + i, "灯籠", o) != null) made++;
         }

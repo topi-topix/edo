@@ -714,7 +714,9 @@ public static partial class EdoBuild
             for (; s < len; s += step)
             {
                 if (s < 0f) continue;
-                var foot = a + dir * (s + ((float)rnd.NextDouble() - 0.5f) * step * 0.4f);
+                // ⭐ 乱れは step×0.7(裁定6B)。⛔ 0.4 では等間隔の並木に見える — 塊が据わらず
+                //    単木になった箇所ほど、揺れ幅が刻みに対して小さいと定規で引いたように並ぶ
+                var foot = a + dir * (s + ((float)rnd.NextDouble() - 0.5f) * step * 0.7f);
                 if (skip != null && skip(foot)) continue;
                 if (!fromWall)
                 {   // 囲いが無い — 区画の線から寄せる(⚠ 呼び手が「壁が無い」と刷る)

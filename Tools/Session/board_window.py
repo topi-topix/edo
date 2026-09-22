@@ -17,7 +17,7 @@
     launchctl bootout   gui/$UID/jp.edo.board-window        # 止めるとき
 手で試すなら `python3 Tools/Session/board_window.py --once`(焼くだけ)。
 """
-import argparse, functools, os, subprocess, sys, threading, time
+import argparse, functools, json, os, subprocess, sys, threading, time
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -31,6 +31,7 @@ GEN = os.path.join(ROOT, "Tools", "Session", "build_board_html.py")
 POLL = 20          # 秒。板を見に行く間隔
 FLOOR = 60         # 秒。どんなに板が動いても、この間隔より密には焼かない
 CEIL = 600         # 秒。板が静かでも、これだけ経ったら焼く(claim と git log が古びるので)
+SHOW_S = 60.0      # 秒。board_now と同じ — 手を止めてからこれを超えたら「施主の指示待ち」の黄になる
 
 
 def newest():
@@ -60,15 +61,28 @@ def bake():
     return ok
 
 
+def due_after(now):
+    """焼いた結果に「手を止めた」(まだ SHOW_S 未満)の窓があれば、**黄へ変わる頃**に焼き直す時刻を返す。
+    ⭐ 板は Stop の直後に焼かれる(`edo_board_fresh.py`)ので、手を止めた窓はいつも 0 分で写る。
+       静かな時間はそれきり CEIL(10分)まで焼かれず、施主を待つ窓が黄にならなかった。
+       黄が出るのは「手を止めて 60 秒」— その時刻をこちらから指しておく。無ければ 0。"""
+    try:
+        ws = json.load(open(os.path.join(OUT, "summary.json"), encoding="utf-8")).get("windows") or []
+    except Exception:
+        return 0.0
+    left = [SHOW_S - (w.get("min") or 0) * 60 for w in ws if w.get("state") == "paused"]
+    return (now + max(min(left), 5) + 5) if left else 0.0
+
+
 def watch():
-    last_src, last_bake = 0.0, 0.0
+    last_src, last_bake, due = 0.0, 0.0, 0.0
     while True:
         try:
             src = newest()
             now = time.time()
-            if (src > last_src and now - last_bake > FLOOR) or (now - last_bake > CEIL):
+            if (src > last_src and now - last_bake > FLOOR) or (now - last_bake > CEIL) or (due and now >= due):
                 if bake():
-                    last_src, last_bake = src, now
+                    last_src, last_bake, due = src, now, due_after(now)
         except Exception as e:
             print("watch: %r" % e, flush=True)
         time.sleep(POLL)

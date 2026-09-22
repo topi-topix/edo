@@ -176,9 +176,16 @@ def _work(st, now):
 
 def window_state(st, now, show_s=SHOW_S):
     """窓の今を一つに畳む。戻り値 dict(kind, label, since)。
-    kind: busy=道具の返事を show_s 秒超えて待っている / idle=手が空いている(施主の指示待ち) /
+    kind: busy=道具の返事を show_s 秒超えて待っている / agent=背景の役の帰り待ち /
+          paused=手を止めた直後(show_s 未満) / idle=手が空いている(施主の指示待ち) /
           work=働いている / stale=刻みが止まっている(窓が閉じたかも) / ""=不明(刻みが無い・古い)。
-    ⭐ stack の**一番外側**が「窓として」待っている物(役の中の Bash ではなく、役の帰り)。"""
+    ⭐ stack の**一番外側**が「窓として」待っている物(役の中の Bash ではなく、役の帰り)。
+    ⛔ **手を止めた(Stop)を「施主の指示待ち」と読み替えない**(2026-09-22 施主指摘「施主の指示待ちと
+       なっていますが、実際にはなってません」)。黄を出してよいのは次の二つを両方満たすときだけ:
+         ① 背景の役(`await`)が一つも残っていない — 残っていれば窓は自分で動き出す
+         ② 手を止めてから show_s 秒を超えた — 関門(report_lint)が Stop を差し戻して仕事が続くことがあり、
+            板は Stop の直後に焼かれるので、直後の黄は嘘になりやすい
+       数えるのは `.claude/hooks/edo_now.py` の `pending_agents`(記録の尾を読む)。"""
     if not st or now - (st.get("at") or 0) > STATE_TTL_S:
         return dict(kind="", label="", since=None)
     stack = st.get("stack") or []
@@ -192,6 +199,13 @@ def window_state(st, now, show_s=SHOW_S):
             return dict(kind="busy", label=lab, since=e["since"])
         return _work(st, now)
     if st.get("idle_since"):
+        aw = st.get("await") or []
+        if aw:
+            who = "・".join(dict.fromkeys((a.get("who") or "役") for a in aw))
+            return dict(kind="agent", label="%s の帰りを待つ(背景)" % who[:28],
+                        since=min(a.get("since") or st["idle_since"] for a in aw))
+        if now - st["idle_since"] < show_s:
+            return dict(kind="paused", label="手を止めた", since=st["idle_since"])
         return dict(kind="idle", label="手が空いている(施主の指示待ち)", since=st["idle_since"])
     return _work(st, now)
 
@@ -324,7 +338,7 @@ def collect(now=None, live=None, queue=None, hist=None, ticket_estate=None, win_
     for c in live:
         w = row(c["session"])
         w["state"] = window_state(states.get(c["session"]) or {}, now)
-        if w["state"]["kind"] == "busy":
+        if w["state"]["kind"] in ("busy", "agent"):
             w["segs"].append((max(w["state"]["since"], t0), now, "stall"))
     for x in waits:
         if x.get("t1", 0) > t0 and x.get("session"):
@@ -406,7 +420,8 @@ CSS = """<style>
 .bn-b.wait{top:1px;height:16px;border:1px solid var(--n-oud);background:repeating-linear-gradient(135deg,var(--n-oud) 0 2px,transparent 2px 6px)}
 .bn-b.stall{top:2px;height:14px;background:repeating-linear-gradient(135deg,var(--n-muted) 0 2px,transparent 2px 5px);opacity:.75}
 .bn-chip.s{border-color:var(--n-shu);color:var(--n-shu);font-weight:600}
-.bn-chip.i{border-color:var(--n-oud);color:var(--n-oud)}
+.bn-chip.i{border-color:var(--n-oud);color:var(--n-oud);font-weight:600}
+.bn-chip.a{border-color:var(--n-ai);color:var(--n-ai)}
 .bn-chip.k{border-color:var(--n-ok);color:var(--n-ok)}
 /* 窓の今 — いま何を待っているか(60 秒を超えた待ちだけ) */
 .bn-now-t{width:100%;border-collapse:collapse;border:1px solid var(--n-line);background:var(--n-card);font-size:12.5px;margin-bottom:20px}
@@ -478,7 +493,8 @@ def _dur(a, b):
 
 
 def _state_chip(w, now):
-    """窓の今の札。busy=朱(何を待っているか) / idle=黄(施主の指示待ち) / work=緑 /
+    """窓の今の札。busy=朱(何を待っているか) / agent=藍(背景の役の帰り待ち・施主は呼ばれていない) /
+    idle=黄(施主の指示待ち) / paused=灰(手を止めた直後・まだ黄にしない) / work=緑 /
     stale=灰(刻みが止まっている)。不明なら空。"""
     s = w.get("state") or {}
     k = s.get("kind")
@@ -487,9 +503,11 @@ def _state_chip(w, now):
     mins = ((now - s["since"]) / 60) if s.get("since") else 0
     if k == "busy":
         return '<span class="bn-chip s">⏳ %s %d分</span>' % (esc(s["label"]), mins)
+    if k == "agent":
+        return '<span class="bn-chip a">⏳ %s %d分</span>' % (esc(s["label"]), mins)
     if k == "idle":
         return '<span class="bn-chip i">%s %d分</span>' % (esc(s["label"]), mins)
-    if k == "stale":
+    if k in ("stale", "paused"):
         return '<span class="none">%s(%d分)</span>' % (esc(s["label"]), mins)
     return '<span class="bn-chip k">%s</span>' % esc(s["label"])
 
@@ -498,13 +516,14 @@ def _now_table(d):
     """**窓の今** — 生きている名乗りありの窓を一行ずつ。「今どういう状況?」への答えはこの表。"""
     now = d["now"]
     live = [w for w in d["rows"] if w["live"]]
-    p = ['<h3>窓の今</h3><p class="sub">一行が一つの窓。%d 秒を超えて続く待ちだけを朱で出す(短い物は「働いている」)。'
-         '黄は手を止めて施主の指示を待っている。</p>' % SHOW_S]
+    p = ['<h3>窓の今</h3><p class="sub">一行が一つの窓。<b>黄=施主を待っている窓</b>を上に出す。'
+         '藍は背景の役の帰り待ち(施主は呼ばれていない)、朱は道具の返事待ち(%d 秒を超えた物だけ)、'
+         '短い待ちは「働いている」。</p>' % SHOW_S]
     if not live:
         return "".join(p) + '<p class="none">生きている窓は無い。</p>'
     p.append('<table class="bn-now-t"><tr><th>窓</th><th>仕事</th><th>今</th><th>から</th></tr>')
-    order = {"busy": 0, "idle": 1, "work": 2, "": 3}
-    for w in sorted(live, key=lambda w: (order.get(w["state"]["kind"], 3), -(w["beat"] or 0))):
+    order = {"idle": 0, "busy": 1, "agent": 2, "paused": 3, "work": 4, "stale": 5, "": 6}   # 施主を待つ窓が先頭
+    for w in sorted(live, key=lambda w: (order.get(w["state"]["kind"], 6), -(w["beat"] or 0))):
         s = w["state"]
         p.append('<tr><td>%s</td><td>%s%s</td><td>%s</td><td class="d">%s</td></tr>'
                  % (_sn(w), ('<b class="bn-tk">%s</b> ' % esc(w["ticket"])) if w["ticket"] else "", esc(w["title"][:40]),
@@ -667,6 +686,14 @@ def selftest():
     assert window_state({"at": n - 60, "stack": []}, n)["kind"] == "work"
     assert window_state({"at": n - 1200, "stack": [], "idle_since": n - 1200}, n)["kind"] == "idle", \
         "手が空いていると自分で言った窓はそのまま(止まった刻みではない)"
+    # ⭐ 2026-09-22 施主指摘「施主の指示待ちとなっていますが、実際にはなってません」
+    sa = window_state({"at": n - 600, "stack": [], "idle_since": n - 600,
+                       "await": [{"who": "棟梁", "since": n - 900}, {"who": "庭方", "since": n - 700}]}, n)
+    assert sa["kind"] == "agent" and sa["label"] == "棟梁・庭方 の帰りを待つ(背景)" and sa["since"] == n - 900, sa
+    assert window_state({"at": n - 20, "stack": [], "idle_since": n - 20}, n)["kind"] == "paused", \
+        "手を止めた直後(60 秒未満)は黄にしない — 関門が Stop を差し戻すことがある"
+    assert window_state({"at": n - 90, "stack": [], "idle_since": n - 90}, n)["kind"] == "idle", \
+        "60 秒を超えて手が空いていれば黄"
     # EDO-0366: 仕舞った窓は、そのあと claim が作り直されても板の窓ではない
     fin_live = [dict(live[0], finished=n - 300)]
     d4 = collect(now=n, live=fin_live, queue=[], hist=[], events=[], namer=lambda s: "")
@@ -682,6 +709,19 @@ def selftest():
     assert 'class="bn-sn" title="aaaaaaaa-111">名前A' in out and 'title="cccccccc-333">cccccccc' in out   # 名前が無ければ短い ID
     assert "10分待ち" in out and "Unity 使用中" not in out and "1番" in out and "寺社の建て直し" in out
     assert "窓の今" in out and "⏳ 検図方 の帰りを待つ・役の中: Bash 3分" in out, out[:200]
+    # 黄(施主待ち)が先頭・藍(背景の役待ち)は施主を呼ばない — 表の並びごと検める
+    live2 = [dict(session="gggggggg-777", started=n - 3000, heartbeat=n - 20, paths=[], resources=[],
+                  note="EDO-0400 藍の窓"),
+             dict(session="hhhhhhhh-888", started=n - 3000, heartbeat=n - 20, paths=[], resources=[],
+                  note="EDO-0401 黄の窓")]
+    st2 = {"gggggggg-777": {"at": n - 300, "stack": [], "idle_since": n - 300,
+                            "await": [{"who": "棟梁", "since": n - 480}]},
+           "hhhhhhhh-888": {"at": n - 300, "stack": [], "idle_since": n - 300}}
+    d5 = collect(now=n, live=live2, queue=[], hist=[], events=[], namer=lambda s: "", states=st2, waits=[])
+    o5 = html(d5)
+    assert "⏳ 棟梁 の帰りを待つ(背景) 8分" in o5 and "手が空いている(施主の指示待ち) 5分" in o5, o5[:400]
+    assert o5.index("EDO-0401") < o5.index("EDO-0400"), "黄(施主待ち)の窓が先頭"
+    assert [r["state"] for r in summary_rows(d5)].count("agent") == 1
     assert "手が空いている(施主の指示待ち) 20分" not in out, "名乗りの無い窓 B は表に出ない(名乗りなしの帯に畳む)"
     sr = summary_rows(d)
     assert sr and sr[0]["state"] == "busy" and sr[0]["min"] == 3.0, sr

@@ -385,8 +385,25 @@ public static partial class EdoBuild
             case "ita+ikegaki":
             {
                 var made = DobeiRun(parent, A, B, outward, prefix, NaturalMode, baseY, gapC, gapHalf);
-                int ni = IkegakiRow(parent, A, B, outward, prefix + "ike", made, gapC, gapHalf);
-                note = string.Format("板塀 {0}枚 + 生垣 {1}駒(生垣は塀の**触れている箇所**まで寄せた)", made.Count, ni);
+                // ⭐ EDO-0171: 辺の内側が法面(地形が現に傾いている)なら、1間ピッチの生垣(並木)ではなく
+                //    山王社叢 帯3(南面)の rinen 設計値をそのまま使った**連続の林縁帯**で覆う。
+                //    ⛔ 生垣のままだと、法尻に接する坊(常明院・智乗院)の前で山が下半分だけ裸に見える
+                //    (2026-09-08 山王庭方 → 掲示板 EDO-0171・2026-09-21 施主指示で担当typology)。
+                float rise, grade;
+                bool slope = EdgeFacesSlope(A, B, outward, out rise, out grade);
+                if (slope)
+                {
+                    int nr = RinenBand(parent, A, B, outward, prefix + "rin", gapC, gapHalf);
+                    note = string.Format("板塀 {0}枚 + 法面の林縁帯 {1}本(帯の内 0.91〜4.55m の勾配 {2:P0}・高低差 {3:F2}m"
+                                        + " ⇒ 生垣でなく山王社叢 帯3 rinen の設計値 丈1.8〜2.5m・5〜7本/100m² で連続して覆った。EDO-0171)",
+                                         made.Count, nr, grade, rise);
+                }
+                else
+                {
+                    int ni = IkegakiRow(parent, A, B, outward, prefix + "ike", made, gapC, gapHalf);
+                    note = string.Format("板塀 {0}枚 + 生垣 {1}駒(生垣は塀の**触れている箇所**まで寄せた・帯の内の勾配 {2:P0} は法面と見ない)",
+                                         made.Count, ni, grade);
+                }
                 return made;
             }
 
@@ -489,6 +506,84 @@ public static partial class EdoBuild
             }
             if (near != null) { Vector3 at; int cn; Abut(go, near, toFence, 0f, out at, out cn, 0.30f, 400); }
             try { SeatOnGround(go, 0.05f, 300); } catch (Exception) { }
+            made++;
+        }
+        return made;
+    }
+
+    /// <summary>辺の**内側**(据える帯そのもの)が法面かを、地形を実測して判定する(EDO-0171)。
+    /// ⛔ 座標や区画の並びから推さない(規則9・11)— 生垣を据える帯(辺の内側 0.5〜2.5間)の
+    /// 両端で地表を測り、その高低差と勾配だけで決める。⚠ 閾値は当方の見当【U】(斜面の下限)—
+    /// `unity-buke-yashiki` の「斜面は木でしっかり覆い、途中の柵は置かない」(2026-09-06 施主基準)の
+    /// 対象になる急さの目安で、実機のレンダで見て要調整。</summary>
+    const float RINEN_RISE_MIN = 1.0f;
+    const float RINEN_GRADE_MIN = 0.30f;
+    static bool EdgeFacesSlope(Vector2 A, Vector2 B, Vector2 outward, out float rise, out float grade)
+    {
+        var mid = (A + B) * 0.5f;
+        float lo = 0.5f * ES, hi = 2.5f * ES;                  // 生垣/林縁帯と同じ刻み(0.91〜4.55m・内側)
+        float h0 = Ground(mid.x - outward.x * lo, mid.y - outward.y * lo);
+        float h1 = Ground(mid.x - outward.x * hi, mid.y - outward.y * hi);
+        rise = Mathf.Abs(h1 - h0);
+        grade = rise / (hi - lo);
+        return rise >= RINEN_RISE_MIN && grade >= RINEN_GRADE_MIN;
+    }
+
+    static string[] _rinenPal;
+    /// <summary>法面の林縁帯の低木。⭐ 丈 1.8〜2.5m は `Own.Teiboku` の H20(2.0m)/H24(2.4m) の2段で受ける
+    /// (H12/H16 は範囲の下)。個体は部材方の在庫どおり 1〜3。</summary>
+    static string[] RinenPal
+    {
+        get
+        {
+            if (_rinenPal == null) _rinenPal = new[]
+            {
+                EdoAssets.Own.Teiboku("H20", 1), EdoAssets.Own.Teiboku("H20", 2), EdoAssets.Own.Teiboku("H20", 3),
+                EdoAssets.Own.Teiboku("H24", 1), EdoAssets.Own.Teiboku("H24", 2),
+            };
+            return _rinenPal;
+        }
+    }
+
+    /// <summary>法面の**林縁帯**(低木。EDO-0171)。⭐ 数値は山王社叢 帯3(南面)の `rinen` の設計値を
+    /// そのまま使う(庭方 2026-09-08 十六巡目 C-2・`docs/Sashizu/sanno_sashizu.json`
+    /// `slopeBands[2].rinen` — fromKen 0.5〜toKen 2.5・teibokuPer100 [5,7]・teibokuH [1.8,2.5])。
+    /// 掲示板 EDO-0171 で山王庭方が「続きとして揃えるなら引いてください」と渡した値をそのまま写した
+    /// (⛔ 新しい丈・密度を発明しない)。
+    /// <para>⛔ <see cref="IkegakiRow"/>(1 間ピッチの並木)の代わりに呼ぶ — 法面は塊でなく
+    /// **連続して**覆う(2026-09-06 施主基準「途中の柵は置かない」と同じ「隙を作らない」思想)。
+    /// 据えるのは辺の内側 0.5〜2.5間の帯へ乱数で撒くだけで、Abut のような取り合いは持たない
+    /// (低木は塀に突き付ける物ではない)。</para></summary>
+    static int RinenBand(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string prefix,
+                         Vector2 gapC, float gapHalf)
+    {
+        Vector2 dir = (B - A).normalized; float len = (B - A).magnitude;
+        float lo = 0.5f * ES, hi = 2.5f * ES;
+        float depth = hi - lo;
+        if (len < 0.5f) return 0;
+        // ⭐ 種は辺の座標から作る(版を跨いで同じ姿になる・KuiRun と同じ作法)。
+        var rnd = new System.Random(Mathf.RoundToInt((A.x * 5.1f + A.y * 17.3f + B.x * 23.7f + B.y * 41.9f) * 100f) & 0x7fffffff);
+        float density = Mathf.Lerp(5f, 7f, (float)rnd.NextDouble());     // 5〜7本/100m²(sanno rinen そのまま)
+        int n = Mathf.Max(1, Mathf.RoundToInt(len * depth / 100f * density));
+        float gT = gapHalf > 0 ? Vector2.Dot(gapC - A, dir) : 0f;
+        const float MIN_SEP = 1.5f;                        // H20/H24 の樹冠(実測 1.8〜2.2m)が触れない間隔
+        var placed = new List<Vector2>();
+        int made = 0;
+        for (int tries = 0; tries < n * 15 && made < n; tries++)
+        {
+            float t = (float)rnd.NextDouble() * len;
+            if (gapHalf > 0 && Mathf.Abs(t - gT) < gapHalf) continue;    // 門の開口は空ける
+            float d = lo + (float)rnd.NextDouble() * depth;
+            var c = A + dir * t - outward * d;                          // 塀の内側(生垣と同じ向き)
+            bool clear = true;
+            foreach (var p in placed) if (Vector2.Distance(p, c) < MIN_SEP) { clear = false; break; }
+            if (!clear) continue;
+            var path = RinenPal[rnd.Next(RinenPal.Length)];
+            var go = Place(path, new Vector3(c.x, 0f, c.y), (float)rnd.NextDouble() * 360f,
+                          Vector3.one, parent, prefix + "_" + made);
+            if (go == null) continue;
+            try { SeatOnGround(go, 0.05f, 300); } catch (Exception) { UnityEngine.Object.DestroyImmediate(go); continue; }
+            placed.Add(c);
             made++;
         }
         return made;

@@ -109,10 +109,32 @@ public static class EdoSannoShaRebuild
         get
         {
             if (_impl == null)
+            {
                 _impl = EdoMiniJson.Parse(File.ReadAllText(Path.Combine(RepoRoot, EdoSannoShaBuilder.ImplRel)))
                         as Dictionary<string, object>;
+                VerifyImplFingerprint();
+            }
             return _impl;
         }
+    }
+
+    /// <summary>算出物が**いまの指図**から焼かれた物か。⚠ 古い焼きで建てると、指図では直った
+    /// はずの物が黙って復活する(2026-09-01 に松江松平の Stage7 で起きた型・EdoOkabeYashikiBuilder
+    /// と同じ照合。⛔ 山王はこの照合を持たずに黙って古い焼きで建てていた ── EDO-0389)。</summary>
+    static void VerifyImplFingerprint()
+    {
+        var src = D(_impl, "src");
+        if (src == null || !src.ContainsKey("sha256"))
+        { Debug.LogWarning("[山王] 算出物に src.sha256 が無い — 指図との対応を機械で確かめられない"); return; }
+        string want = Convert.ToString(src["sha256"]);
+        string got = EdoQaVerdict.Sha256Hex(Path.Combine(RepoRoot, EdoSannoShaBuilder.SashizuRel));
+        if (!EdoQaVerdict.FingerprintMatches(want, got))
+            throw new Exception("⛔ 算出物が**いまの指図から焼かれていない**"
+                + "\n   指図 " + got.Substring(0, 16) + "… / 算出物が名乗る元 " + want.Substring(0, Math.Min(16, want.Length)) + "…"
+                + "\n   `python3 Tools/Sashizu/bake_impl.py sanno --write` を回し直すこと"
+                + "\n   ⛔ ただし焼き手が main に無い欄(graded/rails/base/planting/kui/migiwa/gardens)を"
+                + "指図で動かしたのなら、焼き直せない(EDO-0386)。欄の中身が今の指図と同じことを確かめた上で"
+                + "指紋を宣言し直すか(先例 b9613ad8)、掲示板へ起票すること");
     }
     [MenuItem(MENU + "指図を読み直す(キャッシュを捨てる)")]
     public static void Reload() { _doc = null; _impl = null; _gr = null; Debug.Log("[山王] 指図・算出物のキャッシュを捨てた"); }

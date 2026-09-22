@@ -356,15 +356,18 @@ public static partial class EdoBuild
 
     // ---------- 板塀/穂垣 run — 片面ポリゴンなので表裏の対で置く ----------
     // asset: 5枚スパンOBJ。走りは DobeiRun と同じ実寸カーソル。パネル毎に接地。
-    /// <remarks>据えは DobeiRun と同じ — **触れている箇所**を測る(規則21)。失敗したときだけ bounds の底(EDO-0342)。</remarks>
+    /// <remarks>据えは DobeiRun と同じ — **触れている箇所**を測る(規則21)。失敗したときだけ bounds の底(EDO-0342)。
+    /// <para><paramref name="pair"/>=false / <paramref name="unitScale"/>=1 は **実ジオメトリの両面もの・実寸FBX**用
+    /// (例: 竹矢来 <see cref="EdoAssets.Own.Typ.Takeyarai"/>)。既定(true / ES)は今までどおり
+    /// 片面ポリゴンの ES 倍 obj(穂垣・板塀)— 既存の呼び手はバイト等価で不変(EDO-0363)。</para></remarks>
     public static List<GameObject> PanelRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string prefix,
-        string assetPath, Vector2 gapC, float gapHalf)
+        string assetPath, Vector2 gapC, float gapHalf, bool pair = true, float unitScale = ES)
     {
         var made = new List<GameObject>();
         Vector2 dir = (B - A).normalized; float len = (B - A).magnitude;
-        // スパン実測(ES基準)
+        // スパン実測(unitScale基準・既定はES)
         float spanLocal = RunMeasure(assetPath).W;
-        float spanES = spanLocal * ES;
+        float spanES = spanLocal * unitScale;
         if (spanES < 0.5f) spanES = 7.49f;
         int n = Mathf.Max(1, Mathf.RoundToInt(len / (spanES - 0.15f)));
         float pitch = len / n;
@@ -384,10 +387,10 @@ public static partial class EdoBuild
             float g2 = Ground(c2.x + dir.x * pitch * 0.5f, c2.y + dir.y * pitch * 0.5f);
             float baseY = Mathf.Max(g1, g2);
             float startAbs = chained ? prevEnd : a0 + pitch * k;
-            for (int side = 0; side < 2; side++)
+            for (int side = 0; side < (pair ? 2 : 1); side++)
             {
                 float ry = side == 0 ? psi : psi + 180f;
-                var go = Place(assetPath, Vector3.zero, ry, new Vector3(sx, ES, ES), parent,
+                var go = Place(assetPath, Vector3.zero, ry, new Vector3(sx, unitScale, unitScale), parent,
                     prefix + "_" + k + (side == 0 ? "f" : "b"));
                 float mn, mx;
                 ButtOnRun(go, A, dir, outward, side == 0 ? 0.0f : -0.12f, startAbs, out mn, out mx);
@@ -421,10 +424,12 @@ public static partial class EdoBuild
 
             case "yarai":
             {
-                // 竹矢来の駒は在庫に無い。穂垣(片面ポリゴン・5スパン)を表裏の対で立てる。
-                var made = PanelRun(parent, A, B, outward, prefix, EdoAssets.Eg.Hogaki5, gapC, gapHalf);
+                // 竹矢来(EDO-0363・部材方が新造)— **透け**が意匠。⛔ 表裏の対で置かない(格子が二重になり藪に見える)、
+                // ⛔ ES 倍しない(Eg.* の obj と違い自前で焼いた実寸FBX)。1スパン1枚・伸縮は走りだけ。
+                var made = PanelRun(parent, A, B, outward, prefix, EdoAssets.Own.Typ.Takeyarai, gapC, gapHalf,
+                                    pair: false, unitScale: 1f);
                 float h = made.Count > 0 ? RB(made[0]).size.y : float.NaN;   // ⭐ 据えた駒の実メッシュから測る
-                note = string.Format("竹矢来=穂垣で代用 {0}枚(実丈 {1:F2}m)⚠ 竹矢来(交叉させた竹)の駒は在庫に無い — EDO-0318",
+                note = string.Format("竹矢来 {0}枚(駒の丈 {1:F2}m・見付の充実率30.4% — 板塀・穂垣の100%と20m先でも判別可・EDO-0363)",
                                      made.Count, h);
                 return made;
             }

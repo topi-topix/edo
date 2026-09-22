@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""作業状況の系図 — git の枝と直近コミット、いま動いている普請(claim)、邸ごとの工程、掲示板の残件を
-1 枚の HTML に刷る(2026-09-22)。
+"""作業状況の系図 — git の枝と直近コミット、いま動いている普請(claim)を 1 枚の HTML に刷る(2026-09-22)。
+
+⭐ この頁が見せるのは**リポジトリだけ**(1行=1コミット)。邸ごとの工程の帯は
+   一枚(build_board_html.py)の「区画」タブが持つ — 敷地の見方はそちらに寄せた(2026-09-22 施主指示)。
+   集計は `collect_estates()` に残してあり、区画の頁がそれを呼んで帯を描く。
 
 【何を読むか】どれも読むだけ。何も書き換えない(出力の HTML 以外)。
     git log --all / git branch / git worktree list      系図・枝の台帳・未マージ
     edo_session.load_all()                              生きている claim(心拍 TTL 45 分)
-    kansei_gate / review_gate                           邸の工程(完成条件の表 → 検図関門)
+    kansei_gate / review_gate                           邸の工程(collect_estates。刷るのは「区画」タブ)
     edo_board.py list --json                            掲示板の残件
 
 【使い方】
@@ -21,6 +24,8 @@
 ⚠ 刷った HTML は**その時点の写し**。読み手へ渡すときは Artifact に上げ直す(このスクリプトは公開しない)。
 ⛔ 邸の工程の段は gate から導く。導けない進み具合だけ HINTS に手書きで補い、画面に † を出す
    — HINTS は腐るので、表(kansei)を起票したら該当行を消す。
+⚠ `collect_estates()` / `STAGES` / `NAMES` / `HINTS` はこの頁では描かない。**外向きの口**として残している
+   ので、消すときは build_board_html.stage_rail_html() の呼び出しも一緒に見ること。
 """
 import argparse
 import collections
@@ -266,7 +271,7 @@ def collect(n_commits):
     bo = git("rev-list", "--count", "main..origin/main", check=False).strip()
     return dict(commits=commits, edges=edges, lanes=nlanes, branches=branches, unmerged=unmerged,
                 ahead_origin=int(ao or 0), behind_origin=int(bo or 0), series=collect_series(),
-                claims=collect_claims(), board=board, estates=collect_estates(board), stages=STAGES,
+                claims=collect_claims(), board=board,
                 live_min=LIVE_MIN, gen=time.strftime("%Y-%m-%d %H:%M"))
 
 
@@ -341,30 +346,6 @@ section{margin:40px 0}
 .head .note{font-size:12px;color:var(--ink-3)}
 .head .spacer{flex:1}
 
-/* ── 工程の帯 ── */
-.estates{border:1px solid var(--rule);background:var(--surface)}
-.est{display:grid;grid-template-columns:minmax(140px,1.15fr) 172px minmax(150px,1.5fr) 54px;
-  gap:12px;align-items:center;padding:11px 14px;border-bottom:1px solid var(--rule-2)}
-.est:last-child{border-bottom:0}
-.est .nm{font-weight:500}
-.est .nm span{display:block;font-size:10.5px;color:var(--ink-3);letter-spacing:.06em;
-  font-family:ui-monospace,Menlo,monospace}
-.rail{display:flex;gap:2px}
-.seg{height:9px;flex:1;background:var(--surface-2);border:1px solid var(--rule-2)}
-.seg.done{background:var(--ai);border-color:var(--ai)}
-.seg.now{background:var(--shu);border-color:var(--shu)}
-.seg.fin{background:var(--matsu);border-color:var(--matsu)}
-.est .gate{font-size:12px;color:var(--ink-2)}
-.est .gate b{color:var(--ink);font-weight:500}
-.est .gate.bad b{color:var(--shu)}
-.est .gate.ok b{color:var(--matsu)}
-.est .gate em{display:block;font-style:normal;font-size:11px;color:var(--ink-3);line-height:1.45}
-.norail{font-size:11px;color:var(--ink-3)}
-.est .cnt{text-align:right;font-size:12px;color:var(--ink-3)}
-.est .cnt b{font-size:17px;color:var(--ink);font-family:"Shippori Mincho",serif;font-weight:600}
-.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-3);margin-top:9px}
-.legend i{display:inline-block;width:20px;height:8px;vertical-align:middle;margin-right:5px;border:1px solid var(--rule-2)}
-
 /* ── 系図 ── */
 .filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
 .chip{font-size:11.5px;padding:3px 10px;border:1px solid var(--rule);background:var(--surface);
@@ -425,8 +406,6 @@ footer{margin-top:52px;border-top:1px solid var(--rule);padding-top:14px;
   font-size:11.5px;color:var(--ink-3);line-height:1.8}
 footer code{font-family:ui-monospace,Menlo,monospace;background:var(--surface-2);padding:1px 5px}
 @media(max-width:720px){
-  .est{grid-template-columns:1fr 54px;grid-template-areas:"nm cnt" "rail rail" "gate gate";gap:7px 12px}
-  .est .nm{grid-area:nm}.est .rail{grid-area:rail}.est .gate{grid-area:gate}.est .cnt{grid-area:cnt}
   .crow{grid-template-columns:var(--gw) 60px 1fr;font-size:12px}
   .crow .sc,.crow .tm{display:none}
 }
@@ -453,20 +432,6 @@ footer code{font-family:ui-monospace,Menlo,monospace;background:var(--surface-2)
   __NOW__
 </section><!--/NOW-->
 
-<section>
-  <div class="head">
-    <h2>邸ごとの工程</h2>
-    <span class="note">① 下書き → ② 考証+指図 → ③ 部材 → ④ 実装 → ⑤ 完成</span>
-  </div>
-  <div class="estates" id="estates"></div>
-  <div class="legend">
-    <span><i style="background:var(--ai);border-color:var(--ai)"></i>済んだ段</span>
-    <span><i style="background:var(--shu);border-color:var(--shu)"></i>いまの段</span>
-    <span><i style="background:var(--matsu);border-color:var(--matsu)"></i>完成</span>
-    <span>右端の数字＝その邸で開いている掲示板の件数</span>
-    <span>†＝機械では読めない進み具合を手書きで補った(スクリプト冒頭の HINTS)</span>
-  </div>
-</section>
 
 <section>
   <div class="head">
@@ -548,26 +513,6 @@ document.getElementById('vitals').innerHTML = vit.map(function(o){
     '<div class="v num">'+o.v+'<small>'+esc(o.u)+'</small></div><div class="n">'+esc(o.n)+'</div></div>';
 }).join('');
 document.getElementById('asof').textContent = '読み取り '+D.gen;
-
-/* ── 工程 ── */
-var byEstate = {};
-D.board.forEach(function(b){ byEstate[b.estate] = (byEstate[b.estate]||0)+1; });
-document.getElementById('estates').innerHTML = D.estates.map(function(e){
-  var fin = e.stage >= 5;
-  var rail = D.stages.map(function(_,i){
-    var cls = i+1 < e.stage ? 'done' : (i+1 === e.stage ? (fin?'fin':'now') : '');
-    return '<span class="seg '+cls+'" title="'+esc(D.stages[i])+'"></span>';
-  }).join('');
-  var bad = /⛔|不合格|検め直し|未測|未検分/.test(e.gate) && !fin;
-  if (e.stage === null) rail = '<span class="norail">指図なし・掲示板の担当のみ</span>';
-  return '<div class="est">'+
-    '<div class="nm">'+esc(e.name)+'<span>'+esc(e.kana)+'</span></div>'+
-    '<div class="rail">'+rail+'</div>'+
-    '<div class="gate '+(fin?'ok':(bad?'bad':''))+'"><b>'+esc(e.state)+(e.hint?'†':'')+'</b> ・ '+esc(e.gate)+
-      '<em>'+esc(e.note)+'</em></div>'+
-    '<div class="cnt"><b class="num">'+(byEstate[e.kana]||0)+'</b><br>件</div>'+
-  '</div>';
-}).join('');
 
 /* ── 系図 ── */
 var RH=26, LW=15, PADL=13;
@@ -691,9 +636,9 @@ document.getElementById('srange').textContent =
 document.getElementById('foot').innerHTML =
   '読み取り元 — <code>git log --all --date-order</code>(直近 '+D.commits.length+' コミット)／'+
   '<code>git worktree list</code>／<code>Tools/Session/edo_session.py</code> の生きている claim／'+
-  '<code>Tools/Sashizu/review_gate.py</code>・<code>kansei_gate.py</code>／'+
   '<code>Tools/Session/edo_board.py list</code>。<br>'+
-  'この頁は '+D.gen+' 時点の写し。邸ごとの工程の段は CLAUDE.md「制作パイプライン」の①〜⑤に対応する。';
+  'この頁が見せるのは 1 行 = 1 コミットのリポジトリだけ('+D.gen+' 時点の写し)。'+
+  '敷地ごとの工程の帯は普請場の一枚の「区画」タブにある。';
 })();
 </script>
 """
@@ -728,7 +673,7 @@ def selftest():
     assert classify("fix(類型): 庭")[2] == "typology" and classify("docs: x")[2] == "rec"
     assert classify("feat(山王): 楼門")[2] == "estate" and classify("wip")[2] == "other"
     html = render(dict(commits=[], edges=[], lanes=1, branches=[], unmerged={}, ahead_origin=0, behind_origin=0,
-                       series=[dict(d="2026-01-01", n=0)], claims=[], board=[], estates=[], stages=STAGES,
+                       series=[dict(d="2026-01-01", n=0)], claims=[], board=[],
                        live_min=LIVE_MIN, gen="t", x="</script>"))
     assert "</script><" not in html.split('id="edo-data"', 1)[1].split("</script>", 1)[0]  # 値が script を閉じない
     print("selftest ok")
@@ -752,8 +697,8 @@ def main():
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     with open(out, "w", encoding="utf-8") as f:
         f.write(render(data))
-    print("刷った: %s (%d commit・%d 車線・claim %d・掲示板 %d・邸 %d)" % (
-        out, len(data["commits"]), data["lanes"], len(data["claims"]), len(data["board"]), len(data["estates"])))
+    print("刷った: %s (%d commit・%d 車線・claim %d・掲示板 %d)" % (
+        out, len(data["commits"]), data["lanes"], len(data["claims"]), len(data["board"])))
     if a.open:
         webbrowser.open("file://" + os.path.abspath(out))
 

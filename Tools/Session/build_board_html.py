@@ -22,8 +22,29 @@
 import hashlib, html, json, os, re, shutil, subprocess, sys, time
 from urllib.parse import quote
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
 from edo_session import _common_git_dir, load_all as load_claims
+
+
+def _sibling(name):
+    """同じ **Tools/Session** にある兄弟を、**このファイルの隣**から名指しで読む。
+
+    ⛔ 素の `import <name>` を使わない。`load_junsu_baseline()` などが `ROOT`(= 常にメインの
+    チェックアウト)から `review_gate.py` を exec しており、その中の `sys.path.insert(0, …)` で
+    **メインの Tools/Session が先頭に載る**。worktree から焼くと、それ以降の兄弟の import が
+    静かにメイン側へ逸れる — worktree の直しが頁に出ず、メインの書きかけが載る(2026-09-22 に実測)。
+    ⚠ データ(掲示板・指図)は今までどおり ROOT = メインから読む。逸らさないのは**コード**だけ。"""
+    import importlib.util
+    key = "_edoboard_" + name
+    if key in sys.modules:
+        return sys.modules[key]
+    spec = importlib.util.spec_from_file_location(key, os.path.join(HERE, name + ".py"))
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[key] = mod          # 兄弟どうしの循環に備えて実行前に登録する
+    spec.loader.exec_module(mod)
+    return mod
+
 
 ROOT = os.path.dirname(_common_git_dir())
 BOARD = os.path.join(_common_git_dir(), "edo-board")
@@ -241,19 +262,73 @@ def ty_score(r):
     return sum(W_CERT[g] for _, g in r["cert"]) / len(r["cert"]) / 4 * 100
 
 
-def typology_panel_html(d):
+def stage_rail_html(issues):
+    """邸ごとの工程の帯(① 下書き → ② 考証+指図 → ③ 部材 → ④ 実装 → ⑤ 完成)。
+
+    ⭐ 2026-09-22 に**系図から「区画」タブへ移した**(施主指示「系図はリポジトリだけ」)。
+    段を導くのは `repo_graph.collect_estates()` — 完成条件の表 → 検図関門の順に見る集計で、
+    移設後も系図の側に残してある(そこが唯一の出どころ。ここで導き直さない)。
+    ⛔ 読めなかったら帯を出さない。勘で段を描くと嘘になる。"""
+    live = [i for i in issues if i["status"] not in ("done", "dropped")]
+    try:
+        repo_graph = _sibling("repo_graph")
+        # ⚠ 渡すのは**開いている件だけ**。指図を持たない敷地(丹羽左京・松平大和守など)の行は
+        #   ここから起こすので、済んだ件まで渡すと「0件」の空の行が並ぶ。
+        rows = repo_graph.collect_estates([dict(estate=i["estate"]) for i in live])
+        stages = repo_graph.STAGES
+    except Exception as ex:
+        sys.stderr.write("⚠ 工程の帯を集められない(%s)— その節は出さずに焼く\n" % ex)
+        return ""
+    if not rows:
+        return ""
+    cnt = {}      # 右端の数字 = その敷地で**開いている**件(済み・見送りは数えない)
+    for i in live:
+        cnt[i["estate"]] = cnt.get(i["estate"], 0) + 1
+    p = ['<h2>邸ごとの工程<span class="h2note">① 下書き → ② 考証+指図 → ③ 部材 → ④ 実装 → ⑤ 完成'
+         "</span></h2>", '<div class="estates">']
+    for r in rows:
+        st, fin = r["stage"], (r["stage"] or 0) >= 5
+        if st is None:
+            rail = '<span class="norail">指図なし・掲示板の担当のみ</span>'
+        else:
+            rail = "".join(
+                '<span class="seg %s" title="%s"></span>'
+                % ("done" if i + 1 < st else ("fin" if fin else "now") if i + 1 == st else "",
+                   esc(nm))
+                for i, nm in enumerate(stages))
+        bad = (not fin) and re.search(r"⛔|不合格|検め直し|未測|未検分", r["gate"] or "")
+        p.append('<div class="est"><div class="nm">%s<i>%s</i></div>'
+                 '<div class="rail">%s</div>'
+                 '<div class="gate %s"><b>%s</b> ・ %s<em>%s</em></div>'
+                 '<div class="cnt"><b>%d</b><br>件</div></div>'
+                 % (esc(SITES.get(r["id"], r["name"])), esc(r["id"]), rail,
+                    "ok" if fin else ("bad" if bad else ""),
+                    esc(r["state"]) + ("†" if r.get("hint") else ""),
+                    esc(r["gate"]), esc(r.get("note") or ""), cnt.get(r["id"], 0)))
+    p.append("</div>")
+    p.append('<div class="estlegend">'
+             '<span><i style="background:var(--ai);border-color:var(--ai)"></i>済んだ段</span>'
+             '<span><i style="background:var(--shu);border-color:var(--shu)"></i>いまの段</span>'
+             '<span><i style="background:var(--matsu);border-color:var(--matsu)"></i>完成</span>'
+             "<span>右端の数字＝その敷地で開いている掲示板の件数</span>"
+             "<span>†＝機械では読めない進み具合を手書きで補った(repo_graph.py の HINTS)</span></div>")
+    return "\n".join(p)
+
+
+def typology_body_html(d):
+    """類型の車線。⚠ **中身だけ**を返す — 2026-09-22 に「敷地別」と 1 枚(「区画」タブ)へ統合したので、
+    自分では panel の枠を持たない。枠は html() が 1 つだけ立てる。"""
     if not d:
-        return ('<div class="panel" data-panel="typo" hidden><p class="empty">'
-                "類型表が読めなかった(docs/Sashizu/typology.json)。</p></div>")
+        return '<p class="empty">類型表が読めなかった(docs/Sashizu/typology.json)。</p>'
     tot = sum(d["cnt"].values()) or 1
     rows = [r for r in d["rows"] if not r["hand"]]
     rows.sort(key=lambda r: -(ty_score(r) or 0))
-    p = ['<div class="panel" data-panel="typo" hidden>']
-    p.append('<p class="sub" style="color:var(--muted);font-size:12.5px;margin:14px 0 4px">'
-             "区画の形と類型表だけから建つ車線。指図も検分の輪も無く、違うのは"
-             "<b>欄ごとにどれだけ史料で裏打ちされたか</b>だけ。"
+    p = ['<h2 id="ty">類型の車線<span class="h2note">指図を起こさず、区画の形と類型表だけから建つ筆'
+         "</span></h2>"]
+    p.append('<p class="sub" style="color:var(--muted);font-size:12.5px;margin:0 0 4px">'
+             "指図も検分の輪も無く、違うのは<b>欄ごとにどれだけ史料で裏打ちされたか</b>だけ。"
              "⛔ 図を起こした %d 敷地はこの物差しでは測れない(確度の欄を持たない) — "
-             "そちらは「敷地別」タブの検分の関門で見る。</p>" % d["hand"])
+             "そちらは上の工程の帯と検分の関門で見る。</p>" % d["hand"])
     p.append('<div class="tylead">')
     p.append('<div class="tybox"><div class="k">区画</div><div class="v">%d</div>'
              '<div class="d">赤坂・溜池の全域 %d のうち、類型で建てる筆</div></div>'
@@ -295,7 +370,6 @@ def typology_panel_html(d):
                  % (esc(r["name"]), esc(r["id"]), esc(d["typeja"].get(r["type"], r["type"])),
                     sc, sc, len(r["cert"]), chips))
     p.append("</tbody></table></div>")
-    p.append("</div>")
     return "\n".join(p)
 
 
@@ -559,7 +633,37 @@ h2{font-family:'Shippori Mincho',serif;font-weight:600;font-size:17px;
 .metric{margin:10px 0}
 .metric .lbl{font-size:11px;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:3px}
 
-/* ── タブ(主=タスク一覧 / 従=敷地別・動き) */
+/* ── 工程の帯(2026-09-22 に系図から「区画」タブへ移した。色は一枚の札に合わせてある) */
+.estates{border:1px solid var(--line);background:var(--card);border-radius:6px}
+.est{display:grid;grid-template-columns:minmax(140px,1.15fr) 172px minmax(150px,1.5fr) 54px;
+  gap:12px;align-items:center;padding:11px 14px;border-bottom:1px solid var(--line)}
+.est:last-child{border-bottom:0}
+.est .nm{font-weight:500;font-size:13.5px}
+.est .nm i{display:block;font-style:normal;font-size:10.5px;color:var(--muted);
+  letter-spacing:.06em;font-family:var(--mono)}
+.est .rail{display:flex;gap:2px}
+.est .seg{height:9px;flex:1;background:var(--bg);border:1px solid var(--line)}
+.est .seg.done{background:var(--ai);border-color:var(--ai)}
+.est .seg.now{background:var(--shu);border-color:var(--shu)}
+.est .seg.fin{background:var(--matsu);border-color:var(--matsu)}
+.est .gate{font-size:12px;color:var(--muted)}
+.est .gate b{color:var(--ink);font-weight:500}
+.est .gate.bad b{color:var(--shu)}
+.est .gate.ok b{color:var(--matsu)}
+.est .gate em{display:block;font-style:normal;font-size:11px;color:var(--muted);line-height:1.45}
+.est .norail{font-size:11px;color:var(--muted)}
+.est .cnt{text-align:right;font-size:12px;color:var(--muted)}
+.est .cnt b{font-size:17px;color:var(--ink);font-family:'Shippori Mincho',serif;font-weight:600}
+.estlegend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin:9px 0 0}
+.estlegend i{display:inline-block;width:20px;height:8px;vertical-align:middle;margin-right:5px;
+  border:1px solid var(--line)}
+
+/* ── 頁の頭の1行(この頁は何を1行=何で見るか。2026-09-22 施主指示) */
+.pglead{font-size:12.5px;color:var(--muted);margin:16px 0 12px;padding-left:10px;
+  border-left:2px solid var(--ai);line-height:1.75}
+.pglead b{color:var(--ink);font-weight:500}
+
+/* ── タブ(4枚。タスク一覧 / 区画 / セッション / 系図) */
 .tabs{display:flex;gap:2px;border-bottom:2px solid var(--line);margin:26px 0 0}
 .tab{appearance:none;background:none;border:0;border-bottom:2px solid transparent;
   margin-bottom:-2px;padding:9px 18px;font:inherit;font-size:14px;color:var(--muted);
@@ -673,6 +777,8 @@ h2{font-family:'Shippori Mincho',serif;font-weight:600;font-size:17px;
   .feed td:last-child{grid-column:1/-1;line-height:1.6}
   /* 敷地別のカードも1列に */
   .lanes{grid-template-columns:1fr}
+  .est{grid-template-columns:1fr 54px;grid-template-areas:"nm cnt" "rail rail" "gate gate";gap:7px 12px}
+  .est .nm{grid-area:nm}.est .rail{grid-area:rail}.est .gate{grid-area:gate}.est .cnt{grid-area:cnt}
 }
 /* 相関図は固定幅の SVG なので、狭い画面では必ず縮める */
 .netwrap svg{max-width:100%;height:auto}
@@ -770,8 +876,10 @@ JS = """
 (function(){
   function $all(sel){ return Array.from(document.querySelectorAll(sel)); }
 
-  /* ── タブ。主タブ=タスク一覧(全敷地を1枚)、従タブ=敷地別・最近の動き。
-        フィルタはタブをまたいで効く(同じ .fitem を見る)。 */
+  /* ── タブ(4枚: tasks / sites / session / graph)。1枚ごとに「1行が何か」が違う。
+        フィルタはタブをまたいで効く(同じ .fitem を見る)。
+        ⚠ 前に開いていたタブは localStorage に残る。札を減らした巡では古い名(now/typo/feed)が
+           残っているので、名が合わなければ既定の tasks へ落とす(下の selectTab の条件)。 */
   var tabs = $all('.tab'), panels = $all('.panel');
   function selectTab(name){
     tabs.forEach(function(t){
@@ -1308,8 +1416,7 @@ def _now_data(issues):
     """「今」タブと敷地別の小さな帯の元。読めなくても一枚は焼く(2026-09-22 施主裁定 案A)。
     名乗りの票番号(EDO-xxxx)から邸を引けるよう、掲示板の estate を渡す。"""
     try:
-        import board_now
-        return board_now.collect(ticket_estate={i["id"]: i["estate"] for i in issues if i.get("id") and i.get("estate")})
+        return _sibling("board_now").collect(ticket_estate={i["id"]: i["estate"] for i in issues if i.get("id") and i.get("estate")})
     except Exception as ex:
         sys.stderr.write("⚠ 「今」を集められない(%s)— そのタブは空で焼く\n" % ex)
         return None
@@ -1318,15 +1425,14 @@ def _now_data(issues):
 def _now_panel_html(now_d):
     if now_d is None:
         return '<p class="sub">「今」を読めなかった。Tools/Session/board_now.py を直に流すと理由が出る。</p>'
-    import board_now
-    return board_now.html(now_d)
+    return _sibling("board_now").html(now_d)
 
 
 def _graph_panel_html():
     """系図(git の枝と直近コミット・枝の台帳・日ごとの手数)。別の頁として焼いて srcdoc で埋める —
     頁ごとの CSS が一枚の CSS とぶつからない。「いま動いている普請」は「今」タブが持つので落とす。"""
     try:
-        import repo_graph
+        repo_graph = _sibling("repo_graph")
         page = repo_graph.render(repo_graph.collect(110), embed=True)
     except Exception as ex:
         sys.stderr.write("⚠ 系図を焼けない(%s)— そのタブは空で焼く\n" % ex)
@@ -1376,34 +1482,29 @@ def build_html(issues, pending, commits, claims, states, summary, reviews, typol
              '<span><span class="dot" style="background:var(--line)"></span>その他(task/info) %d</span>'
              "</div>" % (len(waits), len(blks), len(others)))
 
-    # ── タブ。主=タスク一覧(全敷地を1枚)。要裁定・敷地別・動きは
-    #    「その見方をしたいとき用」の従タブ(2026-08-29 ユーザー指示で要裁定もトップから外した)。
+    # ── タブは4枚(2026-09-22 施主指示)。それぞれ**1行が何か**が違う。
+    #      タスク一覧 = 1行が1件の残件 / 区画 = 1行が1つの敷地 /
+    #      セッション = 1行が1つの窓 / 系図 = 1行が1つのコミット。
+    #    6枚あった頃は「敷地別」と「類型の車線」が同じ物(敷地)を二度見せ、工程の帯だけが
+    #    系図に離れていた。統合してこの一意な物差しへ寄せてある。
     # タブの数字は**一覧に出る件数**(既定は絞り込み無しなので完了・見送りも含む全件)。
     # open だけの数を出すと、既定表示の件数と食い違って読めない。
     p.append('<div class="tabs" role="tablist">')
-    p.append('<button class="tab" role="tab" data-tab="now" aria-selected="false">'
-             '今<span class="n">%d</span></button>'
-             % (len([w for w in now_d["rows"] if w["live"]]) if now_d else 0))
     p.append('<button class="tab" role="tab" data-tab="tasks" aria-selected="true">'
              'タスク一覧<span class="n">%d</span></button>' % len(issues))
     p.append('<button class="tab" role="tab" data-tab="sites" aria-selected="false">'
-             '敷地別<span class="n">%d</span></button>' % (len(SITES) + 1))
-    p.append('<button class="tab" role="tab" data-tab="typo" aria-selected="false">'
-             '類型の車線<span class="n">%d</span></button>'
-             % ((typology["total"] - typology["hand"]) if typology else 0))
+             '区画<span class="n">%d</span></button>' % (len(SITES) + 1))
+    p.append('<button class="tab" role="tab" data-tab="session" aria-selected="false">'
+             'セッション<span class="n">%d</span></button>'
+             % (len([w for w in now_d["rows"] if w["live"]]) if now_d else 0))
     p.append('<button class="tab" role="tab" data-tab="graph" aria-selected="false">'
              '系図</button>')
-    p.append('<button class="tab" role="tab" data-tab="feed" aria-selected="false">'
-             '最近の動き</button>')
-    p.append("</div>")
-
-    # ── 今(2026-09-22 施主裁定 案A): Unity の座・窓ごとの時間の帯。焼いた時点の写し。
-    p.append('<div class="panel" data-panel="now" hidden>')
-    p.append(_now_panel_html(now_d))
     p.append("</div>")
 
     # ── 主タブ: 全敷地のタスクを1枚の表で。フィルタで絞る。
     p.append('<div class="panel" data-panel="tasks">')
+    p.append('<p class="pglead"><b>1行=1件の残件。</b>掲示板の件を全敷地まとめて出す。'
+             "絞り込みは下のフィルタで、行を押せば経過と裁定の中身が開く。</p>")
     p.append(filterbar_html())
     p.append(tasks_table_html(issues, states))
     p.append("</div>")
@@ -1415,9 +1516,12 @@ def build_html(issues, pending, commits, claims, states, summary, reviews, typol
     # ── 従タブ: 敷地別(邸はスパークライン+三巡則ゲージつき。邸を持たない敷地は
     #    issue 一覧だけ。「全体・基盤」は cross/infra をまとめた専用レーン)
     p.append('<div class="panel" data-panel="sites" hidden>')
-    p.append('<p class="sub" style="color:var(--muted);font-size:12.5px;margin:14px 0 4px">'
-             '敷地ごとに進み具合を見たいとき用。タスクを横断で探すなら「タスク一覧」タブへ。'
-             '上のフィルタの敷地の絞り込みはこちらにも効く。</p>')
+    p.append('<p class="pglead"><b>1行=1つの敷地。</b>指図を持つ邸は工程の帯と検分の関門で、'
+             "指図を起こさない類型の区画は欄ごとの確度で見る。"
+             'タスクを横断で探すなら「タスク一覧」タブへ。'
+             "上のフィルタの敷地の絞り込みはこの頁にも効く。</p>")
+    p.append(stage_rail_html(issues))     # 工程の帯(2026-09-22 に系図から移した)
+    p.append('<h2>敷地ごとの札<span class="h2note">検分の関門・直近のコミット・開いている件</span></h2>')
     p.append("<div class='lanes'>")
     for e, name in SITES.items():
         is_estate = e in ESTATES
@@ -1455,8 +1559,7 @@ def build_html(issues, pending, commits, claims, states, summary, reviews, typol
             p.append("</div>")
         mini = ""
         if now_d is not None:
-            import board_now
-            mini = board_now.lane_html(now_d, e)     # 窓の名乗り・Unity を使う/待つ・3時間の帯
+            mini = _sibling("board_now").lane_html(now_d, e)     # 窓の名乗り・Unity を使う/待つ・3時間の帯
         if mini:
             p.append(mini)
         elif cl:
@@ -1495,8 +1598,7 @@ def build_html(issues, pending, commits, claims, states, summary, reviews, typol
              '<div class="area">邸にも溜池・外堀にも紐づかない横断課題(方法論・基盤・座組)</div>'
              % (esc(CROSS_KEY), esc(CROSS_LABEL)))
     if now_d is not None:
-        import board_now
-        p.append(board_now.lane_html(now_d, ("infra", "cross")))
+        p.append(_sibling("board_now").lane_html(now_d, ("infra", "cross")))
     if cross_iss:
         p.append('<ul class="iss">%s</ul>' % "".join(issue_li(i, states) for i in cross_iss))
     else:
@@ -1513,24 +1615,28 @@ def build_html(issues, pending, commits, claims, states, summary, reviews, typol
              "全敷地に及ぶ課題は「共通」から各敷地へ辺が伸びる。%s</div>"
              % (("全敷地共通(敷地を特定しない)課題 %d件。" % rel["general"]) if rel["general"] else ""))
     p.append("</div>")
+
+    # ── 類型の車線(2026-09-19 施主裁定A)。2026-09-22 に**同じ「区画」タブへ畳んだ** —
+    #    「敷地別」と別のタブに分けていた頃は、同じ物(敷地)を二度見せていた。
+    ty = typology_body_html(typology)
+    if now_d is not None:      # この車線で動いている窓(Unity を使う/待つ・3時間の帯)を頭に置く
+        mini = _sibling("board_now").lane_html(now_d, "typology")
+        if mini:
+            ty = '<div class="ty-now">' + mini + "</div>" + ty
+    p.append(ty)
     p.append("</div>")  # panel sites
 
-    # ── 従タブ: 類型の車線(2026-09-19 施主裁定A)
-    ty = typology_panel_html(typology)
-    if now_d is not None:      # この車線で動いている窓(Unity を使う/待つ・3時間の帯)を頭に置く
-        import board_now
-        mini = board_now.lane_html(now_d, "typology")
-        if mini:
-            ty = ty.replace(">", ">" + '<div class="ty-now">' + mini + "</div>", 1)
-    p.append(ty)
-
-    # ── 従タブ: 系図(git の枝・枝の台帳・日ごとの手数)
-    p.append('<div class="panel" data-panel="graph" hidden>')
-    p.append(_graph_panel_html())
+    # ── セッション(2026-09-22 施主裁定 案A。旧「今」): Unity の座・窓ごとの時間の帯。焼いた時点の写し。
+    p.append('<div class="panel" data-panel="session" hidden>')
+    p.append('<p class="pglead"><b>1行=1つの窓(セッション)。</b>Unity の座は一度に一人しか使えない — '
+             "誰が使い、誰が何分待っているか。帯の左端が3時間前、右端が焼いた時刻。</p>")
+    p.append(_now_panel_html(now_d))
     p.append("</div>")
 
-    # ── 従タブ: 最近の動き
-    p.append('<div class="panel" data-panel="feed" hidden>')
+    # ── 系図(git の枝・枝の台帳・日ごとの手数)。2026-09-22 に「最近の動き」を畳んで合流させた。
+    p.append('<div class="panel" data-panel="graph" hidden>')
+    p.append('<p class="pglead"><b>1行=1つのコミット。</b>見せるのはリポジトリだけ — '
+             "枝がどこで分かれ、どこへ入ったか。敷地の進み具合は「区画」タブへ移した。</p>")
     p.append("<h2>最近の動き(全ブランチ)</h2><div class='scroll'><table class='feed'>")
     for c in commits[:20]:
         p.append('<tr><td class="t">%s</td><td class="e">%s</td>'
@@ -1538,12 +1644,14 @@ def build_html(issues, pending, commits, claims, states, summary, reviews, typol
                  % (esc(ago(c["t"])), esc(SITES.get(c["estate"], "—")),
                     esc(c["h"]), esc(c["s"])))
     p.append("</table></div>")
-    p.append("</div>")  # panel feed
+    p.append(_graph_panel_html())
+    p.append("</div>")  # panel graph
 
     p.append("<footer>Tools/Session/build_board_html.py が生成。正典: "
              ".git/edo-board(issue)/ docs/Sashizu/*_sashizu.json(_pending)/ "
              "docs/Sashizu/README.md(状態)。作法: docs/session-board.md<br>"
-             "タスク一覧は全敷地を1枚に出し、フィルタで絞る。要裁定・敷地別・最近の動きは別タブ。<br>"
+             "タブは4枚。1行が何かで分けてある — "
+             "タスク一覧=残件 / 区画=敷地 / セッション=窓 / 系図=コミット。<br>"
              "フィルタと並べ替えはこのページ内だけで完結する(サーバも保存も無い)。"
              "開いていたタブだけは次に開いたときも復元する。</footer>")
     p.append("</div>")

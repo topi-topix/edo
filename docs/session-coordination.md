@@ -61,6 +61,21 @@ python3 /Users/toshio/project/edo-unity/Tools/Session/edo_session.py status
 python3 /Users/toshio/project/edo-unity/Tools/Session/edo_board.py list
 ```
 
+### ⚠ 逆向きの罠 — **worktree から焼くと、兄弟の import がメインへ逸れる**(2026-09-22 実測)
+
+上は「worktree の古い写しを走らせるな」という話だが、**worktree の新しい写しを走らせているのに
+メインの写しが混ざる**ことがある。`Tools/Session/` の道具どうしは素の `import <兄弟>` で呼び合うが、
+`ROOT`(= 常にメインのチェックアウト)から `review_gate.py` などを exec すると、その中の
+`sys.path.insert(0, …)` で **メインの `Tools/Session/` が先頭に載る**。以後の `import` は静かにそちらへ行く。
+
+実害: `build_board_html.py` を worktree で直して焼いても、**系図と工程の帯だけメインの `repo_graph.py`
+から出る**。worktree の直しが頁に出ず、代わりにメインの**書きかけ**が載る(コミットされていない物が
+公開の頁に出る)。エラーは出ない。
+
+⭕ 兄弟は**自分の隣から名指しで読む** — `build_board_html._sibling("repo_graph")` がその形
+(`importlib.util.spec_from_file_location` + `sys.modules` に私名で登録)。
+⚠ **データ**(掲示板・指図)は今までどおり `ROOT` = メインから読んでよい。逸らさないのは**コード**だけ。
+
 `wait`/`unwait`/`--session` など聞き覚えのないサブコマンドが `invalid choice` で弾かれたら、
 まずこれを疑う——**バグではなく worktree の Tools/ が古いだけ**であることが多い。
 

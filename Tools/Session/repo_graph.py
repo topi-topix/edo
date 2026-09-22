@@ -341,26 +341,6 @@ section{margin:40px 0}
 .head .note{font-size:12px;color:var(--ink-3)}
 .head .spacer{flex:1}
 
-/* ── 生きている車線 ── */
-.lanes{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
-.lane{background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--ink-3);
-  padding:10px 12px;box-shadow:var(--shadow)}
-.lane.live{border-left-color:var(--shu)}
-.lane.idle{opacity:.72}
-.lane .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-.lane .sid{font-size:11.5px;color:var(--ink-3)}
-.lane .beat{font-size:11px;color:var(--ink-3)}
-.lane.live .beat{color:var(--shu);font-weight:700}
-.lane .note{font-size:12.5px;margin-top:4px;line-height:1.55}
-.lane .note.none{color:var(--ink-3)}
-.lane .tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
-.tag{font-size:10.5px;padding:1px 6px;border:1px solid var(--rule);color:var(--ink-2);
-  background:var(--surface-2);letter-spacing:.02em}
-.tag.res{border-color:var(--shu);color:var(--shu);background:transparent;font-weight:700}
-.tag.zone{border-color:var(--ai);color:var(--ai)}
-.lane .files{font-size:11px;color:var(--ink-3);margin-top:6px;line-height:1.5;
-  font-family:ui-monospace,Menlo,monospace;word-break:break-all}
-
 /* ── 工程の帯 ── */
 .estates{border:1px solid var(--rule);background:var(--surface)}
 .est{display:grid;grid-template-columns:minmax(140px,1.15fr) 172px minmax(150px,1.5fr) 54px;
@@ -465,13 +445,13 @@ footer code{font-family:ui-monospace,Menlo,monospace;background:var(--surface-2)
 
 <div class="vitals" id="vitals"></div>
 
-<section>
+<!--NOW--><section>
   <div class="head">
     <h2>いま動いている普請</h2>
-    <span class="note">心拍 15 分以内を「生きている」とする(TTL 45 分)</span>
+    <span class="note">心拍 15 分以内を「動いている」とする(TTL 45 分)</span>
   </div>
-  <div class="lanes" id="lanes"></div>
-</section>
+  __NOW__
+</section><!--/NOW-->
 
 <section>
   <div class="head">
@@ -568,22 +548,6 @@ document.getElementById('vitals').innerHTML = vit.map(function(o){
     '<div class="v num">'+o.v+'<small>'+esc(o.u)+'</small></div><div class="n">'+esc(o.n)+'</div></div>';
 }).join('');
 document.getElementById('asof').textContent = '読み取り '+D.gen;
-
-/* ── 車線 ── */
-document.getElementById('lanes').innerHTML = D.claims.map(function(c){
-  var isLive = c.beat <= 15;
-  var tags = c.estate.map(function(e){ return '<span class="tag zone">'+esc(e)+'</span>'; })
-    .concat(c.res.map(function(r){ return '<span class="tag res">'+esc(r)+' を占有</span>'; }))
-    .concat(c.phase ? ['<span class="tag">'+esc(c.phase)+'</span>'] : []).join('');
-  var files = c.files.slice(0,3).map(function(f){ return f.split('/').pop(); }).join(' / ');
-  if (c.files.length>3) files += ' ほか'+(c.files.length-3);
-  return '<div class="lane '+(isLive?'live':'idle')+'">'+
-    '<div class="top"><span class="sid mono">'+esc(c.sid)+'</span>'+
-    '<span class="beat num">心拍 '+c.beat.toFixed(1)+'分前</span></div>'+
-    '<div class="note'+(c.note?'':' none')+'">'+esc(c.note || '(札なし — 何をしているか掲げていない)')+'</div>'+
-    (tags?'<div class="tags">'+tags+'</div>':'')+
-    (files?'<div class="files">'+esc(files)+'</div>':'')+'</div>';
-}).join('');
 
 /* ── 工程 ── */
 var byEstate = {};
@@ -735,9 +699,21 @@ document.getElementById('foot').innerHTML =
 """
 
 
-def render(data):
+def render(data, now_html=None, embed=False):
+    """embed=True は一枚の「系図」タブへ埋める形 — 「いま動いている普請」は一枚の「今」タブが持つので落とす。
+    単体で刷るときは board_now の節(Unity の座・窓ごとの時間の帯)をそこへ入れる。"""
     payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
-    return TEMPLATE.replace("__DATA__", payload)
+    out = TEMPLATE.replace("__DATA__", payload)
+    if embed:
+        return re.sub(r"<!--NOW-->.*?<!--/NOW-->", "", out, flags=re.S)
+    if now_html is None:
+        try:
+            import board_now
+            now_html = board_now.html()
+        except Exception as e:  # 今が読めなくても系図は刷る
+            sys.stderr.write("repo_graph: 「今」を刷れない(%s)\n" % e)
+            now_html = '<p class="note">「今」を読めなかった</p>'
+    return out.replace("__NOW__", now_html)
 
 
 def selftest():

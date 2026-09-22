@@ -569,6 +569,7 @@ h2{font-family:'Shippori Mincho',serif;font-weight:600;font-size:17px;
 .tab .n{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-left:7px}
 .tab:focus-visible{outline:2px solid var(--ai);outline-offset:-2px}
 .panel[hidden]{display:none}
+.graphframe{display:block;width:100%;min-height:600px;border:1px solid var(--line);background:var(--card)}
 
 /* ── タスク一覧(全敷地を1枚で。これが主) */
 .tasks{width:100%;border-collapse:collapse;font-size:13.5px}
@@ -780,7 +781,19 @@ JS = """
     });
     panels.forEach(function(pl){ pl.hidden = pl.getAttribute('data-panel') !== name; });
     try { localStorage.setItem('edo_tab', name); } catch(e){}
+    if (name === 'graph') { setTimeout(fitGraph, 0); setTimeout(fitGraph, 500); }
   }
+  /* 系図は別の頁を srcdoc で埋めている。見えているときにだけ中身の高さを測り、テーマも引き継ぐ。 */
+  function fitGraph(){
+    var f = document.getElementById('graphFrame');
+    if (!f) return;
+    try {
+      var d = f.contentDocument, th = document.documentElement.getAttribute('data-theme');
+      if (th) d.documentElement.setAttribute('data-theme', th);
+      f.style.height = (d.documentElement.scrollHeight + 8) + 'px';
+    } catch(e){}
+  }
+  (function(){ var f = document.getElementById('graphFrame'); if (f) f.addEventListener('load', fitGraph); })();
   tabs.forEach(function(t){
     t.addEventListener('click', function(){ selectTab(t.getAttribute('data-tab')); });
     t.addEventListener('keydown', function(e){
@@ -1291,11 +1304,43 @@ def filterbar_html():
     return "".join(p)
 
 
+def _now_data(issues):
+    """「今」タブと敷地別の小さな帯の元。読めなくても一枚は焼く(2026-09-22 施主裁定 案A)。
+    名乗りの票番号(EDO-xxxx)から邸を引けるよう、掲示板の estate を渡す。"""
+    try:
+        import board_now
+        return board_now.collect(ticket_estate={i["id"]: i["estate"] for i in issues if i.get("id") and i.get("estate")})
+    except Exception as ex:
+        sys.stderr.write("⚠ 「今」を集められない(%s)— そのタブは空で焼く\n" % ex)
+        return None
+
+
+def _now_panel_html(now_d):
+    if now_d is None:
+        return '<p class="sub">「今」を読めなかった。Tools/Session/board_now.py を直に流すと理由が出る。</p>'
+    import board_now
+    return board_now.html(now_d)
+
+
+def _graph_panel_html():
+    """系図(git の枝と直近コミット・枝の台帳・日ごとの手数)。別の頁として焼いて srcdoc で埋める —
+    頁ごとの CSS が一枚の CSS とぶつからない。「いま動いている普請」は「今」タブが持つので落とす。"""
+    try:
+        import repo_graph
+        page = repo_graph.render(repo_graph.collect(110), embed=True)
+    except Exception as ex:
+        sys.stderr.write("⚠ 系図を焼けない(%s)— そのタブは空で焼く\n" % ex)
+        return '<p class="sub">系図を焼けなかった。Tools/Session/repo_graph.py を直に流すと理由が出る。</p>'
+    return ('<iframe id="graphFrame" class="graphframe" title="作業の系図" srcdoc="%s"></iframe>'
+            % html.escape(page, quote=True))
+
+
 def build_html(issues, pending, commits, claims, states, summary, reviews, typology):
     live = [i for i in issues if i["status"] not in ("done", "dropped")]
     waits = [i for i in live if i["status"] == "awaiting-user"]
     blks = [i for i in live if i["type"] == "blocker"]
     others = [i for i in live if i not in waits and i not in blks]
+    now_d = _now_data(issues)
     rel = build_relationships(issues)
     open_counts = {e: len(summary["estates"][e]["open_issues"]) for e in SITES}
     junsu_base = load_junsu_baseline()
@@ -1336,6 +1381,9 @@ def build_html(issues, pending, commits, claims, states, summary, reviews, typol
     # タブの数字は**一覧に出る件数**(既定は絞り込み無しなので完了・見送りも含む全件)。
     # open だけの数を出すと、既定表示の件数と食い違って読めない。
     p.append('<div class="tabs" role="tablist">')
+    p.append('<button class="tab" role="tab" data-tab="now" aria-selected="false">'
+             '今<span class="n">%d</span></button>'
+             % (len([w for w in now_d["rows"] if w["live"]]) if now_d else 0))
     p.append('<button class="tab" role="tab" data-tab="tasks" aria-selected="true">'
              'タスク一覧<span class="n">%d</span></button>' % len(issues))
     p.append('<button class="tab" role="tab" data-tab="sites" aria-selected="false">'
@@ -1343,8 +1391,15 @@ def build_html(issues, pending, commits, claims, states, summary, reviews, typol
     p.append('<button class="tab" role="tab" data-tab="typo" aria-selected="false">'
              '類型の車線<span class="n">%d</span></button>'
              % ((typology["total"] - typology["hand"]) if typology else 0))
+    p.append('<button class="tab" role="tab" data-tab="graph" aria-selected="false">'
+             '系図</button>')
     p.append('<button class="tab" role="tab" data-tab="feed" aria-selected="false">'
              '最近の動き</button>')
+    p.append("</div>")
+
+    # ── 今(2026-09-22 施主裁定 案A): Unity の座・窓ごとの時間の帯。焼いた時点の写し。
+    p.append('<div class="panel" data-panel="now" hidden>')
+    p.append(_now_panel_html(now_d))
     p.append("</div>")
 
     # ── 主タブ: 全敷地のタスクを1枚の表で。フィルタで絞る。
@@ -1398,7 +1453,13 @@ def build_html(issues, pending, commits, claims, states, summary, reviews, typol
                 p.append('<span class="gitem %s" title="%s">%s %s</span>'
                          % (cls, esc(r["state"]), r["mark"], esc(r["label"].split("(")[0])))
             p.append("</div>")
-        if cl:
+        mini = ""
+        if now_d is not None:
+            import board_now
+            mini = board_now.lane_html(now_d, e)     # 窓の名乗り・Unity を使う/待つ・3時間の帯
+        if mini:
+            p.append(mini)
+        elif cl:
             for c in cl:
                 p.append('<div class="kv">担当: <b class="n">%s</b>(心拍 %.0f分前)%s</div>'
                          % (esc(c["session"][:12]), (time.time() - c["heartbeat"]) / 60,
@@ -1433,6 +1494,9 @@ def build_html(issues, pending, commits, claims, states, summary, reviews, typol
     p.append('<div id="lane-cross" class="lane cross" data-site="%s"><h3>%s</h3>'
              '<div class="area">邸にも溜池・外堀にも紐づかない横断課題(方法論・基盤・座組)</div>'
              % (esc(CROSS_KEY), esc(CROSS_LABEL)))
+    if now_d is not None:
+        import board_now
+        p.append(board_now.lane_html(now_d, ("infra", "cross")))
     if cross_iss:
         p.append('<ul class="iss">%s</ul>' % "".join(issue_li(i, states) for i in cross_iss))
     else:
@@ -1452,7 +1516,18 @@ def build_html(issues, pending, commits, claims, states, summary, reviews, typol
     p.append("</div>")  # panel sites
 
     # ── 従タブ: 類型の車線(2026-09-19 施主裁定A)
-    p.append(typology_panel_html(typology))
+    ty = typology_panel_html(typology)
+    if now_d is not None:      # この車線で動いている窓(Unity を使う/待つ・3時間の帯)を頭に置く
+        import board_now
+        mini = board_now.lane_html(now_d, "typology")
+        if mini:
+            ty = ty.replace(">", ">" + '<div class="ty-now">' + mini + "</div>", 1)
+    p.append(ty)
+
+    # ── 従タブ: 系図(git の枝・枝の台帳・日ごとの手数)
+    p.append('<div class="panel" data-panel="graph" hidden>')
+    p.append(_graph_panel_html())
+    p.append("</div>")
 
     # ── 従タブ: 最近の動き
     p.append('<div class="panel" data-panel="feed" hidden>')

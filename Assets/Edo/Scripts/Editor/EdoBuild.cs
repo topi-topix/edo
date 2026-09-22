@@ -152,7 +152,9 @@ public static partial class EdoBuild
     /// <summary>**壁体**(屋根・軒・垂木・棟・桁を除く、見えているメッシュ)の頂点を世界座標で。
     /// <paramref name="maxSamples"/> は一様な添字間引きの上限(既定 900・性能優先)。
     /// ⚠ 一様な間引きは極値を落とすことがある — 隅部材(単一メッシュ 1.6〜1.8 万頂点)は 999999 を渡して
-    /// 間引かない(松江松平 2026-09-08: 留め継ぎの先端の疎な頂点が落ちて隙間を 0.46m と過大に出した)。</summary>
+    /// 間引かない(松江松平 2026-09-08: 留め継ぎの先端の疎な頂点が落ちて隙間を 0.46m と過大に出した)。
+    /// ⛔ **接地(地面との隙)を測るなら這って使わない** — <see cref="Contact(GameObject,out Vector3,out int,float,int)"/>
+    /// は格子ごとの最下点だけを拾う専用の集め方(<see cref="GroundCandidates"/>)を使う(EDO-0357)。</summary>
     /// <param name="withRoof">true なら屋根系のメッシュも含める。⭐ 屋根と屋根・軒と塀のように
     /// **屋根そのものが触れる取り合い**を測るときに使う(既定の false は壁の面を測るため)。</param>
     public static List<Vector3> Body(Transform tr, int maxSamples = 900, bool withRoof = false)
@@ -166,6 +168,62 @@ public static partial class EdoBuild
             var l2w = mf.transform.localToWorldMatrix; var vs = mf.sharedMesh.vertices;
             int step = Mathf.Max(1, vs.Length / Mathf.Max(1, maxSamples));
             for (int i = 0; i < vs.Length; i += step) L.Add(l2w.MultiplyPoint3x4(vs[i]));
+        }
+        return L;
+    }
+
+    /// <summary>接地(<see cref="Contact(GameObject,out Vector3,out int,float,int)"/>)専用の頂点集め。
+    /// <see cref="Body"/> の一様な添字間引き・単純な Y 昇順間引きのどちらも、**根元から離れた場所で
+    /// 先に着く駒**を落とす — 屋敷林は根元(局所Y最小)が地面と離れていて、斜面へ垂れた枝の方が先に
+    /// 着いていた(EDO-0357・2026-09-22 実測: 800 点で +1.05m「浮き」、全頂点では −0.06m。
+    /// 着いていた頂点は局所Yの下から 437/8432 番目で、根元でも樹冠でもない中腹だった)。
+    ///
+    /// <para>そこで局所 XZ を粗い格子(既定 <paramref name="maxSamples"/> の平方根角)に割り、
+    /// **格子ごとに局所Yが最小の頂点だけ**を残す。同じ(x,z)付近では地面の高さはほぼ一定なので、
+    /// 同じ格子内でそれより高い頂点は地面までの隙が必ずそれ以上になり、捨ててよい
+    /// (`docs/oki-kata.md` の部材どうしの Contact が使う「0.25m角の筋」と同じ考え方)。
+    /// 格子は局所 XZ で割る(据え付けは Y 軸まわりの回転のみという慣行なので、世界 XZ の格子と
+    /// ほぼ相似になる)。メッシュ資産ごとに 1 度だけ計算してキャッシュする(同じ部材を 79 区画へ
+    /// 量産で置く負荷を増やさないため)。</para></summary>
+    static readonly Dictionary<(Mesh, int), int[]> _groundCellCache = new Dictionary<(Mesh, int), int[]>();
+    static int[] LowestPerCell(Mesh m, int maxSamples)
+    {
+        var key = (m, maxSamples);
+        int[] keep;
+        if (_groundCellCache.TryGetValue(key, out keep)) return keep;
+        var vs = m.vertices;
+        float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
+        for (int i = 0; i < vs.Length; i++)
+        {
+            if (vs[i].x < mnx) mnx = vs[i].x; if (vs[i].x > mxx) mxx = vs[i].x;
+            if (vs[i].z < mnz) mnz = vs[i].z; if (vs[i].z > mxz) mxz = vs[i].z;
+        }
+        int gridN = Mathf.Max(1, Mathf.CeilToInt(Mathf.Sqrt(maxSamples)));
+        float sx = mxx - mnx, sz = mxz - mnz;
+        var best = new Dictionary<long, int>();
+        for (int i = 0; i < vs.Length; i++)
+        {
+            int ix = sx > 1e-6f ? Mathf.Clamp((int)((vs[i].x - mnx) / sx * gridN), 0, gridN - 1) : 0;
+            int iz = sz > 1e-6f ? Mathf.Clamp((int)((vs[i].z - mnz) / sz * gridN), 0, gridN - 1) : 0;
+            long cell = (long)ix * gridN + iz;
+            int cur;
+            if (!best.TryGetValue(cell, out cur) || vs[i].y < vs[cur].y) best[cell] = i;
+        }
+        keep = new int[best.Count]; best.Values.CopyTo(keep, 0);
+        _groundCellCache[key] = keep;
+        return keep;
+    }
+    static List<Vector3> GroundCandidates(Transform tr, int maxSamples)
+    {
+        var L = new List<Vector3>();
+        foreach (var mf in tr.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var rr = mf.GetComponent<Renderer>(); if (rr == null || !rr.enabled || !mf.gameObject.activeInHierarchy) continue;
+            if (IsRoofName(PartName(tr, mf))) continue;         // 接地は壁体で測る(屋根は除く・Body と同じ篩)
+            var l2w = mf.transform.localToWorldMatrix; var vs = mf.sharedMesh.vertices;
+            if (vs.Length <= maxSamples) { foreach (var v in vs) L.Add(l2w.MultiplyPoint3x4(v)); continue; }
+            foreach (var i in LowestPerCell(mf.sharedMesh, maxSamples)) L.Add(l2w.MultiplyPoint3x4(vs[i]));
         }
         return L;
     }
@@ -482,7 +540,7 @@ public static partial class EdoBuild
     /// bounds の中心)で位置を決めない。絶対に。**(2026-09-20 施主指摘「実物の底や地面では漏れる。接地箇所を測れ」)</para></summary>
     public static float Contact(GameObject go, out Vector3 at, out int count, float tol = 0.01f, int maxSamples = 4000)
     {
-        var pts = Body(go.transform, maxSamples);
+        var pts = GroundCandidates(go.transform, maxSamples);
         float best = float.NaN; at = go.transform.position; count = 0;
         if (pts.Count == 0) return best;
         var probe = Probe();                       // ⭐ 掴みは駒ごとに一つ(⛔ 頂点ごとに Ground を呼ばない)
@@ -796,6 +854,66 @@ public static partial class EdoBuild
                 if (bodyParts != null && !bodyParts.Contains(label)) bodyParts.Add(label);
                 var tri = mf.sharedMesh.GetTriangles(s);
                 for (int i = 0; i < tri.Length; i++) L.Add(W[tri[i]]);
+            }
+        }
+        return L;
+    }
+
+    /// <summary>メッシュ内の頂点添字を局所 Y 昇順に並べ替えた添字表(メッシュ資産ごとに 1 度だけ作ってキャッシュ)。
+    /// <see cref="BodyExRoof"/> の単一メッシュ間引きが使う下ごしらえ。</summary>
+    static readonly Dictionary<Mesh, int[]> _yOrderCache = new Dictionary<Mesh, int[]>();
+    static int[] YOrder(Mesh m)
+    {
+        int[] order;
+        if (_yOrderCache.TryGetValue(m, out order)) return order;
+        var vs = m.vertices;
+        order = new int[vs.Length];
+        for (int i = 0; i < order.Length; i++) order[i] = i;
+        Array.Sort(order, (i, j) => vs[i].y.CompareTo(vs[j].y));
+        _yOrderCache[m] = order;
+        return order;
+    }
+
+    /// <summary><see cref="Body"/> 相当だが、**単一メッシュに焼かれた駒**(庫裏・墓地・鐘楼・山門など、
+    /// Blender 側で屋根まで join した部材)も**材(サブメッシュ)の名**で屋根を見分けて落とす
+    /// (<see cref="BodyExRoofAt"/> の、実体化済み Transform 版)。
+    /// <para>⭐ 何を直したか(EDO-0358・2026-09-22): `Body(withRoof:false)` は駒の名前(<see cref="IsRoofName"/>)
+    /// でしか屋根を見分けないので、庫裏(VK.SmallHouse)・墓地・鐘楼・山門は一枚メッシュ(または屋根の子が
+    /// 篩の語に掛からない)で `Body(true)` と `Body(false)` の頂点数が同じだった。壁体だけを測るはずの判定
+    /// (境域侵犯の `OutsideBy` / 寺社境内の壁体マージン `JExt`)が軒先込みの外形にかかり、軒の越境が
+    /// 許容されず(裁定A)、狭い敷地で棟が入らない一因になっていた。</para>
+    /// <para>⛔ <see cref="Body"/> 自体は広げない — 接地(<see cref="Contact"/>)や取り合いなど他の用途が
+    /// 使っていて、篩を広げると他邸の実測値が黙って動く(<see cref="IsRoofLabel"/> の注記に同じ)。
+    /// 壁体と軒を厳密に分けたい呼び出し側だけ、こちらへ切り替える。</para></summary>
+    public static List<Vector3> BodyExRoof(Transform tr, int maxSamples = 900)
+    {
+        var L = new List<Vector3>();
+        foreach (var mf in tr.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var rr = mf.GetComponent<Renderer>(); if (rr == null || !rr.enabled || !mf.gameObject.activeInHierarchy) continue;
+            // ⛔ 根の GameObject 名は使わない(Place() の呼び名で "mune" 等を誤検知する — PartName と同じ理由)。
+            if (IsRoofLabel(PartName(tr, mf)) || IsRoofLabel(mf.sharedMesh.name)) continue;
+            var l2w = mf.transform.localToWorldMatrix;
+            var vs = mf.sharedMesh.vertices;
+            var mats = rr.sharedMaterials;
+            if (mf.sharedMesh.subMeshCount <= 1)
+            {
+                if (vs.Length <= maxSamples) { foreach (var v in vs) L.Add(l2w.MultiplyPoint3x4(v)); }
+                else
+                {
+                    var order = YOrder(mf.sharedMesh);
+                    int step = Mathf.Max(1, order.Length / Mathf.Max(1, maxSamples));
+                    for (int i = 0; i < order.Length; i += step) L.Add(l2w.MultiplyPoint3x4(vs[order[i]]));
+                }
+                continue;
+            }
+            for (int s = 0; s < mf.sharedMesh.subMeshCount; s++)
+            {
+                string mat = s < mats.Length && mats[s] != null ? mats[s].name : "";
+                if (IsRoofLabel(mat)) continue;
+                var tri = mf.sharedMesh.GetTriangles(s);
+                for (int i = 0; i < tri.Length; i++) L.Add(l2w.MultiplyPoint3x4(vs[tri[i]]));
             }
         }
         return L;

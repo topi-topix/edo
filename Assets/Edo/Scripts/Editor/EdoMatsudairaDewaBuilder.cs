@@ -4060,6 +4060,12 @@ public static partial class EdoMatsudairaDewaBuilder
     ///   — 忘れると真っ白のまま気づかれない(門・番所で 2026-08-31 に踏んだのと同じ型)。</summary>
     [MenuItem("Edo/松平出羽守上屋敷/附属屋・門・木のマテリアルをremap")]
     public static void RemapFuzokuyaMenu() { Debug.Log("[Matsudaira] " + RemapFuzokuya()); }
+
+    /// <summary>同じ処理を邸名の下でなく呼べる別名(EDO-0304)。donorDirs/modelDirs は
+    /// <see cref="RemapFuzokuya"/> と同一 — 類型ビルダーが焼く附属屋(Fuzokuya/米蔵・厩・作事小屋等)は
+    /// 松江松平以外の全邸にも置かれるので、「松江松平の下のメニュー」でしか引けないのは誤り。</summary>
+    [MenuItem("Edo/共通/附属屋・門・木のマテリアルをremap")]
+    public static void RemapFuzokuyaMenuCommon() { Debug.Log("[類型] " + RemapFuzokuya()); }
     public static string RemapFuzokuya()
     {
         string[] donorDirs = {

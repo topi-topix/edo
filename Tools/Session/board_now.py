@@ -311,6 +311,11 @@ def collect(now=None, live=None, queue=None, hist=None, ticket_estate=None, win_
     #   finish のあとの touch() で claim は作り直されるので、そのままだと閉じた窓が
     #   閉じた票の題を掲げて『働いている』と出続けた(2026-09-22 施主指摘)。
     #   終わった事跡は下の「終わった仕事」の節が持つ。
+    # ⛔ **仕舞った窓は待ち行列にも居ない**(EDO-0379)。`finish` は列から降りるようになったが、
+    #   板は元データが古くても嘘を出さない側で持つ: 仕舞った時刻を控え、待ちの帯はそこで切り、
+    #   「いま並んでいる」とは数えない(2026-09-22 施主指摘。閉じた EDO-0323 の窓が
+    #   『Unity の座』の 1 番に 174 分待ちで出続けた)。
+    fin_at = {c["session"]: c["finished"] for c in live if c.get("finished")}
     live = [c for c in live if not c.get("finished")]
     for c in live:
         w = row(c["session"])
@@ -343,20 +348,31 @@ def collect(now=None, live=None, queue=None, hist=None, ticket_estate=None, win_
     for x in waits:
         if x.get("t1", 0) > t0 and x.get("session"):
             row(x["session"])["segs"].append((max(x.get("t0", t0), t0), x["t1"], "stall"))
+    livesids = {c["session"] for c in live}
+    qsids = {q["session"] for q in queue if q["session"] not in fin_at}
     for q in queue:
         w = row(q["session"])
-        w["segs"].append((max(q["since"], t0), now, "wait"))
-        w["wait_from"] = q["since"]
+        end = fin_at.get(q["session"])           # 仕舞った窓の待ちはそこで終わっている
+        w["segs"].append((max(q["since"], t0), end or now, "wait"))
+        if not end:
+            w["wait_from"] = q["since"]
         w["note"] = w["note"] or q.get("note", "")
 
     for (sid, kind), sp in spans.items():
         w = row(sid)
+        end = fin_at.get(sid)                    # 仕舞った窓の「終わっていない区間」はそこで切る
         for a, b in sp:
-            b = b if b is not None else now
+            b = b if b is not None else (end or now)
             if b > t0:
                 w["segs"].append((max(a, t0), b, kind))
-                if kind == "wait" and sp[-1][1] is None:
-                    w["wait_from"] = min(w["wait_from"] or a, a)
+        # ⛔ **待ちの起点は「いま続いている待ち」の始まり。**以前の待ち(既に終わった区間)まで
+        #   遡って最小値を採ると、その窓が一度も列を離れていないかのように見える
+        #   (EDO-0379: 12:06 の待ちは 12:17 に終わっていたのに『174 分待ち』と出た)。
+        # ⛔ 記録に **`unwait` が書かれないまま途切れた待ち**は「いま並んでいる」ではない。
+        #   正典は待ち行列そのもの(と生きている claim)— そこに居ない窓は帯にだけ残す。
+        if kind == "wait" and sp[-1][1] is None and not end and sid in (livesids | qsids):
+            a0 = sp[-1][0]
+            w["wait_from"] = min(w["wait_from"], a0) if w["wait_from"] else a0
 
     named, mute = [], []
     for w in rows.values():
@@ -741,6 +757,24 @@ def selftest():
     assert "EDO-0361" in h3 and "1.5時間" in h3 and "残 1" in h3 and "名前E" in h3, h3
     assert fin_rows(log, n, days=1, namer=lambda s: "") == [], "古い仕舞いは落ちる"
     assert html(collect(now=n, live=[], queue=[], hist=[]), css=False).count("空いている") == 1
+    # EDO-0379 ①: 仕舞った窓は待ち行列に出さない(元データが古くても板は嘘を出さない)
+    fin6 = [dict(session="iiiiiiii-999", started=n - 9000, heartbeat=n - 2000, paths=[], resources=[],
+                 note="EDO-0402 閉じた窓", finished=n - 2400)]
+    d6 = collect(now=n, live=fin6, hist=[], namer=lambda s: "", states={}, waits=[],
+                 queue=[dict(session="iiiiiiii-999", since=n - 9000, note="")],
+                 events=[dict(t=n - 9000, session="iiiiiiii-999", resource="unity", event="wait")])
+    assert not [w for w in d6["rows"] if w["wait_from"]], "仕舞った窓は待っていない"
+    assert "待っている人はいない" in html(d6), "閉じた窓を『N 番・M 分待ち』に出さない"
+    assert all(b <= n - 2400 for w in d6["rows"] for _, b, _ in w["segs"]), "帯は仕舞った時刻で切る"
+    # EDO-0379 ②: 待ちの起点は**いま続いている待ち**(既に終わった待ちまで遡らない)
+    live7 = [dict(session="jjjjjjjj-000", started=n - 10000, heartbeat=n - 30, paths=[], resources=[],
+                  note="EDO-0403 待っている窓")]
+    ev7 = [dict(t=n - 10000, session="jjjjjjjj-000", resource="unity", event="wait"),
+           dict(t=n - 9000, session="jjjjjjjj-000", resource="unity", event="unwait"),
+           dict(t=n - 600, session="jjjjjjjj-000", resource="unity", event="wait")]
+    d7 = collect(now=n, live=live7, queue=[], hist=[], events=ev7, namer=lambda s: "", states={}, waits=[])
+    assert d7["rows"][0]["wait_from"] == n - 600, d7["rows"][0]["wait_from"]
+    assert "10分待ち" in html(d7) and "166分待ち" not in html(d7), "前の待ちまで遡らない"
     print("selftest ok")
 
 

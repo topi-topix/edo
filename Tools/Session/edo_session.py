@@ -125,7 +125,12 @@ def q_load():
         q = json.load(open(QUEUE, encoding="utf-8"))
     except Exception:
         return {}
-    live = {c["session"] for c in load_all()}
+    # ⛔ **仕舞った窓(`finish` の印)を生きていると数えない**(EDO-0379)。claim は finish の
+    #   あとも touch() で作り直される(`mine()` が印を残したまま返す)ので、ここで印を見ないと
+    #   閉じた窓が待ち行列の**先頭に居座り**、空いた資源の予約が誰も居ない窓へ出て、後ろの
+    #   全員が RESERVE_MIN ずつ待たされる(2026-09-22 施主指摘・EDO-0323 の窓が 174 分待ちで
+    #   板に出続けた)。TTL(45 分)切れを待たずにここで落とす。
+    live = {c["session"] for c in load_all() if not c.get("finished")}
     out = {}
     for r, ws in q.items():
         # 死んだセッションの待ちは落とす。予約が切れたものも待ちに戻す
@@ -148,6 +153,11 @@ def q_enqueue(r, me, note=""):
     # ⚠ 待ち人にも claim(=心拍)が要る。無いと q_load の生存判定で自分が即座に落ち、
     #   何度並んでも「1番目」に戻り続ける(2026-08-30 の検査で実際に踏んだ)。
     touch(me)
+    # ⛔ 仕舞い済みの窓は並べない。並べても q_load の生存判定が即座に落とすので、
+    #   何度打っても「1 番目」に戻り続ける(2026-08-30 に claim 無しで踏んだのと同じ形)。
+    #   続けるなら `start <敷地> --task EDO-xxxx` を打ち直して墓標を外すこと。
+    if fin_at(me):
+        return 0
     q = q_load()
     ws = q.setdefault(r, [])
     for i, w in enumerate(ws):
@@ -168,6 +178,16 @@ def q_drop(r, me):
     if not q[r]:
         q.pop(r, None)
     q_save(q)
+
+
+def q_drop_all(me):
+    """この窓を**全ての**待ち行列から降ろす。戻り値: 降りた資源名。
+    ⛔ `finish` がこれを呼ばないと、閉じた窓が待ち行列に残る(EDO-0379)。"""
+    q = q_load()
+    got = [r for r, ws in q.items() if any(w["session"] == me for w in ws)]
+    for r in got:
+        q_drop(r, me)
+    return got
 
 
 def q_head(r):
@@ -236,7 +256,10 @@ def sid(default=None, strict=True):
         #   claim が二重に立っていた。
         return e[:SID_LEN]
     here = os.path.realpath(os.getcwd())
-    same = [c for c in load_all() if os.path.realpath(c.get("cwd", "")) == here]
+    # ⚠ 仕舞った窓(`finish` の印)は候補に入れない — 閉じた窓のぶんだけ「決められない」が
+    #   増え、生きている窓が1つしか無くても EDO_SESSION_ID を強いられる(EDO-0379)。
+    same = [c for c in load_all()
+            if os.path.realpath(c.get("cwd", "")) == here and not c.get("finished")]
     # ⛔ **曖昧なら推測しない(EDO-0044)。** 「同じ cwd の最新の心拍」を引き継ぐ実装は、
     #   全セッションがメインのチェックアウトを共有すると**直前に動いた誰か**を指す。
     #   2026-08-30、これで土井の claim が山王の記録へ入り、松平の note が土井に上書きされ、
@@ -587,6 +610,11 @@ def take_resource(me, r, ttl=TTL_MIN):
     hold = [c for c in cs if c["session"] != me and r in c.get("resources", [])]
     if hold and not res_stale(hold[0], r):
         n = q_enqueue(r, me)
+        if not n:      # 仕舞い済みの窓 — 並べても落ちるので並べない(EDO-0379)
+            return False, ("⛔ 門番: %s は**セッション %s** が使用中。\n"
+                           "   ⚠ この窓は既に仕舞い済み(`finish`)なので待ち行列へは並べなかった。\n"
+                           "   → 続けるなら `edo_session.py start <敷地> --task EDO-xxxx` を打ち直すこと。"
+                           % (r, hold[0]["session"]))
         return False, ("⛔ 門番: %s は**セッション %s** が使用中(最終使用 %.0f 分前)。\n   %s\n"
                        "   → **待ち行列に並べた(%d 番目)。** 空けば先頭のあなたに %.0f 分の予約が出る。\n"
                        "   順番は `status`。降りるなら `unwait --resources %s`。"
@@ -688,6 +716,10 @@ def cmd_wait(a):
             print("%s は空いている(待つ必要なし)。そのまま使えば claim が付く" % r)
             continue
         n = q_enqueue(r, me, a.note or "")
+        if not n:      # 仕舞い済みの窓(EDO-0379)
+            print("⛔ この窓は仕舞い済み(`finish`)なので %s の待ち行列へは並べなかった。\n"
+                  "  続けるなら `start <敷地> --task EDO-xxxx` を打ち直すこと。" % r, file=sys.stderr)
+            continue
         print("待ち行列: %s の %d 番目に並んだ(いまの使用者 %s・最終使用 %.0f分前)。\n"
               "  空けば先頭のあなたに %.0f 分の予約が出る。使用者から連絡が来る決まり。"
               % (r, n, hold[0]["session"], res_idle(hold[0], r), RESERVE_MIN))
@@ -844,6 +876,11 @@ def cmd_finish(a):
         os.remove(fp)
     else:
         freed = []
+    # ⛔ **握っていた資源を返すだけでは足りない — 待っていた列からも降りる**(EDO-0379)。
+    #   降りずに閉じると、閉じた窓が待ち行列の先頭に残り、次に資源が空いたときの予約が
+    #   誰も居ない窓へ出て、後ろの全員が RESERVE_MIN 待たされる。板にも「N 番・M 分待ち」と
+    #   出続ける(2026-09-22 施主指摘。閉じた EDO-0323 の窓が 174 分待ちで 1 番に居た)。
+    dropped = q_drop_all(me)
     # ⭐ 窓を仕舞った印を置き、窓の今の刻みも消す(EDO-0366)。これが無いと、このあとの
     #   どんな touch() でも claim が作り直され、板に元の票のまま『働いている』と出続ける。
     fin_mark(me, closed or tasks)
@@ -851,6 +888,8 @@ def cmd_finish(a):
         os.remove(os.path.join(SESS_DIR, me + ".now.json"))
     except OSError:
         pass
+    if dropped:
+        print("  待ち行列からも降りた: %s" % "・".join(dropped))
     print("finish: %s の窓を閉じた(%s)"
           % (me, ("閉じた票 " + "・".join(closed)) if closed
              else ("票は閉じず " + "・".join(tasks)) if tasks else "票なし"))
@@ -1315,11 +1354,15 @@ def cmd_commit(a):
 
 
 def _selftest_finish():
-    """仕舞った窓が生き返らないこと(EDO-0366)。⛔ 落ちたら、閉じた窓が板に『働いている』と出る。"""
+    """仕舞った窓が生き返らないこと(EDO-0366)と、**待ち行列に残らない**こと(EDO-0379)。
+    ⛔ 落ちたら、閉じた窓が板に『働いている』『N 番・M 分待ち』と出て、空いた資源の予約が
+       誰も居ない窓へ出る(後ろの全員が RESERVE_MIN ずつ待たされる)。"""
     import tempfile
-    global LOCKS, SESS_DIR
-    keep, tmp = (LOCKS, SESS_DIR), tempfile.mkdtemp()
+    global LOCKS, SESS_DIR, QUEUE, RESLOG
+    keep, tmp = (LOCKS, SESS_DIR, QUEUE, RESLOG), tempfile.mkdtemp()
     LOCKS, SESS_DIR = os.path.join(tmp, "locks"), os.path.join(tmp, "sess")
+    # ⛔ 本物の待ち行列・本物の資源の記録を試験で書き換えない(板に試験の窓が出る)
+    QUEUE, RESLOG = os.path.join(tmp, "queue.json"), os.path.join(tmp, "resources.jsonl")
     os.makedirs(LOCKS), os.makedirs(SESS_DIR)
     ng, s = 0, "selftst0-fin"
 
@@ -1338,8 +1381,26 @@ def _selftest_finish():
         fin_clear(s)
         touch(s)
         chk("新しい仕事を名乗れば印は外れる", not (load_all() or [{}])[0].get("finished"))
+
+        # ── 待ち行列(EDO-0379)。閉じた窓が列に残ると、予約が誰も居ない窓へ出る
+        other = "selftst1-oth"
+        touch(other, paths=["sashizu:typology"])
+        chk("並べる", q_enqueue("unity", s) == 1 and q_enqueue("unity", other) == 2)
+        fin_mark(s, ["EDO-0002"])
+        chk("仕舞った窓は待ち行列から消える(生存判定)",
+            [w["session"] for w in q_load().get("unity", [])] == [other])
+        chk("予約は生きている窓の先頭へ出る", (q_reserve("unity") or {}).get("session") == other)
+        chk("仕舞った窓は並び直せない(いつまでも1番を防ぐ)", q_enqueue("unity", s) == 0)
+        fin_clear(s)
+        touch(s, resources=["unity"])
+        q_enqueue("unity", s)
+        chk("q_drop_all は全ての列から降ろす",
+            "unity" in q_drop_all(s) and s not in [w["session"] for w in q_load().get("unity", [])])
+        # ⚠ 輪に繋がっていない直しは検査にならない(規則19)。`finish` がこれを**呼ぶ**ことまで見る。
+        import inspect
+        chk("finish が待ち行列から降りる口を呼んでいる", "q_drop_all(me)" in inspect.getsource(cmd_finish))
     finally:
-        LOCKS, SESS_DIR = keep
+        LOCKS, SESS_DIR, QUEUE, RESLOG = keep
     return ng
 
 

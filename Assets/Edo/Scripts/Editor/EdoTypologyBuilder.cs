@@ -53,6 +53,8 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         public int maguchiKen, depthKen;
         public bool twoSided, jishinban, inari;
         public bool kuri, yagura, shoro, sanmon, graveyard;
+        // ⭐ 本堂(坊・社家は主屋)の間数 [桁行, 梁間]。EDO-0354 まで**ビルダーが名を読みもしない欄**だった。
+        public int hallW, hallD;
         // ⭐ 主屋の型(EDO-0327)。goten / omote_oku / ganko / ujigata / tanoji。
         //    ⛔ 2026-09-21 まで Plan() は rank でしか分岐せず、defaults の omoya は**足しても
         //    建つ姿が変わらない**欄だった(typology_check の inert_defaults が毎朝刷っていた)。
@@ -78,6 +80,19 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         object v; if (!d.TryGetValue(k, out v) || v == null) return dflt;
         double o; if (double.TryParse(v.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out o)) return (int)o;
         return dflt;
+    }
+    /// <summary>整数の配列(`main_hall_ken` = [桁行, 梁間] など)。無い・短いときは null。</summary>
+    static int[] IA(Dictionary<string, object> d, string k)
+    {
+        object v; if (!d.TryGetValue(k, out v)) return null;
+        var l = v as List<object>; if (l == null) return null;
+        var r = new int[l.Count];
+        for (int i = 0; i < r.Length; i++)
+        {
+            double o; if (!double.TryParse(l[i].ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out o)) return null;
+            r[i] = (int)o;
+        }
+        return r;
     }
     static bool Bo(Dictionary<string, object> d, string k, bool dflt)
     {
@@ -160,6 +175,8 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 omoya = S(d, "omoya"), hoshiba = S(d, "hoshiba"),
                 tacchu = I(d, "tacchu", 0), tokinokane = Bo(d, "tokinokane", false),
             };
+            var hall = IA(d, "main_hall_ken");
+            if (hall != null && hall.Length >= 2) { s.hallW = hall[0]; s.hallD = hall[1]; }
             _table[kv.Key] = s;
         }
     }
@@ -272,15 +289,23 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
     /// <para>⭐ 由来: 安部摂津守の表門は 8m の袋小路の突き当り(切絵図の実見)で、長屋門 22.5m は載らない。
     /// 史料どおり門はそこにあるので、⛔ 格式を落として狭い門に替えない・⛔ 敷地の外へ出したままにしない
     /// (区域侵犯は許容0・規則4)。⛔ 軒では判定しない — 軒は越えてよい(裁定A)。
-    /// → `docs/oki-kata.md` §4</para></summary>
+    /// → `docs/oki-kata.md` §4</para>
+    ///
+    /// <para>⛔ 2026-09-22 まで折り込みの止め所が「侵犯 0.60m 未満」で、辺と噛み合わない分を
+    /// 0.6m まで残したまま止まっていた(EDO-0359 — 33 件で 0.37〜0.58m の壁体侵犯が残った)。
+    /// 門は許容0(規則4)なので止め所は 0 — 折り込む量は**型ごとの定数ではなく、その巡の実測**
+    /// (<see cref="OutsideBy"/> が壁体の実頂点から返す侵犯量)からそのつど出す。</para></summary>
     static float TuckInside(GameObject go, Vector2[] poly, Vector2 outward, List<string> log)
     {
         float moved = 0f;
-        const float STEP = 0.25f, CAP = 14f;
-        while (OutsideBy(poly, go.transform, false) > 0.60f && moved < CAP)
+        const float CAP = 14f;
+        for (int i = 0; i < 8 && moved < CAP; i++)
         {
-            go.transform.position -= new Vector3(outward.x, 0f, outward.y) * STEP;
-            moved += STEP;
+            float over = OutsideBy(poly, go.transform, false);
+            if (over <= 0f) break;
+            float step = Mathf.Min(over + 0.02f, CAP - moved);   // 実測の侵犯量から折り込み量を直に出す
+            go.transform.position -= new Vector3(outward.x, 0f, outward.y) * step;
+            moved += step;
         }
         if (moved > 0f)
         {
@@ -627,6 +652,9 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 string.Format("・⚠ {0}干場だが竿と張り板の部材が無く未建(地表 {1} と柵だけ)",
                               s.hoshiba == "konya" ? "紺屋" : s.hoshiba == "kappa" ? "合羽" : s.hoshiba,
                               s.surface ?? "dirt"));
+        // ⭐ 寺社の境内は別の置き方(EDO-0354)— 棟ごとの実外形で本堂を軸へ・墓地と鐘楼を縁の帯へ。
+        //    Spot() の格子点+半径では、狭い境内(成満寺 248 坪)で 4 棟のうち 2 棟が入らなかった。
+        if (s.type == "jisha") return JishaOmoya(s, root, poly, front, pad, gateC);
         var g = Group("Tatemono", root);
         var c = Inner(poly, SETBACK);
         if (c.Count == 0) return "  ⛔ 主屋: 区画が狭く、囲いの内側に置ける場所が無い";
@@ -744,6 +772,15 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
             string.Join(" ", kinds.ToArray()), gotenNote);
     }
 
+    /// <summary>二つの駒を**互いへ押し付ける向き**(a から b・水平)。⛔ 駒の基準点(ピボット)から基準点へ
+    /// 向けない — 基準点は部材ごとに端・角・中心とばらばらで、長い駒(御殿複合 80m 超)では向きが軸に沿って
+    /// −11.9m の嘘のめり込みが出た(2026-09-22・規則21)。**外形の中心どうし**で向ける。</summary>
+    static Vector3 PairDir(GameObject a, GameObject b)
+    {
+        var d = EdoBuild.RB(b).center - EdoBuild.RB(a).center; d.y = 0f;
+        return d;
+    }
+
     /// <summary>この区画の主屋の型。⭐ **表の `omoya` が勝ち**、書いていないときだけ格帯から採る
     /// (割り当ては docs/typology-builder.md §4 の表と同じ)。⛔ 格帯を先に見ない — 区画に書いた
     /// 史料値が既定に負ける(表の約束は「区画の欄が null のときビルダーが既定から採る」)。</summary>
@@ -764,15 +801,6 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
     {
         var L = new List<KeyValuePair<string, float>>();
         Action<string, float, int> add = (p, r, k) => { for (int i = 0; i < k; i++) L.Add(new KeyValuePair<string, float>(p, r)); };
-    /// <summary>二つの駒を**互いへ押し付ける向き**(a から b・水平)。⛔ 駒の基準点(ピボット)から基準点へ
-    /// 向けない — 基準点は部材ごとに端・角・中心とばらばらで、長い駒(御殿複合 80m 超)では向きが軸に沿って
-    /// −11.9m の嘘のめり込みが出た(2026-09-22・規則21)。**外形の中心どうし**で向ける。</summary>
-    static Vector3 PairDir(GameObject a, GameObject b)
-    {
-        var d = EdoBuild.RB(b).center - EdoBuild.RB(a).center; d.y = 0f;
-        return d;
-    }
-
         if (s.type == "buke")
         {
             // ⭐ 主屋の型は**表の `omoya` が勝つ**(区画 > defaults > 格帯。EDO-0327)。
@@ -810,28 +838,8 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
             // ⚠ 馬場(s.baba)はまだ建てない — 建物でなく地表+垣根で、垣根の run は EdoBuild の
             //    持ち場(規則21)。既定は全格 false なので今日は誰にも効かない(EDO-0304 の残り)。
         }
-        else if (s.type == "jisha")
-        {
-            // ⛔ 本堂を持つのは temple だけ。坊(住坊)と社家は書院造の主屋で、表の kuri が false の
-            //    区画(山王の社人八家=神職の小屋敷)に庫裏を建てない — 表に無い棟を発明しない。
-            add(s.kind == "temple" ? EdoAssets.VK.BigHouse : EdoAssets.VK.House, 12f, 1);
-            if (s.kuri) add(EdoAssets.VK.SmallHouse, 8f, 1);                          // 庫裏
-            add(EdoAssets.Eg.Kura, 6f, Mathf.Clamp(s.kura, 0, 2));
-            // ⭐ 鐘楼と墓地(部材方 EDO-0318 ③④・2026-09-21 結線)。⛔ 2026-09-21 まで表の
-            //    `shoro` / `graveyard` は**読むだけで一度も建てない**欄だった(wiring_gate が毎朝刷っていた)。
-            //    在庫の `obj_shoro1` は ES 後 1.45m の灯籠級で代用にならない(在庫方 09-21)。
-            if (s.shoro) add(EdoAssets.Own.Shoro(3f), 5f, 1);            // 袴腰 3間角 W5.88・棟天端 6.94
-            if (s.graveyard) add(EdoAssets.Own.Bochi(6f, 4f), 7f, 1);    // 一画を一体で W10.91 × D7.27
-            // ⭐ 塔頭(子院)— 澄泉寺 3 寺(EDO-0327)。⚠ 子院の専用部材は無く、庫裏と同じ小屋の流用。
-            //    ⛔ 塔頭は本来それぞれ門と囲いを持つ一画だが、ここでは棟だけを建てる(部材の宿題)。
-            add(EdoAssets.VK.SmallHouse, 7f, Mathf.Clamp(s.tacchu, 0, 4));
-            // ⭐ 時の鐘(成満寺=本石町に次ぐ江戸の二番鐘)。鐘楼そのものは `shoro` が建てるので、
-            //    ここでは**表が時の鐘と書いていて鐘楼が立たない**矛盾だけを埋める。
-            //    ⚠ 時の鐘としての作り分け(丈・撞座・通りへの向き)は未実装 — 部材と置き方の宿題。
-            if (s.tokinokane && !s.shoro) add(EdoAssets.Own.Shoro(3f), 5f, 1);
-            // ⚠ `sanmon` の欄は門の欄(`gate`)と同じ物を二度書いている — 山門は GatePath() が
-            //    表門として建てるので、ここでは何も足さない(足すと境内に山門が2基立つ)。
-        }
+        // ⛔ jisha はここに書かない(2026-09-22・EDO-0354)。本堂・庫裏・蔵・鐘楼・墓地・塔頭は
+        //    Omoya() が JishaOmoya(EdoTypologyBuilder.Jisha.cs)へ渡す — 棟ごとの実外形で置く。
         // ⛔ 町屋はここに書かない(2026-09-21・EDO-0325)。表店は**接道辺の run** で建てる
         //    (EdoTypologyBuilder.Machiya.cs の Stage 3m → EdoBuild.MachiyaRun)。
         //    ここに在った分岐は `houses/6` を 2〜14 に丸めた棟数を積み、Spot() が区画の**内側の格子点へ
@@ -921,7 +929,10 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         float worstOut = 0f, worstSunk = 0f, worstFloat = 0f, worstRelief = 0f, worstEave = 0f;
         foreach (Transform grp in root)
         {
-            float tol = (grp.name == "Kakoi" || grp.name == "Mon") ? 0.6f : 0f;  // 塀と門は境界線の上に立つ
+            // ⛔ 2026-09-22 まで「Mon」もここに入っていて、辺に載らない門を折り込んでも残る
+            //    0.37〜0.58m の壁体侵犯を見逃していた(EDO-0359)。塀は境界線の**上**に乗って建つので
+            //    遊びを持つが、門は遊び 0(規則4・関数冒頭の注記どおり)。
+            float tol = grp.name == "Kakoi" ? 0.6f : 0f;  // 塀だけ境界線の上に立つ
             foreach (Transform t in grp)                   // 群の直下 = 据えた駒ひとつ
             {
                 var rs = t.GetComponentsInChildren<Renderer>();
@@ -950,8 +961,8 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                     dy = EdoBuild.Contact(t.gameObject, out at, out nc, 0.01f, 60000);
                 // ⭐ **一続きの複合は棟ごとに測る。**⛔ 複合ぜんたいの Contact は**子の最小**を返すので、
                 //    塚に載った 1 棟が 0.00m を返すと、他の 6 棟が 2.1m 浮いていても「⭕ 0.00m」になる。
-                //    2026-09-22 の戸田・阪部・松平がこれで、数値の関門は全部通ったのに
-                //    検証レンダでは建物の下を光が抜けていた(EDO-0318 ⑥・規剉19「0 件は合格ではない」)。
+                //    2026-09-22 の戸田・阿部・松平がこれで、数値の関門は全部通ったのに
+                //    検証レンダでは建物の下を光が抜けていた(EDO-0318 ⑥・規則19「0 件は合格ではない」)。
                 if (t.name == "Goten" && t.childCount > 1)
                 {
                     float lo = dy, hi = dy;

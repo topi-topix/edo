@@ -300,6 +300,60 @@ public static partial class EdoBuild
         return made;
     }
 
+    // ---------- 練塀 run(一体物・EDO-0351) ----------
+    // DobeiRun(表裏2枚の板塀)と違い Dobei2m は1駒で厚みを持つ一体物なので、side ループは無い。
+    // 走り方向は RunMeasure/ButtOnRun の実寸カーソル(PanelRun と同じ idiom)。
+    // 開口(門)の脇で塀が行き止まる自由端だけ Dobei2mEnd(妻塞ぎ)に差し替える —
+    // 辺の外側の隅(区画の角)は塀の Kado 留め継ぎが未解決なので、従来どおり開放のまま置く
+    // (DobeiRun にも無かった隅の扱いをここで新たに約束しない・kado-mitre-parts.md)。
+    public static List<GameObject> NeribeiRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string prefix,
+        bool followGround, float flatBase, Vector2 gapC, float gapHalf)
+    {
+        var made = new List<GameObject>();
+        Vector2 dir = (B - A).normalized; float len = (B - A).magnitude;
+        float bodyLen = RunMeasure(EdoAssets.Own.Dobei2m).W;
+        var segs = new List<float[]>();
+        if (gapHalf > 0)
+        {
+            float gT = Vector2.Dot(gapC - A, dir);
+            if (gT - gapHalf > 0f) segs.Add(new float[] { 0f, Mathf.Min(gT - gapHalf, len) });
+            if (gT + gapHalf < len) segs.Add(new float[] { Mathf.Max(gT + gapHalf, 0f), len });
+        }
+        else segs.Add(new float[] { 0f, len });
+        float psi = Mathf.Atan2(outward.x, outward.y) * Mathf.Rad2Deg;
+        float a0 = Vector2.Dot(A, dir);
+        int idx = 0;
+        foreach (var seg in segs)
+        {
+            float L = seg[1] - seg[0];
+            if (L < bodyLen * 0.5f) continue;    // 一枚も入らない端数は置かない(呼び手が別途埋める)
+            int n = Mathf.Max(1, Mathf.RoundToInt(L / bodyLen));
+            float pitch = L / n;
+            // 開口に面した端だけ閉じる。両端とも開口に面す(n==1 の短い残り)ときは低位側を優先。
+            bool capLo = gapHalf > 0 && seg[0] > 0.01f;
+            bool capHi = gapHalf > 0 && seg[1] < len - 0.01f && !(n == 1 && capLo);
+            bool chained = false; float prevEnd = 0f;
+            for (int k = 0; k < n; k++)
+            {
+                bool close = (k == 0 && capLo) || (k == n - 1 && capHi);
+                bool mirror = close && !(k == 0 && capLo);   // 高位側の妻塞ぎは回転で足りる(EdoAssets.Own.Dobei2mEnd の注記)
+                string path = close ? EdoAssets.Own.Dobei2mEnd : EdoAssets.Own.Dobei2m;
+                float pieceLen = RunMeasure(path).W;
+                float sx = pitch / pieceLen;
+                float ry = mirror ? psi + 180f : psi;
+                var go = Place(path, Vector3.zero, ry, new Vector3(sx, 1f, 1f), parent, prefix + "_" + idx);
+                float startAbs = chained ? prevEnd : a0 + seg[0] + pitch * k;
+                float mn, mx;
+                ButtOnRun(go, A, dir, outward, 0f, startAbs, out mn, out mx);
+                prevEnd = mx; chained = true;
+                if (followGround) { try { SeatOnGround(go, 0.10f, 600); } catch (Exception) { SeatBottom(go, flatBase - 0.10f); } }
+                else SeatBottom(go, flatBase - 0.10f);
+                made.Add(go); idx++;
+            }
+        }
+        return made;
+    }
+
     // ---------- 板塀/穂垣 run — 片面ポリゴンなので表裏の対で置く ----------
     // asset: 5枚スパンOBJ。走りは DobeiRun と同じ実寸カーソル。パネル毎に接地。
     /// <remarks>据えは DobeiRun と同じ — **触れている箇所**を測る(規則21)。失敗したときだけ bounds の底(EDO-0342)。</remarks>
@@ -408,8 +462,8 @@ public static partial class EdoBuild
             }
 
             case "dobei":
-                note = "⚠ 練塀(築地塀)の駒が在庫に無いので**板塀で代用**した — EDO-0318";
-                return DobeiRun(parent, A, B, outward, prefix, NaturalMode, baseY, gapC, gapHalf);
+                note = null;   // EDO-0351: 練塀の一体物(Dobei2m)が在る。板塀代用は誤りだった(EDO-0318 ⑤ の訂正)
+                return NeribeiRun(parent, A, B, outward, prefix, NaturalMode, baseY, gapC, gapHalf);
 
             case "ishigaki+hei":
                 note = "⚠ 腰の石垣は unity-modular-stonewall の run の持ち場 — いまは**塀だけ**建てた";

@@ -599,6 +599,48 @@ public static partial class EdoBuild
         return best;
     }
 
+    /// <summary>床下の開きの合否閾値[m](縁の下 0.45m + 規則3 の系統差 ±0.25m = 0.70m。2026-09-22 §4.4)。
+    /// ⭐ ビルダーの合否は検査(Inspect の浮きの閾値)と同じ数にする — 通したのに赤にしない。</summary>
+    public const float UNDERFLOOR_MAX = 0.70f;
+
+    /// <summary>**床下の開き[m]。**駒の接地候補点のうち、地面から最も離れた点(浮きの最悪。埋没側は 0)。
+    /// <para>⛔ <see cref="Contact(GameObject,out Vector3,out int,float,int)"/> が返す**最小**(=据えるための
+    /// 最寄りの接地点)と混同しない。<see cref="SeatOnGround"/> は最寄りの1点が触れる高さへ据えるので、
+    /// その点が着いていても、足元の地形が傾いていれば駒の反対側の隅は大きく浮く。それが床下の開き
+    /// (2026-09-22 施主指摘 EDO-0370: 松平大和守 B4_Typ_Umaya は Contact=0.00m(隅が接地)と出たが、
+    /// 対角の隅は実測 6.59m 浮いていた)。</para>
+    /// <para>⭐ **棟種を問わない**(規則19「検査の文言と実装の集合を突き合わせる」)。御殿の棟・
+    /// 付属屋(蔵・厩・米蔵)・長屋・門、床を持つ駒ならどれでもこの一つの関数で測る。</para></summary>
+    public static float UnderfloorGap(GameObject go, out Vector3 at, int maxSamples = 4000)
+    {
+        var pts = GroundCandidates(go.transform, maxSamples);
+        at = go.transform.position;
+        if (pts.Count == 0) return float.NaN;
+        var probe = Probe();
+        float worst = 0f;
+        foreach (var p in pts)
+        {
+            float c = p.y - probe.At(p.x, p.z);
+            if (c > worst) { worst = c; at = p; }
+        }
+        return worst;
+    }
+
+    /// <summary>複数駒の床下の開きの最悪[m]と、その駒名。<see cref="UnderfloorGap(GameObject,out Vector3,int)"/> を
+    /// 駒ごとに呼ぶだけ — 御殿の棟の並びでも、付属屋・長屋・門の並びでも同じに使える。</summary>
+    public static float UnderfloorGap(IEnumerable<GameObject> pieces, out string worstName, int maxSamples = 4000)
+    {
+        float worst = 0f; worstName = "";
+        foreach (var g in pieces)
+        {
+            Vector3 at;
+            float d = UnderfloorGap(g, out at, maxSamples);
+            if (float.IsNaN(d)) continue;
+            if (d > worst) { worst = d; worstName = g.name; }
+        }
+        return worst;
+    }
+
     /// <summary>**地面に据える。**<see cref="Contact(GameObject,out Vector3,out int,float,int)"/> で測った
     /// **地面と触れる箇所**が地形(格子点)に着く高さへ動かし、
     /// <paramref name="sink"/> だけ沈める。返り値 = 動かした量[m]。測れる頂点が無ければ例外(黙って置かない)。

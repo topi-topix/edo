@@ -72,10 +72,11 @@ public static partial class EdoBuild
     /// <para>⛔ **合否はこの篩で出さない。**据えたあとの <see cref="GOTEN_UNDERFLOOR_MAX"/> で出す。</para></summary>
     const float GOTEN_RELIEF_OK = 0.80f;
 
-    /// <summary>据えたあとに許す**床下の開き**[m]。⭐ **`EdoTypologyBuilder.Inspect` の「浮き」の閾値と同じ数**。
+    /// <summary>据えたあとに許す**床下の開き**[m]。⭐ **`EdoTypologyBuilder.Inspect` の「浮き」の閾値と同じ数**
+    /// — 正典は <see cref="EdoBuild.UNDERFLOOR_MAX"/>(棟種を問わない・EDO-0370)。
     /// ⛔ ビルダーの合否を検査より緩くしない — 緩いと「ビルダーは通したのに検査が赤」が常態になり、
     /// 赤を読み流す癖が付く(規則19・memory `check-must-name-what-it-measures`)。動かすなら両方動かす。</summary>
-    const float GOTEN_UNDERFLOOR_MAX = 0.70f;
+    const float GOTEN_UNDERFLOOR_MAX = EdoBuild.UNDERFLOOR_MAX;
 
     /// <summary>下見で足元の地面を引く格子[m]。⛔ 3m にしない — 2026-09-22 の戸田で
     /// **2.2m の塚が格子の目を抜けた**(地形は 2m/px なので 3m 格子は地形より粗い)。</summary>
@@ -343,19 +344,13 @@ public static partial class EdoBuild
     /// <summary>据えたあとの**床下の開き**[m] — 棟ごとに実メッシュで接地を測り、最大を返す。
     /// <para>⛔ 複合ぜんたいで <see cref="Contact(GameObject,out Vector3,out int,float,int)"/> を呼んで
     /// 検めたことにしない。あれは**子の最小**を返すので、塚に載った 1 棟が 0.00m を返すと
-    /// 他の 6 棟が 2m 浮いていても「⭕ 0.00m」になる(2026-09-22 戸田・全ての数値の関門が通っていた)。</para></summary>
+    /// 他の 6 棟が 2m 浮いていても「⭕ 0.00m」になる(2026-09-22 戸田・全ての数値の関門が通っていた)。</para>
+    /// <para>実体は <see cref="EdoBuild.UnderfloorGap(IEnumerable{GameObject},out string,int)"/>
+    /// (棟種を問わない共通関数・EDO-0370)。ここは cores/links を並べて渡すだけ。</para></summary>
     static float UnderfloorGap(List<GameObject> cores, List<GameObject> links, int verts, out string worstName)
     {
-        float worst = 0f; worstName = "";
         var all = new List<GameObject>(cores); all.AddRange(links);
-        foreach (var g in all)
-        {
-            Vector3 at; int nc;
-            float d = Contact(g, out at, out nc, 0.01f, verts);
-            if (float.IsNaN(d)) continue;
-            if (d > worst) { worst = d; worstName = g.name; }
-        }
-        return worst;
+        return EdoBuild.UnderfloorGap(all, out worstName, verts);
     }
 
     /// <summary>段の建坪[m²](玄関を含まない3核)。</summary>

@@ -73,7 +73,8 @@ grep -iE "gate|mon" docs/asset-index.tsv | awk -F'\t' '$5>5'   # 幅5m超の門�
 
 | 欲しい物 | アセット | 生寸法 | 備考 |
 |---|---|---|---|
-| 土塀(築地塀) | `edogoyomi/es_dobei/s_hei_center.obj` | 1.64×1.46×0.63 | **片面ポリ**。表裏0.2mペアで置く。`_l` `_r` `_corner` あり |
+| **練塀(築地塀・一体物)** | `Assets/Edo/Models/Dobei/Dobei2m.fbx` + `Dobei2m_End.fbx` | 走り2.004×高2.5×厚1.0m | **自作(`Tools/Blender/build_dobei.py`)**。腰下見板+貫+白漆喰+本瓦一体・表裏の別なし・スケール1で置く。`FenceRun` の `dobei` はこれ(`EdoAssets.Own.Dobei2m`)。`_End` は妻を塞いだ自由端(`EdoBuild.NeribeiRun`)。EDO-0351: 在庫が無いという照会(下段)は誤りだった |
+| 土塀(築地塀・板塀代用/旧) | `edogoyomi/es_dobei/s_hei_center.obj` | 1.64×1.46×0.63 | **片面ポリ**。表裏0.2mペアで置く。`_l` `_r` `_corner` あり。⚠ 練塀の代用に使っていたのは誤り(EDO-0351) — 今は上段の一体物を使う |
 | 板塀 | `edogoyomi/obj_itabei/itabei5.obj` | 4.12×0.8×0.08 | ES後7.49m・h1.45。単体 `itabei.obj`・柱 `_pole` |
 | 矢来・水際の柵 | `edogoyomi/obj_hogaki/hogaki5.obj` | 4.11×0.78×0.04 | 帆掛(ほがき)。単体・柱あり |
 | **犬矢来** | `Village Kit/Prefabs/Props/Inuyarai_A_01_x1..x8` | 1〜8×1.5×0.68 | 町屋の足元。**未使用** |

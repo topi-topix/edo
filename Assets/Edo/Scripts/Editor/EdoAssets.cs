@@ -1614,6 +1614,24 @@ public static class EdoAssets
             return s + ".fbx";
         }
 
+        /// <summary>**練塀(築地塀)の一体物** — 腰の下見板・貫・白漆喰・本瓦の両流れが1駒に焼いてある
+        /// (`Tools/Blender/build_dobei.py`)。EDO-0351: 在庫方の照会は「練塀は在庫に無く板塀
+        /// `EdoAssets.Eg.DobeiCenter` が兼ねている」としたが誤りで、**この部材が在る** — `FenceRun` の
+        /// dobei 枝が結線し忘れて板塀へ落ちていただけ(EDO-0318 ⑤ の訂正)。
+        /// ローカル: 走り +X ∈ [0, 2.004]・高さ +Y・厚み Z(芯 0 を挟んで左右対称・**表裏の別なし**)。
+        /// ⭐ **真の m で作ってあり scale=1 で置く**(edogoyomi の ES も Village Kit の vklib.S も掛けない)。
+        /// ⚠ 単体は両小口とも開放(隣の駒を継ぐ前提の断面)。**妻を塞いだ自由端**は <see cref="Dobei2mEnd"/>。
+        /// ⛔ 隅の留め継ぎは未対応(塀の Kado 統合はまだ無い — `kado-mitre-parts.md`「塀と長屋は未解決」)。
+        /// 生成: blender --background --python Tools/Blender/build_dobei.py -- [--render]</summary>
+        public const string Dobei2m = "Assets/Edo/Models/Dobei/Dobei2m.fbx";
+
+        /// <summary><see cref="Dobei2m"/> の**妻を塞いだ端部**(x=0 側の小口に袖瓦を葺いて閉じた駒。
+        /// build_dobei.py の gable='L')。塀が行き止まる自由端(門の脇など)に使う — 開放小口のまま
+        /// 置くと軒裏の三角の空隙が見える。走りの**高位側**を閉じたいときは 180°回して継ぐ
+        /// (`ButtOnRun` は実メッシュを測って突き付けるので、鏡像でなく回転で足りる)。
+        /// 生成: build_dobei.py の main() が Dobei2m と同時に書き出す(引数なし)。</summary>
+        public const string Dobei2mEnd = "Assets/Edo/Models/Dobei/Dobei2m_End.fbx";
+
         /// <summary>松江松平邸の表門の番所 — **向唐破風・出格子・切石畳出の基壇**。左右に2棟。
         /// 姿は温古写真集11【A】+『日本案内記 関東篇』昭和5年「両側に唐破風造の番所」【A】。
         /// 在庫の es_dbansho(3.6×2.1m)は規模も意匠も不足。指図 gate.plan.bansho は 5.5×3.6m・張出2.0m。

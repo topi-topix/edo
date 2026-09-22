@@ -64,6 +64,7 @@ public static partial class EdoBuild
     /// 閉じは **「隙間 &gt; めり込み」**なので、見えない幅だけ正の側へ倒す。</summary>
     const float JOINT = 0.005f;
 
+
     /// <summary>駒の**壁体**(屋根・軒を外した実頂点)が線 (<paramref name="a"/>, 外向き <paramref name="n"/>)
     /// より外にあれば、その分だけ内へ引く。返り値 = 引いた量[m]。
     /// ⛔ 帯(<see cref="FaceOut"/>)で合わせただけで済ませない — 帯の外の基壇・腰板・下屋が先に越える。</summary>
@@ -234,6 +235,59 @@ public static partial class EdoBuild
             keep.Add(c);
         }
         return keep;
+    }
+
+    /// <summary>**列の残り長さを、繰り返し使える棟の実寸の組合せで埋める計画(掲示板 EDO-0362 §1d の型)。</summary>
+    /// <remarks>
+    /// <para>⛔ 「一番長い棟から順に試し、入らなくなったら一段短い棟へ落とす」(旧実装)では、
+    /// 棟の桁行を九尺(1.5間)ピッチの戸数で揃えていても**端数がちょうど1戸ぶん残る**組合せを見落とす —
+    /// 例えば残り9間に12間を先に置くと1間の穴が残るが、9間+4.5間なら丁度埋まる。EDO-0348→0355→0362 と
+    /// 「無い寸法を一つ焼く」対症療法を3度繰り返したので、**組合せそのもの**を動的計画法で汎用に探す形にした。</para>
+    /// <para>動的計画法(容量 <paramref name="target"/> を <paramref name="res"/> 刻みに量子化した
+    /// 「無制限ナップサック・到達長の最大化」)。優先順位は ①埋まる長さがいちばん長い ②枚数がいちばん少ない
+    /// ③(同数なら)大きい棟を使う — 裏店は同じ割りの棟を続けて建てた物なので、寸法を細切れに混ぜない
+    /// (<see cref="UraNagayaRun"/> のコメント)。</para>
+    /// <para><paramref name="widths"/> の各要素は継ぎ目を含まない実寸。<paramref name="joint"/> は
+    /// 1枚ごとに足す(最後の1枚にも足す — 呼び手側の cursor の進め方と揃える)。戻り値は
+    /// <paramref name="widths"/> の添字の列(置く順・sA に近い方から)。空配列 = 1枚も入らない
+    /// (target が最小の棟より短い — その端数は呼び手が実測して gapM へ足すこと・規則19)。</para>
+    /// </remarks>
+    public static int[] TileWidths(float target, float[] widths, float joint, float res = 0.01f)
+    {
+        if (widths == null || widths.Length == 0 || target <= 0f) return new int[0];
+        int n = Mathf.Max(0, Mathf.FloorToInt(target / res + 1e-4f));
+        if (n <= 0) return new int[0];
+        var step = new int[widths.Length];
+        for (int i = 0; i < widths.Length; i++)
+            step[i] = Mathf.Max(1, Mathf.RoundToInt((widths[i] + joint) / res));
+        var dp = new int[n + 1];     // dp[c] = 容量 c 以下でいちばん埋まる長さ(コマ単位)
+        var cnt = new int[n + 1];    // その枚数
+        var pick = new int[n + 1];   // c で最後に置いた widths の添字(−1 = このコマには置かない=繰り越し)
+        pick[0] = -1;
+        for (int c = 1; c <= n; c++)
+        {
+            dp[c] = dp[c - 1]; cnt[c] = cnt[c - 1]; pick[c] = -1;      // 既定は繰り越し
+            for (int i = 0; i < step.Length; i++)
+            {
+                if (step[i] > c) continue;
+                int cand = step[i] + dp[c - step[i]];
+                int candCnt = cnt[c - step[i]] + 1;
+                bool better = cand > dp[c]
+                    || (cand == dp[c] && candCnt < cnt[c])
+                    || (cand == dp[c] && candCnt == cnt[c] && pick[c] >= 0 && widths[i] > widths[pick[c]]);
+                if (better) { dp[c] = cand; cnt[c] = candCnt; pick[c] = i; }
+            }
+        }
+        var rev = new List<int>();
+        int cc = n;
+        while (cc > 0)
+        {
+            if (pick[cc] < 0) { cc--; continue; }
+            rev.Add(pick[cc]);
+            cc -= step[pick[cc]];
+        }
+        rev.Reverse();
+        return rev.ToArray();
     }
 
     /// <summary>**表店の列。**辺 A→B に、通りへ店先を向けた町屋を軒を接して並べる。
@@ -449,12 +503,16 @@ public static partial class EdoBuild
     /// <para>辺 A→B を敷地の内へ <paramref name="insetM"/> 下げた線に沿って積む。戸が並ぶ面(+Z)は
     /// **路地の側**=通りの側へ向ける — ⛔ 逆に向けると盲面が路地を向いて戸が消える
     /// (`EdoAssets.Own.UraNagaya` の注記)。奥行は戸の面を路地の線へ <see cref="AlignFace"/> で合わせ、
-    /// 高さは**触れている箇所**を測って据える。桁行は 12→9→6 間の順に、残りへ入る一番長い棟を継ぐ。</para>
+    /// 高さは**触れている箇所**を測って据える。桁行は 12/9/6/4.5/3 間の中から<see cref="TileWidths"/>
+    /// (EDO-0362 §1d の型)が組合せで決める — 一番長い棟から機械的に試す旧実装は、1.5間(1戸)ぶんだけ
+    /// 残って埋まらない端数を見落とすことがあった。</para>
     ///
     /// <param name="cap">置く棟数の上限(表の `ura_nagaya` が数で書いてあるとき)。0 以下なら上限なし。</param>
     /// <param name="wallGap">返り: 棟どうしの**触れている箇所**の隙の最小[m](負 = めり込み)。</param>
     /// <param name="gapM">返り: 据わる棟が無くて**歯抜けのまま残した走り**の合計[m](EDO-0355)。
-    /// ⛔ 0 でない値を呼び手が黙って飲まない — 通りの裏に空いた穴の実測(規則19)。</param>
+    /// ⭐ 2026-09-22(EDO-0362)から**列の末尾で TileWidths がどの組合せも見つけられなかった端数**
+    /// (1.5間=1戸ぶん未満。理屈のうえで必ず残りうる)も同じ変数に足す — 以前はこの端数が黙って
+    /// 素通りしていた(規則19)。⛔ 0 でない値を呼び手が黙って飲まない — 通りの裏に空いた穴の実測。</param>
     /// <param name="munewari">⭐ **棟割長屋**(奥行4間・大棟を挟んで ±Z の両面に戸)で積む
     /// (<see cref="EdoAssets.Own.UraNagayaMunewari(float)"/>)。**路地が前後にある列**はこちらが正しい姿で、
     /// 1棟が路地2本ぶんを受け持つ。⛔ 割長屋を2棟背中合わせに置いて代用しない(部材の注記)。
@@ -474,22 +532,54 @@ public static partial class EdoBuild
         Vector2 inw = -outward;
         sA += inw * insetM;
 
-        // 桁行は**残りへ入る一番長い棟**から。⭐ 表店と違って乱さない — 裏店は同じ割りの棟を
-        //    続けて建てた物で、長さを混ぜるほど棟の天端が刻まれて長屋らしさが消える。
-        //    残りが 6 間を切ったところが列の終わり(端数は路地の突き当りが受ける)。
+        // 桁行の候補(降順)。⭐ 表店と違って乱さない — 裏店は同じ割りの棟を続けて建てた物で、
+        //    長さを混ぜるほど棟の天端が刻まれて長屋らしさが消える(TileWidths の③大きい棟を優先、で担保)。
+        //    どの組合せでも埋まらない端数(1.5間=1戸ぶん未満)だけが列の終わりに残る。
         //
         // ⭐ **退けた棟の幅だけカーソルを飛ばさない**(2026-09-22・EDO-0355)。飛ばすと、退けた駒の
         //    走り(12 間 = 21.8m にもなる)がそのまま通りの裏の**歯抜け**として残る。退けたら同じ座で
-        //    **一段短い棟**へ落として掛け直し、12→9→6 間のどれも据わらない座だけ 1 間ずつ送る。
+        //    **一段短い棟**へ落として掛け直し、どれも据わらない座だけ 1 間ずつ送る。
         //    送った分は <paramref name="gapM"/> に実測で返す(⛔ 黙って飲まない・規則19)。
-        var lens = new float[] { 12f, 9f, 6f };
+        //
+        // ⭐ **走りの本体は大きい棟から順に、列末の端数だけ TileWidths の組合せで埋める**
+        //    (2026-09-22・EDO-0362 §1d を実測で修正)。端数だけに効かせるのは、掛け直しの段が
+        //    大きい順にしか効かないため — 下の while の中の注記が理屈。桁行の寸法をこれ以上
+        //    増やさなくても、端数は 12/9/6/4.5/3 間の組合せで 1 戸ぶん未満まで詰まる。
+        var lens = new float[] { 12f, 9f, 6f, 4.5f, 3f };
+        var lensW = new float[lens.Length];
+        for (int i = 0; i < lens.Length; i++)
+        {
+            var path = munewari ? EdoAssets.Own.UraNagayaMunewari(lens[i]) : EdoAssets.Own.UraNagaya(lens[i]);
+            lensW[i] = OwnMeasure(path).W;
+        }
         const float STEP = 1.818f;                         // 据わらない座を送る刻み(江戸間 1 間)
         float cursor = 0f;
-        int idx = 0, li = 0;                               // li = いま掛けている桁行(lens の添字)
+        int idx = 0;
+        int li = -1;                                        // li<0 = 次の反復で TileWidths から引き直す
         int guard = 0;
         while (cursor < len - 0.5f && guard++ < 500)
         {
             if (cap > 0 && made.Count >= cap) break;
+            float remaining = len - cursor;
+            if (li < 0)
+            {
+                // ⭐ **走りの本体は大きい棟から**(2026-09-22・EDO-0362 の実測で差し戻し)。
+                //    TileWidths は「いちばん埋まる組合せ」を返すので小さい棟を好むが、それを
+                //    そのまま座の第一候補にすると**退けたときの掛け直しの段が下に無くなる**。
+                //    同じ座では幅の広い棟は狭い棟の走りを覆うので、狭い棟が退けられたなら広い棟も
+                //    必ず退けられる ⇒ 掛け直しは**大きい順にしか効かない**。小さい棟から始めると
+                //    退けがそのまま 1 間の歯抜けになり、しかも座の数が増えて退けの機会も増える
+                //    (実測: 10区画で歯抜け 98.2m → 171.1m・退け 101回 へ悪化した)。
+                // ⭐ TileWidths を効かせるのは**列末の端数だけ** — 残りが一番大きい棟に足りなくなって
+                //    はじめて組合せを引く(9間+4.5間で埋まる所に6間を置いて 3.5m 余らせない)。
+                if (remaining >= lensW[0]) li = 0;
+                else
+                {
+                    var plan = TileWidths(remaining, lensW, JOINT);
+                    if (plan.Length == 0) { gapM += remaining; break; }   // どの棟も残り(1.5間未満)に入らない — 列の終わり
+                    li = plan[0];
+                }
+            }
             string pick = null; ShopModule pm = default(ShopModule);
             for (int t = li; t < lens.Length; t++)
             {
@@ -497,7 +587,7 @@ public static partial class EdoBuild
                 var m = OwnMeasure(path);
                 if (cursor + m.W <= len + 0.01f) { pick = path; pm = m; li = t; break; }
             }
-            if (pick == null) break;                       // 一番短い棟も走りに入らない = 列の終わり
+            if (pick == null) { gapM += remaining; break; }  // 一番短い棟も走りに入らない = 列の終わり
             var c2 = sA + rdir * (cursor - pm.lo);
             var go = Place(pick, new Vector3(c2.x, baseY, c2.y), psi, Vector3.one, parent,
                            prefix + "_" + idx + "_" + System.IO.Path.GetFileNameWithoutExtension(pick));
@@ -521,11 +611,11 @@ public static partial class EdoBuild
             {
                 UnityEngine.Object.DestroyImmediate(go);
                 dropped++;
-                if (li + 1 < lens.Length) { li++; continue; }      // 同じ座で一段短い棟へ掛け直す
-                gapM += STEP; cursor += STEP; li = 0; continue;    // どれも据わらない座 — 1 間送る
+                if (li + 1 < lens.Length) { li++; continue; }       // 同じ座で一段短い棟へ掛け直す
+                gapM += STEP; cursor += STEP; li = -1; continue;    // どれも据わらない座 — 1 間送って計画を引き直す
             }
             made.Add(go); idx++;
-            cursor += pm.W + JOINT; li = 0;
+            cursor += pm.W + JOINT; li = -1;                        // 次の座は TileWidths で引き直す
         }
         var back = new Vector3(-rdir.x, 0f, -rdir.y);
         for (int k = 1; k < made.Count; k++)

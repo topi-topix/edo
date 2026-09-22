@@ -285,8 +285,9 @@ public static partial class EdoTypologyBuilder
             nMune, made - nMune, um.D,
             far > 0f ? string.Format(" − 向かいの表店と路地 {0:F1}m(両側町)", far) : "")
             + (gapSum > 0.01f
-               ? string.Format("\n    ⛔ 歯抜けのまま残した走り {0:F1}m — 12→9→6間のどれも据わらない座"
-                             + "(区画の外へ出る / 向かいの表店が背後まで回り込んでいる)", gapSum)
+               ? string.Format("\n    ⛔ 歯抜けのまま残した走り {0:F1}m — 12→9→6→4.5→3間のどれも据わらない座"
+                             + "(区画の外へ出る / 向かいの表店が背後まで回り込んでいる)"
+                             + " ＋ 最短の3間(5.99m)も入らない列末の端数", gapSum)
                : "")
             + roomNote;
     }

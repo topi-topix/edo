@@ -108,6 +108,8 @@ grep -iE "gate|mon" docs/asset-index.tsv | awk -F'\t' '$5>5'   # 幅5m超の門�
 | 巨大(御殿代用) | `Village Kit/Prefabs/Manor.prefab` | 38.5×15.3×62.5 | 62m。単体では大きすぎる |
 | 集落まるごと | `Village Kit/Prefabs/Village.prefab` | 126×12.6×114 | 参考用。実配置には不向き |
 | **家中長屋** | `edogoyomi/es_knagaya/knagaya01c|l|r.obj` | 生4.45〜4.67 | ES後 **ピッチ7.81m**。表=+Z。c=妻開き / l,r=けらば付 |
+| **裏長屋(割長屋)** | `Assets/Edo/Models/Nagaya/Typ_UraNagaya_{3|4.5|6|9|12}ken.fbx`(自作) | W 5.99/8.72/11.45/16.90/22.36 × H 3.59 × D 4.93 | 九尺二間・平屋・桟瓦。**+Z の一面だけに戸**(−Z は盲面)。1.5間=1戸で 2/3/4/6/8戸。`EdoAssets.Own.UraNagaya(wKen)` |
+| **裏長屋(棟割長屋)** | `Assets/Edo/Models/Nagaya/Typ_UraNagaya_{3|4.5|6|9|12}ken_munewari.fbx`(自作) | W 同上 × H 4.58 × D 8.56 | 奥行4間・**±Z とも開口面**。1棟で路地2本分。`EdoAssets.Own.UraNagayaMunewari(wKen)` |
 | 土蔵 | `edogoyomi/es_kura/kura.obj` | 生3.43 | ES後6.2m。バウンズ底 −0.15 で据える |
 | 町屋(店舗) | `edogoyomi/es_shop01/shop01.obj` | 生2.71×2.34×2.22 | ES後4.9×4.3m。樽・桶・札・囲い付属 |
 | 町屋(大) | `edogoyomi/es_shop02/shop02.obj` | 生3.92×2.58×3.8 | ES後7.1×4.7×6.9m |

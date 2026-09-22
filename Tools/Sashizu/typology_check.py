@@ -45,7 +45,8 @@ def read_keys():
     src = builder_src()
     if src is None:
         return None
-    return set(re.findall(r'\b[SIB]o?\(\s*d\s*,\s*"([^"]+)"', src))
+    # ⭐ `IA(d,"…")` は整数の配列を読む道具(`main_hall_ken` = [桁行, 梁間]。EDO-0354)。
+    return set(re.findall(r'\b(?:[SIB]o?|IA)\(\s*d\s*,\s*"([^"]+)"', src))
 
 
 def read_but_unused():

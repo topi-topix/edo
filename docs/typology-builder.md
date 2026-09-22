@@ -159,7 +159,7 @@ Unity の実測と、プレハブの yaml から起こした判定は 36 本す�
 |---|---|---|
 | `buke` | `yashiki`(kami/naka/shimo)・`rank`(daimyo / hatamoto_large / hatamoto_mid / gokenin)・`koku`・`front`・`gate`(kmon/nagayamon/hmon/kabukimon/komon)・`bansho`(ryou/kata/none)・`enclosure`・`garden`・`kura` | 門の格式(`estate-types.md` 早見表・[西川1959])、外周(全周長屋 / 前辺長屋+塀 / 塀)、主屋の型(雁行複合 / U字 / 田の字)、蔵の数、庭の有無 |
 | `machiya` | `two_sided`・`front`・`maguchi_ken`・`depth_ken`・`pattern`(auto か並び)・`ura_nagaya`・`jishinban`・`kamiyui`・`inari` | 表店の並び(間口で割る)・裏長屋の棟数・番屋と稲荷の有無 |
-| `jisha` | `kind`(bo / temple / shake)・`main_hall_ken`・`gate`(munemon/yakuimon/sanmon)・`enclosure`・`shoro`・`sanmon`・`graveyard` | 本堂(または坊の主屋)の間数・門・囲い。⛔ 坊を本堂・山門・鐘楼・墓地つきの寺にしない(考証方 (c)) |
+| `jisha` | `kind`(bo / temple / shake)・`main_hall_ken`([桁行,梁間]。EDO-0354 で建つ姿に効いた)・`gate`(munemon/yakuimon/sanmon)・`enclosure`・`shoro`・`sanmon`・`graveyard`・`tacchu`・`tokinokane` | 本堂(または坊の主屋)の間数・門・囲い。⛔ 坊を本堂・山門・鐘楼・墓地つきの寺にしない(考証方 (c))。境内の置き方は §4.6 |
 | `kouyuu` | `kind`(azukarichi / hoshiba / yaba / hikeshi)・`surface`・`fence`・`building` | 地表(草・土)と柵。建物は火消屋敷だけ |
 
 ---
@@ -272,7 +272,6 @@ Unity の実測と、プレハブの yaml から起こした判定は 36 本す�
 **どの段・どの置き所でも 0.8m より平らな所が無い**(区画内の起伏 20.15 / 9.64 / 15.90m)。
 ⇒ 規則3 の**造成か段の分け(階段廊下)**が要る手組みの領分。類型ビルダーは赤を刷って止まる。
 
-
 ## 4.5 庭の既定 — 4 型(2026-09-21・庭方の設計。EDO-0317)
 
 ⛔ **意匠を実装側で作り変えない**(規則17)。全文は掲示板 EDO-0317 の申し送り。ここには**覆してはいけない線**だけ。
@@ -338,6 +337,29 @@ Unity の実測と、プレハブの yaml から起こした判定は 36 本す�
 ⭕ `source` と `koku` は `NOT_SHAPE`(建つ姿に効かなくて当たり前の欄)として破れの列から外してある —
 典拠と史料値は姿を決めず、**決めてはいけない**(石高から棟数を引く鎖は史料で切れている・§4)。
 ⛔ この集合を静かに増やさない。増やすなら理由を `typology_check.py` へ書く。
+
+## 4.6 寺社の境内 — 本堂は間数で焼き、棟は実外形で置く(2026-09-22・EDO-0354)
+
+⛔ 2026-09-21 まで jisha の主屋は `kind` で `VK.BigHouse`(寺)/`House`(坊・社家)を選ぶだけで、
+表の **`main_hall_ken`(16 区画)はビルダーが名を読みもしない欄**だった。6 間の坊と 7 間の寺が同じ姿で建ち、
+248 坪の成満寺は本堂・庫裏・鐘楼・墓地の 4 棟のうち 2 棟が「区画に収まらず未建」だった。
+
+建てるのは `EdoBuild.Honden`(`EdoBuildJisha.cs`)と `JishaOmoya`(`EdoTypologyBuilder.Jisha.cs`)。
+
+| 何を | どう決まるか |
+|---|---|
+| 本堂の駒 | 御殿複合と同じ作り — `EdoGotenKit.Mune` に、**間数ぴったりに焼いた入母屋**(`EdoAssets.Goten.RoofIrimoya_(w,d)`)を載せる。桁行 ≥ 梁間に入れ替え、梁間は 3 間以上(身舎 1+入側 2)。⛔ 焼いてない寸法は屋根なしの骨組みになるので**建てずに ⚠ を刷る**。無い寸法は `build_goten_roof.py -- <w×1.818> <d×1.818> Goten_Roof_Irimoya_<w>x<d>ken` で足す(2026-09-22 に 6x4・7x6・7x5・5x3・6x5 を焼いた) |
+| 向き | 表(+Z)を門へ向ける。⭐ 寺は参道の正面に本堂の表を向ける(御殿複合は桁行を中軸に沿わせるが、寺は逆) |
+| 本堂の座 | 門の軸の上・前面が門から **6m 以上**奥・手前寄り。墓地を背後へ残すため |
+| 参道 | 門から本堂の前面までの帯(半幅 2.5m)には**何も置かない**(前庭は空けるのが既定・§4.5) |
+| 庫裏・塔頭・二戸目以降 | 本堂の近く |
+| 墓地・蔵 | 区画の縁へ寄せた帯の**奥**。向きは縁に揃える |
+| 鐘楼 | 区画の縁へ寄せた帯の**手前**(門に近い側) |
+| 収まり | 壁体は縁から 2.0m 以上内側(軒は境界を越えてよい・裁定A)。棟どうしは屋根込みで 2.0m を目標にし、収まらなければ 1.0m へ緩めて ⚠ を刷る |
+| 検め | 候補を実メッシュで置き、**縁の侵犯とめり込みを測って**外れたら次の候補へ(規則5・21) |
+
+⛔ 以前の `SETBACK`(6m 引き)+半径 `Spot()` で置かない — 狭い境内は 6m 引きで内側が 16×19m しか残らない。
+⚠ **坊と社家の間数は表の既定(確度 U)** — 10 坊すべて 6x4 で同じ姿。史料が出た坊から `main_hall_ken` を上書きする。
 
 ---
 

@@ -331,6 +331,22 @@ def load_ends():
     return by
 
 
+_TITLE_ID_RX = re.compile(r"EDO-?(\d{4})")
+
+
+def load_board_owners():
+    """id(EDO-xxxx) → owner邸(無ければ estate)。題に残った票番号から邸を引く索引(EDO-0361)。"""
+    out = {}
+    for fp in glob.glob(os.path.join(BOARD_DIR, "EDO-*.json")):
+        try:
+            c = json.load(open(fp, encoding="utf-8"))
+        except Exception:
+            continue
+        iid = c.get("id") or os.path.basename(fp)[:-len(".json")]
+        out[iid] = c.get("owner") or c.get("estate") or None
+    return out
+
+
 def board_day(lo, hi):
     out = []
     for fp in glob.glob(os.path.join(BOARD_DIR, "EDO-*.json")):
@@ -586,7 +602,7 @@ def scan_session(fp, lo, hi, subs, start_hint=None):
     return rec
 
 
-def estate_of(rec, claims):
+def estate_of(rec, claims, board_owners=None):
     cs = claims.get(rec["sid"]) or []
     ests = collections.Counter(e for c in cs for e in (c.get("estate") or []))
     if ests:
@@ -600,6 +616,12 @@ def estate_of(rec, claims):
     if rec.get("start_hint"):
         e, p = rec["start_hint"]
         return e, p or "?", "bash"
+    if board_owners:
+        m = _TITLE_ID_RX.search(rec.get("title") or "")
+        if m:
+            owner = board_owners.get("EDO-%s" % m.group(1))
+            if owner:
+                return owner, "?", "title"
     return "?", "?", "-"
 
 
@@ -789,13 +811,14 @@ def digest(date, out=None, json_only=False, quiet=False):
     lo, hi = day_window(date)
     claims = load_claims(lo, hi)
     ends = load_ends()
+    board_owners = load_board_owners()
     sessions = []
     for fp, hint in candidate_files(lo, hi).items():
         subs = subagent_index(fp)
         s = scan_session(fp, lo, hi, subs, hint)
         if not s["turns"] and not s["users"]:
             continue
-        s["estate"], s["phase"], s["estate_src"] = estate_of(s, claims)
+        s["estate"], s["phase"], s["estate_src"] = estate_of(s, claims, board_owners)
         s.pop("start_hint", None)
         cl = claims.get(s["sid"]) or []
         cl_ended = [c for c in cl if c.get("ended")]
@@ -964,9 +987,10 @@ def main():
     if a.cmd == "sessions":
         lo, hi = day_window(a.date)
         claims = load_claims(lo, hi)
+        board_owners = load_board_owners()
         for fp, hint in candidate_files(lo, hi).items():
             s = scan_session(fp, lo, hi, {}, hint)
-            e, ph, src = estate_of(s, claims)
+            e, ph, src = estate_of(s, claims, board_owners)
             print("%s %-22s %-14s %-4s %-6s 実働 %6.1f 往復 %4d %s" % (
                 s["sid"], (s["title"] or "-")[:22], e, ph, src, s["active_min"], s["turns"], s["kind"]))
         return 0

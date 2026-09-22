@@ -63,7 +63,7 @@ _SITE_NAMES = {"matsudaira_dewa": "松江松平邸", "sanno": "山王社", "okab
                "doi": "土井邸", "kyogoku_bitchu": "京極備中守邸", "niwa_sakyo": "丹羽左京邸",
                "sotobori": "外堀・溜池"}
 SHORT = {"matsudaira_dewa": "松", "sanno": "山", "okabe": "岡", "doi": "土",
-         "kyogoku_bitchu": "京", "niwa_sakyo": "丹", "sotobori": "堀"}
+         "kyogoku_bitchu": "京", "niwa_sakyo": "丹", "sotobori": "堀", "machiya": "町"}
 MENTION = {  # 関係図・巡回検知が本文から敷地を拾うときの表記ゆれ(index[1]は path 突合にも使う)
     "matsudaira_dewa": ["松平", "松江", "Matsudaira"],
     "sanno": ["山王", "Sanno"],
@@ -75,6 +75,8 @@ MENTION = {  # 関係図・巡回検知が本文から敷地を拾うときの�
     #   ⚠ "Niwa" だけは path 突合に使えない — Assets/Edo/Models/Niwa/(庭)・edo-niwashi(庭方)に当たる
     "niwa_sakyo": ["丹羽左京", "NiwaSakyo"],
     "sotobori": ["外堀", "Tameike", "溜池", "Sotobori"],
+    #   ⚠ "町屋" は普通名詞なので、町人地の区画を名指す語だけで拾う(裸の「町」では拾わない)
+    "machiya": ["町屋", "裏長屋", "表店", "Machiya", "UraNagaya"],
 }
 _SITE_ORDER = ["matsudaira_dewa", "sanno", "okabe", "doi"]   # 既定の並び。残りは名前順・外堀は末尾
 
@@ -127,7 +129,13 @@ def _parcel_sites():
     return out
 
 
-PARCEL_SITES = _parcel_sites()
+# ⭐ **指図を持たない「車線」**(2026-09-22 施主指示)。区画 id でも邸でもないので `_parcel_sites()`
+#   では拾えないが、「全体・基盤」へ畳むと当人の札が立たない。町屋(町人地の区画 — 表店・裏長屋・
+#   木戸・会所地)がこれ。⚠ ここへ足した物は **邸ではない** — `ESTATES` から外れるので、
+#   三巡則・完成条件の表・スパークラインは掛からず、issue の一覧だけの枠になる。
+_LANE_SITES = {"machiya": "町屋"}
+
+PARCEL_SITES = dict(_parcel_sites(), **_LANE_SITES)
 SITES = {e: _SITE_NAMES.get(e, PARCEL_SITES.get(e, e)) for e in _site_names()}
 for _e in SITES:                       # 表に無い邸も落とさない(略称=頭文字・表記ゆれ=id)
     SHORT.setdefault(_e, _e[:1].upper())

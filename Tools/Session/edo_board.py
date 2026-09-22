@@ -41,8 +41,12 @@ BOARD = os.path.join(_common_git_dir(), "edo-board")
 #   ⭕ 指図の実体(main と worktree の docs/Sashizu/*_sashizu.json)から毎回引く。
 _FIXED = ("cross", "infra")          # 邸ではない置き場(横断・普請場の機構そのもの)
 _LEGACY = ("matsudaira_dewa", "sanno", "okabe", "doi", "sotobori",
-           "typology")  # 既存 issue の後方互換(typology は指図を持たない車線 — 2026-09-22 に
+           "typology",  # 既存 issue の後方互換(typology は指図を持たない車線 — 2026-09-22 に
                         # 追記。EDO-0304/0318/0353/0355/0357 が使っているのに post が弾いていた)
+           "machiya")   # 町屋の車線(2026-09-22 施主指示)。町人地の区画 — 表店・裏長屋・木戸・
+                        # 会所地は類型一般ではなく**町屋として別途**取り組む。指図は持たないので
+                        # 邸ではない(三巡則・完成条件の表は掛からない)が、掲示板では
+                        # 「全体・基盤」へ畳まず自分の札を持つ。
 ESTATES = tuple(sorted(set(estate_names()) | set(_FIXED) | set(_LEGACY)))
 TYPES = ("task", "decision", "blocker", "info", "lesson")
 STATUSES = ("open", "awaiting-user", "in-progress", "done", "dropped")

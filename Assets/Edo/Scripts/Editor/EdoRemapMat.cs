@@ -100,7 +100,9 @@ public static class EdoRemapMat
     /// 邸ごとのメニューでは当たらない — 類型の部材はどの邸の持ち物でもないから。
     ///
     /// <para>対象(2026-09-21): 裏長屋 `Models/Nagaya/Typ_UraNagaya_*` / 山門・薬医門・棟門 `Models/Mon` /
-    /// 鐘楼・墓地 `Models/Jisha` / 厩・米蔵・作事小屋 `Models/Fuzokuya/Typ_*`。</para>
+    /// 鐘楼・墓地 `Models/Jisha` / 厩・米蔵・作事小屋 `Models/Fuzokuya/Typ_*`。
+    /// 2026-09-22 に **囲い `Models/Kakoi`(竹矢来 `Typ_Takeyarai_2ken`・EDO-0363)**を足した
+    /// — 材は `Bamboo garden fence` 1種で借り先は `Japanese Village Kit/Materials`(並びの先頭)。</para>
     ///
     /// <para>⚠ **借り先に Japanese Castle の `Interior/Materials` が要る** — 鐘楼の梵鐘が名乗る
     /// `Ornament` はそこにしか無く、邸の3つのメニューはどれも `Exterior/Materials` しか見ていない。
@@ -121,6 +123,7 @@ public static class EdoRemapMat
             "Assets/Edo/Models/Nagaya", "Assets/Edo/Models/Mon",
             "Assets/Edo/Models/Jisha",  "Assets/Edo/Models/Fuzokuya",
             "Assets/Edo/Models/Machiya",     // 表店 Typ_Omotedana_*(EDO-0348)
+            "Assets/Edo/Models/Kakoi",       // 竹矢来 Typ_Takeyarai_2ken(EDO-0363)
         };
         return Run(donorDirs, modelDirs, "類型の部材");
     }

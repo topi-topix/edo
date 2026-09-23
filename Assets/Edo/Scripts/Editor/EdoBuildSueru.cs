@@ -15,6 +15,8 @@
 //    ・<see cref="FlushGap"/> / <see cref="SeatFlush"/> … 天端を地表に揃えて埋める
 //    ・<see cref="CenterInOpening"/> … 差す駒を相手の穴の壁の断面へ芯出し(穴との離れを方位ごとに返す)
 //    ・<see cref="CenterOnBed"/> … 足(柱)の断面を受け(礎石)の断面へ芯出し(足ごとの芯ずれを返す)
+//    ・<see cref="HullOfMat"/> / <see cref="OpeningOf"/> … 駒の平面の外形・筒の口(実メッシュから)
+//    ・<see cref="ClearDetailIn"/> / <see cref="CutHole"/> / <see cref="FillHoles"/> … 駒の下の芝を消す・口の下の地形を抜く
 //
 // 当たる先: 山王の前庭の井戸(板石敷・井筒+井桁・井戸屋形)。同じ型は**一体で焼いた複合部材**
 //   (門+礎石、灯籠+台石、手水鉢+水受け)と、**天端で埋める敷き物**(園路の敷石・延段・沓脱石)全部。
@@ -378,4 +380,222 @@ public static partial class EdoBuild
         return sh;
     }
     static int Quad(Vector2 d) { return d.x >= 0 ? (d.y >= 0 ? 0 : 3) : (d.y >= 0 ? 1 : 2); }
+
+    // ============================================================ 駒の下の地形(2026-09-23・EDO-0274)
+    // ⭐ 埋め込んだ駒の下では地形の芝(detail)が駒を突き抜け、井戸・枡のように**口のある駒**の中は
+    //    地形の面で塞がる。範囲は**据えた駒の実メッシュ**から出す(⛔ 指図の矩形・部材の寸法を写さない)。
+    //    当たる先: 井戸(石敷・井筒)・延段と敷石・沓脱石・池や手水鉢の縁石・伏せ枡。
+    // ⛔ 地形の編集は Undo の外 ── 呼ぶ前に TerrainData を退避すること(`.claude/rules/unity.md`)。
+
+    /// <summary>駒(材 <paramref name="mat"/>・null で全材)の実メッシュの**平面の外形**(XZ の凸包・世界座標)。</summary>
+    public static Vector2[] HullOfMat(Transform tr, string mat = null)
+    {
+        var pts = BodyOfMat(tr, mat);
+        var p2 = new Vector2[pts.Count];
+        for (int i = 0; i < pts.Count; i++) p2[i] = new Vector2(pts[i].x, pts[i].z);
+        var idx = EdoGeom.HullXZ(p2);
+        var hull = new Vector2[idx.Length];
+        for (int i = 0; i < idx.Length; i++) hull[i] = p2[idx[i]];
+        return hull;
+    }
+
+    /// <summary>**筒の口**(輪になった駒の内周)を高さ <paramref name="y"/> の断面から採る。断面の外形の中点から
+    /// <paramref name="n"/> 方位それぞれで**最も内の交点**までを結んだ多角形(世界 XZ)。測れなければ null。
+    /// ⭐ 井筒・枡・井戸側・手水鉢の口。⛔ 部材の寸法(内径)を写さない ── 実メッシュの内周を測る。</summary>
+    public static Vector2[] OpeningOf(Transform tr, string mat, float y, int n = 32)
+    {
+        var S = Section(tr, y, mat);
+        if (S.Count < n) return null;
+        Vector2 c, h; MidXZ(S, out c, out h);
+        var rmin = new float[n];
+        for (int i = 0; i < n; i++) rmin[i] = float.MaxValue;
+        foreach (var p in S)
+        {
+            var d = new Vector2(p.x, p.z) - c;
+            float a = Mathf.Atan2(d.y, d.x); if (a < 0) a += 2 * Mathf.PI;
+            int k = Mathf.Clamp((int)(a / (2 * Mathf.PI) * n), 0, n - 1);
+            rmin[k] = Mathf.Min(rmin[k], d.magnitude);
+        }
+        var poly = new Vector2[n];
+        for (int i = 0; i < n; i++)
+        {
+            if (rmin[i] == float.MaxValue) return null;             // 口が閉じていない方位がある
+            // 方位の帯の端(小さい角)で結ぶと多角形が口の内に収まらないことがあるので、帯の中央で結び、
+            // 帯の半角ぶん外へ広げる(弦が円弧の内に落ちる量 = r(1/cos(π/n) − 1))。
+            float a = (i + 0.5f) / n * 2 * Mathf.PI;
+            float r = rmin[i] / Mathf.Cos(Mathf.PI / n);
+            poly[i] = c + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r;
+        }
+        return poly;
+    }
+
+    /// <summary>軸に沿った矩形(世界 XZ)と凸でも凹でもよい多角形が重なるか。</summary>
+    static bool RectOverlapsPoly(Vector2 lo, Vector2 hi, Vector2[] poly)
+    {
+        foreach (var p in poly) if (p.x >= lo.x && p.x <= hi.x && p.y >= lo.y && p.y <= hi.y) return true;
+        var cs = new[] { lo, new Vector2(hi.x, lo.y), hi, new Vector2(lo.x, hi.y) };
+        foreach (var q in cs) if (EdoGeom.PIP(poly, q)) return true;
+        for (int i = 0; i < poly.Length; i++)
+        {
+            var a = poly[i]; var b = poly[(i + 1) % poly.Length];
+            for (int e = 0; e < 4; e++) if (SegX(a, b, cs[e], cs[(e + 1) % 4])) return true;
+        }
+        return false;
+    }
+    static bool SegX(Vector2 p1, Vector2 p2, Vector2 q1, Vector2 q2)
+    {
+        Func<Vector2, Vector2, Vector2, float> cr = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+        float d1 = cr(q1, q2, p1), d2 = cr(q1, q2, p2), d3 = cr(p1, p2, q1), d4 = cr(p1, p2, q2);
+        return ((d1 > 0) != (d2 > 0)) && ((d3 > 0) != (d4 > 0));
+    }
+
+    /// <summary>detail の矩形を **[y, x]・寸法 [h, w]** の配列で読む。
+    /// <para>⚠ **Unity 6000.5 の `GetDetailLayer` / `GetHoles` は、中身は [y, x] の行優先なのに、配列の寸法を
+    /// [w, h] と名乗って返す**(2026-09-23 実測: 40×30 を読むと GetLength(0)=40。`d[x,y]` とも `d[y,x]` とも
+    /// 合わず、平らに並べた k 番目 = (x0 + k % w, y0 + k / w) だけが全点一致)。そのまま添字で引くと
+    /// 正方でない範囲で**別のセルを消す**・添字あふれで落ちる。⇒ 平らに読み直して [h, w] に組み直す。
+    /// 書き戻す <c>SetDetailLayer</c>/<c>SetHoles</c> へは組み直した [h, w] を渡す(文書どおりの形)。</para></summary>
+    static int[,] DetailBlock(TerrainData td, int x0, int y0, int w, int h, int layer)
+    {
+        var raw = td.GetDetailLayer(x0, y0, w, h, layer);
+        var o = new int[h, w]; int k = 0;
+        foreach (var v in raw) { o[k / w, k % w] = v; k++; }
+        return o;
+    }
+    /// <summary>holes の矩形を [y, x]・寸法 [h, w] で読む(true = 地形あり)。⚠ <see cref="DetailBlock"/> と同じ寸法の癖。</summary>
+    static bool[,] HolesBlock(TerrainData td, int x0, int y0, int w, int h)
+    {
+        var raw = td.GetHoles(x0, y0, w, h);
+        var o = new bool[h, w]; int k = 0;
+        foreach (var v in raw) { o[k / w, k % w] = v; k++; }
+        return o;
+    }
+
+    /// <summary>地形のセル範囲の報告。</summary>
+    public struct TerrainCells
+    {
+        public int visited, changed;              // 重なったセル / 値が変わったセル
+        public int joints;                        // (穴)覆いの検めで、駒の継ぎ目と数えた点(0.1m 刻み)
+        public int i0, j0, i1, j1;                // セル番号の範囲(含む)
+        public Vector2 lo, hi;                    // その世界 XZ の範囲
+        public override string ToString()
+        {
+            return changed + " / " + visited + " セル" + (joints > 0 ? "(継ぎ目 " + joints + " 点)" : "") + " [" + i0 + ".." + i1 + "]×[" + j0 + ".." + j1 + "] = x " +
+                   lo.x.ToString("F2") + "〜" + hi.x.ToString("F2") + " z " + lo.y.ToString("F2") + "〜" + hi.y.ToString("F2");
+        }
+    }
+
+    /// <summary>**多角形に少しでも掛かる detail のセルを空にする**(全層)。返り値 = 掛かったセルと値の変わったセル。
+    /// <para>⭐ 芝の一本はセルの中のどこにでも生えるので、**掛かったセルは全部**消す(芯が中にあるセルだけでは、
+    /// 縁のセルの芝が駒の上へ出る)。その代わり駒の外へ最大 1 セル(赤坂は 1.0m)芝が退く ── 報告に範囲を刷る。</para></summary>
+    public static TerrainCells ClearDetailIn(Vector2[] poly)
+    {
+        var t = T(); var td = t.terrainData; var org = t.transform.position;
+        int D = td.detailResolution; float cx = td.size.x / D, cz = td.size.z / D;
+        var r = new TerrainCells();
+        float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
+        foreach (var p in poly) { mnx = Mathf.Min(mnx, p.x); mxx = Mathf.Max(mxx, p.x); mnz = Mathf.Min(mnz, p.y); mxz = Mathf.Max(mxz, p.y); }
+        r.i0 = Mathf.Clamp(Mathf.FloorToInt((mnx - org.x) / cx), 0, D - 1); r.i1 = Mathf.Clamp(Mathf.FloorToInt((mxx - org.x) / cx), 0, D - 1);
+        r.j0 = Mathf.Clamp(Mathf.FloorToInt((mnz - org.z) / cz), 0, D - 1); r.j1 = Mathf.Clamp(Mathf.FloorToInt((mxz - org.z) / cz), 0, D - 1);
+        int w = r.i1 - r.i0 + 1, h = r.j1 - r.j0 + 1;
+        var hit = new bool[h, w];
+        for (int j = 0; j < h; j++)
+            for (int i = 0; i < w; i++)
+            {
+                var lo = new Vector2(org.x + (r.i0 + i) * cx, org.z + (r.j0 + j) * cz);
+                hit[j, i] = RectOverlapsPoly(lo, lo + new Vector2(cx, cz), poly);
+                if (hit[j, i]) r.visited++;
+            }
+        var changedCell = new bool[h, w];
+        for (int l = 0; l < td.detailPrototypes.Length; l++)
+        {
+            var d = DetailBlock(td, r.i0, r.j0, w, h, l);
+            bool any = false;
+            for (int j = 0; j < h; j++) for (int i = 0; i < w; i++)
+                    if (hit[j, i] && d[j, i] != 0) { d[j, i] = 0; changedCell[j, i] = true; any = true; }
+            if (any) td.SetDetailLayer(r.i0, r.j0, l, d);
+        }
+        foreach (var b in changedCell) if (b) r.changed++;
+        r.lo = new Vector2(org.x + r.i0 * cx, org.z + r.j0 * cz);
+        r.hi = new Vector2(org.x + (r.i1 + 1) * cx, org.z + (r.j1 + 1) * cz);
+        return r;
+    }
+
+    /// <summary>**口の下の地形に穴を開ける**(TerrainData の holes)。<paramref name="opening"/> に掛かる holes のセルを
+    /// 全部抜く。ただし抜くセルのうち口の外の所は、**<paramref name="covers"/> の実メッシュが地表より上で覆っている**
+    /// こと(0.1m 刻みで検める。<paramref name="joint"/> 以内に覆いがある点は駒どうしの継ぎ目と数える)── 覆われない所があれば**一つも抜かずに**理由を返す(穴の縁が見えるため)。
+    /// <paramref name="why"/> = 抜かなかった理由(抜いたら null)。
+    /// <para>⚠ holes のセルは高さの格子と同じ大きさ(赤坂は 2.0m)。口より大きく抜けるので、覆いの検めが要る。
+    /// ⚠ 抜いた穴は駒を動かしても残る ── 据え直したら <see cref="FillHoles"/> で塞いでから抜き直す。</para></summary>
+    public static TerrainCells CutHole(Vector2[] opening, GameObject[] covers, out string why, float joint = 0.02f)
+    {
+        why = null;
+        var t = T(); var td = t.terrainData; var org = t.transform.position;
+        int R = td.holesResolution; float cx = td.size.x / R, cz = td.size.z / R;
+        var r = new TerrainCells();
+        float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
+        foreach (var p in opening) { mnx = Mathf.Min(mnx, p.x); mxx = Mathf.Max(mxx, p.x); mnz = Mathf.Min(mnz, p.y); mxz = Mathf.Max(mxz, p.y); }
+        r.i0 = Mathf.Clamp(Mathf.FloorToInt((mnx - org.x) / cx), 0, R - 1); r.i1 = Mathf.Clamp(Mathf.FloorToInt((mxx - org.x) / cx), 0, R - 1);
+        r.j0 = Mathf.Clamp(Mathf.FloorToInt((mnz - org.z) / cz), 0, R - 1); r.j1 = Mathf.Clamp(Mathf.FloorToInt((mxz - org.z) / cz), 0, R - 1);
+        r.lo = new Vector2(org.x + r.i0 * cx, org.z + r.j0 * cz);
+        r.hi = new Vector2(org.x + (r.i1 + 1) * cx, org.z + (r.j1 + 1) * cz);
+        int w = r.i1 - r.i0 + 1, h = r.j1 - r.j0 + 1;
+        var cut = new bool[h, w];
+        var tris = new List<Vector3[]>();
+        foreach (var g in covers) tris.AddRange(TrisOfMat(g.transform, null));
+        var probe = Probe();
+        const float STEP = 0.1f;
+        for (int j = 0; j < h; j++)
+            for (int i = 0; i < w; i++)
+            {
+                var lo = new Vector2(org.x + (r.i0 + i) * cx, org.z + (r.j0 + j) * cz);
+                if (!RectOverlapsPoly(lo, lo + new Vector2(cx, cz), opening)) continue;
+                cut[j, i] = true; r.visited++;
+                for (float x = lo.x + STEP * 0.5f; x < lo.x + cx; x += STEP)
+                    for (float z = lo.y + STEP * 0.5f; z < lo.y + cz; z += STEP)
+                    {
+                        if (EdoGeom.PIP(opening, new Vector2(x, z))) continue;       // 口の中は見えてよい
+                        float g = probe.At(x, z);
+                        if (CoveredAt(tris, x, z, g)) continue;
+                        // 駒と駒の継ぎ目(井筒の外周と石敷の穴の縁のような、多角形どうしの弦の差)は、
+                        // <paramref name="joint"/> 以内に覆いがあれば継ぎ目と数える(⛔ 穴の縁ではない)
+                        bool slit = false;
+                        for (int k = 0; k < 8 && !slit; k++)
+                        {
+                            float a = k * Mathf.PI / 4f;
+                            slit = CoveredAt(tris, x + Mathf.Cos(a) * joint, z + Mathf.Sin(a) * joint, g);
+                        }
+                        if (slit) { r.joints++; continue; }
+                        {
+                            why = "穴のセル (" + (r.i0 + i) + "," + (r.j0 + j) + ") の (" + x.ToString("F2") + ", " + z.ToString("F2") +
+                                  ") を覆う駒が無い ── 穴の縁が見える";
+                            return r;
+                        }
+                    }
+            }
+        var hv = HolesBlock(td, r.i0, r.j0, w, h);
+        for (int j = 0; j < h; j++) for (int i = 0; i < w; i++)
+                if (cut[j, i] && hv[j, i]) { hv[j, i] = false; r.changed++; }
+        if (r.changed > 0) td.SetHoles(r.i0, r.j0, hv);
+        return r;
+    }
+
+    static bool CoveredAt(List<Vector3[]> tris, float x, float z, float ground)
+    {
+        float y;
+        foreach (var q in tris) if (TriYAt(q, x, z, out y) && y >= ground - 1e-3f) return true;
+        return false;
+    }
+
+    /// <summary><see cref="CutHole"/> で抜いた範囲を塞ぐ(据え直しの前に)。返り値 = 塞いだセルの数。</summary>
+    public static int FillHoles(TerrainCells cells)
+    {
+        var td = T().terrainData;
+        int w = cells.i1 - cells.i0 + 1, h = cells.j1 - cells.j0 + 1, n = 0;
+        if (w <= 0 || h <= 0) return 0;
+        var hv = HolesBlock(td, cells.i0, cells.j0, w, h);
+        for (int j = 0; j < h; j++) for (int i = 0; i < w; i++) if (!hv[j, i]) { hv[j, i] = true; n++; }
+        if (n > 0) td.SetHoles(cells.i0, cells.j0, hv);
+        return n;
+    }
 }

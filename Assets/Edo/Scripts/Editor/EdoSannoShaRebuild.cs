@@ -1688,6 +1688,8 @@ public static class EdoSannoShaRebuild
     ///   井桁(材 wood)の下端を縁石(材 Kirishi)の天端へ下ろす(<see cref="EdoBuild.RestOn"/>)。</item>
     /// <item>**井戸屋形** … 棟の向きは `muneDir`(部材の棟はローカル Z)。柱の根を礎石(材 Kirishi)の天端へ下ろし、
     ///   柱の断面を礎石の断面へ芯出し(<see cref="EdoBuild.CenterOnBed"/>)。</item>
+    /// <item>**駒の下の地形** … 石敷の外形に掛かる芝を消し(<see cref="EdoBuild.ClearDetailIn"/>)、井筒の口の下の地形を
+    ///   抜く(<see cref="EdoBuild.CutHole"/> ── 口の外は石敷・井筒が覆っていることを検めてから)。⛔ Undo の外。</item>
     /// </list>
     /// 「寄せる → 据える」を2巡する(`docs/oki-kata.md` §2)。⛔ 部材の綴りの数は `ido` からの従属値。</summary>
     public static string Stage8_Ido()
@@ -1765,6 +1767,20 @@ public static class EdoSannoShaRebuild
         }
         EdoBuild.RestOn(yakata, null, ishiki, STONE, 0f, out at, out nPost);
 
+        // 4 駒の下の地形 ─ 石敷の外形の中の芝を消し、井筒の口の下を抜く(⛔ 地形の編集は Undo の外)
+        //   範囲は**据えた駒の実メッシュ**から: 石敷の平面の外形・井筒(割栗の材)の内周。
+        var td = EdoBuild.T().terrainData;
+        var pave = EdoBuild.HullOfMat(ishiki.transform);
+        var det = EdoBuild.ClearDetailIn(pave);
+        float r2x; Vector3 a3; int n3;
+        EdoBuild.FlushGap(ishiki, STONE, out r2x, out a3, out n3);
+        var mouth = EdoBuild.OpeningOf(igeta.transform, RUBBLE, a3.y - 0.10f);
+        string holeWhy = null; var hole = new EdoBuild.TerrainCells();
+        if (mouth == null) holeWhy = "井筒の口が測れない";
+        else hole = EdoBuild.CutHole(mouth, new[] { ishiki, igeta }, out holeWhy);
+        EditorUtility.SetDirty(td);
+        AssetDatabase.SaveAssetIfDirty(td);
+
         Func<GameObject, string> P3 = g => "(" + g.transform.position.x.ToString("F3") + ", " +
             g.transform.position.y.ToString("F3") + ", " + g.transform.position.z.ToString("F3") + ") yaw " +
             g.transform.eulerAngles.y.ToString("F1");
@@ -1774,6 +1790,8 @@ public static class EdoSannoShaRebuild
                       "m / 井桁と縁石の当たり " + nTouch + " 点");
         sb.AppendLine("  井戸屋形 " + P3(yakata) + "(棟 " + muneDir + ")── 柱と礎石の当たり " + nPost + " 点 / 足ごとの芯ずれ最大 " +
                       worstFoot.ToString("F3") + "m");
+        sb.AppendLine("  地形の芝(detail): " + det + " ── 石敷の外形に掛かるセル");
+        sb.AppendLine("  地形の穴(holes): " + (holeWhy != null ? "⛔ 抜かなかった ── " + holeWhy : hole.ToString()) + " ── 井筒の口の下");
         return "井戸: 3 点\n" + sb;
     }
 

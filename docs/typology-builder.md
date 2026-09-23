@@ -157,7 +157,7 @@ Unity の実測と、プレハブの yaml から起こした判定は 36 本す�
 
 | type | 径数 | 決めるもの |
 |---|---|---|
-| `buke` | `yashiki`(kami/naka/shimo)・`rank`(daimyo / hatamoto_large / hatamoto_mid / gokenin)・`koku`・`front`・`gate`(kmon/nagayamon/hmon/kabukimon/komon)・`bansho`(ryou/kata/none)・`enclosure`・`garden`・`kura` | 門の格式(`estate-types.md` 早見表・[西川1959])、外周(全周長屋 / 前辺長屋+塀 / 塀)、主屋の型(雁行複合 / U字 / 田の字)、蔵の数、庭の有無 |
+| `buke` | `yashiki`(kami/naka/shimo)・`rank`(daimyo / hatamoto_large / hatamoto_mid / gokenin)・`koku`・`front`・`gate`(kmon/nagayamon/hmon/kabukimon/komon)・`bansho`(ryou/kata/none)・`enclosure`・`garden`・`kura`・`maeniwa_ken`(前庭の奥行の狙い[間]・無ければ既定) | 門の格式(`estate-types.md` 早見表・[西川1959])、外周(全周長屋 / 前辺長屋+塀 / 塀)、主屋の型(雁行複合 / U字 / 田の字)、蔵の数、庭の有無 |
 | `machiya` | `two_sided`・`front`・`maguchi_ken`・`depth_ken`・`pattern`(auto か並び)・`ura_nagaya`・`jishinban`・`kamiyui`・`inari` | 表店の並び(間口で割る)・裏長屋の棟数・番屋と稲荷の有無 |
 | `jisha` | `kind`(bo / temple / shake)・`main_hall_ken`([桁行,梁間]。EDO-0354 で建つ姿に効いた)・`gate`(munemon/yakuimon/sanmon)・`enclosure`・`shoro`・`sanmon`・`graveyard`・`tacchu`・`tokinokane` | 本堂(または坊の主屋)の間数・門・囲い。⛔ 坊を本堂・山門・鐘楼・墓地つきの寺にしない(考証方 (c))。境内の置き方は §4.6 |
 | `kouyuu` | `kind`(azukarichi / hoshiba / yaba / hikeshi)・`surface`・`fence`・`building` | 地表(草・土)と柵。建物は火消屋敷だけ |
@@ -287,6 +287,13 @@ Unity の実測と、プレハブの yaml から起こした判定は 36 本す�
 
 ⛔ **覆さない線**:
 1. **前庭は空けるのが既定。**参道の帯(gateC → 棟の門側の面、片側 = 門の実開口幅/2 + 1.5)に木・石・刈込・灯籠を置かない。埋めると格が落ちる。検査で「帯に入った駒 = 0」を刷る。
+   ⭐ **前庭の奥行は Stage 3(`Omoya`)が建てる時点で狙う**(2026-09-23・EDO-0372)。**柔らかい制約**
+   (`docs/oki-kata.md` §4a)— 門の芯から棟の軒まで(`EdoBuild.GateClearance`)`max(4間, 白洲が描ける広さ)` を
+   狙い、取れない筆では試した中で門から最も遠い所に建てる(⚠ で刷る・棟は落とさない)。4間は当方の推論【U】。
+   白洲の広さの狙いは `EdoGardenSurfacePaint.SANDO_MIN_TEXELS`(texel 2 枚相当・地形は 4m/texel)から逆算。
+   区画ごとに変えるなら表の `maeniwa_ken`。2026-09-23 まで主屋が門の真裏に建つ筆があり
+   (sanbezaka_w1: 帯の長さ 1.5m 未満・塗り 1 texel)、白洲が実質消えていた。
+   参道の印は帯の**四角形そのもの**(`NiwaGroundZone.quads`)で持ち、塗る側は texel ごとの被覆率で重みを掛ける。
 2. **塊は必ず奇数**(3/5/7)、外形は不等辺。**乱れは4つ全部**(芯々・yaw・等方スケール・個体)に掛ける。1つ欠けると並木に見える。
 3. **常緑:落葉 = 7:3。**落葉に寄せると冬に骨組みが消える。
 4. **池は類型の既定では掘らない**(§4.5a)。

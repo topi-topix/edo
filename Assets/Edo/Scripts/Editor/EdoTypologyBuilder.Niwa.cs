@@ -333,27 +333,68 @@ public static partial class EdoTypologyBuilder
         foreach (var p in list) z.points.Add(new Vector3(p.x, 0f, p.y));
     }
 
-    /// <summary>参道の帯(白洲)を格子点へ落とす。⭐ 帯は <see cref="EdoBuild.NiwaField.Solve"/> が
-    /// 庭域から除く側(<see cref="EdoBuild.NiwaField.Cells"/> には入らない)ので、<c>BandA/BandB/BandHalf</c>
-    /// から**帯そのものを**直接サンプルする(区画の外だけ弾く)。</summary>
-    static List<Vector2> SandoZonePoints(EdoBuild.NiwaField f)
+    /// <summary>参道の帯(白洲)を**帯の四角形そのもの**として印に置く(EDO-0372)。⭐ 帯は
+    /// <see cref="EdoBuild.NiwaField.Solve"/> が庭域から除く側(<see cref="EdoBuild.NiwaField.Cells"/> には
+    /// 入らない)ので <c>BandA/BandB/BandHalf</c> から直接起こし、区画の多角形も添えて塗る側で切らせる。
+    /// ⛔ 1.5m 格子の点へ落とさない — 2026-09-23 まではそうしていて、長さ 1.5m 未満の帯(sanbezaka_w1)は
+    /// 点 2 つ・塗り 1 texel にしかならず、白洲が実質消えていた。返り値は帯の区画内の面積[m²]。</summary>
+    static float AddSandoZone(Transform grp, EdoBuild.NiwaField f)
     {
-        var pts = new List<Vector2>();
-        const float pitch = 1.5f;
+        var quads = new List<Vector3>();
+        float area = 0f;
         for (int i = 0; i < f.BandA.Count; i++)
         {
             var a = f.BandA[i]; var b = f.BandB[i]; float half = f.BandHalf[i];
             float len = Vector2.Distance(a, b);
             if (len < 0.01f) continue;
             var along = (b - a) / len; var across = new Vector2(-along.y, along.x);
-            for (float t = 0f; t <= len; t += pitch)
-                for (float w = -half; w <= half; w += pitch)
-                {
-                    var p = a + along * t + across * w;
-                    if (EdoGeom.PIP(f.Poly, p)) pts.Add(p);
-                }
+            foreach (var q in new[] { a - across * half, b - across * half, b + across * half, a + across * half })
+                quads.Add(new Vector3(q.x, 0f, q.y));
+            // 区画の内に残る面積 — 0.5m 升で数える(帯は細いので升の粗さが効く・印の面積の控え)
+            for (float t = 0.25f; t < len; t += 0.5f)
+                for (float w = -half + 0.25f; w < half; w += 0.5f)
+                    if (EdoGeom.PIP(f.Poly, a + along * t + across * w)) area += 0.25f;
         }
-        return pts;
+        if (quads.Count == 0) return 0f;
+        var go = new GameObject("Ground_shirasu");
+        go.transform.SetParent(grp, false);
+        var z = go.AddComponent<NiwaGroundZone>();
+        z.kind = "shirasu"; z.quads = quads;
+        foreach (var p in f.Poly) z.clip.Add(new Vector3(p.x, 0f, p.y));
+        return area;
+    }
+
+    // ───────────────────────── 参道の軸(Stage 3 と Stage 5 が同じ物を使う) ─────────────────────────
+
+    /// <summary>参道の帯の芯と片側の幅。<paramref name="gateC"/> を門の**通り抜けの実開口**の芯へ寄せ、
+    /// 片側 = 開口/2 + 1.5(上限 6.0m)を返す。⭐ 主屋を据える段(<c>Omoya</c>・前庭を空ける)と庭の段
+    /// (<c>Niwa</c>・白洲を塗る)が**同じ帯**を見るよう一か所にした(EDO-0372)。</summary>
+    static float SandoAxis(Spec s, Transform root, Edge front, ref Vector2 gateC, out string openHow)
+    {
+        // ⭐ 帯の幅は**門の通り抜けの実開口**から。⛔ 門構え全体の幅を開口と呼ばない —
+        //    長屋門は両翼が長屋(壁体)なので、全幅で白洲を引くと小さい区画は庭域が丸ごと消える。
+        var alongF = (front.b - front.a).normalized;
+        GameObject monGo = null;
+        var monGrp = root.Find("Mon");
+        if (monGrp != null) foreach (Transform t in monGrp)
+            if (t.name.StartsWith("Mon_")) { monGo = t.gameObject; break; }
+        float cproj; float opening = EdoBuild.NiwaGateOpening(monGo, alongF, out cproj);
+        if (!float.IsNaN(opening))
+        {
+            gateC = front.a + alongF * (cproj - Vector2.Dot(front.a, alongF));   // 開口の芯へ寄せる
+            openHow = string.Format("実測の通り抜け {0:F1}m", opening);
+        }
+        else
+        {
+            // ⛔ 門構えの**全幅**で代用しない(検分③)。長屋門は両翼が長屋なので、全幅で引くと
+            //    白洲が片側 18.5m = 幅 37m になり、庭域を削って前庭の松の置き場まで潰す。
+            //    代用するのは**門の格ごとの通り抜け**(柱間)。28区画すべてで門扉が閉じた駒なので
+            //    空きの連なりが出ず、いまは全区画がこの道を通る。
+            opening = GateThrough(s.gate);
+            openHow = string.Format("⚠ 通り抜けが測れず 門の格({0})の柱間 {1:F2}m で代用", s.gate ?? "無指定", opening);
+        }
+        // ⭐ 片側の上限 6.0m(実測できた場合も含む)— 武家屋敷の玄関前の白洲は 5〜10間【B】
+        return Mathf.Min(opening * 0.5f + 1.5f, 6.0f);
     }
 
     // ───────────────────────── Stage 5 ─────────────────────────
@@ -385,35 +426,11 @@ public static partial class EdoTypologyBuilder
         if (mune.Count == 0)
             return "  ⛔ 庭: 棟が1つも建っていないので庭域(軒からの距離)が解けない — 庭は建てない";
 
-        // 参道の帯(白洲): 門の中心 → 棟の門側の面の最近点。片側 = 実測の開口/2 + 1.5(§5-0 c)
+        // 参道の帯(白洲): 門の通り抜けの芯 → 棟の門側の面の最近点。片側 = 実測の開口/2 + 1.5(§5-0 c)
         var omoya = mune[0].gameObject;                       // 最初に据わった棟
         var rbO = EdoBuild.RB(omoya);
         var cO = new Vector2(rbO.center.x, rbO.center.z);
-        // ⭐ 帯の幅は**門の通り抜けの実開口**から。⛔ 門構え全体の幅を開口と呼ばない —
-        //    長屋門は両翼が長屋(壁体)なので、全幅で白洲を引くと小さい区画は庭域が丸ごと消える。
-        var alongF = (front.b - front.a).normalized;
-        GameObject monGo = null;
-        var monGrp = root.Find("Mon");
-        if (monGrp != null) foreach (Transform t in monGrp)
-            if (t.name.StartsWith("Mon_")) { monGo = t.gameObject; break; }
-        float cproj; float opening = EdoBuild.NiwaGateOpening(monGo, alongF, out cproj);
-        string openHow;
-        if (!float.IsNaN(opening))
-        {
-            gateC = front.a + alongF * (cproj - Vector2.Dot(front.a, alongF));   // 開口の芯へ寄せる
-            openHow = string.Format("実測の通り抜け {0:F1}m", opening);
-        }
-        else
-        {
-            // ⛔ 門構えの**全幅**で代用しない(検分③)。長屋門は両翼が長屋なので、全幅で引くと
-            //    白洲が片側 18.5m = 幅 37m になり、庭域を削って前庭の松の置き場まで潰す。
-            //    代用するのは**門の格ごとの通り抜け**(柱間)。28区画すべてで門扉が閉じた駒なので
-            //    空きの連なりが出ず、いまは全区画がこの道を通る。
-            opening = GateThrough(s.gate);
-            openHow = string.Format("⚠ 通り抜けが測れず 門の格({0})の柱間 {1:F2}m で代用", s.gate ?? "無指定", opening);
-        }
-        // ⭐ 片側の上限 6.0m(実測できた場合も含む)— 武家屋敷の玄関前の白洲は 5〜10間【B】
-        float half = Mathf.Min(opening * 0.5f + 1.5f, 6.0f);
+        string openHow; float half = SandoAxis(s, root, front, ref gateC, out openHow);
         Vector2 sandoB = cO;
         {
             float best = float.MaxValue;
@@ -440,7 +457,10 @@ public static partial class EdoTypologyBuilder
             if (Vector2.Distance(hit, cO) > 4f) f.AddBand(cO, hit, half * 0.8f);
         }
         // 参道の帯 = 白砂利(EDO-0372・§4.5「門〜玄関=白砂利」)。⛔ 地形には触らず印を置くだけ
-        AddGroundZone(grp, "shirasu", SandoZonePoints(f));
+        float sandoArea = AddSandoZone(grp, f);
+        // ⭐ 参道の奥行は Stage 3(Omoya)が前庭として空けてある — ここは測った値を刷るだけ(規則19)
+        float sandoLen = Vector2.Distance(gateC, sandoB);
+        string sandoLine = string.Format("    参道の白洲: 長さ {0:F1}m × 幅 {1:F1}m・区画内 {2:F0}m²", sandoLen, half * 2f, sandoArea);
 
         f.Solve(1.2f);
         if (f.Cells.Count == 0)
@@ -474,6 +494,7 @@ public static partial class EdoTypologyBuilder
                             + " / 参道の帯 片側 {7:F1}m({8} ÷2 + 1.5・上限6.0)",
                               g, f.Area, f.Cells.Count, per, zashikiLen, main.Count,
                               main.Count * f.Cell * f.Cell, half, openHow));
+        log.Add(sandoLine);
 
         // 勝手側(門と反対の半面)の候補点
         var kdir = (cO - gateC).sqrMagnitude > 0.01f ? (cO - gateC).normalized : zashikiN;

@@ -9,6 +9,10 @@ using UnityEngine;
 ///
 /// <c>points</c> は 2m 格子点(x,0,z のワールド座標)。<c>radius</c> は塗るときの塗り半径 —
 /// 格子の間隔よりわずかに広く取って、点と点の間に塗り残しの筋が出ないようにする(既定 1.5m)。
+///
+/// <c>quads</c> は**帯の四角形そのもの**(4 点ずつ・x,0,z)、<c>clip</c> は区画の多角形。参道の白洲は
+/// こちらで持つ(EDO-0372)— 細い帯を点へ落とすと、地形の 1 texel(4m)より小さい所が丸ごと消える。
+/// 塗る側は texel ごとの被覆率(副標本)で重みを掛ける。
 /// </summary>
 public class NiwaGroundZone : MonoBehaviour
 {
@@ -16,4 +20,6 @@ public class NiwaGroundZone : MonoBehaviour
     public string kind;
     public List<Vector3> points = new List<Vector3>();
     public float radius = 1.5f;
+    public List<Vector3> quads = new List<Vector3>();
+    public List<Vector3> clip = new List<Vector3>();
 }

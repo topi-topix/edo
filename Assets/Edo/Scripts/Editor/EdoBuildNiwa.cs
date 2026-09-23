@@ -153,6 +153,35 @@ public static partial class EdoBuild
         return bestW;
     }
 
+    /// <summary>門の芯 <paramref name="gateC"/> から駒の**実外形**までの水平の離れ[m](外形の中なら 0)。
+    /// ⭐ 前庭が取れているかを**建てる時点で**測るための物(EDO-0372)— 主屋が門の真裏に建つと、参道の
+    /// 白洲(門の芯 → 主屋の最近点)は長さ 1.5m 未満になり、地形の 1 texel(4m)にも満たず塗っても見えない。
+    /// 参道は門から主屋の**最も近い所**へ引くので、守るべきは向きを問わない離れ(半径)で、真っ直ぐの帯ではない。
+    ///
+    /// <para>測り方: 駒の頂点(<paramref name="withRoof"/>=true なら屋根・軒込み — 前庭に屋根は架けない)の
+    /// XZ 凸包を取り、門の芯から凸包の**辺**までの最短距離を採る。⛔ 頂点までの距離で測らない — 門の正面に
+    /// 長い壁が来ると、壁の両端の頂点は遠くても壁の中ほどが門に迫る。⛔ 外接箱で測らない(回った棟で外す)。</para></summary>
+    public static float GateClearance(GameObject go, Vector2 gateC, bool withRoof = true)
+    {
+        if (go == null) return float.PositiveInfinity;
+        var body = Body(go.transform, 1200, withRoof);
+        if (body.Count < 3) return float.PositiveInfinity;
+        var xz = new Vector2[body.Count];
+        for (int i = 0; i < body.Count; i++) xz[i] = new Vector2(body[i].x, body[i].z);
+        var hi = EdoGeom.HullXZ(xz);
+        var hull = new Vector2[hi.Length];
+        for (int i = 0; i < hi.Length; i++) hull[i] = xz[hi[i]];
+        if (hull.Length >= 3 && EdoGeom.PIP(hull, gateC)) return 0f;
+        float best = float.PositiveInfinity;
+        for (int i = 0; i < hull.Length; i++)
+        {
+            var a = hull[i]; var b = hull[(i + 1) % hull.Length];
+            var ab = b - a; float t = ab.sqrMagnitude < 1e-8f ? 0f : Mathf.Clamp01(Vector2.Dot(gateC - a, ab) / ab.sqrMagnitude);
+            best = Mathf.Min(best, Vector2.Distance(gateC, a + ab * t));
+        }
+        return best;
+    }
+
     // ═══════════════════════ 庭の地(庭域・帯・空地) ═══════════════════════
 
     /// <summary>据えるときの作法ひと組。

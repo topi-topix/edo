@@ -33,6 +33,11 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
     const float ES = 1.818f;          // edogoyomi の倍率(江戸間1間)
     const float KEN = 1.818f;
     const float SETBACK = 6.0f;       // 囲いの内側から主屋までの引き(m)
+    // 前庭の奥行の**狙い**(門の芯から棟の軒まで・向きを問わない半径)。⛔ 関門ではない — 取れない筆では
+    // 試した中で門から最も遠い場所に建てる(施主 2026-09-23)。区画ごとの値は表の maeniwa_ken。4間 = 7.27m【U: 小旗本の門→玄関の間合いの
+    // 当方の推定・史料値ではない】。地形のスプラットが白洲を描ける広さ(EdoGardenSurfacePaint.SANDO_MIN_TEXELS)
+    // がこれを上回るときはそちらを採る(EDO-0372)。
+    const float MAENIWA_MIN = 4f * 1.818f;
     const float PROBE = 3.0f;         // 辺の外側をどれだけ出て隣を探すか(m)
     const float MIN_BLDG_GAP = 2.0f;  // 棟どうしの最小離れ(m)
     const int   VERTS = 800;          // 接地箇所を測るときの頂点の間引きの上限(79区画を一度に建てるため)
@@ -64,6 +69,9 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         public string hoshiba;               // 干場の種別 konya 紺屋 / kappa 合羽(4区画)
         public int tacchu;                   // 塔頭(子院)の数(澄泉寺=3)
         public bool tokinokane;              // 時の鐘(成満寺=江戸の二番鐘)
+        // 前庭の奥行の狙い[間](EDO-0372)。0 ならビルダーの既定(4間と白洲が描ける広さの大きい方)。
+        //    狭い筆で狙いが強すぎる・広い筆でもっと空けたいときは、コードでなくこの欄を書き換える。
+        public int maeniwaKen;
         public Dictionary<string, object> raw;
         public bool Hand { get { return built == "hand"; } }
     }
@@ -174,6 +182,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 graveyard = Bo(d, "graveyard", false),
                 omoya = S(d, "omoya"), hoshiba = S(d, "hoshiba"),
                 tacchu = I(d, "tacchu", 0), tokinokane = Bo(d, "tokinokane", false),
+                maeniwaKen = I(d, "maeniwa_ken", 0),
             };
             var hall = IA(d, "main_hall_ken");
             if (hall != null && hall.Length >= 2) { s.hallW = hall[0]; s.hallD = hall[1]; }
@@ -680,7 +689,7 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         var placed = new List<Bounds>();
         var made = new List<GameObject>();            // 棟どうしの当たりを測るための実体
         var tried = new HashSet<Vector2>();
-        int n = 0, dropped = 0, unseated = 0, clashed = 0;
+        int n = 0, dropped = 0, unseated = 0;
         // ⭐ 御殿複合(EDO-0318 ⑥)— 中軸に玄関→表向→中奥→奥向を渡廊下でつないだ**一体の駒**を輪の前に建てる。
         //    以後の付属(蔵・厩・作事小屋)は、この駒の**棟ごとの外形**を避けて置く(⛔ 複合ぜんたいの外接箱で
         //    避けない — 雁行の振りで箱の中は空き地だらけになり、付属が一つも入らなくなる)。
@@ -700,48 +709,72 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 }
             gotenNote = "\n" + gotenNote;
         }
+        // ⭐ 前庭(EDO-0372)— 門の芯から MAENIWA 以内に棟(軒込み)を建てない。参道の白洲は門の芯 → 主屋の
+        //    最近点に引くので、ここで空けておかないと主屋が門の真裏に建ち、白洲が長さ 1.5m 未満で消える
+        //    (2026-09-23 sanbezaka_w1)。⛔ 庭の段(Stage 5)や塗る側で繕わない — 建てる時点で空ける。
+        //    御殿複合と寺社は各自の置き方で門から引いている(GotenComplex / JishaOmoya)ので、ここは Spot の棟だけ。
+        Vector2 sandoC = gateC; string sandoHow;
+        float sandoHalf = SandoAxis(s, root, front, ref sandoC, out sandoHow);
+        float splat = EdoGardenSurfacePaint.SplatCell();
+        float maeniwa = MAENIWA_MIN;
+        if (s.maeniwaKen > 0) maeniwa = s.maeniwaKen * 1.818f;   // ⭐ 表の欄が勝つ(欄の上書きで直す・規則4)
+        else if (!float.IsNaN(splat))      // 帯の面積 = 奥行 × 幅 ≥ 要る texel 数 × texel の面積(1.15 は区画の縁で切られる分の余裕)
+            maeniwa = Mathf.Max(maeniwa, 1.15f * EdoGardenSurfacePaint.SANDO_MIN_TEXELS * splat * splat / (2f * sandoHalf));
         float worstPair = float.NaN;
+        // ⭐ 置き場は EdoBuild.PlaceBest で選ぶ — **硬い制約で退け、柔らかい制約で選ぶ**(docs/oki-kata.md §4a)。
+        //    ⛔ 前庭のような狙いを「届かなければ退ける」関門として書かない(施主 2026-09-23)。
+        var tally = new EdoBuild.SeiyakuTally();
         foreach (var item in plan)
         {
-            GameObject go = null;
-            // ⭐ 置いて、実メッシュの底面で検め、はみ出したら退けて次の場所(最大8回)。
-            //    半径は型ごとの当て推量なので、区画の境界は実メッシュでしか決められない(規則5)。
-            for (int attempt = 0; attempt < 8 && go == null; attempt++)
+            string nm = "B" + n + "_" + Path.GetFileNameWithoutExtension(item.Key);
+            Func<Vector2, GameObject> place = spot =>
             {
-                var spot = Spot(poly, c, placed, item.Value, tried);
-                if (spot == null) break;
-                tried.Add(spot.Value);
-                go = EdoBuild.Place(item.Key, new Vector3(spot.Value.x, pad, spot.Value.y), psi,
-                                    Vector3.one, g, "B" + n + "_" + Path.GetFileNameWithoutExtension(item.Key));
-                if (go == null) break;
+                var q = EdoBuild.Place(item.Key, new Vector3(spot.x, pad, spot.y), psi, Vector3.one, g, nm);
+                if (q == null) return null;
                 // ⛔ ピボットの座・底ではなく**接地箇所**で据える(規則21)
-                try { EdoBuild.SeatOnGround(go, 0f, VERTS); }
-                catch (Exception) { unseated++; UnityEngine.Object.DestroyImmediate(go); go = null; continue; }
-                if (OutsideBy(poly, go.transform, false) > 0f)   // 壁体が外へ出たら退ける(軒は別勘定)
+                try { EdoBuild.SeatOnGround(q, 0f, VERTS); }
+                catch (Exception) { unseated++; UnityEngine.Object.DestroyImmediate(q); return null; }
+                return q;
+            };
+            var hards = new List<EdoBuild.Hard>
+            {
+                // 壁体が区画の外へ出ない(軒は別勘定・2026-09-21 施主裁定A)
+                new EdoBuild.Hard("区域侵犯", q => OutsideBy(poly, q.transform, false) <= 0f),
+                // ⛔ 外接箱の膨らましだけで離れを決めない — **既に建った棟と触れている箇所**を測る(規則21)
+                new EdoBuild.Hard("めり込み", q =>
                 {
-                    UnityEngine.Object.DestroyImmediate(go); go = null; continue;
-                }
-                // ⛔ 外接箱の膨らましだけで離れを決めない — 回った棟・L字の棟で必ず外す。
-                //    **既に建った棟と触れている箇所**を測り、めり込むなら退けて次の場所へ(規則21・2026-09-21)。
-                float worst = float.NaN;
-                foreach (var prev in made)
-                {
-                    var d3 = PairDir(go, prev);
-                    if (d3.sqrMagnitude < 1e-4f) { worst = -9f; break; }
-                    Vector3 pat; int pn;
-                    float gp = EdoBuild.Contact(go, prev, d3.normalized, out pat, out pn, 0.01f, 0.5f, 800);
-                    if (!float.IsNaN(gp) && (float.IsNaN(worst) || gp < worst)) worst = gp;
-                }
-                if (!float.IsNaN(worst) && worst < 0f)   // めり込み = 許容0(規則4)
-                {
-                    UnityEngine.Object.DestroyImmediate(go); go = null; clashed++; continue;
-                }
-                if (!float.IsNaN(worst) && (float.IsNaN(worstPair) || worst < worstPair)) worstPair = worst;
-                var rb = EdoBuild.RB(go); rb.Expand(MIN_BLDG_GAP * 2f); placed.Add(rb);  // Expand は片側 1/2
-                made.Add(go);
-                n++;
+                    foreach (var prev in made)
+                    {
+                        var d3 = PairDir(q, prev);
+                        if (d3.sqrMagnitude < 1e-4f) return false;
+                        Vector3 pat; int pn;
+                        float gp = EdoBuild.Contact(q, prev, d3.normalized, out pat, out pn, 0.01f, 0.5f, 800);
+                        if (!float.IsNaN(gp) && gp < 0f) return false;
+                    }
+                    return true;
+                }),
+            };
+            var softs = new List<EdoBuild.Soft>
+            {
+                // 前庭(EDO-0372)— 門の芯から棟の軒までの離れ。参道の白洲はここに塗る
+                new EdoBuild.Soft("前庭の奥行 m", maeniwa, q => EdoBuild.GateClearance(q, sandoC, true)),
+            };
+            // ⭐ 試す数は 24 — PlaceBest は狙いを満たした所で止まるので、多く試すのは狙いに届かないときだけ
+            var go = EdoBuild.PlaceBest(Candidates(poly, c, placed, item.Value, tried), 24, place, hards, softs, tally);
+            if (go == null) { dropped++; continue; }
+            float worst = float.NaN;
+            foreach (var prev in made)
+            {
+                var d3 = PairDir(go, prev);
+                if (d3.sqrMagnitude < 1e-4f) continue;
+                Vector3 pat; int pn;
+                float gp = EdoBuild.Contact(go, prev, d3.normalized, out pat, out pn, 0.01f, 0.5f, 800);
+                if (!float.IsNaN(gp) && (float.IsNaN(worst) || gp < worst)) worst = gp;
             }
-            if (go == null) dropped++;
+            if (!float.IsNaN(worst) && (float.IsNaN(worstPair) || worst < worstPair)) worstPair = worst;
+            var rb = EdoBuild.RB(go); rb.Expand(MIN_BLDG_GAP * 2f); placed.Add(rb);  // Expand は片側 1/2
+            made.Add(go);
+            n++;
         }
         // ⭐ **何を建てるつもりだったか**を毎回刷る(規則19)。棟数だけだと、表に足した種別が
         //    部材の取り違えや置き場所不足で丸ごと落ちても「N棟」の数字が減るだけで気づけない。
@@ -760,7 +793,8 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
         string un  = s.units > 1 ? string.Format("・{0}戸割り", s.units) : "";
         string dr  = dropped > 0 ? string.Format("・⚠ {0}棟は区画に収まらず未建", dropped) : "";
         if (unseated > 0) dr += string.Format("・⛔ {0}棟は接地箇所が測れず未建(部材のメッシュを検める)", unseated);
-        if (clashed > 0) dr += string.Format("・{0}回は先の棟にめり込むので退けて置き直した", clashed);
+        // 制約ごとの勘定 — 狙い(柔らかい)と許容0(硬い)を分けて毎回刷る(規則19・docs/oki-kata.md §4a)
+        dr += tally.Summary() + (s.maeniwaKen > 0 ? "(前庭の狙いは表の maeniwa_ken)" : "");
         if (!float.IsNaN(worstPair)) dr += string.Format("・棟どうしの当たりの最小 {0:F2}m{1}", worstPair,
             worstPair < MIN_BLDG_GAP ? "(⚠ 目安 " + MIN_BLDG_GAP.ToString("F1") + "m 未満)" : "");
         // ⭐ 型は **omoya** を刷る(rank ではない)— どの型で建てたかが log に出ていないと、
@@ -865,6 +899,20 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                 if (EdoGeom.PIP(poly, p) && EdoGeom.DistToPolyEdge(poly, p) >= d) L.Add(p);
             }
         return L;
+    }
+
+    /// <summary><see cref="Spot"/> を次々に引く候補の列(引いた点は <paramref name="tried"/> へ入れる)。
+    /// <see cref="EdoBuild.PlaceBest"/> へ渡す。</summary>
+    static IEnumerable<Vector2> Candidates(Vector2[] poly, List<Vector2> cand, List<Bounds> placed, float r,
+                                           HashSet<Vector2> tried)
+    {
+        while (true)
+        {
+            var sp = Spot(poly, cand, placed, r, tried);
+            if (sp == null) yield break;
+            tried.Add(sp.Value);
+            yield return sp.Value;
+        }
     }
 
     /// <summary>まだ空いていて、半径 r が区画からはみ出さず、既に置いた棟から MIN_BLDG_GAP 離れる点。

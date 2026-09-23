@@ -1634,6 +1634,26 @@ public static class EdoSannoShaRebuild
             var np = new TreePrototype(); np.prefab = pf; np.bendFactor = 0f;
             idxOf[path] = protos.Count; protos.Add(np); addedProto++;
         }
+        // ⛔ **描けない原型に植えない**(EDO-0401・2026-09-23 実測)── 根に Renderer も LODGroup も無い原型は
+        //    地形が黙って描かない(社叢 1,030 本が一本も写っていなかった・コンソールは無言)。〔硬い制約〕
+        {
+            var bad = new List<string>(); var seen = new HashSet<string>();
+            foreach (var o in pts)                      // 社叢の点が使う原型だけ(⛔ 他の敷地の原型で止めない)
+            {
+                var q = o as Dictionary<string, object>;
+                if (q == null || S(q, "place") == "GameObject") continue;
+                string path = TreePath(q);
+                if (path == null || !idxOf.ContainsKey(path) || !seen.Add(path)) continue;
+                // 地形が木として描けるのは、原型の**根**に LODGroup か MeshFilter+MeshRenderer が在るときだけ
+                var pf = protos[idxOf[path]].prefab;
+                bool ok = pf != null && (pf.GetComponent<LODGroup>() != null ||
+                          (pf.GetComponent<MeshFilter>() != null && pf.GetComponent<MeshRenderer>() != null));
+                if (!ok) bad.Add(path + "(根に LODGroup も MeshRenderer も無い)");
+            }
+            if (bad.Count > 0)
+                return "社叢: ⛔ 植えない ── 地形の木として描けない原型 " + bad.Count + " 種: " +
+                       string.Join(" / ", bad.ToArray()) + "\n" + sb;
+        }
         if (addedProto > 0) td.treePrototypes = protos.ToArray();
 
         // 焼き出しの外接矩形の内に在る**自分の原型の**木を外す(⛔ 他の敷地の木を消さない)。

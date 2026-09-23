@@ -10077,21 +10077,17 @@
  "reviews": {
   "niwashi": {
    "at": "2026-09-24",
-   "verdict": "pass",
-   "hash": "c83ea8b4d0cc9641",
-   "note": "三段(5ee2dd4d)助言付き・中1低2。植えない所は崩れず。石段3本が軒の雨垂れの内(K047と一緒に)/透塀の内の箱に水抜きが無い/雨落ちが段の境で落ちる所に落し口",
+   "verdict": "fail",
+   "hash": "66b6d9b9d07cb811",
+   "note": "直し(69d5935b)高1中2。社殿裏が裸地(地盤が面より高く帯に入らず、林はclip=Keidaiで落ちる)→西の林の範囲を社殿裏まで広げ松5・中木5・低木/北の切土も抜くのが筋/本殿背面の軒先の下に雨落ちが無い",
    "chapters": {
-    "gardens": "bdf91f883c05",
+    "gardens": "223037ba39db",
     "planting": "050b6cfaad9a",
     "routes": "23ecf0700734",
     "viewpoints": "ae8d421035b4",
-    "py": "df54a28bf9d68528"
+    "py": "109f4927c0f861d5"
    },
    "rounds": [
-    {
-     "at": "2026-09-15T20:32:16+09:00",
-     "verdict": "advisory"
-    },
     {
      "at": "2026-09-16T20:30:36+09:00",
      "verdict": "advisory"
@@ -10135,30 +10131,34 @@
     {
      "at": "2026-09-24T08:28:46+09:00",
      "verdict": "pass"
+    },
+    {
+     "at": "2026-09-24T08:57:37+09:00",
+     "verdict": "fail"
     }
    ]
   },
   "kosho": {
    "at": "2026-09-24",
-   "verdict": "fail",
-   "hash": "d6b526cdaf7be333",
-   "note": "三段(5ee2dd4d)高2中3低2。幣殿床が拝殿より0.70高い(同床高【A 加藤2018 6-3】と逆)・本殿の床の段1.30(0.90【A相当 根津】に地盤の段を二重)/本殿だけの段は §6-1 の読みと逆→acc にU設計判断と明記/透塀の腰1.45mに典拠なし/『石の間』の呼び/K109・K134継続",
+   "verdict": "pass",
+   "hash": "13f1c6194ede476e",
+   "note": "直し(69d5935b)助言付き・中1低3。前巡6件解消。社殿裏を『社叢』とする典拠なし(御宮絵図の緑か白かで決める)/joints/43 の石の間の呼び残り/幣殿・作り合いの床下0.25mは典拠なし→U明記/北の切土は原図を照らすまで保留",
    "chapters": {
-    "const": "a74a94fd0e3f",
+    "const": "e186ab30371b",
     "polygon": "66c63a322d37",
     "grid": "7c99d6cc4467",
     "planes": "e8df99ba61f9",
-    "terraces": "5a0ac32d414b",
-    "terraceWalls": "317a95204444",
+    "terraces": "79d95ca43ad2",
+    "terraceWalls": "d88d3364d55b",
     "slopeBands": "19e7253c4bcb",
-    "munes": "9428abd278f1",
+    "munes": "70cc45b689f2",
     "links": "08d0cec45aff",
     "runs": "17714a4a4c6a",
     "gates": "8bccfb4185fb",
     "torii": "17b88f18dd14",
-    "kaidans": "61511a614f28",
+    "kaidans": "6ed9133d4124",
     "sando": "c1779fabddef",
-    "gardens": "bdf91f883c05",
+    "gardens": "223037ba39db",
     "planting": "050b6cfaad9a",
     "props": "61b281955c80",
     "sections": "d3642439a664",
@@ -10166,27 +10166,23 @@
     "profiles": "c3b499cc6233",
     "terrainCheck": "8deec9856c06",
     "neighbors": "577eb0d759ed",
-    "bom": "a05fb95eb78b",
+    "bom": "63b645892e48",
     "fumotomichi": "160b585f9726",
     "routes": "23ecf0700734",
     "kattemichi": "3e4dc828c638",
     "viewpoints": "ae8d421035b4",
-    "joints": "c4868a8a4d18",
+    "joints": "02f87e0c7f68",
     "ido": "6f50ceb3c205",
     "shadenKidan": "84320877fb92",
     "ishizai": "898d22a3434c",
     "kakoiCross": "e451af6418e1",
-    "drains": "03360ba11125",
+    "drains": "e4f9cb18ce66",
     "amaochi": "ad9fd4bb02ce",
     "surface": "728fe7869784",
-    "py": "df54a28bf9d68528",
-    "md": "7608da7fcb4621bf"
+    "py": "109f4927c0f861d5",
+    "md": "f2cc423c565acab3"
    },
    "rounds": [
-    {
-     "at": "2026-09-15T20:32:16+09:00",
-     "verdict": "fail"
-    },
     {
      "at": "2026-09-16T20:30:36+09:00",
      "verdict": "advisory"
@@ -10230,30 +10226,34 @@
     {
      "at": "2026-09-24T08:28:45+09:00",
      "verdict": "fail"
+    },
+    {
+     "at": "2026-09-24T08:57:37+09:00",
+     "verdict": "pass"
     }
    ]
   },
   "kenzu": {
    "at": "2026-09-24",
    "verdict": "fail",
-   "hash": "d6b526cdaf7be333",
-   "note": "三段(5ee2dd4d)高2中1。床を面+定数で出し幣殿が拝殿より0.70高い(同床高【A】に反す)・本殿の床の段1.30/透塀の腰1.45mは外の境内28.3が社殿裏の自然地盤を最大3.28m切ったため(切土0.5m超 1,149m²)/段の境の土留めが拝殿の隅から始まり幣殿の脇で拝殿の床下が土を受ける。社殿5棟の系統差は解消",
+   "hash": "13f1c6194ede476e",
+   "note": "直し(69d5935b)中4。前巡6件解消。社殿裏385m²のうち185m²が裸地(撒き先が面の内だけ)/北の切土 最大3.29m・1.25m超289m²も同じ規則で抜ける/透塀Wの外の地盤が土台の天端を最大0.25m越える/本殿の西の軒先が透塀の芯を0.56m越え雨が塀の外の高い地盤へ",
    "chapters": {
-    "const": "a74a94fd0e3f",
+    "const": "e186ab30371b",
     "polygon": "66c63a322d37",
     "grid": "7c99d6cc4467",
     "planes": "e8df99ba61f9",
-    "terraces": "5a0ac32d414b",
-    "terraceWalls": "317a95204444",
+    "terraces": "79d95ca43ad2",
+    "terraceWalls": "d88d3364d55b",
     "slopeBands": "19e7253c4bcb",
-    "munes": "9428abd278f1",
+    "munes": "70cc45b689f2",
     "links": "08d0cec45aff",
     "runs": "17714a4a4c6a",
     "gates": "8bccfb4185fb",
     "torii": "17b88f18dd14",
-    "kaidans": "61511a614f28",
+    "kaidans": "6ed9133d4124",
     "sando": "c1779fabddef",
-    "gardens": "bdf91f883c05",
+    "gardens": "223037ba39db",
     "planting": "050b6cfaad9a",
     "props": "61b281955c80",
     "sections": "d3642439a664",
@@ -10261,27 +10261,23 @@
     "profiles": "c3b499cc6233",
     "terrainCheck": "8deec9856c06",
     "neighbors": "577eb0d759ed",
-    "bom": "a05fb95eb78b",
+    "bom": "63b645892e48",
     "fumotomichi": "160b585f9726",
     "routes": "23ecf0700734",
     "kattemichi": "3e4dc828c638",
     "viewpoints": "ae8d421035b4",
-    "joints": "c4868a8a4d18",
+    "joints": "02f87e0c7f68",
     "ido": "6f50ceb3c205",
     "shadenKidan": "84320877fb92",
     "ishizai": "898d22a3434c",
     "kakoiCross": "e451af6418e1",
-    "drains": "03360ba11125",
+    "drains": "e4f9cb18ce66",
     "amaochi": "ad9fd4bb02ce",
     "surface": "728fe7869784",
-    "py": "df54a28bf9d68528",
-    "md": "7608da7fcb4621bf"
+    "py": "109f4927c0f861d5",
+    "md": "f2cc423c565acab3"
    },
    "rounds": [
-    {
-     "at": "2026-09-15T20:32:16+09:00",
-     "verdict": "advisory"
-    },
     {
      "at": "2026-09-16T20:30:35+09:00",
      "verdict": "advisory"
@@ -10324,6 +10320,10 @@
     },
     {
      "at": "2026-09-24T08:28:45+09:00",
+     "verdict": "fail"
+    },
+    {
+     "at": "2026-09-24T08:57:37+09:00",
      "verdict": "fail"
     }
    ]

@@ -11,7 +11,7 @@
 ⚠ 数値の関門は `build_tree.py` 側にある(葉のカードの中心から最寄りの枝の芯までの距離)。
    ⛔ **数値だけで終えない** — 密度・輪郭・株立ちの姿は目でしか判定できない。
 """
-import bpy, sys, os
+import re, bpy, sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import vklib as V
 
@@ -82,7 +82,8 @@ def load(name, lod=0):
     bpy.ops.import_scene.fbx(filepath=os.path.join(TR, name + ".fbx"))
     new = [o for o in bpy.data.objects if o not in before]
     keep = [o for o in new
-            if o.type == 'MESH' and o.name.split('.')[0] == ("LOD_%d" % lod)]
+            if o.type == 'MESH' and re.search(r"LOD_?%d$" % lod, o.name.split('.')[0])]
+    # ⚠ 2026-09-23 から子は `<名>_LOD0` 綴り(Unity の自動 LODGroup)。旧綴り `LOD_0` も読む。
     for o in new:
         if o not in keep:
             bpy.data.objects.remove(o, do_unlink=True)
@@ -159,7 +160,7 @@ def main():
         load(name)
         hook()
         mn, mx = V.bbox([o for o in bpy.data.objects if o.type == 'MESH'
-                         and o.name.startswith("LOD_")])
+                         and re.search(r"LOD_?\d$", o.name.split('.')[0])])
         h = mx.z - mn.z
         hook()
         V.studio((h * 1.45, -h * 1.70, h * 0.68), (0, 0, h * 0.50), res=(1500, 1500))

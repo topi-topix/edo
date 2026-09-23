@@ -1015,7 +1015,14 @@ def main():
         for i, st in enumerate(stats):
             print("      LOD%d 葉%d枚  枝からの最大距離 %.3fm (関門 %.3fm)  落とした房 %d"
                   % (i, st["n"], st["dmax"], st["lim"], st["dropped"]))
-        for i, o in enumerate(lods): o.name = "LOD_%d" % i
+        # ⭐ 2026-09-23 EDO-0401 — **子の名は `<名>_LOD0/1/2`**(Unity の自動 LODGroup の綴り)。
+        #   ⛔ `LOD_0/1/2` のままだと根が空の Transform になり、①地形の木として
+        #   `TreePrototype.Validate` が「描画できるメッシュが無い」と落とす(山王の社叢 1,030 本が
+        #   一本も描かれなかった・コンソールは無言)②GameObject で置くと 3 枚重ねで描かれる。
+        #   ⚠ Unity のメッシュ名(と fileID)は**ノード名**から付くので、この改名でメッシュの fileID も
+        #   変わる。Mesh を fileID で直に指す物(土井邸の庭に解いた木 14 本)は張り替えが要る。
+        #   切り替えの高さ(0.80/0.60/0.04)は .fbx.meta の `lODScreenPercentages` に置く。
+        for i, o in enumerate(lods): o.name = "%s_LOD%d" % (name, i)
         path = os.path.join(OUT, name + ".fbx")
         V.export_fbx(lods, path)
         print("[tree] wrote %s" % path)

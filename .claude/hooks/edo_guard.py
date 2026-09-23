@@ -199,6 +199,47 @@ def big_read(ti):
     sys.exit(2)
 
 
+def _past_minutes(who, gitdir=None):
+    """その役が過去に掛かった分(waits.jsonl の実測)と、見込みとの比。見込みの手掛かりに返す。"""
+    import edo_now
+    try:
+        fp = edo_now.waits_path(ROOT)
+        rows = [json.loads(l) for l in open(fp, encoding="utf-8") if who in l]
+    except Exception:
+        return ""
+    ms = sorted((r["t1"] - r["t0"]) / 60.0 for r in rows if r.get("kind", "").startswith(who + " "))
+    if not ms:
+        return "過去の記録なし"
+    med = ms[len(ms) // 2]
+    return "過去 %d 回・中央 %d分・最長 %d分" % (len(ms), med, ms[-1])
+
+
+def plan_gate(ev, ti):
+    """役へ仕事を投げるときは【見込み】【内訳】を prompt の頭に書かせる(EDO-0412・2026-09-23 施主指示)。
+    「役に作業を依頼したとき、いつ返ってくるか分からず、こちらから状況を聞くことが多い」。
+    書かれた見込みは窓の今(edo_now.py)が拾い、普請場の一枚に「残り約N分・②の頃 / N分超過」と出る。
+    ⚠ 役の中から役を呼ぶ時(agent_type 付き)は問わない — 施主が待つのは外側の役だけ。"""
+    if ev.get("agent_type") or ev.get("agent_id"):
+        return
+    import edo_now
+    why = edo_now.plan_problem(ti.get("prompt") or "")
+    if not why:
+        return
+    st = ti.get("subagent_type") or "general-purpose"
+    who = edo_now.SUBAGENT_JA.get(st, st)
+    sys.stderr.write(
+        "⛔ 門番(見込み): 役へ投げる prompt に%s。施主が「いつ帰るか」を聞かずに済むよう、prompt の頭に書いてから投げ直す。\n"
+        "  【見込み】20分            ← 何分で帰るか(幅なら 15〜25分・長ければ 1.5時間)\n"
+        "  【内訳】\n"
+        "  1. 何を読む(5分)          ← 一行一項・%d 項以上。項ごとの分を書けば板に「今どの項か」が出る\n"
+        "  2. 何を測る/書く(10分)\n"
+        "  3. 何を返す(5分)\n"
+        "  %s の実績: %s\n"
+        "  あわせて施主への一言にも同じ見込みと内訳を一行で書く(docs/reporting-protocol.md 規則13)。\n"
+        % (why, edo_now.PLAN_MIN_ITEMS, who, _past_minutes(who)))
+    sys.exit(2)
+
+
 def _my_estate(sess):
     """このセッションの claim の `sashizu:<邸>` から邸名を引く。無ければ None。"""
     try:
@@ -244,6 +285,7 @@ def main():
 
 
 def _main(ev):
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     sess = (ev.get("session_id") or "unknown")[:12]
     try:
         context_meter(ev, sess)
@@ -259,6 +301,7 @@ def _main(ev):
         big_read(ti)
         sys.exit(0)
     if tool == "Agent":
+        plan_gate(ev, ti)
         # 三巡則(計画 B-1)— 検分役を呼ぶ前に、同じ役の fail がユーザー入力なしに 3 回続いていないか。
         st = (ti.get("subagent_type") or "")
         if st in ("edo-kenzu", "edo-kosho", "edo-niwashi"):
@@ -331,6 +374,25 @@ def selftest():
         if got != want:
             bad += 1
             print("  ⛔ %s — %s のはずが %s" % (name, "止" if want else "通", "止" if got else "通"))
+    # EDO-0412: 役へ投げるときの見込みと内訳
+    good = "【見込み】15〜25分\n【内訳】\n1. 章を読む(5分)\n2. 数える(10分)\n3. まとめる(5分)\n\n本文"
+    agents = [
+        ({"subagent_type": "edo-kenzu", "prompt": "指図を検めて"}, {}, True, "見込みの無い依頼は止める"),
+        ({"subagent_type": "edo-kenzu", "prompt": "【見込み】20分\n【内訳】\n1. 全部やる\n\n本文"}, {}, True,
+         "内訳が 1 項なら止める"),
+        ({"subagent_type": "Explore", "prompt": good}, {}, False, "見込みと内訳があれば通す"),
+        ({"subagent_type": "Explore", "prompt": "【見込み】10分 【内訳】①探す②まとめる"}, {}, False, "一行に ①② も可"),
+        ({"subagent_type": "Explore", "prompt": "探して"}, {"agent_type": "edo-toryo"}, False,
+         "役の中から役を呼ぶ時は問わない"),
+    ]
+    for ti, extra, want, name in agents:
+        r = subprocess.run([sys.executable, os.path.abspath(__file__)], capture_output=True, text=True,
+                           input=json.dumps(dict({"session_id": "selftest000", "tool_name": "Agent",
+                                                  "tool_input": ti}, **extra)))
+        got = r.returncode == 2 and "門番(見込み)" in r.stderr
+        if got != want:
+            bad += 1
+            print("  ⛔ %s — %s のはずが %s %s" % (name, "止" if want else "通", "止" if got else "通", r.stderr[-200:]))
     # ⭐ 配線まで通しで検める — 判定が正しくても、transcript から文脈を読めなければ一度も鳴らない
     #   (2026-09-21 の穴はまさに「鳴っていないことが誰にも見えない」種類だった)。
     import tempfile
@@ -379,8 +441,8 @@ def selftest():
                 pass
     bad += e2e
     print(("⛔ 門番の型 — 破れ %d 件" % bad) if bad else
-          "⭕ 門番 — %d 型(文脈の再武装 %d・丸読みの関門 %d・通しの配線 4)"
-          % (len(cases) + len(reads) + 4, len(cases), len(reads)))
+          "⭕ 門番 — %d 型(文脈の再武装 %d・丸読みの関門 %d・役の見込み %d・通しの配線 4)"
+          % (len(cases) + len(reads) + len(agents) + 4, len(cases), len(reads), len(agents)))
     return 1 if bad else 0
 
 

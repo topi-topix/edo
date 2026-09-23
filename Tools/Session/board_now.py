@@ -37,6 +37,11 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), ".claude", "hooks"))
+try:
+    from edo_now import plan_now              # 役の見込みの読み(EDO-0412)。読めなくても板は焼ける
+except Exception:
+    plan_now = None
 
 WIN_MIN = 180          # 帯が見せる幅(分)。左端が3時間前、右端が今
 FIN_DAYS = 14          # 「終わった仕事」を何日ぶん残すか(掲示板の「古び」と同じ 14 日)
@@ -174,6 +179,24 @@ def _work(st, now):
     return dict(kind="work", label="働いている", since=at)
 
 
+def _plan_note(plan, since, now):
+    """役の見込みに照らした一言(EDO-0412)。例「見込み20分・残り約7分・②の頃」「見込み20分を12分超過」。"""
+    if not plan or not plan_now or not since:
+        return ""
+    try:
+        p = plan_now(plan, since, now)
+    except Exception:
+        return ""
+    if p["left"] >= 0:
+        return "見込み%s・残り約%d分%s" % (p["est"], max(1, round(p["left"])), ("・" + p["step"]) if p["step"] else "")
+    return "見込み%sを%d分超過" % (p["est"], round(-p["left"]))
+
+
+def _plan_items(plan):
+    its = (plan or {}).get("items") or []
+    return " / ".join("%d. %s" % (i + 1, x.get("t", "")) for i, x in enumerate(its))
+
+
 def window_state(st, now, show_s=SHOW_S):
     """窓の今を一つに畳む。戻り値 dict(kind, label, since)。
     kind: busy=道具の返事を show_s 秒超えて待っている / agent=背景の役の帰り待ち /
@@ -196,14 +219,26 @@ def window_state(st, now, show_s=SHOW_S):
             sub = st.get("sub")
             if sub and e.get("tool") == "Agent" and sub.get("tool"):
                 lab += "・役の中: " + sub["tool"].split("__")[-1]
-            return dict(kind="busy", label=lab, since=e["since"])
+            note = _plan_note(e.get("plan"), e.get("since"), now)
+            if note:
+                lab += "(%s)" % note
+            return dict(kind="busy", label=lab, since=e["since"], items=_plan_items(e.get("plan")),
+                        over=bool(note) and note.endswith("超過"))
         return _work(st, now)
     if st.get("idle_since"):
         aw = st.get("await") or []
         if aw:
-            who = "・".join(dict.fromkeys((a.get("who") or "役") for a in aw))
-            return dict(kind="agent", label="%s の帰りを待つ(背景)" % who[:28],
-                        since=min(a.get("since") or st["idle_since"] for a in aw))
+            notes = [(a.get("who") or "役", _plan_note(a.get("plan"), a.get("since"), now)) for a in aw]
+            if any(n for _, n in notes):
+                # 見込みのある役は一つずつ(どれがいつ帰るかが知りたい事)
+                lab = "・".join("%s %s" % (w, n or "見込み無し") for w, n in notes) + " の帰りを待つ(背景)"
+            else:
+                lab = "%s の帰りを待つ(背景)" % "・".join(dict.fromkeys(w for w, _ in notes))[:28]
+            return dict(kind="agent", label=lab,
+                        since=min(a.get("since") or st["idle_since"] for a in aw),
+                        items=" || ".join("%s: %s" % (a.get("who") or "役", _plan_items(a.get("plan")))
+                                          for a in aw if a.get("plan")),
+                        over=any(n.endswith("超過") for _, n in notes if n))
         if now - st["idle_since"] < show_s:
             return dict(kind="paused", label="手を止めた", since=st["idle_since"])
         return dict(kind="idle", label="手が空いている(施主の指示待ち)", since=st["idle_since"])
@@ -517,10 +552,12 @@ def _state_chip(w, now):
     if not k:
         return ""
     mins = ((now - s["since"]) / 60) if s.get("since") else 0
+    tip = (' title="内訳: %s"' % esc(s["items"])) if s.get("items") else ""
+    mark = "⚠" if s.get("over") else "⏳"            # 見込みを超えた役は ⚠(施主が声を掛けてよい合図)
     if k == "busy":
-        return '<span class="bn-chip s">⏳ %s %d分</span>' % (esc(s["label"]), mins)
+        return '<span class="bn-chip s"%s>%s %s %d分</span>' % (tip, mark, esc(s["label"]), mins)
     if k == "agent":
-        return '<span class="bn-chip a">⏳ %s %d分</span>' % (esc(s["label"]), mins)
+        return '<span class="bn-chip a"%s>%s %s %d分</span>' % (tip, mark, esc(s["label"]), mins)
     if k == "idle":
         return '<span class="bn-chip i">%s %d分</span>' % (esc(s["label"]), mins)
     if k in ("stale", "paused"):
@@ -706,6 +743,16 @@ def selftest():
     sa = window_state({"at": n - 600, "stack": [], "idle_since": n - 600,
                        "await": [{"who": "棟梁", "since": n - 900}, {"who": "庭方", "since": n - 700}]}, n)
     assert sa["kind"] == "agent" and sa["label"] == "棟梁・庭方 の帰りを待つ(背景)" and sa["since"] == n - 900, sa
+    # EDO-0412: 役の見込み・残り・超過・今どの項か
+    pl = {"lo": 20, "hi": 20, "items": [{"t": "読む", "m": 5}, {"t": "数える", "m": 10}, {"t": "まとめる", "m": 5}]}
+    sp = window_state({"at": n - 10, "stack": [{"tool": "Agent", "kind": "検図方 の帰りを待つ", "detail": "",
+                                                "since": n - 480, "plan": pl}]}, n)
+    assert sp["label"] == "検図方 の帰りを待つ(見込み20分・残り約12分・②の頃)" and not sp["over"], sp
+    assert "1. 読む / 2. 数える / 3. まとめる" == sp["items"], sp
+    so = window_state({"at": n - 600, "stack": [], "idle_since": n - 600,
+                       "await": [{"who": "棟梁", "since": n - 1920, "plan": pl}, {"who": "庭方", "since": n - 700}]}, n)
+    assert so["label"] == "棟梁 見込み20分を12分超過・庭方 見込み無し の帰りを待つ(背景)" and so["over"], so
+    assert "⚠ 棟梁" in _state_chip(dict(state=so), n) and 'title="内訳: 棟梁: 1. 読む' in _state_chip(dict(state=so), n)
     assert window_state({"at": n - 20, "stack": [], "idle_since": n - 20}, n)["kind"] == "paused", \
         "手を止めた直後(60 秒未満)は黄にしない — 関門が Stop を差し戻すことがある"
     assert window_state({"at": n - 90, "stack": [], "idle_since": n - 90}, n)["kind"] == "idle", \

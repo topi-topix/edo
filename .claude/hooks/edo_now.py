@@ -137,6 +137,89 @@ def tracked(tool):
     return tool in TRACKED or tool.startswith("mcp__unityMCP__")
 
 
+# ────────────────────────────── 役へ投げる仕事の見込みと内訳(EDO-0412・2026-09-23 施主指示)
+#   「役に作業を依頼したとき、いつ返ってくるか分からず、こちらから状況を聞くことが多い」。
+#   Agent の prompt の頭に【見込み】【内訳】を書かせ(門番 edo_guard.py が無ければ止める)、
+#   窓の今へ「見込み・残り・超過・見込みでは今どの項か」を出す。
+_EST = re.compile(r"【見込み】\s*(?:約|およそ)?\s*(\d+(?:\.\d+)?)\s*(?:[〜~\-–ー]\s*(\d+(?:\.\d+)?))?\s*"
+                  r"(分|時間|min|h)")
+_BULLET = re.compile(r"^\s*(?:\d+\s*[.)．、:]|[①-⑳]|[・\-*•])\s*")
+_ITEM_MIN = re.compile(r"[(（]\s*(?:約)?(\d+(?:\.\d+)?)\s*(分|時間)\s*[)）]")
+PLAN_MIN_ITEMS = 2      # 内訳は 2 項以上(「調べる・まとめる」でも 2 項になる。1 項は内訳ではない)
+
+
+def parse_plan(text):
+    """prompt から見込みと内訳を読む。戻り値 dict(lo, hi, items=[{t, m}]) — 分。読めなければ None。
+    書式(prompt の頭):
+        【見込み】20分            (幅があれば 15〜25分・1.5時間 も可)
+        【内訳】
+        1. 変わった章を読む(5分)  (項ごとの分は任意。あれば板に「見込みでは今どの項か」が出る)
+        2. 重なりを総当たりで数える(10分)
+        3. 結果を json にまとめる(5分)
+    """
+    text = text or ""
+    m = _EST.search(text)
+    if not m:
+        return None
+    k = 60.0 if m.group(3) in ("時間", "h") else 1.0
+    lo = float(m.group(1)) * k
+    hi = float(m.group(2) or m.group(1)) * k
+    if hi <= 0:
+        return None
+    items = []
+    mi = re.search(r"【内訳】([^\n]*)((?:\n[^\n]*)*)", text)
+    if mi:
+        head = mi.group(1).strip()
+        lines = ([head] if head else []) + mi.group(2).split("\n")
+        for ln in lines:
+            if not ln.strip():
+                if items:
+                    break
+                continue
+            if ln.strip().startswith("【"):
+                break
+            # 一行に ①…②… と並べた書き方も割る
+            parts = re.split(r"(?=[①-⑳])", ln) if len(re.findall(r"[①-⑳]", ln)) > 1 else [ln]
+            for p in parts:
+                t = _BULLET.sub("", p).strip()
+                if not t:
+                    continue
+                mm = _ITEM_MIN.search(t)
+                items.append({"t": t[:48], "m": (float(mm.group(1)) * (60 if mm.group(2) == "時間" else 1)) if mm else None})
+    return {"lo": lo, "hi": hi, "items": items[:8]}
+
+
+def plan_problem(text):
+    """門番が止める理由(日本語 1 行)。問題が無ければ ""。"""
+    p = parse_plan(text)
+    if not p:
+        return "【見込み】(何分で帰るか)が無い"
+    if len(p["items"]) < PLAN_MIN_ITEMS:
+        return "【内訳】が %d 項しかない(%d 項以上・一行一項)" % (len(p["items"]), PLAN_MIN_ITEMS)
+    return ""
+
+
+def plan_now(plan, since, now):
+    """見込みに照らした今。戻り値 dict(est="20分", left=残り分(負=超過), step="②の頃" or "")。"""
+    if not plan:
+        return None
+    lo, hi = plan.get("lo") or 0, plan.get("hi") or 0
+    est = ("%d分" % hi) if lo == hi else ("%d〜%d分" % (lo, hi))
+    if hi >= 90 and lo == hi:
+        est = "%.1f時間" % (hi / 60.0)
+    el = (now - since) / 60.0
+    step = ""
+    its = plan.get("items") or []
+    if its and all(i.get("m") for i in its):
+        acc = 0.0
+        for n, i in enumerate(its):
+            acc += i["m"]
+            if el < acc:
+                step = "%sの頃" % ("①②③④⑤⑥⑦⑧"[n] if n < 8 else str(n + 1))
+                break
+    return {"est": est, "left": hi - el, "step": step}
+
+
 # ────────────────────────────── 状態の読み書き(小さく・落ちても黙る)
 def load(sid, start=None):
     try:
@@ -162,8 +245,13 @@ def _log_wait(sid, e, t1, start=None):
         fp = waits_path(start)
         os.makedirs(os.path.dirname(fp), exist_ok=True)
         with open(fp, "a", encoding="utf-8") as f:
-            f.write(json.dumps({"session": sid, "t0": e["since"], "t1": t1, "kind": e["kind"],
-                                "detail": e.get("detail", ""), "tool": e["tool"]}, ensure_ascii=False) + "\n")
+            row = {"session": sid, "t0": e["since"], "t1": t1, "kind": e["kind"],
+                   "detail": e.get("detail", ""), "tool": e["tool"]}
+            if e.get("plan"):
+                row["est_min"] = e["plan"].get("hi")        # 見込みと実際の差を日誌が数える(EDO-0412)
+            if e.get("aid"):
+                row["aid"] = e["aid"]
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
     except Exception:
         pass
 
@@ -183,8 +271,9 @@ def _epoch(ts):
         return 0.0
 
 
-def pending_agents(transcript, now=None, max_bytes=TAIL_BYTES):
-    """**まだ帰っていない背景の役**を記録(transcript)の尾から拾う。戻り値 [{"who","since"}](古い順)。
+def pending_agents(transcript, now=None, max_bytes=TAIL_BYTES, done=None):
+    """**まだ帰っていない背景の役**を記録(transcript)の尾から拾う。戻り値 [{"who","since","plan"?}](古い順)。
+    `done` にリストを渡すと、**帰ってきた**役を {aid, who, since, until, plan} で積む(見込みと実際の差の材料)。
 
     ⭐ 背景の役は投げた瞬間に道具の返事が返る(「Async agent launched」/ `resumedAgentId`)ので
       stack には残らない。帰りは `<task-notification>` の `<task-id>`(= agentId)で来る。
@@ -202,16 +291,21 @@ def pending_agents(transcript, now=None, max_bytes=TAIL_BYTES):
     except Exception:
         return []
     calls, roles, live = {}, {}, {}                # 道具の id→役名 / agentId→役名 / agentId→投げた時刻
+    plans, cplans = {}, {}                         # agentId→見込み / 道具の id→見込み
     for l in lines:
         if not l.strip():
             continue
-        for tid in re.findall(r"<task-id>([0-9A-Za-z_-]{6,})</task-id>", l):
-            live.pop(tid, None)                    # 帰ってきた(順に見るので、起こし直しは後で積み直る)
         try:
             r = json.loads(l)
         except Exception:
+            r = None
+        t = (_epoch(r.get("timestamp")) if isinstance(r, dict) else 0) or now
+        for tid in re.findall(r"<task-id>([0-9A-Za-z_-]{6,})</task-id>", l):
+            t0 = live.pop(tid, None)               # 帰ってきた(順に見るので、起こし直しは後で積み直る)
+            if t0 is not None and done is not None:
+                done.append(dict(aid=tid, who=roles.get(tid) or "役", since=t0, until=t, plan=plans.get(tid)))
+        if not isinstance(r, dict):
             continue
-        t = _epoch(r.get("timestamp")) or now
         c = (r.get("message") or {}).get("content")
         for b in c if isinstance(c, list) else []:
             if not isinstance(b, dict):
@@ -220,7 +314,12 @@ def pending_agents(transcript, now=None, max_bytes=TAIL_BYTES):
                 ti = b.get("input") or {}
                 st = ti.get("subagent_type") or ""
                 calls[b.get("id")] = SUBAGENT_JA.get(st, st) or str(ti.get("to") or "")
+                src = ti.get("prompt") if b.get("name") == "Agent" else ti.get("message")
+                pl = parse_plan(src) if isinstance(src, str) else None
+                if pl:
+                    cplans[b.get("id")] = pl
             elif b.get("type") == "tool_result" and b.get("tool_use_id") in calls:
+                pl = cplans.pop(b["tool_use_id"], None)
                 who = calls.pop(b["tool_use_id"])
                 s = b.get("content")
                 s = s if isinstance(s, str) else json.dumps(s, ensure_ascii=False)
@@ -232,7 +331,18 @@ def pending_agents(transcript, now=None, max_bytes=TAIL_BYTES):
                 if who and who != aid:              # 起こし直しは相手が agentId のことがある — 名は投げた時の物を残す
                     roles[aid] = who
                 live[aid] = t
-    out = [dict(who=roles.get(a) or "役", since=t) for a, t in live.items() if now - t <= AWAIT_TTL_S]
+                if pl:
+                    plans[aid] = pl
+                else:
+                    plans.pop(aid, None)            # 見込みの無い起こし直しに古い見込みを残さない
+    out = []
+    for a, t in live.items():
+        if now - t > AWAIT_TTL_S and not (plans.get(a) and now - t <= plans[a]["hi"] * 60 * 2):
+            continue                                # 長い見込みの役は見込みの倍まで待つ
+        e = dict(who=roles.get(a) or "役", since=t)
+        if plans.get(a):
+            e["plan"] = plans[a]
+        out.append(e)
     out.sort(key=lambda x: x["since"])
     return out
 
@@ -256,7 +366,12 @@ def record_pre(ev, now=None):
     stack = [e for e in st.get("stack") or [] if e.get("tool") != tool]     # 同じ道具は入れ子にならない=幽霊を落とす
     if tracked(tool):
         kind, detail = classify(tool, ev.get("tool_input") or {})
-        stack.append({"tool": tool, "kind": kind, "detail": detail, "since": now})
+        e = {"tool": tool, "kind": kind, "detail": detail, "since": now}
+        if tool == "Agent":
+            pl = parse_plan((ev.get("tool_input") or {}).get("prompt"))
+            if pl:
+                e["plan"] = pl
+        stack.append(e)
     st["stack"] = stack
     save(sid, st, ev.get("cwd"))
 
@@ -305,7 +420,19 @@ def record_stop(ev, now=None):
     st.pop("sub", None)
     st["idle_since"] = now
     st["at"] = now
-    aw = pending_agents(ev.get("transcript_path") or "", now)
+    done = []
+    aw = pending_agents(ev.get("transcript_path") or "", now, done=done)
+    seen = st.get("logged_aids") or []
+    for d in done:                                  # 帰った背景の役を一度だけ残す(見込みと実際の差・EDO-0412)
+        if d["aid"] in seen or d["until"] - d["since"] < LOG_S:
+            continue
+        e = {"tool": "Agent", "kind": "%s の帰りを待つ(背景)" % d["who"], "detail": "", "since": d["since"], "aid": d["aid"]}
+        if d.get("plan"):
+            e["plan"] = d["plan"]
+        _log_wait(sid, e, d["until"], ev.get("cwd"))
+        seen.append(d["aid"])
+    if seen:
+        st["logged_aids"] = seen[-100:]
     if aw:
         st["await"] = aw
     else:
@@ -368,6 +495,22 @@ def selftest():
         if got != want:
             bad += 1
             print("  ⛔ %s %s → %r(%r のはず)" % (tool, ti, got, want))
+    # EDO-0412: 見込みと内訳の読み
+    plans = [
+        ("【見込み】20分\n【内訳】\n1. 読む(5分)\n2. 数える(10分)\n3. まとめる(5分)\n\n本文 1. これは項ではない",
+         (20, 20, 3), "三項・項ごとの分"),
+        ("【見込み】15〜25分\n【内訳】\n・読む\n・まとめる", (15, 25, 2), "幅と中黒"),
+        ("【見込み】1.5時間 【内訳】①建てる②測る③書き戻す", (90, 90, 3), "時間と一行の ①②③"),
+        ("見込みは20分くらい", None, "括弧書きが無ければ読まない"),
+    ]
+    for txt, want, name in plans:
+        p = parse_plan(txt)
+        got = (p["lo"], p["hi"], len(p["items"])) if p else None
+        if got != want:
+            bad += 1; print("  ⛔ 見込みの読み: %s → %s(%s のはず)" % (name, got, want))
+    pn = plan_now(parse_plan(plans[0][0]), n0 := 1_000_000.0, n0 + 8 * 60)
+    if not (pn["est"] == "20分" and round(pn["left"]) == 12 and pn["step"] == "②の頃"):
+        bad += 1; print("  ⛔ 見込みの今: 8 分経過は残り 12 分・②の頃", pn)
     # 状態遷移: 通しで(git の common-dir を仮の場所へ)
     base = tempfile.mkdtemp(prefix="edo_now_")
     subprocess.run(["git", "init", "-q", base], check=True)
@@ -413,7 +556,8 @@ def selftest():
                              "message": {"content": [{"type": "tool_result", "tool_use_id": i,
                                                       "content": [{"type": "text", "text": txt}]}]}}
     rows = [
-        use("t1", "Agent", {"subagent_type": "edo-toryo"}),                       # 背景へ投げた
+        use("t1", "Agent", {"subagent_type": "edo-toryo",
+                            "prompt": "【見込み】30分\n【内訳】\n1. 建てる\n2. 書き戻す"}),   # 背景へ投げた
         res(10, "t1", "Async agent launched successfully.\nagentId: aaa111bbb222"),
         use("t2", "Agent", {"subagent_type": "edo-kenzu"}),                       # 前で待つ役(その場で返る)
         res(20, "t2", "指摘 0 件。図は成立している。"),
@@ -428,8 +572,12 @@ def selftest():
         for r in rows:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
     aw = pending_agents(tr, now=n + 60)
-    if not (len(aw) == 1 and aw[0]["who"] == "棟梁" and abs(aw[0]["since"] - (n + 50)) < 2):
+    if not (len(aw) == 1 and aw[0]["who"] == "棟梁" and abs(aw[0]["since"] - (n + 50)) < 2 and "plan" not in aw[0]):
         bad += 1; print("  ⛔ 帰っていない背景の役は起こし直した時刻から 1 件だけ", aw)
+    dn = []
+    pending_agents(tr, now=n + 60, done=dn)
+    if not (len(dn) == 1 and dn[0]["who"] == "棟梁" and dn[0]["plan"]["hi"] == 30 and abs(dn[0]["until"] - (n + 40)) < 2):
+        bad += 1; print("  ⛔ 帰った背景の役は見込みつきで done に積む(起こし直しは見込み無し)", dn)
     if pending_agents(tr, now=n + AWAIT_TTL_S + 120):
         bad += 1; print("  ⛔ 古すぎる待ちは数えない(役が死んだまま窓が青く残らない)")
     record_stop(ev(transcript_path=tr), now=n + 60)
@@ -448,7 +596,7 @@ def selftest():
         bad += 1; print("  ⛔ 通しで: Stop が stdin から届かない", r.stderr[-200:])
     import shutil
     shutil.rmtree(base, ignore_errors=True)
-    print(("⛔ 窓の今 — 破れ %d 件" % bad) if bad else "⭕ 窓の今 — 名札 %d 型・遷移 7 型・背景の役 5 型・配線 1" % len(cases))
+    print(("⛔ 窓の今 — 破れ %d 件" % bad) if bad else "⭕ 窓の今 — 名札 %d 型・見込み %d 型・遷移 7 型・背景の役 6 型・配線 1" % (len(cases), len(plans) + 1))
     return 1 if bad else 0
 
 

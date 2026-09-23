@@ -1584,7 +1584,9 @@ public static class EdoSannoShaRebuild
     /// そのまま置くだけ。⭐ 入れ物は点の `place` が決める:
     ///   ・`TerrainTree` … 地形の tree instance(GameObject では**ない**)
     ///   ・`DetailMesh`  … ⚠ Unity の詳細メッシュは**密度の升目**で、点の座標を持てない
-    ///     ⇒ 焼き出しの点をそのまま活かすため **GameObject** で据える(群 `Keidai/Trees`)
+    ///     ⇒ 焼き出しの点をそのまま活かすため**地形の tree instance** で植える(施主 2026-09-23・EDO-0401)。
+    ///     地表への据えは地形に任せる。⛔ 崖の斜面に低木の葉が掛かるのは欠陥と数えない(同じ施主裁定)。
+    ///     (旧: GameObject で据え、崖で山側が埋まった → SeatPlant でも 850 本を1本ずつ測る重さが残った)
     ///   ・`GameObject`  … 名指しの木(群 `Keidai/Meiboku` ── 突き合わせは名で引く)
     /// ⭐ 丈は `scaleY` / 太りは `scaleXZ` をそのまま使う。地盤は **地形を実測**して据え、
     /// 焼き出しの `y` との差は数えて報告する(⛔ 浮き・埋没を作らない)。
@@ -1619,7 +1621,7 @@ public static class EdoSannoShaRebuild
             float wx = Cv(w[0]), wz = Cv(w[1]);
             bx0 = Mathf.Min(bx0, wx); bx1 = Mathf.Max(bx1, wx);
             bz0 = Mathf.Min(bz0, wz); bz1 = Mathf.Max(bz1, wz);
-            if (S(q, "place") != "TerrainTree") continue;
+            if (S(q, "place") == "GameObject") continue;       // 地形の木と下層(DetailMesh)は地形の tree instance
             string path = TreePath(q); if (path == null) continue;
             if (idxOf.ContainsKey(path)) continue;
             var pf = AssetDatabase.LoadAssetAtPath<GameObject>(path);
@@ -1635,7 +1637,9 @@ public static class EdoSannoShaRebuild
         foreach (var ti in td.treeInstances)
         {
             float wx = tp.x + ti.position.x * ts.x, wz = tp.z + ti.position.z * ts.z;
-            bool inBox = wx >= bx0 && wx <= bx1 && wz >= bz0 && wz <= bz1;
+            // ⚠ 辺の上の点は正規化座標の往復で外へ落ちる(流し直すたびに 11 本が積み重なった・EDO-0401)⇒ 5cm の余白
+            const float eps = 0.05f;
+            bool inBox = wx >= bx0 - eps && wx <= bx1 + eps && wz >= bz0 - eps && wz <= bz1 + eps;
             if (inBox && mine.Contains(ti.prototypeIndex)) { removed++; continue; }
             keep.Add(ti);
         }
@@ -1656,7 +1660,7 @@ public static class EdoSannoShaRebuild
             float gy = EdoBuild.Ground(wx, wz);
             if (HasNum(q, "y")) { float d = Mathf.Abs(gy - F(q, "y")); dyMax = Mathf.Max(dyMax, d); dySum += d; dyN++; }
             string place = S(q, "place");
-            if (place == "TerrainTree")
+            if (place != "GameObject")
             {
                 var ti = new TreeInstance();
                 ti.position = new Vector3((wx - tp.x) / ts.x, 0f, (wz - tp.z) / ts.z);
@@ -1700,8 +1704,9 @@ public static class EdoSannoShaRebuild
         EditorUtility.SetDirty(td);
 
         sb.AppendLine("  地形の木 " + nTree + " 本(外した " + removed + " 本 / 原型を " + addedProto + " 足した)");
-        sb.AppendLine("  下層(GameObject・群 Keidai/Trees) " + nGo + " 本 ── ⚠ 焼き出しの `place` は " +
-                      "`DetailMesh` だが、詳細メッシュは密度の升目で**点の座標を持てない**ので GameObject で据えた");
+        sb.AppendLine("  (下層の低木も地形の木に含む ── 焼き出しの `place` は `DetailMesh` だが、詳細メッシュは" +
+                      "密度の升目で**点の座標を持てない**ので地形の tree instance で植えた)");
+        if (nGo > 0) sb.AppendLine("  ★ 下層を GameObject で据えた木 " + nGo + " 本(0 のはず)");
         sb.AppendLine("  名指しの木(群 Keidai/Meiboku) " + nMei + " 本");
         if (dyN > 0)
             sb.AppendLine("  地盤: 実測と焼き出しの `y` の差 平均 " + (dySum / dyN).ToString("F3") +

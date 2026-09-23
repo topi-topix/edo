@@ -1016,6 +1016,35 @@ public static class EdoAssets
             return "Assets/Edo/Models/Sanno/Sanno_Ido_Igeta_" + naikeiMm + "x" + igetaTallMm + ".fbx";
         }
 
+        /// <summary>**山王社の前庭の井戸屋形(木部)** — 四本柱・妻梁・軒桁・棟束・棟木・垂木・切妻こけら葺・破風板・棟押え
+        /// + **釣瓶の横木と滑車**(指図 bom 行22・行25)。在庫の `Doi_Ido` / `Matsudaira_Ido` は屋根も四本柱も持たない ⇒ 新造【U 部材方 2026-09-23】。
+        /// <paramref name="pitchMm"/> = 柱芯(1間 = 1818)/ <paramref name="nokiMm"/> = 軒先の葺き面の天端(2100)/ <paramref name="muneMm"/> = 棟押えの天端(2900)[mm]。
+        /// 現行 (1818, 2100, 2900)。寸法は指図 `ido`(生成器が実行時に読む)。
+        /// ⭐ ピボット = **井戸の芯・石敷天端**(`SannoIdoIgeta` / `SannoIdoIshiki` と同じ原点)。+X = 東 / +Z = 北。
+        /// **棟はローカル Z**(yaw 0 で南北)。棟の向きが変わったらこの1点だけ yaw 90。
+        /// 軒先の水平投影 ±1.636(X)= 石敷 1.8間角の半幅ちょうど(雨落ち)/ 破風の外面 ±1.364(Z)。
+        /// ⛔ 礎石を持たない — **柱の根 Y +0.10 = `SannoIdoIshiki` の礎石の天端**が唯一の接触面(そこを測って据える)。
+        /// 材 `wood` のみ ⇒ `Edo/山王社/新造部材のマテリアルをremap`。⛔ 新規マテリアルなし。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_ido_yakata.py -- yakata --render</summary>
+        public static string SannoIdoYakata(int pitchMm, int nokiMm, int muneMm)
+        {
+            return "Assets/Edo/Models/Sanno/Sanno_Ido_Yakata_" + pitchMm + "x" + nokiMm + "x" + muneMm + ".fbx";
+        }
+
+        /// <summary>**山王社の前庭の井戸の板石敷一式** — 板石(東へ水勾配)・敷砂・割栗・**井戸の縁石** 4 石・**礎石** 4 石・
+        /// **浸透枡(伏せ枡・板蓋)**(指図 bom 行26・行27)。在庫に無い ⇒ 新造【U 部材方 2026-09-23】。
+        /// <paramref name="sideMm"/> = 石敷の一辺(1.8間 = 3272)/ <paramref name="slopeDen"/> = 水勾配 1/n の n(50)。
+        /// 現行 (3272, 50)。層は指図 `ido.moriLayers`(板石 0.12 / 敷砂 0.05 / 割栗 0.15 ⇒ 最下端 Y −0.32)。
+        /// ⭐ ピボット = **井戸の芯・石敷天端**。板石の天端は西端 +0.033 → 東端 −0.033(Y = −X/50)。⚠ **yaw を振らない**
+        /// (勾配と枡が東に向く)。井筒の外径 r 0.6945 の円を抜いてあり、`SannoIdoIgeta` がそこへ入る。
+        /// 縁石と井筒の天端 +0.05 = 井桁の下端 / 礎石 0.45 角の天端 +0.10(水平)= `SannoIdoYakata` の柱の根。
+        /// 材 `Kirishi`(山王の切石)/ `Foundation_A_01`(割栗・枡の底)/ `wood`(枡の蓋)⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_ido_yakata.py -- ishiki --render</summary>
+        public static string SannoIdoIshiki(int sideMm, int slopeDen)
+        {
+            return "Assets/Edo/Models/Sanno/Sanno_Ido_Ishiki_" + sideMm + "x" + slopeDen + ".fbx";
+        }
+
         /// <summary>**山王社の中門(瑞垣門)**。一間平唐門・四脚(本柱2+控柱4)・銅瓦葺【S [国宝建造物目録1941]】。
         /// 在庫『無い』(指図 `bom[中門(一間平唐門)]`)ので新造。
         /// ⭐ **通り抜け=ローカル X・正面=+X(扉は −X へ開く)・大棟=Z(唐破風は ±Z の妻)・ピボット=門の芯・敷居の高さ**。

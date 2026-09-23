@@ -28,3 +28,4 @@
 - [PanelRun は片面ポリゴンの表裏ペア・透けの合否は充実率と20mの並べ比べ](see-through-fence-panelrun-and-solidity.md) — 両面ものを差すと格子が二重(2026-09-22)
 - [据えてある屋根の名簿と生成パラメタの復元](placed-roof-roster-and-param-recovery.md) — 名簿は GUID を prefab へ grep。寸法は焼いた物を測って復元(コミット文の散文は仕様でない)(2026-09-22)
 - [キットの竹1本の実測と縄の UV・丸材の v は節ごとに折り返す](kit-bamboo-culm-and-nawa-uv.md) — set_origin だけだと FBX ノードに平行移動が残る(2026-09-22)
+- [こけら葺の UV と Kirishi の読み直し](ido-yakata-kokera-uv-and-kirishi-reimport.md) — 葺き面は棟方向に区切って貼り全面を同じ所で割る・読み直すと桃色(2026-09-23)

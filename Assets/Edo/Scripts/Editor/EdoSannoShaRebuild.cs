@@ -1659,13 +1659,17 @@ public static class EdoSannoShaRebuild
         // 焼き出しの外接矩形の内に在る**自分の原型の**木を外す(⛔ 他の敷地の木を消さない)。
         var mine = new HashSet<int>(); foreach (var kv in idxOf) if (kv.Key.StartsWith("Assets/Edo/Models/Trees/")) mine.Add(kv.Value);
         var keep = new List<TreeInstance>(); int removed = 0;
+        var prec = EdoParcels.Get("sannosha_prec");
         foreach (var ti in td.treeInstances)
         {
             float wx = tp.x + ti.position.x * ts.x, wz = tp.z + ti.position.z * ts.z;
             // ⚠ 辺の上の点は正規化座標の往復で外へ落ちる(流し直すたびに 11 本が積み重なった・EDO-0401)⇒ 5cm の余白
             const float eps = 0.05f;
             bool inBox = wx >= bx0 - eps && wx <= bx1 + eps && wz >= bz0 - eps && wz <= bz1 + eps;
-            if (inBox && mine.Contains(ti.prototypeIndex)) { removed++; continue; }
+            // ⚠ 焼き直しで点の外接矩形が縮むと、前の植え付けの木が矩形の外に取り残される(柵の外に3本・EDO-0401 実測)
+            //    ⇒ **社地(区画 sannosha_prec)の内**も外す。⛔ 他の敷地の木は区画の外なので触れない。
+            bool inPrec = prec != null && EdoGeom.PIP(prec, new Vector2(wx, wz));
+            if ((inBox || inPrec) && mine.Contains(ti.prototypeIndex)) { removed++; continue; }
             keep.Add(ti);
         }
 

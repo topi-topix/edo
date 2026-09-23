@@ -27,7 +27,8 @@
     起こす)は道具の返事がすぐ返るので stack には残らず、帰りは `<task-notification>` で来る。
     Stop だけ見て「施主の指示待ち」と出すと、役の帰りを待っている窓に施主が呼ばれる。
     Stop のたびに記録(transcript)の尾を読み、**投げた agentId から帰った agentId を引いた残り**を
-    `await` に置く(`pending_agents`)。関門(report_lint)が Stop を差し戻して仕事が続く場合も、
+    `await` に置く(`pending_agents`)。**背景へ回したコマンド・Monitor も同じ**(EDO-0416: 他の窓の
+    commit を背景で見張って待つ窓が黄に出た)— 帰りは同じ `<task-id>` で来る。`bg` 印で役と分ける。関門(report_lint)が Stop を差し戻して仕事が続く場合も、
     板は「手を止めた」までしか言わない(黄にするのは 60 秒続いてから・board_now 側)。
   ⚠ 役(サブエージェント)の中の呼び出しにも同じ session_id で来る。`agent_id`/`agent_type` が付いていれば
     stack は触らず `sub` に「役の中で何をしているか」だけ置く。付かない版でも stack で外側(Agent)が残る。
@@ -46,6 +47,7 @@ ROOT = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
 LOG_S = 60.0            # これ以上続いた待ちは waits.jsonl へ残す(板の斜線・日誌の材料)
 AWAIT_TTL_S = 60 * 60   # これより古い「背景の役」は数えない(記録の尾を切ったときの取りこぼし避け)
 TAIL_BYTES = 2_000_000  # 記録(transcript)の尾をどれだけ読むか(背景の役の帰りを数えるため)
+BG = "\x00bg:"         # pending_agents の中だけで使う印 — 背景のコマンド・見張り(役ではない)
 TRACKED = ("Bash", "Agent", "Workflow", "Monitor", "Skill")     # + mcp__unityMCP__*(待ちうる道具だけ)
 SUBAGENT_JA = {"edo-kenzu": "検図方", "edo-kosho": "考証方", "edo-niwashi": "庭方", "edo-sashizukata": "指図方",
                "edo-toryo": "棟梁", "edo-fushin-qa": "普請検査", "edo-zaiko": "在庫方", "edo-buzai": "部材方",
@@ -292,6 +294,7 @@ def pending_agents(transcript, now=None, max_bytes=TAIL_BYTES, done=None):
         return []
     calls, roles, live = {}, {}, {}                # 道具の id→役名 / agentId→役名 / agentId→投げた時刻
     plans, cplans = {}, {}                         # agentId→見込み / 道具の id→見込み
+    ttls = {}                                      # 道具の id / taskId → 見張りの期限(秒)
     for l in lines:
         if not l.strip():
             continue
@@ -303,14 +306,22 @@ def pending_agents(transcript, now=None, max_bytes=TAIL_BYTES, done=None):
         for tid in re.findall(r"<task-id>([0-9A-Za-z_-]{6,})</task-id>", l):
             t0 = live.pop(tid, None)               # 帰ってきた(順に見るので、起こし直しは後で積み直る)
             if t0 is not None and done is not None:
-                done.append(dict(aid=tid, who=roles.get(tid) or "役", since=t0, until=t, plan=plans.get(tid)))
+                w = roles.get(tid) or "役"
+                done.append(dict(aid=tid, who=w[len(BG):] if w.startswith(BG) else w, bg=w.startswith(BG),
+                                 since=t0, until=t, plan=plans.get(tid)))
         if not isinstance(r, dict):
             continue
         c = (r.get("message") or {}).get("content")
         for b in c if isinstance(c, list) else []:
             if not isinstance(b, dict):
                 continue
-            if b.get("type") == "tool_use" and b.get("name") in ("Agent", "SendMessage"):
+            if b.get("type") == "tool_use" and b.get("name") in ("Bash", "Monitor"):
+                ti = b.get("input") or {}
+                d = str(ti.get("description") or "").strip()
+                calls[b.get("id")] = BG + (d[:24] if d else ("背景のコマンド" if b.get("name") == "Bash" else "見張り"))
+                if ti.get("timeout_ms"):            # 見張りの期限まで待つ(既定の AWAIT_TTL_S より長いことがある)
+                    ttls[b.get("id")] = float(ti["timeout_ms"]) / 1000.0
+            elif b.get("type") == "tool_use" and b.get("name") in ("Agent", "SendMessage"):
                 ti = b.get("input") or {}
                 st = ti.get("subagent_type") or ""
                 calls[b.get("id")] = SUBAGENT_JA.get(st, st) or str(ti.get("to") or "")
@@ -324,22 +335,29 @@ def pending_agents(transcript, now=None, max_bytes=TAIL_BYTES, done=None):
                 s = b.get("content")
                 s = s if isinstance(s, str) else json.dumps(s, ensure_ascii=False)
                 m = (re.search(r"Async agent launched[\s\S]{0,300}?agentId[^0-9A-Za-z]{1,4}([0-9A-Za-z]{8,})", s)
-                     or re.search(r"resumedAgentId[^0-9A-Za-z]{1,6}([0-9A-Za-z]{8,})", s))
+                     or re.search(r"resumedAgentId[^0-9A-Za-z]{1,6}([0-9A-Za-z]{8,})", s)
+                     # 背景へ回したコマンド・見張り(EDO-0416)。帰りは同じ <task-id> で来る
+                     or re.search(r"(?:running in background with ID|moved to the background \(ID)[: ]+([0-9A-Za-z]{6,})", s)
+                     or re.search(r"Monitor started \(task ([0-9A-Za-z]{6,})", s))
+                ttl = ttls.pop(b["tool_use_id"], None)
                 if not m:
                     continue    # 前で待つ役(返事がその場で返る)と、他の窓への言伝(返事が来るとは限らない)は数えない
                 aid = m.group(1)
                 if who and who != aid:              # 起こし直しは相手が agentId のことがある — 名は投げた時の物を残す
                     roles[aid] = who
                 live[aid] = t
+                if ttl:
+                    ttls[aid] = ttl
                 if pl:
                     plans[aid] = pl
                 else:
                     plans.pop(aid, None)            # 見込みの無い起こし直しに古い見込みを残さない
     out = []
     for a, t in live.items():
-        if now - t > AWAIT_TTL_S and not (plans.get(a) and now - t <= plans[a]["hi"] * 60 * 2):
+        if now - t > max(AWAIT_TTL_S, ttls.get(a, 0)) and not (plans.get(a) and now - t <= plans[a]["hi"] * 60 * 2):
             continue                                # 長い見込みの役は見込みの倍まで待つ
-        e = dict(who=roles.get(a) or "役", since=t)
+        who = roles.get(a) or "役"
+        e = dict(who=who[len(BG):], bg=True, since=t) if who.startswith(BG) else dict(who=who, since=t)
         if plans.get(a):
             e["plan"] = plans[a]
         out.append(e)
@@ -426,7 +444,9 @@ def record_stop(ev, now=None):
     for d in done:                                  # 帰った背景の役を一度だけ残す(見込みと実際の差・EDO-0412)
         if d["aid"] in seen or d["until"] - d["since"] < LOG_S:
             continue
-        e = {"tool": "Agent", "kind": "%s の帰りを待つ(背景)" % d["who"], "detail": "", "since": d["since"], "aid": d["aid"]}
+        e = ({"tool": "Bash", "kind": "「%s」の終わりを待つ(背景)" % d["who"]} if d.get("bg") else
+             {"tool": "Agent", "kind": "%s の帰りを待つ(背景)" % d["who"]})
+        e.update({"detail": "", "since": d["since"], "aid": d["aid"]})
         if d.get("plan"):
             e["plan"] = d["plan"]
         _log_wait(sid, e, d["until"], ev.get("cwd"))
@@ -589,6 +609,33 @@ def selftest():
     record_stop(ev(transcript_path=os.path.join(base, "無い.jsonl")), now=n + 80)
     if "await" in load(sid, base) or load(sid, base).get("idle_since") != n + 80:
         bad += 1; print("  ⛔ 記録が読めなければ await 無し(=施主待ち)へ落ちる")
+    # 背景のコマンド・見張り(EDO-0416: 他の窓の commit を見張る窓が施主待ちの黄に出た)
+    tr2 = os.path.join(base, "transcript2.jsonl")
+    rows2 = [
+        use("b1", "Bash", {"command": "ls", "description": "一覧"}),                  # 前のコマンドは数えない
+        res(5, "b1", "a.txt"),
+        use("b2", "Bash", {"command": "until ...; done", "description": "EDO-0409 の焼きを待つ",
+                           "run_in_background": True}),
+        res(10, "b2", "Command running in background with ID: bwullqsc2. Output is being written to: /x"),
+        use("b3", "Monitor", {"command": "tail -f x", "description": "Unity の空き", "timeout_ms": 7200000}),
+        res(20, "b3", "Monitor started (task b7bwp14p7, expires in 120m unless the source ends first)"),
+        use("b4", "Bash", {"command": "sleep 999", "description": "長いビルド"}),
+        res(30, "b4", "Command did not complete within its 120s timeout and was moved to the background (ID: bxw9384r0)."),
+        {"type": "user", "timestamp": iso(40),
+         "message": {"content": "<task-notification><task-id>bxw9384r0</task-id><status>completed</status></task-notification>"}},
+    ]
+    with open(tr2, "w", encoding="utf-8") as f:
+        for r in rows2:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+    aw2 = pending_agents(tr2, now=n + 60)
+    if [(a["who"], a.get("bg")) for a in aw2] != [("EDO-0409 の焼きを待つ", True), ("Unity の空き", True)]:
+        bad += 1; print("  ⛔ 背景のコマンドと見張りを bg で数え、終わった物は落とす", aw2)
+    if [a["who"] for a in pending_agents(tr2, now=n + AWAIT_TTL_S + 120)] != ["Unity の空き"]:
+        bad += 1; print("  ⛔ 見張りは期限(timeout_ms)まで数える")
+    dn2 = []
+    pending_agents(tr2, now=n + 60, done=dn2)
+    if not (len(dn2) == 1 and dn2[0]["who"] == "長いビルド" and dn2[0]["bg"]):
+        bad += 1; print("  ⛔ 終わった背景のコマンドは bg つきで done に積む", dn2)
     # 入口の配線(stdin → hook_event_name で振り分ける)
     r = subprocess.run([sys.executable, os.path.abspath(__file__)], capture_output=True, text=True,
                        input=json.dumps({"session_id": sid, "cwd": base, "hook_event_name": "Stop"}))
@@ -596,7 +643,7 @@ def selftest():
         bad += 1; print("  ⛔ 通しで: Stop が stdin から届かない", r.stderr[-200:])
     import shutil
     shutil.rmtree(base, ignore_errors=True)
-    print(("⛔ 窓の今 — 破れ %d 件" % bad) if bad else "⭕ 窓の今 — 名札 %d 型・見込み %d 型・遷移 7 型・背景の役 6 型・配線 1" % (len(cases), len(plans) + 1))
+    print(("⛔ 窓の今 — 破れ %d 件" % bad) if bad else "⭕ 窓の今 — 名札 %d 型・見込み %d 型・遷移 7 型・背景の役 6 型・背景のコマンド 3 型・配線 1" % (len(cases), len(plans) + 1))
     return 1 if bad else 0
 
 

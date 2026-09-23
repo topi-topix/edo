@@ -228,12 +228,16 @@ def window_state(st, now, show_s=SHOW_S):
     if st.get("idle_since"):
         aw = st.get("await") or []
         if aw:
-            notes = [(a.get("who") or "役", _plan_note(a.get("plan"), a.get("since"), now)) for a in aw]
+            # ⭐ 背景のコマンド・見張り(bg)も「自分で動き出す窓」— 他の窓の commit を見張って待つ窓を
+            #   施主待ちの黄にしない(EDO-0416)。名は description を「」で括る(役ではない)
+            nm = lambda a: ("「%s」" % a["who"]) if a.get("bg") else (a.get("who") or "役")
+            notes = [(nm(a), _plan_note(a.get("plan"), a.get("since"), now)) for a in aw]
+            tail = " の終わりを待つ(背景)" if all(a.get("bg") for a in aw) else " の帰りを待つ(背景)"
             if any(n for _, n in notes):
                 # 見込みのある役は一つずつ(どれがいつ帰るかが知りたい事)
-                lab = "・".join("%s %s" % (w, n or "見込み無し") for w, n in notes) + " の帰りを待つ(背景)"
+                lab = "・".join("%s %s" % (w, n or "見込み無し") for w, n in notes) + tail
             else:
-                lab = "%s の帰りを待つ(背景)" % "・".join(dict.fromkeys(w for w, _ in notes))[:28]
+                lab = "・".join(dict.fromkeys(w for w, _ in notes))[:40] + tail
             return dict(kind="agent", label=lab,
                         since=min(a.get("since") or st["idle_since"] for a in aw),
                         items=" || ".join("%s: %s" % (a.get("who") or "役", _plan_items(a.get("plan")))
@@ -753,6 +757,10 @@ def selftest():
                        "await": [{"who": "棟梁", "since": n - 1920, "plan": pl}, {"who": "庭方", "since": n - 700}]}, n)
     assert so["label"] == "棟梁 見込み20分を12分超過・庭方 見込み無し の帰りを待つ(背景)" and so["over"], so
     assert "⚠ 棟梁" in _state_chip(dict(state=so), n) and 'title="内訳: 棟梁: 1. 読む' in _state_chip(dict(state=so), n)
+    # ⭐ EDO-0416: 背景のコマンドで他の窓の commit を見張って待つ窓は施主待ちにしない
+    sb = window_state({"at": n - 600, "stack": [], "idle_since": n - 600,
+                       "await": [{"who": "EDO-0409 の焼きを待つ", "bg": True, "since": n - 600}]}, n)
+    assert sb["kind"] == "agent" and sb["label"] == "「EDO-0409 の焼きを待つ」 の終わりを待つ(背景)", sb
     assert window_state({"at": n - 20, "stack": [], "idle_since": n - 20}, n)["kind"] == "paused", \
         "手を止めた直後(60 秒未満)は黄にしない — 関門が Stop を差し戻すことがある"
     assert window_state({"at": n - 90, "stack": [], "idle_since": n - 90}, n)["kind"] == "idle", \

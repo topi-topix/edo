@@ -17,6 +17,7 @@
 //    ・<see cref="CenterOnBed"/> … 足(柱)の断面を受け(礎石)の断面へ芯出し(足ごとの芯ずれを返す)
 //    ・<see cref="HullOfMat"/> / <see cref="OpeningOf"/> … 駒の平面の外形・筒の口(実メッシュから)
 //    ・<see cref="ClearDetailIn"/> / <see cref="CutHole"/> / <see cref="FillHoles"/> … 駒の下の芝を消す・口の下の地形を抜く
+//    ・<see cref="TuckUnderCrest"/> … 天端を地表と同じ高さに据えた駒の下の節点を天端より下げ・芝を消す(EDO-0414)
 //
 // 当たる先: 山王の前庭の井戸(板石敷・井筒+井桁・井戸屋形)。同じ型は**一体で焼いた複合部材**
 //   (門+礎石、灯籠+台石、手水鉢+水受け)と、**天端で埋める敷き物**(園路の敷石・延段・沓脱石)全部。
@@ -597,5 +598,224 @@ public static partial class EdoBuild
         for (int j = 0; j < h; j++) for (int i = 0; i < w; i++) if (!hv[j, i]) { hv[j, i] = true; n++; }
         if (n > 0) td.SetHoles(cells.i0, cells.j0, hv);
         return n;
+    }
+    // ============================================================ 天端の下の地形(2026-09-23・EDO-0414)
+    // ⭐ **天端を地表と同じ高さに据えた駒**(土留めの石垣・石段の袖 ── 天端 = 高い側の地盤)は、
+    //    駒の奥行きの中に地形の節点が残り、**その節点も天端と同じ高さ**なので、天端の面と地形の面が重なって
+    //    斑に描かれ(z-fight)、芝(detail)は天端を突き抜ける(山王の前庭の北の土留め: 天端 14.500 と節点 14.500・
+    //    天端の下の芝 20 セル)。⇒ 駒の**実メッシュの天端の外形**の中の節点を天端より <c>depth</c> 下げ、芝を消す。
+    // ⚠ 地形の節点は赤坂で 2m 刻み。下げた節点の三角形は外形の外へ最大 1 セル掛かるので、外形の外の地表が
+    //    どれだけ下がったかを必ず刷る(<see cref="CrestTuck.dipOut"/>)。⛔ 節点を上げない(下げるだけ)。
+    // ⛔ 地形の編集は Undo の外 ── 呼ぶ前に TerrainData を退避すること(`.claude/rules/unity.md`)。
+    //    整地(設計面へ寄せる段)を流し直すと節点は天端の高さへ戻るので、据え直しのたびにこれを呼ぶ。
+    //    当たる先: 天端を `copingRise:"groundHi"` や段の面に揃えた土留め(山王の前庭・参道の階・石段の袖、
+    //    土井の郭の土留め)、面一に埋めた基壇の縁。
+
+    /// <summary><see cref="TuckUnderCrest"/> の報告。</summary>
+    public struct CrestTuck
+    {
+        public int pieces, nodes, lowered;        // 駒 / 外形の中の節点 / 下げた節点
+        public float maxDrop;                     // 節点を下げた量の最大
+        public TerrainCells det;                  // 芝を消したセル(駒ごとの和)
+        public int detVisited, detChanged;
+        public int samples, thin;                 // 天端の検め点(外形の縁から inset 以上内) / 天端と地表が**面で**重なる点(前後左右 0.1m も差 < minGap)
+        public int above, aboveNodes;             // 地表が天端より coTol を超えて高い点 / 節点(= 埋没・⛔ ここでは触らない・別の欠陥)
+        public float aboveMax; public Vector3 aboveAt;
+        public string thinBy;                     // 薄い点の多い駒(上位 5)
+        public float gapMin; public Vector3 gapAt; // 天端 − 地表 の最小とその所(硬い: minGap 以上)
+        public float dipOut; public Vector3 dipAt; // 外形の外で地表が下がった量の最大(柔らかい: 報告のみ)
+        public override string ToString()
+        {
+            return "駒 " + pieces + " / 外形の中の節点 " + nodes + " のうち下げた " + lowered + "(最大 " + maxDrop.ToString("F3") + "m)" +
+                   " / 芝 " + detChanged + " / " + detVisited + " セル" +
+                   " / 天端 − 地表 最小 " + (float.IsNaN(gapMin) ? "—" : gapMin.ToString("F3")) + "m @(" + gapAt.x.ToString("F2") + ", " + gapAt.z.ToString("F2") + ")" +
+                   "・面の重なり " + thin + " / " + samples +
+                   (above > 0 ? " / 天端より地表が高い点 " + above + "(節点 " + aboveNodes + "・最大 " + aboveMax.ToString("F3") + "m @(" + aboveAt.x.ToString("F2") + ", " + aboveAt.z.ToString("F2") + ")・触らない)" : "") +
+ (string.IsNullOrEmpty(thinBy) ? "" : "〔" + thinBy + "〕") +
+                   " / 外形の外の地表の下がり 最大 " + dipOut.ToString("F3") + "m @(" + dipAt.x.ToString("F2") + ", " + dipAt.z.ToString("F2") + ")";
+        }
+    }
+
+    /// <summary>**天端を地表と同じ高さに据えた駒の下の地形を納める。**各駒(材 <paramref name="mat"/>・null で全材)の
+    /// 実メッシュの平面の外形の中にある地形の節点のうち、**真上の天端(実メッシュの上向きの面)− <paramref name="depth"/>**
+    /// より高く、かつ天端 + <paramref name="coTol"/> 以下の物(= 天端と面が重なる節点)だけをそこまで下げ、外形に掛かる芝を消す。
+    /// ⛔ 天端より <paramref name="coTol"/> を超えて高い節点(= 駒が土に埋まっている)は**触らない** ── 埋没は別の欠陥で、
+    /// ここで掘ると外形の外まで地表が凹む(2026-09-23 実測: 条件を付けずに下げたら最大 3.29m 掘り、外の地表が 3.06m 凹んだ)。
+    /// その数は <see cref="CrestTuck.above"/> に刷る。
+    /// 検め(硬い・許容0): 外形の縁から <paramref name="inset"/> 以上内の 0.1m 格子で「天端 − 描かれた地表」を取り、
+    /// その点と前後左右 0.1m がみな <paramref name="minGap"/> 未満の点(= 面の重なり)を <see cref="CrestTuck.thin"/> に数える
+    /// (0 でなければ斑に見える)。天端を地表が斜めに横切る線は数えない。
+    /// 外形の外の地表の下がりは柔らかい(報告のみ)。</summary>
+    public static CrestTuck TuckUnderCrest(IList<GameObject> pieces, string mat, float depth = 0.15f,
+                                           float minGap = 0.01f, float inset = 0.10f, float coTol = 0.05f)
+    {
+        var r = new CrestTuck { gapMin = float.NaN };
+        var t = T(); var td = t.terrainData; var org = t.transform.position;
+        int R = td.heightmapResolution; float cx = td.size.x / (R - 1), cz = td.size.z / (R - 1), sy = td.size.y;
+        var probe = Probe();
+        var hulls = new List<Vector2[]>(); var trisL = new List<List<Vector3[]>>(); var names = new List<string>();
+        float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
+        foreach (var g in pieces)
+        {
+            if (g == null) continue;
+            var tris = TrisOfMat(g.transform, mat); if (tris.Count == 0) continue;
+            var hull = HullOfMat(g.transform, mat); if (hull == null || hull.Length < 3) continue;
+            hulls.Add(hull); trisL.Add(tris); names.Add(g.name); r.pieces++;
+            foreach (var p in hull) { mnx = Mathf.Min(mnx, p.x); mxx = Mathf.Max(mxx, p.x); mnz = Mathf.Min(mnz, p.y); mxz = Mathf.Max(mxz, p.y); }
+        }
+        if (r.pieces == 0) return r;
+        Func<List<Vector3[]>, float, float, float> Top = (tris, x, z) =>
+        {
+            float best = float.NaN, y;
+            foreach (var q in tris) if (TriYAt(q, x, z, out y) && (float.IsNaN(best) || y > best)) best = y;
+            return best;
+        };
+        // 天端と地表が**面で**重なっているか ── その点と前後左右 0.1m がみな |天端 − 地表| < minGap。
+        //   ⭐ 線(天端の面取り・斜めの地表が天端を横切る所)は 0.1m で差が数 cm 変わるので数えない ── 斑に見えるのは面だけ。
+        GroundProbe pr = probe;
+        Func<int, float, float, bool> Sheet = (k, x, z) =>
+        {
+            for (int d = 0; d < 5; d++)
+            {
+                float xx = x + (d == 1 ? 0.1f : d == 2 ? -0.1f : 0f), zz = z + (d == 3 ? 0.1f : d == 4 ? -0.1f : 0f);
+                float top = Top(trisL[k], xx, zz); if (float.IsNaN(top)) return false;
+                if (Mathf.Abs(top - pr.At(xx, zz)) >= minGap) return false;
+            }
+            return true;
+        };
+
+        // 外形の外の地表の下がりを量るための「前」(外形の 1 セル外の輪まで・0.25m 格子)
+        const float RING = 0.25f;
+        var before = new List<Vector3>();
+        Func<Vector2, bool> InAny = p => { foreach (var h in hulls) if (EdoGeom.PIP(h, p)) return true; return false; };
+        for (float x = mnx - cx; x <= mxx + cx; x += RING)
+            for (float z = mnz - cz; z <= mxz + cz; z += RING)
+                if (!InAny(new Vector2(x, z))) before.Add(new Vector3(x, probe.At(x, z), z));
+
+        // 1 節点を下げる
+        int i0 = Mathf.Clamp(Mathf.FloorToInt((mnx - org.x) / cx), 0, R - 1), i1 = Mathf.Clamp(Mathf.CeilToInt((mxx - org.x) / cx), 0, R - 1);
+        int j0 = Mathf.Clamp(Mathf.FloorToInt((mnz - org.z) / cz), 0, R - 1), j1 = Mathf.Clamp(Mathf.CeilToInt((mxz - org.z) / cz), 0, R - 1);
+        int w = i1 - i0 + 1, hh = j1 - j0 + 1;
+        var H = td.GetHeights(i0, j0, w, hh);                    // [z, x](高さは寸法の名札どおり)
+        var H0 = (float[,])H.Clone();                           // 元の高さ ── 下げる条件は必ずこれで判定する(連鎖させない)
+        for (int j = 0; j < hh; j++)
+            for (int i = 0; i < w; i++)
+            {
+                var p = new Vector2(org.x + (i0 + i) * cx, org.z + (j0 + j) * cz);
+                float lim = float.NaN, crest = float.NaN;
+                for (int k = 0; k < hulls.Count; k++)
+                {
+                    if (!EdoGeom.PIP(hulls[k], p)) continue;
+                    float top = Top(trisL[k], p.x, p.y); if (float.IsNaN(top)) continue;
+                    if (float.IsNaN(crest) || top < crest) { crest = top; lim = top - depth; }
+                }
+                if (float.IsNaN(lim)) continue;
+                r.nodes++;
+                float cur = H[j, i] * sy + org.y;
+                if (cur <= lim + 1e-3f) continue;                            // 下げ済み(高さの量子化ぶんの許容 ── 流し直しで数えない)
+                if (cur > crest + coTol) { r.aboveNodes++; continue; }       // 埋没 ⛔ 触らない
+                r.maxDrop = Mathf.Max(r.maxDrop, cur - lim);
+                H[j, i] = Mathf.Clamp01((lim - org.y) / sy); r.lowered++;
+            }
+        if (r.lowered > 0) { td.SetHeightsDelayLOD(i0, j0, H); td.SyncHeightmap(); }
+
+        // 1b 外形の縁・節点の無い細い駒 ── 天端の下が**外形の外の節点**で張られていて、まだ面が重なる所は、
+        //    その点のセルの四隅のうち**元の高さが**天端と重なる節点を下げる(外の地表が最大 depth + coTol 下がる・柔らかい・dipOut に刷る)。
+        //    ⛔ 条件を今の高さで見ない ── 下げた隣の点がまた「重なる」になり、斜面を連鎖して掘る(2026-09-23 実測: 3 巡で 0.75m)。
+        const float STEP = 0.1f;
+        for (int pass = 0; pass < 3; pass++)
+        {
+            probe = Probe(); pr = probe;
+            int more = 0;
+            for (int k = 0; k < hulls.Count; k++)
+            {
+                var h = hulls[k];
+                float hx0 = float.MaxValue, hx1 = float.MinValue, hz0 = float.MaxValue, hz1 = float.MinValue;
+                foreach (var p in h) { hx0 = Mathf.Min(hx0, p.x); hx1 = Mathf.Max(hx1, p.x); hz0 = Mathf.Min(hz0, p.y); hz1 = Mathf.Max(hz1, p.y); }
+                for (float x = hx0 + STEP * 0.5f; x < hx1; x += STEP)
+                    for (float z = hz0 + STEP * 0.5f; z < hz1; z += STEP)
+                    {
+                        var p = new Vector2(x, z);
+                        if (!EdoGeom.PIP(h, p) || EdgeDist(h, p) < inset) continue;
+                        float top = Top(trisL[k], x, z); if (float.IsNaN(top)) continue;
+                        if (!Sheet(k, x, z)) continue;
+                        int ci = Mathf.FloorToInt((x - org.x) / cx) - i0, cj = Mathf.FloorToInt((z - org.z) / cz) - j0;
+                        for (int dj = 0; dj <= 1; dj++)
+                            for (int di = 0; di <= 1; di++)
+                            {
+                                int ii = ci + di, jj = cj + dj;
+                                if (ii < 0 || jj < 0 || ii >= w || jj >= hh) continue;
+                                float orig = H0[jj, ii] * sy + org.y, cur = H[jj, ii] * sy + org.y, lim = top - depth;
+                                if (orig <= lim + 1e-3f || orig > top + coTol || cur <= lim + 1e-3f) continue;
+                                r.maxDrop = Mathf.Max(r.maxDrop, orig - lim);
+                                H[jj, ii] = Mathf.Clamp01((lim - org.y) / sy); more++;
+                            }
+                    }
+            }
+            if (more == 0) break;
+            r.lowered += more;
+            td.SetHeightsDelayLOD(i0, j0, H); td.SyncHeightmap();
+        }
+
+        // 2 芝を消す
+        //   ⛔ 埋まっている駒(外形の中点で地表が天端 + coTol より高い)の上の芝は見えている地表の芝なので消さない
+        probe = Probe();
+        for (int k = 0; k < hulls.Count; k++)
+        {
+            Vector2 c0 = Vector2.zero; foreach (var p in hulls[k]) c0 += p; c0 /= hulls[k].Length;
+            float top = Top(trisL[k], c0.x, c0.y);
+            if (!float.IsNaN(top) && probe.At(c0.x, c0.y) > top + coTol) continue;
+            var c = ClearDetailIn(hulls[k]); r.detVisited += c.visited; r.detChanged += c.changed; r.det = c;
+        }
+
+        // 3 検め ── 天端 − 描かれた地表(外形の縁から inset 以上内)・外形の外の下がり
+        probe = Probe(); pr = probe;
+        var thinN = new Dictionary<string, int>();
+        for (int k = 0; k < hulls.Count; k++)
+        {
+            var h = hulls[k];
+            float hx0 = float.MaxValue, hx1 = float.MinValue, hz0 = float.MaxValue, hz1 = float.MinValue;
+            foreach (var p in h) { hx0 = Mathf.Min(hx0, p.x); hx1 = Mathf.Max(hx1, p.x); hz0 = Mathf.Min(hz0, p.y); hz1 = Mathf.Max(hz1, p.y); }
+            for (float x = hx0 + STEP * 0.5f; x < hx1; x += STEP)
+                for (float z = hz0 + STEP * 0.5f; z < hz1; z += STEP)
+                {
+                    var p = new Vector2(x, z);
+                    if (!EdoGeom.PIP(h, p) || EdgeDist(h, p) < inset) continue;
+                    float top = Top(trisL[k], x, z); if (float.IsNaN(top)) continue;
+                    float gap = top - probe.At(x, z);
+                    r.samples++;
+                    if (gap < -coTol)
+                    {
+                        r.above++;
+                        if (-gap > r.aboveMax) { r.aboveMax = -gap; r.aboveAt = new Vector3(x, top, z); }
+                        continue;
+                    }
+                    if (gap < minGap && Sheet(k, x, z)) { r.thin++; int n0; thinN.TryGetValue(names[k], out n0); thinN[names[k]] = n0 + 1; }
+                    if (float.IsNaN(r.gapMin) || gap < r.gapMin) { r.gapMin = gap; r.gapAt = new Vector3(x, top, z); }
+                }
+        }
+        var tl = new List<KeyValuePair<string, int>>(thinN); tl.Sort((x, y) => y.Value.CompareTo(x.Value));
+        var ts = new List<string>(); for (int i = 0; i < tl.Count && i < 5; i++) ts.Add(tl[i].Key + " " + tl[i].Value);
+        r.thinBy = string.Join("・", ts);
+        foreach (var q in before)
+        {
+            float d = q.y - probe.At(q.x, q.z);
+            if (d > r.dipOut) { r.dipOut = d; r.dipAt = q; }
+        }
+        return r;
+    }
+
+    /// <summary>点 p から多角形の辺までの最短距離。</summary>
+    static float EdgeDist(Vector2[] poly, Vector2 p)
+    {
+        float best = float.MaxValue;
+        for (int i = 0; i < poly.Length; i++)
+        {
+            Vector2 a = poly[i], b = poly[(i + 1) % poly.Length], ab = b - a;
+            float l2 = ab.sqrMagnitude;
+            float tt = l2 < 1e-12f ? 0f : Mathf.Clamp01(Vector2.Dot(p - a, ab) / l2);
+            best = Mathf.Min(best, Vector2.Distance(p, a + ab * tt));
+        }
+        return best;
     }
 }

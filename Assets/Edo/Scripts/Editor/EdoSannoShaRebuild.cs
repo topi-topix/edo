@@ -448,13 +448,25 @@ public static class EdoSannoShaRebuild
             foreach (var kv in sodeRow)
                 if (sodeSide.ContainsKey(kv.Key))
                     sodeMiter += EdoBuild.MiterIshidanSode(dans, kv.Value, sodeSide[kv.Key], keri, fumi, wM, sodeWarn);
+            // ⭐ 袖の天端は外の地盤と同じ高さ ── 天端の下の節点と芝を納める(EDO-0414・⛔ 地形の編集は Undo の外)
+            var sodeAll = new List<GameObject>();
+            foreach (var kv in sodeRow) foreach (var g in kv.Value) if (g != null) sodeAll.Add(g);
+            string sodeTuck = null;
+            if (sodeAll.Count > 0)
+            {
+                var tk = EdoBuild.TuckUnderCrest(sodeAll, null);
+                sodeTuck = (tk.thin > 0 ? "⛔ " : "") + "袖の天端の下の地形: " + tk;
+                EditorUtility.SetDirty(EdoBuild.T().terrainData);
+            }
             sb.AppendLine("  " + name + ": 段石 " + made + " 段(蹴上 " + keri.ToString("F3") +
                           " / 踏面 " + fumi.ToString("F3") + " / 幅 " + wM.ToString("F3") + ")" +
                           (sodeWalls.Count > 0 ? " / 袖 " + sodeMade + " 駒(" + string.Join("・", sodeWalls.Keys) + ")" +
                            (sodeSkip > 0 ? " / 切通しで建てず " + sodeSkip : "") +
                            (sodeMiter > 0 ? " / 留めの継ぎ目 " + sodeMiter : "") : ""));
             foreach (var w in sodeWarn) sb.AppendLine("    ⚠ " + w);
+            if (sodeTuck != null) sb.AppendLine("    " + sodeTuck);
         }
+        AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
         return "石段\n" + sb;
     }
     /// <summary>石段 <paramref name="kaidan"/> に沿う袖の土留め(`terraceWalls` の coping:"stair" で
@@ -508,6 +520,7 @@ public static class EdoSannoShaRebuild
         float probe = WallProbeM;
         var sb = new StringBuilder();
         int total = 0, buried = 0; float buriedM = 0f;
+        var placed = new List<GameObject>();
 
         // ⚠ 天端の両側が同じ高さの壁(= 基壇。回廊の 4本)は「低い側」が決まらない。
         //   ⇒ **同じ接頭辞の壁が囲む矩形の外**を外向きとする(名から導く群 = TW_Kairo など)。
@@ -593,8 +606,9 @@ public static class EdoSannoShaRebuild
                     if (faceH <= BURIED_EPS && backH > BURIED_EPS)
                     { buried++; skipM += (N > 1 ? pitch : len); continue; }
                     if (faceH <= BURIED_EPS) { buried++; skipM += (N > 1 ? pitch : len); continue; }
-                    EdoBuild.Place(EdoAssets.JC.CastleWall, new Vector3(p.x, top - IG_H, p.y),
+                    var wg = EdoBuild.Place(EdoAssets.JC.CastleWall, new Vector3(p.x, top - IG_H, p.y),
                                    psi, Vector3.one, grp, name + "_" + made.ToString("000") + "f");
+                    if (wg != null) placed.Add(wg);
                     made++;
                 }
             }
@@ -602,6 +616,12 @@ public static class EdoSannoShaRebuild
             sb.AppendLine("  " + name + ": 駒 " + made + " 枚" +
                           (skipM > 0.05f ? " / ⛔ 埋まっていて建てなかった " + skipM.ToString("F1") + "m" : ""));
         }
+        // ⭐ 天端を高い側の地盤に揃えた土留め(`copingRise:"groundHi"`)は天端の面と地形が重なる ──
+        //   天端の下の節点を天端より下げ、芝を消す(EDO-0414・⛔ 地形の編集は Undo の外)。
+        //   ⚠ Stage1(整地)を流し直すと節点が天端へ戻るので、Stage3 を必ず後に流す。
+        var tk = EdoBuild.TuckUnderCrest(placed, null);
+        EditorUtility.SetDirty(EdoBuild.T().terrainData); AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
+        sb.AppendLine("  " + (tk.thin > 0 ? "⛔ " : "") + "天端の下の地形: " + tk);
         return "土留め: 駒 " + total + " 枚 / ⛔ 埋まっていて建てなかった " + buried + " 枚 ≒ " +
                buriedM.ToString("F1") + "m(裁定 EDO-0182 が未着手のため据え置き)\n" + sb;
     }

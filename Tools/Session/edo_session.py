@@ -844,6 +844,15 @@ def cmd_finish(a):
     if not tasks:
         m = re.findall(r"EDO-\d{3,4}", c.get("note") or "")
         tasks = m[:1]
+    # ⛔ **資源を待っている最中に票を閉じない**(施主指摘 2026-09-23・EDO-0274)。待ちは範囲の理由に
+    #   ならない — 残りを別票へ切り出して閉じると「範囲」と「待ち」を取り違える(docs/session-board.md §1e)。
+    #   文脈の上限で窓を替えるなら --keep-task で同じ票を渡す。
+    waiting = sorted(r for r, ws in q_load().items() if any(w.get("session") == me for w in ws))
+    if waiting and tasks and not a.keep_task:
+        print("⛔ finish を止めた: %s を待っている最中に票 %s を閉じない。待ちは範囲の理由にならない —\n"
+              "   空くのを待ってこの票の中でやり切る。窓を替えるだけなら --keep-task(同じ票を次の窓へ)。\n"
+              "   正典: docs/session-board.md §1e" % ("・".join(waiting), "・".join(tasks)), file=sys.stderr)
+        return 1
     closed, miss = [], []
     for tk in tasks:
         if a.keep_task:

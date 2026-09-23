@@ -31,7 +31,7 @@
 import argparse, difflib, datetime, json, os, re, subprocess, sys, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from edo_session import sid, _common_git_dir, atomic_write_json, estate_names
+from edo_session import sid, _common_git_dir, atomic_write_json, estate_names, mine
 
 BOARD = os.path.join(_common_git_dir(), "edo-board")
 # ⛔ **敷地の名簿を手で持たない。** 固定の tuple にしていたため、あとから起きた邸
@@ -179,6 +179,51 @@ def check_bare_token(title):
     return "題が符牒(%s)だけで中身が分からない" % "・".join(sorted(set(m)))
 
 
+# ────────────────────────────────────────────── 切り出しの理由(範囲 ≠ 待ち・文脈)
+# 施主指摘 2026-09-23(EDO-0274):「セッションのコンテキストの上限が切れる話とタスクのスコープの話を
+# ごっちゃにしないでください。これは何度か発生しているので仕組みとして反映してください」。
+# 実例: 部材を焼いたあと Unity の remap(部材方の仕事の一部)を「Unity を他の窓が握っている」
+# という理由で別票 EDO-0405 に切り出し、票を閉じた。待ちは `wait` で並べば済み、文脈の上限は
+# `finish --keep-task` で同じ票を次の窓へ渡せば済む。⛔ どちらも票を割る理由にならない。
+_KIRI_NG = re.compile(r"Unity|unity|資源|待ち|待つ|握って|使用中|空い|空か|claim|文脈|コンテキスト|"
+                      r"context|上限|トークン|token|時間が|手が回ら|長くなる")
+_KIRI_HINT = re.compile(r"続き|残り|の後|あとで|後段|引き継")
+
+
+def check_kiri(a, me):
+    """今の窓が名乗っている票から task を切り出すときは、範囲の外である理由を --kiri で要る。
+    理由に資源の待ち・文脈の上限を挙げたものは通さない(docs/session-board.md §1e)。"""
+    try:
+        c, _ = mine(me)
+    except Exception:
+        return None
+    if not c or c.get("finished"):
+        return None
+    mytask = (c.get("task") or "").upper()
+    if not mytask:
+        m = re.search(r"EDO-\d{3,4}", c.get("note") or "")
+        mytask = m.group(0) if m else ""
+    if not mytask:
+        return None
+    text = " ".join([a.title or "", a.msg or ""] + list(a.ref or []))
+    if mytask not in text and not _KIRI_HINT.search(text):
+        return None
+    kiri = (getattr(a, "kiri", "") or "").strip()
+    if not kiri:
+        return ("⛔ 名乗っている票 %s から task を切り出そうとしている。--kiri '<この件が %s の範囲の外である理由>' が要る。\n"
+                "   範囲は**票の題が言う欠陥が消えるのに要る仕事か**だけで決める。\n"
+                "   ⛔ 資源の待ち(Unity を他の窓が握っている)→ 切り出さず `edo_session.py wait --resources unity` で並ぶ。\n"
+                "   ⛔ 文脈の上限 → 切り出さず `finish --keep-task` で**同じ票**を次の窓へ渡す。\n"
+                "   正典: docs/session-board.md §1e(施主指摘 2026-09-23)" % (mytask, mytask))
+    if _KIRI_NG.search(kiri):
+        return ("⛔ --kiri の理由が資源の待ちか文脈の上限になっている(『%s』)。それは範囲の理由ではない。\n"
+                "   待ちなら `wait --resources <資源>` で並んで %s の中でやり切る。文脈なら `finish --keep-task`。\n"
+                "   正典: docs/session-board.md §1e" % (_KIRI_NG.search(kiri).group(0), mytask))
+    a.msg = ((a.msg or "") + "\n切り出しの理由(%s の範囲の外): %s" % (mytask, kiri)).strip()
+    return None
+
+
+
 def cmd_post(a):
     me = sid(a.session)
     if a.type == "decision":
@@ -240,6 +285,11 @@ def cmd_post(a):
         elif not owners:
             print("⛔ cross の task には --owner <邸> が要る(担い手の無い宿題は誰も拾わない。"
                   "生存 142 件の 85% が owner 空だった)。誰の担当でもないなら lesson か info に。", file=sys.stderr)
+            return 1
+    if a.type == "task":
+        why = check_kiri(a, me)
+        if why:
+            print(why, file=sys.stderr)
             return 1
     if len(a.title or "") > TITLE_MAX:
         print("⛔ 題が %d 字(上限 %d)。題は digest の 1 行に載る物。経緯は --msg か --ref へ。"
@@ -670,6 +720,9 @@ def main():
                    help="decision 必須: **裁定図**。図版番号(其◯)か描いた図のパス。"
                         "各案を同じ縮尺で並べた図と、案ごとに動く数値を添えること"
                         "(2026-08-30 ユーザー指示。名前と数字の羅列で選ばせない)")
+    p.add_argument("--kiri", default="",
+                   help="task: 今の窓が名乗っている票から切り出すとき、範囲の外である理由。"
+                        "⛔ 資源の待ち・文脈の上限は理由にならない(docs/session-board.md §1e)")
     p.set_defaults(fn=cmd_post)
     KATA_HELP = dict(
         kata="直しが入った規則・仕組みの場所(パス#節 / クラス.関数)。task/blocker を done にするとき必須",

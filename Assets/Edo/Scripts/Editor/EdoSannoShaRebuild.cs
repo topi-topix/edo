@@ -1557,6 +1557,7 @@ public static class EdoSannoShaRebuild
 
         int nTree = 0, nGo = 0, nMei = 0, skipped = 0;
         float dyMax = 0f; double dySum = 0; int dyN = 0;
+        var unseated = new List<string>(); float buryMax = 0f, floatMax = 0f;
         foreach (var o in pts)
         {
             var q = o as Dictionary<string, object>; if (q == null) continue;
@@ -1597,6 +1598,16 @@ public static class EdoSannoShaRebuild
                         g.transform.rotation = Quaternion.AngleAxis(deg, new Vector3(to.y, 0f, -to.x));
                     }
                 }
+                // ⭐ **足元の当たりで据える**(EDO-0401)── ⛔ ピボットを点の地表へ置いたままにしない
+                //    (崖の低木の山側が 1.0〜1.8m 潜っていた)。据わらない木は数えて名指しで刷る。
+                if (g != null)
+                {
+                    float bu, fl;
+                    if (!EdoBuild.SeatPlant(g, 0f, out bu, out fl))
+                        unseated.Add(string.Format("{0}(埋 {1:F2} / 浮 {2:F2})", g.name, bu, fl));
+                    buryMax = Mathf.Max(buryMax, float.IsNaN(bu) ? 0f : bu);
+                    floatMax = Mathf.Max(floatMax, float.IsNaN(fl) ? 0f : fl);
+                }
                 if (named) nMei++; else nGo++;
             }
         }
@@ -1610,6 +1621,11 @@ public static class EdoSannoShaRebuild
         if (dyN > 0)
             sb.AppendLine("  地盤: 実測と焼き出しの `y` の差 平均 " + (dySum / dyN).ToString("F3") +
                           "m / 最大 " + dyMax.ToString("F3") + "m(据えたのは**実測**の地盤)");
+        sb.AppendLine("  据え(GameObject の木 " + (nGo + nMei) + " 本・足元の当たりで): 埋没 最大 " + buryMax.ToString("F2") +
+                      "m / 浮き 最大 " + floatMax.ToString("F2") + "m");
+        if (unseated.Count > 0)
+            sb.AppendLine("  ★ 埋没≤1.0・浮き≤0.7 で据わらない木 " + unseated.Count + " 本: " +
+                          string.Join(" / ", unseated.GetRange(0, Mathf.Min(20, unseated.Count)).ToArray()));
         if (skipped > 0) sb.AppendLine("  ★ 据えられなかった点 " + skipped + " 点");
         if (missing.Count > 0) sb.AppendLine("  ★ 部材が無い: " + string.Join(" / ", missing.ToArray()));
         sb.AppendLine("  ⛔ 向き(yaw)は焼き出しに無いので 0 のまま ── 乱数を振っていない");

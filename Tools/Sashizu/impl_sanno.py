@@ -4662,6 +4662,12 @@ def scatter_pts(d, g):
             #   中木は同じ塊の `got` に積まない(⛔ 高木の芯々で中木まで弾かない)。
             #   ⭕ 層の違う幹とは `crossLayerTrunkMinM` を硬く守る(`_scatter_take` の `other`/`rx`)。
             gotb = {}
+            # ⭐ **先に据えた塊の点を、同じ層の芯々 `rmin` で硬く避ける**【EDO-0409 庭方 2026-09-23】──
+            #   西B の林と北D の林は 0.5 間の継ぎ目で接する。⛔ 塊どうしを知らずに撒くと継ぎ目で芯々を割る。
+            #   ⛔ `_scatter_take` の緩め(`rmin` × 0.9)は塊をまたいでは効かせない(候補を先に落とす)。
+            prevb = {}
+            for q in cl_pts:
+                prevb.setdefault("canopy" if q["layer"] in ("松", "落葉") else q["layer"], []).append((q["u"], q["v"]))
             for kind, pt, k, hh, _cr, sk, _vs, _lo, _hi in parts:
                 lay = _MIXLAY.get(kind, "落葉")
                 bk9 = "canopy" if lay in ("松", "落葉") else lay
@@ -4676,6 +4682,16 @@ def scatter_pts(d, g):
                     cz = [p for p in cand if zn[0] <= p[1] <= zn[1]] if zn else cand
                     oth9 = [(q["u"], q["v"]) for q in cl_pts
                             if ("canopy" if q["layer"] in ("松", "落葉") else q["layer"]) != bk9]
+                    pv9 = prevb.get(bk9) or []
+                    if pv9:
+                        gr9 = {}
+                        for q in pv9:
+                            gr9.setdefault((int(math.floor(q[0] / rmin)), int(math.floor(q[1] / rmin))), []).append(q)
+                        cz = [p for p in cz if not any(
+                            (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 < rmin * rmin
+                            for a in range(int(math.floor(p[0] / rmin)) - 1, int(math.floor(p[0] / rmin)) + 2)
+                            for b in range(int(math.floor(p[1] / rmin)) - 1, int(math.floor(p[1] / rmin)) + 2)
+                            for q in gr9.get((a, b), ()))]
                     pts, r_, rx = _scatter_take(rnd, cz, k, rmin,
                                                 seeded=gotb.get(bk9, []) + (seed0 if bk9 == "canopy" else []),
                                                 other=oth9, rx=xr0)

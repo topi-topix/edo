@@ -666,7 +666,7 @@ class Model(object):
 class Checks(object):
     def __init__(self, M):
         self.M = M
-        self.rows = []      # (id, title, result, status) status ∈ ok / ng / na
+        self.rows = []      # (id, title, result, status) status ∈ ok / ng / na / soft(△ 狙い未達・柔らかい制約。不合格に数えない)
         self.detail = {}
 
     def add(self, cid, title, result, status, detail=None):
@@ -1683,6 +1683,54 @@ class Checks(object):
                  % (fn, len(grp), "・".join(grp), len(T), len(polys), rk),
                  "%d 点(最大 %.2f 間 足りない)" % (len(bad), worst), "ng" if bad else "ok", bad[:12])
 
+    # C28 塊どうしの間(庭方 2026-09-06「塊どうしを近づけすぎない目安」・庭方2巡目「置かれた木どうしの最小離れで測る」)
+    def c28(self):
+        """`gardens[].clusterGapMin`[間] を宣言した区だけ、**同じ区の違う塊**に撒いた木の**幹の芯どうしの最小の離れ**が
+        その値以上かを測る(`clusterGapMinDef`:箱の縁ではなく置かれた木どうし)。
+
+        ⭐ **柔らかい制約(狙い)** ── 意匠の目安(これより近い二つは別々の塊として読まれない)なので、
+        未達は △ 狙い未達で刷り、不合格に数えない・関門にしない(docs/oki-kata.md §4a)。
+        ⛔ 別の塊と同じ多角形を共有する塊(`polyFrom`)と中木の塊(`layer` = 中木)は測らない ──
+        林の下層であって、見える塊ではない。塊が一つしか残らない区は対が無いので刷るだけ。
+        """
+        M = self.M
+        gs = [gd for gd in (M.d.get("gardens") or []) if gd.get("clusterGapMin") is not None]
+        if not gs:
+            self.add("C28", "塊どうしの間", "未検査 — `gardens[].clusterGapMin` の宣言が無い", "na")
+            return
+        fn, P = self.planting_points()
+        if fn is None or isinstance(P, Exception):
+            self.add("C28", "塊どうしの間", "未検査 — 撒いた点が無い" if fn is None else "⛔ 読めない: %s" % P,
+                     "na" if fn is None else "ng")
+            return
+        low, seen, one = [], [], []
+        for gd in gs:
+            lim = float(gd["clusterGapMin"])
+            cs = [c for c in (gd.get("clusters") or [])
+                  if not c.get("polyFrom") and c.get("layer") != "中木"]
+            T = {}
+            for c in cs:
+                g9 = "%s／%s" % (gd.get("name"), c.get("name"))
+                T[c.get("name")] = [q["uv"] for q in P if q.get("group") == g9 and q.get("layer") != "中木"]
+            T = dict((k, v) for k, v in T.items() if v)
+            ks = sorted(T)
+            if len(ks) < 2:
+                one.append("%s(塊 %d)" % (gd.get("name"), len(ks)))
+                continue
+            for i in range(len(ks)):
+                for j in range(i + 1, len(ks)):
+                    dm = min(math.hypot(a[0] - b[0], a[1] - b[1]) for a in T[ks[i]] for b in T[ks[j]])
+                    seen.append(dm)
+                    if dm < lim - 1e-6:
+                        low.append("%s: %s と %s の幹の最小の離れ %.2f 間 < 目安 %.1f 間" % (gd.get("name"), ks[i], ks[j], dm, lim))
+        if not seen:
+            self.add("C28", "塊どうしの間", "未検査 — 測る塊の対が無い(%s)" % "・".join(one), "na")
+            return
+        self.add("C28", "塊どうしの間 — %s の区 %d の塊の対 %d について、違う塊の幹の芯どうしの最小の離れが `clusterGapMin` 以上"
+                 "(柔らかい制約・狙い。中木の塊と `polyFrom` の塊は測らない%s)"
+                 % (fn, len(gs), len(seen), (";対の無い区 " + "・".join(one)) if one else ""),
+                 "%d 対 狙い未達(最小 %.2f 間)" % (len(low), min(seen)), "soft" if low else "ok", low[:12])
+
 # ================================================================ 共通の壊し試し(C23)
 def deep_probes(est):
     """設計を写して壊し、共通の検査が鳴るかを記録する。名前 → (壊し方, 鳴るべき検査, 鳴ったか)。"""
@@ -2280,7 +2328,7 @@ def build(est, deep=False, out=None):
     plate(h, nx(), "検査 — 共通の %d 本" % len(C.rows), "生成のたびに機械で通す ／ 札は check_triage.json")
     rows = []
     for cid, what, res, st in C.rows:
-        mark = {"ok": "○", "ng": "⛔", "na": "未検査"}[st]
+        mark = {"ok": "○", "ng": "⛔", "na": "未検査", "soft": "△ 狙い未達"}[st]
         det = C.detail.get(cid)
         # ⛔ `esc()` だと C04 の **系統差** が字のまま刷られ、D01 が生成器自身の出力に鳴る(EDO-0268)。
         #   検査の文は散文なので行内の記法を器へ移す(L.inline は escape も兼ねる)。

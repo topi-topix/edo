@@ -489,7 +489,7 @@ public static partial class EdoBuild
     /// <summary>**多角形に少しでも掛かる detail のセルを空にする**(全層)。返り値 = 掛かったセルと値の変わったセル。
     /// <para>⭐ 芝の一本はセルの中のどこにでも生えるので、**掛かったセルは全部**消す(芯が中にあるセルだけでは、
     /// 縁のセルの芝が駒の上へ出る)。その代わり駒の外へ最大 1 セル(赤坂は 1.0m)芝が退く ── 報告に範囲を刷る。</para></summary>
-    public static TerrainCells ClearDetailIn(Vector2[] poly)
+    public static TerrainCells ClearDetailIn(Vector2[] poly, Func<Vector2, Vector2, bool> cellOk = null)
     {
         var t = T(); var td = t.terrainData; var org = t.transform.position;
         int D = td.detailResolution; float cx = td.size.x / D, cz = td.size.z / D;
@@ -504,7 +504,8 @@ public static partial class EdoBuild
             for (int i = 0; i < w; i++)
             {
                 var lo = new Vector2(org.x + (r.i0 + i) * cx, org.z + (r.j0 + j) * cz);
-                hit[j, i] = RectOverlapsPoly(lo, lo + new Vector2(cx, cz), poly);
+                hit[j, i] = RectOverlapsPoly(lo, lo + new Vector2(cx, cz), poly) &&
+                            (cellOk == null || cellOk(lo, lo + new Vector2(cx, cz)));
                 if (hit[j, i]) r.visited++;
             }
         var changedCell = new bool[h, w];
@@ -758,14 +759,27 @@ public static partial class EdoBuild
         }
 
         // 2 芝を消す
-        //   ⛔ 埋まっている駒(外形の中点で地表が天端 + coTol より高い)の上の芝は見えている地表の芝なので消さない
+        //   ⭐ **芝のセルごと**に決める: セルと外形の重なりのどこかで地表が天端 + coTol 以下(= 天端が地表から出ている)なら消す。
+        //   ⛔ 埋まっている所(地表が天端 + coTol より高い)の芝は見えている地表の芝なので消さない。
+        //   ⛔ 駒の中点ひとつで駒ごと飛ばさない ── 一部が埋まった駒の出ている所に芝が残った(2026-09-23 普請検査・TW_Zentei_W_007f)。
         probe = Probe();
         for (int k = 0; k < hulls.Count; k++)
         {
-            Vector2 c0 = Vector2.zero; foreach (var p in hulls[k]) c0 += p; c0 /= hulls[k].Length;
-            float top = Top(trisL[k], c0.x, c0.y);
-            if (!float.IsNaN(top) && probe.At(c0.x, c0.y) > top + coTol) continue;
-            var c = ClearDetailIn(hulls[k]); r.detVisited += c.visited; r.detChanged += c.changed; r.det = c;
+            var hk = hulls[k]; var tk = trisL[k]; var pk = probe;
+            Func<Vector2, Vector2, bool> exposed = (lo, hi) =>
+            {
+                const int N = 5;
+                for (int a = 0; a < N; a++)
+                    for (int b = 0; b < N; b++)
+                    {
+                        float x = Mathf.Lerp(lo.x, hi.x, (a + 0.5f) / N), z = Mathf.Lerp(lo.y, hi.y, (b + 0.5f) / N);
+                        if (!EdoGeom.PIP(hk, new Vector2(x, z))) continue;
+                        float top = Top(tk, x, z); if (float.IsNaN(top)) continue;
+                        if (pk.At(x, z) <= top + coTol) return true;
+                    }
+                return false;
+            };
+            var c = ClearDetailIn(hk, exposed); r.detVisited += c.visited; r.detChanged += c.changed; r.det = c;
         }
 
         // 3 検め ── 天端 − 描かれた地表(外形の縁から inset 以上内)・外形の外の下がり

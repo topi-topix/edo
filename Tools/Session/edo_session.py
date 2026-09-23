@@ -1469,6 +1469,51 @@ def wt_for(dom):
     return None
 
 
+def _git(wt, *args):
+    return subprocess.run(["git", "-C", wt] + list(args), capture_output=True, text=True)
+
+
+def _is_sync_copy(wt, rel):
+    """作業ツリーの `rel` が main のいずれかの版(= sync-tools が写した物)と同じか。"""
+    h = _git(wt, "hash-object", "--", rel).stdout.strip()
+    if not h:
+        return False
+    for c in _git(wt, "rev-list", "-n", "400", "main", "--", rel).stdout.split():
+        if _git(wt, "rev-parse", "-q", "--verify", "%s:%s" % (c, rel)).stdout.strip() == h:
+            return True
+    return False
+
+
+def _catch_up(wt):
+    """作業場の枝を main へ追いつかせる(EDO-0436)。
+    ⚠ sync-tools が写すのは SYNC_PATHS だけで、枝は動かさない ⇒ 自分のコミットの無い作業場
+      (infra など)は枝が main から遅れたまま、写されない Tools/Sashizu/ が古いコードで走る
+      (2026-09-24 実測: infra が 55 コミット遅れ、写しの 13 ファイルが持ち主の居ない変更に見えた)。
+    ⭕ 早送りするのは **自分のコミットが無く、汚れが全部 main のどれかの版の写し** のときだけ。
+    ⛔ 自分のコミットか手の変更がある作業場は触らず、遅れを刷るだけ(取り込みは各セッションが決める)。"""
+    if not wt:
+        return
+    behind = _git(wt, "rev-list", "--count", "HEAD..main").stdout.strip()
+    if not behind or behind == "0":
+        return
+    ahead = _git(wt, "rev-list", "--count", "main..HEAD").stdout.strip()
+    st = _git(wt, "status", "--porcelain", "--untracked-files=no").stdout.splitlines()
+    dirty = [ln[3:] for ln in st if ln.strip()]
+    own = [p for p in dirty if not _is_sync_copy(wt, p)]
+    if ahead != "0" or own:
+        print("  ⚠ この作業場は main より %s コミット遅れている(自分のコミット %s・手の変更 %d)。"
+              "写されない Tools/Sashizu/ などは古い版で走る — 要るなら main を取り込むこと。"
+              % (behind, ahead, len(own)), file=sys.stderr)
+        return
+    if dirty:
+        _git(wt, "checkout", "HEAD", "--", *dirty)             # main の版の写しなので失う物は無い
+    r = _git(wt, "merge", "--ff-only", "-q", "main")
+    if r.returncode == 0:
+        print("  作業場を main へ早送りした(%s コミット・写しの戻し %d 件)" % (behind, len(dirty)))
+    else:
+        print("  ⚠ main への早送りに失敗: %s" % (r.stderr.strip() or r.stdout.strip()), file=sys.stderr)
+
+
 def ensure_wt(dom, quiet=True):
     """屋敷の worktree を用意して返す。⚠ 無ければ黙って作る。"""
     got = wt_for(dom)
@@ -1612,6 +1657,7 @@ def cmd_start(a):
         return 0
     save(c, fp)
     wt = ensure_wt(dom, quiet=False)
+    _catch_up(wt)
     print("start: %s\n  作業ディレクトリ: %s" % (dom, wt))
     print("  ⚠ Unity はここでは開けない。計測が要るなら別途 `claim --resources unity`")
     _board_open(dom.split(":", 1)[-1])

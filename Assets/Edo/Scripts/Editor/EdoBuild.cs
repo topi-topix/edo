@@ -847,6 +847,43 @@ public static partial class EdoBuild
         return L;
     }
 
+    /// <summary>**部材を据えたときの、高さ <paramref name="y"/> の水平断面**(世界座標・実体化しない)。
+    /// メッシュの**三角形**を水平面で切った交点を返す。
+    /// <para>⭐ **柱で立つ駒は「帯の頂点」では測れない**(2026-09-23・EDO-0398 で二度目)。箱で作った柱は
+    /// 頂点が上下の端にしかないので、腰の高さの帯には頂点が一つも入らない ── 山王の勝手口では、帯に
+    /// 入ったのは柱の間の貫と**礎石の天端**だけで、そこから採った脇柱の位置が実際の柱より 0.105m 外に出た
+    /// (礎石は柱より大きい)。⇒ **断面(三角形と水平面の交わり)で測れば、頂点の無い高さでも柱の実形が出る。**
+    /// 同じ穴は <see cref="ModuleMeasure"/>/<see cref="FaceOut"/> の帯にもある(`docs/oki-kata.md` §3)。</para></summary>
+    public static List<Vector3> SectionAt(string prefabPath, Vector3 pos, float yaw, float y, bool withRoof = true)
+    {
+        var L = new List<Vector3>();
+        var asset = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+        if (asset == null) return L;
+        var pose = Matrix4x4.TRS(pos, Quaternion.Euler(0f, yaw, 0f), Vector3.one)
+                 * asset.transform.worldToLocalMatrix;
+        foreach (var mf in asset.GetComponentsInChildren<MeshFilter>(true))
+        {
+            if (mf.sharedMesh == null) continue;
+            var rr = mf.GetComponent<Renderer>(); if (rr == null || !rr.enabled) continue;
+            if (!withRoof && IsRoofName(mf.name)) continue;
+            var m = pose * mf.transform.localToWorldMatrix;
+            var vs = mf.sharedMesh.vertices;
+            var w = new Vector3[vs.Length];
+            for (int i = 0; i < vs.Length; i++) w[i] = m.MultiplyPoint3x4(vs[i]);
+            var tri = mf.sharedMesh.triangles;
+            for (int i = 0; i + 2 < tri.Length; i += 3)
+                for (int e = 0; e < 3; e++)
+                {
+                    Vector3 p = w[tri[i + e]], q = w[tri[i + (e + 1) % 3]];
+                    if ((p.y - y) * (q.y - y) > 0f) continue;
+                    float dy = q.y - p.y;
+                    if (Mathf.Abs(dy) < 1e-7f) continue;
+                    L.Add(Vector3.Lerp(p, q, (y - p.y) / dy));
+                }
+        }
+        return L;
+    }
+
     /// <summary>材やサブメッシュの名で屋根を見分ける。<see cref="IsRoofName"/>(和名)に
     /// 英名の roof / 屋根 を足したもの。⛔ <see cref="IsRoofName"/> 自体は広げない —
     /// あれは `Body()` が壁体を選ぶのに使っていて、広げると他邸の実測値が黙って動く。</summary>
@@ -1025,7 +1062,24 @@ public static partial class EdoBuild
                                     float perpLo, float perpHi, float yLo, float yHi,
                                     out float s0, out float s1)
     {
-        s0 = float.NaN; s1 = float.NaN;
+        Vector2 q0, q1;
+        return CorridorJambs(pts, A, B, perpDir, perpLo, perpHi, yLo, yHi, out q0, out q1, out s0, out s1);
+    }
+
+    /// <summary>**回廊を塞ぐ駒の「塞ぎ始め・塞ぎ終わりの点」**(<see cref="CorridorSpan"/> の点版)。
+    /// 同じ篩(回廊 × 高さの帯)を通した頂点のうち、走り方向の射影が**最小/最大になった頂点そのもの**を
+    /// <paramref name="p0"/>/<paramref name="p1"/>(世界の xz)で返す。<paramref name="s0"/>/<paramref name="s1"/>
+    /// はその射影(= <see cref="CorridorSpan"/> の返り値と同一)。
+    /// <para>⭐ **射影だけを受け取ると横のずれが落ちる。**駒が走りに対して**傾いて・横へずれて**据わるとき
+    /// (門・隅櫓)、走りの線の上で s へ端を取っても、駒の実体はそこに無い ── 2026-09-23 実測(EDO-0398):
+    /// 山王の勝手口は走りと 39°・線から 0.45m 外に据わり、射影で端を取った柵の柱と門の実メッシュの間に
+    /// **0.822m の口**が残っていた。⇒ **端は「射影が極値になった頂点の居場所」へ取る**(= 走りの向きに
+    /// 光を当てたときの駒の影が始まる角 = 門の脇柱の角)。走りはそこで折れて門へ取り付く。</para></summary>
+    public static bool CorridorJambs(List<Vector3> pts, Vector2 A, Vector2 B, Vector2 perpDir,
+                                     float perpLo, float perpHi, float yLo, float yHi,
+                                     out Vector2 p0, out Vector2 p1, out float s0, out float s1)
+    {
+        s0 = float.NaN; s1 = float.NaN; p0 = Vector2.zero; p1 = Vector2.zero;
         Vector2 d = (B - A).normalized;
         float mn = float.MaxValue, mx = float.MinValue;
         foreach (var w in pts)
@@ -1034,10 +1088,89 @@ public static partial class EdoBuild
             float p = (w.x - A.x) * perpDir.x + (w.z - A.y) * perpDir.y;
             if (p < perpLo || p > perpHi) continue;
             float s = (w.x - A.x) * d.x + (w.z - A.y) * d.y;
-            if (s < mn) mn = s; if (s > mx) mx = s;
+            if (s < mn) { mn = s; p0 = new Vector2(w.x, w.z); }
+            if (s > mx) { mx = s; p1 = new Vector2(w.x, w.z); }
         }
         if (mx < mn) return false;
         s0 = mn; s1 = mx; return true;
+    }
+
+    /// <summary>**口に建つ駒(門)の脇柱へ、囲いの run の終端を取り付ける点を測る。**
+    /// 返るのは口の両側の取り付け点 <paramref name="j0"/>(A 側)/ <paramref name="j1"/>(B 側)の
+    /// 世界 xz と、その走りへの射影 <paramref name="s0"/>/<paramref name="s1"/>(s は A からの距離[m])。
+    /// 駒は**まだ建っていなくてよい**(資産から測る)ので、門より先に流れる囲いの Stage からも呼べる。
+    /// <paramref name="how"/> には何で測ったかが返る(⛔ 黙って代用しない・規則7)。
+    ///
+    /// <para>⭐ **run の端は開口の縁に取る**(2026-09-19 施主裁定)。⛔ 算出物の seg の端(= 紙の上の
+    /// 口の幅)をそのまま run の端にしない — 門は走りに対して**傾いて・ずれて**据わることがあり
+    /// (山王の勝手口は 39°傾き・線から 0.45m 外)、その差がそのまま素通しの空隙になる
+    /// (2026-09-22 実測: 口 2.909m に対し門の投影 1.992m ⇒ 南 0.457 / 北 0.460m が素通し)。
+    /// ⛔ 門の芯と「口の幅(`monguchiKen`)」の引き算で出さない — 傾きと控えを落とす。</para>
+    ///
+    /// <para>⭐ **端は走りの線の上ではなく、門の実メッシュの角そのものへ取る**(2026-09-23・EDO-0398)。
+    /// 射影 s だけを受け取ると**横のずれが落ちる** — 線上の s には門の実体が無く、柵の端の柱と門の間に
+    /// **0.822m の口**が残った。走りはその角で折れて門へ取り付く。</para>
+    ///
+    /// <para>⭐ **測るのは頂点ではなく断面**(<see cref="SectionAt"/>)。箱で作った柱は頂点が上下の端にしか
+    /// 無いので、腰の帯に入るのは貫と**礎石の天端**だけ ── そこから採った脇柱は実際の柱より 0.105m 外に
+    /// 出て、閉じが 0.085m 足りなかった(2026-09-23 実測)。⇒ 囲いの丈の帯を 5 段に割って**各段の断面**を
+    /// 採り、**いちばん内へ引っ込む段**(= どの高さにも隙が残らない位置)へ端を取る。礎石のように外へ
+    /// 張り出す部分へは、そのぶん食い込む(めり込みは隙より良い)。</para>
+    ///
+    /// <para>⚠ <paramref name="perpHalf"/> は**控えの帯**。⛔ 塀の半厚を渡さない — 細い帯では傾いた門の
+    /// 実体が1つも入らず「塞いでいない」と出て口が素通しで残る(2026-09-22 実測)。⇒ **その口の幅**を
+    /// 渡す(帯は「この口に建つ駒か」を選ぶためだけの物)。</para>
+    ///
+    /// <para><paramref name="bite"/> は門へ**食い込ませる量**[m](閉じは「隙間 &gt; めり込み」──
+    /// メモリ `gate-wall-closure-rule`)。呼び手は**その run の半厚**を実測して渡すこと ── 端の駒の木口は
+    /// 走りに直角、門の脇柱の面は門の向きなので、角で合わせるだけだと半厚 × tan(食い違い角)の楔が残る。
+    /// ⛔ 控え・犬走りを足し引きしない(<see cref="CorridorSpan"/> の註と同じ)。</para></summary>
+    public static bool OpeningJambs(string prefabPath, Vector3 pos, float yaw,
+                                    Vector2 A, Vector2 B, float perpHalf, float yLo, float yHi,
+                                    float bite, out Vector2 j0, out Vector2 j1,
+                                    out float s0, out float s1, out string how)
+    {
+        j0 = Vector2.zero; j1 = Vector2.zero; s0 = float.NaN; s1 = float.NaN; how = "";
+        Vector2 d = (B - A);
+        if (d.sqrMagnitude < 1e-8f) return false;
+        d.Normalize();
+        Vector2 nrm = new Vector2(-d.y, d.x);
+        const int STEPS = 5;
+        int used = 0;
+        float lo = float.MinValue, hi = float.MaxValue;   // 内へいちばん引っ込む段を採る
+        for (int k = 0; k < STEPS; k++)
+        {
+            float y = Mathf.Lerp(yLo, yHi, (k + 0.5f) / STEPS);
+            var sec = SectionAt(prefabPath, pos, yaw, y, true);
+            float mn = float.MaxValue, mx = float.MinValue;
+            Vector2 pmn = Vector2.zero, pmx = Vector2.zero;
+            foreach (var w in sec)
+            {
+                float p = (w.x - A.x) * nrm.x + (w.z - A.y) * nrm.y;
+                if (p < -perpHalf || p > perpHalf) continue;
+                float s = (w.x - A.x) * d.x + (w.z - A.y) * d.y;
+                if (s < mn) { mn = s; pmn = new Vector2(w.x, w.z); }
+                if (s > mx) { mx = s; pmx = new Vector2(w.x, w.z); }
+            }
+            if (mx < mn) continue;                        // この高さには駒の実体が無い
+            used++;
+            if (mn > lo) { lo = mn; j0 = pmn; }
+            if (mx < hi) { hi = mx; j1 = pmx; }
+        }
+        if (used > 0) { s0 = lo; s1 = hi; how = "断面 " + used + "/" + STEPS + " 段"; }
+        else
+        {
+            // 断面が一段も採れない(水平な板だけの駒など)。⛔ 黙って諦めない — 帯の頂点で測って報せる。
+            var pts = BodyAt(prefabPath, pos, yaw, true);
+            if (pts.Count == 0) return false;
+            if (!CorridorJambs(pts, A, B, nrm, -perpHalf, perpHalf, yLo, yHi,
+                               out j0, out j1, out s0, out s1)) return false;
+            how = "⚠ 断面が採れず帯の頂点で代用";
+        }
+        // 食い込みは影の幅の 1/4 を超えない(門が細いときに両端が行き違うのを防ぐ)。
+        float bt = Mathf.Max(0f, Mathf.Min(bite, (s1 - s0) * 0.25f));
+        j0 += d * bt; j1 -= d * bt;
+        return true;
     }
 
     /// <summary>**その辺に建てる練塀の断面を、駒を1枚仮に据えて実測する。**

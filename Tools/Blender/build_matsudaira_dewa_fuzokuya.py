@@ -251,7 +251,7 @@ def _finish(name, m, mats, extra):
 
 # ================================================================ 土蔵
 def dozo(uk=4, vk=7, name="Matsudaira_Dozo", eave=4.60, mado=1.0, gawa_mado=0,
-         mizukiri_tooshi=True):
+         mizukiri_tooshi=True, okiyane=0.0):
     """土蔵。長手(棟)= vk 間 = ローカル X。据えは yawV(ローカル +X → +v)。
     腰は石の basement、上は白漆喰の大壁。妻に観音扉一対。【確度B=江戸の一般類型】
 
@@ -267,7 +267,12 @@ def dozo(uk=4, vk=7, name="Matsudaira_Dozo", eave=4.60, mado=1.0, gawa_mado=0,
       ⚠ 2026-09-21 に `Eg.Kura` と並べて焼いて分かったこと: 長手の大壁は **7.3 × 3.1m が
       一面の白**で、意匠の無い箱に見える(`Eg.Kura` は妻に窓・扉・庇・棟飾りが付く)。
       ⇒ 米蔵は**風を抜くのが用途そのもの**なので、ここに高窓を並べるのが作りとして正しく、
-      同時に見分けも付く。⛔ 土蔵(文書・什器)には開けない — だから既定は 0。"""
+      同時に見分けも付く。⛔ 土蔵(文書・什器)には開けない — だから既定は 0。
+    ⭕ `okiyane` は**置屋根の懐**[m](壁の天端から瓦の軒先まで)。既定 0.0 =
+      従来どおり壁に直接瓦を載せる。⭕ > 0 にすると **漆喰の塗屋根 + 小屋束 + 桁**が入り、
+      瓦の屋根がその上へ持ち上がる(山王の御蔵 = 指図 bom 行33「土蔵造・置屋根」)。
+      ⚠ **棟高が `okiyane` のぶん丸ごと上がる**(棟 = eave + okiyane + (梁間/2+0.75)×0.5456)。
+      ⛔ 帯を板で塞がない — 通気がこの作りの目的で、塞ぐと「壁が厚いだけの蔵」になる。"""
     (wm, wuv), (sm, suv), (pm, puv) = palette()
     W, D = vk * KEN, uk * KEN          # X=桁行(長手) Y=梁間
     BASE, EAVE = 0.40, eave            # 基壇高 / 軒高
@@ -331,7 +336,36 @@ def dozo(uk=4, vk=7, name="Matsudaira_Dozo", eave=4.60, mado=1.0, gawa_mado=0,
         m.box(-mex, mex, my0, my1, -hd - 0.16, -b, muv, PLAS)
         m.box(-mex, mex, my0, my1, b, hd + 0.16, muv, PLAS)
         m.box(-hw, mex, my0, my1, -b, b, muv, PLAS)
-    roof = _roof("kirizuma", W, D, name + "_roof", EAVE, eave=0.75, end=0.45, tsuma=True)
+    # ⭐ **置屋根**(`okiyane` > 0)。⛔ 既定 0.0 では1枚も積まない(従来の土蔵と寸分違わない)
+    #   土蔵造の置屋根 = 本体の**漆喰の塗屋根**の上に、独立した小屋を載せて瓦を葺く作り。
+    #   ⇒ 壁の天端(EAVE)と瓦の軒先(EAVE+okiyane)の間に**帯が空くのが正しい姿**。
+    #   ⛔ 帯を塞がない(通気がこの作りの目的)。⛔ 塗屋根を省かない — 省くと帯から
+    #     **本当に空が抜ける**(置屋根の下は蔵の屋根が閉じていなければならない)。
+    if okiyane > 0.0:
+        NURI = 0.24                              # 塗屋根の勾配(緩い。瓦の 0.5456 とは無関係)
+        apex = EAVE + hd * NURI
+        ov = 0.14                                # 塗屋根の壁からの出
+        m.quad([(-hw - ov, EAVE, hd + ov), (hw + ov, EAVE, hd + ov),
+                (hw + ov, apex, 0.0), (-hw - ov, apex, 0.0)], _sub(puv, .1, .1, .9, .9), PLAS)
+        m.quad([(hw + ov, EAVE, -hd - ov), (-hw - ov, EAVE, -hd - ov),
+                (-hw - ov, apex, 0.0), (hw + ov, apex, 0.0)], _sub(puv, .1, .1, .9, .9), PLAS)
+        for x, s in ((hw + ov, +1), (-hw - ov, -1)):
+            pts = ([(x, EAVE, hd + ov), (x, EAVE, -hd - ov), (x, apex, 0.0)] if s > 0
+                   else [(x, EAVE, -hd - ov), (x, EAVE, hd + ov), (x, apex, 0.0)])
+            m.tri(pts, _sub(puv, .2, .2, .6, .6), PLAS)
+        m.box(-hw - ov, hw + ov, EAVE - 0.10, EAVE, -hd - ov, hd + ov,
+              _sub(puv, .3, .3, .7, .5), PLAS)   # 塗屋根の軒の小口(切りっ放しにしない)
+        # 小屋束と桁 — 置屋根を受ける。⚠ 束は塗屋根の上に立つので下端は EAVE
+        nb = max(2, int(round(W / 1.30)))
+        for sz in (-hd + 0.10, hd - 0.10):
+            for i in range(nb + 1):
+                xc = -hw + W * i / float(nb)
+                m.box(xc - 0.075, xc + 0.075, EAVE, EAVE + okiyane, sz - 0.075, sz + 0.075,
+                      _sub(wuv, .2, 0, .35, 1), WOOD)
+            m.box(-hw - 0.10, hw + 0.10, EAVE + okiyane - 0.16, EAVE + okiyane,
+                  sz - 0.09, sz + 0.09, _sub(wuv, .4, .1, .9, .5), WOOD)
+    roof = _roof("kirizuma", W, D, name + "_roof", EAVE + okiyane,
+                 eave=0.75, end=0.45, tsuma=True)
     return _finish(name, m, [wm, sm, pm], [roof])
 
 

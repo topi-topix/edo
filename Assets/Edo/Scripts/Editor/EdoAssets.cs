@@ -983,6 +983,131 @@ public static class EdoAssets
             return "Assets/Edo/Models/Sanno/Sanno_Torii_" + spanMm + "x" + tallMm + ".fbx";
         }
 
+        /// <summary>**山王社の末社(稲荷社)の小鳥居 — 木造朱塗りの明神鳥居**。⭐ **1基だけ**
+        /// (北東の社叢の際・題箋「いなり」の小社の前。『江戸名所図会・山王』NDL pid 2563386 コマ7 の実見【S】)。
+        /// ⛔ **千本鳥居にしない**(明治以降の奉納鳥居の列)。⛔ 今の日枝神社(戦後再建)の姿を採らない。
+        /// 形式・寸法は【**U 類型 — 部材方 2026-09-22**】(名所図会からは柱間も塗りも読めない。⛔【A】を名乗らせない):
+        /// ① 稲荷の鳥居は朱が江戸の通例で、稲荷社本体 <see cref="SannoInari"/> が既に高欄を `Shu_Torii` で焼いてある ／
+        /// ② **石にしない** — 参道の <see cref="SannoTorii"/> と同形式にすると姿が同じで大小だけ違う物が3基並ぶ。
+        /// 参道=石・末社=木と**材で格を分ける** ／ ③ **扁額を付けない**(銘が読めていない【?】)⇒ 額束だけ。
+        /// ⛔ <see cref="SannoTorii"/> を倍率で縮めた物ではない(別部材として焼いてある)。**scale = Vector3.one** で据える。
+        /// <paramref name="spanMm"/> = 柱間(柱芯々)/ <paramref name="tallMm"/> = 総高(笠木の上端・中央)[mm]。
+        /// 現行 (1818, 2727) = 1間 × 1.5間。
+        /// ⭐ 幅 = ローカル X(柱の並び)・高さ = Y・厚み = Z。**正面(くぐる向き)= +Z**。
+        /// ピボット = **柱芯の中央・地盤**(根巻石は Y −0.150 まで根入れ)。⛔ `SeatBottom` で据えない。
+        /// ⭕ **X についても Z についても対称**(扁額が無い)⇒ yaw は ±180° どちらでも姿が変わらない。
+        /// 外形 W(X)2.538 × H(Y)2.997(−0.150〜2.847・反りの頂)× D(Z)0.360・848 tris。
+        /// 内法 1.618(柱径 0.20)・くぐり高(島木の下端)2.427・笠木の長さ 2.538・木鼻の先 ±1.103・ころび 1/40。
+        /// 祠との関係(`Sanno_Inari_Kasuga_1ken.fbx` の実メッシュで検算): 笠木 2.538 &lt; 稲荷社の軒幅 3.028 ／
+        /// 総高 2.847 &lt; 稲荷社の総高 4.340 ⇒ 鳥居が祠を隠さず、祠のほうが高く見える。
+        /// 材 `Shu_Torii`(木部の朱)/ `Kirishi`(根巻石)⇒ `Edo/山王社/新造部材のマテリアルをremap`
+        /// (⚠ `Shu_Torii.mat` は `Assets/Edo/Materials` **直下**に在る。remap の借り先に足してあるので当たる)。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_massha_torii.py -- --render</summary>
+        public static string SannoToriiMassha(int spanMm, int tallMm)
+        {
+            return "Assets/Edo/Models/Sanno/Sanno_Torii_Massha_" + spanMm + "x" + tallMm + ".fbx";
+        }
+
+        /// <summary>**山王社の堂宇(高床の小堂)**。指図 `bom` 行9「高床構造としてまとめて起こす」の本体。
+        /// <paramref name="kata"/> = `"Hogyo"`(方形造 = 宝形)｜`"Irimoya"`(入母屋)、
+        /// <paramref name="nuKen"/>×<paramref name="nvKen"/> = **柱芯**の間数、<paramref name="ewMm"/>×<paramref name="nsMm"/> = 柱芯[mm]。
+        /// 現行3点: `("Hogyo",3,3,5454,5454)` = 薬師堂・庚申堂・観音堂 ／ `("Irimoya",3,3,5454,5454)` = 附属堂 其五 ／
+        /// `("Irimoya",4,4,7272,7272)` = 附属堂 其八。
+        ///
+        /// <para>⭐ ピボット = **柱芯の矩形の中心・地盤**(+X = 東 = u / +Z = 北 = v)⇒ **正面(板扉と木階)= +Z**。
+        /// 据える向きは棟梁が yaw で与える。scale one。</para>
+        ///
+        /// <para>⚠ **bbox は柱芯より大きい** — 縁が柱芯から 0.606、軒が 1.00(隅で更に 0.17)、
+        /// **木階が +Z へ 1.60 出る**ので足形は前後非対称。実寸:
+        /// 宝形3間 W 7.837 × H 6.213 × D 8.911(Z −3.918〜+4.993)・16.6k tris ／
+        /// 入母屋3間 W 7.836 × H 6.116 × D 8.911・17.6k tris ／
+        /// 入母屋4間 W 9.654 × H 6.612 × D 10.729(Z −4.827〜+5.902)・23.5k tris。
+        /// ⛔ 指図の `du`/`dv`(間数)に bbox を合わせない — 合わせるのは**柱芯**。</para>
+        ///
+        /// <para>丈【U 部材方 2026-09-22 ── 指図に欄が無い。⛔ 史料値として名乗らせない】:
+        /// 基壇(切石)0.30・出 0.70 ／ **床 0.90(高床)** ／ 縁 0.606 + 高欄 0.76 + 木階5級 ／
+        /// 内法 1.80 ／ 桁の天端 3.744 ／ **軒先 3.40・軒の出 1.00**。
+        /// 棟高は瓦の勾配 0.5456 からの**従属値**: 宝形 = 露盤の天端 5.693(宝珠の頂 6.213)／
+        /// 入母屋3間 = 大棟 5.854(鬼 6.116)／ 入母屋4間 = 大棟 6.350(鬼 6.612)。
+        /// ⛔ 棟高を数で決めて瓦場を剪断しない。</para>
+        ///
+        /// 材 `wood` / `wall C` / `door wall` / `roof` / `roof ornaments` / `Kirishi`
+        /// ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_do.py -- hogyo irimoya3 irimoya4 --render</summary>
+        public static string SannoDo(string kata, int nuKen, int nvKen, int ewMm, int nsMm)
+        {
+            return "Assets/Edo/Models/Sanno/Sanno_Do_" + kata + "_" + nuKen + "x" + nvKen
+                 + "ken_" + ewMm + "x" + nsMm + ".fbx";
+        }
+
+        /// <summary>**山王社の稲荷社 — 一間社春日造(縋破風形式)・銅板葺**【A 千代田区の実測 = `bom` 行32】。
+        /// 実寸 **W(X)3.028 × H(Y)4.340 × D(Z)4.483**(Z −1.574〜+2.909)・3.2k tris・底 0.000。
+        ///
+        /// <para>⭐ **妻入**。大棟は **Z 方向**に走り、正面(+Z)の破風がそのまま庇へ縋って下りる。
+        /// ピボット = 身舎の柱芯の中心・地盤、**正面(御扉・木階・庇)= +Z**。scale one。</para>
+        ///
+        /// <para>⚠ **一間社なので指図 `munes[稲荷社]` の 3×3間(5.454角)より小さい。**
+        /// 一間社は身舎が 1 間角と決まった形式で、⛔ 3間角へ引き伸ばすと春日造ではなくなる。
+        /// ⇒ 指図の矩形は**据え場所の取り**として読み、部材はその中央に納めること
+        /// (部材方 2026-09-22。欄を詰めるなら指図側の `du`/`dv` を 2 間へ)。</para>
+        ///
+        /// <para>丈【U 部材方】: 基壇 0.30 ／ 床 1.20 ／ 縁 0.50 + 高欄 0.64 + 木階6級 ／
+        /// 軒先 2.90 ／ **大棟 3.775・箱棟の天端 4.165**(勾配 6寸。⭕ 銅板葺なので瓦モジュールの
+        /// 0.5456 に縛られない)／ 庇の出 1.30・先端で 0.43 下がる。千木・鰹木3本つき。</para>
+        ///
+        /// <para>⚠ **この一棟だけ葺材が違う** — `Doukawara`(銅板)。朱は `Shu_Torii`
+        /// (`Assets/Edo/Materials` 直下。remap の借り先に入っている)。
+        /// 材 `wood` / `wall C` / `door wall` / `Doukawara` / `Shu_Torii` / `Kirishi`
+        /// ⇒ `Edo/山王社/新造部材のマテリアルをremap`。</para>
+        /// 生成: blender --background --python Tools/Blender/build_sanno_do.py -- inari --render</summary>
+        public const string SannoInari = "Assets/Edo/Models/Sanno/Sanno_Inari_Kasuga_1ken.fbx";
+
+        /// <summary>**山王社の御厩(供の棟)**。<paramref name="nuKen"/>(東西=X・桁行)×<paramref name="nvKen"/>(南北=Z・梁間)[間]、
+        /// <paramref name="ewMm"/>×<paramref name="nsMm"/> = 柱芯[mm]。現行 (4, 3, 7272, 5454)。切妻・**本瓦葺**【U 裁定 2026-09-09】。
+        ///
+        /// <para>⭐ 岡部の吹き放ちの厩と**同じ型**(`build_okabe_fuzokuya.umaya` を呼ぶだけ)。
+        /// **前面(+Z)は吹き放ち**で足元に半高の板壁、馬房4房。⇒ 据えるとき +Z を境内の側へ向けること。
+        /// ピボット = 柱芯の矩形の中心・地盤。yaw 0・scale one。</para>
+        ///
+        /// <para>実寸 **W(X)8.052 × H(Y)4.378 × D(Z)7.046**・10.1k tris・底 0.000。
+        /// 軒 2.55 / 軒の出 0.70 / 馬房前の半高壁 1.15 ⇒ **吹き放ちの帯 0.928m** / 棟 4.038(天端 4.378)。
+        /// ⛔⛔ **軒高だけを下げない** — 帯が鼻隠しに隠れて「大屋根の物置」になる
+        /// (生成器の断り書き。下げるなら `frontH` と `noki` も一緒に)。</para>
+        ///
+        /// 材 `wood` / `wall C` / `Foundation_A_01` / `wall A` / `roof` / `roof ornaments`
+        /// ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_do.py -- umaya --render</summary>
+        public static string SannoUmaya(int nuKen, int nvKen, int ewMm, int nsMm)
+        {
+            return "Assets/Edo/Models/Sanno/Sanno_Umaya_" + nuKen + "x" + nvKen + "ken_"
+                 + ewMm + "x" + nsMm + ".fbx";
+        }
+
+        /// <summary>**山王社の御蔵 — 土蔵造・置屋根**【`bom` 行33】。<paramref name="nuKen"/>(東西=X・梁間)×
+        /// <paramref name="nvKen"/>(南北=Z・桁行)[間]、<paramref name="ewMm"/>×<paramref name="nsMm"/> = 壁芯[mm]。現行 (4, 5, 7272, 9090)。
+        ///
+        /// <para>⭐ **置屋根** = 漆喰の塗屋根の上に独立した小屋を載せて瓦を葺く作り。
+        /// **壁の天端と瓦の軒先の間に 0.42m の帯が空くのが正しい姿**(下に塗屋根があるので素通しではない)。
+        /// ⛔ 帯を板で塞がない — 通気がこの作りの目的で、塞ぐと「壁が厚いだけの蔵」になる。</para>
+        ///
+        /// <para>⭐ ピボット = 壁芯の矩形の中心・地盤、**大棟は Z(桁行5間)に走る**。yaw 0・scale one。
+        /// ⚠ 生成器(松江松平の `dozo`)は長手を +X に焼くので、**焼いたあと Z 回りに 90° 振って**
+        /// 山王の約束(ローカル X = 東 = u)へ揃えてある。⛔ 据えるときに更に 90° を足さない。</para>
+        ///
+        /// <para>実寸 **W(X)8.889 × H(Y)6.643 × D(Z)10.128**・6.4k tris・底 0.000。
+        /// 基壇 0.40 / 壁の天端(軒)3.70 / 置屋根の懐 0.42 / 棟の天端 6.643。観音扉は妻の片側。
+        /// 丈は【U 部材方 2026-09-22】で、棟高は梁間からの従属値(⛔ 数で決めない)。</para>
+        ///
+        /// 材 `Fence_B_01` / `Foundation_A_01` / `Wall Exterior Defence` / `wall C` / `wood` /
+        /// `roof` / `roof ornaments` ⇒ `Edo/山王社/新造部材のマテリアルをremap`
+        /// (⚠ 前3つは松江松平の土蔵由来 — `Japanese Village Kit/Materials` に在るので借り先は足りている)。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_do.py -- kura --render</summary>
+        public static string SannoKura(int nuKen, int nvKen, int ewMm, int nsMm)
+        {
+            return "Assets/Edo/Models/Sanno/Sanno_Kura_" + nuKen + "x" + nvKen + "ken_"
+                 + ewMm + "x" + nsMm + ".fbx";
+        }
+
         /// <summary>**山王社の段石(石段の一段)**。蹴上 <paramref name="keri"/> / 踏面 <paramref name="fumi"/> / 幅 <paramref name="w"/>[m]、
         /// 個体 <paramref name="i"/> の偶奇で a / b を振る(⛔ 片方だけを53段並べない — 目地が一直線に立つ)。
         /// 寸法は指図 `kaidans` が正典で、**蹴上・踏面は段数と平面長・比高からの従属値**(⛔ CLAUDE.md の 0.30/0.45 は参道の坂に当てない)。
@@ -1446,6 +1571,21 @@ public static class EdoAssets
         /// ピボット = **基壇の中心・地盤レベル**。⭕ 正面が無いので向きは自由。寸法は【U】。
         /// 生成: blender --background --python Tools/Blender/build_typ_jisha.py -- shoro</summary>
         public static string Shoro(float ken) { return JishaDir + "Typ_Shoro_" + Len2(ken) + "ken.fbx"; }
+
+        /// <summary>**鼓楼 — 袴腰**(<see cref="Shoro"/> と**同じ躯体に太鼓を吊った**対の棟)。
+        /// 実寸(3間)**W 5.877 × H 6.942 × D 5.877**・面 2,986・底 0.000(鐘楼と寸分同じ)。
+        ///
+        /// <para>⭐ 山王社は北列に鐘楼・南列に鼓楼を**対**で持つ(`munes[鐘楼]` / `munes[鼓楼]`)。
+        /// 吊る物だけ **梵鐘 → 太鼓**(口径 1.10 × 胴 0.70)に替えてある。
+        /// ⛔ 鐘楼を2棟据えて済ませない — 対にした意味が絵から消える。</para>
+        ///
+        /// <para>⚠ **太鼓の鼓面は ±Z**。据えるときは参道の側へ +Z を向けること
+        /// (躯体は四方同形なので、向きはこれだけが決める)。</para>
+        ///
+        /// ピボット = **基壇の中心・地盤レベル**。寸法は【U 部材方 2026-09-22】。
+        /// 材は鐘楼と同じ ⇒ `Edo/類型/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_typ_jisha.py -- koro --render</summary>
+        public static string Koro(float ken) { return JishaDir + "Typ_Koro_" + Len2(ken) + "ken.fbx"; }
 
         /// <summary>**墓地の一画**(類型共用・寺3区画)。切石の低い囲い + **半間ピッチの墓石 59基**
         /// (角柱・櫛形・板碑の3型)+ 卒塔婆。実寸(6×4間)**W 10.908 × H 1.224 × D 7.272**・面 1,566。
@@ -2575,6 +2715,70 @@ public static class EdoAssets
         ///   「これは2度と使わないでください。見た目がしょぼすぎます」2026-08-30 ユーザー指示)。</summary>
         public const string GrassLowA   = "Assets/Edo/Terrain/details/GrassLowA.prefab";
         public const string GrassLowB   = "Assets/Edo/Terrain/details/GrassLowB.prefab";
+    }
+
+    // ================================================================ 呼び名を解く
+    /// <summary>**指図が書いた呼び名を部材のパスへ解く。**(2026-09-22・EDO-0261 ②)
+    /// 指図の `munes[].partFrom` / `torii[].partFrom` / `planting[].part` は
+    /// `EdoAssets.Own.SannoDo("Hogyo", 3, 3, 5454, 5454)` のような **`Own` の呼び名**で書かれる。
+    ///
+    /// <para>⭐ **なぜ綴りでなく呼び名か。**パスの literal はこのファイルだけに置く(規則12)。
+    /// 指図がフォルダを名指すと、部材を別のフォルダへ移した日に**指図が静かに腐る**。
+    /// 実際に山王社で起きた型: 実装が `Assets/Edo/Models/Sanno/<stem>.fbx` と決め打ちしていたため、
+    /// `Assets/Edo/Models/Jisha/` に焼いた鐘楼・鼓楼が解けなかった(2026-09-22)。</para>
+    ///
+    /// <para>引数の綴りは C# の呼び出しのまま(文字列は `"…"`・数は素の数)。
+    /// 括弧の無い呼び名(<see cref="Own.SannoInari"/> のような定数)も解く。
+    /// ⛔ **解けない呼び名は null**(⛔ 近い名前で代用しない)。⭕ 足すときはここに 1 行。</para></summary>
+    public static string OwnPath(string api)
+    {
+        if (string.IsNullOrEmpty(api)) return null;
+        string s = api.Trim();
+        if (s.StartsWith("EdoAssets.")) s = s.Substring("EdoAssets.".Length);
+        if (!s.StartsWith("Own.")) return null;
+        s = s.Substring(4);
+        string fn = s;
+        string[] a = new string[0];
+        int lp = s.IndexOf('('), rp = s.LastIndexOf(')');
+        if (lp >= 0)
+        {
+            if (rp < lp) return null;
+            fn = s.Substring(0, lp).Trim();
+            string inner = s.Substring(lp + 1, rp - lp - 1).Trim();
+            a = inner.Length == 0 ? new string[0] : inner.Split(',');
+            for (int i = 0; i < a.Length; i++) a[i] = a[i].Trim().Trim('"');
+        }
+        // ---- 定数(括弧なし)
+        if (fn == "SannoInari") return Own.SannoInari;
+        // ---- 山王社(2026-09-22 の 10 棟 + 末社の小鳥居)
+        if (fn == "SannoDo" && a.Length == 5)
+            return Own.SannoDo(a[0], OwnI(a[1]), OwnI(a[2]), OwnI(a[3]), OwnI(a[4]));
+        if (fn == "SannoUmaya" && a.Length == 4)
+            return Own.SannoUmaya(OwnI(a[0]), OwnI(a[1]), OwnI(a[2]), OwnI(a[3]));
+        if (fn == "SannoKura" && a.Length == 4)
+            return Own.SannoKura(OwnI(a[0]), OwnI(a[1]), OwnI(a[2]), OwnI(a[3]));
+        if (fn == "SannoToriiMassha" && a.Length == 2)
+            return Own.SannoToriiMassha(OwnI(a[0]), OwnI(a[1]));
+        if (fn == "SannoTorii" && a.Length == 2)
+            return Own.SannoTorii(OwnI(a[0]), OwnI(a[1]));
+        if (fn == "SannoKizahashi" && a.Length == 3)
+            return Own.SannoKizahashi(OwnI(a[0]), OwnI(a[1]), OwnI(a[2]));
+        // ---- 寺社の類型(鐘楼・鼓楼は `Models/Jisha/` に在る ── ⛔ 邸のフォルダを決め打ちしない)
+        if (fn == "Shoro" && a.Length == 1) return Own.Shoro(OwnF(a[0]));
+        if (fn == "Koro" && a.Length == 1) return Own.Koro(OwnF(a[0]));
+        return null;
+    }
+    static int OwnI(string s)
+    {
+        int v;
+        return int.TryParse(s, System.Globalization.NumberStyles.Integer,
+                            System.Globalization.CultureInfo.InvariantCulture, out v) ? v : 0;
+    }
+    static float OwnF(string s)
+    {
+        float v;
+        return float.TryParse(s, System.Globalization.NumberStyles.Float,
+                              System.Globalization.CultureInfo.InvariantCulture, out v) ? v : 0f;
     }
 
     /// <summary>シーン。</summary>

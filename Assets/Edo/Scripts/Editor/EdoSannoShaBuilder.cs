@@ -913,6 +913,13 @@ public static class EdoSannoShaBuilder
     ///   `Assets/Edo/Materials/Sanno/Doukawara.mat`。⛔ 色は【U 普請奉行の裁定】で史料は色を言わない【?】)。⚠ `Edo/御殿/新しい御殿FBXのマテリアルをremap` は
     ///   `Assets/Edo/Models/Goten` しか見ないので**社殿には当たらない**。
     /// ・回廊 `Sanno_Kairo_*` … `wood` / `wall C` / `Doukawara` / `Kirishi`(2026-09-20 新造)
+    /// ・堂宇 `Sanno_Do_*`(宝形・入母屋の高床の堂)… `wood` / `wall C` / `door wall` / `roof` /
+    ///   `roof ornaments` / `Kirishi`(2026-09-22 新造・10棟の型)
+    /// ・稲荷社 `Sanno_Inari_Kasuga_1ken` … 上に加えて **`Doukawara`**(銅板葺)と **`Shu_Torii`**(朱)
+    /// ・御厩 `Sanno_Umaya_*` … `wood` / `wall C` / `Foundation_A_01` / `wall A` / `roof` / `roof ornaments`
+    /// ・御蔵 `Sanno_Kura_*` … `Fence_B_01` / `Foundation_A_01` / **`Wall Exterior Defence`** / `wall C` /
+    ///   `wood` / `roof` / `roof ornaments`。⚠ 漆喰だけ **Japanese Castle** の材なので `donorDirs` に
+    ///   `Japanese Castle/Meshes/Exterior/Materials` を足した(2026-09-22)。足さないと大壁が真っ白。
     /// ・鳥居 `Sanno_Torii_*` … `Kirishi` + **`Shu_Torii`**(扁額の朱地)。⚠ この材だけ `Assets/Edo/Materials`
     ///   **直下**に在るので `donorDirs` の最後にそのフォルダを足した(2026-09-20)。足さないと扁額が真っ白。</summary>
     [MenuItem("Edo/山王社/新造部材のマテリアルをremap")]
@@ -924,6 +931,10 @@ public static class EdoSannoShaBuilder
             "Assets/NatureManufacture Assets/Meadow Environment Dynamic Nature/Fence/Models",
             "Assets/Japanese Village Kit/Materials",
             "Assets/Edo/Materials/Sanno",
+            // ⚠ **御蔵(土蔵造・置屋根)の漆喰 `Wall Exterior Defence` はここにしか無い**
+            //   (松江松平の土蔵の生成器を借りたので、材も Japanese Castle 由来。2026-09-22 部材方)。
+            //   足さないと `Sanno_Kura_*` の大壁だけ真っ白で出る。
+            "Assets/Japanese Castle/Meshes/Exterior/Materials",
             // ⚠ **最後に置く**(同名があっても上の借り先が勝つ)。鳥居の扁額の朱地 `Shu_Torii` が
             //   `Assets/Edo/Materials` 直下に在るため(2026-09-20 部材方)。足さないと扁額だけ真っ白。
             "Assets/Edo/Materials",

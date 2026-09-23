@@ -236,6 +236,126 @@ public static partial class EdoBuild
         return m;
     }
 
+    // ---------- 斜面なりの走り(EDO-0398・2026-09-23) ----------
+    //  ⭐ 斜面に連ねる駒は **水平の長さでなく地表の道のり**で割る。水平で割って駒を傾けると、
+    //     駒の水平の張り出しが pitch·cosθ に縮み、継ぎ目が毎回 pitch(1−cosθ) だけ開く
+    //     (実測 2026-09-23・山王 `Saku_SW` の 30° の斜面で 0.19〜0.31m の素通しが 4 箇所)。
+    //  ⭐ 継ぎ目は **駒の丈の中ほど**で合わせる。足元(ピボットの高さ)で合わせると、折れ目で
+    //     頭どうしが丈 × Δsinθ(同 0.41m)重なる。中ほどで合わせるとその半分が上下に振り分かる。
+
+    /// <summary>部材のローカル Y の実寸。<b>根入れ</b>(原点より下にある分)と<b>丈の中ほど</b>を取るために測る。
+    /// ⛔ 定数で持たない(部材を替えた途端に継ぎ目と据えが破れる)。</summary>
+    public struct RunHeightM
+    {
+        public float lo, hi;
+        /// <summary>丈の中ほど(ローカル Y)。継ぎ目を合わせる高さ。</summary>
+        public float Mid { get { return (lo + hi) * 0.5f; } }
+        /// <summary>部材が自分で持っている根入れ[m](原点より下。柵の柱なら土に入る分)。</summary>
+        public float Root { get { return Mathf.Max(0f, -lo); } }
+        public float H { get { return hi - lo; } }
+    }
+    static readonly Dictionary<string, RunHeightM> _runHeightM = new Dictionary<string, RunHeightM>();
+
+    /// <summary>部材のローカル Y の実寸を測る(結果は綴りごとに憶える)。</summary>
+    public static RunHeightM RunMeasureY(string path)
+    {
+        RunHeightM m;
+        if (_runHeightM.TryGetValue(path, out m)) return m;
+        var pts = BodyAt(path, Vector3.zero, 0f, true);
+        if (pts.Count == 0) throw new Exception("RunMeasureY: no mesh in " + path);
+        float lo = float.MaxValue, hi = float.MinValue;
+        foreach (var v in pts) { lo = Mathf.Min(lo, v.y); hi = Mathf.Max(hi, v.y); }
+        m = new RunHeightM { lo = lo, hi = hi };
+        _runHeightM[path] = m;
+        return m;
+    }
+
+    /// <summary>**地表なりの折れ線へ割る。**辺 a→b を、<b>描かれている地表</b>に沿った実長(道のり)で
+    /// <paramref name="span"/> ごとに割り、継ぎ目の点(世界座標・高さは地表)を返す。
+    /// 駒はこの点から点へ張るので、傾けても継ぎ目が開かない。
+    ///
+    /// <para>⭐ 継ぎ目の高さは隣どうしで <paramref name="smooth"/> 巡だけ均して、折れ目の角を複数の継ぎ目へ散らす
+    /// (地形の折れをそのまま拾うと、一つの継ぎ目に 20〜24° が集まる)。均しは
+    /// <paramref name="floatMax"/>(上)/ <paramref name="buryMax"/>(下)で縛る ── 呼び手は**部材の根入れ**を渡すこと。
+    /// 上は根入れ = 「足を地面から出さない」、下はその倍 = 「足元が土に隠れるのは構わない」。
+    /// ⚠ 巡を増やすほど縛りに当たった継ぎ目へ折れが集まる(実測: 3 巡で悪化)。既定の 2 巡から上げない。</para>
+    ///
+    /// <para>⛔ 地表は <see cref="Ground"/>(描かれている面)で引く — <see cref="GroundGrid"/> は斜面で ±(1m×勾配) の嘘。</para></summary>
+    public static List<Vector3> GroundPolyline(Vector2 a, Vector2 b, float span,
+                                               float floatMax, float buryMax, int smooth = 2)
+    {
+        var outp = new List<Vector3>();
+        float L = Vector2.Distance(a, b);
+        if (L < 1e-4f || span < 1e-4f)
+        {
+            outp.Add(new Vector3(a.x, Ground(a.x, a.y), a.y));
+            outp.Add(new Vector3(b.x, Ground(b.x, b.y), b.y));
+            return outp;
+        }
+        Vector2 dir = (b - a) / L;
+        int M = Mathf.Max(2, Mathf.CeilToInt(L / 0.25f));
+        float step = L / M;
+        var probe = Probe();
+        var gy = new float[M + 1]; var arc = new float[M + 1];
+        for (int i = 0; i <= M; i++) { Vector2 p = a + dir * (step * i); gy[i] = probe.At(p.x, p.y); }
+        for (int i = 1; i <= M; i++)
+        {
+            float dh = gy[i] - gy[i - 1];
+            arc[i] = arc[i - 1] + Mathf.Sqrt(step * step + dh * dh);
+        }
+        float S = arc[M];
+        int N = Mathf.Max(1, Mathf.RoundToInt(S / span));
+        var js = new float[N + 1]; var jy = new float[N + 1]; var baseY = new float[N + 1];
+        int cur = 0;
+        for (int k = 0; k <= N; k++)
+        {
+            float t = S * k / N;
+            while (cur < M - 1 && arc[cur + 1] < t) cur++;
+            float den = arc[cur + 1] - arc[cur];
+            float f = den > 1e-6f ? Mathf.Clamp01((t - arc[cur]) / den) : 0f;
+            js[k] = (cur + f) * step;
+            jy[k] = Mathf.Lerp(gy[cur], gy[cur + 1], f);
+            baseY[k] = jy[k];
+        }
+        for (int it = 0; it < smooth && N >= 2; it++)
+        {
+            var ny = (float[])jy.Clone();
+            for (int k = 1; k < N; k++)
+            {
+                float v = 0.25f * jy[k - 1] + 0.5f * jy[k] + 0.25f * jy[k + 1];
+                ny[k] = Mathf.Clamp(v, baseY[k] - buryMax, baseY[k] + floatMax);
+            }
+            jy = ny;
+        }
+        for (int k = 0; k <= N; k++) { Vector2 p = a + dir * js[k]; outp.Add(new Vector3(p.x, jy[k], p.y)); }
+        return outp;
+    }
+
+    /// <summary>**弦に沿って駒を据える。**継ぎ目 <paramref name="j0"/>→<paramref name="j1"/> に張るよう、
+    /// yaw = 走り・roll = 弦の勾配・走り方向の伸縮 = 弦の実長(斜距離)で置く。
+    /// 継ぎ目は駒の**丈の中ほど**(<see cref="RunMeasureY"/> の Mid)で合う ──
+    /// 走り方向へ Mid·sin(roll) 送るだけで、隣の駒との食い違いが頭と足へ半分ずつ振り分かる。
+    /// <para>⛔ 足元で継がない(折れ目で頭が丈 × Δsinθ 重なる)。⛔ 水平の長さで伸縮しない(継ぎ目が開く)。</para></summary>
+    public static GameObject PlaceOnChord(string path, Vector3 j0, Vector3 j1, Transform parent, string name)
+    {
+        float spanLocal = RunMeasure(path).W;
+        var rh = RunMeasureY(path);
+        Vector2 h0 = new Vector2(j0.x, j0.z), h1 = new Vector2(j1.x, j1.z);
+        float du = Vector2.Distance(h0, h1), dy = j1.y - j0.y;
+        Vector2 dir = du > 1e-6f ? (h1 - h0) / du : Vector2.right;
+        float chord = Mathf.Sqrt(du * du + dy * dy);
+        float yaw = Mathf.Atan2(-dir.y, dir.x) * Mathf.Rad2Deg;
+        float roll = Mathf.Atan2(dy, du) * Mathf.Rad2Deg;
+        float shift = rh.Mid * Mathf.Sin(roll * Mathf.Deg2Rad);
+        var pos = new Vector3((j0.x + j1.x) * 0.5f + dir.x * shift,
+                              (j0.y + j1.y) * 0.5f,
+                              (j0.z + j1.z) * 0.5f + dir.y * shift);
+        var go = Place(path, pos, yaw, new Vector3(chord / spanLocal, 1f, 1f), parent, name);
+        if (Mathf.Abs(roll) > 0.01f)
+            go.transform.rotation = Quaternion.Euler(0, yaw, 0) * Quaternion.Euler(0, 0, roll);
+        return go;
+    }
+
     /// <summary>駒を走り方向 <paramref name="dir"/> の実寸で <paramref name="startAbs"/>(世界の xz を dir へ射影した値)へ突き付ける。
     /// 奥行は実測した厚みの中央を「線から latOff だけ内」へ。返る <paramref name="mn"/>/<paramref name="mx"/> は
     /// 据えたあとの端の**実測値**(次の駒はこの mx へ突き付ける)。

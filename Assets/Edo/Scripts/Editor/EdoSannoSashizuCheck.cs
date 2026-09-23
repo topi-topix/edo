@@ -179,8 +179,12 @@ public static class EdoSannoSashizuCheck
             var m = o as Dictionary<string, object>; if (m == null) continue;
             string name = Str(m, "name"); if (name == null) continue;
             Vector2 want = W(F(m, "u0") + F(m, "du") * 0.5f, F(m, "v0") + F(m, "dv") * 0.5f);
-            string scn = Lookup(MUNE_NAME, name);
-            if (scn == null) { bad("社殿", "棟 " + name + " が実装に無い(名簿にも載っていない)"); continue; }
+            // ⭐ **名簿はビルダーと同じ物差し**（2026-09-22）── 表に行が無い棟は
+            //   <see cref="EdoSannoShaRebuild.ShadenNameOf"/> が出す名で引く。
+            //   ⛔ 検査が別の名簿を持たない ── 持つと、据わった棟が「名簿にも載っていない」と
+            //   「孤児」の**両方で 2 件**に化け、数え方が膨らむ（規則 19）。
+            string scn = Lookup(MUNE_NAME, name) ?? EdoSannoShaRebuild.ShadenNameOf(name);
+            if (scn == null) { bad("社殿", "棟 " + name + " が実装に無い（名簿にも載っていない）"); continue; }
             var t = ByName(index, scn);
             if (t == null) { bad("社殿", "棟 " + name + "(実装名 " + scn + ")が実装に無い"); continue; }
             mapped.Add(scn);
@@ -201,6 +205,15 @@ public static class EdoSannoSashizuCheck
             // ⚠ 木階(`Kizahashi`)は社殿の群に据わるが `munes` ではなく `kaidans` の物。
             //   ⇒ 孤児にしない(石段の部門で位置を測る)。
             foreach (var kv in KIZAHASHI_NAME) if (kv.Value != null) mapped.Add(kv.Value);
+            // ⭐ **棟に寄る鳥居**(`torii[].posFrom`)も社殿の群に据わる(座が棟の実メッシュからの
+            //   従属値なので Stage6 が据える)⇒ 孤児にしない。隙は門・鳥居の部門で測る。
+            foreach (var to in L(doc, "torii"))
+            {
+                var trm = to as Dictionary<string, object>; if (trm == null) continue;
+                if (D(trm, "posFrom") == null) continue;
+                string nmm = Str(trm, "name"); if (nmm == null) continue;
+                mapped.Add(EdoSannoShaRebuild.ToriiNameOf(nmm));
+            }
             var sg = root.transform.Find(SHADEN_GROUP);
             if (sg != null)
                 for (int i = 0; i < sg.childCount; i++)
@@ -256,7 +269,11 @@ public static class EdoSannoSashizuCheck
             var wp = A(gt, "world");
             if (wp == null || wp.Length < 2) { bad("門・鳥居", "門 " + name + " の world が算出物に無い"); continue; }
             Vector2 want = new Vector2(wp[0], wp[1]);
-            string scn = Lookup(GATE_NAME, name);
+            // ⭐ 名簿はビルダーと同じ物差し(<see cref="EdoSannoShaRebuild.GateNameOf"/>)。
+            //   ⛔ 名簿だけに門の名を持たない ── 2026-09-22 に勝手口(木戸)を足したとき、
+            //   ビルダーは `Kido` で据えたのに名簿に行が無く「名簿にも載っていない」= **未測定**が
+            //   1件立った(社殿・鳥居で先に踏んだのと同じ穴・規則19)。
+            string scn = Lookup(GATE_NAME, name) ?? EdoSannoShaRebuild.GateNameOf(name);
             if (scn == null) { bad("門・鳥居", "門 " + name + " が実装に無い(名簿にも載っていない)"); continue; }
             var t = ByName(index, scn);
             if (t == null) { bad("門・鳥居", "門 " + name + "(実装名 " + scn + ")が実装に無い"); continue; }
@@ -286,13 +303,41 @@ public static class EdoSannoSashizuCheck
         {
             var tr = o as Dictionary<string, object>; if (tr == null) continue;
             string name = Str(tr, "name"); if (name == null) continue;
+            // ⭐ 名簿はビルダーと同じ物差し(<see cref="EdoSannoShaRebuild.ToriiNameOf"/>)。
+            string scn = Lookup(TORII_NAME, name) ?? EdoSannoShaRebuild.ToriiNameOf(name);
+            var t = ByName(index, scn);
+            if (t == null) { bad("門・鳥居", "鳥居 " + name + "(実装名 " + scn + ")が実装に無い"); continue; }
+            // ⭐ **座が棟からの従属値の鳥居**(`posFrom`)は pos で測れない ── 図が宣言しているのは
+            //   「寄る棟の正面の面からの隙」なので、**実メッシュの触れている箇所**でその隙を測る
+            //   (⛔ 芯どうしの距離で測らない・置き方の4手と同じ物差し)。
+            var pfm = D(tr, "posFrom");
+            if (pfm != null)
+            {
+                string hn = Str(pfm, "mune");
+                var hrow = hn == null ? null : FindMune(doc, hn);
+                var host = hn == null ? null : ByName(index, EdoSannoShaRebuild.ShadenNameOf(hn));
+                if (host == null)
+                { bad("門・鳥居", "鳥居 " + name + " の寄る棟『" + hn + "』が実装に無い ⇒ 隙を測れない"); continue; }
+                string hf = hrow == null ? null : Str(hrow, "front");
+                Vector2 hd;
+                if (hf == null || !EdoBuild.DirVec(hf, out hd))
+                { bad("門・鳥居", "鳥居 " + name + " の寄る棟『" + hn + "』の front が指図に無い ⇒ 「前」が決まらない"); continue; }
+                if (G(pfm, "clearanceM") == null)
+                { bad("門・鳥居", "鳥居 " + name + " の `posFrom.clearanceM`(棟の面からの隙)が指図に無い"); continue; }
+                float wantClr = F(pfm, "clearanceM");
+                Vector3 cat; int ccnt;
+                float gotClr = EdoBuild.Contact(t.gameObject, host.gameObject, new Vector3(-hd.x, 0f, -hd.y),
+                                                out cat, out ccnt);
+                if (float.IsNaN(gotClr))
+                    bad("門・鳥居", "鳥居 " + name + " が寄る棟『" + hn + "』と向き合っていない ⇒ 隙が測れない");
+                else if (Mathf.Abs(gotClr - wantClr) > POS_TOL_M)
+                    bad("門・鳥居", "鳥居 " + name + " の『" + hn + "』の正面(" + hf + ")の面からの隙が " +
+                        gotClr.ToString("F2") + "m(指図 " + wantClr.ToString("F2") + "m・当たり " + ccnt + " 筋)");
+                continue;
+            }
             var wp = A(tr, "pos");
             if (wp == null || wp.Length < 2) { bad("門・鳥居", "鳥居 " + name + " の pos が指図に無い"); continue; }
             Vector2 want = new Vector2(wp[0], wp[1]);
-            string scn = Lookup(TORII_NAME, name);
-            if (scn == null) { bad("門・鳥居", "鳥居 " + name + " が実装に無い(名簿にも載っていない)"); continue; }
-            var t = ByName(index, scn);
-            if (t == null) { bad("門・鳥居", "鳥居 " + name + "(実装名 " + scn + ")が実装に無い"); continue; }
             var c = EdoBuild.RB(t.gameObject).center;
             float dd = Vector2.Distance(new Vector2(c.x, c.z), want);
             if (dd > POS_TOL_M)

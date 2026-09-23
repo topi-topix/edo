@@ -44,6 +44,10 @@ public static class EdoSannoSashizuCheck
     /// <summary>位置・寸法の許容差[m]。**汎用の器 `EdoSashizuExport.CheckScene` と同じ 0.02m**
     /// を借りる(⛔ 山王のためだけの緩い数を新しく作らない)。</summary>
     const float POS_TOL_M = 0.02f;
+    /// <summary>囲いの駒を「この区間の駒」とみなす、線からの横の距離の上限[m]。これより遠い駒は
+    /// 口の縁の駒(門の脇柱の角へ取り付いて線から外れる。勝手口の脇で 1.03m)か、線から外れて建った駒。
+    /// ⚠ 閾値は横ずれの判定ではない — 判定は <see cref="POS_TOL_M"/>。これは駒を区間へ割り付けるだけ。</summary>
+    const float RIM_LAT_M = 1.5f;
     /// <summary>地形と設計面の許容差[m]は**算出物が持つ**(`checks.gradeTol`)。⛔ ここに写さない。</summary>
     /// <summary>向き(駒の Y 回転)の許容差[度]。⛔ 設計値ではない — 駒は度で直に据わるので、
     /// **丸めの幅**として 0.5° を採る(指図の yaw は 0.1° 刻みで出る)。</summary>
@@ -513,55 +517,97 @@ public static class EdoSannoSashizuCheck
                 wantNames.Add(name);
                 if (!byPrefix.ContainsKey(name))
                 { bad("囲い", "囲い " + name + "(" + Str(r, "kind") + ")の部材が実装に一つも無い"); continue; }
-                // 線形 — 算出物の折れ線と、据わっている部材の広がりを比べる
+                // 線形 — 算出物の折れ線と、据わっている部材を**継ぎ目の高さの断面**で比べる
+                // ⭐ 2026-09-23 に改めた(EDO-0413)。⛔ **外接矩形の芯どうしで比べない。**
+                //   斜面の run は駒を勾配なりに傾けて据える(`EdoBuild.PlaceOnChord`)ので、駒の頭と足が
+                //   走りの前後へ 丈 × sinθ はみ出し、線の上に正しく据わった run でも外接矩形の芯は片寄る。
+                //   曲がった run では厚みの張り出しも端ごとに違う向きへ出る。完成時(EDO-0398)に柵を
+                //   弦で張り直したあと、この物差しが `Saku_SW` 0.053m / `Saku_Sando` 0.029m を偽の芯ずれとして
+                //   出した(継ぎ目の高さで切れば両端・横とも 0.000m)。
+                //   ⇒ 各駒を**その駒自身の丈の中ほど**で切った断面(`EdoBuild.MidSection`)を測る。見るのは2つ:
+                //   ① **横** — 駒ごとの断面の厚みの中央が、その駒の居る区間の線から離れていないか。
+                //      区間は **Stage4 が実際に建てる区間**(`EdoSannoShaRebuild.BuiltSegs` — 口の縁を門の脇柱の角へ
+                //      取り付けた後)。⛔ `segs` のままで測らない — 勝手口の脇で脇柱へ折れて取り付く駒
+                //      (`Ita_Keidai_172f`)が 0.49m 外れていると出る。どの区間からも `RIM_LAT_M` 以内に居ない駒は
+                //      口の縁の駒として**口1つに2枚まで**許し、それを超えたら線から外れて建った run として出す。
+                //   ② **走り** — run の断面が折れ線(`nodes`)の上で占める道のりの**中ほど**が、`segs` の最初の点と
+                //      最後の点の中ほどに来ているか。⚠ 端そのものは比べない ── 隅(`Kado_*`)・回廊の妻・口の門に
+                //      取り付く端は左右対称に詰まるのが正(透塀 ±0.127m・回廊 ±0.570m)。端の取り合いは「隙」の側。
+                // ⚠ 部材は表裏2枚(`_kf` / `_kb`)で据わり、裏は run から 0.12m 逃がしてある。⇒ **表(`f`)だけ**を測る。
                 var ir = FindByName(impl, "runs", name);
                 if (ir == null) continue;
                 var nd = L(ir, "nodes"); if (nd.Count < 2) continue;
-                // ⚠⚠ **折れ線の両端の中点は run の芯ではない。**`Ita_Keidai` は 43点で境内を回るので、
-                //   両端の中点は run のどこでもない点になる(2026-09-10 実測: 49.85m の偽の差)。
-                //   ⇒ **折れ線の外接矩形の芯**どうしで比べる。
-                // ⚠ 部材は表裏2枚(`_kf` / `_kb`)で据わり、裏は run から 0.12m 逃がしてある。
-                //   ⇒ **表(`f`)だけ**を測る(でないと run の芯が半厚ぶん = 0.06m ずれて出る)。
-                // ⚠ 比べる相手は **`segs`(建つ区間)** の外接矩形。⛔ `nodes` ではない —
-                //   `nodes` には口(木戸・井戸)と skip(部材にならない切れ端)が入っており、
-                //   建たない区間まで含めると芯が動く(`Ita_Keidai` は skip 3 本を持つ)。
-                float nx0 = float.MaxValue, nx1 = float.MinValue, nz0 = float.MaxValue, nz1 = float.MinValue;
-                foreach (var so in L(ir, "segs"))
-                {
-                    var sg2 = so as List<object>; if (sg2 == null) continue;
-                    foreach (var q in sg2)
-                    {
-                        Vector2 v2 = P2(q);
-                        nx0 = Mathf.Min(nx0, v2.x); nx1 = Mathf.Max(nx1, v2.x);
-                        nz0 = Mathf.Min(nz0, v2.y); nz1 = Mathf.Max(nz1, v2.y);
-                    }
-                }
-                if (nx0 > nx1) continue;
-                Bounds bb = new Bounds(); bool first = true;
+                var line = new List<Vector2>(); foreach (var q in nd) line.Add(P2(q));
+                // ⭐ 区間は **Stage4 が実際に建てる区間**(口の縁を門の脇柱の角へ取り付けた後)。
+                //   ⛔ 検査が口の閉じ方を別に持たない — ビルダーと同じ関数で引く(`EdoSannoShaRebuild.BuiltSegs`)。
+                var segA = new List<Vector2>(); var segB = new List<Vector2>();
+                EdoSannoShaRebuild.BuiltSegs(ir, segA, segB);
+                if (segA.Count == 0) continue;
+                float sWant0, sWant1, dummy;
+                EdoBuild.PolylineParam(line, segA[0], out sWant0, out dummy);
+                EdoBuild.PolylineParam(line, segB[segB.Count - 1], out sWant1, out dummy);
+                float sGot0 = float.MaxValue, sGot1 = float.MinValue, latWorst = 0f;
+                string latWorstName = null; int measured = 0, rim = 0;
                 foreach (var t in byPrefix[name])
                 {
                     if (!t.name.EndsWith("f")) continue;
-                    var rb = EdoBuild.RB(t.gameObject); if (first) { bb = rb; first = false; } else bb.Encapsulate(rb);
+                    var sec = EdoBuild.MidSection(t.gameObject);
+                    if (sec.Count == 0) continue;
+                    measured++;
+                    Vector2 c0 = new Vector2(float.MaxValue, float.MaxValue), c1 = new Vector2(float.MinValue, float.MinValue);
+                    foreach (var w in sec)
+                    {
+                        float s, lat; EdoBuild.PolylineParam(line, new Vector2(w.x, w.z), out s, out lat);
+                        sGot0 = Mathf.Min(sGot0, s); sGot1 = Mathf.Max(sGot1, s);
+                        c0 = Vector2.Min(c0, new Vector2(w.x, w.z)); c1 = Vector2.Max(c1, new Vector2(w.x, w.z));
+                    }
+                    // この駒の居る区間 = 断面の中ほどが走りの内に入る区間のうち、線に最も近いもの
+                    Vector2 pc = (c0 + c1) * 0.5f;
+                    int k = -1; float kd = float.MaxValue;
+                    for (int i = 0; i < segA.Count; i++)
+                    {
+                        float len = Vector2.Distance(segA[i], segB[i]); if (len < 1e-6f) continue;
+                        Vector2 d = (segB[i] - segA[i]) / len;
+                        float tt = Vector2.Dot(pc - segA[i], d);
+                        if (tt < 0f || tt > len) continue;
+                        float dl = Mathf.Abs(Vector2.Dot(pc - segA[i], new Vector2(-d.y, d.x)));
+                        if (dl <= RIM_LAT_M && dl < kd) { kd = dl; k = i; }
+                    }
+                    if (k < 0) { rim++; continue; }
+                    var one = new List<Vector2> { segA[k], segB[k] };
+                    float lat0 = float.MaxValue, lat1 = float.MinValue;
+                    foreach (var w in sec)
+                    {
+                        float s, lat; EdoBuild.PolylineParam(one, new Vector2(w.x, w.z), out s, out lat);
+                        lat0 = Mathf.Min(lat0, lat); lat1 = Mathf.Max(lat1, lat);
+                    }
+                    float latMid = (lat0 + lat1) * 0.5f;
+                    if (Mathf.Abs(latMid) > Mathf.Abs(latWorst)) { latWorst = latMid; latWorstName = t.name; }
                 }
-                if (first) continue;
-                Vector2 wantMid = new Vector2((nx0 + nx1) * 0.5f, (nz0 + nz1) * 0.5f);
-                Vector2 gotMid = new Vector2(bb.center.x, bb.center.z);
-                // ⚠ **部材1枚に満たない切れ端**は据えられないので、その run は芯が寄って出る。
+                if (measured == 0)
+                { bad("囲い", "囲い " + name + " の表の部材が断面で測れない(メッシュが無い) ⇒ 線形は未検査"); continue; }
+                // ⚠ **部材1枚に満たない切れ端**は据えられないので、その run は走りが寄って出る。
                 //   ⛔ 数から黙って除かない — **何本あるか**を message に出して人の目へ渡す
                 //   (指図の `_pending`「境内の外周の柵に部材として建たない切れ端が1本残る」)。
                 int stub = 0; float stubM = 0f;
-                foreach (var so in L(ir, "segs"))
-                {
-                    var sg3 = so as List<object>; if (sg3 == null || sg3.Count < 2) continue;
-                    float sl = Vector2.Distance(P2(sg3[0]), P2(sg3[1]));
-                    if (sl < 1.0f) { stub++; stubM += sl; }
-                }
-                float dd = Vector2.Distance(wantMid, gotMid);
-                if (dd > POS_TOL_M)
-                    bad("囲い", "囲い " + name + " の芯が " + dd.ToString("F2") + "m ずれている(指図 " +
-                        V(wantMid) + " / 実装 " + V(gotMid) + ")" +
+                for (int i = 0; i < segA.Count; i++)
+                { float sl = Vector2.Distance(segA[i], segB[i]); if (sl < 1.0f) { stub++; stubM += sl; } }
+                float runOff = (sGot0 + sGot1) * 0.5f - (sWant0 + sWant1) * 0.5f;
+                // 口の縁の駒は**口1つに2枚まで**。それを超えて線に乗らない駒は、線から外れて建った駒。
+                int mouths = 0;
+                for (int i = 0; i + 1 < segA.Count; i++) if (Vector2.Distance(segB[i], segA[i + 1]) >= 0.05f) mouths++;
+                if (rim > 2 * mouths)
+                    bad("囲い", "囲い " + name + " の表の駒 " + rim + " 枚が、どの区間の線からも " + RIM_LAT_M.ToString("F1") +
+                        "m 以内に居ない(口 " + mouths + " 箇所の縁として許すのは " + (2 * mouths) + " 枚まで)");
+                if (Mathf.Abs(latWorst) > POS_TOL_M)
+                    bad("囲い", "囲い " + name + " が線から横へ " + latWorst.ToString("F3") + "m ずれている(最大の駒 " +
+                        latWorstName + "・継ぎ目の高さの断面の厚みの中央・口の縁の駒 " + rim + " 枚は除く)");
+                if (Mathf.Abs(runOff) > POS_TOL_M)
+                    bad("囲い", "囲い " + name + " が走りの方向へ " + runOff.ToString("+0.000;-0.000") + "m ずれている" +
+                        "(端の詰まり 始め " + (sGot0 - sWant0).ToString("+0.000;-0.000") + "m / 終わり " +
+                        (sGot1 - sWant1).ToString("+0.000;-0.000") + "m・+ は先へ)" +
                         (stub > 0 ? " ⚠ **部材1枚に満たない切れ端が " + stub + " 本(計 " + stubM.ToString("F2") +
-                                    "m)** ある — 据えられないので芯がそのぶん寄る(`_pending`「境内の外周の柵に部材として建たない切れ端が1本残る」)"
+                                    "m)** ある — 据えられないので走りがそのぶん寄る(`_pending`「境内の外周の柵に部材として建たない切れ端が1本残る」)"
                                   : ""));
             }
             foreach (var kv in byPrefix)

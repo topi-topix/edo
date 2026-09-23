@@ -270,6 +270,80 @@ public static partial class EdoBuild
         return m;
     }
 
+    /// <summary>**据わった駒を、その駒自身の丈の中ほど(継ぎ目の高さ)で切った断面**(世界座標)。
+    /// 切る面は駒の**自分の座標系**の水平面 ── <see cref="PlaceOnChord"/> が勾配なりに傾けた駒でも、
+    /// 継ぎ目が合う高さ(<see cref="RunHeightM.Mid"/>)で切れる。三角形と面の交わりで取るので、
+    /// 頂点の無い高さでも柱の実形が出る(<see cref="SectionAt"/> と同じ理)。
+    /// <para>⭐ **囲いの run が線の上に居るか・端が届いているか**を測るのに使う(2026-09-23・EDO-0413)。
+    /// ⛔ 駒の外接矩形(<see cref="RB"/>)で測らない ── 斜面で傾けた駒は頭と足が走りの前後へ
+    /// 丈 × sinθ はみ出すので、線の上に正しく据わった run でも外接矩形の芯は片寄る
+    /// (山王 `Saku_SW` 0.053m / `Saku_Sando` 0.029m。この断面で測ると両端・横とも 0.000m)。</para></summary>
+    public static List<Vector3> MidSection(GameObject go)
+    {
+        var L = new List<Vector3>();
+        var root = go.transform;
+        var mfs = go.GetComponentsInChildren<MeshFilter>();
+        var toRoot = new List<Matrix4x4>();
+        float lo = float.MaxValue, hi = float.MinValue;
+        foreach (var mf in mfs)
+        {
+            var rr = mf.GetComponent<Renderer>();
+            var m = root.worldToLocalMatrix * mf.transform.localToWorldMatrix;
+            toRoot.Add(m);
+            if (mf.sharedMesh == null || rr == null || !rr.enabled) continue;
+            foreach (var v in mf.sharedMesh.vertices)
+            { float y = m.MultiplyPoint3x4(v).y; if (y < lo) lo = y; if (y > hi) hi = y; }
+        }
+        if (lo > hi) return L;
+        float mid = (lo + hi) * 0.5f;
+        for (int f = 0; f < mfs.Length; f++)
+        {
+            var mf = mfs[f]; var rr = mf.GetComponent<Renderer>();
+            if (mf.sharedMesh == null || rr == null || !rr.enabled) continue;
+            var vs = mf.sharedMesh.vertices;
+            var w = new Vector3[vs.Length];
+            for (int i = 0; i < vs.Length; i++) w[i] = toRoot[f].MultiplyPoint3x4(vs[i]);
+            var tri = mf.sharedMesh.triangles;
+            for (int i = 0; i + 2 < tri.Length; i += 3)
+                for (int e = 0; e < 3; e++)
+                {
+                    Vector3 p = w[tri[i + e]], q = w[tri[i + (e + 1) % 3]];
+                    if ((p.y - mid) * (q.y - mid) > 0f) continue;
+                    float dy = q.y - p.y;
+                    if (Mathf.Abs(dy) < 1e-7f) continue;
+                    L.Add(root.TransformPoint(Vector3.Lerp(p, q, (mid - p.y) / dy)));
+                }
+        }
+        return L;
+    }
+
+    /// <summary>折れ線 <paramref name="poly"/>(xz)の上で点 <paramref name="p"/> に最も近い所の
+    /// **道のり** <paramref name="s"/> と**符号付きの横のずれ** <paramref name="lat"/>(走りの左が +)。
+    /// 端の辺は外へ <paramref name="ext"/>[m] まで延ばして測る ── 端を越えた点は s &lt; 0 / s &gt; 全長 で返る
+    /// (端が届いているかを見るため)。⚠ 延長は短く縛る ── 縛らないと、境内を回る run(`Ita_Keidai`)で
+    /// 始まり側の駒が 54m 先の終わりの辺の延長線へ吸われ、端が 62m 越えていると出た(2026-09-23 実測)。</summary>
+    public static void PolylineParam(List<Vector2> poly, Vector2 p, out float s, out float lat, float ext = 1.0f)
+    {
+        s = 0f; lat = 0f;
+        float best = float.MaxValue, acc = 0f;
+        for (int i = 0; i + 1 < poly.Count; i++)
+        {
+            Vector2 a = poly[i], b = poly[i + 1];
+            float len = Vector2.Distance(a, b);
+            if (len < 1e-6f) continue;
+            Vector2 d = (b - a) / len;
+            float t = Vector2.Dot(p - a, d);
+            bool first = i == 0, last = i + 2 >= poly.Count;
+            float tc = first && t < 0f ? Mathf.Max(t, -ext)
+                     : last && t > len ? Mathf.Min(t, len + ext)
+                     : Mathf.Clamp(t, 0f, len);
+            float dist = Vector2.Distance(p, a + d * tc);
+            if (dist < best - 1e-6f)
+            { best = dist; s = acc + tc; lat = Vector2.Dot(p - a, new Vector2(-d.y, d.x)); }
+            acc += len;
+        }
+    }
+
     /// <summary>**地表なりの折れ線へ割る。**辺 a→b を、<b>描かれている地表</b>に沿った実長(道のり)で
     /// <paramref name="span"/> ごとに割り、継ぎ目の点(世界座標・高さは地表)を返す。
     /// 駒はこの点から点へ張るので、傾けても継ぎ目が開かない。

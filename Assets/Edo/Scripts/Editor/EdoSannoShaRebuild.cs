@@ -817,6 +817,27 @@ public static class EdoSannoShaRebuild
             }
         }
     }
+    /// <summary>run の `segs` を、**Stage4 が実際に建てる区間**へ直して返す(口に門が建つなら、その縁を
+    /// 門の脇柱の角へ取り付けた後の端)。⭐ 突き合わせ(<see cref="EdoSannoSashizuCheck"/>)が同じ物差しで
+    /// 線を引くための入口(2026-09-23・EDO-0413)── ⛔ 検査が口の閉じ方を別に持たない。持つと、
+    /// 脇柱へ折れて取り付いた駒(勝手口の脇の `Ita_Keidai_172f`)が線から 0.49m 外れていると出る。
+    /// 門が建たない種別(透塀・袖塀・回廊)は `segs` のまま。</summary>
+    public static void BuiltSegs(Dictionary<string, object> r, List<Vector2> a, List<Vector2> b)
+    {
+        a.Clear(); b.Clear();
+        foreach (var so in L(r, "segs"))
+        {
+            var seg = so as List<object>; if (seg == null || seg.Count < 2) continue;
+            a.Add(P2(seg[0])); b.Add(P2(seg[seg.Count - 1]));
+        }
+        string kind = S(r, "kind");
+        if (kind == "透塀" || kind == "袖塀" || kind == "回廊") return;
+        bool hasSeat = HasNum(r, "seat"); float seat = F(r, "seat");
+        float halfT, hgt;
+        if (kind == "板塀") PanelProfile(EdoAssets.Eg.Itabei5, out halfT, out hgt);
+        else { float postL; SakuProfile(out halfT, out hgt, out postL); }
+        ClipRunEndsToGates(a, b, hgt, halfT, hasSeat, seat, S(r, "name"), new StringBuilder());
+    }
     /// <summary>算出物の `gates[]` の行から、据える部材のパス・座・向きを引く(Stage5 と同じ物差し)。
     /// ⛔ ここで向きを作らない — `gates[].yaw` は焼いた従属値。引けなければ false。</summary>
     static bool GatePlacement(Dictionary<string, object> gt, out string path, out Vector3 pos, out float yaw)

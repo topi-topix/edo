@@ -35,10 +35,10 @@
    "label": "突き合わせ 0",
    "what": "指図(意図)と実装の食い違いが 0 件",
    "how": "Unity メニュー Edo/<敷地>/指図と実装を突き合わせる",
-   "value": "EDO-0395 後: 5件=面Keidai・Zentei(受容済)+Saku_SWの芯0.05m・Saku_Sandoの芯0.03m+社叢の数 焼き出し1816/実装1776(14:23の焼き直しで植える点1763→1836)。社殿0",
+   "value": "EDO-0413 後(2026-09-23 16:25): 3件=面Keidai・Zentei(受容済)+社叢の数 焼き出し1880/実装1762(EDO-0401 植え直し中)。囲い0(Saku_SW・Saku_Sando の芯0.05/0.03mは照合の物差しの偽の差 — 継ぎ目の高さの断面で測り直して横・走りとも0.000m)。社殿0・門鳥居0・石段0",
    "verdict": "fail",
    "at": "2026-09-23",
-   "note": ""
+   "note": "照合の囲いの節を外接矩形の芯→継ぎ目の高さの断面(EdoBuild.MidSection)と Stage4 の建つ区間(EdoSannoShaRebuild.BuiltSegs)へ改めた"
   },
   "render": {
    "label": "レンダの施主承認",
@@ -229,6 +229,12 @@
    "at": "2026-09-23T16:06:16+09:00",
    "event": "record",
    "item": "ground",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-23T16:30:02+09:00",
+   "event": "record",
+   "item": "match",
    "verdict": "fail"
   }
  ]

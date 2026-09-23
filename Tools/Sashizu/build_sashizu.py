@@ -744,7 +744,9 @@ class Checks(object):
             if any(t is None for t in ins):
                 bad.append("%s: 段の縁をまたぐ" % b.name)
                 continue
-            if b.y is not None and any(abs(t.y - b.y) > 0.05 + 0.6 for t in ins):
+            # ⭐ 階段廊下(`drop` を持つ廊下)は y − drop 〜 y の二つの面をつなぐ ── 両端の面の幅で見る
+            dr9 = float((getattr(b, "raw", None) or {}).get("drop") or 0.0) if kind == "廊下" else 0.0
+            if b.y is not None and any(min(abs(t.y - b.y), abs(t.y - (b.y - dr9))) > 0.05 + 0.6 for t in ins):
                 bad.append("%s: y=%.2f が段 %s と合わない" % (b.name, b.y, "/".join("%.2f" % t.y for t in ins)))
         rb = 0
         for m in M.munes:

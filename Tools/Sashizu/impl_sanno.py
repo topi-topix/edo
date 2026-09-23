@@ -2615,6 +2615,58 @@ def stair_y_at(k, sfrac):
     return k["yTop"]
 
 
+def _pip(P, u, v):
+    """点 (u,v) が閉じた点列 P の中か(crossing number)。"""
+    c = False
+    for i in range(len(P)):
+        (au, av), (bu, bv) = P[i], P[(i + 1) % len(P)]
+        if (av > v) != (bv > v) and u < (bu - au) * (v - av) / (bv - av) + au: c = not c
+    return c
+
+
+def union_outer_uv(rings, like):
+    """辺を共有して接する平場の輪郭を併せた**外輪**(uv)。向きは `like` にそろえる。
+
+    ⭐ 共有する辺は互いに逆向きに現れるので打ち消し、残った辺をつないだ環のうち最大の物を採る
+      (内に残る環 ── 例: 石段の切り込み ── は外輪ではない)。⚠ 一方の辺の途中に他方の頂点が
+      載る所は、先にその頂点で辺を割ってから打ち消す。"""
+    def ar(P): return sum(P[i][0] * P[(i + 1) % len(P)][1] - P[(i + 1) % len(P)][0] * P[i][1] for i in range(len(P))) / 2.0
+    R = [[tuple(q) for q in (P if ar(P) > 0 else P[::-1])] for P in rings]
+    V = [q for P in R for q in P]
+    key = lambda q: (round(q[0], 4), round(q[1], 4))
+    E = []
+    for P in R:
+        for i in range(len(P)):
+            a, b = P[i], P[(i + 1) % len(P)]
+            dx, dz = b[0] - a[0], b[1] - a[1]; L2 = dx * dx + dz * dz
+            if L2 < 1e-12: continue
+            on = []
+            for q in V:
+                t = ((q[0] - a[0]) * dx + (q[1] - a[1]) * dz) / L2
+                if 1e-6 < t < 1 - 1e-6 and abs((q[0] - a[0]) * dz - (q[1] - a[1]) * dx) / math.sqrt(L2) < 1e-4:
+                    on.append((t, q))
+            pts = [a] + [q for _t, q in sorted(on)] + [b]
+            for j in range(len(pts) - 1):
+                if key(pts[j]) != key(pts[j + 1]): E.append((key(pts[j]), key(pts[j + 1])))
+    S = set(E)
+    E = [e for e in E if (e[1], e[0]) not in S]
+    nxt = {}
+    for a, b in E: nxt.setdefault(a, []).append(b)
+    rings_out = []
+    while nxt:
+        a0 = next(iter(nxt)); ring = [a0]; a = a0
+        while True:
+            b = nxt[a].pop()
+            if not nxt[a]: del nxt[a]
+            if b == a0: break
+            ring.append(b); a = b
+            if a not in nxt: break
+        rings_out.append(ring)
+    best = max(rings_out, key=lambda P: abs(ar(P)))
+    best = [list(q) for q in best]
+    return best if (ar(best) > 0) == (ar(like) > 0) else best[::-1]
+
+
 def offset_poly_in(P, ins):
     """多角形を内側へ ins だけ寄せる(角は留め継ぎ)。板塀・柵を平場から機械生成するため。"""
     n = len(P)
@@ -2775,7 +2827,15 @@ def derive_runs(d, g):
     ins = d["const"]["inubashiri"] / d["const"]["ken"]
     by = {r["name"]: r for r in d["runs"]}
     if "Ita_Keidai" not in by: return
-    uv = d["terraces"][0]["uv"]
+    # ⭐ **柵は `outlineFrom` の平場を併せた外輪に回す**【施主裁定 2026-09-23 其2】── 境内の縁の一段低い郭
+    #    (`GushoKaku`)は境内の内。郭と境内の境は土留めが受け、柵は外の法面の肩だけを回る。
+    #    ⛔ 宣言が無ければ従前どおり第1の平場の輪郭。
+    ofr = by["Ita_Keidai"].get("outlineFrom")
+    if ofr:
+        T9 = dict((t["name"], t) for t in d["terraces"])
+        uv = union_outer_uv([terrace_poly_uv(T9[nm]) for nm in ofr], terrace_poly_uv(T9[ofr[0]]))
+    else:
+        uv = d["terraces"][0]["uv"]
     off = offset_poly_in(uv, ins)
     # ⚠ **回廊の基壇が東front を成すので、平場の東の張り出しには塀を回さない**
     #    (2026-08-24 検図 高-1 — 機械化したとき楼門・回廊・男坂の前を塀が塞いだ)。
@@ -3033,12 +3093,15 @@ def derive_garden_strips(d):
         vf = dr["vFrom"]
         dr["v"] = round(fv(M[vf["mune"]], vf["face"], float(vf.get("offKen") or 0.0)), 4)
     D = dict((q["name"], q) for q in d.get("drains", []))
-    te = terrace_poly_uv(d["terraces"][0])
     for gd in d["gardens"]:
         cf = gd.get("chuteFrom")
         if not cf: continue
         dr = D[cf["drain"]]
         v = dr["v"]; ou = dr["outlet"]["u"]
+        # ⭐ 溝の載る平場 ── 溝の中ほどを含む平場(境内の縁の郭に載る溝もある・施主裁定 2026-09-23 其2)
+        um = (float(dr["u"][0]) + float(dr["u"][1])) / 2.0
+        tt = next((t for t in d["terraces"] if _pip(terrace_poly_uv(t), um, v)), d["terraces"][0])
+        te = terrace_poly_uv(tt)
         # ⭐ 上端 = 平場の縁と溝の通りの交点のうち、吐口の西で最も近い点(⛔ 数を持たない)
         xs = []
         for i in range(len(te)):
@@ -3052,7 +3115,7 @@ def derive_garden_strips(d):
         # ⭐ **下端 = 法尻**(`chuteFrom.uToFrom` ── ⛔ 数を持たない)【検図1巡目 高 → 2026-09-16】。
         #    ⚠ 旧版は数(-34.30)を持ち、上端の高さを**造成前の地盤**で刷っていた(実際は平場の設計面)。
         #    据え石と水叩きが法面の途中に乗る図になっていた。
-        u1, y0, y1 = chute_toe(d, gd, u0, v)
+        u1, y0, y1 = chute_toe(d, gd, u0, v, float(tt["y"]))
         gd["poly"] = [[round(u1, 4), round(v - hw, 4)], [round(u0, 4), round(v - hw, 4)],
                       [round(u0, 4), round(v + hw, 4)], [round(u1, 4), round(v + hw, 4)]]
         if gd.get("sueishi"):
@@ -3075,7 +3138,7 @@ def derive_garden_strips(d):
 CHUTE_STEP_KEN = 0.005
 
 
-def chute_toe(d, gd, u0, v):
+def chute_toe(d, gd, u0, v, y0=None):
     """張り石の**法尻**[間]と、上端・下端の高さ[m]。(u1, 上端の設計面, 法尻の地盤)。
 
     ⭐ **上端は平場の設計面**(`terraces[].y`)であって造成前の地盤ではない【検図1巡目 高 → 2026-09-16】。
@@ -3086,7 +3149,7 @@ def chute_toe(d, gd, u0, v):
     g = G(d)
     ken = d["const"]["ken"]
     bf = float(d["const"]["batterFill"])
-    y0 = float(d["terraces"][0]["y"])
+    if y0 is None: y0 = float(d["terraces"][0]["y"])
     n = int(round(12.0 / CHUTE_STEP_KEN))
     for i in range(1, n + 1):
         uu = u0 - i * CHUTE_STEP_KEN

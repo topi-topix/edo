@@ -1138,7 +1138,9 @@ public static class EdoAssets
         /// ⭐ 幅 = X / 高さ = Y / 走り = Z、**+Z = 見え面 = 坂下(蹴上の面)**。ピボット = 踏面の中心・**踏面の天端**。
         /// ⇒ 段 i(下から0起点)は position = 下端 + 進行方向 × 踏面×(i+0.5)、position.y = 下端の天端 + 蹴上×(i+1)。
         /// ⛔ `SeatBottom` で据えない(躯体が Y −0.18 へ垂れている)。走りは Z −(踏面/2+0.10)〜+踏面/2(0.10 は上の段の下へ潜る差し込み)。
-        /// 外形(男坂)W(X)6.999 × H(Y)0.440 × D(Z)0.750。材 `M_FJG_Rock_001` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// ⚠ **女坂 (0.300, 1.199, 6.363) だけ差し込み 0.35**(折れの外端の楔 6.363/2·sin4.43° = 0.246 を覆う)で、Z −0.950〜+0.600。
+        /// 差し込みの天端は踏面の後ろの線(Z = −踏面/2)から先を 0.005 下げてある(一番上の段が上の平場と面で重なる z ファイト除け)。
+        /// 外形(男坂)W(X)6.999 × H(Y)0.440 × D(Z)0.750。材 `Danishi`(<see cref="MSannoDanishi"/>。2026-09-23 に `M_FJG_Rock_001` から差し替え・形は頂点一致)⇒ `Edo/山王社/新造部材のマテリアルをremap`。
         /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- dan --only=男坂 --render</summary>
         public static string SannoDan(float keri, float fumi, float w, int i)
         {
@@ -1146,6 +1148,39 @@ public static class EdoAssets
             return "Assets/Edo/Models/Kaidan/Dan_" + keri.ToString("F3", inv) + "_"
                  + fumi.ToString("F3", inv) + "_" + w.ToString("F3", inv) + "_"
                  + (i % 2 == 0 ? "a" : "b") + ".fbx";
+        }
+
+        /// <summary>**石段の袖(袖石垣)の1段ぶんの駒** — どの石段にも使える汎用の型(寸法は蹴上 <paramref name="keri"/>・踏面 <paramref name="fumi"/>[m] から従属)。
+        /// 個体 <paramref name="i"/> は**その段の段石と同じ i**(偶奇で a / b。2段で一周期に竪目地をずらしてある ⇒ ⛔ 片方だけを並べない)。
+        /// 切石の斜め布積み+笠石(耳石)。材 `Danishi`(段石と同じ)⇒ `Edo/山王社/新造部材のマテリアルをremap`。⛔ 城の `CastleWall` を袖に使わない(EDO-0415)。
+        /// ⭐ 厚み = X(±0.30・**X について鏡像対称 ⇒ 左右とも同じ FBX**)/ 高さ = Y / 走り = Z、**+Z = 坂下**(段石と同じ向き)。
+        /// **接する面**: 側面 X = ±0.30 の平面(全丈で1枚の平面)が段石の小口(段石の X = ±幅/2 の面)に突き付く。
+        /// **天端**: Y = 0.30 + (踏面/2 − Z)·蹴上/踏面 = **段鼻の線の鉛直 0.30 上**の一直線(Z = +踏面/2 がその段の段鼻の真横)。
+        /// 笠石の丈 0.24・下端は天端の線の 2.20 下の平行線(最大見付 1.74 + 根入れ 0.46)。走りは Z ±踏面/2 ちょうど(段の境で隣の駒と面一)。
+        /// 据え方: 段 i の段石の踏面(天端)と段鼻・小口を測り、駒の天端の線を段鼻の線 +0.30 に、側面を小口に合わせる(⛔ ピボットや bounds 中心で合わせない)。
+        /// 寸法の設計値(厚み・天端の高さ・笠石・根入れ)は【U 部材方 2026-09-23】。焼けている組: (0.260, 0.650) / (0.300, 1.199) / (0.250, 0.542)。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode [--only=男坂 | <蹴上> <踏面>] --render</summary>
+        public static string IshidanSode(float keri, float fumi, int i)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            return "Assets/Edo/Models/Kaidan/IshidanSode_" + keri.ToString("F3", inv) + "_"
+                 + fumi.ToString("F3", inv) + "_" + (i % 2 == 0 ? "a" : "b") + ".fbx";
+        }
+
+        /// <summary>**曲がる石段の袖 — 片端を留めに切った駒**(EDO-0415 ②)。<see cref="IshidanSode"/> と同じ局所座標・同じピボットで、
+        /// 端 <paramref name="end"/>('F' = +Z 坂下 / 'B' = −Z 坂上)の面を、石段の芯の鉛直線(X = −0.30 − <paramref name="w"/>/2)の周りに
+        /// <paramref name="h"/>°(= 折れ角の半分・正 = 駒の外で伸びる)回した物。石段の +X 側に置く向きで焼き、−X 側は鏡で置く。
+        /// 使い手は `EdoBuild.MiterIshidanSode`。焼けている組: 女坂 (0.300, 1.199, 6.363) の 11 の折れ × F/B × ±h × a/b = 44 本
+        /// (h = 1.74/1.56/1.58/2.22/1.69/1.26/2.01/1.55/1.94/1.89/0.28)。動くのは端の面と面取りの輪の頂点だけ(他は平らな駒と一致)。
+        /// 切った端の天端は**芯(xc)での高さのまま留めの面に沿って一定**(端の石が少しねじれる)⇒ 留めの両側の天端の段差 0
+        /// (折れ 4.43° の組みで実測 0.0000 m・留めの面からの外れ ±0.0003 m = 角の 0.01° 丸め)。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_miter 0.300 1.199 6.363 2:3:3.47,7:8:3.11,11:12:3.16,16:17:4.43,21:22:3.37,26:27:2.52,30:31:4.01,34:35:3.09,37:38:3.87,40:41:3.78,42:43:0.56 --render</summary>
+        public static string IshidanSodeMiter(float keri, float fumi, float w, char end, float h, int i)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            return "Assets/Edo/Models/Kaidan/IshidanSodeMiter_" + keri.ToString("F3", inv) + "_"
+                 + fumi.ToString("F3", inv) + "_" + w.ToString("F3", inv) + "_" + end
+                 + (h >= 0f ? "+" : "-") + System.Math.Abs(h).ToString("F2", inv) + "_" + (i % 2 == 0 ? "a" : "b") + ".fbx";
         }
 
         /// <summary>**山王社の小庭の井戸 — 井筒(玉石の輪積み)と井桁を一体で**。⛔ 井戸屋形・釣瓶・縁石・板石敷は持たない

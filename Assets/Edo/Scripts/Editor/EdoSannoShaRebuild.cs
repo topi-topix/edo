@@ -403,6 +403,13 @@ public static class EdoSannoShaRebuild
 
             var grp = Group("Sando/" + GroupNameOf(name)); Clear(grp);
             int made = 0;
+            // ⭐ 石段の組(EDO-0415): この石段に沿う土留め(`terraceWalls` の coping:"stair")は**袖**として
+            //   段ごとに据える(`EdoBuild.PlaceIshidanSode`)。⛔ Stage3 の城の石垣では積まない。
+            var sodeWalls = SodeWallsOf(name);
+            int sodeMade = 0, sodeSkip = 0, sodeMiter = 0; var sodeWarn = new List<string>();
+            var dans = new GameObject[spans.Count];
+            var sodeRow = new Dictionary<string, GameObject[]>(); var sodeSide = new Dictionary<string, int>();
+            foreach (var k in sodeWalls.Keys) sodeRow[k] = new GameObject[spans.Count];
             for (int i = 0; i < spans.Count; i++)
             {
                 var sp = spans[i] as List<object>; if (sp == null || sp.Count < 3) continue;
@@ -411,14 +418,68 @@ public static class EdoSannoShaRebuild
                 // 部材の原点 = 踏面の中心・**踏面の天端**。⛔ SeatBottom で据えない(地中の胴がある)。
                 float y = face + keri;
                 // ローカル +Z = 見え面 = **坂下**。
-                EdoBuild.Place(P.Dan(keri, fumi, wM, i), new Vector3(pos.x, y, pos.y),
+                var dg = EdoBuild.Place(P.Dan(keri, fumi, wM, i), new Vector3(pos.x, y, pos.y),
                                YawZ(-dir), Vector3.one, grp, "Dan_" + i.ToString("00"));
                 made++;
+                if (dg == null) continue;
+                dans[i] = dg;
+                foreach (var kv in sodeWalls)
+                {
+                    // 土留めの線がこの段の脇に来ていなければ据えない(線の外の段)
+                    Vector2 c = new Vector2(pos.x, pos.y);
+                    if (DistToPoly(kv.Value, c) > wM * 0.5f + 1.0f) continue;
+                    int side = EdoBuild.IshidanSodeSide(dg, kv.Value);
+                    // ⛔ 外の地盤が袖の天端より高い段(切通し)は建てない — 埋まった袖を積まない
+                    Vector3 oc = dg.transform.position + dg.transform.right * side * (wM * 0.5f + 0.9f);
+                    if (EdoBuild.Ground(oc.x, oc.z) > y + EdoBuild.ISHIDAN_SODE_KASA - BURIED_EPS) { sodeSkip++; continue; }
+                    string w;
+                    var sg = EdoBuild.PlaceIshidanSode(dg, EdoAssets.Own.IshidanSode(keri, fumi, i), side, grp,
+                                                       kv.Key + "_" + i.ToString("000") + "f", out w);
+                    if (w != null) sodeWarn.Add(w);
+                    if (sg != null) { sodeMade++; sodeRow[kv.Key][i] = sg; sodeSide[kv.Key] = side; }
+                }
             }
+            // ⭐ 曲がる石段(女坂)は折れの前後の袖を留めに切る(`EdoBuild.MiterIshidanSode`)
+            foreach (var kv in sodeRow)
+                if (sodeSide.ContainsKey(kv.Key))
+                    sodeMiter += EdoBuild.MiterIshidanSode(dans, kv.Value, sodeSide[kv.Key], keri, fumi, wM, sodeWarn);
             sb.AppendLine("  " + name + ": 段石 " + made + " 段(蹴上 " + keri.ToString("F3") +
-                          " / 踏面 " + fumi.ToString("F3") + " / 幅 " + wM.ToString("F3") + ")");
+                          " / 踏面 " + fumi.ToString("F3") + " / 幅 " + wM.ToString("F3") + ")" +
+                          (sodeWalls.Count > 0 ? " / 袖 " + sodeMade + " 駒(" + string.Join("・", sodeWalls.Keys) + ")" +
+                           (sodeSkip > 0 ? " / 切通しで建てず " + sodeSkip : "") +
+                           (sodeMiter > 0 ? " / 留めの継ぎ目 " + sodeMiter : "") : ""));
+            foreach (var w in sodeWarn) sb.AppendLine("    ⚠ " + w);
         }
         return "石段\n" + sb;
+    }
+    /// <summary>石段 <paramref name="kaidan"/> に沿う袖の土留め(`terraceWalls` の coping:"stair" で
+    /// `vFrom.kaidan` か `copingFrom.kaidan` がこの石段)→ 算出物の折れ線。</summary>
+    static Dictionary<string, List<Vector2>> SodeWallsOf(string kaidan)
+    {
+        var r = new Dictionary<string, List<Vector2>>();
+        foreach (var o in L(Doc, "terraceWalls"))
+        {
+            var tw = o as Dictionary<string, object>; if (tw == null || !IsSodeWall(tw)) continue;
+            var vf = G(tw, "vFrom") as Dictionary<string, object>;
+            var cf = G(tw, "copingFrom") as Dictionary<string, object>;
+            if (!((vf != null && S(vf, "kaidan") == kaidan) || (cf != null && S(cf, "kaidan") == kaidan))) continue;
+            var run = FindByName(Impl, "runs", S(tw, "name"));
+            if (run != null) r[S(tw, "name")] = Pts(L(run, "nodes"));
+        }
+        return r;
+    }
+    /// <summary>石段に沿う土留め = 袖(石段の組で据える)か。</summary>
+    static bool IsSodeWall(Dictionary<string, object> tw) { return S(tw, "coping") == "stair"; }
+    static float DistToPoly(List<Vector2> p, Vector2 c)
+    {
+        float bd = float.MaxValue;
+        for (int i = 1; i < p.Count; i++)
+        {
+            Vector2 a = p[i - 1], ab = p[i] - a; float l2 = ab.sqrMagnitude;
+            float u = l2 < 1e-9f ? 0f : Mathf.Clamp01(Vector2.Dot(c - a, ab) / l2);
+            bd = Mathf.Min(bd, Vector2.Distance(a + ab * u, c));
+        }
+        return bd;
     }
     /// <summary>指図の名 → シーンの群の名。⛔ 綴りの読み替えだけ(⭐ 対応表が消えるのが正しい終点)。</summary>
     static string GroupNameOf(string designName)
@@ -462,6 +523,9 @@ public static class EdoSannoShaRebuild
         {
             var wl = o as Dictionary<string, object>; if (wl == null || S(wl, "of") != "wall") continue;
             string name = S(wl, "name");
+            // ⭐ 石段の袖は Stage2 が段ごとに石段と同じ材で据える(EDO-0415)。⛔ 城の石垣で積まない。
+            var twDoc = FindByName(Doc, "terraceWalls", name);
+            if (twDoc != null && IsSodeWall(twDoc)) { sb.AppendLine("  " + name + ": 石段の袖 — Stage2 で据えた"); continue; }
             var nodes = Pts(L(wl, "nodes"));
             var prof = L(wl, "profile");
             float step = F(wl, "profileStep");

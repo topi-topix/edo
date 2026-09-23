@@ -491,6 +491,16 @@ def main():
         if a.json:
             print(json.dumps({k: v for k, v in r.items() if k != "baked"}, ensure_ascii=False, default=str))
             continue
+        # ⛔ **層をまたぐ幹の重なり(許容0)が残る焼きは書かない**【EDO-0420】── 器が数えた件数を
+        #    ここで要約へ出す(⛔ 算出物の奥に埋めて黙らせない・規則19)。
+        xl = ((r.get("baked") or {}).get("planting") or {}).get("crossLayer") or {}
+        if xl.get("pairs"):
+            print("⛔ %s — 層の違う幹の芯々が %s m を割る対が %d 件(最短 %s)"
+                  % (est, xl.get("minM"), xl["pairs"], xl["worst"][0] if xl.get("worst") else "?"))
+            bad += 1
+            if a.write:
+                print("  ⛔ 書かない。散布(`scatter_pts`)か宣言を直してから焼き直す。")
+                continue
         if a.write:
             if not r["diff"] and not r["stale"]:
                 print("⭕ %s — 焼き直しても変わらない(書かない)" % est)

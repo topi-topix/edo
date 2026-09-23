@@ -4272,8 +4272,13 @@ def _apportion(vals, tot):
     return fl
 
 
-def _scatter_take(rnd, cells, n, rmin, seeded=()):
+def _scatter_take(rnd, cells, n, rmin, seeded=(), other=(), rx=0.0):
     """候補のセル(uv)から **n 点**を決定論的に採る。芯々の下限は `rmin`[間]。
+
+    ⭐ **層をまたぐ幹の芯々 `rx`[間] は硬い(許容0)**【EDO-0420 2026-09-23】── `other` は
+      **別の層**で位置の決まった幹。⚠ 層ごとの散布は同じ候補の格子を使うので、
+      層を知らないと中木と低木が**同じセルの中心**に立つ(茂り前から 48 組・5fc26763 で 57 組)。
+      ⛔ `rx` は `rmin` と違って**緩めない** ── 採りきれなければ `got < want` で名乗る。
 
     ⭕ 位置は**セルの中心のまま**(⛔ 揺らぎを足さない)── セルは退避を引いた面の走査結果で、
       中心を外すと退避へはみ出す点が出る(図が測った面と別物になる)。
@@ -4283,6 +4288,17 @@ def _scatter_take(rnd, cells, n, rmin, seeded=()):
     """
     cs = list(cells)
     rnd.shuffle(cs)
+    if other and rx > 0:
+        go = {}
+        for q in other:
+            go.setdefault((int(math.floor(q[0] / rx)), int(math.floor(q[1] / rx))), []).append(q)
+
+        def _clear(p):
+            c = (int(math.floor(p[0] / rx)), int(math.floor(p[1] / rx)))
+            return not any((p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 < rx * rx
+                           for a in range(c[0] - 1, c[0] + 2) for b in range(c[1] - 1, c[1] + 2)
+                           for q in go.get((a, b), ()))
+        cs = [p for p in cs if _clear(p)]
     fix = [tuple(q) for q in seeded]
     r, relax = float(rmin), 0
     while True:
@@ -4308,6 +4324,40 @@ def _scatter_take(rnd, cells, n, rmin, seeded=()):
             return out, r, relax
         r *= 0.9
         relax += 1
+
+
+def cross_layer_trunk_min(d):
+    """**層をまたぐ幹の芯々の下限**[間](`plantRule.crossLayerTrunkMinM`)。宣言が無ければ 0。
+
+    ⭐ 硬い制約(許容0)【EDO-0420】── 撒くときは `_scatter_take` の `rx`、焼いたあとは
+      `cross_layer_pairs` が同じ値で数える。⛔ 数を作らない(値は庭方の宣言)。
+    """
+    v = d["planting"]["plantRule"].get("crossLayerTrunkMinM")
+    return (float(v) / d["const"]["ken"]) if v else 0.0
+
+
+def cross_layer_pairs(d, pts):
+    """**層の違う2本の幹が `crossLayerTrunkMinM` より近い対**(全点・総当たり・格子で引く)。
+
+    ⭕ 名指しの木・塊・一本立ち・区の低木も含めた**焼いた点の全部**で数える(⛔ 帯だけで数えない)。
+    宣言が無くても**幹の芯が 1 cm 以内で重なる対**は数える(⛔ 宣言の欠けで黙らない)。
+    戻り [(名a, 名b, 芯々[m])]。
+    """
+    lim = max(d["planting"]["plantRule"].get("crossLayerTrunkMinM") or 0.0, 0.01)
+    gr, out = {}, []
+    for p in pts:
+        w = p.get("world")
+        if not w: continue
+        c = (int(math.floor(w[0] / lim)), int(math.floor(w[1] / lim)))
+        for a in range(c[0] - 1, c[0] + 2):
+            for b in range(c[1] - 1, c[1] + 2):
+                for q in gr.get((a, b), ()):
+                    if q.get("layer") == p.get("layer"): continue
+                    dd = math.hypot(w[0] - q["world"][0], w[1] - q["world"][1])
+                    if dd < lim - 1e-9:
+                        out.append((q["name"], p["name"], round(dd, 3)))
+        gr.setdefault(c, []).append(p)
+    return out
 
 
 def _pick_part(rnd, pal):
@@ -4689,6 +4739,11 @@ def scatter_pts(d, g):
         seeded.setdefault(_bucket(r9.get("layer") or "落葉"), []).append((r9["u"], r9["v"]))
     bd_note, out = [], []
     HK = {"松": "matsuH", "落葉": "rakuyoH", "中木": "chubokuH", "低木": "teibokuH"}
+    xr = cross_layer_trunk_min(d)
+
+    def _others(bk):
+        """**別の層**の、位置の決まった幹(⛔ 自分の層は `seeded` が `rmin` で見る)。"""
+        return [p for k9, v9 in seeded.items() if k9 != bk for p in v9]
     for lay in _LAYS:
         bk = _bucket(lay)
         for i, r in enumerate(rows):
@@ -4734,7 +4789,8 @@ def scatter_pts(d, g):
                 rmin = (math.sqrt(100.0 / dm) * b.get("packRatio", pack) / ken) if dm > 0 else step
             rnd, key = rnd_of("帯%d %s" % (bn, b["name"]), lay)
             n = n_i[lay][i] - cl_cut.get((bn, lay), 0)
-            pts, r_, rx = _scatter_take(rnd, cand, max(0, n), rmin, seeded=seeded[bk])
+            pts, r_, rx = _scatter_take(rnd, cand, max(0, n), rmin, seeded=seeded[bk],
+                                        other=_others(bk), rx=xr)
             seeded[bk] += list(pts)
             for j, (u9, v9) in enumerate(pts):
                 out.append(_tree_row(d, g, rnd, "帯%d_%s%04d" % (bn, lay, j + 1),
@@ -4766,7 +4822,7 @@ def scatter_pts(d, g):
                 dr = rinen_dens_t(d, b, t, lay) or 0.0
                 rminr = (math.sqrt(100.0 / dr) * b.get("packRatio", pack) / ken) if dr > 0 else step
                 ptsr, rr_, rxr = _scatter_take(rnd, cs, max(0, n_t[ti]), rminr,
-                                               seeded=seeded[bk])
+                                               seeded=seeded[bk], other=_others(bk), rx=xr)
                 seeded[bk] += list(ptsr)
                 for (u9, v9) in ptsr:
                     jj += 1
@@ -4783,7 +4839,15 @@ def scatter_pts(d, g):
         if gd.get("shrubs"):
             sh = gd["shrubs"]
             rnd, _k = rnd_of(gd["name"], "低木")
-            for j, (u9, v9) in enumerate(island_shrubs(gd, ken)):
+            # ⭐ **別の層の幹の `crossLayerTrunkMinM` 内の格子点は据えない**【EDO-0420】──
+            #    ⚠ 前庭の帯の低木が一本立ち(常緑広葉 其二・エノキ)の幹と 0.16〜0.41 m で重なっていた。
+            #    ⛔ 格子は動かさない(千鳥・正三角の目を崩さない)── 当たる目だけ抜く。
+            oth9 = _others("低木")
+            isl9 = island_shrubs(gd, ken)
+            if xr > 0 and oth9:
+                isl9 = [p for p in isl9 if all((p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 >= xr * xr
+                                               for q in oth9)]
+            for j, (u9, v9) in enumerate(isl9):
                 out.append(_tree_row(d, g, rnd, "%s_低木%03d" % (gd["name"], j + 1),
                                      gd["name"], "低木", pal["低木"], sh.get("hM"), u9, v9))
         for sg in gd.get("singles", []):
@@ -5902,6 +5966,15 @@ def impl_props(d, g):
     }
 
 
+def _cross_layer_note(d, pts):
+    """焼いた点の**層をまたぐ幹の芯々**の記録【EDO-0420】。⛔ 0 件でなければ `bake_impl` が書かない。"""
+    pr = cross_layer_pairs(d, pts)
+    return {"minM": d["planting"]["plantRule"].get("crossLayerTrunkMinM"),
+            "pairs": len(pr),
+            "worst": [list(q) for q in sorted(pr, key=lambda q: q[2])[:10]],
+            "_": "層の違う2本の幹の芯々が `plantRule.crossLayerTrunkMinM` を割る対(硬い制約・許容0)"}
+
+
 def export_impl(d, g):
     """**実装が読む算出物を焼く**(`docs/Sashizu/sanno_impl.json`)。
 
@@ -5955,6 +6028,7 @@ def export_impl(d, g):
         ("tamagaki", impl_tamagaki(d, g)),
         ("setae", impl_props(d, g)),
         ("planting", {"points": pts, "bands": bd, "clusters": cl,
+                      "crossLayer": _cross_layer_note(d, pts),
                       "seedRule": d["planting"]["plantRule"]["seed"],
                       "placement": d["planting"]["plantRule"].get("placement"),
                       "_": "**撒いた木の点**。⛔ 実装側で撒き直さない — 別の乱数で撒けば"

@@ -9272,21 +9272,17 @@
  "reviews": {
   "niwashi": {
    "at": "2026-09-24",
-   "verdict": "fail",
-   "hash": "211fb0d146c514b8",
-   "note": "高1中3。前庭の中木2本が西の土留めから2m未満(u22.70へ)/低木23本が格子のまま(3塊11本の座標を設計済 K124)/社務の道の終点が行き止まり/御成の段の無い60%区間。K122・K121(郭分)解消",
+   "verdict": "pass",
+   "hash": "512bf7f79febb183",
+   "note": "直し後(cbc51870)合格・指摘0。前巡の庭と動線7件解消。次回: 門被りのクロマツの樹冠が門の軒に届くかを実装後のレンダで",
    "chapters": {
-    "gardens": "6bc21c20bb7a",
+    "gardens": "bdf91f883c05",
     "planting": "050b6cfaad9a",
-    "routes": "88fc8f200924",
+    "routes": "23ecf0700734",
     "viewpoints": "ae8d421035b4",
-    "py": "cfd54651eebe99b8"
+    "py": "5c72d0e4dbeab0c7"
    },
    "rounds": [
-    {
-     "at": "2026-09-13T22:16:07+09:00",
-     "verdict": "pass"
-    },
     {
      "at": "2026-09-14T15:57:35+09:00",
      "verdict": "pass"
@@ -9330,30 +9326,34 @@
     {
      "at": "2026-09-24T07:05:32+09:00",
      "verdict": "fail"
+    },
+    {
+     "at": "2026-09-24T07:40:13+09:00",
+     "verdict": "pass"
     }
    ]
   },
   "kosho": {
    "at": "2026-09-24",
    "verdict": "pass",
-   "hash": "b0254d7864abe1b2",
-   "note": "注意付き通過・中2低2。史実の誤りなし。取り下げた読み(東面だけ傾く・中門5.7m北)が kosho.md 150-152 と gates[中門].acc に残る(K123)/5.5°の典拠は明治図だけA・現況OSMはB/_pending の三折れを取り下げと明記",
+   "hash": "e0c5553a7f69db05",
+   "note": "直し後(cbc51870)合格・低1。前巡7件解消。取り下げた二本の軸の文言が sanno_notes の注記3か所(gates/1/_v・routes/0/_tailFrom・_pending 断面ワ/ヲ)に残る",
    "chapters": {
     "const": "a74a94fd0e3f",
     "polygon": "66c63a322d37",
     "grid": "7c99d6cc4467",
     "planes": "75627a194c08",
-    "terraces": "fb166c3614dc",
-    "terraceWalls": "7d388a596d83",
+    "terraces": "83735b06e676",
+    "terraceWalls": "f55aa42a883c",
     "slopeBands": "19e7253c4bcb",
     "munes": "9428abd278f1",
     "links": "b78f64d820dd",
-    "runs": "7244f93e9bc7",
-    "gates": "9358d9d3aa15",
+    "runs": "e32fdb29ae43",
+    "gates": "8bccfb4185fb",
     "torii": "17b88f18dd14",
     "kaidans": "1d43248bac11",
     "sando": "c1779fabddef",
-    "gardens": "6bc21c20bb7a",
+    "gardens": "bdf91f883c05",
     "planting": "050b6cfaad9a",
     "props": "61b281955c80",
     "sections": "d3642439a664",
@@ -9363,10 +9363,10 @@
     "neighbors": "577eb0d759ed",
     "bom": "a05fb95eb78b",
     "fumotomichi": "160b585f9726",
-    "routes": "88fc8f200924",
+    "routes": "23ecf0700734",
     "kattemichi": "3e4dc828c638",
     "viewpoints": "ae8d421035b4",
-    "joints": "18b7d90fe3f7",
+    "joints": "0f440642db2a",
     "ido": "6f50ceb3c205",
     "shadenKidan": "84320877fb92",
     "ishizai": "898d22a3434c",
@@ -9374,14 +9374,10 @@
     "drains": "03360ba11125",
     "amaochi": "ad9fd4bb02ce",
     "surface": "728fe7869784",
-    "py": "cfd54651eebe99b8",
-    "md": "8be6857c76307f90"
+    "py": "5c72d0e4dbeab0c7",
+    "md": "7608da7fcb4621bf"
    },
    "rounds": [
-    {
-     "at": "2026-09-13T22:16:06+09:00",
-     "verdict": "pass"
-    },
     {
      "at": "2026-09-14T15:57:35+09:00",
      "verdict": "pass"
@@ -9425,30 +9421,34 @@
     {
      "at": "2026-09-24T07:05:32+09:00",
      "verdict": "pass"
+    },
+    {
+     "at": "2026-09-24T07:40:13+09:00",
+     "verdict": "pass"
     }
    ]
   },
   "kenzu": {
    "at": "2026-09-24",
-   "verdict": "fail",
-   "hash": "b0254d7864abe1b2",
-   "note": "起こし直し後1巡(bebfcc8c・作業場を読んだ): 中2低3。前庭の南東の土留め2本の天端が地山より1.3m低く埋まる(四角に直して新規)/前庭の中木2本が西の土留めから2m未満/向拝の階の蹴上0.317/御成60%・社務の端が行き止まり/賄に点が無い。K121・K122 解消",
+   "verdict": "pass",
+   "hash": "e0c5553a7f69db05",
+   "note": "直し後(cbc51870)注意付き通過・中1低2。前巡7件すべて解消。前庭南東の隅で土留めSEの東端が法の足元に当たり受けの無い土の立ち上がり(最大1.4m)が残るおそれ/法の北端の余裕0.00m/門被りの松の樹冠が軒に届くかは実装前に樹冠の半径で",
    "chapters": {
     "const": "a74a94fd0e3f",
     "polygon": "66c63a322d37",
     "grid": "7c99d6cc4467",
     "planes": "75627a194c08",
-    "terraces": "fb166c3614dc",
-    "terraceWalls": "7d388a596d83",
+    "terraces": "83735b06e676",
+    "terraceWalls": "f55aa42a883c",
     "slopeBands": "19e7253c4bcb",
     "munes": "9428abd278f1",
     "links": "b78f64d820dd",
-    "runs": "7244f93e9bc7",
-    "gates": "9358d9d3aa15",
+    "runs": "e32fdb29ae43",
+    "gates": "8bccfb4185fb",
     "torii": "17b88f18dd14",
     "kaidans": "1d43248bac11",
     "sando": "c1779fabddef",
-    "gardens": "6bc21c20bb7a",
+    "gardens": "bdf91f883c05",
     "planting": "050b6cfaad9a",
     "props": "61b281955c80",
     "sections": "d3642439a664",
@@ -9458,10 +9458,10 @@
     "neighbors": "577eb0d759ed",
     "bom": "a05fb95eb78b",
     "fumotomichi": "160b585f9726",
-    "routes": "88fc8f200924",
+    "routes": "23ecf0700734",
     "kattemichi": "3e4dc828c638",
     "viewpoints": "ae8d421035b4",
-    "joints": "18b7d90fe3f7",
+    "joints": "0f440642db2a",
     "ido": "6f50ceb3c205",
     "shadenKidan": "84320877fb92",
     "ishizai": "898d22a3434c",
@@ -9469,14 +9469,10 @@
     "drains": "03360ba11125",
     "amaochi": "ad9fd4bb02ce",
     "surface": "728fe7869784",
-    "py": "cfd54651eebe99b8",
-    "md": "8be6857c76307f90"
+    "py": "5c72d0e4dbeab0c7",
+    "md": "7608da7fcb4621bf"
    },
    "rounds": [
-    {
-     "at": "2026-09-13T22:16:06+09:00",
-     "verdict": "pass"
-    },
     {
      "at": "2026-09-14T15:57:35+09:00",
      "verdict": "fail"
@@ -9520,6 +9516,10 @@
     {
      "at": "2026-09-24T07:05:31+09:00",
      "verdict": "fail"
+    },
+    {
+     "at": "2026-09-24T07:40:13+09:00",
+     "verdict": "pass"
     }
    ]
   }

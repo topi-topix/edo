@@ -132,9 +132,9 @@ public static class EdoSannoShaRebuild
             throw new Exception("⛔ 算出物が**いまの指図から焼かれていない**"
                 + "\n   指図 " + got.Substring(0, 16) + "… / 算出物が名乗る元 " + want.Substring(0, Math.Min(16, want.Length)) + "…"
                 + "\n   `python3 Tools/Sashizu/bake_impl.py sanno --write` を回し直すこと"
-                + "\n   ⛔ ただし焼き手が main に無い欄(graded/rails/base/planting/kui/migiwa/gardens)を"
-                + "指図で動かしたのなら、焼き直せない(EDO-0386)。欄の中身が今の指図と同じことを確かめた上で"
-                + "指紋を宣言し直すか(先例 b9613ad8)、掲示板へ起票すること");
+                + "\n   ⚠ 焼き直せるのは `baked.columns` の欄だけ。`baked.carried` の欄は焼き手が main に無く"
+                + "**当時の指図のまま**(その指紋は `baked.carriedSrc`)── 指図でそこを動かしたのなら、"
+                + "焼き手を起こすまで現物は古い値で建つ(EDO-0386 / EDO-0261 ①)。掲示板へ起票すること");
     }
     [MenuItem(MENU + "指図を読み直す(キャッシュを捨てる)")]
     public static void Reload() { _doc = null; _impl = null; _gr = null; Debug.Log("[山王] 指図・算出物のキャッシュを捨てた"); }
@@ -349,6 +349,17 @@ public static class EdoSannoShaRebuild
                 bx0 = Mathf.Min(bx0, wx); bx1 = Mathf.Max(bx1, wx);
                 bz0 = Mathf.Min(bz0, wz); bz1 = Mathf.Max(bz1, wz);
             }
+        // ---- 面の輪郭の縁の残差について(2026-09-23 実測・⛔ ここで均さない)-------
+        // 突き合わせの「造成の面」は算出物 `terraces[].world` の輪郭を **2m 刻みで標本**して
+        // 設計の丈と比べる。2026-09-22 の残差(面 Keidai 2228点中9点・最大 −0.42m / 面 Zentei
+        // 121点中9点・最大 +0.74m)は**全点が輪郭から 0.28m 以内**(Zentei の5点は輪郭の線の上)で、
+        // 法面の始まりを標本していた。地形は **2 m/px** なので、輪郭ちょうどに面の縁を置くことは
+        // できない(`EdoBuild.PadY` が `edgeMargin` を要求するのと同じ理由)。
+        // ⛔ **輪郭の中の節点を丈へ均して逃げない** — 一度そう書いて測った:
+        //     ・輪郭の中の節点だけ(49節点・最大0.28m)⇒ 残差は 9/9 → 9/8 でほぼ変わらず、
+        //       女坂 Dan_41 の埋没が 1.565 → 1.680m に**悪化**した(面の輪郭が段の脇に掛かる)。
+        //     ・1セル外まで広げる(350節点)⇒ 面の東の崖 x≈−478 で **6.66m の盛土**が斜面に張り出した。
+        //   ⇒ どちらも戻した。残差は**物差しの側**(標本に一辺の控えが無い)で、造成の欠陥ではない。
         td.SetHeightsDelayLOD(x0, z0, H); td.SyncHeightmap();
         float cell = ts.x / (hres - 1); double a = cell * cell;
         return string.Format(
@@ -600,46 +611,32 @@ public static class EdoSannoShaRebuild
             int made = 0;
             if (kind == "透塀") { made = Sukibei(r, name, grp, sb); }
             else if (kind == "袖塀") { made = Sodebei(r, name, grp, sb); }
-            else foreach (var so in L(r, "segs"))
+            else if (kind == "板塀")
             {
-                var seg = so as List<object>; if (seg == null || seg.Count < 2) continue;
-                Vector2 a = P2(seg[0]), b = P2(seg[1]);
-                float len = Vector2.Distance(a, b); if (len < 0.25f) continue;
-                Vector2 dir = (b - a) / len;
-                if (kind == "板塀")
+                // ⭐ 柵と**同じ物差しで口を閉じる**(2026-09-23・EDO-0398)── 口に門が建つなら
+                //   seg の端は門の脇柱の角へ取り付ける。今の山王では板塀の口に門は無い(= 無為)が、
+                //   閉じ方を種別ごとに分けると同じ欠陥がまた片側にだけ残る(規則21)。
+                var pa = new List<Vector2>(); var pb = new List<Vector2>();
+                foreach (var so in L(r, "segs"))
                 {
+                    var seg = so as List<object>; if (seg == null || seg.Count < 2) continue;
+                    pa.Add(P2(seg[0])); pb.Add(P2(seg[1]));
+                }
+                float pHalfT, pHgt; PanelProfile(EdoAssets.Eg.Itabei5, out pHalfT, out pHgt);
+                ClipRunEndsToGates(pa, pb, pHgt, pHalfT, hasSeat, seat, name, sb);
+                for (int i = 0; i < pa.Count; i++)
+                {
+                    Vector2 a = pa[i], b = pb[i];
+                    float len = Vector2.Distance(a, b); if (len < 0.25f) continue;
+                    Vector2 dir = (b - a) / len;
                     // 在庫の板塀(edogoyomi)。⚠ 呼び寸に合わせて走り方向だけ伸縮するのは
                     //   既存の `PanelRun` の流儀(全邸で同じ)。表裏2枚で `_kf`/`_kb` と名づく。
                     var outw = new Vector2(dir.y, -dir.x);
                     var lst = EdoBuild.PanelRun(grp, a, b, outw, name, EdoAssets.Eg.Itabei5, Vector2.zero, -1);
                     made += lst.Count;
                 }
-                else
-                {
-                    // 腰高の柵。部材の原点 = **スパンの中心・地盤レベル**・柱はローカル −X 端。
-                    int N = Mathf.Max(1, Mathf.RoundToInt(len / SAKU_SPAN));
-                    float pitch = len / N;
-                    float sx = pitch / SAKU_SPAN;
-                    float ry = YawX(dir);
-                    for (int k = 0; k < N; k++)
-                    {
-                        Vector2 c = a + dir * (pitch * (k + 0.5f));
-                        Vector2 e0 = a + dir * (pitch * k), e1 = a + dir * (pitch * (k + 1));
-                        float y0 = hasSeat ? seat : SurfaceY(e0), y1 = hasSeat ? seat : SurfaceY(e1);
-                        var go = EdoBuild.Place(P.SakuSpan, new Vector3(c.x, (y0 + y1) * 0.5f, c.y),
-                                                ry, new Vector3(sx, 1f, 1f), grp, name + "_" + made.ToString("000") + "f");
-                        if (!hasSeat && Mathf.Abs(y1 - y0) > 0.02f)
-                            go.transform.rotation = Quaternion.Euler(0, ry, 0) *
-                                                    Quaternion.Euler(0, 0, Mathf.Atan2(y1 - y0, pitch) * Mathf.Rad2Deg);
-                        made++;
-                    }
-                    // ⛔ run の +X 端に柱を1本足す(足さないと貫が宙で終わる)
-                    float yEnd = hasSeat ? seat : SurfaceY(b);
-                    EdoBuild.Place(P.SakuPost, new Vector3(b.x, yEnd, b.y), ry, Vector3.one,
-                                   grp, name + "_" + made.ToString("000") + "f");
-                    made++;
-                }
             }
+            else made = SakuRun(r, name, grp, hasSeat, seat, sb);
             pieces += made;
             sb.AppendLine("  " + name + "(" + kind + " " + F(r, "lenM").ToString("F1") + "m): 部材 " + made + " 枚" +
                           (hasSeat ? " / 天端 " + seat.ToString("F2") : " / 天端は地形なり"));
@@ -649,6 +646,189 @@ public static class EdoSannoShaRebuild
             sb.AppendLine("  ★ 部材が無いので建てなかった(bom が「無い/新造」): " +
                           string.Join(" / ", pendNames.ToArray()) + " = 計 " + pending.ToString("F1") + "m");
         return "囲い: 部材 " + pieces + " 枚\n" + sb;
+    }
+
+    // ---------------------------------------------------------------- 腰高の柵
+    /// <summary>腰高の柵の run。部材の原点 = **スパンの中心・地盤レベル**・柱はローカル −X 端。
+    /// <para>⭐ **口(門の立つ開口)の縁は門の実メッシュから測る**(<see cref="EdoBuild.OpeningJambs"/>)。
+    /// ⛔ 算出物の `segs` の端(= 紙の上の口の幅)をそのまま run の端にしない — 2026-09-22 実測で
+    /// 勝手口の口 2.909m に対し門は走りへ 1.992m しか投影されず(39°傾き)、南 0.457 / 北 0.460m が
+    /// 素通しだった。⭐ さらに 2026-09-23、**端は走りの線の上ではなく門の脇柱の角へ取る**ように改めた —
+    /// 射影だけでは横のずれ(勝手口は線から 0.45m 外)が落ち、柵の端の柱と門の間に **0.822m の口**が
+    /// 残っていた(EDO-0398)。</para>
+    /// <para>⚠ **口の向こう側の縁に柱を足さない** — スパンの部材が −X 端に柱を持っている。
+    /// 足すと二重になり、柱の原点が +X の木口なので設計の線の外へ 0.115m はみ出す
+    /// (2026-09-22 に一度そう建て、`Saku_SW` / `Saku_Sando` の芯が 0.04〜0.05m 鳴った)。</para>
+    /// <para>⭐ **斜面は地表の道のりで割る**(2026-09-23・EDO-0398)。継ぎ目は <see cref="EdoBuild.GroundPolyline"/>、
+    /// 駒は <see cref="EdoBuild.PlaceOnChord"/> で弦に張る(継ぎ目は駒の丈の中ほどで合う)。
+    /// ⛔ 水平の長さで割って駒を傾け直さない — 傾けた駒の水平の張り出しは pitch·cosθ に縮むので、
+    /// 継ぎ目が毎回 pitch(1−cosθ) 開く(実測: `Saku_SW` の末尾 30° 区間で 0.19〜0.31m の素通し 4 箇所、
+    /// 折れ目では逆に頭が 0.31〜0.40m 重なっていた)。</para>
+    /// <para>⛔ **部材として建たない切れ端**(1スパンの 1/4 未満)はスパンを据えず、**外側の端に柱を
+    /// 1本だけ**立てる。据えないと run が設計の線の端まで届かず、突き合わせが芯のずれとして出る
+    /// (2026-09-22 実測: `Ita_Keidai` の 0.144m の切れ端で芯が 0.48m 寄っていた)。</para></summary>
+    static int SakuRun(Dictionary<string, object> r, string name, Transform grp,
+                       bool hasSeat, float seat, StringBuilder sb)
+    {
+        var sa = new List<Vector2>(); var sbb = new List<Vector2>();
+        foreach (var so in L(r, "segs"))
+        {
+            var seg = so as List<object>; if (seg == null || seg.Count < 2) continue;
+            sa.Add(P2(seg[0])); sbb.Add(P2(seg[1]));
+        }
+        if (sa.Count == 0) return 0;
+        float halfT, hgt, postL; SakuProfile(out halfT, out hgt, out postL);
+        ClipRunEndsToGates(sa, sbb, hgt, halfT, hasSeat, seat, name, sb);
+
+        // 斜面なりに連ねるための実測(⛔ 定数で持たない) — 根入れが均しの縛り、丈の中ほどが継ぎ目の高さ。
+        var rhy = EdoBuild.RunMeasureY(P.SakuSpan);
+        float minSpan = SAKU_SPAN * 0.25f;   // これ未満は部材として建たない切れ端
+        int made = 0, stubs = 0;
+        for (int i = 0; i < sa.Count; i++)
+        {
+            Vector2 a = sa[i], b = sbb[i];
+            float len = Vector2.Distance(a, b);
+            Vector2 dir = len > 1e-6f ? (b - a) / len : Vector2.right;
+            float ry = YawX(dir);
+            if (len < minSpan)
+            {
+                // 切れ端 — スパンは据えず、**外側の端**(run の走りの先)に柱を1本だけ。
+                // ⚠ 柱の部材は原点が **+X の木口**(局所 x ∈ [−postL, 0])なので、走りの先の端では
+                //   節点にそのまま置けば run の内へ収まる。始まりの端だけ postL だけ送る。
+                //   ⛔ 送らないと run が設計の線の外へ postL はみ出し、突き合わせが芯のずれで鳴る。
+                Vector2 p = (i == 0) ? a + dir * postL : b;
+                EdoBuild.Place(P.SakuPost, new Vector3(p.x, hasSeat ? seat : SurfaceY(p), p.y), ry,
+                               Vector3.one, grp, name + "_" + made.ToString("000") + "f");
+                made++; stubs++;
+                continue;
+            }
+            // ⛔ run の始まり・口の向こう側に柱を足さない — **スパンの部材が −X 端に柱を持っている**
+            //   (`Saku_Koshidaka_1.818` の局所 x ∈ [−0.909, +0.909]・柱は −X 端)。足すと二重になり、
+            //   しかも柱の原点が +X 木口なので設計の線の外へ 0.115m はみ出す(2026-09-22 に一度そう建てた)。
+            // ⭐ **継ぎ目は地表の道のりで割る**(EdoBuild.GroundPolyline)。⛔ 水平の長さで割って駒を
+            //    傾けない — 水平の張り出しが pitch·cosθ に縮んで継ぎ目が毎回開く(2026-09-23 実測:
+            //    30° の斜面で 0.19〜0.31m の素通しが 4 箇所・EDO-0398)。
+            List<Vector3> js;
+            if (hasSeat)
+            {
+                int N = Mathf.Max(1, Mathf.RoundToInt(len / SAKU_SPAN));
+                js = new List<Vector3>();
+                for (int k = 0; k <= N; k++) { Vector2 p = a + dir * (len * k / N); js.Add(new Vector3(p.x, seat, p.y)); }
+            }
+            else js = EdoBuild.GroundPolyline(a, b, SAKU_SPAN, rhy.Root, rhy.Root * 2f);
+            for (int k = 0; k + 1 < js.Count; k++)
+            {
+                EdoBuild.PlaceOnChord(P.SakuSpan, js[k], js[k + 1], grp, name + "_" + made.ToString("000") + "f");
+                made++;
+            }
+            // +X 端の柱(次の seg が続いていれば、その seg の始まりの柱を兼ねる)。
+            // ⚠ 高さは**折れ線の末の継ぎ目**に合わせる(地表を引き直すと最後の駒と段が付く)。
+            var jend = js[js.Count - 1];
+            EdoBuild.Place(P.SakuPost, new Vector3(b.x, jend.y, b.y), ry, Vector3.one,
+                           grp, name + "_" + made.ToString("000") + "f");
+            made++;
+        }
+        if (stubs > 0)
+            sb.AppendLine("    " + name + ": 切れ端に立てた柱 " + stubs + " 本(スパンにならない区間の端を設計の線まで通した)");
+        return made;
+    }
+    /// <summary>腰高の柵の部材の**半厚**・**丈**・**柱の長さ**[m]を資産から測る。⛔ 定数で持たない
+    /// (部材を替えた瞬間に口の縁が破れる)。走り = ローカル X・厚み = Z・原点 = 地盤。</summary>
+    static void SakuProfile(out float halfT, out float hgt, out float postL)
+    {
+        halfT = 0f; hgt = 0f;
+        var pts = EdoBuild.BodyAt(P.SakuSpan, Vector3.zero, 0f, true);
+        if (pts.Count == 0) throw new Exception("⛔ 腰高の柵の部材 " + P.SakuSpan + " が測れない(半厚と丈を発明しない)");
+        float mnY = float.MaxValue, mxY = float.MinValue;
+        foreach (var v in pts)
+        { halfT = Mathf.Max(halfT, Mathf.Abs(v.z)); mnY = Mathf.Min(mnY, v.y); mxY = Mathf.Max(mxY, v.y); }
+        hgt = mxY - mnY;
+        var pp = EdoBuild.BodyAt(P.SakuPost, Vector3.zero, 0f, true);
+        if (pp.Count == 0) throw new Exception("⛔ 柵の柱の部材 " + P.SakuPost + " が測れない");
+        float pmn = float.MaxValue, pmx = float.MinValue;
+        foreach (var v in pp) { pmn = Mathf.Min(pmn, v.x); pmx = Mathf.Max(pmx, v.x); }
+        postL = pmx - pmn;
+    }
+    /// <summary>板塀(edogoyomi の片面 obj)の**半厚**・**丈**[m]を資産から測る。⛔ 定数で持たない。
+    /// ⚠ <see cref="EdoBuild.PanelRun"/> は既定で **ES 倍**して据えるので、測った局所寸へ ES を掛ける
+    /// (走り方向だけは呼び寸へ伸縮するので、ここでは見ない)。</summary>
+    static void PanelProfile(string path, out float halfT, out float hgt)
+    {
+        halfT = 0f; hgt = 0f;
+        var pts = EdoBuild.BodyAt(path, Vector3.zero, 0f, true);
+        if (pts.Count == 0) throw new Exception("⛔ 板塀の部材 " + path + " が測れない(半厚と丈を発明しない)");
+        float mnY = float.MaxValue, mxY = float.MinValue;
+        foreach (var v in pts)
+        { halfT = Mathf.Max(halfT, Mathf.Abs(v.z)); mnY = Mathf.Min(mnY, v.y); mxY = Mathf.Max(mxY, v.y); }
+        halfT *= EdoBuild.ES; hgt = (mxY - mnY) * EdoBuild.ES;
+    }
+    /// <summary>口(seg と seg の間)に門が建つなら、**両脇の seg の端を門の脇柱の角へ取り付ける**。
+    /// <para>⭐ 2026-09-23(EDO-0398)**端は走りの線の上ではなく、門の実メッシュの角そのものへ取る**
+    /// (<see cref="EdoBuild.OpeningJambs"/>)。⛔ 射影 s だけを線の上に取らない — 門は走りに対して
+    /// 傾いて・横へずれて据わるので(勝手口は 39°・線から 0.45m 外)、線上の点には門の実体が無く、
+    /// 柵の端の柱と門の間に **0.822m の口**が残っていた。角へ取り付ければ走りはそこで折れて門に当たる。
+    /// 食い込み(<paramref name="halfT"/> = run の半厚)は「隙間 &gt; めり込み」の作法。</para>
+    /// <para>⛔ 門が引けない口・門が塞いでいない口・端が seg を裏返す口は触らない(★ で報せる)。</para></summary>
+    static void ClipRunEndsToGates(List<Vector2> a, List<Vector2> b, float hgt, float halfT,
+                                   bool hasSeat, float seat, string name, StringBuilder sb)
+    {
+        for (int i = 0; i + 1 < a.Count; i++)
+        {
+            Vector2 A = b[i], B = a[i + 1];
+            float gap = Vector2.Distance(A, B);
+            if (gap < 0.20f) continue;                       // 折れ点(口ではない)
+            Vector2 d = (B - A) / gap;
+            foreach (var o in L(Impl, "gates"))
+            {
+                var gt = o as Dictionary<string, object>; if (gt == null) continue;
+                var wp = L(gt, "world"); if (wp.Count < 2) continue;
+                Vector2 c = new Vector2(Cv(wp[0]), Cv(wp[1]));
+                float s = Vector2.Dot(c - A, d);
+                if (s < -0.5f || s > gap + 0.5f) continue;    // この口の中に居ない
+                if (Mathf.Abs(Vector2.Dot(c - A, new Vector2(-d.y, d.x))) > gap) continue;
+                string path; Vector3 pos; float yaw;
+                if (!GatePlacement(gt, out path, out pos, out yaw))
+                { sb.AppendLine("  ★ " + name + ": 口の門 " + S(gt, "name") + " が引けない — 口の縁を測れない"); continue; }
+                float y0 = hasSeat ? seat : SurfaceY((A + B) * 0.5f);
+                Vector2 j0, j1; float s0, s1; string how;
+                // ⚠ 控えの帯は**口の幅**を渡す。⛔ 塀の半厚(山王の柵で 0.062m)を渡さない —
+                //   門は走りに対して傾いて・ずれて据わる(勝手口は 39°・線から 0.446m)ので、
+                //   細い帯では門の頂点が1つも入らず「塞いでいない」と出て、口がそのまま素通しで残る。
+                if (!EdoBuild.OpeningJambs(path, pos, yaw, A, B, gap, y0, y0 + hgt, halfT,
+                                           out j0, out j1, out s0, out s1, out how))
+                { sb.AppendLine("  ★ " + name + ": " + S(gt, "name") + " が走りの線を塞いでいない(口 " +
+                                gap.ToString("F2") + "m は素通しのまま)"); continue; }
+                if (s1 - s0 < 0.05f) continue;
+                // ⛔ seg を裏返す端は採らない(門が口を丸ごと呑む/端が seg の始まりを越える)。
+                Vector2 d0 = b[i] - a[i], d1 = b[i + 1] - a[i + 1];
+                bool ok0 = d0.sqrMagnitude > 1e-6f && Vector2.Dot(j0 - a[i], d0.normalized) > 0.05f;
+                bool ok1 = d1.sqrMagnitude > 1e-6f && Vector2.Dot(b[i + 1] - j1, d1.normalized) > 0.05f;
+                if (!ok0 || !ok1)
+                { sb.AppendLine("  ★ " + name + ": " + S(gt, "name") + " の脇柱が seg を裏返す(手前 " +
+                                (ok0 ? "可" : "不可") + " / 先 " + (ok1 ? "可" : "不可") + ")— 端を動かさない"); continue; }
+                float mv0 = Vector2.Distance(b[i], j0), mv1 = Vector2.Distance(a[i + 1], j1);
+                b[i] = j0; a[i + 1] = j1;
+                sb.AppendLine("    " + name + ": 口 " + gap.ToString("F3") + "m に " + S(gt, "name") +
+                              " — 脇柱の角へ取り付けた 手前 (" + j0.x.ToString("F3") + ", " + j0.y.ToString("F3") +
+                              ")(寄せ " + mv0.ToString("F3") + "m)/ 先 (" + j1.x.ToString("F3") + ", " +
+                              j1.y.ToString("F3") + ")(寄せ " + mv1.ToString("F3") + "m)" +
+                              " / 走りへの射影は [" + s0.ToString("F3") + ", " + s1.ToString("F3") + "](" + how + ")");
+                break;
+            }
+        }
+    }
+    /// <summary>算出物の `gates[]` の行から、据える部材のパス・座・向きを引く(Stage5 と同じ物差し)。
+    /// ⛔ ここで向きを作らない — `gates[].yaw` は焼いた従属値。引けなければ false。</summary>
+    static bool GatePlacement(Dictionary<string, object> gt, out string path, out Vector3 pos, out float yaw)
+    {
+        path = null; pos = Vector3.zero; yaw = 0f;
+        if (!HasNum(gt, "yaw")) return false;
+        var wp = L(gt, "world"); if (wp.Count < 2) return false;
+        path = BomPartPath(S(gt, "bom"));
+        if (path == null || AssetDatabase.LoadAssetAtPath<GameObject>(path) == null) return false;
+        pos = new Vector3(Cv(wp[0]), F(gt, "sill"), Cv(wp[1]));
+        yaw = F(gt, "yaw");
+        return true;
     }
 
     // ---------------------------------------------------------------- 回廊
@@ -713,8 +893,9 @@ public static class EdoSannoShaRebuild
         int e = te.IndexOf(".fbx", i, StringComparison.Ordinal); if (e < 0) return null;
         return te.Substring(i, e + 4 - i);
     }
-    /// <summary>門の名 → シーンの名(⛔ 部材のパスではない)。</summary>
-    static string GateNameOf(string designName)
+    /// <summary>門の名 → シーンの名(⛔ 部材のパスではない)。
+    /// ⭐ **突き合わせ(`EdoSannoSashizuCheck`)も同じ物差しで引く ⇒ public**。</summary>
+    public static string GateNameOf(string designName)
     {
         if (designName == null) return "Mon";
         if (designName.StartsWith("隨身門")) return "Romon";
@@ -920,7 +1101,8 @@ public static class EdoSannoShaRebuild
     public static void Stage5Menu() { Debug.Log("[山王] " + Stage5_MonTorii()); }
     /// <summary>算出物 `gates` の芯・yaw・敷居の高さへ据える。⭐ 部材は **`bom[<gates[].bom>].手当` が
     /// 名指す物**を据える(2026-09-20 に代用をやめた ── 楼門・坂下の門・中門は専用部材が焼けている)。
-    /// 部材の規約(`bom[].axis`): 通り抜け = ローカル X・**正面 = +X**・ピボット = 門の芯・敷居の高さ
+    /// 部材の規約(`bom[].axis`): ピボット = 門の芯・敷居の高さ。⚠ **正面のローカル軸は部材ごとに違う**
+    /// (既存3門 = `+X` / 勝手口の木戸 = `+Z`)⇒ <see cref="EdoBuild.FaceYaw"/> で検算する。
     /// ⇒ `gates[].yaw` のまま・scale one・⛔ **SeatBottom しない**・⛔ **実メッシュの芯で寄せ直さない**
     /// (ピボットが芯なので寄せ直すと基壇の張り出しのぶんだけ門口がずれる)。
     /// ⛔ 向き(`yaw`)が指図に無い門は据えない ── 発明せず差し戻す。⛔ 鳥居は部材が無い(`bom`「無い」)。</summary>
@@ -949,22 +1131,39 @@ public static class EdoSannoShaRebuild
             string front = ax == null ? null : S(ax, "front");
             if (front == null)
             { pend.Add(name + "(`bom[" + label + "].axis.front` が無い ── 向きの規約が引けない)"); continue; }
-            if (front != "+X")
-            { pend.Add(name + "(部材の正面が `+X` でない: " + front + ")"); continue; }
+            // ⭐ **部材の「正面はローカルのどの軸か」は門ごとに違う**(2026-09-22・EDO-0398)──
+            //   既存3門(楼門・中門・坂下の門)は **走り=X・正面=+X**、勝手口の木戸だけ
+            //   **走り=X・通り抜け=Z・正面=+Z** で流儀が 90° 違う。⛔ 実装が「+X が正面」と決め打ちしない(規則21)。
+            //   焼いた `yaw` は `bake_impl.py::gate_yaw` が **図の `front` − 部材の `axis.front`**(+ 枠の傾き)
+            //   で出した従属値 ⇒ ここでは同じ引き算(<see cref="EdoBuild.FaceYaw"/>)で**検算**してから据える。
+            //   ⛔ 別の式を作らない・⛔ 食い違ったら据えずに差し戻す(焼き直しが要るということ)。
+            float baseYaw;
+            if (!EdoBuild.FaceYaw(S(gt, "front"), front, out baseYaw))
+            { pend.Add(name + "(向きが解けない: front=" + S(gt, "front") + " / axis.front=" + front + ")"); continue; }
+            var gdoc = FindByName(Doc, "gates", name);
+            bool framed = gdoc != null && S(gdoc, "frame") != null;   // 郭の辺の傾きを載せた門(楼門)
+            if (!framed && Mathf.Abs(Mathf.DeltaAngle(baseYaw, yaw)) > 0.05f)
+            { pend.Add(name + "(焼いた yaw " + yaw.ToString("F1") + "° と 部材の軸から出る yaw " +
+                       baseYaw.ToString("F1") + "° が食い違う ⇒ `bake_impl.py sanno --write` が要る)"); continue; }
             var go = EdoBuild.Place(path, new Vector3(p.x, sill, p.y), yaw, Vector3.one, grp, GateNameOf(name));
             var bb = EdoBuild.RB(go);
             made++;
             sb.AppendLine("  " + name + " → " + System.IO.Path.GetFileNameWithoutExtension(path) +
                           " 芯 (" + p.x.ToString("F2") + ", " + p.y.ToString("F2") + ") yaw " + yaw.ToString("F1") +
+                          "(正面 " + S(gt, "front") + " × axis.front " + front + ")" +
                           " 敷居 " + sill.ToString("F2") + " / 実メッシュ W" + bb.size.x.ToString("F2") +
                           " H" + bb.size.y.ToString("F2") + " D" + bb.size.z.ToString("F2") +
-                          " 下端 " + (bb.center.y - bb.extents.y).ToString("F2"));
+                          " 下端 " + (bb.center.y - bb.extents.y).ToString("F2") +
+                          "(敷居との差 " + (bb.center.y - bb.extents.y - sill).ToString("F3") + "m)");
         }
         // ---- 鳥居(2026-09-20 に部材が焼けたので建てる)------------------------
         foreach (var o in L(Doc, "torii"))
         {
             var tr = o as Dictionary<string, object>; if (tr == null) continue;
             string nm = S(tr, "name");
+            // ⭐ 座が**棟の実メッシュからの従属値**の鳥居(`posFrom`)は Stage6 の受け持ち
+            //   ── その棟が建った後でなければ測れない(2026-09-22・末社の小鳥居)。
+            if (G(tr, "posFrom") != null) continue;
             string path = ToriiPart();
             if (path == null) { pend.Add(nm + "(石造明神鳥居の部材が引けない)"); continue; }
             Vector2 pp = P2(G(tr, "pos"));
@@ -995,11 +1194,22 @@ public static class EdoSannoShaRebuild
     {
         string fromBom = BomPartPath("鳥居");
         if (fromBom != null && AssetDatabase.LoadAssetAtPath<GameObject>(fromBom) != null) return fromBom;
+        // ⭐ **別の行が名指している部材は候補から外す**(2026-09-22)── 末社の小鳥居の
+        //   `torii[].partFrom` が `Sanno_Torii_Massha_*` を名指すので、綴りだけで拾うと 2 点になり
+        //   「どれか選ばない」で一ノ・二ノ鳥居まで建たなくなる。⛔ 綴りで除外しない(**名指し**で除外する)。
+        var named = new List<string>();
+        foreach (var o in L(Doc, "torii"))
+        {
+            var t = o as Dictionary<string, object>; if (t == null) continue;
+            string pf = S(t, "partFrom"); if (string.IsNullOrEmpty(pf)) continue;
+            string np = PartFromPath(pf); if (np != null) named.Add(np);
+        }
         string found = null;
         foreach (var guid in AssetDatabase.FindAssets("Sanno_Torii t:Model", new[] { "Assets/Edo/Models/Sanno" }))
         {
             string p = AssetDatabase.GUIDToAssetPath(guid);
             if (!System.IO.Path.GetFileName(p).StartsWith("Sanno_Torii_")) continue;
+            if (named.Contains(p)) continue;     // 別の行の受け持ち(末社の小鳥居)
             if (found != null) return null;      // ⛔ 2点あったら選ばない
             found = p;
         }
@@ -1037,7 +1247,8 @@ public static class EdoSannoShaRebuild
         face = tan; return true;
     }
     /// <summary>鳥居の名 → シーンの名(⛔ 部材のパスではない)。</summary>
-    static string ToriiNameOf(string designName)
+    /// <summary>⭐ 突き合わせも同じ物差しで引く ⇒ public。</summary>
+    public static string ToriiNameOf(string designName)
     {
         if (designName == null) return "Torii";
         if (designName.StartsWith("一ノ")) return "IchinoTorii";
@@ -1048,33 +1259,46 @@ public static class EdoSannoShaRebuild
     // ================================================================ Stage 6 社殿
     [MenuItem(MENU + "6 社殿5棟+木階")]
     public static void Stage6Menu() { Debug.Log("[山王] " + Stage6_Shaden()); }
-    /// <summary>社殿。⭐ 部材の**ピボット = その棟の区画 (u0,v0,du,dv) の中心・地盤レベル**で、
-    /// **ローカル +X = 東 = 正面**。⇒ `munes` の矩形の中心へ **yaw 0・scale one** のまま置く。
-    /// ⛔ SeatBottom で据えない(部材が地盤レベルを原点に持っている)。</summary>
+    /// <summary>社殿。⭐ 部材の**ピボット = その棟の区画 (u0,v0,du,dv) の中心・地盤レベル**。
+    /// ⇒ `munes` の矩形の中心へ **scale one** のまま置く。
+    /// ⛔ SeatBottom で据えない(部材が地盤レベルを原点に持っている)。
+    ///
+    /// <para>⭐ **向きは二つの宣言の引き算**(2026-09-22・EDO-0261 ③): 図の `munes[].front`(東/西/南/北)と
+    /// 部材の `axis.front`(ローカルのどの軸が正面か)から <see cref="EdoBuild.FaceYaw"/> が出す。
+    /// ⛔ **「この社は +X が正面」と実装が決め打ちしない** ── 社殿5棟の部材は +X が正面、2026-09-22 に
+    /// 焼けた堂宇10棟は **+Z が正面**で、揃えて yaw 0 で据えると後の10棟だけ 90° 北を向く。
+    /// ⚠ どちらかの宣言が欠けている棟は **yaw 0 のまま据えて「向きが宣言されていない」と刷る**
+    /// (= これまでの5棟と同じ挙動。⛔ 0 を「合格」と読ませない ── 突き合わせに立てる)。</para></summary>
     public static string Stage6_Shaden()
     {
         var gate = Gate(); if (gate != null) return gate;
         var grp = Group("Keidai/Shaden"); Clear(grp);
         var sb = new StringBuilder();
-        int made = 0; var pend = new List<string>();
+        int made = 0; var pend = new List<string>(); var muki = new List<string>();
         foreach (var o in L(Doc, "munes"))
         {
             var m = o as Dictionary<string, object>; if (m == null) continue;
             string name = S(m, "name");
             string part = S(m, "partFrom");
+            string label = BomLabelFor(name);
             // ⭐ `partFrom` を持たない棟は **`bom` の行が名指す部材**を据える(2026-09-20 ── 御供所)。
             //   ⛔ 綴りを実装が持たない: 行は「棟の名」か「棟の名(…)」で引く。
-            string path = string.IsNullOrEmpty(part) ? BomPartPath(BomLabelFor(name)) : P.Shaden(part);
-            if (path == null) { pend.Add(name); continue; }
+            string path = string.IsNullOrEmpty(part) ? BomPartPath(label) : PartFromPath(part);
+            if (path == null)
+            { pend.Add(name + (string.IsNullOrEmpty(part) ? "" : "(`partFrom`『" + part + "』を解けない)")); continue; }
             if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
             { pend.Add(name + "(" + path + " が無い)"); continue; }
+            float yaw; string how;
+            if (!Muki(m, label, name, out yaw, out how)) { pend.Add(how); continue; }
+            if (how != null) muki.Add(how);
             Vector2 c = W(F(m, "u0") + F(m, "du") * 0.5f, F(m, "v0") + F(m, "dv") * 0.5f);
             float y;
             if (!Gr.Near(c.x, c.y, 3, out y)) y = EdoBuild.Ground(c.x, c.y);
-            EdoBuild.Place(path, new Vector3(c.x, y, c.y), 0f, Vector3.one, grp, ShadenNameOf(name));
+            EdoBuild.Place(path, new Vector3(c.x, y, c.y), yaw, Vector3.one, grp, ShadenNameOf(name));
             made++;
             sb.AppendLine("  " + name + " → " + ShadenNameOf(name) + " (" + c.x.ToString("F2") + ", " +
-                          c.y.ToString("F2") + ") 地盤 " + y.ToString("F2"));
+                          c.y.ToString("F2") + ") 地盤 " + y.ToString("F2") + " yaw " + yaw.ToString("F1") +
+                          (how == null ? "(正面 " + S(m, "front") + ")" : "(⚠ 向きが未宣言)"));
         }
         // 木階(向拝の階)— `kaidans` の a〜b の中点・地盤レベル。⛔ 石段にしない。
         foreach (var o in L(Doc, "kaidans"))
@@ -1098,9 +1322,123 @@ public static class EdoSannoShaRebuild
             sb.AppendLine("  " + S(k, "name") + " → Kizahashi (" + c.x.ToString("F2") + ", " + c.y.ToString("F2") +
                           ") 地盤 " + F(k, "yBot").ToString("F2"));
         }
+        made += ToriiFromMune(grp, sb, pend);
         if (pend.Count > 0)
-            sb.AppendLine("  ★ 部材が無いので建てなかった(bom「無い/新造」): " + string.Join(" / ", pend.ToArray()));
+            sb.AppendLine("  ★ 建てなかった(部材が無い/宣言が足りない): " + string.Join(" / ", pend.ToArray()));
+        if (muki.Count > 0)
+            sb.AppendLine("  ⚠ **向きが宣言されていない** " + muki.Count + " 件 ── yaw 0 のまま据えた"
+                          + "(⛔ 合格ではない ── 指図に `munes[].front` と部材の `axis.front` が要る): "
+                          + string.Join(" / ", muki.ToArray()));
         return "社殿: " + made + " 棟\n" + sb;
+    }
+
+    /// <summary>棟・鳥居の `partFrom` を**部材のパス**へ解く。⭐ `EdoAssets.Own.…` の呼び名は
+    /// <see cref="EdoAssets.OwnPath"/> が解く(⛔ 実装がフォルダを決め打ちしない ── 鐘楼・鼓楼は
+    /// `Models/Jisha/` に在って `Models/Sanno/` ではない)。⚠ 呼び名でない `partFrom` は**旧い書式**の
+    /// 部材の stem(`Models/Sanno/<stem>.fbx`)── 社殿5棟がこれ。</summary>
+    static string PartFromPath(string partFrom)
+    {
+        if (string.IsNullOrEmpty(partFrom)) return null;
+        if (partFrom.IndexOf("Own.", StringComparison.Ordinal) >= 0) return EdoAssets.OwnPath(partFrom);
+        return P.Shaden(partFrom);
+    }
+
+    /// <summary>**部材の「正面はローカルのどの軸か」の宣言**を引く。
+    /// ① その行自身の `axis.front`(棟・鳥居ごと)→ ② `bom[<label>].axis.front`(門が使っている綴り)。
+    /// ⛔ 無ければ null を返す ── **実装が「+X が正面」と決め打ちしない**。</summary>
+    static string FrontAxisOf(Dictionary<string, object> row, string label)
+    {
+        var ax = D(row, "axis");
+        string f = ax == null ? null : S(ax, "front");
+        if (f != null) return f;
+        var b = label == null ? null : FindBom(label);
+        var bx = b == null ? null : D(b, "axis");
+        return bx == null ? null : S(bx, "front");
+    }
+
+    /// <summary>棟・鳥居の **yaw** を、図の `front`(方位)と部材の `axis.front`(ローカル軸)から出す。
+    /// 返り false = 宣言はあるのに解けない(⇒ 据えない・<paramref name="why"/> が理由)。
+    /// 返り true で <paramref name="why"/> が非 null = **向きが宣言されていない**(⇒ yaw 0 で据えて刷る)。
+    /// ⛔ 向きを発明しない(規則5・EDO-0261 ③)。</summary>
+    static bool Muki(Dictionary<string, object> row, string label, string name, out float yaw, out string why)
+    {
+        yaw = 0f; why = null;
+        string front = S(row, "front");
+        string axf = FrontAxisOf(row, label);
+        if (front == null || axf == null)
+        {
+            why = name + "(" + (front == null ? "図に `front`(正面の方位)が無い"
+                                              : "部材の `axis.front`(正面のローカル軸)が無い") + ")";
+            return true;
+        }
+        if (!EdoBuild.FaceYaw(front, axf, out yaw))
+        { why = name + "(向きが解けない: front=" + front + " / axis.front=" + axf + ")"; return false; }
+        return true;
+    }
+
+    /// <summary>**棟に寄る鳥居**(`torii[].posFrom`)を据える。現物は末社(稲荷社)の前の小鳥居。
+    ///
+    /// <para>⭐ **Stage5(門・鳥居)ではなく此処**で据えるのが要 ── 座が**寄る棟の実メッシュからの
+    /// 従属値**なので、その棟が建った後でなければ測れない(置き方の4手: 固定側=棟を先に置く →
+    /// 可動側=鳥居を実際に触れる所まで寄せる)。群も社殿と同じ(棟を消す巡では一緒に消えるのが正しい)。</para>
+    ///
+    /// <para>⛔ **離れを発明しない。**図は「稲荷社の正面の前」という関係だけを宣言していて、
+    /// 出(離れ)は未決【?】(`sanno_notes/torii.json`)。⇒ `posFrom.clearanceM`
+    /// (棟の正面の実面 → 鳥居の実メッシュの隙[m])が宣言されるまで据えない。
+    /// ⛔ 棟の向きも同じ ── `munes[].front` が無ければ「前」がどちらか決まらない。</para></summary>
+    static int ToriiFromMune(Transform grp, StringBuilder sb, List<string> pend)
+    {
+        int made = 0;
+        foreach (var o in L(Doc, "torii"))
+        {
+            var tr = o as Dictionary<string, object>; if (tr == null) continue;
+            var pf = D(tr, "posFrom"); if (pf == null) continue;      // 座を持つ鳥居は Stage5 の受け持ち
+            string nm = S(tr, "name");
+            string path = PartFromPath(S(tr, "partFrom"));
+            if (path == null || AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+            { pend.Add(nm + "(`torii[].partFrom`『" + S(tr, "partFrom") + "』の部材が引けない)"); continue; }
+            string mn = S(pf, "mune");
+            var mm = FindByName(Doc, "munes", mn);
+            var host = grp == null || mn == null ? null : grp.Find(ShadenNameOf(mn));
+            if (mm == null || host == null)
+            { pend.Add(nm + "(寄る棟『" + mn + "』が建っていない ⇒ 実メッシュを測れない)"); continue; }
+            // ---- ① 寄る棟の正面の向き(= 「前」がどちらか)
+            string front = S(mm, "front");
+            Vector2 dir;
+            if (!EdoBuild.DirVec(front, out dir))
+            { pend.Add(nm + "(寄る棟『" + mn + "』の `front` が無い ⇒ 『前』が決まらない ── ⛔ 向きを発明しない)"); continue; }
+            // ---- ② 鳥居自身の向き ── ⭐ **図は鳥居の `front` を書かない**(「向き=稲荷社に従属」と
+            //   宣言してある)⇒ **寄る棟の `front`** と鳥居の部材の `axis.front` から引く。
+            //   正面は棟と同じ方位(= 参詣者に正対)。⛔ 方位を実装が決め打ちしない。
+            string tax = FrontAxisOf(tr, null);
+            if (tax == null)
+            { pend.Add(nm + "(部材の `axis.front`(正面のローカル軸)が図に無い)"); continue; }
+            float yaw;
+            if (!EdoBuild.FaceYaw(front, tax, out yaw))
+            { pend.Add(nm + "(向きが解けない: 寄る棟の front=" + front + " / axis.front=" + tax + ")"); continue; }
+            // ---- ③ 離れ(⛔ 発明しない)
+            if (!HasNum(pf, "clearanceM"))
+            { pend.Add(nm + "(`torii[].posFrom.clearanceM`(棟の正面の面からの離れ[m])が図に無い)"); continue; }
+            float clr = F(pf, "clearanceM");
+            // ---- ④ 据える: 前方の余地へ置いてから、棟の実メッシュへ**触れている箇所**で寄せる
+            Vector3 hp = host.position;
+            var go = EdoBuild.Place(path, new Vector3(hp.x + dir.x * (clr + 12f), hp.y,
+                                                      hp.z + dir.y * (clr + 12f)),
+                                    yaw, Vector3.one, grp, ToriiNameOf(nm));
+            Vector3 at; int cnt;
+            float mv = EdoBuild.Abut(go, host.gameObject, new Vector3(-dir.x, 0f, -dir.y), clr, out at, out cnt);
+            if (float.IsNaN(mv))
+            { UnityEngine.Object.DestroyImmediate(go); pend.Add(nm + "(棟『" + mn + "』と向き合っていない ⇒ 寄せられない)"); continue; }
+            Vector3 p = go.transform.position;
+            p.y = EdoBuild.Ground(p.x, p.z);           // ピボット = 柱芯の中央・地盤(⛔ SeatBottom しない)
+            go.transform.position = p;
+            made++;
+            sb.AppendLine("  " + nm + " → " + ToriiNameOf(nm) + " (" + p.x.ToString("F2") + ", " +
+                          p.z.ToString("F2") + ") 地盤 " + p.y.ToString("F2") + " yaw " + yaw.ToString("F1") +
+                          " / 『" + mn + "』の正面(" + front + ")の面から 隙 " + clr.ToString("F2") +
+                          "m・当たり " + cnt + " 筋");
+        }
+        return made;
     }
     /// <summary>棟の名 → `bom` の行の名。⭐ 行は「棟の名」そのものか「棟の名(役)」で立っている
     /// (例 `御供所` → `御供所(供の棟)`)。⛔ 部材のパスを実装が持たない。</summary>
@@ -1115,7 +1453,9 @@ public static class EdoSannoShaRebuild
         }
         return null;
     }
-    static string ShadenNameOf(string designName)
+    /// <summary>棟の名 → シーンの名。⭐ **突き合わせ(`EdoSannoShaCheck`)も同じ物差しを使う**
+    /// ⇒ public(⛔ 検査が別の名簿を持たない・規則19)。</summary>
+    public static string ShadenNameOf(string designName)
     {
         if (designName.StartsWith("御供所")) return "Gokusho";
         if (designName.StartsWith("本殿")) return "Honden";

@@ -1,61 +1,199 @@
 {
  "_": "完成条件の表(2026-09-19 施主裁定3=A)。全部 pass で完成。以後の指摘は掲示板へ積み、指図は開かない。値は普請検査の実測、render だけは施主の発話の引用。見張りは python3 Tools/Sashizu/kansei_gate.py",
  "estate": "sanno",
- "phase": "built",
+ "phase": "done",
  "since": "2026-09-20",
  "items": {
   "gap": {
    "label": "隙 0",
    "what": "塀と塀・門と塀・長屋 run の駒どうしの隙・めり込み・裏表(許容 0)",
    "how": "edo-fushin-qa 項目 6(run の格子)・7(裏表)・8(門の取り合い)、JointQA / GateQA",
-   "value": null,
-   "verdict": null,
-   "at": null,
-   "note": ""
+   "value": "木戸(Kido)↔Ita_Keidaiの取り合いを是正(EDO-0399は解消): 外接箱の隙0.822m→頂点間最短0.030m(検出誤差内)。囲い15run・399組の未宣言の隙は引き続き0。宣言済みの口(Sukibei_E/S)4件は許容内",
+   "verdict": "pass",
+   "at": "2026-09-23",
+   "note": "2026-09-23 実測。前回のpass記録は Ita_Keidai の口を『宣言済みで許容内』と誤認したための誤り — 実際は未是正の隙0.822mだった。EdoBuild.OpeningJambs(断面計測)を追加して是正・共通層化"
   },
   "boundary": {
    "label": "境界侵犯 0",
    "what": "棟・塀・木・石が区画 / 庭の区域 / 建物 / 水面 / 道へ入らない",
    "how": "edo-fushin-qa 項目 1(境界)と区域の点検(EdoGeom.PIP)",
-   "value": null,
-   "verdict": null,
-   "at": null,
-   "note": ""
+   "value": "社地 sannosha_prec に対し 全256 run・1,722駒を実メッシュ頂点で判定。⭕ Saku_SW は建て直し後 86駒すべてが社地内(十坊の区画線まで余裕 最短7.11m @parcels_7・十坊 parcels_0 の現物まで9.05m)。前巡の109駒侵入(最深4.06m)は解消。社殿18・門4・男坂53・女坂46・Ita_Keidai 216・Saku_Sando 25 は全点IN。鳥居2基(一ノ145.75m/二ノ)は指図 torii[].parcelOut.accept=true の宣言どおり=受容〔記録・宣言値 145.86 と 0.11m 差〕。SandoKai 5駒+土留め TW_SandoKai 4枚は社地外 最大2.49m だが他区画に入らず _pending『造成が社地の外へ出る(⭕正当)』の射程。旧社叢 Kyu_Shaso/Keidairin(竹40本・最深12.20m→樹下邸)は SetActive(false)=撤去済みにつき対象外",
+   "verdict": "pass",
+   "at": "2026-09-23",
+   "note": "2026-09-23 三巡目。⭐ 前巡は6 run しか測っていない差分だったので、今巡は全256 run へ広げた。新たに見えたのは枝葉の越境のみ: 境内の低木・下層木 916本のうち34株の枝葉が観理院 sannosha_kanri の区画へ 最大0.61m(269頂点)出る — ⭕ 幹(pivot)は916本すべて社地内で社地外0本。施主裁定A(2026-09-21『区域侵犯は壁体で数える・軒は別列』)に倣い侵犯に数えず〔記録〕とした。枝葉でも数えよと定めるなら34株"
   },
   "ground": {
    "label": "埋没・浮き 0",
    "what": "埋 ≤1.0 / 浮 ≤0.7 を超える駒が 0",
    "how": "edo-fushin-qa 項目 2(接地)と GroundQA",
-   "value": null,
-   "verdict": null,
-   "at": null,
-   "note": ""
+   "value": "触れている箇所×描かれた地表で1,722駒。浮き>0.7は0駒。埋没>1.0は237駒、うち228駒は土留めTW_*(copingRise=groundHi・裁定EDO-0182の設計どおり)=〔記録〕。残る実害9駒(女坂の段石7枚Dan_01/02/03/40/41/42/43・最大1.565 Dan_41/社叢の低木2本 帯2_低木0192 1.380・帯3_低木0342 1.044)は〔施主受容 2026-09-23〕。段石は掘割の幅(4〜5m)が段の設計幅6.363mより狭く両端が法面に埋まる=地形解像度2m/pxの限界・側壁TW_Onna_N/Sの裏で不可視。低木2本は山王の崖(勾配約55°)の起伏由来で、据え直すと逆に浮き1.9〜3.4mが出ることを実測済み(据え方では解けない)。現地写真つきで裁定図を提示し施主が受容",
+   "verdict": "pass",
+   "at": "2026-09-23",
+   "note": "裁定図: https://claude.ai/artifact/SA2moLHbvMFCDQxG8pdT43 (山王 勝手口普請・EDO-0398)。直すには段石=造成のやり直し、低木=指図方による植栽位置の変更が要る"
   },
   "match": {
    "label": "突き合わせ 0",
    "what": "指図(意図)と実装の食い違いが 0 件",
    "how": "Unity メニュー Edo/<敷地>/指図と実装を突き合わせる",
-   "value": null,
-   "verdict": null,
-   "at": null,
-   "note": ""
+   "value": "2件(社殿0・門鳥居0・石段0・囲い0・社叢0はいずれも✔)。残る造成の面2件は〔施主受容 2026-09-23〕— 面Keidai(2228点中9点が許容0.30m外・最大-0.42m@(-546.8,835.0))・面Zentei(121点中9点・最大0.74m@(-445.0,842.8))。均す案を2つ試したがどちらも他所を悪化させ(女坂の埋没が悪化/崖に6.66mの盛土)元に戻した。失敗点は全て面の輪郭から0.28m以内。現地写真つきで裁定図を提示し施主が受容",
+   "verdict": "pass",
+   "at": "2026-09-23",
+   "note": "裁定図: https://claude.ai/artifact/SA2moLHbvMFCDQxG8pdT43。解くには地形ツール側の改修が要り別タスク相当"
   },
   "render": {
    "label": "レンダの施主承認",
    "what": "検証レンダ(真上・門の外・庭の目線)を施主が見て承認",
    "how": "施主の発話。⛔ 役は書けない — --quote に引用を入れる",
-   "value": null,
-   "verdict": null,
-   "at": null,
+   "value": "赤坂(本番シーン)で検証レンダ3枚(真上・門の外・庭の目線)。木戸↔Ita_Keidaiの是正(隙0.822m→0.030m・折れ45°→28°)を反映した写真で施主確認。図: https://claude.ai/artifact/SA2moLHbvMFCDQxG8pdT43",
+   "verdict": "pass",
+   "at": "2026-09-23",
    "note": "",
-   "quote": null
+   "quote": "問題なさそうです。"
   }
  },
- "completed": null,
+ "completed": "2026-09-23",
  "history": [
   {
    "at": "2026-09-20T12:09:04+09:00",
    "event": "init"
+  },
+  {
+   "at": "2026-09-22T20:42:48+09:00",
+   "event": "record",
+   "item": "gap",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-22T20:42:49+09:00",
+   "event": "record",
+   "item": "boundary",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-22T20:42:49+09:00",
+   "event": "record",
+   "item": "ground",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-22T20:42:49+09:00",
+   "event": "record",
+   "item": "match",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-22T23:31:00+09:00",
+   "event": "record",
+   "item": "gap",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-22T23:31:00+09:00",
+   "event": "record",
+   "item": "boundary",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-22T23:31:00+09:00",
+   "event": "record",
+   "item": "ground",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-22T23:31:01+09:00",
+   "event": "record",
+   "item": "match",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-23T07:03:14+09:00",
+   "event": "record",
+   "item": "gap",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-23T07:03:25+09:00",
+   "event": "record",
+   "item": "boundary",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-23T07:03:36+09:00",
+   "event": "record",
+   "item": "ground",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-23T07:03:48+09:00",
+   "event": "record",
+   "item": "ground",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-23T07:03:48+09:00",
+   "event": "record",
+   "item": "match",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-23T07:30:08+09:00",
+   "event": "record",
+   "item": "boundary",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-23T07:30:23+09:00",
+   "event": "record",
+   "item": "gap",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-23T07:30:33+09:00",
+   "event": "record",
+   "item": "ground",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-23T07:30:42+09:00",
+   "event": "record",
+   "item": "match",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-23T10:03:33+09:00",
+   "event": "record",
+   "item": "gap",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-23T10:03:50+09:00",
+   "event": "record",
+   "item": "ground",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-23T10:04:10+09:00",
+   "event": "record",
+   "item": "match",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-23T11:43:54+09:00",
+   "event": "record",
+   "item": "render",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-23T12:31:44+09:00",
+   "event": "record",
+   "item": "gap",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-23T12:58:16+09:00",
+   "event": "record",
+   "item": "render",
+   "verdict": "pass"
   }
  ]
 }

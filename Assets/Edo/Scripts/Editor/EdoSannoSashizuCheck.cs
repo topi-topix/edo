@@ -712,22 +712,47 @@ public static class EdoSannoSashizuCheck
                 if (gg == null) continue;
                 for (int i = 0; i < gg.childCount; i++) { gotGo++; gotNames.Add(gg.GetChild(i).name); }
             }
+            // ⭐ 地形の木は**点ごとに**突き合わせる(EDO-0401・2026-09-23)── ⛔ 外接矩形の内を数えない。
+            //   矩形の辺の上の点は正規化座標の往復で外へ落ち(11 本の数え落とし)、余白を足せば隣の敷地の木を拾う。
+            //   焼き出しの点(地形の木・下層)から 5cm 以内に地形の木が在れば「植わっている」と数える。
             int gotTerrain = -1;
             try
             {
                 var ter = EdoBuild.T();
                 var td = ter.terrainData; var tp = ter.transform.position;
-                gotTerrain = 0;
+                const float tol = 0.05f;
+                var cells = new Dictionary<long, List<Vector2>>();
+                Func<float, float, long> key = (x, z) => ((long)Mathf.FloorToInt(x) << 32) ^ (uint)Mathf.FloorToInt(z);
                 foreach (var ti in td.treeInstances)
                 {
                     float wx = tp.x + ti.position.x * td.size.x, wz = tp.z + ti.position.z * td.size.z;
-                    if (wx >= mnx && wx <= mxx && wz >= mnz && wz <= mxz) gotTerrain++;
+                    if (wx < mnx - 1f || wx > mxx + 1f || wz < mnz - 1f || wz > mxz + 1f) continue;
+                    long k = key(wx, wz); List<Vector2> l;
+                    if (!cells.TryGetValue(k, out l)) cells[k] = l = new List<Vector2>();
+                    l.Add(new Vector2(wx, wz));
+                }
+                gotTerrain = 0;
+                foreach (var o in pts)
+                {
+                    var p = o as Dictionary<string, object>; if (p == null) continue;
+                    if (Str(p, "place") == "GameObject") continue;
+                    var w = A(p, "world"); if (w == null || w.Length < 2) continue;
+                    bool hit = false;
+                    for (int dx = -1; dx <= 1 && !hit; dx++)
+                        for (int dz = -1; dz <= 1 && !hit; dz++)
+                        {
+                            List<Vector2> l;
+                            if (!cells.TryGetValue(key(w[0] + dx, w[1] + dz), out l)) continue;
+                            foreach (var c in l)
+                                if ((c - new Vector2(w[0], w[1])).sqrMagnitude <= tol * tol) { hit = true; break; }
+                        }
+                    if (hit) gotTerrain++;
                 }
             }
             catch (Exception) { }
             head.AppendLine("  社叢の実測: 焼き出し " + pts.Count + " 点(地形の木 " + wantTree + " / 下層 " +
                             wantDetail + " / 名指し " + namedWant.Count + ")対 実装 GameObject " + gotGo +
-                            " 本" + (gotTerrain < 0 ? "" : " + 地形の木 " + gotTerrain + " 本(焼き出しの外接矩形の内)"));
+                            " 本" + (gotTerrain < 0 ? "" : " + 地形の木 " + gotTerrain + " 本(焼き出しの点から 5cm 以内に植わっている数)"));
             if (wantTree + wantDetail != gotGo + Mathf.Max(0, gotTerrain))
                 bad("社叢", "社叢の木の数が違う(焼き出し " + (wantTree + wantDetail) + " 本 / 実装 " +
                     (gotGo + Mathf.Max(0, gotTerrain)) + " 本)");

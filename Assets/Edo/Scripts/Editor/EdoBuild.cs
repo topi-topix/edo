@@ -130,6 +130,9 @@ public static partial class EdoBuild
         //    ⚠ 部分文字列の篩なので同じ型は他にも起きうる(Enoki / Mukunoki の "noki")。駒を焼いたら壁体の頂点が
         //    0 でないことを確かめる。
         if (n.Contains("munewari")) return false;
+        // ⛔ 木の部材(`Tree_<族>_…`)は屋根ではない ── LOD の子を `Tree_Enoki_Big_LOD0` と名乗らせた(904a6744)途端、
+        //    Enoki / Mukunoki の "noki" で全メッシュが屋根扱いになり、SeatPlant・Contact が NaN を返した(EDO-0401 実測)。
+        if (n.StartsWith("tree_")) return false;
         return n.Contains("yane") || n.Contains("noki") || n.Contains("taruki") || n.Contains("mune") || n.Contains("keta");
     }
 

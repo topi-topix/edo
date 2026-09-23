@@ -4603,6 +4603,8 @@
    "seed": "帯・区の名 + '/' + 層の名",
    "yaw": "seeded random",
    "packRatio": 0.7,
+   "crossLayerTrunkMinM": 1.0,
+   "crossLayerTrunkMinRule": "**層の違う木(高木=松・落葉 / 中木 / 低木)の幹の芯どうしの下限**[m]。硬い制約(許容0・緩めない)── 樹冠は重なってよいが、幹は別の株に見える離れを空ける(高木の幹 約0.6m → 中木と樹皮の間 約0.6m・根締めに収まる)。撒く散布と前庭の帯の格子の低木の両方に効き、焼いた点の全部で数える。確度 U(庭方 2026-09-23 EDO-0420 の設計値・史料の寸法ではない)",
    "keepoutFrom": {
     "境内の立木3区": "planting.clearance.keidai",
     "前庭": "planting.clearance.zentei",

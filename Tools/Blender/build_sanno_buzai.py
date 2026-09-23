@@ -5,6 +5,10 @@
     blender --background --python Tools/Blender/build_sanno_buzai.py -- dan --only=男坂 [--render]   # 1本だけ焼く
     blender --background --python Tools/Blender/build_sanno_buzai.py -- dan  <蹴上> <踏面> <幅m> [--render]
     blender --background --python Tools/Blender/build_sanno_buzai.py -- saku <スパンm> [--render]
+    blender --background --python Tools/Blender/build_sanno_buzai.py -- sode [--only=男坂] [--render]   # 石段の袖
+    blender --background --python Tools/Blender/build_sanno_buzai.py -- sode <蹴上> <踏面> [--render]
+    blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_miter_list <一覧> [0.300 1.199 6.363] --render
+        # 女坂の折れで袖の両端を留めに切る。一覧の各行 `段番号 a|b F±hF B±hB`(据え手の実測 2026-09-23)
     blender --background --python Tools/Blender/build_sanno_buzai.py -- audit     # 既存部材の左右の別を検算
     blender --background --python Tools/Blender/build_sanno_buzai.py -- mitsuke   # 焼いた柵の FBX から見付けを実測
 
@@ -38,9 +42,11 @@
   ⚠ 目地が段ごとに一直線に立つのを避けるため **variant a / b の2種**を出す。
     据える側で **i%2** に振ること(⛔ 片方だけを53段並べない)。
 
-【材】`M_FJG_Rock_001`(Waldemarst FreeJapaneseGarden)。⛔ 新規マテリアルを作らない —
-  `Own.Ishibashi`(切石橋)・`Own.Tateishi`・`Own.Hiraishi` と同じ**加工石**の材で、
-  作り方(箱+1〜2cm の面取り・上面は完全な平面)も `build_hiraishi.gen_ishibashi` に倣う。
+【材】`Danishi`(`Assets/Edo/Materials/Sanno/Danishi.mat`・Kirishi と同じテクスチャで灰 0.936)。
+  ⛔ 2026-09-23 まで `M_FJG_Rock_001`(苔むした暗い写真計測岩)で焼いていて「石段が黒ずむ」と
+  施主に指摘された(EDO-0415)。Danishi は 09-14 に起こしてあったのに FBX から名指されていなかった。
+  UV はタイル 1.05m(面ごとに位相だけずらす)。作り方(箱+1〜2cm の面取り・上面は完全な平面)は
+  `build_hiraishi.gen_ishibashi` に倣う。**袖(`sode`)も同じ材・同じ切石**(下の 1b 節)。
   ⛔ 汐見坂の `M_ShiomizakaIshi` は `Assets/Edo/Models/Shiomizaka` にあり、
      remap の借り先ディレクトリに入っていない(名前を名乗っても当たらない)。
 
@@ -113,6 +119,15 @@ SASHIZU = os.path.join(V.REPO, "docs", "Sashizu", "sanno_sashizu.json")
 
 # ---- 段石: 作りの値【U 指図に無い。据わりのための胴と差し込み】--------------------
 LAP = 0.10          # 上の段の下へ潜る差し込み(走り方向・上手側)
+# ⭐ 段ごとに折れ線の向きで据える石段は、折れの外端に楔が開く(外端で w/2·sin Δ)。差し込みをそれより長くする。
+#   値は (蹴上, 踏面, 幅) → (差し込み, 差し込みの天端の下げ)。⚠ 女坂の最大の折れ 4.43°(据え手の実測 2026-09-23)で
+#   楔 6.363/2·sin4.43° = 0.246 ⇒ 0.35。下げ 0.005 は一番上の段の差し込みが上の平場と同じ高さで重なる z ファイト除け
+#   (踏面の後ろの線 = 踏面/2 から先だけを下げる。見える踏面は水平のまま)。折れの無い男坂・参道の階は既定のまま。
+LAP_BY = {(0.300, 1.199, 6.363): (0.35, 0.005)}
+
+
+def lap_of(keri, fumi, w):
+    return LAP_BY.get((round(keri, 3), round(fumi, 3), round(w, 3)), (LAP, 0.0))
 BODY = 0.18         # 蹴上の下へ続く地中の胴(⛔ 0 にすると段の下から地面が透ける)
 CHAMFER = 0.015     # 稜の面取り。加工石なので 1〜2cm(`build_hiraishi.gen_ishibashi` と同じ幅)
 STONE_W = 1.15      # 石1枚の目安の幅[m]。幅をこの前後で等分する
@@ -264,7 +279,7 @@ def _cuts(w, variant):
     return [-w / 2.0] + [base[i] + jit[i] for i in range(n)] + [w / 2.0]
 
 
-def _stone(x0, x1, y0, y1, z0, z1, mat, rng, name, chamfer=None, tile=None):
+def _stone(x0, x1, y0, y1, z0, z1, mat, rng, name, chamfer=None, tile=None, tile_jit=False):
     """切石1枚。箱 + 全稜 `chamfer`(既定 `CHAMFER`)の面取り。⛔ 自然石の割れ肌ノイズは掛けない(加工石)。
     ⛔ 天端(踏面)は完全な平面のまま残す — 歩く面なので撫でない。"""
     bm = bmesh.new()
@@ -312,8 +327,11 @@ def _stone(x0, x1, y0, y1, z0, z1, mat, rng, name, chamfer=None, tile=None):
             # ⭐ **タイル貼り**(`Kirishi` のような継ぎ目の無い1枚もの)。⛔ アトラスの矩形へ
             #   押し込めない — 押し込めると面の実寸に関係なく1枚が伸縮して、
             #   0.30m の段石と 1.05m の帯で**粒の大きさが変わる**(叩き肌に見えなくなる)。
+            # `tile_jit` … 面ごとに位相をずらす(⛔ 伸縮はしない)。切石は面ごとに別々に叩いた肌なので、
+            #   隣の石・稜で柄が続かないほうが正しい(段石・袖石垣。基壇の既存の焼きは変えない)。
+            du, dv = (rng.random(), rng.random()) if tile_jit else (0.0, 0.0)
             for loop, (a, b) in zip(f.loops, raw):
-                loop[uvl].uv = (a, b)
+                loop[uvl].uv = (a + du, b + dv)
             continue
         u0 = min(q[0] for q in raw); u1 = max(q[0] for q in raw)
         v0 = min(q[1] for q in raw); v1 = max(q[1] for q in raw)
@@ -340,6 +358,11 @@ KIRISHI = "Kirishi"          # ⚠ Unity 側 `Assets/Edo/Materials/Sanno/Kirishi
 KIRISHI_TILE = 0.44          # 1枚が受け持つ実寸[m]。⛔ 面ごとに伸縮させない(タイル貼り)。
                              # ⛔ 段の丈 0.30 と同じにしない(繰り返しが目地と揃って縞になる)
 KIRISHI_DIR = os.path.join(V.REPO, "Assets", "Edo", "Materials", "Sanno")
+DANISHI = "Danishi"          # ⚠ Unity 側 `Assets/Edo/Materials/Sanno/Danishi.mat`(`Own.MSannoDanishi`)。
+                             #   Kirishi と同じテクスチャで `_BaseColor` 0.936(H36/S11.2/V49.0)
+DANISHI_TINT = 0.936         # 検証レンダ用に .mat の灰を写しただけ(FBX には行かない)
+DANISHI_TILE = 1.05          # ⛔ 0.44 を段石・袖に流用しない — normal の 2×2 の継ぎ目が 0.22m ごとに立ち
+                             #   小口積みに見える(鳥居・縁石と同じ判断。memory kirishi-tile-and-shu-material)
 
 
 def kirishi_material():
@@ -355,10 +378,17 @@ def kirishi_material():
       2026-09-09 に「淡灰・平滑の貼れる材は在庫に無い」と判定した記録もそこにある)。
     ⭕ **Blender 側でも実テクスチャを結ぶ** — `M_FJG_Rock_001` のように名前だけの入れ物に
       すると検証レンダで**真っ白**に焼け、「明るくなった」と誤読する(2026-09-09 の轍)。"""
-    m = bpy.data.materials.get(KIRISHI)
+    return _cut_stone_material(KIRISHI, 1.0)
+
+
+def _cut_stone_material(mname, tint):
+    """`Kirishi` と `Danishi` の共通の作り。**Unity 側の .mat と同名の入れ物**に、検証レンダ用の
+    実テクスチャ(T_Kirishi_*)を結ぶ。`tint` は Unity 側 `_BaseColor` の灰(Danishi 0.936)。
+    ⛔ FBX が運ぶのは材質名だけ — ノードも tint も Unity には行かない(色の正は .mat)。"""
+    m = bpy.data.materials.get(mname)
     if m:
         return m
-    m = bpy.data.materials.new(KIRISHI)
+    m = bpy.data.materials.new(mname)
     m.use_nodes = True
     nt = m.node_tree
     b = next((n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED'), None)
@@ -372,7 +402,16 @@ def kirishi_material():
         ai = nt.nodes.new('ShaderNodeTexImage')
         ai.image = bpy.data.images.load(alb, check_existing=True)
         ai.location = (-500, 300)
-        nt.links.new(ai.outputs['Color'], b.inputs['Base Color'])
+        if abs(tint - 1.0) < 1e-9:
+            nt.links.new(ai.outputs['Color'], b.inputs['Base Color'])
+        else:
+            mx = nt.nodes.new('ShaderNodeMixRGB')
+            mx.blend_type = 'MULTIPLY'
+            mx.inputs['Fac'].default_value = 1.0
+            mx.inputs['Color2'].default_value = (tint, tint, tint, 1.0)
+            mx.location = (-260, 300)
+            nt.links.new(ai.outputs['Color'], mx.inputs['Color1'])
+            nt.links.new(mx.outputs['Color'], b.inputs['Base Color'])
     nrm = os.path.join(KIRISHI_DIR, "T_Kirishi_Normal.png")
     if os.path.exists(nrm):
         ni = nt.nodes.new('ShaderNodeTexImage')
@@ -389,19 +428,38 @@ def kirishi_material():
     return m
 
 
+def danishi_material():
+    """**段石・石段の袖の材**。⛔ `M_FJG_Rock_001`(苔むした暗い写真計測岩)を段石に貼らない
+    (2026-09-23 施主「石段が黒ずんでいる」EDO-0415)。材は 2026-09-14 に起こしてあったのに
+    どの FBX からも名指されておらず結線が切れていた。"""
+    return _cut_stone_material(DANISHI, DANISHI_TINT)
+
+
 def dan(keri, fumi, w, variant="a", name=None):
     """段石1段。Blender: x=幅 / y=走り(+y が坂上)/ z=高さ(0 = 踏面)。
     ⇒ Unity: X=幅 / Y=高さ(0 = 踏面)/ **+Z = 坂下 = 蹴上の見え面**。"""
     name = name or dan_name(keri, fumi, w, variant)
-    mat = BT._borrow_rock_material()
+    mat = danishi_material()
     rng = rng_of("dan", "%.3f" % keri, "%.3f" % fumi, "%.3f" % w, variant)
     cuts = _cuts(w, variant)
+    lap, drop = lap_of(keri, fumi, w)
     objs = []
     for i in range(len(cuts) - 1):
         # ⚠ 上手(+y)へ LAP 潜らせる / 下へ BODY 垂らす。どちらも隣の段に隠れる
         objs.append(_stone(cuts[i], cuts[i + 1],
-                           -fumi / 2.0, fumi / 2.0 + LAP,
-                           -(keri + BODY), 0.0, mat, rng, "%s_s%d" % (name, i)))
+                           -fumi / 2.0, fumi / 2.0 + lap,
+                           -(keri + BODY), 0.0, mat, rng, "%s_s%d" % (name, i),
+                           tile=DANISHI_TILE, tile_jit=True))
+    if drop > 0.0:
+        for so in objs:
+            bm = bmesh.new(); bm.from_mesh(so.data)
+            # 踏面の後ろの線(y = 踏面/2)に辺の輪を入れ、その先の天端側の頂点だけを drop 下げる
+            bmesh.ops.bisect_plane(bm, geom=list(bm.verts) + list(bm.edges) + list(bm.faces),
+                                   plane_co=(0.0, fumi / 2.0, 0.0), plane_no=(0.0, 1.0, 0.0))
+            for v in bm.verts:
+                if v.co.y > fumi / 2.0 + 1e-6 and v.co.z > -CHAMFER - 1e-4:
+                    v.co.z -= drop
+            bm.to_mesh(so.data); bm.free(); so.data.update()
     V.dedup_materials()
     o = V.join(objs, name)
     V.set_origin(o, (0.0, 0.0, 0.0))
@@ -422,17 +480,185 @@ def dan_check(o, keri, fumi, w):
     ok.append(("踏面がピボットの高さ(Y最大=0)", abs(max(ys)) < 1e-4, "Ymax=%.4f" % max(ys)))
     ok.append(("蹴上の面が +Z(見え面)", abs(max(zs) - fumi / 2.0) < 1e-3,
                "Zmax=%.4f 期待 %.4f" % (max(zs), fumi / 2.0)))
-    ok.append(("上手の差し込みが −Z", abs(min(zs) + (fumi / 2.0 + LAP)) < 1e-3,
+    lap, drop = lap_of(keri, fumi, w)
+    ok.append(("上手の差し込みが −Z", abs(min(zs) + (fumi / 2.0 + lap)) < 1e-3,
                "Zmin=%.4f" % min(zs)))
     ok.append(("幅が指図どおり", abs((max(xs) - min(xs)) - w) < 1e-3,
                "W=%.4f 期待 %.4f" % (max(xs) - min(xs), w)))
     ok.append(("躯体が蹴上+胴ぶん垂れている", abs(min(ys) + (keri + BODY)) < 1e-3,
                "Ymin=%.4f" % min(ys)))
+    back = [t for t in uv if t[2] > -fumi / 2.0 + 1e-6]           # 見える踏面(Z ≥ −踏面/2)
+    ok.append(("見える踏面は水平のまま(Y最大=0 は Z ≥ −踏面/2 の側)", abs(max(t[1] for t in back)) < 1e-4, ""))
+    lapv = [t[1] for t in uv if t[2] < -fumi / 2.0 - CHAMFER - 1e-4]
+    if drop > 0.0:
+        ok.append(("差し込みの天端が %.3f 下がっている" % drop,
+                   bool(lapv) and abs(max(lapv) + drop) < 1e-4, "%.4f" % max(lapv)))
+    mats = [m.name for m in o.data.materials]
+    ok.append(("材が Danishi だけ(M_FJG_Rock_001 でない)", mats == [DANISHI], str(mats)))
     bad = [t for t in ok if not t[1]]
     for (label, good, note) in ok:
         print("      %s %s %s" % ("⭕" if good else "⛔", label, note))
     if bad:
         raise SystemExit("[sanno] ⛔ 段石の検算が落ちた: %s" % ", ".join(t[0] for t in bad))
+
+
+# ================================================================ 1b. 石段の袖(袖石垣)
+# 【意匠 — U 部材方 2026-09-23 EDO-0415。史料は袖の作りを言わない】
+#   ・段石と**同じ材 `Danishi`・同じ切石**(箱+面取り・叩き肌)。⛔ 城の野面・打込接ぎに見せない。
+#   ・**切石の斜め布積み** — 積みの目地(横目地)は**石段の勾配に平行**。⇒ 1段ぶんの駒を段ごとに
+#     並べると、天端の笠石(耳石)も横目地も**継ぎ目なしの一直線の斜め**になる(⛔ 段々にしない)。
+#     ⚠ 横目地を水平にすると、駒が段ごとに蹴上ぶん上がるので目地が蹴上ごとに食い違う ⇒ 採らない。
+#   ・竪目地は鉛直。段ごとの駒の継ぎ目にそのまま目地を立てると**芋目地**(縦に一直線)になるので、
+#     **2段で一周期の a/b** に割り、段の境と目地をずらす(段石と同じ i%2 の振り分け)。
+#     目地の無い段の境は面を取らない(隣の駒の面と面一で繋がり、1本の長い石に見える)。
+#   ・左右対称(X について鏡像)⇒ **左右とも同じ FBX**。鏡像の2種は要らない。
+SODE_T = 0.60        # 袖の厚み(X)= 笠石の幅。2尺【U】
+SODE_HT = 0.30       # 笠石の天端 − 段鼻の線(鉛直)。1尺【U】
+SODE_CT = 0.24       # 笠石の丈(鉛直)【U】
+SODE_MITSUKE = 1.74  # 外の地盤から天端までの最大(指図 terraceWalls の実測。EDO-0415)
+SODE_NE = 0.46       # 根入れ ⇒ 天端から躯体の下端まで 2.20 一定(地盤は斜面なので深めに垂らす)【U】
+SODE_DEPTH = SODE_MITSUKE + SODE_NE
+SODE_COURSE = 0.40   # 積み石の丈の目安(鉛直)【U】
+SODE_STONE_L = 1.10  # 積み石の長さの目安【U】
+SODE_KASA_L = 1.30   # 笠石の長さの目安【U】
+SODE_CHAMFER = 0.02  # 目地の面取り(段石の 0.015 より一段大きく — 壁は引きで見るので目地を読ませる)
+
+
+def sode_name(keri, fumi, variant):
+    return "IshidanSode_%.3f_%.3f_%s" % (keri, fumi, variant)
+
+
+def _sode_joints(P, target, off_frac):
+    """一周期 P(= 踏面×2)の中の竪目地の位置。"""
+    m = max(1, int(round(P / target)))
+    step = P / m
+    return [((off_frac * step) + t * step) % P for t in range(m)], m
+
+
+def _on_joint(s, joints, P, eps=1e-6):
+    s = s % P
+    return any(abs(s - j) < eps or abs(abs(s - j) - P) < eps for j in joints)
+
+
+def _sode_stone(ya, yb, v0, v1, cham_a, cham_b, keri, fumi, mat, uvkey, s0, name):
+    """袖の石1枚。Blender: x=厚み(±SODE_T/2)/ y=走り(+y 坂上)/ z=高さ。
+    まず (x, y, 天端の線からの鉛直の下がり) の箱で面を取り、そのあと**鉛直に剪断**して勾配へ載せる
+    (z += HT + (y + 踏面/2)·蹴上/踏面)。⇒ 竪目地・側面は平面のまま、横目地と天端が勾配に平行。
+    cham_a / cham_b … 走りの端(ya / yb)が目地か。目地でない端の4辺は面を取らない。"""
+    T = SODE_T
+    bm = bmesh.new()
+    res = bmesh.ops.create_cube(bm, size=1.0)
+    vs = res["verts"]
+    bmesh.ops.scale(bm, verts=vs, vec=(T, yb - ya, v0 - v1))
+    bmesh.ops.translate(bm, verts=vs, vec=(0.0, (ya + yb) / 2.0, -(v0 + v1) / 2.0))
+    eps = 1e-6
+    keep = []
+    for e in bm.edges:
+        a, b = e.verts[0].co, e.verts[1].co
+        on_a = abs(a.y - ya) < eps and abs(b.y - ya) < eps
+        on_b = abs(a.y - yb) < eps and abs(b.y - yb) < eps
+        if (on_a and not cham_a) or (on_b and not cham_b):
+            continue
+        keep.append(e)
+    try:
+        bmesh.ops.bevel(bm, geom=keep, offset=SODE_CHAMFER, offset_type='OFFSET',
+                        segments=1, profile=0.5, affect='EDGES', clamp_overlap=True)
+    except Exception as ex:
+        print("[sanno] 面取りを飛ばした: %s" % ex)
+    # ⚠ UV は**剪断の前**に、駒をまたいで連続する座標で貼る — 走りは周期座標 s(= y + s0 + 踏面/2)、
+    #   高さは天端の線からの下がり。⛔ 駒ごとの局所座標や面ごとの乱数で貼ると、目地の無い段の境で
+    #   柄が切れて**細い偽の目地**が立つ(2026-09-23 近景で実見)。位相のずらしは石ごと・面の向きごと
+    #   (`uvkey` = 段・周期の中の石の番号)⇒ 段の境をまたぐ1本の石は両側の駒で同じ柄になる。
+    BT.ensure_outward(bm)
+    bm.normal_update()
+    uvl = bm.loops.layers.uv.new("UVMap")
+    for f in bm.faces:
+        n = f.normal
+        ax = max(range(3), key=lambda k: abs(n[k]))
+        r = rng_of("sode-uv", uvkey, ax, n[ax] > 0)
+        du, dv = r.random(), r.random()
+        for loop in f.loops:
+            co = loop.vert.co
+            sy = co.y + s0 + fumi / 2.0
+            a, b = (co.x, sy) if ax == 2 else ((co.x, co.z) if ax == 1 else (sy, co.z))
+            loop[uvl].uv = (a / DANISHI_TILE + du, b / DANISHI_TILE + dv)
+    sl = keri / fumi
+    for v in bm.verts:
+        v.co.z += SODE_HT + (v.co.y + fumi / 2.0) * sl
+    bm.normal_update()
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me); bm.free(); me.update()
+    me.materials.append(mat)
+    o = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(o)
+    return o
+
+
+def sode(keri, fumi, variant="a", name=None):
+    """石段の袖の**1段ぶんの駒**。段石 `dan(keri, fumi, …)` の段 i に i%2 で a/b を合わせる。
+    Unity: X=厚み(±0.30)/ Y=高さ / **+Z = 坂下**。ピボット = **段 i の段石と同じ点**
+    (走りの中心・その段の踏面の高さ)の、**袖の厚みの中心**。
+    天端 Y = HT + (踏面/2 − Z)·蹴上/踏面(Z=+踏面/2 が段 i の段鼻の真横)。"""
+    name = name or sode_name(keri, fumi, variant)
+    mat = danishi_material()
+    f = fumi
+    P = 2.0 * f
+    s0 = 0.0 if variant == "a" else f          # 周期の中での、この駒の坂下の端
+    # 段(鉛直の下がり): 0 = 天端の線
+    n = max(1, int(round((SODE_DEPTH - SODE_CT) / SODE_COURSE)))
+    ch = (SODE_DEPTH - SODE_CT) / n
+    courses = [(0.0, SODE_CT, SODE_KASA_L, 0.25)]
+    for c in range(n):
+        courses.append((SODE_CT + c * ch, SODE_CT + (c + 1) * ch, SODE_STONE_L,
+                        0.0 if c % 2 == 0 else 0.5))
+    objs = []
+    for ci, (v0, v1, L, off) in enumerate(courses):
+        joints, m = _sode_joints(P, L, off)
+        step = P / m
+        cuts = sorted(set([s0, s0 + f] + [j for j in joints if s0 + 1e-6 < j < s0 + f - 1e-6]))
+        for pi in range(len(cuts) - 1):
+            sa, sb = cuts[pi], cuts[pi + 1]
+            # 周期座標 s → Blender y(坂下の端 = −f/2)
+            ya, yb = sa - s0 - f / 2.0, sb - s0 - f / 2.0
+            sid = int((((sa + sb) / 2.0 - joints[0]) % P) // step)   # 周期の中の石の番号
+            uvkey = "%.3f|%.3f|%d|%d" % (keri, fumi, ci, sid)
+            objs.append(_sode_stone(ya, yb, v0, v1,
+                                    _on_joint(sa, joints, P), _on_joint(sb, joints, P),
+                                    keri, fumi, mat, uvkey, s0, "%s_c%d_%d" % (name, ci, pi)))
+    V.dedup_materials()
+    o = V.join(objs, name)
+    V.set_origin(o, (0.0, 0.0, 0.0))
+    return o, name
+
+
+def sode_check(o, keri, fumi):
+    """⭕ 焼いた直後の自動検算(期待値は設計の定数と引数から。形は頂点から測る)。"""
+    ok = []
+    uv = unity_verts(o)
+    xs = [t[0] for t in uv]; ys = [t[1] for t in uv]; zs = [t[2] for t in uv]
+    T = SODE_T
+    ok.append(("左右対称(左右の袖が同じ FBX で済む)", check_mirror_x(o), ""))
+    ok.append(("側面が X=±T/2 の平面(接する面)", abs(max(xs) - T / 2) < 1e-4 and abs(min(xs) + T / 2) < 1e-4,
+               "X %.4f..%.4f" % (min(xs), max(xs))))
+    nface = sum(1 for t in uv if abs(abs(t[0]) - T / 2) < 1e-5)
+    ok.append(("側面の平面に頂点が乗っている", nface >= 8, "%d 点" % nface))
+    ok.append(("走りが Z ±踏面/2(段石の踏面と同じ区間)",
+               abs(max(zs) - fumi / 2) < 1e-4 and abs(min(zs) + fumi / 2) < 1e-4,
+               "Z %.4f..%.4f" % (min(zs), max(zs))))
+    top = lambda z: SODE_HT + (fumi / 2.0 - z) * keri / fumi
+    over = max(t[1] - top(t[2]) for t in uv)
+    ok.append(("天端が段鼻の線 +HT の斜めの一直線を越えない", over < 1e-4, "超過 %.5f" % over))
+    tops = [t for t in uv if abs(t[1] - top(t[2])) < 1e-5 and abs(t[0]) < T / 2 - 0.01]
+    ok.append(("天端の線上に頂点がある(笠石の天端がその線)", len(tops) >= 4, "%d 点" % len(tops)))
+    under = min(t[1] - (top(t[2]) - SODE_DEPTH) for t in uv)
+    ok.append(("下端が天端 −%.2f の平行線" % SODE_DEPTH, abs(under) < 1e-4, "%.5f" % under))
+    mats = [m.name for m in o.data.materials]
+    ok.append(("材が Danishi だけ", mats == [DANISHI], str(mats)))
+    for (label, good, note) in ok:
+        print("      %s %s %s" % ("⭕" if good else "⛔", label, note))
+    bad = [t for t in ok if not t[1]]
+    if bad:
+        raise SystemExit("[sanno] ⛔ 袖の検算が落ちた: %s" % ", ".join(t[0] for t in bad))
 
 
 # ================================================================ 2. 腰高柵
@@ -790,6 +1016,320 @@ def build_dan_set(specs, do_render):
             print("[sanno] 書き出し " + os.path.join(OUT_DAN, name + ".fbx"))
 
 
+def shots_sode(keri, fumi, w, key, nstep=8):
+    """段石 nstep 段 + 両側の袖を組んで刷る(⛔ 単体だけでは天端の通りも取り合いも読めない)。
+    地面(z=0)は検証の文脈だけ — 書き出さない。"""
+    V.reset()
+    T = SODE_T
+    for i in range(nstep):
+        v = "ab"[i % 2]
+        oo, _ = dan(keri, fumi, w, v, name="d%d" % i)
+        oo.data.transform(Matrix.Translation((0, i * fumi, (i + 1) * keri))); oo.data.update()
+        for sx in (-1, 1):
+            ss, _ = sode(keri, fumi, v, name="s%d_%d" % (i, sx))
+            ss.data.transform(Matrix.Translation((sx * (w / 2.0 + T / 2.0), i * fumi, (i + 1) * keri)))
+            ss.data.update()
+    V.dedup_materials()
+    bpy.ops.mesh.primitive_plane_add(size=1.0, location=(0, nstep * fumi * 0.5 - 2.0, 0.0))
+    g = bpy.context.active_object
+    g.scale = (w + 12.0, nstep * fumi + 12.0, 1.0)
+    gm = bpy.data.materials.new("render_ground"); gm.use_nodes = True
+    gb = next(n for n in gm.node_tree.nodes if n.type == 'BSDF_PRINCIPLED')
+    gb.inputs['Base Color'].default_value = (0.20, 0.17, 0.12, 1.0)
+    g.data.materials.append(gm)
+    os.makedirs(SHOT, exist_ok=True)
+    L = nstep * fumi
+    H = nstep * keri
+    out = []
+    shots = [
+        ("3d", (w * 0.95, -5.5 - L * 0.2, H * 0.6 + 3.2), (0.0, L * 0.45, H * 0.45), None),
+        ("side", (w / 2.0 + T + 14.0, L * 0.5, H * 0.5 + 0.6), (w / 2.0, L * 0.5, H * 0.5 + 0.2),
+         max(L, H) * 1.35),
+        ("near", (w / 2.0 - 1.6, -0.9, keri * 2 + 1.55), (w / 2.0 + 0.1, fumi * 2.2, keri * 3 + 0.2), None),
+        ("magenta", (w * 0.95, -5.5 - L * 0.2, H * 0.6 + 3.2), (0.0, L * 0.45, H * 0.45), None),
+    ]
+    for (tag, cam, at, orth) in shots:
+        V.studio(cam, at, ortho_scale=orth, res=(1600, 1100))
+        if tag == "magenta":
+            bpy.context.scene.world.node_tree.nodes["Background"].inputs[0].default_value = (1, 0, 1, 1)
+            g.hide_render = True
+        else:
+            g.hide_render = False
+        _hook_cut_stone()
+        pth = os.path.join(SHOT, "sanno_sode_%s_%s.png" % (key, tag))
+        V.render(pth); out.append(pth)
+    return out
+
+
+def _hook_cut_stone():
+    """FBX 由来でない自前の材なので Alpha は 1 のまま。念のため不透明を強制するだけ。"""
+    for m in bpy.data.materials:
+        if m.name.split('.')[0] in (DANISHI, KIRISHI) and m.use_nodes:
+            b = next((n for n in m.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None)
+            if b:
+                b.inputs['Alpha'].default_value = 1.0
+
+
+def build_sode_set(specs, do_render):
+    for (label, keri, fumi, w) in specs:
+        for variant in ("a", "b"):
+            V.reset()
+            o, name = sode(keri, fumi, variant)
+            report(o, name, "← %s の袖" % label)
+            sode_check(o, keri, fumi)
+            V.export_fbx([o], os.path.join(OUT_DAN, name + ".fbx"))
+            print("[sanno] 書き出し " + os.path.join(OUT_DAN, name + ".fbx"))
+        if do_render:
+            for pth in shots_sode(keri, fumi, w, label_key(label)):
+                print("[sanno] 検証レンダ " + pth)
+
+
+# ---------------------------------------------------------------- 1c. 平面で折れる石段の袖の留め(EDO-0415)
+# 女坂のように段石を段ごとに折れ線の向きで据えると、折れ点で袖の外に口・内に重なりが出る(剛体では閉じない)。
+# ⇒ 平らな駒(`sode`)と**同じ局所座標・同じピボット**のまま、端を鉛直な留めの面で切り直す。
+#   ・段石は段の境を結ぶ**弦**で据える(`EdoSannoShaRebuild.Stage2_Kaidan`)ので、一つの折れ点は前後二つの継ぎ目に
+#     分かれ、折れ点を含む段の駒は**両端**を切る ⇒ 坂下の端 F(Unity Z = +f/2)を hF°・坂上の端 B(Z = −f/2)を hB°。
+#   ・切りの軸 = 鉛直線 (Unity X = xc, Z = 端)。xc = 石段の芯 = −SODE_T/2 − w/2(袖を段石の +X 側に置いた向き)。
+#   ・角 h(符号つき)= その継ぎ目の折れ角/2。端の位置が (X − xc)·tan h だけ**駒の外へ**動く(+ = 伸び / − = 縮み)。0 = 動かさない。
+#   ・動かすのは**端の面とその面取りの輪の頂点だけ**(端から SODE_CHAMFER 以内)。高さは動かさない(天端は芯の高さで据え置き)。
+#   ・駒は +X 側用だけ。−X 側は据え手が localScale.x = −1 の鏡で置く(据え手の決め)。
+#   ⛔ 角は据え手の一覧の値をそのまま使う(丸め直さない — 綴りが Unity 側 `Own.IshidanSodeMiter` の F2 と一致する)。
+def _sgn_h(h):
+    return ("+" if h >= 0 else "-") + ("%.2f" % abs(h))
+
+
+def sode_miter_name(keri, fumi, w, hF, hB, variant):
+    return "IshidanSodeMiter_%.3f_%.3f_%.3f_F%s_B%s_%s" % (keri, fumi, w, _sgn_h(hF), _sgn_h(hB), variant)
+
+
+def _miter_end(o, w, fumi, end, h):
+    """o の端 end('F' / 'B')を角 h[°] で切る。動かした頂点数を返す。"""
+    if abs(h) < 1e-12:
+        return 0
+    xc = -SODE_T / 2.0 - w / 2.0                 # Unity X
+    t = math.tan(math.radians(h))
+    zend = fumi / 2.0 if end == "F" else -fumi / 2.0
+    sgn = 1.0 if end == "F" else -1.0            # 駒の外 = F は +Z / B は −Z
+    band = SODE_CHAMFER + 1e-5
+    bm = bmesh.new(); bm.from_mesh(o.data)
+    uvl = bm.loops.layers.uv.active
+    moved = {}
+    for v in bm.verts:
+        X, Z = -v.co.x, -v.co.y                  # Blender → Unity(X = −x, Z = −y)
+        if abs(Z - zend) > band:
+            continue
+        dZ = sgn * (X - xc) * t
+        v.co.y -= dZ                             # Unity Z += dZ
+        # ⭐ 高さは動かさない = 切った端の天端は留めの面に沿って**芯(xc)での高さのまま一定**。
+        #   ⛔ 勾配の一直線のまま伸縮すると、留めの口で a と b の天端が 2·(X−xc)·tan h·勾配 食い違う
+        #   (0.06〜0.07m。二つの斜面が同じ高さで会うのは芯の線の上だけ)。端の石が少しねじれるのは可(2026-09-23 奉行の判断)。
+        moved[v.index] = -dZ                     # Blender y の変位
+    # UV: 貼り方は `_sode_stone` と同じ(側面 = (s, 下がり)・天端/底 = (x, s))⇒ s の成分だけずらす
+    bm.normal_update()
+    for f in bm.faces:
+        n = f.normal
+        ax = max(range(3), key=lambda k: abs(n[k]))
+        if ax == 1:
+            continue
+        for loop in f.loops:
+            d = moved.get(loop.vert.index)
+            if d is None:
+                continue
+            u, vv = loop[uvl].uv
+            loop[uvl].uv = (u + d / DANISHI_TILE, vv) if ax == 0 else (u, vv + d / DANISHI_TILE)
+    bm.to_mesh(o.data); bm.free(); o.data.update()
+    return len(moved)
+
+
+def sode_miter(keri, fumi, w, hF, hB, variant):
+    """坂下の端 F を hF°・坂上の端 B を hB° で切った袖の駒。"""
+    name = sode_miter_name(keri, fumi, w, hF, hB, variant)
+    o, _ = sode(keri, fumi, variant, name=name)
+    n = _miter_end(o, w, fumi, "F", hF) + _miter_end(o, w, fumi, "B", hB)
+    return o, name, n
+
+
+def sode_miter_check(o, flat, keri, fumi, w, hF, hB):
+    ok = []
+    xc = -SODE_T / 2.0 - w / 2.0
+    a = unity_verts(o); b = unity_verts(flat)
+    ok.append(("頂点数が平らな駒と同じ", len(a) == len(b), "%d / %d" % (len(a), len(b))))
+    band = SODE_CHAMFER + 1e-5
+    far = [(p, q) for p, q in zip(a, b) if abs(abs(q[2]) - fumi / 2.0) > band]
+    dmax = max(max(abs(p[i] - q[i]) for i in range(3)) for p, q in far)
+    ok.append(("両端の面取りの輪より内の頂点は一致", dmax < 1e-6, "最大差 %.2e(%d 点)" % (dmax, len(far))))
+    top = lambda z: SODE_HT + (fumi / 2.0 - z) * keri / fumi
+    for end, h in (("F", hF), ("B", hB)):
+        t = math.tan(math.radians(h))
+        zend = fumi / 2.0 if end == "F" else -fumi / 2.0
+        sgn = 1.0 if end == "F" else -1.0
+        endv = [p for p, q in zip(a, b) if abs(q[2] - zend) < 1e-6]
+        res = max(abs(p[2] - (zend + sgn * (p[0] - xc) * t)) for p in endv)
+        ok.append(("%s 端(%+.2f°)の面が芯の軸を通る鉛直面の上" % (end, h), res < 1e-5,
+                   "残差 %.2e(%d 点)" % (res, len(endv))))
+        ht = max(p[1] for p in endv)
+        ok.append(("%s 端の天端 = 芯での天端" % end,
+                   abs(ht - top(zend)) < 1e-6 or abs(ht - (top(zend) - SODE_CHAMFER)) < 1e-3,
+                   "%.4f(芯 %.4f)" % (ht, top(zend))))
+    ok.append(("全頂点の高さが平らな駒のまま", max(abs(p[1] - q[1]) for p, q in zip(a, b)) < 1e-9, ""))
+    mats = [m.name for m in o.data.materials]
+    ok.append(("材が Danishi だけ", mats == [DANISHI], str(mats)))
+    for (label, good, note) in ok:
+        print("      %s %s %s" % ("⭕" if good else "⛔", label, note))
+    if any(not t_[1] for t_ in ok):
+        raise SystemExit("[sanno] ⛔ 留めの袖の検算が落ちた")
+
+
+def read_miter_list(path):
+    """各行 `段番号 a|b F±hF B±hB`(# 以降は註)。⛔ 値は丸め直さない。"""
+    rows = []
+    with open(path, encoding="utf-8") as fp:
+        for ln in fp:
+            ln = ln.split("#", 1)[0].strip()
+            if not ln:
+                continue
+            i, var, f_, b_ = ln.split()
+            assert f_[0] == "F" and b_[0] == "B", ln
+            i = int(i)
+            if var != "ab"[i % 2]:
+                raise SystemExit("[sanno] ⛔ 段 %d の a/b が i%%2 と合わない: %s" % (i, ln))
+            rows.append((i, var, float(f_[1:]), float(b_[1:])))
+    return rows
+
+
+def build_sode_miter_list(keri, fumi, w, rows, do_render):
+    names = set()
+    for (i, var, hF, hB) in rows:
+        V.reset()
+        flat, _ = sode(keri, fumi, var, name="flat")
+        o, name, nmv = sode_miter(keri, fumi, w, hF, hB, var)
+        if name in names:
+            continue
+        names.add(name)
+        report(o, name, "段 %d・動かした頂点 %d" % (i, nmv))
+        sode_miter_check(o, flat, keri, fumi, w, hF, hB)
+        bpy.data.objects.remove(flat)
+        V.export_fbx([o], os.path.join(OUT_DAN, name + ".fbx"))
+        print("[sanno] 書き出し " + os.path.join(OUT_DAN, name + ".fbx"))
+    print("[sanno] 留めの袖 %d 本(一覧 %d 行)" % (len(names), len(rows)))
+    if do_render:
+        steps = (16, 17, 18)
+        for pth in shots_sode_miter(keri, fumi, w, rows, steps):
+            print("[sanno] 検証レンダ " + pth)
+
+
+def shots_sode_miter(keri, fumi, w, rows, steps):
+    """弦で据えた一続きの段 steps を、両側の留めの袖で組んで刷り、継ぎ目ごとに数を刷る。
+    継ぎ目 j(段 steps[j] の B と steps[j+1] の F)の軸 = 石段の芯と段の境の交点。そこで回転 Δ = 2·|h|(Blender Z 回り)。
+    ⚠ 回転 +Δ では Blender +X 側 = **Unity −X 側が外**(+|h|)、Unity +X 側が内(−|h|)— 前任は一度逆に振った。
+    −X 側は鏡(scale.x = −1)。"""
+    by = {}
+    for (i, var, hF, hB) in rows:
+        by.setdefault(i, []).append((var, hF, hB))
+    def row(i, sign):
+        # sign = +1 → 正の角の行(外側)/ −1 → 負の角の行(内側)
+        for (var, hF, hB) in by[i]:
+            s_ = hF + hB
+            if (s_ > 0) == (sign > 0):
+                return var, hF, hB
+        raise SystemExit("[sanno] 段 %d の %s 行が無い" % (i, "+" if sign > 0 else "-"))
+    V.reset()
+    T = SODE_T
+    # 各段の置き行列(Blender)。段 k の坂上の端(y = +f/2)の芯が次の段の軸
+    Ms = [Matrix()]
+    for k in range(1, len(steps)):
+        _, _, hBprev = row(steps[k - 1], +1)
+        dd = 2.0 * hBprev
+        prev = Ms[-1]
+        piv = prev @ Vector((0.0, fumi / 2.0, 0.0))
+        rotc = Matrix.Translation(piv) @ Matrix.Rotation(math.radians(dd), 4, 'Z') @ Matrix.Translation(-piv)
+        Ms.append(rotc @ prev @ Matrix.Translation((0.0, fumi, keri)))
+    objs = []; res = {}
+    for k, i in enumerate(steps):
+        var = "ab"[i % 2]
+        d, _ = dan(keri, fumi, w, var, name="d%d" % i); d.data.transform(Ms[k]); d.data.update(); objs.append(d)
+        for side, sg in (("U+X", -1), ("U-X", +1)):
+            var2, hF, hB = row(i, sg)
+            o, nm, _ = sode_miter(keri, fumi, w, hF, hB, var2)
+            o.name = "%s_%d" % (side, i)
+            place = Matrix.Translation((-(w / 2.0 + T / 2.0), 0, 0))    # Unity +X 側
+            if side == "U-X":
+                place = Matrix.Scale(-1.0, 4, (1, 0, 0)) @ place         # 鏡(据え手の localScale.x = −1)
+            o.data.transform(Ms[k] @ place)
+            if side == "U-X":
+                o.data.flip_normals()
+            o.data.update(); objs.append(o); res[(side, i)] = (o, nm)
+    nums = []
+    for k in range(len(steps) - 1):
+        ia, ib = steps[k], steps[k + 1]
+        _, _, hB = row(ia, +1)
+        dd = 2.0 * hB
+        piv = Ms[k] @ Vector((0.0, fumi / 2.0, 0.0))
+        # 留めの面: 段 a の坂上の端の面(x 軸)を Δ/2 回した鉛直面
+        ax0 = (Ms[k].to_3x3() @ Vector((1, 0, 0))).normalized()
+        tan_ = Matrix.Rotation(math.radians(dd / 2.0), 3, 'Z') @ ax0
+        nrm = Vector((-tan_.y, tan_.x, 0.0))    # 坂上向き
+        for side in ("U+X", "U-X"):
+            A, na = res[(side, ia)]; B, nb = res[(side, ib)]
+            pa = [v.co.copy() for v in A.data.vertices]; pb = [v.co.copy() for v in B.data.vertices]
+            gap_a = max(nrm.dot(p - piv) for p in pa)      # a が面を越えた量(+ = 重なり)
+            gap_b = min(nrm.dot(p - piv) for p in pb)      # b が面の手前に来た量(− = 重なり)
+            on_a = [p for p in pa if abs(nrm.dot(p - piv)) < 1e-4]
+            on_b = [p for p in pb if abs(nrm.dot(p - piv)) < 1e-4]
+            # ② 天端の段差: 面上の天端付近の頂点の高さを同じ順位どうしで
+            ta = sorted(p.z for p in on_a if p.z > max(q.z for q in on_a) - 0.05)
+            tb = sorted(p.z for p in on_b if p.z > max(q.z for q in on_b) - 0.05)
+            if len(ta) == len(tb):
+                step = max(abs(p_ - q_) for p_, q_ in zip(ta, tb))
+            else:
+                step = max(abs(ta[-1] - tb[-1]), abs(ta[0] - tb[0]))
+            # ③ 目違い: 面上で、高さ(1mm)ごとに面に沿った水平位置の最小・最大(= 側面の線)を a と b で比べる
+            def ext(pts):
+                dct = {}
+                for p in pts:
+                    kz = round(p.z, 3)
+                    s_ = tan_.dot(p - piv)
+                    lo, hi = dct.get(kz, (1e9, -1e9))
+                    dct[kz] = (min(lo, s_), max(hi, s_))
+                return dct
+            ea, eb = ext(on_a), ext(on_b)
+            com = sorted(set(ea) & set(eb))
+            me = max(max(abs(ea[z][0] - eb[z][0]), abs(ea[z][1] - eb[z][1])) for z in com) if com else float("nan")
+            sa = (min(v[0] for v in ea.values()), max(v[1] for v in ea.values()))
+            sb = (min(v[0] for v in eb.values()), max(v[1] for v in eb.values()))
+            me_all = max(abs(sa[0] - sb[0]), abs(sa[1] - sb[1]))
+            nums.append(dict(joint="%d/%d" % (ia, ib), side=side, a=na, b=nb, gap_a=gap_a, gap_b=gap_b,
+                             step=step, megai=max(me, me_all), n_common=len(com)))
+            print("      継ぎ目 %d/%d %s: ①a の最遠 %+.4f / b の最遠 %+.4f ②天端の段差 %.4f ③目違い %.4f"
+                  "(高さ %d 段で比較・外形 %.4f)"
+                  % (ia, ib, side, gap_a, gap_b, step, me, len(com), me_all))
+    bad = [n for n in nums if max(abs(n["gap_a"]), abs(n["gap_b"]), n["step"], n["megai"]) > 0.002]
+    os.makedirs(SHOT, exist_ok=True)
+    import json
+    with open(os.path.join(SHOT, "sanno_sodemiter_chain.json"), "w", encoding="utf-8") as fp:
+        json.dump(nums, fp, ensure_ascii=False, indent=1)
+    V.dedup_materials()
+    out = []
+    c = Ms[1] @ Vector((0.0, 0.0, 0.0))
+    ex = Ms[1] @ Vector((-(w / 2.0 + T / 2.0), 0.0, 0.0))
+    ex2 = Ms[1] @ Vector(((w / 2.0 + T / 2.0), 0.0, 0.0))
+    for tag, cam, at, orth in (
+            ("plan", (c.x, c.y, 30.0), (c.x, c.y + 0.001, 0.0), w + 3.0),
+            ("plan_edge", (ex.x, ex.y, 30.0), (ex.x, ex.y + 0.001, 0.0), 3.2),
+            ("plan_edge2", (ex2.x, ex2.y, 30.0), (ex2.x, ex2.y + 0.001, 0.0), 3.2),
+            ("3d", (ex.x - 3.5, ex.y - 4.0, c.z + 3.5), (ex.x, ex.y, c.z + 0.3), None),
+            ("magenta", (ex.x - 3.5, ex.y - 4.0, c.z + 3.5), (ex.x, ex.y, c.z + 0.3), None)):
+        V.studio(cam, at, ortho_scale=orth, res=(1600, 1100))
+        if tag == "magenta":
+            bpy.context.scene.world.node_tree.nodes["Background"].inputs[0].default_value = (1, 0, 1, 1)
+        _hook_cut_stone()
+        pth = os.path.join(SHOT, "sanno_sodemiter_%s.png" % tag)
+        V.render(pth); out.append(pth)
+    if bad:
+        raise SystemExit("[sanno] ⛔ 組み絵の継ぎ目が 2mm を越えた: %s" % [(n["joint"], n["side"]) for n in bad])
+    return out
+
+
 def label_key(label):
     return {"男坂": "otoko", "女坂(御成坂)": "onna", "参道の階(前庭へ)": "sando"}.get(label, "x")
 
@@ -842,6 +1382,22 @@ def main():
         else:
             specs = kaidan_specs(only)
         build_dan_set(specs, do_render)
+    if what == "sode":
+        only = None
+        for a in argv:
+            if a.startswith("--only="):
+                only = a.split("=", 1)[1]
+        if len(rest) >= 2:
+            specs = [("手引き", float(rest[0]), float(rest[1]),
+                      float(rest[2]) if len(rest) >= 3 else 3.636)]
+        else:
+            specs = kaidan_specs(only)
+        build_sode_set(specs, do_render)
+    if what == "sode_miter_list":
+        # sode_miter_list <一覧ファイル> [<蹴上> <踏面> <幅>]  各行 `段番号 a|b F±hF B±hB`
+        # ⛔ 角は据え手の一覧の値(指図の値ではない)。丸め直さない
+        keri, fumi, w = (float(rest[1]), float(rest[2]), float(rest[3])) if len(rest) >= 4 else (0.300, 1.199, 6.363)
+        build_sode_miter_list(keri, fumi, w, read_miter_list(rest[0]), do_render)
     if what in ("saku", "all"):
         spans = [float(rest[0])] if rest else [tamagaki_spec()["pitch"]]
         build_saku_set(spans, do_render)

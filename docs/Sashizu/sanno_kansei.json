@@ -238,6 +238,24 @@
    "verdict": "fail"
   },
   {
+   "at": "2026-09-23T22:35:57+09:00",
+   "event": "record",
+   "item": "boundary",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-23T22:35:57+09:00",
+   "event": "record",
+   "item": "ground",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-23T22:35:57+09:00",
+   "event": "record",
+   "item": "match",
+   "verdict": "pass"
+  },
+  {
    "at": "2026-09-23T22:52:08+09:00",
    "event": "reopen",
    "reason": "境内の軸を一本で起こし直す — 男坂・楼門・中門・社殿を同じ軸に載せ、一帯を約5.5°時計回りに回す(EDO-0430)",

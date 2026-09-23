@@ -918,6 +918,7 @@ class Checks(object):
             du, dv = w.b[0] - w.a[0], w.b[1] - w.a[1]
             nn = math.hypot(du, dv) or 1e-9
             ox, oy = -dv / nn * 0.3, du / nn * 0.3
+            on_tol = 0.01 / M.KEN                          # 辺の上 = 1 cm 以内
             for j in range(k + 1):
                 s = j / k
                 u, v = w.a[0] + du * s, w.a[1] + dv * s
@@ -925,6 +926,13 @@ class Checks(object):
                 ys = []
                 for sg in (1, -1):
                     uu, vv = u + ox * sg, v + oy * sg
+                    # ⚠ 隅では点が隣の辺(=段の縁)の上にちょうど乗る。辺の上は段の内とみなす
+                    #   (EDO-0434: 山王の前庭の隅で外と読まれ、地山を拾って「埋まる」が赤になった)
+                    on = [t.y for t in M.terraces if edge_dist((uu, vv), t.poly) <= on_tol]
+                    if on:
+                        on += [t.y for t in M.terraces if pip(t.poly, uu, vv)]
+                        ys.append(max(on))
+                        continue
                     nat = M.nat(uu, vv)
                     y = M.graded_y(uu, vv, nat)
                     if y is not None:

@@ -194,6 +194,7 @@ _KIRI_HINT = re.compile(r"続き|残り|の後|あとで|後段|引き継")
 
 def check_kiri(a, me):
     """今の窓が名乗っている票から task を切り出すときは、範囲の外である理由を --kiri で要る。
+    ⚠ 部材を焼く票の出口は「シーンで使われ検査を通った所」── 据え付け・検めを切り出すのは範囲の取り違え(EDO-0274)。
     理由に資源の待ち・文脈の上限を挙げたものは通さない(docs/session-board.md §1e)。"""
     try:
         c, _ = mine(me)
@@ -213,7 +214,7 @@ def check_kiri(a, me):
     kiri = (getattr(a, "kiri", "") or "").strip()
     if not kiri:
         return ("⛔ 名乗っている票 %s から task を切り出そうとしている。--kiri '<この件が %s の範囲の外である理由>' が要る。\n"
-                "   範囲は**票の題が言う欠陥が消えるのに要る仕事か**だけで決める。\n"
+                "   範囲は**票が立った目的(直したい欠陥)が、その仕事をせずに果たされるか**だけで決める。題の文字面で狭めない。\n"
                 "   ⛔ 資源の待ち(Unity を他の窓が握っている)→ 切り出さず `edo_session.py wait --resources unity` で並ぶ。\n"
                 "   ⛔ 文脈の上限 → 切り出さず `finish --keep-task` で**同じ票**を次の窓へ渡す。\n"
                 "   正典: docs/session-board.md §1e(施主指摘 2026-09-23)" % (mytask, mytask))

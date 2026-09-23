@@ -41,14 +41,34 @@ def PL(pts, stroke="var(--ink)", sw=1.0, fill="none", dash=None, op=None, close=
 
 # ---------------------------------------------------------------- グリッド
 class G(object):
+    """境内グリッド (u,v)[間] ⇄ 世界 (x,z)。基底は `grid.keidai` の ux/uz/vx/vz(2026-09-23 に 5.5° 回した)。
+
+    ⛔ u と v を別々に世界へ戻さない(`U(x)`/`V(z)` の分離は軸が世界軸だった頃の書き方)── `L(x, z)` で一度に。
+    """
     def __init__(self, d):
         g = d["grid"]["keidai"]
         self.ken = d["const"]["ken"]
         self.x0, self.z0 = g["x0"], g["z0"]
+        self.ux, self.uz = g.get("ux", 1.0), g.get("uz", 0.0)
+        self.vx, self.vz = g.get("vx", 0.0), g.get("vz", 1.0)
+        self.deg = grid_deg(d)
+        _GRID_DEG[0] = self.deg
 
-    def W(self, u, v): return (self.x0 + u * self.ken, self.z0 + v * self.ken)
-    def U(self, x): return (x - self.x0) / self.ken
-    def V(self, z): return (z - self.z0) / self.ken
+    def W(self, u, v):
+        um, vm = u * self.ken, v * self.ken
+        return (self.x0 + self.ux * um + self.vx * vm, self.z0 + self.uz * um + self.vz * vm)
+
+    def L(self, x, z):
+        """世界 → (u,v)[間]。"""
+        dx, dz = x - self.x0, z - self.z0
+        return ((dx * self.ux + dz * self.uz) / self.ken, (dx * self.vx + dz * self.vz) / self.ken)
+
+
+def grid_deg(d):
+    """境内グリッドの回り[°・上から見て時計回り = 北の端が東へ寄る]。u 軸 = (cos, −sin) から出す。
+    ⛔ 角を別の欄に数で持たない ── `grid.keidai` の基底が正典(施主裁定 2026-09-23)。"""
+    g = d["grid"]["keidai"]
+    return math.degrees(math.atan2(-g.get("uz", 0.0), g.get("ux", 1.0)))
 
 
 def gap_split(a, b, o, horiz):
@@ -487,8 +507,8 @@ def edge_offset(d, idx, ins_ken):
     L = math.hypot(dx, dz) or 1.0
     nx, nz = dz / L, -dx / L                       # 社地は辺の西 = 内向き
     t = ins_ken * d["const"]["ken"]
-    return [(g.U(a[0] + nx * t), g.V(a[1] + nz * t)),
-            (g.U(b[0] + nx * t), g.V(b[1] + nz * t))]
+    return [g.L(a[0] + nx * t, a[1] + nz * t),
+            g.L(b[0] + nx * t, b[1] + nz * t)]
 
 
 def touch_edge_idx(d, areas_src):
@@ -499,13 +519,13 @@ def touch_edge_idx(d, areas_src):
     ⚠ 引数は `areasFrom` の綴り(`sando.area` / `fumotomichi[].area`)。
     """
     g = G(d)
-    soch = [(g.U(x), g.V(z)) for x, z in d["polygon"]]
+    soch = [g.L(x, z) for x, z in d["polygon"]]
     A = []
     for s9 in (areas_src or []):
         if s9.startswith("sando") and d.get("sando", {}).get("area"):
-            A.append([(g.U(x), g.V(z)) for x, z in d["sando"]["area"]])
+            A.append([g.L(x, z) for x, z in d["sando"]["area"]])
         elif s9.startswith("fumotomichi"):
-            A += [[(g.U(x), g.V(z)) for x, z in f["area"]]
+            A += [[g.L(x, z) for x, z in f["area"]]
                   for f in d.get("fumotomichi", []) if f.get("area")]
     tol = (d["planting"]["bandDef"].get("rinenEdgeTouchKen") or _TOUCH_KEN)
     ken = d["const"]["ken"]
@@ -571,7 +591,7 @@ def fumiishi_rects(d):
         if kind == "torii":
             t = [q for q in d["torii"] if q["name"] == nm and q.get("pos")]
             if not t: continue
-            u, v = g.U(t[0]["pos"][0]), g.V(t[0]["pos"][1])
+            u, v = g.L(t[0]["pos"][0], t[0]["pos"][1])
             h = f.get("squareKen", 1.0) / 2.0
             out.append((f["name"], u - h, v - h, u + h, v + h))
         elif kind == "gate":
@@ -1184,7 +1204,7 @@ def kyoukai_avoid_shapes(d, g, sh_ken, lay=None):
     # ⚠ 層を渡さない呼び手は**高木で代表する**(⛔ 甘い側へ倒さない)
     if rd and rl is not None and lay is not None and lay not in rl: rd = None
     if not sh_ken and not rd: return []
-    P = [(g.U(x), g.V(z)) for x, z in d["polygon"]]
+    P = [g.L(x, z) for x, z in d["polygon"]]
     cls = edge_class(d, g) if rd else [("隣地", None)] * len(P)
     out = []
     for i in range(len(P)):
@@ -1250,7 +1270,7 @@ def _avoid_shapes_base(d, g, scope):
                 out.append(_shape_poly(garden_poly(gd), 0.0, "中庭"))
         for rt in d.get("routes", []):
             rr = rt["w"] / 2.0 / ken + ck["routeHalfPlus"]
-            pts = [(g.U(q[0]), g.V(q[1])) if rt.get("world") else (q[0], q[1]) for q in rt["pts"]]
+            pts = [g.L(q[0], q[1]) if rt.get("world") else (q[0], q[1]) for q in rt["pts"]]
             for i in range(len(pts) - 1):
                 out.append(_shape_seg(pts[i], pts[i + 1], rr, "動線:" + rt["name"]))
         for k in d["kaidans"]:
@@ -1263,7 +1283,7 @@ def _avoid_shapes_base(d, g, scope):
         for rt in d.get("routes", []):
             # ⭐ 前庭の中は路面幅を読み替える(`wByTerrace`・庭方 2026-09-06b)
             rr = route_w(d, rt, "Zentei") / 2.0 / ken + cz["routeHalfPlus"]
-            pts = [(g.U(q[0]), g.V(q[1])) if rt.get("world") else (q[0], q[1]) for q in rt["pts"]]
+            pts = [g.L(q[0], q[1]) if rt.get("world") else (q[0], q[1]) for q in rt["pts"]]
             for i in range(len(pts) - 1):
                 out.append(_shape_seg(pts[i], pts[i + 1], rr, "動線:" + rt["name"]))
         for k in d["kaidans"]:
@@ -1349,7 +1369,7 @@ def _avoid_shapes_base(d, g, scope):
     op = [tuple(q) for q in on["pts"]]
     for i in range(len(op) - 1):
         out.append(_shape_seg(op[i], op[i + 1], rr, "女坂"))
-    sp = [(g.U(x), g.V(z)) for x, z in d["sando"]["pts"]]
+    sp = [g.L(x, z) for x, z in d["sando"]["pts"]]
     for i in range(len(sp) - 1):
         out.append(_shape_seg(sp[i], sp[i + 1], av["sandoFromAxis"], "参道"))
     zp = terrace_poly_uv(d["terraces"][1])
@@ -1435,7 +1455,7 @@ def kattemichi_apron_shapes(d, g, sh_ken=0.0):
     out = []
     ken = d["const"]["ken"]
     for k in d.get("kattemichi", []):
-        pts = [(g.U(x), g.V(z)) for x, z in k["pts"]]
+        pts = [g.L(x, z) for x, z in k["pts"]]
         if len(pts) < 2: continue
         out += _band_chain(pts, k["w"] / 2.0 / ken + sh_ken, "勝手道:" + k["name"])
     return out
@@ -1507,10 +1527,10 @@ def kakoi_inside_shapes(d, g):
     out = []
     for nm, kind, Q in L.kakoi_keepout_polys(fs, im, d):
         if kind == "poly":
-            out.append(_shape_poly([(g.U(x), g.V(z)) for x, z in Q], 0.0, "囲いの内:" + nm))
+            out.append(_shape_poly([g.L(x, z) for x, z in Q], 0.0, "囲いの内:" + nm))
         else:
             (ax, az), (bx, bz), r = Q
-            out.append(_shape_seg((g.U(ax), g.V(az)), (g.U(bx), g.V(bz)), r / g.ken, "囲いの内:" + nm))
+            out.append(_shape_seg(g.L(ax, az), g.L(bx, bz), r / g.ken, "囲いの内:" + nm))
     return out
 
 
@@ -1532,7 +1552,7 @@ def kakoi_line_shapes(d, g):
     c = _KLINE.get("v")
     if c is None or c[0] is not d:          # ⛔ id だけで引かない(焼き直しで別の d が同じ id を持ちうる)
         K = L.kakoi_line_keepout(L.kakoi_lines(d, d["polygon"], impl_runs(d, g), impl_tamagaki(d, g)), m)
-        c = (d, [_shape_seg((g.U(a[0]), g.V(a[1])), (g.U(b[0]), g.V(b[1])), r / g.ken, "塀・土留め:" + nm)
+        c = (d, [_shape_seg(g.L(a[0], a[1]), g.L(b[0], b[1]), r / g.ken, "塀・土留め:" + nm)
                  for nm, _k, (a, b, r) in K])
         _KLINE["v"] = c
     return c[1]
@@ -1617,7 +1637,7 @@ def band_scan(d, g):
     bd = d["planting"]["bandDef"]
     step = bd["stepKen"]
     top = d["terraces"][0]["y"]
-    soch = [(g.U(x), g.V(z)) for x, z in d["polygon"]]
+    soch = [g.L(x, z) for x, z in d["polygon"]]
     keidai = terrace_poly_uv(d["terraces"][0])
     zentei = terrace_poly_uv(d["terraces"][1])
     obi4 = [(q[0], q[1]) for q in d["slopeBands"][3]["uv"]]
@@ -1673,11 +1693,11 @@ def rinen_areas(d, g, b):
     out = []
     for s in src:
         if s.startswith("fumotomichi"):
-            out += [[(g.U(x), g.V(z)) for x, z in f["area"]]
+            out += [[g.L(x, z) for x, z in f["area"]]
                     for f in d.get("fumotomichi", []) if f.get("area")]
         elif s.startswith("sando"):
             if d.get("sando", {}).get("area"):
-                out.append([(g.U(x), g.V(z)) for x, z in d["sando"]["area"]])
+                out.append([g.L(x, z) for x, z in d["sando"]["area"]])
     return out
 
 
@@ -1691,7 +1711,7 @@ def rinen_edge_idx(d, g, b):
       **幅 2.73 m の高木の空白が 193 m 続いていた**(帯3 自身の註と矛盾)。
     ⛔ 宣言(`rinen.edgeFrom` / `areasFrom`)が無ければ**社地の境の全部**を返す。
     """
-    soch = [(g.U(x), g.V(z)) for x, z in d["polygon"]]
+    soch = [g.L(x, z) for x, z in d["polygon"]]
     E = [(i, soch[i], soch[(i + 1) % len(soch)]) for i in range(len(soch))]
     ef = (b.get("rinen") or {}).get("edgeFrom")
     if not ef: return E
@@ -1727,7 +1747,7 @@ def rinen_edges(d, g, b):
     ken = d["const"]["ken"]
     lim = float(fm) / ken
     for f in fs:
-        Pu = [(g.U(x), g.V(z)) for x, z in f["pts"]]
+        Pu = [g.L(x, z) for x, z in f["pts"]]
         mids = [((Pu[i][0] + Pu[i + 1][0]) / 2.0, (Pu[i][1] + Pu[i + 1][1]) / 2.0) for i in range(len(Pu) - 1)]
         if mids and all(min(_pt_seg(m, q[0], q[1]) for q in E) <= lim for m in mids):
             E = E + [(Pu[i], Pu[i + 1]) for i in range(len(Pu) - 1)]
@@ -2145,9 +2165,12 @@ _DIR_DEG = {"北": 0.0, "北北東": 22.5, "北東": 45.0, "東北東": 67.5, "�
             "西北西": 292.5, "北西": 315.0, "北北西": 337.5}
 
 
+_GRID_DEG = [0.0]      # 境内グリッドの回り[°]。`bake`/`main` の入口で `grid_deg(d)` を入れる
+
+
 def _azim(du, dv):
-    """uv の向きの**真北からの角**[°]。当社のグリッドは u=東+ / v=北+(世界軸そのもの)。"""
-    return math.degrees(math.atan2(du, dv)) % 360.0
+    """uv の向きの**真北からの角**[°](世界)。uv の方位角にグリッドの回り `grid_deg` を足す(2026-09-23)。"""
+    return (math.degrees(math.atan2(du, dv)) + _GRID_DEG[0]) % 360.0
 
 
 def viewpoint_eye(d, g, vp):
@@ -2318,8 +2341,8 @@ def route_w(d, rt, terrace=None, at=None):
     tw = rt.get("tailW")
     if tw and at is not None and rt.get("world") and rt.get("tail"):
         # ⭐ `tail` の頂点 `fromVertex` から先の脚は細い(庭方 2026-09-15)── 測る点がその脚に載るか
-        kd = d["grid"]["keidai"]; ken = d["const"]["ken"]
-        tl = [((q[0] - kd["x0"]) / ken, (q[1] - kd["z0"]) / ken) for q in rt["tail"]]
+        g9 = G(d)
+        tl = [g9.L(q[0], q[1]) for q in rt["tail"]]
         for k in range(int(tw["fromVertex"]), len(tl) - 1):
             if _pt_seg(at, tl[k], tl[k + 1]) < 1e-6:
                 return float(tw["wKen"]) * ken
@@ -2841,11 +2864,13 @@ def derive_routes(d):
             mm = next((q for q in d["munes"] if q["name"] == te["mune"]), None)
             if mm is None:
                 raise SystemExit("動線『%s』の `tailEndFrom` の棟『%s』が無い" % (rt["name"], te["mune"]))
-            kd = d["grid"]["keidai"]; ken = d["const"]["ken"]
+            g9 = G(d)
             off = float(te.get("offKen") or 0.0)
             ax, val = {"南面": (1, mm["v0"] - off), "北面": (1, mm["v0"] + mm["dv"] + off),
                        "西面": (0, mm["u0"] - off), "東面": (0, mm["u0"] + mm["du"] + off)}[te["face"]]
-            rt["tail"][-1][ax] = round((kd["z0"] if ax == 1 else kd["x0"]) + val * ken, 3)
+            # ⭐ 末尾の点を棟の面の通りへ(uv で寄せて世界へ戻す — グリッドは回っている 2026-09-23)
+            q9 = list(g9.L(rt["tail"][-1][0], rt["tail"][-1][1])); q9[ax] = val
+            rt["tail"][-1] = [round(c9, 3) for c9 in g9.W(q9[0], q9[1])]
         rt["pts"] = [list(q) for q in base["pts"]] + [list(q) for q in rt.get("tail", [])]
         # 折返しの宣言も引き継ぐ(`tail` は末尾に継ぐので頂点の番号は変わらない)
         rt["switchbacks"] = list(base.get("switchbacks", []))
@@ -3296,6 +3321,7 @@ def derive_gate_yaw(d):
     ⛔ 部材の軸が無い門は yaw を出さない(0 で埋めない)。`passAz` = 通り抜けの軸の方位[°](mod 180)。
     """
     frames = (d.get("grid") or {}).get("frames") or {}
+    gd9 = grid_deg(d)        # ⭐ 世界の向き = uv の向き + グリッドの回り(2026-09-23 施主裁定 5.5°)
     for gt in d["gates"]:
         gt["yaw"], gt["passAz"], gt["yawFrom"] = None, None, None
         if gt.get("frame"):
@@ -3306,17 +3332,17 @@ def derive_gate_yaw(d):
             gt["frameDeg"] = float(fm["deg"])
         else:
             gt.pop("frameDeg", None)
-        fd = gate_frame_deg(gt)
+        fd = gate_frame_deg(gt) + gd9
         fr, ps = gt.get("front"), gt.get("pass")
         if fr in _DIR_DEG:
-            gt["passAz"] = (_DIR_DEG[fr] + fd) % 180.0
+            gt["passAz"] = round((_DIR_DEG[fr] + fd) % 180.0, 6)
         elif ps in _PASS_DEG:
-            gt["passAz"] = (_PASS_DEG[ps] + fd) % 180.0
+            gt["passAz"] = round((_PASS_DEG[ps] + fd) % 180.0, 6)
         ax = (gate_bom_row(d, gt) or {}).get("axis") or {}
         if fr in _DIR_DEG and ax.get("front") in _LOCAL_AX_DEG:
             gt["yaw"] = round((_DIR_DEG[fr] + fd - _LOCAL_AX_DEG[ax["front"]]) % 360.0, 6)
             gt["yawFrom"] = "front=%s%s × bom.axis.front=%s" % (
-                fr, (" + 枠『%s』%+.1f°" % (gt["frame"], fd)) if fd else "", ax["front"])
+                fr, (" + グリッド %+.1f°" % fd) if fd else "", ax["front"])
         elif gt["passAz"] is not None and ax.get("pass") in _LOCAL_AX_DEG:
             gt["yaw"] = round((gt["passAz"] - _LOCAL_AX_DEG[ax["pass"]]) % 180.0, 6)
             gt["yawFrom"] = "pass × bom.axis.pass=%s(正面は未宣言 — 軸だけ合わせる)" % ax["pass"]
@@ -3571,14 +3597,19 @@ def derive_gates(d, g):
         for fc in ("東", "西"):
             for i in uf.get(fc, []):
                 u = gate_face_u(d, uf["gate"], fc)
-                v = g.V(rt["pts"][i][1]) if rt.get("world") else rt["pts"][i][1]
-                rt["pts"][i][0] = g.W(u, v)[0] if rt.get("world") else u
+                if rt.get("world"):
+                    v = g.L(rt["pts"][i][0], rt["pts"][i][1])[1]
+                    rt["pts"][i] = [round(c9, 4) for c9 in g.W(u, v)]
+                else:
+                    rt["pts"][i][0] = u
     for sc in d.get("sections", []):
         af = sc.get("atFrom")
         if not af: continue
-        x = g.W(face_u(af), 0.0)[0]
-        sc["at"] = x
-        for q in sc.get("line", []): q[0] = x
+        # ⭐ 切る線 = 門の面の通り(u 一定)── グリッドが回っているので世界の x 一定ではない(2026-09-23)
+        u = face_u(af)
+        for q in sc.get("line", []):
+            q[0], q[1] = g.W(u, g.L(q[0], q[1])[1])
+        sc.pop("at", None)
     for vp in d.get("viewpoints", []):
         uf = vp.get("uFrom")
         if not uf: continue
@@ -3609,7 +3640,7 @@ def derive_zentei(d, g):
             p = route_fork(d, nf["a"], nf["b"])
             if p is None:
                 raise SystemExit("空地『%s』の `northFrom` の二股が引けない" % gd["name"])
-            v = g.V(p[1])
+            v = g.L(p[0], p[1])[1]
             vs = [q[1] for q in gd["poly"]]
             mid = (min(vs) + max(vs)) / 2.0        # 北の辺 = 芯より北の頂点(⛔ 番号で指さない)
             for q in gd["poly"]:
@@ -4238,7 +4269,7 @@ def wall_samples(d, g, w, step=1.0):
     out = []
     for s9, px, pz, nx, nz in wall_stations(d, g, w, step):   # ⛔ 歩き方は一つ(規則4)
         top, glo, ghi, ben = wall_top_ground(d, g, w, k, px, pz, nx, nz)
-        u9, v9 = g.U(px), g.V(pz)
+        u9, v9 = g.L(px, pz)
         st = any(_pt_seg((u9, v9), q[0], q[1]) < 1e-3 for q in segU) if segU else False
         out.append((s9, top, glo, ghi, top - glo, ghi - top, ben, st))
     return out
@@ -6139,8 +6170,11 @@ def export_impl(d, g):
                          "そこまでは『**焼いてあるが誰も読んでいない値**』である(規則19)── "
                          "実装の着手時に消費点を作ること"}),
         ("grid", {"x0": d["grid"]["keidai"]["x0"], "z0": d["grid"]["keidai"]["z0"],
-                  "ken": d["const"]["ken"],
-                  "_": "x = x0 + u×ken ／ z = z0 + v×ken(u=東+/v=北+・軸は世界軸)"}),
+                  "ux": d["grid"]["keidai"]["ux"], "uz": d["grid"]["keidai"]["uz"],
+                  "vx": d["grid"]["keidai"]["vx"], "vz": d["grid"]["keidai"]["vz"],
+                  "deg": round(grid_deg(d), 6), "ken": d["const"]["ken"],
+                  "_": "x = x0 + (ux·u + vx·v)×ken ／ z = z0 + (uz·u + vz·v)×ken(u=境内の軸の東+/v=北+・"
+                       "世界軸から deg 度 時計回り — 施主裁定 2026-09-23)"}),
         ("terraces", [{"name": t["name"], "y": t["y"],
                        "world": [[round(q[0], 3), round(q[1], 3)]
                                  for q in terrace_poly(t, g)]} for t in d["terraces"]]),

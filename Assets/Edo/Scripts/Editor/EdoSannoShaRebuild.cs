@@ -414,7 +414,12 @@ public static class EdoSannoShaRebuild
             {
                 var sp = spans[i] as List<object>; if (sp == null || sp.Count < 3) continue;
                 float s0 = Cv(sp[0]), s1 = Cv(sp[1]), face = Cv(sp[2]);
-                Vector2 pos, dir; PolyAt(pts, (s0 + s1) * 0.5f, out pos, out dir);
+                // ⭐ 段石は**段の両端(段の境)を結ぶ弦**で据える(EDO-0415 ③)。⛔ 段の中ほどの点の向きで据えない —
+                //   折れ点が段の中にあると、隣の段と境の点を共有せず、曲がりで段石の小口と袖が継ぎ目の線に沿って
+                //   最大 0.036m 目違う(2026-09-23 女坂の実測)。弦なら隣の段と境の点を共有し、留めの軸と一致する。
+                //   折れの角は前後二つの継ぎ目に分かれる(`EdoBuild.MiterIshidanSode` が両端を切る)。
+                Vector2 p0, p1, d0, d1; PolyAt(pts, s0, out p0, out d0); PolyAt(pts, s1, out p1, out d1);
+                Vector2 pos = (p0 + p1) * 0.5f, dir = (p1 - p0).sqrMagnitude > 1e-8f ? (p1 - p0).normalized : d0;
                 // 部材の原点 = 踏面の中心・**踏面の天端**。⛔ SeatBottom で据えない(地中の胴がある)。
                 float y = face + keri;
                 // ローカル +Z = 見え面 = **坂下**。

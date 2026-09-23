@@ -86,41 +86,58 @@ public static partial class EdoBuild
     public static int MiterIshidanSode(IList<GameObject> dans, IList<GameObject> sodes, int side,
                                        float keri, float fumi, float w, List<string> warn)
     {
+        int m = Mathf.Min(dans.Count, sodes.Count);
+        // 継ぎ目 j(段 j と j+1 の間)の留めの角(符号つき・正 = 外で伸びる)。袖が片方でも無い継ぎ目は 0。
+        var hj = new float[Mathf.Max(0, m - 1)];
+        var dj = new float[hj.Length];
         int n = 0;
-        for (int i = 0; i + 1 < dans.Count && i + 1 < sodes.Count; i++)
+        for (int j = 0; j + 1 < m; j++)
         {
-            GameObject da = dans[i], db = dans[i + 1], sa = sodes[i], sb = sodes[i + 1];
-            if (da == null || db == null || sa == null || sb == null) continue;
+            GameObject da = dans[j], db = dans[j + 1];
+            if (da == null || db == null || sodes[j] == null || sodes[j + 1] == null) continue;
             float d = Mathf.DeltaAngle(da.transform.eulerAngles.y, db.transform.eulerAngles.y);
             if (Mathf.Abs(d) < 0.05f) continue;
             // 外側(口が開く側)= 曲がる向きと反対の側。上の段の登る向きが下の段の +X へ振れていれば +X が内。
-            Vector3 upB = -db.transform.forward;
-            bool outer = side * Vector3.Dot(upB, da.transform.right) < 0f;
-            float h = (outer ? 1f : -1f) * Mathf.Abs(d) * 0.5f;
-            var na = SwapIshidanSode(sa, MiterPath(keri, fumi, w, 'B', h, i), side, warn);
-            var nb = SwapIshidanSode(sb, MiterPath(keri, fumi, w, 'F', h, i + 1), side, warn);
-            if (na == null || nb == null) continue;
-            sodes[i] = na; sodes[i + 1] = nb; n++;
-            // 検め: 継ぎ目の実際の口(下の駒から上の駒へ、登る向きに測る)
+            bool outer = side * Vector3.Dot(-db.transform.forward, da.transform.right) < 0f;
+            hj[j] = (outer ? 1f : -1f) * Mathf.Abs(d) * 0.5f; dj[j] = d; n++;
+        }
+        if (n == 0) return 0;
+        // 段 i の駒: 坂下の端(+Z)= 継ぎ目 i−1、坂上の端(−Z)= 継ぎ目 i。
+        for (int i = 0; i < m; i++)
+        {
+            if (sodes[i] == null) continue;
+            float hF = i > 0 ? hj[i - 1] : 0f, hB = i < hj.Length ? hj[i] : 0f;
+            if (hF == 0f && hB == 0f) continue;
+            var ng = SwapIshidanSode(sodes[i], MiterPath(keri, fumi, w, hF, hB, i), side, warn);
+            if (ng != null) sodes[i] = ng;
+        }
+        // 検め: 継ぎ目の実際の口(下の駒から上の駒へ、登る向きに測る)
+        for (int j = 0; j < hj.Length; j++)
+        {
+            if (hj[j] == 0f) continue;
+            GameObject na = sodes[j], nb = sodes[j + 1];
             Vector3 at; int cnt;
-            float gap = Contact(na, nb, -da.transform.forward, out at, out cnt, 0.01f, 0.25f, 4000, true);
+            float gap = Contact(na, nb, -dans[j].transform.forward, out at, out cnt, 0.01f, 0.25f, 4000, true);
             if (float.IsNaN(gap) || Mathf.Abs(gap) > 0.005f)
-                warn.Add(na.name + "→" + nb.name + ": 折れ " + d.ToString("F2") + "° の継ぎ目 " +
+                warn.Add(na.name + "→" + nb.name + ": 折れ " + dj[j].ToString("F2") + "° の継ぎ目 " +
                          (float.IsNaN(gap) ? "測れず" : gap.ToString("F3") + "m"));
         }
         return n;
     }
 
     /// <summary>焼いた留めの駒のパス。角は 0.01° に丸めて綴るので、焼いた側(指図の折れ線から算出)と
-    /// 据えた段石の yaw 差(float)とで丸めが 1 桁ずれ得る ⇒ ±0.01° まで探す(角の差 0.01° の口は 1mm 未満)。</summary>
-    static string MiterPath(float keri, float fumi, float w, char end, float h, int i)
+    /// 据えた段石の yaw 差(float)とで丸めが 1 桁ずれ得る ⇒ 各端 ±0.01° まで探す(0.01° の口は 1mm 未満)。</summary>
+    static string MiterPath(float keri, float fumi, float w, float hF, float hB, int i)
     {
-        foreach (float dh in new[] { 0f, 0.01f, -0.01f })
-        {
-            string p = EdoAssets.Own.IshidanSodeMiter(keri, fumi, w, end, h + dh, i);
-            if (UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(p) != null) return p;
-        }
-        return EdoAssets.Own.IshidanSodeMiter(keri, fumi, w, end, h, i);
+        var dd = new[] { 0f, 0.01f, -0.01f };
+        foreach (float a in dd)
+            foreach (float b in dd)
+            {
+                if ((hF == 0f && a != 0f) || (hB == 0f && b != 0f)) continue;
+                string p = EdoAssets.Own.IshidanSodeMiter(keri, fumi, w, hF + a, hB + b, i);
+                if (UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(p) != null) return p;
+            }
+        return EdoAssets.Own.IshidanSodeMiter(keri, fumi, w, hF, hB, i);
     }
 
     /// <summary>据えた袖を、同じ位置で切った駒へ差し替える。焼いていなければ元のまま ⚠ を足して null。</summary>

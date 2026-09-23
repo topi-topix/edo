@@ -1167,20 +1167,20 @@ public static class EdoAssets
                  + fumi.ToString("F3", inv) + "_" + (i % 2 == 0 ? "a" : "b") + ".fbx";
         }
 
-        /// <summary>**曲がる石段の袖 — 片端を留めに切った駒**(EDO-0415 ②)。<see cref="IshidanSode"/> と同じ局所座標・同じピボットで、
-        /// 端 <paramref name="end"/>('F' = +Z 坂下 / 'B' = −Z 坂上)の面を、石段の芯の鉛直線(X = −0.30 − <paramref name="w"/>/2)の周りに
-        /// <paramref name="h"/>°(= 折れ角の半分・正 = 駒の外で伸びる)回した物。石段の +X 側に置く向きで焼き、−X 側は鏡で置く。
-        /// 使い手は `EdoBuild.MiterIshidanSode`。焼けている組: 女坂 (0.300, 1.199, 6.363) の 11 の折れ × F/B × ±h × a/b = 44 本
-        /// (h = 1.74/1.56/1.58/2.22/1.69/1.26/2.01/1.55/1.94/1.89/0.28)。動くのは端の面と面取りの輪の頂点だけ(他は平らな駒と一致)。
-        /// 切った端の天端は**芯(xc)での高さのまま留めの面に沿って一定**(端の石が少しねじれる)⇒ 留めの両側の天端の段差 0
-        /// (折れ 4.43° の組みで実測 0.0000 m・留めの面からの外れ ±0.0003 m = 角の 0.01° 丸め)。
-        /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_miter 0.300 1.199 6.363 2:3:3.47,7:8:3.11,11:12:3.16,16:17:4.43,21:22:3.37,26:27:2.52,30:31:4.01,34:35:3.09,37:38:3.87,40:41:3.78,42:43:0.56 --render</summary>
-        public static string IshidanSodeMiter(float keri, float fumi, float w, char end, float h, int i)
+        /// <summary>**曲がる石段の袖 — 端を留めに切った駒**(EDO-0415 ②③)。<see cref="IshidanSode"/> と同じ局所座標・同じピボットで、
+        /// 坂下の端(+Z)を <paramref name="hF"/>°・坂上の端(−Z)を <paramref name="hB"/>° だけ、石段の芯の鉛直線(X = −0.30 − <paramref name="w"/>/2)
+        /// の周りに回した物(= その継ぎ目の折れ角の半分・正 = 駒の外で伸びる・0 = 平らなまま)。石段の +X 側に置く向きで焼き、−X 側は鏡で置く。
+        /// 切った端の天端は**芯(xc)での高さのまま留めの面に沿って一定**(端の石が少しねじれる)⇒ 留めの両側の天端の段差 0。
+        /// ⭐ 段石は段の境を結ぶ弦で据える(`EdoSannoShaRebuild.Stage2_Kaidan`)ので、一つの折れ点は前後二つの継ぎ目に分かれ、
+        /// 折れ点を含む段の駒は**両端**が切られる。角は F2 で綴る。使い手は `EdoBuild.MiterIshidanSode`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_miter_list Tools/Blender/sanno_onna_miter_set.txt 0.300 1.199 6.363 --render(一覧の各行 `段番号 a|b F±hF B±hB`・部材方 2026-09-23)</summary>
+        public static string IshidanSodeMiter(float keri, float fumi, float w, float hF, float hB, int i)
         {
             var inv = System.Globalization.CultureInfo.InvariantCulture;
+            System.Func<float, string> a = h => (h >= 0f ? "+" : "-") + System.Math.Abs(h).ToString("F2", inv);
             return "Assets/Edo/Models/Kaidan/IshidanSodeMiter_" + keri.ToString("F3", inv) + "_"
-                 + fumi.ToString("F3", inv) + "_" + w.ToString("F3", inv) + "_" + end
-                 + (h >= 0f ? "+" : "-") + System.Math.Abs(h).ToString("F2", inv) + "_" + (i % 2 == 0 ? "a" : "b") + ".fbx";
+                 + fumi.ToString("F3", inv) + "_" + w.ToString("F3", inv) + "_F" + a(hF) + "_B" + a(hB)
+                 + "_" + (i % 2 == 0 ? "a" : "b") + ".fbx";
         }
 
         /// <summary>**山王社の小庭の井戸 — 井筒(玉石の輪積み)と井桁を一体で**。⛔ 井戸屋形・釣瓶・縁石・板石敷は持たない

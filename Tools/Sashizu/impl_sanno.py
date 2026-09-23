@@ -828,6 +828,15 @@ def derive_clusters(d):
     値に取る**(こうすれば林縁の帯へ一切食い込まない)。
     """
     tl = (d.get("sando", {}).get("roadside") or {}).get("takagiEdgeLine") or {}
+    # ⭐ **`polyFrom` は同じ区の塊の輪郭をそのまま使う**【EDO-0409 北K 林の中木】── ⛔ 同じ多角形を二重に持たない
+    for gd in d["gardens"] + d["slopeBands"]:
+        for c in gd.get("clusters", []):
+            pf = c.get("polyFrom")
+            if not pf or c.get("poly"): continue
+            src = [q for q in gd.get("clusters", []) if q.get("name") == pf and q.get("poly")]
+            if not src:
+                raise SystemExit("塊『%s』の `polyFrom`『%s』が同じ区に無い" % (c["name"], pf))
+            c["poly"] = [list(q) for q in src[0]["poly"]]
     for gd in d["gardens"] + d["slopeBands"]:
         for c in gd.get("clusters", []):
             bf = c.get("boxFrom")
@@ -1883,10 +1892,28 @@ def band_stats(d, g):
 
 
 # ---------------------------------------------------------------- 境内の立木3区
-_MIXRE = re.compile(r"(松|欅|椋|榎)\s*(\d+)")
+# ⭐ 「常」= 中木(常緑広葉 `planting.parts.中木`)【EDO-0409 庭方 2026-09-23】── 高木とは別の層で撒く
+_MIXRE = re.compile(r"(松|欅|椋|榎|常)\s*(\d+)")
 
 
-_MIXSP = {"欅": "ケヤキ", "椋": "ムクノキ", "榎": "エノキ"}
+_MIXSP = {"欅": "ケヤキ", "椋": "ムクノキ", "榎": "エノキ", "常": "常緑広葉"}
+
+# 塊の `mix` の種 → 撒く層(`_LAYS`)。⛔ 高木(松・落葉)と中木を同じ芯々の枠に入れない。
+_MIXLAY = {"松": "松", "欅": "落葉", "椋": "落葉", "榎": "落葉", "常": "中木"}
+
+
+_HFROM_RE = re.compile(r"^slopeBands\[(\d+)\]\.(\w+)$")
+
+
+def cluster_h_from(d, c):
+    """塊の `hFrom` が `slopeBands[i].<欄>` の形なら、その帯の丈の宣言を返す(無ければ None)。
+
+    ⛔ 数を写さない ── 塊の丈は指し先の帯の宣言そのもの【EDO-0409 北K 林の中木】。
+    """
+    m = _HFROM_RE.match(str(c.get("hFrom") or ""))
+    if not m: return None
+    i = int(m.group(1))
+    return d["slopeBands"][i].get(m.group(2)) if i < len(d["slopeBands"]) else None
 
 
 def cluster_mix(c):
@@ -1941,6 +1968,11 @@ def cluster_parts(d, gd, c):
     for kind, n in cluster_mix(c):
         if kind == "松":
             src, h, sk = pal["松"], mH, "matsu"
+        elif kind == "常":
+            # ⭐ **中木の塊**【EDO-0409】── 丈は `hFrom`(帯の `chubokuH`)、無ければ区の `hBand` の帯
+            b9 = [q for q in d["slopeBands"] if q["band"] == gd.get("hBand")]
+            src, sk = pal.get("中木") or [], "chuboku"
+            h = cluster_h_from(d, c) or (gd.get("chubokuH") or (b9[0].get("chubokuH") if b9 else None))
         else:
             src = [q for q in pal["落葉"] if q.get("species") == _MIXSP[kind]]
             h, sk = rH, "rakuyo"
@@ -4521,6 +4553,7 @@ def scatter_pts(d, g):
     rows = [r for r in st if "b" in r]
     # ---- 塊(位置を決めて据える物)を先に解く。⛔ 帯の塊は帯の本数の**内訳**なので後で差し引く
     cl_pts, cl_note, cl_cut, rc = [], [], {}, {}
+    xr0 = cross_layer_trunk_min(d)      # 層をまたぐ幹の芯々[間](硬い・EDO-0420)── 塊にも効かせる
     gapd = []           # 間合い(`gapDiscFrom`)の円 [(u, v, 半径[間], 塊の名)]
 
     def _in_gap(p, skip=None):
@@ -4625,8 +4658,13 @@ def scatter_pts(d, g):
                 cl_note.append({"name": nm, "alongLine": True, "spacingKen": sp,
                                 "runKen": round(run9, 3), "lineKen": round(L9, 3),
                                 "slackKen": round(L9 - run9, 3)})
+            # ⭐ **層ごとに別の枠で撒く**【EDO-0409 北K 林の中木】── 高木(松・落葉=一つの林冠)と
+            #   中木は同じ塊の `got` に積まない(⛔ 高木の芯々で中木まで弾かない)。
+            #   ⭕ 層の違う幹とは `crossLayerTrunkMinM` を硬く守る(`_scatter_take` の `other`/`rx`)。
+            gotb = {}
             for kind, pt, k, hh, _cr, sk, _vs, _lo, _hi in parts:
-                lay = "松" if kind == "松" else "落葉"
+                lay = _MIXLAY.get(kind, "落葉")
+                bk9 = "canopy" if lay in ("松", "落葉") else lay
                 rnd, _key = rnd_of(nm, lay)
                 if line9 is not None:
                     # ⭕ **`mix` の並びがそのまま南→北の順**(⛔ `mixZone` は当てない)
@@ -4636,9 +4674,14 @@ def scatter_pts(d, g):
                     # ⭐ **樹種を v の小領域へ寄せる**(`mixZone`・2026-09-08 C-1)
                     zn = cluster_zone(c, kind)
                     cz = [p for p in cand if zn[0] <= p[1] <= zn[1]] if zn else cand
-                    pts, r_, rx = _scatter_take(rnd, cz, k, rmin, seeded=got + seed0)
+                    oth9 = [(q["u"], q["v"]) for q in cl_pts
+                            if ("canopy" if q["layer"] in ("松", "落葉") else q["layer"]) != bk9]
+                    pts, r_, rx = _scatter_take(rnd, cz, k, rmin,
+                                                seeded=gotb.get(bk9, []) + (seed0 if bk9 == "canopy" else []),
+                                                other=oth9, rx=xr0)
                 for (u9, v9) in pts:
                     got.append((u9, v9))
+                    gotb.setdefault(bk9, []).append((u9, v9))
                     seq9[kind] = seq9.get(kind, 0) + 1
                     q = _tree_row(d, g, rnd, "%s %s%02d" % (c["name"], kind, seq9[kind]),
                                   nm, lay, [pt], hh, u9, v9, iso=iso, rmax=cap)
@@ -4697,7 +4740,7 @@ def scatter_pts(d, g):
                         gapd.append((u9, v9, rr, c["name"]))
             if gd.get("band"):                              # 帯の塊 = 帯の本数の内訳
                 for kind, _pt, k, _h, _c, _s, _v, _l, _hi in parts:
-                    key = (gd["band"], "松" if kind == "松" else "落葉")
+                    key = (gd["band"], _MIXLAY.get(kind, "落葉"))
                     cl_cut[key] = cl_cut.get(key, 0) + k
     # ⭐ **名指しの木も帯の本数の内訳**【決1③ 庭方 2026-09-09 十八巡目】── 帯の面に立つ以上、
     #    ⛔ 帯の本数に上積みしない(⛔ 密度は動かさない、が決1 の要である)。

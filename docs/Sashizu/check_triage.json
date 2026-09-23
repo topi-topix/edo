@@ -321,6 +321,11 @@
    "title": "囲いの内の幹",
    "measures": "`planting.bandDef.avoid.kakoiInsideM` を宣言した邸だけ、道辺に面する囲い(柵・板塀のうち道辺から `kakoiFacingRoadM` 以内に立つ物。拾い方は散布と同じ `sashizu_lib.kakoi_facing_road`)の道側と、囲いの線から内側 `kakoiInsideM` 未満に、撒いた木(全層)の幹の芯が無い。樹冠は測らない(施主裁定 2026-09-23 EDO-0409「根元は囲いから2m以上内側・枝葉が柵を越えて道側へ出るのは可」)。宣言の無い邸は未検査",
    "from_checks": []
+  },
+  "C27": {
+   "title": "堂の外面から林の幹",
+   "measures": "`planting.clearance.keidai.doRinKen` を宣言した邸だけ、退避 keidai の区の塊(`gardens[].clusters`)に撒いた木(全層)の幹の芯が、指図の棟の矩形(`munes`)の外面から `doRinKen` 間以上離れている。硬い制約(許容0)。樹冠は測らない(施主裁定B 2026-09-23 EDO-0409「茂らせて社叢の輪を内側まで閉じ、堂からは離れを取る」)。宣言の無い邸は未検査",
+   "from_checks": []
   }
  },
  "checks": [

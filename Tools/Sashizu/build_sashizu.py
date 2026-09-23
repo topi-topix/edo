@@ -1306,14 +1306,15 @@ class Checks(object):
                         out.append({"uv": (o["u"], o["v"]),
                                     "world": tuple(w[:2]) if w else M.W(o["u"], o["v"]),
                                     "crownR": (cm / 2.0) if isinstance(cm, (int, float)) else None,
-                                    "name": o.get("name") or "", "place": o.get("place"), "layer": o.get("layer")})
+                                    "name": o.get("name") or "", "place": o.get("place"), "layer": o.get("layer"),
+                                    "group": o.get("group") or ""})
                     else:
                         for v in o.values():
                             walk(v)
                 elif isinstance(o, list):
                     if len(o) == 2 and all(isinstance(q, (int, float)) for q in o):
                         out.append({"uv": (o[0], o[1]), "world": M.W(o[0], o[1]), "crownR": None,
-                                    "name": "", "place": None, "layer": None})
+                                    "name": "", "place": None, "layer": None, "group": ""})
                     else:
                         for v in o:
                             walk(v)
@@ -1642,6 +1643,45 @@ class Checks(object):
                     "・".join("%s %.2fm=%s" % h for h in halves), im,
                     ";位置の読めない囲い %s は拾えていない" % "・".join(unread) if unread else ""),
                  "%d 点" % len(bad), "ng" if bad else "ok", bad[:12])
+
+    # C27 堂の外面から林の幹(施主裁定B 2026-09-23 EDO-0409「茂らせて社叢の輪を内側まで閉じ、堂からは離れを取る」)
+    def c27(self):
+        """`planting.clearance.keidai.doRinKen` を宣言した邸だけ、**退避 `keidai` の区の塊**(`gardens[].clusters`)に
+        撒いた木(全層)の**幹の芯**が、指図の棟の矩形(`munes` の外面)から `doRinKen` 間以上離れているかを測る。
+
+        ⭐ 硬い制約(許容0)── 塊の候補セルは退避 `keidai` を引かない(形で守っている)ので、この検査が唯一の輪。
+        ⛔ 樹冠は測らない。⛔ 宣言の無い邸には課さない。拾う区と塊の名は結果に刷る(0 本なら『未検査』)。
+        """
+        M = self.M
+        kd = (((M.d.get("planting") or {}).get("clearance") or {}).get("keidai") or {})
+        rk = kd.get("doRinKen")
+        if rk is None:
+            self.add("C27", "堂の外面から林の幹", "未検査 — `planting.clearance.keidai.doRinKen` の宣言が無い", "na")
+            return
+        fn, P = self.planting_points()
+        if fn is None or isinstance(P, Exception):
+            self.add("C27", "堂の外面から林の幹", "未検査 — 撒いた点が無い" if fn is None else "⛔ 読めない: %s" % P,
+                     "na" if fn is None else "ng")
+            return
+        grp = ["%s／%s" % (gd.get("name"), c.get("name")) for gd in (M.d.get("gardens") or [])
+               if gd.get("clearance") == "keidai" for c in (gd.get("clusters") or [])]
+        T = [q for q in P if q.get("group") in grp]
+        polys = [(m.name, m.poly) for m in M.munes if m.poly]
+        if not T or not polys:
+            self.add("C27", "堂の外面から林の幹", "未検査 — 退避 keidai の区の塊に撒いた木が無い(塊 %d・棟 %d)"
+                     % (len(grp), len(polys)), "na")
+            return
+        bad, worst = [], 0.0
+        for q in T:
+            u, v = q["uv"]
+            dm, nm = min(((0.0 if pip(pp, u, v) else edge_dist((u, v), pp)), n) for n, pp in polys)
+            if dm < rk - 0.01 / M.KEN:
+                bad.append("%s: 棟 %s の外面から %.2f 間" % (q["name"], nm, dm))
+                worst = max(worst, rk - dm)
+        self.add("C27", "堂の外面から林の幹 — %s の退避 keidai の区の塊 %d(%s)に撒いた %d 点(全層)の幹の芯が、棟 %d の矩形の外面から"
+                 " %.1f 間以上離れている(硬い制約・許容0。樹冠は測らない)"
+                 % (fn, len(grp), "・".join(grp), len(T), len(polys), rk),
+                 "%d 点(最大 %.2f 間 足りない)" % (len(bad), worst), "ng" if bad else "ok", bad[:12])
 
 # ================================================================ 共通の壊し試し(C23)
 def deep_probes(est):

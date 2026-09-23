@@ -725,7 +725,15 @@ public static class EdoSannoShaBuilder
     }
 
     // ---------- Stage 6: スプラット(参道広場・山麓の通り・門前町・境内・山の斜面) ----------
+    // 2026-09-23 引退(EDO-0422): 社地を旧い敷地割の形で土色に吹き、参道・女坂の帯を直書きの点列で塗っていた。
+    //   指図を作り直した後もこの塗りが残り、今の境内・石段・前庭と食い違った。地表は
+    //   `EdoSashizuSurfacePaint`(指図の `surface` 欄)が塗る。⛔ 下の本体を流し直さない。
     public static string Stage6_Splat()
+    {
+        return "SKIP: superseded by EdoSashizuSurfacePaint(指図の surface 欄・EDO-0422)";
+    }
+
+    static string Stage6_Splat_Retired()
     {
         // ⛔ **検図関門**(規則18)。指図が不合格のまま建てると、直った瞬間に建て直しになる。
         //   判定は `docs/Sashizu/sanno_sashizu.json` の `reviews` — 記録は

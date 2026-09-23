@@ -44,6 +44,7 @@
 - [本堂と山門は Body(withRoof:false) が屋根を落とさない](honden-body-does-not-drop-roof.md) — 軒と壁体を出し分ける分岐が黙って無効になる。頂点数で先に検める
 - [庫裏の SmallHouse は 14.5×10.5m で本堂並み](jisha-kuri-smallhouse-is-14m.md) — 狭い境内の「収まらず未建」は離れを緩めても直らない。部材の側の話
 - [口の縁は門の実メッシュで測る・端は点で取る](run-end-at-opening.md) — 射影だけだと横のずれが落ちて 0.822m の口。柱物は帯でなく断面(SectionAt)
+- [筋割りの Contact は平らな面どうしを見落とす](contact-cells-miss-flat-faces.md) — 柱と礎石で屋形が 1.93m 沈んだ。鉛直は RestOn(面で測る)
 - [斜めの隅の駒は「回廊」で測る](corner-piece-corridor-not-projection.md) — 全頂点の射影だと 1.13m の口が残る。DobeiProfile→BodyAt→CorridorSpan
 
 ## 測り方・関門

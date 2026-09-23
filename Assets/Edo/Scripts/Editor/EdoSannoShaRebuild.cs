@@ -1662,8 +1662,123 @@ public static class EdoSannoShaRebuild
         return null;
     }
 
+    // ================================================================ Stage 8 前庭の井戸
+    [MenuItem(MENU + "8 前庭の井戸(板石敷・井筒+井桁・井戸屋形)")]
+    public static void Stage8Menu() { Debug.Log("[山王] " + Stage8_Ido()); }
+
+    /// <summary>境内グリッド (u,v)[間] → 世界。**指図の `grid.keidai` と `const.ken`** から引く。
+    /// ⭐ <see cref="W"/> と同じ式・同じ値(算出物の `grid` は指図の `grid.keidai` を写した物)。
+    /// 井戸の段は造成面も算出物の欄も使わない(高さは実地表と実メッシュで測る)ので、算出物の指紋の照合
+    /// (<see cref="VerifyImplFingerprint"/>)に掛けない ── 別の欄(munes)を直している最中でも井戸は建て直せる。</summary>
+    static Vector2 WKeidai(float u, float v)
+    {
+        var g = D(D(Doc, "grid"), "keidai");
+        float ken = F(D(Doc, "const"), "ken");
+        return new Vector2(F(g, "x0") + (u * F(g, "ux") + v * F(g, "vx")) * ken,
+                           F(g, "z0") + (u * F(g, "uz") + v * F(g, "vz")) * ken);
+    }
+
+    /// <summary>**前庭の井戸** — 指図 `ido` の3点を据える(2026-09-23・EDO-0274)。
+    /// 部材はどれも**同じ原点(井戸の芯・石敷天端)**で焼いてあるが、⛔ その原点で位置を決めない(規則21):
+    /// <list type="number">
+    /// <item>**板石敷**(固定側) … 平面は指図の石敷の矩形(`uv` ± `ishikiKen`/2)へ**実メッシュの西縁と南縁**を
+    ///   合わせる(<see cref="EdoBuild.EdgeAlong"/>)。高さは**切石の天端**が地表と面一になる所
+    ///   (<see cref="EdoBuild.SeatFlush"/> ── 触れるのは割栗の底ではなく天端の縁)。⛔ yaw を振らない(水勾配と枡が東)。</item>
+    /// <item>**井筒+井桁** … 井筒(材 Foundation)の外周を石敷の穴の壁へ芯出し(<see cref="EdoBuild.CenterInOpening"/>)、
+    ///   井桁(材 wood)の下端を縁石(材 Kirishi)の天端へ下ろす(<see cref="EdoBuild.RestOn"/>)。</item>
+    /// <item>**井戸屋形** … 棟の向きは `muneDir`(部材の棟はローカル Z)。柱の根を礎石(材 Kirishi)の天端へ下ろし、
+    ///   柱の断面を礎石の断面へ芯出し(<see cref="EdoBuild.CenterOnBed"/>)。</item>
+    /// </list>
+    /// 「寄せる → 据える」を2巡する(`docs/oki-kata.md` §2)。⛔ 部材の綴りの数は `ido` からの従属値。</summary>
+    public static string Stage8_Ido()
+    {
+        var gate = Gate(); if (gate != null) return gate;
+        var io = D(Doc, "ido");
+        if (io == null) return "井戸: ⛔ 指図に `ido` が無い";
+        var iz = D(io, "izutsu");
+        float ken = F(D(Doc, "const"), "ken");
+        string muneDir = S(io, "muneDir");
+        var slope = L(io, "ishikiSlope");
+        if (iz == null || slope.Count < 2 || !HasNum(io, "ishikiKen") || !HasNum(io, "igetaMitsukeM") ||
+            !HasNum(io, "igetaDanN") || !HasNum(io, "hashiraPitchKen") || !HasNum(io, "nokiH") || !HasNum(io, "muneH"))
+            return "井戸: ⛔ 指図 `ido` の欄が足りない(ishikiKen/ishikiSlope/izutsu/igeta*/hashiraPitchKen/nokiH/muneH)";
+        float yaw;
+        if (muneDir == "南北") yaw = 0f;            // 部材の棟 = ローカル Z
+        else if (muneDir == "東西") yaw = 90f;
+        else return "井戸: ⛔ `ido.muneDir` が南北/東西でない(『" + muneDir + "』)── 屋形は建てない";
+
+        string pIshiki = EdoAssets.Own.SannoIdoIshiki(Mathf.RoundToInt(F(io, "ishikiKen") * ken * 1000f),
+                                                      Mathf.RoundToInt(Cv(slope[1]) / Mathf.Max(1e-6f, Cv(slope[0]))));
+        string pIgeta = EdoAssets.Own.SannoIdoIgeta(Mathf.RoundToInt(F(iz, "naikeiShaku") / 6f * ken * 1000f),
+                                                    Mathf.RoundToInt(F(io, "igetaMitsukeM") * F(io, "igetaDanN") * 1000f));
+        string pYakata = EdoAssets.Own.SannoIdoYakata(Mathf.RoundToInt(F(io, "hashiraPitchKen") * ken * 1000f),
+                                                      Mathf.RoundToInt(F(io, "nokiH") * 1000f),
+                                                      Mathf.RoundToInt(F(io, "muneH") * 1000f));
+        foreach (var p in new[] { pIshiki, pIgeta, pYakata })
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(p) == null) return "井戸: ⛔ 部材が無い " + p;
+
+        const string STONE = "Kirishi", WOOD = "wood", RUBBLE = "Foundation";
+        var uv = P2(G(io, "uv"));
+        float h = F(io, "ishikiKen") * 0.5f;
+        Vector2 sw = WKeidai(uv.x - h, uv.y - h), ne = WKeidai(uv.x + h, uv.y + h), c = WKeidai(uv.x, uv.y);
+        var grp = Group("Keidai/Ido"); Clear(grp);
+        var sb = new StringBuilder();
+
+        // 1 板石敷 ─ 固定側
+        var ishiki = EdoBuild.Place(pIshiki, new Vector3(c.x, EdoBuild.Ground(c.x, c.y), c.y), 0f, Vector3.one, grp, "Ido_Ishiki");
+        float rise = 0f;
+        for (int pass = 0; pass < 2; pass++)
+        {
+            float dx = sw.x - EdoBuild.EdgeAlong(ishiki.transform, Vector3.right, -1f);
+            float dz = sw.y - EdoBuild.EdgeAlong(ishiki.transform, Vector3.forward, -1f);
+            ishiki.transform.position += new Vector3(dx, 0f, dz);
+            EdoBuild.SeatFlush(ishiki, STONE, 0f, out rise);
+        }
+        float resE = EdoBuild.EdgeAlong(ishiki.transform, Vector3.right, 1f) - ne.x;
+        float resN = EdoBuild.EdgeAlong(ishiki.transform, Vector3.forward, 1f) - ne.y;
+
+        // 2 井筒+井桁 ─ 穴へ差し、縁石へ載せる
+        var igeta = EdoBuild.Place(pIgeta, ishiki.transform.position, 0f, Vector3.one, grp, "Ido_Igeta");
+        float yCut = ishiki.transform.position.y;   // 仮の高さ(下で測り直す)
+        float clrMin = float.NaN, clrMax = float.NaN; Vector3 at; int nTouch = 0; float dropIg = float.NaN;
+        for (int pass = 0; pass < 2; pass++)
+        {
+            float top; float r2; Vector3 a2; int n2;
+            top = EdoBuild.FlushGap(ishiki, STONE, out r2, out a2, out n2);   // 天端 − 地表の最小(据えた後 ≈0)
+            yCut = a2.y - 0.10f;                                             // 天端の下 0.10m ── 板石の層の中
+            var sh = EdoBuild.CenterInOpening(igeta, RUBBLE, ishiki, null, yCut, 0.02f, out clrMin, out clrMax);
+            if (float.IsNaN(sh.x)) return "井戸: ⛔ 井筒の外周か石敷の穴が測れない(断面 y=" + yCut.ToString("F2") + ")";
+            dropIg = EdoBuild.RestOn(igeta, WOOD, ishiki, STONE, 0f, out at, out nTouch);
+            if (float.IsNaN(dropIg)) return "井戸: ⛔ 井桁と縁石が向き合わない";
+        }
+
+        // 3 井戸屋形 ─ 柱の根を礎石へ
+        var yakata = EdoBuild.Place(pYakata, ishiki.transform.position + Vector3.up, yaw, Vector3.one, grp, "Ido_Yakata");
+        float worstFoot = float.NaN; int nPost = 0; float dropYk = float.NaN;
+        for (int pass = 0; pass < 2; pass++)
+        {
+            dropYk = EdoBuild.RestOn(yakata, null, ishiki, STONE, 0f, out at, out nPost);
+            if (float.IsNaN(dropYk)) return "井戸: ⛔ 屋形の柱と礎石が向き合わない";
+            float yFoot = at.y;                                              // 柱の根 = 礎石の天端
+            var sh = EdoBuild.CenterOnBed(yakata, null, yFoot + 0.05f, ishiki, STONE, yFoot - 0.02f, 0.5f, out worstFoot);
+            if (float.IsNaN(sh.x)) return "井戸: ⛔ 柱か礎石の断面が測れない";
+        }
+        EdoBuild.RestOn(yakata, null, ishiki, STONE, 0f, out at, out nPost);
+
+        Func<GameObject, string> P3 = g => "(" + g.transform.position.x.ToString("F3") + ", " +
+            g.transform.position.y.ToString("F3") + ", " + g.transform.position.z.ToString("F3") + ") yaw " +
+            g.transform.eulerAngles.y.ToString("F1");
+        sb.AppendLine("  板石敷 " + P3(ishiki) + " ── 西縁・南縁を指図の矩形へ / 東縁の残差 " + resE.ToString("+0.000;-0.000") +
+                      " 北縁 " + resN.ToString("+0.000;-0.000") + " / 天端の出の最大 " + rise.ToString("F3") + "m(勾配+起伏)");
+        sb.AppendLine("  井筒+井桁 " + P3(igeta) + " ── 穴との離れ " + clrMin.ToString("F3") + "〜" + clrMax.ToString("F3") +
+                      "m / 井桁と縁石の当たり " + nTouch + " 点");
+        sb.AppendLine("  井戸屋形 " + P3(yakata) + "(棟 " + muneDir + ")── 柱と礎石の当たり " + nPost + " 点 / 足ごとの芯ずれ最大 " +
+                      worstFoot.ToString("F3") + "m");
+        return "井戸: 3 点\n" + sb;
+    }
+
     // ================================================================ 一括
-    [MenuItem(MENU + "一括(0→6。⛔ 社叢は撒かない)")]
+    [MenuItem(MENU + "一括(0→6・8。⛔ 社叢は撒かない)")]
     public static void BuildAllMenu() { Debug.Log("[山王] " + BuildAll()); }
     public static string BuildAll()
     {
@@ -1675,6 +1790,7 @@ public static class EdoSannoShaRebuild
         sb.AppendLine(Stage4_Kakoi());
         sb.AppendLine(Stage5_MonTorii());
         sb.AppendLine(Stage6_Shaden());
+        sb.AppendLine(Stage8_Ido());
         return sb.ToString();
     }
 }

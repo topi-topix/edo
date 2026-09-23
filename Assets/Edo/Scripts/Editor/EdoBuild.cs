@@ -503,41 +503,11 @@ public static partial class EdoBuild
                                 float tol = 0.01f, float cell = 0.25f, int maxSamples = 4000, bool withRoof = true)
     {
         at = a.transform.position; count = 0;
-        var d = dir.normalized;
-        var u = Vector3.Cross(d, Mathf.Abs(d.y) < 0.9f ? Vector3.up : Vector3.right).normalized;
-        var v = Vector3.Cross(d, u).normalized;
         var pa = Body(a.transform, maxSamples, withRoof);
         var pb = Body(b.transform, maxSamples, withRoof);
-        if (pa.Count == 0 || pb.Count == 0) return float.NaN;
-        var fa = new Dictionary<long, float>();   // 筋ごと: a の前面(dir の最大)
-        var fb = new Dictionary<long, float>();   // 筋ごと: b の背面(dir の最小)
-        var pt = new Dictionary<long, Vector3>();
-        System.Func<Vector3, long> key = w =>
-            ((long)Mathf.RoundToInt(Vector3.Dot(w, u) / cell) << 32) ^ (uint)Mathf.RoundToInt(Vector3.Dot(w, v) / cell);
-        foreach (var w in pa)
-        {
-            long k = key(w); float q = Vector3.Dot(w, d);
-            float cur; if (!fa.TryGetValue(k, out cur) || q > cur) { fa[k] = q; pt[k] = w; }
-        }
-        foreach (var w in pb)
-        {
-            long k = key(w); float q = Vector3.Dot(w, d);
-            float cur; if (!fb.TryGetValue(k, out cur) || q < cur) fb[k] = q;
-        }
-        float best = float.NaN;
-        foreach (var kv in fa)
-        {
-            float qb; if (!fb.TryGetValue(kv.Key, out qb)) continue;
-            float g = qb - kv.Value;
-            if (float.IsNaN(best) || g < best) { best = g; at = pt[kv.Key]; }
-        }
-        if (float.IsNaN(best)) return best;                      // 筋が重ならない = 向き合っていない
-        foreach (var kv in fa)
-        {
-            float qb; if (!fb.TryGetValue(kv.Key, out qb)) continue;
-            if (qb - kv.Value - best <= tol) count++;
-        }
-        return best;
+        float c = ContactPts(pa, pb, dir, out Vector3 at2, out count, tol, cell);
+        if (!float.IsNaN(c)) at = at2;
+        return c;
     }
 
     /// <summary>**触れている箇所で突き付ける。**<paramref name="mover"/> を <paramref name="dir"/> へ動かし、

@@ -4368,7 +4368,18 @@
      "中木": 0.5,
      "低木": 0.25
     },
-    "kyoukaiRule": "**社地の境 `polygon`** から その層の肩 `kyoukaiKen`。⛔ 数を持たない。⛔ 樹冠ではなく**幹の芯**で測る(`plantRule.crownRule` と同じ物差し)"
+    "kyoukaiRule": "**社地の境 `polygon`** から その層の肩 `kyoukaiKen`。⛔ 数を持たない。⛔ 樹冠ではなく**幹の芯**で測る(`plantRule.crownRule` と同じ物差し)",
+    "kyoukaiRoadM": 2.0,
+    "kyoukaiRoadRule": "**道辺**(`edgeClassRule`)では `kyoukaiRoadLayers`(全層・低木も)の幹の芯を 社地の境から `kyoukaiRoadM` と その層の肩 `kyoukaiKen` の大きいほう だけ離す。隣地辺は `kyoukaiKen` のまま。⛔ 樹冠で測らない ── 樹冠が道の上へ張り出すのは可。【施主 2026-09-23 EDO-0401】『木の根元を道へ出さない。解像度の問題で道際に詰めると意図せず道へ出るので、道際 2m までは詰めない』(低木を外す案は同日に施主が取り消し)",
+    "edgeClassRule": "社地 `polygon` の各辺の t = 1/3, 1/2, 2/3 から外向きに `edgeClassProbeOutM` の3点を `parcels.json`(社地自身を除く)に照らし、3点ともどの区画にも入らなければ**道辺**、3点とも同じ区画なら**隣地辺**、混在は道辺(保守側)。⛔ 辺の番号を書かない",
+    "edgeClassProbeOutM": 3.0,
+    "kyoukaiRoadAcc": "U(2m = 施主指示の値・典拠なし。由来は**今の開発の解像度の限界が 2m**(施主の PC の性能の都合)── PC が良くなり解像度を上げたら**この制約は外し得る**・施主 2026-09-23)/P(道辺=敷地割の間の領域)",
+    "kyoukaiRoadLayers": [
+     "松",
+     "落葉",
+     "中木",
+     "低木"
+    ]
    },
    "rinenEdgeRule": "**辺の中点と両三分点(t = 1/3, 1/2, 2/3)が すべて 道敷から `rinenEdgeTouchKen` 以内**にある辺だけを『道に接する辺』とする。⛔ 端点の接触では拾わない",
    "rinenEdgeTouchKen": 1.0

@@ -1306,14 +1306,14 @@ class Checks(object):
                         out.append({"uv": (o["u"], o["v"]),
                                     "world": tuple(w[:2]) if w else M.W(o["u"], o["v"]),
                                     "crownR": (cm / 2.0) if isinstance(cm, (int, float)) else None,
-                                    "name": o.get("name") or "", "place": o.get("place")})
+                                    "name": o.get("name") or "", "place": o.get("place"), "layer": o.get("layer")})
                     else:
                         for v in o.values():
                             walk(v)
                 elif isinstance(o, list):
                     if len(o) == 2 and all(isinstance(q, (int, float)) for q in o):
                         out.append({"uv": (o[0], o[1]), "world": M.W(o[0], o[1]), "crownR": None,
-                                    "name": "", "place": None})
+                                    "name": "", "place": None, "layer": None})
                     else:
                         for v in o:
                             walk(v)
@@ -1513,6 +1513,88 @@ class Checks(object):
         status = "ng" if ng else ("na" if na else "ok")
         self.add("C24", "門の完備 — 門 %d の型が要求する屋根が指図の欄と食い違わない(建った姿は EdoGateComplete で測る)" % len(M.gates),
                  result, status, (ng + na)[:12])
+
+    def road_edges(self):
+        """区画の辺のうち**道に面する辺** [(a, b)](世界 xz)。⛔ 辺の番号を書かない — 毎回測る。
+
+        道 = 敷地割の間に残った領域。辺の t = 1/3, 1/2, 2/3 から外へ `probe` m の3点が**どれも**他の区画に
+        入らなければ道辺(山王の `planting.bandDef.avoid.edgeClassRule` と同じ分け方)。
+        """
+        M = self.M
+        fp = os.path.join(DOC, "parcels.json")
+        if not os.path.exists(fp):
+            return None
+        av = self._avoid()
+        probe = float(av.get("edgeClassProbeOutM") or 3.0)
+        P = json.load(open(fp, encoding="utf-8"))
+        others = []
+        for p in P.get("parcels", P):
+            pts = isinstance(p, dict) and (p.get("pts") or p.get("polygon"))
+            if not pts or len(pts) < 3:
+                continue
+            Q = [tuple(q[:2]) for q in pts]
+            if max(edge_dist(a, M.poly) for a in Q) < 0.05:
+                continue                                      # 自分の区画
+            others.append((Q, bbox(Q)))
+        poly = M.poly
+        sgn = 1.0 if sum(poly[i][0] * poly[(i + 1) % len(poly)][1] - poly[(i + 1) % len(poly)][0] * poly[i][1]
+                         for i in range(len(poly))) > 0 else -1.0
+        out = []
+        for i in range(len(poly)):
+            a, b = poly[i], poly[(i + 1) % len(poly)]
+            Ln = math.hypot(b[0] - a[0], b[1] - a[1])
+            if Ln < 1e-6:
+                continue
+            nx, nz = sgn * (b[1] - a[1]) / Ln, -sgn * (b[0] - a[0]) / Ln   # 外向きの法線
+            hit = False
+            for t in (1.0 / 3.0, 0.5, 2.0 / 3.0):
+                x, z = a[0] + (b[0] - a[0]) * t + nx * probe, a[1] + (b[1] - a[1]) * t + nz * probe
+                if any(bb[0] <= x <= bb[2] and bb[1] <= z <= bb[3] and pip(Q, x, z) for Q, bb in others):
+                    hit = True
+                    break
+            if not hit:
+                out.append((a, b))
+        return out
+
+    def _avoid(self):
+        pl = self.M.d.get("planting")
+        return (((pl if isinstance(pl, dict) else {}).get("bandDef") or {}).get("avoid") or {})
+
+    # C25 道際の幹(施主 2026-09-23 EDO-0401「木の根元を道へ出さない。道際 2m までは詰めない。樹冠が道の上へ出るのは可」)
+    def c25(self):
+        """`planting.bandDef.avoid.kyoukaiRoadM` を宣言した邸だけ、撒いた木の**幹の芯**が道辺からその距離以上離れているかを測る。
+
+        ⛔ 樹冠で測らない(樹冠が道の上へ張り出すのは可)。⛔ 宣言の無い邸には課さない。
+        """
+        M = self.M
+        rm = self._avoid().get("kyoukaiRoadM")
+        if rm is None:
+            self.add("C25", "道際の幹", "未検査 — `planting.bandDef.avoid.kyoukaiRoadM` の宣言が無い", "na")
+            return
+        fn, P = self.planting_points()
+        if fn is None or isinstance(P, Exception):
+            self.add("C25", "道際の幹", "未検査 — 撒いた点が無い" if fn is None else "⛔ 読めない: %s" % P,
+                     "na" if fn is None else "ng")
+            return
+        E = self.road_edges()
+        if E is None:
+            self.add("C25", "道際の幹", "未検査 — parcels.json が無い", "na")
+            return
+        lays = self._avoid().get("kyoukaiRoadLayers")          # 当てる層(宣言が無ければ全層)
+        P = [q for q in P if lays is None or q.get("layer") in lays]
+        bad, worst = [], 0.0
+        for q in P:
+            w = q["world"]
+            if not pip(M.poly, w[0], w[1]):
+                bad.append("%s: 幹が区画の外" % q["name"])
+                continue
+            dd = min(seg_dist(w, a, b) for a, b in E) if E else 1e9
+            if dd < rm - 0.01:
+                bad.append("%s: 道辺から %.2f m" % (q["name"], dd))
+                worst = max(worst, rm - dd)
+        self.add("C25", "道際の幹 — %s の %d 点(%s)の幹の芯が、道辺 %d 本から %.1f m 以上内にある(樹冠は測らない)"
+                 % (fn, len(P), "・".join(lays) if lays else "全層", len(E), rm),
+                 "%d 点(最大 %.2f m 足りない)" % (len(bad), worst), "ng" if bad else "ok", bad[:12])
 
 
 # ================================================================ 共通の壊し試し(C23)

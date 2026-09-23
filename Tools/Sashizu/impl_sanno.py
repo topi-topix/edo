@@ -1102,16 +1102,89 @@ def kyoukai_shoulder(d, lay=None):
     return sh.get(lay) if lay else max(sh.values())
 
 
-def kyoukai_avoid_shapes(d, g, sh_ken):
-    """**社地の境 `polygon` の内側 `sh_ken`[間] の帯**(幹を退ける面)。⛔ 数を持たない。
+_ECLS = {}
 
+
+def edge_class(d, g):
+    """社地 `polygon` の各辺を**道辺 / 隣地辺**に分ける(`avoid.edgeClassRule`)。戻り [(種別, 隣地の id)]。
+
+    ⭐ 辺の t=1/3,1/2,2/3 から外向き法線 `edgeClassProbeOutM` の3点を `parcels.json` に照らす。
+      3点ともどの区画にも入らない = 道辺、3点とも同じ区画 = 隣地辺、混在 = 道辺(保守側)。
+    ⛔ 自身の区画(内向きに同じ距離の点を含む区画)は除く。⛔ 辺の番号を json に書かない。
+    """
+    if "v" in _ECLS: return _ECLS["v"]
+    av = (d["planting"].get("bandDef") or {}).get("avoid") or {}
+    out_m = float(av.get("edgeClassProbeOutM") or 3.0)
+    P = d["polygon"]
+    ps = json.load(open(os.path.join(DOC, "parcels.json"), encoding="utf-8"))["parcels"]
+    Q = [(p["id"], [tuple(q) for q in p["pts"]]) for p in ps]
+    n = len(P)
+    own = set()
+    probes = []
+    for i in range(n):
+        a, b = P[i], P[(i + 1) % n]
+        dx, dz = b[0] - a[0], b[1] - a[1]
+        L = math.hypot(dx, dz) or 1.0
+        nx, nz = dz / L, -dx / L                    # 社地は辺の西 = 内向き(`edge_offset` と同じ)
+        pr = []
+        for t in (1.0 / 3.0, 0.5, 2.0 / 3.0):
+            x, z = a[0] + dx * t, a[1] + dz * t
+            pr.append((x - nx * out_m, z - nz * out_m))
+            ix, iz = x + nx * out_m, z + nz * out_m
+            own |= set(pid for pid, pp in Q if in_poly((ix, iz), pp))
+        probes.append(pr)
+    res = []
+    for pr in probes:
+        hits = [tuple(pid for pid, pp in Q if pid not in own and in_poly(p, pp)) for p in pr]
+        if all(not h for h in hits): res.append(("道", None))
+        elif all(len(h) == 1 for h in hits) and len(set(h[0] for h in hits)) == 1:
+            res.append(("隣地", hits[0][0]))
+        else: res.append(("道", None))
+    _ECLS["v"] = res
+    return res
+
+
+def kyoukai_road_ken(d):
+    """**道辺からの幹の離れ**[間](`avoid.kyoukaiRoadM` ÷ 間)。宣言が無ければ None。
+
+    ⭐ 施主 2026-09-23 EDO-0401:『木の根元(幹の芯)を道へ出さない。解像度の問題で道際に詰めると
+      意図せず道へ出るので、道際 2m までは詰めない。樹冠が道の上へ張り出すのは可』。
+    ⛔ 樹冠で測らない(⚠ 同日に『幹を実樹冠半径 + 0.3m 離す』と誤って読み、施主に訂正された)。
+    """
+    m = ((d["planting"].get("bandDef") or {}).get("avoid") or {}).get("kyoukaiRoadM")
+    return (float(m) / d["const"]["ken"]) if m is not None else None
+
+
+def kyoukai_road_layers(d):
+    """道辺の離れを当てる層(`avoid.kyoukaiRoadLayers`)。宣言が無ければ全層。
+    ⚠ 2026-09-23 に一度『低木は当てない』と裁かれ、同日に施主が取り消した(いまは全層)。"""
+    return ((d["planting"].get("bandDef") or {}).get("avoid") or {}).get("kyoukaiRoadLayers")
+
+
+def kyoukai_avoid_shapes(d, g, sh_ken, lay=None):
+    """**社地の境 `polygon` の内側の帯**(幹を退ける面)。⛔ 数を持たない。
+
+    幅 = 隣地辺は層の肩 `sh_ken`[間]、**道辺は `kyoukaiRoadM` と層の肩の大きいほう**
+    (道辺・隣地辺の分け方は `edge_class` = `avoid.edgeClassRule`)。
     ⭕ **樹冠は境の外へ張り出してよい** ── 退けるのは幹だけ(`plantRule.crownRule` と同じ物差し)。
     """
-    if not sh_ken: return []
+    rd = kyoukai_road_ken(d)
+    rl = kyoukai_road_layers(d)
+    # ⚠ 層を渡さない呼び手は**高木で代表する**(⛔ 甘い側へ倒さない)
+    if rd and rl is not None and lay is not None and lay not in rl: rd = None
+    if not sh_ken and not rd: return []
     P = [(g.U(x), g.V(z)) for x, z in d["polygon"]]
+    cls = edge_class(d, g) if rd else [("隣地", None)] * len(P)
     out = []
     for i in range(len(P)):
-        out.append(_shape_band(P[i], P[(i + 1) % len(P)], sh_ken, "社地の境:辺%d" % i))
+        r = max(sh_ken or 0.0, rd) if cls[i][0] == "道" else (sh_ken or 0.0)
+        if r <= 0.0: continue
+        out.append(_shape_band(P[i], P[(i + 1) % len(P)], r,
+                               "社地の境:辺%d%s" % (i, "(道)" if cls[i][0] == "道" else "")))
+        # ⭐ 帯は辺の区間の中しか測らない ── 入隅の頂点の近くを取りこぼすので、道辺の両端に丸みを足す
+        if cls[i][0] == "道":
+            out.append(_shape_disc(P[i], r, "社地の境:頂点%d(道)" % i))
+            out.append(_shape_disc(P[(i + 1) % len(P)], r, "社地の境:頂点%d(道)" % ((i + 1) % len(P))))
     return out
 
 
@@ -1244,7 +1317,7 @@ def _avoid_shapes_base(d, g, scope):
         if av123.get("kakoiRule"): out += kakoi_avoid_shapes(d, sh)
         # ⭐ **社地の境からの幹の離れ**(全周)【中5 庭方 2026-09-09 十七巡目】
         if av123.get("kyoukaiRule"):
-            out += kyoukai_avoid_shapes(d, g, kyoukai_shoulder(d, lay9))
+            out += kyoukai_avoid_shapes(d, g, kyoukai_shoulder(d, lay9), lay9)
         # ⛔ **塊の箱はここへ入れない** — 塊の本数は既に帯から差し引いてあるので、面まで引くと
         #    二重に引くことになる(⛔ 本数の配り方は変えない・庭方 A-3)。落とすのは
         #    **撒くときの候補セル**だけで、それは `scatter_pts` が `cluster_keepout_shapes` で行う。
@@ -1281,7 +1354,9 @@ def _avoid_shapes_base(d, g, scope):
     #    分けない額縁の宣言だが、境の離れは**層ごと**なので最も大きい肩(高木)で代表させる
     #    ── ⛔ 甘い側へ倒さない。
     if av4.get("kyoukaiRule"):
-        out += kyoukai_avoid_shapes(d, g, kyoukai_shoulder(d, "松"))
+        # ⭐ 道辺の離れは層で決まる(`kyoukaiRoadLayers`)── `scope` = "obi4:<層>"。層が無ければ高木で代表
+        lay4 = scope.partition(":")[2] or None
+        out += kyoukai_avoid_shapes(d, g, kyoukai_shoulder(d, "松"), lay4)
     # ⛔ 塊の箱はここへ入れない(理由は obi123 と同じ)── `scatter_pts` が候補から落とす
     return out
 
@@ -4566,7 +4641,7 @@ def scatter_pts(d, g):
             else:
                 step = d["planting"]["bandDef"]["stepKen"]
                 src = list(cells[bn])
-            sh = avoid_shapes(d, g, "obi4" if b.get("uv") else ("obi123:" + lay))
+            sh = avoid_shapes(d, g, ("obi4:" + lay) if b.get("uv") else ("obi123:" + lay))
             cand = [p for p in src if not (sh and shape_hit(p, sh)) and not shape_hit(p, keep)]
             # ⭐ **間合いは高木にだけ効く**【指1 庭方 2026-09-09 十八巡目】── 測っているのは
             #    『同じ頭が二つ並ばないこと』なので、下層(中木・低木)は入ってよい。

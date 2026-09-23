@@ -311,6 +311,11 @@
    "title": "門の完備",
    "measures": "門の型(gate_types.json)が要求する屋根の有無が指図の欄と食い違わず、型が読めない門・屋根の欄が無い門が『未検査』として名指しされる。建った姿(屋根が本当に載っているか)は EdoGateComplete が Unity で測る",
    "from_checks": []
+  },
+  "C25": {
+   "title": "道際の幹",
+   "measures": "`planting.bandDef.avoid.kyoukaiRoadM` を宣言した邸だけ、撒いた木(`kyoukaiRoadLayers` の層)の幹の芯が道辺(区画の辺のうち外が敷地割のどれにも入らない辺)からその距離以上内にある。樹冠は測らない(施主 2026-09-23 EDO-0401「木の根元を道へ出さない・道際 2m までは詰めない・樹冠が道の上へ出るのは可」)。宣言の無い邸は未検査",
+   "from_checks": []
   }
  },
  "checks": [

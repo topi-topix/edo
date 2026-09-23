@@ -719,7 +719,7 @@ def part_variants(d, pt):
 
 
 def species_h_cap(d, pt):
-    """**樹種ごとの丈の上端**[m] = その樹種の**最大変種の素の丈** × `sizeRule.scaleYMax`。
+    """**樹種ごとの丈の上端**[m] = その樹種の**最大変種の素の丈** × `sizeRule.hCapScale`(無ければ `scaleYMax`)。
 
     ⭐ 2026-09-08 庭方12巡目 裁定1 ── 帯は層(落葉高木)に**一つの**丈の範囲を宣言するが、
     部材の素の丈は樹種で違う。**帯の上端が悪いのではなく、帯が三樹種に同じ天井を当てているのが
@@ -731,7 +731,9 @@ def species_h_cap(d, pt):
     """
     sr = size_rule(d) or {}
     if not sr.get("speciesHCap"): return None
-    cap = sr.get("scaleYMax")
+    # ⭐ 係数は `hCapScale`(無ければ `scaleYMax`)【庭方 2026-09-23 EDO-0409】──
+    #   変種選び(`pick_variant`)の箍 `scaleYMax` とは別に、丈の頭打ちだけを上げる。
+    cap = sr.get("hCapScale", sr.get("scaleYMax"))
     vs = part_variants(d, pt)
     if cap is None or not vs: return None
     return max(q[3] for q in vs) * cap
@@ -1855,7 +1857,7 @@ def cluster_parts(d, gd, c):
     #    【中8 庭方 2026-09-09 十七巡目 / 書き方は裁4】── ⛔ 数を持たない。
     # ⭐ **上端を部材の箍まで開く塊がある**【決5 庭方 2026-09-09 十八巡目】── ⛔ 帯の `matsuH`
     #    の上端で切ると 4 本が全部その一つの値へ張り付き、棟に対して横一線の『生垣』になる。
-    #    上端 = `sizeRule.speciesHCap`(その樹種の最大変種の素の丈 × `scaleYMax`)。⛔ 数を持たない。
+    #    上端 = `sizeRule.speciesHCap`(その樹種の最大変種の素の丈 × `hCapScale`)。⛔ 数を持たない。
     if c.get("matsuHMaxFrom") and mH:
         caps = [q for q in (species_h_cap(d, pt) for pt in pal["松"]) if q]
         if caps:
@@ -1978,11 +1980,12 @@ def shukei_hmin(d, sk):
 
     ⭐ **2026-09-08 に従属値へ移した**【A-2 の裁き 庭方】── 旧値 18.0 m は部材と箍では届かない
     丈で、`scaleY` が `sizeRule.scaleYMax` を超えていた(⛔ 松で閉じたのと同じ欠陥)。
-    **落葉高木の最も高い変種の素の丈 × `sizeRule.scaleYMax`** = 箍の内で出せる最も高い丈。
+    **落葉高木の最も高い変種の素の丈 × `sizeRule.hCapScale`(無ければ `scaleYMax`)** = 箍の内で出せる最も高い丈。
     ⛔ 部材を新造しない・⛔ 箍を上げない。引けなければ None(= 測れていない)。
     """
     if not (sk.get("tree") or {}).get("hMinFrom"): return None
-    cap = (size_rule(d) or {}).get("scaleYMax")
+    sr9 = size_rule(d) or {}
+    cap = sr9.get("hCapScale", sr9.get("scaleYMax"))   # ⭐ species_h_cap と同じ係数(EDO-0409)
     hs = [q[3] for pt in d["planting"]["parts"].get("落葉", []) for q in part_variants(d, pt)]
     if not hs or cap is None: return None
     return max(hs) * cap
@@ -4665,12 +4668,13 @@ def scatter_pts(d, g):
             # ⭐ **芯々の下限は『中央』で揃える**(2026-09-08 裁き4・庭方)。⛔ 高木だけ下端を使わない
             if lay in ("松", "落葉") and b.get("spacing"):
                 sp = b["spacing"]
-                rmin = (sp[0] + sp[1]) / 2.0 * pack / ken     # 宣言の芯々[m]の中央 × packRatio
+                # ⭐ 帯が `packRatio` を持てばそれ(庭方 2026-09-23 EDO-0409)・無ければ plantRule
+                rmin = (sp[0] + sp[1]) / 2.0 * b.get("packRatio", pack) / ken  # 芯々[m]の中央 × packRatio
             else:
                 dens = {"中木": "chubokuPer100", "低木": "teibokuPer100"}.get(lay)
                 q = (b.get(dens) or [0, 0]) if dens else [0, 0]
                 dm = (q[0] + q[1]) / 2.0
-                rmin = (math.sqrt(100.0 / dm) * pack / ken) if dm > 0 else step
+                rmin = (math.sqrt(100.0 / dm) * b.get("packRatio", pack) / ken) if dm > 0 else step
             rnd, key = rnd_of("帯%d %s" % (bn, b["name"]), lay)
             n = n_i[lay][i] - cl_cut.get((bn, lay), 0)
             pts, r_, rx = _scatter_take(rnd, cand, max(0, n), rmin, seeded=seeded[bk])
@@ -4703,7 +4707,7 @@ def scatter_pts(d, g):
             for ti, (t, cs) in enumerate(cand_t):
                 if n_t[ti] <= 0 or not cs: continue
                 dr = rinen_dens_t(d, b, t, lay) or 0.0
-                rminr = (math.sqrt(100.0 / dr) * pack / ken) if dr > 0 else step
+                rminr = (math.sqrt(100.0 / dr) * b.get("packRatio", pack) / ken) if dr > 0 else step
                 ptsr, rr_, rxr = _scatter_take(rnd, cs, max(0, n_t[ti]), rminr,
                                                seeded=seeded[bk])
                 seeded[bk] += list(ptsr)

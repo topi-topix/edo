@@ -1040,26 +1040,28 @@
     2.0,
     2.8
    ],
+   "takagiAdopted": 2.8,
    "spacing": [
     6.4,
     7.6
    ],
+   "packRatio": 0.6,
    "matsuH": [
-    9.5,
-    11.5
+    12.0,
+    15.0
    ],
    "rakuyoRatio": 0.1,
    "rakuyoH": [
-    12.0,
-    14.0
+    15.0,
+    18.0
    ],
    "chubokuPer100": [
-    2.0,
-    3.0
+    3.5,
+    4.5
    ],
    "chubokuH": [
-    6.0,
-    8.0
+    7.0,
+    9.5
    ],
    "teibokuPer100": [
     3.0,
@@ -1084,26 +1086,28 @@
     1.6,
     2.2
    ],
+   "takagiAdopted": 2.2,
    "spacing": [
     7.2,
     8.4
    ],
+   "packRatio": 0.6,
    "matsuH": [
-    10.5,
-    12.5
+    13.0,
+    15.5
    ],
    "rakuyoRatio": 0.15,
    "rakuyoH": [
-    13.0,
-    16.0
+    16.0,
+    20.0
    ],
    "chubokuPer100": [
-    2.8,
-    3.8
+    3.5,
+    4.5
    ],
    "chubokuH": [
-    5.5,
-    7.5
+    6.5,
+    9.0
    ],
    "teibokuPer100": [
     3.5,
@@ -1125,29 +1129,31 @@
    "from": 0.75,
    "to": 1.0,
    "takagiPer100": [
-    1.0,
-    1.6
+    1.4,
+    2.0
    ],
+   "takagiAdopted": 1.9,
    "spacing": [
     8.4,
     10.6
    ],
+   "packRatio": 0.6,
    "matsuH": [
-    10.0,
-    12.0
+    11.5,
+    14.0
    ],
    "rakuyoRatio": 0.2,
    "rakuyoH": [
-    13.0,
-    16.0
+    16.0,
+    20.0
    ],
    "chubokuPer100": [
-    2.5,
-    3.5
+    3.0,
+    4.0
    ],
    "chubokuH": [
-    4.5,
-    6.5
+    5.5,
+    8.0
    ],
    "teibokuPer100": [
     4.0,
@@ -1164,19 +1170,19 @@
    "avoidFrom": "planting.bandDef.avoid",
    "rinen": {
     "edgeFrom": "`fumotomichi` の道敷(`area`)に接する社地 `polygon` の辺",
-    "fromKen": 0.0,
-    "toKen": 1.5,
+    "fromKen": 1.1,
+    "toKen": 2.0,
     "takagiPer100": 0.0,
     "shitakusa": "連続",
-    "acc": "S(南面の法尻が道に接すること=麓道は一周しない・切絵図/御宮絵図の二図)/U(高木を置かない幅 1.5 間=設計値 庭方 2026-09-06)/U(中木・低木を帯の上端で置くこと=庭方 2026-09-08 十六巡目 C-2)",
+    "acc": "S(南面の法尻が道に接すること=麓道は一周しない・切絵図/御宮絵図の二図)/U(高木を置かない幅 `toKen`=設計値 庭方 2026-09-06)/U(中木・低木を帯の上端で置くこと=庭方 2026-09-08 十六巡目 C-2)",
     "areasFrom": [
      "fumotomichi[].area(麓道の道敷)"
     ],
     "tiers": [
      {
       "name": "外(道側)",
-      "fromKen": 0.0,
-      "toKen": 0.75,
+      "fromKen": 1.1,
+      "toKen": 1.5,
       "teibokuPer100": 24.0,
       "teibokuH": [
        2.15,
@@ -1186,8 +1192,8 @@
      },
      {
       "name": "内",
-      "fromKen": 0.75,
-      "toKen": 1.5,
+      "fromKen": 1.5,
+      "toKen": 2.0,
       "teibokuPer100": 14.0,
       "teibokuH": [
        1.8,
@@ -1364,23 +1370,24 @@
     2.0,
     2.8
    ],
-   "takagiAdopted": 2.4,
+   "takagiAdopted": 2.6,
    "spacing": [
     6.4,
     8.0
    ],
+   "packRatio": 0.6,
    "matsuH": [
-    10.5,
-    13.0
+    12.0,
+    15.0
    ],
    "rakuyoRatio": 0.15,
    "rakuyoH": [
-    13.0,
-    16.0
+    16.0,
+    20.0
    ],
    "chubokuPer100": [
-    2.0,
-    3.0
+    3.0,
+    4.0
    ],
    "teibokuPer100": [
     3.0,
@@ -1388,7 +1395,7 @@
    ],
    "shitakusa": "連続",
    "rinen": {
-    "fromKen": 0.5,
+    "fromKen": 1.1,
     "toKen": 2.5,
     "takagiPer100": 0.0,
     "teibokuPer100": [
@@ -4379,7 +4386,9 @@
      "落葉",
      "中木",
      "低木"
-    ]
+    ],
+    "edaShitaOverRoadM": 4.0,
+    "edaShitaOverRoadRule": "**道辺**(`edgeClassRule`)の外へ張り出す社叢(帯1〜4)の樹冠は、**張り出した先の路面**から最下枝の付け根まで `edaShitaOverRoadM` 以上(参道の林縁 `slopeBands[3].clusters[1].edaShitaOverRoadM` と同値)。⚠ 未結線 ── 部材の枝下が目録に無い(`plantRule.crownRule.takagi.edaShitaPendingRef`)ので散布も検査もまだ読まない"
    },
    "rinenEdgeRule": "**辺の中点と両三分点(t = 1/3, 1/2, 2/3)が すべて 道敷から `rinenEdgeTouchKen` 以内**にある辺だけを『道に接する辺』とする。⛔ 端点の接触では拾わない",
    "rinenEdgeTouchKen": 1.0
@@ -4389,30 +4398,29 @@
     "ref": "樹種は `planting.parts.松` の palette、**大きさ(変種)は `planting.scaleRule.sizeRule` が丈から選ぶ**",
     "scaleY": "その帯・区の松の丈 ÷ 部材の丈",
     "scaleXZ": [
-     1.0,
-     1.15
+     1.05,
+     1.25
     ],
     "crown": "部材の樹冠 × scaleXZ",
-    "acc": "U(設計値 — 庭方 2026-09-06 回答: 高2)",
-    "scaleYMax": 1.1
+    "acc": "U(設計値 — 庭方 2026-09-06 回答: 高2)"
    },
    "rakuyo": {
     "ref": "樹種は `planting.parts` の palette、**大きさ(変種)は `planting.scaleRule.sizeRule` が丈から選ぶ**",
     "scaleY": "その帯・区の落葉高木の丈 ÷ 部材の素の丈",
-    "acc": "U(設計値)/U(**樹冠は部材 × `scaleXZ`・値は [0.65,0.80]**=庭方 2026-09-08 十六巡目 中6 — ⛔ 典拠は絵図ではない(中2 考証18巡目)。⛔ 旧 `crownPerH` 0.95(庭方 2026-09-07 裁定1)はこれに置き換わった)",
+    "acc": "U(設計値)/U(**樹冠は部材 × `scaleXZ`・値は欄 `scaleXZ`**=庭方 2026-09-08 十六巡目 中6 → 2026-09-23 EDO-0409 で引き上げ — ⛔ 典拠は絵図ではない(中2 考証18巡目)。⛔ 旧 `crownPerH` 0.95(庭方 2026-09-07 裁定1)はこれに置き換わった)",
     "scaleXZ": [
-     0.65,
-     0.8
+     0.75,
+     0.9
     ],
     "crownPerHMax": 0.85
    },
    "chuboku": {
     "ref": "樹種は `planting.parts.中木` の palette、**大きさ(変種)は `planting.scaleRule.sizeRule` が丈から選ぶ**",
     "scaleY": "その帯の中木の丈 ÷ 部材の丈",
-    "acc": "U(設計値)/U(**樹冠は部材 × `scaleXZ`・値は [0.75,0.90]**=庭方 2026-09-08 十六巡目 中6 — ⛔ 典拠は絵図ではない(中2 考証18巡目)。⛔ 旧 `crownPerH` 1.0(庭方 2026-09-07 裁き2)はこれに置き換わった)",
+    "acc": "U(設計値)/U(**樹冠は部材 × `scaleXZ`・値は欄 `scaleXZ`**=庭方 2026-09-08 十六巡目 中6 → 2026-09-23 EDO-0409 で引き上げ — ⛔ 典拠は絵図ではない(中2 考証18巡目)。⛔ 旧 `crownPerH` 1.0(庭方 2026-09-07 裁き2)はこれに置き換わった)",
     "scaleXZ": [
-     0.75,
-     0.9
+     0.85,
+     1.0
     ],
     "crownPerHMax": 1.05
    },
@@ -4433,8 +4441,9 @@
      "H24"
     ],
     "scaleYMax": 1.1,
+    "hCapScale": 1.25,
     "rule": "`scaleY`(丈 ÷ 部材の素の丈)が `scaleYMax` 以下の変種のうち |ln(scaleY)| が最小のもの。満たす変種が無ければ**最も大きい変種**",
-    "speciesHCap": "その樹種の**最大変種の素の丈** × `scaleYMax`",
+    "speciesHCap": "その樹種の**最大変種の素の丈** × `hCapScale`(無ければ `scaleYMax`)",
     "acc": "U(設計値 — 庭方 2026-09-07 裁定1)/ U(樹種ごとの頭打ち `speciesHCap` = 庭方 2026-09-08 裁定1)",
     "sizesPendingRef": "低木の部材名を丈の綴りへ改める(FBX のリネーム)"
    },
@@ -7737,7 +7746,7 @@
   {
    "部材": "常緑高木(クロマツ)",
    "在庫": "**無い(自作)**",
-   "手当": "自作 `Own.Matsu(size, i)`(`Tree_Matsu_{Mid,Big}` × 3 個体 = 6 点・目録に在る)。大きさは `planting.scaleRule.sizeRule` が丈から選ぶ。⛔ **在庫の黒松(JG BlackPine)は使わない** — 素の丈が当図の松の丈の半分ほどしか無く、`scaleRule.matsu.scaleYMax` の箍を満たせない(2026-09-08)",
+   "手当": "自作 `Own.Matsu(size, i)`(`Tree_Matsu_{Mid,Big}` × 3 個体 = 6 点・目録に在る)。大きさは `planting.scaleRule.sizeRule` が丈から選ぶ。⛔ **在庫の黒松(JG BlackPine)は使わない** — 素の丈が当図の松の丈の半分ほどしか無く、`sizeRule.hCapScale` の箍を満たせない(2026-09-08)",
    "優先": "—",
    "屋根": "—(屋根を持たない)"
   },

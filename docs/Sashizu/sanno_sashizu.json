@@ -4249,17 +4249,17 @@
      "acc": "U(層・丈=庭方 2026-09-07 八巡目 中1 ／ 個体=指図方) / U(個体=指図方 2026-09-07 九巡目 中2 — 据置)"
     },
     {
-     "name": "南I 御蔵の東",
+     "name": "南I 御蔵の西南",
      "uv": [
-      -8.5,
-      -12.0
+      -12.75,
+      -20.0
      ],
      "kind": "クロマツ",
-     "role": "南東の隅を締める",
+     "role": "境内の南の肩を締める(麓から見上げる南東の稜線の一本。御蔵の戸前は空ける)",
      "layer": "松",
      "h": 9.5,
      "part": "Own.Matsu(\"{size}\", 2)",
-     "acc": "U(層・丈=庭方 2026-09-07 八巡目 中1 ／ 個体=指図方) / U(個体=指図方 2026-09-07 九巡目 中2)"
+     "acc": "U(層・丈=庭方 2026-09-07 八巡目 中1 ／ 個体=指図方) / U(個体=指図方 2026-09-07 九巡目 中2) / U(位置・名=庭方 2026-09-23 EDO-0409 — 堂・棟の外面から 3間は高木を置かない規則(施主)に合わせ、御蔵の北の戸前から西南の肩へ移した)"
     }
    ],
    "clusterGapMin": 9.0,
@@ -4554,6 +4554,14 @@
    "keidai": {
     "do": 1.5,
     "doRinKen": 3.0,
+    "doRinKenBandLayers": [
+     "松",
+     "落葉",
+     "中木"
+    ],
+    "doRinKenOf": [
+     "munes"
+    ],
     "sukibeiKairo": 2.0,
     "shirasuNorthFromV": 10.0192,
     "shirasuNorthKen": 3.0,
@@ -4689,6 +4697,9 @@
     "kakoiInsideM": 2.0,
     "kakoiInsideRule": "**道辺に面する囲い**(`runs[]` の 柵・板塀 のうち、線上の探り点がどれも道辺から `kakoiFacingRoadM` 以内にある物)では、全層(低木も)の幹の芯を **囲いの実体(線+半厚)から `kakoiInsideM` 以上**離す ── 囲いの線を半径 `kakoiInsideM`+半厚 で**両端・各節も含めて丸く膨らませた形**の外に置く(run の端の先=線の延長上にも置かない)。半厚は 柵=`hFrom` の庭の `tamagaki.postDiaM`/2、板塀=指図に欄が無く 0(`sashizu_lib.kakoi_half_thickness`)。⛔ 囲いと道辺の間(囲いの道側)には一本も置かない。⛔ 樹冠で測らない ── 枝葉が囲いを越えて道側へ張り出すのは可。囲いの無い辺は `kyoukaiRoadRule` のまま。⛔ 硬い制約(許容0=退ける)。⛔ 囲いの名を書かない ── 拾い方は散布と検査で一本(`sashizu_lib.kakoi_facing_road`)",
     "kakoiFacingRoadM": 8.0,
+    "kakoiLineFrom": "kyoukaiRoadM",
+    "kakoiLineTamagaki": false,
+    "kakoiLineRule": "**塀・囲い・土留めのすべての実体線**(社地 `polygon` の全辺 ── 道辺も隣地辺も・隣家の塀は区画線の上に立つ ／ `runs[]` の建つ区間 = 透塀・回廊・袖塀・柵・板塀 ／ `terraceWalls[]` の建つ区間 ／ `kakoiLineTamagaki` が true なら玉垣の立てる辺)から、全層(低木も)の幹の芯を `kakoiLineFrom` が指す欄の値(= 道辺と同じ `kyoukaiRoadM`)+ 半厚 以上離す ── 各区間を丸く膨らませた形(両端・各節も円)の外に置く。半厚は 柵=柱の径/2・玉垣=`tamagaki.postDiaM`/2・ほかは指図に欄が無く 0。⛔ 樹冠で測らない ── 枝葉が塀を越えるのは可。⛔ 硬い制約(許容0=退ける)。⛔ 前庭の縁の緩め(`slopeBands[].avoid.zenteiFromEdge*`)より硬い側が勝つ。⛔ 線の拾い方は散布と検査で一本(`sashizu_lib.kakoi_lines`)。玉垣を囲いに数えるかは施主の裁定待ち(既定 false)",
     "edaShitaOverRoadM": 4.0,
     "edaShitaOverRoadRule": "**道辺**(`edgeClassRule`)の外へ張り出す社叢(帯1〜4)の樹冠は、**張り出した先の路面**から最下枝の付け根まで `edaShitaOverRoadM` 以上(参道の林縁 `slopeBands[3].clusters[1].edaShitaOverRoadM` と同値)。⚠ 未結線 ── 部材の枝下が目録に無い(`plantRule.crownRule.takagi.edaShitaPendingRef`)ので散布も検査もまだ読まない"
    },

@@ -1532,3 +1532,101 @@ def kakoi_keepout_hit(K, x, z):
         elif _seg_d((x, z), g[0], g[1]) < g[2]:
             return nm
     return None
+
+
+def kakoi_line_m(d):
+    """**塀・囲い・土留めの実体線からの幹の離れ**[m](`planting.bandDef.avoid.kakoiLineFrom` が指す欄の値)。
+    宣言が無ければ None(⛔ 数を持たない ── 値は指し先の欄 = 道辺と同じ `kyoukaiRoadM`)。"""
+    av = (((d.get("planting") or {}).get("bandDef") or {}).get("avoid") or {})
+    k = av.get("kakoiLineFrom")
+    v = av.get(k) if k else None
+    return float(v) if isinstance(v, (int, float)) else None
+
+
+def kakoi_lines(d, poly, runs, tamagaki):
+    """**塀・囲い・土留めの実体線のすべて**(世界 xz)。戻り [{name, kind, segs:[(a,b)…], half, halfFrom}]。
+
+    【施主 2026-09-23 EDO-0409】幹の芯は、塀・囲い・土留めの**すべての**実体線から `kakoi_line_m` 以上内。
+    ・区画の**全辺**(`poly` = 社地の `polygon`。道辺だけでなく隣地辺も ── 隣家の塀は区画線の上に立つ)
+    ・算出物の `runs[]` の**建つ区間** `segs`(透塀・回廊・袖塀・柵・板塀・土留め `terraceWalls` の全部)
+    ・算出物の `tamagaki[]` の**立てる辺**(`fence`)の建つ区間 ── **`avoid.kakoiLineTamagaki` が true のときだけ**
+      (玉垣を囲いに数えるかは施主の裁定待ち・既定は数えない 2026-09-23)
+    ⭐ 散布(`impl_sanno.kakoi_line_shapes`)と検査(`build_sashizu.Checks.c29`)が**この一本**を使う。
+    ⭐ 半厚: 柵・玉垣は柱の径の半分(`kakoi_half_thickness` / `tamagaki.spec.postDiaM`)、ほかは指図に厚みの
+      欄が無いので 0 と明示(⛔ 発明しない)。
+    """
+    out = []
+    P = [tuple(q[:2]) for q in (poly or [])]
+    for i in range(len(P)):
+        out.append({"name": "区画の辺%d" % i, "kind": "区画の辺", "segs": [(P[i], P[(i + 1) % len(P)])],
+                    "half": 0.0, "halfFrom": "取れない(区画の線 — 0 で扱う)"})
+    for r in runs or []:
+        sg = [(tuple(a[:2]), tuple(b[:2])) for a, b in (r.get("segs") or [])]
+        if not sg: continue
+        h, hf = (kakoi_half_thickness(d, r.get("name")) if r.get("of") != "wall" and r.get("kind") != "土留め"
+                 else (0.0, "取れない(土留め に厚みの欄が無い — 0 で扱う)"))
+        out.append({"name": r.get("name"), "kind": r.get("kind") or "?", "segs": sg, "half": h, "halfFrom": hf})
+    av = (((d.get("planting") or {}).get("bandDef") or {}).get("avoid") or {})
+    for t in (tamagaki or []) if av.get("kakoiLineTamagaki") is True else []:
+        if not t.get("fence"): continue
+        sg = [(tuple(a[:2]), tuple(b[:2])) for a, b in (t.get("segs") or [])]
+        if not sg: continue
+        pd = ((t.get("spec") or {}).get("postDiaM"))
+        out.append({"name": "玉垣:%s %s" % (t.get("garden"), t.get("edge")), "kind": "玉垣", "segs": sg,
+                    "half": float(pd) / 2.0 if pd else 0.0,
+                    "halfFrom": "tamagaki.postDiaM/2" if pd else "取れない(玉垣に柱径の欄が無い — 0 で扱う)"})
+    return out
+
+
+def kakoi_line_keepout(lines, m):
+    """`kakoi_lines` の各区間を半径 `m + 半厚` で膨らませたカプセル(両端・各節も丸い)。
+    形は `kakoi_keepout_polys` の "seg" と同じで、判定は `kakoi_keepout_hit` の一本。"""
+    return [(ln["name"], "seg", (a, b, m + ln["half"])) for ln in lines for a, b in ln["segs"]]
+
+
+def do_rin_rects(d):
+    """**堂・棟の外面**(uv の矩形・間)── 3間の離れ(`planting.clearance.keidai.doRinKen`)を測る相手。
+    戻り [(名, (u0, v0, u1, v1), 基壇の出[m] か None)]。
+
+    ・`munes[]`(⛔ `yaku` = 接続 は隣の棟の内側なので除く)。矩形は `u0,v0,du,dv`(柱芯の矩形)。
+    ・`clearance.keidai.doRinKenOf` に "ido" があれば**井戸屋形**(`ido.uv` ± `hashiraPitchKen`/2 = 柱芯の矩形)。
+      (井戸屋形を棟に数えるかは施主の裁定待ち・既定は `["munes"]` = 数えない 2026-09-23)
+    ⭐ **基壇の出**は `bom[]` の行(『部材』がその棟の名で始まる行)の `kidanM.out` があれば外へ足す。
+      無い棟は None を返し、検査は『基壇を含まない』と名乗る(⛔ 出を発明しない)。
+    """
+    ken = d["const"]["ken"]
+    kd = (((d.get("planting") or {}).get("clearance") or {}).get("keidai") or {})
+    of = kd.get("doRinKenOf") or ["munes"]
+    out = []
+
+    def kidan(nm):
+        for b in d.get("bom") or []:
+            if str(b.get("部材") or "").startswith(nm) and isinstance((b.get("kidanM") or {}).get("out"), (int, float)):
+                return float(b["kidanM"]["out"])
+        return None
+    if "munes" in of:
+        for m in d.get("munes") or []:
+            if m.get("yaku") == "接続" or m.get("u0") is None: continue
+            k = kidan(m["name"])
+            e = (k or 0.0) / ken
+            out.append((m["name"], (m["u0"] - e, m["v0"] - e, m["u0"] + m["du"] + e, m["v0"] + m["dv"] + e), k))
+    io = d.get("ido")
+    if "ido" in of and io and io.get("uv"):
+        u, v = io["uv"]
+        p = io["hashiraPitchKen"] / 2.0
+        nm = io.get("name") or "井戸屋形"
+        k = kidan(nm)
+        e = (k or 0.0) / ken
+        out.append((nm, (u - p - e, v - p - e, u + p + e, v + p + e), k))
+    return out
+
+
+def do_rin_dist(R, u, v):
+    """点 (u,v) から `do_rin_rects` の最も近い外面まで[間](内なら 0)と、その名。"""
+    best = (1e18, None)
+    for nm, (u0, v0, u1, v1), _k in R:
+        du = max(u0 - u, 0.0, u - u1)
+        dv = max(v0 - v, 0.0, v - v1)
+        dd = math.hypot(du, dv)
+        if dd < best[0]: best = (dd, nm)
+    return best

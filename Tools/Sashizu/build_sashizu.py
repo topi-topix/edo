@@ -1644,13 +1644,15 @@ class Checks(object):
                     ";位置の読めない囲い %s は拾えていない" % "・".join(unread) if unread else ""),
                  "%d 点" % len(bad), "ng" if bad else "ok", bad[:12])
 
-    # C27 堂の外面から林の幹(施主裁定B 2026-09-23 EDO-0409「茂らせて社叢の輪を内側まで閉じ、堂からは離れを取る」)
+    # C27 堂の外面から林の幹(施主裁定B 2026-09-23 EDO-0409「茂らせて社叢の輪を内側まで閉じ、堂からは離れを取る」
+    #     → 同日 施主: 3間は境内の塊だけでなく**全帯の高木と中木**に当てる)
     def c27(self):
-        """`planting.clearance.keidai.doRinKen` を宣言した邸だけ、**退避 `keidai` の区の塊**(`gardens[].clusters`)に
-        撒いた木(全層)の**幹の芯**が、指図の棟の矩形(`munes` の外面)から `doRinKen` 間以上離れているかを測る。
+        """`planting.clearance.keidai.doRinKen` を宣言した邸だけ、**退避 `keidai` の区の塊**(全層)と
+        **社叢の帯**(`doRinKenBandLayers` の層)に撒いた木の**幹の芯**が、堂・棟の外面から `doRinKen` 間以上離れているかを測る。
 
-        ⭐ 硬い制約(許容0)── 塊の候補セルは退避 `keidai` を引かない(形で守っている)ので、この検査が唯一の輪。
-        ⛔ 樹冠は測らない。⛔ 宣言の無い邸には課さない。拾う区と塊の名は結果に刷る(0 本なら『未検査』)。
+        ⭐ 硬い制約(許容0)。⭐ 棟の外面は散布と同じ関数 `sashizu_lib.do_rin_rects`(`munes` の矩形 + `bom` に
+          基壇の出があれば含む・`doRinKenOf` に "ido" があれば井戸屋形も)── 基壇の出の無い棟は『基壇を含まない』と名乗る。
+        ⛔ 樹冠は測らない。⛔ 宣言の無い邸には課さない。拾う区と塊の名・帯の層は結果に刷る(0 本なら『未検査』)。
         """
         M = self.M
         kd = (((M.d.get("planting") or {}).get("clearance") or {}).get("keidai") or {})
@@ -1665,23 +1667,68 @@ class Checks(object):
             return
         grp = ["%s／%s" % (gd.get("name"), c.get("name")) for gd in (M.d.get("gardens") or [])
                if gd.get("clearance") == "keidai" for c in (gd.get("clusters") or [])]
+        bl = kd.get("doRinKenBandLayers") or []
         T = [q for q in P if q.get("group") in grp]
-        polys = [(m.name, m.poly) for m in M.munes if m.poly]
-        if not T or not polys:
-            self.add("C27", "堂の外面から林の幹", "未検査 — 退避 keidai の区の塊に撒いた木が無い(塊 %d・棟 %d)"
-                     % (len(grp), len(polys)), "na")
+        Tb = [q for q in P if str(q.get("group") or "").startswith("社叢 帯") and q.get("layer") in bl]
+        R = L.do_rin_rects(M.d)
+        if not (T or Tb) or not R:
+            self.add("C27", "堂の外面から林の幹", "未検査 — 退避 keidai の区の塊・帯の %s に撒いた木が無い(塊 %d・棟 %d)"
+                     % ("・".join(bl) or "層の宣言無し", len(grp), len(R)), "na")
             return
         bad, worst = [], 0.0
-        for q in T:
+        for q in T + Tb:
             u, v = q["uv"]
-            dm, nm = min(((0.0 if pip(pp, u, v) else edge_dist((u, v), pp)), n) for n, pp in polys)
+            dm, nm = L.do_rin_dist(R, u, v)
             if dm < rk - 0.01 / M.KEN:
-                bad.append("%s: 棟 %s の外面から %.2f 間" % (q["name"], nm, dm))
+                bad.append("%s: 棟 %s の外面から %.2f 間(%.2f m)" % (q["name"], nm, dm, dm * M.KEN))
                 worst = max(worst, rk - dm)
-        self.add("C27", "堂の外面から林の幹 — %s の退避 keidai の区の塊 %d(%s)に撒いた %d 点(全層)の幹の芯が、棟 %d の矩形の外面から"
-                 " %.1f 間以上離れている(硬い制約・許容0。樹冠は測らない)"
-                 % (fn, len(grp), "・".join(grp), len(T), len(polys), rk),
+        kid = ["%s %.2fm" % (nm, k) for nm, _r, k in R if k is not None]
+        nok = [nm for nm, _r, k in R if k is None]
+        self.add("C27", "堂の外面から林の幹 — %s の退避 keidai の区の塊 %d に撒いた %d 点(全層)と社叢の帯の %d 点(%s)の幹の芯が、"
+                 "棟 %d(%s)の外面から %.1f 間以上離れている(硬い制約・許容0。基壇の出を含む棟 %d:%s/含まない棟 %d。樹冠は測らない)"
+                 % (fn, len(grp), len(T), len(Tb), "・".join(bl) or "帯は測らない", len(R), "・".join(n for n, _r, _k in R), rk,
+                    len(kid), "・".join(kid) or "無し", len(nok)),
                  "%d 点(最大 %.2f 間 足りない)" % (len(bad), worst), "ng" if bad else "ok", bad[:12])
+
+    # C29 塀・囲い・土留めの内の幹(施主 2026-09-23 EDO-0409「幹の芯は塀・囲い・土留めのすべての実体線から 2.0m 以上内」)
+    def c29(self):
+        """`planting.bandDef.avoid.kakoiLineFrom` を宣言した邸だけ、撒いた木(全点・全層)の**幹の芯**が
+        塀・囲い・土留めの**すべての実体線**(区画の全辺 + 算出物の runs の建つ区間 + 宣言があれば玉垣)から
+        指し先の値[m](+ 半厚)以上離れているかを測る。
+
+        ⭐ 線の拾い方と形・判定は散布と同じ関数(`sashizu_lib.kakoi_lines` / `kakoi_line_keepout` / `kakoi_keepout_hit`)。
+        ⭐ 線は `<邸>_impl.json` の `runs` / `tamagaki`(実装が建てる区間そのもの)。⛔ 樹冠は測らない。
+        ⚠ 区画の外に立つ塀(隣家の手組みの塀が区画線の内へ入っている等)は紙に線が無いので測れない ── 実装の輪で測る。
+        """
+        M = self.M
+        m = L.kakoi_line_m(M.d)
+        if m is None:
+            self.add("C29", "塀・土留めの内の幹", "未検査 — `planting.bandDef.avoid.kakoiLineFrom` の宣言が無い", "na")
+            return
+        fn, P = self.planting_points()
+        if fn is None or isinstance(P, Exception):
+            self.add("C29", "塀・土留めの内の幹", "未検査 — 撒いた点が無い" if fn is None else "⛔ 読めない: %s" % P,
+                     "na" if fn is None else "ng")
+            return
+        fp = os.path.join(DOC, M.est + "_impl.json")
+        im = json.load(open(fp, encoding="utf-8")) if os.path.exists(fp) else {}
+        lines = L.kakoi_lines(M.d, M.poly, im.get("runs"), im.get("tamagaki"))
+        K = L.kakoi_line_keepout(lines, m)
+        bad = []
+        for q in P:
+            w = q["world"]
+            nm = L.kakoi_keepout_hit(K, w[0], w[1])
+            if nm is not None:
+                bad.append("%s(%s): %s の実体から %.1f m 未満" % (q["name"], q.get("group") or "", nm, m))
+        kinds = {}
+        for ln in lines:
+            kinds[ln["kind"]] = kinds.get(ln["kind"], 0) + 1
+        halves = sorted(set("%s %.2fm=%s" % (ln["kind"], ln["half"], ln["halfFrom"]) for ln in lines))
+        self.add("C29", "塀・土留めの内の幹 — %s の %d 点(全層)の幹の芯が、塀・囲い・土留めの実体線 %d 本・%d 区間(%s)から"
+                 " %.1f m(+半厚:%s)以上離れている(区間の両端・各節も円で測る。樹冠は測らない。区画の外の塀は測れない)"
+                 % (fn, len(P), len(lines), len(K), "・".join("%s %d" % kv for kv in sorted(kinds.items())), m,
+                    "・".join(halves)),
+                 "%d 点" % len(bad), "ng" if bad else "ok", bad[:12])
 
     # C28 塊どうしの間(庭方 2026-09-06「塊どうしを近づけすぎない目安」・庭方2巡目「置かれた木どうしの最小離れで測る」)
     def c28(self):

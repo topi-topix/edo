@@ -324,12 +324,17 @@
   },
   "C27": {
    "title": "堂の外面から林の幹",
-   "measures": "`planting.clearance.keidai.doRinKen` を宣言した邸だけ、退避 keidai の区の塊(`gardens[].clusters`)に撒いた木(全層)の幹の芯が、指図の棟の矩形(`munes`)の外面から `doRinKen` 間以上離れている。硬い制約(許容0)。樹冠は測らない(施主裁定B 2026-09-23 EDO-0409「茂らせて社叢の輪を内側まで閉じ、堂からは離れを取る」)。宣言の無い邸は未検査",
+   "measures": "`planting.clearance.keidai.doRinKen` を宣言した邸だけ、退避 keidai の区の塊(`gardens[].clusters`)に撒いた木(全層)と、社叢の帯に撒いた木(`doRinKenBandLayers` の層)の幹の芯が、堂・棟の外面(`sashizu_lib.do_rin_rects` = `munes` の矩形。`bom` に基壇の出があれば含み、無い棟は『基壇を含まない』と名乗る。`doRinKenOf` に ido があれば井戸屋形も)から `doRinKen` 間以上離れている。硬い制約(許容0)。散布と同じ関数で測る。樹冠は測らない(施主裁定B 2026-09-23 EDO-0409 / 同日 施主「全帯の高木と中木に当てる」)。宣言の無い邸は未検査",
    "from_checks": []
   },
   "C28": {
    "title": "塊どうしの間",
    "measures": "`gardens[].clusterGapMin`[間] を宣言した区だけ、同じ区の違う塊に撒いた木の幹の芯どうしの最小の離れがその値以上(`clusterGapMinDef`:箱の縁ではなく置かれた木どうし)。柔らかい制約(狙い)── 未達は △ 狙い未達で刷り、不合格に数えない・関門にしない。別の塊と多角形を共有する塊(`polyFrom`)と中木の塊は測らない。塊が一つしか無い区は対が無い(庭方 2026-09-06「塊どうしを近づけすぎない目安」)",
+   "from_checks": []
+  },
+  "C29": {
+   "title": "塀・土留めの内の幹",
+   "measures": "`planting.bandDef.avoid.kakoiLineFrom` を宣言した邸だけ、撒いた木(全点・全層)の幹の芯が、塀・囲い・土留めのすべての実体線(区画の全辺・算出物 `runs` の建つ区間=透塀・回廊・袖塀・柵・板塀・土留め・`kakoiLineTamagaki` が true なら玉垣)から指し先の値(`kyoukaiRoadM`)+半厚 以上離れている。区間の両端・各節も円で測る。線の拾い方・形・判定は散布と同じ `sashizu_lib.kakoi_lines` / `kakoi_line_keepout` / `kakoi_keepout_hit`。樹冠は測らない。区画の外に立つ塀は紙に線が無いので測れない(施主 2026-09-23 EDO-0409)。宣言の無い邸は未検査",
    "from_checks": []
   }
  },

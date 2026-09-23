@@ -1328,6 +1328,10 @@ def _avoid_shapes_base(d, g, scope):
         if av123.get("kakoiRule"): out += kakoi_avoid_shapes(d, sh)
         # ⭐ **囲いの内 2m**(全層・硬い制約)【施主裁定 2026-09-23 EDO-0409】
         if av123.get("kakoiInsideM") is not None: out += kakoi_inside_shapes(d, g)
+        # ⭐ **塀・囲い・土留めの実体線のすべてから 2m**(全層・硬い制約)【施主 2026-09-23 EDO-0409】
+        out += kakoi_line_shapes(d, g)
+        # ⭐ **堂・棟の外面から 3間**(帯の高木・中木・硬い制約)【施主 2026-09-23 EDO-0409】
+        out += do_rin_band_shapes(d, lay9)
         # ⭐ **社地の境からの幹の離れ**(全周)【中5 庭方 2026-09-09 十七巡目】
         if av123.get("kyoukaiRule"):
             out += kyoukai_avoid_shapes(d, g, kyoukai_shoulder(d, lay9), lay9)
@@ -1365,6 +1369,11 @@ def _avoid_shapes_base(d, g, scope):
         out += kakoi_avoid_shapes(d, sh4, skip_zentei=True)
     # ⭐ **囲いの内 2m**(全層・硬い制約)【施主裁定 2026-09-23 EDO-0409】
     if av4.get("kakoiInsideM") is not None: out += kakoi_inside_shapes(d, g)
+    # ⭐ **塀・囲い・土留めの実体線のすべてから 2m**(全層・硬い制約)【施主 2026-09-23 EDO-0409】──
+    #    ⛔ 前庭の縁の緩め(`zenteiFromEdge`/`zenteiFromEdgeEast`)より硬い側が勝つ(幹は土留めの天端に立てない)
+    out += kakoi_line_shapes(d, g)
+    # ⭐ **堂・棟の外面から 3間**(帯の高木・中木)。層が無ければ高木で代表(⛔ 甘い側へ倒さない)
+    out += do_rin_band_shapes(d, scope.partition(":")[2] or None)
     # ⭐ **社地の境からの幹の離れ**(全周)【中5 庭方 2026-09-09 十七巡目】。⚠ 帯4 は層で
     #    分けない額縁の宣言だが、境の離れは**層ごと**なので最も大きい肩(高木)で代表させる
     #    ── ⛔ 甘い側へ倒さない。
@@ -1502,6 +1511,48 @@ def kakoi_inside_shapes(d, g):
         else:
             (ax, az), (bx, bz), r = Q
             out.append(_shape_seg((g.U(ax), g.V(az)), (g.U(bx), g.V(bz)), r / g.ken, "囲いの内:" + nm))
+    return out
+
+
+_KLINE = {}
+
+
+def kakoi_line_shapes(d, g):
+    """**塀・囲い・土留めの実体線のすべて**から `kakoi_line_m`(= `avoid.kakoiLineFrom` の指し先)以内(幹を退ける面・全層)。
+
+    【施主 2026-09-23 EDO-0409】普請検査が Unity で、隣家の塀(区画線の上に立つ)と社地の土留めの天端に立つ
+    幹を 14 本見つけた ── 締め出しが道辺と道に面する囲いしか知らなかった。⛔ **硬い制約**(許容0=退ける)。
+    ⭐ 線の拾い方と形は `sashizu_lib.kakoi_lines` / `kakoi_line_keepout`(検査 C29 と同じ一本)。
+      線は**算出物と同じ関数**(`impl_runs` / `impl_tamagaki`)の建つ区間 + 社地の `polygon` の全辺。
+    ⛔ 樹冠で測らない ── 枝葉が塀を越えるのは可。⚠ `derive_runs` の後に呼ぶ(生成物の run がある)。
+    """
+    import sashizu_lib as L
+    m = L.kakoi_line_m(d)
+    if m is None: return []
+    c = _KLINE.get("v")
+    if c is None or c[0] is not d:          # ⛔ id だけで引かない(焼き直しで別の d が同じ id を持ちうる)
+        K = L.kakoi_line_keepout(L.kakoi_lines(d, d["polygon"], impl_runs(d, g), impl_tamagaki(d, g)), m)
+        c = (d, [_shape_seg((g.U(a[0]), g.V(a[1])), (g.U(b[0]), g.V(b[1])), r / g.ken, "塀・土留め:" + nm)
+                 for nm, _k, (a, b, r) in K])
+        _KLINE["v"] = c
+    return c[1]
+
+
+def do_rin_band_shapes(d, lay=None):
+    """**堂・棟の外面から `doRinKen` 間**(帯の `doRinKenBandLayers` の層だけ・幹を退ける面)。
+
+    【施主 2026-09-23 EDO-0409】3間は境内の塊だけでなく**全帯の高木と中木**に当てる(普請検査が帯1 の中木 2 本を
+    御蔵・観音堂から 3間 未満で見つけた)。棟の外面は `sashizu_lib.do_rin_rects`(基壇の出があれば含む・井戸屋形も
+    棟に数える)── 検査 C27 と同じ一本。⛔ 層を渡さない呼び手は高木で代表する。
+    """
+    import sashizu_lib as L
+    kd = d["planting"]["clearance"].get("keidai") or {}
+    rk, lays = kd.get("doRinKen"), kd.get("doRinKenBandLayers")
+    if rk is None or not lays: return []
+    if lay is not None and lay not in lays: return []
+    out = []
+    for nm, (u0, v0, u1, v1), _k in L.do_rin_rects(d):
+        out.append(_shape_poly([(u0, v0), (u1, v0), (u1, v1), (u0, v1)], float(rk), "堂の3間:" + nm))
     return out
 
 
@@ -4586,6 +4637,13 @@ def scatter_pts(d, g):
             step = max(rmin / 4.0, 0.05)
             cand0 = [p for Q in polys for p in poly_scan(Q, step)]
             cand = [p for p in cand0 if not _in_gap(p, c["name"])]  # 指1 辻の留めの間合い
+            # ⭐ **塀・囲い・土留めの実体線から 2m**(全層・硬い制約)【施主 2026-09-23 EDO-0409】── 塊の候補も
+            #    退避 keidai を引かないので、ここで落とす(⚠ 境内の塊 8 本が `Ita_Keidai` の 2m 内に立っていた)
+            kl9 = kakoi_line_shapes(d, g)
+            # ⭐ 退避 keidai の区の塊は**堂の外面から 3間**も候補で落とす(全層・C27 と同じ `do_rin_rects`)──
+            #    ⚠ 候補が減ると `_scatter_take` が芯々を緩めて採り直し、形で守っていた 3間を割った(西B 松06 が薬師堂 5.10m)
+            if gd.get("clearance") == "keidai": kl9 = kl9 + do_rin_band_shapes(d, None)
+            if kl9: cand = [p for p in cand if not shape_hit(p, kl9)]
             # ⭐ **間合いに食われたら線に沿ってずらす**【指1 庭方 2026-09-09 十八巡目】──
             #    ⛔ **本数を減らして黙らせない。**⛔ ずらす量を json に持たない ── 「その塊の木が
             #    全部、間合いの外に立てる最小の移動」として図が毎回求める。
@@ -4615,7 +4673,7 @@ def scatter_pts(d, g):
                               for Q in polys]
                         cd = [p for Q in QS for p in poly_scan(Q, step)]
                         cd = [p for p in cd if not _in_gap(p, c["name"])
-                              and not (sh9 and shape_hit(p, sh9))]
+                              and not (sh9 and shape_hit(p, sh9)) and not (kl9 and shape_hit(p, kl9))]
                         # ⛔ **緩めた置き方で『入った』と読まない**(`_scatter_take` は入らないと
                         #    `rmin` を 0.9 倍して採り直す)── 芯々の下限を割ったまま滑らせると、
                         #    ⛔ 幹が二本同じ株から生えて見える。

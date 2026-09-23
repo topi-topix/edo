@@ -469,6 +469,22 @@ class Model(object):
                 ox, oy = -dv / n * wk / 2, du / n * wk / 2
                 p = [(a[0] + ox, a[1] + oy), (b[0] + ox, b[1] + oy), (b[0] - ox, b[1] - oy), (a[0] - ox, a[1] - oy)]
                 run = run or n * K
+            elif isinstance(k.get("pts"), list) and len(k["pts"]) >= 2 and k.get("wKen"):   # 曲がる坂: 芯の折れ線(uv)・幅 wKen
+                P9 = [tuple(q[:2]) for q in k["pts"]]
+                L9, R9 = [], []
+                for i9, q9 in enumerate(P9):
+                    # 節点の法線 = 前後の辺の法線の和(折れ点は二辺の中間の向きで振る)
+                    nx9 = ny9 = 0.0
+                    for a9, b9 in ((P9[i9 - 1], q9) if i9 else (None, None), (q9, P9[i9 + 1]) if i9 + 1 < len(P9) else (None, None)):
+                        if a9 is None: continue
+                        du9, dv9 = b9[0] - a9[0], b9[1] - a9[1]
+                        n9 = math.hypot(du9, dv9) or 1e-9
+                        nx9 += -dv9 / n9; ny9 += du9 / n9
+                    m9 = math.hypot(nx9, ny9) or 1e-9
+                    L9.append((q9[0] + nx9 / m9 * wk / 2, q9[1] + ny9 / m9 * wk / 2))
+                    R9.append((q9[0] - nx9 / m9 * wk / 2, q9[1] - ny9 / m9 * wk / 2))
+                p = L9 + R9[::-1]
+                run = run or sum(math.hypot(b9[0] - a9[0], b9[1] - a9[1]) for a9, b9 in zip(P9, P9[1:])) * K
             elif "pos" in k and "dir" in k and run:            # 松平: pos から dir へ run
                 (u, v), dr = k["pos"], k["dir"]
                 rk = run / K
@@ -505,6 +521,12 @@ class Model(object):
         self.routes = []
         for r in d.get("routes", []) or []:
             pts = r.get("pts")
+            if not pts and isinstance(r.get("from"), str) and ":" in r["from"]:
+                # 他の欄の道筋からの従属値(`from: "<欄>:<名>"` + 尾 `tail`)── ⛔ 点を二重に持たない
+                fk, fn = r["from"].split(":", 1)
+                src = next((q for q in (d.get(fk) or []) if isinstance(q, dict) and q.get("name") == fn), None)
+                if src and isinstance(src.get("pts"), list):
+                    pts = list(src["pts"]) + list(r.get("tail") or [])
             if not pts:
                 self.notes.append("routes[%s] に pts が無い" % r.get("name"))
                 continue
@@ -920,7 +942,44 @@ class Checks(object):
             if hi > 4.0 + 0.05 and not w.raw.get("tiers", 1) > 1:
                 bad.append("%s 一段で %.2f m(石垣の駒 4.0 を超える)" % (w.name, hi))
         self.rows_c06 = rows
-        self.add("C06", "土留め高と法 — %d 本の天端と地山の落差(宣言・駒の丈・埋没)" % len(M.walls),
+        # 土留めを置かず**切土の法**で受ける縁(`terraces[].cutSlopes`)── 要る幅(切の深さ × batterCut)が
+        #   区画の内の余地に納まるか。⛔ 法を区画の外へ出さない(区域侵犯は許容0)。
+        bc = M.const.get("batterCut", 1.0)
+        rows_cs = []
+        for t in M.terraces:
+            for cs in (t.raw.get("cutSlopes") or []):
+                a, b = cs["a"], cs["b"]
+                du, dv = b[0] - a[0], b[1] - a[1]
+                nn = math.hypot(du, dv) or 1e-9
+                ox, oy = -dv / nn, du / nn
+                mu, mv = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+                if pip(t.poly, mu + ox * 0.05, mv + oy * 0.05):
+                    ox, oy = -ox, -oy                      # 外向き = 平場でない側
+                k = max(2, int(nn / 0.1))
+                worst, deep = None, None
+                for j in range(k + 1):
+                    s = j / k
+                    u, v = a[0] + du * s, a[1] + dv * s
+                    nat = M.nat(u, v)
+                    if nat is None:
+                        continue
+                    need = max(0.0, nat - t.y) * bc
+                    room = 0.0
+                    while room < 40.0 / M.KEN and M.in_parcel(u + ox * (room + 0.01), v + oy * (room + 0.01)):
+                        room += 0.01
+                    room *= M.KEN
+                    if worst is None or room - need < worst[0]:
+                        worst = (room - need, u, v, need, room)
+                    if deep is None or need > deep[0]:
+                        deep = (need, u, v, room)
+                if worst is None:
+                    continue
+                rows_cs.append((cs.get("name") or t.name, deep[0], deep[3], worst[0], worst[1], worst[2]))
+                if worst[0] < -0.05:
+                    bad.append("%s 切土の法が区画の外へ %.2f m 出る(%.1f,%.1f)" % (cs.get("name") or t.name, -worst[0], worst[1], worst[2]))
+        self.rows_cutslope = rows_cs
+        self.add("C06", "土留め高と法 — %d 本の天端と地山の落差(宣言・駒の丈・埋没)%s" % (
+                     len(M.walls), (" ・切土の法 %d 本が区画の内に納まる" % len(rows_cs)) if rows_cs else ""),
                  "%d 件" % len(bad), "ok" if not bad else "ng", bad[:12])
 
     # C07 外周の閉じ
@@ -2339,6 +2398,11 @@ def build(est, deep=False, out=None):
     if getattr(C, "rows_c06", None):
         h.append(tbl(["土留め", "天端 m", "実落差 最小", "最大", "宣言"],
                      [[a, "%.2f" % b, "%.2f" % lo, "%.2f" % hi, str(dcl) if dcl is not None else "—"] for a, b, lo, hi, dcl in C.rows_c06]))
+    if getattr(C, "rows_cutslope", None):
+        h.append(tbl(["切土の法(土留めを置かない縁)", "最大の切 = 要る幅 m(1:%.1f)" % M.const.get("batterCut", 1.0),
+                      "その点の区画の内の幅 m", "最も狭い所の余裕 m", "その点 (u, v)"],
+                     [[a, "%.2f" % need, "%.2f" % room, "%+.2f" % mg, "(%.2f, %.2f)" % (u, v)]
+                      for a, need, room, mg, u, v in C.rows_cutslope]))
     h.append("</div>")
 
     # 其四 断面

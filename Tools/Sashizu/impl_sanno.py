@@ -415,6 +415,9 @@ def island_shrubs(gd, ken, d=None):
     sh = gd.get("shrubs")
     P = [(q[0], q[1]) for q in (gd.get("poly") or [])]
     if not sh or not P: return []
+    # ⭐ **塊を庭方が置いた帯**(`shrubs.clusters[].pts`)は、その点を写すだけ(⛔ 格子で撒かない)【K124 2026-09-24】
+    if sh.get("clusters"):
+        return [(float(q[0]), float(q[1])) for c in sh["clusters"] for q in c.get("pts") or []]
     st = sh["spacingM"] / ken
     # ⭐ **木戸の開口の裏は空ける**(2026-09-06 検図4巡目 中4 — 開口の真裏 0.60m に低木が立っていた)
     kr = kido_rect(gd, ken)

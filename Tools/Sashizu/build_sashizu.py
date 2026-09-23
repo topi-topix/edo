@@ -1277,35 +1277,62 @@ class Checks(object):
         self.add("C16", "植栽の在庫と本数 — 名指しした部材 %d が目録(asset-index.tsv)・Assets/・EdoAssets.cs のどれかに実在する" % len(assets),
                  "無い %d" % len(miss), "ok" if not miss else "ng", miss[:12])
 
+    def planting_points(self):
+        """撒いた木の点 (出所の名, [{uv, world, crownR, name, place}…])。無ければ (None, None)、読めなければ (名, 例外)。
+
+        ⭐ 出所は二通り: `<邸>_planting_out.json`(松江松平)と `<邸>_impl.json` の `planting.points`(山王)。
+        ⚠ 2026-09-23 EDO-0401 まで impl の側を読んでおらず、山王の C17 は**ずっと未検査**だった(規則19)。
+        """
+        M = self.M
+        for fn, pick in ((M.est + "_planting_out.json", lambda P: P),
+                         (M.est + "_impl.json", lambda P: (P.get("planting") or {}).get("points")
+                          if isinstance(P, dict) and isinstance(P.get("planting"), dict) else None)):
+            fp = os.path.join(DOC, fn)
+            if not os.path.exists(fp):
+                continue
+            try:
+                src = pick(json.load(open(fp, encoding="utf-8")))
+            except Exception as ex:  # noqa: BLE001
+                return fn, ex
+            if not src:
+                continue
+            out = []
+
+            def walk(o):
+                if isinstance(o, dict):
+                    if "u" in o and "v" in o and isinstance(o["u"], (int, float)):
+                        w = o.get("world")
+                        cm = o.get("crownM")
+                        out.append({"uv": (o["u"], o["v"]),
+                                    "world": tuple(w[:2]) if w else M.W(o["u"], o["v"]),
+                                    "crownR": (cm / 2.0) if isinstance(cm, (int, float)) else None,
+                                    "name": o.get("name") or "", "place": o.get("place")})
+                    else:
+                        for v in o.values():
+                            walk(v)
+                elif isinstance(o, list):
+                    if len(o) == 2 and all(isinstance(q, (int, float)) for q in o):
+                        out.append({"uv": (o[0], o[1]), "world": M.W(o[0], o[1]), "crownR": None,
+                                    "name": "", "place": None})
+                    else:
+                        for v in o:
+                            walk(v)
+
+            walk(src)
+            return fn, out
+        return None, None
+
     # C17 植栽の退避
     def c17(self):
         M = self.M
-        fp = os.path.join(DOC, M.est + "_planting_out.json")
-        if not os.path.exists(fp):
-            self.add("C17", "植栽の退避", "未検査 — 撒いた点(%s_planting_out.json)が無い。撒くのは実装(類型ビルダー)へ" % M.est, "na")
+        fn, P = self.planting_points()
+        if fn is None:
+            self.add("C17", "植栽の退避", "未検査 — 撒いた点(%s_planting_out.json / %s_impl.json の planting.points)が無い。撒くのは実装(類型ビルダー)へ" % (M.est, M.est), "na")
             return
-        try:
-            P = json.load(open(fp, encoding="utf-8"))
-        except Exception as ex:  # noqa: BLE001
-            self.add("C17", "植栽の退避", "⛔ 読めない: %s" % ex, "ng")
+        if isinstance(P, Exception):
+            self.add("C17", "植栽の退避", "⛔ 読めない: %s: %s" % (fn, P), "ng")
             return
-        pts = []
-
-        def walk(o):
-            if isinstance(o, dict):
-                if "u" in o and "v" in o and isinstance(o["u"], (int, float)):
-                    pts.append((o["u"], o["v"]))
-                else:
-                    for v in o.values():
-                        walk(v)
-            elif isinstance(o, list):
-                if len(o) == 2 and all(isinstance(q, (int, float)) for q in o):
-                    pts.append((o[0], o[1]))
-                else:
-                    for v in o:
-                        walk(v)
-
-        walk(P)
+        pts = [q["uv"] for q in P]
         bad = 0
         for q in pts:
             if any(pip(b.poly, *q) for k, b in M.buildings()) or any(k.poly and pip(k.poly, *q) for k in M.kaidans) or \

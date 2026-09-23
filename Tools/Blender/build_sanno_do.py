@@ -3,6 +3,24 @@
 
     blender --background --python Tools/Blender/build_sanno_do.py -- [型...] [--render] [--no-export]
     (型を省くと全部。hogyo / irimoya3 / irimoya4 / inari / umaya / kura)
+    blender --background --python Tools/Blender/build_sanno_do.py -- hihi --render
+    (絵図の比の 6 点 = yakushi / koshin / kannon / sono5 / sono8 / umaya32。2026-09-23 EDO-0395)
+
+━━━ 2026-09-23 EDO-0395 施主裁定B — 絵図の比の寸法【P 比・U 錨】━━━━━━━━━━━━━━━━━━━━━━
+御宮絵図の朱矩形の**大小比**を、鐘楼の辺の平均 = 3 間を錨に 0.5 間刻みで読んだ寸法へ焼き直す。
+⛔ 旧 3×3 / 4×4 / 御厩 4×3 は消さない(新しい名で足す)。引数は **ローカル X(間口)× Z(奥行)**、
+正面 +Z ⇒ 正面が東の棟は X = 南北・Z = 東西。
+| 棟 | 型 | 間 X×Z | 部材 |
+|---|---|---|---|
+| 薬師堂 | 宝形 | 4.5×4.5 | `yakushi` = `do("hogyo", 4.5, 4.5)` |
+| 庚申堂 | 宝形 | 2×2 | `koshin` |
+| 観音堂 | 宝形 | 2.5×2.5 | `kannon` |
+| 附属堂 其五 | 入母屋・平入(正面 南)| 5.5×3.5 | `sono5` |
+| 附属堂 其八 | 入母屋 + **向拝**(正面 東)| 5×5 | `sono8` = `do("irimoya", 5, 5, kohai=True)` |
+| 御厩 | 切妻(正面 南)| 3×2 | `umaya32` = `umaya(3, 2)`(馬房 3) |
+| 鐘楼 / 鼓楼 | 袴腰・入母屋(妻を正面 = 東へ)| 2.5×3.5 / 3×3.5 | `build_typ_jisha.py -- shoro --ken=2.5x3.5` / `koro --ken=3x3.5` |
+・半間の辺の柱割 = `HALF_BAYS`(半端を中の間へ寄せる)【U 部材方】。
+・向拝の意匠(流れ向拝・4寸・柱 2 本・木階を向拝の下へ)= `KH` の断り【U 部材方 — 絵図は凸の平面しか言わない】。
 
 ━━━ なぜ起こすか ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 指図 `docs/Sashizu/sanno_sashizu.json` の `munes[]` のうち **10 棟が `hFrom` / `bays` /
@@ -420,6 +438,87 @@ def houju(name, z0):
     return V.join(objs, name)
 
 
+# ==========================================================================
+# 向拝(附属堂 其八 = コマ堂)【形は U 部材方 2026-09-23・EDO-0395】
+# ==========================================================================
+# ⭐ 史料(山王御宮絵図)が言うのは**東面中央の朱の凸の平面だけ**(23×57px ÷ 20.5px/間
+#   ≈ 奥行 1.1 × 幅 2.8 間)。形式・柱・階は何も言わない ⇒ 以下はすべて【U】。
+# ・形式 = **流れ向拝**(身舎の正面の流れを、軒先の下からそのまま前へ延ばす一枚の片流れ)。
+#   ⛔ 軒唐破風にしない — 唐破風は本社・楼門級の飾りで、境内の附属堂には格が過ぎる。
+#   流れ向拝は近世の小堂で最も普通の形。
+# ・勾配 = **4寸**(身舎 5.5寸より緩い)。⭐ 向拝は身舎より緩く葺くのが常で、同じ勾配で
+#   延ばすと軒先が 2.5m を切って柱の下を人がくぐれない。瓦は `_tile_field_k` で**面ごと寝かせる**
+#   (⛔ 瓦の z を縮めない)。
+# ・向拝の瓦場の上端は**身舎の軒の下へ差し込む**(身舎の軒先の通りで身舎の瓦の谷より
+#   `clear` 下)。⛔ 身舎の軒の上に載せない(瓦どうしが噛む)。
+# ・平面 = 瓦場の先端が身舎の柱芯から **1.1 間**、幅 **2.8 間**(絵図の凸そのもの)。
+#   向拝柱 2 本は瓦の端から 0.40 内・軒先から 0.45 内(角柱 0.20 を礎石に立てる)。
+#   ⚠ 向拝柱は身舎の柱の通りに乗らない(身舎は 1 間等間で ±2.727、向拝柱は ±2.145)。
+#   絵図の幅を優先し、海老虹梁は身舎の**内法長押の上の小壁**へ取り付く【U】。
+# ・木階は向拝の下(幅 1.80・5 級)。
+KH = dict(depth=1.1, width=2.8, kobai=0.40, clear=0.22, postIn=0.40, eaveIn=0.45,
+          post=0.20, kaidanW=1.80)
+
+
+def kohai_build(M, uv, mw, hu, hv, eaveZ, eave, off, name):
+    """向拝を組む。軸部は `M` へ積み、瓦場・野地・袖瓦・礎石は別体で返す(Unity ローカル)。"""
+    k = KH["kobai"]
+    Zf = hv + KH["depth"] * K              # 向拝の瓦場の先端(軒先)
+    xr = KH["width"] * K / 2.0             # 瓦場の半幅
+    xp = xr - KH["postIn"]                 # 向拝柱の芯 X
+    zp = Zf - KH["eaveIn"]                 # 向拝柱の芯 Z
+    Ze = hv + eave                         # 身舎の軒先の通り
+    z_ze = eaveZ + off - KH["clear"]       # 身舎の軒先の下での向拝の名目面
+    zfk = lambda X, Z: z_ze - (Z - Ze) * k
+    Zt = hv + 0.12                         # 瓦場の上端(桁の外面 hv+0.09 の外)
+    # ---- 瓦場(Blender 座標: x = −X, y = −Z)。上りは +y(= 身舎の側)⇒ yaw 90
+    poly = [(-xr, -Zf), (xr, -Zf), (xr, -Zt), (-xr, -Zt)]
+    roof = GR._tile_field_k([poly], (-xr, -Zf), 90, zfk(0.0, Zf), name + "_kohai_roof", k)
+    bpy.context.view_layer.update()
+    offk = GK.roof_dmin(roof, lambda X, Z: True, zfk) - 0.02
+    slab = GK.noji_slab(name + "_kohai_noji", lambda X, Z: True, (-xr, xr, Zt, Zf), zfk, offk - 0.02)
+    kt = zfk(0.0, zp) + offk - 0.05        # 向拝桁の天端 = 野地の下面
+    # ---- 軸部
+    B3(M, -xr + 0.10, xr - 0.10, zp - 0.08, zp + 0.08, kt - 0.18, kt, uv["wood_h"], mw, grain="u")  # 向拝桁
+    kb0, kb1 = kt - 0.18 - 0.34, kt - 0.18
+    B3(M, -xp - 0.25, xp + 0.25, zp - 0.075, zp + 0.075, kb0, kb1, uv["wood_h"], mw, grain="u")    # 虹梁(木鼻込み)
+    r = KH["post"] / 2.0
+    for s in (-1, 1):
+        B3(M, s * xp - r, s * xp + r, zp - r, zp + r, 0.18, kb1, uv["wood"], mw, grain="h")         # 向拝柱
+        # 海老虹梁 — 柱の頭から身舎の小壁へ上り勾配で繋ぐ。⛔ 箱を段に積まない(`SH.stick`)
+        SH.stick(M, (s * xp, zp - r, kb0 + 0.06), (s * xp, hv + 0.05, kb1 + 0.30),
+                 0.12, 0.24, uv["wood_h"], mw)
+        # 破風板(片流れの端)— 瓦場の小口を下から塞ぐ
+        SH.stick(M, (s * (xr + 0.03), Zf + 0.02, zfk(0.0, Zf) + offk - 0.06),
+                 (s * (xr + 0.03), Ze + 0.12, zfk(0.0, Ze + 0.12) + offk - 0.06),
+                 0.06, 0.26, uv["wood"], mw)
+    zf0 = zfk(0.0, Zf)
+    B3(M, -xr - 0.03, xr + 0.03, Zf - 0.05, Zf + 0.01, zf0 + offk - 0.24, zf0 + offk - 0.02,
+       uv["wood_h"], mw, grain="u")                                                               # 鼻隠し
+    # ---- 袖瓦(片流れの両端の稜)— 瓦場を切った断面を隠す。⚠ 身舎の軒と噛まないよう手前で止める
+    objs = [roof, slab]
+    for s in (-1, 1):
+        bx = -s * (xr - 0.02)
+        objs += GR.ridge((bx, -(Zf + 0.02), zf0 + 0.22),
+                         (bx, -(Ze + 0.10), zfk(0.0, Ze + 0.10) + 0.22),
+                         name + "_kohai_sode", w=0.36, h=0.28)
+    # ---- 礎石(切石)
+    for s in (-1, 1):
+        st = RM.kidan(r + 0.02, r + 0.02, {q: 0.08 for q in ("+X", "-X", "+Z", "-Z")}, 0.20,
+                      name + "_kohai_soseki", finish=("+X", "-X", "+Z", "-Z"))
+        # ⚠ 底を地盤 0 に揃える(`RM.kidan` は根入れの下に面取りの逃げを持つ)。⛔ 部材の底を
+        #   地盤より下げない ── 棟梁が「触れている箇所」を測るとき底が嘘をつく
+        zmin = min(v.co.z for o in st for v in o.data.vertices)
+        for o in st:
+            o.data.transform(Matrix.Translation((-s * xp, -zp, -zmin))); o.data.update()
+        objs += st
+    objs = [o for o in objs if o]
+    info = dict(Zf=Zf, xr=xr, xp=xp, zp=zp, eaveH=zf0, kt=kt, kb0=kb0, offk=offk, Ze=Ze)
+    print("[kohai] 瓦場 X ±%.3f × Z %.3f〜%.3f / 柱 X ±%.3f Z %.3f / 軒先 %.3f / 虹梁の下端 %.3f / 勾配 %.2f"
+          % (xr, Zt, Zf, xp, zp, zf0, kb0, k))
+    return objs, info
+
+
 def part_name(kind, nu, nv, kohai=False):
     """`EdoAssets.Own.SannoDo(kata, nuKen, nvKen, xMm, zMm)` と同じ綴り。
     ⚠ 間数は `%g`(3 → "3" / 4.5 → "4.5")= C# の `Len2` と同じ出方。mm は `round`。"""
@@ -679,7 +778,7 @@ def gegyo(M, uu, vv, z, uvr, mat):
 # ==========================================================================
 # E 御厩 / F 御蔵 — 既存の附属屋の生成器を呼ぶだけ(⛔ 別実装を書かない)
 # ==========================================================================
-def umaya(name="Sanno_Umaya_4x3ken_7272x5454"):
+def umaya(nu=4, nv=3, name=None):
     """**御厩 4間(u)× 3間(v)**。岡部の吹き放ちの厩 `build_okabe_fuzokuya.umaya` を
     梁間3間・桁行4間で呼ぶ(= 類型の `Typ_Umaya` と同じ型)。
 
@@ -688,10 +787,14 @@ def umaya(name="Sanno_Umaya_4x3ken_7272x5454"):
       (吹き放ちの帯 0.93m を保つ)。⛔ 軒だけ下げない。
     ⭐ 屋根はキットの `roof` = 山王の「在庫の本瓦」(楼門・御供所と同じ材)。
       ⇒ 指図 bom 行34 の**本瓦葺**を満たす。"""
-    o = OF.umaya(uKen=3, vKen=4, name=name, eaveH=2.55, frontH=1.15, noki=0.70)
+    # ⭐ 2026-09-23(EDO-0395 施主裁定B)に 3 間(u)× 2 間(v)を足した。軒・半高壁・軒の出は
+    #   4×3 と同じ組(吹き放ちの帯を保つ)。馬房は **1 間に 1 房**(`bo = nu`)── ⚠ 4×3 は従来どおり 4 房。
+    name = name or "Sanno_Umaya_%dx%dken_%dx%d" % (nu, nv, round(nu * K * 1000), round(nv * K * 1000))
+    o = OF.umaya(uKen=nv, vKen=nu, name=name, eaveH=2.55, frontH=1.15, noki=0.70,
+                 bo=4 if (nu, nv) == (4, 3) else nu)
     if isinstance(o, tuple):
         o = o[0]
-    return o, dict(kind="umaya", hu=4 * K / 2.0, hv=3 * K / 2.0, fl=0.0)
+    return o, dict(kind="umaya", hu=nu * K / 2.0, hv=nv * K / 2.0, fl=0.0)
 
 
 def kura(name="Sanno_Kura_4x5ken_7272x9090"):
@@ -876,11 +979,29 @@ def build_one(key, do_render, do_export, allow):
         o, info = inari()
     elif key == "umaya":
         o, info = umaya()
+    # ---- 2026-09-23 EDO-0395 施主裁定B: 御宮絵図の朱矩形の大小比の寸法【P 比・U 錨】
+    elif key == "yakushi":                       # 薬師堂 宝形 4.5×4.5
+        o, info = do("hogyo", 4.5, 4.5)
+    elif key == "koshin":                        # 庚申堂 宝形 2×2
+        o, info = do("hogyo", 2, 2)
+    elif key == "kannon":                        # 観音堂 宝形 2.5×2.5
+        o, info = do("hogyo", 2.5, 2.5)
+    elif key == "sono5":                         # 附属堂 其五 入母屋 5.5(間口)×3.5(奥行)
+        o, info = do("irimoya", 5.5, 3.5)
+    elif key == "sono8":                         # 附属堂 其八(コマ堂)入母屋 5×5 + 向拝
+        o, info = do("irimoya", 5, 5, kohai=True)
+    elif key == "umaya32":                       # 御厩 切妻 3×2
+        o, info = umaya(3, 2)
     elif key == "kura":
         o, info = kura()
     else:
         raise SystemExit("[do] 知らない型: %s" % key)
     ok, meas = report(o, info, "[%s]" % key)
+    if info.get("us"):
+        bu = [round((b - a) / K, 3) for a, b in zip(info["us"], info["us"][1:])]
+        bv = [round((b - a) / K, 3) for a, b in zip(info["vs"], info["vs"][1:])]
+        print("  柱芯 X %.3f × Z %.3f / 柱割[間] X %s / Z %s"
+              % (info["us"][-1] - info["us"][0], info["vs"][-1] - info["vs"][0], bu, bv))
     hok = holes(o, info, key)
     sok = soffit(o, info, key)
     files = shots(o, info, key) if do_render else []
@@ -897,11 +1018,15 @@ def build_one(key, do_render, do_export, allow):
 
 
 ALL = ("hogyo", "irimoya3", "irimoya4", "inari", "umaya", "kura")
+# 2026-09-23 EDO-0395(絵図の比の寸法)。⚠ 型を省いて回すと ALL だけ(旧 10 棟)を焼き直す
+HIHI = ("yakushi", "koshin", "kannon", "sono5", "sono8", "umaya32")
 
 
 def main():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     keys = [a for a in argv if not a.startswith("--")] or list(ALL)
+    if keys == ["hihi"]:
+        keys = list(HIHI)
     do_render = "--render" in argv
     do_export = "--no-export" not in argv
     allow = "--allow" in argv

@@ -33,5 +33,12 @@ SannoUmaya/SannoKura` の XML に置いた。⛔ ここに数を写さない(二
 山王の remap の `donorDirs` に `Japanese Castle/Meshes/Exterior/Materials` を足した。
 ⇒ **生成器を他邸から借りたら、その材の .mat が remap の借り先に在るか必ず確かめる。**
 
+**2026-09-23 EDO-0395(絵図の比の寸法)で踏んだもの:**
+- 半間の間数が出ると `SannoDo` の int 引数では綴れない ⇒ 間数を float(`Len2` = py の `%g`)にした。
+  引数は**ローカル X(間口)× Z(奥行)**で、正面が東の棟では X = 南北。⛔「ewMm = 東西」と読まない。
+- ⚠ `build_okabe_fuzokuya.umaya` の**妻の三角(漆喰)は裏面カリングで外から消える**(4×3 の在庫も同じ・
+  既存の欠陥)。厩を借りたら cull レンダで妻を必ず見る。棟高の欄も 4×3 は棟の名目 4.038・鐘楼は鬼の頂 6.942 で、
+  堂宇(大棟の上端)と物差しが揃っていない。
+
 関連 [[hip-roof-noji-and-ridge-axis]] [[kirishi-tile-and-shu-material]]
 [[narabe-check-and-fbx-byte-noise]]

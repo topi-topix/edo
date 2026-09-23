@@ -96,7 +96,7 @@ def finish(name, m, P, W, D, eaveH, noki, end, ridge_show, extra=None):
 
 
 # ================================================================ 厩
-def umaya(uKen=4, vKen=9, name="Okabe_Umaya", eaveH=2.85, frontH=1.35, noki=0.85):
+def umaya(uKen=4, vKen=9, name="Okabe_Umaya", eaveH=2.85, frontH=1.35, noki=0.85, bo=4):
     """厩 4×9間。長手 = v。**前面(+Z)は開けて足元に半高の板壁**、馬房を4つに仕切る。
     ⚠ 型・馬房数は【U】— 指図は位置と間数だけを持ち、姿の典拠は無い。
 
@@ -129,9 +129,11 @@ def umaya(uKen=4, vKen=9, name="Okabe_Umaya", eaveH=2.85, frontH=1.35, noki=0.85
     N.shitami(m, P, -hw, hw, BASE, frontH, hd, 1, 'x')
     m.box(-hw, hw, frontH, frontH + 0.09, hd - 0.03, hd + 0.09,
           VM.sub(P['wuv'], 0.30, 0.55, 0.85, 0.80), WOOD)          # 天端の笠木
-    # 馬房の仕切り(4房)。前面から 2/3 だけ入れる
-    for i in range(1, 4):
-        cx = -hw + W * i / 4.0
+    # 馬房の仕切り(`bo` 房・既定 4)。前面から 2/3 だけ入れる
+    # ⭐ `bo` は 2026-09-23(EDO-0395)に足した。桁行 3 間の厩に 4 房だと 1 房 1.36m で馬が入らない
+    #   ⇒ 山王の御厩 3×2 間は `bo=3`(1 房 1 間)。既定 4 で従来と寸分同じ。
+    for i in range(1, bo):
+        cx = -hw + W * i / float(bo)
         m.box(cx - 0.06, cx + 0.06, BASE, 1.90, -hd * 0.15, hd,
               VM.sub(P['wuv'], 0.45, 0.10, 0.90, 0.60), WOOD)
         m.box(cx - 0.10, cx + 0.10, 1.90, 2.02, -hd * 0.15, hd,

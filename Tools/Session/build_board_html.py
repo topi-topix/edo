@@ -806,29 +806,29 @@ h2{font-family:'Shippori Mincho',serif;font-weight:600;font-size:17px;
   .tasks{display:block}
   .tasks thead{display:none}          /* 積み替えると見出しの列が対応しなくなる */
   .tasks tbody{display:block}
-  /* 畳んだカード(既定)= 1行。状態 + 題だけ出し、題は1行で省略する。
-     40件が3行ずつ積まれると一覧として読めないので、既定は最小の1行にする。 */
+  /* 畳んだカード(既定)= 2行。1行目に状態と ID、2行目に題(1行で省略)。
+     ID は票を呼ぶ番号なので畳んでいても必ず出す(2026-09-23 施主指示)。
+     40件が3行ずつ積まれると一覧として読めないので、敷地・更新は畳んでいる間は隠す。 */
   .tasks tbody tr.trow{
     display:grid;grid-template-columns:auto 1fr;
-    grid-template-areas:"state title";
-    gap:5px 9px;padding:11px 2px;border-bottom:1px solid var(--line);align-items:baseline}
+    grid-template-areas:"state id" "title title";
+    gap:4px 9px;padding:10px 2px;border-bottom:1px solid var(--line);align-items:baseline}
   .tasks tbody tr.trow > td{display:block;border:0;padding:0;min-width:0}
   .tasks .c-badge{grid-area:state}
+  .tasks .c-id{grid-area:id;font-size:11px}
   .tasks .c-ttl{grid-area:title;font-size:13.5px;line-height:1.55;min-width:0}
   .tasks .tw{min-width:0}
   .tasks tr[aria-expanded="false"] .ttx{
     display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  /* 畳んでいる間は 敷地・更新・ID を隠す(押せば出る) */
+  /* 畳んでいる間は 敷地・更新 を隠す(押せば出る) */
   .tasks tr[aria-expanded="false"] > .c-site,
-  .tasks tr[aria-expanded="false"] > .c-when,
-  .tasks tr[aria-expanded="false"] > .c-id{display:none}
-  /* 開いたカード = 帯(状態・敷地・更新) + 題 + ID */
+  .tasks tr[aria-expanded="false"] > .c-when{display:none}
+  /* 開いたカード = 帯(状態・ID・更新) + 敷地 + 題。ID の位置は畳んだときと同じ */
   .tasks tbody tr.trow[aria-expanded="true"]{
     grid-template-columns:auto 1fr auto;
-    grid-template-areas:"state site when" "title title title" "id id id"}
+    grid-template-areas:"state id when" "site site site" "title title title"}
   .tasks .c-site{grid-area:site;font-size:12px}
   .tasks .c-when{grid-area:when;text-align:right}
-  .tasks .c-id{grid-area:id;font-size:10.5px}
   .tasks tbody tr[aria-expanded="true"] > td{border-bottom-color:transparent}
   /* ⚠ :not([hidden]) は必須。素の display:block は UA の [hidden]{display:none} に
      勝ってしまい、畳んでいるはずの詳細が全件描画される(実際に起こした)。 */

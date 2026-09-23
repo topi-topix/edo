@@ -17,12 +17,12 @@ using UnityEngine;
 /// </summary>
 public static class EdoSurfacePaint
 {
-    const float STEEP_MAX = 38f;      // これより急な所は土手 — 既存の塗りを残す
-    const int   SUB = 3;              // texel の縁は 3×3 の副標本で被覆率を出す(縁のガタつきを抑える)
-    const int   MIN_TEXELS = 6;       // これ未満の区画は分解能が足りず、検められない
+    internal const float STEEP_MAX = 38f;      // これより急な所は土手 — 既存の塗りを残す
+    internal const int   SUB = 3;              // texel の縁は 3×3 の副標本で被覆率を出す(縁のガタつきを抑える)
+    internal const int   MIN_TEXELS = 6;       // これ未満の区画は分解能が足りず、検められない
 
     // 地形レイヤーは名前で引く(順序・パスに依らない)。L_dirt / L_grass / L_bare
-    static int LayerIndex(TerrainData td, string key)
+    internal static int LayerIndex(TerrainData td, string key)
     {
         var ls = td.terrainLayers;
         for (int i = 0; i < ls.Length; i++)
@@ -50,7 +50,7 @@ public static class EdoSurfacePaint
     }
 
     // ---- 水面(WaterBody の輪郭) — 中の texel は塗らない ----
-    static List<Vector2[]> WaterPolys()
+    internal static List<Vector2[]> WaterPolys()
     {
         var res = new List<Vector2[]>();
         foreach (var wb in Object.FindObjectsByType<WaterBody>(FindObjectsSortMode.None))
@@ -64,19 +64,21 @@ public static class EdoSurfacePaint
         return res;
     }
 
-    static bool InAny(List<Vector2[]> polys, Vector2 p)
+    internal static bool InAny(List<Vector2[]> polys, Vector2 p)
     {
         for (int i = 0; i < polys.Count; i++) if (EdoGeom.PIP(polys[i], p)) return true;
         return false;
     }
 
-    class Frame
+    // ⭐ internal — EdoGardenSurfacePaint(EDO-0372・庭の白洲/苔+砂利)も同じ texel/被覆率の算術を使う。
+    //    kouyuu 用の Open() はそのまま・庭方の層(iShirasu/iMoss)は Frame に足すだけで挙動を変えない。
+    internal class Frame
     {
         public Terrain terr; public TerrainData td; public Vector3 tp, ts; public int res; public float cell;
-        public int iD, iG, iB; public List<Vector2[]> water;
+        public int iD, iG, iB, iShirasu, iMoss; public List<Vector2[]> water;
     }
 
-    static Frame Open(out string err)
+    static Frame OpenRaw(out string err)
     {
         err = null;
         var go = GameObject.Find(EdoLandUse.TerrainName);
@@ -85,12 +87,28 @@ public static class EdoSurfacePaint
         f.td = f.terr.terrainData; f.tp = f.terr.transform.position; f.ts = f.td.size;
         f.res = f.td.alphamapResolution; f.cell = f.ts.x / f.res;
         f.iD = LayerIndex(f.td, "dirt"); f.iG = LayerIndex(f.td, "grass"); f.iB = LayerIndex(f.td, "bare");
-        if (f.iD < 0 || f.iG < 0 || f.iB < 0) { err = "⛔ 地形レイヤーに dirt/grass/bare が揃っていない"; return null; }
+        f.iShirasu = LayerIndex(f.td, "shirasu"); f.iMoss = LayerIndex(f.td, "moss");
         f.water = WaterPolys();
         return f;
     }
 
-    static void PixelRect(Frame f, Vector2[] poly, out int ix0, out int iz0, out int ix1, out int iz1)
+    static Frame Open(out string err)
+    {
+        var f = OpenRaw(out err); if (f == null) return null;
+        if (f.iD < 0 || f.iG < 0 || f.iB < 0) { err = "⛔ 地形レイヤーに dirt/grass/bare が揃っていない"; return null; }
+        return f;
+    }
+
+    /// <summary>庭の地表(shirasu/moss)が要る層まで揃っているか確かめて開く。<see cref="EdoGardenSurfacePaint"/> から。</summary>
+    internal static Frame OpenGarden(out string err)
+    {
+        var f = OpenRaw(out err); if (f == null) return null;
+        if (f.iD < 0 || f.iShirasu < 0 || f.iMoss < 0)
+        { err = "⛔ 地形レイヤーに dirt/shirasu/moss が揃っていない(先に `EdoGardenSurfacePaint.EnsureLayers()`)"; return null; }
+        return f;
+    }
+
+    internal static void PixelRect(Frame f, Vector2[] poly, out int ix0, out int iz0, out int ix1, out int iz1)
     {
         float minX = float.MaxValue, maxX = float.MinValue, minZ = float.MaxValue, maxZ = float.MinValue;
         foreach (var p in poly)
@@ -102,7 +120,7 @@ public static class EdoSurfacePaint
     }
 
     /// <summary>この texel のうち、区画の内側で・水面の外の面積割合(0〜1)。急斜面なら 0。</summary>
-    static float Coverage(Frame f, Vector2[] poly, int ix, int iz, out bool wet, out bool steep)
+    internal static float Coverage(Frame f, Vector2[] poly, int ix, int iz, out bool wet, out bool steep)
     {
         wet = steep = false;
         if (f.td.GetSteepness((ix + 0.5f) / f.res, (iz + 0.5f) / f.res) > STEEP_MAX) { steep = true; return 0f; }
@@ -135,7 +153,7 @@ public static class EdoSurfacePaint
         string err; var f = Open(out err); if (f == null) return err;
         var sb = new StringBuilder();
         string bk = EdoLandUse.SaveSplatBackup(f.td, "kouyuu");
-        sb.AppendLine("退避: " + (bk ?? "(層数が4でなく省略)"));
+        sb.AppendLine("退避: " + bk);
         Undo.RegisterCompleteObjectUndo(f.td.alphamapTextures, "公有地の地表");
         Undo.RegisterCompleteObjectUndo(f.td, "公有地の地表");
 

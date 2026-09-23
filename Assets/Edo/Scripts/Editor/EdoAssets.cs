@@ -2558,6 +2558,14 @@ public static class EdoAssets
         public const string LayerBare   = "Assets/Edo/Terrain/layers/L_bare.terrainlayer";
         /// <summary>岩(崖・露岩)。タイル 7×7m。⚠ 4層のうちこれだけ `Smoothness` 0.15(濡れて見える)</summary>
         public const string LayerRock   = "Assets/Edo/Terrain/layers/L_rock.terrainlayer";
+        /// <summary>白砂利(参道・前庭の白洲)。タイル 3×3m。典拠テクスチャは
+        /// Japanese Shrine and Temples パックの `Tile_ShrineGravel_A_01`(境内の白砂利用に作られた素材・
+        /// 在庫の gravel の中でいちばん明るい平均RGB≈(168,153,139))。⚠ 新設(EDO-0372)</summary>
+        public const string LayerShirasu = "Assets/Edo/Terrain/layers/L_shirasu.terrainlayer";
+        /// <summary>苔(坪庭)。タイル 3×3m。典拠テクスチャは Waldemarst FreeJapaneseGarden の
+        /// `Ground_Moss_01`。塗るときは <see cref="LayerShirasu"/> と組で使う(苔+砂利・単独層は無い)。
+        /// ⚠ 新設(EDO-0372)</summary>
+        public const string LayerMoss   = "Assets/Edo/Terrain/layers/L_moss.terrainlayer";
 
         /// <summary>詳細植生(Detail)の下草。**丈は 0.11m** — 地表の毛羽で、草叢ではない。
         /// 実寸[m]は目録の実測値(幅 × **丈** × 奥行):A 0.45 × <b>0.11</b> × 0.40 / B 0.33 × <b>0.11</b> × 0.20。

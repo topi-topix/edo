@@ -180,22 +180,22 @@ public static class EdoLandUse
     const string BackupDir = "TerrainBackups";
     const int BackupKeep = 10;
 
+    /// <summary>⭐ 任意の層数(EDO-0372 で 4→6 層に増えた)。**新規は `.bin`**(生の float・
+    /// 層ごとの重みをそのまま書く)。旧 `.png`(RGBA32・4層専用)は読み取りだけ残す —
+    /// 過去のバックアップから戻す道を塞がないため。</summary>
     public static string SaveSplatBackup(TerrainData td, string tag)
     {
-        if (td.alphamapLayers != 4){ Debug.LogWarning("[LandUse] 層数が4でないためバックアップを省略。"); return null; }
-        int res=td.alphamapResolution; var a=td.GetAlphamaps(0,0,res,res);
-        var tex=new Texture2D(res,res,TextureFormat.RGBA32,false);
-        var px=new Color32[res*res];
-        for(int y=0;y<res;y++)for(int x=0;x<res;x++)
-            px[y*res+x]=new Color32((byte)Mathf.RoundToInt(a[y,x,0]*255f),(byte)Mathf.RoundToInt(a[y,x,1]*255f),
-                                    (byte)Mathf.RoundToInt(a[y,x,2]*255f),(byte)Mathf.RoundToInt(a[y,x,3]*255f));
-        tex.SetPixels32(px);
+        int res=td.alphamapResolution; int L=td.alphamapLayers; var a=td.GetAlphamaps(0,0,res,res);
         System.IO.Directory.CreateDirectory(BackupDir);
-        string path=System.IO.Path.Combine(BackupDir, $"splat_{System.DateTime.Now:yyyyMMdd_HHmmss}_{tag}.png");
-        System.IO.File.WriteAllBytes(path, tex.EncodeToPNG());
-        Object.DestroyImmediate(tex);
-        // 古いものを間引く
-        var files=new List<string>(System.IO.Directory.GetFiles(BackupDir,"splat_*.png")); files.Sort();
+        string path=System.IO.Path.Combine(BackupDir, $"splat_{System.DateTime.Now:yyyyMMdd_HHmmss}_{tag}.bin");
+        using (var fs=System.IO.File.Create(path))
+        using (var bw=new System.IO.BinaryWriter(fs))
+        {
+            bw.Write(res); bw.Write(L);
+            for(int y=0;y<res;y++)for(int x=0;x<res;x++)for(int l=0;l<L;l++) bw.Write(a[y,x,l]);
+        }
+        // 古いものを間引く(拡張子問わず splat_* をまとめて数える — 旧 .png も一緒に間引く)
+        var files=new List<string>(System.IO.Directory.GetFiles(BackupDir,"splat_*")); files.Sort();
         for(int i=0;i<files.Count-BackupKeep;i++) System.IO.File.Delete(files[i]);
         return path;
     }
@@ -204,22 +204,43 @@ public static class EdoLandUse
     public static void RestoreLatestSplatBackup()
     {
         if(!System.IO.Directory.Exists(BackupDir)){ Debug.LogWarning("[LandUse] バックアップがありません。"); return; }
-        var files=new List<string>(System.IO.Directory.GetFiles(BackupDir,"splat_*.png"));
+        var files=new List<string>(System.IO.Directory.GetFiles(BackupDir,"splat_*"));
         if(files.Count==0){ Debug.LogWarning("[LandUse] バックアップがありません。"); return; }
         files.Sort(); string path=files[files.Count-1];
         var go=GameObject.Find(TerrainName); if(go==null){ Debug.LogWarning("[LandUse] ModernTerrain が見つかりません。"); return; }
-        var terr=go.GetComponent<Terrain>(); var td=terr.terrainData; int res=td.alphamapResolution;
+        var terr=go.GetComponent<Terrain>(); var td=terr.terrainData; int res=td.alphamapResolution; int L=td.alphamapLayers;
+
+        if (path.EndsWith(".bin"))
+        {
+            using (var fs=System.IO.File.OpenRead(path))
+            using (var br=new System.IO.BinaryReader(fs))
+            {
+                int bres=br.ReadInt32(), bL=br.ReadInt32();
+                if (bres!=res || bL!=L)
+                { Debug.LogWarning($"[LandUse] 解像度/層数が合わないバックアップです({bres}x{bres}x{bL} ≠ {res}x{res}x{L})。"); return; }
+                if(!EditorUtility.DisplayDialog("スプラットを戻す",
+                    $"{System.IO.Path.GetFileName(path)} の状態に地面の塗りを戻します。\n（高さ・木は変更しません）","戻す","やめる")) return;
+                var a=new float[res,res,L];
+                for(int y=0;y<res;y++)for(int x=0;x<res;x++)for(int l=0;l<L;l++) a[y,x,l]=br.ReadSingle();
+                Undo.RegisterCompleteObjectUndo(td.alphamapTextures,"Restore Splat Backup");
+                td.SetAlphamaps(0,0,a); terr.Flush(); EditorUtility.SetDirty(td); AssetDatabase.SaveAssets();
+                Debug.Log($"[LandUse] 復元しました: {path}");
+            }
+            return;
+        }
+        // 旧形式(.png・RGBA32・4層専用) — 今の層数が4のときだけ読める
+        if (L!=4) { Debug.LogWarning($"[LandUse] 旧形式(.png)のバックアップは4層専用です(今は{L}層)。"); return; }
         var tex=new Texture2D(2,2,TextureFormat.RGBA32,false); tex.LoadImage(System.IO.File.ReadAllBytes(path));
         if(tex.width!=res||tex.height!=res){ Object.DestroyImmediate(tex); Debug.LogWarning("[LandUse] 解像度が合わないバックアップです。"); return; }
         if(!EditorUtility.DisplayDialog("スプラットを戻す",
             $"{System.IO.Path.GetFileName(path)} の状態に地面の塗りを戻します。\n（高さ・木は変更しません）","戻す","やめる")){ Object.DestroyImmediate(tex); return; }
         var px=tex.GetPixels32(); Object.DestroyImmediate(tex);
-        var a=new float[res,res,4];
+        var a4=new float[res,res,4];
         for(int y=0;y<res;y++)for(int x=0;x<res;x++){ var c=px[y*res+x];
             float s=(c.r+c.g+c.b+c.a)/255f; if(s<1e-4f)s=1f;
-            a[y,x,0]=c.r/255f/s; a[y,x,1]=c.g/255f/s; a[y,x,2]=c.b/255f/s; a[y,x,3]=c.a/255f/s; }
+            a4[y,x,0]=c.r/255f/s; a4[y,x,1]=c.g/255f/s; a4[y,x,2]=c.b/255f/s; a4[y,x,3]=c.a/255f/s; }
         Undo.RegisterCompleteObjectUndo(td.alphamapTextures,"Restore Splat Backup");
-        td.SetAlphamaps(0,0,a); terr.Flush(); EditorUtility.SetDirty(td); AssetDatabase.SaveAssets();
+        td.SetAlphamaps(0,0,a4); terr.Flush(); EditorUtility.SetDirty(td); AssetDatabase.SaveAssets();
         Debug.Log($"[LandUse] 復元しました: {path}");
     }
 

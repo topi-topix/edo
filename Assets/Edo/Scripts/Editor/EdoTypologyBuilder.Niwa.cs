@@ -316,6 +316,46 @@ public static partial class EdoTypologyBuilder
         return p;
     }
 
+    // ───────────────────────── 地表の印(EDO-0372) ─────────────────────────
+    // ⛔ ここでは地形に触らない(§4.5 覆さない線⑤)。塗るのは別輪の EdoGardenSurfacePaint —
+    //    ここは NiwaGroundZone を置くだけ(WaterBody が水を別輪へ渡すのと同じ作り)。
+
+    /// <summary>点の集合を <see cref="NiwaGroundZone"/> として <paramref name="grp"/> の下へ置く。
+    /// 0点なら何も置かない(空の印を残さない)。</summary>
+    static void AddGroundZone(Transform grp, string kind, IEnumerable<Vector2> pts, float radius = 1.5f)
+    {
+        var list = pts as IList<Vector2> ?? new List<Vector2>(pts);
+        if (list.Count == 0) return;
+        var go = new GameObject("Ground_" + kind);
+        go.transform.SetParent(grp, false);
+        var z = go.AddComponent<NiwaGroundZone>();
+        z.kind = kind; z.radius = radius;
+        foreach (var p in list) z.points.Add(new Vector3(p.x, 0f, p.y));
+    }
+
+    /// <summary>参道の帯(白洲)を格子点へ落とす。⭐ 帯は <see cref="EdoBuild.NiwaField.Solve"/> が
+    /// 庭域から除く側(<see cref="EdoBuild.NiwaField.Cells"/> には入らない)ので、<c>BandA/BandB/BandHalf</c>
+    /// から**帯そのものを**直接サンプルする(区画の外だけ弾く)。</summary>
+    static List<Vector2> SandoZonePoints(EdoBuild.NiwaField f)
+    {
+        var pts = new List<Vector2>();
+        const float pitch = 1.5f;
+        for (int i = 0; i < f.BandA.Count; i++)
+        {
+            var a = f.BandA[i]; var b = f.BandB[i]; float half = f.BandHalf[i];
+            float len = Vector2.Distance(a, b);
+            if (len < 0.01f) continue;
+            var along = (b - a) / len; var across = new Vector2(-along.y, along.x);
+            for (float t = 0f; t <= len; t += pitch)
+                for (float w = -half; w <= half; w += pitch)
+                {
+                    var p = a + along * t + across * w;
+                    if (EdoGeom.PIP(f.Poly, p)) pts.Add(p);
+                }
+        }
+        return pts;
+    }
+
     // ───────────────────────── Stage 5 ─────────────────────────
 
     /// <summary>庭を建てる。<paramref name="gateC"/> / <paramref name="gateHalf"/> は Stage 1 で
@@ -399,6 +439,8 @@ public static partial class EdoTypologyBuilder
             }
             if (Vector2.Distance(hit, cO) > 4f) f.AddBand(cO, hit, half * 0.8f);
         }
+        // 参道の帯 = 白砂利(EDO-0372・§4.5「門〜玄関=白砂利」)。⛔ 地形には触らず印を置くだけ
+        AddGroundZone(grp, "shirasu", SandoZonePoints(f));
 
         f.Solve(1.2f);
         if (f.Cells.Count == 0)
@@ -651,6 +693,8 @@ public static partial class EdoTypologyBuilder
         {
             float pocketA = pocket.Count * f.Cell * f.Cell;
             log.Add(string.Format("    坪庭: 棟と棟の間のポケット {0:F0}m²({1}点)", pocketA, pocket.Count));
+            // ポケット = 苔+砂利(EDO-0372・§4.5「坪庭=苔+砂利」)。⛔ 地形には触らず印を置くだけ
+            AddGroundZone(grp, "moss", pocket);
             nPocketChu = Rng(rnd, 1, 3);                   // ⛔ 引く順を変えない(この後に nPocketTei)
             int nPocketTei = Rng(rnd, 5, 9);
             // ④ 裁定1 ⭐ 坪庭の2層の基準は**ポケット面積**(庭域 A ではない)。引いた後に抑える
@@ -746,6 +790,10 @@ public static partial class EdoTypologyBuilder
             uraPer += Vector2.Distance(f.Poly[i], f.Poly[(i + 1) % f.Poly.Length]);
         var chu = EdoBuild.NiwaSet.Chuboku; var shrub = EdoBuild.NiwaSet.Shrub;
         var kusa = EdoBuild.NiwaSet.Kusa;
+
+        // 裏庭は庭域ぜんたいが実用の庭 = 叩き土(EDO-0372・§4.5「裏庭=叩き土」)。
+        // ⛔ 地形には触らず印を置くだけ
+        AddGroundZone(grp, "tataki", f.Cells);
 
         // 棟と土蔵の実メッシュを別々に持つ(⛔ 「軒からの距離」ではなく**その棟からの距離**で決める)
         var occOmoya = new EdoBuild.NiwaOcc(); occOmoya.AddBody(mune[0], 300, false);

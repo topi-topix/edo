@@ -1404,3 +1404,94 @@ def chk_report(top=10, floor=1.0):
         return "検査 %d 本で計 %.0f 秒(どれも %.0f 秒未満)" % (len(_CHK_T), tot, floor)
     return ("検査 %d 本で計 %.0f 秒。重い順:\n" % (len(_CHK_T), tot)
             + "\n".join("    %6.1fs %5.0f%%  %s" % (v, 100 * v / tot, k) for k, v in rows))
+
+
+# ================================================================ 囲いの内の幹(施主裁定 2026-09-23 EDO-0409)
+def _seg_d(p, a, b):
+    """点と線分の距離(世界 xz)。"""
+    dx, dz = b[0] - a[0], b[1] - a[1]
+    L2 = dx * dx + dz * dz
+    t = 0.0 if L2 < 1e-12 else max(0.0, min(1.0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / L2))
+    return math.hypot(p[0] - a[0] - dx * t, p[1] - a[1] - dz * t)
+
+
+def _near_on_segs(p, segs):
+    """線分の列の上で p に最も近い点と距離。"""
+    best = (1e18, None)
+    for a, b in segs:
+        dx, dz = b[0] - a[0], b[1] - a[1]
+        L2 = dx * dx + dz * dz
+        t = 0.0 if L2 < 1e-12 else max(0.0, min(1.0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / L2))
+        q = (a[0] + dx * t, a[1] + dz * t)
+        dd = math.hypot(p[0] - q[0], p[1] - q[1])
+        if dd < best[0]: best = (dd, q)
+    return best
+
+
+def kakoi_facing_road(runs, W, road_edges, facing_m):
+    """**道辺に面する囲い**(柵・板塀)。戻り [{name, kind, pts(世界), inner(+1/-1 左法線に対する内側), roadM}]。
+
+    ⭐ 散布(`impl_sanno.kakoi_inside_shapes`)と検査(`build_sashizu.Checks.c25`)が**この一本**を使う
+      (⛔ 拾い方を二つ持たない)。⛔ 名前で決め打ちしない ── `runs[]` の `kind` が 柵/板塀 のうち、
+      線上の探り点(各区間の t=1/4,1/2,3/4)が**どれも**道辺から `facing_m` 以内にある物。
+    ⭐ 内側 = 道辺の反対側(区間ごとの多数決)。⛔ 位置が読めない run(生成前)は拾わない。
+    """
+    out = []
+    if not road_edges: return out
+    for r in runs:
+        if r.get("kind") not in ("柵", "板塀"): continue
+        pts = r.get("pts") or ([r["a"], r["b"]] if r.get("a") is not None and r.get("b") is not None else None)
+        if not pts or len(pts) < 2: continue
+        P = [tuple(W(q[0], q[1])) for q in pts]
+        ds, s = [], 0.0
+        for i in range(len(P) - 1):
+            a, b = P[i], P[i + 1]
+            L = math.hypot(b[0] - a[0], b[1] - a[1])
+            if L < 1e-9: continue
+            nl = (-(b[1] - a[1]) / L, (b[0] - a[0]) / L)
+            for t in (0.25, 0.5, 0.75):
+                m = (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
+                dd, q = _near_on_segs(m, road_edges)
+                ds.append(dd)
+                s += nl[0] * (q[0] - m[0]) + nl[1] * (q[1] - m[1])
+        if not ds or max(ds) > facing_m: continue
+        out.append({"name": r.get("name"), "kind": r.get("kind"), "pts": P,
+                     "inner": -1.0 if s > 0 else 1.0, "roadM": max(ds)})
+    return out
+
+
+def _offset_line(P, r):
+    """折れ線を左法線へ r だけずらす(節は留め・角の二等分線)。r<0 は右。"""
+    n = len(P)
+    N = []
+    for i in range(n - 1):
+        a, b = P[i], P[i + 1]
+        L = math.hypot(b[0] - a[0], b[1] - a[1]) or 1.0
+        N.append((-(b[1] - a[1]) / L, (b[0] - a[0]) / L))
+    out = []
+    for i in range(n):
+        if i == 0: m, k = N[0], 1.0
+        elif i == n - 1: m, k = N[-1], 1.0
+        else:
+            mx, mz = N[i - 1][0] + N[i][0], N[i - 1][1] + N[i][1]
+            L = math.hypot(mx, mz) or 1.0
+            m = (mx / L, mz / L)
+            c = m[0] * N[i][0] + m[1] * N[i][1]
+            k = 1.0 / max(c, 0.2)
+        out.append((P[i][0] + m[0] * r * k, P[i][1] + m[1] * r * k))
+    return out
+
+
+def kakoi_keepout_polys(fences, inside_m):
+    """**囲いの道側全部 + 内側 `inside_m`** の多角形(世界 xz)。戻り [(名, [(x,z)…])]。
+
+    ⭐ 幹は囲いの線から内側へ `inside_m` 以上。⛔ 囲いの道側(囲いと道辺の間)には一本も置かない。
+    道側の外縁は `roadM + inside_m`(道辺の外まで届けば足りる)。
+    """
+    out = []
+    for f in fences:
+        P, s = f["pts"], f["inner"]
+        inner = _offset_line(P, s * inside_m)
+        outer = _offset_line(P, -s * (f["roadM"] + inside_m))
+        out.append((f["name"], inner + list(reversed(outer))))
+    return out

@@ -1597,6 +1597,50 @@ class Checks(object):
                  "%d 点(最大 %.2f m 足りない)" % (len(bad), worst), "ng" if bad else "ok", bad[:12])
 
 
+    # C26 囲いの内の幹(施主裁定 2026-09-23 EDO-0409「根元は囲いから2m以上内側・枝葉が柵を越えて道側へ出るのは可」)
+    def c26(self):
+        """`planting.bandDef.avoid.kakoiInsideM` を宣言した邸だけ、**道辺に面する囲い**の道側と囲いの線から内側
+        `kakoiInsideM` 未満に撒いた木の**幹の芯**が一本も無いかを測る(全層・樹冠は測らない)。
+
+        ⭐ 囲いの拾い方と退ける形は散布と同じ関数(`sashizu_lib.kakoi_facing_road` / `kakoi_keepout_polys`)。
+        ⛔ 名前で決め打ちしない。拾った囲いの名は結果に刷る(0 本なら『未検査』)。
+        """
+        M = self.M
+        av = self._avoid()
+        im = av.get("kakoiInsideM")
+        if im is None:
+            self.add("C26", "囲いの内の幹", "未検査 — `planting.bandDef.avoid.kakoiInsideM` の宣言が無い", "na")
+            return
+        fn, P = self.planting_points()
+        if fn is None or isinstance(P, Exception):
+            self.add("C26", "囲いの内の幹", "未検査 — 撒いた点が無い" if fn is None else "⛔ 読めない: %s" % P,
+                     "na" if fn is None else "ng")
+            return
+        E = self.road_edges()
+        if E is None:
+            self.add("C26", "囲いの内の幹", "未検査 — parcels.json が無い", "na")
+            return
+        runs = M.d.get("runs") or []
+        fs = L.kakoi_facing_road(runs, M.W, E, float(av.get("kakoiFacingRoadM") or 0.0))
+        unread = [r.get("name") for r in runs if r.get("kind") in ("柵", "板塀")
+                  and not r.get("pts") and (r.get("a") is None or r.get("b") is None)]
+        if not fs:
+            self.add("C26", "囲いの内の幹", "未検査 — 道辺に面する囲いが一本も拾えない(位置の読めない囲い %s)"
+                     % ("・".join(unread) or "無し"), "na")
+            return
+        K = L.kakoi_keepout_polys(fs, float(im))
+        bad = []
+        for q in P:
+            w = q["world"]
+            for nm, Q in K:
+                if pip(Q, w[0], w[1]):
+                    bad.append("%s: 囲い %s の道側か内 %.1f m 未満" % (q["name"], nm, im))
+                    break
+        self.add("C26", "囲いの内の幹 — %s の %d 点(全層)の幹の芯が、道辺に面する囲い %d 本(%s)の道側に無く、線から %.1f m 以上内にある(樹冠は測らない%s)"
+                 % (fn, len(P), len(fs), "・".join(f["name"] for f in fs), im,
+                    ";位置の読めない囲い %s は拾えていない" % "・".join(unread) if unread else ""),
+                 "%d 点" % len(bad), "ng" if bad else "ok", bad[:12])
+
 # ================================================================ 共通の壊し試し(C23)
 def deep_probes(est):
     """設計を写して壊し、共通の検査が鳴るかを記録する。名前 → (壊し方, 鳴るべき検査, 鳴ったか)。"""

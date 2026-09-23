@@ -1317,6 +1317,8 @@ def _avoid_shapes_base(d, g, scope):
         if av123.get("kattemichiRule"):
             out += kattemichi_apron_shapes(d, g, kattemichi_shoulder(d, lay9) or 0.0)
         if av123.get("kakoiRule"): out += kakoi_avoid_shapes(d, sh)
+        # ⭐ **囲いの内 2m**(全層・硬い制約)【施主裁定 2026-09-23 EDO-0409】
+        if av123.get("kakoiInsideM") is not None: out += kakoi_inside_shapes(d, g)
         # ⭐ **社地の境からの幹の離れ**(全周)【中5 庭方 2026-09-09 十七巡目】
         if av123.get("kyoukaiRule"):
             out += kyoukai_avoid_shapes(d, g, kyoukai_shoulder(d, lay9), lay9)
@@ -1352,6 +1354,8 @@ def _avoid_shapes_base(d, g, scope):
     sh4 = band_shoulder(d, "松")
     if av4.get("kakoiRule") and sh4 is not None:
         out += kakoi_avoid_shapes(d, sh4, skip_zentei=True)
+    # ⭐ **囲いの内 2m**(全層・硬い制約)【施主裁定 2026-09-23 EDO-0409】
+    if av4.get("kakoiInsideM") is not None: out += kakoi_inside_shapes(d, g)
     # ⭐ **社地の境からの幹の離れ**(全周)【中5 庭方 2026-09-09 十七巡目】。⚠ 帯4 は層で
     #    分けない額縁の宣言だが、境の離れは**層ごと**なので最も大きい肩(高木)で代表させる
     #    ── ⛔ 甘い側へ倒さない。
@@ -1449,6 +1453,40 @@ def kakoi_avoid_shapes(d, sh_ken, skip_zentei=False):
         if any(q is None for q in pts) or len(pts) < 2: continue
         out += _band_chain(pts, sh_ken, "土留め:" + w["name"])
     return out
+
+
+def _road_edges_world(d, g):
+    """社地 `polygon` の**道辺**(`edge_class`)を世界 xz の線分で。"""
+    P = [tuple(q) for q in d["polygon"]]
+    cls = edge_class(d, g)
+    return [(P[i], P[(i + 1) % len(P)]) for i in range(len(P)) if cls[i][0] == "道"]
+
+
+def kakoi_facing(d, g):
+    """**道辺に面する囲い**(`avoid.kakoiInsideRule`)。拾い方は `sashizu_lib.kakoi_facing_road` の一本
+    (検査 C25 と同じ関数)。⛔ 名前で決め打ちしない。宣言(`kakoiInsideM`)が無ければ []。
+
+    ⚠ `derive_runs` の後に呼ぶ(`Ita_Keidai` などは生成物)。
+    """
+    import sashizu_lib as L
+    av = (d["planting"].get("bandDef") or {}).get("avoid") or {}
+    if av.get("kakoiInsideM") is None: return []
+    return L.kakoi_facing_road(d["runs"], g.W, _road_edges_world(d, g), float(av["kakoiFacingRoadM"]))
+
+
+def kakoi_inside_shapes(d, g):
+    """**囲いの道側全部 + 囲いの線から内側 `kakoiInsideM`**(幹を退ける面・全層)。
+
+    【施主裁定 2026-09-23 EDO-0409】社叢の木の根元(幹の芯)は囲い(柵・板塀)から 2m 以上内側。
+    枝葉が囲いを越えて道側へ張り出すのは可(⛔ 樹冠で測らない)。囲いの無い辺は `kyoukaiRoadM`。
+    ⛔ **硬い制約**(許容0=退ける)。形は `sashizu_lib.kakoi_keepout_polys`(検査と同じ)。
+    """
+    import sashizu_lib as L
+    fs = kakoi_facing(d, g)
+    if not fs: return []
+    im = float(d["planting"]["bandDef"]["avoid"]["kakoiInsideM"])
+    return [_shape_poly([(g.U(x), g.V(z)) for x, z in Q], 0.0, "囲いの内:" + nm)
+            for nm, Q in L.kakoi_keepout_polys(fs, im)]
 
 
 def cluster_keepout_shapes(d):
@@ -1606,8 +1644,27 @@ def rinen_edge_idx(d, g, b):
 
 
 def rinen_edges(d, g, b):
-    """`rinen_edge_idx` の辺だけ(番号を落とした形)。⛔ 同定の式を二つ持たない。"""
-    return [(a, b_) for _i, a, b_ in rinen_edge_idx(d, g, b)]
+    """林縁が**距離を測る線** = `rinen_edge_idx` の辺 + **その辺に面する囲いの線**。
+
+    ⭐ 【庭方の意図 2026-09-23 EDO-0409】林縁は**目に見える境**から `fromKen`〜`toKen`。囲いが区画線より
+      内にあれば**囲いから**測る(点ごとに近いほうの線 = 囲いの内側では囲いが近い)。囲いの無い辺は区画線から。
+    ⛔ 囲いの拾い方は `kakoi_facing`(検査と同じ一本)。当てるのは**この帯の林縁の辺**から
+      `kakoiFacingRoadM` 以内に立つ囲いだけ。⛔ 同定の式を二つ持たない。
+    """
+    E = [(a, b_) for _i, a, b_ in rinen_edge_idx(d, g, b)]
+    if not E: return E
+    av = (d["planting"].get("bandDef") or {}).get("avoid") or {}
+    fm = av.get("kakoiFacingRoadM")
+    fs = kakoi_facing(d, g) if fm is not None else []
+    if not fs: return E
+    ken = d["const"]["ken"]
+    lim = float(fm) / ken
+    for f in fs:
+        Pu = [(g.U(x), g.V(z)) for x, z in f["pts"]]
+        mids = [((Pu[i][0] + Pu[i + 1][0]) / 2.0, (Pu[i][1] + Pu[i + 1][1]) / 2.0) for i in range(len(Pu) - 1)]
+        if mids and all(min(_pt_seg(m, q[0], q[1]) for q in E) <= lim for m in mids):
+            E = E + [(Pu[i], Pu[i + 1]) for i in range(len(Pu) - 1)]
+    return E
 
 
 _RLAY = {"松": "takagi", "落葉": "takagi", "中木": "chuboku", "低木": "teiboku"}

@@ -9920,5 +9920,138 @@
   },
   "acc": "U(庭方 2026-09-19)/B(玉石の雨落ちの作りは一般)"
  },
- "_notes": "⭐ **この指図の文章は `docs/Sashizu/sanno_notes/<章>.json` にある。**欄を直すときは同じ章の注記を先に読むこと(path がそのまま鍵)。戻すのは `python3 Tools/Sashizu/prose_split.py sanno --restore`。⛔ 文章をここへ書き戻さない — 値だけを置く欄にした(2026-09-21 施主指示)。"
+ "_notes": "⭐ **この指図の文章は `docs/Sashizu/sanno_notes/<章>.json` にある。**欄を直すときは同じ章の注記を先に読むこと(path がそのまま鍵)。戻すのは `python3 Tools/Sashizu/prose_split.py sanno --restore`。⛔ 文章をここへ書き戻さない — 値だけを置く欄にした(2026-09-21 施主指示)。",
+ "surface": {
+  "_": "地表(地形スプラット)の塗り分け。読み手 EdoSashizuSurfacePaint。extent の和を塗り直す範囲とし、その中は前の塗りを残さず zones で置き換える(旧い敷地割の塗りの取り残しを消す・EDO-0422)。zones は並んだ順に重ね、後が勝つ。各層 [lo,hi] を斑で振り、rest の層が 1−他の和を取る。幅 4m 未満の面(雨落ち・犬走り・叩き・小区画・供待・前庭の帯・水叩き)は 1 texel=4m で塗り分けられないので周りの面の値のまま",
+  "extent": [
+   "polygon",
+   "sando.area"
+  ],
+  "recipes": {
+   "shasou": {
+    "grass": [
+     0.45,
+     0.65
+    ],
+    "moss": [
+     0.05,
+     0.12
+    ],
+    "dirt": "rest",
+    "acc": "B/U(庭方 2026-09-23)— 閉じた樹冠の下の落葉土"
+   },
+   "keidai": {
+    "bare": [
+     0.2,
+     0.3
+    ],
+    "grass": [
+     0.08,
+     0.22
+    ],
+    "dirt": "rest",
+    "acc": "B(庭方 2026-09-23)— 掃き清めた土"
+   },
+   "tachiki": {
+    "grass": [
+     0.25,
+     0.4
+    ],
+    "bare": [
+     0.0,
+     0.05
+    ],
+    "moss": [
+     0.08,
+     0.18
+    ],
+    "dirt": "rest",
+    "acc": "B/U(庭方 2026-09-23)— 樹冠の下の落葉と日陰"
+   },
+   "jari": {
+    "shirasu": [
+     0.7,
+     0.82
+    ],
+    "bare": [
+     0.15,
+     0.25
+    ],
+    "dirt": "rest",
+    "acc": "S(空地=御宮絵図)/U(砂利・割合 — 庭方 2026-09-23)"
+   },
+   "zentei": {
+    "bare": [
+     0.2,
+     0.32
+    ],
+    "grass": [
+     0.03,
+     0.12
+    ],
+    "dirt": "rest",
+    "acc": "U(庭方 2026-09-23)— terraces[Zentei].surface の土(踏み固め)"
+   },
+   "sando": {
+    "bare": [
+     0.28,
+     0.4
+    ],
+    "grass": [
+     0.03,
+     0.1
+    ],
+    "dirt": "rest",
+    "acc": "U(庭方 2026-09-23)— sando.roadside.surface の土(踏み固め)"
+   }
+  },
+  "zones": [
+   {
+    "name": "社叢",
+    "area": "polygon",
+    "recipe": "shasou"
+   },
+   {
+    "name": "境内の平場",
+    "area": "terrace:Keidai",
+    "recipe": "keidai"
+   },
+   {
+    "name": "境内の立木・西",
+    "area": "garden:境内の立木・西(透塀の裏〜山裾の肩)",
+    "recipe": "tachiki"
+   },
+   {
+    "name": "境内の立木・北",
+    "area": "garden:境内の立木・北(附属堂列の前庭寄り)",
+    "recipe": "tachiki"
+   },
+   {
+    "name": "境内の立木・南",
+    "area": "garden:境内の立木・南(附属堂列の前)",
+    "recipe": "tachiki"
+   },
+   {
+    "name": "白洲",
+    "area": "garden:白洲",
+    "recipe": "jari"
+   },
+   {
+    "name": "中庭",
+    "area": "garden:中庭",
+    "recipe": "jari"
+   },
+   {
+    "name": "前庭",
+    "area": "terrace:Zentei",
+    "recipe": "zentei"
+   },
+   {
+    "name": "参道",
+    "area": "sando.area",
+    "recipe": "sando"
+   }
+  ],
+  "pending": "庭方の設計のうち、まだ塗りに入れていない細部: 法面(土羽)の別の塗り・社叢の法肩/裾/林縁での振り分け・参道の路面と路肩の分け・二ノ鳥居の足元・前庭の踏み跡の筋・砂利や敷居から 6m の草の抑え・境ごとのぼかし幅。全文は庭方の設計(EDO-0422)"
+ }
 }

@@ -1479,14 +1479,21 @@ def kakoi_inside_shapes(d, g):
 
     【施主裁定 2026-09-23 EDO-0409】社叢の木の根元(幹の芯)は囲い(柵・板塀)から 2m 以上内側。
     枝葉が囲いを越えて道側へ張り出すのは可(⛔ 樹冠で測らない)。囲いの無い辺は `kyoukaiRoadM`。
-    ⛔ **硬い制約**(許容0=退ける)。形は `sashizu_lib.kakoi_keepout_polys`(検査と同じ)。
+    ⛔ **硬い制約**(許容0=退ける)。形は `sashizu_lib.kakoi_keepout_polys`(検査と同じ)── 道側の多角形と、
+    囲いの線を半径 `kakoiInsideM + 半厚` で膨らませたカプセル(各区間・各節・両端)。ここは世界 xz → 間へ写すだけ。
     """
     import sashizu_lib as L
     fs = kakoi_facing(d, g)
     if not fs: return []
     im = float(d["planting"]["bandDef"]["avoid"]["kakoiInsideM"])
-    return [_shape_poly([(g.U(x), g.V(z)) for x, z in Q], 0.0, "囲いの内:" + nm)
-            for nm, Q in L.kakoi_keepout_polys(fs, im)]
+    out = []
+    for nm, kind, Q in L.kakoi_keepout_polys(fs, im, d):
+        if kind == "poly":
+            out.append(_shape_poly([(g.U(x), g.V(z)) for x, z in Q], 0.0, "囲いの内:" + nm))
+        else:
+            (ax, az), (bx, bz), r = Q
+            out.append(_shape_seg((g.U(ax), g.V(az)), (g.U(bx), g.V(bz)), r / g.ken, "囲いの内:" + nm))
+    return out
 
 
 def cluster_keepout_shapes(d):

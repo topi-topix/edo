@@ -1482,16 +1482,53 @@ def _offset_line(P, r):
     return out
 
 
-def kakoi_keepout_polys(fences, inside_m):
-    """**囲いの道側全部 + 内側 `inside_m`** の多角形(世界 xz)。戻り [(名, [(x,z)…])]。
+def kakoi_half_thickness(d, run_name):
+    """囲いの**半厚**[m]とその出どころ。戻り (半厚, 出どころ)。⛔ 値を発明しない ── 取れなければ 0 と明示。
 
-    ⭐ 幹は囲いの線から内側へ `inside_m` 以上。⛔ 囲いの道側(囲いと道辺の間)には一本も置かない。
-    道側の外縁は `roadM + inside_m`(道辺の外まで届けば足りる)。
+    ・柵: `hFrom.garden` が指す庭の `tamagaki.postDiaM / 2`(柱の径。impl の `kakoi_avoid_shapes` と同じ欄)
+    ・板塀: 指図に厚みの欄が無い。在庫の実寸(`itabei5` の奥行)は目録にあるが、線に対する据わり(表裏2枚・
+      ずらし)は棟梁が実メッシュで測る値で紙からは決まらない ── 0 として『取れない』と返す。
+    """
+    r = next((x for x in d.get("runs") or [] if x.get("name") == run_name), None)
+    if r is None: return 0.0, "取れない(run が無い)"
+    hf = r.get("hFrom") or {}
+    if r.get("kind") == "柵" and hf.get("garden"):
+        gd = next((g for g in d.get("gardens") or [] if g.get("name") == hf["garden"]), None)
+        pd = ((gd or {}).get("tamagaki") or {}).get("postDiaM")
+        if pd: return float(pd) / 2.0, "gardens[%s].tamagaki.postDiaM/2" % hf["garden"]
+    return 0.0, "取れない(%s に厚みの欄が無い — 0 で扱う)" % r.get("kind")
+
+
+def kakoi_keepout_polys(fences, inside_m, d=None):
+    """**囲いの道側全部** + **囲いの線を半径 r = inside_m + 半厚 で丸く膨らませた形**(世界 xz)。
+
+    戻り [(名, 種, 形)]: 種 "poly" の形は [(x,z)…](道側)/ 種 "seg" の形は (a, b, r)(区間の帯と
+    両端の円を一つにしたカプセル ── 各区間に一つずつ出すので、**各節と run の両端**にも円が付く)。
+    判定は `kakoi_keepout_hit` の一本(散布は同じ形を `impl_sanno._shape_poly/_shape_seg` に写すだけ)。
+
+    ⭐ 幹は囲いの**実体の面**から `inside_m` 以上(線=芯でなく、半厚ぶん足す)。⛔ 囲いの道側
+    (囲いと道辺の間)には一本も置かない。道側の外縁は `roadM + inside_m`。
+    ⭐ **run の端の先**(線の延長上)も円で締め出す(2026-09-23 EDO-0409: `Saku_SW` の終わりの柱の 1.10m 先に
+    低木が立った)。半厚は `kakoi_half_thickness(d, 名)`(d が無ければ 0)。
     """
     out = []
     for f in fences:
         P, s = f["pts"], f["inner"]
+        half = kakoi_half_thickness(d, f["name"])[0] if d is not None else 0.0
+        r = inside_m + half
         inner = _offset_line(P, s * inside_m)
         outer = _offset_line(P, -s * (f["roadM"] + inside_m))
-        out.append((f["name"], inner + list(reversed(outer))))
+        out.append((f["name"], "poly", inner + list(reversed(outer))))
+        for i in range(len(P) - 1):
+            out.append((f["name"], "seg", (tuple(P[i]), tuple(P[i + 1]), r)))
     return out
+
+
+def kakoi_keepout_hit(K, x, z):
+    """点 (x,z) が `kakoi_keepout_polys` の形に載っていれば囲いの名、載っていなければ None。"""
+    for nm, kind, g in K:
+        if kind == "poly":
+            if _pip((x, z), g): return nm
+        elif _seg_d((x, z), g[0], g[1]) < g[2]:
+            return nm
+    return None

@@ -1628,16 +1628,18 @@ class Checks(object):
             self.add("C26", "囲いの内の幹", "未検査 — 道辺に面する囲いが一本も拾えない(位置の読めない囲い %s)"
                      % ("・".join(unread) or "無し"), "na")
             return
-        K = L.kakoi_keepout_polys(fs, float(im))
+        K = L.kakoi_keepout_polys(fs, float(im), M.d)
+        halves = [(f["name"],) + L.kakoi_half_thickness(M.d, f["name"]) for f in fs]
         bad = []
         for q in P:
             w = q["world"]
-            for nm, Q in K:
-                if pip(Q, w[0], w[1]):
-                    bad.append("%s: 囲い %s の道側か内 %.1f m 未満" % (q["name"], nm, im))
-                    break
-        self.add("C26", "囲いの内の幹 — %s の %d 点(全層)の幹の芯が、道辺に面する囲い %d 本(%s)の道側に無く、線から %.1f m 以上内にある(樹冠は測らない%s)"
-                 % (fn, len(P), len(fs), "・".join(f["name"] for f in fs), im,
+            nm = L.kakoi_keepout_hit(K, w[0], w[1])
+            if nm is not None:
+                bad.append("%s: 囲い %s の道側か、実体(半厚込み)から %.1f m 未満(端・節の先も)" % (q["name"], nm, im))
+        self.add("C26", "囲いの内の幹 — %s の %d 点(全層)の幹の芯が、道辺に面する囲い %d 本(%s)の道側に無く、囲いの実体(線+半厚:%s)から"
+                 " %.1f m 以上離れている(run の端・節の先も円で測る。樹冠は測らない%s)"
+                 % (fn, len(P), len(fs), "・".join(f["name"] for f in fs),
+                    "・".join("%s %.2fm=%s" % h for h in halves), im,
                     ";位置の読めない囲い %s は拾えていない" % "・".join(unread) if unread else ""),
                  "%d 点" % len(bad), "ng" if bad else "ok", bad[:12])
 

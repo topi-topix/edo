@@ -4388,7 +4388,7 @@
      "低木"
     ],
     "kakoiInsideM": 2.0,
-    "kakoiInsideRule": "**道辺に面する囲い**(`runs[]` の 柵・板塀 のうち、線上の探り点がどれも道辺から `kakoiFacingRoadM` 以内にある物)では、全層(低木も)の幹の芯を **囲いの線から内側へ `kakoiInsideM` 以上**に置く。⛔ 囲いと道辺の間(囲いの道側)には一本も置かない。⛔ 樹冠で測らない ── 枝葉が囲いを越えて道側へ張り出すのは可。囲いの無い辺は `kyoukaiRoadRule` のまま。⛔ 硬い制約(許容0=退ける)。⛔ 囲いの名を書かない ── 拾い方は散布と検査で一本(`sashizu_lib.kakoi_facing_road`)",
+    "kakoiInsideRule": "**道辺に面する囲い**(`runs[]` の 柵・板塀 のうち、線上の探り点がどれも道辺から `kakoiFacingRoadM` 以内にある物)では、全層(低木も)の幹の芯を **囲いの実体(線+半厚)から `kakoiInsideM` 以上**離す ── 囲いの線を半径 `kakoiInsideM`+半厚 で**両端・各節も含めて丸く膨らませた形**の外に置く(run の端の先=線の延長上にも置かない)。半厚は 柵=`hFrom` の庭の `tamagaki.postDiaM`/2、板塀=指図に欄が無く 0(`sashizu_lib.kakoi_half_thickness`)。⛔ 囲いと道辺の間(囲いの道側)には一本も置かない。⛔ 樹冠で測らない ── 枝葉が囲いを越えて道側へ張り出すのは可。囲いの無い辺は `kyoukaiRoadRule` のまま。⛔ 硬い制約(許容0=退ける)。⛔ 囲いの名を書かない ── 拾い方は散布と検査で一本(`sashizu_lib.kakoi_facing_road`)",
     "kakoiFacingRoadM": 8.0,
     "edaShitaOverRoadM": 4.0,
     "edaShitaOverRoadRule": "**道辺**(`edgeClassRule`)の外へ張り出す社叢(帯1〜4)の樹冠は、**張り出した先の路面**から最下枝の付け根まで `edaShitaOverRoadM` 以上(参道の林縁 `slopeBands[3].clusters[1].edaShitaOverRoadM` と同値)。⚠ 未結線 ── 部材の枝下が目録に無い(`plantRule.crownRule.takagi.edaShitaPendingRef`)ので散布も検査もまだ読まない"

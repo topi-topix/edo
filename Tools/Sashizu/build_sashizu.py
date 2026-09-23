@@ -1147,6 +1147,11 @@ class Checks(object):
             ys = sorted({t.y for q in (k.poly or []) for t in [M.terrace_at(*q)] if t})
             on_ground = not (k.y0 is not None and k.y1 is not None and ys and
                              min(abs(y - k.y0) for y in ys) > 0.3 and min(abs(y - k.y1) for y in ys) > 0.3)
+            # ⭐ 木階(`kizahashi`)は両端が段の高さに無ければ床と床の階 ── 床の段 0.25 の基壇に載る木階を
+            #   「0.3 以内だから地面」と読まない(山王 本殿の木階 2026-09-24 K135)。足元が段の高さの木階(向拝)は地面の階
+            if on_ground and ys and (k.raw or {}).get("kizahashi") and k.y0 is not None and k.y1 is not None and \
+                    min(abs(y - k.y0) for y in ys) > 0.05 and min(abs(y - k.y1) for y in ys) > 0.05:
+                on_ground = False
             if not on_ground:
                 note.append("床と床の階(木階)— 部材で測る")
             elif k.steps and k.drop is not None:

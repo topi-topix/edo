@@ -3112,9 +3112,25 @@ def derive_garden_strips(d):
             v1 = float(lk["to"][1])
         gd["poly"] = [[round(u0, 4), round(v0, 4)], [round(u1, 4), round(v0, 4)],
                       [round(u1, 4), round(v1, 4)], [round(u0, 4), round(v1, 4)]]
+    TW = dict((w["name"], w) for w in d.get("terraceWalls", []))
     for dr in d.get("drains", []):
         vf = dr["vFrom"]
-        dr["v"] = round(fv(M[vf["mune"]], vf["face"], float(vf.get("offKen") or 0.0)), 4)
+        if vf.get("gate"):
+            # ⭐ 門の脇面から(`plan.dv` の半分 + offKen)── 透塀の内の水抜き(K139 2026-09-24)。⛔ 数を json に持たない
+            gt = gate_by_name(d, vf["gate"])
+            hv = float(gt["plan"]["dv"]) / 2.0 + float(vf.get("offKen") or 0.0)
+            dr["v"] = round(float(gt["v"]) + (hv if vf["side"] == "北" else -hv), 4)
+        else:
+            dr["v"] = round(fv(M[vf["mune"]], vf["face"], float(vf.get("offKen") or 0.0)), 4)
+        uf = dr.get("uFrom")
+        if uf:
+            # ⭐ 土台を貫く口 ── 内の端 = 土台の通り − inKen・外の端(落ち口)= 土台の通り + outKen(南北に走る土台のみ)
+            w = TW[uf["wall"]]
+            if abs(float(w["a"][0]) - float(w["b"][0])) > 1e-6:
+                raise SystemExit("水抜き『%s』: 土台 %s が南北に走らない" % (dr["name"], uf["wall"]))
+            uw = float(w["a"][0])
+            dr["u"] = [round(uw - float(uf.get("inKen") or 0.0), 4), round(uw + float(uf.get("outKen") or 0.0), 4)]
+            dr.setdefault("outlet", {})["u"] = dr["u"][1]
     D = dict((q["name"], q) for q in d.get("drains", []))
     for gd in d["gardens"]:
         cf = gd.get("chuteFrom")
@@ -3212,9 +3228,11 @@ def garden_holes(d, gd):
     hf = gd.get("holesFrom")
     if not hf: return []
     out = []
-    off = float(hf.get("offKen") or 0.0)
+    off0 = float(hf.get("offKen") or 0.0)
+    byM = hf.get("offKenByMune") or {}        # ⭐ 軒先まで広げる棟(K047・K139 2026-09-24)。無ければ offKen
     for m in d["munes"]:
         if m["name"] not in (hf.get("munes") or []): continue
+        off = float(byM.get(m["name"], off0))
         out.append([(m["u0"] - off, m["v0"] - off), (m["u0"] + m["du"] + off, m["v0"] - off),
                     (m["u0"] + m["du"] + off, m["v0"] + m["dv"] + off), (m["u0"] - off, m["v0"] + m["dv"] + off)])
     for k in d["kaidans"]:

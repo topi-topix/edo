@@ -1335,14 +1335,19 @@ class Checks(object):
         if isinstance(P, Exception):
             self.add("C17", "植栽の退避", "⛔ 読めない: %s: %s" % (fn, P), "ng")
             return
-        pts = [q["uv"] for q in P]
-        bad = 0
-        for q in pts:
-            if any(pip(b.poly, *q) for k, b in M.buildings()) or any(k.poly and pip(k.poly, *q) for k in M.kaidans) or \
-               any(pip(w.pts, *q) for w in M.water):
-                bad += 1
-        self.add("C17", "植栽の退避 — 撒いた %d 点が棟・廊下・附属屋・石段・水の上に無い" % len(pts),
-                 "%d 点" % bad, "ok" if bad == 0 else "ng")
+        # ⭐ どの点が何に載るかを名指す(検図 2026-09-24「中身は未確認」— 数だけでは退かせない)
+        bad = []
+        for q in P:
+            uv = q["uv"]
+            on = next((getattr(b, "name", None) or k for k, b in M.buildings() if pip(b.poly, *uv)), None)
+            if on is None:
+                on = next(("石段 " + (getattr(k, "name", "") or "") for k in M.kaidans if k.poly and pip(k.poly, *uv)), None)
+            if on is None:
+                on = next(("水 " + (getattr(w, "name", "") or "") for w in M.water if pip(w.pts, *uv)), None)
+            if on is not None:
+                bad.append("%s(%s)(u%.2f, v%.2f): %s の上" % (q["name"] or "無名", q["group"], uv[0], uv[1], on))
+        self.add("C17", "植栽の退避 — 撒いた %d 点が棟・廊下・附属屋・石段・水の上に無い" % len(P),
+                 "%d 点" % len(bad), "ok" if not bad else "ng", bad[:12])
 
     # C18 地盤の出所
     def c18(self):
@@ -1444,6 +1449,8 @@ class Checks(object):
                     continue
                 if any(seg_dist((xw, zw), r.a, r.b) < 1.0 for r in M.runs):
                     continue                              # 基壇石垣・塀の座が受ける
+                if any(seg_dist((u, v), w2.a, w2.b) * M.KEN < 1.0 for w2 in M.walls):
+                    continue                              # 区画線の上の土留め(terraceWalls)が受ける【検図 2026-09-23 中】
                 if any(k2.poly and edge_dist((u, v), k2.poly) * M.KEN < 1.0 for k2 in M.kaidans) or self._on_ramp(u, v):
                     continue
                 bad_len += Lk * M.KEN / k

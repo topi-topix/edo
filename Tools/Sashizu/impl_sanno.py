@@ -406,7 +406,7 @@ def shrub_box(gd):
     return [(u0, v0), (u1, v0), (u1, v1), (u0, v1)]
 
 
-def island_shrubs(gd, ken):
+def island_shrubs(gd, ken, d=None):
     """帯(旧・植込みの島)の照葉低木の位置 ── **面からの従属値**。⛔ 本数を json に書かない。
 
     `shrubs.box`(2026-09-06b の帯)があればその面、無ければ玉垣の芯線から**芯々の半分**だけ
@@ -435,7 +435,13 @@ def island_shrubs(gd, ken):
         ins = st / 2.0
         src = (q for q in scan(P)
                if min(_pt_seg(q, P[i], P[(i + 1) % len(P)]) for i in range(len(P))) >= ins)
-    return [q for q in src if not (kr and in_poly(q, kr))]
+    # ⭐ **井戸屋形の石敷の上には据えない**(石敷から樹冠半径 `crownRKen` 以上外)【2026-09-24 ──
+    #    低木の面を井戸の北まで延ばした(庭方 2026-09-24)ので枠が石敷に掛かる】。⛔ 矩形を持たない ── `ido_rects`。
+    ir = (ido_rects(d) or {}).get("石敷") if d is not None else None
+    rr = (sh.get("crownRKen") or 0.0)
+    def _on_ido(q):
+        return ir is not None and (ir[0] - rr < q[0] < ir[2] + rr and ir[1] - rr < q[1] < ir[3] + rr)
+    return [q for q in src if not (kr and in_poly(q, kr)) and not _on_ido(q)]
 
 
 def _stagger_scan(P, step, shift, vstep=None):
@@ -1640,6 +1646,9 @@ def band_scan(d, g):
     soch = [g.L(x, z) for x, z in d["polygon"]]
     keidai = terrace_poly_uv(d["terraces"][0])
     zentei = terrace_poly_uv(d["terraces"][1])
+    # ⭐ **三つ目からの平場**(御供所の郭 ── 施主裁定 2026-09-23 其3)も帯の面から落とす
+    #    【検図 2026-09-24 ── 帯1 の低木 2 本が御供所の上に撒かれていた】。`bandDef.exclude` の宣言に揃える。
+    others = [terrace_poly_uv(t) for t in d["terraces"][2:]]
     obi4 = [(q[0], q[1]) for q in d["slopeBands"][3]["uv"]]
 
     def ring(P): return [(P[i], P[(i + 1) % len(P)]) for i in range(len(P))]
@@ -1652,6 +1661,7 @@ def band_scan(d, g):
     skip = 0
     for p in poly_scan(soch, step):
         if in_poly(p, keidai) or in_poly(p, zentei) or in_poly(p, obi4): continue
+        if any(in_poly(p, P9) for P9 in others): continue
         x, z = g.W(p[0], p[1])
         h = dem_h(x, z)
         if h is None: skip += 1; continue
@@ -2693,6 +2703,7 @@ def gap_source(d, gf, owner):
     """`gapFrom` / `vFrom` が指す物の **芯[uv] と半幅[間]**。⛔ 口の半幅を literal で持たない。
 
     ・`kaidan` ── 石段。半幅 = `wKen`/2、芯 = 折れ線の第1点(平場の縁に取り付く端)
+    ・`link`   ── 渡廊下・階段廊下(`links`)。半幅 = `w`/2、芯 = 起点
     ・`gate`   ── 門。半幅 = `plan[span]`/2(既定は桁行 `dv` の半分)、芯 = 門の芯
       ⭐ `edge: "側柱の外面"`(= 一間門なら `"本柱の外面"`。**同じ面の呼び名**で、門の柱の数で
       名が変わるだけ)なら半幅 = 芯から**幅の脇の柱の外面**まで(`gate_col_face_dist`)
@@ -2730,6 +2741,15 @@ def gap_source(d, gf, owner):
             raise SystemExit("『%s』── 門『%s』の幅の脇の面が東西南北に揃わない(幅の脇の柱の外面を出せない)"
                              % (owner, gt["name"]))
         return (gt["u"], gt["v"]), gate_col_face_dist(d, gt, fc[0])[0]
+    if gf.get("link"):
+        # ⭐ 渡廊下・階段廊下(`links`)が土留めを横切る口【検図 2026-09-23 高 — L_Gusho × TW_Gusho_N】
+        #    半幅 = 廊下の幅 `w`/2(`wUnit` 間)、芯 = 廊下の起点(辺へは derive_gaps が足を下ろす)。
+        lk = [q for q in d.get("links", []) if q.get("name") == gf["link"]]
+        if not lk: raise SystemExit("『%s』の `gapFrom` が引けない: %s" % (owner, gf["link"]))
+        lk = lk[0]
+        if lk.get("wUnit", "間") != "間":
+            raise SystemExit("『%s』── 廊下『%s』の幅の単位が間でない" % (owner, lk["name"]))
+        return (lk["from"][0], lk["from"][1]), lk["w"] / 2.0
     raise SystemExit("『%s』の `gapFrom` が何を指すのか読めない" % owner)
 
 
@@ -5061,7 +5081,13 @@ def scatter_pts(d, g):
             #    ⚠ 前庭の帯の低木が一本立ち(常緑広葉 其二・エノキ)の幹と 0.16〜0.41 m で重なっていた。
             #    ⛔ 格子は動かさない(千鳥・正三角の目を崩さない)── 当たる目だけ抜く。
             oth9 = _others("低木")
-            isl9 = island_shrubs(gd, ken)
+            isl9 = island_shrubs(gd, ken, d)
+            # ⭐ **塀・囲い・土留めの実体線から `kakoi_line_m` 以内の目は据えない**(硬い制約・許容0)
+            #    【検図 2026-09-24 ── 帯の低木が TW_Zentei_W・Ita_ZN・TW_SandoKai_W から 2 m 内に立った】。
+            #    社叢の帯と同じ一本(`kakoi_line_shapes` = 検査 C29)。⛔ 格子は動かさない ── 当たる目だけ抜く。
+            kl9 = kakoi_line_shapes(d, g)
+            if kl9:
+                isl9 = [p for p in isl9 if shape_hit(p, kl9) is None]
             if xr > 0 and oth9:
                 isl9 = [p for p in isl9 if all((p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 >= xr * xr
                                                for q in oth9)]

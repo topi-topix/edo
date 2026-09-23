@@ -246,6 +246,7 @@ def gap_source(d, gf, owner):
     """`gapFrom` / `vFrom` が指す物の **芯[uv] と半幅[間]**。⛔ 口の半幅を literal で持たない。
 
     ・`kaidan` ── 石段。半幅 = `wKen`/2、芯 = 折れ線の第1点(平場の縁に取り付く端)
+    ・`link`   ── 渡廊下・階段廊下(`links`)。半幅 = `w`/2、芯 = 起点
     ・`gate`   ── 門。半幅 = `plan[span]`/2(既定は桁行 `dv` の半分)、芯 = 門の芯
       ⭐ `edge: "側柱の外面"`(= 一間門なら `"本柱の外面"`。**同じ面の呼び名**で、門の柱の数で
       名が変わるだけ)なら半幅 = 芯から**幅の脇の柱の外面**まで(`gate_col_face_dist`)
@@ -283,6 +284,15 @@ def gap_source(d, gf, owner):
             raise SystemExit("『%s』── 門『%s』の幅の脇の面が東西南北に揃わない(幅の脇の柱の外面を出せない)"
                              % (owner, gt["name"]))
         return (gt["u"], gt["v"]), gate_col_face_dist(d, gt, fc[0])[0]
+    if gf.get("link"):
+        # ⭐ 渡廊下・階段廊下(`links`)が土留めを横切る口【検図 2026-09-23 高 — L_Gusho × TW_Gusho_N】
+        #    半幅 = 廊下の幅 `w`/2(`wUnit` 間)、芯 = 廊下の起点(辺へは derive_gaps が足を下ろす)。
+        lk = [q for q in d.get("links", []) if q.get("name") == gf["link"]]
+        if not lk: raise SystemExit("『%s』の `gapFrom` が引けない: %s" % (owner, gf["link"]))
+        lk = lk[0]
+        if lk.get("wUnit", "間") != "間":
+            raise SystemExit("『%s』── 廊下『%s』の幅の単位が間でない" % (owner, lk["name"]))
+        return (lk["from"][0], lk["from"][1]), lk["w"] / 2.0
     raise SystemExit("『%s』の `gapFrom` が何を指すのか読めない" % owner)
 
 

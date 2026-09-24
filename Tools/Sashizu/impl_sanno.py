@@ -2928,6 +2928,17 @@ def derive_runs(d, g):
                              "(南西の透塀の外・検図11巡目 高1)")
 
 
+def mune_front_off(d, mm, te):
+    """`tailEndFrom` の面からの出[間]。`offKen`(数)か `offFrom: "kizahashiM"`(棟の木階の足 =
+    `munes[].kizahashiM.out` ── 部材の写し・検分 K161)。⛔ 出を発明しない。"""
+    if te.get("offFrom") == "kizahashiM":
+        k = (mm.get("kizahashiM") or {}).get("out")
+        if not isinstance(k, (int, float)):
+            raise SystemExit("棟『%s』に `kizahashiM.out` が無い(`tailEndFrom.offFrom`)" % mm["name"])
+        return float(k) / float(d["const"]["ken"])
+    return float(te.get("offKen") or 0.0)
+
+
 def derive_routes(d):
     """`from` を持つ動線の折れ線を、名指した道 + `tail` から**その場で組み立てる**。
 
@@ -2938,7 +2949,20 @@ def derive_routes(d):
     src = {"kattemichi": dict((q["name"], q) for q in d.get("kattemichi", [])),
            "fumotomichi": dict((q["name"], q) for q in d.get("fumotomichi", []))}
     for rt in d.get("routes", []):
-        if not rt.get("from"): continue
+        if not rt.get("from"):
+            # ⭐ **uv の折れ線の末端を棟の面の外へ**(`tailEndFrom`・検分 K161 2026-09-24)── 道の末端を
+            #   柱芯の線に置くと基壇と木階へ食い込む。⭕ 木階の足 = 柱芯の辺の外 `munes[].kizahashiM.out`
+            #   (部材の写し)へ戻す。⛔ 数を json に持たない(部材を焼き直せば追随する)。
+            te = rt.get("tailEndFrom")
+            if te and not rt.get("world") and rt.get("pts"):
+                mm = next((q for q in d["munes"] if q["name"] == te["mune"]), None)
+                if mm is None:
+                    raise SystemExit("動線『%s』の `tailEndFrom` の棟『%s』が無い" % (rt["name"], te["mune"]))
+                off = mune_front_off(d, mm, te)
+                ax, val = {"南面": (1, mm["v0"] - off), "北面": (1, mm["v0"] + mm["dv"] + off),
+                           "西面": (0, mm["u0"] - off), "東面": (0, mm["u0"] + mm["du"] + off)}[te["face"]]
+                rt["pts"][-1][ax] = round(val, 3)
+            continue
         kind, _, nm = rt["from"].partition(":")
         base = src.get(kind, {}).get(nm)
         if base is None:
@@ -2950,7 +2974,7 @@ def derive_routes(d):
             if mm is None:
                 raise SystemExit("動線『%s』の `tailEndFrom` の棟『%s』が無い" % (rt["name"], te["mune"]))
             g9 = G(d)
-            off = float(te.get("offKen") or 0.0)
+            off = mune_front_off(d, mm, te)
             ax, val = {"南面": (1, mm["v0"] - off), "北面": (1, mm["v0"] + mm["dv"] + off),
                        "西面": (0, mm["u0"] - off), "東面": (0, mm["u0"] + mm["du"] + off)}[te["face"]]
             # ⭐ 末尾の点を棟の面の通りへ(uv で寄せて世界へ戻す — グリッドは回っている 2026-09-23)
@@ -3003,6 +3027,18 @@ def derive_amaochi(d):
             keep = nx
         return [q for q in keep if q[1] - q[0] >= AMAOCHI_MIN_KEN]
 
+    def front_cut(m, face):
+        """**正面の木階・向拝の下は帯を切る**(検分 K161 2026-09-24【U】)── 雨落ちは軒先の水を受ける物で、
+        正面は木階(`kizahashiM.w`)・向拝(`kohaiM.w`)が軒の下を塞ぐ。⭕ 幅は部材の写しの広いほう、
+        芯は柱芯の矩形の中央。⛔ 幅を発明しない(写しが無い棟は切らない)。"""
+        if m.get("front") != face[0]: return []
+        ws = [float((m.get(k) or {}).get("w")) for k in ("kizahashiM", "kohaiM")
+              if isinstance((m.get(k) or {}).get("w"), (int, float))]
+        if not ws: return []
+        hw = max(ws) / ken / 2.0
+        c = (m["v0"] + m["dv"] / 2.0) if face in ("東面", "西面") else (m["u0"] + m["du"] / 2.0)
+        return [(c - hw, c + hw)]
+
     for nm in am.get("roster") or []:
         if nm not in M: raise SystemExit("⛔ `amaochi.roster`『%s』が `munes` に無い" % nm)
         m = M[nm]; e = kd(m)
@@ -3017,6 +3053,7 @@ def derive_amaochi(d):
                 #   (名簿の順が決める ── ⛔ 二枚重ねない)。
                 cuts += [(q[3], q[5]) for q in out
                          if q[2] - 1e-9 <= uc <= q[4] + 1e-9]
+                cuts += front_cut(m, face)
                 for b0, b1 in sub((v0, v1), cuts):
                     out.append((nm, face, a0, b0, a1, b1))
             else:
@@ -3025,6 +3062,7 @@ def derive_amaochi(d):
                 cuts = [(q[1], q[3]) for q in R if q[0] != nm and q[2] - 1e-9 <= vc <= q[4] + 1e-9]
                 cuts += [(q[2], q[4]) for q in out
                          if q[3] - 1e-9 <= vc <= q[5] + 1e-9]
+                cuts += front_cut(m, face)
                 for b0, b1 in sub((u0, u1), cuts):
                     out.append((nm, face, b0, a0, b1, a1))
     for gd9 in out:

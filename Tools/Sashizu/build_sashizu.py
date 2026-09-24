@@ -787,7 +787,7 @@ class Checks(object):
 
     def c04(self):
         M = self.M
-        rows, bad = [], []
+        rows, bad, seated = [], [], []
         worst = 0.0
         # 面ごとの許容(planes[].devEnvelopeM)と名指しの例外(planes[].devEnvelopeExceptions)は欄が持つ
         env = {}
@@ -810,13 +810,26 @@ class Checks(object):
             u0, v0, u1, v1 = bbox(b.poly)
             ds = []
             step = 0.5
+            # ⭐ **基壇に載る棟は基壇の天端で数える**(施主裁定 2026-09-24 其二 案B ── 山王の二堂)。
+            #   棟の面 = `munes[].kidanTopY`(部材の基壇の天端)。⛔ 施主の言葉(`kidanSeat.quote`)が無い棟には
+            #   開かない ── 検査を緩める口は裁定の引用に紐づける(規則19)。
+            ks = (b.raw or {}).get("kidanSeat") if kind == "棟" else None
+            kt = (b.raw or {}).get("kidanTopY") if kind == "棟" else None
+            y_seat = None
+            if isinstance(kt, (int, float)):
+                if isinstance(ks, dict) and (ks.get("quote") or "").strip():
+                    y_seat = float(kt)
+                    seated.append("%s(%s)" % (b.name, ks.get("ruling") or "?"))
+                elif ks is not None:
+                    bad.append("⛔%s を基壇の天端で数えようとしているが**施主の言葉が無い**"
+                               "(`munes[].kidanSeat.quote` に引用を入れる)" % b.name)
             u = u0
             while u <= u1 + 1e-9:
                 v = v0
                 while v <= v1 + 1e-9:
                     if pip(b.poly, u, v) or edge_dist((u, v), b.poly) < 1e-6:
                         t = M.terrace_at(u, v)
-                        y = b.y if b.y is not None else (t.y if t else None)
+                        y = y_seat if y_seat is not None else (b.y if b.y is not None else (t.y if t else None))
                         nat = M.nat(u, v)
                         if y is not None and nat is not None:
                             ds.append(y - nat)
@@ -854,8 +867,13 @@ class Checks(object):
             if ev > 0.5:
                 bad.append("⛔ 段 %s の許容を %.2f m へ緩めている(規則3 は 0.5)" % (tn, ev))
         self.rows_c04 = rows
-        self.add("C04", "面の引き方 — 棟ごとの**系統差**(規則3 は許容でなく導き方。系統差 > %.2f m は面の誤り)" % Checks.OFFSET_TOL,
-                 "不合格 %d 棟 / 最大 %.2f m" % (len(bad), worst), "ok" if not bad else "ng", bad[:12])
+        what = "面の引き方 — 棟ごとの**系統差**(規則3 は許容でなく導き方。系統差 > %.2f m は面の誤り)" % Checks.OFFSET_TOL
+        if seated:
+            rul = sorted(set(q.split("(", 1)[1].rstrip(")") for q in seated))
+            what += "。基壇に載る棟は基壇の天端で数える(%s)" % "・".join(rul)
+            bad.append("⚠〔基壇の天端で数えた〕%s" % "・".join(q.split("(", 1)[0] for q in seated))
+        real = [q for q in bad if not q.startswith("⚠〔基壇")]
+        self.add("C04", what, "不合格 %d 棟 / 最大 %.2f m" % (len(real), worst), "ok" if not real else "ng", bad[:12])
 
     # C05 段差の受け
     def c05(self):

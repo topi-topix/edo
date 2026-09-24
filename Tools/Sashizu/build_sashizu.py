@@ -881,7 +881,7 @@ class Checks(object):
 
     def c04(self):
         M = self.M
-        rows, bad, seated, seat_vis = [], [], [], []
+        rows, bad, seated, seat_vis, seat_at_all = [], [], [], [], []
         worst = 0.0
         # 面ごとの許容(planes[].devEnvelopeM)と名指しの例外(planes[].devEnvelopeExceptions)は欄が持つ
         env = {}
@@ -910,14 +910,20 @@ class Checks(object):
             ks = (b.raw or {}).get("kidanSeat") if kind == "棟" else None
             kt = (b.raw or {}).get("kidanTopY") if kind == "棟" else None
             y_seat = None
+            seat_at = None
             kh = ((b.raw or {}).get("kidanM") or {}).get("h") if kind == "棟" else None
             if isinstance(kt, (int, float)):
                 if isinstance(ks, dict) and (ks.get("quote") or "").strip():
                     if not isinstance(kh, (int, float)):
                         bad.append("⛔%s を基壇の天端で数えようとしているが**基壇の丈 `kidanM.h` が無い**" % b.name)
                     else:
-                        y_seat = float(kt)                  # 系統差は天端で数える(裁定の文言 `kidanSeat._`)
+                        # ⭐ 系統差を数える所は棟ごとの裁定の言葉に従う(`kidanSeat.countAt`)。既定は**面**
+                        #   (= 基壇の下端)。`top`(天端)は引用を持つときだけ効かせる(普請奉行の決め 2026-09-24)
+                        cat = "top" if ks.get("countAt") == "top" else "face"
+                        y_seat = float(kt) if cat == "top" else float(kt) - float(kh)
                         seated.append("%s(%s)" % (b.name, ks.get("ruling") or "?"))
+                        seat_at = "%s を%sで数えた(%s「%s」)" % (
+                            b.name, "天端" if cat == "top" else "載る面", ks.get("ruling") or "?", ks.get("quote"))
                 elif ks is not None:
                     bad.append("⛔%s を基壇の天端で数えようとしているが**施主の言葉が無い**"
                                "(`munes[].kidanSeat.quote` に引用を入れる)" % b.name)
@@ -973,6 +979,7 @@ class Checks(object):
                         v += step
                     u += step
                 y_bot = top - float(kh)
+                seat_at_all.append("%s・系統差 %+.2f" % (seat_at, statistics.median(ds)))
                 if t_seat is not None and abs(y_bot - t_seat.y) > 0.005:
                     bad.append("⛔%s 基壇の下端 %.2f(天端 %.2f − 丈 %.2f)が載る面 %s %.2f と食い違う ── %s"
                                % (b.name, y_bot, top, kh, t_seat.name, t_seat.y,
@@ -1005,9 +1012,10 @@ class Checks(object):
         what = "面の引き方 — 棟ごとの**系統差**(規則3 は許容でなく導き方。系統差 > %.2f m は面の誤り)" % Checks.OFFSET_TOL
         if seated:
             rul = sorted(set(q.split("(", 1)[1].rstrip(")") for q in seated))
-            what += ("。基壇に載る棟は基壇の天端で系統差を数え(下端 = 載る面を検める)、**散らばりは造成と基壇の見えで受ける**"
+            what += ("。基壇に載る棟は棟ごとの裁定の言葉どおり載る面(既定)か天端(`kidanSeat.countAt`)で系統差を数え(下端 = 載る面を検める)、**散らばりは造成と基壇の見えで受ける**"
                      "(見えと削りは造成後の地盤で数える・包絡 0.5 は効かせない ── %s)" % "・".join(rul))
-            bad.append("⚠〔基壇の天端で数えた〕%s" % "・".join(seat_vis))
+            bad.append("⚠〔基壇に載る棟の数え方〕%s" % " / ".join(seat_at_all))
+            bad.append("⚠〔基壇の見えと削り(造成後の地盤)〕%s" % "・".join(seat_vis))
         real = [q for q in bad if not q.startswith("⚠〔基壇")]
         res = "不合格 %d 棟 / 最大 %.2f m" % (len(real), worst)
         if seat_vis:

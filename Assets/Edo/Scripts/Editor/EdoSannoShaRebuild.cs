@@ -413,7 +413,8 @@ public static class EdoSannoShaRebuild
             float sodeLiftMax = 0f, sodeProudMax = 0f; var sodeFace = new Dictionary<GameObject, Vector3>();
             var dans = new GameObject[spans.Count];
             var sodeRow = new Dictionary<string, GameObject[]>(); var sodeSide = new Dictionary<string, int>();
-            foreach (var k in sodeWalls.Keys) sodeRow[k] = new GameObject[spans.Count];
+            var sodeDepth = new Dictionary<string, float[]>(); int sodeDeep = 0;
+            foreach (var k in sodeWalls.Keys) { sodeRow[k] = new GameObject[spans.Count]; sodeDepth[k] = new float[spans.Count]; }
             for (int i = 0; i < spans.Count; i++)
             {
                 var sp = spans[i] as List<object>; if (sp == null || sp.Count < 3) continue;
@@ -446,18 +447,22 @@ public static class EdoSannoShaRebuild
                     Vector3 oc = dg.transform.position + dg.transform.right * side * (wM * 0.5f + 0.9f);
                     if (!gHi && EdoBuild.Ground(oc.x, oc.z) > y + EdoBuild.ISHIDAN_SODE_KASA - BURIED_EPS) { sodeSkip++; continue; }
                     string w; EdoBuild.SodeRise rz;
-                    var sg = EdoBuild.PlaceIshidanSode(dg, EdoAssets.Own.IshidanSode(keri, fumi, i), side, grp,
-                                                       kv.Key + "_" + i.ToString("000") + "f", gHi, out w, out rz);
+                    //   ⭐ 丈は上げの上限に足りる最小を選ぶ(`EdoBuild.PlaceIshidanSodeByDepth`・足りなければ退ける)
+                    int ic = i;
+                    var sg = EdoBuild.PlaceIshidanSodeByDepth(dg, d => EdoAssets.Own.IshidanSode(keri, fumi, ic, d),
+                                                              EdoAssets.Own.IshidanSodeDepths, side, grp,
+                                                              kv.Key + "_" + i.ToString("000") + "f", gHi, out w, out rz);
                     if (w != null) sodeWarn.Add(w);
                     if (rz.refused) { sodeRefused++; continue; }
                     if (rz.lift > 0f) { sodeLifted++; sodeLiftMax = Mathf.Max(sodeLiftMax, rz.lift); sodeProudMax = Mathf.Max(sodeProudMax, rz.proud); }
-                    if (sg != null) { sodeMade++; sodeRow[kv.Key][i] = sg; sodeSide[kv.Key] = side; sodeFace[sg] = -dg.transform.right * side; }
+                    if (sg != null && rz.depth > EdoAssets.Own.ISHIDAN_SODE_DEPTH_STD + 1e-3f) sodeDeep++;
+                    if (sg != null) { sodeMade++; sodeRow[kv.Key][i] = sg; sodeDepth[kv.Key][i] = rz.depth; sodeSide[kv.Key] = side; sodeFace[sg] = -dg.transform.right * side; }
                 }
             }
             // ⭐ 曲がる石段(女坂)は折れの前後の袖を留めに切る(`EdoBuild.MiterIshidanSode`)
             foreach (var kv in sodeRow)
                 if (sodeSide.ContainsKey(kv.Key))
-                    sodeMiter += EdoBuild.MiterIshidanSode(dans, kv.Value, sodeSide[kv.Key], keri, fumi, wM, sodeWarn);
+                    sodeMiter += EdoBuild.MiterIshidanSode(dans, kv.Value, sodeSide[kv.Key], keri, fumi, wM, sodeWarn, sodeDepth[kv.Key]);
             // ⭐ 袖の天端は外の地盤と同じ高さ ── 天端の下の節点と芝を納める(EDO-0414・⛔ 地形の編集は Undo の外)
             var sodeAll = new List<GameObject>(); var faceAll = new Dictionary<GameObject, Vector3>();
             foreach (var kv in sodeRow)
@@ -489,6 +494,7 @@ public static class EdoSannoShaRebuild
                            (sodeSkip > 0 ? " / 切通しで建てず " + sodeSkip : "") +
                            (sodeLifted > 0 ? " / 天端を地盤まで上げた " + sodeLifted + " 駒(最大 " + sodeLiftMax.ToString("F2") +
                                              "m・背で地表より出る 最大 " + sodeProudMax.ToString("F2") + "m)" : "") +
+                           (sodeDeep > 0 ? " / 深い丈の袖 " + sodeDeep + " 駒" : "") +
                            (sodeRefused > 0 ? " / ⛔ 丈が足りず据えなかった " + sodeRefused : "") +
                            (sodeMiter > 0 ? " / 留めの継ぎ目 " + sodeMiter : "") : ""));
             foreach (var w in sodeWarn) sb.AppendLine("    ⚠ " + w);
@@ -1050,6 +1056,9 @@ public static class EdoSannoShaRebuild
     /// 本数 = round(辺長 / 基準スパン)・スパン = 辺長 / 本数)で、⛔ 実装は数を持たない。
     /// 端の種類は −X, +X の順: c = 隅部材へ続く / n = 次のスパンへ / t = 中門へ突き付け /
     /// h = 口の縁の柱(南の潜り)。⚠ 部材の原点 = スパンの中心・床(= 基壇の天端 = `seat`)。</summary>
+    /// <summary>透塀の丈(棟の天端・床から)[m]。⚠ 部材の設計値の写し(正典は `EdoAssets.Own.SannoSukibei` の註)。
+    /// 口の縁を門の実メッシュで測る高さの帯にだけ使う(⛔ 位置合わせの基準点ではない)。</summary>
+    const float SUKIBEI_H = 2.25f;
     static int Sukibei(Dictionary<string, object> r, string name, Transform grp, StringBuilder sb)
     {
         var bom = FindBom(BOM_SUKIBEI);
@@ -1062,13 +1071,36 @@ public static class EdoSannoShaRebuild
         var segs = L(r, "segs");
         float seat = F(r, "seat");
         int made = 0;
-        for (int si = 0; si < segs.Count; si++)
+        // ⭐ 中門へ突き付ける端(t)は**門の実メッシュで測った本柱の外面**へ取る(柵・板塀と同じ物差し
+        //   `ClipRunEndsToGates` → `EdoBuild.OpeningJambs`)。⛔ 算出物の seg の端(紙の上の本柱の外面)のまま据えない ──
+        //   2026-09-24 実測で Sukibei_E の t の端と中門の本柱に 0.006/0.007m の隙が残った。等分はその後の実長で割る。
+        var pa = new List<Vector2>(); var pb = new List<Vector2>();
+        foreach (var so in segs)
         {
-            var seg = segs[si] as List<object>; if (seg == null || seg.Count < 2) continue;
-            Vector2 a = P2(seg[0]), b = P2(seg[1]);
+            var seg = so as List<object>; if (seg == null || seg.Count < 2) continue;
+            pa.Add(P2(seg[0])); pb.Add(P2(seg[1]));
+        }
+        //   食い込み(bite)は 0 ── t の木口は走りに直角の破風板で、中門は同じ軸(境内の軸)に据わるので楔が残らない。
+        //   ⛔ 柵・板塀と同じく半厚を食い込ませると 0.30m 門の中へ入る(2026-09-24 に一度そう流して 1725 の部材を探した)。
+        //   端は**走りの線の上**へ戻す(射影だけ採る)── `ClipRunEndsToGates` は傾いた門のために脇柱の角の点を返すが、
+        //   透塀は境内の軸の一直線(隅部材と中門の間)で、角の点を採ると走りが 0.06° 振れて隅の側で目違う。
+        if (eg == "t")
+        {
+            var qa = new List<Vector2>(pa); var qb = new List<Vector2>(pb);
+            ClipRunEndsToGates(pa, pb, SUKIBEI_H, 0f, true, seat, name, sb);
+            for (int si = 0; si < pa.Count; si++)
+            {
+                Vector2 dd = (qb[si] - qa[si]).normalized;
+                pa[si] = qa[si] + dd * Vector2.Dot(pa[si] - qa[si], dd);
+                pb[si] = qa[si] + dd * Vector2.Dot(pb[si] - qa[si], dd);
+            }
+        }
+        for (int si = 0; si < pa.Count; si++)
+        {
+            Vector2 a = pa[si], b = pb[si];
             float len = Vector2.Distance(a, b); if (len < 0.2f) continue;
             Vector2 dir = (b - a) / len;
-            string e0 = (si == 0) ? "c" : eg, e1 = (si == segs.Count - 1) ? "c" : eg;
+            string e0 = (si == 0) ? "c" : eg, e1 = (si == pa.Count - 1) ? "c" : eg;
             if (e0 == null || e1 == null)
             { sb.AppendLine("  ★ " + name + ": 口の端の種類(`gapEnd`)が指図に無い — この辺は据えない"); continue; }
             int N = Mathf.Max(1, Mathf.RoundToInt(len / baseM));

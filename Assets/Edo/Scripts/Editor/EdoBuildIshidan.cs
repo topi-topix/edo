@@ -39,6 +39,42 @@ public static partial class EdoBuild
         public float limit;      // 上げられる上限[m](袖の内の面が段石の小口を底まで覆う範囲・実メッシュで測る)
         public float proud;      // 上げた後、袖の背の線で天端が地表より出る量の最大[m](柔らかい・報告のみ)
         public bool refused;     // 上限を超えるので据えなかった(硬い: 埋まった袖を積まない・小口を開けない)
+        public float depth;      // 据えた駒の丈[m](天端の線から下端まで。PlaceIshidanSodeByDepth が選んだ物)
+    }
+
+    /// <summary>**丈を選んで袖を据える**(EDO-0430 2026-09-24)。<paramref name="pathOf"/>(丈 → 袖のパス。
+    /// 例 `d => EdoAssets.Own.IshidanSode(蹴上, 踏面, i, d)`)と焼いてある丈 <paramref name="depths"/>(浅い順。
+    /// `EdoAssets.Own.IshidanSodeDepths`)を受け、**浅い丈から順に**据えて、天端を地盤まで上げる量が上げの上限
+    /// (実メッシュで測る ── 袖の下端が段石の底より下)に収まる**最小の丈**を採る。
+    /// ⭐ 硬い条件: どの丈でも上限を超える(または足りる丈の駒を焼いていない)なら**建てずに退けて** ⛔ を刷る
+    /// (<see cref="SodeRise.refused"/>)。⛔ 足りない丈の袖を上げて下を開けない・埋まった袖を積まない。
+    /// 選んだ丈は <see cref="SodeRise.depth"/> に返す ── 留めに切るときは同じ丈の駒を引く
+    /// (<see cref="MiterIshidanSode(IList{GameObject},IList{GameObject},int,float,float,float,List{string},IList{float})"/>)。
+    /// 当たる先: `copingRise:"groundHi"` の袖を持つ全ての石段(山王の男坂・女坂・郭の階・中門の内の階)。
+    /// 深い丈が要るのは今は女坂の切通しの坂下・坂上だけ(3.20 を焼いたのも女坂 (0.300, 1.199) だけ)。</summary>
+    public static GameObject PlaceIshidanSodeByDepth(GameObject dan, System.Func<float, string> pathOf, IList<float> depths,
+                                                     int side, Transform parent, string name, bool groundHi,
+                                                     out string warn, out SodeRise rise)
+    {
+        warn = null; rise = new SodeRise();
+        string lastWarn = null; SodeRise last = new SodeRise(); float lastD = float.NaN; var unbaked = new List<string>();
+        for (int k = 0; k < depths.Count; k++)
+        {
+            float d = depths[k]; string path = pathOf(d);
+            if (UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
+            { unbaked.Add(d.ToString("F2")); continue; }
+            string w; SodeRise r;
+            var go = PlaceIshidanSode(dan, path, side, parent, name, groundHi, out w, out r);
+            r.depth = d;
+            if (!r.refused) { warn = w; rise = r; return go; }
+            lastWarn = w; last = r; lastD = d;
+            if (!groundHi) break;                 // 上げない袖は丈で結果が変わらない
+        }
+        rise = last; rise.refused = true; rise.depth = lastD;
+        warn = (lastWarn ?? (name + ": ⛔ 袖の駒を焼いていない")) +
+               (unbaked.Count > 0 ? "(焼いていない丈: " + string.Join(", ", unbaked) + ")" : "") +
+               (float.IsNaN(lastD) ? "" : "(試した最も深い丈 " + lastD.ToString("F2") + "m でも足りない)");
+        return null;
     }
 
     /// <summary>**段石1段の脇に袖の駒を1つ据える**。<paramref name="groundHi"/> = true なら指図の
@@ -165,6 +201,14 @@ public static partial class EdoBuild
     public static int MiterIshidanSode(IList<GameObject> dans, IList<GameObject> sodes, int side,
                                        float keri, float fumi, float w, List<string> warn)
     {
+        return MiterIshidanSode(dans, sodes, side, keri, fumi, w, warn, null);
+    }
+
+    /// <summary>丈を段ごとに持つ版。<paramref name="depthOf"/>[i] = 段 i の袖の丈(<see cref="SodeRise.depth"/>・
+    /// null または 0 は既定 2.20)⇒ 留めの駒も**同じ丈**の物を引く(丈違いの駒へ差し替えると下端が段石の底より上に出る)。</summary>
+    public static int MiterIshidanSode(IList<GameObject> dans, IList<GameObject> sodes, int side,
+                                       float keri, float fumi, float w, List<string> warn, IList<float> depthOf)
+    {
         int m = Mathf.Min(dans.Count, sodes.Count);
         // 継ぎ目 j(段 j と j+1 の間)の留めの角(符号つき・正 = 外で伸びる)。袖が片方でも無い継ぎ目は 0。
         var hj = new float[Mathf.Max(0, m - 1)];
@@ -187,7 +231,8 @@ public static partial class EdoBuild
             if (sodes[i] == null) continue;
             float hF = i > 0 ? hj[i - 1] : 0f, hB = i < hj.Length ? hj[i] : 0f;
             if (hF == 0f && hB == 0f) continue;
-            var ng = SwapIshidanSode(sodes[i], MiterPath(keri, fumi, w, hF, hB, i), side, warn);
+            float dep = depthOf != null && i < depthOf.Count && depthOf[i] > 0f ? depthOf[i] : EdoAssets.Own.ISHIDAN_SODE_DEPTH_STD;
+            var ng = SwapIshidanSode(sodes[i], MiterPath(keri, fumi, w, hF, hB, i, dep), side, warn);
             if (ng != null) sodes[i] = ng;
         }
         // 検め: 継ぎ目の実際の口(下の駒から上の駒へ、登る向きに測る)
@@ -206,17 +251,17 @@ public static partial class EdoBuild
 
     /// <summary>焼いた留めの駒のパス。角は 0.01° に丸めて綴るので、焼いた側(指図の折れ線から算出)と
     /// 据えた段石の yaw 差(float)とで丸めが 1 桁ずれ得る ⇒ 各端 ±0.01° まで探す(0.01° の口は 1mm 未満)。</summary>
-    static string MiterPath(float keri, float fumi, float w, float hF, float hB, int i)
+    static string MiterPath(float keri, float fumi, float w, float hF, float hB, int i, float depth)
     {
         var dd = new[] { 0f, 0.01f, -0.01f };
         foreach (float a in dd)
             foreach (float b in dd)
             {
                 if ((hF == 0f && a != 0f) || (hB == 0f && b != 0f)) continue;
-                string p = EdoAssets.Own.IshidanSodeMiter(keri, fumi, w, hF + a, hB + b, i);
+                string p = EdoAssets.Own.IshidanSodeMiter(keri, fumi, w, hF + a, hB + b, i, depth);
                 if (UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(p) != null) return p;
             }
-        return EdoAssets.Own.IshidanSodeMiter(keri, fumi, w, hF, hB, i);
+        return EdoAssets.Own.IshidanSodeMiter(keri, fumi, w, hF, hB, i, depth);
     }
 
     /// <summary>据えた袖を、同じ位置で切った駒へ差し替える。焼いていなければ元のまま ⚠ を足して null。</summary>

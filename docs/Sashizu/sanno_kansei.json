@@ -26,18 +26,18 @@
    "label": "埋没・浮き 0",
    "what": "埋 ≤1.0 / 浮 ≤0.7 を超える駒が 0",
    "how": "edo-fushin-qa 項目 2(接地)と GroundQA",
-   "value": null,
-   "verdict": null,
-   "at": null,
+   "value": "皮と部材の底の隙(縁の皮の範囲): 4510→776 点(うち 0.05m 超 669)・最大 4.41→3.26m。残りは回廊の基壇の北東の隅(N 壁の小口が開き、E 壁の根の天井と両立しない)・段違いの駒の継ぎ目と石段の脇(0.25m 格子で両立しない)。皮の被り 0・踏面の埋没 0(2026-09-25 棟梁・Stage9)",
+   "verdict": "fail",
+   "at": "2026-09-25",
    "note": ""
   },
   "match": {
    "label": "突き合わせ 0",
    "what": "指図(意図)と実装の食い違いが 0 件",
    "how": "Unity メニュー Edo/<敷地>/指図と実装を突き合わせる",
-   "value": "突き合わせ 2 件(5→2)。造成の面は描かれた地表(縁の皮)で測る: Keidai 11/1604 点(最大 -0.82m @(-534.8,830.9))・Shaden_Ge 4/190 点(最大 -0.59m)。残る 15 点は全部が部材の外形の中(土留め TW_Gusho_*/TW_Koshi_* 13 点・女坂の最上段 Dan_45 2 点)── 部材の中の標本で、そこに描かれているのは部材の面(2026-09-24 棟梁)",
+   "value": "突き合わせ 5 件(10 点)。面の標本のうち部材(土留め・石段と袖・囲い)の外形の中は数えず刷る(Keidai 109/Zentei 23/Shaden_Ge 43/Shaden_Chu 23/Shaden_Jo 17/SukibeiSoto 5 点)。残る 10 点は全部が部材の縁から 0.5m 以内で、底が面より高い駒へ盛った裏込めが面の許容 0.30m を超える所(Keidai 2・Zentei 3・GushoKaku 3・Shaden_Ge 1・SukibeiSoto 1。2026-09-25 棟梁)",
    "verdict": "fail",
-   "at": "2026-09-24",
+   "at": "2026-09-25",
    "note": ""
   },
   "render": {
@@ -281,6 +281,24 @@
    "at": "2026-09-24T23:38:14+09:00",
    "event": "record",
    "item": "match",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-25T07:03:16+09:00",
+   "event": "record",
+   "item": "match",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-25T07:03:17+09:00",
+   "event": "record",
+   "item": "ground",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-25T07:03:27+09:00",
+   "event": "record",
+   "item": "ground",
    "verdict": "fail"
   }
  ]

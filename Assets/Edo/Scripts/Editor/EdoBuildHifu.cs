@@ -46,27 +46,100 @@ public static partial class EdoBuild
         public SkinFace(string name, Vector2[] poly, float y) { this.name = name; this.poly = poly; this.y = y; }
     }
 
+    /// <summary>皮が面の外で写す**設計の地盤**(算出物 `graded` の節点格子。法面を含む)と法の勾配。
+    /// 面の外の点は、面の中の節点を混ぜずに外の節点だけで引く(混ぜると面の縁が格子の鋸歯になる)。</summary>
+    public sealed class SkinDesign
+    {
+        public float x0, z0, step; public int nx, nz; public float[] h; public bool[] ok;
+        /// <summary>切土の法 1:batterCut / 盛土の法 1:batterFill(指図 `const`)。</summary>
+        public float batterCut, batterFill;
+    }
+
     /// <summary><see cref="CutEdgeSkin"/> の報告。</summary>
     public struct SkinReport
     {
-        public int parts, cells, cellsParts, cellsFace, skipHole, skipTree, holesCut;
-        public int verts, tris, pinned, faced, clamped, under, floored;
+        public int parts, cells, cellsParts, cellsFace, cellsBand, cellsFill, skipHole, skipTree, holesCut;
+        public int verts, tris, pinned, faced, clamped, under, floored, designed, sloped, filled, fillLostTree;
+        public float fillMax; public Vector3 fillAt;
         public float maxLower, maxRaise; public Vector3 lowerAt, raiseAt;
         public int detCells, trees;
-        public int gapPts, gapN, gapBySkin, coverPts, coverN;
+        public int gapPts, gapN, gapBySkin, gapBig, coverPts, coverN;
         public float gapMax, coverMax; public Vector3 gapAt, coverAt; public string gapBy, coverBy;
         public string mesh;
         public override string ToString()
         {
-            return "穴 " + holesCut + " 升(部材 " + cellsParts + "・面の縁 " + cellsFace + "・既に穴で触らず " + skipHole + "・地形の木が立つので開けず " + skipTree + ")" +
+            return "穴 " + holesCut + " 升(部材 " + cellsParts + "・面の縁 " + cellsFace + "(うち縁の線の帯 " + cellsBand + ")・裏込め " + cellsFill +
+                   "・既に穴で触らず " + skipHole + "・地形の木が立つので開けず " + skipTree + ")" +
                    " / 皮 頂点 " + verts + "・三角 " + tris + "(縁の点 " + pinned + " は地形のまま)" +
-                   " / 面の高さへ " + faced + " 点・部材の天端の下へ " + clamped + " 点(うち真下 " + under + "・隣の底で止めた " + floored + ")" +
+                   " / 面の高さへ " + faced + " 点・面の外は設計の地盤へ " + designed + " 点(うち縁から法で受けた " + sloped + ")" +
+                   " / 部材の天端の下へ " + clamped + " 点(うち真下 " + under + "・隣の底で止めた " + floored + ")" +
+                   " / 裏込め(部材の底まで盛る)" + filled + " 点・最大 " + fillMax.ToString("F2") + "m @(" + fillAt.x.ToString("F1") + ", " + fillAt.z.ToString("F1") + ")" +
+                   "・地形の木の升は穴を開けず被せた " + fillLostTree + " 升" +
                    " / 元の地形から 下げ 最大 " + maxLower.ToString("F2") + "m @(" + lowerAt.x.ToString("F1") + ", " + lowerAt.z.ToString("F1") + ")・上げ 最大 " + maxRaise.ToString("F2") + "m @(" + raiseAt.x.ToString("F1") + ", " + raiseAt.z.ToString("F1") + ")" +
                    " / 芝を消した 1m 升 " + detCells + " / 皮が 0.05m を超えて動いた所の地形の木 " + trees + " 本" +
-                   "\n    硬い(許容0): 皮と部材の隙 ── 皮が作った " + gapBySkin + " / 元の地形でも同じ(部材の浮き・皮の外の欠陥) " + (gapN - gapBySkin) + " / " + gapPts + " 点" + (gapN > 0 ? "(最大 " + gapMax.ToString("F3") + "m @(" + gapAt.x.ToString("F2") + ", " + gapAt.z.ToString("F2") + ")〔" + gapBy + "〕)" : "") +
+                   "\n    硬い(許容0): 皮と部材の隙 ── 皮が作った " + gapBySkin + " / 元の地形でも同じ(部材の浮き・皮の外の欠陥) " + (gapN - gapBySkin) + " / " + gapPts + " 点(うち 0.05m を超える " + gapBig + ")" + (gapN > 0 ? "(最大 " + gapMax.ToString("F3") + "m @(" + gapAt.x.ToString("F2") + ", " + gapAt.z.ToString("F2") + ")〔" + gapBy + "〕)" : "") +
                    " / 皮が部材の天端に被る " + coverN + " / " + coverPts + " 点" + (coverN > 0 ? "(最大 " + coverMax.ToString("F3") + "m @(" + coverAt.x.ToString("F2") + ", " + coverAt.z.ToString("F2") + ")〔" + coverBy + "〕)" : "") +
                    " / メッシュ " + mesh;
         }
+    }
+
+    /// <summary>面の縁の線の帯の幅(縁からこの距離の中で地形が描く高さを検める)[m]。</summary>
+    public const float BAND = 4f;
+    /// <summary>面の外の点を縁から法で受ける最大の離れ[m]。</summary>
+    const float BATTER_REACH = 6f;
+    /// <summary>縁の線の点がこの距離の中に部材(土留め・石段)を持てば「囲いのある縁」── 法を当てない[m]。</summary>
+    const float WALLED = 0.75f;
+    /// <summary>裏込めの天端の平ら(部材の外形の縁から)[m]。皮の格子(0.25)の三角形が外形の 0.05m 外で底を割らない幅。</summary>
+    public const float FLAT = 0.45f;
+    /// <summary>地形の上へ被せる皮(地形の木の升)で、盛らない点を地形の下へ沈める深さ[m]。</summary>
+    const float OV_SINK = 0.05f;
+    /// <summary>裏込めが部材の天端の下へ潜る深さ(外形の縁の帯の中)[m]。天端と重ねず、縁の外で底を割らない。</summary>
+    const float FILL_UNDER = 0.006f;
+    /// <summary>裏込めを伸ばす最大の離れ(部材の外接矩形から)[m]。</summary>
+    const float FILL_REACH = 12f;
+
+    /// <summary>密な格子の chamfer 伝播。<paramref name="max"/> = 最大を 1 格子 d1(斜め d2)ずつ下げて伝える /
+    /// false = 最小を上げて伝える。<paramref name="barrier"/> の点(種を除く)は伝えも受けもしない。</summary>
+    static void Chamfer(float[] A, int w, int h, float d1, float d2, bool max, bool[] barrier, bool[] seed, int rounds)
+    {
+        float s = max ? -1f : 1f;
+        Func<int, bool> Blk = k => barrier != null && barrier[k] && !(seed != null && seed[k]);
+        for (int r = 0; r < rounds; r++)
+        {
+            for (int j = 0; j < h; j++)
+                for (int i = 0; i < w; i++)
+                {
+                    int k = j * w + i; if (Blk(k)) continue; float v = A[k];
+                    Action<int, float> U = (q, d) => { if (Blk(q)) return; float c = A[q] + s * d; if (max ? c > v : c < v) v = c; };
+                    if (i > 0) U(k - 1, d1);
+                    if (j > 0) { U(k - w, d1); if (i > 0) U(k - w - 1, d2); if (i < w - 1) U(k - w + 1, d2); }
+                    A[k] = v;
+                }
+            for (int j = h - 1; j >= 0; j--)
+                for (int i = w - 1; i >= 0; i--)
+                {
+                    int k = j * w + i; if (Blk(k)) continue; float v = A[k];
+                    Action<int, float> U = (q, d) => { if (Blk(q)) return; float c = A[q] + s * d; if (max ? c > v : c < v) v = c; };
+                    if (i < w - 1) U(k + 1, d1);
+                    if (j < h - 1) { U(k + w, d1); if (i < w - 1) U(k + w + 1, d2); if (i > 0) U(k + w - 1, d2); }
+                    A[k] = v;
+                }
+        }
+    }
+
+    /// <summary>点 p から多角形の辺までの最短距離と、その辺の上の最寄りの点。</summary>
+    static float ClosestOnPoly(Vector2[] poly, Vector2 p, out Vector2 q)
+    {
+        float best = float.MaxValue; q = p;
+        for (int i = 0; i < poly.Length; i++)
+        {
+            Vector2 a = poly[i], b = poly[(i + 1) % poly.Length], ab = b - a;
+            float l2 = ab.sqrMagnitude;
+            float tt = l2 < 1e-12f ? 0f : Mathf.Clamp01(Vector2.Dot(p - a, ab) / l2);
+            var c = a + ab * tt; float d = Vector2.Distance(p, c);
+            if (d < best) { best = d; q = c; }
+        }
+        return best;
     }
 
     // ------------------------------------------------------------ 部材の天端を引く(空間の升で引く)
@@ -134,8 +207,16 @@ public static partial class EdoBuild
     /// ⛔ 高さ(heightmap)は動かさない。⛔ 呼ぶ前に同じ親の古い皮を <see cref="ClearEdgeSkins"/> で外すこと。
     /// 硬い条件(許容0): 皮が部材の天端に被らない・皮と部材の間に隙が無い ── 報告の <see cref="SkinReport.coverN"/> /
     /// <see cref="SkinReport.gapN"/>。</summary>
+    /// <para>⭐ <paramref name="design"/> を渡すと(2026-09-25・EDO-0430)、**面の縁を升の境でなく面の多角形の線で切る**:
+    /// 面の中は面の高さ、面の外は設計の地盤(<see cref="SkinDesign"/> の外の節点だけで引く)を、囲いの無い縁では
+    /// 縁の線から法(切 1:batterCut / 盛 1:batterFill)で受ける。縁から <see cref="BAND"/> 以内で、2m 格子の地形がこれと
+    /// <paramref name="drawTol"/> を超えて違う升を穴にする(升の中の縁の外側は設計の地盤 = 元の地形を皮で写す)。</para>
+    /// <para>⭐ <paramref name="backfill"/> &gt; 0 のとき(1:n の盛土の法)、**部材の底より下に地形がある所は皮を部材の底まで盛る**
+    /// (裏込めの土)── 外形の縁から <see cref="FLAT"/> までは底の高さ、その外は 1:n で元の地形へ下ろす。硬い条件(許容0)は
+    /// 皮と部材の底の隙 0(<see cref="SkinReport.gapN"/>)。⛔ 掘らない(皮は元の地形より下げない側の話ではなく、上げる側)。</para>
     public static SkinReport CutEdgeSkin(string name, Transform parent, IList<GameObject> parts, IList<SkinFace> faces,
-                                         float faceTol, float step = 0.25f, float margin = 0.5f, float eps = 0f, float under = 0.15f)
+                                         float faceTol, float step = 0.25f, float margin = 0.5f, float eps = 0f, float under = 0.15f,
+                                         SkinDesign design = null, float drawTol = 0.10f, float backfill = 0f)
     {
         var r = new SkinReport();
         var t = T(); var td = t.terrainData; var org = t.transform.position;
@@ -183,34 +264,249 @@ public static partial class EdoBuild
                         for (int di = -1; di <= 1; di++) for (int dj = -1; dj <= 1; dj++) faceCells.Add(CK(i + di, j + dj));
                     }
             }
+
+        // ---- 2b 点と部材・面の関係、面の外の設計の地盤(2026-09-25)
+        // 点と部材の外形の関係: 2 = 外形の中 / 1 = 外形から NEAR 以内 / 0 = 離れている
+        const float NEAR = 0.5f;
+        Func<Vector2, float, int> NearAt = (q, nr) =>
+        {
+            int v = 0;
+            for (int h = 0; h < idx.hulls.Count && v < 2; h++)
+            {
+                var hb = idx.bounds[h];
+                if (q.x < hb.x - nr || q.x > hb.z + nr || q.y < hb.y - nr || q.y > hb.w + nr) continue;
+                if (EdoGeom.PIP(idx.hulls[h], q)) v = 2;
+                else if (EdgeDist(idx.hulls[h], q) < nr) v = 1;
+            }
+            return v;
+        };
+        // 面の多角形(面積の小さい順 = 入れ子なら内の面が勝つ)
+        var fl = new List<SkinFace>(); if (faces != null) fl.AddRange(faces);
+        fl.Sort((a, b) => Area(a.poly).CompareTo(Area(b.poly)));
+        Func<Vector2, float> FaceY = q => { foreach (var f in fl) if (EdoGeom.PIP(f.poly, q)) return f.y; return float.NaN; };
+        // 設計の地盤の節点が面の中か(面の中の節点は面の外の点に混ぜない)
+        var nodeIn = new Dictionary<long, bool>();
+        Func<int, int, bool> NodeOut = (i, j) =>
+        {
+            if (design == null || i < 0 || j < 0 || i >= design.nx || j >= design.nz || !design.ok[j * design.nx + i]) return false;
+            long k = CK(i, j); bool inF;
+            if (!nodeIn.TryGetValue(k, out inF)) { inF = !float.IsNaN(FaceY(new Vector2(design.x0 + i * design.step, design.z0 + j * design.step))); nodeIn[k] = inF; }
+            return !inF;
+        };
+        Func<float, float, float> DesignOut = (x, z) =>
+        {
+            if (design == null) return float.NaN;
+            float fx = (x - design.x0) / design.step, fz = (z - design.z0) / design.step;
+            int i = Mathf.FloorToInt(fx), j = Mathf.FloorToInt(fz); float tx = fx - i, tz = fz - j;
+            double sw = 0, sv = 0;
+            for (int di = 0; di <= 1; di++)
+                for (int dj = 0; dj <= 1; dj++)
+                {
+                    float w = (di == 1 ? tx : 1f - tx) * (dj == 1 ? tz : 1f - tz);
+                    if (w <= 1e-6f || !NodeOut(i + di, j + dj)) continue;
+                    sw += w; sv += w * design.h[(j + dj) * design.nx + i + di];
+                }
+            return sw > 0.05 ? (float)(sv / sw) : float.NaN;
+        };
+        // 面の外の点の描く高さ: 設計の地盤(無ければ地形)を、最寄りの**囲いの無い**面の縁から法で受ける。
+        //   囲い(部材)が縁に立つ所は法を当てない(土留めの前に盛土を出さない)。sloped = 法で受けたか。
+        Func<Vector2, bool[], float> OutsideY = (q, sloped) =>
+        {
+            float s = DesignOut(q.x, q.y); if (float.IsNaN(s)) s = probe.At(q.x, q.y);
+            if (design == null) return s;
+            float bd = BATTER_REACH; SkinFace bf = default(SkinFace); Vector2 bq = Vector2.zero; bool found = false;
+            foreach (var f in fl) { Vector2 cq; float d = ClosestOnPoly(f.poly, q, out cq); if (d < bd) { bd = d; bf = f; bq = cq; found = true; } }
+            if (!found || NearAt(bq, WALLED) != 0) return s;
+            float t = s > bf.y ? Mathf.Min(s, bf.y + bd / Mathf.Max(design.batterCut, 1e-3f))
+                               : Mathf.Max(s, bf.y - bd / Mathf.Max(design.batterFill, 1e-3f));
+            if (sloped != null && Mathf.Abs(t - s) > 1e-3f) sloped[0] = true;
+            return t;
+        };
+
+        // ---- 2c 面の縁の線の帯: 縁から BAND 以内で、2m 格子の地形が描く高さと drawTol を超えて違う升
+        var bandCells = new HashSet<long>();
+        if (design != null)
+            foreach (var f in fl)
+            {
+                float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
+                foreach (var p in f.poly) { mnx = Mathf.Min(mnx, p.x); mxx = Mathf.Max(mxx, p.x); mnz = Mathf.Min(mnz, p.y); mxz = Mathf.Max(mxz, p.y); }
+                for (int i = CI(mnx - BAND); i <= CI(mxx + BAND); i++)
+                    for (int j = CJ(mnz - BAND); j <= CJ(mxz + BAND); j++)
+                    {
+                        long ck = CK(i, j); if (bandCells.Contains(ck)) continue;
+                        float x0 = org.x + i * cs, z0 = org.z + j * cs; bool bad = false;
+                        for (float x = x0; x <= x0 + cs + 1e-4f && !bad; x += 0.5f)
+                            for (float z = z0; z <= z0 + cs + 1e-4f && !bad; z += 0.5f)
+                            {
+                                var q = new Vector2(x, z);
+                                if (EdgeDist(f.poly, q) > BAND || NearAt(q, NEAR) != 0) continue;
+                                float want = FaceY(q); if (float.IsNaN(want)) want = OutsideY(q, null);
+                                if (Mathf.Abs(want - probe.At(x, z)) > drawTol) bad = true;
+                            }
+                        if (bad) bandCells.Add(ck);
+                    }
+            }
+        foreach (var c in bandCells) if (!faceCells.Contains(c)) { faceCells.Add(c); }
+
+        // ---- 2d 裏込め: 部材の底から外へ 1:backfill で下ろす盛土の面(密な格子・chamfer)
+        //   種 = 外形の辺を 0.25m で歩いた点の底(縁から 0.05/0.15/0.30m 内の最も低い面 ── MeasureSkin と同じ定義)を、
+        //   その点から FLAT 以内の格子点へ。⛔ 部材の底より上の地形は触らない(max を取るだけ)。
+        //   ⭐ 三つの枷(2026-09-25 実測: 枷なしでは回廊の基壇の背の 29.0 が壁を越えて表へ伝わり、石垣を丸ごと土に埋めた):
+        //     ① 部材の外形の中は伝えない(種の帯を除く)── 背の盛土が駒を抜けて表へ出ない
+        //     ② 天井 = 各辺の底から 1:backfill で**上る**面の最小 ── 石垣の表の根(底が低い辺)の前へ盛土を被せない
+        //     ③ 皮の縁(地形のまま残す点)から 1:backfill で上る面の最小 ── 穴を開けられない升(地形の木)の脇で崖を作らない
+        float[] FF = null, FC = null; bool[] FS = null, FB = null, FCS = null; int fgi0 = 0, fgj0 = 0, fw = 0, fh = 0;
+        var fillCells = new HashSet<long>();
+        float fd1 = 0f, fd2 = 0f;
+        if (backfill > 0f && idx.hulls.Count > 0)
+        {
+            float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
+            foreach (var hb in idx.bounds) { mnx = Mathf.Min(mnx, hb.x); mnz = Mathf.Min(mnz, hb.y); mxx = Mathf.Max(mxx, hb.z); mxz = Mathf.Max(mxz, hb.w); }
+            fgi0 = Mathf.Max(0, Mathf.FloorToInt((mnx - FILL_REACH - org.x) / step)); fgj0 = Mathf.Max(0, Mathf.FloorToInt((mnz - FILL_REACH - org.z) / step));
+            int fgi1 = Mathf.Min(R * N, Mathf.CeilToInt((mxx + FILL_REACH - org.x) / step)), fgj1 = Mathf.Min(R * N, Mathf.CeilToInt((mxz + FILL_REACH - org.z) / step));
+            fw = fgi1 - fgi0 + 1; fh = fgj1 - fgj0 + 1;
+            FF = new float[fw * fh]; FC = new float[fw * fh]; FS = new bool[fw * fh]; FB = new bool[fw * fh]; FCS = new bool[fw * fh];
+            for (int k = 0; k < FF.Length; k++) { FF[k] = float.NegativeInfinity; FC[k] = float.PositiveInfinity; }
+            // ① 外形の中の格子点
+            for (int k = 0; k < idx.hulls.Count; k++)
+            {
+                var hb = idx.bounds[k];
+                int i0 = Mathf.Max(0, Mathf.CeilToInt((hb.x - org.x) / step) - fgi0), i1 = Mathf.Min(fw - 1, Mathf.FloorToInt((hb.z - org.x) / step) - fgi0);
+                int j0 = Mathf.Max(0, Mathf.CeilToInt((hb.y - org.z) / step) - fgj0), j1 = Mathf.Min(fh - 1, Mathf.FloorToInt((hb.w - org.z) / step) - fgj0);
+                for (int j = j0; j <= j1; j++)
+                    for (int i = i0; i <= i1; i++)
+                        if (!FB[j * fw + i] && EdoGeom.PIP(idx.hulls[k], new Vector2(org.x + (i + fgi0) * step, org.z + (j + fgj0) * step))) FB[j * fw + i] = true;
+            }
+            int FR = Mathf.CeilToInt(FLAT / step);
+            for (int k = 0; k < idx.hulls.Count; k++)
+            {
+                var h = idx.hulls[k];
+                Vector2 cen = Vector2.zero; foreach (var q in h) cen += q; cen /= h.Length;
+                for (int e = 0; e < h.Length; e++)
+                {
+                    Vector2 A = h[e], Bv = h[(e + 1) % h.Length], ab = Bv - A; float L = ab.magnitude; if (L < 1e-4f) continue;
+                    Vector2 tn = ab / L, nrm = new Vector2(tn.y, -tn.x);
+                    if (Vector2.Dot(nrm, (A + Bv) * 0.5f - cen) < 0) nrm = -nrm;
+                    int ns = Mathf.Max(1, Mathf.CeilToInt(L / step));
+                    for (int si = 0; si <= ns; si++)
+                    {
+                        var pe = A + tn * (L * si / ns);
+                        float bot = float.NaN; int wb;
+                        foreach (var dd in new[] { 0.05f, 0.15f, 0.30f })
+                        { var pq = pe - nrm * dd; float bq = idx.Bottom(pq.x, pq.y, out wb); if (!float.IsNaN(bq) && (float.IsNaN(bot) || bq < bot)) bot = bq; }
+                        if (float.IsNaN(bot)) continue;
+                        // ② の天井の種は「外が開いた地面で、地面が底より低い(駒が浮く)辺」だけ ── 隣の駒の中へ入る継ぎ目の辺・
+                        //   地面に埋まった辺は種にしない(継ぎ目の辺の底は控えの深い所で、背の盛土を丸ごと押さえてしまう)。
+                        var po = pe + nrm * 0.05f; bool ceil = probe.At(po.x, po.y) < bot;
+                        if (ceil)
+                            for (int k2 = 0; k2 < idx.hulls.Count && ceil; k2++)
+                            {
+                                if (k2 == k) continue; var b2 = idx.bounds[k2];
+                                if (po.x < b2.x || po.x > b2.z || po.y < b2.y || po.y > b2.w) continue;
+                                if (EdoGeom.PIP(idx.hulls[k2], po)) ceil = false;
+                            }
+                        int ci = Mathf.RoundToInt((pe.x - org.x) / step) - fgi0, cj = Mathf.RoundToInt((pe.y - org.z) / step) - fgj0;
+                        for (int di = -FR; di <= FR; di++)
+                            for (int dj = -FR; dj <= FR; dj++)
+                            {
+                                int ii = ci + di, jj = cj + dj; if (ii < 0 || jj < 0 || ii >= fw || jj >= fh) continue;
+                                float gx = org.x + (ii + fgi0) * step, gz = org.z + (jj + fgj0) * step;
+                                if ((gx - pe.x) * (gx - pe.x) + (gz - pe.y) * (gz - pe.y) > FLAT * FLAT) continue;
+                                int kk = jj * fw + ii; if (bot > FF[kk]) FF[kk] = bot; FS[kk] = true;
+                                // 天井の種は辺の外の側だけ(薄い駒で内の種が表へ抜けない)
+                                if (ceil && (gx - pe.x) * nrm.x + (gz - pe.y) * nrm.y >= -1e-3f) { if (bot < FC[kk]) FC[kk] = bot; FCS[kk] = true; }
+                            }
+                    }
+                }
+            }
+            fd1 = step / backfill; fd2 = step * 1.41421356f / backfill;
+            Chamfer(FF, fw, fh, fd1, fd2, true, FB, FS, 3);
+            Chamfer(FC, fw, fh, fd1, fd2, false, FB, FCS, 3);
+            // 盛る所の升(盛土の面が地形より 0.02m を超えて高い点に触れる升)
+            for (int j = 0; j < fh; j++)
+                for (int i = 0; i < fw; i++)
+                {
+                    int k = j * fw + i; float v = Mathf.Min(FF[k], FC[k]); if (float.IsInfinity(v)) continue;
+                    int gi = i + fgi0, gj = j + fgj0; float x = org.x + gi * step, z = org.z + gj * step;
+                    if (v <= probe.At(x, z) + 0.02f) continue;
+                    int ci = Mathf.FloorToInt((float)gi / N), cj = Mathf.FloorToInt((float)gj / N);
+                    int ciLo = (gi % N == 0) ? ci - 1 : ci, cjLo = (gj % N == 0) ? cj - 1 : cj;
+                    for (int ii = ciLo; ii <= ci; ii++) for (int jj = cjLo; jj <= cj; jj++) fillCells.Add(CK(ii, jj));
+                }
+        }
+        float[] FP = null;   // ③ 皮の縁から上る天井(穴の升が決まってから引く)
+        Func<int, int, float> FillAt = (gi, gj) =>
+        {
+            if (FF == null) return float.NaN;
+            int i = gi - fgi0, j = gj - fgj0; if (i < 0 || j < 0 || i >= fw || j >= fh) return float.NaN;
+            int k = j * fw + i; float v = Mathf.Min(FF[k], FC[k]); if (FP != null) v = Mathf.Min(v, FP[k]);
+            return float.IsInfinity(v) ? float.NaN : v;
+        };
+        Func<int, int, bool> FillSeeded = (gi, gj) =>
+        {
+            if (FS == null) return false;
+            int i = gi - fgi0, j = gj - fgj0; return i >= 0 && j >= 0 && i < fw && j < fh && FS[j * fw + i];
+        };
+
         foreach (var c in partCells) cells.Add(c);
         foreach (var c in faceCells) cells.Add(c);
+        foreach (var c in fillCells) cells.Add(c);
         // ⛔ 地形の木が立つ升には穴を開けない ── Unity は穴の升の地形の木を消す(SetHoles でも SetTreeInstances でも。
         //    2026-09-24 実測: 山王の社叢 70 本が消えた)。その升は地形のまま残し、報告に数える。
         var treeCells = new HashSet<long>();
         foreach (var ti in td.treeInstances)
             treeCells.Add(CK(CI(org.x + ti.position.x * td.size.x), CJ(org.z + ti.position.z * td.size.z)));
-        foreach (var c in treeCells) if (cells.Remove(c)) r.skipTree++;
-        if (cells.Count == 0) { r.mesh = "—"; return r; }
+        // ⭐ 地形の木の升で裏込めが要る所は、穴を開けずに皮を**地形の上に被せる**(盛る側は穴が要らない・2026-09-25)。
+        //   盛らない点は地形の下 OV_SINK へ沈めて隠す。木はそのまま(根元が盛土に入る)。
+        var overlay = new HashSet<long>();
+        foreach (var c in treeCells) if (cells.Remove(c)) { r.skipTree++; if (fillCells.Contains(c)) { overlay.Add(c); r.fillLostTree++; } }
+        if (cells.Count == 0 && overlay.Count == 0) { r.mesh = "—"; return r; }
         int ci0 = int.MaxValue, ci1 = int.MinValue, cj0 = int.MaxValue, cj1 = int.MinValue;
-        foreach (var c in cells) { int i = (int)(c >> 32), j = (int)(uint)(c & 0xffffffff); ci0 = Mathf.Min(ci0, i); ci1 = Mathf.Max(ci1, i); cj0 = Mathf.Min(cj0, j); cj1 = Mathf.Max(cj1, j); }
+        var cellsAll = new List<long>(cells); cellsAll.AddRange(overlay);
+        foreach (var c in cellsAll) { int i = (int)(c >> 32), j = (int)(uint)(c & 0xffffffff); ci0 = Mathf.Min(ci0, i); ci1 = Mathf.Max(ci1, i); cj0 = Mathf.Min(cj0, j); cj1 = Mathf.Max(cj1, j); }
         ci0 = Mathf.Max(0, ci0); cj0 = Mathf.Max(0, cj0); ci1 = Mathf.Min(R - 1, ci1); cj1 = Mathf.Min(R - 1, cj1);
         int bw = ci1 - ci0 + 1, bh = cj1 - cj0 + 1;
         var hv = HolesBlock(td, ci0, cj0, bw, bh);
-        var inSet = new bool[bh, bw];
+        var inSet = new bool[bh, bw]; var inOv = new bool[bh, bw];
+        foreach (var c in overlay)
+        {
+            int i = (int)(c >> 32), j = (int)(uint)(c & 0xffffffff);
+            if (i < ci0 || i > ci1 || j < cj0 || j > cj1 || !hv[j - cj0, i - ci0]) continue;
+            inOv[j - cj0, i - ci0] = true;
+        }
         foreach (var c in cells)
         {
             int i = (int)(c >> 32), j = (int)(uint)(c & 0xffffffff);
             if (i < ci0 || i > ci1 || j < cj0 || j > cj1) continue;
             if (!hv[j - cj0, i - ci0]) { r.skipHole++; continue; }     // 既に穴(井戸の口など)── 触らない
             inSet[j - cj0, i - ci0] = true; r.cells++;
-            if (partCells.Contains(c)) r.cellsParts++; else r.cellsFace++;
+            if (partCells.Contains(c)) r.cellsParts++;
+            else if (faceCells.Contains(c)) { r.cellsFace++; if (bandCells.Contains(c)) r.cellsBand++; }
+            else r.cellsFill++;
         }
-        Func<int, int, bool> In = (i, j) => i >= ci0 && i <= ci1 && j >= cj0 && j <= cj1 && inSet[j - cj0, i - ci0];
+        Func<int, int, bool> In = (i, j) => i >= ci0 && i <= ci1 && j >= cj0 && j <= cj1 && (inSet[j - cj0, i - ci0] || inOv[j - cj0, i - ci0]);
+        Func<int, int, bool> Hole = (i, j) => i >= ci0 && i <= ci1 && j >= cj0 && j <= cj1 && inSet[j - cj0, i - ci0];
+        if (FF != null)
+        {
+            // ③ 皮の縁(穴の升と地形の升の境の格子点 = 地形のまま)から 1:backfill で上る天井
+            FP = new float[fw * fh]; var FPS = new bool[fw * fh];
+            for (int k = 0; k < FP.Length; k++) FP[k] = float.PositiveInfinity;
+            for (int j = 0; j < fh; j++)
+                for (int i = 0; i < fw; i++)
+                {
+                    int gi = i + fgi0, gj = j + fgj0; int ci = Mathf.FloorToInt((float)gi / N), cj = Mathf.FloorToInt((float)gj / N);
+                    int ciLo = (gi % N == 0) ? ci - 1 : ci, cjLo = (gj % N == 0) ? cj - 1 : cj;
+                    bool anyIn = false, anyOut = false;
+                    for (int ii = ciLo; ii <= ci; ii++) for (int jj = cjLo; jj <= cj; jj++) { if (In(ii, jj)) anyIn = true; else anyOut = true; }
+                    if (!anyOut) continue;
+                    int k = j * fw + i; FP[k] = probe.At(org.x + gi * step, org.z + gj * step); FPS[k] = true;
+                }
+            Chamfer(FP, fw, fh, fd1, fd2, false, null, FPS, 2);
+        }
 
         // ---- 3 皮の高さ(格子の点ごと)
         // 格子の点 (gi, gj) = 地形の原点 + (gi, gj) × step。升 (i, j) の中は gi ∈ [iN, (i+1)N]。
-        var H = new Dictionary<long, float>(); var O = new Dictionary<long, float>(); var PIN = new HashSet<long>();
+        var H = new Dictionary<long, float>(); var O = new Dictionary<long, float>(); var PIN = new HashSet<long>(); var SUNK = new HashSet<long>();
         var topCache = new Dictionary<long, float>();
         Func<int, int, float> TopL = (gi, gj) =>
         {
@@ -229,25 +525,13 @@ public static partial class EdoBuild
         };
         // 周りの天端で下げる範囲(格子の数)。2 = 0.5m ── 皮の四角の隅が外形から 0.35m 外にあっても天端の下へ入る。
         const int CAPR = 2;
-        // 格子の点と部材の外形の関係: 2 = 外形の中 / 1 = 外形から NEAR 以内 / 0 = 離れている
-        const float NEAR = 0.5f;
         var nearCache = new Dictionary<long, int>();
         Func<int, int, int> NearPart = (gi, gj) =>
         {
             long k = CK(gi, gj); int v; if (nearCache.TryGetValue(k, out v)) return v;
-            var q = new Vector2(org.x + gi * step, org.z + gj * step); v = 0;
-            for (int h = 0; h < idx.hulls.Count && v < 2; h++)
-            {
-                var hb = idx.bounds[h];
-                if (q.x < hb.x - NEAR || q.x > hb.z + NEAR || q.y < hb.y - NEAR || q.y > hb.w + NEAR) continue;
-                if (EdoGeom.PIP(idx.hulls[h], q)) v = 2;
-                else if (EdgeDist(idx.hulls[h], q) < NEAR) v = 1;
-            }
+            v = NearAt(new Vector2(org.x + gi * step, org.z + gj * step), NEAR);
             nearCache[k] = v; return v;
         };
-        // 面の多角形(面積の小さい順 = 入れ子なら内の面が勝つ)
-        var fl = new List<SkinFace>(); if (faces != null) fl.AddRange(faces);
-        fl.Sort((a, b) => Area(a.poly).CompareTo(Area(b.poly)));
         for (int i = ci0; i <= ci1; i++)
             for (int j = cj0; j <= cj1; j++)
             {
@@ -264,7 +548,19 @@ public static partial class EdoBuild
                         int iLo = (a == 0) ? i - 1 : i, iHi = (a == N) ? i + 1 : i, jLo = (b == 0) ? j - 1 : j, jHi = (b == N) ? j + 1 : j;
                         for (int ii = iLo; ii <= iHi && !edge; ii++) for (int jj = jLo; jj <= jHi && !edge; jj++)
                                 if ((ii == i || a == 0 || a == N) && (jj == j || b == 0 || b == N) && !In(ii, jj)) edge = true;
-                        if (edge) { H[k] = orig; PIN.Add(k); continue; }
+                        // 被せるだけの点(触れる皮の升が全部 地形の木の升)
+                        bool ovOnly = true;
+                        for (int ii = iLo; ii <= iHi && ovOnly; ii++) for (int jj = jLo; jj <= jHi && ovOnly; jj++)
+                                if ((ii == i || a == 0 || a == N) && (jj == j || b == 0 || b == N) && Hole(ii, jj)) ovOnly = false;
+                        if (edge) { H[k] = ovOnly ? orig - OV_SINK : orig; if (ovOnly) SUNK.Add(k); PIN.Add(k); continue; }
+                        if (ovOnly)
+                        {
+                            float fo = FillAt(gi, gj), ho = orig - OV_SINK;
+                            { float fy = FaceY(new Vector2(x, z)); if (!float.IsNaN(fy) && !float.IsNaN(fo)) fo = Mathf.Min(fo, fy + faceTol - 0.02f); }
+                            if (!float.IsNaN(fo) && fo > orig + 1e-3f) { ho = fo; r.filled++; if (fo - orig > r.fillMax) { r.fillMax = fo - orig; r.fillAt = new Vector3(x, fo, z); } }
+                            if (ho < orig) SUNK.Add(k);
+                            H[k] = ho; continue;
+                        }
                         float hgt = orig;
                         var p = new Vector2(x, z);
                         // 面の高さ: 部材の外形の中では当てない(部材の中の地盤は部材の面が決める)。
@@ -273,11 +569,22 @@ public static partial class EdoBuild
                         if (near < 2)
                         {
                             foreach (var f in fl) if (EdoGeom.PIP(f.poly, p)) { hgt = f.y; faced = true; break; }
-                            if (!faced && near == 0) foreach (var f in fl) if (EdgeDist(f.poly, p) < step * 1.5f) { hgt = f.y; faced = true; break; }
+                            if (!faced && near == 0)
+                            {
+                                if (design != null)
+                                {
+                                    // ⭐ 面の外 = 設計の地盤を縁の線から法で受ける(升の境で切らない)
+                                    var sl = new bool[1]; hgt = OutsideY(p, sl);
+                                    if (Mathf.Abs(hgt - orig) > 0.005f) r.designed++;
+                                    if (sl[0]) r.sloped++;
+                                }
+                                else foreach (var f in fl) if (EdgeDist(f.poly, p) < step * 1.5f) { hgt = f.y; faced = true; break; }
+                            }
                         }
                         if (faced) r.faced++;
+                        float hgt0 = hgt;
                         // 部材の天端の下へ納める(真下 = 天端 − under / 周り 8 点の天端の最小 − eps)
-                        float self = TopL(gi, gj), cap = float.NaN;
+                        float self = TopL(gi, gj), cap = float.NaN, capN1 = float.NaN;
                         if (!float.IsNaN(self)) cap = self - under;
                         for (int di = -CAPR; di <= CAPR; di++)
                             for (int dj = -CAPR; dj <= CAPR; dj++)
@@ -285,12 +592,38 @@ public static partial class EdoBuild
                                 if (di == 0 && dj == 0) continue;
                                 float tq = TopL(gi + di, gj + dj); if (float.IsNaN(tq)) continue;
                                 tq -= eps; if (float.IsNaN(cap) || tq < cap) cap = tq;
+                                if (Mathf.Abs(di) <= 1 && Mathf.Abs(dj) <= 1 && (float.IsNaN(capN1) || tq < capN1)) capN1 = tq;
                             }
+                        // 裏込めの天端の下限: 外形の縁の帯(FLAT)では真下の天端 − FILL_UNDER まで・周りは 1 格子(0.25m)の天端まで。
+                        //   ⭐ 土留めの背(駒に背の面が無く、底 = 天端)では皮が天端の高さまで来ないと縁の 0.05m 外で底を割る
+                        //   (2026-09-25 実測: 前庭の西の土留めの背で 0.06〜0.10m)。
+                        float capF = capN1;
+                        if (!float.IsNaN(self)) { float sc = self - (FillSeeded(gi, gj) ? FILL_UNDER : under); capF = float.IsNaN(capF) ? sc : Mathf.Min(capF, sc); }
                         float pre = hgt;
                         if (!float.IsNaN(cap) && hgt > cap) { hgt = cap; r.clamped++; if (!float.IsNaN(self)) r.under++; }
+                        // ⭐ 裏込め(backfill > 0): 部材の底より下にある所は底まで盛る。外形の中では(縁の FLAT の帯を除き)
+                        //   その点の部材の底より上げない(駒の面から皮を出さない)。天端の下へ納める cap は守る。
+                        float fv = FillAt(gi, gj);
+                        if (!float.IsNaN(fv))
+                        {
+                            // 外形の中はその点の駒の底(最も低い面)より上げない ── 継ぎ目の辺の種が石垣の法の面を突き抜けて
+                            //   表に土の筋を立てた(2026-09-25 回廊の基壇の東で実測)。背の縁(底 = 天端)では底 = 天端なので効かない。
+                            if (near == 2) { float bs = BotL(gi, gj); if (!float.IsNaN(bs)) fv = Mathf.Min(fv, bs); }
+                            // 造成の面の中は面の高さ + (faceTol − 0.02) より上げない(面は設計が決める・面の許容の内でだけ盛る)。
+                            //   それより底の高い駒(開いた背が面より高い)は駒の側の話 ── 皮で隠さず隙に数える。
+                            //   2026-09-25 実測: 底の無い駒の底 = 天端を種にした盛土が前庭の面へ 1.6m 溢れた。
+                            //   ⚠ 部材から NEAR 以内は面の多角形の帰属があいまい(土留めの背が下の段の面の内に入る)なので当てない。
+                            if (faced && near == 0) fv = Mathf.Min(fv, hgt0 + faceTol - 0.02f);
+                            if (!float.IsNaN(capF)) fv = Mathf.Min(fv, capF);
+                            if (fv > hgt + 1e-4f)
+                            {
+                                hgt = fv; r.filled++;
+                                if (fv - orig > r.fillMax) { r.fillMax = fv - orig; r.fillAt = new Vector3(x, fv, z); }
+                            }
+                        }
                         // 外形の外の点は、隣(0.25m)の部材の底より下げない(= 部材の下を覗かせない・隙 0)。
                         //   段の脇で下の段の天端に引かれて上の段の底より下がるのを止める。元から底より低い所は触らない。
-                        if (hgt < pre && near < 2)
+                        else if (hgt < pre && near < 2)
                         {
                             float floor = float.NaN;
                             for (int di = -1; di <= 1; di++)
@@ -371,7 +704,7 @@ public static partial class EdoBuild
         mr.shadowCastingMode = ShadowCastingMode.On; mr.receiveShadows = true;
 
         // ---- 5 穴を開ける
-        for (int j = 0; j < bh; j++) for (int i = 0; i < bw; i++) if (inSet[j, i] && hv[j, i]) { hv[j, i] = false; r.holesCut++; }
+        for (int j = 0; j < bh; j++) for (int i = 0; i < bw; i++) if (inSet[j, i] && hv[j, i]) { hv[j, i] = false; r.holesCut++; }   // ⛔ 被せる升(inOv)は開けない
         td.SetHoles(ci0, cj0, hv);
 
         // ---- 6 芝(皮が元の地形から 0.02m を超えて動いた 1m 升)と地形の木の数え
@@ -380,7 +713,7 @@ public static partial class EdoBuild
             var mark = new HashSet<long>();
             foreach (var kv in H)
             {
-                if (Mathf.Abs(kv.Value - O[kv.Key]) <= 0.02f) continue;
+                if (Mathf.Abs(kv.Value - O[kv.Key]) <= 0.02f || SUNK.Contains(kv.Key)) continue;   // 地形の下へ沈めた被せの点は芝を残す
                 int gi = (int)(kv.Key >> 32), gj = (int)(uint)(kv.Key & 0xffffffff);
                 float x = gi * step, z = gj * step;   // 地形の原点からの距離
                 for (int sx = -1; sx <= 1; sx += 2) for (int sz = -1; sz <= 1; sz += 2)
@@ -444,7 +777,7 @@ public static partial class EdoBuild
                 for (float s = 0.05f; s < L - 0.05f; s += 0.1f)
                 {
                     var pe = A + tn * s; var pin = pe - nrm * 0.05f; var pout = pe + nrm * 0.05f;
-                    if (!dg.InHole(pout.x, pout.y) && !dg.InHole(pin.x, pin.y)) continue;    // 皮の外(地形)は測らない
+                    if (!dg.InHole(pout.x, pout.y) && !dg.InHole(pin.x, pin.y) && !dg.Covered(pout.x, pout.y)) continue;    // 皮の外(地形)は測らない
                     int w1, w2;
                     float top = idx.Top(pin.x, pin.y, out w1), bot = idx.Bottom(pin.x, pin.y, out w2);
                     // 底は縁から 0.3m 内までの最も低い面(法のある石垣・開いた殻の駒は縁の真下に底が無い)
@@ -471,9 +804,10 @@ public static partial class EdoBuild
                     if (gout < bot - 0.01f)
                     {
                         r.gapN++; int c0; gapBy.TryGetValue(idx.names[k], out c0); gapBy[idx.names[k]] = c0 + 1;
-                        if (samples != null && samples.Count < 20 && probe.At(pout.x, pout.y) >= bot - 0.01f)
+                        if (bot - gout > 0.05f) r.gapBig++;
+                        if (samples != null && samples.Count < 400 && (bot - gout > 0.05f || probe.At(pout.x, pout.y) >= bot - 0.01f))
                         { int wb; idx.Bottom(pin.x, pin.y, out wb);
-                          samples.Add(idx.names[k] + " pout(" + pout.x.ToString("F2") + ", " + pout.y.ToString("F2") + ") 皮 " + gout.ToString("F2") + " 元 " + probe.At(pout.x, pout.y).ToString("F2") + " 底 " + bot.ToString("F2") + "〔" + (wb >= 0 ? idx.names[wb] : "-") + "〕 天端 " + top.ToString("F2")); }
+                          samples.Add((dg.InHole(pout.x, pout.y) ? "[穴]" : "[地形]") + idx.names[k] + " pout(" + pout.x.ToString("F2") + ", " + pout.y.ToString("F2") + ") 皮 " + gout.ToString("F2") + " 元 " + probe.At(pout.x, pout.y).ToString("F2") + " 底 " + bot.ToString("F2") + "〔" + (wb >= 0 ? idx.names[wb] : "-") + "〕 天端 " + top.ToString("F2")); }
                         if (bot - gout > r.gapMax) { r.gapMax = bot - gout; r.gapAt = new Vector3(pout.x, bot, pout.y); }
                     }
                 }
@@ -661,6 +995,13 @@ public static partial class EdoBuild
             int i = Mathf.FloorToInt((x - org.x) / cs) - hi0, j = Mathf.FloorToInt((z - org.z) / cs) - hj0;
             return i >= 0 && j >= 0 && i < hw && j < hh && !holes[j, i];
         }
+        /// <summary>(x,z) で皮が描かれているか(穴の升、または地形の上へ被せた皮が地形より高い)。</summary>
+        public bool Covered(float x, float z)
+        {
+            if (InHole(x, z)) return true;
+            if (skins == 0) return false;
+            float s = Skin(x, z); return !float.IsNaN(s) && s > t.SampleHeight(new Vector3(x, 0f, z)) + y0 + 1e-3f;
+        }
         /// <summary>皮の高さ(皮が無ければ NaN)。</summary>
         public float Skin(float x, float z)
         {
@@ -673,7 +1014,10 @@ public static partial class EdoBuild
         public float At(float x, float z)
         {
             if (InHole(x, z)) return Skin(x, z);
-            return t.SampleHeight(new Vector3(x, 0f, z)) + y0;
+            float g = t.SampleHeight(new Vector3(x, 0f, z)) + y0;
+            // 地形の上へ被せた皮(地形の木の升の裏込め)は、地形より高い所だけ描かれる
+            if (skins > 0) { float s = Skin(x, z); if (!float.IsNaN(s) && s > g) return s; }
+            return g;
         }
     }
 

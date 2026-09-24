@@ -2053,7 +2053,15 @@ public static class EdoSannoShaRebuild
             if (poly.Length >= 3) faces.Add(new EdoBuild.SkinFace(G(tc, "name") as string, poly, F(tc, "y")));
         }
         float tol = F(D(Impl, "checks"), "gradeTol");
-        var rep = EdoBuild.CutEdgeSkin("Sanno", grp, parts, faces, tol);
+        // ⭐ 面の外は算出物 `graded`(法面を含む設計の地盤)を皮で写し、縁は多角形の線で切る。
+        //   裏込めは盛土の法 1:`const.batterFill`(部材の底まで盛る・EDO-0430 2026-09-25)。
+        var gr = Gr; var cst = D(Doc, "const");
+        var design = new EdoBuild.SkinDesign
+        {
+            x0 = gr.x0, z0 = gr.z0, step = gr.step, nx = gr.nx, nz = gr.nz, h = gr.h, ok = gr.ok,
+            batterCut = F(cst, "batterCut"), batterFill = F(cst, "batterFill")
+        };
+        var rep = EdoBuild.CutEdgeSkin("Sanno", grp, parts, faces, tol, design: design, backfill: design.batterFill);
         AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
         var sb = new StringBuilder();
         sb.AppendLine("縁の皮: 古い皮を外して塞いだ升 " + filled + " / 部材 " + rep.parts + " / 面 " + faces.Count);

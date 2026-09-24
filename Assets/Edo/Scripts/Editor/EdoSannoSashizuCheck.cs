@@ -668,6 +668,31 @@ public static class EdoSannoSashizuCheck
             else
             {
                 head.AppendLine("  造成の面は描かれた地表で測る(縁の皮 " + dg.skins + " 枚 ── 穴の升では皮の高さ)");
+                // ⭐ 部材の外形の中の標本点は面の検査の対象外(見えない ── 踏面の端を袖の中で数えないのと同じ・普請奉行の決め
+                //   2026-09-25 EDO-0430)。外形 = 地に据わる部材(土留め・石段と袖・囲い)の駒ごとの平面の凸包。
+                //   ⛔ 社殿・門は入れない(床下・軒下の地表は見える)。外した点の数は面ごとに必ず刷る。
+                var skip = new List<Vector2[]>(); var skipB = new List<Vector4>();
+                Action<Transform> addHull = tr =>
+                {
+                    if (tr == null || !tr.gameObject.activeInHierarchy) return;
+                    var hl = EdoBuild.HullOfMat(tr); if (hl == null || hl.Length < 3) return;
+                    float a0 = float.MaxValue, a1 = float.MinValue, b0 = float.MaxValue, b1 = float.MinValue;
+                    foreach (var q in hl) { a0 = Mathf.Min(a0, q.x); a1 = Mathf.Max(a1, q.x); b0 = Mathf.Min(b0, q.y); b1 = Mathf.Max(b1, q.y); }
+                    skip.Add(hl); skipB.Add(new Vector4(a0, b0, a1, b1));
+                };
+                { var gd = root.transform.Find("Dodome"); if (gd != null) foreach (Transform c in gd) addHull(c); }
+                foreach (var gn in new[] { "Sando", "Kakoi" })
+                { var gg = root.transform.Find(gn); if (gg != null) foreach (Transform run in gg) foreach (Transform c in run) addHull(c); }
+                Func<float, float, bool> underPart = (x, z) =>
+                {
+                    for (int k = 0; k < skip.Count; k++)
+                    {
+                        var b = skipB[k]; if (x < b.x || x > b.z || z < b.y || z > b.w) continue;
+                        if (EdoGeom.PIP(skip[k], new Vector2(x, z))) return true;
+                    }
+                    return false;
+                };
+                head.AppendLine("  面の標本のうち部材(土留め・石段と袖・囲い " + skip.Count + " 駒)の外形の中の点は見えないので数えない:");
                 foreach (var o in L(impl, "terraces"))
                 {
                     var tc = o as Dictionary<string, object>; if (tc == null) continue;
@@ -678,11 +703,12 @@ public static class EdoSannoSashizuCheck
                     float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
                     foreach (var p in poly)
                     { mnx = Mathf.Min(mnx, p.x); mxx = Mathf.Max(mxx, p.x); mnz = Mathf.Min(mnz, p.y); mxz = Mathf.Max(mxz, p.y); }
-                    int n = 0, over = 0, blank = 0; float worst = 0f; Vector2 worstAt = Vector2.zero;
+                    int n = 0, over = 0, blank = 0, hid = 0; float worst = 0f; Vector2 worstAt = Vector2.zero;
                     for (float x = mnx; x <= mxx; x += 2f)
                         for (float z = mnz; z <= mxz; z += 2f)
                         {
                             if (!Inside(poly, x, z)) continue;
+                            if (underPart(x, z)) { hid++; continue; }
                             n++;
                             float gz = dg.At(x, z);
                             if (float.IsNaN(gz)) { blank++; continue; }
@@ -690,6 +716,7 @@ public static class EdoSannoSashizuCheck
                             if (Mathf.Abs(d) > gradeTol) over++;
                             if (Mathf.Abs(d) > Mathf.Abs(worst)) { worst = d; worstAt = new Vector2(x, z); }
                         }
+                    head.AppendLine("    面 " + name + ": 標本 " + (n + hid) + " 点のうち部材の外形の中 " + hid + " 点を外し " + n + " 点で測る");
                     if (n == 0) { bad("造成の面", "面 " + name + " に標本が取れない(輪郭が壊れている)"); continue; }
                     if (over > 0)
                         bad("造成の面", "面 " + name + "(設計 y=" + y.ToString("F2") + ")が造成されていない — 標本 " +

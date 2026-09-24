@@ -10617,23 +10617,23 @@
   },
   "kosho": {
    "at": "2026-09-24",
-   "verdict": "fail",
-   "hash": "0b80a5a3778aca3c",
-   "note": "18巡 fail(高1中2)。高: 薬師堂・稲荷社の部材(build_sanno_do.py)は自前の切石の基壇(高0.30・出0.70/0.42)を持ち、新しい基壇と二重(計0.70/0.60)・部材の基壇が縁から0.53/0.26m外へ浮く。中: 上がりの石段が部材の基壇の下に埋まる/基壇の出の注記0.30と形0.165が合わない。K109 は解消",
+   "verdict": "pass",
+   "hash": "616adbd8157a83aa",
+   "note": "19巡 注意付きで通す(中2)。K153・K154 解消・施主裁定2B の意図は保つ。中: 薬師堂の正面(東=確度U)が稲荷社の背中に約1mで塞がる — 向きを御宮絵図で照らすか裁定図で問う/稲荷社の矩形が柱芯でなく部材の外形で、据え方を基壇の面で書く",
    "chapters": {
     "const": "e186ab30371b",
     "polygon": "66c63a322d37",
     "grid": "7c99d6cc4467",
-    "planes": "1da262bc4445",
-    "terraces": "10dac64d6fef",
-    "terraceWalls": "4900086f3b53",
+    "planes": "c3978d54c064",
+    "terraces": "091ed7333d46",
+    "terraceWalls": "038683d8b834",
     "slopeBands": "19e7253c4bcb",
-    "munes": "f55401f65295",
+    "munes": "bd0ef4587bfc",
     "links": "eeb5d934d473",
     "runs": "3f6a9b8a3177",
     "gates": "8bccfb4185fb",
     "torii": "17b88f18dd14",
-    "kaidans": "b6f2e7a9fe67",
+    "kaidans": "2afe19b8da23",
     "sando": "c1779fabddef",
     "gardens": "dd1140077403",
     "planting": "050b6cfaad9a",
@@ -10648,7 +10648,7 @@
     "routes": "23ecf0700734",
     "kattemichi": "3e4dc828c638",
     "viewpoints": "ae8d421035b4",
-    "joints": "3791962632ed",
+    "joints": "2b35304f2aee",
     "ido": "6f50ceb3c205",
     "shadenKidan": "84320877fb92",
     "ishizai": "898d22a3434c",
@@ -10660,10 +10660,6 @@
     "md": "4117d7a0601dadbb"
    },
    "rounds": [
-    {
-     "at": "2026-09-19T07:25:54+09:00",
-     "verdict": "advisory"
-    },
     {
      "at": "2026-09-19T08:55:28+09:00",
      "verdict": "advisory"
@@ -10707,28 +10703,32 @@
     {
      "at": "2026-09-24T11:59:32+09:00",
      "verdict": "fail"
+    },
+    {
+     "at": "2026-09-24T12:12:14+09:00",
+     "verdict": "pass"
     }
    ]
   },
   "kenzu": {
    "at": "2026-09-24",
    "verdict": "pass",
-   "hash": "0b80a5a3778aca3c",
-   "note": "18巡 注意付き合格(中1低1)。裁定3件の段割り・土留めは数値で閉じる。楼門の腰石垣28.30で男坂の側壁と突き付く(K109解消)。中: 薬師堂の石段の下から稲荷社の基壇の西面まで0.77m。低: C27 が新しい二堂の基壇の出を数えない",
+   "hash": "616adbd8157a83aa",
+   "note": "19巡 注意付き合格(中1低2)。K153・K154 解消(基壇は部材の切石の一重・底28.30)。中: 二堂の雨落ちの帯を部材の基壇の外面から回す。低: munes.y 28.60 が基壇の天端で面の高さと紛れる/K155 継続 0.98m",
    "chapters": {
     "const": "e186ab30371b",
     "polygon": "66c63a322d37",
     "grid": "7c99d6cc4467",
-    "planes": "1da262bc4445",
-    "terraces": "10dac64d6fef",
-    "terraceWalls": "4900086f3b53",
+    "planes": "c3978d54c064",
+    "terraces": "091ed7333d46",
+    "terraceWalls": "038683d8b834",
     "slopeBands": "19e7253c4bcb",
-    "munes": "f55401f65295",
+    "munes": "bd0ef4587bfc",
     "links": "eeb5d934d473",
     "runs": "3f6a9b8a3177",
     "gates": "8bccfb4185fb",
     "torii": "17b88f18dd14",
-    "kaidans": "b6f2e7a9fe67",
+    "kaidans": "2afe19b8da23",
     "sando": "c1779fabddef",
     "gardens": "dd1140077403",
     "planting": "050b6cfaad9a",
@@ -10743,7 +10743,7 @@
     "routes": "23ecf0700734",
     "kattemichi": "3e4dc828c638",
     "viewpoints": "ae8d421035b4",
-    "joints": "3791962632ed",
+    "joints": "2b35304f2aee",
     "ido": "6f50ceb3c205",
     "shadenKidan": "84320877fb92",
     "ishizai": "898d22a3434c",
@@ -10755,10 +10755,6 @@
     "md": "4117d7a0601dadbb"
    },
    "rounds": [
-    {
-     "at": "2026-09-19T07:25:54+09:00",
-     "verdict": "advisory"
-    },
     {
      "at": "2026-09-19T08:55:28+09:00",
      "verdict": "advisory"
@@ -10801,6 +10797,10 @@
     },
     {
      "at": "2026-09-24T11:59:32+09:00",
+     "verdict": "pass"
+    },
+    {
+     "at": "2026-09-24T12:12:14+09:00",
      "verdict": "pass"
     }
    ]

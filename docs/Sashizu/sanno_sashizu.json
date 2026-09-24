@@ -10632,21 +10632,17 @@
  "reviews": {
   "niwashi": {
    "at": "2026-09-24",
-   "verdict": "pass",
-   "hash": "505353c4b2915a54",
-   "note": "17巡 合格(低3)。K145〜K147 解消・直しで建つ姿は崩れていない。丘は146本の林。低: 溝の帯の東半分で境内の切土の法と帯の北の法が重なる(継ぎ目の文言を書き分け)/東端の新しい盛土の法2.0mが裸土に見えないかレンダで確認/中木の二塊のあきが狭く5本の一群に見える(任意)",
+   "verdict": "fail",
+   "hash": "8378908891cc06a0",
+   "note": "巡21: K160〜K163解消。高: 御蔵・御供所の基壇が造成後の面に全部埋まる(見え0)。天端=面+基壇の丈に揃える。中: 御蔵の根入れ依頼は止める",
    "chapters": {
     "gardens": "dd1140077403",
     "planting": "050b6cfaad9a",
-    "routes": "23ecf0700734",
+    "routes": "c4299d10abd0",
     "viewpoints": "ae8d421035b4",
-    "py": "256ec7a36ed19eed"
+    "py": "c7c02a47d42fd14c"
    },
    "rounds": [
-    {
-     "at": "2026-09-18T20:52:53+09:00",
-     "verdict": "advisory"
-    },
     {
      "at": "2026-09-19T07:25:54+09:00",
      "verdict": "advisory"
@@ -10690,28 +10686,32 @@
     {
      "at": "2026-09-24T11:11:39+09:00",
      "verdict": "pass"
+    },
+    {
+     "at": "2026-09-24T19:23:14+09:00",
+     "verdict": "fail"
     }
    ]
   },
   "kosho": {
    "at": "2026-09-24",
    "verdict": "pass",
-   "hash": "3ec4cc04ad09f241",
-   "note": "advisory(実装を止める指摘無し)。K155・K157〜K159 解消。中2: 薬師堂は名所図会で多角形の宝形【B】— 指図の方形との食い違いを acc/_pending に両論で(EDO-0438)/正面の雨落ちが木階と稲荷社の向拝の下に入る。低1: 稲荷社の1間角は部材の設計値の写し — acc を A(一間社)/U(柱間)へ",
+   "hash": "6b1b5e72adc7f04a",
+   "note": "巡21: 指摘0。K160〜K163解消。土蔵を切石基壇に載せる姿・木階を作り合いの中身とする読みは史実に合う",
    "chapters": {
     "const": "e186ab30371b",
     "polygon": "66c63a322d37",
     "grid": "7c99d6cc4467",
-    "planes": "c3978d54c064",
+    "planes": "c1bff4aa78f5",
     "terraces": "091ed7333d46",
     "terraceWalls": "038683d8b834",
     "slopeBands": "19e7253c4bcb",
-    "munes": "2db5dee7cc27",
+    "munes": "aee147235d75",
     "links": "eeb5d934d473",
     "runs": "3f6a9b8a3177",
     "gates": "8bccfb4185fb",
     "torii": "17b88f18dd14",
-    "kaidans": "2afe19b8da23",
+    "kaidans": "49b6844a4a24",
     "sando": "c1779fabddef",
     "gardens": "dd1140077403",
     "planting": "050b6cfaad9a",
@@ -10721,9 +10721,9 @@
     "profiles": "c3b499cc6233",
     "terrainCheck": "8deec9856c06",
     "neighbors": "577eb0d759ed",
-    "bom": "63b645892e48",
+    "bom": "6948354abf18",
     "fumotomichi": "160b585f9726",
-    "routes": "23ecf0700734",
+    "routes": "c4299d10abd0",
     "kattemichi": "3e4dc828c638",
     "viewpoints": "ae8d421035b4",
     "joints": "2b35304f2aee",
@@ -10734,14 +10734,10 @@
     "drains": "a7eb06adf639",
     "amaochi": "ad9fd4bb02ce",
     "surface": "728fe7869784",
-    "py": "256ec7a36ed19eed",
+    "py": "c7c02a47d42fd14c",
     "md": "4117d7a0601dadbb"
    },
    "rounds": [
-    {
-     "at": "2026-09-19T12:09:58+09:00",
-     "verdict": "advisory"
-    },
     {
      "at": "2026-09-19T18:22:51+09:00",
      "verdict": "advisory"
@@ -10785,28 +10781,32 @@
     {
      "at": "2026-09-24T18:08:17+09:00",
      "verdict": "pass"
+    },
+    {
+     "at": "2026-09-24T19:23:14+09:00",
+     "verdict": "pass"
     }
    ]
   },
   "kenzu": {
    "at": "2026-09-24",
    "verdict": "fail",
-   "hash": "3ec4cc04ad09f241",
-   "note": "K155・K157〜K159 は解消。新規 高1: 二堂の足元の自然の地盤が境内の面28.30より0.30〜0.40m高い(基壇天端28.60を面として数えていて隠れていた)— 北列の西端を段にするか例外かは施主裁定(C04 と同根)。低1: 社務の道の末端が基壇南面と木階の足に食い込み、正面の雨落ちの帯が木階の下を通る",
+   "hash": "6b1b5e72adc7f04a",
+   "note": "巡21: K160〜K163解消・木階の除外は妥当。高: 御蔵・御供所の基壇天端を段の面に合わせたため造成後の平らな面に基壇が丸ごと埋まる(二堂と逆)。中: C04が造成前の地盤で見えを数え、御蔵の根入れ依頼が埋まる部分へのもの。低: 坂下の門に屋根の欄なし(C24未検査)",
    "chapters": {
     "const": "e186ab30371b",
     "polygon": "66c63a322d37",
     "grid": "7c99d6cc4467",
-    "planes": "c3978d54c064",
+    "planes": "c1bff4aa78f5",
     "terraces": "091ed7333d46",
     "terraceWalls": "038683d8b834",
     "slopeBands": "19e7253c4bcb",
-    "munes": "2db5dee7cc27",
+    "munes": "aee147235d75",
     "links": "eeb5d934d473",
     "runs": "3f6a9b8a3177",
     "gates": "8bccfb4185fb",
     "torii": "17b88f18dd14",
-    "kaidans": "2afe19b8da23",
+    "kaidans": "49b6844a4a24",
     "sando": "c1779fabddef",
     "gardens": "dd1140077403",
     "planting": "050b6cfaad9a",
@@ -10816,9 +10816,9 @@
     "profiles": "c3b499cc6233",
     "terrainCheck": "8deec9856c06",
     "neighbors": "577eb0d759ed",
-    "bom": "63b645892e48",
+    "bom": "6948354abf18",
     "fumotomichi": "160b585f9726",
-    "routes": "23ecf0700734",
+    "routes": "c4299d10abd0",
     "kattemichi": "3e4dc828c638",
     "viewpoints": "ae8d421035b4",
     "joints": "2b35304f2aee",
@@ -10829,14 +10829,10 @@
     "drains": "a7eb06adf639",
     "amaochi": "ad9fd4bb02ce",
     "surface": "728fe7869784",
-    "py": "256ec7a36ed19eed",
+    "py": "c7c02a47d42fd14c",
     "md": "4117d7a0601dadbb"
    },
    "rounds": [
-    {
-     "at": "2026-09-19T12:09:58+09:00",
-     "verdict": "advisory"
-    },
     {
      "at": "2026-09-19T18:22:51+09:00",
      "verdict": "advisory"
@@ -10879,6 +10875,10 @@
     },
     {
      "at": "2026-09-24T18:08:17+09:00",
+     "verdict": "fail"
+    },
+    {
+     "at": "2026-09-24T19:23:14+09:00",
      "verdict": "fail"
     }
    ]

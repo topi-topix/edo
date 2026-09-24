@@ -1950,6 +1950,13 @@ public static class EdoAssets
         public const string GenMeshDir = "Assets/Edo/Meshes/Gen";
         public static string GenMesh(string name) { return GenMeshDir + "/" + name + ".asset"; }
 
+        /// <summary>**縁の皮**(地形の穴の縁から部材の面までを描くメッシュ・`EdoBuild.CutEdgeSkin`)の材質の置き場。
+        /// 地形と同じ見えにするため、地形の材質(<c>Edo/TerrainLitStochastic</c>)の写しに地形のスプラット
+        /// (<c>alphamapTextures[pass]</c>)と層を結わえた物を、地形ごと・パスごとに 1 枚だけ起こす
+        /// (pass 0 = 層 0〜3 の本体 / pass 1 = 層 4〜7 の足し込み)。EDO-0430。</summary>
+        public const string SkinMatDir = "Assets/Edo/Materials/Hifu";
+        public static string SkinMat(string terrain, int pass) { return SkinMatDir + "/Hifu_" + terrain + "_" + pass + ".mat"; }
+
         /// <summary>松江松平邸の表門 — **屋根なしの冠木門**(角柱・冠木・内開きの板戸)。
         /// 姿は温古写真集11(88005761・明治初撮影)の実見【A】+『日本案内記 関東篇』昭和5年【A】。
         /// ⚠ 切妻小屋根を載せる前案は 2026-08-23 に撤回済み。**屋根なしが正**。

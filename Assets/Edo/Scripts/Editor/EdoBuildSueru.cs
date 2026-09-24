@@ -658,9 +658,11 @@ public static partial class EdoBuild
     /// **見え面の縁まで覆われ続けている**ときだけ埋没に数える。途中で天端が地表から出ていれば、その点は帯の奥
     /// (上の段の土・上の壁が始まった後)で、石の控えが上の段の土の下に入る正しい納め ⇒ <see cref="CrestTuck.hidden"/>。
     /// null の駒(見え面を渡さない)は従来どおり全点を数える。当たる先: 段々に重ねた土留め(山王の郭・前庭・土台)、石段の袖。</para>
+    /// <para><paramref name="measureOnly"/> = true なら地形に触らず検め(3)だけを行う(縁の皮を起こした後の埋没の数え・EDO-0430)。
+    /// 検め(3)は**描かれた地表**(<see cref="Drawn"/>: 穴の升では皮)で測る。</para>
     public static CrestTuck TuckUnderCrest(IList<GameObject> pieces, string mat, float depth = 0.15f,
                                            float minGap = 0.01f, float inset = 0.10f, float coTol = 0.05f,
-                                           IDictionary<GameObject, Vector3> faces = null)
+                                           IDictionary<GameObject, Vector3> faces = null, bool measureOnly = false)
     {
         var r = new CrestTuck { gapMin = float.NaN };
         var t = T(); var td = t.terrainData; var org = t.transform.position;
@@ -688,13 +690,15 @@ public static partial class EdoBuild
         // 天端と地表が**面で**重なっているか ── その点と前後左右 0.1m がみな |天端 − 地表| < minGap。
         //   ⭐ 線(天端の面取り・斜めの地表が天端を横切る所)は 0.1m で差が数 cm 変わるので数えない ── 斑に見えるのは面だけ。
         GroundProbe pr = probe;
+        Func<float, float, float> gAt = (xx, zz) => pr.At(xx, zz);   // 検め(3)では描かれた地表へ差し替える
         Func<int, float, float, bool> Sheet = (k, x, z) =>
         {
             for (int d = 0; d < 5; d++)
             {
                 float xx = x + (d == 1 ? 0.1f : d == 2 ? -0.1f : 0f), zz = z + (d == 3 ? 0.1f : d == 4 ? -0.1f : 0f);
                 float top = Top(trisL[k], xx, zz); if (float.IsNaN(top)) return false;
-                if (Mathf.Abs(top - pr.At(xx, zz)) >= minGap) return false;
+                float gg = gAt(xx, zz);
+                if (float.IsNaN(gg) || Mathf.Abs(top - gg) >= minGap) return false;
             }
             return true;
         };
@@ -702,6 +706,9 @@ public static partial class EdoBuild
         // 外形の外の地表の下がりを量るための「前」(外形の 1 セル外の輪まで・0.25m 格子)
         const float RING = 0.25f;
         var before = new List<Vector3>();
+        const float STEP = 0.1f;
+        if (!measureOnly)
+        {
         Func<Vector2, bool> InAny = p => { foreach (var h in hulls) if (EdoGeom.PIP(h, p)) return true; return false; };
         for (float x = mnx - cx; x <= mxx + cx; x += RING)
             for (float z = mnz - cz; z <= mxz + cz; z += RING)
@@ -737,7 +744,6 @@ public static partial class EdoBuild
         // 1b 外形の縁・節点の無い細い駒 ── 天端の下が**外形の外の節点**で張られていて、まだ面が重なる所は、
         //    その点のセルの四隅のうち**元の高さが**天端と重なる節点を下げる(外の地表が最大 depth + coTol 下がる・柔らかい・dipOut に刷る)。
         //    ⛔ 条件を今の高さで見ない ── 下げた隣の点がまた「重なる」になり、斜面を連鎖して掘る(2026-09-23 実測: 3 巡で 0.75m)。
-        const float STEP = 0.1f;
         for (int pass = 0; pass < 3; pass++)
         {
             probe = Probe(); pr = probe;
@@ -795,9 +801,12 @@ public static partial class EdoBuild
             };
             var c = ClearDetailIn(hk, exposed); r.detVisited += c.visited; r.detChanged += c.changed; r.det = c;
         }
+        }   // !measureOnly
 
         // 3 検め ── 天端 − 描かれた地表(外形の縁から inset 以上内)・外形の外の下がり
+        //   ⭐ 描かれた地表 = 縁の皮の升では皮(<see cref="Drawn"/>・EDO-0430)。皮が無ければ地形と同じ。
         probe = Probe(); pr = probe;
+        var dg = Drawn(); gAt = dg.At;
         var thinN = new Dictionary<string, int>();
         var abN = new Dictionary<string, int>(); var abD = new Dictionary<string, float>();
         // ⭐ 天端の帯(2026-09-24): 見え面を渡された駒は、各点の「見え面の向きの列」で天端の最高 − CREST_BAND より低い点を
@@ -818,7 +827,8 @@ public static partial class EdoBuild
                     float x = hx0 + (ix + 0.5f) * STEP, z = hz0 + (iz + 0.5f) * STEP; var p = new Vector2(x, z);
                     if (!EdoGeom.PIP(h, p) || EdgeDist(h, p) < inset) continue;
                     float top = Top(trisL[k], x, z); if (float.IsNaN(top)) continue;
-                    TA[ix, iz] = top; GA[ix, iz] = probe.At(x, z);
+                    float gd = dg.At(x, z);
+                    TA[ix, iz] = top; GA[ix, iz] = float.IsNaN(gd) ? float.NegativeInfinity : gd;
                 }
             Vector2 fd = faceL[k];
             // 列の天端の最高(見え面の向きに前後へ)

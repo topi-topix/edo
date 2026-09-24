@@ -1,0 +1,132 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: Hifu_ModernTerrain_0
+  m_Shader: {fileID: 4800000, guid: fb3d53b5641f74956844f42dcf1a6eea, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords:
+  - _NORMALMAP
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _Control:
+        m_Texture: {fileID: -3072516363746120426, guid: 7ca0a246f5f1f41b387933ca123e6e3a, type: 2}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _MainTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Mask0:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Mask1:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Mask2:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Mask3:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Normal0:
+        m_Texture: {fileID: 2800000, guid: d1e53330459414d67821475108dbc77f, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Normal1:
+        m_Texture: {fileID: 2800000, guid: 5a2a364351bbb2245a45c344799805a7, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Normal2:
+        m_Texture: {fileID: 2800000, guid: d1e53330459414d67821475108dbc77f, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Normal3:
+        m_Texture: {fileID: 2800000, guid: 1cf1ffe21cb52584f8be030a199a1dc0, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Splat0:
+        m_Texture: {fileID: 2800000, guid: bedff3682beb82d4b94e2526f5631360, type: 3}
+        m_Scale: {x: 512, y: 512}
+        m_Offset: {x: 0, y: 0}
+    - _Splat1:
+        m_Texture: {fileID: 2800000, guid: e003e969c645eb7469595bf8140f0988, type: 3}
+        m_Scale: {x: 1024, y: 1024}
+        m_Offset: {x: 0, y: 0}
+    - _Splat2:
+        m_Texture: {fileID: 2800000, guid: 0b9ad1589c45e4f1b92a86951a521750, type: 3}
+        m_Scale: {x: 372.36365, y: 372.36365}
+        m_Offset: {x: 0, y: 0}
+    - _Splat3:
+        m_Texture: {fileID: 2800000, guid: 21026ac2d7f0a2e4d851ebfade600ca9, type: 3}
+        m_Scale: {x: 585.1429, y: 585.1429}
+        m_Offset: {x: 0, y: 0}
+    - _TerrainHolesTexture:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _DiffuseHasAlpha0: 0
+    - _DiffuseHasAlpha1: 0
+    - _DiffuseHasAlpha2: 0
+    - _DiffuseHasAlpha3: 0
+    - _EnableHeightBlend: 0
+    - _EnableInstancedPerPixelNormal: 0
+    - _HeightTransition: 0
+    - _LayerHasMask0: 0
+    - _LayerHasMask1: 0
+    - _LayerHasMask2: 0
+    - _LayerHasMask3: 0
+    - _Metallic0: 0
+    - _Metallic1: 0
+    - _Metallic2: 0
+    - _Metallic3: 0
+    - _NormalScale0: 0.25
+    - _NormalScale1: 1
+    - _NormalScale2: 0.25
+    - _NormalScale3: 0.8
+    - _NumLayersCount: 6
+    - _Smoothness0: 0
+    - _Smoothness1: 0
+    - _Smoothness2: 0
+    - _Smoothness3: 0.15
+    - _SmoothnessSource0: 2
+    - _SmoothnessSource1: 2
+    - _SmoothnessSource2: 2
+    - _SmoothnessSource3: 2
+    m_Colors:
+    - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
+    - _DiffuseRemapScale0: {r: 1, g: 1, b: 1, a: 1}
+    - _DiffuseRemapScale1: {r: 1, g: 1, b: 1, a: 1}
+    - _DiffuseRemapScale2: {r: 1, g: 1, b: 1, a: 1}
+    - _DiffuseRemapScale3: {r: 1, g: 1, b: 1, a: 1}
+    - _MaskMapRemapOffset0: {r: 0, g: 0, b: 0, a: 0}
+    - _MaskMapRemapOffset1: {r: 0, g: 0, b: 0, a: 0}
+    - _MaskMapRemapOffset2: {r: 0, g: 0, b: 0, a: 0}
+    - _MaskMapRemapOffset3: {r: 0, g: 0, b: 0, a: 0}
+    - _MaskMapRemapScale0: {r: 1, g: 1, b: 1, a: 1}
+    - _MaskMapRemapScale1: {r: 1, g: 1, b: 1, a: 1}
+    - _MaskMapRemapScale2: {r: 1, g: 1, b: 1, a: 1}
+    - _MaskMapRemapScale3: {r: 1, g: 1, b: 1, a: 1}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1

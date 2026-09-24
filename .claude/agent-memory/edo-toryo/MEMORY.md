@@ -59,6 +59,7 @@
 - [.meta の無い新しい FBX は「焼いていない」と出る](new-fbx-without-meta-reads-as-unbaked.md) — 部材方の直後は Refresh→remap→Stage。参照する未追跡 .meta もコミット
 - [透塀の t の端は食い込み 0 で中門へ](sukibei-t-end-bite-zero.md) — ClipRunEndsToGates の halfT は bite。0.30 入れて全駒 1725 で倒れた
 - [自作の木の FBX は地形の木として無効](own-tree-fbx-invalid-as-terrain-tree.md) — 根に MR も LODGroup も無く1本も描かれない。TreePrototype.Validate で先に検める
+- [穴と皮の罠](terrain-holes-and-skin-traps.md) — 穴の升の地形の木は消える・地形のシェーダの材質は黒・艶で白く光る。木の升は開けない
 
 ## 測り方・関門
 

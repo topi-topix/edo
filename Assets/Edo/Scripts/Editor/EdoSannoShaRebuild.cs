@@ -320,6 +320,7 @@ public static class EdoSannoShaRebuild
     public static string Stage1_Grade()
     {
         var gate = Gate(); if (gate != null) return gate;
+        { var us = UnSkin(); if (us.Length > 0) Debug.Log("[山王] " + us); }
         var gr = Gr;
         var t = Terrain.activeTerrain; var td = t.terrainData;
         int hres = td.heightmapResolution;
@@ -381,6 +382,7 @@ public static class EdoSannoShaRebuild
     public static string Stage2_Kaidan()
     {
         var gate = Gate(); if (gate != null) return gate;
+        { var us = UnSkin(); if (us.Length > 0) Debug.Log("[山王] " + us); }
         var sb = new StringBuilder();
         foreach (var o in L(Impl, "stairs"))
         {
@@ -550,6 +552,7 @@ public static class EdoSannoShaRebuild
     public static string Stage3_Dodome()
     {
         var gate = Gate(); if (gate != null) return gate;
+        { var us = UnSkin(); if (us.Length > 0) Debug.Log("[山王] " + us); }
         var grp = Group("Dodome"); Clear(grp);
         float probe = WallProbeM;
         var sb = new StringBuilder();
@@ -2027,8 +2030,98 @@ public static class EdoSannoShaRebuild
         return "井戸: 3 点\n" + sb;
     }
 
+    // ================================================================ Stage 9 縁の皮
+    //   ⭐ 2m 格子の地形は切通しの石段の脇・土留めの天端の奥・面の縁の縦の切れ目を描けない(外の高さを混ぜる)。
+    //   その升だけ地形に穴を開け、0.25m の皮で描く(<see cref="EdoBuild.CutEdgeSkin"/>・普請奉行の決め 2026-09-24・EDO-0430)。
+    //   ⚠ 整地・石段・土留め(Stage1〜3)は冒頭で皮を外すので、流したら必ずこれを最後に流し直す。
+    [MenuItem(MENU + "9 縁の皮(段石・袖・土留め・面の縁の升に穴を開けて皮で描く)")]
+    public static void Stage9Menu() { Debug.Log("[山王] " + Stage9_Hifu()); }
+    public static string Stage9_Hifu()
+    {
+        var gate = Gate(); if (gate != null) return gate;
+        var grp = Group("EdgeSkin");
+        int filled = EdoBuild.ClearEdgeSkins(grp);
+        var parts = new List<GameObject>();
+        foreach (Transform g in Group("Sando")) foreach (Transform c in g) parts.Add(c.gameObject);
+        foreach (Transform c in Group("Dodome")) parts.Add(c.gameObject);
+        var faces = new List<EdoBuild.SkinFace>();
+        foreach (var o in L(Impl, "terraces"))
+        {
+            var tc = o as Dictionary<string, object>; if (tc == null) continue;
+            var wl = L(tc, "world"); var poly = new Vector2[wl.Count];
+            for (int i = 0; i < wl.Count; i++) { var a = wl[i] as List<object>; poly[i] = new Vector2(Cv(a[0]), Cv(a[1])); }
+            if (poly.Length >= 3) faces.Add(new EdoBuild.SkinFace(G(tc, "name") as string, poly, F(tc, "y")));
+        }
+        float tol = F(D(Impl, "checks"), "gradeTol");
+        var rep = EdoBuild.CutEdgeSkin("Sanno", grp, parts, faces, tol);
+        AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
+        var sb = new StringBuilder();
+        sb.AppendLine("縁の皮: 古い皮を外して塞いだ升 " + filled + " / 部材 " + rep.parts + " / 面 " + faces.Count);
+        sb.AppendLine("  " + rep);
+        sb.Append(HifuMeasure());
+        return sb.ToString();
+    }
+
+    /// <summary>描かれた地表(皮)で測る: 男坂・女坂の踏面の埋没・袖と土留めの天端の埋没。</summary>
+    public static string HifuMeasure()
+    {
+        var sb = new StringBuilder();
+        var dg = EdoBuild.Drawn();
+        sb.AppendLine("  描かれた地表で測る(皮 " + dg.skins + " 枚):");
+        var sando = Group("Sando");
+        var all = new List<GameObject>();
+        foreach (Transform g in sando) foreach (Transform c in g) all.Add(c.gameObject);
+        foreach (Transform c in Group("Dodome")) all.Add(c.gameObject);
+        var over = new EdoBuild.PartTops(all);
+        foreach (var gname in new[] { "Otokozaka", "Onnazaka" })
+        {
+            var g = sando.Find(gname); if (g == null) { sb.AppendLine("    " + gname + ": 無い"); continue; }
+            int n = 0, bur = 0, hid = 0; float mx = 0f; string at = "";
+            foreach (Transform d in g)
+            {
+                if (!d.name.StartsWith("Dan_", StringComparison.Ordinal)) continue;
+                int sn, hn; float w; Vector3 wa;
+                int b = EdoBuild.TopBurial(d, dg, over, out sn, out hn, out w, out wa);
+                n += sn; bur += b; hid += hn; if (w > mx) { mx = w; at = d.name + " (" + wa.x.ToString("F1") + ", " + wa.z.ToString("F1") + ")"; }
+            }
+            sb.AppendLine("    " + gname + " 踏面: 埋没 " + bur + " / " + (n - hid) + " 点(袖・土留めの中へ入る端 " + hid + " 点は見えないので数えない)" +
+                          (bur > 0 ? " 最大 " + mx.ToString("F2") + "m @ " + at : ""));
+        }
+        // 袖(見え面 = 最寄りの段石へ向く向き)
+        var sode = new List<GameObject>(); var sodeFace = new Dictionary<GameObject, Vector3>();
+        foreach (Transform g in sando)
+        {
+            var dans = new List<Transform>();
+            foreach (Transform c in g) if (c.name.StartsWith("Dan_", StringComparison.Ordinal)) dans.Add(c);
+            foreach (Transform c in g)
+            {
+                if (!c.name.StartsWith("TW_", StringComparison.Ordinal) || dans.Count == 0) continue;
+                Transform best = null; float bd = float.MaxValue;
+                foreach (var d in dans) { float dd = (d.position - c.position).sqrMagnitude; if (dd < bd) { bd = dd; best = d; } }
+                var rt = best.right; rt.y = 0f; rt.Normalize();
+                var to = best.position - c.position; to.y = 0f;
+                sode.Add(c.gameObject); sodeFace[c.gameObject] = Vector3.Dot(to, rt) >= 0f ? rt : -rt;
+            }
+        }
+        if (sode.Count > 0) sb.AppendLine("    袖の天端: " + EdoBuild.TuckUnderCrest(sode, null, faces: sodeFace, measureOnly: true));
+        var dodome = new List<GameObject>(); var face = new Dictionary<GameObject, Vector3>();
+        foreach (Transform c in Group("Dodome")) { dodome.Add(c.gameObject); face[c.gameObject] = c.right; }
+        if (dodome.Count > 0) sb.AppendLine("    土留めの天端: " + EdoBuild.TuckUnderCrest(dodome, null, faces: face, measureOnly: true));
+        return sb.ToString();
+    }
+
+    /// <summary>据え直す Stage の冒頭で縁の皮を外す(穴を塞ぐ)。据え直した後で Stage9 を流し直すこと。</summary>
+    static string UnSkin()
+    {
+        var r = GameObject.Find(GROUP); if (r == null) return "";
+        var g = r.transform.Find("EdgeSkin"); if (g == null) return "";
+        EdoYashikiPrefab.EnsureEditable(r);
+        int n = EdoBuild.ClearEdgeSkins(g);
+        return n > 0 ? "  縁の皮を外した(塞いだ升 " + n + ")── ⚠ 最後に Stage9 を流し直すこと\n" : "";
+    }
+
     // ================================================================ 一括
-    [MenuItem(MENU + "一括(0→6・8。⛔ 社叢は撒かない)")]
+    [MenuItem(MENU + "一括(0→6・8・9。⛔ 社叢は撒かない)")]
     public static void BuildAllMenu() { Debug.Log("[山王] " + BuildAll()); }
     public static string BuildAll()
     {
@@ -2041,6 +2134,7 @@ public static class EdoSannoShaRebuild
         sb.AppendLine(Stage5_MonTorii());
         sb.AppendLine(Stage6_Shaden());
         sb.AppendLine(Stage8_Ido());
+        sb.AppendLine(Stage9_Hifu());
         return sb.ToString();
     }
 }

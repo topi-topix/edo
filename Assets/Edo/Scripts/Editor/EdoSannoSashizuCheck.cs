@@ -659,8 +659,15 @@ public static class EdoSannoSashizuCheck
             float gradeTol = F(D(impl, "checks"), "gradeTol");
             Terrain ter = null;
             try { ter = EdoBuild.T(); } catch (Exception) { }
+            // ⭐ 測るのは**描かれた地表**(EDO-0430): 縁の皮(EdoBuild.CutEdgeSkin)で穴を開けた升では皮の高さ、
+            //   それ以外は地形。⛔ 穴の升で SampleHeight を読まない(穴の下の、描かれていない地形を測ることになる)。
+            //   穴の升で皮も無い点は「描かれていない」= 未測定として不合格に数える(規則19)。
+            EdoBuild.DrawnGround dg = null;
+            if (ter != null) dg = EdoBuild.Drawn();
             if (ter == null) bad("造成の面", "アクティブな Terrain が無いので面を測れない");
             else
+            {
+                head.AppendLine("  造成の面は描かれた地表で測る(縁の皮 " + dg.skins + " 枚 ── 穴の升では皮の高さ)");
                 foreach (var o in L(impl, "terraces"))
                 {
                     var tc = o as Dictionary<string, object>; if (tc == null) continue;
@@ -671,13 +678,15 @@ public static class EdoSannoSashizuCheck
                     float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
                     foreach (var p in poly)
                     { mnx = Mathf.Min(mnx, p.x); mxx = Mathf.Max(mxx, p.x); mnz = Mathf.Min(mnz, p.y); mxz = Mathf.Max(mxz, p.y); }
-                    int n = 0, over = 0; float worst = 0f; Vector2 worstAt = Vector2.zero;
+                    int n = 0, over = 0, blank = 0; float worst = 0f; Vector2 worstAt = Vector2.zero;
                     for (float x = mnx; x <= mxx; x += 2f)
                         for (float z = mnz; z <= mxz; z += 2f)
                         {
                             if (!Inside(poly, x, z)) continue;
                             n++;
-                            float d = EdoBuild.Ground(x, z) - y;
+                            float gz = dg.At(x, z);
+                            if (float.IsNaN(gz)) { blank++; continue; }
+                            float d = gz - y;
                             if (Mathf.Abs(d) > gradeTol) over++;
                             if (Mathf.Abs(d) > Mathf.Abs(worst)) { worst = d; worstAt = new Vector2(x, z); }
                         }
@@ -686,7 +695,10 @@ public static class EdoSannoSashizuCheck
                         bad("造成の面", "面 " + name + "(設計 y=" + y.ToString("F2") + ")が造成されていない — 標本 " +
                             n + " 点中 " + over + " 点が許容 " + gradeTol.ToString("F2") + "m の外。最大 " +
                             worst.ToString("F2") + "m @ " + V(worstAt));
+                    if (blank > 0)
+                        bad("造成の面", "面 " + name + " の標本 " + n + " 点中 " + blank + " 点が穴の升で皮も無い(描かれていない・未測定)");
                 }
+            }
         }
 
         // =====================================================================

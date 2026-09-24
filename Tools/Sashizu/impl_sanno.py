@@ -2983,6 +2983,34 @@ def derive_runs(d, g):
         if mg and mg[0][0] < pk: mg[0][0] = 0.0
         if mg and s0 - mg[-1][1] < pk: mg[-1][1] = s0
         kspans = [[round(q0, 4), round(q1, 4)] for q0, q1 in mg]
+    # ⭐ **口の端を土留めの小口へ突き付けて閉じる**【2026-09-25 普請奉行 ── 境内の囲いに抜け穴を作らない】
+    #    `endsAbut` を持つ宣言の相手(野面の土留め)に最も近い口の端ごとに、柵の端 → 土留めの線の最寄りの点を
+    #    対で焼く(`kuchiAbut`)。⛔ 座標を指図へ書かない ── 突き付けの面は実装が実メッシュで測る(joints)。
+    kabut = []
+    for kb in kbs:
+        if not kb.get("endsAbut") or kb.get("kind"): continue
+        wsg = [s for q in d["terraceWalls"] if q.get("masonry") == kb.get("wallMasonry") for s in run_segs(q)]
+        acc9, cum = [], 0.0
+        for i in range(len(pts) - 1):
+            acc9.append(cum); cum += math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1])
+        def at_s(sv):
+            for i in range(len(pts) - 1):
+                Li = math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1])
+                if sv <= acc9[i] + Li + 1e-9 or i == len(pts) - 2:
+                    t = 0.0 if Li < 1e-12 else max(0.0, min(1.0, (sv - acc9[i]) / Li))
+                    return (pts[i][0] + (pts[i + 1][0] - pts[i][0]) * t, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * t)
+        def foot(pq, c, e):
+            ex, ey = e[0] - c[0], e[1] - c[1]; L2 = ex * ex + ey * ey or 1e-12
+            t = max(0.0, min(1.0, ((pq[0] - c[0]) * ex + (pq[1] - c[1]) * ey) / L2))
+            return (c[0] + ex * t, c[1] + ey * t)
+        for q0, q1 in kspans:
+            for sv in (q0, q1):
+                if sv <= 1e-6 or sv >= cum - 1e-6: continue       # 柵の折れ線の端 = 口ではない
+                P9 = at_s(sv)
+                Q9 = min((foot(P9, c, e) for c, e in wsg), key=lambda f: math.hypot(f[0] - P9[0], f[1] - P9[1]))
+                dk = math.hypot(Q9[0] - P9[0], Q9[1] - P9[1])
+                if dk * d["const"]["ken"] <= 3.0:                  # 相手が柵の丈の届く所にある端だけ(他の囲いの口の端は触らない)
+                    kabut.append([[round(P9[0], 4), round(P9[1], 4)], [round(Q9[0], 4), round(Q9[1], 4)]])
     osegs = [s for q in d["runs"] if q["name"] != "Ita_Keidai" and q.get("kind") not in kkinds
              for s in run_segs(q)]
     skips = []
@@ -3010,6 +3038,7 @@ def derive_runs(d, g):
     by["Ita_Keidai"]["gaps"] = gaps + skips
     by["Ita_Keidai"]["skips"] = skips
     if kbs: by["Ita_Keidai"]["kuchiSpans"] = kspans
+    if kbs: by["Ita_Keidai"]["kuchiAbut"] = kabut
     by["Ita_Keidai"].pop("gapU", None); by["Ita_Keidai"].pop("gapHalf", None)
     by["Ita_Keidai"]["_"] = ("境内の外周の**腰高の柵**【U ユーザー裁定 2026-09-07】。"
                              "**平場の輪郭から犬走り(`const.inubashiri`)ぶん内へ寄せて機械生成する** — "
@@ -6303,6 +6332,7 @@ def impl_runs(d, g):
                     "gaps": [[_w(g, q)[0], _w(g, q)[1], round(q[2] * d["const"]["ken"], 3)]
                              for q in (o.get("gaps") or [])],
                     "skips": len(o.get("skips") or []),
+                    "kuchiAbut": [[_w(g, a9), _w(g, b9)] for a9, b9 in (o.get("kuchiAbut") or [])] or None,
                     "lenM": round(run_len_ken(o) * d["const"]["ken"], 3),
                     "nodeLenM": round(run_nodes_ken(o) * d["const"]["ken"], 3),
                     "gapLedgerM": dict((k9, round(v9 * d["const"]["ken"], 3))

@@ -2967,8 +2967,9 @@ AMAOCHI_MIN_KEN = 0.25   # 帯の切れ端を落とす下限[間] ── ⛔ 設
 def derive_amaochi(d):
     """**雨落ち**(`amaochi`)の帯を `gardens` へ書き込む【庭方の設計 2026-09-19 ── K115(a)】。
 
-    ⭐ **面を json に持たない**(規則4)── 帯は棟の**柱芯の矩形の四面の外**へ幅 `widthKen` を
+    ⭐ **面を json に持たない**(規則4)── 帯は棟の**外面の四面の外**へ幅 `widthKen` を
       回した従属値で、置き方は既に在る `gardens[御供所の雨落ち・東/西]` と**同じ**。
+      外面 = `munes[].kidanM.out` を持つ棟は**部材の基壇の外面**、持たない棟は柱芯の矩形(検分 K157)。
     ⚠ **隣の屋根の下になる区間は抜く** ── 帯の芯線が別の棟の柱芯の矩形に入る区間を、長手方向の
       区間の引き算で落とす(残りが `AMAOCHI_MIN_KEN` に満たない切れ端は捨てる)。
     ⭕ **回廊は run** なので梁間 `bari` の半分の外へ両側に回す(`run_band_uv`)。
@@ -2979,7 +2980,15 @@ def derive_amaochi(d):
     if not am: return
     if any(q.get("amaochi") for q in d["gardens"]): return      # ⭕ 二度呼ばれても増やさない
     w = float(am["widthKen"]); out = []
-    R = [(m["name"], m["u0"], m["v0"], m["u0"] + m["du"], m["v0"] + m["dv"]) for m in d["munes"]]
+    ken = float(d["const"]["ken"])
+
+    def kd(m):
+        """棟の**基壇の出**[間]── `munes[].kidanM.out`(部材の基壇の写し)。無い棟は 0(柱芯の矩形のまま)。
+        ⭐ 2026-09-24 検分 K157 ── 帯を**部材の基壇の外面**から回す。⛔ 出を発明しない。"""
+        k = (m.get("kidanM") or {}).get("out")
+        return float(k) / ken if isinstance(k, (int, float)) else 0.0
+    R = [(m["name"], m["u0"] - kd(m), m["v0"] - kd(m), m["u0"] + m["du"] + kd(m), m["v0"] + m["dv"] + kd(m))
+         for m in d["munes"]]
     M = dict((m["name"], m) for m in d["munes"])
 
     def sub(seg, cuts):
@@ -2996,8 +3005,8 @@ def derive_amaochi(d):
 
     for nm in am.get("roster") or []:
         if nm not in M: raise SystemExit("⛔ `amaochi.roster`『%s』が `munes` に無い" % nm)
-        m = M[nm]
-        u0, v0 = m["u0"], m["v0"]; u1, v1 = u0 + m["du"], v0 + m["dv"]
+        m = M[nm]; e = kd(m)
+        u0, v0 = m["u0"] - e, m["v0"] - e; u1, v1 = m["u0"] + m["du"] + e, m["v0"] + m["dv"] + e
         for face in ("東面", "西面", "南面", "北面"):
             if face in ("東面", "西面"):
                 a0, a1 = ((u1, u1 + w) if face == "東面" else (u0 - w, u0))
@@ -3025,8 +3034,9 @@ def derive_amaochi(d):
             "clip": am.get("clip"), "noPlant": True, "noTrees": True, "acc": am["acc"],
             "poly": [[round(x0, 4), round(y0, 4)], [round(x1, 4), round(y0, 4)],
                      [round(x1, 4), round(y1, 4)], [round(x0, 4), round(y1, 4)]],
-            "_": "**雨落ち**(`amaochi` からの従属値)── 棟『%s』の%sの外へ幅 %g 間。"
-                 "⛔ 数を json に持たない・⛔ 水尻を付けない(敷きなのでその場で浸む)" % (nm, face, w)})
+            "_": "**雨落ち**(`amaochi` からの従属値)── 棟『%s』の%s(%s)の外へ幅 %g 間。"
+                 "⛔ 数を json に持たない・⛔ 水尻を付けない(敷きなのでその場で浸む)"
+                 % (nm, face, "部材の基壇の外面" if kd(M[nm]) else "柱芯の矩形の辺", w)})
     RN = dict((r["name"], r) for r in d["runs"])
     for rn in am.get("runs") or []:
         if rn not in RN: raise SystemExit("⛔ `amaochi.runs`『%s』が `runs` に無い" % rn)

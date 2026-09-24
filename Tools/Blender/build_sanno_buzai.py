@@ -466,8 +466,20 @@ def dan(keri, fumi, w, variant="a", name=None):
     return o, name
 
 
+def cs_f3(x):
+    """C#(Unity の Mono)の `((float)x).ToString("F3", Invariant)` と同じ綴り。
+    ⚠ Mono は float を**有効7桁に丸めてから**四捨五入(0.5 は 0 から遠い側)する。Python の "%.3f" は
+    2 進の正確な値で丸めるので、0.2375 が Python では 0.237・Unity では 0.238 に割れる(郭の階・2026-09-24 に踏んだ)。
+    ⇒ 名は実装(`EdoAssets.Own.SannoDan` / `IshidanSode`)と同じ規則で綴る。既存の組の綴りは変わらない。"""
+    import struct
+    from decimal import Decimal, ROUND_HALF_UP
+    f = struct.unpack("f", struct.pack("f", float(x)))[0]
+    d7 = Decimal(format(Decimal(repr(f)), ".6e"))      # 有効7桁(Mono の float の既定精度)
+    return str(d7.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP))
+
+
 def dan_name(keri, fumi, w, variant):
-    return "Dan_%.3f_%.3f_%.3f_%s" % (keri, fumi, w, variant)
+    return "Dan_%s_%s_%s_%s" % (cs_f3(keri), cs_f3(fumi), cs_f3(w), variant)
 
 
 def dan_check(o, keri, fumi, w):
@@ -525,7 +537,7 @@ SODE_CHAMFER = 0.02  # 目地の面取り(段石の 0.015 より一段大きく 
 
 
 def sode_name(keri, fumi, variant):
-    return "IshidanSode_%.3f_%.3f_%s" % (keri, fumi, variant)
+    return "IshidanSode_%s_%s_%s" % (cs_f3(keri), cs_f3(fumi), variant)
 
 
 def _sode_joints(P, target, off_frac):

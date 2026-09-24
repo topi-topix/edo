@@ -874,6 +874,8 @@ public static class EdoAssets
         /// 丈 H(Y)2.55(−0.30〜2.250)。基壇の根入れ 0.30・幅 0.60。端の引き: n = 0(節点ちょうど。柱は節点をまたいで ±0.09)/ t = 0(節点ちょうど・柱なし)/
         /// c = 基壇 0.300・躯体 0.090・銅瓦 0.400 を内へ引く(残りは隅部材が受ける)/ h = 柱が節点をまたいで ±0.09(銅の笠 ±0.12)。⚠ t・h の端は袖の稜で厚みが ±0.457 に広がる。
         /// 例 1852_nn: W(X)1.942(−0.926〜+1.016)× H 2.55 × D 0.80・1.1k tris。
+        /// 焼けているスパン(2026-09-24・境内の軸 5.5° の割り付け・EDO-0430): 1622 cn/nh/nn・1699 cn/nn/nt・1780 cn/nc/nn・1818 cn/nc・
+        /// 1857 cn/nc/nn・1866 nc/nn/tn・1923 cn/nc/nn・1995 cn/nc/nn(旧 1600〜1904 の組も残す)。
         /// ⚠ 辺は run 側で**等分**して焼く(n = round(辺長 / 1.818)、スパン = 辺長 / n。柱間 6 尺【施主裁定 2026-09-18】)。瓦はスパンに瓦モジュールが整数枚になる縮尺。
         /// 材 `wood` / `wall C` / `Doukawara` / `Kirishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
         /// 生成: blender --background --python Tools/Blender/build_sanno_sukibei.py -- --span 1.852 --ends cn,nc,nn --no-kado --render</summary>
@@ -915,7 +917,8 @@ public static class EdoAssets
         }
 
         /// <summary>**山王社の向拝の木階(三級・登高欄なし)— 明治16年寸法**。幅 <paramref name="wMm"/>(南北=Z)× 出 <paramref name="runMm"/>(東へ=X)
-        /// × 丈 <paramref name="riseMm"/>[mm](`kaidans[向拝の階]` の wKen・a〜b・yTop−yBot)。現行 (7620,1140,950)・252 tris。
+        /// × 丈 <paramref name="riseMm"/>[mm](`kaidans[向拝の階]` の wKen・a〜b・yTop−yBot)。現行 (7620,1140,900)・252 tris
+        /// (2026-09-24 に丈 0.95 → 0.90 = 蹴上 0.30 × 3・外形 W(X)1.20 × H(Y)1.04 × D(Z)7.94。旧 950 は残す)。
         /// ⭐ ピボット = a〜b の中点・地盤レベル、東(+X)へ降りる ⇒ yaw 0・scale one。⛔ 石段(`Dan_*`)にしない。
         /// ⚠ 本殿の木階は作り合いの部材に入る(今回は未造)。
         /// 生成: SANNO_SASHIZU=&lt;指図&gt; blender --background --python Tools/Blender/build_sanno_shaden.py -- kizahashi</summary>
@@ -1133,7 +1136,10 @@ public static class EdoAssets
         /// <summary>**山王社の段石(石段の一段)**。蹴上 <paramref name="keri"/> / 踏面 <paramref name="fumi"/> / 幅 <paramref name="w"/>[m]、
         /// 個体 <paramref name="i"/> の偶奇で a / b を振る(⛔ 片方だけを53段並べない — 目地が一直線に立つ)。
         /// 寸法は指図 `kaidans` が正典で、**蹴上・踏面は段数と平面長・比高からの従属値**(⛔ CLAUDE.md の 0.30/0.45 は参道の坂に当てない)。
-        /// 焼けている組: 男坂 (0.260, 0.650, 6.999) / 女坂 (0.300, 1.199, 6.363) / 参道の階 (0.250, 0.542, 5.509)。
+        /// 焼けている組: 男坂 (0.260, 0.650, 6.999) / 女坂 (0.300, 1.199, 6.363) / 参道の階 (0.250, 0.542, 5.509) /
+        /// 郭の階 (0.238, 0.450, 1.818) / 段の階・幣殿の北 (0.217, 0.450, 1.818) / 段の階・本殿の北と南 (0.200, 0.450, 1.818) /
+        /// 中門の内の階 (0.200, 0.450, 2.540)(2026-09-24 境内の軸 5.5° の建て直しで足した・EDO-0430)。
+        /// ⚠ 綴りは Unity の float の F3(有効7桁で丸めてから四捨五入)⇒ 蹴上 0.2375 は **0.238**(Python の "%.3f" なら 0.237)。生成器は `cs_f3` で同じ綴りにする。
         /// ⚠ 旧 (0.260, **0.693**, 6.999) は男坂の平面長を詰める前の組で、**どの階も参照していない**(消していない)。
         /// ⭐ 幅 = X / 高さ = Y / 走り = Z、**+Z = 見え面 = 坂下(蹴上の面)**。ピボット = 踏面の中心・**踏面の天端**。
         /// ⇒ 段 i(下から0起点)は position = 下端 + 進行方向 × 踏面×(i+0.5)、position.y = 下端の天端 + 蹴上×(i+1)。
@@ -1158,7 +1164,8 @@ public static class EdoAssets
         /// **天端**: Y = 0.30 + (踏面/2 − Z)·蹴上/踏面 = **段鼻の線の鉛直 0.30 上**の一直線(Z = +踏面/2 がその段の段鼻の真横)。
         /// 笠石の丈 0.24・下端は天端の線の 2.20 下の平行線(最大見付 1.74 + 根入れ 0.46)。走りは Z ±踏面/2 ちょうど(段の境で隣の駒と面一)。
         /// 据え方: 段 i の段石の踏面(天端)と段鼻・小口を測り、駒の天端の線を段鼻の線 +0.30 に、側面を小口に合わせる(⛔ ピボットや bounds 中心で合わせない)。
-        /// 寸法の設計値(厚み・天端の高さ・笠石・根入れ)は【U 部材方 2026-09-23】。焼けている組: (0.260, 0.650) / (0.300, 1.199) / (0.250, 0.542)。
+        /// 寸法の設計値(厚み・天端の高さ・笠石・根入れ)は【U 部材方 2026-09-23】。焼けている組: (0.260, 0.650) / (0.300, 1.199) / (0.250, 0.542) /
+        /// 郭の階 (0.238, 0.450) / 中門の内の階 (0.200, 0.450)(2026-09-24・EDO-0430)。
         /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode [--only=男坂 | <蹴上> <踏面>] --render</summary>
         public static string IshidanSode(float keri, float fumi, int i)
         {
@@ -1173,6 +1180,7 @@ public static class EdoAssets
         /// 切った端の天端は**芯(xc)での高さのまま留めの面に沿って一定**(端の石が少しねじれる)⇒ 留めの両側の天端の段差 0。
         /// ⭐ 段石は段の境を結ぶ弦で据える(`EdoSannoShaRebuild.Stage2_Kaidan`)ので、一つの折れ点は前後二つの継ぎ目に分かれ、
         /// 折れ点を含む段の駒は**両端**が切られる。角は F2 で綴る。使い手は `EdoBuild.MiterIshidanSode`。
+        /// 2026-09-24(境内の軸 5.5°・EDO-0430)に切通しの並びが変わって `F+0.00_B-0.64_b`(段 31・相手の居ない端)を一覧に足して焼いた。
         /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_miter_list Tools/Blender/sanno_onna_miter_set.txt 0.300 1.199 6.363 --render(一覧の各行 `段番号 a|b F±hF B±hB`・部材方 2026-09-23)</summary>
         public static string IshidanSodeMiter(float keri, float fumi, float w, float hF, float hB, int i)
         {

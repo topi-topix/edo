@@ -34,3 +34,4 @@
 - [石段の袖は剪断した1段の駒・UV は周期座標で](ishidan-sode-sheared-module.md) — 横目地も勾配に平行・留めは両端切り(弦の据え)・一覧を repo に置かないと焼き直せない(2026-09-23)
 - [木の LOD 子名は <名>_LOD0・旧6樹種は焼き直すと姿が変わる](tree-lod-naming-and-relod.md) — 名だけ直すなら relod_fbx.py。材質を消さないと .001(2026-09-23)
 - [野面の乱積みの試作と本番で踏んだ罠](nozura-rubble-proto-pitfalls.md) — 天端は円弧で切る・芝の肩は頭の上から被せる・継ぎ目は端の石+番人の Voronoi で揃える(2026-09-24)
+- [Unity の F3 と欠けた名の拾い先](unity-f3-name-and-missing-list-source.md) — 0.2375 は Unity で 0.238。欠けた名は棟梁の jsonl から(2026-09-24)

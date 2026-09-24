@@ -2774,6 +2774,12 @@ def main():
     pos = [a for a in argv if not a.startswith("--")]
     do_render = "--render" in argv
     what = pos[0] if pos else "all"
+    if pos == ["kizahashi"] and not do_render:
+        # ⭐ 木階だけなら棟の矩形・床は要らない(`kizahashi_spec` が `kaidans[向拝の階]` から全部読む)。
+        #   ⚠ 2026-09-24 時点で `rects()` は旧鍵 `const.shadenFloor` を読んで止まる(指図は `shadenFloorY` 系へ
+        #   改まった)。棟の焼き直しはその直しと一緒に ── 木階の焼き直しをそれで止めない(EDO-0430)。
+        build_kizahashi({"_ken": float(sashizu()["const"]["ken"])})
+        return
     R = rects()
     apply_floor(R)
     s0 = Sori(1.0)

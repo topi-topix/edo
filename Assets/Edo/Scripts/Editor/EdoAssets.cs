@@ -1920,6 +1920,21 @@ public static class EdoAssets
                  + UnityEngine.Mathf.RoundToInt(UnityEngine.Mathf.Abs(deg)).ToString("00") + (deg < 0f ? "M" : "") + ".fbx";
         }
 
+        /// <summary>**丈違いの石垣の隅**(`Castle Wall` の留め継ぎ・丈 <paramref name="h"/> m)。
+        /// 素の 4m の下へ 1m の段を**勾配(0.25/m)のまま**継ぎ足した物で、天端 1.4m 幅と面の通りは直線材の
+        /// `JC.CastleWall` と一致する(⛔ 縦に引き伸ばしていない)。据えは <see cref="Kado"/> と同じ:
+        /// position = 折れ点(内面の線)・y = **天端 − h** / yaw = 入りの run の駒の yaw / scale = 1。
+        /// 入りの run の最後の 1 枚 [折れ点 − 2.0, 折れ点] と出の run の最初の 1 枚を兼ねる。
+        /// 焼いてあるもの: **90 × 5.00(出隅)** — 山王社 回廊の基壇 NE 隅(天端 29.00・足元 24.59・EDO-0430)。
+        /// 実寸 5.00(高さ)・面の足は内面から 2.65 出る。材 `stone wall` ⇒ `Edo/共通/隅部材のマテリアルをremap`。
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 5 --render</summary>
+        public static string IshigakiKado(float deg, float h)
+        {
+            return "Assets/Edo/Models/Kado/Ishigaki_Kado_"
+                 + UnityEngine.Mathf.RoundToInt(UnityEngine.Mathf.Abs(deg)).ToString("00") + (deg < 0f ? "M" : "")
+                 + "_H" + UnityEngine.Mathf.RoundToInt(h * 100f).ToString("0000") + ".fbx";
+        }
+
         public const string MShop01     = "Assets/Edo/Materials/M_Shop01.mat";
         public const string MShop02     = "Assets/Edo/Materials/M_Shop02.mat";
         public const string MKido       = "Assets/Edo/Materials/M_Kido.mat";

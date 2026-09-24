@@ -6,6 +6,8 @@
     blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 31.3
     blender --background --python Tools/Blender/build_kado.py -- --all           # 指図 其十五の3点
     blender --background --python Tools/Blender/build_kado.py -- --part nagaya --deg 38.3 --render
+    blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 5 --render
+        # 丈違い(石垣だけ)。素の 4m の下へ 1m の段を勾配のまま継ぎ足す → Ishigaki_Kado_90_H0500
 
 【なぜ要るか】在庫の出隅ブロック `Castle Wall Corner`(2.4m 角)が成立するのは折れ角 Δ≳60°。
   Δ が浅いと片面を合わせても apex が反対側の壁面から `2.4·cosΔ` はみ出す
@@ -51,6 +53,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import vklib as V
 
 FLIP_THK = False        # --flipthk で立てる。書き出し名に T が付く
+H_OUT = None            # --h で立てる(石垣だけ)。丈を m で。書き出し名に _H<cm4桁> が付く
 
 ROOT = V.REPO
 JC   = os.path.join(ROOT, "Assets/Japanese Castle")
@@ -215,6 +218,61 @@ def normalize(o, part, extras=None):
     return run
 
 
+# ---------------------------------------------------------------- 丈の継ぎ足し(石垣)
+BATTER_ISHIGAKI = 0.25   # Castle Wall の勾配。1m 下がるごとに面が 0.25 外へ出る(x + 0.25·z = 2.4)
+COURSE_ISHIGAKI = 1.0    # 素の Castle Wall は 1m ごとに輪切りの辺がある(4 段)
+
+
+def extend_down(o, h):
+    """石垣の丈を **下へ** 伸ばす。天端(1.4m 幅・面の通り)は素のまま動かさない。
+
+    素の最下段(z∈[0,1])を複製して下へ積み、**勾配の面に載る頂点だけ**を段ごとに 0.25 外へ出す。
+    ⭐ 面は一枚の平面(x + 0.25·z = 2.4)なので、こうすれば勾配がそのまま下へ続く。
+      背(x=0)と小口の縦の辺(x=1.4)は動かさない ⇒ 小口は x∈[0, 面] の平面のまま閉じる。
+    ⛔ z を引き伸ばさない(石の目が縦に伸びる)。段は丸ごと 1m で足す ⇒ 丈は 4+k m。
+    UV は最下段のものをそのまま使う(同じ段の石が繰り返す。直線材の段と同じ見え)。"""
+    k = int(round(h - 4.0))
+    if k <= 0:
+        return o
+    me = o.data
+    face = lambda v: abs(v.co.x + BATTER_ISHIGAKI * v.co.z - 2.4) < 1e-3 and v.co.x > 1e-3
+    # 最下段だけを切り出す
+    band = o.copy(); band.data = me.copy()
+    bpy.context.collection.objects.link(band)
+    bm = bmesh.new(); bm.from_mesh(band.data)
+    bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], dist=1e-5,
+                           plane_co=Vector((0, 0, COURSE_ISHIGAKI)), plane_no=Vector((0, 0, 1)),
+                           clear_outer=True, clear_inner=False)
+    bmesh.ops.delete(bm, geom=[e for e in bm.edges if not e.link_faces], context='EDGES')
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+    bm.to_mesh(band.data); bm.free()
+    onface = [face(v) for v in band.data.vertices]
+    # 素の本体を k 段ぶん上げる
+    for v in me.vertices:
+        v.co.z += k * COURSE_ISHIGAKI
+    me.update()
+    parts = [o]
+    for j in range(k):                       # j=0 が本体の直下
+        c = band.copy(); c.data = band.data.copy()
+        bpy.context.collection.objects.link(c)
+        dz = (k - 1 - j) * COURSE_ISHIGAKI
+        dx = (j + 1) * BATTER_ISHIGAKI * COURSE_ISHIGAKI
+        for v, f in zip(c.data.vertices, onface):
+            v.co.z += dz
+            if f:
+                v.co.x += dx
+        c.data.update()
+        parts.append(c)
+    bpy.data.objects.remove(band, do_unlink=True)
+    o = V.join(parts, o.name)
+    bm = bmesh.new(); bm.from_mesh(o.data)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
+    bm.to_mesh(o.data); bm.free(); o.data.update()
+    zs = [v.co.z for v in o.data.vertices]; xs = [v.co.x for v in o.data.vertices]
+    print("[kado] 丈を %d 段継ぎ足した: z[%.2f,%.2f] 面の足 x=%.3f" % (k, min(zs), max(zs), max(xs)))
+    return o
+
+
 # ---------------------------------------------------------------- 留め(mitre)
 def tile(o, pitch, n_pos, n_neg):
     """走り方向に **継ぎピッチ** で複製して腕を伸ばす。y ∈ [−n_neg·pitch, +n_pos·pitch]。"""
@@ -322,12 +380,21 @@ def build(part, deg, arms=None):
     V.reset()
     o, mune = load(part)
     run = normalize(o, part, [mune])
+    if H_OUT is not None:
+        if part != "ishigaki":
+            raise SystemExit("[kado] --h は石垣だけ")
+        o = extend_down(o, H_OUT)
     pitch = p["pitch"]
     # 腕は**片側 1 モジュール**。こうすると隅部材が直線材ちょうど 1 枚の置き換えになり、
     # 入りの run は `t1 = L − 1モジュール`、出の run は `t0 = 1モジュール` で済む。
     # 張り出し(留めの「出」)ぶんに反対側へもう 1 モジュール積んでから切る。
     n_pos = arms if arms else PARTS[part].get("arms", 1)
     n_neg = 1
+    # 出隅の張り出しは 厚み·tan(Δ/2)。Δ=90° の石垣では 2.4〜2.65m で 1 モジュール(2.0)を越える
+    #   ⇒ 張り出しを覆えるまで −Y に積む(2026-09-25 実測。足りないと隅の足に穴が開く)
+    _xmax = max(v.co.x for v in o.data.vertices)
+    while n_neg * pitch < _xmax * math.tan(math.radians(abs(deg)) * 0.5) + 0.05:
+        n_neg += 1
     # ★ origin="pivot" の部材は、ピボットが走りの端に寄っているので **+Y 側が 1 モジュールに
     #   足りない**ことがある(長屋は y が 2.04 までしか無く、留めで切ると腕が半分になった。
     #   2026-08-20 実測)。1 モジュールぶん覆えるまで +Y に積む。
@@ -346,7 +413,7 @@ def build(part, deg, arms=None):
     armA = tile(o, pitch, n_pos, n_neg)
     armA = bisect_keep(armA, n, keep_positive=True)
     armB = mirror_across(armA, n)
-    o = V.join([armA, armB], "%s_%02d%s%s" % (p["out"], round(abs(deg)), "" if deg > 0 else "M", "T" if FLIP_THK else ""))
+    o = V.join([armA, armB], "%s_%02d%s%s%s" % (p["out"], round(abs(deg)), "" if deg > 0 else "M", "T" if FLIP_THK else "", hsuf()))
     if mune is not None:
         hip = hip_ridge(o, mune, n)
         bpy.data.objects.remove(mune, do_unlink=True)
@@ -367,17 +434,24 @@ def build(part, deg, arms=None):
     print("[kado]   外面の張り出し(折れ点より先) = %.3f m" % max(0.0, -min(ys)))
 
     hand = ("" if deg > 0 else "M") + ("T" if FLIP_THK else "")
-    path = os.path.join(OUT, "%s_%02d%s.fbx" % (p["out"], round(abs(deg)), hand))
+    path = os.path.join(OUT, "%s_%02d%s%s.fbx" % (p["out"], round(abs(deg)), hand, hsuf()))
     V.export_fbx([o], path)
     print("[kado] wrote %s" % path)
     return o, path
 
 
+def hsuf():
+    """丈の接尾辞。cm の 4 桁(`Sanno_Nozura_H0150` と同じ書き方)。⚠ int() でなく round()。"""
+    return "" if H_OUT is None else "_H%04d" % int(round(H_OUT * 100))
+
+
 def main():
-    global FLIP_THK
+    global FLIP_THK, H_OUT
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     do_render = "--render" in argv
     FLIP_THK = "--flipthk" in argv
+    if "--h" in argv:
+        H_OUT = float(argv[argv.index("--h") + 1])
     jobs = []
     if "--all" in argv:
         jobs = [("ishigaki", 31.3), ("dobei", 31.3), ("nagaya", -38.3)]
@@ -397,7 +471,7 @@ def main():
             # ⚠ 鏡像(M)は同じ |deg| なので、hand を名に入れないと非鏡像の検証画像を上書きする
             hand = "" if deg > 0 else "M"
             V.render(os.path.join(ROOT, "Screenshots",
-                                  "kado_%s_%02d%s.png" % (part, round(abs(deg)), hand)))
+                                  "kado_%s_%02d%s%s.png" % (part, round(abs(deg)), hand, hsuf())))
 
 
 main()

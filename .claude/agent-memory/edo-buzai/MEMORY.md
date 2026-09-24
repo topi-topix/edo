@@ -36,3 +36,4 @@
 - [野面の乱積みの試作と本番で踏んだ罠](nozura-rubble-proto-pitfalls.md) — 天端は円弧で切る・芝の肩は頭の上から被せる・継ぎ目は端の石+番人の Voronoi で揃える(2026-09-24)
 - [Unity の F3 と欠けた名の拾い先](unity-f3-name-and-missing-list-source.md) — 0.2375 は Unity で 0.238。欠けた名は棟梁の jsonl から(2026-09-24)
 - [袖の丈違いと透塀の割り付けの読み先](sode-depth-variant-for-groundhi.md) — 上げの上限超えは _D3.20・留めも丈違いが要る。女坂は切石の袖(2026-09-24)
+- [石垣の隅を 90°・4m 超で焼く](ishigaki-kado-tall-90.md) — 丈は勾配の段を下へ継ぐ・90° は張り出しが 1 枚を越える(2026-09-25)

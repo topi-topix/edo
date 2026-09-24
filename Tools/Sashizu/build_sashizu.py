@@ -780,11 +780,37 @@ class Checks(object):
         M = self.M
         items = M.buildings() + [("石段", Obj(name=k.name, poly=shrink(k.poly, 0.2))) for k in M.kaidans if k.poly]
         bad = []
+        # ⭐ **棟の中の木階は棟の中身として数える**(施主裁定 2026-09-24 其一 A「其の一はA」)。
+        #   口が開くのは `kaidans[]` の `kizahashi: true` かつ `insideFrom.quote`(施主の言葉)を持つ木階だけ。
+        #   名指しの棟(`insideFrom.mune`)の平面の内に**収まる**組だけを除き、はみ出す組は赤のまま(規則19)。
+        kin = {}
+        for k in M.kaidans:
+            r9 = getattr(k, "raw", None) or {}
+            inf = r9.get("insideFrom")
+            if not (r9.get("kizahashi") and isinstance(inf, dict)):
+                continue
+            if (inf.get("quote") or "").strip():
+                kin[k.name] = (inf.get("mune"), k.poly)
+            else:
+                bad.append("⛔%s を棟の中身として数えようとしているが**施主の言葉が無い**"
+                           "(`kaidans[].insideFrom.quote`)" % k.name)
+        inside_n, inside_a = 0, 0.0
         for (ka, a), (kb, b) in itertools.combinations(items, 2):
             if polys_overlap(a.poly, b.poly):
                 if {ka, kb} == {"棟", "廊下"} or {ka, kb} == {"廊下", "附属屋"}:
                     continue          # 渡廊下は棟へ一間乗り込む(取り付き)
                 if ka == "廊下" and kb == "廊下":
+                    continue
+                hit = None
+                for (k1, o1), (k2, o2) in (((ka, a), (kb, b)), ((kb, b), (ka, a))):
+                    if k1 == "石段" and k2 == "棟" and o1.name in kin and kin[o1.name][0] == o2.name:
+                        hit = (kin[o1.name][1], o2.poly, o1.name)
+                if hit is not None:
+                    if poly_inside(hit[0], hit[1]):
+                        inside_n += 1
+                        inside_a += area(hit[0]) * M.KEN * M.KEN
+                        continue
+                    bad.append("%s×%s(木階が名指しの棟からはみ出す)" % (a.name, b.name))
                     continue
                 bad.append("%s×%s" % (a.name, b.name))
         gb = 0
@@ -801,8 +827,11 @@ class Checks(object):
                     bad.append("%s×%s" % (ga.name, gb2.name))
         n_rect = sum(1 for g in M.gardens if not g.explicit)
         note = "(割り当ての矩形の庭 %d は除く)" % n_rect if n_rect else ""
-        self.add("C01", "重なり 0 — 棟・廊下・附属屋・石段・実形の庭の総当たり %d 組" % (len(items) * (len(items) - 1) // 2),
-                 "%d 件 %s" % (len(bad), note), "ok" if not bad else "ng", bad[:12])
+        what = "重なり 0 — 棟・廊下・附属屋・石段・実形の庭の総当たり %d 組" % (len(items) * (len(items) - 1) // 2)
+        if kin:
+            what += "。棟の中の木階は中身として数える(施主裁定 2026-09-24 其一 A)"
+            note += "(棟の中の木階 %d 組・%.2f m² は除く)" % (inside_n, inside_a)
+        self.add("C01", what, "%d 件 %s" % (len(bad), note), "ok" if not bad else "ng", bad[:12])
 
     # C02 区画の中
     def c02(self):

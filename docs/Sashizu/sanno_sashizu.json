@@ -3853,7 +3853,14 @@
    "keri": 0.18,
    "fumi": 0.3636,
    "planeLen": 1.818,
-   "kizahashi": true
+   "kizahashi": true,
+   "insideFrom": {
+    "mune": "作り合い",
+    "quote": "其の一はA",
+    "date": "2026-09-24",
+    "zu": "https://claude.ai/artifact/5UyfJWjqCToBnaaC9irrdB",
+    "_": "作り合いの中に付く木階は作り合いの中身として数え、重なりに数えない(検査 C01 がこの引用を見て開く ── 作り合いの平面からはみ出す分は赤のまま)"
+   }
   },
   {
    "name": "段の階・幣殿の北(下の段 → 中の段)",

@@ -40,6 +40,7 @@ public static partial class EdoBuild
         public float proud;      // 上げた後、袖の背の線で天端が地表より出る量の最大[m](柔らかい・報告のみ)
         public bool refused;     // 上限を超えるので据えなかった(硬い: 埋まった袖を積まない・小口を開けない)
         public float depth;      // 据えた駒の丈[m](天端の線から下端まで。PlaceIshidanSodeByDepth が選んだ物)
+        public float dig;        // lineTop: 天端を段の線に置いたまま、背の地盤が天端より高い量の最大[m](背を造成で下げる量・CutEdgeSkin digParts)
     }
 
     /// <summary>**丈を選んで袖を据える**(EDO-0430 2026-09-24)。<paramref name="pathOf"/>(丈 → 袖のパス。
@@ -54,7 +55,7 @@ public static partial class EdoBuild
     /// 深い丈が要るのは今は女坂の切通しの坂下・坂上だけ(3.20 を焼いたのも女坂 (0.300, 1.199) だけ)。</summary>
     public static GameObject PlaceIshidanSodeByDepth(GameObject dan, System.Func<float, string> pathOf, IList<float> depths,
                                                      int side, Transform parent, string name, bool groundHi,
-                                                     out string warn, out SodeRise rise)
+                                                     out string warn, out SodeRise rise, bool lineTop = false)
     {
         warn = null; rise = new SodeRise();
         string lastWarn = null; SodeRise last = new SodeRise(); float lastD = float.NaN; var unbaked = new List<string>();
@@ -64,7 +65,7 @@ public static partial class EdoBuild
             if (UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
             { unbaked.Add(d.ToString("F2")); continue; }
             string w; SodeRise r;
-            var go = PlaceIshidanSode(dan, path, side, parent, name, groundHi, out w, out r);
+            var go = PlaceIshidanSode(dan, path, side, parent, name, groundHi, out w, out r, lineTop);
             r.depth = d;
             if (!r.refused) { warn = w; rise = r; return go; }
             lastWarn = w; last = r; lastD = d;
@@ -85,8 +86,11 @@ public static partial class EdoBuild
     /// 超えるなら据えない(<see cref="SodeRise.refused"/>・⛔ 硬い条件 ── 埋まった袖も、小口の下が開いた袖も許容0)。
     /// ⚠ 走りの中で地表の勾配が段の勾配と違うと、上げた駒の天端は背の線で地表より出る(<see cref="SodeRise.proud"/>・柔らかい)。
     /// 当たる先: 石段の袖(`terraceWalls` の coping:"stair")を持つ全ての石段 ── 山王の男坂・女坂・参道の階・郭の階・中門の内の階。</summary>
+    /// <para>⭐ <paramref name="lineTop"/> = true(`copingRise:"line"`・施主 2026-09-25「袖石が上下にガタガタしすぎ」):
+    /// 天端は**上げない** ── 谷側の袖と同じく段鼻の線 + 笠の滑らかな線に置き、背の地盤が天端より高い分は
+    /// <see cref="SodeRise.dig"/> に返して**背を造成で下げる**(<see cref="CutEdgeSkin"/> の digParts ── 天端 − 0.05 から法で元の地形へ)。</para>
     public static GameObject PlaceIshidanSode(GameObject dan, string sodePath, int side, Transform parent, string name,
-                                              bool groundHi, out string warn, out SodeRise rise)
+                                              bool groundHi, out string warn, out SodeRise rise, bool lineTop = false)
     {
         rise = new SodeRise();
         var go = PlaceIshidanSodeFlat(dan, sodePath, side, parent, name, out warn);
@@ -124,6 +128,7 @@ public static partial class EdoBuild
             if (need[k] > lift) lift = need[k];
         }
         if (lift <= 0.005f) return go;
+        if (lineTop) { rise.dig = lift; return go; }
         if (lift > rise.limit + 1e-3f)
         {
             rise.refused = true; rise.lift = lift;
@@ -291,5 +296,21 @@ public static partial class EdoBuild
             if (d < bd) { bd = d; q = h; }
         }
         return Vector2.Dot(q - c, new Vector2(t.right.x, t.right.z)) >= 0f ? 1 : -1;
+    }
+
+    /// <summary>**最上段の段石の外形を包む面の輪郭**(取り合いの「被せ」── 面の輪郭が最上段の小口まで届き外形を包む・EDO-0430)。
+    /// 段石の実メッシュを段の局所の軸(+Z = 坂下 = 表)で測り、表の線(段鼻)から背の外 <paramref name="m"/>・両の小口の外
+    /// <paramref name="m"/> までの矩形を世界 XZ で返す。⛔ 表の線より前(下の段の側)へは出さない。測れなければ null。
+    /// 当たる先: 面が最上段を包む石段すべて(山王 女坂 × Keidai。男坂・郭の階も欄に「被せ」を書けば同じ型)。</summary>
+    public static Vector2[] WrapTopStep(GameObject dan, float m)
+    {
+        var t = dan.transform; var vs = Body(t, 999999, true); if (vs.Count == 0) return null;
+        Vector3 f = t.forward; f.y = 0f; f.Normalize(); Vector3 r = t.right; r.y = 0f; r.Normalize();
+        Vector3 o = t.position;
+        float s0 = float.MaxValue, s1 = float.MinValue, w0 = float.MaxValue, w1 = float.MinValue;
+        foreach (var v in vs) { var d = v - o; float s = Vector3.Dot(d, f), w = Vector3.Dot(d, r); s0 = Mathf.Min(s0, s); s1 = Mathf.Max(s1, s); w0 = Mathf.Min(w0, w); w1 = Mathf.Max(w1, w); }
+        // s1 = 表(坂下・段鼻)/ s0 = 背
+        System.Func<float, float, Vector2> P = (s, w) => { var q = o + f * s + r * w; return new Vector2(q.x, q.z); };
+        return new[] { P(s1, w0 - m), P(s1, w1 + m), P(s0 - m, w1 + m), P(s0 - m, w0 - m) };
     }
 }

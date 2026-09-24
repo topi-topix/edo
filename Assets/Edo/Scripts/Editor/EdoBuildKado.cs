@@ -5,6 +5,7 @@
 //   ⭐ 使い方(順が肝): 隅を**先に**据える → KadoFace で両腕の外面を犬走りへ寄せる → KadoArm で腕の実端面を測る
 //      → 辺の端の run の端を、その実端面へ突き付ける。事後に寄せる関数は持たない(docs/oki-kata.md §2)。
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 public static partial class EdoBuild
@@ -130,5 +131,166 @@ public static partial class EdoBuild
         if (r1 == null || r2 == null) return false;
         h = r1[0]; l = r2[1];
         return true;
+    }
+
+    /// <summary>**石垣の run の出隅へ隅の駒を据える**(2026-09-25・EDO-0430)。二本の run
+    /// (<paramref name="runA"/> / <paramref name="runB"/> = 並べた直線材 `Castle Wall` 型の駒)が一点で折れて外へ凸に出る所に、
+    /// 留め継ぎの隅の駒(<paramref name="pathOf"/>(deg, h) — 例 `EdoAssets.Own.IshigakiKado`)を**両脇の直線材の実メッシュから測って**据え、
+    /// 腕が兼ねる端の 1 枚ずつを外す。<paramref name="nA"/>/<paramref name="nB"/> は各 run の外向き(見え面の側)の水平の単位ベクトル
+    /// (向きだけ。位置は測る)。
+    ///
+    /// <para>測るもの: ① 各 run の端の駒の**控え(鉛直な背)の線** = 外向きへの射影の最小 — 二本の交点が隅の据え点
+    /// ② **天端** = 両方の駒の最上点(食い違いは ⛔) ③ 据えた後、各腕の**天端の帯の見え面**が直線材の見え面と同じ線か・
+    /// 天端が揃うか・腕の先が次の駒へ届くか(隙・めり込み)。部材の約束(`build_kado.py`): 腕は局所 −Z(見え面 −X)と
+    /// +X 側(見え面 +Z)・据え点は内面の線の折れ点・y = 天端 − h。yaw は −X が片方の外向きに一致する解のうち、もう一方の
+    /// 腕の見え面が他方の外向きに最も近い物。</para>
+    ///
+    /// <para>硬い条件(許容0 = 退ける): 天端の食い違い・見え面の食い違い・腕の先の隙が <paramref name="tol"/> を超えたら
+    /// **建てずに直線材を残す**(note に ⛔)。丈 h は足元の地表(<paramref name="groundAt"/>)が天端 − h より上に来る
+    /// 最小の焼いてある丈(4.0〜8.0 を 0.5 刻みで探す)。焼いていなければ ⚠ を返し建てない。</para>
+    /// 当たる先: 石垣の run が凸に折れる所すべて(山王 回廊の基壇・御供所の郭・前庭の土留め、各邸の外周石垣の隅)。</summary>
+    public static GameObject PlaceRunKado(IList<GameObject> runA, Vector2 nA, IList<GameObject> runB, Vector2 nB,
+                                          Func<float, float, string> pathOf, Func<float, float, float> groundAt,
+                                          Transform parent, string name, float tol, out string note)
+    {
+        note = null;
+        // 見え面の側は法の出で測る(渡された向きは軸としてだけ使う): 下の帯が上の帯より前へ出る側が見え面
+        nA = FaceSide(runA, nA.normalized); nB = FaceSide(runB, nB.normalized);
+        float deg = Vector2.Angle(nA, nB);
+        if (deg < 20f) { note = "折れが浅い(" + deg.ToString("F1") + "°)— 隅の駒は要らない"; return null; }
+        // ① 各 run の控えの線(外向きへの射影の最小)と天端
+        Func<IList<GameObject>, Vector2, float[]> back = (run, n) =>
+        {
+            float c = float.MaxValue, top = float.MinValue;
+            foreach (var g in run) { if (g == null) continue;
+                foreach (var v in Body(g.transform, 999999)) { c = Mathf.Min(c, v.x * n.x + v.z * n.y); top = Mathf.Max(top, v.y); } }
+            return new float[] { c, top };
+        };
+        var bA = back(runA, nA); var bB = back(runB, nB);
+        if (Mathf.Abs(bA[1] - bB[1]) > tol) { note = "⛔ 両脇の天端が " + Mathf.Abs(bA[1] - bB[1]).ToString("F3") + "m 食い違う — 建てない"; return null; }
+        float crest = Mathf.Max(bA[1], bB[1]);
+        float det = nA.x * nB.y - nA.y * nB.x;
+        Vector2 P = new Vector2((bA[0] * nB.y - bB[0] * nA.y) / det, (nA.x * bB[0] - nB.x * bA[0]) / det);
+        // 凸(出隅)か: 相手の run の駒は自分の外向きの内側に在る
+        Func<IList<GameObject>, Vector2> cen = run => { Vector2 s = Vector2.zero; int k = 0; foreach (var g in run) if (g != null) { var b = RB(g); s += new Vector2(b.center.x, b.center.z); k++; } return k > 0 ? s / k : P; };
+        if (Vector2.Dot(cen(runB) - P, nA) > 0f || Vector2.Dot(cen(runA) - P, nB) > 0f) { note = "入隅 — 出隅の駒は据えない"; return null; }
+        // yaw: 局所 −X → (−cosψ, sinψ) を片方の外向きへ。局所 +Z → (sinψ, cosψ) がもう一方へ最も近い方
+        float psiA = Mathf.Atan2(nA.y, -nA.x) * Mathf.Rad2Deg, psiB = Mathf.Atan2(nB.y, -nB.x) * Mathf.Rad2Deg;
+        Func<float, Vector2> zdir = p => new Vector2(Mathf.Sin(p * Mathf.Deg2Rad), Mathf.Cos(p * Mathf.Deg2Rad));
+        bool xIsA = Vector2.Dot(zdir(psiA), nB) >= Vector2.Dot(zdir(psiB), nA);
+        float psi = xIsA ? psiA : psiB;
+        // 腕の走り(隅から離れる向き)
+        Vector2 armX = -zdir(psi);                          // 局所 −Z の腕(見え面 −X)
+        Vector2 armZ = new Vector2(Mathf.Cos(psi * Mathf.Deg2Rad), -Mathf.Sin(psi * Mathf.Deg2Rad));   // 局所 +X の腕(見え面 +Z)
+        var runX = xIsA ? runA : runB; var runZ = xIsA ? runB : runA;
+        Vector2 nX = xIsA ? nA : nB, nZ = xIsA ? nB : nA;
+        // 隅の見え面: 隅の外(対角 1.5m)の地表が天端 − 0.5 より高ければ、隅は土に隠れて口は見えない ⇒ 据えない
+        //   (据えると 5m の駒の天端を土が覆い、天端の埋没を増やす ── 2026-09-25 御供所の郭 N×E・社殿の腰石垣で実測 −0.15m)
+        {
+            Vector2 dq = P + (nX + nZ).normalized * 2.12f; float gd = groundAt(dq.x, dq.y);
+            if (!float.IsNaN(gd) && crest - gd < 0.5f) { note = "隅は土に隠れる(隅の外の地表 = 天端 " + (gd - crest).ToString("+0.00;-0.00") + "m)— 据えない"; return null; }
+        }
+        // 丈: 両脇の直線材の底より浅くしない + 隅の据え点(両腕の控えの線の上)の地表より下まで届く
+        //   ⛔ 隅の外の法の足先の地表では決めない ── 直線材も同じ所で浮き、そこは皮(縁の底へ寄せる)が受ける
+        float gMin = float.MaxValue;
+        foreach (var run in new IList<GameObject>[] { runA, runB })
+            foreach (var g in run) if (g != null) foreach (var v in Body(g.transform, 999999)) gMin = Mathf.Min(gMin, v.y);
+        for (float u = 0f; u <= 2.01f; u += 0.25f)
+            foreach (var q in new Vector2[] { P + armX * u, P + armZ * u })
+            { float g = groundAt(q.x, q.y); if (!float.IsNaN(g)) gMin = Mathf.Min(gMin, g); }
+        float degR = Mathf.Round(deg);
+        string path = null; float h = 0f;
+        for (float hh = 4.0f; hh <= 8.01f; hh += 0.5f)
+        {
+            if (gMin != float.MaxValue && crest - hh > gMin) continue;
+            string pp = pathOf(degR, hh);
+            if (System.IO.File.Exists(System.IO.Path.Combine(System.IO.Directory.GetParent(Application.dataPath).FullName, pp))) { path = pp; h = hh; break; }
+        }
+        if (path == null) { note = "⚠ 隅の駒が焼いていない(折れ " + degR + "°・要る丈 ≥ " + (crest - gMin).ToString("F2") + "m)— 建てない"; return null; }
+        // 腕が兼ねる端の駒 = 隅に最も近い駒
+        Func<IList<GameObject>, Vector2, GameObject> endOf = (run, arm) =>
+        { GameObject best = null; float bd = float.MaxValue;
+          foreach (var g in run) { if (g == null) continue; var b = RB(g); float d = Vector2.Dot(new Vector2(b.center.x, b.center.z) - P, arm); if (d < bd) { bd = d; best = g; } }
+          return best; };
+        var endX = endOf(runX, armX); var endZ = endOf(runZ, armZ);
+        var kc = Place(path, new Vector3(P.x, crest - h, P.y), psi, Vector3.one, parent, name);
+        // ③ 測る: 天端の帯(天端 −0.15 以上)の見え面と腕の先
+        float kTop = float.MinValue; foreach (var v in Body(kc.transform, 999999)) kTop = Mathf.Max(kTop, v.y);
+        Func<GameObject, Vector2, Vector2, float[]> crestFace = (g, n, arm) =>
+        {   // [見え面の外向き射影の最大, 腕の走りの最小, 最大](天端の帯)
+            float f = float.MinValue, s0 = float.MaxValue, s1 = float.MinValue;
+            foreach (var v in Body(g.transform, 999999))
+            {   if (v.y < crest - 0.15f) continue;
+                Vector2 r = new Vector2(v.x, v.z) - P; float s = Vector2.Dot(r, arm);
+                if (g == kc && s < 0.3f) continue;          // 隅の駒は自分の腕の側だけ
+                f = Mathf.Max(f, Vector2.Dot(r, n)); s0 = Mathf.Min(s0, s); s1 = Mathf.Max(s1, s); }
+            return new float[] { f, s0, s1 };
+        };
+        var sb = new System.Text.StringBuilder(); bool bad = Mathf.Abs(kTop - crest) > tol;
+        sb.Append("天端の差 " + (kTop - crest).ToString("+0.000;-0.000"));
+        var keep = new bool[2];
+        var sides = new object[][] { new object[] { runX, nX, armX, endX, "−Z の腕" }, new object[] { runZ, nZ, armZ, endZ, "+X の腕" } };
+        for (int si = 0; si < 2; si++)
+        {
+            var side = sides[si];
+            var run = (IList<GameObject>)side[0]; var n = (Vector2)side[1]; var arm = (Vector2)side[2]; var end = (GameObject)side[3];
+            var kf = crestFace(kc, n, arm);
+            // 腕が端の駒を兼ねられるか: 端を外して次の駒が腕の先へ届くなら外す。届かなければ端の駒を残す(重ねは直線材どうしと同じ納め)
+            for (int pass = 0; pass < 2; pass++)
+            {
+                float next = float.MaxValue, face = float.MinValue;
+                foreach (var g in run) { if (g == null || (pass == 0 && g == end)) continue; var cf = crestFace(g, n, arm); if (cf[1] < next) { next = cf[1]; face = cf[0]; } }
+                float dFace = face == float.MinValue ? 0f : kf[0] - face;       // + = 隅の駒が前へ出る(めり込み側の段差)
+                float gap = next == float.MaxValue ? 0f : next - kf[2];          // + = 腕の先と次の駒の間の口
+                if (pass == 0 && gap > tol) { keep[si] = true; continue; }
+                sb.Append(" / " + side[4] + ": 見え面の差 " + dFace.ToString("+0.000;-0.000") + "・腕の先の口 " + gap.ToString("+0.000;-0.000") + (keep[si] ? "(端の駒を残した)" : ""));
+                if (Mathf.Abs(dFace) > tol || gap > tol) bad = true;
+                break;
+            }
+        }
+        if (bad)
+        {
+            UnityEngine.Object.DestroyImmediate(kc);
+            note = "⛔ 隅の駒が両脇と合わない — 建てない(" + sb + ")"; return null;
+        }
+        if (endX != null && !keep[0]) { runX.Remove(endX); UnityEngine.Object.DestroyImmediate(endX); }
+        if (endZ != null && endZ != endX && !keep[1]) { runZ.Remove(endZ); UnityEngine.Object.DestroyImmediate(endZ); }
+        note = System.IO.Path.GetFileNameWithoutExtension(path) + " を据えた(yaw " + psi.ToString("F2") + "・丈 " + h.ToString("F1") + "・足元の最低 " + gMin.ToString("F2") + ")/ " + sb;
+        return kc;
+    }
+
+    /// <summary>石垣の駒の並び <paramref name="run"/> の見え面の外向きを、軸 <paramref name="axis"/> の ± のうち
+    /// **下の帯(下 25%)が上の帯(上 15%)より前へ出る側**として測る(法の付いた面が見え面・鉛直な背は出ない)。</summary>
+    public static Vector2 FaceSide(IList<GameObject> run, Vector2 axis)
+    {
+        float y0 = float.MaxValue, y1 = float.MinValue; var vs = new List<Vector3>();
+        foreach (var g in run) if (g != null) vs.AddRange(Body(g.transform, 999999));
+        foreach (var v in vs) { y0 = Mathf.Min(y0, v.y); y1 = Mathf.Max(y1, v.y); }
+        float lo = y0 + (y1 - y0) * 0.25f, hi = y1 - (y1 - y0) * 0.15f;
+        float pb = float.MinValue, pt = float.MinValue, mb = float.MinValue, mt = float.MinValue;
+        foreach (var v in vs)
+        {
+            float d = v.x * axis.x + v.z * axis.y;
+            if (v.y <= lo) { pb = Mathf.Max(pb, d); mb = Mathf.Max(mb, -d); }
+            if (v.y >= hi) { pt = Mathf.Max(pt, d); mt = Mathf.Max(mt, -d); }
+        }
+        return (pb - pt) >= (mb - mt) ? axis : -axis;
+    }
+
+
+    /// <summary>**石垣の駒の見え面(法の付いた面)が低い側を向いているかを測る**(2026-09-25・EDO-0430)。
+    /// 見え面の向きは <see cref="FaceSide"/>(下の帯が前へ出る側)、地盤は <paramref name="groundAt"/>(描かれた地表)を
+    /// 見え面の足の 0.8m 前と控えの 0.8m 後ろで取る。返り値 = 前 − 後ろ[m](+ なら見え面が高い側を向く = 裏返り)。
+    /// 当たる先: 土留め・郭・腰石垣・基壇に `Castle Wall` 型の駒を並べる全ての run(山王 Stage3、各邸の外周石垣)。</summary>
+    public static float WallFaceRise(GameObject piece, Func<float, float, float> groundAt)
+    {
+        var tr = piece.transform; var ax = new Vector2(tr.right.x, tr.right.z).normalized;
+        var f = FaceSide(new List<GameObject> { piece }, ax);
+        var vs = Body(tr, 999999); if (vs.Count == 0) return float.NaN;
+        float fmax = float.MinValue, bmin = float.MaxValue; Vector2 cen = Vector2.zero;
+        foreach (var v in vs) { float d = v.x * f.x + v.z * f.y; fmax = Mathf.Max(fmax, d); bmin = Mathf.Min(bmin, d); cen += new Vector2(v.x, v.z); }
+        cen /= vs.Count; float cd = cen.x * f.x + cen.y * f.y;
+        Vector2 pf = cen + f * (fmax - cd + 0.8f), pb = cen + f * (bmin - cd - 0.8f);
+        return groundAt(pf.x, pf.y) - groundAt(pb.x, pb.y);
     }
 }

@@ -63,6 +63,8 @@ public static partial class EdoBuild
         public float fillMax; public Vector3 fillAt;
         public float maxLower, maxRaise; public Vector3 lowerAt, raiseAt;
         public int detCells, trees, sealed_;
+        /// <summary>digParts の背を下げた点の数・下げた量の最大(天端を段の線に置いた袖 ── 施主 2026-09-25)。</summary>
+        public int dug; public float digMax; public Vector3 digAt;
         public int gapPts, gapN, gapBySkin, gapBig, coverPts, coverN;
         public float gapMax, coverMax; public Vector3 gapAt, coverAt; public string gapBy, coverBy;
         public string mesh;
@@ -76,6 +78,7 @@ public static partial class EdoBuild
                    " / 裏込め(部材の底まで盛る)" + filled + " 点・最大 " + fillMax.ToString("F2") + "m @(" + fillAt.x.ToString("F1") + ", " + fillAt.z.ToString("F1") + ")" +
                    "・地形の木の升は穴を開けず被せた " + fillLostTree + " 升" +
                    " / 面の高さの皮で部材の底まで塞いだ " + sealed_ + " 点" +
+                   (dug > 0 ? " / 背を下げた(天端 − 0.05 から法)" + dug + " 点・最大 " + digMax.ToString("F2") + "m @(" + digAt.x.ToString("F1") + ", " + digAt.z.ToString("F1") + ")" : "") +
                    " / 元の地形から 下げ 最大 " + maxLower.ToString("F2") + "m @(" + lowerAt.x.ToString("F1") + ", " + lowerAt.z.ToString("F1") + ")・上げ 最大 " + maxRaise.ToString("F2") + "m @(" + raiseAt.x.ToString("F1") + ", " + raiseAt.z.ToString("F1") + ")" +
                    " / 芝を消した 1m 升 " + detCells + " / 皮が 0.05m を超えて動いた所の地形の木 " + trees + " 本" +
                    "\n    硬い(許容0): 皮と部材の隙 ── 皮が作った " + gapBySkin + " / 元の地形でも同じ(部材の浮き・皮の外の欠陥) " + (gapN - gapBySkin) + " / " + gapPts + " 点(うち 0.05m を超える " + gapBig + ")" + (gapN > 0 ? "(最大 " + gapMax.ToString("F3") + "m @(" + gapAt.x.ToString("F2") + ", " + gapAt.z.ToString("F2") + ")〔" + gapBy + "〕)" : "") +
@@ -88,6 +91,8 @@ public static partial class EdoBuild
     public const float BAND = 4f;
     /// <summary>面の外の点を縁から法で受ける最大の離れ[m]。</summary>
     const float BATTER_REACH = 6f;
+    /// <summary>digParts(背を下げる部材)の天井が届く距離[m]。背の地盤が天端より DIG_REACH / digBatter − digUnder 以内の高さなら収まる。</summary>
+    const float DIG_REACH = 3f;
     /// <summary>縁の線の点がこの距離の中に部材(土留め・石段)を持てば「囲いのある縁」── 法を当てない[m]。</summary>
     const float WALLED = 0.75f;
     /// <summary>裏込めの天端の平ら(部材の外形の縁から)[m]。皮の格子(0.25)の三角形が外形の 0.05m 外で底を割らない幅。</summary>
@@ -254,7 +259,8 @@ public static partial class EdoBuild
     /// 皮と部材の底の隙 0(<see cref="SkinReport.gapN"/>)。⛔ 掘らない(皮は元の地形より下げない側の話ではなく、上げる側)。</para>
     public static SkinReport CutEdgeSkin(string name, Transform parent, IList<GameObject> parts, IList<SkinFace> faces,
                                          float faceTol, float step = 0.25f, float margin = 0.5f, float eps = 0f, float under = 0.15f,
-                                         SkinDesign design = null, float drawTol = 0.10f, float backfill = 0f, bool sealFace = false)
+                                         SkinDesign design = null, float drawTol = 0.10f, float backfill = 0f, bool sealFace = false,
+                                         IList<GameObject> digParts = null, float digUnder = 0.05f, float digBatter = 1f)
     {
         var r = new SkinReport();
         var t = T(); var td = t.terrainData; var org = t.transform.position;
@@ -285,6 +291,40 @@ public static partial class EdoBuild
                     if (RectOverlapsPoly(lo - Vector2.one * margin, lo + Vector2.one * (cs + margin), h)) partCells.Add(CK(i, j));
                 }
         }
+        // ⭐ 背を下げる部材(digParts): 天端 − digUnder から 1:digBatter で上る天井を皮に掛ける。升は DIG_REACH まで開ける
+        //   (皮の縁 = 地形のままの点が天井より内に来ないように)。当たる先: `copingRise:"line"` の石段の袖。
+        var digH = new List<Vector2[]>(); var digC = new List<Vector2>(); var digB = new List<Vector4>();
+        if (digParts != null)
+            foreach (var g in digParts)
+            {
+                if (g == null || !g.activeInHierarchy) continue;
+                var h = HullOfMat(g.transform, null); if (h == null || h.Length < 3) continue;
+                Vector2 c = Vector2.zero; float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
+                foreach (var q in h) { c += q; mnx = Mathf.Min(mnx, q.x); mxx = Mathf.Max(mxx, q.x); mnz = Mathf.Min(mnz, q.y); mxz = Mathf.Max(mxz, q.y); }
+                digH.Add(h); digC.Add(c / h.Length); digB.Add(new Vector4(mnx, mnz, mxx, mxz));
+                for (int i = CI(mnx - DIG_REACH); i <= CI(mxx + DIG_REACH); i++)
+                    for (int j = CJ(mnz - DIG_REACH); j <= CJ(mxz + DIG_REACH); j++)
+                    {
+                        var lo = new Vector2(org.x + i * cs, org.z + j * cs);
+                        if (RectOverlapsPoly(lo - Vector2.one * DIG_REACH, lo + Vector2.one * (cs + DIG_REACH), h)) partCells.Add(CK(i, j));
+                    }
+            }
+        Func<Vector2, float> DigCap = q =>
+        {
+            float cap = float.NaN;
+            for (int k = 0; k < digH.Count; k++)
+            {
+                var b = digB[k];
+                if (q.x < b.x - DIG_REACH || q.x > b.z + DIG_REACH || q.y < b.y - DIG_REACH || q.y > b.w + DIG_REACH) continue;
+                if (EdoGeom.PIP(digH[k], q)) continue;
+                Vector2 cq; float d = ClosestOnPoly(digH[k], q, out cq); if (d > DIG_REACH) continue;
+                Vector2 inw = cq + (digC[k] - cq).normalized * 0.05f;
+                int who; float top = idx.Top(inw.x, inw.y, out who); if (float.IsNaN(top)) continue;
+                float v = top - digUnder + d / Mathf.Max(0.1f, digBatter);
+                if (float.IsNaN(cap) || v < cap) cap = v;
+            }
+            return cap;
+        };
         var faceCells = new HashSet<long>();
         if (faces != null)
             foreach (var f in faces)
@@ -702,6 +742,15 @@ public static partial class EdoBuild
                                     if (float.IsNaN(floor) || bq > floor) floor = bq;
                                 }
                             if (!float.IsNaN(floor) && hgt < floor) { hgt = Mathf.Min(pre, floor); r.floored++; }
+                        }
+                        if (digH.Count > 0 && near < 2)
+                        {
+                            float dc = DigCap(p);
+                            if (!float.IsNaN(dc) && hgt > dc)
+                            {
+                                if (hgt - dc > r.digMax) { r.digMax = hgt - dc; r.digAt = new Vector3(x, dc, z); }
+                                hgt = dc; r.dug++;
+                            }
                         }
                         H[k] = hgt;
                         if (orig - hgt > r.maxLower) { r.maxLower = orig - hgt; r.lowerAt = new Vector3(x, hgt, z); }

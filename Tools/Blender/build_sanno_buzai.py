@@ -9,6 +9,9 @@
     blender --background --python Tools/Blender/build_sanno_buzai.py -- sode <蹴上> <踏面> [--render]
     blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_miter_list <一覧> [0.300 1.199 6.363] --render
         # 女坂の折れで袖の両端を留めに切る。一覧の各行 `段番号 a|b F±hF B±hB`(据え手の実測 2026-09-23)
+    blender --background --python Tools/Blender/build_sanno_buzai.py -- sode 0.300 1.199 6.363 --depth=3.20 --render   # 丈の深い袖
+    blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_miter_list Tools/Blender/sanno_onna_miter_set_D320.txt 0.300 1.199 6.363 --depth=3.20 --steps=38,39,40 --render
+        # 切通しで背の地盤まで上げる袖(上げの上限 = 丈 − 0.78)。綴りに `_D3.20` が入る(EDO-0430)
     blender --background --python Tools/Blender/build_sanno_buzai.py -- audit     # 既存部材の左右の別を検算
     blender --background --python Tools/Blender/build_sanno_buzai.py -- mitsuke   # 焼いた柵の FBX から見付けを実測
 
@@ -530,6 +533,15 @@ SODE_CT = 0.24       # 笠石の丈(鉛直)【U】
 SODE_MITSUKE = 1.74  # 外の地盤から天端までの最大(指図 terraceWalls の実測。EDO-0415)
 SODE_NE = 0.46       # 根入れ ⇒ 天端から躯体の下端まで 2.20 一定(地盤は斜面なので深めに垂らす)【U】
 SODE_DEPTH = SODE_MITSUKE + SODE_NE
+SODE_DEPTH_STD = SODE_DEPTH
+# ⭐ **丈の深い袖**(`--depth=3.20`・EDO-0430 2026-09-24)── 切通しで袖を背の地盤まで上げる(`copingRise:"groundHi"`)と、
+#   上げの上限 = 丈 − 笠の上がり 0.30 − 段石の根入れ 0.48 を超える段がある(女坂の坂下・坂上で要る上げ 1.55〜2.08)。
+#   断面・材・割り・天端の線は同じで、**下端だけ**天端の線の `丈` 下の平行線へ下ろす。綴りに `_D<丈>` を挟む
+#   (2.20 の既定は旧名のまま)⇒ Unity 側 `Own.IshidanSode(keri, fumi, i, depth)` / `Own.IshidanSodeMiter(…, depth)`。
+
+
+def _dtag():
+    return "" if abs(SODE_DEPTH - SODE_DEPTH_STD) < 1e-6 else "_D%.2f" % SODE_DEPTH
 SODE_COURSE = 0.40   # 積み石の丈の目安(鉛直)【U】
 SODE_STONE_L = 1.10  # 積み石の長さの目安【U】
 SODE_KASA_L = 1.30   # 笠石の長さの目安【U】
@@ -537,7 +549,7 @@ SODE_CHAMFER = 0.02  # 目地の面取り(段石の 0.015 より一段大きく 
 
 
 def sode_name(keri, fumi, variant):
-    return "IshidanSode_%s_%s_%s" % (cs_f3(keri), cs_f3(fumi), variant)
+    return "IshidanSode_%s_%s%s_%s" % (cs_f3(keri), cs_f3(fumi), _dtag(), variant)
 
 
 def _sode_joints(P, target, off_frac):
@@ -1068,7 +1080,7 @@ def shots_sode(keri, fumi, w, key, nstep=8):
         else:
             g.hide_render = False
         _hook_cut_stone()
-        pth = os.path.join(SHOT, "sanno_sode_%s_%s.png" % (key, tag))
+        pth = os.path.join(SHOT, "sanno_sode_%s%s_%s.png" % (key, _dtag(), tag))
         V.render(pth); out.append(pth)
     return out
 
@@ -1111,7 +1123,7 @@ def _sgn_h(h):
 
 
 def sode_miter_name(keri, fumi, w, hF, hB, variant):
-    return "IshidanSodeMiter_%.3f_%.3f_%.3f_F%s_B%s_%s" % (keri, fumi, w, _sgn_h(hF), _sgn_h(hB), variant)
+    return "IshidanSodeMiter_%.3f_%.3f_%.3f%s_F%s_B%s_%s" % (keri, fumi, w, _dtag(), _sgn_h(hF), _sgn_h(hB), variant)
 
 
 def _miter_end(o, w, fumi, end, h):
@@ -1209,7 +1221,7 @@ def read_miter_list(path):
     return rows
 
 
-def build_sode_miter_list(keri, fumi, w, rows, do_render):
+def build_sode_miter_list(keri, fumi, w, rows, do_render, steps=(16, 17, 18)):
     names = set()
     for (i, var, hF, hB) in rows:
         V.reset()
@@ -1225,7 +1237,6 @@ def build_sode_miter_list(keri, fumi, w, rows, do_render):
         print("[sanno] 書き出し " + os.path.join(OUT_DAN, name + ".fbx"))
     print("[sanno] 留めの袖 %d 本(一覧 %d 行)" % (len(names), len(rows)))
     if do_render:
-        steps = (16, 17, 18)
         for pth in shots_sode_miter(keri, fumi, w, rows, steps):
             print("[sanno] 検証レンダ " + pth)
 
@@ -1335,7 +1346,7 @@ def shots_sode_miter(keri, fumi, w, rows, steps):
         if tag == "magenta":
             bpy.context.scene.world.node_tree.nodes["Background"].inputs[0].default_value = (1, 0, 1, 1)
         _hook_cut_stone()
-        pth = os.path.join(SHOT, "sanno_sodemiter_%s.png" % tag)
+        pth = os.path.join(SHOT, "sanno_sodemiter%s_%s.png" % (_dtag(), tag))
         V.render(pth); out.append(pth)
     if bad:
         raise SystemExit("[sanno] ⛔ 組み絵の継ぎ目が 2mm を越えた: %s" % [(n["joint"], n["side"]) for n in bad])
@@ -1380,6 +1391,14 @@ def main():
     do_render = "--render" in argv
     what = pos[0] if pos else "all"
     rest = pos[1:]
+    global SODE_DEPTH
+    for a in argv:
+        if a.startswith("--depth="):
+            SODE_DEPTH = float(a.split("=", 1)[1])      # 袖の丈(天端の線から下端まで)。既定 2.20
+    miter_steps = (16, 17, 18)
+    for a in argv:
+        if a.startswith("--steps="):
+            miter_steps = tuple(int(x) for x in a.split("=", 1)[1].split(","))   # 留めの組み絵に刷る段
     if what == "audit":
         audit(); return
     if what == "mitsuke":
@@ -1409,7 +1428,7 @@ def main():
         # sode_miter_list <一覧ファイル> [<蹴上> <踏面> <幅>]  各行 `段番号 a|b F±hF B±hB`
         # ⛔ 角は据え手の一覧の値(指図の値ではない)。丸め直さない
         keri, fumi, w = (float(rest[1]), float(rest[2]), float(rest[3])) if len(rest) >= 4 else (0.300, 1.199, 6.363)
-        build_sode_miter_list(keri, fumi, w, read_miter_list(rest[0]), do_render)
+        build_sode_miter_list(keri, fumi, w, read_miter_list(rest[0]), do_render, miter_steps)
     if what in ("saku", "all"):
         spans = [float(rest[0])] if rest else [tamagaki_spec()["pitch"]]
         build_saku_set(spans, do_render)

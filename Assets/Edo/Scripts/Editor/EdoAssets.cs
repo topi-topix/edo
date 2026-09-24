@@ -876,6 +876,7 @@ public static class EdoAssets
         /// 例 1852_nn: W(X)1.942(−0.926〜+1.016)× H 2.55 × D 0.80・1.1k tris。
         /// 焼けているスパン(2026-09-24・境内の軸 5.5° の割り付け・EDO-0430): 1622 cn/nh/nn・1699 cn/nn/nt・1780 cn/nc/nn・1818 cn/nc・
         /// 1857 cn/nc/nn・1866 nc/nn/tn・1923 cn/nc/nn・1995 cn/nc/nn(旧 1600〜1904 の組も残す)。
+        /// 同日の対称の置き直し(透塀B)で足した: **1928 cn/nn/nt/nc/tn**(`Sukibei_E` 中門の左右 各 7 本)・**2117 cn/nn/nc**(`Sukibei_NS`/`_SS` 各 3 本・瓦 2 枚 縮尺 0.528)。
         /// ⚠ 辺は run 側で**等分**して焼く(n = round(辺長 / 1.818)、スパン = 辺長 / n。柱間 6 尺【施主裁定 2026-09-18】)。瓦はスパンに瓦モジュールが整数枚になる縮尺。
         /// 材 `wood` / `wall C` / `Doukawara` / `Kirishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
         /// 生成: blender --background --python Tools/Blender/build_sanno_sukibei.py -- --span 1.852 --ends cn,nc,nn --no-kado --render</summary>
@@ -1169,9 +1170,34 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode [--only=男坂 | <蹴上> <踏面>] --render</summary>
         public static string IshidanSode(float keri, float fumi, int i)
         {
+            return IshidanSode(keri, fumi, i, ISHIDAN_SODE_DEPTH_STD);
+        }
+
+        /// <summary>袖の丈(天端の線から下端まで)の既定 2.20 = 最大見付 1.74 + 根入れ 0.46。</summary>
+        public const float ISHIDAN_SODE_DEPTH_STD = 2.20f;
+        /// <summary>**焼いてある袖の丈**(浅い順)。切通しで袖を背の地盤まで上げる(`copingRise:"groundHi"`)とき、
+        /// 上げの上限 = 丈 − 笠の上がり 0.30 − 段石の根入れ(実メッシュで測る。女坂 0.48)⇒ 2.20 は 1.42・3.20 は 2.42。
+        /// ⭐ 丈の足りる最小を選ぶのは使い手(`EdoBuild.PlaceIshidanSode` は今は 1 本のパスしか受けない ── 2026-09-24 時点)。
+        /// ⚠ 3.20 が焼けているのは**女坂 (0.300, 1.199)** の平らな駒 a/b と、坂下の段 2・坂上の段 38〜40 の留めの駒(両側)だけ(EDO-0430)。</summary>
+        public static readonly float[] IshidanSodeDepths = { 2.20f, 3.20f };
+
+        /// <summary>**丈の深い石段の袖**(EDO-0430 2026-09-24)。<see cref="IshidanSode(float,float,int)"/> と**同じ断面・同じ局所座標・同じピボット・
+        /// 同じ接する面・同じ天端の線・同じ材**で、下端だけを天端の線の <paramref name="depth"/> 下の平行線へ下ろした物
+        /// (積みの段は丈に合わせて割り直す ── 3.20 は笠 0.24 + 7 段)。<paramref name="depth"/> = 2.20 は旧名そのまま。
+        /// 実寸(女坂 D3.20): W(X)0.600 × H(Y)3.495(−2.895〜+0.600)× D(Z)1.199・248 面。材 `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode 0.300 1.199 6.363 --depth=3.20 --render</summary>
+        public static string IshidanSode(float keri, float fumi, int i, float depth)
+        {
             var inv = System.Globalization.CultureInfo.InvariantCulture;
             return "Assets/Edo/Models/Kaidan/IshidanSode_" + keri.ToString("F3", inv) + "_"
-                 + fumi.ToString("F3", inv) + "_" + (i % 2 == 0 ? "a" : "b") + ".fbx";
+                 + fumi.ToString("F3", inv) + SodeDepthTag(depth) + "_" + (i % 2 == 0 ? "a" : "b") + ".fbx";
+        }
+
+        /// <summary>袖の丈の綴り(既定 2.20 は空・それ以外は `_D3.20`)。Blender 側 `build_sanno_buzai._dtag` と同じ規則。</summary>
+        static string SodeDepthTag(float depth)
+        {
+            if (System.Math.Abs(depth - ISHIDAN_SODE_DEPTH_STD) < 1e-4f) return "";
+            return "_D" + depth.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
         }
 
         /// <summary>**曲がる石段の袖 — 端を留めに切った駒**(EDO-0415 ②③)。<see cref="IshidanSode"/> と同じ局所座標・同じピボットで、
@@ -1184,10 +1210,20 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_miter_list Tools/Blender/sanno_onna_miter_set.txt 0.300 1.199 6.363 --render(一覧の各行 `段番号 a|b F±hF B±hB`・部材方 2026-09-23)</summary>
         public static string IshidanSodeMiter(float keri, float fumi, float w, float hF, float hB, int i)
         {
+            return IshidanSodeMiter(keri, fumi, w, hF, hB, i, ISHIDAN_SODE_DEPTH_STD);
+        }
+
+        /// <summary>**丈の深い袖の留めの駒**(EDO-0430 2026-09-24)。<see cref="IshidanSodeMiter(float,float,float,float,float,int)"/> の丈違い
+        /// (<see cref="IshidanSode(float,float,int,float)"/> の端を同じ規則で切った物)。綴りは w の後に `_D3.20`。
+        /// 焼けている組(女坂 0.300/1.199/6.363・D3.20・両側): 段 2 a F+0.00 B±1.14 / 段 38 a F±1.85 B±0.09 / 段 39 b F±0.09 B±0.23 / 段 40 a F±0.23 B±1.67。
+        /// 同じ日に丈 2.20 の相手の居ない端 `F-1.85_B+0.00_a`(段 38)・`F+0.00_B+0.60_b`(段 3)も焼いた(隣の袖が上げの上限で据わらない並び)。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_miter_list Tools/Blender/sanno_onna_miter_set_D320.txt 0.300 1.199 6.363 --depth=3.20 --steps=38,39,40 --render</summary>
+        public static string IshidanSodeMiter(float keri, float fumi, float w, float hF, float hB, int i, float depth)
+        {
             var inv = System.Globalization.CultureInfo.InvariantCulture;
             System.Func<float, string> a = h => (h >= 0f ? "+" : "-") + System.Math.Abs(h).ToString("F2", inv);
             return "Assets/Edo/Models/Kaidan/IshidanSodeMiter_" + keri.ToString("F3", inv) + "_"
-                 + fumi.ToString("F3", inv) + "_" + w.ToString("F3", inv) + "_F" + a(hF) + "_B" + a(hB)
+                 + fumi.ToString("F3", inv) + "_" + w.ToString("F3", inv) + SodeDepthTag(depth) + "_F" + a(hF) + "_B" + a(hB)
                  + "_" + (i % 2 == 0 ? "a" : "b") + ".fbx";
         }
 

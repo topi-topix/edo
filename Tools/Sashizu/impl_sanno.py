@@ -1230,11 +1230,13 @@ def kyoukai_avoid_shapes(d, g, sh_ken, lay=None):
 
 def avoid_shapes(d, g, scope):
     """退避の形 + **木を植えない面**(`gardens[].noTrees`・庭方 2026-09-15)── どの撒く面にも当てる。"""
-    out = _avoid_shapes_base(d, g, scope)
-    for gd in d["gardens"]:
-        if gd.get("noTrees") and garden_poly(gd):
-            out.append(_shape_poly(garden_poly(gd), 0.0, "植えない面:" + gd["name"]))
-    return out
+    return _avoid_shapes_base(d, g, scope) + notree_shapes(d)
+
+
+def notree_shapes(d):
+    """**木を植えない面**(`gardens[].noTrees`)の形 ── `avoid_shapes` と同じ一本(⛔ 二重に組まない)。"""
+    return [_shape_poly(garden_poly(gd), 0.0, "植えない面:" + gd["name"])
+            for gd in d["gardens"] if gd.get("noTrees") and garden_poly(gd)]
 
 
 def _avoid_shapes_base(d, g, scope):
@@ -3079,6 +3081,84 @@ def derive_kaidan_tataki(d):
                       [round(c0[0] - nx9, 4), round(c0[1] - nz9, 4)]]
 
 
+def _drain_reaches(d, dr, TW):
+    """**土台に沿って折れる溝**(`drains[].reaches`)の芯線・底・落しを解く【K143 2026-09-24】。
+
+    ⭐ 走りは**流れの順**に並べる。走りごとに、土台の芯線を外(`side`)へ `offKen` 寄せた線を芯とし、
+      隅で次の走りの芯線と交わる点で継ぐ。底 = 帯の面(`terrace` の `y`)から起こし `slope` で下る
+      (⛔ 数を持たない)。末の走りの端から `outlet.toward` へ、底が**造成前の地盤**に出る所まで
+      落しを延ばす(吐口)。⛔ 落しが平場へ入れば止める(平場の上へ水を落とさない)。
+    ⭐ 溝の帯(`gardens[].polyFrom.drain`)の輪郭もここで書く ── 走りの幅 `widthKen`(土台の芯から外へ)と落し。
+    """
+    ken = d["const"]["ken"]
+    g = G(d)
+    T9 = dict((t["name"], t) for t in d["terraces"])
+    y0 = float(T9[dr["terrace"]]["y"])
+    off = float(dr["offKen"]); wk = float(dr["widthKen"])
+    side9 = {"北": (0.0, 1.0), "南": (0.0, -1.0), "東": (1.0, 0.0), "西": (-1.0, 0.0)}
+    fl9 = {"西へ": lambda p: -p[0], "東へ": lambda p: p[0], "北へ": lambda p: p[1], "南へ": lambda p: -p[1]}
+    lines = []
+    for rc in dr["reaches"]:
+        ws = [TW[n] for n in rc["walls"]]
+        pts = [tuple(ws[0]["a"])] + [tuple(w["b"]) for w in ws]
+        sx, sz = side9[rc["side"]]
+        line = sorted([(p[0] + sx * off, p[1] + sz * off) for p in pts], key=fl9[rc["flow"]])
+        lines.append((line, (sx, sz)))
+    # 隅で継ぐ ── 前の走りの末端と次の走りの頭を、二本の芯線(軸に平行)の交点へ
+    path = []
+    for i, (line, _sd) in enumerate(lines):
+        L2 = list(line)
+        if i > 0:
+            prev = path[-1]
+            if abs(path[-2][1] - prev[1]) < 1e-9:      # 前が東西の走り → 隅 = (次の芯の u, 前の芯の v)
+                c = (L2[0][0], prev[1])
+            else:
+                c = (prev[0], L2[0][1])
+            path[-1] = c
+            L2 = L2[1:]
+        path += L2
+    lenM = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(path, path[1:])) * ken
+    s = float(dr["slope"])
+    bed_e = y0 - s * lenM
+    tw = {"西": (-1.0, 0.0), "東": (1.0, 0.0), "北": (0.0, 1.0), "南": (0.0, -1.0)}[dr["outlet"]["toward"]]
+    e = path[-1]
+    t, st, hit = 0.0, 0.05, None
+    while t < 30.0:
+        t += st
+        u, v = e[0] + tw[0] * t, e[1] + tw[1] * t
+        if any(_pip(terrace_poly_uv(q), u, v) for q in d["terraces"] if q["name"] != dr["terrace"]):
+            raise SystemExit("溝『%s』── 落しが平場へ入る(%.2f, %.2f)" % (dr["name"], u, v))
+        x, z = g.W(u, v)
+        nat = dem_h(x, z)
+        bed = bed_e - s * t * ken
+        if nat is not None and nat <= bed:
+            hit = (u, v, bed, nat); break
+    if hit is None:
+        raise SystemExit("溝『%s』── 落しの吐口が 30 間の内に見つからない" % dr["name"])
+    dr["pathPts"] = [[round(q[0], 4), round(q[1], 4)] for q in path]
+    dr["pathLenM"] = round(lenM, 3)
+    dr["bedAtPathEnd"] = round(bed_e, 3)
+    dr["outletPts"] = [[round(e[0], 4), round(e[1], 4)], [round(hit[0], 4), round(hit[1], 4)]]
+    dr["outletBed"] = round(hit[2], 3)
+    dr["outletLenM"] = round(t * ken, 3)
+    # 溝の帯の輪郭 ── 走りの帯(土台の芯から外へ widthKen)と落しを一つの多角形へ
+    for gd in d["gardens"]:
+        pf = gd.get("polyFrom")
+        if not (pf and pf.get("drain") == dr["name"]): continue
+        # ⚠ 起こしてある形は「北の走り(東→西)+ 西の走り(北→南)+ 南への落し」だけ(K143)
+        sides = [rc["side"] for rc in dr["reaches"]]
+        if not (sides == ["北", "西"] and dr["outlet"]["toward"] == "南"):
+            raise SystemExit("溝『%s』の帯の輪郭 ── 北→西→南へ落とす形しか起こしていない" % dr["name"])
+        ln = [TW[n] for n in dr["reaches"][0]["walls"]]
+        lw = TW[dr["reaches"][1]["walls"][0]]
+        vN = float(ln[0]["a"][1])
+        uE = max(max(float(w["a"][0]), float(w["b"][0])) for w in ln)
+        uW = float(lw["a"][0]); vo = hit[1]
+        gd["poly"] = [[round(uE, 4), round(vN, 4)], [round(uE, 4), round(vN + wk, 4)],
+                      [round(uW - wk, 4), round(vN + wk, 4)], [round(uW - wk, 4), round(vo, 4)],
+                      [round(uW, 4), round(vo, 4)], [round(uW, 4), round(vN, 4)]]
+
+
 def derive_garden_strips(d):
     """**棟・渡廊下に沿う帯**(`gardens[].stripFrom`)の輪郭を書き込む【庭方 2026-09-15】。
     ⛔ 数を json に持たない ── 棟の柱芯の矩形の辺・渡廊下の芯と幅からの従属値。"""
@@ -3114,6 +3194,9 @@ def derive_garden_strips(d):
                       [round(u1, 4), round(v1, 4)], [round(u0, 4), round(v1, 4)]]
     TW = dict((w["name"], w) for w in d.get("terraceWalls", []))
     for dr in d.get("drains", []):
+        if dr.get("reaches"):
+            _drain_reaches(d, dr, TW)
+            continue
         vf = dr["vFrom"]
         if vf.get("gate"):
             # ⭐ 門の脇面から(`plan.dv` の半分 + offKen)── 透塀の内の水抜き(K139 2026-09-24)。⛔ 数を json に持たない
@@ -4778,6 +4861,9 @@ def scatter_pts(d, g):
             # ⭐ 退避 keidai の区の塊は**堂の外面から 3間**も候補で落とす(全層・C27 と同じ `do_rin_rects`)──
             #    ⚠ 候補が減ると `_scatter_take` が芯々を緩めて採り直し、形で守っていた 3間を割った(西B 松06 が薬師堂 5.10m)
             if gd.get("clearance") == "keidai": kl9 = kl9 + do_rin_band_shapes(d, None)
+            # ⭐ **木を植えない面**(`gardens[].noTrees`)も塊の候補で落とす【K143 2026-09-24 ── 溝の帯】
+            #    ⚠ 旧は `avoid_shapes` にだけ入り、塊の候補は滑らせるときしか見ていなかった
+            kl9 = kl9 + notree_shapes(d)
             if kl9: cand = [p for p in cand if not shape_hit(p, kl9)]
             # ⭐ **間合いに食われたら線に沿ってずらす**【指1 庭方 2026-09-09 十八巡目】──
             #    ⛔ **本数を減らして黙らせない。**⛔ ずらす量を json に持たない ── 「その塊の木が
@@ -5106,7 +5192,7 @@ def scatter_pts(d, g):
             # ⭐ **塀・囲い・土留めの実体線から `kakoi_line_m` 以内の目は据えない**(硬い制約・許容0)
             #    【検図 2026-09-24 ── 帯の低木が TW_Zentei_W・Ita_ZN・TW_SandoKai_W から 2 m 内に立った】。
             #    社叢の帯と同じ一本(`kakoi_line_shapes` = 検査 C29)。⛔ 格子は動かさない ── 当たる目だけ抜く。
-            kl9 = kakoi_line_shapes(d, g)
+            kl9 = kakoi_line_shapes(d, g) + notree_shapes(d)   # ⭐ 木を植えない面も(K143)
             if kl9:
                 isl9 = [p for p in isl9 if shape_hit(p, kl9) is None]
             if xr > 0 and oth9:
@@ -6212,9 +6298,18 @@ def impl_props(d, g):
                  "depthM": [round(q, 3) for q in ido_depth(d)],
                  "igetaRise": igeta_rise(d), "soishiR": soishi_radii(d),
                  "izutsuR": izutsu_radii(d)}),
-        "drains": [{"name": dr["name"], "kind": dr.get("kind"), "slope": dr.get("slope"),
-                    "world": [_w(g, (dr["u"][0], dr["v"])), _w(g, (dr["u"][1], dr["v"]))],
-                    "outlet": _w(g, (dr["outlet"]["u"], dr["v"]))} for dr in d.get("drains", [])],
+        "drains": [({"name": dr["name"], "kind": dr.get("kind"), "slope": dr.get("slope"),
+                     "world": [_w(g, (dr["u"][0], dr["v"])), _w(g, (dr["u"][1], dr["v"]))],
+                     "outlet": _w(g, (dr["outlet"]["u"], dr["v"]))} if not dr.get("reaches") else
+                    # ⭐ 土台に沿って折れる溝(K143)── `path` は上流→末端、`world` は落し(末端→吐口)。底は末端と吐口で持つ
+                    {"name": dr["name"], "kind": dr.get("kind"), "slope": dr.get("slope"),
+                     "widthM": round(float(dr["widthKen"]) * d["const"]["ken"], 3),
+                     "path": [_w(g, q) for q in dr["pathPts"]],
+                     "topY": d["terraces"][[t["name"] for t in d["terraces"]].index(dr["terrace"])]["y"],
+                     "bedAtPathEnd": dr["bedAtPathEnd"],
+                     "world": [_w(g, q) for q in dr["outletPts"]],
+                     "outlet": _w(g, dr["outletPts"][-1]), "outletBed": dr["outletBed"]})
+                   for dr in d.get("drains", [])],
         "gardens": [{"name": gd["name"], "kind": gd.get("kind"),
                      "kakoi": ({"spec": gd["kakoi"], "segs": [[_w(g, a9), _w(g, b9)] for a9, b9 in kakoi_segs(d, gd)]}
                                if gd.get("kakoi") else None),

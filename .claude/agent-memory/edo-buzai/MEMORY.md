@@ -31,4 +31,6 @@
 - [寄棟・入母屋の野地は屋根の bbox で張る・軒裏は join 前に 2 つの BVH で比べる](hip-roof-noji-and-ridge-axis.md) — 隅で瓦が 0.171 外へ出る。mune_top_roof は Z 走りの棟専用(2026-09-22)
 - [山王の未実装10棟は6型・厩と蔵と鼓楼は既存生成器に引数を足すだけ](sanno-do-parts-and-reuse.md) — 斜材を箱で段に積まない。借りた生成器の材は remap の借り先を確かめる(2026-09-22)
 - [こけら葺の UV と Kirishi の読み直し](ido-yakata-kokera-uv-and-kirishi-reimport.md) — 葺き面は棟方向に区切って貼り全面を同じ所で割る・読み直すと桃色(2026-09-23)
+- [石段の袖は剪断した1段の駒・UV は周期座標で](ishidan-sode-sheared-module.md) — 横目地も勾配に平行・留めは両端切り(弦の据え)・一覧を repo に置かないと焼き直せない(2026-09-23)
 - [木の LOD 子名は <名>_LOD0・旧6樹種は焼き直すと姿が変わる](tree-lod-naming-and-relod.md) — 名だけ直すなら relod_fbx.py。材質を消さないと .001(2026-09-23)
+- [野面の乱積みの試作と本番で踏んだ罠](nozura-rubble-proto-pitfalls.md) — 天端は円弧で切る・芝の肩は頭の上から被せる・継ぎ目は端の石+番人の Voronoi で揃える(2026-09-24)

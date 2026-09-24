@@ -1183,6 +1183,58 @@ public static class EdoAssets
                  + "_" + (i % 2 == 0 ? "a" : "b") + ".fbx";
         }
 
+        /// <summary>**野面の乱積みの土留め — 1間の駒**(山王社の前庭の縁。施主が試作 A を採った・2026-09-24)。
+        /// 見付 <paramref name="h"/>[m] ∈ 0.15(根石1段)/ 0.30 / 0.60 / 0.90 / 1.20 / 1.50 / 1.80 / 2.10 / 2.40、
+        /// 勾配 <paramref name="grade"/> = 天端が +X へ 1m あたり上がる量(剪断で天端を勾配に載せる・段に折らない)、
+        /// 種類 <paramref name="i"/> は i%4 で a〜d(中の石だけが違う ⇒ **順に振って**繰り返しを隠す)。
+        /// ⭐ **両端の石は全種類・全段・全勾配で同じ形**で、継ぎ目 X = ±0.909 で石の途中を切ってある ⇒ どの駒どうしでも継げる
+        /// (段の違う駒も**天端の線を揃えれば**目地が合う。割りは天端から下へ測った一つの型)。見付 2.3 は 2.40 を 0.1 沈める。
+        /// ⭐ 幅 = X(1.818)/ 高さ = Y / 厚み = Z、**見え面 = +Z**。面は 3分の法で**天端の線から**前へ出る。
+        /// ピボット = 1間の中心・**床レベル(中心での天端 − 見付)**・Z=0 は天端の線での面 ⇒ 法尻の面は Z = +0.3×見付。
+        /// 石は床の 0.20 下まで根入れ・頭は天端の ±0.08。裏 0.12 に目地を塞ぐ板。芝の肩は地形側で被せる前提。
+        /// **接する面**: 天端の線(隣と揃える)・床(地盤に沈める)・継ぎ目の切り口 X = ±0.909(隣の駒の切り口と一致)。
+        /// ⛔ ピボットで並べない — 隣の切り口と天端の線を測って寄せる。焼けている勾配は 0 と打ち切りの ±0.18 だけ(他は下の命令に --grade=)。
+        /// 実寸(G0): W 1.818 × H 見付+0.30(根入れ 0.22・頭 +0.08)× D 0.9(H0.3)〜1.6(H2.4)。三角形 1,900(H0.15)〜10,400(H2.4)。
+        /// 材 `Kirishi` / `Danishi`(石ごとに 7:3)⇒ `Edo/山王社/新造部材のマテリアルをremap`。⛔ 新規マテリアルなし。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- wall [--grade=0.05] [--h=1.2] --render</summary>
+        public static string SannoNozura(float h, float grade, int i)
+        {
+            int hmm = (int)System.Math.Round(h * 1000.0);
+            int gm = (int)System.Math.Round(grade * 1000.0);
+            return "Assets/Edo/Models/Sanno/Sanno_Nozura_H" + hmm.ToString("0000") + "_G"
+                 + (gm >= 0 ? "+" : "-") + System.Math.Abs(gm).ToString("000") + "_" + "abcd"[((i % 4) + 4) % 4] + ".fbx";
+        }
+
+        /// <summary>**野面の乱積みの打ち切り — 根石一段が地中へ沈む駒**(見付 0.2 未満で壁を終える所)。
+        /// = <see cref="SannoNozura"/>(0.15, ±0.18, i)。頭が 1間で 0.33 下がる。<paramref name="risesToPlusX"/> = true は +X へ上がる
+        /// (run の −X 端に置く)/ false は +X へ下がる(+X 端に置く)。高い側の切り口の天端を隣(見付 0.30)の天端に揃えると、先端の石が床へ沈む。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- kiri --render</summary>
+        public static string SannoNozuraKiri(bool risesToPlusX, int i)
+        {
+            return SannoNozura(0.15f, risesToPlusX ? 0.18f : -0.18f, i);
+        }
+
+        /// <summary>**見切りの大きな野面石**(男坂の下で城の石垣と野面の乱積みを継ぐ1点)。面 0.86 × 見え 0.60(+根入れ 0.20)・控え 0.90。
+        /// 軸・ピボットは <see cref="SannoNozura"/> と同じ取り方(中心・床レベル・Z=0 は天端での面・見え面 +Z)。三角形 274。
+        /// 材 `Kirishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- mikiri --render</summary>
+        public const string SannoNozuraMikiri = "Assets/Edo/Models/Sanno/Sanno_Nozura_Mikiri.fbx";
+
+        /// <summary>**石段の袖 — 野面の乱積み版**(2026-09-24)。<see cref="IshidanSode"/> と**同じ局所座標・同じピボット・同じ接する面**
+        /// (厚み X ±0.30 で両面とも乱積み・X について鏡像対称 / +Z = 坂下 / 天端 Y = 0.30 + (踏面/2 − Z)·蹴上/踏面 / 下端 = 天端 − 2.20 /
+        /// 走り Z ±踏面/2・段の境で隣の駒と切り口が一致)⇒ **ビルダーは関数を差し替えるだけ**。石は X = ±0.30 の面を越えない。
+        /// 笠石は持たない(頭 ±0.025 のほぼ平らな野面石が勾配に沿って並ぶ)。個体 i%2 で a/b(どちらどうしでも継げる)。
+        /// 焼けている組は旧 <see cref="IshidanSode"/> と同じ3組: (0.260, 0.650) / (0.300, 1.199) / (0.250, 0.542)。
+        /// ⛔ 女坂の留めの駒(<see cref="IshidanSodeMiter"/>)の乱積み版は未だ無い — 女坂だけは切石の袖のまま。
+        /// 材 `Kirishi` / `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- sode [--only=男坂] --render</summary>
+        public static string IshidanSodeNozura(float keri, float fumi, int i)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            return "Assets/Edo/Models/Kaidan/IshidanSodeNozura_" + keri.ToString("F3", inv) + "_"
+                 + fumi.ToString("F3", inv) + "_" + (i % 2 == 0 ? "a" : "b") + ".fbx";
+        }
+
         /// <summary>**山王社の小庭の井戸 — 井筒(玉石の輪積み)と井桁を一体で**。⛔ 井戸屋形・釣瓶・縁石・板石敷は持たない
         /// (在庫にも無いので部材方へ。井戸屋形の棟の向きは指図 `_pending` が未決)。
         /// 在庫の `Doi_Ido` / `Matsudaira_Ido` はどちらも**切石の角井戸枠 + 桁 + 釣瓶**で玉石の輪も井桁も持たない ⇒ 新造【U 庭方 2026-09-15】。

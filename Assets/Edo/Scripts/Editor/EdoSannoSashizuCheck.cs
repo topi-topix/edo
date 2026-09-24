@@ -324,7 +324,7 @@ public static class EdoSannoSashizuCheck
                 { bad("門・鳥居", "鳥居 " + name + " の寄る棟『" + hn + "』が実装に無い ⇒ 隙を測れない"); continue; }
                 string hf = hrow == null ? null : Str(hrow, "front");
                 Vector2 hd;
-                if (hf == null || !EdoBuild.DirVec(hf, out hd))
+                if (hf == null || !EdoBuild.DirVec(hf, EdoSannoShaRebuild.GridDeg, out hd))
                 { bad("門・鳥居", "鳥居 " + name + " の寄る棟『" + hn + "』の front が指図に無い ⇒ 「前」が決まらない"); continue; }
                 if (G(pfm, "clearanceM") == null)
                 { bad("門・鳥居", "鳥居 " + name + " の `posFrom.clearanceM`(棟の面からの隙)が指図に無い"); continue; }

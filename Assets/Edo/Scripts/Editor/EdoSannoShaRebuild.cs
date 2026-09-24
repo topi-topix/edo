@@ -159,7 +159,10 @@ public static class EdoSannoShaRebuild
     {
         var g = D(Impl, "grid");
         float ken = F(g, "ken");
-        return new Vector2(F(g, "x0") + u * ken, F(g, "z0") + v * ken);
+        // ⭐ 境内の軸は世界軸から回っている(2026-09-23 施主裁定 5.5°)── 基底 ux/uz/vx/vz を必ず掛ける。
+        //   ⛔ x0 + u×ken と書かない(回りを落とすと社殿だけが元の軸に取り残される・EDO-0430)。
+        return new Vector2(F(g, "x0") + (u * F(g, "ux") + v * F(g, "vx")) * ken,
+                           F(g, "z0") + (u * F(g, "uz") + v * F(g, "vz")) * ken);
     }
 
     // ================================================================ 造成の設計面
@@ -1248,7 +1251,7 @@ public static class EdoSannoShaRebuild
             //   で出した従属値 ⇒ ここでは同じ引き算(<see cref="EdoBuild.FaceYaw"/>)で**検算**してから据える。
             //   ⛔ 別の式を作らない・⛔ 食い違ったら据えずに差し戻す(焼き直しが要るということ)。
             float baseYaw;
-            if (!EdoBuild.FaceYaw(S(gt, "front"), front, out baseYaw))
+            if (!EdoBuild.FaceYaw(S(gt, "front"), front, GridDeg, out baseYaw))
             { pend.Add(name + "(向きが解けない: front=" + S(gt, "front") + " / axis.front=" + front + ")"); continue; }
             var gdoc = FindByName(Doc, "gates", name);
             bool framed = gdoc != null && S(gdoc, "frame") != null;   // 郭の辺の傾きを載せた門(楼門)
@@ -1427,7 +1430,7 @@ public static class EdoSannoShaRebuild
             string path = EdoAssets.Own.SannoKizahashi(wMm, runMm, riseMm);
             if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
             { pend.Add(S(k, "name") + "(" + path + " が無い)"); continue; }
-            EdoBuild.Place(path, new Vector3(c.x, F(k, "yBot"), c.y), 0f, Vector3.one, grp, "Kizahashi");
+            EdoBuild.Place(path, new Vector3(c.x, F(k, "yBot"), c.y), GridDeg, Vector3.one, grp, "Kizahashi");   // ⭐ 階は境内の軸に沿う(枠の回り)
             made++;
             sb.AppendLine("  " + S(k, "name") + " → Kizahashi (" + c.x.ToString("F2") + ", " + c.y.ToString("F2") +
                           ") 地盤 " + F(k, "yBot").ToString("F2"));
@@ -1436,7 +1439,7 @@ public static class EdoSannoShaRebuild
         if (pend.Count > 0)
             sb.AppendLine("  ★ 建てなかった(部材が無い/宣言が足りない): " + string.Join(" / ", pend.ToArray()));
         if (muki.Count > 0)
-            sb.AppendLine("  ⚠ **向きが宣言されていない** " + muki.Count + " 件 ── yaw 0 のまま据えた"
+            sb.AppendLine("  ⚠ **向きが宣言されていない** " + muki.Count + " 件 ── 境内の軸に沿う既定の姿(yaw = 枠の回り)で据えた"
                           + "(⛔ 合格ではない ── 指図に `munes[].front` と部材の `axis.front` が要る): "
                           + string.Join(" / ", muki.ToArray()));
         return "社殿: " + made + " 棟\n" + sb;
@@ -1472,7 +1475,9 @@ public static class EdoSannoShaRebuild
     /// ⛔ 向きを発明しない(規則5・EDO-0261 ③)。</summary>
     static bool Muki(Dictionary<string, object> row, string label, string name, out float yaw, out string why)
     {
-        yaw = 0f; why = null;
+        // ⭐ 向きが未宣言のときの既定の姿は「**枠の軸に沿う**」(= 回る前の yaw 0 と同じ姿)。
+        //   ⛔ 世界の yaw 0 にしない ── 境内の軸が回ったので、世界の 0 は枠から 5.5° ずれた発明になる。
+        yaw = GridDeg; why = null;
         string front = S(row, "front");
         string axf = FrontAxisOf(row, label);
         if (front == null || axf == null)
@@ -1481,7 +1486,7 @@ public static class EdoSannoShaRebuild
                                               : "部材の `axis.front`(正面のローカル軸)が無い") + ")";
             return true;
         }
-        if (!EdoBuild.FaceYaw(front, axf, out yaw))
+        if (!EdoBuild.FaceYaw(front, axf, GridDeg, out yaw))
         { why = name + "(向きが解けない: front=" + front + " / axis.front=" + axf + ")"; return false; }
         return true;
     }
@@ -1515,7 +1520,7 @@ public static class EdoSannoShaRebuild
             // ---- ① 寄る棟の正面の向き(= 「前」がどちらか)
             string front = S(mm, "front");
             Vector2 dir;
-            if (!EdoBuild.DirVec(front, out dir))
+            if (!EdoBuild.DirVec(front, GridDeg, out dir))
             { pend.Add(nm + "(寄る棟『" + mn + "』の `front` が無い ⇒ 『前』が決まらない ── ⛔ 向きを発明しない)"); continue; }
             // ---- ② 鳥居自身の向き ── ⭐ **図は鳥居の `front` を書かない**(「向き=稲荷社に従属」と
             //   宣言してある)⇒ **寄る棟の `front`** と鳥居の部材の `axis.front` から引く。
@@ -1524,7 +1529,7 @@ public static class EdoSannoShaRebuild
             if (tax == null)
             { pend.Add(nm + "(部材の `axis.front`(正面のローカル軸)が図に無い)"); continue; }
             float yaw;
-            if (!EdoBuild.FaceYaw(front, tax, out yaw))
+            if (!EdoBuild.FaceYaw(front, tax, GridDeg, out yaw))
             { pend.Add(nm + "(向きが解けない: 寄る棟の front=" + front + " / axis.front=" + tax + ")"); continue; }
             // ---- ③ 離れ(⛔ 発明しない)
             if (!HasNum(pf, "clearanceM"))
@@ -1831,6 +1836,19 @@ public static class EdoSannoShaRebuild
         float ken = F(D(Doc, "const"), "ken");
         return new Vector2(F(g, "x0") + (u * F(g, "ux") + v * F(g, "vx")) * ken,
                            F(g, "z0") + (u * F(g, "uz") + v * F(g, "vz")) * ken);
+    }
+
+    /// <summary>**境内グリッドの回り[°・上から見て時計回り]**(2026-09-23 施主裁定 5.5°)。図の方位の語
+    /// (`front` = 東/西/南/北)は**この枠の軸**で書かれているので、向きを出すときは必ずこれを足す
+    /// (<see cref="EdoBuild.FaceYaw(string,string,float,out float)"/>)。⭐ 基底 `grid.keidai` の u 軸から出す
+    /// ── 焼き手 `impl_sanno.py::grid_deg` と同じ式。⛔ 角を数で持たない。</summary>
+    public static float GridDeg
+    {
+        get
+        {
+            var g = D(D(Doc, "grid"), "keidai");
+            return Mathf.Atan2(-F(g, "uz"), F(g, "ux")) * Mathf.Rad2Deg;
+        }
     }
 
     /// <summary>**前庭の井戸** — 指図 `ido` の3点を据える(2026-09-23・EDO-0274)。

@@ -78,6 +78,30 @@ public static partial class EdoBuild
         return true;
     }
 
+    /// <summary>**回した枠の上の正面を向ける yaw[°]**。図の方位の語が**枠(グリッド)の軸**で書かれている
+    /// とき(山王の境内 = 世界軸から 5.5° 時計回り・施主裁定 2026-09-23)に使う。
+    /// yaw = 方位 + 枠の回り − ローカル方位。<paramref name="frameDeg"/> は算出物の `grid.deg`
+    /// (上から見て時計回り)。⛔ 枠の角を実装が数で持たない ── 算出物から引いて渡すこと。
+    /// ⚠ 焼き手 `Tools/Sashizu/impl_sanno.py::derive_gate_yaw` の `gd9` と同じ足し算。</summary>
+    public static bool FaceYaw(string front, string localFront, float frameDeg, out float yaw)
+    {
+        if (!FaceYaw(front, localFront, out yaw)) return false;
+        yaw = Mathf.Repeat(yaw + frameDeg, 360f);
+        return true;
+    }
+
+    /// <summary>**回した枠の上の方位の語 → 世界の単位ベクトル**(<see cref="FaceYaw(string,string,float,out float)"/>
+    /// と同じ枠の回り[°・時計回り]を足す)。</summary>
+    public static bool DirVec(string compass, float frameDeg, out Vector2 v)
+    {
+        v = Vector2.zero;
+        float d;
+        if (!DirDeg(compass, out d)) return false;
+        float r = (d + frameDeg) * Mathf.Deg2Rad;
+        v = new Vector2(Mathf.Sin(r), Mathf.Cos(r));
+        return true;
+    }
+
     /// <summary>**方位の語 → 世界の単位ベクトル**(XZ 平面。+Z=北 / +X=東)。
     /// 「正面の前へ出す」「南側へ寄せる」のように**向きを持って測る**ときに使う。
     /// ⛔ 出す距離はここで決めない — 距離は図が宣言する値(⛔ 実装が発明しない)。</summary>

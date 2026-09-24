@@ -215,6 +215,57 @@ class Model(object):
         self._read_all()
 
     # ---------------- 補助
+    def impl_row(self, col, name):
+        """算出物 `<邸>_impl.json` の欄 `col` の行 `name`。無ければ None。
+        ⭐ 関係で書いた欄(`outlineFrom` / `uFrom` ほか)の**解**はここにしか無い ── 指図には座標を書かない(規則2・5)。
+        ⚠ 算出物が今の指図から焼かれていなければ notes に刷る(古い解で合格させない・規則19)。"""
+        if not hasattr(self, "_impl"):
+            self._impl = None
+            fp = os.path.join(DOC, self.est + "_impl.json")
+            if os.path.exists(fp):
+                try:
+                    self._impl = json.load(open(fp, encoding="utf-8"))
+                except Exception as ex:
+                    self.notes.append("算出物 %s_impl.json が読めない: %s" % (self.est, ex))
+                if self._impl is not None:
+                    import hashlib
+                    src = (self._impl.get("src") or {}).get("sha256")
+                    now = hashlib.sha256(open(os.path.join(DOC, self.est + "_sashizu.json"), "rb").read()).hexdigest()
+                    self._impl_stale = bool(src) and src != now
+            self._impl_warned = False
+        if self._impl is None:
+            return None
+        rows = self._impl.get(col) or []
+        row = next((x for x in (rows if isinstance(rows, list) else rows.values())
+                    if isinstance(x, dict) and x.get("name") == name), None)
+        if row is not None and getattr(self, "_impl_stale", False) and not self._impl_warned:
+            self._impl_warned = True
+            self.notes.append("算出物 %s_impl.json が今の指図から焼かれていない(関係で書いた欄の解が古い)"
+                              " — `python3 Tools/Sashizu/bake_impl.py %s --write`" % (self.est, self.est))
+        return row
+
+    def run_segs_world(self, r):
+        """位置を a/b で持たない run の区間(世界座標の組の列)。`pts`(uv 折れ線)> 算出物の `segs`。"""
+        pts = r.get("pts")
+        if isinstance(pts, list) and len(pts) >= 2:
+            P = [self.W(q[0], q[1]) for q in pts]
+            return list(zip(P, P[1:]))
+        ir = self.impl_row("runs", r.get("name"))
+        segs = ir and ir.get("segs")
+        if isinstance(segs, list):
+            return [(tuple(s[0][:2]), tuple(s[1][:2])) for s in segs if isinstance(s, (list, tuple)) and len(s) == 2]
+        return []
+
+    def run_pts_uv(self, r):
+        """C26 の拾い手(散布と同じ `kakoi_facing_road`)へ渡す uv の折れ線。散布は生成後の `pts`(=算出物の `nodes`)を見る。"""
+        if r.get("pts") or (r.get("a") is not None and r.get("b") is not None):
+            return None
+        ir = self.impl_row("runs", r.get("name"))
+        nodes = ir and ir.get("nodes")
+        if isinstance(nodes, list) and len(nodes) >= 2:
+            return [list(self.UV(q[0], q[1])) for q in nodes]
+        return None
+
     def W(self, u, v):
         return self.gr.W(u, v)
 
@@ -409,7 +460,14 @@ class Model(object):
                 self.runs.append(Obj(name=r["name"], kind=kind, a=a, b=b, edge=None, s0=None, s1=None,
                                      seat=r.get("seat"), depth=depth, mine=True, nrm=None, raw=r))
             else:
-                self.notes.append("runs[%s] の位置が読めない" % r.get("name"))
+                # ⭐ 折れ線(`pts` uv)か、関係で書いた囲い(`outlineFrom` ほか)は**区間ごと**に読む
+                #    (EDO-0430 C22)。関係の解は算出物の `segs`(散布・実装が見るのと同じ線)
+                segs = self.run_segs_world(r)
+                if not segs:
+                    self.notes.append("runs[%s] の位置が読めない" % r.get("name"))
+                for a, b in segs:
+                    self.runs.append(Obj(name=r["name"], kind=kind, a=a, b=b, edge=None, s0=None, s1=None,
+                                         seat=r.get("seat"), depth=depth, mine=True, nrm=None, raw=r))
         # 門
         self.gates = []
 
@@ -424,6 +482,13 @@ class Model(object):
                 pos = self.W(g["u"], g["v"])
             if pos is None and "uv" in g:
                 pos = self.W(*g["uv"])
+            if pos is None:
+                # ⭐ 芯を関係(`uFrom` = 平場の縁+犬走り)で書いた門は、算出物の解を読む(EDO-0430 C22)
+                ig = self.impl_row("gates", name)
+                if ig and isinstance(ig.get("world"), (list, tuple)):
+                    pos = tuple(ig["world"][:2])
+                elif ig and "u" in ig and "v" in ig:
+                    pos = self.W(ig["u"], ig["v"])
             if pos is None:
                 self.notes.append("門 %s の位置が読めない" % name)
                 return None
@@ -1724,7 +1789,8 @@ class Checks(object):
         if E is None:
             self.add("C26", "囲いの内の幹", "未検査 — parcels.json が無い", "na")
             return
-        runs = M.d.get("runs") or []
+        # ⭐ 関係で書いた囲い(`outlineFrom`)は散布と同じく生成後の折れ線で拾う(EDO-0430 C22)
+        runs = [dict(r, pts=M.run_pts_uv(r)) if M.run_pts_uv(r) else r for r in (M.d.get("runs") or [])]
         fs = L.kakoi_facing_road(runs, M.W, E, float(av.get("kakoiFacingRoadM") or 0.0))
         unread = [r.get("name") for r in runs if r.get("kind") in ("柵", "板塀")
                   and not r.get("pts") and (r.get("a") is None or r.get("b") is None)]

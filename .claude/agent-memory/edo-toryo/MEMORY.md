@@ -7,6 +7,7 @@
 - [書き戻しは必ずタイムアウトする](pitfall-writeback-mcp-timeout.md) — 大きい邸のプレハブ。⛔再送せず mtime で判定
 - [domain reload 後に bridge が消える](pitfall-bridge-drops-after-domain-reload.md) — 約2分。status ファイルと Logs/Editor.log で見る
 - [再生中に建てるとシーンは消える](playmode-discards-scene-edits.md) — isPlaying を先に聞く。資産(プレハブ・地形)への書き込みだけ残る
+- [30秒を超える execute_code は6回走る](akasaka-open-resent-six-times.md) — 赤坂・作業場を開く・重い計測。menu の赤坂へ戻すも6回開く・計測は割ってファイルへ
 
 - [古い port 登録で「instances なし」が一回おき](pitfall-bridge-drops-after-domain-reload.md) — 6400→6401 退避 + 別プロジェクトの残骸。待たずに再送
 - [start --unity が通っても claim が付いていないことがある](pitfall-unity-claim-not-verified.md) — status で「資源: unity」を見るまで MCP を叩かない
@@ -21,6 +22,9 @@
 - [正面のローカル軸は部材ごとに違う](front-axis-differs-per-part.md) — 山王 社殿5棟=+X/堂宇10棟=+Z。yaw=front−axis.front(EdoBuild.FaceYaw)
 - [partFrom は2書式・フォルダを決め打ちしない](partfrom-two-spellings.md) — Own.呼び名は EdoAssets.OwnPath で解く。鐘楼鼓楼は Models/Jisha
 - [接地は格子点でなく描かれている地表で測る](contact-must-use-drawn-surface.md) — 2m格子で斜面に ±(1m×勾配) の嘘。嘘の不合格と嘘の合格が同時に出る
+- [SeatPlant は斜面の木を浮き上限で沈める](seatplant-float-cap-buries-slope-trees.md) — 名指し20本が埋没15〜21m/浮き0.70。社叢の数え合わせは矩形の縁で11本落ちる
+- [榎・椋は SeatPlant が NaN](seatplant-nan-enoki-mukunoki-noki.md) — LOD の子名の "noki" を IsRoofName が屋根と見る。篩を EdoBuild で直す
+- [埋没を地形を掘って消す器は連鎖する](dig-to-unbury-cascades.md) — 山王 0.53/0.65 の埋没で3通り試し全部戻した。納めの話
 - [急斜面の埋没は据え直しで浮きへ移るだけ](bury-becomes-float-when-relief-exceeds-tolerance.md) — 起伏>許容の和なら据え方の話でない。上げる前に埋没+浮きを測る
 - [間引いた接地は沈む側にしか外れず、上限は足元の起伏](seat-sampling-error-bounded-by-relief.md) — だから起伏で選んで細かく据え直せる。平地は無料
 - [段の位置は指図の pos でなく実地表から解く](stair-position-is-terrain-dependent.md) — 落ち際は擦り付けで2〜4.5m。許容は段自身の蹴上
@@ -45,11 +49,18 @@
 - [本堂と山門は Body(withRoof:false) が屋根を落とさない](honden-body-does-not-drop-roof.md) — 軒と壁体を出し分ける分岐が黙って無効になる。頂点数で先に検める
 - [庫裏の SmallHouse は 14.5×10.5m で本堂並み](jisha-kuri-smallhouse-is-14m.md) — 狭い境内の「収まらず未建」は離れを緩めても直らない。部材の側の話
 - [口の縁は門の実メッシュで測る・端は点で取る](run-end-at-opening.md) — 射影だけだと横のずれが落ちて 0.822m の口。柱物は帯でなく断面(SectionAt)
+- [GetDetailLayer/GetHoles は寸法を [w,h] と偽る](terrain-detail-array-dims-lie.md) — 中身は [y,x]。正方でない範囲は DetailBlock で読み直す
 - [筋割りの Contact は平らな面どうしを見落とす](contact-cells-miss-flat-faces.md) — 柱と礎石で屋形が 1.93m 沈んだ。鉛直は RestOn(面で測る)
 - [斜めの隅の駒は「回廊」で測る](corner-piece-corridor-not-projection.md) — 全頂点の射影だと 1.13m の口が残る。DobeiProfile→BodyAt→CorridorSpan
+- [流したら計測より先に書き戻す](writeback-before-measuring.md) — 途中の reload の間に claim が他の窓へ移り書き戻せなくなった
+- [留めの継ぎ目は口0でも線に沿ってずれる](miter-joint-slides-along-cut.md) — 弦で据えて解消。焼く一覧は相手の居ない端を切らない(器と規則を揃える)
+
+- [自作の木の FBX は地形の木として無効](own-tree-fbx-invalid-as-terrain-tree.md) — 根に MR も LODGroup も無く1本も描かれない。TreePrototype.Validate で先に検める
 
 ## 測り方・関門
 
+- [Contact の筋 0.1m は疎な駒で偽の隙](contact-cell-too-fine-on-sparse-meshes.md) — 段石・袖で「測れず/0.015」。0.25m で測る。女坂の曲がりの袖の口は別件
+- [段石の浮きは袖に塞がれない端だけで数える](dan-float-read-behind-sode.md) — 底−地表は男坂で 0.43m 出るが袖の裏の空洞
 - [当たりは棟の外形線の上で測らない](notch-seat-has-80mm-plate-under.md) — 線上は内と外を拾い分ける。廊下の側へ張り出す三角形だけに絞る
 - [実メッシュの当たりは紙より 0.08m 低い](mesh-atari-is-lower-than-paper.md) — 葺き厚と垂れ。5点の中央値で測る
 - [C#の検図関門が kansei を見ていなかった](csharp-review-gate-ignored-kansei.md) — python が⭕でも止まる。直した
@@ -65,4 +76,8 @@
 - [退役した Stage が残ると検査が嘘の件数を出す](retired-stage-makes-fake-counts.md) — 449=1278−829 は別の母集団の引き算
 - [退ける門と検査は同じ測りで](machiya-clash-gate-weaker-than-check.md) — 門だけ屋根を外すと検査でめり込み。揃えた犠牲は駒1個だけ
 - [CheckScene は矩形の芯で測る](checkscene-center-vs-seat.md) — `seat` で据えた部材は永久に鳴る。⛔芯へ動かして0件にしない
+- [UnderfloorGap は一体の駒で屋根を拾う](underfloorgap-picks-roof-on-one-mesh-parts.md) — 堂・鐘楼で 5〜7m の偽の浮き。底の頂点で測る
+- [山王 Stage7 は縁の地形の木11本を毎回重ねる](sanno-stage7-edge-trees-duplicate.md) — 矩形の等号が float 往復で外れる。a07d0d1b で解消(取り残し0を確認 2026-09-23)
+- [社叢QAのカメラ②は赤坂では宝蔵院の門の中](sanno-shaso-qa-camera2-inside-gate.md) — 撮る間だけ門+十坊の板塀 3_4f/4b ほか計52個を消す。カメラは動かさない
+- [山王 Stage6 は Clear の後に指紋を検める](sanno-stage6-clears-before-fingerprint.md) — 落ちると社殿が空。並行の指図書きが済むまで bake を見張る
 - [地形の detail/holes の塊は寸法の名札が逆](terrain-detail-array-dims-lie.md) — GetDetailLayer/GetHoles の配列は行優先。非正方の塊は組み直してから触る(EDO-0274)

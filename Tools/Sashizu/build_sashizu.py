@@ -215,6 +215,57 @@ class Model(object):
         self._read_all()
 
     # ---------------- 補助
+    def impl_row(self, col, name):
+        """算出物 `<邸>_impl.json` の欄 `col` の行 `name`。無ければ None。
+        ⭐ 関係で書いた欄(`outlineFrom` / `uFrom` ほか)の**解**はここにしか無い ── 指図には座標を書かない(規則2・5)。
+        ⚠ 算出物が今の指図から焼かれていなければ notes に刷る(古い解で合格させない・規則19)。"""
+        if not hasattr(self, "_impl"):
+            self._impl = None
+            fp = os.path.join(DOC, self.est + "_impl.json")
+            if os.path.exists(fp):
+                try:
+                    self._impl = json.load(open(fp, encoding="utf-8"))
+                except Exception as ex:
+                    self.notes.append("算出物 %s_impl.json が読めない: %s" % (self.est, ex))
+                if self._impl is not None:
+                    import hashlib
+                    src = (self._impl.get("src") or {}).get("sha256")
+                    now = hashlib.sha256(open(os.path.join(DOC, self.est + "_sashizu.json"), "rb").read()).hexdigest()
+                    self._impl_stale = bool(src) and src != now
+            self._impl_warned = False
+        if self._impl is None:
+            return None
+        rows = self._impl.get(col) or []
+        row = next((x for x in (rows if isinstance(rows, list) else rows.values())
+                    if isinstance(x, dict) and x.get("name") == name), None)
+        if row is not None and getattr(self, "_impl_stale", False) and not self._impl_warned:
+            self._impl_warned = True
+            self.notes.append("算出物 %s_impl.json が今の指図から焼かれていない(関係で書いた欄の解が古い)"
+                              " — `python3 Tools/Sashizu/bake_impl.py %s --write`" % (self.est, self.est))
+        return row
+
+    def run_segs_world(self, r):
+        """位置を a/b で持たない run の区間(世界座標の組の列)。`pts`(uv 折れ線)> 算出物の `segs`。"""
+        pts = r.get("pts")
+        if isinstance(pts, list) and len(pts) >= 2:
+            P = [self.W(q[0], q[1]) for q in pts]
+            return list(zip(P, P[1:]))
+        ir = self.impl_row("runs", r.get("name"))
+        segs = ir and ir.get("segs")
+        if isinstance(segs, list):
+            return [(tuple(s[0][:2]), tuple(s[1][:2])) for s in segs if isinstance(s, (list, tuple)) and len(s) == 2]
+        return []
+
+    def run_pts_uv(self, r):
+        """C26 の拾い手(散布と同じ `kakoi_facing_road`)へ渡す uv の折れ線。散布は生成後の `pts`(=算出物の `nodes`)を見る。"""
+        if r.get("pts") or (r.get("a") is not None and r.get("b") is not None):
+            return None
+        ir = self.impl_row("runs", r.get("name"))
+        nodes = ir and ir.get("nodes")
+        if isinstance(nodes, list) and len(nodes) >= 2:
+            return [list(self.UV(q[0], q[1])) for q in nodes]
+        return None
+
     def W(self, u, v):
         return self.gr.W(u, v)
 
@@ -409,7 +460,14 @@ class Model(object):
                 self.runs.append(Obj(name=r["name"], kind=kind, a=a, b=b, edge=None, s0=None, s1=None,
                                      seat=r.get("seat"), depth=depth, mine=True, nrm=None, raw=r))
             else:
-                self.notes.append("runs[%s] の位置が読めない" % r.get("name"))
+                # ⭐ 折れ線(`pts` uv)か、関係で書いた囲い(`outlineFrom` ほか)は**区間ごと**に読む
+                #    (EDO-0430 C22)。関係の解は算出物の `segs`(散布・実装が見るのと同じ線)
+                segs = self.run_segs_world(r)
+                if not segs:
+                    self.notes.append("runs[%s] の位置が読めない" % r.get("name"))
+                for a, b in segs:
+                    self.runs.append(Obj(name=r["name"], kind=kind, a=a, b=b, edge=None, s0=None, s1=None,
+                                         seat=r.get("seat"), depth=depth, mine=True, nrm=None, raw=r))
         # 門
         self.gates = []
 
@@ -424,6 +482,13 @@ class Model(object):
                 pos = self.W(g["u"], g["v"])
             if pos is None and "uv" in g:
                 pos = self.W(*g["uv"])
+            if pos is None:
+                # ⭐ 芯を関係(`uFrom` = 平場の縁+犬走り)で書いた門は、算出物の解を読む(EDO-0430 C22)
+                ig = self.impl_row("gates", name)
+                if ig and isinstance(ig.get("world"), (list, tuple)):
+                    pos = tuple(ig["world"][:2])
+                elif ig and "u" in ig and "v" in ig:
+                    pos = self.W(ig["u"], ig["v"])
             if pos is None:
                 self.notes.append("門 %s の位置が読めない" % name)
                 return None
@@ -715,11 +780,37 @@ class Checks(object):
         M = self.M
         items = M.buildings() + [("石段", Obj(name=k.name, poly=shrink(k.poly, 0.2))) for k in M.kaidans if k.poly]
         bad = []
+        # ⭐ **棟の中の木階は棟の中身として数える**(施主裁定 2026-09-24 其一 A「其の一はA」)。
+        #   口が開くのは `kaidans[]` の `kizahashi: true` かつ `insideFrom.quote`(施主の言葉)を持つ木階だけ。
+        #   名指しの棟(`insideFrom.mune`)の平面の内に**収まる**組だけを除き、はみ出す組は赤のまま(規則19)。
+        kin = {}
+        for k in M.kaidans:
+            r9 = getattr(k, "raw", None) or {}
+            inf = r9.get("insideFrom")
+            if not (r9.get("kizahashi") and isinstance(inf, dict)):
+                continue
+            if (inf.get("quote") or "").strip():
+                kin[k.name] = (inf.get("mune"), k.poly)
+            else:
+                bad.append("⛔%s を棟の中身として数えようとしているが**施主の言葉が無い**"
+                           "(`kaidans[].insideFrom.quote`)" % k.name)
+        inside_n, inside_a = 0, 0.0
         for (ka, a), (kb, b) in itertools.combinations(items, 2):
             if polys_overlap(a.poly, b.poly):
                 if {ka, kb} == {"棟", "廊下"} or {ka, kb} == {"廊下", "附属屋"}:
                     continue          # 渡廊下は棟へ一間乗り込む(取り付き)
                 if ka == "廊下" and kb == "廊下":
+                    continue
+                hit = None
+                for (k1, o1), (k2, o2) in (((ka, a), (kb, b)), ((kb, b), (ka, a))):
+                    if k1 == "石段" and k2 == "棟" and o1.name in kin and kin[o1.name][0] == o2.name:
+                        hit = (kin[o1.name][1], o2.poly, o1.name)
+                if hit is not None:
+                    if poly_inside(hit[0], hit[1]):
+                        inside_n += 1
+                        inside_a += area(hit[0]) * M.KEN * M.KEN
+                        continue
+                    bad.append("%s×%s(木階が名指しの棟からはみ出す)" % (a.name, b.name))
                     continue
                 bad.append("%s×%s" % (a.name, b.name))
         gb = 0
@@ -736,8 +827,11 @@ class Checks(object):
                     bad.append("%s×%s" % (ga.name, gb2.name))
         n_rect = sum(1 for g in M.gardens if not g.explicit)
         note = "(割り当ての矩形の庭 %d は除く)" % n_rect if n_rect else ""
-        self.add("C01", "重なり 0 — 棟・廊下・附属屋・石段・実形の庭の総当たり %d 組" % (len(items) * (len(items) - 1) // 2),
-                 "%d 件 %s" % (len(bad), note), "ok" if not bad else "ng", bad[:12])
+        what = "重なり 0 — 棟・廊下・附属屋・石段・実形の庭の総当たり %d 組" % (len(items) * (len(items) - 1) // 2)
+        if kin:
+            what += "。棟の中の木階は中身として数える(施主裁定 2026-09-24 其一 A)"
+            note += "(棟の中の木階 %d 組・%.2f m² は除く)" % (inside_n, inside_a)
+        self.add("C01", what, "%d 件 %s" % (len(bad), note), "ok" if not bad else "ng", bad[:12])
 
     # C02 区画の中
     def c02(self):
@@ -787,7 +881,7 @@ class Checks(object):
 
     def c04(self):
         M = self.M
-        rows, bad = [], []
+        rows, bad, seated, seat_vis, seat_at_all = [], [], [], [], []
         worst = 0.0
         # 面ごとの許容(planes[].devEnvelopeM)と名指しの例外(planes[].devEnvelopeExceptions)は欄が持つ
         env = {}
@@ -810,13 +904,36 @@ class Checks(object):
             u0, v0, u1, v1 = bbox(b.poly)
             ds = []
             step = 0.5
+            # ⭐ **基壇に載る棟は基壇の天端 `munes[].kidanTopY` で系統差を数える**(施主裁定 2026-09-24
+            #   其二 案B ── 山王の二堂/其二 案A ── 御蔵・御供所)。基壇の下端(天端 − `kidanM.h`)は載る面と一致を検める。⛔ 施主の言葉(`kidanSeat.quote`)が無い棟には
+            #   開かない ── 検査を緩める口は裁定の引用に紐づける(規則19)。
+            ks = (b.raw or {}).get("kidanSeat") if kind == "棟" else None
+            kt = (b.raw or {}).get("kidanTopY") if kind == "棟" else None
+            y_seat = None
+            seat_at = None
+            kh = ((b.raw or {}).get("kidanM") or {}).get("h") if kind == "棟" else None
+            if isinstance(kt, (int, float)):
+                if isinstance(ks, dict) and (ks.get("quote") or "").strip():
+                    if not isinstance(kh, (int, float)):
+                        bad.append("⛔%s を基壇の天端で数えようとしているが**基壇の丈 `kidanM.h` が無い**" % b.name)
+                    else:
+                        # ⭐ 系統差を数える所は棟ごとの裁定の言葉に従う(`kidanSeat.countAt`)。既定は**面**
+                        #   (= 基壇の下端)。`top`(天端)は引用を持つときだけ効かせる(普請奉行の決め 2026-09-24)
+                        cat = "top" if ks.get("countAt") == "top" else "face"
+                        y_seat = float(kt) if cat == "top" else float(kt) - float(kh)
+                        seated.append("%s(%s)" % (b.name, ks.get("ruling") or "?"))
+                        seat_at = "%s を%sで数えた(%s「%s」)" % (
+                            b.name, "天端" if cat == "top" else "載る面", ks.get("ruling") or "?", ks.get("quote"))
+                elif ks is not None:
+                    bad.append("⛔%s を基壇の天端で数えようとしているが**施主の言葉が無い**"
+                               "(`munes[].kidanSeat.quote` に引用を入れる)" % b.name)
             u = u0
             while u <= u1 + 1e-9:
                 v = v0
                 while v <= v1 + 1e-9:
                     if pip(b.poly, u, v) or edge_dist((u, v), b.poly) < 1e-6:
                         t = M.terrace_at(u, v)
-                        y = b.y if b.y is not None else (t.y if t else None)
+                        y = y_seat if y_seat is not None else (b.y if b.y is not None else (t.y if t else None))
                         nat = M.nat(u, v)
                         if y is not None and nat is not None:
                             ds.append(y - nat)
@@ -835,12 +952,50 @@ class Checks(object):
             #   ばらつき(地面の凹凸)は許容、系統差は許容しない。由来: 施主指摘 2026-09-20(EDO-0290)。
             med = statistics.median(ds)
             spread = max(abs(q - med) for q in ds)
-            worst = max(worst, mx)
             rows.append((b.label, b.name, min(ds), max(ds), pc, med, spread))
+            if y_seat is None:
+                worst = max(worst, mx)
+            else:
+                # ⭐ **基壇に載る棟のばらつきは、基壇の見え(低い側)と削り(高い側)で受ける**
+                #   (施主裁定 2026-09-24 其二 案A「其の二は、Ａ」)── 包絡 0.5 は効かせず、系統差だけ数える。
+                #   見えの丈 = 天端 − 地盤の最低(max ds)・削り = 地盤の最高 − 天端(−min ds)を刷る(規則19)。
+                # ⭐ 見えと削りは**造成後の地盤**で数える(検分 K165)── 段は平らに造成されるので、造成前の地盤で
+                #   数えると基壇が面に埋まるのを見落とす(K164)。走る範囲 = 柱芯の矩形 + 基壇の出 `kidanM.out`。
+                top = float(kt)
+                kout = float(((b.raw or {}).get("kidanM") or {}).get("out") or 0.0)
+                t_seat = M.terrace_at(*centroid(b.poly))
+                vis, cut, fill = [], [0.0], [0.0]
+                u = u0 - kout
+                while u <= u1 + kout + 1e-9:
+                    v = v0 - kout
+                    while v <= v1 + kout + 1e-9:
+                        if pip(b.poly, u, v) or edge_dist((u, v), b.poly) <= kout + 1e-6:
+                            nat = M.nat(u, v)
+                            gy = M.graded_y(u, v, nat)
+                            if gy is not None:
+                                vis.append(top - gy)
+                                cut.append(nat - gy)
+                                fill.append(gy - nat)
+                        v += step
+                    u += step
+                y_bot = top - float(kh)
+                seat_at_all.append("%s・系統差 %+.2f" % (seat_at, statistics.median(ds)))
+                if t_seat is not None and abs(y_bot - t_seat.y) > 0.005:
+                    bad.append("⛔%s 基壇の下端 %.2f(天端 %.2f − 丈 %.2f)が載る面 %s %.2f と食い違う ── %s"
+                               % (b.name, y_bot, top, kh, t_seat.name, t_seat.y,
+                                  "基壇が造成後の面に埋まる" if y_bot < t_seat.y else "基壇が浮く"))
+                if vis:
+                    if min(vis) < -0.005:
+                        bad.append("⛔%s 基壇の天端が造成後の地盤に埋まる(最深 %.2f m)" % (b.name, -min(vis)))
+                    if max(vis) > float(kh) + 0.005:
+                        bad.append("⛔%s 基壇の下端が造成後の地盤から浮く(見えの丈 %.2f > 基壇の丈 %.2f)"
+                                   % (b.name, max(vis), kh))
+                    seat_vis.append("%s 天端 %.2f・見え %.2f〜%.2f・削り %.2f・盛り %.2f" % (
+                        b.name, top, max(0.0, min(vis)), max(0.0, max(vis)), max(cut), max(fill)))
             if abs(med) > Checks.OFFSET_TOL:
                 bad.append("⛔%s **系統差 %+.2f m**(面の引き方。ばらつきは ±%.2f)"
                            % (b.name, med, spread))
-            elif pc < 100.0:
+            elif y_seat is None and pc < 100.0:
                 bad.append("%s ばらつき ±%.2f m が許容 %.2f を超える(%.0f%%)" % (b.name, spread, tol, pc))
         # ⛔ 検査を緩めた宣言は黙って通さない — 施主の言葉が要る(完成条件の render と同じ作法)
         for x in exc_raw:
@@ -854,8 +1009,19 @@ class Checks(object):
             if ev > 0.5:
                 bad.append("⛔ 段 %s の許容を %.2f m へ緩めている(規則3 は 0.5)" % (tn, ev))
         self.rows_c04 = rows
-        self.add("C04", "面の引き方 — 棟ごとの**系統差**(規則3 は許容でなく導き方。系統差 > %.2f m は面の誤り)" % Checks.OFFSET_TOL,
-                 "不合格 %d 棟 / 最大 %.2f m" % (len(bad), worst), "ok" if not bad else "ng", bad[:12])
+        what = "面の引き方 — 棟ごとの**系統差**(規則3 は許容でなく導き方。系統差 > %.2f m は面の誤り)" % Checks.OFFSET_TOL
+        if seated:
+            rul = sorted(set(q.split("(", 1)[1].rstrip(")") for q in seated))
+            what += ("。基壇に載る棟は棟ごとの裁定の言葉どおり載る面(既定)か天端(`kidanSeat.countAt`)で系統差を数え(下端 = 載る面を検める)、**散らばりは造成と基壇の見えで受ける**"
+                     "(見えと削りは造成後の地盤で数える・包絡 0.5 は効かせない ── %s)" % "・".join(rul))
+            bad.append("⚠〔基壇に載る棟の数え方〕%s" % " / ".join(seat_at_all))
+            bad.append("⚠〔基壇の見えと削り(造成後の地盤)〕%s" % "・".join(seat_vis))
+        real = [q for q in bad if not q.startswith("⚠〔基壇")]
+        res = "不合格 %d 棟 / 最大 %.2f m" % (len(real), worst)
+        if seat_vis:
+            res += "(基壇に載る棟を除く)/ 基壇の見えの丈の最大 %.2f m(造成後の地盤)" % max(
+                float(q.split("見え ", 1)[1].split("〜", 1)[1].split("・", 1)[0]) for q in seat_vis)
+        self.add("C04", what, res, "ok" if not real else "ng", bad[:12])
 
     # C05 段差の受け
     def c05(self):
@@ -1706,7 +1872,8 @@ class Checks(object):
         if E is None:
             self.add("C26", "囲いの内の幹", "未検査 — parcels.json が無い", "na")
             return
-        runs = M.d.get("runs") or []
+        # ⭐ 関係で書いた囲い(`outlineFrom`)は散布と同じく生成後の折れ線で拾う(EDO-0430 C22)
+        runs = [dict(r, pts=M.run_pts_uv(r)) if M.run_pts_uv(r) else r for r in (M.d.get("runs") or [])]
         fs = L.kakoi_facing_road(runs, M.W, E, float(av.get("kakoiFacingRoadM") or 0.0))
         unread = [r.get("name") for r in runs if r.get("kind") in ("柵", "板塀")
                   and not r.get("pts") and (r.get("a") is None or r.get("b") is None)]

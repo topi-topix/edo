@@ -131,13 +131,36 @@ def clip_gaps(a, b, gaps):
 SEG_MIN_KEN = 0.001
 
 
+def span_clip(a, b, s0, spans):
+    """折れ線の一区間 a→b(折れ線の頭からの道のり s0[間]で始まる)から、道のりの区間 `spans`=[[s, e], ...]
+    を抜く。⭐ 宣言した口(`kuchiSpans`)用 ── 円い口と違い、**折れ線に沿った道のり**で切るので、
+    同じ円に入る隣の区間(隅の向こう側)を巻き込まない。"""
+    L = math.hypot(b[0] - a[0], b[1] - a[1])
+    if L < 1e-12 or not spans: return [(a, b)]
+    P = lambda t: [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
+    cut = sorted((max(0.0, (s - s0) / L), min(1.0, (e - s0) / L)) for s, e in spans
+                 if e > s0 and s < s0 + L)
+    if not cut: return [(a, b)]
+    out, cur = [], 0.0
+    for c0, c1 in cut:
+        if c0 > cur + 1e-9: out.append((P(cur), P(c0)))
+        cur = max(cur, c1)
+    if cur < 1.0 - 1e-9: out.append((P(cur), P(1.0)))
+    return out
+
+
 def run_segs(o):
-    """run/wall を開口で割った描画区間。折れ線にも対応。⛔ 1 mm 級の切れ端は run ではない。"""
+    """run/wall を開口で割った描画区間。折れ線にも対応。⛔ 1 mm 級の切れ端は run ではない。
+    ⭐ 宣言した口 `kuchiSpans`(折れ線の道のりの区間)も抜く(`derive_runs` の `kuchiBeside`)。"""
     out = []
+    s0, sp = 0.0, o.get("kuchiSpans") or []
     for a, b in segs(o):
         horiz = abs(b[0] - a[0]) >= abs(b[1] - a[1])
-        for p, q in gap_split(a, b, o, horiz):
-            out += clip_gaps(p, q, o.get("gaps") or [])
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        for a2, b2 in span_clip(a, b, s0, sp):
+            for p, q in gap_split(a2, b2, o, horiz):
+                out += clip_gaps(p, q, o.get("gaps") or [])
+        s0 += L
     return [(a, b) for a, b in out if math.hypot(b[0] - a[0], b[1] - a[1]) > SEG_MIN_KEN]
 
 
@@ -179,18 +202,23 @@ def gap_ledger(o):
     sk = o.get("skips") or []
     dec = [q for q in gs if q not in sk]
 
-    def L(g2, axis=True):
+    def L(g2, axis=True, span=True):
         q = dict(o); q["gaps"] = g2
         if not axis:
             for k9 in ("gapU", "gapV", "gapHalf"): q.pop(k9, None)
+        if not span: q.pop("kuchiSpans", None)
         return sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in run_segs(q))
-    raw = L([], axis=False)          # 折れ線(口を一つも抜かない = 節点間の総和)
-    L0 = L([])                       # 軸の口(`gapU`/`gapV`)だけ抜いた長さ
+    raw = L([], axis=False, span=False)   # 折れ線(口を一つも抜かない = 節点間の総和)
+    Ls = L([], axis=False)                # 宣言した口(道のり `kuchiSpans`)だけ抜いた長さ
+    L0 = L([])                            # それに軸の口(`gapU`/`gapV`)も抜いた長さ
     ax = 1 if (o.get("gapU") is not None or o.get("gapV") is not None) \
               and o.get("gapHalf") is not None else 0
+    ks = o.get("kuchiSpans") or []
     return {"折れ線": raw, "実長": L(gs),
+            "道のりの口の宣言幅": sum(e - s for s, e in ks), "道のりの口が抜いた": raw - Ls,
+            "道のりの口の数": len(ks),
             "軸の口の宣言幅": 2.0 * float(o.get("gapHalf") or 0.0) * ax,
-            "軸の口が抜いた": raw - L0, "軸の口の数": ax,
+            "軸の口が抜いた": Ls - L0, "軸の口の数": ax,
             "口の宣言幅": sum(2 * q[2] for q in dec), "口が抜いた": L0 - L(dec), "口の数": len(dec),
             "skip の宣言幅": sum(2 * q[2] for q in sk), "skip が抜いた": L0 - L(sk), "skip の数": len(sk)}
 
@@ -2893,7 +2921,60 @@ def derive_runs(d, g):
     #    ⛔ 区間を数で持たない — **節点間の区間ごとに他の囲いとの離れを測って決める従属値**。
     #    ⛔ **区間を「節点から節点まで」で落とさない** — 隅で一点だけ寄る辺まで丸ごと消える。
     #    ⭕ **近い所だけを落とす**(0.01 間で歩き、`ins` を割る連続した範囲をそのまま口にする)。
-    osegs = [s for q in d["runs"] if q["name"] != "Ita_Keidai" for s in run_segs(q)]
+    # ⭐ **宣言した口 `kuchiBeside`**【普請奉行の決め 2026-09-24・庭方の答え 2026-09-18「この区間は柵を
+    #    回さない。透塀を境にする」】── 名指しした種別の囲い(透塀)の**帯の外面**から犬走り
+    #    (`const.inubashiri`)が取れない区間は、柵を回さず相手を境にする。⭐ 口の端 = 相手の帯の外面から
+    #    柵の帯の面までの離れが `clearFrom` を**超える所**。⛔ 端を数で持たない ── 帯の半厚は相手の部材の
+    #    外形(`faceFrom` の `thickM` のうち柵の丈に掛かる帯の最大)と柵の柱の半径(`kakoi_half_thickness`)
+    #    からの従属値。⭐ 円い口ではなく**折れ線の道のり**で抜く(`kuchiSpans` ── 隅の向こうを巻き込まない)。
+    kb = by["Ita_Keidai"].get("kuchiBeside")
+    kspans, kkinds = [], set()
+    if kb:
+        import sashizu_lib as L9
+        kkinds = set([kb["kind"]] if isinstance(kb["kind"], str) else kb["kind"])
+        cf = kb.get("clearFrom", "")
+        if not cf.startswith("const.") or d["const"].get(cf[6:]) is None:
+            raise SystemExit("`runs[Ita_Keidai].kuchiBeside.clearFrom` が const を指していない: %r" % cf)
+        #    ⭐ 相手の半厚は `faceFrom` が指す部材の欄 ── 数(`thickAtEndTHM` = 袖の稜まで)か外形 `outlineM`
+        #      (柵の丈に掛かる帯の `thickM` の最大)。⚠ 透塀は `thickAtEndTHM` で測る(`outlineM` の ±0.400 は袖の稜を見落とす)。
+        bn = kb.get("faceFrom", "")
+        m9 = re.match(r"bom\[(.+)\]\.(\w+)$", bn)
+        brow = m9 and next((b9 for b9 in d["bom"] if b9.get("部材") == m9.group(1)), None)
+        fv = brow.get(m9.group(2)) if brow else None
+        if fv is None:
+            raise SystemExit("`runs[Ita_Keidai].kuchiBeside.faceFrom` の欄が引けない: %r" % bn)
+        hF, _src = L9.kakoi_half_thickness(d, "Ita_Keidai")
+        gF = next((g9 for g9 in d["gardens"] if g9.get("name") == by["Ita_Keidai"]["hFrom"]["garden"]), {})
+        hM9 = float(gF["tamagaki"]["hM"])
+        hS = float(fv) if isinstance(fv, (int, float)) else \
+            max(max(abs(t) for t in bd["thickM"]) for bd in fv if bd["hM"][0] < hM9 and bd["hM"][1] > 0.0)
+        thr = (float(d["const"][cf[6:]]) + hS + hF) / d["const"]["ken"]
+        ksegs = [s for q in d["runs"] if q.get("kind") in kkinds for s in run_segs(q)]
+        s0 = 0.0
+        for i in range(len(pts) - 1):
+            a, b_ = pts[i], pts[i + 1]
+            Lk = math.hypot(b_[0] - a[0], b_[1] - a[1])
+            n = max(2, int(Lk / 0.01))
+            at = lambda t: (a[0] + (b_[0] - a[0]) * t, a[1] + (b_[1] - a[1]) * t)
+            for j in range(n):
+                if min(_seg_seg_dist(at(j / float(n)), at((j + 1) / float(n)), c, e)
+                       for c, e in ksegs) < thr - 1e-9:
+                    q0, q1 = s0 + Lk * j / n, s0 + Lk * (j + 1) / n
+                    if kspans and q0 <= kspans[-1][1] + 1e-9: kspans[-1][1] = q1
+                    else: kspans.append([q0, q1])
+            s0 += Lk
+        #    ⭐ 口と口の間に残る**切れ端**(建てても柵にならない長さ)は口へ繋ぐ ── 下限は柱の芯々一本
+        #      (`tamagaki.postPitchKen`)。⛔ 新しい数ではない(柵の最短の一区間)。
+        pk = float(gF["tamagaki"]["postPitchKen"])
+        mg = []
+        for q in kspans:
+            if mg and q[0] - mg[-1][1] < pk: mg[-1][1] = q[1]
+            else: mg.append(list(q))
+        if mg and mg[0][0] < pk: mg[0][0] = 0.0
+        if mg and s0 - mg[-1][1] < pk: mg[-1][1] = s0
+        kspans = [[round(q0, 4), round(q1, 4)] for q0, q1 in mg]
+    osegs = [s for q in d["runs"] if q["name"] != "Ita_Keidai" and q.get("kind") not in kkinds
+             for s in run_segs(q)]
     skips = []
     for i in range(len(pts) - 1):
         a, b_ = pts[i], pts[i + 1]
@@ -2918,6 +2999,7 @@ def derive_runs(d, g):
     by["Ita_Keidai"]["pts"] = [[round(u, 3), round(v, 3)] for u, v in pts]
     by["Ita_Keidai"]["gaps"] = gaps + skips
     by["Ita_Keidai"]["skips"] = skips
+    if kb: by["Ita_Keidai"]["kuchiSpans"] = kspans
     by["Ita_Keidai"].pop("gapU", None); by["Ita_Keidai"].pop("gapHalf", None)
     by["Ita_Keidai"]["_"] = ("境内の外周の**腰高の柵**【U ユーザー裁定 2026-09-07】。"
                              "**平場の輪郭から犬走り(`const.inubashiri`)ぶん内へ寄せて機械生成する** — "

@@ -10518,21 +10518,17 @@
  "reviews": {
   "niwashi": {
    "at": "2026-09-24",
-   "verdict": "fail",
-   "hash": "66b6d9b9d07cb811",
-   "note": "直し(69d5935b)高1中2。社殿裏が裸地(地盤が面より高く帯に入らず、林はclip=Keidaiで落ちる)→西の林の範囲を社殿裏まで広げ松5・中木5・低木/北の切土も抜くのが筋/本殿背面の軒先の下に雨落ちが無い",
+   "verdict": "pass",
+   "hash": "cf32047d7e022dc7",
+   "note": "直し(5b30061f)条件付き合格・中1低1。K141〜K144解消。社殿裏の中木5本が幅2mの帯で生垣の列に見える→u−48まで広げ3+2の不等辺に/中木を主景の欅から約2.5間",
    "chapters": {
-    "gardens": "223037ba39db",
+    "gardens": "0416206c1ab2",
     "planting": "050b6cfaad9a",
     "routes": "23ecf0700734",
     "viewpoints": "ae8d421035b4",
     "py": "109f4927c0f861d5"
    },
    "rounds": [
-    {
-     "at": "2026-09-16T20:30:36+09:00",
-     "verdict": "advisory"
-    },
     {
      "at": "2026-09-17T23:48:44+09:00",
      "verdict": "advisory"
@@ -10576,30 +10572,34 @@
     {
      "at": "2026-09-24T08:57:37+09:00",
      "verdict": "fail"
+    },
+    {
+     "at": "2026-09-24T09:32:46+09:00",
+     "verdict": "pass"
     }
    ]
   },
   "kosho": {
    "at": "2026-09-24",
    "verdict": "pass",
-   "hash": "13f1c6194ede476e",
-   "note": "直し(69d5935b)助言付き・中1低3。前巡6件解消。社殿裏を『社叢』とする典拠なし(御宮絵図の緑か白かで決める)/joints/43 の石の間の呼び残り/幣殿・作り合いの床下0.25mは典拠なし→U明記/北の切土は原図を照らすまで保留",
+   "hash": "943c482ec553e9e4",
+   "note": "直し(5b30061f)合格・低1。K141〜K144解消。実装前に御宮絵図で本殿の背後に末社・小祠・道が無いか照らす",
    "chapters": {
     "const": "e186ab30371b",
     "polygon": "66c63a322d37",
     "grid": "7c99d6cc4467",
-    "planes": "e8df99ba61f9",
-    "terraces": "79d95ca43ad2",
-    "terraceWalls": "d88d3364d55b",
+    "planes": "c3978d54c064",
+    "terraces": "b4f9b22eb4a9",
+    "terraceWalls": "b9ee3a5c8508",
     "slopeBands": "19e7253c4bcb",
-    "munes": "70cc45b689f2",
+    "munes": "f55401f65295",
     "links": "08d0cec45aff",
     "runs": "17714a4a4c6a",
     "gates": "8bccfb4185fb",
     "torii": "17b88f18dd14",
     "kaidans": "6ed9133d4124",
     "sando": "c1779fabddef",
-    "gardens": "223037ba39db",
+    "gardens": "0416206c1ab2",
     "planting": "050b6cfaad9a",
     "props": "61b281955c80",
     "sections": "d3642439a664",
@@ -10612,22 +10612,18 @@
     "routes": "23ecf0700734",
     "kattemichi": "3e4dc828c638",
     "viewpoints": "ae8d421035b4",
-    "joints": "02f87e0c7f68",
+    "joints": "7ef9fddceb4d",
     "ido": "6f50ceb3c205",
     "shadenKidan": "84320877fb92",
     "ishizai": "898d22a3434c",
     "kakoiCross": "e451af6418e1",
-    "drains": "e4f9cb18ce66",
+    "drains": "a7eb06adf639",
     "amaochi": "ad9fd4bb02ce",
     "surface": "728fe7869784",
     "py": "109f4927c0f861d5",
     "md": "f2cc423c565acab3"
    },
    "rounds": [
-    {
-     "at": "2026-09-16T20:30:36+09:00",
-     "verdict": "advisory"
-    },
     {
      "at": "2026-09-17T23:48:44+09:00",
      "verdict": "advisory"
@@ -10671,30 +10667,34 @@
     {
      "at": "2026-09-24T08:57:37+09:00",
      "verdict": "pass"
+    },
+    {
+     "at": "2026-09-24T09:32:46+09:00",
+     "verdict": "pass"
     }
    ]
   },
   "kenzu": {
    "at": "2026-09-24",
-   "verdict": "fail",
-   "hash": "13f1c6194ede476e",
-   "note": "直し(69d5935b)中4。前巡6件解消。社殿裏385m²のうち185m²が裸地(撒き先が面の内だけ)/北の切土 最大3.29m・1.25m超289m²も同じ規則で抜ける/透塀Wの外の地盤が土台の天端を最大0.25m越える/本殿の西の軒先が透塀の芯を0.56m越え雨が塀の外の高い地盤へ",
+   "verdict": "pass",
+   "hash": "943c482ec553e9e4",
+   "note": "直し(5b30061f)注意付き通過・中2低1。K141・K143・K144解消、K142一部。丘の西の続き約105m²・最大1.30mの切土が残る/丘の北・東を巻く境内の面の細い帯約308m²(盛土約600m³)に棟も道も載らない/溝の帯の北の縁の法が未検査",
    "chapters": {
     "const": "e186ab30371b",
     "polygon": "66c63a322d37",
     "grid": "7c99d6cc4467",
-    "planes": "e8df99ba61f9",
-    "terraces": "79d95ca43ad2",
-    "terraceWalls": "d88d3364d55b",
+    "planes": "c3978d54c064",
+    "terraces": "b4f9b22eb4a9",
+    "terraceWalls": "b9ee3a5c8508",
     "slopeBands": "19e7253c4bcb",
-    "munes": "70cc45b689f2",
+    "munes": "f55401f65295",
     "links": "08d0cec45aff",
     "runs": "17714a4a4c6a",
     "gates": "8bccfb4185fb",
     "torii": "17b88f18dd14",
     "kaidans": "6ed9133d4124",
     "sando": "c1779fabddef",
-    "gardens": "223037ba39db",
+    "gardens": "0416206c1ab2",
     "planting": "050b6cfaad9a",
     "props": "61b281955c80",
     "sections": "d3642439a664",
@@ -10707,22 +10707,18 @@
     "routes": "23ecf0700734",
     "kattemichi": "3e4dc828c638",
     "viewpoints": "ae8d421035b4",
-    "joints": "02f87e0c7f68",
+    "joints": "7ef9fddceb4d",
     "ido": "6f50ceb3c205",
     "shadenKidan": "84320877fb92",
     "ishizai": "898d22a3434c",
     "kakoiCross": "e451af6418e1",
-    "drains": "e4f9cb18ce66",
+    "drains": "a7eb06adf639",
     "amaochi": "ad9fd4bb02ce",
     "surface": "728fe7869784",
     "py": "109f4927c0f861d5",
     "md": "f2cc423c565acab3"
    },
    "rounds": [
-    {
-     "at": "2026-09-16T20:30:35+09:00",
-     "verdict": "advisory"
-    },
     {
      "at": "2026-09-17T23:48:44+09:00",
      "verdict": "fail"
@@ -10766,6 +10762,10 @@
     {
      "at": "2026-09-24T08:57:37+09:00",
      "verdict": "fail"
+    },
+    {
+     "at": "2026-09-24T09:32:45+09:00",
+     "verdict": "pass"
     }
    ]
   }

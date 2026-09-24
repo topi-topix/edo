@@ -4991,7 +4991,9 @@ def scatter_pts(d, g):
                 tr9 = [t for t in tr9 if t and t.get("uv")]
                 if tr9:
                     tu9, tv9 = tr9[0]["uv"]
-                    bx9 = cluster_boxes(c)[0]
+                    # ⚠ 輪郭(`poly`)だけの塊は箱を持たない ── 四分の芯は輪郭の外接箱から取る(K147 2026-09-24)
+                    bx9 = (cluster_boxes(c) or [(min(q[0] for Q in polys for q in Q), min(q[1] for Q in polys for q in Q),
+                                                max(q[0] for Q in polys for q in Q), max(q[1] for Q in polys for q in Q))])[0]
                     uc9, vc9 = (bx9[0] + bx9[2]) / 2.0, (bx9[1] + bx9[3]) / 2.0
                     quad9 = {"北西": lambda p: p[0] <= uc9 and p[1] >= vc9,
                              "北東": lambda p: p[0] >= uc9 and p[1] >= vc9,

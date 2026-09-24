@@ -952,10 +952,14 @@ class Checks(object):
         self.rows_c06 = rows
         # 土留めを置かず**切土の法**で受ける縁(`terraces[].cutSlopes`)── 要る幅(切の深さ × batterCut)が
         #   区画の内の余地に納まるか。⛔ 法を区画の外へ出さない(区域侵犯は許容0)。
+        #   ⭐ **盛土の法**(`terraces[].fillSlopes` ── 面が外の自然地盤より高い縁)も同じ表で測る。
+        #   要る幅 = 盛の高さ × batterFill(2026-09-24 山王 K145 ── 抜いた域へ下ろす法)。
         bc = M.const.get("batterCut", 1.0)
+        bf = M.const.get("batterFill", 1.5)
         rows_cs = []
         for t in M.terraces:
-            for cs in (t.raw.get("cutSlopes") or []):
+            for cs, fill in ([(c, False) for c in (t.raw.get("cutSlopes") or [])] +
+                             [(c, True) for c in (t.raw.get("fillSlopes") or [])]):
                 a, b = cs["a"], cs["b"]
                 du, dv = b[0] - a[0], b[1] - a[1]
                 nn = math.hypot(du, dv) or 1e-9
@@ -971,7 +975,7 @@ class Checks(object):
                     nat = M.nat(u, v)
                     if nat is None:
                         continue
-                    need = max(0.0, nat - t.y) * bc
+                    need = max(0.0, t.y - nat) * bf if fill else max(0.0, nat - t.y) * bc
                     room = 0.0
                     while room < 40.0 / M.KEN and M.in_parcel(u + ox * (room + 0.01), v + oy * (room + 0.01)):
                         room += 0.01
@@ -984,10 +988,10 @@ class Checks(object):
                     continue
                 rows_cs.append((cs.get("name") or t.name, deep[0], deep[3], worst[0], worst[1], worst[2]))
                 if worst[0] < -0.05:
-                    bad.append("%s 切土の法が区画の外へ %.2f m 出る(%.1f,%.1f)" % (cs.get("name") or t.name, -worst[0], worst[1], worst[2]))
+                    bad.append("%s %sの法が区画の外へ %.2f m 出る(%.1f,%.1f)" % (cs.get("name") or t.name, "盛土" if fill else "切土", -worst[0], worst[1], worst[2]))
         self.rows_cutslope = rows_cs
         self.add("C06", "土留め高と法 — %d 本の天端と地山の落差(宣言・駒の丈・埋没)%s" % (
-                     len(M.walls), (" ・切土の法 %d 本が区画の内に納まる" % len(rows_cs)) if rows_cs else ""),
+                     len(M.walls), (" ・切土・盛土の法 %d 本が区画の内に納まる" % len(rows_cs)) if rows_cs else ""),
                  "%d 件" % len(bad), "ok" if not bad else "ng", bad[:12])
 
     # C07 外周の閉じ
@@ -2412,7 +2416,7 @@ def build(est, deep=False, out=None):
         h.append(tbl(["土留め", "天端 m", "実落差 最小", "最大", "宣言"],
                      [[a, "%.2f" % b, "%.2f" % lo, "%.2f" % hi, str(dcl) if dcl is not None else "—"] for a, b, lo, hi, dcl in C.rows_c06]))
     if getattr(C, "rows_cutslope", None):
-        h.append(tbl(["切土の法(土留めを置かない縁)", "最大の切 = 要る幅 m(1:%.1f)" % M.const.get("batterCut", 1.0),
+        h.append(tbl(["切土・盛土の法(土留めを置かない縁)", "要る幅 m(切 1:%.1f ／ 盛 1:%.1f)" % (M.const.get("batterCut", 1.0), M.const.get("batterFill", 1.5)),
                       "その点の区画の内の幅 m", "最も狭い所の余裕 m", "その点 (u, v)"],
                      [[a, "%.2f" % need, "%.2f" % room, "%+.2f" % mg, "(%.2f, %.2f)" % (u, v)]
                       for a, need, room, mg, u, v in C.rows_cutslope]))

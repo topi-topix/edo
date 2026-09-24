@@ -1503,6 +1503,64 @@ def _w(g, p):
     return [round(x, 3), round(z, 3)]
 
 
+def derive_edge_walls(d):
+    """**面の縁に立つ土留め**(`terraceWalls[].edgeOf`)の折れ線と天端を、面の区域の線から従属値で書き込む。
+
+    ⭐ 施主裁定 2026-09-25「Aでお願いします」(山王 本殿の西の野面の土留め)── 指図は**関係だけ**を持つ:
+      `edgeOf.terrace` の面の輪郭のうち、`notAlong` の土留めの線に載る辺と `notShared` の面と共有する辺を
+      除いた残り(= 外の縁)を一本の折れ線 `pts` にする。天端 `coping` は `copingFace` の面の `y`。
+    ⛔ 座標を指図へ書き戻さない(呼び手の写しへ書くだけ)。⛔ 縁が一本の折れ線にならなければ止める。
+    """
+    T = dict((t["name"], t) for t in d.get("terraces", []))
+    W = dict((w["name"], w) for w in d.get("terraceWalls", []))
+
+    def on_line(p, q, a, b):
+        ex, ey = b[0] - a[0], b[1] - a[1]
+        L2 = ex * ex + ey * ey
+        if L2 < 1e-12: return False
+        for r in (p, q):
+            if abs((r[0] - a[0]) * ey - (r[1] - a[1]) * ex) / math.sqrt(L2) > 1e-3: return False
+            t = ((r[0] - a[0]) * ex + (r[1] - a[1]) * ey) / L2
+            if t < -1e-6 or t > 1 + 1e-6: return False
+        return True
+
+    for w in d.get("terraceWalls", []):
+        eo = w.get("edgeOf")
+        if not eo: continue
+        te = T.get(eo.get("terrace"))
+        if te is None or not te.get("uv"):
+            raise SystemExit("土留め『%s』の `edgeOf.terrace` が引けない: %r" % (w["name"], eo.get("terrace")))
+        P = [tuple(q) for q in te["uv"]]
+        lines = []
+        for nm in eo.get("notAlong") or []:
+            w9 = W.get(nm)
+            if w9 is None or "a" not in w9:
+                raise SystemExit("土留め『%s』の `edgeOf.notAlong` が引けない: %r" % (w["name"], nm))
+            lines.append((w9["a"], w9["b"]))
+        for nm in eo.get("notShared") or []:
+            t9 = T.get(nm)
+            if t9 is None:
+                raise SystemExit("土留め『%s』の `edgeOf.notShared` が引けない: %r" % (w["name"], nm))
+            Q = [tuple(q) for q in t9["uv"]]
+            lines += [(Q[i], Q[(i + 1) % len(Q)]) for i in range(len(Q))]
+        n = len(P)
+        keep = [not any(on_line(P[i], P[(i + 1) % n], a, b) for a, b in lines) for i in range(n)]
+        if all(keep) or not any(keep):
+            raise SystemExit("土留め『%s』の縁が面『%s』の輪郭から切り出せない" % (w["name"], te["name"]))
+        s0 = next(i for i in range(n) if keep[i] and not keep[i - 1])
+        pts = [list(P[s0])]
+        i = s0
+        while keep[i % n]:
+            pts.append(list(P[(i + 1) % n])); i += 1
+        if sum(keep) != i - s0:
+            raise SystemExit("土留め『%s』の縁が一本の折れ線にならない(面『%s』)" % (w["name"], te["name"]))
+        w["pts"] = pts
+        cf = T.get(w.get("copingFace"))
+        if cf is None:
+            raise SystemExit("土留め『%s』の `copingFace` が引けない: %r" % (w["name"], w.get("copingFace")))
+        w["coping"] = cf["y"]
+
+
 def prepare(d):
     """指図の写しに従属値(口の芯と半幅・石段の側壁の通り)を書き込んで返す。
 
@@ -1511,6 +1569,7 @@ def prepare(d):
       (672 点・差 0。ほかの `derive_*` を全部掛けても同じ)。⛔ 呼び手の `d` は書き換えない(写しを返す)。
     """
     d2 = copy.deepcopy(d)
+    derive_edge_walls(d2)
     derive_gaps(d2)
     return d2
 

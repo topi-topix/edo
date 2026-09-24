@@ -180,6 +180,7 @@ class Model(object):
         self.notes = []
         self.d = d if d is not None else json.load(open(os.path.join(DOC, est + "_sashizu.json"), encoding="utf-8"))
         d = self.d
+        SOIL.derive_edge_walls(d)      # 面の縁に立つ土留め(`edgeOf`)の折れ線と天端 ── 読んだ写しへ書くだけ
         c = d.get("const", {})
         self.KEN = c.get("ken", 1.818)
         self.TSUBO = c.get("tsubo") or 3.305785

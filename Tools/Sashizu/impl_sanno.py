@@ -2927,11 +2927,19 @@ def derive_runs(d, g):
     #    柵の帯の面までの離れが `clearFrom` を**超える所**。⛔ 端を数で持たない ── 帯の半厚は相手の部材の
     #    外形(`faceFrom` の `thickM` のうち柵の丈に掛かる帯の最大)と柵の柱の半径(`kakoi_half_thickness`)
     #    からの従属値。⭐ 円い口ではなく**折れ線の道のり**で抜く(`kuchiSpans` ── 隅の向こうを巻き込まない)。
+    #    ⭐ 宣言は一つか列。`kind`(囲いの種別 ── runs)か `wallMasonry`(土留めの積み方 ── terraceWalls)を名指す
+    #      【施主 2026-09-25「野面の石垣で受けたら柵は不要になる」── 野面の土留めと並走する区間は柵を置かない】。
     kb = by["Ita_Keidai"].get("kuchiBeside")
+    kbs = [] if not kb else (kb if isinstance(kb, list) else [kb])
     kspans, kkinds = [], set()
-    if kb:
+    if kbs:
         import sashizu_lib as L9
-        kkinds = set([kb["kind"]] if isinstance(kb["kind"], str) else kb["kind"])
+        hF, _src = L9.kakoi_half_thickness(d, "Ita_Keidai")
+        gF = next((g9 for g9 in d["gardens"] if g9.get("name") == by["Ita_Keidai"]["hFrom"]["garden"]), {})
+        hM9 = float(gF["tamagaki"]["hM"])
+    for kb in kbs:
+        if kb.get("kind"):
+            kkinds |= set([kb["kind"]] if isinstance(kb["kind"], str) else kb["kind"])
         cf = kb.get("clearFrom", "")
         if not cf.startswith("const.") or d["const"].get(cf[6:]) is None:
             raise SystemExit("`runs[Ita_Keidai].kuchiBeside.clearFrom` が const を指していない: %r" % cf)
@@ -2943,13 +2951,16 @@ def derive_runs(d, g):
         fv = brow.get(m9.group(2)) if brow else None
         if fv is None:
             raise SystemExit("`runs[Ita_Keidai].kuchiBeside.faceFrom` の欄が引けない: %r" % bn)
-        hF, _src = L9.kakoi_half_thickness(d, "Ita_Keidai")
-        gF = next((g9 for g9 in d["gardens"] if g9.get("name") == by["Ita_Keidai"]["hFrom"]["garden"]), {})
-        hM9 = float(gF["tamagaki"]["hM"])
         hS = float(fv) if isinstance(fv, (int, float)) else \
             max(max(abs(t) for t in bd["thickM"]) for bd in fv if bd["hM"][0] < hM9 and bd["hM"][1] > 0.0)
         thr = (float(d["const"][cf[6:]]) + hS + hF) / d["const"]["ken"]
-        ksegs = [s for q in d["runs"] if q.get("kind") in kkinds for s in run_segs(q)]
+        if kb.get("kind"):
+            ksegs = [s for q in d["runs"] if q.get("kind") in
+                     ([kb["kind"]] if isinstance(kb["kind"], str) else kb["kind"]) for s in run_segs(q)]
+        else:
+            ksegs = [s for q in d["terraceWalls"] if q.get("masonry") == kb.get("wallMasonry") for s in run_segs(q)]
+            if not ksegs:
+                raise SystemExit("`runs[Ita_Keidai].kuchiBeside.wallMasonry` の土留めが無い: %r" % kb.get("wallMasonry"))
         s0 = 0.0
         for i in range(len(pts) - 1):
             a, b_ = pts[i], pts[i + 1]
@@ -2959,16 +2970,15 @@ def derive_runs(d, g):
             for j in range(n):
                 if min(_seg_seg_dist(at(j / float(n)), at((j + 1) / float(n)), c, e)
                        for c, e in ksegs) < thr - 1e-9:
-                    q0, q1 = s0 + Lk * j / n, s0 + Lk * (j + 1) / n
-                    if kspans and q0 <= kspans[-1][1] + 1e-9: kspans[-1][1] = q1
-                    else: kspans.append([q0, q1])
+                    kspans.append([s0 + Lk * j / n, s0 + Lk * (j + 1) / n])
             s0 += Lk
+    if kbs:
         #    ⭐ 口と口の間に残る**切れ端**(建てても柵にならない長さ)は口へ繋ぐ ── 下限は柱の芯々一本
         #      (`tamagaki.postPitchKen`)。⛔ 新しい数ではない(柵の最短の一区間)。
         pk = float(gF["tamagaki"]["postPitchKen"])
         mg = []
-        for q in kspans:
-            if mg and q[0] - mg[-1][1] < pk: mg[-1][1] = q[1]
+        for q in sorted(kspans):
+            if mg and q[0] - mg[-1][1] < pk: mg[-1][1] = max(mg[-1][1], q[1])
             else: mg.append(list(q))
         if mg and mg[0][0] < pk: mg[0][0] = 0.0
         if mg and s0 - mg[-1][1] < pk: mg[-1][1] = s0
@@ -2999,7 +3009,7 @@ def derive_runs(d, g):
     by["Ita_Keidai"]["pts"] = [[round(u, 3), round(v, 3)] for u, v in pts]
     by["Ita_Keidai"]["gaps"] = gaps + skips
     by["Ita_Keidai"]["skips"] = skips
-    if kb: by["Ita_Keidai"]["kuchiSpans"] = kspans
+    if kbs: by["Ita_Keidai"]["kuchiSpans"] = kspans
     by["Ita_Keidai"].pop("gapU", None); by["Ita_Keidai"].pop("gapHalf", None)
     by["Ita_Keidai"]["_"] = ("境内の外周の**腰高の柵**【U ユーザー裁定 2026-09-07】。"
                              "**平場の輪郭から犬走り(`const.inubashiri`)ぶん内へ寄せて機械生成する** — "
@@ -6568,6 +6578,8 @@ def bake():
       (`d` は読んだ写しを組み立てるだけ)ので、`src.sha256` は読んだ指図そのものを指す。
     """
     d = json.load(open(JSON, encoding="utf-8"))
+    import sashizu_soil as _S9
+    _S9.derive_edge_walls(d)     # 面の縁に立つ土留めの折れ線と天端(`edgeOf` ── 施主裁定 2026-09-25 A)
     derive_routes(d)
     derive_garden_strips(d)
     g = G(d)

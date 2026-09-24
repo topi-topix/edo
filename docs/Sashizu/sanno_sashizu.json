@@ -10853,23 +10853,23 @@
   },
   "kosho": {
    "at": "2026-09-24",
-   "verdict": "pass",
-   "hash": "06abbaeb9f24d89a",
-   "note": "17巡 通す(注意付き)。K145〜K147 史実面で解消。中1: 境内の外周の柵 Ita_Keidai が平場の輪郭に従い北の丘を柵の外に出す — 境内の境は史料で決める。柵を区画の辺か丘の外の斜面の縁へ回すか、御宮絵図で根拠を取る。それまで確度U。低1: K148 の照合範囲を北の丘・西の続きへ広げる",
+   "verdict": "fail",
+   "hash": "0b80a5a3778aca3c",
+   "note": "18巡 fail(高1中2)。高: 薬師堂・稲荷社の部材(build_sanno_do.py)は自前の切石の基壇(高0.30・出0.70/0.42)を持ち、新しい基壇と二重(計0.70/0.60)・部材の基壇が縁から0.53/0.26m外へ浮く。中: 上がりの石段が部材の基壇の下に埋まる/基壇の出の注記0.30と形0.165が合わない。K109 は解消",
    "chapters": {
     "const": "e186ab30371b",
     "polygon": "66c63a322d37",
     "grid": "7c99d6cc4467",
-    "planes": "c3978d54c064",
-    "terraces": "68ec7ca34dac",
-    "terraceWalls": "b9ee3a5c8508",
+    "planes": "1da262bc4445",
+    "terraces": "10dac64d6fef",
+    "terraceWalls": "4900086f3b53",
     "slopeBands": "19e7253c4bcb",
     "munes": "f55401f65295",
-    "links": "08d0cec45aff",
-    "runs": "17714a4a4c6a",
+    "links": "eeb5d934d473",
+    "runs": "3f6a9b8a3177",
     "gates": "8bccfb4185fb",
     "torii": "17b88f18dd14",
-    "kaidans": "6ed9133d4124",
+    "kaidans": "b6f2e7a9fe67",
     "sando": "c1779fabddef",
     "gardens": "dd1140077403",
     "planting": "050b6cfaad9a",
@@ -10884,7 +10884,7 @@
     "routes": "23ecf0700734",
     "kattemichi": "3e4dc828c638",
     "viewpoints": "ae8d421035b4",
-    "joints": "2288c1432ab2",
+    "joints": "3791962632ed",
     "ido": "6f50ceb3c205",
     "shadenKidan": "84320877fb92",
     "ishizai": "898d22a3434c",
@@ -10893,13 +10893,9 @@
     "amaochi": "ad9fd4bb02ce",
     "surface": "728fe7869784",
     "py": "256ec7a36ed19eed",
-    "md": "f2cc423c565acab3"
+    "md": "4117d7a0601dadbb"
    },
    "rounds": [
-    {
-     "at": "2026-09-18T20:52:53+09:00",
-     "verdict": "advisory"
-    },
     {
      "at": "2026-09-19T07:25:54+09:00",
      "verdict": "advisory"
@@ -10943,28 +10939,32 @@
     {
      "at": "2026-09-24T11:11:39+09:00",
      "verdict": "pass"
+    },
+    {
+     "at": "2026-09-24T11:59:32+09:00",
+     "verdict": "fail"
     }
    ]
   },
   "kenzu": {
    "at": "2026-09-24",
    "verdict": "pass",
-   "hash": "06abbaeb9f24d89a",
-   "note": "17巡 合格。K145〜K147 解消(北西の切土0.5m超6.4m²・境内全体570→327m²/溝の帯の北の法が検査に載る/中木3+2・欅から2.81間)。新規は低2: 溝の帯と境内の縁の間0.95mで切土の法が背中合わせ約1:0.8/北東の新しい盛土の法(2.0m)の上に松1・中木1。機械検査の不合格は前と同じ5件",
+   "hash": "0b80a5a3778aca3c",
+   "note": "18巡 注意付き合格(中1低1)。裁定3件の段割り・土留めは数値で閉じる。楼門の腰石垣28.30で男坂の側壁と突き付く(K109解消)。中: 薬師堂の石段の下から稲荷社の基壇の西面まで0.77m。低: C27 が新しい二堂の基壇の出を数えない",
    "chapters": {
     "const": "e186ab30371b",
     "polygon": "66c63a322d37",
     "grid": "7c99d6cc4467",
-    "planes": "c3978d54c064",
-    "terraces": "68ec7ca34dac",
-    "terraceWalls": "b9ee3a5c8508",
+    "planes": "1da262bc4445",
+    "terraces": "10dac64d6fef",
+    "terraceWalls": "4900086f3b53",
     "slopeBands": "19e7253c4bcb",
     "munes": "f55401f65295",
-    "links": "08d0cec45aff",
-    "runs": "17714a4a4c6a",
+    "links": "eeb5d934d473",
+    "runs": "3f6a9b8a3177",
     "gates": "8bccfb4185fb",
     "torii": "17b88f18dd14",
-    "kaidans": "6ed9133d4124",
+    "kaidans": "b6f2e7a9fe67",
     "sando": "c1779fabddef",
     "gardens": "dd1140077403",
     "planting": "050b6cfaad9a",
@@ -10979,7 +10979,7 @@
     "routes": "23ecf0700734",
     "kattemichi": "3e4dc828c638",
     "viewpoints": "ae8d421035b4",
-    "joints": "2288c1432ab2",
+    "joints": "3791962632ed",
     "ido": "6f50ceb3c205",
     "shadenKidan": "84320877fb92",
     "ishizai": "898d22a3434c",
@@ -10988,13 +10988,9 @@
     "amaochi": "ad9fd4bb02ce",
     "surface": "728fe7869784",
     "py": "256ec7a36ed19eed",
-    "md": "f2cc423c565acab3"
+    "md": "4117d7a0601dadbb"
    },
    "rounds": [
-    {
-     "at": "2026-09-18T20:52:53+09:00",
-     "verdict": "pass"
-    },
     {
      "at": "2026-09-19T07:25:54+09:00",
      "verdict": "advisory"
@@ -11037,6 +11033,10 @@
     },
     {
      "at": "2026-09-24T11:11:38+09:00",
+     "verdict": "pass"
+    },
+    {
+     "at": "2026-09-24T11:59:32+09:00",
      "verdict": "pass"
     }
    ]

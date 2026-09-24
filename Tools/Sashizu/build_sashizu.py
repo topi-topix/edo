@@ -904,16 +904,20 @@ class Checks(object):
             u0, v0, u1, v1 = bbox(b.poly)
             ds = []
             step = 0.5
-            # ⭐ **基壇に載る棟は基壇の天端で数える**(施主裁定 2026-09-24 其二 案B ── 山王の二堂)。
-            #   棟の面 = `munes[].kidanTopY`(部材の基壇の天端)。⛔ 施主の言葉(`kidanSeat.quote`)が無い棟には
+            # ⭐ **基壇に載る棟は基壇の天端 `munes[].kidanTopY` で系統差を数える**(施主裁定 2026-09-24
+            #   其二 案B ── 山王の二堂/其二 案A ── 御蔵・御供所)。基壇の下端(天端 − `kidanM.h`)は載る面と一致を検める。⛔ 施主の言葉(`kidanSeat.quote`)が無い棟には
             #   開かない ── 検査を緩める口は裁定の引用に紐づける(規則19)。
             ks = (b.raw or {}).get("kidanSeat") if kind == "棟" else None
             kt = (b.raw or {}).get("kidanTopY") if kind == "棟" else None
             y_seat = None
+            kh = ((b.raw or {}).get("kidanM") or {}).get("h") if kind == "棟" else None
             if isinstance(kt, (int, float)):
                 if isinstance(ks, dict) and (ks.get("quote") or "").strip():
-                    y_seat = float(kt)
-                    seated.append("%s(%s)" % (b.name, ks.get("ruling") or "?"))
+                    if not isinstance(kh, (int, float)):
+                        bad.append("⛔%s を基壇の天端で数えようとしているが**基壇の丈 `kidanM.h` が無い**" % b.name)
+                    else:
+                        y_seat = float(kt)                  # 系統差は天端で数える(裁定の文言 `kidanSeat._`)
+                        seated.append("%s(%s)" % (b.name, ks.get("ruling") or "?"))
                 elif ks is not None:
                     bad.append("⛔%s を基壇の天端で数えようとしているが**施主の言葉が無い**"
                                "(`munes[].kidanSeat.quote` に引用を入れる)" % b.name)
@@ -949,7 +953,38 @@ class Checks(object):
                 # ⭐ **基壇に載る棟のばらつきは、基壇の見え(低い側)と削り(高い側)で受ける**
                 #   (施主裁定 2026-09-24 其二 案A「其の二は、Ａ」)── 包絡 0.5 は効かせず、系統差だけ数える。
                 #   見えの丈 = 天端 − 地盤の最低(max ds)・削り = 地盤の最高 − 天端(−min ds)を刷る(規則19)。
-                seat_vis.append("%s 見え %.2f・削り %.2f" % (b.name, max(0.0, max(ds)), max(0.0, -min(ds))))
+                # ⭐ 見えと削りは**造成後の地盤**で数える(検分 K165)── 段は平らに造成されるので、造成前の地盤で
+                #   数えると基壇が面に埋まるのを見落とす(K164)。走る範囲 = 柱芯の矩形 + 基壇の出 `kidanM.out`。
+                top = float(kt)
+                kout = float(((b.raw or {}).get("kidanM") or {}).get("out") or 0.0)
+                t_seat = M.terrace_at(*centroid(b.poly))
+                vis, cut, fill = [], [0.0], [0.0]
+                u = u0 - kout
+                while u <= u1 + kout + 1e-9:
+                    v = v0 - kout
+                    while v <= v1 + kout + 1e-9:
+                        if pip(b.poly, u, v) or edge_dist((u, v), b.poly) <= kout + 1e-6:
+                            nat = M.nat(u, v)
+                            gy = M.graded_y(u, v, nat)
+                            if gy is not None:
+                                vis.append(top - gy)
+                                cut.append(nat - gy)
+                                fill.append(gy - nat)
+                        v += step
+                    u += step
+                y_bot = top - float(kh)
+                if t_seat is not None and abs(y_bot - t_seat.y) > 0.005:
+                    bad.append("⛔%s 基壇の下端 %.2f(天端 %.2f − 丈 %.2f)が載る面 %s %.2f と食い違う ── %s"
+                               % (b.name, y_bot, top, kh, t_seat.name, t_seat.y,
+                                  "基壇が造成後の面に埋まる" if y_bot < t_seat.y else "基壇が浮く"))
+                if vis:
+                    if min(vis) < -0.005:
+                        bad.append("⛔%s 基壇の天端が造成後の地盤に埋まる(最深 %.2f m)" % (b.name, -min(vis)))
+                    if max(vis) > float(kh) + 0.005:
+                        bad.append("⛔%s 基壇の下端が造成後の地盤から浮く(見えの丈 %.2f > 基壇の丈 %.2f)"
+                                   % (b.name, max(vis), kh))
+                    seat_vis.append("%s 天端 %.2f・見え %.2f〜%.2f・削り %.2f・盛り %.2f" % (
+                        b.name, top, max(0.0, min(vis)), max(0.0, max(vis)), max(cut), max(fill)))
             if abs(med) > Checks.OFFSET_TOL:
                 bad.append("⛔%s **系統差 %+.2f m**(面の引き方。ばらつきは ±%.2f)"
                            % (b.name, med, spread))
@@ -970,14 +1005,14 @@ class Checks(object):
         what = "面の引き方 — 棟ごとの**系統差**(規則3 は許容でなく導き方。系統差 > %.2f m は面の誤り)" % Checks.OFFSET_TOL
         if seated:
             rul = sorted(set(q.split("(", 1)[1].rstrip(")") for q in seated))
-            what += ("。基壇に載る棟は基壇の天端で系統差を数え、**散らばりは基壇の見えと削りで受ける**"
-                     "(包絡 0.5 は効かせない ── %s)" % "・".join(rul))
+            what += ("。基壇に載る棟は基壇の天端で系統差を数え(下端 = 載る面を検める)、**散らばりは造成と基壇の見えで受ける**"
+                     "(見えと削りは造成後の地盤で数える・包絡 0.5 は効かせない ── %s)" % "・".join(rul))
             bad.append("⚠〔基壇の天端で数えた〕%s" % "・".join(seat_vis))
         real = [q for q in bad if not q.startswith("⚠〔基壇")]
         res = "不合格 %d 棟 / 最大 %.2f m" % (len(real), worst)
         if seat_vis:
-            res += "(基壇に載る棟を除く)/ 基壇の見えの丈の最大 %.2f m" % max(
-                float(q.split("見え ", 1)[1].split("・", 1)[0]) for q in seat_vis)
+            res += "(基壇に載る棟を除く)/ 基壇の見えの丈の最大 %.2f m(造成後の地盤)" % max(
+                float(q.split("見え ", 1)[1].split("〜", 1)[1].split("・", 1)[0]) for q in seat_vis)
         self.add("C04", what, res, "ok" if not real else "ng", bad[:12])
 
     # C05 段差の受け

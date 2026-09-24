@@ -62,7 +62,7 @@ public static partial class EdoBuild
         public int verts, tris, pinned, faced, clamped, under, floored, designed, sloped, filled, fillLostTree;
         public float fillMax; public Vector3 fillAt;
         public float maxLower, maxRaise; public Vector3 lowerAt, raiseAt;
-        public int detCells, trees;
+        public int detCells, trees, sealed_;
         public int gapPts, gapN, gapBySkin, gapBig, coverPts, coverN;
         public float gapMax, coverMax; public Vector3 gapAt, coverAt; public string gapBy, coverBy;
         public string mesh;
@@ -75,6 +75,7 @@ public static partial class EdoBuild
                    " / 部材の天端の下へ " + clamped + " 点(うち真下 " + under + "・隣の底で止めた " + floored + ")" +
                    " / 裏込め(部材の底まで盛る)" + filled + " 点・最大 " + fillMax.ToString("F2") + "m @(" + fillAt.x.ToString("F1") + ", " + fillAt.z.ToString("F1") + ")" +
                    "・地形の木の升は穴を開けず被せた " + fillLostTree + " 升" +
+                   " / 面の高さの皮で部材の底まで塞いだ " + sealed_ + " 点" +
                    " / 元の地形から 下げ 最大 " + maxLower.ToString("F2") + "m @(" + lowerAt.x.ToString("F1") + ", " + lowerAt.z.ToString("F1") + ")・上げ 最大 " + maxRaise.ToString("F2") + "m @(" + raiseAt.x.ToString("F1") + ", " + raiseAt.z.ToString("F1") + ")" +
                    " / 芝を消した 1m 升 " + detCells + " / 皮が 0.05m を超えて動いた所の地形の木 " + trees + " 本" +
                    "\n    硬い(許容0): 皮と部材の隙 ── 皮が作った " + gapBySkin + " / 元の地形でも同じ(部材の浮き・皮の外の欠陥) " + (gapN - gapBySkin) + " / " + gapPts + " 点(うち 0.05m を超える " + gapBig + ")" + (gapN > 0 ? "(最大 " + gapMax.ToString("F3") + "m @(" + gapAt.x.ToString("F2") + ", " + gapAt.z.ToString("F2") + ")〔" + gapBy + "〕)" : "") +
@@ -188,6 +189,43 @@ public static partial class EdoBuild
         public float Top(float x, float z, out int who) { return Scan(x, z, true, out who); }
         /// <summary>(x,z) の部材の最も低い面(= 底)。</summary>
         public float Bottom(float x, float z, out int who) { return Scan(x, z, false, out who); }
+        /// <summary>(x,z) から平面で <paramref name="r"/> 以内を通る**鉛直な面**(石垣の見え面・小口)の、その位置での最も低い所。
+        /// ⭐ 鉛直な面は平面に面積が無いので <see cref="Bottom"/> の縦の線に掛からない ── 殻の駒(底の面が無い)の見え面の脇では
+        /// 底が天端に化けて「駒が浮く」と誤って数えた(2026-09-25 EDO-0430: 回廊の基壇・御供所の郭の石垣で 3,243 点)。無ければ NaN。</summary>
+        public float WallBottom(float x, float z, float r, int only = -1)
+        {
+            float best = float.NaN;
+            int i0 = Mathf.FloorToInt((x - r) / B), i1 = Mathf.FloorToInt((x + r) / B), j0 = Mathf.FloorToInt((z - r) / B), j1 = Mathf.FloorToInt((z + r) / B);
+            var seen = new HashSet<int>();
+            for (int i = i0; i <= i1; i++)
+                for (int j = j0; j <= j1; j++)
+                {
+                    List<int> l; if (!hash.TryGetValue(K(i, j), out l)) continue;
+                    foreach (var id in l)
+                    {
+                        if (!seen.Add(id) || (only >= 0 && owner[id] != only)) continue;
+                        var t = tris[id];
+                        var nv = Vector3.Cross(t[1] - t[0], t[2] - t[0]); float mag = nv.magnitude; if (mag < 1e-9f || Mathf.Abs(nv.y) / mag > 0.2f) continue;
+                        // 平面で最も離れた二頂点を軸に取る
+                        int a = 0, b = 1; float dmax = -1f;
+                        for (int u = 0; u < 3; u++) for (int v = u + 1; v < 3; v++)
+                            { float d = new Vector2(t[u].x - t[v].x, t[u].z - t[v].z).sqrMagnitude; if (d > dmax) { dmax = d; a = u; b = v; } }
+                        if (dmax < 1e-6f) continue;
+                        Vector2 A = new Vector2(t[a].x, t[a].z), ab = new Vector2(t[b].x, t[b].z) - A; float L2 = ab.sqrMagnitude;
+                        float uq = Vector2.Dot(new Vector2(x, z) - A, ab) / L2; if (uq < -1e-3f || uq > 1f + 1e-3f) continue;
+                        if ((A + ab * Mathf.Clamp01(uq) - new Vector2(x, z)).magnitude > r) continue;
+                        for (int e = 0; e < 3; e++)
+                        {
+                            var p0 = t[e]; var p1 = t[(e + 1) % 3];
+                            float u0 = Vector2.Dot(new Vector2(p0.x, p0.z) - A, ab) / L2, u1 = Vector2.Dot(new Vector2(p1.x, p1.z) - A, ab) / L2;
+                            float lo = Mathf.Min(u0, u1), hi = Mathf.Max(u0, u1); if (uq < lo - 1e-3f || uq > hi + 1e-3f) continue;
+                            float yy = hi - lo < 1e-5f ? Mathf.Min(p0.y, p1.y) : Mathf.Lerp(p0.y, p1.y, Mathf.Clamp01((uq - u0) / (u1 - u0)));
+                            if (float.IsNaN(best) || yy < best) best = yy;
+                        }
+                    }
+                }
+            return best;
+        }
         float Scan(float x, float z, bool top, out int who)
         {
             who = -1; float best = float.NaN, y;
@@ -216,7 +254,7 @@ public static partial class EdoBuild
     /// 皮と部材の底の隙 0(<see cref="SkinReport.gapN"/>)。⛔ 掘らない(皮は元の地形より下げない側の話ではなく、上げる側)。</para>
     public static SkinReport CutEdgeSkin(string name, Transform parent, IList<GameObject> parts, IList<SkinFace> faces,
                                          float faceTol, float step = 0.25f, float margin = 0.5f, float eps = 0f, float under = 0.15f,
-                                         SkinDesign design = null, float drawTol = 0.10f, float backfill = 0f)
+                                         SkinDesign design = null, float drawTol = 0.10f, float backfill = 0f, bool sealFace = false)
     {
         var r = new SkinReport();
         var t = T(); var td = t.terrainData; var org = t.transform.position;
@@ -621,15 +659,46 @@ public static partial class EdoBuild
                                 if (fv - orig > r.fillMax) { r.fillMax = fv - orig; r.fillAt = new Vector3(x, fv, z); }
                             }
                         }
+                        // ⭐ 面の高さの皮で背を塞ぐ(sealFace・2026-09-25 普請奉行の決め・EDO-0430): 面の中で部材から NEAR 以内の外の点は、
+                        //   隣の部材の底が皮より高く、かつ面 + (faceTol − 0.02) 以内なら底まで上げる(面の許容の内 ── 盛土の法は作らない)。
+                        //   底は鉛直な見え面の下の縁も数える(殻の石垣の見え面の脇で底が天端に化けない)。それより高い底は駒の側の話。
+                        //   外形の中の縁の帯(FLAT)の点も、その点の部材の底まで上げる(外の点と結ぶ三角形が縁で底を割らない)。
+                        else if (sealFace && near >= 1 && fl.Count > 0)
+                        {
+                            float fy = FaceY(p);
+                            bool rim = near == 1 || EdgeDistAny(idx, p, FLAT);
+                            if (!float.IsNaN(fy) && rim)
+                            {
+                                // 隣の部材ごとに「底 = 最も低い面と鉛直な面の下の縁の低い方」を取り、その最大
+                                float nb = float.NaN;
+                                int rr = near == 2 ? 0 : 1;
+                                for (int di = -rr; di <= rr; di++)
+                                    for (int dj = -rr; dj <= rr; dj++)
+                                    {
+                                        int who; float qx = org.x + (gi + di) * step, qz = org.z + (gj + dj) * step;
+                                        float bq = idx.Bottom(qx, qz, out who); if (float.IsNaN(bq)) continue;
+                                        float wb = idx.WallBottom(qx, qz, NEAR + 0.1f, who); if (!float.IsNaN(wb)) bq = Mathf.Min(bq, wb);
+                                        if (float.IsNaN(nb) || bq > nb) nb = bq;
+                                    }
+                                if (!float.IsNaN(nb) && nb > hgt + 1e-4f && nb <= fy + faceTol - 0.02f)
+                                {
+                                    float v = near == 2 ? nb : nb + 0.005f; if (!float.IsNaN(capF)) v = Mathf.Min(v, capF);
+                                    if (v > hgt) { hgt = v; r.sealed_++; }
+                                }
+                            }
+                        }
                         // 外形の外の点は、隣(0.25m)の部材の底より下げない(= 部材の下を覗かせない・隙 0)。
                         //   段の脇で下の段の天端に引かれて上の段の底より下がるのを止める。元から底より低い所は触らない。
-                        else if (hgt < pre && near < 2)
+                        if (hgt < pre && near < 2 && float.IsNaN(fv))
                         {
                             float floor = float.NaN;
                             for (int di = -1; di <= 1; di++)
                                 for (int dj = -1; dj <= 1; dj++)
                                 {
-                                    float bq = BotL(gi + di, gj + dj); if (float.IsNaN(bq)) continue;
+                                    int who; float qx = org.x + (gi + di) * step, qz = org.z + (gj + dj) * step;
+                                    float bq = idx.Bottom(qx, qz, out who); if (float.IsNaN(bq)) continue;
+                                    // 殻の駒(底の面が無い石垣)は鉛直な見え面の下の縁が底 ── 天端を底と取り違えて地盤を戻さない
+                                    float wb = idx.WallBottom(qx, qz, NEAR + 0.1f, who); if (!float.IsNaN(wb)) bq = Mathf.Min(bq, wb);
                                     if (float.IsNaN(floor) || bq > floor) floor = bq;
                                 }
                             if (!float.IsNaN(floor) && hgt < floor) { hgt = Mathf.Min(pre, floor); r.floored++; }
@@ -759,6 +828,88 @@ public static partial class EdoBuild
         MeasureSkin(idx, ref r, samples); return r;
     }
 
+    /// <summary>皮と部材の隙を三つに分けて刷る(2026-09-25 普請奉行の決め・EDO-0430):
+    /// **A 面の高さで塞がる**(外が面の中・部材の底 ≤ 面 + 許容)/ **B 駒が浮く**(外が面の中・底 &gt; 面 + 許容 ── 駒を据え直すか
+    /// 丈の足りる駒に替える)/ **C 取り合い**(外が面の外で地表が底より低い ── 壁の外形と面の輪郭の取り合い)。
+    /// 外へ 0.35m の所が他の駒の外形の中なら駒どうしの溝の中で**見えない**隙に数える。駒ごとの件数と最大を返す。</summary>
+    public static string SkinGapTable(IList<GameObject> parts, IList<SkinFace> faces, float faceTol)
+    {
+        var idx = new TopIndex(); foreach (var g in parts) if (g != null && g.activeInHierarchy) idx.Add(g);
+        var dg = Drawn();
+        var fl = new List<SkinFace>(); if (faces != null) fl.AddRange(faces);
+        fl.Sort((a, b) => Area(a.poly).CompareTo(Area(b.poly)));
+        // 駒ごと・類ごと: 件数・最大・その点
+        var tab = new SortedDictionary<string, float[]>(StringComparer.Ordinal);   // [n, max, x, z, faceY or NaN, bottom]
+        int[] cnt = new int[4]; int[] hid = new int[4];
+        for (int k = 0; k < idx.hulls.Count; k++)
+        {
+            var h = idx.hulls[k];
+            Vector2 cen = Vector2.zero; foreach (var q in h) cen += q; cen /= h.Length;
+            for (int e = 0; e < h.Length; e++)
+            {
+                Vector2 A = h[e], Bv = h[(e + 1) % h.Length], ab = Bv - A; float L = ab.magnitude; if (L < 1e-4f) continue;
+                Vector2 tn = ab / L, nrm = new Vector2(tn.y, -tn.x);
+                if (Vector2.Dot(nrm, (A + Bv) * 0.5f - cen) < 0) nrm = -nrm;
+                for (float s = 0.05f; s < L - 0.05f; s += 0.1f)
+                {
+                    var pe = A + tn * s; var pin = pe - nrm * 0.05f; var pout = pe + nrm * 0.05f;
+                    // ⭐ 皮の外(地形のまま)の点も測る ── 斜面が壁の底より低い取り合いは皮の外に出る
+                    int w1, w2;
+                    float top = idx.Top(pin.x, pin.y, out w1), bot = idx.Bottom(pin.x, pin.y, out w2);
+                    for (int q = 1; q <= 2; q++)
+                    { var pq = pe - nrm * (0.15f * q); float bq = idx.Bottom(pq.x, pq.y, out w2); if (!float.IsNaN(bq) && (float.IsNaN(bot) || bq < bot)) bot = bq; }
+                    // 鉛直な見え面・小口の下の縁(殻の駒)も底に数える
+                    { float wb = idx.WallBottom(pe.x, pe.y, 0.10f); if (!float.IsNaN(wb) && (float.IsNaN(bot) || wb < bot)) bot = wb; }
+                    if (float.IsNaN(top)) continue;
+                    bool covered = false; foreach (var h2 in idx.hulls) if (EdoGeom.PIP(h2, pout)) { covered = true; break; }
+                    if (covered) continue;
+                    float gout = dg.At(pout.x, pout.y); if (float.IsNaN(gout) || gout >= bot - 0.01f) continue;
+                    float fy = float.NaN; string fn = "-";
+                    foreach (var f in fl) if (EdoGeom.PIP(f.poly, pout)) { fy = f.y; fn = f.name; break; }
+                    int c = float.IsNaN(fy) ? 2 : (bot <= fy + faceTol - 0.02f ? 0 : 1);
+                    var far = pe + nrm * 0.35f; bool hide = false;
+                    for (int k2 = 0; k2 < idx.hulls.Count && !hide; k2++) if (k2 != k && EdoGeom.PIP(idx.hulls[k2], far)) hide = true;
+                    if (hide) { hid[c]++; continue; }
+                    cnt[c]++;
+                    // 見え面(ローカル +X)の側か背の側か
+                    var gk = parts[0] == null ? null : FindPart(parts, idx.names[k]);
+                    string side = gk == null ? "?" : (Vector2.Dot(nrm, new Vector2(gk.transform.right.x, gk.transform.right.z)) > 0.5f ? "表" :
+                                                     Vector2.Dot(nrm, new Vector2(gk.transform.right.x, gk.transform.right.z)) < -0.5f ? "背" : "小口");
+                    string key = "ABC"[c] + " " + idx.names[k] + " " + side + (c == 2 ? "" : "〔面 " + fn + "〕");
+                    float over = c == 1 ? bot - fy : bot - gout;
+                    float[] v; if (!tab.TryGetValue(key, out v)) { v = new float[] { 0, -1, 0, 0, fy, bot }; tab[key] = v; }
+                    v[0]++; if (over > v[1]) { v[1] = over; v[2] = pout.x; v[3] = pout.y; v[5] = bot; }
+                }
+            }
+        }
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("  隙の内訳(見える / 駒どうしの溝の中で見えない): A 面の高さで塞がる " + cnt[0] + " / " + hid[0] +
+                      " ・ B 駒が浮く(底 > 面 + " + faceTol.ToString("F2") + ") " + cnt[1] + " / " + hid[1] +
+                      " ・ C 面の外の取り合い " + cnt[2] + " / " + hid[2]);
+        foreach (var kv in tab)
+        {
+            var v = kv.Value;
+            sb.AppendLine("    " + kv.Key + " " + (int)v[0] + " 点 最大 " + v[1].ToString("F2") + "m @(" + v[2].ToString("F1") + ", " + v[3].ToString("F1") + ") 底 " + v[5].ToString("F2") +
+                          (float.IsNaN(v[4]) ? "" : " 面 " + v[4].ToString("F2")));
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>点 q が部材の外形の縁から <paramref name="d"/> 以内か(外形の中の縁の帯)。</summary>
+    static bool EdgeDistAny(TopIndex idx, Vector2 q, float d)
+    {
+        for (int h = 0; h < idx.hulls.Count; h++)
+        {
+            var hb = idx.bounds[h];
+            if (q.x < hb.x - d || q.x > hb.z + d || q.y < hb.y - d || q.y > hb.w + d) continue;
+            if (EdgeDist(idx.hulls[h], q) < d) return true;
+        }
+        return false;
+    }
+
+    static GameObject FindPart(IList<GameObject> parts, string name)
+    { foreach (var g in parts) if (g != null && g.name == name) return g; return null; }
+
     static void MeasureSkin(TopIndex idx, ref SkinReport r, List<string> samples)
     {
         var probe = Probe();
@@ -783,6 +934,8 @@ public static partial class EdoBuild
                     // 底は縁から 0.3m 内までの最も低い面(法のある石垣・開いた殻の駒は縁の真下に底が無い)
                     for (int q = 1; q <= 2; q++)
                     { var pq = pe - nrm * (0.15f * q); float bq = idx.Bottom(pq.x, pq.y, out w2); if (!float.IsNaN(bq) && (float.IsNaN(bot) || bq < bot)) bot = bq; }
+                    // 鉛直な見え面・小口の下の縁(殻の駒)も底に数える
+                    { float wb = idx.WallBottom(pe.x, pe.y, 0.10f); if (!float.IsNaN(wb) && (float.IsNaN(bot) || wb < bot)) bot = wb; }
                     if (float.IsNaN(top)) continue;
                     // 被り: 外形の内で 皮 > 天端
                     float gin = dg.At(pin.x, pin.y);

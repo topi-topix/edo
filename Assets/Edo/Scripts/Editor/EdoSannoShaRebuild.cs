@@ -2054,20 +2054,39 @@ public static class EdoSannoShaRebuild
         }
         float tol = F(D(Impl, "checks"), "gradeTol");
         // ⭐ 面の外は算出物 `graded`(法面を含む設計の地盤)を皮で写し、縁は多角形の線で切る。
-        //   裏込めは盛土の法 1:`const.batterFill`(部材の底まで盛る・EDO-0430 2026-09-25)。
+        //   ⛔ 裏込めの盛土(backfill)は使わない ── 石垣の継ぎ目から草の筋が覗き、回廊の隅から楔が漏れ、東に縞が出た
+        //   (普請奉行の決め 2026-09-25・EDO-0430)。背の隙は面の高さの皮で塞ぎ(sealFace)、残りは駒と取り合いの一覧へ。
         var gr = Gr; var cst = D(Doc, "const");
         var design = new EdoBuild.SkinDesign
         {
             x0 = gr.x0, z0 = gr.z0, step = gr.step, nx = gr.nx, nz = gr.nz, h = gr.h, ok = gr.ok,
             batterCut = F(cst, "batterCut"), batterFill = F(cst, "batterFill")
         };
-        var rep = EdoBuild.CutEdgeSkin("Sanno", grp, parts, faces, tol, design: design, backfill: design.batterFill);
+        var rep = EdoBuild.CutEdgeSkin("Sanno", grp, parts, faces, tol, design: design, backfill: 0f, sealFace: true);
         AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
         var sb = new StringBuilder();
         sb.AppendLine("縁の皮: 古い皮を外して塞いだ升 " + filled + " / 部材 " + rep.parts + " / 面 " + faces.Count);
         sb.AppendLine("  " + rep);
+        sb.Append(EdoBuild.SkinGapTable(parts, faces, tol));
         sb.Append(HifuMeasure());
         return sb.ToString();
+    }
+
+    /// <summary>皮と部材の隙の内訳(A 面の高さで塞がる / B 駒が浮く / C 面の外の取り合い)を皮を起こし直さずに刷る。</summary>
+    public static string HifuGapTable()
+    {
+        var parts = new List<GameObject>();
+        foreach (Transform g in Group("Sando")) foreach (Transform c in g) parts.Add(c.gameObject);
+        foreach (Transform c in Group("Dodome")) parts.Add(c.gameObject);
+        var faces = new List<EdoBuild.SkinFace>();
+        foreach (var o in L(Impl, "terraces"))
+        {
+            var tc = o as Dictionary<string, object>; if (tc == null) continue;
+            var wl = L(tc, "world"); var poly = new Vector2[wl.Count];
+            for (int i = 0; i < wl.Count; i++) { var a = wl[i] as List<object>; poly[i] = new Vector2(Cv(a[0]), Cv(a[1])); }
+            if (poly.Length >= 3) faces.Add(new EdoBuild.SkinFace(G(tc, "name") as string, poly, F(tc, "y")));
+        }
+        return EdoBuild.SkinGapTable(parts, faces, F(D(Impl, "checks"), "gradeTol"));
     }
 
     /// <summary>描かれた地表(皮)で測る: 男坂・女坂の踏面の埋没・袖と土留めの天端の埋没。</summary>

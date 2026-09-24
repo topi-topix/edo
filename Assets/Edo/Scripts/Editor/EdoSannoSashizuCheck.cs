@@ -376,7 +376,9 @@ public static class EdoSannoSashizuCheck
                 }
                 continue;
             }
-            string spec = Lookup(KAIDAN_GROUP, name);
+            // ⭐ 名簿はビルダーと同じ物差し(`EdoSannoShaRebuild.GroupNameOf` ── 2026-09-24)。旧は表 KAIDAN_GROUP の
+            //   3本しか持たず、郭の階・段の階・中門の内の階が据わっていても「名簿にも載っていない」と出ていた(規則19)。
+            string spec = Lookup(KAIDAN_GROUP, name) ?? ("Sando/" + EdoSannoShaRebuild.GroupNameOf(name) + "|Dan_");
             if (spec == null) { bad("石段", "石段 " + name + " が実装に無い(名簿にも載っていない)"); continue; }
             var parts = spec.Split('|');
             var grp = root.transform.Find(parts[0]);

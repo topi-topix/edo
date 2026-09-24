@@ -55,6 +55,7 @@
 - [流したら計測より先に書き戻す](writeback-before-measuring.md) — 途中の reload の間に claim が他の窓へ移り書き戻せなくなった
 - [留めの継ぎ目は口0でも線に沿ってずれる](miter-joint-slides-along-cut.md) — 弦で据えて解消。焼く一覧は相手の居ない端を切らない(器と規則を揃える)
 
+- [袖の groundHi の上げは 1.41m で切れる](sode-groundhi-lift-limit.md) — 女坂5駒が建たず。袖が建っても踏面の端に地表が被る(EDO-0421)
 - [自作の木の FBX は地形の木として無効](own-tree-fbx-invalid-as-terrain-tree.md) — 根に MR も LODGroup も無く1本も描かれない。TreePrototype.Validate で先に検める
 
 ## 測り方・関門
@@ -76,6 +77,7 @@
 - [退役した Stage が残ると検査が嘘の件数を出す](retired-stage-makes-fake-counts.md) — 449=1278−829 は別の母集団の引き算
 - [退ける門と検査は同じ測りで](machiya-clash-gate-weaker-than-check.md) — 門だけ屋根を外すと検査でめり込み。揃えた犠牲は駒1個だけ
 - [CheckScene は矩形の芯で測る](checkscene-center-vs-seat.md) — `seat` で据えた部材は永久に鳴る。⛔芯へ動かして0件にしない
+- [天端の埋没の数えは法の根入れを拾う](crest-burial-count-picks-batter-face.md) — 4m の偽の埋没。TuckUnderCrest に見え面を渡し天端の帯だけ数える
 - [UnderfloorGap は一体の駒で屋根を拾う](underfloorgap-picks-roof-on-one-mesh-parts.md) — 堂・鐘楼で 5〜7m の偽の浮き。底の頂点で測る
 - [山王 Stage7 は縁の地形の木11本を毎回重ねる](sanno-stage7-edge-trees-duplicate.md) — 矩形の等号が float 往復で外れる。a07d0d1b で解消(取り残し0を確認 2026-09-23)
 - [社叢QAのカメラ②は赤坂では宝蔵院の門の中](sanno-shaso-qa-camera2-inside-gate.md) — 撮る間だけ門+十坊の板塀 3_4f/4b ほか計52個を消す。カメラは動かさない

@@ -27,6 +27,85 @@ public static partial class EdoBuild
     public static GameObject PlaceIshidanSode(GameObject dan, string sodePath, int side, Transform parent, string name,
                                               out string warn)
     {
+        SodeRise r;
+        return PlaceIshidanSode(dan, sodePath, side, parent, name, false, out warn, out r);
+    }
+
+    /// <summary><see cref="PlaceIshidanSode(GameObject,string,int,Transform,string,out string,out SodeRise)"/> の
+    /// 天端の上げの勘定。</summary>
+    public struct SodeRise
+    {
+        public float lift;       // 天端を段鼻の線 + 笠から上げた量[m](0 = 上げていない)
+        public float limit;      // 上げられる上限[m](袖の内の面が段石の小口を底まで覆う範囲・実メッシュで測る)
+        public float proud;      // 上げた後、袖の背の線で天端が地表より出る量の最大[m](柔らかい・報告のみ)
+        public bool refused;     // 上限を超えるので据えなかった(硬い: 埋まった袖を積まない・小口を開けない)
+    }
+
+    /// <summary>**段石1段の脇に袖の駒を1つ据える**。<paramref name="groundHi"/> = true なら指図の
+    /// `copingRise:"groundHi"`(天端 = max(段鼻の線 + 笠, 高い側の地盤) ── 裁定 EDO-0182 (a))を読む:
+    /// ①〜③ で据えた後、**袖の背の面の線**(段石から遠い側の面の 0.05m 外)で描かれた地表を走りに沿って測り、
+    /// 天端の線より地表が高い分の最大だけ駒を鉛直に上げる(天端が土の始まりに揃う ⇒ 見える天端の帯は埋まらない)。
+    /// ⭐ 上げの上限は**実メッシュで測る**: 上げた後も袖の下端が段石の底より下にある(= 袖の内の面が段石の小口を底まで覆う)。
+    /// 超えるなら据えない(<see cref="SodeRise.refused"/>・⛔ 硬い条件 ── 埋まった袖も、小口の下が開いた袖も許容0)。
+    /// ⚠ 走りの中で地表の勾配が段の勾配と違うと、上げた駒の天端は背の線で地表より出る(<see cref="SodeRise.proud"/>・柔らかい)。
+    /// 当たる先: 石段の袖(`terraceWalls` の coping:"stair")を持つ全ての石段 ── 山王の男坂・女坂・参道の階・郭の階・中門の内の階。</summary>
+    public static GameObject PlaceIshidanSode(GameObject dan, string sodePath, int side, Transform parent, string name,
+                                              bool groundHi, out string warn, out SodeRise rise)
+    {
+        rise = new SodeRise();
+        var go = PlaceIshidanSodeFlat(dan, sodePath, side, parent, name, out warn);
+        if (go == null || !groundHi) return go;
+        var t = dan.transform;
+        Vector3 right = t.right * Mathf.Sign(side == 0 ? 1 : side), fwd = t.forward;
+        var sp = Body(go.transform, 4000, true); var dp = Body(t, 4000, true);
+        if (sp.Count == 0 || dp.Count == 0) return go;
+        float outer = float.MinValue, sBot = float.MaxValue, dBot = float.MaxValue, fMin = float.MaxValue, fMax = float.MinValue;
+        foreach (var p in sp)
+        {
+            outer = Mathf.Max(outer, Vector3.Dot(p, right)); sBot = Mathf.Min(sBot, p.y);
+            float f = Vector3.Dot(p, fwd); fMin = Mathf.Min(fMin, f); fMax = Mathf.Max(fMax, f);
+        }
+        foreach (var p in dp) dBot = Mathf.Min(dBot, p.y);
+        rise.limit = Mathf.Max(0f, dBot - sBot);
+        // 背の線を走りに沿って 0.05m 刻みで: 天端(その走りの位置の実メッシュの最高点)と地表
+        const float BIN = 0.05f;
+        int nb = Mathf.Max(1, Mathf.CeilToInt((fMax - fMin) / BIN));
+        var top = new float[nb]; for (int i = 0; i < nb; i++) top[i] = float.NaN;
+        foreach (var p in sp)
+        {
+            int k = Mathf.Clamp(Mathf.FloorToInt((Vector3.Dot(p, fwd) - fMin) / BIN), 0, nb - 1);
+            if (float.IsNaN(top[k]) || p.y > top[k]) top[k] = p.y;
+        }
+        Vector3 o = go.transform.position; float oR = Vector3.Dot(o, right), oF = Vector3.Dot(o, fwd);
+        var need = new float[nb]; float lift = 0f;
+        for (int k = 0; k < nb; k++)
+        {
+            need[k] = float.NaN;
+            if (float.IsNaN(top[k])) continue;
+            float fk = fMin + (k + 0.5f) * BIN;
+            Vector3 q = o + right * (outer + 0.05f - oR) + fwd * (fk - oF);
+            need[k] = Ground(q.x, q.z) - top[k];
+            if (need[k] > lift) lift = need[k];
+        }
+        if (lift <= 0.005f) return go;
+        if (lift > rise.limit + 1e-3f)
+        {
+            rise.refused = true; rise.lift = lift;
+            warn = (warn == null ? "" : warn + " / ") + name + ": ⛔ 天端を地盤まで " + lift.ToString("F2") +
+                   "m 上げると袖の下端が段石の底より " + (lift - rise.limit).ToString("F2") + "m 上に出る(上げの上限 " +
+                   rise.limit.ToString("F2") + "m)⇒ 据えなかった(丈の足りる袖の駒が要る)";
+            Object.DestroyImmediate(go);
+            return null;
+        }
+        go.transform.position += Vector3.up * lift;
+        rise.lift = lift;
+        foreach (var n in need) if (!float.IsNaN(n)) rise.proud = Mathf.Max(rise.proud, lift - n);
+        return go;
+    }
+
+    static GameObject PlaceIshidanSodeFlat(GameObject dan, string sodePath, int side, Transform parent, string name,
+                                           out string warn)
+    {
         warn = null;
         var t = dan.transform;
         Vector3 right = t.right * Mathf.Sign(side == 0 ? 1 : side);

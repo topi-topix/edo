@@ -102,6 +102,55 @@ public static partial class EdoBuild
         return true;
     }
 
+    /// <summary>**部材の「正面はローカルのどの軸か」を指図から引く**(2026-09-24・EDO-0430)。
+    /// 引く順: ① 行そのものの `axis.front`(棟・鳥居ごと)→ ② `bom` の行で `部材` が <paramref name="label"/>
+    /// そのもの、または「<paramref name="name"/>」「<paramref name="name"/>(…)」の行の `axis.front` →
+    /// ③ `bom[].parts` の下に名で立つ部材(`parts[<paramref name="name"/>].axis.front`)→
+    /// ④ `bom[].parts` の下で `path` が <paramref name="partPath"/> と同じ部材。
+    /// ⭐ 一行に数棟の部材を束ねる書式(`parts`)と、一行一部材の書式(行の `axis`)の二つが指図に在る ──
+    /// 山王では社殿5棟が前者(`bom[本殿・幣殿・拝殿(権現造)].parts[本殿].axis.front = +X`)、御供所が後者。
+    /// 旧の引き方は後者しか見ず、社殿5棟を「向きが宣言されていない」として枠の軸の既定で据えていた。
+    /// ⛔ 無ければ null(⛔ 「+X が正面」と決め打ちしない)。当たる先: 指図の `bom` を持つ全ての指図ビルダー。</summary>
+    public static string BomFrontAxis(System.Collections.Generic.IList<object> bom,
+                                      System.Collections.Generic.Dictionary<string, object> row,
+                                      string label, string name, string partPath)
+    {
+        string f = AxisFront(row);
+        if (f != null) return f;
+        if (bom == null) return null;
+        foreach (var o in bom)
+        {
+            var b = o as System.Collections.Generic.Dictionary<string, object>; if (b == null) continue;
+            object lo; string lbl = b.TryGetValue("部材", out lo) ? lo as string : null; if (lbl == null) continue;
+            if ((label != null && lbl == label) ||
+                (name != null && (lbl == name || lbl.StartsWith(name + "(") || lbl.StartsWith(name + "("))))
+            { f = AxisFront(b); if (f != null) return f; }
+        }
+        foreach (var o in bom)
+        {
+            var b = o as System.Collections.Generic.Dictionary<string, object>; if (b == null) continue;
+            object po; var parts = b.TryGetValue("parts", out po) ? po as System.Collections.Generic.Dictionary<string, object> : null;
+            if (parts == null) continue;
+            foreach (var kv in parts)
+            {
+                var pr = kv.Value as System.Collections.Generic.Dictionary<string, object>; if (pr == null) continue;
+                object pp; string path = pr.TryGetValue("path", out pp) ? pp as string : null;
+                bool hit = (name != null && (kv.Key == name || kv.Key.StartsWith(name + "(") || kv.Key.StartsWith(name + "(")))
+                           || (partPath != null && path == partPath);
+                if (!hit) continue;
+                f = AxisFront(pr); if (f != null) return f;
+            }
+        }
+        return null;
+    }
+    static string AxisFront(System.Collections.Generic.Dictionary<string, object> d)
+    {
+        if (d == null) return null;
+        object ao; var ax = d.TryGetValue("axis", out ao) ? ao as System.Collections.Generic.Dictionary<string, object> : null;
+        if (ax == null) return null;
+        object fo; return ax.TryGetValue("front", out fo) ? fo as string : null;
+    }
+
     /// <summary>**方位の語 → 世界の単位ベクトル**(XZ 平面。+Z=北 / +X=東)。
     /// 「正面の前へ出す」「南側へ寄せる」のように**向きを持って測る**ときに使う。
     /// ⛔ 出す距離はここで決めない — 距離は図が宣言する値(⛔ 実装が発明しない)。</summary>

@@ -621,8 +621,11 @@ public static partial class EdoBuild
         public int detVisited, detChanged;
         public int samples, thin;                 // 天端の検め点(外形の縁から inset 以上内) / 天端と地表が**面で**重なる点(前後左右 0.1m も差 < minGap)
         public int above, aboveNodes;             // 地表が天端より coTol を超えて高い点 / 節点(= 埋没・⛔ ここでは触らない・別の欠陥)
+        public int faceIn;                        // 見え面を渡された駒の法(面)の点で地表の下 ── 根入れ(埋没に数えない)
+        public int hidden;                        // 地表が天端より高いが**見える天端の帯の奥**(上の段の土・上の壁が始まった後)の点 ── 埋没に数えない
         public float aboveMax; public Vector3 aboveAt;
         public string thinBy;                     // 薄い点の多い駒(上位 5)
+        public string aboveBy;                    // 埋没の点の多い駒(上位 5・最大の深さ)
         public float gapMin; public Vector3 gapAt; // 天端 − 地表 の最小とその所(硬い: minGap 以上)
         public float dipOut; public Vector3 dipAt; // 外形の外で地表が下がった量の最大(柔らかい: 報告のみ)
         public override string ToString()
@@ -631,8 +634,11 @@ public static partial class EdoBuild
                    " / 芝 " + detChanged + " / " + detVisited + " セル" +
                    " / 天端 − 地表 最小 " + (float.IsNaN(gapMin) ? "—" : gapMin.ToString("F3")) + "m @(" + gapAt.x.ToString("F2") + ", " + gapAt.z.ToString("F2") + ")" +
                    "・面の重なり " + thin + " / " + samples +
+                   (hidden > 0 ? " / 帯の奥で土に入る控え " + hidden + "(埋没に数えない)" : "") +
+                   (faceIn > 0 ? " / 法の根入れ " + faceIn + "(天端でない・数えない)" : "") +
                    (above > 0 ? " / 天端より地表が高い点 " + above + "(節点 " + aboveNodes + "・最大 " + aboveMax.ToString("F3") + "m @(" + aboveAt.x.ToString("F2") + ", " + aboveAt.z.ToString("F2") + ")・触らない)" : "") +
  (string.IsNullOrEmpty(thinBy) ? "" : "〔" + thinBy + "〕") +
+                   (string.IsNullOrEmpty(aboveBy) ? "" : "〔埋没: " + aboveBy + "〕") +
                    " / 外形の外の地表の下がり 最大 " + dipOut.ToString("F3") + "m @(" + dipAt.x.ToString("F2") + ", " + dipAt.z.ToString("F2") + ")";
         }
     }
@@ -647,14 +653,21 @@ public static partial class EdoBuild
     /// その点と前後左右 0.1m がみな <paramref name="minGap"/> 未満の点(= 面の重なり)を <see cref="CrestTuck.thin"/> に数える
     /// (0 でなければ斑に見える)。天端を地表が斜めに横切る線は数えない。
     /// 外形の外の地表の下がりは柔らかい(報告のみ)。</summary>
+    /// <para>⭐ **埋没は見える天端の帯で数える**(2026-09-24・EDO-0430 普請奉行の決め)。<paramref name="faces"/> に駒ごとの
+    /// **見え面の外向き**(世界 XZ)を渡すと、地表が天端より高い点は、そこから見え面へ向かって天端の上を歩いて
+    /// **見え面の縁まで覆われ続けている**ときだけ埋没に数える。途中で天端が地表から出ていれば、その点は帯の奥
+    /// (上の段の土・上の壁が始まった後)で、石の控えが上の段の土の下に入る正しい納め ⇒ <see cref="CrestTuck.hidden"/>。
+    /// null の駒(見え面を渡さない)は従来どおり全点を数える。当たる先: 段々に重ねた土留め(山王の郭・前庭・土台)、石段の袖。</para>
     public static CrestTuck TuckUnderCrest(IList<GameObject> pieces, string mat, float depth = 0.15f,
-                                           float minGap = 0.01f, float inset = 0.10f, float coTol = 0.05f)
+                                           float minGap = 0.01f, float inset = 0.10f, float coTol = 0.05f,
+                                           IDictionary<GameObject, Vector3> faces = null)
     {
         var r = new CrestTuck { gapMin = float.NaN };
         var t = T(); var td = t.terrainData; var org = t.transform.position;
         int R = td.heightmapResolution; float cx = td.size.x / (R - 1), cz = td.size.z / (R - 1), sy = td.size.y;
         var probe = Probe();
         var hulls = new List<Vector2[]>(); var trisL = new List<List<Vector3[]>>(); var names = new List<string>();
+        var faceL = new List<Vector2>();
         float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
         foreach (var g in pieces)
         {
@@ -662,6 +675,7 @@ public static partial class EdoBuild
             var tris = TrisOfMat(g.transform, mat); if (tris.Count == 0) continue;
             var hull = HullOfMat(g.transform, mat); if (hull == null || hull.Length < 3) continue;
             hulls.Add(hull); trisL.Add(tris); names.Add(g.name); r.pieces++;
+            Vector3 fv; faceL.Add(faces != null && faces.TryGetValue(g, out fv) ? new Vector2(fv.x, fv.z).normalized : Vector2.zero);
             foreach (var p in hull) { mnx = Mathf.Min(mnx, p.x); mxx = Mathf.Max(mxx, p.x); mnz = Mathf.Min(mnz, p.y); mxz = Mathf.Max(mxz, p.y); }
         }
         if (r.pieces == 0) return r;
@@ -785,22 +799,72 @@ public static partial class EdoBuild
         // 3 検め ── 天端 − 描かれた地表(外形の縁から inset 以上内)・外形の外の下がり
         probe = Probe(); pr = probe;
         var thinN = new Dictionary<string, int>();
+        var abN = new Dictionary<string, int>(); var abD = new Dictionary<string, float>();
+        // ⭐ 天端の帯(2026-09-24): 見え面を渡された駒は、各点の「見え面の向きの列」で天端の最高 − CREST_BAND より低い点を
+        //   **面(法)**とみなし埋没に数えない(城の石垣の法の下部は根入れで地中にあるのが正)。天端の点が覆われていれば、
+        //   見え面へ向かって天端の上を歩き、天端が地表から出る点に会えば帯の奥(hidden)、会わずに天端が尽きれば埋没。
+        const float CREST_BAND = 0.10f;
         for (int k = 0; k < hulls.Count; k++)
         {
             var h = hulls[k];
             float hx0 = float.MaxValue, hx1 = float.MinValue, hz0 = float.MaxValue, hz1 = float.MinValue;
             foreach (var p in h) { hx0 = Mathf.Min(hx0, p.x); hx1 = Mathf.Max(hx1, p.x); hz0 = Mathf.Min(hz0, p.y); hz1 = Mathf.Max(hz1, p.y); }
-            for (float x = hx0 + STEP * 0.5f; x < hx1; x += STEP)
-                for (float z = hz0 + STEP * 0.5f; z < hz1; z += STEP)
+            int nx = Mathf.Max(1, Mathf.CeilToInt((hx1 - hx0) / STEP)), nz = Mathf.Max(1, Mathf.CeilToInt((hz1 - hz0) / STEP));
+            var TA = new float[nx, nz]; var GA = new float[nx, nz];
+            for (int ix = 0; ix < nx; ix++)
+                for (int iz = 0; iz < nz; iz++)
                 {
-                    var p = new Vector2(x, z);
+                    TA[ix, iz] = float.NaN;
+                    float x = hx0 + (ix + 0.5f) * STEP, z = hz0 + (iz + 0.5f) * STEP; var p = new Vector2(x, z);
                     if (!EdoGeom.PIP(h, p) || EdgeDist(h, p) < inset) continue;
                     float top = Top(trisL[k], x, z); if (float.IsNaN(top)) continue;
-                    float gap = top - probe.At(x, z);
+                    TA[ix, iz] = top; GA[ix, iz] = probe.At(x, z);
+                }
+            Vector2 fd = faceL[k];
+            // 列の天端の最高(見え面の向きに前後へ)
+            Func<Vector2, float> ColMax = (p0) =>
+            {
+                float mx = float.NaN;
+                for (int sgn = -1; sgn <= 1; sgn += 2)
+                    for (float m = 0f; m < 20f; m += STEP)
+                    {
+                        var q = p0 + fd * (m * sgn);
+                        int qx = Mathf.FloorToInt((q.x - hx0) / STEP), qz = Mathf.FloorToInt((q.y - hz0) / STEP);
+                        if (qx < 0 || qz < 0 || qx >= nx || qz >= nz) break;
+                        float tq = TA[qx, qz]; if (float.IsNaN(tq)) continue;
+                        if (float.IsNaN(mx) || tq > mx) mx = tq;
+                    }
+                return mx;
+            };
+            for (int ix = 0; ix < nx; ix++)
+                for (int iz = 0; iz < nz; iz++)
+                {
+                    float top = TA[ix, iz]; if (float.IsNaN(top)) continue;
+                    float x = hx0 + (ix + 0.5f) * STEP, z = hz0 + (iz + 0.5f) * STEP; var p = new Vector2(x, z);
+                    float gap = top - GA[ix, iz];
                     r.samples++;
                     if (gap < -coTol)
                     {
+                        // 見える天端の帯か: 見え面へ向かって歩き、縁まで覆われ続けるなら埋没
+                        if (fd != Vector2.zero)
+                        {
+                            float cm = ColMax(p);
+                            if (!float.IsNaN(cm) && top < cm - CREST_BAND) { r.faceIn++; continue; }   // 法(面)の根入れ ── 天端ではない
+                            bool open = false;
+                            for (float m = STEP; m < 20f; m += STEP)
+                            {
+                                var q = p + fd * m;
+                                int qx = Mathf.FloorToInt((q.x - hx0) / STEP), qz = Mathf.FloorToInt((q.y - hz0) / STEP);
+                                if (qx < 0 || qz < 0 || qx >= nx || qz >= nz) break;
+                                float tq = TA[qx, qz]; if (float.IsNaN(tq)) break;
+                                if (tq < cm - CREST_BAND) break;                         // 天端が尽きた(法へ入った)
+                                if (tq - GA[qx, qz] >= -coTol) { open = true; break; }
+                            }
+                            if (open) { r.hidden++; continue; }
+                        }
                         r.above++;
+                        { int a0; abN.TryGetValue(names[k], out a0); abN[names[k]] = a0 + 1;
+                          float d0; abD.TryGetValue(names[k], out d0); abD[names[k]] = Mathf.Max(d0, -gap); }
                         if (-gap > r.aboveMax) { r.aboveMax = -gap; r.aboveAt = new Vector3(x, top, z); }
                         continue;
                     }
@@ -811,6 +875,9 @@ public static partial class EdoBuild
         var tl = new List<KeyValuePair<string, int>>(thinN); tl.Sort((x, y) => y.Value.CompareTo(x.Value));
         var ts = new List<string>(); for (int i = 0; i < tl.Count && i < 5; i++) ts.Add(tl[i].Key + " " + tl[i].Value);
         r.thinBy = string.Join("・", ts);
+        var al = new List<KeyValuePair<string, int>>(abN); al.Sort((x, y) => y.Value.CompareTo(x.Value));
+        var ab = new List<string>(); for (int i = 0; i < al.Count && i < 8; i++) ab.Add(al[i].Key + " " + al[i].Value + "点/" + abD[al[i].Key].ToString("F2") + "m");
+        r.aboveBy = string.Join("・", ab);
         foreach (var q in before)
         {
             float d = q.y - probe.At(q.x, q.z);

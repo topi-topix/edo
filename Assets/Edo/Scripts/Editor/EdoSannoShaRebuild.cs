@@ -409,7 +409,8 @@ public static class EdoSannoShaRebuild
             // ⭐ 石段の組(EDO-0415): この石段に沿う土留め(`terraceWalls` の coping:"stair")は**袖**として
             //   段ごとに据える(`EdoBuild.PlaceIshidanSode`)。⛔ Stage3 の城の石垣では積まない。
             var sodeWalls = SodeWallsOf(name);
-            int sodeMade = 0, sodeSkip = 0, sodeMiter = 0; var sodeWarn = new List<string>();
+            int sodeMade = 0, sodeSkip = 0, sodeMiter = 0, sodeLifted = 0, sodeRefused = 0; var sodeWarn = new List<string>();
+            float sodeLiftMax = 0f, sodeProudMax = 0f; var sodeFace = new Dictionary<GameObject, Vector3>();
             var dans = new GameObject[spans.Count];
             var sodeRow = new Dictionary<string, GameObject[]>(); var sodeSide = new Dictionary<string, int>();
             foreach (var k in sodeWalls.Keys) sodeRow[k] = new GameObject[spans.Count];
@@ -437,14 +438,20 @@ public static class EdoSannoShaRebuild
                     Vector2 c = new Vector2(pos.x, pos.y);
                     if (DistToPoly(kv.Value, c) > wM * 0.5f + 1.0f) continue;
                     int side = EdoBuild.IshidanSodeSide(dg, kv.Value);
-                    // ⛔ 外の地盤が袖の天端より高い段(切通し)は建てない — 埋まった袖を積まない
+                    // ⭐ `copingRise:"groundHi"`(裁定 EDO-0182 (a))の袖は天端を脇の地盤まで上げて据える
+                    //   (`EdoBuild.PlaceIshidanSode` が袖の背の線で地表を測って上げる)。
+                    // ⛔ 宣言の無い袖は従来どおり: 外の地盤が袖の天端より高い段(切通し)は建てない — 埋まった袖を積まない
+                    var twd = FindByName(Doc, "terraceWalls", kv.Key);
+                    bool gHi = twd != null && S(twd, "copingRise") == "groundHi";
                     Vector3 oc = dg.transform.position + dg.transform.right * side * (wM * 0.5f + 0.9f);
-                    if (EdoBuild.Ground(oc.x, oc.z) > y + EdoBuild.ISHIDAN_SODE_KASA - BURIED_EPS) { sodeSkip++; continue; }
-                    string w;
+                    if (!gHi && EdoBuild.Ground(oc.x, oc.z) > y + EdoBuild.ISHIDAN_SODE_KASA - BURIED_EPS) { sodeSkip++; continue; }
+                    string w; EdoBuild.SodeRise rz;
                     var sg = EdoBuild.PlaceIshidanSode(dg, EdoAssets.Own.IshidanSode(keri, fumi, i), side, grp,
-                                                       kv.Key + "_" + i.ToString("000") + "f", out w);
+                                                       kv.Key + "_" + i.ToString("000") + "f", gHi, out w, out rz);
                     if (w != null) sodeWarn.Add(w);
-                    if (sg != null) { sodeMade++; sodeRow[kv.Key][i] = sg; sodeSide[kv.Key] = side; }
+                    if (rz.refused) { sodeRefused++; continue; }
+                    if (rz.lift > 0f) { sodeLifted++; sodeLiftMax = Mathf.Max(sodeLiftMax, rz.lift); sodeProudMax = Mathf.Max(sodeProudMax, rz.proud); }
+                    if (sg != null) { sodeMade++; sodeRow[kv.Key][i] = sg; sodeSide[kv.Key] = side; sodeFace[sg] = -dg.transform.right * side; }
                 }
             }
             // ⭐ 曲がる石段(女坂)は折れの前後の袖を留めに切る(`EdoBuild.MiterIshidanSode`)
@@ -452,12 +459,27 @@ public static class EdoSannoShaRebuild
                 if (sodeSide.ContainsKey(kv.Key))
                     sodeMiter += EdoBuild.MiterIshidanSode(dans, kv.Value, sodeSide[kv.Key], keri, fumi, wM, sodeWarn);
             // ⭐ 袖の天端は外の地盤と同じ高さ ── 天端の下の節点と芝を納める(EDO-0414・⛔ 地形の編集は Undo の外)
-            var sodeAll = new List<GameObject>();
-            foreach (var kv in sodeRow) foreach (var g in kv.Value) if (g != null) sodeAll.Add(g);
+            var sodeAll = new List<GameObject>(); var faceAll = new Dictionary<GameObject, Vector3>();
+            foreach (var kv in sodeRow)
+                foreach (var g in kv.Value)
+                {
+                    if (g == null) continue;
+                    sodeAll.Add(g);
+                    // 留めへ差し替えた駒は別の GameObject ⇒ 見え面は同じ側(段石の方)を名から引き直す
+                    Vector3 f;
+                    if (!sodeFace.TryGetValue(g, out f))
+                    {
+                        int ii; string nm = g.name; int us = nm.LastIndexOf('_');
+                        if (us > 0 && int.TryParse(nm.Substring(us + 1).TrimEnd('f'), out ii) && ii < dans.Length && dans[ii] != null
+                            && sodeSide.ContainsKey(kv.Key))
+                            f = -dans[ii].transform.right * sodeSide[kv.Key];
+                    }
+                    if (f != Vector3.zero) faceAll[g] = f;
+                }
             string sodeTuck = null;
             if (sodeAll.Count > 0)
             {
-                var tk = EdoBuild.TuckUnderCrest(sodeAll, null);
+                var tk = EdoBuild.TuckUnderCrest(sodeAll, null, faces: faceAll);
                 sodeTuck = (tk.thin > 0 ? "⛔ " : "") + "袖の天端の下の地形: " + tk;
                 EditorUtility.SetDirty(EdoBuild.T().terrainData);
             }
@@ -465,6 +487,9 @@ public static class EdoSannoShaRebuild
                           " / 踏面 " + fumi.ToString("F3") + " / 幅 " + wM.ToString("F3") + ")" +
                           (sodeWalls.Count > 0 ? " / 袖 " + sodeMade + " 駒(" + string.Join("・", sodeWalls.Keys) + ")" +
                            (sodeSkip > 0 ? " / 切通しで建てず " + sodeSkip : "") +
+                           (sodeLifted > 0 ? " / 天端を地盤まで上げた " + sodeLifted + " 駒(最大 " + sodeLiftMax.ToString("F2") +
+                                             "m・背で地表より出る 最大 " + sodeProudMax.ToString("F2") + "m)" : "") +
+                           (sodeRefused > 0 ? " / ⛔ 丈が足りず据えなかった " + sodeRefused : "") +
                            (sodeMiter > 0 ? " / 留めの継ぎ目 " + sodeMiter : "") : ""));
             foreach (var w in sodeWarn) sb.AppendLine("    ⚠ " + w);
             if (sodeTuck != null) sb.AppendLine("    " + sodeTuck);
@@ -502,7 +527,7 @@ public static class EdoSannoShaRebuild
         return bd;
     }
     /// <summary>指図の名 → シーンの群の名。⛔ 綴りの読み替えだけ(⭐ 対応表が消えるのが正しい終点)。</summary>
-    static string GroupNameOf(string designName)
+    public static string GroupNameOf(string designName)
     {
         if (designName.StartsWith("男坂")) return "Otokozaka";
         if (designName.StartsWith("女坂")) return "Onnazaka";
@@ -622,7 +647,11 @@ public static class EdoSannoShaRebuild
         // ⭐ 天端を高い側の地盤に揃えた土留め(`copingRise:"groundHi"`)は天端の面と地形が重なる ──
         //   天端の下の節点を天端より下げ、芝を消す(EDO-0414・⛔ 地形の編集は Undo の外)。
         //   ⚠ Stage1(整地)を流し直すと節点が天端へ戻るので、Stage3 を必ず後に流す。
-        var tk = EdoBuild.TuckUnderCrest(placed, null);
+        //   ⭐ 埋没は**見える天端の帯**で数える(普請奉行の決め 2026-09-24): 城の石垣の駒は見え面 = ローカル +X。
+        //   帯の奥で上の段の土・上の壁に覆われる控えは石垣として正しい納め(数えない)。
+        var faces = new Dictionary<GameObject, Vector3>();
+        foreach (var g in placed) if (g != null) faces[g] = g.transform.right;
+        var tk = EdoBuild.TuckUnderCrest(placed, null, faces: faces);
         EditorUtility.SetDirty(EdoBuild.T().terrainData); AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
         sb.AppendLine("  " + (tk.thin > 0 ? "⛔ " : "") + "天端の下の地形: " + tk);
         return "土留め: 駒 " + total + " 枚 / ⛔ 埋まっていて建てなかった " + buried + " 枚 ≒ " +
@@ -1402,7 +1431,7 @@ public static class EdoSannoShaRebuild
             if (AssetDatabase.LoadAssetAtPath<GameObject>(path) == null)
             { pend.Add(name + "(" + path + " が無い)"); continue; }
             float yaw; string how;
-            if (!Muki(m, label, name, out yaw, out how)) { pend.Add(how); continue; }
+            if (!Muki(m, label, name, path, out yaw, out how)) { pend.Add(how); continue; }
             if (how != null) muki.Add(how);
             Vector2 c = W(F(m, "u0") + F(m, "du") * 0.5f, F(m, "v0") + F(m, "dv") * 0.5f);
             float y;
@@ -1459,14 +1488,10 @@ public static class EdoSannoShaRebuild
     /// <summary>**部材の「正面はローカルのどの軸か」の宣言**を引く。
     /// ① その行自身の `axis.front`(棟・鳥居ごと)→ ② `bom[<label>].axis.front`(門が使っている綴り)。
     /// ⛔ 無ければ null を返す ── **実装が「+X が正面」と決め打ちしない**。</summary>
-    static string FrontAxisOf(Dictionary<string, object> row, string label)
+    static string FrontAxisOf(Dictionary<string, object> row, string label, string name = null, string path = null)
     {
-        var ax = D(row, "axis");
-        string f = ax == null ? null : S(ax, "front");
-        if (f != null) return f;
-        var b = label == null ? null : FindBom(label);
-        var bx = b == null ? null : D(b, "axis");
-        return bx == null ? null : S(bx, "front");
+        // ⭐ 引き方は EdoBuild の一つ(`bom[].parts[<棟>].axis.front` も読む ── 社殿5棟はこの書式)
+        return EdoBuild.BomFrontAxis(L(Doc, "bom"), row, label, name, path);
     }
 
     /// <summary>棟・鳥居の **yaw** を、図の `front`(方位)と部材の `axis.front`(ローカル軸)から出す。
@@ -1474,12 +1499,14 @@ public static class EdoSannoShaRebuild
     /// 返り true で <paramref name="why"/> が非 null = **向きが宣言されていない**(⇒ yaw 0 で据えて刷る)。
     /// ⛔ 向きを発明しない(規則5・EDO-0261 ③)。</summary>
     static bool Muki(Dictionary<string, object> row, string label, string name, out float yaw, out string why)
+    { return Muki(row, label, name, null, out yaw, out why); }
+    static bool Muki(Dictionary<string, object> row, string label, string name, string path, out float yaw, out string why)
     {
         // ⭐ 向きが未宣言のときの既定の姿は「**枠の軸に沿う**」(= 回る前の yaw 0 と同じ姿)。
         //   ⛔ 世界の yaw 0 にしない ── 境内の軸が回ったので、世界の 0 は枠から 5.5° ずれた発明になる。
         yaw = GridDeg; why = null;
         string front = S(row, "front");
-        string axf = FrontAxisOf(row, label);
+        string axf = FrontAxisOf(row, label, name, path);
         if (front == null || axf == null)
         {
             why = name + "(" + (front == null ? "図に `front`(正面の方位)が無い"

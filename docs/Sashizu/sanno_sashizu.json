@@ -10641,21 +10641,17 @@
  "reviews": {
   "niwashi": {
    "at": "2026-09-24",
-   "verdict": "fail",
-   "hash": "8378908891cc06a0",
-   "note": "巡21: K160〜K163解消。高: 御蔵・御供所の基壇が造成後の面に全部埋まる(見え0)。天端=面+基壇の丈に揃える。中: 御蔵の根入れ依頼は止める",
+   "verdict": "pass",
+   "hash": "e89f3a5ff4aa213b",
+   "note": "巡22: 指摘0。K164〜K166 解消",
    "chapters": {
     "gardens": "dd1140077403",
     "planting": "050b6cfaad9a",
     "routes": "c4299d10abd0",
     "viewpoints": "ae8d421035b4",
-    "py": "c7c02a47d42fd14c"
+    "py": "9c8c16b24c40a185"
    },
    "rounds": [
-    {
-     "at": "2026-09-19T07:25:54+09:00",
-     "verdict": "advisory"
-    },
     {
      "at": "2026-09-19T08:55:28+09:00",
      "verdict": "advisory"
@@ -10699,14 +10695,18 @@
     {
      "at": "2026-09-24T19:23:14+09:00",
      "verdict": "fail"
+    },
+    {
+     "at": "2026-09-24T19:47:39+09:00",
+     "verdict": "pass"
     }
    ]
   },
   "kosho": {
    "at": "2026-09-24",
    "verdict": "pass",
-   "hash": "6b1b5e72adc7f04a",
-   "note": "巡21: 指摘0。K160〜K163解消。土蔵を切石基壇に載せる姿・木階を作り合いの中身とする読みは史実に合う",
+   "hash": "5a8945a1bb8c8f34",
+   "note": "巡22: 指摘0。K164〜K166 解消。屋根は形S・切妻と読み切る点と葺材はU",
    "chapters": {
     "const": "e186ab30371b",
     "polygon": "66c63a322d37",
@@ -10715,10 +10715,10 @@
     "terraces": "091ed7333d46",
     "terraceWalls": "038683d8b834",
     "slopeBands": "19e7253c4bcb",
-    "munes": "aee147235d75",
+    "munes": "c4447763c9e4",
     "links": "eeb5d934d473",
     "runs": "3f6a9b8a3177",
-    "gates": "8bccfb4185fb",
+    "gates": "1ab58b90b185",
     "torii": "17b88f18dd14",
     "kaidans": "49b6844a4a24",
     "sando": "c1779fabddef",
@@ -10730,7 +10730,7 @@
     "profiles": "c3b499cc6233",
     "terrainCheck": "8deec9856c06",
     "neighbors": "577eb0d759ed",
-    "bom": "6948354abf18",
+    "bom": "3ac569972dbf",
     "fumotomichi": "160b585f9726",
     "routes": "c4299d10abd0",
     "kattemichi": "3e4dc828c638",
@@ -10743,14 +10743,10 @@
     "drains": "a7eb06adf639",
     "amaochi": "ad9fd4bb02ce",
     "surface": "728fe7869784",
-    "py": "c7c02a47d42fd14c",
+    "py": "9c8c16b24c40a185",
     "md": "4117d7a0601dadbb"
    },
    "rounds": [
-    {
-     "at": "2026-09-19T18:22:51+09:00",
-     "verdict": "advisory"
-    },
     {
      "at": "2026-09-24T00:28:24+09:00",
      "verdict": "pass"
@@ -10794,14 +10790,18 @@
     {
      "at": "2026-09-24T19:23:14+09:00",
      "verdict": "pass"
+    },
+    {
+     "at": "2026-09-24T19:47:38+09:00",
+     "verdict": "pass"
     }
    ]
   },
   "kenzu": {
    "at": "2026-09-24",
-   "verdict": "fail",
-   "hash": "6b1b5e72adc7f04a",
-   "note": "巡21: K160〜K163解消・木階の除外は妥当。高: 御蔵・御供所の基壇天端を段の面に合わせたため造成後の平らな面に基壇が丸ごと埋まる(二堂と逆)。中: C04が造成前の地盤で見えを数え、御蔵の根入れ依頼が埋まる部分へのもの。低: 坂下の門に屋根の欄なし(C24未検査)",
+   "verdict": "pass",
+   "hash": "5a8945a1bb8c8f34",
+   "note": "巡22: K164〜K166 解消・新規0。基壇の天端=載る面+丈で埋まり0、C04は造成後の地盤で数える、坂下の門の屋根は切妻造・本瓦葺",
    "chapters": {
     "const": "e186ab30371b",
     "polygon": "66c63a322d37",
@@ -10810,10 +10810,10 @@
     "terraces": "091ed7333d46",
     "terraceWalls": "038683d8b834",
     "slopeBands": "19e7253c4bcb",
-    "munes": "aee147235d75",
+    "munes": "c4447763c9e4",
     "links": "eeb5d934d473",
     "runs": "3f6a9b8a3177",
-    "gates": "8bccfb4185fb",
+    "gates": "1ab58b90b185",
     "torii": "17b88f18dd14",
     "kaidans": "49b6844a4a24",
     "sando": "c1779fabddef",
@@ -10825,7 +10825,7 @@
     "profiles": "c3b499cc6233",
     "terrainCheck": "8deec9856c06",
     "neighbors": "577eb0d759ed",
-    "bom": "6948354abf18",
+    "bom": "3ac569972dbf",
     "fumotomichi": "160b585f9726",
     "routes": "c4299d10abd0",
     "kattemichi": "3e4dc828c638",
@@ -10838,14 +10838,10 @@
     "drains": "a7eb06adf639",
     "amaochi": "ad9fd4bb02ce",
     "surface": "728fe7869784",
-    "py": "c7c02a47d42fd14c",
+    "py": "9c8c16b24c40a185",
     "md": "4117d7a0601dadbb"
    },
    "rounds": [
-    {
-     "at": "2026-09-19T18:22:51+09:00",
-     "verdict": "advisory"
-    },
     {
      "at": "2026-09-24T00:28:24+09:00",
      "verdict": "fail"
@@ -10889,6 +10885,10 @@
     {
      "at": "2026-09-24T19:23:14+09:00",
      "verdict": "fail"
+    },
+    {
+     "at": "2026-09-24T19:47:38+09:00",
+     "verdict": "pass"
     }
    ]
   }

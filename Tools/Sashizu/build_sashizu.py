@@ -852,7 +852,7 @@ class Checks(object):
 
     def c04(self):
         M = self.M
-        rows, bad, seated = [], [], []
+        rows, bad, seated, seat_vis = [], [], [], []
         worst = 0.0
         # 面ごとの許容(planes[].devEnvelopeM)と名指しの例外(planes[].devEnvelopeExceptions)は欄が持つ
         env = {}
@@ -913,12 +913,18 @@ class Checks(object):
             #   ばらつき(地面の凹凸)は許容、系統差は許容しない。由来: 施主指摘 2026-09-20(EDO-0290)。
             med = statistics.median(ds)
             spread = max(abs(q - med) for q in ds)
-            worst = max(worst, mx)
             rows.append((b.label, b.name, min(ds), max(ds), pc, med, spread))
+            if y_seat is None:
+                worst = max(worst, mx)
+            else:
+                # ⭐ **基壇に載る棟のばらつきは、基壇の見え(低い側)と削り(高い側)で受ける**
+                #   (施主裁定 2026-09-24 其二 案A「其の二は、Ａ」)── 包絡 0.5 は効かせず、系統差だけ数える。
+                #   見えの丈 = 天端 − 地盤の最低(max ds)・削り = 地盤の最高 − 天端(−min ds)を刷る(規則19)。
+                seat_vis.append("%s 見え %.2f・削り %.2f" % (b.name, max(0.0, max(ds)), max(0.0, -min(ds))))
             if abs(med) > Checks.OFFSET_TOL:
                 bad.append("⛔%s **系統差 %+.2f m**(面の引き方。ばらつきは ±%.2f)"
                            % (b.name, med, spread))
-            elif pc < 100.0:
+            elif y_seat is None and pc < 100.0:
                 bad.append("%s ばらつき ±%.2f m が許容 %.2f を超える(%.0f%%)" % (b.name, spread, tol, pc))
         # ⛔ 検査を緩めた宣言は黙って通さない — 施主の言葉が要る(完成条件の render と同じ作法)
         for x in exc_raw:
@@ -935,10 +941,15 @@ class Checks(object):
         what = "面の引き方 — 棟ごとの**系統差**(規則3 は許容でなく導き方。系統差 > %.2f m は面の誤り)" % Checks.OFFSET_TOL
         if seated:
             rul = sorted(set(q.split("(", 1)[1].rstrip(")") for q in seated))
-            what += "。基壇に載る棟は基壇の天端で数える(%s)" % "・".join(rul)
-            bad.append("⚠〔基壇の天端で数えた〕%s" % "・".join(q.split("(", 1)[0] for q in seated))
+            what += ("。基壇に載る棟は基壇の天端で系統差を数え、**散らばりは基壇の見えと削りで受ける**"
+                     "(包絡 0.5 は効かせない ── %s)" % "・".join(rul))
+            bad.append("⚠〔基壇の天端で数えた〕%s" % "・".join(seat_vis))
         real = [q for q in bad if not q.startswith("⚠〔基壇")]
-        self.add("C04", what, "不合格 %d 棟 / 最大 %.2f m" % (len(real), worst), "ok" if not real else "ng", bad[:12])
+        res = "不合格 %d 棟 / 最大 %.2f m" % (len(real), worst)
+        if seat_vis:
+            res += "(基壇に載る棟を除く)/ 基壇の見えの丈の最大 %.2f m" % max(
+                float(q.split("見え ", 1)[1].split("・", 1)[0]) for q in seat_vis)
+        self.add("C04", what, res, "ok" if not real else "ng", bad[:12])
 
     # C05 段差の受け
     def c05(self):

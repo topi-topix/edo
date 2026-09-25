@@ -26,7 +26,7 @@
    "label": "埋没・浮き 0",
    "what": "埋 ≤1.0 / 浮 ≤0.7 を超える駒が 0",
    "how": "edo-fushin-qa 項目 2(接地)と GroundQA",
-   "value": "皮と部材の隙 15→0 点(A 面で塞がる 0・B 駒が浮く 0・C 面の外の取り合い 0)── 回廊の基壇 NE の出隅に隅の駒 Ishigaki_Kado_90_H0500(EdoBuild.PlaceRunKado)・段の階・幣殿の北の上下を取り合いの欄で正した・女坂の最上段を面 Keidai が包む(EdoBuild.WrapTopStep)。踏面の埋没 0・袖の天端の重なり 0(女坂の山側の袖は天端を段の線へ・背は皮で下げる)。残り: 土留めの天端の面の重なり 13 点(御供所の郭 N 9・前庭の西 4 ── 前回と同じ・掲示板 EDO-0425)。見え面の向き: 土留め 233 駒のうち 162 が高い側を向く(EdoBuild.WallFaceRise・未処置)(2026-09-25 棟梁・Stage2/3/9)",
+   "value": "皮と部材の隙 0(A/B/C 0)・踏面の埋没 0。土留めの見え面の向き: 高い側を向く 162/233 → 13/223(EdoBuild.LowSide・FaceWallToLine・Stage3)。残り 前庭の西 4(run の途中で地盤の高低が入れ替わる)・腰石垣の西 9(本殿の西の造成が未着手)。男坂・郭の階・中門の内の袖を copingRise=line へ(2026-09-25 棟梁・Stage2/3/9)",
    "verdict": "fail",
    "at": "2026-09-25",
    "note": ""
@@ -35,8 +35,8 @@
    "label": "突き合わせ 0",
    "what": "指図(意図)と実装の食い違いが 0 件",
    "how": "Unity メニュー Edo/<敷地>/指図と実装を突き合わせる",
-   "value": "突き合わせ 0 件(部門別すべて 0)── 指図 TW_Onna_N.copingRise=line と焼き直し後(2026-09-25 棟梁・EdoSannoSashizuCheck.Check)",
-   "verdict": "pass",
+   "value": "突き合わせ 8 件 ── 全件が本殿の西(2c0ab9f4 の指図: 野面の土留め TW_Nozura_ShadenW/N 未建・Ita_Keidai の口・面 Keidai/SukibeiSoto/SukibeiSoto_Chu の造成・社叢の本数)。西の造成は未着手(2026-09-25 棟梁・EdoSannoSashizuCheck.Check)",
+   "verdict": "fail",
    "at": "2026-09-25",
    "note": ""
   },
@@ -324,6 +324,18 @@
    "event": "record",
    "item": "match",
    "verdict": "pass"
+  },
+  {
+   "at": "2026-09-25T09:20:33+09:00",
+   "event": "record",
+   "item": "ground",
+   "verdict": "fail"
+  },
+  {
+   "at": "2026-09-25T09:20:33+09:00",
+   "event": "record",
+   "item": "match",
+   "verdict": "fail"
   }
  ]
 }

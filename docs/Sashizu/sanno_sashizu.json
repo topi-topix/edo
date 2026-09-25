@@ -1055,7 +1055,7 @@
    },
    "coping": "stair",
    "acc": "U",
-   "copingRise": "groundHi",
+   "copingRise": "line",
    "corners": {
     "a": "突き付け(楼門の基壇の前面・出隅なし ── 石垣の QA の例外として宣言)"
    }
@@ -1076,7 +1076,7 @@
    },
    "coping": "stair",
    "acc": "U",
-   "copingRise": "groundHi",
+   "copingRise": "line",
    "corners": {
     "a": "突き付け(楼門の基壇の前面・出隅なし ── 石垣の QA の例外として宣言)"
    }
@@ -1634,7 +1634,7 @@
    "copingFrom": {
     "kaidan": "郭の階(境内 → 観音堂・御供所の郭)"
    },
-   "copingRise": "groundHi",
+   "copingRise": "line",
    "corners": {
     "b": "突き付け(郭の土留め `TW_Gusho_E` の開口の北の端の小口 ── 出隅なし・面で合わせる)"
    },
@@ -1658,7 +1658,7 @@
    "copingFrom": {
     "kaidan": "郭の階(境内 → 観音堂・御供所の郭)"
    },
-   "copingRise": "groundHi",
+   "copingRise": "line",
    "corners": {
     "b": "突き付け(郭の土留め `TW_Gusho_E` の開口の南の端 ── `TW_Gusho_EK` の東端と通りをそろえる)"
    },
@@ -1931,7 +1931,7 @@
     0.69855
    ],
    "coping": "stair",
-   "copingRise": "groundHi",
+   "copingRise": "line",
    "copingFrom": {
     "kaidan": "中門の内の階"
    },
@@ -1955,7 +1955,7 @@
     -0.69855
    ],
    "coping": "stair",
-   "copingRise": "groundHi",
+   "copingRise": "line",
    "copingFrom": {
     "kaidan": "中門の内の階"
    },

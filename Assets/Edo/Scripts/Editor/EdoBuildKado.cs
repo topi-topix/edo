@@ -293,4 +293,52 @@ public static partial class EdoBuild
         Vector2 pf = cen + f * (fmax - cd + 0.8f), pb = cen + f * (bmin - cd - 0.8f);
         return groundAt(pf.x, pf.y) - groundAt(pb.x, pb.y);
     }
+    /// <summary>**線 a→b のどちら側が低いかを描かれた地表で測る**(2026-09-25・EDO-0430)。走りに沿って 1m おきに、
+    /// 線の両側 <paramref name="probe"/> m の地表(<paramref name="groundAt"/>)を取り、差が <paramref name="eps"/> を超える点で
+    /// 低い側に票を入れる。<paramref name="use"/>(走り s → 数えるか)で建つ区間だけに絞れる。返り値 = 低い側の単位法線
+    /// (票が無ければ Vector2.zero ── 呼ぶ側が別の手掛かりで決める)。
+    /// 当たる先: 土留め・郭・腰石垣・基壇の石垣の見え面の向き(山王 Stage3、各邸の外周石垣・護岸)。</summary>
+    public static Vector2 LowSide(Vector2 a, Vector2 b, Func<float, float, float> groundAt, float probe, float eps,
+                                  Func<float, bool> use, out int votes, out int against)
+    {
+        votes = against = 0;
+        float len = Vector2.Distance(a, b); if (len < 1e-4f) return Vector2.zero;
+        Vector2 dir = (b - a) / len, nrm = new Vector2(dir.y, -dir.x);
+        int r = 0, l = 0;
+        for (float s = Mathf.Min(0.5f, len * 0.5f); s <= len; s += 1f)
+        {
+            if (use != null && !use(s)) continue;
+            Vector2 p = a + dir * s;
+            float gR = groundAt(p.x + nrm.x * probe, p.y + nrm.y * probe), gL = groundAt(p.x - nrm.x * probe, p.y - nrm.y * probe);
+            if (float.IsNaN(gR) || float.IsNaN(gL) || Mathf.Abs(gR - gL) <= eps) continue;
+            if (gR < gL) r++; else l++;
+        }
+        if (r == 0 && l == 0) return Vector2.zero;
+        votes = Mathf.Max(r, l); against = Mathf.Min(r, l);
+        return r >= l ? nrm : -nrm;
+    }
+
+    /// <summary>**石垣の駒の見え面(法の面)を <paramref name="lowN"/> へ向け、天端の前の縁を線へ寄せる**(2026-09-25・EDO-0430)。
+    /// ① 見え面は <see cref="FaceSide"/>(下の帯が前へ出る側)で測り、<paramref name="lowN"/> と逆なら駒の芯(実メッシュの外接箱の中心)
+    /// で 180° 回す(走りの位置は動かない) ② 天端の帯(最上点 − <paramref name="band"/> 以上)の頂点の <paramref name="lowN"/> への射影の最大
+    /// = 天端の前の縁を測り、線(<paramref name="lineA"/> を通り <paramref name="lowN"/> に直交)の上へ平行移動する。
+    /// ⛔ 部材の基準点(ピボット)で線に合わせない ── 線は「面の縁」、触れているのは天端の前の縁。返り値 = 寄せた量[m](+ = 低い側へ)。
+    /// 当たる先: Castle Wall 型の駒を並べる全ての土留め(山王 Stage3、各邸の外周石垣・護岸)。</summary>
+    public static float FaceWallToLine(GameObject piece, Vector2 lowN, Vector2 lineA, float band = 0.15f)
+    {
+        var tr = piece.transform;
+        var f = FaceSide(new List<GameObject> { piece }, lowN);
+        if (Vector2.Dot(f, lowN) < 0f)
+        {
+            var c = RB(piece).center;
+            tr.RotateAround(new Vector3(c.x, 0f, c.z), Vector3.up, 180f);
+        }
+        var vs = Body(tr, 999999); if (vs.Count == 0) return 0f;
+        float top = float.MinValue; foreach (var v in vs) top = Mathf.Max(top, v.y);
+        float edge = float.MinValue;
+        foreach (var v in vs) if (v.y >= top - band) edge = Mathf.Max(edge, (v.x - lineA.x) * lowN.x + (v.z - lineA.y) * lowN.y);
+        if (edge == float.MinValue) return 0f;
+        tr.position -= new Vector3(lowN.x, 0f, lowN.y) * edge;
+        return -edge;
+    }
 }

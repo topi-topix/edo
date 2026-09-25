@@ -611,6 +611,10 @@ public static class EdoSannoShaRebuild
         // 出隅の隅の駒のため: run ごとの駒と、端点ごとの外向き(EdoBuild.PlaceRunKado)
         var runPieces = new Dictionary<string, List<GameObject>>();
         var runEnds = new List<KeyValuePair<string, KeyValuePair<Vector2, Vector2>>>();   // (run, (端点, 外向き))
+        var faceOf = new Dictionary<GameObject, Vector2>();                                  // 駒 → 見え面の向き(低い側)
+        var dgS = EdoBuild.Drawn();
+        float wallDepth; { var bv = EdoBuild.BodyAt(EdoAssets.JC.CastleWall, Vector3.zero, 0f, true); float x0 = float.MaxValue, x1 = float.MinValue;
+            foreach (var v in bv) { x0 = Mathf.Min(x0, v.x); x1 = Mathf.Max(x1, v.x); } wallDepth = bv.Count > 0 ? x1 - x0 : 2.4f; }
 
         // ⚠ 天端の両側が同じ高さの壁(= 基壇。回廊の 4本)は「低い側」が決まらない。
         //   ⇒ **同じ接頭辞の壁が囲む矩形の外**を外向きとする(名から導く群 = TW_Kairo など)。
@@ -634,6 +638,9 @@ public static class EdoSannoShaRebuild
             // ⭐ 石段の袖は Stage2 が段ごとに石段と同じ材で据える(EDO-0415)。⛔ 城の石垣で積まない。
             var twDoc = FindByName(Doc, "terraceWalls", name);
             if (twDoc != null && IsSodeWall(twDoc)) { sb.AppendLine("  " + name + ": 石段の袖 — Stage2 で据えた"); continue; }
+            // ⛔ 積みが城の石垣でない土留め(`masonry` = 野面の乱積み ほか)は城の石垣の駒で積まない ── 別の部材で据える
+            if (twDoc != null && !string.IsNullOrEmpty(S(twDoc, "masonry")))
+            { sb.AppendLine("  " + name + ": ⚠ 積みが「" + S(twDoc, "masonry") + "」── 城の石垣では積まない(据えは未実装)"); continue; }
             var nodes = Pts(L(wl, "nodes"));
             var prof = L(wl, "profile");
             float step = F(wl, "profileStep");
@@ -653,34 +660,26 @@ public static class EdoSannoShaRebuild
                 float pitch = (N > 1) ? (len - IG_RUN) / (N - 1) : 0f;
                 float head = (len <= IG_RUN) ? (len + IG_RUN) * 0.5f : IG_RUN;
 
-                // 低い側(= 外向き)を seg ごとに多数決で決める。⛔ 建つ区間だけで投票する。
-                int voteR = 0, voteL = 0;
+                // ⭐ 見え面 = 低い側。**描かれた地表を線の両側で測って**決める(EdoBuild.LowSide・普請奉行の決め 2026-09-25)。
+                //   測る所は駒の奥行(実メッシュ)+ wallProbeM だけ線から離す(据えていた駒の天端の下を下げた節点を拾わない)。
+                //   ⛔ 建つ区間だけで投票する。
                 Vector2 nrm = new Vector2(dir.y, -dir.x);      // dir の右手
-                for (float ss = 0f; ss <= len; ss += 1f)
+                int voteN, voteX;
+                float sB = sBase;
+                Vector2 lowN = EdoBuild.LowSide(a, b, (x, z) => dgS.At(x, z), wallDepth + probe, 0.05f, ss =>
                 {
-                    float top, faceH, backH;
-                    if (!ProfileAt(prof, step, sBase + ss, out top, out faceH, out backH)) continue;
-                    if (faceH <= BURIED_EPS) continue;
-                    Vector2 pp = a + dir * ss;
-                    float gR, gL;
-                    bool hR = Gr.Near(pp.x + nrm.x * probe, pp.y + nrm.y * probe, 1, out gR);
-                    bool hL = Gr.Near(pp.x - nrm.x * probe, pp.y - nrm.y * probe, 1, out gL);
-                    bool retR = hR && Mathf.Abs(gR - top) < 0.05f;
-                    bool retL = hL && Mathf.Abs(gL - top) < 0.05f;
-                    if (retR && !retL) voteL++;                 // 受けているのが右 ⇒ 外は左
-                    else if (retL && !retR) voteR++;
-                    else if (hR && hL && Mathf.Abs(gR - gL) > 0.05f) { if (gR < gL) voteR++; else voteL++; }
-                    else if (hR != hL) { if (!hR) voteR++; else voteL++; }   // 設計面の外 = 自然地形の側
-                }
+                    float t0, f0, b0; return ProfileAt(prof, step, sB + ss, out t0, out f0, out b0) && f0 > BURIED_EPS;
+                }, out voteN, out voteX);
                 Vector2 outw;
-                if (voteR == 0 && voteL == 0)
+                if (lowN == Vector2.zero)
                 {
                     // 両側が同じ高さ = 基壇。⇒ 同族の壁が囲む中心から外へ。
                     Vector2 mid = (a + b) * 0.5f;
                     Vector2 away = mid - famC[FamilyOf(name)];
                     outw = (Vector2.Dot(nrm, away) >= 0f) ? nrm : -nrm;
                 }
-                else outw = (voteR >= voteL) ? nrm : -nrm;
+                else outw = lowN;
+                if (voteX > 0) sb.AppendLine("  ⚠ " + name + " の区間で低い側が割れた(" + voteN + " 対 " + voteX + ")— 多い方へ向けた");
                 // ローカル +X を外へ・+Z を走りへ。⇒ 走りの向きは外向き法線から決まる
                 Vector2 run = (Vector2.Dot(new Vector2(dir.y, -dir.x), outw) >= 0f) ? dir : -dir;
                 Vector2 A = (Vector2.Dot(new Vector2(dir.y, -dir.x), outw) >= 0f) ? a : b;
@@ -703,7 +702,11 @@ public static class EdoSannoShaRebuild
                     if (faceH <= BURIED_EPS) { buried++; skipM += (N > 1 ? pitch : len); continue; }
                     var wg = EdoBuild.Place(EdoAssets.JC.CastleWall, new Vector3(p.x, top - IG_H, p.y),
                                    psi, Vector3.one, grp, name + "_" + made.ToString("000") + "f");
-                    if (wg != null) { placed.Add(wg); mine.Add(wg); }
+                    if (wg != null)
+                    {   // 見え面を低い側へ回し、天端の前の縁を線(面の縁)へ寄せる ── 実メッシュで測る
+                        EdoBuild.FaceWallToLine(wg, outw, a);
+                        placed.Add(wg); mine.Add(wg); faceOf[wg] = outw;
+                    }
                     made++;
                 }
             }
@@ -744,10 +747,14 @@ public static class EdoSannoShaRebuild
         // ⭐ 天端を高い側の地盤に揃えた土留め(`copingRise:"groundHi"`)は天端の面と地形が重なる ──
         //   天端の下の節点を天端より下げ、芝を消す(EDO-0414・⛔ 地形の編集は Undo の外)。
         //   ⚠ Stage1(整地)を流し直すと節点が天端へ戻るので、Stage3 を必ず後に流す。
-        //   ⭐ 埋没は**見える天端の帯**で数える(普請奉行の決め 2026-09-24): 城の石垣の駒は見え面 = ローカル +X。
+        //   ⭐ 埋没は**見える天端の帯**で数える(普請奉行の決め 2026-09-24): 見え面 = 低い側(EdoBuild.LowSide で測った向き)。
         //   帯の奥で上の段の土・上の壁に覆われる控えは石垣として正しい納め(数えない)。
         var faces = new Dictionary<GameObject, Vector3>();
-        foreach (var g in placed) if (g != null) faces[g] = g.transform.right;
+        foreach (var g in placed) if (g != null)
+        {
+            Vector2 fv; if (!faceOf.TryGetValue(g, out fv)) fv = EdoBuild.FaceSide(new List<GameObject> { g }, new Vector2(g.transform.right.x, g.transform.right.z).normalized);
+            faces[g] = new Vector3(fv.x, 0f, fv.y);
+        }
         var tk = EdoBuild.TuckUnderCrest(placed, null, faces: faces);
         EditorUtility.SetDirty(EdoBuild.T().terrainData); AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
         sb.AppendLine("  " + (tk.thin > 0 ? "⛔ " : "") + "天端の下の地形: " + tk);
@@ -2239,7 +2246,12 @@ public static class EdoSannoShaRebuild
         }
         if (sode.Count > 0) sb.AppendLine("    袖の天端: " + EdoBuild.TuckUnderCrest(sode, null, faces: sodeFace, measureOnly: true));
         var dodome = new List<GameObject>(); var face = new Dictionary<GameObject, Vector3>();
-        foreach (Transform c in Group("Dodome")) { dodome.Add(c.gameObject); face[c.gameObject] = c.right; }
+        foreach (Transform c in Group("Dodome"))
+        {   // 見え面は実メッシュで測る(法の付いた面 = EdoBuild.FaceSide)
+            dodome.Add(c.gameObject);
+            var fv = EdoBuild.FaceSide(new List<GameObject> { c.gameObject }, new Vector2(c.right.x, c.right.z).normalized);
+            face[c.gameObject] = new Vector3(fv.x, 0f, fv.y);
+        }
         if (dodome.Count > 0) sb.AppendLine("    土留めの天端: " + EdoBuild.TuckUnderCrest(dodome, null, faces: face, measureOnly: true));
         // 見え面(法の面)の向き: 低い側を向くか(EdoBuild.WallFaceRise)。+0.05 を超えて高い側を向く駒を run ごとに刷る
         {

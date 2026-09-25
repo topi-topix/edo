@@ -11,5 +11,5 @@ metadata:
 `EdoBuild.FaceSide`(下の帯が前へ出る側)と `WallFaceRise`(見え面の前 − 背の後ろの地表)で測れる。HifuMeasure が刷る。
 
 **Why:** 翻すと駒の体が線の反対へ 1.4〜2.4m 出る(線 = 背の線のまま回すと面が広がる)── 線が背か天端の前の縁かは指図の話。
-**How to apply:** 向きを直す前に「run の線 = 背 / 天端の前の縁」を普請奉行に確かめる。TuckUnderCrest に渡す faces も +X なので同時に直す。
+**How to apply:** 2026-09-25 決着: 見え面は描かれた地表で低い側(EdoBuild.LowSide)、天端の前の縁を線へ(EdoBuild.FaceWallToLine)。162→13。TuckUnderCrest に渡す faces も +X なので同時に直す。
 隅の駒の据え(`PlaceRunKado`)は向きを実メッシュで測るのでこの誤りに引きずられない。[[crest-burial-count-picks-batter-face]]

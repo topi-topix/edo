@@ -528,6 +528,40 @@ public static partial class EdoBuild
         return r >= l ? nrm : -nrm;
     }
 
+    /// <summary>**一本の折れ線の土留めの「低い側の手」を区間の票の差で決める**(2026-09-25・EDO-0430)。
+    /// 一本の run の見え面は走りに対して同じ手(右か左)にある ── 区間ごとに <see cref="LowSide"/> の票を取り、
+    /// 右手の票の差の和を返す(+ = 右手が低い / − = 左手 / 0 = 決まらない)。短い区間(切り込みの返し 1.7m は票が 2 つ)で
+    /// 票が割れたとき、同じ run の他の区間の手で決める。⛔ 割れた票を右手に倒さない(切り込みの東の返しが前庭の側を向いた)。
+    /// 当たる先: 折れる土留め・郭の石垣・切り込みの返し(山王 Stage3、各邸の外周石垣・護岸)。</summary>
+    public static int RunLowHand(IList<Vector2[]> segs, Func<float, float, float> groundAt, float probe, float eps,
+                                 Func<int, float, bool> use)
+    {
+        int margin = 0;
+        for (int i = 0; i < segs.Count; i++)
+        {
+            var sg = segs[i]; if (sg == null || sg.Length < 2) continue;
+            float len = Vector2.Distance(sg[0], sg[1]); if (len < 1e-4f) continue;
+            Vector2 dir = (sg[1] - sg[0]) / len, nrm = new Vector2(dir.y, -dir.x);
+            int ii = i; int v, x;
+            var low = LowSide(sg[0], sg[1], groundAt, probe, eps, use == null ? null : (Func<float, bool>)(s => use(ii, s)), out v, out x);
+            if (low == Vector2.zero) continue;
+            margin += (Vector2.Dot(low, nrm) > 0f ? 1 : -1) * (v - x);
+        }
+        return margin;
+    }
+
+    /// <summary>**折れ線 <paramref name="run"/> を線分 p0→p1 へ射影したとき、線分の上で重なる長さ**[m](2026-09-25・EDO-0430)。
+    /// 石段の袖を**袖の run が走る段だけ**に据えるために使う(段の踏面の [s0, s1] と袖の走りの重なり)。
+    /// ⛔ 脇の離れ(段の芯からの距離)だけで決めない ── 切り込みの中は返しの土留めが持つのに、段の全長へ袖を据えて返しと重ねた。
+    /// 当たる先: 石段の袖(男坂・女坂・参道の階・郭の階・中門の内の階、各邸の石段)。</summary>
+    public static float OverlapAlong(Vector2 p0, Vector2 p1, IList<Vector2> run)
+    {
+        float len = Vector2.Distance(p0, p1); if (len < 1e-5f || run == null || run.Count == 0) return 0f;
+        Vector2 d = (p1 - p0) / len; float lo = float.MaxValue, hi = float.MinValue;
+        foreach (var q in run) { float t = Vector2.Dot(q - p0, d); lo = Mathf.Min(lo, t); hi = Mathf.Max(hi, t); }
+        return Mathf.Max(0f, Mathf.Min(len, hi) - Mathf.Max(0f, lo));
+    }
+
     /// <summary>**基壇(天端が両側の地盤より上の石垣)の見え面の向きを、端で継ぐ壁の走りから決める**(2026-09-25・EDO-0430)。
     /// 基壇は両側が低いので地表では向きが決まらない。基壇を囲む壁は端どうしで継がれ、継いだ相手は**基壇の側へ**走る ──
     /// 見え面はその逆。<paramref name="others"/> = 基壇の壁の区間 [a, b](自分を含んでよい)。a・b から <paramref name="tol"/> 以内に

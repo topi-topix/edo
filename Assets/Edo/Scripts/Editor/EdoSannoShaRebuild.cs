@@ -638,6 +638,8 @@ public static class EdoSannoShaRebuild
                     // 土留めの線がこの段の脇に来ていなければ据えない(線の外の段)
                     Vector2 c = new Vector2(pos.x, pos.y);
                     if (DistToPoly(kv.Value, c) > wM * 0.5f + 1.0f) continue;
+                    // ⭐ 袖の run が走る段だけ(EdoBuild.OverlapAlong)── 切り込みの中は返しの土留めが持つ(EDO-0442「1=B」)
+                    if (EdoBuild.OverlapAlong(p0, p1, kv.Value) < 0.02f) continue;
                     int side = EdoBuild.IshidanSodeSide(dg, kv.Value);
                     // ⭐ `copingRise:"groundHi"`(裁定 EDO-0182 (a))の袖は天端を脇の地盤まで上げて据える
                     //   (`EdoBuild.PlaceIshidanSode` が袖の背の線で地表を測って上げる)。
@@ -861,6 +863,16 @@ public static class EdoSannoShaRebuild
             var mine = new List<GameObject>(); runPieces[name] = mine;
             Vector2 n0 = nodes.Count > 0 ? nodes[0] : Vector2.zero, n1 = nodes.Count > 0 ? nodes[nodes.Count - 1] : Vector2.zero;
 
+            // ⭐ 一本の run の低い側の手(EdoBuild.RunLowHand)── 区間の票が割れたときに使う(⛔ 右手に倒さない)
+            int runHand;
+            {
+                var sl = new List<Vector2[]>(); var sb0 = new List<float>();
+                foreach (var so in L(wl, "segs")) { var sg0 = so as List<object>; if (sg0 == null || sg0.Count < 2) continue; var q0 = P2(sg0[0]); sl.Add(new[] { q0, P2(sg0[1]) }); sb0.Add(ArcOf(nodes, q0)); }
+                runHand = EdoBuild.RunLowHand(sl, (x, z) => dgS.At(x, z), wallDepth + probe, 0.05f, (k, ss) =>
+                {
+                    float t0, f0, b0; return ProfileAt(prof, step, sb0[k] + ss, out t0, out f0, out b0) && f0 > BURIED_EPS;
+                });
+            }
             int segI = -1;
             foreach (var so in L(wl, "segs"))
             {
@@ -889,6 +901,12 @@ public static class EdoSannoShaRebuild
                 }, out voteN, out voteX);
                 Vector2 outw;
                 if (isBase && EdoBuild.BlockOutward(a, b, baseSegs) != Vector2.zero) outw = EdoBuild.BlockOutward(a, b, baseSegs);
+                else if ((lowN == Vector2.zero || voteN == voteX) && runHand != 0)
+                {   // 票が無い・割れた区間は同じ run の手で(EdoBuild.RunLowHand)
+                    outw = runHand > 0 ? nrm : -nrm;
+                    if (voteX > 0) sb.AppendLine("  ⚠ " + name + " の区間で低い側が割れた(" + voteN + " 対 " + voteX + ")— run の手(" + (runHand > 0 ? "右" : "左") + ")で決めた");
+                    voteX = 0;
+                }
                 else if (lowN == Vector2.zero)
                 {
                     // 両側が同じ高さで継ぐ基壇の壁も無い ⇒ 同族の壁が囲む中心から外へ(最後の手)。

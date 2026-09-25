@@ -2267,11 +2267,13 @@ public static class EdoSannoShaRebuild
             if (place != "GameObject")
             {
                 var ti = new TreeInstance();
-                ti.position = new Vector3((wx - tp.x) / ts.x, 0f, (wz - tp.z) / ts.z);
+                // ⭐ 点に来るのは**幹の足の中心**(⛔ ピボットではない・規則21・EDO-0409)
+                ti.rotation = 0f;
+                var piv = EdoBuild.TreePivotForTrunk(new Vector2(wx, wz), EdoBuild.TrunkFootLocal(path), sxz, ti.rotation);
+                ti.position = new Vector3((piv.x - tp.x) / ts.x, 0f, (piv.y - tp.z) / ts.z);
                 ti.prototypeIndex = idxOf[path];
                 ti.widthScale = sxz; ti.heightScale = sy;
                 ti.color = Color.white; ti.lightmapColor = Color.white;
-                ti.rotation = 0f;
                 keep.Add(ti); nTree++;
             }
             else
@@ -2296,7 +2298,7 @@ public static class EdoSannoShaRebuild
                 if (g != null)
                 {
                     float bu, fl;
-                    if (!EdoBuild.SeatPlant(g, 0f, out bu, out fl))
+                    if (!EdoBuild.SeatPlantAt(g, new Vector2(wx, wz), 0f, out bu, out fl))   // 幹の足を点へ(EDO-0409)
                         unseated.Add(string.Format("{0}(埋 {1:F2} / 浮 {2:F2})", g.name, bu, fl));
                     buryMax = Mathf.Max(buryMax, float.IsNaN(bu) ? 0f : bu);
                     floatMax = Mathf.Max(floatMax, float.IsNaN(fl) ? 0f : fl);

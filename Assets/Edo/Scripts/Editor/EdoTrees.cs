@@ -80,12 +80,16 @@ public static class EdoTrees
             if(proto<0) continue;
 
             float s=0.8f+(float)rnd.NextDouble()*0.5f;
+            float ws=s*(0.92f+(float)rnd.NextDouble()*0.16f);
+            float rot=(float)(rnd.NextDouble()*6.283);
+            // ⭐ 点に来るのは**幹の足の中心**(⛔ ピボットではない・規則21・EDO-0409)
+            var piv=EdoBuild.TreePivotForTrunk(new Vector2(wx,wz), EdoBuild.TrunkFootLocal(td.treePrototypes[proto].prefab), ws, rot);
             inst.Add(new TreeInstance{
                 prototypeIndex=proto,
-                position=new Vector3(nx,(h-O.y)/Sz.y,nz),
-                widthScale=s*(0.92f+(float)rnd.NextDouble()*0.16f),
+                position=new Vector3((piv.x-O.x)/Sz.x,(h-O.y)/Sz.y,(piv.y-O.z)/Sz.z),
+                widthScale=ws,
                 heightScale=s,
-                rotation=(float)(rnd.NextDouble()*6.283),
+                rotation=rot,
                 color=Color.white, lightmapColor=Color.white
             });
         }

@@ -3,9 +3,12 @@
 # (0 なら足元がピボット。負なら足元がピボットより下)
 # root_scale: ルート自身の補正スケール(1 でなければ共通ヘルパに Vector3.one を渡すと化ける)
 # shader: BUILTIN = URP でピンクになる。use: S=シーンで使用中 / B=ビルダーが参照
-path	name	pack	kind	sx	sy	sz	pivot_bottom	root_scale	tris	renderers	shader	use
+# trunk_dx/trunk_dz/crown_r/edashita: Assets/Edo/Models/Trees/ の木だけ(LOD0 の頂点・scale 1・m)。
+#   trunk = 幹の足の中心(最も低い 0.3m の帯の xz の中点)の局所 xz。crown_r = そこからの水平最大半径。
+#   edashita = 枝下の輪郭 r:h(r = 0.5m 刻みの環の外半径・h = 環の最も低い頂点の足元からの高さ。0.3m 以内の幹は除く)
+path	name	pack	kind	sx	sy	sz	pivot_bottom	root_scale	tris	renderers	shader	use	trunk_dx	trunk_dz	crown_r	edashita
 Assets/Edo/Models/Dobei/Dobei2m.fbx	Dobei2m	Edo	fbx	2	2.5	1	0	1	404	1	URP	B
-Assets/Edo/Models/Dobei/Dobei2m_End.fbx	Dobei2m_End	Edo	fbx	2	2.5	1	0	1	436	1	URP	-
+Assets/Edo/Models/Dobei/Dobei2m_End.fbx	Dobei2m_End	Edo	fbx	2	2.5	1	0	1	436	1	URP	B
 Assets/Edo/Models/Fuchi/Fuchiishi_12.52ken_w360.fbx	Fuchiishi_12.52ken_w360	Edo	fbx	22.76	0.48	0.36	-0.48	1	836	1	URP	-
 Assets/Edo/Models/Fuchi/Fuchiishi_14ken_w360.fbx	Fuchiishi_14ken_w360	Edo	fbx	25.45	0.48	0.36	-0.48	1	924	1	URP	-
 Assets/Edo/Models/Fuchi/Fuchiishi_17ken_w360.fbx	Fuchiishi_17ken_w360	Edo	fbx	30.91	0.48	0.36	-0.48	1	1144	1	URP	-
@@ -120,8 +123,13 @@ Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_22x5ken.fbx	Goten_Roof_Irimoya_
 Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_22x6ken.fbx	Goten_Roof_Irimoya_22x6ken	Edo	fbx	42.14	4.28	13.05	-0.13	1	37172	1	URP	-
 Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_26x11ken.fbx	Goten_Roof_Irimoya_26x11ken	Edo	fbx	49.41	6.76	22.14	-0.13	1	67706	1	URP	-
 Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_37x8ken.fbx	Goten_Roof_Irimoya_37x8ken	Edo	fbx	69.41	5.27	16.69	-0.13	1	76937	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_5x3ken.fbx	Goten_Roof_Irimoya_5x3ken	Edo	fbx	11.23	2.79	7.6	-0.13	1	8551	1	URP	-
 Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_5x5.fbx	Goten_Roof_Irimoya_5x5	Edo	fbx	11.23	3.78	11.23	-0.13	1	11494	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_6x4ken.fbx	Goten_Roof_Irimoya_6x4ken	Edo	fbx	13.05	3.28	9.41	-0.13	1	10973	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_6x5ken.fbx	Goten_Roof_Irimoya_6x5ken	Edo	fbx	13.05	3.78	11.23	-0.13	1	12916	1	URP	-
 Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_6x6ken.fbx	Goten_Roof_Irimoya_6x6ken	Edo	fbx	13.05	4.28	13.05	-0.13	1	13586	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_7x5ken.fbx	Goten_Roof_Irimoya_7x5ken	Edo	fbx	14.87	3.78	11.23	-0.13	1	14390	1	URP	-
+Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_7x6ken.fbx	Goten_Roof_Irimoya_7x6ken	Edo	fbx	14.87	4.28	13.05	-0.13	1	15086	1	URP	-
 Assets/Edo/Models/Goten/Roofs/Goten_Roof_Irimoya_9x6ken.fbx	Goten_Roof_Irimoya_9x6ken	Edo	fbx	18.5	4.28	13.05	-0.13	1	18040	1	URP	-
 Assets/Edo/Models/Goten/Roofs/Goten_Roof_Kirizuma_1.5ken.fbx	Goten_Roof_Kirizuma_1.5ken	Edo	fbx	3.47	1.11	3.13	-0.15	1	1004	1	URP	-
 Assets/Edo/Models/Goten/Roofs/Goten_Roof_Kirizuma_10ken.fbx	Goten_Roof_Kirizuma_10ken	Edo	fbx	18.92	1.11	3.13	-0.15	1	4906	1	URP	-
@@ -166,32 +174,161 @@ Assets/Edo/Models/Hei/Sodebei_5.5.fbx	Sodebei_5.5	Edo	fbx	5.5	2.65	1	0	1	1154	1	
 Assets/Edo/Models/Hei/Sodebei_5.5_K0.78.fbx	Sodebei_5.5_K0.78	Edo	fbx	5.5	2.65	1	0	1	1230	1	URP	-
 Assets/Edo/Models/Ishigaki/Ishigaki_Saka_12x8.fbx	Ishigaki_Saka_12x8	Edo	fbx	0.71	8.45	14	0	1	164	1	URP	-
 Assets/Edo/Models/Ishigaki/Ishigaki_Saka_9x6.fbx	Ishigaki_Saka_9x6	Edo	fbx	0.71	6.45	11	0	1	142	1	URP	-
+Assets/Edo/Models/Jisha/Typ_Bochi_6x4ken.fbx	Typ_Bochi_6x4ken	Edo	fbx	10.91	1.22	7.27	0	1	3132	1	URP	-
+Assets/Edo/Models/Jisha/Typ_Koro_3ken.fbx	Typ_Koro_3ken	Edo	fbx	5.88	6.94	5.88	0	1	5965	1	URP	-
+Assets/Edo/Models/Jisha/Typ_Koro_3x3.5ken.fbx	Typ_Koro_3x3.5ken	Edo	fbx	5.88	6.94	6.79	0	1	6510	1	URP	-
+Assets/Edo/Models/Jisha/Typ_Kuri_5x3.5ken.fbx	Typ_Kuri_5x3.5ken	Edo	fbx	9.83	4.74	8.15	0	1	11328	2	URP	-
+Assets/Edo/Models/Jisha/Typ_Kuri_6x4ken.fbx	Typ_Kuri_6x4ken	Edo	fbx	11.77	5.19	9.26	0	1	13905	2	URP	-
+Assets/Edo/Models/Jisha/Typ_Shoro_2.5x3.5ken.fbx	Typ_Shoro_2.5x3.5ken	Edo	fbx	4.97	6.69	6.79	0	1	6302	1	URP	-
+Assets/Edo/Models/Jisha/Typ_Shoro_3ken.fbx	Typ_Shoro_3ken	Edo	fbx	5.88	6.94	5.88	0	1	6053	1	URP	-
+Assets/Edo/Models/Kado/Dobei_Kado_00.fbx	Dobei_Kado_00	Edo	fbx	0.83	1.46	4.51	0	1	9428	1	URP	-
 Assets/Edo/Models/Kado/Dobei_Kado_00M.fbx	Dobei_Kado_00M	Edo	fbx	0.84	1.46	4.51	0	1	9428	1	URP	-
+Assets/Edo/Models/Kado/Dobei_Kado_01.fbx	Dobei_Kado_01	Edo	fbx	0.84	1.46	4.52	0	1	9428	1	URP	-
 Assets/Edo/Models/Kado/Dobei_Kado_01M.fbx	Dobei_Kado_01M	Edo	fbx	0.87	1.46	4.51	0	1	9404	1	URP	-
 Assets/Edo/Models/Kado/Dobei_Kado_06.fbx	Dobei_Kado_06	Edo	fbx	0.87	1.46	4.55	0	1	9540	1	URP	-
 Assets/Edo/Models/Kado/Dobei_Kado_07.fbx	Dobei_Kado_07	Edo	fbx	0.9	1.46	4.56	0	1	9540	1	URP	-
 Assets/Edo/Models/Kado/Dobei_Kado_08.fbx	Dobei_Kado_08	Edo	fbx	0.95	1.46	4.56	0	1	9544	1	URP	-
+Assets/Edo/Models/Kado/Dobei_Kado_08M.fbx	Dobei_Kado_08M	Edo	fbx	1.15	1.46	4.5	0	1	9416	1	URP	-
 Assets/Edo/Models/Kado/Dobei_Kado_11.fbx	Dobei_Kado_11	Edo	fbx	1.05	1.46	4.57	0	1	9580	1	URP	-
+Assets/Edo/Models/Kado/Dobei_Kado_11M.fbx	Dobei_Kado_11M	Edo	fbx	1.24	1.46	4.49	0	1	9407	1	URP	-
+Assets/Edo/Models/Kado/Dobei_Kado_14.fbx	Dobei_Kado_14	Edo	fbx	1.19	1.46	4.57	0	1	9671	1	URP	-
 Assets/Edo/Models/Kado/Dobei_Kado_14M.fbx	Dobei_Kado_14M	Edo	fbx	1.37	1.46	4.47	0	1	9412	1	URP	-
 Assets/Edo/Models/Kado/Dobei_Kado_18.fbx	Dobei_Kado_18	Edo	fbx	1.33	1.46	4.56	0	1	9704	1	URP	-
+Assets/Edo/Models/Kado/Dobei_Kado_18M.fbx	Dobei_Kado_18M	Edo	fbx	1.51	1.46	4.43	0	1	9400	1	URP	-
 Assets/Edo/Models/Kado/Dobei_Kado_19.fbx	Dobei_Kado_19	Edo	fbx	1.36	1.46	4.56	0	1	9712	1	URP	-
 Assets/Edo/Models/Kado/Dobei_Kado_31.fbx	Dobei_Kado_31	Edo	fbx	1.79	1.46	4.45	0	1	9836	1	URP	-
 Assets/Edo/Models/Kado/Dobei_Kado_38M.fbx	Dobei_Kado_38M	Edo	fbx	2.11	1.46	4.1	0	1	9356	1	URP	-
 Assets/Edo/Models/Kado/Dobei_Kado_41.fbx	Dobei_Kado_41	Edo	fbx	2.08	1.46	4.29	0	1	9884	1	URP	-
+Assets/Edo/Models/Kado/Dobei_Kado_62.fbx	Dobei_Kado_62	Edo	fbx	2.55	1.46	3.78	0	1	10096	1	URP	-
 Assets/Edo/Models/Kado/Dobei_Kado_62M.fbx	Dobei_Kado_62M	Edo	fbx	2.54	1.46	3.43	0	1	9270	1	URP	-
 Assets/Edo/Models/Kado/Dobei_Kado_88M.fbx	Dobei_Kado_88M	Edo	fbx	2.59	1.46	2.58	0	1	9052	1	URP	-
 Assets/Edo/Models/Kado/Dobei_Kado_91.fbx	Dobei_Kado_91	Edo	fbx	2.78	1.46	2.78	0	1	10504	1	URP	-
+Assets/Edo/Models/Kado/Dobei_Kado_95.fbx	Dobei_Kado_95	Edo	fbx	2.81	1.46	2.82	0	1	10552	1	URP	-
 Assets/Edo/Models/Kado/Dobei_Kado_95M.fbx	Dobei_Kado_95M	Edo	fbx	2.57	1.46	2.6	0	1	8958	1	URP	-
 Assets/Edo/Models/Kado/Ishigaki_Kado_31.fbx	Ishigaki_Kado_31	Edo	fbx	3.44	4	4.96	0	1	150	1	URP	-
 Assets/Edo/Models/Kado/Ishigaki_Kado_31M.fbx	Ishigaki_Kado_31M	Edo	fbx	3.09	4	3.71	0	1	102	1	URP	-
+Assets/Edo/Models/Kado/Ishigaki_Kado_90_H0400.fbx	Ishigaki_Kado_90_H0400	Edo	fbx	4.4	4	4.4	0	1	184	1	URP	-
+Assets/Edo/Models/Kado/Ishigaki_Kado_90_H0500.fbx	Ishigaki_Kado_90_H0500	Edo	fbx	4.65	5	4.65	0	1	232	1	URP	-
 Assets/Edo/Models/Kado/Nagaya_Kado_38M.fbx	Nagaya_Kado_38M	Edo	fbx	5.65	3.01	10.94	0	1	29950	1	URP	-
 Assets/Edo/Models/Kado/Tsuijibei_Kado_31.fbx	Tsuijibei_Kado_31	Edo	fbx	2.9	2.57	4.33	0	1	2336	1	URP	-
+Assets/Edo/Models/Kaidan/Dan_0.175_0.450_2.540_a.fbx	Dan_0.175_0.450_2.540_a	Edo	fbx	2.54	0.36	0.55	-0.36	1	88	1	URP	-
+Assets/Edo/Models/Kaidan/Dan_0.175_0.450_2.540_b.fbx	Dan_0.175_0.450_2.540_b	Edo	fbx	2.54	0.36	0.55	-0.36	1	132	1	URP	-
+Assets/Edo/Models/Kaidan/Dan_0.200_0.450_1.818_a.fbx	Dan_0.200_0.450_1.818_a	Edo	fbx	1.82	0.38	0.55	-0.38	1	88	1	URP	-
+Assets/Edo/Models/Kaidan/Dan_0.200_0.450_1.818_b.fbx	Dan_0.200_0.450_1.818_b	Edo	fbx	1.82	0.38	0.55	-0.38	1	132	1	URP	-
+Assets/Edo/Models/Kaidan/Dan_0.200_0.450_2.540_a.fbx	Dan_0.200_0.450_2.540_a	Edo	fbx	2.54	0.38	0.55	-0.38	1	88	1	URP	-
+Assets/Edo/Models/Kaidan/Dan_0.200_0.450_2.540_b.fbx	Dan_0.200_0.450_2.540_b	Edo	fbx	2.54	0.38	0.55	-0.38	1	132	1	URP	-
+Assets/Edo/Models/Kaidan/Dan_0.217_0.450_1.818_a.fbx	Dan_0.217_0.450_1.818_a	Edo	fbx	1.82	0.4	0.55	-0.4	1	88	1	URP	-
+Assets/Edo/Models/Kaidan/Dan_0.217_0.450_1.818_b.fbx	Dan_0.217_0.450_1.818_b	Edo	fbx	1.82	0.4	0.55	-0.4	1	132	1	URP	-
+Assets/Edo/Models/Kaidan/Dan_0.238_0.450_1.818_a.fbx	Dan_0.238_0.450_1.818_a	Edo	fbx	1.82	0.42	0.55	-0.42	1	88	1	URP	-
+Assets/Edo/Models/Kaidan/Dan_0.238_0.450_1.818_b.fbx	Dan_0.238_0.450_1.818_b	Edo	fbx	1.82	0.42	0.55	-0.42	1	132	1	URP	-
 Assets/Edo/Models/Kaidan/Dan_0.250_0.542_5.509_a.fbx	Dan_0.250_0.542_5.509_a	Edo	fbx	5.51	0.43	0.64	-0.43	1	220	1	URP	-
 Assets/Edo/Models/Kaidan/Dan_0.250_0.542_5.509_b.fbx	Dan_0.250_0.542_5.509_b	Edo	fbx	5.51	0.43	0.64	-0.43	1	264	1	URP	-
 Assets/Edo/Models/Kaidan/Dan_0.260_0.650_6.999_a.fbx	Dan_0.260_0.650_6.999_a	Edo	fbx	7	0.44	0.75	-0.44	1	264	1	URP	-
 Assets/Edo/Models/Kaidan/Dan_0.260_0.650_6.999_b.fbx	Dan_0.260_0.650_6.999_b	Edo	fbx	7	0.44	0.75	-0.44	1	308	1	URP	-
-Assets/Edo/Models/Kaidan/Dan_0.300_1.199_6.363_a.fbx	Dan_0.300_1.199_6.363_a	Edo	fbx	6.36	0.48	1.3	-0.48	1	264	1	URP	-
-Assets/Edo/Models/Kaidan/Dan_0.300_1.199_6.363_b.fbx	Dan_0.300_1.199_6.363_b	Edo	fbx	6.36	0.48	1.3	-0.48	1	308	1	URP	-
+Assets/Edo/Models/Kaidan/Dan_0.300_1.199_6.363_a.fbx	Dan_0.300_1.199_6.363_a	Edo	fbx	6.36	0.48	1.55	-0.48	1	360	1	URP	-
+Assets/Edo/Models/Kaidan/Dan_0.300_1.199_6.363_b.fbx	Dan_0.300_1.199_6.363_b	Edo	fbx	6.36	0.48	1.55	-0.48	1	420	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_D3.20_F+0.00_B+1.14_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_D3.20_F+0.00_B+1.14_a	Edo	fbx	0.6	3.49	1.27	-2.89	1	464	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_D3.20_F+0.00_B-1.14_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_D3.20_F+0.00_B-1.14_a	Edo	fbx	0.6	3.49	1.14	-2.89	1	464	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_D3.20_F+0.09_B+0.23_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_D3.20_F+0.09_B+0.23_b	Edo	fbx	0.6	3.49	1.22	-2.89	1	464	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_D3.20_F+0.23_B+1.67_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_D3.20_F+0.23_B+1.67_a	Edo	fbx	0.6	3.49	1.32	-2.89	1	464	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_D3.20_F+1.85_B+0.09_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_D3.20_F+1.85_B+0.09_a	Edo	fbx	0.6	3.49	1.33	-2.89	1	464	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_D3.20_F-0.09_B-0.23_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_D3.20_F-0.09_B-0.23_b	Edo	fbx	0.6	3.49	1.18	-2.89	1	464	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_D3.20_F-0.23_B-1.67_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_D3.20_F-0.23_B-1.67_a	Edo	fbx	0.6	3.49	1.09	-2.89	1	464	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_D3.20_F-1.85_B-0.09_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_D3.20_F-1.85_B-0.09_a	Edo	fbx	0.6	3.49	1.09	-2.89	1	464	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B+0.12_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B+0.12_b	Edo	fbx	0.6	2.49	1.21	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B+0.23_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B+0.23_a	Edo	fbx	0.6	2.49	1.21	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B+0.60_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B+0.60_b	Edo	fbx	0.6	2.49	1.24	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B+0.77_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B+0.77_a	Edo	fbx	0.6	2.49	1.25	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B+0.79_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B+0.79_b	Edo	fbx	0.6	2.49	1.25	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B+0.97_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B+0.97_b	Edo	fbx	0.6	2.49	1.26	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B+1.07_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B+1.07_a	Edo	fbx	0.6	2.49	1.27	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B+1.14_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B+1.14_a	Edo	fbx	0.6	2.49	1.27	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B+1.14_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B+1.14_b	Edo	fbx	0.6	2.49	1.27	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B+1.36_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B+1.36_a	Edo	fbx	0.6	2.49	1.29	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B+1.37_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B+1.37_a	Edo	fbx	0.6	2.49	1.29	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B+1.85_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B+1.85_b	Edo	fbx	0.6	2.49	1.32	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B-0.12_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B-0.12_b	Edo	fbx	0.6	2.49	1.19	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B-0.23_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B-0.23_a	Edo	fbx	0.6	2.49	1.19	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B-0.64_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B-0.64_b	Edo	fbx	0.6	2.49	1.16	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B-0.77_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B-0.77_a	Edo	fbx	0.6	2.49	1.16	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B-0.97_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B-0.97_b	Edo	fbx	0.6	2.49	1.15	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B-1.07_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B-1.07_a	Edo	fbx	0.6	2.49	1.14	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B-1.14_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B-1.14_a	Edo	fbx	0.6	2.49	1.14	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B-1.14_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B-1.14_b	Edo	fbx	0.6	2.49	1.14	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B-1.36_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B-1.36_a	Edo	fbx	0.6	2.49	1.12	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B-1.37_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B-1.37_a	Edo	fbx	0.6	2.49	1.12	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B-1.85_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.00_B-1.85_b	Edo	fbx	0.6	2.49	1.1	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.06_B+0.00_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.06_B+0.00_a	Edo	fbx	0.6	2.49	1.2	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.09_B+0.23_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.09_B+0.23_b	Edo	fbx	0.6	2.49	1.22	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.12_B+1.42_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.12_B+1.42_a	Edo	fbx	0.6	2.49	1.3	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.20_B+0.00_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.20_B+0.00_a	Edo	fbx	0.6	2.49	1.21	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.23_B+0.06_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.23_B+0.06_b	Edo	fbx	0.6	2.49	1.22	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.23_B+1.67_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.23_B+1.67_a	Edo	fbx	0.6	2.49	1.32	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.54_B+0.00_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.54_B+0.00_b	Edo	fbx	0.6	2.49	1.23	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.60_B+0.00_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.60_B+0.00_a	Edo	fbx	0.6	2.49	1.24	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.62_B+0.00_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.62_B+0.00_b	Edo	fbx	0.6	2.49	1.24	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.64_B+0.00_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.64_B+0.00_a	Edo	fbx	0.6	2.49	1.24	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.77_B+0.79_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.77_B+0.79_b	Edo	fbx	0.6	2.49	1.3	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.79_B+0.00_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.79_B+0.00_a	Edo	fbx	0.6	2.49	1.25	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.85_B+0.00_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.85_B+0.00_a	Edo	fbx	0.6	2.49	1.26	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+0.97_B+0.62_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+0.97_B+0.62_a	Edo	fbx	0.6	2.49	1.3	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+1.07_B+0.20_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+1.07_B+0.20_b	Edo	fbx	0.6	2.49	1.28	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+1.14_B+0.54_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+1.14_B+0.54_a	Edo	fbx	0.6	2.49	1.31	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+1.14_B+0.60_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+1.14_B+0.60_b	Edo	fbx	0.6	2.49	1.31	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+1.36_B+0.85_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+1.36_B+0.85_b	Edo	fbx	0.6	2.49	1.34	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+1.37_B+0.64_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+1.37_B+0.64_b	Edo	fbx	0.6	2.49	1.33	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+1.42_B+0.00_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+1.42_B+0.00_b	Edo	fbx	0.6	2.49	1.29	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+1.67_B+0.00_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+1.67_B+0.00_b	Edo	fbx	0.6	2.49	1.31	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F+1.85_B+0.09_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F+1.85_B+0.09_a	Edo	fbx	0.6	2.49	1.33	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F-0.06_B+0.00_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F-0.06_B+0.00_a	Edo	fbx	0.6	2.49	1.2	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F-0.09_B+0.00_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F-0.09_B+0.00_b	Edo	fbx	0.6	2.49	1.19	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F-0.09_B-0.23_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F-0.09_B-0.23_b	Edo	fbx	0.6	2.49	1.18	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F-0.12_B-1.42_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F-0.12_B-1.42_a	Edo	fbx	0.6	2.49	1.11	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F-0.20_B+0.00_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F-0.20_B+0.00_a	Edo	fbx	0.6	2.49	1.19	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F-0.23_B-0.06_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F-0.23_B-0.06_b	Edo	fbx	0.6	2.49	1.18	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F-0.23_B-1.67_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F-0.23_B-1.67_a	Edo	fbx	0.6	2.49	1.09	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F-0.54_B+0.00_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F-0.54_B+0.00_b	Edo	fbx	0.6	2.49	1.17	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F-0.60_B+0.00_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F-0.60_B+0.00_a	Edo	fbx	0.6	2.49	1.17	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F-0.62_B+0.00_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F-0.62_B+0.00_b	Edo	fbx	0.6	2.49	1.16	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F-0.64_B+0.00_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F-0.64_B+0.00_a	Edo	fbx	0.6	2.49	1.16	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F-0.77_B-0.79_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F-0.77_B-0.79_b	Edo	fbx	0.6	2.49	1.11	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F-0.79_B+0.00_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F-0.79_B+0.00_a	Edo	fbx	0.6	2.49	1.16	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F-0.85_B+0.00_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F-0.85_B+0.00_a	Edo	fbx	0.6	2.49	1.15	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F-0.97_B-0.62_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F-0.97_B-0.62_a	Edo	fbx	0.6	2.49	1.11	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F-1.07_B-0.20_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F-1.07_B-0.20_b	Edo	fbx	0.6	2.49	1.13	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F-1.14_B-0.54_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F-1.14_B-0.54_a	Edo	fbx	0.6	2.49	1.11	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F-1.14_B-0.60_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F-1.14_B-0.60_b	Edo	fbx	0.6	2.49	1.1	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F-1.36_B-0.85_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F-1.36_B-0.85_b	Edo	fbx	0.6	2.49	1.08	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F-1.37_B-0.64_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F-1.37_B-0.64_b	Edo	fbx	0.6	2.49	1.09	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F-1.42_B+0.00_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F-1.42_B+0.00_b	Edo	fbx	0.6	2.49	1.12	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F-1.67_B+0.00_b.fbx	IshidanSodeMiter_0.300_1.199_6.363_F-1.67_B+0.00_b	Edo	fbx	0.6	2.49	1.11	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F-1.85_B+0.00_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F-1.85_B+0.00_a	Edo	fbx	0.6	2.49	1.1	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeMiter_0.300_1.199_6.363_F-1.85_B-0.09_a.fbx	IshidanSodeMiter_0.300_1.199_6.363_F-1.85_B-0.09_a	Edo	fbx	0.6	2.49	1.09	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeNozura_0.250_0.542_a.fbx	IshidanSodeNozura_0.250_0.542_a	Edo	fbx	0.6	2.45	0.54	-1.9	1	7397	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeNozura_0.250_0.542_b.fbx	IshidanSodeNozura_0.250_0.542_b	Edo	fbx	0.6	2.45	0.54	-1.9	1	7081	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeNozura_0.260_0.650_a.fbx	IshidanSodeNozura_0.260_0.650_a	Edo	fbx	0.6	2.46	0.65	-1.9	1	6783	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeNozura_0.260_0.650_b.fbx	IshidanSodeNozura_0.260_0.650_b	Edo	fbx	0.6	2.46	0.65	-1.9	1	6871	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeNozura_0.300_1.199_a.fbx	IshidanSodeNozura_0.300_1.199_a	Edo	fbx	0.6	2.5	1.2	-1.9	1	8454	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSodeNozura_0.300_1.199_b.fbx	IshidanSodeNozura_0.300_1.199_b	Edo	fbx	0.6	2.5	1.2	-1.9	1	8396	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSode_0.175_0.450_a.fbx	IshidanSode_0.175_0.450_a	Edo	fbx	0.6	2.37	0.45	-1.89	1	252	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSode_0.175_0.450_b.fbx	IshidanSode_0.175_0.450_b	Edo	fbx	0.6	2.38	0.45	-1.9	1	208	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSode_0.200_0.450_a.fbx	IshidanSode_0.200_0.450_a	Edo	fbx	0.6	2.39	0.45	-1.89	1	252	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSode_0.200_0.450_b.fbx	IshidanSode_0.200_0.450_b	Edo	fbx	0.6	2.4	0.45	-1.9	1	208	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSode_0.238_0.450_a.fbx	IshidanSode_0.238_0.450_a	Edo	fbx	0.6	2.43	0.45	-1.89	1	252	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSode_0.238_0.450_b.fbx	IshidanSode_0.238_0.450_b	Edo	fbx	0.6	2.44	0.45	-1.9	1	208	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSode_0.250_0.542_a.fbx	IshidanSode_0.250_0.542_a	Edo	fbx	0.6	2.44	0.54	-1.89	1	252	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSode_0.250_0.542_b.fbx	IshidanSode_0.250_0.542_b	Edo	fbx	0.6	2.45	0.54	-1.9	1	208	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSode_0.260_0.650_a.fbx	IshidanSode_0.260_0.650_a	Edo	fbx	0.6	2.45	0.65	-1.89	1	252	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSode_0.260_0.650_b.fbx	IshidanSode_0.260_0.650_b	Edo	fbx	0.6	2.46	0.65	-1.9	1	208	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSode_0.260_0.650_D3.20_a.fbx	IshidanSode_0.260_0.650_D3.20_a	Edo	fbx	0.6	3.45	0.65	-2.89	1	324	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSode_0.260_0.650_D3.20_b.fbx	IshidanSode_0.260_0.650_D3.20_b	Edo	fbx	0.6	3.46	0.65	-2.9	1	280	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSode_0.300_1.199_a.fbx	IshidanSode_0.300_1.199_a	Edo	fbx	0.6	2.49	1.2	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSode_0.300_1.199_b.fbx	IshidanSode_0.300_1.199_b	Edo	fbx	0.6	2.49	1.2	-1.89	1	348	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSode_0.300_1.199_D3.20_a.fbx	IshidanSode_0.300_1.199_D3.20_a	Edo	fbx	0.6	3.49	1.2	-2.89	1	464	1	URP	-
+Assets/Edo/Models/Kaidan/IshidanSode_0.300_1.199_D3.20_b.fbx	IshidanSode_0.300_1.199_D3.20_b	Edo	fbx	0.6	3.49	1.2	-2.89	1	464	1	URP	-
+Assets/Edo/Models/Kakoi/Typ_Takeyarai_2ken.fbx	Typ_Takeyarai_2ken	Edo	fbx	3.64	2	0.21	0	1	1320	1	URP	-
+Assets/Edo/Models/Machiya/Typ_Omotedana_5ken.fbx	Typ_Omotedana_5ken	Edo	fbx	9.09	4.28	7.27	0	1	15727	1	URP	-
+Assets/Edo/Models/Machiya/Typ_Omotedana_5x3.85ken.fbx	Typ_Omotedana_5x3.85ken	Edo	fbx	9.09	4.28	7	0	1	15554	1	URP	-
 Assets/Edo/Models/Maruta/Kui_0.12.fbx	Kui_0.12	Edo	fbx	0.25	1.55	0.11	-1.55	1	296	1	URP	-
 Assets/Edo/Models/Maruta/Kui_0.15.fbx	Kui_0.15	Edo	fbx	0.24	1.55	0.13	-1.55	1	224	1	URP	-
 Assets/Edo/Models/Maruta/Kui_0.18.fbx	Kui_0.18	Edo	fbx	0.29	1.56	0.18	-1.55	1	242	1	URP	-
@@ -204,6 +341,8 @@ Assets/Edo/Models/Mon/Munamon_2.7.fbx	Munamon_2.7	Edo	fbx	4.6	3.86	2.59	-0.26	1	
 Assets/Edo/Models/Mon/Munamon_2.73.fbx	Munamon_2.73	Edo	fbx	4.63	3.86	2.59	-0.26	1	2024	1	URP	-
 Assets/Edo/Models/Mon/Munamon_2.73_Open.fbx	Munamon_2.73_Open	Edo	fbx	4.63	3.86	2.64	-0.26	1	2024	1	URP	-
 Assets/Edo/Models/Mon/Munamon_2.7_Open.fbx	Munamon_2.7_Open	Edo	fbx	4.6	3.86	2.63	-0.26	1	1976	1	URP	-
+Assets/Edo/Models/Mon/Typ_Sanmon.fbx	Typ_Sanmon	Edo	fbx	5.9	5.38	5.29	-0.26	1	3530	1	URP	-
+Assets/Edo/Models/Mon/Typ_Yakuimon.fbx	Typ_Yakuimon	Edo	fbx	5.06	4.67	4.69	-0.26	1	3128	1	URP	-
 Assets/Edo/Models/Nagaya/Doi_Kachu_10x2.5ken.fbx	Doi_Kachu_10x2.5ken	Edo	fbx	18.92	4.4	6.54	0	1	16950	1	URP	-
 Assets/Edo/Models/Nagaya/Doi_Kachu_8x2.5ken.fbx	Doi_Kachu_8x2.5ken	Edo	fbx	15.28	4.4	6.54	0	1	13790	1	URP	-
 Assets/Edo/Models/Nagaya/Doi_Kachu_9x2.5ken.fbx	Doi_Kachu_9x2.5ken	Edo	fbx	17.1	4.4	6.54	0	1	16026	1	URP	-
@@ -250,6 +389,16 @@ Assets/Edo/Models/Nagaya/Nagaya_Omote_9.54.fbx	Nagaya_Omote_9.54	Edo	fbx	9.54	5.
 Assets/Edo/Models/Nagaya/Obi_Kawaya_1ken.fbx	Obi_Kawaya_1ken	Edo	fbx	2.56	2.94	3.21	0	1	2413	1	URP	-
 Assets/Edo/Models/Nagaya/Obi_Monooki_3x1.5ken.fbx	Obi_Monooki_3x1.5ken	Edo	fbx	6.19	3.8	4.42	0	1	5094	1	URP	-
 Assets/Edo/Models/Nagaya/Obi_Nagaya_7.5x2.5ken.fbx	Obi_Nagaya_7.5x2.5ken	Edo	fbx	14.38	4.3	6.54	0	1	13342	1	URP	-
+Assets/Edo/Models/Nagaya/Typ_UraNagaya_12ken.fbx	Typ_UraNagaya_12ken	Edo	fbx	22.36	3.59	4.93	0	1	18462	1	URP	-
+Assets/Edo/Models/Nagaya/Typ_UraNagaya_12ken_munewari.fbx	Typ_UraNagaya_12ken_munewari	Edo	fbx	22.36	4.58	8.56	0	1	26134	1	URP	-
+Assets/Edo/Models/Nagaya/Typ_UraNagaya_3ken.fbx	Typ_UraNagaya_3ken	Edo	fbx	5.99	3.59	4.93	0	1	5914	1	URP	-
+Assets/Edo/Models/Nagaya/Typ_UraNagaya_3ken_munewari.fbx	Typ_UraNagaya_3ken_munewari	Edo	fbx	5.99	4.58	8.56	0	1	8542	1	URP	-
+Assets/Edo/Models/Nagaya/Typ_UraNagaya_4.5ken.fbx	Typ_UraNagaya_4.5ken	Edo	fbx	8.72	3.59	4.93	0	1	8062	1	URP	-
+Assets/Edo/Models/Nagaya/Typ_UraNagaya_4.5ken_munewari.fbx	Typ_UraNagaya_4.5ken_munewari	Edo	fbx	8.72	4.58	8.56	0	1	11594	1	URP	-
+Assets/Edo/Models/Nagaya/Typ_UraNagaya_6ken.fbx	Typ_UraNagaya_6ken	Edo	fbx	11.45	3.59	4.93	0	1	10042	1	URP	-
+Assets/Edo/Models/Nagaya/Typ_UraNagaya_6ken_munewari.fbx	Typ_UraNagaya_6ken_munewari	Edo	fbx	11.45	4.58	8.56	0	1	14390	1	URP	-
+Assets/Edo/Models/Nagaya/Typ_UraNagaya_9ken.fbx	Typ_UraNagaya_9ken	Edo	fbx	16.9	3.59	4.93	0	1	14302	1	URP	-
+Assets/Edo/Models/Nagaya/Typ_UraNagaya_9ken_munewari.fbx	Typ_UraNagaya_9ken_munewari	Edo	fbx	16.9	4.58	8.56	0	1	20254	1	URP	-
 Assets/Edo/Models/Niwa/Hiraishi_Fuse_1.fbx	Hiraishi_Fuse_1	Edo	fbx	1.2	0.28	0.85	0	1	460	2	URP	-
 Assets/Edo/Models/Niwa/Hiraishi_Tenjo_1.fbx	Hiraishi_Tenjo_1	Edo	fbx	1.05	0.45	0.55	0	1	463	2	URP	-
 Assets/Edo/Models/Niwa/Ikegaki_1.818.fbx	Ikegaki_1.818	Edo	fbx	1.91	2.05	1.14	-0.05	1	4764	2	URP	-
@@ -296,24 +445,112 @@ Assets/Edo/Models/Niwa/YotsumeGaki_0.9.fbx	YotsumeGaki_0.9	Edo	fbx	1.82	1.05	0.0
 Assets/Edo/Models/Niwa/YotsumeGaki_1.2.fbx	YotsumeGaki_1.2	Edo	fbx	1.82	1.35	0.09	-0.15	1	560	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Chumon_1x1ken_2540x2540_k400-400-148-148.fbx	Sanno_Chumon_1x1ken_2540x2540_k400-400-148-148	Edo	fbx	4.62	4.74	4.08	-0.3	1	21108	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Chumon_1x1ken_k400-400-0-0.fbx	Sanno_Chumon_1x1ken_k400-400-0-0	Edo	fbx	3.9	4.45	3.36	-0.3	1	15911	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Do_Hogyo_2.5x2.5ken_4545x4545.fbx	Sanno_Do_Hogyo_2.5x2.5ken_4545x4545	Edo	fbx	6.93	5.97	8	0	1	13838	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Do_Hogyo_2x2ken_3636x3636.fbx	Sanno_Do_Hogyo_2x2ken_3636x3636	Edo	fbx	6.02	5.72	7.09	0	1	11634	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Do_Hogyo_3x3ken_5454x5454.fbx	Sanno_Do_Hogyo_3x3ken_5454x5454	Edo	fbx	7.84	6.21	8.91	0	1	16590	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Do_Hogyo_4.5x4.5ken_8181x8181.fbx	Sanno_Do_Hogyo_4.5x4.5ken_8181x8181	Edo	fbx	10.56	6.96	11.64	0	1	25300	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Do_IrimoyaKohai_5x5ken_9090x9090.fbx	Sanno_Do_IrimoyaKohai_5x5ken_9090x9090	Edo	fbx	11.47	7.11	12.55	0	1	32334	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Do_Irimoya_3x3ken_5454x5454.fbx	Sanno_Do_Irimoya_3x3ken_5454x5454	Edo	fbx	7.84	6.12	8.91	0	1	17610	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Do_Irimoya_4x4ken_7272x7272.fbx	Sanno_Do_Irimoya_4x4ken_7272x7272	Edo	fbx	9.65	6.61	10.73	0	1	23481	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Do_Irimoya_5.5x3.5ken_9999x6363.fbx	Sanno_Do_Irimoya_5.5x3.5ken_9999x6363	Edo	fbx	12.38	6.36	9.82	0	1	27469	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Gokusho_3x4.5ken_5454x8181.fbx	Sanno_Gokusho_3x4.5ken_5454x8181	Edo	fbx	7.2	5.36	9.31	0	1	13406	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Haiden_3x7ken_9200x17800.fbx	Sanno_Haiden_3x7ken_9200x17800	Edo	fbx	15.32	11.83	23.92	0	1	57071	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Heiden_3x1ken_7620x7620.fbx	Sanno_Heiden_3x1ken_7620x7620	Edo	fbx	8.94	6.1	8.82	0	1	11596	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Honden_3x3ken_7620x7620.fbx	Sanno_Honden_3x3ken_7620x7620	Edo	fbx	12.75	11.82	12.75	0	1	33608	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Ido_Igeta_909x450.fbx	Sanno_Ido_Igeta_909x450	Edo	fbx	1.39	2	1.39	-1.5	1	394	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Ido_Ishiki_3272x50.fbx	Sanno_Ido_Ishiki_3272x50	Edo	fbx	3.27	0.42	3.27	-0.32	1	2972	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Ido_Yakata_1818x2100x2900.fbx	Sanno_Ido_Yakata_1818x2100x2900	Edo	fbx	3.27	2.8	2.73	0.1	1	2952	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Inari_Kasuga_1ken.fbx	Sanno_Inari_Kasuga_1ken	Edo	fbx	3.03	4.34	4.48	0	1	3168	1	URP	B
 Assets/Edo/Models/Sanno/Sanno_Kairo_7x2ken_17550x4200.fbx	Sanno_Kairo_7x2ken_17550x4200	Edo	fbx	18.69	4.32	6.26	-0.2	1	21698	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Kairo_8x2ken_20650x4200.fbx	Sanno_Kairo_8x2ken_20650x4200	Edo	fbx	21.79	4.32	6.26	-0.2	1	24860	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Kizahashi_7620x1140x900.fbx	Sanno_Kizahashi_7620x1140x900	Edo	fbx	1.2	1.04	7.94	-0.16	1	252	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Kizahashi_7620x1140x950.fbx	Sanno_Kizahashi_7620x1140x950	Edo	fbx	1.2	1.09	7.94	-0.16	1	252	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Kohai_1x3ken_1900x7620.fbx	Sanno_Kohai_1x3ken_1900x7620	Edo	fbx	3.5	7.61	8.9	0	1	4804	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Kura_4x5ken_7272x9090.fbx	Sanno_Kura_4x5ken_7272x9090	Edo	fbx	8.89	6.64	10.13	0	1	6441	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H0150_G+000_a.fbx	Sanno_Nozura_H0150_G+000_a	Edo	fbx	1.82	0.38	1.03	-0.23	1	2134	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H0150_G+000_b.fbx	Sanno_Nozura_H0150_G+000_b	Edo	fbx	1.82	0.38	1.03	-0.23	1	2136	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H0150_G+000_c.fbx	Sanno_Nozura_H0150_G+000_c	Edo	fbx	1.82	0.38	1.04	-0.23	1	2591	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H0150_G+000_d.fbx	Sanno_Nozura_H0150_G+000_d	Edo	fbx	1.82	0.38	1.03	-0.23	1	2050	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H0150_G+180_a.fbx	Sanno_Nozura_H0150_G+180_a	Edo	fbx	1.82	0.7	1.03	-0.39	1	2114	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H0150_G+180_b.fbx	Sanno_Nozura_H0150_G+180_b	Edo	fbx	1.82	0.7	1.03	-0.39	1	2132	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H0150_G+180_c.fbx	Sanno_Nozura_H0150_G+180_c	Edo	fbx	1.82	0.7	1.04	-0.39	1	2607	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H0150_G+180_d.fbx	Sanno_Nozura_H0150_G+180_d	Edo	fbx	1.82	0.7	1.03	-0.39	1	2058	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H0150_G-180_a.fbx	Sanno_Nozura_H0150_G-180_a	Edo	fbx	1.82	0.7	1.03	-0.39	1	2076	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H0150_G-180_b.fbx	Sanno_Nozura_H0150_G-180_b	Edo	fbx	1.82	0.7	1.03	-0.39	1	2114	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H0150_G-180_c.fbx	Sanno_Nozura_H0150_G-180_c	Edo	fbx	1.82	0.7	1.04	-0.39	1	2577	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H0150_G-180_d.fbx	Sanno_Nozura_H0150_G-180_d	Edo	fbx	1.82	0.7	1.03	-0.39	1	1996	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H0300_G+000_a.fbx	Sanno_Nozura_H0300_G+000_a	Edo	fbx	1.82	0.52	1.06	-0.22	1	2330	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H0300_G+000_b.fbx	Sanno_Nozura_H0300_G+000_b	Edo	fbx	1.82	0.52	1.07	-0.22	1	2508	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H0300_G+000_c.fbx	Sanno_Nozura_H0300_G+000_c	Edo	fbx	1.82	0.51	1.06	-0.21	1	2483	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H0300_G+000_d.fbx	Sanno_Nozura_H0300_G+000_d	Edo	fbx	1.82	0.52	1.07	-0.22	1	2534	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H0600_G+000_a.fbx	Sanno_Nozura_H0600_G+000_a	Edo	fbx	1.82	0.82	1.16	-0.22	1	3466	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H0600_G+000_b.fbx	Sanno_Nozura_H0600_G+000_b	Edo	fbx	1.82	0.82	1.16	-0.22	1	3858	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H0600_G+000_c.fbx	Sanno_Nozura_H0600_G+000_c	Edo	fbx	1.82	0.81	1.16	-0.21	1	3743	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H0600_G+000_d.fbx	Sanno_Nozura_H0600_G+000_d	Edo	fbx	1.82	0.82	1.16	-0.22	1	3847	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H0900_G+000_a.fbx	Sanno_Nozura_H0900_G+000_a	Edo	fbx	1.82	1.12	1.25	-0.22	1	4750	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H0900_G+000_b.fbx	Sanno_Nozura_H0900_G+000_b	Edo	fbx	1.82	1.12	1.25	-0.22	1	4850	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H0900_G+000_c.fbx	Sanno_Nozura_H0900_G+000_c	Edo	fbx	1.82	1.11	1.25	-0.21	1	5011	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H0900_G+000_d.fbx	Sanno_Nozura_H0900_G+000_d	Edo	fbx	1.82	1.12	1.25	-0.22	1	5029	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H1200_G+000_a.fbx	Sanno_Nozura_H1200_G+000_a	Edo	fbx	1.82	1.42	1.34	-0.22	1	5988	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H1200_G+000_b.fbx	Sanno_Nozura_H1200_G+000_b	Edo	fbx	1.82	1.42	1.32	-0.22	1	6016	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H1200_G+000_c.fbx	Sanno_Nozura_H1200_G+000_c	Edo	fbx	1.82	1.42	1.33	-0.22	1	6165	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H1200_G+000_d.fbx	Sanno_Nozura_H1200_G+000_d	Edo	fbx	1.82	1.42	1.32	-0.22	1	5975	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H1500_G+000_a.fbx	Sanno_Nozura_H1500_G+000_a	Edo	fbx	1.82	1.72	1.44	-0.22	1	7090	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H1500_G+000_b.fbx	Sanno_Nozura_H1500_G+000_b	Edo	fbx	1.82	1.73	1.44	-0.23	1	6966	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H1500_G+000_c.fbx	Sanno_Nozura_H1500_G+000_c	Edo	fbx	1.82	1.72	1.44	-0.22	1	7204	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H1500_G+000_d.fbx	Sanno_Nozura_H1500_G+000_d	Edo	fbx	1.82	1.73	1.44	-0.23	1	7249	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H1500_G+220_a.fbx	Sanno_Nozura_H1500_G+220_a	Edo	fbx	1.82	2.12	1.45	-0.42	1	7087	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H1500_G+220_b.fbx	Sanno_Nozura_H1500_G+220_b	Edo	fbx	1.82	2.12	1.44	-0.42	1	6940	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H1500_G+220_c.fbx	Sanno_Nozura_H1500_G+220_c	Edo	fbx	1.82	2.12	1.44	-0.42	1	7132	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H1500_G+220_d.fbx	Sanno_Nozura_H1500_G+220_d	Edo	fbx	1.82	2.12	1.44	-0.42	1	7214	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H1500_G-220_a.fbx	Sanno_Nozura_H1500_G-220_a	Edo	fbx	1.82	2.12	1.44	-0.42	1	7150	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H1500_G-220_b.fbx	Sanno_Nozura_H1500_G-220_b	Edo	fbx	1.82	2.12	1.44	-0.42	1	6898	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H1500_G-220_c.fbx	Sanno_Nozura_H1500_G-220_c	Edo	fbx	1.82	2.12	1.44	-0.42	1	7082	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H1500_G-220_d.fbx	Sanno_Nozura_H1500_G-220_d	Edo	fbx	1.82	2.12	1.44	-0.42	1	7279	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H1800_G+000_a.fbx	Sanno_Nozura_H1800_G+000_a	Edo	fbx	1.82	2.03	1.51	-0.23	1	8221	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H1800_G+000_b.fbx	Sanno_Nozura_H1800_G+000_b	Edo	fbx	1.82	2.03	1.51	-0.23	1	7925	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H1800_G+000_c.fbx	Sanno_Nozura_H1800_G+000_c	Edo	fbx	1.82	2.03	1.51	-0.23	1	8380	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H1800_G+000_d.fbx	Sanno_Nozura_H1800_G+000_d	Edo	fbx	1.82	2.03	1.52	-0.23	1	8220	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H2100_G+000_a.fbx	Sanno_Nozura_H2100_G+000_a	Edo	fbx	1.82	2.33	1.62	-0.23	1	9010	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H2100_G+000_b.fbx	Sanno_Nozura_H2100_G+000_b	Edo	fbx	1.82	2.33	1.62	-0.23	1	8862	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H2100_G+000_c.fbx	Sanno_Nozura_H2100_G+000_c	Edo	fbx	1.82	2.33	1.63	-0.23	1	9315	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H2100_G+000_d.fbx	Sanno_Nozura_H2100_G+000_d	Edo	fbx	1.82	2.33	1.62	-0.23	1	8793	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H2400_G+000_a.fbx	Sanno_Nozura_H2400_G+000_a	Edo	fbx	1.82	2.63	1.69	-0.23	1	10380	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H2400_G+000_b.fbx	Sanno_Nozura_H2400_G+000_b	Edo	fbx	1.82	2.62	1.69	-0.22	1	10252	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H2400_G+000_c.fbx	Sanno_Nozura_H2400_G+000_c	Edo	fbx	1.82	2.63	1.69	-0.23	1	10379	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_H2400_G+000_d.fbx	Sanno_Nozura_H2400_G+000_d	Edo	fbx	1.82	2.63	1.69	-0.23	1	10041	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_Kado90_H0300_a.fbx	Sanno_Nozura_Kado90_H0300_a	Edo	fbx	1.1	0.52	1.11	-0.21	1	2680	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_Kado90_H0300_b.fbx	Sanno_Nozura_Kado90_H0300_b	Edo	fbx	1.1	0.53	1.08	-0.21	1	2445	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_Kado90_H0600_a.fbx	Sanno_Nozura_Kado90_H0600_a	Edo	fbx	1.21	0.83	1.21	-0.22	1	3931	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_Kado90_H0600_b.fbx	Sanno_Nozura_Kado90_H0600_b	Edo	fbx	1.2	0.83	1.21	-0.22	1	4037	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_Kado90_H0900_a.fbx	Sanno_Nozura_Kado90_H0900_a	Edo	fbx	1.3	1.12	1.29	-0.22	1	5476	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_Kado90_H0900_b.fbx	Sanno_Nozura_Kado90_H0900_b	Edo	fbx	1.3	1.13	1.29	-0.22	1	5983	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_Kado90_H1200_a.fbx	Sanno_Nozura_Kado90_H1200_a	Edo	fbx	1.36	1.42	1.38	-0.22	1	6803	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_Kado90_H1200_b.fbx	Sanno_Nozura_Kado90_H1200_b	Edo	fbx	1.38	1.44	1.39	-0.22	1	7622	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_Kado90_H1500_a.fbx	Sanno_Nozura_Kado90_H1500_a	Edo	fbx	1.5	1.73	1.47	-0.23	1	8287	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_Kado90_H1500_b.fbx	Sanno_Nozura_Kado90_H1500_b	Edo	fbx	1.5	1.74	1.47	-0.23	1	9194	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_Kado90_H1800_a.fbx	Sanno_Nozura_Kado90_H1800_a	Edo	fbx	1.56	2.03	1.58	-0.23	1	9830	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_Kado90_H1800_b.fbx	Sanno_Nozura_Kado90_H1800_b	Edo	fbx	1.57	2.04	1.57	-0.23	1	10943	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_Kado90_H2100_a.fbx	Sanno_Nozura_Kado90_H2100_a	Edo	fbx	1.63	2.33	1.66	-0.23	1	11267	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_Kado90_H2100_b.fbx	Sanno_Nozura_Kado90_H2100_b	Edo	fbx	1.64	2.34	1.67	-0.23	1	12156	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_Kado90_H2400_a.fbx	Sanno_Nozura_Kado90_H2400_a	Edo	fbx	1.75	2.63	1.77	-0.23	1	13481	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_Kado90_H2400_b.fbx	Sanno_Nozura_Kado90_H2400_b	Edo	fbx	1.76	2.64	1.75	-0.23	1	13844	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Nozura_Mikiri.fbx	Sanno_Nozura_Mikiri	Edo	fbx	0.89	0.82	1.15	-0.21	1	274	1	URP	B
 Assets/Edo/Models/Sanno/Sanno_Romon_2x3ken_5750x7620_k1075-1075-1740-1740.fbx	Sanno_Romon_2x3ken_5750x7620_k1075-1075-1740-1740	Edo	fbx	9.7	8.47	11.57	-0.6	1	24748	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Romon_2x3ken_k297-297-178-178.fbx	Sanno_Romon_2x3ken_k297-297-178-178	Edo	fbx	6.76	7	8.58	-0.6	1	17336	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sakashitamon_2x3ken_3000x6000_k298-298-178-178.fbx	Sanno_Sakashitamon_2x3ken_3000x6000_k298-298-178-178	Edo	fbx	5.62	5.86	8.31	-0.6	1	12258	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sakashitamon_2x3ken_3000x6000_k300-300-300-300.fbx	Sanno_Sakashitamon_2x3ken_3000x6000_k300-300-300-300	Edo	fbx	5.62	5.86	8.31	-0.6	1	12258	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sukibei_1600_cn.fbx	Sanno_Sukibei_1600_cn	Edo	fbx	1.6	2.55	0.8	-0.3	1	828	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sukibei_1600_nc.fbx	Sanno_Sukibei_1600_nc	Edo	fbx	1.51	2.55	0.8	-0.3	1	816	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1622_cn.fbx	Sanno_Sukibei_1622_cn	Edo	fbx	1.62	2.55	0.8	-0.3	1	840	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1622_nh.fbx	Sanno_Sukibei_1622_nh	Edo	fbx	1.74	2.55	0.91	-0.3	1	1168	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1622_nn.fbx	Sanno_Sukibei_1622_nn	Edo	fbx	1.71	2.55	0.8	-0.3	1	1000	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sukibei_1688_cn.fbx	Sanno_Sukibei_1688_cn	Edo	fbx	1.69	2.55	0.8	-0.3	1	852	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sukibei_1688_nh.fbx	Sanno_Sukibei_1688_nh	Edo	fbx	1.81	2.55	0.91	-0.3	1	1180	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sukibei_1688_nn.fbx	Sanno_Sukibei_1688_nn	Edo	fbx	1.78	2.55	0.8	-0.3	1	1036	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1699_cn.fbx	Sanno_Sukibei_1699_cn	Edo	fbx	1.7	2.55	0.8	-0.3	1	852	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1699_nn.fbx	Sanno_Sukibei_1699_nn	Edo	fbx	1.79	2.55	0.8	-0.3	1	1036	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1699_nt.fbx	Sanno_Sukibei_1699_nt	Edo	fbx	1.7	2.55	0.91	-0.3	1	1244	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sukibei_1734_cn.fbx	Sanno_Sukibei_1734_cn	Edo	fbx	1.73	2.55	0.8	-0.3	1	864	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sukibei_1734_nc.fbx	Sanno_Sukibei_1734_nc	Edo	fbx	1.64	2.55	0.8	-0.3	1	852	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sukibei_1734_nn.fbx	Sanno_Sukibei_1734_nn	Edo	fbx	1.82	2.55	0.8	-0.3	1	1048	1	URP	-
@@ -323,102 +560,131 @@ Assets/Edo/Models/Sanno/Sanno_Sukibei_1767_nt.fbx	Sanno_Sukibei_1767_nt	Edo	fbx	
 Assets/Edo/Models/Sanno/Sanno_Sukibei_1769_hn.fbx	Sanno_Sukibei_1769_hn	Edo	fbx	1.98	2.55	0.91	-0.3	1	1265	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sukibei_1769_nc.fbx	Sanno_Sukibei_1769_nc	Edo	fbx	1.68	2.55	0.8	-0.3	1	889	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sukibei_1769_nn.fbx	Sanno_Sukibei_1769_nn	Edo	fbx	1.86	2.55	0.8	-0.3	1	1038	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1780_cn.fbx	Sanno_Sukibei_1780_cn	Edo	fbx	1.78	2.55	0.8	-0.3	1	901	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1780_nc.fbx	Sanno_Sukibei_1780_nc	Edo	fbx	1.69	2.55	0.8	-0.3	1	889	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1780_nn.fbx	Sanno_Sukibei_1780_nn	Edo	fbx	1.87	2.55	0.8	-0.3	1	1038	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1818_cn.fbx	Sanno_Sukibei_1818_cn	Edo	fbx	1.82	2.55	0.8	-0.3	1	911	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1818_nc.fbx	Sanno_Sukibei_1818_nc	Edo	fbx	1.73	2.55	0.8	-0.3	1	899	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1818_nn.fbx	Sanno_Sukibei_1818_nn	Edo	fbx	1.91	2.55	0.8	-0.3	1	1084	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sukibei_1850_nc.fbx	Sanno_Sukibei_1850_nc	Edo	fbx	1.76	2.55	0.8	-0.3	1	899	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sukibei_1850_nn.fbx	Sanno_Sukibei_1850_nn	Edo	fbx	1.94	2.55	0.8	-0.3	1	1084	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sukibei_1850_tn.fbx	Sanno_Sukibei_1850_tn	Edo	fbx	1.94	2.55	0.91	-0.3	1	1304	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sukibei_1852_cn.fbx	Sanno_Sukibei_1852_cn	Edo	fbx	1.85	2.55	0.8	-0.3	1	911	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sukibei_1852_nc.fbx	Sanno_Sukibei_1852_nc	Edo	fbx	1.76	2.55	0.8	-0.3	1	899	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sukibei_1852_nn.fbx	Sanno_Sukibei_1852_nn	Edo	fbx	1.94	2.55	0.8	-0.3	1	1084	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1857_cn.fbx	Sanno_Sukibei_1857_cn	Edo	fbx	1.86	2.55	0.8	-0.3	1	911	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1857_nc.fbx	Sanno_Sukibei_1857_nc	Edo	fbx	1.77	2.55	0.8	-0.3	1	899	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1857_nn.fbx	Sanno_Sukibei_1857_nn	Edo	fbx	1.95	2.55	0.8	-0.3	1	1084	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1866_nc.fbx	Sanno_Sukibei_1866_nc	Edo	fbx	1.78	2.55	0.8	-0.3	1	899	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1866_nn.fbx	Sanno_Sukibei_1866_nn	Edo	fbx	1.96	2.55	0.8	-0.3	1	1084	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1866_tn.fbx	Sanno_Sukibei_1866_tn	Edo	fbx	1.96	2.55	0.91	-0.3	1	1304	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sukibei_1900_cn.fbx	Sanno_Sukibei_1900_cn	Edo	fbx	1.9	2.55	0.8	-0.3	1	911	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sukibei_1900_nc.fbx	Sanno_Sukibei_1900_nc	Edo	fbx	1.81	2.55	0.8	-0.3	1	899	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sukibei_1900_nn.fbx	Sanno_Sukibei_1900_nn	Edo	fbx	1.99	2.55	0.8	-0.3	1	1084	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sukibei_1904_cn.fbx	Sanno_Sukibei_1904_cn	Edo	fbx	1.9	2.55	0.8	-0.3	1	911	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sukibei_1904_nc.fbx	Sanno_Sukibei_1904_nc	Edo	fbx	1.81	2.55	0.8	-0.3	1	899	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sukibei_1904_nn.fbx	Sanno_Sukibei_1904_nn	Edo	fbx	1.99	2.55	0.8	-0.3	1	1084	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1923_cn.fbx	Sanno_Sukibei_1923_cn	Edo	fbx	1.92	2.55	0.8	-0.3	1	1321	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1923_nc.fbx	Sanno_Sukibei_1923_nc	Edo	fbx	1.83	2.55	0.8	-0.3	1	1309	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1923_nn.fbx	Sanno_Sukibei_1923_nn	Edo	fbx	2.01	2.55	0.8	-0.3	1	1584	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1928_cn.fbx	Sanno_Sukibei_1928_cn	Edo	fbx	1.93	2.55	0.8	-0.3	1	1321	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1928_nc.fbx	Sanno_Sukibei_1928_nc	Edo	fbx	1.84	2.55	0.8	-0.3	1	1309	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1928_nn.fbx	Sanno_Sukibei_1928_nn	Edo	fbx	2.02	2.55	0.8	-0.3	1	1584	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1928_nt.fbx	Sanno_Sukibei_1928_nt	Edo	fbx	1.93	2.55	0.91	-0.3	1	1792	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1928_tn.fbx	Sanno_Sukibei_1928_tn	Edo	fbx	2.02	2.55	0.91	-0.3	1	1804	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1995_cn.fbx	Sanno_Sukibei_1995_cn	Edo	fbx	2	2.55	0.8	-0.3	1	1321	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1995_nc.fbx	Sanno_Sukibei_1995_nc	Edo	fbx	1.91	2.55	0.8	-0.3	1	1309	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_1995_nn.fbx	Sanno_Sukibei_1995_nn	Edo	fbx	2.09	2.55	0.8	-0.3	1	1592	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_2117_cn.fbx	Sanno_Sukibei_2117_cn	Edo	fbx	2.12	2.55	0.8	-0.3	1	1414	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_2117_nc.fbx	Sanno_Sukibei_2117_nc	Edo	fbx	2.03	2.55	0.8	-0.3	1	1402	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Sukibei_2117_nn.fbx	Sanno_Sukibei_2117_nn	Edo	fbx	2.21	2.55	0.8	-0.3	1	1600	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sukibei_Kado_Dezumi_1818.fbx	Sanno_Sukibei_Kado_Dezumi_1818	Edo	fbx	0.97	2.55	0.97	-0.3	1	489	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Sukibei_Kado_Irizumi_1818.fbx	Sanno_Sukibei_Kado_Irizumi_1818	Edo	fbx	0.97	2.55	0.97	-0.3	1	489	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Torii_5454x7272.fbx	Sanno_Torii_5454x7272	Edo	fbx	7.65	7.92	1.45	-0.35	1	1260	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Torii_Massha_1818x2727.fbx	Sanno_Torii_Massha_1818x2727	Edo	fbx	2.54	3	0.36	-0.15	1	848	1	URP	-
 Assets/Edo/Models/Sanno/Sanno_Tsukuriai_1x1ken_2000x7620.fbx	Sanno_Tsukuriai_1x1ken_2000x7620	Edo	fbx	3.32	6.1	8.82	0	1	5744	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Umaya_3x2ken_5454x3636.fbx	Sanno_Umaya_3x2ken_5454x3636	Edo	fbx	6.23	3.88	5.23	0	1	7480	1	URP	-
+Assets/Edo/Models/Sanno/Sanno_Umaya_4x3ken_7272x5454.fbx	Sanno_Umaya_4x3ken_7272x5454	Edo	fbx	8.05	4.38	7.05	0	1	10104	1	URP	-
 Assets/Edo/Models/Shiomizaka/DanishiStep2m.fbx	DanishiStep2m	Edo	fbx	1.98	0.49	0.62	-0.5	1	432	1	URP	-
 Assets/Edo/Models/Shiomizaka/MichibataIshi2m.fbx	MichibataIshi2m	Edo	fbx	2.19	0.69	0.43	-0.68	1	756	1	URP	-
 Assets/Edo/Models/Shiomizaka/P_DanishiStep2m.prefab	P_DanishiStep2m	Edo	prefab	1.98	0.49	0.62	-0.5	1	432	1	URP	B
 Assets/Edo/Models/Shiomizaka/P_MichibataIshi2m.prefab	P_MichibataIshi2m	Edo	prefab	2.19	0.69	0.43	-0.68	1	756	1	URP	B
-Assets/Edo/Models/Trees/Tree_Enoki_Big.fbx	Tree_Enoki_Big	Edo	fbx	17.09	16	17.13	0	1	14902	3	URP	-
-Assets/Edo/Models/Trees/Tree_Enoki_Big_02.fbx	Tree_Enoki_Big_02	Edo	fbx	18.51	16	18.41	0	1	14188	3	URP	-
-Assets/Edo/Models/Trees/Tree_Enoki_Big_03.fbx	Tree_Enoki_Big_03	Edo	fbx	18.02	16	18.61	0	1	14234	3	URP	-
-Assets/Edo/Models/Trees/Tree_Enoki_Mid.fbx	Tree_Enoki_Mid	Edo	fbx	15.53	13.5	14.36	0	1	16586	3	URP	-
-Assets/Edo/Models/Trees/Tree_Enoki_Mid_02.fbx	Tree_Enoki_Mid_02	Edo	fbx	14.47	13.5	14.65	0	1	15806	3	URP	-
-Assets/Edo/Models/Trees/Tree_Enoki_Mid_03.fbx	Tree_Enoki_Mid_03	Edo	fbx	15.15	13.5	15.17	0	1	17786	3	URP	-
-Assets/Edo/Models/Trees/Tree_Enoki_Small.fbx	Tree_Enoki_Small	Edo	fbx	12.1	11	12.49	0	1	16398	3	URP	-
-Assets/Edo/Models/Trees/Tree_Enoki_Small_02.fbx	Tree_Enoki_Small_02	Edo	fbx	11.26	11	11.9	0	1	14166	3	URP	-
-Assets/Edo/Models/Trees/Tree_Enoki_Small_03.fbx	Tree_Enoki_Small_03	Edo	fbx	12.44	11	12.32	0	1	13986	3	URP	-
-Assets/Edo/Models/Trees/Tree_Jouryoku_Big.fbx	Tree_Jouryoku_Big	Edo	fbx	8.02	8.2	7.87	0	1	8896	3	URP	-
-Assets/Edo/Models/Trees/Tree_Jouryoku_Big_02.fbx	Tree_Jouryoku_Big_02	Edo	fbx	8	8.2	7.94	0	1	9026	3	URP	-
-Assets/Edo/Models/Trees/Tree_Jouryoku_Big_03.fbx	Tree_Jouryoku_Big_03	Edo	fbx	7.62	8.2	8.08	0	1	9532	3	URP	-
-Assets/Edo/Models/Trees/Tree_Jouryoku_Mid.fbx	Tree_Jouryoku_Mid	Edo	fbx	5.55	5.8	5.95	0	1	9436	3	URP	-
-Assets/Edo/Models/Trees/Tree_Jouryoku_Mid_02.fbx	Tree_Jouryoku_Mid_02	Edo	fbx	5.73	5.8	5.52	0	1	8442	3	URP	-
-Assets/Edo/Models/Trees/Tree_Jouryoku_Mid_03.fbx	Tree_Jouryoku_Mid_03	Edo	fbx	5.7	5.8	5.68	0	1	9404	3	URP	-
-Assets/Edo/Models/Trees/Tree_Jouryoku_Small.fbx	Tree_Jouryoku_Small	Edo	fbx	3.6	3.6	3.34	0	1	9434	3	URP	-
-Assets/Edo/Models/Trees/Tree_Jouryoku_Small_02.fbx	Tree_Jouryoku_Small_02	Edo	fbx	3.63	3.6	3.55	0	1	9922	3	URP	-
-Assets/Edo/Models/Trees/Tree_Jouryoku_Small_03.fbx	Tree_Jouryoku_Small_03	Edo	fbx	3.59	3.6	3.35	0	1	9124	3	URP	-
-Assets/Edo/Models/Trees/Tree_Keyaki_Big.fbx	Tree_Keyaki_Big	Edo	fbx	15.46	16	16.31	0	1	15092	3	URP	-
-Assets/Edo/Models/Trees/Tree_Keyaki_Big_02.fbx	Tree_Keyaki_Big_02	Edo	fbx	16.25	16	15.45	0	1	15370	3	URP	-
-Assets/Edo/Models/Trees/Tree_Keyaki_Big_03.fbx	Tree_Keyaki_Big_03	Edo	fbx	15.82	16	16.28	0	1	14816	3	URP	-
-Assets/Edo/Models/Trees/Tree_Keyaki_Mid.fbx	Tree_Keyaki_Mid	Edo	fbx	14.27	14.5	13.62	0	1	15538	3	URP	-
-Assets/Edo/Models/Trees/Tree_Keyaki_Mid_02.fbx	Tree_Keyaki_Mid_02	Edo	fbx	13.94	14.5	13.78	0	1	15024	3	URP	-
-Assets/Edo/Models/Trees/Tree_Keyaki_Mid_03.fbx	Tree_Keyaki_Mid_03	Edo	fbx	13.87	14.5	14.31	0	1	17004	3	URP	-
-Assets/Edo/Models/Trees/Tree_Keyaki_Small.fbx	Tree_Keyaki_Small	Edo	fbx	13.37	13	12.45	0	1	15850	3	URP	-
-Assets/Edo/Models/Trees/Tree_Keyaki_Small_02.fbx	Tree_Keyaki_Small_02	Edo	fbx	12.05	13	13.19	0	1	16030	3	URP	-
-Assets/Edo/Models/Trees/Tree_Keyaki_Small_03.fbx	Tree_Keyaki_Small_03	Edo	fbx	12.66	13	12.45	0	1	16260	3	URP	-
-Assets/Edo/Models/Trees/Tree_Matsu_Big.fbx	Tree_Matsu_Big	Edo	fbx	7.37	12.5	7.9	0	1	17221	3	URP	-
-Assets/Edo/Models/Trees/Tree_Matsu_Big_02.fbx	Tree_Matsu_Big_02	Edo	fbx	7.13	12.5	7.01	0	1	17119	3	URP	-
-Assets/Edo/Models/Trees/Tree_Matsu_Big_03.fbx	Tree_Matsu_Big_03	Edo	fbx	7.97	12.5	9.36	0	1	16394	3	URP	-
-Assets/Edo/Models/Trees/Tree_Matsu_Mid.fbx	Tree_Matsu_Mid	Edo	fbx	5.96	10.5	6.87	0	1	20021	3	URP	-
-Assets/Edo/Models/Trees/Tree_Matsu_Mid_02.fbx	Tree_Matsu_Mid_02	Edo	fbx	7.76	10.5	7.64	0	1	16650	3	URP	-
-Assets/Edo/Models/Trees/Tree_Matsu_Mid_03.fbx	Tree_Matsu_Mid_03	Edo	fbx	8.08	10.5	6.48	0	1	24236	3	URP	-
-Assets/Edo/Models/Trees/Tree_Momiji_Mid.fbx	Tree_Momiji_Mid	Edo	fbx	7.34	5.8	7.35	0	1	16652	3	URP	-
-Assets/Edo/Models/Trees/Tree_Momiji_Mid_02.fbx	Tree_Momiji_Mid_02	Edo	fbx	7.16	5.8	7.07	0	1	15060	3	URP	-
-Assets/Edo/Models/Trees/Tree_Momiji_Mid_03.fbx	Tree_Momiji_Mid_03	Edo	fbx	6.98	5.8	6.94	0	1	14002	3	URP	-
-Assets/Edo/Models/Trees/Tree_Momiji_Small.fbx	Tree_Momiji_Small	Edo	fbx	4.72	3.6	4.89	0	1	15270	3	URP	-
-Assets/Edo/Models/Trees/Tree_Momiji_Small_02.fbx	Tree_Momiji_Small_02	Edo	fbx	4.07	3.6	4.2	0	1	15882	3	URP	-
-Assets/Edo/Models/Trees/Tree_Momiji_Small_03.fbx	Tree_Momiji_Small_03	Edo	fbx	4.79	3.6	4.6	0	1	13998	3	URP	-
-Assets/Edo/Models/Trees/Tree_Mukunoki_Big.fbx	Tree_Mukunoki_Big	Edo	fbx	13.9	14	13.08	0	1	12076	3	URP	-
-Assets/Edo/Models/Trees/Tree_Mukunoki_Big_02.fbx	Tree_Mukunoki_Big_02	Edo	fbx	12.25	14	12.37	0	1	10700	3	URP	-
-Assets/Edo/Models/Trees/Tree_Mukunoki_Big_03.fbx	Tree_Mukunoki_Big_03	Edo	fbx	13.65	14	12.83	0	1	10560	3	URP	-
-Assets/Edo/Models/Trees/Tree_Mukunoki_Mid.fbx	Tree_Mukunoki_Mid	Edo	fbx	11.31	12	10.61	0	1	10554	3	URP	-
-Assets/Edo/Models/Trees/Tree_Mukunoki_Mid_02.fbx	Tree_Mukunoki_Mid_02	Edo	fbx	11.16	12	11.24	0	1	10768	3	URP	-
-Assets/Edo/Models/Trees/Tree_Mukunoki_Mid_03.fbx	Tree_Mukunoki_Mid_03	Edo	fbx	10.7	12	10.94	0	1	11142	3	URP	-
-Assets/Edo/Models/Trees/Tree_Mukunoki_Small.fbx	Tree_Mukunoki_Small	Edo	fbx	9.09	10	9.62	0	1	9976	3	URP	-
-Assets/Edo/Models/Trees/Tree_Mukunoki_Small_02.fbx	Tree_Mukunoki_Small_02	Edo	fbx	9.03	10	8.73	0	1	12770	3	URP	-
-Assets/Edo/Models/Trees/Tree_Mukunoki_Small_03.fbx	Tree_Mukunoki_Small_03	Edo	fbx	9.39	10	9.34	0	1	10176	3	URP	-
-Assets/Edo/Models/Trees/Tree_Teiboku_H12.fbx	Tree_Teiboku_H12	Edo	fbx	1.09	1.2	1.12	0	1	10386	3	URP	-
-Assets/Edo/Models/Trees/Tree_Teiboku_H12_02.fbx	Tree_Teiboku_H12_02	Edo	fbx	1.06	1.2	1.07	0	1	12610	3	URP	-
-Assets/Edo/Models/Trees/Tree_Teiboku_H12_03.fbx	Tree_Teiboku_H12_03	Edo	fbx	1.09	1.2	1.03	0	1	11768	3	URP	-
-Assets/Edo/Models/Trees/Tree_Teiboku_H16.fbx	Tree_Teiboku_H16	Edo	fbx	1.38	1.6	1.33	0	1	12036	3	URP	-
-Assets/Edo/Models/Trees/Tree_Teiboku_H16_02.fbx	Tree_Teiboku_H16_02	Edo	fbx	1.41	1.6	1.5	0	1	11590	3	URP	-
-Assets/Edo/Models/Trees/Tree_Teiboku_H16_03.fbx	Tree_Teiboku_H16_03	Edo	fbx	1.55	1.6	1.49	0	1	12318	3	URP	-
-Assets/Edo/Models/Trees/Tree_Teiboku_H20.fbx	Tree_Teiboku_H20	Edo	fbx	1.91	2	1.6	0	1	12194	3	URP	-
-Assets/Edo/Models/Trees/Tree_Teiboku_H20_02.fbx	Tree_Teiboku_H20_02	Edo	fbx	1.89	2	1.69	0	1	11304	3	URP	-
-Assets/Edo/Models/Trees/Tree_Teiboku_H20_03.fbx	Tree_Teiboku_H20_03	Edo	fbx	1.8	2	1.86	0	1	11052	3	URP	-
-Assets/Edo/Models/Trees/Tree_Teiboku_H24.fbx	Tree_Teiboku_H24	Edo	fbx	2.3	2.4	2.11	0	1	10916	3	URP	-
-Assets/Edo/Models/Trees/Tree_Teiboku_H24_02.fbx	Tree_Teiboku_H24_02	Edo	fbx	2.15	2.4	2.1	0	1	12258	3	URP	-
-Assets/Edo/Models/Trees/Tree_Teiboku_H24_03.fbx	Tree_Teiboku_H24_03	Edo	fbx	1.93	2.4	2.14	0	1	11146	3	URP	-
-Assets/Edo/Models/Trees/Tree_Ume_Big.fbx	Tree_Ume_Big	Edo	fbx	8.84	8.2	9.06	0	1	5504	3	URP	-
-Assets/Edo/Models/Trees/Tree_Ume_Big_02.fbx	Tree_Ume_Big_02	Edo	fbx	8.93	8.2	9.25	0	1	4892	3	URP	-
-Assets/Edo/Models/Trees/Tree_Ume_Big_03.fbx	Tree_Ume_Big_03	Edo	fbx	9.48	8.2	9.72	0	1	4982	3	URP	-
-Assets/Edo/Models/Trees/Tree_Ume_Mid.fbx	Tree_Ume_Mid	Edo	fbx	5.87	5.8	6.11	0	1	4968	3	URP	-
-Assets/Edo/Models/Trees/Tree_Ume_Mid_02.fbx	Tree_Ume_Mid_02	Edo	fbx	5.92	5.8	5.71	0	1	4850	3	URP	-
-Assets/Edo/Models/Trees/Tree_Ume_Mid_03.fbx	Tree_Ume_Mid_03	Edo	fbx	6.03	5.8	6.56	0	1	5086	3	URP	-
-Assets/Edo/Models/Trees/Tree_Ume_Small.fbx	Tree_Ume_Small	Edo	fbx	4.2	3.6	3.69	0	1	5392	3	URP	-
-Assets/Edo/Models/Trees/Tree_Ume_Small_02.fbx	Tree_Ume_Small_02	Edo	fbx	3.87	3.6	3.53	0	1	5366	3	URP	-
-Assets/Edo/Models/Trees/Tree_Ume_Small_03.fbx	Tree_Ume_Small_03	Edo	fbx	4.05	3.6	3.94	0	1	5284	3	URP	-
-Assets/Edo/Models/Trees/Tsuru_Fuji_01.fbx	Tsuru_Fuji_01	Edo	fbx	2.06	3.49	1.57	-0.04	1	980	1	URP	-
-Assets/Edo/Models/Trees/Tsuru_Fuji_02.fbx	Tsuru_Fuji_02	Edo	fbx	1.63	4.66	1.95	-0.04	1	1216	1	URP	-
-Assets/Edo/Models/Trees/Tsuru_Fuji_03.fbx	Tsuru_Fuji_03	Edo	fbx	2.04	5.86	2.1	-0.05	1	2052	1	URP	-
-Assets/Edo/Models/Trees/Tsuru_Kizuta_01.fbx	Tsuru_Kizuta_01	Edo	fbx	0.99	2.5	0.98	-0.04	1	850	1	URP	-
-Assets/Edo/Models/Trees/Tsuru_Kizuta_02.fbx	Tsuru_Kizuta_02	Edo	fbx	1.03	3.47	0.95	0	1	996	1	URP	-
-Assets/Edo/Models/Trees/Tsuru_Teika_01.fbx	Tsuru_Teika_01	Edo	fbx	0.5	2.68	0.83	0	1	824	1	URP	-
-Assets/Edo/Models/Trees/Tsuru_Teika_02.fbx	Tsuru_Teika_02	Edo	fbx	0.52	3.73	0.81	0	1	998	1	URP	-
+Assets/Edo/Models/Trees/Tree_Enoki_Big.fbx	Tree_Enoki_Big	Edo	fbx	17.09	16	17.13	0	1	14902	3	URP	-	0	0	9.04	0.5:0;1:0.74;1.5:4.51;2:4.51;2.5:4.74;3:4.93;3.5:4.73;4:4.73;4.5:4.73;5:4.9;5.5:4.9;6:4.93;6.5:5.17;7:5.42;7.5:6.04;8:6.01;8.5:6.37;9:6.4;9.5:8.62
+Assets/Edo/Models/Trees/Tree_Enoki_Big_02.fbx	Tree_Enoki_Big_02	Edo	fbx	18.51	16	18.41	0	1	14188	3	URP	-	0	0	9.59	0.5:0;1:0.77;1.5:5.41;2:5.12;2.5:5.12;3:4.73;3.5:4.73;4:4.69;4.5:4.35;5:4.35;5.5:5.01;6:5.01;6.5:5.01;7:5.34;7.5:5.91;8:6.77;8.5:6.77;9:7.01;9.5:7.29;10:8.85
+Assets/Edo/Models/Trees/Tree_Enoki_Big_03.fbx	Tree_Enoki_Big_03	Edo	fbx	18.02	16	18.61	0	1	14234	3	URP	-	0	0	9.82	0.5:0;1:0.76;1.5:3.13;2:4.99;2.5:3.95;3:4.12;3.5:3.95;4:3.95;4.5:5.25;5:5.44;5.5:5.44;6:5.64;6.5:5.62;7:5.64;7.5:5.75;8:5.98;8.5:5.75;9:6.55;9.5:7.63;10:7.78
+Assets/Edo/Models/Trees/Tree_Enoki_Mid.fbx	Tree_Enoki_Mid	Edo	fbx	15.53	13.5	14.36	0	1	16586	3	URP	-	0	0	8.25	0.5:0;1:1.27;1.5:3.47;2:3.56;2.5:3.34;3:3.34;3.5:3.46;4:3.79;4.5:3.88;5:3.88;5.5:3.88;6:4.24;6.5:5.03;7:5.2;7.5:5.96;8:6.13;8.5:6.65
+Assets/Edo/Models/Trees/Tree_Enoki_Mid_02.fbx	Tree_Enoki_Mid_02	Edo	fbx	14.47	13.5	14.65	0	1	15806	3	URP	-	0	0	7.89	0.5:0;1:0.67;1.5:3.78;2:3.78;2.5:3.35;3:3.35;3.5:3.35;4:3.96;4.5:4.19;5:4.19;5.5:4.19;6:4.55;6.5:4.74;7:4.74;7.5:4.74;8:5.87
+Assets/Edo/Models/Trees/Tree_Enoki_Mid_03.fbx	Tree_Enoki_Mid_03	Edo	fbx	15.15	13.5	15.17	0	1	17786	3	URP	-	0	0	8.27	0.5:0;1:1.19;1.5:3.63;2:3.92;2.5:2.95;3:3.69;3.5:2.95;4:3.57;4.5:3.58;5:3.58;5.5:4.49;6:4.55;6.5:4.62;7:4.62;7.5:5.26;8:5.26;8.5:8.52
+Assets/Edo/Models/Trees/Tree_Enoki_Small.fbx	Tree_Enoki_Small	Edo	fbx	12.1	11	12.49	0	1	16398	3	URP	-	0	0	6.95	0.5:0;1:1.53;1.5:2.59;2:2.55;2.5:2.55;3:2.55;3.5:2.62;4:3.01;4.5:3.19;5:4.12;5.5:4.65;6:4.65;6.5:5.23;7:6.13
+Assets/Edo/Models/Trees/Tree_Enoki_Small_02.fbx	Tree_Enoki_Small_02	Edo	fbx	11.26	11	11.9	0	1	14166	3	URP	-	0	0	6.02	0.5:0;1:1.95;1.5:2.75;2:2.86;2.5:3.13;3:3.13;3.5:3.13;4:3.52;4.5:3.52;5:3.58;5.5:4.38;6:4.38;6.5:4.57
+Assets/Edo/Models/Trees/Tree_Enoki_Small_03.fbx	Tree_Enoki_Small_03	Edo	fbx	12.44	11	12.32	0	1	13986	3	URP	-	0	0	6.13	0.5:0;1:2.01;1.5:3.23;2:2.84;2.5:3.12;3:2.84;3.5:3.14;4:3.14;4.5:3.26;5:3.28;5.5:4.25;6:4.56;6.5:5.33
+Assets/Edo/Models/Trees/Tree_Jouryoku_Big.fbx	Tree_Jouryoku_Big	Edo	fbx	8.02	8.2	7.87	0	1	8896	3	URP	-	0	0	4.3	0.5:0.89;1:1.6;1.5:1.49;2:1.6;2.5:1.6;3:1.62;3.5:2.1;4:2.1;4.5:2.8
+Assets/Edo/Models/Trees/Tree_Jouryoku_Big_02.fbx	Tree_Jouryoku_Big_02	Edo	fbx	8	8.2	7.94	0	1	9026	3	URP	-	0	0	4.33	0.5:0.91;1:1.68;1.5:1.48;2:1.48;2.5:1.48;3:1.82;3.5:2.1;4:2.1;4.5:3.25
+Assets/Edo/Models/Trees/Tree_Jouryoku_Big_03.fbx	Tree_Jouryoku_Big_03	Edo	fbx	7.62	8.2	8.08	0	1	9532	3	URP	-	0	0	4.25	0.5:0.94;1:1.89;1.5:1.5;2:1.5;2.5:1.5;3:1.5;3.5:2.24;4:2.15;4.5:3.44
+Assets/Edo/Models/Trees/Tree_Jouryoku_Mid.fbx	Tree_Jouryoku_Mid	Edo	fbx	5.55	5.8	5.95	0	1	9436	3	URP	-	0	0	3.14	0.5:1.43;1:0.93;1.5:0.85;2:0.85;2.5:0.85;3:1.84;3.5:1.87
+Assets/Edo/Models/Trees/Tree_Jouryoku_Mid_02.fbx	Tree_Jouryoku_Mid_02	Edo	fbx	5.73	5.8	5.52	0	1	8442	3	URP	-	0	0	3.03	0.5:1.37;1:1.33;1.5:1.02;2:1.21;2.5:1.21;3:1.88;3.5:4.02
+Assets/Edo/Models/Trees/Tree_Jouryoku_Mid_03.fbx	Tree_Jouryoku_Mid_03	Edo	fbx	5.7	5.8	5.68	0	1	9404	3	URP	-	0	0	3.01	0.5:1.02;1:1.02;1.5:1.13;2:1.2;2.5:1.31;3:1.31;3.5:2.24
+Assets/Edo/Models/Trees/Tree_Jouryoku_Small.fbx	Tree_Jouryoku_Small	Edo	fbx	3.6	3.6	3.34	0	1	9434	3	URP	-	-0.01	0	1.99	0.5:0.7;1:0.81;1.5:0.81;2:0.96
+Assets/Edo/Models/Trees/Tree_Jouryoku_Small_02.fbx	Tree_Jouryoku_Small_02	Edo	fbx	3.63	3.6	3.55	0	1	9922	3	URP	-	0	0	1.92	0.5:0.66;1:0.66;1.5:0.8;2:0.8
+Assets/Edo/Models/Trees/Tree_Jouryoku_Small_03.fbx	Tree_Jouryoku_Small_03	Edo	fbx	3.59	3.6	3.35	0	1	9124	3	URP	-	-0.01	0	1.93	0.5:0.79;1:0.76;1.5:0.76;2:0.83
+Assets/Edo/Models/Trees/Tree_Keyaki_Big.fbx	Tree_Keyaki_Big	Edo	fbx	15.46	16	16.31	0	1	15092	3	URP	-	0	0	8.38	0.5:0;1:0.62;1.5:4.68;2:4.68;2.5:4.68;3:4.68;3.5:5.09;4:5.09;4.5:5.3;5:5.39;5.5:6.29;6:6.29;6.5:6.69;7:8.34;7.5:8.51;8:8.51;8.5:9.62
+Assets/Edo/Models/Trees/Tree_Keyaki_Big_02.fbx	Tree_Keyaki_Big_02	Edo	fbx	16.25	16	15.45	0	1	15370	3	URP	-	0	0	8.39	0.5:0;1:0.63;1.5:5.17;2:5.22;2.5:5.23;3:5.23;3.5:5.23;4:5.41;4.5:5.41;5:5.41;5.5:6.63;6:7.4;6.5:7.44;7:7.45;7.5:8.04;8:8.37;8.5:8.64
+Assets/Edo/Models/Trees/Tree_Keyaki_Big_03.fbx	Tree_Keyaki_Big_03	Edo	fbx	15.82	16	16.28	0	1	14816	3	URP	-	0	0	7.83	0.5:0;1:1.22;1.5:4.12;2:4.12;2.5:4.12;3:4.83;3.5:4.83;4:5.35;4.5:5.61;5:6.25;5.5:6.34;6:6.34;6.5:7.07;7:8.17;7.5:8.17;8:8.63
+Assets/Edo/Models/Trees/Tree_Keyaki_Mid.fbx	Tree_Keyaki_Mid	Edo	fbx	14.27	14.5	13.62	0	1	15538	3	URP	-	0	0	7.54	0.5:0;1:1.1;1.5:4.8;2:4.12;2.5:4.12;3:4.12;3.5:4.31;4:5.44;4.5:5.44;5:5.82;5.5:5.82;6:6.95;6.5:7.44;7:6.95;7.5:8.24;8:8.26
+Assets/Edo/Models/Trees/Tree_Keyaki_Mid_02.fbx	Tree_Keyaki_Mid_02	Edo	fbx	13.94	14.5	13.78	0	1	15024	3	URP	-	0	0	7.92	0.5:0;1:1.68;1.5:4.18;2:4.18;2.5:4.62;3:4.84;3.5:4.62;4:4.84;4.5:5.43;5:5.43;5.5:6.14;6:7.16;6.5:7.64;7:7.74;7.5:8.44;8:9.09
+Assets/Edo/Models/Trees/Tree_Keyaki_Mid_03.fbx	Tree_Keyaki_Mid_03	Edo	fbx	13.87	14.5	14.31	0	1	17004	3	URP	-	0	0	7.2	0.5:0;1:1.62;1.5:4.43;2:4.1;2.5:4.31;3:4.31;3.5:4.31;4:4.82;4.5:4.82;5:5.24;5.5:5.24;6:6.83;6.5:7.08;7:7.47;7.5:8.72
+Assets/Edo/Models/Trees/Tree_Keyaki_Small.fbx	Tree_Keyaki_Small	Edo	fbx	13.37	13	12.45	0	1	15850	3	URP	-	0	0	7.11	0.5:0;1:2.01;1.5:4.31;2:4.89;2.5:4.3;3:4.3;3.5:4.3;4:4.37;4.5:4.77;5:5.91;5.5:5.96;6:6.05;6.5:6.8;7:6.8;7.5:7.69
+Assets/Edo/Models/Trees/Tree_Keyaki_Small_02.fbx	Tree_Keyaki_Small_02	Edo	fbx	12.05	13	13.19	0	1	16030	3	URP	-	0	0	7.08	0.5:0;1:1.49;1.5:3.75;2:3.74;2.5:3.65;3:3.65;3.5:3.79;4:4.83;4.5:4.91;5:5.18;5.5:5.63;6:6.87;6.5:7.02;7:8.1;7.5:8.2
+Assets/Edo/Models/Trees/Tree_Keyaki_Small_03.fbx	Tree_Keyaki_Small_03	Edo	fbx	12.66	13	12.45	0	1	16260	3	URP	-	0	0	6.87	0.5:0;1:2.09;1.5:3.86;2:3.86;2.5:3.86;3:4.11;3.5:4.32;4:4.34;4.5:5.88;5:5.88;5.5:5.88;6:6.53;6.5:6.53;7:7.17
+Assets/Edo/Models/Trees/Tree_Matsu_Big.fbx	Tree_Matsu_Big	Edo	fbx	7.37	12.5	7.9	0	1	17221	3	URP	-	0	0	4.47	0.5:0;1:1.87;1.5:2.28;2:2.52;2.5:2.72;3:3.15;3.5:3.3;4:3.4;4.5:3.65
+Assets/Edo/Models/Trees/Tree_Matsu_Big_02.fbx	Tree_Matsu_Big_02	Edo	fbx	7.13	12.5	7.01	0	1	17119	3	URP	-	0	0	3.82	0.5:0;1:1.87;1.5:2.21;2:2.33;2.5:2.36;3:2.66;3.5:2.84;4:5.37
+Assets/Edo/Models/Trees/Tree_Matsu_Big_03.fbx	Tree_Matsu_Big_03	Edo	fbx	7.97	12.5	9.36	0	1	16394	3	URP	-	0	0	5.08	0.5:0;1:1.86;1.5:2.18;2:2.06;2.5:2.27;3:2.73;3.5:3.67;4:3.89;4.5:4.21;5:4.4;5.5:5.34
+Assets/Edo/Models/Trees/Tree_Matsu_Mid.fbx	Tree_Matsu_Mid	Edo	fbx	5.96	10.5	6.87	0	1	20021	3	URP	-	0	0	3.99	0.5:0;1:1.66;1.5:1.95;2:2;2.5:2.48;3:3.29;3.5:3.6;4:5.12
+Assets/Edo/Models/Trees/Tree_Matsu_Mid_02.fbx	Tree_Matsu_Mid_02	Edo	fbx	7.76	10.5	7.64	0	1	16650	3	URP	-	0	0	4.63	0.5:0;1:1.8;1.5:1.86;2:1.92;2.5:2.1;3:3.78;3.5:3.99;4:4.19;4.5:5.17;5:5.59
+Assets/Edo/Models/Trees/Tree_Matsu_Mid_03.fbx	Tree_Matsu_Mid_03	Edo	fbx	8.08	10.5	6.48	0	1	24236	3	URP	-	0	0	4.37	0.5:0;1:1.74;1.5:1.88;2:2.18;2.5:2.3;3:2.39;3.5:2.74;4:2.88;4.5:3.81
+Assets/Edo/Models/Trees/Tree_Momiji_Mid.fbx	Tree_Momiji_Mid	Edo	fbx	7.34	5.8	7.35	0	1	16652	3	URP	-	-0.17	0.31	4.17	0.5:0;1:0.11;1.5:0.36;2:0.36;2.5:1.7;3:1.7;3.5:1.8;4:1.8;4.5:3.3
+Assets/Edo/Models/Trees/Tree_Momiji_Mid_02.fbx	Tree_Momiji_Mid_02	Edo	fbx	7.16	5.8	7.07	0	1	15060	3	URP	-	-0.35	0.01	4.06	0.5:0;1:0.08;1.5:0.84;2:1.64;2.5:1.53;3:1.64;3.5:1.7;4:1.7;4.5:2.59
+Assets/Edo/Models/Trees/Tree_Momiji_Mid_03.fbx	Tree_Momiji_Mid_03	Edo	fbx	6.98	5.8	6.94	0	1	14002	3	URP	-	-0.28	0.18	3.77	0.5:0;1:0.07;1.5:0.32;2:1.08;2.5:1.35;3:1.55;3.5:1.92;4:2.16
+Assets/Edo/Models/Trees/Tree_Momiji_Small.fbx	Tree_Momiji_Small	Edo	fbx	4.72	3.6	4.89	0	1	15270	3	URP	-	-0.28	0.21	2.78	0.5:0;1:0.41;1.5:0.93;2:0.93;2.5:1.24;3:1.58
+Assets/Edo/Models/Trees/Tree_Momiji_Small_02.fbx	Tree_Momiji_Small_02	Edo	fbx	4.07	3.6	4.2	0	1	15882	3	URP	-	-0.1	-0.08	2.31	0.5:0.34;1:0.53;1.5:0.8;2:0.91;2.5:1.29
+Assets/Edo/Models/Trees/Tree_Momiji_Small_03.fbx	Tree_Momiji_Small_03	Edo	fbx	4.79	3.6	4.6	0	1	13998	3	URP	-	-0.02	0.39	2.77	0.5:0;1:0.18;1.5:0.53;2:1.03;2.5:1.24;3:1.64
+Assets/Edo/Models/Trees/Tree_Mukunoki_Big.fbx	Tree_Mukunoki_Big	Edo	fbx	13.9	14	13.08	0	1	12076	3	URP	-	0	0	6.78	0.5:0;1:3.43;1.5:4.49;2:4.14;2.5:4.14;3:4.14;3.5:4.14;4:4.77;4.5:4.81;5:4.81;5.5:5.78;6:5.78;6.5:8.45;7:7.73
+Assets/Edo/Models/Trees/Tree_Mukunoki_Big_02.fbx	Tree_Mukunoki_Big_02	Edo	fbx	12.25	14	12.37	0	1	10700	3	URP	-	0	0	6.91	0.5:0;1:1.63;1.5:4.77;2:4.25;2.5:4.25;3:4.36;3.5:4.36;4:4.69;4.5:4.75;5:4.84;5.5:5.1;6:5.72;6.5:6.3;7:8.33
+Assets/Edo/Models/Trees/Tree_Mukunoki_Big_03.fbx	Tree_Mukunoki_Big_03	Edo	fbx	13.65	14	12.83	0	1	10560	3	URP	-	0	0	7.01	0.5:0;1:2.69;1.5:4.99;2:4.99;2.5:4.44;3:4.44;3.5:4.44;4:4.44;4.5:4.94;5:5.82;5.5:6.26;6:6.2;6.5:6.47;7:7.24;7.5:7.16
+Assets/Edo/Models/Trees/Tree_Mukunoki_Mid.fbx	Tree_Mukunoki_Mid	Edo	fbx	11.31	12	10.61	0	1	10554	3	URP	-	0	0	5.67	0.5:0.72;1:2.23;1.5:3.52;2:3.52;2.5:3.99;3:4.08;3.5:3.99;4:3.99;4.5:4.77;5:5.01;5.5:5.14;6:5.63
+Assets/Edo/Models/Trees/Tree_Mukunoki_Mid_02.fbx	Tree_Mukunoki_Mid_02	Edo	fbx	11.16	12	11.24	0	1	10768	3	URP	-	0	0	6.14	0.5:0.76;1:3.65;1.5:3.96;2:4.04;2.5:3.96;3:4.04;3.5:4.18;4:4.19;4.5:4.66;5:4.74;5.5:5.11;6:6.06;6.5:6.9
+Assets/Edo/Models/Trees/Tree_Mukunoki_Mid_03.fbx	Tree_Mukunoki_Mid_03	Edo	fbx	10.7	12	10.94	0	1	11142	3	URP	-	0	0	5.69	0.5:0.76;1:3.94;1.5:3.94;2:3.94;2.5:4.02;3:3.92;3.5:3.92;4:3.92;4.5:4.65;5:4.73;5.5:5.62;6:6.75
+Assets/Edo/Models/Trees/Tree_Mukunoki_Small.fbx	Tree_Mukunoki_Small	Edo	fbx	9.09	10	9.62	0	1	9976	3	URP	-	0	0	4.63	0.5:0.62;1:3.34;1.5:3.02;2:2.95;2.5:2.95;3:3.25;3.5:3.55;4:3.68;4.5:4.21;5:5.9
+Assets/Edo/Models/Trees/Tree_Mukunoki_Small_02.fbx	Tree_Mukunoki_Small_02	Edo	fbx	9.03	10	8.73	0	1	12770	3	URP	-	0	0	4.71	0.5:1.22;1:3.24;1.5:2.91;2:2.91;2.5:3.2;3:3.11;3.5:3.11;4:3.11;4.5:4.1;5:4.54
+Assets/Edo/Models/Trees/Tree_Mukunoki_Small_03.fbx	Tree_Mukunoki_Small_03	Edo	fbx	9.39	10	9.34	0	1	10176	3	URP	-	0	0	4.93	0.5:0.65;1:3.36;1.5:3.23;2:3.23;2.5:3.23;3:3.45;3.5:3.77;4:3.77;4.5:4.15;5:5.23
+Assets/Edo/Models/Trees/Tree_Teiboku_H12.fbx	Tree_Teiboku_H12	Edo	fbx	1.09	1.2	1.12	0	1	10386	3	URP	-	0.02	-0.03	0.62	0.5:0.11;1:0.4
+Assets/Edo/Models/Trees/Tree_Teiboku_H12_02.fbx	Tree_Teiboku_H12_02	Edo	fbx	1.06	1.2	1.07	0	1	12610	3	URP	-	0	0.04	0.59	0.5:0.08;1:0.47
+Assets/Edo/Models/Trees/Tree_Teiboku_H12_03.fbx	Tree_Teiboku_H12_03	Edo	fbx	1.09	1.2	1.03	0	1	11768	3	URP	-	-0.01	0.02	0.59	0.5:0.03;1:0.35
+Assets/Edo/Models/Trees/Tree_Teiboku_H16.fbx	Tree_Teiboku_H16	Edo	fbx	1.38	1.6	1.33	0	1	12036	3	URP	-	0.01	0.04	0.72	0.5:0.01;1:0.31
+Assets/Edo/Models/Trees/Tree_Teiboku_H16_02.fbx	Tree_Teiboku_H16_02	Edo	fbx	1.41	1.6	1.5	0	1	11590	3	URP	-	-0.07	0.06	0.77	0.5:0.03;1:0.31
+Assets/Edo/Models/Trees/Tree_Teiboku_H16_03.fbx	Tree_Teiboku_H16_03	Edo	fbx	1.55	1.6	1.49	0	1	12318	3	URP	-	0.02	-0.1	0.86	0.5:0;1:0.32
+Assets/Edo/Models/Trees/Tree_Teiboku_H20.fbx	Tree_Teiboku_H20	Edo	fbx	1.91	2	1.6	0	1	12194	3	URP	-	-0.07	-0.05	1.05	0.5:0;1:0.22;1.5:0.77
+Assets/Edo/Models/Trees/Tree_Teiboku_H20_02.fbx	Tree_Teiboku_H20_02	Edo	fbx	1.89	2	1.69	0	1	11304	3	URP	-	0.01	0.02	0.94	0.5:0;1:0
+Assets/Edo/Models/Trees/Tree_Teiboku_H20_03.fbx	Tree_Teiboku_H20_03	Edo	fbx	1.8	2	1.86	0	1	11052	3	URP	-	-0.03	0.04	0.98	0.5:0;1:0.06
+Assets/Edo/Models/Trees/Tree_Teiboku_H24.fbx	Tree_Teiboku_H24	Edo	fbx	2.3	2.4	2.11	0	1	10916	3	URP	-	-0.01	-0.01	1.26	0.5:0;1:0;1.5:0.69
+Assets/Edo/Models/Trees/Tree_Teiboku_H24_02.fbx	Tree_Teiboku_H24_02	Edo	fbx	2.15	2.4	2.1	0	1	12258	3	URP	-	0.02	0.03	1.12	0.5:0;1:0.07;1.5:0.67
+Assets/Edo/Models/Trees/Tree_Teiboku_H24_03.fbx	Tree_Teiboku_H24_03	Edo	fbx	1.93	2.4	2.14	0	1	11146	3	URP	-	-0.07	-0.06	1.16	0.5:0;1:0.06;1.5:0.81
+Assets/Edo/Models/Trees/Tree_Ume_Big.fbx	Tree_Ume_Big	Edo	fbx	8.84	8.2	9.06	0	1	5504	3	URP	-	0	0	4.65	0.5:0.41;1:1.58;1.5:2.08;2:2.08;2.5:2.35;3:2.67;3.5:2.35;4:2.35;4.5:3.21;5:2.98
+Assets/Edo/Models/Trees/Tree_Ume_Big_02.fbx	Tree_Ume_Big_02	Edo	fbx	8.93	8.2	9.25	0	1	4892	3	URP	-	0	0	4.25	0.5:0.41;1:1.2;1.5:1.28;2:1.28;2.5:2.63;3:2.97;3.5:2.68;4:2.8;4.5:2.8
+Assets/Edo/Models/Trees/Tree_Ume_Big_03.fbx	Tree_Ume_Big_03	Edo	fbx	9.48	8.2	9.72	0	1	4982	3	URP	-	0	0	4.78	0.5:0.43;1:0.79;1.5:1.66;2:1.66;2.5:2.56;3:2.86;3.5:2.56;4:2.56;4.5:2.9;5:3.38
+Assets/Edo/Models/Trees/Tree_Ume_Mid.fbx	Tree_Ume_Mid	Edo	fbx	5.87	5.8	6.11	0	1	4968	3	URP	-	-0.04	0	3.43	0.5:0.8;1:1.05;1.5:1.05;2:1.05;2.5:2.11;3:2.11;3.5:2.25
+Assets/Edo/Models/Trees/Tree_Ume_Mid_02.fbx	Tree_Ume_Mid_02	Edo	fbx	5.92	5.8	5.71	0	1	4850	3	URP	-	-0.03	0.02	3.26	0.5:0.53;1:1.38;1.5:1.55;2:1.55;2.5:1.69;3:1.82;3.5:1.82
+Assets/Edo/Models/Trees/Tree_Ume_Mid_03.fbx	Tree_Ume_Mid_03	Edo	fbx	6.03	5.8	6.56	0	1	5086	3	URP	-	0	0	3.53	0.5:0.83;1:0.99;1.5:1.53;2:1.43;2.5:1.53;3:1.43;3.5:2.87;4:4.91
+Assets/Edo/Models/Trees/Tree_Ume_Small.fbx	Tree_Ume_Small	Edo	fbx	4.2	3.6	3.69	0	1	5392	3	URP	-	-0.01	0	2.2	0.5:0.69;1:1.01;1.5:1.32;2:1.38;2.5:1.65
+Assets/Edo/Models/Trees/Tree_Ume_Small_02.fbx	Tree_Ume_Small_02	Edo	fbx	3.87	3.6	3.53	0	1	5366	3	URP	-	-0.01	0	2.06	0.5:0.76;1:0.76;1.5:0.69;2:0.69;2.5:1.56
+Assets/Edo/Models/Trees/Tree_Ume_Small_03.fbx	Tree_Ume_Small_03	Edo	fbx	4.05	3.6	3.94	0	1	5284	3	URP	-	-0.04	-0.01	2.2	0.5:0.92;1:0.84;1.5:0.84;2:1.2;2.5:1.57
+Assets/Edo/Models/Trees/Tsuru_Fuji_01.fbx	Tsuru_Fuji_01	Edo	fbx	2.06	3.49	1.57	-0.04	1	980	1	URP	-	0.01	-0.02	1.07	0.5:0;1:0.45;1.5:0.73
+Assets/Edo/Models/Trees/Tsuru_Fuji_02.fbx	Tsuru_Fuji_02	Edo	fbx	1.63	4.66	1.95	-0.04	1	1216	1	URP	-	0.01	0.2	1.31	0.5:0;1:0.12;1.5:1.46
+Assets/Edo/Models/Trees/Tsuru_Fuji_03.fbx	Tsuru_Fuji_03	Edo	fbx	2.04	5.86	2.1	-0.05	1	2052	1	URP	-	-0.01	0.05	1.16	0.5:0;1:0.87;1.5:1.65
+Assets/Edo/Models/Trees/Tsuru_Kizuta_01.fbx	Tsuru_Kizuta_01	Edo	fbx	0.99	2.5	0.98	-0.04	1	850	1	URP	-	-0.04	-0.03	0.57	0.5:0;1:0.4
+Assets/Edo/Models/Trees/Tsuru_Kizuta_02.fbx	Tsuru_Kizuta_02	Edo	fbx	1.03	3.47	0.95	0	1	996	1	URP	-	-0.11	-0.01	0.6	0.5:0;1:0.43
+Assets/Edo/Models/Trees/Tsuru_Teika_01.fbx	Tsuru_Teika_01	Edo	fbx	0.5	2.68	0.83	0	1	824	1	URP	-	-0.19	0.03	0.48	0.5:0
+Assets/Edo/Models/Trees/Tsuru_Teika_02.fbx	Tsuru_Teika_02	Edo	fbx	0.52	3.73	0.81	0	1	998	1	URP	-	-0.16	0.01	0.42	0.5:0
 Assets/Edo/Models/Tsuijibei/Tsuijibei2m.fbx	Tsuijibei2m	Edo	fbx	2	2.57	2.1	0	1	1084	1	URP	-
 Assets/Edo/Prefabs/KasugaLantern.prefab	KasugaLantern	Edo	prefab	0.74	1.89	0.64	0	1	328	1	URP	B
 Assets/Edo/Prefabs/Machiya.prefab	Machiya	Edo	prefab	0	0	0	0	1	0	1	URP	-
@@ -434,9 +700,9 @@ Assets/Edo/Prefabs/Scene/Edo_Daichi_Nagaicho.prefab	Edo_Daichi_Nagaicho	Edo	pref
 Assets/Edo/Prefabs/Scene/Edo_Daichi_Seiryuji.prefab	Edo_Daichi_Seiryuji	Edo	prefab	75.8	8.25	64.95	8.68	1	225405	336	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Hikeshi_Koide.prefab	Edo_Hikeshi_Koide	Edo	prefab	86.53	15.81	111.49	27.28	1	863054	1759	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Hoshiba.prefab	Edo_Hoshiba	Edo	prefab	297.82	9.42	566.95	6.84	1	114816	2190	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Jomanji.prefab	Edo_Jomanji	Edo	prefab	39.3	7.67	37.84	8.91	1	341348	1492	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Jomanji.prefab	Edo_Jomanji	Edo	prefab	39.3	7.67	37.84	8.91	1	341356	1492	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Monzen_Nebutocho.prefab	Edo_Monzen_Nebutocho	Edo	prefab	31.26	5.33	52.91	28.82	1	120250	142	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Oomatoba.prefab	Edo_Oomatoba	Edo	prefab	58.85	3	33.42	7.37	1	10936	127	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Oomatoba.prefab	Edo_Oomatoba	Edo	prefab	58.85	3	33.42	7.37	1	10952	127	URP	S
 Assets/Edo/Prefabs/Scene/Edo_SannoBo_Chijoin.prefab	Edo_SannoBo_Chijoin	Edo	prefab	58.39	17.02	78.68	7.83	1	254606	320	URP	S
 Assets/Edo/Prefabs/Scene/Edo_SannoBo_Chikoin.prefab	Edo_SannoBo_Chikoin	Edo	prefab	37.52	16.64	44.01	8.23	1	117573	270	URP	S
 Assets/Edo/Prefabs/Scene/Edo_SannoBo_Chomyoin.prefab	Edo_SannoBo_Chomyoin	Edo	prefab	32.23	16.77	56.38	8.36	1	182693	308	URP	S
@@ -450,7 +716,7 @@ Assets/Edo/Prefabs/Scene/Edo_SannoBo_Muryoin.prefab	Edo_SannoBo_Muryoin	Edo	pref
 Assets/Edo/Prefabs/Scene/Edo_Sanno_JugeYashiki.prefab	Edo_Sanno_JugeYashiki	Edo	prefab	141.34	17.35	38.04	10.58	1	554501	1714	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Sanno_Kanriin.prefab	Edo_Sanno_Kanriin	Edo	prefab	46.73	20.51	156.99	9.45	1	1093667	3138	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Sanno_Monzencho.prefab	Edo_Sanno_Monzencho	Edo	prefab	240.19	23.06	76.56	9.88	1	782646	642	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Sanno_Sha.prefab	Edo_Sanno_Sha	Edo	prefab	325.45	37.75	243.18	8.15	1	12394701	3742	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Sanno_Sha.prefab	Edo_Sanno_Sha	Edo	prefab	302.1	39.24	229.17	9.06	1	2223396	1222	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Sanno_Shanin8.prefab	Edo_Sanno_Shanin8	Edo	prefab	31.01	19.41	150.5	8.34	1	365817	1354	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Shinmachi_1.prefab	Edo_Shinmachi_1	Edo	prefab	78.92	9.39	92.31	9.3	1	483426	891	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Shinmachi_2.prefab	Edo_Shinmachi_2	Edo	prefab	81.95	8.38	64.32	9.28	1	386301	487	URP	S
@@ -467,92 +733,92 @@ Assets/Edo/Prefabs/Scene/Edo_Temple_Chosenji.prefab	Edo_Temple_Chosenji	Edo	pref
 Assets/Edo/Prefabs/Scene/Edo_Temple_Yosenji.prefab	Edo_Temple_Yosenji	Edo	prefab	80.19	16.56	73.2	27.54	1	629106	1918	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Toranomon.prefab	Edo_Toranomon	Edo	prefab	67.63	22.44	82.9	1	1	553746	1791	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Tsujibansho.prefab	Edo_Tsujibansho	Edo	prefab	344.95	14.79	116.38	6.77	1	20460	42	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_azukarichi_gr.prefab	Edo_Typo_azukarichi_gr	Edo	prefab	287.27	6.32	262.31	5.85	1	1544752	5240	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_azukarichi_gr.prefab	Edo_Typo_azukarichi_gr	Edo	prefab	286.74	5.13	261.78	5.46	1	22264	92	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Typo_azukarichi_pu.prefab	Edo_Typo_azukarichi_pu	Edo	prefab	343.9	4.91	159.41	6.39	1	1544752	5240	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_azukarichi_w1.prefab	Edo_Typo_azukarichi_w1	Edo	prefab	73.81	3.27	76.43	7.37	1	412720	1400	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_azukarichi_w1.prefab	Edo_Typo_azukarichi_w1	Edo	prefab	0	0	0	0	1	0	0	-	S
 Assets/Edo/Prefabs/Scene/Edo_Typo_azukarichi_w2.prefab	Edo_Typo_azukarichi_w2	Edo	prefab	33.24	3.11	58.27	7.69	1	271216	920	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Typo_azukarichi_w3.prefab	Edo_Typo_azukarichi_w3	Edo	prefab	21.62	3.1	27.02	7.83	1	147400	500	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Typo_azukarichi_w5.prefab	Edo_Typo_azukarichi_w5	Edo	prefab	25.81	3.48	24.26	8.83	1	153296	520	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_azukarichi_yl.prefab	Edo_Typo_azukarichi_yl	Edo	prefab	59.61	3.29	34.4	7.12	1	277112	940	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_daichikita_jm.prefab	Edo_Typo_daichikita_jm	Edo	prefab	39.3	7.87	37.84	9.04	1	239950	889	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_daichikita_r1.prefab	Edo_Typo_daichikita_r1	Edo	prefab	41.37	3.98	76.76	8.29	1	469009	1259	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_daichikita_r2.prefab	Edo_Typo_daichikita_r2	Edo	prefab	28.9	4.46	42.48	8.2	1	245650	776	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_daichikita_y1.prefab	Edo_Typo_daichikita_y1	Edo	prefab	43.75	4.08	76.11	8.19	1	474905	1279	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_daichikita_y2.prefab	Edo_Typo_daichikita_y2	Edo	prefab	49.33	4.19	96.66	8.54	1	456562	1508	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_daichi_nagaichopoly.prefab	Edo_Typo_daichi_nagaichopoly	Edo	prefab	114.56	4.23	93.17	8.99	1	426033	1112	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_daichi_seiryujipoly.prefab	Edo_Typo_daichi_seiryujipoly	Edo	prefab	75.16	4.85	67.16	8.43	1	429079	1322	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_matsudaira_yamato.prefab	Edo_Typo_matsudaira_yamato	Edo	prefab	253	27.18	240.98	7.52	1	1698110	6205	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_azukarichi_yl.prefab	Edo_Typo_azukarichi_yl	Edo	prefab	58.6	2.03	33.4	7.16	1	70800	40	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_daichikita_jm.prefab	Edo_Typo_daichikita_jm	Edo	prefab	39.15	7.56	37.7	9.03	1	67105	249	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_daichikita_r1.prefab	Edo_Typo_daichikita_r1	Edo	prefab	40.98	4.88	76.76	8.45	1	383887	849	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_daichikita_r2.prefab	Edo_Typo_daichikita_r2	Edo	prefab	28.52	5.39	42.48	8.2	1	230356	496	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_daichikita_y1.prefab	Edo_Typo_daichikita_y1	Edo	prefab	43.32	5.12	76.11	8.21	1	445169	872	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_daichikita_y2.prefab	Edo_Typo_daichikita_y2	Edo	prefab	48.88	5.25	96.66	8.57	1	472820	1026	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_daichi_nagaichopoly.prefab	Edo_Typo_daichi_nagaichopoly	Edo	prefab	114.56	6.79	93.08	9.12	1	394441	568	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_daichi_seiryujipoly.prefab	Edo_Typo_daichi_seiryujipoly	Edo	prefab	75.16	6.97	67.05	8.44	1	436688	1013	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_matsudaira_yamato.prefab	Edo_Typo_matsudaira_yamato	Edo	prefab	253	34.87	240.98	7.53	1	3209399	6302	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Typo_naito_azukari.prefab	Edo_Typo_naito_azukari	Edo	prefab	41.7	15.89	76.64	8.28	1	371448	1260	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_nishitameike_estates_0.prefab	Edo_Typo_nishitameike_estates_0	Edo	prefab	64.49	12.16	137.37	7.82	1	674319	2194	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_nishitameike_estates_1.prefab	Edo_Typo_nishitameike_estates_1	Edo	prefab	117.09	13.12	84.15	7.64	1	676115	2285	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_nishitameike_estates_2.prefab	Edo_Typo_nishitameike_estates_2	Edo	prefab	149.1	25.06	174.98	9.63	1	1279632	2185	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_nishitameike_estates_3.prefab	Edo_Typo_nishitameike_estates_3	Edo	prefab	144.32	15.83	131.92	9.56	1	919280	1978	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezakanishi_matsu.prefab	Edo_Typo_sanbezakanishi_matsu	Edo	prefab	121.19	15.61	84.94	23.18	1	871769	2953	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezakanishi_torii.prefab	Edo_Typo_sanbezakanishi_torii	Edo	prefab	173.66	12.46	105.5	28	1	1046750	2044	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezakanishi_watanabe.prefab	Edo_Typo_sanbezakanishi_watanabe	Edo	prefab	144.66	23.15	115.37	12.65	1	805498	1826	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezaka_abe.prefab	Edo_Typo_sanbezaka_abe	Edo	prefab	157.36	23.12	151.91	10.94	1	1400210	2340	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezaka_goto.prefab	Edo_Typo_sanbezaka_goto	Edo	prefab	213.64	22.14	82.18	11.46	1	1284039	4528	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezaka_katsuta.prefab	Edo_Typo_sanbezaka_katsuta	Edo	prefab	75.95	14.67	80.77	25.31	1	477807	1737	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezaka_ooka.prefab	Edo_Typo_sanbezaka_ooka	Edo	prefab	83.07	14.19	52.75	25.37	1	574553	2164	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezaka_w1.prefab	Edo_Typo_sanbezaka_w1	Edo	prefab	35.38	7.56	29.3	28.4	1	143549	639	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezaka_w2.prefab	Edo_Typo_sanbezaka_w2	Edo	prefab	50.98	7.99	57.76	28.07	1	324657	1336	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezaka_w3.prefab	Edo_Typo_sanbezaka_w3	Edo	prefab	28.07	7.84	38.84	28.14	1	155341	679	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezaka_w4.prefab	Edo_Typo_sanbezaka_w4	Edo	prefab	27.13	7.72	49.72	28.17	1	194945	896	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezaka_w5.prefab	Edo_Typo_sanbezaka_w5	Edo	prefab	43.5	9.16	51.9	26.58	1	341259	1388	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezaka_w6.prefab	Edo_Typo_sanbezaka_w6	Edo	prefab	39.38	10.28	51.35	25.57	1	235131	1028	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sannobuke_juge.prefab	Edo_Typo_sannobuke_juge	Edo	prefab	161.71	17.29	46.14	9.92	1	406115	1608	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sannobuke_naito.prefab	Edo_Typo_sannobuke_naito	Edo	prefab	276.8	26.69	163.25	8.75	1	1379974	2323	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sannobuke_shanin.prefab	Edo_Typo_sannobuke_shanin	Edo	prefab	19.9	16.82	141.28	8.07	1	421254	2060	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sannojubo_parcels_0.prefab	Edo_Typo_sannojubo_parcels_0	Edo	prefab	27.59	9.25	69.78	7.41	1	435595	1708	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sannojubo_parcels_1.prefab	Edo_Typo_sannojubo_parcels_1	Edo	prefab	26	9.15	65.39	7.41	1	238864	881	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sannojubo_parcels_2.prefab	Edo_Typo_sannojubo_parcels_2	Edo	prefab	25.19	9.28	59.31	7.1	1	221176	821	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sannojubo_parcels_3.prefab	Edo_Typo_sannojubo_parcels_3	Edo	prefab	32.99	8.85	55	7.26	1	242113	1056	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sannojubo_parcels_4.prefab	Edo_Typo_sannojubo_parcels_4	Edo	prefab	35.05	8.54	49.17	7.22	1	196613	819	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sannojubo_parcels_5.prefab	Edo_Typo_sannojubo_parcels_5	Edo	prefab	35.23	8.51	44.63	7.26	1	178925	759	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sannojubo_parcels_6.prefab	Edo_Typo_sannojubo_parcels_6	Edo	prefab	35.2	9.04	42.74	7.35	1	157406	609	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sannojubo_parcels_7.prefab	Edo_Typo_sannojubo_parcels_7	Edo	prefab	42.15	8.98	42.28	8.06	1	202509	839	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sannojubo_parcels_8.prefab	Edo_Typo_sannojubo_parcels_8	Edo	prefab	61.17	16.05	78.01	7.02	1	406115	1608	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sannojubo_parcels_9.prefab	Edo_Typo_sannojubo_parcels_9	Edo	prefab	77.73	18.44	125.61	7.18	1	578767	2111	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sannosha_kanri.prefab	Edo_Typo_sannosha_kanri	Edo	prefab	43.1	11.96	174.5	9.24	1	904670	3488	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sanno_monzen_1.prefab	Edo_Typo_sanno_monzen_1	Edo	prefab	35.8	7.89	57.63	9.73	1	306474	1032	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sanno_monzen_2.prefab	Edo_Typo_sanno_monzen_2	Edo	prefab	31.58	5.35	72.39	10.54	1	182658	612	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sanno_monzen_3.prefab	Edo_Typo_sanno_monzen_3	Edo	prefab	103.21	8.58	7.55	23.01	1	212138	712	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_sanno_monzen_4.prefab	Edo_Typo_sanno_monzen_4	Edo	prefab	104.56	7.62	6.95	24.05	1	430290	1452	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_shinmachi_cy.prefab	Edo_Typo_shinmachi_cy	Edo	prefab	82.32	7.54	123.59	9.83	1	734329	2159	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_shinmachi_gr.prefab	Edo_Typo_shinmachi_gr	Edo	prefab	80.84	5.95	99.04	8.75	1	681265	1979	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_shinmachi_pu.prefab	Edo_Typo_shinmachi_pu	Edo	prefab	84.69	4.84	86.04	8.92	1	545657	1519	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_shinmachi_ra.prefab	Edo_Typo_shinmachi_ra	Edo	prefab	80.86	6.11	47.78	9.46	1	510281	1399	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_shinmachi_rb.prefab	Edo_Typo_shinmachi_rb	Edo	prefab	55	5.58	63.64	9.27	1	474905	1279	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_shinmachi_rc.prefab	Edo_Typo_shinmachi_rc	Edo	prefab	54.6	4.83	59.81	11.38	1	451321	1199	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_shinmachi_ye.prefab	Edo_Typo_shinmachi_ye	Edo	prefab	57.85	5.74	44.62	9.2	1	333401	799	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_tamachi5east_azukaripoly.prefab	Edo_Typo_tamachi5east_azukaripoly	Edo	prefab	32.78	3.1	40.76	9.29	1	206360	700	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_nishitameike_estates_0.prefab	Edo_Typo_nishitameike_estates_0	Edo	prefab	64.49	12.14	137.37	7.83	1	1095301	2396	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_nishitameike_estates_1.prefab	Edo_Typo_nishitameike_estates_1	Edo	prefab	117.09	14.48	84.15	7.62	1	1170614	2534	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_nishitameike_estates_2.prefab	Edo_Typo_nishitameike_estates_2	Edo	prefab	149.1	26.75	174.98	9.26	1	2100236	2023	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_nishitameike_estates_3.prefab	Edo_Typo_nishitameike_estates_3	Edo	prefab	144.32	19.45	131.92	9.58	1	1724473	1845	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezakanishi_matsu.prefab	Edo_Typo_sanbezakanishi_matsu	Edo	prefab	121.19	15.66	84.94	23.25	1	1436379	3200	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezakanishi_torii.prefab	Edo_Typo_sanbezakanishi_torii	Edo	prefab	173.66	15.96	105.5	26.94	1	1927261	2464	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezakanishi_watanabe.prefab	Edo_Typo_sanbezakanishi_watanabe	Edo	prefab	144.61	29	115.09	11.02	1	1573412	1657	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezaka_abe.prefab	Edo_Typo_sanbezaka_abe	Edo	prefab	157.36	31.56	151.91	10.92	1	2293660	2765	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezaka_goto.prefab	Edo_Typo_sanbezaka_goto	Edo	prefab	213.64	30.89	82.18	11.56	1	2126226	4818	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezaka_katsuta.prefab	Edo_Typo_sanbezaka_katsuta	Edo	prefab	75.95	14.69	80.77	25.31	1	937166	1993	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezaka_ooka.prefab	Edo_Typo_sanbezaka_ooka	Edo	prefab	83.07	14.16	52.75	25.37	1	976203	2354	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezaka_w1.prefab	Edo_Typo_sanbezaka_w1	Edo	prefab	35.2	7.9	29.3	28.14	1	220221	679	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezaka_w2.prefab	Edo_Typo_sanbezaka_w2	Edo	prefab	50.98	7.99	62.67	28.07	1	462373	1404	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezaka_w3.prefab	Edo_Typo_sanbezaka_w3	Edo	prefab	28.07	7.84	38.84	28.14	1	230389	716	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezaka_w4.prefab	Edo_Typo_sanbezaka_w4	Edo	prefab	27.13	7.73	49.72	28.17	1	287227	948	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezaka_w5.prefab	Edo_Typo_sanbezaka_w5	Edo	prefab	43.5	9.16	51.9	26.58	1	481341	1459	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sanbezaka_w6.prefab	Edo_Typo_sanbezaka_w6	Edo	prefab	39.38	10.26	51.35	25.58	1	345503	1095	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sannobuke_juge.prefab	Edo_Typo_sannobuke_juge	Edo	prefab	161.71	18.22	46.14	9.93	1	387569	1308	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sannobuke_naito.prefab	Edo_Typo_sannobuke_naito	Edo	prefab	276.8	30.9	163.38	8.45	1	3045977	2556	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sannobuke_shanin.prefab	Edo_Typo_sannobuke_shanin	Edo	prefab	28.41	15.02	141.28	8.07	1	397952	1513	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sannojubo_parcels_0.prefab	Edo_Typo_sannojubo_parcels_0	Edo	prefab	27.59	7.36	69.78	7.46	1	863967	1538	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sannojubo_parcels_1.prefab	Edo_Typo_sannojubo_parcels_1	Edo	prefab	26	6.98	65.39	7.34	1	503303	914	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sannojubo_parcels_2.prefab	Edo_Typo_sannojubo_parcels_2	Edo	prefab	25.52	7.12	59.31	7.18	1	457031	842	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sannojubo_parcels_3.prefab	Edo_Typo_sannojubo_parcels_3	Edo	prefab	32.99	6.96	55	7.27	1	451135	822	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sannojubo_parcels_4.prefab	Edo_Typo_sannojubo_parcels_4	Edo	prefab	35.05	7.17	49.17	7.24	1	425051	776	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sannojubo_parcels_5.prefab	Edo_Typo_sannojubo_parcels_5	Edo	prefab	35.23	7.18	44.63	7.28	1	378779	704	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sannojubo_parcels_6.prefab	Edo_Typo_sannojubo_parcels_6	Edo	prefab	35.2	7.65	42.74	7.46	1	349063	674	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sannojubo_parcels_7.prefab	Edo_Typo_sannojubo_parcels_7	Edo	prefab	42.15	8.32	42.28	7.43	1	404863	750	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sannojubo_parcels_8.prefab	Edo_Typo_sannojubo_parcels_8	Edo	prefab	61.17	15.24	78.01	7.3	1	778885	1386	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sannojubo_parcels_9.prefab	Edo_Typo_sannojubo_parcels_9	Edo	prefab	77.73	18.24	125.61	7.14	1	1275055	2234	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sannosha_kanri.prefab	Edo_Typo_sannosha_kanri	Edo	prefab	43.1	10.1	174.5	9.24	1	858722	2881	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sanno_monzen_1.prefab	Edo_Typo_sanno_monzen_1	Edo	prefab	33.99	7.77	57.07	9.74	1	352264	638	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sanno_monzen_2.prefab	Edo_Typo_sanno_monzen_2	Edo	prefab	31.58	7.05	72.39	10.6	1	285706	196	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sanno_monzen_3.prefab	Edo_Typo_sanno_monzen_3	Edo	prefab	101.4	8.99	6.78	23.64	1	246778	548	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_sanno_monzen_4.prefab	Edo_Typo_sanno_monzen_4	Edo	prefab	103.93	7.2	6.4	25.59	1	453138	1248	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_shinmachi_cy.prefab	Edo_Typo_shinmachi_cy	Edo	prefab	81.98	7.37	123.59	9.98	1	898183	1634	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_shinmachi_gr.prefab	Edo_Typo_shinmachi_gr	Edo	prefab	80.39	7.72	99.04	8.75	1	766436	1458	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_shinmachi_pu.prefab	Edo_Typo_shinmachi_pu	Edo	prefab	84.27	5.12	85.69	9.03	1	594323	1115	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_shinmachi_ra.prefab	Edo_Typo_shinmachi_ra	Edo	prefab	75.23	7.01	47.41	9.46	1	386493	691	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_shinmachi_rb.prefab	Edo_Typo_shinmachi_rb	Edo	prefab	54	6.6	63.21	9.45	1	431816	714	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_shinmachi_rc.prefab	Edo_Typo_shinmachi_rc	Edo	prefab	53.82	5.67	59.69	11.72	1	407749	753	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_shinmachi_ye.prefab	Edo_Typo_shinmachi_ye	Edo	prefab	57.85	7.41	44.25	9.18	1	327562	592	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_tamachi5east_azukaripoly.prefab	Edo_Typo_tamachi5east_azukaripoly	Edo	prefab	32.08	2.01	40.19	8.86	1	15582	60	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Typo_tamachi5east_horiguchipoly.prefab	Edo_Typo_tamachi5east_horiguchipoly	Edo	prefab	26.89	7.58	31.25	9.18	1	157406	609	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_tamachi5east_kaishopoly.prefab	Edo_Typo_tamachi5east_kaishopoly	Edo	prefab	72.68	5.45	81.15	7.78	1	290130	960	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_tamachi5east_machiyapoly.prefab	Edo_Typo_tamachi5east_machiyapoly	Edo	prefab	29.8	4.12	38.36	9.28	1	94218	312	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_tamachi_chos_0.prefab	Edo_Typo_tamachi_chos_0	Edo	prefab	89.8	4.83	145.66	8.4	1	828665	2479	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_tamachi_chos_1.prefab	Edo_Typo_tamachi_chos_1	Edo	prefab	71.01	4.52	119.38	8.47	1	860277	2136	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_tamachi_chos_2.prefab	Edo_Typo_tamachi_chos_2	Edo	prefab	70.8	4.28	115.56	8.92	1	796632	2046	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_tamachi_chos_3.prefab	Edo_Typo_tamachi_chos_3	Edo	prefab	76.63	4.25	127.51	8.74	1	761254	2141	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_tamachi_chos_4.prefab	Edo_Typo_tamachi_chos_4	Edo	prefab	65.71	5.34	121.27	9.25	1	681265	1979	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_tameikekita_estates_0.prefab	Edo_Typo_tameikekita_estates_0	Edo	prefab	362.37	20.41	447.38	8.79	1	2983782	3454	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_tameikekita_estates_1.prefab	Edo_Typo_tameikekita_estates_1	Edo	prefab	118.18	14.81	137.73	17.45	1	726928	1793	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_tameikekita_estates_2.prefab	Edo_Typo_tameikekita_estates_2	Edo	prefab	116.84	18.79	156.69	10.5	1	723998	1771	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_todablock_parcels_0.prefab	Edo_Typo_todablock_parcels_0	Edo	prefab	293.33	24.05	228.22	10.35	1	1877882	2662	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_tamachi5east_kaishopoly.prefab	Edo_Typo_tamachi5east_kaishopoly	Edo	prefab	72.68	5.44	81.15	7.8	1	276994	932	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_tamachi5east_machiyapoly.prefab	Edo_Typo_tamachi5east_machiyapoly	Edo	prefab	29.26	5.03	41.18	9.37	1	142372	226	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_tamachi_chos_0.prefab	Edo_Typo_tamachi_chos_0	Edo	prefab	89.08	6.38	145.66	8.43	1	1141105	1270	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_tamachi_chos_1.prefab	Edo_Typo_tamachi_chos_1	Edo	prefab	70.66	6.8	119.38	8.46	1	877193	1486	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_tamachi_chos_2.prefab	Edo_Typo_tamachi_chos_2	Edo	prefab	70.44	5.34	115.56	8.93	1	856038	1439	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_tamachi_chos_3.prefab	Edo_Typo_tamachi_chos_3	Edo	prefab	76.3	7.21	127.51	8.75	1	917397	1564	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_tamachi_chos_4.prefab	Edo_Typo_tamachi_chos_4	Edo	prefab	65.41	6.75	121.27	9.24	1	831777	1414	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_tameikekita_estates_0.prefab	Edo_Typo_tameikekita_estates_0	Edo	prefab	362.37	26.82	447.38	8.79	1	5177687	3814	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_tameikekita_estates_1.prefab	Edo_Typo_tameikekita_estates_1	Edo	prefab	138.07	17.24	137.73	17.4	1	1636800	2225	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_tameikekita_estates_2.prefab	Edo_Typo_tameikekita_estates_2	Edo	prefab	144.37	22.48	156.69	10.48	1	1606132	1793	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_todablock_parcels_0.prefab	Edo_Typo_todablock_parcels_0	Edo	prefab	293.33	29.3	228.22	10.19	1	3680589	3126	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Typo_todablock_parcels_1.prefab	Edo_Typo_todablock_parcels_1	Edo	prefab	90.73	11.77	118.8	26.12	1	562145	2062	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_todablock_parcels_2.prefab	Edo_Typo_todablock_parcels_2	Edo	prefab	95.06	22.19	92.89	11.32	1	424399	1733	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_todablock_parcels_3.prefab	Edo_Typo_todablock_parcels_3	Edo	prefab	77.1	12.55	69.98	27.56	1	204132	1116	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_todablock_parcels_4.prefab	Edo_Typo_todablock_parcels_4	Edo	prefab	85.64	11.67	58.51	28.86	1	327948	1536	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_toranomonuchi_parcels_0.prefab	Edo_Typo_toranomonuchi_parcels_0	Edo	prefab	247.1	18.42	269.41	7.19	1	1953122	2781	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_toranomonuchi_parcels_1.prefab	Edo_Typo_toranomonuchi_parcels_1	Edo	prefab	51.14	12.26	51.84	6.96	1	266884	965	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_toranomonuchi_parcels_2.prefab	Edo_Typo_toranomonuchi_parcels_2	Edo	prefab	66.09	10.98	57.73	11.74	1	323571	1328	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Typo_toranomonuchi_parcels_3.prefab	Edo_Typo_toranomonuchi_parcels_3	Edo	prefab	53.24	8.12	49.25	10.9	1	242627	1021	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_todablock_parcels_2.prefab	Edo_Typo_todablock_parcels_2	Edo	prefab	95.05	25.9	92.89	11.22	1	845855	1929	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_todablock_parcels_3.prefab	Edo_Typo_todablock_parcels_3	Edo	prefab	75.92	15.74	86.84	24.16	1	276558	1301	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_todablock_parcels_4.prefab	Edo_Typo_todablock_parcels_4	Edo	prefab	85.64	8.03	53.19	28.6	1	289905	946	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_toranomonuchi_parcels_0.prefab	Edo_Typo_toranomonuchi_parcels_0	Edo	prefab	247.1	21.14	269.41	7.17	1	3778923	4562	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_toranomonuchi_parcels_1.prefab	Edo_Typo_toranomonuchi_parcels_1	Edo	prefab	57.96	13.31	51.84	6.68	1	450217	1099	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_toranomonuchi_parcels_2.prefab	Edo_Typo_toranomonuchi_parcels_2	Edo	prefab	66.09	10.94	57.72	11.71	1	462332	1396	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Typo_toranomonuchi_parcels_3.prefab	Edo_Typo_toranomonuchi_parcels_3	Edo	prefab	53.24	8.53	49.25	10.51	1	356660	1091	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Yashiki_DoiOsumi.prefab	Edo_Yashiki_DoiOsumi	Edo	prefab	168.29	24.09	106.82	11.9	1	1483670	4962	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Yashiki_Kano.prefab	Edo_Yashiki_Kano	Edo	prefab	123.03	15.86	94.95	10.26	1	1195299	3399	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Yashiki_KyogokuBitchu.prefab	Edo_Yashiki_KyogokuBitchu	Edo	prefab	173.81	25.96	122.36	13.63	1	567460	1282	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Yashiki_Matsudaira.prefab	Edo_Yashiki_Matsudaira	Edo	prefab	239.39	22.16	201.4	5.5	1	2633496	8250	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Yashiki_MatsudairaDewa.prefab	Edo_Yashiki_MatsudairaDewa	Edo	prefab	289.45	31.78	264.92	6.68	1	8557071	16478	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Yashiki_NiwaSakyo.prefab	Edo_Yashiki_NiwaSakyo	Edo	prefab	248.39	31.54	206.38	9.23	1	2349123	6779	URP	S
-Assets/Edo/Prefabs/Scene/Edo_Yashiki_OkabeChikuzen.prefab	Edo_Yashiki_OkabeChikuzen	Edo	prefab	328.99	35.38	159.27	5.3	1	8149901	13076	URP	S
+Assets/Edo/Prefabs/Scene/Edo_Yashiki_OkabeChikuzen.prefab	Edo_Yashiki_OkabeChikuzen	Edo	prefab	326.94	35.38	156.55	5.3	1	8134311	13016	URP	S
 Assets/Edo/Prefabs/Scene/Edo_Yashiki_Ota.prefab	Edo_Yashiki_Ota	Edo	prefab	94.11	15.64	82.81	5.5	1	695973	1400	URP	S
 Assets/Edo/Prefabs/Scene/Ishigaki_Sotobori.prefab	Ishigaki_Sotobori	Edo	prefab	940.24	8.48	352.1	0	1	58200	882	URP	S
 Assets/Edo/Prefabs/Scene/Parts/Edo_Yashiki_DoiOsumi__Buildings.prefab	Edo_Yashiki_DoiOsumi__Buildings	Edo	prefab	144.74	15.88	79.82	17.9	1	579068	3175	URP	-
@@ -576,7 +842,7 @@ Assets/Edo/Prefabs/Scene/Parts/Edo_Yashiki_OkabeChikuzen__Garden_v3.prefab	Edo_Y
 Assets/Edo/Prefabs/Scene/Parts/Edo_Yashiki_OkabeChikuzen__Ishidan_v3.prefab	Edo_Yashiki_OkabeChikuzen__Ishidan_v3	Edo	prefab	194.37	17.66	47.78	11.01	1	70370	203	URP	-
 Assets/Edo/Prefabs/Scene/Parts/Edo_Yashiki_OkabeChikuzen__Ishigaki.prefab	Edo_Yashiki_OkabeChikuzen__Ishigaki	Edo	prefab	279.05	20.26	139.22	7.86	1	31944	484	URP	-
 Assets/Edo/Prefabs/Scene/Parts/Edo_Yashiki_OkabeChikuzen__KachuNagaya_v3.prefab	Edo_Yashiki_OkabeChikuzen__KachuNagaya_v3	Edo	prefab	31.05	11.51	88.03	17.91	1	406752	284	URP	-
-Assets/Edo/Prefabs/Scene/Parts/Edo_Yashiki_OkabeChikuzen__Kakoi.prefab	Edo_Yashiki_OkabeChikuzen__Kakoi	Edo	prefab	281.23	19.9	142.58	10.76	1	1589288	4591	URP	-
+Assets/Edo/Prefabs/Scene/Parts/Edo_Yashiki_OkabeChikuzen__Kakoi.prefab	Edo_Yashiki_OkabeChikuzen__Kakoi	Edo	prefab	279.17	19.9	139.86	10.76	1	1573698	4531	URP	-
 Assets/Edo/Prefabs/Scene/Parts/Edo_Yashiki_OkabeChikuzen__Mon.prefab	Edo_Yashiki_OkabeChikuzen__Mon	Edo	prefab	5.13	3.86	3.75	15.8	1	1976	1	URP	-
 Assets/Edo/Prefabs/Scene/Parts/Edo_Yashiki_OkabeChikuzen__Nishi.prefab	Edo_Yashiki_OkabeChikuzen__Nishi	Edo	prefab	130.72	33.81	104	5.3	1	3088625	1366	URP	-
 Assets/Edo/Prefabs/Scene/Parts/Edo_Yashiki_OkabeChikuzen__Niwa.prefab	Edo_Yashiki_OkabeChikuzen__Niwa	Edo	prefab	168.97	14.88	68.81	11.52	1	85626	180	URP	-

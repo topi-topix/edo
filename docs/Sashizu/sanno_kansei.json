@@ -1,7 +1,7 @@
 {
  "_": "完成条件の表(2026-09-19 施主裁定3=A)。全部 pass で完成。以後の指摘は掲示板へ積み、指図は開かない。値は普請検査の実測、render だけは施主の発話の引用。見張りは python3 Tools/Sashizu/kansei_gate.py",
  "estate": "sanno",
- "phase": "built",
+ "phase": "done",
  "since": "2026-09-20",
  "items": {
   "gap": {
@@ -44,14 +44,14 @@
    "label": "レンダの施主承認",
    "what": "検証レンダ(真上・門の外・庭の目線)を施主が見て承認",
    "how": "施主の発話。⛔ 役は書けない — --quote に引用を入れる",
-   "value": null,
-   "verdict": null,
-   "at": null,
+   "value": "施主承認 2026-09-26 社叢の植え直し前後・前庭(https://claude.ai/artifact/Ubnb4YZBcN11mapCH4dTD4)",
+   "verdict": "pass",
+   "at": "2026-09-26",
    "note": "",
-   "quote": null
+   "quote": "意図通りです。409クローズしてください。"
   }
  },
- "completed": null,
+ "completed": "2026-09-26",
  "history": [
   {
    "at": "2026-09-20T12:09:04+09:00",
@@ -521,6 +521,12 @@
    "at": "2026-09-26T08:37:23+09:00",
    "event": "record",
    "item": "match",
+   "verdict": "pass"
+  },
+  {
+   "at": "2026-09-26T08:51:26+09:00",
+   "event": "record",
+   "item": "render",
    "verdict": "pass"
   }
  ]

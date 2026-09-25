@@ -491,4 +491,215 @@ public static partial class EdoBuild
         tr.position -= new Vector3(lowN.x, 0f, lowN.y) * edge;
         return -edge;
     }
+
+    // ============================================================ 一直線の継ぎ目・二段築の下段(2026-09-25・EDO-0430)
+    /// <summary>**run の端 <paramref name="end"/> の先へ、別の区間(<paramref name="others"/> の [a, b])が一直線に続くか**を測る。
+    /// <paramref name="away"/> = 端から run の外へ向かう走り。続く区間の片方の端が <paramref name="end"/> に重なり(<paramref name="tolM"/>)、
+    /// もう片方の端が <paramref name="away"/> の向き(<paramref name="tolDeg"/> 以内)に在れば true。
+    /// ⭐ 一直線に続く端は「隅へ続く端」ではなく「次のスパンへ続く端」── 端の型を c(隅部材が受ける・柱なし)で閉じると
+    /// 隅部材の立たない継ぎ目に口が開く(山王 透塀の段の境 4 箇所に 0.18m の口・柱なし ── 段を無くした 2026-09-25 に一直線の継ぎ目になった)。
+    /// 当たる先: run を区間に割って据える塀・透塀・柵の全て(山王 透塀 Sukibei_* 12 本。各邸の塀の run が一直線で継ぐ所)。</summary>
+    public static bool ContinuesStraight(Vector2 end, Vector2 away, IList<Vector2[]> others, float tolM = 0.05f, float tolDeg = 1f)
+    {
+        foreach (var o in others)
+        {
+            if (o == null || o.Length < 2) continue;
+            Vector2 near, far;
+            if (Vector2.Distance(o[0], end) < tolM) { near = o[0]; far = o[o.Length - 1]; }
+            else if (Vector2.Distance(o[o.Length - 1], end) < tolM) { near = o[o.Length - 1]; far = o[0]; }
+            else continue;
+            Vector2 d = far - near; if (d.sqrMagnitude < 1e-6f) continue;
+            if (Vector2.Angle(d, away) <= tolDeg) return true;
+        }
+        return false;
+    }
+
+    // 下段の走りの標本 keep が、角の点 corner に当たる端(最初か最後)で残っているか
+    static bool CornerKept(bool[] keep, TierUpper u, Vector2 corner)
+    {
+        // 端のどちらが角か: 上段の a に近い端 = 標本の 0
+        bool atA = Vector2.Distance(u.a, corner) < Vector2.Distance(u.b, corner);
+        return atA ? keep[0] : keep[keep.Length - 1];
+    }
+    /// <summary>二段築の上段の区間ひとつ ── 据わった上段の駒(<c>pieces</c>)と区間の線 [a, b](天端の前の縁の線)・見え面の外向き。</summary>
+    public struct TierUpper { public string run; public Vector2 a, b, outw; public List<GameObject> pieces; }
+
+    /// <summary>**石垣の駒の控え** = 天端の前の縁(天端の帯 <paramref name="band"/> の外向きへの射影の最大)− 背(全頂点の射影の最小)[m]。
+    /// ⛔ 定数で持たない(部材を替えた瞬間に段の取り合いが破れる)。</summary>
+    public static float CrestToBack(GameObject piece, Vector2 outw, float band = 0.15f)
+    {
+        var vs = Body(piece.transform, 999999); if (vs.Count == 0) return float.NaN;
+        float top = float.MinValue; foreach (var v in vs) top = Mathf.Max(top, v.y);
+        float front = float.MinValue, back = float.MaxValue;
+        foreach (var v in vs)
+        {
+            float d = v.x * outw.x + v.z * outw.y;
+            back = Mathf.Min(back, d); if (v.y >= top - band) front = Mathf.Max(front, d);
+        }
+        return front - back;
+    }
+
+    /// <summary>**二段築の下段を、据わった上段の駒の実メッシュから測って据える**(指図 `terraceWalls[].tierPlan`・2026-09-25・EDO-0430)。
+    /// <para>置き方の 4 手: ① 固定側 = 据わった上段。下段の天端 = 上段の駒の実測の底(載せ・隙 0)、下段の背 = 上段の天端の前の縁の線
+    /// (突き付け・隙 0)⇒ 下段の天端の前の縁の線 = 上段の線 + 駒の控え(<see cref="CrestToBack"/>・実メッシュで測る = `stepOut:"pieceDepth"`)。
+    /// 区間どうしが節点で折れる所は、控えだけ外へ出した二本の線の交点を下段の角にする(下段は折れ線として一続きに回る)。
+    /// ② 走り = 上段の底が見え面の側の地盤(<paramref name="groundAt"/>)より上に出る所(`lowerSpan:"upperFootExposed"`)、
+    /// 両端は下段の見え面の前の地盤が下段の天端に届く所(= 小口が地盤の下)まで延ばす。③ 駒は区間の端から端まで等しい送り
+    /// (<paramref name="runLen"/>・送りの上限 <paramref name="pitchMax"/>)で並べ、<see cref="FaceWallToLine"/> で天端の前の縁を線へ寄せ、
+    /// 天端を実測で上段の底へ合わせる ④ 事後に寄せない。出隅の隅の駒は呼び手が <see cref="PlaceRunCorners"/> に下段の端(<paramref name="endsOut"/>)を渡して据える。</para>
+    /// <para>硬い条件(許容0): 下段の底が見え面の前の地盤より上(浮き)なら ⚠ を刷る(駒の丈は変えない ── 丈の違う駒は部材の話)。
+    /// 当たる先: 石垣の二段築すべて(山王 回廊の基壇 TW_Kairo_E/N/W。各邸の高い石垣を段に割る所 ── スキル unity-modular-stonewall §3b)。</para></summary>
+    public static int PlaceTierBelow(IList<TierUpper> ups, string piecePath, float runLen, float pitchMax, float pieceH,
+                                     Func<float, float, float> groundAt, float probe, Transform parent, float eps,
+                                     List<RunEnd> endsOut, IDictionary<string, List<GameObject>> segOut,
+                                     IDictionary<GameObject, Vector2> faceOut, List<GameObject> made, System.Text.StringBuilder log)
+    {
+        // ① 控えと上段の底を実測
+        float D = float.NaN, dMin = float.MaxValue, dMax = float.MinValue, top = float.MaxValue, topHi = float.MinValue;
+        foreach (var u in ups)
+            foreach (var g in u.pieces)
+            {
+                if (g == null) continue;
+                // 見え面が外向きの駒だけで測る(駒ごとに低い側を測り直して裏へ向けた駒は、天端の前の縁が背に化ける)
+                if (Vector2.Dot(FaceSide(new List<GameObject> { g }, u.outw), u.outw) < 0f) continue;
+                float d = CrestToBack(g, u.outw); if (float.IsNaN(d)) continue;
+                dMin = Mathf.Min(dMin, d); dMax = Mathf.Max(dMax, d);
+                float lo = float.MaxValue; foreach (var v in Body(g.transform, 999999)) lo = Mathf.Min(lo, v.y);
+                top = Mathf.Min(top, lo); topHi = Mathf.Max(topHi, lo);
+            }
+        if (dMin == float.MaxValue) { log?.AppendLine("  ★ 二段築: 上段の駒が無い — 下段を据えない"); return 0; }
+        D = dMin;
+        log?.AppendLine("  二段築の下段: 駒の控え(実測)" + dMin.ToString("F3") + (dMax - dMin > 0.005f ? "〜" + dMax.ToString("F3") : "") +
+                        "m / 天端 = 上段の底(実測)" + top.ToString("F3") + (topHi - top > 0.005f ? "〜" + topHi.ToString("F3") + " ⚠ 上段の底が揃わない" : ""));
+        int n = 0;
+        // ② 走り: 下段の見え面の前(<paramref name="probe"/> 先 ── 2m 格子の地表が石垣の内の節点に引かれない所)の地盤が下段の天端より低い所。
+        //   上段のある走り(上段の区間の射影の内)で見つけ、角で相手の区間の下段が角まで来ていれば角から続ける。
+        //   両端は同じ地盤が天端に届く所(小口が地盤の下)まで。
+        var As = new Vector2[ups.Count]; var Bs = new Vector2[ups.Count]; var dirs = new Vector2[ups.Count];
+        var lows = new bool[ups.Count][]; var Ms = new int[ups.Count]; var lens = new float[ups.Count];
+        var nbA = new int[ups.Count]; var nbB = new int[ups.Count];
+        // 見え面の外向きは、上段の底より低い地盤がある側で測り直す(基壇は両側が同じ高さの所が長く、区間の低い側の票が割れる
+        //   ── 山王 TW_Kairo_W は 4 対 3 で内へ向き、下段が回廊の内へ出た)。票が無ければ渡された向きのまま。
+        for (int i = 0; i < ups.Count; i++)
+        {
+            var u = ups[i]; float l0 = Vector2.Distance(u.a, u.b); if (l0 < 1e-4f) continue;
+            Vector2 dd = (u.b - u.a) / l0, nr = new Vector2(dd.y, -dd.x); int vr = 0, vl = 0;
+            for (float s0 = 0.25f; s0 < l0; s0 += 0.5f)
+            {
+                Vector2 p = u.a + dd * s0; float off = D + probe;
+                float gR = groundAt(p.x + nr.x * off, p.y + nr.y * off), gL = groundAt(p.x - nr.x * off, p.y - nr.y * off);
+                if (float.IsNaN(gR) || float.IsNaN(gL) || Mathf.Min(gR, gL) >= top - eps || Mathf.Abs(gR - gL) <= eps) continue;
+                if (gR < gL) vr++; else vl++;
+            }
+            if (vr == 0 && vl == 0) continue;
+            Vector2 o = vr >= vl ? nr : -nr;
+            if (Vector2.Dot(o, u.outw) < 0f) { log?.AppendLine("  " + u.run + " の下段: 見え面の外向きを上段の底より低い地盤の側へ直した(" + Mathf.Max(vr, vl) + " 対 " + Mathf.Min(vr, vl) + ")"); u.outw = o; ups[i] = u; }
+        }
+        for (int i = 0; i < ups.Count; i++)
+        {
+            var u = ups[i]; nbA[i] = nbB[i] = -1;
+            float len0 = Vector2.Distance(u.a, u.b); if (len0 < 1e-4f) { lows[i] = null; continue; }
+            Vector2 dir = (u.b - u.a) / len0; dirs[i] = dir;
+            // 下段の線の端: 節点で折れる相手の区間があれば、二本の線を控えだけ外へ出した交点
+            Func<Vector2, bool, Vector2> endOf = (e, atA) =>
+            {
+                for (int j = 0; j < ups.Count; j++)
+                {
+                    if (j == i) continue; var w = ups[j];
+                    if (Vector2.Distance(w.a, e) > 0.05f && Vector2.Distance(w.b, e) > 0.05f) continue;
+                    Vector2 dj = (w.b - w.a).normalized;
+                    float det = dir.x * dj.y - dir.y * dj.x; if (Mathf.Abs(det) < 0.2f) continue;
+                    Vector2 p0 = u.a + u.outw * D, p1 = w.a + w.outw * D, r = p1 - p0;
+                    float t = (r.x * dj.y - r.y * dj.x) / det;
+                    if (atA) nbA[i] = j; else nbB[i] = j;
+                    return p0 + dir * t;
+                }
+                return e + u.outw * D;
+            };
+            As[i] = endOf(u.a, true); Bs[i] = endOf(u.b, false);
+            lens[i] = Vector2.Distance(As[i], Bs[i]);
+            int M = Mathf.Max(1, Mathf.CeilToInt(lens[i] / 0.25f)); Ms[i] = M;
+            var low = new bool[M + 1];
+            for (int k = 0; k <= M; k++)
+            {
+                Vector2 q = As[i] + dir * (lens[i] * k / M);
+                float gl = groundAt(q.x + u.outw.x * probe, q.y + u.outw.y * probe);
+                low[k] = !float.IsNaN(gl) && gl < top - eps;
+            }
+            lows[i] = low;
+        }
+        var keeps = new bool[ups.Count][];
+        for (int pass = 0; pass < 2; pass++)
+            for (int i = 0; i < ups.Count; i++)
+            {
+                if (lows[i] == null) continue;
+                var u = ups[i]; int M = Ms[i]; var low = lows[i];
+                var keep = keeps[i] ?? new bool[M + 1];
+                float sa = Vector2.Dot(u.a - As[i], dirs[i]), sb2 = Vector2.Dot(u.b - As[i], dirs[i]);
+                var seed = new bool[M + 1];
+                for (int k = 0; k <= M; k++) { float sk = lens[i] * k / M; seed[k] = low[k] && sk >= Mathf.Min(sa, sb2) && sk <= Mathf.Max(sa, sb2); }
+                // 角: 相手の下段が角まで来ていれば、この区間も角から始める
+                if (pass == 1)
+                {
+                    if (nbA[i] >= 0 && keeps[nbA[i]] != null && CornerKept(keeps[nbA[i]], ups[nbA[i]], As[i])) seed[0] = true;
+                    if (nbB[i] >= 0 && keeps[nbB[i]] != null && CornerKept(keeps[nbB[i]], ups[nbB[i]], Bs[i])) seed[M] = true;
+                }
+                for (int k = 0; k <= M; k++)
+                {
+                    if (!seed[k]) continue; keep[k] = true;
+                    for (int q = k - 1; q >= 0 && !keep[q]; q--) { keep[q] = true; if (!low[q]) break; }
+                    for (int q = k + 1; q <= M && !seed[q]; q++) { keep[q] = true; if (!low[q]) break; }
+                }
+                keeps[i] = keep;
+            }
+        for (int i = 0; i < ups.Count; i++)
+        {
+            if (lows[i] == null) continue;
+            var u = ups[i]; var dir = dirs[i]; var keep = keeps[i]; int M = Ms[i]; float len = lens[i]; Vector2 A = As[i];
+            int iv = 0;
+            for (int k = 0; k <= M; k++)
+            {
+                if (!keep[k] || (k > 0 && keep[k - 1])) continue;
+                int e = k; while (e + 1 <= M && keep[e + 1]) e++;
+                float s0 = len * k / M, s1 = len * e / M;
+                if (s1 - s0 < 0.2f) { k = e; continue; }
+                Vector2 SA = A + dir * s0, SB = A + dir * s1;
+                string key = u.run + "_Ge#" + i + "." + iv; iv++;
+                var mine = new List<GameObject>(); segOut[key] = mine;
+                float L = s1 - s0;
+                int N = (L <= runLen) ? 1 : Mathf.CeilToInt((L - runLen) / pitchMax) + 1;
+                float pitch = (N > 1) ? (L - runLen) / (N - 1) : 0f;
+                float head = (L <= runLen) ? (L + runLen) * 0.5f : runLen;
+                Vector2 nrm = new Vector2(dir.y, -dir.x);
+                bool fwd = Vector2.Dot(nrm, u.outw) >= 0f;
+                Vector2 run = fwd ? dir : -dir, St = fwd ? SA : SB;
+                float psi = Mathf.Atan2(run.x, run.y) * Mathf.Rad2Deg;
+                int floatN = 0; float floatMax = 0f;
+                for (int pI = 0; pI < N; pI++)
+                {
+                    Vector2 p = St + run * (head + pitch * pI);
+                    var g = Place(piecePath, new Vector3(p.x, top - pieceH, p.y), psi, Vector3.one, parent, u.run + "_Ge_" + (n + pI).ToString("000") + "f");
+                    if (g == null) continue;
+                    FaceWallToLine(g, u.outw, A);
+                    float hi = float.MinValue, lo = float.MaxValue;
+                    foreach (var v in Body(g.transform, 999999)) { hi = Mathf.Max(hi, v.y); lo = Mathf.Min(lo, v.y); }
+                    g.transform.position += Vector3.up * (top - hi); lo += top - hi;       // 天端 = 上段の底(載せ)
+                    var c = RB(g).center; Vector2 f = new Vector2(c.x, c.z);
+                    float fl = CrestToBack(g, u.outw);
+                    Vector2 foot = f + u.outw * (fl * 0.5f + 0.3f);
+                    float gf = groundAt(foot.x, foot.y);
+                    if (!float.IsNaN(gf) && gf < lo) { floatN++; floatMax = Mathf.Max(floatMax, lo - gf); }
+                    mine.Add(g); made?.Add(g); if (faceOut != null) faceOut[g] = u.outw;
+                }
+                n += N;
+                endsOut.Add(new RunEnd { key = key, run = u.run + "_Ge", node = -1, p = SA, outw = u.outw, away = dir });
+                endsOut.Add(new RunEnd { key = key, run = u.run + "_Ge", node = -1, p = SB, outw = u.outw, away = -dir });
+                log?.AppendLine("  " + u.run + " の下段: 走り " + L.ToString("F2") + "m(下段の線の " + s0.ToString("F2") + "〜" + s1.ToString("F2") + "/" + len.ToString("F2") +
+                                ")・駒 " + N + (floatN > 0 ? " / ⛔ 底が見え面の前の地盤より上 " + floatN + " 駒・最大 " + floatMax.ToString("F2") + "m" : ""));
+                k = e;
+            }
+            if (iv == 0) log?.AppendLine("  " + u.run + " の下段: 上段の底が地盤より上に出る所が無い — 建てない");
+        }
+        return n;
+    }
 }

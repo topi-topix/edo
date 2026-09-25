@@ -384,6 +384,18 @@ public static class EdoSannoShaRebuild
         var gate = Gate(); if (gate != null) return gate;
         { var us = UnSkin(); if (us.Length > 0) Debug.Log("[山王] " + us); }
         var sb = new StringBuilder();
+        // ⭐ 算出物から消えた石段の群を掃く(指図から外した段の階が残ると、面の上に浮いた段石が残る ── 2026-09-25 透塀の内を一つの面にした巡)
+        {
+            var want = new HashSet<string>();
+            foreach (var o in L(Impl, "stairs")) { var st = o as Dictionary<string, object>; if (st != null) want.Add(GroupNameOf(S(st, "name"))); }
+            var sg = Group("Sando");
+            for (int i = sg.childCount - 1; i >= 0; i--)
+            {
+                var c = sg.GetChild(i); if (want.Contains(c.name)) continue;
+                sb.AppendLine("  算出物に無い石段の群を外した: " + c.name + "(" + c.childCount + " 駒)");
+                UnityEngine.Object.DestroyImmediate(c.gameObject);
+            }
+        }
         foreach (var o in L(Impl, "stairs"))
         {
             var st = o as Dictionary<string, object>; if (st == null) continue;
@@ -613,6 +625,7 @@ public static class EdoSannoShaRebuild
         var segPieces = new Dictionary<string, List<GameObject>>();                         // run#区間 → 駒(折れ線の途中の角も隅にする)
         var runEnds = new List<EdoBuild.RunEnd>();                                            // 区間の端ごとの外向きと走り
         var faceOf = new Dictionary<GameObject, Vector2>();                                  // 駒 → 見え面の向き(低い側)
+        var segLine = new Dictionary<string, Vector2[]>();                                   // run#区間 → [a, b, 外向き](二段築の下段が測る)
         var dgS = EdoBuild.Drawn();
         float wallDepth; { var bv = EdoBuild.BodyAt(EdoAssets.JC.CastleWall, Vector3.zero, 0f, true); float x0 = float.MaxValue, x1 = float.MinValue;
             foreach (var v in bv) { x0 = Mathf.Min(x0, v.x); x1 = Mathf.Max(x1, v.x); } wallDepth = bv.Count > 0 ? x1 - x0 : 2.4f; }
@@ -691,6 +704,7 @@ public static class EdoSannoShaRebuild
                 Vector2 run = (Vector2.Dot(new Vector2(dir.y, -dir.x), outw) >= 0f) ? dir : -dir;
                 Vector2 A = (Vector2.Dot(new Vector2(dir.y, -dir.x), outw) >= 0f) ? a : b;
                 float psi = Mathf.Atan2(run.x, run.y) * Mathf.Rad2Deg;
+                segLine[segKey] = new Vector2[] { a, b, outw };
                 // 区間の両端(run の端も折れ線の途中の節点も)── 出隅と一直線の継ぎ目は EdoBuild.PlaceRunCorners が見分ける
                 foreach (var ep in new Vector2[] { a, b })
                 {
@@ -728,6 +742,37 @@ public static class EdoSannoShaRebuild
             total += made; buriedM += skipM;
             sb.AppendLine("  " + name + ": 駒 " + made + " 枚" +
                           (skipM > 0.05f ? " / ⛔ 埋まっていて建てなかった " + skipM.ToString("F1") + "m" : ""));
+        }
+        // ⭐ 二段築の下段(指図 `terraceWalls[].tierPlan`)── 据わった上段の駒の実メッシュから測って据える(EdoBuild.PlaceTierBelow)。
+        //   ⛔ 読み方の決まり(stepOut / benchM / lowerSpan)が実装の知る値でなければ建てずに差し戻す(発明しない)。
+        {
+            var ups = new List<EdoBuild.TierUpper>(); string refuse = null; float designTop = float.NaN;
+            foreach (var o in L(Doc, "terraceWalls"))
+            {
+                var tw = o as Dictionary<string, object>; if (tw == null) continue;
+                var tp = D(tw, "tierPlan"); if (tp == null) continue;
+                string tn = S(tw, "name");
+                if (S(tp, "stepOut") != "pieceDepth" || !HasNum(tp, "benchM") || Mathf.Abs(F(tp, "benchM")) > 1e-4f || S(tp, "lowerSpan") != "upperFootExposed")
+                { refuse = tn; continue; }
+                var tiersL = L(tp, "tiers"); if (tiersL.Count >= 2) { var t1 = tiersL[1] as Dictionary<string, object>; if (t1 != null && HasNum(t1, "coping")) designTop = F(t1, "coping"); }
+                foreach (var kv in segPieces)
+                {
+                    if (!kv.Key.StartsWith(tn + "#")) continue;
+                    Vector2[] ln; if (!segLine.TryGetValue(kv.Key, out ln)) continue;
+                    kv.Value.RemoveAll(g => g == null);
+                    ups.Add(new EdoBuild.TierUpper { run = tn, a = ln[0], b = ln[1], outw = ln[2], pieces = kv.Value });
+                }
+            }
+            if (refuse != null) sb.AppendLine("  ★ " + refuse + ": tierPlan の stepOut/benchM/lowerSpan が実装の読める値でない — 下段を据えない(指図方へ)");
+            if (ups.Count > 0)
+            {
+                var geMade = new List<GameObject>();
+                int ng = EdoBuild.PlaceTierBelow(ups, EdoAssets.JC.CastleWall, IG_RUN, IG_PITCH_MAX, IG_H, (x, z) => dgS.At(x, z), probe, grp, 0.05f,
+                                                 runEnds, segPieces, faceOf, geMade, sb);
+                placed.AddRange(geMade);
+                foreach (var g in geMade) { string rn = g.name.Substring(0, g.name.LastIndexOf('_')); List<GameObject> lst; if (!runPieces.TryGetValue(rn, out lst)) { lst = new List<GameObject>(); runPieces[rn] = lst; } lst.Add(g); }
+                sb.AppendLine("  二段築の下段: 駒 " + ng + (float.IsNaN(designTop) ? "" : "(指図の下段の天端 " + designTop.ToString("F2") + ")"));
+            }
         }
         // ⭐ 出隅: run の端・折れ線の途中の角が外へ凸に折れる所へ隅の駒を据える。継ぎ目が一直線の所は隅を置かない
         //   (EdoBuild.PlaceRunCorners → PlaceRunKado・両脇の実メッシュで測る)
@@ -1297,12 +1342,24 @@ public static class EdoSannoShaRebuild
                 pb[si] = qa[si] + dd * Vector2.Dot(pb[si] - qa[si], dd);
             }
         }
+        // ⭐ run の端の先へ別の透塀が一直線に続く(同じ座・隅が立たない継ぎ目)なら、その端は c でなく n(次のスパンへ・柱は +X の端)。
+        //   ⛔ 一律に c で閉じると継ぎ目に 0.18m の口が開き柱も立たない(EdoBuild.ContinuesStraight・2026-09-25)。
+        var others = new List<Vector2[]>();
+        foreach (var o in L(Impl, "runs"))
+        {
+            var ro = o as Dictionary<string, object>; if (ro == null || ro == r || S(ro, "kind") != "透塀") continue;
+            if (Mathf.Abs(F(ro, "seat") - seat) > 0.01f) continue;
+            var nd = Pts(L(ro, "nodes")); if (nd.Count >= 2) others.Add(new Vector2[] { nd[0], nd[nd.Count - 1] });
+        }
         for (int si = 0; si < pa.Count; si++)
         {
             Vector2 a = pa[si], b = pb[si];
             float len = Vector2.Distance(a, b); if (len < 0.2f) continue;
             Vector2 dir = (b - a) / len;
-            string e0 = (si == 0) ? "c" : eg, e1 = (si == pa.Count - 1) ? "c" : eg;
+            string e0 = (si == 0) ? (EdoBuild.ContinuesStraight(a, -dir, others) ? "n" : "c") : eg,
+                   e1 = (si == pa.Count - 1) ? (EdoBuild.ContinuesStraight(b, dir, others) ? "n" : "c") : eg;
+            if (si == 0 && e0 == "n") sb.AppendLine("  " + name + ": 始まりの端は一直線に続く透塀の継ぎ目 — 端 n");
+            if (si == pa.Count - 1 && e1 == "n") sb.AppendLine("  " + name + ": 終わりの端は一直線に続く透塀の継ぎ目 — 端 n(柱)");
             if (e0 == null || e1 == null)
             { sb.AppendLine("  ★ " + name + ": 口の端の種類(`gapEnd`)が指図に無い — この辺は据えない"); continue; }
             int N = Mathf.Max(1, Mathf.RoundToInt(len / baseM));

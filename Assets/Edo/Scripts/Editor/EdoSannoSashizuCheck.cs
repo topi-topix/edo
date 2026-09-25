@@ -48,6 +48,8 @@ public static class EdoSannoSashizuCheck
     /// 口の縁の駒(門の脇柱の角へ取り付いて線から外れる。勝手口の脇で 1.03m)か、線から外れて建った駒。
     /// ⚠ 閾値は横ずれの判定ではない — 判定は <see cref="POS_TOL_M"/>。これは駒を区間へ割り付けるだけ。</summary>
     const float RIM_LAT_M = 1.5f;
+    /// <summary>造成の面の標本で、輪郭から外す帯[m](地形 2 m/px では輪郭ちょうどに面の縁を置けない)。</summary>
+    const float RIM_MARGIN_M = 0.5f;
     /// <summary>地形と設計面の許容差[m]は**算出物が持つ**(`checks.gradeTol`)。⛔ ここに写さない。</summary>
     /// <summary>向き(駒の Y 回転)の許容差[度]。⛔ 設計値ではない — 駒は度で直に据わるので、
     /// **丸めの幅**として 0.5° を採る(指図の yaw は 0.1° 刻みで出る)。</summary>
@@ -489,6 +491,7 @@ public static class EdoSannoSashizuCheck
                 byPrefix[pfx].Add(t);
             }
             var wantNames = new HashSet<string>();
+            var straightRuns = new List<string>();
             // ⭐ **土留め 13本**(`terraceWalls`)も囲いの部門で見る。⛔ 名簿に入れないと
             //   据えた石垣が丸ごと「孤児」に化け、⛔ **据えたことが欠陥として出る**。
             //   ⚠ 埋まっている区間(見付 ≤ 0 かつ 受け > 0)は**建てないのが正**(裁定 EDO-0182 が未着手)
@@ -498,6 +501,8 @@ public static class EdoSannoSashizuCheck
                 var tw = o as Dictionary<string, object>; if (tw == null) continue;
                 string tn = Str(tw, "name"); if (tn == null) continue;
                 wantNames.Add(tn);
+                // 二段築の下段(`tierPlan`)は `<run>_Ge_<k>f` で据わる(EdoBuild.PlaceTierBelow)── 孤児にしない
+                if (D(tw, "tierPlan") != null) wantNames.Add(tn + "_Ge");
                 if (byPrefix.ContainsKey(tn)) continue;
                 // ⭐ **全区間が埋まっている壁は「一つも無い」のが正**(見付 ≤ 0 かつ 受け > 0)。
                 //   ⛔ 建てるほうが欠陥なので、⛔ 同じ文言で数えない — 何を測ったかを名指す(規則19)。
@@ -604,7 +609,18 @@ public static class EdoSannoSashizuCheck
                 if (Mathf.Abs(latWorst) > POS_TOL_M)
                     bad("囲い", "囲い " + name + " が線から横へ " + latWorst.ToString("F3") + "m ずれている(最大の駒 " +
                         latWorstName + "・継ぎ目の高さの断面の厚みの中央・口の縁の駒 " + rim + " 枚は除く)");
-                if (Mathf.Abs(runOff) > POS_TOL_M)
+                // ⭐ 端が別の透塀へ一直線に続く run(端 n・柱が節点を跨ぐ)は、走りの両端の詰まりが対称にならないのが正 ──
+                //   その継ぎ目は下の「透塀の継ぎ目の口」(腰の断面の道のりの重なり)で測る。⇒ 走りの芯の比べは外す(2026-09-25・EDO-0430)
+                bool straightEnd = false;
+                if (Str(ir, "kind") == "透塀")
+                {
+                    var oth = new List<Vector2[]>();
+                    foreach (var oo in L(impl, "runs")) { var ro = oo as Dictionary<string, object>; if (ro == null || ro == ir || Str(ro, "kind") != "透塀") continue; var n2 = L(ro, "nodes"); if (n2.Count >= 2) oth.Add(new Vector2[] { P2(n2[0]), P2(n2[n2.Count - 1]) }); }
+                    Vector2 l0 = line[0], l1 = line[line.Count - 1];
+                    straightEnd = EdoBuild.ContinuesStraight(l0, (l0 - line[1]).normalized, oth) || EdoBuild.ContinuesStraight(l1, (l1 - line[line.Count - 2]).normalized, oth);
+                    if (straightEnd) straightRuns.Add(name);
+                }
+                if (!straightEnd && Mathf.Abs(runOff) > POS_TOL_M)
                     bad("囲い", "囲い " + name + " が走りの方向へ " + runOff.ToString("+0.000;-0.000") + "m ずれている" +
                         "(端の詰まり 始め " + (sGot0 - sWant0).ToString("+0.000;-0.000") + "m / 終わり " +
                         (sGot1 - sWant1).ToString("+0.000;-0.000") + "m・+ は先へ)" +
@@ -650,6 +666,86 @@ public static class EdoSannoSashizuCheck
                         V(node) + " / 実装 " + V(new Vector2(kc.x, kc.z)) + ")");
             }
             head.AppendLine("  透塀の隅: 指図 " + kadoWant + " 箇所 / 実装と突き合わせた " + kadoCmp + " 箇所");
+
+            // ---- 透塀の継ぎ目の口(許容 0)------------------------------------
+            // ⭐ 2026-09-25 に足した(EDO-0430)。透塀は一周の折れ線で、run の端・隅・中門で継ぐ。駒ごとの
+            //   腰の高さの断面(EdoBuild.Section)が折れ線の上で占める道のりを重ね、覆われない所を口として数える。
+            //   ⛔ 設計の口(同じ run の segs の間 = 中門・南の潜り)は数えない。⛔ 外接矩形で測らない(隅の脚が芯を片寄せる)。
+            //   この物差しが無く、段の境の 4 箇所に 0.18m の口(柱なし)が開いていたのを施主の赤丸まで捕まえられなかった。
+            {
+                var sruns = new List<Dictionary<string, object>>();
+                foreach (var o in L(impl, "runs")) { var r = o as Dictionary<string, object>; if (r != null && Str(r, "kind") == "透塀") sruns.Add(r); }
+                var chain = new List<Dictionary<string, object>>();
+                if (sruns.Count > 0)
+                {
+                    chain.Add(sruns[0]); sruns.RemoveAt(0);
+                    for (bool grew = true; grew && sruns.Count > 0;)
+                    {
+                        grew = false; var ln = L(chain[chain.Count - 1], "nodes"); Vector2 last = P2(ln[ln.Count - 1]);
+                        for (int i = 0; i < sruns.Count; i++)
+                            if (Vector2.Distance(P2(L(sruns[i], "nodes")[0]), last) < 0.05f) { chain.Add(sruns[i]); sruns.RemoveAt(i); grew = true; break; }
+                    }
+                }
+                if (chain.Count == 0) head.AppendLine("  透塀の継ぎ目の口: 透塀の run が無い ⇒ 未検査");
+                else if (sruns.Count > 0) bad("囲い", "透塀の継ぎ目の口: run の折れ線が一周に繋がらない(残り " + sruns.Count + " 本)⇒ 未検査");
+                else
+                {
+                    var loop = new List<Vector2>();
+                    foreach (var r in chain) { var nd = L(r, "nodes"); for (int i = (loop.Count == 0 ? 0 : 1); i < nd.Count; i++) loop.Add(P2(nd[i])); }
+                    float total = PolyLen(loop);
+                    var open = new List<Vector2>();                // 設計の口
+                    foreach (var r in chain)
+                    {
+                        var sg = L(r, "segs");
+                        for (int i = 0; i + 1 < sg.Count; i++)
+                        {
+                            var a = sg[i] as List<object>; var b = sg[i + 1] as List<object>; if (a == null || b == null) continue;
+                            float s0, s1, lt; EdoBuild.PolylineParam(loop, P2(a[a.Count - 1]), out s0, out lt); EdoBuild.PolylineParam(loop, P2(b[0]), out s1, out lt);
+                            open.Add(new Vector2(Mathf.Min(s0, s1), Mathf.Max(s0, s1)));
+                        }
+                    }
+                    var cov = new List<Vector2>(); int nPieces = 0;
+                    foreach (var t in index)
+                    {
+                        if (!(t.name.StartsWith("Sukibei_") && t.name.EndsWith("f")) && !t.name.StartsWith("Kado_Sukibei")) continue;
+                        // 腰(床から 0.75 まで板で塞がる)の中ほど 0.40 で切る ── 透かし(連子)の高さで切ると竪子の間を口と読む
+                        var sec = EdoBuild.Section(t, t.position.y + 0.40f); if (sec.Count == 0) continue;
+                        var ss = new List<float>();
+                        foreach (var w in sec) { float s, lat; EdoBuild.PolylineParam(loop, new Vector2(w.x, w.z), out s, out lat); if (Mathf.Abs(lat) > 0.6f) continue; if (s < 0f) s += total; if (s > total) s -= total; ss.Add(s); }
+                        if (ss.Count == 0) continue;
+                        float mn = float.MaxValue, mx = float.MinValue; foreach (var s in ss) { mn = Mathf.Min(mn, s); mx = Mathf.Max(mx, s); }
+                        if (mx - mn > total * 0.5f)
+                        {   // 一周の継ぎ目(折れ線の始まり)を跨ぐ駒
+                            mn = float.MaxValue; mx = float.MinValue;
+                            foreach (var s0 in ss) { float s = s0 < total * 0.5f ? s0 + total : s0; mn = Mathf.Min(mn, s); mx = Mathf.Max(mx, s); }
+                            cov.Add(new Vector2(mn - total, mx - total));
+                        }
+                        cov.Add(new Vector2(mn, mx)); nPieces++;
+                    }
+                    cov.Sort((p, q) => p.x.CompareTo(q.x));
+                    const float GAP_TOL = 0.01f;
+                    int gaps = 0; float worst = 0f; string where = null;
+                    float reach = 0f;
+                    foreach (var c in cov)
+                    {
+                        if (c.x > reach + GAP_TOL)
+                        {
+                            bool designed = false;
+                            foreach (var op in open) if (reach >= op.x - 0.5f && c.x <= op.y + 0.5f) designed = true;
+                            if (!designed)
+                            {
+                                gaps++; float gp = c.x - reach;
+                                if (gp > worst) { worst = gp; where = V(PolyAt(loop, (reach + c.x) * 0.5f)); }
+                            }
+                        }
+                        reach = Mathf.Max(reach, c.y);
+                    }
+                    if (reach < total - GAP_TOL) { gaps++; worst = Mathf.Max(worst, total - reach); }
+                    if (straightRuns.Count > 0) head.AppendLine("  透塀の走りの芯: 一直線の継ぎ目に端を持つ " + straightRuns.Count + " 本(" + string.Join("・", straightRuns.ToArray()) + ")は芯で比べず継ぎ目の口で測る");
+                    head.AppendLine("  透塀の継ぎ目の口: 駒 " + nPieces + " の断面で一周 " + total.ToString("F2") + "m を測った / 設計の口 " + open.Count + " を除く / 口 " + gaps);
+                    if (gaps > 0) bad("囲い", "透塀の継ぎ目に口 " + gaps + " 箇所(最大 " + worst.ToString("F3") + "m @" + where + ")── 隅も柱も無い継ぎ目");
+                }
+            }
         }
 
         // =====================================================================
@@ -703,19 +799,23 @@ public static class EdoSannoSashizuCheck
                     float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
                     foreach (var p in poly)
                     { mnx = Mathf.Min(mnx, p.x); mxx = Mathf.Max(mxx, p.x); mnz = Mathf.Min(mnz, p.y); mxz = Mathf.Max(mxz, p.y); }
-                    int n = 0, over = 0, blank = 0, hid = 0; float worst = 0f; Vector2 worstAt = Vector2.zero;
+                    int n = 0, over = 0, blank = 0, hid = 0, rimN = 0; float worst = 0f; Vector2 worstAt = Vector2.zero;
+                    // ⭐ 輪郭から RIM_MARGIN_M 以内の標本は数えない(2026-09-25・EDO-0430)── 地形は 2 m/px で、輪郭ちょうどに面の縁は
+                    //   置けない(縁の節点は外の節点との双一次)。失敗は毎巡この帯にだけ出た(2026-09-22 全 17 点が 0.28m 以内・
+                    //   2026-09-25 Kairo_Fumoto の北西の角・Keidai の南西 0.01〜0.30m)。外した数は刷る。⛔ 造成を均して逃げない(段が埋まる)。
                     // ⭐ 標本の刻みは 2m から始め、部材の下を外して見える点が MIN_VIS 未満なら 0.5m → 0.25m と細かくする
                     //   (2026-09-25 EDO-0430: 細い帯 SukibeiSoto_Chu は 2m の標本 2 点が両方とも部材の下で「輪郭が壊れている」と嘘を出した)。
                     //   ⛔ 部材の下の点は数えない(見えない)。どの刻みでも見える点が 0 なら、面は全て部材の下 ── 測る物が無い(不合格にしない)。
                     const int MIN_VIS = 8; float stepUsed = 2f;
                     foreach (float st in new[] { 2f, 0.5f, 0.25f })
                     {
-                        n = 0; over = 0; blank = 0; hid = 0; worst = 0f; worstAt = Vector2.zero; stepUsed = st;
+                        n = 0; over = 0; blank = 0; hid = 0; rimN = 0; worst = 0f; worstAt = Vector2.zero; stepUsed = st;
                         for (float x = mnx; x <= mxx; x += st)
                             for (float z = mnz; z <= mxz; z += st)
                             {
                                 if (!Inside(poly, x, z)) continue;
                                 if (underPart(x, z)) { hid++; continue; }
+                                if (EdoGeom.DistToPolyEdge(poly, new Vector2(x, z)) < RIM_MARGIN_M) { rimN++; continue; }
                                 n++;
                                 float gz = dg.At(x, z);
                                 if (float.IsNaN(gz)) { blank++; continue; }
@@ -725,8 +825,8 @@ public static class EdoSannoSashizuCheck
                             }
                         if (n >= MIN_VIS) break;
                     }
-                    head.AppendLine("    面 " + name + ": 標本 " + (n + hid) + " 点(刻み " + stepUsed.ToString("0.##") + "m)のうち部材の外形の中 " + hid + " 点を外し " + n + " 点で測る");
-                    if (n == 0 && hid > 0) { head.AppendLine("      面 " + name + " は全て部材の外形の下(見える所が無い ── 測る物が無い)"); continue; }
+                    head.AppendLine("    面 " + name + ": 標本 " + (n + hid + rimN) + " 点(刻み " + stepUsed.ToString("0.##") + "m)のうち部材の外形の中 " + hid + " 点・輪郭から " + RIM_MARGIN_M.ToString("0.0#") + "m 以内 " + rimN + " 点を外し " + n + " 点で測る");
+                    if (n == 0 && (hid > 0 || rimN > 0)) { head.AppendLine("      面 " + name + " は全て部材の外形の下か輪郭の帯(見える所が無い ── 測る物が無い)"); continue; }
                     if (n == 0) { bad("造成の面", "面 " + name + " に標本が取れない(輪郭が壊れている)"); continue; }
                     if (over > 0)
                         bad("造成の面", "面 " + name + "(設計 y=" + y.ToString("F2") + ")が造成されていない — 標本 " +

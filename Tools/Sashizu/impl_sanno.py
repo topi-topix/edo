@@ -1615,9 +1615,12 @@ def kakoi_line_shapes(d, g):
     c = _KLINE.get("v")
     if c is None or c[0] is not d:          # ⛔ id だけで引かない(焼き直しで別の d が同じ id を持ちうる)
         K = L.kakoi_line_keepout(L.kakoi_lines(d, d["polygon"], impl_runs(d, g), impl_tamagaki(d, g),
-                                               _road_edges_world(d, g)), m)
-        c = (d, [_shape_seg(g.L(a[0], a[1]), g.L(b[0], b[1]), r / g.ken, "塀・土留め:" + nm)
-                 for nm, _k, (a, b, r) in K])
+                                               _road_edges_world(d, g)), m, d)
+        # ⭐ 隅の駒の天端の三角(`kakoi_kado_fills` ── 種 "polym" = 多角形 + 余白)も同じ一本(検査 C29)
+        c = (d, [_shape_seg(g.L(G[0][0], G[0][1]), g.L(G[1][0], G[1][1]), G[2] / g.ken, "塀・土留め:" + nm)
+                 if k == "seg" else
+                 _shape_poly([g.L(q[0], q[1]) for q in G[0]], G[1] / g.ken, "塀・土留め:" + nm)
+                 for nm, k, G in K])
         _KLINE["v"] = c
     return c[1]
 

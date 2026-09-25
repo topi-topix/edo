@@ -2071,7 +2071,8 @@ class Checks(object):
         fp = os.path.join(DOC, M.est + "_impl.json")
         im = json.load(open(fp, encoding="utf-8")) if os.path.exists(fp) else {}
         lines = L.kakoi_lines(M.d, M.poly, im.get("runs"), im.get("tamagaki"), self.road_edges())
-        K = L.kakoi_line_keepout(lines, m)
+        K = L.kakoi_line_keepout(lines, m, M.d)
+        fills = L.kakoi_kado_fills(M.d, lines)
         bad = []
         for q in P:
             w = q["world"]
@@ -2087,11 +2088,14 @@ class Checks(object):
         self.add("C29", "塀・土留めの内の幹 — %s の %d 点(全層)の幹の芯が、塀・囲い・土留めの実体線 %d 本・%d 区間(%s)から"
                  " %.1f m(+半厚:%s)以上離れている(土留めは天端の奥の縁から・2m は道に面する土留め %d 本だけ ── 面さない %d 本(%s)は実体だけ退ける。"
                  "2m を当てる線の端 %d 箇所は出会う相手の壁の実体の分だけ延ばす(%s)。"
+                 "隅の駒の天端が入隅を斜めに埋める三角 %d(%s ── 腕の長さ `avoid.dodomeKadoLegM`・片方だけ道に面する隅は面した側の帯だけ)も測る。"
                  "区間の両端・各節も円で測る。樹冠は測らない。区画の外の塀は測れない)"
                  % (fn, len(P), len(lines), len(K), "・".join("%s %d" % kv for kv in sorted(kinds.items())), m,
                     "・".join(halves), sum(1 for ln in lines if ln.get("facing") is True),
                     len(nf), "・".join(nf) or "無し", len(ext),
-                    "・".join("%s←%s %.2fm" % (a, w, h) for a, _p, w, h in ext) or "無し"),
+                    "・".join("%s←%s %.2fm" % (a, w, h) for a, _p, w, h in ext) or "無し",
+                    sum(1 for f in fills if f[2]),
+                    "・".join(nm for nm, _T, fc in fills if fc) or "無し"),
                  "%d 点" % len(bad), "ng" if bad else "ok", bad[:12])
 
     # C30 道の上の枝下(施主裁定 2026-09-23 EDO-0409「道の上に張り出す枝の枝下は 4.0m 以上」・結線 2026-09-25)

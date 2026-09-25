@@ -1537,6 +1537,10 @@ def kakoi_keepout_hit(K, x, z):
     for nm, kind, g in K:
         if kind == "poly":
             if _pip((x, z), g): return nm
+        elif kind == "polym":           # 多角形 + 余白 m(内か、辺から m 未満)── `kakoi_kado_fills`
+            P, mm = g
+            if _pip((x, z), P) or (mm > 0 and min(_seg_d((x, z), P[i], P[(i + 1) % len(P)])
+                                                   for i in range(len(P))) < mm): return nm
         elif _seg_d((x, z), g[0], g[1]) < g[2]:
             return nm
     return None
@@ -1677,14 +1681,112 @@ def kakoi_line_ends(lines, eps=_KAKOI_MEET_EPS):
     return out_segs, log
 
 
-def kakoi_line_keepout(lines, m):
+def dodome_kado_leg(d, kind):
+    """土留めの**隅の駒の天端の腕の長さ**[m](紙の線の交点から、各線に沿って天端の L 字が伸びる長さ)と出どころ。
+    値は `planting.bandDef.avoid.dodomeKadoLegM`(種 → m・種は `kakoi_lines` の『土留め(<種>)』)。
+    ⛔ 値を発明しない ── 種の値が無ければ None(その種の隅は三角を足さない)。"""
+    av = (((d.get("planting") or {}).get("bandDef") or {}).get("avoid") or {})
+    v = (av.get("dodomeKadoLegM") or {}).get(kind)
+    return (float(v), "avoid.dodomeKadoLegM[%s]" % kind) if isinstance(v, (int, float)) else (None, None)
+
+
+def _clip_half(P, o, n, c):
+    """多角形 P の、(q − o)·n ≤ c の側だけ(Sutherland–Hodgman の一辺)。"""
+    out = []
+    for i in range(len(P)):
+        a, b = P[i], P[(i + 1) % len(P)]
+        fa = (a[0] - o[0]) * n[0] + (a[1] - o[1]) * n[1] - c
+        fb = (b[0] - o[0]) * n[0] + (b[1] - o[1]) * n[1] - c
+        if fa <= 0: out.append(a)
+        if fa * fb < 0:
+            t = fa / (fa - fb)
+            out.append((a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t))
+    return out
+
+
+def _poly_area(P):
+    return abs(sum(P[i][0] * P[(i + 1) % len(P)][1] - P[(i + 1) % len(P)][0] * P[i][1] for i in range(len(P)))) / 2.0
+
+
+def kakoi_kado_fills(d, lines, eps=_KAKOI_MEET_EPS):
+    """**土留めの隅の駒の天端が入隅を斜めに埋める三角**(世界 xz)。戻り [(名, [(x,z)×3…], m を当てるか)]。
+
+    【普請検査の実測 2026-09-26 EDO-0409】隅の駒(`EdoAssets.Own.IshigakiKado`)の天端は、紙の線の交点 V から両方の線に
+    沿って腕の長さ `dodome_kado_leg` の **L 字**(幅 = 天端の奥行 `dodome_crest_depth`)で、L の入隅を斜めの辺で埋める
+    ── 帯(線 + 天端の奥行)に入らない三角 C = V + h·e1 + h·e2 / A = V + ℓ·e1 + h·e2 / B = V + h·e1 + ℓ·e2
+    (e1, e2 = V から各線が延びる向き・h = 天端の奥行・ℓ = 腕の長さ)が残る。前庭の低木009 がこの斜めの辺から 1.940 m で
+    2 m を割り、線のカプセルだけの C29 は通していた。
+    ・対象: 土留めの線の端(または同じ線の節)どうしが `eps` 以内で出会い、折れる所(一直線は除く)。両方の種に腕の長さの
+      欄があるときだけ(袖・柵には隅の駒が無い)。天端がどちら側へ伸びるか紙で分からないので、**折れの内角の側に取る**
+      (出隅も入隅も同じ・保守側 ── `dodome_crest_depth` と同じ理屈)。
+    ・施主裁定B(2026-09-25): 数えるのは**道に面した側の天端の帯だけ** ── 片方だけ道に面する隅は、三角のうち面した線から
+      天端の奥行 h 以内の所だけを残す(三角はどちらの線からも h 以上奥なので、直角の隅では何も残らない)。
+      両方とも面さなければ退けるのは実体(三角そのもの・m を足さない)。
+    """
+    ends = []                                           # (点, 延びる向き, 線の添字, 種)
+    for i, ln in enumerate(lines):
+        k = str(ln.get("kind", ""))
+        if not k.startswith("土留め("): continue
+        kd = k[len("土留め("):-1]
+        for a, b in ln["segs"]:
+            L0 = math.hypot(b[0] - a[0], b[1] - a[1])
+            if L0 < 1e-9: continue
+            u = ((b[0] - a[0]) / L0, (b[1] - a[1]) / L0)
+            ends.append((a, u, i, kd))
+            ends.append((b, (-u[0], -u[1]), i, kd))
+    out, seen = [], set()
+    for x in range(len(ends)):
+        for y in range(x + 1, len(ends)):
+            p, e1, i, k1 = ends[x]
+            q, e2, j, k2 = ends[y]
+            if math.hypot(p[0] - q[0], p[1] - q[1]) >= eps: continue
+            cr = e1[0] * e2[1] - e1[1] * e2[0]
+            if abs(cr) < 1e-3 or e1[0] * e2[0] + e1[1] * e2[1] < -0.999: continue    # 一直線(継ぎ目・折れない)
+            l1, _ = dodome_kado_leg(d, k1)
+            l2, _ = dodome_kado_leg(d, k2)
+            if l1 is None or l2 is None: continue
+            key = (round(p[0], 2), round(p[1], 2), min(i, j), max(i, j))
+            if key in seen: continue
+            seen.add(key)
+            A, B = lines[i], lines[j]
+            h, ell = max(A["half"], B["half"]), min(l1, l2)
+            if ell <= h: continue
+            V = p
+            T = [(V[0] + h * e1[0] + h * e2[0], V[1] + h * e1[1] + h * e2[1]),
+                 (V[0] + ell * e1[0] + h * e2[0], V[1] + ell * e1[1] + h * e2[1]),
+                 (V[0] + h * e1[0] + ell * e2[0], V[1] + h * e1[1] + ell * e2[1])]
+            fa, fb = A.get("facing", True) is not False, B.get("facing", True) is not False
+            nm = "%s×%s の隅の天端" % (A["name"], B["name"]) if i != j else "%s の隅の天端" % A["name"]
+            if fa and fb:
+                out.append((nm, T, True))
+                continue
+            if not fa and not fb:
+                out.append((nm, T, False))
+                continue
+            # 片方だけ道に面する ── 面した線から天端の奥行 h 以内の所だけに m を当て、残りは実体だけ退ける
+            ef, eo = (e1, e2) if fa else (e2, e1)
+            n = (-ef[1], ef[0])
+            if n[0] * eo[0] + n[1] * eo[1] < 0: n = (-n[0], -n[1])       # 面した線から三角の側への法線
+            Tf = _clip_half(T, V, n, h)
+            To = _clip_half(T, V, (-n[0], -n[1]), -h)
+            if len(Tf) >= 3 and _poly_area(Tf) > 1e-6: out.append((nm + "(道に面した側)", Tf, True))
+            if len(To) >= 3 and _poly_area(To) > 1e-6: out.append((nm, To, False))
+    return out
+
+
+def kakoi_line_keepout(lines, m, d=None):
     """`kakoi_lines` の各区間を半径 `m + 半厚` で膨らませたカプセル(両端・各節も丸い)。
     形は `kakoi_keepout_polys` の "seg" と同じで、判定は `kakoi_keepout_hit` の一本。
     ⭐ 道に面さない土留め(`facing` = False)は `m` を足さず、実体(線 + 天端の奥行)だけを退ける(施主裁定B 2026-09-25)。
-    ⭐ `m` を当てる線の端は、出会う相手の壁の実体の分だけ延ばしてから膨らませる(`kakoi_line_ends`)。"""
+    ⭐ `m` を当てる線の端は、出会う相手の壁の実体の分だけ延ばしてから膨らませる(`kakoi_line_ends`)。
+    ⭐ `d` を渡せば、土留めの隅の駒の天端が入隅を斜めに埋める三角(`kakoi_kado_fills`)を種 "polym"(多角形 + 余白)で足す
+      (普請検査の実測 2026-09-26 EDO-0409)。"""
     S, _log = kakoi_line_ends(lines)
-    return [(ln["name"], "seg", (a, b, (m if ln.get("facing", True) else 0.0) + ln["half"]))
-            for ln, sg in zip(lines, S) for a, b in sg]
+    out = [(ln["name"], "seg", (a, b, (m if ln.get("facing", True) else 0.0) + ln["half"]))
+           for ln, sg in zip(lines, S) for a, b in sg]
+    if d is not None:
+        out += [(nm, "polym", (T, m if fc else 0.0)) for nm, T, fc in kakoi_kado_fills(d, lines)]
+    return out
 
 
 def do_rin_rects(d):

@@ -1111,15 +1111,16 @@ public static class EdoSannoShaRebuild
             placed.RemoveAll(g => g == null); placed.AddRange(kcs);
             total = 0; foreach (var kv in runPieces) { kv.Value.RemoveAll(g => g == null); total += kv.Value.Count; } total += kn;
         }
-        // ⭐ 石段の段石の小口・袖の背の小口を、脇の土留めの法の面へ突き付ける(EDO-0430 施主指示 2026-09-25)。⭐ 出隅の隅の駒を据えた後(袖の背は隅の駒の法に当たる)。
-        //   段石・袖は鉛直、野面の土留めは法 1:0.25 ── 見える高さの中ほどで実メッシュの面を光線で測り、駒の長さを詰める/伸ばす
-        //   (EdoBuild.AbutStepEndsToWalls / AbutEndToFace)。⛔ 土留めの法は変えない(施主の決めた作り)。
-        sb.Append(AbutStairsToWalls());
         if (flipLocal > 0) sb.AppendLine("  駒ごとに測り直して見え面を区間と逆へ向けた駒 " + flipLocal + "(高低が区間の途中で入れ替わる所)");
         foreach (var fl in flushLog) sb.AppendLine("  短い区間: " + fl);
         sb.AppendLine("  天端が見え面の前の地表の下に来る駒(全体が埋まる): 退けた " + buriedWhole + " / 隣の小口を地表の下へ入れるため残した " + buriedKept);
         // ⭐ 野面の乱積みの土留め(`masonry`)── 端の揃う run を一本に継ぎ、隣の石垣の実面を測って据える(EdoBuild.PlaceNozuraRun)
         total += Nozura(nozuraRuns, grp, placed, faceOf, dgS, wallDepth + probe, sb);
+        // ⭐ 石段の段石の小口・袖の背の小口を、脇の土留めの法の面へ突き付ける(EDO-0430 施主指示 2026-09-25)。⭐ 出隅の隅の駒と
+        //   野面の土留めを据えた後(袖の背は隅の駒の法に当たる・野面も相手になる ── 前に流すと Clear の後で相手が群に居ない・2026-09-26)。
+        //   段石・袖は鉛直、野面の土留めは法 1:0.25 ── 焼いた「端を法で切った駒」が在れば差し替え、無ければ見える高さの中ほどで
+        //   実メッシュの面を光線で測って駒の長さを詰める/伸ばす(EdoBuild.CutStairEndsToBatter / AbutStepEndsToWalls)。⛔ 土留めの法は変えない。
+        sb.Append(AbutStairsToWalls());
         // ⭐ 天端を高い側の地盤に揃えた土留め(`copingRise:"groundHi"`)は天端の面と地形が重なる ──
         //   天端の下の節点を天端より下げ、芝を消す(EDO-0414・⛔ 地形の編集は Undo の外)。
         //   ⚠ Stage1(整地)を流し直すと節点が天端へ戻るので、Stage3 を必ず後に流す。
@@ -1275,7 +1276,6 @@ public static class EdoSannoShaRebuild
     }
 
     // ================================================================ Stage 4 囲い
-    [MenuItem(MENU + "4 囲い(腰高の柵・板塀)")]
     /// <summary>Stage3 の後段: 全ての石段について、段石の両の小口と袖の背の小口を脇の土留めの面へ突き付ける(EDO-0430)。
     /// 相手 = Dodome の土留めの駒(段石には同じ群の袖も)。報告 = 石段ごとに 動かした段・跨いで動かさなかった段・上端の口と下端のめり込みの最大。</summary>
     public static string AbutStairsToWalls()
@@ -1359,6 +1359,8 @@ public static class EdoSannoShaRebuild
         return sb.ToString();
     }
 
+    // ⚠ 2026-09-26: メニューの属性が上の AbutStairsToWalls に付いていて、「4 囲い」が柵を建てずに石段の突き付けだけを流していた(0c28b9d9 から)。
+    [MenuItem(MENU + "4 囲い(腰高の柵・板塀)")]
     public static void Stage4Menu() { Debug.Log("[山王] " + Stage4_Kakoi()); }
     /// <summary>算出物 `runs` の `of=="run"` を建てる。`segs` は**開口を抜いた実長の区間**なので
     /// ⛔ 実装が辺を割り直さない。
@@ -1494,6 +1496,20 @@ public static class EdoSannoShaRebuild
                 }
         }
 
+        // ⭐ 座で据える走りは床の段(土留めの天端の縁)で割る(EdoBuild.SplitAtBedSteps・2026-09-26 EDO-0430)──
+        //   割らないと落ちを跨ぐ弦が一本の斜めの駒になり、足元が前後の駒へめり込み反対の足が浮く(`Ita_Keidai_149f` 0.95m 落ち・26°)。
+        if (hasSeat)
+        {
+            var na = new List<Vector2>(); var nb = new List<Vector2>(); int nSplit = 0;
+            for (int i = 0; i < sa.Count; i++)
+            {
+                var parts = EdoBuild.SplitAtBedSteps(sa[i], sbb[i], (x, z) => EdoBuild.SeatOrBed(x, z, seat, rootSpan, bed.At), rootSpan);
+                if (parts.Count > 1 || Vector2.Distance(parts[0][0], sa[i]) > 1e-4f || Vector2.Distance(parts[0][1], sbb[i]) > 1e-4f) nSplit++;
+                foreach (var pr in parts) { na.Add(pr[0]); nb.Add(pr[1]); }
+            }
+            if (nSplit > 0) sb.AppendLine("    " + name + ": 床の段(土留めの天端の縁)で割った区間 " + nSplit + "(→ " + na.Count + " 区間)");
+            sa = na; sbb = nb;
+        }
         // 斜面なりに連ねるための実測(⛔ 定数で持たない) — 根入れが均しの縛り、丈の中ほどが継ぎ目の高さ。
         var rhy = EdoBuild.RunMeasureY(P.SakuSpan);
         float minSpan = SAKU_SPAN * 0.25f;   // これ未満は部材として建たない切れ端
@@ -1527,7 +1543,20 @@ public static class EdoSannoShaRebuild
             {
                 int N = Mathf.Max(1, Mathf.RoundToInt(len / SAKU_SPAN));
                 js = new List<Vector3>();
-                for (int k = 0; k <= N; k++) { Vector2 p = a + dir * (len * k / N); js.Add(new Vector3(p.x, SeatAt(p, rootSpan), p.y)); }
+                for (int k = 0; k <= N; k++)
+                {
+                    Vector2 p = a + dir * (len * k / N);
+                    // ⭐ 継ぎ目の高さは柱の足元の前後 0.25m(区間の中だけ)の床の低い方 ── 土留めの足の皮の擦り付け(0.11m の盛り上がり)を
+                    //   拾うと落ちの直後の駒が 3.5° 傾き、丈の中ほどで継ぐので足元が土留めへ 0.03 下がり込んで天端の下へ 0.99m めり込んだ
+                    //   (2026-09-26 `Ita_Keidai_149f`)。低い方へ取れば柱は浮かず、根入れが擦り付けに埋まるだけ。
+                    float y = SeatAt(p, rootSpan);
+                    foreach (float o in new[] { -0.25f, 0.25f })
+                    {
+                        float so = len * k / N + o; if (so < 0f || so > len) continue;
+                        Vector2 q = a + dir * so; y = Mathf.Min(y, EdoBuild.SeatOrBed(q.x, q.y, seat, rootSpan, bed.At));
+                    }
+                    js.Add(new Vector3(p.x, y, p.y));
+                }
             }
             else js = EdoBuild.GroundPolyline(a, b, SAKU_SPAN, rhy.Root, rhy.Root * 2f);
             for (int k = 0; k + 1 < js.Count; k++)

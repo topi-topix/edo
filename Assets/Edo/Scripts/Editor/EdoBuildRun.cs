@@ -405,6 +405,51 @@ public static partial class EdoBuild
         return outp;
     }
 
+    /// <summary>**走りを床の段(鉛直の落ち)で割る**(2026-09-26・EDO-0430 山王 `Ita_Keidai` の柵 × 御供所の郭の土留め)。
+    /// 辺 a→b に沿って床の高さ <paramref name="heightAt"/> を <paramref name="res"/> ごとに引き、隣どうしで <paramref name="jump"/> を超えて
+    /// 変わる所(= 土留めの天端の縁・段の小口 ── 勾配ではなく落ち)を二分で 0.005m まで詰め、そこで辺を割って返す。
+    /// 落ちの縁から <paramref name="minLen"/> 未満の切れ端は捨てる(隣の辺の端の柱が受ける)。手前の区間は落ちの手前の側で終わり、
+    /// 次の区間は向こうの側で始まる(端の高さを引くと、それぞれ自分の側の床が出る)。
+    /// ⭐ 座で据える走り(<see cref="SeatOrBed"/>)は継ぎ目ごとに高さを取るので、落ちを跨ぐ弦は一本で 0.95m 落ちる斜めの駒になり、
+    /// 丈の中ほどで継ぐ(<see cref="PlaceOnChord"/>)ため足元が前後の駒へ 0.23m めり込み・反対の足が 0.15m 浮いた。
+    /// 割れば各区間は平らに据わり、落ちでは上の区間の端の柱と下の区間の頭の柱が段違いに立つ。
+    /// 当たる先: 座(`seat`)で据える柵・板塀の走りが土留め・石段の小口を跨ぐすべて(山王 Stage4 の柵)。</summary>
+    public static List<Vector2[]> SplitAtBedSteps(Vector2 a, Vector2 b, Func<float, float, float> heightAt, float jump,
+                                                  float res = 0.05f, float minLen = 0.10f)
+    {
+        var outp = new List<Vector2[]>();
+        float L = Vector2.Distance(a, b);
+        if (L < 1e-4f) { outp.Add(new[] { a, b }); return outp; }
+        Vector2 dir = (b - a) / L;
+        int M = Mathf.Max(1, Mathf.CeilToInt(L / res));
+        var cuts = new List<Vector2>();   // (落ちの手前, 向こう)── 0.005m 以内に詰めた二分の括り。手前の区間は x で終わり、次は y で始まる
+        float prev = heightAt(a.x, a.y);
+        for (int i = 1; i <= M; i++)
+        {
+            float s1 = L * i / M; Vector2 p = a + dir * s1; float h = heightAt(p.x, p.y);
+            if (!float.IsNaN(prev) && !float.IsNaN(h) && Mathf.Abs(h - prev) > jump)
+            {
+                float lo = L * (i - 1) / M, hi = s1, h0 = prev;
+                for (int it = 0; it < 12 && hi - lo > 0.005f; it++)
+                {
+                    float mid = (lo + hi) * 0.5f; Vector2 q = a + dir * mid; float hm = heightAt(q.x, q.y);
+                    if (!float.IsNaN(hm) && Mathf.Abs(hm - h0) > jump * 0.5f) hi = mid; else lo = mid;
+                }
+                cuts.Add(new Vector2(lo, hi));
+            }
+            prev = h;
+        }
+        float s0 = 0f;
+        cuts.Add(new Vector2(L, L));
+        foreach (var c in cuts)
+        {
+            if (c.x - s0 >= minLen) outp.Add(new[] { a + dir * s0, a + dir * c.x });
+            s0 = c.y;
+        }
+        if (outp.Count == 0) outp.Add(new[] { a, b });
+        return outp;
+    }
+
     /// <summary>**弦に沿って駒を据える。**継ぎ目 <paramref name="j0"/>→<paramref name="j1"/> に張るよう、
     /// yaw = 走り・roll = 弦の勾配・走り方向の伸縮 = 弦の実長(斜距離)で置く。
     /// 継ぎ目は駒の**丈の中ほど**(<see cref="RunMeasureY"/> の Mid)で合う ──

@@ -2677,7 +2677,12 @@
    "partFrom": "EdoAssets.Own.SannoDo(\"Irimoya\", 5.5, 3.5, 9999, 6363)",
    "axis": {
     "front": "+Z"
-   }
+   },
+   "kidanM": {
+    "h": 0.3,
+    "out": 0.7
+   },
+   "kidanMFrom": "部材の生成器 `Tools/Blender/build_sanno_do.py` の写し(`DO.kidanH` / `DO.kidanOut` ── `EdoAssets.Own.SannoDo(…)` の切石の基壇)── ⛔ 値の正典は部材。部材を焼き直したらここを合わせる"
   },
   {
    "name": "御厩",
@@ -2762,7 +2767,12 @@
    "partFrom": "EdoAssets.Own.SannoDo(\"IrimoyaKohai\", 5, 5, 9090, 9090)",
    "axis": {
     "front": "+Z"
-   }
+   },
+   "kidanM": {
+    "h": 0.3,
+    "out": 0.7
+   },
+   "kidanMFrom": "部材の生成器 `Tools/Blender/build_sanno_do.py` の写し(`DO.kidanH` / `DO.kidanOut` ── `EdoAssets.Own.SannoDo(…)` の切石の基壇)── ⛔ 値の正典は部材。部材を焼き直したらここを合わせる"
   },
   {
    "name": "御蔵",
@@ -6030,7 +6040,7 @@
      "低木": 0.5
     },
     "kattemichiRule": "**勝手道**は 芯から(道幅 `kattemichi[].w`/2 + その層の肩 `kattemichiShoulderKen`)。⛔ 数を持たない — 半幅も肩も従属値・宣言で、図が毎回組み立てる。⛔ **石段の肩(`kaidanShoulderKen`)を当てない**(擁壁の有無が違う・庭方 2026-09-09 十七巡目 高1)",
-    "kakoiRule": "**柵・板塀・土留め**(`Saku_*` / `Ita_*` / `terraceWalls[TW_*]`)は その線から**その層の肩** `kaidanShoulderKen`(+ 宣言のある半厚)。⛔ 数を持たない",
+    "kakoiRule": "**柵・板塀・土留め**(`Saku_*` / `Ita_*` / `terraceWalls[TW_*]`)は その線から**その層の肩** `kaidanShoulderKen`(+ 宣言のある半厚)。**土留めは線 + 天端の奥行 `dodomeCrestDepthM`(両側)+ 肩** ── 天端の奥の縁から肩を取る(`sashizu_lib.dodome_crest_depth`・`kakoiLineRule` と同じ一本)。⛔ 数を持たない",
     "clusterRule": "**設計された塊の箱**(`clusters` / `viewClusters`)は 箱の輪郭から その塊の芯々 × `packRatio` の余白まで。⛔ 数を持たない",
     "kattemichiShoulderKen": {
      "松": 0.5,

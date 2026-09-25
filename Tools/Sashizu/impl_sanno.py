@@ -1502,6 +1502,7 @@ def kattemichi_apron_shapes(d, g, sh_ken=0.0):
 
 def kakoi_avoid_shapes(d, sh_ken, skip_zentei=False):
     """**柵・板塀・土留めの線 + その層の肩**。⛔ 厚みを発明しない(宣言があるのは柵の柱だけ)。
+    ⭐ 土留めは線 + 天端の奥行(`sashizu_lib.dodome_crest_depth`)+ 肩 ── 天端の奥の縁から肩を取る。
 
     ⭐ **2026-09-08 十六巡目 B-4(庭方)。**幹が柵・土留めに当たっていた(`Saku_Sando` に8本・
     最短 0.09 m ／ `Ita_Keidai` に22本 ／ `TW_Zentei_E` に5本)── 10〜12 m の松の幹は径
@@ -1524,11 +1525,15 @@ def kakoi_avoid_shapes(d, sh_ken, skip_zentei=False):
         half = post if r.get("kind") == "柵" else 0.0
         for a, b in run_segs(r):
             out.append(_shape_band(a, b, half + sh_ken, r.get("kind") + ":" + r["name"]))
+    import sashizu_lib as L
     for w in d.get("terraceWalls", []):
         if skip_zentei and w["name"].startswith("TW_Zentei"): continue
         pts = [tuple(q) for q in (w.get("pts") or [w.get("a"), w.get("b")])]
         if any(q is None for q in pts) or len(pts) < 2: continue
-        out += _band_chain(pts, sh_ken, "土留め:" + w["name"])
+        # ⭐ 肩は**天端の奥の縁**から測る(EDO-0409 2026-09-25)── 奥行は `sashizu_lib.dodome_crest_depth`
+        #   (`kakoi_line_keepout` と同じ一本・両側へ取る)。⛔ 紙の線(天端の前の縁/段石の小口)から測らない。
+        cd = L.dodome_crest_depth(d, w)[0] / ken
+        out += _band_chain(pts, sh_ken + cd, "土留め:" + w["name"])
     return out
 
 

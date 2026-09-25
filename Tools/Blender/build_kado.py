@@ -8,6 +8,9 @@
     blender --background --python Tools/Blender/build_kado.py -- --part nagaya --deg 38.3 --render
     blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 5 --render
         # 丈違い(石垣だけ)。素の 4m の下へ 1m の段を勾配のまま継ぎ足す → Ishigaki_Kado_90_H0500
+    blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 4 --arms 1.59,2.0 --render
+        # 短い腕(石垣だけ)。腕 = 据え点(両腕の控えの線の交点)から腕の先までの走り[m]。
+        # 順は (Unity 局所 −Z の腕, +X の腕)。→ Ishigaki_Kado_90_H0400_A159x200(EDO-0430)
 
 【なぜ要るか】在庫の出隅ブロック `Castle Wall Corner`(2.4m 角)が成立するのは折れ角 Δ≳60°。
   Δ が浅いと片面を合わせても apex が反対側の壁面から `2.4·cosΔ` はみ出す
@@ -54,6 +57,7 @@ import vklib as V
 
 FLIP_THK = False        # --flipthk で立てる。書き出し名に T が付く
 H_OUT = None            # --h で立てる(石垣だけ)。丈を m で。書き出し名に _H<cm4桁> が付く
+ARMS = None             # --arms aZ,aX で立てる(石垣だけ)。腕の長さ m。書き出し名に _A<cm>x<cm> が付く
 
 ROOT = V.REPO
 JC   = os.path.join(ROOT, "Assets/Japanese Castle")
@@ -375,6 +379,50 @@ def hip_ridge(body, mune, n):
           % (seg.length, L0, k, top.z, out.z))
     return c
 
+def _dup(o, name):
+    c = o.copy(); c.data = o.data.copy(); c.name = name
+    bpy.context.collection.objects.link(c)
+    return c
+
+
+def shorten_arm(o, a, y_end):
+    """入りの腕(+Y へ延びる)を y = a で切り、素の小口(y = y_end・法線 +Y の面)を切り口へ移して塞ぐ。
+    ⛔ 頂点を寄せて縮めない(面の石の柄が走りに潰れる)。bisect は面の UV を補間するので柄は切れるだけ。"""
+    if a >= y_end - 1e-6:
+        return o
+    if a <= 0.05:
+        raise SystemExit("[kado] ⛔ 腕 %.3f が短すぎる" % a)
+    me = o.data
+    bm = bmesh.new(); bm.from_mesh(me)
+    bm.normal_update()
+    cap = [f for f in bm.faces if f.normal.y > 0.99 and abs(f.calc_center_median().y - y_end) < 1e-4]
+    if not cap:
+        raise SystemExit("[kado] ⛔ 腕の先の小口が見つからない")
+    capgeo = bmesh.ops.duplicate(bm, geom=cap)
+    capv = [e for e in capgeo["geom"] if isinstance(e, bmesh.types.BMVert)]
+    capf = set(e for e in capgeo["geom"] if isinstance(e, bmesh.types.BMFace))
+    for v in capv:
+        v.co.y = a
+    others = [e for e in bm.verts[:] + bm.edges[:] + bm.faces[:]
+              if not (isinstance(e, bmesh.types.BMFace) and e in capf)
+              and not (isinstance(e, bmesh.types.BMVert) and e in set(capv))
+              and not (isinstance(e, bmesh.types.BMEdge) and all(v in set(capv) for v in e.verts))]
+    bmesh.ops.bisect_plane(bm, geom=others, dist=1e-6, plane_co=Vector((0, a, 0)), plane_no=Vector((0, 1, 0)),
+                           clear_outer=True, clear_inner=False)
+    bmesh.ops.delete(bm, geom=[e for e in bm.edges if not e.link_faces], context='EDGES')
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
+    bm.to_mesh(me); bm.free(); me.update()
+    ys = [v.co.y for v in me.vertices]
+    print("[kado]   腕を %.3f で切った(素の先 %.3f)。y 最大 %.4f" % (a, y_end, max(ys)))
+    return o
+
+
+def asuf():
+    """腕の接尾辞。(−Z の腕, +X の腕)を cm で。既定(両腕とも 1 モジュール)は付けない。"""
+    return "" if ARMS is None else "_A%dx%d" % (int(round(ARMS[0] * 100)), int(round(ARMS[1] * 100)))
+
+
 def build(part, deg, arms=None):
     p = PARTS[part]
     V.reset()
@@ -412,8 +460,19 @@ def build(part, deg, arms=None):
     # 入りの腕: +Y 側に n_pos モジュール、加えて出隅の張り出しぶんを −Y 側に 1 モジュール
     armA = tile(o, pitch, n_pos, n_neg)
     armA = bisect_keep(armA, n, keep_positive=True)
-    armB = mirror_across(armA, n)
-    o = V.join([armA, armB], "%s_%02d%s%s%s" % (p["out"], round(abs(deg)), "" if deg > 0 else "M", "T" if FLIP_THK else "", hsuf()))
+    if ARMS is None:
+        armB = mirror_across(armA, n)
+    else:
+        # 短い腕(EDO-0430): 腕ごとに走りに直角な面で切り、素の小口(y = n_pos·pitch の面)を切り口へ移して塞ぐ。
+        #   ⭐ 断面は走りに沿って一定なので、素の小口がそのまま切り口の形になる(UV も素の小口のまま)。
+        #   armB は armA の鏡なので、長さ aX で切った armA の複製を鏡に映す。
+        if part != "ishigaki":
+            raise SystemExit("[kado] --arms は石垣だけ")
+        full = armA
+        armA = shorten_arm(_dup(full, "armA_s"), ARMS[0], n_pos * pitch)
+        armB = mirror_across(shorten_arm(_dup(full, "armB_s"), ARMS[1], n_pos * pitch), n)
+        bpy.data.objects.remove(full, do_unlink=True)
+    o = V.join([armA, armB], "%s_%02d%s%s%s" % (p["out"], round(abs(deg)), "" if deg > 0 else "M", "T" if FLIP_THK else "", hsuf() + asuf()))
     if mune is not None:
         hip = hip_ridge(o, mune, n)
         bpy.data.objects.remove(mune, do_unlink=True)
@@ -434,7 +493,7 @@ def build(part, deg, arms=None):
     print("[kado]   外面の張り出し(折れ点より先) = %.3f m" % max(0.0, -min(ys)))
 
     hand = ("" if deg > 0 else "M") + ("T" if FLIP_THK else "")
-    path = os.path.join(OUT, "%s_%02d%s%s.fbx" % (p["out"], round(abs(deg)), hand, hsuf()))
+    path = os.path.join(OUT, "%s_%02d%s%s.fbx" % (p["out"], round(abs(deg)), hand, hsuf() + asuf()))
     V.export_fbx([o], path)
     print("[kado] wrote %s" % path)
     return o, path
@@ -446,12 +505,15 @@ def hsuf():
 
 
 def main():
-    global FLIP_THK, H_OUT
+    global FLIP_THK, H_OUT, ARMS
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     do_render = "--render" in argv
     FLIP_THK = "--flipthk" in argv
     if "--h" in argv:
         H_OUT = float(argv[argv.index("--h") + 1])
+    if "--arms" in argv:
+        ARMS = tuple(float(t) for t in argv[argv.index("--arms") + 1].split(","))
+        assert len(ARMS) == 2, "--arms aZ,aX"
     jobs = []
     if "--all" in argv:
         jobs = [("ishigaki", 31.3), ("dobei", 31.3), ("nagaya", -38.3)]
@@ -471,7 +533,7 @@ def main():
             # ⚠ 鏡像(M)は同じ |deg| なので、hand を名に入れないと非鏡像の検証画像を上書きする
             hand = "" if deg > 0 else "M"
             V.render(os.path.join(ROOT, "Screenshots",
-                                  "kado_%s_%02d%s%s.png" % (part, round(abs(deg)), hand, hsuf())))
+                                  "kado_%s_%02d%s%s.png" % (part, round(abs(deg)), hand, hsuf() + asuf())))
 
 
 main()

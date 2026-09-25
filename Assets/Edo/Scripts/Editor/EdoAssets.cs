@@ -1274,6 +1274,8 @@ public static class EdoAssets
         /// 蹴上の中ほどで測る食い込み、角[°] は相手の面の平面の線が段の走り(Z)となす角(+ は坂下 +Z ほど外へ開く)、法 = 水平/鉛直(鉛直は 0)。
         /// 外へ出る所は石を伸ばしてから切る。⚠ 女坂の段 0・1 はまだ焼いていない(実測の d・角が無い)── 棟梁が測って
         /// `Tools/Blender/sanno_onna_kiri_set.txt` に行を足し、blender --background --python Tools/Blender/build_sanno_buzai.py -- dan_kiri_list Tools/Blender/sanno_onna_kiri_set.txt 0.300 1.199 6.363 --render
+        /// ⭐ 参道の階の段 1 は 2026-09-26 前庭の北の土留めの端を袖の外面で止めた(EdoBuild.RunEndAtFace・24c3f410)後の実測で
+        /// `Ld+0.219B-0.187_Rd+0.219B-0.188` に焼き直した(za が +0.03 から −0.19 へ動いた)。段 2〜4 は据え直し前の値のまま。
         /// 焼けている組(2026-09-26): 参道の階 (0.250, 0.542, 5.509) の段 1〜4 / 郭の階 (0.238, 0.450, 1.818) の段 0〜3(W 1.641〜1.816 × H 0.417 × D 0.550。
         /// blender --background --python Tools/Blender/build_sanno_buzai.py -- dan_kiri_list Tools/Blender/sanno_kaku_kiri_set.txt 0.2375 0.450 1.818 --render)。
         /// 焼かずに型だけ確かめる: -- dan_kiri_try <一覧> <蹴上> <踏面> <幅> --render(Screenshots/sanno_dankiri_<一覧>_*.png)。
@@ -2064,6 +2066,43 @@ public static class EdoAssets
             return "Assets/Edo/Models/Kado/Ishigaki_Kado_"
                  + UnityEngine.Mathf.RoundToInt(UnityEngine.Mathf.Abs(deg)).ToString("00") + (deg < 0f ? "M" : "")
                  + "_H" + UnityEngine.Mathf.RoundToInt(h * 100f).ToString("0000") + ".fbx";
+        }
+
+        /// <summary>**腕の短い石垣の隅**(<see cref="IshigakiKado(float,float)"/> と同じ留め継ぎ・同じ据え:
+        /// position = 両腕の控えの線の交点 P・y = 天端 − h / yaw = 入りの run の駒の yaw / scale = 1)。
+        /// 腕の先を走りに直角な面で切り、素の小口をそこへ移して塞いだ物(小口の柄は素のまま・面の柄は切れるだけで潰さない)。
+        /// <paramref name="armNegZ"/> = 局所 −Z の腕(見え面 −X)/ <paramref name="armPosX"/> = 局所 +X の腕(見え面 +Z)の長さ[m]
+        /// = **P から腕の先の小口までの走り**(素は 2.00)。綴りは cm(`_A159x200`)。両腕とも 2.00 なら接尾辞なし(= 素の隅)。
+        /// 要る長さ = 腕の先が当たる相手(石段の袖の外面)の、P からの走りの距離 = 2.00 − 入り量(据えた素の隅で測る)。
+        /// 焼いてあるもの(EDO-0430・2026-09-26・90° × 4.00): **A159x200 / A200x159**(郭の階の南の袖の脇・入り 0.41)、
+        /// **A171x200 / A200x171**(前庭の北東・参道の階の東の袖・入り 0.29)。どちらの腕が袖に当たるかで組を選ぶ
+        /// (PlaceRunKado の yaw の解で局所 −Z の腕が袖の側なら A<短>x200)。材 `stone wall` ⇒ `Edo/共通/隅部材のマテリアルをremap`。
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 4 --arms 1.59,2.0 --render</summary>
+        public static string IshigakiKado(float deg, float h, float armNegZ, float armPosX)
+        {
+            int az = UnityEngine.Mathf.RoundToInt(armNegZ * 100f), ax = UnityEngine.Mathf.RoundToInt(armPosX * 100f);
+            string p = IshigakiKado(deg, h);
+            if (az == 200 && ax == 200) return p;
+            return p.Substring(0, p.Length - 4) + "_A" + az + "x" + ax + ".fbx";
+        }
+
+        /// <summary>**片端を斜めの鉛直面で切った城の石垣の駒**(`JC.CastleWall` を走りに 2 枚つないだ 4.00m・丈 4.00・EDO-0430)。
+        /// 局所座標は `Castle Wall` と同じ: 走り Z ∈ [−4.00, 0]・控え X = 0・見え面 −X(足 −2.40 / 天端 −1.40)・足元 Y = 0。
+        /// ピボット = 切っていない 2 枚の枠の +Z 端・控え・足元(⛔ 切った端でピボットを決めない)。
+        /// <paramref name="deg"/> = 切る面の平面の線が走りとなす角(奥行 2.40 で走りに 2.40/tan(deg) ずれる)/
+        /// <paramref name="atPlusZ"/> = 切る端が +Z 端(false は −Z 端)/ <paramref name="faceLonger"/> = 見え面の側が長い(控えが短い)。
+        /// 切り口の一番先へ出る点が枠の端(Z = 0 か −4.00)に来る。天端の前の縁の端(据える側が当てる点):
+        /// 43.2° の +Z・長 = 局所 (−1.40, 4.00, −1.065)/ −Z・短 = (−1.40, 4.00, −2.509)。
+        /// ⭐ 据えは**実メッシュの天端の前の縁の端**を相手の点へ当てる(面は直線材と同じ線)。残りの直線材はこの駒に重ね、
+        /// 重ねる直線材の小口は切り口の最も奥(控え/足の前の、端から 2.556 の所)より内に置く(1.44m の全断面の帯の中)。
+        /// 焼いてあるもの(2026-09-26): **43.2 +Z 長**(前庭の土留め TW_Zentei_SW の東端)・**43.2 −Z 短**(TW_Zentei_SE の西端)
+        /// ── 見え面 −X を北へ向けた yaw で、局所 +Z が走りの東。材 `stone wall` ⇒ `Edo/共通/隅部材のマテリアルをremap`。
+        ///   blender --background --python Tools/Blender/build_ishigaki_kiri.py -- kiri_list Tools/Blender/sanno_ishigaki_kiri_set.txt --render</summary>
+        public static string IshigakiKiri(float deg, bool atPlusZ, bool faceLonger)
+        {
+            return "Assets/Edo/Models/Kado/Ishigaki_Kiri_"
+                 + UnityEngine.Mathf.RoundToInt(UnityEngine.Mathf.Abs(deg) * 10f).ToString("000") + "_"
+                 + (atPlusZ ? "P" : "M") + (faceLonger ? "L" : "S") + ".fbx";
         }
 
         public const string MShop01     = "Assets/Edo/Materials/M_Shop01.mat";

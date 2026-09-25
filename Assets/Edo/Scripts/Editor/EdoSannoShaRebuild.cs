@@ -610,7 +610,8 @@ public static class EdoSannoShaRebuild
         var placed = new List<GameObject>();
         // 出隅の隅の駒のため: run ごとの駒と、端点ごとの外向き(EdoBuild.PlaceRunKado)
         var runPieces = new Dictionary<string, List<GameObject>>();
-        var runEnds = new List<KeyValuePair<string, KeyValuePair<Vector2, Vector2>>>();   // (run, (端点, 外向き))
+        var segPieces = new Dictionary<string, List<GameObject>>();                         // run#区間 → 駒(折れ線の途中の角も隅にする)
+        var runEnds = new List<EdoBuild.RunEnd>();                                            // 区間の端ごとの外向きと走り
         var faceOf = new Dictionary<GameObject, Vector2>();                                  // 駒 → 見え面の向き(低い側)
         var dgS = EdoBuild.Drawn();
         float wallDepth; { var bv = EdoBuild.BodyAt(EdoAssets.JC.CastleWall, Vector3.zero, 0f, true); float x0 = float.MaxValue, x1 = float.MinValue;
@@ -651,11 +652,14 @@ public static class EdoSannoShaRebuild
             var mine = new List<GameObject>(); runPieces[name] = mine;
             Vector2 n0 = nodes.Count > 0 ? nodes[0] : Vector2.zero, n1 = nodes.Count > 0 ? nodes[nodes.Count - 1] : Vector2.zero;
 
+            int segI = -1;
             foreach (var so in L(wl, "segs"))
             {
                 var seg = so as List<object>; if (seg == null || seg.Count < 2) continue;
+                segI++;
                 Vector2 a = P2(seg[0]), b = P2(seg[1]);
                 float len = Vector2.Distance(a, b); if (len < 0.4f) continue;
+                string segKey = name + "#" + segI; var segMine = new List<GameObject>(); segPieces[segKey] = segMine;
                 Vector2 dir = (b - a) / len;
                 // seg の始点が run の折れ線のどこか(s の原点合わせ)
                 float sBase = ArcOf(nodes, a);
@@ -687,9 +691,12 @@ public static class EdoSannoShaRebuild
                 Vector2 run = (Vector2.Dot(new Vector2(dir.y, -dir.x), outw) >= 0f) ? dir : -dir;
                 Vector2 A = (Vector2.Dot(new Vector2(dir.y, -dir.x), outw) >= 0f) ? a : b;
                 float psi = Mathf.Atan2(run.x, run.y) * Mathf.Rad2Deg;
+                // 区間の両端(run の端も折れ線の途中の節点も)── 出隅と一直線の継ぎ目は EdoBuild.PlaceRunCorners が見分ける
                 foreach (var ep in new Vector2[] { a, b })
-                    if (Vector2.Distance(ep, n0) < 0.05f || Vector2.Distance(ep, n1) < 0.05f)
-                        runEnds.Add(new KeyValuePair<string, KeyValuePair<Vector2, Vector2>>(name, new KeyValuePair<Vector2, Vector2>(ep, outw)));
+                {
+                    int node = -1; for (int k = 0; k < nodes.Count; k++) if (Vector2.Distance(nodes[k], ep) < 0.05f) { node = k; break; }
+                    runEnds.Add(new EdoBuild.RunEnd { key = segKey, run = name, node = node, p = ep, outw = outw, away = (ep == a ? dir : -dir) });
+                }
 
                 for (int i = 0; i < N; i++)
                 {
@@ -713,7 +720,7 @@ public static class EdoSannoShaRebuild
                         Vector2 lowP = EdoBuild.LowSide(c - run * 1.0f, c + run * 1.0f, (x, z) => dgS.At(x, z), wallDepth + probe, 0.05f, null, out pn, out px);
                         if (lowP != Vector2.zero && pn > px && Vector2.Dot(lowP, outw) < 0f) { ow = lowP; flipLocal++; }
                         EdoBuild.FaceWallToLine(wg, ow, a);
-                        placed.Add(wg); mine.Add(wg); faceOf[wg] = ow;
+                        placed.Add(wg); mine.Add(wg); segMine.Add(wg); faceOf[wg] = ow;
                     }
                     made++;
                 }
@@ -722,35 +729,13 @@ public static class EdoSannoShaRebuild
             sb.AppendLine("  " + name + ": 駒 " + made + " 枚" +
                           (skipM > 0.05f ? " / ⛔ 埋まっていて建てなかった " + skipM.ToString("F1") + "m" : ""));
         }
-        // ⭐ 出隅: 二本の run の端点が重なり外へ凸に折れる所へ隅の駒を据える(EdoBuild.PlaceRunKado・両脇の実メッシュで測る)
+        // ⭐ 出隅: run の端・折れ線の途中の角が外へ凸に折れる所へ隅の駒を据える。継ぎ目が一直線の所は隅を置かない
+        //   (EdoBuild.PlaceRunCorners → PlaceRunKado・両脇の実メッシュで測る)
         {
-            var dg = EdoBuild.Drawn(); int kn = 0;
-            for (int i = 0; i < runEnds.Count; i++)
-                for (int j = i + 1; j < runEnds.Count; j++)
-                {
-                    var ei = runEnds[i]; var ej = runEnds[j];
-                    if (ei.Key == ej.Key || Vector2.Distance(ei.Value.Key, ej.Value.Key) > 0.05f) continue;
-                    List<GameObject> ra, rb2;
-                    if (!runPieces.TryGetValue(ei.Key, out ra) || !runPieces.TryGetValue(ej.Key, out rb2) || ra.Count == 0 || rb2.Count == 0) continue;
-                    // 隅の近くの駒だけを渡す(腕の長さ + 1 枚ぶん)
-                    Vector2 P = ei.Value.Key;
-                    var na = ra.FindAll(g => g != null && Vector2.Distance(new Vector2(EdoBuild.RB(g).center.x, EdoBuild.RB(g).center.z), P) < 6f);
-                    var nb = rb2.FindAll(g => g != null && Vector2.Distance(new Vector2(EdoBuild.RB(g).center.x, EdoBuild.RB(g).center.z), P) < 6f);
-                    if (na.Count == 0 || nb.Count == 0) continue;
-                    string kname = ei.Key + "_x_" + ej.Key.Substring(ej.Key.LastIndexOf('_') + 1) + "_kado";
-                    string kn2;
-                    var kc = EdoBuild.PlaceRunKado(na, ei.Value.Value, nb, ej.Value.Value, EdoAssets.Own.IshigakiKado,
-                                                   (x, z) => dg.At(x, z), grp, kname, 0.02f, out kn2);
-                    if (kn2 != null && kn2.StartsWith("入隅")) continue;
-                    if (kc != null)
-                    {
-                        kn++;
-                        ra.RemoveAll(g => g == null); rb2.RemoveAll(g => g == null);
-                        placed.RemoveAll(g => g == null); placed.Add(kc);
-                    }
-                    sb.AppendLine("  出隅 " + ei.Key + " × " + ej.Key + ": " + kn2);
-                }
-            total = 0; foreach (var kv in runPieces) total += kv.Value.Count; total += kn;
+            var dg = EdoBuild.Drawn(); var kcs = new List<GameObject>();
+            int kn = EdoBuild.PlaceRunCorners(runEnds, segPieces, EdoAssets.Own.IshigakiKado, (x, z) => dg.At(x, z), grp, 0.02f, sb, kcs);
+            placed.RemoveAll(g => g == null); placed.AddRange(kcs);
+            total = 0; foreach (var kv in runPieces) { kv.Value.RemoveAll(g => g == null); total += kv.Value.Count; } total += kn;
         }
         if (flipLocal > 0) sb.AppendLine("  駒ごとに測り直して見え面を区間と逆へ向けた駒 " + flipLocal + "(高低が区間の途中で入れ替わる所)");
         // ⭐ 野面の乱積みの土留め(`masonry`)── 端の揃う run を一本に継ぎ、隣の石垣の実面を測って据える(EdoBuild.PlaceNozuraRun)

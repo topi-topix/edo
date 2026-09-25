@@ -151,7 +151,7 @@ public static partial class EdoBuild
     /// 当たる先: 石垣の run が凸に折れる所すべて(山王 回廊の基壇・御供所の郭・前庭の土留め、各邸の外周石垣の隅)。</summary>
     public static GameObject PlaceRunKado(IList<GameObject> runA, Vector2 nA, IList<GameObject> runB, Vector2 nB,
                                           Func<float, float, string> pathOf, Func<float, float, float> groundAt,
-                                          Transform parent, string name, float tol, out string note)
+                                          Transform parent, string name, float tol, out string note, bool? convex = null)
     {
         note = null;
         // 見え面の側は法の出で測る(渡された向きは軸としてだけ使う): 下の帯が上の帯より前へ出る側が見え面
@@ -173,7 +173,8 @@ public static partial class EdoBuild
         Vector2 P = new Vector2((bA[0] * nB.y - bB[0] * nA.y) / det, (nA.x * bB[0] - nB.x * bA[0]) / det);
         // 凸(出隅)か: 相手の run の駒は自分の外向きの内側に在る
         Func<IList<GameObject>, Vector2> cen = run => { Vector2 s = Vector2.zero; int k = 0; foreach (var g in run) if (g != null) { var b = RB(g); s += new Vector2(b.center.x, b.center.z); k++; } return k > 0 ? s / k : P; };
-        if (Vector2.Dot(cen(runB) - P, nA) > 0f || Vector2.Dot(cen(runA) - P, nB) > 0f) { note = "入隅 — 出隅の駒は据えない"; return null; }
+        //   ⭐ 呼び手が区間の走りから凹凸を知っていればそれを採る(短い区間の駒は隅の外まで張り出し、芯で測ると入隅と誤る ── 2026-09-25 山王 本殿の西の南西の隅 1.82m の区間)
+        if (convex.HasValue ? !convex.Value : (Vector2.Dot(cen(runB) - P, nA) > 0f || Vector2.Dot(cen(runA) - P, nB) > 0f)) { note = "入隅 — 出隅の駒は据えない"; return null; }
         // yaw: 局所 −X → (−cosψ, sinψ) を片方の外向きへ。局所 +Z → (sinψ, cosψ) がもう一方へ最も近い方
         float psiA = Mathf.Atan2(nA.y, -nA.x) * Mathf.Rad2Deg, psiB = Mathf.Atan2(nB.y, -nB.x) * Mathf.Rad2Deg;
         Func<float, Vector2> zdir = p => new Vector2(Mathf.Sin(p * Mathf.Deg2Rad), Mathf.Cos(p * Mathf.Deg2Rad));
@@ -266,6 +267,96 @@ public static partial class EdoBuild
         if (endZ != null && endZ != endX && !keep[1]) { runZ.Remove(endZ); UnityEngine.Object.DestroyImmediate(endZ); }
         note = System.IO.Path.GetFileNameWithoutExtension(path) + " を据えた(yaw " + psi.ToString("F2") + "・丈 " + h.ToString("F1") + "・足元の最低 " + gMin.ToString("F2") + ")/ " + sb;
         return kc;
+    }
+
+    /// <summary>石垣の run の区間の端ひとつ。<c>key</c> = 区間の駒の並びの名(<c>run#区間</c>)、<c>node</c> = run の折れ線の節点の番号、
+    /// <c>outw</c> = 見え面の外向き、<c>away</c> = 端から区間の奥へ向かう走り。</summary>
+    public struct RunEnd { public string key; public string run; public int node; public Vector2 p; public Vector2 outw; public Vector2 away; }
+
+    /// <summary>**石垣の run の折れ目すべてに出隅の隅の駒を据える**(<see cref="PlaceRunKado"/> を区間の端の組ごとに呼ぶ)。
+    /// 別々の run の端が重なる所だけでなく、**一本の折れ線の途中の角**(区間どうしの継ぎ目)も同じに扱う。
+    ///
+    /// <para>⭐ **継ぎ目が一直線の所には隅を置かない** ── 同じ点に集まる端のうち二つが一直線に続く(走りが逆向き・見え面が同じ向き)
+    /// なら、そこは直線で継ぐ所(天端の段の境・別の run への継ぎ足し)。第三の run がそこへ突き当たる(T 字)ときも、隅の駒の天端が
+    /// 一直線の相方の天端より 0.5m 以上高くない限り(= 隅の見え面が段として出ない限り)据えない
+    /// ── 据えると継ぎ目の上に隅の駒が立ち、一直線の見え面に角が出る(山王 透塀の土台 TW_Koshi_W × _SW の隅が
+    /// 本殿の西の土留め TW_Nozura_ShadenW と _SW の一直線の継ぎ目の上に来た・2026-09-25)。</para>
+    /// <para>硬い条件(許容0)は <see cref="PlaceRunKado"/> のまま(合わなければ建てずに直線材を残す)。
+    /// 当たる先: 石垣の run が凸に折れる所すべて ── 山王 土留め・透塀の土台・回廊の基壇・御供所の郭。各邸の外周石垣の隅も同じ口で呼べる。</para></summary>
+    public static int PlaceRunCorners(IList<RunEnd> ends, IDictionary<string, List<GameObject>> pieces,
+                                      Func<float, float, string> pathOf, Func<float, float, float> groundAt,
+                                      Transform parent, float tol, System.Text.StringBuilder log, List<GameObject> made)
+    {
+        int kn = 0; var used = new bool[ends.Count];
+        for (int i = 0; i < ends.Count; i++)
+        {
+            if (used[i]) continue;
+            var cl = new List<RunEnd>();
+            for (int j = i; j < ends.Count; j++)
+                if (!used[j] && Vector2.Distance(ends[i].p, ends[j].p) < 0.05f) { used[j] = true; cl.Add(ends[j]); }
+            if (cl.Count < 2) continue;
+            // ① 一直線の継ぎ目か(走りが逆向き・見え面が同じ向きの二本)
+            int sa = -1, sbI = -1;
+            for (int a = 0; a < cl.Count && sa < 0; a++)
+                for (int b = a + 1; b < cl.Count; b++)
+                    if (cl[a].key != cl[b].key && Vector2.Dot(cl[a].away, cl[b].away) < -0.985f && Vector2.Dot(cl[a].outw, cl[b].outw) > 0.9f)
+                    { sa = a; sbI = b; break; }
+            Func<string, float> crestNear = key =>
+            {   List<GameObject> r; float t = float.MinValue; if (!pieces.TryGetValue(key, out r)) return t;
+                foreach (var g in r) if (g != null) { var bb = RB(g); if (Vector2.Distance(new Vector2(bb.center.x, bb.center.z), ends[i].p) < 6f) t = Mathf.Max(t, bb.max.y); }
+                return t; };
+            if (sa >= 0 && cl.Count == 2)
+            {
+                if (cl[sa].run != cl[sbI].run) log?.AppendLine("  継ぎ目が一直線(" + cl[sa].key + " → " + cl[sbI].key + ")── 隅を置かず直線で継ぐ");
+                continue;
+            }
+            // ② 組ごとに出隅を試す
+            bool loggedT = false;
+            for (int a = 0; a < cl.Count; a++)
+                for (int b = a + 1; b < cl.Count; b++)
+                {
+                    var ea = cl[a]; var eb = cl[b];
+                    if (ea.key == eb.key) continue;
+                    if (sa >= 0)
+                    {   // 一直線の継ぎ目に第三の run が突き当たる(T 字): 隅の駒は継ぎ目の上に立つ。
+                        //   ⇒ 一直線の二本の間には置かない。第三の run × 一直線の片方(B)の隅は、B の天端がもう片方(A)の天端より
+                        //     0.5m 以上高い(隅の見え面が A の天端の上に段として出る)ときだけ試す ── 0.5 は PlaceRunKado の「隅は土に隠れる」と同じ。
+                        if ((a == sa && b == sbI) || (a == sbI && b == sa)) continue;
+                        int bIdx = (a == sa || a == sbI) ? a : ((b == sa || b == sbI) ? b : -1);
+                        if (bIdx < 0) continue;
+                        int aIdx = bIdx == sa ? sbI : sa;
+                        float step = crestNear(cl[bIdx].key) - crestNear(cl[aIdx].key);
+                        if (step < 0.5f)
+                        {
+                            if (!loggedT) log?.AppendLine("  継ぎ目が一直線(" + cl[aIdx].key + " → " + cl[bIdx].key + "・" + cl[a + b - bIdx].key + " が突き当たる・天端の段 " +
+                                            step.ToString("+0.00;-0.00") + "m < 0.5)── 隅を置かず直線で継ぐ");
+                            loggedT = true; continue;
+                        }
+                    }
+                    List<GameObject> ra, rb;
+                    if (!pieces.TryGetValue(ea.key, out ra) || !pieces.TryGetValue(eb.key, out rb) || ra.Count == 0 || rb.Count == 0) continue;
+                    Vector2 P = ea.p;
+                    var na = ra.FindAll(g => g != null && Vector2.Distance(new Vector2(RB(g).center.x, RB(g).center.z), P) < 6f);
+                    var nb = rb.FindAll(g => g != null && Vector2.Distance(new Vector2(RB(g).center.x, RB(g).center.z), P) < 6f);
+                    if (na.Count == 0 || nb.Count == 0) continue;
+                    string kname = ea.run == eb.run ? ea.run + "_kado" + Mathf.Max(ea.node, eb.node)
+                                                    : ea.run + "_x_" + eb.run.Substring(eb.run.LastIndexOf('_') + 1) + "_kado";
+                    string note;
+                    // 一本の折れ線の途中の角は、凹凸を区間の走りで決める: 出隅 = 相手の区間が自分の見え面の裏側へ延びる(両方とも)。
+                    //   ⚠ 別々の run の間は従来どおり駒の芯で測る(run ごとの見え面は低い側を別々に測っていて、走りとの組が揃う保証が無い)
+                    bool? cvx = null;
+                    if (ea.run == eb.run) cvx = Vector2.Dot(eb.away, ea.outw) < 0f && Vector2.Dot(ea.away, eb.outw) < 0f;
+                    var kc = PlaceRunKado(na, ea.outw, nb, eb.outw, pathOf, groundAt, parent, kname, tol, out note, cvx);
+                    if (note != null && note.StartsWith("入隅") && ea.run != eb.run) continue;
+                    if (kc != null)
+                    {
+                        kn++; made?.Add(kc);
+                        ra.RemoveAll(g => g == null); rb.RemoveAll(g => g == null);
+                    }
+                    log?.AppendLine("  出隅 " + ea.key + " × " + eb.key + ": " + note);
+                }
+        }
+        return kn;
     }
 
     /// <summary>石垣の駒の並び <paramref name="run"/> の見え面の外向きを、軸 <paramref name="axis"/> の ± のうち

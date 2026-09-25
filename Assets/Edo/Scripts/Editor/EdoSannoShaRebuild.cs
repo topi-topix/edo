@@ -889,6 +889,20 @@ public static class EdoSannoShaRebuild
             foreach (var so in L(w0, "segs")) { var sg = so as List<object>; if (sg != null && sg.Count >= 2) allWallSegs.Add(new[] { P2(sg[0]), P2(sg[1]) }); }
         }
         var flushLog = new List<string>();
+        // ⭐ 石段の口で切れる土留めの端は、袖の外面で止める(EdoBuild.RunEndAtFace・指図 joints「土留めは袖の外面で止め、端に隅の塊を置かない」
+        //   2026-09-26 EDO-0430)。袖は Stage2 が据えた実メッシュで測る ── **据える前に**区間の端を決め、駒の割りはその長さで取る。
+        var sodeEnds = new List<KeyValuePair<Vector2, string>>();     // 袖の run の端点 → 袖の名
+        var sodeDir = new Dictionary<Vector2, Vector2>();               // 袖の run の端点 → その端の区間の走り
+        foreach (var o in L(Impl, "runs"))
+        {
+            var w0 = o as Dictionary<string, object>; if (w0 == null || S(w0, "of") != "wall") continue;
+            var tw0 = FindByName(Doc, "terraceWalls", S(w0, "name")); if (tw0 == null || !IsSodeWall(tw0)) continue;
+            var nd0 = Pts(L(w0, "nodes")); if (nd0.Count < 2) continue;
+            sodeEnds.Add(new KeyValuePair<Vector2, string>(nd0[0], S(w0, "name")));
+            sodeEnds.Add(new KeyValuePair<Vector2, string>(nd0[nd0.Count - 1], S(w0, "name")));
+            sodeDir[nd0[0]] = (nd0[1] - nd0[0]).normalized; sodeDir[nd0[nd0.Count - 1]] = (nd0[nd0.Count - 1] - nd0[nd0.Count - 2]).normalized;
+        }
+        var sodeStopLog = new List<string>();
 
         foreach (var o in L(Impl, "runs"))
         {
@@ -924,6 +938,32 @@ public static class EdoSannoShaRebuild
                 var seg = so as List<object>; if (seg == null || seg.Count < 2) continue;
                 segI++;
                 Vector2 a = P2(seg[0]), b = P2(seg[1]);
+                // 区間の端が石段の袖の端点に重なるなら、袖の外面で止める(EdoBuild.RunEndAtFace)。斜めに当たる端は動かさず ★ で差し戻す。
+                bool stopA = false, stopB = false;
+                for (int e2 = 0; e2 < 2; e2++)
+                {
+                    Vector2 ep = e2 == 0 ? a : b, other = e2 == 0 ? b : a;
+                    string sode = null; Vector2 sdir = Vector2.zero;
+                    foreach (var kv in sodeEnds) if (Vector2.Distance(kv.Key, ep) < 0.05f) { sode = kv.Value; sdir = sodeDir[kv.Key]; break; }
+                    if (sode == null || Vector2.Distance(ep, other) < 1e-3f) continue;
+                    // ⛔ 袖が土留めの通りをそのまま続ける端(一直線の継ぎ ── 御供所の郭 EK × 郭の階の南の袖・前庭の切り込み × 参道の階の袖)は
+                    //   ここで止めない ── その取り合いは段石・袖の端の切り(CutStairEndsToBatter)が受け持つ。止めると参道の階の段1 の切りが焼いていない形に変わった(2026-09-26)。
+                    if (Mathf.Abs(Vector2.Dot(sdir, (ep - other).normalized)) > 0.9f) continue;
+                    var sps = new List<GameObject>();
+                    foreach (var t in Group("Sando").GetComponentsInChildren<Transform>())
+                        if (t.name.StartsWith(sode + "_") && t.gameObject.activeInHierarchy && Vector2.Distance(new Vector2(t.position.x, t.position.z), ep) < 4f) sps.Add(t.gameObject);
+                    var st = EdoBuild.RunEndAtFace(ep, (ep - other).normalized, sps);
+                    if (!st.found) { sodeStopLog.Add("⚠ " + name + " の端 " + ep.ToString("F2") + ": 袖 " + sode + " の駒が無い(Stage2 が先)"); continue; }
+                    if (st.oblique)
+                    {
+                        sodeStopLog.Add("★ " + name + " の端 " + ep.ToString("F2") + " × 袖 " + sode + "(" + st.with + "): 袖の外面が走りに " + (90f - st.angleDeg).ToString("F1") +
+                                        "° で斜めに交わる ── 直の小口では面で当たらない。端を切った駒が要る(部材の話・差し戻し)。端は動かしていない");
+                        continue;
+                    }
+                    if (st.move > 0.15f) { sodeStopLog.Add("⚠ " + name + " の端: 袖の外面まで " + st.move.ToString("F3") + "m 足りない ── 延ばさない(継ぎ目が開く)"); continue; }
+                    if (e2 == 0) { a = st.end; stopA = true; } else { b = st.end; stopB = true; }
+                    sodeStopLog.Add(name + " の端を袖 " + sode + " の外面(" + st.with + ")で止めた: " + st.move.ToString("+0.000;-0.000") + "m(角 " + st.angleDeg.ToString("F1") + "°)");
+                }
                 float len = Vector2.Distance(a, b); if (len < 0.4f) continue;
                 string segKey = name + "#" + segI; var segMine = new List<GameObject>(); segPieces[segKey] = segMine;
                 Vector2 dir = (b - a) / len;
@@ -971,6 +1011,9 @@ public static class EdoSannoShaRebuild
                 if (N == 1 && len < IG_RUN - 1e-3f)
                 {
                     int ce = EdoBuild.ShortSegConvexEnd(a, b, outw, allWallSegs);
+                    // ⭐ 袖の外面で止めた端は必ず面一に(余りをそこから出すと袖へめり込む ── 前庭の西 1.35m の区間で 0.32・2026-09-26)。
+                    //   余りは反対の端(入隅なら相手の土留めの中・出隅なら隅の駒の腕の中)で重ねる。
+                    if (stopA != stopB) ce = stopA ? 1 : -1;
                     if (ce != 0)
                     {
                         flushEnd = ce > 0 ? a : b;
@@ -1113,6 +1156,7 @@ public static class EdoSannoShaRebuild
         }
         if (flipLocal > 0) sb.AppendLine("  駒ごとに測り直して見え面を区間と逆へ向けた駒 " + flipLocal + "(高低が区間の途中で入れ替わる所)");
         foreach (var fl in flushLog) sb.AppendLine("  短い区間: " + fl);
+        foreach (var sl in sodeStopLog) sb.AppendLine("  袖で止める端: " + sl);
         sb.AppendLine("  天端が見え面の前の地表の下に来る駒(全体が埋まる): 退けた " + buriedWhole + " / 隣の小口を地表の下へ入れるため残した " + buriedKept);
         // ⭐ 野面の乱積みの土留め(`masonry`)── 端の揃う run を一本に継ぎ、隣の石垣の実面を測って据える(EdoBuild.PlaceNozuraRun)
         total += Nozura(nozuraRuns, grp, placed, faceOf, dgS, wallDepth + probe, sb);
@@ -1407,6 +1451,7 @@ public static class EdoSannoShaRebuild
                 }
                 float pHalfT, pHgt; PanelProfile(EdoAssets.Eg.Itabei5, out pHalfT, out pHgt);
                 ClipRunEndsToGates(pa, pb, pHgt, pHalfT, hasSeat, seat, name, sb);
+                RetractRunEndsFromWalls(pa, pb, pHalfT, pHgt, hasSeat, seat, name, sb);
                 for (int i = 0; i < pa.Count; i++)
                 {
                     Vector2 a = pa[i], b = pb[i];
@@ -1495,6 +1540,7 @@ public static class EdoSannoShaRebuild
                     sb.AppendLine("    " + name + ": 口の端を土留めの実面へ " + reach.ToString("F2") + "m 延ばした(紙の最寄りまで " + Vector2.Distance(e, wp).ToString("F2") + ")");
                 }
         }
+        RetractRunEndsFromWalls(sa, sbb, halfT, hgt, hasSeat, seat, name, sb);
 
         // ⭐ 座で据える走りは床の段(土留めの天端の縁)で割る(EdoBuild.SplitAtBedSteps・2026-09-26 EDO-0430)──
         //   割らないと落ちを跨ぐ弦が一本の斜めの駒になり、足元が前後の駒へめり込み反対の足が浮く(`Ita_Keidai_149f` 0.95m 落ち・26°)。
@@ -1662,6 +1708,32 @@ public static class EdoSannoShaRebuild
             }
         }
     }
+    /// <summary>柵・板塀の run の端(始まり・終わり・口の両脇)が土留め・基壇の駒の中に在るなら、その実面まで詰める
+    /// (<see cref="EdoBuild.RetractEndFromBodies"/>・2026-09-26 EDO-0430)── `Ita_Keidai` の始まりが回廊の基壇の隅の駒の中 0.85m まで入っていた。
+    /// ⛔ 折れ点(次の区間が続く端)は触らない。Stage4 と突き合わせ(<see cref="BuiltSegs"/>)が同じ関数で引く。</summary>
+    static void RetractRunEndsFromWalls(List<Vector2> sa, List<Vector2> sbb, float halfT, float hgt, bool hasSeat, float seat, string name, StringBuilder sb)
+    {
+        var dodAll = new List<GameObject>(); foreach (Transform c in Group("Dodome")) if (c.gameObject.activeInHierarchy) dodAll.Add(c.gameObject);
+        for (int i = 0; i < sa.Count; i++)
+            foreach (bool atB in new[] { false, true })
+            {
+                Vector2 e = atB ? sbb[i] : sa[i];
+                bool fold = atB ? (i + 1 < sa.Count && Vector2.Distance(sa[i + 1], e) < 0.2f) : (i > 0 && Vector2.Distance(sbb[i - 1], e) < 0.2f);
+                if (fold) continue;
+                Vector2 inward = atB ? sa[i] - sbb[i] : sbb[i] - sa[i]; float sl = inward.magnitude; if (sl < 0.3f) continue;
+                var near = new List<GameObject>();
+                foreach (var g in dodAll) { var c = EdoBuild.RB(g).center; if (Vector2.Distance(new Vector2(c.x, c.z), e) < 5f) near.Add(g); }
+                if (near.Count == 0) continue;
+                float gy = hasSeat ? seat : SurfaceY(e);
+                // 測る帯は地表から上(`kuchiAbut` と同じ物差し)。⚠ 根入れまで測ると法 1:0.25 の面では見える帯の全高で口が 0.07 広がる
+                //   (口の端 2 箇所で 0.038/0.063 詰めて許容 0.05 を超えた・2026-09-26)。土の中の根が法の足へ触れる 0.02 は数に残す。
+                float back = EdoBuild.RetractEndFromBodies(e, inward, near, halfT, gy, gy + hgt, Mathf.Min(3f, sl * 0.9f));
+                if (back <= 0.002f) continue;
+                Vector2 ne = e + inward.normalized * back;
+                if (atB) sbb[i] = ne; else sa[i] = ne;
+                sb.AppendLine("    " + name + ": 端 " + e.ToString("F2") + " が土留めの駒の中 ── 実面まで " + back.ToString("F3") + "m 詰めた");
+            }
+    }
     /// <summary>run の `segs` を、**Stage4 が実際に建てる区間**へ直して返す(口に門が建つなら、その縁を
     /// 門の脇柱の角へ取り付けた後の端)。⭐ 突き合わせ(<see cref="EdoSannoSashizuCheck"/>)が同じ物差しで
     /// 線を引くための入口(2026-09-23・EDO-0413)── ⛔ 検査が口の閉じ方を別に持たない。持つと、
@@ -1682,6 +1754,7 @@ public static class EdoSannoShaRebuild
         if (kind == "板塀") PanelProfile(EdoAssets.Eg.Itabei5, out halfT, out hgt);
         else { float postL; SakuProfile(out halfT, out hgt, out postL); }
         ClipRunEndsToGates(a, b, hgt, halfT, hasSeat, seat, S(r, "name"), new StringBuilder());
+        RetractRunEndsFromWalls(a, b, halfT, hgt, hasSeat, seat, S(r, "name"), new StringBuilder());
     }
     /// <summary>算出物の `gates[]` の行から、据える部材のパス・座・向きを引く(Stage5 と同じ物差し)。
     /// ⛔ ここで向きを作らない — `gates[].yaw` は焼いた従属値。引けなければ false。</summary>

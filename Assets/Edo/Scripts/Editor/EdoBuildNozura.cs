@@ -310,6 +310,28 @@ public static partial class EdoBuild
             }
         return hits == 0 ? float.NaN : best;
     }
+    /// <summary>**走りの端が相手の駒の中に在るなら、相手の実面まで詰める**(<see cref="ReachToBodies"/> の逆向き・2026-09-26・EDO-0430)。
+    /// 端 <paramref name="end"/> から走りの内へ <paramref name="maxBack"/> 戻った点(駒の外)から端へ向けて、柵の丈の帯・半厚の幅で光線を打ち、
+    /// 最初に触れる面までの距離 h を測る。h &lt; maxBack なら端は相手の中(または面の上)── 詰める量 maxBack − h を返す(当たらなければ 0 = 端は外)。
+    /// ⛔ 紙の端の点のまま建てない(柵 `Ita_Keidai` の始まりが回廊の基壇の隅の駒の中 0.85m まで入っていた)。硬い条件(許容0 のめり込み)。
+    /// 当たる先: 柵・板塀の run の端が土留め・石垣・基壇の駒の上や中で終わる所すべて(山王 Stage4 の柵の端。`kuchiAbut` の相方)。</summary>
+    public static float RetractEndFromBodies(Vector2 end, Vector2 inward, IList<GameObject> bodies, float halfT, float yLo, float yHi, float maxBack)
+    {
+        if (bodies == null || bodies.Count == 0 || maxBack <= 0.01f) return 0f;
+        Vector2 d = inward.normalized; Vector2 from = end + d * maxBack;
+        // ⛔ 走りそのものが相手に沿って(法の足に)立っている run は「端が中に在る」ではない ── 戻った点の真上から下ろした光線が
+        //   帯の中で相手に当たるなら測らない(前庭の南の板塀 `Ita_ZSW` は土留めの法の足に沿って立ち、端を 1.5m 詰めかけた・2026-09-26)。
+        Vector2 nrm = new Vector2(d.y, -d.x);
+        foreach (float lat in new[] { -halfT, 0f, halfT })
+        {
+            Vector2 q = from + nrm * lat;
+            float down = RayToBodies(bodies, new Vector3(q.x, yHi + 1f, q.y), Vector3.down, yHi + 1f - yLo);
+            if (!float.IsNaN(down)) return 0f;
+        }
+        float h = ReachToBodies(from, -d, bodies, halfT, yLo, yHi, maxBack);
+        if (float.IsNaN(h) || h >= maxBack - 1e-4f) return 0f;
+        return maxBack - h;
+    }
     /// <summary>**土の側(背)の天端の足りなさ**(2026-09-25・EDO-0430)。駒 <paramref name="g"/> の上向きの面を 0.05m 刻みで引き、
     /// **背の帯**(見え面 <paramref name="faces"/> の裏へ <see cref="SOIL_SIDE"/> 進むと駒の外へ出る点 = 裏込めの土が触れる所)のうち、
     /// 検査と皮が「天端」と読む点(周り <see cref="CREST_R"/> の同じ駒の最高から <see cref="CREST_BAND"/> 以内 ── <c>TopIndex.Top</c> と同じ篩)について、

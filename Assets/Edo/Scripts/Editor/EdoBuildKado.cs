@@ -627,6 +627,52 @@ public static partial class EdoBuild
         return -m;
     }
 
+    /// <summary><see cref="RunEndAtFace"/> の答え。</summary>
+    public struct RunEndStop
+    {
+        public bool found;       // 端の近くに相手の駒が在った
+        public bool oblique;     // 相手の面が走りに直交しない(角 angleDeg)⇒ 直の端では面で当たらない。端は動かしていない
+        public float angleDeg;   // 走りと、相手の面の法線(相手の駒の水平の軸のうち走りに最も近い物)との角
+        public float move;       // 端を走りに沿って動かす量(+ = 先へ延ばす / − = 詰める)
+        public Vector2 end;      // 動かした後の端(oblique なら元のまま)
+        public string with;      // 最寄りの相手の駒
+    }
+
+    /// <summary>**run の端を、相手の駒(石段の袖など)の外面で止める**(2026-09-26・EDO-0430 指図 joints「土留めは袖の外面で止め、端に隅の塊を置かない」)。
+    /// <paramref name="end"/> = 区間の端(紙の点)、<paramref name="toward"/> = 区間の内から端へ向かう走り、<paramref name="faceBodies"/> = 端で当たる相手の駒。
+    /// 相手の外面 = 相手の実メッシュの <paramref name="toward"/> への射影の最小(区間の側を向く面)。**据える前に**呼び、返った端で区間の長さと駒の割りを決める
+    /// (⛔ 置いた駒を後から寄せない)── 直の端(Castle Wall の駒の小口は走りに直交する鉛直面)は、相手の面が走りに直交する時だけ面で当たる。
+    /// 相手の最寄りの駒の水平の軸のうち走りに最も近い物と走りの角が <paramref name="angTolDeg"/> を超えたら <see cref="RunEndStop.oblique"/> で返し、
+    /// 端は動かさない ── 斜めに当たる端は「端を切った駒」が要る(部材の話・呼び出し側が差し戻す)。
+    /// ⛔ ピボット・bounds の中心で合わせない。硬い条件(許容0 の隙・めり込み)。
+    /// 当たる先: 石段の口で切れる土留め(山王 郭の階 × 御供所の郭の東の土留め・女坂の口 × 前庭の南の土留め ── 後者は 43° で斜め)、
+    /// 塀・石垣の run が石段の袖・門の袖石垣に突き当たる所すべて。</summary>
+    public static RunEndStop RunEndAtFace(Vector2 end, Vector2 toward, IList<GameObject> faceBodies, float angTolDeg = 2f)
+    {
+        var r = new RunEndStop { end = end };
+        if (faceBodies == null || toward.sqrMagnitude < 1e-9f) return r;
+        toward.Normalize();
+        GameObject near = null; float nd = float.MaxValue;
+        foreach (var g in faceBodies)
+        {
+            if (g == null) continue;
+            foreach (var v in Body(g.transform, 400, true)) { float dd = Vector2.Distance(new Vector2(v.x, v.z), end); if (dd < nd) { nd = dd; near = g; } }
+        }
+        if (near == null) return r;
+        r.found = true; r.with = near.name;
+        var t3 = new Vector3(toward.x, 0f, toward.y); float best = 0f;
+        foreach (var ax0 in new[] { near.transform.right, near.transform.forward })
+        { var ax = ax0; ax.y = 0f; if (ax.sqrMagnitude < 1e-9f) continue; ax.Normalize(); best = Mathf.Max(best, Mathf.Abs(Vector3.Dot(ax, t3))); }
+        r.angleDeg = Mathf.Acos(Mathf.Clamp01(best)) * Mathf.Rad2Deg;
+        if (r.angleDeg > angTolDeg) { r.oblique = true; return r; }
+        float face = float.MaxValue;
+        foreach (var g in faceBodies) if (g != null)
+            foreach (var v in Body(g.transform, 999999, true)) face = Mathf.Min(face, (v.x - end.x) * toward.x + (v.z - end.y) * toward.y);
+        if (face == float.MaxValue) { r.found = false; return r; }
+        r.move = face; r.end = end + toward * face;
+        return r;
+    }
+
     /// <summary>**基壇(天端が両側の地盤より上の石垣)の見え面の向きを、端で継ぐ壁の走りから決める**(2026-09-25・EDO-0430)。
     /// 基壇は両側が低いので地表では向きが決まらない。基壇を囲む壁は端どうしで継がれ、継いだ相手は**基壇の側へ**走る ──
     /// 見え面はその逆。<paramref name="others"/> = 基壇の壁の区間 [a, b](自分を含んでよい)。a・b から <paramref name="tol"/> 以内に

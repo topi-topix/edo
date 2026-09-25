@@ -16,6 +16,10 @@ metadata:
 - 旧 `Keidairin` は `SetActive(false)` だけでは数から消えない(active を見ていない)。
   **群ごと `Kyu_Shaso` の下へ移す**。竹 `Bam_*` の検査も同じ理由で群を見ている。
 
+- 突き合わせの行「実装 GameObject 0 本」は**下層を GameObject で据えた数**(`gotGo`・Check() 859–865)で、
+  名指しの木ではない。下層は地形の木へ移したので 0 が正しい。名指しは別に `ByName` で引く(911–914)。
+  ⛔「名木が0と数えられた」と読まない(2026-09-25 確かめ)。
+
 **② 焼き出し `planting.points` の一本立ち 7 点は `part` が `Own.Matsu("{size}")` の差し込みのまま・
 `size` の欄も null。** ⇒ 同じ点の `prefab`(`Tree_<族>_<丈>[_NN]`)から丈と個体を読む。
 ⛔ 丈を発明しない・⛔ `prefab` からパスを組まない(解いた丈を `EdoAssets.Own.*` へ渡す)。

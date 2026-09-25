@@ -409,15 +409,23 @@ public static partial class EdoBuild
             if (design == null) return float.NaN;
             float fx = (x - design.x0) / design.step, fz = (z - design.z0) / design.step;
             int i = Mathf.FloorToInt(fx), j = Mathf.FloorToInt(fz); float tx = fx - i, tz = fz - j;
-            double sw = 0, sv = 0;
+            double sw = 0, sv = 0, wm = 0;
             for (int di = 0; di <= 1; di++)
                 for (int dj = 0; dj <= 1; dj++)
                 {
                     float w = (di == 1 ? tx : 1f - tx) * (dj == 1 ? tz : 1f - tz);
-                    if (w <= 1e-6f || !NodeOut(i + di, j + dj)) continue;
-                    sw += w; sv += w * design.h[(j + dj) * design.nx + i + di];
+                    if (w <= 1e-6f) continue;
+                    int ni = i + di, nj = j + dj;
+                    bool none = ni < 0 || nj < 0 || ni >= design.nx || nj >= design.nz || !design.ok[nj * design.nx + ni];
+                    if (none) { wm += w; continue; }                      // 設計面の外の節点
+                    if (!NodeOut(ni, nj)) continue;                       // 面の中の節点(面の外の点に混ぜない)
+                    sw += w; sv += w * design.h[nj * design.nx + ni];
                 }
-            return sw > 0.05 ? (float)(sv / sw) : float.NaN;
+            if (sw <= 0.05) return float.NaN;
+            // ⭐ 設計面の外の節点の重みは地形(造成しない地盤)で埋める(2026-09-25・EDO-0430)。⛔ 設計面の縁の値を外へ平らに延ばさない ──
+            //   回廊の基壇の東の斜面で、設計面の縁(z 862)の値が 1m 外まで平らに延び、登る地形との間に幅 1m・深さ 0.2〜0.35m の溝が立った。
+            if (wm > 1e-6) { float g = probe.At(x, z); if (!float.IsNaN(g)) { sv += wm * g; sw += wm; } }
+            return (float)(sv / sw);
         };
         // 面の外の点の描く高さ: 設計の地盤(無ければ地形)を、最寄りの**囲いの無い**面の縁から法で受ける。
         //   囲い(部材)が縁に立つ所は法を当てない(土留めの前に盛土を出さない)。sloped = 法で受けたか。
@@ -772,18 +780,27 @@ public static partial class EdoBuild
                         else if (sealFace && near >= 1 && fl.Count > 0)
                         {
                             float fy = FaceY(p);
+                            // ⭐ 面の外(設計の地盤)も同じ許容で塞ぐ(2026-09-25・EDO-0430): 基準はその点の地盤(Stage1 が設計面へ写した値)。
+                            //   男坂の北の袖の背(見え面が外を向く盛り上げの石段)で、設計の地盤が袖の底より 0.13m 低く底の下が覗いた ──
+                            //   設計面の 2m 格子と部材の実の底の差で、許容の内。許容を超える底は駒の側の話(隙に数える)のは面の中と同じ。
+                            if (float.IsNaN(fy) && !faced) fy = hgt;
                             bool rim = near == 1 || EdgeDistAny(idx, p, FLAT);
                             if (!float.IsNaN(fy) && rim)
                             {
                                 // 隣の部材ごとに「底 = 最も低い面と鉛直な面の下の縁の低い方」を取り、その最大
                                 float nb = float.NaN;
-                                int rr = near == 2 ? 0 : 1;
+                                // ⭐ 半格子(0.125m)の点も見る ── 底が背の縁へ向かって上がる駒(袖の背の縁の面取り)では、格子の隣の底が
+                                //   縁の底より 0.09m 低く、塞いでも縁の 0.05m 外で底の下が覗いた(2026-09-25 男坂の北の袖)。
+                                int rr = near == 2 ? 0 : 2;
                                 for (int di = -rr; di <= rr; di++)
                                     for (int dj = -rr; dj <= rr; dj++)
                                     {
-                                        int who; float qx = org.x + (gi + di) * step, qz = org.z + (gj + dj) * step;
+                                        int who; float qx = org.x + (gi + di * 0.5f) * step, qz = org.z + (gj + dj * 0.5f) * step;
                                         float bq = idx.Bottom(qx, qz, out who); if (float.IsNaN(bq)) continue;
-                                        float wb = idx.WallBottom(qx, qz, NEAR + 0.1f, who); if (!float.IsNaN(wb)) bq = Mathf.Min(bq, wb);
+                                        // 鉛直な面の下の縁はその点のごく近く(0.2m)で取る ── 0.6m では段ごとに底が上がる袖で下の段の縁を拾い、
+                                        //   縁の底より 0.08m 低く塞いだ。近くに無ければ(殻の石垣の見え面から離れた点)広く取る。
+                                        float wb = idx.WallBottom(qx, qz, 0.2f, who); if (float.IsNaN(wb)) wb = idx.WallBottom(qx, qz, NEAR + 0.1f, who);
+                                        if (!float.IsNaN(wb)) bq = Mathf.Min(bq, wb);
                                         if (float.IsNaN(nb) || bq > nb) nb = bq;
                                     }
                                 if (!float.IsNaN(nb) && nb > hgt + 1e-4f && nb <= fy + faceTol - 0.02f)

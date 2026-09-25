@@ -93,3 +93,4 @@
 - [社叢QAのカメラ②は赤坂では宝蔵院の門の中](sanno-shaso-qa-camera2-inside-gate.md) — 撮る間だけ門+十坊の板塀 3_4f/4b ほか計52個を消す。カメラは動かさない
 - [山王 Stage6 は Clear の後に指紋を検める](sanno-stage6-clears-before-fingerprint.md) — 落ちると社殿が空。並行の指図書きが済むまで bake を見張る
 - [地形の detail/holes の塊は寸法の名札が逆](terrain-detail-array-dims-lie.md) — GetDetailLayer/GetHoles の配列は行優先。非正方の塊は組み直してから触る(EDO-0274)
+- [盛土の床・基壇の向き・設計面の縁の溝](fill-only-floor-and-base-facing.md) — fillOnly を皮の面にしない・BlockOutward・DesignOut は地形で埋める

@@ -742,6 +742,22 @@ public static class EdoSannoShaRebuild
             }
         }
         foreach (var k in new List<string>(famC.Keys)) famC[k] = famC[k] / famN[k];
+        // ⭐ 基壇の区間(建つ所の受け高が全て負 = 天端が両側の地盤より上)は、地表でなく端で継ぐ基壇の壁の走りで向きを決める
+        //   (EdoBuild.BlockOutward・2026-09-25)。⛔ 同族の重心から外へ、は門で割れた基壇で妻の石垣を塊の内へ向けた。
+        var baseSegs = new List<Vector2[]>();
+        foreach (var o in L(Impl, "runs"))
+        {
+            var w0 = o as Dictionary<string, object>; if (w0 == null || S(w0, "of") != "wall") continue;
+            var tw0 = FindByName(Doc, "terraceWalls", S(w0, "name"));
+            if (tw0 != null && (IsSodeWall(tw0) || !string.IsNullOrEmpty(S(tw0, "masonry")))) continue;
+            var nd0 = Pts(L(w0, "nodes")); var pr0 = L(w0, "profile"); float st0 = F(w0, "profileStep");
+            foreach (var so in L(w0, "segs"))
+            {
+                var sg = so as List<object>; if (sg == null || sg.Count < 2) continue;
+                Vector2 a0 = P2(sg[0]), b0 = P2(sg[1]);
+                if (SegIsBase(pr0, st0, ArcOf(nd0, a0), Vector2.Distance(a0, b0))) baseSegs.Add(new[] { a0, b0 });
+            }
+        }
         var nozuraRuns = new List<Dictionary<string, object>>();
         int flipLocal = 0;
 
@@ -782,16 +798,18 @@ public static class EdoSannoShaRebuild
                 //   測る所は駒の奥行(実メッシュ)+ wallProbeM だけ線から離す(据えていた駒の天端の下を下げた節点を拾わない)。
                 //   ⛔ 建つ区間だけで投票する。
                 Vector2 nrm = new Vector2(dir.y, -dir.x);      // dir の右手
-                int voteN, voteX;
+                int voteN = 0, voteX = 0;
                 float sB = sBase;
-                Vector2 lowN = EdoBuild.LowSide(a, b, (x, z) => dgS.At(x, z), wallDepth + probe, 0.05f, ss =>
+                bool isBase = SegIsBase(prof, step, sBase, len);
+                Vector2 lowN = isBase ? Vector2.zero : EdoBuild.LowSide(a, b, (x, z) => dgS.At(x, z), wallDepth + probe, 0.05f, ss =>
                 {
                     float t0, f0, b0; return ProfileAt(prof, step, sB + ss, out t0, out f0, out b0) && f0 > BURIED_EPS;
                 }, out voteN, out voteX);
                 Vector2 outw;
-                if (lowN == Vector2.zero)
+                if (isBase && EdoBuild.BlockOutward(a, b, baseSegs) != Vector2.zero) outw = EdoBuild.BlockOutward(a, b, baseSegs);
+                else if (lowN == Vector2.zero)
                 {
-                    // 両側が同じ高さ = 基壇。⇒ 同族の壁が囲む中心から外へ。
+                    // 両側が同じ高さで継ぐ基壇の壁も無い ⇒ 同族の壁が囲む中心から外へ(最後の手)。
                     Vector2 mid = (a + b) * 0.5f;
                     Vector2 away = mid - famC[FamilyOf(name)];
                     outw = (Vector2.Dot(nrm, away) >= 0f) ? nrm : -nrm;
@@ -828,8 +846,8 @@ public static class EdoSannoShaRebuild
                     {   // 見え面を低い側へ回し、天端の前の縁を線(面の縁)へ寄せる ── 実メッシュで測る
                         // ⭐ 区間を駒ごとに割って低い側を測り直す(高低が区間の途中で入れ替わる所・2026-09-25)。
                         //   駒の走り ±1m で票が出て、区間の向きと逆なら駒の向きを採る。
-                        Vector2 ow = outw; int pn, px;
-                        Vector2 lowP = EdoBuild.LowSide(c - run * 1.0f, c + run * 1.0f, (x, z) => dgS.At(x, z), wallDepth + probe, 0.05f, null, out pn, out px);
+                        Vector2 ow = outw; int pn = 0, px = 0;
+                        Vector2 lowP = isBase ? Vector2.zero : EdoBuild.LowSide(c - run * 1.0f, c + run * 1.0f, (x, z) => dgS.At(x, z), wallDepth + probe, 0.05f, null, out pn, out px);
                         if (lowP != Vector2.zero && pn > px && Vector2.Dot(lowP, outw) < 0f) { ow = lowP; flipLocal++; }
                         EdoBuild.FaceWallToLine(wg, ow, a);
                         placed.Add(wg); mine.Add(wg); segMine.Add(wg); faceOf[wg] = ow;
@@ -985,6 +1003,17 @@ public static class EdoSannoShaRebuild
             made += got.Count;
         }
         return made;
+    }
+    /// <summary>区間が基壇か ── 建つ所(見付 &gt; 0)の受け高が全て負(天端が両側の地盤より上)。</summary>
+    static bool SegIsBase(List<object> prof, float step, float sBase, float len)
+    {
+        int n = 0;
+        for (float ss = Mathf.Min(0.5f, len * 0.5f); ss <= len; ss += 1f)
+        {
+            float t0, f0, b0; if (!ProfileAt(prof, step, sBase + ss, out t0, out f0, out b0) || f0 <= BURIED_EPS) continue;
+            n++; if (b0 > -BURIED_EPS) return false;
+        }
+        return n > 0;
     }
     static string FamilyOf(string n)
     { int i = n.LastIndexOf('_'); return i <= 0 ? n : n.Substring(0, i); }
@@ -2435,6 +2464,11 @@ public static class EdoSannoShaRebuild
         foreach (var o in L(Impl, "terraces"))
         {
             var tc = o as Dictionary<string, object>; if (tc == null) continue;
+            // ⭐ 盛土の床(指図 terraces[].fillOnly)は皮の「面」にしない ── 面の高さは下限で、地山が高ければ地山(算出物 graded が
+            //   max(面, 地山) を持つ)。面にすると皮が床の多角形の中を面の高さへ平らに削り、回廊の基壇の東で地山との境に
+            //   高さ 1.2m の垂直な土の面が立った(2026-09-25・EDO-0430)。床は設計の地盤として描く。
+            var tdoc = FindByName(Doc, "terraces", G(tc, "name") as string);
+            if (tdoc != null && G(tdoc, "fillOnly") is bool && (bool)G(tdoc, "fillOnly")) { if (sb != null) sb.AppendLine("  盛土の床 " + G(tc, "name") + " は面にせず設計の地盤で描く"); continue; }
             var wl = L(tc, "world"); var poly = new Vector2[wl.Count];
             for (int i = 0; i < wl.Count; i++) { var a = wl[i] as List<object>; poly[i] = new Vector2(Cv(a[0]), Cv(a[1])); }
             if (poly.Length >= 3) faces.Add(new EdoBuild.SkinFace(G(tc, "name") as string, poly, F(tc, "y")));

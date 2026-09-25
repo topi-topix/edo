@@ -468,6 +468,34 @@ public static partial class EdoBuild
         return r >= l ? nrm : -nrm;
     }
 
+    /// <summary>**基壇(天端が両側の地盤より上の石垣)の見え面の向きを、端で継ぐ壁の走りから決める**(2026-09-25・EDO-0430)。
+    /// 基壇は両側が低いので地表では向きが決まらない。基壇を囲む壁は端どうしで継がれ、継いだ相手は**基壇の側へ**走る ──
+    /// 見え面はその逆。<paramref name="others"/> = 基壇の壁の区間 [a, b](自分を含んでよい)。a・b から <paramref name="tol"/> 以内に
+    /// 端がある区間の走り(継ぎ目から先へ)を足し、法線の逆側を返す(継ぐ相手が無い・打ち消し合うなら Vector2.zero)。
+    /// ⛔ 同族の壁の芯(重心)から外へ、はしない ── 門で割れた基壇(山王の回廊は楼門で南北の二塊)では妻の石垣が門の側でなく
+    /// 塊の内へ向いた。⛔ 地表で測らない ── 隣の壁の見え面の前の低い地盤が 2m 格子で基壇の内へ滲み、妻の石垣が裏返った。
+    /// 当たる先: 回廊・楼門・社殿の基壇、門の両脇で切れる土台の石垣(山王 Stage3、各邸の基壇の石垣)。</summary>
+    public static Vector2 BlockOutward(Vector2 a, Vector2 b, IList<Vector2[]> others, float tol = 0.05f)
+    {
+        float len = Vector2.Distance(a, b); if (len < 1e-4f) return Vector2.zero;
+        Vector2 dir = (b - a) / len, nrm = new Vector2(dir.y, -dir.x), acc = Vector2.zero;
+        foreach (var o in others)
+        {
+            if (o == null || o.Length < 2) continue;
+            if ((Vector2.Distance(o[0], a) < tol && Vector2.Distance(o[1], b) < tol) ||
+                (Vector2.Distance(o[0], b) < tol && Vector2.Distance(o[1], a) < tol)) continue;       // 自分
+            float ol = Vector2.Distance(o[0], o[1]); if (ol < 1e-4f) continue;
+            foreach (var e in new[] { a, b })
+            {
+                if (Vector2.Distance(o[0], e) < tol) acc += (o[1] - o[0]) / ol;
+                else if (Vector2.Distance(o[1], e) < tol) acc += (o[0] - o[1]) / ol;
+            }
+        }
+        float d = Vector2.Dot(acc, nrm);
+        if (Mathf.Abs(d) < 1e-3f) return Vector2.zero;
+        return d > 0f ? -nrm : nrm;
+    }
+
     /// <summary>**石垣の駒の見え面(法の面)を <paramref name="lowN"/> へ向け、天端の前の縁を線へ寄せる**(2026-09-25・EDO-0430)。
     /// ① 見え面は <see cref="FaceSide"/>(下の帯が前へ出る側)で測り、<paramref name="lowN"/> と逆なら駒の芯(実メッシュの外接箱の中心)
     /// で 180° 回す(走りの位置は動かない) ② 天端の帯(最上点 − <paramref name="band"/> 以上)の頂点の <paramref name="lowN"/> への射影の最大

@@ -5534,11 +5534,24 @@ def scatter_pts(d, g):
             #    【検図 2026-09-24 ── 帯の低木が TW_Zentei_W・Ita_ZN・TW_SandoKai_W から 2 m 内に立った】。
             #    社叢の帯と同じ一本(`kakoi_line_shapes` = 検査 C29)。⛔ 格子は動かさない ── 当たる目だけ抜く。
             kl9 = kakoi_line_shapes(d, g) + notree_shapes(d)   # ⭐ 木を植えない面も(K143)
-            if kl9:
-                isl9 = [p for p in isl9 if shape_hit(p, kl9) is None]
-            if xr > 0 and oth9:
-                isl9 = [p for p in isl9 if all((p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 >= xr * xr
-                                               for q in oth9)]
+            # ⭐ **庭方が名指しした点(`shrubs.clusters[].pts`)を落としたら、塊・点・理由を残す**(規則19 ──
+            #    2026-09-25 EDO-0409: 前庭の塊C 3本が黙って落ち、設計 11 → 算出 8 になっていた)。検査 C23 が刷る。
+            cn9 = ([c.get("name") for c in sh["clusters"] for _q in c.get("pts") or []]
+                   if sh.get("clusters") else None)
+            keep9 = []
+            for k9, p in enumerate(isl9):
+                why = shape_hit(p, kl9) if kl9 else None
+                if why is None and xr > 0 and oth9:
+                    q9 = min(oth9, key=lambda q: (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2)
+                    dq = math.hypot(p[0] - q9[0], p[1] - q9[1])
+                    if dq < xr:
+                        why = "別の層の幹から %.2f 間(< crossLayerTrunkMin %.2f 間)" % (dq, xr)
+                if why is None:
+                    keep9.append(p)
+                elif cn9 is not None:
+                    cl_note.append({"name": "%s／%s" % (gd["name"], cn9[k9]), "dropped": [round(p[0], 3), round(p[1], 3)],
+                                    "layer": "低木", "why": why})
+            isl9 = keep9
             for j, (u9, v9) in enumerate(isl9):
                 out.append(_tree_row(d, g, rnd, "%s_低木%03d" % (gd["name"], j + 1),
                                      gd["name"], "低木", pal["低木"], sh.get("hM"), u9, v9))

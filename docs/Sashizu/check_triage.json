@@ -336,6 +336,11 @@
    "title": "塀・土留めの内の幹",
    "measures": "`planting.bandDef.avoid.kakoiLineFrom` を宣言した邸だけ、撒いた木(全点・全層)の幹の芯が、塀・囲い・土留めのすべての実体線(区画の全辺・算出物 `runs` の建つ区間=透塀・回廊・袖塀・柵・板塀・土留め・`kakoiLineTamagaki` が true なら玉垣)から指し先の値(`kyoukaiRoadM`)+半厚 以上離れている。区間の両端・各節も円で測る。線の拾い方・形・判定は散布と同じ `sashizu_lib.kakoi_lines` / `kakoi_line_keepout` / `kakoi_keepout_hit`。樹冠は測らない。区画の外に立つ塀は紙に線が無いので測れない(施主 2026-09-23 EDO-0409)。宣言の無い邸は未検査",
    "from_checks": []
+  },
+  "C31": {
+   "title": "名指しの点の届き",
+   "measures": "`<邸>_impl.json` の `planting.clusters` の記録から、庭方が名指しした点(`gardens[].shrubs.clusters[].pts`)のうち硬い制約(塀・土留めの実体線 `kakoi_line_shapes`・木を植えない面・別の層の幹 `crossLayerTrunkMinM`)で落ちた点(`dropped`・理由 `why` は散布の判定そのまま)を ng、塊の本数の不足(`short`)を △ 狙い未達で刷る(規則19 ── 2026-09-25 EDO-0409: 前庭の低木 設計11 → 算出8 が黙っていた)。記録の無い邸は未検査",
+   "from_checks": []
   }
  },
  "checks": [

@@ -1953,6 +1953,32 @@ class Checks(object):
                     len(kid), "・".join(kid) or "無し", len(nok)),
                  "%d 点(最大 %.2f 間 足りない)" % (len(bad), worst), "ng" if bad else "ok", bad[:12])
 
+    # C31 名指しの点が算出物に届いたか(規則19 ── 2026-09-25 EDO-0409: 前庭の低木 設計 11 → 算出 8 が黙っていた)
+    def c31(self):
+        """`<邸>_impl.json` の `planting.clusters` の記録から、**庭方が名指しした点**(`dropped` ── 硬い制約で落ちた点)と
+        **塊の本数の不足**(`short` ── 位置は散布が選ぶ塊)を刷る。
+
+        ⭐ 名指しの点が落ちたら ng(設計した位置が建たない = 塊の置き直しが要る)。本数の不足は △ 狙い未達。
+        ⛔ 散布の側で落とした理由(`why`)をそのまま刷る ── 検査で測り直さない(判定は散布の一本)。
+        """
+        M = self.M
+        fp = os.path.join(DOC, M.est + "_impl.json")
+        if not os.path.exists(fp):
+            self.add("C31", "名指しの点の届き", "未検査 — 算出物が無い", "na")
+            return
+        cl = ((json.load(open(fp, encoding="utf-8")).get("planting") or {}).get("clusters"))
+        if cl is None:
+            self.add("C31", "名指しの点の届き", "未検査 — 算出物に `planting.clusters` の記録が無い", "na")
+            return
+        dr = [c for c in cl if c.get("dropped") is not None]
+        sh = [c for c in cl if c.get("short")]
+        det = (["%s の点 %s を落とした: %s" % (c["name"], c["dropped"], c.get("why")) for c in dr]
+               + ["%s が %d 本足りない(塊の本数・位置は散布が選ぶ)" % (c["name"], c["short"]) for c in sh])
+        self.add("C31", "名指しの点の届き — 算出物の塊の記録 %d 件のうち、名指しの点を落とした %d 点・本数の足りない塊 %d"
+                 "(名指しの点の落ちは ng・本数の不足は △ 狙い未達)" % (len(cl), len(dr), len(sh)),
+                 "%d 点・%d 塊" % (len(dr), len(sh)),
+                 "ng" if dr else ("soft" if sh else "ok"), det[:12])
+
     # C29 塀・囲い・土留めの内の幹(施主 2026-09-23 EDO-0409「幹の芯は塀・囲い・土留めのすべての実体線から 2.0m 以上内」)
     def c29(self):
         """`planting.bandDef.avoid.kakoiLineFrom` を宣言した邸だけ、撒いた木(全点・全層)の**幹の芯**が
@@ -1988,12 +2014,15 @@ class Checks(object):
             kinds[ln["kind"]] = kinds.get(ln["kind"], 0) + 1
         halves = sorted(set("%s %.2fm=%s" % (ln["kind"], ln["half"], ln["halfFrom"]) for ln in lines))
         nf = [ln["name"] for ln in lines if ln.get("facing") is False]
+        _S, ext = L.kakoi_line_ends(lines)
         self.add("C29", "塀・土留めの内の幹 — %s の %d 点(全層)の幹の芯が、塀・囲い・土留めの実体線 %d 本・%d 区間(%s)から"
                  " %.1f m(+半厚:%s)以上離れている(土留めは天端の奥の縁から・2m は道に面する土留め %d 本だけ ── 面さない %d 本(%s)は実体だけ退ける。"
+                 "2m を当てる線の端 %d 箇所は出会う相手の壁の実体の分だけ延ばす(%s)。"
                  "区間の両端・各節も円で測る。樹冠は測らない。区画の外の塀は測れない)"
                  % (fn, len(P), len(lines), len(K), "・".join("%s %d" % kv for kv in sorted(kinds.items())), m,
                     "・".join(halves), sum(1 for ln in lines if ln.get("facing") is True),
-                    len(nf), "・".join(nf) or "無し"),
+                    len(nf), "・".join(nf) or "無し", len(ext),
+                    "・".join("%s←%s %.2fm" % (a, w, h) for a, _p, w, h in ext) or "無し"),
                  "%d 点" % len(bad), "ng" if bad else "ok", bad[:12])
 
     # C30 道の上の枝下(施主裁定 2026-09-23 EDO-0409「道の上に張り出す枝の枝下は 4.0m 以上」・結線 2026-09-25)

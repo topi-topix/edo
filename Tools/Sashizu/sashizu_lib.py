@@ -1618,12 +1618,70 @@ def kakoi_lines(d, poly, runs, tamagaki, road_edges=None):
     return out
 
 
+_KAKOI_MEET_EPS = 0.01      # 端が相手の線の上にあるとみなす幾何の誤差[m](設計値ではない ── 算出物は同じ点を共有する)
+
+
+def kakoi_line_ends(lines, eps=_KAKOI_MEET_EPS):
+    """**2m を当てる線の端を、出会う相手の壁の実体の分だけ延ばす**(普請検査の実測 2026-09-25 EDO-0409)。
+
+    出隅・T の取り合いでは、相手の壁の実体(土留め = 天端の奥行 / 柵 = 柱の径の半分 ── `kakoi_lines` の `half`)が
+    こちらの線の端より外へ出る(前庭の西と北の土留めの出隅で、角石の天端が北の線の始点から西へ 1m 余り出ていた)。
+    ・対象は `m` を当てる線(`facing` が False でない線)の**端**(同じ線の別の区間と繋がらない区間の端点)。
+    ・その端が**他の線**の区間の上(`eps` 以内)にあれば、端を自分の区間の向きに沿って外へ、出会う相手の `half` の
+      最大だけ延ばす。⛔ 相手を道に面した扱いにしない(相手の線はそのまま)。⛔ 延ばす量を測らない ── 欄の値だけ。
+    ・土留めの上に立つ塀(全区間が土留めの線の上)は、相手の土留めでは延ばさない ── 角の天端は下の土留めの物。
+    ⭐ 天端がどちらへ伸びるか紙で分からないので、出隅も入隅も同じに延ばす(保守側・`dodome_crest_depth` と同じ理屈)。
+    戻り: 線ごとの区間の列 [[(a', b')…]…] と、延ばした記録 [(線の名, 端の点, 相手の名, 延ばした m)…]。
+    """
+    out_segs, log = [], []
+    for i, ln in enumerate(lines):
+        segs = list(ln["segs"])
+        if ln.get("facing", True) is False:
+            out_segs.append(segs)
+            continue
+        pts = [p for s in segs for p in s]
+        # ⭐ 土留めの上に立つ塀(透塀が腰石垣の上に立つ等)は、角の天端が**下の土留めの物** ── その土留めが道に
+        #   面するか否かに従う。塀の端を土留めの天端で延ばさない(延ばすと面さない土留めの角へ 2m を当てる)。
+        on_wall = not str(ln.get("kind", "")).startswith("土留め") and all(
+            any(_seg_d(((a[0] + b[0]) / 2, (a[1] + b[1]) / 2), c, e) < eps
+                for o in lines if str(o.get("kind", "")).startswith("土留め") for c, e in o["segs"])
+            for a, b in segs)
+        new = []
+        for a, b in segs:
+            L0 = math.hypot(b[0] - a[0], b[1] - a[1])
+            if L0 < 1e-9:
+                new.append((a, b))
+                continue
+            ux, uz = (b[0] - a[0]) / L0, (b[1] - a[1]) / L0
+            ends = []
+            for p, sg in ((a, -1.0), (b, 1.0)):
+                if sum(1 for q in pts if math.hypot(q[0] - p[0], q[1] - p[1]) < eps) > 1:
+                    ends.append(p)          # 同じ線の節(繋がる区間がある)── 延ばさない
+                    continue
+                h, who = 0.0, None
+                for j, o in enumerate(lines):
+                    if j == i or o["half"] <= 0.0: continue
+                    if on_wall and str(o.get("kind", "")).startswith("土留め"): continue
+                    if any(_seg_d(p, c, e) < eps for c, e in o["segs"]) and o["half"] > h:
+                        h, who = o["half"], o["name"]
+                if who is None:
+                    ends.append(p)
+                    continue
+                ends.append((p[0] + sg * ux * h, p[1] + sg * uz * h))
+                log.append((ln["name"], p, who, h))
+            new.append((ends[0], ends[1]))
+        out_segs.append(new)
+    return out_segs, log
+
+
 def kakoi_line_keepout(lines, m):
     """`kakoi_lines` の各区間を半径 `m + 半厚` で膨らませたカプセル(両端・各節も丸い)。
     形は `kakoi_keepout_polys` の "seg" と同じで、判定は `kakoi_keepout_hit` の一本。
-    ⭐ 道に面さない土留め(`facing` = False)は `m` を足さず、実体(線 + 天端の奥行)だけを退ける(施主裁定B 2026-09-25)。"""
+    ⭐ 道に面さない土留め(`facing` = False)は `m` を足さず、実体(線 + 天端の奥行)だけを退ける(施主裁定B 2026-09-25)。
+    ⭐ `m` を当てる線の端は、出会う相手の壁の実体の分だけ延ばしてから膨らませる(`kakoi_line_ends`)。"""
+    S, _log = kakoi_line_ends(lines)
     return [(ln["name"], "seg", (a, b, (m if ln.get("facing", True) else 0.0) + ln["half"]))
-            for ln in lines for a, b in ln["segs"]]
+            for ln, sg in zip(lines, S) for a, b in sg]
 
 
 def do_rin_rects(d):

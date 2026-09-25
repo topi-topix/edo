@@ -5,6 +5,8 @@
     (型を省くと全部。hogyo / irimoya3 / irimoya4 / inari / umaya / kura)
     blender --background --python Tools/Blender/build_sanno_do.py -- hihi --render
     (絵図の比の 6 点 = yakushi / koshin / kannon / sono5 / sono8 / umaya32。2026-09-23 EDO-0395)
+    blender --background --python Tools/Blender/build_sanno_do.py -- yakushi6 --render
+    (薬師堂 = 六角の宝形 + 高欄付きの 4.5 間角の石の壇。2026-09-26 EDO-0438 施主裁定B)
 
 ━━━ 2026-09-23 EDO-0395 施主裁定B — 絵図の比の寸法【P 比・U 錨】━━━━━━━━━━━━━━━━━━━━━━
 御宮絵図の朱矩形の**大小比**を、鐘楼の辺の平均 = 3 間を錨に 0.5 間刻みで読んだ寸法へ焼き直す。
@@ -67,7 +69,7 @@ bom の行 9(鐘楼・鼓楼・附属堂・観音堂・薬師堂・庚申堂)・
 Unity ローカル **X = 東(u)/ Z = 北(v)/ Y = 上**。**ピボット = 柱芯の矩形の中心・地盤**。
 **正面(木階と扉)= +Z**。据える向きは棟梁が yaw で与える。scale = one。
 """
-import bpy, bmesh, sys, os, math
+import bpy, bmesh, sys, os, math, re
 from mathutils import Matrix, Vector
 from mathutils.bvhtree import BVHTree
 
@@ -817,6 +819,301 @@ def kura(name="Sanno_Kura_4x5ken_7272x9090"):
 
 
 # ==========================================================================
+# G 薬師堂(六角の宝形 + 高欄付きの方形の石の壇)【EDO-0438 施主裁定B 2026-09-26】
+# ==========================================================================
+# ⭐ 典拠: 江戸名所図会 巻之三「日吉山王権現社」NDL 2563386 コマ7 ── 多角形の宝形が高欄付きの
+#   壇の上に建つ【B】。胴に見える面が 3 つ ⇒ 六角【B】。御宮絵図の朱矩形(4.5 間角)は
+#   **壇の外形**と読む【P/U 施主裁定B】。⛔ 堂の柱芯を 4.5 間へ引き伸ばさない。
+# ⭐ 以下の丈・意匠は**すべて【U 部材方 2026-09-26】**(史料は形の種類しか言わない):
+#   ・壇 = 切石の方形 8.181 角・丈 0.90(`RM.kidan` の葛石+羽目石を四面とも仕上げ)
+#   ・壇の高欄 = 木の高欄(地覆・平桁・架木・擬宝珠)丈 0.80・壇の縁から 0.15 内
+#   ・壇の石段 = 南(+Z)の中央・幅 2.40・蹴上 0.18 × 5(外へ出るのは 4 段)・踏面 0.32
+#   ・堂 = 正六角・一辺 1 間(柱芯の外接円の半径 = 1.818 ⇒ 対角 3.636・対辺 3.149)
+#   ・床 = 壇の天端 + 0.60 の高床・縁 0.50 + 高欄 0.70・正面に木階 4 級(幅 1.10)
+#   ・正面の柱間 = 板扉 / 斜め前の 2 面 = 連子窓 / 残る 3 面 = 板壁(小壁は漆喰)
+#   ・軒先 = 床 + 2.55・軒の出 0.90(壁の通りから直角に)。勾配は瓦の 5.5 寸のまま(棟高は従属値)
+# ⭐ 六角の宝形の瓦場: キットの `roof 2x2` を**面ごとの三角形**(軒の一辺 + 頂点)で `GR.tile_field`
+#   に葺かせ、6 面を 60° ずつ振る。隅棟 6 本は `GR.ridge`(キットの棟モジュール)で継ぐ。
+#   ⛔ 四角錐の `make_yosemune` を流用しない(正方形しか作れない)。
+Y6 = dict(dan=4.5 * K, danH=0.90, koranIn=0.15, koranH=0.80,
+          stairW=2.40, stairN=5, stairT=0.32,
+          R=K, floorUp=0.60, en=0.50, enKoran=0.70, eaveUp=2.55, eave=0.90,
+          post=0.10, kaiN=4, kaiW=1.10)
+
+
+def _hexd(X, Z):
+    """正六角(頂点が ±X・平らな辺が ±Z)の「中心からの対辺方向の距離」。"""
+    c, s = math.cos(math.radians(30.0)), 0.5
+    return max(abs(Z), abs(X * c + Z * s), abs(X * c - Z * s))
+
+
+def koran_u(M, uv, mw, fx, a, b, z, kh, gib):
+    """**高欄 1 辺**(論理の u 方向へ a..b・v = fx)。`gib` = 擬宝珠を立てる u の列。
+    ⭐ 辺を 60°/90° ずつ回して閉じるので、各辺は b 端にだけ擬宝珠を立てる(隅で重ねない)。"""
+    if b - a < 0.25:
+        return
+    for (z0, z1, t) in ((z, z + 0.11, 0.06), (z + kh - 0.20, z + kh - 0.11, 0.05),
+                        (z + kh - 0.11, z + kh, 0.075)):
+        B3(M, a, b, fx - t, fx + t, z0, z1, uv["wood_h"], mw, grain="u")
+    n = max(2, int(round((b - a) / 0.62)))
+    for i in range(n + 1):
+        c = a + (b - a) * i / float(n)
+        B3(M, c - 0.045, c + 0.045, fx - 0.045, fx + 0.045,
+           z + 0.11, z + kh - 0.11, uv["wood"], mw, grain="h")
+    for c in gib:
+        SH.giboshi(M, c, fx, z + kh, uv["wood"], mw)
+
+
+def _hex_prism(name, r, z0, z1, mat, uvr):
+    """正六角柱(Blender 座標で直に)。頂点は ±X(Unity でも ±X)。"""
+    vs = []
+    for z in (z0, z1):
+        for j in range(6):
+            a = math.radians(60.0 * j)
+            vs.append((r * math.cos(a), r * math.sin(a), z))
+    faces = [list(range(5, -1, -1)), list(range(6, 12))]
+    faces += [[j, (j + 1) % 6, 6 + (j + 1) % 6, 6 + j] for j in range(6)]
+    o = GR._mesh_from_poly(name, vs, faces, recalc=True)
+    o.data.materials.append(mat)
+    V.set_uv_rect(o, uvr, axes=('x', 'y'))
+    return o
+
+
+def hex_roof(name, A, eave_z):
+    """**六角の宝形の瓦場**(Blender 座標・軒先 z = eave_z)。A = 軒先の対辺距離(中心から)。"""
+    Rr = A / math.cos(math.radians(30.0))
+    h = A * GR.RATIO
+    Vt = [(Rr * math.cos(math.radians(60.0 * j)), Rr * math.sin(math.radians(60.0 * j)))
+          for j in range(6)]
+    pieces = []
+    for j in range(6):
+        a, b = Vt[j], Vt[(j + 1) % 6]
+        yaw = 60.0 * j + 30.0 + 180.0                  # 上り = 面の外向き法線の逆
+        f = GR.tile_field([[a, b, (0.0, 0.0)]], a, yaw, 0.0, "%s_f%d" % (name, j))
+        if f:
+            pieces.append(f)
+    for j in range(6):                                  # 隅棟 6 本(キットの棟モジュール)
+        pieces += GR.ridge((Vt[j][0], Vt[j][1], 0.02), (0.0, 0.0, h), name + "_sumi",
+                           w=0.34, h=0.28)
+    p = GR.palette()
+    ru = p['uv_roof']
+    rr = (ru[0] - 0.01, ru[1] - 0.01, ru[0] + 0.01, ru[1] + 0.01)
+    # 露盤(六角)。⚠ 下の段は隅棟 6 本の頂の小口(冠瓦の丈 0.28)を呑む丈にする — 四角の
+    #   `make_yosemune` の 0.16 のままだと棟の頂の間に暗い隙が覗いた(2026-09-26 近景レンダ)
+    for (r, hgt, zb) in ((0.48, 0.26, h - 0.10), (0.34, 0.20, h + 0.16)):
+        pieces.append(_hex_prism(name + "_roban", r, zb, zb + hgt, p['roof'], rr))
+    V.dedup_materials()
+    o = V.join(pieces, name)
+    o.data.transform(Matrix.Translation((0.0, 0.0, eave_z))); o.data.update()
+    return o, h
+
+
+def hex_noji(name, A, zf, off):
+    """**六角の野地**(6 枚の三角 × 上下)。面ごとに平面なので三角で厳密に張れる。
+    上面 = 瓦の材(`GK.noji_slab` と同じ意匠)/ 下面 = 木。座標は Blender。"""
+    roofmat = bpy.data.materials.get("roof")
+    ms, uv = SH.mats()
+    ru = V.sample_uv(GR.MOD, pick_high=True)
+    rtop = (ru[0] - 0.01, ru[1] - 0.01, ru[0] + 0.01, ru[1] + 0.01)
+    rb = uv["wood_h"]
+    Rr = A / math.cos(math.radians(30.0))
+    Vt = [(Rr * math.cos(math.radians(60.0 * j)), Rr * math.sin(math.radians(60.0 * j)))
+          for j in range(6)]
+    bm = bmesh.new()
+    uvl = bm.loops.layers.uv.new("UVMap")
+    for j in range(6):
+        tri = [Vt[j], Vt[(j + 1) % 6], (0.0, 0.0)]
+        for dz, rect, mi, order in ((0.0, rtop, 0, tri), (-0.03, rb, 1, tri[::-1])):
+            vs = [bm.verts.new((x, y, zf(-x, -y) + off + dz)) for (x, y) in order]
+            f = bm.faces.new(vs)
+            f.material_index = mi
+            for lp, (x, y) in zip(f.loops, order):
+                lp[uvl].uv = (rect[0] + (rect[2] - rect[0]) * ((x % 1.8) / 1.8),
+                              rect[1] + (rect[3] - rect[1]) * ((y % 1.8) / 1.8))
+    bm.normal_update()
+    for f in bm.faces:                                   # 上面は +z・下面は −z を向ける
+        want = 1.0 if f.material_index == 0 else -1.0
+        if f.normal.z * want < 0:
+            f.normal_flip()
+    me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
+    o = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(o)
+    me.materials.append(roofmat); me.materials.append(ms[0])
+    return o
+
+
+def _hex_checks(roof, slab, ap, A, fl, n=60):
+    """join の前に屋根と野地を別々の BVH で突き合わせる(`soffit_pre` の六角版)。
+    ① 真上: 壁の通り +0.30 の内で、上から落とした光線が瓦にも野地にも当たらない数
+    ② 軒裏: 壁の通り +0.12 〜 軒先 −0.08 の帯で、下から上げた光線が野地より先に瓦に当たる / 空へ抜ける数"""
+    dg = bpy.context.evaluated_depsgraph_get()
+    br, bs = BVHTree.FromObject(roof, dg), BVHTree.FromObject(slab, dg)
+    Rr = A / math.cos(math.radians(30.0))
+    top_miss = top_tot = bad = miss = tot = 0
+    for i in range(n + 1):
+        for j in range(n + 1):
+            X = -Rr + 2 * Rr * i / float(n)
+            Z = -Rr + 2 * Rr * j / float(n)
+            d = _hexd(X, Z)
+            if d <= ap + 0.30:
+                top_tot += 1
+                o = Vector((-X, -Z, 40.0)); dr = Vector((0, 0, -1))
+                if br.ray_cast(o, dr, 80.0)[0] is None and bs.ray_cast(o, dr, 80.0)[0] is None:
+                    top_miss += 1
+            if ap + 0.12 < d < A - 0.08:
+                org, dr = Vector((-X, -Z, fl + 0.5)), Vector((0, 0, 1))
+                lr = br.ray_cast(org, dr, 12.0)[0]
+                ls = bs.ray_cast(org, dr, 12.0)[0]
+                tot += 1
+                if lr is None and ls is None:
+                    miss += 1
+                elif ls is None or (lr is not None and ls.z > lr.z + 0.001):
+                    bad += 1
+    return (top_tot, top_miss), (tot, bad, miss)
+
+
+def _logical_to_blender(objs):
+    for o in objs:                                   # 論理 → Blender(Rz180°・det +1)
+        o.data.transform(Matrix.Diagonal((-1.0, -1.0, 1.0, 1.0)))
+        o.data.update()
+
+
+def yakushi6(name="Sanno_Do_Hogyo6Dan_4.5x4.5ken_8181x8181"):
+    """**薬師堂 — 高欄付きの方形の石の壇 + 六角の宝形の小堂**(EDO-0438)。
+
+    ⭐ ピボット = **壇の外形の中心・壇の下端(地盤)**。正面(壇の石段・堂の板扉と木階)= +Z。
+    【組み立て — 下から】① 切石の壇 8.181 角・丈 0.90 ② 壇の南の石段 ③ 壇の高欄
+      ④ 堂の床束・縁束 ⑤ 六角の床(縁込み)⑥ 縁の高欄・木階 ⑦ 柱 6 本・壁(板扉/連子窓/板壁)
+      ⑧ 桁 ⑨ 野地 ⑩ 六角の宝形の瓦場・隅棟・露盤・宝珠。"""
+    P = Y6
+    hd = P["dan"] / 2.0
+    dH = P["danH"]
+    R = P["R"]
+    half = R / 2.0                                   # 一辺の半分(= 0.909)
+    ap = R * math.cos(math.radians(30.0))            # 柱芯の対辺距離(1.5745)
+    fl = dH + P["floorUp"]
+    eaveZ = fl + P["eaveUp"]
+    eave = P["eave"]
+    A = ap + eave                                    # 軒先の対辺距離
+    k = GR.RATIO
+    ms, uv = SH.mats()
+    mw = SH.W
+    # ---- 屋根・野地(Blender 座標)
+    roof, hR = hex_roof(name + "_roof", A, eaveZ)
+    zf = lambda X, Z: eaveZ + k * (A - _hexd(X, Z))
+    off = GK.roof_dmin(roof, lambda X, Z: True, zf) - 0.02
+    slab = hex_noji(name + "_noji", A, zf, off - 0.02)
+    keta_top = eaveZ + k * eave + off - 0.03         # 桁の天端 = 野地の下面(`do()` と同じ)
+    top = keta_top - DO["ketaH"]
+    roban_top = eaveZ + hR + 0.36                    # 露盤の天端(`hex_roof` の 2 段目の上端)
+    hq = houju(name + "_houju", roban_top)
+    chk_top, chk_soff = _hex_checks(roof, slab, ap, A, fl)
+    # ---- 壇(切石)と石段(論理 = Unity ローカル → Blender)
+    out0 = {s: 0.0 for s in ("+X", "-X", "+Z", "-Z")}
+    # ⛔⛔ `RM.kidan` の `finish` に "-X" を入れない — 仕上げの面は +X/+Z/−Z しか作らず、
+    #   しかも "-X" を挙げると平の段積みからも外すので **−X の面が丸ごと抜ける**
+    #   (2026-09-26 に背面の斜めのレンダで壇の側面が空いていた)。
+    #   ⭕ +X の仕上げ面を別に焼いて X で鏡に写し、−X に据える(巻きは `_flip_faces` で戻す)。
+    stones = RM.kidan(hd, hd, out0, dH, name + "_dan", finish=("+X", "+Z", "-Z"))
+    keep = [o for o in stones if not re.search(r"_c\d+_x\d+_", o.name)]    # −X の平の段積みを除く
+    drop = [o for o in stones if o not in keep]
+    for o in drop:
+        bpy.data.objects.remove(o, do_unlink=True)
+    mirror = RM.kidan(hd, hd, out0, dH, name + "_danw", finish=("+X",))
+    for o in mirror:
+        if "+X" in o.name:
+            o.data.transform(Matrix.Diagonal((-1.0, 1.0, 1.0, 1.0)))
+            GR._flip_faces(o)
+            keep.append(o)
+        else:
+            bpy.data.objects.remove(o, do_unlink=True)
+    stones = keep
+    for o in stones:
+        o.data.transform(Matrix.Translation((0.0, 0.0, dH))); o.data.update()
+    mat = SB.kirishi_material()
+    n, T = P["stairN"], P["stairT"]
+    rise = dH / float(n)
+    sw = P["stairW"] / 2.0
+    steps = []
+    for i in range(n - 1):                           # 最上段 = 壇の天端(外へは n−1 段)
+        z0 = hd + (n - 2 - i) * T - (0.01 if i == n - 2 else 0.0)
+        steps.append(SB._stone(-sw, sw, z0, hd + (n - 1 - i) * T, 0.0, (i + 1) * rise, mat,
+                               SB.rng_of("yakushi6_dan", i), "%s_ishidan%d" % (name, i),
+                               chamfer=SH.KAME_MEJI, tile=SB.KIRISHI_TILE))
+    _logical_to_blender(steps)
+    stair_out = (n - 1) * T
+    # ---- 壇の高欄(4 辺を 90° ずつ回す。正面だけ石段の口を開ける)
+    sides = []
+    fx = hd - P["koranIn"]
+    for q4 in range(4):
+        M = VM.Mesh()
+        if q4 == 0:
+            g = sw + 0.05
+            koran_u(M, uv, mw, fx, -fx, -g, dH, P["koranH"], (-g,))
+            koran_u(M, uv, mw, fx, g, fx, dH, P["koranH"], (g, fx))
+        else:
+            koran_u(M, uv, mw, fx, -fx, fx, dH, P["koranH"], (fx,))
+        o = M.to_object("%s_dankoran%d" % (name, q4), ms)
+        if q4:
+            V.rotate_z([o], 90.0 * q4)
+        sides.append(o)
+    # ---- 堂(6 辺を 60° ずつ回す)。辺 0 = 正面(+Z)
+    oe = ap + P["en"]                                # 縁の外の対辺距離
+    kinds = {0: "tobira", 1: "mado", 5: "mado"}
+    for j in range(6):
+        M = VM.Mesh()
+        # 柱(b 端 = 頂点)。⭐ 丸柱にして 120° の隅で向きを問わない
+        SH.cyl(M, half, ap, fl, keta_top, P["post"], uv["wood"], mw, n=12)
+        # 床束(柱の下)・縁束(縁の外の中央と頂点)
+        for (uu, vv) in ((half, ap), (0.0, oe - 0.10), (half * (oe - 0.10) / ap, oe - 0.10)):
+            B3(M, uu - 0.065, uu + 0.065, vv - 0.065, vv + 0.065, dH, fl - 0.10,
+               uv["wood"], mw, grain="h")
+        # 壁
+        wall_run(M, uv, ms, "u", ap, [-half, half], fl, top, {0: kinds.get(j, "ita")}, +1)
+        # 桁
+        B3(M, -half - 0.06, half + 0.06, ap - 0.09, ap + 0.09, top, keta_top,
+           uv["wood_h"], mw, grain="u")
+        # 縁の高欄
+        fk = oe - 0.07
+        L = fk * math.tan(math.radians(30.0))
+        if j == 0:
+            g = P["kaiW"] / 2.0 + 0.10
+            koran_u(M, uv, mw, fk, -L, -g, fl, P["enKoran"], (-g,))
+            koran_u(M, uv, mw, fk, g, L, fl, P["enKoran"], (g, L))
+        else:
+            koran_u(M, uv, mw, fk, -L, L, fl, P["enKoran"], (L,))
+        o = M.to_object("%s_side%d" % (name, j), ms)
+        if j:
+            V.rotate_z([o], 60.0 * j)
+        sides.append(o)
+    Mc = VM.Mesh()                                   # 中央の床束
+    B3(Mc, -0.07, 0.07, -0.07, 0.07, dH, fl - 0.10, uv["wood"], mw, grain="h")
+    Mk = VM.Mesh()                                   # 堂の木階(壇の天端から床へ)
+    kai_v = kizahashi(Mk, uv, mw, oe, fl - dH, w=P["kaiW"], n=P["kaiN"])
+    ok_ = Mk.to_object(name + "_kizahashi", ms)
+    ok_.data.transform(Matrix.Translation((0.0, 0.0, dH))); ok_.data.update()
+    sides += [Mc.to_object(name + "_tsuka", ms), ok_]
+    # 床(縁込みの六角の板)
+    floor = _hex_prism(name + "_yuka", oe / math.cos(math.radians(30.0)), fl - 0.10, fl,
+                       ms[0], uv["wood_h"])
+    V.dedup_materials()
+    o = V.join(sides + [floor, roof, slab, hq] + stones + steps, name)
+    V.sel([o]); bpy.ops.object.material_slot_remove_unused()
+    V.set_origin(o, (0.0, 0.0, 0.0))
+    o.location = (0.0, 0.0, 0.0)
+    bpy.context.view_layer.update()
+    info = dict(kind="hogyo6", hu=ap, hv=ap, fl=fl, keta_top=keta_top, off=off,
+                roban=roban_top, soffit=chk_soff, top_rays=chk_top, eave=eave,
+                y6=dict(hd=hd, dH=dH, ap=ap, R=R, A=A, eaveZ=eaveZ, apex=eaveZ + hR,
+                        stair_out=stair_out, kai_v=kai_v, oe=oe))
+    print("[yakushi6] %s 壇 %.3f 角・丈 %.2f / 石段 幅 %.2f 出 %.3f / 堂 一辺 %.3f 対角 %.3f 対辺 %.3f"
+          " / 床 %.2f / 軒先 %.2f(対辺 %.3f)/ 桁の天端 %.3f / 瓦の頂 %.3f / 露盤の天端 %.3f"
+          % (name, 2 * hd, dH, P["stairW"], stair_out, R, 2 * R, 2 * ap, fl, eaveZ, 2 * A,
+             keta_top, eaveZ + hR, roban_top))
+    return o, info
+
+
+# ==========================================================================
 # 検算
 # ==========================================================================
 def report(o, info, label):
@@ -873,6 +1170,13 @@ def holes(o, info, label, n=200):
     """**真上からの正射影でアルファ 0 の画素を数える**(README「素通しの検査」)。
     ⛔ 背景を派手な色にして数えない(背景は照明でもあるので偽陽性が出る)。
     ここでは BVH の光線で「上から落として何にも当たらない格子点」を数える。"""
+    if info.get("top_rays"):
+        # ⚠ 六角の堂は壇が下に居るので、join 後の光線は必ず壇に当たる ⇒ join 前に
+        #   屋根と野地だけで測った値を使う(`_hex_checks`)
+        tot, miss = info["top_rays"]
+        print("  検算 真上の光線 %d 本(六角の壁の通り +0.30)— 瓦・野地に当たらない %d %s"
+              % (tot, miss, "⭕" if miss == 0 else "⛔"))
+        return miss == 0
     bvh = BVHTree.FromObject(o, bpy.context.evaluated_depsgraph_get())
     hu, hv = info["hu"], info["hv"]
     x1, z1 = hu + 0.30, hv + 0.30           # 壁の通りの内側だけ見る(軒の外は空で当たり前)
@@ -994,6 +1298,8 @@ def build_one(key, do_render, do_export, allow):
         o, info = umaya(3, 2)
     elif key == "kura":
         o, info = kura()
+    elif key == "yakushi6":                      # 薬師堂 六角の宝形 + 4.5間角の石の壇(EDO-0438)
+        o, info = yakushi6()
     else:
         raise SystemExit("[do] 知らない型: %s" % key)
     ok, meas = report(o, info, "[%s]" % key)

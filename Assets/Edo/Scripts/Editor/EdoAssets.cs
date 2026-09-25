@@ -1053,6 +1053,8 @@ public static class EdoAssets
         /// ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
         /// 生成: blender --background --python Tools/Blender/build_sanno_do.py -- hogyo irimoya3 irimoya4 --render</summary>
         /// 生成(絵図の比): blender --background --python Tools/Blender/build_sanno_do.py -- hihi --render
+        /// 薬師堂(EDO-0438 施主裁定B 2026-09-26)`("Hogyo6Dan", 4.5, 4.5, 8181, 8181)` = 高欄付きの石の壇 8.181 角 + 六角の宝形の堂。
+        /// ⚠ ピボットは**壇の外形の中心・壇の下端**(柱芯ではない)。正面(石段・扉)= +Z。生成: build_sanno_do.py -- yakushi6 --render
         public static string SannoDo(string kata, float nuKen, float nvKen, int xMm, int zMm)
         {
             // ⚠ 間数の綴りは `Len2`(3 → "3" / 4.5 → "4.5")= Blender 側 `part_name` の `%g` と同じ出方

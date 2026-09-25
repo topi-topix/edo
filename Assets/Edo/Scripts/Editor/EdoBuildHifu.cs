@@ -53,6 +53,11 @@ public static partial class EdoBuild
         public float x0, z0, step; public int nx, nz; public float[] h; public bool[] ok;
         /// <summary>切土の法 1:batterCut / 盛土の法 1:batterFill(指図 `const`)。</summary>
         public float batterCut, batterFill;
+        /// <summary>造成前の地盤(無い所は NaN)。渡すと、**部材の外形の中に入った地形の節点**を造成前の地盤に置き換えて、
+        /// 設計面の外(造成しない地盤)を引く(<see cref="CutEdgeSkin"/> の CleanAt)。⭐ 2m 格子の節点が土留め・石垣の駒の下
+        /// (見え面の 0.1〜1m 奥)に落ちると、その節点は天端の側の高さを持ち、見え面の前の地表を三角に持ち上げる
+        /// (2026-09-25 山王 回廊の基壇の東の見え面の足元に高さ 0.3〜1m の山形が 2m おき)。</summary>
+        public Func<float, float, float> baseAt;
     }
 
     /// <summary><see cref="CutEdgeSkin"/> の報告。</summary>
@@ -391,6 +396,31 @@ public static partial class EdoBuild
             }
             return v;
         };
+        // ⭐ 造成しない地盤の引き手(2026-09-25・EDO-0430): 地形の双一次だが、部材の外形の中に落ちた節点は造成前の地盤に置き換える。
+        //   外形の中の節点は石垣の天端の側の高さ(整地が設計面の双一次で写した値)を持ち、見え面の前へ三角に張り出す ── その値を
+        //   見え面の前の地盤に混ぜない。置き換える節点が無い升では地形そのもの(probe)。
+        //   当たる先: 皮が設計面の外を描くすべての土留め・石垣の見え面の前(山王 TW_* 全て・野面の土留め・袖)。
+        int HR = td.heightmapResolution; float hs = td.size.x / (HR - 1);
+        var cleanNode = new Dictionary<long, float>();
+        Func<int, int, float> NodeClean = (ni, nj) =>
+        {
+            long k = CK(ni, nj); float v; if (cleanNode.TryGetValue(k, out v)) return v;
+            v = float.NaN;
+            var q = new Vector2(org.x + ni * hs, org.z + nj * hs);
+            if (NearAt(q, 0f) == 2) v = design.baseAt(q.x, q.y);
+            cleanNode[k] = v; return v;
+        };
+        Func<float, float, float> CleanAt = (x, z) =>
+        {
+            if (design == null || design.baseAt == null) return probe.At(x, z);
+            float fi = (x - org.x) / hs, fj = (z - org.z) / hs; int i = Mathf.FloorToInt(fi), j = Mathf.FloorToInt(fj);
+            float tx = fi - i, tz = fj - j;
+            float a = NodeClean(i, j), b = NodeClean(i + 1, j), c = NodeClean(i, j + 1), d = NodeClean(i + 1, j + 1);
+            if (float.IsNaN(a) && float.IsNaN(b) && float.IsNaN(c) && float.IsNaN(d)) return probe.At(x, z);
+            if (float.IsNaN(a)) a = td.GetHeight(i, j) + org.y; if (float.IsNaN(b)) b = td.GetHeight(i + 1, j) + org.y;
+            if (float.IsNaN(c)) c = td.GetHeight(i, j + 1) + org.y; if (float.IsNaN(d)) d = td.GetHeight(i + 1, j + 1) + org.y;
+            return Mathf.Lerp(Mathf.Lerp(a, b, tx), Mathf.Lerp(c, d, tx), tz);
+        };
         // 面の多角形(面積の小さい順 = 入れ子なら内の面が勝つ)
         var fl = new List<SkinFace>(); if (faces != null) fl.AddRange(faces);
         fl.Sort((a, b) => Area(a.poly).CompareTo(Area(b.poly)));
@@ -422,16 +452,39 @@ public static partial class EdoBuild
                     sw += w; sv += w * design.h[nj * design.nx + ni];
                 }
             if (sw <= 0.05) return float.NaN;
+            // ⭐ 欠けた隅があるときは「設計面 − 造成しない地盤」の差を混ぜ、その点の造成しない地盤に足す(2026-09-25・EDO-0430)。
+            //   値そのものを混ぜると 1m 先のセルの高さが急な斜面の点へ写り、見え面の前に +0.1〜0.2m の段が残った。
+            if (wm > 1e-6 && design.baseAt != null)
+            {
+                float gp = CleanAt(x, z);
+                if (!float.IsNaN(gp))
+                {
+                    double ds = 0, dw = 0;
+                    for (int di = 0; di <= 1; di++)
+                        for (int dj = 0; dj <= 1; dj++)
+                        {
+                            float w = (di == 1 ? tx : 1f - tx) * (dj == 1 ? tz : 1f - tz);
+                            if (w <= 1e-6f) continue;
+                            int ni = i + di, nj = j + dj;
+                            bool none = ni < 0 || nj < 0 || ni >= design.nx || nj >= design.nz || !design.ok[nj * design.nx + ni];
+                            if (none) { dw += w; continue; }
+                            if (!NodeOut(ni, nj)) continue;
+                            float gc = CleanAt(design.x0 + ni * design.step, design.z0 + nj * design.step); if (float.IsNaN(gc)) continue;
+                            ds += w * (design.h[nj * design.nx + ni] - gc); dw += w;
+                        }
+                    if (dw > 1e-6) return gp + (float)(ds / dw);
+                }
+            }
             // ⭐ 設計面の外の節点の重みは地形(造成しない地盤)で埋める(2026-09-25・EDO-0430)。⛔ 設計面の縁の値を外へ平らに延ばさない ──
             //   回廊の基壇の東の斜面で、設計面の縁(z 862)の値が 1m 外まで平らに延び、登る地形との間に幅 1m・深さ 0.2〜0.35m の溝が立った。
-            if (wm > 1e-6) { float g = probe.At(x, z); if (!float.IsNaN(g)) { sv += wm * g; sw += wm; } }
+            if (wm > 1e-6) { float g = CleanAt(x, z); if (!float.IsNaN(g)) { sv += wm * g; sw += wm; } }
             return (float)(sv / sw);
         };
         // 面の外の点の描く高さ: 設計の地盤(無ければ地形)を、最寄りの**囲いの無い**面の縁から法で受ける。
         //   囲い(部材)が縁に立つ所は法を当てない(土留めの前に盛土を出さない)。sloped = 法で受けたか。
         Func<Vector2, bool[], float> OutsideY = (q, sloped) =>
         {
-            float s = DesignOut(q.x, q.y); if (float.IsNaN(s)) s = probe.At(q.x, q.y);
+            float s = DesignOut(q.x, q.y); if (float.IsNaN(s)) s = CleanAt(q.x, q.y);
             if (design == null) return s;
             float bd = BATTER_REACH; SkinFace bf = default(SkinFace); Vector2 bq = Vector2.zero; bool found = false;
             foreach (var f in fl) { Vector2 cq; float d = ClosestOnPoly(f.poly, q, out cq); if (d < bd) { bd = d; bf = f; bq = cq; found = true; } }
@@ -702,7 +755,9 @@ public static partial class EdoBuild
                         if (near < 2)
                         {
                             foreach (var f in fl) if (EdoGeom.PIP(f.poly, p)) { hgt = f.y; faced = true; break; }
-                            if (!faced && near == 0)
+                            // ⭐ 設計があれば部材から NEAR 以内の外の点も設計の地盤で描く(2026-09-25・EDO-0430)── 地形のままにすると
+                            //   駒の下の節点(天端の側の高さ)が見え面の足元へ山形を立てる。面の縁の延長(設計の無い枝)は従来どおり離れた点だけ。
+                            if (!faced && (near == 0 || design != null))
                             {
                                 if (design != null)
                                 {
@@ -713,6 +768,22 @@ public static partial class EdoBuild
                                 }
                                 else foreach (var f in fl) if (EdgeDist(f.poly, p) < step * 1.5f) { hgt = f.y; faced = true; break; }
                             }
+                        }
+                        // ⭐ 部材の外形の中で面の外の点も、設計があれば設計の地盤で描く(下の cap で駒の面の下へ納める)(2026-09-25・EDO-0430)。
+                        //   地形のままにすると、法の足(外形の縁)の手前 0.3〜0.6m が駒の下の節点(天端の側の高さ)に引かれ、cap(法の面 − under)まで
+                        //   持ち上がって見え面の足元に高さ 1m の土の尾根が立った(回廊の基壇の東の北半・犬走りの床の上)。
+                        //   ⛔ 上げない(下げるだけ)── 切通しの石段の袖の外形の中は整地の後に天端の下へ下げてあり(TuckUnderCrest)、設計の地盤へ
+                        //   上げると袖の天端を 0.59m 埋めた。
+                        //   部材の底(その点の最も低い面)より下げない ── 男坂の袖(底が設計の地盤より 0.08m 高い)の外形の縁で、内の点を設計の地盤へ
+                        //   下げると縁の 0.05m 外で底の下が 0.017m 覗いた。法の駒の底は根入れ(設計の地盤の下)なので効かない。
+                        if (near == 2 && !faced && design != null && float.IsNaN(FaceY(p)))
+                        {
+                            //   ⚠ 底の面が無い殻の駒(城の石垣・隅)は Bottom が上の面そのもの ── 底と見なさない(天端まで上げて面の重なり 5 → 63)。
+                            float dz = OutsideY(p, null); float bl = BotL(gi, gj), tl = TopL(gi, gj);
+                            //   底が設計の地盤 + (faceTol − 0.02) を超えて高い駒は駒の側の話(sealFace と同じ許容)── 野面の法の足の石の下面(25.4〜25.5)
+                            //   まで上げると犬走りの床 25.05 の上に 0.45m の土の縁が立った。
+                            if (!float.IsNaN(bl) && !float.IsNaN(tl) && tl - bl > 0.05f && bl <= dz + faceTol - 0.02f) dz = Mathf.Max(dz, bl);
+                            hgt = Mathf.Min(hgt, dz);
                         }
                         // ⭐ 天端の帯で篩う駒の**法の面の下**(外形の中・天端の帯の外)は、その点の面の高さで描く ── 法の足・控えは面の土の下へ入る
                         //   (2026-09-25: 野面の背と腰石垣の間の帯 SukibeiSoto_Chu が、腰石垣の深い法の上で元の地形 28.85 のまま 0.4m の溝になった)。
@@ -812,7 +883,9 @@ public static partial class EdoBuild
                         }
                         // 外形の外の点は、隣(0.25m)の部材の底より下げない(= 部材の下を覗かせない・隙 0)。
                         //   段の脇で下の段の天端に引かれて上の段の底より下がるのを止める。元から底より低い所は触らない。
-                        if (hgt < pre && near < 2 && float.IsNaN(fv))
+                        //   ⭐ 比べるのは元の地形(orig)── 設計の地盤で下げた点も同じ(2026-09-25・EDO-0430: 男坂の袖の縁で設計の地盤が底より
+                        //   0.08m 低く、cap で下げていないので床の判定を素通りして底の下が 0.017m 覗いた)。
+                        if (hgt < Mathf.Max(pre, orig) && near < 2 && float.IsNaN(fv))
                         {
                             float floor = float.NaN;
                             for (int di = -1; di <= 1; di++)
@@ -821,10 +894,12 @@ public static partial class EdoBuild
                                     int who; float qx = org.x + (gi + di) * step, qz = org.z + (gj + dj) * step;
                                     float bq = idx.Bottom(qx, qz, out who); if (float.IsNaN(bq)) continue;
                                     // 殻の駒(底の面が無い石垣)は鉛直な見え面の下の縁が底 ── 天端を底と取り違えて地盤を戻さない
-                                    float wb = idx.WallBottom(qx, qz, NEAR + 0.1f, who); if (!float.IsNaN(wb)) bq = Mathf.Min(bq, wb);
+                                    //   鉛直な面の下の縁はごく近く(0.2m)で取り、無ければ広く(sealFace と同じ ── 0.6m では隣の段の縁を拾い床が 0.02 足りない)
+                                    float wb = idx.WallBottom(qx, qz, 0.2f, who); if (float.IsNaN(wb)) wb = idx.WallBottom(qx, qz, NEAR + 0.1f, who);
+                                    if (!float.IsNaN(wb)) bq = Mathf.Min(bq, wb);
                                     if (float.IsNaN(floor) || bq > floor) floor = bq;
                                 }
-                            if (!float.IsNaN(floor) && hgt < floor) { hgt = Mathf.Min(pre, floor); r.floored++; }
+                            if (!float.IsNaN(floor) && hgt < floor) { hgt = Mathf.Min(Mathf.Max(pre, orig), floor); r.floored++; }
                         }
                         if (digH.Count > 0 && near < 2)
                         {

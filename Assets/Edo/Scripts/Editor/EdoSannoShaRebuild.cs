@@ -199,7 +199,11 @@ public static class EdoSannoShaRebuild
         /// ⭐ 設計面の石垣の外形の中のセルは石垣の天端(地盤でない)で、跨いで補間すると見え面の外の節点が天端へ引かれ、
         ///   石垣の前(二段築の下段の天端・法の足)を 2.8m 埋めた(2026-09-25 山王 回廊の北東・EDO-0430)。石垣の中は石垣が描く。
         /// 当たる先: 設計面(算出物 graded)を地形へ写す全ての造成 ── 山王 Stage1(土留め・回廊の基壇・郭の石垣の見え面の際)。</summary>
-        public bool NodeY(float x, float z, float cliff, Func<Vector2, float, bool> onHigh, out float y, out bool atCliff)
+        /// <para>⭐ <paramref name="baseAt"/>(造成前の地盤・無い所は NaN)を渡すと、4 隅の欠けた縁の節点は**そろっている隅の設計面と
+        /// 欠けた隅の造成前の地盤を重みで混ぜる**(2026-09-25・EDO-0430)。⛔ 最寄りのセルの値を 1 セル外へ平らに延ばさない ── 回廊の基壇の
+        /// 東の見え面の前で、1m 先のセルの値が斜面(0.3〜0.5m/m)の節点へ写り +0.3〜+0.75m の山形の裾になった(設計面の外 = 造成しない地盤)。</para>
+        public bool NodeY(float x, float z, float cliff, Func<Vector2, float, bool> onHigh, out float y, out bool atCliff,
+                          Func<float, float, float> baseAt = null)
         {
             y = 0f; atCliff = false;
             float fx = (x - x0) / step, fz = (z - z0) / step;
@@ -216,7 +220,26 @@ public static class EdoSannoShaRebuild
             int i0 = Mathf.RoundToInt(fx), j0 = Mathf.RoundToInt(fz); float lo = float.MaxValue, hi = float.MinValue;
             for (int dj = -1; dj <= 1; dj++) for (int di = -1; di <= 1; di++)
                 { float v; if (!Cell(i0 + di, j0 + dj, out v)) continue; lo = Mathf.Min(lo, v); hi = Mathf.Max(hi, v); }
-            if (hi - lo > cliff && !onHigh(new Vector2(x, z), (lo + hi) * 0.5f)) { y = lo; atCliff = true; }
+            if (hi - lo > cliff && !onHigh(new Vector2(x, z), (lo + hi) * 0.5f)) { y = lo; atCliff = true; return true; }
+            if (baseAt != null)
+            {
+                float bv = baseAt(x, z);
+                if (!float.IsNaN(bv))
+                {
+                    // 混ぜるのは「設計面 − 造成前の地盤」の差(欠けた隅は差 0)。値そのものを混ぜると 1m 先のセルの高さが斜面(〜0.9m/m)の
+                    // 節点へ写り、造成しない地盤の上に +0.1〜0.2m の段が残った(2026-09-25 実測)。
+                    float tx = fx - i, tz = fz - j; double dsum = 0;
+                    for (int di = 0; di <= 1; di++)
+                        for (int dj = 0; dj <= 1; dj++)
+                        {
+                            float w = (di == 1 ? tx : 1f - tx) * (dj == 1 ? tz : 1f - tz); float v;
+                            if (!Cell(i + di, j + dj, out v)) continue;
+                            float bc = baseAt(x0 + (i + di) * step, z0 + (j + dj) * step); if (float.IsNaN(bc)) continue;
+                            dsum += w * (v - bc);
+                        }
+                    y = bv + (float)dsum;
+                }
+            }
             return true;
         }
         /// <summary>最寄りのセル(半径 r セル以内)。無ければ false。</summary>
@@ -379,6 +402,17 @@ public static class EdoSannoShaRebuild
             for (int k = 0; k < tPoly.Count; k++) if (tY[k] >= mid && EdoGeom.PIP(tPoly[k], p)) return true;
             return false;
         };
+        // 設計面の縁の外の隅は造成前の地盤(社地の区画の中だけ ── 区画の外は他の造成が地形を持つので混ぜない)
+        var precB = EdoParcels.Get("sannosha_prec"); var demB = DemAt();
+        Func<float, float, float> baseIn = (bx, bz) =>
+            precB != null && EdoGeom.PIP(precB, new Vector2(bx, bz)) ? demB(bx, bz) : float.NaN;
+        var dodomeSegs = new List<Vector2[]>();
+        foreach (var o in L(Impl, "runs"))
+        {
+            var rn = o as Dictionary<string, object>; if (rn == null || S(rn, "kind") != "土留め") continue;
+            var nl = L(rn, "nodes"); for (int k = 1; k < nl.Count; k++) dodomeSegs.Add(new[] { P2(nl[k - 1]), P2(nl[k]) });
+        }
+        int restN = 0; float restMax = 0f;
         float bx0 = float.MaxValue, bx1 = float.MinValue, bz0 = float.MaxValue, bz1 = float.MinValue;
         for (int z = 0; z < h; z++)
             for (int x = 0; x < w; x++)
@@ -389,7 +423,21 @@ public static class EdoSannoShaRebuild
                 //   ⇒ 4隅がそろわないときは **1セル以内の最寄り**で拾う(縁を1節点だけ延ばす)。
                 //   ⛔ それでも無ければ触らない — 設計面の外へ外挿しない。
                 bool atCliff;
-                if (!gr.NodeY(wx, wz, cliff, onHigh, out y, out atCliff)) { skip++; continue; }
+                if (!gr.NodeY(wx, wz, cliff, onHigh, out y, out atCliff, baseIn))
+                {
+                    skip++;
+                    // ⭐ 土留めの見え面の前(FRONT_REACH 以内)で設計面の外の節点は、造成前の地盤へ戻す(2026-09-25・EDO-0430)。
+                    //   前の巡・旧実装が残した値(回廊の基壇の東の見え面の 3m 前に +0.27〜+0.75m)が、見え面の前の帯に小さな山と筋を立てた。
+                    //   ⛔ 社地の区画の外と、土留めから離れた所(板塀 Ita_Keidai の足元の切土など)は触らない。
+                    var wp = new Vector2(wx, wz); float bv = baseIn(wx, wz);
+                    if (!float.IsNaN(bv) && NearSeg(dodomeSegs, wp, FRONT_REACH))
+                    {
+                        float cur0 = H[z, x] * ts.y + tp.y;
+                        if (Mathf.Abs(cur0 - bv) > 0.005f)
+                        { H[z, x] = Mathf.Clamp01((bv - tp.y) / ts.y); restN++; restMax = Mathf.Max(restMax, Mathf.Abs(cur0 - bv)); }
+                    }
+                    continue;
+                }
                 if (atCliff) cliffN++;
                 float cur = H[z, x] * ts.y + tp.y;
                 if (y < cur) { cmax = Mathf.Max(cmax, cur - y); cutSum += cur - y; }
@@ -414,8 +462,37 @@ public static class EdoSannoShaRebuild
         return string.Format(
             "整地: 書いた {0} 節点 / 設計面が欠けていて触らなかった {1} 節点 / 石垣の見え面を跨ぐので低い側を採った {10} 節点(隅の差 > {11:F2}m)\n" +
             "  切土 最大 {2:F2}m 体積 {3:F0}m³ / 盛土 最大 {4:F2}m 体積 {5:F0}m³\n" +
-            "  触った範囲 x[{6:F1},{7:F1}] z[{8:F1},{9:F1}](算出物 graded の内)",
-            n, skip, cmax, cutSum * a, fmax, fillSum * a, bx0, bx1, bz0, bz1, cliffN, cliff);
+            "  触った範囲 x[{6:F1},{7:F1}] z[{8:F1},{9:F1}](算出物 graded の内)\n" +
+            "  土留めの見え面の前 {12:F1}m 以内で設計面の外の節点を造成前の地盤へ戻した {13} 節点(最大 {14:F2}m)",
+            n, skip, cmax, cutSum * a, fmax, fillSum * a, bx0, bx1, bz0, bz1, cliffN, cliff, FRONT_REACH, restN, restMax);
+    }
+
+    /// <summary>土留めの見え面の前で「造成しない地盤」を造成前の地盤へ戻す幅[m](見え面の前の検査の帯 3m + 地形の節点 1 つ分の半ば)。</summary>
+    const float FRONT_REACH = 4f;
+    static bool NearSeg(List<Vector2[]> segs, Vector2 p, float r)
+    {
+        foreach (var sg in segs)
+        {
+            Vector2 ab = sg[1] - sg[0]; float t = Mathf.Clamp01(Vector2.Dot(p - sg[0], ab) / Mathf.Max(1e-6f, ab.sqrMagnitude));
+            if ((sg[0] + ab * t - p).sqrMagnitude <= r * r) return true;
+        }
+        return false;
+    }
+    /// <summary>造成前の地盤(`sanno_dem.json`・2m 格子の双一次)。欠けは NaN。</summary>
+    static Func<float, float, float> DemAt()
+    {
+        var dem = EdoMiniJson.Parse(File.ReadAllText(Path.Combine(RepoRoot, EdoSannoShaBuilder.DemRel))) as Dictionary<string, object>;
+        float dx0 = F(dem, "x0"), dz0 = F(dem, "z0"), dst = F(dem, "step"); var drows = L(dem, "h");
+        Func<int, int, float> DV = (i, j) =>
+        {
+            if (j < 0 || j >= drows.Count) return float.NaN; var r = drows[j] as List<object>;
+            return r == null || i < 0 || i >= r.Count || r[i] == null ? float.NaN : Cv(r[i]);
+        };
+        return (x, z) =>
+        {
+            float fi = (x - dx0) / dst, fj = (z - dz0) / dst; int i = Mathf.FloorToInt(fi), j = Mathf.FloorToInt(fj); float tx = fi - i, tz = fj - j;
+            return Mathf.Lerp(Mathf.Lerp(DV(i, j), DV(i + 1, j), tx), Mathf.Lerp(DV(i, j + 1), DV(i + 1, j + 1), tx), tz);
+        };
     }
 
     /// <summary>**設計面から外れた節点を造成前の地盤へ戻して整地する。**<paramref name="prevImplPath"/> は前の巡で流した算出物
@@ -2436,7 +2513,8 @@ public static class EdoSannoShaRebuild
         var design = new EdoBuild.SkinDesign
         {
             x0 = gr.x0, z0 = gr.z0, step = gr.step, nx = gr.nx, nz = gr.nz, h = gr.h, ok = gr.ok,
-            batterCut = F(cst, "batterCut"), batterFill = F(cst, "batterFill")
+            batterCut = F(cst, "batterCut"), batterFill = F(cst, "batterFill"),
+            baseAt = DemAt()   // 駒の下に落ちた節点は造成前の地盤で引く(見え面の足元の山形・2026-09-25)
         };
         // ⭐ `copingRise:"line"` の袖は背を天端 − 0.05 から法(batterCut)で元の地形へ下げる(施主 2026-09-25)
         var dig = new List<GameObject>(); var lineWalls = new List<string>();

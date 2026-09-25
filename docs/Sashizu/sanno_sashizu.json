@@ -1321,21 +1321,23 @@
    "tierPlan": {
     "tiers": [
      {
+      "name": "上段",
       "coping": 29.0,
-      "posY": 25.0
+      "faceLine": "run の線(`a`–`b`)",
+      "foot": "下段の天端の面(段の面)── 上段の底は下段の天端に載る"
      },
      {
+      "name": "下段",
       "coping": 25.0,
-      "posY": 21.0,
-      "forwardPieces": 1
+      "faceLine": "上段の見え面から外(低い側)へ `stepOut`",
+      "foot": "見え面の側の設計の地盤(`design_y`)── 駒の底(天端 − 駒の丈)は地盤より下へ埋める"
      }
     ],
-    "inubashiri": false,
-    "lowerSpanM": [
-     46.9,
-     "end"
-    ],
-    "acc": "U(石垣の設計 2026-09-14 ③)"
+    "stepOut": "pieceDepth",
+    "benchM": 0.0,
+    "lowerSpan": "upperFootExposed",
+    "lowerCorners": "上段と同じく出隅に隅の駒 `Own.IshigakiKado`(90°・丈 4.0)── 下段は E・N・W の三本で一続きの折れ線として回す",
+    "acc": "U(二段築の構え=石垣の設計 2026-09-14 ③『犬走りなし・下段は 1 石ぶん前へ出す』)/U(『1 石』= 城の石垣の駒(`JC.CastleWall`)の控え 1 本 ── 駒の実寸はスキル unity-modular-stonewall §3b『Castle Wall の実寸』が正典・⛔ 数をここに写さない。実装が置いた駒の実メッシュの奥行を測る)/U(段の面に土の犬走りを足さない `benchM` 0 ── 同 ③。スキルにも他邸(土井・松江松平の `tiers` は同じ線に積み重ねるだけ)にも控えを取る段積みの既定は無い)/U(欄の書き直し 2026-09-25 EDO-0430 ── 旧 `forwardPieces`/`posY`/`lowerSpanM` は読み手が無く、下段が建たなかった)"
    }
   },
   {
@@ -1358,21 +1360,23 @@
    "tierPlan": {
     "tiers": [
      {
+      "name": "上段",
       "coping": 29.0,
-      "posY": 25.0
+      "faceLine": "run の線(`a`–`b`)",
+      "foot": "下段の天端の面(段の面)── 上段の底は下段の天端に載る"
      },
      {
+      "name": "下段",
       "coping": 25.0,
-      "posY": 21.0,
-      "forwardPieces": 1
+      "faceLine": "上段の見え面から外(低い側)へ `stepOut`",
+      "foot": "見え面の側の設計の地盤(`design_y`)── 駒の底(天端 − 駒の丈)は地盤より下へ埋める"
      }
     ],
-    "inubashiri": false,
-    "lowerSpanM": [
-     -1.8,
-     "end"
-    ],
-    "acc": "U(石垣の設計 2026-09-14 ③)"
+    "stepOut": "pieceDepth",
+    "benchM": 0.0,
+    "lowerSpan": "upperFootExposed",
+    "lowerCorners": "上段と同じく出隅に隅の駒 `Own.IshigakiKado`(90°・丈 4.0)── 下段は E・N・W の三本で一続きの折れ線として回す",
+    "acc": "U(二段築の構え=石垣の設計 2026-09-14 ③『犬走りなし・下段は 1 石ぶん前へ出す』)/U(『1 石』= 城の石垣の駒(`JC.CastleWall`)の控え 1 本 ── 駒の実寸はスキル unity-modular-stonewall §3b『Castle Wall の実寸』が正典・⛔ 数をここに写さない。実装が置いた駒の実メッシュの奥行を測る)/U(段の面に土の犬走りを足さない `benchM` 0 ── 同 ③。スキルにも他邸(土井・松江松平の `tiers` は同じ線に積み重ねるだけ)にも控えを取る段積みの既定は無い)/U(欄の書き直し 2026-09-25 EDO-0430 ── 旧 `forwardPieces`/`posY`/`lowerSpanM` は読み手が無く、下段が建たなかった)"
    }
   },
   {
@@ -1391,21 +1395,23 @@
    "tierPlan": {
     "tiers": [
      {
+      "name": "上段",
       "coping": 29.0,
-      "posY": 25.0
+      "faceLine": "run の線(`a`–`b`)",
+      "foot": "下段の天端の面(段の面)── 上段の底は下段の天端に載る"
      },
      {
+      "name": "下段",
       "coping": 25.0,
-      "posY": 21.0,
-      "forwardPieces": 1
+      "faceLine": "上段の見え面から外(低い側)へ `stepOut`",
+      "foot": "見え面の側の設計の地盤(`design_y`)── 駒の底(天端 − 駒の丈)は地盤より下へ埋める"
      }
     ],
-    "inubashiri": false,
-    "lowerSpanM": [
-     0.0,
-     "end"
-    ],
-    "acc": "U(石垣の設計 2026-09-14 ③)"
+    "stepOut": "pieceDepth",
+    "benchM": 0.0,
+    "lowerSpan": "upperFootExposed",
+    "lowerCorners": "上段と同じく出隅に隅の駒 `Own.IshigakiKado`(90°・丈 4.0)── 下段は E・N・W の三本で一続きの折れ線として回す",
+    "acc": "U(二段築の構え=石垣の設計 2026-09-14 ③『犬走りなし・下段は 1 石ぶん前へ出す』)/U(『1 石』= 城の石垣の駒(`JC.CastleWall`)の控え 1 本 ── 駒の実寸はスキル unity-modular-stonewall §3b『Castle Wall の実寸』が正典・⛔ 数をここに写さない。実装が置いた駒の実メッシュの奥行を測る)/U(段の面に土の犬走りを足さない `benchM` 0 ── 同 ③。スキルにも他邸(土井・松江松平の `tiers` は同じ線に積み重ねるだけ)にも控えを取る段積みの既定は無い)/U(欄の書き直し 2026-09-25 EDO-0430 ── 旧 `forwardPieces`/`posY`/`lowerSpanM` は読み手が無く、下段が建たなかった)"
    }
   },
   {
@@ -11972,6 +11978,76 @@
    "moves": "石垣 `TW_Nozura_ShadenW` ── 土台は固定",
    "cert": "U(施主裁定 2026-09-25「Bで」(裁定図 https://claude.ai/artifact/AQbJ4aeCwEWCJ4B3NMZmUJ) ── 作りは透塀の土台 `TW_Koshi_*` と同じ)",
    "note": "⛔ 座標を書かない。⚠ 土台 `TW_Koshi_W`×`TW_Koshi_SW` の出隅の隅の駒はこの継ぎ目に当たる(西の腕が帯の中へ入る)── 隅の駒を置かず一直線に継ぐ"
+  },
+  {
+   "a": "二段築の下段 TW_Kairo_E・N・W",
+   "aFace": "下段の駒の背の面(控えの尻)",
+   "b": "二段築の上段(同じ run)",
+   "bFace": "上段の見え面(run の線)",
+   "kind": "突き付け(下段の背を上段の見え面の通りへ)",
+   "gap": 0.0,
+   "tol": [
+    0.05,
+    0.0
+   ],
+   "moves": "下段",
+   "cert": "U(石垣の設計 2026-09-14 ③ の二段築 ── 取り合いの書き起こし 2026-09-25 EDO-0430)"
+  },
+  {
+   "a": "二段築の上段 TW_Kairo_E・N・W",
+   "aFace": "上段の駒の底の面",
+   "b": "二段築の下段(同じ run)",
+   "bFace": "下段の駒の天端の面(段の面)",
+   "kind": "載せ(上段の底 = 段の面)",
+   "gap": 0.0,
+   "tol": [
+    0.05,
+    0.0
+   ],
+   "moves": "下段(天端を上段の実測の底へ合わせる)",
+   "cert": "U(石垣の設計 2026-09-14 ③ の二段築 ── 取り合いの書き起こし 2026-09-25 EDO-0430)"
+  },
+  {
+   "a": "二段築の下段 TW_Kairo_E・N・W",
+   "aFace": "下段の駒の底の面",
+   "b": "見え面の側の地盤(`design_y`)",
+   "bFace": "地表",
+   "kind": "根入れ(底は地盤より下・浮き 0)",
+   "gap": 0.0,
+   "tol": [
+    0.05,
+    0.0
+   ],
+   "moves": "下段(天端は据え置き・余りは埋める ── スキル §3b)",
+   "cert": "U(石垣の設計 2026-09-14 ③ の二段築 ── 取り合いの書き起こし 2026-09-25 EDO-0430)"
+  },
+  {
+   "a": "二段築の下段 TW_Kairo_E・N・W",
+   "aFace": "下段の走りの両端の小口",
+   "b": "見え面の側の地盤(`design_y`)",
+   "bFace": "地表",
+   "kind": "打ち切り(小口は下段の見付が 0 になる所 = 下段の天端が地盤に揃う所で終える・小口を地上に出さない)",
+   "gap": 0.0,
+   "tol": [
+    0.05,
+    0.0
+   ],
+   "moves": "下段",
+   "cert": "U(石垣の設計 2026-09-14 ③ の二段築 ── 取り合いの書き起こし 2026-09-25 EDO-0430)"
+  },
+  {
+   "a": "二段築の下段 TW_Kairo_E × TW_Kairo_N・TW_Kairo_N × TW_Kairo_W",
+   "aFace": "下段の出隅",
+   "b": "隅の駒 `Own.IshigakiKado`(90°)",
+   "bFace": "隅の駒の両腕の見え面",
+   "kind": "出隅(隅の駒の片面を下段の見え面へ一致させる)",
+   "gap": 0.0,
+   "tol": [
+    0.05,
+    0.0
+   ],
+   "moves": "隅の駒",
+   "cert": "U(石垣の設計 2026-09-14 ③ の二段築 ── 取り合いの書き起こし 2026-09-25 EDO-0430)"
   }
  ],
  "ido": {

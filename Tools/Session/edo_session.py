@@ -46,6 +46,17 @@ RESOURCES = ("unity", "terrain", "git-index", "assets")
 PSEUDO_RESOURCES = ("main",)
 # ⚠ フック(.claude/hooks/edo_guard.py)が session_id を切り詰める長さと**必ず一致させる**。
 SID_LEN = 12
+SID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{3}$")
+SID_TEST_PREFIX = ("selftest", "selftst", "pid-")     # 自己検査の検体と、cwd から引けなかった時の仮の名
+# ⭐ **Unity を使う役**(EDO-0446)。役の中の呼び出しは呼んだ窓と同じ身元で門番を通るので、
+#   窓は unity を**握ったまま**呼ぶ。役の間は役の道具の呼び出しで unity の使用時刻を刻む
+#   (Read・コンパイル待ちの間に「20 分放置」で横取りされないように)。
+UNITY_ROLES = ("edo-toryo", "edo-fushin-qa")
+
+
+def agent_type():
+    """いまの照会が役(サブエージェント)の中から来たか。フック(edo_guard.run)が渡す。空なら窓自身。"""
+    return os.environ.get("EDO_AGENT_TYPE", "")
 
 # ⚠ **心拍では「作業が終わったか」を判定できない。**
 #   心拍は Write/Edit/Bash でも更新されるので、Unity を握ったまま別の作業(指図の推敲など)を
@@ -254,7 +265,19 @@ def sid(default=None, strict=True):
         #   ここで切らないと「フル UUID を渡した自分」が別人になり、自分の claim を他人の
         #   ものと判定して弾かれる(2026-08-30 に山王が踏んだ)。松平は短縮とフルで
         #   claim が二重に立っていた。
-        return e[:SID_LEN]
+        e = e[:SID_LEN]
+        # ⛔ **身元を自作させない**(EDO-0446)。フックが渡す身元は常に UUID の頭 12 字。
+        #   それ以外の名(8 字に縮めた `16f6ad80`・役が名乗った `toryo-dewa01`)で claim を取ると、
+        #   同じ窓の Unity MCP 呼び出し(フック経由=12 字)が**他人の claim に弾かれる**。
+        #   EDO-0097「検査役が待ち行列で動けない」の真因はこれだった。
+        if not (SID_RE.match(e) or e == "unknown" or e.startswith(SID_TEST_PREFIX)):
+            sys.exit(
+                "⛔ 門番: 身元 `%s` はフックが渡す形(UUID の頭 %d 字・例 a154144d-ccb)ではない。\n"
+                "   自作の名や縮めた ID で claim を取ると、同じ窓の Unity MCP が**自分の claim に弾かれる**"
+                "(EDO-0097/EDO-0446)。\n"
+                "   → `status` の ▶ 行の短縮ID をそのまま使う。役(サブエージェント)は**呼んだ窓の短縮ID**を使う。"
+                % (e, SID_LEN))
+        return e
     here = os.path.realpath(os.getcwd())
     # ⚠ 仕舞った窓(`finish` の印)は候補に入れない — 閉じた窓のぶんだけ「決められない」が
     #   増え、生きている窓が1つしか無くても EDO_SESSION_ID を強いられる(EDO-0379)。
@@ -1005,6 +1028,7 @@ def _commit_paths(cmd, staged):
 
 def cmd_check_write(a):
     me = sid(a.session)
+    _role_keepalive(me)
     p = a.path
     if not p:
         return 0
@@ -1181,9 +1205,35 @@ def _check_bash_writes(cmd, me, ttl):
     return None
 
 
+# ⛔ 役が打ってはならない門番の口(EDO-0446)。役の身元は呼んだ窓そのものなので、役の `release` は
+#   **窓の unity を返し**、次の役(普請検査)の直前に待ち行列の先頭へ Unity が渡る — 直した穴そのもの。
+#   `start`/`finish`/`steal` も窓の票・phase・claim を書き換える。返す・仕舞うのは呼んだ窓の仕事。
+ROLE_BANNED = re.compile(r"edo_session\.py(?:\s+--(?:session|ttl)(?:\s+|=)\S+)*\s+(release|finish|steal|start)\b")
+
+
+def _role_keepalive(me):
+    """Unity を使う役の道具の呼び出しごとに、窓が握る unity の使用時刻を刻む(EDO-0446)。
+    ⚠ 握っていなければ何もしない — 役の Bash で unity を**取る**ことはしない(取るのは Unity MCP の入口だけ)。"""
+    if agent_type() not in UNITY_ROLES:
+        return
+    c, _ = mine(me)
+    if "unity" in c.get("resources", []):
+        touch(me, resources=["unity"])
+
+
 def cmd_check_bash(a):
     me = sid(a.session)
     cmd = a.command or ""
+    if agent_type():
+        m = ROLE_BANNED.search(_strip_heredocs(cmd))
+        if m:
+            return _deny(
+                "⛔ 門番: 役(%s)は `edo_session.py %s` を打たない。役の身元は**呼んだ窓そのもの**なので、\n"
+                "   これは窓の claim を書き換える(release なら窓の unity を返し、待ち行列の先頭へ渡してしまう)。\n"
+                "   → Unity は呼んだ窓が握ったまま渡している。着手できないなら**そのまま帰って**呼んだ窓へ報告する。\n"
+                "     返す・仕舞うのは呼んだ窓の仕事(EDO-0446・docs/session-coordination.md「役へ Unity を渡す」)。"
+                % (agent_type(), m.group(1)))
+    _role_keepalive(me)
     # ── Unity CLI — Unity MCP と同じ実体・同じ排他。入口ごとに規則を変えない(EDO-0076)
     if UNITY_CLI.search(cmd):
         r = cmd_check_unity(a)
@@ -1413,6 +1463,73 @@ def _selftest_finish():
     return ng
 
 
+def _selftest_roles():
+    """役へ Unity を渡す(EDO-0446)。⛔ 落ちたら、窓が握ったまま呼んだ役が①自作の身元で弾かれる
+    ②窓の unity を返して待ち行列へ渡す ③Read の間に「20 分放置」で横取りされる、のどれかが戻る。"""
+    import tempfile
+    global LOCKS, SESS_DIR, QUEUE, RESLOG
+    keep, tmp = (LOCKS, SESS_DIR, QUEUE, RESLOG), tempfile.mkdtemp()
+    LOCKS, SESS_DIR = os.path.join(tmp, "locks"), os.path.join(tmp, "sess")
+    QUEUE, RESLOG = os.path.join(tmp, "queue.json"), os.path.join(tmp, "resources.jsonl")
+    os.makedirs(LOCKS), os.makedirs(SESS_DIR)
+    env0 = {k: os.environ.get(k) for k in ("EDO_SESSION_ID", "EDO_AGENT_TYPE")}
+    ng = 0
+
+    def chk(title, ok):
+        nonlocal ng
+        ng += 0 if ok else 1
+        print("%s %s" % ("⭕" if ok else "⛔", title))
+
+    def sid_of(e):
+        os.environ["EDO_SESSION_ID"] = e
+        try:
+            return sid()
+        except SystemExit:
+            return None
+    try:
+        chk("フックの形(UUID の頭 12 字)の身元は通す", sid_of("48127409-822") == "48127409-822")
+        chk("フル UUID は切り詰めて通す", sid_of("48127409-8224-4eeb-b6ef-d69c5d798ace") == "48127409-822")
+        chk("8 字に縮めた身元は止める(EDO-0097 の真因)", sid_of("16f6ad80") is None)
+        chk("役が自作した身元は止める", sid_of("toryo-dewa01") is None)
+        s = "selftst2-rol"
+        touch(s, resources=["unity"])
+        c, fp = mine(s)
+        c["used"]["unity"] = now() - 25 * 60
+        atomic_write_json(c, fp)
+        chk("(前提)25 分触らない unity は放置に見える", res_stale(mine(s)[0], "unity"))
+        os.environ["EDO_AGENT_TYPE"] = "edo-kenzu"
+        _role_keepalive(s)
+        chk("Unity を使わない役の呼び出しでは刻まない", res_stale(mine(s)[0], "unity"))
+        os.environ["EDO_AGENT_TYPE"] = "edo-toryo"
+        _role_keepalive(s)
+        chk("棟梁の道具の呼び出しで窓の unity の使用時刻を刻む", not res_stale(mine(s)[0], "unity"))
+        t = "selftst3-non"
+        touch(t)
+        _role_keepalive(t)
+        chk("握っていない窓には unity を足さない(取るのは Unity MCP の入口だけ)",
+            "unity" not in mine(t)[0].get("resources", []))
+        for cmd, want in (("python3 Tools/Session/edo_session.py release --resources unity", "release"),
+                          ("EDO_SESSION_ID=48127409-822 python3 Tools/Session/edo_session.py start sanno --unity", "start"),
+                          ("python3 Tools/Session/edo_session.py --session 48127409-822 finish --task EDO-1", "finish"),
+                          ("python3 Tools/Session/edo_session.py status", None),
+                          ("python3 Tools/Session/edo_session.py check-unity", None)):
+            m = ROLE_BANNED.search(cmd)
+            chk("役の打ち方 `%s` → %s" % (cmd.split("edo_session.py")[1].strip()[:30], want or "通す"),
+                (m.group(1) if m else None) == want)
+        import inspect
+        chk("check-bash と check-write が keepalive を呼んでいる",
+            "_role_keepalive(me)" in inspect.getsource(cmd_check_bash)
+            and "_role_keepalive(me)" in inspect.getsource(cmd_check_write))
+    finally:
+        LOCKS, SESS_DIR, QUEUE, RESLOG = keep
+        for k, v in env0.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+    return ng
+
+
 def cmd_selftest(a):
     """⛔ 落ちたら**設定コミットの関門が死んでいる**(素通りしても誰も気づかない)。"""
     ng = 0
@@ -1440,6 +1557,7 @@ def cmd_selftest(a):
     ng += 0 if ok else 1
     print("%s `git commit -- <パス>` の明示パスを拾う(staging に載らない物)%s" % ("⭕" if ok else "⛔", "" if ok else " → %s" % got))
     ng += _selftest_finish()
+    ng += _selftest_roles()
     print("⛔ 自己検査 %d 件失敗" % ng if ng else "⭕ 自己検査 全通")
     return 1 if ng else 0
 

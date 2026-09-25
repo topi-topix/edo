@@ -8,7 +8,8 @@ argument-hint: "<屋敷名または街区名>"
 対象: $1
 
 1. 先に **Assembly-CSharp-Editor.dll が最新か**確認する(古ければ検査せず、先に再コンパイルする)
-2. `edo-fushin-qa` を起動する。渡すもの:
+2. `edo-fushin-qa` を**前景で**(`run_in_background: false`)起動する。⭐ Unity は**握ったまま**渡す —
+   役は窓と同じ身元で門番を通る。返すのは検査とレンダが済んでから(EDO-0446)。渡すもの:
    - 対象の屋敷名と、そのビルダー(`Assets/Edo/Scripts/Editor/Edo*Builder.cs`)のパス
    - そのビルダーが持つ QA 関数名の一覧
    - 区画ポリゴンと設計値(段の高さ・天端・拝領坪数)

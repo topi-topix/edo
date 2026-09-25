@@ -57,9 +57,13 @@ MAIN_ROOT = _main_root(ROOT)
 CLI = os.path.join(MAIN_ROOT, "Tools", "Session", "edo_session.py")
 
 
-def run(args, sess):
+def run(args, sess, agent=""):
     env = dict(os.environ)
     env["EDO_SESSION_ID"] = sess
+    # ⭐ 役(サブエージェント)の中の呼び出しにも**呼んだ窓と同じ session_id** で来る(EDO-0446)。
+    #   門番の CLI からは役か窓かを見分けられないので、役の名をここで渡す — ①役が窓の claim を
+    #   返してしまう打ち方を止める ②棟梁・普請検査が Unity 以外の道具を使う間も unity の使用時刻を刻む。
+    env["EDO_AGENT_TYPE"] = agent or ""
     # ⚠ CLAUDE_PROJECT_DIR は呼び出し元の実際の作業場所(worktree ならその cwd)のまま渡す —
     #   CLI のコード自体は MAIN_ROOT の最新版を使うが、sid() の cwd 判定や rel() の
     #   パス相対化は「このセッションが今どこにいるか」を見るべきなので変えない。
@@ -240,6 +244,28 @@ def plan_gate(ev, ti):
     sys.exit(2)
 
 
+UNITY_ROLES = ("edo-toryo", "edo-fushin-qa")     # ⚠ Tools/Session/edo_session.py の UNITY_ROLES と揃える
+
+
+def unity_role_gate(ev, ti):
+    """Unity を使う役は**前景で**呼ぶ(EDO-0446・2026-09-26 施主指示)。
+
+    窓は unity を握ったまま役へ渡す(役の Unity 操作は窓と同じ身元で門番を通る)。だから門番は
+    **同じ窓の中の二人**を見分けられない — 役を背景へ回して窓が自分でも Unity を触る、棟梁と普請検査を
+    同時に走らせる、のどちらも排他の外で起きる。前景なら窓は役の帰りまで手を出せず、役は一度に一本。"""
+    if ev.get("agent_type") or ev.get("agent_id"):
+        return
+    st = ti.get("subagent_type") or ""
+    if st not in UNITY_ROLES or ti.get("run_in_background") is False:
+        return
+    sys.stderr.write(
+        "⛔ 門番(Unity の役): %s は **`run_in_background: false`(前景)で**呼ぶ。\n"
+        "   役は窓と同じ身元で Unity を使うので、背景に回すと窓の Unity 操作や別の役と**排他の外で**重なる。\n"
+        "   ⭐ Unity は握ったまま渡す(返さない)。返すのは建てる・検査・レンダが全部済んでから"
+        "(docs/session-coordination.md「役へ Unity を渡す」)。\n" % st)
+    sys.exit(2)
+
+
 def _my_estate(sess):
     """このセッションの claim の `sashizu:<邸>` から邸名を引く。無ければ None。"""
     try:
@@ -297,11 +323,13 @@ def _main(ev):
         sys.exit(0)
     tool = ev.get("tool_name") or ""
     ti = ev.get("tool_input") or {}
+    agent = ev.get("agent_type") or ("subagent" if ev.get("agent_id") else "")
     if tool == "Read":
         big_read(ti)
         sys.exit(0)
     if tool == "Agent":
         plan_gate(ev, ti)
+        unity_role_gate(ev, ti)
         # 三巡則(計画 B-1)— 検分役を呼ぶ前に、同じ役の fail がユーザー入力なしに 3 回続いていないか。
         st = (ti.get("subagent_type") or "")
         if st in ("edo-kenzu", "edo-kosho", "edo-niwashi"):
@@ -316,18 +344,18 @@ def _main(ev):
     if tool in ("Write", "Edit", "NotebookEdit"):
         fp = ti.get("file_path") or ti.get("notebook_path")
         if fp:
-            run(["check-write", fp], sess)
+            run(["check-write", fp], sess, agent)
     elif tool in ("Bash", "BashOutput"):
         cmd = ti.get("command")
         if cmd:
-            run(["check-bash", cmd], sess)
+            run(["check-bash", cmd], sess, agent)
     elif tool.startswith("mcp__unityMCP__"):
         # 読むだけのものは通す(状態を変えない)
         if tool.split("__")[-1] in ("read_console", "get_sha", "find_in_file", "unity_docs",
                                     "unity_reflect", "debug_request_context", "find_gameobjects",
                                     "manage_script_capabilities", "get_test_job"):
             sys.exit(0)
-        run(["check-unity"], sess)
+        run(["check-unity"], sess, agent)
     sys.exit(0)
 
 
@@ -385,6 +413,40 @@ def selftest():
         ({"subagent_type": "Explore", "prompt": "探して"}, {"agent_type": "edo-toryo"}, False,
          "役の中から役を呼ぶ時は問わない"),
     ]
+    # EDO-0446: Unity を使う役は前景で
+    uroles = [
+        ({"subagent_type": "edo-fushin-qa", "prompt": good}, True, "普請検査を背景(既定)で呼ぶと止める"),
+        ({"subagent_type": "edo-toryo", "prompt": good, "run_in_background": True}, True, "棟梁を背景で呼ぶと止める"),
+        ({"subagent_type": "edo-fushin-qa", "prompt": good, "run_in_background": False}, False, "前景なら通す"),
+        ({"subagent_type": "edo-kenzu", "prompt": good}, False, "Unity を使わない役は問わない"),
+    ]
+    for ti, want, name in uroles:
+        r = subprocess.run([sys.executable, os.path.abspath(__file__)], capture_output=True, text=True,
+                           input=json.dumps({"session_id": "selftest000", "tool_name": "Agent", "tool_input": ti}))
+        got = r.returncode == 2 and "門番(Unity の役)" in r.stderr
+        if got != want:
+            bad += 1
+            print("  ⛔ %s — %s のはずが %s %s" % (name, "止" if want else "通", "止" if got else "通", r.stderr[-200:]))
+    # EDO-0446: 役は窓の claim を返さない(配線まで — フックが役の名を CLI へ渡すこと)
+    rolecmds = [
+        ("python3 Tools/Session/edo_session.py release --resources unity", {"agent_type": "edo-toryo"}, True,
+         "役の release は止める(窓の unity を返してしまう)"),
+        ("EDO_SESSION_ID=selftest000 python3 Tools/Session/edo_session.py start sanno --unity",
+         {"agent_type": "edo-fushin-qa"}, True, "役の start は止める"),
+        ("python3 Tools/Session/edo_session.py status", {"agent_type": "edo-toryo"}, False, "役の status は通す"),
+        ("python3 Tools/Session/edo_session.py release --resources unity", {}, None,
+         "窓自身の release はこの型では止めない"),
+    ]
+    for cmd, extra, want, name in rolecmds:
+        r = subprocess.run([sys.executable, os.path.abspath(__file__)], capture_output=True, text=True,
+                           input=json.dumps(dict({"session_id": "selftest000", "tool_name": "Bash",
+                                                  "tool_input": {"command": cmd}}, **extra)))
+        got = r.returncode == 2 and "役(" in r.stderr
+        if want is None:
+            want = False
+        if got != want:
+            bad += 1
+            print("  ⛔ %s — %s のはずが %s %s" % (name, "止" if want else "通", "止" if got else "通", r.stderr[-200:]))
     for ti, extra, want, name in agents:
         r = subprocess.run([sys.executable, os.path.abspath(__file__)], capture_output=True, text=True,
                            input=json.dumps(dict({"session_id": "selftest000", "tool_name": "Agent",
@@ -393,6 +455,13 @@ def selftest():
         if got != want:
             bad += 1
             print("  ⛔ %s — %s のはずが %s %s" % (name, "止" if want else "通", "止" if got else "通", r.stderr[-200:]))
+    # ⚠ 通した Bash は門番が検体の claim を作る — 板に試験の窓を出さない
+    for f in (os.path.join(MAIN_ROOT, ".git", "edo-locks", "selftest000.json"),
+              os.path.join(SESS_DIR, "selftest000.now.json")):
+        try:
+            os.remove(f)
+        except OSError:
+            pass
     # ⭐ 配線まで通しで検める — 判定が正しくても、transcript から文脈を読めなければ一度も鳴らない
     #   (2026-09-21 の穴はまさに「鳴っていないことが誰にも見えない」種類だった)。
     import tempfile
@@ -434,15 +503,17 @@ def selftest():
         print("  ⛔ 通しの検め自体が落ちた: %s" % ex)
     finally:
         # ⚠ 窓の今(edo_now.record_pre)も同じ sid で刻むので、その *.now.json も片付ける
-        for f in (tp, state, os.path.join(SESS_DIR, sid + ".now.json")):
+        for f in (tp, state, os.path.join(SESS_DIR, sid + ".now.json"),
+                  os.path.join(MAIN_ROOT, ".git", "edo-locks", sid + ".json")):   # 通った Bash が作る検体の claim
             try:
                 os.remove(f)
             except OSError:
                 pass
     bad += e2e
     print(("⛔ 門番の型 — 破れ %d 件" % bad) if bad else
-          "⭕ 門番 — %d 型(文脈の再武装 %d・丸読みの関門 %d・役の見込み %d・通しの配線 4)"
-          % (len(cases) + len(reads) + len(agents) + 4, len(cases), len(reads), len(agents)))
+          "⭕ 門番 — %d 型(文脈の再武装 %d・丸読みの関門 %d・役の見込み %d・Unity の役 %d・通しの配線 4)"
+          % (len(cases) + len(reads) + len(agents) + len(uroles) + len(rolecmds) + 4, len(cases), len(reads),
+             len(agents), len(uroles) + len(rolecmds)))
     return 1 if bad else 0
 
 

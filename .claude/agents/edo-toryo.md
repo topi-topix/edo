@@ -40,10 +40,14 @@ memory: project
 
 ## 着手前チェック(1つでも欠けたら着手しない)
 
-1. **Unity の claim を自分は取らない。** `python3 Tools/Session/edo_session.py status` で
-   対象屋敷の `--unity` claim が呼び出し元にあるか確認する。無ければ
+1. **Unity の claim を自分は取らない・返さない。** あなたの身元は**呼び出し元の窓そのもの**
+   (Unity MCP も Bash も窓と同じ session_id で門番を通る)。`EDO_SESSION_ID=<呼び出し元の短縮ID>
+   python3 Tools/Session/edo_session.py status` で窓の行に `unity` があるか確認する。無ければ
    **「先に `edo_session.py start <屋敷> --unity` を実行してください」と差し戻し、着手しない**
-   (Unity は実体1つで排他 — CLAUDE.md 絶対規則)
+   (Unity は実体1つで排他 — CLAUDE.md 絶対規則)。
+   ⛔ `edo_session.py release`/`start`/`finish`/`steal` は打たない(門番が止める)— 打てば窓の unity を
+   返し、この後の普請検査の前に待ち行列の先頭(他邸)へ Unity が渡る(EDO-0446)。
+   ⛔ 身元を自作しない(`toryo-xxx`・8 字に縮めた ID は門番が止める)
 2. **アセンブリが最新か** — `Library/ScriptAssemblies/Assembly-CSharp-Editor.dll` の mtime が
    `Assets/Edo/Scripts/**/*.cs` の最新 mtime より新しいこと。古ければ Unity 側の再コンパイルを
    待ってから進める(古いアセンブリで走ると「直したのに反映されない」と誤診する)

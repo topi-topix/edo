@@ -2929,6 +2929,11 @@ def derive_runs(d, g):
     #    からの従属値。⭐ 円い口ではなく**折れ線の道のり**で抜く(`kuchiSpans` ── 隅の向こうを巻き込まない)。
     #    ⭐ 宣言は一つか列。`kind`(囲いの種別 ── runs)か `wallMasonry`(土留めの積み方 ── terraceWalls)を名指す
     #      【施主 2026-09-25「野面の石垣で受けたら柵は不要になる」── 野面の土留めと並走する区間は柵を置かない】。
+    #    ⭐ 土留めは名で名指す(`walls`)か積み方で名指す(`wallMasonry`)【施主裁定 2026-09-25「Bで」── 本殿の西は城の石垣へ】
+    def _kb_walls(kb):
+        if kb.get("walls"):
+            return [q for q in d["terraceWalls"] if q["name"] in kb["walls"]]
+        return [q for q in d["terraceWalls"] if q.get("masonry") == kb.get("wallMasonry")]
     kb = by["Ita_Keidai"].get("kuchiBeside")
     kbs = [] if not kb else (kb if isinstance(kb, list) else [kb])
     kspans, kkinds = [], set()
@@ -2958,9 +2963,10 @@ def derive_runs(d, g):
             ksegs = [s for q in d["runs"] if q.get("kind") in
                      ([kb["kind"]] if isinstance(kb["kind"], str) else kb["kind"]) for s in run_segs(q)]
         else:
-            ksegs = [s for q in d["terraceWalls"] if q.get("masonry") == kb.get("wallMasonry") for s in run_segs(q)]
+            ksegs = [s for q in _kb_walls(kb) for s in run_segs(q)]
             if not ksegs:
-                raise SystemExit("`runs[Ita_Keidai].kuchiBeside.wallMasonry` の土留めが無い: %r" % kb.get("wallMasonry"))
+                raise SystemExit("`runs[Ita_Keidai].kuchiBeside` の土留め(`walls`/`wallMasonry`)が無い: %r"
+                                 % (kb.get("walls") or kb.get("wallMasonry")))
         s0 = 0.0
         for i in range(len(pts) - 1):
             a, b_ = pts[i], pts[i + 1]
@@ -2989,7 +2995,7 @@ def derive_runs(d, g):
     kabut = []
     for kb in kbs:
         if not kb.get("endsAbut") or kb.get("kind"): continue
-        wsg = [s for q in d["terraceWalls"] if q.get("masonry") == kb.get("wallMasonry") for s in run_segs(q)]
+        wsg = [s for q in _kb_walls(kb) for s in run_segs(q)]
         acc9, cum = [], 0.0
         for i in range(len(pts) - 1):
             acc9.append(cum); cum += math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1])

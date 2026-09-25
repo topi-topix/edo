@@ -1952,7 +1952,10 @@ public static class EdoAssets
         /// 入りの run の最後の 1 枚 [折れ点 − 2.0, 折れ点] と出の run の最初の 1 枚を兼ねる。
         /// 焼いてあるもの: **90 × 5.00(出隅)** — 山王社 回廊の基壇 NE 隅(天端 29.00・足元 24.59・EDO-0430)。
         /// 実寸 5.00(高さ)・面の足は内面から 2.65 出る。材 `stone wall` ⇒ `Edo/共通/隅部材のマテリアルをremap`。
-        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 5 --render</summary>
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 5 --render
+        /// **90 × 4.00(出隅)** — 同じ基壇 NE 隅で両脇の直線材(丈 4.0)に揃える版。段は継がない(素の丈)ので
+        /// 面の足は内面から 2.40・両腕の切り口は `Castle Wall` の小口と頂点が一致(2026-09-25 実測・EDO-0430)。
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 4 --render</summary>
         public static string IshigakiKado(float deg, float h)
         {
             return "Assets/Edo/Models/Kado/Ishigaki_Kado_"

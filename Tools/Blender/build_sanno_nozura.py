@@ -6,6 +6,10 @@
     blender --background --python Tools/Blender/build_sanno_nozura.py -- mikiri [--render]
     blender --background --python Tools/Blender/build_sanno_nozura.py -- all --render
     blender --background --python Tools/Blender/build_sanno_nozura.py -- check                 # 継ぎ目の一致を数で検める
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- kado [--h=1.5] [--render]   # 出隅 90° の隅の駒
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- kado-check [--h=1.5]  # 隅の駒の腕の先 = 直線の切り口
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=0.22 --h=1.5  # 段の境の勾配の駒(± 両方)
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- dan --render          # 段の境の並べ焼き
 
 試作は `proto_sanno_dodome.py`(絵だけ)。石の形(Voronoi の割り・割肌の面・円弧で切る頭・
 面取り)はそこから起こし直した。⛔ 在庫に野面石・玉石が無い(試作の依頼時に在庫方が確認)ので新造。
@@ -31,6 +35,18 @@
 ━━━ 2. 根石の打ち切り = `H0150` の `G±180` ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   見付 0.2 未満で壁を終える駒。頭が 1.818m の間に 0.33 下がるので、高い側の天端を隣(見付 0.30)に
   合わせれば先端の石は床へ沈む。G+180 = +X へ上がる(−X 側の端に置く)/ G−180 = +X へ下がる(+X 側の端)。
+
+━━━ 2b. 出隅 90° の隅の駒 `Sanno_Nozura_Kado90_H<見付mm>_<a|b>.fbx`(2026-09-25・本殿の西の土留め)━━━━━
+  腕1 = 稜線から −X へ 0.909(見え面 +Z)/ 腕2 = 稜線から −Z へ 0.909(見え面 +X)。高い側は X ≤ 0・Z ≤ 0。
+  ピボット = **天端の線どうしの交点(稜線)・床レベル(天端 − 見付)**。腕の先の切り口 X = −0.909 / Z = −0.909 は
+  直線の駒の切り口と同じ(端の石は同じ種・同じ形)⇒ 直線の駒をそのまま継ぐ。面は法で下ほど前へ出るので、
+  割りは「稜線から面に沿って測る σ」で起こし(深さ u の面の幅 = 0.909 + 0.3·(−u))、稜線に跨る石だけ σ=0 で
+  割線を入れて 90° に折る(控えは留めの線 x = z へ剪断・隠れる)。行ごとに稜線に跨る石を一つ置く ⇒ 竪目地が
+  稜線を通らず、隅だけの石の柱(算木)にもならない。出隅は対称なので一種で両回り(yaw で腕を選ぶ)。
+
+━━━ 2c. 段の境の勾配の駒 = `H1500` の `G±220` ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  帯の面 29.65 → 29.25 の差 0.40 を 1間で流す(0.40 / 1.818 = 0.22)。見付は**高い側の端**で取る
+  (29.65 − 境内 28.3 = 1.35 ⇒ 1.50)。中心の見付で取ると(1.15 ⇒ 1.20)高い側の根入れが 0.05 しか残らない。
 
 ━━━ 3. 石段の袖 `IshidanSodeNozura_<蹴上>_<踏面>_<a|b>.fbx`(Models/Kaidan)━━━━━━━━━━━━━
   **`Own.IshidanSode` と同じ局所座標・ピボット・接する面**(厚み X ±0.30 で両面とも乱積み・
@@ -466,6 +482,204 @@ def make_wall(h, g, v):
     return o, name, len(cells)
 
 
+# ------------------------------------------------------------------ 出隅 90° の隅の駒
+KADO_VARIANTS = "ab"
+KADO_TIERS = [t for t in TIERS if t >= 0.30]
+
+
+def kado_name(h, v):
+    return "Sanno_Nozura_Kado90_H%04d_%s" % (int(round(h * 1000)), v)
+
+
+def cbat(u):
+    """天端の線から u(上向き)の所で、法が面を前へ出す量"""
+    return BATTER * (-u)
+
+
+def kado_layout(v, depth=DEEP):
+    """出隅の駒の割り。**σ = 面に沿って隅(稜線)から測った距離**(腕1 = −・腕2 = +)。
+    面は法で下ほど前へ出るので、深さ u での面の幅は腕ごとに 0.909 + c(u)(c = 0.3·(−u))。
+    ⇒ 継ぎ目の線は σ 空間で斜め(σ = ±(0.909 + c(u)))。端の石は直線の駒と**同じ種・同じ形**
+    (`boundary_column("nozura-wall-B")`)を σ 空間へ剪断して置く(3D では剪断が消え、直線の駒の端の石と一致する)。
+    隅(σ ≈ 0)には稜線に跨る石の列を置く ⇒ 竪目地が稜線を通らない。種の符号はばらばら(算木の互い違いにしない)。"""
+    rh, gw = (0.26, 0.40), 0.40
+    cols, guards, bseeds = boundary_column("nozura-wall-B", depth, gw, 0.10, rh, HEAD, (0.16, 0.32))
+    W = lambda u: L / 2 + cbat(u)
+    ends, fixed, bpts = [], [], []
+    for side, sg in (("B-", -1), ("B+", 1)):
+        for poly, key in cols:
+            ends.append(([(p[0] + sg * W(p[1]), p[1]) for p in poly], side, key))
+        bpts += [(p[0] + sg * W(p[1]), p[1]) for p in bseeds]
+        for p in guards:
+            q = (p[0] + sg * W(p[1]), p[1])
+            if abs(q[0]) < W(q[1]):
+                fixed.append(q)
+    rng = random.Random("nozura-kado-" + v)
+    # 行ごとに稜線に跨る種を一つ(σ ∈ ±0.06)置き、その行の他の種はそこから 0.30 以上離す
+    # ⇒ 隅の石は行の中の一石として並ぶ(隅だけの石の柱にしない ── 算木の列に見える)
+    corner, var = [], []
+    u = 0.0
+    k = 0
+    while u > -depth - 0.05:
+        h_ = rng.uniform(*rh)
+        uc = u - h_ / 2
+        w_ = W(uc)
+        sc = rng.uniform(-0.06, 0.06)
+        corner.append((sc, uc + rng.uniform(-0.05, 0.05)))
+        s = -w_ - rng.uniform(0, 0.3) - (0.2 if k % 2 else 0)
+        while s < w_ + 0.3:
+            w = rng.uniform(0.25, 0.60)
+            sx = s + w / 2 + rng.uniform(-0.05, 0.05)
+            su = uc + rng.uniform(-0.05, 0.05)
+            if abs(sx - sc) > 0.30 and abs(sx) < W(su) - gw * 1.3 and su < -0.05:
+                var.append((sx, su))
+            s += w
+        u -= h_
+        k += 1
+    seeds = corner + fixed + var
+    allp = seeds + bpts
+    cells = []
+    for i, (sx, su) in enumerate(seeds):
+        g = rng.uniform(0.022, 0.040)
+        poly = voronoi_cell(i, allp, g, (sx - 1.0, sx + 1.0, -depth - 0.3, HEAD + 0.12))
+        if len(poly) < 3:
+            continue
+        # 継ぎ目の斜めの線(σ = ±W(u))の内へ: σ + 0.3u ≤ 0.889 / −σ + 0.3u ≤ 0.889
+        poly = clip(poly, (1, BATTER), L / 2 - 0.02)
+        poly = clip(poly, (-1, BATTER), L / 2 - 0.02)
+        for op, side, key in ends:
+            if len(poly) < 3:
+                break
+            cx, cu = centroid(op)
+            if abs(cx - sx) < 1.0 and abs(cu - su) < 1.0:
+                poly = separate(poly, (sx, su), op, g)
+        if len(poly) < 3:
+            continue
+        poly = head_arc(poly, sx, rng.uniform(-HEAD, HEAD), rng.uniform(0.16, 0.32))
+        if len(poly) < 3 or area(poly) < 0.008:
+            continue
+        kind = "C" if i < len(corner) else "I"
+        cells.append((poly, kind, "K%s%d" % (v, i)))
+    # 端の石は σ 空間の多角形でなく、直線の駒の座標(s)で返す(3D は直線の駒と同じ P で起こす)
+    raw_ends = []
+    for side, off in (("B-", -L / 2), ("B+", L / 2)):
+        for poly, key in cols:
+            raw_ends.append(([(p[0] + off, p[1]) for p in poly], side, key))
+    return raw_ends, cells
+
+
+def _u2b(x, y, z):
+    """Unity → Blender(README 書き出しの規約: Unity X = −Bx / Y = Bz / Z = −By)"""
+    return (-x, -z, y)
+
+
+def _b2u(co):
+    return (-co.x, co.z, -co.y)
+
+
+def make_kado(h, v):
+    """出隅 90° の駒。局所(Unity): 腕1 = 稜線から −X へ 0.909(見え面 +Z)/ 腕2 = 稜線から −Z へ 0.909(見え面 +X)。
+    高い側(帯)は X ≤ 0・Z ≤ 0 の象限。ピボット = **天端の線の稜線(両腕の天端の線の交点)・床レベル(天端 − 見付)**。
+    ⇒ 腕の先の切り口 X = −0.909 / Z = −0.909 が、直線の駒の切り口(±0.909)とそのまま一致する。
+    作り: 石は σ 空間で平らに起こし(面取りまで)、稜線に跨る石だけ σ = 0 で割線を入れてから折る:
+      腕1: (x, z) = (σ + c, z)  腕2: (x, z) = (z, −σ + c)   跨る石: (σ + z, z) / (z, −σ + z)(σ = 0 が留めの線 x = z)"""
+    V.reset()
+    mats = materials()
+    raw_ends, cells = kado_layout(v)
+    cut = lambda p: clip(p, (0, -1), h + BURY)
+    objs = []
+    # ① 端の石 ── 直線の駒と同じ鍵・同じ P(tag "wall")⇒ 形・材・UV の位相まで同じ
+    ends = [(cut(p), k, key) for p, k, key in raw_ends]
+    ends = [c for c in ends if len(c[0]) >= 3 and area(c[0]) > 0.004]
+    for poly, side, key in ends:
+        o = build_stones([(poly, side, key)], wall_P(h, 0.0), mats, tag="wall")[0]
+        if side == "B+":           # 腕2 へ回す: (x, z) → (z, −x)
+            for vt in o.data.vertices:
+                x, y, z = _b2u(vt.co)
+                vt.co = _u2b(z, y, -x)
+        objs.append(o)
+    # ② 中の石と隅の石 ── σ 空間(Unity X = σ・Z = c(u) − d)で起こして折る
+    Pf = wall_P(h, 0.0)
+    for poly, kind, key in cells:
+        p2 = cut(poly)
+        if len(p2) < 3 or area(p2) <= 0.004:
+            continue
+        smin, smax = min(p[0] for p in p2), max(p[0] for p in p2)
+        o = build_stones([(p2, kind, key)], Pf, mats, tag="kado")[0]
+        cross = smin < 0 < smax
+        if cross:
+            V.sel([o])
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.mesh.bisect(plane_co=(0, 0, 0), plane_no=(1, 0, 0), use_fill=False,
+                                clear_inner=False, clear_outer=False)
+            bpy.ops.object.mode_set(mode='OBJECT')
+        arm1 = (smin + smax) < 0
+        for vt in o.data.vertices:
+            s, y, z = _b2u(vt.co)
+            c = cbat(y - h)
+            if cross:
+                nx, nz = (s + z, z) if s <= 0 else (z, -s + z)
+            elif arm1:
+                nx, nz = s + c, z
+            else:
+                nx, nz = z, -s + c
+            vt.co = _u2b(nx, y, nz)
+        o.data.update()
+        objs.append(o)
+    # ③ 目地の奥を塞ぐ板(面から 0.12 奥・法に沿う)── 二枚が内の留めで閉じる
+    for arm in (1, 2):
+        bm = bmesh.new()
+        vs = []
+        for u in (-0.12, -(h + BURY)):
+            k = cbat(u) - 0.12
+            if arm == 1:
+                vs += [bm.verts.new(_u2b(-L / 2, h + u, k)), bm.verts.new(_u2b(k, h + u, k))]
+            else:
+                vs += [bm.verts.new(_u2b(k, h + u, k)), bm.verts.new(_u2b(k, h + u, -L / 2))]
+        bm.faces.new((vs[0], vs[1], vs[3], vs[2]))
+        me = bpy.data.meshes.new("back%d" % arm); bm.to_mesh(me); bm.free()
+        ob = bpy.data.objects.new("back%d" % arm, me)
+        bpy.context.scene.collection.objects.link(ob)
+        ob.data.materials.append(mats[1])
+        me.update()
+        nU = _b2u(me.polygons[0].normal)
+        want = (0, 0, 1) if arm == 1 else (1, 0, 0)
+        if nU[0] * want[0] + nU[2] * want[2] < 0:
+            me.flip_normals()
+        box_uv(ob, (0.3, 0.7))
+        objs.append(ob)
+    name = kado_name(h, v)
+    o = V.join(objs, name)
+    bisect_keep(o, (L / 2, 0, 0), (1, 0, 0))          # Unity X ≥ −L/2 ⇔ Blender X ≤ +L/2
+    bisect_keep(o, (0, L / 2, 0), (0, 1, 0))          # Unity Z ≥ −L/2 ⇔ Blender Y ≤ +L/2
+    V.set_origin(o, (0, 0, 0))
+    return o, name
+
+
+def check_kado(h=1.50):
+    """⭕ 隅の駒の腕の先の切り口 = 直線の駒の切り口(天端から 0.25 まで・1mm で丸め)"""
+    ow, _, _ = make_wall(h, 0.0, "a")
+    ref_p = {(round(p[0], 3), round(p[1] - h, 3)) for p in seam_verts(ow, -L / 2)}   # 直線の +X 端(Unity X = +0.909)
+    ref_m = {(round(p[0], 3), round(p[1] - h, 3)) for p in seam_verts(ow, L / 2)}    # 直線の −X 端
+    bad = 0
+    for v in KADO_VARIANTS:
+        o, name = make_kado(h, v)
+        # 腕1 の先 = Unity X = −0.909 ⇔ Blender X = +0.909 ── 直線の +X 端と合わさる
+        a1 = {(round(p[0], 3), round(p[1] - h, 3)) for p in seam_verts(o, L / 2)}
+        # 腕2 の先 = Unity Z = −0.909 ⇔ Blender Y = +0.909。直線の −X 端と比べるため (Blender X, Z) へ写す
+        a2 = set()
+        for vt in o.data.vertices:
+            if abs(vt.co.y - L / 2) < 1e-4:
+                # 腕2 の局所: 直線の駒の Unity Z = 腕2 の Unity X ⇒ Blender Y' = −(Unity X) = Blender X
+                a2.add((round(vt.co.x, 3), round(vt.co.z - h, 3)))
+        top = lambda S: {p for p in S if p[1] > -0.25}
+        d1 = len(top(a1) ^ top(ref_p)); d2 = len(top(a2) ^ top(ref_m))
+        print("NOZURA KADO CHECK %s: 腕1の先 %d点 差%d / 腕2の先 %d点 差%d" % (name, len(top(a1)), d1, len(top(a2)), d2))
+        bad += (d1 > 0) + (d2 > 0)
+    return bad
+
+
 # ------------------------------------------------------------------ 石段の袖
 def sode_name(keri, fumi, v):
     return "IshidanSodeNozura_%.3f_%.3f_%s" % (keri, fumi, v)
@@ -725,7 +939,79 @@ def render_mikiri():
     studio_run([], (-0.8, -3.0, 1.4), (-0.4, 0, 0.35), 35, os.path.join(SHOT, "sanno_nozura_mikiri.png"))
 
 
+def _import_at(path, x_u, z_u, y_u, yaw_u=0.0):
+    """FBX を読み、Unity の yaw(度・+Z→+X が +90)で回して Unity (x, y, z) へ置く(検証レンダ用)"""
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.fbx(filepath=path)
+    new = [o for o in bpy.data.objects if o not in before and o.type == 'MESH']
+    R = mathutils.Matrix.Rotation(math.radians(-yaw_u), 4, 'Z')
+    T = mathutils.Matrix.Translation(Vector(_u2b(x_u, y_u, z_u)))
+    for o in new:
+        o.matrix_world = T @ R @ o.matrix_world
+    return new
+
+
+def render_kado(h=1.50, tag=""):
+    """隅の駒を直線の駒で挟んで撮る: 腕1 の先に直線 2駒(見え面 +Z)、腕2 の先に直線 2駒(yaw 90・見え面 +X)。
+    隅の外(+X +Z)の低い地面と、帯(X ≤ 0・Z ≤ 0)の上の地面。"""
+    for v in KADO_VARIANTS:
+        V.reset()
+        _import_at(os.path.join(OUT_WALL, kado_name(h, v) + ".fbx"), 0, 0, 0)
+        for i, wv in enumerate("ab"):
+            _import_at(os.path.join(OUT_WALL, wall_name(h, 0, wv) + ".fbx"), -L * (i + 1), 0, 0)
+            _import_at(os.path.join(OUT_WALL, wall_name(h, 0, "cd"[i]) + ".fbx"), 0, -L * (i + 1), 0, 90.0)
+        hook_stone_textures()
+        ground()
+        # 帯の上(天端 + 0.06・X ≤ 0 かつ Z ≤ 0 ⇔ Blender X ≥ 0 かつ Y ≥ 0)
+        bm = bmesh.new()
+        vs = [bm.verts.new(q) for q in [(0.05, 0.05, h + 0.06), (12, 0.05, h + 0.06), (12, 12, h + 0.06), (0.05, 12, h + 0.06)]]
+        bm.faces.new(vs); me = bpy.data.meshes.new("Upper"); bm.to_mesh(me); bm.free()
+        ou = bpy.data.objects.new("Upper", me); bpy.context.scene.collection.objects.link(ou)
+        mu = bpy.data.materials.new("Upper"); mu.use_nodes = True
+        mu.node_tree.nodes["Principled BSDF"].inputs['Base Color'].default_value = (0.18, 0.24, 0.11, 1)
+        me.materials.append(mu)
+        # 隅の外(対角)から
+        studio_run([], _u2b(4.2, 1.7, 4.2), _u2b(-0.6, h * 0.5, -0.6), 30,
+                   os.path.join(SHOT, "sanno_nozura_kado_%s%s.png" % (v, tag)))
+        studio_run([], _u2b(4.2, 1.7, 4.2), _u2b(-0.6, h * 0.5, -0.6), 30,
+                   os.path.join(SHOT, "sanno_nozura_kado_%s_magenta%s.png" % (v, tag)), magenta=True)
+        # 腕1 の継ぎ目の寄り
+        studio_run([], _u2b(-0.4, 1.2, 2.6), _u2b(-0.9, h * 0.5, 0), 30,
+                   os.path.join(SHOT, "sanno_nozura_kado_%s_seam%s.png" % (v, tag)))
+        # 真上から(平面の留め)── 帯の地面を消す
+        bpy.data.objects.remove(ou)
+        sc = bpy.context.scene
+        cam = sc.camera
+        cam.data.type = 'ORTHO'; cam.data.ortho_scale = 5.0
+        cam.location = _u2b(-0.8, 8.0, -0.8); cam.rotation_euler = (0, 0, 0)
+        V.render(os.path.join(SHOT, "sanno_nozura_kado_%s_plan%s.png" % (v, tag)))
+
+
+def render_dan(g=0.22, h=1.50):
+    """段の境: 天端 T の直線 H1.50 → 勾配の駒(1間で 0.40 下がる)→ 天端 T − 0.40 の直線 H1.20。床は Y=0 の地面に沈める。"""
+    V.reset()
+    T = 1.35
+    items = [(wall_name(1.50, 0, "a"), -L, T - 1.50),
+             (wall_name(h, -g, "b"), 0.0, T - 0.909 * g - h),
+             (wall_name(1.20, 0, "c"), L, T - 2 * 0.909 * g - 1.20),
+             (wall_name(1.20, 0, "d"), 2 * L, T - 2 * 0.909 * g - 1.20)]
+    for nm, x, y in items:
+        place_copy(os.path.join(OUT_WALL, nm + ".fbx"), x, y)
+    hook_stone_textures()
+    ground()
+    studio_run([], (-0.6, -5.5, 1.3), (-0.6, 0, 0.8), 30, os.path.join(SHOT, "sanno_nozura_dan.png"))
+    studio_run([], (-0.6, -5.5, 1.3), (-0.6, 0, 0.8), 30, os.path.join(SHOT, "sanno_nozura_dan_magenta.png"), magenta=True)
+
+
 # ------------------------------------------------------------------ 本体
+def do_kado():
+    hs = [float(OPT["h"])] if OPT.get("h") else KADO_TIERS
+    for h in hs:
+        for v in KADO_VARIANTS:
+            o, name = make_kado(h, v)
+            export(o, name, OUT_WALL)
+
+
 def do_wall():
     grades = [float(OPT["grade"])] if OPT.get("grade") else [0.0]
     hs = [float(OPT["h"])] if OPT.get("h") else TIERS
@@ -766,6 +1052,14 @@ if __name__ == "__main__":
     what = POS[0] if POS else "all"
     if what == "check":
         sys.exit(1 if check() else 0)
+    if what == "kado-check":
+        sys.exit(1 if check_kado(float(OPT.get("h") or 1.5)) else 0)
+    if what == "kado":
+        do_kado()
+        if RENDER:
+            render_kado(float(OPT.get("h") or 1.5))
+    if what == "dan" and RENDER:
+        render_dan()
     if what in ("wall", "all"):
         do_wall()
     if what in ("kiri", "all"):

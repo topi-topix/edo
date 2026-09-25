@@ -1237,7 +1237,7 @@ public static class EdoAssets
         /// ピボット = 1間の中心・**床レベル(中心での天端 − 見付)**・Z=0 は天端の線での面 ⇒ 法尻の面は Z = +0.3×見付。
         /// 石は床の 0.20 下まで根入れ・頭は天端の ±0.08。裏 0.12 に目地を塞ぐ板。芝の肩は地形側で被せる前提。
         /// **接する面**: 天端の線(隣と揃える)・床(地盤に沈める)・継ぎ目の切り口 X = ±0.909(隣の駒の切り口と一致)。
-        /// ⛔ ピボットで並べない — 隣の切り口と天端の線を測って寄せる。焼けている勾配は 0 と打ち切りの ±0.18 だけ(他は下の命令に --grade=)。
+        /// ⛔ ピボットで並べない — 隣の切り口と天端の線を測って寄せる。焼けている勾配は 0・打ち切りの ±0.18(H0.15)・段の境の ±0.22(H1.50)だけ(他は下の命令に --grade=)。
         /// 実寸(G0): W 1.818 × H 見付+0.30(根入れ 0.22・頭 +0.08)× D 0.9(H0.3)〜1.6(H2.4)。三角形 1,900(H0.15)〜10,400(H2.4)。
         /// 材 `Kirishi` / `Danishi`(石ごとに 7:3)⇒ `Edo/山王社/新造部材のマテリアルをremap`。⛔ 新規マテリアルなし。
         /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- wall [--grade=0.05] [--h=1.2] --render</summary>
@@ -1256,6 +1256,31 @@ public static class EdoAssets
         public static string SannoNozuraKiri(bool risesToPlusX, int i)
         {
             return SannoNozura(0.15f, risesToPlusX ? 0.18f : -0.18f, i);
+        }
+
+        /// <summary>**野面の乱積みの出隅 90° の隅の駒**(2026-09-25・山王 本殿の西の土留め `TW_Nozura_ShadenW` の帯の北西・南西の隅。前庭の隅と共用)。
+        /// 腕1 = 稜線から局所 −X へ 0.909(見え面 +Z)/ 腕2 = 稜線から局所 −Z へ 0.909(見え面 +X)。高い側は X ≤ 0・Z ≤ 0 の象限。
+        /// ピボット = **二本の天端の線の交点(稜線)・床レベル(天端 − 見付)**。見付 <paramref name="h"/> ∈ 0.30 / 0.60 / … / 2.40(直線の駒と同じ段)、
+        /// 個体 <paramref name="i"/> は i%2 で a/b。⭐ 腕の先の切り口 X = −0.909 / Z = −0.909 は直線の駒 <see cref="SannoNozura"/> の切り口と
+        /// 同じ形(端の石が同じ)⇒ 天端の線を揃えて直線の駒をそのまま継ぐ。両面とも乱積み・稜線に跨る石を行ごとに一つ(算木を見せない)。
+        /// 出隅は対称 ⇒ 一種で両回り: yaw は局所 +Z が片方の腕の外向き・局所 +X がもう片方の外向きになる向き。⛔ 入隅には使えない。
+        /// 実寸(H1.50): X −0.909〜+0.59 × Y −0.23〜+1.58 × Z −0.909〜+0.56(面は法で下ほど前へ・稜線は対角に出る)。三角形 2,400(H0.3)〜13,800(H2.4)。
+        /// 材 `Kirishi` / `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- kado [--h=1.5] --render</summary>
+        public static string SannoNozuraKado(float h, int i)
+        {
+            int hmm = (int)System.Math.Round(h * 1000.0);
+            return "Assets/Edo/Models/Sanno/Sanno_Nozura_Kado90_H" + hmm.ToString("0000") + "_" + (((i % 2) + 2) % 2 == 0 ? "a" : "b") + ".fbx";
+        }
+
+        /// <summary>**野面の乱積みの段の境の駒**(2026-09-25・帯 `SukibeiSoto` 29.65 → `SukibeiSoto_Chu` 29.25 の差 0.40 を 1間で流す)
+        /// = <see cref="SannoNozura"/>(1.50, ±0.22, i)。<paramref name="risesToPlusX"/> = true は +X へ上がる。
+        /// 見付は**高い側の端**で取った 1.50(29.65 − 境内 28.3 = 1.35)── 中心の見付(1.15 ⇒ 1.20)で選ぶと高い側の根入れが 0.05 しか残らない。
+        /// 両隣は天端の線を揃えた直線の駒(高い側 H1.50・低い側 H1.20 を沈める)。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=0.22 --h=1.5(−0.22 も同じく)</summary>
+        public static string SannoNozuraDan(bool risesToPlusX, int i)
+        {
+            return SannoNozura(1.50f, risesToPlusX ? 0.22f : -0.22f, i);
         }
 
         /// <summary>**見切りの大きな野面石**(男坂の下で城の石垣と野面の乱積みを継ぐ1点)。面 0.86 × 見え 0.60(+根入れ 0.20)・控え 0.90。

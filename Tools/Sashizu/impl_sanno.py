@@ -2945,6 +2945,34 @@ def derive_runs(d, g):
     for kb in kbs:
         if kb.get("kind"):
             kkinds |= set([kb["kind"]] if isinstance(kb["kind"], str) else kb["kind"])
+        # ⭐ `span:"betweenWallEnds"`【施主 2026-09-25「建物側からは塀で出てこれないし、柵があるから柵のなかには
+        #    はいれないしで死んでるエリアになっている」】── 名指した土留めの鎖と柵の間に閉じた死に地が残る区間を抜く。
+        #    口 = 柵の折れ線のうち、鎖の両端(一本にしか属さない端点)それぞれに最も近い点の間。⛔ 端を数で持たない。
+        if kb.get("span") == "betweenWallEnds":
+            wsg9 = [s for q in _kb_walls(kb) for s in run_segs(q)]
+            if not wsg9:
+                raise SystemExit("`runs[Ita_Keidai].kuchiBeside.walls` の土留めが無い: %r" % kb.get("walls"))
+            cnt = {}
+            for c, e in wsg9:
+                for q9 in (c, e):
+                    k9 = (round(q9[0], 3), round(q9[1], 3)); cnt[k9] = cnt.get(k9, 0) + 1
+            ends9 = [k9 for k9, v9 in cnt.items() if v9 == 1]
+            if len(ends9) != 2:
+                raise SystemExit("`runs[Ita_Keidai].kuchiBeside` の土留めが一本の鎖になっていない(端 %d): %r"
+                                 % (len(ends9), kb.get("walls")))
+            def _s_near(q9):
+                best, s9 = None, 0.0
+                for i in range(len(pts) - 1):
+                    a, b_ = pts[i], pts[i + 1]
+                    ex, ey = b_[0] - a[0], b_[1] - a[1]; L2 = ex * ex + ey * ey
+                    t = 0.0 if L2 < 1e-12 else max(0.0, min(1.0, ((q9[0] - a[0]) * ex + (q9[1] - a[1]) * ey) / L2))
+                    dq = math.hypot(a[0] + ex * t - q9[0], a[1] + ey * t - q9[1])
+                    if best is None or dq < best[0]: best = (dq, s9 + math.sqrt(L2) * t)
+                    s9 += math.sqrt(L2)
+                return best[1]
+            sv9 = sorted(_s_near(q9) for q9 in ends9)
+            kspans.append([sv9[0], sv9[1]])
+            continue
         cf = kb.get("clearFrom", "")
         if not cf.startswith("const.") or d["const"].get(cf[6:]) is None:
             raise SystemExit("`runs[Ita_Keidai].kuchiBeside.clearFrom` が const を指していない: %r" % cf)
@@ -3016,7 +3044,13 @@ def derive_runs(d, g):
                 Q9 = min((foot(P9, c, e) for c, e in wsg), key=lambda f: math.hypot(f[0] - P9[0], f[1] - P9[1]))
                 dk = math.hypot(Q9[0] - P9[0], Q9[1] - P9[1])
                 if dk * d["const"]["ken"] <= 3.0:                  # 相手が柵の丈の届く所にある端だけ(他の囲いの口の端は触らない)
-                    kabut.append([[round(P9[0], 4), round(P9[1], 4)], [round(Q9[0], 4), round(Q9[1], 4)]])
+                    kabut.append([[round(P9[0], 4), round(P9[1], 4)], [round(Q9[0], 4), round(Q9[1], 4)], dk])
+    # 一つの端に宣言が二つ届くときは近い相手を採る(口が繋がって端が二つの宣言に跨る ── 2026-09-25)
+    kab9 = {}
+    for pe, qe, dk in kabut:
+        k9 = tuple(pe)
+        if k9 not in kab9 or dk < kab9[k9][2]: kab9[k9] = (pe, qe, dk)
+    kabut = [[pe, qe] for pe, qe, _dk in kab9.values()]
     osegs = [s for q in d["runs"] if q["name"] != "Ita_Keidai" and q.get("kind") not in kkinds
              for s in run_segs(q)]
     skips = []

@@ -90,6 +90,8 @@
 - [CheckScene は矩形の芯で測る](checkscene-center-vs-seat.md) — `seat` で据えた部材は永久に鳴る。⛔芯へ動かして0件にしない
 - [天端の埋没の数えは法の根入れを拾う](crest-burial-count-picks-batter-face.md) — 4m の偽の埋没。TuckUnderCrest に見え面を渡し天端の帯だけ数える
 - [UnderfloorGap は一体の駒で屋根を拾う](underfloorgap-picks-roof-on-one-mesh-parts.md) — 堂・鐘楼で 5〜7m の偽の浮き。底の頂点で測る
+- [山王 Stage0 は今の Keidai・Sando を退避する](sanno-stage0-retires-live-groups.md) — 名木20本ごと非活性へ。建て直しは Stage1 から
+- [門・柵の浮きは「床」で測る](gate-float-measure-on-bed.md) — 土留めの天端に載る隅は地表で嘘の浮き。座は上限・浮けば床へ。Stage9 の後に S4/5
 - [山王 Stage7 は縁の地形の木11本を毎回重ねる](sanno-stage7-edge-trees-duplicate.md) — 矩形の等号が float 往復で外れる。a07d0d1b で解消(取り残し0を確認 2026-09-23)
 - [社叢QAのカメラ②は赤坂では宝蔵院の門の中](sanno-shaso-qa-camera2-inside-gate.md) — 撮る間だけ門+十坊の板塀 3_4f/4b ほか計52個を消す。カメラは動かさない
 - [山王 Stage6 は Clear の後に指紋を検める](sanno-stage6-clears-before-fingerprint.md) — 落ちると社殿が空。並行の指図書きが済むまで bake を見張る

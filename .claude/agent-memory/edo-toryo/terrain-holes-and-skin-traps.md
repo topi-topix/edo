@@ -21,3 +21,8 @@ metadata:
 資産を戻して打ち直す(cp → ImportAsset ForceUpdate)。整地・石段・土留めを流し直したら Stage9 を最後に流す。
 
 関連: [[dig-to-unbury-cascades]] [[terrain-detail-array-dims-lie]] [[contact-must-use-drawn-surface]]
+
+追記 2026-09-25 EDO-0409(前庭v2 の植え直し): 皮の穴は**後から焼き足した植栽の点**も食う。Stage9 の skipTree はその時点の
+treeInstances しか見ないので、焼き直しで新しく入った前庭の帯の低木 4 点(x≈−441, z 851〜865・穴の升 775 列)が SetTreeInstances で
+黙って落ちた(Stage7 の報告は「1929 本植えた」のまま・資産は 4 本少ない)。突き合わせの「数が違う」はまず穴の升を引く。
+直すのは穴の側(skipTree に planting.points も渡す)で、Stage7 では消せない。

@@ -180,6 +180,7 @@ public static class EdoSannoSashizuCheck
         // 社殿
         // =====================================================================
         var mapped = new HashSet<string>();
+        var muneTs = new List<KeyValuePair<string, Transform>>();   // 屋根と塀の当たりで使う(下)
         foreach (var o in L(doc, "munes"))
         {
             var m = o as Dictionary<string, object>; if (m == null) continue;
@@ -194,6 +195,7 @@ public static class EdoSannoSashizuCheck
             var t = ByName(index, scn);
             if (t == null) { bad("社殿", "棟 " + name + "(実装名 " + scn + ")が実装に無い"); continue; }
             mapped.Add(scn);
+            muneTs.Add(new KeyValuePair<string, Transform>(name, t));
             // ⚠⚠ **棟は据え付け点(transform)で測る。⛔ Renderer の bbox の芯ではない。**
             //   `munes` の (u0,v0,du,dv) は**柱通りの矩形**で、部材の原点はその中心と定めてある
             //   (`build_sanno_shaden.py`「ピボット = その棟の区画の中心・地盤レベル」)。
@@ -227,6 +229,60 @@ public static class EdoSannoSashizuCheck
                     string n = sg.GetChild(i).name;
                     if (!mapped.Contains(n)) bad("社殿", "孤児(指図に無い): " + SHADEN_GROUP + "/" + n);
                 }
+        }
+        // 屋根と塀の高さの当たり(EDO-0444 施主裁定A 2026-09-26「Aで」── 軒が塀の線を**平面で**越えるのは許す・
+        //   **当たりは許容 0**)。紙の検査 C32 は平面の越えしか測れない(軒の高さが紙に無い)⇒ 正の輪はここ(規則19)。
+        // ⭐ 実メッシュの頂点で測る:塀の駒の頂点を 0.25m の格子へ落として格子ごとの最高点を持ち、棟の頂点のうち
+        //   同じ格子に落ちる物の高さとの差の最小を「高さの空き」とする。⛔ bbox で測らない(規則21)。
+        {
+            const float CELL = 0.25f;
+            Func<float, float, long> cellOf = (x, z) =>
+                ((long)Mathf.FloorToInt(x / CELL) << 32) ^ (uint)Mathf.FloorToInt(z / CELL);
+            var fenceTop = new Dictionary<long, float>();
+            int nFence = 0;
+            foreach (var t in index)
+            {
+                if (!(t.name.StartsWith("Sukibei_") && t.name.EndsWith("f")) && !t.name.StartsWith("Kado_Sukibei")) continue;
+                nFence++;
+                foreach (var mf in t.GetComponentsInChildren<MeshFilter>())
+                {
+                    if (mf.sharedMesh == null) continue;
+                    var m4 = mf.transform.localToWorldMatrix;
+                    foreach (var v in mf.sharedMesh.vertices)
+                    {
+                        var w = m4.MultiplyPoint3x4(v); long k = cellOf(w.x, w.z); float y;
+                        if (!fenceTop.TryGetValue(k, out y) || w.y > y) fenceTop[k] = w.y;
+                    }
+                }
+            }
+            if (nFence == 0) bad("囲い", "屋根と塀の高さの当たり: 透塀の駒が 1 枚も拾えない ⇒ 未検査");
+            else
+            {
+                var over = new List<string>();
+                foreach (var kv in muneTs)
+                {
+                    float minGap = float.MaxValue; int nOver = 0;
+                    foreach (var mf in kv.Value.GetComponentsInChildren<MeshFilter>())
+                    {
+                        if (mf.sharedMesh == null) continue;
+                        var m4 = mf.transform.localToWorldMatrix;
+                        foreach (var v in mf.sharedMesh.vertices)
+                        {
+                            var w = m4.MultiplyPoint3x4(v); float y;
+                            if (!fenceTop.TryGetValue(cellOf(w.x, w.z), out y)) continue;
+                            nOver++; minGap = Mathf.Min(minGap, w.y - y);
+                        }
+                    }
+                    if (nOver == 0) continue;
+                    over.Add(kv.Key + " " + minGap.ToString("F2") + "m");
+                    if (minGap <= 0f)
+                        bad("囲い", "屋根と塀の当たり: 棟 " + kv.Key + " の実メッシュが透塀の上端より " +
+                            (-minGap).ToString("F2") + "m 下へ入る(許容 0)");
+                }
+                head.AppendLine("  屋根と塀の高さの空き(塀の真上に掛かる棟だけ・実メッシュ): " +
+                                (over.Count == 0 ? "掛かる棟なし" : string.Join(" / ", over)) +
+                                "(透塀の駒 " + nFence + ")");
+            }
         }
         // 棟間隔 — **並びが別物になっていないか**(位置のずれだけでは「平行移動」と区別できない)
         {

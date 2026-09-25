@@ -14,3 +14,7 @@ metadata:
 
 **Why:** 中ほどで突き付けても上下に 0.25×丈/2 の口とめり込みが残り、許容0を破る。
 **How to apply:** 鉛直な駒が法の面に当たると言われたら、据えではなく駒の端を法の面で切る。関連 [[ishidan-sode-sheared-module]] [[sode-depth-variant-for-groundhi]]
+
+2026-09-26 追記(EDO-0430): 端を平面で斜めに切る型 `dan_kiri` の `d±A±[N±]`(`Own.DanKiriEnd(d, deg, nori)`)。
+- d は踏面の中心 Z=0・蹴上の中ほどで測る。角が大きいと坂下の端が小口の外へ出る ⇒ 伸ばしてから切る(`_stretch_end`)。
+- 法 0 は綴りに N を出さない(C# と揃える)。値が無い段は `dan_kiri_try` で型だけ刷り、焼かない。

@@ -1269,6 +1269,14 @@ public static class EdoAssets
         /// ⚠ 値は据えた実メッシュからの従属値 ⇒ 一覧 `Tools/Blender/sanno_sando_kiri_set.txt` を実測で上書きしてから焼き直す
         /// (綴りは d・za とも F3 ── 一覧の値をそのまま渡す)。焼けている組は参道の階の段 1〜4 の**仮値**(棟梁の v23 の記録から逆算)。
         /// 実寸(段 1): W(X)5.509 × H(Y)0.430 × D(Z)0.642(平らな段石と同じ外形・端だけ欠く)。材 `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// (3)**平面で斜めに切る端**(<see cref="DanKiriEnd(float,float,float)"/>・EDO-0430 2026-09-26)── 端が相手の面と平面で斜めに交わるとき
+        /// (女坂の段 0・1 と前庭の南西の鉛直の土留め・約43°)。面 ±X = 幅/2 − d + tan(角)·Z + 法·(Y + 蹴上/2)。d は**踏面の中心の線 Z = 0**・
+        /// 蹴上の中ほどで測る食い込み、角[°] は相手の面の平面の線が段の走り(Z)となす角(+ は坂下 +Z ほど外へ開く)、法 = 水平/鉛直(鉛直は 0)。
+        /// 外へ出る所は石を伸ばしてから切る。⚠ 女坂の段 0・1 はまだ焼いていない(実測の d・角が無い)── 棟梁が測って
+        /// `Tools/Blender/sanno_onna_kiri_set.txt` に行を足し、blender --background --python Tools/Blender/build_sanno_buzai.py -- dan_kiri_list Tools/Blender/sanno_onna_kiri_set.txt 0.300 1.199 6.363 --render
+        /// 焼けている組(2026-09-26): 参道の階 (0.250, 0.542, 5.509) の段 1〜4 / 郭の階 (0.238, 0.450, 1.818) の段 0〜3(W 1.641〜1.816 × H 0.417 × D 0.550。
+        /// blender --background --python Tools/Blender/build_sanno_buzai.py -- dan_kiri_list Tools/Blender/sanno_kaku_kiri_set.txt 0.2375 0.450 1.818 --render)。
+        /// 焼かずに型だけ確かめる: -- dan_kiri_try <一覧> <蹴上> <踏面> <幅> --render(Screenshots/sanno_dankiri_<一覧>_*.png)。
         /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- dan_kiri_list Tools/Blender/sanno_sando_kiri_set.txt 0.250 0.542 5.509(組み絵は -- kiri_shots 0.250 0.542 5.509 0.219 0.040)</summary>
         public static string SannoDanKiri(float keri, float fumi, float w, int i, string endL, string endR)
         {
@@ -1283,6 +1291,10 @@ public static class EdoAssets
         public static string DanKiriEnd(float d) { return "d" + DanKiriF3(d); }
         /// <summary><see cref="SannoDanKiri"/> の端: 返しと袖に跨る。<paramref name="cornerUphill"/> = 隅の駒が坂上(−Z)にある(袖は坂下)。</summary>
         public static string DanKiriEnd(float d, float za, bool cornerUphill) { return "d" + DanKiriF3(d) + (cornerUphill ? "B" : "F") + DanKiriF3(za); }
+        /// <summary><see cref="SannoDanKiri"/> の端: 平面で斜めに切る。<paramref name="d"/> = 踏面の中心の線 Z = 0・蹴上の中ほどでの食い込み /
+        /// <paramref name="deg"/> = 相手の面の平面の線が走り(Z)となす角(+ は坂下ほど外へ開く)/ <paramref name="nori"/> = 相手の面の法(0 = 鉛直 ── 綴りに出さない)。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- dan_kiri_list Tools/Blender/sanno_onna_kiri_set.txt 0.300 1.199 6.363 --render</summary>
+        public static string DanKiriEnd(float d, float deg, float nori) { return "d" + DanKiriF3(d) + "A" + DanKiriF3(deg) + (nori != 0f ? "N" + DanKiriF3(nori) : ""); }
         static string DanKiriF3(float x)
         {
             return (x >= 0f ? "+" : "-") + System.Math.Abs(x).ToString("F3", System.Globalization.CultureInfo.InvariantCulture);

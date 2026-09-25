@@ -192,6 +192,33 @@ public static class EdoSannoShaRebuild
             y = Mathf.Lerp(Mathf.Lerp(a, b, tx), Mathf.Lerp(c, d2, tx), tz);
             return true;
         }
+        /// <summary>**地形の節点へ写す値。**4隅の差が <paramref name="cliff"/> を超える所(= 設計の法では作れない段 ── 石垣の見え面)は
+        /// 双一次で跨がず、節点が高い側の面(<paramref name="onHigh"/>: 面の多角形の中で面の高さが段の中ほどより上)に居なければ**低い側**を採る。
+        /// 欠けている所は半径 1 セルの最寄り(同じく段を跨ぐなら同じ判定)。⚠ 高い側の判定を外すと、回廊の基壇(幅 5m)の内の節点が
+        /// 外の低い地盤へ引かれ、土留めの見え面の向きの票が割れて裏返った(2026-09-25 実測)。
+        /// ⭐ 設計面の石垣の外形の中のセルは石垣の天端(地盤でない)で、跨いで補間すると見え面の外の節点が天端へ引かれ、
+        ///   石垣の前(二段築の下段の天端・法の足)を 2.8m 埋めた(2026-09-25 山王 回廊の北東・EDO-0430)。石垣の中は石垣が描く。
+        /// 当たる先: 設計面(算出物 graded)を地形へ写す全ての造成 ── 山王 Stage1(土留め・回廊の基壇・郭の石垣の見え面の際)。</summary>
+        public bool NodeY(float x, float z, float cliff, Func<Vector2, float, bool> onHigh, out float y, out bool atCliff)
+        {
+            y = 0f; atCliff = false;
+            float fx = (x - x0) / step, fz = (z - z0) / step;
+            int i = Mathf.FloorToInt(fx), j = Mathf.FloorToInt(fz);
+            float a, b, c, d2;
+            if (Cell(i, j, out a) && Cell(i + 1, j, out b) && Cell(i, j + 1, out c) && Cell(i + 1, j + 1, out d2))
+            {
+                float mn = Mathf.Min(Mathf.Min(a, b), Mathf.Min(c, d2)), mx = Mathf.Max(Mathf.Max(a, b), Mathf.Max(c, d2));
+                if (mx - mn > cliff && !onHigh(new Vector2(x, z), (mn + mx) * 0.5f)) { y = mn; atCliff = true; return true; }
+                float tx = fx - i, tz = fz - j;
+                y = Mathf.Lerp(Mathf.Lerp(a, b, tx), Mathf.Lerp(c, d2, tx), tz); return true;
+            }
+            if (!Near(x, z, 1, out y)) return false;
+            int i0 = Mathf.RoundToInt(fx), j0 = Mathf.RoundToInt(fz); float lo = float.MaxValue, hi = float.MinValue;
+            for (int dj = -1; dj <= 1; dj++) for (int di = -1; di <= 1; di++)
+                { float v; if (!Cell(i0 + di, j0 + dj, out v)) continue; lo = Mathf.Min(lo, v); hi = Mathf.Max(hi, v); }
+            if (hi - lo > cliff && !onHigh(new Vector2(x, z), (lo + hi) * 0.5f)) { y = lo; atCliff = true; }
+            return true;
+        }
         /// <summary>最寄りのセル(半径 r セル以内)。無ければ false。</summary>
         public bool Near(float x, float z, int r, out float y)
         {
@@ -335,7 +362,23 @@ public static class EdoSannoShaRebuild
         int x0 = IX(mnx), x1 = IX(mxx), z0 = IZ(mnz), z1 = IZ(mxz);
         int w = x1 - x0 + 1, h = z1 - z0 + 1;
         var H = td.GetHeights(x0, z0, w, h);
-        int n = 0, skip = 0; float cmax = 0f, fmax = 0f; double cutSum = 0, fillSum = 0;
+        int n = 0, skip = 0, cliffN = 0; float cmax = 0f, fmax = 0f; double cutSum = 0, fillSum = 0;
+        // 段の閾: 設計の最も急な法(1:batterCut / batterFill の小さい方)がセルの対角で作る差の 2 倍。これを超える隅の差は石垣の見え面。
+        float steep = Mathf.Min(F(D(Doc, "const"), "batterCut"), F(D(Doc, "const"), "batterFill"));
+        float cliff = 2f * gr.step * Mathf.Sqrt(2f) / Mathf.Max(0.1f, steep);
+        var tPoly = new List<Vector2[]>(); var tY = new List<float>();
+        foreach (var o in L(Impl, "terraces"))
+        {
+            var tc = o as Dictionary<string, object>; var wl = L(tc, "world"); if (wl.Count < 3) continue;
+            var poly = new Vector2[wl.Count];
+            for (int i = 0; i < wl.Count; i++) { var q = wl[i] as List<object>; poly[i] = new Vector2(Cv(q[0]), Cv(q[1])); }
+            tPoly.Add(poly); tY.Add(F(tc, "y"));
+        }
+        Func<Vector2, float, bool> onHigh = (p, mid) =>
+        {
+            for (int k = 0; k < tPoly.Count; k++) if (tY[k] >= mid && EdoGeom.PIP(tPoly[k], p)) return true;
+            return false;
+        };
         float bx0 = float.MaxValue, bx1 = float.MinValue, bz0 = float.MaxValue, bz1 = float.MinValue;
         for (int z = 0; z < h; z++)
             for (int x = 0; x < w; x++)
@@ -345,7 +388,9 @@ public static class EdoSannoShaRebuild
                 // ⚠ 地形の節点は 2m 刻み・設計面は 1m 刻みなので、**面の縁の節点が丸ごと落ちる**。
                 //   ⇒ 4隅がそろわないときは **1セル以内の最寄り**で拾う(縁を1節点だけ延ばす)。
                 //   ⛔ それでも無ければ触らない — 設計面の外へ外挿しない。
-                if (!gr.Bilinear(wx, wz, out y) && !gr.Near(wx, wz, 1, out y)) { skip++; continue; }
+                bool atCliff;
+                if (!gr.NodeY(wx, wz, cliff, onHigh, out y, out atCliff)) { skip++; continue; }
+                if (atCliff) cliffN++;
                 float cur = H[z, x] * ts.y + tp.y;
                 if (y < cur) { cmax = Mathf.Max(cmax, cur - y); cutSum += cur - y; }
                 else { fmax = Mathf.Max(fmax, y - cur); fillSum += y - cur; }
@@ -367,10 +412,63 @@ public static class EdoSannoShaRebuild
         td.SetHeightsDelayLOD(x0, z0, H); td.SyncHeightmap();
         float cell = ts.x / (hres - 1); double a = cell * cell;
         return string.Format(
-            "整地: 書いた {0} 節点 / 設計面が欠けていて触らなかった {1} 節点\n" +
+            "整地: 書いた {0} 節点 / 設計面が欠けていて触らなかった {1} 節点 / 石垣の見え面を跨ぐので低い側を採った {10} 節点(隅の差 > {11:F2}m)\n" +
             "  切土 最大 {2:F2}m 体積 {3:F0}m³ / 盛土 最大 {4:F2}m 体積 {5:F0}m³\n" +
             "  触った範囲 x[{6:F1},{7:F1}] z[{8:F1},{9:F1}](算出物 graded の内)",
-            n, skip, cmax, cutSum * a, fmax, fillSum * a, bx0, bx1, bz0, bz1);
+            n, skip, cmax, cutSum * a, fmax, fillSum * a, bx0, bx1, bz0, bz1, cliffN, cliff);
+    }
+
+    /// <summary>**設計面から外れた節点を造成前の地盤へ戻して整地する。**<paramref name="prevImplPath"/> は前の巡で流した算出物
+    /// (git の前の版を書き出した物)。前の算出物では設計面があり、いまの算出物では無い節点(= 造成をやめた所)は、`Stage1_Grade`
+    /// が触らない(設計面の外へ外挿しない)ので**前の巡の切土・盛土がそのまま残る**。区画(`sannosha_prec`)の中のその節点だけを
+    /// 造成前の地盤(`DemRel`)へ戻す。⚠ 区画の中でも前の算出物に無かった所(旧実装の手・柵の据え)は触らない。
+    /// 2026-09-25 実測(EDO-0430): 回廊の基壇の東の斜面に前巡の犬走りの切土の法が 9 節点残り、−1.25〜+0.85m の段状の窪みになっていた。
+    /// 当たる先: 設計面の範囲を縮めて流し直す全ての整地(山王 Stage1。他邸の整地も同じ型 ── 造成は毎回造成前の地盤から起こす)。</summary>
+    public static string Stage1_Grade(string prevImplPath)
+    {
+        string head = Stage1_Grade();
+        var prevG = D(EdoMiniJson.Parse(File.ReadAllText(prevImplPath)) as Dictionary<string, object>, "graded");
+        var pg = new Graded();
+        pg.x0 = F(prevG, "x0"); pg.z0 = F(prevG, "z0"); pg.step = F(prevG, "step");
+        pg.nx = (int)F(prevG, "nx"); pg.nz = (int)F(prevG, "nz");
+        pg.h = new float[pg.nx * pg.nz]; pg.ok = new bool[pg.nx * pg.nz];
+        var rows = L(prevG, "h");
+        for (int j = 0; j < rows.Count && j < pg.nz; j++)
+        {
+            var row = rows[j] as List<object>; if (row == null) continue;
+            for (int i = 0; i < row.Count && i < pg.nx; i++) { if (row[i] == null) continue; pg.h[j * pg.nx + i] = Cv(row[i]); pg.ok[j * pg.nx + i] = true; }
+        }
+        var dem = EdoMiniJson.Parse(File.ReadAllText(Path.Combine(RepoRoot, EdoSannoShaBuilder.DemRel))) as Dictionary<string, object>;
+        float dx0 = F(dem, "x0"), dz0 = F(dem, "z0"), dst = F(dem, "step"); var drows = L(dem, "h");
+        Func<int, int, float> DV = (i, j) => { var r = drows[j] as List<object>; return r == null || r[i] == null ? float.NaN : Cv(r[i]); };
+        Func<float, float, float> Dem = (x, z) =>
+        {
+            float fi = (x - dx0) / dst, fj = (z - dz0) / dst; int i = Mathf.FloorToInt(fi), j = Mathf.FloorToInt(fj); float tx = fi - i, tz = fj - j;
+            return Mathf.Lerp(Mathf.Lerp(DV(i, j), DV(i + 1, j), tx), Mathf.Lerp(DV(i, j + 1), DV(i + 1, j + 1), tx), tz);
+        };
+        var prec = EdoParcels.Get("sannosha_prec");
+        var gr = Gr; var t = Terrain.activeTerrain; var td = t.terrainData; int hres = td.heightmapResolution;
+        Vector3 tp = t.transform.position, ts = td.size;
+        int x0 = Mathf.Clamp(Mathf.RoundToInt((gr.x0 - tp.x) / ts.x * (hres - 1)), 0, hres - 1);
+        int x1 = Mathf.Clamp(Mathf.RoundToInt((gr.x0 + (gr.nx - 1) * gr.step - tp.x) / ts.x * (hres - 1)), 0, hres - 1);
+        int z0 = Mathf.Clamp(Mathf.RoundToInt((gr.z0 - tp.z) / ts.z * (hres - 1)), 0, hres - 1);
+        int z1 = Mathf.Clamp(Mathf.RoundToInt((gr.z0 + (gr.nz - 1) * gr.step - tp.z) / ts.z * (hres - 1)), 0, hres - 1);
+        int w = x1 - x0 + 1, h = z1 - z0 + 1; var H = td.GetHeights(x0, z0, w, h);
+        int n = 0; float mx = 0f; var sbx = new StringBuilder();
+        for (int z = 0; z < h; z++)
+            for (int x = 0; x < w; x++)
+            {
+                float wx = tp.x + (x0 + x) * ts.x / (hres - 1), wz = tp.z + (z0 + z) * ts.z / (hres - 1), y;
+                if (gr.Bilinear(wx, wz, out y) || gr.Near(wx, wz, 1, out y)) continue;      // いまの設計面がある ── Stage1 が描いた
+                if (!pg.Bilinear(wx, wz, out y) && !pg.Near(wx, wz, 1, out y)) continue;     // 前の巡も設計面の外 ── 触らない
+                if (prec == null || !EdoGeom.PIP(prec, new Vector2(wx, wz))) continue;
+                float g = Dem(wx, wz); if (float.IsNaN(g)) continue;
+                float cur = H[z, x] * ts.y + tp.y; mx = Mathf.Max(mx, Mathf.Abs(g - cur));
+                if (n < 12) sbx.Append(string.Format(" ({0:F1},{1:F1}) {2:+0.00;-0.00}", wx, wz, g - cur));
+                H[z, x] = Mathf.Clamp01((g - tp.y) / ts.y); n++;
+            }
+        if (n > 0) { td.SetHeightsDelayLOD(x0, z0, H); td.SyncHeightmap(); }
+        return head + "\n  設計面から外れた節点を造成前の地盤へ戻した " + n + " 節点(最大 " + mx.ToString("F2") + "m)" + sbx;
     }
 
     // ================================================================ Stage 2 石段

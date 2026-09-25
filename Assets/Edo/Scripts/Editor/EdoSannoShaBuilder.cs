@@ -77,6 +77,8 @@ public static class EdoSannoShaBuilder
     /// (門の芯の従属値・石段の折れ線の世界座標・撒いた木 1,794本の world など)。
     /// 岡部の <c>EdoOkabeYashikiBuilder.ImplRel</c> と同じ役どころ。</summary>
     public const string ImplRel = "docs/Sashizu/sanno_impl.json";
+    /// <summary>造成前の地盤(正本 base_dem.json からの切り出し・規則13)。⛔ live terrain から採り直さない。</summary>
+    public const string DemRel = "docs/Sashizu/sanno_dem.json";
     /// <summary>シーンのルート。突き合わせ(<see cref="EdoSannoSashizuCheck"/>)が引く。</summary>
     public const string GroupName = GROUP;
     static Dictionary<string, object> _d;

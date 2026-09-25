@@ -23,6 +23,7 @@
 - [正面のローカル軸は部材ごとに違う](front-axis-differs-per-part.md) — 山王 社殿5棟=+X/堂宇10棟=+Z。yaw=front−axis.front(EdoBuild.FaceYaw)
 - [partFrom は2書式・フォルダを決め打ちしない](partfrom-two-spellings.md) — Own.呼び名は EdoAssets.OwnPath で解く。鐘楼鼓楼は Models/Jisha
 - [接地は格子点でなく描かれている地表で測る](contact-must-use-drawn-surface.md) — 2m格子で斜面に ±(1m×勾配) の嘘。嘘の不合格と嘘の合格が同時に出る
+- [幹の足は樹皮の底の輪か 0.02m 上の断面で測る](trunk-foot-band-catches-foliage.md) — 0.3m 帯は紅葉・蔓で 0.39m 外れた。蔓は最も低い茎
 - [SeatPlant は斜面の木を浮き上限で沈める](seatplant-float-cap-buries-slope-trees.md) — 名指し20本が埋没15〜21m/浮き0.70。社叢の数え合わせは矩形の縁で11本落ちる
 - [榎・椋は SeatPlant が NaN](seatplant-nan-enoki-mukunoki-noki.md) — LOD の子名の "noki" を IsRoofName が屋根と見る。篩を EdoBuild で直す
 - [埋没を地形を掘って消す器は連鎖する](dig-to-unbury-cascades.md) — 山王 0.53/0.65 の埋没で3通り試し全部戻した。納めの話

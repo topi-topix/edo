@@ -6172,7 +6172,7 @@
     "dodomeCrestDepthRule": "土留めの**紙の線から実物の天端の奥の縁まで**[m](種 → 値)。紙の線は 城の石垣=天端の前の縁 / 袖=段石の小口。種は `terraceWalls[].coping` が \"stair\" なら 袖(石段の袖石)、ほかは `terraceWalls[].masonry`(無ければ 城の石垣)。⛔ 種の値が無い土留めは 0 と『取れない』を刷る(発明しない)。`kakoiLineRule` の土留めの半厚に使う(`sashizu_lib.dodome_crest_depth`)",
     "dodomeCrestDepthAcc": "A(実測 ── 普請検査の実測 2026-09-25 EDO-0409: 城の石垣 1.40 m・袖 0.60 m)",
     "edaShitaOverRoadM": 4.0,
-    "edaShitaOverRoadRule": "**道辺**(`edgeClassRule`)の外へ張り出す社叢(帯1〜4)の樹冠は、**張り出した先の路面**から最下枝の付け根まで `edaShitaOverRoadM` 以上(参道の林縁 `slopeBands[3].clusters[1].edaShitaOverRoadM` と同値)。⚠ 未結線 ── 部材の枝下が目録に無い(`plantRule.crownRule.takagi.edaShitaPendingRef`)ので散布も検査もまだ読まない"
+    "edaShitaOverRoadRule": "**道**(敷地割の間 ── 区画の外でどの区画にも入らない所)の上へ張り出す樹冠は、**その上の路面**から枝下まで `edaShitaOverRoadM` 以上(参道の林縁 `slopeBands[3].clusters[1].edaShitaOverRoadM` と同値)。樹冠の各環 r(部材の r × `scaleXZ`)の道の上の所で 要る枝下 = 路面(造成前の地盤 ── 道は現地形)− 足元の地盤 + `edaShitaOverRoadM` ／ ある枝下 = 目録の `edashita`(r)× `scaleY`。⛔ 硬い制約(許容0)── 散布(帯1〜4・林縁・塊)は候補を木にしてから測り、足りない所は退けて次の候補へ。名指しの木と線に並べる塊は動かさず測るだけ。判定は散布と検査 C30 で一本(`sashizu_lib.edashita_over_road`)。結線 2026-09-25 EDO-0409"
    },
    "rinenEdgeRule": "**辺の中点と両三分点(t = 1/3, 1/2, 2/3)が すべて 道敷から `rinenEdgeTouchKen` 以内**にある辺だけを『道に接する辺』とする。⛔ 端点の接触では拾わない",
    "rinenEdgeTouchKen": 1.0
@@ -6402,7 +6402,7 @@
      "edaShitaMinM": 2.5,
      "idoMuneClear": true,
      "edaShitaBasis": "鉛直(地盤から最下枝の付け根までの鉛直の高さ)",
-     "edaShitaPendingRef": "目録に部材の枝下が無い"
+     "edaShitaFrom": "目録 `docs/asset-index.tsv` の `edashita` 列(部材 LOD0 の実測・scale 1 ── 環ごとの最も低い頂点の足元からの高さ)× `scaleY`。道の上は `bandDef.avoid.edaShitaOverRoadM` で結線済み(2026-09-25)。⚠ `edaShitaMinM` そのもの(道の外の枝下の下限)はまだ散布も検査も読まない(未検査)"
     },
     "chuboku": {
      "basis": "幹の芯",

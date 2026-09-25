@@ -1,8 +1,8 @@
 {
  "_": "図の機械検査の結果。生成器が毎回書き、kansei_gate.py --init が読んで赤なら止める(EDO-0291)。⛔ 手で書かない — 図を焼き直せば入れ替わる。",
  "estate": "sanno",
- "at": "2026-09-25T22:08:03+09:00",
- "sashizu_sha": "29d6014fa9b4760a",
+ "at": "2026-09-25T22:23:28+09:00",
+ "sashizu_sha": "de29e85649b36121",
  "ng": 2,
  "na": 3,
  "rows": [
@@ -32,13 +32,13 @@
   },
   {
    "id": "C05",
-   "what": "段差の受け — 高さの違う段が接する縁(区画の内側)517 点に、土留め・石段・囲いが 1m 以内",
+   "what": "段差の受け — 高さの違う段が接する縁(区画の内側)518 点に、土留め・石段・囲いが 1m 以内",
    "res": "受けの無い点 0",
    "status": "ok"
   },
   {
    "id": "C06",
-   "what": "土留め高と法 — 36 本の天端と地山の落差(宣言・駒の丈・埋没) ・切土・盛土の法 26 本が区画の内に納まる",
+   "what": "土留め高と法 — 39 本の天端と地山の落差(宣言・駒の丈・埋没) ・切土・盛土の法 26 本が区画の内に納まる",
    "res": "0 件",
    "status": "ok"
   },
@@ -152,7 +152,7 @@
   },
   {
    "id": "C26",
-   "what": "囲いの内の幹 — sanno_impl.json の 1942 点(全層)の幹の芯が、道辺に面する囲い 3 本(Ita_ZN・Saku_SW・Saku_Sando)の道側に無く、囲いの実体(線+半厚:Ita_ZN 0.00m=取れない(板塀 に厚みの欄が無い — 0 で扱う)・Saku_SW 0.06m=gardens[前庭の帯(玉垣の植込み)].tamagaki.postDiaM/2・Saku_Sando 0.06m=gardens[前庭の帯(玉垣の植込み)].tamagaki.postDiaM/2)から 2.0 m 以上離れている(run の端・節の先も円で測る。樹冠は測らない)",
+   "what": "囲いの内の幹 — sanno_impl.json の 1942 点(全層)の幹の芯が、道辺に面する囲い 4 本(Ita_ZN・Saku_SW・Saku_Sando・Ita_ZNE)の道側に無く、囲いの実体(線+半厚:Ita_ZN 0.00m=取れない(板塀 に厚みの欄が無い — 0 で扱う)・Saku_SW 0.06m=gardens[前庭の帯(玉垣の植込み)].tamagaki.postDiaM/2・Saku_Sando 0.06m=gardens[前庭の帯(玉垣の植込み)].tamagaki.postDiaM/2・Ita_ZNE 0.00m=取れない(板塀 に厚みの欄が無い — 0 で扱う))から 2.0 m 以上離れている(run の端・節の先も円で測る。樹冠は測らない)",
    "res": "0 点",
    "status": "ok"
   },
@@ -170,14 +170,20 @@
   },
   {
    "id": "C29",
-   "what": "塀・土留めの内の幹 — sanno_impl.json の 1942 点(全層)の幹の芯が、塀・囲い・土留めの実体線 84 本・169 区間(区画の辺 20・回廊 2・土留め(城の石垣) 31・土留め(袖) 10・板塀 4・柵 3・袖塀 2・透塀 12)から 2.0 m(+半厚:区画の辺 0.00m=取れない(区画の線 — 0 で扱う)・回廊 0.00m=取れない(回廊 に厚みの欄が無い — 0 で扱う)・土留め(城の石垣) 1.40m=天端の奥行 avoid.dodomeCrestDepthM[城の石垣]・土留め(袖) 0.60m=天端の奥行 avoid.dodomeCrestDepthM[袖]・板塀 0.00m=取れない(板塀 に厚みの欄が無い — 0 で扱う)・柵 0.06m=gardens[前庭の帯(玉垣の植込み)].tamagaki.postDiaM/2・袖塀 0.00m=取れない(袖塀 に厚みの欄が無い — 0 で扱う)・透塀 0.00m=取れない(透塀 に厚みの欄が無い — 0 で扱う))以上離れている(土留めは天端の奥の縁から・2m は道に面する土留め 3 本だけ ── 面さない 38 本(TW_Otoko_N・TW_Otoko_S・TW_Onna_N・TW_Onna_S・TW_Zentei_W・TW_Zentei_SW・TW_Zentei_SE・TW_Kairo_E・TW_Kairo_W・TW_Kairo_N・TW_Zentei_E・TW_Kairo_S・TW_Kairo_TsumaN・TW_Kairo_TsumaS・TW_Romon_KoshiN・TW_Romon_KoshiS・TW_Gusho_N・TW_Gusho_E・TW_Gusho_EK・TW_Gusho_SE・TW_Gusho_S・TW_GushoKai_N・TW_GushoKai_S・TW_Koshi_E・TW_Koshi_NE・TW_Koshi_NE2・TW_Koshi_NS・TW_Koshi_NW・TW_Koshi_NW2・TW_Koshi_W・TW_Koshi_SW・TW_Koshi_SW2・TW_Koshi_SS・TW_Koshi_S2・TW_Koshi_S・TW_ChumonKai_N・TW_ChumonKai_S・TW_Nozura_ShadenW)は実体だけ退ける。区間の両端・各節も円で測る。樹冠は測らない。区画の外の塀は測れない)",
+   "what": "塀・土留めの内の幹 — sanno_impl.json の 1942 点(全層)の幹の芯が、塀・囲い・土留めの実体線 86 本・172 区間(区画の辺 20・回廊 2・土留め(城の石垣) 32・土留め(袖) 10・板塀 5・柵 3・袖塀 2・透塀 12)から 2.0 m(+半厚:区画の辺 0.00m=取れない(区画の線 — 0 で扱う)・回廊 0.00m=取れない(回廊 に厚みの欄が無い — 0 で扱う)・土留め(城の石垣) 1.40m=天端の奥行 avoid.dodomeCrestDepthM[城の石垣]・土留め(袖) 0.60m=天端の奥行 avoid.dodomeCrestDepthM[袖]・板塀 0.00m=取れない(板塀 に厚みの欄が無い — 0 で扱う)・柵 0.06m=gardens[前庭の帯(玉垣の植込み)].tamagaki.postDiaM/2・袖塀 0.00m=取れない(袖塀 に厚みの欄が無い — 0 で扱う)・透塀 0.00m=取れない(透塀 に厚みの欄が無い — 0 で扱う))以上離れている(土留めは天端の奥の縁から・2m は道に面する土留め 4 本だけ ── 面さない 38 本(TW_Otoko_N・TW_Otoko_S・TW_Onna_N・TW_Onna_S・TW_Zentei_W・TW_Zentei_SW・TW_Zentei_SE・TW_Kairo_E・TW_Kairo_W・TW_Kairo_N・TW_Zentei_E・TW_Kairo_S・TW_Kairo_TsumaN・TW_Kairo_TsumaS・TW_Romon_KoshiN・TW_Romon_KoshiS・TW_Gusho_N・TW_Gusho_E・TW_Gusho_EK・TW_Gusho_SE・TW_Gusho_S・TW_GushoKai_N・TW_GushoKai_S・TW_Koshi_E・TW_Koshi_NE・TW_Koshi_NE2・TW_Koshi_NS・TW_Koshi_NW・TW_Koshi_NW2・TW_Koshi_W・TW_Koshi_SW・TW_Koshi_SW2・TW_Koshi_SS・TW_Koshi_S2・TW_Koshi_S・TW_ChumonKai_N・TW_ChumonKai_S・TW_Nozura_ShadenW)は実体だけ退ける。区間の両端・各節も円で測る。樹冠は測らない。区画の外の塀は測れない)",
+   "res": "0 点",
+   "status": "ok"
+  },
+  {
+   "id": "C30",
+   "what": "道の上の枝下 — sanno_impl.json の 1942 点(全層・名指しも)の樹冠のうち道(敷地割の間)の上に在る所で、枝下(目録の edashita × scaleY)が 路面 − 足元 + 4.0 m 以上ある(硬い制約・許容0。路面 = 造成前の地盤。目録に枝下の無い部材 0 点は測れない)",
    "res": "0 点",
    "status": "ok"
   },
   {
    "id": "D01",
    "what": "文書の記法が字になっていないか",
-   "res": "0 件(母集団 58,091 字・引用の面 0 件は別枠)",
+   "res": "0 件(母集団 58,345 字・引用の面 0 件は別枠)",
    "status": "ok"
   }
  ]

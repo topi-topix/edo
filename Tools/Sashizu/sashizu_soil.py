@@ -514,14 +514,21 @@ def cone_field(d, g):
     xs = [p[0] for _t, P in polys for p in P]; zs = [p[1] for _t, P in polys for p in P]
     i0 = int(math.floor((min(xs) - _CONE_GUARD_M) / S)); i1 = int(math.ceil((max(xs) + _CONE_GUARD_M) / S))
     j0 = int(math.floor((min(zs) - _CONE_GUARD_M) / S)); j1 = int(math.ceil((max(zs) + _CONE_GUARD_M) / S))
-    nat, h, blocked = {}, {}, set()
+    nat, h, blocked, floor, wallb = {}, {}, set(), {}, set()
     for j in range(j0, j1 + 1):
         for i in range(i0, i1 + 1):
             x, z = i * S, j * S
             n9 = dem_h(x, z)
-            te9 = None
+            te9 = None; fl9 = None
             for te, P in polys:
-                if in_poly((x, z), P): te9 = (te, P); break
+                if in_poly((x, z), P):
+                    # ⭐ **盛土の床**(`fillOnly`)は障害にしない ── 他の面の法が上を通れるように外と同じに扱い、
+                    #   高さは最後に下限として掛ける(`floor`)。⛔ 床の中で他の法を止めない(継ぎ目に段が立つ)
+                    if te.get("fillOnly"):
+                        if fl9 is None: fl9 = te
+                        continue
+                    te9 = (te, P); break
+            if te9 is None and fl9 is not None: floor[(i, j)] = float(fl9["y"])
             if te9 is not None:
                 # 平場の中 ── 補間の角に使う高さだけを持つ(⛔ 伝播はさせない)
                 dd9, nr9 = _poly_near(x, z, te9[1])
@@ -533,7 +540,7 @@ def cone_field(d, g):
             if n9 is None: continue
             nat[(i, j)] = n9; h[(i, j)] = n9
             if _stair_y(d, g, x, z) is not None: blocked.add((i, j)); continue
-            if wc and _wall_dist(d, g, x, z) <= wc: blocked.add((i, j))
+            if wc and _wall_dist(d, g, x, z) <= wc: blocked.add((i, j)); wallb.add((i, j))
     # ---- 円錐の頭 ── 輪郭を `_CONE_SEED_M` で歩き、**縁の盛厚の符号**で盛/切を分ける
     seedF, seedC = {}, {}
     jump = [0]          # 直線で撒いた種が障害(土留め)を跨いだ回数 ── ⭕ 0 が正
@@ -550,6 +557,7 @@ def cone_field(d, g):
                 if en is None: continue
                 dv = te["y"] - en
                 if -0.05 <= dv <= 0.05: continue        # 縁がほぼ地山 ── 円錐を出さない
+                if dv < 0 and te.get("fillOnly"): continue  # 盛土の床は切らない(⛔ 切の円錐を出さない)
                 bi = int(math.floor(x / S)); bj = int(math.floor(z / S))
                 r9 = int(math.ceil(_CONE_SEED_R / S)) + 1
                 for ii in range(bi - r9, bi + r9 + 1):
@@ -597,8 +605,38 @@ def cone_field(d, g):
         if v > h[k]: h[k] = v
     for k, v in PC.items():
         if v < h[k]: h[k] = v
+    # ⭐ **土留めの胴の帯の節点も盛土の面に載せる**【2026-09-25 EDO-0430】── 胴の帯(`wallCollarM` の内)は
+    #   法が壁を越えないための障害で、伝播からは外れる。⛔ そのまま現地形を残すと、盛土の法が壁の見え面の
+    #   前まで来た所で帯の一列だけが窪む(回廊の基壇の北西の出隅で 2.7 m)。⭕ 帯の節点は**同じ側**
+    #   (いちばん近い土留めの線に対して)の隣の盛土の値から勾配どおりに受ける ── 壁の向こうからは受けない。
+    if PF and wallb:
+        segs9 = wall_segs_named(d, g)
+        for k in wallb:
+            if k not in nat: continue
+            x9, z9 = k[0] * S, k[1] * S
+            bs9 = None
+            for _w9, a9, b9 in segs9:
+                q9 = _seg_dist(x9, z9, a9, b9)
+                if bs9 is None or q9 < bs9[0]: bs9 = (q9, a9, b9)
+            if bs9 is None: continue
+            _q, a9, b9 = bs9
+            nx9, nz9 = -(b9[1] - a9[1]), b9[0] - a9[0]
+            sd = lambda px, pz: (px - a9[0]) * nx9 + (pz - a9[1]) * nz9
+            s0 = sd(x9, z9)
+            best9 = None
+            for dx in (-1, 0, 1):
+                for dz in (-1, 0, 1):
+                    q = (k[0] + dx, k[1] + dz)
+                    if q == k or q in blocked or q not in PF: continue
+                    if sd(q[0] * S, q[1] * S) * s0 <= 0: continue      # 壁の向こう側からは受けない
+                    v9 = PF[q] - math.hypot(dx, dz) * S / bf
+                    if best9 is None or v9 > best9: best9 = v9
+            if best9 is not None and best9 > h[k]: h[k] = best9; PF[k] = best9
+    for k, v in floor.items():                  # 盛土の床 ── 面の高さは**下限**(高い地山・高い法はそのまま)
+        if k in h and v > h[k]: h[k] = v
     graded, reach, guardn = set(), 0.0, 0
-    for k in set(PF) | set(PC):
+    for k in set(PF) | set(PC) | set(floor):
+        if k not in nat: continue
         if abs(h[k] - nat[k]) <= 0.05: continue
         graded.add(k)
         reach = max(reach, min(_poly_dist(k[0] * S, k[1] * S, P) for _t, P in polys))
@@ -639,13 +677,22 @@ def design_y(d, g, x, z):
     面に溝が掘れる(女坂の頭で最大 2.19 m)。坂は平場の外だけを受け持つ。
     ⭐ **法面は `cone_field` 一つから出る**【裁定 2026-09-19 = 案A】── ⛔ ここで ray を降ろさない。
     """
+    fo = None
     for te in d["terraces"]:
-        if in_poly((x, z), terrace_poly(te, g)): return te["y"]
+        if in_poly((x, z), terrace_poly(te, g)):
+            if te.get("fillOnly"):
+                if fo is None: fo = te
+                continue
+            return te["y"]
     sy = _stair_y(d, g, x, z)
     if sy is not None: return sy
     nat = dem_h(x, z)
     if nat is None: return None
     y = _cone_at(d, g, x, z)
+    if fo is not None:
+        # ⭐ **盛土の床**(`fillOnly`)── 面の高さは下限。地山や他の面の法が高ければそれに従う(⛔ 切らない)
+        y = max(float(fo["y"]), y if y is not None else nat)
+        return None if abs(y - nat) <= 0.05 else y
     if y is None or abs(y - nat) <= 0.05: return None
     # ④ **凹みを抜く**(裁定〈法尻と法肩〉1 = 案①『均す』・物差しは**溜まるか**)── 水の抜けない
     #    節点を落とす。⛔ 上げる方向には効かない(`min`)。⛔ ここで数え直さない(`ridge_level`)。
@@ -1160,7 +1207,8 @@ def _grade_rule(d, g, x, z, cold=True):
         #   **平場の縁そのものが控えから外れ**、地盤が壁の足元で天端から法尻へ落ちる(回廊の基壇の
         #   北で 4.0 m 落ちていた ── 石垣が宙に浮く)。
         # ⭐ 天端は**その壁の天端**から採る(`collar_top`)── ⛔ 平場の `y` を書かない(検図 高1)
-        if _wall_dist(d, g, x, z) <= wc or dd <= wc:
+        # ⛔ **見え面の前には掛けない**(`_collar_front` ── 壁体は線の高い側・2026-09-25)
+        if (_wall_dist(d, g, x, z) <= wc or dd <= wc) and not _collar_front(d, g, x, z):
             return (collar_top(d, g, x, z, te), None, "壁の控え")
         # ⛔ **壁の外面の外へ面の高さを持ち出さない**(見付が埋まる)。⭕ ただし③の平接ぎは出す
         #   ── 出さないと枡が閉じず、実装が `Near` で**平場の高さを壁の外へ持ち出す**
@@ -1192,7 +1240,8 @@ def _graded_core(d, g, x, z):
     pick = _grade_pick(d, g, x, z)
     if pick is None: return False
     return (on_wall(d, g, pick[3][0], pick[3][1])
-            and (_wall_dist(d, g, x, z) <= wc or pick[2] <= wc))
+            and (_wall_dist(d, g, x, z) <= wc or pick[2] <= wc)
+            and not _collar_front(d, g, x, z))
 
 
 _LEVEL = {"key": None, "busy": False, "h": {}, "map": {}, "cells": [], "runs": [],
@@ -1422,6 +1471,31 @@ def _wall_dist(d, g, x, z):
         t = max(0.0, min(1.0, ((x - ax) * ddx + (z - az) * ddz) / L2))
         best = min(best, math.hypot(x - (ax + ddx * t), z - (az + ddz * t)))
     return best
+
+
+def _collar_front(d, g, x, z):
+    """その点が**いちばん近い土留めの見え面の前**(低い側)にあるか ── 壁の控えを掛けない側。
+
+    ⭐ **2026-09-25 EDO-0430(施主「石垣に対する地形をきれいに造成して」)** ── 実装は土留めの
+      **天端の前の縁を線へ寄せ、見え面を低い側へ向けて**据える(`EdoBuild.FaceWallToLine`・
+      a51ea58a)ので、壁体は線の**高い側**にある。控えを線の両側へ掛けると、見え面の前の
+      0.9 m に**天端の高さの土**が立ち、次の節点の現地形まで 1 枡で落ちる(男坂の北の側壁の
+      楼門寄りで高さ 1.0〜1.6 m の垂直な土の段。石段の側壁・前庭・回廊の基壇の縁にも同じ形があった)。
+    ⭕ 見え面の前は控えではなく③の平接ぎ(現地形)か法面が受ける。向きは `wall_outward`
+      (⛔ 符号を手で書かない)。口の中の点は壁へ結ばない(`wall_near_named` と同じ始末)。
+    """
+    best = None
+    for w, a, b in wall_segs_named(d, g):
+        dd = _seg_dist(x, z, a, b)
+        if (best is None or dd < best[0]) and not wall_in_gap(d, g, w, x, z):
+            best = (dd, w, a, b)
+    if best is None: return False
+    _dd, w, a, b = best
+    nx, nz = wall_outward(d, g, w, a, b, wall_stair(d, w))
+    dx, dz = b[0] - a[0], b[1] - a[1]
+    L2 = dx * dx + dz * dz or 1.0
+    t = max(0.0, min(1.0, ((x - a[0]) * dx + (z - a[1]) * dz) / L2))
+    return (x - (a[0] + dx * t)) * nx + (z - (a[1] + dz * t)) * nz > 0.0
 
 
 def _ridge_runs(cells):

@@ -281,6 +281,7 @@ public static partial class EdoBuild
 
     /// <summary>石垣の run の区間の端ひとつ。<c>key</c> = 区間の駒の並びの名(<c>run#区間</c>)、<c>node</c> = run の折れ線の節点の番号、
     /// <c>outw</c> = 見え面の外向き、<c>away</c> = 端から区間の奥へ向かう走り。</summary>
+    public static bool DebugCorners = false;
     public struct RunEnd { public string key; public string run; public int node; public Vector2 p; public Vector2 outw; public Vector2 away; }
 
     /// <summary>**石垣の run の折れ目すべてに出隅の隅の駒を据える**(<see cref="PlaceRunKado"/> を区間の端の組ごとに呼ぶ)。
@@ -298,6 +299,10 @@ public static partial class EdoBuild
                                       Transform parent, float tol, System.Text.StringBuilder log, List<GameObject> made)
     {
         int kn = 0; var used = new bool[ends.Count];
+        if (DebugCorners)
+            for (int i = 0; i < ends.Count; i++) for (int j = i + 1; j < ends.Count; j++)
+                if (ends[i].key != ends[j].key && Vector2.Distance(ends[i].p, ends[j].p) < 0.6f && (ends[i].run.Contains("Kiri") || ends[j].run.Contains("Kiri")))
+                    log?.AppendLine("  [端の近さ] " + ends[i].key + " " + ends[i].p.ToString("F3") + " × " + ends[j].key + " " + ends[j].p.ToString("F3") + " = " + Vector2.Distance(ends[i].p, ends[j].p).ToString("F3"));
         for (int i = 0; i < ends.Count; i++)
         {
             if (used[i]) continue;
@@ -305,6 +310,7 @@ public static partial class EdoBuild
             for (int j = i; j < ends.Count; j++)
                 if (!used[j] && Vector2.Distance(ends[i].p, ends[j].p) < 0.05f) { used[j] = true; cl.Add(ends[j]); }
             if (cl.Count < 2) continue;
+            if (DebugCorners) { var ks = new List<string>(); foreach (var e in cl) ks.Add(e.key + "@" + e.p.ToString("F3")); log?.AppendLine("  [隅の組] " + string.Join(" / ", ks)); }
             // ① 一直線の継ぎ目か(走りが逆向き・見え面が同じ向きの二本)
             int sa = -1, sbI = -1;
             for (int a = 0; a < cl.Count && sa < 0; a++)
@@ -344,11 +350,12 @@ public static partial class EdoBuild
                         }
                     }
                     List<GameObject> ra, rb;
-                    if (!pieces.TryGetValue(ea.key, out ra) || !pieces.TryGetValue(eb.key, out rb) || ra.Count == 0 || rb.Count == 0) continue;
+                    if (!pieces.TryGetValue(ea.key, out ra) || !pieces.TryGetValue(eb.key, out rb) || ra.Count == 0 || rb.Count == 0)
+                    { if (DebugCorners) log?.AppendLine("  [隅] " + ea.key + " × " + eb.key + ": 駒の並びが無い"); continue; }
                     Vector2 P = ea.p;
                     var na = ra.FindAll(g => g != null && Vector2.Distance(new Vector2(RB(g).center.x, RB(g).center.z), P) < 6f);
                     var nb = rb.FindAll(g => g != null && Vector2.Distance(new Vector2(RB(g).center.x, RB(g).center.z), P) < 6f);
-                    if (na.Count == 0 || nb.Count == 0) continue;
+                    if (na.Count == 0 || nb.Count == 0) { if (DebugCorners) log?.AppendLine("  [隅] " + ea.key + " × " + eb.key + ": 6m 内に駒が無い " + na.Count + "/" + nb.Count); continue; }
                     string kname = ea.run == eb.run ? ea.run + "_kado" + Mathf.Max(ea.node, eb.node)
                                                     : ea.run + "_x_" + eb.run.Substring(eb.run.LastIndexOf('_') + 1) + "_kado";
                     string note;
@@ -356,8 +363,17 @@ public static partial class EdoBuild
                     //   ⚠ 別々の run の間は従来どおり駒の芯で測る(run ごとの見え面は低い側を別々に測っていて、走りとの組が揃う保証が無い)
                     bool? cvx = null;
                     if (ea.run == eb.run) cvx = Vector2.Dot(eb.away, ea.outw) < 0f && Vector2.Dot(ea.away, eb.outw) < 0f;
+                    else
+                    {
+                        // ⭐ 別々の run の間も、凹凸は区間の走りで決める ── ただし見え面は**駒の実メッシュの法の出**で測り直す(FaceSide)。
+                        //   ⛔ 駒の芯で測らない: 短い返し(1.7m)の駒の芯は相手の控えの線より前に来て、出隅を入隅と誤る
+                        //   (2026-09-26 山王 前庭の北 TW_Zentei_N × 切り込みの返し TW_Zentei_Kiri ── 隅が抜け、北の土留めの鉛直な小口が
+                        //   袖の奥に三角に見えた・EDO-0430)。
+                        Vector2 fa = FaceSide(na, ea.outw), fb = FaceSide(nb, eb.outw);
+                        cvx = Vector2.Dot(eb.away, fa) < 0f && Vector2.Dot(ea.away, fb) < 0f;
+                    }
                     var kc = PlaceRunKado(na, ea.outw, nb, eb.outw, pathOf, groundAt, parent, kname, tol, out note, cvx);
-                    if (note != null && note.StartsWith("入隅") && ea.run != eb.run) continue;
+                    if (note != null && note.StartsWith("入隅") && ea.run != eb.run) { if (DebugCorners) log?.AppendLine("  [隅] " + ea.key + " × " + eb.key + ": " + note + " na=" + na.Count + " nb=" + nb.Count); continue; }
                     if (kc != null)
                     {
                         kn++; made?.Add(kc);

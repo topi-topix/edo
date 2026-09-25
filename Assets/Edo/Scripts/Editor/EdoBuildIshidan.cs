@@ -381,4 +381,134 @@ public static partial class EdoBuild
         System.Func<float, float, Vector2> P = (s, w) => { var q = o + f * s + r * w; return new Vector2(q.x, q.z); };
         return new[] { P(s1, w0 - m), P(s1, w1 + m), P(s0 - m, w1 + m), P(s0 - m, w0 - m) };
     }
+
+    // ================================================================ 端を相手の面へ突き付ける(法の付いた壁と鉛直な端)
+    /// <summary>駒 <paramref name="g"/> の実メッシュの、水平の向き <paramref name="outDir"/> への射影の [最小, 最大](駒の位置からの距離)。</summary>
+    static Vector2 ExtentAlong(GameObject g, Vector3 outDir)
+    {
+        float lo = float.MaxValue, hi = float.MinValue; Vector3 o = g.transform.position;
+        foreach (var v in Body(g.transform, 999999, true)) { float d = Vector3.Dot(v - o, outDir); lo = Mathf.Min(lo, d); hi = Mathf.Max(hi, d); }
+        return new Vector2(lo, hi);
+    }
+
+    /// <summary>**駒の端の面から相手の面までの離れ**を、高さ <paramref name="y"/> の水平な光線で測る(2026-09-25・EDO-0430)。
+    /// 端 = 駒の実メッシュの <paramref name="outDir"/> への射影の最大。その端の <paramref name="maxIn"/> 内側から、端に沿う向き
+    /// <paramref name="perp"/> の各オフセット <paramref name="along"/>[m](駒の位置から)で <paramref name="outDir"/> へ光線を打ち、
+    /// <paramref name="walls"/> の三角形に当たるまでの距離 − <paramref name="maxIn"/> を返す(+ = 口・− = 相手の面が駒の内へ入る・当たらなければ NaN)。
+    /// ⭐ 頂点でなく面で測る(<see cref="RayToBodies"/>)── 野面の駒は頂点が疎で、筋の頂点では面の中が空く。</summary>
+    public static float[] EndOffsets(GameObject g, Vector3 outDir, Vector3 perp, float[] along, float y, IList<GameObject> walls, float maxIn, float maxOut)
+    {
+        outDir.y = 0f; outDir.Normalize(); perp.y = 0f; perp.Normalize();
+        float e = ExtentAlong(g, outDir).y; var res = new float[along.Length];
+        for (int k = 0; k < along.Length; k++)
+        {
+            Vector3 o = g.transform.position + outDir * (e - maxIn) + perp * along[k]; o.y = y;
+            float h = RayToBodies(walls, o, outDir, maxIn + maxOut);
+            res[k] = float.IsNaN(h) ? float.NaN : h - maxIn;
+        }
+        return res;
+    }
+
+    /// <summary>**駒の片方の端だけを <paramref name="delta"/>[m] 動かす**(+ = <paramref name="outDir"/> へ伸ばす・− = 詰める)。
+    /// 反対の端は動かさない。駒の局所の軸のうち <paramref name="outDir"/> に平行な軸の縮尺を変え、位置を寄せて反対の端を保つ
+    /// (端は実メッシュの射影で測る ── ⛔ ピボットで合わせない)。返り値 = 軸の縮尺の比(駒が回っていて平行な軸が無ければ NaN・動かさない)。</summary>
+    public static float ResizeEnd(GameObject g, Vector3 outDir, float delta)
+    {
+        outDir.y = 0f; outDir.Normalize(); var t = g.transform;
+        int axis = -1; float best = 0.999f;
+        var ax = new[] { t.right, t.up, t.forward };
+        for (int i = 0; i < 3; i++) { float c = Mathf.Abs(Vector3.Dot(ax[i], outDir)); if (c > best) { best = c; axis = i; } }
+        if (axis < 0) return float.NaN;
+        var ex = ExtentAlong(g, outDir); float L = ex.y - ex.x; if (L < 1e-4f) return float.NaN;
+        float k = (L + delta) / L;
+        var sc = t.localScale; sc[axis] *= k; t.localScale = sc;
+        float c0 = ex.y + delta - k * ex.y;          // 端の新しい位置 − 縮尺だけ変えた端の位置
+        t.position += outDir * c0;
+        return k;
+    }
+
+    /// <summary>端の突き付けの報告(<see cref="AbutEndToFace"/>)。</summary>
+    public struct EndAbut
+    {
+        public bool touched;   // 相手の面が端の前後 [−maxIn, +maxOut] に在った
+        public bool mixed;     // 端に沿って相手の面の離れが割れた(二つの面に跨る)⇒ 動かしていない
+        public float moved;    // 端を動かした量(+ 伸ばす / − 詰める)
+        public float spread;   // 標本の離れの幅
+        public float gapHi, biteLo;   // 据えた後: 上の高さでの口(+)・下の高さでのめり込み(+)
+    }
+
+    /// <summary>**鉛直な端を、法の付いた相手の面へ、高さの中ほどで突き付ける**(2026-09-25・EDO-0430 施主指示)。
+    /// 駒 <paramref name="g"/> の <paramref name="outDir"/> 側の端(鉛直)と、相手 <paramref name="walls"/> の面(法 1:0.25 の野面など)は
+    /// 高さで離れが変わる ── 見える高さ [<paramref name="yLo"/>, <paramref name="yHi"/>] の**中ほど**の水平な光線で離れを測り、端をそこまで
+    /// 詰めるか伸ばす(<see cref="ResizeEnd"/>)。上端では口、下端ではめり込みが残る(法 0.25 × 見える高さ / 2)── その数を
+    /// <see cref="EndAbut.gapHi"/> / <see cref="EndAbut.biteLo"/> に返す(実メッシュで測り直した値)。
+    /// 端に沿う標本(<paramref name="along"/>)の離れの幅が <paramref name="spreadTol"/> を超えたら、端が二つの面に跨るので**動かさない**
+    /// (<see cref="EndAbut.mixed"/>)── 片方へ寄せるともう片方に同じだけの口が開く。
+    /// ⭐ 硬い条件の測り(許容0の隙・めり込み)は呼び出し側が gapHi / biteLo で数える。⛔ ピボット・bounds の中心で合わせない。
+    /// 当たる先: 石段の段石の小口 × 切り込みの返し・郭の縁の土留め(<see cref="AbutStepEndsToWalls"/>)、石段の袖の背の小口 × 縁の土留めの法。</summary>
+    public static EndAbut AbutEndToFace(GameObject g, Vector3 outDir, Vector3 perp, float[] along, float yLo, float yHi,
+                                        IList<GameObject> walls, float maxIn, float maxOut, float spreadTol)
+    {
+        var r = new EndAbut { moved = 0f };
+        float yMid = (yLo + yHi) * 0.5f;
+        var offs = EndOffsets(g, outDir, perp, along, yMid, walls, maxIn, maxOut);
+        var hit = new List<float>(); foreach (var o in offs) if (!float.IsNaN(o)) hit.Add(o);
+        if (hit.Count == 0) return r;
+        r.touched = true; hit.Sort();
+        r.spread = hit[hit.Count - 1] - hit[0];
+        if (r.spread > spreadTol) { r.mixed = true; return r; }
+        float d = hit[hit.Count / 2];
+        if (Mathf.Abs(d) > 0.002f && !float.IsNaN(ResizeEnd(g, outDir, d))) r.moved = d;
+        // 据えた後の上端・下端(当たった標本の所だけ)
+        var hiO = EndOffsets(g, outDir, perp, along, yHi, walls, maxIn, maxOut);
+        var loO = EndOffsets(g, outDir, perp, along, yLo, walls, maxIn, maxOut);
+        for (int k = 0; k < along.Length; k++)
+        {
+            if (float.IsNaN(offs[k])) continue;
+            if (!float.IsNaN(hiO[k])) r.gapHi = Mathf.Max(r.gapHi, hiO[k]);
+            if (!float.IsNaN(loO[k])) r.biteLo = Mathf.Max(r.biteLo, -loO[k]);
+        }
+        return r;
+    }
+
+    /// <summary>**石段の段石の両の小口を、脇の土留め(法の付いた面)へ段ごとに突き付ける**(2026-09-25・EDO-0430 施主指示)。
+    /// 段石は小口が鉛直、切り込みの返しは野面の法 1:0.25 ── 段ごとに**その段の蹴上の中ほど**(踏面 − 蹴上/2)の高さで相手の面を
+    /// 光線で測り(<see cref="AbutEndToFace"/>)、段石の長さを段ごとに詰める/伸ばす。上端の口・下端のめり込みは 0.25 × 蹴上 / 2。
+    /// 標本は端に沿って踏面の内(段鼻から一段の踏面ぶん)に 5 点。端が二つの面(返しと袖など)に跨る段は動かさず数に返す。
+    /// <paramref name="walls"/> には土留めの駒と袖の駒を渡す(段石どうしは渡さない)。伸ばすのは口 <paramref name="maxOut"/> 以内だけ
+    /// (離れた壁まで段を延ばさない)。返り値の各段: 段名 → 報告。
+    /// 当たる先: 石段が土留め・袖に脇から接するすべて(山王 参道の階 × 切り込みの返し、男坂・女坂・郭の階・中門の内の袖 ── 袖は鉛直なので離れ 0 で動かない)。</summary>
+    /// <summary>段石の芯(石段の軸の上の点)の印の子の名。<see cref="AbutStepEndsToWalls"/> が片側を詰める前に据えた原点に置く。</summary>
+    public const string AXIS_MARK = "_axis";
+    /// <summary>段石の芯(石段の軸の上の点)。印 <see cref="AXIS_MARK"/> があればその位置、無ければ駒の位置。</summary>
+    public static Vector3 StepAxis(Transform dan) { var a = dan.Find(AXIS_MARK); return a != null ? a.position : dan.position; }
+
+    public static List<KeyValuePair<string, EndAbut>> AbutStepEndsToWalls(IList<GameObject> dans, float keri, float fumi, IList<GameObject> walls,
+                                                                          float maxIn = 0.5f, float maxOut = 0.10f, float spreadTol = 0.031f)
+    {
+        var res = new List<KeyValuePair<string, EndAbut>>();
+        var along = new float[5]; for (int k = 0; k < 5; k++) along[k] = (-0.4f + 0.2f * k) * fumi;
+        foreach (var dg in dans)
+        {
+            if (dg == null) continue;
+            float top = float.MinValue; foreach (var v in Body(dg.transform, 999999, true)) top = Mathf.Max(top, v.y);
+            // 踏面の内の標本: 段鼻(+Z 側の実メッシュの端)から一段の踏面ぶん奥まで
+            Vector3 f = dg.transform.forward; f.y = 0f; f.Normalize();
+            float nose = ExtentAlong(dg, f).y;
+            var al = new float[5]; for (int k = 0; k < 5; k++) al[k] = nose - fumi * 0.5f + along[k];
+            // ⭐ 段の芯(石段の軸の上の点 = 据えた原点)を子 `_axis` に残す ── 片側だけ詰めると駒の原点は軸から外れる。
+            //   検め(石段の端点・平面長)は `_axis` で測る。⛔ 位置合わせには使わない(規則21 ── 測るための印)。
+            var axT = dg.transform.Find(AXIS_MARK);
+            if (axT == null) { var ax = new GameObject(AXIS_MARK); ax.transform.SetParent(dg.transform, false); axT = ax.transform; }
+            Vector3 axW = axT.position;   // 駒を詰めても印は世界の同じ点に残す(下で戻す)
+            foreach (int side in new[] { -1, 1 })
+            {
+                Vector3 od = dg.transform.right * side;
+                var r = AbutEndToFace(dg, od, f, al, top - keri + 0.02f, top - 0.02f, walls, maxIn, maxOut, spreadTol);
+                if (r.touched) res.Add(new KeyValuePair<string, EndAbut>(dg.name + (side < 0 ? "−X" : "+X"), r));
+            }
+            axT.position = axW;
+        }
+        return res;
+    }
 }

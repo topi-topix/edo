@@ -482,6 +482,24 @@ public static class EdoSannoShaRebuild
             n, skip, cmax, cutSum * a, fmax, fillSum * a, bx0, bx1, bz0, bz1, cliffN, cliff, FRONT_REACH, restN, restMax, outN, outMax);
     }
 
+    /// <summary>点 <paramref name="p"/> が**造成の持ち主が居ない区画**(類型表 typology.json に載り built:hand でない区画 ──
+    /// 類型ビルダーは造成しない)の中か。社地(sannosha_prec)自身は含めない。</summary>
+    static bool InUngradedParcel(Vector2 p)
+    {
+        if (_ungraded == null)
+        {
+            _ungraded = new List<Vector2[]>();
+            foreach (var kv in EdoTypologyBuilder.Table)
+            {
+                if (kv.Value.Hand || kv.Key == "sannosha_prec") continue;
+                var poly = EdoParcels.Get(kv.Key); if (poly != null && poly.Length >= 3) _ungraded.Add(poly);
+            }
+        }
+        foreach (var poly in _ungraded) if (EdoGeom.PIP(poly, p)) return true;
+        return false;
+    }
+    static List<Vector2[]> _ungraded;
+
     /// <summary>土留めの見え面の前で「造成しない地盤」を造成前の地盤へ戻す幅[m](見え面の前の検査の帯 3m + 地形の節点 1 つ分の半ば)。</summary>
     const float FRONT_REACH = 4f;
     static bool NearSeg(List<Vector2[]> segs, Vector2 p, float r)
@@ -553,7 +571,11 @@ public static class EdoSannoShaRebuild
                 float wx = tp.x + (x0 + x) * ts.x / (hres - 1), wz = tp.z + (z0 + z) * ts.z / (hres - 1), y;
                 if (gr.Bilinear(wx, wz, out y) || gr.Near(wx, wz, 1, out y)) continue;      // いまの設計面がある ── Stage1 が描いた
                 if (!pg.Bilinear(wx, wz, out y) && !pg.Near(wx, wz, 1, out y)) continue;     // 前の巡も設計面の外 ── 触らない
-                if (prec == null || !EdoGeom.PIP(prec, new Vector2(wx, wz))) continue;
+                // ⭐ 社地の区画の外でも、**造成の持ち主が居ない区画**(類型で建てた区画 ── 類型ビルダーは造成しない)の節点は戻す
+                //   (2026-09-26・EDO-0430)。区画の線を動かした後(施主裁定 2026-09-23 観理院との境)、前の巡の設計面が隣の区画
+                //   sannosha_kanri の中に +0.29〜+1.07m 残っていた。⛔ 図を起こして建てた区画(built:hand)と道は触らない(他の造成が持つ)。
+                var wp2 = new Vector2(wx, wz);
+                if (prec == null || !(EdoGeom.PIP(prec, wp2) || InUngradedParcel(wp2))) continue;
                 float g = Dem(wx, wz); if (float.IsNaN(g)) continue;
                 float cur = H[z, x] * ts.y + tp.y; mx = Mathf.Max(mx, Mathf.Abs(g - cur));
                 if (n < 12) sbx.Append(string.Format(" ({0:F1},{1:F1}) {2:+0.00;-0.00}", wx, wz, g - cur));
@@ -1089,6 +1111,10 @@ public static class EdoSannoShaRebuild
             placed.RemoveAll(g => g == null); placed.AddRange(kcs);
             total = 0; foreach (var kv in runPieces) { kv.Value.RemoveAll(g => g == null); total += kv.Value.Count; } total += kn;
         }
+        // ⭐ 石段の段石の小口・袖の背の小口を、脇の土留めの法の面へ突き付ける(EDO-0430 施主指示 2026-09-25)。⭐ 出隅の隅の駒を据えた後(袖の背は隅の駒の法に当たる)。
+        //   段石・袖は鉛直、野面の土留めは法 1:0.25 ── 見える高さの中ほどで実メッシュの面を光線で測り、駒の長さを詰める/伸ばす
+        //   (EdoBuild.AbutStepEndsToWalls / AbutEndToFace)。⛔ 土留めの法は変えない(施主の決めた作り)。
+        sb.Append(AbutStairsToWalls());
         if (flipLocal > 0) sb.AppendLine("  駒ごとに測り直して見え面を区間と逆へ向けた駒 " + flipLocal + "(高低が区間の途中で入れ替わる所)");
         foreach (var fl in flushLog) sb.AppendLine("  短い区間: " + fl);
         sb.AppendLine("  天端が見え面の前の地表の下に来る駒(全体が埋まる): 退けた " + buriedWhole + " / 隣の小口を地表の下へ入れるため残した " + buriedKept);
@@ -1250,6 +1276,68 @@ public static class EdoSannoShaRebuild
 
     // ================================================================ Stage 4 囲い
     [MenuItem(MENU + "4 囲い(腰高の柵・板塀)")]
+    /// <summary>Stage3 の後段: 全ての石段について、段石の両の小口と袖の背の小口を脇の土留めの面へ突き付ける(EDO-0430)。
+    /// 相手 = Dodome の土留めの駒(段石には同じ群の袖も)。報告 = 石段ごとに 動かした段・跨いで動かさなかった段・上端の口と下端のめり込みの最大。</summary>
+    public static string AbutStairsToWalls()
+    {
+        var sb = new StringBuilder();
+        var dod = Group("Dodome"); var walls = new List<GameObject>();
+        foreach (Transform c in dod) if (c.gameObject.activeInHierarchy) walls.Add(c.gameObject);
+        foreach (var o in L(Impl, "stairs"))
+        {
+            var st = o as Dictionary<string, object>; if (st == null) continue;
+            string name = S(st, "name"); var grp = Group("Sando").Find(GroupNameOf(name)); if (grp == null) continue;
+            float keri = F(st, "keri"), fumi = F(st, "fumi");
+            var dans = new List<GameObject>(); var sodes = new List<GameObject>();
+            foreach (Transform c in grp) { if (c.name.StartsWith("Dan_")) dans.Add(c.gameObject); else if (c.name.StartsWith("TW_")) sodes.Add(c.gameObject); }
+            if (dans.Count == 0) continue;
+            var wS = new List<GameObject>(walls); wS.AddRange(sodes);
+            var rs = EdoBuild.AbutStepEndsToWalls(dans, keri, fumi, wS);
+            int moved = 0, mixed = 0; float gap = 0f, bite = 0f, mvMax = 0f; var mixedNames = new List<string>();
+            foreach (var kv in rs)
+            {
+                if (kv.Value.mixed) { mixed++; mixedNames.Add(kv.Key + "(幅 " + kv.Value.spread.ToString("F3") + ")"); continue; }
+                if (kv.Value.moved != 0f) { moved++; mvMax = Mathf.Max(mvMax, Mathf.Abs(kv.Value.moved)); }
+                gap = Mathf.Max(gap, kv.Value.gapHi); bite = Mathf.Max(bite, kv.Value.biteLo);
+            }
+            // 袖の背の小口(坂上の端)× 土留めの面 ── 見える高さ = その段の踏面 〜 袖の天端
+            //   ⭐ 坂上の端の駒だけ(袖の run の端 = 指図の corners.a「突き付け」)。途中の駒の背は次の袖の駒が受ける ──
+            //   途中の駒の背に土留めが来ていれば、それは袖が土留めに埋まっている別の欠陥で、駒を詰めて消さない(郭の階で 0.41m 詰めかけた)。
+            int sMoved = 0, sMixed = 0; float sGap = 0f, sBite = 0f, sMv = 0f;
+            var topIdx = new Dictionary<string, int>();
+            foreach (var sg in sodes)
+            {
+                int us = sg.name.LastIndexOf('_'); int ii;
+                if (us < 0 || !int.TryParse(sg.name.Substring(us + 1).TrimEnd('f'), out ii)) continue;
+                string row = sg.name.Substring(0, us); int cur;
+                if (!topIdx.TryGetValue(row, out cur) || ii > cur) topIdx[row] = ii;
+            }
+            foreach (var sg in sodes)
+            {
+                int us = sg.name.LastIndexOf('_'); int ii;
+                if (us < 0 || !int.TryParse(sg.name.Substring(us + 1).TrimEnd('f'), out ii)) continue;
+                if (topIdx[sg.name.Substring(0, us)] != ii) continue;
+                var dg = grp.Find("Dan_" + ii.ToString("00")); if (dg == null) continue;
+                float dTop = float.MinValue; foreach (var v in EdoBuild.Body(dg, 999999, true)) dTop = Mathf.Max(dTop, v.y);
+                float sTop = float.MinValue; foreach (var v in EdoBuild.Body(sg.transform, 999999, true)) sTop = Mathf.Max(sTop, v.y);
+                var r = EdoBuild.AbutEndToFace(sg, -sg.transform.forward, sg.transform.right, new[] { -0.2f, 0f, 0.2f },
+                                               dTop + 0.02f, sTop - 0.02f, walls, 0.5f, 0.10f, 0.031f);
+                if (!r.touched) continue;
+                if (r.mixed) { sMixed++; continue; }
+                if (r.moved != 0f) { sMoved++; sMv = Mathf.Max(sMv, Mathf.Abs(r.moved)); }
+                sGap = Mathf.Max(sGap, r.gapHi); sBite = Mathf.Max(sBite, r.biteLo);
+                sb.AppendLine("    " + sg.name + " の背の小口 × 土留めの面: " + r.moved.ToString("+0.000;-0.000") + "m(見える高さ " + (dTop).ToString("F2") + "〜" + sTop.ToString("F2") +
+                              " の中ほど)/ 上端の口 " + r.gapHi.ToString("F3") + " / 下端のめり込み " + r.biteLo.ToString("F3"));
+            }
+            if (rs.Count == 0 && sMoved + sMixed == 0) continue;
+            sb.AppendLine("  " + name + ": 段石の小口が土留め・袖に接する " + rs.Count + " 端 / 詰めた・伸ばした " + moved + "(最大 " + mvMax.ToString("F3") + "m)" +
+                          " / 上端の口 最大 " + gap.ToString("F3") + " / 下端のめり込み 最大 " + bite.ToString("F3") +
+                          (mixed > 0 ? " / ⚠ 二つの面に跨り動かさない " + mixed + ":" + string.Join("・", mixedNames) : "") +
+                          (sMoved + sMixed > 0 ? " / 袖の背 " + sMoved + " 駒(最大 " + sMv.ToString("F3") + "m・上端の口 " + sGap.ToString("F3") + "・下端のめり込み " + sBite.ToString("F3") + (sMixed > 0 ? "・跨ぐ " + sMixed : "") + ")" : ""));
+        }
+        return sb.ToString();
+    }
+
     public static void Stage4Menu() { Debug.Log("[山王] " + Stage4_Kakoi()); }
     /// <summary>算出物 `runs` の `of=="run"` を建てる。`segs` は**開口を抜いた実長の区間**なので
     /// ⛔ 実装が辺を割り直さない。

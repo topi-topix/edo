@@ -402,7 +402,7 @@ public static class EdoSannoSashizuCheck
             //   ⭐ 部材の原点 = 踏面の中心・踏面の天端(`build_sanno_buzai.py`)。
             foreach (var t in steps)
             {
-                Vector3 c0 = t.position;
+                Vector3 c0 = EdoBuild.StepAxis(t);   // 片側を詰めた段石は駒の原点が軸から外れる ── 軸の印で測る(EDO-0430)
                 int k = -1;
                 for (int i = 0; i < lv.Count; i++) if (Mathf.Abs(lv[i] - c0.y) < Mathf.Max(0.02f, keriWant * 0.5f)) { k = i; break; }
                 if (k < 0) { lv.Add(c0.y); cen.Add(c0); cnt.Add(1); }
@@ -485,6 +485,16 @@ public static class EdoSannoSashizuCheck
             var byPrefix = new Dictionary<string, List<Transform>>();
             foreach (var t in index)
             {
+                // ⭐ 出隅の隅の駒(EdoBuild.PlaceRunCorners の `<A>_x_<Bの末尾>_kado` / `<run>_kado<n>`)は両脇の run の駒として数える ──
+                //   短い区間(御供所の郭 TW_Gusho_EK 1.36m)は隅の駒の腕が区間を丸ごと持ち、直線の駒が残らない(2026-09-26・EDO-0430)。
+                var km = System.Text.RegularExpressions.Regex.Match(t.name, "^(.+)_x_([^_]+)_kado$");
+                var ks = System.Text.RegularExpressions.Regex.Match(t.name, "^(.+)_kado\\d+$");
+                var kruns = new List<string>();
+                if (!t.name.StartsWith("TW_")) { }   // 土留め(terraceWalls)の隅だけ ── ⛔ 透塀の隅(joints.kadoFrom)は run に混ぜない
+                else if (km.Success) { string a = km.Groups[1].Value; kruns.Add(a); kruns.Add(a.Substring(0, a.LastIndexOf('_') + 1) + km.Groups[2].Value); }
+                else if (ks.Success) kruns.Add(ks.Groups[1].Value);
+                foreach (var kr in kruns) { if (!byPrefix.ContainsKey(kr)) byPrefix[kr] = new List<Transform>(); byPrefix[kr].Add(t); }
+                if (kruns.Count > 0) continue;
                 string pfx = RunPrefixOf(t.name);
                 if (pfx == null) continue;
                 if (!byPrefix.ContainsKey(pfx)) byPrefix[pfx] = new List<Transform>();

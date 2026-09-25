@@ -2550,9 +2550,17 @@ public static class EdoSannoShaRebuild
         foreach (var g in parts) foreach (var lw in lineWalls) if (g.name.StartsWith(lw, StringComparison.Ordinal)) { dig.Add(g); break; }
         // ⭐ 土留めは天端の帯で篩う(法の面の点では天端の下へ納める cap を足元の面より下げない ── 法の足の前を溝にしない・2026-09-25)
         var band = new List<GameObject>(); foreach (Transform c in Group("Dodome")) band.Add(c.gameObject);
+        // ⛔ 地形の木として植える植栽の点(planting.points の place ≠ GameObject)の升には穴を開けない ── Unity は穴の升の地形の木を
+        //   黙って落とす。Stage7 が後から焼き直しても落ちないよう、今の treeInstances でなく算出物の点で守る(2026-09-25・EDO-0430)。
+        var plant = new List<Vector2>();
+        foreach (var o in L(D(Impl, "planting"), "points"))
+        {
+            var pt = o as Dictionary<string, object>; if (pt == null || S(pt, "place") == "GameObject") continue;
+            var wp = L(pt, "world"); if (wp.Count >= 2) plant.Add(new Vector2(Cv(wp[0]), Cv(wp[1])));
+        }
         var rep = EdoBuild.CutEdgeSkin("Sanno", grp, parts, faces, tol, design: design, backfill: 0f, sealFace: true,
                                        digParts: dig, digUnder: 0.05f, digBatter: Mathf.Max(1f, F(cst, "batterCut")),
-                                       crestBandParts: band);
+                                       crestBandParts: band, plantPoints: plant);
         AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
         var sb = new StringBuilder();
         sb.AppendLine("縁の皮: 古い皮を外して塞いだ升 " + filled + " / 部材 " + rep.parts + " / 面 " + faces.Count);

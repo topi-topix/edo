@@ -63,7 +63,9 @@ public static partial class EdoBuild
     /// <summary><see cref="CutEdgeSkin"/> の報告。</summary>
     public struct SkinReport
     {
-        public int parts, cells, cellsParts, cellsFace, cellsBand, cellsFill, skipHole, skipTree, holesCut;
+        public int parts, cells, cellsParts, cellsFace, cellsBand, cellsFill, skipHole, skipTree, skipPlant, holesCut;
+        /// <summary>穴を開けた後に穴の升に立つ植栽の点(<c>plantPoints</c>)の数。硬い条件・許容0。</summary>
+        public int plantOnHole;
         public int verts, tris, pinned, faced, clamped, under, floored, designed, sloped, filled, fillLostTree;
         public float fillMax; public Vector3 fillAt;
         public float maxLower, maxRaise; public Vector3 lowerAt, raiseAt;
@@ -76,7 +78,8 @@ public static partial class EdoBuild
         public override string ToString()
         {
             return "穴 " + holesCut + " 升(部材 " + cellsParts + "・面の縁 " + cellsFace + "(うち縁の線の帯 " + cellsBand + ")・裏込め " + cellsFill +
-                   "・既に穴で触らず " + skipHole + "・地形の木が立つので開けず " + skipTree + ")" +
+                   "・既に穴で触らず " + skipHole + "・地形の木が立つので開けず " + skipTree + "・植栽の点が立つので開けず " + skipPlant + ")" +
+                   (plantOnHole > 0 ? " ⛔ 穴の上の植栽の点 " + plantOnHole : "") +
                    " / 皮 頂点 " + verts + "・三角 " + tris + "(縁の点 " + pinned + " は地形のまま)" +
                    " / 面の高さへ " + faced + " 点・面の外は設計の地盤へ " + designed + " 点(うち縁から法で受けた " + sloped + ")" +
                    " / 部材の天端の下へ " + clamped + " 点(うち真下 " + under + "・隣の底で止めた " + floored + ")" +
@@ -301,7 +304,7 @@ public static partial class EdoBuild
                                          float faceTol, float step = 0.25f, float margin = 0.5f, float eps = 0f, float under = 0.15f,
                                          SkinDesign design = null, float drawTol = 0.10f, float backfill = 0f, bool sealFace = false,
                                          IList<GameObject> digParts = null, float digUnder = 0.05f, float digBatter = 1f,
-                                         IList<GameObject> crestBandParts = null)
+                                         IList<GameObject> crestBandParts = null, IList<Vector2> plantPoints = null)
     {
         var r = new SkinReport();
         var t = T(); var td = t.terrainData; var org = t.transform.position;
@@ -635,7 +638,19 @@ public static partial class EdoBuild
         // ⭐ 地形の木の升で裏込めが要る所は、穴を開けずに皮を**地形の上に被せる**(盛る側は穴が要らない・2026-09-25)。
         //   盛らない点は地形の下 OV_SINK へ沈めて隠す。木はそのまま(根元が盛土に入る)。
         var overlay = new HashSet<long>();
+        // ⛔ 植栽の点(算出物の planting.points)の升も開けない ── 焼き直しで後から植える木は、この時点の treeInstances に
+        //   まだ居ない。穴の升に植えると SetTreeInstances が黙って落とす(2026-09-25 実測: 前庭の帯の低木 4 本・EDO-0430)。
+        //   硬い条件(許容0)。その升は地形のまま残し、皮はその縁で地形へ継ぐ(縁の点は地形に留まる)。
+        if (plantPoints != null)
+            foreach (var pp in plantPoints)
+            {
+                var c = CK(CI(pp.x), CJ(pp.y));
+                if (treeCells.Contains(c)) continue;
+                treeCells.Add(c);
+                if (cells.Contains(c)) r.skipPlant++;
+            }
         foreach (var c in treeCells) if (cells.Remove(c)) { r.skipTree++; if (fillCells.Contains(c)) { overlay.Add(c); r.fillLostTree++; } }
+        r.skipTree -= r.skipPlant;
         if (cells.Count == 0 && overlay.Count == 0) { r.mesh = "—"; return r; }
         int ci0 = int.MaxValue, ci1 = int.MinValue, cj0 = int.MaxValue, cj1 = int.MinValue;
         var cellsAll = new List<long>(cells); cellsAll.AddRange(overlay);
@@ -986,6 +1001,13 @@ public static partial class EdoBuild
         // ---- 5 穴を開ける
         for (int j = 0; j < bh; j++) for (int i = 0; i < bw; i++) if (inSet[j, i] && hv[j, i]) { hv[j, i] = false; r.holesCut++; }   // ⛔ 被せる升(inOv)は開けない
         td.SetHoles(ci0, cj0, hv);
+        // 検め(硬い・許容0): 植栽の点の下に穴が無いこと(既に穴だった升も数える)
+        if (plantPoints != null)
+            foreach (var pp in plantPoints)
+            {
+                int i = CI(pp.x) - ci0, j = CJ(pp.y) - cj0;
+                if (i >= 0 && j >= 0 && i < bw && j < bh && !hv[j, i]) r.plantOnHole++;
+            }
 
         // ---- 6 芝(皮が元の地形から 0.02m を超えて動いた 1m 升)と地形の木の数え
         {

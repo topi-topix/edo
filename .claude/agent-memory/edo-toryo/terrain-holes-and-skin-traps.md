@@ -25,4 +25,4 @@ metadata:
 追記 2026-09-25 EDO-0409(前庭v2 の植え直し): 皮の穴は**後から焼き足した植栽の点**も食う。Stage9 の skipTree はその時点の
 treeInstances しか見ないので、焼き直しで新しく入った前庭の帯の低木 4 点(x≈−441, z 851〜865・穴の升 775 列)が SetTreeInstances で
 黙って落ちた(Stage7 の報告は「1929 本植えた」のまま・資産は 4 本少ない)。突き合わせの「数が違う」はまず穴の升を引く。
-直すのは穴の側(skipTree に planting.points も渡す)で、Stage7 では消せない。
+直すのは穴の側で、Stage7 では消せない。→ 直した(2026-09-25): `CutEdgeSkin(plantPoints:)` に算出物の点(place≠GameObject)を渡し、その升は開けない(skipPlant・検め plantOnHole=0)。開けていたのは前庭の西の土留め TW_Zentei_W の外形+margin 0.5m。名指しの GameObject の木は穴に消されないので渡していない。

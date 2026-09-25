@@ -3066,6 +3066,8 @@ public static class EdoAssets
     static float OwnF(string s)
     {
         float v;
+        // ⭐ `partFrom` は C# の呼び出しの綴りなので `4.5f` の接尾辞が付く(EDO-0438 薬師堂)。落とさないと 0 に化ける。
+        if (s != null) s = s.Trim().TrimEnd('f', 'F');
         return float.TryParse(s, System.Globalization.NumberStyles.Float,
                               System.Globalization.CultureInfo.InvariantCulture, out v) ? v : 0f;
     }

@@ -1235,6 +1235,59 @@ public static class EdoAssets
                  + "_" + (i % 2 == 0 ? "a" : "b") + ".fbx";
         }
 
+        /// <summary>**背を法 1:0.25 に切った石段の袖**(EDO-0442 施主裁定B・2026-09-26)。<see cref="IshidanSode(float,float,int,float)"/> と
+        /// **同じ断面・同じ局所座標・同じピボット・同じ接する面(側面 X=±0.30・天端の線)・同じ材**で、坂上の端(背・−Z)だけを
+        /// 野面の返し・隅の駒の法(1m 上がるごとに 0.25 後退)と平行な面で切った物。袖の run の**坂上の端の駒**に使う。
+        /// 背の面(袖の局所): Z = −踏面/2 − <paramref name="e"/> − 0.25·(Y − Yc)、Yc = <see cref="SodeNoriYc"/>(= (0.30 + 蹴上)/2)。
+        /// Y &lt; −0.60 は背を鉛直に止める(地中)。e &gt; 0 = 平らな駒の背より坂上へ出る(天端・目地の斜めは一直線のまま継ぐ)/ e &lt; 0 = 詰める。
+        /// ⭐ **接する面**: 背の法の面が相手(隅の駒・返し)の法の面に**全丈で**重なる ⇒ 据え手は Yc の高さで相手の面までの離れを測り、
+        /// e を <see cref="SodeNoriSnap"/> で 0.05 に丸めて駒を選ぶ。丸めの残り(≤0.025)だけ `ResizeEnd` で詰める(法の狂い ≤ 0.003)。
+        /// 焼けている組: 参道の階 (0.250, 0.542)・丈 2.20・e = −0.30〜+0.10(0.05 刻み)・a/b。
+        /// 実寸(e −0.20): W(X)0.600 × H(Y)2.37〜2.38(−1.90〜+0.48)× D(Z)0.394(−0.123〜+0.271)。材 `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_nori 0.250 0.542 [--e=-0.20] [--depth=3.20]</summary>
+        public static string IshidanSodeNori(float keri, float fumi, float e, int i, float depth = ISHIDAN_SODE_DEPTH_STD)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            return "Assets/Edo/Models/Kaidan/IshidanSodeNori_" + keri.ToString("F3", inv) + "_"
+                 + fumi.ToString("F3", inv) + SodeDepthTag(depth) + "_E" + (e >= 0f ? "+" : "-") + System.Math.Abs(e).ToString("F2", inv)
+                 + "_" + (i % 2 == 0 ? "a" : "b") + ".fbx";
+        }
+
+        /// <summary><see cref="IshidanSodeNori"/> の背の出 e を測る高さ(袖の局所 Y)。</summary>
+        public static float SodeNoriYc(float keri) { return (0.30f + keri) / 2f; }
+
+        /// <summary><see cref="IshidanSodeNori"/> の焼いてある刻み(0.05)へ丸める。残り = 測った e − 返り値。</summary>
+        public static float SodeNoriSnap(float e) { return (float)(System.Math.Round(e / 0.05) * 0.05); }
+
+        /// <summary>**両の小口を脇の相手に合わせて切った段石**(EDO-0442 施主裁定B・2026-09-26)。<see cref="SannoDan"/> と同じ局所座標・同じピボット・
+        /// 同じ石の割り・同じ材で、端 <paramref name="endL"/>(−X)/ <paramref name="endR"/>(+X)を <see cref="DanKiriEnd(float)"/> /
+        /// <see cref="DanKiriEnd(float,float,bool)"/> の綴りで切った物(切らない端は <see cref="DanKiriNone"/>)。法は 1:0.25。
+        /// 端の型は二つ: (1)**全長を返しの法で切る**(d のみ)── 小口 X = ±(幅/2 − d + 0.25·(Y + 蹴上/2))。`AbutStepEndsToWalls` の中ほどの突き付けの
+        /// 代わりで、口・めり込みが 0。(2)**返しと袖に跨る端**(d と za)── 隅の駒のもう一面 Z = za ∓ 0.25·(Y + 蹴上/2) より隅の側だけを (1) の面で切り、
+        /// 袖の側は小口 X = ±幅/2 のまま(袖の側面に突き付く)⇒ 端が段に欠け、欠いた奥の面は隅の駒の面と平行な法。
+        /// d・za は**その段の局所座標で、蹴上の中ほど Y = −蹴上/2 で測った値**(d &gt; 0 = 返しの面が小口より内。za = 隅の駒のもう一面の Z)。
+        /// ⚠ 値は据えた実メッシュからの従属値 ⇒ 一覧 `Tools/Blender/sanno_sando_kiri_set.txt` を実測で上書きしてから焼き直す
+        /// (綴りは d・za とも F3 ── 一覧の値をそのまま渡す)。焼けている組は参道の階の段 1〜4 の**仮値**(棟梁の v23 の記録から逆算)。
+        /// 実寸(段 1): W(X)5.509 × H(Y)0.430 × D(Z)0.642(平らな段石と同じ外形・端だけ欠く)。材 `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- dan_kiri_list Tools/Blender/sanno_sando_kiri_set.txt 0.250 0.542 5.509(組み絵は -- kiri_shots 0.250 0.542 5.509 0.219 0.040)</summary>
+        public static string SannoDanKiri(float keri, float fumi, float w, int i, string endL, string endR)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            return "Assets/Edo/Models/Kaidan/DanKiri_" + keri.ToString("F3", inv) + "_" + fumi.ToString("F3", inv) + "_"
+                 + w.ToString("F3", inv) + "_" + (i % 2 == 0 ? "a" : "b") + "_L" + endL + "_R" + endR + ".fbx";
+        }
+
+        /// <summary><see cref="SannoDanKiri"/> の切らない端。</summary>
+        public const string DanKiriNone = "0";
+        /// <summary><see cref="SannoDanKiri"/> の端: 全長を返しの法で切る(d = 蹴上の中ほどでの返しの面の食い込み)。</summary>
+        public static string DanKiriEnd(float d) { return "d" + DanKiriF3(d); }
+        /// <summary><see cref="SannoDanKiri"/> の端: 返しと袖に跨る。<paramref name="cornerUphill"/> = 隅の駒が坂上(−Z)にある(袖は坂下)。</summary>
+        public static string DanKiriEnd(float d, float za, bool cornerUphill) { return "d" + DanKiriF3(d) + (cornerUphill ? "B" : "F") + DanKiriF3(za); }
+        static string DanKiriF3(float x)
+        {
+            return (x >= 0f ? "+" : "-") + System.Math.Abs(x).ToString("F3", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
         /// <summary>**野面の乱積みの土留め — 1間の駒**(山王社の前庭の縁。施主が試作 A を採った・2026-09-24)。
         /// 見付 <paramref name="h"/>[m] ∈ 0.15(根石1段)/ 0.30 / 0.60 / 0.90 / 1.20 / 1.50 / 1.80 / 2.10 / 2.40、
         /// 勾配 <paramref name="grade"/> = 天端が +X へ 1m あたり上がる量(剪断で天端を勾配に載せる・段に折らない)、

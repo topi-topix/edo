@@ -40,3 +40,4 @@
 - [乱積みの出隅は σ で割って折る](nozura-kado-sigma-fold.md) — 隅の石を柱に並べると算木に見える・勾配の駒の見付は高い側の端(2026-09-25)
 - [土留めの背の上面は天端に揃える](nozura-back-crest-flush.md) — 頭は天端より下だけに振る・上の縁を上げる・隅は σ を寄せる(2026-09-25)
 - [六角の宝形と基壇の −X 抜け](hex-hogyo-and-kidan-minus-x.md) — 三角で tile_field・kidan の finish に "-X" を入れない(2026-09-26)
+- [段石・袖の端を法の面で切る](nori-cut-step-and-sode.md) — 凸な部品ごとに bisect+蓋・鏡の検算は KD 木で・端の値は一覧で焼く・EdoAssets の claim を先に見る(2026-09-26)

@@ -512,11 +512,18 @@ public static class EdoSannoSashizuCheck
             //   女坂は 13点の曲線で段ごとに向きが違い、回転した bbox を射影すると
             //   ⛔ 幅が常に大きく出る(2026-09-10 実測: 6.36m の段が 7.32m と出た)。
             //   ⭐ 段石は「幅=ローカル X / 走り=ローカル Z」で焼いてある(`build_sanno_buzai.py`)。
+            //   ⚠ ObbFootprint はローカル座標なので駒の縮尺が落ちる → lossyScale.x を掛けて実寸にする。
+            //   ⚠ 返し・袖の法に合わせて端を切った段(EdoBuild.CutStairEndsToBatter)や詰めた段は狭く出るので、
+            //     中ほどの一段ではなく**全段の最大**を石段の幅とする(2026-09-26 参道の階で 5.51 を 5.26 と誤読)。
             if (steps.Count > 0)
             {
-                float mnx, mxx, mnz, mxz, mny;
-                EdoBuild.ObbFootprint(steps[steps.Count / 2], out mnx, out mxx, out mnz, out mxz, out mny);
-                float wGot = mxx - mnx;
+                float wGot = 0f;
+                foreach (var stp in steps)
+                {
+                    float mnx, mxx, mnz, mxz, mny;
+                    EdoBuild.ObbFootprint(stp, out mnx, out mxx, out mnz, out mxz, out mny);
+                    wGot = Mathf.Max(wGot, (mxx - mnx) * Mathf.Abs(stp.lossyScale.x));
+                }
                 float wWant = F(st, "wM");
                 if (Mathf.Abs(wGot - wWant) > POS_TOL_M)
                     bad("石段", "石段 " + name + " の幅が違う(指図 " + wWant.ToString("F2") +

@@ -2632,7 +2632,12 @@
    "partFrom": "EdoAssets.Own.SannoDo(\"Hogyo\", 2, 2, 3636, 3636)",
    "axis": {
     "front": "+Z"
-   }
+   },
+   "kidanM": {
+    "h": 0.3,
+    "out": 0.7
+   },
+   "kidanMFrom": "部材の生成器 `Tools/Blender/build_sanno_do.py` の写し(`DO.kidanH` / `DO.kidanOut` ── `EdoAssets.Own.SannoDo(\"Hogyo\", …)` の切石の基壇)── ⛔ 値の正典は部材。部材を焼き直したらここを合わせる"
   },
   {
    "name": "鐘楼",
@@ -2712,7 +2717,12 @@
    "partFrom": "EdoAssets.Own.SannoDo(\"Hogyo\", 2.5, 2.5, 4545, 4545)",
    "axis": {
     "front": "+Z"
-   }
+   },
+   "kidanM": {
+    "h": 0.3,
+    "out": 0.7
+   },
+   "kidanMFrom": "部材の生成器 `Tools/Blender/build_sanno_do.py` の写し(`DO.kidanH` / `DO.kidanOut` ── `EdoAssets.Own.SannoDo(\"Hogyo\", …)` の切石の基壇)── ⛔ 値の正典は部材。部材を焼き直したらここを合わせる"
   },
   {
    "name": "鼓楼",
@@ -6051,7 +6061,13 @@
     "kakoiFacingRoadM": 8.0,
     "kakoiLineFrom": "kyoukaiRoadM",
     "kakoiLineTamagaki": false,
-    "kakoiLineRule": "**塀・囲い・土留めのすべての実体線**(社地 `polygon` の全辺 ── 道辺も隣地辺も・隣家の塀は区画線の上に立つ ／ `runs[]` の建つ区間 = 透塀・回廊・袖塀・柵・板塀 ／ `terraceWalls[]` の建つ区間 ／ `kakoiLineTamagaki` が true なら玉垣の立てる辺)から、全層(低木も)の幹の芯を `kakoiLineFrom` が指す欄の値(= 道辺と同じ `kyoukaiRoadM`)+ 半厚 以上離す ── 各区間を丸く膨らませた形(両端・各節も円)の外に置く。半厚は 柵=柱の径/2・玉垣=`tamagaki.postDiaM`/2・ほかは指図に欄が無く 0。⛔ 樹冠で測らない ── 枝葉が塀を越えるのは可。⛔ 硬い制約(許容0=退ける)。⛔ 前庭の縁の緩め(`slopeBands[].avoid.zenteiFromEdge*`)より硬い側が勝つ。⛔ 線の拾い方は散布と検査で一本(`sashizu_lib.kakoi_lines`)。玉垣は囲いに数えない(施主裁定B 2026-09-25)",
+    "kakoiLineRule": "**塀・囲い・土留めの実体線**から、全層(低木も)の幹の芯を `kakoiLineFrom` が指す欄の値(= 道辺と同じ `kyoukaiRoadM`)+ 半厚 以上離す ── 各区間を丸く膨らませた形(両端・各節も円)の外に置く。線は 社地 `polygon` の全辺(道辺も隣地辺も・隣家の塀は区画線の上に立つ)/ `runs[]` の建つ区間(透塀・回廊・袖塀・柵・板塀)/ `terraceWalls[]` の建つ区間のうち**道に面する土留め**(腰石垣を含む)── 道に面するかは柵・板塀と同じ判定(`kakoiFacingRoadM`)。**道に面さない土留め**には 2m を当てず、実体(線 + 天端の奥行)だけを退ける。玉垣は数えない(`kakoiLineTamagaki` = false)【施主裁定B 2026-09-25: 2m は道に面した囲い・塀・土留め(腰石垣含む)。玉垣は数えない】。半厚は 柵=柱の径/2・玉垣=`tamagaki.postDiaM`/2・**土留め=天端の奥行 `dodomeCrestDepthM`(紙の線 → 実物の天端の奥の縁。天端がどちらへ伸びるか紙で分からないので両側へ取る)**・ほかは指図に欄が無く 0。⛔ 樹冠で測らない ── 枝葉が塀を越えるのは可。⛔ 硬い制約(許容0=退ける)。⛔ 前庭の縁の緩め(`slopeBands[].avoid.zenteiFromEdge*`)より硬い側が勝つ。⛔ 線の拾い方は散布と検査で一本(`sashizu_lib.kakoi_lines`)",
+    "dodomeCrestDepthM": {
+     "城の石垣": 1.4,
+     "袖": 0.6
+    },
+    "dodomeCrestDepthRule": "土留めの**紙の線から実物の天端の奥の縁まで**[m](種 → 値)。紙の線は 城の石垣=天端の前の縁 / 袖=段石の小口。種は `terraceWalls[].coping` が \"stair\" なら 袖(石段の袖石)、ほかは `terraceWalls[].masonry`(無ければ 城の石垣)。⛔ 種の値が無い土留めは 0 と『取れない』を刷る(発明しない)。`kakoiLineRule` の土留めの半厚に使う(`sashizu_lib.dodome_crest_depth`)",
+    "dodomeCrestDepthAcc": "A(実測 ── 普請検査の実測 2026-09-25 EDO-0409: 城の石垣 1.40 m・袖 0.60 m)",
     "edaShitaOverRoadM": 4.0,
     "edaShitaOverRoadRule": "**道辺**(`edgeClassRule`)の外へ張り出す社叢(帯1〜4)の樹冠は、**張り出した先の路面**から最下枝の付け根まで `edaShitaOverRoadM` 以上(参道の林縁 `slopeBands[3].clusters[1].edaShitaOverRoadM` と同値)。⚠ 未結線 ── 部材の枝下が目録に無い(`plantRule.crownRule.takagi.edaShitaPendingRef`)ので散布も検査もまだ読まない"
    },

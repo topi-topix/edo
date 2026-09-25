@@ -1443,21 +1443,29 @@ def kakoi_facing_road(runs, W, road_edges, facing_m):
         pts = r.get("pts") or ([r["a"], r["b"]] if r.get("a") is not None and r.get("b") is not None else None)
         if not pts or len(pts) < 2: continue
         P = [tuple(W(q[0], q[1])) for q in pts]
-        ds, s = [], 0.0
-        for i in range(len(P) - 1):
-            a, b = P[i], P[i + 1]
-            L = math.hypot(b[0] - a[0], b[1] - a[1])
-            if L < 1e-9: continue
-            nl = (-(b[1] - a[1]) / L, (b[0] - a[0]) / L)
-            for t in (0.25, 0.5, 0.75):
-                m = (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
-                dd, q = _near_on_segs(m, road_edges)
-                ds.append(dd)
-                s += nl[0] * (q[0] - m[0]) + nl[1] * (q[1] - m[1])
-        if not ds or max(ds) > facing_m: continue
-        out.append({"name": r.get("name"), "kind": r.get("kind"), "pts": P,
-                     "inner": -1.0 if s > 0 else 1.0, "roadM": max(ds)})
+        fc = _facing_segs([(P[i], P[i + 1]) for i in range(len(P) - 1)], road_edges, facing_m)
+        if fc is None: continue
+        out.append({"name": r.get("name"), "kind": r.get("kind"), "pts": P, "inner": fc[0], "roadM": fc[1]})
     return out
+
+
+def _facing_segs(segs, road_edges, facing_m):
+    """**道辺に面するか**の一本(世界 xz の区間の列)。各区間の t=1/4,1/2,3/4 の探り点が**どれも**道辺から
+    `facing_m` 以内なら (内側の符号, 最も遠い探り点の道辺からの距離)、そうでなければ None。
+    ⭐ 囲い(`kakoi_facing_road`)と土留め(`kakoi_lines`)が同じ式で判る(⛔ 同定の式を二つ持たない)。"""
+    if not road_edges: return None
+    ds, s = [], 0.0
+    for a, b in segs:
+        L = math.hypot(b[0] - a[0], b[1] - a[1])
+        if L < 1e-9: continue
+        nl = (-(b[1] - a[1]) / L, (b[0] - a[0]) / L)
+        for t in (0.25, 0.5, 0.75):
+            m = (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
+            dd, q = _near_on_segs(m, road_edges)
+            ds.append(dd)
+            s += nl[0] * (q[0] - m[0]) + nl[1] * (q[1] - m[1])
+    if not ds or max(ds) > facing_m: return None
+    return (-1.0 if s > 0 else 1.0), max(ds)
 
 
 def _offset_line(P, r):
@@ -1543,7 +1551,28 @@ def kakoi_line_m(d):
     return float(v) if isinstance(v, (int, float)) else None
 
 
-def kakoi_lines(d, poly, runs, tamagaki):
+def dodome_crest_depth(d, run):
+    """土留めの**天端の奥行**[m]とその出どころ ── 紙の線(城の石垣=天端の前の縁 / 袖=段石の小口)から実物の天端の
+    奥の縁まで。戻り (奥行, 出どころ, 種)。値は `planting.bandDef.avoid.dodomeCrestDepthM`(種 → m)。
+    ・種: `coping` が "stair" の土留め = **袖**(石段の袖石 `IshidanSode` を段ごとに据える)/ ほか = 指図の
+      `terraceWalls[].masonry`(無ければ **城の石垣**)。
+    ⛔ 値を発明しない ── 種の値が無ければ 0 と『取れない』を返す。
+    ⭐ 天端がどちら側へ伸びるかは紙で分からない(法の足元も反対側へ出る)ので、**両側へ取る**(保守側)。
+    """
+    av = (((d.get("planting") or {}).get("bandDef") or {}).get("avoid") or {})
+    tbl = av.get("dodomeCrestDepthM") or {}
+    if run.get("coping") == "stair":
+        kd = "袖"
+    else:
+        tw = next((w for w in d.get("terraceWalls") or [] if w.get("name") == run.get("name")), {})
+        kd = tw.get("masonry") or "城の石垣"
+    v = tbl.get(kd)
+    if isinstance(v, (int, float)):
+        return float(v), "avoid.dodomeCrestDepthM[%s]" % kd, kd
+    return 0.0, "取れない(avoid.dodomeCrestDepthM に %s が無い — 0 で扱う)" % kd, kd
+
+
+def kakoi_lines(d, poly, runs, tamagaki, road_edges=None):
     """**塀・囲い・土留めの実体線のすべて**(世界 xz)。戻り [{name, kind, segs:[(a,b)…], half, halfFrom}]。
 
     【施主 2026-09-23 EDO-0409】幹の芯は、塀・囲い・土留めの**すべての**実体線から `kakoi_line_m` 以上内。
@@ -1554,8 +1583,13 @@ def kakoi_lines(d, poly, runs, tamagaki):
     ⭐ 散布(`impl_sanno.kakoi_line_shapes`)と検査(`build_sashizu.Checks.c29`)が**この一本**を使う。
     ⭐ 半厚: 柵・玉垣は柱の径の半分(`kakoi_half_thickness` / `tamagaki.spec.postDiaM`)、ほかは指図に厚みの
       欄が無いので 0 と明示(⛔ 発明しない)。
+    ⭐ **土留めは天端の奥の縁から測る**(普請検査の実測 2026-09-25 EDO-0409)── 半厚の代わりに天端の奥行
+      `dodome_crest_depth` を両側へ取る。⭐ 2m を当てるのは**道に面する土留めだけ**(施主裁定B 2026-09-25)──
+      判定は柵・板塀と同じ `_facing_segs`(`avoid.kakoiFacingRoadM`)。道に面さない土留めは `facing`=False で、
+      退けるのは実体(線 + 天端の奥行)だけ。`road_edges` が無ければ判定できないので道に面するとみる(保守側)。
     """
     out = []
+    av = (((d.get("planting") or {}).get("bandDef") or {}).get("avoid") or {})
     P = [tuple(q[:2]) for q in (poly or [])]
     for i in range(len(P)):
         out.append({"name": "区画の辺%d" % i, "kind": "区画の辺", "segs": [(P[i], P[(i + 1) % len(P)])],
@@ -1563,10 +1597,16 @@ def kakoi_lines(d, poly, runs, tamagaki):
     for r in runs or []:
         sg = [(tuple(a[:2]), tuple(b[:2])) for a, b in (r.get("segs") or [])]
         if not sg: continue
-        h, hf = (kakoi_half_thickness(d, r.get("name")) if r.get("of") != "wall" and r.get("kind") != "土留め"
-                 else (0.0, "取れない(土留め に厚みの欄が無い — 0 で扱う)"))
-        out.append({"name": r.get("name"), "kind": r.get("kind") or "?", "segs": sg, "half": h, "halfFrom": hf})
-    av = (((d.get("planting") or {}).get("bandDef") or {}).get("avoid") or {})
+        if r.get("of") != "wall" and r.get("kind") != "土留め":
+            h, hf = kakoi_half_thickness(d, r.get("name"))
+            out.append({"name": r.get("name"), "kind": r.get("kind") or "?", "segs": sg, "half": h, "halfFrom": hf})
+            continue
+        h, hf, kd = dodome_crest_depth(d, r)
+        fm = av.get("kakoiFacingRoadM")
+        fc = (road_edges is None or fm is None
+              or _facing_segs(sg, road_edges, float(fm)) is not None)
+        out.append({"name": r.get("name"), "kind": "土留め(%s)" % kd, "segs": sg, "half": h,
+                    "halfFrom": "天端の奥行 " + hf, "facing": fc})
     for t in (tamagaki or []) if av.get("kakoiLineTamagaki") is True else []:
         if not t.get("fence"): continue
         sg = [(tuple(a[:2]), tuple(b[:2])) for a, b in (t.get("segs") or [])]
@@ -1580,8 +1620,10 @@ def kakoi_lines(d, poly, runs, tamagaki):
 
 def kakoi_line_keepout(lines, m):
     """`kakoi_lines` の各区間を半径 `m + 半厚` で膨らませたカプセル(両端・各節も丸い)。
-    形は `kakoi_keepout_polys` の "seg" と同じで、判定は `kakoi_keepout_hit` の一本。"""
-    return [(ln["name"], "seg", (a, b, m + ln["half"])) for ln in lines for a, b in ln["segs"]]
+    形は `kakoi_keepout_polys` の "seg" と同じで、判定は `kakoi_keepout_hit` の一本。
+    ⭐ 道に面さない土留め(`facing` = False)は `m` を足さず、実体(線 + 天端の奥行)だけを退ける(施主裁定B 2026-09-25)。"""
+    return [(ln["name"], "seg", (a, b, (m if ln.get("facing", True) else 0.0) + ln["half"]))
+            for ln in lines for a, b in ln["segs"]]
 
 
 def do_rin_rects(d):
@@ -1591,7 +1633,8 @@ def do_rin_rects(d):
     ・`munes[]`(⛔ `yaku` = 接続 は隣の棟の内側なので除く)。矩形は `u0,v0,du,dv`(柱芯の矩形)。
     ・`clearance.keidai.doRinKenOf` に "ido" があれば**井戸屋形**(`ido.uv` ± `hashiraPitchKen`/2 = 柱芯の矩形)。
       (井戸屋形を棟に数えるかは施主の裁定待ち・既定は `["munes"]` = 数えない 2026-09-23)
-    ⭐ **基壇の出**は `bom[]` の行(『部材』がその棟の名で始まる行)の `kidanM.out` があれば外へ足す。
+    ⭐ **基壇の出**は棟の `munes[].kidanM.out`、無ければ `bom[]` の行(『部材』を『・』と括弧で割った語にその棟の
+      名がある行)の `kidanM.out` があれば外へ足す。
       無い棟は None を返し、検査は『基壇を含まない』と名乗る(⛔ 出を発明しない)。
     """
     ken = d["const"]["ken"]
@@ -1599,15 +1642,23 @@ def do_rin_rects(d):
     of = kd.get("doRinKenOf") or ["munes"]
     out = []
 
-    def kidan(nm):
+    def kidan(nm, m=None):
+        # ⭐ まず棟の欄 `munes[].kidanM.out`(部材の基壇の写し)、無ければ `bom[]` の行 ── 行は「鐘楼・鼓楼・
+        #   附属堂(其一・其五・其八ほか)・観音堂…」とまとめて書くので、『・』と括弧で割った語で当てる
+        #   (「附属堂 其五」は頭の語「附属堂」でも当てる)。⛔ 出を発明しない。
+        k = ((m or {}).get("kidanM") or {}).get("out")
+        if isinstance(k, (int, float)): return float(k)
+        keys = {nm, nm.split()[0]} if nm.split() else {nm}
         for b in d.get("bom") or []:
-            if str(b.get("部材") or "").startswith(nm) and isinstance((b.get("kidanM") or {}).get("out"), (int, float)):
+            bn = str(b.get("部材") or "")
+            words = set(w.strip() for w in re.split(r"[・()（）、]", bn) if w.strip())
+            if (bn.startswith(nm) or keys & words) and isinstance((b.get("kidanM") or {}).get("out"), (int, float)):
                 return float(b["kidanM"]["out"])
         return None
     if "munes" in of:
         for m in d.get("munes") or []:
             if m.get("yaku") == "接続" or m.get("u0") is None: continue
-            k = kidan(m["name"])
+            k = kidan(m["name"], m)
             e = (k or 0.0) / ken
             out.append((m["name"], (m["u0"] - e, m["v0"] - e, m["u0"] + m["du"] + e, m["v0"] + m["dv"] + e), k))
     io = d.get("ido")

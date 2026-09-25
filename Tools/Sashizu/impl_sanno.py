@@ -1583,6 +1583,7 @@ def kakoi_line_shapes(d, g):
     幹を 14 本見つけた ── 締め出しが道辺と道に面する囲いしか知らなかった。⛔ **硬い制約**(許容0=退ける)。
     ⭐ 線の拾い方と形は `sashizu_lib.kakoi_lines` / `kakoi_line_keepout`(検査 C29 と同じ一本)。
       線は**算出物と同じ関数**(`impl_runs` / `impl_tamagaki`)の建つ区間 + 社地の `polygon` の全辺。
+    ⭐ 土留めは天端の奥の縁から・2m は道に面する土留めだけ(施主裁定B 2026-09-25)── `sashizu_lib.kakoi_lines`。
     ⛔ 樹冠で測らない ── 枝葉が塀を越えるのは可。⚠ `derive_runs` の後に呼ぶ(生成物の run がある)。
     """
     import sashizu_lib as L
@@ -1590,7 +1591,8 @@ def kakoi_line_shapes(d, g):
     if m is None: return []
     c = _KLINE.get("v")
     if c is None or c[0] is not d:          # ⛔ id だけで引かない(焼き直しで別の d が同じ id を持ちうる)
-        K = L.kakoi_line_keepout(L.kakoi_lines(d, d["polygon"], impl_runs(d, g), impl_tamagaki(d, g)), m)
+        K = L.kakoi_line_keepout(L.kakoi_lines(d, d["polygon"], impl_runs(d, g), impl_tamagaki(d, g),
+                                               _road_edges_world(d, g)), m)
         c = (d, [_shape_seg(g.L(a[0], a[1]), g.L(b[0], b[1]), r / g.ken, "塀・土留め:" + nm)
                  for nm, _k, (a, b, r) in K])
         _KLINE["v"] = c

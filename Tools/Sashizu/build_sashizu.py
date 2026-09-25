@@ -1849,7 +1849,7 @@ class Checks(object):
                 bad.append("%s: 幹が区画の外" % q["name"])
                 continue
             dd = min(seg_dist(w, a, b) for a, b in E) if E else 1e9
-            if dd < rm - 0.01:
+            if dd < rm:
                 bad.append("%s: 道辺から %.2f m" % (q["name"], dd))
                 worst = max(worst, rm - dd)
         self.add("C25", "道際の幹 — %s の %d 点(%s)の幹の芯が、道辺 %d 本から %.1f m 以上内にある(樹冠は測らない)"
@@ -1939,7 +1939,7 @@ class Checks(object):
         for q in T + Tb:
             u, v = q["uv"]
             dm, nm = L.do_rin_dist(R, u, v)
-            if dm < rk - 0.01 / M.KEN:
+            if dm < rk:            # ⛔ 硬い制約は 1cm も許さない(許しを外した 2026-09-25 EDO-0409)
                 bad.append("%s: 棟 %s の外面から %.2f 間(%.2f m)" % (q["name"], nm, dm, dm * M.KEN))
                 worst = max(worst, rk - dm)
         kid = ["%s %.2fm" % (nm, k) for nm, _r, k in R if k is not None]
@@ -1972,7 +1972,7 @@ class Checks(object):
             return
         fp = os.path.join(DOC, M.est + "_impl.json")
         im = json.load(open(fp, encoding="utf-8")) if os.path.exists(fp) else {}
-        lines = L.kakoi_lines(M.d, M.poly, im.get("runs"), im.get("tamagaki"))
+        lines = L.kakoi_lines(M.d, M.poly, im.get("runs"), im.get("tamagaki"), self.road_edges())
         K = L.kakoi_line_keepout(lines, m)
         bad = []
         for q in P:
@@ -1984,10 +1984,13 @@ class Checks(object):
         for ln in lines:
             kinds[ln["kind"]] = kinds.get(ln["kind"], 0) + 1
         halves = sorted(set("%s %.2fm=%s" % (ln["kind"], ln["half"], ln["halfFrom"]) for ln in lines))
+        nf = [ln["name"] for ln in lines if ln.get("facing") is False]
         self.add("C29", "塀・土留めの内の幹 — %s の %d 点(全層)の幹の芯が、塀・囲い・土留めの実体線 %d 本・%d 区間(%s)から"
-                 " %.1f m(+半厚:%s)以上離れている(区間の両端・各節も円で測る。樹冠は測らない。区画の外の塀は測れない)"
+                 " %.1f m(+半厚:%s)以上離れている(土留めは天端の奥の縁から・2m は道に面する土留め %d 本だけ ── 面さない %d 本(%s)は実体だけ退ける。"
+                 "区間の両端・各節も円で測る。樹冠は測らない。区画の外の塀は測れない)"
                  % (fn, len(P), len(lines), len(K), "・".join("%s %d" % kv for kv in sorted(kinds.items())), m,
-                    "・".join(halves)),
+                    "・".join(halves), sum(1 for ln in lines if ln.get("facing") is True),
+                    len(nf), "・".join(nf) or "無し"),
                  "%d 点" % len(bad), "ng" if bad else "ok", bad[:12])
 
     # C28 塊どうしの間(庭方 2026-09-06「塊どうしを近づけすぎない目安」・庭方2巡目「置かれた木どうしの最小離れで測る」)

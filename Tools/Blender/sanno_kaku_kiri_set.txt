@@ -1,7 +1,9 @@
 # 郭の階(境内 → 観音堂・御供所の郭)0.2375 / 0.450 / 1.818 ── 脇の野面の返し(法 1:0.25)と隅の駒に接する段石(EDO-0430・2026-09-26)
 # 綴りは sanno_sando_kiri_set.txt と同じ。値は棟梁が据えた実メッシュで測った一覧(EdoBuild.CutStairEndsToBatter の「焼く一覧の行」)を丸め直さず写した。
+# ⚠ 2026-09-26: +X 端(TW_Gusho_E の城の石垣)は**鉛直**(法を測った: 0.000)で小口と面一 ⇒ 切らない。前の行(Rd+0.000F∓…)は 1:0.25 を仮定して
+#   蹴上の下端に 0.025 の口を開けていた(EdoBuild.MeasureStepEndOnBatter が法を測るようにした)。
 # 焼き方: blender --background --python Tools/Blender/build_sanno_buzai.py -- dan_kiri_list Tools/Blender/sanno_kaku_kiri_set.txt 0.2375 0.450 1.818 --render
 0 a Ld+0.207 R-
 1 b Ld+0.148 R-
-2 a Ld+0.089 Rd+0.000F-0.275
-3 b Ld+0.029 Rd+0.000F+0.175
+2 a Ld+0.089 R-
+3 b Ld+0.029 R-

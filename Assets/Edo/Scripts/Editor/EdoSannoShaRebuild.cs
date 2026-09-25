@@ -609,7 +609,7 @@ public static class EdoSannoShaRebuild
             // ⭐ 石段の組(EDO-0415): この石段に沿う土留め(`terraceWalls` の coping:"stair")は**袖**として
             //   段ごとに据える(`EdoBuild.PlaceIshidanSode`)。⛔ Stage3 の城の石垣では積まない。
             var sodeWalls = SodeWallsOf(name);
-            int sodeMade = 0, sodeSkip = 0, sodeMiter = 0, sodeLifted = 0, sodeRefused = 0; var sodeWarn = new List<string>();
+            int sodeMade = 0, sodeMiter = 0, sodeLifted = 0, sodeRefused = 0; var sodeWarn = new List<string>();
             float sodeLiftMax = 0f, sodeProudMax = 0f, sodeDigMax = 0f; int sodeDug = 0; var sodeFace = new Dictionary<GameObject, Vector3>();
             var dans = new GameObject[spans.Count];
             var sodeRow = new Dictionary<string, GameObject[]>(); var sodeSide = new Dictionary<string, int>();
@@ -641,13 +641,12 @@ public static class EdoSannoShaRebuild
                     int side = EdoBuild.IshidanSodeSide(dg, kv.Value);
                     // ⭐ `copingRise:"groundHi"`(裁定 EDO-0182 (a))の袖は天端を脇の地盤まで上げて据える
                     //   (`EdoBuild.PlaceIshidanSode` が袖の背の線で地表を測って上げる)。
-                    // ⛔ 宣言の無い袖は従来どおり: 外の地盤が袖の天端より高い段(切通し)は建てない — 埋まった袖を積まない
+                    // ⛔ 袖は段の脇に途切れなく建てる(EDO-0421)。外の1点の地盤で「切通しだから建てない」と決めない —
+                    //   袖が抜けた段は 2m 格子の地形が段を描けず、段石の端が三角に出る。宣言の無い袖は `"line"` として扱う。
                     var twd = FindByName(Doc, "terraceWalls", kv.Key);
                     // ⭐ `copingRise:"line"`(施主 2026-09-25): 天端は段の線に置き、背の地盤は Stage9 の皮で天端 − 0.05 から法で下げる
                     string cr = twd != null ? S(twd, "copingRise") : null;
-                    bool line = cr == "line", gHi = cr == "groundHi" || line;
-                    Vector3 oc = dg.transform.position + dg.transform.right * side * (wM * 0.5f + 0.9f);
-                    if (!gHi && EdoBuild.Ground(oc.x, oc.z) > y + EdoBuild.ISHIDAN_SODE_KASA - BURIED_EPS) { sodeSkip++; continue; }
+                    bool line = cr != "groundHi", gHi = true;
                     string w; EdoBuild.SodeRise rz;
                     //   ⭐ 丈は上げの上限に足りる最小を選ぶ(`EdoBuild.PlaceIshidanSodeByDepth`・足りなければ退ける)
                     int ic = i;
@@ -702,7 +701,6 @@ public static class EdoSannoShaRebuild
             sb.AppendLine("  " + name + ": 段石 " + made + " 段(蹴上 " + keri.ToString("F3") +
                           " / 踏面 " + fumi.ToString("F3") + " / 幅 " + wM.ToString("F3") + ")" +
                           (sodeWalls.Count > 0 ? " / 袖 " + sodeMade + " 駒(" + string.Join("・", sodeWalls.Keys) + ")" +
-                           (sodeSkip > 0 ? " / 切通しで建てず " + sodeSkip : "") +
                            (sodeLifted > 0 ? " / 天端を地盤まで上げた " + sodeLifted + " 駒(最大 " + sodeLiftMax.ToString("F2") +
                                              "m・背で地表より出る 最大 " + sodeProudMax.ToString("F2") + "m)" : "") +
                            (sodeDeep > 0 ? " / 深い丈の袖 " + sodeDeep + " 駒" : "") +
@@ -2546,9 +2544,9 @@ public static class EdoSannoShaRebuild
             batterCut = F(cst, "batterCut"), batterFill = F(cst, "batterFill"),
             baseAt = DemAt()   // 駒の下に落ちた節点は造成前の地盤で引く(見え面の足元の山形・2026-09-25)
         };
-        // ⭐ `copingRise:"line"` の袖は背を天端 − 0.05 から法(batterCut)で元の地形へ下げる(施主 2026-09-25)
+        // ⭐ `copingRise:"line"` の袖(宣言の無い石段の袖も同じ・EDO-0421)は背を天端 − 0.05 から法(batterCut)で元の地形へ下げる(施主 2026-09-25)
         var dig = new List<GameObject>(); var lineWalls = new List<string>();
-        foreach (var o in L(Doc, "terraceWalls")) { var tw = o as Dictionary<string, object>; if (tw != null && S(tw, "copingRise") == "line") lineWalls.Add(S(tw, "name") + "_"); }
+        foreach (var o in L(Doc, "terraceWalls")) { var tw = o as Dictionary<string, object>; if (tw != null && S(tw, "coping") == "stair" && S(tw, "copingRise") != "groundHi") lineWalls.Add(S(tw, "name") + "_"); }
         foreach (var g in parts) foreach (var lw in lineWalls) if (g.name.StartsWith(lw, StringComparison.Ordinal)) { dig.Add(g); break; }
         // ⭐ 土留めは天端の帯で篩う(法の面の点では天端の下へ納める cap を足元の面より下げない ── 法の足の前を溝にしない・2026-09-25)
         var band = new List<GameObject>(); foreach (Transform c in Group("Dodome")) band.Add(c.gameObject);

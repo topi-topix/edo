@@ -1425,6 +1425,74 @@ public static partial class EdoBuild
         { int w; float y = idx.Top(x, z, out w); who = w >= 0 ? idx.names[w] : null; return y; }
     }
 
+    // ---------------------------------------------------------------- 据わる床(2026-09-25・EDO-0430)
+    /// <summary>**据わる床** = 描かれた地表(<see cref="Drawn"/> ── 縁の皮の升では皮)と、据えた部材(土留め・石段・袖)の
+    /// 上向きの面の、高い方。門・柵のように**土留めの天端にも地面にも載る駒**が触れる相手。
+    /// ⛔ 地形だけで測らない ── 山王の楼門は南東の隅が腰の土留めの天端(28.30)に載っていて床との隙は −0.60(根入れ)なのに、
+    /// 土留めの外形の中の(見えない)地表 26.91 で測ると「浮き 0.79m」と出た(2026-09-25)。
+    /// 当たる先: 門・柵・板塀の据え(山王 Stage4/5)と、その接地の検査。</summary>
+    public sealed class Bed
+    {
+        readonly DrawnGround dg; readonly PartTops tops;
+        public Bed(IList<GameObject> parts) { dg = Drawn(); tops = parts == null ? null : new PartTops(parts); }
+        /// <summary>(x,z) の床の高さ(描かれた地表と部材の上面の高い方。どちらも無ければ NaN)。</summary>
+        public float At(float x, float z)
+        {
+            float g = dg.At(x, z);
+            if (tops != null)
+            {
+                string who; float t = tops.Top(x, z, out who);
+                if (!float.IsNaN(t) && (float.IsNaN(g) || t > g)) g = t;
+            }
+            return g;
+        }
+    }
+
+    /// <summary><see cref="Contact(GameObject,out Vector3,out int,float,int)"/> と同じ測り(格子ごとの最下点)を、
+    /// 任意の床 <paramref name="bedAt"/> に対して取る。返り値 = 触れている所の隙(正=浮き・負=埋没)。測れなければ NaN。</summary>
+    public static float ContactOn(GameObject go, Func<float, float, float> bedAt, out Vector3 at, out int count,
+                                  float tol = 0.01f, int maxSamples = 4000)
+    {
+        var pts = GroundCandidates(go.transform, maxSamples);
+        float best = float.NaN; at = go.transform.position; count = 0;
+        var cs = new List<float>(pts.Count);
+        foreach (var p in pts)
+        {
+            float b = bedAt(p.x, p.z); if (float.IsNaN(b)) continue;
+            float c = p.y - b; cs.Add(c);
+            if (float.IsNaN(best) || c < best) { best = c; at = p; }
+        }
+        if (float.IsNaN(best)) return best;
+        foreach (var c in cs) if (c - best <= tol) count++;
+        return best;
+    }
+
+    /// <summary>**浮いていれば床へ下ろす。**座(指図の面の高さ・`sill`/`seat`)は**上限**として置いた駒を、
+    /// 床(<see cref="Bed"/>)から浮いていれば触れる所まで下ろす。触れているか、根入れで埋まっていれば動かさない
+    /// (根入れ・基壇の埋め込みは部材の設計)。硬い条件: 浮き 0。返り値 = 下ろした量[m](0 以上)。
+    /// <paramref name="before"/> = 下ろす前の隙。⛔ 上げない(埋まりを消す向きには動かさない ── それは座の話)。
+    /// ⛔ 基準点(ピボット)で高さを決めない ── 測るのは実メッシュの触れる所(規則21)。
+    /// 当たる先: 座を一つの値で持つ門・柵の走り(山王の勝手口の木戸と `Ita_Keidai` の御供所の郭の区間 ──
+    /// 座 28.30 のまま一段低い郭 27.35 の上に建ち 0.8m 浮いていた)。</summary>
+    public static float SettleOnBed(GameObject go, Func<float, float, float> bedAt, out float before, int maxSamples = 4000)
+    {
+        Vector3 at; int n;
+        before = ContactOn(go, bedAt, out at, out n, 0.01f, maxSamples);
+        if (float.IsNaN(before)) throw new InvalidOperationException("SettleOnBed: " + go.name + " の下に床が測れない");
+        if (before <= 0f) return 0f;
+        go.transform.position -= new Vector3(0f, before, 0f);
+        return before;
+    }
+
+    /// <summary>走りの継ぎ目(駒の原点 = 地盤の高さ・根入れ <paramref name="root"/> を持つ柵の柱)の高さ:
+    /// 座 <paramref name="seat"/> で駒の足元(座 − 根入れ)が床より上に出る(= 浮く)なら床へ、そうでなければ座。
+    /// <see cref="SettleOnBed"/> と同じ「座は上限・浮けば床へ」を継ぎ目の点で取る。</summary>
+    public static float SeatOrBed(float x, float z, float seat, float root, Func<float, float, float> bedAt)
+    {
+        float b = bedAt(x, z);
+        return (!float.IsNaN(b) && b < seat - root) ? b : seat;
+    }
+
     /// <summary>**駒の天端の埋没**を描かれた地表で数える(石段の段石など、天端が一枚の面の駒)。
     /// 天端(最も高い頂点から 0.02m 以内の頂点)のローカルの外接矩形を 0.05m 控えて <paramref name="step"/> で標本し、
     /// 描かれた地表 − 天端 > 0.01 の点を数える。返り値 = 埋没の点の数。

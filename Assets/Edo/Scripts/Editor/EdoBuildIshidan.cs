@@ -511,4 +511,292 @@ public static partial class EdoBuild
         }
         return res;
     }
+
+    // ================================================================ 端を法の面で切った駒へ差し替える(EDO-0430 2026-09-26)
+    /// <summary>光線が <paramref name="bodies"/> の三角形を通る距離のうち**最も遠い物**(駒の中から打てば、外の面を出る所)。
+    /// ⭐ 凸な部品を継いだ駒(<see cref="EdoAssets.Own.SannoDanKiri"/>)は中に蓋が残るので、最初の当たりでなく最後の当たりで外面を取る。</summary>
+    public static float RayFarthest(IList<GameObject> bodies, Vector3 o, Vector3 d, float maxDist)
+    {
+        d.Normalize(); float best = float.MinValue;
+        foreach (var g in bodies) if (g != null)
+            foreach (var mf in g.GetComponentsInChildren<MeshFilter>())
+            {
+                var mesh = mf.sharedMesh; if (mesh == null) continue;
+                var M = mf.transform.localToWorldMatrix; var vs = mesh.vertices; var ts = mesh.triangles;
+                var W = new Vector3[vs.Length]; for (int i = 0; i < vs.Length; i++) W[i] = M.MultiplyPoint3x4(vs[i]);
+                for (int t = 0; t + 2 < ts.Length; t += 3)
+                {
+                    Vector3 a = W[ts[t]], e1 = W[ts[t + 1]] - a, e2 = W[ts[t + 2]] - a;
+                    Vector3 pv = Vector3.Cross(d, e2); float det = Vector3.Dot(e1, pv); if (Mathf.Abs(det) < 1e-9f) continue;
+                    float inv = 1f / det; Vector3 tv = o - a; float u = Vector3.Dot(tv, pv) * inv; if (u < 0f || u > 1f) continue;
+                    Vector3 qv = Vector3.Cross(tv, e1); float v = Vector3.Dot(d, qv) * inv; if (v < 0f || u + v > 1f) continue;
+                    float dist = Vector3.Dot(e2, qv) * inv; if (dist >= 0f && dist <= maxDist && dist > best) best = dist;
+                }
+            }
+        return best == float.MinValue ? float.NaN : best;
+    }
+
+    /// <summary>段石の端が法の面の相手(返し・隅の駒)に当たる形の実測(<see cref="MeasureStepEndOnBatter"/>)。</summary>
+    public struct BatterEnd
+    {
+        public bool touched;    // 蹴上の中ほどの高さで、端の前後に相手の面が在った
+        public bool mixed;      // 当たった標本の離れが割れた(斜めに交わる・二つの面)⇒ 切る形が決まらない
+        public bool straddle;   // 端の一部だけが相手に当たる(返しと袖に跨る)
+        public bool uphill;     // 跨ぐとき、相手の隅が坂上(−Z)の側
+        public float d;         // 蹴上の中ほどでの返しの面の食い込み(+ = 小口より内)
+        public float za;        // 跨ぐとき、隅の駒のもう一面の Z(段の局所・蹴上の中ほど)
+        public float spread;    // 当たった標本の離れの幅
+    }
+
+    /// <summary>**段石の片方の端と法の面の相手の取り合いを測る**(2026-09-26・EDO-0430)。<paramref name="flatDan"/> は**平らな段石を縮尺 1 で
+    /// 据えた物**(小口 = 幅/2)。その段の**蹴上の中ほど**(踏面 − 蹴上/2)の高さで、端に沿って駒の奥行きの全長に 13 点、端から外へ光線を打ち
+    /// (<see cref="EndOffsets"/>)、相手の面の食い込み d を取る。一部の標本だけが当たるなら跨ぐ端で、当たらない側から当たる側へ、端の
+    /// 内(小口と返しの面の間)を光線で打って隅の駒のもう一面の Z(za)を取る。⭐ 面で測る(頂点でない)。⛔ ピボットで合わせない
+    /// (標本の位置は実メッシュの射影から取る)。
+    /// 当たる先: 石段の段石 × 切り込みの返し・郭の縁の土留め(野面の法 1:0.25)── 端を切った駒 <see cref="EdoAssets.Own.SannoDanKiri"/> の d・za。</summary>
+    public static BatterEnd MeasureStepEndOnBatter(GameObject flatDan, int side, float keri, IList<GameObject> walls,
+                                                   float maxIn = 0.5f, float maxOut = 0.10f, float spreadTol = 0.031f)
+    {
+        var r = new BatterEnd();
+        Vector3 f = flatDan.transform.forward; f.y = 0f; f.Normalize();
+        Vector3 od = flatDan.transform.right * side; od.y = 0f; od.Normalize();
+        float top = float.MinValue; foreach (var v in Body(flatDan.transform, 999999, true)) top = Mathf.Max(top, v.y);
+        float yMid = top - keri * 0.5f;
+        var ez = ExtentAlong(flatDan, f);
+        const int N = 13; var al = new float[N];
+        for (int k = 0; k < N; k++) al[k] = ez.x + 0.02f + (ez.y - ez.x - 0.04f) * k / (N - 1);
+        var offs = EndOffsets(flatDan, od, f, al, yMid, walls, maxIn, maxOut);
+        var hit = new List<float>(); int firstHit = -1, lastHit = -1, miss = 0;
+        for (int k = 0; k < N; k++)
+        {
+            if (float.IsNaN(offs[k])) { miss++; continue; }
+            hit.Add(offs[k]); if (firstHit < 0) firstHit = k; lastHit = k;
+        }
+        if (hit.Count == 0) return r;
+        r.touched = true; hit.Sort();
+        r.spread = hit[hit.Count - 1] - hit[0];
+        if (r.spread > spreadTol) { r.mixed = true; return r; }
+        r.d = -hit[hit.Count / 2];
+        if (miss == 0) return r;
+        // 跨ぐ端: 当たる標本が一続きで、片方の端に寄っていること(真ん中だけ・飛び飛びは形が決まらない)
+        if (lastHit - firstHit + 1 != hit.Count || (firstHit != 0 && lastHit != N - 1)) { r.mixed = true; return r; }
+        r.straddle = true; r.uphill = firstHit == 0;   // 当たる標本が −Z(坂上)の側から始まる
+        // 隅の駒のもう一面: 小口と返しの面の間を、当たらない側から当たる側へ打つ
+        float xEnd = ExtentAlong(flatDan, od).y;
+        Vector3 dir = r.uphill ? -f : f;
+        float s0 = r.uphill ? ez.y + 0.05f : ez.x - 0.05f;
+        Vector3 o = flatDan.transform.position + od * (xEnd - r.d * 0.5f) + f * s0; o.y = yMid;
+        float h = RayToBodies(walls, o, dir, ez.y - ez.x + 0.2f);
+        if (float.IsNaN(h)) { r.mixed = true; return r; }
+        r.za = r.uphill ? s0 - h : s0 + h;
+        return r;
+    }
+
+    /// <summary>**袖の背(坂上の端)と法の面の相手の離れ e を測る**(2026-09-26・EDO-0430)。<paramref name="flatSode"/> は平らな袖
+    /// (<see cref="EdoAssets.Own.IshidanSode(float,float,int,float)"/>)を縮尺 1 で据えた物。袖の局所の高さ
+    /// <see cref="EdoAssets.Own.SodeNoriYc"/> で、袖の中の 3 点から坂上へ光線を打ち、相手の面までの距離 − 袖の背の外面までの距離を返す
+    /// (+ = 背より坂上に相手 = 口・− = 相手が袖に食い込む・当たらなければ NaN)。<paramref name="spread"/> = 3 点の幅。
+    /// 当たる先: 石段の袖の run の坂上の端 × 隅の駒・返しの野面の法 ── 背を法に切った駒 <see cref="EdoAssets.Own.IshidanSodeNori"/> の e。</summary>
+    public static float MeasureSodeBackOnBatter(GameObject sode, float keri, IList<GameObject> walls, out float spread, float maxOut = 0.6f)
+    {
+        spread = 0f;
+        Vector3 f = sode.transform.forward; f.y = 0f; f.Normalize();
+        Vector3 rt = sode.transform.right; rt.y = 0f; rt.Normalize();
+        float yc = sode.transform.position.y + EdoAssets.Own.SodeNoriYc(keri) * sode.transform.lossyScale.y;
+        var own = new List<GameObject> { sode };
+        var es = new List<float>();
+        foreach (float a in new[] { -0.2f, 0f, 0.2f })
+        {
+            // 光線の起点は袖の中(袖の実メッシュの奥行きの中ほど)
+            var ez = ExtentAlong(sode, f);
+            Vector3 o = sode.transform.position + rt * a + f * ((ez.x + ez.y) * 0.5f); o.y = yc;
+            float b = RayFarthest(own, o, -f, 5f); if (float.IsNaN(b)) continue;
+            float w = RayToBodies(walls, o, -f, b + maxOut); if (float.IsNaN(w)) continue;
+            es.Add(w - b);
+        }
+        if (es.Count == 0) return float.NaN;
+        es.Sort(); spread = es[es.Count - 1] - es[0];
+        return es[es.Count / 2];
+    }
+
+    /// <summary>光線での隙(+)/ めり込み(−): 駒の中の点 <paramref name="o"/> から <paramref name="dir"/> へ、相手までの距離 − 駒の外面までの距離。</summary>
+    static float GapAlong(GameObject piece, IList<GameObject> others, Vector3 o, Vector3 dir, float maxOut)
+    {
+        float b = RayFarthest(new List<GameObject> { piece }, o, dir, 8f); if (float.IsNaN(b)) return float.NaN;
+        float w = RayToBodies(others, o, dir, b + maxOut); if (float.IsNaN(w)) return float.NaN;
+        return w - b;
+    }
+
+    /// <summary>駒を同じ位置・向き・縮尺で別の部材へ差し替える(新しい駒を置いてから旧を消す ── 例外で群が欠けないように)。子の印 `_axis` は世界の同じ点へ移す。</summary>
+    static GameObject SwapPart(GameObject old, string path)
+    {
+        var t = old.transform;
+        var g = Place(path, t.position, t.eulerAngles.y, t.localScale, t.parent, old.name);
+        g.transform.SetSiblingIndex(t.GetSiblingIndex());
+        var ax = t.Find(AXIS_MARK);
+        if (ax != null) { var m = new GameObject(AXIS_MARK); m.transform.SetParent(g.transform, false); m.transform.position = ax.position; }
+        Object.DestroyImmediate(old);
+        return g;
+    }
+
+    /// <summary>**石段の段石の端・袖の背を、法の面の相手に合わせて切った駒へ差し替える**(2026-09-26・EDO-0430 施主裁定B・EDO-0442)。
+    /// 鉛直な駒を法 1:0.25 の野面へ中ほどで突き付けると、上下に 0.25×丈/2 の口とめり込みが残る(<see cref="AbutEndToFace"/>)。
+    /// 焼いてある「端を法で切った駒」があれば差し替えて口・めり込みを 0 にする:
+    /// ① 段石 — 平らな段石を縮尺 1 で芯(<see cref="StepAxis"/> ── Stage2 が据えた所)に仮に置いた物で両端を測り
+    ///   (<see cref="MeasureStepEndOnBatter"/>)、d・za に合う駒(<paramref name="kiriPath"/>・測りの誤差 <paramref name="tol"/> で引く)へ差し替える。
+    /// ② 袖 — 袖の run(`TW_<行>_<番>`)の**坂上の端の駒**だけ。坂下の端を保って縮尺 1 に戻した平らな袖で e を測り
+    ///   (<see cref="MeasureSodeBackOnBatter"/>)、<see cref="EdoAssets.Own.SodeNoriSnap"/> の駒へ差し替え、残りだけ <see cref="ResizeEnd"/> で詰める。
+    /// 焼いていない組は差し替えず(平らなまま → 呼び手が中ほどの突き付けを掛ける)、焼く一覧の行を <paramref name="sb"/> に刷る。
+    /// 斜めに交わる・二つの面に割れる端は切る形が決まらないので差し替えず ⚠ を刷る。
+    /// 返り値 = 差し替えた駒(呼び手は突き付けを掛けない)。据えた後の口・めり込みは実メッシュを光線で測り直して刷る。
+    /// ⭐ 硬い条件(許容0): 口・めり込み ≤ 0.005。超えたら ⚠。
+    /// 当たる先: 石段が野面の返し・隅の駒に脇から・背から接するすべて(山王 参道の階 × 前庭の北の切り込み。女坂の足・郭の階も測る)。</summary>
+    public static HashSet<GameObject> CutStairEndsToBatter(string label, IList<GameObject> dans, IList<GameObject> sodes, float keri, float fumi,
+        IList<GameObject> walls, System.Func<int, string> flatDanPath, System.Func<int, string, string, string> kiriPath,
+        System.Func<GameObject, int, string> flatSodePath, System.Func<int, float, string> noriPath, System.Text.StringBuilder sb, float tol = 0.003f)
+    {
+        var done = new HashSet<GameObject>();
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        var need = new List<string>(); int nDan = 0, nSode = 0; float worst = 0f;
+        // ① 段石
+        foreach (var dg0 in dans)
+        {
+            if (dg0 == null) continue; int i;
+            if (!int.TryParse(dg0.name.Substring(dg0.name.IndexOf('_') + 1), out i)) continue;
+            string flat = flatDanPath(i);
+            var probe = Place(flat, StepAxis(dg0.transform), dg0.transform.eulerAngles.y, Vector3.one, dg0.transform.parent, "__probe_dan");
+            BatterEnd eL, eR;
+            try { eL = MeasureStepEndOnBatter(probe, -1, keri, walls); eR = MeasureStepEndOnBatter(probe, 1, keri, walls); }
+            finally { Object.DestroyImmediate(probe); }
+            if (!eL.touched && !eR.touched) continue;
+            if (eL.mixed || eR.mixed)
+            {
+                sb.AppendLine("    ⚠ " + label + " " + dg0.name + ": 端が相手の面と斜めに交わるか二つの面に割れ、切る形が決まらない(" +
+                              (eL.mixed ? "−X 幅 " + eL.spread.ToString("F3") : "") + (eR.mixed ? " +X 幅 " + eR.spread.ToString("F3") : "") + ")── 差し替えない");
+                continue;
+            }
+            System.Func<BatterEnd, string> spec = e => !e.touched || (!e.straddle && Mathf.Abs(e.d) < 0.002f) ? EdoAssets.Own.DanKiriNone
+                : e.straddle ? EdoAssets.Own.DanKiriEnd(e.d, e.za, e.uphill) : EdoAssets.Own.DanKiriEnd(e.d);
+            string sL = spec(eL), sR = spec(eR);
+            if (sL == EdoAssets.Own.DanKiriNone && sR == EdoAssets.Own.DanKiriNone) continue;
+            string want = kiriPath(i, sL, sR);
+            string got = EdoAssets.Own.NearestBaked(want, tol);
+            if (got == null)
+            {
+                need.Add(i + " " + (i % 2 == 0 ? "a" : "b") + " L" + (sL == EdoAssets.Own.DanKiriNone ? "-" : sL) + " R" + (sR == EdoAssets.Own.DanKiriNone ? "-" : sR));
+                continue;
+            }
+            // 平らな段石を芯へ戻してから差し替える(突き付けの縮尺を持ち越さない)
+            var t0 = dg0.transform; Vector3 ax = StepAxis(t0);
+            t0.localScale = Vector3.one; t0.position = ax;
+            var ng = SwapPart(dg0, got); done.Add(ng); nDan++;
+            // 据えた後: 端に沿って 13 点 × 3 高さ(踏面の下・中ほど・蹴上の下端の上)で、駒の外面から相手(土留め+袖)までを測る
+            var others = new List<GameObject>(walls); foreach (var s in sodes) if (s != null) others.Add(s);
+            Vector3 f = ng.transform.forward; f.y = 0f; f.Normalize();
+            float top = float.MinValue; foreach (var v in Body(ng.transform, 999999, true)) top = Mathf.Max(top, v.y);
+            var ez = ExtentAlong(ng, f); float gMax = 0f, bMax = 0f; int nS = 0;
+            foreach (int side in new[] { -1, 1 })
+            {
+                var e = side < 0 ? eL : eR; if (!e.touched) continue;
+                Vector3 od = ng.transform.right * side; od.y = 0f; od.Normalize();
+                float xEnd = ExtentAlong(ng, od).y;
+                foreach (float yy in new[] { top - 0.02f, top - keri * 0.5f, top - keri + 0.02f })
+                    for (int k = 0; k < 13; k++)
+                    {
+                        float s = ez.x + 0.02f + (ez.y - ez.x - 0.04f) * k / 12f;
+                        Vector3 o = ng.transform.position + od * (xEnd - 0.6f) + f * s; o.y = yy;
+                        float gp = GapAlong(ng, others, o, od, 0.10f); if (float.IsNaN(gp)) continue;
+                        nS++; if (gp > 0) gMax = Mathf.Max(gMax, gp); else bMax = Mathf.Max(bMax, -gp);
+                    }
+                if (e.straddle)   // 欠いた奥の面 × 隅の駒のもう一面
+                    foreach (float yy in new[] { top - 0.02f, top - keri * 0.5f, top - keri + 0.02f })
+                    {
+                        Vector3 dir = e.uphill ? -f : f;
+                        Vector3 o = ng.transform.position + od * (xEnd - Mathf.Max(0.01f, e.d * 0.5f)) + f * (e.za + (e.uphill ? 0.15f : -0.15f)); o.y = yy;
+                        float gp = GapAlong(ng, walls, o, dir, 0.10f); if (float.IsNaN(gp)) continue;
+                        nS++; if (gp > 0) gMax = Mathf.Max(gMax, gp); else bMax = Mathf.Max(bMax, -gp);
+                    }
+            }
+            worst = Mathf.Max(worst, Mathf.Max(gMax, bMax));
+            sb.AppendLine("    " + label + " " + ng.name + " → " + System.IO.Path.GetFileNameWithoutExtension(got) +
+                          "(測った −X " + (eL.touched ? "d " + eL.d.ToString("F3", inv) + (eL.straddle ? " za " + eL.za.ToString("F3", inv) : "") : "当たらず") +
+                          " / +X " + (eR.touched ? "d " + eR.d.ToString("F3", inv) + (eR.straddle ? " za " + eR.za.ToString("F3", inv) : "") : "当たらず") +
+                          ")/ 据えた後 口 " + gMax.ToString("F3") + " めり込み " + bMax.ToString("F3") + "(当たり " + nS + ")" +
+                          (Mathf.Max(gMax, bMax) > 0.005f ? " ⚠" : ""));
+        }
+        // ② 袖の坂上の端の駒
+        var topIdx = new Dictionary<string, int>();
+        foreach (var sg in sodes)
+        {
+            if (sg == null) continue; int us = sg.name.LastIndexOf('_'); int ii;
+            if (us < 0 || !int.TryParse(sg.name.Substring(us + 1).TrimEnd('f'), out ii)) continue;
+            string row = sg.name.Substring(0, us); int cur;
+            if (!topIdx.TryGetValue(row, out cur) || ii > cur) topIdx[row] = ii;
+        }
+        foreach (var sg0 in sodes)
+        {
+            if (sg0 == null) continue; int us = sg0.name.LastIndexOf('_'); int ii;
+            if (us < 0 || !int.TryParse(sg0.name.Substring(us + 1).TrimEnd('f'), out ii)) continue;
+            if (topIdx[sg0.name.Substring(0, us)] != ii) continue;
+            string flat = flatSodePath(sg0, ii); if (flat == null) continue;
+            var t0 = sg0.transform; Vector3 f = t0.forward; f.y = 0f; f.Normalize();
+            // 坂下の端(+Z の実メッシュの端)を保って、平らな袖を縮尺 1 で仮に置く
+            float front = Vector3.Dot(t0.position, f) + ExtentAlong(sg0, f).y;
+            var sc = t0.localScale; sc.z = Mathf.Sign(sc.z);
+            var probe = Place(flat, t0.position, t0.eulerAngles.y, sc, t0.parent, "__probe_sode");
+            float pf = Vector3.Dot(probe.transform.position, f) + ExtentAlong(probe, f).y;
+            probe.transform.position += f * (front - pf);
+            float spread; float e;
+            try { e = MeasureSodeBackOnBatter(probe, keri, walls, out spread); }
+            catch { Object.DestroyImmediate(probe); throw; }
+            Vector3 flatPos = probe.transform.position;
+            Object.DestroyImmediate(probe);
+            if (float.IsNaN(e)) continue;
+            if (spread > 0.031f) { sb.AppendLine("    ⚠ " + label + " " + sg0.name + " の背: 相手の面が斜めに交わる(幅 " + spread.ToString("F3") + ")── 差し替えない"); continue; }
+            float snap = EdoAssets.Own.SodeNoriSnap(e);
+            string got = noriPath(ii, snap);
+            if (got == null || UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(got) == null)
+            { sb.AppendLine("    " + label + " " + sg0.name + " の背: e " + e.ToString("+0.000;-0.000", inv) + " の駒(E" + snap.ToString("+0.00;-0.00", inv) + ")が焼けていない ── 差し替えない"); continue; }
+            t0.localScale = sc; t0.position = flatPos;
+            var ng = SwapPart(sg0, got); done.Add(ng); nSode++;
+            // 丸めの残りを詰める: Yc の高さで背の外面 → 相手の面の口を測り、Yc での駒の長さの比で縮尺する
+            float rest = 0f;
+            for (int it = 0; it < 2; it++)
+            {
+                float sp2; float g2 = MeasureSodeBackOnBatter(ng, keri, walls, out sp2);
+                if (float.IsNaN(g2) || Mathf.Abs(g2) < 0.0005f) break;
+                Vector3 rt = ng.transform.right; var ez = ExtentAlong(ng, f);
+                Vector3 o = ng.transform.position + f * ((ez.x + ez.y) * 0.5f);
+                o.y = ng.transform.position.y + EdoAssets.Own.SodeNoriYc(keri);
+                var own = new List<GameObject> { ng };
+                float lyc = RayFarthest(own, o, -f, 5f) + RayFarthest(own, o, f, 5f);
+                float lext = ez.y - ez.x;
+                ResizeEnd(ng, -f, g2 * lext / lyc); rest += g2;
+            }
+            // 据えた後: 段の踏面の上 〜 袖の天端の下で 5 高さ × 3 点
+            float sTop = float.MinValue, sBot = float.MaxValue; foreach (var v in Body(ng.transform, 999999, true)) { sTop = Mathf.Max(sTop, v.y); }
+            sBot = ng.transform.position.y;   // 段の踏面の高さ(袖の局所 Y=0 の面 ── 測る高さの下限の目安)
+            float gMax = 0f, bMax = 0f; int nS = 0;
+            Vector3 rr = ng.transform.right; rr.y = 0f; rr.Normalize();
+            var ez2 = ExtentAlong(ng, f);
+            for (int hk = 0; hk < 5; hk++)
+            {
+                float yy = Mathf.Lerp(sBot + 0.02f, sTop - 0.02f, hk / 4f);
+                foreach (float a in new[] { -0.2f, 0f, 0.2f })
+                {
+                    Vector3 o = ng.transform.position + rr * a + f * ((ez2.x + ez2.y) * 0.5f); o.y = yy;
+                    float gp = GapAlong(ng, walls, o, -f, 0.10f); if (float.IsNaN(gp)) continue;
+                    nS++; if (gp > 0) gMax = Mathf.Max(gMax, gp); else bMax = Mathf.Max(bMax, -gp);
+                }
+            }
+            worst = Mathf.Max(worst, Mathf.Max(gMax, bMax));
+            sb.AppendLine("    " + label + " " + ng.name + " の背 → " + System.IO.Path.GetFileNameWithoutExtension(got) + "(測った e " + e.ToString("+0.000;-0.000", inv) +
+                          "・残り " + rest.ToString("+0.000;-0.000", inv) + " を詰めた)/ 据えた後 口 " + gMax.ToString("F3") + " めり込み " + bMax.ToString("F3") +
+                          "(当たり " + nS + ")" + (Mathf.Max(gMax, bMax) > 0.005f ? " ⚠" : ""));
+        }
+        if (nDan + nSode > 0 || need.Count > 0)
+            sb.AppendLine("  " + label + ": 端を法で切った駒へ差し替え 段石 " + nDan + " / 袖 " + nSode + " ── 口・めり込みの最大 " + worst.ToString("F3") +
+                          (need.Count > 0 ? " / ⚠ 焼いていない段石 " + need.Count + "(焼く一覧の行: " + string.Join(" | ", need) + ")" : ""));
+        return done;
+    }
 }

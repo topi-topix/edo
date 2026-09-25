@@ -1291,7 +1291,28 @@ public static class EdoSannoShaRebuild
             var dans = new List<GameObject>(); var sodes = new List<GameObject>();
             foreach (Transform c in grp) { if (c.name.StartsWith("Dan_")) dans.Add(c.gameObject); else if (c.name.StartsWith("TW_")) sodes.Add(c.gameObject); }
             if (dans.Count == 0) continue;
-            var wS = new List<GameObject>(walls); wS.AddRange(sodes);
+            // ⭐ 端を法で切った駒が焼けている段石・袖の背は差し替える(口・めり込み 0 ── EDO-0430 2026-09-26・EdoBuild.CutStairEndsToBatter)。
+            //   差し替えた駒には中ほどの突き付け(下の AbutStepEndsToWalls / AbutEndToFace)を掛けない。
+            float wM = F(st, "wM");
+            var cut = EdoBuild.CutStairEndsToBatter(name, dans, sodes, keri, fumi, walls,
+                i => P.Dan(keri, fumi, wM, i),
+                (i, l, r) => EdoAssets.Own.SannoDanKiri(keri, fumi, wM, i, l, r),
+                (g, i) =>
+                {
+                    var mf = g.GetComponentInChildren<MeshFilter>(); string mp = mf != null && mf.sharedMesh != null ? AssetDatabase.GetAssetPath(mf.sharedMesh) : "";
+                    // 平らな袖(丈は既定)か、前の巡で背を切った袖だけ。⛔ 留めの駒・丈の深い駒は焼いていない
+                    return mp == EdoAssets.Own.IshidanSode(keri, fumi, i) || System.IO.Path.GetFileName(mp).StartsWith("IshidanSodeNori_" + keri.ToString("F3", System.Globalization.CultureInfo.InvariantCulture) + "_" + fumi.ToString("F3", System.Globalization.CultureInfo.InvariantCulture) + "_E")
+                        ? EdoAssets.Own.IshidanSode(keri, fumi, i) : null;
+                },
+                (i, e) => EdoAssets.Own.IshidanSodeNori(keri, fumi, e, i), sb);
+            dans.Clear(); sodes.Clear();
+            foreach (Transform c in grp)
+            {
+                if (cut.Contains(c.gameObject)) continue;
+                if (c.name.StartsWith("Dan_")) dans.Add(c.gameObject); else if (c.name.StartsWith("TW_")) sodes.Add(c.gameObject);
+            }
+            var sodesAll = new List<GameObject>(sodes); foreach (var g in cut) if (g.name.StartsWith("TW_")) sodesAll.Add(g);
+            var wS = new List<GameObject>(walls); wS.AddRange(sodesAll);
             var rs = EdoBuild.AbutStepEndsToWalls(dans, keri, fumi, wS);
             int moved = 0, mixed = 0; float gap = 0f, bite = 0f, mvMax = 0f; var mixedNames = new List<string>();
             foreach (var kv in rs)
@@ -1305,7 +1326,7 @@ public static class EdoSannoShaRebuild
             //   途中の駒の背に土留めが来ていれば、それは袖が土留めに埋まっている別の欠陥で、駒を詰めて消さない(郭の階で 0.41m 詰めかけた)。
             int sMoved = 0, sMixed = 0; float sGap = 0f, sBite = 0f, sMv = 0f;
             var topIdx = new Dictionary<string, int>();
-            foreach (var sg in sodes)
+            foreach (var sg in sodesAll)   // ⭐ 差し替えた駒も数える(坂上の端を一つ下の駒と取り違えない)
             {
                 int us = sg.name.LastIndexOf('_'); int ii;
                 if (us < 0 || !int.TryParse(sg.name.Substring(us + 1).TrimEnd('f'), out ii)) continue;

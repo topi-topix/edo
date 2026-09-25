@@ -1288,6 +1288,33 @@ public static class EdoAssets
             return (x >= 0f ? "+" : "-") + System.Math.Abs(x).ToString("F3", System.Globalization.CultureInfo.InvariantCulture);
         }
 
+        /// <summary>**綴りの数だけが違う焼いてある兄弟を引く**(EDO-0430 2026-09-26)。<paramref name="path"/> が在ればそれ。
+        /// 無ければ同じフォルダの FBX のうち、数(`±0.000` の形)以外の綴りが同じで、どの数の差も <paramref name="tol"/> 以内の物の
+        /// うち最も近い物。無ければ null。⭐ 据えた後の従属値(<see cref="SannoDanKiri"/> の d・za)を実測で引くとき、測りの丸めの
+        /// 1mm で名が外れないように。⛔ 当たらなかった値を丸めて寄せない(tol は測りの誤差だけ)。</summary>
+        public static string NearestBaked(string path, float tol)
+        {
+            if (UnityEditor.AssetDatabase.LoadAssetAtPath<UnityEngine.GameObject>(path) != null) return path;
+            string dir = System.IO.Path.GetDirectoryName(path).Replace('\\', '/');
+            if (!System.IO.Directory.Exists(dir)) return null;
+            var rx = new System.Text.RegularExpressions.Regex(@"[+-]?\d+\.\d+");
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            string fn = System.IO.Path.GetFileNameWithoutExtension(path);
+            string skel = rx.Replace(fn, "#"); var want = rx.Matches(fn);
+            string best = null; float bestD = float.MaxValue;
+            foreach (var f in System.IO.Directory.GetFiles(dir, "*.fbx"))
+            {
+                string n = System.IO.Path.GetFileNameWithoutExtension(f);
+                if (rx.Replace(n, "#") != skel) continue;
+                var got = rx.Matches(n); if (got.Count != want.Count) continue;
+                float dm = 0f;
+                for (int k = 0; k < got.Count; k++)
+                    dm = System.Math.Max(dm, System.Math.Abs(float.Parse(got[k].Value, inv) - float.Parse(want[k].Value, inv)));
+                if (dm <= tol && dm < bestD) { bestD = dm; best = dir + "/" + System.IO.Path.GetFileName(f); }
+            }
+            return best;
+        }
+
         /// <summary>**野面の乱積みの土留め — 1間の駒**(山王社の前庭の縁。施主が試作 A を採った・2026-09-24)。
         /// 見付 <paramref name="h"/>[m] ∈ 0.15(根石1段)/ 0.30 / 0.60 / 0.90 / 1.20 / 1.50 / 1.80 / 2.10 / 2.40、
         /// 勾配 <paramref name="grade"/> = 天端が +X へ 1m あたり上がる量(剪断で天端を勾配に載せる・段に折らない)、

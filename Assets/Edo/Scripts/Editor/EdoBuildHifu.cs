@@ -232,7 +232,11 @@ public static partial class EdoBuild
         public float Bottom(float x, float z, out int who) { return Scan(x, z, false, out who); }
         /// <summary>(x,z) から平面で <paramref name="r"/> 以内を通る**鉛直な面**(石垣の見え面・小口)の、その位置での最も低い所。
         /// ⭐ 鉛直な面は平面に面積が無いので <see cref="Bottom"/> の縦の線に掛からない ── 殻の駒(底の面が無い)の見え面の脇では
-        /// 底が天端に化けて「駒が浮く」と誤って数えた(2026-09-25 EDO-0430: 回廊の基壇・御供所の郭の石垣で 3,243 点)。無ければ NaN。</summary>
+        /// 底が天端に化けて「駒が浮く」と誤って数えた(2026-09-25 EDO-0430: 回廊の基壇・御供所の郭の石垣で 3,243 点)。無ければ NaN。
+        /// ⭐ **法(のり)の面も数える**(天端・踏面 = 上を向いた面 <see cref="UP_NY"/> 以外の全て・2026-09-25 v18)。法の足(根入れ)は
+        /// 法の面の下の縁で、法の途中の点の <see cref="Bottom"/> は法の面そのもの(殻の駒に底の面は無い)── 隣の点の底を最大で採る皮の
+        /// 塞ぎ(sealFace)と床(隣の底より下げない)が法の途中の高さを底と読み、見え面の足元 0.3m に +0.1〜0.5m の土の縁を立てた
+        /// (回廊の基壇の東・北の犬走りの床 25.05 の上。駒の底は 25.00 で根入れ済み)。</summary>
         public float WallBottom(float x, float z, float r, int only = -1)
         {
             float best = float.NaN;
@@ -246,7 +250,7 @@ public static partial class EdoBuild
                     {
                         if (!seen.Add(id) || (only >= 0 && owner[id] != only)) continue;
                         var t = tris[id];
-                        var nv = Vector3.Cross(t[1] - t[0], t[2] - t[0]); float mag = nv.magnitude; if (mag < 1e-9f || Mathf.Abs(nv.y) / mag > 0.2f) continue;
+                        var nv = Vector3.Cross(t[1] - t[0], t[2] - t[0]); float mag = nv.magnitude; if (mag < 1e-9f || Mathf.Abs(nv.y) / mag > UP_NY) continue;
                         // 平面で最も離れた二頂点を軸に取る
                         int a = 0, b = 1; float dmax = -1f;
                         for (int u = 0; u < 3; u++) for (int v = u + 1; v < 3; v++)

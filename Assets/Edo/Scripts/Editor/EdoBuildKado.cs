@@ -195,11 +195,20 @@ public static partial class EdoBuild
         float gMin = float.MaxValue;
         foreach (var run in new IList<GameObject>[] { runA, runB })
             foreach (var g in run) if (g != null) foreach (var v in Body(g.transform, 999999)) gMin = Mathf.Min(gMin, v.y);
+        float nbH = crest - gMin;                                    // 両脇の直線材の丈(実メッシュ)
         for (float u = 0f; u <= 2.01f; u += 0.25f)
             foreach (var q in new Vector2[] { P + armX * u, P + armZ * u })
             { float g = groundAt(q.x, q.y); if (!float.IsNaN(g)) gMin = Mathf.Min(gMin, g); }
         float degR = Mathf.Round(deg);
         string path = null; float h = 0f;
+        // ⭐ 両脇の直線材と同じ丈の隅の駒が焼けていればそれを採る(2026-09-25・天端と足元が両脇と揃う)。
+        //   腕の下の地表が両脇の底より低くても、そこは両脇の直線材の端と同じ納め(皮が受ける)。
+        {
+            float hp = Mathf.Round(nbH * 2f) / 2f; string pp = pathOf(degR, hp);
+            if (Mathf.Abs(hp - nbH) < 0.05f && pp != null && System.IO.File.Exists(System.IO.Path.Combine(System.IO.Directory.GetParent(Application.dataPath).FullName, pp)))
+            { path = pp; h = hp; }
+        }
+        if (path == null)
         for (float hh = 4.0f; hh <= 8.01f; hh += 0.5f)
         {
             if (gMin != float.MaxValue && crest - hh > gMin) continue;
@@ -284,14 +293,29 @@ public static partial class EdoBuild
     /// 当たる先: 土留め・郭・腰石垣・基壇に `Castle Wall` 型の駒を並べる全ての run(山王 Stage3、各邸の外周石垣)。</summary>
     public static float WallFaceRise(GameObject piece, Func<float, float, float> groundAt)
     {
-        var tr = piece.transform; var ax = new Vector2(tr.right.x, tr.right.z).normalized;
-        var f = FaceSide(new List<GameObject> { piece }, ax);
+        var tr = piece.transform;
+        // 見え面の軸は部材ごとに違う(Castle Wall は局所 ±X・野面の駒は局所 ±Z)⇒ 両軸で法の出を測り、出の大きい軸を採る
+        Vector2 f = Vector2.zero; float bestOut = float.MinValue;
+        foreach (var a3 in new[] { tr.right, tr.forward })
+        {
+            var ax = new Vector2(a3.x, a3.z).normalized; var fs = FaceSide(new List<GameObject> { piece }, ax);
+            float o = BatterOut(piece, fs); if (o > bestOut) { bestOut = o; f = fs; }
+        }
         var vs = Body(tr, 999999); if (vs.Count == 0) return float.NaN;
         float fmax = float.MinValue, bmin = float.MaxValue; Vector2 cen = Vector2.zero;
         foreach (var v in vs) { float d = v.x * f.x + v.z * f.y; fmax = Mathf.Max(fmax, d); bmin = Mathf.Min(bmin, d); cen += new Vector2(v.x, v.z); }
         cen /= vs.Count; float cd = cen.x * f.x + cen.y * f.y;
         Vector2 pf = cen + f * (fmax - cd + 0.8f), pb = cen + f * (bmin - cd - 0.8f);
         return groundAt(pf.x, pf.y) - groundAt(pb.x, pb.y);
+    }
+    /// <summary>向き <paramref name="f"/> への法の出 = 下の帯(下 25%)の張り出し − 上の帯(上 15%)の張り出し[m]。</summary>
+    static float BatterOut(GameObject piece, Vector2 f)
+    {
+        var vs = Body(piece.transform, 999999); float y0 = float.MaxValue, y1 = float.MinValue;
+        foreach (var v in vs) { y0 = Mathf.Min(y0, v.y); y1 = Mathf.Max(y1, v.y); }
+        float lo = y0 + (y1 - y0) * 0.25f, hi = y1 - (y1 - y0) * 0.15f, pb = float.MinValue, pt = float.MinValue;
+        foreach (var v in vs) { float d = v.x * f.x + v.z * f.y; if (v.y <= lo) pb = Mathf.Max(pb, d); if (v.y >= hi) pt = Mathf.Max(pt, d); }
+        return pb - pt;
     }
     /// <summary>**線 a→b のどちら側が低いかを描かれた地表で測る**(2026-09-25・EDO-0430)。走りに沿って 1m おきに、
     /// 線の両側 <paramref name="probe"/> m の地表(<paramref name="groundAt"/>)を取り、差が <paramref name="eps"/> を超える点で

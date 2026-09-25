@@ -153,6 +153,9 @@ public static partial class EdoBuild
     //   皮を下げる相手にしない(2026-09-24 実測: 全ての面で下げたら上の段の地盤が控えに沿って 3.4m 掘れた)。
     //   底(Bottom)は全ての面で引く。
     const float UP_NY = 0.7f;
+    /// <summary>天端の帯の深さ・周りを見る半径[m](<see cref="TopIndex.banded"/>)。0.15 = 野面の天端の石の凹凸(±0.08)は入り、
+    /// 天端の奥の控え(天端 − 0.3)は外れる ── 控えは上の面の土に入るのが正しい納め(0.3 では控えを天端と読み、背の帯に 0.25m の溝が残った)。</summary>
+    public const float CREST_BAND = 0.15f, CREST_R = 0.6f;
     sealed class TopIndex
     {
         readonly List<Vector3[]> tris = new List<Vector3[]>();
@@ -164,11 +167,16 @@ public static partial class EdoBuild
         public readonly List<string> names = new List<string>();
         public readonly List<Vector4> bounds = new List<Vector4>();   // 外形の外接矩形 (x0, z0, x1, z1)
         static long K(int i, int j) { return ((long)i << 32) ^ (uint)j; }
-        public void Add(GameObject g)
+        /// <summary>天端の帯で篩う駒(土留め)。⭐ その駒の上向きの面は、周り <see cref="CREST_R"/> の同じ駒の最も高い上向きの面から
+        /// <see cref="CREST_BAND"/> 以内だけを天端と読む ── 法(見え面)の石の上向きの小面を天端と取り違えて、足元の面を掘らない
+        /// (2026-09-25 EDO-0430 実測: 本殿の西の野面の土留めの足で 28.30 の面が 27.99〜28.07 へ掘れ、石の下端が歯のように覗いた)。</summary>
+        public readonly List<bool> banded = new List<bool>();
+        public void Add(GameObject g) { Add(g, false); }
+        public void Add(GameObject g, bool crestBand)
         {
             var ts = TrisOfMat(g.transform, null); if (ts.Count == 0) return;
             var hull = HullOfMat(g.transform, null); if (hull == null || hull.Length < 3) return;
-            int k = hulls.Count; hulls.Add(hull); names.Add(g.name);
+            int k = hulls.Count; hulls.Add(hull); names.Add(g.name); banded.Add(crestBand);
             { float a0 = float.MaxValue, a1 = float.MinValue, b0 = float.MaxValue, b1 = float.MinValue;
               foreach (var q in hull) { a0 = Mathf.Min(a0, q.x); a1 = Mathf.Max(a1, q.x); b0 = Mathf.Min(b0, q.y); b1 = Mathf.Max(b1, q.y); }
               bounds.Add(new Vector4(a0, b0, a1, b1)); }
@@ -191,7 +199,30 @@ public static partial class EdoBuild
             }
         }
         /// <summary>(x,z) の真上の部材の**上を向いた面**の最も高い所(= 天端・踏面)。無ければ NaN。<paramref name="who"/> = その部材。</summary>
-        public float Top(float x, float z, out int who) { return Scan(x, z, true, out who); }
+        public float Top(float x, float z, out int who)
+        {
+            float y = Scan(x, z, true, out who);
+            if (who < 0 || !banded[who] || float.IsNaN(y)) return y;
+            // 天端の帯: 周りの同じ駒の最も高い上向きの面 − CREST_BAND より低ければ法の面(天端でない)
+            float mx = y;
+            for (int a = 0; a < 8; a++)
+            {
+                float ang = a * Mathf.PI / 4f; float t2 = ScanOwner(x + Mathf.Cos(ang) * CREST_R, z + Mathf.Sin(ang) * CREST_R, who);
+                if (!float.IsNaN(t2) && t2 > mx) mx = t2;
+            }
+            if (y < mx - CREST_BAND) { who = -1; return float.NaN; }
+            return y;
+        }
+        /// <summary>篩わない天端(帯で外した法の面も含む)。</summary>
+        public float TopRaw(float x, float z, out int who) { return Scan(x, z, true, out who); }
+        float ScanOwner(float x, float z, int k)
+        {
+            float best = float.NaN, y;
+            List<int> l; if (!hash.TryGetValue(K(Mathf.FloorToInt(x / B), Mathf.FloorToInt(z / B)), out l)) return best;
+            foreach (var id in l)
+                if (owner[id] == k && up[id] && TriYAt(tris[id], x, z, out y) && (float.IsNaN(best) || y > best)) best = y;
+            return best;
+        }
         /// <summary>(x,z) の部材の最も低い面(= 底)。</summary>
         public float Bottom(float x, float z, out int who) { return Scan(x, z, false, out who); }
         /// <summary>(x,z) から平面で <paramref name="r"/> 以内を通る**鉛直な面**(石垣の見え面・小口)の、その位置での最も低い所。
@@ -260,7 +291,8 @@ public static partial class EdoBuild
     public static SkinReport CutEdgeSkin(string name, Transform parent, IList<GameObject> parts, IList<SkinFace> faces,
                                          float faceTol, float step = 0.25f, float margin = 0.5f, float eps = 0f, float under = 0.15f,
                                          SkinDesign design = null, float drawTol = 0.10f, float backfill = 0f, bool sealFace = false,
-                                         IList<GameObject> digParts = null, float digUnder = 0.05f, float digBatter = 1f)
+                                         IList<GameObject> digParts = null, float digUnder = 0.05f, float digBatter = 1f,
+                                         IList<GameObject> crestBandParts = null)
     {
         var r = new SkinReport();
         var t = T(); var td = t.terrainData; var org = t.transform.position;
@@ -271,7 +303,8 @@ public static partial class EdoBuild
 
         // ---- 1 部材
         var idx = new TopIndex();
-        foreach (var g in parts) if (g != null && g.activeInHierarchy) idx.Add(g);
+        var bandSet = crestBandParts != null ? new HashSet<GameObject>(crestBandParts) : null;
+        foreach (var g in parts) if (g != null && g.activeInHierarchy) idx.Add(g, bandSet != null && bandSet.Contains(g));
         r.parts = idx.hulls.Count;
 
         // ---- 2 穴の升
@@ -585,12 +618,16 @@ public static partial class EdoBuild
         // ---- 3 皮の高さ(格子の点ごと)
         // 格子の点 (gi, gj) = 地形の原点 + (gi, gj) × step。升 (i, j) の中は gi ∈ [iN, (i+1)N]。
         var H = new Dictionary<long, float>(); var O = new Dictionary<long, float>(); var PIN = new HashSet<long>(); var SUNK = new HashSet<long>();
-        var topCache = new Dictionary<long, float>();
+        var topCache = new Dictionary<long, float>(); var faceTop = new HashSet<long>();
+        // 部材の天端(篩わない)。⭐ 天端の帯で篩う駒(crestBandParts)の**法の面**の点は faceTop に記す ──
+        //   そこでは天端の下へ納める cap を**足元の面の高さより下げない**(法の足は面の下へ入るのが正しい納め・掘らない)。
         Func<int, int, float> TopL = (gi, gj) =>
         {
             long k = CK(gi, gj); float v;
             if (topCache.TryGetValue(k, out v)) return v;
-            int who; v = idx.Top(org.x + gi * step, org.z + gj * step, out who);
+            int who; float x = org.x + gi * step, z = org.z + gj * step;
+            v = idx.TopRaw(x, z, out who);
+            if (!float.IsNaN(v) && who >= 0 && idx.banded[who] && float.IsNaN(idx.Top(x, z, out who))) faceTop.Add(k);
             topCache[k] = v; return v;
         };
         var botCache = new Dictionary<long, float>();
@@ -603,6 +640,16 @@ public static partial class EdoBuild
         };
         // 周りの天端で下げる範囲(格子の数)。2 = 0.5m ── 皮の四角の隅が外形から 0.35m 外にあっても天端の下へ入る。
         const int CAPR = 2;
+        Func<Vector2, bool> InBandedHull = q =>
+        {
+            for (int h = 0; h < idx.hulls.Count; h++)
+            {
+                if (!idx.banded[h]) continue; var hb = idx.bounds[h];
+                if (q.x < hb.x || q.x > hb.z || q.y < hb.y || q.y > hb.w) continue;
+                if (EdoGeom.PIP(idx.hulls[h], q)) return true;
+            }
+            return false;
+        };
         var nearCache = new Dictionary<long, int>();
         Func<int, int, int> NearPart = (gi, gj) =>
         {
@@ -659,17 +706,36 @@ public static partial class EdoBuild
                                 else foreach (var f in fl) if (EdgeDist(f.poly, p) < step * 1.5f) { hgt = f.y; faced = true; break; }
                             }
                         }
+                        // ⭐ 天端の帯で篩う駒の**法の面の下**(外形の中・天端の帯の外)は、その点の面の高さで描く ── 法の足・控えは面の土の下へ入る
+                        //   (2026-09-25: 野面の背と腰石垣の間の帯 SukibeiSoto_Chu が、腰石垣の深い法の上で元の地形 28.85 のまま 0.4m の溝になった)。
+                        //   上向きの面が無い点(城の石垣の急な法の真下)も同じ ── 篩う駒の外形の中に限る。
+                        if (near == 2 && !faced && (faceTop.Contains(CK(gi, gj)) || (float.IsNaN(TopL(gi, gj)) && InBandedHull(p))))
+                        { float fy = FaceY(p); if (!float.IsNaN(fy)) { hgt = fy; faced = true; } }
                         if (faced) r.faced++;
                         float hgt0 = hgt;
                         // 部材の天端の下へ納める(真下 = 天端 − under / 周り 8 点の天端の最小 − eps)
                         float self = TopL(gi, gj), cap = float.NaN, capN1 = float.NaN;
-                        if (!float.IsNaN(self)) cap = self - under;
+                        // 法の面の cap の下限: 外形の外の点はその点の描く地盤(面・設計の地盤)、外形の中は足元の面(無ければ下限なし)
+                        //   ── 法の足は地盤の下へ入るのが正しい納め。⛔ 法の面へ向けて地盤を掘り下げない(野面の隅の南で 29.55 → 27.88 と掘れた)。
+                        //   面の外(造成しない地盤)では、法の面が地盤より 2×帯 を超えて低いときだけ ── 打ち切りの駒の先の天端が地盤へ沈む所
+                        //   (天端が急に下がり帯で篩われる)は地盤の方を天端へ下げて被せない。
+                        float fyIn = near < 2 ? float.NaN : FaceY(p);
+                        Func<float, float> Floor = tq =>
+                        {
+                            if (near == 2 && !float.IsNaN(fyIn)) return Mathf.Max(tq, fyIn);
+                            //   面の外の外形の中(出隅の駒の地盤側の腕など)も、法が地盤より 2×帯 を超えて低ければ地盤で止める
+                            //   (野面の隅 kado3 の南の腕の下に 27.95 の穴が口を開けた・2026-09-25)
+                            if (faced || hgt0 - tq > 2f * CREST_BAND) return Mathf.Max(tq, hgt0);
+                            return tq;
+                        };
+                        if (!float.IsNaN(self)) { cap = self - under; if (faceTop.Contains(CK(gi, gj))) cap = Floor(cap); }
                         for (int di = -CAPR; di <= CAPR; di++)
                             for (int dj = -CAPR; dj <= CAPR; dj++)
                             {
                                 if (di == 0 && dj == 0) continue;
                                 float tq = TopL(gi + di, gj + dj); if (float.IsNaN(tq)) continue;
-                                tq -= eps; if (float.IsNaN(cap) || tq < cap) cap = tq;
+                                tq -= eps; if (faceTop.Contains(CK(gi + di, gj + dj))) tq = Floor(tq);
+                                if (float.IsNaN(cap) || tq < cap) cap = tq;
                                 if (Mathf.Abs(di) <= 1 && Mathf.Abs(dj) <= 1 && (float.IsNaN(capN1) || tq < capN1)) capN1 = tq;
                             }
                         // 裏込めの天端の下限: 外形の縁の帯(FLAT)では真下の天端 − FILL_UNDER まで・周りは 1 格子(0.25m)の天端まで。
@@ -870,9 +936,10 @@ public static partial class EdoBuild
     }
 
     /// <summary>皮と部材の取り合いを測り直す(皮を起こし直さずに)。<paramref name="samples"/> に隙の点を最大 20 行刷る。</summary>
-    public static SkinReport MeasureSkinContact(IList<GameObject> parts, List<string> samples = null)
+    public static SkinReport MeasureSkinContact(IList<GameObject> parts, List<string> samples = null, IList<GameObject> crestBandParts = null)
     {
-        var idx = new TopIndex(); foreach (var g in parts) if (g != null && g.activeInHierarchy) idx.Add(g);
+        var bs = crestBandParts != null ? new HashSet<GameObject>(crestBandParts) : null;
+        var idx = new TopIndex(); foreach (var g in parts) if (g != null && g.activeInHierarchy) idx.Add(g, bs != null && bs.Contains(g));
         var r = new SkinReport(); r.parts = idx.hulls.Count; r.mesh = "—";
         MeasureSkin(idx, ref r, samples); return r;
     }
@@ -904,7 +971,8 @@ public static partial class EdoBuild
                     var pe = A + tn * s; var pin = pe - nrm * 0.05f; var pout = pe + nrm * 0.05f;
                     // ⭐ 皮の外(地形のまま)の点も測る ── 斜面が壁の底より低い取り合いは皮の外に出る
                     int w1, w2;
-                    float top = idx.Top(pin.x, pin.y, out w1), bot = idx.Bottom(pin.x, pin.y, out w2);
+                    // 被りは天端の帯で測る(帯で篩う駒の法の面は、足元の面の下へ入る根入れ ── 被りに数えない)。隙は篩わない天端の有無で測る。
+                    float top = idx.Top(pin.x, pin.y, out w1), topRaw = idx.TopRaw(pin.x, pin.y, out w2), bot = idx.Bottom(pin.x, pin.y, out w2);
                     for (int q = 1; q <= 2; q++)
                     { var pq = pe - nrm * (0.15f * q); float bq = idx.Bottom(pq.x, pq.y, out w2); if (!float.IsNaN(bq) && (float.IsNaN(bot) || bq < bot)) bot = bq; }
                     // 鉛直な見え面・小口の下の縁(殻の駒)も底に数える
@@ -979,22 +1047,25 @@ public static partial class EdoBuild
                     var pe = A + tn * s; var pin = pe - nrm * 0.05f; var pout = pe + nrm * 0.05f;
                     if (!dg.InHole(pout.x, pout.y) && !dg.InHole(pin.x, pin.y) && !dg.Covered(pout.x, pout.y)) continue;    // 皮の外(地形)は測らない
                     int w1, w2;
-                    float top = idx.Top(pin.x, pin.y, out w1), bot = idx.Bottom(pin.x, pin.y, out w2);
+                    // 被りは天端の帯で測る(帯で篩う駒の法の面は、足元の面の下へ入る根入れ ── 被りに数えない)。隙は篩わない天端の有無で測る。
+                    float top = idx.Top(pin.x, pin.y, out w1), topRaw = idx.TopRaw(pin.x, pin.y, out w2), bot = idx.Bottom(pin.x, pin.y, out w2);
                     // 底は縁から 0.3m 内までの最も低い面(法のある石垣・開いた殻の駒は縁の真下に底が無い)
                     for (int q = 1; q <= 2; q++)
                     { var pq = pe - nrm * (0.15f * q); float bq = idx.Bottom(pq.x, pq.y, out w2); if (!float.IsNaN(bq) && (float.IsNaN(bot) || bq < bot)) bot = bq; }
                     // 鉛直な見え面・小口の下の縁(殻の駒)も底に数える
                     { float wb = idx.WallBottom(pe.x, pe.y, 0.10f); if (!float.IsNaN(wb) && (float.IsNaN(bot) || wb < bot)) bot = wb; }
-                    if (float.IsNaN(top)) continue;
+                    if (float.IsNaN(topRaw)) continue;
                     // 被り: 外形の内で 皮 > 天端
                     float gin = dg.At(pin.x, pin.y);
-                    if (!float.IsNaN(gin))
+                    if (!float.IsNaN(gin) && !float.IsNaN(top))
                     {
                         r.coverPts++;
                         if (gin > top + 1e-3f)
                         {
                             r.coverN++; int c0; covBy.TryGetValue(idx.names[k], out c0); covBy[idx.names[k]] = c0 + 1;
                             if (gin - top > r.coverMax) { r.coverMax = gin - top; r.coverAt = new Vector3(pin.x, top, pin.y); }
+                            if (samples != null && samples.Count < 400)
+                                samples.Add("[被り]" + idx.names[k] + " pin(" + pin.x.ToString("F2") + ", " + pin.y.ToString("F2") + ") 皮 " + gin.ToString("F2") + " 天端 " + top.ToString("F2") + " 外向き(" + nrm.x.ToString("F2") + ", " + nrm.y.ToString("F2") + ")");
                         }
                     }
                     // 隙: 外形の外(他の部材の下でない所)で 皮 < 底 − 0.01(部材の下が覗く)

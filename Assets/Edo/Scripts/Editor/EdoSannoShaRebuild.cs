@@ -766,7 +766,8 @@ public static class EdoSannoShaRebuild
             Vector2 fv; if (!faceOf.TryGetValue(g, out fv)) fv = EdoBuild.FaceSide(new List<GameObject> { g }, new Vector2(g.transform.right.x, g.transform.right.z).normalized);
             faces[g] = new Vector3(fv.x, 0f, fv.y);
         }
-        var tk = EdoBuild.TuckUnderCrest(placed, null, faces: faces);
+        // ⭐ 天端の帯(EdoBuild.CREST_BAND)の下だけを納める ── 法の足の前の面を掘らない(野面の土留め・2026-09-25)
+        var tk = EdoBuild.TuckUnderCrest(placed, null, faces: faces, crestBand: EdoBuild.CREST_BAND);
         EditorUtility.SetDirty(EdoBuild.T().terrainData); AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
         sb.AppendLine("  " + (tk.thin > 0 ? "⛔ " : "") + "天端の下の地形: " + tk);
         return "土留め: 駒 " + total + " 枚 / ⛔ 埋まっていて建てなかった " + buried + " 枚 ≒ " +
@@ -2272,8 +2273,11 @@ public static class EdoSannoShaRebuild
         var dig = new List<GameObject>(); var lineWalls = new List<string>();
         foreach (var o in L(Doc, "terraceWalls")) { var tw = o as Dictionary<string, object>; if (tw != null && S(tw, "copingRise") == "line") lineWalls.Add(S(tw, "name") + "_"); }
         foreach (var g in parts) foreach (var lw in lineWalls) if (g.name.StartsWith(lw, StringComparison.Ordinal)) { dig.Add(g); break; }
+        // ⭐ 土留めは天端の帯で篩う(法の面の点では天端の下へ納める cap を足元の面より下げない ── 法の足の前を溝にしない・2026-09-25)
+        var band = new List<GameObject>(); foreach (Transform c in Group("Dodome")) band.Add(c.gameObject);
         var rep = EdoBuild.CutEdgeSkin("Sanno", grp, parts, faces, tol, design: design, backfill: 0f, sealFace: true,
-                                       digParts: dig, digUnder: 0.05f, digBatter: Mathf.Max(1f, F(cst, "batterCut")));
+                                       digParts: dig, digUnder: 0.05f, digBatter: Mathf.Max(1f, F(cst, "batterCut")),
+                                       crestBandParts: band);
         AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
         var sb = new StringBuilder();
         sb.AppendLine("縁の皮: 古い皮を外して塞いだ升 " + filled + " / 部材 " + rep.parts + " / 面 " + faces.Count);
@@ -2365,19 +2369,25 @@ public static class EdoSannoShaRebuild
         if (sode.Count > 0) sb.AppendLine("    袖の天端: " + EdoBuild.TuckUnderCrest(sode, null, faces: sodeFace, measureOnly: true));
         var dodome = new List<GameObject>(); var face = new Dictionary<GameObject, Vector3>();
         foreach (Transform c in Group("Dodome"))
-        {   // 見え面は実メッシュで測る(法の付いた面 = EdoBuild.FaceSide)
+        {   // 見え面は実メッシュで測る(法の出の大きい軸 = EdoBuild.WallFace ── 野面の駒は局所 +Z・城の石垣は −X)。
+            //   野面の隅の駒(…_kado<番>)は見え面が二つ ⇒ 両面の間の対角を渡す(列が稜線の天端を通る・Stage3 と同じ)
             dodome.Add(c.gameObject);
-            var fv = EdoBuild.FaceSide(new List<GameObject> { c.gameObject }, new Vector2(c.right.x, c.right.z).normalized);
+            Vector2 fv;
+            if (System.Text.RegularExpressions.Regex.IsMatch(c.name, "_kado\\d+$")) { Vector2 f1, f2; EdoBuild.KadoFaces(c.gameObject, out f1, out f2); fv = (f1 + f2).normalized; }
+            else fv = EdoBuild.WallFace(c.gameObject);
             face[c.gameObject] = new Vector3(fv.x, 0f, fv.y);
         }
-        if (dodome.Count > 0) sb.AppendLine("    土留めの天端: " + EdoBuild.TuckUnderCrest(dodome, null, faces: face, measureOnly: true));
+        if (dodome.Count > 0) sb.AppendLine("    土留めの天端: " + EdoBuild.TuckUnderCrest(dodome, null, faces: face, measureOnly: true, crestBand: EdoBuild.CREST_BAND));
         // 見え面(法の面)の向き: 低い側を向くか(EdoBuild.WallFaceRise)。+0.05 を超えて高い側を向く駒を run ごとに刷る
         {
             var fam = new SortedDictionary<string, int[]>(); int nAll = 0, nRev = 0, nLvl = 0;
             foreach (var g in dodome)
             {
                 if (g.name.EndsWith("_kado", StringComparison.Ordinal)) continue;
-                float d = EdoBuild.WallFaceRise(g, (x, z) => dg.At(x, z)); if (float.IsNaN(d)) continue;
+                // 野面の隅の駒(名 …_kado<番>)は見え面が二つ ⇒ 対角の内と両面の前で測る(EdoBuild.WallFaceRiseKado)
+                bool kado = System.Text.RegularExpressions.Regex.IsMatch(g.name, "_kado\\d+$");
+                float d = kado ? EdoBuild.WallFaceRiseKado(g, (x, z) => dg.At(x, z)) : EdoBuild.WallFaceRise(g, (x, z) => dg.At(x, z));
+                if (float.IsNaN(d)) continue;
                 int us = g.name.LastIndexOf('_'); string k = us > 0 ? g.name.Substring(0, us) : g.name;
                 int[] c; if (!fam.TryGetValue(k, out c)) { c = new int[3]; fam[k] = c; }
                 c[0]++; nAll++;

@@ -662,7 +662,8 @@ public static partial class EdoBuild
     /// 検め(3)は**描かれた地表**(<see cref="Drawn"/>: 穴の升では皮)で測る。</para>
     public static CrestTuck TuckUnderCrest(IList<GameObject> pieces, string mat, float depth = 0.15f,
                                            float minGap = 0.01f, float inset = 0.10f, float coTol = 0.05f,
-                                           IDictionary<GameObject, Vector3> faces = null, bool measureOnly = false)
+                                           IDictionary<GameObject, Vector3> faces = null, bool measureOnly = false,
+                                           float crestBand = 0f)
     {
         var r = new CrestTuck { gapMin = float.NaN };
         var t = T(); var td = t.terrainData; var org = t.transform.position;
@@ -686,6 +687,20 @@ public static partial class EdoBuild
             float best = float.NaN, y;
             foreach (var q in tris) if (TriYAt(q, x, z, out y) && (float.IsNaN(best) || y > best)) best = y;
             return best;
+        };
+        // ⭐ 天端の帯(crestBand > 0・2026-09-25 EDO-0430): 節点を下げるのは**天端の帯の下**だけ。周り CREST_R の同じ駒の面の最高から
+        //   crestBand より低い面は法(見え面)で、その下の地表は足元の面 ── 下げると法の足の前が溝になり石の下端が覗く
+        //   (本殿の西の野面の土留めで 28.30 の面が 27.99 まで掘れた)。
+        Func<List<Vector3[]>, float, float, float> CrestTop = (tris, x, z) =>
+        {
+            float y = Top(tris, x, z); if (crestBand <= 0f || float.IsNaN(y)) return y;
+            float mx = y;
+            for (int a = 0; a < 8; a++)
+            {
+                float ang = a * Mathf.PI / 4f; float t2 = Top(tris, x + Mathf.Cos(ang) * CREST_R, z + Mathf.Sin(ang) * CREST_R);
+                if (!float.IsNaN(t2) && t2 > mx) mx = t2;
+            }
+            return y < mx - crestBand ? float.NaN : y;
         };
         // 天端と地表が**面で**重なっているか ── その点と前後左右 0.1m がみな |天端 − 地表| < minGap。
         //   ⭐ 線(天端の面取り・斜めの地表が天端を横切る所)は 0.1m で差が数 cm 変わるので数えない ── 斑に見えるのは面だけ。
@@ -728,7 +743,7 @@ public static partial class EdoBuild
                 for (int k = 0; k < hulls.Count; k++)
                 {
                     if (!EdoGeom.PIP(hulls[k], p)) continue;
-                    float top = Top(trisL[k], p.x, p.y); if (float.IsNaN(top)) continue;
+                    float top = CrestTop(trisL[k], p.x, p.y); if (float.IsNaN(top)) continue;
                     if (float.IsNaN(crest) || top < crest) { crest = top; lim = top - depth; }
                 }
                 if (float.IsNaN(lim)) continue;
@@ -760,6 +775,7 @@ public static partial class EdoBuild
                         if (!EdoGeom.PIP(h, p) || EdgeDist(h, p) < inset) continue;
                         float top = Top(trisL[k], x, z); if (float.IsNaN(top)) continue;
                         if (!Sheet(k, x, z)) continue;
+                        if (crestBand > 0f && float.IsNaN(CrestTop(trisL[k], x, z))) continue;   // 法の面の下は下げない
                         int ci = Mathf.FloorToInt((x - org.x) / cx) - i0, cj = Mathf.FloorToInt((z - org.z) / cz) - j0;
                         for (int dj = 0; dj <= 1; dj++)
                             for (int di = 0; di <= 1; di++)
@@ -855,6 +871,8 @@ public static partial class EdoBuild
                     r.samples++;
                     if (gap < -coTol)
                     {
+                        // 天端の帯の外(法の面)の点は根入れ ── 埋没に数えない(crestBand・出隅の駒の稜線の脇で列の向きが合わない所も)
+                        if (crestBand > 0f && float.IsNaN(CrestTop(trisL[k], x, z))) { r.faceIn++; continue; }
                         // 見える天端の帯か: 見え面へ向かって歩き、縁まで覆われ続けるなら埋没
                         if (fd != Vector2.zero)
                         {

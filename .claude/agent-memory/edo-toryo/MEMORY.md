@@ -63,7 +63,7 @@
 - [穴と皮の罠](terrain-holes-and-skin-traps.md) — 穴の升の地形の木は消える・地形のシェーダの材質は黒・艶で白く光る。木の升は開けない
 - [Castle Wall の見え面は局所 −X](castlewall-face-is-local-minus-x.md) — 山王の土留め 162/233 駒が法の面を高い側へ。FaceSide/WallFaceRise で測る
 - [裏込めの皮は退役・原因は殻の石垣の底の測り違い](backfill-skin-needs-three-limits.md) — 鉛直な見え面で底が天端に化け偽の隙4510。WallBottom で15
-- [野面の土留めの3つの罠](nozura-wall-traps.md) — 見え面は局所+Z・殻の石垣は光線で測る・⛔足の浅い土留めは皮とTuckが足元を掘る(未解決)
+- [野面の土留めの罠](nozura-wall-traps.md) — 見え面は局所+Z・殻の石垣は光線で測る・足元の溝は天端の帯(CREST_BAND)で解消・背の帯の溝と Stage7 の順
 
 ## 測り方・関門
 

@@ -704,19 +704,29 @@ public static class EdoSannoSashizuCheck
                     foreach (var p in poly)
                     { mnx = Mathf.Min(mnx, p.x); mxx = Mathf.Max(mxx, p.x); mnz = Mathf.Min(mnz, p.y); mxz = Mathf.Max(mxz, p.y); }
                     int n = 0, over = 0, blank = 0, hid = 0; float worst = 0f; Vector2 worstAt = Vector2.zero;
-                    for (float x = mnx; x <= mxx; x += 2f)
-                        for (float z = mnz; z <= mxz; z += 2f)
-                        {
-                            if (!Inside(poly, x, z)) continue;
-                            if (underPart(x, z)) { hid++; continue; }
-                            n++;
-                            float gz = dg.At(x, z);
-                            if (float.IsNaN(gz)) { blank++; continue; }
-                            float d = gz - y;
-                            if (Mathf.Abs(d) > gradeTol) over++;
-                            if (Mathf.Abs(d) > Mathf.Abs(worst)) { worst = d; worstAt = new Vector2(x, z); }
-                        }
-                    head.AppendLine("    面 " + name + ": 標本 " + (n + hid) + " 点のうち部材の外形の中 " + hid + " 点を外し " + n + " 点で測る");
+                    // ⭐ 標本の刻みは 2m から始め、部材の下を外して見える点が MIN_VIS 未満なら 0.5m → 0.25m と細かくする
+                    //   (2026-09-25 EDO-0430: 細い帯 SukibeiSoto_Chu は 2m の標本 2 点が両方とも部材の下で「輪郭が壊れている」と嘘を出した)。
+                    //   ⛔ 部材の下の点は数えない(見えない)。どの刻みでも見える点が 0 なら、面は全て部材の下 ── 測る物が無い(不合格にしない)。
+                    const int MIN_VIS = 8; float stepUsed = 2f;
+                    foreach (float st in new[] { 2f, 0.5f, 0.25f })
+                    {
+                        n = 0; over = 0; blank = 0; hid = 0; worst = 0f; worstAt = Vector2.zero; stepUsed = st;
+                        for (float x = mnx; x <= mxx; x += st)
+                            for (float z = mnz; z <= mxz; z += st)
+                            {
+                                if (!Inside(poly, x, z)) continue;
+                                if (underPart(x, z)) { hid++; continue; }
+                                n++;
+                                float gz = dg.At(x, z);
+                                if (float.IsNaN(gz)) { blank++; continue; }
+                                float d = gz - y;
+                                if (Mathf.Abs(d) > gradeTol) over++;
+                                if (Mathf.Abs(d) > Mathf.Abs(worst)) { worst = d; worstAt = new Vector2(x, z); }
+                            }
+                        if (n >= MIN_VIS) break;
+                    }
+                    head.AppendLine("    面 " + name + ": 標本 " + (n + hid) + " 点(刻み " + stepUsed.ToString("0.##") + "m)のうち部材の外形の中 " + hid + " 点を外し " + n + " 点で測る");
+                    if (n == 0 && hid > 0) { head.AppendLine("      面 " + name + " は全て部材の外形の下(見える所が無い ── 測る物が無い)"); continue; }
                     if (n == 0) { bad("造成の面", "面 " + name + " に標本が取れない(輪郭が壊れている)"); continue; }
                     if (over > 0)
                         bad("造成の面", "面 " + name + "(設計 y=" + y.ToString("F2") + ")が造成されていない — 標本 " +

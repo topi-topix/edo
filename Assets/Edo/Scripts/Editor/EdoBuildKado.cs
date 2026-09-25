@@ -294,19 +294,54 @@ public static partial class EdoBuild
     public static float WallFaceRise(GameObject piece, Func<float, float, float> groundAt)
     {
         var tr = piece.transform;
-        // 見え面の軸は部材ごとに違う(Castle Wall は局所 ±X・野面の駒は局所 ±Z)⇒ 両軸で法の出を測り、出の大きい軸を採る
-        Vector2 f = Vector2.zero; float bestOut = float.MinValue;
-        foreach (var a3 in new[] { tr.right, tr.forward })
-        {
-            var ax = new Vector2(a3.x, a3.z).normalized; var fs = FaceSide(new List<GameObject> { piece }, ax);
-            float o = BatterOut(piece, fs); if (o > bestOut) { bestOut = o; f = fs; }
-        }
+        Vector2 f = WallFace(piece);
         var vs = Body(tr, 999999); if (vs.Count == 0) return float.NaN;
         float fmax = float.MinValue, bmin = float.MaxValue; Vector2 cen = Vector2.zero;
         foreach (var v in vs) { float d = v.x * f.x + v.z * f.y; fmax = Mathf.Max(fmax, d); bmin = Mathf.Min(bmin, d); cen += new Vector2(v.x, v.z); }
         cen /= vs.Count; float cd = cen.x * f.x + cen.y * f.y;
         Vector2 pf = cen + f * (fmax - cd + 0.8f), pb = cen + f * (bmin - cd - 0.8f);
         return groundAt(pf.x, pf.y) - groundAt(pb.x, pb.y);
+    }
+    /// <summary>**石垣の駒の見え面の向き**(世界 XZ の単位)。見え面の軸は部材ごとに違う(Castle Wall は局所 ±X・野面の駒は局所 ±Z)
+    /// ⇒ 両軸で法の出(<see cref="BatterOut"/>)を測り、出の大きい軸の <see cref="FaceSide"/> を採る(2026-09-25・EDO-0430)。
+    /// 当たる先: 土留めの見え面の向き・天端の帯の数え(TuckUnderCrest の faces)を要る全て。</summary>
+    public static Vector2 WallFace(GameObject piece)
+    {
+        // ⭐ 見え面は駒の**薄い向き**(走りを横切る向き)にある。法の出が両軸で出るとき(打ち切りの駒は走りの向きに天端が下がり、
+        //   下の帯が走りの向きへ張り出して「法の出」に化ける ── 2026-09-25 EDO-0430 野面の打ち切り W_017f)は薄い軸を採る。
+        var tr = piece.transform; var vs = Body(tr, 999999);
+        Vector2 f = Vector2.zero; float bestOut = float.MinValue; Vector2 thinF = Vector2.zero; float thinOut = float.NaN, thinW = float.MaxValue;
+        foreach (var a3 in new[] { tr.right, tr.forward })
+        {
+            var ax = new Vector2(a3.x, a3.z).normalized; var fs = FaceSide(new List<GameObject> { piece }, ax);
+            float o = BatterOut(piece, fs); if (o > bestOut) { bestOut = o; f = fs; }
+            float lo = float.MaxValue, hi = float.MinValue; foreach (var v in vs) { float d = v.x * ax.x + v.z * ax.y; lo = Mathf.Min(lo, d); hi = Mathf.Max(hi, d); }
+            if (hi - lo < thinW) { thinW = hi - lo; thinF = fs; thinOut = o; }
+        }
+        if (!float.IsNaN(thinOut) && thinOut > 0.05f) return thinF;
+        return f;
+    }
+    /// <summary>出隅の駒の二つの見え面(局所の二軸の <see cref="FaceSide"/>)。</summary>
+    public static void KadoFaces(GameObject piece, out Vector2 f1, out Vector2 f2)
+    {
+        var tr = piece.transform;
+        f1 = FaceSide(new List<GameObject> { piece }, new Vector2(tr.right.x, tr.right.z).normalized);
+        f2 = FaceSide(new List<GameObject> { piece }, new Vector2(tr.forward.x, tr.forward.z).normalized);
+    }
+    /// <summary>**出隅の駒の見え面が低い側を向いているかを測る**(2026-09-25・EDO-0430)。隅の駒は見え面が二つ(局所の二軸・
+    /// 各々 <see cref="FaceSide"/>)で、一軸の前後で測る <see cref="WallFaceRise"/> は後ろの点が隣の腕の前(低い面)に落ちて
+    /// 「裏返り」と嘘を出す(野面の隅 kado2 で +0.25)。⇒ 後ろ = 二つの見え面の**対角の内**(両面の合成の逆向き)の 0.8m 先、
+    /// 前 = 各々の見え面の 0.8m 先。返り値 = 前の高い方 − 後ろ[m](+ なら裏返り)。
+    /// 当たる先: 野面の隅の駒(`SannoNozuraKado`)・城の石垣の出隅(`Ishigaki_Kado_*`)。</summary>
+    public static float WallFaceRiseKado(GameObject piece, Func<float, float, float> groundAt)
+    {
+        var tr = piece.transform; var vs = Body(tr, 999999); if (vs.Count == 0) return float.NaN;
+        Vector2 f1, f2; KadoFaces(piece, out f1, out f2);
+        Vector2 cen = Vector2.zero; foreach (var v in vs) cen += new Vector2(v.x, v.z); cen /= vs.Count;
+        Func<Vector2, float> ext = d => { float m = float.MinValue; foreach (var v in vs) m = Mathf.Max(m, Vector2.Dot(new Vector2(v.x, v.z) - cen, d)); return m; };
+        Vector2 back = -(f1 + f2).normalized;
+        Vector2 pb = cen + back * (ext(back) + 0.8f), p1 = cen + f1 * (ext(f1) + 0.8f), p2 = cen + f2 * (ext(f2) + 0.8f);
+        return Mathf.Max(groundAt(p1.x, p1.y), groundAt(p2.x, p2.y)) - groundAt(pb.x, pb.y);
     }
     /// <summary>向き <paramref name="f"/> への法の出 = 下の帯(下 25%)の張り出し − 上の帯(上 15%)の張り出し[m]。</summary>
     static float BatterOut(GameObject piece, Vector2 f)

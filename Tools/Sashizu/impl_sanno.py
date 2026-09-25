@@ -676,19 +676,31 @@ def asset_index():
 
     ⚠ 指図(json)には写さない — 部材を差し替えたら目録が変わり、写した値だけが古く残る。
     ⚠ **fbx も読む**(自作の木は prefab を持たず `EdoAssets.Own.*` が fbx を直に指す)。
+    ⭐ 木の列(`trunk_dx`・`trunk_dz`・`crown_r`・`edashita` ── 目録の頭の注釈が定義)は**見出しの名で**引く
+      (⛔ 列の位置で読まない ── 列が足されると黙ってずれる)。無い行・無い目録は None。
     """
     if _AIDX: return _AIDX
+    hd = None
     with open(os.path.join(ROOT, "docs/asset-index.tsv"), encoding="utf-8") as f:
         for ln in f:
             if ln.startswith("#"): continue
             c = ln.rstrip("\n").split("\t")
-            if len(c) < 12 or c[0] == "path" or c[3] not in ("prefab", "fbx"): continue
-            if c[3] == "fbx" and c[1] in _AIDX: continue
+            if c[0] == "path":
+                hd = dict((nm, i) for i, nm in enumerate(c)); continue
+            if hd is None: continue
+            col = lambda nm: (c[hd[nm]] if nm in hd and hd[nm] < len(c) else "")
+            if col("kind") not in ("prefab", "fbx"): continue
+            nm0 = col("name")
+            if col("kind") == "fbx" and nm0 in _AIDX: continue
             try:
-                rec = {"sx": float(c[4]), "sy": float(c[5]), "sz": float(c[6]), "tris": int(c[9])}
+                rec = {"sx": float(col("sx")), "sy": float(col("sy")), "sz": float(col("sz")), "tris": int(col("tris"))}
             except ValueError:
                 continue
-            if c[3] == "prefab" or c[1] not in _AIDX: _AIDX[c[1]] = rec
+            for k9 in ("trunk_dx", "trunk_dz", "crown_r"):
+                try: rec[k9] = float(col(k9)) if col(k9).strip() not in ("", "-") else None
+                except ValueError: rec[k9] = None
+            rec["edashita"] = col("edashita").strip() or None
+            if col("kind") == "prefab" or nm0 not in _AIDX: _AIDX[nm0] = rec
     return _AIDX
 
 
@@ -1528,8 +1540,14 @@ def kakoi_avoid_shapes(d, sh_ken, skip_zentei=False):
     import sashizu_lib as L
     for w in d.get("terraceWalls", []):
         if skip_zentei and w["name"].startswith("TW_Zentei"): continue
-        pts = [tuple(q) for q in (w.get("pts") or [w.get("a"), w.get("b")])]
-        if any(q is None for q in pts) or len(pts) < 2: continue
+        pts = w.get("pts") or [w.get("a"), w.get("b")]
+        if any(q is None for q in pts) or len(pts) < 2:
+            # ⛔ 形の宣言(`edgeOf` / `vFrom`)を持つ壁を黙って落とさない ── 形は `derive_edge_walls` ほかの
+            #   derive_* が入れる(`bake` の頭)。解く前に呼ばれたら止める(EDO-0409 2026-09-25)。
+            if w.get("edgeOf") or w.get("vFrom"):
+                raise SystemExit("土留め %s の形がまだ解かれていない(`edgeOf`/`vFrom`)── derive_* の後に呼ぶ" % w["name"])
+            continue
+        pts = [tuple(q) for q in pts]
         # ⭐ 肩は**天端の奥の縁**から測る(EDO-0409 2026-09-25)── 奥行は `sashizu_lib.dodome_crest_depth`
         #   (`kakoi_line_keepout` と同じ一本・両側へ取る)。⛔ 紙の線(天端の前の縁/段石の小口)から測らない。
         cd = L.dodome_crest_depth(d, w)[0] / ken
@@ -4843,7 +4861,7 @@ def _apportion(vals, tot):
     return fl
 
 
-def _scatter_take(rnd, cells, n, rmin, seeded=(), other=(), rx=0.0):
+def _scatter_take(rnd, cells, n, rmin, seeded=(), other=(), rx=0.0, accept=None):
     """候補のセル(uv)から **n 点**を決定論的に採る。芯々の下限は `rmin`[間]。
 
     ⭐ **層をまたぐ幹の芯々 `rx`[間] は硬い(許容0)**【EDO-0420 2026-09-23】── `other` は
@@ -4855,6 +4873,8 @@ def _scatter_take(rnd, cells, n, rmin, seeded=(), other=(), rx=0.0):
       中心を外すと退避へはみ出す点が出る(図が測った面と別物になる)。
     ⚠ 採りきれなければ `rmin` を 0.9 倍して採り直す。**緩めた回数は記録に残す**
       (⛔ 黙って詰めない — 密度と芯々が両立しないことは指図の側の欠陥である)。
+    ⭐ `accept(p)` があれば、芯々を満たした候補を**さらにその口で**採るか決める(道の上の枝下 ── 硬い制約。
+      木を起こしてから測るので、起こした行は呼び手が `accept.memo` から引く)。
     戻り (点, 実際の rmin, 緩めた回数)。
     """
     cs = list(cells)
@@ -4888,6 +4908,7 @@ def _scatter_take(rnd, cells, n, rmin, seeded=(), other=(), rx=0.0):
                     if not ok: break
                 if not ok: break
             if not ok: continue
+            if accept is not None and not accept(p): continue
             gr.setdefault(c, []).append(p)
             out.append(p)
             if len(out) >= n: return out, r, relax
@@ -4929,6 +4950,49 @@ def cross_layer_pairs(d, pts):
                         out.append((q["name"], p["name"], round(dd, 3)))
         gr.setdefault(c, []).append(p)
     return out
+
+
+_EDA = {}
+
+
+def edashita_road_fail(d, row):
+    """**道の上の枝下**(`planting.bandDef.avoid.edaShitaOverRoadM`)を満たさない所 ── 満たせば None。
+    判定は `sashizu_lib.edashita_over_road` の一本(検査 C30 と同じ)。道 = 敷地割の間(`road_region`)、
+    路面 = 造成前の地盤 `dem_h`(道は現地形 ── 規則9)、足元 = 焼いた `y`。宣言が無ければ None。"""
+    import sashizu_lib as L
+    need = (((d["planting"].get("bandDef") or {}).get("avoid") or {})).get("edaShitaOverRoadM")
+    if need is None: return None
+    c = _EDA.get("v")
+    if c is None or c[0] is not d:
+        ps = json.load(open(os.path.join(DOC, "parcels.json"), encoding="utf-8"))["parcels"]
+        c = (d, L.road_region(d["polygon"], [(p["id"], p["pts"]) for p in ps]))
+        _EDA["v"] = c
+    rec = asset_index().get(row.get("prefab"))
+    r = L.edashita_over_road(row, rec, c[1], lambda q: dem_h(q[0], q[1]), float(need), own_poly=d["polygon"])
+    return r
+
+
+_EDA_REJ = {}
+
+
+def _eda_accept(d, mk, group):
+    """散布の候補を**木にしてから**採るか決める口(`_scatter_take(accept=…)`)。`mk(u, v)` が行を起こす。
+    枝下が道の上で足りない候補は退ける(硬い制約)── 退けた数は `_EDA_REJ[group]` に数える。
+    ⭐ 同じ候補の行は覚えて使い回す(緩めて採り直しても同じ木になる ── 決定論)。"""
+    memo = {}
+
+    def acc(p):
+        if p in memo: return memo[p] is not None
+        row = mk(p[0], p[1])
+        f = edashita_road_fail(d, row)
+        if f is not None and f != "noProfile":
+            memo[p] = None
+            _EDA_REJ[group] = _EDA_REJ.get(group, 0) + 1
+            return False
+        memo[p] = row
+        return True
+    acc.memo = memo
+    return acc
 
 
 def _pick_part(rnd, pal):
@@ -5077,6 +5141,7 @@ def scatter_pts(d, g):
       丈 = 帯の `matsuH`/`rakuyoH`/`chubokuH`/`teibokuH`、種 = `plantRule.seed` の宣言。
     戻り (点の列, 帯ごとの記録, 塊の記録)。
     """
+    _EDA_REJ.clear()                 # 道の上の枝下で退けた候補の数(`_eda_accept`)── 撒くたびに数え直す
     ken = d["const"]["ken"]
     pal = d["planting"]["parts"]
     pack = d["planting"]["plantRule"]["packRatio"]
@@ -5218,6 +5283,7 @@ def scatter_pts(d, g):
                     # ⭕ **`mix` の並びがそのまま南→北の順**(⛔ `mixZone` は当てない)
                     pts, r_, rx = line9[:k], sp, 0
                     line9 = line9[k:]
+                    accc = None          # ⛔ 線に並べる塊は設計の位置 ── 動かさず検査 C30 で測るだけ
                 else:
                     # ⭐ **樹種を v の小領域へ寄せる**(`mixZone`・2026-09-08 C-1)
                     zn = cluster_zone(c, kind)
@@ -5234,15 +5300,18 @@ def scatter_pts(d, g):
                             for a in range(int(math.floor(p[0] / rmin)) - 1, int(math.floor(p[0] / rmin)) + 2)
                             for b in range(int(math.floor(p[1] / rmin)) - 1, int(math.floor(p[1] / rmin)) + 2)
                             for q in gr9.get((a, b), ()))]
+                    accc = _eda_accept(d, lambda u9, v9, nm=nm, lay=lay, pt=pt, hh=hh, iso=iso, cap=cap:
+                                       _tree_row(d, g, rnd, "", nm, lay, [pt], hh, u9, v9, iso=iso, rmax=cap), nm)
                     pts, r_, rx = _scatter_take(rnd, cz, k, rmin,
                                                 seeded=gotb.get(bk9, []) + (seed0 if bk9 == "canopy" else []),
-                                                other=oth9, rx=xr0)
+                                                other=oth9, rx=xr0, accept=accc)
                 for (u9, v9) in pts:
                     got.append((u9, v9))
                     gotb.setdefault(bk9, []).append((u9, v9))
                     seq9[kind] = seq9.get(kind, 0) + 1
-                    q = _tree_row(d, g, rnd, "%s %s%02d" % (c["name"], kind, seq9[kind]),
-                                  nm, lay, [pt], hh, u9, v9, iso=iso, rmax=cap)
+                    q = (accc.memo.get((u9, v9)) if accc is not None else None) or _tree_row(
+                        d, g, rnd, "", nm, lay, [pt], hh, u9, v9, iso=iso, rmax=cap)
+                    q["name"] = "%s %s%02d" % (c["name"], kind, seq9[kind])
                     cl_pts.append(q)
                 if len(pts) < k:
                     cl_note.append({"name": nm, "short": k - len(pts)})
@@ -5399,13 +5468,17 @@ def scatter_pts(d, g):
                 rmin = (math.sqrt(100.0 / dm) * b.get("packRatio", pack) / ken) if dm > 0 else step
             rnd, key = rnd_of("帯%d %s" % (bn, b["name"]), lay)
             n = n_i[lay][i] - cl_cut.get((bn, lay), 0)
+            grp9 = "社叢 帯%d %s" % (bn, b["name"])
+            # ⭐ 道の上の枝下(硬い制約)── 候補を木にしてから測り、足りない所は退けて次の候補へ
+            acc9 = _eda_accept(d, lambda u9, v9, grp9=grp9, lay=lay, b=b:
+                               _tree_row(d, g, rnd, "", grp9, lay, pal[lay], b.get(HK[lay]), u9, v9), grp9)
             pts, r_, rx = _scatter_take(rnd, cand, max(0, n), rmin, seeded=seeded[bk],
-                                        other=_others(bk), rx=xr)
+                                        other=_others(bk), rx=xr, accept=acc9)
             seeded[bk] += list(pts)
-            for j, (u9, v9) in enumerate(pts):
-                out.append(_tree_row(d, g, rnd, "帯%d_%s%04d" % (bn, lay, j + 1),
-                                     "社叢 帯%d %s" % (bn, b["name"]), lay,
-                                     pal[lay], b.get(HK[lay]), u9, v9))
+            for j, p9 in enumerate(pts):
+                row9 = acc9.memo[p9]
+                row9["name"] = "帯%d_%s%04d" % (bn, lay, j + 1)
+                out.append(row9)
             bd_note.append({"band": bn, "layer": lay, "seed": key, "want": n,
                             "got": len(pts), "cells": len(cand), "step": step,
                             "rmin": round(rmin, 4), "rminUsed": round(r_, 4), "relax": rx})
@@ -5431,15 +5504,18 @@ def scatter_pts(d, g):
                 if n_t[ti] <= 0 or not cs: continue
                 dr = rinen_dens_t(d, b, t, lay) or 0.0
                 rminr = (math.sqrt(100.0 / dr) * b.get("packRatio", pack) / ken) if dr > 0 else step
+                grp9 = "社叢 帯%d %s の林縁(%s)" % (bn, b["name"], t.get("name") or "一段")
+                accr = _eda_accept(d, lambda u9, v9, grp9=grp9, lay=lay, b=b, t=t:
+                                   _tree_row(d, g, rnd, "", grp9, lay, pal[lay], rinen_h_t(d, b, t, lay), u9, v9),
+                                   grp9)
                 ptsr, rr_, rxr = _scatter_take(rnd, cs, max(0, n_t[ti]), rminr,
-                                               seeded=seeded[bk], other=_others(bk), rx=xr)
+                                               seeded=seeded[bk], other=_others(bk), rx=xr, accept=accr)
                 seeded[bk] += list(ptsr)
-                for (u9, v9) in ptsr:
+                for p9 in ptsr:
                     jj += 1
-                    out.append(_tree_row(d, g, rnd, "帯%d林縁_%s%04d" % (bn, lay, jj),
-                                         "社叢 帯%d %s の林縁(%s)"
-                                         % (bn, b["name"], t.get("name") or "一段"), lay,
-                                         pal[lay], rinen_h_t(d, b, t, lay), u9, v9))
+                    row9 = accr.memo[p9]
+                    row9["name"] = "帯%d林縁_%s%04d" % (bn, lay, jj)
+                    out.append(row9)
                 bd_note.append({"band": bn, "layer": "%s(林縁 %s)" % (lay, t.get("name") or "一段"),
                                 "seed": key, "want": n_t[ti], "got": len(ptsr),
                                 "cells": len(cs), "step": step, "rmin": round(rminr, 4),
@@ -6619,6 +6695,21 @@ def impl_props(d, g):
     }
 
 
+def _eda_road_note(d, pts):
+    """焼いた点の**道の上の枝下**の記録【EDO-0409】── 散布が退けた候補の数(群ごと)と、焼いた点のうち
+    満たさない点(名指し・線に並べた塊など動かさない木を含む)。判定は `edashita_road_fail` の一本(検査 C30)。"""
+    fail = []
+    for q in pts:
+        f = edashita_road_fail(d, q)
+        if f is not None and f != "noProfile":
+            fail.append([q["name"], q.get("group"), f["shortM"], f["ringM"]])
+    need = (((d["planting"].get("bandDef") or {}).get("avoid") or {})).get("edaShitaOverRoadM")
+    return {"needM": need, "rejected": dict(_EDA_REJ), "fails": len(fail),
+            "worst": sorted(fail, key=lambda r: -r[2])[:10],
+            "_": "道(敷地割の間)の上へ張り出す樹冠の枝下が 路面 − 足元 + `edaShitaOverRoadM` に足りない所(硬い制約)。"
+                 "`rejected` = 散布が退けて次の候補へ回した数"}
+
+
 def _cross_layer_note(d, pts):
     """焼いた点の**層をまたぐ幹の芯々**の記録【EDO-0420】。⛔ 0 件でなければ `bake_impl` が書かない。"""
     pr = cross_layer_pairs(d, pts)
@@ -6685,6 +6776,7 @@ def export_impl(d, g):
         ("setae", impl_props(d, g)),
         ("planting", {"points": pts, "bands": bd, "clusters": cl,
                       "crossLayer": _cross_layer_note(d, pts),
+                      "edaShitaRoad": _eda_road_note(d, pts),
                       "seedRule": d["planting"]["plantRule"]["seed"],
                       "placement": d["planting"]["plantRule"].get("placement"),
                       "_": "**撒いた木の点**。⛔ 実装側で撒き直さない — 別の乱数で撒けば"

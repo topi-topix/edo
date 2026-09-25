@@ -1681,3 +1681,83 @@ def do_rin_dist(R, u, v):
         dd = math.hypot(du, dv)
         if dd < best[0]: best = (dd, nm)
     return best
+
+
+# ================================================================ 道の上の枝下(EDO-0409 2026-09-25)
+def edashita_profile(s):
+    """目録 `docs/asset-index.tsv` の `edashita` 列(`r:h;r:h…` ── r = 0.5m 刻みの環の外半径・h = その環の最も
+    低い頂点の足元からの高さ。scale 1・m)を [(r, h)…] に。空・読めなければ []。"""
+    out = []
+    for tok in (s or "").split(";"):
+        if ":" not in tok: continue
+        a, b = tok.split(":", 1)
+        try: out.append((float(a), float(b)))
+        except ValueError: return []
+    return sorted(out)
+
+
+def road_region(own_poly, parcels):
+    """**道の上か**を答える関数 ── 道 = 敷地割の間に残った領域(自身の区画の外で、どの区画にも入らない所)。
+    `own_poly` は自身の区画(世界 xz)、`parcels` は [(id, 多角形(世界 xz))](自身を含んでよい ── 自身と同じ
+    輪郭の区画は除く)。⛔ 道の幅を持たない。"""
+    own = [tuple(q[:2]) for q in own_poly]
+    Q = []
+    for _pid, pp in parcels:
+        P = [tuple(q[:2]) for q in pp]
+        if len(P) == len(own) and all(abs(a[0] - b[0]) + abs(a[1] - b[1]) < 1e-3 for a, b in zip(P, own)):
+            continue
+        xs, zs = [q[0] for q in P], [q[1] for q in P]
+        Q.append(((min(xs), min(zs), max(xs), max(zs)), P))
+
+    def is_road(p):
+        if _pip(p, own): return False
+        for (x0, z0, x1, z1), P in Q:
+            if x0 <= p[0] <= x1 and z0 <= p[1] <= z1 and _pip(p, P): return False
+        return True
+    return is_road
+
+
+def edashita_over_road(pt, rec, is_road, road_y, need_m, own_poly=None, n_ang=24):
+    """**道の上へ張り出す樹冠の枝下**(`planting.bandDef.avoid.edaShitaOverRoadM`)。散布と検査の一本。
+
+    木 `pt`(焼いた点: world・y(足元の地盤)・scaleXZ・scaleY)と部材の目録の行 `rec`(crown_r・edashita・
+    trunk_dx/dz)から、樹冠の各環 r(部材の r × scaleXZ)のうち**道の上に在る所**で
+      要る枝下 = 路面 `road_y(p)` − 足元の地盤 + `need_m`
+      ある枝下 = edashita(r) × scaleY
+    を比べる。環は内外の縁と中ほどの三つの半径 × `n_ang` 方位で探る。幹の足の片寄り(trunk_dx/dz)は向きが
+    焼きに無いので、その長さ × scaleXZ だけ環を内外へ広げて探る(保守側)。
+    戻り None(満たす・張り出さない・目録に枝下が無い物は `"noProfile"` を返す)か
+    {"ringM", "needM", "haveM", "shortM", "at"}(最も足りない所)。
+    ⛔ 樹冠の丸みを発明しない ── 環の高さは目録の実測(部材の最も低い頂点)。
+    """
+    prof = edashita_profile((rec or {}).get("edashita"))
+    if not prof: return "noProfile"
+    xz = float(pt.get("scaleXZ") or 1.0)
+    sy = float(pt.get("scaleY") or 1.0)          # ⭐ 実装は scaleY が無ければ 1(EdoSannoShaRebuild)
+    off = math.hypot(float(rec.get("trunk_dx") or 0.0), float(rec.get("trunk_dz") or 0.0)) * xz
+    x0, z0 = pt["world"][0], pt["world"][1]
+    y0 = float(pt["y"])
+    reach = prof[-1][0] * xz + off
+    if own_poly is not None and _pip((x0, z0), own_poly):
+        # 張り出しの届かない木は探らない(区画の辺まで reach より遠い)
+        n = len(own_poly)
+        dmin = min(_seg_d((x0, z0), tuple(own_poly[i][:2]), tuple(own_poly[(i + 1) % n][:2])) for i in range(n))
+        if dmin > reach: return None
+    worst = None
+    rin = 0.0
+    for r, h in prof:
+        have = h * sy
+        for rr in (max(rin * xz - off, 0.0), (rin + r) / 2.0 * xz, r * xz + off):
+            if rr <= 1e-6: continue
+            for k in range(n_ang):
+                a = 2.0 * math.pi * k / n_ang
+                p = (x0 + rr * math.cos(a), z0 + rr * math.sin(a))
+                if not is_road(p): continue
+                ry = road_y(p)
+                if ry is None: continue
+                need = ry - y0 + float(need_m)
+                if have < need - 1e-9 and (worst is None or need - have > worst["shortM"]):
+                    worst = {"ringM": round(r * xz, 3), "needM": round(need, 3), "haveM": round(have, 3),
+                             "shortM": round(need - have, 3), "at": [round(p[0], 2), round(p[1], 2)]}
+        rin = r
+    return worst

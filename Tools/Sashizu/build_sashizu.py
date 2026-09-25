@@ -1559,7 +1559,10 @@ class Checks(object):
                                     "world": tuple(w[:2]) if w else M.W(o["u"], o["v"]),
                                     "crownR": (cm / 2.0) if isinstance(cm, (int, float)) else None,
                                     "name": o.get("name") or "", "place": o.get("place"), "layer": o.get("layer"),
-                                    "group": o.get("group") or ""})
+                                    "group": o.get("group") or "",
+                                    # 部材と倍率と足元(C30 道の上の枝下が読む ── 散布と同じ行の欄)
+                                    "prefab": o.get("prefab"), "scaleXZ": o.get("scaleXZ"),
+                                    "scaleY": o.get("scaleY"), "y": o.get("y")})
                     else:
                         for v in o.values():
                             walk(v)
@@ -1992,6 +1995,54 @@ class Checks(object):
                     "・".join(halves), sum(1 for ln in lines if ln.get("facing") is True),
                     len(nf), "・".join(nf) or "無し"),
                  "%d 点" % len(bad), "ng" if bad else "ok", bad[:12])
+
+    # C30 道の上の枝下(施主裁定 2026-09-23 EDO-0409「道の上に張り出す枝の枝下は 4.0m 以上」・結線 2026-09-25)
+    def c30(self):
+        """`planting.bandDef.avoid.edaShitaOverRoadM` を宣言した邸だけ、焼いた木(全点・名指しも)の樹冠のうち
+        **道(敷地割の間)の上に在る所**で、枝下(目録の `edashita` × scaleY)が 路面 − 足元 + 宣言値 以上かを測る。
+
+        ⭐ 硬い制約(許容0)。判定は散布と同じ関数(`sashizu_lib.edashita_over_road` / `road_region`)、
+          部材の枝下は散布と同じ目録の読み手(`impl_sanno.asset_index` ── 見出しの名で引く)。
+          路面 = 造成前の地盤(道は現地形)、足元 = 焼いた `y`。⛔ 目録に枝下の無い部材は『未検査』に数えて刷る。
+        """
+        M = self.M
+        need = self._avoid().get("edaShitaOverRoadM")
+        if need is None:
+            self.add("C30", "道の上の枝下", "未検査 — `planting.bandDef.avoid.edaShitaOverRoadM` の宣言が無い", "na")
+            return
+        fn, P = self.planting_points()
+        if fn is None or isinstance(P, Exception):
+            self.add("C30", "道の上の枝下", "未検査 — 撒いた点が無い" if fn is None else "⛔ 読めない: %s" % P,
+                     "na" if fn is None else "ng")
+            return
+        if M.dem is None:
+            self.add("C30", "道の上の枝下", "未検査 — 造成前の地盤が無い", "na")
+            return
+        fp = os.path.join(DOC, "parcels.json")
+        if not os.path.exists(fp):
+            self.add("C30", "道の上の枝下", "未検査 — parcels.json が無い", "na")
+            return
+        import impl_sanno as IS
+        A = IS.asset_index()
+        own = M.poly                       # 区画(世界 xz ── C25 と同じ)
+        ps = json.load(open(fp, encoding="utf-8"))["parcels"]
+        isr = L.road_region(own, [(q["id"], q["pts"]) for q in ps])
+        bad, nop, over = [], [], 0
+        for q in P:
+            rec = A.get(q.get("prefab"))
+            if q.get("y") is None:
+                nop.append(q["name"]); continue
+            f = L.edashita_over_road(q, rec, isr, lambda p: M.dem.at(p[0], p[1]), float(need), own_poly=own)
+            if f == "noProfile":
+                nop.append(q["name"]); continue
+            if f is not None:
+                bad.append("%s(%s): 環 %.2f m で 枝下 %.2f m < 要る %.2f m(%.2f m 足りない)@(%.1f, %.1f)"
+                           % (q["name"], q.get("group") or "", f["ringM"], f["haveM"], f["needM"], f["shortM"],
+                              f["at"][0], f["at"][1]))
+        self.add("C30", "道の上の枝下 — %s の %d 点(全層・名指しも)の樹冠のうち道(敷地割の間)の上に在る所で、枝下(目録の edashita × scaleY)が"
+                 " 路面 − 足元 + %.1f m 以上ある(硬い制約・許容0。路面 = 造成前の地盤。目録に枝下の無い部材 %d 点は測れない)"
+                 % (fn, len(P), float(need), len(nop)),
+                 "%d 点" % len(bad), "ng" if bad else ("na" if nop and len(nop) == len(P) else "ok"), bad[:12])
 
     # C28 塊どうしの間(庭方 2026-09-06「塊どうしを近づけすぎない目安」・庭方2巡目「置かれた木どうしの最小離れで測る」)
     def c28(self):

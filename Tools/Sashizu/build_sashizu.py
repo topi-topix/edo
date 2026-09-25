@@ -1330,7 +1330,14 @@ class Checks(object):
                 if keri is not None and abs(keri * k.steps - k.drop) > 0.05:
                     note.append("蹴上 %.3f×%d ≠ 落差 %.2f" % (keri, k.steps, k.drop))
                 if keri_calc > keri_max + 0.005 and "参道" not in (k.label or "") and "坂" not in (k.label or ""):
-                    note.append("蹴上 %.3f > %.2f" % (keri_calc, keri_max))
+                    # ⭐ 受容は施主の言葉(`kaidans[].keriAccept.quote`)に紐づけて刷る ── C04 の受容と同じく
+                    #   ⛔ 合格にしない(不合格に数えたまま、受けた理由を名乗る)。由来: 山王 向拝の木階 2026-09-25(EDO-0430)
+                    ka = (k.raw or {}).get("keriAccept") or {}
+                    if (ka.get("quote") or "").strip():
+                        note.append("⚠〔受容〕蹴上 %.3f > %.2f — %s(%s)" % (
+                            keri_calc, keri_max, ka["quote"][:60], ka.get("ruling") or "?"))
+                    else:
+                        note.append("蹴上 %.3f > %.2f" % (keri_calc, keri_max))
             else:
                 note.append("段数か落差が無い(未検査)")
             if on_ground and k.poly and k.y0 is not None and k.y1 is not None:

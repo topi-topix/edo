@@ -10,6 +10,8 @@
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado-check [--h=1.5]  # 隅の駒の腕の先 = 直線の切り口
     blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=0.22 --h=1.5  # 段の境の勾配の駒(± 両方)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- dan --render          # 段の境の並べ焼き
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- crest [--dir=…] [--json=…]  # 全駒の背の天端の下がり(≤ 0.03)・頭の出(≤ 0)
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- back --render         # 背の側(土の側)から撮る
 
 試作は `proto_sanno_dodome.py`(絵だけ)。石の形(Voronoi の割り・割肌の面・円弧で切る頭・
 面取り)はそこから起こし直した。⛔ 在庫に野面石・玉石が無い(試作の依頼時に在庫方が確認)ので新造。
@@ -27,7 +29,10 @@
   (段の違う駒どうしで面が食い違わないように)。
 【ピボット】1間の中心(X=0)・**床レベル = 中心での天端 − 見付**(Y=0)・Z=0 は**天端の線での面**。
   ⇒ 床での面(法尻)は Z = +0.3×見付 に出る。石は床の 0.20 下まで根入れ(地中)。
-  頭は天端の線の ±0.08 で不揃い。芝の肩は Unity の地形側で被せる前提。
+  **見え面の頭は天端の線から下へ 0〜0.16 で不揃い(天端より上へ出さない)・背の列(面の輪 0.13 より奥)の上面は天端の線に揃う**
+  (2026-09-25 EDO-0430: 背の頭が駒の最高より 0.1〜0.48 下がり、天端の高さの背の土が石に被って背の帯に溝ができた。
+  天端の列の石は控え 0.75〜0.95・上の縁を天端へ上げ、目地の奥 0.30 に板)。`-- crest` が全駒の背の下がり ≤ 0.03 を検める。
+  芝の肩は Unity の地形側で被せる前提。
 【材】`Kirishi` / `Danishi`(山王の切石と同じ暖かい灰。石ごとに 7:3 で振り、色の個体差にする)。
   ⛔ 新規マテリアルなし。UV は石ごとの箱投影(1.05m で1枚・石ごとに位相をずらす)。
   裏に目地の奥を塞ぐ板(`Danishi`)を 0.12 奥に張る ⇒ 目地から空が抜けない。
@@ -52,7 +57,7 @@
   **`Own.IshidanSode` と同じ局所座標・ピボット・接する面**(厚み X ±0.30 で両面とも乱積み・
   X について鏡像対称 / +Z = 坂下 / 天端 Y = 0.30 + (踏面/2 − Z)·蹴上/踏面 / 下端 = 天端 − 2.20 /
   走り Z ±踏面/2)。⇒ ビルダーは関数を差し替えるだけで据え方は変わらない。石は X = ±0.30 の面を越えない。
-  頭の不揃いは ±2.5cm・頭の丸みは R1.2〜2.0(±8cm・R0.3 だと石段に沿う天端が鋸の歯に見えた)。笠石は持たない。
+  頭の不揃いは天端の線から下へ 0〜3cm・頭の丸みは R1.2〜2.0(±8cm・R0.3 だと石段に沿う天端が鋸の歯に見えた)。笠石は持たない。
   ⛔ 曲がる女坂の留めの駒(`IshidanSodeMiter`)は未だ乱積みで起こしていない。
 
 ━━━ 4. 見切り石 `Sanno_Nozura_Mikiri.fbx` ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -207,7 +212,8 @@ def boundary_column(seed, depth, gw, cmax, rh=(0.26, 0.40), head=HEAD, rr=(0.16,
         bseeds.append((c, uc))
         guards.append((c - gw * rng.uniform(0.85, 1.15), uc + rng.uniform(-0.08, 0.08)))
         guards.append((c + gw * rng.uniform(0.85, 1.15), uc + rng.uniform(-0.08, 0.08)))
-        heads.append((rng.uniform(-head, head), rng.uniform(*rr), rng.uniform(0.022, 0.036)))
+        # ⭐ 頭は天端の線(u=0)から下へ 2×head の幅で不揃い(2026-09-25 EDO-0430: 天端より上へ出さない)
+        heads.append((rng.uniform(-head, head) - head, rng.uniform(*rr), rng.uniform(0.022, 0.036)))
         u -= h_
         k += 1
     pts = bseeds + guards
@@ -269,7 +275,7 @@ def layout(span, depth, bseed, vseed, wr=(0.25, 0.60), gw=0.40, bcmax=0.10, rh=(
                 poly = separate(poly, (sx, su), op, g)
         if len(poly) < 3:
             continue
-        poly = head_arc(poly, sx, rng.uniform(-head, head), rng.uniform(*rr))
+        poly = head_arc(poly, sx, rng.uniform(-head, head) - head, rng.uniform(*rr))
         if len(poly) < 3 or area(poly) < 0.008:
             continue
         cells.append((poly, "I", "I%d" % i if i >= len(fixed) else "G%d" % i))
@@ -299,9 +305,13 @@ def materials():
 
 
 # ------------------------------------------------------------------ 石の塊
-def stone_obj(name, poly, key_rng, P, depth, face_prot=(-0.02, 0.045), double=None):
+def stone_obj(name, poly, key_rng, P, depth, face_prot=(-0.02, 0.045), double=None, crest=None, lift_ds=None):
     """(s,u) の輪郭 → 野面の塊。P(s, u, d) が 3D を返す(d = 面から奥へ)。
-    double = 厚み T なら両面を割肌にする(袖)。形の乱数は key_rng だけで決まる(端の石は左右で同じ)。"""
+    double = 厚み T なら両面を割肌にする(袖)。形の乱数は key_rng だけで決まる(端の石は左右で同じ)。
+    crest = 天端の線の u(天端の列の石だけ渡す)⇒ 面から 0.13 奥の輪と背の輪の**上の縁(左端から右端まで上を回る点)を天端へ上げる**
+    (背の上面が天端の線に揃う・見え面の頭の不揃いは面の輪だけに残る)。lift_ds(s, du) = 上げた点の s の寄せ
+    (隅の駒: σ 空間では法の出が高さで変わるので、上げても 3D の位置が動かないよう σ を寄せる ── 寄せないと腕の先の切り口を越えた)。2026-09-25 EDO-0430: 背の頭が駒の最高より
+    0.1〜0.48 下がり、天端の高さの背の土が石に被っていた。"""
     rng = key_rng
     cs, cu = centroid(poly)
     prot = rng.uniform(*face_prot)
@@ -313,7 +323,31 @@ def stone_obj(name, poly, key_rng, P, depth, face_prot=(-0.02, 0.045), double=No
 
     n = len(poly)
     F = [bm.verts.new(P(s, u, face_d(s, u) + rng.uniform(-0.012, 0.018))) for (s, u) in poly]
-    M = [bm.verts.new(P(cs + (s - cs) * 1.03, cu + (u - cu) * 1.03, 0.13 - prot)) for (s, u) in poly]
+    upper = set()
+    if crest is not None:
+        # 上の縁 = 右端から左端まで上を回る点の列(斜めの石も、その走りの全幅で背の天端が天端の線に届く ──
+        # 重心より上だけ上げると、斜めの石の低い肩の上に下の段の石の頭が 0.09 下がって覗いた)
+        iR = max(range(n), key=lambda i: (poly[i][0], poly[i][1]))
+        iL = min(range(n), key=lambda i: (poly[i][0], -poly[i][1]))
+        chains = []
+        for step in (1, -1):
+            c, i = [iR], iR
+            while i != iL:
+                i = (i + step) % n
+                c.append(i)
+            chains.append(c)
+        upper = set(max(chains, key=lambda c: sum(poly[i][1] for i in c) / len(c)))
+
+    def ring_s(i, s, u, k):
+        ss = cs + (s - cs) * k
+        return ss + lift_ds(s, crest - u) if (i in upper and lift_ds) else ss
+
+    def ring_u(i, u, k, drop=0.0):
+        if i in upper:
+            return crest
+        uu = cu + (u - cu) * k - drop
+        return min(uu, crest) if crest is not None else uu
+    M = [bm.verts.new(P(ring_s(i, s, u, 1.03), ring_u(i, u, 1.03), 0.13 - prot)) for i, (s, u) in enumerate(poly)]
     I = []
     for (s, u) in poly:
         ds, du = s - cs, u - cu
@@ -330,7 +364,8 @@ def stone_obj(name, poly, key_rng, P, depth, face_prot=(-0.02, 0.045), double=No
         faces.append(bm.faces.new((I[i], F[i], F[j], I[j])))
         faces.append(bm.faces.new((F[i], M[i], M[j], F[j])))
     if double is None:
-        Bk = [bm.verts.new(P(cs + (s - cs) * 0.80, cu + (u - cu) * 0.80 - 0.03, depth - prot)) for (s, u) in poly]
+        ks = 0.97 if crest is not None else 0.80      # 天端の列は背でも幅を保つ(背の天端に隙を開けない)
+        Bk = [bm.verts.new(P(ring_s(i, s, u, ks), ring_u(i, u, 0.80, 0.03), depth - prot)) for i, (s, u) in enumerate(poly)]
         for i in range(n):
             j = (i + 1) % n
             faces.append(bm.faces.new((M[i], Bk[i], Bk[j], M[j])))
@@ -343,7 +378,7 @@ def stone_obj(name, poly, key_rng, P, depth, face_prot=(-0.02, 0.045), double=No
         def back_d(s, u):
             return T + prot2 - ta2 * (s - cs) + tb2 * (u - cu)
         F2 = [bm.verts.new(P(s, u, back_d(s, u) - rng.uniform(-0.012, 0.018))) for (s, u) in poly]
-        M2 = [bm.verts.new(P(cs + (s - cs) * 1.03, cu + (u - cu) * 1.03, T - 0.13 + prot2)) for (s, u) in poly]
+        M2 = [bm.verts.new(P(ring_s(i, s, u, 1.03), ring_u(i, u, 1.03), T - 0.13 + prot2)) for i, (s, u) in enumerate(poly)]
         C2 = bm.verts.new(P(cs + rng.uniform(-0.04, 0.04), cu, back_d(cs, cu) + rng.uniform(0.015, 0.04)))
         for i in range(n):
             j = (i + 1) % n
@@ -383,14 +418,24 @@ def box_uv(o, ofs):
             uvl[li].uv = (a / TILE + ofs[0], b / TILE + ofs[1])
 
 
-def build_stones(cells, P, mats, depth_rng=(0.45, 0.75), double=None, face_prot=(-0.02, 0.045), tag=""):
+TOP_ROW = 0.25            # 輪郭の最高が天端の線から これ以内の石 = 天端の列
+TOP_DEPTH = (0.75, 0.95)  # 天端の列の控え ⇒ 背の帯(背から 0.5)が面の輪(0.13)より奥に収まる
+
+
+def build_stones(cells, P, mats, depth_rng=(0.45, 0.75), double=None, face_prot=(-0.02, 0.045), tag="", crest=0.0,
+                 lift_ds=None):
+    """crest = 天端の線の u(None で揃えない)。天端の列の石(輪郭の最高 > crest − TOP_ROW)は背の上面を天端へ揃え、控えを TOP_DEPTH に。"""
     objs = []
     kir, dan = mats
     for poly, kind, key in cells:
         # ⭐ 端の石は key が左右で同じ ⇒ 形・控え・材・UV の位相まで同じ(継ぎ目で合わさる)
         rng = random.Random("nozura|%s|%s" % (tag, key))
         d = rng.uniform(*depth_rng)
-        o = stone_obj("st_" + key + kind, poly, rng, P, d, face_prot=face_prot, double=double)
+        top = crest is not None and max(p[1] for p in poly) > crest - TOP_ROW
+        if top:           # 乱数の消費は変えない(下の段の石の形・切り口を動かさない)
+            d = TOP_DEPTH[0] + (d - depth_rng[0]) / (depth_rng[1] - depth_rng[0]) * (TOP_DEPTH[1] - TOP_DEPTH[0])
+        o = stone_obj("st_" + key + kind, poly, rng, P, d, face_prot=face_prot, double=double,
+                      crest=crest if top else None, lift_ds=lift_ds)
         o.data.materials.append(kir if rng.random() < 0.7 else dan)
         box_uv(o, (rng.random(), rng.random()))
         objs.append(o)
@@ -433,14 +478,19 @@ def wall_P(h, g):
     return P
 
 
-def backing(name, h, g, mat):
-    """目地の奥を塞ぐ板(面から 0.12 奥・天端の 0.12 下から床の下まで)"""
+BACK2 = (0.30, -0.005, -0.35)   # 天端の目地の奥の板: 面から 0.30 奥・天端の 0.005 下から 0.35 下まで
+
+
+def backing(name, h, g, mat, d=0.12, u0=-0.12, u1=None):
+    """目地の奥を塞ぐ板(既定: 面から 0.12 奥・天端の 0.12 下から床の下まで)。
+    d, u0, u1 = BACK2 は天端の列の目地の奥の板(2026-09-25: 背の天端を天端の線へ上げたので、天端の目地が控えの奥まで
+    素通しになり、土の無い側から空が抜けた ── 面の輪 0.13 より奥に張る)"""
     bm = bmesh.new()
     P = wall_P(h, g)
     vs = []
     for s in (-L / 2, L / 2):
-        for u in (-0.12, -(h + BURY)):
-            vs.append(bm.verts.new(P(s, u, 0.12 + BATTER * 0)))
+        for u in (u0, -(h + BURY) if u1 is None else u1):
+            vs.append(bm.verts.new(P(s, u, d)))
     # 法に沿わせる(u ごとに面が前へ出る分を足す)は P が持つ
     bm.faces.new((vs[0], vs[1], vs[3], vs[2]))
     me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
@@ -474,6 +524,7 @@ def make_wall(h, g, v):
             cells.append((p2, kind, key))
     objs = build_stones(cells, wall_P(h, g), mats, tag="wall")
     objs.append(backing("back", h, g, mats[1]))
+    objs.append(backing("back2", h, g, mats[1], *BACK2))
     name = wall_name(h, g, v)
     o = V.join(objs, name)
     bisect_keep(o, (-L / 2, 0, 0), (-1, 0, 0))        # Unity X ≤ +L/2 ⇔ Blender X ≥ −L/2
@@ -555,7 +606,7 @@ def kado_layout(v, depth=DEEP):
                 poly = separate(poly, (sx, su), op, g)
         if len(poly) < 3:
             continue
-        poly = head_arc(poly, sx, rng.uniform(-HEAD, HEAD), rng.uniform(0.16, 0.32))
+        poly = head_arc(poly, sx, rng.uniform(-HEAD, HEAD) - HEAD, rng.uniform(0.16, 0.32))
         if len(poly) < 3 or area(poly) < 0.008:
             continue
         kind = "C" if i < len(corner) else "I"
@@ -605,7 +656,9 @@ def make_kado(h, v):
         if len(p2) < 3 or area(p2) <= 0.004:
             continue
         smin, smax = min(p[0] for p in p2), max(p[0] for p in p2)
-        o = build_stones([(p2, kind, key)], Pf, mats, tag="kado")[0]
+        # 上げた点は σ を稜線へ寄せる(3D の x = σ + 法の出 c(u) を保つ ⇒ 腕の先の切り口を越えない)
+        o = build_stones([(p2, kind, key)], Pf, mats, tag="kado",
+                         lift_ds=lambda s_, du: (BATTER if s_ < 0 else -BATTER) * du)[0]
         cross = smin < 0 < smax
         if cross:
             V.sel([o])
@@ -628,11 +681,11 @@ def make_kado(h, v):
         o.data.update()
         objs.append(o)
     # ③ 目地の奥を塞ぐ板(面から 0.12 奥・法に沿う)── 二枚が内の留めで閉じる
-    for arm in (1, 2):
+    for arm, (dd, u0, u1) in ((1, (0.12, -0.12, -(h + BURY))), (2, (0.12, -0.12, -(h + BURY))), (1, BACK2), (2, BACK2)):
         bm = bmesh.new()
         vs = []
-        for u in (-0.12, -(h + BURY)):
-            k = cbat(u) - 0.12
+        for u in (u0, u1):
+            k = cbat(u) - dd
             if arm == 1:
                 vs += [bm.verts.new(_u2b(-L / 2, h + u, k)), bm.verts.new(_u2b(k, h + u, k))]
             else:
@@ -673,9 +726,14 @@ def check_kado(h=1.50):
             if abs(vt.co.y - L / 2) < 1e-4:
                 # 腕2 の局所: 直線の駒の Unity Z = 腕2 の Unity X ⇒ Blender Y' = −(Unity X) = Blender X
                 a2.add((round(vt.co.x, 3), round(vt.co.z - h, 3)))
+        # 天端の列の石は控えが 0.75〜0.95(2026-09-25)⇒ もう一方の腕の端の石の尻がこの切り口(奥 0.909)で切られ、
+        # 切り口の奥 0.6 より奥に小口の点が足される(隣の直線の駒の控えの中・土の下)。
+        # ⇒ 直線の切り口の点は全て在ること(欠け 0)・足された点は奥 0.6 より奥だけ(余り 0)を検める
         top = lambda S: {p for p in S if p[1] > -0.25}
-        d1 = len(top(a1) ^ top(ref_p)); d2 = len(top(a2) ^ top(ref_m))
-        print("NOZURA KADO CHECK %s: 腕1の先 %d点 差%d / 腕2の先 %d点 差%d" % (name, len(top(a1)), d1, len(top(a2)), d2))
+        d1 = len(top(ref_p) - top(a1)) + len({p for p in top(a1) - top(ref_p) if p[0] < 0.6})
+        d2 = len(top(ref_m) - top(a2)) + len({p for p in top(a2) - top(ref_m) if p[0] < 0.6})
+        print("NOZURA KADO CHECK %s: 腕1の先 %d点 差%d / 腕2の先 %d点 差%d(奥 0.6 より奥の小口 %d / %d 点)" % (
+            name, len(top(a1)), d1, len(top(a2)), d2, len(top(a1) - top(ref_p)), len(top(a2) - top(ref_m))))
         bad += (d1 > 0) + (d2 > 0)
     return bad
 
@@ -693,7 +751,7 @@ def make_sode(keri, fumi, v):
     f = fumi
     cells = layout(f, SODE_DEPTH, "nozura-sode-B-%.3f" % f, "nozura-sode-%.3f-%s" % (f, v),
                    wr=(0.22, 0.45), gw=min(0.30, f * 0.36), bcmax=0.04,
-                   head=0.025, rr=(1.2, 2.0))     # 袖の天端は石段に沿う一本の線 ⇒ 頭の不揃いは ±2.5cm・頭はほぼ平ら
+                   head=0.015, rr=(1.2, 2.0))     # 袖の天端は石段に沿う一本の線 ⇒ 頭の不揃いは天端の下 3cm の幅・頭はほぼ平ら
 
     def P(s, u, d):
         # Unity X = +0.30 − d(両面)⇒ Blender X = −(0.30 − d)
@@ -713,6 +771,19 @@ def make_sode(keri, fumi, v):
         oc = bpy.data.objects.new("core", me); bpy.context.scene.collection.objects.link(oc)
         me.update()
         if me.polygons[0].normal.x * (-sx_) < 0:     # 外(Unity ±X)へ向ける
+            me.flip_normals()
+        oc.data.materials.append(mats[1]); box_uv(oc, (0.3, 0.6))
+        objs.append(oc)
+    # 天端の目地の奥の板(芯 X = 0・天端の 0.005 下から 0.35 下)── 背の天端を上げたので天端の目地が厚みを素通しになる(2026-09-25)
+    for sx_ in (1, -1):
+        bm = bmesh.new()
+        vs = [bm.verts.new(P(s_, u_, SODE_HALF)) for s_, u_ in
+              ((-f / 2, BACK2[1]), (f / 2, BACK2[1]), (f / 2, BACK2[2]), (-f / 2, BACK2[2]))]
+        bm.faces.new(vs)
+        me = bpy.data.meshes.new("core2"); bm.to_mesh(me); bm.free()
+        oc = bpy.data.objects.new("core2", me); bpy.context.scene.collection.objects.link(oc)
+        me.update()
+        if me.polygons[0].normal.x * (-sx_) < 0:
             me.flip_normals()
         oc.data.materials.append(mats[1]); box_uv(oc, (0.3, 0.6))
         objs.append(oc)
@@ -796,6 +867,121 @@ def check():
     for r in res:
         print("NOZURA CHECK", r)
     return bad
+
+
+# ------------------------------------------------------------------ 天端の帯の検査(2026-09-25 EDO-0430)
+CREST_BAND = 0.15   # = EdoBuild.CREST_BAND
+CREST_R = 0.6       # = EdoBuild.CREST_R
+CREST_TOL = 0.03    # 背の天端の下がりの許し
+
+
+def up_grid(objs, step=0.05):
+    """Unity 局所の上向きの面(法線 y > 0.7)の最高を格子 {(i, j): Y} に刷る(i = X / step, j = Z / step)"""
+    G = {}
+    for o in objs:
+        if o.type != 'MESH':
+            continue
+        me = o.data
+        me.calc_loop_triangles()
+        mw = o.matrix_world
+        W = [mw @ v.co for v in me.vertices]
+        for t in me.loop_triangles:
+            a, b, c = (W[k] for k in t.vertices)
+            n = (b - a).cross(c - a)
+            if n.length < 1e-12 or n.z / n.length <= 0.7:        # Blender +Z = Unity +Y
+                continue
+            A, B, C = ((-p.x, -p.y, p.z) for p in (a, b, c))       # (Unity X, Unity Z, Unity Y)
+            i0, i1 = math.floor(min(A[0], B[0], C[0]) / step), math.floor(max(A[0], B[0], C[0]) / step)
+            j0, j1 = math.floor(min(A[1], B[1], C[1]) / step), math.floor(max(A[1], B[1], C[1]) / step)
+            den = (B[1] - C[1]) * (A[0] - C[0]) + (C[0] - B[0]) * (A[1] - C[1])
+            if abs(den) < 1e-14:
+                continue
+            for i in range(i0, i1 + 1):
+                x = (i + 0.5) * step
+                for j in range(j0, j1 + 1):
+                    z = (j + 0.5) * step
+                    l1 = ((B[1] - C[1]) * (x - C[0]) + (C[0] - B[0]) * (z - C[1])) / den
+                    l2 = ((C[1] - A[1]) * (x - C[0]) + (A[0] - C[0]) * (z - C[1])) / den
+                    l3 = 1 - l1 - l2
+                    if l1 < -1e-9 or l2 < -1e-9 or l3 < -1e-9:
+                        continue
+                    y = l1 * A[2] + l2 * B[2] + l3 * C[2]
+                    if G.get((i, j), -1e9) < y:
+                        G[(i, j)] = y
+    return G
+
+
+FACE_ROW = 0.20      # 見え面(天端の線での面)からこれより奥 = 背の列(面の石の頭の不揃いの外)
+
+
+def crest_check(objs, T, is_back, step=0.05):
+    """⭕ 背の列の天端の下がり ── 上向きの面を 0.05 の格子に刷り、**背の列**(is_back(x, z))で**天端の帯**
+    (周り CREST_R の円の中の最高から CREST_BAND 以内 = `EdoBuild` の篩と同じ。帯の外 = 目地に覗く下の段の石の頭は土に入るのが正しい)
+    の点について 天端の線 T(x, z) − 上面 の最大(back)を、全点で 上面 − 天端の線 の最大(over = 前の頭が天端より上へ出ていないか)を返す。"""
+    G = up_grid(objs, step)
+    r = int(math.ceil(CREST_R / step))
+    disc = [(di, dj) for di in range(-r, r + 1) for dj in range(-r, r + 1) if (di * di + dj * dj) * step * step <= CREST_R ** 2]
+    back, over, at, n = -1e9, -1e9, None, 0
+    for (i, j), y in G.items():
+        x, z = (i + 0.5) * step, (j + 0.5) * step
+        t = T(x, z)
+        over = max(over, y - t)
+        if not is_back(x, z):
+            continue
+        mx = max(G.get((i + di, j + dj), -1e9) for di, dj in disc)
+        if y < mx - CREST_BAND:
+            continue
+        n += 1
+        if t - y > back:
+            back, at = t - y, (round(x, 3), round(y, 3), round(z, 3))
+    return back, over, at, n
+
+
+def crest_spec(name):
+    """FBX 名 → (天端の線 T(x, z)(Unity 局所), 背の列か is_back(x, z))"""
+    import re
+    m = re.match(r"Sanno_Nozura_H(\d{4})_G([+-]\d{3})_[a-d]$", name)
+    if m:
+        h, g = int(m.group(1)) / 1000, int(m.group(2)) / 1000
+        return (lambda x, z: h + g * x), (lambda x, z: z <= -FACE_ROW)
+    m = re.match(r"Sanno_Nozura_Kado90_H(\d{4})_[ab]$", name)
+    if m:
+        h = int(m.group(1)) / 1000
+        return (lambda x, z: h), (lambda x, z: x <= -FACE_ROW and z <= -FACE_ROW)
+    m = re.match(r"IshidanSodeNozura_([\d.]+)_([\d.]+)_[ab]$", name)
+    if m:
+        k, f = float(m.group(1)), float(m.group(2))
+        # 袖は両面が見え面 ⇒ 両面の奥の芯(|X| ≤ 0.30 − 0.20)を背の列と読む
+        return (lambda x, z: SODE_HT + (f / 2 - z) * k / f), (lambda x, z: abs(x) <= SODE_HALF - FACE_ROW)
+    return None
+
+
+def crest_all(dirs):
+    """焼いた FBX を読み戻して全駒を測る(= Unity が読む物)。表を刷り、json を scratchpad へ"""
+    import glob, json
+    rows = []
+    for d in dirs:
+        for path in sorted(glob.glob(os.path.join(d, "*.fbx"))):
+            name = os.path.splitext(os.path.basename(path))[0]
+            sp = crest_spec(name)
+            if sp is None:
+                continue
+            V.reset()
+            before = set(bpy.data.objects)
+            bpy.ops.import_scene.fbx(filepath=path)
+            objs = [o for o in bpy.data.objects if o not in before and o.type == 'MESH']
+            bpy.context.view_layer.update()
+            back, over, at, n = crest_check(objs, *sp)
+            rows.append(dict(name=name, back=round(back, 4), over=round(over, 4), at=at, n=n))
+            print("NOZURA CREST %-34s 背の下がり %+.3f 頭の出 %+.3f 点 %d 最悪 %s %s" % (
+                name, back, over, n, at, "⭕" if back <= CREST_TOL and over <= 0.005 else "⛔"))
+    bad = [r for r in rows if r["back"] > CREST_TOL or r["over"] > 0.005]
+    print("NOZURA CREST 全 %d 駒: 背の下がりの最大 %+.3f / 頭の出の最大 %+.3f / ⛔ %d" % (
+        len(rows), max(r["back"] for r in rows), max(r["over"] for r in rows), len(bad)))
+    out = OPT.get("json")
+    if out:
+        json.dump(rows, open(out, "w"), ensure_ascii=False, indent=1)
+    return len(bad)
 
 
 def studio_run(objs, cam, look, lens=35, path=None, magenta=False):
@@ -1003,6 +1189,35 @@ def render_dan(g=0.22, h=1.50):
     studio_run([], (-0.6, -5.5, 1.3), (-0.6, 0, 0.8), 30, os.path.join(SHOT, "sanno_nozura_dan_magenta.png"), magenta=True)
 
 
+def render_back(h=1.20):
+    """背の側(土の側)から撮る(2026-09-25 EDO-0430): 直線 a〜d・勾配の駒・隅の駒を並べ、
+    ① 土を 2cm 下げて(天端 − 0.02)── 背の天端に届かない石は土の下へ消え、帯に緑の穴が開く
+    ② 土なし・マゼンタの背景 ── 背の上面の形"""
+    for soil, tag in ((True, ""), (False, "_nosoil")):
+        V.reset()
+        for i, v in enumerate("abcd"):
+            _import_at(os.path.join(OUT_WALL, wall_name(h, 0, v) + ".fbx"), -L * (i + 1), 0, 0)
+        _import_at(os.path.join(OUT_WALL, kado_name(h, "a") + ".fbx"), 0, 0, 0)
+        _import_at(os.path.join(OUT_WALL, wall_name(h, 0, "b") + ".fbx"), 0, -L, 0, 90.0)
+        hook_stone_textures()
+        ground()
+        if soil:
+            bm = bmesh.new()
+            vs = [bm.verts.new(q) for q in [(-0.3, 0.05, h - 0.02), (12, 0.05, h - 0.02), (12, 12, h - 0.02), (-0.3, 12, h - 0.02)]]
+            bm.faces.new(vs); me = bpy.data.meshes.new("Soil"); bm.to_mesh(me); bm.free()
+            ou = bpy.data.objects.new("Soil", me); bpy.context.scene.collection.objects.link(ou)
+            mu = bpy.data.materials.new("Soil"); mu.use_nodes = True
+            mu.node_tree.nodes["Principled BSDF"].inputs['Base Color'].default_value = (0.10, 0.45, 0.08, 1)
+            me.materials.append(mu)
+        # 背の奥(Unity −Z)の高い所から、天端の帯を見下ろす
+        studio_run([], _u2b(-4.5, h + 2.2, -4.0), _u2b(-3.0, h, -0.3), 30,
+                   os.path.join(SHOT, "sanno_nozura_back%s.png" % tag), magenta=not soil)
+        # 前から(見え面の頭の不揃い・目の高さ)
+        if soil:
+            studio_run([], _u2b(-3.5, 1.5, 4.5), _u2b(-3.0, h * 0.6, 0), 30,
+                       os.path.join(SHOT, "sanno_nozura_front.png"))
+
+
 # ------------------------------------------------------------------ 本体
 def do_kado():
     hs = [float(OPT["h"])] if OPT.get("h") else KADO_TIERS
@@ -1052,12 +1267,17 @@ if __name__ == "__main__":
     what = POS[0] if POS else "all"
     if what == "check":
         sys.exit(1 if check() else 0)
+    if what == "crest":
+        # blender ... -- crest [--dir=<FBX の置き場>] [--json=<出力>] ── 全駒の背の天端の下がり(≤ 0.03)と頭の出(≤ 0)
+        sys.exit(1 if crest_all([OPT["dir"]] if OPT.get("dir") else [OUT_WALL, OUT_SODE]) else 0)
     if what == "kado-check":
         sys.exit(1 if check_kado(float(OPT.get("h") or 1.5)) else 0)
     if what == "kado":
         do_kado()
         if RENDER:
             render_kado(float(OPT.get("h") or 1.5))
+    if what == "back" and RENDER:
+        render_back(float(OPT.get("h") or 1.2))
     if what == "dan" and RENDER:
         render_dan()
     if what in ("wall", "all"):

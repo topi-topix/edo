@@ -165,7 +165,7 @@ namespace Edo.EditorTools
                 inst.transform.localScale = Vector3.one;
                 var pts = EdoBuild.Lod0PointsRootFrame(inst);
                 Vector2 foot; float yFoot;
-                if (!EdoBuild.TrunkFootOf(pts, out foot, out yFoot)) return;
+                if (!EdoBuild.TrunkFootOf(inst, out foot, out yFoot)) return;
                 row.IsTree = true; row.TrunkFoot = foot;
                 float rmax = 0f;
                 var ring = new SortedDictionary<int, float>();
@@ -276,7 +276,7 @@ namespace Edo.EditorTools
             sb.AppendLine("# root_scale: ルート自身の補正スケール(1 でなければ共通ヘルパに Vector3.one を渡すと化ける)");
             sb.AppendLine("# shader: BUILTIN = URP でピンクになる。use: S=シーンで使用中 / B=ビルダーが参照");
             sb.AppendLine("# trunk_dx/trunk_dz/crown_r/edashita: Assets/Edo/Models/Trees/ の木だけ(LOD0 の頂点・scale 1・m)。");
-            sb.AppendLine("#   trunk = 幹の足の中心(最も低い 0.3m の帯の xz の中点)の局所 xz。crown_r = そこからの水平最大半径。");
+            sb.AppendLine("#   trunk = 幹の足の中心(樹皮の材の底の開口、無ければ最も低い樹皮から 0.02m 上の断面の xz の中点 = EdoBuild.TrunkFootOf)の局所 xz。crown_r = そこからの水平最大半径。");
             sb.AppendLine("#   edashita = 枝下の輪郭 r:h(r = 0.5m 刻みの環の外半径・h = 環の最も低い頂点の足元からの高さ。0.3m 以内の幹は除く)");
             sb.AppendLine("path\tname\tpack\tkind\tsx\tsy\tsz\tpivot_bottom\troot_scale\ttris\trenderers\tshader\tuse\ttrunk_dx\ttrunk_dz\tcrown_r\tedashita");
             foreach (var r in rows)

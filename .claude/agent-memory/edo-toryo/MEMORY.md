@@ -23,6 +23,7 @@
 - [正面のローカル軸は部材ごとに違う](front-axis-differs-per-part.md) — 山王 社殿5棟=+X/堂宇10棟=+Z。yaw=front−axis.front(EdoBuild.FaceYaw)
 - [partFrom は2書式・フォルダを決め打ちしない](partfrom-two-spellings.md) — Own.呼び名は EdoAssets.OwnPath で解く。鐘楼鼓楼は Models/Jisha
 - [接地は格子点でなく描かれている地表で測る](contact-must-use-drawn-surface.md) — 2m格子で斜面に ±(1m×勾配) の嘘。嘘の不合格と嘘の合格が同時に出る
+- [幹の足は樹皮の底の輪か 0.02m 上の断面で測る](trunk-foot-band-catches-foliage.md) — 0.3m 帯は紅葉・蔓で 0.39m 外れた。蔓は最も低い茎
 - [SeatPlant は斜面の木を浮き上限で沈める](seatplant-float-cap-buries-slope-trees.md) — 名指し20本が埋没15〜21m/浮き0.70。社叢の数え合わせは矩形の縁で11本落ちる
 - [榎・椋は SeatPlant が NaN](seatplant-nan-enoki-mukunoki-noki.md) — LOD の子名の "noki" を IsRoofName が屋根と見る。篩を EdoBuild で直す
 - [埋没を地形を掘って消す器は連鎖する](dig-to-unbury-cascades.md) — 山王 0.53/0.65 の埋没で3通り試し全部戻した。納めの話
@@ -68,6 +69,8 @@
 - [石垣の隅は区間の端ごとに・T 字の継ぎ目・二段築の下段](run-corners-seams-and-tiers.md) — PlaceRunCorners/PlaceTierBelow。控えは外向きの駒で・基壇の向きは低い地盤で測り直す
 - [野面の土留めの罠](nozura-wall-traps.md) — 見え面は局所+Z・殻の石垣は光線で測る・足元の溝は天端の帯(CREST_BAND)で解消・背の帯の溝は据えで消えない(前が0.4〜0.75飛び出す)・Stage7 の順
 - [袖の根入れは丈で取る・埋まる隅は先に測る](sode-neiri-and-buried-crest.md) — 足元は設計面で測る(皮は嘘)。男坂も 3.20 を焼いた。25.94 の隅は古い読み
+
+- [短い返しは票が割れて裏返る・袖は run の走る段だけ・短い区間は出隅へ寄せる](short-return-tie-and-sode-extent.md) — RunLowHand/OverlapAlong/ShortSegConvexEnd。段の小口と法は解けない
 
 ## 測り方・関門
 

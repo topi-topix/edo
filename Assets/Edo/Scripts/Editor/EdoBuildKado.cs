@@ -528,6 +528,89 @@ public static partial class EdoBuild
         return r >= l ? nrm : -nrm;
     }
 
+    /// <summary>**一本の折れ線の土留めの「低い側の手」を区間の票の差で決める**(2026-09-25・EDO-0430)。
+    /// 一本の run の見え面は走りに対して同じ手(右か左)にある ── 区間ごとに <see cref="LowSide"/> の票を取り、
+    /// 右手の票の差の和を返す(+ = 右手が低い / − = 左手 / 0 = 決まらない)。短い区間(切り込みの返し 1.7m は票が 2 つ)で
+    /// 票が割れたとき、同じ run の他の区間の手で決める。⛔ 割れた票を右手に倒さない(切り込みの東の返しが前庭の側を向いた)。
+    /// 当たる先: 折れる土留め・郭の石垣・切り込みの返し(山王 Stage3、各邸の外周石垣・護岸)。</summary>
+    public static int RunLowHand(IList<Vector2[]> segs, Func<float, float, float> groundAt, float probe, float eps,
+                                 Func<int, float, bool> use)
+    {
+        int margin = 0;
+        for (int i = 0; i < segs.Count; i++)
+        {
+            var sg = segs[i]; if (sg == null || sg.Length < 2) continue;
+            float len = Vector2.Distance(sg[0], sg[1]); if (len < 1e-4f) continue;
+            Vector2 dir = (sg[1] - sg[0]) / len, nrm = new Vector2(dir.y, -dir.x);
+            int ii = i; int v, x;
+            var low = LowSide(sg[0], sg[1], groundAt, probe, eps, use == null ? null : (Func<float, bool>)(s => use(ii, s)), out v, out x);
+            if (low == Vector2.zero) continue;
+            margin += (Vector2.Dot(low, nrm) > 0f ? 1 : -1) * (v - x);
+        }
+        return margin;
+    }
+
+    /// <summary>**折れ線 <paramref name="run"/> を線分 p0→p1 へ射影したとき、線分の上で重なる長さ**[m](2026-09-25・EDO-0430)。
+    /// 石段の袖を**袖の run が走る段だけ**に据えるために使う(段の踏面の [s0, s1] と袖の走りの重なり)。
+    /// ⛔ 脇の離れ(段の芯からの距離)だけで決めない ── 切り込みの中は返しの土留めが持つのに、段の全長へ袖を据えて返しと重ねた。
+    /// 当たる先: 石段の袖(男坂・女坂・参道の階・郭の階・中門の内の階、各邸の石段)。</summary>
+    public static float OverlapAlong(Vector2 p0, Vector2 p1, IList<Vector2> run)
+    {
+        float len = Vector2.Distance(p0, p1); if (len < 1e-5f || run == null || run.Count == 0) return 0f;
+        Vector2 d = (p1 - p0) / len; float lo = float.MaxValue, hi = float.MinValue;
+        foreach (var q in run) { float t = Vector2.Dot(q - p0, d); lo = Mathf.Min(lo, t); hi = Mathf.Max(hi, t); }
+        return Mathf.Max(0f, Mathf.Min(len, hi) - Mathf.Max(0f, lo));
+    }
+
+    /// <summary>**駒より短い区間の、どちらの端が出隅か**(2026-09-25・EDO-0430)。区間 [a, b](見え面の外向き <paramref name="outw"/>)の
+    /// 端ごとに、そこへ端を持つ別の区間(<paramref name="segs"/>・一直線に続く物は除く)の走りを見て、相手が自分の見え面の裏へ延びれば
+    /// 出隅(凸)・見え面の前へ延びれば入隅(凹)。返り値 = +1(a だけが出隅)/ −1(b だけが出隅)/ 0(どちらでもない・両方)。
+    /// ⭐ 短い区間は駒を出隅の側へ突き付け、余りを入隅の側(相手の見え面の裏 = 土の中)で重ねる(<see cref="FlushRunEnd"/>)。
+    /// ⛔ 駒を区間の芯に置かない ── 1.7m の区間に 2.0m の駒を芯で置くと出隅で相手の天端の線より 0.15m 前へ出る
+    /// (山王 前庭の切り込みの返し TW_Zentei_Kiri・2026-09-25)。
+    /// 当たる先: 駒の長さより短い区間を持つ石垣の run すべて(山王 Stage3 の土留め・各邸の外周石垣の短い折れ)。</summary>
+    public static int ShortSegConvexEnd(Vector2 a, Vector2 b, Vector2 outw, IList<Vector2[]> segs, float tol = 0.05f)
+    {
+        float len = Vector2.Distance(a, b); if (len < 1e-4f) return 0;
+        Vector2 dir = (b - a) / len;
+        Func<Vector2, int> kind = e =>
+        {   // +1 = 出隅・−1 = 入隅・0 = 相手なし
+            int k = 0;
+            foreach (var o in segs)
+            {
+                if (o == null || o.Length < 2) continue;
+                if ((Vector2.Distance(o[0], a) < tol && Vector2.Distance(o[1], b) < tol) ||
+                    (Vector2.Distance(o[0], b) < tol && Vector2.Distance(o[1], a) < tol)) continue;      // 自分
+                Vector2 far;
+                if (Vector2.Distance(o[0], e) < tol) far = o[1]; else if (Vector2.Distance(o[1], e) < tol) far = o[0]; else continue;
+                Vector2 d2 = far - e; if (d2.sqrMagnitude < 1e-6f) continue; d2.Normalize();
+                if (Mathf.Abs(dir.x * d2.y - dir.y * d2.x) < 0.02f) continue;                            // 一直線に続く
+                float s = Vector2.Dot(d2, outw);
+                if (s < -0.1f) k = k < 0 ? 0 : 1; else if (s > 0.1f) k = k > 0 ? 0 : -1;
+            }
+            return k;
+        };
+        int ka = kind(a), kb = kind(b);
+        if (ka > 0 && kb <= 0) return 1;
+        if (kb > 0 && ka <= 0) return -1;
+        return 0;
+    }
+
+    /// <summary>**駒の端を区間の端へ突き付ける**(<see cref="ShortSegConvexEnd"/> の相方・2026-09-25・EDO-0430)。
+    /// 天端の帯(最上点 − <paramref name="band"/> 以上)の頂点の <paramref name="toward"/>(区間の内から端へ向かう走り)への射影の最大
+    /// = 駒の端を実メッシュで測り、端の点 <paramref name="end"/>(相手の天端の前の縁の線の上)まで走りに沿って平行移動する。
+    /// ⛔ ピボットで合わせない。返り値 = 動かした量[m](+ = 端の側へ)。</summary>
+    public static float FlushRunEnd(GameObject piece, Vector2 end, Vector2 toward, float band = 0.15f)
+    {
+        var vs = Body(piece.transform, 999999); if (vs.Count == 0) return 0f;
+        float top = float.MinValue; foreach (var v in vs) top = Mathf.Max(top, v.y);
+        float m = float.MinValue;
+        foreach (var v in vs) if (v.y >= top - band) m = Mathf.Max(m, (v.x - end.x) * toward.x + (v.z - end.y) * toward.y);
+        if (m == float.MinValue) return 0f;
+        piece.transform.position -= new Vector3(toward.x, 0f, toward.y) * m;
+        return -m;
+    }
+
     /// <summary>**基壇(天端が両側の地盤より上の石垣)の見え面の向きを、端で継ぐ壁の走りから決める**(2026-09-25・EDO-0430)。
     /// 基壇は両側が低いので地表では向きが決まらない。基壇を囲む壁は端どうしで継がれ、継いだ相手は**基壇の側へ**走る ──
     /// 見え面はその逆。<paramref name="others"/> = 基壇の壁の区間 [a, b](自分を含んでよい)。a・b から <paramref name="tol"/> 以内に

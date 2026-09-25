@@ -339,6 +339,33 @@ public static partial class EdoBuild
         return Vector2.Dot(q - c, new Vector2(t.right.x, t.right.z)) >= 0f ? 1 : -1;
     }
 
+    /// <summary>**石垣の区間の天端の前の縁を、石段の最上段の段石の背の端へ突き付ける**(指図 joints[72]「奥の辺の外面 × 最上段」・2026-09-25・EDO-0430)。
+    /// 石段の上端を受ける土留め(切り込みの奥の辺)は、天端と最上段の踏面が同じ高さで並ぶ ── 取り合いは**その高さの帯**で測る:
+    /// 駒の並び <paramref name="pieces"/> の天端の帯(各駒の最上点 − <paramref name="band"/> 以上)の頂点の <paramref name="outw"/>(見え面の外向き =
+    /// 石段の坂下の側)への射影の最大 = 天端の前の縁、段石 <paramref name="step"/> の踏面の帯の頂点の射影の最小 = 段石の背の端。
+    /// 並び全体を <paramref name="outw"/> に沿って平行移動し、両者を一致させる(一直線の天端のまま・隙 0・重なり 0)。
+    /// ⛔ 全身の Contact で押さない ── 法の付いた見え面は天端より下で段石の胴(地中)へ入るので、全身で当てると天端に
+    /// 0.1m 超の口が開く。⛔ ピボットで合わせない。返り値 = 動かした量[m](+ = 坂下へ・測れなければ NaN)。
+    /// 当たる先: 石段の上端を土留めで受ける所すべて(山王 前庭の切り込みの奥の辺。各邸で石段を面の縁へ切り込ませる所)。</summary>
+    public static float AbutCrestToStep(IList<GameObject> pieces, Vector2 outw, GameObject step, float band = 0.15f)
+    {
+        if (step == null || pieces == null || pieces.Count == 0) return float.NaN;
+        float front = float.MinValue;
+        foreach (var g in pieces)
+        {
+            if (g == null) continue;
+            var vs = Body(g.transform, 999999); float top = float.MinValue; foreach (var v in vs) top = Mathf.Max(top, v.y);
+            foreach (var v in vs) if (v.y >= top - band) front = Mathf.Max(front, v.x * outw.x + v.z * outw.y);
+        }
+        var sv = Body(step.transform, 999999, true); float st = float.MinValue; foreach (var v in sv) st = Mathf.Max(st, v.y);
+        float back = float.MaxValue;
+        foreach (var v in sv) if (v.y >= st - band) back = Mathf.Min(back, v.x * outw.x + v.z * outw.y);
+        if (front == float.MinValue || back == float.MaxValue) return float.NaN;
+        float shift = back - front;
+        foreach (var g in pieces) if (g != null) g.transform.position += new Vector3(outw.x, 0f, outw.y) * shift;
+        return shift;
+    }
+
     /// <summary>**最上段の段石の外形を包む面の輪郭**(取り合いの「被せ」── 面の輪郭が最上段の小口まで届き外形を包む・EDO-0430)。
     /// 段石の実メッシュを段の局所の軸(+Z = 坂下 = 表)で測り、表の線(段鼻)から背の外 <paramref name="m"/>・両の小口の外
     /// <paramref name="m"/> までの矩形を世界 XZ で返す。⛔ 表の線より前(下の段の側)へは出さない。測れなければ null。

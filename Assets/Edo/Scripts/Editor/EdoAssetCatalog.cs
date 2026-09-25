@@ -145,6 +145,43 @@ namespace Edo.EditorTools
             public float PivotBottom;   // ピボットから見た最下端の y。0 なら足元がピボット
             public int Tris, Renderers;
             public bool InScene, InScript;
+            // 木の部材(TreesRoot の下)だけ。LOD0 の頂点で測る・scale 1・m(EDO-0409)
+            public bool IsTree;
+            public Vector2 TrunkFoot;   // 幹の足の中心(局所 xz)= EdoBuild.TrunkFootLocal
+            public float CrownR;        // 幹の足の中心から全頂点の水平最大半径
+            public string Edashita;     // 枝下の輪郭 "r:h;…"(r = 0.5m 刻みの環の外半径、h = 環の中の最も低い頂点の足元からの高さ)
+        }
+
+        const string TreesRoot = "Assets/Edo/Models/Trees/";
+
+        /// <summary>木の部材を LOD0 の頂点で測る。幹そのもの(幹の足の中心から 0.3m 以内)は枝下から除く。</summary>
+        static void MeasureTree(Row row, GameObject asset)
+        {
+            var inst = UnityEngine.Object.Instantiate(asset);
+            inst.hideFlags = HideFlags.HideAndDontSave;
+            try
+            {
+                inst.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+                inst.transform.localScale = Vector3.one;
+                var pts = EdoBuild.Lod0PointsRootFrame(inst);
+                Vector2 foot; float yFoot;
+                if (!EdoBuild.TrunkFootOf(pts, out foot, out yFoot)) return;
+                row.IsTree = true; row.TrunkFoot = foot;
+                float rmax = 0f;
+                var ring = new SortedDictionary<int, float>();
+                foreach (var p in pts)
+                {
+                    float r = new Vector2(p.x - foot.x, p.z - foot.y).magnitude;
+                    if (r > rmax) rmax = r;
+                    if (r <= EdoBuild.TrunkFootBand) continue;
+                    int k = Mathf.FloorToInt(r / 0.5f);
+                    float h = p.y - yFoot, cur;
+                    if (!ring.TryGetValue(k, out cur) || h < cur) ring[k] = h;
+                }
+                row.CrownR = rmax;
+                row.Edashita = string.Join(";", ring.Select(kv => F((kv.Key + 1) * 0.5f) + ":" + F(kv.Value)));
+            }
+            finally { UnityEngine.Object.DestroyImmediate(inst); }
         }
 
         static Row Measure(string path, HashSet<string> sceneGuids, string scriptText)
@@ -191,7 +228,7 @@ namespace Edo.EditorTools
             var size = hasBounds ? max - min : Vector3.zero;
             var guid = AssetDatabase.AssetPathToGUID(path);
 
-            return new Row
+            var row = new Row
             {
                 Path = path,
                 Pack = path.Split('/')[1],
@@ -207,6 +244,8 @@ namespace Edo.EditorTools
                 InScene = sceneGuids.Contains(guid),
                 InScript = scriptText.Contains(path),
             };
+            if (path.StartsWith(TreesRoot, StringComparison.Ordinal)) MeasureTree(row, go);
+            return row;
         }
 
         /// <summary>マテリアルのピンク化リスクを一目で見るための粗いタグ。</summary>
@@ -236,7 +275,10 @@ namespace Edo.EditorTools
             sb.AppendLine("# (0 なら足元がピボット。負なら足元がピボットより下)");
             sb.AppendLine("# root_scale: ルート自身の補正スケール(1 でなければ共通ヘルパに Vector3.one を渡すと化ける)");
             sb.AppendLine("# shader: BUILTIN = URP でピンクになる。use: S=シーンで使用中 / B=ビルダーが参照");
-            sb.AppendLine("path\tname\tpack\tkind\tsx\tsy\tsz\tpivot_bottom\troot_scale\ttris\trenderers\tshader\tuse");
+            sb.AppendLine("# trunk_dx/trunk_dz/crown_r/edashita: Assets/Edo/Models/Trees/ の木だけ(LOD0 の頂点・scale 1・m)。");
+            sb.AppendLine("#   trunk = 幹の足の中心(最も低い 0.3m の帯の xz の中点)の局所 xz。crown_r = そこからの水平最大半径。");
+            sb.AppendLine("#   edashita = 枝下の輪郭 r:h(r = 0.5m 刻みの環の外半径・h = 環の最も低い頂点の足元からの高さ。0.3m 以内の幹は除く)");
+            sb.AppendLine("path\tname\tpack\tkind\tsx\tsy\tsz\tpivot_bottom\troot_scale\ttris\trenderers\tshader\tuse\ttrunk_dx\ttrunk_dz\tcrown_r\tedashita");
             foreach (var r in rows)
             {
                 var use = (r.InScene ? "S" : "") + (r.InScript ? "B" : "");
@@ -248,7 +290,11 @@ namespace Edo.EditorTools
                   .Append(F(r.Size.x)).Append('\t').Append(F(r.Size.y)).Append('\t').Append(F(r.Size.z)).Append('\t')
                   .Append(F(r.PivotBottom)).Append('\t').Append(rs).Append('\t')
                   .Append(r.Tris).Append('\t').Append(r.Renderers).Append('\t')
-                  .Append(r.Shaders).Append('\t').Append(use.Length == 0 ? "-" : use).AppendLine();
+                  .Append(r.Shaders).Append('\t').Append(use.Length == 0 ? "-" : use);
+                if (r.IsTree)
+                    sb.Append('\t').Append(F(r.TrunkFoot.x)).Append('\t').Append(F(r.TrunkFoot.y)).Append('\t')
+                      .Append(F(r.CrownR)).Append('\t').Append(r.Edashita);
+                sb.AppendLine();
             }
             return sb.ToString();
         }

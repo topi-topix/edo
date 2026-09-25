@@ -1979,6 +1979,75 @@ class Checks(object):
                  "%d 点・%d 塊" % (len(dr), len(sh)),
                  "ng" if dr else ("soft" if sh else "ok"), det[:12])
 
+    # C32 屋根と塀の取り合い(EDO-0444 ── 拝殿・本殿の軒が透塀を越えていたのを人の目でしか拾えなかった)
+    def c32(self):
+        """`munes[].partFrom` の部材の実寸(asset-index.tsv)を屋根の外形とし、囲い(runs)の各区間の線を
+        **平面で**越える量を刷る。
+
+        ⭐ 平面の越えは**許す**(施主裁定 2026-09-26 A「Aで」── 軒は塀の上を越えてよい・裁定図
+          https://claude.ai/artifact/8ayBnyP54CcMWi5R2DmX7L)⇒ 越えは数を刷るだけで ng にしない。
+        ⛔ 当たり(軒と塀の高さの空き ≤ 0)は許容 0 だが、軒の高さは紙に無い ⇒ 越えがある組は **未検査(na)** と
+          名乗る。高さは Unity で実メッシュを測る輪(規則19 ── 取り合いの正の輪は実装)。
+        ⚠ 屋根の外形は部材の実寸を棟の芯に置いた矩形(軸は棟の du/dv の長短に合わせる)。軒反りは鉛直なので平面の外形は矩形のまま。
+        """
+        M = self.M
+        idx = os.path.join(ROOT, "docs", "asset-index.tsv")
+        size = {}
+        if os.path.exists(idx):
+            for line in open(idx, encoding="utf-8"):
+                if line.startswith("#"):
+                    continue
+                c = line.rstrip("\n").split("\t")
+                if len(c) > 6:
+                    try:
+                        size[c[1]] = (float(c[4]), float(c[6]))
+                    except ValueError:
+                        pass
+        roofs = []
+        for m in M.munes:
+            pf = (m.raw or {}).get("partFrom")
+            if not isinstance(pf, str) or pf not in size:
+                continue
+            us = [p[0] for p in m.poly]
+            vs = [p[1] for p in m.poly]
+            du, dv = max(us) - min(us), max(vs) - min(vs)
+            a, b = sorted(size[pf])
+            hu, hv = ((a, b) if du <= dv else (b, a))
+            roofs.append((m, ((max(us) + min(us)) / 2, (max(vs) + min(vs)) / 2), hu / M.KEN / 2, hv / M.KEN / 2))
+        if not roofs or not M.runs:
+            self.add("C32", "屋根と塀の取り合い", "該当無し — 部材を名指しした棟か囲いが無い", "ok")
+            return
+        step = 0.05
+        over = {}
+        for m, (cu, cv), hu, hv in roofs:
+            ring = []
+            for (u0, v0), (u1, v1) in (((cu - hu, cv - hv), (cu + hu, cv - hv)), ((cu + hu, cv - hv), (cu + hu, cv + hv)),
+                                       ((cu + hu, cv + hv), (cu - hu, cv + hv)), ((cu - hu, cv + hv), (cu - hu, cv - hv))):
+                n = max(1, int(math.hypot(u1 - u0, v1 - v0) / step))
+                ring += [(u0 + (u1 - u0) * i / n, v0 + (v1 - v0) * i / n) for i in range(n)]
+            for r in M.runs:
+                a, b = M.UV(*r.a), M.UV(*r.b)
+                tu, tv = b[0] - a[0], b[1] - a[1]
+                L2 = math.hypot(tu, tv)
+                if L2 < 1e-6:
+                    continue
+                tu, tv = tu / L2, tv / L2
+                nu, nv = -tv, tu
+                side = nu * (cu - a[0]) + nv * (cv - a[1])
+                if abs(side) < 1e-6 or any((nu * (p[0] - a[0]) + nv * (p[1] - a[1])) * side <= 0 for p in m.poly):
+                    continue          # 躯体が線に載る・跨ぐ組は重なり(C01)と区画(C02)の持ち場
+                s = 1.0 if side > 0 else -1.0
+                d = max([-s * (nu * (p[0] - a[0]) + nv * (p[1] - a[1])) for p in ring
+                         if -0.01 <= tu * (p[0] - a[0]) + tv * (p[1] - a[1]) <= L2 + 0.01] or [0.0])
+                if d > 0.005:
+                    k = (m.name, r.name)
+                    over[k] = max(over.get(k, 0.0), d * M.KEN)
+        det = ["%s の屋根が %s の線を平面で %.2f m 越える(高さの当たりは Unity で測る)" % (k[0], k[1], v)
+               for k, v in sorted(over.items(), key=lambda kv: -kv[1])]
+        self.add("C32", "屋根と塀の取り合い — 部材を名指しした棟 %d の屋根の外形(部材の実寸)が囲いの線を平面で越える組を刷る"
+                 "(越えは許す=施主裁定 2026-09-26 A。当たりは許容 0 だが軒の高さは紙に無いので越えた組は未検査)" % len(roofs),
+                 "平面の越え %d 組" % len(over), "na" if over else "ok", det[:12])
+
     # C29 塀・囲い・土留めの内の幹(施主 2026-09-23 EDO-0409「幹の芯は塀・囲い・土留めのすべての実体線から 2.0m 以上内」)
     def c29(self):
         """`planting.bandDef.avoid.kakoiLineFrom` を宣言した邸だけ、撒いた木(全点・全層)の**幹の芯**が

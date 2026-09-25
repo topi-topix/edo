@@ -341,6 +341,11 @@
    "title": "名指しの点の届き",
    "measures": "`<邸>_impl.json` の `planting.clusters` の記録から、庭方が名指しした点(`gardens[].shrubs.clusters[].pts`)のうち硬い制約(塀・土留めの実体線 `kakoi_line_shapes`・木を植えない面・別の層の幹 `crossLayerTrunkMinM`)で落ちた点(`dropped`・理由 `why` は散布の判定そのまま)を ng、塊の本数の不足(`short`)を △ 狙い未達で刷る(規則19 ── 2026-09-25 EDO-0409: 前庭の低木 設計11 → 算出8 が黙っていた)。記録の無い邸は未検査",
    "from_checks": []
+  },
+  "C32": {
+   "title": "屋根と塀の取り合い",
+   "measures": "棟の屋根の外形(部材の実寸)が囲いの線を平面で越える量を刷る。越えは許す(施主裁定 2026-09-26 A)・越えた組の高さの当たりは Unity で測る(紙では未検査)",
+   "from_checks": []
   }
  },
  "checks": [

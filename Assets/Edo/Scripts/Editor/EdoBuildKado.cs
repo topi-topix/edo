@@ -562,6 +562,55 @@ public static partial class EdoBuild
         return Mathf.Max(0f, Mathf.Min(len, hi) - Mathf.Max(0f, lo));
     }
 
+    /// <summary>**駒より短い区間の、どちらの端が出隅か**(2026-09-25・EDO-0430)。区間 [a, b](見え面の外向き <paramref name="outw"/>)の
+    /// 端ごとに、そこへ端を持つ別の区間(<paramref name="segs"/>・一直線に続く物は除く)の走りを見て、相手が自分の見え面の裏へ延びれば
+    /// 出隅(凸)・見え面の前へ延びれば入隅(凹)。返り値 = +1(a だけが出隅)/ −1(b だけが出隅)/ 0(どちらでもない・両方)。
+    /// ⭐ 短い区間は駒を出隅の側へ突き付け、余りを入隅の側(相手の見え面の裏 = 土の中)で重ねる(<see cref="FlushRunEnd"/>)。
+    /// ⛔ 駒を区間の芯に置かない ── 1.7m の区間に 2.0m の駒を芯で置くと出隅で相手の天端の線より 0.15m 前へ出る
+    /// (山王 前庭の切り込みの返し TW_Zentei_Kiri・2026-09-25)。
+    /// 当たる先: 駒の長さより短い区間を持つ石垣の run すべて(山王 Stage3 の土留め・各邸の外周石垣の短い折れ)。</summary>
+    public static int ShortSegConvexEnd(Vector2 a, Vector2 b, Vector2 outw, IList<Vector2[]> segs, float tol = 0.05f)
+    {
+        float len = Vector2.Distance(a, b); if (len < 1e-4f) return 0;
+        Vector2 dir = (b - a) / len;
+        Func<Vector2, int> kind = e =>
+        {   // +1 = 出隅・−1 = 入隅・0 = 相手なし
+            int k = 0;
+            foreach (var o in segs)
+            {
+                if (o == null || o.Length < 2) continue;
+                if ((Vector2.Distance(o[0], a) < tol && Vector2.Distance(o[1], b) < tol) ||
+                    (Vector2.Distance(o[0], b) < tol && Vector2.Distance(o[1], a) < tol)) continue;      // 自分
+                Vector2 far;
+                if (Vector2.Distance(o[0], e) < tol) far = o[1]; else if (Vector2.Distance(o[1], e) < tol) far = o[0]; else continue;
+                Vector2 d2 = far - e; if (d2.sqrMagnitude < 1e-6f) continue; d2.Normalize();
+                if (Mathf.Abs(dir.x * d2.y - dir.y * d2.x) < 0.02f) continue;                            // 一直線に続く
+                float s = Vector2.Dot(d2, outw);
+                if (s < -0.1f) k = k < 0 ? 0 : 1; else if (s > 0.1f) k = k > 0 ? 0 : -1;
+            }
+            return k;
+        };
+        int ka = kind(a), kb = kind(b);
+        if (ka > 0 && kb <= 0) return 1;
+        if (kb > 0 && ka <= 0) return -1;
+        return 0;
+    }
+
+    /// <summary>**駒の端を区間の端へ突き付ける**(<see cref="ShortSegConvexEnd"/> の相方・2026-09-25・EDO-0430)。
+    /// 天端の帯(最上点 − <paramref name="band"/> 以上)の頂点の <paramref name="toward"/>(区間の内から端へ向かう走り)への射影の最大
+    /// = 駒の端を実メッシュで測り、端の点 <paramref name="end"/>(相手の天端の前の縁の線の上)まで走りに沿って平行移動する。
+    /// ⛔ ピボットで合わせない。返り値 = 動かした量[m](+ = 端の側へ)。</summary>
+    public static float FlushRunEnd(GameObject piece, Vector2 end, Vector2 toward, float band = 0.15f)
+    {
+        var vs = Body(piece.transform, 999999); if (vs.Count == 0) return 0f;
+        float top = float.MinValue; foreach (var v in vs) top = Mathf.Max(top, v.y);
+        float m = float.MinValue;
+        foreach (var v in vs) if (v.y >= top - band) m = Mathf.Max(m, (v.x - end.x) * toward.x + (v.z - end.y) * toward.y);
+        if (m == float.MinValue) return 0f;
+        piece.transform.position -= new Vector3(toward.x, 0f, toward.y) * m;
+        return -m;
+    }
+
     /// <summary>**基壇(天端が両側の地盤より上の石垣)の見え面の向きを、端で継ぐ壁の走りから決める**(2026-09-25・EDO-0430)。
     /// 基壇は両側が低いので地表では向きが決まらない。基壇を囲む壁は端どうしで継がれ、継いだ相手は**基壇の側へ**走る ──
     /// 見え面はその逆。<paramref name="others"/> = 基壇の壁の区間 [a, b](自分を含んでよい)。a・b から <paramref name="tol"/> 以内に

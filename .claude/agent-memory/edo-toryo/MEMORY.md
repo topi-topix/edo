@@ -70,7 +70,7 @@
 - [野面の土留めの罠](nozura-wall-traps.md) — 見え面は局所+Z・殻の石垣は光線で測る・足元の溝は天端の帯(CREST_BAND)で解消・背の帯の溝は据えで消えない(前が0.4〜0.75飛び出す)・Stage7 の順
 - [袖の根入れは丈で取る・埋まる隅は先に測る](sode-neiri-and-buried-crest.md) — 足元は設計面で測る(皮は嘘)。男坂も 3.20 を焼いた。25.94 の隅は古い読み
 
-- [短い返しは票が割れて裏返る・袖は run の走る段だけ](short-return-tie-and-sode-extent.md) — RunLowHand/OverlapAlong。Stage3 の流し直しは S1 から
+- [短い返しは票が割れて裏返る・袖は run の走る段だけ・短い区間は出隅へ寄せる](short-return-tie-and-sode-extent.md) — RunLowHand/OverlapAlong/ShortSegConvexEnd。段の小口と法は解けない
 
 ## 測り方・関門
 

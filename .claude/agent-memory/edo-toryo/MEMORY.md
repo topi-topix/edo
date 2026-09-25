@@ -67,6 +67,7 @@
 - [裏込めの皮は退役・原因は殻の石垣の底の測り違い](backfill-skin-needs-three-limits.md) — 鉛直な見え面で底が天端に化け偽の隙4510。WallBottom で15
 - [石垣の隅は区間の端ごとに・T 字の継ぎ目・二段築の下段](run-corners-seams-and-tiers.md) — PlaceRunCorners/PlaceTierBelow。控えは外向きの駒で・基壇の向きは低い地盤で測り直す
 - [野面の土留めの罠](nozura-wall-traps.md) — 見え面は局所+Z・殻の石垣は光線で測る・足元の溝は天端の帯(CREST_BAND)で解消・背の帯の溝は据えで消えない(前が0.4〜0.75飛び出す)・Stage7 の順
+- [袖の根入れは丈で取る・埋まる隅は先に測る](sode-neiri-and-buried-crest.md) — 足元は設計面で測る(皮は嘘)。男坂も 3.20 を焼いた。25.94 の隅は古い読み
 
 ## 測り方・関門
 

@@ -60,6 +60,11 @@ python3 Tools/Sashizu/qa_scope.py --touched 隅 外周 --estate okabe
 
 ## 走らせる前に必ず確認する
 
+- **Unity は呼び出し元の窓が握ったまま渡している。** あなたの Unity MCP・Bash は窓と同じ身元で門番を
+  通るので、自分で取らない・返さない。⛔ `edo_session.py release`/`start`/`finish`/`steal` は打たない
+  (門番が止める。打てば窓の unity が待ち行列の先頭=他邸へ渡り、レンダが撮れなくなる・EDO-0446)。
+  ⛔ 身元を自作しない。Unity MCP が「使用中」で弾かれたら、**そのまま帰って**呼び出し元へ報告する
+
 - **アセンブリが最新か** — `Library/ScriptAssemblies/Assembly-CSharp-Editor.dll` の mtime が
   `Assets/Edo/Scripts/**/*.cs` の最新 mtime より**新しい**こと。古ければ**実行しない**で報告する
   (古いアセンブリで走ると「直したのに反映されない」と誤診する)

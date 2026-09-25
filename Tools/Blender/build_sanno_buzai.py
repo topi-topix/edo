@@ -685,6 +685,530 @@ def sode_check(o, keri, fumi):
         raise SystemExit("[sanno] ⛔ 袖の検算が落ちた: %s" % ", ".join(t[0] for t in bad))
 
 
+# ---------------------------------------------------------------- 1d. 法の面へ突き付ける段石と袖(EDO-0442 施主裁定B・2026-09-26)
+# 山王 前庭の北の切り込み(`TW_Zentei_Kiri`)へ参道の階を引き込んだ。返しと隅の駒は野面で**法 1:0.25**(施主の決めた作り・変えない)。
+# 段石の小口・袖の背は鉛直なので、法の面と突き付けると上端に口・下端にめり込みが残る(0.25 × 見える丈 / 2)。
+# ⇒ **駒の端そのものを法の面で切る**(平面 bisect + 切り口を塞ぐ)。切る前の駒は平らな駒 `dan` / `sode` と同じ物・同じ局所座標・同じピボット。
+#   ・面の式は Unity の局所座標で書く(X 幅 / Y 高さ / Z 走り・+Z 坂下)。法 NORI = 0.25(1m 上がるごとに 0.25 後退)。
+#   ・切り口の UV は `_stone` のタイル貼りと同じ(DANISHI_TILE・面ごとに位相だけずらす)。外の面の UV は bisect の補間で連続のまま。
+#   ⛔ 位置・長さは据え手が実メッシュで測った値(従属値)を引数で受ける。部材方は据え方を書かない。
+NORI = 0.25                 # 返し・隅の駒の法(野面の乱積み `Sanno_Nozura*`・1:0.25)
+SODE_NORI_KNEE = -0.60      # 袖の背の法を切るのはこの高さ(袖の局所 Y)から上。下は鉛直(地中 ── 相手の野面も根入れ 0.20 で終わる)
+SODE_NORI_E = [round(-0.30 + 0.05 * k, 2) for k in range(9)]    # 焼く背の出(−0.30〜+0.10・0.05 刻み)
+
+
+def _u2b(p):
+    """Unity 局所 → Blender(X = −x, Y = z, Z = −y の逆)。"""
+    return Vector((-p[0], -p[2], p[1]))
+
+
+def _clip(o, planes, seed):
+    """o を半空間の積へ切る。planes = [(P, N)](Unity 局所)で、**dot(x − P, N) > 0 の側を捨てる**。
+    島ごとに凸な駒(箱+面取り・剪断)を前提に、切り口の輪を n 角形で塞ぐ。捨てた側に残る孤立頂点は消す(README の罠)。"""
+    bm = bmesh.new(); bm.from_mesh(o.data)
+    uvl = bm.loops.layers.uv.active
+    rng = random.Random(seed)
+    for (P, N) in planes:
+        if not bm.faces:
+            break
+        bmesh.ops.bisect_plane(bm, geom=list(bm.verts) + list(bm.edges) + list(bm.faces), dist=1e-7,
+                               plane_co=_u2b(P), plane_no=_u2b(N), clear_outer=True, clear_inner=False)
+        loose = [v for v in bm.verts if not v.link_faces]
+        if loose:
+            bmesh.ops.delete(bm, geom=loose, context='VERTS')
+        bnd = [e for e in bm.edges if e.is_boundary]
+        if bnd:
+            res = bmesh.ops.holes_fill(bm, edges=bnd, sides=0)
+            bm.normal_update()
+            nb = _u2b(N).normalized()
+            for f in res["faces"]:
+                if f.normal.dot(nb) < 0:
+                    f.normal_flip()
+                ax = max(range(3), key=lambda k: abs(f.normal[k]))
+                du, dv = rng.random(), rng.random()
+                for loop in f.loops:
+                    co = loop.vert.co
+                    a, b = (co.x, co.y) if ax == 2 else ((co.x, co.z) if ax == 1 else (co.y, co.z))
+                    loop[uvl].uv = (a / DANISHI_TILE + du, b / DANISHI_TILE + dv)
+    bm.normal_update()
+    bm.to_mesh(o.data); bm.free(); o.data.update()
+    return o
+
+
+def _dup(o, name):
+    c = o.copy(); c.data = o.data.copy(); c.name = name
+    bpy.context.scene.collection.objects.link(c)
+    return c
+
+
+def _union(parts, name):
+    parts = [p for p in parts if p is not None and len(p.data.polygons) > 0]
+    V.dedup_materials()
+    o = V.join(parts, name)
+    V.set_origin(o, (0.0, 0.0, 0.0))
+    return o
+
+
+# ---- A. 背を法に切った袖石 ---------------------------------------------------------
+def sode_nori_name(keri, fumi, e, variant):
+    return "IshidanSodeNori_%s_%s%s_E%s_%s" % (cs_f3(keri), cs_f3(fumi), _dtag(), _sgn_h(e), variant)
+
+
+def sode_nori_yc(keri):
+    """背の出 e を測る高さ(袖の局所 Y)= 段 i の踏面(0)と、平らな駒の背での天端(HT + 蹴上)の中ほど。"""
+    return (SODE_HT + keri) / 2.0
+
+
+def sode_nori(keri, fumi, e, variant, name=None, knee=SODE_NORI_KNEE):
+    """平らな袖 `sode(keri, fumi, variant)` の坂上の端(背・−Z)を法 1:NORI の面で切った駒。
+    背の面: Z = −踏面/2 − e − NORI·(Y − Yc)(Yc = `sode_nori_yc`)── 上ほど坂上へ出る(相手の野面の法と平行)。
+    e > 0 は平らな駒より坂上へ出る(次の段の駒の頭を継いで伸ばす ⇒ 天端・目地の斜めは一直線のまま)、e < 0 は詰める。
+    knee より下は背を鉛直に止める(地中で駒が痩せ切らないように)。"""
+    name = name or sode_nori_name(keri, fumi, e, variant)
+    a, _ = sode(keri, fumi, variant, name=name + "_a")
+    other = "b" if variant == "a" else "a"
+    objs = [a]
+    nx = 1 + int(math.ceil(max(0.0, e + NORI * (SODE_HT + 2 * keri) + 0.05) / fumi))
+    for k in range(1, nx + 1):                  # 坂上へ継ぐ駒(周期の続き ── a の次は b)
+        b, _ = sode(keri, fumi, other if k % 2 else variant, name=name + "_n%d" % k)
+        b.data.transform(Matrix.Translation((0.0, k * fumi, k * keri))); b.data.update()
+        objs.append(b)
+    V.dedup_materials()
+    whole = V.join(objs, name + "_w")
+    yc = sode_nori_yc(keri)
+    zk = -fumi / 2.0 - e - NORI * (knee - yc)          # 膝での背の Z
+    back = ((0.0, yc, -fumi / 2.0 - e), (0.0, -NORI, -1.0))   # Z + NORI·Y が式より小さい側(坂上)を捨てる
+    p2 = _dup(whole, name + "_p2")
+    _clip(whole, [((0.0, 0.0, zk), (0.0, 0.0, -1.0))], name + "1")          # 膝の鉛直面より前
+    _clip(p2, [((0.0, 0.0, zk), (0.0, 0.0, 1.0)), back], name + "2")        # 膝より坂上の、法の面より前(膝より上だけが残る)
+    return _union([whole, p2], name), name
+
+
+def sode_nori_check(o, keri, fumi, e, knee=SODE_NORI_KNEE):
+    ok = []
+    uv = unity_verts(o)
+    T = SODE_T
+    yc = sode_nori_yc(keri)
+    zb = lambda y: -fumi / 2.0 - e - NORI * (max(y, knee) - yc)
+    ok.append(("左右対称(左右の袖が同じ FBX・頂点ごとに鏡の相手が 1e-4 以内)", _mirror_tol(o), ""))
+    ok.append(("側面が X=±T/2 の平面", abs(max(t[0] for t in uv) - T / 2) < 1e-4 and abs(min(t[0] for t in uv) + T / 2) < 1e-4, ""))
+    ok.append(("坂下の端は平らな駒のまま Z=+踏面/2", abs(max(t[2] for t in uv) - fumi / 2) < 1e-4, "%.4f" % max(t[2] for t in uv)))
+    worst = max(zb(t[1]) - t[2] for t in uv)
+    ok.append(("背の法の面より坂上に頂点が無い", worst < 1e-4, "最大 %.5f" % worst))
+    onb = [t for t in uv if abs(t[2] - zb(t[1])) < 1e-4 and t[1] > knee + 0.05]
+    ok.append(("背の法の面に頂点が乗る(膝より上)", len(onb) >= 8, "%d 点" % len(onb)))
+    top = lambda z: SODE_HT + (fumi / 2.0 - z) * keri / fumi
+    over = max(t[1] - top(t[2]) for t in uv)
+    ok.append(("天端が段鼻の線 +HT の斜めの一直線を越えない", over < 1e-4, "超過 %.5f" % over))
+    under = min(t[1] - (top(t[2]) - SODE_DEPTH) for t in uv)
+    ok.append(("下端が天端 −%.2f の平行線より下へ出ない" % SODE_DEPTH, under > -1e-4, "%.5f" % under))
+    # 背の見付(膝〜天端)で法を測り直す: 背の面の頂点を (Y, Z) で直線に当てる
+    if len(onb) >= 2:
+        ys = [t[1] for t in onb]; zs = [t[2] for t in onb]
+        my, mz = sum(ys) / len(ys), sum(zs) / len(zs)
+        sl = sum((y - my) * (z - mz) for y, z in zip(ys, zs)) / max(1e-9, sum((y - my) ** 2 for y in ys))
+        ok.append(("背の法 = 1:%.2f(実測 −dZ/dY)" % NORI, abs(-sl - NORI) < 1e-3, "%.4f" % -sl))
+    loose = sum(1 for v in o.data.vertices) - len({i for p in o.data.polygons for i in p.vertices})
+    ok.append(("孤立頂点なし", loose == 0, "%d" % loose))
+    mats = [m.name for m in o.data.materials]
+    ok.append(("材が Danishi だけ", mats == [DANISHI], str(mats)))
+    for (label, good, note) in ok:
+        print("      %s %s %s" % ("⭕" if good else "⛔", label, note))
+    if any(not t_[1] for t_ in ok):
+        raise SystemExit("[sanno] ⛔ 背を法に切った袖の検算が落ちた")
+
+
+def _mirror_tol(o, tol=1e-4):
+    """鏡像対称を頂点ごとの最近傍で確かめる(bisect の交点は丸めの升目の境に落ちて `check_mirror_x` が偽の不一致を出す)。"""
+    from mathutils import kdtree
+    vs = [v.co.copy() for v in o.data.vertices]
+    kd = kdtree.KDTree(len(vs))
+    for i, c in enumerate(vs):
+        kd.insert(c, i)
+    kd.balance()
+    return all(kd.find(Vector((-c.x, c.y, c.z)))[2] < tol for c in vs)
+
+
+# ---- B. 端を法の面(と隅の駒のもう一面)で切った段石 -------------------------------
+def _end5(e):
+    """端の組を (d, za, wall, ang, nori) に揃える(旧い 3 つ組もそのまま通す)。"""
+    e = tuple(e)
+    return e + (None,) * (5 - len(e))
+
+
+def _end_spec(d, za, wall, ang=None, nori=None):
+    """端の綴り。d = None は切らない('0')。za = None は端の全長を返しの法で切る。
+    wall = 'B'(相手の隅が坂上 = 小口の −Z 側が返し)/ 'F'(坂下)。
+    ang を持つ端は**平面で斜めに切る**(`d±0.300A±43.000` ── 法 nori を持てば `N±0.250` を足す。無ければ鉛直)。"""
+    if d is None:
+        return "0"
+    s = "d" + _sgn_h3(d)
+    if ang is not None:
+        s += "A" + _sgn_h3(ang)
+        if nori:                                    # 法 0 は鉛直と同じ綴り(C# の DanKiriEnd(d, deg, 0) と揃える)
+            s += "N" + _sgn_h3(nori)
+        return s
+    if za is not None:
+        s += wall + _sgn_h3(za)
+    return s
+
+
+def _oblique_x(d, ang, nori, w, yc):
+    """斜めに切る端の面: s·X = w/2 − d + tan(ang)·Z + nori·(Y − Yc)(その端の側で見た X)。"""
+    t = math.tan(math.radians(ang)); n = nori or 0.0
+    return lambda y, z: w / 2.0 - d + t * z + n * (y - yc)
+
+
+def _sgn_h3(x):
+    return ("+" if x >= 0 else "-") + cs_f3(abs(x))
+
+
+def dan_kiri_name(keri, fumi, w, variant, endL, endR):
+    return "DanKiri_%s_%s_%s_%s_L%s_R%s" % (cs_f3(keri), cs_f3(fumi), cs_f3(w), variant,
+                                            _end_spec(*_end5(endL)), _end_spec(*_end5(endR)))
+
+
+def dan_kiri(keri, fumi, w, variant, endL, endR, name=None):
+    """段石 `dan(keri, fumi, w, variant)` の両の小口を、脇の相手に合わせて切った駒。端 = (d, za, wall)。
+    ・返しの面(隅の駒の、石段の芯を向く面): X = s·(w/2 − d + NORI·(Y − Yc))、Yc = −蹴上/2(その段の蹴上の中ほど)。
+      d > 0 は小口より内(食い込みを削る)・d < 0 は外(小口を伸ばして口を塞ぐ ── 端の石を伸ばしてから切る)。
+    ・za を持つ端は**二つの面に跨る**: 隅の駒のもう一面(坂下/坂上を向く面・袖の背が当たる面)
+      Z = za ∓ NORI·(Y − Yc) の**返しの側**だけを上の面で切り、**袖の側**は小口 X = s·w/2 のまま(袖の側面に突き付く)。
+      ⇒ 端が段に欠ける(欠いた奥の面は隅の駒の面と平行な法)。
+    ・za = None は端の全長を返しの面で切る(`AbutStepEndsToWalls` の高さの中ほどの突き付けの代わり ── 口・めり込みが 0)。
+    ・ang を持つ端は**平面で任意の角に切る**(EDO-0430 女坂の段 0・1 ── 端が鉛直の土留めと平面で斜めに交わる):
+      面 s·X = w/2 − d + tan(ang)·Z + nori·(Y − Yc)。d は**踏面の中心の線 Z = 0・蹴上の中ほど Y = Yc** で測る食い込み、
+      ang は面の平面の線が段の走り(Z)となす角で **+ は坂下(+Z)ほど外へ開く**、nori は法(None = 鉛直)。
+      外へ出る所は小口を伸ばしてから切る(d < 0 と同じ)。"""
+    name = name or dan_kiri_name(keri, fumi, w, variant, endL, endR)
+    o, _ = dan(keri, fumi, w, variant, name=name + "_w")
+    yc = -keri / 2.0
+    ybot = -(keri + BODY)
+    lap, _drop = lap_of(keri, fumi, w)
+    for s, (d, za, wall, ang, nori) in ((-1, _end5(endL)), (1, _end5(endR))):
+        if d is None:
+            continue
+        if ang is not None:
+            xo = _oblique_x(d, ang, nori, w, yc)
+            ext = max(xo(y, z) for y in (ybot, 0.0) for z in (-(fumi / 2.0 + lap), fumi / 2.0)) - w / 2.0
+            if ext > 0:
+                _stretch_end(o, s, w, ext + 0.02)
+            t = math.tan(math.radians(ang)); n = nori or 0.0
+            _clip(o, [((s * (w / 2.0 - d), yc, 0.0), (s, -n, -t))], name + "A%d" % s)   # 面の外(s·X − t·Z − n·(Y−Yc) > w/2 − d)を捨てる
+            continue
+        ext = max(0.0, -d + NORI * (yc - ybot)) + 0.02 if d < 0 else 0.0
+        if ext > 0:
+            _stretch_end(o, s, w, ext)
+        ret = ((s * (w / 2.0 - d), yc, 0.0), (s, -NORI, 0.0))            # 返しの面の外を捨てる
+        if za is None:
+            _clip(o, [ret], name + "r%d" % s)
+            continue
+        sg = 1.0 if wall == "B" else -1.0                                   # B: 隅は坂上(Z < za)
+        wall_side = ((0.0, yc, za), (0.0, NORI, sg))                      # 袖の側を捨てる = 隅の側を残す
+        sode_side = ((0.0, yc, za), (0.0, -NORI, -sg))                    # 隅の側を捨てる = 袖の側を残す
+        pS = _dup(o, name + "_S%d" % s)
+        _clip(o, [ret, wall_side], name + "R%d" % s)
+        _clip(pS, [((s * w / 2.0, 0.0, 0.0), (s, 0.0, 0.0)), sode_side], name + "S%d" % s)
+        o = _union([o, pS], name + "_w")
+    o.name = name; o.data.name = name
+    V.set_origin(o, (0.0, 0.0, 0.0))
+    return o, name
+
+
+def _stretch_end(o, s, w, ext):
+    """s 側の小口(と面取りの輪)の頂点を外へ ext 動かす。幅方向の UV も同じだけずらす(柄を伸ばさない)。"""
+    bm = bmesh.new(); bm.from_mesh(o.data)
+    uvl = bm.loops.layers.uv.active
+    moved = {}
+    for v in bm.verts:
+        X = -v.co.x
+        if s * X > w / 2.0 - CHAMFER - 1e-4:
+            v.co.x -= s * ext                       # Unity X += s·ext
+            moved[v.index] = -s * ext               # Blender x の変位
+    bm.normal_update()
+    for f in bm.faces:
+        ax = max(range(3), key=lambda k: abs(f.normal[k]))
+        if ax == 0:
+            continue
+        for loop in f.loops:
+            dx = moved.get(loop.vert.index)
+            if dx is not None:
+                u, vv = loop[uvl].uv
+                loop[uvl].uv = (u + dx / DANISHI_TILE, vv)
+    bm.to_mesh(o.data); bm.free(); o.data.update()
+
+
+def dan_kiri_check(o, keri, fumi, w, endL, endR):
+    ok = []
+    uv = unity_verts(o)
+    yc = -keri / 2.0
+    ok.append(("踏面がピボットの高さ(Y最大=0)", abs(max(t[1] for t in uv)) < 1e-4, "%.4f" % max(t[1] for t in uv)))
+    ok.append(("蹴上の面が +Z", abs(max(t[2] for t in uv) - fumi / 2.0) < 1e-3, ""))
+    for s, (d, za, wall, ang, nori) in ((-1, _end5(endL)), (1, _end5(endR))):
+        if d is None:
+            continue
+        if ang is not None:
+            xo = _oblique_x(d, ang, nori, w, yc)
+            bite = max(s * t[0] - xo(t[1], t[2]) for t in uv)
+            ok.append(("%s 端: 斜めの面より外に頂点が無い" % "LR"[s > 0], bite < 1e-4, "最大 %.5f" % bite))
+            on = [t for t in uv if abs(s * t[0] - xo(t[1], t[2])) < 1e-4]
+            ok.append(("%s 端: 斜めの面に頂点が乗る" % "LR"[s > 0], len(on) >= 4, "%d 点" % len(on)))
+            if len(on) >= 3:
+                # 面の上の頂点を s·X = a + t·Z + n·Y に当て直して角と法を測り直す(最小二乗)
+                import numpy as _np
+                A_ = _np.array([[1.0, t_[2], t_[1]] for t_ in on]); bx = _np.array([s * t_[0] for t_ in on])
+                sol = _np.linalg.lstsq(A_, bx, rcond=None)[0]
+                ok.append(("%s 端: 面の角 %.3f°(実測)" % ("LR"[s > 0], ang), abs(math.degrees(math.atan(sol[1])) - ang) < 0.01,
+                           "%.4f°" % math.degrees(math.atan(sol[1]))))
+                ok.append(("%s 端: 面の法 %.3f(実測)" % ("LR"[s > 0], nori or 0.0), abs(sol[2] - (nori or 0.0)) < 1e-3, "%.4f" % sol[2]))
+            continue
+        xb = lambda y: w / 2.0 - d + NORI * (y - yc)
+        sg = 1.0 if wall == "B" else -1.0
+        inwall = lambda t: za is None or sg * (t[2] - (za - sg * NORI * (t[1] - yc))) < -1e-4   # 面の上の頂点は袖の側に数える
+        bite = max([s * t[0] - xb(t[1]) for t in uv if inwall(t)] + [-1.0])
+        ok.append(("%s 端: 返しの法の面より外に頂点が無い" % "LR"[s > 0], bite < 1e-4, "最大 %.5f" % bite))
+        on = [t for t in uv if abs(s * t[0] - xb(t[1])) < 1e-4]
+        ok.append(("%s 端: 返しの法の面に頂点が乗る" % "LR"[s > 0], len(on) >= 4, "%d 点" % len(on)))
+        if za is not None:
+            over = max([s * t[0] - w / 2.0 for t in uv if not inwall(t)] + [-1.0])
+            ok.append(("%s 端: 袖の側は小口 X=±w/2 を越えない" % "LR"[s > 0], over < 1e-4, "%.5f" % over))
+            onA = [t for t in uv if abs(sg * (t[2] - (za - sg * NORI * (t[1] - yc)))) < 1e-4 and s * t[0] > xb(t[1]) - 1e-4]
+            ok.append(("%s 端: 欠いた奥の面が隅の駒のもう一面の上" % "LR"[s > 0], len(onA) >= 3, "%d 点" % len(onA)))
+    loose = len(o.data.vertices) - len({i for p in o.data.polygons for i in p.vertices})
+    ok.append(("孤立頂点なし", loose == 0, "%d" % loose))
+    mats = [m.name for m in o.data.materials]
+    ok.append(("材が Danishi だけ", mats == [DANISHI], str(mats)))
+    for (label, good, note) in ok:
+        print("      %s %s %s" % ("⭕" if good else "⛔", label, note))
+    if any(not t_[1] for t_ in ok):
+        raise SystemExit("[sanno] ⛔ 端を切った段石の検算が落ちた")
+
+
+def _parse_end(tok):
+    """`-` / `d+0.219` / `d+0.219B+0.040`(F も可)/ `d+0.300A+43.000`(斜め・鉛直)/ `d+0.300A+43.000N+0.250`(斜め・法)。"""
+    if tok in ("-", "0"):
+        return (None, None, "B")
+    assert tok[0] == "d", tok
+    body = tok[1:]
+    k = body.find("A")
+    if k > 0:
+        d = float(body[:k]); rest = body[k + 1:]
+        kn = rest.find("N")
+        if kn > 0:
+            return (d, None, "B", float(rest[:kn]), float(rest[kn + 1:]))
+        return (d, None, "B", float(rest), None)
+    for wch in ("B", "F"):
+        k = body.find(wch)
+        if k > 0:
+            return (float(body[:k]), float(body[k + 1:]), wch)
+    return (float(body), None, "B")
+
+
+def read_kiri_list(path):
+    """各行 `段番号 a|b L<端> R<端>`(# 以降は註)。端は `_parse_end`。⛔ 値は据え手の実測を丸め直さない。"""
+    rows = []
+    with open(path, encoding="utf-8") as fp:
+        for ln in fp:
+            ln = ln.split("#", 1)[0].strip()
+            if not ln:
+                continue
+            i, var, l, r = ln.split()
+            i = int(i)
+            if var != "ab"[i % 2]:
+                raise SystemExit("[sanno] ⛔ 段 %d の a/b が i%%2 と合わない: %s" % (i, ln))
+            assert l[0] == "L" and r[0] == "R", ln
+            rows.append((i, var, _parse_end(l[1:]), _parse_end(r[1:])))
+    return rows
+
+
+def build_sode_nori_set(keri, fumi, es, do_render):
+    for e in es:
+        for variant in ("a", "b"):
+            V.reset()
+            o, name = sode_nori(keri, fumi, e, variant)
+            report(o, name, "← 背を法に切った袖(e %+.2f)" % e)
+            sode_nori_check(o, keri, fumi, e)
+            V.export_fbx([o], os.path.join(OUT_DAN, name + ".fbx"))
+            print("[sanno] 書き出し " + os.path.join(OUT_DAN, name + ".fbx"))
+
+
+def build_dan_kiri_list(keri, fumi, w, rows, do_render, key="kiri", export=True):
+    """一覧の各行を焼く。export=False は焼かずに検算と組み絵だけ(`dan_kiri_try` ── 実測の値が無いときの型の確かめ)。"""
+    for (i, var, eL, eR) in rows:
+        V.reset()
+        o, name = dan_kiri(keri, fumi, w, var, eL, eR)
+        report(o, name, "← 段 %d" % i)
+        dan_kiri_check(o, keri, fumi, w, eL, eR)
+        if export:
+            V.export_fbx([o], os.path.join(OUT_DAN, name + ".fbx"))
+            print("[sanno] 書き出し " + os.path.join(OUT_DAN, name + ".fbx"))
+    if do_render:
+        for pth in shots_kiri_set(keri, fumi, w, rows, key):
+            print("[sanno] 検証レンダ " + pth)
+
+
+def _proxy_wall(s, end, keri, fumi, w, mat, name):
+    """検証だけの相手の塊(**焼かない**): 端の面の外側に据わる箱。斜めの端と全長を法で切る端だけ描く。"""
+    d, za, wall, ang, nori = _end5(end)
+    if d is None or (ang is None and za is not None):
+        return None
+    yc = -keri / 2.0
+    if ang is not None:
+        t = math.tan(math.radians(ang)); n = nori or 0.0
+        N = (-s, n, t)
+    else:
+        N = (-s, NORI, 0.0)
+    bm = bmesh.new()
+    r = bmesh.ops.create_cube(bm, size=1.0)
+    bmesh.ops.scale(bm, verts=r["verts"], vec=(2.6, fumi + 2.4, keri + 1.2))
+    bmesh.ops.translate(bm, verts=r["verts"], vec=_u2b((s * (w / 2.0 + 0.9), -keri / 2.0 + 0.15, 0.0)))
+    me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
+    me.materials.append(mat)
+    o = bpy.data.objects.new(name, me); bpy.context.scene.collection.objects.link(o)
+    bm = bmesh.new(); bm.from_mesh(me)
+    bmesh.ops.bisect_plane(bm, geom=list(bm.verts) + list(bm.edges) + list(bm.faces), dist=1e-7,
+                           plane_co=_u2b((s * (w / 2.0 - d), yc, 0.0)), plane_no=_u2b(N), clear_outer=True)
+    bnd = [e_ for e_ in bm.edges if e_.is_boundary]
+    if bnd:
+        bmesh.ops.holes_fill(bm, edges=bnd, sides=0)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    bm.to_mesh(me); bm.free(); me.update()
+    return o
+
+
+def shots_kiri_set(keri, fumi, w, rows, key):
+    """一覧の段を石段に組んで刷る(段 i は踏面の天端 (i+1)·蹴上・芯 Z = −i·踏面)。
+    斜めの端・全長を法で切る端には相手の面に沿う**検証の塊**を添える(口もめり込みも無く面一に見えるはず)。
+    magenta は背景をマゼンタにし塊と地面を消して、切り口の蓋の抜けを探す。"""
+    V.reset()
+    wm = bpy.data.materials.new("render_wall"); wm.use_nodes = True
+    wb = next(n for n in wm.node_tree.nodes if n.type == 'BSDF_PRINCIPLED')
+    wb.inputs['Base Color'].default_value = (0.30, 0.28, 0.26, 1.0)
+    placed, walls = [], []
+    for (i, var, eL, eR) in rows:
+        o, _ = dan_kiri(keri, fumi, w, var, eL, eR, name="st%d" % i)
+        tr = Matrix.Translation(_u2b((0.0, (i + 1) * keri, -i * fumi)))
+        o.data.transform(tr); o.data.update(); placed.append(o)
+        for s, e in ((-1, eL), (1, eR)):
+            pw = _proxy_wall(s, e, keri, fumi, w, wm, "wall_%d_%d" % (i, s))
+            if pw is not None:
+                pw.data.transform(tr); pw.data.update(); walls.append(pw)
+    bpy.ops.mesh.primitive_plane_add(size=1.0, location=(0, 0.0, 0.0))
+    g = bpy.context.active_object
+    g.scale = (w + 8.0, len(rows) * fumi + 8.0, 1.0)
+    gm = bpy.data.materials.new("render_ground"); gm.use_nodes = True
+    gb = next(n for n in gm.node_tree.nodes if n.type == 'BSDF_PRINCIPLED')
+    gb.inputs['Base Color'].default_value = (0.20, 0.17, 0.12, 1.0)
+    g.data.materials.append(gm)
+    V.dedup_materials()
+    n = len(rows)
+    ym = n * fumi / 2.0                          # Blender y の中ほど(坂上 = +y)
+    zt = (n + 1) * keri
+    out = []
+    shots = [("3d", (w * 0.9, -3.0 - n * 0.3, zt + 2.6), (0.0, ym, zt * 0.4), None),
+             ("plan", (0.0, ym, 12.0), (0.0, ym + 0.001, 0.0), max(w, n * fumi) + 3.2)]
+    for sx in (-1, 1):                           # 端ごとの寄り(Blender x = −Unity X)
+        xb = -sx * w / 2.0
+        shots.append(("near%s" % "LR"[sx > 0], (xb + sx * 1.3, -2.4, zt + 1.3), (xb, ym * 0.8, zt * 0.45), None))
+    shots.append(("magenta", (w * 0.9, -3.0 - n * 0.3, zt + 2.6), (0.0, ym, zt * 0.4), None))
+    for (tag, cam, at, orth) in shots:
+        V.studio(cam, at, ortho_scale=orth, res=(1600, 1100))
+        if tag == "magenta":
+            bpy.context.scene.world.node_tree.nodes["Background"].inputs[0].default_value = (1, 0, 1, 1)
+            g.hide_render = True
+            for o_ in walls:
+                o_.hide_render = True
+        _hook_cut_stone()
+        pth = os.path.join(SHOT, "sanno_dankiri_%s_%s.png" % (key, tag))
+        V.render(pth); out.append(pth)
+    return out
+
+
+def shots_kiri(keri, fumi, w, d1, za1, key):
+    """参道の階の北の切り込みの組み絵: 段 0〜4・両脇の袖(段 0 は平ら・段 1 は背を法に切った駒)・
+    両脇の隅の野面の塊(**検証だけの箱** ── 返しの面 X = ±(w/2 − d1 + NORI·(Y − Yc1))・もう一面 Z = za1 − NORI·(Y − Yc1)、段 1 の局所)。
+    段 1 は二つの面に跨る端・段 2〜4 は返しの法で全長を切る(d は段ごとに法から従属)。"""
+    V.reset()
+    T = SODE_T
+    b = NORI
+    yc1w = 2 * keri - keri / 2.0                # 段 1 の蹴上の中ほど(世界 Y)
+    z1w = -fumi                                  # 段 1 の芯(世界 Z)
+    placed = []
+
+    def put(o, tx, ty, tz):
+        o.data.transform(Matrix.Translation(_u2b((tx, ty, tz)))); o.data.update(); placed.append(o)
+
+    for i in range(5):
+        v = "ab"[i % 2]
+        if i == 0:
+            o, _ = dan(keri, fumi, w, v, name="d0")
+        elif i == 1:
+            o, _ = dan_kiri(keri, fumi, w, v, (d1, za1, "B"), (d1, za1, "B"), name="d1")
+        else:
+            di = d1 - b * keri * (i - 1)
+            o, _ = dan_kiri(keri, fumi, w, v, (di, None, "B"), (di, None, "B"), name="d%d" % i)
+        put(o, 0.0, (i + 1) * keri, -i * fumi)
+    # 袖: 段 1 の背は隅の駒のもう一面に一致する e(連続値で組む ── 焼く駒は 0.05 刻み)
+    e1 = -fumi / 2.0 - za1 + b * (sode_nori_yc(keri) - (-keri / 2.0))
+    for sx in (-1, 1):
+        s0, _ = sode(keri, fumi, "a", name="s0_%d" % sx)
+        put(s0, sx * (w / 2.0 + T / 2.0), keri, 0.0)
+        s1, _ = sode_nori(keri, fumi, e1, "b", name="s1_%d" % sx)
+        put(s1, sx * (w / 2.0 + T / 2.0), 2 * keri, -fumi)
+    # 隅の野面の塊(検証の箱)と前庭の平場
+    wm = bpy.data.materials.new("render_wall"); wm.use_nodes = True
+    wb = next(n for n in wm.node_tree.nodes if n.type == 'BSDF_PRINCIPLED')
+    wb.inputs['Base Color'].default_value = (0.30, 0.28, 0.26, 1.0)
+    crest = 5 * keri + 0.02
+    for sx in (-1, 1):
+        bm = bmesh.new()
+        r = bmesh.ops.create_cube(bm, size=1.0)
+        bmesh.ops.scale(bm, verts=r["verts"], vec=(3.0, 4.0, crest + 0.3))
+        bmesh.ops.translate(bm, verts=r["verts"], vec=_u2b((sx * (w / 2.0 + 1.0), (crest - 0.3) / 2.0, z1w - 1.0)))
+        me = bpy.data.meshes.new("wall%d" % sx); bm.to_mesh(me); bm.free()
+        me.materials.append(wm)
+        wo = bpy.data.objects.new("wall%d" % sx, me); bpy.context.scene.collection.objects.link(wo)
+        bm = bmesh.new(); bm.from_mesh(me)
+        for (P, N) in (((sx * (w / 2.0 - d1), yc1w, 0.0), (-sx, b, 0.0)),            # 返しの面の芯側を捨てる
+                       ((0.0, yc1w, z1w + za1), (0.0, b, 1.0))):                   # もう一面の坂下を捨てる
+            bmesh.ops.bisect_plane(bm, geom=list(bm.verts) + list(bm.edges) + list(bm.faces), dist=1e-7,
+                                   plane_co=_u2b(P), plane_no=_u2b(N), clear_outer=True)
+            bnd = [e_ for e_ in bm.edges if e_.is_boundary]
+            if bnd:
+                bmesh.ops.holes_fill(bm, edges=bnd, sides=0)
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+        bm.to_mesh(me); bm.free(); me.update()
+    bpy.ops.mesh.primitive_plane_add(size=1.0, location=(0, 1.0, 0.0))
+    g = bpy.context.active_object
+    g.scale = (w + 10.0, 12.0, 1.0)
+    gm = bpy.data.materials.new("render_ground"); gm.use_nodes = True
+    gb = next(n for n in gm.node_tree.nodes if n.type == 'BSDF_PRINCIPLED')
+    gb.inputs['Base Color'].default_value = (0.20, 0.17, 0.12, 1.0)
+    g.data.materials.append(gm)
+    V.dedup_materials()
+    out = []
+    xr = -(w / 2.0)                               # Blender x of Unity +X 側の小口
+    shots = [
+        ("3d", (xr - 2.2, -4.2, 2.9), (xr + 0.3, fumi * 1.2, 0.7), None),
+        ("near", (xr + 1.4, -1.6, 1.55), (xr + 0.1, fumi * 1.0, 0.55), None),
+        ("side", (xr - 7.0, fumi * 1.2, 0.8), (xr, fumi * 1.2, 0.6), 3.2),
+        ("plan", (xr + 0.3, fumi * 1.0, 8.0), (xr + 0.3, fumi * 1.0 + 0.001, 0.0), 3.0),
+        ("magenta", (xr + 1.4, -1.6, 1.55), (xr + 0.1, fumi * 1.0, 0.55), None),
+    ]
+    for (tag, cam, at, orth) in shots:
+        V.studio(cam, at, ortho_scale=orth, res=(1600, 1100))
+        if tag == "magenta":
+            bpy.context.scene.world.node_tree.nodes["Background"].inputs[0].default_value = (1, 0, 1, 1)
+            g.hide_render = True
+            for o_ in bpy.data.objects:
+                if o_.name.startswith("wall"):
+                    o_.hide_render = True
+        _hook_cut_stone()
+        pth = os.path.join(SHOT, "sanno_kiri_%s_%s.png" % (key, tag))
+        V.render(pth); out.append(pth)
+    return out, e1
+
+
 # ================================================================ 2. 腰高柵
 def _log(stem, length, dia, name, frm=0.0, decimate=None):
     o = MA.log_piece(stem, length, dia, name, frm=frm)
@@ -1429,6 +1953,27 @@ def main():
         # ⛔ 角は据え手の一覧の値(指図の値ではない)。丸め直さない
         keri, fumi, w = (float(rest[1]), float(rest[2]), float(rest[3])) if len(rest) >= 4 else (0.300, 1.199, 6.363)
         build_sode_miter_list(keri, fumi, w, read_miter_list(rest[0]), do_render, miter_steps)
+    if what == "sode_nori":
+        # sode_nori <蹴上> <踏面> [--e=-0.20 | 既定は SODE_NORI_E の全部] [--depth=3.20]  背を法 1:0.25 に切った袖
+        es = SODE_NORI_E
+        for a in argv:
+            if a.startswith("--e="):
+                es = [float(x) for x in a.split("=", 1)[1].split(",")]
+        build_sode_nori_set(float(rest[0]), float(rest[1]), es, False)
+    if what == "dan_kiri_list":
+        # dan_kiri_list <一覧> <蹴上> <踏面> <幅>  各行 `段番号 a|b L<端> R<端>`(端 = - | d±0.219 | d±0.219B±0.040)
+        build_dan_kiri_list(float(rest[1]), float(rest[2]), float(rest[3]), read_kiri_list(rest[0]), do_render,
+                            key=os.path.splitext(os.path.basename(rest[0]))[0])
+    if what == "dan_kiri_try":
+        # dan_kiri_try <一覧> <蹴上> <踏面> <幅> [--render]  焼かずに検算と組み絵だけ(実測の値が無いときに型を確かめる)
+        build_dan_kiri_list(float(rest[1]), float(rest[2]), float(rest[3]), read_kiri_list(rest[0]), do_render,
+                            key=os.path.splitext(os.path.basename(rest[0]))[0], export=False)
+    if what == "kiri_shots":
+        # kiri_shots <蹴上> <踏面> <幅> <d1> <za1>  組み絵だけ刷る(書き出さない)
+        out, e1 = shots_kiri(float(rest[0]), float(rest[1]), float(rest[2]), float(rest[3]), float(rest[4]), "sando")
+        print("[sanno] 組み絵の袖の背の出 e = %.4f" % e1)
+        for pth in out:
+            print("[sanno] 検証レンダ " + pth)
     if what in ("saku", "all"):
         spans = [float(rest[0])] if rest else [tamagaki_spec()["pitch"]]
         build_saku_set(spans, do_render)

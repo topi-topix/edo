@@ -153,7 +153,8 @@
 **`edo-niwashi`** 庭方(検分と庭の設計)/ **`edo-zaiko`** 在庫方 / **`edo-buzai`** 部材方 /
 **`edo-toryo`** 棟梁(建てる)/ **`edo-fushin-qa`** 普請検査(計測とレンダのみ)
 
-⛔ `edo-toryo` / `edo-fushin-qa` を呼ぶ前に Unity の claim を返す(握ったまま呼ぶと待ち行列に回る)。
+⭐ `edo-toryo` / `edo-fushin-qa` へは **Unity を握ったまま前景で**渡す(役は窓と同じ身元で門番を通る。返すと待ち行列の先頭へ回る)。
+  返すのは建てる・検査・レンダが全部済んでから。役は `release`/`start`/`finish` を打たない(門番が止める)。→ `docs/session-coordination.md`「役へ Unity を渡す」
 ⛔ 指図を見せる前・実装に入る前に `python3 Tools/Sashizu/review_gate.py`。赤は実装しない。実装後は `kansei_gate.py`。
 ⛔ `.claude/`・CLAUDE.md・スキル・メモリを触ったら `config_doctor.py --quick` が無言になるまで直してからコミット。
 ⛔ 裁定を求めるときは**裁定図**(どこ・現況・各案を同じ縮尺で・数値の差・推奨)を出す。名前と数字の羅列で選ばせない。

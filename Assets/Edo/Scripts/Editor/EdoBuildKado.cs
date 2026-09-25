@@ -224,6 +224,16 @@ public static partial class EdoBuild
           return best; };
         var endX = endOf(runX, armX); var endZ = endOf(runZ, armZ);
         var kc = Place(path, new Vector3(P.x, crest - h, P.y), psi, Vector3.one, parent, name);
+        // ⭐ 硬い条件(許容0 の埋没): 両方の見え面で天端が前の地表の下に来る隅の駒 = 全体が埋まる駒は置かない(joints[68]・2026-09-25)
+        {
+            float ex = CrestAboveGround(kc, nX, groundAt), ez = CrestAboveGround(kc, nZ, groundAt);
+            if (!float.IsNaN(ex) && !float.IsNaN(ez) && ex <= 0f && ez <= 0f)
+            {
+                UnityEngine.Object.DestroyImmediate(kc);
+                note = "⛔ 隅の駒の天端が両方の見え面の前の地表の下(" + ex.ToString("+0.00;-0.00") + " / " + ez.ToString("+0.00;-0.00") + "m)── 全体が埋まるので建てない";
+                return null;
+            }
+        }
         // ③ 測る: 天端の帯(天端 −0.15 以上)の見え面と腕の先
         float kTop = float.MinValue; foreach (var v in Body(kc.transform, 999999)) kTop = Mathf.Max(kTop, v.y);
         Func<GameObject, Vector2, Vector2, float[]> crestFace = (g, n, arm) =>
@@ -412,6 +422,56 @@ public static partial class EdoBuild
         if (!float.IsNaN(thinOut) && thinOut > 0.05f) return thinF;
         return f;
     }
+    /// <summary>**駒の天端が見え面の前の地表より上に出るか**(全体が地表の下に来る駒を見分ける・2026-09-25 EDO-0430 joints[68])。
+    /// 駒の実メッシュを見え面の走り(<paramref name="outw"/> に直交)に 0.25m の帯へ割り、帯ごとに天端(最も高い頂点)と
+    /// 天端の帯(天端 − <see cref="CREST_BAND"/> 以上)の前の縁を取り、前の縁の <paramref name="probe"/> 先の地表と比べる。
+    /// 返り値 = 天端 − 地表 の最大[m](≤ 0 なら全ての帯で天端が地表の下 = **全体が埋まる駒**)。
+    /// ⛔ 天端の真下の地表では測らない ── 2m 格子の節点が駒の外形の中に落ちると天端の側の高さを持ち、埋まっていない駒を埋まったと読む。
+    /// 当たる先: 城の石垣の駒を並べる全ての run(山王 Stage3 の土留め・腰石垣・基壇・郭、隅の駒 <see cref="PlaceRunKado"/>)。</summary>
+    public static float CrestAboveGround(GameObject piece, Vector2 outw, Func<float, float, float> groundAt, float probe = 0.3f)
+    {
+        var vs = Body(piece.transform, 999999); if (vs.Count == 0) return float.NaN;
+        outw = outw.normalized; Vector2 run = new Vector2(-outw.y, outw.x);
+        float s0 = float.MaxValue, s1 = float.MinValue;
+        foreach (var v in vs) { float s = v.x * run.x + v.z * run.y; s0 = Mathf.Min(s0, s); s1 = Mathf.Max(s1, s); }
+        const float BIN = 0.25f; int nb = Mathf.Max(1, Mathf.CeilToInt((s1 - s0) / BIN));
+        var top = new float[nb]; var front = new float[nb];
+        for (int i = 0; i < nb; i++) { top[i] = float.MinValue; front[i] = float.MinValue; }
+        foreach (var v in vs) { int k = Mathf.Clamp(Mathf.FloorToInt((v.x * run.x + v.z * run.y - s0) / BIN), 0, nb - 1); top[k] = Mathf.Max(top[k], v.y); }
+        foreach (var v in vs)
+        {
+            int k = Mathf.Clamp(Mathf.FloorToInt((v.x * run.x + v.z * run.y - s0) / BIN), 0, nb - 1);
+            if (v.y >= top[k] - CREST_BAND) front[k] = Mathf.Max(front[k], v.x * outw.x + v.z * outw.y);
+        }
+        float best = float.NegativeInfinity;
+        for (int k = 0; k < nb; k++)
+        {
+            if (top[k] == float.MinValue) continue;
+            float s = s0 + (k + 0.5f) * BIN; Vector2 q = run * s + outw * (front[k] + probe);
+            float g = groundAt(q.x, q.y); if (float.IsNaN(g)) continue;
+            best = Mathf.Max(best, top[k] - g);
+        }
+        return float.IsNegativeInfinity(best) ? float.NaN : best;
+    }
+
+    /// <summary>**駒の端の小口が地表より上に出るか**(run の端で埋まる駒を退けた後の検め・2026-09-25 EDO-0430 joints[67])。
+    /// <paramref name="away"/> = 端から外(退けた駒の側)への走り。天端の帯の端の点の <paramref name="probe"/> 先の地表と、その点の天端を比べる。
+    /// 返り値 = 天端 − 地表[m](> 0 なら小口の上が地表より上に出ている)。</summary>
+    public static float EndAboveGround(GameObject piece, Vector2 away, Func<float, float, float> groundAt, float probe = 0.3f)
+    {
+        var vs = Body(piece.transform, 999999); if (vs.Count == 0) return float.NaN;
+        away = away.normalized; float top = float.MinValue; foreach (var v in vs) top = Mathf.Max(top, v.y);
+        float e = float.MinValue; foreach (var v in vs) if (v.y >= top - CREST_BAND) e = Mathf.Max(e, v.x * away.x + v.z * away.y);
+        float best = float.NegativeInfinity;
+        foreach (var v in vs)
+        {
+            if (v.y < top - CREST_BAND || v.x * away.x + v.z * away.y < e - 0.05f) continue;
+            Vector2 q = new Vector2(v.x, v.z) + away * probe; float g = groundAt(q.x, q.y); if (float.IsNaN(g)) continue;
+            best = Mathf.Max(best, v.y - g);
+        }
+        return float.IsNegativeInfinity(best) ? float.NaN : best;
+    }
+
     /// <summary>出隅の駒の二つの見え面(局所の二軸の <see cref="FaceSide"/>)。</summary>
     public static void KadoFaces(GameObject piece, out Vector2 f1, out Vector2 f2)
     {

@@ -653,7 +653,8 @@ public static class EdoSannoShaRebuild
                     int ic = i;
                     var sg = EdoBuild.PlaceIshidanSodeByDepth(dg, d => EdoAssets.Own.IshidanSode(keri, fumi, ic, d),
                                                               EdoAssets.Own.IshidanSodeDepths, side, grp,
-                                                              kv.Key + "_" + i.ToString("000") + "f", gHi, out w, out rz, line);
+                                                              kv.Key + "_" + i.ToString("000") + "f", gHi, out w, out rz, line,
+                                                              SodeFootAt, SODE_NEIRI);
                     if (rz.dig > 0f) { sodeDug++; sodeDigMax = Mathf.Max(sodeDigMax, rz.dig); }
                     if (w != null) sodeWarn.Add(w);
                     if (rz.refused) { sodeRefused++; continue; }
@@ -758,6 +759,12 @@ public static class EdoSannoShaRebuild
         }
         return false;
     }
+    /// <summary>袖の底の根入れ[m](取り合いの欄 joints[69]「底は面より 0.05 下」)。</summary>
+    const float SODE_NEIRI = 0.05f;
+    /// <summary>袖の見え面の足元の**設計面**(算出物 graded の双一次。設計面の外 = 造成しない所は地形)。
+    /// ⛔ 皮(描かれた地表)で測らない ── 皮は袖の底へ寄せて持ち上がる(男坂の下り側の端で +0.25 の小山)。</summary>
+    static float SodeFootAt(float x, float z) { float y; return Gr.Bilinear(x, z, out y) ? y : EdoBuild.Ground(x, z); }
+
     /// <summary>石段に沿う土留め = 袖(石段の組で据える)か。</summary>
     static bool IsSodeWall(Dictionary<string, object> tw) { return S(tw, "coping") == "stair"; }
     static float DistToPoly(List<Vector2> p, Vector2 c)
@@ -793,7 +800,7 @@ public static class EdoSannoShaRebuild
         var grp = Group("Dodome"); Clear(grp);
         float probe = WallProbeM;
         var sb = new StringBuilder();
-        int total = 0, buried = 0; float buriedM = 0f;
+        int total = 0, buried = 0, buriedWhole = 0, buriedKept = 0; float buriedM = 0f;
         var placed = new List<GameObject>();
         // 出隅の隅の駒のため: run ごとの駒と、端点ごとの外向き(EdoBuild.PlaceRunKado)
         var runPieces = new Dictionary<string, List<GameObject>>();
@@ -931,6 +938,28 @@ public static class EdoSannoShaRebuild
                     }
                     made++;
                 }
+                // ⭐ 硬い条件(許容0 の埋没・joints[68]): 天端が見え面の前の地表の下に来る駒 = 全体が埋まる駒は置かない
+                //   (EdoBuild.CrestAboveGround)。退けると隣の駒の小口が地表より上に出るなら、その駒は残す ──
+                //   端は小口が地表の下へ入る所で止める(EdoBuild.EndAboveGround・joints[67])。
+                {
+                    var bur = new List<GameObject>();
+                    foreach (var g in segMine)
+                    { float ea = EdoBuild.CrestAboveGround(g, faceOf[g], (x, z) => dgS.At(x, z)); if (!float.IsNaN(ea) && ea <= 0f) bur.Add(g); }
+                    foreach (var g in bur)
+                    {
+                        int j = segMine.IndexOf(g); bool keep = false;
+                        foreach (int nj in new[] { j - 1, j + 1 })
+                        {
+                            if (nj < 0 || nj >= segMine.Count || bur.Contains(segMine[nj])) continue;
+                            var nb = segMine[nj]; var bc = EdoBuild.RB(g).center; var nc = EdoBuild.RB(nb).center;
+                            float ex = EdoBuild.EndAboveGround(nb, new Vector2(bc.x - nc.x, bc.z - nc.z), (x, z) => dgS.At(x, z));
+                            if (!float.IsNaN(ex) && ex > 0.01f) keep = true;
+                        }
+                        if (keep) { buriedKept++; continue; }
+                        segMine.Remove(g); mine.Remove(g); placed.Remove(g); faceOf.Remove(g);
+                        UnityEngine.Object.DestroyImmediate(g); made--; buriedWhole++;
+                    }
+                }
             }
             total += made; buriedM += skipM;
             sb.AppendLine("  " + name + ": 駒 " + made + " 枚" +
@@ -976,6 +1005,7 @@ public static class EdoSannoShaRebuild
             total = 0; foreach (var kv in runPieces) { kv.Value.RemoveAll(g => g == null); total += kv.Value.Count; } total += kn;
         }
         if (flipLocal > 0) sb.AppendLine("  駒ごとに測り直して見え面を区間と逆へ向けた駒 " + flipLocal + "(高低が区間の途中で入れ替わる所)");
+        sb.AppendLine("  天端が見え面の前の地表の下に来る駒(全体が埋まる): 退けた " + buriedWhole + " / 隣の小口を地表の下へ入れるため残した " + buriedKept);
         // ⭐ 野面の乱積みの土留め(`masonry`)── 端の揃う run を一本に継ぎ、隣の石垣の実面を測って据える(EdoBuild.PlaceNozuraRun)
         total += Nozura(nozuraRuns, grp, placed, faceOf, dgS, wallDepth + probe, sb);
         // ⭐ 天端を高い側の地盤に揃えた土留め(`copingRise:"groundHi"`)は天端の面と地形が重なる ──

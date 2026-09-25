@@ -1181,7 +1181,10 @@ public static class EdoAssets
         /// <summary>**焼いてある袖の丈**(浅い順)。切通しで袖を背の地盤まで上げる(`copingRise:"groundHi"`)とき、
         /// 上げの上限 = 丈 − 笠の上がり 0.30 − 段石の根入れ(実メッシュで測る。女坂 0.48)⇒ 2.20 は 1.42・3.20 は 2.42。
         /// ⭐ 丈の足りる最小を選ぶのは `EdoBuild.PlaceIshidanSodeByDepth`(留めは `MiterIshidanSode` の depthOf で同じ丈を引く)。
-        /// ⚠ 3.20 が焼けているのは**女坂 (0.300, 1.199)** の平らな駒 a/b と、坂下の段 2・坂上の段 38〜40 の留めの駒(両側)だけ(EDO-0430)。</summary>
+        /// ⚠ 3.20 が焼けているのは**女坂 (0.300, 1.199)** の平らな駒 a/b と、坂下の段 2・坂上の段 38〜40 の留めの駒(両側)、
+        /// **男坂 (0.260, 0.650)** の平らな駒 a/b(2026-09-25・EDO-0430 joints[69] 袖の根入れ ──
+        /// blender --background --python Tools/Blender/build_sanno_buzai.py -- sode --only=男坂 --depth=3.20)だけ。
+        /// ⭐ 丈は上げの上限だけでなく**根入れ**(底 ≤ 見え面の足元の設計面 − 0.05)でも選ぶ(`EdoBuild.SodeFootShort`)。</summary>
         public static readonly float[] IshidanSodeDepths = { 2.20f, 3.20f };
 
         /// <summary>**丈の深い石段の袖**(EDO-0430 2026-09-24)。<see cref="IshidanSode(float,float,int)"/> と**同じ断面・同じ局所座標・同じピボット・

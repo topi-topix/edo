@@ -40,6 +40,7 @@ public static partial class EdoBuild
         public float proud;      // 上げた後、袖の背の線で天端が地表より出る量の最大[m](柔らかい・報告のみ)
         public bool refused;     // 上限を超えるので据えなかった(硬い: 埋まった袖を積まない・小口を開けない)
         public float depth;      // 据えた駒の丈[m](天端の線から下端まで。PlaceIshidanSodeByDepth が選んだ物)
+        public float neiriShort; // 底が見え面の足元の設計面 − 根入れ より上に出る量の最大[m](> 0 = 根入れ不足・硬い)
         public float dig;        // lineTop: 天端を段の線に置いたまま、背の地盤が天端より高い量の最大[m](背を造成で下げる量・CutEdgeSkin digParts)
     }
 
@@ -55,10 +56,12 @@ public static partial class EdoBuild
     /// 深い丈が要るのは今は女坂の切通しの坂下・坂上だけ(3.20 を焼いたのも女坂 (0.300, 1.199) だけ)。</summary>
     public static GameObject PlaceIshidanSodeByDepth(GameObject dan, System.Func<float, string> pathOf, IList<float> depths,
                                                      int side, Transform parent, string name, bool groundHi,
-                                                     out string warn, out SodeRise rise, bool lineTop = false)
+                                                     out string warn, out SodeRise rise, bool lineTop = false,
+                                                     System.Func<float, float, float> footAt = null, float neiri = 0.05f)
     {
         warn = null; rise = new SodeRise();
         string lastWarn = null; SodeRise last = new SodeRise(); float lastD = float.NaN; var unbaked = new List<string>();
+        GameObject shortGo = null; SodeRise shortR = new SodeRise(); string shortW = null;
         for (int k = 0; k < depths.Count; k++)
         {
             float d = depths[k]; string path = pathOf(d);
@@ -67,9 +70,26 @@ public static partial class EdoBuild
             string w; SodeRise r;
             var go = PlaceIshidanSode(dan, path, side, parent, name, groundHi, out w, out r, lineTop);
             r.depth = d;
-            if (!r.refused) { warn = w; rise = r; return go; }
+            // ⭐ 硬い条件(許容0 の浮き・joints[69] 2026-09-25): 袖の底は見え面(段石から遠い側)の足元の設計面より neiri 下。
+            //   足りなければ深い丈を試す(据える側で駒を下へ延ばす)。⛔ 皮を上げて塞がない。
+            if (!r.refused && go != null && footAt != null)
+            {
+                r.neiriShort = SodeFootShort(go, dan, side, footAt, neiri);
+                if (r.neiriShort > 1e-3f)
+                {
+                    if (shortGo != null) Object.DestroyImmediate(shortGo);
+                    shortGo = go; shortR = r; shortW = w; continue;
+                }
+            }
+            if (!r.refused) { if (shortGo != null) Object.DestroyImmediate(shortGo); warn = w; rise = r; return go; }
             lastWarn = w; last = r; lastD = d;
             if (!groundHi) break;                 // 上げない袖は丈で結果が変わらない
+        }
+        if (shortGo != null)
+        {   // どの丈でも根入れが足りない ⇒ 最も深い丈で据えたまま ⛔ を刷る(退けると石段の脇が開く ── 部材の丈が要る)
+            rise = shortR; warn = (shortW == null ? "" : shortW + " / ") + name + ": ⛔ 袖の底が見え面の足元の設計面 − " + neiri.ToString("F2") +
+                   " より " + shortR.neiriShort.ToString("F2") + "m 上(焼いてある最も深い丈 " + shortR.depth.ToString("F2") + "m でも根入れが足りない ── 丈の深い袖の駒が要る)";
+            return shortGo;
         }
         rise = last; rise.refused = true; rise.depth = lastD;
         warn = (lastWarn ?? (name + ": ⛔ 袖の駒を焼いていない")) +
@@ -142,6 +162,27 @@ public static partial class EdoBuild
         rise.lift = lift;
         foreach (var n in need) if (!float.IsNaN(n)) rise.proud = Mathf.Max(rise.proud, lift - n);
         return go;
+    }
+
+    /// <summary>**袖の根入れの不足**[m](joints[69]・2026-09-25)。袖の見え面(段石から遠い側の面)の 0.05m 外の線を走りに沿って
+    /// 0.1m 刻みで <paramref name="footAt"/>(足元の設計面)を引き、底(実メッシュの最低)が「足元の最低 − <paramref name="neiri"/>」より
+    /// 上に出る量を返す(≤ 0 なら根入れが取れている)。当たる先: 石段の袖を持つ全ての石段(山王の男坂・女坂・郭の階・中門の内の階)。</summary>
+    public static float SodeFootShort(GameObject sode, GameObject dan, int side, System.Func<float, float, float> footAt, float neiri)
+    {
+        var t = dan.transform; Vector3 right = t.right * Mathf.Sign(side == 0 ? 1 : side), fwd = t.forward;
+        var sp = Body(sode.transform, 4000, true); if (sp.Count == 0) return 0f;
+        float outer = float.MinValue, bot = float.MaxValue, f0 = float.MaxValue, f1 = float.MinValue;
+        foreach (var p in sp) { outer = Mathf.Max(outer, Vector3.Dot(p, right)); bot = Mathf.Min(bot, p.y); float f = Vector3.Dot(p, fwd); f0 = Mathf.Min(f0, f); f1 = Mathf.Max(f1, f); }
+        Vector3 o = sode.transform.position; float oR = Vector3.Dot(o, right), oF = Vector3.Dot(o, fwd);
+        float gMin = float.MaxValue;
+        int n = Mathf.Max(1, Mathf.CeilToInt((f1 - f0) / 0.1f));
+        for (int k = 0; k <= n; k++)
+        {
+            float fk = Mathf.Lerp(f0, f1, (float)k / n);
+            Vector3 q = o + right * (outer + 0.05f - oR) + fwd * (fk - oF);
+            float g = footAt(q.x, q.z); if (!float.IsNaN(g)) gMin = Mathf.Min(gMin, g);
+        }
+        return gMin == float.MaxValue ? 0f : bot - (gMin - neiri);
     }
 
     static GameObject PlaceIshidanSodeFlat(GameObject dan, string sodePath, int side, Transform parent, string name,

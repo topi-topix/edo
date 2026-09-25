@@ -106,12 +106,13 @@ public static partial class EdoBuild
         { float a0 = float.MaxValue, a1 = float.MinValue; foreach (var v in Body(g.transform, 999999)) { float s = (v.x - o.x) * d.x + (v.z - o.y) * d.y; a0 = Mathf.Min(a0, s); a1 = Mathf.Max(a1, s); } return new[] { a0, a1 }; };
         float worstCrest = 0f; int idx = 0;
         // 置いた駒を天端の線へ据える(高さ・見え面)── 測って寄せる
-        Action<GameObject, float, Vector2, Vector2> seat = (g, crest, fN, lineA) =>
+        Action<GameObject, float, Vector2, Vector2> seat0 = (g, crest, fN, lineA) =>
         {
             FaceWallToLine(g, fN, lineA);
             float c = crestOf(g); if (!float.IsNaN(c)) g.transform.position += Vector3.up * (crest - c);
             float c2 = crestOf(g); if (!float.IsNaN(c2)) worstCrest = Mathf.Max(worstCrest, Mathf.Abs(c2 - crest));
         };
+        Action<GameObject, float, Vector2, Vector2> seat = seat0;
 
         // ---- ① 固定の駒: 出隅と段の境 ----------------------------------------------------------
         var fixedSpans = new List<float[]>();                      // [s の始まり, s の終わり](走りの座標)
@@ -220,15 +221,30 @@ public static partial class EdoBuild
                 Vector2 X = new Vector2(face[si].y, -face[si].x);
                 float yaw = Mathf.Atan2(-X.y, X.x) * Mathf.Rad2Deg;
                 bool kiriHere = (lastFree && k == N - 1 && !fromB) || (firstFree && k == 0 && !fromB);
-                string path;
+                string path; GameObject g = null;
                 if (kiriHere && w.kiri != null)
                 {   // 打ち切り: 端へ向かって天端が下がる
                     bool towardPlus = Vector2.Dot(X, dir[si]) > 0f; bool endIsB = lastFree && k == N - 1;
                     path = w.kiri(endIsB ? !towardPlus : towardPlus, idx);
+                    g = Place(path, new Vector3(c.x, crest - h, c.y), yaw, new Vector3(sc, 1f, 1f), parent, name + "_" + nPieces.ToString("000"));
+                    seat0(g, crest, face[si], c);
+                    // ⭐ 打ち切りの駒は、下がる天端が**周りの地表(背の面・前の地盤)の下へ入らない所**でだけ使う(許容0 ── 被りを作らない)。
+                    //   端の地表が天端から十分に下がっていなければ(見付は残る)、打ち切りを退けて見付の合う直線の駒で終える。
+                    Vector3 kat; float bur = SoilSideCrestShort(g, new[] { face[si], -face[si], dir[si], -dir[si] },
+                        groundAt, out kat);
+                    if (!float.IsNaN(bur) && bur > 0f)
+                    {
+                        log.AppendLine("    打ち切り " + System.IO.Path.GetFileNameWithoutExtension(path) + " は先の石が地表の下へ " + bur.ToString("F2") +
+                                       "m 入る(" + kat.x.ToString("F1") + ", " + kat.z.ToString("F1") + ")── 見付 " + h.ToString("F2") + " の直線の駒で終える");
+                        UnityEngine.Object.DestroyImmediate(g); g = null;
+                    }
                 }
-                else path = w.straight(h, 0f, idx);
-                var g = Place(path, new Vector3(c.x, crest - h, c.y), yaw, new Vector3(sc, 1f, 1f), parent, name + "_" + nPieces.ToString("000"));
-                seat(g, crest, face[si], c);
+                if (g == null)
+                {
+                    path = w.straight(h, 0f, idx);
+                    g = Place(path, new Vector3(c.x, crest - h, c.y), yaw, new Vector3(sc, 1f, 1f), parent, name + "_" + nPieces.ToString("000"));
+                    seat(g, crest, face[si], c);
+                }
                 // 前の切り口へ突き付ける(実メッシュの走りへの射影)
                 var sp = span(g, P[si], dir[si]);
                 float want = fromB ? (edge - s0[si]) - sp[1] : (edge - s0[si]) - sp[0];
@@ -294,4 +310,72 @@ public static partial class EdoBuild
             }
         return hits == 0 ? float.NaN : best;
     }
+    /// <summary>**土の側(背)の天端の足りなさ**(2026-09-25・EDO-0430)。駒 <paramref name="g"/> の上向きの面を 0.05m 刻みで引き、
+    /// **背の帯**(見え面 <paramref name="faces"/> の裏へ <see cref="SOIL_SIDE"/> 進むと駒の外へ出る点 = 裏込めの土が触れる所)のうち、
+    /// 検査と皮が「天端」と読む点(周り <see cref="CREST_R"/> の同じ駒の最高から <see cref="CREST_BAND"/> 以内 ── <c>TopIndex.Top</c> と同じ篩)について、
+    /// その点の背の面の高さ <paramref name="soilAt"/>(x,z) − 天端 の最大を返す(正 = 天端が背の面より低い ⇒ 土が石に被るか、皮が石の下へ掘れて背の帯が溝になる)。
+    /// 測れる点が無ければ NaN。<paramref name="at"/> = 最も足りない点。
+    /// <para>⭐ 野面の乱積みは石の頭が不揃いで、背の帯の天端の石は駒の最高より 0.1〜0.2(最小 0.3〜0.48)低い ──
+    /// 背の石を全て背の面より上げると前の石が面から 0.4〜0.75 飛び出す(2026-09-25 実測・山王 本殿の西)ので、据えの高さには使わない。</para>
+    /// 当たる先: 打ち切りの駒の採否(<see cref="PlaceNozuraRun"/> ── 下がる天端が周りの地表の下へ入るなら直線の駒で終える)、
+    /// 土留めの背の被りの下調べ。</summary>
+    public static float SoilSideCrestShort(GameObject g, IList<Vector2> faces, Func<float, float, float> soilAt, out Vector3 at)
+    {
+        at = Vector3.zero;
+        var tris = new List<Vector3[]>();
+        foreach (var mf in g.GetComponentsInChildren<MeshFilter>())
+        {
+            var mesh = mf.sharedMesh; if (mesh == null) continue;
+            var rr = mf.GetComponent<Renderer>(); if (rr == null || !rr.enabled) continue;
+            var M = mf.transform.localToWorldMatrix; float sgn = M.determinant < 0f ? -1f : 1f;
+            var vs = mesh.vertices; var ts = mesh.triangles;
+            var W = new Vector3[vs.Length]; for (int i = 0; i < vs.Length; i++) W[i] = M.MultiplyPoint3x4(vs[i]);
+            for (int t = 0; t + 2 < ts.Length; t += 3)
+            {
+                var tri = new[] { W[ts[t]], W[ts[t + 1]], W[ts[t + 2]] };
+                var nv = Vector3.Cross(tri[1] - tri[0], tri[2] - tri[0]); float mag = nv.magnitude;
+                if (mag > 1e-9f && sgn * nv.y / mag > 0.7f) tris.Add(tri);
+            }
+        }
+        if (tris.Count == 0) return float.NaN;
+        const float B = 0.25f;
+        var hash = new Dictionary<long, List<int>>();
+        float x0 = float.MaxValue, x1 = float.MinValue, z0 = float.MaxValue, z1 = float.MinValue;
+        for (int id = 0; id < tris.Count; id++)
+        {
+            var t = tris[id];
+            float a0 = Mathf.Min(t[0].x, Mathf.Min(t[1].x, t[2].x)), a1 = Mathf.Max(t[0].x, Mathf.Max(t[1].x, t[2].x));
+            float b0 = Mathf.Min(t[0].z, Mathf.Min(t[1].z, t[2].z)), b1 = Mathf.Max(t[0].z, Mathf.Max(t[1].z, t[2].z));
+            x0 = Mathf.Min(x0, a0); x1 = Mathf.Max(x1, a1); z0 = Mathf.Min(z0, b0); z1 = Mathf.Max(z1, b1);
+            for (int i = Mathf.FloorToInt(a0 / B); i <= Mathf.FloorToInt(a1 / B); i++)
+                for (int j = Mathf.FloorToInt(b0 / B); j <= Mathf.FloorToInt(b1 / B); j++)
+                { long k = ((long)i << 32) ^ (uint)j; List<int> l; if (!hash.TryGetValue(k, out l)) { l = new List<int>(); hash[k] = l; } l.Add(id); }
+        }
+        Func<float, float, float> top = (x, z) =>
+        {
+            List<int> l; if (!hash.TryGetValue(((long)Mathf.FloorToInt(x / B) << 32) ^ (uint)Mathf.FloorToInt(z / B), out l)) return float.NaN;
+            float best = float.NaN, y;
+            foreach (var id in l) if (TriYAt(tris[id], x, z, out y) && (float.IsNaN(best) || y > best)) best = y;
+            return best;
+        };
+        float worst = float.NegativeInfinity;
+        for (float x = x0 + 0.025f; x < x1; x += 0.05f)
+            for (float z = z0 + 0.025f; z < z1; z += 0.05f)
+            {
+                float y = top(x, z); if (float.IsNaN(y)) continue;
+                bool soil = false;
+                foreach (var f in faces) if (float.IsNaN(top(x - f.x * SOIL_SIDE, z - f.y * SOIL_SIDE))) { soil = true; break; }
+                if (!soil) continue;
+                float mx = y;
+                for (int a = 0; a < 8; a++)
+                { float ang = a * Mathf.PI / 4f; float t2 = top(x + Mathf.Cos(ang) * CREST_R, z + Mathf.Sin(ang) * CREST_R); if (!float.IsNaN(t2) && t2 > mx) mx = t2; }
+                if (y < mx - CREST_BAND) continue;                  // 天端の帯の外(法・控え)── 土に入るのが正しい納め
+                float want = soilAt(x, z); if (float.IsNaN(want)) continue;
+                if (want - y > worst) { worst = want - y; at = new Vector3(x, y, z); }
+            }
+        return float.IsNegativeInfinity(worst) ? float.NaN : worst;
+    }
+    /// <summary>背の帯の奥行[m]。皮は周り 0.5m(CAPR 2 × 0.25)の天端で下げるので、同じだけ見る。</summary>
+    public const float SOIL_SIDE = 0.5f;
+
 }

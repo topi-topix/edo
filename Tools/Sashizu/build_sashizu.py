@@ -2768,7 +2768,7 @@ def build(est, deep=False, out=None):
     print("検査 不合格 %d / 未検査 %d / 建蔽率 %.1f%% / 図版 %d 面 / 読めなかった欄 %d" % (ng, na, C.kenpei, n[0], len(M.notes)))
     for cid, what, res, st in C.rows:
         if st != "ok":
-            print("  %s %s: %s" % ({"ng": "⛔", "na": "未"}[st], cid, res))
+            print("  %s %s: %s" % ({"ng": "⛔", "na": "未", "soft": "△"}[st], cid, res))
             for x in (C.detail.get(cid) or [])[:8]:
                 print("       - %s" % x)
     for x in M.notes:

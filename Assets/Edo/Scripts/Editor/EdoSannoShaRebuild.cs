@@ -1263,6 +1263,17 @@ public static class EdoSannoShaRebuild
         if (sa.Count == 0) return 0;
         float halfT, hgt, postL; SakuProfile(out halfT, out hgt, out postL);
         ClipRunEndsToGates(sa, sbb, hgt, halfT, hasSeat, seat, name, sb);
+        // ⭐ 座(`seat`)は**上限**。継ぎ目で駒の足元が床から浮くなら床へ(<see cref="EdoBuild.SeatOrBed"/>・2026-09-25・EDO-0430)──
+        //   `Ita_Keidai` は座 28.30 の一本で、御供所の郭(27.35)の縁の区間が 0.8m 浮いていた。
+        var bed = hasSeat ? GateBed() : null;
+        var rootSpan = EdoBuild.RunMeasureY(P.SakuSpan).Root; var rootPost = EdoBuild.RunMeasureY(P.SakuPost).Root;
+        int lowered = 0;
+        Func<Vector2, float, float> SeatAt = (q, root) =>
+        {
+            float y = EdoBuild.SeatOrBed(q.x, q.y, seat, root, bed.At);
+            if (y < seat) lowered++;
+            return y;
+        };
         // ⭐ 口の端を土留めの小口へ突き付ける(`kuchiAbut` = [柵の端, 土留めの最寄り] の対・2026-09-25)。
         //   土留めの**据わった駒の実メッシュ**まで、柵の丈の帯・半厚の幅で測って端を延ばす(⛔ 紙の点で止めない)。
         foreach (var ko in L(r, "kuchiAbut"))
@@ -1275,7 +1286,7 @@ public static class EdoSannoShaRebuild
                 foreach (bool atB in new[] { true, false })
                 {
                     Vector2 e = atB ? sbb[i] : sa[i]; if (Vector2.Distance(e, fe) > 0.1f) continue;
-                    float gy = hasSeat ? seat : SurfaceY(e);
+                    float gy = hasSeat ? SeatAt(e, rootSpan) : SurfaceY(e);
                     // 走りの向きのまま延ばす(⛔ 紙の最寄りへ折らない ── 線から横へ 0.21m ずれた・2026-09-25 突き合わせ)
                     Vector2 run = atB ? (sbb[i] - sa[i]).normalized : (sa[i] - sbb[i]).normalized;
                     float reach = EdoBuild.ReachToBodies(e, run, bodies, halfT, gy, gy + hgt, Vector2.Distance(e, wp) + 2f);
@@ -1303,7 +1314,7 @@ public static class EdoSannoShaRebuild
                 //   節点にそのまま置けば run の内へ収まる。始まりの端だけ postL だけ送る。
                 //   ⛔ 送らないと run が設計の線の外へ postL はみ出し、突き合わせが芯のずれで鳴る。
                 Vector2 p = (i == 0) ? a + dir * postL : b;
-                EdoBuild.Place(P.SakuPost, new Vector3(p.x, hasSeat ? seat : SurfaceY(p), p.y), ry,
+                EdoBuild.Place(P.SakuPost, new Vector3(p.x, hasSeat ? SeatAt(p, rootPost) : SurfaceY(p), p.y), ry,
                                Vector3.one, grp, name + "_" + made.ToString("000") + "f");
                 made++; stubs++;
                 continue;
@@ -1319,7 +1330,7 @@ public static class EdoSannoShaRebuild
             {
                 int N = Mathf.Max(1, Mathf.RoundToInt(len / SAKU_SPAN));
                 js = new List<Vector3>();
-                for (int k = 0; k <= N; k++) { Vector2 p = a + dir * (len * k / N); js.Add(new Vector3(p.x, seat, p.y)); }
+                for (int k = 0; k <= N; k++) { Vector2 p = a + dir * (len * k / N); js.Add(new Vector3(p.x, SeatAt(p, rootSpan), p.y)); }
             }
             else js = EdoBuild.GroundPolyline(a, b, SAKU_SPAN, rhy.Root, rhy.Root * 2f);
             for (int k = 0; k + 1 < js.Count; k++)
@@ -1336,6 +1347,8 @@ public static class EdoSannoShaRebuild
         }
         if (stubs > 0)
             sb.AppendLine("    " + name + ": 切れ端に立てた柱 " + stubs + " 本(スパンにならない区間の端を設計の線まで通した)");
+        if (lowered > 0)
+            sb.AppendLine("    ⚠ " + name + ": 座 " + seat.ToString("F2") + " では足元が床から浮く継ぎ目 " + lowered + " 点を床へ下ろした(指図の seat は据わる面と食い違う)");
         return made;
     }
     /// <summary>腰高の柵の部材の**半厚**・**丈**・**柱の長さ**[m]を資産から測る。⛔ 定数で持たない
@@ -1754,6 +1767,16 @@ public static class EdoSannoShaRebuild
         return 1;
     }
     /// <summary>設計面(算出物)を優先し、無ければ live terrain。⚠ 造成の後に呼ぶこと。</summary>
+    /// <summary>門・柵が触れる床(<see cref="EdoBuild.Bed"/>)── 描かれた地表と、据えた土留め・石段・袖の上面。
+    /// ⭐ 突き合わせ・検査も同じ床で測る(⛔ 地形だけで測ると土留めの天端に載る門の隅が嘘の浮きになる)。</summary>
+    public static EdoBuild.Bed GateBed()
+    {
+        var parts = new List<GameObject>();
+        foreach (Transform g in Group("Sando")) foreach (Transform c in g) parts.Add(c.gameObject);
+        foreach (Transform c in Group("Dodome")) parts.Add(c.gameObject);
+        return new EdoBuild.Bed(parts);
+    }
+
     static float SurfaceY(Vector2 p)
     {
         float y;
@@ -1777,6 +1800,7 @@ public static class EdoSannoShaRebuild
         var grp = Group("Keidai/Mon"); Clear(grp);
         var sb = new StringBuilder();
         int made = 0; var pend = new List<string>();
+        EdoBuild.Bed bed = null;
         foreach (var o in L(Impl, "gates"))
         {
             var gt = o as Dictionary<string, object>; if (gt == null) continue;
@@ -1811,6 +1835,14 @@ public static class EdoSannoShaRebuild
             { pend.Add(name + "(焼いた yaw " + yaw.ToString("F1") + "° と 部材の軸から出る yaw " +
                        baseYaw.ToString("F1") + "° が食い違う ⇒ `bake_impl.py sanno --write` が要る)"); continue; }
             var go = EdoBuild.Place(path, new Vector3(p.x, sill, p.y), yaw, Vector3.one, grp, GateNameOf(name));
+            // ⭐ 敷居(`sill`)は**上限**。床(描かれた地表と土留め・石段の上面の高い方)から浮いていれば触れる所まで下ろす
+            //   (硬い条件: 浮き 0・2026-09-25・EDO-0430)。勝手口の木戸は sill 28.30 のまま御供所の郭 27.35 の縁に建ち
+            //   0.81〜0.88m 浮いていた。根入れで埋まる門(楼門・中門・坂下の門の基壇)は動かない。
+            if (bed == null) bed = GateBed();
+            float before; float down = EdoBuild.SettleOnBed(go, bed.At, out before);
+            if (down > 0f)
+                sb.AppendLine("  ⚠ " + name + ": 敷居 " + sill.ToString("F2") + " では床から " + before.ToString("F2") +
+                              "m 浮く ⇒ 触れる所まで下ろした(敷居 " + (sill - down).ToString("F2") + ")── 指図の sill は据わる面と食い違う");
             var bb = EdoBuild.RB(go);
             made++;
             sb.AppendLine("  " + name + " → " + System.IO.Path.GetFileNameWithoutExtension(path) +

@@ -35,6 +35,7 @@
 | `Assets/Japanese Castle/` | Japanese Castle Pack (Gabriel M. Guimarães) | Unity Asset Store (有償) | 城郭・石垣パーツ |
 | `Assets/Japanese Village Kit/` | Japanese Village Kit (Gabriel M. Guimarães) | Unity Asset Store (有償) | 町家・村落パーツ |
 | `Assets/edogoyomi/` | 江戸暦 Edo street series | 3Dモデル素材集(別途購入) | 門・土塀・長屋・辻番所・蔵などの江戸建築 |
+| `Assets/Starter Assets/` | Starter Assets – Character Controllers \| URP (Unity Technologies) | Unity Asset Store (無料) | 主人公の三人称コントローラ・仮の人形。Cinemachine 3.1.7 が要る(manifest に記載済) |
 
 import が終わったら Unity で **Edo ▸ アセット目録 ▸ 目録を再生成** を実行して `docs/` の目録を更新する。
 

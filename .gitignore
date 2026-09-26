@@ -81,6 +81,8 @@ mono_crash.*.json
 /[Aa]ssets/Japanese Shrine and Temples.meta
 /[Aa]ssets/Standard Assets/
 /[Aa]ssets/Standard Assets.meta
+/[Aa]ssets/Starter Assets/
+/[Aa]ssets/Starter Assets.meta
 
 # 土地利用ベイク前のスプラット自動バックアップ(ローカル用)
 /TerrainBackups/

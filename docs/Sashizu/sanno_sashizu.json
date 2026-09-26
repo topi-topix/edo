@@ -1331,15 +1331,15 @@
    "acc": "U/U(全長を野面の乱積み ── 天端は石の頭で ±0.08 の不揃い・天端の違う所は斜めに流す(段に折らない)・天端に芝・男坂の下の城の石垣とは一歩引いて見切り石で分ける ── 施主裁定 EDO-0437 A 2026-09-24「Aのほうが自然に思えます」(裁定図 https://claude.ai/artifact/WhBNfXB9CQgwvr5Q51fabQ)。作りの決まり 施主裁定 2026-09-25「Bで」: 建物や透塀に接する石垣は城の石垣/建物から離れた地面の縁(前庭の縁・参道の石段の両脇)は野面の乱積み)",
    "copingRise": "groundHi",
    "masonry": "野面の乱積み",
-   "part": "`EdoAssets.Own.SannoNozura(h, grade, i)`(見付 h は天端 − 足元の面から従属・焼けている段 0.30〜2.40 から床が地表の下に入る最小を選んで床を沈める・勾配 grade は天端の縦断から・i は順に振る)/隅 `SannoNozuraKado(h, i)`(北の端の出隅)/男坂の口の両脇 見切り石 `EdoAssets.Own.SannoNozuraMikiri`",
+   "part": "`EdoAssets.Own.SannoNozura(h, grade, i)`(見付 h は天端 − 足元の面から従属・焼けている段 0.30〜2.40 から床が地表の下に入る最小を選んで床を沈める・勾配 grade は天端の縦断から・i は順に振る)/隅 `SannoNozuraKado(h, i)`(北の端の出隅)/男坂の口の両脇 見切り石 `EdoAssets.Own.SannoNozuraMikiri`(丈 = 据える所の土留めの見付(天端 − 足元)から従属 ── 丈を合わせた駒は部材方が焼く・名の引き方は部材方の登録に従う)",
    "face": "低い側 ── ⚠ 区間の途中で入れ替わる(南の区間は前庭 `Zentei` へ向く・北の区間は前庭の外(西)へ向く。入れ替わる所は見付がほぼ 0 ── 向きは据えた駒ごとに実地表で測る)",
    "foot": {
     "terrace": "Zentei"
    },
    "corners": {
     "a": "入隅(南の端 = `TW_Zentei_SW` と直角に出会う。W の南の端の切り口を SW の見え面(法)へ突き付け ── 隅の駒なし。可動は W)",
-    "b": "出隅(`TW_Zentei_N` と・隅の駒 `EdoAssets.Own.SannoNozuraKado(h, i)` の稜線を二本の天端の線の交点へ・両腕の切り口 ±0.909 へ直線の駒を継ぐ。h は隅の見付から従属)",
-    "gap": "男坂の口の両脇: 野面の端の切り口を見切り石 `SannoNozuraMikiri` の脇の面へ突き付け、見切り石は男坂の側壁(城の石垣 `TW_Otoko_N`/`TW_Otoko_S`)の下り側の端の小口へ突き付ける ── 野面は城の石垣から一歩引く(引きは据えた駒の実面で取る)。打ち切りの駒は使わない"
+    "b": "出隅(`TW_Zentei_N` と・隅の駒 `EdoAssets.Own.SannoNozuraKado(h, i)` の稜線を二本の天端の線の交点へ・両腕の切り口(腕の長さ `planting.bandDef.avoid.dodomeKadoLegM`)へ直線の駒を継ぐ。h は隅の見付から従属)",
+    "gap": "男坂の口の両脇: 野面の端の切り口を見切り石 `SannoNozuraMikiri` の脇の面へ突き付け、見切り石は男坂の側壁(城の石垣 `TW_Otoko_N`/`TW_Otoko_S`)の下り側の端の小口へ突き付ける ── 野面は城の石垣から一歩引く(引きは据えた駒の実面で取る)。打ち切りの駒は使わない。見切り石の丈は据える所の土留めの見付(天端 − 足元)に合わせる(`joints` が正典)"
    }
   },
   {
@@ -1362,8 +1362,8 @@
    "part": "`EdoAssets.Own.SannoNozura(h, grade, i)`(見付 h は天端 − 足元の面から従属・焼けている段 0.30〜2.40 から床が地表の下に入る最小を選んで床を沈める・勾配 grade は天端の縦断から・i は順に振る)/隅 `SannoNozuraKado(h, i)`(西の端・東の端・口の両端の出隅)",
    "face": "低い側(北 ── 参道の道敷の側)",
    "corners": {
-    "a": "出隅(`TW_Zentei_W` と・隅の駒 `EdoAssets.Own.SannoNozuraKado(h, i)` の稜線を二本の天端の線の交点へ・両腕の切り口 ±0.909 へ直線の駒を継ぐ。h は隅の見付から従属)",
-    "b": "出隅(`TW_Zentei_E` と・隅の駒 `EdoAssets.Own.SannoNozuraKado(h, i)` の稜線を二本の天端の線の交点へ・両腕の切り口 ±0.909 へ直線の駒を継ぐ。h は隅の見付から従属)",
+    "a": "出隅(`TW_Zentei_W` と・隅の駒 `EdoAssets.Own.SannoNozuraKado(h, i)` の稜線を二本の天端の線の交点へ・両腕の切り口(腕の長さ `planting.bandDef.avoid.dodomeKadoLegM`)へ直線の駒を継ぐ。h は隅の見付から従属)",
+    "b": "出隅(`TW_Zentei_E` と・隅の駒 `EdoAssets.Own.SannoNozuraKado(h, i)` の稜線を二本の天端の線の交点へ・両腕の切り口(腕の長さ `planting.bandDef.avoid.dodomeKadoLegM`)へ直線の駒を継ぐ。h は隅の見付から従属)",
     "gap": "口の両端 = 切り込みの土留め `TW_Zentei_Kiri` の返しと直角の出隅(`joints` が正典)"
    }
   },
@@ -1483,7 +1483,7 @@
    },
    "corners": {
     "a": "打ち切り(南の端 = 切土の法の北の端 ── 打ち切りの駒 `SannoNozuraKiri` で頭を法面へ沈める)",
-    "b": "出隅(`TW_Zentei_N` と・隅の駒 `EdoAssets.Own.SannoNozuraKado(h, i)` の稜線を二本の天端の線の交点へ・両腕の切り口 ±0.909 へ直線の駒を継ぐ。h は隅の見付から従属)"
+    "b": "出隅(`TW_Zentei_N` と・隅の駒 `EdoAssets.Own.SannoNozuraKado(h, i)` の稜線を二本の天端の線の交点へ・両腕の切り口(腕の長さ `planting.bandDef.avoid.dodomeKadoLegM`)へ直線の駒を継ぐ。h は隅の見付から従属)"
    }
   },
   {
@@ -2047,13 +2047,16 @@
    ],
    "coping": 14.5,
    "copingRise": "groundHi",
-   "corners": {
-    "0": "出隅(`TW_Zentei_N` の口の西の端と・隅の駒 `EdoAssets.Own.SannoNozuraKado(h, i)` の稜線を二本の天端の線の交点へ・両腕の切り口 ±0.909 へ直線の駒を継ぐ。h は隅の見付から従属)",
-    "1": "入隅(西の返しと奥の辺 ── 奥の辺の端の切り口を返しの見え面へ突き付け・隅の駒なし)",
-    "2": "入隅(奥の辺と東の返し ── 奥の辺の端の切り口を返しの見え面へ突き付け・隅の駒なし)",
-    "3": "出隅(`TW_Zentei_N` の口の東の端と・隅の駒 `EdoAssets.Own.SannoNozuraKado(h, i)` の稜線を二本の天端の線の交点へ・両腕の切り口 ±0.909 へ直線の駒を継ぐ。h は隅の見付から従属)"
+   "gapFrom": {
+    "kaidan": "参道の階(前庭へ)"
    },
-   "acc": "U(前庭の北の縁の切り込みの土留め ── 西の返し・奥の辺・東の返し。作りは `TW_Zentei_N` に倣う ── 施主裁定 2026-09-25「1=B」(EDO-0442))/【算出】(幅 = 参道の階の `wKen`・奥行 = 裁定の 0.94 間。返しの天端は前庭の面、奥の辺は階の最上段の蹴上と取り合う)/U(全長を野面の乱積み ── 天端は石の頭で ±0.08 の不揃い・天端の違う所は斜めに流す(段に折らない)・天端に芝・男坂の下の城の石垣とは一歩引いて見切り石で分ける ── 施主裁定 EDO-0437 A 2026-09-24「Aのほうが自然に思えます」(裁定図 https://claude.ai/artifact/WhBNfXB9CQgwvr5Q51fabQ)。作りの決まり 施主裁定 2026-09-25「Bで」: 建物や透塀に接する石垣は城の石垣/建物から離れた地面の縁(前庭の縁・参道の石段の両脇)は野面の乱積み)",
+   "corners": {
+    "0": "出隅(`TW_Zentei_N` の口の西の端と・隅の駒 `EdoAssets.Own.SannoNozuraKado(h, i)` の稜線を二本の天端の線の交点へ・両腕の切り口(腕の長さ `planting.bandDef.avoid.dodomeKadoLegM`)へ直線の駒を継ぐ。h は隅の見付から従属)",
+    "1": "なし(奥の辺を外した ── 西の返しの南の端は切り口で止め、切り口を階の最上段の蹴上の面と同じ通りに揃える。`joints` が正典)",
+    "2": "なし(奥の辺を外した ── 東の返しの南の端は切り口で止め、切り口を階の最上段の蹴上の面と同じ通りに揃える。`joints` が正典)",
+    "3": "出隅(`TW_Zentei_N` の口の東の端と・隅の駒 `EdoAssets.Own.SannoNozuraKado(h, i)` の稜線を二本の天端の線の交点へ・両腕の切り口(腕の長さ `planting.bandDef.avoid.dodomeKadoLegM`)へ直線の駒を継ぐ。h は隅の見付から従属)"
+   },
+   "acc": "U(前庭の北の縁の切り込みの土留め ── 西の返し・東の返しの二本(奥の辺は置かない ── 階の最上段が前庭の面 14.5 まで上がりきり、奥の辺には見え面が無い・棟梁の実測 2026-09-26 EDO-0437 でめり込み −0.34/−0.80。奥は階の最上段の蹴上そのものが前庭の縁になる。口は `gapFrom` = 階の幅からの従属値)。作りは `TW_Zentei_N` に倣う ── 施主裁定 2026-09-25「1=B」(EDO-0442))/【算出】(幅 = 参道の階の `wKen`・奥行 = 裁定の 0.94 間。返しの天端は前庭の面、返しの南の端は階の最上段の蹴上の面で止める)/U(全長を野面の乱積み ── 天端は石の頭で ±0.08 の不揃い・天端の違う所は斜めに流す(段に折らない)・天端に芝・男坂の下の城の石垣とは一歩引いて見切り石で分ける ── 施主裁定 EDO-0437 A 2026-09-24「Aのほうが自然に思えます」(裁定図 https://claude.ai/artifact/WhBNfXB9CQgwvr5Q51fabQ)。作りの決まり 施主裁定 2026-09-25「Bで」: 建物や透塀に接する石垣は城の石垣/建物から離れた地面の縁(前庭の縁・参道の石段の両脇)は野面の乱積み)",
    "masonry": "野面の乱積み",
    "part": "`EdoAssets.Own.SannoNozura(h, grade, i)`(見付 h は天端 − 足元の面から従属・焼けている段 0.30〜2.40 から床が地表の下に入る最小を選んで床を沈める・勾配 grade は天端の縦断から・i は順に振る)/隅 `SannoNozuraKado(h, i)`(口の両端の出隅)",
    "face": "低い側(切り込みの側 ── 参道の階へ向く)"
@@ -6229,13 +6232,13 @@
      "野面の乱積み": 0.97
     },
     "dodomeCrestDepthRule": "土留めの**紙の線から実物の天端の奥の縁まで**[m](種 → 値)。紙の線は 城の石垣=天端の前の縁 / 野面の乱積み=天端の線での見え面(天端の前の縁) / 袖=段石の小口。種は `terraceWalls[].coping` が \"stair\" なら 袖(石段の袖石)、ほかは `terraceWalls[].masonry`(無ければ 城の石垣)。⛔ 種の値が無い土留めは 0 と『取れない』を刷る(発明しない)。`kakoiLineRule` の土留めの半厚に使う(`sashizu_lib.dodome_crest_depth`)",
-    "dodomeCrestDepthAcc": "A(実測 ── 普請検査の実測 2026-09-25 EDO-0409: 城の石垣 1.40 m・袖 0.60 m)/【算出】(野面の乱積み 0.97 m = 生成器 `Tools/Blender/build_sanno_nozura.py` の天端の列の控えの上限 `TOP_DEPTH` 0.95 + 面の出の最小 −0.02(`face_prot` ── 背は 控え − 面の出)。目録の外形から逆算した控え(厚み − 法の出 − 面の出)は 0.87〜0.88 で上限の内。⚠ 棟梁が据えた駒の実測で上書きする ── EDO-0437)",
+    "dodomeCrestDepthAcc": "A(実測 ── 普請検査の実測 2026-09-25 EDO-0409: 城の石垣 1.40 m・袖 0.60 m)/A(野面の乱積み 0.97 m ── 棟梁の実測 2026-09-26 EDO-0437: 直線の駒 39 枚の天端の奥行 最小 0.825・中央 0.961・最大 0.970。最大を採る)",
     "dodomeKadoLegM": {
      "城の石垣": 3.4,
-     "野面の乱積み": 0.909
+     "野面の乱積み": 1.01
     },
     "dodomeKadoLegRule": "土留めの**隅の駒の天端の腕の長さ**[m](種 → 値)── 紙の線の交点から各線に沿って天端の L 字が伸びる長さ。隅の駒の天端は L 字(幅 = `dodomeCrestDepthM`)の入隅を斜めの辺で埋めるので、線 + 天端の奥行の帯に入らない三角が残る。その三角も `kakoiLineRule` の実体に数え、道に面した側は 2m を当てる(片方だけ道に面する隅は面した側の帯だけ ── 施主裁定B 2026-09-25)。種の値が無い土留め(袖)は隅の駒が無いので三角を足さない。`sashizu_lib.kakoi_kado_fills`(散布と検査 C29 の一本)",
-    "dodomeKadoLegAcc": "A(実測 ── 普請検査の実測 2026-09-26 EDO-0409: TW_Zentei_W_x_N_kado・TW_Zentei_N_x_Kiri_kado の天端は両 run に沿う 3.40 m の L 字。部材 `EdoAssets.Own.IshigakiKado`(90°)の目録の外形 4.40 m(丈 4.00)/4.65 m(丈 5.00)から法の足元の出(1.00/1.25 m)を引いた値と一致 ── 丈によらない)/【算出】(野面の乱積み 0.909 m = 隅の駒 `EdoAssets.Own.SannoNozuraKado` の腕の長さ(稜線から各腕の切り口まで L/2 = 0.909 ── 生成器 `build_sanno_nozura.py` の `make_kado`)。腕 ≤ 天端の奥行 0.97 なので入隅の三角は残らない(`kakoi_kado_fills` は足さない)。⚠ 棟梁が据えた駒の実測で上書きする ── EDO-0437)",
+    "dodomeKadoLegAcc": "A(実測 ── 普請検査の実測 2026-09-26 EDO-0409: TW_Zentei_W_x_N_kado・TW_Zentei_N_x_Kiri_kado の天端は両 run に沿う 3.40 m の L 字。部材 `EdoAssets.Own.IshigakiKado`(90°)の目録の外形 4.40 m(丈 4.00)/4.65 m(丈 5.00)から法の足元の出(1.00/1.25 m)を引いた値と一致 ── 丈によらない)/A(野面の乱積み 1.01 m ── 棟梁の実測 2026-09-26 EDO-0437: 据えた隅の駒 4 つの腕 0.968〜1.007。最大を採る)",
     "edaShitaOverRoadM": 4.0,
     "edaShitaOverRoadRule": "**道**(敷地割の間 ── 区画の外でどの区画にも入らない所)の上へ張り出す樹冠は、**その上の路面**から枝下まで `edaShitaOverRoadM` 以上(参道の林縁 `slopeBands[3].clusters[1].edaShitaOverRoadM` と同値)。樹冠の各環 r(部材の r × `scaleXZ`)の道の上の所で 要る枝下 = 路面(造成前の地盤 ── 道は現地形)− 足元の地盤 + `edaShitaOverRoadM` ／ ある枝下 = 目録の `edashita`(r)× `scaleY`。⛔ 硬い制約(許容0)── 散布(帯1〜4・林縁・塊)は候補を木にしてから測り、足りない所は退けて次の候補へ。名指しの木と線に並べる塊は動かさず測るだけ。判定は散布と検査 C30 で一本(`sashizu_lib.edashita_over_road`)。結線 2026-09-25 EDO-0409"
    },
@@ -9779,11 +9782,11 @@
   {
    "部材": "野面の乱積みの土留め(前庭・参道の階の袖 ── `terraceWalls` の `TW_Zentei_*` と `TW_SandoKai_*` の**全 run**)",
    "在庫": "**ある**(部材方 eb6b2f97 ── 直線 `Sanno_Nozura_H*_G*_{a..d}`・出隅 `Sanno_Nozura_Kado90_H*_{a,b}`・打ち切り H0150 G±180・見切り石 `Sanno_Nozura_Mikiri`・袖 `IshidanSodeNozura_0.250_0.542_{a,b}`)",
-   "手当": "`EdoAssets.Own.SannoNozura(h, grade, i)`(見付 h は天端 − 足元の面から従属・焼けている段 0.30〜2.40)/出隅 `SannoNozuraKado(h, i)`/打ち切り `SannoNozuraKiri(risesToPlusX, i)`/男坂の口の見切り `SannoNozuraMikiri`/袖 `IshidanSodeNozura(0.250, 0.542, i)`。⚠ 焼けている勾配は 0・±0.18(H0.15)・±0.22(H1.50)だけ ── 天端を斜めに流す区間で別の勾配が要れば `blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=<g> --h=<見付>` で焼き足す(部材方)。⭐ 発注量は名簿に書かない ── 走り・見付は焼き出し `sanno_impl.json` の `runs[].profile` からの従属値",
+   "手当": "`EdoAssets.Own.SannoNozura(h, grade, i)`(見付 h は天端 − 足元の面から従属・焼けている段 0.30〜2.40)/出隅 `SannoNozuraKado(h, i)`/打ち切り `SannoNozuraKiri(risesToPlusX, i)`/男坂の口の見切り `SannoNozuraMikiri`(丈 = 据える所の土留めの見付(天端 − 足元)に合わせる ── 決まった丈の駒は背の土に埋まる。部材方が丈を合わせて焼く)/袖 `IshidanSodeNozura(0.250, 0.542, i)`。⚠ 焼けている勾配は 0・±0.18(H0.15)・±0.22(H1.50)だけ ── 天端を斜めに流す区間で別の勾配が要れば `blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=<g> --h=<見付>` で焼き足す(部材方)。⭐ 発注量は名簿に書かない ── 走り・見付は焼き出し `sanno_impl.json` の `runs[].profile` からの従属値",
    "優先": "—",
    "屋根": "—(屋根を持たない)",
    "faceReachM": 0.68,
-   "acc": "U(施主裁定 EDO-0437 A 2026-09-24「Aのほうが自然に思えます」(裁定図 https://claude.ai/artifact/WhBNfXB9CQgwvr5Q51fabQ)。作りの決まり 施主裁定 2026-09-25「Bで」: 建物や透塀に接する石垣は城の石垣/建物から離れた地面の縁(前庭の縁・参道の石段の両脇)は野面の乱積み)/【算出】(`faceReachM` = 見え面が天端の線から前へ出る最大 = 3分の法 0.3 × 見付の最大(`TW_Zentei_SE` 2.271 ── 焼き出しの faceM)≈ 0.68)"
+   "acc": "U(施主裁定 EDO-0437 A 2026-09-24「Aのほうが自然に思えます」(裁定図 https://claude.ai/artifact/WhBNfXB9CQgwvr5Q51fabQ)。作りの決まり 施主裁定 2026-09-25「Bで」: 建物や透塀に接する石垣は城の石垣/建物から離れた地面の縁(前庭の縁・参道の石段の両脇)は野面の乱積み)/【算出】(`faceReachM` = 見え面が天端の線から前へ出る最大 = 3分の法 0.3 × 見付の最大(`TW_Zentei_SE` 2.271 ── 焼き出しの faceM)≈ 0.68)/A(見切り石の丈の意図 ── 棟梁の実測 2026-09-26 EDO-0437: 見付 0.6 の駒は背の土に埋まり退けた)"
   },
   {
    "部材": "城の石垣の土留め(本殿の西 ── `TW_Nozura_ShadenW`。名は旧のまま)",
@@ -12036,17 +12039,17 @@
   },
   {
    "a": "切り込みの土留め TW_Zentei_Kiri",
-   "aFace": "奥の辺の外面(北面)",
+   "aFace": "返しの南の端の切り口(西の返し・東の返しとも)",
    "b": "参道の階(前庭へ)の最上段",
    "bFace": "最上段の蹴上の面(前庭の面へ上がりきる段の面)",
-   "kind": "突き付け",
+   "kind": "見切り(返しの切り口を蹴上の面と同じ通りに揃える ── 奥の辺は置かない)",
    "gap": 0.0,
    "tol": [
     0.05,
     0.0
    ],
-   "moves": "切り込みの土留め(TW_Zentei_Kiri)",
-   "cert": "U(施主裁定 2026-09-25「1=B」(EDO-0442))"
+   "moves": "切り込みの土留めの返し(TW_Zentei_Kiri)",
+   "cert": "U(施主裁定 2026-09-25「1=B」(EDO-0442))/A(奥の辺を外す ── 階の最上段は前庭の面と同じ高さで奥の辺に見え面が無い・棟梁の実測 2026-09-26 EDO-0437 めり込み −0.34/−0.80)"
   },
   {
    "a": "北縁の板塀 Ita_ZN・Ita_ZNE",
@@ -12151,14 +12154,15 @@
    "aFace": "石の脇の面(男坂の側)",
    "b": "男坂の側壁 TW_Otoko_N・TW_Otoko_S(城の石垣)",
    "bFace": "下り側の端の小口",
-   "kind": "突き付け",
+   "kind": "突き付け(見切り石の丈 = 据える所の土留めの見付)",
    "gap": 0.0,
    "tol": [
     0.05,
     0.0
    ],
    "moves": "見切り石 ── 側壁は据え置き",
-   "cert": "U(施主裁定 EDO-0437 A 2026-09-24「Aのほうが自然に思えます」(裁定図 https://claude.ai/artifact/WhBNfXB9CQgwvr5Q51fabQ))"
+   "cert": "U(施主裁定 EDO-0437 A 2026-09-24「Aのほうが自然に思えます」(裁定図 https://claude.ai/artifact/WhBNfXB9CQgwvr5Q51fabQ))/A(丈の意図 ── 棟梁の実測 2026-09-26 EDO-0437)",
+   "intent": "見切り石の丈は、据える所の土留めの見付(天端 − 足元)に合わせる ── 背の土を石の頭の下に収め、土留めの天端と見切り石の頭を揃える。⛔ 決まった丈の駒を据えて背の土に埋めない(棟梁の実測 2026-09-26 EDO-0437: 見付 0.6 の駒では背の土が石の頭より北 0.82 m・南 1.20 m 高く、口の W の見付は 1.2〜1.6 m ── 退けた)。丈を合わせた駒は部材方が焼く"
   },
   {
    "a": "前庭の土留め TW_Zentei_W(男坂の口の両脇の端)",
@@ -12172,21 +12176,8 @@
     0.0
    ],
    "moves": "TW_Zentei_W ── 見切り石は据え置き",
-   "cert": "U(施主裁定 EDO-0437 A 2026-09-24「Aのほうが自然に思えます」(裁定図 https://claude.ai/artifact/WhBNfXB9CQgwvr5Q51fabQ))"
-  },
-  {
-   "a": "切り込みの土留め TW_Zentei_Kiri の奥の辺",
-   "aFace": "両端の駒の切り口",
-   "b": "切り込みの土留め TW_Zentei_Kiri の返し",
-   "bFace": "返しの見え面(法の面)",
-   "kind": "突き付け(入隅 ── 隅の駒なし)",
-   "gap": 0.0,
-   "tol": [
-    0.05,
-    0.0
-   ],
-   "moves": "奥の辺",
-   "cert": "U(施主裁定 EDO-0437 A 2026-09-24「Aのほうが自然に思えます」(裁定図 https://claude.ai/artifact/WhBNfXB9CQgwvr5Q51fabQ))"
+   "cert": "U(施主裁定 EDO-0437 A 2026-09-24「Aのほうが自然に思えます」(裁定図 https://claude.ai/artifact/WhBNfXB9CQgwvr5Q51fabQ))/A(丈の意図 ── 棟梁の実測 2026-09-26 EDO-0437)",
+   "intent": "見切り石の丈は、据える所の土留めの見付(天端 − 足元)に合わせる ── 背の土を石の頭の下に収め、土留めの天端と見切り石の頭を揃える。⛔ 決まった丈の駒を据えて背の土に埋めない(棟梁の実測 2026-09-26 EDO-0437: 見付 0.6 の駒では背の土が石の頭より北 0.82 m・南 1.20 m 高く、口の W の見付は 1.2〜1.6 m ── 退けた)。丈を合わせた駒は部材方が焼く"
   }
  ],
  "ido": {

@@ -1,8 +1,8 @@
 {
  "_": "図の機械検査の結果。生成器が毎回書き、kansei_gate.py --init が読んで赤なら止める(EDO-0291)。⛔ 手で書かない — 図を焼き直せば入れ替わる。",
  "estate": "sanno",
- "at": "2026-09-26T14:16:46+09:00",
- "sashizu_sha": "d6871f93b234cd3f",
+ "at": "2026-09-26T16:02:29+09:00",
+ "sashizu_sha": "c18de9b5f1eea607",
  "ng": 2,
  "na": 4,
  "rows": [
@@ -38,7 +38,7 @@
   },
   {
    "id": "C06",
-   "what": "土留め高と法 — 39 本の天端と地山の落差(宣言・駒の丈・埋没) ・切土・盛土の法 26 本が区画の内に納まる",
+   "what": "土留め高と法 — 38 本の天端と地山の落差(宣言・駒の丈・埋没) ・切土・盛土の法 27 本が区画の内に納まる",
    "res": "0 件",
    "status": "ok"
   },
@@ -170,7 +170,7 @@
   },
   {
    "id": "C29",
-   "what": "塀・土留めの内の幹 — sanno_impl.json の 1945 点(全層)の幹の芯が、塀・囲い・土留めの実体線 86 本・197 区間(区画の辺 20・回廊 2・土留め(城の石垣) 26・土留め(袖) 10・土留め(野面の乱積み) 6・板塀 5・柵 3・袖塀 2・透塀 12)から 2.0 m(+半厚:区画の辺 0.00m=取れない(区画の線 — 0 で扱う)・回廊 0.00m=取れない(回廊 に厚みの欄が無い — 0 で扱う)・土留め(城の石垣) 1.40m=天端の奥行 avoid.dodomeCrestDepthM[城の石垣]・土留め(袖) 0.60m=天端の奥行 avoid.dodomeCrestDepthM[袖]・土留め(野面の乱積み) 1.05m=天端の奥行 avoid.dodomeCrestDepthM[野面の乱積み]・板塀 0.00m=取れない(板塀 に厚みの欄が無い — 0 で扱う)・柵 0.06m=gardens[前庭の帯(玉垣の植込み)].tamagaki.postDiaM/2・袖塀 0.00m=取れない(袖塀 に厚みの欄が無い — 0 で扱う)・透塀 0.00m=取れない(透塀 に厚みの欄が無い — 0 で扱う))以上離れている(土留めは天端の奥の縁から・2m は道に面する土留め 4 本だけ ── 面さない 38 本(TW_Otoko_N・TW_Otoko_S・TW_Onna_N・TW_Onna_S・TW_Zentei_W・TW_Zentei_SW・TW_Zentei_SE・TW_Kairo_E・TW_Kairo_W・TW_Kairo_N・TW_Zentei_E・TW_Kairo_S・TW_Kairo_TsumaN・TW_Kairo_TsumaS・TW_Romon_KoshiN・TW_Romon_KoshiS・TW_Gusho_N・TW_Gusho_E・TW_Gusho_EK・TW_Gusho_SE・TW_Gusho_S・TW_GushoKai_N・TW_GushoKai_S・TW_Koshi_E・TW_Koshi_NE・TW_Koshi_NE2・TW_Koshi_NS・TW_Koshi_NW・TW_Koshi_NW2・TW_Koshi_W・TW_Koshi_SW・TW_Koshi_SW2・TW_Koshi_SS・TW_Koshi_S2・TW_Koshi_S・TW_ChumonKai_N・TW_ChumonKai_S・TW_Nozura_ShadenW)は実体だけ退ける。2m を当てる線の端 8 箇所は出会う相手の壁の実体の分だけ延ばす(TW_Zentei_N←TW_Zentei_W 1.05m・TW_Zentei_N←TW_Zentei_Kiri 1.05m・TW_Zentei_N←TW_Zentei_Kiri 1.05m・TW_Zentei_N←TW_Zentei_E 1.05m・TW_SandoKai_W←TW_Zentei_N 1.05m・TW_SandoKai_E←TW_Zentei_N 1.05m・TW_Zentei_Kiri←TW_Zentei_N 1.05m・TW_Zentei_Kiri←TW_Zentei_N 1.05m)。隅の駒の天端が入隅を斜めに埋める三角 0(無し ── 腕の長さ `avoid.dodomeKadoLegM`・片方だけ道に面する隅は面した側の帯だけ)も測る。区間の両端・各節も円で測る。樹冠は測らない。区画の外の塀は測れない)",
+   "what": "塀・土留めの内の幹 — sanno_impl.json の 1945 点(全層)の幹の芯が、塀・囲い・土留めの実体線 85 本・196 区間(区画の辺 20・回廊 2・土留め(城の石垣) 26・土留め(袖) 10・土留め(野面の乱積み) 5・板塀 5・柵 3・袖塀 2・透塀 12)から 2.0 m(+半厚:区画の辺 0.00m=取れない(区画の線 — 0 で扱う)・回廊 0.00m=取れない(回廊 に厚みの欄が無い — 0 で扱う)・土留め(城の石垣) 1.40m=天端の奥行 avoid.dodomeCrestDepthM[城の石垣]・土留め(袖) 0.60m=天端の奥行 avoid.dodomeCrestDepthM[袖]・土留め(野面の乱積み) 1.05m=天端の奥行 avoid.dodomeCrestDepthM[野面の乱積み]・板塀 0.00m=取れない(板塀 に厚みの欄が無い — 0 で扱う)・柵 0.06m=gardens[前庭の帯(玉垣の植込み)].tamagaki.postDiaM/2・袖塀 0.00m=取れない(袖塀 に厚みの欄が無い — 0 で扱う)・透塀 0.00m=取れない(透塀 に厚みの欄が無い — 0 で扱う))以上離れている(土留めは天端の奥の縁から・2m は道に面する土留め 4 本だけ ── 面さない 37 本(TW_Otoko_N・TW_Otoko_S・TW_Onna_N・TW_Onna_S・TW_Zentei_W・TW_Zentei_SW・TW_Kairo_E・TW_Kairo_W・TW_Kairo_N・TW_Zentei_E・TW_Kairo_S・TW_Kairo_TsumaN・TW_Kairo_TsumaS・TW_Romon_KoshiN・TW_Romon_KoshiS・TW_Gusho_N・TW_Gusho_E・TW_Gusho_EK・TW_Gusho_SE・TW_Gusho_S・TW_GushoKai_N・TW_GushoKai_S・TW_Koshi_E・TW_Koshi_NE・TW_Koshi_NE2・TW_Koshi_NS・TW_Koshi_NW・TW_Koshi_NW2・TW_Koshi_W・TW_Koshi_SW・TW_Koshi_SW2・TW_Koshi_SS・TW_Koshi_S2・TW_Koshi_S・TW_ChumonKai_N・TW_ChumonKai_S・TW_Nozura_ShadenW)は実体だけ退ける。2m を当てる線の端 8 箇所は出会う相手の壁の実体の分だけ延ばす(TW_Zentei_N←TW_Zentei_W 1.05m・TW_Zentei_N←TW_Zentei_Kiri 1.05m・TW_Zentei_N←TW_Zentei_Kiri 1.05m・TW_Zentei_N←TW_Zentei_E 1.05m・TW_SandoKai_W←TW_Zentei_N 1.05m・TW_SandoKai_E←TW_Zentei_N 1.05m・TW_Zentei_Kiri←TW_Zentei_N 1.05m・TW_Zentei_Kiri←TW_Zentei_N 1.05m)。隅の駒の天端が入隅を斜めに埋める三角 0(無し ── 腕の長さ `avoid.dodomeKadoLegM`・片方だけ道に面する隅は面した側の帯だけ)も測る。区間の両端・各節も円で測る。樹冠は測らない。区画の外の塀は測れない)",
    "res": "0 点",
    "status": "ok"
   },
@@ -195,7 +195,7 @@
   {
    "id": "D01",
    "what": "文書の記法が字になっていないか",
-   "res": "0 件(母集団 59,076 字・引用の面 0 件は別枠)",
+   "res": "0 件(母集団 59,081 字・引用の面 0 件は別枠)",
    "status": "ok"
   }
  ]

@@ -1386,6 +1386,22 @@ public static class EdoSannoShaRebuild
                 // ⭐ 相手が野面の乱積み(法 1:0.3)の端・袖の背は石の出の包絡で切る(EDO-0437 第3巡)。野面の袖だけ ── 切石の袖は従来の中央値
                 envNori: EdoAssets.Own.SannoNozuraNori, sodeEnvNori: g => IsNozuraSode(g) ? EdoAssets.Own.SannoNozuraNori : float.NaN, envVisAt: visAt,
                 envWall: g => { var mf = g.GetComponentInChildren<MeshFilter>(); return mf != null && mf.sharedMesh != null && EdoAssets.Own.IsSannoNozura(AssetDatabase.GetAssetPath(mf.sharedMesh)); });
+            // ⭐ 相手の石の形に沿わせて焼いた駒が在れば、据えを変えずに差し替える(EdoBuild.SwapToFitted・EDO-0437 第11巡)。差し替えた駒には
+            //   突き付け・ResizeEnd を掛けず、相手の隅石も退けない(形は据えの従属値)。
+            var fitted = new List<GameObject>();
+            {
+                var all0 = new List<GameObject>(); foreach (Transform c in grp) all0.Add(c.gameObject);
+                string stairKey = GroupNameOf(name);
+                var mp = EdoBuild.SwapToFitted(all0, g =>
+                {
+                    int us0 = g.name.LastIndexOf('_'); int ii0;
+                    if (us0 < 0 || !int.TryParse(g.name.Substring(us0 + 1).TrimEnd('f'), out ii0)) return null;
+                    if (g.name.StartsWith("Dan_")) return EdoAssets.Own.SannoDanFit(keri, fumi, wM, ii0, stairKey);
+                    string row = g.name.Substring(0, us0); char sd = row.EndsWith("_W") ? 'W' : row.EndsWith("_E") ? 'E' : '\0';
+                    return sd == '\0' || !IsNozuraSode(g) ? null : EdoAssets.Own.IshidanSodeNozuraFit(keri, fumi, stairKey, sd, ii0, ii0);
+                }, sb);
+                foreach (var kv in mp) { if (cut.Remove(kv.Key)) { } cut.Add(kv.Value); fitted.Add(kv.Value); }
+            }
             dans.Clear(); sodes.Clear();
             foreach (Transform c in grp)
             {
@@ -1399,7 +1415,8 @@ public static class EdoSannoShaRebuild
             //   (蹴上・踏面は段数からの従属値)。見える所の重なりだけ・硬い(許容0)。当たる先: 全ての石段 × Dodome の駒。
             {
                 var allDan = new List<GameObject>(); foreach (Transform c in grp) if (c.name.StartsWith("Dan_") && c.gameObject.activeInHierarchy) allDan.Add(c.gameObject);
-                foreach (var yv in EdoBuild.YieldWallsToSteps(allDan, walls, visAt, keri))
+                var visExp = EdoBuild.DrawnExpected();   // ⭐ 皮を外している間も外す前の皮で見える地表を読む(段 0 の端の当たりを造成前の地形の下と読んだ)
+                foreach (var yv in EdoBuild.YieldWallsToSteps(allDan, walls, (x, z) => visExp.At(x, z), keri, 0.15f, fitted))
                     sb.AppendLine("    " + (yv.refused || yv.after > 0.003f ? "⛔ " : "") + yv.wall.name + " が段 " + yv.steps + " の端に見える所で被る " + yv.need.ToString("F3") +
                                   (yv.refused ? " ── 動かさない(" + yv.why + ")" : " → 段の外へ " + yv.moved.ToString("F3") + "m 退けた・残り " + yv.after.ToString("F3")));
             }

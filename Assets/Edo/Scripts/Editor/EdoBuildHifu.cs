@@ -1629,6 +1629,8 @@ public static partial class EdoBuild
 
     /// <summary>**皮を外して穴を塞ぐ。**<paramref name="parent"/> の下の <see cref="SKIN_PREFIX"/> の物ごとに、皮の三角形の芯が
     /// 載る地形の升を塞ぎ、皮を消し、皮のメッシュの資産も消す。返り値 = 塞いだ升の数。⛔ Undo の外。</summary>
+    /// <summary>最後に外した縁の皮の三角形(世界座標)── <see cref="DrawnExpected"/> が読む。domain reload で消える(同じ巡の中だけ)。</summary>
+    static readonly List<Vector3[]> PrevSkin = new List<Vector3[]>();
     public static int ClearEdgeSkins(Transform parent)
     {
         if (parent == null) return 0;
@@ -1636,12 +1638,14 @@ public static partial class EdoBuild
         int R = td.holesResolution; float cs = td.size.x / R; int n = 0;
         var kill = new List<GameObject>();
         foreach (Transform c in parent) if (c.name.StartsWith(SKIN_PREFIX, StringComparison.Ordinal)) kill.Add(c.gameObject);
+        if (kill.Count > 0) PrevSkin.Clear();
         foreach (var g in kill)
         {
             var mf = g.GetComponent<MeshFilter>();
             if (mf != null && mf.sharedMesh != null)
             {
                 var m = mf.sharedMesh; var l2w = g.transform.localToWorldMatrix; var vs = m.vertices; var tri = m.triangles;
+                for (int k = 0; k + 2 < tri.Length; k += 3) PrevSkin.Add(new[] { l2w.MultiplyPoint3x4(vs[tri[k]]), l2w.MultiplyPoint3x4(vs[tri[k + 1]]), l2w.MultiplyPoint3x4(vs[tri[k + 2]]) });
                 var cells = new HashSet<long>();
                 int i0 = int.MaxValue, i1 = int.MinValue, j0 = int.MaxValue, j1 = int.MinValue;
                 for (int k = 0; k + 2 < tri.Length; k += 3)
@@ -1747,15 +1751,42 @@ public static partial class EdoBuild
     /// ⛔ 1 巡の間に皮や穴を作り直したら掴み直すこと。</summary>
     public sealed class DrawnGround
     {
-        readonly Terrain t; readonly float y0; readonly Vector3 org; readonly float cs;
-        readonly int hi0, hj0, hw, hh; readonly bool[,] holes;
+        readonly Terrain t; readonly float y0; readonly Vector3 org; float cs;
+        int hi0, hj0, hw, hh; bool[,] holes;
         readonly Dictionary<long, List<Vector3[]>> hash = new Dictionary<long, List<Vector3[]>>();
         const float B = 0.5f;
-        public readonly int skins;
+        public int skins;
         static long K(int i, int j) { return ((long)i << 32) ^ (uint)j; }
-        public DrawnGround(Terrain terrain)
+        readonly bool prev;
+        public DrawnGround(Terrain terrain) : this(terrain, null) { }
+        /// <summary><paramref name="prevSkin"/> が渡され、生きている皮が無ければ、その三角形を皮として読む(穴は塞がれている ── 皮の在る所は皮を返す)。</summary>
+        public DrawnGround(Terrain terrain, List<Vector3[]> prevSkin)
         {
             t = terrain; y0 = t.transform.position.y; org = t.transform.position;
+            bool live = false;
+            foreach (var mf in UnityEngine.Object.FindObjectsByType<MeshFilter>(FindObjectsSortMode.None))
+                if (mf.sharedMesh != null && mf.gameObject.activeInHierarchy && mf.name.StartsWith(SKIN_PREFIX, StringComparison.Ordinal)) { live = true; break; }
+            if (!live && prevSkin != null && prevSkin.Count > 0)
+            {
+                prev = true;
+                foreach (var q in prevSkin)
+                {
+                    float x0 = Mathf.Min(q[0].x, Mathf.Min(q[1].x, q[2].x)), x1 = Mathf.Max(q[0].x, Mathf.Max(q[1].x, q[2].x));
+                    float z0 = Mathf.Min(q[0].z, Mathf.Min(q[1].z, q[2].z)), z1 = Mathf.Max(q[0].z, Mathf.Max(q[1].z, q[2].z));
+                    if (x1 - x0 < 1e-5f || z1 - z0 < 1e-5f) continue;
+                    for (int i = Mathf.FloorToInt(x0 / B); i <= Mathf.FloorToInt(x1 / B); i++)
+                        for (int j = Mathf.FloorToInt(z0 / B); j <= Mathf.FloorToInt(z1 / B); j++)
+                        {
+                            List<Vector3[]> l; if (!hash.TryGetValue(K(i, j), out l)) { l = new List<Vector3[]>(); hash[K(i, j)] = l; }
+                            l.Add(q);
+                        }
+                }
+                return;
+            }
+            Init();
+        }
+        void Init()
+        {
             var td = t.terrainData; int R = td.holesResolution; cs = td.size.x / R;
             float mnx = float.MaxValue, mxx = float.MinValue, mnz = float.MaxValue, mxz = float.MinValue;
             foreach (var mf in UnityEngine.Object.FindObjectsByType<MeshFilter>(FindObjectsSortMode.None))
@@ -1812,6 +1843,7 @@ public static partial class EdoBuild
         /// <summary>描かれた地表の高さ。穴の升では皮(無ければ NaN)、それ以外は地形。</summary>
         public float At(float x, float z)
         {
+            if (prev) { float sp = Skin(x, z); if (!float.IsNaN(sp)) return sp; return t.SampleHeight(new Vector3(x, 0f, z)) + y0; }
             if (InHole(x, z)) return Skin(x, z);
             float g = t.SampleHeight(new Vector3(x, 0f, z)) + y0;
             // 地形の上へ被せた皮(地形の木の升の裏込め)は、地形より高い所だけ描かれる
@@ -1822,6 +1854,11 @@ public static partial class EdoBuild
 
     /// <summary>描かれた地表の掴みを作る(<see cref="DrawnGround"/>)。</summary>
     public static DrawnGround Drawn() { return new DrawnGround(T()); }
+    /// <summary>**皮を外している間も、外す前の皮を描かれた地表として読む掴み**(2026-09-26・EDO-0437 第11巡)。土留めの Stage は頭で縁の皮を外し
+    /// (<see cref="ClearEdgeSkins"/>・穴を塞ぐ)、最後の Stage で皮を起こし直す ── その間の <see cref="Drawn"/> は穴の下に残る造成前の地形を返し、
+    /// 参道の階の段 0 の端の隅石の当たり(y 13.10)を地形 13.33 の下と読んで見えないとした(皮は 11.94)。生きている皮が在れば <see cref="Drawn"/> と同じ。
+    /// 当たる先: 皮を外した後・起こす前に見える地表で割る測りすべて(石段の端の退け・端の切りの見える当たり)。</summary>
+    public static DrawnGround DrawnExpected() { return new DrawnGround(T(), PrevSkin); }
 
     /// <summary>部材の**上を向いた面**の最も高い所を引く掴み(駒が他の駒の下に入っているかを見る)。</summary>
     public sealed class PartTops

@@ -1,11 +1,11 @@
 # EdoBuild の据え方の関数の目録(生成物・手で直さない)
 
-<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 141823fa4621 -->
+<!-- 生成: python3 Tools/Unity/edobuild_mokuroku.py · 指紋 1fe885c53640 -->
 
 **据え方の関数を探すときは C# を grep で読み歩かず、まずここを引く。**置き方の手順と相手ごとの道具の選び方は
 `docs/oki-kata.md`(正典)。ここは「どの関数が在り、何を返し、どこで使われているか」の索引だけ。
 
-- 公開関数 222 本(注釈なし 16)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
+- 公開関数 224 本(注釈なし 17)。`Assets/Edo/Scripts/Editor/EdoBuild*.cs`・`EdoGeom.cs`・`EdoParcels.cs`(区画)の `///` 注釈から刷る。
 - 同じ道具が刷る目録: 邸ビルダーのメニュー → Stage と中の関数 `docs/builder-mokuroku.md` / 部材の名 `docs/edoassets-mokuroku.md`。
 - 札: **硬** = 注釈に「硬い/許容0」・**柔** = 「柔らかい/狙い」がある(判定ではなく注釈の語)。相手の札(地面・駒どうし・天端・床・断面・面・隅・区域)も注釈の語を拾っただけ。
 - 呼んでいる所 = 定義のファイルの外で `EdoBuild.<名>(` と書いている C# ファイル(`Edo` と `Builder/Rebuild` を落とした名)と、その中の呼んでいる関数(Stage)。同じ名の多重定義はまとめて数える。`EdoBuild` の中どうしの呼び出しは載せない。
@@ -18,9 +18,9 @@
 |---|---|---|---|
 | [EdoBuild.cs](#edobuildcs) | 配置・資産系の共有基盤 (Phase 2c, 2026-08-26) | — | 43 |
 | [EdoBuildGoten.cs](#edobuildgotencs) | 御殿複合(表向・中奥・奥向の3核)を組む — EdoBuild の一部(規則21「置く・測る・突き付ける・据えるは | — | 3 |
-| [EdoBuildHifu.cs](#edobuildhifucs) | 縁の皮 — 地形に穴を開け、穴の縁から部材の面までを皮のメッシュで描く (EdoBuild の partial・2026-09-24・EDO-0430) | 切通しの石段(山王の女坂・男坂・参道の階)・天端を地盤に揃えた土留め(山王・土井・岡部の郭)・ 造成した面の縁(全邸の段の縁)。 | 11 |
+| [EdoBuildHifu.cs](#edobuildhifucs) | 縁の皮 — 地形に穴を開け、穴の縁から部材の面までを皮のメッシュで描く (EdoBuild の partial・2026-09-24・EDO-0430) | 切通しの石段(山王の女坂・男坂・参道の階)・天端を地盤に揃えた土留め(山王・土井・岡部の郭)・ 造成した面の縁(全邸の段の縁)。 | 12 |
 | [EdoBuildInari.cs](#edobuildinarics) | 稲荷 — 小祠と鳥居を据える (EdoBuild の partial・2026-09-21・EDO-0326) | — | 3 |
-| [EdoBuildIshidan.cs](#edobuildishidancs) | 石段の組 — 段石と袖(袖石垣)を一組の材で据える(EDO-0415・2026-09-23 施主指摘)。 | — | 29 |
+| [EdoBuildIshidan.cs](#edobuildishidancs) | 石段の組 — 段石と袖(袖石垣)を一組の材で据える(EDO-0415・2026-09-23 施主指摘)。 | — | 30 |
 | [EdoBuildJisha.cs](#edobuildjishacs) | 寺社の本堂(と坊・社家の主屋)を、間数ごとに焼いた入母屋で組む — EdoBuild の一部(規則21)。 | — | 1 |
 | [EdoBuildJun.cs](#edobuildjuncs) | 部材を依存の順に解き、変えた所から後だけ流し直す (EdoBuild の partial・2026-09-26・EDO-0455) | 山王社の建て直し(EdoSannoShaRebuild の Stage0〜9)。 | 0 |
 | [EdoBuildKado.cs](#edobuildkadocs) | 隅部材(留め継ぎ)の据え — EdoBuild の partial (2026-09-21・EDO-0289 ②) | — | 25 |
@@ -131,9 +131,10 @@
 | `EdoBuild.CutEdgeSkin(name, parent, parts, faces, faceTol, step=…, margin=…, eps=…, under=…, design=…, drawTol=…, backfill=…, sealFace=…, digParts=…, digUnder=…, digBatter=…, crestBandParts=…, plantPoints=…, floorParts=…)` | `SkinReport` | 硬 地面・天端・床 | 縁の皮を起こす。parts(石段・袖・土留め)の外形に掛かる地形の升と、 faces の縁で地形が面の高さから faceTol を超えて外れる升に穴を開け、 その升を step 格子の皮で描く(皮は parent の下に… | SannoSha(Stage9_Hifu) |
 | `EdoBuild.MeasureSkinContact(parts, samples=…, crestBandParts=…)` | `SkinReport` |  | 皮と部材の取り合いを測り直す(皮を起こし直さずに)。 | — |
 | `EdoBuild.SkinGapTable(parts, faces, faceTol)` | `string` | 地面・駒どうし | 皮と部材の隙を三つに分けて刷る(2026-09-25 普請奉行の決め・EDO-0430): A 面の高さで塞がる(外が面の中・部材の底 ≤ 面 + 許容)/ B 駒が浮く(外が面の中・底 &gt; 面 + 許容 ── 駒… | SannoSha(HifuGapTable・Stage9_Hifu) |
-| `EdoBuild.ClearEdgeSkins(parent)` | `int` | 地面 | 皮を外して穴を塞ぐ。parent の下の SKIN_PREFIX の物ごとに、皮の三角形の芯が 載る地形の升を塞ぎ、皮を消し、皮のメッシュの資産も消す。 ⟶ 返す: 塞いだ升の数 | SannoSha(Stage9_Hifu・UnSkin) |
+| `EdoBuild.ClearEdgeSkins(parent)` | `int` |  | ⚠ 注釈なし | SannoSha(Stage9_Hifu・UnSkin) |
 | `DrawnGround`(class) | — | | 描かれた地表を引く掴み。穴の升では皮の高さ(皮が無ければ NaN = 何も描かれていない)、 それ以外は地形(SampleHeight)。 | |
 | `EdoBuild.Drawn()` | `DrawnGround` | 地面 | 描かれた地表の掴みを作る(DrawnGround)。 | SannoSha(AbutStairsToWalls・HifuMeasure・RetractRunEndsFromWalls…), SannoSashizuCheck(Check) |
+| `EdoBuild.DrawnExpected()` | `DrawnGround` | 地面 | 皮を外している間も、外す前の皮を描かれた地表として読む掴み(2026-09-26・EDO-0437 第11巡)。 | SannoSha(AbutStairsToWalls) |
 | `PartTops`(class) | — | | 部材の上を向いた面の最も高い所を引く掴み(駒が他の駒の下に入っているかを見る)。 | |
 | `Bed`(class) | — | | 据わる床 = 描かれた地表(Drawn ── 縁の皮の升では皮)と、据えた部材(土留め・石段・袖)の 上向きの面の、高い方。 | |
 | `EdoBuild.ContactOn(go, bedAt, at, count, tol=…, maxSamples=…)` | `float` | 床 | Contact と同じ測り(格子ごとの最下点)を、 任意の床 bedAt に対して取る。 ⟶ 返す: 触れている所の隙(正=浮き・負=埋没) | — |
@@ -194,6 +195,7 @@
 | `EdoBuild.MeasureSodeBackEnvelope(sode, keri, walls, nori, spread, maxOut=…, visAt=…)` | `float` | 天端・隅 | 袖の背と野面の相手の離れを石の出の包絡で測る(2026-09-26・EDO-0437 第3巡)。 | — |
 | `EdoBuild.EnvelopeCut(flatDan, side, keri, walls, nori, visAt, straddle)` | `float` | 地面・駒どうし・隅 | 段石の端と野面の相手の包絡の切り d(2026-09-26・EDO-0437 第3巡)。 | Assets(DanKiriEnd) |
 | `EdoBuild.EnvelopeStraddle(flatDan, side, keri, walls, dEnv, visAt, uphill, za)` | `bool` | 隅 | 跨ぐ端の隅の駒のもう一面を野面の包絡で測る(2026-09-26・EDO-0437 第4巡)。 | — |
+| `EdoBuild.SwapToFitted(pieces, fitPathOf, sb)` | `Dictionary<GameObject, GameObject>` | 駒どうし | 相手の石の形に沿わせて焼いた駒へ、据えを変えずに差し替える(2026-09-26・EDO-0437 第11巡)。 ⟶ 返す: 旧 → 新 | SannoSha(AbutStairsToWalls) |
 | `EdoBuild.CutStairEndsToBatter(label, dans, sodes, keri, fumi, walls, flatDanPath, kiriPath, flatSodePath, noriPath, sb, tol=…, envNori=…, sodeEnvNori=…, envVisAt=…, envWall=…)` | `HashSet<GameObject>` | 硬 駒どうし・隅 | 石段の段石の端・袖の背を、法の面の相手に合わせて切った駒へ差し替える(2026-09-26・EDO-0430 施主裁定B・EDO-0442)。 ⟶ 返す: 差し替えた駒(呼び手は突き付けを掛けない) | SannoSha(AbutStairsToWalls) |
 
 ### 袖の脇の面 × 隅の駒・土留めの法(EDO-0437 第8巡 2026-09-26)
@@ -201,7 +203,7 @@
 | 関数 | 返す | 札 | 何をするか(注釈の一文目) | 呼んでいる所 |
 |---|---|---|---|---|
 | `StepYield`(struct) | — | | YieldWallsToSteps の一件(土留めの駒ひとつ)。 | |
-| `EdoBuild.YieldWallsToSteps(steps, walls, visAt, keri, maxMove=…)` | `List<StepYield>` | 硬 地面・隅 | 段石の端に被さる土留め・隅の駒を、段の外へ退ける(2026-09-26・EDO-0437 第9巡・普請奉行の決め「段は動かさない ── 隅石の据えの側で避ける」)。 | SannoSha(AbutStairsToWalls) |
+| `EdoBuild.YieldWallsToSteps(steps, walls, visAt, keri, maxMove=…, fixedNear=…)` | `List<StepYield>` | 硬 地面・隅 | 段石の端に被さる土留め・隅の駒を、段の外へ退ける(2026-09-26・EDO-0437 第9巡・普請奉行の決め「段は動かさない ── 隅石の据えの側で避ける」)。 | SannoSha(AbutStairsToWalls) |
 | `SodeSideBite`(struct) | — | | MeasureSodeSideBites の一件(袖の駒 × 相手の駒 × 脇の向き)。 | |
 | `EdoBuild.MeasureSodeSideBites(sodes, walls, visAt)` | `List<SodeSideBite>` | 硬 地面・駒どうし・隅 | 石段の袖の脇の面へ入る相手(隅の駒・土留めの法の足)を測る(2026-09-26・EDO-0437 第8巡・普請奉行の決め「袖が譲る」)。 | SannoSha(AbutStairsToWalls) |
 

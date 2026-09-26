@@ -801,6 +801,26 @@ public static partial class EdoBuild
         return g;
     }
 
+    /// <summary>**相手の石の形に沿わせて焼いた駒へ、据えを変えずに差し替える**(2026-09-26・EDO-0437 第11巡)。<paramref name="pieces"/> の駒ごとに
+    /// <paramref name="fitPathOf"/> が返す資産が在れば、同じ位置・向き・縮尺(<see cref="SwapPart"/>)で差し替える。沿わせた駒の形は据えの従属値
+    /// (焼いた時の配置と相手の位置が前提)── ⛔ 差し替えた駒に端の突き付け・<see cref="ResizeEnd"/> を掛けない・相手を退けない(<see cref="YieldWallsToSteps"/> の fixedNear)。
+    /// 返り値 = 旧 → 新。資産が無い駒は触らない。当たる先: 野面の返し・隅石に端・背が接する石段の段石と袖(山王 参道の階 段 1〜4・袖 W1/E1)。</summary>
+    public static Dictionary<GameObject, GameObject> SwapToFitted(IList<GameObject> pieces, System.Func<GameObject, string> fitPathOf, System.Text.StringBuilder sb)
+    {
+        var map = new Dictionary<GameObject, GameObject>();
+        foreach (var g in pieces)
+        {
+            if (g == null) continue;
+            string p = fitPathOf(g); if (string.IsNullOrEmpty(p) || UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(p) == null) continue;
+            var mf = g.GetComponentInChildren<MeshFilter>(); string cur = mf != null && mf.sharedMesh != null ? UnityEditor.AssetDatabase.GetAssetPath(mf.sharedMesh) : "";
+            string nm = g.name, from = System.IO.Path.GetFileNameWithoutExtension(cur);
+            var ng = cur == p ? g : SwapPart(g, p);
+            map[g] = ng;
+            if (sb != null) sb.AppendLine("    " + nm + " → " + System.IO.Path.GetFileNameWithoutExtension(p) + "(相手の石に沿わせた駒・据えは " + from + " のまま・突き付けを掛けない)");
+        }
+        return map;
+    }
+
     /// <summary>**石段の段石の端・袖の背を、法の面の相手に合わせて切った駒へ差し替える**(2026-09-26・EDO-0430 施主裁定B・EDO-0442)。
     /// 鉛直な駒を法 1:0.25 の野面へ中ほどで突き付けると、上下に 0.25×丈/2 の口とめり込みが残る(<see cref="AbutEndToFace"/>)。
     /// 焼いてある「端を法で切った駒」があれば差し替えて口・めり込みを 0 にする:
@@ -1169,7 +1189,7 @@ public static partial class EdoBuild
     /// 硬い(許容0 のめり込み)── 退ける量が <paramref name="maxMove"/> を超える・両脇の段に挟まれる駒は動かさず refused(部材の話)。
     /// 見える地表の下の重なりは数えない(根入れ)。当たる先: 石段の端が脇の土留め・野面の隅に納まる所すべて(山王 参道の階 × 前庭の切り込みの
     /// 隅 Kiri_kado2・N_kado2 と返しの野面 Kiri_012f/027f。男坂・女坂・郭の階・中門の内の階も同じ枝で測る)。</summary>
-    public static List<StepYield> YieldWallsToSteps(IList<GameObject> steps, IList<GameObject> walls, System.Func<float, float, float> visAt, float keri, float maxMove = 0.15f)
+    public static List<StepYield> YieldWallsToSteps(IList<GameObject> steps, IList<GameObject> walls, System.Func<float, float, float> visAt, float keri, float maxMove = 0.15f, IList<GameObject> fixedNear = null)
     {
         var res = new List<StepYield>();
         float lowTop = float.MaxValue; foreach (var s in steps) if (s != null && s.activeInHierarchy) lowTop = Mathf.Min(lowTop, RB(s).max.y);
@@ -1177,7 +1197,7 @@ public static partial class EdoBuild
         {
             if (w == null || !w.activeInHierarchy) continue;
             var wb = RB(w); var hits = new List<GameObject>();
-            foreach (var s in steps) if (s != null && s.activeInHierarchy && RB(s).Intersects(wb)) hits.Add(s);
+            foreach (var s in steps) if (s != null && s.activeInHierarchy && RB(s).Intersects(wb) && (fixedNear == null || !fixedNear.Contains(s))) hits.Add(s);
             if (hits.Count == 0) continue;
             // 退ける向き = 段の幅の向き(段石の right の水平)のうち駒の側。段ごとに駒の側を測り、割れたら動かさない。
             Vector3 u = Vector3.zero; bool split = false;
@@ -1187,6 +1207,16 @@ public static partial class EdoBuild
                 var sb = RB(s); Vector3 dc = wb.center - sb.center; dc.y = 0f;
                 Vector3 us = Vector3.Dot(dc, rt) >= 0f ? rt : -rt;
                 if (u == Vector3.zero) u = us; else if (Vector3.Dot(u, us) < 0.9f) split = true;
+            }
+            // ⭐ 相手に沿わせて焼いた駒(fixedNear)に接する駒は退けない ── 退けると焼いた形と合わなくなる(隙)。重なりは測って刷るだけ。
+            bool frozen = false;
+            if (fixedNear != null) foreach (var f in fixedNear) { if (f == null) continue; var fb = RB(f); fb.Expand(0.05f); if (fb.Intersects(wb)) { frozen = true; break; } }
+            if (frozen)
+            {
+                float nf = Need(w, hits, u, visAt, keri, lowTop, steps);
+                if (nf > 0.003f) { var nm0 = new List<string>(); foreach (var s in hits) nm0.Add(s.name);
+                    res.Add(new StepYield { wall = w, steps = string.Join("・", nm0.ToArray()), need = nf, after = nf, refused = true, why = "相手に沿わせて焼いた駒に接する(退けると形が合わない)── 段の端を沿わせて焼く駒が要る" }); }
+                continue;
             }
             // 段ごとに測り、退ける量が上限を超える段は外して別に刷る(部材の話 ── その段の端を切る)。残りの段で退ける。
             var over = new List<GameObject>();

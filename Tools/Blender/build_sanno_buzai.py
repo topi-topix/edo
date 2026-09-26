@@ -1688,7 +1688,10 @@ def sode_flat(L=SODE_FLAT_L, name=None):
 # 坂上 = −front)を楼門の腰の隅 kado1 の面に突き付ける。kado1 は法 1:0.25 ⇒ 鉛直な小口だと天端の帯より下で相手の中へ入る
 # (男坂の実測 北 0.2・南 0.45)。⇒ 小口を**天端の稜(Y = HT, Z = −L/2)を起点に**、下へ 1 下がるごとに NORI だけ坂下(+Z)へ後退する面で切る。
 #   面: Z = −L/2 + NORI·(HT − Y)。天端の長さ・坂下の端・断面・材・ピボットは `sode_flat` のまま(据え方は同じ規約で使える)。
-#   ⚠ 据え手が Z を伸縮すると法も同じ比で変わる(1.009 倍なら 0.2523)── 大きく伸ばすなら `--len=` で実長を焼く。
+#   ⚠ 据え手が Z を伸縮すると法も同じ比で変わる(1.070 倍で 1:0.2675 ⇒ kado1 と ±0.009)── 実長 SODE_FLAT_NORI_L で焼き、伸縮 ≈1.0 で据える。
+SODE_FLAT_NORI_L = 1.3375   # 男坂の据えの実長(1.25 × 1.070・棟梁の実測 2026-09-27)── 伸縮 ≈1.0 で法 1:0.25 を保つ
+
+
 def sode_flat_nori_name(L):
     return "IshidanSodeFlatNori_%s%s" % (cs_f3(L), _dtag())
 
@@ -2159,8 +2162,8 @@ def main():
                 L = float(a.split("=", 1)[1])
         build_sode_flat(L, do_render)
     if what == "sode_flat_nori":
-        # sode_flat_nori [--len=1.25] [--depth=3.20] [--render]  坂上の小口を法 1:0.25 に切った水平の袖(EDO-0459)
-        L = SODE_FLAT_L
+        # sode_flat_nori [--len=1.3375] [--depth=3.20] [--render]  坂上の小口を法 1:0.25 に切った水平の袖(EDO-0459・既定は据えの実長)
+        L = SODE_FLAT_NORI_L
         for a in argv:
             if a.startswith("--len="):
                 L = float(a.split("=", 1)[1])

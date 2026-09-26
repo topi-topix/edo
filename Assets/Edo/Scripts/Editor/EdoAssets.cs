@@ -1243,14 +1243,14 @@ public static class EdoAssets
 
         /// <summary>**坂上の小口を法 1:0.25 に切った水平の袖**(EDO-0459 2026-09-27・男坂の最上段 → 楼門の腰の隅 kado1 の法の面へ突き付ける)。
         /// <see cref="IshidanSodeFlat"/> と同じ断面・材 `Danishi`・ピボット・局所座標(X=厚み ±0.30 / Y=高さ / Z=走り・+Z 坂下)で、
-        /// **坂上の端(局所 −Z)**だけを面 Z = −0.625 + 0.25·(0.30 − Y) で切った物 ── 天端の稜(Y=+0.30, Z=−0.625)を起点に、1 下がるごとに 0.25 坂下へ後退する。
-        /// 天端の長さ 1.25・坂下の端(+Z)・天端/下端の高さは <see cref="IshidanSodeFlat"/> と同じ ⇒ `EdoBuild.LayFlatSode` がそのまま使える。
-        /// 実寸: 丈 2.20 = W 0.600 × H 2.200 × D 1.246(底の坂上の端 Z −0.075)・233 面 / 丈 3.20 = W 0.600 × H 3.200 × D 1.246(底 Z +0.175)・263 面。
-        /// ⚠ Z を伸縮すると法も同じ比で変わる(1.009 倍 ⇒ 1:0.252)。材 `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
-        /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_flat_nori [--depth=3.20] --render</summary>
+        /// **坂上の端(局所 −Z)**だけを面 Z = −0.66875 + 0.25·(0.30 − Y) で切った物 ── 天端の稜(Y=+0.30, Z=−0.66875)を起点に、1 下がるごとに 0.25 坂下へ後退する。
+        /// 天端の稜の長さは**据えの実長 1.3375**(= 1.25 × 1.070・名は 1.338)で焼く ⇒ LayFlatSode の伸縮 ≈1.0 で法 1:0.25 が保たれる。坂下の端(+Z)・天端/下端の高さの約束は <see cref="IshidanSodeFlat"/> と同じ。
+        /// 実寸: 丈 2.20 = W 0.600 × H 2.200 × D 1.334(底の坂上の端 Z −0.119)・235 面 / 丈 3.20 = W 0.600 × H 3.200 × D 1.334(底 Z +0.131)・287 面。
+        /// ⚠ Z を伸縮すると法も同じ比で変わる(1.25 版を 1.070 倍 ⇒ 1:0.2675 で kado1 と ±0.009 ── だから実長で焼いた)。材 `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- sode_flat_nori [--len=1.3375] [--depth=3.20] --render</summary>
         public static string IshidanSodeFlatNori(float depth)
         {
-            return "Assets/Edo/Models/Kaidan/IshidanSodeFlatNori_1.250" + SodeDepthTag(depth) + ".fbx";
+            return "Assets/Edo/Models/Kaidan/IshidanSodeFlatNori_1.338" + SodeDepthTag(depth) + ".fbx";
         }
 
         /// <summary>**曲がる石段の袖 — 端を留めに切った駒**(EDO-0415 ②③)。<see cref="IshidanSode"/> と同じ局所座標・同じピボットで、

@@ -42,6 +42,33 @@ public static partial class EdoBuild
         return float.NaN;
     }
 
+    /// <summary>**法肩の線が下り始める所**(2026-09-26・EDO-0437 第6巡)。法尻の線上の点 <paramref name="toe0"/> から走り <paramref name="along"/> へ
+    /// 0.05m 刻みで進み、各点で <see cref="CutShoulder"/> の法肩の高さ(法の面 floorY + t/batter)を測って、それまでの最高から
+    /// <paramref name="eps"/> を超えて落ちた最初の点の一つ手前までの距離を返す(<paramref name="maxD"/> まで落ちなければ maxD)。
+    /// 法が無い(地山が面以下)点は法肩 = 面の高さ(= 落ちた)と読む。<paramref name="profile"/> に 0.25m ごとの法肩の高さを返す。
+    /// ⭐ 塀の端を「法肩が相手(袖・土留め)へ向けて下り始める所」で止めるための物差し ── ⛔ 紙の点や相手の面からの一定の離れで打ち切らない。
+    /// 当たる先: 切土の法肩の上に建てる板塀・柵の端(山王 前庭の南の板塀 `Ita_ZSE` の西の端)。法の上に据える run の端すべて。</summary>
+    public static float ShoulderLevelEnd(Vector2 toe0, Vector2 along, Vector2 outward, float floorY, float batter, Func<float, float, float> natural,
+                                         float maxD, float eps, System.Text.StringBuilder profile = null, Func<float, float, float> drawn = null)
+    {
+        // ⭐ <paramref name="drawn"/>(描かれた地表)を渡すと、法肩の点の高さは地山の法肩と描かれた地表の低い方 ── 造成(石段の口の切り下げ)は
+        //   造成前の地山 base_dem に載っていないので、地山だけでは袖へ向けて下る法肩が読めない(第6巡の実測: 地山の法肩は 17.04→17.01 で平ら)
+        Vector2 d = along.normalized; float k = batter <= 1e-4f ? 1e4f : 1f / batter;
+        float best = float.NegativeInfinity, last = 0f;
+        for (float s = 0f; s <= maxD + 1e-4f; s += 0.05f)
+        {
+            float t = CutShoulder(toe0 + d * s, outward, floorY, batter, natural);
+            float hs = float.IsNaN(t) ? float.NaN : floorY + t * k;
+            if (!float.IsNaN(hs) && drawn != null) { Vector2 q = toe0 + d * s + outward.normalized * t; float dy = drawn(q.x, q.y); if (!float.IsNaN(dy)) hs = Mathf.Min(hs, dy); }
+            if (profile != null && Mathf.Abs(s / 0.25f - Mathf.Round(s / 0.25f)) < 1e-3f)
+                profile.Append(s.ToString("F2") + ":" + (float.IsNaN(hs) ? "NaN" : hs.ToString("F2")) + " ");
+            if (float.IsNaN(hs)) return last;
+            if (hs < best - eps) return last;
+            best = Mathf.Max(best, hs); last = s;
+        }
+        return maxD;
+    }
+
     /// <summary>自然地形モード: true なら造成せず、駒は一枚ずつ地面へ据える。
     /// ユーザー指示 2026-08-08(榎坂保全)。⚠ 静的な状態なので、run を呼ぶ前に必ず立てること。</summary>
     public static bool NaturalMode = true;
@@ -648,7 +675,13 @@ public static partial class EdoBuild
                     double qx = 0, qy = 0, qxx = 0, qxy = 0; int cnt = 0; var ys = new List<Vector2>();
                     for (float u = 0.05f; u <= pt - 0.05f + 1e-4f; u += 0.1f)
                     {
-                        Vector2 q = A + dir * (pt * k + u); float y = bedAt(q.x, q.y); if (float.IsNaN(y)) continue;
+                        // ⭐ 足の幅(表裏の対の奥行 0.12 + 柱の厚み)の床の最も高い所で測る(第6巡)── 芯の一本だけで測ると、法肩の横の勾配で
+                        //   柱の足が 0.10 浮いた(前庭の南の板塀 `Ita_ZSE`: 芯の外れ 0.10 以内で 1 枚と読んだが、柱の足の外れは 0.20)。
+                        //   柱が触れるのは足の下の最も高い所 ⇒ 浮きの物差しは足の幅の最大。
+                        Vector2 q0 = A + dir * (pt * k + u); float y = float.NaN;
+                        foreach (float lat in new[] { 0.06f, 0f, -0.06f, -0.12f, -0.18f })
+                        { Vector2 q = q0 + outward.normalized * lat; float yy = bedAt(q.x, q.y); if (!float.IsNaN(yy) && (float.IsNaN(y) || yy > y)) y = yy; }
+                        if (float.IsNaN(y)) continue;
                         qx += u; qy += y; qxx += u * u; qxy += u * y; cnt++; ys.Add(new Vector2(u, y));
                     }
                     double den = cnt * qxx - qx * qx; if (cnt < 3 || Math.Abs(den) < 1e-9) continue;

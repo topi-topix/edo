@@ -736,6 +736,37 @@ public static partial class EdoBuild
         if (float.IsNaN(h) || h >= maxBack - 1e-4f) return 0f;
         return maxBack - h;
     }
+    /// <summary>**受けの駒の天端の上に立つ走りの端を、受けの駒が足の下に在る所まで詰める**(2026-09-26・EDO-0437 第6巡)。
+    /// 端 <paramref name="end"/> から走りの内 <paramref name="inward"/> へ 0.02m 刻みで進み、走りの芯と両脇(±<paramref name="halfT"/>)の三本の
+    /// 鉛直の光線が <paramref name="beds"/>(土留め・石垣)の上向きの面に当たり、その面が描かれた地表 <paramref name="groundAt"/> 以上(= 足は地面でなく
+    /// 受けの駒の天端に載る)になる最初の所までの距離を返す(端がもう受けの上なら 0・<paramref name="maxBack"/> までに無ければ 0 = 動かさない)。
+    /// ⭐ 受けの駒が途切れる所(石段の袖へ突き付けた土留めの端)で塀も止める ── ⛔ 受けの外へ延ばして低い袖・地面の上へ浮かせない。硬い条件(浮き・めり込み 0)。
+    /// 呼び手が「走りの中ほどが受けの天端に載る run」だけに掛ける(地面に立つ run には掛けない)。
+    /// 当たる先: 座の無い板塀・柵が土留め・石垣の天端に載る run の端(山王 前庭の南西の板塀 `Ita_ZSW` の東の端 ── 女坂の袖の上)。</summary>
+    public static float RetractEndToBedEdge(Vector2 end, Vector2 inward, IList<GameObject> beds, float halfT, float yTop, float maxBack, Func<float, float, float> groundAt)
+    {
+        if (beds == null || beds.Count == 0 || maxBack <= 0.01f) return 0f;
+        Vector2 d = inward.normalized, nrm = new Vector2(d.y, -d.x);
+        for (float s = 0f; s <= maxBack + 1e-4f; s += 0.02f)
+        {
+            bool ok = true;
+            foreach (float lat in new[] { -halfT, 0f, halfT })
+            {
+                Vector2 q = end + d * s + nrm * lat;
+                float h = RayToBodies(beds, new Vector3(q.x, yTop, q.y), Vector3.down, 8f);
+                float g = groundAt(q.x, q.y);
+                if (float.IsNaN(h) || (!float.IsNaN(g) && yTop - h < g - 0.01f)) { ok = false; break; }
+            }
+            if (ok) return s;
+        }
+        return 0f;
+    }
+    /// <summary>点 <paramref name="p"/> の真上から下ろした光線が <paramref name="beds"/> の上向きの面に最初に当たる高さ(当たらなければ NaN)。</summary>
+    public static float BedTopAt(Vector2 p, IList<GameObject> beds, float yTop)
+    {
+        float h = RayToBodies(beds, new Vector3(p.x, yTop, p.y), Vector3.down, 8f);
+        return float.IsNaN(h) ? float.NaN : yTop - h;
+    }
     /// <summary>**土の側(背)の天端の足りなさ**(2026-09-25・EDO-0430)。駒 <paramref name="g"/> の上向きの面を 0.05m 刻みで引き、
     /// **背の帯**(見え面 <paramref name="faces"/> の裏へ <see cref="SOIL_SIDE"/> 進むと駒の外へ出る点 = 裏込めの土が触れる所)のうち、
     /// 検査と皮が「天端」と読む点(周り <see cref="CREST_R"/> の同じ駒の最高から <see cref="CREST_BAND"/> 以内 ── <c>TopIndex.Top</c> と同じ篩)について、

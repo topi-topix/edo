@@ -384,7 +384,7 @@ public static partial class EdoBuild
 
     // ================================================================ 端を相手の面へ突き付ける(法の付いた壁と鉛直な端)
     /// <summary>駒 <paramref name="g"/> の実メッシュの、水平の向き <paramref name="outDir"/> への射影の [最小, 最大](駒の位置からの距離)。</summary>
-    static Vector2 ExtentAlong(GameObject g, Vector3 outDir)
+    public static Vector2 ExtentAlong(GameObject g, Vector3 outDir)
     {
         float lo = float.MaxValue, hi = float.MinValue; Vector3 o = g.transform.position;
         foreach (var v in Body(g.transform, 999999, true)) { float d = Vector3.Dot(v - o, outDir); lo = Mathf.Min(lo, d); hi = Mathf.Max(hi, d); }

@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 16 本・メニュー 79・関数 606(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 16 本・メニュー 79・関数 604(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -19,7 +19,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoMatsudairaDewaBuilder.Niwa.cs](#edomatsudairadewabuilderniwacs) | 松平出羽守上屋敷 — 庭の工程(池・築山・水の系・石組・点景・滝見口)。 | 9 | 30 |
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 15 | 97 |
 | [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 17 | 101 |
-| [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+観理院+樹下家邸+山王門前町ビルダー (2026-08-11) | 1 | 34 |
+| [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除) | 1 | 32 |
 | [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 99 |
 | [EdoSanyashikiRebuild.cs](#edosanyashikirebuildcs) | 三屋敷(太田・加納・鍋島=松平肥前守)の区画を下書きv3へ更新 (2026-08-08) | 0 | 6 |
 | [EdoSekiBuilder.cs](#edosekibuildercs) | — | 1 | 8 |
@@ -435,7 +435,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 
 ## EdoSannoShaBuilder.cs
 
-山王権現社(日枝神社)本体+観理院+樹下家邸+山王門前町ビルダー (2026-08-11)
+山王権現社(日枝神社)本体+樹下家邸+山王門前町ビルダー (2026-08-11。観理院は 2026-09-26 に類型へ移し削除)
 
 | メニュー | 関数 | 呼ぶ関数(Stage) |
 |---|---|---|
@@ -466,8 +466,6 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Torii(parent, x, z, ry)` | `void` |  | 石鳥居(明神鳥居, 合成) |
 | `Tsutsui(parent, x, z)` | `void` |  | つつ井(屋形付き井戸) |
 | `Endai(parent, x, z)` | `void` |  | 茶店の縁台(合成) |
-| `Stage3_Kanriin()` | `string` | 公 | — |
-| `Ido(parent, x, z)` | `void` |  | 井戸(簡素) |
 | `Stage4_Juge()` | `string` | 公 | 2026-08-26 引退: 樹下邸は旧 EdoSannoBukeBuilder.Stage1_Juge が受け持ち、2026-09-21(EDO-0094)から 類型ビルダー(Edo_Typo_sannobuke_ju… |
 | `Stage5_Monzencho()` | `string` | 公 | — |
 | `MonzenMat(name, texPath)` | `Material` |  | — |
@@ -537,7 +535,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `FamilyOf(n)` | `string` |  | — |
 | `ArcOf(poly, p)` | `float` |  | 折れ線 poly 上での点 p の弧長。 |
 | `ProfileAt(prof, step, s, top, faceH, backH)` | `bool` |  | `profile` = [走り s, 天端 y, 低い側の地盤, 高い側の地盤, 見付高, 受け高] を s で線形補間。 |
-| `AbutStairsToWalls()` | `string` | 公 | Stage3 の後段: 全ての石段について、段石の両の小口と袖の背の小口を脇の土留めの面へ突き付ける(EDO-0430)。 |
+| `AbutStairsToWalls()` | `string` | 公 | — |
 | `Stage4_Kakoi()` | `string` | 公 | 算出物 `runs` の `of=="run"` を建てる。 |
 | `SakuRun(r, name, grp, hasSeat, seat, sb)` | `int` |  | 腰高の柵の run。部材の原点 = スパンの中心・地盤レベル・柱はローカル −X 端。 |
 | `SakuProfile(halfT, hgt, postL)` | `void` |  | 腰高の柵の部材の半厚・丈・柱の長さ[m]を資産から測る。 |

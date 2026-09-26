@@ -1265,4 +1265,59 @@ public static partial class EdoBuild
         }
         return res;
     }
+
+    /// <summary>**相手の上向きの面と同じ高さで重なる駒を下げる**(普請奉行の決め 2026-09-26・EDO-0428 二巡目)。<paramref name="pieces"/>
+    /// (下の側 ── 土留め・腰石垣)の天端(屋根でない上向きの面の最高)を 0.1m 格子で測り、同じ点に <paramref name="others"/>(門・敷石)の
+    /// 上向きの面が ±<paramref name="tol"/> で在れば(= 二つの面が同じ高さで重なり斑に描かれる)、その駒を <paramref name="drop"/> 下げる。
+    /// ⛔ 上げない。⛔ 相手は動かさない(施主裁定の天端は相手の天端として残る)。同じ高さで無くなれば二度目は動かない(冪等)。
+    /// 返り値 = 下げた駒の数。<paramref name="report"/> = 駒ごとの重なりの点数(前 → 後)。
+    /// 当たる先: 門・棟の基壇の下へ天端を入れた腰石垣・土留めの隅(山王 楼門の腰の隅 2 駒)、面の高さに据えた敷石の縁に掛かる土留め。</summary>
+    public static int SinkCoplanarUnder(IList<GameObject> pieces, IList<GameObject> others, out string report,
+                                        float tol = 0.005f, float drop = 0.01f, bool measureOnly = false, float maxDrop = 0.03f)
+    {
+        var sb = new System.Text.StringBuilder(); int lowered = 0;
+        var ot = new List<Vector3[]>(); var oh = new Dictionary<long, List<int>>();
+        foreach (var o in others)
+        {
+            if (o == null || !o.activeInHierarchy) continue;
+            foreach (var t in Hifu_OpenUp(o))
+            {
+                int id = ot.Count; ot.Add(t);
+                for (int i = Mathf.FloorToInt(Mathf.Min(t[0].x, Mathf.Min(t[1].x, t[2].x))); i <= Mathf.FloorToInt(Mathf.Max(t[0].x, Mathf.Max(t[1].x, t[2].x))); i++)
+                    for (int j = Mathf.FloorToInt(Mathf.Min(t[0].z, Mathf.Min(t[1].z, t[2].z))); j <= Mathf.FloorToInt(Mathf.Max(t[0].z, Mathf.Max(t[1].z, t[2].z))); j++)
+                    { long k = ((long)i << 32) ^ (uint)j; List<int> l; if (!oh.TryGetValue(k, out l)) { l = new List<int>(); oh[k] = l; } l.Add(id); }
+            }
+        }
+        System.Func<GameObject, int> Count = g =>
+        {
+            var pt = Hifu_OpenUp(g); if (pt.Count == 0) return 0;
+            float x0 = float.MaxValue, x1 = float.MinValue, z0 = float.MaxValue, z1 = float.MinValue;
+            foreach (var t in pt) foreach (var v in t) { x0 = Mathf.Min(x0, v.x); x1 = Mathf.Max(x1, v.x); z0 = Mathf.Min(z0, v.z); z1 = Mathf.Max(z1, v.z); }
+            int n = 0;
+            for (float x = x0 + 0.05f; x < x1; x += 0.1f)
+                for (float z = z0 + 0.05f; z < z1; z += 0.1f)
+                {
+                    List<int> l; if (!oh.TryGetValue(((long)Mathf.FloorToInt(x) << 32) ^ (uint)Mathf.FloorToInt(z), out l)) continue;
+                    float top = float.NaN, y;
+                    foreach (var t in pt) if (Hifu_TriYAt(t, x, z, out y) && (float.IsNaN(top) || y > top)) top = y;
+                    if (float.IsNaN(top)) continue;
+                    foreach (var id in l) if (Hifu_TriYAt(ot[id], x, z, out y) && Mathf.Abs(y - top) < tol) { n++; break; }
+                }
+            return n;
+        };
+        foreach (var g in pieces)
+        {
+            if (g == null || !g.activeInHierarchy || ot.Count == 0) continue;
+            int n0 = Count(g); if (n0 == 0) continue;
+            int n1 = n0; float dropped = 0f;
+            //   相手の面が斜め・段で下にも同じ高さの面がある所は、無くなるまで drop ずつ(上限 maxDrop)
+            while (!measureOnly && n1 > 0 && dropped + drop <= maxDrop + 1e-5f) { g.transform.position -= Vector3.up * drop; dropped += drop; n1 = Count(g); }
+            if (dropped > 0f) lowered++;
+            sb.Append(" " + g.name + " " + n0 + "→" + n1 + (dropped > 0f ? "(" + dropped.ToString("F2") + ")" : ""));
+        }
+        report = (measureOnly ? "同じ高さで重なる駒:" : "同じ高さで重なる駒を " + drop.ToString("F2") + " ずつ下げた(上限 " + maxDrop.ToString("F2") + "):") + (sb.Length > 0 ? sb.ToString() : " 無し");
+        return lowered;
+    }
+    static List<Vector3[]> Hifu_OpenUp(GameObject g) { return OpenUpTris(g, true); }
+    static bool Hifu_TriYAt(Vector3[] t, float x, float z, out float y) { return TriYAt(t, x, z, out y); }
 }

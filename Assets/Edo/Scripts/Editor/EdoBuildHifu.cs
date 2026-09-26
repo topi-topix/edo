@@ -77,9 +77,11 @@ public static partial class EdoBuild
         public string mesh;
         /// <summary>床を覆う部材(floorParts)と測った床の天端。</summary>
         public string floors;
+        /// <summary>門の上向きの面の下へ納めた皮の点。</summary>
+        public int gateUnder;
         public override string ToString()
         {
-            return (string.IsNullOrEmpty(floors) ? "" : "床を覆う部材:" + floors + " / ") + "穴 " + holesCut + " 升(部材 " + cellsParts + "・面の縁 " + cellsFace + "(うち縁の線の帯 " + cellsBand + ")・裏込め " + cellsFill +
+            return (string.IsNullOrEmpty(floors) ? "" : "床を覆う部材:" + floors + "(面の下へ納めた皮 " + gateUnder + " 点) / ") + "穴 " + holesCut + " 升(部材 " + cellsParts + "・面の縁 " + cellsFace + "(うち縁の線の帯 " + cellsBand + ")・裏込め " + cellsFill +
                    "・既に穴で触らず " + skipHole + "・地形の木が立つので開けず " + skipTree + "・植栽の点が立つので開けず " + skipPlant + ")" +
                    (plantOnHole > 0 ? " ⛔ 穴の上の植栽の点 " + plantOnHole : "") +
                    " / 皮 頂点 " + verts + "・三角 " + tris + "(縁の点 " + pinned + " は地形のまま)" +
@@ -329,10 +331,46 @@ public static partial class EdoBuild
             L.Add(t); foreach (var v in t) p2.Add(new Vector2(v.x, v.z));
         }
         if (L.Count == 0) return null;
+        // 外形は床より下へ届く屋根でない三角形すべて(敷居・縁・礎石・柱の足)── 床の帯の外へ出る上向きの面にも穴を開ける(EDO-0428 二巡目)
+        foreach (var t in OpenUpTris(g, false))
+            if (Mathf.Min(t[0].y, Mathf.Min(t[1].y, t[2].y)) <= floorTop + 0.005f) foreach (var v in t) p2.Add(new Vector2(v.x, v.z));
         var hi = EdoGeom.HullXZ(p2.ToArray()); hull = new Vector2[hi.Length];
         for (int i = 0; i < hi.Length; i++) hull[i] = p2[hi[i]];
         return L;
     }
+    /// <summary>駒の**屋根・軒でない**三角形(<paramref name="upOnly"/> なら上向きの面だけ)。屋根は材の名とメッシュの名で篩う
+    /// (<see cref="IsRoofName"/> と "roof")── 一体で焼いた門は屋根が材(サブメッシュ)で分かれる。</summary>
+    public static List<Vector3[]> OpenUpTris(GameObject g, bool upOnly = true)
+    {
+        var L = new List<Vector3[]>();
+        foreach (var mf in g.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            var rr = mf.GetComponent<Renderer>(); if (rr == null || !rr.enabled || !mf.gameObject.activeInHierarchy) continue;
+            if (IsRoofName(PartName(g.transform, mf))) continue;
+            var m = mf.transform.localToWorldMatrix; var vs = mf.sharedMesh.vertices;
+            float sgn = m.determinant < 0f ? -1f : 1f;
+            var mats = rr.sharedMaterials;
+            for (int sm = 0; sm < mf.sharedMesh.subMeshCount; sm++)
+            {
+                string mn = sm < mats.Length && mats[sm] != null ? mats[sm].name : "";
+                if (IsRoofName(mn) || mn.ToLower().Contains("roof")) continue;
+                var tri = mf.sharedMesh.GetTriangles(sm);
+                for (int i = 0; i + 2 < tri.Length; i += 3)
+                {
+                    Vector3 a = m.MultiplyPoint3x4(vs[tri[i]]), b = m.MultiplyPoint3x4(vs[tri[i + 1]]), c = m.MultiplyPoint3x4(vs[tri[i + 2]]);
+                    if (upOnly) { var nv = Vector3.Cross(b - a, c - a); float mag = nv.magnitude; if (mag < 1e-9f || sgn * nv.y / mag <= UP_NY) continue; }
+                    L.Add(new[] { a, b, c });
+                }
+            }
+        }
+        return L;
+    }
+    /// <summary>皮を門の上向きの面の下へ納める量[m](硬い: 面 − 皮 ≥ 0.02 ── 普請検査 EDO-0428 二巡目)。</summary>
+    public const float GATE_UNDER = 0.03f;
+    /// <summary>皮に埋まる門の上向きの面を拾う深さ[m](= 皮の天端の下へ納める量 under と同じ)。⛔ 深くしない ── 0.5 にしたら坂下の門の
+    /// 基壇の中の段(地中)まで拾い、皮を 0.3m 掘って隣の段石の底が 0.15 覗いた(EDO-0428 二巡目)。</summary>
+    public const float GATE_BURY = 0.15f;
     /// <summary><see cref="FloorTris"/> が床の天端を探す、面の高さからの幅[m]。</summary>
     public const float FLOOR_REACH = 0.5f;
 
@@ -370,6 +408,7 @@ public static partial class EdoBuild
         // ⭐ 床を覆う部材(門の基壇 ── floorParts・EDO-0428): 床の帯の三角形だけを部材に入れる。皮は床の外形の中で床の天端 − under へ
         //   納まり、床の外形に掛かる升は穴になる(地形も皮も床と同じ高さで斑に描かれない)。⛔ 屋根・軒の外形で穴を開けない。
         r.floors = "";
+        var gateUp = new List<Vector3[]>(); var gateHash = new Dictionary<long, List<int>>();
         if (floorParts != null)
             foreach (var g in floorParts)
             {
@@ -378,6 +417,15 @@ public static partial class EdoBuild
                 if (ftr == null) { r.floors += " " + g.name + "(床の面が無い・入れず)"; continue; }
                 idx.AddTris(g, g.name + "(床)", ftr, flh, false);
                 r.floors += " " + g.name + "(床 " + ft.ToString("F2") + ")";
+                foreach (var gt in OpenUpTris(g))
+                {
+                    int id = gateUp.Count; gateUp.Add(gt);
+                    float x0 = Mathf.Min(gt[0].x, Mathf.Min(gt[1].x, gt[2].x)), x1 = Mathf.Max(gt[0].x, Mathf.Max(gt[1].x, gt[2].x));
+                    float z0 = Mathf.Min(gt[0].z, Mathf.Min(gt[1].z, gt[2].z)), z1 = Mathf.Max(gt[0].z, Mathf.Max(gt[1].z, gt[2].z));
+                    for (int i = Mathf.FloorToInt(x0); i <= Mathf.FloorToInt(x1); i++)
+                        for (int j = Mathf.FloorToInt(z0); j <= Mathf.FloorToInt(z1); j++)
+                        { long kk = ((long)i << 32) ^ (uint)j; List<int> l; if (!gateHash.TryGetValue(kk, out l)) { l = new List<int>(); gateHash[kk] = l; } l.Add(id); }
+                }
             }
         r.parts = idx.hulls.Count;
 
@@ -1037,6 +1085,27 @@ public static partial class EdoBuild
                                 if (hgt - dc > r.digMax) { r.digMax = hgt - dc; r.digAt = new Vector3(x, dc, z); }
                                 hgt = dc; r.dug++;
                             }
+                        }
+                        // ⭐ 門の上向きの面(屋根・軒を除く)の下へ皮を GATE_UNDER 納める ── 面が皮と同じ高さ(± 0.02)か、皮に 0.5 以内で埋まる所
+                        //   (敷居・縁・基壇の段。床の帯の外へ出る面も・EDO-0428 二巡目)
+                        if (gateUp.Count > 0)
+                        {
+                            //   皮の三角形は隣の格子点まで直線で渡るので、この点の周り ±step の見える面も拾う ── 格子点だけで納めると段の縁で皮が面を跨いで出た。
+                            float mn = float.NaN;
+                            //   刻みは step/4(0.0625)── 基壇の天端の三角形の割れ目から覗く下の棚(幅数 cm)も拾う(普請検査 EDO-0428 二巡目 (−485.48, 841.98))
+                            for (int sa = -4; sa <= 4; sa++)
+                                for (int sc = -4; sc <= 4; sc++)
+                                {
+                                    float qx = x + sa * step * 0.25f, qz = z + sc * step * 0.25f; List<int> gl;
+                                    if (!gateHash.TryGetValue(((long)Mathf.FloorToInt(qx) << 32) ^ (uint)Mathf.FloorToInt(qz), out gl)) continue;
+                                    //   隠れた面(上に別の面が被る)も数える ── 天端の三角形の割れ目から下の棚が覗く(幅 2〜4cm)。基壇の中の皮は下げても見えない
+                                    foreach (var id in gl)
+                                    {
+                                        float ys; if (!TriYAt(gateUp[id], qx, qz, out ys)) continue;
+                                        if (ys < hgt + 0.02f && ys >= hgt - GATE_BURY && (float.IsNaN(mn) || ys < mn)) mn = ys;
+                                    }
+                                }
+                            if (!float.IsNaN(mn) && hgt > mn - GATE_UNDER) { hgt = mn - GATE_UNDER; r.gateUnder++; }
                         }
                         H[k] = hgt;
                         if (orig - hgt > r.maxLower) { r.maxLower = orig - hgt; r.lowerAt = new Vector3(x, hgt, z); }

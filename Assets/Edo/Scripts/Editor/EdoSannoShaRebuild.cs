@@ -3072,6 +3072,9 @@ public static class EdoSannoShaRebuild
         var mon = Group("Keidai/Mon"); var sando = Group("Sando");
         var dod = new List<GameObject>(); foreach (Transform c in Group("Dodome")) if (c.gameObject.activeInHierarchy) dod.Add(c.gameObject);
         var gates = new List<GameObject>(); foreach (Transform c in mon) if (c.gameObject.activeInHierarchy) gates.Add(c.gameObject);
+        // ⭐ 門の上向きの面と同じ高さで重なる土留め・腰の駒は下の側を 0.01 下げる(普請奉行の決め 2026-09-26・EDO-0428 二巡目)。
+        //   ⛔ 上げない・門は動かさない。敷石はこの後に敷くので、敷石との重なりは敷いた後にもう一度測る。
+        { string rp; EdoBuild.SinkCoplanarUnder(dod, gates, out rp); sb.AppendLine("  " + rp); }
         // 出どころ(指図): 名 → (種類, 相手の名, 面)
         var roadside = new Dictionary<string, Dictionary<string, object>>(); var surf = new Dictionary<string, Dictionary<string, object>>();
         foreach (var o in L(D(D(Doc, "sando"), "roadside"), "fumiishi")) { var q = o as Dictionary<string, object>; if (q != null) roadside[S(q, "name")] = q; }
@@ -3188,6 +3191,8 @@ public static class EdoSannoShaRebuild
             made += laid.Count;
             sb.AppendLine("  " + nm + " ── " + how + ": " + rep);
         }
+        { var laidAll = new List<GameObject>(); foreach (Transform c in grp) laidAll.Add(c.gameObject);
+          string rp; EdoBuild.SinkCoplanarUnder(dod, laidAll, out rp); sb.AppendLine("  敷石と " + rp); }
         return "踏石・踏み止め: 敷いた " + made + " 枚" + (refused > 0 ? " / ⛔ 敷けない " + refused : "") + "\n" + sb;
     }
 

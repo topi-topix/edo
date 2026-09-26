@@ -1298,6 +1298,11 @@ def make_kado(h, v):
     objs += taper_fill(objs, lambda co: (-co.x, -co.y, co.z - h), (-L / 2, 0.0, -L / 2, 0.0), keep_k, "K" + v,
                        lambda xx, zz, u: _u2b(xx, h + u, zz), mats, h + BURY, "tf-kado-" + v,
                        depth_of=lambda x, z: min(-x, -z))
+    # ②'' 天端から 0.5 下までの石(腕の先の継ぎ目に掛からない物)を、それぞれ一つの閉じた凸な塊に焼き直す(2026-09-27 EDO-0437 r14)
+    #   ⛔ 稜線に跨る石は σ = 0 で割って折るので、折り目と天端の割肌・尻すぼみの背が重なる所で面が裏返り(外から裏の面が見える)、
+    #   開いた辺も残った(北東の隅 N_kado1 の天端の黒い穴 ── 表の光線の 867 本が裏へ抜けた)。凸包は穴も折り返しも持たない。
+    nh = kado_hull_stones(objs, h, depth=h + BURY + 0.1)          # 天端から 0.5 に限らず全ての高さ(下の石にも裏返りが在った)
+    print("KADO 凸な塊に焼き直した石 %d" % nh)
     # ③ 目地の奥を塞ぐ板(面から 0.12 奥・法に沿う)── 二枚が内の留めで閉じる
     for arm, (dd, u0, u1) in ((1, (0.12, -0.12, -(h + BURY))), (2, (0.12, -0.12, -(h + BURY))), (1, BACK2), (2, BACK2)):
         bm = bmesh.new()
@@ -1320,34 +1325,47 @@ def make_kado(h, v):
             me.flip_normals()
         box_uv(ob, (0.3, 0.7))
         objs.append(ob)
-    # ③' 留めの線の板(x = z の面・稜線の面から 0.03 奥〜天端の目地の板 BACK2 の 0.30 奥・両面)── 2026-09-27 EDO-0437 r11
-    #   稜線を回り込む横目地が、腕1 の面の目地から腕2 の面の目地へ真っすぐ抜けていた(目地の板の留めより手前を通る ──
-    #   H1500_a の稜線の天端の下 0.3 で 幅 0.1 × 長さ 0.35 が奥まで透けた・施主のレンダ r11_D)。両腕の面からの道は必ず x = z を
-    #   横切るので、そこを板で塞ぐ。石の中に在り、見えるのは目地の奥だけ(他の目地の板と同じ Danishi)。
-    for flip in (False, True):
-        bm = bmesh.new()
-        vs = []
-        for u in (-0.02, -(h + BURY)):
-            for off in (0.03, BACK2[0]):
-                k = cbat(u) - off
-                sh = 0.0005 if flip else -0.0005          # 表と裏を 1mm 離す(同じ位置の頂点は溶接で一つになり、表裏の面が重なって捨てられる)
-                vs.append(bm.verts.new(_u2b(k + sh, h + u, k - sh)))
-        f = bm.faces.new((vs[0], vs[1], vs[3], vs[2]) if not flip else (vs[0], vs[2], vs[3], vs[1]))
-        me = bpy.data.meshes.new("miter%d" % flip); bm.to_mesh(me); bm.free()
-        ob = bpy.data.objects.new("miter%d" % flip, me)
-        bpy.context.scene.collection.objects.link(ob)
-        ob.data.materials.append(mats[1])
-        me.update()
-        box_uv(ob, (0.3, 0.7))
-        objs.append(ob)
     name = kado_name(h, v)
     o = V.join(objs, name)
     bisect_keep(o, (L / 2, 0, 0), (1, 0, 0))          # Unity X ≥ −L/2 ⇔ Blender X ≤ +L/2
     bisect_keep(o, (0, L / 2, 0), (0, 1, 0))          # Unity Z ≥ −L/2 ⇔ Blender Y ≤ +L/2
     nd = clean_degenerate(o)
     print("KADO %s 面積 0・辺 < 0.1mm の三角形 %d" % (name, nd))
+    nb, exb = kado_backface_rays(o, h)
+    print("KADO %s 表から当てた光線が最初に裏の面に当たる本数 %d %s" % (name, nb, exb))
     V.set_origin(o, (0, 0, 0))
     return o, name
+
+
+def kado_hull_stones(objs, h, depth=0.5, keep_from_end=0.86):
+    """objs のうち、天端から depth 以内に上面が在り、腕の先(X/Z < −keep_from_end)に掛からない石を、その凸包(閉じた塊)に置き換える。
+    材は元の面で最も多い材・UV は石ごとの箱投影(`box_uv`)。板(厚みの無い物)は触らない。返り値 = 置き換えた数。"""
+    n = 0
+    for ob in objs:
+        me = ob.data
+        if len(me.vertices) < 8:
+            continue
+        U = [_b2u(ob.matrix_world @ v.co) for v in me.vertices]
+        if max(u[1] for u in U) < h - depth or min(u[0] for u in U) < -keep_from_end or min(u[2] for u in U) < -keep_from_end:
+            continue
+        ext = sorted(max(u[k] for u in U) - min(u[k] for u in U) for k in range(3))
+        if ext[0] < 0.01:
+            continue                                                      # 板
+        mats_ = [p.material_index for p in me.polygons]
+        mi = max(set(mats_), key=mats_.count) if mats_ else 0
+        bm = bmesh.new()
+        for v in me.vertices:
+            bm.verts.new(v.co)
+        res = bmesh.ops.convex_hull(bm, input=bm.verts[:], use_existing_faces=False)
+        bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
+        bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=DEGEN_EDGE * 1.05)
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])     # 凸なので recalc は正しく外向きにする
+        for f in bm.faces:
+            f.material_index = mi
+        bm.to_mesh(me); bm.free(); me.update()
+        box_uv(ob, (0.13 * (n % 7), 0.29 * (n % 5)))
+        n += 1
+    return n
 
 
 def kado_ura(h, v, mats):
@@ -1408,6 +1426,35 @@ def kado_back_cut(poly, key):
     tw = [((x - z) * k, (-x - z) * k) for x, z in poly]          # (走り t, 奥の角への距離 w)
     tw = head_arc(tw, centroid(tw)[0], c, R)
     return [((t - w) * k, (-t - w) * k) for t, w in tw]
+
+
+def kado_backface_rays(o, h, step=0.01):
+    """表から当てた光線(天端の真上から下へ・腕1 の面の前から −Z・腕2 の面の前から −X)のうち、最初に**裏の面**に当たる本数。
+    裏の面が見える = 石の塊に穴が開いて中(目地の奥・石の裏側)が覗いている(r14: 隅の駒の天端の継ぎ目に黒い穴)。返り値 = (本数, 例)。"""
+    from mathutils.bvhtree import BVHTree
+    me = o.data
+    bvh = BVHTree.FromPolygons([v.co.copy() for v in me.vertices], [tuple(p.vertices) for p in me.polygons])
+    bad, ex = 0, []
+    rays = []
+    xs = [(-L / 2 + step * (i + 0.5)) for i in range(int(L / 2 / step) + 12)]
+    for x in xs:
+        for z in xs:
+            rays.append(((x, h + 0.5, z), (0, -1, 0)))                    # 真上から
+    for a in xs:
+        for k in range(int(h / step)):
+            y = step * (k + 0.5)
+            rays.append(((a, y, 2.0), (0, 0, -1)))                          # 腕1 の面(+Z)の前から
+            rays.append(((2.0, y, a), (-1, 0, 0)))                          # 腕2 の面(+X)の前から
+    for (pu, du) in rays:
+        o_ = Vector(_u2b(*pu)); d_ = Vector(_u2b(*du))
+        hit = bvh.ray_cast(o_, d_, 6.0)
+        if hit[0] is None:
+            continue
+        if hit[1].dot(d_) > 0.0:
+            bad += 1
+            if len(ex) < 8:
+                ex.append(tuple(round(c, 3) for c in _b2u(hit[0])))
+    return bad, ex
 
 
 def check_kado(h=1.50):

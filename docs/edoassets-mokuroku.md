@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 312(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 315(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -211,7 +211,7 @@
 | `Own.IshidanSodeMiter(keri, fumi, w, hF, hB, i)` | 関数 | 曲がる石段の袖 — 端を留めに切った駒(EDO-0415 ②③)。 | BuildIshidan(MiterPath・PlaceIshidanSodeFlat) |
 | `Own.IshidanSodeMiter(keri, fumi, w, hF, hB, i, depth)` | 関数 | 丈の深い袖の留めの駒(EDO-0430 2026-09-24)。 | BuildIshidan(MiterPath・PlaceIshidanSodeFlat) |
 | `Own.IshidanSodeNori(keri, fumi, e, i, depth=…)` | 関数 | 背を法 1:0.25 に切った石段の袖(EDO-0442 施主裁定B・2026-09-26)。 | BuildIshidan(FitObliqueEnd), SannoSha(AbutStairsToWalls) |
-| `Own.SodeNoriYc(keri)` | 関数 | IshidanSodeNori の背の出 e を測る高さ(袖の局所 Y)。 | BuildIshidan(CutStairEndsToBatter・FitObliqueEnd・MeasureSodeBackOnBatter) |
+| `Own.SodeNoriYc(keri)` | 関数 | IshidanSodeNori の背の出 e を測る高さ(袖の局所 Y)。 | BuildIshidan(CutStairEndsToBatter・FitObliqueEnd・MeasureSodeBackEnvelope…) |
 | `Own.SodeNoriSnap(e)` | 関数 | IshidanSodeNori の焼いてある刻み(0.05)へ丸める。 | BuildIshidan(CutStairEndsToBatter・SwapPart) |
 | `Own.SannoDanKiri(keri, fumi, w, i, endL, endR)` | 関数 | 両の小口を脇の相手に合わせて切った段石(EDO-0442 施主裁定B・2026-09-26)。 | BuildIshidan(AbutStepEndsToWalls・RayFarthest), SannoSha(AbutStairsToWalls) |
 | `Own.DanKiriNone` | string | `0` — SannoDanKiri の切らない端。 | BuildIshidan(CutStairEndsToBatter) |
@@ -226,7 +226,10 @@
 | `Own.SannoNozuraMikiri` | string | `Sanno_Nozura_Mikiri.fbx` — 見切りの大きな野面石(男坂の下で城の石垣と野面の乱積みを継ぐ1点)。 | — |
 | `Own.SannoNozuraMikiriH(h)` | 関数 | 丈を合わせた見切り石(2026-09-26 EDO-0437・男坂の口の両脇 TW_Zentei_W の端 2 か所)。 | SannoSha(Nozura) |
 | `Own.SannoNozuraKiriEnd(deg, atPlusX, faceLonger, h, i)` | 関数 | 片端を斜めの鉛直面で切った野面の乱積みの駒(2026-09-26 EDO-0437・前庭の南の土留め TW_Zentei_SW の東端 / SE の西端を女坂の袖の外面へ当てる)。 | BuildNozura, SannoSha(Nozura) |
-| `Own.IshidanSodeNozura(keri, fumi, i)` | 関数 | 石段の袖 — 野面の乱積み版(2026-09-24)。 | SannoSha(Stage2_Kaidan) |
+| `Own.SannoNozuraNori` | float | 小口を相手の法で切った野面の短い駒(2026-09-26 EDO-0437 第3巡・前庭の W の南の区間 ── 入隅の可動側の端が 通す側 TW_Zentei_SW の見え面の法の楔に入る所)。 | SannoSha(AbutStairsToWalls) |
+| `Own.SannoNozuraNoriEnd(len, atPlusX, h)` | 関数 | — | BuildNozura, SannoSha(Nozura) |
+| `Own.IshidanSodeNozuraNori(keri, fumi, e, i)` | 関数 | 背を相手の法で切った野面の袖(2026-09-26 EDO-0437 第3巡・参道の階の袖の背が切り込みの出隅の駒の法に当たる所)。 | SannoSha(AbutStairsToWalls) |
+| `Own.IshidanSodeNozura(keri, fumi, i)` | 関数 | 石段の袖 — 野面の乱積み版(2026-09-24)。 | SannoSha(AbutStairsToWalls・Stage2_Kaidan) |
 | `Own.SannoIdoIgeta(naikeiMm, igetaTallMm)` | 関数 | 山王社の小庭の井戸 — 井筒(玉石の輪積み)と井桁を一体で。 | TypologyBuilder.Niwa(NiwaIdo・NiwaUra), SannoSha(Stage8_Ido) |
 | `Own.SannoIdoYakata(pitchMm, nokiMm, muneMm)` | 関数 | 山王社の前庭の井戸屋形(木部) — 四本柱・妻梁・軒桁・棟束・棟木・垂木・切妻こけら葺・破風板・棟押え + 釣瓶の横木と滑車(指図 bom 行22・行25)。 | SannoSha(Stage8_Ido) |
 | `Own.SannoIdoIshiki(sideMm, slopeDen)` | 関数 | 山王社の前庭の井戸の板石敷一式 — 板石(東へ水勾配)・敷砂・割栗・井戸の縁石 4 石・礎石 4 石・ 浸透枡(伏せ枡・板蓋)(指図 bom 行26・行27)。 | SannoSha(Stage8_Ido) |

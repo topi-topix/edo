@@ -515,9 +515,8 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
             if (bs == null) continue;
             Seat(bs, log);
             var toMon = new Vector3(along.x, 0f, along.y) * (hi ? -1f : 1f);        // 門へ向かって押す向き
-            Vector3 cat; int cn;
-            EdoBuild.Abut(bs, mon, toMon, 0f, out cat, out cn);
-            Seat(bs, log);
+            // 「寄せる → 据える」を収まるまで(EdoBuild.Converge・EDO-0454)。合否は Stage 2b の後で刷る
+            EdoBuild.AbutAndSeat(bs, mon, toMon, 0f, 0f, VERTS);
             var brb = EdoBuild.RB(bs);
             float bmn, bmx;
             EdoBuild.FaceSpan(bs, along, brb.min.y + 0.30f, brb.min.y + brb.size.y * 0.60f, out bmn, out bmx);
@@ -571,31 +570,25 @@ public static partial class EdoTypologyBuilder   // 庭(Stage 5)は EdoTypologyB
                                           mrb.min.y + 0.30f, mrb.min.y + mrb.size.y * 0.60f);
             Seat(mon, log);
             log.Add(string.Format("    門の奥行: 塀の通り側の面 {0:+0.00;-0.00}m へ {1:+0.00;-0.00}m 寄せた", face, dz));
-            for (int k = 0; k < bansho.Count; k++)
+            foreach (var bs in bansho)
             {
-                var bs = bansho[k];
                 var brb = EdoBuild.RB(bs);
                 EdoBuild.AlignFace(bs, front.a, front.outward, face,
                                    brb.min.y + 0.30f, brb.min.y + brb.size.y * 0.60f);
-                // ⭐ 横へ寄せると足元の地形が変わり、据え直すと当たりが少し開く(実測 0.062m)。
-                //    「寄せる → 据える」を2巡してから実測を刷る(⛔ 事後に寄せる関数は作らない)。
-                Vector3 cat; int cn; float d = 0f;
-                for (int r = 0; r < 2; r++)
-                {
-                    d += EdoBuild.Abut(bs, mon, push[k], 0f, out cat, out cn);
-                    Seat(bs, log);
-                }
-                float cg = EdoBuild.Contact(bs, mon, push[k], out cat, out cn);   // 最後に実測を刷る
-                log.Add(string.Format("    番所{0}: 門へ {1:+0.00;-0.00}m 寄せた — 触れている所の隙 {2:F3}m・当たりの筋 {3}",
-                                      k, d, cg, cn));
             }
             // 辺に載らない門構えは敷地の内へ折り込む(裁定A)。門を下げたら番所も同じだけ追う
             float tuck = TuckInside(mon, poly, front.outward, log);
-            foreach (var bs in bansho)
+            for (int k = 0; k < bansho.Count; k++)
             {
+                var bs = bansho[k];
                 if (tuck > 0f) bs.transform.position -= new Vector3(front.outward.x, 0f, front.outward.y) * tuck;
                 TuckInside(bs, poly, front.outward, log);
-                Seat(bs, log);
+                // ⭐ 横へ寄せると足元の地形が変わり、据え直すと当たりが少し開く(実測 0.062m)。折り込みでも開く。
+                //    ⛔ 2026-09-26 まで「寄せる → 据える」を決め打ちの2巡で回し、その**後で**折り込んで据え直していた
+                //    ── 刷った隙は折り込む前の値で、建った姿の隙は測っていなかった。
+                //    ⭕ 門と番所が動き終えてから、収まるまで回して合否を刷る(EdoBuild.Converge・EDO-0454)。
+                var os = EdoBuild.AbutAndSeat(bs, mon, push[k], 0f, 0f, VERTS);
+                log.Add("    番所" + k + ": " + os.Summary());
             }
         }
 

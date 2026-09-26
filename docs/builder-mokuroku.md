@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 16 本・メニュー 78・関数 600(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 16 本・メニュー 78・関数 601(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -20,7 +20,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 15 | 97 |
 | [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 17 | 101 |
 | [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+観理院+樹下家邸+山王門前町ビルダー (2026-08-11) | 1 | 34 |
-| [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 12 | 93 |
+| [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 12 | 94 |
 | [EdoSanyashikiRebuild.cs](#edosanyashikirebuildcs) | 三屋敷(太田・加納・鍋島=松平肥前守)の区画を下書きv3へ更新 (2026-08-08) | 0 | 6 |
 | [EdoSekiBuilder.cs](#edosekibuildercs) | — | 1 | 8 |
 | [EdoShiomizakaRebuild.cs](#edoshiomizakarebuildcs) | 汐見坂(段坂)を新区割りの回廊へ敷き直す (2026-08-09) | 0 | 12 |
@@ -532,6 +532,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Stage3_Dodome()` | `string` | 公 | 算出物 `runs` の `of=="wall"` を石垣で積む。 |
 | `Nozura(runs, grp, placed, faceOf, dg, probe, sb)` | `int` |  | 野面の乱積みの土留め(`terraceWalls[].masonry`)を据える。 |
 | `SegIsBase(prof, step, sBase, len)` | `bool` |  | 区間が基壇か ── 建つ所(見付 &gt; 0)の受け高が全て負(天端が両側の地盤より上)。 |
+| `IsNozuraSode(g)` | `bool` |  | 袖の駒が野面の乱積みの袖(`IshidanSodeNozura*`)か(メッシュの資産名で)。 |
 | `FamilyOf(n)` | `string` |  | — |
 | `ArcOf(poly, p)` | `float` |  | 折れ線 poly 上での点 p の弧長。 |
 | `ProfileAt(prof, step, s, top, faceH, backH)` | `bool` |  | `profile` = [走り s, 天端 y, 低い側の地盤, 高い側の地盤, 見付高, 受け高] を s で線形補間。 |

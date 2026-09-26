@@ -38,7 +38,14 @@
   ⇒ 床での面(法尻)は Z = +0.3×見付 に出る。石は床の 0.20 下まで根入れ(地中)。
   **見え面の頭は天端の線から下へ 0〜0.16 で不揃い(天端より上へ出さない)・背の列(面の輪 0.13 より奥)の上面は天端の線に揃う**
   (2026-09-25 EDO-0430: 背の頭が駒の最高より 0.1〜0.48 下がり、天端の高さの背の土が石に被って背の帯に溝ができた。
-  天端の列の石は控え 0.75〜0.95・上の縁を天端へ上げ、目地の奥 0.30 に板)。`-- crest` が全駒の背の下がり ≤ 0.03 を検める。
+  天端の列の石は上の縁を天端へ上げ、目地の奥 0.30 に板)。`-- crest` が全駒の背の下がり ≤ 0.03 を検める。
+  ⭐ **天端は「表の石の列 + 裏石の列」の 2 列**(2026-09-26 EDO-0437 施主指摘「天端の石が異様に長い — 表の石を引き伸ばさず、
+  表の石+裏石の2列にするはず」): 表の石の控えは他の段と同じ 0.45〜0.75(旧: 天端の列だけ 0.75〜0.95 に引き伸ばしていた)。
+  その奥の面から 0.36〜0.95 に裏石(径 0.15〜0.35・控え方向に 2 列・丈 0.20〜0.32・上面は天端の線の 0.004〜0.012 下で平ら ──
+  表の石の天端と重なる所で面が揃って z-fight しない)。前の縁は表の石の背の内へ食い込ませて隙を開けない。端の裏石は `layout` と
+  同じ作り(端の種+番人だけの Voronoi)⇒ どの駒どうしでも継ぎ目で合わさる。裏石の目地の底(天端の 0.20 下)に板。
+  乱数は裏石だけ別の種 ⇒ 表の石と下の段は旧版と頂点まで同じ(天端から 0.7 より下で差 0)。天端の奥行 0.957(旧 0.86)。
+  真上から: `-- top --render`(sanno_nozura_top*.png)。
   芝の肩は Unity の地形側で被せる前提。
 【材】`Kirishi` / `Danishi`(山王の切石と同じ暖かい灰。石ごとに 7:3 で振り、色の個体差にする)。
   ⛔ 新規マテリアルなし。UV は石ごとの箱投影(1.05m で1枚・石ごとに位相をずらす)。
@@ -443,12 +450,14 @@ def box_uv(o, ofs):
 
 
 TOP_ROW = 0.25            # 輪郭の最高が天端の線から これ以内の石 = 天端の列
-TOP_DEPTH = (0.75, 0.95)  # 天端の列の控え ⇒ 背の帯(背から 0.5)が面の輪(0.13)より奥に収まる
+# ⛔ 天端の列の表の石の控えを 0.75〜0.95 に引き伸ばしていた(2026-09-25)のを廃した(2026-09-26 EDO-0437 施主指摘
+#    「天端の石が異様に長い — 表の石を引き伸ばさず、表の石+裏石の2列にするはず」)。控えは他の段と同じ depth_rng。
+#    背の天端は奥の裏石の列(`ura_*`)が持つ。
 
 
 def build_stones(cells, P, mats, depth_rng=(0.45, 0.75), double=None, face_prot=(-0.02, 0.045), tag="", crest=0.0,
                  lift_ds=None):
-    """crest = 天端の線の u(None で揃えない)。天端の列の石(輪郭の最高 > crest − TOP_ROW)は背の上面を天端へ揃え、控えを TOP_DEPTH に。"""
+    """crest = 天端の線の u(None で揃えない)。天端の列の石(輪郭の最高 > crest − TOP_ROW)は上の縁を天端へ揃える(控えは他の段と同じ)。"""
     objs = []
     kir, dan = mats
     for poly, kind, key in cells:
@@ -456,13 +465,236 @@ def build_stones(cells, P, mats, depth_rng=(0.45, 0.75), double=None, face_prot=
         rng = random.Random("nozura|%s|%s" % (tag, key))
         d = rng.uniform(*depth_rng)
         top = crest is not None and max(p[1] for p in poly) > crest - TOP_ROW
-        if top:           # 乱数の消費は変えない(下の段の石の形・切り口を動かさない)
-            d = TOP_DEPTH[0] + (d - depth_rng[0]) / (depth_rng[1] - depth_rng[0]) * (TOP_DEPTH[1] - TOP_DEPTH[0])
         o = stone_obj("st_" + key + kind, poly, rng, P, d, face_prot=face_prot, double=double,
                       crest=crest if top else None, lift_ds=lift_ds)
         o.data.materials.append(kir if rng.random() < 0.7 else dan)
         box_uv(o, (rng.random(), rng.random()))
         objs.append(o)
+    return objs
+
+
+# ------------------------------------------------------------------ 裏石の列(2026-09-26 EDO-0437)
+URA_D = (0.36, 0.95)      # 裏石の帯: 天端の線での面から奥へ。前の縁は表の石の背(控え 0.45〜0.75)の内へ食い込ませる(隙を開けない)
+URA_ROWS = (0.52, 0.80)   # 控え方向の 2 列の種の芯
+URA_W = (0.18, 0.32)      # 走り方向の種の間(径 0.15〜0.35 の裏石)
+URA_H = (0.20, 0.32)      # 裏石の丈(天端から下へ)
+URA_SINK = (0.004, 0.012) # 裏石の上面は天端の線からこれだけ下(表の石の天端と面が重なって z-fight しない・crest の許し 0.03 の内)
+URA_GW = 0.22             # 継ぎ目の端の裏石の番人の距離
+URA_FLOOR = -0.20         # 裏石の目地の底の板(天端から下・面から 0.30〜0.90)── 目地から下へ空が抜けない
+
+
+def ura_boundary(seed="nozura-ura-B"):
+    """継ぎ目(s=0)に跨る端の裏石と番人の種(`boundary_column` の平面版・全駒で同じ)。(s, d) 平面・d = 面から奥へ。"""
+    rng = random.Random(seed)
+    bseeds, guards = [], []
+    for r, dc in enumerate(URA_ROWS):
+        c = (1 if r % 2 == 0 else -1) * rng.uniform(0.02, 0.06)
+        dd = dc + rng.uniform(-0.03, 0.03)
+        bseeds.append((c, dd))
+        guards.append((c - URA_GW * rng.uniform(0.85, 1.15), dd + rng.uniform(-0.05, 0.05)))
+        guards.append((c + URA_GW * rng.uniform(0.85, 1.15), dd + rng.uniform(-0.05, 0.05)))
+    pts = bseeds + guards
+    cols = []
+    for i in range(len(bseeds)):
+        g = rng.uniform(0.022, 0.034)
+        poly = voronoi_cell(i, pts, g, (-1.0, 1.0, URA_D[0], URA_D[1]))
+        if len(poly) >= 3:
+            cols.append((poly, "U%d" % i))
+    return cols, guards, bseeds
+
+
+def ura_layout(span, vseed):
+    """1駒ぶんの裏石の平面の割り [(poly(s, d), kind, key)]。端の裏石(左右で同じ形・全種類で同じ)+ 中の裏石(vseed ごと)。
+    `layout` と同じ作り(端の石は端の種+番人だけの Voronoi・中の種は番人より外)⇒ どの駒どうしでも継ぎ目で合わさる。"""
+    cols, guards, bseeds = ura_boundary()
+    ends, fixed, bpts = [], [], []
+    for side, off in (("B-", -span / 2), ("B+", span / 2)):
+        for poly, key in cols:
+            ends.append(([(p[0] + off, p[1]) for p in poly], side, key))
+        bpts += [(p[0] + off, p[1]) for p in bseeds]
+        fixed += [(p[0] + off, p[1]) for p in guards if -span / 2 < p[0] + off < span / 2]
+    rng = random.Random(vseed)
+    var = []
+    for r, dc in enumerate(URA_ROWS):
+        s = -span / 2 - rng.uniform(0, 0.15) - (0.12 if r % 2 else 0)
+        while s < span / 2 + 0.2:
+            w = rng.uniform(*URA_W)
+            sx = s + w / 2 + rng.uniform(-0.03, 0.03)
+            sd = dc + rng.uniform(-0.05, 0.05)
+            if -span / 2 + URA_GW * 1.3 < sx < span / 2 - URA_GW * 1.3:
+                var.append((sx, sd))
+            s += w
+    return ends + _ura_cells(fixed + var, bpts, ends, rng,
+                             lambda poly: clip(clip(poly, (1, 0), span / 2 - 0.02), (-1, 0), span / 2 - 0.02),
+                             (URA_D[0], URA_D[1]), "I")
+
+
+def _ura_cells(seeds, bpts, ends, rng, clip_fn, box_d, prefix):
+    """中の裏石の Voronoi(bpts = 端の裏石の種。None なら中の種だけで割り、端の裏石から切り離して隙を詰める ── 隅の駒)"""
+    allp = seeds + (bpts or [])
+    cells = []
+    for i, (sx, sd) in enumerate(seeds):
+        g = rng.uniform(0.022, 0.034)
+        poly = voronoi_cell(i, allp, g, (sx - 1.0, sx + 1.0, box_d[0], box_d[1]))
+        if len(poly) < 3:
+            continue
+        poly = clip_fn(poly)
+        for op, side, key in ends:
+            if len(poly) < 3:
+                break
+            cx, cd = centroid(op)
+            if abs(cx - sx) < 0.8 and abs(cd - sd) < 0.8:
+                poly = separate(poly, (sx, sd), op, g)
+        if len(poly) < 3 or area(poly) < 0.006:
+            continue
+        cells.append((poly, "I", "%s%d" % (prefix, i)))
+    return cells
+
+
+def _seg_dist(p, a, b):
+    ax, ay = b[0] - a[0], b[1] - a[1]
+    t = max(0.0, min(1.0, ((p[0] - a[0]) * ax + (p[1] - a[1]) * ay) / (ax * ax + ay * ay or 1e-12)))
+    return math.hypot(p[0] - a[0] - t * ax, p[1] - a[1] - t * ay)
+
+
+def _inside(p, poly):
+    c = False
+    n = len(poly)
+    for i in range(n):
+        a, b = poly[i], poly[(i + 1) % n]
+        if (a[1] > p[1]) != (b[1] > p[1]) and p[0] < a[0] + (p[1] - a[1]) * (b[0] - a[0]) / (b[1] - a[1]):
+            c = not c
+    return c
+
+
+def ura_fill(polys, box, key, gap=0.017, step=0.01, amin=0.0012):
+    """間詰め石: 割りの残した隙(目地より広い所 = どの石からも gap より離れた点の塊)を凸包の小石で埋める。
+    返す [(poly, "I", key%d)]。⚠ 凸包は隣の石に少し食い込む ⇒ 上面を深めに沈めて(`URA_FILL_SINK`)下に隠す。"""
+    x0, x1, z0, z1 = box
+    nx, nz = int((x1 - x0) / step), int((z1 - z0) / step)
+    free = set()
+    for i in range(nx):
+        for j in range(nz):
+            p = (x0 + (i + 0.5) * step, z0 + (j + 0.5) * step)
+            ok = True
+            for q in polys:
+                if _inside(p, q) or min(_seg_dist(p, q[k], q[(k + 1) % len(q)]) for k in range(len(q))) < gap:
+                    ok = False
+                    break
+            if ok:
+                free.add((i, j))
+    out, seen = [], set()
+    for c0 in sorted(free):
+        if c0 in seen:
+            continue
+        st, comp = [c0], []
+        seen.add(c0)
+        while st:
+            c = st.pop(); comp.append(c)
+            for d in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                q = (c[0] + d[0], c[1] + d[1])
+                if q in free and q not in seen:
+                    seen.add(q); st.append(q)
+        if len(comp) * step * step < amin:
+            continue
+        pts = []
+        for (i, j) in comp:
+            cx, cz = x0 + (i + 0.5) * step, z0 + (j + 0.5) * step
+            pts += [(cx - step / 2, cz - step / 2), (cx + step / 2, cz - step / 2), (cx + step / 2, cz + step / 2), (cx - step / 2, cz + step / 2)]
+        h = hull(pts)
+        if len(h) >= 3 and abs(area(h)) >= amin:
+            out.append((h, "I", "%s%d" % (key, len(out))))
+    return out
+
+
+URA_FILL_SINK = (0.016, 0.020)
+
+
+def ura_stone(name, poly, rng, Q, hmax):
+    """平面の輪郭 poly(a, b)→ 裏石の塊(上面 = 天端の線の URA_SINK 下で平ら・胴で少し膨れ・底で窄まる)。
+    Q(a, b, u) が Blender の座標を返す(u = 天端の線から上向き)。形の乱数は rng だけ(端の裏石は左右で同じ)。"""
+    ca, cb = centroid(poly)
+    sink = rng.uniform(*(URA_FILL_SINK if "KF" in name else URA_SINK))
+    hb = min(rng.uniform(*URA_H), hmax)
+    bm = bmesh.new()
+    T = [bm.verts.new(Q(a, b, -sink)) for (a, b) in poly]      # ⛔ 頂点ごとの乱数を足さない(切り離した端の裏石で乱数の列がずれる)
+    Mx = [bm.verts.new(Q(ca + (a - ca) * 1.04, cb + (b - cb) * 1.04, -sink - 0.07)) for (a, b) in poly]
+    B = [bm.verts.new(Q(ca + (a - ca) * 0.72, cb + (b - cb) * 0.72, -hb)) for (a, b) in poly]
+    n = len(poly)
+    faces = [bm.faces.new(T)]
+    for i in range(n):
+        j = (i + 1) % n
+        faces.append(bm.faces.new((T[i], Mx[i], Mx[j], T[j])))
+        faces.append(bm.faces.new((Mx[i], B[i], B[j], Mx[j])))
+    faces.append(bm.faces.new(list(reversed(B))))
+    bmesh.ops.recalc_face_normals(bm, faces=faces)
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me); bm.free()
+    me.update()
+    # 上面は上へ向ける(recalc が裏返すことがある ── 平らな塊で念のため)
+    if me.polygons[0].normal.z < 0:
+        me.flip_normals()
+    o = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(o)
+    bv = o.modifiers.new("bevel", 'BEVEL')
+    bv.width = 0.022; bv.segments = 2; bv.limit_method = 'ANGLE'
+    bv.angle_limit = math.radians(28); bv.use_clamp_overlap = True; bv.profile = 0.6
+    V.sel([o])
+    bpy.ops.object.modifier_apply(modifier="bevel")
+    return o
+
+
+def build_ura(cells, Q, mats, hmax, tag="ura"):
+    """裏石の列。鍵は端の裏石で左右同じ ⇒ 形・材・UV の位相まで同じ(継ぎ目で合わさる)。"""
+    objs = []
+    kir, dan = mats
+    for poly, kind, key in cells:
+        # 端の裏石は全駒で同じ鍵(継ぎ目で合わさる)・中の裏石は駒の種類ごと
+        rng = random.Random("nozura-ura|B|%s" % key if kind.startswith("B") else "nozura-ura|%s|%s" % (tag, key))
+        o = ura_stone("ura_" + key + kind, poly, rng, Q, hmax)
+        o.data.materials.append(kir if rng.random() < 0.55 else dan)
+        box_uv(o, (rng.random(), rng.random()))
+        objs.append(o)
+    return objs
+
+
+def wall_Q(h, g):
+    """裏石の座標(s = Unity X, d = 面から奥へ, u = 天端の線から上向き)→ Blender。裏石は鉛直に積む(法の剪断をかけない)。"""
+    def Q(s, d, u):
+        return (-s, d, h + g * s + u)
+    return Q
+
+
+def ura_floor(name, Q, mat, a0, a1, b0, b1):
+    """裏石の目地の底の板(上向き・u = URA_FLOOR)。a, b は Q の平面の座標。"""
+    bm = bmesh.new()
+    vs = [bm.verts.new(Q(a, b, URA_FLOOR)) for a, b in ((a0, b0), (a1, b0), (a1, b1), (a0, b1))]
+    bm.faces.new(vs)
+    me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
+    o = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(o)
+    o.data.materials.append(mat)
+    me.update()
+    if me.polygons[0].normal.z < 0:
+        me.flip_normals()
+    box_uv(o, (0.2, 0.4))
+    return o
+
+
+_URA = {}
+
+
+def ura_cells(v):
+    if v not in _URA:
+        _URA[v] = ura_layout(L, "nozura-ura-" + v)
+    return _URA[v]
+
+
+def wall_ura(h, g, v, mats, off=0.0, skip=None):
+    """直線の駒の裏石(off = 走りの平行移動・skip = 採らない端の種類)+ 目地の底の板"""
+    cells = [([(p[0] + off, p[1]) for p in poly], kind, key) for poly, kind, key in ura_cells(v) if kind != skip]
+    objs = build_ura(cells, wall_Q(h, g), mats, h + BURY, tag="ura-" + v)
+    objs.append(ura_floor("ura_floor", wall_Q(h, g), mats[1], off - L / 2, off + L / 2, 0.30, URA_D[1] - 0.05))
     return objs
 
 
@@ -547,6 +779,7 @@ def make_wall(h, g, v):
         if len(p2) >= 3 and area(p2) > 0.004:
             cells.append((p2, kind, key))
     objs = build_stones(cells, wall_P(h, g), mats, tag="wall")
+    objs += wall_ura(h, g, v, mats)
     objs.append(backing("back", h, g, mats[1]))
     objs.append(backing("back2", h, g, mats[1], *BACK2))
     name = wall_name(h, g, v)
@@ -704,6 +937,8 @@ def make_kado(h, v):
             vt.co = _u2b(nx, y, nz)
         o.data.update()
         objs.append(o)
+    # ②' 裏石(両腕の面から URA_D の奥 = 平面の正方形 x, z ∈ [−0.909, −0.36])── `kado_ura`
+    objs += kado_ura(h, v, mats)
     # ③ 目地の奥を塞ぐ板(面から 0.12 奥・法に沿う)── 二枚が内の留めで閉じる
     for arm, (dd, u0, u1) in ((1, (0.12, -0.12, -(h + BURY))), (2, (0.12, -0.12, -(h + BURY))), (1, BACK2), (2, BACK2)):
         bm = bmesh.new()
@@ -734,6 +969,50 @@ def make_kado(h, v):
     return o, name
 
 
+def kado_ura(h, v, mats):
+    """出隅の駒の裏石。平面 (x, z)(Unity 局所)で割る。腕の先の端の裏石は直線の駒と**同じ種・同じ形**
+    (腕1 の先 = (s − 0.909, −d)・腕2 の先 = 直線の駒の B+ を (x, z) → (z, −x) で回した (−d, −(s + 0.909)))。
+    ⚠ 両腕の端の裏石の奥の列は正方形の奥の角(x, z < −0.76)で重なる ⇒ 腕2 の先の物を腕1 の物から切り離す
+    (腕2 の先の切り口は面から 0.76 より奥だけ直線の駒と違う ── `check_kado` はそこを数えない)。"""
+    cols, guards, bseeds = ura_boundary()
+    a1 = lambda p: (p[0] - L / 2, -p[1])
+    a2 = lambda p: (-p[1], -(p[0] + L / 2))
+    ends1 = [([a1(p) for p in poly], "B-", key) for poly, key in cols]
+    ends2 = []
+    for (poly, key), sd in zip(cols, bseeds):
+        q = [a2(p) for p in poly]
+        for op, _, _ in ends1:
+            if len(q) >= 3:
+                q = separate(q, a2(sd), op, 0.028)
+        if len(q) >= 3 and abs(area(q)) > 0.004:
+            ends2.append((q, "B+", key))
+    ends = ends1 + ends2
+    bpts = [a1(p) for p in bseeds] + [a2(p) for p in bseeds]
+    lo, hi = -L / 2, -URA_D[0]
+    fixed = [q for q in [a1(p) for p in guards] + [a2(p) for p in guards] if lo < q[0] < hi and lo < q[1] < hi]
+    rng = random.Random("nozura-kado-ura-" + v)
+    var = []
+    x = lo + URA_GW * 1.5 + rng.uniform(0.0, 0.04)
+    while x < hi:
+        z = lo + URA_GW * 1.5 + rng.uniform(0.0, 0.04)
+        while z < hi:
+            var.append((x + rng.uniform(-0.03, 0.03), z + rng.uniform(-0.03, 0.03)))
+            z += rng.uniform(0.16, 0.22)
+        x += rng.uniform(0.16, 0.22)
+    # ⚠ 端の裏石の種まで入れて割ると、腕2 の先を切り離した所・両腕の端の間に三角の隙が残った ⇒ 中の種だけで割る
+    cells = _ura_cells(fixed + var, None, ends, rng,
+                       lambda poly: clip(clip(poly, (1, 0), hi), (0, 1), hi), (-URA_D[1], hi), "K%s" % v)
+    # voronoi_cell の箱の走り(a)は種の ±1.0 ⇒ 奥の限り a ≥ −URA_D[1] も切る
+    cells = [(clip(p, (-1, 0), URA_D[1]), k, key) for p, k, key in cells]
+    cells = [c for c in cells if len(c[0]) >= 3]
+    # 端の裏石の間・腕2 の先を切り離した所に残る三角の隙(目地より広い)を間詰め石で埋める(2026-09-26: 真上から床の板が覗いた)
+    fills = ura_fill([c[0] for c in ends + cells], (lo, hi, lo, hi), "KF%s" % v)
+    Qk = lambda xx, zz, u: _u2b(xx, h + u, zz)
+    objs = build_ura(ends + cells + fills, Qk, mats, h + BURY, tag="kura-" + v)
+    objs.append(ura_floor("ura_floor", Qk, mats[1], lo, -0.30, lo, -0.30))
+    return objs
+
+
 def check_kado(h=1.50):
     """⭕ 隅の駒の腕の先の切り口 = 直線の駒の切り口(天端から 0.25 まで・1mm で丸め)"""
     ow, _, _ = make_wall(h, 0.0, "a")
@@ -750,14 +1029,15 @@ def check_kado(h=1.50):
             if abs(vt.co.y - L / 2) < 1e-4:
                 # 腕2 の局所: 直線の駒の Unity Z = 腕2 の Unity X ⇒ Blender Y' = −(Unity X) = Blender X
                 a2.add((round(vt.co.x, 3), round(vt.co.z - h, 3)))
-        # 天端の列の石は控えが 0.75〜0.95(2026-09-25)⇒ もう一方の腕の端の石の尻がこの切り口(奥 0.909)で切られ、
-        # 切り口の奥 0.6 より奥に小口の点が足される(隣の直線の駒の控えの中・土の下)。
-        # ⇒ 直線の切り口の点は全て在ること(欠け 0)・足された点は奥 0.6 より奥だけ(余り 0)を検める
-        top = lambda S: {p for p in S if p[1] > -0.25}
-        d1 = len(top(ref_p) - top(a1)) + len({p for p in top(a1) - top(ref_p) if p[0] < 0.6})
-        d2 = len(top(ref_m) - top(a2)) + len({p for p in top(a2) - top(ref_m) if p[0] < 0.6})
-        print("NOZURA KADO CHECK %s: 腕1の先 %d点 差%d / 腕2の先 %d点 差%d(奥 0.6 より奥の小口 %d / %d 点)" % (
-            name, len(top(a1)), d1, len(top(a2)), d2, len(top(a1) - top(ref_p)), len(top(a2) - top(ref_m))))
+        # 裏石の帯は面から 0.36〜0.95(2026-09-26)⇒ 両腕の先の端の裏石の奥の列が正方形の奥の角(面から 0.66 より奥)で
+        # 重なり、腕2 の先の物を切り離す・もう一方の腕の切り口(奥 0.909)で尻が切られる。
+        # ⇒ 面から 0.6 までの切り口の点は直線の駒と同じ(欠け 0・余り 0)を検める。0.6 より奥は数えない(`kado_ura`)
+        top = lambda S: {p for p in S if p[1] > -0.25 and p[0] < 0.6}
+        d1 = len(top(ref_p) ^ top(a1))
+        d2 = len(top(ref_m) ^ top(a2))
+        deep = lambda S: {p for p in S if p[1] > -0.25 and p[0] >= 0.6}
+        print("NOZURA KADO CHECK %s: 腕1の先 %d点 差%d / 腕2の先 %d点 差%d(面から 0.6 より奥で直線の駒と違う点 %d / %d)" % (
+            name, len(top(a1)), d1, len(top(a2)), d2, len(deep(a1) ^ deep(ref_p)), len(deep(a2) ^ deep(ref_m))))
         bad += (d1 > 0) + (d2 > 0)
     return bad
 
@@ -903,6 +1183,8 @@ def make_nkiri(h, deg, end, face, v):
     P = wall_P(h, 0.0)
     objs = build_stones(cells_a, P, mats, tag="wall")
     objs += build_stones(cells_b, P, mats, tag="wallK")
+    objs += wall_ura(h, 0.0, v, mats)
+    objs += wall_ura(h, 0.0, v2, mats, off=e * L, skip=("B-" if e > 0 else "B+"))
     s0, s1 = (-L / 2, L / 2 + L) if e > 0 else (-L / 2 - L, L / 2)
     objs.append(backing_span("back", h, mats[1], s0, s1))
     objs.append(backing_span("back2", h, mats[1], s0, s1, *BACK2))
@@ -1101,6 +1383,7 @@ def make_nnori(ls, h, end, v):
             cells.append((p2, kind, key))
     P = wall_P(h, 0.0)
     objs = build_stones(cells, P, mats, tag="wall")
+    objs += wall_ura(h, 0.0, v, mats)
     objs.append(backing("back", h, 0.0, mats[1]))
     objs.append(backing("back2", h, 0.0, mats[1], *BACK2))
     name = nnori_name(ls, end, h, v)
@@ -1899,6 +2182,29 @@ def render_back(h=1.20):
                        os.path.join(SHOT, "sanno_nozura_front.png"))
 
 
+def render_top(h=1.20):
+    """天端を真上から(2026-09-26 EDO-0437): 直線 a〜c・隅の駒 a・腕2 の先の直線 d。「表の石の列 + 裏石の列」の 2 列に見えるか。
+    ① 正射影・空の背景 ② 正射影・マゼンタ(目地から下へ空が抜けないか)③ 斜め上から(前の頭の不揃いと裏石)"""
+    for magenta, tag in ((False, ""), (True, "_magenta")):
+        V.reset()
+        for i, v in enumerate("abc"):
+            _import_at(os.path.join(OUT_WALL, wall_name(h, 0, v) + ".fbx"), -L * (i + 1), 0, 0)
+        _import_at(os.path.join(OUT_WALL, kado_name(h, "a") + ".fbx"), 0, 0, 0)
+        _import_at(os.path.join(OUT_WALL, wall_name(h, 0, "d") + ".fbx"), 0, -L, 0, 90.0)
+        hook_stone_textures()
+        if not magenta:
+            ground()
+        studio_run([], _u2b(-2.2, h + 1.6, 2.2), _u2b(-2.2, h, -0.4), 30,
+                   os.path.join(SHOT, "sanno_nozura_top_oblique%s.png" % tag), magenta)
+        cam = bpy.context.scene.camera
+        cam.data.type = 'ORTHO'; cam.data.ortho_scale = 4.4
+        cam.location = _u2b(-2.0, h + 8.0, -0.9); cam.rotation_euler = (0, 0, 0)
+        V.render(os.path.join(SHOT, "sanno_nozura_top%s.png" % tag))
+        cam.data.ortho_scale = 2.0
+        cam.location = _u2b(-0.8, h + 8.0, -0.8)
+        V.render(os.path.join(SHOT, "sanno_nozura_top_kado%s.png" % tag))
+
+
 # ------------------------------------------------------------------ 本体
 def do_kado():
     hs = [float(OPT["h"])] if OPT.get("h") else KADO_TIERS
@@ -1974,6 +2280,8 @@ if __name__ == "__main__":
             render_kado(float(OPT.get("h") or 1.5))
     if what == "back" and RENDER:
         render_back(float(OPT.get("h") or 1.2))
+    if what == "top" and RENDER:
+        render_top(float(OPT.get("h") or 1.2))
     if what == "dan" and RENDER:
         render_dan()
     if what == "grade" and RENDER:

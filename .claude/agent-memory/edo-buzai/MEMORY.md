@@ -44,3 +44,4 @@
 - [Castle Wall を斜めに切る駒・腕の短い隅](castle-wall-kiri-and-short-arm.md) — 底が開いた素・bisect の重複頂点・.001・小口を移して塞ぐ(2026-09-26)
 - [野面の勾配の駒は 0 と ±0.12 で足りる](nozura-grade-set-and-nearest.md) — 刻みは頭の不揃いから逆算・据える側が勾配 0 を渡している(2026-09-26)
 - [野面の端を斜めに切る・丈の見切り石](nozura-kiri-diagonal-and-tall-mikiri.md) — ops.bisect は斜め面で外れる・枠の外は隣の1間から・見切りは天端で据える(2026-09-26)
+- [土留めの天端は表の石+裏石の2列](nozura-crest-omote-ura-two-rows.md) — 表の石を控えで伸ばさない・隅は両腕の端の裏石が奥で重なる(2026-09-26)

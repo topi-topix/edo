@@ -1157,7 +1157,11 @@ public static class EdoSannoShaRebuild
         //   (EdoBuild.PlaceRunCorners → PlaceRunKado・両脇の実メッシュで測る)
         {
             var dg = EdoBuild.Drawn(); var kcs = new List<GameObject>();
-            int kn = EdoBuild.PlaceRunCorners(runEnds, segPieces, EdoAssets.Own.IshigakiKado, (x, z) => dg.At(x, z), grp, 0.02f, sb, kcs);
+            //   隅の腕の中へ入る石段の袖(Sando の各石段の TW_*)を渡し、腕の長さを袖の端の実測から焼いた組の中で選ぶ(EdoBuild.KadoShortArm・EDO-0437)
+            var sodeAbut = new List<GameObject>();
+            { var sd = Group("Sando"); foreach (Transform st in sd) foreach (Transform c in st) if (c.name.StartsWith("TW_") && c.gameObject.activeInHierarchy) sodeAbut.Add(c.gameObject); }
+            int kn = EdoBuild.PlaceRunCorners(runEnds, segPieces, EdoAssets.Own.IshigakiKado, (x, z) => dg.At(x, z), grp, 0.02f, sb, kcs,
+                                              sodeAbut, EdoAssets.Own.IshigakiKado);
             placed.RemoveAll(g => g == null); placed.AddRange(kcs);
             total = 0; foreach (var kv in runPieces) { kv.Value.RemoveAll(g => g == null); total += kv.Value.Count; } total += kn;
         }

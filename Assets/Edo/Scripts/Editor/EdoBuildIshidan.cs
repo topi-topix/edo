@@ -674,7 +674,8 @@ public static partial class EdoBuild
     /// 5 点 × 5 高さ(袖の局所 Y 0.03〜天端の下)で打ち、各点の口から法 <paramref name="nori"/> の傾きを引いて Yc へ戻した値の**最小**を返す
     /// (= 背を法 nori で切ったとき、どの石にもめり込まない最大の e)。<paramref name="spread"/> = Yc の行の幅。
     /// 当たる先: 石段の袖の背 × 野面の乱積みの隅の駒・返し(山王 参道の階の袖 × 前庭の北の切り込み)。</summary>
-    public static float MeasureSodeBackEnvelope(GameObject sode, float keri, IList<GameObject> walls, float nori, out float spread, float maxOut = 0.6f)
+    public static float MeasureSodeBackEnvelope(GameObject sode, float keri, IList<GameObject> walls, float nori, out float spread, float maxOut = 0.6f,
+                                                System.Func<float, float, float> visAt = null)
     {
         spread = 0f;
         Vector3 f = sode.transform.forward; f.y = 0f; f.Normalize();
@@ -683,7 +684,13 @@ public static partial class EdoBuild
         var own = new List<GameObject> { sode }; var ez = ExtentAlong(sode, f);
         float best = float.NaN; var row = new List<float>();
         // ⭐ 密に(9 × 9)── 5 × 5 では野面の石の出の間を抜け、据えた後に 0.05 入った(参道の階の東の袖 × 切り込みの隅・2026-09-26)
-        var yls = new List<float>(); for (int q = 0; q < 9; q++) yls.Add(Mathf.Lerp(0.03f, 0.30f + keri - 0.02f, q / 8f)); yls.Add(yc);
+        //   ⭐ 見える地表(<paramref name="visAt"/>)が渡されたら、袖の底から天端まで打ち、当たった点が見える地表 + 0.02 より上の物だけ数える
+        //   (2026-09-26 EDO-0437 第6巡)── 踏面の上だけ(局所 Y 0.03〜)を打つと、踏面より下で見え面の外へ出ている背(外の地表 11.98・
+        //   踏面 13.75)が隅の石へ 0.035 入ったまま残った(参道の階の東の袖 001f × 前庭の北東の隅 N_kado2)。
+        float y0 = 0.03f;
+        if (visAt != null) { float bmin = float.MaxValue; foreach (var v in Body(sode.transform, 999999, true)) bmin = Mathf.Min(bmin, v.y); y0 = (bmin - sode.transform.position.y) / Mathf.Max(1e-4f, sy) + 0.03f; }
+        var yls = new List<float>(); int nq = visAt != null ? 17 : 9;
+        for (int q = 0; q < nq; q++) yls.Add(Mathf.Lerp(y0, 0.30f + keri - 0.02f, q / (float)(nq - 1))); yls.Add(yc);
         foreach (float yl in yls)
             for (int ai = 0; ai < 9; ai++)
             {
@@ -691,6 +698,7 @@ public static partial class EdoBuild
                 Vector3 o = sode.transform.position + rt * a + f * ((ez.x + ez.y) * 0.5f); o.y = sode.transform.position.y + yl * sy;
                 float b = RayFarthest(own, o, -f, 5f); if (float.IsNaN(b)) continue;
                 float w = RayToBodies(walls, o, -f, b + maxOut); if (float.IsNaN(w)) continue;
+                if (visAt != null && Mathf.Abs(yl - yc) > 1e-4f) { Vector3 hp = o - f * w; float g = visAt(hp.x, hp.z); if (!float.IsNaN(g) && o.y <= g + 0.02f) continue; }
                 float v = (w - b) - nori * (yl - yc);
                 if (Mathf.Abs(yl - yc) < 1e-4f) row.Add(w - b);
                 if (float.IsNaN(best) || v < best) best = v;
@@ -1018,7 +1026,7 @@ public static partial class EdoBuild
             float spread; float e;
             // ⭐ 相手が野面(法 sNori)なら石の出の包絡で e を取り、めり込まない側へ 0.05 に切り下げる(2026-09-26・EDO-0437 第3巡)
             float sNori = sodeEnvNori != null ? sodeEnvNori(sg0) : float.NaN; bool env = !float.IsNaN(sNori);
-            try { e = env ? MeasureSodeBackEnvelope(probe, keri, walls, sNori, out spread) : MeasureSodeBackOnBatter(probe, keri, walls, out spread); }
+            try { e = env ? MeasureSodeBackEnvelope(probe, keri, walls, sNori, out spread, 0.6f, envVisAt) : MeasureSodeBackOnBatter(probe, keri, walls, out spread); }
             catch { Object.DestroyImmediate(probe); throw; }
             Vector3 flatPos = probe.transform.position;
             Object.DestroyImmediate(probe);
@@ -1034,7 +1042,7 @@ public static partial class EdoBuild
             float rest = 0f;
             for (int it = 0; it < 2; it++)
             {
-                float sp2; float g2 = env ? MeasureSodeBackEnvelope(ng, keri, walls, sNori, out sp2) : MeasureSodeBackOnBatter(ng, keri, walls, out sp2);
+                float sp2; float g2 = env ? MeasureSodeBackEnvelope(ng, keri, walls, sNori, out sp2, 0.6f, envVisAt) : MeasureSodeBackOnBatter(ng, keri, walls, out sp2);
                 if (float.IsNaN(g2) || Mathf.Abs(g2) < 0.0005f) break;
                 Vector3 rt = ng.transform.right; var ez = ExtentAlong(ng, f);
                 Vector3 o = ng.transform.position + f * ((ez.x + ez.y) * 0.5f);

@@ -87,6 +87,7 @@
 
 - [板塀を天端・法肩に据える罠](panel-on-crest-and-shoulder-traps.md) — 帯は天端の最高で・法肩の下りは描かれた地表で・Itabei5 は 3m 未満に割れない
 - [段石×野面は全端を包絡で・野面を焼き直したら跨ぐ端の za を測り直す](nozura-envelope-and-rebake-za.md) — 中ほどの中央値は石の出入りを均して d 0。焼いた組が 0.06 外れた
+- [隅の腕を袖の実測で選ぶ・足元の溝は cap の掘り・空きの点の塞ぎ](kado-short-arm-and-foot-groove.md) — KadoShortArm は詰めた後の袖で測る。天端の四角い抜けは部材
 
 ## 測り方・関門
 

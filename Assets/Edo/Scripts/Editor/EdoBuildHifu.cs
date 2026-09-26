@@ -238,6 +238,19 @@ public static partial class EdoBuild
             if (y < mx - CREST_BAND) { who = -1; return float.NaN; }
             return y;
         }
+        /// <summary>(x,z) の駒の、周り <see cref="CREST_R"/> の同じ駒の最も高い上向きの面(= 近くの天端)。駒が無ければ NaN。
+        /// 当たる先: 皮の cap が法の足の石で掘るかを決める(CutEdgeSkin の Floor)。</summary>
+        public float CrestAround(float x, float z)
+        {
+            int who; float y = Scan(x, z, true, out who); if (who < 0 || float.IsNaN(y)) return float.NaN;
+            float mx = y;
+            for (int a = 0; a < 8; a++)
+            {
+                float ang = a * Mathf.PI / 4f; float t2 = ScanOwner(x + Mathf.Cos(ang) * CREST_R, z + Mathf.Sin(ang) * CREST_R, who);
+                if (!float.IsNaN(t2) && t2 > mx) mx = t2;
+            }
+            return mx;
+        }
         /// <summary>篩わない天端(帯で外した法の面も含む)。</summary>
         public float TopRaw(float x, float z, out int who) { return Scan(x, z, true, out who); }
         float ScanOwner(float x, float z, int k)
@@ -1006,21 +1019,28 @@ public static partial class EdoBuild
                         //   面の外(造成しない地盤)では、法の面が地盤より 2×帯 を超えて低いときだけ ── 打ち切りの駒の先の天端が地盤へ沈む所
                         //   (天端が急に下がり帯で篩われる)は地盤の方を天端へ下げて被せない。
                         float fyIn = near < 2 ? float.NaN : FaceY(p);
-                        Func<float, float> Floor = tq =>
+                        Func<float, int, int, float> Floor = (tq, fi, fj) =>
                         {
                             if (near == 2 && !float.IsNaN(fyIn)) return Mathf.Max(tq, fyIn);
                             //   面の外の外形の中(出隅の駒の地盤側の腕など)も、法が地盤より 2×帯 を超えて低ければ地盤で止める
                             //   (野面の隅 kado3 の南の腕の下に 27.95 の穴が口を開けた・2026-09-25)
                             if (faced || hgt0 - tq > 2f * CREST_BAND) return Mathf.Max(tq, hgt0);
+                            //   ⭐ 法の面の石の上向きの小面が、その駒の近くの天端より地盤の方が CREST_BAND を超えて低い所(= 土留めが地盤から立ち上がる
+                            //   見え面の足元)は、地盤の下の根入れ ── 掘らない(2026-09-26 EDO-0437 第6巡: 前庭の東の野面 TW_Zentei_E の足元で、
+                            //   足の石の頭 13.59 まで皮を下げ、見え面の前 0.2〜0.8m に深さ 0.2〜0.25 の溝の筋が立った)。
+                            //   地盤が近くの天端と 2×帯 以内(打ち切りの駒の先で天端が地盤へ沈む所・見付 0.3 未満の低い所)は従来どおり天端の下へ
+                            //   (帯 1 つでは前庭の東の南端 E_016f の見付 0.15 の所で天端に 0.036 被った)。
+                            float cr = idx.CrestAround(org.x + fi * step, org.z + fj * step);
+                            if (!float.IsNaN(cr) && hgt0 < cr - 2f * CREST_BAND && hgt0 > tq) return hgt0;
                             return tq;
                         };
-                        if (!float.IsNaN(self)) { cap = self - under; if (faceTop.Contains(CK(gi, gj))) cap = Floor(cap); }
+                        if (!float.IsNaN(self)) { cap = self - under; if (faceTop.Contains(CK(gi, gj))) cap = Floor(cap, gi, gj); }
                         for (int di = -CAPR; di <= CAPR; di++)
                             for (int dj = -CAPR; dj <= CAPR; dj++)
                             {
                                 if (di == 0 && dj == 0) continue;
                                 float tq = TopL(gi + di, gj + dj); if (float.IsNaN(tq)) continue;
-                                tq -= eps; if (faceTop.Contains(CK(gi + di, gj + dj))) tq = Floor(tq);
+                                tq -= eps; if (faceTop.Contains(CK(gi + di, gj + dj))) tq = Floor(tq, gi + di, gj + dj);
                                 if (float.IsNaN(cap) || tq < cap) cap = tq;
                                 if (Mathf.Abs(di) <= 1 && Mathf.Abs(dj) <= 1 && (float.IsNaN(capN1) || tq < capN1)) capN1 = tq;
                             }
@@ -1069,7 +1089,11 @@ public static partial class EdoBuild
                                 float nb = float.NaN;
                                 // ⭐ 半格子(0.125m)の点も見る ── 底が背の縁へ向かって上がる駒(袖の背の縁の面取り)では、格子の隣の底が
                                 //   縁の底より 0.09m 低く、塞いでも縁の 0.05m 外で底の下が覗いた(2026-09-25 男坂の北の袖)。
-                                int rr = near == 2 ? 0 : 2;
+                                //   ⭐ 外形(凸包)の中でも駒の面が真上・真下に無い点(凹んだ駒の外接の中の空き)は外と同じに近くの底で塞ぐ
+                                //   (2026-09-26 EDO-0437 第6巡: 野面の打ち切りの駒 TW_Zentei_SW_013f・W_028f の端で天端の石だけが張り出し、
+                                //   その下の空きの点が底を持たず、石の下が 0.02〜0.04 覗いた)。
+                                bool air = near == 2 && float.IsNaN(BotL(gi, gj)) && float.IsNaN(TopL(gi, gj));
+                                int rr = near == 2 && !air ? 0 : 2;
                                 for (int di = -rr; di <= rr; di++)
                                     for (int dj = -rr; dj <= rr; dj++)
                                     {
@@ -1083,7 +1107,7 @@ public static partial class EdoBuild
                                     }
                                 if (!float.IsNaN(nb) && nb > hgt + 1e-4f && nb <= fy + faceTol - 0.02f)
                                 {
-                                    float v = near == 2 ? nb : nb + 0.005f; if (!float.IsNaN(capF)) v = Mathf.Min(v, capF);
+                                    float v = near == 2 && !air ? nb : nb + 0.005f; if (!float.IsNaN(capF)) v = Mathf.Min(v, capF);
                                     if (v > hgt) { hgt = v; r.sealed_++; }
                                 }
                             }

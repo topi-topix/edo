@@ -1079,6 +1079,139 @@ public static partial class EdoBuild
         return done;
     }
 
+    // ================================================================ 袖の脇の面 × 隅の駒・土留めの法(EDO-0437 第8巡 2026-09-26)
+    /// <summary>駒の三角形を世界座標へ一度だけ焼いて光線を打つ器(<see cref="RayToBodies"/> / <see cref="RayFarthest"/> と同じ測り ──
+    /// 呼ぶたびに頂点を変換し直さない)。wall = true なら屋根・隠した描き手を外す(RayToBodies と同じ篩)。</summary>
+    sealed class WorldTris
+    {
+        readonly List<Vector3> A = new List<Vector3>(), E1 = new List<Vector3>(), E2 = new List<Vector3>();
+        public WorldTris(GameObject g, bool wall)
+        {
+            foreach (var mf in g.GetComponentsInChildren<MeshFilter>())
+            {
+                var mesh = mf.sharedMesh; if (mesh == null) continue;
+                if (wall)
+                {
+                    var rr = mf.GetComponent<Renderer>(); if (rr == null || !rr.enabled || !mf.gameObject.activeInHierarchy) continue;
+                    if (IsRoofName(PartName(g.transform, mf))) continue;
+                }
+                var M = mf.transform.localToWorldMatrix; var vs = mesh.vertices; var ts = mesh.triangles;
+                var W = new Vector3[vs.Length]; for (int i = 0; i < vs.Length; i++) W[i] = M.MultiplyPoint3x4(vs[i]);
+                for (int t = 0; t + 2 < ts.Length; t += 3) { A.Add(W[ts[t]]); E1.Add(W[ts[t + 1]] - W[ts[t]]); E2.Add(W[ts[t + 2]] - W[ts[t]]); }
+            }
+        }
+        /// <summary>o から d へ maxDist 以内の当たり(farthest なら最も遠い面・でなければ光線に向く表の面のうち最も近い)。無ければ NaN。</summary>
+        public float Ray(Vector3 o, Vector3 d, float maxDist, bool farthest)
+        {
+            d.Normalize(); float best = farthest ? float.MinValue : float.MaxValue;
+            for (int t = 0; t < A.Count; t++)
+            {
+                Vector3 e1 = E1[t], e2 = E2[t];
+                Vector3 pv = Vector3.Cross(d, e2); float det = Vector3.Dot(e1, pv); if (Mathf.Abs(det) < 1e-9f) continue;
+                float inv = 1f / det; Vector3 tv = o - A[t]; float u = Vector3.Dot(tv, pv) * inv; if (u < 0f || u > 1f) continue;
+                Vector3 qv = Vector3.Cross(tv, e1); float v = Vector3.Dot(d, qv) * inv; if (v < 0f || u + v > 1f) continue;
+                float dist = Vector3.Dot(e2, qv) * inv; if (dist < 0f || dist > maxDist) continue;
+                // 近い当たりは相手の**表**の面だけ(光線に向く面)── 袖の中の点が相手の中に在ると、相手の裏の面を拾って逆の脇の入りに化けた
+                if (!farthest && Vector3.Dot(Vector3.Cross(e1, e2), d) >= 0f) continue;
+                if (farthest ? dist > best : dist < best) best = dist;
+            }
+            return (farthest ? best == float.MinValue : best == float.MaxValue) ? float.NaN : best;
+        }
+    }
+
+    /// <summary><see cref="MeasureSodeSideBites"/> の一件(袖の駒 × 相手の駒 × 脇の向き)。bite = 袖の脇の外面から相手の面が入る深さの最大[m]
+    /// (全ての高さ)/ biteVis = そのうち**見える**当たり(当たった点が見える地表 + 0.02 より上)の最大 / y・a = 入る所の高さと走り(袖の局所・+ = 坂下)の範囲 /
+    /// nori = 相手の面の法(高さ 1 あたり外へ出る量・列ごとの中央値)/ deg = 相手の面が袖の脇に対して平面で振れる角(+ = 坂下ほど深く入る)/
+    /// za = 入る所の坂上・坂下の端のうち、駒の端でない方(隅のもう一面 ── 駒の端まで入れば NaN)。</summary>
+    public struct SodeSideBite
+    {
+        public GameObject sode, wall; public int side, n;
+        public float bite, biteVis, yLo, yHi, aLo, aHi, nori, deg, za;
+        public bool uphill;
+    }
+
+    /// <summary>**石段の袖の脇の面へ入る相手(隅の駒・土留めの法の足)を測る**(2026-09-26・EDO-0437 第8巡・普請奉行の決め「袖が譲る」)。
+    /// 袖の駒ごとに、外形の重なる相手(<paramref name="walls"/>)について、脇の両の向きで走り 13 列 × 丈 0.05 刻みに、袖の反対の脇の内から
+    /// 外へ光線を打ち、袖の外面を出る所(<see cref="RayFarthest"/>)と相手の面に当たる所の差で入りを測る。⭐ 面で測る(頂点・ピボットで合わせない)。
+    /// 見える地表 <paramref name="visAt"/>(NaN 可)より下の当たりは biteVis に数えない(法の足の根入れの中)。入りが 0.005 以下の組は返さない。
+    /// 硬い(許容0): めり込み。⟶ 袖の脇を相手の法で切った駒(焼く値 = d・deg・nori・za)。当たる先: 石段の袖が隅の駒・土留めの法の足に脇から
+    /// 並ぶ所すべて(山王 女坂の北の袖 × 回廊の出隅 E×S。参道の階・郭の階・中門の内の階も同じ枝で測る)。</summary>
+    public static List<SodeSideBite> MeasureSodeSideBites(IList<GameObject> sodes, IList<GameObject> walls, System.Func<float, float, float> visAt)
+    {
+        var res = new List<SodeSideBite>();
+        foreach (var sg in sodes)
+        {
+            if (sg == null || !sg.activeInHierarchy) continue;
+            var rb = RB(sg); rb.Expand(0.02f);
+            Vector3 f = sg.transform.forward; f.y = 0f; f.Normalize();
+            var ez = ExtentAlong(sg, f);
+            float yMin = float.MaxValue, yMax = float.MinValue;
+            foreach (var v in Body(sg.transform, 999999, true)) { yMin = Mathf.Min(yMin, v.y); yMax = Mathf.Max(yMax, v.y); }
+            var own = new WorldTris(sg, false);
+            foreach (var w in walls)
+            {
+                if (w == null || w == sg || !w.activeInHierarchy || !RB(w).Intersects(rb)) continue;
+                var wl = new WorldTris(w, true);
+                foreach (int side in new[] { -1, 1 })
+                {
+                    Vector3 od = sg.transform.right * side; od.y = 0f; od.Normalize();
+                    var ep = ExtentAlong(sg, od);
+                    const int N = 13; float step = 0.10f;
+                    var r = new SodeSideBite { sode = sg, wall = w, side = side, bite = 0f, biteVis = 0f, yLo = float.MaxValue, yHi = float.MinValue,
+                                               aLo = float.MaxValue, aHi = float.MinValue, nori = float.NaN, deg = float.NaN, za = float.NaN };
+                    var slopes = new List<float>(); var rowsA = new Dictionary<int, List<Vector2>>();
+                    for (int k = 0; k < N; k++)
+                    {
+                        float a = ez.x + 0.02f + (ez.y - ez.x - 0.04f) * k / (N - 1);
+                        var col = new List<Vector2>();
+                        int hy = 0;
+                        for (float y = yMin + 0.02f; y <= yMax - 0.02f; y += step, hy++)
+                        {
+                            Vector3 o = sg.transform.position + f * a + od * (ep.x + 0.05f); o.y = y;
+                            float b = own.Ray(o, od, 3f, true); if (float.IsNaN(b)) continue;
+                            float h = wl.Ray(o, od, b + 0.30f, false); if (float.IsNaN(h)) continue;
+                            float gp = h - b; col.Add(new Vector2(y, gp));
+                            List<Vector2> row; if (!rowsA.TryGetValue(hy, out row)) { row = new List<Vector2>(); rowsA[hy] = row; } row.Add(new Vector2(a, gp));
+                            if (gp >= -0.005f) continue;
+                            r.n++; r.bite = Mathf.Max(r.bite, -gp);
+                            r.yLo = Mathf.Min(r.yLo, y); r.yHi = Mathf.Max(r.yHi, y); r.aLo = Mathf.Min(r.aLo, a); r.aHi = Mathf.Max(r.aHi, a);
+                            Vector3 hp = o + od * h; float g = visAt == null ? float.NaN : visAt(hp.x, hp.z);
+                            if (float.IsNaN(g) || y > g + 0.02f) r.biteVis = Mathf.Max(r.biteVis, -gp);
+                        }
+                        // 法 = 列の中の隙の高さに対する傾き(最小二乗)
+                        if (col.Count >= 3)
+                        {
+                            float my = 0f, mg = 0f; foreach (var c in col) { my += c.x; mg += c.y; } my /= col.Count; mg /= col.Count;
+                            float sxy = 0f, sxx = 0f; foreach (var c in col) { sxy += (c.x - my) * (c.y - mg); sxx += (c.x - my) * (c.x - my); }
+                            if (sxx > 1e-6f) slopes.Add(sxy / sxx);
+                        }
+                    }
+                    if (r.n == 0) continue;
+                    slopes.Sort(); if (slopes.Count > 0) r.nori = slopes[slopes.Count / 2];
+                    // 平面の振れ = 入る所の行ごとの、走りに対する隙の傾き(入る列だけ)の中央値
+                    var degs = new List<float>();
+                    foreach (var kv in rowsA)
+                    {
+                        var pts = kv.Value.FindAll(p => p.x >= r.aLo - 1e-4f && p.x <= r.aHi + 1e-4f);
+                        if (pts.Count < 3) continue;
+                        float ma = 0f, mg = 0f; foreach (var p in pts) { ma += p.x; mg += p.y; } ma /= pts.Count; mg /= pts.Count;
+                        float sxy = 0f, sxx = 0f; foreach (var p in pts) { sxy += (p.x - ma) * (p.y - mg); sxx += (p.x - ma) * (p.x - ma); }
+                        if (sxx > 1e-6f) degs.Add(-Mathf.Atan(sxy / sxx) * Mathf.Rad2Deg);
+                    }
+                    degs.Sort(); if (degs.Count > 0) r.deg = degs[degs.Count / 2];
+                    // 入る所が駒の片方の端から始まり、途中で止まるなら、止まる所が隅のもう一面
+                    float colStep = (ez.y - ez.x - 0.04f) / (N - 1);
+                    bool atLo = r.aLo <= ez.x + 0.02f + 1e-3f, atHi = r.aHi >= ez.y - 0.02f - 1e-3f;
+                    //   (走り a は駒の +Z = 坂下が + ⇒ 小さい端から入る = 坂上の側を欠く)
+                    if (atLo && !atHi) { r.uphill = true; r.za = r.aHi + colStep * 0.5f; }
+                    else if (atHi && !atLo) { r.uphill = false; r.za = r.aLo - colStep * 0.5f; }
+                    res.Add(r);
+                }
+            }
+        }
+        return res;
+    }
+
     // ================================================================ 敷石(踏石・石段の頭の踏み止め)・袖の端を相手の面まで延ばす(EDO-0428 2026-09-26)
     //   施主統合 EDO-0428: 男坂の頭の踏み止め(指図 kaidans[].fumitome)を建てる C# が無く、楼門の基壇と最上段の間に 0.52m の口が
     //   芝で残った。算出物 setae.fumiishi の 4 件(二ノ鳥居の足元・仁王門の敷居前・参道の階の上端・男坂の頭)がどれも未建立だった。

@@ -1467,6 +1467,19 @@ public static class EdoSannoShaRebuild
                 sb.AppendLine("    " + sg.name + " の前の小口 × 土留めの背: " + r.moved.ToString("+0.000;-0.000") + "m(見える高さ " + yLo.ToString("F2") + "〜" + yHi.ToString("F2") +
                               " の中ほど)/ 上端の口 " + r.gapHi.ToString("F3") + " / 下端のめり込み " + r.biteLo.ToString("F3"));
             }
+            // ⭐ 袖の脇の面 × 隅の駒・土留めの法の足(2026-09-26・EDO-0437 第8巡・普請奉行の決め「袖が譲る」)── 回廊の出隅 E×S の法の足が
+            //   女坂の北の袖 039f の脇へ入る。袖の脇を相手の法で切った駒へ差し替える型(焼く値 d・deg・nori・za を刷る)。⛔ 隅の駒は動かさない。
+            //   測りは EdoBuild.MeasureSodeSideBites(面で測る)。焼いた駒が無ければ差し替えず、焼く値を刷る。当たる先: 全ての石段の袖 × Dodome の駒。
+            foreach (var bt in EdoBuild.MeasureSodeSideBites(sodesAll, walls, visAt))
+            {
+                var inv2 = System.Globalization.CultureInfo.InvariantCulture;
+                sb.AppendLine("    " + (bt.biteVis > 0.005f ? "⛔ " : "⚠ ") + bt.sode.name + " の脇(" + (bt.side < 0 ? "−X" : "+X") + ")× " + bt.wall.name +
+                              ": 入り 最大 " + bt.bite.ToString("F3", inv2) + "(見える所 " + bt.biteVis.ToString("F3", inv2) + ")・高さ " + bt.yLo.ToString("F2", inv2) + "〜" + bt.yHi.ToString("F2", inv2) +
+                              "・走り " + bt.aLo.ToString("+0.00;-0.00", inv2) + "〜" + bt.aHi.ToString("+0.00;-0.00", inv2) + "(当たり " + bt.n + ")" +
+                              " ⟶ 焼く値 d " + bt.bite.ToString("F3", inv2) + " 角 " + bt.deg.ToString("+0.0;-0.0", inv2) + "° 法 " + bt.nori.ToString("F3", inv2) +
+                              (float.IsNaN(bt.za) ? " 全長" : " za " + bt.za.ToString("+0.000;-0.000", inv2) + (bt.uphill ? "(坂上側を欠く)" : "(坂下側を欠く)")) +
+                              " ── 袖の脇を法で切った駒は焼いていない・差し替えない");
+            }
             if (rs.Count == 0 && sMoved + sMixed == 0) continue;
             sb.AppendLine("  " + name + ": 段石の小口が土留め・袖に接する " + rs.Count + " 端 / 詰めた・伸ばした " + moved + "(最大 " + mvMax.ToString("F3") + "m)" +
                           " / 上端の口 最大 " + gap.ToString("F3") + " / 下端のめり込み 最大 " + bite.ToString("F3") +

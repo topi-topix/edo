@@ -109,6 +109,8 @@
 
 ## 検査の読み方
 
+- [袖の脇の入りは見える地表で割る](sode-side-bite-below-skin.md) — 女坂の北の袖×回廊の出隅は全部 皮の下。MeasureSodeSideBites・裏の面の偽の入り
+
 - [退役した Stage が残ると検査が嘘の件数を出す](retired-stage-makes-fake-counts.md) — 449=1278−829 は別の母集団の引き算
 - [退ける門と検査は同じ測りで](machiya-clash-gate-weaker-than-check.md) — 門だけ屋根を外すと検査でめり込み。揃えた犠牲は駒1個だけ
 - [CheckScene は矩形の芯で測る](checkscene-center-vs-seat.md) — `seat` で据えた部材は永久に鳴る。⛔芯へ動かして0件にしない

@@ -47,8 +47,10 @@ _LEGACY = ("matsudaira_dewa", "sanno", "okabe", "doi", "sotobori",
                         # 会所地は類型一般ではなく**町屋として別途**取り組む。指図は持たないので
                         # 邸ではない(三巡則・完成条件の表は掛からない)が、掲示板では
                         # 「全体・基盤」へ畳まず自分の札を持つ。
-           "sannobuke_juge")  # 樹下邸(2026-09-23 施主指示 EDO-0340)。山王(sanno)とは別の敷地の
+           "sannobuke_juge",  # 樹下邸(2026-09-23 施主指示 EDO-0340)。山王(sanno)とは別の敷地の
                         # 票として扱う。類型で建つ区画なので指図は持たない(=名簿から漏れる)。
+           "sannojubo")  # 山王社の社僧十坊(2026-09-26 施主指示)。山王(sanno)とは別の敷地。
+                        # 類型で建てる 10 区画(sannojubo_parcels_0〜9)なので指図は持たない。
 ESTATES = tuple(sorted(set(estate_names()) | set(_FIXED) | set(_LEGACY)))
 TYPES = ("task", "decision", "blocker", "info", "lesson")
 STATUSES = ("open", "awaiting-user", "in-progress", "done", "dropped")

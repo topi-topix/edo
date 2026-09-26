@@ -2887,6 +2887,9 @@ public static class EdoSannoShaRebuild
         var parts = new List<GameObject>();
         foreach (Transform g in Group("Sando")) foreach (Transform c in g) parts.Add(c.gameObject);
         foreach (Transform c in Group("Dodome")) parts.Add(c.gameObject);
+        foreach (Transform c in Group("Keidai/Fumiishi")) parts.Add(c.gameObject);   // 踏石・踏み止め(EDO-0428)
+        // ⭐ 床を覆う部材 = 門(基壇の床の帯だけ・EdoBuild.FloorTris)── 楼門の基壇の天端 28.30 に皮・地形が同じ高さで斑に出た(EDO-0428 ⑤)
+        var floors = new List<GameObject>(); foreach (Transform c in Group("Keidai/Mon")) floors.Add(c.gameObject);
         var faces = SkinFaces(null);
         float tol = F(D(Impl, "checks"), "gradeTol");
         // ⭐ 面の外は算出物 `graded`(法面を含む設計の地盤)を皮で写し、縁は多角形の線で切る。
@@ -2915,7 +2918,7 @@ public static class EdoSannoShaRebuild
         }
         var rep = EdoBuild.CutEdgeSkin("Sanno", grp, parts, faces, tol, design: design, backfill: 0f, sealFace: true,
                                        digParts: dig, digUnder: 0.05f, digBatter: Mathf.Max(1f, F(cst, "batterCut")),
-                                       crestBandParts: band, plantPoints: plant);
+                                       crestBandParts: band, plantPoints: plant, floorParts: floors);
         AssetDatabase.SaveAssetIfDirty(EdoBuild.T().terrainData);
         var sb = new StringBuilder();
         sb.AppendLine("縁の皮: 古い皮を外して塞いだ升 " + filled + " / 部材 " + rep.parts + " / 面 " + faces.Count);
@@ -3010,6 +3013,16 @@ public static class EdoSannoShaRebuild
             }
         }
         if (sode.Count > 0) sb.AppendLine("    袖の天端: " + EdoBuild.TuckUnderCrest(sode, null, faces: sodeFace, measureOnly: true));
+        {   // 踏石・踏み止めの天端(EDO-0428)
+            int n = 0, bur = 0, hid = 0; float mx = 0f; string at = "";
+            foreach (Transform d in Group("Keidai/Fumiishi"))
+            {
+                int sn, hn; float w; Vector3 wa;
+                int b = EdoBuild.TopBurial(d, dg, over, out sn, out hn, out w, out wa);
+                n += sn; bur += b; hid += hn; if (w > mx) { mx = w; at = d.name + " (" + wa.x.ToString("F1") + ", " + wa.z.ToString("F1") + ")"; }
+            }
+            if (n > 0) sb.AppendLine("    踏石・踏み止めの天端: 埋没 " + bur + " / " + (n - hid) + " 点" + (bur > 0 ? " 最大 " + mx.ToString("F2") + "m @ " + at : ""));
+        }
         var dodome = new List<GameObject>(); var face = new Dictionary<GameObject, Vector3>();
         foreach (Transform c in Group("Dodome"))
         {   // 見え面は実メッシュで測る(法の出の大きい軸 = EdoBuild.WallFace ── 野面の駒は局所 +Z・城の石垣は −X)。
@@ -3043,6 +3056,141 @@ public static class EdoSannoShaRebuild
         return sb.ToString();
     }
 
+    // ================================================================ Stage 5b 踏石・踏み止め(EDO-0428)
+    /// <summary>算出物 `setae.fumiishi`(二ノ鳥居の足元・仁王門の敷居前・参道の階の上端・石段の頭の踏み止め)を敷く。
+    /// ⭐ 縁は相手の実メッシュの面(`EdoBuild.LayShikiishi` が天端の帯へ光線を打つ)── 四角の座標は相手の無い縁と幅の目安だけ。
+    /// ⭐ 踏み止め(指図 `kaidans[].fumitome`)の脇は、その石段の袖の最上段の駒を相手(基壇・腰石垣)の面まで延ばしてから敷く
+    /// (`EdoBuild.ExtendEndToFace` ── 袖の run の頭 `a` は相手の面・段は踏み止めの前で終わる)。
+    /// 天端: 踏み止め = 指図の `top` / 面(`terraces[].surface.fumiishi`)= その面の高さ / 沿道(`sando.roadside.fumiishi`)= 地表(外形の中の最大)。</summary>
+    [MenuItem(MENU + "5b 踏石・踏み止め(門・石段の頭の敷石)")]
+    public static void Stage5bMenu() { Debug.Log("[山王] " + Stage5b_Fumiishi()); }
+    public static string Stage5b_Fumiishi()
+    {
+        var gate = Gate(); if (gate != null) return gate;
+        var grp = Group("Keidai/Fumiishi"); Clear(grp);
+        var sb = new StringBuilder();
+        var mon = Group("Keidai/Mon"); var sando = Group("Sando");
+        var dod = new List<GameObject>(); foreach (Transform c in Group("Dodome")) if (c.gameObject.activeInHierarchy) dod.Add(c.gameObject);
+        var gates = new List<GameObject>(); foreach (Transform c in mon) if (c.gameObject.activeInHierarchy) gates.Add(c.gameObject);
+        // 出どころ(指図): 名 → (種類, 相手の名, 面)
+        var roadside = new Dictionary<string, Dictionary<string, object>>(); var surf = new Dictionary<string, Dictionary<string, object>>();
+        foreach (var o in L(D(D(Doc, "sando"), "roadside"), "fumiishi")) { var q = o as Dictionary<string, object>; if (q != null) roadside[S(q, "name")] = q; }
+        var ters = L(Doc, "terraces"); Dictionary<string, object> surfTer = null;
+        foreach (var to in ters)
+        {
+            var t = to as Dictionary<string, object>; if (t == null) continue;
+            foreach (var o in L(D(t, "surface"), "fumiishi")) { var q = o as Dictionary<string, object>; if (q != null) { surf[S(q, "name")] = q; surfTer = t; } }
+        }
+        Func<Vector2[], Vector2, Vector2> Snap = (quad, d) =>
+        {   // 四角の辺の向きのうち d に最も沿う物(±)
+            Vector2 best = d.normalized; float bd = -2f;
+            for (int i = 0; i < 2 && quad.Length >= 3; i++)
+            {
+                var e = (quad[i + 1] - quad[i]).normalized;
+                foreach (var c in new[] { e, -e }) { float dd = Vector2.Dot(c, d.normalized); if (dd > bd) { bd = dd; best = c; } }
+            }
+            return best;
+        };
+        Func<Vector2[], Vector2> Cen = quad => { Vector2 c = Vector2.zero; foreach (var q in quad) c += q; return c / Mathf.Max(1, quad.Length); };
+        Func<Transform, Transform> TopDan = g =>
+        {
+            Transform top = null; int best = -1;
+            if (g != null) foreach (Transform c in g) { int k; if (c.name.StartsWith("Dan_") && int.TryParse(c.name.Substring(4), out k) && k > best) { best = k; top = c; } }
+            return top;
+        };
+        int made = 0, refused = 0;
+        foreach (var o in L(D(Impl, "setae"), "fumiishi"))
+        {
+            var fi = o as Dictionary<string, object>; if (fi == null) continue;
+            string nm = S(fi, "name"); var wl = L(fi, "world"); var quad = new Vector2[wl.Count];
+            for (int i = 0; i < wl.Count; i++) { var a = wl[i] as List<object>; quad[i] = new Vector2(Cv(a[0]), Cv(a[1])); }
+            if (quad.Length < 4) { sb.AppendLine("  ⛔ " + nm + ": 四角が無い"); refused++; continue; }
+            Vector2 front; float top = float.NaN; Func<int, string> pathOf = null;
+            var back = new List<GameObject>(); var fwd = new List<GameObject>(); var side = new List<GameObject>(dod);
+            string how;
+            Dictionary<string, object> kd = null;
+            foreach (var ko in L(Doc, "kaidans")) { var k = ko as Dictionary<string, object>; if (k != null && D(k, "fumitome") != null && nm == S(k, "name") + "の頭の踏み止め") kd = k; }
+            if (kd != null)
+            {   // ---- 石段の頭の踏み止め: 背 = 門の基壇・腰石垣 / 前 = 最上段 / 脇 = 袖
+                var st = FindByName(Impl, "stairs", S(kd, "name")); var g = sando.Find(GroupNameOf(S(kd, "name"))); var td = TopDan(g);
+                if (st == null || td == null) { sb.AppendLine("  ⛔ " + nm + ": 石段(" + S(kd, "name") + ")が建っていない"); refused++; continue; }
+                var fwd3 = td.forward; front = Snap(quad, new Vector2(fwd3.x, fwd3.z));
+                top = F(D(kd, "fumitome"), "top");
+                float keri = F(st, "keri"), fumi = F(st, "fumi"), wM = F(st, "wM");
+                pathOf = i => P.Dan(keri, fumi, wM, i);
+                back.AddRange(gates); back.AddRange(dod); fwd.Add(td.gameObject);
+                // 袖の最上段の駒を相手の面まで延ばす(袖の run の頭は相手の面)
+                foreach (var w in SodeWallsOf(S(kd, "name")).Keys)
+                {
+                    Transform sp = null; int bi = -1;
+                    foreach (Transform c in g)
+                    {
+                        if (!c.name.StartsWith(w + "_", StringComparison.Ordinal)) continue;
+                        int k; if (int.TryParse(c.name.Substring(w.Length + 1).TrimEnd('f'), out k) && k > bi) { bi = k; sp = c; }
+                    }
+                    if (sp == null) { sb.AppendLine("  ⚠ " + nm + ": 袖 " + w + " の駒が無い"); continue; }
+                    float spread; int hits;
+                    float ext = EdoBuild.ExtendEndToFace(sp.gameObject, -new Vector3(front.x, 0f, front.y), back, top, 1.5f, out spread, out hits);
+                    side.Add(sp.gameObject);
+                    float eg = EdoBuild.MeasureEndGap(sp.gameObject, -new Vector3(front.x, 0f, front.y), back, top);
+                    sb.AppendLine("  " + nm + ": 袖 " + sp.name + " の頭を相手の面まで " + (float.IsNaN(ext) ? "⛔ 当たらず(延ばさない)" : ext.ToString("+0.000;-0.000") + "m(当たり " + hits + "・割れ " + spread.ToString("F3") + ")") +
+                                  " / 据えた後の見える口 " + (float.IsNaN(eg) ? "—" : eg.ToString("+0.000;-0.000")) + "m");
+                }
+                how = "踏み止め(天端 " + top.ToString("F2") + "・部材 = " + S(kd, "name") + "の段石)";
+            }
+            else if (roadside.ContainsKey(nm))
+            {   // ---- 沿道の踏石(鳥居の足元): 相手なし・向きは鳥居の実の軸・天端は地表
+                var src = S(roadside[nm], "from") ?? ""; string tn = src.StartsWith("torii:") ? src.Substring(6) : src;
+                var tr = mon.Find(ToriiNameOf(tn));
+                if (tr == null) { sb.AppendLine("  ⛔ " + nm + ": 鳥居(" + tn + ")が建っていない"); refused++; continue; }
+                var f3 = tr.forward; front = new Vector2(f3.x, f3.z).normalized; var s2 = new Vector2(front.y, -front.x);
+                float ha = (quad[1] - quad[0]).magnitude * 0.5f, hb = (quad[2] - quad[1]).magnitude * 0.5f; var c0 = Cen(quad);
+                // ⭐ 四角を鳥居の軸へ(芯 = 算出物の四角の芯・辺長はそのまま)── 算出物の四角は境内の格子の向き(鳥居と 46° ずれる)
+                quad = new[] { c0 - front * ha - s2 * hb, c0 + front * ha - s2 * hb, c0 + front * ha + s2 * hb, c0 - front * ha + s2 * hb };
+                pathOf = i => EdoAssets.Own.SannoDanNearest(2f * hb, i);
+                side.Clear();
+                how = "沿道(相手なし・鳥居の軸・天端 = 地表)";
+            }
+            else if (surf.ContainsKey(nm))
+            {   // ---- 面の踏石: 背 = 門 / 石段の最上段、天端 = 面の高さ
+                var q = surf[nm]; string src = S(q, "from") ?? "";
+                var tc = surfTer != null ? FindByName(Impl, "terraces", S(surfTer, "name")) : null;
+                top = tc != null ? F(tc, "y") : float.NaN;
+                var c0 = Cen(quad);
+                if (src.StartsWith("gate:"))
+                {
+                    var gt = mon.Find(GateNameOf(src.Substring(5)));
+                    if (gt == null) { sb.AppendLine("  ⛔ " + nm + ": 門が建っていない"); refused++; continue; }
+                    var gc = EdoBuild.RB(gt.gameObject).center; front = Snap(quad, c0 - new Vector2(gc.x, gc.z));
+                    back.Add(gt.gameObject);
+                }
+                else if (src.StartsWith("kaidan:"))
+                {
+                    string kn = src.Substring(7); var st = FindByName(Impl, "stairs", kn); var td = TopDan(sando.Find(GroupNameOf(kn)));
+                    if (st == null || td == null) { sb.AppendLine("  ⛔ " + nm + ": 石段(" + kn + ")が建っていない"); refused++; continue; }
+                    front = Snap(quad, c0 - new Vector2(td.position.x, td.position.z));
+                    back.Add(td.gameObject);
+                }
+                else { sb.AppendLine("  ⛔ " + nm + ": 出どころ " + src + " を読めない"); refused++; continue; }
+                float wAcross = 0f; { var s2 = new Vector2(front.y, -front.x); float lo = float.MaxValue, hi = float.MinValue; foreach (var p in quad) { float d = Vector2.Dot(p, s2); lo = Mathf.Min(lo, d); hi = Mathf.Max(hi, d); } wAcross = hi - lo; }
+                if (src.StartsWith("kaidan:"))
+                {
+                    var st = FindByName(Impl, "stairs", src.Substring(7)); float keri = F(st, "keri"), fumi = F(st, "fumi"), wM = F(st, "wM");
+                    pathOf = i => P.Dan(keri, fumi, wM, i);
+                }
+                else pathOf = i => EdoAssets.Own.SannoDanNearest(wAcross, i);
+                how = "面 " + (surfTer != null ? S(surfTer, "name") : "?") + "(天端 " + top.ToString("F2") + "・" + src + ")";
+            }
+            else { sb.AppendLine("  ⛔ " + nm + ": 指図に出どころが無い(踏み止め・沿道・面のどれでもない)"); refused++; continue; }
+            if (pathOf(0) == null || AssetDatabase.LoadAssetAtPath<GameObject>(pathOf(0)) == null) { sb.AppendLine("  ⛔ " + nm + ": 段石の部材が無い(" + pathOf(0) + ")"); refused++; continue; }
+            EdoBuild.Shiki rep;
+            var laid = EdoBuild.LayShikiishi(pathOf, quad, front, top, grp, "Fumiishi_" + nm, back, fwd, side, out rep);
+            made += laid.Count;
+            sb.AppendLine("  " + nm + " ── " + how + ": " + rep);
+        }
+        return "踏石・踏み止め: 敷いた " + made + " 枚" + (refused > 0 ? " / ⛔ 敷けない " + refused : "") + "\n" + sb;
+    }
+
     /// <summary>据え直す Stage の冒頭で縁の皮を外す(穴を塞ぐ)。据え直した後で Stage9 を流し直すこと。</summary>
     static string UnSkin()
     {
@@ -3070,13 +3218,14 @@ public static class EdoSannoShaRebuild
                 .Add("Dodome", "3 土留め", Stage3_Dodome, new[] { "Grade", "Kaidan" }, at("Dodome"))
                 .Add("Kakoi", "4 囲い", Stage4_Kakoi, new[] { "Grade", "Kaidan", "Dodome" }, at("Kakoi"))
                 .Add("Mon", "5 門・鳥居", Stage5_MonTorii, new[] { "Grade", "Kaidan", "Dodome" }, at("Keidai/Mon"))
+                .Add("Fumiishi", "5b 踏石・踏み止め", Stage5b_Fumiishi, new[] { "Kaidan", "Dodome", "Mon" }, at("Keidai/Fumiishi"))
                 .Add("Shaden", "6 社殿", Stage6_Shaden, new[] { "Grade" }, at("Keidai/Shaden"))
                 .Add("Ido", "8 井戸", Stage8_Ido, new[] { "Grade" }, at("Keidai/Ido"))
-                .Add("Hifu", "9 縁の皮", Stage9_Hifu, new[] { "Grade", "Kaidan", "Dodome" });
+                .Add("Hifu", "9 縁の皮", Stage9_Hifu, new[] { "Grade", "Kaidan", "Dodome", "Mon", "Fumiishi" });
         }
     }
 
-    /// <summary>**変えた Stage から後だけ流す**(key: Retire・Grade・Kaidan・Dodome・Kakoi・Mon・Shaden・Ido・Hifu)。
+    /// <summary>**変えた Stage から後だけ流す**(key: Retire・Grade・Kaidan・Dodome・Kakoi・Mon・Fumiishi・Shaden・Ido・Hifu)。
     /// 例: 石段だけ直した ⇒ `RunFrom("Kaidan")` = 石段 → 土留め → 囲い → 門 → 縁の皮(整地・社殿・井戸は流さない)。</summary>
     public static string RunFrom(params string[] changed) { var g = Gate(); return g ?? Order.RunFrom(changed); }
     /// <summary>流さずに、流れる Stage だけを見積もる。</summary>

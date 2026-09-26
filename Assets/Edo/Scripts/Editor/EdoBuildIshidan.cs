@@ -995,4 +995,274 @@ public static partial class EdoBuild
                           (need.Count > 0 ? " / ⚠ 焼いていない段石 " + need.Count + "(焼く一覧の行: " + string.Join(" | ", need) + ")" : ""));
         return done;
     }
+
+    // ================================================================ 敷石(踏石・石段の頭の踏み止め)・袖の端を相手の面まで延ばす(EDO-0428 2026-09-26)
+    //   施主統合 EDO-0428: 男坂の頭の踏み止め(指図 kaidans[].fumitome)を建てる C# が無く、楼門の基壇と最上段の間に 0.52m の口が
+    //   芝で残った。算出物 setae.fumiishi の 4 件(二ノ鳥居の足元・仁王門の敷居前・参道の階の上端・男坂の頭)がどれも未建立だった。
+    //   ⭐ 縁は相手の実メッシュの面で決める(天端の帯へ光線)。⛔ ピボット・bounds の中心・算出物の四角の座標で端を決めない
+    //   (四角は相手が無い端と幅の目安だけ)。
+
+    /// <summary><see cref="LayShikiishi"/> の報告。口・食い込みは据えた後に天端の帯で光線を打って測った最大(相手の在る端だけ・無ければ NaN)。</summary>
+    public struct Shiki
+    {
+        public int slabs; public float depth, width, top;
+        public float backGap, backBite, frontGap, frontBite, sideGap, sideBite;
+        public int backHits, frontHits, sideHits;
+        public float expose;     // 相手の無い縁で 天端 − 地表(0.05 外)の最大 = 縁の見付(柔らかい・報告のみ)
+        public float buried;     // 外形の中で 地表 − 天端 の最大(> 0.005 は天端が土に埋まる・硬い)
+        public string part;
+        public override string ToString()
+        {
+            System.Func<float, string> F = v => float.IsNaN(v) ? "—" : v.ToString("F3");
+            return slabs + " 枚(" + part + ")奥行 " + depth.ToString("F3") + " × 幅 " + width.ToString("F3") + " / 天端 " + top.ToString("F3") +
+                   " / 背の相手: 口 " + F(backGap) + " 食い込み " + F(backBite) + "(当たり " + backHits + ")" +
+                   " / 前の相手: 口 " + F(frontGap) + " 食い込み " + F(frontBite) + "(当たり " + frontHits + ")" +
+                   " / 脇の相手: 口 " + F(sideGap) + " 食い込み " + F(sideBite) + "(当たり " + sideHits + ")" +
+                   " / 縁の見付 最大 " + expose.ToString("F3") + " / 天端の埋没 " + (buried > 0.005f ? "⛔ " : "") + Mathf.Max(0f, buried).ToString("F3");
+        }
+    }
+
+    /// <summary>**天端の帯へ光線を打つ。**高さ <paramref name="yTop"/> − 0.005 から <paramref name="band"/> 下まで 0.01 刻みで
+    /// <paramref name="o"/>(高さは無視)から <paramref name="d"/> へ打ち、<b>最初に当たった高さ</b>での距離(当たらなければ NaN)。
+    /// ⭐ 見える取り合いは天端の縁 ── 相手の面が法(石垣)でも、天端の帯の当たりが見える口を決める。胴・尾(地中)で当てない。</summary>
+    public static float RayAtTopBand(IList<GameObject> mates, Vector3 o, Vector3 d, float maxDist, float yTop, float band = 0.08f)
+    {
+        for (float dy = 0.005f; dy <= band + 1e-4f; dy += 0.01f)
+        {
+            o.y = yTop - dy; float h = RayToBodies(mates, o, d, maxDist);
+            if (!float.IsNaN(h)) return h;
+        }
+        return float.NaN;
+    }
+
+    /// <summary>**駒の端を相手の面まで伸ばす**(<see cref="StretchEnd"/>)。端(<paramref name="dir"/> の側)の少し内から、駒の厚み
+    /// (dir に直交)の 3 点で相手の天端の帯(<paramref name="yTop"/>)へ光線を打ち、**最も遠い当たり**まで伸ばす(見える高さで口 0 ──
+    /// 閉じは「隙間 > めり込み」)。返り値 = 伸ばした量[m](当たらなければ NaN・駒は触らない)。<paramref name="spread"/> = 当たりの割れ
+    /// (相手の面が走りに斜め・法のとき > 0 ── その分は帯の下で相手の中へ入る)。
+    /// 当たる先: 石段の袖の走りが段の外(踏み止め・踊り場)へ延び、相手(基壇・腰石垣)の面で止まる所(山王 男坂の頭 × 楼門の腰)。</summary>
+    public static float ExtendEndToFace(GameObject piece, Vector3 dir, IList<GameObject> mates, float yTop, float maxReach, out float spread, out int hits)
+    {
+        spread = 0f; hits = 0;
+        dir.y = 0f; dir.Normalize(); var perp = new Vector3(dir.z, 0f, -dir.x);
+        var ed = ExtentAlong(piece, dir); var ep = ExtentAlong(piece, perp);
+        Vector3 o0 = piece.transform.position;
+        float far = float.MinValue, near = float.MaxValue;
+        foreach (float a in new[] { ep.x + 0.05f, (ep.x + ep.y) * 0.5f, ep.y - 0.05f })
+        {
+            Vector3 o = o0 + dir * (ed.y - 0.02f) + perp * a;
+            float h = RayAtTopBand(mates, o, dir, maxReach + 0.02f, yTop); if (float.IsNaN(h)) continue;
+            float t = Vector3.Dot(new Vector3(o.x, 0f, o.z), dir) + h; hits++;
+            far = Mathf.Max(far, t); near = Mathf.Min(near, t);
+        }
+        if (hits == 0) return float.NaN;
+        spread = far - near;
+        float got = StretchEnd(piece.transform, null, dir, +1f, far);
+        // 見える口を閉じる(駒の端の面取り・法の分)── 天端の帯で駒の中から相手まで測り、残る口だけ伸ばす(最大 3 巡)
+        for (int pass = 0; pass < 3 && !float.IsNaN(got); pass++)
+        {
+            float gw = MeasureEndGap(piece, dir, mates, yTop);
+            if (float.IsNaN(gw) || gw <= 0.002f) break;
+            got += StretchEnd(piece.transform, null, dir, +1f, EdgeAlong(piece.transform, dir, +1f) + gw);
+        }
+        return got;
+    }
+
+    /// <summary>駒の <paramref name="dir"/> の端と相手の面の見える口[m](+ 口 / − 食い込み)の最大 ── 駒の厚みの 3 点 × 天端の帯
+    /// (<paramref name="yTop"/> − 0.005 から下へ、最初に当たる高さ)。当たらなければ NaN。</summary>
+    public static float MeasureEndGap(GameObject piece, Vector3 dir, IList<GameObject> mates, float yTop)
+    {
+        dir.y = 0f; dir.Normalize(); var perp = new Vector3(dir.z, 0f, -dir.x);
+        var ed = ExtentAlong(piece, dir); var ep = ExtentAlong(piece, perp); Vector3 o0 = piece.transform.position;
+        float worst = float.NaN;
+        foreach (float a in new[] { ep.x + 0.05f, (ep.x + ep.y) * 0.5f, ep.y - 0.05f })
+        {
+            Vector3 o = o0 + dir * (ed.y - 0.10f) + perp * a;
+            for (float dy = 0.005f; dy <= 0.085f; dy += 0.01f)
+            {
+                o.y = yTop - dy; float gp = GapAlong(piece, mates, o, dir, 0.3f); if (float.IsNaN(gp)) continue;
+                worst = float.IsNaN(worst) ? gp : Mathf.Max(worst, gp); break;
+            }
+        }
+        return worst;
+    }
+
+    /// <summary>**敷石を据える**(踏石・石段の頭の踏み止め・EDO-0428)。四角 <paramref name="quad"/>(世界 XZ・算出物)の中へ、段石
+    /// <paramref name="pathOf"/>(個体 i → 部材)を前 <paramref name="front"/>(部材の局所 +Z = 見え面の向き)へ並べて敷く。
+    /// <para>① 端: 背(−front)・前(+front)・脇(±横)は、相手 <paramref name="backMates"/> / <paramref name="frontMates"/> /
+    /// <paramref name="sideMates"/> の**天端の帯**(<see cref="RayAtTopBand"/>)へ四角の中から光線を打って測った面。相手が無い・当たらない端は
+    /// 四角の縁。⭐ 当たりが割れたら最も遠い所まで(見える口 0・割れた分は帯の下で相手へ入る)。</para>
+    /// <para>② 枚数 = 奥行 ÷ 部材の走りの丸め(1 以上)。各枚を等分の区間へ <see cref="StretchEnd"/> で伸縮(前 → 背 → 脇の順。
+    /// ピボットに頼らない)。</para>
+    /// <para>③ 天端: <paramref name="top"/>(指図の面の高さ)。NaN なら各枚の外形の中の地表の最大(= 天端がどこでも土に埋まらない)。
+    /// 高さは据えた実メッシュの最高点で合わせる。</para>
+    /// 硬い: 天端の埋没 0・相手との見える口 0。柔らかい(報告のみ): 相手の無い縁の見付。</summary>
+    public static List<GameObject> LayShikiishi(System.Func<int, string> pathOf, Vector2[] quad, Vector2 front, float top, Transform parent, string name,
+                                                IList<GameObject> backMates, IList<GameObject> frontMates, IList<GameObject> sideMates, out Shiki rep)
+    {
+        rep = new Shiki { backGap = float.NaN, backBite = float.NaN, frontGap = float.NaN, frontBite = float.NaN, sideGap = float.NaN, sideBite = float.NaN };
+        var res = new List<GameObject>();
+        Vector2 f = front.normalized, s = new Vector2(f.y, -f.x);
+        Vector3 F3 = new Vector3(f.x, 0f, f.y), S3 = new Vector3(s.x, 0f, s.y);
+        float fLo = float.MaxValue, fHi = float.MinValue, sLo = float.MaxValue, sHi = float.MinValue;
+        foreach (var q in quad) { float a = Vector2.Dot(q, f), b = Vector2.Dot(q, s); fLo = Mathf.Min(fLo, a); fHi = Mathf.Max(fHi, a); sLo = Mathf.Min(sLo, b); sHi = Mathf.Max(sHi, b); }
+        System.Func<float, float, Vector3> W = (a, b) => { var p = f * a + s * b; return new Vector3(p.x, 0f, p.y); };
+        float fMid = (fLo + fHi) * 0.5f, sMid = (sLo + sHi) * 0.5f;
+        // 測る高さ(光線の帯の頭)── 天端が無ければ四角の中の地表の最大
+        float yRay = top;
+        if (float.IsNaN(yRay)) { yRay = float.MinValue; for (int i = 0; i <= 4; i++) for (int j = 0; j <= 4; j++) { var p = W(Mathf.Lerp(fLo, fHi, i / 4f), Mathf.Lerp(sLo, sHi, j / 4f)); yRay = Mathf.Max(yRay, Ground(p.x, p.z)); } }
+        float reachF = (fHi - fLo) * 0.5f + 0.6f, reachS = (sHi - sLo) * 0.5f + 0.6f;
+        // ① 端を相手の面で
+        System.Func<IList<GameObject>, Vector3, float, float, bool, float> EndAt = (mates, d, fromA, fallback, alongS) =>
+        {
+            if (mates == null || mates.Count == 0) return fallback;
+            float best = float.NaN;
+            float[] ks = { 0.1f, 0.3f, 0.5f, 0.7f, 0.9f };
+            foreach (var k in ks)
+            {
+                Vector3 o = alongS ? W(Mathf.Lerp(fLo, fHi, k), fromA) : W(fromA, Mathf.Lerp(sLo, sHi, k));
+                float h = RayAtTopBand(mates, o, d, alongS ? reachS : reachF, yRay); if (float.IsNaN(h)) continue;
+                float t = Vector3.Dot(o, d) + h;                    // d の向きの座標(遠いほど大)
+                best = float.IsNaN(best) ? t : Mathf.Max(best, t);
+            }
+            if (float.IsNaN(best)) return fallback;
+            // d の向きの座標 → f / s の座標(d = ±F3 / ±S3)
+            return (Vector3.Dot(d, alongS ? S3 : F3) > 0f) ? best : -best;
+        };
+        float fb = EndAt(backMates, -F3, fMid, fLo, false);
+        float ff = EndAt(frontMates, F3, fMid, fHi, false);
+        float sl = EndAt(sideMates, -S3, sMid, sLo, true);
+        float sh = EndAt(sideMates, S3, sMid, sHi, true);
+        rep.depth = ff - fb; rep.width = sh - sl;
+        if (rep.depth < 0.1f || rep.width < 0.1f) { rep.part = "奥行か幅が 0.1 未満 ── 据えない"; return res; }
+        // ② 枚数
+        string p0 = pathOf(0); rep.part = System.IO.Path.GetFileNameWithoutExtension(p0);
+        var probe = Place(p0, W(fMid, sMid), Mathf.Atan2(f.x, f.y) * Mathf.Rad2Deg, Vector3.one, parent, name + "_probe");
+        if (probe == null) { rep.part = "部材が無い: " + p0; return res; }
+        float run = LocalSpan(probe.transform, Vector3.forward); Object.DestroyImmediate(probe);
+        int n = Mathf.Max(1, Mathf.RoundToInt(rep.depth / Mathf.Max(0.05f, run)));
+        float L = rep.depth / n;
+        for (int k = 0; k < n; k++)
+        {
+            float a0 = fb + L * k, a1 = fb + L * (k + 1);
+            var g = Place(pathOf(k), W((a0 + a1) * 0.5f, (sl + sh) * 0.5f), Mathf.Atan2(f.x, f.y) * Mathf.Rad2Deg, Vector3.one, parent,
+                          n == 1 ? name : name + "_" + k.ToString("00"));
+            if (g == null) continue;
+            StretchEnd(g.transform, null, F3, +1f, a1);
+            StretchEnd(g.transform, null, F3, -1f, a0);
+            StretchEnd(g.transform, null, S3, +1f, sh);
+            StretchEnd(g.transform, null, S3, -1f, sl);
+            // ③ 天端
+            float ty = top;
+            if (float.IsNaN(ty))
+            {
+                ty = float.MinValue;
+                for (int i = 0; i <= 4; i++) for (int j = 0; j <= 4; j++) { var p = W(Mathf.Lerp(a0, a1, i / 4f), Mathf.Lerp(sl, sh, j / 4f)); ty = Mathf.Max(ty, Ground(p.x, p.z)); }
+            }
+            float mx = float.MinValue; foreach (var v in Body(g.transform, 999999, true)) mx = Mathf.Max(mx, v.y);
+            g.transform.position += Vector3.up * (ty - mx);
+            rep.top = ty;
+            res.Add(g);
+        }
+        rep.slabs = res.Count;
+        if (res.Count == 0) return res;
+        float topM = rep.top;
+        // ①' 見える口を閉じる: 端の駒の天端の帯で相手までの口を測り、口が残れば端をそこまで伸ばす(面取り・法の分。最大 3 巡)。
+        //   ⭐ 閉じは「隙間 > めり込み」── 0 を外すなら帯の下で相手へ入る側へ(見えない)。
+        System.Func<IList<GameObject>, GameObject, Vector3, float> TopGap = (mates, own, d) =>
+        {
+            if (mates == null || mates.Count == 0) return float.NaN;
+            float worst = float.NaN;
+            foreach (var k in new[] { 0.1f, 0.3f, 0.5f, 0.7f, 0.9f })
+            {
+                Vector3 o = W(Vector3.Dot(own.transform.position, F3), Mathf.Lerp(sl, sh, k));
+                for (float dy = 0.005f; dy <= 0.085f; dy += 0.01f)
+                {
+                    var oo = o; oo.y = topM - dy;
+                    float gp = GapAlong(own, mates, oo, d, 0.3f); if (float.IsNaN(gp)) continue;
+                    worst = float.IsNaN(worst) ? gp : Mathf.Max(worst, gp); break;
+                }
+            }
+            return worst;
+        };
+        System.Func<GameObject, Vector3, float> SideGap = (own, d) =>
+        {
+            if (sideMates == null || sideMates.Count == 0) return float.NaN;
+            float worst = float.NaN; var ef = ExtentAlong(own, F3); float fo = Vector3.Dot(own.transform.position, F3);
+            foreach (var k in new[] { 0.2f, 0.5f, 0.8f })
+            {
+                Vector3 o = W(fo + Mathf.Lerp(ef.x, ef.y, k), (sl + sh) * 0.5f);
+                for (float dy = 0.005f; dy <= 0.085f; dy += 0.01f)
+                {
+                    var oo = o; oo.y = topM - dy;
+                    float gp = GapAlong(own, sideMates, oo, d, 0.3f); if (float.IsNaN(gp)) continue;
+                    worst = float.IsNaN(worst) ? gp : Mathf.Max(worst, gp); break;
+                }
+            }
+            return worst;
+        };
+        for (int pass = 0; pass < 3; pass++)
+        {
+            bool moved = false;
+            foreach (var g in res)
+                foreach (var sg0 in new[] { 1f, -1f })
+                {
+                    float gs = SideGap(g, S3 * sg0);
+                    if (!float.IsNaN(gs) && gs > 0.002f) { StretchEnd(g.transform, null, S3, sg0, EdgeAlong(g.transform, S3, sg0) + sg0 * gs); moved = true; }
+                }
+            float gb = TopGap(backMates, res[0], -F3);
+            if (!float.IsNaN(gb) && gb > 0.002f) { StretchEnd(res[0].transform, null, F3, -1f, EdgeAlong(res[0].transform, F3, -1f) - gb); moved = true; }
+            var last = res[res.Count - 1];
+            float gf = TopGap(frontMates, last, F3);
+            if (!float.IsNaN(gf) && gf > 0.002f) { StretchEnd(last.transform, null, F3, +1f, EdgeAlong(last.transform, F3, +1f) + gf); moved = true; }
+            if (!moved) break;
+        }
+        // 据えた後の実測: 天端の帯で、敷石の中から相手へ(口 + / 食い込み −)
+        System.Action<IList<GameObject>, Vector3, float, bool, System.Action<float>> Meas = (mates, d, fromA, alongS, put) =>
+        {
+            if (mates == null || mates.Count == 0) return;
+            foreach (var k in new[] { 0.1f, 0.3f, 0.5f, 0.7f, 0.9f })
+            {
+                Vector3 o = alongS ? W(Mathf.Lerp(fb, ff, k), fromA) : W(fromA, Mathf.Lerp(sl, sh, k));
+                GameObject own = null; float bd = float.MaxValue;
+                foreach (var g in res) { float dd = Vector3.Distance(new Vector3(g.transform.position.x, 0f, g.transform.position.z), o); if (dd < bd) { bd = dd; own = g; } }
+                if (alongS) { own = null; bd = float.MaxValue; foreach (var g in res) { float dd = Mathf.Abs(Vector3.Dot(g.transform.position, F3) - Vector3.Dot(o, F3)); if (dd < bd) { bd = dd; own = g; } } }
+                else own = Vector3.Dot(d, F3) > 0f ? res[res.Count - 1] : res[0];
+                for (float dy = 0.005f; dy <= 0.085f; dy += 0.02f)
+                {
+                    var oo = o; oo.y = topM - dy;
+                    float gp = GapAlong(own, mates, oo, d, 0.3f); if (float.IsNaN(gp)) continue;
+                    put(gp); break;
+                }
+            }
+        };
+        int bh = 0, fh = 0, sh2 = 0; float bg = 0f, bb = 0f, fg = 0f, fbi = 0f, sg = 0f, sbi = 0f;
+        Meas(backMates, -F3, fMid, false, gp => { bh++; if (gp > 0) bg = Mathf.Max(bg, gp); else bb = Mathf.Max(bb, -gp); });
+        Meas(frontMates, F3, fMid, false, gp => { fh++; if (gp > 0) fg = Mathf.Max(fg, gp); else fbi = Mathf.Max(fbi, -gp); });
+        Meas(sideMates, -S3, sMid, true, gp => { sh2++; if (gp > 0) sg = Mathf.Max(sg, gp); else sbi = Mathf.Max(sbi, -gp); });
+        Meas(sideMates, S3, sMid, true, gp => { sh2++; if (gp > 0) sg = Mathf.Max(sg, gp); else sbi = Mathf.Max(sbi, -gp); });
+        rep.backHits = bh; rep.frontHits = fh; rep.sideHits = sh2;
+        if (bh > 0) { rep.backGap = bg; rep.backBite = bb; }
+        if (fh > 0) { rep.frontGap = fg; rep.frontBite = fbi; }
+        if (sh2 > 0) { rep.sideGap = sg; rep.sideBite = sbi; }
+        // 縁の見付(相手の無い縁)・天端の埋没(外形の中)
+        var allMates = new List<GameObject>();
+        foreach (var ml in new[] { backMates, frontMates, sideMates }) if (ml != null) allMates.AddRange(ml);
+        foreach (var g in res)
+        {
+            float gt = float.MinValue; foreach (var v in Body(g.transform, 999999, true)) gt = Mathf.Max(gt, v.y);
+            var hull = HullOfMat(g.transform, null);
+            Vector2 c = Vector2.zero; foreach (var q in hull) c += q; c /= Mathf.Max(1, hull.Length);
+            foreach (var q in hull)
+            {
+                var outP = q + (q - c).normalized * 0.05f; var inP = q + (c - q).normalized * 0.05f;
+                // 縁の外が相手・隣の敷石に覆われていれば見付でない(真上から光線)
+                bool covered = !float.IsNaN(RayToBodies(allMates, new Vector3(outP.x, gt + 0.5f, outP.y), Vector3.down, 0.6f))
+                            || !float.IsNaN(RayToBodies(res, new Vector3(outP.x, gt + 0.5f, outP.y), Vector3.down, 0.6f));
+                if (!covered) rep.expose = Mathf.Max(rep.expose, gt - Ground(outP.x, outP.y));
+                rep.buried = Mathf.Max(rep.buried, Ground(inP.x, inP.y) - gt);
+            }
+            rep.buried = Mathf.Max(rep.buried, Ground(c.x, c.y) - gt);
+        }
+        return res;
+    }
 }

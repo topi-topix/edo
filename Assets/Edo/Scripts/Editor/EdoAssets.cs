@@ -1161,6 +1161,25 @@ public static class EdoAssets
                  + (i % 2 == 0 ? "a" : "b") + ".fbx";
         }
 
+        /// <summary>**幅が最も近い焼けた段石**(<see cref="SannoDan"/> の綴りの物の中から・個体 <paramref name="i"/> の偶奇で a / b)。
+        /// 敷石(踏石・踏み止め)を石段の無い所へ敷くときに使う(EDO-0428)── 幅は据えるときに実メッシュで測って伸縮する。
+        /// 同じ幅が複数あれば踏面(走り)の最も長い物。無ければ null。</summary>
+        public static string SannoDanNearest(float width, int i)
+        {
+            const string dir = "Assets/Edo/Models/Kaidan";
+            if (!System.IO.Directory.Exists(dir)) return null;
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            var rx = new System.Text.RegularExpressions.Regex(@"^Dan_(\d+\.\d+)_(\d+\.\d+)_(\d+\.\d+)_" + (i % 2 == 0 ? "a" : "b") + "$");
+            string best = null; float bd = float.MaxValue, bf = 0f;
+            foreach (var f in System.IO.Directory.GetFiles(dir, "Dan_*.fbx"))
+            {
+                var m = rx.Match(System.IO.Path.GetFileNameWithoutExtension(f)); if (!m.Success) continue;
+                float w = float.Parse(m.Groups[3].Value, inv), fu = float.Parse(m.Groups[2].Value, inv), d = System.Math.Abs(w - width);
+                if (d < bd - 1e-4f || (System.Math.Abs(d - bd) <= 1e-4f && fu > bf)) { bd = d; bf = fu; best = f.Replace('\\', '/'); }
+            }
+            return best;
+        }
+
         /// <summary>**石段の袖(袖石垣)の1段ぶんの駒** — どの石段にも使える汎用の型(寸法は蹴上 <paramref name="keri"/>・踏面 <paramref name="fumi"/>[m] から従属)。
         /// 個体 <paramref name="i"/> は**その段の段石と同じ i**(偶奇で a / b。2段で一周期に竪目地をずらしてある ⇒ ⛔ 片方だけを並べない)。
         /// 切石の斜め布積み+笠石(耳石)。材 `Danishi`(段石と同じ)⇒ `Edo/山王社/新造部材のマテリアルをremap`。⛔ 城の `CastleWall` を袖に使わない(EDO-0415)。

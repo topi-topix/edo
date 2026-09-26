@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 315(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 317(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -204,6 +204,7 @@
 | `Own.SannoUmaya(nuKen, nvKen, ewMm, nsMm)` | 関数 | 山王社の御厩(供の棟)。nuKen(東西=X・桁行)×nvKen(南北=Z・梁間)[間]、 ewMm×nsMm = 柱芯[mm]。 | — |
 | `Own.SannoKura(nuKen, nvKen, ewMm, nsMm)` | 関数 | 山王社の御蔵 — 土蔵造・置屋根【`bom` 行33】。 | — |
 | `Own.SannoDan(keri, fumi, w, i)` | 関数 | 山王社の段石(石段の一段)。蹴上 keri / 踏面 fumi / 幅 w[m]、 個体 i の偶奇で a / b を振る(⛔ 片方だけを53段並べない — 目地が一直線に立つ)。 | SannoSha(Dan) |
+| `Own.SannoDanNearest(width, i)` | 関数 | 幅が最も近い焼けた段石(SannoDan の綴りの物の中から・個体 i の偶奇で a / b)。 | SannoSha(Stage5b_Fumiishi) |
 | `Own.IshidanSode(keri, fumi, i)` | 関数 | 石段の袖(袖石垣)の1段ぶんの駒 — どの石段にも使える汎用の型(寸法は蹴上 keri・踏面 fumi[m] から従属)。 | BuildIshidan(FitObliqueEnd・PlaceIshidanSode), SannoSha(AbutStairsToWalls・Stage2_Kaidan) |
 | `Own.ISHIDAN_SODE_DEPTH_STD` | float | 袖の丈(天端の線から下端まで)の既定 2.20 = 最大見付 1.74 + 根入れ 0.46。 | BuildIshidan(MiterIshidanSode), SannoSha(Stage2_Kaidan) |
 | `Own.IshidanSodeDepths` | float[] | 焼いてある袖の丈(浅い順)。切通しで袖を背の地盤まで上げる(`copingRise:"groundHi"`)とき、 上げの上限 = 丈 − 笠の上がり 0.30 − 段石の根入れ(実メッシュで測る。 | BuildIshidan(PlaceIshidanSode), SannoSha(Stage2_Kaidan) |
@@ -217,6 +218,7 @@
 | `Own.DanKiriNone` | string | `0` — SannoDanKiri の切らない端。 | BuildIshidan(CutStairEndsToBatter) |
 | `Own.DanKiriEnd(d)` | 関数 | SannoDanKiri の端: 全長を返しの法で切る(d = 蹴上の中ほどでの返しの面の食い込み)。 | BuildIshidan(CutStairEndsToBatter・MeasureStepEndOnBatter) |
 | `Own.DanKiriEnd(d, za, cornerUphill)` | 関数 | SannoDanKiri の端: 返しと袖に跨る。 | BuildIshidan(CutStairEndsToBatter・MeasureStepEndOnBatter) |
+| `Own.DanKiriEnd(d, za, cornerUphill, nori)` | 関数 | SannoDanKiri の端: 返しと袖に跨り、返しの面・欠いた奥の面とも法 nori(野面の乱積み 1:0.3 ── EDO-0437 2026-09-26)。 | BuildIshidan(CutStairEndsToBatter・MeasureStepEndOnBatter) |
 | `Own.DanKiriEnd(d, deg, nori)` | 関数 | SannoDanKiri の端: 平面で斜めに切る。 | BuildIshidan(CutStairEndsToBatter・MeasureStepEndOnBatter) |
 | `Own.NearestBaked(path, tol)` | 関数 | 綴りの数だけが違う焼いてある兄弟を引く(EDO-0430 2026-09-26)。 | BuildIshidan(CutStairEndsToBatter) |
 | `Own.SannoNozura(h, grade, i)` | 関数 | 野面の乱積みの土留め — 1間の駒(山王社の前庭の縁。 | BuildNozura(PlaceNozuraRun), SannoSha(Nozura) |

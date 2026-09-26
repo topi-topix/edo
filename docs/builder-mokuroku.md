@@ -5,7 +5,7 @@
 **メニューの名・Stage の関数・ビルダーの中の関数を探すときは、C# を grep で読み歩かずまずここを引く。**
 Stage の本体(何をどの順に据えるか)は目録に無い — 名を決めてから、その関数の行だけ読む。
 
-- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 16 本・メニュー 78・関数 603(非公開も)。
+- `Assets/Edo/Scripts/Editor/Edo*Builder*.cs`・`Edo*Rebuild*.cs` 16 本・メニュー 79・関数 605(非公開も)。
 - メニューは Unity の `execute_menu_item` にそのまま渡せる全名。呼ぶ関数 = メニューの関数の頭で呼んでいる同じファイルの関数。
 - 関数へ跳ぶ: `grep -n "static .* <名>(" Assets/Edo/Scripts/Editor/<ファイル>`。
 - 据え方の関数は `docs/edobuild-mokuroku.md`、部材の名は `docs/edoassets-mokuroku.md`。⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
@@ -20,7 +20,7 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | [EdoMatsudairaDewaBuilder.cs](#edomatsudairadewabuildercs) | 松平出羽守上屋敷(出雲松江藩 18万6千石)ビルダー。 | 15 | 97 |
 | [EdoOkabeYashikiBuilder.cs](#edookabeyashikibuildercs) | 岡部筑前守長寛(和泉岸和田藩5万3千石・譜代・帝鑑間)上屋敷 ビルダー — 全面起こし直し(2026-09-03) | 17 | 101 |
 | [EdoSannoShaBuilder.cs](#edosannoshabuildercs) | 山王権現社(日枝神社)本体+観理院+樹下家邸+山王門前町ビルダー (2026-08-11) | 1 | 34 |
-| [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 12 | 96 |
+| [EdoSannoShaRebuild.cs](#edosannosharebuildcs) | 山王権現社 — 指図どおりに建て直すビルダー (2026-09-10 棟梁) | 13 | 98 |
 | [EdoSanyashikiRebuild.cs](#edosanyashikirebuildcs) | 三屋敷(太田・加納・鍋島=松平肥前守)の区画を下書きv3へ更新 (2026-08-08) | 0 | 6 |
 | [EdoSekiBuilder.cs](#edosekibuildercs) | — | 1 | 8 |
 | [EdoShiomizakaRebuild.cs](#edoshiomizakarebuildcs) | 汐見坂(段坂)を新区割りの回廊へ敷き直す (2026-08-09) | 0 | 12 |
@@ -493,7 +493,8 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `Edo/山王社/建て直し/6 社殿5棟+木階` | `Stage6Menu` | `Stage6_Shaden` |
 | `Edo/山王社/建て直し/7 社叢(算出物の点をそのまま置く)` | `Stage7Menu` | `Stage7_Shaso` |
 | `Edo/山王社/建て直し/8 前庭の井戸(板石敷・井筒+井桁・井戸屋形)` | `Stage8Menu` | `Stage8_Ido`, `WKeidai`, `D`, `F` |
-| `Edo/山王社/建て直し/9 縁の皮(段石・袖・土留め・面の縁の升に穴を開けて皮で描く)` | `Stage9Menu` | `Stage9_Hifu`, `Gate`, `Group`, `SkinFaces` |
+| `Edo/山王社/建て直し/9 縁の皮(段石・袖・土留め・面の縁の升に穴を開けて皮で描く)` | `Stage9Menu` | `Stage9_Hifu`, `Gate`, `Group` |
+| `Edo/山王社/建て直し/5b 踏石・踏み止め(門・石段の頭の敷石)` | `Stage5bMenu` | `Stage5b_Fumiishi`, `Gate`, `Group`, `Clear` |
 | `Edo/山王社/建て直し/一括(0→6・8・9。⛔ 社叢は撒かない)` | `BuildAllMenu` | `BuildAll`, `Gate` |
 
 | 関数 | 返す | 公開 | 何をするか(注釈の一文目) |
@@ -578,8 +579,9 @@ Stage の本体(何をどの順に据えるか)は目録に無い — 名を決�
 | `SkinFaces(sb)` | `List<EdoBuild.SkinFace>` |  | 皮が高さを揃える面 = 算出物 `terraces` + 取り合いの欄の「被せ」(面の輪郭が石段の最上段の外形を包む ── `EdoBuild.WrapTopStep` で最上段の実メッシュから輪郭を測って足す・join… |
 | `HifuGapTable()` | `string` | 公 | 皮と部材の隙の内訳(A 面の高さで塞がる / B 駒が浮く / C 面の外の取り合い)を皮を起こし直さずに刷る。 |
 | `HifuMeasure()` | `string` | 公 | 描かれた地表(皮)で測る: 男坂・女坂の踏面の埋没・袖と土留めの天端の埋没。 |
+| `Stage5b_Fumiishi()` | `string` | 公 | — |
 | `UnSkin()` | `string` |  | 据え直す Stage の冒頭で縁の皮を外す(穴を塞ぐ)。 |
-| `RunFrom(changed)` | `string` | 公 | 変えた Stage から後だけ流す(key: Retire・Grade・Kaidan・Dodome・Kakoi・Mon・Shaden・Ido・Hifu)。 |
+| `RunFrom(changed)` | `string` | 公 | 変えた Stage から後だけ流す(key: Retire・Grade・Kaidan・Dodome・Kakoi・Mon・Fumiishi・Shaden・Ido・Hifu)。 |
 | `PlanFrom(changed)` | `string` | 公 | 流さずに、流れる Stage だけを見積もる。 |
 | `BuildAll()` | `string` | 公 | — |
 

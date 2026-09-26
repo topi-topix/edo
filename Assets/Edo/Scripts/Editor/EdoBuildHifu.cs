@@ -75,9 +75,11 @@ public static partial class EdoBuild
         public int gapPts, gapN, gapBySkin, gapBig, coverPts, coverN;
         public float gapMax, coverMax; public Vector3 gapAt, coverAt; public string gapBy, coverBy;
         public string mesh;
+        /// <summary>床を覆う部材(floorParts)と測った床の天端。</summary>
+        public string floors;
         public override string ToString()
         {
-            return "穴 " + holesCut + " 升(部材 " + cellsParts + "・面の縁 " + cellsFace + "(うち縁の線の帯 " + cellsBand + ")・裏込め " + cellsFill +
+            return (string.IsNullOrEmpty(floors) ? "" : "床を覆う部材:" + floors + " / ") + "穴 " + holesCut + " 升(部材 " + cellsParts + "・面の縁 " + cellsFace + "(うち縁の線の帯 " + cellsBand + ")・裏込め " + cellsFill +
                    "・既に穴で触らず " + skipHole + "・地形の木が立つので開けず " + skipTree + "・植栽の点が立つので開けず " + skipPlant + ")" +
                    (plantOnHole > 0 ? " ⛔ 穴の上の植栽の点 " + plantOnHole : "") +
                    " / 皮 頂点 " + verts + "・三角 " + tris + "(縁の点 " + pinned + " は地形のまま)" +
@@ -186,7 +188,13 @@ public static partial class EdoBuild
         {
             var ts = TrisOfMat(g.transform, null); if (ts.Count == 0) return;
             var hull = HullOfMat(g.transform, null); if (hull == null || hull.Length < 3) return;
-            int k = hulls.Count; hulls.Add(hull); names.Add(g.name); banded.Add(crestBand);
+            AddTris(g, g.name, ts, hull, crestBand);
+        }
+        /// <summary>駒の三角形の一部(<paramref name="ts"/>)だけを部材として入れる(門の床 ── <see cref="FloorTris"/>・EDO-0428)。</summary>
+        public void AddTris(GameObject g, string name, List<Vector3[]> ts, Vector2[] hull, bool crestBand)
+        {
+            if (ts == null || ts.Count == 0 || hull == null || hull.Length < 3) return;
+            int k = hulls.Count; hulls.Add(hull); names.Add(name); banded.Add(crestBand);
             { float a0 = float.MaxValue, a1 = float.MinValue, b0 = float.MaxValue, b1 = float.MinValue;
               foreach (var q in hull) { a0 = Mathf.Min(a0, q.x); a1 = Mathf.Max(a1, q.x); b0 = Mathf.Min(b0, q.y); b1 = Mathf.Max(b1, q.y); }
               bounds.Add(new Vector4(a0, b0, a1, b1)); }
@@ -289,6 +297,45 @@ public static partial class EdoBuild
         }
     }
 
+    /// <summary>**門の床(基壇)の三角形**(EDO-0428)。駒の外形の中点を含む面(<paramref name="faces"/>)の高さ ±<see cref="FLOOR_REACH"/> にある
+    /// 上向きの面の最高 = 床の天端 <paramref name="floorTop"/>。床 = 全頂点がその天端 + 0.005 以下の三角形(柱・壁・屋根は上へ抜けるので入らない)。
+    /// 外形 <paramref name="hull"/> は床の三角形の凸包。面が無い・上向きの面が無ければ null。
+    /// 当たる先: 面の高さに天端を据えた門・棟の基壇すべて(山王 楼門の基壇 28.30 = 境内の面 ── 皮と地形が同じ高さで斑に出た)。</summary>
+    public static List<Vector3[]> FloorTris(GameObject g, IList<SkinFace> faces, out float floorTop, out Vector2[] hull)
+    {
+        floorTop = float.NaN; hull = null;
+        if (faces == null || faces.Count == 0) return null;
+        var ts = TrisOfMat(g.transform, null); if (ts.Count == 0) return null;
+        var mf0 = g.GetComponentInChildren<MeshFilter>();
+        float sgn = (mf0 != null ? mf0.transform.localToWorldMatrix.determinant : g.transform.localToWorldMatrix.determinant) < 0f ? -1f : 1f;
+        var all = HullOfMat(g.transform, null); if (all == null || all.Length < 3) return null;
+        Vector2 c = Vector2.zero; foreach (var q in all) c += q; c /= all.Length;
+        float fy = float.NaN; float fa = float.MaxValue;
+        foreach (var f in faces) if (EdoGeom.PIP(f.poly, c)) { float a = Area(f.poly); if (a < fa) { fa = a; fy = f.y; } }
+        if (float.IsNaN(fy)) return null;
+        foreach (var t in ts)
+        {
+            var nv = Vector3.Cross(t[1] - t[0], t[2] - t[0]); float mag = nv.magnitude;
+            if (mag < 1e-9f || sgn * nv.y / mag <= UP_NY) continue;
+            float yc = (t[0].y + t[1].y + t[2].y) / 3f; if (Mathf.Abs(yc - fy) > FLOOR_REACH) continue;
+            float ym = Mathf.Max(t[0].y, Mathf.Max(t[1].y, t[2].y));
+            if (float.IsNaN(floorTop) || ym > floorTop) floorTop = ym;
+        }
+        if (float.IsNaN(floorTop)) return null;
+        var L = new List<Vector3[]>(); var p2 = new List<Vector2>();
+        foreach (var t in ts)
+        {
+            if (Mathf.Max(t[0].y, Mathf.Max(t[1].y, t[2].y)) > floorTop + 0.005f) continue;
+            L.Add(t); foreach (var v in t) p2.Add(new Vector2(v.x, v.z));
+        }
+        if (L.Count == 0) return null;
+        var hi = EdoGeom.HullXZ(p2.ToArray()); hull = new Vector2[hi.Length];
+        for (int i = 0; i < hi.Length; i++) hull[i] = p2[hi[i]];
+        return L;
+    }
+    /// <summary><see cref="FloorTris"/> が床の天端を探す、面の高さからの幅[m]。</summary>
+    public const float FLOOR_REACH = 0.5f;
+
     /// <summary>**縁の皮を起こす。**<paramref name="parts"/>(石段・袖・土留め)の外形に掛かる地形の升と、
     /// <paramref name="faces"/> の縁で地形が面の高さから <paramref name="faceTol"/> を超えて外れる升に穴を開け、
     /// その升を <paramref name="step"/> 格子の皮で描く(皮は <paramref name="parent"/> の下に 1 枚)。
@@ -306,7 +353,8 @@ public static partial class EdoBuild
                                          float faceTol, float step = 0.25f, float margin = 0.5f, float eps = 0f, float under = 0.15f,
                                          SkinDesign design = null, float drawTol = 0.10f, float backfill = 0f, bool sealFace = false,
                                          IList<GameObject> digParts = null, float digUnder = 0.05f, float digBatter = 1f,
-                                         IList<GameObject> crestBandParts = null, IList<Vector2> plantPoints = null)
+                                         IList<GameObject> crestBandParts = null, IList<Vector2> plantPoints = null,
+                                         IList<GameObject> floorParts = null)
     {
         var r = new SkinReport();
         var t = T(); var td = t.terrainData; var org = t.transform.position;
@@ -319,6 +367,18 @@ public static partial class EdoBuild
         var idx = new TopIndex();
         var bandSet = crestBandParts != null ? new HashSet<GameObject>(crestBandParts) : null;
         foreach (var g in parts) if (g != null && g.activeInHierarchy) idx.Add(g, bandSet != null && bandSet.Contains(g));
+        // ⭐ 床を覆う部材(門の基壇 ── floorParts・EDO-0428): 床の帯の三角形だけを部材に入れる。皮は床の外形の中で床の天端 − under へ
+        //   納まり、床の外形に掛かる升は穴になる(地形も皮も床と同じ高さで斑に描かれない)。⛔ 屋根・軒の外形で穴を開けない。
+        r.floors = "";
+        if (floorParts != null)
+            foreach (var g in floorParts)
+            {
+                if (g == null || !g.activeInHierarchy) continue;
+                float ft; Vector2[] flh; var ftr = FloorTris(g, faces, out ft, out flh);
+                if (ftr == null) { r.floors += " " + g.name + "(床の面が無い・入れず)"; continue; }
+                idx.AddTris(g, g.name + "(床)", ftr, flh, false);
+                r.floors += " " + g.name + "(床 " + ft.ToString("F2") + ")";
+            }
         r.parts = idx.hulls.Count;
 
         // ---- 2 穴の升

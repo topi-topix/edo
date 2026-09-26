@@ -10,7 +10,7 @@ argument-hint: "[YYYY-MM-DD]"
 
 1. `python3 Tools/Session/edo_session.py start infra --phase 基盤`。
 2. 日誌を本書き: `python3 Tools/Session/nikki.py digest`($1 があれば `--date $1`。既定は前日)。
-   `docs/Nikki/<date>.md` を読む — 総括・時間の行き先・役ごと・手戻り・セッション表。
+   `docs/Nikki/<date>.md` を読む — 総括・時間の行き先・役ごと・役の中の内訳・手戻り・セッション表。
 3. 起票を読む: `python3 Tools/Session/edo_board.py list --estate infra --type task` で題が「日誌(<date>)」の物を
    `show <ID>`。本文の反映案(→スキル / →規則 / →メモリ / →教訓 / →不要)を一件ずつ裁く。
 4. 処置(すべて手で):

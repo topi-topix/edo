@@ -517,13 +517,10 @@ public static class EdoSannoSashizuCheck
             //     中ほどの一段ではなく**全段の最大**を石段の幅とする(2026-09-26 参道の階で 5.51 を 5.26 と誤読)。
             if (steps.Count > 0)
             {
+                //   ⭐ 端を相手の石に沿わせて焼いた段(EdoAssets.Own.SannoDanFit)は石の下へ端が張り出し、外接箱では広く出る(参道の階 5.51 を 6.06 と
+                //     誤読・2026-09-27)⇒ **段鼻から 0.05 奥の横一線で踏面の平らな所の幅**を実メッシュで読む(TreadWidthAtNosing)。
                 float wGot = 0f;
-                foreach (var stp in steps)
-                {
-                    float mnx, mxx, mnz, mxz, mny;
-                    EdoBuild.ObbFootprint(stp, out mnx, out mxx, out mnz, out mxz, out mny);
-                    wGot = Mathf.Max(wGot, (mxx - mnx) * Mathf.Abs(stp.lossyScale.x));
-                }
+                foreach (var stp in steps) wGot = Mathf.Max(wGot, TreadWidthAtNosing(stp, 0.05f));
                 float wWant = F(st, "wM");
                 if (Mathf.Abs(wGot - wWant) > POS_TOL_M)
                     bad("石段", "石段 " + name + " の幅が違う(指図 " + wWant.ToString("F2") +
@@ -1031,6 +1028,42 @@ public static class EdoSannoSashizuCheck
     { foreach (var t in index) if (t.name == name) return t; return null; }
     static List<Transform> ByPrefix(List<Transform> index, string pfx)
     { var r = new List<Transform>(); foreach (var t in index) if (t.name.StartsWith(pfx)) r.Add(t); return r; }
+
+    /// <summary>段石の**踏面の平らな所の幅**[m](実寸)。駒の局所で、段鼻(局所 +Z の最大 = 坂下の縁)から <paramref name="back"/> 奥の横一線を
+    /// 0.005 刻みで上から切り、上を向いた面の高さが踏面(局所 Y の最大)から 0.005 以内の最も長い一続き(石の割りの目地 ≤ 0.05 は跨ぐ)を幅とする。
+    /// 端を法で切った駒・相手の石へ沿わせた駒でも、踏面の縁で読む(外接箱で読まない)。</summary>
+    static float TreadWidthAtNosing(Transform stp, float back)
+    {
+        var tris = new List<Vector3[]>();
+        float mnx = float.MaxValue, mxx = float.MinValue, mxz = float.MinValue, mxy = float.MinValue;
+        var W2L = stp.worldToLocalMatrix;
+        foreach (var mf in stp.GetComponentsInChildren<MeshFilter>())
+        {
+            var rr = mf.GetComponent<Renderer>(); if (mf.sharedMesh == null || rr == null || !rr.enabled) continue;
+            var M = W2L * mf.transform.localToWorldMatrix; var vs = mf.sharedMesh.vertices; var ts = mf.sharedMesh.triangles;
+            var L = new Vector3[vs.Length]; for (int i = 0; i < vs.Length; i++) { L[i] = M.MultiplyPoint3x4(vs[i]); mnx = Mathf.Min(mnx, L[i].x); mxx = Mathf.Max(mxx, L[i].x); mxz = Mathf.Max(mxz, L[i].z); mxy = Mathf.Max(mxy, L[i].y); }
+            for (int t = 0; t + 2 < ts.Length; t += 3) tris.Add(new[] { L[ts[t]], L[ts[t + 1]], L[ts[t + 2]] });
+        }
+        if (tris.Count == 0) return 0f;
+        // 踏面は石の割りの目地(幅 ≤ JOINT)で途切れる ⇒ 目地は跨いで一続きに数える
+        const float JOINT = 0.05f;
+        float z = mxz - back, best = 0f, step = 0.005f, runStart = float.NaN, lastFlat = float.NaN;
+        for (float x = mnx; x <= mxx + 1e-4f; x += step)
+        {
+            float top = float.NaN;
+            foreach (var q in tris)
+            {
+                Vector3 a = q[0], b = q[1], c = q[2];
+                float d = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z); if (Mathf.Abs(d) < 1e-12f) continue;
+                float l1 = ((b.z - c.z) * (x - c.x) + (c.x - b.x) * (z - c.z)) / d, l2 = ((c.z - a.z) * (x - c.x) + (a.x - c.x) * (z - c.z)) / d, l3 = 1f - l1 - l2;
+                if (l1 < -1e-5f || l2 < -1e-5f || l3 < -1e-5f) continue;
+                float y = l1 * a.y + l2 * b.y + l3 * c.y; if (float.IsNaN(top) || y > top) top = y;
+            }
+            bool flat = !float.IsNaN(top) && Mathf.Abs(top - mxy) <= 0.005f;
+            if (flat) { if (float.IsNaN(runStart) || x - lastFlat > JOINT) runStart = x; lastFlat = x; best = Mathf.Max(best, x - runStart + step); }
+        }
+        return best * Mathf.Abs(stp.lossyScale.x);
+    }
 
     /// <summary>DobeiRun が据える部材の名 `<run名>_<番号>f|b` から run 名を取り出す。
     /// 形が違えば null(=囲いの部材ではない)。</summary>

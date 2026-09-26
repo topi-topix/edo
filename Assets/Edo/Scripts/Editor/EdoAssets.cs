@@ -2231,7 +2231,13 @@ public static class EdoAssets
         /// 焼いてあるもの(EDO-0430・2026-09-26・90° × 4.00): **A159x200 / A200x159**(郭の階の南の袖の脇・入り 0.41)、
         /// **A171x200 / A200x171**(前庭の北東・参道の階の東の袖・入り 0.29)。どちらの腕が袖に当たるかで組を選ぶ
         /// (PlaceRunKado の yaw の解で局所 −Z の腕が袖の側なら A<短>x200)。材 `stone wall` ⇒ `Edo/共通/隅部材のマテリアルをremap`。
-        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 4 --arms 1.59,2.0 --render</summary>
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 4 --arms 1.59,2.0 --render
+        /// **腕は負でもよい**(腕の先が P の手前 ── 留めの三角の中で打ち切る)。綴りは符号ごと cm(`_A200x-4`)。
+        /// 切り口は局所 x = armPosX の鉛直面(小口の柄・天端 Y 4.00・見え面 +Z の足 2.40/天端 1.40 まで)、
+        /// もう一方の腕の留め面の背の帯(幅 −a·√2)は小口の柄で塞いである。
+        /// **A200x-4**(EDO-0437・2026-09-26・90° × 4.00): 御供所の郭 `TW_Gusho_EK_x_SE_kado` ── EK の run 1.36 に対し
+        /// +X の腕 2.00 が郭の階の南の袖 `TW_GushoKai_S` をまるごと呑んでいた(0.82)。袖の坂下の端(局所 x −0.041)で切る。
+        ///   blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 4 --arms 2.0,-0.04 --render</summary>
         public static string IshigakiKado(float deg, float h, float armNegZ, float armPosX)
         {
             int az = UnityEngine.Mathf.RoundToInt(armNegZ * 100f), ax = UnityEngine.Mathf.RoundToInt(armPosX * 100f);

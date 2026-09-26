@@ -11,6 +11,7 @@
     blender --background --python Tools/Blender/build_kado.py -- --part ishigaki --deg 90 --h 4 --arms 1.59,2.0 --render
         # 短い腕(石垣だけ)。腕 = 据え点(両腕の控えの線の交点)から腕の先までの走り[m]。
         # 順は (Unity 局所 −Z の腕, +X の腕)。→ Ishigaki_Kado_90_H0400_A159x200(EDO-0430)
+        # 腕は負でもよい(P の手前・留めの三角の中で打ち切る)。--arms 2.0,-0.04 → _A200x-4(EDO-0437)
 
 【なぜ要るか】在庫の出隅ブロック `Castle Wall Corner`(2.4m 角)が成立するのは折れ角 Δ≳60°。
   Δ が浅いと片面を合わせても apex が反対側の壁面から `2.4·cosΔ` はみ出す
@@ -385,13 +386,21 @@ def _dup(o, name):
     return c
 
 
-def shorten_arm(o, a, y_end):
+def shorten_arm(o, a, y_end, n=None):
     """入りの腕(+Y へ延びる)を y = a で切り、素の小口(y = y_end・法線 +Y の面)を切り口へ移して塞ぐ。
-    ⛔ 頂点を寄せて縮めない(面の石の柄が走りに潰れる)。bisect は面の UV を補間するので柄は切れるだけ。"""
+    ⛔ 頂点を寄せて縮めない(面の石の柄が走りに潰れる)。bisect は面の UV を補間するので柄は切れるだけ。
+
+    a ≤ 0(腕が据え点 P の手前で終わる ── 腕が留めの三角の中で打ち切られる)も切れる(2026-09-26 EDO-0437・
+    御供所の郭 EK の腕 −0.04)。そのとき:
+      ① 移した小口を留め面 n で切り、この腕の側(s·x + c·y ≥ 0)だけ残す(= この腕のその位置の断面)。
+      ② 小口の残りの帯(x ∈ [0, −a·c/s] ── 背の側)を留め面へ移して貼る。もう一方の腕の留め面のうち
+         この腕が退いた所が開くので、それを塞ぐ面(もう一方の腕の体の外へ向く)。小口の柄を背の側で使う。"""
     if a >= y_end - 1e-6:
         return o
-    if a <= 0.05:
+    if n is None and a <= 0.05:
         raise SystemExit("[kado] ⛔ 腕 %.3f が短すぎる" % a)
+    if n is not None and a <= -1.0:
+        raise SystemExit("[kado] ⛔ 腕 %.3f は留めの三角を越える" % a)
     me = o.data
     bm = bmesh.new(); bm.from_mesh(me)
     bm.normal_update()
@@ -403,12 +412,46 @@ def shorten_arm(o, a, y_end):
     capf = set(e for e in capgeo["geom"] if isinstance(e, bmesh.types.BMFace))
     for v in capv:
         v.co.y = a
+    strip_f = []
+    if n is not None and a < 0.0:
+        sn, cn = n[0], n[1]
+        xb = -a * cn / sn                      # 小口が留め面と交わる控えの位置(背 x=0 から)
+        sg = bmesh.ops.duplicate(bm, geom=list(capf))
+        sv = [e for e in sg["geom"] if isinstance(e, bmesh.types.BMVert)]
+        sf = [e for e in sg["geom"] if isinstance(e, bmesh.types.BMFace)]
+        # 帯 = 小口の x ≤ xb の側(背の側)
+        r = bmesh.ops.bisect_plane(bm, geom=sv + sf + list(set(ed for f in sf for ed in f.edges)), dist=1e-6,
+                                   plane_co=Vector((xb, a, 0)), plane_no=Vector((1, 0, 0)),
+                                   clear_outer=True, clear_inner=False)
+        strip_f = [f for f in bm.faces if f.is_valid and all(abs(v.co.y - a) < 1e-6 for v in f.verts)
+                   and all(v.co.x <= xb + 1e-6 for v in f.verts) and f not in capf]
+        # 小口の本体は留め面の手前(x ≥ xb)だけ残す
+        capf = set(f for f in capf if f.is_valid)
+        cv = list(set(v for f in capf for v in f.verts))
+        bmesh.ops.bisect_plane(bm, geom=cv + list(capf) + list(set(ed for f in capf for ed in f.edges)), dist=1e-6,
+                               plane_co=Vector((xb, a, 0)), plane_no=Vector((1, 0, 0)),
+                               clear_outer=False, clear_inner=True)
+        capf = set(f for f in bm.faces if f.is_valid and all(abs(v.co.y - a) < 1e-6 for v in f.verts)
+                   and all(v.co.x >= xb - 1e-6 for v in f.verts) and f not in set(strip_f))
+        # 帯を留め面へ剪断で移す(y = −x·s/c)
+        svs = set(v for f in strip_f for v in f.verts)
+        for v in svs:
+            v.co.y = -v.co.x * sn / cn
+        capv = list(set(v for f in capf for v in f.verts) | svs)
+        capf = capf | set(strip_f)
     others = [e for e in bm.verts[:] + bm.edges[:] + bm.faces[:]
               if not (isinstance(e, bmesh.types.BMFace) and e in capf)
               and not (isinstance(e, bmesh.types.BMVert) and e in set(capv))
               and not (isinstance(e, bmesh.types.BMEdge) and all(v in set(capv) for v in e.verts))]
     bmesh.ops.bisect_plane(bm, geom=others, dist=1e-6, plane_co=Vector((0, a, 0)), plane_no=Vector((0, 1, 0)),
                            clear_outer=True, clear_inner=False)
+    if strip_f:
+        # 帯の向き: もう一方の腕の体(留め面の正の側 ── 鏡に映すとこの腕が負の側へ行き、帯は正の側の体の外皮)
+        # の外 = −n へ向ける。鏡映で巻きが裏返るので、ここでは +n へ向けておく。
+        bm.normal_update()
+        for f in strip_f:
+            if f.is_valid and f.normal.dot(Vector(n)) < 0:
+                f.normal_flip()
     bmesh.ops.delete(bm, geom=[e for e in bm.edges if not e.link_faces], context='EDGES')
     bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
@@ -469,8 +512,8 @@ def build(part, deg, arms=None):
         if part != "ishigaki":
             raise SystemExit("[kado] --arms は石垣だけ")
         full = armA
-        armA = shorten_arm(_dup(full, "armA_s"), ARMS[0], n_pos * pitch)
-        armB = mirror_across(shorten_arm(_dup(full, "armB_s"), ARMS[1], n_pos * pitch), n)
+        armA = shorten_arm(_dup(full, "armA_s"), ARMS[0], n_pos * pitch, n)
+        armB = mirror_across(shorten_arm(_dup(full, "armB_s"), ARMS[1], n_pos * pitch, n), n)
         bpy.data.objects.remove(full, do_unlink=True)
     o = V.join([armA, armB], "%s_%02d%s%s%s" % (p["out"], round(abs(deg)), "" if deg > 0 else "M", "T" if FLIP_THK else "", hsuf() + asuf()))
     if mune is not None:
@@ -483,6 +526,30 @@ def build(part, deg, arms=None):
     me = o.data
     bm = bmesh.new(); bm.from_mesh(me)
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
+    if ARMS is not None and min(ARMS) < 0.0:
+        # 腕が留めの三角の中で終わると、もう一方の腕の天端の留めの辺の途中に切り口の角が乗る(T 字)。
+        #   その辺を角で割って継ぐ(割らないと天端の留めに開いた辺が 3 本残る。2026-09-26 実測)
+        for _ in range(8):
+            done = False
+            bnd = [e for e in bm.edges if e.is_boundary]
+            bv = set(v for e in bnd for v in e.verts)
+            for e in bnd:
+                a0, a1 = e.verts[0].co, e.verts[1].co
+                d = a1 - a0; L2 = d.length_squared
+                for v in bv:
+                    if v in e.verts:
+                        continue
+                    t = (v.co - a0).dot(d) / L2
+                    if 1e-4 < t < 1 - 1e-4 and (a0 + d * t - v.co).length < 1e-5:
+                        ne, nv = bmesh.utils.edge_split(e, e.verts[0], t)
+                        nv.co = v.co.copy()
+                        done = True
+                        break
+                if done:
+                    break
+            if not done:
+                break
+            bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
     bm.to_mesh(me); bm.free(); me.update()
 
     V.set_origin(o, (0, 0, 0))

@@ -1341,17 +1341,40 @@ public static class EdoAssets
         /// (背の土 = 天端の高さの面が石に被らない・2026-09-25 焼き直し。天端より上へ出る所は無い ⇒ 駒の最高 = 天端の線)。
         /// 裏 0.12 と天端の目地の奥 0.30 に目地を塞ぐ板。芝の肩は地形側で被せる前提。
         /// **接する面**: 天端の線(隣と揃える)・床(地盤に沈める)・継ぎ目の切り口 X = ±0.909(隣の駒の切り口と一致)。
-        /// ⛔ ピボットで並べない — 隣の切り口と天端の線を測って寄せる。焼けている勾配は 0・打ち切りの ±0.18(H0.15)・段の境の ±0.22(H1.50)だけ(他は下の命令に --grade=)。
+        /// ⛔ ピボットで並べない — 隣の切り口と天端の線を測って寄せる。焼けている勾配は 0・前庭の天端を流す ±0.12(H1.80 を除く 8 段・2026-09-26)・打ち切りの ±0.18(H0.15)・段の境の ±0.22(H1.50)。⭐ <paramref name="grade"/> は**その見付で焼いてある勾配のうち最も近いもの**へ寄せて引く(<see cref="SannoNozuraNearestGrade"/>)⇒ 呼ぶ側は駒の +X へ測った天端の勾配をそのまま渡す(他の勾配は下の命令に --grade=)。
         /// 実寸(G0): W 1.818 × H 見付+0.22(根入れ 0.22・天端の線より上は無い)× D 1.0(H0.15)〜1.7(H2.4)(天端の列の控え 0.86)。三角形 2,100(H0.15)〜10,400(H2.4)。
         /// 背の天端の検査: blender --background --python Tools/Blender/build_sanno_nozura.py -- crest(全駒で背の下がり ≤ 0.03)
         /// 材 `Kirishi` / `Danishi`(石ごとに 7:3)⇒ `Edo/山王社/新造部材のマテリアルをremap`。⛔ 新規マテリアルなし。
-        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- wall [--grade=0.05] [--h=1.2] --render</summary>
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- wall [--grade=0.05] [--h=1.2] --render(勾配の組: -- wall --grade=set・並べ焼き -- grade --render)</summary>
         public static string SannoNozura(float h, float grade, int i)
         {
             int hmm = (int)System.Math.Round(h * 1000.0);
-            int gm = (int)System.Math.Round(grade * 1000.0);
-            return "Assets/Edo/Models/Sanno/Sanno_Nozura_H" + hmm.ToString("0000") + "_G"
-                 + (gm >= 0 ? "+" : "-") + System.Math.Abs(gm).ToString("000") + "_" + "abcd"[((i % 4) + 4) % 4] + ".fbx";
+            string v = "abcd"[((i % 4) + 4) % 4].ToString();
+            int gm = SannoNozuraNearestGrade(hmm, (int)System.Math.Round(grade * 1000.0), v);
+            return SannoNozuraDir + "/Sanno_Nozura_H" + hmm.ToString("0000") + "_G"
+                 + (gm >= 0 ? "+" : "-") + System.Math.Abs(gm).ToString("000") + "_" + v + ".fbx";
+        }
+
+        const string SannoNozuraDir = "Assets/Edo/Models/Sanno";
+
+        /// <summary><see cref="SannoNozura"/> の勾配を**その見付・その個体で焼いてある勾配のうち最も近いもの**へ寄せる [‰]
+        /// (2026-09-26 EDO-0437)。焼けている勾配: 全段 0 / H1800 を除く 8 段 ±120(前庭の天端を流す)/ H0150 ±180(打ち切り)/
+        /// H1500 ±220(段の境)。刻み 0.12 ⇒ 天端の勾配 0〜0.18 のどこでも 1間(伸縮 1.2 まで)の端の天端の差 ≤ 0.065
+        /// (裁定の頭の不揃い ±0.08 の内)。同じ見付の駒が一つも無ければ求めた勾配のまま返す(呼ぶ側が「焼いていない」と刷る)。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=set</summary>
+        static int SannoNozuraNearestGrade(int hmm, int gm, string v)
+        {
+            if (!System.IO.Directory.Exists(SannoNozuraDir)) return gm;
+            var rx = new System.Text.RegularExpressions.Regex(@"_G([+-]\d{3})_" + v + @"\.fbx$");
+            int best = gm, bestD = int.MaxValue;
+            foreach (var f in System.IO.Directory.GetFiles(SannoNozuraDir, "Sanno_Nozura_H" + hmm.ToString("0000") + "_G*_" + v + ".fbx"))
+            {
+                var m = rx.Match(f.Replace('\\', '/')); if (!m.Success) continue;
+                int g = int.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+                int d = System.Math.Abs(g - gm);
+                if (d < bestD || (d == bestD && System.Math.Abs(g) < System.Math.Abs(best))) { bestD = d; best = g; }
+            }
+            return best;
         }
 
         /// <summary>**野面の乱積みの打ち切り — 根石一段が地中へ沈む駒**(見付 0.2 未満で壁を終える所)。
@@ -1393,6 +1416,49 @@ public static class EdoAssets
         /// 材 `Kirishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
         /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- mikiri --render</summary>
         public const string SannoNozuraMikiri = "Assets/Edo/Models/Sanno/Sanno_Nozura_Mikiri.fbx";
+
+        /// <summary>**丈を合わせた見切り石**(2026-09-26 EDO-0437・男坂の口の両脇 TW_Zentei_W の端 2 か所)。見付 <paramref name="h"/> 以上で
+        /// **焼いてある段のうち最も低いもの**を返す(焼いてある段: 1.20 / 1.50 / 1.80 / 2.10。どれも足りなければ ceil(h/0.3)·0.3 の名を返す ⇒ 呼ぶ側が「焼いていない」と刷る)。
+        /// 大きな野面石 2 石(H ≤ 1.50)/ 3 石を不揃いの横目地で積んだ柱。面 0.83〜0.84 × 控え 0.89。**最高 = 天端の線(床 + 段)で、背の上面が天端に揃う**
+        /// (頭の前は天端から下へ 0〜0.1 の円弧)。軸・ピボットは <see cref="SannoNozura"/> と同じ(中心・床レベル = 天端 − 段・Z=0 は天端の線での面・見え面 +Z・3分の法・根入れ 0.20)。
+        /// ⭐ 据えは**床ではなく天端で**: 最高を土留めの天端へ合わせ、段が見付より高い分は下へ沈める(駒と同じ「見付 2.3 は 2.40 を沈める」)。
+        /// 実寸: X ±0.42 × Y −0.20〜段 × Z −0.89〜+0.3·(段+0.2)。三角形 530〜900。材 `Kirishi` / `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- mikiri_h [--h=1.5,1.8] --render</summary>
+        public static string SannoNozuraMikiriH(float h)
+        {
+            int want = (int)System.Math.Ceiling(h * 1000.0 - 0.5);
+            int best = int.MaxValue;
+            if (System.IO.Directory.Exists(SannoNozuraDir))
+                foreach (var f in System.IO.Directory.GetFiles(SannoNozuraDir, "Sanno_Nozura_Mikiri_H*.fbx"))
+                {
+                    var m = System.Text.RegularExpressions.Regex.Match(f.Replace('\\', '/'), @"_Mikiri_H(\d{4})\.fbx$");
+                    if (!m.Success) continue;
+                    int hmm = int.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+                    if (hmm >= want && hmm < best) best = hmm;
+                }
+            if (best == int.MaxValue) best = (int)System.Math.Ceiling(want / 300.0) * 300;
+            return SannoNozuraDir + "/Sanno_Nozura_Mikiri_H" + best.ToString("0000") + ".fbx";
+        }
+
+        /// <summary>**片端を斜めの鉛直面で切った野面の乱積みの駒**(2026-09-26 EDO-0437・前庭の南の土留め TW_Zentei_SW の東端 / SE の西端を女坂の袖の外面へ当てる)。
+        /// 城の石垣の版 <see cref="IshigakiKiri"/> と同じ角・向きの取り方: <paramref name="deg"/> = 切る面の平面の線が走りとなす角 /
+        /// <paramref name="atPlusX"/> = 切る端が局所 +X 端(false は −X 端)/ <paramref name="faceLonger"/> = 見え面の側が長い(控えが短い)。
+        /// 局所座標・ピボットは <see cref="SannoNozura"/> と同じ(1間の中心・床レベル・Z=0 は天端の線での面・見え面 +Z)。
+        /// ⭐ **切る面は天端の前の縁の端 (±0.909, 天端, 0) を通る** ⇒ 天端の線の上では直線の駒と同じ 1間。面は法で下ほど前へ出るので、
+        /// 長(L)は足の前が枠の外へ最大 0.3·(見付+0.2)·cot(deg) 出る(H1.80 の +X 長で X ≤ +1.59)/ 短(S)は控えが枠の外へ出る(H2.40 の −X 短で X ≥ −1.78)。
+        /// 反対の端は直線の駒と同じ継ぎ目 X = ∓0.909(端の石が同じ・頂点まで一致)。見付 <paramref name="h"/> は直線の駒の段、個体 i%2 で a/b。
+        /// 焼いてあるもの: **43.2° +X 長 H1.80**(SW の東端)・**43.2° −X 短 H2.40**(SE の西端)。見え面 +Z を北へ向けた yaw で局所 +X が走りの東。
+        /// ⛔ 伸縮させない(scale.x ≠ 1 だと面の角が変わる)── 伸縮は残りの直線の駒で吸う。⛔ 実メッシュの走りの射影(足の前・控えが枠の外へ出る)で突き付けない ──
+        /// 天端の前の縁の端を相手の袖の外面へ当てる。実寸(H1.80 長): X −0.909〜+1.59 × Y −0.23〜1.80 × Z −0.86〜+0.67。三角形 8,900〜9,800。
+        /// 材 `Kirishi` / `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- nkiri --list=Tools/Blender/sanno_nozura_kiri_set.txt --render</summary>
+        public static string SannoNozuraKiriEnd(float deg, bool atPlusX, bool faceLonger, float h, int i)
+        {
+            return SannoNozuraDir + "/Sanno_Nozura_Kiri"
+                 + UnityEngine.Mathf.RoundToInt(UnityEngine.Mathf.Abs(deg) * 10f).ToString("000")
+                 + (atPlusX ? "P" : "M") + (faceLonger ? "L" : "S")
+                 + "_H" + ((int)System.Math.Round(h * 1000.0)).ToString("0000") + "_" + (((i % 2) + 2) % 2 == 0 ? "a" : "b") + ".fbx";
+        }
 
         /// <summary>**石段の袖 — 野面の乱積み版**(2026-09-24)。<see cref="IshidanSode"/> と**同じ局所座標・同じピボット・同じ接する面**
         /// (厚み X ±0.30 で両面とも乱積み・X について鏡像対称 / +Z = 坂下 / 天端 Y = 0.30 + (踏面/2 − Z)·蹴上/踏面 / 下端 = 天端 − 2.20 /

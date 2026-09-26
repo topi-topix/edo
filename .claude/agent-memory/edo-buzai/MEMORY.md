@@ -42,3 +42,5 @@
 - [六角の宝形と基壇の −X 抜け](hex-hogyo-and-kidan-minus-x.md) — 三角で tile_field・kidan の finish に "-X" を入れない(2026-09-26)
 - [段石・袖の端を法の面で切る](nori-cut-step-and-sode.md) — 凸な部品ごとに bisect+蓋・鏡の検算は KD 木で・端の値は一覧で焼く・EdoAssets の claim を先に見る(2026-09-26)
 - [Castle Wall を斜めに切る駒・腕の短い隅](castle-wall-kiri-and-short-arm.md) — 底が開いた素・bisect の重複頂点・.001・小口を移して塞ぐ(2026-09-26)
+- [野面の勾配の駒は 0 と ±0.12 で足りる](nozura-grade-set-and-nearest.md) — 刻みは頭の不揃いから逆算・据える側が勾配 0 を渡している(2026-09-26)
+- [野面の端を斜めに切る・丈の見切り石](nozura-kiri-diagonal-and-tall-mikiri.md) — ops.bisect は斜め面で外れる・枠の外は隣の1間から・見切りは天端で据える(2026-09-26)

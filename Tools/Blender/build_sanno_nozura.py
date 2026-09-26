@@ -10,8 +10,12 @@
     blender --background --python Tools/Blender/build_sanno_nozura.py -- kado-check [--h=1.5]  # 隅の駒の腕の先 = 直線の切り口
     blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=0.22 --h=1.5  # 段の境の勾配の駒(± 両方)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- dan --render          # 段の境の並べ焼き
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=set       # 前庭の天端を流す勾配の駒 ±0.12 × 8 段(2026-09-26)
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- grade --render [--h=0.9]   # 勾配の駒の並べ焼き
     blender --background --python Tools/Blender/build_sanno_nozura.py -- crest [--dir=…] [--json=…]  # 全駒の背の天端の下がり(≤ 0.03)・頭の出(≤ 0)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- back --render         # 背の側(土の側)から撮る
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- nkiri --list=Tools/Blender/sanno_nozura_kiri_set.txt --render  # 片端を斜めの鉛直面で切った駒(女坂の袖に当てる・2026-09-26)
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- mikiri_h [--h=1.5,1.8] --render   # 丈を合わせた見切り石(天端まで届く・2026-09-26)
 
 試作は `proto_sanno_dodome.py`(絵だけ)。石の形(Voronoi の割り・割肌の面・円弧で切る頭・
 面取り)はそこから起こし直した。⛔ 在庫に野面石・玉石が無い(試作の依頼時に在庫方が確認)ので新造。
@@ -24,7 +28,8 @@
   下をどこで切るかだけ ⇒ **段の違う駒どうしも天端の線で継げる**(天端が揃えば目地も揃う)。
   見付 2.3 の所は 2.4 を 0.1 沈めて据える(下は地中)。
 【勾配】駒を鉛直に剪断して天端を勾配に載せる(石段の袖と同じ・段に折らない)。G = 天端が Unity +X へ
-  1m あたり上がる量(‰)。焼いてあるのは G0 と根石の打ち切り(H0150 の G±180)。他の勾配は `--grade=` で足す。
+  1m あたり上がる量(‰)。焼いてあるのは G0・根石の打ち切り(H0150 の G±180)・段の境(H1500 の G±220)・
+  前庭の天端を流す G±120(H1800 を除く 8 段・2026-09-26 EDO-0437)。他の勾配は `--grade=` で足す。
 【軸(Unity)】幅 = X / 高さ = Y / 厚み = Z、**見え面 = +Z**。面は 3分(0.3)の法 — **天端の線から測る**
   (段の違う駒どうしで面が食い違わないように)。
 【ピボット】1間の中心(X=0)・**床レベル = 中心での天端 − 見付**(Y=0)・Z=0 は**天端の線での面**。
@@ -63,6 +68,15 @@
 ━━━ 4. 見切り石 `Sanno_Nozura_Mikiri.fbx` ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   男坂の下で城の石垣と継ぐための大きな野面石1点。面 0.86 × 0.80・控え 0.90。
   ピボット = 面の芯・床レベル・Z=0 は天端での面(壁の駒と同じ取り方)。
+  ⭐ 丈を合わせた版 `Sanno_Nozura_Mikiri_H<段mm>`(1.20〜2.10・2026-09-26): 見え 0.6 では据える所の見付 1.2〜1.6 に届かず、
+  背の土が頭より 0.82/1.20 高く埋まった。大きな野面石 2〜3 石の柱で、最高 = 天端の線・背の上面は天端に揃う。据えは天端で合わせて沈める。
+
+━━━ 5. 片端を斜めの鉛直面で切った駒 `Sanno_Nozura_Kiri<角×10><P|M><L|S>_H<見付mm>_<a|b>`(2026-09-26)━━━━━━━━━
+  前庭の南の土留めの端が女坂の袖の外面に 43.2° で当たる(直の小口ではめり込み −0.55)。城の石垣の版(build_ishigaki_kiri.py)と
+  同じ角・向きの取り方。切る面は天端の前の縁の端 (±0.909, 天端, 0) を通る ⇒ 天端の線では直線の駒と同じ 1間。枠の外へ出る石
+  (L = 足の前・S = 控え)は隣の 1間の割り(次の個体・端の石は同じ)から採る。反対の端は直線の駒の継ぎ目と頂点まで同じ。
+  ⚠ 斜めの面は bpy.ops.mesh.bisect で面から 0.036 外に頂点が残った ⇒ bmesh.ops.bisect_plane + holes_fill(切り口の辺だけ)。
+  切り口に石の角だけ残る欠片(二辺とも 0.08 未満)は袖の面の前に浮いて見えたので落とす。
 """
 import bpy, bmesh, sys, os, math, random
 import mathutils
@@ -815,6 +829,273 @@ def make_mikiri():
     return o, "Sanno_Nozura_Mikiri"
 
 
+# ------------------------------------------------------------------ 斜めに切った端の駒(2026-09-26 EDO-0437)
+NKIRI_CHIP = 0.08      # 切る面で残る石の欠片(二辺ともこれ未満)は落とす
+
+
+def nkiri_name(deg, end, face, h, v):
+    return "Sanno_Nozura_Kiri%03d%s%s_H%04d_%s" % (int(round(abs(deg) * 10)), end, face, int(round(h * 1000)), v)
+
+
+def backing_span(name, h, mat, s0, s1, d=0.12, u0=-0.12, u1=None):
+    """`backing` の走りの範囲を s0〜s1 にした板(2間に跨る駒・見切り石の幅の板)"""
+    bm = bmesh.new()
+    P = wall_P(h, 0.0)
+    vs = []
+    for s in (s0, s1):
+        for u in (u0, -(h + BURY) if u1 is None else u1):
+            vs.append(bm.verts.new(P(s, u, d)))
+    bm.faces.new((vs[0], vs[1], vs[3], vs[2]))
+    me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
+    o = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(o)
+    o.data.materials.append(mat)
+    me.update()
+    if me.polygons[0].normal.y > 0:
+        me.flip_normals()
+    box_uv(o, (0.3, 0.7))
+    return o
+
+
+def nkiri_plane(deg, end, face):
+    """斜めに切る鉛直面(Blender の co, no)。残すのは dot(x − co, no) <= 0。
+    Unity 局所で: 端 e = +1(P = +X 端)/ −1(M = −X 端)、k = +1(L = 見え面の側が長い)/ −1(S)。
+    残す側 e·x <= L/2 + k·cot(deg)·z ── 天端の前の縁の端 (e·L/2, 天端, 0) を通る。"""
+    e = 1 if end == "P" else -1
+    k = 1 if face == "L" else -1
+    cot = 1.0 / math.tan(math.radians(abs(deg)))
+    return (-e * L / 2, 0.0, 0.0), (-e, k * cot, 0.0), e, k, cot
+
+
+def make_nkiri(h, deg, end, face, v):
+    """野面の乱積みの駒の片端を、走りと deg で交わる**鉛直な面**で切る(女坂の袖の外面に当てる端)。
+    ⭐ 残る側(−e 端)は直線の駒と同じ継ぎ目(X = −e·0.909・端の石が同じ)⇒ 直線の駒をそのまま継ぐ。
+    ⭐ 切る面は**天端の前の縁の端 = (e·0.909, 天端, 0)**を通る ⇒ 天端の線の上では直線の駒と同じ 1間。
+       面(法)は下ほど前へ出るので、L は足の前が枠の外へ最大 0.3·(見付+0.2)·cot 出る / S は控えが枠の外へ出る。
+       枠の外の石は隣の 1間(次の個体の割り・端の石は同じ)から採る ── 1間の枠の中だけだと切り口の奥に石が無い。"""
+    V.reset()
+    mats = materials()
+    co, no, e, k, cot = nkiri_plane(deg, end, face)
+    v2 = VARIANTS[(VARIANTS.index(v) + 1) % len(VARIANTS)]
+    cells_a, cells_b = [], []
+    for poly, kind, key in wall_cells(v):
+        p2 = clip(poly, (0, -1), h + BURY)
+        if len(p2) >= 3 and area(p2) > 0.004:
+            cells_a.append((p2, kind, key))
+    shared = "B+" if e > 0 else "B-"       # 隣の 1間の、共有する継ぎ目の側の端の石(= A の端の石と同じ形)は採らない
+    for poly, kind, key in wall_cells(v2):
+        if kind == ("B-" if e > 0 else "B+"):
+            continue
+        p2 = clip([(p[0] + e * L, p[1]) for p in poly], (0, -1), h + BURY)
+        if len(p2) >= 3 and area(p2) > 0.004:
+            cells_b.append((p2, kind, key))
+    P = wall_P(h, 0.0)
+    objs = build_stones(cells_a, P, mats, tag="wall")
+    objs += build_stones(cells_b, P, mats, tag="wallK")
+    s0, s1 = (-L / 2, L / 2 + L) if e > 0 else (-L / 2 - L, L / 2)
+    objs.append(backing_span("back", h, mats[1], s0, s1))
+    objs.append(backing_span("back2", h, mats[1], s0, s1, *BACK2))
+    name = nkiri_name(deg, end, face, h, v)
+    o = V.join(objs, name)
+    # 継ぐ側(−e 端)は直線の駒と同じ切り口
+    if e > 0:
+        bisect_keep(o, (L / 2, 0, 0), (1, 0, 0))        # Unity X >= −L/2
+    else:
+        bisect_keep(o, (-L / 2, 0, 0), (-1, 0, 0))      # Unity X <= +L/2
+    # ⚠ 斜めの面は bpy.ops.mesh.bisect だと面から 0.036 外に頂点が残った(軸に沿う継ぎ目の面は合う)⇒ bmesh で切って口を塞ぐ
+    n = Vector(no).normalized(); c = Vector(co)
+    bm = bmesh.new(); bm.from_mesh(o.data)
+    res = bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], dist=1e-6,
+                                 plane_co=c, plane_no=n, clear_outer=True, clear_inner=False)
+    cut = [x for x in res["geom_cut"] if isinstance(x, bmesh.types.BMEdge) and x.is_valid and x.is_boundary]
+    filled = bmesh.ops.holes_fill(bm, edges=cut, sides=0)["faces"]
+    uvl = bm.loops.layers.uv.active
+    t = Vector((n.y, -n.x, 0.0))
+    for f in filled:
+        f.normal_update()
+        if f.normal.dot(n) < 0:
+            f.normal_flip()
+        for l in f.loops:
+            q = l.vert.co - c
+            l[uvl].uv = (q.dot(t) / TILE + 0.37, q.z / TILE + 0.11)
+    # bisect が面の脇に残す重複・孤立頂点を掃除(bounds が嘘をつく)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+    bmesh.ops.delete(bm, geom=[x for x in bm.verts if not x.link_faces], context='VERTS')
+    # 切る面で石の角だけが残った欠片(二辺とも CHIP 未満)は袖の面の前に浮いて見えた ⇒ 落とす(残る口は目地の幅)
+    bm.verts.ensure_lookup_table()
+    seen, drop = set(), []
+    for v0 in bm.verts:
+        if v0.index in seen:
+            continue
+        st, comp = [v0], []
+        seen.add(v0.index)
+        while st:
+            a = st.pop(); comp.append(a)
+            for ed in a.link_edges:
+                b = ed.other_vert(a)
+                if b.index not in seen:
+                    seen.add(b.index); st.append(b)
+        ext = sorted(max(q.co[i] for q in comp) - min(q.co[i] for q in comp) for i in range(3))
+        if ext[1] < NKIRI_CHIP:
+            drop += comp
+    if drop:
+        bmesh.ops.delete(bm, geom=drop, context='VERTS')
+    print("NKIRI 欠片を落とした 頂点 %d" % len(drop))
+    bm.to_mesh(o.data); bm.free(); o.data.update()
+    V.set_origin(o, (0, 0, 0))
+    return o, name
+
+
+def nkiri_ref_seam(h, deg, end, face, v):
+    """直線の駒の、継ぐ側の切り口(天端から 0.25 まで)── make_wall は reset するので切る駒より先に呼ぶ"""
+    e = 1 if end == "P" else -1
+    ref_o, _, _ = make_wall(h, 0.0, v)
+    return [(y, round(z - h, 3)) for y, z in seam_verts(ref_o, e * L / 2) if z > h - 0.25]
+
+
+def check_nkiri(o, h, deg, end, face, v, ref_seam):
+    """⭕ 切る面より外に頂点が無い / 継ぐ側の切り口 = 直線の駒の切り口 / 面の角 / 孤立頂点 / 背の天端"""
+    co, no, e, k, cot = nkiri_plane(deg, end, face)
+    n = Vector(no).normalized(); c = Vector(co)
+    ok = []
+    bite = max((vv.co - c).dot(n) for vv in o.data.vertices)
+    ok.append(("切る面より外に頂点が無い", bite < 1e-4, "%.6f" % bite))
+    on = [vv for vv in o.data.vertices if abs((vv.co - c).dot(n)) < 1e-4]
+    ok.append(("切る面に頂点が乗る", len(on) >= 20, "%d 点" % len(on)))
+    # 面の角を測り直す: 切る面の上の頂点を Unity (x, z) に直して一次式 x = a + b·z を当てる
+    pts = [(-vv.co.x, -vv.co.y) for vv in on]
+    if len(pts) >= 2:
+        mz = sum(p[1] for p in pts) / len(pts); mx = sum(p[0] for p in pts) / len(pts)
+        szz = sum((p[1] - mz) ** 2 for p in pts); sxz = sum((p[1] - mz) * (p[0] - mx) for p in pts)
+        b = sxz / szz if szz > 1e-9 else 0.0
+        ang = math.degrees(math.atan2(1.0, abs(b)))
+        ok.append(("面の角 %.1f°" % deg, abs(ang - abs(deg)) < 0.05, "%.3f°" % ang))
+        longer = "L" if e * b > 0 else "S"
+        ok.append(("見え面の側が%s" % ("長い" if face == "L" else "短い"), longer == face, longer))
+        x_at0 = mx - b * mz
+        ok.append(("天端の前の縁の端 = 枠の端 %+.3f" % (e * L / 2), abs(x_at0 - e * L / 2) < 2e-3, "%+.4f" % x_at0))
+    # 継ぐ側の切り口が直線の駒と同じ(天端から 0.25 まで・Blender X = e·L/2 が Unity の −e 端)
+    xb = e * L / 2
+    mine = [(y, round(z - h, 3)) for y, z in seam_verts(o, xb) if z > h - 0.25]
+    ref = ref_seam
+    diff = len(set(mine) ^ set(ref))
+    ok.append(("継ぐ側の切り口 = 直線の駒 %s" % wall_name(h, 0.0, v), diff == 0 and len(ref) > 0, "%d 点・差 %d" % (len(ref), diff)))
+    loose = len(o.data.vertices) - len({i for p in o.data.polygons for i in p.vertices})
+    ok.append(("孤立頂点なし", loose == 0, "%d" % loose))
+    mats_ = sorted({m.name for m in o.data.materials})
+    ok.append(("材は Kirishi / Danishi だけ", set(mats_) <= {"Kirishi", "Danishi"}, ",".join(mats_)))
+    bpy.context.view_layer.update()
+    back, over, at, npt = crest_check([o], lambda x, z: h, lambda x, z: z <= -FACE_ROW)
+    ok.append(("背の天端の下がり ≤ %.2f" % CREST_TOL, back <= CREST_TOL, "%+.3f(%d 点)" % (back, npt)))
+    ok.append(("頭が天端の線より上へ出ない", over <= 0.005, "%+.3f" % over))
+    (x0, x1), (y0, y1), (z0, z1) = unity_bounds(o)
+    print("NKIRI %s X[%.3f,%.3f] Y[%.3f,%.3f] Z[%.3f,%.3f] tris=%d / 天端の前の縁の端(局所) (%+.3f, %.3f, 0)" % (
+        o.name, x0, x1, y0, y1, z0, z1, tris(o), e * L / 2, h))
+    for (label, good, note) in ok:
+        print("      %s %s %s" % ("⭕" if good else "⛔", label, note))
+    return sum(1 for t_ in ok if not t_[1])
+
+
+def read_nkiri_list(path):
+    rows = []
+    with open(path, encoding="utf-8") as fp:
+        for ln in fp:
+            ln = ln.split("#", 1)[0].strip()
+            if not ln:
+                continue
+            tag, deg, end, face, hs = ln.split()
+            for hh in hs.split(","):
+                rows.append((tag, float(deg), end, face, float(hh)))
+    return rows
+
+
+# ------------------------------------------------------------------ 丈を合わせた見切り石(2026-09-26 EDO-0437)
+MIKIRI_TIERS = [1.20, 1.50, 1.80, 2.10]
+MIKIRI_W = 0.86
+MIKIRI_D = 0.90
+
+
+def mikiri_name(h):
+    return "Sanno_Nozura_Mikiri_H%04d" % int(round(h * 1000))
+
+
+def make_mikiri_h(h):
+    """見付 h の見切り石 ── 土留めの天端の線まで届く石の柱(大きな野面石 2〜3 石を不揃いの横目地で積む)。
+    頭は天端の線から下へ 0〜0.08(円弧)・**背の上面は天端の線に揃う**(背の土 = 天端の高さが被らない)。
+    座標は直線の駒と同じ(中心・床レベル・Z=0 は天端の線での面・見え面 +Z・3分の法)。根入れ 0.20。"""
+    V.reset()
+    mats = materials()
+    rng = random.Random("nozura-mikiri-H%04d" % int(round(h * 1000)))
+    w = MIKIRI_W
+    total = h + BURY
+    nst = 2 if h <= 1.55 else 3
+    # 横目地の高さ(天端から下へ)── 石ごとの丈を 0.85〜1.15 で振る・目地は ±0.06 で傾ける
+    wts = [rng.uniform(0.85, 1.15) for _ in range(nst)]
+    cuts, acc = [], 0.0
+    for wt in wts[:-1]:
+        acc += wt / sum(wts) * total
+        cuts.append((-acc + rng.uniform(-0.04, 0.04), rng.uniform(-0.06, 0.06)))
+    g = 0.03
+    cells = []
+    for i in range(nst):
+        poly = [(-w / 2, -total + 0.02), (w / 2, -total + 0.02), (w / 2, HEAD + 0.12), (-w / 2, HEAD + 0.12)]
+        if i > 0:                       # 上の目地の下: u <= uc + sl·s − g/2
+            uc, sl = cuts[i - 1]
+            ln = math.hypot(sl, 1.0); n = (-sl / ln, 1.0 / ln)
+            poly = clip(poly, n, uc / ln - g / 2)
+        if i < nst - 1:                 # 下の目地の上: u >= uc + sl·s + g/2
+            uc, sl = cuts[i]
+            ln = math.hypot(sl, 1.0); n = (sl / ln, -1.0 / ln)
+            poly = clip(poly, n, -uc / ln - g / 2)
+        # 角を落とす(野面の輪郭)
+        poly = clip(poly, (-1, 0), w / 2 - 0.02 - rng.uniform(0.0, 0.02))      # 輪の 1.03 倍の張り出しを見込む
+        poly = clip(poly, (1, 0), w / 2 - 0.02 - rng.uniform(0.0, 0.02))
+        for sx, su in ((-1, -1), (1, -1), (-1, 1), (1, 1)):
+            cut = rng.uniform(0.06, 0.14)
+            n = (sx / math.sqrt(2), su / math.sqrt(2))
+            # 多角形の最も外の点から cut だけ内へ
+            far = max(p[0] * n[0] + p[1] * n[1] for p in poly)
+            if i == 0 and su > 0:
+                continue                # 頭の角は円弧で落とす
+            poly = clip(poly, n, far - cut)
+        if i == 0:
+            poly = head_arc(poly, rng.uniform(-0.08, 0.08), -rng.uniform(0.0, 0.02), rng.uniform(1.0, 1.4))
+        cells.append((poly, "I", "M%d" % i))
+    P = wall_P(h, 0.0)
+    objs = []
+    for poly, kind, key in cells:
+        r2 = random.Random("nozura-mikiri|%s|%d" % (key, int(round(h * 1000))))
+        top = max(p[1] for p in poly) > -TOP_ROW
+        o = stone_obj("st_" + key, poly, r2, P, MIKIRI_D, face_prot=(0.0, 0.02), crest=0.0 if top else None)
+        o.data.materials.append(mats[0] if r2.random() < 0.7 else mats[1])
+        box_uv(o, (r2.random(), r2.random()))
+        objs.append(o)
+    objs.append(backing_span("back", h, mats[1], -w / 2 + 0.05, w / 2 - 0.05))
+    name = mikiri_name(h)
+    o = V.join(objs, name)
+    V.set_origin(o, (0, 0, 0))
+    return o, name
+
+
+def check_mikiri_h(o, h):
+    ok = []
+    (x0, x1), (y0, y1), (z0, z1) = unity_bounds(o)
+    ok.append(("最高 = 天端の線 %.2f" % h, abs(y1 - h) < 0.01, "%.3f" % y1))
+    ok.append(("最下 = 床 − 根入れ", abs(y0 + BURY) < 0.06, "%.3f" % y0))
+    ok.append(("幅 ≤ %.2f" % MIKIRI_W, x1 - x0 <= MIKIRI_W + 0.01, "%.3f" % (x1 - x0)))
+    bpy.context.view_layer.update()
+    back, over, at, npt = crest_check([o], lambda x, z: h, lambda x, z: z <= -FACE_ROW)
+    ok.append(("背の天端の下がり ≤ %.2f" % CREST_TOL, back <= CREST_TOL, "%+.3f(%d 点)" % (back, npt)))
+    ok.append(("頭が天端の線より上へ出ない", over <= 0.005, "%+.3f" % over))
+    loose = len(o.data.vertices) - len({i for p in o.data.polygons for i in p.vertices})
+    ok.append(("孤立頂点なし", loose == 0, "%d" % loose))
+    print("MIKIRI %s X[%.3f,%.3f] Y[%.3f,%.3f] Z[%.3f,%.3f] tris=%d 材=%s" % (
+        o.name, x0, x1, y0, y1, z0, z1, tris(o), sorted({m.name for m in o.data.materials})))
+    for (label, good, note) in ok:
+        print("      %s %s %s" % ("⭕" if good else "⛔", label, note))
+    return sum(1 for t_ in ok if not t_[1])
+
+
 # ------------------------------------------------------------------ 測る・書く・撮る
 def tris(o):
     o.data.calc_loop_triangles()
@@ -948,6 +1229,14 @@ def crest_spec(name):
     if m:
         h = int(m.group(1)) / 1000
         return (lambda x, z: h), (lambda x, z: x <= -FACE_ROW and z <= -FACE_ROW)
+    m = re.match(r"Sanno_Nozura_Kiri\d{3}[PM][LS]_H(\d{4})_[a-d]$", name)
+    if m:
+        h = int(m.group(1)) / 1000
+        return (lambda x, z: h), (lambda x, z: z <= -FACE_ROW)
+    m = re.match(r"Sanno_Nozura_Mikiri_H(\d{4})$", name)
+    if m:
+        h = int(m.group(1)) / 1000
+        return (lambda x, z: h), (lambda x, z: z <= -FACE_ROW)
     m = re.match(r"IshidanSodeNozura_([\d.]+)_([\d.]+)_[ab]$", name)
     if m:
         k, f = float(m.group(1)), float(m.group(2))
@@ -1173,6 +1462,83 @@ def render_kado(h=1.50, tag=""):
         V.render(os.path.join(SHOT, "sanno_nozura_kado_%s_plan%s.png" % (v, tag)))
 
 
+def _flat_box(name, corners_u, col):
+    """Unity の 8 隅(下 4 → 上 4・同じ回り)で箱を張る(検証レンダの相手役・書き出さない)"""
+    bm = bmesh.new()
+    vs = [bm.verts.new(_u2b(*c)) for c in corners_u]
+    for f in ((0, 1, 2, 3), (4, 5, 6, 7), (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)):
+        bm.faces.new([vs[i] for i in f])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
+    o = bpy.data.objects.new(name, me); bpy.context.scene.collection.objects.link(o)
+    m = bpy.data.materials.new(name); m.use_nodes = True
+    m.node_tree.nodes["Principled BSDF"].inputs['Base Color'].default_value = col + (1,)
+    me.materials.append(m)
+    return o
+
+
+def _upper_ground(h, xr, zr, name="Upper"):
+    bm = bmesh.new()
+    vs = [bm.verts.new(_u2b(x, h + 0.04, z)) for x, z in ((xr[0], zr[0]), (xr[1], zr[0]), (xr[1], zr[1]), (xr[0], zr[1]))]
+    bm.faces.new(vs); me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
+    o = bpy.data.objects.new(name, me); bpy.context.scene.collection.objects.link(o)
+    m = bpy.data.materials.new(name); m.use_nodes = True
+    m.node_tree.nodes["Principled BSDF"].inputs['Base Color'].default_value = (0.18, 0.24, 0.11, 1)
+    me.materials.append(m)
+    return o
+
+
+def render_nkiri(h, deg, end, face, v):
+    """斜めに切った端の駒 + 直線の駒 2 を継ぎ、切る面に袖の外面の役の箱(灰)を当てて撮る"""
+    co, no, e, k, cot = nkiri_plane(deg, end, face)
+    V.reset()
+    _import_at(os.path.join(OUT_WALL, nkiri_name(deg, end, face, h, v) + ".fbx"), 0, 0, 0)
+    for i, wv in enumerate("cd"):
+        _import_at(os.path.join(OUT_WALL, wall_name(h, 0, wv) + ".fbx"), -e * L * (i + 1), 0, 0)
+    hook_stone_textures()
+    ground(0.0, -30, 30)
+    # 袖の外面の役: 切る面 x = e·L/2 + e·k·cot·z の外側 0.6
+    nx, nz = e, -k * cot; ln = math.hypot(nx, nz); nx, nz = nx / ln, nz / ln
+    tx, tz = e * k * cot, 1.0; lt = math.hypot(tx, tz); tx, tz = tx / lt, tz / lt
+    pts = []
+    for yy in (-0.3, h + 0.3):
+        for a, b in ((-2.6, 0.0), (1.6, 0.0), (1.6, 0.6), (-2.6, 0.6)):
+            pts.append((e * L / 2 + tx * a + nx * b, yy, tz * a + nz * b))
+    _flat_box("Sode", pts, (0.55, 0.55, 0.52))
+    # 背の地面(天端の高さ・駒の奥 Z ≤ −0.2)
+    _upper_ground(h, (-4 * L, 3.0) if e > 0 else (-3.0, 4 * L), (-6.0, -0.25))
+    tag = nkiri_name(deg, end, face, h, v)
+    studio_run([], _u2b(-e * 1.5, h + 1.2, 4.6), _u2b(e * 0.6, h * 0.5, 0.2), 30, os.path.join(SHOT, tag + ".png"))
+    studio_run([], _u2b(e * 1.8, h * 0.5 + 0.4, 2.4), _u2b(e * 0.8, h * 0.45, 0.0), 30, os.path.join(SHOT, tag + "_near.png"))
+    studio_run([], _u2b(-e * 1.5, h + 1.2, 4.6), _u2b(e * 0.6, h * 0.5, 0.2), 30, os.path.join(SHOT, tag + "_magenta.png"), magenta=True)
+    # 真上から(袖の箱と背の地面を消して、切り口が面に沿うか)
+    for nm in ("Sode", "Upper"):
+        ob = bpy.data.objects.get(nm)
+        if ob:
+            bpy.data.objects.remove(ob)
+    cam = bpy.context.scene.camera
+    cam.data.type = 'ORTHO'; cam.data.ortho_scale = 4.5
+    cam.location = _u2b(e * 0.4, 10.0, 0.0); cam.rotation_euler = (0, 0, 0)
+    V.render(os.path.join(SHOT, tag + "_plan.png"))
+
+
+def render_mikiri_h(h):
+    """丈を合わせた見切り石: −X に同じ見付の野面の駒 2、+X に城の石垣の役の箱(灰)・背の地面は天端の高さ"""
+    V.reset()
+    _import_at(os.path.join(OUT_WALL, mikiri_name(h) + ".fbx"), 0, 0, 0)
+    for i, wv in enumerate("ab"):
+        _import_at(os.path.join(OUT_WALL, wall_name(h, 0, wv) + ".fbx"), -(MIKIRI_W / 2 + L / 2 + i * L), 0, 0)
+    hook_stone_textures()
+    ground(0.0, -30, 30)
+    xb = MIKIRI_W / 2
+    _flat_box("Castle", [(xb, -0.3, 1.2), (xb + 3, -0.3, 1.2), (xb + 3, -0.3, -2.0), (xb, -0.3, -2.0),
+                         (xb, h, 0.3 * 0.0), (xb + 3, h, 0.0), (xb + 3, h, -2.0), (xb, h, -2.0)], (0.55, 0.55, 0.52))
+    _upper_ground(h, (-3 * L, xb), (-6.0, -0.25))
+    tag = mikiri_name(h)
+    studio_run([], _u2b(-0.4, h * 0.6 + 0.6, 4.2), _u2b(-0.5, h * 0.5, 0), 32, os.path.join(SHOT, tag + ".png"))
+    studio_run([], _u2b(-2.2, h + 1.6, 2.4), _u2b(-0.2, h * 0.7, -0.3), 32, os.path.join(SHOT, tag + "_top.png"))
+
+
 def render_dan(g=0.22, h=1.50):
     """段の境: 天端 T の直線 H1.50 → 勾配の駒(1間で 0.40 下がる)→ 天端 T − 0.40 の直線 H1.20。床は Y=0 の地面に沈める。"""
     V.reset()
@@ -1187,6 +1553,27 @@ def render_dan(g=0.22, h=1.50):
     ground()
     studio_run([], (-0.6, -5.5, 1.3), (-0.6, 0, 0.8), 30, os.path.join(SHOT, "sanno_nozura_dan.png"))
     studio_run([], (-0.6, -5.5, 1.3), (-0.6, 0, 0.8), 30, os.path.join(SHOT, "sanno_nozura_dan_magenta.png"), magenta=True)
+
+
+def render_grade(g=0.12, h=0.90):
+    """勾配の駒の並べ焼き(2026-09-26 EDO-0437): 天端の線が 平(H h)→ −g で 3間下がる → 平 と折れる所。
+    勾配の駒は中心の天端を線に載せ、隣と切り口の天端を揃える(見付は据えた床の側で沈める)。床は Y=0 の地面に沈める。"""
+    V.reset()
+    T = h + 0.1
+    seq = [(0.0, "a"), (-g, "b"), (-g, "c"), (-g, "d"), (0.0, "a")]
+    x = -2 * L; top = T
+    for gg, v in seq:
+        c = top + gg * L / 2              # 中心の天端
+        place_copy(os.path.join(OUT_WALL, wall_name(h, gg, v) + ".fbx"), x, c - h)
+        top = top + gg * L; x += L
+    hook_stone_textures()
+    ground()
+    studio_run([], (0.0, -7.5, 1.4), (0.0, 0, 0.6), 30, os.path.join(SHOT, "sanno_nozura_grade_%03d_H%04d.png" % (int(round(g * 1000)), int(round(h * 1000)))))
+    studio_run([], (0.0, -7.5, 1.4), (0.0, 0, 0.6), 30,
+               os.path.join(SHOT, "sanno_nozura_grade_%03d_H%04d_magenta.png" % (int(round(g * 1000)), int(round(h * 1000)))), magenta=True)
+    # 寄り: 平 → 勾配の折れの継ぎ目(x = −1.5L)
+    studio_run([], (-1.5 * L + 0.3, -2.6, T + 0.2), (-1.5 * L, 0, T - 0.3), 30,
+               os.path.join(SHOT, "sanno_nozura_grade_%03d_H%04d_seam.png" % (int(round(g * 1000)), int(round(h * 1000)))))
 
 
 def render_back(h=1.20):
@@ -1227,9 +1614,24 @@ def do_kado():
             export(o, name, OUT_WALL)
 
 
+# 前庭の縁の天端を流す勾配の駒(2026-09-26 EDO-0437)── 天端の勾配 0.03〜0.18 の区間(TW_Zentei_W / SE / E)。
+#   勾配の段は 0 と ±0.12 の二つで足りる: 1間(伸縮 1.2 まで)の端で 天端の線 − 駒の天端 ≤ 0.065(裁定の頭の不揃い ±0.08 の内)。
+#   0.15 は打ち切りの ±0.18・1.50 は段の境の ±0.22 も在る(`Own.SannoNozura` が最も近い勾配を引く)。1.80 は前庭の勾配の区間に無い。
+GRADE_SET = [0.12, -0.12]
+GRADE_TIERS = [0.15, 0.30, 0.60, 0.90, 1.20, 1.50, 2.10, 2.40]
+
+
+def _floats(key, default):
+    return [float(x) for x in OPT[key].split(",")] if OPT.get(key) else default
+
+
 def do_wall():
-    grades = [float(OPT["grade"])] if OPT.get("grade") else [0.0]
-    hs = [float(OPT["h"])] if OPT.get("h") else TIERS
+    # --grade=0.12,-0.12 / --h=0.3,0.6 はカンマで並べられる。--grade=set は GRADE_SET × GRADE_TIERS
+    if OPT.get("grade") == "set":
+        grades, hs = GRADE_SET, (_floats("h", GRADE_TIERS))
+    else:
+        grades = _floats("grade", [0.0])
+        hs = _floats("h", TIERS)
     for g in grades:
         for h in hs:
             for v in VARIANTS:
@@ -1280,6 +1682,41 @@ if __name__ == "__main__":
         render_back(float(OPT.get("h") or 1.2))
     if what == "dan" and RENDER:
         render_dan()
+    if what == "grade" and RENDER:
+        # blender ... -- grade --render [--h=0.9] ── 勾配の駒の並べ焼き(焼いてから)
+        for hh in _floats("h", [0.90]):
+            render_grade(abs(GRADE_SET[0]), hh)
+    if what == "nkiri":
+        # blender ... -- nkiri --list=Tools/Blender/sanno_nozura_kiri_set.txt [--render] ── 斜めに切った端の駒(女坂の袖に当てる)
+        lp = OPT.get("list") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "sanno_nozura_kiri_set.txt")
+        lp = lp if os.path.isabs(lp) else os.path.join(V.REPO, lp)
+        bad = 0
+        made = []
+        for tag_, deg_, end_, face_, h_ in read_nkiri_list(lp):
+            for v_ in "ab":
+                ref_ = nkiri_ref_seam(h_, deg_, end_, face_, v_)
+                o, name = make_nkiri(h_, deg_, end_, face_, v_)
+                bad += check_nkiri(o, h_, deg_, end_, face_, v_, ref_)
+                export(o, name, OUT_WALL)
+                made.append((h_, deg_, end_, face_, v_))
+                print("NKIRI 書き出し %s ← %s" % (name, tag_))
+        if RENDER:
+            for (h_, deg_, end_, face_, v_) in made:
+                if v_ == "a":
+                    render_nkiri(h_, deg_, end_, face_, v_)
+        if bad:
+            sys.exit("NKIRI ⛔ 検算が %d 件落ちた" % bad)
+    if what == "mikiri_h":
+        # blender ... -- mikiri_h [--h=1.5,1.8] [--render] ── 丈を合わせた見切り石
+        bad = 0
+        for h_ in _floats("h", MIKIRI_TIERS):
+            o, name = make_mikiri_h(h_)
+            bad += check_mikiri_h(o, h_)
+            export(o, name, OUT_WALL)
+            if RENDER:
+                render_mikiri_h(h_)
+        if bad:
+            sys.exit("MIKIRI ⛔ 検算が %d 件落ちた" % bad)
     if what in ("wall", "all"):
         do_wall()
     if what in ("kiri", "all"):

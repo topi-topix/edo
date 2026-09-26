@@ -1278,6 +1278,9 @@ public static class EdoAssets
         /// `Ld+0.219B-0.187_Rd+0.219B-0.188` に焼き直した(za が +0.03 から −0.19 へ動いた)。段 2〜4 は据え直し前の値のまま。
         /// 焼けている組(2026-09-26): 参道の階 (0.250, 0.542, 5.509) の段 1〜4 / 郭の階 (0.238, 0.450, 1.818) の段 0〜3(W 1.641〜1.816 × H 0.417 × D 0.550。
         /// blender --background --python Tools/Blender/build_sanno_buzai.py -- dan_kiri_list Tools/Blender/sanno_kaku_kiri_set.txt 0.2375 0.450 1.818 --render)。
+        /// ⭐ 返しが野面の乱積み(法 1:0.3)になった後(EDO-0437 第3巡)は法 0.3 の全長の切りを (3) の角 0 で綴る: 段 2 = `L DanKiriEnd(0.139f, 0f, 0.300f) R DanKiriEnd(0.108f, 0f, 0.300f)`・
+        /// 段 3 = `L DanKiriEnd(0.071f, 0f, 0.300f)`(棟梁の第3巡の測り直し ── 見える当たりの石の出の包絡 `EdoBuild.EnvelopeCut` + 0.015・`Tools/Blender/sanno_sando_nozura_kiri_set.txt`。
+        /// blender --background --python Tools/Blender/build_sanno_buzai.py -- dan_kiri_list Tools/Blender/sanno_sando_nozura_kiri_set.txt 0.250 0.542 5.509 --render)。
         /// 焼かずに型だけ確かめる: -- dan_kiri_try <一覧> <蹴上> <踏面> <幅> --render(Screenshots/sanno_dankiri_<一覧>_*.png)。
         /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- dan_kiri_list Tools/Blender/sanno_sando_kiri_set.txt 0.250 0.542 5.509(組み絵は -- kiri_shots 0.250 0.542 5.509 0.219 0.040)</summary>
         public static string SannoDanKiri(float keri, float fumi, float w, int i, string endL, string endR)
@@ -1458,6 +1461,42 @@ public static class EdoAssets
                  + UnityEngine.Mathf.RoundToInt(UnityEngine.Mathf.Abs(deg) * 10f).ToString("000")
                  + (atPlusX ? "P" : "M") + (faceLonger ? "L" : "S")
                  + "_H" + ((int)System.Math.Round(h * 1000.0)).ToString("0000") + "_" + (((i % 2) + 2) % 2 == 0 ? "a" : "b") + ".fbx";
+        }
+
+        /// <summary>**小口を相手の法で切った野面の短い駒**(2026-09-26 EDO-0437 第3巡・前庭の W の南の区間 ── 入隅の可動側の端が
+        /// 通す側 TW_Zentei_SW の見え面の法の楔に入る所)。局所・ピボットは <see cref="SannoNozura"/> と同じ取り方
+        /// (**天端の前の縁の走りの中心**・床レベル = 天端 − 見付・Z=0 は天端の線での面・見え面 +Z)。走りは天端の線で X ∈ [−len/2, +len/2]。
+        /// 切る端(<paramref name="atPlusX"/> = 局所 +X)は相手の野面の法 **1:0.3** と平行: e·X ≤ len/2 + 0.3·(Y − 見付)(下ほど内へ引く ──
+        /// 焼いた野面の前の包絡も 0.3 で平行・+0.065〜0.08 の出)。反対の端は直線の駒の継ぎ目と頂点まで同じ(直線の駒を継げる)。
+        /// ⛔ **伸縮させない**(scale.x で法が変わる)── 長さは 0.05 刻みで焼いてある(0.30〜0.80)ので、区間に収まる最長を引く(<paramref name="len"/> を 0.05 へ切り下げる)。
+        /// 据えは天端の前の縁の切る端を「相手の面 × 天端の線」へ当て、相手の面の法線で触れている箇所を測って走りに沿って寄せる(接して 0)。
+        /// 焼いてあるもの: +X(P)・見付 0.60 / 1.80(1.80 は棟梁が第3巡に W の南の区間の見付 1.61 から焼き足した ── 行は `Tools/Blender/sanno_nozura_nori_set.txt`)・長さ 0.30〜0.80・個体 a のみ。実寸(長さ 0.40): X −0.200〜+0.200 × Y −0.21〜0.60 × Z −0.86〜+0.31。三角形 540〜1,470。
+        /// 材 `Kirishi` / `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- nnori --list=Tools/Blender/sanno_nozura_nori_set.txt --render</summary>
+        /// <summary>野面の乱積みの駒(`SannoNozura*`)の見え面の法(水平/鉛直)。部材方の実測 1:0.3(前の包絡は 0.3 の面より 0.065〜0.08 前で平行)。</summary>
+        public const float SannoNozuraNori = 0.3f;
+        public static string SannoNozuraNoriEnd(float len, bool atPlusX, float h)
+        {
+            int mm = UnityEngine.Mathf.FloorToInt(len * 20f + 1e-3f) * 50;
+            return SannoNozuraDir + "/Sanno_Nozura_Nori" + (atPlusX ? "P" : "M") + "_L" + mm.ToString("0000")
+                 + "_H" + ((int)System.Math.Round(h * 1000.0)).ToString("0000") + "_a.fbx";
+        }
+
+        /// <summary>**背を相手の法で切った野面の袖**(2026-09-26 EDO-0437 第3巡・参道の階の袖の背が切り込みの出隅の駒の法に当たる所)。
+        /// <see cref="IshidanSodeNozura"/> と**同じ局所座標・同じピボット・同じ接する面**(側面 X=±0.30・天端の線)で、坂上の端(背・−Z)だけを
+        /// 野面の法 **1:0.3** と平行な面で切った物(切石の袖の <see cref="IshidanSodeNori"/> は 1:0.25 ── 取り違えない)。袖の run の坂上の端の駒に使う。
+        /// 背の面(袖の局所): Z = −踏面/2 − <paramref name="e"/> − 0.3·(Y − Yc)、Yc = <see cref="SodeNoriYc"/>(= (0.30 + 蹴上)/2)。Y &lt; −0.60 は鉛直(地中)。
+        /// e &gt; 0 = 平らな駒の背より坂上へ出る(坂上に次の個体を継いで伸ばす ⇒ 天端・割りは一続き)/ e &lt; 0 = 詰める。
+        /// 据え手は Yc の高さで相手の面(触れている箇所)までの離れを測り、e を <see cref="SodeNoriSnap"/> で 0.05 に丸めて引く。残り(≤0.025)だけ走りに沿って寄せる。
+        /// 焼けている組: 参道の階 (0.250, 0.542)・e = −0.25〜+0.05(0.05 刻み ── −0.30 は膝の下が痩せ切るので焼かない)・a/b。
+        /// 実寸(e −0.15): X −0.300〜+0.300 × Y −1.90〜+0.51 × Z −0.19〜+0.271。三角形 2,070(e −0.25)〜6,330(e +0.05)。
+        /// 材 `Kirishi` / `Danishi` ⇒ `Edo/山王社/新造部材のマテリアルをremap`。
+        /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- sode_nori --keri=0.250 --fumi=0.542 [--e=-0.15] --render</summary>
+        public static string IshidanSodeNozuraNori(float keri, float fumi, float e, int i)
+        {
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            return "Assets/Edo/Models/Kaidan/IshidanSodeNozuraNori_" + keri.ToString("F3", inv) + "_" + fumi.ToString("F3", inv)
+                 + "_E" + (e >= 0f ? "+" : "-") + System.Math.Abs(e).ToString("F2", inv) + "_" + (i % 2 == 0 ? "a" : "b") + ".fbx";
         }
 
         /// <summary>**石段の袖 — 野面の乱積み版**(2026-09-24)。<see cref="IshidanSode"/> と**同じ局所座標・同じピボット・同じ接する面**

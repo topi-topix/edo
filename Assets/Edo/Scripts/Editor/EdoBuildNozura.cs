@@ -47,6 +47,11 @@ public static partial class EdoBuild
         /// 設計面がどちらの地盤に揃うかで決める(2026-09-26・EDO-0437)── 離れで測ると細い裏込めの帯の外(区画の線の際で下がる地盤)を拾い、
         /// 見付 0.3 未満の所では票が許容 0.05 を割って区間の向きへ戻った(前庭の E の南 5m が外を向いた)。</summary>
         public Func<float, Vector2> sidesAt;
+        /// <summary>小口を相手の法で切った短い駒 (天端の長さ, 切る端が局所 +X か, 見付) → パス(2026-09-26・EDO-0437 第3巡)。
+        /// 入隅の可動側の端(<see cref="startConcave"/> / <see cref="endConcave"/>)で、鉛直な小口の代わりに据える(<see cref="EdoAssets.Own.SannoNozuraNoriEnd"/>)。null なら使わない。</summary>
+        public Func<float, bool, float, string> noriEnd;
+        /// <summary>始まり・終わりの端が**入隅の可動側**(通す側の見え面 = 法の面へ突き付ける)。</summary>
+        public bool startConcave, endConcave;
     }
 
     /// <summary>**野面の乱積みの土留めを据える**(2026-09-25・EDO-0430)。見え面 = 描かれた地表の低い側
@@ -384,6 +389,126 @@ public static partial class EdoBuild
                            "°・焼いた角 " + dUse.ToString("F1") + "°・見付 " + hNeed.ToString("F2") + "→" + hUse.ToString("F2") + "・天端の前の縁の切り口を s=" + sQ.ToString("F2") + " へ・光線 y=" + yHit.ToString("F2") + ")");
         }
 
+        // ---- ②'' 入隅の可動側の端には小口を相手の法で切った駒(2026-09-26・EDO-0437 第3巡)-------
+        //   ⭐ 鉛直な小口を通す側の法の足(楔)へ突き付けると、縮めても低い石ほど深く入る(前庭 W の南の区間 −0.05 が 4 巡で残った)。
+        //   小口を相手の法 1:0.3 で切った駒を**伸縮させず**に据える: 長さは区間(天端の高さで測った相手の面 〜 反対の端の相手の最も手前)に
+        //   収まる最長で、残りが 0.05 以下(口)か直線の駒を縮めて埋まる長さ以上。天端の前の縁の切る端を相手の面へ向け、
+        //   **触れている箇所を測って**走りに沿って寄せる(接して 0)。反対の端の相手へ入るなら一つ短い長さへ(硬い制約・許容0)。
+        //   当たる先: 野面の土留めの入隅の可動側の端すべて(山王 前庭の W × SW、今後の庭の土留めの入隅)。
+        for (int side = 0; side < 2; side++)
+        {
+            int sgn = side == 0 ? -1 : 1;
+            var to = side == 0 ? w.startTo : w.endTo; var other = side == 0 ? w.endTo : w.startTo;
+            bool conc = side == 0 ? w.startConcave : w.endConcave, free = side == 0 ? freeA : freeB, otherFree = side == 0 ? freeB : freeA;
+            if (w.noriEnd == null || !conc || free || to.Count == 0 || endKiri[side] != null) continue;
+            string sideName = side == 0 ? "始まり" : "終わり";
+            int si = sgn > 0 ? m - 2 : 0; Vector2 dOut = dir[si] * sgn; Vector3 dOut3 = new Vector3(dOut.x, 0f, dOut.y);
+            float sEnd = sgn > 0 ? L : 0f; float top = w.crestAt(sEnd);
+            // 天端の高さ(天端の線の上と裏 0.3 まで)で、光線の当たりの最小(= 最も手前)
+            Func<IList<GameObject>, Vector2, Vector2, float> nearAt = (bodies, from, d) =>
+            {
+                float best = float.NaN;
+                foreach (float lat in new[] { 0f, -0.15f, -0.3f })
+                    foreach (float dy in new[] { 0.05f, 0.15f })
+                    {
+                        Vector2 q = from + face[si] * lat;
+                        float hh = RayToBodies(bodies, new Vector3(q.x, top - dy, q.y), new Vector3(d.x, 0f, d.y), 6f);
+                        if (!float.IsNaN(hh) && (float.IsNaN(best) || hh < best)) best = hh;
+                    }
+                return best;
+            };
+            float hitMin = nearAt(to, at(sEnd) - dOut * 3f, dOut);
+            if (float.IsNaN(hitMin)) { log.AppendLine("    (" + sideName + "の入隅: 相手の面を天端の高さで測れず ── 鉛直な小口のまま)"); continue; }
+            float sQ = sEnd + sgn * (hitMin - 3f);
+            Vector2 Q = at(Mathf.Clamp(sQ, 0f, L)) + dir[si] * (sQ - Mathf.Clamp(sQ, 0f, L));
+            // 収まる長さ: 相手の面から、最初の固定の駒か反対の端の相手の最も手前まで
+            float lim = side == 0 ? sStop : sStart; bool limIsOther = !otherFree && other.Count > 0;
+            if (limIsOther) { float hn = nearAt(other, Q + dOut * 0.05f, -dOut); if (!float.IsNaN(hn)) lim = sQ - sgn * (hn + 0.05f); }
+            foreach (var f in fixedSpans)
+            {
+                if (side == 0 && f[0] > sQ && f[0] < lim) { lim = f[0]; limIsOther = false; }
+                if (side == 1 && f[1] < sQ && f[1] > lim) { lim = f[1]; limIsOther = false; }
+            }
+            float avail = Mathf.Abs(lim - sQ);
+            //   長さの順: 残りが 0.05 以下(口)か直線の駒を縮めて埋まる長さ(③ の端の駒の下限 0.20 間)以上になる物を先に、次にその他を長い順
+            //   (反対の端の相手が天端より下で前へ出ていると、天端で測った残りより手前で当たる ── 見切り石の足・2026-09-26)
+            var lens = new List<float>(); var lens2 = new List<float>();
+            for (float ls = 0.80f; ls >= 0.30f - 1e-4f; ls -= 0.05f)
+            {
+                float r = avail - ls; if (r < -1e-3f) continue;
+                if (r <= 0.05f || r >= 0.20f * W + 1e-3f) lens.Add(ls); else lens2.Add(ls);
+            }
+            if (limIsOther) { lens.AddRange(lens2); lens.Sort((a, b) => b.CompareTo(a)); }
+            if (lens.Count == 0) { log.AppendLine("    ⚠ " + name + " の" + sideName + "の入隅: 区間 " + avail.ToString("F2") + "m に収まる法切りの駒の長さが無い ── 鉛直な小口のまま"); continue; }
+            Func<GameObject, List<Vector3>> visN = go =>
+            { var l = new List<Vector3>(); foreach (var v in Body(go.transform, 999999)) { float gy = faceG(v.x, v.z); if (float.IsNaN(gy) || v.y > gy + 0.02f) l.Add(v); } return l; };
+            Func<GameObject, IList<GameObject>, Vector3, float> touchOn = (go, bodies, d) =>
+            {
+                var pk0 = visN(go); float cm = float.NaN;
+                foreach (var pr in bodies) if (pr != null && pr != go)
+                { Vector3 a1; int c1; float cc = ContactPts(pk0, visN(pr), d, out a1, out c1); if (!float.IsNaN(cc) && (float.IsNaN(cm) || cc < cm)) cm = cc; }
+                return cm;
+            };
+            GameObject kg = null; string path = null; float hUse = 0f, hNeed = 0f, lenUse = 0f, cfin = float.NaN, cOth = float.NaN; Vector2 fN = Vector2.zero; string why = "";
+            foreach (float ls in lens)
+            {
+                float sa0 = Mathf.Min(sQ, sQ - sgn * ls), sb0 = Mathf.Max(sQ, sQ - sgn * ls);
+                fN = faceOn(si, sa0, sb0);
+                Vector2 X = new Vector2(fN.y, -fN.x); bool atPlusX = Vector2.Dot(X, dOut) > 0f;
+                float crest = w.crestAt(Mathf.Clamp(0.5f * (sa0 + sb0), 0f, L));
+                hNeed = needH(Mathf.Max(0f, sa0), Mathf.Min(L, sb0), crest, si);
+                path = null; string root = System.IO.Directory.GetParent(Application.dataPath).FullName;
+                foreach (var hh in w.heights)
+                {
+                    if (hh < hNeed - 1e-3f) continue;
+                    string pth = w.noriEnd(ls, atPlusX, hh);
+                    if (pth != null && System.IO.File.Exists(System.IO.Path.Combine(root, pth))) { path = pth; hUse = hh; break; }
+                }
+                if (path == null) { why = "長さ " + ls.ToString("F2") + "・" + (atPlusX ? "+X" : "−X") + "・見付 " + hNeed.ToString("F2") + " 以上が焼いていない"; continue; }
+                float yaw = Mathf.Atan2(-X.y, X.x) * Mathf.Rad2Deg;
+                Vector2 c0 = Q - dOut * (0.5f * ls);
+                kg = Place(path, new Vector3(c0.x, crest - hUse, c0.y), yaw, Vector3.one, parent, name + "_nori" + side);
+                // 高さ・見え面は天端の線へ(測って寄せる)。走りは天端の前の縁の切る端を Q へ見当 → 触れている箇所で寄せる
+                seat0(kg, crest, fN, Q);
+                {
+                    var vs = Body(kg.transform, 999999); float tp = float.MinValue; foreach (var v in vs) tp = Mathf.Max(tp, v.y);
+                    float e = float.MinValue;
+                    foreach (var v in vs) if (v.y >= tp - 0.12f)
+                    { Vector2 r = new Vector2(v.x, v.z) - Q; if (Mathf.Abs(Vector2.Dot(r, fN)) < 0.10f) e = Mathf.Max(e, Vector2.Dot(r, dOut)); }
+                    if (e != float.MinValue) kg.transform.position -= dOut3 * e;
+                }
+                for (int pass = 0; pass < 4; pass++)
+                {
+                    float tc = touchOn(kg, to, dOut3); if (float.IsNaN(tc) || Mathf.Abs(tc) < 0.002f) break;
+                    kg.transform.position += dOut3 * tc; seat0(kg, crest, fN, Q);
+                }
+                cfin = touchOn(kg, to, dOut3);
+                cOth = other.Count > 0 ? touchOn(kg, other, -dOut3) : float.NaN;
+                if ((!float.IsNaN(cfin) && cfin < -0.005f) || (!float.IsNaN(cOth) && cOth < -0.005f))
+                {   // ⛔ 硬い制約(許容0): 相手か反対の端の相手へ入る ⇒ 一つ短い長さへ
+                    why = "長さ " + ls.ToString("F2") + " は相手へ " + (float.IsNaN(cfin) ? "—" : cfin.ToString("+0.000;-0.000")) + "・反対の端の相手へ " + (float.IsNaN(cOth) ? "—" : cOth.ToString("+0.000;-0.000"));
+                    UnityEngine.Object.DestroyImmediate(kg); kg = null; continue;
+                }
+                lenUse = ls; break;
+            }
+            if (kg == null) { log.AppendLine("    ⚠ " + name + " の" + sideName + "の入隅: 法切りの駒を据えられない(" + why + ")── 鉛直な小口のまま"); continue; }
+            // 駒の走りの範囲(実メッシュ)を固定の駒に。相手の側の端は相手の面(sQ)
+            var spn = span(kg, P[si], dir[si]);
+            float sNear = sgn > 0 ? s0[si] + spn[0] : s0[si] + spn[1];     // 内側(直線の駒が継ぐ側)の端
+            fixedSpans.Add(new[] { Mathf.Min(sNear, sQ), Mathf.Max(sNear, sQ), -1, 3 });
+            if (side == 0) sStart = sQ; else sStop = sQ;
+            float rest = Mathf.Abs(lim - sNear);
+            // 反対の端の相手との間(触れている箇所で測った cOth)が直線の駒を縮めて埋まる長さに足りない ⇒ 直線の駒を入れない(反対の端をこの駒の端に止める)
+            bool gapLeft = false;
+            if (limIsOther && (Mathf.Abs(avail - lenUse) <= 0.05f || (!float.IsNaN(cOth) && cOth < 0.20f * W)))
+            { if (side == 0) sStop = sNear; else sStart = sNear; gapLeft = !float.IsNaN(cOth) && cOth > 0.005f; }
+            res.Add(new KeyValuePair<GameObject, Vector2>(kg, fN)); idx++; endKiri[side] = kg;
+            log.AppendLine("    " + sideName + "の入隅: 法切りの駒 " + System.IO.Path.GetFileNameWithoutExtension(path) + "(区間 " + avail.ToString("F2") +
+                           "m・見付 " + hNeed.ToString("F2") + "→" + hUse.ToString("F2") + ")・相手へ " + (float.IsNaN(cfin) ? "—" : cfin.ToString("+0.000;-0.000")) +
+                           "m・反対の端の相手へ " + (float.IsNaN(cOth) ? "—" : cOth.ToString("+0.000;-0.000")) + "m・天端での残り " + rest.ToString("F3") + "m" + (why != "" ? "(退けた長さ: " + why + ")" : "") +
+                           (gapLeft ? " ⚠ 反対の端の相手との口 " + cOth.ToString("F3") + "m(焼いた長さの刻み 0.05 と相手の出入りで残る)" : ""));
+        }
+
         // ---- ③ 固定の駒の間を 1間の駒で埋める -------------------------------------------------
         //   ⭐ 端を相手の面へ突き付けた run は、据えた端の駒と相手を実メッシュで測り(Contact)、めり込めば端を戻して**もう一度だけ**
         //   並べ直す(光線の当たりは線の前後 3 本だけ ── 石の出っ張りが測りの外で相手へ入った・男坂の袖 −0.02〜−0.03・2026-09-26)。
@@ -688,7 +813,7 @@ public static partial class EdoBuild
         Func<float, float, float> faceGroundAt, float probe,
         Transform parent, Func<float, float, int, string> straight, Func<float, int, string> kado, Func<bool, int, string> dan,
         Func<bool, int, string> kiri, Func<float, string> mikiriPath, float[] heights, List<GameObject> pool, System.Text.StringBuilder log,
-        Func<float, bool, bool, float, int, string> kiriEnd = null)
+        Func<float, bool, bool, float, int, string> kiriEnd = null, Func<float, bool, float, string> noriEnd = null)
     {
         var res = new List<KeyValuePair<GameObject, Vector2>>();
         int n = segs.Count; if (n == 0) return res;
@@ -805,7 +930,7 @@ public static partial class EdoBuild
             for (int i = 1; i < ch.Count; i++)
             { float st = cum[i]; if (Mathf.Abs(w.crestAt(st - 0.5f) - w.crestAt(st + 0.5f)) > 0.05f) w.steps.Add(st); }
             foreach (var kv in ch) if (segs[kv.Key].footAt != null) { w.footAt = segs[kv.Key].footAt; break; }
-            w.straight = straight; w.kado = kado; w.dan = dan; w.kiri = kiri; w.heights = heights; w.faceGroundAt = faceGroundAt; w.kiriEnd = kiriEnd;
+            w.straight = straight; w.kado = kado; w.dan = dan; w.kiri = kiri; w.heights = heights; w.faceGroundAt = faceGroundAt; w.kiriEnd = kiriEnd; w.noriEnd = noriEnd;
             string nm = segs[ch[0].Key].name; var names = new List<string>(); foreach (var kv in ch) if (!names.Contains(segs[kv.Key].name)) names.Add(segs[kv.Key].name);
             // 端の納め
             var endDesc = new string[2];
@@ -821,6 +946,7 @@ public static partial class EdoBuild
                     if (moves(k, e))
                     {
                         List<GameObject> pp; if (chainPieces.TryGetValue(chainOf[j], out pp)) to.AddRange(pp);
+                        if (side == 0) w.startConcave = true; else w.endConcave = true;
                         endDesc[side] = "入隅の可動側 → " + segs[j].name + " の見え面へ(駒 " + to.Count + ")" +
                                         (segs[k].movesAtConcave == segs[j].movesAtConcave && (concave[k, 0, 0] >= 0) == (concave[k, 1, 0] >= 0) && (concave[j, 0, 0] >= 0) == (concave[j, 1, 0] >= 0) ? " ⚠ 可動側を指図から決められず後の区間にした" : "");
                     }

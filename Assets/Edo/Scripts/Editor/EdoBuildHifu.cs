@@ -69,7 +69,7 @@ public static partial class EdoBuild
         public int verts, tris, pinned, faced, clamped, under, floored, designed, sloped, filled, fillLostTree;
         public float fillMax; public Vector3 fillAt;
         public float maxLower, maxRaise; public Vector3 lowerAt, raiseAt;
-        public int detCells, trees, sealed_;
+        public int detCells, trees, sealed_, backSealed;
         /// <summary>digParts の背を下げた点の数・下げた量の最大(天端を段の線に置いた袖 ── 施主 2026-09-25)。</summary>
         public int dug; public float digMax; public Vector3 digAt;
         public int gapPts, gapN, gapBySkin, gapBig, coverPts, coverN;
@@ -85,7 +85,7 @@ public static partial class EdoBuild
                    " / 部材の天端の下へ " + clamped + " 点(うち真下 " + under + "・隣の底で止めた " + floored + ")" +
                    " / 裏込め(部材の底まで盛る)" + filled + " 点・最大 " + fillMax.ToString("F2") + "m @(" + fillAt.x.ToString("F1") + ", " + fillAt.z.ToString("F1") + ")" +
                    "・地形の木の升は穴を開けず被せた " + fillLostTree + " 升" +
-                   " / 面の高さの皮で部材の底まで塞いだ " + sealed_ + " 点" +
+                   " / 面の高さの皮で部材の底まで塞いだ " + sealed_ + " 点・背の土を駒の底まで上げた " + backSealed + " 点" +
                    (dug > 0 ? " / 背を下げた(天端 − 0.05 から法)" + dug + " 点・最大 " + digMax.ToString("F2") + "m @(" + digAt.x.ToString("F1") + ", " + digAt.z.ToString("F1") + ")" : "") +
                    " / 元の地形から 下げ 最大 " + maxLower.ToString("F2") + "m @(" + lowerAt.x.ToString("F1") + ", " + lowerAt.z.ToString("F1") + ")・上げ 最大 " + maxRaise.ToString("F2") + "m @(" + raiseAt.x.ToString("F1") + ", " + raiseAt.z.ToString("F1") + ")" +
                    " / 芝を消した 1m 升 " + detCells + " / 皮が 0.05m を超えて動いた所の地形の木 " + trees + " 本" +
@@ -109,6 +109,8 @@ public static partial class EdoBuild
     const float OV_SINK = 0.05f;
     /// <summary>裏込めが部材の天端の下へ潜る深さ(外形の縁の帯の中)[m]。天端と重ねず、縁の外で底を割らない。</summary>
     const float FILL_UNDER = 0.006f;
+    /// <summary>土留めの背の外形の縁で、外の地盤(0.6m 先)が駒の底より低いときに底まで盛ってよい高さ[m](2026-09-26・EDO-0437 第3巡)。</summary>
+    public const float BACK_FILL = 0.35f;
     /// <summary>裏込めを伸ばす最大の離れ(部材の外接矩形から)[m]。</summary>
     const float FILL_REACH = 12f;
 
@@ -801,14 +803,61 @@ public static partial class EdoBuild
                             float dz = OutsideY(p, null); float bl = BotL(gi, gj), tl = TopL(gi, gj);
                             //   底が設計の地盤 + (faceTol − 0.02) を超えて高い駒は駒の側の話(sealFace と同じ許容)── 野面の法の足の石の下面(25.4〜25.5)
                             //   まで上げると犬走りの床 25.05 の上に 0.45m の土の縁が立った。
-                            if (!float.IsNaN(bl) && !float.IsNaN(tl) && tl - bl > 0.05f && bl <= dz + faceTol - 0.02f) dz = Mathf.Max(dz, bl);
+                            bool botOk = !float.IsNaN(bl) && !float.IsNaN(tl) && tl - bl > 0.05f && bl <= dz + faceTol - 0.02f;
+                            if (botOk) dz = Mathf.Max(dz, bl);
                             hgt = Mathf.Min(hgt, dz);
+                            // ⭐ 駒の底までは上げる(2026-09-26・EDO-0437 第3巡)── 2m 格子の地形は土留めの背の外形の中で面の段を跨いで落ち
+                            //   (前庭の SE の背: 設計の地盤 16.65・駒の底 16.50・地形 15.8)、外形の外の設計の地盤との間の三角形が背の底の下を
+                            //   0.54m 覗かせた。底は駒のどの面より低いので天端は埋まらない(「上げない」の由来 ── 袖の天端を埋めた ── は設計の地盤へ上げた話)。
+                            if (botOk && hgt < Mathf.Min(bl, dz)) hgt = Mathf.Min(bl, dz);
                         }
                         // ⭐ 天端の帯で篩う駒の**法の面の下**(外形の中・天端の帯の外)は、その点の面の高さで描く ── 法の足・控えは面の土の下へ入る
                         //   (2026-09-25: 野面の背と腰石垣の間の帯 SukibeiSoto_Chu が、腰石垣の深い法の上で元の地形 28.85 のまま 0.4m の溝になった)。
                         //   上向きの面が無い点(城の石垣の急な法の真下)も同じ ── 篩う駒の外形の中に限る。
                         if (near == 2 && !faced && (faceTop.Contains(CK(gi, gj)) || (float.IsNaN(TopL(gi, gj)) && InBandedHull(p))))
                         { float fy = FaceY(p); if (!float.IsNaN(fy)) { hgt = fy; faced = true; } }
+                        // ⭐ 背の土を駒の底まで(2026-09-26・EDO-0437 第3巡)── 駒の外形の中と縁の近く(NEAR 以内)で、面の外の点は、
+                        //   駒の底(その点の最も低い面 / 近くの駒の底の最大)が**周り 0.6m の外形の外の地盤以下**なら、その底まで上げる
+                        //   (底 ≦ 外の地盤 = 背の土はそこまで在る。底は駒のどの面より低いので天端は埋まらない)。
+                        //   設計面の節点が駒の下で落ちて造成前の地盤(低い)で引かれると、土留めの背の外形の縁に溝ができ底の下が覗く
+                        //   (前庭の SE の背: 外の地盤 16.3〜16.8・駒の底 16.50・縁の溝 15.7 ⇒ 0.54m)。
+                        //   当たる先: 土留め・石垣・袖の背(外形の縁)が盛土・造成の境に掛かる所すべて。
+                        if (near >= 1 && !faced && design != null && float.IsNaN(FaceY(p)))
+                        {
+                            float bl2 = float.NaN;
+                            // 外形の中でも駒の面が上下に無い点(凹んだ駒の外接の外形の中 ── SE の背の 831.07)は外形の外と同じに近くの底で
+                            bool inBody = near == 2 && !(float.IsNaN(TopL(gi, gj)) && float.IsNaN(BotL(gi, gj)));
+                            if (inBody)
+                            {
+                                float b2 = BotL(gi, gj), t2 = TopL(gi, gj);
+                                // 底の面が無い点(背の控えの鉛直な面の脇)は鉛直な面の下の縁を底に(sealFace と同じ・0.2m 以内)
+                                if (float.IsNaN(b2) && !float.IsNaN(t2)) { int who0; idx.TopRaw(x, z, out who0); float wb0 = idx.WallBottom(x, z, 0.2f, who0); if (!float.IsNaN(wb0)) b2 = wb0; }
+                                if (!float.IsNaN(b2) && !float.IsNaN(t2) && t2 - b2 > 0.05f) bl2 = b2;
+                            }
+                            else
+                                for (int di = -2; di <= 2; di++)
+                                    for (int dj = -2; dj <= 2; dj++)
+                                    {
+                                        int who; float qx = org.x + (gi + di * 0.5f) * step, qz = org.z + (gj + dj * 0.5f) * step;
+                                        float bq = idx.Bottom(qx, qz, out who); if (float.IsNaN(bq)) continue;
+                                        float tq = idx.TopRaw(qx, qz, out who); if (float.IsNaN(tq) || tq - bq <= 0.05f) continue;
+                                        if (float.IsNaN(bl2) || bq > bl2) bl2 = bq;
+                                    }
+                            if (!float.IsNaN(bl2) && hgt < bl2 - 1e-3f)
+                            {
+                                float og = float.NaN;
+                                for (int a8 = 0; a8 < 8; a8++)
+                                {
+                                    float an = a8 * Mathf.PI / 4f; var q = p + new Vector2(Mathf.Cos(an), Mathf.Sin(an)) * 0.6f;
+                                    if (NearAt(q, 0.01f) == 2) continue;
+                                    float oy = FaceY(q); if (float.IsNaN(oy)) oy = OutsideY(q, null);   // 外の地盤 = 面の中は面の高さ・外は設計の地盤
+                                    if (!float.IsNaN(oy) && (float.IsNaN(og) || oy > og)) og = oy;
+                                }
+                                //   外の地盤が底より低くても BACK_FILL 以内なら底まで盛る(裏込めの土 ── 縁から 0.6m で外の地盤へ下りる)。
+                                //   それより低い外の地盤は駒が浮いている(駒の側の話 ── 隙に数える)。
+                                if (!float.IsNaN(og) && og >= bl2 - BACK_FILL) { hgt = Mathf.Max(hgt, bl2); r.backSealed++; }
+                            }
+                        }
                         if (faced) r.faced++;
                         float hgt0 = hgt;
                         // 部材の天端の下へ納める(真下 = 天端 − under / 周り 8 点の天端の最小 − eps)

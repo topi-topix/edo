@@ -1273,7 +1273,7 @@ public static class EdoSannoShaRebuild
             (h, g, i) => EdoAssets.Own.SannoNozura(h, g, i), (h, i) => EdoAssets.Own.SannoNozuraKado(h, i),
             (up, i) => EdoAssets.Own.SannoNozuraDan(up, i), (up, i) => EdoAssets.Own.SannoNozuraKiri(up, i),
             EdoAssets.Own.SannoNozuraMikiriH, new[] { 0.30f, 0.60f, 0.90f, 1.20f, 1.50f, 1.80f, 2.10f, 2.40f }, pool, sb,
-            EdoAssets.Own.SannoNozuraKiriEnd);
+            EdoAssets.Own.SannoNozuraKiriEnd, EdoAssets.Own.SannoNozuraNoriEnd);
         foreach (var kv in got) { placed.Add(kv.Key); faceOf[kv.Key] = kv.Value; }
         return got.Count;
     }
@@ -1287,6 +1287,13 @@ public static class EdoSannoShaRebuild
             n++; if (b0 > -BURIED_EPS) return false;
         }
         return n > 0;
+    }
+    /// <summary>袖の駒が野面の乱積みの袖(`IshidanSodeNozura*`)か(メッシュの資産名で)。</summary>
+    static bool IsNozuraSode(GameObject g)
+    {
+        var mf = g == null ? null : g.GetComponentInChildren<MeshFilter>();
+        string mp = mf != null && mf.sharedMesh != null ? AssetDatabase.GetAssetPath(mf.sharedMesh) : "";
+        return System.IO.Path.GetFileName(mp).StartsWith("IshidanSodeNozura");
     }
     static string FamilyOf(string n)
     { int i = n.LastIndexOf('_'); return i <= 0 ? n : n.Substring(0, i); }
@@ -1354,10 +1361,15 @@ public static class EdoSannoShaRebuild
                 {
                     var mf = g.GetComponentInChildren<MeshFilter>(); string mp = mf != null && mf.sharedMesh != null ? AssetDatabase.GetAssetPath(mf.sharedMesh) : "";
                     // 平らな袖(丈は既定)か、前の巡で背を切った袖だけ。⛔ 留めの駒・丈の深い駒は焼いていない
-                    return mp == EdoAssets.Own.IshidanSode(keri, fumi, i) || System.IO.Path.GetFileName(mp).StartsWith("IshidanSodeNori_" + keri.ToString("F3", System.Globalization.CultureInfo.InvariantCulture) + "_" + fumi.ToString("F3", System.Globalization.CultureInfo.InvariantCulture) + "_E")
-                        ? EdoAssets.Own.IshidanSode(keri, fumi, i) : null;
+                    var inv = System.Globalization.CultureInfo.InvariantCulture; string kf = keri.ToString("F3", inv) + "_" + fumi.ToString("F3", inv);
+                    if (mp == EdoAssets.Own.IshidanSode(keri, fumi, i) || System.IO.Path.GetFileName(mp).StartsWith("IshidanSodeNori_" + kf + "_E")) return EdoAssets.Own.IshidanSode(keri, fumi, i);
+                    // 野面の袖(平らな物か、前の巡で背を切った物)── 2026-09-26 EDO-0437 第3巡
+                    if (mp == EdoAssets.Own.IshidanSodeNozura(keri, fumi, i) || System.IO.Path.GetFileName(mp).StartsWith("IshidanSodeNozuraNori_" + kf + "_E")) return EdoAssets.Own.IshidanSodeNozura(keri, fumi, i);
+                    return null;
                 },
-                (i, e) => EdoAssets.Own.IshidanSodeNori(keri, fumi, e, i), sb);
+                (g, i, e) => IsNozuraSode(g) ? EdoAssets.Own.IshidanSodeNozuraNori(keri, fumi, e, i) : EdoAssets.Own.IshidanSodeNori(keri, fumi, e, i), sb,
+                // ⭐ 相手が野面の乱積み(法 1:0.3)の端・袖の背は石の出の包絡で切る(EDO-0437 第3巡)。野面の袖だけ ── 切石の袖は従来の中央値
+                envNori: EdoAssets.Own.SannoNozuraNori, sodeEnvNori: g => IsNozuraSode(g) ? EdoAssets.Own.SannoNozuraNori : float.NaN, envVisAt: SodeFootAt);
             dans.Clear(); sodes.Clear();
             foreach (Transform c in grp)
             {
@@ -1469,7 +1481,8 @@ public static class EdoSannoShaRebuild
                     // 在庫の板塀(edogoyomi)。⚠ 呼び寸に合わせて走り方向だけ伸縮するのは
                     //   既存の `PanelRun` の流儀(全邸で同じ)。表裏2枚で `_kf`/`_kb` と名づく。
                     var outw = new Vector2(dir.y, -dir.x);
-                    var lst = EdoBuild.PanelRun(grp, a, b, outw, name, EdoAssets.Eg.Itabei5, Vector2.zero, -1);
+                    var beds = new List<GameObject>(); foreach (Transform c in Group("Dodome")) if (c.gameObject.activeInHierarchy) beds.Add(c.gameObject);
+                    var lst = EdoBuild.PanelRun(grp, a, b, outw, name, EdoAssets.Eg.Itabei5, Vector2.zero, -1, beds: beds);
                     made += lst.Count;
                 }
             }

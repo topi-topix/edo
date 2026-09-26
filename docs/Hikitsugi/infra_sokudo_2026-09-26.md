@@ -39,13 +39,13 @@ EDO-0437 の建て直しの見込みは 1〜1.5時間 + 検査30分(前回の実
 | 部材を解く順をプログラムに持たせる | 流し直しの分(十数分〜) |
 | 関数の中の計算を速くする | 数秒(やる価値は薄い) |
 
-## 切り出した4票(1票1セッション。2026-09-26 起票済 — 日誌 EDO-0453・収束関数 EDO-0454・依存順 EDO-0455・読む物 EDO-0456)
+## 切り出した4票(1票1セッション。2026-09-26 起票済 — 日誌 EDO-0453・収束関数 EDO-0454・依存順 EDO-0455・関数の目録 EDO-0456)
 
 | 順 | 題 | 触る所 | 完成の条件(要旨) |
 |---|---|---|---|
 | 1 | 据え付けの寄せて測るを収束する関数にする | `Assets/Edo/Scripts/Editor/EdoBuild*.cs` | EDO-0437 の石段〜門(か同じ型の箇所)で関数1回・許容0の欠陥 0 件・最悪値併記。戻り値は合否と理由 |
 | 2 | 部材を依存の順に解き変えた所から後だけ流し直す | 各 Rebuild の Stage 群(例 `EdoSannoShaRebuild.cs` Stage0〜)と `EdoBuild` 側の入口 | 石段だけ直したとき上流(造成・門)は流れず下流だけ流れる。前例 `.claude/agent-memory/edo-toryo/regrade-only-the-changed-block.md` |
-| 3 | 建てる役が最初に読む物を仕事の種類で絞る | `.claude/agents/edo-toryo.md`・`.claude/agent-memory/edo-toryo/MEMORY.md` | 石段と門の仕事で読む量が減ったことをバイト数で前後比較。`config_doctor.py --quick` 無言 |
+| 3 | ~~建てる役が最初に読む物を仕事の種類で絞る~~ → **建てる役が既存のC#を読み歩かずに済むよう、EdoBuild の据え方の関数の目録を置く**(2026-09-26 差し替え・下の「実測」) | EdoBuild 系の注釈から目録を生成する道具・`.claude/agents/edo-toryo.md` | 同じ種類の仕事で、既存 C# を読む往復数と時間が前後で減ったことを数字で示す。`config_doctor.py --quick` 無言 |
 | 4 | 日誌で建てる役の中の時間の内訳を採る | `Tools/Session/nikki.py` | 役1回あたりの往復数・考える時間・execute_code 回数・起動時の読み量が表に出る。改善前の基準値を刷る |
 
 **勧める順: 4 → 1 → 2 → 3。**4で基準値を先に採れば1の効きを数字で比べられる。1だけ先でもよい。
@@ -61,6 +61,13 @@ python3 Tools/Session/edo_board.py post --type task --estate infra --title "部�
 python3 Tools/Session/edo_board.py post --type task --estate infra --title "建てる役が最初に読む物を仕事の種類で絞る" --msg "EDO-0437 の所要から切り出し。起動時の読み込みを種類別に" --ref docs/Hikitsugi/infra_sokudo_2026-09-26.md
 python3 Tools/Session/edo_board.py post --type task --estate infra --title "日誌で建てる役の中の時間の内訳を採る" --msg "EDO-0437 の所要から切り出し。改善の効きを測る基準値" --ref docs/Hikitsugi/infra_sokudo_2026-09-26.md
 ```
+
+## 実測で分かった差し替え(2026-09-26 追記)
+
+EDO-0437 の建てる役3回ぶんの記録(`~/.claude/projects/.../e61007bc*/subagents/`)から、考えていた時間(49分・273往復)を
+「次に何をしたか」で分けた。**起動時に正典・スキルを読む時間はほぼ0%(5往復)**で、票3の旧い狙いは外れていた。
+考える時間の約25%(60往復・1回約12秒)は、**据え方の関数を探すための既存 C# の grep の読み歩き**だった → 票3(EDO-0456)を関数の目録へ差し替えた。
+ほかは「Unity で測る・流す、その出力を読む」約36%(票1 EDO-0454 の的)、コンパイルの確かめ14%、git・門番ほか14%。
 
 ## ⚠ 踏まないこと
 

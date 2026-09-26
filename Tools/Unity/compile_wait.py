@@ -215,6 +215,9 @@ def run(a):
         except RuntimeError as e:
             return done("refresh を断られた: %s" % e, 2)
 
+    lap = res.setdefault("lap", {})               # 段ごとの経過秒(どこで待ったかを刷る)
+    lap["依頼"] = round(time.monotonic() - t0, 1)
+
     # ③ Editor.log の目印を待つ
     deadline = time.monotonic() + a.timeout
     text, tundra, reload_ms, quiet_since = "", None, None, None
@@ -223,6 +226,8 @@ def run(a):
         text += chunk
         st = judge(text)
         tundra = st.get("tundra")
+        if tundra and "コンパイル" not in lap:
+            lap["コンパイル"] = round(time.monotonic() - t0, 1)
         if st["state"] == "error":
             # 誤りの後も Unity は古い DLL で動いている — 橋が応えるのを確かめてから返す
             res["errors"] = st["errors"]
@@ -242,6 +247,8 @@ def run(a):
         res["log_tail"] = text[-600:]
         return done("時間切れ(%d 秒)— log に完了の目印が出ない" % a.timeout, 2)
 
+    lap["log の完了"] = round(time.monotonic() - t0, 1)
+
     # ④ MCP が戻るまで(主スレッドのコマンドが返るまで)
     ready = False
     while time.monotonic() < deadline:
@@ -256,6 +263,7 @@ def run(a):
     if not ready:
         return done("再読み込みは済んだが MCP が戻らない(%d 秒)" % a.timeout, 2)
 
+    lap["MCP"] = round(time.monotonic() - t0, 1)
     res["reload_ms"] = reload_ms
     res["tundra"] = tundra
     if res["errors"]:
@@ -328,6 +336,8 @@ def main():
         extra.append("DLL %d 件" % res["tundra"][1])
     print("%s %s — %.1f 秒%s" % (mark, res["result"], res["seconds"],
                                  ("(" + "・".join(extra) + ")") if extra else ""))
+    if res.get("lap"):
+        print("   経過: " + " → ".join("%s %.1fs" % kv for kv in res["lap"].items()))
     for e in res["errors"]:
         print("   " + e)
     for n in res["notes"]:

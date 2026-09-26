@@ -1311,8 +1311,9 @@ public static class EdoAssets
         /// `Ld+0.219B-0.187_Rd+0.219B-0.188` に焼き直した(za が +0.03 から −0.19 へ動いた)。段 2〜4 は据え直し前の値のまま。
         /// 焼けている組(2026-09-26): 参道の階 (0.250, 0.542, 5.509) の段 1〜4 / 郭の階 (0.238, 0.450, 1.818) の段 0〜3(W 1.641〜1.816 × H 0.417 × D 0.550。
         /// blender --background --python Tools/Blender/build_sanno_buzai.py -- dan_kiri_list Tools/Blender/sanno_kaku_kiri_set.txt 0.2375 0.450 1.818 --render)。
-        /// ⭐ 返しが野面の乱積み(法 1:0.3)になった後(EDO-0437 第3巡)は法 0.3 の全長の切りを (3) の角 0 で綴る: 段 2 = `L DanKiriEnd(0.139f, 0f, 0.300f) R DanKiriEnd(0.108f, 0f, 0.300f)`・
-        /// 段 3 = `L DanKiriEnd(0.071f, 0f, 0.300f)`(棟梁の第3巡の測り直し ── 見える当たりの石の出の包絡 `EdoBuild.EnvelopeCut` + 0.015・`Tools/Blender/sanno_sando_nozura_kiri_set.txt`。
+        /// ⭐ 返しが野面の乱積み(法 1:0.3)になった後(EDO-0437 第3巡)は法 0.3 の全長の切りを (3) の角 0 で綴る: 段 2 = `L DanKiriEnd(0.138f, 0f, 0.300f) R DanKiriEnd(0.169f, 0f, 0.300f)`・
+        /// 段 3 = `L DanKiriEnd(0.071f, 0f, 0.300f) R DanKiriEnd(0.084f, 0f, 0.300f)`(第5巡 2026-09-26 ── 見える当たりを「設計面と描かれた地表の低い方」で測るように揃えた後(d27efa4a)の棟梁の実測。
+        /// 旧 段 2 `L(0.139) R(0.108)`・段 3 `L(0.071) R0` は使わないが残す。見える当たりの石の出の包絡 `EdoBuild.EnvelopeCut` + 0.015・`Tools/Blender/sanno_sando_nozura_kiri_set.txt`。
         /// blender --background --python Tools/Blender/build_sanno_buzai.py -- dan_kiri_list Tools/Blender/sanno_sando_nozura_kiri_set.txt 0.250 0.542 5.509 --render)。
         /// 焼かずに型だけ確かめる: -- dan_kiri_try <一覧> <蹴上> <踏面> <幅> --render(Screenshots/sanno_dankiri_<一覧>_*.png)。
         /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- dan_kiri_list Tools/Blender/sanno_sando_kiri_set.txt 0.250 0.542 5.509(組み絵は -- kiri_shots 0.250 0.542 5.509 0.219 0.040)</summary>
@@ -1331,8 +1332,8 @@ public static class EdoAssets
         public static string DanKiriEnd(float d, float za, bool cornerUphill) { return "d" + DanKiriF3(d) + (cornerUphill ? "B" : "F") + DanKiriF3(za); }
         /// <summary><see cref="SannoDanKiri"/> の端: 返しと袖に跨り、返しの面・欠いた奥の面とも法 <paramref name="nori"/>(野面の乱積み 1:0.3 ── EDO-0437 2026-09-26)。
         /// d = 見える当たりの石の出の包絡 max(法·(Y − Yc) + 食い込み)(<c>EdoBuild.EnvelopeCut</c> と同じ量)/ za = 隅の駒の当たる標本の max(Z + 法·(Y − Yc))
-        /// (段の局所・Yc = −蹴上/2。za は負もとる ── 隅の駒の面が踏面の中心より坂上)。焼けている組: 参道の階の段 1 = `L DanKiriEnd(0.212f, -0.031f, true, 0.300f) R DanKiriEnd(0.193f, 0.005f, true, 0.300f)`
-        /// (野面の表の石の背を尻すぼみに焼き直した後の実測・EDO-0437 2026-09-26。旧 `L(0.222, 0.024) R(0.213, 0.034)` は使わないが残す)(W 5.509 × H 0.430 × D 0.642・材 Danishi)。
+        /// (段の局所・Yc = −蹴上/2。za は負もとる ── 隅の駒の面が踏面の中心より坂上)。焼けている組: 参道の階の段 1 = `L DanKiriEnd(0.212f, -0.031f, true, 0.300f) R DanKiriEnd(0.198f, 0.077f, true, 0.300f)`
+        /// (EDO-0437 第5巡 2026-09-26 ── 見える当たりを設計面と描かれた地表の低い方で測った実測(d27efa4a 後)。旧 `R(0.193, 0.005)`(2f0fd97b)・`L(0.222, 0.024) R(0.213, 0.034)` は使わないが残す)(W 5.509 × H 0.430 × D 0.642・材 Danishi)。
         /// 生成: blender --background --python Tools/Blender/build_sanno_buzai.py -- dan_kiri_list Tools/Blender/sanno_sando_nozura_kiri_set.txt 0.250 0.542 5.509 --render</summary>
         public static string DanKiriEnd(float d, float za, bool cornerUphill, float nori) { return DanKiriEnd(d, za, cornerUphill) + "N" + DanKiriF3(nori); }
         /// <summary><see cref="SannoDanKiri"/> の端: 平面で斜めに切る。<paramref name="d"/> = 踏面の中心の線 Z = 0・蹴上の中ほどでの食い込み /

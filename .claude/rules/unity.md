@@ -48,6 +48,10 @@ paths:
   役(棟梁・普請検査)の sleep/until は門番が止める。実測(EDO-0437): Unity 自身は1回4〜7秒なのに、
   待ち方で1回30〜50秒・空振りで4〜5分を溶かし、3回ぶん約31分のうち Unity が要ったのは約2分だった。
   ⚠ Unity が見るのは本体の作業ツリー。worktree で直した .cs は届かない。
+  ⚠ **「refresh を投げずに DLL の日付を見て待つ」は空振りの元だった。** Unity が裏にいると、保存を見つけた
+  だけの要求(`AssetDatabase observed changes`)は外から頼まれるまでコンパイルが始まらない —
+  過去の log で 123 回中 73 回が止まり、道具と同じ形の要求 279 回は全部決着した(2026-09-26・
+  読み分けの試験は Unity なしで `compile_wait.py --replay`)。
 - **コンパイルが止まっていることがある。** `Library/ScriptAssemblies/Assembly-CSharp-Editor.dll` の mtime が
   ソースより古ければ実行しない(`edo_precheck_assembly.sh` が知らせる。compile_wait が「作り直し不要」と
   判じた印 `Temp/edo_compile_wait.json` があれば通す)。

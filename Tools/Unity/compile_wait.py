@@ -12,6 +12,8 @@
      即答するので目印にならない
   ⑤ 所要秒・結果を1行で返す
 
+  試験(Unity 不要): python3 Tools/Unity/compile_wait.py --replay — 過去の Editor.log で読み分けを検める
+
   終了コード: 0 = 再読み込み済み / 作り直し無し ・ 1 = コンパイルの誤り ・ 2 = 時間切れ・橋に繋がらない
 
 ⭐ **C# を直したらこれだけを使う。**手書きの `sleep`・`until`・DLL の日付の見張り・`refresh_unity` の
@@ -47,6 +49,30 @@ RE_TUNDRA_NG = re.compile(r"\*\*\* Tundra build failed")
 RE_CS_ERR = re.compile(r"(Assets/\S+\.cs\(\d+,\d+\)): error (CS\d+): (.*)")
 RE_COMPILE_REQ = re.compile(r"\[ScriptCompilation\] Requested script compilation")
 RE_REFRESH_DONE = re.compile(r"Asset Pipeline Refresh \(id=\w+\): Total: ([\d.]+) seconds")
+
+
+def judge(text):
+    """refresh を頼んだ後の log の区間から、いまの状態を決める(純粋な関数 — 過去の log で試せる)。
+
+    state: "wait"(まだ)/ "reload"(再読み込み済み)/ "error"(コンパイル失敗)/ "no_rebuild"(DLL 0 件更新)
+    ⚠ 失敗は `Tundra build failed` の行で決める。`error CS` の行は失敗の行より先に出るので、そこで切ると
+      誤りの一覧が途中で欠ける。"""
+    st = {"state": "wait", "compile_req": bool(RE_COMPILE_REQ.search(text)),
+          "refresh_done": bool(RE_REFRESH_DONE.search(text)), "tundra": None, "reload_ms": None, "errors": []}
+    m = RE_TUNDRA_OK.search(text)
+    if m:
+        st["tundra"] = (float(m.group(1)), int(m.group(2)))
+    if RE_TUNDRA_NG.search(text):
+        st["state"] = "error"
+        st["errors"] = sorted({"%s: %s %s" % e for e in RE_CS_ERR.findall(text)})[:20]
+        return st
+    m = RE_RELOAD.search(text)
+    if m:
+        st["state"], st["reload_ms"] = "reload", int(m.group(1))
+        return st
+    if st["tundra"] and st["tundra"][1] == 0:
+        st["state"] = "no_rebuild"                 # 0 件更新 = DLL は変わらない = 再読み込みは来ない
+    return st
 
 
 # ─────────────────────────────── 橋(MCP for Unity の stdio bridge)
@@ -191,27 +217,23 @@ def run(a):
 
     # ③ Editor.log の目印を待つ
     deadline = time.monotonic() + a.timeout
-    text, compile_req, tundra, reload_ms, quiet_since = "", False, None, None, None
+    text, tundra, reload_ms, quiet_since = "", None, None, None
     while time.monotonic() < deadline:
         chunk, off = read_from(off)
         text += chunk
-        compile_req = compile_req or bool(RE_COMPILE_REQ.search(text))
-        errs = RE_CS_ERR.findall(text)
-        if RE_TUNDRA_NG.search(text) or errs:
-            res["errors"] = sorted({"%s: %s %s" % e for e in errs})[:20]
+        st = judge(text)
+        tundra = st.get("tundra")
+        if st["state"] == "error":
             # 誤りの後も Unity は古い DLL で動いている — 橋が応えるのを確かめてから返す
+            res["errors"] = st["errors"]
             break
-        m = RE_TUNDRA_OK.search(text)
-        if m:
-            tundra = (float(m.group(1)), int(m.group(2)))
-        m = RE_RELOAD.search(text)
-        if m:
-            reload_ms = int(m.group(1))
+        if st["state"] == "reload":
+            reload_ms = st["reload_ms"]
             break
-        if tundra and tundra[1] == 0:
-            break                                  # 0 件更新 = DLL は変わらない = 再読み込みは来ない
-        # 作り直し無し: コンパイルの要求が出ず refresh が済んだ、か、要求が出ても何も起きないまま静か
-        if RE_REFRESH_DONE.search(text) and not compile_req and asked:
+        if st["state"] == "no_rebuild":
+            break
+        # 作り直し無し: コンパイルの要求が出ず refresh が済んだ(log からは「来ない」を言えないので静けさで)
+        if st["refresh_done"] and not st["compile_req"] and asked:
             quiet_since = quiet_since or time.monotonic()
             if time.monotonic() - quiet_since > 1.5:
                 break
@@ -250,7 +272,43 @@ def run(a):
     return done("作り直し無し", 0)
 
 
+RE_API = re.compile(r"Requested script compilation because: Requested through public api")
+RE_OBSERVED = re.compile(r"Requested script compilation because: AssetDatabase observed changes")
+
+
+def replay(paths):
+    """過去の log で読み分けを検める(Unity 不要)。⛔ 0 件は合格ではない — 区間の数を必ず刷る。
+
+    ① 道具と同じ要求(public api)ごとに、次の同じ要求までに judge が決着するか(しなければ道具の空振り)
+    ② 変更を見つけただけの要求(observed)が自力で決着したか — 手順書から「refresh を投げずに待て」を
+       外した根拠。2026-09-26 の実測で 123 回中 71 回は外からの要求が来るまで止まっていた。"""
+    import collections
+    api, obs = collections.Counter(), collections.Counter()
+    for path in paths:
+        lines = open(path, encoding="utf-8", errors="replace").read().splitlines(keepends=True)
+        reqs = [i for i, l in enumerate(lines) if RE_COMPILE_REQ.search(l)]
+        apis = [i for i in reqs if RE_API.search(lines[i])]
+        for k, s in enumerate(apis):
+            e = apis[k + 1] if k + 1 < len(apis) else len(lines)
+            st = judge("".join(lines[s:e]))["state"]
+            api["log の終わり" if st == "wait" and e == len(lines) else st] += 1
+        for k, s in enumerate(reqs):
+            if RE_OBSERVED.search(lines[s]):
+                e = reqs[k + 1] if k + 1 < len(reqs) else len(lines)
+                st = judge("".join(lines[s:e]))["state"]
+                obs["自力で決着" if st != "wait" else "止まった" if e < len(lines) else "log の終わり"] += 1
+    n = sum(v for k, v in api.items() if k != "log の終わり")
+    print("道具と同じ要求 %d 回: %s" % (n, dict(api)))
+    print("変更を見つけただけの要求 %d 回: %s" % (sum(obs.values()), dict(obs)))
+    miss = api.get("wait", 0)
+    print(("⛔ 決着しない区間 %d 件 — judge の読み分けに穴" % miss) if miss or not n else "⭕ 空振り 0 件")
+    return 1 if miss or not n else 0
+
+
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "--replay":
+        ps = sys.argv[2:] or [LOG, os.path.join(ROOT, "Logs", "Editor-prev.log")]
+        return replay([p for p in ps if os.path.exists(p)])
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--no-check", action="store_true", help="cs_check を飛ばす(直前に通したとき)")
     ap.add_argument("--timeout", type=float, default=180.0)

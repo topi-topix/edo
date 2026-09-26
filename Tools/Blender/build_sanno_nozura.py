@@ -51,6 +51,12 @@
   乱数は "nozura-top|…" の別の種)。裏石の上面も点ごとに 0.006〜0.018 下(正準座標の擬似乱数 `_hn` ── 端の裏石は継ぎ目の相手と同じ)。
   ②「裏石側の端部が直線」⇒ 裏石の奥の端を石ごとに 0.80〜1.05 で円弧に切る(`ura_back_cut`・隅は `kado_back_cut`)。実測の奥の端 0.73〜1.04。
   芝の肩は Unity の地形側で被せる前提。
+  ⭐ 同日の 3 件目(EDO-0437)「真上から見ると表の石が長方形に切り取られている」⇒ 表の石の見え面の輪 M(面から 0.13)より奥を
+  尻すぼみ・不整形に(`_taper_back`: 背で幅 0.45〜0.80 倍・縦 0.72〜0.88 倍・控えの軸の振れ ±6°・曲がり ±0.03・脇の膨らみ/くびれ・
+  背の端は点ごとに奥行を振り芯を丸める。天端の列の丸みの芯は天端の線の 0.025 下 = TAPER_CAP_TOP)。どの点も M の輪より外へ出さない。
+  継ぎ目の端の石は継ぎ目へ向けて縮め軸を振らない(左右の駒で同じ形)。乱数は別の種 "nozura-taper|…" ⇒ 見え面・M の輪・目地は頂点まで同じ。
+  尻すぼみで開いた表の石の脇は間詰め石で塞ぐ(`taper_fill`・奥 0.24 より奥は上面が天端の線の 0.03 下より低い所も空きと数える)。
+  裏石の目地の底の板は前へ 0.14 まで延ばす(URA_FLOOR_D0)。天端の奥行の最奥 1.044(変わらず)・隅の腕 0.909(変わらず)。
 【材】`Kirishi` / `Danishi`(山王の切石と同じ暖かい灰。石ごとに 7:3 で振り、色の個体差にする)。
   ⛔ 新規マテリアルなし。UV は石ごとの箱投影(1.05m で1枚・石ごとに位相をずらす)。
   裏に目地の奥を塞ぐ板(`Danishi`)を 0.12 奥に張る ⇒ 目地から空が抜けない。
@@ -340,7 +346,8 @@ def materials():
 
 
 # ------------------------------------------------------------------ 石の塊
-def stone_obj(name, poly, key_rng, P, depth, face_prot=(-0.02, 0.045), double=None, crest=None, lift_ds=None, rough=None):
+def stone_obj(name, poly, key_rng, P, depth, face_prot=(-0.02, 0.045), double=None, crest=None, lift_ds=None, rough=None,
+              taper=None, taper_c=None):
     """(s,u) の輪郭 → 野面の塊。P(s, u, d) が 3D を返す(d = 面から奥へ)。
     double = 厚み T なら両面を割肌にする(袖)。形の乱数は key_rng だけで決まる(端の石は左右で同じ)。
     crest = 天端の線の u(天端の列の石だけ渡す)⇒ 面から 0.13 奥の輪と背の輪の**上の縁(左端から右端まで上を回る点)を天端へ上げる**
@@ -440,7 +447,10 @@ def stone_obj(name, poly, key_rng, P, depth, face_prot=(-0.02, 0.045), double=No
         else:
             faces.append(bm.faces.new((F[i], Sh[i], Sh[j], F[j])))
             faces.append(bm.faces.new((Sh[i], M[i], M[j], Sh[j])))
-    if double is None:
+    if double is None and taper is not None:
+        faces += _taper_back(bm, P, poly, taper, taper_c, cs, cu, prot, depth, crest, upper, rough_on, dB, d2, Mp, M,
+                             ring_s, ring_u, lift_ds)
+    elif double is None:
         ks = 0.97 if crest is not None else 0.80      # 天端の列は背でも幅を保つ(背の天端に隙を開けない)
         Bp = []
         for i, (s, u) in enumerate(poly):
@@ -497,6 +507,104 @@ def stone_obj(name, poly, key_rng, P, depth, face_prot=(-0.02, 0.045), double=No
     return o
 
 
+TAPER_KB = (0.45, 0.80)   # 背の輪の幅 / 見え面の幅(石ごと)── 野面石は控えが長く尻が細い
+TAPER_KV = (0.72, 0.88)
+TAPER_CAP_TOP = 0.025     # 天端の列の石の背の丸みの芯 = 天端の線から下へ(crest の許し 0.03 の内)   # 背の輪の縦 / 見え面の縦(天端の列の上の縁は天端に留める)
+TAPER_YAW = 6.0           # 控えの軸の平面の振れ(°)── 面に直交させない
+TAPER_BEND = 0.03         # 控えの途中の曲がり(m)
+TAPER_BULGE = (-0.10, 0.12)   # 脇の膨らみ(+)・くびれ(−)(半幅に対する比・片側ずつ)
+
+
+def _taper_back(bm, P_, poly, tr, taper_c, cs, cu, prot, depth, crest, upper, rough_on, dB, d2, Mp, M, ring_s, ring_u, lift_ds):
+    """⭐ 見え面の輪 M(面から 0.13)より奥を**尻すぼみ・不整形**に起こす(2026-09-26 EDO-0437 施主指摘「表石の天端が綺麗に
+    切り取られ過ぎている」── 真上から長方形に見えた: 背の輪を重心へ 0.97 縮めて真後ろへ押し出していた)。
+    M → (天端の列は奥 0.19 の輪 R2 = 旧版と同じ)→ 途中の輪 T1・T2 → 背の輪 Bk → 背の丸み(芯の点 Cb)。
+    - 幅: 背で見え面の TAPER_KB 倍・脇ごとに縮み方(冪)と膨らみ/くびれを振る。縦も TAPER_KV 倍。
+    - 軸: 平面で ±TAPER_YAW° 振れ・途中で ±TAPER_BEND 曲がる。⛔ どの点も M の輪より外へは出さない(隣の石と交差させない)。
+    - 背の端: 点ごとに奥行を振り(斜めの割れ肌)、芯を 0.02〜0.05 奥へ出して丸める。
+    - 端の石(taper_c = 継ぎ目の s)は継ぎ目へ向けて縮め・軸を振らない ⇒ 継ぎ目は奥まで石に覆われ、左右の駒で同じ形。
+    乱数は tr(別の種 "nozura-taper|…")だけ ⇒ 見え面・M の輪・目地の形は旧版と頂点まで同じ。"""
+    n = len(poly)
+    end = taper_c is not None
+    c0 = taper_c if end else cs
+    kb = tr.uniform(*TAPER_KB)
+    kv = tr.uniform(*TAPER_KV)
+    pw = (tr.uniform(0.7, 1.5), tr.uniform(0.7, 1.5))          # (左, 右)の縮み方
+    bl = (tr.uniform(*TAPER_BULGE), tr.uniform(*TAPER_BULGE))  # (左, 右)の膨らみ
+    yaw = 0.0 if end else math.tan(math.radians(tr.uniform(-TAPER_YAW, TAPER_YAW)))
+    bend = 0.0 if end else tr.uniform(-TAPER_BEND, TAPER_BEND)
+    sl_s, sl_u = tr.uniform(-0.25, 0.25), tr.uniform(-0.20, 0.20)
+    t1, t2 = tr.uniform(0.30, 0.45), tr.uniform(0.62, 0.78)
+    jit = [(tr.uniform(-1, 1), tr.uniform(-1, 1), tr.uniform(-1, 1), tr.uniform(0, 1)) for _ in range(n)]
+    dome = tr.uniform(0.02, 0.05)
+    use_r2 = rough_on and depth - prot > 0.24
+    d0 = 0.19 if use_r2 else 0.13 - prot
+    db = []
+    for i, (s, u) in enumerate(poly):
+        d_ = depth - prot + sl_s * (s - cs) + sl_u * (u - cu) + 0.025 * jit[i][2]
+        db.append(max(d0 + 0.18, d_))
+
+    def s_at(i, s, u, t, tu):
+        rel = s - c0
+        side = 0 if rel < 0 else 1
+        k = 1.0 - (1.0 - kb) * t ** pw[side] + bl[side] * math.sin(math.pi * t)
+        dd = d0 + (db[i] - d0) * t
+        ss = c0 + yaw * (dd - d0) + bend * math.sin(math.pi * t) + rel * min(k, 1.0)
+        if 0 < t < 1:
+            ss += 0.012 * jit[i][0 if t < 0.5 else 1]
+        sm = cs + (s - cs) * 1.03                              # M の輪の s(上げの寄せを除く)
+        ss = min(ss, sm) if rel >= 0 else max(ss, sm)          # M の輪より外へ出さない
+        if i in upper and lift_ds:
+            ss += lift_ds(s, tu - u)
+        return ss
+
+    def u_at(i, u, t):
+        if i in upper:
+            if rough_on:
+                return crest - min(0.018, max(0.0, d2[i] + (dB[i] - d2[i]) * t + (0.004 * jit[i][3] if t < 1 else 0.0)))
+            return crest
+        uu = cu + (u - cu) * (1.0 - (1.0 - kv) * t) - 0.03 * t
+        return min(uu, crest) if crest is not None else uu
+
+    rings = []
+    if use_r2:                  # 奥 0.19 の輪は旧版と同じ(背の輪 0.97 との内分)
+        R2 = []
+        for i, (s, u) in enumerate(poly):
+            ms, mu, md = Mp[i]
+            bd = depth - prot
+            t = (0.19 - md) / (bd - md)
+            if i in upper:
+                bs = ring_s(i, s, u, 0.97, crest - dB[i])
+                R2.append(bm.verts.new(P_(ms + (bs - ms) * t, crest - d2[i], 0.19)))
+            else:
+                bs, bu = ring_s(i, s, u, 0.97), ring_u(i, u, 0.80, 0.03)
+                R2.append(bm.verts.new(P_(ms + (bs - ms) * t, mu + (bu - mu) * t, 0.19)))
+        rings.append(R2)
+    for t in (t1, t2, 1.0):
+        R = []
+        for i, (s, u) in enumerate(poly):
+            uu = u_at(i, u, t)
+            R.append(bm.verts.new(P_(s_at(i, s, u, t, uu), uu, d0 + (db[i] - d0) * t)))
+        rings.append(R)
+    Bk = rings[-1]
+    cs_b = sum(s_at(i, s, u, 1.0, u_at(i, u, 1.0)) for i, (s, u) in enumerate(poly)) / n
+    cu_b = sum(u_at(i, u, 1.0) for i, (s, u) in enumerate(poly)) / n
+    if crest is not None:
+        cu_b = crest - TAPER_CAP_TOP      # 天端の列: 背の丸みの芯を天端の帯に上げる(芯が石の半ばの高さだと、上の縁から芯へ
+        #                                   緩く下る三角が天端の帯に 0.056 下がって見えた ⛔・負の勾配の駒で剪断が面を寝かせた・2026-09-26)
+    Cb = bm.verts.new(P_(cs_b, cu_b, sum(db) / n + dome))
+    faces = []
+    prev = M
+    for R in rings:
+        for i in range(n):
+            j = (i + 1) % n
+            faces.append(bm.faces.new((prev[i], R[i], R[j], prev[j])))
+        prev = R
+    for i in range(n):
+        faces.append(bm.faces.new((Bk[(i + 1) % n], Bk[i], Cb)))
+    return faces
+
+
 def box_uv(o, ofs):
     """石ごとの箱投影。座標は**石の重心から**測る(継ぎ目で切った端の石が左右の駒で同じ UV になる)"""
     me = o.data
@@ -535,7 +643,9 @@ def build_stones(cells, P, mats, depth_rng=(0.45, 0.75), double=None, face_prot=
         top = crest is not None and max(p[1] for p in poly) > crest - TOP_ROW
         o = stone_obj("st_" + key + kind, poly, rng, P, d, face_prot=face_prot, double=double,
                       crest=crest if top else None, lift_ds=lift_ds,
-                      rough=random.Random("nozura-top|%s|%s" % (tag, key)) if (top and double is None) else None)
+                      rough=random.Random("nozura-top|%s|%s" % (tag, key)) if (top and double is None) else None,
+                      taper=random.Random("nozura-taper|%s|%s" % (tag, key)) if double is None else None,
+                      taper_c=((round(centroid(poly)[0] / L - 0.5) + 0.5) * L) if kind.startswith("B") else None)
         o.data.materials.append(kir if rng.random() < 0.7 else dan)
         box_uv(o, (rng.random(), rng.random()))
         objs.append(o)
@@ -553,6 +663,7 @@ URA_H = (0.20, 0.32)      # 裏石の丈(天端から下へ)
 URA_SINK = (0.006, 0.010) # 裏石の上面の沈みの基(+ 点ごとの割肌の不揃い URA_ROUGH)── 天端の線から 0.006〜0.018 下
 URA_ROUGH = 0.008         # ⛔ 0.02 を越えて沈めない: 背の土(天端 −0.02)を被せても裏石の上面が顔を出す(2026-09-26 背から撮って確かめた)
 URA_GW = 0.22             # 継ぎ目の端の裏石の番人の距離
+URA_FLOOR_D0 = 0.14       # 目地の底の板の前の限り(旧 0.30)── 表の石を尻すぼみにして、表の石の脇の目地も底が要る(2026-09-26)
 URA_FLOOR = -0.20         # 裏石の目地の底の板(天端から下・面から 0.30〜0.90)── 目地から下へ空が抜けない
 
 
@@ -699,13 +810,103 @@ def ura_fill(polys, box, key, gap=0.017, step=0.01, amin=0.0012, keep=None):
 
 
 URA_FILL_SINK = (0.010, 0.012)
+TF_SINK = (0.014, 0.018)  # 表の石の脇の間詰め石の上面(天端の線から + 割肌 ≤ URA_ROUGH ⇒ ≤ 0.026 < crest の 0.03)
+TF_D = (0.17, 0.78)       # 間詰めを置く奥行(面から)── 前は奥 0.19 の輪(表の石が見え面の幅を保つ所)の手前から、奥は裏石の奥の端の手前まで
+TF_GAP = 0.02             # 石から離す目地
+TF_OCC = 0.03             # 奥 TF_LOW_B より奥で「石が在る」と数える上面の高さ(天端の線から下へ)= crest の許し
+TF_LOW_B = 0.24           # これより前は旧のまま(掛かる三角は全部 石)── 見え面の肩(0.02〜0.05 下)の前に細い間詰めを出さない
+
+
+def _raster_tri(A, B, C, x0, z0, step, occ, top=None):
+    """三角 (a, b, u) を平面の格子へ刷る。occ = 掛かる格子の集合 / top = 格子ごとの上面の高さ u の最高(芯で内挿)"""
+    i0, i1 = math.floor((min(A[0], B[0], C[0]) - x0) / step), math.floor((max(A[0], B[0], C[0]) - x0) / step)
+    j0, j1 = math.floor((min(A[1], B[1], C[1]) - z0) / step), math.floor((max(A[1], B[1], C[1]) - z0) / step)
+    den = (B[1] - C[1]) * (A[0] - C[0]) + (C[0] - B[0]) * (A[1] - C[1])
+    for pt in (A, B, C):
+        c = (math.floor((pt[0] - x0) / step), math.floor((pt[1] - z0) / step))
+        occ.add(c)
+        if top is not None:
+            top[c] = max(top.get(c, -1e9), pt[2])
+    if abs(den) < 1e-14:
+        return
+    for i in range(i0, i1 + 1):
+        x = x0 + (i + 0.5) * step
+        for j in range(j0, j1 + 1):
+            z = z0 + (j + 0.5) * step
+            l1 = ((B[1] - C[1]) * (x - C[0]) + (C[0] - B[0]) * (z - C[1])) / den
+            l2 = ((C[1] - A[1]) * (x - C[0]) + (A[0] - C[0]) * (z - C[1])) / den
+            if l1 >= -1e-9 and l2 >= -1e-9 and 1 - l1 - l2 >= -1e-9:
+                occ.add((i, j))
+                if top is not None:
+                    top[(i, j)] = max(top.get((i, j), -1e9), l1 * A[2] + l2 * B[2] + (1 - l1 - l2) * C[2])
+
+
+def taper_fill(objs, plan, box, keep, key, Q, mats, hmax, tag, step=0.01, gap=TF_GAP, amin=0.0012, depth_of=None):
+    """⭐ 表の石を尻すぼみにして開いた、表の石の脇の楔(面から TF_D)を間詰め石で詰める(2026-09-26 EDO-0437)。
+    石(st_* / ura_*)の三角を平面へ刷り(天端から 0.15 より上に頂点がある物だけ)、目地 gap で膨らませた残り =
+    上から見て石の無い所を塊ごとに凸包の小石にする。plan(Blender の座標) → (a, b, 天端からの高さ)・Q(a, b, u) は逆。
+    ⛔ 継ぎ目は端の石が奥まで覆う(`_taper_back` の taper_c)⇒ 塊が継ぎ目に跨らず、間詰めは駒の中で閉じる。"""
+    x0, x1, z0, z1 = box
+    occ, top = set(), {}
+    for o in objs:
+        if o.type != 'MESH' or not (o.name.startswith("st_") or (o.name.startswith("ura_") and "floor" not in o.name)):
+            continue
+        me = o.data
+        me.calc_loop_triangles()
+        mw = o.matrix_world
+        W = [plan(mw @ v.co) for v in me.vertices]
+        for t in me.loop_triangles:
+            A, B, C = (W[k] for k in t.vertices)
+            if max(A[2], B[2], C[2]) < -0.15:
+                continue
+            if max(A[0], B[0], C[0]) < x0 or min(A[0], B[0], C[0]) > x1 or max(A[1], B[1], C[1]) < z0 or min(A[1], B[1], C[1]) > z1:
+                continue
+            _raster_tri(A, B, C, x0, z0, step, occ, top)
+    # 奥 TF_LOW_B より奥は「上面が天端の線から TF_OCC 以内の所」だけを石と数える ── 尻すぼみの石の脇の斜面は上から見て石だが
+    # 天端より下がっている(負の勾配の駒で背の下がり 0.056 ⛔・2026-09-26)⇒ 斜面の上にも間詰め石を被せる(斜面は間詰めの下へ潜る)
+    dep = depth_of or (lambda a, b: b)
+    occ = {c for c in occ if dep(x0 + (c[0] + 0.5) * step, z0 + (c[1] + 0.5) * step) < TF_LOW_B or top.get(c, -1e9) >= -TF_OCC}
+    r = int(math.ceil(gap / step))
+    disc = [(di, dj) for di in range(-r, r + 1) for dj in range(-r, r + 1) if di * di + dj * dj <= r * r]
+    nx, nz = int(round((x1 - x0) / step)), int(round((z1 - z0) / step))
+    free = set()
+    for i in range(nx):
+        for j in range(nz):
+            if not keep(x0 + (i + 0.5) * step, z0 + (j + 0.5) * step):
+                continue
+            if any((i + di, j + dj) in occ for di, dj in disc):
+                continue
+            free.add((i, j))
+    polys, seen = [], set()
+    for c0 in sorted(free):
+        if c0 in seen:
+            continue
+        st, comp = [c0], []
+        seen.add(c0)
+        while st:
+            c = st.pop(); comp.append(c)
+            for d in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                q = (c[0] + d[0], c[1] + d[1])
+                if q in free and q not in seen:
+                    seen.add(q); st.append(q)
+        if len(comp) * step * step < amin:
+            continue
+        pts = []
+        for (i, j) in comp:
+            cx, cz = x0 + (i + 0.5) * step, z0 + (j + 0.5) * step
+            pts += [(cx - step / 2, cz - step / 2), (cx + step / 2, cz - step / 2), (cx + step / 2, cz + step / 2), (cx - step / 2, cz + step / 2)]
+        h = hull(pts)
+        if len(h) >= 3 and abs(area(h)) >= amin:
+            polys.append((h, "I", "TF%s%d" % (key, len(polys))))
+    return build_ura(polys, Q, mats, hmax, tag=tag) if polys else []
+
 
 
 def ura_stone(name, poly, rng, Q, hmax, canon=None):
     """平面の輪郭 poly(a, b)→ 裏石の塊(上面 = 天端の線の URA_SINK 下で平ら・胴で少し膨れ・底で窄まる)。
     Q(a, b, u) が Blender の座標を返す(u = 天端の線から上向き)。形の乱数は rng だけ(端の裏石は左右で同じ)。"""
     ca, cb = centroid(poly)
-    sink = rng.uniform(*(URA_FILL_SINK if "KF" in name else URA_SINK))
+    sink = rng.uniform(*(TF_SINK if "TF" in name else URA_FILL_SINK if "KF" in name else URA_SINK))
     hb = min(rng.uniform(*URA_H), hmax)
     bm = bmesh.new()
     # 上面は割肌の不揃い: 点ごとに 天端の線から sink + 0〜URA_ROUGH 下(2026-09-26 施主「綺麗に切られすぎ」)。
@@ -795,8 +996,16 @@ def wall_ura(h, g, v, mats, off=0.0, skip=None):
         return lambda a, b: (a - o_, b)
     cells = [([(p[0] + off, p[1]) for p in poly], kind, key, canon_of(kind)) for poly, kind, key in ura_cells(v) if kind != skip]
     objs = build_ura(cells, wall_Q(h, g), mats, h + BURY, tag="ura-" + v)
-    objs.append(ura_floor("ura_floor", wall_Q(h, g), mats[1], off - L / 2, off + L / 2, 0.30, URA_FLOOR_D))
+    objs.append(ura_floor("ura_floor", wall_Q(h, g), mats[1], off - L / 2, off + L / 2, URA_FLOOR_D0, URA_FLOOR_D))
     return objs
+
+
+def wall_fill(objs, h, g, v, mats, s0, s1, tag="wall"):
+    """直線の駒(と同じ座標の駒)の表の石の脇の間詰め石(`taper_fill`)。走り s0..s1。"""
+    plan = lambda co: (-co.x, co.y, co.z - (h + g * (-co.x)))
+    keep = lambda a, b: s0 + 0.005 < a < s1 - 0.005 and TF_D[0] <= b <= TF_D[1]
+    return taper_fill(objs, plan, (s0, s1, TF_D[0] - 0.01, TF_D[1] + 0.01), keep, v, wall_Q(h, g), mats, h + BURY,
+                      "tf-%s-%s" % (tag, v))
 
 
 def bisect_keep(o, co, no):
@@ -881,6 +1090,7 @@ def make_wall(h, g, v):
             cells.append((p2, kind, key))
     objs = build_stones(cells, wall_P(h, g), mats, tag="wall")
     objs += wall_ura(h, g, v, mats)
+    objs += wall_fill(objs, h, g, v, mats, -L / 2, L / 2)
     objs.append(backing("back", h, g, mats[1]))
     objs.append(backing("back2", h, g, mats[1], *BACK2))
     name = wall_name(h, g, v)
@@ -1040,6 +1250,11 @@ def make_kado(h, v):
         objs.append(o)
     # ②' 裏石(両腕の面から URA_D の奥 = 平面の正方形 x, z ∈ [−0.909, −0.36])── `kado_ura`
     objs += kado_ura(h, v, mats)
+    # 表の石の脇の間詰め(両腕の面から TF_D・奥の角は裏石の側)
+    keep_k = lambda x, z: -L / 2 + 0.005 < x <= -TF_D[0] and -L / 2 + 0.005 < z <= -TF_D[0] and max(x, z) >= -TF_D[1]
+    objs += taper_fill(objs, lambda co: (-co.x, -co.y, co.z - h), (-L / 2, 0.0, -L / 2, 0.0), keep_k, "K" + v,
+                       lambda xx, zz, u: _u2b(xx, h + u, zz), mats, h + BURY, "tf-kado-" + v,
+                       depth_of=lambda x, z: min(-x, -z))
     # ③ 目地の奥を塞ぐ板(面から 0.12 奥・法に沿う)── 二枚が内の留めで閉じる
     for arm, (dd, u0, u1) in ((1, (0.12, -0.12, -(h + BURY))), (2, (0.12, -0.12, -(h + BURY))), (1, BACK2), (2, BACK2)):
         bm = bmesh.new()
@@ -1115,8 +1330,8 @@ def kado_ura(h, v, mats):
     c1 = lambda a, b: (a + L / 2, -b)            # 腕1 の先の端の裏石の正準座標(直線の駒の継ぎ目から)
     c2 = lambda a, b: (-b - L / 2, -a)           # 腕2 の先
     objs = build_ura([c + (c1 if c[1] == "B-" else c2,) for c in ends] + cells + fills, Qk, mats, h + BURY, tag="kura-" + v)
-    objs.append(ura_floor("ura_floor", Qk, mats[1], lo, -0.30, -URA_FLOOR_D, -0.30))
-    objs.append(ura_floor("ura_floor2", Qk, mats[1], -URA_FLOOR_D, -0.30, lo, -URA_FLOOR_D))
+    objs.append(ura_floor("ura_floor", Qk, mats[1], lo, -URA_FLOOR_D0, -URA_FLOOR_D, -URA_FLOOR_D0))
+    objs.append(ura_floor("ura_floor2", Qk, mats[1], -URA_FLOOR_D, -URA_FLOOR_D0, lo, -URA_FLOOR_D))
     return objs
 
 
@@ -1303,6 +1518,7 @@ def make_nkiri(h, deg, end, face, v):
     objs += wall_ura(h, 0.0, v, mats)
     objs += wall_ura(h, 0.0, v2, mats, off=e * L, skip=("B-" if e > 0 else "B+"))
     s0, s1 = (-L / 2, L / 2 + L) if e > 0 else (-L / 2 - L, L / 2)
+    objs += wall_fill(objs, h, 0.0, v, mats, s0, s1, tag="nkiri")
     objs.append(backing_span("back", h, mats[1], s0, s1))
     objs.append(backing_span("back2", h, mats[1], s0, s1, *BACK2))
     name = nkiri_name(deg, end, face, h, v)
@@ -1501,6 +1717,7 @@ def make_nnori(ls, h, end, v):
     P = wall_P(h, 0.0)
     objs = build_stones(cells, P, mats, tag="wall")
     objs += wall_ura(h, 0.0, v, mats)
+    objs += wall_fill(objs, h, 0.0, v, mats, -L / 2, L / 2)
     objs.append(backing("back", h, 0.0, mats[1]))
     objs.append(backing("back2", h, 0.0, mats[1], *BACK2))
     name = nnori_name(ls, end, h, v)

@@ -13,6 +13,7 @@
     blender --background --python Tools/Blender/build_sanno_nozura.py -- wall --grade=set       # 前庭の天端を流す勾配の駒 ±0.12 × 8 段(2026-09-26)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- grade --render [--h=0.9]   # 勾配の駒の並べ焼き
     blender --background --python Tools/Blender/build_sanno_nozura.py -- crest [--dir=…] [--json=…]  # 全駒の背の天端の下がり(≤ 0.03)・頭の出(≤ 0)
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- holes [--dir=…] [--json=…]  # 全駒を真上から見て天端に穴(裏・下の見える所)が 0 か
     blender --background --python Tools/Blender/build_sanno_nozura.py -- back --render         # 背の側(土の側)から撮る
     blender --background --python Tools/Blender/build_sanno_nozura.py -- nkiri --list=Tools/Blender/sanno_nozura_kiri_set.txt --render  # 片端を斜めの鉛直面で切った駒(女坂の袖に当てる・2026-09-26)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- mikiri_h [--h=1.5,1.8] --render   # 丈を合わせた見切り石(天端まで届く・2026-09-26)
@@ -346,6 +347,20 @@ def materials():
 
 
 # ------------------------------------------------------------------ 石の塊
+def _orient_out(bm):
+    """閉じた塊の面を外向きに揃える(符号付き体積 < 0 なら全面を裏返す)。
+    ⛔ recalc_face_normals だけに任せない: 尻すぼみ+割肌で輪が折れて自己交差した塊を、recalc は丸ごと内向きに揃えることがある
+    (2026-09-26 EDO-0437: H0900_d / H0600_b の天端の列の表の石が内向きに焼け、Unity の裏面カリングで天端に四角い抜けが出た)。"""
+    vol = 0.0
+    for f in bm.faces:
+        vs = [v.co for v in f.verts]
+        for k in range(1, len(vs) - 1):
+            vol += vs[0].dot(vs[k].cross(vs[k + 1]))
+    if vol < 0:
+        bmesh.ops.reverse_faces(bm, faces=list(bm.faces))
+    return vol < 0
+
+
 def stone_obj(name, poly, key_rng, P, depth, face_prot=(-0.02, 0.045), double=None, crest=None, lift_ds=None, rough=None,
               taper=None, taper_c=None):
     """(s,u) の輪郭 → 野面の塊。P(s, u, d) が 3D を返す(d = 面から奥へ)。
@@ -378,7 +393,33 @@ def stone_obj(name, poly, key_rng, P, depth, face_prot=(-0.02, 0.045), double=No
                 i = (i + step) % n
                 c.append(i)
             chains.append(c)
-        upper = set(max(chains, key=lambda c: sum(poly[i][1] for i in c) / len(c)))
+        upc = max(chains, key=lambda c: sum(poly[i][1] for i in c) / len(c))
+        upper = set(upc)
+        if lift_ds is not None:
+            # ⭐ 寄せ(隅の駒の σ の寄せ)で上の縁の点の順が入れ替わらないよう、寄せを縮める(2026-09-26 EDO-0437)。
+            # 低い端の点を天端へ上げると σ が稜線へ 0.3·du 寄り、細い石では隣の上の縁の点を追い越して上面が裏返った
+            # (Kado90_*_b の st_Kb27I ── 真上から裏が見え、Unity の裏面カリングで天端に穴)。上の縁は右端 → 左端で σ が減る順を保つ。
+            sh = {i: lift_ds(poly[i][0], crest - poly[i][1]) for i in upc}
+            f = {i: 1.0 for i in upc}
+            for _ in range(len(upc)):
+                moved = False
+                for a, b in zip(upc, upc[1:]):
+                    sa, sb = poly[a][0] + sh[a] * f[a], poly[b][0] + sh[b] * f[b]
+                    gap = max(0.0, min(0.02, poly[a][0] - poly[b][0]))      # 元の間(0.02 まで)より詰めない
+                    if sa - sb >= gap - 1e-9:
+                        continue
+                    k = a if abs(sh[a] * f[a]) >= abs(sh[b] * f[b]) else b
+                    other = sb if k == a else sa
+                    need = (other + gap - poly[a][0]) if k == a else (other - gap - poly[b][0])
+                    f[k] = max(0.0, min(f[k], need / sh[k])) if abs(sh[k]) > 1e-9 else 0.0
+                    moved = True
+                if not moved:
+                    break
+            lfs = {poly[i][0]: f[i] for i in upc}
+            if "dbg" in OPT and min(f.values()) < 1.0:
+                print("NOZURA LIFTCAP %s %s" % (name, {i: round(f[i], 3) for i in upc if f[i] < 1.0}))
+            _lift0 = lift_ds
+            lift_ds = lambda s_, du, _o=_lift0, _f=lfs: _o(s_, du) * _f.get(s_, 1.0)
 
     # ⭐ 天端の割肌(2026-09-26 EDO-0437 施主指摘「天端の石が綺麗に切られすぎ」): 上の縁の点を天端の線ちょうどへ上げず、
     # 天端の線から**下へ**点ごとに不揃い(面の輪 0.02〜0.05・奥 0.19 の輪 ≤ 0.018・背の輪 ≤ 0.012 = 前寄りほど深い)・石ごとに傾き。
@@ -495,6 +536,7 @@ def stone_obj(name, poly, key_rng, P, depth, face_prot=(-0.02, 0.045), double=No
             faces.append(bm.faces.new((M2[i], F2[i], F2[j], M2[j])))
             faces.append(bm.faces.new((F2[i], C2, F2[j])))
     bmesh.ops.recalc_face_normals(bm, faces=faces)
+    _orient_out(bm)
     me = bpy.data.meshes.new(name)
     bm.to_mesh(me); bm.free()
     o = bpy.data.objects.new(name, me)
@@ -925,6 +967,7 @@ def ura_stone(name, poly, rng, Q, hmax, canon=None):
         faces.append(bm.faces.new((Mx[i], B[i], B[j], Mx[j])))
     faces.append(bm.faces.new(list(reversed(B))))
     bmesh.ops.recalc_face_normals(bm, faces=faces)
+    _orient_out(bm)
     me = bpy.data.meshes.new(name)
     bm.to_mesh(me); bm.free()
     me.update()
@@ -2184,6 +2227,108 @@ def crest_all(dirs):
     return len(bad)
 
 
+# ------------------------------------------------------------------ 天端の穴の検査(2026-09-26 EDO-0437)
+HOLE_STEP = 0.01     # 真上からの光線の格子
+HOLE_NZ = -0.05      # 最初に当たった面の法線の上向き成分がこれ未満 = 裏(Unity は裏面を描かない ⇒ 抜けて下が見える)
+HOLE_DEEP = 0.25     # 天端の線から これより深い所に当たる(または何にも当たらない)= 下が見える(目地の底の板は 0.20)
+HOLE_ENC = 0.25      # 深い点は ±X・±Z の 4 方向とも この距離の内に天端の帯(天端の線の 0.10 内)の面がある時だけ穴と読む
+#                      (奥の端の外・前の頭の不揃いの前・端の外は穴でない)
+HOLE_CORE = 2        # 穴と数える塊 = 一辺 (2·HOLE_CORE+1)·step = 0.05 の正方形が丸ごと入る塊 ── 目地(幅 0.02〜0.04・奥 0.76 より奥は
+#                      底の板が無く下まで覗くが、それは目地であって石の欠けではない)と稜の掠りは数えない
+
+
+def hole_check(objs, T, step=HOLE_STEP):
+    """⭕ 真上から見て天端の面に穴が無いか ── 駒の平面の外形の格子で真上から光線を落とし、
+    ① 最初に当たる面が裏(法線が下を向く = Unity で抜ける)② 天端の周りを石に囲まれているのに深く落ちる(下の段・地面が覗く)
+    の点を刷り、隣り合う点を塊にして、一辺 0.05 の正方形が丸ごと入る塊を穴と数える(目地は数えない)。返り値 (穴の数, 裏の点, 深い点, 穴の一覧[(x, z, 点の数, 種)])"""
+    from mathutils.bvhtree import BVHTree
+    verts, polys = [], []
+    for o in objs:
+        if o.type != 'MESH':
+            continue
+        me = o.data
+        me.calc_loop_triangles()
+        b = len(verts)
+        verts += [o.matrix_world @ v.co for v in me.vertices]
+        polys += [tuple(b + k for k in t.vertices) for t in me.loop_triangles]
+    bvh = BVHTree.FromPolygons(verts, polys)
+    xs = [-v.x for v in verts]; zs = [-v.y for v in verts]; top = max(v.z for v in verts)
+    i0, i1 = math.floor(min(xs) / step) + 1, math.floor(max(xs) / step) - 1
+    j0, j1 = math.floor(min(zs) / step) + 1, math.floor(max(zs) / step) - 1
+    hit = {}
+    for i in range(i0, i1 + 1):
+        x = i * step
+        for j in range(j0, j1 + 1):
+            z = j * step
+            loc, nor, _, _ = bvh.ray_cast(Vector((-x, -z, top + 1.0)), Vector((0, 0, -1)))
+            hit[(i, j)] = None if loc is None else (loc.z, nor.z)
+    bad = {}
+    r = int(round(HOLE_ENC / step))
+    for (i, j), hv in hit.items():
+        x, z = i * step, j * step
+        t = T(x, z)
+        if hv is not None and hv[1] < HOLE_NZ:
+            bad[(i, j)] = "裏"
+            continue
+        if hv is not None and hv[0] >= t - HOLE_DEEP:
+            continue
+
+        def band(di, dj):
+            for k in range(1, r + 1):
+                q = hit.get((i + di * k, j + dj * k))
+                if q is not None and q[1] >= HOLE_NZ and q[0] >= T((i + di * k) * step, (j + dj * k) * step) - 0.10:
+                    return True
+            return False
+        if band(1, 0) and band(-1, 0) and band(0, 1) and band(0, -1):
+            bad[(i, j)] = "深"
+    seen, holes = set(), []
+    for p in bad:
+        if p in seen:
+            continue
+        st, cc = [p], []
+        seen.add(p)
+        while st:
+            q = st.pop(); cc.append(q)
+            for di in (-1, 0, 1):
+                for dj in (-1, 0, 1):
+                    w = (q[0] + di, q[1] + dj)
+                    if w in bad and w not in seen:
+                        seen.add(w); st.append(w)
+        cr = HOLE_CORE
+        core = [q for q in cc if all((q[0] + di, q[1] + dj) in bad for di in range(-cr, cr + 1) for dj in range(-cr, cr + 1))]
+        if core:
+            holes.append((round(sum(q[0] for q in cc) * step / len(cc), 3), round(sum(q[1] for q in cc) * step / len(cc), 3),
+                          len(cc), "".join(sorted({bad[q] for q in cc}))))
+    nb = sum(1 for v in bad.values() if v == "裏"); nd = len(bad) - nb
+    return len(holes), nb, nd, holes
+
+
+def holes_all(dirs):
+    """焼いた FBX を読み戻して全駒の天端の穴を数える(crest と同じ名簿 = crest_spec が読める駒)"""
+    import glob, json
+    rows = []
+    for d in dirs:
+        for path in sorted(glob.glob(os.path.join(d, "*.fbx"))):
+            name = os.path.splitext(os.path.basename(path))[0]
+            sp = crest_spec(name)
+            if sp is None:
+                continue
+            V.reset()
+            before = set(bpy.data.objects)
+            bpy.ops.import_scene.fbx(filepath=path)
+            objs = [o for o in bpy.data.objects if o not in before and o.type == 'MESH']
+            bpy.context.view_layer.update()
+            nh, nb, nd, holes = hole_check(objs, sp[0])
+            rows.append(dict(name=name, holes=nh, back_pts=nb, deep_pts=nd, list=holes))
+            print("NOZURA HOLES %-34s 穴 %d(裏の点 %d・深い点 %d)%s %s" % (name, nh, nb, nd, holes[:4], "⭕" if nh == 0 else "⛔"))
+    bad = [r for r in rows if r["holes"]]
+    print("NOZURA HOLES 全 %d 駒: 穴のある駒 %d / 穴の合計 %d" % (len(rows), len(bad), sum(r["holes"] for r in rows)))
+    out = OPT.get("json")
+    if out:
+        json.dump(rows, open(out, "w"), ensure_ascii=False, indent=1)
+    return len(bad)
+
+
 def studio_run(objs, cam, look, lens=35, path=None, magenta=False):
     sc = bpy.context.scene
     sc.render.engine = 'BLENDER_EEVEE_NEXT'
@@ -2242,6 +2387,7 @@ def hook_stone_textures():
             continue
         b.inputs['Alpha'].default_value = 1.0
         b.inputs['Roughness'].default_value = 0.92
+        m.use_backface_culling = True     # Unity と同じく裏を描かない(裏返った面が検証レンダで見えるように・2026-09-26)
         ti = nt.nodes.new('ShaderNodeTexImage')
         ti.image = bpy.data.images.load(os.path.join(MATDIR, "T_Kirishi_Albedo.png"), check_existing=True)
         t = 1.0 if base == "Kirishi" else 0.80
@@ -2606,6 +2752,9 @@ if __name__ == "__main__":
     if what == "crest":
         # blender ... -- crest [--dir=<FBX の置き場>] [--json=<出力>] ── 全駒の背の天端の下がり(≤ 0.03)と頭の出(≤ 0)
         sys.exit(1 if crest_all([OPT["dir"]] if OPT.get("dir") else [OUT_WALL, OUT_SODE]) else 0)
+    if what == "holes":
+        # blender ... -- holes [--dir=<FBX の置き場>] [--json=<出力>] ── 全駒を真上から見て天端の面に穴(裏・下が見える所)が無いか
+        sys.exit(1 if holes_all([OPT["dir"]] if OPT.get("dir") else [OUT_WALL, OUT_SODE]) else 0)
     if what == "kado-check":
         sys.exit(1 if check_kado(float(OPT.get("h") or 1.5)) else 0)
     if what == "kado":

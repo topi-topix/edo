@@ -1395,6 +1395,7 @@ public static class EdoAssets
         /// ⛔ ピボットで並べない — 隣の切り口と天端の線を測って寄せる。焼けている勾配は 0・前庭の天端を流す ±0.12(H1.80 を除く 8 段・2026-09-26)・打ち切りの ±0.18(H0.15)・段の境の ±0.22(H1.50)。⭐ <paramref name="grade"/> は**その見付で焼いてある勾配のうち最も近いもの**へ寄せて引く(<see cref="SannoNozuraNearestGrade"/>)⇒ 呼ぶ側は駒の +X へ測った天端の勾配をそのまま渡す(他の勾配は下の命令に --grade=)。
         /// 実寸(G0): W 1.818 × H 見付+0.22(根入れ 0.22・天端の線より上は無い)× D 1.21(H0.15)〜1.88(H2.4)(天端の奥行 = 面から裏石の奥の端まで 0.73〜1.05・石ごとに出入り)。三角形 5,900(H0.15)〜14,200(H2.4)。
         /// 背の天端の検査: blender --background --python Tools/Blender/build_sanno_nozura.py -- crest(全駒で背の下がり ≤ 0.03)
+        /// 天端の穴の検査: blender --background --python Tools/Blender/build_sanno_nozura.py -- holes(真上から光線で裏・下の覗く穴 0。2026-09-26 内向きに焼けた天端の石 77 を直した)
         /// 材 `Kirishi` / `Danishi`(石ごとに 7:3)⇒ `Edo/山王社/新造部材のマテリアルをremap`。⛔ 新規マテリアルなし。
         /// 生成: blender --background --python Tools/Blender/build_sanno_nozura.py -- wall [--grade=0.05] [--h=1.2] --render(勾配の組: -- wall --grade=set・並べ焼き -- grade --render)</summary>
         public static string SannoNozura(float h, float grade, int i)

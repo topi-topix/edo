@@ -79,6 +79,7 @@
 - [土留めの端を袖の外面で止める](run-end-at-sode-face.md) — RunEndAtFace は9箇所に当たる。一直線の袖は外す・43°は切った駒・隅の腕が袖へ入る
 - [法で切った段石・袖の差し替えの罠](batter-cut-parts-measure-and-check.md) — 突き合わせの幅は縮尺を見ない・袖の目地が偽の口・女坂の足は斜交で切れない
 - [短い返しは票が割れて裏返る・袖は run の走る段だけ・別 run の出隅を芯で測ると入隅と誤る](short-return-tie-and-sode-extent.md) — RunLowHand/OverlapAlong/ShortSegConvexEnd。段の小口は中ほどで突き付け(跨ぐ段は解けない)
+- [野面 第3巡の測りの罠](nozura-round3-measure-traps.md) — 最も離れる向きの Contact は段石×隅 0.17 を見落とす・外形の中の面の無い点で皮が溝・法切り駒の見付は足元の面で
 
 ## 測り方・関門
 

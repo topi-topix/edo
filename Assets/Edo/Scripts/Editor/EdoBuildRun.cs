@@ -600,7 +600,7 @@ public static partial class EdoBuild
     /// (例: 竹矢来 <see cref="EdoAssets.Own.Typ.Takeyarai"/>)。既定(true / ES)は今までどおり
     /// 片面ポリゴンの ES 倍 obj(穂垣・板塀)— 既存の呼び手はバイト等価で不変(EDO-0363)。</para></remarks>
     public static List<GameObject> PanelRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string prefix,
-        string assetPath, Vector2 gapC, float gapHalf, bool pair = true, float unitScale = ES)
+        string assetPath, Vector2 gapC, float gapHalf, bool pair = true, float unitScale = ES, IList<GameObject> beds = null)
     {
         var made = new List<GameObject>();
         Vector2 dir = (B - A).normalized; float len = (B - A).magnitude;
@@ -635,10 +635,34 @@ public static partial class EdoBuild
                 ButtOnRun(go, A, dir, outward, side == 0 ? 0.0f : -0.12f, startAbs, out mn, out mx);
                 if (side == 0) { prevEnd = mx; chained = true; }
                 try { SeatOnGround(go, 0.10f, 600); } catch (Exception) { SeatBottom(go, baseY - 0.10f); }
+                // ⭐ 足の下に土留め・石垣の駒が居れば、その天端の**触れている箇所**に載せる(2026-09-26・EDO-0437 第3巡)──
+                //   地面(土留めの天端の下へ納めた皮)で据えると足が天端の石の中へ 0.24m 沈み、石が板へ 0.6m 入った(山王 前庭の北 Ita_ZN・Ita_ZNE)。
+                //   上げるだけ(地面へは沈めたまま)。当たる先: 板塀・穂垣の run が土留め・石垣の天端の上を通る所すべて。
+                if (beds != null) RestOnBeds(go, beds);
                 made.Add(go);
             }
         }
         return made;
+    }
+
+    /// <summary>**駒の足の下に在る受けの駒(土留め・石垣)の天端に載せる**(2026-09-26・EDO-0437 第3巡)。<paramref name="beds"/> のうち
+    /// 外接箱が平面で重なる物について <see cref="RestGap"/>(面で測る鉛直の触れている箇所)の最小を取り、負(めり込み)なら
+    /// その分だけ上げる(0 = 接する)。⛔ 下げない(地面へ沈めた据えは保つ)。返り値 = 上げた量(0 = 動かさない)。
+    /// 当たる先: 板塀・穂垣・柵の足が土留め・石垣の天端に載る所すべて(山王 前庭の北の板塀)。</summary>
+    public static float RestOnBeds(GameObject go, IList<GameObject> beds)
+    {
+        var b0 = RB(go); float cm = float.NaN;
+        foreach (var bd in beds)
+        {
+            if (bd == null || bd == go || !bd.activeInHierarchy) continue;
+            var bb = RB(bd);
+            if (bb.max.x < b0.min.x || bb.min.x > b0.max.x || bb.max.z < b0.min.z || bb.min.z > b0.max.z) continue;
+            Vector3 at; int n; float c = RestGap(go, null, bd, null, out at, out n);
+            if (!float.IsNaN(c) && (float.IsNaN(cm) || c < cm)) cm = c;
+        }
+        if (float.IsNaN(cm) || cm >= 0f) return 0f;
+        go.transform.position += new Vector3(0f, -cm, 0f);
+        return -cm;
     }
 
     // ══════════════════════════════════════════════════════════════════════

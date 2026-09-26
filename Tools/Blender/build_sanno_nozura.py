@@ -16,6 +16,8 @@
     blender --background --python Tools/Blender/build_sanno_nozura.py -- back --render         # 背の側(土の側)から撮る
     blender --background --python Tools/Blender/build_sanno_nozura.py -- nkiri --list=Tools/Blender/sanno_nozura_kiri_set.txt --render  # 片端を斜めの鉛直面で切った駒(女坂の袖に当てる・2026-09-26)
     blender --background --python Tools/Blender/build_sanno_nozura.py -- mikiri_h [--h=1.5,1.8] --render   # 丈を合わせた見切り石(天端まで届く・2026-09-26)
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- nnori --list=Tools/Blender/sanno_nozura_nori_set.txt --render  # 小口を相手の法 1:0.3 で切った短い駒(入隅の可動側の端・第3巡)
+    blender --background --python Tools/Blender/build_sanno_nozura.py -- sode_nori --keri=0.250 --fumi=0.542 [--e=-0.15] --render     # 背を相手の法 1:0.3 で切った野面の袖(第3巡)
 
 試作は `proto_sanno_dodome.py`(絵だけ)。石の形(Voronoi の割り・割肌の面・円弧で切る頭・
 面取り)はそこから起こし直した。⛔ 在庫に野面石・玉石が無い(試作の依頼時に在庫方が確認)ので新造。
@@ -77,6 +79,14 @@
   (L = 足の前・S = 控え)は隣の 1間の割り(次の個体・端の石は同じ)から採る。反対の端は直線の駒の継ぎ目と頂点まで同じ。
   ⚠ 斜めの面は bpy.ops.mesh.bisect で面から 0.036 外に頂点が残った ⇒ bmesh.ops.bisect_plane + holes_fill(切り口の辺だけ)。
   切り口に石の角だけ残る欠片(二辺とも 0.08 未満)は袖の面の前に浮いて見えたので落とす。
+
+━━━ 6. 相手の法で切る駒(2026-09-26 EDO-0437 第3巡)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  鉛直な小口・背は、相手の野面の法(下ほど前へ出る)の楔へ縮めても入る(据えでは解けない)⇒ 駒の側を法で切る。
+  法は 1:0.3(焼いた野面の前の包絡を段ごとに測っても 0.3 で平行・+0.065〜0.08 の出)。
+  `Sanno_Nozura_Nori<P|M>_L<長さmm>_H<見付mm>_a`: 入隅の可動側の短い駒。天端の線で長さ L・切る端は e·X ≤ L/2 + 0.3·(Y − 見付)。
+    反対の端は直線の駒の継ぎ目と同じ。⛔ 伸縮させない(法が変わる)⇒ 0.05 刻みで焼く。
+  `IshidanSodeNozuraNori_<蹴上>_<踏面>_E±e_<a|b>`: 野面の袖の背(−Z)を Z = −踏面/2 − e − 0.3·(Y − Yc) で切る(膝 −0.60 より下は鉛直)。
+    e > 0 は坂上へ次の個体を継いでから切る。切石の袖の `IshidanSodeNori`(build_sanno_buzai・1:0.25)と同じ e・Yc の取り方。
 """
 import bpy, bmesh, sys, os, math, random
 import mathutils
@@ -757,10 +767,11 @@ def sode_name(keri, fumi, v):
     return "IshidanSodeNozura_%.3f_%.3f_%s" % (keri, fumi, v)
 
 
-def make_sode(keri, fumi, v):
+def make_sode(keri, fumi, v, fresh=True):
     """`IshidanSode` と同じ枠。s = Unity Z(+ = 坂下)・天端 Y = 0.30 + (f/2 − s)·k/f。
-    厚み X ±0.30 の両面を割肌に(d = +X 面から奥へ 0..0.60)。"""
-    V.reset()
+    厚み X ±0.30 の両面を割肌に(d = +X 面から奥へ 0..0.60)。fresh=False は場を消さない(背を法で切る駒で隣の駒を継ぐ)。"""
+    if fresh:
+        V.reset()
     mats = materials()
     f = fumi
     cells = layout(f, SODE_DEPTH, "nozura-sode-B-%.3f" % f, "nozura-sode-%.3f-%s" % (f, v),
@@ -1009,6 +1020,281 @@ def read_nkiri_list(path):
     return rows
 
 
+# ------------------------------------------------------------------ 相手の法で切る駒(2026-09-26 EDO-0437 第3巡)
+NNORI = BATTER            # 相手(野面の土留め・隅の駒)の面の法 = 3分。焼いた駒の前の包絡も 0.3(+0.065〜0.08 の出)で平行
+NNORI_KNEE = -0.60        # 袖の背の法はこの高さ(袖の局所 Y)から上。下は鉛直(地中 ── 石段の袖の `sode_nori` と同じ)
+NNORI_SODE_E = [-0.25, -0.20, -0.15, -0.10, -0.05, 0.00, 0.05]   # 背の出 e(0.05 刻み)。−0.30 は膝の下が痩せ切る
+
+
+def bm_cut_keep(o, co, no, chip=NKIRI_CHIP, uv_ofs=(0.37, 0.11)):
+    """平面 co・法線 no(Blender)の裏側(dot(x − co, no) <= 0)だけ残し、切り口を塞ぐ(斜めの面は bmesh で ── `make_nkiri` の教訓)。
+    孤立頂点と、二辺とも chip 未満の欠片を落とす。塞いだ面の UV は面の上の平面投影。返り値 = 落とした欠片の頂点数。"""
+    n = Vector(no).normalized(); c = Vector(co)
+    bm = bmesh.new(); bm.from_mesh(o.data)
+    res = bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], dist=1e-6,
+                                 plane_co=c, plane_no=n, clear_outer=True, clear_inner=False)
+    cut = [x for x in res["geom_cut"] if isinstance(x, bmesh.types.BMEdge) and x.is_valid and x.is_boundary]
+    filled = bmesh.ops.holes_fill(bm, edges=cut, sides=0)["faces"]
+    uvl = bm.loops.layers.uv.active
+    t = Vector((n.y, -n.x, 0.0)) if abs(n.z) < 0.99 else Vector((1.0, 0.0, 0.0))
+    if t.length < 1e-6:
+        t = Vector((1.0, 0.0, 0.0))
+    t.normalize()
+    b2 = n.cross(t).normalized()
+    for f in filled:
+        f.normal_update()
+        if f.normal.dot(n) < 0:
+            f.normal_flip()
+        for l in f.loops:
+            q = l.vert.co - c
+            l[uvl].uv = (q.dot(t) / TILE + uv_ofs[0], q.dot(b2) / TILE + uv_ofs[1])
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+    bmesh.ops.delete(bm, geom=[x for x in bm.verts if not x.link_faces], context='VERTS')
+    bm.verts.ensure_lookup_table()
+    seen, drop = set(), []
+    for v0 in bm.verts:
+        if v0.index in seen:
+            continue
+        st, comp = [v0], []
+        seen.add(v0.index)
+        while st:
+            a = st.pop(); comp.append(a)
+            for ed in a.link_edges:
+                b = ed.other_vert(a)
+                if b.index not in seen:
+                    seen.add(b.index); st.append(b)
+        ext = sorted(max(q.co[i] for q in comp) - min(q.co[i] for q in comp) for i in range(3))
+        if ext[1] < chip:
+            drop += comp
+    if drop:
+        bmesh.ops.delete(bm, geom=drop, context='VERTS')
+    bm.to_mesh(o.data); bm.free(); o.data.update()
+    return len(drop)
+
+
+# ---- (1) 小口を相手の法で切った短い駒 `Sanno_Nozura_Nori<P|M>_L<天端の長さmm>_H<見付mm>_<v>` ------------------
+def nnori_name(ls, end, h, v):
+    return "Sanno_Nozura_Nori%s_L%04d_H%04d_%s" % (end, int(round(ls * 1000)), int(round(h * 1000)), v)
+
+
+def nnori_frame(ls, end):
+    """e(+1 = P = 切る端が局所 +X)、割りの窓の中の切る端の s_e と窓の中心 s_c(1間の割りの座標)。
+    窓 = 継ぐ側の端を 1間の継ぎ目(∓0.909)に置いた長さ ls ── 継ぐ側は直線の駒の切り口と頂点まで同じ。"""
+    e = 1 if end == "P" else -1
+    s_e = e * (ls - L / 2)
+    s_c = -e * (L / 2 - ls / 2)
+    return e, s_e, s_c
+
+
+def make_nnori(ls, h, end, v):
+    """野面の乱積みの短い駒の片端(小口)を**相手の法 1:0.3 の面**で切る(入隅の可動側の端が、通す側の見え面に当たる所)。
+    局所(ピボット後): 走り X ∈ [−ls/2, +ls/2](天端の前の縁の長さ = ls)・切る端は e·X ≤ ls/2 + NNORI·(Y − h)
+    (上ほど外へ ── 相手の面は下ほど前へ出る)。反対の端は直線の駒の継ぎ目と同じ切り口。見付 h・ピボット Y=0 = 天端 − h・
+    Z=0 = 天端の線での面(見え面 +Z)は直線の駒と同じ。⛔ 伸縮させない(scale.x で法が変わる)。"""
+    V.reset()
+    mats = materials()
+    e, s_e, s_c = nnori_frame(ls, end)
+    cells = []
+    for poly, kind, key in wall_cells(v):
+        p2 = clip(poly, (0, -1), h + BURY)
+        if len(p2) >= 3 and area(p2) > 0.004:
+            cells.append((p2, kind, key))
+    P = wall_P(h, 0.0)
+    objs = build_stones(cells, P, mats, tag="wall")
+    objs.append(backing("back", h, 0.0, mats[1]))
+    objs.append(backing("back2", h, 0.0, mats[1], *BACK2))
+    name = nnori_name(ls, end, h, v)
+    o = V.join(objs, name)
+    # 継ぐ側(−e 端)は直線の駒と同じ切り口
+    if e > 0:
+        bisect_keep(o, (L / 2, 0, 0), (1, 0, 0))        # Unity X >= −L/2
+    else:
+        bisect_keep(o, (-L / 2, 0, 0), (-1, 0, 0))      # Unity X <= +L/2
+    # 切る端: e·X ≤ e·s_e + NNORI·(Y − h) ⇔ Blender で dot(p − (−s_e, 0, h), (−e, 0, −NNORI)) ≤ 0
+    nd = bm_cut_keep(o, (-s_e, 0.0, h), (-e, 0.0, -NNORI))
+    print("NNORI 欠片を落とした 頂点 %d" % nd)
+    # 窓の中心をピボットへ(Unity X −= s_c ⇔ Blender X += s_c)
+    o.data.transform(mathutils.Matrix.Translation((s_c, 0.0, 0.0))); o.data.update()
+    V.set_origin(o, (0, 0, 0))
+    return o, name
+
+
+def check_nnori(o, ls, h, end, v, ref_seam):
+    """⭕ 法の面より外に頂点が無い / 面に頂点が乗る / 法 = NNORI / 天端の前の縁の端 = ±ls/2 / 継ぐ側の切り口 = 直線の駒 / 孤立頂点 / 材 / 背の天端"""
+    e = 1 if end == "P" else -1
+    ok = []
+    U = [(-vv.co.x, vv.co.z, -vv.co.y) for vv in o.data.vertices]
+    g = lambda x, y: e * x - (ls / 2 + NNORI * (y - h))           # > 0 = 面の外
+    bite = max(g(x, y) for x, y, z in U)
+    ok.append(("法の面より外に頂点が無い", bite < 1e-4, "%.6f" % bite))
+    on = [(x, y) for x, y, z in U if abs(g(x, y)) < 1e-4]
+    ok.append(("法の面に頂点が乗る", len(on) >= 20, "%d 点" % len(on)))
+    if len(on) >= 2:
+        my = sum(p[1] for p in on) / len(on); mx = sum(p[0] for p in on) / len(on)
+        syy = sum((p[1] - my) ** 2 for p in on); sxy = sum((p[1] - my) * (p[0] - mx) for p in on)
+        sl = e * sxy / syy if syy > 1e-9 else 0.0
+        ok.append(("法 = 1:%.2f(実測 e·dX/dY)" % NNORI, abs(sl - NNORI) < 1e-3, "%.4f" % sl))
+        x_top = mx + (h - my) * (sxy / syy if syy > 1e-9 else 0.0)
+        ok.append(("天端の線での切る端 = %+.3f" % (e * ls / 2), abs(x_top - e * ls / 2) < 2e-3, "%+.4f" % x_top))
+    xb = e * ls / 2                                    # 継ぐ側(Unity X = −e·ls/2)の Blender X
+    mine = [(y, round(z - h, 3)) for y, z in seam_verts(o, xb) if z > h - 0.25]
+    diff = len(set(mine) ^ set(ref_seam))
+    ok.append(("継ぐ側の切り口 = 直線の駒 %s" % wall_name(h, 0.0, v), diff == 0 and len(ref_seam) > 0, "%d 点・差 %d" % (len(ref_seam), diff)))
+    loose = len(o.data.vertices) - len({i for p in o.data.polygons for i in p.vertices})
+    ok.append(("孤立頂点なし", loose == 0, "%d" % loose))
+    mats_ = sorted({m.name for m in o.data.materials})
+    ok.append(("材は Kirishi / Danishi だけ", set(mats_) <= {"Kirishi", "Danishi"}, ",".join(mats_)))
+    bpy.context.view_layer.update()
+    back, over, at, npt = crest_check([o], lambda x, z: h, lambda x, z: z <= -FACE_ROW)
+    ok.append(("背の天端の下がり ≤ %.2f" % CREST_TOL, back <= CREST_TOL, "%+.3f(%d 点)" % (back, npt)))
+    ok.append(("頭が天端の線より上へ出ない", over <= 0.005, "%+.3f" % over))
+    (x0, x1), (y0, y1), (z0, z1) = unity_bounds(o)
+    print("NNORI %s X[%.3f,%.3f] Y[%.3f,%.3f] Z[%.3f,%.3f] tris=%d" % (o.name, x0, x1, y0, y1, z0, z1, tris(o)))
+    for (label, good, note) in ok:
+        print("      %s %s %s" % ("⭕" if good else "⛔", label, note))
+    return sum(1 for t_ in ok if not t_[1])
+
+
+def read_nnori_list(path):
+    """各行 `札 P|M 見付 長さ,長さ,…`(# 以降は註)"""
+    rows = []
+    with open(path, encoding="utf-8") as fp:
+        for ln in fp:
+            ln = ln.split("#", 1)[0].strip()
+            if not ln:
+                continue
+            tag, end, hs, lens = ln.split()
+            for ls in lens.split(","):
+                rows.append((tag, end, float(hs), float(ls)))
+    return rows
+
+
+def render_nnori(ls, h, end, v):
+    """短い駒の法で切った端を、通す側の土留め(直線の駒 H0.90・見え面を −e·X へ・天端を揃える)の見え面へ当てて撮る。
+    相手の駒は法の包絡の出(0.075)だけ離す(= 据え手が触れている箇所で寄せた所)。反対の端に直線の駒 1 を継ぐ。"""
+    e = 1 if end == "P" else -1
+    V.reset()
+    _import_at(os.path.join(OUT_WALL, nnori_name(ls, end, h, v) + ".fbx"), 0, 0, 0)
+    _import_at(os.path.join(OUT_WALL, wall_name(h, 0, "b") + ".fbx"), -e * (ls / 2 + L / 2), 0, 0)
+    hw = 0.90
+    _import_at(os.path.join(OUT_WALL, wall_name(hw, 0, "c") + ".fbx"), e * (ls / 2 + 0.075), L / 2, h - hw, -90.0 * e)
+    hook_stone_textures()
+    ground(0.0, -30, 30)
+    _upper_ground(h, (-4 * L, 0.0) if e > 0 else (0.0, 4 * L), (-6.0, -0.25))
+    tag = nnori_name(ls, end, h, v)
+    studio_run([], _u2b(-e * 1.2, h + 0.9, 3.4), _u2b(e * ls * 0.3, h * 0.5, 0.2), 30, os.path.join(SHOT, tag + ".png"))
+    studio_run([], _u2b(-e * 1.2, h + 0.9, 3.4), _u2b(e * ls * 0.3, h * 0.5, 0.2), 30, os.path.join(SHOT, tag + "_magenta.png"), magenta=True)
+    # 真横(走りの向きの横 = 見え面から)から: 切る端の法が相手の面に沿うか
+    for nm in ("Upper",):
+        ob = bpy.data.objects.get(nm)
+        if ob:
+            bpy.data.objects.remove(ob)
+    cam = bpy.context.scene.camera
+    cam.data.type = 'ORTHO'; cam.data.ortho_scale = 2.4
+    cam.location = _u2b(e * ls * 0.3, h * 0.5, 8.0)
+    cam.rotation_euler = (Vector(_u2b(e * ls * 0.3, h * 0.5, 0.0)) - cam.location).to_track_quat('-Z', 'Y').to_euler()
+    V.render(os.path.join(SHOT, tag + "_side.png"))
+
+
+# ---- (2) 背を相手の法で切った野面の袖 `IshidanSodeNozuraNori_<蹴上>_<踏面>_E±x.xx_<v>` -------------------------
+def sode_nnori_name(keri, fumi, e, v):
+    return "IshidanSodeNozuraNori_%.3f_%.3f_E%s%.2f_%s" % (keri, fumi, "+" if e >= 0 else "-", abs(e), v)
+
+
+def sode_nnori_yc(keri):
+    """背の出 e を測る高さ(袖の局所 Y)= 石段の袖の `sode_nori_yc` と同じ((0.30 + 蹴上)/2)。"""
+    return (SODE_HT + keri) / 2.0
+
+
+def make_sode_nnori(keri, fumi, e, v, knee=NNORI_KNEE):
+    """野面の袖 `make_sode(keri, fumi, v)` の坂上の端(背・−Z)を**相手(出隅の駒・土留め)の法 1:0.3** と平行な面で切る。
+    背の面: Z = −踏面/2 − e − NNORI·(Y − Yc)(Yc = `sode_nnori_yc`)── 上ほど坂上へ出る。knee より下は鉛直(Z = 膝での値)。
+    e > 0 は平らな駒より坂上へ出る(坂上に次の個体を継いで伸ばす ⇒ 天端・割りは一続き)/ e < 0 は詰める。"""
+    V.reset()
+    o0, _, _ = make_sode(keri, fumi, v, fresh=False)
+    other = "b" if v == "a" else "a"
+    o1, _, _ = make_sode(keri, fumi, other, fresh=False)
+    o1.data.transform(mathutils.Matrix.Translation((0.0, fumi, keri))); o1.data.update()   # 坂上へ 1 駒(Unity Z −踏面・Y +蹴上)
+    V.dedup_materials()
+    name = sode_nnori_name(keri, fumi, e, v)
+    whole = V.join([o0, o1], name)
+    yc = sode_nnori_yc(keri)
+    zk = -fumi / 2.0 - e - NNORI * (knee - yc)           # 膝での背の Z(Unity)
+    # 部品 1: 膝の鉛直面より坂下(Unity Z ≥ zk ⇔ Blender Y ≤ −zk)
+    p2 = whole.copy(); p2.data = whole.data.copy(); bpy.context.scene.collection.objects.link(p2)
+    n1 = bm_cut_keep(whole, (0.0, -zk, 0.0), (0.0, 1.0, 0.0))
+    # 部品 2: 膝より坂上(Unity Z ≤ zk)で、背の法の面より坂下(Unity Z ≥ −f/2 − e − NNORI·(Y − Yc))── 膝より上だけが残る
+    n2 = bm_cut_keep(p2, (0.0, -zk, 0.0), (0.0, -1.0, 0.0))
+    n3 = bm_cut_keep(p2, (0.0, fumi / 2.0 + e, yc), (0.0, 1.0, -NNORI))
+    o = V.join([whole, p2], name)
+    o.name = name; o.data.name = name
+    # ⛔ 石は X = ±0.30 の面を越えない(`make_sode` と同じ)
+    for vt in o.data.vertices:
+        vt.co.x = max(-SODE_HALF, min(SODE_HALF, vt.co.x))
+    V.set_origin(o, (0, 0, 0))
+    print("SNORI 欠片を落とした 頂点 %d/%d/%d" % (n1, n2, n3))
+    return o, name
+
+
+def check_sode_nnori(o, keri, fumi, e, knee=NNORI_KNEE):
+    ok = []
+    U = [(-vv.co.x, vv.co.z, -vv.co.y) for vv in o.data.vertices]
+    yc = sode_nnori_yc(keri)
+    zb = lambda y: -fumi / 2.0 - e - NNORI * (max(y, knee) - yc)
+    worst = max(zb(y) - z for x, y, z in U)
+    ok.append(("背の法の面より坂上に頂点が無い", worst < 1e-4, "最大 %.5f" % worst))
+    onb = [(y, z) for x, y, z in U if abs(z - zb(y)) < 1e-4 and y > knee + 0.05]
+    ok.append(("背の法の面に頂点が乗る(膝より上)", len(onb) >= 8, "%d 点" % len(onb)))
+    if len(onb) >= 2:
+        my = sum(p[0] for p in onb) / len(onb); mz = sum(p[1] for p in onb) / len(onb)
+        sl = sum((y - my) * (z - mz) for y, z in onb) / max(1e-9, sum((y - my) ** 2 for y, _ in onb))
+        ok.append(("背の法 = 1:%.2f(実測 −dZ/dY)" % NNORI, abs(-sl - NNORI) < 1e-3, "%.4f" % -sl))
+    ok.append(("坂下の端は平らな駒のまま Z=+踏面/2", abs(max(z for x, y, z in U) - fumi / 2) < 1e-4, "%.4f" % max(z for x, y, z in U)))
+    ok.append(("石は X = ±0.30 を越えない", max(abs(x) for x, y, z in U) <= SODE_HALF + 1e-6, "%.4f" % max(abs(x) for x, y, z in U)))
+    top = lambda z: SODE_HT + (fumi / 2.0 - z) * keri / fumi
+    over = max(y - top(z) for x, y, z in U)
+    ok.append(("天端が段鼻の線 +0.30 の斜めの一直線を越えない(≤ 0.005 ── 平らな野面の袖も 0.0015 出る)", over <= 0.005, "超過 %.5f" % over))
+    kept_knee = fumi / 2.0 - (-fumi / 2.0 - e - NNORI * (knee - yc))
+    ok.append(("膝の下に駒が残る(> 0.02)", kept_knee > 0.02, "%.3f" % kept_knee))
+    loose = len(o.data.vertices) - len({i for p in o.data.polygons for i in p.vertices})
+    ok.append(("孤立頂点なし", loose == 0, "%d" % loose))
+    mats_ = sorted({m.name for m in o.data.materials})
+    ok.append(("材は Kirishi / Danishi だけ", set(mats_) <= {"Kirishi", "Danishi"}, ",".join(mats_)))
+    bpy.context.view_layer.update()
+    back, ov, at, npt = crest_check([o], lambda x, z: top(z), lambda x, z: abs(x) <= SODE_HALF - FACE_ROW)
+    ok.append(("背の天端の下がり ≤ %.2f" % CREST_TOL, back <= CREST_TOL, "%+.3f(%d 点)" % (back, npt)))
+    (x0, x1), (y0, y1), (z0, z1) = unity_bounds(o)
+    print("SNORI %s X[%.3f,%.3f] Y[%.3f,%.3f] Z[%.3f,%.3f] tris=%d" % (o.name, x0, x1, y0, y1, z0, z1, tris(o)))
+    for (label, good, note) in ok:
+        print("      %s %s %s" % ("⭕" if good else "⛔", label, note))
+    return sum(1 for t_ in ok if not t_[1])
+
+
+def render_sode_nnori(keri, fumi, e, v, n=3):
+    """背を切った袖 + 坂下へ平らな野面の袖 n−1 駒。背に相手(野面の直線の駒 H0.90・見え面 +Z・天端 = 袖の背の天端)を
+    法の包絡の出(0.075)だけ離して据え、切り口が相手の面に沿うか撮る。"""
+    V.reset()
+    _import_at(os.path.join(OUT_SODE, sode_nnori_name(keri, fumi, e, v) + ".fbx"), 0, 0, 0)
+    for i in range(1, n):
+        vv = "ab"[("ab".index(v) + i) % 2]
+        _import_at(os.path.join(OUT_SODE, sode_name(keri, fumi, vv) + ".fbx"), 0, fumi * i, -keri * i)
+    hw = 0.90
+    ytop = SODE_HT + keri                                # 平らな駒の背での天端
+    yc = sode_nnori_yc(keri)
+    zw = -fumi / 2.0 - e - NNORI * (ytop - yc) - 0.075   # 相手の天端の線での面
+    _import_at(os.path.join(OUT_WALL, wall_name(hw, 0, "a") + ".fbx"), SODE_HALF - L / 2, zw, ytop - hw)
+    hook_stone_textures()
+    ground(-0.5, -30, 30)
+    tag = sode_nnori_name(keri, fumi, e, v)
+    studio_run([], _u2b(-2.6, ytop + 0.6, 2.6), _u2b(0.0, 0.0, -0.1), 30, os.path.join(SHOT, tag + ".png"))
+    studio_run([], _u2b(-2.6, ytop + 0.6, 2.6), _u2b(0.0, 0.0, -0.1), 30, os.path.join(SHOT, tag + "_magenta.png"), magenta=True)
+    cam = bpy.context.scene.camera
+    cam.data.type = 'ORTHO'; cam.data.ortho_scale = 2.6
+    cam.location = _u2b(-8.0, -0.2, 0.0)
+    cam.rotation_euler = (Vector(_u2b(0.0, -0.2, 0.0)) - cam.location).to_track_quat('-Z', 'Y').to_euler()
+    V.render(os.path.join(SHOT, tag + "_side.png"))
+
+
 # ------------------------------------------------------------------ 丈を合わせた見切り石(2026-09-26 EDO-0437)
 MIKIRI_TIERS = [1.20, 1.50, 1.80, 2.10]
 MIKIRI_W = 0.86
@@ -1233,6 +1519,14 @@ def crest_spec(name):
     if m:
         h = int(m.group(1)) / 1000
         return (lambda x, z: h), (lambda x, z: z <= -FACE_ROW)
+    m = re.match(r"Sanno_Nozura_Nori[PM]_L\d{4}_H(\d{4})_[a-d]$", name)
+    if m:
+        h = int(m.group(1)) / 1000
+        return (lambda x, z: h), (lambda x, z: z <= -FACE_ROW)
+    m = re.match(r"IshidanSodeNozuraNori_([\d.]+)_([\d.]+)_E[+-][\d.]+_[ab]$", name)
+    if m:
+        k, f = float(m.group(1)), float(m.group(2))
+        return (lambda x, z: SODE_HT + (f / 2 - z) * k / f), (lambda x, z: abs(x) <= SODE_HALF - FACE_ROW)
     m = re.match(r"Sanno_Nozura_Mikiri_H(\d{4})$", name)
     if m:
         h = int(m.group(1)) / 1000
@@ -1706,6 +2000,43 @@ if __name__ == "__main__":
                     render_nkiri(h_, deg_, end_, face_, v_)
         if bad:
             sys.exit("NKIRI ⛔ 検算が %d 件落ちた" % bad)
+    if what == "nnori":
+        # blender ... -- nnori --list=Tools/Blender/sanno_nozura_nori_set.txt [--render] ── 小口を相手の法で切った短い駒(入隅の可動側の端)
+        lp = OPT.get("list") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "sanno_nozura_nori_set.txt")
+        lp = lp if os.path.isabs(lp) else os.path.join(V.REPO, lp)
+        bad = 0
+        made = []
+        for tag_, end_, h_, ls_ in read_nnori_list(lp):
+            for v_ in (OPT.get("v") or "a").split(","):
+                ro, _, _ = make_wall(h_, 0.0, v_)
+                ref_ = [(y, round(z - h_, 3)) for y, z in seam_verts(ro, (1 if end_ == "P" else -1) * L / 2) if z > h_ - 0.25]
+                o, name = make_nnori(ls_, h_, end_, v_)
+                bad += check_nnori(o, ls_, h_, end_, v_, ref_)
+                export(o, name, OUT_WALL)
+                made.append((ls_, h_, end_, v_))
+                print("NNORI 書き出し %s ← %s" % (name, tag_))
+        if RENDER:
+            for (ls_, h_, end_, v_) in made:
+                if OPT.get("shots") is None or ("%.2f" % ls_) in OPT["shots"].split(","):
+                    render_nnori(ls_, h_, end_, v_)
+        if bad:
+            sys.exit("NNORI ⛔ 検算が %d 件落ちた" % bad)
+    if what == "sode_nori":
+        # blender ... -- sode_nori [--keri=0.250 --fumi=0.542] [--e=-0.20,-0.15] [--render] ── 背を相手の法で切った野面の袖
+        keri_, fumi_ = float(OPT.get("keri") or 0.250), float(OPT.get("fumi") or 0.542)
+        es_ = _floats("e", NNORI_SODE_E)
+        bad = 0
+        for e_ in es_:
+            for v_ in "ab":
+                o, name = make_sode_nnori(keri_, fumi_, e_, v_)
+                bad += check_sode_nnori(o, keri_, fumi_, e_)
+                export(o, name, OUT_SODE)
+        if RENDER:
+            for e_ in es_:
+                if OPT.get("shots") is None or ("%+.2f" % e_) in OPT["shots"].split(","):
+                    render_sode_nnori(keri_, fumi_, e_, "a")
+        if bad:
+            sys.exit("SNORI ⛔ 検算が %d 件落ちた" % bad)
     if what == "mikiri_h":
         # blender ... -- mikiri_h [--h=1.5,1.8] [--render] ── 丈を合わせた見切り石
         bad = 0

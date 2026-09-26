@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 318(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 321(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -30,7 +30,7 @@
 | `Eg.Shop02` | string | `shop02.obj` | BuildMachiya(MachiyaRun), SannoSha, TypologyBuilder.Machiya(Machiya) |
 | `Eg.DobeiCenter` | string | `s_hei_center.obj` — 塀 | BuildRun, Doi(RemapKido), OkabeYashiki(BindDonorMaterials) |
 | `Eg.DobeiCorner` | string | `s_hei_corner.obj` | — |
-| `Eg.Itabei5` | string | `itabei5.obj` | SannoSha(BuiltSegs・Stage4_Kakoi), MatsudairaDewa(ItabeiRun・PlaceItabeiSpan), OkabeYashiki(AssetByKey) |
+| `Eg.Itabei5` | string | `itabei5.obj` | SannoSha(BuiltSegs・RemapSannoShinzo・Stage4_Kakoi), MatsudairaDewa(ItabeiRun・PlaceItabeiSpan), OkabeYashiki(AssetByKey) |
 | `Eg.Hogaki5` | string | `hogaki5.obj` | MatsudairaDewa(FenceWidth・Stage2_Perimeter), OkabeYashiki(AssetByKey) |
 | `Eg.TakeGaki` | string | `bamboo garden fence B.prefab` — 竹垣(0.9高 x 1.05長)。水際・庭園帯の囲いに。 | MatsudairaDewa(Stage6_Zosaku), MatsudairaDewaBuilder.Niwa(Stage6d_Tenkei), OkabeYashiki(AssetByKey) |
 | `Eg.ToroYukimi` | string | `t_yukimi.obj` — 雪見灯籠(六角の広い笠 + 宝珠 + 火袋 + 竿を持たない三脚)。 | DoiBuilder.Niwa(ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem) |
@@ -209,6 +209,7 @@
 | `Own.ISHIDAN_SODE_DEPTH_STD` | float | 袖の丈(天端の線から下端まで)の既定 2.20 = 最大見付 1.74 + 根入れ 0.46。 | BuildIshidan(MiterIshidanSode), SannoSha(Stage2_Kaidan) |
 | `Own.IshidanSodeDepths` | float[] | 焼いてある袖の丈(浅い順)。切通しで袖を背の地盤まで上げる(`copingRise:"groundHi"`)とき、 上げの上限 = 丈 − 笠の上がり 0.30 − 段石の根入れ(実メッシュで測る。 | BuildIshidan(PlaceIshidanSode), SannoSha(Stage2_Kaidan) |
 | `Own.IshidanSode(keri, fumi, i, depth)` | 関数 | 丈の深い石段の袖(EDO-0430 2026-09-24)。 | BuildIshidan(FitObliqueEnd・PlaceIshidanSode), SannoSha(AbutStairsToWalls・Stage2_Kaidan) |
+| `Own.IshidanSodeFlat(depth)` | 関数 | 天端が水平な石段の袖(EDO-0459 施主裁定A 2026-09-26・男坂の最上段の袖石)。 | — |
 | `Own.IshidanSodeMiter(keri, fumi, w, hF, hB, i)` | 関数 | 曲がる石段の袖 — 端を留めに切った駒(EDO-0415 ②③)。 | BuildIshidan(MiterPath・PlaceIshidanSodeFlat) |
 | `Own.IshidanSodeMiter(keri, fumi, w, hF, hB, i, depth)` | 関数 | 丈の深い袖の留めの駒(EDO-0430 2026-09-24)。 | BuildIshidan(MiterPath・PlaceIshidanSodeFlat) |
 | `Own.IshidanSodeNori(keri, fumi, e, i, depth=…)` | 関数 | 背を法 1:0.25 に切った石段の袖(EDO-0442 施主裁定B・2026-09-26)。 | BuildIshidan(FitObliqueEnd), SannoSha(AbutStairsToWalls) |
@@ -341,6 +342,8 @@
 | `Own.HoriKido` | string | `HoriKido.fbx` — 汀の柵の潜り(`nishi.saku.kuguri`・辺5 の s=55.7)。 | OkabeYashiki(AssetByKey) |
 | `Own.HoriSaku` | string | `HoriSaku.fbx` — 汀の木柵 1スパン(`fences[0]` F_Hori・辺5 の全長 s0〜80.589)。 | OkabeYashiki(PlaceFences) |
 | `Own.HoriSakuPost` | string | `HoriSakuPost.fbx` — 汀の木柵の端の杭。⛔ 足さないと run の最後の板が宙で終わる。 | OkabeYashiki(PlaceFences) |
+| `Own.ItabeiIta` | string | `Itabei_Ita_1.410.fbx` — 板塀の板(柱なし)1間。在庫の板塀 Eg.Itabei5(柱と板が一体の 5間の駒)を 柱と板に分けた組の板の方(2026-09-26・EDO-0437 山王 前庭の南の板塀 `Ita_ZSE`)。 | — |
+| `Own.ItabeiHashira` | string | `Itabei_Hashira_N0.30.fbx` — 板塀の柱1本(ItabeiIta と組・2026-09-26・EDO-0437)。 | — |
 | `Own.Ishigumi(i)` | 関数 | 庭石1個(景石・石組護岸の石・岩島・中島の汀石・荒磯の立石を全部これで置く)。 | DoiBuilder.Niwa(Niwa_B_Gogan・Niwa_D_Tenkei・ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem), TypologyBuilder.Niwa(MomijiPalFor) |
 | `Own.Tobiishi(i)` | 関数 | 飛石・沢飛石1枚(天端が平ら)。⭕ 同じ photoscanned rock の頭を水平に 落として天端を作り、縁は自然石のまま残してある(⛔ 切石に見せない)。 | DoiBuilder.Niwa(Niwa_D_Tenkei・ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem), TypologyBuilder.Niwa(MomijiPalFor) |
 | `Own.Kutsunugi` | string | 沓脱石(根府川石)。天端を平らに落とした自然石。 | OkabeYashiki(PlaceNiwaItem) |

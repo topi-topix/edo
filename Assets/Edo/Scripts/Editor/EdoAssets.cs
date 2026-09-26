@@ -2833,6 +2833,26 @@ public static class EdoAssets
         /// 生成: blender --background --python Tools/Blender/build_hori_saku.py -- post</summary>
         public const string HoriSakuPost = "Assets/Edo/Models/Hei/HoriSakuPost.fbx";
 
+        /// <summary>**板塀の板(柱なし)1間**。在庫の板塀 <see cref="Eg.Itabei5"/>(柱と板が一体の 5間の駒)を
+        /// 柱と板に分けた組の板の方(2026-09-26・EDO-0437 山王 前庭の南の板塀 `Ita_ZSE`)。柱 <see cref="ItabeiHashira"/> を
+        /// 1本ずつ床に据え、その間にこれを掛ける。貫3段・羽目板7枚(表裏交互)・笠木。**材・見付・UV は元の駒と同一**
+        /// (元の 1スパン `itabei.obj` の ES 倍から柱を抜いただけ。組み直すと元の頂点の多重集合と欠け 0・余り 0)。
+        /// ローカル(**実寸・ES 倍しない** ⇒ scale 1): 幅=X / 高さ=Y / 厚み=Z。ピボット = **板の中心・元の駒の y=0**。
+        /// 板の端 x = ±0.7051(= 柱の面)・下端 y = +0.117・笠木の天端 y = +1.392・厚み z ±0.027。
+        /// 柱芯は板の中心から **±0.7456**(柱間 1.4912 = 元の駒と同じ)。柱間を伸縮するなら X だけ scale する。
+        /// ⚠ 元の駒と同じく**表裏の対**(裏は yaw+180・奥へ 0.12)で置けば姿が今と揃う。材 `itabei` →
+        /// `Edo/山王社/新造部材のマテリアルをremap`(元の駒の .obj のサブアセットを借りる)。
+        /// 生成: blender --background --python Tools/Blender/build_itabei_bunkatsu.py -- [--render]</summary>
+        public const string ItabeiIta = "Assets/Edo/Models/Hei/Itabei_Ita_1.410.fbx";
+
+        /// <summary>**板塀の柱1本**(<see cref="ItabeiIta"/> と組・2026-09-26・EDO-0437)。元の駒の柱身(0.081 角)と根元の台
+        /// (0.137 角・y −0.011..+0.041)に、**地中の継ぎ足し**(柱身と同じ断面で y = −0.300 まで)を足した物。地上は元のまま。
+        /// ローカル(実寸・scale 1): ピボット = **柱の芯・元の駒の y=0**(= 元の駒の地際の基準)。
+        /// 柱の足(下端)y = **−0.300** / 頭 y = **+1.439** / 柱身 x ±0.0405・z ±0.037(台は z ±0.068・x −0.066..+0.071)。
+        /// ⭐ 据えは「y=0 を床に合わせ、そこから根入れ」── 足の下端を床に当てない(0.30 が根入れの取り代)。
+        /// 生成: blender --background --python Tools/Blender/build_itabei_bunkatsu.py -- [--render]</summary>
+        public const string ItabeiHashira = "Assets/Edo/Models/Hei/Itabei_Hashira_N0.30.fbx";
+
         // ---------------------------------------------------------------- 庭の点景(岡部邸)
         // 指図 `gardens[]` / 算出物 `okabe_impl.json` の `gardens[].asset` が指す部材。
         // ⛔ **雪見灯籠だけは在庫にある** → <see cref="Eg.ToroYukimi"/>(下の Toro は転送)。

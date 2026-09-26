@@ -952,6 +952,12 @@ public static class EdoSannoShaBuilder
         string[] modelDirs = { "Assets/Edo/Models/Kaidan", "Assets/Edo/Models/Hei",
                                "Assets/Edo/Models/Sanno" };
         // ⭐ 芯は EdoRemapMat.Run(全邸で1本・EDO-0318)。ここに書くのは並びだけ。
-        return EdoRemapMat.Run(donorDirs, modelDirs, "山王の新造部材");
+        var byName = EdoRemapMat.ByFolder(donorDirs);
+        // ⚠ 板塀を分けた組 `Own.ItabeiIta` / `Own.ItabeiHashira`(2026-09-26・EDO-0437)の材 `itabei` は
+        //   edogoyomi の .obj が**サブアセットとして抱えている**だけで独立した .mat が無い ⇒ フォルダを舐めても当たらない。
+        //   元の駒 `Eg.Itabei5` の中の材を直接借り先に足す(足さないと板塀の組だけ真っ白)。
+        foreach (var o in AssetDatabase.LoadAllAssetsAtPath(EdoAssets.Eg.Itabei5))
+        { var m = o as Material; if (m != null && !byName.ContainsKey(m.name)) byName[m.name] = m; }
+        return EdoRemapMat.Run(byName, modelDirs, "山王の新造部材");
     }
 }

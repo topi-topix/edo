@@ -47,3 +47,4 @@
 - [土留めの天端は表の石+裏石の2列](nozura-crest-omote-ura-two-rows.md) — 表の石を控えで伸ばさない・隅は両腕の端の裏石が奥で重なる(2026-09-26)
 - [跨ぐ端の法つき段石と prefab からの測り](sando-kai-dan1-straddle-nori.md) — d±B±N± の綴り・据えた姿は YAML+Blender で測る・野面を焼き直したら za を測り直す(2026-09-26)
 - [野面の尻すぼみと勾配の駒の crest](nozura-taper-back-and-shear-crest.md) — 剪断で背の丸みの面が篩に掛かり G− だけ ⛔・芯を天端の帯へ(2026-09-26)
+- [板塀を板と柱に分けた・材 itabei は obj のサブアセット](itabei-split-and-obj-subasset-material.md) — itabei5=1スパン×5。remap は Eg.Itabei5 を借り先に足す(2026-09-26)

@@ -1280,7 +1280,7 @@ public static class EdoSannoShaRebuild
             (h, g, i) => EdoAssets.Own.SannoNozura(h, g, i), (h, i) => EdoAssets.Own.SannoNozuraKado(h, i),
             (up, i) => EdoAssets.Own.SannoNozuraDan(up, i), (up, i) => EdoAssets.Own.SannoNozuraKiri(up, i),
             EdoAssets.Own.SannoNozuraMikiriH, new[] { 0.30f, 0.60f, 0.90f, 1.20f, 1.50f, 1.80f, 2.10f, 2.40f }, pool, sb,
-            EdoAssets.Own.SannoNozuraKiriEnd, EdoAssets.Own.SannoNozuraNoriEnd);
+            EdoAssets.Own.SannoNozuraKiriEnd, EdoAssets.Own.SannoNozuraNoriEnd, sandoPieces);
         foreach (var kv in got) { placed.Add(kv.Key); faceOf[kv.Key] = kv.Value; }
         return got.Count;
     }
@@ -1551,7 +1551,8 @@ public static class EdoSannoShaRebuild
                             return float.IsNaN(t) ? g : float.IsNaN(g) ? t : Mathf.Max(g, t);
                         };
                     }
-                    var lst = EdoBuild.PanelRun(grp, a, b, outw, name, EdoAssets.Eg.Itabei5, Vector2.zero, -1, beds: beds, bedAt: hasSeat ? null : bedFn);
+                    var lst = EdoBuild.PanelRun(grp, a, b, outw, name, EdoAssets.Eg.Itabei5, Vector2.zero, -1, beds: beds, bedAt: hasSeat ? null : bedFn,
+                        splitPost: EdoAssets.Own.ItabeiHashira, splitBoard: EdoAssets.Own.ItabeiIta);
                     made += lst.Count;
                 }
             }

@@ -34,6 +34,8 @@ public static partial class EdoBuild
         public float[] heights;
         /// <summary>始まり・終わりの端が突き付ける相手の駒(無ければ打ち切り)。</summary>
         public List<GameObject> startTo = new List<GameObject>(), endTo = new List<GameObject>();
+        /// <summary>隅の腕の中へ入り得る相手(石段の袖)── 隅の腕が呑む量を測る(<see cref="KadoArmNeeds"/>・2026-09-26・EDO-0437 第7巡)。</summary>
+        public IList<GameObject> kadoAbut;
         /// <summary>始まり・終わりの端が**入隅の通す側**(相手の土留めがこちらの見え面へ突き付ける)── 端は線の端点のまま・打ち切りの駒を使わない
         /// (2026-09-26・EDO-0437)。</summary>
         public bool startThrough, endThrough;
@@ -214,6 +216,23 @@ public static partial class EdoBuild
                 if (os.Reason.Length > 0) log.AppendLine("    ⚠ " + name + " 隅 " + i + ": " + os.Summary());
             }
             { float c2 = crestOf(kg); if (!float.IsNaN(c2)) worstCrest = Mathf.Max(worstCrest, Mathf.Abs(c2 - crest)); }
+            // ⭐ 隅の腕の中へ石段の袖が入るか(硬い・許容0 のめり込み ── 2026-09-26・EDO-0437 第7巡)。城の石垣の出隅と同じ器(KadoArmNeeds・
+            //   8 方向の光線)で、腕ごとに要る長さを測る。野面の隅は腕を詰めた組を焼いていない ⇒ 呑むなら ⚠ に要る腕の長さと駒の型を刷る(部材方へ)。
+            //   当たる先: 野面の土留めの出隅で石段の袖が腕へ入る所(山王 前庭の北東 TW_Zentei_N_kado2 × 参道の階の東の袖)。
+            if (w.kadoAbut != null && w.kadoAbut.Count > 0)
+            {
+                var kvs = Body(kg.transform, 999999); float kLo = float.MaxValue, kHi = float.MinValue, t1 = float.MinValue, t2 = float.MinValue;
+                Vector2 a1 = -dir[i - 1], a2 = dir[i];
+                foreach (var v in kvs) { kLo = Mathf.Min(kLo, v.y); kHi = Mathf.Max(kHi, v.y); Vector2 r = new Vector2(v.x, v.z) - P[i]; t1 = Mathf.Max(t1, Vector2.Dot(r, a1)); t2 = Mathf.Max(t2, Vector2.Dot(r, a2)); }
+                float n1, n2; string b1, b2;
+                KadoArmNeeds(kg, P[i], kLo, kHi, a1, a2, w.kadoAbut, float.MaxValue, out n1, out b1, out n2, out b2);
+                var ci = System.Globalization.CultureInfo.InvariantCulture;
+                if (b1 != null || b2 != null)
+                    log.AppendLine("    ⚠ " + name + " 隅 " + i + "(" + System.IO.Path.GetFileNameWithoutExtension(path) + "): 腕が相手を呑む ── 要る腕 " +
+                                   (b1 != null ? "前の区間の側 " + n1.ToString("F3", ci) + "(" + b1 + "・今 " + t1.ToString("F3", ci) + ")" : "前の区間の側 今のまま " + t1.ToString("F3", ci)) + " / " +
+                                   (b2 != null ? "次の区間の側 " + n2.ToString("F3", ci) + "(" + b2 + "・今 " + t2.ToString("F3", ci) + ")" : "次の区間の側 今のまま " + t2.ToString("F3", ci)) +
+                                   "。腕を詰めた野面の隅は焼いていない(部材方へ: 型 Sanno_Nozura_Kado90・見付 " + hk.ToString("F2", ci) + "・腕の長さは隅の稜線の点からの走り)");
+            }
             var sp1 = span(kg, P[i], dir[i - 1]); var sp2 = span(kg, P[i], dir[i]);
             fixedSpans.Add(new[] { sc + sp1[0], sc + sp2[1], i, 0 });
             // 隅の見え面は二つ ⇒ 天端の帯の数え(TuckUnderCrest)には両面の間の対角を渡す(列が稜線の天端を通る)
@@ -866,7 +885,8 @@ public static partial class EdoBuild
         Func<float, float, float> faceGroundAt, float probe,
         Transform parent, Func<float, float, int, string> straight, Func<float, int, string> kado, Func<bool, int, string> dan,
         Func<bool, int, string> kiri, Func<float, string> mikiriPath, float[] heights, List<GameObject> pool, System.Text.StringBuilder log,
-        Func<float, bool, bool, float, int, string> kiriEnd = null, Func<float, bool, float, string> noriEnd = null)
+        Func<float, bool, bool, float, int, string> kiriEnd = null, Func<float, bool, float, string> noriEnd = null,
+        IList<GameObject> kadoAbut = null)
     {
         var res = new List<KeyValuePair<GameObject, Vector2>>();
         int n = segs.Count; if (n == 0) return res;
@@ -958,7 +978,7 @@ public static partial class EdoBuild
         foreach (int c in order)
         {
             var ch = chains[c];
-            var w = new NozuraWall();
+            var w = new NozuraWall { kadoAbut = kadoAbut };
             var cum = new List<float>(); float acc = 0f;
             foreach (var kv in ch)
             {

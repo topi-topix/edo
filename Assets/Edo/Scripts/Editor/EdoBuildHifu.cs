@@ -72,6 +72,8 @@ public static partial class EdoBuild
         public int detCells, trees, sealed_, backSealed;
         /// <summary>見え面の前へ出る皮の辺を下げた点・下げた量の最大(<see cref="CutEdgeSkin"/> の「3b」・2026-09-26 EDO-0437 第5巡)。</summary>
         public int faceDropped; public float faceDropMax; public Vector3 faceDropAt;
+        /// <summary>外形の縁で閉じた点(<see cref="CloseRimAtHull"/>): 底の下を閉じるため上げた / 天端に被らないよう下げた / 許容を超えて触らない。</summary>
+        public int rimRaised, rimLowered, rimRefused; public float rimRaiseMax, rimLowerMax;
         /// <summary>digParts の背を下げた点の数・下げた量の最大(天端を段の線に置いた袖 ── 施主 2026-09-25)。</summary>
         public int dug; public float digMax; public Vector3 digAt;
         public int gapPts, gapN, gapBySkin, gapBig, coverPts, coverN;
@@ -92,6 +94,7 @@ public static partial class EdoBuild
                    " / 裏込め(部材の底まで盛る)" + filled + " 点・最大 " + fillMax.ToString("F2") + "m @(" + fillAt.x.ToString("F1") + ", " + fillAt.z.ToString("F1") + ")" +
                    "・地形の木の升は穴を開けず被せた " + fillLostTree + " 升" +
                    " / 面の高さの皮で部材の底まで塞いだ " + sealed_ + " 点・背の土を駒の底まで上げた " + backSealed + " 点" +
+                   " / 外形の縁で底の下を閉じた " + rimRaised + " 点(最大 " + rimRaiseMax.ToString("F3") + ")・天端の下へ納めた " + rimLowered + " 点(最大 " + rimLowerMax.ToString("F3") + ")" + (rimRefused > 0 ? "・⚠ 許容を超え触らず " + rimRefused : "") +
                    " / 見え面の前へ出る皮の辺を下げた " + faceDropped + " 点" + (faceDropped > 0 ? "・最大 " + faceDropMax.ToString("F2") + "m @(" + faceDropAt.x.ToString("F1") + ", " + faceDropAt.z.ToString("F1") + ")" : "") +
                    (dug > 0 ? " / 背を下げた(天端 − 0.05 から法)" + dug + " 点・最大 " + digMax.ToString("F2") + "m @(" + digAt.x.ToString("F1") + ", " + digAt.z.ToString("F1") + ")" : "") +
                    " / 元の地形から 下げ 最大 " + maxLower.ToString("F2") + "m @(" + lowerAt.x.ToString("F1") + ", " + lowerAt.z.ToString("F1") + ")・上げ 最大 " + maxRaise.ToString("F2") + "m @(" + raiseAt.x.ToString("F1") + ", " + raiseAt.z.ToString("F1") + ")" +
@@ -1246,6 +1249,8 @@ public static partial class EdoBuild
                 if (changed == 0) break;
             }
         }
+        // ---- 3c 外形の縁で閉じる(硬い・許容0 ── 2026-09-26 EDO-0437 第7巡)
+        CloseRimAtHull(idx, H, PIN, CK, org, step, FaceY, faceTol, r);
         r.pinned = PIN.Count;
 
         // ---- 4 メッシュ
@@ -1372,6 +1377,97 @@ public static partial class EdoBuild
         var idx = new TopIndex(); foreach (var g in parts) if (g != null && g.activeInHierarchy) idx.Add(g, bs != null && bs.Contains(g));
         var r = new SkinReport(); r.parts = idx.hulls.Count; r.mesh = "—";
         MeasureSkin(idx, ref r, samples); return r;
+    }
+
+    /// <summary>**皮を駒の実メッシュの外形の縁で閉じる**(2026-09-26・EDO-0437 第7巡)。格子(0.25m)の点ごとに決めた皮は、点の間を三角形で
+    /// 直線に渡るので、外形の縁(= 張り出す天端の石の縁)の真下を通る所で底を割ったり(隙)、天端を越えたり(被り)する ──
+    /// 打ち切りの駒の端で天端の石(厚さ 0.2)だけが張り出す所(山王 前庭の南西 `TW_Zentei_SW_013f`・西 `W_028f` で 0.02〜0.044)と、
+    /// 面が天端より僅かに高い縁(`TW_Zentei_W_006f` ほか 4 点・0.013)。
+    /// <para>外形の各辺を 0.1m ごとに歩き、縁の点 pe から外へ 0.05 の点では **縁の真下の底**(pe から内へ 0.05/0.15/0.30 の最も低い面と、
+    /// pe の 0.10 以内の鉛直な面の下の縁 ── 普請検査と同じ物差し)を、内へ 0.05 の点では**天端**(帯で篩った天端)を相手に、
+    /// その点を含む皮の三角形(格子の対角 (0,0)-(1,1) で割った物)の値を出し、底を割る(− 0.005)なら重みの最も大きい動かせる頂点を
+    /// 上げ、天端を越えるなら天端を越える動かせる頂点を下げる(三角形の値がちょうど相手 ± 0.003 になる量)。⛔ ±0.25 の固定の窓で拾わない。</para>
+    /// <para>硬い条件: 隙 0・被り 0。動かさない: 縁の点(PIN = 地形のまま)。上げる量の上限 = 面(無ければ今の皮)+ faceTol − 0.02
+    /// を超える底(それは駒が浮く ── 駒の側の話)と、頂点の真上の駒の天端(天端を越えて上げない)。当たる先: CutEdgeSkin を通る全邸の
+    /// 部材(石段・袖・土留め・踏石)の外形の縁すべて。</para></summary>
+    static void CloseRimAtHull(TopIndex idx, Dictionary<long, float> H, HashSet<long> PIN, Func<int, int, long> CK, Vector3 org, float step,
+                               Func<Vector2, float> FaceY, float faceTol, SkinReport r)
+    {
+        // 点 q を含む三角形の頂点と重み
+        Func<Vector2, long[], float[], bool> Tri = (q, ks, ws) =>
+        {
+            float fx = (q.x - org.x) / step, fz = (q.y - org.z) / step;
+            int gi = Mathf.FloorToInt(fx), gj = Mathf.FloorToInt(fz); float u = fx - gi, v = fz - gj;
+            // 三角形 (00,01,11) は v ≥ u、(00,11,10) は u > v
+            if (v >= u) { ks[0] = CK(gi, gj); ks[1] = CK(gi, gj + 1); ks[2] = CK(gi + 1, gj + 1); ws[0] = 1f - v; ws[1] = v - u; ws[2] = u; }
+            else { ks[0] = CK(gi, gj); ks[1] = CK(gi + 1, gj + 1); ks[2] = CK(gi + 1, gj); ws[0] = 1f - u; ws[1] = v; ws[2] = u - v; }
+            for (int e = 0; e < 3; e++) if (!H.ContainsKey(ks[e])) return false;
+            return true;
+        };
+        Func<long, Vector2> XZ = kk => new Vector2(org.x + (int)(kk >> 32) * step, org.z + (int)(uint)(kk & 0xffffffff) * step);
+        Func<long, float> Cap = kk => { var q = XZ(kk); int w; float t = idx.TopRaw(q.x, q.y, out w); return t; };
+        for (int pass = 0; pass < 3; pass++)
+        {
+            int moved = 0;
+            for (int k = 0; k < idx.hulls.Count; k++)
+            {
+                var h = idx.hulls[k];
+                Vector2 cen = Vector2.zero; foreach (var q in h) cen += q; cen /= h.Length;
+                for (int e = 0; e < h.Length; e++)
+                {
+                    Vector2 A = h[e], Bv = h[(e + 1) % h.Length], ab = Bv - A; float L = ab.magnitude; if (L < 1e-4f) continue;
+                    Vector2 tn = ab / L, nrm = new Vector2(tn.y, -tn.x);
+                    if (Vector2.Dot(nrm, (A + Bv) * 0.5f - cen) < 0) nrm = -nrm;
+                    for (float s = 0.05f; s < L - 0.05f + 1e-4f; s += 0.05f)
+                    {
+                        var pe = A + tn * s; var pin = pe - nrm * 0.05f; var pout = pe + nrm * 0.05f;
+                        var ks = new long[3]; var ws = new float[3]; int w1, w2;
+                        // 天端(内へ 0.05)── 被らない
+                        float top = idx.Top(pin.x, pin.y, out w1);
+                        if (!float.IsNaN(top) && Tri(pin, ks, ws))
+                        {
+                            float g = 0f; for (int i = 0; i < 3; i++) g += ws[i] * H[ks[i]];
+                            if (g > top + 0.0005f)
+                            {
+                                // 天端を越える動かせる頂点を、重みの大きい順に下げる
+                                float need = g - (top - 0.003f);
+                                var ord = new List<int> { 0, 1, 2 }; ord.Sort((a, b) => ws[b].CompareTo(ws[a]));
+                                foreach (int i in ord)
+                                {
+                                    if (need <= 0f || ws[i] < 0.05f || PIN.Contains(ks[i]) || H[ks[i]] <= top) continue;
+                                    float dv = Mathf.Min(need / ws[i], H[ks[i]] - (top - 0.003f));
+                                    H[ks[i]] -= dv; need -= dv * ws[i]; r.rimLowered++; r.rimLowerMax = Mathf.Max(r.rimLowerMax, dv); moved++;
+                                }
+                            }
+                        }
+                        // 底(外へ 0.05 の点から見える縁の真下)── 割らない
+                        bool covered = false; foreach (var h2 in idx.hulls) if (EdoGeom.PIP(h2, pout)) { covered = true; break; }
+                        if (covered) continue;
+                        float topRaw = idx.TopRaw(pin.x, pin.y, out w2); if (float.IsNaN(topRaw)) continue;
+                        float bot = idx.Bottom(pin.x, pin.y, out w2);
+                        for (int q = 1; q <= 2; q++) { var pq = pe - nrm * (0.15f * q); float bq = idx.Bottom(pq.x, pq.y, out w2); if (!float.IsNaN(bq) && (float.IsNaN(bot) || bq < bot)) bot = bq; }
+                        { float wb = idx.WallBottom(pe.x, pe.y, 0.10f); if (!float.IsNaN(wb) && (float.IsNaN(bot) || wb < bot)) bot = wb; }
+                        if (float.IsNaN(bot) || !Tri(pout, ks, ws)) continue;
+                        float go = 0f; for (int i = 0; i < 3; i++) go += ws[i] * H[ks[i]];
+                        if (go >= bot - 0.005f) continue;
+                        float fy = FaceY(pout); float refY = float.IsNaN(fy) ? go : fy;
+                        if (bot > refY + faceTol - 0.02f) { if (pass == 0) r.rimRefused++; continue; }
+                        {
+                            float need = (bot + 0.003f) - go;
+                            var ord = new List<int> { 0, 1, 2 }; ord.Sort((a, b) => ws[b].CompareTo(ws[a]));
+                            foreach (int i in ord)
+                            {
+                                if (need <= 0f || ws[i] < 0.05f || PIN.Contains(ks[i])) continue;
+                                float cap = Cap(ks[i]); float lim = float.IsNaN(cap) ? refY + faceTol - 0.02f : Mathf.Min(cap - 0.003f, refY + faceTol - 0.02f);
+                                float dv = Mathf.Min(need / ws[i], lim - H[ks[i]]); if (dv <= 0f) continue;
+                                H[ks[i]] += dv; need -= dv * ws[i]; r.rimRaised++; r.rimRaiseMax = Mathf.Max(r.rimRaiseMax, dv); moved++;
+                            }
+                        }
+                    }
+                }
+            }
+            if (moved == 0) break;
+        }
     }
 
     /// <summary>皮と部材の隙を三つに分けて刷る(2026-09-25 普請奉行の決め・EDO-0430):

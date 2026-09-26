@@ -651,10 +651,11 @@ public static partial class EdoBuild
     /// 片面ポリゴンの ES 倍 obj(穂垣・板塀)— 既存の呼び手はバイト等価で不変(EDO-0363)。</para></remarks>
     public static List<GameObject> PanelRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string prefix,
         string assetPath, Vector2 gapC, float gapHalf, bool pair = true, float unitScale = ES, IList<GameObject> beds = null,
-        Func<float, float, float> bedAt = null)
+        Func<float, float, float> bedAt = null, string splitPost = null, string splitBoard = null)
     {
         var made = new List<GameObject>();
         Vector2 dir = (B - A).normalized; float len = (B - A).magnitude;
+        bool fits = true;
         // スパン実測(unitScale基準・既定はES)
         float spanLocal = RunMeasure(assetPath).W;
         float spanES = spanLocal * unitScale;
@@ -690,8 +691,14 @@ public static partial class EdoBuild
                     foreach (var v in ys) { float r = v.y - (float)(ic + sl * v.x); lo = Mathf.Min(lo, r); hi = Mathf.Max(hi, r); }
                     if (hi - lo > 0.10f) ok = false;
                 }
+                fits = ok;
                 if (ok) break;
             }
+            // ⭐ 割っても足の床の外れが根入れを超える run は、柱と板を分けた組で張る(2026-09-26・EDO-0437 第7巡)──
+            //   柱を1本ずつ床に据え、板を両隣の柱の間に掛ける(PostBoardRun)。当たる先: bedAt を渡す板塀の run のうち、一体の駒では
+            //   柱の足が浮く・埋まる所すべて(山王 前庭の南の板塀 `Ita_ZSE`)。組を渡さない呼び手は従来どおり(割った一体の駒で ⚠)。
+            if (!fits && splitPost != null && splitBoard != null)
+                return PostBoardRun(parent, A, B, outward, prefix, splitPost, splitBoard, bedAt, 0.10f, pair);
         }
         float pitch = len / n;
         float sx = pitch / spanLocal;
@@ -724,6 +731,90 @@ public static partial class EdoBuild
                 //   地面(土留めの天端の下へ納めた皮)で据えると足が天端の石の中へ 0.24m 沈み、石が板へ 0.6m 入った(山王 前庭の北 Ita_ZN・Ita_ZNE)。
                 //   上げるだけ(地面へは沈めたまま)。当たる先: 板塀・穂垣の run が土留め・石垣の天端の上を通る所すべて。
                 if (beds != null) RestOnBeds(go, beds);
+                made.Add(go);
+            }
+        }
+        return made;
+    }
+
+    /// <summary>**柱と板を分けた組で板塀の run を張る**(2026-09-26・EDO-0437 第7巡)。一体の駒(柱5本)を傾けても柱の足の床の外れが
+    /// 根入れを超える run(法肩の折れ・<see cref="PanelRun"/> の割りで収まらない所)に使う。
+    /// <para>1. 端の柱は外形(根元の台を含む)の端を run の端 A/B に突き付ける。間の柱は柱身の芯を等分(柱間 ≈ 板の幅 + 柱身の幅・どちらも実メッシュで測る)。
+    /// 2. 柱は1本ずつ**根元の台の底**(柱身の断面の外へ出る頂点の最下)を、台の足跡の下の床の最も高い所へ合わせ、根入れ <paramref name="root"/> だけ沈める
+    /// (地中の継ぎ足しが根入れの取り代なので、足跡の起伏が 継ぎ足し − 根入れ までは浮かない)。
+    /// 3. 板は水平のまま両隣の柱身の面から面へ掛ける(走りの向きだけ伸縮)。高さは板の足跡の下の床の最も高い所 + 元の組の離れ
+    /// (板の下端 − 台の底 − 根入れ・実メッシュで測る)── 板の下端を床に埋めない。傾けない(端の小口が柱の面から開かない)。
+    /// ⛔ 基準点で位置を決めない ── 走りは柱身の断面・外形の射影、高さは台の底と板の下端の頂点で測る(規則21)。
+    /// 当たる先: <see cref="PanelRun"/> に組を渡した板塀の run のうち、一体の駒で足が浮く所すべて。</para></summary>
+    public static List<GameObject> PostBoardRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string prefix,
+        string postPath, string boardPath, Func<float, float, float> bedAt, float root, bool pair = true)
+    {
+        var made = new List<GameObject>();
+        Vector2 dir = (B - A).normalized; float len = (B - A).magnitude;
+        float a0 = Vector2.Dot(A, dir);
+        float psi = Mathf.Atan2(outward.x, outward.y) * Mathf.Rad2Deg;
+        float boardW = RunMeasure(boardPath).W;
+        // 元の組の離れ = 板の下端 − 台の底(どちらも回さず置いた実メッシュで測る)
+        float boardLo = RunMeasureY(boardPath).lo;
+        float taiLoLocal, bodyHalfLocal;
+        {
+            var pr = Place(postPath, Vector3.zero, 0f, Vector3.one, parent, "_probe");
+            var sec = MidSection(pr); float bx0 = float.MaxValue, bx1 = float.MinValue;
+            foreach (var w in sec) { bx0 = Mathf.Min(bx0, w.x); bx1 = Mathf.Max(bx1, w.x); }
+            bodyHalfLocal = (bx1 - bx0) * 0.5f; float bcx = (bx0 + bx1) * 0.5f;
+            taiLoLocal = float.MaxValue;
+            foreach (var mf in pr.GetComponentsInChildren<MeshFilter>())
+                foreach (var v in mf.sharedMesh.vertices)
+                { var l = pr.transform.InverseTransformPoint(mf.transform.TransformPoint(v)); if (Mathf.Abs(l.x - bcx) > bodyHalfLocal + 0.005f) taiLoLocal = Mathf.Min(taiLoLocal, l.y); }
+            UnityEngine.Object.DestroyImmediate(pr);
+        }
+        float clear = boardLo - taiLoLocal - root;
+        for (int side = 0; side < (pair ? 2 : 1); side++)
+        {
+            float ry = side == 0 ? psi : psi + 180f; float latOff = side == 0 ? 0f : -0.12f; string sfx = side == 0 ? "f" : "b";
+            // 柱の外形と柱身の芯の関係を、この向きで一本置いて測る
+            var probe = Place(postPath, Vector3.zero, ry, Vector3.one, parent, "_probe");
+            float fmn, fmx; ButtOnRun(probe, A, dir, outward, latOff, a0, out fmn, out fmx);
+            float bmn = float.MaxValue, bmx = float.MinValue;
+            foreach (var w in MidSection(probe)) { float q = w.x * dir.x + w.z * dir.y; bmn = Mathf.Min(bmn, q); bmx = Mathf.Max(bmx, q); }   // MidSection は世界座標
+            UnityEngine.Object.DestroyImmediate(probe);
+            float bc = (bmn + bmx) * 0.5f, bodyW = bmx - bmn, fl = fmn - bc, fh = fmx - bc;
+            float c0 = a0 - fl, cn = a0 + len - fh, span = cn - c0;
+            int nb = Mathf.Max(1, Mathf.RoundToInt(span / (boardW + bodyW)));
+            float p = span / nb;
+            for (int k = 0; k <= nb; k++)
+            {
+                var go = Place(postPath, Vector3.zero, ry, Vector3.one, parent, prefix + "_h" + k + sfx);
+                float mn, mx; ButtOnRun(go, A, dir, outward, latOff, c0 + p * k + fl, out mn, out mx);
+                // 台の底と足跡(柱身の断面の外へ出る頂点)
+                float taiLo = float.MaxValue, fl2 = float.NaN; var sec = MidSection(go);
+                float s0 = float.MaxValue, s1 = float.MinValue;
+                foreach (var w in sec) { float q = w.x * dir.x + w.z * dir.y; s0 = Mathf.Min(s0, q); s1 = Mathf.Max(s1, q); }
+                var foot = new List<Vector3>();
+                foreach (var mf in go.GetComponentsInChildren<MeshFilter>())
+                    foreach (var v in mf.sharedMesh.vertices)
+                    {
+                        var w = mf.transform.TransformPoint(v); float q = w.x * dir.x + w.z * dir.y;
+                        if (q < s0 - 0.005f || q > s1 + 0.005f) { foot.Add(w); taiLo = Mathf.Min(taiLo, w.y); }
+                    }
+                foreach (var w in foot) { float b = bedAt(w.x, w.z); if (!float.IsNaN(b) && (float.IsNaN(fl2) || b > fl2)) fl2 = b; }
+                if (float.IsNaN(fl2) || taiLo == float.MaxValue) { try { SeatOnGround(go, root, 600); } catch (Exception) { } }
+                else go.transform.position += new Vector3(0f, fl2 - root - taiLo, 0f);
+                made.Add(go);
+            }
+            for (int k = 0; k < nb; k++)
+            {
+                float f0 = c0 + p * k + bodyW * 0.5f, f1 = c0 + p * (k + 1) - bodyW * 0.5f;
+                var go = Place(boardPath, Vector3.zero, ry, new Vector3((f1 - f0) / boardW, 1f, 1f), parent, prefix + "_i" + k + sfx);
+                float mn, mx; ButtOnRun(go, A, dir, outward, latOff, f0, out mn, out mx);
+                // 板の足跡の下の床の最も高い所(走りに沿って 0.1m ごと・板の厚みの両面)
+                var rb = RB(go); Vector2 cen = new Vector2(rb.center.x, rb.center.z); Vector2 nrm = new Vector2(-dir.y, dir.x);
+                float lat = Vector2.Dot(cen - A, nrm), th = Mathf.Abs(rb.extents.x * nrm.x) + Mathf.Abs(rb.extents.z * nrm.y);
+                float fmax = float.NaN;
+                for (float u = mn; u <= mx + 1e-4f; u += 0.1f)
+                    foreach (float dl in new[] { -th, 0f, th })
+                    { Vector2 q = A + dir * (Mathf.Min(u, mx) - a0) + nrm * (lat + dl); float b = bedAt(q.x, q.y); if (!float.IsNaN(b) && (float.IsNaN(fmax) || b > fmax)) fmax = b; }
+                if (!float.IsNaN(fmax)) go.transform.position += new Vector3(0f, fmax + clear - rb.min.y, 0f);
                 made.Add(go);
             }
         }

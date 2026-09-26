@@ -342,8 +342,8 @@
 | `Own.HoriKido` | string | `HoriKido.fbx` — 汀の柵の潜り(`nishi.saku.kuguri`・辺5 の s=55.7)。 | OkabeYashiki(AssetByKey) |
 | `Own.HoriSaku` | string | `HoriSaku.fbx` — 汀の木柵 1スパン(`fences[0]` F_Hori・辺5 の全長 s0〜80.589)。 | OkabeYashiki(PlaceFences) |
 | `Own.HoriSakuPost` | string | `HoriSakuPost.fbx` — 汀の木柵の端の杭。⛔ 足さないと run の最後の板が宙で終わる。 | OkabeYashiki(PlaceFences) |
-| `Own.ItabeiIta` | string | `Itabei_Ita_1.410.fbx` — 板塀の板(柱なし)1間。在庫の板塀 Eg.Itabei5(柱と板が一体の 5間の駒)を 柱と板に分けた組の板の方(2026-09-26・EDO-0437 山王 前庭の南の板塀 `Ita_ZSE`)。 | — |
-| `Own.ItabeiHashira` | string | `Itabei_Hashira_N0.30.fbx` — 板塀の柱1本(ItabeiIta と組・2026-09-26・EDO-0437)。 | — |
+| `Own.ItabeiIta` | string | `Itabei_Ita_1.410.fbx` — 板塀の板(柱なし)1間。在庫の板塀 Eg.Itabei5(柱と板が一体の 5間の駒)を 柱と板に分けた組の板の方(2026-09-26・EDO-0437 山王 前庭の南の板塀 `Ita_ZSE`)。 | SannoSha(Stage4_Kakoi) |
+| `Own.ItabeiHashira` | string | `Itabei_Hashira_N0.30.fbx` — 板塀の柱1本(ItabeiIta と組・2026-09-26・EDO-0437)。 | SannoSha(Stage4_Kakoi) |
 | `Own.Ishigumi(i)` | 関数 | 庭石1個(景石・石組護岸の石・岩島・中島の汀石・荒磯の立石を全部これで置く)。 | DoiBuilder.Niwa(Niwa_B_Gogan・Niwa_D_Tenkei・ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem), TypologyBuilder.Niwa(MomijiPalFor) |
 | `Own.Tobiishi(i)` | 関数 | 飛石・沢飛石1枚(天端が平ら)。⭕ 同じ photoscanned rock の頭を水平に 落として天端を作り、縁は自然石のまま残してある(⛔ 切石に見せない)。 | DoiBuilder.Niwa(Niwa_D_Tenkei・ResolveNiwaApi), OkabeYashiki(PlaceNiwaItem), TypologyBuilder.Niwa(MomijiPalFor) |
 | `Own.Kutsunugi` | string | 沓脱石(根府川石)。天端を平らに落とした自然石。 | OkabeYashiki(PlaceNiwaItem) |

@@ -1114,7 +1114,7 @@ UNITY_CLI = re.compile(CMDPOS + r"(?:\S*/)?unity\s+(?:command|pipeline|open|buil
 # コンパイル待ちの一手(EDO-0457)— Unity の橋へ直に refresh を頼むので Unity MCP と同じ排他で通す。
 #   ⚠ 走らせる形だけ(コマンドの頭に python か道具の名)。名前を grep・cat・git add するだけのコマンドは通す
 #     (2026-09-26 に中身を読む grep まで Unity の排他で止めた)。
-COMPILE_WAIT = re.compile(CMDPOS + r"(?:[A-Z_]+=\S*\s+)*(?:\S*python3?\s+)?(?:\S*/)?Tools/Unity/compile_wait\.py\b")
+COMPILE_WAIT = re.compile(CMDPOS + r"(?:[A-Z_]+=\S*\s+)*(?:\S*python3?\s+)?(?:\S*/)?Tools/Unity/compile_wait\.py\b(?!\s+--replay)")
 # 役の手書きの待ち(EDO-0457)— C# の後の待ちは compile_wait.py の一手だけ。sleep・until の見張りを役に打たせない。
 #   実測(EDO-0437): 3 回ぶん約 31 分のうち Unity が要ったのは約 2 分、残りは sleep 20〜60 と空振りの上限待ち。
 HAND_WAIT = re.compile(CMDPOS + r"(?:sleep\s+\d|until\b|while\b[^;\n]*;\s*do\b[^\n]*\bsleep\b)")

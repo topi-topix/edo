@@ -850,6 +850,8 @@ def _end_spec(d, za, wall, ang=None, nori=None):
         return s
     if za is not None:
         s += wall + _sgn_h3(za)
+        if nori is not None:                        # 跨ぐ端の法を綴る(野面の乱積み 1:0.3 ── EDO-0437。無ければ既定 1:0.25)
+            s += "N" + _sgn_h3(nori)
     return s
 
 
@@ -875,6 +877,8 @@ def dan_kiri(keri, fumi, w, variant, endL, endR, name=None):
     ・za を持つ端は**二つの面に跨る**: 隅の駒のもう一面(坂下/坂上を向く面・袖の背が当たる面)
       Z = za ∓ NORI·(Y − Yc) の**返しの側**だけを上の面で切り、**袖の側**は小口 X = s·w/2 のまま(袖の側面に突き付く)。
       ⇒ 端が段に欠ける(欠いた奥の面は隅の駒の面と平行な法)。
+    ・za を持つ端に nori を添えると、返しの面・欠いた奥の面とも法 nori(既定 NORI = 0.25)── 相手が野面の乱積み 1:0.3 の隅の駒
+      (EDO-0437 参道の階の段 1 ── 綴り `d+0.222B+0.024N+0.300`)。d・za は石の出の包絡(見える当たりの最も深い石)。
     ・za = None は端の全長を返しの面で切る(`AbutStepEndsToWalls` の高さの中ほどの突き付けの代わり ── 口・めり込みが 0)。
     ・ang を持つ端は**平面で任意の角に切る**(EDO-0430 女坂の段 0・1 ── 端が鉛直の土留めと平面で斜めに交わる):
       面 s·X = w/2 − d + tan(ang)·Z + nori·(Y − Yc)。d は**踏面の中心の線 Z = 0・蹴上の中ほど Y = Yc** で測る食い込み、
@@ -896,16 +900,17 @@ def dan_kiri(keri, fumi, w, variant, endL, endR, name=None):
             t = math.tan(math.radians(ang)); n = nori or 0.0
             _clip(o, [((s * (w / 2.0 - d), yc, 0.0), (s, -n, -t))], name + "A%d" % s)   # 面の外(s·X − t·Z − n·(Y−Yc) > w/2 − d)を捨てる
             continue
-        ext = max(0.0, -d + NORI * (yc - ybot)) + 0.02 if d < 0 else 0.0
+        nb = NORI if nori is None else nori                                # 跨ぐ端の法(既定 1:0.25・野面 1:0.3)
+        ext = max(0.0, -d + nb * (yc - ybot)) + 0.02 if d < 0 else 0.0
         if ext > 0:
             _stretch_end(o, s, w, ext)
-        ret = ((s * (w / 2.0 - d), yc, 0.0), (s, -NORI, 0.0))            # 返しの面の外を捨てる
+        ret = ((s * (w / 2.0 - d), yc, 0.0), (s, -nb, 0.0))              # 返しの面の外を捨てる
         if za is None:
             _clip(o, [ret], name + "r%d" % s)
             continue
         sg = 1.0 if wall == "B" else -1.0                                   # B: 隅は坂上(Z < za)
-        wall_side = ((0.0, yc, za), (0.0, NORI, sg))                      # 袖の側を捨てる = 隅の側を残す
-        sode_side = ((0.0, yc, za), (0.0, -NORI, -sg))                    # 隅の側を捨てる = 袖の側を残す
+        wall_side = ((0.0, yc, za), (0.0, nb, sg))                        # 袖の側を捨てる = 隅の側を残す
+        sode_side = ((0.0, yc, za), (0.0, -nb, -sg))                      # 隅の側を捨てる = 袖の側を残す
         pS = _dup(o, name + "_S%d" % s)
         _clip(o, [ret, wall_side], name + "R%d" % s)
         _clip(pS, [((s * w / 2.0, 0.0, 0.0), (s, 0.0, 0.0)), sode_side], name + "S%d" % s)
@@ -962,9 +967,10 @@ def dan_kiri_check(o, keri, fumi, w, endL, endR):
                            "%.4f°" % math.degrees(math.atan(sol[1]))))
                 ok.append(("%s 端: 面の法 %.3f(実測)" % ("LR"[s > 0], nori or 0.0), abs(sol[2] - (nori or 0.0)) < 1e-3, "%.4f" % sol[2]))
             continue
-        xb = lambda y: w / 2.0 - d + NORI * (y - yc)
+        nb = NORI if nori is None else nori
+        xb = lambda y: w / 2.0 - d + nb * (y - yc)
         sg = 1.0 if wall == "B" else -1.0
-        inwall = lambda t: za is None or sg * (t[2] - (za - sg * NORI * (t[1] - yc))) < -1e-4   # 面の上の頂点は袖の側に数える
+        inwall = lambda t: za is None or sg * (t[2] - (za - sg * nb * (t[1] - yc))) < -1e-4   # 面の上の頂点は袖の側に数える
         bite = max([s * t[0] - xb(t[1]) for t in uv if inwall(t)] + [-1.0])
         ok.append(("%s 端: 返しの法の面より外に頂点が無い" % "LR"[s > 0], bite < 1e-4, "最大 %.5f" % bite))
         on = [t for t in uv if abs(s * t[0] - xb(t[1])) < 1e-4]
@@ -972,7 +978,7 @@ def dan_kiri_check(o, keri, fumi, w, endL, endR):
         if za is not None:
             over = max([s * t[0] - w / 2.0 for t in uv if not inwall(t)] + [-1.0])
             ok.append(("%s 端: 袖の側は小口 X=±w/2 を越えない" % "LR"[s > 0], over < 1e-4, "%.5f" % over))
-            onA = [t for t in uv if abs(sg * (t[2] - (za - sg * NORI * (t[1] - yc)))) < 1e-4 and s * t[0] > xb(t[1]) - 1e-4]
+            onA = [t for t in uv if abs(sg * (t[2] - (za - sg * nb * (t[1] - yc)))) < 1e-4 and s * t[0] > xb(t[1]) - 1e-4]
             ok.append(("%s 端: 欠いた奥の面が隅の駒のもう一面の上" % "LR"[s > 0], len(onA) >= 3, "%d 点" % len(onA)))
     loose = len(o.data.vertices) - len({i for p in o.data.polygons for i in p.vertices})
     ok.append(("孤立頂点なし", loose == 0, "%d" % loose))
@@ -985,7 +991,7 @@ def dan_kiri_check(o, keri, fumi, w, endL, endR):
 
 
 def _parse_end(tok):
-    """`-` / `d+0.219` / `d+0.219B+0.040`(F も可)/ `d+0.300A+43.000`(斜め・鉛直)/ `d+0.300A+43.000N+0.250`(斜め・法)。"""
+    """`-` / `d+0.219` / `d+0.219B+0.040`(F も可)/ `d+0.222B+0.024N+0.300`(跨ぐ・法)/ `d+0.300A+43.000`(斜め・鉛直)/ `d+0.300A+43.000N+0.250`(斜め・法)。"""
     if tok in ("-", "0"):
         return (None, None, "B")
     assert tok[0] == "d", tok
@@ -1000,7 +1006,10 @@ def _parse_end(tok):
     for wch in ("B", "F"):
         k = body.find(wch)
         if k > 0:
-            return (float(body[:k]), float(body[k + 1:]), wch)
+            rest = body[k + 1:]; kn = rest.find("N")
+            if kn > 0:                              # 跨ぐ端の法(`d+0.222B+0.024N+0.300`)
+                return (float(body[:k]), float(rest[:kn]), wch, None, float(rest[kn + 1:]))
+            return (float(body[:k]), float(rest), wch)
     return (float(body), None, "B")
 
 

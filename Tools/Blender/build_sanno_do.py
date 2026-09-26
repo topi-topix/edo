@@ -1013,24 +1013,8 @@ def yakushi6(name="Sanno_Do_Hogyo6Dan_4.5x4.5ken_8181x8181"):
     chk_top, chk_soff = _hex_checks(roof, slab, ap, A, fl)
     # ---- 壇(切石)と石段(論理 = Unity ローカル → Blender)
     out0 = {s: 0.0 for s in ("+X", "-X", "+Z", "-Z")}
-    # ⛔⛔ `RM.kidan` の `finish` に "-X" を入れない — 仕上げの面は +X/+Z/−Z しか作らず、
-    #   しかも "-X" を挙げると平の段積みからも外すので **−X の面が丸ごと抜ける**
-    #   (2026-09-26 に背面の斜めのレンダで壇の側面が空いていた)。
-    #   ⭕ +X の仕上げ面を別に焼いて X で鏡に写し、−X に据える(巻きは `_flip_faces` で戻す)。
-    stones = RM.kidan(hd, hd, out0, dH, name + "_dan", finish=("+X", "+Z", "-Z"))
-    keep = [o for o in stones if not re.search(r"_c\d+_x\d+_", o.name)]    # −X の平の段積みを除く
-    drop = [o for o in stones if o not in keep]
-    for o in drop:
-        bpy.data.objects.remove(o, do_unlink=True)
-    mirror = RM.kidan(hd, hd, out0, dH, name + "_danw", finish=("+X",))
-    for o in mirror:
-        if "+X" in o.name:
-            o.data.transform(Matrix.Diagonal((-1.0, 1.0, 1.0, 1.0)))
-            GR._flip_faces(o)
-            keep.append(o)
-        else:
-            bpy.data.objects.remove(o, do_unlink=True)
-    stones = keep
+    # ⭐ 四面とも仕上げる。`RM.kidan` の −X は EDO-0445 で足した(それまでは +X の仕上げを X 鏡で −X に据えていた)
+    stones = RM.kidan(hd, hd, out0, dH, name + "_dan", finish=("+X", "-X", "+Z", "-Z"))
     for o in stones:
         o.data.transform(Matrix.Translation((0.0, 0.0, dH))); o.data.update()
     mat = SB.kirishi_material()

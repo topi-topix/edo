@@ -39,7 +39,7 @@
 - [石垣の隅を 90°・4m 超で焼く](ishigaki-kado-tall-90.md) — 丈は勾配の段を下へ継ぐ・90° は張り出しが 1 枚を越える(2026-09-25)
 - [乱積みの出隅は σ で割って折る](nozura-kado-sigma-fold.md) — 隅の石を柱に並べると算木に見える・勾配の駒の見付は高い側の端(2026-09-25)
 - [土留めの背の上面は天端に揃える](nozura-back-crest-flush.md) — 頭は天端より下だけに振る・上の縁を上げる・隅は σ を寄せる(2026-09-25)
-- [六角の宝形と基壇の −X 抜け](hex-hogyo-and-kidan-minus-x.md) — 三角で tile_field・kidan の finish に "-X" を入れない(2026-09-26)
+- [六角の宝形と基壇の −X 抜け](hex-hogyo-and-kidan-minus-x.md) — 三角で tile_field・kidan の −X は EDO-0445 で直し光線で検める(2026-09-26)
 - [段石・袖・短い駒の端を法の面で切る](nori-cut-step-and-sode.md) — 凸な部品ごとに bisect+蓋・野面の法は 0.3(切石は 0.25)・法で切った駒は伸縮させず長さ刻みで焼く(2026-09-26)
 - [Castle Wall を斜めに切る駒・腕の短い隅](castle-wall-kiri-and-short-arm.md) — 底が開いた素・bisect の重複頂点・.001・小口を移して塞ぐ(2026-09-26)
 - [野面の勾配の駒は 0 と ±0.12 で足りる](nozura-grade-set-and-nearest.md) — 刻みは頭の不揃いから逆算・据える側が勾配 0 を渡している(2026-09-26)

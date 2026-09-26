@@ -4,7 +4,7 @@
 
 **部材のパスの名を探すときは `EdoAssets.cs` を grep で読み歩かずまずここを引く。**在庫に何が在るか(実寸・ピボット)は `docs/asset-catalog.md` → `docs/asset-index.tsv`。ここは C# から呼べる名の索引だけ。
 
-- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 325(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
+- `Assets/Edo/Scripts/Editor/EdoAssets.cs` の公開の名 330(入れ子の分類ごと)。中身 = 定数ならパスの末尾、関数なら注釈の一文目。
 - 使っている所 = `EdoAssets.<分類>.<名>` と書いている C# ファイルとその中の関数。
 - ⛔ 手で直さない(`python3 Tools/Unity/edobuild_mokuroku.py`)。
 
@@ -209,7 +209,12 @@
 | `Own.ISHIDAN_SODE_DEPTH_STD` | float | 袖の丈(天端の線から下端まで)の既定 2.20 = 最大見付 1.74 + 根入れ 0.46。 | BuildIshidan(MiterIshidanSode), SannoSha(Stage2_Kaidan) |
 | `Own.IshidanSodeDepths` | float[] | 焼いてある袖の丈(浅い順)。切通しで袖を背の地盤まで上げる(`copingRise:"groundHi"`)とき、 上げの上限 = 丈 − 笠の上がり 0.30 − 段石の根入れ(実メッシュで測る。 | SannoSha(Stage2_Kaidan・Stage5b_Fumiishi), BuildIshidan(PlaceIshidanSode) |
 | `Own.IshidanSode(keri, fumi, i, depth)` | 関数 | 丈の深い石段の袖(EDO-0430 2026-09-24)。 | BuildIshidan(FitObliqueEnd・PlaceIshidanSode), SannoSha(AbutStairsToWalls・Stage2_Kaidan) |
-| `Own.IshidanSodeFlat(depth)` | 関数 | 天端が水平な石段の袖(EDO-0459 施主裁定A 2026-09-26・男坂の最上段の袖石)。 | BuildIshidan(MeasureEndGap), SannoSha(Stage5b_Fumiishi) |
+| `Own.IshidanSodeFlat(depth)` | 関数 | 天端が水平な石段の袖(EDO-0459 施主裁定A 2026-09-26・男坂の最上段の袖石)。 | BuildIshidan(EndGapProfile) |
+| `Own.IshidanSodeFlatNori(depth)` | 関数 | 坂上の小口を法 1:0.25 に切った水平の袖(EDO-0459 2026-09-27・男坂の最上段 → 楼門の腰の隅 kado1 の法の面へ突き付ける)。 | SannoSha(Stage5b_Fumiishi) |
+| `Own.ISHIDAN_SODE_FLAT_NORI_KINK` | float | 男坂の小口の折れ点 = 袖の天端 28.58 − kado1 の天端 28.27(EDO-0459 2026-09-27)。 | — |
+| `Own.IshidanSodeFlatNori(depth, kink)` | 関数 | IshidanSodeFlatNori の小口を折れにした版(EDO-0459 2026-09-27・kado1 の天端から楼門の基壇までの鉛直な帯で 0.009 の口が残った)。 | SannoSha(Stage5b_Fumiishi) |
+| `Own.ISHIDAN_SODE_FLAT_NORI_LEN` | float | 男坂の据えの天端の稜の長さ(折れを kado1 の天端に合わせた実測 北 1.2468・南 1.2460 の平均・2026-09-27)。 | — |
+| `Own.IshidanSodeFlatNori(depth, kink, len)` | 関数 | IshidanSodeFlatNori の天端の稜の長さ len を明示する版。 | SannoSha(Stage5b_Fumiishi) |
 | `Own.IshidanSodeMiter(keri, fumi, w, hF, hB, i)` | 関数 | 曲がる石段の袖 — 端を留めに切った駒(EDO-0415 ②③)。 | BuildIshidan(MiterPath・PlaceIshidanSodeFlat) |
 | `Own.IshidanSodeMiter(keri, fumi, w, hF, hB, i, depth)` | 関数 | 丈の深い袖の留めの駒(EDO-0430 2026-09-24)。 | BuildIshidan(MiterPath・PlaceIshidanSodeFlat) |
 | `Own.IshidanSodeNori(keri, fumi, e, i, depth=…)` | 関数 | 背を法 1:0.25 に切った石段の袖(EDO-0442 施主裁定B・2026-09-26)。 | BuildIshidan(FitObliqueEnd), SannoSha(AbutStairsToWalls) |

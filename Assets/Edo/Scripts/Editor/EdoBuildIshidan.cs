@@ -1483,10 +1483,13 @@ public static partial class EdoBuild
         var ed = ExtentAlong(piece, dir); var ep = ExtentAlong(piece, perp);
         Vector3 o0 = piece.transform.position;
         float far = float.MinValue, near = float.MaxValue;
+        // ⭐ 光線は駒の走りの中ほどから打つ(2026-09-27 EDO-0459)── 端の少し内から打つと、端が既に相手の面を越えている駒
+        //   (小口を法で切った駒は天端の稜が帯より先に出る)で原点が相手の中に入り、相手の奥の面まで 0.4m 伸ばした。
+        float oa = (ed.x + ed.y) * 0.5f;
         foreach (float a in new[] { ep.x + 0.05f, (ep.x + ep.y) * 0.5f, ep.y - 0.05f })
         {
-            Vector3 o = o0 + dir * (ed.y - 0.02f) + perp * a;
-            float h = RayAtTopBand(mates, o, dir, maxReach + 0.02f, yTop); if (float.IsNaN(h)) continue;
+            Vector3 o = o0 + dir * oa + perp * a;
+            float h = RayAtTopBand(mates, o, dir, maxReach + (ed.y - oa), yTop); if (float.IsNaN(h)) continue;
             float t = Vector3.Dot(new Vector3(o.x, 0f, o.z), dir) + h; hits++;
             far = Mathf.Max(far, t); near = Mathf.Min(near, t);
         }
@@ -1534,6 +1537,28 @@ public static partial class EdoBuild
         public float ext;        // 坂上の端を相手の面まで伸ばした量[m](NaN = 当たらず)
         public float spread; public int hits; // 当たりの割れ・数
         public float gapMate;    // 坂上の端 × 相手の面の見える口[m]
+        public float profMin, profMax; // 坂上の端 × 相手の面を高さ方向(帯の下 1m まで 0.1 刻み)に測った 最もめり込む値・最も開く値[m]
+        public float pulled;     // 高さ方向のめり込みを詰めた量[m](0 = 詰めていない)
+    }
+
+    /// <summary>**駒の端と相手の面の取り合いを高さ方向に測る**(EDO-0459)。駒の走りの中ほど・厚みの 3 点から <paramref name="dir"/> へ、
+    /// <paramref name="yTop"/> − 0.05 から下へ 0.1 刻み(最大 1m・駒の底まで)で「相手までの距離 − 駒の外面までの距離」を取り、
+    /// 最小(最もめり込む・負)と最大(最も開く)を返す。相手の無い高さは数えない。測れなければ NaN。
+    /// ⭐ 天端の帯だけで突き付けると、相手の天端の稜の丸み・面取りの分だけ奥で当たり、帯の下が一様にめり込む(男坂 × kado1 で −0.009)。</summary>
+    public static void EndGapProfile(GameObject piece, Vector3 dir, IList<GameObject> mates, float yTop, out float gMin, out float gMax)
+    {
+        gMin = float.NaN; gMax = float.NaN;
+        dir.y = 0f; dir.Normalize(); var perp = new Vector3(dir.z, 0f, -dir.x);
+        var ed = ExtentAlong(piece, dir); var ep = ExtentAlong(piece, perp); Vector3 o0 = piece.transform.position;
+        float bot = float.MaxValue; foreach (var p in Body(piece.transform, 999999, true)) bot = Mathf.Min(bot, p.y);
+        float yLo = Mathf.Max(bot + 0.05f, yTop - 1.0f);
+        for (float y = yTop - 0.05f; y >= yLo; y -= 0.1f)
+            foreach (float a in new[] { ep.x + 0.05f, (ep.x + ep.y) * 0.5f, ep.y - 0.05f })
+            {
+                Vector3 o = o0 + dir * ((ed.x + ed.y) * 0.5f) + perp * a; o.y = y;
+                float gp = GapAlong(piece, mates, o, dir, 0.3f); if (float.IsNaN(gp)) continue;
+                gMin = float.IsNaN(gMin) ? gp : Mathf.Min(gMin, gp); gMax = float.IsNaN(gMax) ? gp : Mathf.Max(gMax, gp);
+            }
     }
 
     /// <summary>**石段の袖の最上段の駒を、天端が水平な袖へ差し替えて相手の面まで伸ばす**(EDO-0459 施主裁定A 2026-09-26)。
@@ -1566,6 +1591,8 @@ public static partial class EdoBuild
         }
         rep.topBelow = topB;
         float oldBot = float.MaxValue; foreach (var p in Body(old.transform, 999999, true)) oldBot = Mathf.Min(oldBot, p.y);
+        // ⛔ 硬い: 旧の駒の実メッシュが測れない(部材を消した・焼き直した後)なら丈を選ばない ── 当て推量で浅い丈を据えた(2026-09-27 南が 2.20 に化けた)。石段から流し直す。
+        if (oldBot == float.MaxValue) { warn = nm + ": ⛔ 差し替える旧の駒の実メッシュが無い(部材が消えた?)── 丈を選べないので据えない。石段(Stage2)から流し直すこと"; return null; }
         float depth = depths[depths.Count - 1];
         foreach (var d in depths) if (topB - d <= oldBot + 0.02f) { depth = d; break; }
         rep.depth = depth;
@@ -1588,6 +1615,13 @@ public static partial class EdoBuild
         float spread; int hits;
         rep.ext = ExtendEndToFace(go, up, mates, yBand, maxReach, out spread, out hits);
         rep.spread = spread; rep.hits = hits;
+        // ⭐ 高さ方向に測り、最も深いめり込みだけ詰める(閉じは「隙間 > めり込み」)
+        if (!float.IsNaN(rep.ext))
+        {
+            float pMin, pMax; EndGapProfile(go, up, mates, yBand, out pMin, out pMax);
+            if (!float.IsNaN(pMin) && pMin < -0.002f) { StretchEnd(go.transform, null, up, +1f, EdgeAlong(go.transform, up, +1f) + pMin); rep.pulled = -pMin; }
+        }
+        { float pMin, pMax; EndGapProfile(go, up, mates, yBand, out pMin, out pMax); rep.profMin = pMin; rep.profMax = pMax; }
         Object.DestroyImmediate(old);
         // ---- 検め
         np = Body(go.transform, 999999, true);
@@ -1609,6 +1643,7 @@ public static partial class EdoBuild
         if (float.IsNaN(rep.gapBelow) || Mathf.Abs(rep.gapBelow) > 0.005f) bad.Add("下の袖との口 " + (float.IsNaN(rep.gapBelow) ? "測れず" : rep.gapBelow.ToString("+0.000;-0.000")));
         if (float.IsNaN(rep.ext)) bad.Add("相手の面に当たらず(伸ばさない)");
         else if (float.IsNaN(rep.gapMate) || rep.gapMate > 0.005f) bad.Add("相手との口 " + (float.IsNaN(rep.gapMate) ? "測れず" : rep.gapMate.ToString("+0.000;-0.000")));
+        if (!float.IsNaN(rep.profMin) && (rep.profMin < -0.005f || rep.profMax > 0.005f)) bad.Add("相手との取り合い(高さ方向)" + rep.profMin.ToString("+0.000;-0.000") + "〜" + rep.profMax.ToString("+0.000;-0.000"));
         if (bad.Count > 0) warn = nm + ": ⚠ " + string.Join("・", bad.ToArray());
         return go;
     }

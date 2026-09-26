@@ -3382,7 +3382,7 @@ public static class EdoSannoShaRebuild
                     Transform below = g.Find(w + "_" + (bi - 1).ToString("000") + "f");
                     if (below == null) { sb.AppendLine("  ⚠ " + nm + ": 袖 " + w + " の一つ下の駒が無い"); continue; }
                     EdoBuild.FlatSode fr; string fw;
-                    var flat = EdoBuild.LayFlatSode(sp.gameObject, below.gameObject, EdoAssets.Own.IshidanSodeFlat, EdoAssets.Own.IshidanSodeDepths,
+                    var flat = EdoBuild.LayFlatSode(sp.gameObject, below.gameObject, EdoAssets.Own.IshidanSodeFlatNori, EdoAssets.Own.IshidanSodeDepths,
                                                     -new Vector3(front.x, 0f, front.y), back, top, 1.5f, out fr, out fw);
                     if (flat == null) { sb.AppendLine("  ⛔ " + nm + ": " + fw); continue; }
                     side.Add(flat);
@@ -3390,7 +3390,8 @@ public static class EdoSannoShaRebuild
                                   "(下の袖の段鼻 " + fr.topBelow.ToString("F3") + "・段差 " + fr.step.ToString("+0.000;-0.000") + ")/ 脇の面の食い違い " + fr.sideIn.ToString("+0.000;-0.000") + "・" + fr.sideOut.ToString("+0.000;-0.000") +
                                   " / 下の袖との口 " + (float.IsNaN(fr.gapBelow) ? "—" : fr.gapBelow.ToString("+0.000;-0.000")) +
                                   " / 相手の面まで " + (float.IsNaN(fr.ext) ? "⛔ 当たらず" : fr.ext.ToString("+0.000;-0.000") + "m(当たり " + fr.hits + "・割れ " + fr.spread.ToString("F3") + ")") +
-                                  "・見える口 " + (float.IsNaN(fr.gapMate) ? "—" : fr.gapMate.ToString("+0.000;-0.000")) + (fw != null ? " / " + fw : ""));
+                                  "・見える口 " + (float.IsNaN(fr.gapMate) ? "—" : fr.gapMate.ToString("+0.000;-0.000")) +
+                                  " / 高さ方向 " + (float.IsNaN(fr.profMin) ? "—" : fr.profMin.ToString("+0.000;-0.000") + "〜" + fr.profMax.ToString("+0.000;-0.000")) + "(詰めた " + fr.pulled.ToString("F3") + ")" + (fw != null ? " / " + fw : ""));
                 }
                 how = "踏み止め(天端 " + top.ToString("F2") + "・部材 = " + S(kd, "name") + "の段石)";
             }

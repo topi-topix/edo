@@ -3053,21 +3053,41 @@ public static class EdoSannoShaRebuild
         return n > 0 ? "  縁の皮を外した(塞いだ升 " + n + ")── ⚠ 最後に Stage9 を流し直すこと\n" : "";
     }
 
-    // ================================================================ 一括
+    // ================================================================ 解く順・一括
+    /// <summary>**Stage の依存**(EdoBuild.Jun・EDO-0455)。`after` = その Stage が読む物を作る Stage:
+    /// 整地(地形)→ 石段 → 土留め(袖の外面・段石の床)→ 囲い・門(GateBed = 石段+土留めの床)/ 縁の皮(石段+土留めの背)。
+    /// 社殿・井戸は地形だけに据わるので整地の下流。⭐ 石段・土留めが社殿・井戸の足元の地形を動かしたら、測って引き込む。
+    /// ⛔ 社叢(Stage7)は一括に入れない(従前どおり)。⛔ 順はここにだけ書く(一括もこれで流す)。</summary>
+    static EdoBuild.Jun Order
+    {
+        get
+        {
+            Func<string, Func<Transform>> at = p => () => { var r = GameObject.Find(GROUP); return r != null ? r.transform.Find(p) : null; };
+            return new EdoBuild.Jun("山王社")
+                .Add("Retire", "0 退避", Stage0_Retire)
+                .Add("Grade", "1 整地", Stage1_Grade)
+                .Add("Kaidan", "2 石段", Stage2_Kaidan, new[] { "Grade" }, at("Sando"))
+                .Add("Dodome", "3 土留め", Stage3_Dodome, new[] { "Grade", "Kaidan" }, at("Dodome"))
+                .Add("Kakoi", "4 囲い", Stage4_Kakoi, new[] { "Grade", "Kaidan", "Dodome" }, at("Kakoi"))
+                .Add("Mon", "5 門・鳥居", Stage5_MonTorii, new[] { "Grade", "Kaidan", "Dodome" }, at("Keidai/Mon"))
+                .Add("Shaden", "6 社殿", Stage6_Shaden, new[] { "Grade" }, at("Keidai/Shaden"))
+                .Add("Ido", "8 井戸", Stage8_Ido, new[] { "Grade" }, at("Keidai/Ido"))
+                .Add("Hifu", "9 縁の皮", Stage9_Hifu, new[] { "Grade", "Kaidan", "Dodome" });
+        }
+    }
+
+    /// <summary>**変えた Stage から後だけ流す**(key: Retire・Grade・Kaidan・Dodome・Kakoi・Mon・Shaden・Ido・Hifu)。
+    /// 例: 石段だけ直した ⇒ `RunFrom("Kaidan")` = 石段 → 土留め → 囲い → 門 → 縁の皮(整地・社殿・井戸は流さない)。</summary>
+    public static string RunFrom(params string[] changed) { var g = Gate(); return g ?? Order.RunFrom(changed); }
+    /// <summary>流さずに、流れる Stage だけを見積もる。</summary>
+    public static string PlanFrom(params string[] changed) { return Order.Plan(changed); }
+
+    [MenuItem(MENU + "ここから後だけ流す/2 石段から")] static void FromKaidanMenu() { Debug.Log("[山王] " + RunFrom("Kaidan")); }
+    [MenuItem(MENU + "ここから後だけ流す/3 土留めから")] static void FromDodomeMenu() { Debug.Log("[山王] " + RunFrom("Dodome")); }
+    [MenuItem(MENU + "ここから後だけ流す/4 囲いから")] static void FromKakoiMenu() { Debug.Log("[山王] " + RunFrom("Kakoi")); }
+    [MenuItem(MENU + "ここから後だけ流す/5 門・鳥居から")] static void FromMonMenu() { Debug.Log("[山王] " + RunFrom("Mon")); }
+
     [MenuItem(MENU + "一括(0→6・8・9。⛔ 社叢は撒かない)")]
     public static void BuildAllMenu() { Debug.Log("[山王] " + BuildAll()); }
-    public static string BuildAll()
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine(Stage0_Retire());
-        sb.AppendLine(Stage1_Grade());
-        sb.AppendLine(Stage2_Kaidan());
-        sb.AppendLine(Stage3_Dodome());
-        sb.AppendLine(Stage4_Kakoi());
-        sb.AppendLine(Stage5_MonTorii());
-        sb.AppendLine(Stage6_Shaden());
-        sb.AppendLine(Stage8_Ido());
-        sb.AppendLine(Stage9_Hifu());
-        return sb.ToString();
-    }
+    public static string BuildAll() { var g = Gate(); return g ?? Order.RunAll(); }
 }

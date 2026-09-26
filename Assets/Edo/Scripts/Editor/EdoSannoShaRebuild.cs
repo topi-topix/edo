@@ -1354,6 +1354,14 @@ public static class EdoSannoShaRebuild
             // ⭐ 端を法で切った駒が焼けている段石・袖の背は差し替える(口・めり込み 0 ── EDO-0430 2026-09-26・EdoBuild.CutStairEndsToBatter)。
             //   差し替えた駒には中ほどの突き付け(下の AbutStepEndsToWalls / AbutEndToFace)を掛けない。
             float wM = F(st, "wM");
+            // ⭐ 見える当たりは**描かれた地表**で決める(2026-09-26・EDO-0437 第5巡・普請奉行の決め)── 1m 格子の設計面(SodeFootAt)は段の端で
+            //   描かれた地表より 0.3〜0.5 高く、その間の隅の石の入り(0.03〜0.11)を「地表の下」と読んで切らずに残した。
+            //   ⚠ 皮(Stage9)は後で建つので、ここで引くのは前の巡の皮 ── 皮が動いた巡は石段から流し直して揃える(Jun)。
+            //   ⚠ 当たった点は相手(土留め)の外形の中で、そこの皮は天端の下へ納めてある(= 天端の高さ・見えない皮)── 描かれた地表だけで引くと
+            //   隅の石の当たりを全部「地表の下」と読み、参道の階の段 1・2 の −X が「当たらず」になった(第5巡の実測)。⇒ 設計面と描かれた地表の
+            //   **低い方**(開いた地表では描かれた地表・外形の中では設計面)。
+            var drawnVis = EdoBuild.Drawn();
+            Func<float, float, float> visAt = (x, z) => { float dsg = SodeFootAt(x, z), g = drawnVis.At(x, z); return float.IsNaN(g) ? dsg : float.IsNaN(dsg) ? g : Mathf.Min(dsg, g); };
             var cut = EdoBuild.CutStairEndsToBatter(name, dans, sodes, keri, fumi, walls,
                 i => P.Dan(keri, fumi, wM, i),
                 (i, l, r) => EdoAssets.Own.SannoDanKiri(keri, fumi, wM, i, l, r),
@@ -1369,7 +1377,7 @@ public static class EdoSannoShaRebuild
                 },
                 (g, i, e) => IsNozuraSode(g) ? EdoAssets.Own.IshidanSodeNozuraNori(keri, fumi, e, i) : EdoAssets.Own.IshidanSodeNori(keri, fumi, e, i), sb,
                 // ⭐ 相手が野面の乱積み(法 1:0.3)の端・袖の背は石の出の包絡で切る(EDO-0437 第3巡)。野面の袖だけ ── 切石の袖は従来の中央値
-                envNori: EdoAssets.Own.SannoNozuraNori, sodeEnvNori: g => IsNozuraSode(g) ? EdoAssets.Own.SannoNozuraNori : float.NaN, envVisAt: SodeFootAt,
+                envNori: EdoAssets.Own.SannoNozuraNori, sodeEnvNori: g => IsNozuraSode(g) ? EdoAssets.Own.SannoNozuraNori : float.NaN, envVisAt: visAt,
                 envWall: g => { var mf = g.GetComponentInChildren<MeshFilter>(); return mf != null && mf.sharedMesh != null && EdoAssets.Own.IsSannoNozura(AssetDatabase.GetAssetPath(mf.sharedMesh)); });
             dans.Clear(); sodes.Clear();
             foreach (Transform c in grp)
@@ -1475,6 +1483,8 @@ public static class EdoSannoShaRebuild
                 ClipRunEndsToGates(pa, pb, pHgt, pHalfT, hasSeat, seat, name, sb);
                 RetractRunEndsFromWalls(pa, pb, pHalfT, pHgt, hasSeat, seat, name, sb);
                 ShiftRunToCutShoulder(pa, pb, pHalfT, pHgt, hasSeat, name, sb);
+                var dgB = hasSeat ? null : EdoBuild.Drawn();
+                Func<float, float, float> drawnBed = dgB == null ? (Func<float, float, float>)null : (x, z) => dgB.At(x, z);
                 for (int i = 0; i < pa.Count; i++)
                 {
                     Vector2 a = pa[i], b = pb[i];
@@ -1484,7 +1494,8 @@ public static class EdoSannoShaRebuild
                     //   既存の `PanelRun` の流儀(全邸で同じ)。表裏2枚で `_kf`/`_kb` と名づく。
                     var outw = new Vector2(dir.y, -dir.x);
                     var beds = new List<GameObject>(); foreach (Transform c in Group("Dodome")) if (c.gameObject.activeInHierarchy) beds.Add(c.gameObject);
-                    var lst = EdoBuild.PanelRun(grp, a, b, outw, name, EdoAssets.Eg.Itabei5, Vector2.zero, -1, beds: beds);
+                    // ⭐ 座の無い run(地表なり)は描かれた地表の弦に張る(EdoBuild.SeatPanelOnBed・EDO-0437 第5巡)── Stage4 は皮(Stage9)の後に流す
+                    var lst = EdoBuild.PanelRun(grp, a, b, outw, name, EdoAssets.Eg.Itabei5, Vector2.zero, -1, beds: beds, bedAt: hasSeat ? null : drawnBed);
                     made += lst.Count;
                 }
             }
@@ -1823,9 +1834,20 @@ public static class EdoSannoShaRebuild
                         float gy = SurfaceY(e);
                         //   届く先は走りの長さまで(相手の駒の外面が端より先に在れば延ばす ── `Ita_ZSE` の西の端は女坂の袖まで 3.4m)
                         float h = EdoBuild.ReachToBodies(from, outRun, near, halfT, gy, gy + hgt, back + len);
-                        if (float.IsNaN(h)) continue;
+                        string how = "相手の駒の外面から離れ";
+                        if (float.IsNaN(h))
+                        {
+                            // ⭐ 塀の高さに相手の面が無い(相手の天端が塀の足元より低い)端は、**法肩の線**が相手の駒に突き当たる所から
+                            //   離れ(0.25 間)手前で打ち切る(2026-09-26・EDO-0437 第5巡・指図 Ita_ZSE の西の端)。法肩の線(塀の線から法尻へ
+                            //   離れだけ戻した線)に沿って、地表から 2m 下までの帯で相手の駒の面を光線で測る(面で測る・紙の点で打ち切らない)。
+                            //   塀は相手へ向けて下りず、相手に触れない。当たる先: 切土の法の法肩に建てる板塀・柵の端が石段の袖・土留めに届く所。
+                            Vector2 fromS = from - nc * clr; float gs = SurfaceY(fromS + outRun * back);
+                            h = EdoBuild.ReachToBodies(fromS, outRun, near, 0f, gs - 2.0f, gs + 0.05f, back + len);
+                            if (float.IsNaN(h)) continue;
+                            how = "法肩の線が相手の駒に突き当たる所から";
+                        }
                         Vector2 ne = from + outRun * (h - clr);
-                        sb.AppendLine("    " + name + ": " + (atB ? "終わり" : "始まり") + "の端を相手の駒の外面から離れ " + clr.ToString("F3") + "m へ取り直す(" +
+                        sb.AppendLine("    " + name + ": " + (atB ? "終わり" : "始まり") + "の端を" + how + " " + clr.ToString("F3") + "m へ取り直す(" +
                                       (Vector2.Dot(ne - e, outRun) >= 0 ? "延ばす " : "詰める ") + Vector2.Distance(ne, e).ToString("F3") + "m)");
                         if (atB) nb = ne; else na = ne;
                     }
@@ -3303,12 +3325,13 @@ public static class EdoSannoShaRebuild
                 .Add("Grade", "1 整地", Stage1_Grade)
                 .Add("Kaidan", "2 石段", Stage2_Kaidan, new[] { "Grade" }, at("Sando"))
                 .Add("Dodome", "3 土留め", Stage3_Dodome, new[] { "Grade", "Kaidan" }, at("Dodome"))
-                .Add("Kakoi", "4 囲い", Stage4_Kakoi, new[] { "Grade", "Kaidan", "Dodome" }, at("Kakoi"))
                 .Add("Mon", "5 門・鳥居", Stage5_MonTorii, new[] { "Grade", "Kaidan", "Dodome" }, at("Keidai/Mon"))
                 .Add("Fumiishi", "5b 踏石・踏み止め", Stage5b_Fumiishi, new[] { "Kaidan", "Dodome", "Mon" }, at("Keidai/Fumiishi"))
                 .Add("Shaden", "6 社殿", Stage6_Shaden, new[] { "Grade" }, at("Keidai/Shaden"))
                 .Add("Ido", "8 井戸", Stage8_Ido, new[] { "Grade" }, at("Keidai/Ido"))
-                .Add("Hifu", "9 縁の皮", Stage9_Hifu, new[] { "Grade", "Kaidan", "Dodome", "Mon", "Fumiishi" });
+                .Add("Hifu", "9 縁の皮", Stage9_Hifu, new[] { "Grade", "Kaidan", "Dodome", "Mon", "Fumiishi" })
+                // ⭐ 囲いは皮の後(2026-09-26・EDO-0437 第5巡)── 座の無い板塀は描かれた地表(皮)に据わる。皮は囲いを部材に数えない。
+                .Add("Kakoi", "4 囲い", Stage4_Kakoi, new[] { "Grade", "Kaidan", "Dodome", "Hifu" }, at("Kakoi"));
         }
     }
 

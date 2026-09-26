@@ -70,6 +70,8 @@ public static partial class EdoBuild
         public float fillMax; public Vector3 fillAt;
         public float maxLower, maxRaise; public Vector3 lowerAt, raiseAt;
         public int detCells, trees, sealed_, backSealed;
+        /// <summary>見え面の前へ出る皮の辺を下げた点・下げた量の最大(<see cref="CutEdgeSkin"/> の「3b」・2026-09-26 EDO-0437 第5巡)。</summary>
+        public int faceDropped; public float faceDropMax; public Vector3 faceDropAt;
         /// <summary>digParts の背を下げた点の数・下げた量の最大(天端を段の線に置いた袖 ── 施主 2026-09-25)。</summary>
         public int dug; public float digMax; public Vector3 digAt;
         public int gapPts, gapN, gapBySkin, gapBig, coverPts, coverN;
@@ -90,6 +92,7 @@ public static partial class EdoBuild
                    " / 裏込め(部材の底まで盛る)" + filled + " 点・最大 " + fillMax.ToString("F2") + "m @(" + fillAt.x.ToString("F1") + ", " + fillAt.z.ToString("F1") + ")" +
                    "・地形の木の升は穴を開けず被せた " + fillLostTree + " 升" +
                    " / 面の高さの皮で部材の底まで塞いだ " + sealed_ + " 点・背の土を駒の底まで上げた " + backSealed + " 点" +
+                   " / 見え面の前へ出る皮の辺を下げた " + faceDropped + " 点" + (faceDropped > 0 ? "・最大 " + faceDropMax.ToString("F2") + "m @(" + faceDropAt.x.ToString("F1") + ", " + faceDropAt.z.ToString("F1") + ")" : "") +
                    (dug > 0 ? " / 背を下げた(天端 − 0.05 から法)" + dug + " 点・最大 " + digMax.ToString("F2") + "m @(" + digAt.x.ToString("F1") + ", " + digAt.z.ToString("F1") + ")" : "") +
                    " / 元の地形から 下げ 最大 " + maxLower.ToString("F2") + "m @(" + lowerAt.x.ToString("F1") + ", " + lowerAt.z.ToString("F1") + ")・上げ 最大 " + maxRaise.ToString("F2") + "m @(" + raiseAt.x.ToString("F1") + ", " + raiseAt.z.ToString("F1") + ")" +
                    " / 芝を消した 1m 升 " + detCells + " / 皮が 0.05m を超えて動いた所の地形の木 " + trees + " 本" +
@@ -179,6 +182,8 @@ public static partial class EdoBuild
         const float B = 1f;
         public readonly List<Vector2[]> hulls = new List<Vector2[]>();
         public readonly List<string> names = new List<string>();
+        /// <summary>外形ごとの部材(見え面の向きを測る ── <see cref="WallFace"/>)。</summary>
+        public readonly List<GameObject> gos = new List<GameObject>();
         public readonly List<Vector4> bounds = new List<Vector4>();   // 外形の外接矩形 (x0, z0, x1, z1)
         static long K(int i, int j) { return ((long)i << 32) ^ (uint)j; }
         /// <summary>天端の帯で篩う駒(土留め)。⭐ その駒の上向きの面は、周り <see cref="CREST_R"/> の同じ駒の最も高い上向きの面から
@@ -196,7 +201,7 @@ public static partial class EdoBuild
         public void AddTris(GameObject g, string name, List<Vector3[]> ts, Vector2[] hull, bool crestBand)
         {
             if (ts == null || ts.Count == 0 || hull == null || hull.Length < 3) return;
-            int k = hulls.Count; hulls.Add(hull); names.Add(name); banded.Add(crestBand);
+            int k = hulls.Count; hulls.Add(hull); names.Add(name); banded.Add(crestBand); gos.Add(g);
             { float a0 = float.MaxValue, a1 = float.MinValue, b0 = float.MaxValue, b1 = float.MinValue;
               foreach (var q in hull) { a0 = Mathf.Min(a0, q.x); a1 = Mathf.Max(a1, q.x); b0 = Mathf.Min(b0, q.y); b1 = Mathf.Max(b1, q.y); }
               bounds.Add(new Vector4(a0, b0, a1, b1)); }
@@ -282,6 +287,32 @@ public static partial class EdoBuild
                             float yy = hi - lo < 1e-5f ? Mathf.Min(p0.y, p1.y) : Mathf.Lerp(p0.y, p1.y, Mathf.Clamp01((uq - u0) / (u1 - u0)));
                             if (float.IsNaN(best) || yy < best) best = yy;
                         }
+                    }
+                }
+            return best;
+        }
+        /// <summary>**光線を部材の三角形へ打つ**(<paramref name="o"/> から <paramref name="d"/> へ <paramref name="maxDist"/> 以内の最初の当たりの距離・無ければ NaN)。
+        /// 升の索引で引くので短い光線は速い(2026-09-26・EDO-0437 第5巡 ── 皮の辺が見え面の前へ出るかを測る)。<paramref name="only"/> ≥ 0 ならその駒だけ。</summary>
+        public float Ray(Vector3 o, Vector3 d, float maxDist, int only = -1)
+        {
+            d.Normalize(); Vector3 e = o + d * maxDist; float best = float.NaN;
+            int i0 = Mathf.FloorToInt(Mathf.Min(o.x, e.x) / B), i1 = Mathf.FloorToInt(Mathf.Max(o.x, e.x) / B);
+            int j0 = Mathf.FloorToInt(Mathf.Min(o.z, e.z) / B), j1 = Mathf.FloorToInt(Mathf.Max(o.z, e.z) / B);
+            HashSet<int> seen = (i0 == i1 && j0 == j1) ? null : new HashSet<int>();
+            for (int i = i0; i <= i1; i++)
+                for (int j = j0; j <= j1; j++)
+                {
+                    List<int> l; if (!hash.TryGetValue(K(i, j), out l)) continue;
+                    foreach (var id in l)
+                    {
+                        if ((only >= 0 && owner[id] != only) || (seen != null && !seen.Add(id))) continue;
+                        var t = tris[id];
+                        Vector3 e1 = t[1] - t[0], e2 = t[2] - t[0];
+                        Vector3 pv = Vector3.Cross(d, e2); float det = Vector3.Dot(e1, pv); if (Mathf.Abs(det) < 1e-9f) continue;
+                        float inv = 1f / det; Vector3 tv = o - t[0]; float u = Vector3.Dot(tv, pv) * inv; if (u < 0f || u > 1f) continue;
+                        Vector3 qv = Vector3.Cross(tv, e1); float v = Vector3.Dot(d, qv) * inv; if (v < 0f || u + v > 1f) continue;
+                        float dist = Vector3.Dot(e2, qv) * inv;
+                        if (dist >= 0f && dist <= maxDist && (float.IsNaN(best) || dist < best)) best = dist;
                     }
                 }
             return best;
@@ -1112,6 +1143,85 @@ public static partial class EdoBuild
                         if (hgt - orig > r.maxRaise) { r.maxRaise = hgt - orig; r.raiseAt = new Vector3(x, hgt, z); }
                     }
             }
+        // ---- 3b 見え面の前へ皮を出さない(硬い・許容0 ── 2026-09-26 EDO-0437 第5巡)
+        //   皮の格子(0.25)の点は、土留めの外形の中では天端の下(cap)へ納まり、隣の外の点は足元の地盤 ── その間の三角形は法の見え面と
+        //   ほぼ同じ傾きで張り、野面の石の出入り(±0.07〜0.2)と目地から土の帯として覗いた(前庭の東の縁 z≈854.8〜855.1 で見え面の前に
+        //   13.64〜14.32 の土・足元の土の山)。⇒ 天端の帯で篩う駒の外形の中の点から、**見え面の側の低い隣の点**への辺
+        //   (メッシュの辺 = 4 方向と対角 (+1,+1)/(−1,−1))を 5 点で測り、見え面の向きの水平の光線が 0.6m の内に部材の面へ当たらない
+        //   (= 石の中でも石の後ろでもなく、見え面の前の空に在る)なら、その点を 0.05 ずつ下げる。下限 = その辺の低い端の高さと、その点の
+        //   部材の底(外形の中で皮が駒の底を割らない)の高い方。下げた点の奥の辺も測り直す(最大 8 巡)。
+        //   ⛔ 上げない。⛔ 外形の外の点(足元の地盤)は触らない ── 足元の高さは設計の地盤と面が決める。⛔ 背の側(見え面と逆)の辺は測らない
+        //   (背の土は天端の側 ── 面の高さ)。当たる先: CutEdgeSkin を通る全邸の、天端の帯で篩う土留め・石垣(crestBandParts)の見え面の前。
+        if (bandSet != null && bandSet.Count > 0)
+        {
+            var nbr = new[] { new Vector2Int(1, 0), new Vector2Int(-1, 0), new Vector2Int(0, 1), new Vector2Int(0, -1), new Vector2Int(1, 1), new Vector2Int(-1, -1) };
+            var faceOf = new Dictionary<int, Vector2>();
+            var cand = new List<long>(); var candWho = new Dictionary<long, int>();
+            foreach (var kv in H)
+            {
+                if (PIN.Contains(kv.Key)) continue;
+                int gi = (int)(kv.Key >> 32), gj = (int)(uint)(kv.Key & 0xffffffff);
+                float x = org.x + gi * step, z = org.z + gj * step;
+                if (NearPart(gi, gj) != 2) continue;
+                int who; float tr = idx.TopRaw(x, z, out who);
+                if (float.IsNaN(tr) || who < 0 || !idx.banded[who]) continue;
+                if (!faceOf.ContainsKey(who)) { Vector2 fv = Vector2.zero; try { fv = WallFace(idx.gos[who]); } catch (Exception) { } faceOf[who] = fv; }
+                if (faceOf[who].sqrMagnitude < 0.5f) continue;
+                cand.Add(kv.Key); candWho[kv.Key] = who;
+            }
+            Func<long, Vector3> PosOf = kk => { int gi = (int)(kk >> 32), gj = (int)(uint)(kk & 0xffffffff); return new Vector3(org.x + gi * step, H[kk], org.z + gj * step); };
+            // 辺 k(高さ hk)→ k2 が見え面の前の空を通るか
+            //   ⭐ 法の面の上の点(天端の帯の外 = faceTop)は点そのもの(t = 0)も測る ── 面の多角形が見え面の前まで張り出していると、
+            //   皮は面の高さ(Floor)で法の石の上に被り(前庭の東の縁の北端 z≈863: 石の頭 14.37 の上に皮 14.44)、辺の途中の点は石の中に入る。
+            //   ⛔ 天端の帯の点では t = 0 を測らない(天端の背の面の点が天端の石の上を抜けて「見える」と読まれ、背に溝を掘る)。
+            Func<long, float, long, Vector2, bool> Exposed = (kk, hk, k2, fv) =>
+            {
+                var P = PosOf(kk); P.y = hk; var Q = PosOf(k2); if (hk - Q.y <= 0.02f) return false;
+                Vector3 f3 = new Vector3(fv.x, 0f, fv.y);
+                int gi0 = (int)(kk >> 32), gj0 = (int)(uint)(kk & 0xffffffff);
+                bool onFace = !float.IsNaN(TopL(gi0, gj0)) && faceTop.Contains(kk);
+                if (onFace && float.IsNaN(idx.Ray(P, f3, 0.6f))) return true;
+                foreach (float tt in new[] { 0.1f, 0.3f, 0.5f, 0.7f, 0.9f })
+                {
+                    var q = Vector3.Lerp(P, Q, tt); if (q.y <= Q.y + 0.01f) continue;
+                    if (float.IsNaN(idx.Ray(q, f3, 0.6f))) return true;
+                }
+                return false;
+            };
+            for (int pass = 0; pass < 8; pass++)
+            {
+                int changed = 0;
+                foreach (var kk in cand)
+                {
+                    int gi = (int)(kk >> 32), gj = (int)(uint)(kk & 0xffffffff);
+                    var fv = faceOf[candWho[kk]]; float hk = H[kk];
+                    float lo = float.NaN; var front = new List<long>();
+                    foreach (var o2 in nbr)
+                    {
+                        long k2 = CK(gi + o2.x, gj + o2.y); float h2;
+                        if (!H.TryGetValue(k2, out h2) || h2 >= hk - 0.02f) continue;
+                        if (Vector2.Dot(new Vector2(o2.x, o2.y).normalized, fv) < 0.3f) continue;   // 見え面の側だけ
+                        front.Add(k2); if (float.IsNaN(lo) || h2 > lo) lo = h2;
+                    }
+                    if (front.Count == 0) continue;
+                    float bl = BotL(gi, gj); float floor = float.IsNaN(bl) ? lo : Mathf.Max(lo, Mathf.Min(bl, hk));
+                    float nh = hk;
+                    while (nh > floor + 1e-4f)
+                    {
+                        bool any = false; foreach (var k2 in front) if (Exposed(kk, nh, k2, fv)) { any = true; break; }
+                        if (!any) break;
+                        nh = Mathf.Max(floor, nh - 0.05f);
+                    }
+                    if (nh < hk - 1e-4f)
+                    {
+                        H[kk] = nh; changed++;
+                        if (hk - nh > r.faceDropMax) { r.faceDropMax = hk - nh; r.faceDropAt = new Vector3(org.x + gi * step, nh, org.z + gj * step); }
+                    }
+                }
+                r.faceDropped += changed;
+                if (changed == 0) break;
+            }
+        }
         r.pinned = PIN.Count;
 
         // ---- 4 メッシュ

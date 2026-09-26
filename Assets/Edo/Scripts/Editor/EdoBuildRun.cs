@@ -623,7 +623,8 @@ public static partial class EdoBuild
     /// (例: 竹矢来 <see cref="EdoAssets.Own.Typ.Takeyarai"/>)。既定(true / ES)は今までどおり
     /// 片面ポリゴンの ES 倍 obj(穂垣・板塀)— 既存の呼び手はバイト等価で不変(EDO-0363)。</para></remarks>
     public static List<GameObject> PanelRun(Transform parent, Vector2 A, Vector2 B, Vector2 outward, string prefix,
-        string assetPath, Vector2 gapC, float gapHalf, bool pair = true, float unitScale = ES, IList<GameObject> beds = null)
+        string assetPath, Vector2 gapC, float gapHalf, bool pair = true, float unitScale = ES, IList<GameObject> beds = null,
+        Func<float, float, float> bedAt = null)
     {
         var made = new List<GameObject>();
         Vector2 dir = (B - A).normalized; float len = (B - A).magnitude;
@@ -632,6 +633,33 @@ public static partial class EdoBuild
         float spanES = spanLocal * unitScale;
         if (spanES < 0.5f) spanES = 7.49f;
         int n = Mathf.Max(1, Mathf.RoundToInt(len / (spanES - 0.15f)));
+        // ⭐ 床の起伏で割る(bedAt を渡した run・2026-09-26・EDO-0437 第5巡): 駒ごとに足の線の床の高さから最小二乗の弦を引き、
+        //   弦からの外れの幅(上 + 下)が根入れ 0.10 を超える駒があれば、駒の数を増やす(硬い条件: 足の浮き 0 ── 弦に張って触れる所で
+        //   据え、根入れだけ沈めたとき、浮きは 外れの幅 − 根入れ)。下限の長さ = 部材の長さの 0.4(柱の間が詰まり過ぎない)。
+        //   割っても収まらない駒は ⚠(呼び手が刷る)── 床の落ち(法の縁・袖の際)は割り方でなく走りの端の決め方の話。
+        if (bedAt != null)
+        {
+            int nMax = Mathf.Max(n, Mathf.FloorToInt(len / (spanES * 0.4f)));
+            for (int nn = n; nn <= nMax; nn++)
+            {
+                n = nn; float pt = len / nn; bool ok = true;
+                for (int k = 0; k < nn && ok; k++)
+                {
+                    double qx = 0, qy = 0, qxx = 0, qxy = 0; int cnt = 0; var ys = new List<Vector2>();
+                    for (float u = 0.05f; u <= pt - 0.05f + 1e-4f; u += 0.1f)
+                    {
+                        Vector2 q = A + dir * (pt * k + u); float y = bedAt(q.x, q.y); if (float.IsNaN(y)) continue;
+                        qx += u; qy += y; qxx += u * u; qxy += u * y; cnt++; ys.Add(new Vector2(u, y));
+                    }
+                    double den = cnt * qxx - qx * qx; if (cnt < 3 || Math.Abs(den) < 1e-9) continue;
+                    double sl = (cnt * qxy - qx * qy) / den, ic = (qy - sl * qx) / cnt;
+                    float lo = float.MaxValue, hi = float.MinValue;
+                    foreach (var v in ys) { float r = v.y - (float)(ic + sl * v.x); lo = Mathf.Min(lo, r); hi = Mathf.Max(hi, r); }
+                    if (hi - lo > 0.10f) ok = false;
+                }
+                if (ok) break;
+            }
+        }
         float pitch = len / n;
         float sx = pitch / spanLocal;
         float psi = Mathf.Atan2(outward.x, outward.y) * Mathf.Rad2Deg;
@@ -657,7 +685,8 @@ public static partial class EdoBuild
                 float mn, mx;
                 ButtOnRun(go, A, dir, outward, side == 0 ? 0.0f : -0.12f, startAbs, out mn, out mx);
                 if (side == 0) { prevEnd = mx; chained = true; }
-                try { SeatOnGround(go, 0.10f, 600); } catch (Exception) { SeatBottom(go, baseY - 0.10f); }
+                if (bedAt != null) SeatPanelOnBed(go, A, dir, mn, mx, bedAt, 0.10f);
+                else { try { SeatOnGround(go, 0.10f, 600); } catch (Exception) { SeatBottom(go, baseY - 0.10f); } }
                 // ⭐ 足の下に土留め・石垣の駒が居れば、その天端の**触れている箇所**に載せる(2026-09-26・EDO-0437 第3巡)──
                 //   地面(土留めの天端の下へ納めた皮)で据えると足が天端の石の中へ 0.24m 沈み、石が板へ 0.6m 入った(山王 前庭の北 Ita_ZN・Ita_ZNE)。
                 //   上げるだけ(地面へは沈めたまま)。当たる先: 板塀・穂垣の run が土留め・石垣の天端の上を通る所すべて。
@@ -666,6 +695,46 @@ public static partial class EdoBuild
             }
         }
         return made;
+    }
+
+    /// <summary>**板塀の駒を描かれた地表の弦に張って据える**(2026-09-26・EDO-0437 第5巡)。駒の走り [<paramref name="mn"/>, <paramref name="mx"/>]
+    /// (<paramref name="dir"/> への射影)の足の線に沿う床の高さ <paramref name="bedAt"/> の最小二乗の直線(弦)の勾配だけ走りの向きに傾け、実メッシュの**触れている箇所**
+    /// (<see cref="ContactOn"/>)を床に合わせてから根入れ <paramref name="root"/> だけ沈める。
+    /// ⭐ 床は描かれた地表(縁の皮の升では皮 ── <see cref="Drawn"/>)で引く。⛔ 穴の升の下の見えない地形で据えない
+    /// (切土の法肩の板塀 `Ita_ZSE` が 6.2m 一枚を水平のまま地形で据えられ、柱の足が 0.18 浮き 0.21 埋まった)。
+    /// 当たる先: 座の無い板塀・穂垣の run が傾いた地表に建つ所すべて(座の在る run は従来どおり)。</summary>
+    public static void SeatPanelOnBed(GameObject go, Vector2 A, Vector2 dir, float mn, float mx, Func<float, float, float> bedAt, float root)
+    {
+        float a0 = Vector2.Dot(A, dir);
+        // 弦 = 駒の足の線(駒の外形の奥行の中ほど)に沿って 0.1m ごとに引いた床の高さの最小二乗の直線 ──
+        //   両端の二点だけで引くと、端が法の縁・袖の際の落ちに掛かって弦が逆へ傾いた(第5巡の実測 3.6°)
+        var rb = RB(go); Vector2 cen = new Vector2(rb.center.x, rb.center.z);
+        Vector2 nrm = new Vector2(-dir.y, dir.x); float lat = Vector2.Dot(cen - A, nrm);
+        double sx = 0, sy = 0, sxx = 0, sxy = 0; int cnt = 0;
+        for (float u = mn + 0.05f; u <= mx - 0.05f + 1e-4f; u += 0.1f)
+        {
+            Vector2 q = A + dir * (u - a0) + nrm * lat; float y = bedAt(q.x, q.y); if (float.IsNaN(y)) continue;
+            float t = u - mn; sx += t; sy += y; sxx += t * t; sxy += t * y; cnt++;
+        }
+        double den = cnt * sxx - sx * sx;
+        if (cnt >= 3 && Math.Abs(den) > 1e-9 && mx - mn > 0.1f)
+        {
+            float slope = (float)((cnt * sxy - sx * sy) / den);
+            float roll = Mathf.Atan(slope) * Mathf.Rad2Deg;
+            if (Mathf.Abs(roll) > 0.05f)
+            {
+                Vector3 d3 = new Vector3(dir.x, 0f, dir.y); Vector3 ax = Vector3.Cross(d3, Vector3.up);
+                var c = RB(go).center;
+                go.transform.RotateAround(c, ax, roll);
+                // 傾けると走りの端が cos だけ縮む ── 始まりの端を元の mn へ戻す
+                float nmn, nmx; ProjExtent(go, dir, float.MinValue, float.MaxValue, null, out nmn, out nmx);
+                go.transform.position += d3 * (mn - nmn);
+            }
+        }
+        Vector3 at; int n;
+        float gap = ContactOn(go, bedAt, out at, out n, 0.01f, 4000);
+        if (float.IsNaN(gap)) { try { SeatOnGround(go, root, 600); } catch (Exception) { } return; }
+        go.transform.position -= new Vector3(0f, gap + root, 0f);
     }
 
     /// <summary>**駒の足の下に在る受けの駒(土留め・石垣)の天端に載せる**(2026-09-26・EDO-0437 第3巡)。<paramref name="beds"/> のうち

@@ -49,3 +49,4 @@
 - [野面の尻すぼみと勾配の駒の crest](nozura-taper-back-and-shear-crest.md) — 剪断で背の丸みの面が篩に掛かり G− だけ ⛔・芯を天端の帯へ(2026-09-26)
 - [板塀を板と柱に分けた・材 itabei は obj のサブアセット](itabei-split-and-obj-subasset-material.md) — itabei5=1スパン×5。remap は Eg.Itabei5 を借り先に足す(2026-09-26)
 - [recalc が折れた塊を裏返す・天端の穴の検査](recalc-normals-inverts-folded-stone.md) — 符号付き体積で外向きを保証・-- holes で裏当たりを数える(2026-09-26)
+- [袖が隅の法の足に当たるのは袖の膝](sode-knee-vs-kado-arm.md) — 「要る腕 0」は見え面の前の袖の誤読。袖の背の法を底まで通す(2026-09-26)

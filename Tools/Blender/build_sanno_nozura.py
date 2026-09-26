@@ -103,7 +103,7 @@
   法は 1:0.3(焼いた野面の前の包絡を段ごとに測っても 0.3 で平行・+0.065〜0.08 の出)。
   `Sanno_Nozura_Nori<P|M>_L<長さmm>_H<見付mm>_a`: 入隅の可動側の短い駒。天端の線で長さ L・切る端は e·X ≤ L/2 + 0.3·(Y − 見付)。
     反対の端は直線の駒の継ぎ目と同じ。⛔ 伸縮させない(法が変わる)⇒ 0.05 刻みで焼く。
-  `IshidanSodeNozuraNori_<蹴上>_<踏面>_E±e_<a|b>`: 野面の袖の背(−Z)を Z = −踏面/2 − e − 0.3·(Y − Yc) で切る(膝 −0.60 より下は鉛直)。
+  `IshidanSodeNozuraNori_<蹴上>_<踏面>_E±e_<a|b>`: 野面の袖の背(−Z)を Z = −踏面/2 − e − 0.3·(Y − Yc) で切る(法は袖の底まで通す ── 2026-09-26 まで膝 −0.60 より下は鉛直で、相手の法の足が背を貫いた)。
     e > 0 は坂上へ次の個体を継いでから切る。切石の袖の `IshidanSodeNori`(build_sanno_buzai・1:0.25)と同じ e・Yc の取り方。
 """
 import bpy, bmesh, sys, os, math, random
@@ -1680,7 +1680,10 @@ def read_nkiri_list(path):
 
 # ------------------------------------------------------------------ 相手の法で切る駒(2026-09-26 EDO-0437 第3巡)
 NNORI = BATTER            # 相手(野面の土留め・隅の駒)の面の法 = 3分。焼いた駒の前の包絡も 0.3(+0.065〜0.08 の出)で平行
-NNORI_KNEE = -0.60        # 袖の背の法はこの高さ(袖の局所 Y)から上。下は鉛直(地中 ── 石段の袖の `sode_nori` と同じ)
+NNORI_KNEE = None         # 袖の背の法は袖の底まで通す(鉛直の膝を持たない ── 2026-09-26 EDO-0437)。
+#   旧 −0.60(膝より下は鉛直)では、相手の法の足(床の下 0.2 まで前へ出る)が膝の下の鉛直の背を貫いた
+#   (前庭の北東 TW_Zentei_N_kado2 × 参道の階の東の袖 001f・0.035〜0.040・8方向の光線で中)。膝より上の形は変わらない。
+NNORI_KNEE_OLD = -0.60   # 旧の膝。これより上は旧と同じ形 ⇒ 検算で「旧の膝で駒が残る」を見る
 NNORI_SODE_E = [-0.25, -0.20, -0.15, -0.10, -0.05, 0.00, 0.05]   # 背の出 e(0.05 刻み)。−0.30 は膝の下が痩せ切る
 
 
@@ -1868,7 +1871,7 @@ def sode_nnori_yc(keri):
 
 def make_sode_nnori(keri, fumi, e, v, knee=NNORI_KNEE):
     """野面の袖 `make_sode(keri, fumi, v)` の坂上の端(背・−Z)を**相手(出隅の駒・土留め)の法 1:0.3** と平行な面で切る。
-    背の面: Z = −踏面/2 − e − NNORI·(Y − Yc)(Yc = `sode_nnori_yc`)── 上ほど坂上へ出る。knee より下は鉛直(Z = 膝での値)。
+    背の面: Z = −踏面/2 − e − NNORI·(Y − Yc)(Yc = `sode_nnori_yc`)── 上ほど坂上へ出る。knee = None(既定)は袖の底まで法で切る / 数を渡すとそれより下は鉛直(Z = 膝での値)。
     e > 0 は平らな駒より坂上へ出る(坂上に次の個体を継いで伸ばす ⇒ 天端・割りは一続き)/ e < 0 は詰める。"""
     V.reset()
     o0, _, _ = make_sode(keri, fumi, v, fresh=False)
@@ -1879,14 +1882,20 @@ def make_sode_nnori(keri, fumi, e, v, knee=NNORI_KNEE):
     name = sode_nnori_name(keri, fumi, e, v)
     whole = V.join([o0, o1], name)
     yc = sode_nnori_yc(keri)
-    zk = -fumi / 2.0 - e - NNORI * (knee - yc)           # 膝での背の Z(Unity)
-    # 部品 1: 膝の鉛直面より坂下(Unity Z ≥ zk ⇔ Blender Y ≤ −zk)
-    p2 = whole.copy(); p2.data = whole.data.copy(); bpy.context.scene.collection.objects.link(p2)
-    n1 = bm_cut_keep(whole, (0.0, -zk, 0.0), (0.0, 1.0, 0.0))
-    # 部品 2: 膝より坂上(Unity Z ≤ zk)で、背の法の面より坂下(Unity Z ≥ −f/2 − e − NNORI·(Y − Yc))── 膝より上だけが残る
-    n2 = bm_cut_keep(p2, (0.0, -zk, 0.0), (0.0, -1.0, 0.0))
-    n3 = bm_cut_keep(p2, (0.0, fumi / 2.0 + e, yc), (0.0, 1.0, -NNORI))
-    o = V.join([whole, p2], name)
+    if knee is None:
+        # 背の法の面より坂下(Unity Z ≥ −f/2 − e − NNORI·(Y − Yc))だけを残す ── 袖の底まで法で切る(相手の法の足を貫かない)
+        n1 = n2 = 0
+        n3 = bm_cut_keep(whole, (0.0, fumi / 2.0 + e, yc), (0.0, 1.0, -NNORI))
+        o = whole
+    else:
+        zk = -fumi / 2.0 - e - NNORI * (knee - yc)           # 膝での背の Z(Unity)
+        # 部品 1: 膝の鉛直面より坂下(Unity Z ≥ zk ⇔ Blender Y ≤ −zk)
+        p2 = whole.copy(); p2.data = whole.data.copy(); bpy.context.scene.collection.objects.link(p2)
+        n1 = bm_cut_keep(whole, (0.0, -zk, 0.0), (0.0, 1.0, 0.0))
+        # 部品 2: 膝より坂上(Unity Z ≤ zk)で、背の法の面より坂下(Unity Z ≥ −f/2 − e − NNORI·(Y − Yc))── 膝より上だけが残る
+        n2 = bm_cut_keep(p2, (0.0, -zk, 0.0), (0.0, -1.0, 0.0))
+        n3 = bm_cut_keep(p2, (0.0, fumi / 2.0 + e, yc), (0.0, 1.0, -NNORI))
+        o = V.join([whole, p2], name)
     o.name = name; o.data.name = name
     # ⛔ 石は X = ±0.30 の面を越えない(`make_sode` と同じ)
     for vt in o.data.vertices:
@@ -1900,10 +1909,11 @@ def check_sode_nnori(o, keri, fumi, e, knee=NNORI_KNEE):
     ok = []
     U = [(-vv.co.x, vv.co.z, -vv.co.y) for vv in o.data.vertices]
     yc = sode_nnori_yc(keri)
-    zb = lambda y: -fumi / 2.0 - e - NNORI * (max(y, knee) - yc)
+    kn = -99.0 if knee is None else knee
+    zb = lambda y: -fumi / 2.0 - e - NNORI * (max(y, kn) - yc)
     worst = max(zb(y) - z for x, y, z in U)
     ok.append(("背の法の面より坂上に頂点が無い", worst < 1e-4, "最大 %.5f" % worst))
-    onb = [(y, z) for x, y, z in U if abs(z - zb(y)) < 1e-4 and y > knee + 0.05]
+    onb = [(y, z) for x, y, z in U if abs(z - zb(y)) < 1e-4 and y > kn + 0.05]
     ok.append(("背の法の面に頂点が乗る(膝より上)", len(onb) >= 8, "%d 点" % len(onb)))
     if len(onb) >= 2:
         my = sum(p[0] for p in onb) / len(onb); mz = sum(p[1] for p in onb) / len(onb)
@@ -1914,8 +1924,14 @@ def check_sode_nnori(o, keri, fumi, e, knee=NNORI_KNEE):
     top = lambda z: SODE_HT + (fumi / 2.0 - z) * keri / fumi
     over = max(y - top(z) for x, y, z in U)
     ok.append(("天端が段鼻の線 +0.30 の斜めの一直線を越えない(≤ 0.005 ── 平らな野面の袖も 0.0015 出る)", over <= 0.005, "超過 %.5f" % over))
-    kept_knee = fumi / 2.0 - (-fumi / 2.0 - e - NNORI * (knee - yc))
-    ok.append(("膝の下に駒が残る(> 0.02)", kept_knee > 0.02, "%.3f" % kept_knee))
+    ko = NNORI_KNEE_OLD if knee is None else knee
+    kept_knee = fumi / 2.0 - (-fumi / 2.0 - e - NNORI * (ko - yc))
+    ok.append(("膝(%.2f)の高さに駒が残る(> 0.02)" % ko, kept_knee > 0.02, "%.3f" % kept_knee))
+    if knee is None:
+        # 背の法を底まで通す ⇒ 袖はこの高さで痩せ切る(相手の法の足の前へ出ない)。旧の膝より下であること(膝より上の見えは旧と同じ)
+        y_end = yc - (fumi + e) / NNORI
+        ymin = min(y for x, y, z in U)
+        ok.append(("痩せ切る高さ %.3f が旧の膝 %.2f より下" % (y_end, NNORI_KNEE_OLD), y_end < NNORI_KNEE_OLD, "底 %.3f" % ymin))
     loose = len(o.data.vertices) - len({i for p in o.data.polygons for i in p.vertices})
     ok.append(("孤立頂点なし", loose == 0, "%d" % loose))
     mats_ = sorted({m.name for m in o.data.materials})
